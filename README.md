@@ -46,7 +46,7 @@ Platforms and requirements:
 | `x86_64-unknown-linux-gnu` | glibc 2.28 or newer; a Vulkan or GL driver (Mesa works, including llvmpipe); X11 or Wayland |
 | `aarch64-unknown-linux-gnu` | as above, on 64-bit Arm |
 | `x86_64-pc-windows-gnu` | Windows 10 or newer, DX12 or Vulkan |
-| macOS | not yet provided as a binary: build from source on a Mac (`cargo build --release -p rce-ide -p rce-mcp`) |
+| `aarch64-apple-darwin` | macOS on Apple silicon; Metal. Ad-hoc signed, not notarized: clear quarantine with `xattr -d com.apple.quarantine rce*` or allow in Privacy and Security |
 
 Notes:
 

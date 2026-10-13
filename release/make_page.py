@@ -4,7 +4,7 @@ md = open('RELEASE.md').read().split('\n')
 def inline(t): return re.sub(r'`([^`]+)`', r'<code>\1</code>', html.escape(t))
 h = ['<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>RCE IDE 0.1.0 (draft)</title>',
      '<style>body{font:16px/1.5 system-ui,sans-serif;max-width:52rem;margin:2rem auto;padding:0 1rem;color:#1b1d22}table{border-collapse:collapse;width:100%}td,th{border-bottom:1px solid #ddd;padding:.4rem;text-align:left;vertical-align:top}code{font-size:.85em;word-break:break-all}.draft{background:#fff4d6;padding:.5rem 1rem;border-radius:6px}</style></head><body>',
-     '<p class="draft">Draft. Not published. Download links point to files next to this page.</p>']
+     '<p class="draft">Release notes for v0.1.0. Download links point to files next to this page; the same files are on GitHub Releases.</p>']
 ul = tb = False
 def close():
     global ul, tb

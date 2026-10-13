@@ -1,3 +1,6 @@
+// The ACP client runs outside agents only inside the native jail, which is
+// Linux-only (Landlock + seccomp); elsewhere it refuses by design.
+#![cfg(target_os = "linux")]
 //! acp-client against the mock ACP agent binary, with the real rce-mcp.
 use acp_client::{AcpClient, AcpConfig, client::AcpError, g4::AcpG4};
 use ide_receipt::{

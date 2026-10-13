@@ -6,7 +6,7 @@ V=0.1.0
 OUT=release/dist
 rm -rf "$OUT"; mkdir -p "$OUT"
 python3 release/third_party.py > release/THIRD-PARTY-LICENSES.txt
-for T in x86_64-unknown-linux-gnu aarch64-unknown-linux-gnu x86_64-pc-windows-gnu; do
+for T in x86_64-unknown-linux-gnu aarch64-unknown-linux-gnu aarch64-apple-darwin x86_64-pc-windows-gnu; do
   B=target/$T/release
   E=""; case $T in *windows*) E=.exe;; esac
   [ -f "$B/rce-ide$E" ] || { echo "skip $T (not built)"; continue; }

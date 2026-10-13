@@ -37,6 +37,8 @@ fn start(extra: &[&str]) -> Srv {
         .args(["--no-memory", "--http", "127.0.0.1:0", "--token-file"])
         .arg(&tf)
         .args(extra)
+        // The HTTP self-jail is Linux-only; elsewhere HTTP mode needs an explicit opt-out.
+        .args(if cfg!(target_os = "linux") { &[][..] } else { &["--no-jail"][..] })
         .stdin(Stdio::null())
         .stderr(Stdio::piped())
         .spawn()
@@ -271,6 +273,7 @@ fn an_idle_connection_does_not_block_other_clients() {
     drop(idle);
 }
 
+#[cfg(target_os = "linux")]
 #[test]
 fn http_mode_jails_itself_and_refuses_undeclared_hosts() {
     let t = tempfile::tempdir().unwrap();
