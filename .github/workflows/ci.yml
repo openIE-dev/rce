@@ -1,0 +1,32 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  listings:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fetch the RCE reference checker
+        run: git clone --depth 1 https://github.com/openIE-dev/rce "$RUNNER_TEMP/rce"
+      - name: Build rce
+        working-directory: ${{ runner.temp }}/rce/spec/checker
+        run: |
+          rustup show
+          cargo build --release
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Check every listing
+        run: RCE="$RUNNER_TEMP/rce/spec/checker/target/release/rce" scripts/check-listings.sh
+
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install mdBook
+        run: cargo install mdbook --locked
+      - name: Build the book
+        run: mdbook build

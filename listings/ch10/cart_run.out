@@ -1,0 +1,6 @@
+0 (initial) Cart { items = [] }; Stats { adds = 0, removes = 0 }
+1 AddItem(name: "a") Cart { items = ["a"] }; Stats { adds = 1, removes = 0 }
+2 AddItem(name: "b") Cart { items = ["a", "b"] }; Stats { adds = 2, removes = 0 }
+3 AddItem(name: "c") Cart { items = ["a", "b", "c"] }; Stats { adds = 3, removes = 0 }
+4 AddItem(name: "d") refused: CartFull
+exit status: 1

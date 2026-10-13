@@ -1,0 +1,3 @@
+ok ../shop/pricing.rce
+REFUSED private_call.rce: line 4: W-VIS-1 `round_down` is private to module `shop.pricing`
+exit status: 1

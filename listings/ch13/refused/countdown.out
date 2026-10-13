@@ -1,0 +1,2 @@
+REFUSED countdown.rce: line 4: W-REC-1 `countdown` calls itself on an argument that is not a constructor field of a parameter it matched (only structural recursion is admitted)
+exit status: 1
