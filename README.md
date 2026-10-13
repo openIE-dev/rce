@@ -69,7 +69,7 @@ admits the program.
 
 ## License
 
-Copyright (c) 2026 OpenIE. Licensed under either of Apache License 2.0
+Copyright (c) 2026 Open Interface Engineering, Inc. Licensed under either of Apache License 2.0
 (LICENSE-APACHE) or MIT (LICENSE-MIT), at your option. The vendored photon
 library is MPL-2.0 (source shipped as `photon-source-mpl-2.0.tar.gz`), and
 webpki-roots is CDLA-Permissive-2.0; see release/LICENSE-STATUS.md.

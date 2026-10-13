@@ -1,7 +1,7 @@
 # License status
 
 - rce-ide and the RCE reference checker (`rce-spec-check`, linked into every
-  binary): MIT OR Apache-2.0, Copyright (c) 2026 OpenIE. Texts: LICENSE-MIT,
+  binary): MIT OR Apache-2.0, Copyright (c) 2026 Open Interface Engineering, Inc. Texts: LICENSE-MIT,
   LICENSE-APACHE; notice: COPYRIGHT. Every crate declares
   `license = "MIT OR Apache-2.0"`.
 - photon (vendored UI view-model library): MPL-2.0. Its full source ships as

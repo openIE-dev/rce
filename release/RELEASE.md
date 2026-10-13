@@ -38,4 +38,4 @@ macOS: built and smoke-tested on an Apple M5 Max (macOS 27), ad-hoc signed, not 
 
 ## Licenses
 
-rce-ide and the RCE checker: MIT OR Apache-2.0, Copyright (c) 2026 OpenIE. The vendored photon library is MPL-2.0; its full source is the `photon-source-mpl-2.0.tar.gz` download above and https://github.com/openIE-dev/rce-ide/tree/main/vendor/photon. webpki-roots is CDLA-Permissive-2.0 (notice included). Other dependencies are permissive; see THIRD-PARTY-LICENSES.txt.
+rce-ide and the RCE checker: MIT OR Apache-2.0, Copyright (c) 2026 Open Interface Engineering, Inc. The vendored photon library is MPL-2.0; its full source is the `photon-source-mpl-2.0.tar.gz` download above and https://github.com/openIE-dev/rce-ide/tree/main/vendor/photon. webpki-roots is CDLA-Permissive-2.0 (notice included). Other dependencies are permissive; see THIRD-PARTY-LICENSES.txt.
