@@ -1,0 +1,7 @@
+fn f()
+    with deadline 3
+        pass
+    else
+        pass
+    else
+        pass

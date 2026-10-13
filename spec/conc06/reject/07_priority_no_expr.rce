@@ -1,0 +1,2 @@
+fn f(c: chan i64)
+    spawn f(c) priority

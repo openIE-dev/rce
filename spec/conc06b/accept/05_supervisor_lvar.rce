@@ -1,0 +1,18 @@
+event Tick(n: i64)
+
+actor Counter
+    n: i64 = 0
+    on Tick(n: k)
+        n += k
+
+actor Logger
+    seen: i64 = 0
+    on Tick(n: k)
+        seen += 1
+
+supervisor Root strategy one_for_one
+    child counter: Counter restart bound 3
+    child logger: Logger
+
+fn seen(s: lvar Set[i64]) -> bool
+    true

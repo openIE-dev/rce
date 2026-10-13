@@ -1,0 +1,9 @@
+# expect: W-PAR-1
+fn f() -> usize
+    var xs: List[i64] = []
+    par
+        branch x
+            xs.push(1)
+        branch y
+            xs.push(2)
+    xs.len()

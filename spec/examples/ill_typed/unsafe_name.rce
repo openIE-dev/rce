@@ -1,0 +1,3 @@
+fn f() -> i64
+    let unsafe = 1
+    return unsafe

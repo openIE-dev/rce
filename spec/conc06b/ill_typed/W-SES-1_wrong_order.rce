@@ -1,0 +1,8 @@
+# expect: W-SES-1
+protocol Ask
+    send text
+    recv i64
+
+fn client(c: session Ask)
+    let v = <- c
+    c <- "q"

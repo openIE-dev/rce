@@ -1,0 +1,9 @@
+# expect: W-GRP-3
+fn f(x: [f64; 4]) -> f64
+    var t: f64 = 0.0
+    with device d bound 64
+        with group g lanes 4
+            var tile: [f64; 4] = [0.0; 4]
+            tile[g.lane] = x[g.lane]
+            t += tile[3]
+    t

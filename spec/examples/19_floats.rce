@@ -1,0 +1,12 @@
+error Empty
+
+fn mean(xs: &[f64]) -> f64 ! Empty
+    if xs.len() == 0
+        fail Empty
+    var s = 0.0
+    for x in xs
+        s += x
+    return s / xs.len() as f64
+
+const AVOGADRO: f64 = 6.02214076e23
+const EPS = 1e-9

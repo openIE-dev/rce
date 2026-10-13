@@ -1,0 +1,5 @@
+# expect: W-PAR-2
+fn main()
+    par
+        branch x
+            emit 1

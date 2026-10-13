@@ -1,0 +1,12 @@
+# expect: W-CRDT-1
+struct Last
+    v: i64
+
+impl Merge for Last
+    fn merge(self, other: Last) -> Last
+        other
+    fn bottom() -> Last
+        Last(v: 0)
+
+const A: Last = Last(v: 1)
+const B: Last = Last(v: 2)

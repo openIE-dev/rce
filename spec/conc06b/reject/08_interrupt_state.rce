@@ -1,0 +1,2 @@
+interrupt state S
+    n: i64 = 0

@@ -1,0 +1,7 @@
+# expect: W-SES-2
+protocol P
+    send text
+    recv i64
+
+fn client(c: session P)
+    c <- "x"

@@ -1,0 +1,9 @@
+# expect: W-NODE-1
+event E
+actor A
+    n: i64 = 0
+    on E
+        n += 1
+
+node east { A }
+node west { A }

@@ -1,0 +1,6 @@
+# expect: W-TY-1
+protocol P
+    send i64
+
+fn client(c: session P)
+    c <- "text"

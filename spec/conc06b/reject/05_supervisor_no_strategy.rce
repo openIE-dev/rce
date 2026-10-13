@@ -1,0 +1,2 @@
+supervisor S
+    child a: A

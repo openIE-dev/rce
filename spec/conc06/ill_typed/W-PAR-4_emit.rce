@@ -1,0 +1,4 @@
+# expect: W-PAR-4
+fn main()
+    for x in 0..3 par
+        emit x

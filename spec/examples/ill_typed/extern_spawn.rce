@@ -1,0 +1,4 @@
+extern "C" fn c_work(n: u32) -> u32
+
+fn main()
+    spawn c_work(3)

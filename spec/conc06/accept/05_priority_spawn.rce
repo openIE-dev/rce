@@ -1,0 +1,8 @@
+fn worker(c: chan i64)
+    c <- 1
+
+fn main()
+    let c = chan[i64](4)
+    spawn worker(c) priority 2
+    spawn worker(c)
+    emit <- c

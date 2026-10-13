@@ -1,0 +1,3 @@
+# expect: W-CRDT-1
+fn f(x: lvar text) -> bool
+    true

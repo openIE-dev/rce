@@ -1,0 +1,9 @@
+# expect: W-GRP-2
+fn f(x: [f64; 4]) -> f64
+    var t: f64 = 0.0
+    with device d bound 64
+        with group g lanes 4
+            if g.lane == 0
+                barrier
+            t += x[g.lane]
+    t

@@ -1,0 +1,6 @@
+# expect: W-TY-1
+fn f() -> i64
+    var n: i64 = 0
+    with budget "lots"
+        n += 1
+    n

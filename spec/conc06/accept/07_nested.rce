@@ -1,0 +1,12 @@
+fn nested(xs: &[i64]) -> i64
+    var a: i64 = 0
+    var b: i64 = 0
+    par
+        branch one
+            for x in xs par
+                a += x
+        branch two
+            par
+                branch inner
+                    b = 1
+    a + b

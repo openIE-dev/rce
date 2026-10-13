@@ -1,0 +1,8 @@
+# expect: W-SES-1
+protocol P
+    choose
+        Yes
+        No
+
+fn client(c: session P)
+    c.choose(Maybe)

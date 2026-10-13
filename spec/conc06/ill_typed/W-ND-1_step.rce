@@ -1,0 +1,10 @@
+# expect: W-ND-1
+state S
+    n: i64 = 0
+event E
+step S on E
+    n += 1
+fn f() -> i64
+    select nondet
+        default -> pass
+    0

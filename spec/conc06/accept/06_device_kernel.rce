@@ -1,0 +1,6 @@
+fn saxpy(a: f64, x: [f64; 4], y: [f64; 4]) -> [f64; 4]
+    var out: [f64; 4] = [0.0; 4]
+    with device d bound 256
+        for i in 0..4 par
+            out[i] = a * x[i] + y[i]
+    out

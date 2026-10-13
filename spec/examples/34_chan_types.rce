@@ -1,0 +1,9 @@
+type Pipe = chan (u64, text)
+type Handler = fn(u64) -> bool
+type Result2 = i64 ! Overflow
+
+fn worker(input: chan (u64, text), output: chan u64)
+    loop bound 1_000_000
+        match <- input
+            some((id, _)) -> output <- id
+            none -> return

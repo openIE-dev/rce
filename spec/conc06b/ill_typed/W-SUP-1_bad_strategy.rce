@@ -1,0 +1,9 @@
+# expect: W-SUP-1
+event E
+actor A
+    n: i64 = 0
+    on E
+        n += 1
+
+supervisor S strategy all_for_none
+    child a: A

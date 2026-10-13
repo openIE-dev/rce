@@ -1,0 +1,7 @@
+fn shout(s: &text) -> text = s.strip().upper() + "!"
+
+fn is_palindrome(s: &text) -> bool
+    let t = [c for c in s.lower().chars() if c.isalpha()]
+    return t == t.reverse()
+
+fn escapes() -> text = "tab\t newline\n quote\" snow \u{2603}"

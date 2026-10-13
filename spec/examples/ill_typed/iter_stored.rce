@@ -1,0 +1,6 @@
+fn evens() -> iter u64
+    yield 0
+
+fn f() -> u64
+    let it = evens()
+    return 0

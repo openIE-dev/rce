@@ -1,0 +1,11 @@
+fn worker(c: chan i64)
+    c <- 1
+
+fn main()
+    let c = chan[i64](4)
+    scope
+        spawn worker(c) -> h1
+        spawn worker(c) priority 1 -> h2
+    atomic
+        c <- 2
+        c <- 3

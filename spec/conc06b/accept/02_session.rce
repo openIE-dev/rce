@@ -1,0 +1,27 @@
+protocol Lookup
+    send text
+    offer
+        Found
+            recv i64
+        Missing
+    loop
+        choose
+            More
+                send text
+                recv i64
+            Done
+                break
+
+fn client(c: session Lookup)
+    c <- "key"
+    match c.offer()
+        Found
+            let v = <- c
+            emit v
+        Missing -> pass
+    loop bound 3
+        c.choose(More)
+        c <- "next"
+        let w = <- c
+        emit w
+    c.choose(Done)

@@ -1,0 +1,6 @@
+fn relay(a: chan i64, b: chan i64)
+    loop bound 10
+        select nondet
+            recv v from a -> emit v
+            recv w from b -> emit w
+            after 3 -> break

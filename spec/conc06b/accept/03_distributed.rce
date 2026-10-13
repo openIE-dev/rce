@@ -1,0 +1,18 @@
+replicated state Ledger
+    total: i64 = 0
+
+interrupt event Alarm(code: u8) priority 7
+event Deposit(amount: i64)
+
+step Ledger on Deposit(amount: a) deadline 100
+    total += a
+
+step Ledger on Alarm(code: c)
+    pass
+
+actor Counter
+    n: i64 = 0
+    on Deposit(amount: a)
+        n += a
+
+node east { Counter }

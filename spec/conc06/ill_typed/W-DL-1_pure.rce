@@ -1,0 +1,6 @@
+# expect: W-DL-1
+fn f() -> i64
+    var n: i64 = 0
+    with deadline 3
+        n += 1
+    n

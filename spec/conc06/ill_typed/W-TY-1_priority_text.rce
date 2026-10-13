@@ -1,0 +1,6 @@
+# expect: W-TY-1
+fn w(c: chan i64)
+    c <- 1
+fn main()
+    let c = chan[i64](1)
+    spawn w(c) priority "high"

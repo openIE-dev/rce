@@ -1,0 +1,41 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  spec:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: spec/checker
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install the pinned Rust toolchain
+        run: rustup show
+      - name: Build
+        run: cargo build --release
+      - name: Check the specification and examples
+        run: cargo run --release --bin rce-spec-check
+      - name: Check the book is in sync
+        run: cargo run --release --bin rce-book -- build --check
+      - name: Tests
+        run: cargo test --release
+      - name: Tests with the draft 0.6 concurrency feature
+        run: cargo test --release --features conc06
+      - name: Clippy
+        run: cargo clippy --release --all-targets
+
+  tree-sitter:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: spec/checker
+    steps:
+      - uses: actions/checkout@v4
+      - run: rustup show
+      - name: Install the tree-sitter CLI
+        run: cargo install tree-sitter-cli --version 0.27.1 --locked
+      - name: Three-parser check
+        run: cargo run --release --features tree-sitter --bin rce-spec-check

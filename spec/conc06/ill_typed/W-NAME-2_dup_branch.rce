@@ -1,0 +1,7 @@
+# expect: W-NAME-2
+fn f()
+    par
+        branch x
+            pass
+        branch x
+            pass

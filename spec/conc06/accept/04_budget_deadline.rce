@@ -1,0 +1,9 @@
+fn guarded(c: chan i64)
+    var n: i64 = 0
+    with budget 5000
+        n += 1
+    with deadline 4
+        let v = <- c
+        emit v
+    else
+        emit 0

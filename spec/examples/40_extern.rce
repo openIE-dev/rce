@@ -1,0 +1,7 @@
+# A foreign function: C ABI, scalar results, borrowed buffers only.
+# Only main and task functions may call it; its results enter the log.
+extern "C" fn crc32(data: &[u8], seed: u32) -> u32
+
+fn main()
+    let bytes: List[u8] = [1, 2, 3]
+    emit crc32(&bytes, 0)

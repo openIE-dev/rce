@@ -1,0 +1,6 @@
+# expect: W-ATOM-1
+fn main()
+    let c = chan[i64](2)
+    atomic
+        c <- 1
+        let v = <- c

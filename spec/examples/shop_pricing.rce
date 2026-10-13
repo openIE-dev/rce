@@ -1,0 +1,3 @@
+module shop.pricing
+
+pub fn discount(total: i64, percent: i64) -> i64 = total - total * percent / 100

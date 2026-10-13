@@ -1,0 +1,24 @@
+{
+ "seed": 1007,
+ "done": 12500,
+ "stats": {
+  "programs": 12500,
+  "lalr parsed": 12500,
+  "earley: exactly one parse": 12500,
+  "rce-check accepted": 12500,
+  "near-misses (rule mutants)": 64588,
+  "  refused: RET": 21922,
+  "  refused: STEP": 14462,
+  "near-misses (syntax mutants)": 49054,
+  "  refused by grammar and rce-check: bad_indent": 11554,
+  "  refused by grammar and rce-check: keyword_as_name": 12500,
+  "  refused by grammar and rce-check: missing_arrow": 12500,
+  "  refused by grammar and rce-check: unclosed_paren": 12500,
+  "  refused: DUP": 6399,
+  "  refused: NAME": 6231,
+  "  refused: ARM": 2038,
+  "  refused: VAR": 10369,
+  "  refused: ASG": 3167
+ },
+ "failures": 0
+}

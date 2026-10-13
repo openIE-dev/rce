@@ -1,0 +1,17 @@
+fn main()
+    var a: i64 = 0
+    var b: i64 = 0
+    par
+        branch left
+            a = 20
+        branch right
+            b = 22
+    var s: i64 = 0
+    for i in 0..10 par
+        s += i
+    var out: [usize; 4] = [0; 4]
+    for i in 0..4 par
+        out[i] = i * i
+    emit a + b
+    emit s
+    emit out

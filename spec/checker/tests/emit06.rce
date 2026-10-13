@@ -1,0 +1,75 @@
+fn par_two() -> i64
+    var a: i64 = 0
+    var b: i64 = 0
+    par
+        branch left
+            a = 20
+        branch right
+            b = 22
+    a + b
+
+fn sum_ints() -> i64
+    var s: i64 = 5
+    for i in 0..37 par
+        s += i * i
+    s
+
+fn sum_floats() -> f64
+    var s: f64 = 0.25
+    for i in 0..23 par
+        s += 1.0 / (i as f64 + 0.3)
+    s
+
+fn mixed_ops() -> (i64, i64, u8)
+    var p: i64 = 1
+    var x: i64 = 0
+    var m: u8 = 255
+    for i in 1..9 par
+        p *= i
+        x ^= i * 7
+        m &= 200 + (i as u8)
+    (p, x, m)
+
+fn slots() -> [usize; 6]
+    var out: [usize; 6] = [0; 6]
+    for i in 0..6 par
+        out[i] = i * i + 1
+    out
+
+fn nested() -> i64
+    var a: i64 = 0
+    var b: i64 = 0
+    par
+        branch one
+            for x in [3, 4, 5] par
+                a += x
+        branch two
+            par
+                branch inner
+                    b = 1
+    a + b
+
+fn overflow() -> u8
+    var s: u8 = 250
+    for i in 0..4 par
+        s += 2
+    s
+
+fn float_mul() -> f64
+    var p: f64 = 1.5
+    for x in [1.1, 2.2, 3.3, 0.7, 1.9] par
+        p *= x
+    p
+
+fn scans() -> (List[i64], List[i64], List[f64])
+    let xs = [3, 1, 4, 1, 5, 9, 2, 6]
+    let e = xs.pscan(fn(a: i64, b: i64) => a + b, 0)
+    let i = xs.pscan_incl(fn(a: i64, b: i64) => a * b, 1)
+    let fs = [0.1, 0.2, 0.3, 0.4, 0.5].pscan(fn(a: f64, b: f64) => a + b, 0.0)
+    (e, i, fs)
+
+fn empty_loop() -> i64
+    var s: i64 = 7
+    for i in 0..0 par
+        s += i
+    s

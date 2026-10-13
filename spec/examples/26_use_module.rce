@@ -1,0 +1,10 @@
+module shop.orders
+use std.text
+use std.collections as col
+use shop.pricing
+
+pub struct Order
+    id: u64
+    total: i64 = 0
+
+pub fn new_order(id: u64) -> Order = Order(id: id)

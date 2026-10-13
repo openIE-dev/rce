@@ -1,0 +1,18 @@
+trait Describe
+    fn describe(&self) -> text
+
+trait Container
+    type Item
+    fn get(&self, i: usize) -> Self.Item?
+    fn len(&self) -> usize
+
+struct Point
+    x: i64
+    y: i64
+
+impl Describe for Point
+    fn describe(&self) -> text = "(" + self.x.tostr() + ", " + self.y.tostr() + ")"
+
+impl Point
+    fn origin() -> Point = Point(x: 0, y: 0)
+    fn moved(self, dx: i64) -> Point = Point(x: self.x + dx, y: self.y)

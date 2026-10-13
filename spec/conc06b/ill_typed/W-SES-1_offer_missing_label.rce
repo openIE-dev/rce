@@ -1,0 +1,10 @@
+# expect: W-SES-1
+protocol P
+    offer
+        Yes
+            recv i64
+        No
+
+fn client(c: session P)
+    match c.offer()
+        No -> pass

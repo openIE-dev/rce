@@ -1,0 +1,9 @@
+# expect: W-PAR-1
+fn f() -> i64
+    var a: i64 = 0
+    par
+        branch x
+            a = 1
+        branch y
+            a = 2
+    a

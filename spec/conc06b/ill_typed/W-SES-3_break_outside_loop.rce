@@ -1,0 +1,7 @@
+# expect: W-SES-3
+protocol P
+    send i64
+    break
+
+fn client(c: session P)
+    c <- 1

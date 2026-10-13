@@ -1,0 +1,7 @@
+fn word_lengths(s: &text) -> List[u32]
+    var out: List[u32] = []
+    with arena scratch
+        let ws: List[text] @scratch = s.words()
+        for w in ws
+            out.append(w.len() as u32)
+    return out

@@ -1,0 +1,3 @@
+fn f(xs: &[i64])
+    for x in xs par par
+        pass
