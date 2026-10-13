@@ -24,8 +24,10 @@ Three ideas run through the whole book:
 
 ## Status
 
-The language is at **draft 0.5** of its specification. That draft is
-published for review and can still change. What exists today:
+The specification is at **draft 0.6**. That draft is published for review
+and can still change. This book teaches language version 0.5, the language
+of sections 2 to 10; a module opts into version 0.6 (Appendix C of the
+specification) with the first-line comment `# rce-version: 0.6`. What exists today:
 
 - the specification, with its grammar checked by machine;
 - a reference checker and interpreter, `rce`, which this book uses for every

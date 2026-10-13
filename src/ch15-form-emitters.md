@@ -13,7 +13,11 @@ $ rce emit form counter.rce
 
 You can see the state `Counter` with its starting value, the events, the
 error `Underflow`, the two steps, and a log for each `example`, with the
-state after every event. The JSON is ordered in a fixed way, so the same
+state after every event. Each log entry also carries `seq`, its position,
+`state_hash`, the SHA-256 of the state after the event, `prev_hash`, the
+`hash` of the entry before it (64 zeros for the first), and `hash`, which
+covers the other four. The entries form a chain: changing any past entry
+changes every later `hash`. The JSON is ordered in a fixed way, so the same
 program always gives the same bytes. The event `Tick` marked `builtin` is
 part of every Form: it is the program's logical clock. No RCE construct
 reads a wall clock.
