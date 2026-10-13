@@ -1,3 +1,4 @@
+# rce-version: 0.6
 # expect: W-LVAR-1
 fn f() -> i64
     let x = lvar_new(0)

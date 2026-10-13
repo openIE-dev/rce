@@ -1,3 +1,4 @@
+# rce-version: 0.6
 # expect: W-PAR-1
 fn f() -> usize
     var xs: List[i64] = []

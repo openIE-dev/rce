@@ -1,3 +1,4 @@
+# rce-version: 0.6
 # expect: W-CRDT-1
 struct Last
     v: i64

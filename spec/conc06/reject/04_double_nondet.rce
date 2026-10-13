@@ -1,3 +1,4 @@
+# rce-version: 0.6
 fn f(c: chan i64)
     select nondet nondet
         default -> pass

@@ -592,7 +592,7 @@ impl<'a> Interp<'a> {
                 Ok(V::Map(m))
             }
             E::ChanNew(t, cap, line) => self.chan_new(t, cap.as_deref(), *line),
-            E::Call(f, args, _) => self.call(f, args),
+            E::Call(f, args, _, sz) => self.call(f, args, *sz),
             E::Index(x, idx, _) => {
                 let c = self.eval(x)?;
                 let i = self.eval(&idx[0])?;
@@ -1085,7 +1085,7 @@ impl<'a> Interp<'a> {
         Ok(Some(V::Rec(n.to_string(), out)))
     }
 
-    fn call(&mut self, f: &Expr, args: &[Arg]) -> R<V> {
+    fn call(&mut self, f: &Expr, args: &[Arg], sized: bool) -> R<V> {
         match f {
             Expr::Name(n, _) if self.get(n).is_none() => {
                 match n.as_str() {
@@ -1132,7 +1132,7 @@ impl<'a> Interp<'a> {
                 {
                     return self.call_fn(fd, args, Some((recv, obj)));
                 }
-                self.builtin(obj, recv, m, args)
+                self.builtin(obj, recv, m, args, sized)
             }
             _ => {
                 let fv = self.eval(f)?;
@@ -1255,7 +1255,7 @@ impl<'a> Interp<'a> {
 }
 
 impl<'a> Interp<'a> {
-    fn builtin(&mut self, obj: &Expr, recv: V, m: &str, args: &[Arg]) -> R<V> {
+    fn builtin(&mut self, obj: &Expr, recv: V, m: &str, args: &[Arg], sized: bool) -> R<V> {
         if let Some(v) = self.conc_builtin_pre(&recv, m, args)? {
             return Ok(v);
         }
@@ -1265,7 +1265,12 @@ impl<'a> Interp<'a> {
             a.push(self.eval(&x.e)?);
         }
         let _ = lazy_fn;
-        self.charge(crate::conc::C_CALL.saturating_add(crate::conc::method_work(&recv, m, &a)))?;
+        // C.6.4, C.15: size-scaled work when the call expression is in a
+        // version 0.7 module; c_call alone in 0.5 and 0.6. The version of
+        // the module containing the call governs, not the caller's or the
+        // program's.
+        let work = if sized { crate::conc::method_work(&recv, m, &a) } else { 0 };
+        self.charge(crate::conc::C_CALL.saturating_add(work))?;
         if let Some(v) = self.conc_builtin(obj, &recv, m, &a)? {
             return Ok(v);
         }

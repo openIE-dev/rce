@@ -1,3 +1,4 @@
+# rce-version: 0.6
 # expect: W-PAR-3
 fn f(xs: &[i64]) -> i64
     var s: i64 = 0

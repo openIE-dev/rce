@@ -1,6 +1,6 @@
 //! Draft 0.6b static rules (Appendix C, book/14-draft06-concurrency.md C.11): every program in
 //! `spec/conc06b/accept/` is admitted, every one in `ill_typed/` is refused
-//! with the rule named on its first line, and `reject/` does not parse.
+//! with the rule named on its `# expect:` line, and `reject/` does not parse.
 #![cfg(feature = "conc06")]
 use rce_spec_check::check_program;
 use std::path::{Path, PathBuf};
@@ -36,7 +36,7 @@ fn ill_typed_programs_refused_by_rule() {
     assert!(fs.len() >= 21);
     let mut rules = std::collections::BTreeSet::new();
     for (n, s) in fs {
-        let want = s.lines().next().unwrap().trim_start_matches("# expect: ").trim().to_string();
+        let want = s.lines().find(|l| l.starts_with("# expect: ")).unwrap().trim_start_matches("# expect: ").trim().to_string();
         let r = check_program(&[(n.clone(), s)], false);
         match &r[0].1 {
             Ok(()) => panic!("{n} accepted, expected {want}"),

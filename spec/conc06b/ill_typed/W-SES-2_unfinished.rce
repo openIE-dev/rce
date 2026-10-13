@@ -1,3 +1,4 @@
+# rce-version: 0.6
 # expect: W-SES-2
 protocol P
     send text

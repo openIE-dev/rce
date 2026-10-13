@@ -516,6 +516,7 @@ impl<'a> G<'a> {
                 Box::new(Expr::Name("$par_reset".into(), 0)),
                 vec![Arg { label: None, e: Expr::Name(n.clone(), 0) }, Arg { label: None, e: Expr::Name(ik.clone(), 0) }],
                 0,
+                false,
             )));
         }
         nb.extend(b.iter().cloned());
@@ -524,6 +525,7 @@ impl<'a> G<'a> {
                 Box::new(Expr::Name("$par_collect".into(), 0)),
                 vec![Arg { label: None, e: Expr::Name(ck.clone(), 0) }, Arg { label: None, e: Expr::Name(n.clone(), 0) }],
                 0,
+                false,
             )));
         }
         let lp = Stmt::For(p.clone(), Expr::Name(chunk_name.clone(), 0), nb, *line);
@@ -871,7 +873,7 @@ fn has_wait(b: &[Stmt]) -> bool {
     crate::check::walk_stmts(b, &mut |s| {
         for e in crate::check::stmt_exprs(s) {
             crate::check::walk_expr(e, &mut |x| {
-                if let Expr::Call(c, _, _) = x
+                if let Expr::Call(c, _, _, _) = x
                     && matches!(&**c, Expr::Member(_, m, _) if m == "wait")
                 {
                     w = true;
@@ -898,7 +900,7 @@ fn written_roots(b: &[Stmt]) -> Vec<String> {
                         out.insert(r);
                     }
                 }
-                Expr::Call(c, _, _) => {
+                Expr::Call(c, _, _, _) => {
                     if let Expr::Member(o, m, _) = &**c
                         && crate::check::mutating_method(m)
                         && let Some(r) = crate::check::place_root(o)

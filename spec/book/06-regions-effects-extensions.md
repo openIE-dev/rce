@@ -191,10 +191,11 @@ that are not events (a `select nondet` choice, a foreign result) are
 logged, so replay is deterministic (T1, T21). A capability that is not in
 this list cannot be added by a library, because the library is closed.
 
-**Cost semantics.** Each standard library call costs `c_call` plus the
-work of its complexity class on the sizes of its receiver and argument
-(C.6.4); see C.6 for the budget rules.
+**Cost semantics.** Each standard library call costs `c_call`; in a
+version 0.7 module it costs in addition the work of its complexity class
+on the sizes of its receiver and argument (C.6.4, C.15); see C.6 for the
+budget rules.
 
 **Read receipt.** What kind of channel does a capacity of 0 give? (one word)
 
-<!-- body-sha256: b83bfe6846b399f4757df883b39da654eca2443adfb0b4518e72515b5225cb73 -->
+<!-- body-sha256: 0f0c4a2a2457da4a9dcedda9d940d7375ed0318aa79b79ec9ab38d8a37a6640a -->

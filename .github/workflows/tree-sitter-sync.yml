@@ -1,0 +1,28 @@
+name: tree-sitter sync
+
+# The reference checker tests with the tree-sitter CLI installed, including
+# tree_sitter_sync (the tree-sitter grammar against the Rust parser under
+# the version rule of spec 2.7). CI=true makes that test fail instead of
+# skipping when the CLI is missing.
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  checker:
+    runs-on: ubuntu-latest
+    env:
+      CI: "true"
+    defaults:
+      run:
+        working-directory: spec/checker
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install the pinned Rust toolchain
+        run: rustup show
+      - name: Install the tree-sitter CLI
+        run: cargo install --locked tree-sitter-cli --version 0.27.1
+      - run: cargo test --release
+      - run: cargo test --release --features conc06
+      - run: cargo test --release --features tree-sitter

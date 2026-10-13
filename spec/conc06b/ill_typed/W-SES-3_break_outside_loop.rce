@@ -1,3 +1,4 @@
+# rce-version: 0.6
 # expect: W-SES-3
 protocol P
     send i64

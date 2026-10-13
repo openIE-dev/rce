@@ -2,7 +2,9 @@
 //! sizes of its receiver and first argument, by complexity class. The
 //! budget boundary is the same operation in the reference evaluator and
 //! in every emitted runtime (Rust, Python, JavaScript), and the cost is
-//! monotone in input size.
+//! monotone in input size. Size-scaled work is the 0.7 semantics (C.13);
+//! a version 0.6 module charges `c_call` alone for every method, in every
+//! runtime, so a declared 0.6 program keeps its meaning.
 use rce_spec_check::conc::{C_CALL, ceil_log2, method_work, size_of};
 use rce_spec_check::interp::V;
 use rce_spec_check::cli;
@@ -31,7 +33,7 @@ fn cases() -> Vec<(String, String, i128)> {
 }
 
 fn prog(setup: &str, call: &str, b: i128) -> String {
-    format!("# rce-version: 0.6\nfn main()\n{setup}    with budget {b}\n        {call}\n    emit 1\n")
+    format!("# rce-version: 0.7\nfn main()\n{setup}    with budget {b}\n        {call}\n    emit 1\n")
 }
 
 fn trapped(out: &str) -> bool {
@@ -89,6 +91,22 @@ fn budget_boundary_is_the_table_cost_in_every_runtime() {
                 if let Some(out) = emitted(&src, &stem, t) {
                     assert_eq!(trapped(&out), trap, "{t}: `{call}` with budget {b} (cost {cost}): {out}");
                 }
+            }
+        }
+    }
+}
+
+/// Version 0.6 (C.13): every method costs `c_call`, whatever the size.
+#[test]
+fn version_06_charges_c_call_alone_in_every_runtime() {
+    let xs = "    var xs: List[i64] = [5, 3, 9, 1, 7, 2, 8, 4]\n";
+    for (b, trap) in [(C_CALL - 1, true), (C_CALL, false)] {
+        let src = prog(xs, "xs.sort()", b).replace("# rce-version: 0.7", "# rce-version: 0.6");
+        let stem = format!("v06_{b}");
+        assert_eq!(trapped(&rce_run(&src, &stem)), trap, "reference: 0.6 sort with budget {b}");
+        for t in ["rust", "python", "js"] {
+            if let Some(out) = emitted(&src, &stem, t) {
+                assert_eq!(trapped(&out), trap, "{t}: 0.6 sort with budget {b}: {out}");
             }
         }
     }

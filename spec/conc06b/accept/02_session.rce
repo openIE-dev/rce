@@ -1,3 +1,4 @@
+# rce-version: 0.6
 protocol Lookup
     send text
     offer

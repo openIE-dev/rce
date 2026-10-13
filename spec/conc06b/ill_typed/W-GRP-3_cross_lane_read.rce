@@ -1,3 +1,4 @@
+# rce-version: 0.6
 # expect: W-GRP-3
 fn f(x: [f64; 4]) -> f64
     var t: f64 = 0.0

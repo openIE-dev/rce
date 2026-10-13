@@ -1,3 +1,4 @@
+# rce-version: 0.6
 # expect: W-ATOM-1
 fn main()
     let c = chan[i64](2)

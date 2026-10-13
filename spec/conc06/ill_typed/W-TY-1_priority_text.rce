@@ -1,3 +1,4 @@
+# rce-version: 0.6
 # expect: W-TY-1
 fn w(c: chan i64)
     c <- 1

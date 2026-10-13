@@ -37,7 +37,10 @@ pub enum Expr {
     ListComp(Box<Expr>, Box<Pat>, Box<Expr>, Option<Box<Expr>>, usize),
     Map(Vec<(Expr, Expr)>, usize),
     ChanNew(Ty, Option<Box<Expr>>, usize),
-    Call(Box<Expr>, Vec<Arg>, usize),
+    /// callee, arguments, line, and whether the call site is in a version 0.7
+    /// module (C.15: the declared version of the module containing the call
+    /// expression governs the cost of a standard library method call)
+    Call(Box<Expr>, Vec<Arg>, usize, bool),
     Index(Box<Expr>, Vec<Expr>, usize),
     Slice(Box<Expr>, Option<Box<Expr>>, Option<Box<Expr>>, usize),
     Member(Box<Expr>, String, usize),
@@ -74,7 +77,7 @@ impl Expr {
             | ListComp(_, _, _, _, l)
             | Map(_, l)
             | ChanNew(_, _, l)
-            | Call(_, _, l)
+            | Call(_, _, l, _)
             | Index(_, _, l)
             | Slice(_, _, _, l)
             | Member(_, _, l)
@@ -353,4 +356,7 @@ pub struct Module {
     pub pubs: std::collections::BTreeSet<String>,
     /// language version 0.6 (spec 2.7); false for a 0.5 module
     pub draft06: bool,
+    /// language version 0.7 (spec 2.7, C.13): 0.6 plus size-scaled method
+    /// costs (C.6.4); implies `draft06`
+    pub v07: bool,
 }

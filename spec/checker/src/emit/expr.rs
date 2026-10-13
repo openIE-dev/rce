@@ -123,7 +123,7 @@ impl<'a> G<'a> {
             Expr::ChanNew(..) | Expr::Recv(..) => {
                 self.trap_e("channels are not available at comptime")
             }
-            Expr::Call(f, args, _) => match self.call_expr(f, args, false)? {
+            Expr::Call(f, args, _, sz) => match self.call_expr(f, args, false, *sz)? {
                 Some((v, _)) => v,
                 None => {
                     return unsupported(
@@ -482,6 +482,7 @@ impl<'a> G<'a> {
         f: &Expr,
         args: &[Arg],
         stmt: bool,
+        sized: bool,
     ) -> Result<Option<(String, Option<WriteBack>)>, String> {
         let l = self.lang;
         match f {
@@ -549,7 +550,13 @@ impl<'a> G<'a> {
                     return Ok(Some((self.h("session_choose", &[recv, q(lb)]), None)));
                 }
                 let a = self.args(args)?;
-                let call = self.h("call_method", &[recv, q(m), self.vec(&a)]);
+                // C.15: the version of the module containing this call governs its cost
+                let sized_lit = match l {
+                    Lang::Python => if sized { "True" } else { "False" },
+                    _ => if sized { "true" } else { "false" },
+                }
+                .to_string();
+                let call = self.h("call_method", &[recv, q(m), self.vec(&a), sized_lit]);
                 if MUTATING.contains(&m.as_str()) || self.mut_method_names.contains(m) {
                     if !stmt {
                         return Ok(None);
@@ -577,7 +584,7 @@ impl<'a> G<'a> {
 
     /// Whether `x` is a call that writes back (as `call_expr` decides).
     pub fn is_wb_call(&self, x: &Expr) -> bool {
-        let Expr::Call(f, _, _) = x else { return false };
+        let Expr::Call(f, _, _, _) = x else { return false };
         match &**f {
             Expr::Name(n, _) if !self.local(n) => {
                 self.fns.get(n).is_some_and(|fd| has_mut_params(fd))

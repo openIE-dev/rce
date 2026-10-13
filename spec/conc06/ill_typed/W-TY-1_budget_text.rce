@@ -1,3 +1,4 @@
+# rce-version: 0.6
 # expect: W-TY-1
 fn f() -> i64
     var n: i64 = 0

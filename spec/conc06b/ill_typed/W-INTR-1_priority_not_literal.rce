@@ -1,3 +1,4 @@
+# rce-version: 0.6
 # expect: W-INTR-1
 const P: u8 = 3
 interrupt event Alarm priority P

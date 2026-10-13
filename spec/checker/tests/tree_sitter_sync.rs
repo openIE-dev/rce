@@ -1,8 +1,12 @@
 //! The tree-sitter grammar (spec/tree-sitter) is kept in sync with the EBNF
 //! and the Rust parser: for every `.rce` file under spec/, the tree-sitter
 //! CLI parses it without error exactly when `parse::parse` accepts it.
+//! Both sides use the normative version rule of 2.7: draft 0.6 syntax
+//! only in a module declaring `# rce-version: 0.6`, an undeclared module
+//! is 0.5 (the non-normative `conc06` default is not used here).
 //! The CLI compiles the generated C parser itself; this crate stays pure
-//! Rust. When the CLI is not installed the test prints a notice and passes.
+//! Rust. When the CLI is not installed the test prints a notice and
+//! passes, except under CI (`CI` set), where a missing CLI fails it.
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
@@ -24,6 +28,7 @@ fn tree_sitter_agrees_with_rust_parser() {
     let spec = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap().to_path_buf();
     let ts = spec.join("tree-sitter");
     if Command::new("tree-sitter").arg("--version").output().is_err() {
+        assert!(std::env::var_os("CI").is_none(), "tree-sitter CLI required under CI");
         println!("tree-sitter CLI not installed: skipped");
         return;
     }
@@ -35,12 +40,14 @@ fn tree_sitter_agrees_with_rust_parser() {
     let mut n_ok = 0;
     for f in &files {
         let src = std::fs::read_to_string(f).unwrap();
-        // The tree-sitter grammar covers the draft 0.6 syntax; without the
-        // `conc06` feature the Rust parser refuses it, so compare with the
-        // gate lifted (the token-level gate is the only difference).
-        let rust_ok = match rce_spec_check::parse::lex(&src) {
-            Ok(t) => rce_spec_check::parse::Parser::new(t).module().is_ok(),
-            Err(_) => false,
+        let d06 = rce_spec_check::parse::declared_version(&src).map(|v| v == Some("0.6"));
+        let rust_ok = match (d06, rce_spec_check::parse::lex(&src)) {
+            (Ok(d06), Ok(t)) => {
+                let mut p = rce_spec_check::parse::Parser::new(t);
+                p.allow06 = d06;
+                p.module().is_ok()
+            }
+            _ => false,
         };
         let out = Command::new("tree-sitter")
             .current_dir(&ts)

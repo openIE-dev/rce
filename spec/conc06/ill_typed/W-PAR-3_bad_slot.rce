@@ -1,3 +1,4 @@
+# rce-version: 0.6
 # expect: W-PAR-3
 fn f() -> [i64; 4]
     var out: [i64; 4] = [0; 4]

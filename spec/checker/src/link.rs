@@ -140,7 +140,7 @@ pub fn link(m: &Module, all: &[&Module]) -> Linked {
     binders(m, &mut locals);
     for it in &m.items {
         each_expr(it, &mut |x| {
-            if let Expr::Call(c, _, l) = x
+            if let Expr::Call(c, _, l, _) = x
                 && let Expr::Name(n, _) = &**c
                 && origin.contains_key(n)
                 && !own.contains(n)
@@ -311,7 +311,7 @@ impl Rw<'_, '_> {
                     self.expr(x)
                 }
             }
-            Call(c, args, _) => {
+            Call(c, args, _, _) => {
                 self.expr(c);
                 args.iter_mut().for_each(|a| self.expr(&mut a.e))
             }

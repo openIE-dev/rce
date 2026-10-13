@@ -1,3 +1,4 @@
+# rce-version: 0.6
 # expect: W-NODE-1
 event E
 actor A

@@ -1,3 +1,4 @@
+# rce-version: 0.6
 event Tick(n: i64)
 
 actor Counter

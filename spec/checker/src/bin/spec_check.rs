@@ -181,7 +181,7 @@ fn main() {
             let mut l = rce_spec_check::lalr::Lalr::build(g);
             l.draft06 = true;
             println!(
-                "grammar: LALR(1) of version 0.6 (section 3 with C.2): {rules} rules, {prods} productions, {} states, {} conflicts",
+                "grammar: LALR(1) of versions 0.6 and 0.7 (section 3 with C.2): {rules} rules, {prods} productions, {} states, {} conflicts",
                 l.states,
                 l.conflicts.len()
             );

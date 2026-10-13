@@ -495,7 +495,7 @@ impl Checker {
             self.stmt(inner);
             let mut ret = T::Unit;
             walk_stmts(body, &mut |s| {
-                if let Stmt::Spawn(Expr::Call(f, _, _)) = s
+                if let Stmt::Spawn(Expr::Call(f, _, _, _)) = s
                     && let Expr::Name(n, _) = &**f
                 {
                     ret = T::Named(format!("$ret:{n}"), vec![]);
@@ -768,7 +768,7 @@ impl Checker {
                     ops.push((n.clone(), *l, "receive", None));
                 }
             }
-            Expr::Call(f, args, l) => {
+            Expr::Call(f, args, l, _) => {
                 if let Expr::Member(o, m, _) = &**f
                     && let Expr::Name(n, _) = &**o
                 {
@@ -877,7 +877,7 @@ impl Checker {
                     self.ses_expr(v, &mut env);
                     self.ses_step(&mut env, c, v.line(), "send", None);
                 }
-                Stmt::Match(Expr::Call(f, _, l), arms, line)
+                Stmt::Match(Expr::Call(f, _, l, _), arms, line)
                     if matches!(&**f, Expr::Member(o, m, _) if m == "offer" && matches!(&**o, Expr::Name(n, _) if env.contains_key(n))) =>
                 {
                     let Expr::Member(o, _, _) = &**f else { unreachable!() };
@@ -1036,7 +1036,7 @@ impl Checker {
             walk_stmts(b, &mut |s| {
                 for e in stmt_exprs(s) {
                     walk_expr(e, &mut |x| {
-                        if let Expr::Call(f, _, _) = x
+                        if let Expr::Call(f, _, _, _) = x
                             && let Expr::Member(o, m, _) = &**f
                             && let Expr::Name(n, _) = &**o
                         {

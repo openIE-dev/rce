@@ -413,7 +413,7 @@ fn has_wait(b: &[Stmt]) -> bool {
     crate::check::walk_stmts(b, &mut |s| {
         for e in crate::check::stmt_exprs(s) {
             crate::check::walk_expr(e, &mut |x| {
-                if let Expr::Call(c, _, _) = x
+                if let Expr::Call(c, _, _, _) = x
                     && matches!(&**c, Expr::Member(_, m, _) if m == "wait")
                 {
                     w = true;
@@ -1143,7 +1143,7 @@ impl<'a> Interp<'a> {
     }
 
     pub(crate) fn conc_spawn(&mut self, e: &Expr, prio: i128) -> R<String> {
-        let Expr::Call(f, args, line) = e else {
+        let Expr::Call(f, args, line, _) = e else {
             return trap("spawn needs a call");
         };
         let Expr::Name(fname, _) = &**f else {

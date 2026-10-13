@@ -1,7 +1,7 @@
 //! rce-check conformance for draft 0.6 (Appendix C, book/14-draft06-concurrency.md C.8):
 //! every program in spec/conc06/accept/ is accepted by the reference
 //! checker; every program in spec/conc06/ill_typed/ is refused and the
-//! refusal names the rule in its first line (`# expect: RULE`);
+//! refusal names the rule in its `# expect: RULE` line (after the version line);
 //! every program in spec/conc06/reject/ is refused by the Rust parser;
 //! and `08_run_main.rce` runs with the meaning of C.4.2 and C.5.2.
 #![cfg(feature = "conc06")]
@@ -36,7 +36,7 @@ fn ill_typed_programs_refused_by_rule() {
     let fs = files(&dir("ill_typed"));
     assert!(fs.len() >= 16);
     for (n, s) in fs {
-        let want = s.lines().next().unwrap().trim_start_matches("# expect: ").trim().to_string();
+        let want = s.lines().find(|l| l.starts_with("# expect: ")).unwrap().trim_start_matches("# expect: ").trim().to_string();
         let r = check_program(&[(n.clone(), s)], false);
         match &r[0].1 {
             Ok(()) => panic!("{n} accepted, expected {want}"),

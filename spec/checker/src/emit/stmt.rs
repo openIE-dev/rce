@@ -31,10 +31,10 @@ impl<'a> G<'a> {
             }
             _ => {}
         }
-        let Expr::Call(f, args, _) = e else {
+        let Expr::Call(f, args, _, sz) = e else {
             return self.ex(e);
         };
-        let Some((call, wb)) = self.call_expr(f, args, true)? else {
+        let Some((call, wb)) = self.call_expr(f, args, true, *sz)? else {
             return self.ex(e);
         };
         let Some(wb) = wb else { return Ok(call) };
@@ -259,6 +259,7 @@ impl<'a> G<'a> {
                     Arg { label: None, e: Expr::Name(ik.clone(), 0) },
                 ],
                 0,
+                false,
             )));
         }
         nb.extend(b.iter().cloned());
@@ -270,6 +271,7 @@ impl<'a> G<'a> {
                     Arg { label: None, e: Expr::Name(n.clone(), 0) },
                 ],
                 0,
+                false,
             )));
         }
         self.par_hooks = true;
@@ -418,7 +420,7 @@ impl<'a> G<'a> {
 
     pub fn stmt(&mut self, s: &Stmt, tail: bool) -> Result<(), String> {
         let l = self.lang;
-        if let Stmt::Expr(Expr::Call(f, a, _)) = s
+        if let Stmt::Expr(Expr::Call(f, a, _, _)) = s
             && let Expr::Name(h, _) = &**f
             && (h == "$par_reset" || h == "$par_collect")
             && let [Arg { e: Expr::Name(x, _), .. }, Arg { e: Expr::Name(y, _), .. }] = &a[..]

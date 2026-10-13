@@ -1,3 +1,4 @@
+# rce-version: 0.6
 fn split(xs: &[i64]) -> (i64, i64)
     var lo: i64 = 0
     var hi: i64 = 0
