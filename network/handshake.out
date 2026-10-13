@@ -1,0 +1,8 @@
+0 (initial) Conn { phase = Closed, bytes = 0 }
+1 Syn Conn { phase = SynSent, bytes = 0 }
+2 SynAck Conn { phase = SynReceived, bytes = 0 }
+3 Ack Conn { phase = Established, bytes = 0 }
+4 Data(n: 10) Conn { phase = Established, bytes = 10 }
+5 Fin Conn { phase = Closed, bytes = 10 }
+6 Data(n: 1) refused: NotConnected
+exit status: 1

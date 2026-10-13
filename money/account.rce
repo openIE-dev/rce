@@ -1,0 +1,26 @@
+# An account kept in integer cents. RCE has no decimal type, so money is
+# stored in the smallest unit (see refused/decimal.rce).
+intent "withdrawals never overdraw the account"
+    example Deposit(cents: 1000), Withdraw(cents: 250) -> 750
+    example Withdraw(cents: 1) -> refused: Insufficient
+    example Deposit(cents: 0) -> refused: NotPositive
+
+state Account
+    balance_cents: i64 = 0
+
+event Deposit(cents: i64)
+event Withdraw(cents: i64)
+
+error Insufficient(need: i64)
+error NotPositive
+
+step Account on Deposit(cents: a) if a <= 0
+    fail NotPositive
+step Account on Deposit(cents: a)
+    balance_cents += a
+step Account on Withdraw(cents: a) if a <= 0
+    fail NotPositive
+step Account on Withdraw(cents: a)
+    if a > balance_cents
+        fail Insufficient(need: a - balance_cents)
+    balance_cents -= a

@@ -1,0 +1,10 @@
+# A moving average over the last 3 samples, as used to smooth a signal.
+fn smooth(xs: &[i64]) -> List[i64]
+    var out: List[i64] = []
+    for i in 2..xs.len()
+        out.append((xs[i - 2] + xs[i - 1] + xs[i]) / 3)
+    return out
+
+const SIGNAL: List[i64] = [3, 6, 9, 12, 0, 3]
+
+check smooth(&SIGNAL) == [6, 9, 7, 5]

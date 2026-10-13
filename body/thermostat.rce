@@ -1,0 +1,24 @@
+# A thermostat with hysteresis. Temperatures are in tenths of a degree, so
+# 205 means 20.5 degrees. The heater switches on below 19.5 and off above 21.0.
+intent "a heater that does not flicker around the set point"
+    example Reading(t: 190) -> true
+    example Reading(t: 190), Reading(t: 200) -> true
+    example Reading(t: 190), Reading(t: 215) -> false
+    example Reading(t: 900) -> refused: SensorFault
+
+state Heater
+    heating: bool = false
+
+event Reading(t: i32)
+error SensorFault
+
+const LOW: i32 = 195
+const HIGH: i32 = 210
+
+step Heater on Reading(t: t) if t < -400 or t > 800
+    fail SensorFault
+step Heater on Reading(t: t)
+    if t < LOW
+        heating = true
+    elif t > HIGH
+        heating = false

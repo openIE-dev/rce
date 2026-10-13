@@ -1,0 +1,20 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  examples:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fetch the RCE reference checker
+        run: git clone --depth 1 https://github.com/openIE-dev/rce "$RUNNER_TEMP/rce"
+      - name: Build rce
+        working-directory: ${{ runner.temp }}/rce/spec/checker
+        run: |
+          rustup show
+          cargo build --release
+      - name: Check every example
+        run: RCE="$RUNNER_TEMP/rce/spec/checker/target/release/rce" scripts/check.sh

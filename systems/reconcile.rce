@@ -1,0 +1,25 @@
+# A reconcile loop, as in infrastructure tools: each Tick moves the actual
+# number of replicas one step towards the desired number.
+intent "actual replicas converge to the desired count"
+    example Desire(n: 3), Reconcile, Reconcile -> actual == 2
+    example Desire(n: 3), Reconcile, Reconcile, Reconcile, Reconcile -> actual == 3
+    example Desire(n: 100) -> refused: TooMany
+
+state Cluster
+    desired: u32 = 0
+    actual: u32 = 0
+
+event Desire(n: u32)
+event Reconcile
+
+error TooMany
+
+step Cluster on Desire(n: n) if n > 50
+    fail TooMany
+step Cluster on Desire(n: n)
+    desired = n
+step Cluster on Reconcile
+    if actual < desired
+        actual += 1
+    elif actual > desired
+        actual -= 1

@@ -1,0 +1,24 @@
+# Counting words one character at a time, as a small lexer would.
+intent "count words in a stream of bytes"
+    example Char(c: 104), Char(c: 105), Char(c: 32), Char(c: 121), Char(c: 111) -> words == 2
+    example Char(c: 32), Char(c: 32) -> words == 0
+
+kind Mode
+    Start
+    Word
+    Space
+
+state Lexer
+    mode: Mode = Start
+    words: i64 = 0
+
+event Char(c: u8)
+
+step Lexer on Char(c: ch)
+    if ch == 32
+        mode = Space
+    else
+        match mode
+            Word -> pass
+            _ -> words += 1
+        mode = Word

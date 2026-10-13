@@ -1,0 +1,44 @@
+# A connection that must be opened before data is sent, written as a
+# protocol state machine.
+intent "a three-way handshake, then data, then close"
+    example Syn, SynAck, Ack, Data(n: 10), Data(n: 5) -> phase == Established and bytes == 15
+    example Data(n: 1) -> refused: NotConnected
+    example Syn, Ack -> refused: OutOfOrder
+
+kind Phase
+    Closed
+    SynSent
+    SynReceived
+    Established
+
+state Conn
+    phase: Phase = Closed
+    bytes: u64 = 0
+
+event Syn
+event SynAck
+event Ack
+event Data(n: u64)
+event Fin
+
+error OutOfOrder
+error NotConnected
+
+step Conn on Syn if phase != Closed
+    fail OutOfOrder
+step Conn on Syn
+    phase = SynSent
+step Conn on SynAck if phase != SynSent
+    fail OutOfOrder
+step Conn on SynAck
+    phase = SynReceived
+step Conn on Ack if phase != SynReceived
+    fail OutOfOrder
+step Conn on Ack
+    phase = Established
+step Conn on Data(n: _) if phase != Established
+    fail NotConnected
+step Conn on Data(n: n)
+    bytes += n
+step Conn on Fin
+    phase = Closed
