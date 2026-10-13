@@ -1,0 +1,32 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>RCE IDE · 3D graph</title>
+<style>body{margin:0;background:#111;color:#ccc;font:13px monospace}#bar{padding:6px}canvas{display:block}button{font:12px monospace}</style></head>
+<body>
+<div id="bar">
+  <button data-m="graph">graph</button><button data-m="hardware">graph + hardware</button><button data-m="telemetry">telemetry</button>
+  scrub <input id="u" type="range" min="0" max="1000" value="1000">
+  <span id="log">loading…</span>
+</div>
+<canvas id="c" width="1400" height="860"></canvas>
+<script type="module">
+import init, { WebGraph3d } from "./pkg/rce_ide.js";
+const log = (s) => (document.getElementById("log").textContent = s);
+try {
+  await init();
+  const g = await WebGraph3d.attach("c");
+  g.add_font(new Uint8Array(await (await fetch("font.ttf")).arrayBuffer()));
+  g.load(await (await fetch("graph3d-model.json")).text());
+  window.g3 = g;
+  const c = document.getElementById("c");
+  let drag = null;
+  c.addEventListener("mousedown", (e) => { const hit = g.click(e.offsetX, e.offsetY); if (hit) log("jump editor to " + hit); else drag = [e.offsetX, e.offsetY]; });
+  c.addEventListener("mousemove", (e) => { if (drag) { g.drag(e.offsetX - drag[0], e.offsetY - drag[1]); drag = [e.offsetX, e.offsetY]; } });
+  addEventListener("mouseup", () => (drag = null));
+  c.addEventListener("wheel", (e) => { g.wheel(-e.deltaY); e.preventDefault(); });
+  document.getElementById("u").addEventListener("input", (e) => g.scrub(e.target.value / 1000));
+  for (const b of document.querySelectorAll("button")) b.onclick = () => g.set_mode(b.dataset.m);
+  const loop = (t) => { g.frame(t / 1000); requestAnimationFrame(loop); };
+  requestAnimationFrame(loop);
+  log("backend " + g.backend() + " · " + g.status());
+} catch (e) { log("error: " + e); console.error(e); }
+</script></body></html>

@@ -1,0 +1,10 @@
+fn first_even(xs: &[i64]) -> i64?
+    for x in xs
+        if x % 2 == 0
+            return some(x)
+    return none
+
+fn or_zero(v: i64?) -> i64
+    match v
+        some(x) -> x
+        none -> 0

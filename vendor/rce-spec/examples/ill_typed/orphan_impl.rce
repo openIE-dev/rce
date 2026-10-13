@@ -1,0 +1,2 @@
+impl Eq for List[i64]
+    fn eq(&self) -> bool = true

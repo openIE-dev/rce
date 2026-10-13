@@ -1,0 +1,10 @@
+fn long_call() -> i64
+    let xs = [
+        1, 2, 3,
+        4, 5, 6,
+    ]
+    let total = xs.fold(
+        0,
+        fn(a: i64, b: i64) => a + b,
+    )
+    return total  # comments are allowed here

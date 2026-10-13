@@ -1,0 +1,7 @@
+state S
+    n: u64 = 0
+
+event E
+
+step S on E -> n + 1
+step S on E -> n + 2

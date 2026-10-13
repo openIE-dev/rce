@@ -1,0 +1,552 @@
+//! Expressions: each becomes target code that evaluates its operands in the
+//! reference evaluator's order and calls the runtime helper for the operator.
+use super::Lang;
+use super::base::*;
+use crate::ast::*;
+use std::collections::HashSet;
+
+/// A call that may write back its receiver or `&mut` arguments.
+pub(super) struct WriteBack {
+    pub tmp: String,
+    pub recv: Option<Expr>,
+    pub args: Vec<Arg>,
+}
+
+impl<'a> G<'a> {
+    fn args(&mut self, args: &[Arg]) -> Result<Vec<String>, String> {
+        args.iter().map(|a| self.ex(&a.e)).collect()
+    }
+    fn opt_ex(&mut self, e: &Option<Box<Expr>>) -> Result<Option<String>, String> {
+        Ok(match e {
+            Some(e) => Some(self.ex(e)?),
+            None => None,
+        })
+    }
+
+    pub fn ex(&mut self, e: &Expr) -> E {
+        let l = self.lang;
+        Ok(match e {
+            Expr::Name(n, _) => {
+                if self.local(n) {
+                    self.var(n)
+                } else if self.fns.contains_key(n) {
+                    match l {
+                        Lang::Rust => format!("V::Fn({}.to_string())", q(n)),
+                        _ => self.new_("FnV", &q(n)),
+                    }
+                } else if self.variants.get(n).is_some_and(|p| p.1.is_empty())
+                    || matches!(
+                        self.types.get(n),
+                        Some(Item::Event { .. } | Item::Error { .. })
+                    )
+                {
+                    self.rec0(n)
+                } else if self.consts.contains(n) {
+                    match l {
+                        Lang::Rust => format!("k_{}()?", ident(n)),
+                        _ => format!("k_{}()", ident(n)),
+                    }
+                } else {
+                    self.trap_e(&format!("unknown name {n}"))
+                }
+            }
+            Expr::SelfRef(_) => {
+                if self.local("self") {
+                    self.var("self")
+                } else {
+                    self.trap_e("self")
+                }
+            }
+            Expr::Int(v, _) => match l {
+                Lang::Js => format!("lit({v}n)"),
+                _ => format!("lit({v})"),
+            },
+            Expr::Float(f, _) => match l {
+                Lang::Rust => format!("V::F({f:?}_f64)"),
+                _ => self.new_("F", &format!("{f:?}")),
+            },
+            Expr::Str(s, _) => self.text(s),
+            Expr::Bool(b, _) => match l {
+                Lang::Rust => format!("V::Bool({b})"),
+                Lang::Python => (if *b { "True" } else { "False" }).into(),
+                Lang::Js => b.to_string(),
+            },
+            Expr::None(_) => match l {
+                Lang::Rust => "V::Opt(None)".into(),
+                _ => "NONE".into(),
+            },
+            Expr::Unit(_) => self.unit().into(),
+            Expr::Tuple(xs, _) | Expr::List(xs, _) => {
+                let v = xs
+                    .iter()
+                    .map(|x| self.ex(x))
+                    .collect::<Result<Vec<_>, _>>()?;
+                let tup = matches!(e, Expr::Tuple(..));
+                match l {
+                    Lang::Rust => format!(
+                        "V::{}(vec![{}])",
+                        if tup { "Tuple" } else { "List" },
+                        v.join(", ")
+                    ),
+                    _ => self.new_(
+                        if tup { "Tup" } else { "Lst" },
+                        &format!("[{}]", v.join(", ")),
+                    ),
+                }
+            }
+            Expr::ListRepeat(x, n, _) => {
+                let (a, b) = (self.ex(x)?, self.ex(n)?);
+                self.h("list_repeat", &[a, b])
+            }
+            Expr::ListComp(body, p, it, cond, _) => self.listcomp(body, p, it, cond)?,
+            Expr::Map(ps, _) => {
+                let mut v = vec![];
+                for (a, b) in ps {
+                    let (x, y) = (self.ex(a)?, self.ex(b)?);
+                    v.push(self.pair(&x, &y));
+                }
+                self.h("mk_map", &[self.vec(&v)])
+            }
+            Expr::ChanNew(..) | Expr::Recv(..) => {
+                self.trap_e("channels are not available at comptime")
+            }
+            Expr::Call(f, args, _) => match self.call_expr(f, args, false)? {
+                Some((v, _)) => v,
+                None => {
+                    return unsupported(
+                        "a call that writes back its receiver or arguments inside a larger expression",
+                    );
+                }
+            },
+            Expr::Index(x, idx, _) => {
+                let a = self.ex(x)?;
+                let b = self.ex(&idx[0])?;
+                self.h("index", &[a, b])
+            }
+            Expr::Slice(x, a, b, _) => {
+                let c = self.ex(x)?;
+                let av = self.opt_ex(a)?;
+                let bv = self.opt_ex(b)?;
+                match l {
+                    Lang::Rust => {
+                        let o = |x: Option<String>| {
+                            x.map(|x| format!("Some({x})")).unwrap_or("None".into())
+                        };
+                        format!(
+                            "{{ let __c = {c}; slice_check(&__c)?; let __a = {}; let __b = {}; slice(__c, __a, __b)? }}",
+                            o(av),
+                            o(bv)
+                        )
+                    }
+                    _ => {
+                        let th = |x: Option<String>| match x {
+                            Some(x) if l == Lang::Python => format!("(lambda: {x})"),
+                            Some(x) => format!("(() => {x})"),
+                            None => self.none().to_string(),
+                        };
+                        format!("{}({c}, {}, {})", self.rt("slice"), th(av), th(bv))
+                    }
+                }
+            }
+            Expr::Member(x, m, _) => {
+                let a = self.ex(x)?;
+                self.h("field", &[a, q(m)])
+            }
+            Expr::TupleMember(x, i, _) => {
+                let a = self.ex(x)?;
+                self.h("tmember", &[a, i.to_string()])
+            }
+            Expr::Neg(x, _) => {
+                let a = self.ex(x)?;
+                self.h("neg", &[a])
+            }
+            Expr::BitNot(x, _) => {
+                let a = self.ex(x)?;
+                self.h("bitnot", &[a])
+            }
+            Expr::Not(x, _) => {
+                let a = self.ex(x)?;
+                self.h("not_", &[a])
+            }
+            Expr::Borrow(_, x, _) | Expr::Comptime(x, _) => self.ex(x)?,
+            Expr::Cast(x, t, _) => {
+                let a = self.ex(x)?;
+                let ty = self.cast_ty(t);
+                self.h("cast", &[a, ty])
+            }
+            Expr::Bin(op, a, b, _) if op == "and" || op == "or" => {
+                let (x, y) = (self.ex(a)?, self.ex(b)?);
+                let (tx, ty) = (self.truthy(&x), self.truthy(&y));
+                let o = if l == Lang::Python {
+                    op.as_str()
+                } else if op == "and" {
+                    "&&"
+                } else {
+                    "||"
+                };
+                match l {
+                    Lang::Rust => format!("V::Bool({tx} {o} {ty})"),
+                    _ => format!("({tx} {o} {ty})"),
+                }
+            }
+            Expr::Bin(op, a, b, _) => {
+                let (x, y) = (self.ex(a)?, self.ex(b)?);
+                self.h("binop", &[q(op), x, y])
+            }
+            Expr::Catch(x, bind, h, _) => {
+                let xv = self.ex(x)?;
+                self.scopes.push(bind.iter().cloned().collect());
+                let hv = self.ex(h)?;
+                self.scopes.pop();
+                let p = match bind {
+                    Some(n) => format!("l_{}", ident(n)),
+                    None => "_e".into(),
+                };
+                match l {
+                    Lang::Rust => format!(
+                        "(match {xv} {{ V::Err(__e) => {{ #[allow(unused)] let {p} = *__e; {hv} }} __c => __c }})"
+                    ),
+                    Lang::Python => format!("catch_({xv}, lambda {p}: {hv})"),
+                    Lang::Js => format!("catch_({xv}, ({p}) => {hv})"),
+                }
+            }
+            Expr::Try(x, els, _) => {
+                let xv = self.ex(x)?;
+                let ev = self.opt_ex(els)?;
+                match (l, ev) {
+                    (Lang::Rust, Some(e)) => format!(
+                        "try_({xv}, Some(&(|| -> R<V> {{ Ok({e}) }}) as &dyn Fn() -> R<V>))?"
+                    ),
+                    (Lang::Rust, None) => format!("try_({xv}, None)?"),
+                    (Lang::Python, Some(e)) => format!("try_({xv}, lambda: {e})"),
+                    (Lang::Js, Some(e)) => format!("try_({xv}, () => {e})"),
+                    (_, None) => format!("try_({xv}, {})", self.none()),
+                }
+            }
+            Expr::If(c, a, b, _) => {
+                let (cv, av, bv) = (self.ex(c)?, self.ex(a)?, self.ex(b)?);
+                let t = self.truthy(&cv);
+                match l {
+                    Lang::Rust => format!("(if {t} {{ {av} }} else {{ {bv} }})"),
+                    Lang::Python => format!("({av} if {t} else {bv})"),
+                    Lang::Js => format!("({t} ? {av} : {bv})"),
+                }
+            }
+            Expr::Lambda(ps, body, _) => self.lambda(ps, body)?,
+        })
+    }
+
+    /// The type for `cast`: only an integer type or f32 matter there.
+    fn cast_ty(&self, t: &Ty) -> String {
+        let mut t = t.clone();
+        for _ in 0..32 {
+            if let Ty::Path(p, _) = &t
+                && p.len() == 1
+                && let Some(Item::TypeAlias { ty, .. }) = self.types.get(&p[0])
+            {
+                t = ty.clone();
+                continue;
+            }
+            break;
+        }
+        match &t {
+            Ty::Path(p, a)
+                if p.len() == 1
+                    && a.is_empty()
+                    && (p[0] == "f32" || crate::types::INTS.contains(&p[0].as_str())) =>
+            {
+                self.ty(&t)
+            }
+            _ => self.ty(&Ty::Unit),
+        }
+    }
+
+    fn listcomp(&mut self, body: &Expr, p: &Pat, it: &Expr, cond: &Option<Box<Expr>>) -> E {
+        let l = self.lang;
+        let itv = self.ex(it)?;
+        let ps = self.pat(p)?;
+        let mut names = vec![];
+        self.pat_names(p, &mut names);
+        self.scopes.push(names.clone());
+        let b = self.ex(body)?;
+        let c = self.opt_ex(cond)?;
+        self.scopes.pop();
+        Ok(match l {
+            Lang::Rust => {
+                let binds: String = names
+                    .iter()
+                    .map(|n| format!("let l_{} = mget(__m, {}); ", ident(n), q(n)))
+                    .collect();
+                let bf = format!("&|__m: &M| -> R<V> {{ {binds}Ok({b}) }}");
+                let cf = match c {
+                    Some(c) => format!(
+                        "Some(&(|__m: &M| -> R<V> {{ {binds}Ok({c}) }}) as &dyn Fn(&M) -> R<V>)"
+                    ),
+                    None => "None".into(),
+                };
+                format!("listcomp({itv}, {ps}, {bf}, {cf})?")
+            }
+            _ => {
+                let params: Vec<String> = names.iter().map(|n| format!("l_{}", ident(n))).collect();
+                let ns: Vec<String> = names.iter().map(|n| q(n)).collect();
+                let lam = |x: &str| match l {
+                    Lang::Python => format!("(lambda {}: {x})", params.join(", ")),
+                    _ => format!("(({}) => {x})", params.join(", ")),
+                };
+                let cf = c.map(|c| lam(&c)).unwrap_or(self.none().into());
+                format!(
+                    "listcomp({itv}, {ps}, [{}], {}, {cf})",
+                    ns.join(", "),
+                    lam(&b)
+                )
+            }
+        })
+    }
+
+    fn lambda(&mut self, ps: &[Param], body: &Expr) -> E {
+        let l = self.lang;
+        let mut names = vec![];
+        let mut tys = vec![];
+        for p in ps {
+            if let Param::Named { name, ty, .. } = p {
+                names.push(name.clone());
+                tys.push(self.ty(ty));
+            }
+        }
+        let mut free = HashSet::new();
+        expr_names(body, &mut free);
+        for n in &names {
+            free.remove(n);
+        }
+        let caps: Vec<String> = self
+            .all_locals()
+            .into_iter()
+            .filter(|n| free.contains(n))
+            .collect();
+        self.scopes.push(names.clone());
+        let b = self.ex(body)?;
+        self.scopes.pop();
+        let n = names.len();
+        let params: Vec<String> = names.iter().map(|x| format!("l_{}", ident(x))).collect();
+        Ok(match l {
+            Lang::Rust => {
+                let cap: String = caps
+                    .iter()
+                    .map(|c| format!("let l_{0} = l_{0}.clone(); ", ident(c)))
+                    .collect();
+                let binds: String = params
+                    .iter()
+                    .enumerate()
+                    .map(|(i, x)| format!("let {x} = arg(&__a, {i}); "))
+                    .collect();
+                format!(
+                    "{{ {cap}V::Clo(Rc::new(move |__a: Vec<V>| -> R<V> {{ let __a = fitall(__a, &[{}])?; {binds}Ok({b}) }})) }}",
+                    tys.join(", ")
+                )
+            }
+            Lang::Python => {
+                let mut head = vec!["__a".to_string()];
+                head.extend(caps.iter().map(|c| format!("l_{0}=l_{0}", ident(c))));
+                format!(
+                    "Clo(lambda {}: (lambda {}: {b})(*(fitall(__a, [{}]) + [UNIT] * {n})[:{n}]))",
+                    head.join(", "),
+                    params.join(", "),
+                    tys.join(", ")
+                )
+            }
+            Lang::Js => {
+                let cap: Vec<String> = caps.iter().map(|c| format!("l_{}", ident(c))).collect();
+                format!(
+                    "(({}) => new Clo((__a) => {{ const [{}] = [...fitall(__a, [{}]), ...Array({n}).fill(UNIT)].slice(0, {n}); return {b}; }}))({})",
+                    cap.join(", "),
+                    params.join(", "),
+                    tys.join(", "),
+                    cap.join(", ")
+                )
+            }
+        })
+    }
+
+    /// Fields of a constructible name: (field, type, default) in order.
+    fn ctor_fields(&self, n: &str) -> Option<Vec<(String, Ty, Option<Expr>)>> {
+        if let Some((_, p)) = self.variants.get(n) {
+            return Some(
+                p.iter()
+                    .map(|(a, b)| (a.clone(), b.clone(), None))
+                    .collect(),
+            );
+        }
+        match self.types.get(n) {
+            Some(Item::Struct { fields, .. }) => Some(
+                fields
+                    .iter()
+                    .map(|f| (f.name.clone(), f.ty.clone(), f.init.clone()))
+                    .collect(),
+            ),
+            Some(Item::Event { payload, .. } | Item::Error { payload, .. }) => Some(
+                payload
+                    .iter()
+                    .map(|(a, b)| (a.clone(), b.clone(), None))
+                    .collect(),
+            ),
+            _ => None,
+        }
+    }
+
+    pub fn construct_code(&mut self, n: &str, args: &[Arg]) -> Result<Option<String>, String> {
+        let Some(fields) = self.ctor_fields(n) else {
+            return Ok(None);
+        };
+        let l = self.lang;
+        let mut fs = vec![];
+        for (f, t, init) in &fields {
+            let ty = self.ty(t);
+            let iv = match init {
+                Some(e) => {
+                    let saved = std::mem::take(&mut self.scopes);
+                    let code = self.ex(e);
+                    self.scopes = saved;
+                    let code = code?;
+                    match l {
+                        Lang::Rust => format!(
+                            "Some(Rc::new(|| -> R<V> {{ Ok({code}) }}) as Rc<dyn Fn() -> R<V>>)"
+                        ),
+                        Lang::Python => format!("(lambda: {code})"),
+                        Lang::Js => format!("(() => {code})"),
+                    }
+                }
+                None => self.none().into(),
+            };
+            fs.push(match l {
+                Lang::Js => format!("[{}, {ty}, {iv}]", q(f)),
+                _ => format!("({}, {ty}, {iv})", q(f)),
+            });
+        }
+        let mut avs = vec![];
+        for a in args {
+            let v = self.ex(&a.e)?;
+            avs.push(self.pair(&self.opt_label(&a.label), &v));
+        }
+        Ok(Some(
+            self.h("construct", &[q(n), self.vec(&fs), self.vec(&avs)]),
+        ))
+    }
+
+    fn user_call(&self, id: &str, a: &[String]) -> String {
+        match self.lang {
+            Lang::Rust => format!("{id}(None, vec![{}])?", a.join(", ")),
+            _ => format!("{id}({}, [{}])", self.none(), a.join(", ")),
+        }
+    }
+    fn val_of(&self, c: &str) -> String {
+        match self.lang {
+            Lang::Rust => format!("{c}.v"),
+            _ => format!("{c}[0]"),
+        }
+    }
+
+    /// A call: (value expression, write-back). The write-back is set when
+    /// the call may write back its receiver or `&mut` arguments; when `stmt`
+    /// is false such a call is refused (Ok(None)).
+    pub fn call_expr(
+        &mut self,
+        f: &Expr,
+        args: &[Arg],
+        stmt: bool,
+    ) -> Result<Option<(String, Option<WriteBack>)>, String> {
+        let l = self.lang;
+        match f {
+            Expr::Name(n, _) if !self.local(n) => {
+                match n.as_str() {
+                    "some" if !args.is_empty() => {
+                        let a = self.ex(&args[0].e)?;
+                        let v = if l == Lang::Python {
+                            format!("Opt({a})")
+                        } else {
+                            format!("some({a})")
+                        };
+                        return Ok(Some((v, None)));
+                    }
+                    "copy" | "Box" if !args.is_empty() => {
+                        return Ok(Some((self.ex(&args[0].e)?, None)));
+                    }
+                    _ => {}
+                }
+                if let Some(fd) = self.fns.get(n).copied() {
+                    let a = self.args(args)?;
+                    let call = self.user_call(&format!("u_{}", ident(n)), &a);
+                    return self.finish_user(call, has_mut_params(fd), args, stmt);
+                }
+                if let Some(c) = self.construct_code(n, args)? {
+                    return Ok(Some((c, None)));
+                }
+                Ok(Some((
+                    self.trap_e(&format!("cannot call {n} at comptime")),
+                    None,
+                )))
+            }
+            Expr::Member(obj, m, _) => {
+                if let Expr::Name(tn, _) = &**obj
+                    && !self.local(tn)
+                    && self.types.contains_key(tn)
+                {
+                    return match self.methods.get(&(tn.clone(), m.clone())).cloned() {
+                        Some((id, fd)) => {
+                            let a = self.args(args)?;
+                            let call = self.user_call(&format!("u_{id}"), &a);
+                            self.finish_user(call, has_mut_params(fd), args, stmt)
+                        }
+                        None => Ok(Some((self.trap_e("no such function"), None))),
+                    };
+                }
+                let recv = self.ex(obj)?;
+                let a = self.args(args)?;
+                let call = self.h("call_method", &[recv, q(m), self.vec(&a)]);
+                if MUTATING.contains(&m.as_str()) || self.mut_method_names.contains(m) {
+                    if !stmt {
+                        return Ok(None);
+                    }
+                    let t = self.fresh("c");
+                    return Ok(Some((
+                        call,
+                        Some(WriteBack {
+                            tmp: t,
+                            recv: Some((**obj).clone()),
+                            args: args.to_vec(),
+                        }),
+                    )));
+                }
+                Ok(Some((self.val_of(&call), None)))
+            }
+            _ => {
+                let fv = self.ex(f)?;
+                let a = self.args(args)?;
+                Ok(Some((self.h("call_value", &[fv, self.vec(&a)]), None)))
+            }
+        }
+    }
+
+    fn finish_user(
+        &mut self,
+        call: String,
+        muts: bool,
+        args: &[Arg],
+        stmt: bool,
+    ) -> Result<Option<(String, Option<WriteBack>)>, String> {
+        if !muts {
+            return Ok(Some((self.val_of(&call), None)));
+        }
+        if !stmt {
+            return Ok(None);
+        }
+        let t = self.fresh("c");
+        Ok(Some((
+            call,
+            Some(WriteBack {
+                tmp: t,
+                recv: None,
+                args: args.to_vec(),
+            }),
+        )))
+    }
+}

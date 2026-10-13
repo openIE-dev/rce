@@ -1,0 +1,26 @@
+[package]
+name = "rce-graph3d"
+description = "The RCE Form as a 3D graph over time: code graph + hardware topology, Barnes-Hut layout, orbit camera and picking, time scrubbing, energy overlay, telemetry dashboard, wgpu instanced renderer"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[features]
+default = []
+# Build graphs from the workspace services (rce-memory's FormIndex, ide-receipt ledgers, ide-energy probes). Native only.
+native = ["dep:rce-memory", "dep:ide-receipt", "dep:ide-energy"]
+# The wgpu instanced renderer (desktop and browser WebGPU).
+gpu = ["dep:wgpu", "dep:bytemuck"]
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+rce-memory = { path = "../rce-memory", optional = true }
+ide-receipt = { workspace = true, optional = true }
+ide-energy = { workspace = true, optional = true }
+wgpu = { version = "30.0.1", optional = true }
+bytemuck = { version = "1", features = ["derive"], optional = true }
+
+[dev-dependencies]
+tempfile.workspace = true

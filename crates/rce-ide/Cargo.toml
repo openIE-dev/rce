@@ -1,0 +1,67 @@
+[package]
+name = "rce-ide"
+description = "The RCE IDE app: photon view models (editor + checker diagnostics, MEI proposals, receipts and energy, memory recall, network approvals) on a wgpu + winit + Parley host"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[lib]
+crate-type = ["rlib", "cdylib"]
+
+[features]
+default = ["gpu"]
+gpu = ["dep:wgpu", "dep:winit", "dep:parley", "dep:fontique", "dep:swash", "dep:bytemuck", "dep:rce-graph3d"]
+
+[dependencies]
+photon = { path = "../../vendor/photon" }
+serde.workspace = true
+serde_json.workspace = true
+hex.workspace = true
+ide-receipt.workspace = true
+rce_spec_check.workspace = true
+wgpu = { version = "30.0.1", optional = true }
+winit = { version = "0.30", default-features = false, features = ["x11", "rwh_06"], optional = true }
+parley = { version = "0.12.0", optional = true }
+fontique = { version = "0.12.0", features = ["fontconfig-dlopen"], optional = true }
+swash = { version = "0.2", optional = true }
+bytemuck = { version = "1", features = ["derive"], optional = true }
+ropey = "1.6.1"
+# The 3D graph mode and telemetry dashboard.
+rce-graph3d = { path = "../rce-graph3d", features = ["gpu"], optional = true }
+png = "0.18.1"
+
+# Native: the workspace services (filesystem, sandbox, memory store, meters).
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+ide-energy.workspace = true
+rce-mcp.workspace = true
+getrandom.workspace = true
+rce-memory = { path = "../rce-memory" }
+ide-sandbox = { path = "../ide-sandbox" }
+pollster = "1.0.1"
+arboard = { version = "3.6.1", default-features = false }
+rce-graph3d = { path = "../rce-graph3d", features = ["gpu", "native"], optional = true }
+
+# Browser: WebGPU through wgpu, a canvas through winit.
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+# WebGL2 fallback for browsers without WebGPU (glow; pure Rust).
+wgpu = { version = "30.0.1", features = ["webgl"], optional = true }
+wasm-bindgen = "0.2.129"
+wasm-bindgen-futures = "0.4.79"
+web-sys = { version = "0.3.106", features = ["Document", "Window", "Element", "HtmlCanvasElement", "console"] }
+getrandom = { workspace = true, features = ["wasm_js"] }
+
+[dev-dependencies]
+tempfile.workspace = true
+
+[[bin]]
+name = "rce-ide"
+path = "src/main.rs"
+
+[[bin]]
+name = "rce-lsp"
+path = "src/bin/rce-lsp.rs"
+
+[[bin]]
+name = "rce"
+path = "src/bin/rce.rs"

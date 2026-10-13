@@ -1,0 +1,4 @@
+module hello
+
+fn main()
+    emit "hello, world"

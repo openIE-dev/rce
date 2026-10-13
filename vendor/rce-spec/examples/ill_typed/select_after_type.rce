@@ -1,0 +1,4 @@
+fn f(a: chan u64)
+    select
+        recv some(x) from a -> pass
+        after "soon" -> pass

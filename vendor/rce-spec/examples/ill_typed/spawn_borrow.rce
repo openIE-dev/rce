@@ -1,0 +1,7 @@
+fn worker(c: chan i64, xs: &List[i64])
+    c <- 1
+
+fn main()
+    let c = chan[i64](1)
+    let xs: List[i64] = [1]
+    spawn worker(c, &xs)

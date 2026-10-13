@@ -1,0 +1,18 @@
+[package]
+name = "photon"
+description = "Photon — Nova's declarative GPU UI framework (widgets, layout, render context). Vendored, see VENDORED.md"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.98"
+license = "MPL-2.0"
+publish = false
+
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+ciborium = "0.2.2"
+
+# Upstream source is kept byte-identical; its clippy findings under the
+# pinned 1.98.1 toolchain are not fixed here (see VENDORED.md).
+[lints.clippy]
+all = { level = "allow", priority = -1 }

@@ -1,0 +1,21 @@
+[package]
+name = "mei-agent"
+description = "The MEI agent: a mei-machine statechart that climbs gears G0..G4 under a joule budget, gated by rce check"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+ureq.workspace = true
+rustls-rustcrypto.workspace = true
+ide-receipt.workspace = true
+ide-energy.workspace = true
+rce-mcp.workspace = true
+mei-machine.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true

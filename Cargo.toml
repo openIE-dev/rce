@@ -1,0 +1,51 @@
+[workspace]
+resolver = "3"
+members = [
+    "crates/ide-receipt",
+    "crates/ide-energy",
+    "crates/rce-mcp",
+    "crates/mei-machine",
+    "crates/mei-agent",
+    "crates/ide-sandbox",
+    "crates/rce-guest",
+    "crates/rce-memory",
+    "crates/acp-client",
+    "vendor/photon",
+    "vendor/rce-spec/checker",
+    "crates/rce-ide",
+    "crates/rce-graph3d",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.98.1"
+license = "MIT OR Apache-2.0"
+
+[workspace.dependencies]
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = { version = "1.0.154", features = ["float_roundtrip"] }
+blake3 = { version = "1.8.7", default-features = false, features = ["std", "pure"] }
+ed25519-dalek = "3.0.0"
+getrandom = "0.4.3"
+hex = "0.4.3"
+thiserror = "2.0.21"
+tempfile = "3.27.0"
+nvml-wrapper = "0.13.0"
+rce_spec_check = { path = "vendor/rce-spec/checker", package = "rce-spec-check" }
+ide-receipt = { path = "crates/ide-receipt" }
+ide-energy = { path = "crates/ide-energy" }
+rce-mcp = { path = "crates/rce-mcp" }
+mei-machine = { path = "crates/mei-machine" }
+# Pure-Rust TLS: rustls with the RustCrypto provider (no ring, no aws-lc, no cc).
+ureq = { version = "3.4.2", default-features = false, features = ["json", "rustls-no-provider", "rustls-webpki-roots"] }
+rustls-rustcrypto = "0.0.2-alpha"
+wasmi = "2.0.0"
+wasmi_wasi = "2.0.0"
+wiggle = { version = "=36.0.17", default-features = false }
+landlock = "0.4.7"
+seccompiler = "0.5.0"
+
+# Pure Rust: blake3 without its `cc` build dependency (see vendor/blake3/VENDORED.md).
+[patch.crates-io]
+blake3 = { path = "vendor/blake3" }

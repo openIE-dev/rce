@@ -1,0 +1,35 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>RCE IDE 0.1.0 (draft)</title>
+<style>body{font:16px/1.5 system-ui,sans-serif;max-width:52rem;margin:2rem auto;padding:0 1rem;color:#1b1d22}table{border-collapse:collapse;width:100%}td,th{border-bottom:1px solid #ddd;padding:.4rem;text-align:left;vertical-align:top}code{font-size:.85em;word-break:break-all}.draft{background:#fff4d6;padding:.5rem 1rem;border-radius:6px}</style></head><body>
+<p class="draft">Draft. Not published. Download links point to files next to this page.</p>
+<h1>RCE IDE 0.1.0 (DRAFT, not published)</h1>
+<p>A desktop IDE for RCE programs: text and a 3D Form graph as two views of one program, every agent action on a signed receipt, and energy shown as simulated or measured, never guessed.</p>
+<h2>Downloads</h2>
+<table><tr><th>Platform</th><th>File</th><th>Size</th><th>SHA-256</th></tr>
+<tr><td>photon source (MPL-2.0)</td><td><a href="dist/photon-source-mpl-2.0.tar.gz">photon-source-mpl-2.0.tar.gz</a></td><td>0.1 MB</td><td><code>5b55c4df444e7104d987a59f630e643905110190ee151be19b2cc0033e213778</code></td></tr>
+<tr><td>Linux aarch64 (glibc 2.28+)</td><td><a href="dist/rce-ide-0.1.0-aarch64-unknown-linux-gnu.tar.gz">rce-ide-0.1.0-aarch64-unknown-linux-gnu.tar.gz</a></td><td>10.0 MB</td><td><code>3713a2e5d4588d87884fb51bdccfcdb59f277080e84d6d6b1310b175569acd3c</code></td></tr>
+<tr><td>Linux x86_64 (glibc 2.28+)</td><td><a href="dist/rce-ide-0.1.0-x86_64-unknown-linux-gnu.tar.gz">rce-ide-0.1.0-x86_64-unknown-linux-gnu.tar.gz</a></td><td>10.9 MB</td><td><code>54be02680ecc0a5a59cb21354b2818fd8a3f0f069103c3285e7668815c2e12e7</code></td></tr>
+<tr><td>Windows x86_64 (untested build)</td><td><a href="dist/rce-ide-0.1.0-x86_64-pc-windows-gnu.zip">rce-ide-0.1.0-x86_64-pc-windows-gnu.zip</a></td><td>37.6 MB</td><td><code>5242cc978373877da48c89714cb74b08f0fd0465ff0d70a5e37f4f0e9d1963b8</code></td></tr>
+</table>
+<p>Each archive contains <code>rce-ide</code>, <code>rce</code>, <code>rce-lsp</code>, <code>rce-mcp</code>, the README, LICENSE-MIT, LICENSE-APACHE, COPYRIGHT, LICENSE-STATUS.md, THIRD-PARTY-LICENSES.txt, the webpki-roots CDLA notice and PHOTON-SOURCE-OFFER.md. Verify with <code>sha256sum -c SHA256SUMS --ignore-missing</code>.</p>
+<p>macOS: no binary in this release. It has to be built and signed on a Mac.</p>
+<h2>What is new</h2>
+<ul>
+<li>Graph edits: Shift-drag a definition onto another file to move it, Delete to remove, N to add a function. Each edit is written only if <code>rce check</code> admits the whole program.</li>
+<li>Review badges: green for a human review that still matches the code, orange once the code changed.</li>
+<li>Metric picker: chips (or F6/F7/F8) choose the metric for colour, size and glow.</li>
+<li><code>--history N</code>: replay the last N commits that changed <code>.rce</code> files on the time scrubber.</li>
+<li>Semantic zoom: click a folded file to open it in place; Esc folds it again.</li>
+<li>GPU launch timing for the IDE&#x27;s own wgpu work: GPU timestamp queries when the adapter has them, else host-timed, else none with the reason (<code>rce-ide telemetry probe</code>).</li>
+<li><code>rce test --energy-budget J [--measured J | --measure] [--strict]</code>: fail a test run that exceeds an energy budget. Without a measurement the gate uses the static simulated cost and says so.</li>
+<li><code>rce-mcp --http</code> jails itself on Linux (Landlock + seccomp): loopback or declared hosts only, outbound only to declared ports, files limited to the workspace. Other platforms refuse HTTP mode unless <code>--no-jail</code>.</li>
+</ul>
+<h2>Known limits</h2>
+<ul>
+<li>Windows binaries were cross-built and not run on Windows. They are larger than the Linux ones because the cross linker kept unused code.</li>
+<li>The aarch64 Linux build was cross-built and not run on Arm hardware.</li>
+<li>The Linux x86_64 build was smoke-tested on a machine with no physical GPU (software Vulkan, llvmpipe).</li>
+<li>Energy measurement needs a readable meter (RAPL on Linux; NVML behind a build feature). Desktop calibration has not been run on real hardware for this release.</li>
+</ul>
+<h2>Licenses</h2>
+<p>rce-ide and the RCE checker: MIT OR Apache-2.0, Copyright (c) 2026 OpenIE. The vendored photon library is MPL-2.0; its full source is the <code>photon-source-mpl-2.0.tar.gz</code> download above. webpki-roots is CDLA-Permissive-2.0 (notice included). Other dependencies are permissive; see THIRD-PARTY-LICENSES.txt.</p>
+<p><a href="dist/SHA256SUMS">SHA256SUMS</a></p></body></html>

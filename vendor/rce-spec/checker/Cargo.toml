@@ -1,0 +1,50 @@
+[package]
+name = "rce-spec-check"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.98.1"
+license = "MIT OR Apache-2.0"
+description = "Reference parser, type and well-formedness checker for RCE-SPEC.md"
+
+[lib]
+name = "rce_spec_check"
+path = "src/lib.rs"
+
+[dependencies]
+# 0.26 or 0.27: as a dependency of crates/rce this shares one lock with
+# inv-ai-codegraph, which links tree-sitter 0.26 (one `links` per graph).
+tree-sitter = { version = ">=0.26, <0.28", optional = true }
+regex = "1"
+serde_json = "1"
+sha2 = "0.11"
+
+[build-dependencies]
+cc = { version = "1", optional = true }
+
+[features]
+# Default: Rust parser + LALR(1) only, pure Rust (no C compiler).
+# `tree-sitter` adds the C tree-sitter port as an independent second parser
+# (used by rce-spec-check and rce-fuzz in CI).
+default = []
+tree-sitter = ["dep:tree-sitter", "dep:cc"]
+
+[[bin]]
+name = "rce-check"
+path = "src/main.rs"
+
+[[bin]]
+name = "rce-spec-check"
+path = "src/bin/spec_check.rs"
+
+[[bin]]
+name = "rce-fuzz"
+path = "src/bin/fuzz.rs"
+required-features = ["tree-sitter"]
+
+[[bin]]
+name = "rce-book"
+path = "src/bin/book.rs"
+
+[profile.release]
+debug = false
+

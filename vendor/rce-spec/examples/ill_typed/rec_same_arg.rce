@@ -1,0 +1,8 @@
+kind Tree2
+    Leaf2(v: i64)
+    Node2(l: Box[Tree2], r: Box[Tree2])
+
+fn loop_forever(t: &Tree2) -> i64
+    match t
+        Leaf2(v: v) -> return v
+        Node2(l: l, r: r) -> return loop_forever(t)

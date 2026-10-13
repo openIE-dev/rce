@@ -1,0 +1,28 @@
+# Iterators: push-model generators, bounded by the loop limit.
+fn evens(n: u64) -> iter u64
+    var i: u64 = 0
+    while i < n
+        yield i * 2
+        i += 1
+
+fn naturals() -> iter u64
+    var i: u64 = 0
+    loop
+        yield i
+        i += 1
+
+fn first_over(t: u64) -> u64
+    for x in naturals()
+        if x > t
+            return x
+    return 0
+
+fn total(n: u64) -> u64
+    var s: u64 = 0
+    for x in evens(n)
+        s += x
+    return s
+
+check total(4) == 12
+check evens(3).collect() == [0, 2, 4]
+check first_over(100) == 101
