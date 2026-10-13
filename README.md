@@ -164,7 +164,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md). Everyone taking part follows the
 
 ## License
 
-Copyright (c) 2026 OpenIE.
+Copyright (c) 2026 Open Interface Engineering, Inc.
 
 Licensed under either of
 
