@@ -1,0 +1,8 @@
+{
+  "name": "rce-wasm-test",
+  "private": true,
+  "type": "module",
+  "description": "Checks the committed browser builds (tree-sitter-rce.wasm, checker-wasm/pkg) against the example corpora.",
+  "scripts": { "test": "node test.mjs" },
+  "dependencies": { "web-tree-sitter": "0.27.1" }
+}

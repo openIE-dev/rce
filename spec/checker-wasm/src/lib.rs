@@ -4,8 +4,14 @@
 mod ast;
 #[path = "../../checker/src/check.rs"]
 mod check;
+#[path = "../../checker/src/check06b.rs"]
+mod check06b;
+#[path = "../../checker/src/conc.rs"]
+mod conc;
 #[path = "../../checker/src/interp.rs"]
 mod interp;
+#[path = "../../checker/src/link.rs"]
+mod link;
 #[path = "../../checker/src/parse.rs"]
 mod parse;
 #[path = "../../checker/src/types.rs"]

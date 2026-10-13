@@ -129,7 +129,22 @@ impl<'a> G<'a> {
             self.line(s);
             self.declare("self");
         }
+        let union = matches!(f.sig.ret, Some(Ty::Union(..)));
+        // `&mut` write-back on failure (6.2, T33): a union function with
+        // `&mut` parameters or a `&mut self` receiver records its copy-out
+        // when it fails, so the caller writes back on every outcome.
+        let wb_fail = union && (muts.iter().any(|m| m.is_some()) || self_mut);
         self.ctx = Ctx::Fn { muts, self_mut };
+        if wb_fail {
+            match l {
+                Lang::Rust => {
+                    self.line("let __r: R<Call> = (|| -> R<Call> {");
+                    self.ind += 1;
+                }
+                Lang::Python => self.open("try"),
+                Lang::Js => self.open("try"),
+            }
+        }
         match &f.body {
             Body::Arrow(e) => {
                 let v = self.ex_stmt(e)?;
@@ -142,9 +157,33 @@ impl<'a> G<'a> {
                 self.line(r);
             }
         }
+        if wb_fail {
+            let (outs, slf) = self.outs_slf();
+            match l {
+                Lang::Rust => {
+                    self.ind -= 1;
+                    self.line("})();");
+                    self.line(format!(
+                        "if let Err(Flow::Fail(_)) = &__r {{ fail_outs_set(vec![{outs}], {slf}); }}"
+                    ));
+                    self.line("__r");
+                }
+                Lang::Python => {
+                    self.close();
+                    self.open("except Fail as __e");
+                    self.line(format!("__e.outs = [{outs}]\n__e.slf = {slf}\nraise"));
+                    self.close();
+                }
+                Lang::Js => {
+                    self.ind -= 1;
+                    self.line(format!(
+                        "}} catch (__e) {{ if (__e instanceof Fail) {{ __e.outs = [{outs}]; __e.slf = {slf}; }} throw __e; }}"
+                    ));
+                }
+            }
+        }
         self.close();
         // u_: interp `call_fn`: fit the result; a failure of a union function is a value.
-        let union = matches!(f.sig.ret, Some(Ty::Union(..)));
         let ret = f.sig.ret.as_ref().map(|t| self.ty(t));
         let nm = named.len();
         match l {
@@ -157,7 +196,11 @@ impl<'a> G<'a> {
                     }
                     None => self.line("  Ok(mut c) => { c.v = V::Unit; Ok(c) }"),
                 }
-                if union {
+                if wb_fail {
+                    self.line(
+                        "  Err(Flow::Fail(e)) => { let (o, s) = fail_outs_take(); Ok(Call { v: V::Err(Box::new(e)), outs: o, slf: s }) }",
+                    );
+                } else if union {
                     self.line(format!(
                         "  Err(Flow::Fail(e)) => Ok(Call {{ v: V::Err(Box::new(e)), outs: vec![None; {nm}], slf: None }}),"
                     ));
@@ -167,7 +210,11 @@ impl<'a> G<'a> {
             }
             Lang::Python => {
                 self.open(&format!("def u_{id}(slf, a)"));
-                if union {
+                if wb_fail {
+                    self.line(format!(
+                        "try:\n    v, outs, s = b_{id}(slf, a)\nexcept Fail as e:\n    return (Err(e.v), e.outs, e.slf)"
+                    ));
+                } else if union {
                     self.line(format!(
                         "try:\n    v, outs, s = b_{id}(slf, a)\nexcept Fail as e:\n    return (Err(e.v), [None] * {nm}, None)"
                     ));
@@ -182,7 +229,11 @@ impl<'a> G<'a> {
             Lang::Js => {
                 self.open(&format!("function u_{id}(slf, a)"));
                 self.line("let r;");
-                if union {
+                if wb_fail {
+                    self.line(format!(
+                        "try {{ r = b_{id}(slf, a); }} catch (e) {{ if (e instanceof Fail) return [new Err(e.v), e.outs, e.slf]; throw e; }}"
+                    ));
+                } else if union {
                     self.line(format!(
                         "try {{ r = b_{id}(slf, a); }} catch (e) {{ if (e instanceof Fail) return [new Err(e.v), Array({nm}).fill(null), null]; throw e; }}"
                     ));

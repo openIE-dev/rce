@@ -155,6 +155,46 @@ counts against the loop limit (6.7), so `yield` number LOOP_LIMIT + 1 is
 and Rust iterators are pull-based and can be resumed from anywhere; the push
 form keeps delta total without any suspended state.
 
+### 5.15 Standard library, effects and I/O
+
+**Standard library (normative).** The standard library is closed: it is
+exactly the builtin methods below plus the concurrency methods of 5.8 and
+Appendix C (`close`, `join`, `offer`, `put`, `wait`, `freeze`, `pscan`,
+`pscan_incl`) and the num.rs primitives of 6.3. A method not in the table
+is W-NAME-1 at check time, so no program reaches an unknown method at run
+time. Every method in the table is pure and deterministic: it reads its
+receiver and arguments, and a method that "changes" a receiver (`push`,
+`insert`, `sort`, ...) updates only that receiver variable; none performs
+I/O. The table is checked
+against the reference evaluator (`spec/checker/tests/stdlib_costs.rs`).
+
+| Receiver | RCE type | Methods |
+|---|---|---|
+| `Int` | integers (iN, uN, usize) | `abs`, `checked_add`, `checked_div`, `checked_mul`, `checked_sub`, `max`, `min`, `saturating_add`, `saturating_mul`, `saturating_sub`, `tostr`, `wrapping_add`, `wrapping_mul`, `wrapping_sub` |
+| `F` | f64 | `abs`, `ceil`, `floor`, `round`, `sqrt`, `tostr` |
+| `Bool` | bool | `tostr` |
+| `Text` | text | `chars`, `contains`, `endswith`, `isalpha`, `isdigit`, `isempty`, `isspace`, `join`, `len`, `lines`, `lower`, `reverse`, `split`, `startswith`, `strip`, `toint`, `tostr`, `upper`, `words` |
+| `F32` | f32 | `abs`, `tostr` |
+| `Gen` | iter τ | `collect` |
+| `List` | List[τ], [τ; n] | `append`, `clear`, `contains`, `filter`, `fold`, `get`, `isempty`, `len`, `map`, `pop`, `push`, `reverse`, `sort`, `sum`, `with` |
+| `Map` | Map[k, v] | `contains`, `get`, `insert`, `keys`, `len`, `remove`, `values` |
+| `Opt` | τ? | `isnone`, `issome`, `or` |
+
+**Effects and I/O (normative).** By derivation from least privilege, a
+program has no ambient authority: there is no file, clock, network,
+environment or randomness primitive. The only ways values enter are the
+events of E (6.1) and, in `fn main` and task functions, channel receives
+and foreign calls (5.11); the only ways values leave are `emit` (λ) and
+sends. Each of these is an effect of the context table above, so the
+checker, not run-time behaviour, decides which code may do I/O. Inputs
+that are not events (a `select nondet` choice, a foreign result) are
+logged, so replay is deterministic (T1, T21). A capability that is not in
+this list cannot be added by a library, because the library is closed.
+
+**Cost semantics.** Each standard library call costs `c_call` plus the
+work of its complexity class on the sizes of its receiver and argument
+(C.6.4); see C.6 for the budget rules.
+
 **Read receipt.** What kind of channel does a capacity of 0 give? (one word)
 
-<!-- body-sha256: ef0ed9aa6d755e5a1ec767da9ac734086f9f2dccbeb86a218c19be73c5b23270 -->
+<!-- body-sha256: b83bfe6846b399f4757df883b39da654eca2443adfb0b4518e72515b5225cb73 -->

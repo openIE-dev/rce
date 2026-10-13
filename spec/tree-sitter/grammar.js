@@ -78,7 +78,7 @@ module.exports = grammar({
     _actor_member: $ => choice($.field, $.handler, $.fn_decl),
     handler: $ => seq('on', $._pattern, optional(seq('if', $._expr)), $._step_body),
 
-    // ---- draft 0.6b declarations (the draft 0.6 concurrency chapter, not published here C.11) ----
+    // ---- draft 0.6b declarations (Appendix C, book/14-draft06-concurrency.md C.11) ----
     protocol_decl: $ => seq('protocol', $.NAME, $._NL, $._INDENT, repeat1($._proto_step), $._DEDENT),
     _proto_step: $ => choice($.proto_send, $.proto_recv, $.proto_offer, $.proto_choose, $.proto_loop, $.proto_break),
     proto_send: $ => seq('send', $._type, $._NL),
@@ -156,7 +156,7 @@ module.exports = grammar({
     arena_stmt: $ => seq('with', 'arena', $.NAME, optional($.bound), $.block),
     device_stmt: $ => seq('with', 'device', $.NAME, optional($.bound), $.block),
     comptime_stmt: $ => seq('comptime', $.block),
-    // draft 0.6 (the draft 0.6 concurrency chapter, not published here C.2)
+    // draft 0.6 (Appendix C, book/14-draft06-concurrency.md C.2)
     par_stmt: $ => seq('par', $._NL, $._INDENT, repeat1($.branch), $._DEDENT),
     branch: $ => seq('branch', $.NAME, $.block),
     budget_stmt: $ => seq('with', 'budget', $._expr, $.block),

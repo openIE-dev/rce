@@ -25,7 +25,7 @@ pub enum V {
     Range(i128, i128, &'static str),
     F32(f64),   // an f32 value, held exactly in an f64
     Gen(usize), // a suspended iterator call (index into Interp::gens)
-    // draft 0.6 / 0.6b runtime values (the draft 0.6 concurrency chapter, not published here)
+    // draft 0.6 / 0.6b runtime values (Appendix C, book/14-draft06-concurrency.md)
     Chan(String, i128),                        // channel id (6.6 content hash), capacity
     Actor(String, String),                     // actor id, actor type
     Task(String),                              // join handle of a spawned task (C.11.9)
@@ -1265,7 +1265,7 @@ impl<'a> Interp<'a> {
             a.push(self.eval(&x.e)?);
         }
         let _ = lazy_fn;
-        self.charge(crate::conc::C_CALL)?;
+        self.charge(crate::conc::C_CALL.saturating_add(crate::conc::method_work(&recv, m, &a)))?;
         if let Some(v) = self.conc_builtin(obj, &recv, m, &a)? {
             return Ok(v);
         }
@@ -2446,9 +2446,25 @@ fn pat_str(p: &Pat) -> String {
 }
 
 /// The Form P = (S, E, δ, D, λ) of an admitted module (6.1), as JSON.
+/// The first `prev_hash` of every log D (6.1).
+pub const D_GENESIS: &str = "0000000000000000000000000000000000000000000000000000000000000000";
+
+/// SHA-256 of text, lower-case hex (the hash of D, 6.1).
+pub fn d_sha(s: &str) -> String {
+    use sha2::{Digest, Sha256};
+    Sha256::digest(s.as_bytes()).iter().map(|b| format!("{b:02x}")).collect()
+}
+
 /// δ is given as its step table (region, pattern, guard, source line); the
 /// step bodies are the program's own. D is the log of each example, with each
 /// entry's outcome, outputs (λ) and the state after it.
+///
+/// Every entry carries the canonical D fields of 6.1 (`seq`, `event`,
+/// `prev_hash`, `state_hash`, `hash`), the same chain the engine profile
+/// writes (D.6): `state_hash` is the SHA-256 of the canonical JSON of the
+/// state after the entry, `hash` the SHA-256 of the canonical JSON of
+/// {event, prev_hash, seq, state_hash}, and the first `prev_hash` is 64
+/// zeros. `outcome`, `out` and `state` are derived fields (equal to replay).
 pub fn form_json(m: &Module) -> String {
     let fields = |fs: &[Field]| {
         fs.iter()
@@ -2569,6 +2585,7 @@ pub fn form_json(m: &Module) -> String {
         for x in exs {
             let mut s = s0.clone();
             let mut entries = vec![];
+            let mut prev = D_GENESIS.to_string();
             for (evn, args) in &x.events {
                 it.scopes = vec![HashMap::new()];
                 let ev = match it.construct(evn, args) {
@@ -2576,29 +2593,40 @@ pub fn form_json(m: &Module) -> String {
                     _ => break,
                 };
                 let evj = form_value(&ev, m).json();
-                let evj = format!("{{\"event\":{},\"payload\":{}}}", jstr(evn), evj);
-                match it.delta(&s, &ev) {
+                let evj = format!("{{\"payload\":{},\"type\":{}}}", evj, jstr(evn));
+                let (outcome, out, refused) = match it.delta(&s, &ev) {
                     Ok((s2, outs)) => {
                         s = s2;
-                        entries.push(format!(
-                            "{{\"in\":{evj},\"outcome\":\"applied\",\"out\":[{}],\"state\":{}}}",
-                            outs.iter()
-                                .map(|o| form_value(o, m).json())
-                                .collect::<Vec<_>>()
-                                .join(","),
-                            state_fv(&s).json()
-                        ));
+                        let o = outs
+                            .iter()
+                            .map(|o| form_value(o, m).json())
+                            .collect::<Vec<_>>()
+                            .join(",");
+                        ("\"applied\"".to_string(), o, false)
                     }
-                    Err(r) => {
-                        entries.push(format!(
-                            "{{\"in\":{evj},\"outcome\":{{\"refused\":{}}},\"out\":[{{\"Refused\":{{\"error\":{},\"payload\":{}}}}}],\"state\":{}}}",
+                    // T8: a refused event leaves the state unchanged.
+                    Err(r) => (
+                        format!("{{\"refused\":{}}}", jstr(&r)),
+                        format!(
+                            "{{\"Refused\":{{\"error\":{},\"payload\":{}}}}}",
                             jstr(&r),
-                            jstr(&r),
-                            form_value(&ev, m).json(),
-                            state_fv(&s).json()
-                        ));
-                        break;
-                    }
+                            form_value(&ev, m).json()
+                        ),
+                        true,
+                    ),
+                };
+                let st = state_fv(&s).json();
+                let (seq, sh) = (entries.len(), d_sha(&st));
+                let body = format!(
+                    "{{\"event\":{evj},\"prev_hash\":\"{prev}\",\"seq\":{seq},\"state_hash\":\"{sh}\"}}"
+                );
+                let h = d_sha(&body);
+                entries.push(format!(
+                    "{{\"event\":{evj},\"hash\":\"{h}\",\"out\":[{out}],\"outcome\":{outcome},\"prev_hash\":\"{prev}\",\"seq\":{seq},\"state\":{st},\"state_hash\":\"{sh}\"}}"
+                ));
+                prev = h;
+                if refused {
+                    break;
                 }
             }
             logs.push(format!(

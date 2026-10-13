@@ -12,12 +12,19 @@ Lexical and syntax
 - W-LEX-2 Inconsistent dedent (2.6).
 - W-LEX-3 A literal outside every possible type range, or an invalid `\u{}`.
 - W-SYN-1 Not in the language of section 3.
+- W-VER-1 A first-line `# rce-version:` declaration naming a version other
+  than 0.5 or 0.6 (2.7).
 
 Names and modules
 - W-NAME-1 Unresolved name, or a name resolved in the wrong namespace.
 - W-NAME-2 Duplicate declaration in one scope; shadowing a parameter, field
   or module-level name inside the same item.
-- W-MOD-1 `use` of a private item; W-MOD-2 import cycle.
+- W-MOD-1 `use` of a private item; W-MOD-2 import cycle. The reference
+  checker reports a private name reached through `use` as W-VIS-1, which
+  is the same rule.
+- W-MOD-3 An imported name that clashes with a declaration of the
+  importing module or with a name imported from another module (imported
+  names are not renamed).
 - W-SAFE-1 The identifiers `unsafe`, `Rc`, `Arc`, `RefCell`, `transmute`,
   `static`: refused with "memory safety is by construction" (there are no
   escape hatches in RCE other than the `extern` boundary of 5.11).
@@ -70,8 +77,14 @@ The Form
 - W-LOOP-1 A `LOOP_LIMIT` declaration that is not `const LOOP_LIMIT: u64 = n`
   with a positive literal n (6.7).
 - W-TRAIT-1 An impl not matching its trait; W-TRAIT-2 incoherent or orphan
-  impls.
+  impls; W-TRAIT-3 a type used with `==`, `!=`, an ordering operator or a
+  generic bound without implementing the trait it needs.
+
+Version 0.6 only (Appendix C, applies only to a module declaring
+`# rce-version: 0.6`): W-PAR-1 to W-PAR-4, W-DL-1, W-ND-1, W-GRP-1 to
+W-GRP-3, W-SES-1 to W-SES-3, W-SCOPE-1, W-ATOM-1, W-ATOM-2, W-CRDT-1,
+W-LVAR-1, W-LVAR-2, W-NODE-1, W-SUP-1, W-SUP-2, W-INTR-1 and W-RT-1.
 
 **Read receipt.** Which rule refuses two unguarded steps in one region whose patterns overlap?
 
-<!-- body-sha256: 1ce3b9d19e6e413684b1abf4d63dd945b6d947007ba000471e1e1b6b87fc8e6f -->
+<!-- body-sha256: 866fa41fbeab9642ea390cd560ac26f7bc72ca9075c26a31514965edd6e19b4c -->

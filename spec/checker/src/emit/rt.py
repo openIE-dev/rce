@@ -601,6 +601,25 @@ def builtin(r, m, a):
         if m == "or": return (a[0] if r.x is None else r.x), None
     trap("%s has no method %s at comptime" % (show(r), m))
 
+# C.6.4 method work, as conc::method_work in the reference evaluator.
+LIN_TEXT = frozenset(("strip", "upper", "lower", "reverse", "tostr", "chars", "words", "lines", "split", "isdigit", "isalpha", "isspace", "contains", "startswith", "endswith", "toint", "join",))
+LIN_LIST = frozenset(("reverse", "contains", "sum", "map", "filter", "fold",))
+LIN_MAP = frozenset(("get", "contains", "insert", "remove", "keys", "values",))
+def size_of(v):
+    t = type(v)
+    if t is str: return len(u8s(v))
+    if t is Lst: return len(v.xs)
+    if t is Mp: return len(v.ps)
+    return 0
+def ceil_log2(n): return 0 if n <= 1 else (n - 1).bit_length()
+def method_work(recv, m, args):
+    n = size_of(recv)
+    k = size_of(args[0]) if args else 0
+    t = type(recv)
+    if (t is str and m in LIN_TEXT) or (t is Lst and m in LIN_LIST) or (t is Mp and m in LIN_MAP): return n + k
+    if t is Lst and m == "sort": return n * ceil_log2(n)
+    return 0
+
 def call_method(recv, m, args):
     """(value, per-argument copy-out list, new receiver or None)"""
     t = type(recv)
@@ -608,7 +627,7 @@ def call_method(recv, m, args):
     if head is not None and (head, m) in METHODS:
         v, outs, s = METHODS[(head, m)](recv, args)
         return v, outs, s
-    charge(4)
+    charge(4 + method_work(recv, m, args))
     v, s = builtin(recv, m, args)
     return v, [], s
 

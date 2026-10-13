@@ -1,4 +1,4 @@
-//! Emission of the draft 0.6 / 0.6b statements (the draft 0.6 concurrency chapter, not published here)
+//! Emission of the draft 0.6 / 0.6b statements (Appendix C, book/14-draft06-concurrency.md)
 //! under the emitters' observation model, which is the reference
 //! evaluator's comptime mode (`emit::observe`):
 //!

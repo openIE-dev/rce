@@ -8,6 +8,29 @@ impl<'a> G<'a> {
     /// Evaluate `e` as a statement-level expression, writing back receivers
     /// and `&mut` arguments; returns an expression for the value.
     pub fn ex_stmt(&mut self, e: &Expr) -> E {
+        // `CALL catch h` and `try CALL` with a write-back call: the call is
+        // the first thing the statement evaluates, so it is hoisted, its
+        // copy-out written back on every outcome (6.2), and the catch or
+        // try applied to its value. Evaluation order is unchanged.
+        match e {
+            Expr::Catch(x, bind, h, line) if self.is_wb_call(x) => {
+                let v = self.ex_stmt(x)?;
+                let t = self.fresh("w");
+                let s = self.let_(&t, &v);
+                self.line(s);
+                let ne = Expr::Catch(Box::new(Expr::Name(format!("\u{1}{t}"), *line)), bind.clone(), h.clone(), *line);
+                return self.ex(&ne);
+            }
+            Expr::Try(x, els, line) if self.is_wb_call(x) => {
+                let v = self.ex_stmt(x)?;
+                let t = self.fresh("w");
+                let s = self.let_(&t, &v);
+                self.line(s);
+                let ne = Expr::Try(Box::new(Expr::Name(format!("\u{1}{t}"), *line)), els.clone(), *line);
+                return self.ex(&ne);
+            }
+            _ => {}
+        }
         let Expr::Call(f, args, _) = e else {
             return self.ex(e);
         };
@@ -137,6 +160,27 @@ impl<'a> G<'a> {
             },
         };
         self.line(s);
+    }
+    /// The copy-out list and receiver of the current function frame.
+    pub fn outs_slf(&self) -> (String, String) {
+        let Ctx::Fn { muts, self_mut } = &self.ctx else {
+            return (String::new(), self.none().to_string());
+        };
+        let l = self.lang;
+        let outs: Vec<String> = muts
+            .iter()
+            .map(|m| match (m, l) {
+                (Some(n), Lang::Rust) => format!("Some(l_{}.clone())", ident(n)),
+                (Some(n), _) => format!("l_{}", ident(n)),
+                (None, _) => self.none().into(),
+            })
+            .collect();
+        let slf = match (*self_mut && self.local("self"), l) {
+            (true, Lang::Rust) => "Some(l_self.clone())".to_string(),
+            (true, _) => "l_self".to_string(),
+            (false, _) => self.none().to_string(),
+        };
+        (outs.join(", "), slf)
     }
     pub fn ret_pack(&self, v: &str) -> String {
         let Ctx::Fn { muts, self_mut } = &self.ctx else {

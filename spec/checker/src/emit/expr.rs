@@ -26,6 +26,11 @@ impl<'a> G<'a> {
     pub fn ex(&mut self, e: &Expr) -> E {
         let l = self.lang;
         Ok(match e {
+            // a hoisted temporary (ex_stmt), not a source name
+            Expr::Name(n, _) if n.starts_with('\u{1}') => {
+                let t = &n[1..];
+                if l == Lang::Rust { format!("{t}.clone()") } else { t.to_string() }
+            }
             Expr::Name(n, _) => {
                 if self.local(n) {
                     self.var(n)
@@ -122,7 +127,7 @@ impl<'a> G<'a> {
                 Some((v, _)) => v,
                 None => {
                     return unsupported(
-                        "a call that writes back its receiver or arguments inside a larger expression",
+                        "a call that writes back its receiver or arguments in a conditional position (right of and/or, a branch, a handler, a lambda or a comprehension; strict positions are flattened by the ANF pass)",
                     );
                 }
             },
@@ -567,6 +572,26 @@ impl<'a> G<'a> {
                 let a = self.args(args)?;
                 Ok(Some((self.h("call_value", &[fv, self.vec(&a)]), None)))
             }
+        }
+    }
+
+    /// Whether `x` is a call that writes back (as `call_expr` decides).
+    pub fn is_wb_call(&self, x: &Expr) -> bool {
+        let Expr::Call(f, _, _) = x else { return false };
+        match &**f {
+            Expr::Name(n, _) if !self.local(n) => {
+                self.fns.get(n).is_some_and(|fd| has_mut_params(fd))
+            }
+            Expr::Member(obj, m, _) => {
+                if let Expr::Name(tn, _) = &**obj
+                    && !self.local(tn)
+                    && self.types.contains_key(tn)
+                {
+                    return self.methods.get(&(tn.clone(), m.clone())).is_some_and(|(_, fd)| has_mut_params(fd));
+                }
+                MUTATING.contains(&m.as_str()) || self.mut_method_names.contains(m)
+            }
+            _ => false,
         }
     }
 

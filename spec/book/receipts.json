@@ -68,5 +68,15 @@
   "question": "Who wrote \"Communicating Sequential Processes\"? (surname)",
   "salt": "cabf6a7ef51b3058553f3a5eeb57d995",
   "answer_sha256": "d87e7e8b1a41b258812144531d998c32b1f7ed922f4e8aab77e3fff8a049390a"
+ },
+ "14-draft06-concurrency.md": {
+  "question": "How many words does a version 0.6 module reserve in addition to the 0.5 keywords? (a number)",
+  "salt": "15d96338ed3cc533388fb1b95ccbcacc",
+  "answer_sha256": "c342e3b141a3e00d9e1df1626b24215f3e457927fa48749a937d46c6d07e6257"
+ },
+ "15-handler-spec-profile.md": {
+  "question": "Which compiled node id does `deliverable D1` become? (for example role_R1)",
+  "salt": "46b53ee81c4f538dbe339b114bbc8a2e",
+  "answer_sha256": "b3346b17831f544379753ce3e8b81bd03fa90e5377b7a4a6d39a5606439c5add"
  }
 }

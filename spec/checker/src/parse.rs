@@ -2,6 +2,9 @@
 //! grammar of spec section 3. The first error refuses the text.
 use crate::ast::*;
 
+/// Reserved words of the 0.5 language (spec 2.4). The draft 0.6 words are in
+/// `DRAFT06_KEYWORDS` and are reserved only in a module whose language
+/// version is 0.6 (spec 2.7, `# rce-version: 0.6`).
 pub const KEYWORDS: &[&str] = &[
     "actor", "after", "and", "arena", "as", "bound", "break", "catch", "chan", "check", "comptime",
     "const", "continue", "default", "device", "elif", "else", "emit", "error", "event", "example",
@@ -9,12 +12,6 @@ pub const KEYWORDS: &[&str] = &[
     "kind", "let", "linear", "loop", "match", "module", "mut", "none", "not", "on", "or", "pass",
     "pub", "recv", "refused", "return", "select", "self", "send", "spawn", "state", "step",
     "struct", "then", "to", "trait", "true", "try", "type", "use", "var", "while", "with", "yield",
-    // draft 0.6 (the draft 0.6 concurrency chapter, not published here)
-    "par", "branch", "nondet", "budget", "deadline", "priority",
-    // draft 0.6b (C.11); keywords stay valid member names, so the session
-    // methods `c.offer()` and `c.choose(L)` parse
-    "replicated", "interrupt", "session", "lvar", "group", "lanes", "barrier", "scope", "atomic",
-    "protocol", "offer", "choose", "node", "supervisor", "strategy", "child", "restart",
 ];
 
 #[derive(Debug, Clone, PartialEq)]
@@ -314,6 +311,11 @@ fn is_kw(s: &str) -> bool {
     KEYWORDS.contains(&s)
 }
 
+/// Whether `s` is reserved in a module of the given version (2.4, 2.7).
+pub fn reserved(s: &str, draft06: bool) -> bool {
+    KEYWORDS.contains(&s) || (draft06 && DRAFT06_KEYWORDS.contains(&s))
+}
+
 impl Parser {
     pub fn new(t: Vec<(Tok, usize)>) -> Self {
         Parser { t, p: 0, allow06: true }
@@ -341,10 +343,23 @@ impl Parser {
         }
         t
     }
+    /// The head word used to dispatch an item or statement. In a 0.5 module
+    /// a draft 0.6 word is a name, so it never selects a 0.6 construct.
+    fn head(&self, kw: String) -> String {
+        if !self.allow06 && DRAFT06_KEYWORDS.contains(&kw.as_str()) {
+            String::new()
+        } else {
+            kw
+        }
+    }
     fn is_p(&self, p: &str) -> bool {
         matches!(self.peek(), Tok::P(q) if *q == p)
     }
     fn is_kw(&self, k: &str) -> bool {
+        // A draft 0.6 word is an ordinary name in a 0.5 module (2.7).
+        if !self.allow06 && DRAFT06_KEYWORDS.contains(&k) {
+            return false;
+        }
         matches!(self.peek(), Tok::Id(q) if q == k)
     }
     fn eat_p(&mut self, p: &str) -> bool {
@@ -398,7 +413,7 @@ impl Parser {
     }
     fn name(&mut self) -> R<String> {
         match self.peek().clone() {
-            Tok::Id(s) if !is_kw(&s) && s != "_" => {
+            Tok::Id(s) if !reserved(&s, self.allow06) && s != "_" => {
                 self.bump();
                 Ok(s)
             }
@@ -406,7 +421,7 @@ impl Parser {
         }
     }
     fn is_name(&self) -> bool {
-        matches!(self.peek(), Tok::Id(s) if !is_kw(s) && s != "_")
+        matches!(self.peek(), Tok::Id(s) if !reserved(s, self.allow06) && s != "_")
     }
     fn path(&mut self) -> R<Vec<String>> {
         let mut v = vec![self.name()?];
@@ -425,6 +440,7 @@ impl Parser {
             path: None,
             items: vec![],
             pubs: Default::default(),
+            draft06: self.allow06,
         };
         if self.eat_kw("module") {
             m.path = Some(self.path()?);
@@ -467,6 +483,7 @@ impl Parser {
             Tok::Id(s) => s.clone(),
             _ => unreachable!(),
         };
+        let kw = self.head(kw);
         match kw.as_str() {
             "use" => {
                 self.bump();
@@ -1270,6 +1287,7 @@ impl Parser {
             Tok::Id(s) => s.clone(),
             _ => String::new(),
         };
+        let kw = self.head(kw);
         match kw.as_str() {
             "let" => {
                 self.bump();
@@ -1342,7 +1360,7 @@ impl Parser {
                 self.want_kw("in")?;
                 let e = self.expr()?;
                 // draft 0.6 `for ... par`: encoded as the marker region `$forpar`
-                // (the AST has no new variant, see the draft 0.6 concurrency chapter, not published here C.8).
+                // (the AST has no new variant, see Appendix C, book/14-draft06-concurrency.md C.8).
                 if self.eat_kw("par") {
                     let f = Stmt::For(p, e, self.block()?, line);
                     return Ok(Stmt::Arena("$forpar".into(), None, vec![f], line));
@@ -1429,7 +1447,7 @@ impl Parser {
                 if self.is_p("->") {
                     if !self.allow06 {
                         return self.err(
-                            "`spawn ... -> h` is draft 0.6 concurrency syntax (build with `--features conc06`)",
+                            "`spawn ... -> h` is draft 0.6 concurrency syntax (declare `# rce-version: 0.6`, spec 2.7)",
                         );
                     }
                     self.bump();
@@ -1449,7 +1467,7 @@ impl Parser {
                 let body = self.block()?;
                 Ok(Stmt::Arena(format!("${kw}"), None, body, line))
             }
-            "with" if matches!(self.peek2(), Tok::Id(k) if k == "group") => {
+            "with" if self.allow06 && matches!(self.peek2(), Tok::Id(k) if k == "group") => {
                 self.bump();
                 self.bump();
                 let g = self.name()?;
@@ -1521,7 +1539,9 @@ impl Parser {
                 }
                 Ok(Stmt::Arena("$par".into(), None, branches, line))
             }
-            "with" if matches!(self.peek2(), Tok::Id(k) if k == "budget" || k == "deadline") => {
+            "with" if self.allow06
+                && matches!(self.peek2(), Tok::Id(k) if k == "budget" || k == "deadline") =>
+            {
                 self.bump();
                 let budget = self.eat_kw("budget");
                 if !budget {
@@ -2034,29 +2054,43 @@ pub const DRAFT06_KEYWORDS: &[&str] = &[
     "choose", "node", "supervisor", "strategy", "child", "restart",
 ];
 
-/// Refuse draft 0.6 syntax when the `conc06` feature is off.
-pub fn draft06_gate(toks: &[(Tok, usize)]) -> Result<(), String> {
-    if cfg!(feature = "conc06") {
-        return Ok(());
+/// Language versions a module may declare (spec 2.7).
+pub const VERSIONS: &[&str] = &["0.5", "0.6"];
+
+/// The language version of a module (spec 2.7). The first line may be the
+/// comment `# rce-version: V`; V must be one of `VERSIONS` (W-VER-1).
+/// Without a declaration the version is 0.5. A checker built with the
+/// non-normative `conc06` development feature reads an undeclared module
+/// as 0.6; a declared version always wins, so `# rce-version: 0.5` gives
+/// the 0.5 language in every build.
+pub fn declared_version(src: &str) -> Result<Option<&'static str>, String> {
+    let first = src.strip_prefix('\u{feff}').unwrap_or(src).lines().next().unwrap_or("");
+    let t = first.trim_end();
+    let Some(rest) = t.strip_prefix('#') else { return Ok(None) };
+    let rest = rest.trim_start();
+    let Some(v) = rest.strip_prefix("rce-version:") else { return Ok(None) };
+    let v = v.trim();
+    match VERSIONS.iter().find(|x| **x == v) {
+        Some(x) => Ok(Some(*x)),
+        None => Err(format!(
+            "line 1: W-VER-1 unknown language version `{v}` (known: {})",
+            VERSIONS.join(", ")
+        )),
     }
-    for (i, (t, line)) in toks.iter().enumerate() {
-        if let Tok::Id(k) = t {
-            let member = i > 0 && toks[i - 1].0 == Tok::P(".");
-            if !member && DRAFT06_KEYWORDS.contains(&k.as_str()) {
-                return Err(format!(
-                    "line {line}: W-SYN-1 `{k}` is draft 0.6 concurrency syntax, \
-                     available only when the checker is built with `--features conc06`"
-                ));
-            }
-        }
-    }
-    Ok(())
+}
+
+/// Whether a module is read as draft 0.6 (spec 2.7).
+pub fn is_draft06(src: &str) -> Result<bool, String> {
+    Ok(match declared_version(src)? {
+        Some(v) => v == "0.6",
+        None => cfg!(feature = "conc06"),
+    })
 }
 
 pub fn parse(src: &str) -> Result<Module, String> {
+    let d06 = is_draft06(src)?;
     let toks = lex(src)?;
-    draft06_gate(&toks)?;
     let mut p = Parser::new(toks);
-    p.allow06 = cfg!(feature = "conc06");
+    p.allow06 = d06;
     p.module()
 }

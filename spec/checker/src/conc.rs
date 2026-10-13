@@ -1,5 +1,5 @@
 //! Draft 0.6 and 0.6b concurrency semantics for the reference evaluator
-//! (the draft 0.6 concurrency chapter, not published here). This module gives the evaluator:
+//! (Appendix C, book/14-draft06-concurrency.md). This module gives the evaluator:
 //!
 //! * the cost table of C.6.4 and `with budget` (`trap("budget")`);
 //! * `par` (C.4.2: meaning = branches in source order; the evaluator can
@@ -42,6 +42,45 @@ pub fn op_cost(op: &str, x: &V) -> i128 {
             _ => 1,
         },
         _ => 1,
+    }
+}
+
+/// Size of a value for method costs (C.6.4): text is its UTF-8 byte
+/// length, a list its length, a map its number of entries, anything
+/// else 0.
+pub fn size_of(v: &V) -> i128 {
+    match v {
+        V::Text(s) => s.len() as i128,
+        V::List(xs) => xs.len() as i128,
+        V::Map(m) => m.len() as i128,
+        _ => 0,
+    }
+}
+
+/// ⌈log₂ n⌉ for n ≥ 1, and 0 for n ≤ 1.
+pub fn ceil_log2(n: i128) -> i128 {
+    if n <= 1 { 0 } else { 128 - (n - 1).leading_zeros() as i128 }
+}
+
+/// Work of a standard library method (C.6.4), by complexity class, on
+/// n = size of the receiver and k = size of the first argument:
+/// linear methods n + k, `sort` n·⌈log₂ n⌉, every other method 0.
+/// Saturating, so it never overflows.
+pub fn method_work(recv: &V, m: &str, args: &[V]) -> i128 {
+    let n = size_of(recv);
+    let k = args.first().map(size_of).unwrap_or(0);
+    let lin = match recv {
+        V::Text(_) => matches!(m, "strip" | "upper" | "lower" | "reverse" | "tostr" | "chars" | "words" | "lines" | "split" | "isdigit" | "isalpha" | "isspace" | "contains" | "startswith" | "endswith" | "toint" | "join"),
+        V::List(_) => matches!(m, "reverse" | "contains" | "sum" | "map" | "filter" | "fold"),
+        V::Map(_) => matches!(m, "get" | "contains" | "insert" | "remove" | "keys" | "values"),
+        _ => false,
+    };
+    if lin {
+        n.saturating_add(k)
+    } else if matches!(recv, V::List(_)) && m == "sort" {
+        n.saturating_mul(ceil_log2(n))
+    } else {
+        0
     }
 }
 
@@ -415,13 +454,13 @@ impl<'a> Interp<'a> {
     /// Charge `units` cost units (C.6.4); refuses with `trap("budget")` when
     /// starting the operation would take any enclosing budget past its limit.
     pub fn charge(&mut self, units: i128) -> R<()> {
-        if self.cx.budgets.iter().any(|(s, l)| s + units > *l) {
+        if self.cx.budgets.iter().any(|(s, l)| s.saturating_add(units) > *l) {
             return trap("budget");
         }
         for b in self.cx.budgets.iter_mut() {
-            b.0 += units;
+            b.0 = b.0.saturating_add(units);
         }
-        self.cx.spent += units;
+        self.cx.spent = self.cx.spent.saturating_add(units);
         Ok(())
     }
 

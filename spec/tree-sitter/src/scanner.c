@@ -16,6 +16,8 @@ typedef struct {
   uint8_t pend_dedent;
   uint8_t bad;
   uint8_t eof_nl;       // the end-of-file NEWLINE of spec 2.6 rule 4 was emitted
+  uint8_t started;      // a token other than the first line's comment was seen
+  uint8_t v06;          // the module declares `# rce-version: 0.6` (spec 2.7)
 } S;
 
 static const char *KW[] = {"actor","after","and","arena","as","bound","break","catch","chan","check","comptime",
@@ -23,7 +25,8 @@ static const char *KW[] = {"actor","after","and","arena","as","bound","break","c
  "from","if","impl","in","intent","iter","kind","let","linear","loop","match","module","mut","none","not","on","or","pass",
  "pub","recv","refused","return","select","self","send","spawn","state","step","struct","then","to","trait","true",
  "try","type","use","var","while","with","yield",
- // draft 0.6 and 0.6b (the draft 0.6 concurrency chapter, not published here)
+ 0,
+ // draft 0.6 and 0.6b (Appendix C): reserved only in a version 0.6 module (spec 2.7)
  "par","branch","nondet","budget","deadline","priority",
  "replicated","interrupt","session","lvar","group","lanes","barrier","scope","atomic",
  "protocol","offer","choose","node","supervisor","strategy","child","restart", 0};
@@ -34,6 +37,31 @@ unsigned tree_sitter_rce_external_scanner_serialize(void *p, char *b) { memcpy(b
 void tree_sitter_rce_external_scanner_deserialize(void *p, const char *b, unsigned n) {
   S *s = p;
   if (n == sizeof(S)) memcpy(s, b, n); else { memset(s, 0, sizeof(S)); s->n = 1; }
+}
+
+// Index of the first draft 0.6 keyword in KW (after the 0.5 terminator).
+static int kw06_start(void) { int i = 0; while (KW[i]) i++; return i + 1; }
+
+// Read one comment (lookahead at '#') to the end of the line. On the first
+// line of the module, record whether it is the version 0.6 declaration.
+static void comment(TSLexer *lx, S *s) {
+  char b[48]; int n = 0;
+  int col0 = lx->get_column(lx) == 0;
+  lx->advance(lx, false);
+  while (!lx->eof(lx) && lx->lookahead != '\n' && lx->lookahead != '\r') {
+    if (n < 47) b[n++] = (char)lx->lookahead;
+    lx->advance(lx, false);
+  }
+  if (s->started || !col0) return;
+  b[n] = 0;
+  int i = 0;
+  while (b[i] == ' ') i++;
+  if (strncmp(b + i, "rce-version:", 12) != 0) return;
+  i += 12;
+  while (b[i] == ' ') i++;
+  int e = n;
+  while (e > i && b[e - 1] == ' ') e--;
+  if (e - i == 3 && strncmp(b + i, "0.6", 3) == 0) s->v06 = 1;
 }
 
 static int is_id0(int32_t c) { return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_'; }
@@ -104,10 +132,10 @@ bool tree_sitter_rce_external_scanner_scan(void *p, TSLexer *lx, const bool *val
     // _NL: (/\r?\n[ ]*/ | COMMENT)+ ; indentation = spaces after the last newline
     int ind = 0, sawnl = 0;
     for (;;) {
-      if (lx->lookahead == '#') { while (!lx->eof(lx) && lx->lookahead != '\n') lx->advance(lx, false); continue; }
+      if (lx->lookahead == '#') { comment(lx, s); continue; }
       if (lx->lookahead == '\r') { lx->advance(lx, false); if (lx->lookahead != '\n') { s->bad = 1; break; } }
       if (lx->lookahead == '\n') {
-        lx->advance(lx, false); sawnl = 1; ind = 0;
+        lx->advance(lx, false); sawnl = 1; ind = 0; s->started = 1;
         while (lx->lookahead == ' ') { lx->advance(lx, false); ind++; }
         continue;
       }
@@ -148,8 +176,11 @@ bool tree_sitter_rce_external_scanner_scan(void *p, TSLexer *lx, const bool *val
       w[n] = 0;
       if (strcmp(w, "_") == 0) return false;
       for (int i = 0; KW[i]; i++) if (strcmp(w, KW[i]) == 0) return false;
+      if (s->v06)
+        for (int i = kw06_start(); KW[i]; i++) if (strcmp(w, KW[i]) == 0) return false;
     }
     lx->mark_end(lx);
+    s->started = 1;
     lx->result_symbol = NAME; return true;
   }
   return false;

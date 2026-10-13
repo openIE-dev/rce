@@ -27,6 +27,22 @@ P = (S, E, δ, D, λ) is:
   its outcome (applied, or refused with X). The fold law: the state after the
   log is sₙ = foldl(δ₁, s₀, D) where δ₁ is the state component of δ.
 
+**Canonical signature (normative).** This is the one signature; the engine
+profile (D.6), the engine IR (`FormIr::step`) and the language interpreter
+are instances of it, and any other text (FORM.md, papers) defers to it.
+S = Σc × Σd (control regions, data: regions, clock, input count,
+relations); δ : S × E → S × O\* total; λ = π₂ ∘ δ; δ₁ = π₁ ∘ δ. An entry of
+D is the record {seq, event, prev_hash, state_hash, hash} where `seq` is
+the 0-based index, `event` is {type, payload}, `prev_hash` is the `hash`
+of the previous entry (64 zeros for the first), `state_hash` is the
+SHA-256 of the canonical JSON of the state after the step, and `hash` is
+the SHA-256 of the canonical JSON of {event, prev_hash, seq,
+state_hash}. A log may also carry `outcome`, `out` and `state`; these are
+derived and must equal replay (T1), so they are not hashed. A refused
+event (T8) is recorded with its unchanged state and ends the example
+log. Both producers are tested against this rule
+(`spec/checker/tests/form_signature.rs`, `tests/form_signature.rs`).
+
 Values ⟦τ⟧ are the Form's JSON-shaped values (form/types.rs): integers
 (i64), floats (finite f64), text, bool, null, lists, records. The embedding
 of RCE types into them is fixed:
@@ -93,7 +109,34 @@ Selected rules (the rest are the standard ones for a strict language):
 
 `trap` and `fail` propagate outward through every construct (they are not
 caught by `catch`: `catch` handles only declared errors and none; a trap
-always refuses the event). Values of type `τ ! ε` are `val(v)` or
+always refuses the event).
+
+**`&mut` write-back (normative).** A call writes back each `&mut`
+argument and a `&mut self` receiver on every outcome, including `fail`:
+the callee's writes made before it failed stay in the caller's store,
+exactly as an in-place update (`fail` above leaves the store at σ′, the
+store when it was raised, not σ). The derivation: the Rust target updates
+in place, and copy-in/copy-out agrees with in-place update only when it
+also copies out on failure (T33, `WriteBack.t33`; `copyOk_differs` shows
+that copying out only on success disagrees). Atomicity is per event, not
+per call: a `trap`, or a `fail` that leaves the step, refuses the event
+and the state is the pre-state (T8). The program emitters implement the
+rule for a write-back call that is a whole statement or expression of a
+`let`, `var`, assignment, `emit` or `return`, and for such a call under
+`catch` or `try` (`f(&mut x) catch h`, `try f(&mut x)`): the call is the
+first thing the statement evaluates, so it can be hoisted without
+changing evaluation order or budget charges. A write-back call nested
+deeper in a strict position (an operand of an operator, an argument, a
+list or map element, a receiver) is first rewritten by one shared
+A-normal-form pass that runs before all three emitters
+(`spec/checker/src/anf.rs`): the operands evaluated before it are bound
+to fresh `let` temporaries in left-to-right order, then the call, so
+reads, budget charges and emits keep their order (T34). A write-back
+call in a conditional position (right of `and`/`or`, an `if` branch, a
+`catch` handler, a lambda or a comprehension) is not flattened, since
+that would evaluate it eagerly; it is refused with a diagnostic, never
+given a different meaning. Tested on every target
+(`spec/checker/tests/write_back.rs`). Values of type `τ ! ε` are `val(v)` or
 `err(X, v)`; they are first-class only until a `try` or `catch` consumes them.
 
 ### 6.3 Edge semantics of primitives (normative, from form/num.rs)
@@ -179,4 +222,4 @@ and ir.rs (`Prim`, `Map`, `Filter`, `Fold`, `SortBy`), at the RCE static type.
 
 **Read receipt.** Which JavaScript function is named for rounding to binary32?
 
-<!-- body-sha256: bf6c8917142ebcd54bfd4b3a40788ad0bc8b01456033e77eb5ae9142e45deb35 -->
+<!-- body-sha256: 826f06907c3a4d84629e15a469b75d5277675645ddc325db5ed225ad66e59378 -->

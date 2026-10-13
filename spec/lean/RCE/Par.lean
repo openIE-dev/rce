@@ -1,4 +1,4 @@
-/-! Draft 0.6 / 0.6b parallel constructs (the draft 0.6 concurrency chapter, not published here C.7, C.11.14).
+/-! Draft 0.6 / 0.6b parallel constructs (Appendix C, book/14-draft06-concurrency.md C.7, C.11.14).
     What is mechanized here, on small models:
     * T16 core: branches with disjoint write sets give the source-order
       result under every interleaving of their writes (`interleave_eq_seq`).

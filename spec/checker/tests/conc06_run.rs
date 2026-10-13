@@ -1,4 +1,4 @@
-//! Run-time meaning of the 0.6 constructs (the draft 0.6 concurrency chapter, not published here C.4 to
+//! Run-time meaning of the 0.6 constructs (Appendix C, book/14-draft06-concurrency.md C.4 to
 //! C.7) on the tick runtime, with property tests for T16 to T22.
 #![cfg(feature = "conc06")]
 use rce_spec_check::conc::{run_main, Outcome, ParMode, RunCfg, RunResult};

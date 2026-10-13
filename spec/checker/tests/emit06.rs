@@ -1,4 +1,4 @@
-//! Emitters on the draft 0.6 constructs (spec 10.5, the draft 0.6 concurrency chapter, not published here):
+//! Emitters on the draft 0.6 constructs (spec 10.5, Appendix C, book/14-draft06-concurrency.md):
 //! `tests/emit06.rce` is emitted to Rust, Python and JavaScript, run, and
 //! compared line for line with the reference evaluator, including
 //! `for .. par` float reductions over the fixed tree T and `pscan`.

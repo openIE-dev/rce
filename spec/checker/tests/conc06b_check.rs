@@ -1,4 +1,4 @@
-//! Draft 0.6b static rules (the draft 0.6 concurrency chapter, not published here C.11): every program in
+//! Draft 0.6b static rules (Appendix C, book/14-draft06-concurrency.md C.11): every program in
 //! `spec/conc06b/accept/` is admitted, every one in `ill_typed/` is refused
 //! with the rule named on its first line, and `reject/` does not parse.
 #![cfg(feature = "conc06")]

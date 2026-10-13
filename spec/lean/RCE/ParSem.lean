@@ -1,5 +1,5 @@
 /-! A small-step operational semantics for a core of RCE with `par`
-    (the draft 0.6 concurrency chapter, not published here C.3, C.4), and the theorems about `par` proved on
+    (Appendix C, book/14-draft06-concurrency.md C.3, C.4), and the theorems about `par` proved on
     it rather than on a separate model:
     * T16 (`par_det`): under W-PAR-1 every complete interleaving gives the
       source-order (big-step) result.

@@ -4,7 +4,7 @@ RCE is a small programming language defined by a written specification.
 Every program is given one meaning, a *Form*: a state machine made of
 states, events, a step function that maps a state and an event to a new
 state and its outputs, and the log of events. This repository holds the
-specification (draft 0.5), its grammar in EBNF, and `rce`, the reference
+specification (draft 0.6), its grammar in EBNF, and `rce`, the reference
 checker and interpreter that decides which programs are accepted and what
 they do.
 
@@ -103,31 +103,38 @@ Section 10 of the specification defines each command exactly.
 | `spec/lean/` | the Lean 4 model of the core language and its proofs (section 8) |
 | `spec/fuzz/` | results of the grammar-level program fuzzer |
 | `spec/LANGUAGE-REVIEW.md` | what RCE learned from Rust, Go, Python, Mojo, Zig and Haskell; drafts 0.4 and 0.5 follow it |
-| `spec/conc06/`, `spec/conc06b/` | test programs for the draft 0.6 concurrency extensions (see below) |
+| `spec/conc06/`, `spec/conc06b/` | test programs for the version 0.6 extensions of Appendix C |
+| `spec/checker-wasm/pkg/` | the built WebAssembly package (wasm-pack) |
+| `spec/wasm-test/` | Node test of the WebAssembly package against the examples |
 
 ## Status
 
-The specification is **draft 0.5, published for review**. It can still
+The specification is **draft 0.6, published for review**. It can still
 change. The reference interpreter defines what programs mean and is not
 built for speed. There is no production compiler yet. Section 10.8 lists
 what the tools do not do yet.
 
-## Draft concurrency extensions (off by default)
+## Language versions 0.5 and 0.6
 
-The checker also contains an implementation of draft 0.6 and 0.6b
-concurrency (`par`, `for ... par`, `with budget`, workgroups, LVars,
-sessions, supervisors and more), with emitters that run it on threads and
-Lean proofs in `spec/lean/RCE/`. That chapter of the specification is still
-being written and is not published here, so this syntax is behind a cargo
-feature that is off by default:
+Each module selects its language version with a first-line comment
+(section 2.7). A module without it is version 0.5, the language of
+sections 2 to 10. A module that starts with
 
-```sh
-cargo build --release --features conc06
-cargo test --release --features conc06
+```
+# rce-version: 0.6
 ```
 
-Without the feature, `rce` implements the draft 0.5 language and refuses
-the 0.6 keywords with a message that names the feature.
+also gets Appendix C (`spec/book/14-draft06-concurrency.md`): `par`,
+`for ... par`, `with budget`, workgroups, LVars, sessions, supervisors and
+the cost table of C.6.4. Appendix D (`spec/book/15-handler-spec-profile.md`)
+defines handler specs and fits. A version 0.5 module never sees Appendix
+C, so every valid 0.5 program is accepted unchanged. The cargo feature
+`conc06` is a development aid only: it reads undeclared modules as 0.6
+for the draft's test corpora and enables the 0.6 test suites.
+
+```sh
+cargo test --release --features conc06
+```
 
 ## How the specification is checked
 

@@ -57,7 +57,9 @@ impl Lang {
 /// Emit `m` (already admitted by the checker) as one source file. An `Err`
 /// names a construct this emitter does not translate.
 pub fn emit(m: &Module, lang: Lang) -> Result<String, String> {
-    base::G::new(m, lang).program()
+    // one shared, order-preserving lowering for all three emitters (6.2)
+    let m = crate::anf::lower(m);
+    base::G::new(&m, lang).program()
 }
 
 fn show_state(s: &[crate::interp::Region]) -> String {

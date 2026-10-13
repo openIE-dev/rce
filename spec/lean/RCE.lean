@@ -25,3 +25,7 @@ import RCE.SessionRec
 import RCE.TickClock
 import RCE.SessionEnc
 import RCE.ModelVectors
+import RCE.Replay
+import RCE.WriteBack
+import RCE.Compose
+import RCE.Anf

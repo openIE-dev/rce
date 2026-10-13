@@ -108,6 +108,30 @@ Python's tokenizer uses:
 Blank and comment-only lines produce no tokens. There is no line
 continuation character; open a bracket instead.
 
+### 2.7 Language version
+
+A module may declare its language version on its first line, as the
+comment
+
+```
+# rce-version: 0.6
+```
+
+The line must start with `#` in column 0 and hold, after optional spaces,
+`rce-version:` and a version; trailing spaces are allowed. The known
+versions are `0.5` and `0.6`; any other is refused (W-VER-1). A module
+without the declaration is version 0.5. Version 0.5 is the language of
+sections 2 to 10. Version 0.6 adds Appendix C: its 23 words become
+keywords (C.1) and its constructs and rules apply. A version 0.5 module
+never sees Appendix C: its words are names there, and a valid 0.5 program
+is accepted unchanged by every conforming implementation. Because the
+declaration is a comment, the grammar of section 3 and its LALR(1) check
+are unchanged for 0.5; a 0.6 module is parsed by section 3 with the rules
+of C.2 applied, which is checked LALR(1) the same way. Each module of a program has its own version; a 0.6 module
+may `use` a 0.5 module and the reverse. (The reference checker has a
+non-normative `conc06` build feature that reads undeclared modules as 0.6,
+for the draft's own test corpora; a declared version always wins.)
+
 **Read receipt.** Which code point is the horizontal tab, as written in this section?
 
-<!-- body-sha256: 0eab4fa5900a167b5f8470385d89c71b6c6cfd720ccd25c7aefe4a54a4b581fb -->
+<!-- body-sha256: dd32cf81b6db8c0c1fde74f2660ddf8d6d5616eb6450422dca4c1eb272aa41f5 -->

@@ -1,4 +1,4 @@
-//! rce-check conformance for draft 0.6 (the draft 0.6 concurrency chapter, not published here C.8):
+//! rce-check conformance for draft 0.6 (Appendix C, book/14-draft06-concurrency.md C.8):
 //! every program in spec/conc06/accept/ is accepted by the reference
 //! checker; every program in spec/conc06/ill_typed/ is refused and the
 //! refusal names the rule in its first line (`# expect: RULE`);

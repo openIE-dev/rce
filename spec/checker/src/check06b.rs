@@ -1,4 +1,4 @@
-//! Static rules of draft 0.6b (the draft 0.6 concurrency chapter, not published here C.11): workgroups
+//! Static rules of draft 0.6b (Appendix C, book/14-draft06-concurrency.md C.11): workgroups
 //! (W-GRP-1..3), session types (W-SES-1..3), structured spawn (W-SCOPE-1),
 //! cross-actor transactions (W-ATOM-1..2), supervisors (W-SUP-1..2), nodes
 //! (W-NODE-1), interrupts and step deadlines (W-INTR-1, W-RT-1), LVars

@@ -1,5 +1,5 @@
 //! Emitters on `with budget`, `with group`, lvars, `atomic`, `with deadline`
-//! and `select nondet` (the draft 0.6 concurrency chapter, not published here C.6, C.11.1, C.11.8,
+//! and `select nondet` (Appendix C, book/14-draft06-concurrency.md C.6, C.11.1, C.11.8,
 //! C.11.10): each program is emitted to Rust, Python and JavaScript, run,
 //! and compared line for line with the reference evaluator (`observe`, the
 //! comptime model the emitters follow).

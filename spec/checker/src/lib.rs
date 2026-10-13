@@ -1,6 +1,7 @@
 #![allow(dead_code, unused_mut, unused_assignments)]
 //! RCE reference parser, type and well-formedness checker (RCE-SPEC.md),
 //! plus the tree-sitter port of the grammar for cross-checks.
+pub mod anf;
 pub mod ast;
 pub mod book;
 pub mod check;

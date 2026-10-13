@@ -207,11 +207,11 @@ emitters.
 
 Known open questions (not decided here): the standard library surface beyond
 the num.rs primitives; foreign interfaces other than the C ABI (WASM
-component model, GPU kernels); how `fit` files and handler specs from the
-current engine map onto RCE modules; whether emitters should lower device
+component model, GPU kernels); how an RCE module is used as a fit (the
+handler spec and fit formats themselves are now Appendix D); whether emitters should lower device
 regions and lane-wise operators to real accelerator or vector code (today
 they run them on the CPU, which 5.13 allows).
 
 **Read receipt.** The decisions list says it decides gaps in which file?
 
-<!-- body-sha256: 3a73540af023371c2804f7abe735990214fa4b613410a2134d891c14559d1862 -->
+<!-- body-sha256: fe6770a3a4f699c13462389094e5d2e83aab723583c7d2cd65005041f76eb780 -->

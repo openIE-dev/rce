@@ -306,7 +306,7 @@ pub enum Item {
         fns: Vec<FnDecl>,
         line: usize,
     },
-    // draft 0.6b (the draft 0.6 concurrency chapter, not published here C.11)
+    // draft 0.6b (Appendix C, book/14-draft06-concurrency.md C.11)
     Protocol {
         name: String,
         steps: Vec<ProtoStep>,
@@ -351,4 +351,6 @@ pub struct Module {
     pub items: Vec<Item>,
     /// names of the items declared `pub` (4.1: visible to importing modules)
     pub pubs: std::collections::BTreeSet<String>,
+    /// language version 0.6 (spec 2.7); false for a 0.5 module
+    pub draft06: bool,
 }

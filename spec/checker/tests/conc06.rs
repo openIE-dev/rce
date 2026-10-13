@@ -1,5 +1,5 @@
 //! Grammar-level conformance tests for the draft 0.6 concurrency chapter
-//! (the draft 0.6 concurrency chapter, not published here, section C.2).
+//! (Appendix C, book/14-draft06-concurrency.md, section C.2).
 //!
 //! The chapter's ```ebnf block lists new and replaced rules. This test
 //! takes the section-3 grammar from book/03-syntax.md, renames each rule
