@@ -50,8 +50,8 @@ RCE=/path/to/rce scripts/check.sh
 
 ## Areas without examples yet
 
-Some kinds of program have no example here, because draft 0.5 of RCE has
-no construct for them:
+Some kinds of program have no example here, because RCE (language version 0.5,
+specification draft 0.6) has no construct for them:
 
 - **Machine learning.** There is no tensor type and no automatic
   differentiation.
@@ -68,7 +68,8 @@ the text in its `.expect` file; a `.cmd` file holds a command whose
 output must equal the `.out` file next to it; and a folder with a
 `program.txt` is tested as one program.
 
-All programs follow draft 0.5 of the specification.
+All programs are version 0.5 modules (sections 2 to 10 of specification
+draft 0.6).
 
 ## Contributing
 
