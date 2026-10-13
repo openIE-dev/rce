@@ -258,6 +258,38 @@ impl Expander {
 
 /// The section-3 grammar from the text of `book/03-syntax.md`.
 pub fn book_grammar(md: &str) -> Result<Grammar, String> {
+    build_grammar(ebnf_rules(md)?)
+}
+
+/// The version 0.6 grammar: section 3 with the productions of Appendix C.2
+/// (`book/14-draft06-concurrency.md`). A C.2 rule with the name of a
+/// section-3 rule replaces it; any other C.2 rule is added.
+pub fn book_grammar_06(base_md: &str, appendix_md: &str) -> Result<Grammar, String> {
+    let mut rules = ebnf_rules(base_md)?;
+    let mut sec = String::new();
+    let mut on = false;
+    for line in appendix_md.lines() {
+        if line.starts_with("### ") {
+            on = line.starts_with("### C.2 ");
+        }
+        if on {
+            sec.push_str(line);
+            sec.push('\n');
+        }
+    }
+    if sec.is_empty() {
+        return Err("Appendix C.2 not found".into());
+    }
+    for (n, e) in ebnf_rules(&sec)? {
+        match rules.iter_mut().find(|r| r.0 == n) {
+            Some(r) => r.1 = e,
+            None => rules.push((n, e)),
+        }
+    }
+    build_grammar(rules)
+}
+
+fn ebnf_rules(md: &str) -> Result<Vec<(String, E)>, String> {
     let mut blocks = String::new();
     let mut inside = false;
     for line in md.lines() {
@@ -292,6 +324,10 @@ pub fn book_grammar(md: &str) -> Result<Grammar, String> {
         }
         rules.push((name, e));
     }
+    Ok(rules)
+}
+
+fn build_grammar(mut rules: Vec<(String, E)>) -> Result<Grammar, String> {
     // An all-capitals name is a terminal (NAME, NEWLINE, ...) unless a rule defines it.
     fn fix(e: &mut E, defined: &BTreeSet<String>) {
         match e {
@@ -351,6 +387,8 @@ pub struct Lalr {
     action: Vec<HashMap<usize, Act>>,
     goto: Vec<HashMap<usize, usize>>,
     pub conflicts: Vec<String>,
+    /// Lex with the version 0.6 keywords (Appendix C.1) reserved.
+    pub draft06: bool,
 }
 
 type Item = (usize, usize); // (production, dot)
@@ -573,6 +611,7 @@ impl Lalr {
             action,
             goto,
             conflicts,
+            draft06: false,
         }
     }
 
@@ -608,14 +647,15 @@ impl Lalr {
     /// Tokens of the reference lexer (2.1 to 2.6) as grammar terminals.
     /// A keyword is its own terminal except after `.` (a member name, 2.4).
     pub fn tokens(&self, src: &str) -> Option<Vec<usize>> {
-        use crate::parse::{KEYWORDS, Tok, lex};
+        use crate::parse::{DRAFT06_KEYWORDS, KEYWORDS, Tok, lex};
+        let kw = |s: &str| KEYWORDS.contains(&s) || (self.draft06 && DRAFT06_KEYWORDS.contains(&s));
         let toks = lex(src).ok()?;
         let mut out = Vec::new();
         let mut after_dot = false;
         for (t, _) in toks {
             let name: String = match &t {
                 Tok::Id(s) if s == "_" => "_".into(),
-                Tok::Id(s) if KEYWORDS.contains(&s.as_str()) && !after_dot => s.clone(),
+                Tok::Id(s) if kw(s.as_str()) && !after_dot => s.clone(),
                 Tok::Id(_) => "NAME".into(),
                 Tok::Int(_) => "INT".into(),
                 Tok::Float(_) => "FLOAT".into(),
@@ -640,6 +680,19 @@ impl Lalr {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn grammar_06_is_lalr_and_gated() {
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../book");
+        let rd = |f: &str| std::fs::read_to_string(dir.join(f)).unwrap();
+        let g = book_grammar_06(&rd("03-syntax.md"), &rd("14-draft06-concurrency.md")).unwrap();
+        let mut l = Lalr::build(g);
+        assert!(l.conflicts.is_empty(), "{:?}", l.conflicts);
+        let par = "fn f() -> i64\n    var a: i64 = 0\n    par\n        branch x\n            a = 1\n    return a\n";
+        assert!(!l.accepts(par), "0.6 words are names unless the lexer reserves them");
+        l.draft06 = true;
+        assert!(l.accepts(par));
+        assert!(!l.accepts("fn f() -> i64\n    par\n    return 1\n"));
+    }
     #[test]
     fn ambiguous_grammar_has_conflicts() {
         let md = "```\nS = E NEWLINE .\nE = E \"+\" E | NAME .\n```\n";

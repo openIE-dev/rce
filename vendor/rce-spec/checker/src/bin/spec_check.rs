@@ -169,6 +169,63 @@ fn main() {
         }
     };
     let lalr_ok = |s: &str| lalr.as_ref().is_some_and(|l| l.accepts(s));
+    // LALR(1) of the version 0.6 grammar: section 3 with Appendix C.2 applied.
+    let v06 = "# rce-version: 0.6\n";
+    match std::fs::read_to_string(spec.join("book/03-syntax.md"))
+        .and_then(|a| Ok((a, std::fs::read_to_string(spec.join("book/14-draft06-concurrency.md"))?)))
+        .map_err(|e| e.to_string())
+        .and_then(|(a, c)| rce_spec_check::lalr::book_grammar_06(&a, &c))
+    {
+        Ok(g) => {
+            let (rules, prods) = (g.source_rules, g.prods.len());
+            let mut l = rce_spec_check::lalr::Lalr::build(g);
+            l.draft06 = true;
+            println!(
+                "grammar: LALR(1) of version 0.6 (section 3 with C.2): {rules} rules, {prods} productions, {} states, {} conflicts",
+                l.states,
+                l.conflicts.len()
+            );
+            for c in &l.conflicts {
+                println!("FAIL (0.6 LALR conflict): {c}");
+            }
+            bad += l.conflicts.len();
+            let (mut acc, mut nacc, mut refd, mut nref) = (0, 0, 0, 0);
+            for d in ["conc06", "conc06b"] {
+                for sub in ["accept", "ill_typed"] {
+                    for (p, s) in load(&rce_files(&spec.join(d).join(sub))) {
+                        let s = format!("{v06}{s}");
+                        nacc += 1;
+                        if l.accepts(&s) {
+                            acc += 1
+                        } else {
+                            bad += 1;
+                            println!("FAIL (0.6 LALR should parse): {d}/{sub}/{}", name(&p))
+                        }
+                    }
+                }
+                // a reject case refused by the Rust parser must be refused by the tables too
+                for (p, s) in load(&rce_files(&spec.join(d).join("reject"))) {
+                    let s = format!("{v06}{s}");
+                    if parse::parse(&s).is_err() {
+                        nref += 1;
+                        if !l.accepts(&s) {
+                            refd += 1
+                        } else {
+                            bad += 1;
+                            println!("FAIL (0.6 LALR should refuse): {d}/reject/{}", name(&p))
+                        }
+                    }
+                }
+            }
+            println!(
+                "grammar: 0.6 LALR(1) accepted {acc}/{nacc} parsing 0.6 cases, refused {refd}/{nref} syntax rejects"
+            );
+        }
+        Err(e) => {
+            println!("FAIL (0.6 grammar): {e}");
+            bad += 1;
+        }
+    }
     let ex = spec.join("examples");
     let ok = load(&rce_files(&ex));
     let rej = load(&rce_files(&ex.join("reject")));

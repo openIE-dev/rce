@@ -94,6 +94,8 @@ pub struct Checker {
     iter_ok: bool,
     /// draft 0.6b state (see check06b.rs)
     pub(crate) b6: crate::check06b::State06b,
+    /// the module under check is language version 0.6 (spec 2.7)
+    pub v06: bool,
     /// functions and impl heads linked from imported modules (src/link.rs)
     pub imported_fns: HashSet<String>,
     pub imported_types: HashSet<String>,
@@ -168,6 +170,7 @@ impl Checker {
             iter_elem: None,
             iter_ok: false,
             b6: Default::default(),
+            v06: false,
             imported_fns: HashSet::new(),
             imported_types: HashSet::new(),
         }
@@ -185,6 +188,7 @@ impl Checker {
     }
 
     pub fn check_module(&mut self, m: &Module, known_modules: &HashSet<String>) {
+        self.v06 = m.draft06;
         self.pre06b(m);
         let mut seen: HashMap<String, usize> = HashMap::new();
         for it in &m.items {
@@ -1609,7 +1613,18 @@ impl Checker {
         let ok = match (&a, &x) {
             (T::Never, _) => true,
             (T::Union(..), T::Union(..)) => self.sub.unify(&a, &x),
-            (_, T::Union(t, _)) if !matches!(a, T::Var(_)) => self.coerce(&a, t),
+            // A literal's variable (integer or list literal) can only become
+            // an integer or a list, never a union, so it is the success
+            // type (`return 0` in a `-> i64 ! E` function). Other variables
+            // may still resolve to a union and are unified as is.
+            (_, T::Union(t, _))
+                if match a {
+                    T::Var(i) => self.sub.intlit[i] || self.sub.listlit[i].is_some(),
+                    _ => true,
+                } =>
+            {
+                self.coerce(&a, t)
+            }
             (T::Region(t, _), _) if !matches!(x, T::Region(..)) => self.coerce(t, &x),
             (_, T::Region(t, _)) if !matches!(a, T::Region(..)) => self.coerce(&a, t),
             _ => self.coerce(&a, &x),
@@ -2052,7 +2067,7 @@ impl Checker {
                 let line = e.line();
                 if !matches!(self.cx, Cx::Main | Cx::Task) {
                     self.e(d(line, "W-EFF-1", "spawn outside main or a task function"));
-                } else if self.cx == Cx::Task && self.b6.scope_depth == 0 {
+                } else if self.v06 && self.cx == Cx::Task && self.b6.scope_depth == 0 {
                     self.e(d(line, "W-SCOPE-1", "spawn outside a scope (only fn main is an implicit scope)"));
                 }
                 if self.b6.atomic_depth > 0 {
@@ -4494,7 +4509,7 @@ impl Checker {
     }
 }
 
-// ---- draft 0.6 concurrency (the draft 0.6 concurrency chapter, not published here) ----
+// ---- draft 0.6 concurrency (Appendix C, book/14-draft06-concurrency.md) ----
 //
 // The parser encodes the 0.6 statements as marker regions whose names
 // start with `$` (not a lexable name), so the AST and the evaluator are

@@ -27,10 +27,11 @@ cc = { version = "1", optional = true }
 # (used by rce-spec-check and rce-fuzz in CI).
 default = []
 tree-sitter = ["dep:tree-sitter", "dep:cc"]
-# `conc06` admits the draft 0.6 and 0.6b concurrency syntax (`par`,
-# `for ... par`, `with budget`, actors' 0.6b extensions, sessions, ...).
-# Off by default: the default checker implements the 0.5 language. The
-# draft semantics is not yet part of RCE-SPEC.md.
+# Version 0.6 (Appendix C) is selected per module by the first-line
+# declaration `# rce-version: 0.6` (spec 2.7) in every build. `conc06` is a
+# non-normative development feature: it reads undeclared modules as 0.6
+# (for the draft's test corpora) and enables the 0.6 test suites. A
+# declared version always wins.
 conc06 = []
 
 [[bin]]

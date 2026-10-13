@@ -498,10 +498,25 @@ function builtin(r, m, a) {
   }
   return trap(show(r) + " has no method " + m + " at comptime");
 }
+// C.6.4 method work, as conc::method_work in the reference evaluator.
+const LIN_TEXT = new Set(["strip", "upper", "lower", "reverse", "tostr", "chars", "words", "lines", "split", "isdigit", "isalpha", "isspace", "contains", "startswith", "endswith", "toint", "join"]), LIN_LIST = new Set(["reverse", "contains", "sum", "map", "filter", "fold"]), LIN_MAP = new Set(["get", "contains", "insert", "remove", "keys", "values"]);
+function sizeOf(v) {
+  if (isStr(v)) return BigInt(u8s(v).length);
+  if (v instanceof Lst) return BigInt(v.xs.length);
+  if (v instanceof Mp) return BigInt(v.ps.length);
+  return 0n;
+}
+function ceilLog2(n) { return n <= 1n ? 0n : BigInt((n - 1n).toString(2).length); }
+function methodWork(recv, m, args) {
+  const n = sizeOf(recv), k = args.length ? sizeOf(args[0]) : 0n;
+  if ((isStr(recv) && LIN_TEXT.has(m)) || (recv instanceof Lst && LIN_LIST.has(m)) || (recv instanceof Mp && LIN_MAP.has(m))) return n + k;
+  if (recv instanceof Lst && m === "sort") return n * ceilLog2(n);
+  return 0n;
+}
 function callMethod(recv, m, args) {
   const head = recv instanceof Rec ? (KIND_OF[recv.n] ?? recv.n) : recv instanceof Lst ? "List" : null;
   if (head !== null && METHODS[head + "." + m]) { const [v, outs, s] = METHODS[head + "." + m](recv, args); return [v, outs, s]; }
-  charge(4n);
+  charge(4n + methodWork(recv, m, args));
   const [v, s] = builtin(recv, m, args);
   return [v, [], s];
 }

@@ -413,12 +413,21 @@ pub fn builtin(r: V, m: &str, a: Vec<V>) -> R<(V, Option<V>)> {
     };
     Ok((v, None))
 }
+/// C.6.4 method work, as conc::method_work in the reference evaluator.
+pub fn size_of(v: &V) -> i128 { match v { V::Text(s) => s.len() as i128, V::List(xs) => xs.len() as i128, V::Map(m) => m.len() as i128, _ => 0 } }
+pub fn ceil_log2(n: i128) -> i128 { if n <= 1 { 0 } else { 128 - (n - 1).leading_zeros() as i128 } }
+pub fn method_work(recv: &V, m: &str, args: &[V]) -> i128 {
+    let n = size_of(recv);
+    let k = args.first().map(size_of).unwrap_or(0);
+    let lin = match recv { V::Text(_) => matches!(m, "strip" | "upper" | "lower" | "reverse" | "tostr" | "chars" | "words" | "lines" | "split" | "isdigit" | "isalpha" | "isspace" | "contains" | "startswith" | "endswith" | "toint" | "join"), V::List(_) => matches!(m, "reverse" | "contains" | "sum" | "map" | "filter" | "fold"), V::Map(_) => matches!(m, "get" | "contains" | "insert" | "remove" | "keys" | "values"), _ => false };
+    if lin { n.saturating_add(k) } else if matches!(recv, V::List(_)) && m == "sort" { n.saturating_mul(ceil_log2(n)) } else { 0 }
+}
 pub fn call_method(recv: V, m: &str, args: Vec<V>) -> R<Call> {
     let head = match &recv { V::Rec(n, _) => Some(kind_of(n).to_string()), V::List(_) => Some("List".to_string()), _ => None };
     if let Some(h) = head && let Some(f) = user_method(&h, m) {
         return f(Some(recv), args);
     }
-    charge(4)?;
+    charge(4i128.saturating_add(method_work(&recv, m, &args)))?;
     let (v, s) = builtin(recv, m, args)?;
     Ok(Call { v, outs: vec![], slf: s })
 }
@@ -781,13 +790,18 @@ pub fn pscan(xs: &[V], f: &V, e: V, inclusive: bool) -> R<V> {
 }
 
 // ---- cost accounting for `with budget` (C.6.1, C.6.4), as interp `charge`
+// `&mut` write-back on failure (6.2): a failing union function's b_ records
+// its copy-out here and its u_ takes it at once, on the same thread.
+thread_local! { static FAIL_OUTS: RefCell<(Vec<Option<V>>, Option<V>)> = const { RefCell::new((Vec::new(), None)) }; }
+pub fn fail_outs_set(o: Vec<Option<V>>, s: Option<V>) { FAIL_OUTS.with(|f| *f.borrow_mut() = (o, s)); }
+pub fn fail_outs_take() -> (Vec<Option<V>>, Option<V>) { FAIL_OUTS.with(|f| std::mem::take(&mut *f.borrow_mut())) }
 thread_local! { static BUD: RefCell<Vec<(i128, i128)>> = const { RefCell::new(Vec::new()) }; }
 pub fn charge(u: i128) -> R<()> {
     BUD.with(|b| {
         let mut b = b.borrow_mut();
         if b.is_empty() { return Ok(()); }
-        if b.iter().any(|(s, l)| s + u > *l) { return trap("budget"); }
-        for x in b.iter_mut() { x.0 += u; }
+        if b.iter().any(|(s, l)| s.saturating_add(u) > *l) { return trap("budget"); }
+        for x in b.iter_mut() { x.0 = x.0.saturating_add(u); }
         Ok(())
     })
 }
