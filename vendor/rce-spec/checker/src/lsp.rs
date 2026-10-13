@@ -81,6 +81,7 @@ fn item_line(i: &Item) -> Option<usize> {
     Some(match i {
         Item::Use(..) | Item::Intent(..) => return None,
         Item::Example(x) => x.line,
+        Item::Protocol { line, .. } | Item::Node { line, .. } | Item::Supervisor { line, .. } => *line,
         Item::Check(e) => e.line(),
         Item::Const { line, .. }
         | Item::TypeAlias { line, .. }
@@ -210,6 +211,10 @@ impl Index {
                     sub_lines(variants.iter().map(|v| v.0.clone()).collect(), 22),
                 ),
                 Item::Trait { name, .. } => mk(name, 11, block, vec![]),
+                Item::Protocol { name, .. } => mk(name, 11, block, vec![]),
+                Item::Node { name, .. } | Item::Supervisor { name, .. } => {
+                    mk(name, 2, block, vec![])
+                }
                 Item::Actor {
                     name, fields: fs, ..
                 } => mk(name, 5, head, fields(fs, 8)),

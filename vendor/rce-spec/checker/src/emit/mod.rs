@@ -21,10 +21,12 @@ use crate::interp::{Interp, V, why};
 use std::collections::HashMap;
 
 mod base;
+mod conc06;
 mod expr;
 mod probe;
 mod prog;
 mod stmt;
+mod tasks;
 pub use probe::with_probes;
 
 #[derive(Clone, Copy, PartialEq, Debug)]

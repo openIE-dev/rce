@@ -42,7 +42,7 @@ impl Kind {
             "event" => Kind::Event,
             "step" => Kind::Step,
             "fn" => Kind::Fn,
-            "type" | "struct" | "kind" | "trait" => Kind::Type,
+            "type" | "struct" | "kind" | "trait" | "protocol" => Kind::Type,
             "error" => Kind::Error,
             _ => Kind::Other,
         }
@@ -288,6 +288,8 @@ pub struct DefIn<'a> {
     pub file: &'a str,
     pub line: usize,
     pub rank: f64,
+    /// Concurrency annotation (RCE 0.6/0.6b), empty when none.
+    pub note: &'a str,
 }
 
 /// Build the code graph from defs, refs `(from, to, call)` and per-file
@@ -318,7 +320,7 @@ pub fn from_defs(
             rank: d.rank,
             energy: Energy::default(),
             live: None,
-            detail: d.kind.into(),
+            detail: if d.note.is_empty() { d.kind.into() } else { format!("{} · {}", d.kind, d.note) },
         });
     }
     for &(f, t, call) in refs {

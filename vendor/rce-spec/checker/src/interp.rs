@@ -25,6 +25,12 @@ pub enum V {
     Range(i128, i128, &'static str),
     F32(f64),   // an f32 value, held exactly in an f64
     Gen(usize), // a suspended iterator call (index into Interp::gens)
+    // draft 0.6 / 0.6b runtime values (the draft 0.6 concurrency chapter, not published here)
+    Chan(String, i128),                        // channel id (6.6 content hash), capacity
+    Actor(String, String),                     // actor id, actor type
+    Task(String),                              // join handle of a spawned task (C.11.9)
+    Session(String, String, i128),             // endpoint: send channel, receive channel, capacity
+    LVar(std::sync::Arc<crate::conc::LCell>),  // lattice cell (C.11.8)
 }
 impl PartialEq for V {
     fn eq(&self, o: &V) -> bool {
@@ -45,6 +51,10 @@ impl PartialEq for V {
             (Opt(a), Opt(b)) => a == b,
             (Rec(n, a), Rec(m, b)) => n == m && a == b,
             (Err(a), Err(b)) => a == b,
+            (Chan(a, _), Chan(b, _)) | (Task(a), Task(b)) => a == b,
+            (Actor(a, _), Actor(b, _)) => a == b,
+            (Session(a, b, _), Session(c, d, _)) => a == c && b == d,
+            (LVar(a), LVar(b)) => std::sync::Arc::ptr_eq(a, b),
             _ => false,
         }
     }
@@ -93,6 +103,11 @@ impl V {
             V::Range(a, b, _) => format!("{a}..{b}"),
             V::F32(f) => (*f as f32).to_string(),
             V::Gen(_) => "<iter>".into(),
+            V::Chan(..) => "<chan>".into(),
+            V::Actor(_, t) => format!("<actor {t}>"),
+            V::Task(_) => "<task>".into(),
+            V::Session(..) => "<session>".into(),
+            V::LVar(c) => format!("lvar({})", c.peek().show()),
         }
     }
     fn rec_name(&self) -> Option<&str> {
@@ -113,9 +128,11 @@ pub enum Flow {
     Fail(V),
     Trap(String),
     Stop,
+    /// Cancellation of a `with deadline` frame or of a whole task (C.6.2, C.11.9).
+    Cancel(u64),
 }
-type R<T> = Result<T, Flow>;
-fn trap<T>(m: impl Into<String>) -> R<T> {
+pub type R<T> = Result<T, Flow>;
+pub(crate) fn trap<T>(m: impl Into<String>) -> R<T> {
     Err(Flow::Trap(m.into()))
 }
 
@@ -124,17 +141,19 @@ pub const FUEL: u64 = 50_000_000;
 
 pub struct Interp<'a> {
     pub m: &'a Module,
-    fns: HashMap<String, &'a FnDecl>,
-    methods: HashMap<(String, String), &'a FnDecl>,
-    types: HashMap<String, &'a Item>,
-    variants: HashMap<String, Vec<(String, Ty)>>,
-    consts: HashMap<String, V>,
+    pub(crate) fns: HashMap<String, &'a FnDecl>,
+    pub(crate) methods: HashMap<(String, String), &'a FnDecl>,
+    pub(crate) types: HashMap<String, &'a Item>,
+    pub(crate) variants: HashMap<String, Vec<(String, Ty)>>,
+    pub(crate) consts: HashMap<String, V>,
     pub scopes: Vec<HashMap<String, V>>,
-    fuel: u64,
+    pub(crate) fuel: u64,
     pub outputs: Vec<V>,
     pub loop_limit: i128,
-    gens: Vec<(&'a FnDecl, HashMap<String, V>)>,
-    yields: Vec<(Vec<V>, usize)>,
+    pub(crate) gens: Vec<(&'a FnDecl, HashMap<String, V>)>,
+    pub(crate) yields: Vec<(Vec<V>, usize)>,
+    /// Concurrency state of draft 0.6 / 0.6b (see conc.rs).
+    pub cx: crate::conc::TaskCx,
 }
 
 fn int_name(t: &Ty) -> Option<&'static str> {
@@ -162,6 +181,7 @@ impl<'a> Interp<'a> {
             loop_limit: LOOP_LIMIT,
             gens: vec![],
             yields: vec![],
+            cx: Default::default(),
         };
         for i in &m.items {
             match i {
@@ -202,7 +222,7 @@ impl<'a> Interp<'a> {
         }
         it
     }
-    fn alias(&self, t: &Ty) -> Ty {
+    pub(crate) fn alias(&self, t: &Ty) -> Ty {
         if let Ty::Path(p, _) = t
             && p.len() == 1
             && let Some(Item::TypeAlias { ty, .. }) = self.types.get(&p[0])
@@ -262,17 +282,17 @@ impl<'a> Interp<'a> {
     pub fn steps_used(&self) -> u64 {
         FUEL - self.fuel
     }
-    fn tick(&mut self) -> R<()> {
+    pub(crate) fn tick(&mut self) -> R<()> {
         if self.fuel == 0 {
             return trap("comptime fuel exhausted");
         }
         self.fuel -= 1;
         Ok(())
     }
-    fn get(&self, n: &str) -> Option<V> {
+    pub(crate) fn get(&self, n: &str) -> Option<V> {
         self.scopes.iter().rev().find_map(|s| s.get(n).cloned())
     }
-    fn set(&mut self, n: &str, v: V) -> bool {
+    pub(crate) fn set(&mut self, n: &str, v: V) -> bool {
         for s in self.scopes.iter_mut().rev() {
             if let Some(x) = s.get_mut(n) {
                 *x = v;
@@ -281,7 +301,7 @@ impl<'a> Interp<'a> {
         }
         false
     }
-    fn bind(&mut self, n: &str, v: V) {
+    pub(crate) fn bind(&mut self, n: &str, v: V) {
         self.scopes.last_mut().unwrap().insert(n.to_string(), v);
     }
 
@@ -324,7 +344,7 @@ pub(crate) fn wide_mul(x: i128, y: i128) -> String {
     }
 }
 
-fn chk(x: i128, t: &'static str) -> R<V> {
+pub(crate) fn chk(x: i128, t: &'static str) -> R<V> {
     let (lo, hi) = int_range(if t == "lit" { "i64" } else { t });
     if x < lo || x > hi {
         trap(format!(
@@ -459,7 +479,7 @@ impl<'a> Interp<'a> {
             )),
         }
     }
-    fn cmp(&self, a: &V, b: &V) -> R<std::cmp::Ordering> {
+    pub(crate) fn cmp(&self, a: &V, b: &V) -> R<std::cmp::Ordering> {
         use V::*;
         Ok(match (a, b) {
             (Int(x, _), Int(y, _)) => x.cmp(y),
@@ -480,7 +500,7 @@ impl<'a> Interp<'a> {
             _ => return trap("values are not ordered"),
         })
     }
-    fn truthy(&self, v: V) -> R<bool> {
+    pub(crate) fn truthy(&self, v: V) -> R<bool> {
         match v {
             V::Bool(b) => Ok(b),
             o => trap(format!("expected bool, found {}", o.show())),
@@ -516,11 +536,15 @@ impl<'a> Interp<'a> {
             E::None(_) => Ok(V::Opt(None)),
             E::Unit(_) => Ok(V::Unit),
             E::Tuple(v, _) => Ok(V::Tuple(v.iter().map(|x| self.eval(x)).collect::<R<_>>()?)),
-            E::List(v, _) => Ok(V::List(v.iter().map(|x| self.eval(x)).collect::<R<_>>()?)),
+            E::List(v, _) => {
+                self.charge(4 + v.len() as i128)?;
+                Ok(V::List(v.iter().map(|x| self.eval(x)).collect::<R<_>>()?))
+            }
             E::ListRepeat(x, n, _) => {
                 let v = self.eval(x)?;
                 match self.eval(n)? {
                     V::Int(k, _) if (0..=10_000_000).contains(&k) => {
+                        self.charge(4 + k)?;
                         Ok(V::List(vec![v; k as usize]))
                     }
                     _ => trap("bad repeat count"),
@@ -554,9 +578,11 @@ impl<'a> Interp<'a> {
                         out.push(r?);
                     }
                 }
+                self.charge(4 + out.len() as i128)?;
                 Ok(V::List(out))
             }
             E::Map(v, _) => {
+                self.charge(4 + v.len() as i128)?;
                 let mut m: Vec<(V, V)> = vec![];
                 for (a, b) in v {
                     let k = self.eval(a)?;
@@ -565,15 +591,17 @@ impl<'a> Interp<'a> {
                 }
                 Ok(V::Map(m))
             }
-            E::ChanNew(..) => trap("channels are not available at comptime"),
+            E::ChanNew(t, cap, line) => self.chan_new(t, cap.as_deref(), *line),
             E::Call(f, args, _) => self.call(f, args),
             E::Index(x, idx, _) => {
                 let c = self.eval(x)?;
                 let i = self.eval(&idx[0])?;
+                self.charge(1)?;
                 index(c, i)
             }
             E::Slice(x, a, b, _) => {
                 let c = self.eval(x)?;
+                self.charge(1)?;
                 let (xs, text) = match c {
                     V::List(xs) => (xs, None),
                     V::Text(t) => (
@@ -620,19 +648,20 @@ impl<'a> Interp<'a> {
             }
             E::Member(x, m, _) => {
                 let v = self.eval(x)?;
+                self.charge(1)?;
                 field(&v, m)
             }
-            E::TupleMember(x, i, _) => match self.eval(x)? {
+            E::TupleMember(x, i, _) => match self.eval(x).and_then(|v| self.charge(1).map(|_| v))? {
                 V::Tuple(v) if *i < v.len() => Ok(v[*i].clone()),
                 _ => trap("bad tuple index"),
             },
-            E::Neg(x, _) => match self.eval(x)? {
+            E::Neg(x, _) => match self.eval(x).and_then(|v| self.charge(1).map(|_| v))? {
                 V::Int(v, t) => chk(-v, t),
                 V::F(f) => Ok(V::F(-f)),
                 V::F32(f) => Ok(V::F32(-f)),
                 _ => trap("bad negation"),
             },
-            E::BitNot(x, _) => match self.eval(x)? {
+            E::BitNot(x, _) => match self.eval(x).and_then(|v| self.charge(1).map(|_| v))? {
                 V::Int(v, t) => {
                     let t2 = if t == "lit" { "i64" } else { t };
                     let (lo, hi) = int_range(t2);
@@ -642,10 +671,11 @@ impl<'a> Interp<'a> {
             },
             E::Not(x, _) => {
                 let b = self.eval(x)?;
+                self.charge(1)?;
                 Ok(V::Bool(!self.truthy(b)?))
             }
             E::Borrow(_, x, _) => self.eval(x),
-            E::Recv(..) => trap("channels are not available at comptime"),
+            E::Recv(c, _) => self.conc_recv(c),
             E::Comptime(x, _) => self.eval(x),
             E::Cast(x, ty, _) => {
                 let v = self.eval(x)?;
@@ -719,6 +749,7 @@ impl<'a> Interp<'a> {
     fn binary(&mut self, op: &str, a: &Expr, b: &Expr) -> R<V> {
         match op {
             "and" => {
+                self.charge(1)?;
                 let x = self.eval(a)?;
                 if !self.truthy(x)? {
                     return Ok(V::Bool(false));
@@ -727,6 +758,7 @@ impl<'a> Interp<'a> {
                 return Ok(V::Bool(self.truthy(y)?));
             }
             "or" => {
+                self.charge(1)?;
                 let x = self.eval(a)?;
                 if self.truthy(x)? {
                     return Ok(V::Bool(true));
@@ -738,6 +770,7 @@ impl<'a> Interp<'a> {
         }
         let x = self.eval(a)?;
         let y = self.eval(b)?;
+        self.charge(crate::conc::op_cost(op, &x))?;
         use std::cmp::Ordering::*;
         match op {
             "==" => Ok(V::Bool(x == y)),
@@ -842,7 +875,7 @@ impl<'a> Interp<'a> {
             Err(f) => (items, true, Some(f)),
         })
     }
-    fn iter_items(&mut self, v: V) -> R<Vec<V>> {
+    pub(crate) fn iter_items(&mut self, v: V) -> R<Vec<V>> {
         Ok(match v {
             V::List(xs) => xs,
             V::Range(a, b, t) => {
@@ -864,7 +897,7 @@ impl<'a> Interp<'a> {
         })
     }
 
-    fn assign(&mut self, place: &Expr, v: V) -> R<()> {
+    pub(crate) fn assign(&mut self, place: &Expr, v: V) -> R<()> {
         match place {
             Expr::Name(n, _) => {
                 if self.set(n, v) {
@@ -916,9 +949,13 @@ impl<'a> Interp<'a> {
         }
     }
 
-    fn pmatch(&mut self, p: &Pat, v: &V) -> R<bool> {
+    pub(crate) fn pmatch(&mut self, p: &Pat, v: &V) -> R<bool> {
         Ok(match p {
             Pat::Wild => true,
+            // a session offer's label (C.11.3) matches by name and binds nothing
+            Pat::Path(path) if matches!(v, V::Rec(l, f) if f.is_empty() && l.starts_with("$label:")) => {
+                matches!(v, V::Rec(l, _) if l["$label:".len()..] == path[path.len() - 1])
+            }
             Pat::Path(path) => {
                 let n = &path[path.len() - 1];
                 if path.len() == 1
@@ -1057,6 +1094,10 @@ impl<'a> Interp<'a> {
                         return Ok(V::Opt(Some(Box::new(v))));
                     }
                     "copy" | "Box" => return self.eval(&args[0].e),
+                    "lvar_new" => {
+                        let vals: Vec<V> = args.iter().map(|a| self.eval(&a.e)).collect::<R<_>>()?;
+                        return Ok(crate::conc::LCell::new_value(vals));
+                    }
                     _ => {}
                 }
                 if let Some(fd) = self.fns.get(n).copied() {
@@ -1064,6 +1105,9 @@ impl<'a> Interp<'a> {
                 }
                 if let Some(v) = self.construct(n, args)? {
                     return Ok(v);
+                }
+                if let Some(Item::Actor { .. }) = self.types.get(n) {
+                    return self.actor_new(n, f.line());
                 }
                 trap(format!("cannot call {n} at comptime"))
             }
@@ -1096,7 +1140,7 @@ impl<'a> Interp<'a> {
             }
         }
     }
-    fn kind_of(&self, n: &str) -> String {
+    pub(crate) fn kind_of(&self, n: &str) -> String {
         for i in &self.m.items {
             if let Item::Kind { name, variants, .. } = i
                 && variants.iter().any(|(v, _)| v == n)
@@ -1126,6 +1170,7 @@ impl<'a> Interp<'a> {
         env: Vec<HashMap<String, V>>,
         vals: Vec<V>,
     ) -> R<V> {
+        self.charge(crate::conc::C_CALL)?;
         let saved = std::mem::replace(&mut self.scopes, env);
         self.scopes.push(HashMap::new());
         let mut r = Ok(V::Unit);
@@ -1147,6 +1192,7 @@ impl<'a> Interp<'a> {
     }
     pub fn call_fn(&mut self, fd: &'a FnDecl, args: &[Arg], recv: Option<(V, &Expr)>) -> R<V> {
         self.tick()?;
+        self.charge(crate::conc::C_CALL)?;
         let named: Vec<(&String, &Ty)> = fd
             .sig
             .params
@@ -1210,12 +1256,19 @@ impl<'a> Interp<'a> {
 
 impl<'a> Interp<'a> {
     fn builtin(&mut self, obj: &Expr, recv: V, m: &str, args: &[Arg]) -> R<V> {
+        if let Some(v) = self.conc_builtin_pre(&recv, m, args)? {
+            return Ok(v);
+        }
         let mut a: Vec<V> = vec![];
         let lazy_fn = matches!(m, "map" | "filter" | "fold");
         for x in args {
             a.push(self.eval(&x.e)?);
         }
         let _ = lazy_fn;
+        self.charge(crate::conc::C_CALL)?;
+        if let Some(v) = self.conc_builtin(obj, &recv, m, &a)? {
+            return Ok(v);
+        }
         use V::*;
         match (recv, m) {
             (Int(x, t), "checked_add" | "checked_sub" | "checked_mul" | "checked_div") => {
@@ -1455,7 +1508,7 @@ impl<'a> Interp<'a> {
             (r, _) => trap(format!("{} has no method {m} at comptime", r.show())),
         }
     }
-    fn apply(&mut self, f: &V, vals: Vec<V>) -> R<V> {
+    pub(crate) fn apply(&mut self, f: &V, vals: Vec<V>) -> R<V> {
         match f.clone() {
             V::Closure(ps, body, env) => self.apply_closure(&ps, &body, env, vals),
             V::Fn(n) => {
@@ -1496,7 +1549,7 @@ impl<'a> Interp<'a> {
         self.scopes.pop();
         r
     }
-    fn exec_block(&mut self, b: &[Stmt]) -> R<()> {
+    pub(crate) fn exec_block(&mut self, b: &[Stmt]) -> R<()> {
         self.exec_block_tail(b).map(|_| ())
     }
     fn run_loop(
@@ -1520,7 +1573,26 @@ impl<'a> Interp<'a> {
         Ok(())
     }
 
-    fn exec(&mut self, s: &Stmt, tail: bool) -> R<Option<V>> {
+    /// `for` over the items of a non-iterator value
+    fn for_items(&mut self, p: &Pat, itv: V, body: &[Stmt]) -> R<Option<V>> {
+        let items = self.iter_items(itv)?;
+        for x in items {
+            self.scopes.push(HashMap::new());
+            let r = match self.pmatch(p, &x) {
+                Ok(_) => self.exec_block(body),
+                Err(e) => Err(e),
+            };
+            self.scopes.pop();
+            match r {
+                Ok(()) | Err(Flow::Cont) => {}
+                Err(Flow::Brk) => break,
+                Err(f) => return Err(f),
+            }
+        }
+        Ok(None)
+    }
+
+    pub(crate) fn exec(&mut self, s: &Stmt, tail: bool) -> R<Option<V>> {
         self.tick()?;
         match s {
             Stmt::Expr(e) => {
@@ -1600,10 +1672,11 @@ impl<'a> Interp<'a> {
                 };
                 self.run_loop(bound, |_| Ok(true), body)?;
             }
-            Stmt::For(p, it, body, _) if matches!(self.eval(it), Ok(V::Gen(_))) => {
-                let g = match self.eval(it)? {
-                    V::Gen(g) => g,
-                    _ => unreachable!(),
+            // the iterable is evaluated once; an iterator call runs lazily
+            Stmt::For(p, it, body, _) => {
+                let itv = self.eval(it)?;
+                let V::Gen(g) = itv else {
+                    return self.for_items(p, itv, body);
                 };
                 let (mut done, mut cap) = (0usize, 64usize);
                 'outer: loop {
@@ -1631,23 +1704,7 @@ impl<'a> Interp<'a> {
                     cap = cap.saturating_mul(2);
                 }
             }
-            Stmt::For(p, it, body, _) => {
-                let itv = self.eval(it)?;
-                let items = self.iter_items(itv)?;
-                for x in items {
-                    self.scopes.push(HashMap::new());
-                    let r = match self.pmatch(p, &x) {
-                        Ok(_) => self.exec_block(body),
-                        Err(e) => Err(e),
-                    };
-                    self.scopes.pop();
-                    match r {
-                        Ok(()) | Err(Flow::Cont) => {}
-                        Err(Flow::Brk) => break,
-                        Err(f) => return Err(f),
-                    }
-                }
-            }
+
             Stmt::Match(e, arms, _) => {
                 let v = self.eval(e)?;
                 for a in arms {
@@ -1691,11 +1748,14 @@ impl<'a> Interp<'a> {
             Stmt::Pass => {}
             Stmt::Emit(e) => {
                 let v = self.eval(e)?;
-                self.outputs.push(v);
+                self.conc_emit(v)?;
             }
             Stmt::Fail(e) => {
                 let v = self.eval(e)?;
                 return Err(Flow::Fail(v));
+            }
+            Stmt::Arena(name, None, body, line) if name.starts_with('$') => {
+                return self.exec_marker(name, body, *line, tail);
             }
             Stmt::Arena(_, Some(b), body, _) | Stmt::Device(_, Some(b), body, _) => {
                 let bound = match self.eval(b)? {
@@ -1749,9 +1809,11 @@ impl<'a> Interp<'a> {
                     return trap("check failed");
                 }
             }
-            Stmt::Send(..) | Stmt::Spawn(..) | Stmt::Select(..) => {
-                return trap("concurrency is not available at comptime");
+            Stmt::Send(t, v) => self.conc_send(t, v)?,
+            Stmt::Spawn(e) => {
+                self.conc_spawn(e, 0)?;
             }
+            Stmt::Select(arms, line) => return self.conc_select(arms, *line, false, tail),
         }
         Ok(None)
     }
@@ -2048,6 +2110,7 @@ pub fn admit(m: &Module) -> Vec<String> {
             }
         }
     }
+    errs.extend(crate::conc::crdt_gate(m));
     errs
 }
 
@@ -2094,6 +2157,7 @@ pub fn json_size(v: &V) -> usize {
         V::Range(a, b, _) => 3 + a.to_string().len() + b.to_string().len(),
         V::Fn(n) => esc(n),
         V::Closure(..) | V::Gen(_) => 2,
+        V::Chan(..) | V::Actor(..) | V::Task(_) | V::Session(..) | V::LVar(_) => 2,
     }
 }
 
@@ -2330,6 +2394,7 @@ pub fn form_value(v: &V, m: &Module) -> FV {
         V::Range(a, b, _) => FV::List((*a..*b).map(FV::Int).collect()),
         V::Fn(n) => rec(vec![("$fn".into(), FV::Text(n.clone()))]),
         V::Closure(..) | V::Gen(_) => FV::Null,
+        V::Chan(..) | V::Actor(..) | V::Task(_) | V::Session(..) | V::LVar(_) => FV::Null,
     }
 }
 

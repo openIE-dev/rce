@@ -74,7 +74,7 @@ pub struct Checker {
     pub bin_types: HashMap<usize, T>,
     pub calls: HashMap<String, BTreeSet<String>>,
     scopes: Vec<HashMap<String, Local>>,
-    cx: Cx,
+    pub(crate) cx: Cx,
     ret: T,
     gbounds: HashMap<String, Vec<String>>,
     self_ty: Option<T>,
@@ -89,13 +89,18 @@ pub struct Checker {
     /// Every local binding the checker declared: (name, line, type). The
     /// language server reads it for hover and go-to-definition (10.7).
     pub decls: Vec<(String, usize, T)>,
-    device: usize,
+    pub(crate) device: usize,
     iter_elem: Option<T>,
     iter_ok: bool,
+    /// draft 0.6b state (see check06b.rs)
+    pub(crate) b6: crate::check06b::State06b,
+    /// functions and impl heads linked from imported modules (src/link.rs)
+    pub imported_fns: HashSet<String>,
+    pub imported_types: HashSet<String>,
 }
 
 const SAFE_REFUSED: &[&str] = &["unsafe", "Rc", "Arc", "RefCell", "transmute", "static"];
-const BUILTIN_TRAITS: &[&str] = &["Eq", "Ord", "Hash", "Show", "Copy", "Data"];
+const BUILTIN_TRAITS: &[&str] = &["Eq", "Ord", "Hash", "Show", "Copy", "Data", "Merge"];
 const STD_MODULES: &[&str] = &["std.text", "std.collections", "std.math"];
 
 fn d<X: std::fmt::Display>(line: usize, rule: &str, m: X) -> String {
@@ -118,6 +123,7 @@ fn fn_cx(sig: &FnSig, owner_is_impl: bool) -> Cx {
 fn ty_mentions_chan(t: &Ty) -> bool {
     match t {
         Ty::Chan(_) => true,
+        Ty::Path(p, _) if p.len() == 1 && p[0] == "session" => true,
         Ty::Path(_, a) => a.iter().any(ty_mentions_chan),
         Ty::Ref(_, x) | Ty::Opt(x) | Ty::Slice(x) | Ty::Region(x, _) => ty_mentions_chan(x),
         Ty::Tuple(v) => v.iter().any(ty_mentions_chan),
@@ -161,15 +167,25 @@ impl Checker {
             device: 0,
             iter_elem: None,
             iter_ok: false,
+            b6: Default::default(),
+            imported_fns: HashSet::new(),
+            imported_types: HashSet::new(),
         }
     }
-    fn e(&mut self, s: String) {
+    pub(crate) fn push_scope_pub(&mut self) {
+        self.scopes.push(HashMap::new());
+    }
+    pub(crate) fn pop_scope_pub(&mut self) {
+        self.scopes.pop();
+    }
+    pub(crate) fn e(&mut self, s: String) {
         if !self.errs.contains(&s) {
             self.errs.push(s);
         }
     }
 
     pub fn check_module(&mut self, m: &Module, known_modules: &HashSet<String>) {
+        self.pre06b(m);
         let mut seen: HashMap<String, usize> = HashMap::new();
         for it in &m.items {
             let mut decl = |c: &mut Checker, n: &str, line: usize| {
@@ -232,7 +248,7 @@ impl Checker {
                         },
                     );
                 }
-                Item::State { name, fields, line } => {
+                Item::State { name, fields, line, .. } => {
                     decl(self, name, *line);
                     if fields.is_empty() {
                         self.e(d(*line, "W-STATE-1", "state has no fields"));
@@ -248,6 +264,7 @@ impl Checker {
                     name,
                     payload,
                     line,
+                    ..
                 } => {
                     decl(self, name, *line);
                     self.types.insert(
@@ -432,6 +449,7 @@ impl Checker {
                 _ => {}
             }
         }
+        self.post06b(m);
         self.check_recursion();
         // W-LEX-3: every integer literal fits the type inference gives it (default i64)
         for (t, v, l) in self.lits.clone() {
@@ -649,6 +667,9 @@ impl Checker {
 
     pub fn lower(&mut self, t: &Ty, line: usize) -> T {
         match t {
+            Ty::Path(p, args) if p.len() == 1 && (p[0] == "session" || p[0] == "lvar") => {
+                self.lower06b(&p[0], args, line)
+            }
             Ty::Path(p, args) => {
                 let largs: Vec<T> = args.iter().map(|a| self.lower(a, line)).collect();
                 if p.len() == 2 && p[0] == "Self" {
@@ -987,7 +1008,7 @@ impl Checker {
             ));
         }
     }
-    fn declare(&mut self, n: &str, ty: T, mutable: bool, line: usize, param: bool) {
+    pub(crate) fn declare(&mut self, n: &str, ty: T, mutable: bool, line: usize, param: bool) {
         if SAFE_REFUSED.contains(&n) {
             self.e(d(line, "W-SAFE-1", format!("`{n}` is refused")));
         }
@@ -1118,6 +1139,12 @@ impl Checker {
 
     fn check_fn(&mut self, f: &FnInfo) {
         let sig = f.decl.sig.clone();
+        // linked from an imported module: checked there (src/link.rs)
+        match &f.owner {
+            None if self.imported_fns.contains(&sig.name) => return,
+            Some((t, _, _)) if self.imported_types.contains(&ty_head(t)) => return,
+            _ => {}
+        }
         if let Some((abi, line)) = self.externs.get(&sig.name).cloned()
             && f.owner.is_none()
         {
@@ -1276,7 +1303,7 @@ impl Checker {
             }
         }
     }
-    fn infer_quiet(&mut self, e: &Expr) -> T {
+    pub(crate) fn infer_quiet(&mut self, e: &Expr) -> T {
         let (n, mv) = (self.errs.len(), self.moved_set());
         let t = self.infer(e, false);
         self.errs.truncate(n);
@@ -1303,6 +1330,7 @@ impl Checker {
                     guard,
                     body,
                     line,
+                    ..
                 } => {
                     let fields = match self.types.get(region).cloned() {
                         Some(TyDef::State { fields }) => fields,
@@ -1575,7 +1603,7 @@ impl Checker {
         }
     }
 
-    fn expect(&mut self, actual: &T, expected: &T, line: usize) {
+    pub(crate) fn expect(&mut self, actual: &T, expected: &T, line: usize) {
         let a = self.sub.shallow(actual);
         let x = self.sub.shallow(expected);
         let ok = match (&a, &x) {
@@ -1624,7 +1652,7 @@ impl Checker {
 
 impl Checker {
     /// Returns true if the block always diverges (return, fail, break, continue).
-    fn block(&mut self, b: &[Stmt]) -> bool {
+    pub(crate) fn block(&mut self, b: &[Stmt]) -> bool {
         self.block_t(b, false)
     }
     /// `tail`: the block is in tail position of a function body (spec 5.3 [Tail]).
@@ -1704,7 +1732,7 @@ impl Checker {
         }
     }
 
-    fn stmt(&mut self, s: &Stmt) -> bool {
+    pub(crate) fn stmt(&mut self, s: &Stmt) -> bool {
         let tail = std::mem::take(&mut self.tailpos);
         match s {
             Stmt::Expr(e) if tail && !matches!(self.sub.resolve(&self.ret.clone()), T::Unit) => {
@@ -1769,6 +1797,7 @@ impl Checker {
                 let vt = self.infer(v, true);
                 match self.sub.resolve(&peel(&ct)) {
                     T::Chan(e) => self.expect(&vt, &e, line),
+                    T::Named(s, _) if s == "session" => self.session_send_ty(ch, &vt, line),
                     T::Named(a, _) if matches!(self.types.get(&a), Some(TyDef::Actor { .. })) => {
                         match self.sub.resolve(&vt) {
                             T::Named(ev, _)
@@ -2023,6 +2052,11 @@ impl Checker {
                 let line = e.line();
                 if !matches!(self.cx, Cx::Main | Cx::Task) {
                     self.e(d(line, "W-EFF-1", "spawn outside main or a task function"));
+                } else if self.cx == Cx::Task && self.b6.scope_depth == 0 {
+                    self.e(d(line, "W-SCOPE-1", "spawn outside a scope (only fn main is an implicit scope)"));
+                }
+                if self.b6.atomic_depth > 0 {
+                    self.e(d(line, "W-ATOM-1", "spawn inside atomic"));
                 }
                 match e {
                     Expr::Call(f, args, _) => {
@@ -2310,6 +2344,7 @@ impl Checker {
                     self.bind_pat(q, t, line, through_ref);
                 }
             }
+            Pat::Path(path) if path.len() == 1 && self.label_pat(&base, &path[0], line) => {}
             Pat::Path(path) => {
                 let n = &path[path.len() - 1];
                 if path.len() == 1 && !self.is_ctor_name(n) {
@@ -2441,6 +2476,10 @@ impl Checker {
 
     fn exhaustive(&mut self, t: &T, arms: &[Arm], line: usize) {
         let base = peel(&self.sub.resolve(t));
+        // labels of a session offer: coverage is checked by the session pass
+        if matches!(&base, T::Named(n, _) if n.starts_with("$labels:")) {
+            return;
+        }
         let mut covered_all = false;
         let mut covered: HashSet<String> = HashSet::new();
         for a in arms {
@@ -2738,7 +2777,7 @@ pub fn structural_violation(f: &FnDecl, is_ctor: &dyn Fn(&str) -> bool) -> Optio
     }
     bad
 }
-fn walk_stmts(b: &[Stmt], f: &mut dyn FnMut(&Stmt)) {
+pub(crate) fn walk_stmts(b: &[Stmt], f: &mut dyn FnMut(&Stmt)) {
     for s in b {
         f(s);
         match s {
@@ -2775,7 +2814,7 @@ fn walk_stmts(b: &[Stmt], f: &mut dyn FnMut(&Stmt)) {
         }
     }
 }
-fn mutating_method(m: &str) -> bool {
+pub(crate) fn mutating_method(m: &str) -> bool {
     [
         "append", "insert", "remove", "pop", "clear", "push", "close", "sort",
     ]
@@ -2881,7 +2920,7 @@ pub fn walk_expr(e: &Expr, f: &mut dyn FnMut(&Expr)) {
         _ => {}
     }
 }
-fn stmt_exprs(s: &Stmt) -> Vec<&Expr> {
+pub(crate) fn stmt_exprs(s: &Stmt) -> Vec<&Expr> {
     match s {
         Stmt::Expr(e) | Stmt::Emit(e) | Stmt::Fail(e) | Stmt::Spawn(e) | Stmt::Check(e) => vec![e],
         Stmt::Assign(_, a, b) | Stmt::Send(a, b) => vec![a, b],
@@ -3156,6 +3195,11 @@ impl Checker {
                     let ct = self.infer(c, false);
                     self.expect(&ct, &T::Int("usize"), *l);
                 }
+                if let T::Named(s, a) = &t
+                    && s == "session"
+                {
+                    return self.session_pair(a);
+                }
                 T::Chan(Box::new(t))
             }
             E::Call(f, args, l) => self.call(f, args, *l),
@@ -3299,6 +3343,7 @@ impl Checker {
                 let t = self.infer(x, false);
                 match self.sub.resolve(&peel(&t)) {
                     T::Chan(e) => T::Opt(e),
+                    T::Named(s, _) if s == "session" => self.session_recv_ty(x, *l),
                     o => {
                         self.e(d(*l, "W-TY-1", format!("`<-` needs a channel, found {o}")));
                         T::Never
@@ -3732,6 +3777,7 @@ impl Checker {
             Expr::Name(n, _) => {
                 if self.lookup(n).is_none() {
                     match n.as_str() {
+                        "lvar_new" => return self.lvar_new_ty(args, l),
                         "some" => {
                             if args.len() != 1 {
                                 self.e(d(l, "W-TY-1", "`some` takes one value"));
@@ -4150,6 +4196,9 @@ impl Checker {
             c.e(d(l, "W-NAME-1", format!("{base} has no method `{m}`")));
             T::Never
         };
+        if let Some(t) = self.method06b(base, m, args, l) {
+            return t;
+        }
         match base {
             T::Int(_) => match m {
                 "checked_add" | "checked_sub" | "checked_mul" | "checked_div" => {
@@ -4445,14 +4494,18 @@ impl Checker {
     }
 }
 
-// ---- draft 0.6 concurrency (spec/CONCURRENCY-0.6.md) ----
+// ---- draft 0.6 concurrency (the draft 0.6 concurrency chapter, not published here) ----
 //
 // The parser encodes the 0.6 statements as marker regions whose names
 // start with `$` (not a lexable name), so the AST and the evaluator are
 // unchanged: `$par` (children `$branch:NAME`), `$forpar`, `$budget`,
 // `$deadline` (children n, `$dlbody`, optional `if false` else block),
-// `$nondet`, `$priority`. Footprints are computed per root variable
-// (coarser than the paths of C.3, so a few race-free programs are refused).
+// `$nondet`, `$priority`. Footprints are kept both per root variable
+// (used by W-PAR-3/4 and the lvar rules) and as borrow paths (C.3, used
+// by W-PAR-1): a path is a root followed by field (`.f`), tuple (`.0`) and
+// index segments; an index is `[n]` for an integer literal and `[*]`
+// otherwise. Two paths overlap when one is a prefix of the other, where
+// `[*]` overlaps every index and distinct literals do not.
 
 #[derive(Default)]
 struct Foot {
@@ -4461,6 +4514,74 @@ struct Foot {
     declared: std::collections::BTreeSet<String>,
     effect: Option<&'static str>,
     escape: bool,
+    wpaths: std::collections::BTreeSet<Vec<String>>,
+    rpaths: std::collections::BTreeSet<Vec<String>>,
+}
+
+/// The borrow path of a place expression (C.3), or None if `e` is not a place.
+pub(crate) fn place_path(e: &Expr) -> Option<Vec<String>> {
+    match e {
+        Expr::Name(n, _) => Some(vec![n.clone()]),
+        Expr::SelfRef(_) => Some(vec!["self".into()]),
+        Expr::Member(x, m, _) => place_path(x).map(|mut p| {
+            p.push(format!(".{m}"));
+            p
+        }),
+        Expr::TupleMember(x, i, _) => place_path(x).map(|mut p| {
+            p.push(format!(".{i}"));
+            p
+        }),
+        Expr::Index(x, ix, _) => place_path(x).map(|mut p| {
+            match ix.as_slice() {
+                [Expr::Int(n, _)] => p.push(format!("[{n}]")),
+                _ => p.push("[*]".into()),
+            }
+            p
+        }),
+        Expr::Slice(x, ..) => place_path(x).map(|mut p| {
+            p.push("[*]".into());
+            p
+        }),
+        Expr::Borrow(_, x, _) => place_path(x),
+        _ => None,
+    }
+}
+
+/// Prefix overlap of C.3 / 5.6.
+pub(crate) fn paths_overlap(a: &[String], b: &[String]) -> bool {
+    a.iter().zip(b).all(|(x, y)| {
+        x == y || (x.starts_with('[') && y.starts_with('[') && (x == "[*]" || y == "[*]"))
+    })
+}
+
+/// Read paths of `e`: maximal places read, plus the reads in their indices.
+fn read_paths(e: &Expr, out: &mut std::collections::BTreeSet<Vec<String>>) {
+    let mut total: std::collections::BTreeMap<Vec<String>, usize> = Default::default();
+    let mut inner: std::collections::BTreeMap<Vec<String>, usize> = Default::default();
+    walk_expr(e, &mut |x| {
+        if let Some(p) = place_path(x)
+            && !matches!(x, Expr::Borrow(..))
+        {
+            *total.entry(p).or_default() += 1;
+            if let Expr::Member(o, _, _)
+            | Expr::TupleMember(o, _, _)
+            | Expr::Index(o, _, _)
+            | Expr::Slice(o, ..) = x
+                && let Some(q) = place_path(o)
+            {
+                *inner.entry(q).or_default() += 1;
+            }
+        }
+    });
+    for (p, n) in total {
+        if n > inner.get(&p).copied().unwrap_or(0) {
+            out.insert(p);
+        }
+    }
+}
+
+pub(crate) fn pat_names_pub(p: &Pat, out: &mut std::collections::BTreeSet<String>) {
+    pat_names(p, out)
 }
 
 fn pat_names(p: &Pat, out: &mut std::collections::BTreeSet<String>) {
@@ -4475,6 +4596,7 @@ fn pat_names(p: &Pat, out: &mut std::collections::BTreeSet<String>) {
 }
 
 fn foot_expr(e: &Expr, f: &mut Foot) {
+    read_paths(e, &mut f.rpaths);
     walk_expr(e, &mut |x| match x {
         Expr::Name(n, _) => {
             f.reads.insert(n.clone());
@@ -4482,6 +4604,9 @@ fn foot_expr(e: &Expr, f: &mut Foot) {
         Expr::Borrow(true, y, _) => {
             if let Some(r) = place_root(y) {
                 f.writes.insert(r);
+            }
+            if let Some(p) = place_path(y) {
+                f.wpaths.insert(p);
             }
         }
         Expr::Recv(..) => f.effect = f.effect.or(Some("receive")),
@@ -4491,6 +4616,9 @@ fn foot_expr(e: &Expr, f: &mut Foot) {
                 && let Some(r) = place_root(o)
             {
                 f.writes.insert(r);
+                if let Some(p) = place_path(o) {
+                    f.wpaths.insert(p);
+                }
             }
         }
         _ => {}
@@ -4506,6 +4634,9 @@ fn foot_block(b: &[Stmt], loops: usize, f: &mut Foot) {
             Stmt::Assign(_, p, _) => {
                 if let Some(r) = place_root(p) {
                     f.writes.insert(r);
+                }
+                if let Some(q) = place_path(p) {
+                    f.wpaths.insert(q);
                 }
             }
             Stmt::Var(n, _, _, _) => {
@@ -4586,6 +4717,8 @@ fn footprint(b: &[Stmt]) -> Foot {
     let decl = f.declared.clone();
     f.writes.retain(|n| !decl.contains(n));
     f.reads.retain(|n| !decl.contains(n));
+    f.wpaths.retain(|p| !decl.contains(&p[0]));
+    f.rpaths.retain(|p| !decl.contains(&p[0]));
     f
 }
 
@@ -4651,6 +4784,12 @@ impl Checker {
                 self.stmt(&body[1])
             }
             "$dlbody" => self.block(body),
+            r if r.starts_with("$spawnas:")
+                || r.starts_with("$group:")
+                || matches!(r, "$scope" | "$atomic" | "$barrier") =>
+            {
+                self.marker06b(r, body, line)
+            }
             _ => self.block(body),
         }
     }
@@ -4682,6 +4821,14 @@ impl Checker {
             }
             feet.push((n, f, *bl));
         }
+        let bodies: Vec<&[Stmt]> = branches
+            .iter()
+            .filter_map(|b| match b {
+                Stmt::Arena(_, _, body, _) => Some(&body[..]),
+                _ => None,
+            })
+            .collect();
+        self.lvar_freeze06(&bodies, line);
         for i in 0..feet.len() {
             for j in 0..feet.len() {
                 if i == j {
@@ -4689,10 +4836,15 @@ impl Checker {
                 }
                 let (ni, fi, li) = &feet[i];
                 let (nj, fj, _) = &feet[j];
-                for w in &fi.writes {
-                    if fj.writes.contains(w) || fj.reads.contains(w) {
+                let mut seen = std::collections::BTreeSet::new();
+                for w in &fi.wpaths {
+                    if let Some(o) = fj.wpaths.iter().chain(&fj.rpaths).find(|o| paths_overlap(w, o))
+                        && seen.insert(w[0].clone())
+                    {
                         let msg = format!(
-                            "branch `{ni}` writes `{w}`, which branch `{nj}` also uses (race)"
+                            "branch `{ni}` writes `{}`, which overlaps `{}` used by branch `{nj}` (race)",
+                            w.concat(),
+                            o.concat()
                         );
                         self.e(d(*li.max(&line), "W-PAR-1", msg));
                     }
@@ -4707,6 +4859,7 @@ impl Checker {
             return false;
         };
         self.stmt(&body[0]);
+        self.lvar_freeze06(&[&b[..]], line);
         let f = footprint(b);
         if let Some(eff) = f.effect {
             self.e(d(line, "W-PAR-4", format!("for ... par body has an effect ({eff})")));

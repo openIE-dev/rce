@@ -296,6 +296,9 @@ impl GraphView {
         if let (Some(f), Some(l)) = (&n.file, n.line) {
             v.push(format!("{f}:{l}"));
         }
+        if let Some((_, note)) = n.detail.split_once(" · ").filter(|_| !n.kind.is_hw()) {
+            v.push(format!("concurrency: {note}"));
+        }
         if !n.detail.is_empty() && n.kind.is_hw() {
             v.push(rce_graph3d::graph::trunc(&n.detail, 44));
         }

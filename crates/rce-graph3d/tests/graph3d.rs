@@ -413,8 +413,8 @@ fn live_never_zero() {
 fn embedding_neighbors_become_near_edges() {
     use rce_graph3d::graph::{from_defs, DefIn};
     let defs = [
-        DefIn { name: "Door", kind: "state", file: "d.rce", line: 1, rank: 1.0 },
-        DefIn { name: "Open", kind: "event", file: "d.rce", line: 4, rank: 1.0 },
+        DefIn { name: "Door", kind: "state", file: "d.rce", line: 1, rank: 1.0, note: "" },
+        DefIn { name: "Open", kind: "event", file: "d.rce", line: 4, rank: 1.0, note: "" },
     ];
     let mut g = from_defs(&defs, &[], &Default::default(), "h");
     let n = rce_graph3d::neighbors::link(
@@ -423,4 +423,25 @@ fn embedding_neighbors_become_near_edges() {
     );
     assert_eq!(n, 1);
     assert!(g.edges.iter().any(|e| e.kind == rce_graph3d::EdgeKind::Near && (e.weight - 0.8).abs() < 1e-6));
+}
+
+/// Needs the draft 0.6b syntax: `cargo test -p rce-graph3d --features conc06`.
+#[cfg(feature = "conc06")]
+#[test]
+fn concurrency_06b_constructs_show_in_the_form_graph() {
+    let dist = "replicated state Ledger\n    total: i64 = 0\n\ninterrupt event Alarm(code: u8) priority 7\nevent Deposit(amount: i64)\n\nstep Ledger on Deposit(amount: a) deadline 100\n    total += a\n\nstep Ledger on Alarm(code: c)\n    pass\n\nactor Counter\n    n: i64 = 0\n    on Deposit(amount: a)\n        n += a\n\nnode east { Counter }\n";
+    let sup = "event Tick(n: i64)\n\nactor Worker\n    n: i64 = 0\n    on Tick(n: k)\n        n += k\n\nsupervisor Root strategy one_for_one\n    child w: Worker restart bound 3\n\nprotocol Ping\n    send text\n    recv i64\n";
+    let g = rce_graph3d::native::code_graph_of(&[("d.rce".into(), dist.into()), ("s.rce".into(), sup.into())]);
+    let det = |l: &str| g.nodes.iter().find(|n| n.label == l).map(|n| n.detail.clone()).unwrap_or_else(|| panic!("no node {l}: {:?}", g.nodes.iter().map(|n| &n.label).collect::<Vec<_>>()));
+    assert_eq!(det("Ledger"), "state · replicated");
+    assert_eq!(det("Alarm"), "event · interrupt priority 7");
+    assert_eq!(det("Deposit"), "event");
+    assert!(g.nodes.iter().any(|n| n.detail == "step · deadline 100 ticks"));
+    assert_eq!(det("east"), "node · partition: Counter");
+    assert_eq!(det("Root"), "supervisor · supervisor one_for_one, 1 children");
+    assert_eq!(det("Ping"), "protocol · session type, 2 steps");
+    let ix = |l: &str| g.nodes.iter().position(|n| n.label == l).unwrap();
+    let linked = |a: usize, b: usize| g.edges.iter().any(|e| (e.a == a && e.b == b) || (e.a == b && e.b == a));
+    assert!(linked(ix("east"), ix("Counter")));
+    assert!(linked(ix("Root"), ix("Worker")));
 }

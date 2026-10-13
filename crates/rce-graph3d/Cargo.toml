@@ -7,6 +7,7 @@ rust-version.workspace = true
 license.workspace = true
 
 [features]
+conc06 = ["native", "rce-memory/conc06"]
 default = []
 # Build graphs from the workspace services (rce-memory's FormIndex, ide-receipt ledgers, ide-energy probes). Native only.
 native = ["dep:rce-memory", "dep:ide-receipt", "dep:ide-energy"]

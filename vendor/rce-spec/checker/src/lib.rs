@@ -4,6 +4,9 @@
 pub mod ast;
 pub mod book;
 pub mod check;
+pub mod link;
+pub mod check06b;
+pub mod conc;
 pub mod cli;
 pub mod emit;
 pub mod interp;
@@ -34,15 +37,23 @@ pub fn check_program(
         .iter()
         .filter_map(|(_, m)| m.path.as_ref().map(|q| q.join(".")))
         .collect();
+    let mods: Vec<&ast::Module> = parsed.iter().map(|(_, m)| m).collect();
     for (p, m) in &parsed {
         if parse_only {
             out.push((p.clone(), Ok(())));
             continue;
         }
+        // imported library items are linked in (4.1, src/link.rs)
+        let lk = link::link(m, &mods);
         let mut c = check::Checker::new();
-        c.check_module(m, &known);
+        c.imported_fns = lk.imported_fns;
+        c.imported_types = lk.imported_types;
+        for e in lk.errs {
+            c.e(e);
+        }
+        c.check_module(&lk.module, &known);
         if c.errs.is_empty() {
-            c.errs = interp::admit(m);
+            c.errs = interp::admit(&lk.module);
         }
         out.push((
             p.clone(),

@@ -9,8 +9,12 @@ pub const KEYWORDS: &[&str] = &[
     "kind", "let", "linear", "loop", "match", "module", "mut", "none", "not", "on", "or", "pass",
     "pub", "recv", "refused", "return", "select", "self", "send", "spawn", "state", "step",
     "struct", "then", "to", "trait", "true", "try", "type", "use", "var", "while", "with", "yield",
-    // draft 0.6 (spec/CONCURRENCY-0.6.md)
+    // draft 0.6 (the draft 0.6 concurrency chapter, not published here)
     "par", "branch", "nondet", "budget", "deadline", "priority",
+    // draft 0.6b (C.11); keywords stay valid member names, so the session
+    // methods `c.offer()` and `c.choose(L)` parse
+    "replicated", "interrupt", "session", "lvar", "group", "lanes", "barrier", "scope", "atomic",
+    "protocol", "offer", "choose", "node", "supervisor", "strategy", "child", "restart",
 ];
 
 #[derive(Debug, Clone, PartialEq)]
@@ -300,6 +304,8 @@ pub fn lex(src: &str) -> Result<Vec<(Tok, usize)>, String> {
 pub struct Parser {
     t: Vec<(Tok, usize)>,
     p: usize,
+    /// accept draft 0.6 syntax; `parse` clears it without the `conc06` feature
+    pub allow06: bool,
 }
 
 type R<T> = Result<T, String>;
@@ -310,7 +316,7 @@ fn is_kw(s: &str) -> bool {
 
 impl Parser {
     pub fn new(t: Vec<(Tok, usize)>) -> Self {
-        Parser { t, p: 0 }
+        Parser { t, p: 0, allow06: true }
     }
     fn peek(&self) -> &Tok {
         &self.t[self.p].0
@@ -418,13 +424,19 @@ impl Parser {
         let mut m = Module {
             path: None,
             items: vec![],
+            pubs: Default::default(),
         };
         if self.eat_kw("module") {
             m.path = Some(self.path()?);
             self.nl()?;
         }
         while !matches!(self.peek(), Tok::Eof) {
-            m.items.push(self.item()?);
+            let pubd = matches!(self.peek(), Tok::Id(s) if s == "pub");
+            let it = self.item()?;
+            if pubd && let Some(n) = crate::link::item_name(&it) {
+                m.pubs.insert(n);
+            }
+            m.items.push(it);
         }
         Ok(m)
     }
@@ -444,6 +456,7 @@ impl Parser {
             };
             if ![
                 "const", "type", "struct", "linear", "kind", "trait", "fn", "comptime", "actor",
+                "protocol",
             ]
             .contains(&k.as_str())
             {
@@ -555,8 +568,9 @@ impl Parser {
                     linear,
                 })
             }
-            "state" => {
-                self.bump();
+            "state" | "replicated" => {
+                let replicated = self.eat_kw("replicated");
+                self.want_kw("state")?;
                 let name = self.name()?;
                 self.nl()?;
                 self.indent()?;
@@ -565,15 +579,42 @@ impl Parser {
                     fields.push(self.field()?);
                 }
                 self.bump();
-                Ok(Item::State { name, fields, line })
+                Ok(Item::State {
+                    name,
+                    fields,
+                    line,
+                    replicated,
+                })
             }
-            "event" | "error" => {
-                self.bump();
+            "event" | "error" | "interrupt" => {
+                let intr = self.eat_kw("interrupt");
+                if intr && !self.is_kw("event") {
+                    return self.err("expected `event` after `interrupt`");
+                }
+                let kw = match self.bump() {
+                    Tok::Id(k) => k,
+                    _ => unreachable!(),
+                };
                 let name = self.name()?;
                 let payload = if self.is_p("(") {
                     self.payload()?
                 } else {
                     vec![]
+                };
+                let prio = if kw == "event" && self.eat_kw("priority") {
+                    Some(self.expr()?)
+                } else {
+                    None
+                };
+                if intr && prio.is_none() {
+                    return self.err("an interrupt event needs `priority p`");
+                }
+                let interrupt = if intr {
+                    prio
+                } else if prio.is_some() {
+                    return self.err("`priority` is only for interrupt events");
+                } else {
+                    None
                 };
                 self.nl()?;
                 Ok(if kw == "event" {
@@ -581,6 +622,7 @@ impl Parser {
                         name,
                         payload,
                         line,
+                        interrupt,
                     }
                 } else {
                     Item::Error {
@@ -705,12 +747,76 @@ impl Parser {
                 } else {
                     None
                 };
+                let deadline = if self.eat_kw("deadline") {
+                    Some(self.expr()?)
+                } else {
+                    None
+                };
                 let body = self.step_body()?;
                 Ok(Item::Step {
                     region,
                     pat,
                     guard,
                     body,
+                    line,
+                    deadline,
+                })
+            }
+            "protocol" => {
+                self.bump();
+                let name = self.name()?;
+                self.nl()?;
+                let steps = self.proto_block()?;
+                Ok(Item::Protocol { name, steps, line })
+            }
+            "node" => {
+                self.bump();
+                let name = self.name()?;
+                self.want_p("{")?;
+                let mut actors = vec![self.name()?];
+                while self.eat_p(",") {
+                    actors.push(self.name()?);
+                }
+                self.want_p("}")?;
+                self.nl()?;
+                Ok(Item::Node { name, actors, line })
+            }
+            "supervisor" => {
+                self.bump();
+                let name = self.name()?;
+                self.want_kw("strategy")?;
+                let strategy = self.name()?;
+                self.nl()?;
+                self.indent()?;
+                let mut children = vec![];
+                while !self.is_dedent() {
+                    let l = self.line();
+                    self.want_kw("child")?;
+                    let n = self.name()?;
+                    self.want_p(":")?;
+                    let ty = self.path()?.join(".");
+                    let restart = if self.eat_kw("restart") {
+                        self.want_kw("bound")?;
+                        match self.bump() {
+                            Tok::Int(k) if (0..=u32::MAX as i128).contains(&k) => k as u32,
+                            _ => return self.err("restart bound needs an integer"),
+                        }
+                    } else {
+                        3
+                    };
+                    self.nl()?;
+                    children.push(SupChild {
+                        name: n,
+                        ty,
+                        restart,
+                        line: l,
+                    });
+                }
+                self.bump();
+                Ok(Item::Supervisor {
+                    name,
+                    strategy,
+                    children,
                     line,
                 })
             }
@@ -752,6 +858,58 @@ impl Parser {
                 })
             }
             _ => self.err("expected a declaration"),
+        }
+    }
+
+    /// INDENT ProtoStep { ProtoStep } DEDENT (C.11.3)
+    fn proto_block(&mut self) -> R<Vec<ProtoStep>> {
+        self.indent()?;
+        let mut v = vec![];
+        while !self.is_dedent() {
+            v.push(self.proto_step()?);
+        }
+        self.bump();
+        Ok(v)
+    }
+    fn proto_step(&mut self) -> R<ProtoStep> {
+        if self.eat_kw("send") {
+            let t = self.ty()?;
+            self.nl()?;
+            Ok(ProtoStep::Send(t))
+        } else if self.eat_kw("recv") {
+            let t = self.ty()?;
+            self.nl()?;
+            Ok(ProtoStep::Recv(t))
+        } else if self.is_kw("offer") || self.is_kw("choose") {
+            let offer = self.is_kw("offer");
+            self.bump();
+            self.nl()?;
+            self.indent()?;
+            let mut arms = vec![];
+            while !self.is_dedent() {
+                let l = self.name()?;
+                self.nl()?;
+                let body = if matches!(self.peek(), Tok::Indent) {
+                    self.proto_block()?
+                } else {
+                    vec![]
+                };
+                arms.push((l, body));
+            }
+            self.bump();
+            Ok(if offer {
+                ProtoStep::Offer(arms)
+            } else {
+                ProtoStep::Choose(arms)
+            })
+        } else if self.eat_kw("loop") {
+            self.nl()?;
+            Ok(ProtoStep::Loop(self.proto_block()?))
+        } else if self.eat_kw("break") {
+            self.nl()?;
+            Ok(ProtoStep::Break)
+        } else {
+            self.err("expected send, recv, offer, choose, loop or break")
         }
     }
 
@@ -1030,6 +1188,15 @@ impl Parser {
         if self.eat_kw("iter") {
             return Ok(Ty::Iter(Box::new(self.base_ty()?)));
         }
+        // draft 0.6b (C.11.3, C.11.8)
+        if self.eat_kw("session") {
+            let p = self.type_path()?;
+            return Ok(Ty::Path(vec!["session".into()], vec![p]));
+        }
+        if self.eat_kw("lvar") {
+            let t = self.base_ty()?;
+            return Ok(Ty::Path(vec!["lvar".into()], vec![t]));
+        }
         if self.eat_kw("fn") {
             self.want_p("(")?;
             let mut v = vec![];
@@ -1175,7 +1342,7 @@ impl Parser {
                 self.want_kw("in")?;
                 let e = self.expr()?;
                 // draft 0.6 `for ... par`: encoded as the marker region `$forpar`
-                // (the AST has no new variant, see spec/CONCURRENCY-0.6.md C.8).
+                // (the AST has no new variant, see the draft 0.6 concurrency chapter, not published here C.8).
                 if self.eat_kw("par") {
                     let f = Stmt::For(p, e, self.block()?, line);
                     return Ok(Stmt::Arena("$forpar".into(), None, vec![f], line));
@@ -1253,18 +1420,45 @@ impl Parser {
             "spawn" => {
                 self.bump();
                 let e = self.expr()?;
+                let mut st = Stmt::Spawn(e);
                 if self.eat_kw("priority") {
                     let pr = self.expr()?;
-                    self.nl()?;
-                    return Ok(Stmt::Arena(
-                        "$priority".into(),
-                        None,
-                        vec![Stmt::Expr(pr), Stmt::Spawn(e)],
-                        line,
-                    ));
+                    st = Stmt::Arena("$priority".into(), None, vec![Stmt::Expr(pr), st], line);
+                }
+                // draft 0.6b `-> h` join handle (C.11.9)
+                if self.is_p("->") {
+                    if !self.allow06 {
+                        return self.err(
+                            "`spawn ... -> h` is draft 0.6 concurrency syntax (build with `--features conc06`)",
+                        );
+                    }
+                    self.bump();
+                    let h = self.name()?;
+                    st = Stmt::Arena(format!("$spawnas:{h}"), None, vec![st], line);
                 }
                 self.nl()?;
-                Ok(Stmt::Spawn(e))
+                Ok(st)
+            }
+            "barrier" => {
+                self.bump();
+                self.nl()?;
+                Ok(Stmt::Arena("$barrier".into(), None, vec![], line))
+            }
+            "scope" | "atomic" => {
+                self.bump();
+                let body = self.block()?;
+                Ok(Stmt::Arena(format!("${kw}"), None, body, line))
+            }
+            "with" if matches!(self.peek2(), Tok::Id(k) if k == "group") => {
+                self.bump();
+                self.bump();
+                let g = self.name()?;
+                self.want_kw("lanes")?;
+                let n = self.expr()?;
+                let body = self.block()?;
+                let mut v = vec![Stmt::Expr(n)];
+                v.extend(body);
+                Ok(Stmt::Arena(format!("$group:{g}"), None, v, line))
             }
             "check" => {
                 self.bump();
@@ -1831,7 +2025,38 @@ impl Parser {
     }
 }
 
+/// Keywords of the draft 0.6 and 0.6b concurrency extensions. Without the
+/// `conc06` cargo feature the parser refuses them (outside member names),
+/// so the default build accepts the 0.5 language only.
+pub const DRAFT06_KEYWORDS: &[&str] = &[
+    "par", "branch", "nondet", "budget", "deadline", "priority", "replicated", "interrupt",
+    "session", "lvar", "group", "lanes", "barrier", "scope", "atomic", "protocol", "offer",
+    "choose", "node", "supervisor", "strategy", "child", "restart",
+];
+
+/// Refuse draft 0.6 syntax when the `conc06` feature is off.
+pub fn draft06_gate(toks: &[(Tok, usize)]) -> Result<(), String> {
+    if cfg!(feature = "conc06") {
+        return Ok(());
+    }
+    for (i, (t, line)) in toks.iter().enumerate() {
+        if let Tok::Id(k) = t {
+            let member = i > 0 && toks[i - 1].0 == Tok::P(".");
+            if !member && DRAFT06_KEYWORDS.contains(&k.as_str()) {
+                return Err(format!(
+                    "line {line}: W-SYN-1 `{k}` is draft 0.6 concurrency syntax, \
+                     available only when the checker is built with `--features conc06`"
+                ));
+            }
+        }
+    }
+    Ok(())
+}
+
 pub fn parse(src: &str) -> Result<Module, String> {
     let toks = lex(src)?;
-    Parser::new(toks).module()
+    draft06_gate(&toks)?;
+    let mut p = Parser::new(toks);
+    p.allow06 = cfg!(feature = "conc06");
+    p.module()
 }

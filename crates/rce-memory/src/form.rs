@@ -6,7 +6,7 @@
 //! These are caches: [`FormIndex::build`] is a pure function of the program,
 //! and [`IndexCache`] keys them by the Form version hash, so a cache entry is
 //! either exact for that hash or rebuilt.
-use rce_spec_check::ast::{Arg, Body, Expr, FnDecl, Item, Pat, SelArm, Stmt, Ty};
+use rce_spec_check::ast::{Arg, Body, Expr, FnDecl, Item, Pat, ProtoStep, SelArm, Stmt, Ty};
 use rce_spec_check::{check_program, parse};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet, HashMap};
@@ -36,6 +36,19 @@ pub struct Def {
     pub kind: String,
     pub file: String,
     pub line: usize,
+    /// Concurrency annotation from RCE 0.6/0.6b, when present:
+    /// `replicated`, `interrupt priority P`, `deadline D ticks`.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub note: String,
+}
+
+/// A short source-like rendering of a small expression (priority, deadline).
+fn short(e: &Expr) -> String {
+    match e {
+        Expr::Int(n, _) => n.to_string(),
+        Expr::Name(n, _) => n.clone(),
+        _ => "expr".into(),
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -343,6 +356,7 @@ fn item_defs(file: &str, it: &Item, out: &mut Vec<(Def, Names)>) {
         kind: kind.into(),
         file: file.into(),
         line,
+        note: String::new(),
     };
     let def = match it {
         Item::Use(..) => return,
@@ -378,22 +392,32 @@ fn item_defs(file: &str, it: &Item, out: &mut Vec<(Def, Names)>) {
             fields.iter().for_each(|f| n.ty(&f.ty));
             d(name.clone(), "struct", *line)
         }
-        Item::State { name, fields, line } => {
+        Item::State { name, fields, line, replicated } => {
             for f in fields {
                 n.ty(&f.ty);
                 if let Some(e) = &f.init {
                     n.expr(e)
                 }
             }
-            d(name.clone(), "state", *line)
+            let mut x = d(name.clone(), "state", *line);
+            if *replicated {
+                x.note = "replicated".into()
+            }
+            x
         }
         Item::Event {
             name,
             payload,
             line,
+            interrupt,
         } => {
             payload.iter().for_each(|(_, t)| n.ty(t));
-            d(name.clone(), "event", *line)
+            let mut x = d(name.clone(), "event", *line);
+            if let Some(p) = interrupt {
+                n.expr(p);
+                x.note = format!("interrupt priority {}", short(p));
+            }
+            x
         }
         Item::Error {
             name,
@@ -451,6 +475,7 @@ fn item_defs(file: &str, it: &Item, out: &mut Vec<(Def, Names)>) {
             guard,
             body,
             line,
+            deadline,
         } => {
             n.names.push((region.clone(), false));
             n.pat(pat);
@@ -458,7 +483,38 @@ fn item_defs(file: &str, it: &Item, out: &mut Vec<(Def, Names)>) {
                 n.expr(g)
             }
             n.body(body);
-            d(format!("step {region}@{line}"), "step", *line)
+            let mut x = d(format!("step {region}@{line}"), "step", *line);
+            if let Some(dl) = deadline {
+                n.expr(dl);
+                x.note = format!("deadline {} ticks", short(dl));
+            }
+            x
+        }
+        Item::Protocol { name, steps, line } => {
+            fn walk(n: &mut Names, v: &[ProtoStep]) -> usize {
+                v.iter().map(|s| match s {
+                    ProtoStep::Send(t) | ProtoStep::Recv(t) => { n.ty(t); 1 }
+                    ProtoStep::Offer(b) | ProtoStep::Choose(b) => 1 + b.iter().map(|(_, x)| walk(n, x)).sum::<usize>(),
+                    ProtoStep::Loop(x) => 1 + walk(n, x),
+                    ProtoStep::Break => 1,
+                }).sum()
+            }
+            let k = walk(&mut n, steps);
+            let mut x = d(name.clone(), "protocol", *line);
+            x.note = format!("session type, {k} steps");
+            x
+        }
+        Item::Node { name, actors, line } => {
+            actors.iter().for_each(|a| n.names.push((a.clone(), false)));
+            let mut x = d(name.clone(), "node", *line);
+            x.note = format!("partition: {}", actors.join(", "));
+            x
+        }
+        Item::Supervisor { name, strategy, children, line } => {
+            children.iter().for_each(|c| n.names.push((c.ty.clone(), false)));
+            let mut x = d(name.clone(), "supervisor", *line);
+            x.note = format!("supervisor {strategy}, {} children", children.len());
+            x
         }
         Item::Actor {
             name,

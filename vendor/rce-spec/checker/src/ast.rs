@@ -221,6 +221,7 @@ pub enum TraitMember {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+#[allow(clippy::large_enum_variant)]
 pub enum Item {
     Use(Vec<String>, Option<String>),
     Intent(String, Vec<Example>, Vec<Expr>),
@@ -249,11 +250,15 @@ pub enum Item {
         name: String,
         fields: Vec<Field>,
         line: usize,
+        /// `replicated state` (C.11.4)
+        replicated: bool,
     },
     Event {
         name: String,
         payload: Vec<(String, Ty)>,
         line: usize,
+        /// `interrupt event ... priority p` (C.11.7)
+        interrupt: Option<Expr>,
     },
     Error {
         name: String,
@@ -291,6 +296,8 @@ pub enum Item {
         guard: Option<Expr>,
         body: Body,
         line: usize,
+        /// `deadline d` in logical ticks (C.11.6)
+        deadline: Option<Expr>,
     },
     Actor {
         name: String,
@@ -299,10 +306,49 @@ pub enum Item {
         fns: Vec<FnDecl>,
         line: usize,
     },
+    // draft 0.6b (the draft 0.6 concurrency chapter, not published here C.11)
+    Protocol {
+        name: String,
+        steps: Vec<ProtoStep>,
+        line: usize,
+    },
+    Node {
+        name: String,
+        actors: Vec<String>,
+        line: usize,
+    },
+    Supervisor {
+        name: String,
+        strategy: String,
+        children: Vec<SupChild>,
+        line: usize,
+    },
+}
+
+/// A step of a `protocol` (C.11.3), from one endpoint's point of view.
+#[derive(Debug, Clone, PartialEq)]
+pub enum ProtoStep {
+    Send(Ty),
+    Recv(Ty),
+    Offer(Vec<(String, Vec<ProtoStep>)>),
+    Choose(Vec<(String, Vec<ProtoStep>)>),
+    Loop(Vec<ProtoStep>),
+    Break,
+}
+
+/// `child name: Type [restart bound n]` of a supervisor (C.11.11).
+#[derive(Debug, Clone, PartialEq)]
+pub struct SupChild {
+    pub name: String,
+    pub ty: String,
+    pub restart: u32,
+    pub line: usize,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Module {
     pub path: Option<Vec<String>>,
     pub items: Vec<Item>,
+    /// names of the items declared `pub` (4.1: visible to importing modules)
+    pub pubs: std::collections::BTreeSet<String>,
 }

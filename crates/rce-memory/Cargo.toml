@@ -6,6 +6,10 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 
+[features]
+# Draft 0.6/0.6b concurrency syntax in the checker (off by default, as in openIE-dev/rce).
+conc06 = ["rce_spec_check/conc06"]
+
 [dependencies]
 serde.workspace = true
 serde_json.workspace = true

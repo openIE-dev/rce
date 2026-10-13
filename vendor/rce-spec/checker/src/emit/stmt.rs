@@ -115,6 +115,29 @@ impl<'a> G<'a> {
     }
 
     /// `return v` in a function: (value, copy-out of `&mut` params, self).
+    /// `return v` in the current context; inside a task closure (scope or
+    /// deadline body) it leaves the closure as `Flow::Ret`, re-raised after it
+    pub fn ret_with(&mut self, v: &str) {
+        let l = self.lang;
+        if !self.cl.is_empty() {
+            self.line(format!("return Err(Flow::Ret({v}));"));
+            return;
+        }
+        let s = match &self.ctx {
+            Ctx::Fn { .. } => self.ret_pack(v),
+            Ctx::Gen => match l {
+                Lang::Rust => format!("{{ let _ = {v}; return Ok(()); }}"),
+                Lang::Python => format!("{v}\nreturn"),
+                Lang::Js => format!("{v}; return;"),
+            },
+            Ctx::Step => match l {
+                Lang::Rust => format!("return Err(Flow::Ret({v}));"),
+                Lang::Python => format!("raise Ret({v})"),
+                Lang::Js => format!("throw new Ret({v});"),
+            },
+        };
+        self.line(s);
+    }
     pub fn ret_pack(&self, v: &str) -> String {
         let Ctx::Fn { muts, self_mut } = &self.ctx else {
             return v.to_string();
@@ -141,6 +164,86 @@ impl<'a> G<'a> {
             Lang::Python => format!("return ({v}, [{}], {slf})", outs.join(", ")),
             Lang::Js => format!("return [{v}, [{}], {slf}];", outs.join(", ")),
         }
+    }
+
+    /// `for p in e par body` (draft 0.6 C.5.2): each iteration starts its
+    /// reduction targets at the identity; the per-iteration values are
+    /// combined by the fixed tree T and then with the value before the loop,
+    /// exactly as the reference evaluator does (so float results agree bit
+    /// for bit). Slot writes `out[i] = ...` need no transformation.
+    fn forpar(&mut self, body: &[Stmt]) -> Result<(), String> {
+        let Some(Stmt::For(_, _, b, _)) = body.first() else {
+            return Err("bad for par".into());
+        };
+        let l = self.lang;
+        let mut targets = vec![];
+        crate::conc::assign_ops(b, &mut targets);
+        let local = crate::conc::declared_in(b);
+        targets.retain(|(n, _)| !local.contains(n));
+        if super::conc06::forpar_threadable(b) {
+            return self.forpar_threads(&body[0], &targets);
+        }
+        if targets.is_empty() {
+            return self.stmt(&body[0], false);
+        }
+        self.open_block();
+        let mut names = vec![];
+        for (n, op) in &targets {
+            let sym = q(&op[..op.len() - 1]);
+            let (bk, ik, ck) = (self.fresh("pb"), self.fresh("pi"), self.fresh("pc"));
+            let cur = self.var(n);
+            let s = self.let_(&bk, &cur);
+            self.line(s);
+            let idv = match l {
+                Lang::Rust => format!("par_ident({sym}, {bk}.clone())?"),
+                _ => self.h("par_ident", &[sym.clone(), bk.clone()]),
+            };
+            let s = self.let_(&ik, &idv);
+            self.line(s);
+            let s = self.let_(&ck, &self.vec(&[]));
+            self.line(s);
+            names.push((n.clone(), sym, bk, ik, ck));
+        }
+        // the loop, with the reset and the collection around each iteration
+        let Stmt::For(p, it, b, line) = &body[0] else { unreachable!() };
+        let mut nb = vec![];
+        for (n, _, _, ik, _) in &names {
+            nb.push(Stmt::Expr(Expr::Call(
+                Box::new(Expr::Name("$par_reset".into(), 0)),
+                vec![
+                    Arg { label: None, e: Expr::Name(n.clone(), 0) },
+                    Arg { label: None, e: Expr::Name(ik.clone(), 0) },
+                ],
+                0,
+            )));
+        }
+        nb.extend(b.iter().cloned());
+        for (n, _, _, _, ck) in &names {
+            nb.push(Stmt::Expr(Expr::Call(
+                Box::new(Expr::Name("$par_collect".into(), 0)),
+                vec![
+                    Arg { label: None, e: Expr::Name(ck.clone(), 0) },
+                    Arg { label: None, e: Expr::Name(n.clone(), 0) },
+                ],
+                0,
+            )));
+        }
+        self.par_hooks = true;
+        let r = self.stmt(&Stmt::For(p.clone(), it.clone(), nb, *line), false);
+        self.par_hooks = false;
+        r?;
+        for (n, sym, bk, ik, ck) in &names {
+            let v = self.fresh("pv");
+            let e = match l {
+                Lang::Rust => format!("par_combine({sym}, {bk}.clone(), par_tree({sym}, &{ck}, &{ik})?)?"),
+                _ => self.h("par_combine", &[sym.clone(), bk.clone(), self.h("par_tree", &[sym.clone(), ck.clone(), ik.clone()])]),
+            };
+            let s = self.let_(&v, &e);
+            self.line(s);
+            self.assign(&Expr::Name(n.clone(), 0), &v)?;
+        }
+        self.close_block();
+        Ok(())
     }
 
     pub fn block(&mut self, b: &[Stmt], tail: bool) -> Result<(), String> {
@@ -271,6 +374,27 @@ impl<'a> G<'a> {
 
     pub fn stmt(&mut self, s: &Stmt, tail: bool) -> Result<(), String> {
         let l = self.lang;
+        if let Stmt::Expr(Expr::Call(f, a, _)) = s
+            && let Expr::Name(h, _) = &**f
+            && (h == "$par_reset" || h == "$par_collect")
+            && let [Arg { e: Expr::Name(x, _), .. }, Arg { e: Expr::Name(y, _), .. }] = &a[..]
+        {
+            if h == "$par_reset" {
+                let v = match l {
+                    Lang::Rust => format!("{y}.clone()"),
+                    _ => y.clone(),
+                };
+                self.assign(&Expr::Name(x.clone(), 0), &v)?;
+            } else {
+                let cur = self.var(y);
+                self.line(match l {
+                    Lang::Rust => format!("{x}.push({cur});"),
+                    Lang::Python => format!("{x}.append({cur})"),
+                    Lang::Js => format!("{x}.push({cur});"),
+                });
+            }
+            return Ok(());
+        }
         match s {
             Stmt::Expr(e) => {
                 let v = self.ex_stmt(e)?;
@@ -352,7 +476,12 @@ impl<'a> G<'a> {
                     Lang::Js => format!("if (!{t}) break;"),
                 });
                 self.loop_tick(&b, &n);
-                self.block(body, false)?;
+                self.loops += 1;
+                if let Some(d) = self.cl.last_mut() { *d += 1; }
+                let rb = self.block(body, false);
+                self.loops -= 1;
+                if let Some(d) = self.cl.last_mut() { *d -= 1; }
+                rb?;
                 self.close();
             }
             Stmt::Loop(bnd, body) => {
@@ -363,7 +492,12 @@ impl<'a> G<'a> {
                     Lang::Js => self.open("for (;;)"),
                 }
                 self.loop_tick(&b, &n);
-                self.block(body, false)?;
+                self.loops += 1;
+                if let Some(d) = self.cl.last_mut() { *d += 1; }
+                let rb = self.block(body, false);
+                self.loops -= 1;
+                if let Some(d) = self.cl.last_mut() { *d -= 1; }
+                rb?;
                 self.close();
             }
             Stmt::For(p, it, body, _) => {
@@ -408,7 +542,12 @@ impl<'a> G<'a> {
                         self.bind_from_map(&mt, &names);
                     }
                 }
-                self.block(body, false)?;
+                self.loops += 1;
+                if let Some(d) = self.cl.last_mut() { *d += 1; }
+                let rb = self.block(body, false);
+                self.loops -= 1;
+                if let Some(d) = self.cl.last_mut() { *d -= 1; }
+                rb?;
                 self.scopes.pop();
                 self.close();
             }
@@ -467,21 +606,10 @@ impl<'a> G<'a> {
                     Some(e) => self.ex_stmt(e)?,
                     None => self.unit().into(),
                 };
-                let s = match &self.ctx {
-                    Ctx::Fn { .. } => self.ret_pack(&v),
-                    Ctx::Gen => match l {
-                        Lang::Rust => format!("{{ let _ = {v}; return Ok(()); }}"),
-                        Lang::Python => format!("{v}\nreturn"),
-                        Lang::Js => format!("{v}; return;"),
-                    },
-                    Ctx::Step => match l {
-                        Lang::Rust => format!("return Err(Flow::Ret({v}));"),
-                        Lang::Python => format!("raise Ret({v})"),
-                        Lang::Js => format!("throw new Ret({v});"),
-                    },
-                };
-                self.line(s);
+                self.ret_with(&v);
             }
+            Stmt::Break(_) if self.cl.last() == Some(&0) => self.line("return Err(Flow::Brk);"),
+            Stmt::Continue(_) if self.cl.last() == Some(&0) => self.line("return Err(Flow::Cont);"),
             Stmt::Break(_) => self.line(if l == Lang::Python { "break" } else { "break;" }),
             Stmt::Continue(_) => self.line(if l == Lang::Python {
                 "continue"
@@ -502,8 +630,65 @@ impl<'a> G<'a> {
                     Lang::Js => format!("throw new Fail({v});"),
                 });
             }
+            Stmt::Send(t, v) if self.tasks_on() => self.send_s(t, v)?,
+            Stmt::Spawn(e) if self.tasks_on() => {
+                let h = self.spawn_e(e, "0")?;
+                let s = self.discard(&h);
+                self.line(s);
+            }
+            Stmt::Select(arms, line) if self.tasks_on() => self.select_s(arms, *line, false, tail)?,
+            Stmt::Arena(r, None, body, _) if self.tasks_on() && r == "$nondet" => match body.first() {
+                Some(Stmt::Select(arms, line)) => self.select_s(arms, *line, true, tail)?,
+                _ => self.line(self.trap_s("bad nondet")),
+            },
+            Stmt::Arena(r, None, body, _) if self.tasks_on() && r == "$deadline" => self.deadline_s(body)?,
+            Stmt::Arena(r, None, body, _) if self.tasks_on() && r == "$scope" => self.scope_s(body)?,
+            Stmt::Arena(r, None, body, _) if self.tasks_on() && r == "$atomic" => self.atomic_s(body)?,
+            Stmt::Arena(r, None, body, _) if self.tasks_on() && (r == "$priority" || r.starts_with("$spawnas:")) => {
+                self.spawn_marker(r, body)?
+            }
             Stmt::Send(..) | Stmt::Spawn(..) | Stmt::Select(..) => {
                 let s = self.trap_s("concurrency is not available at comptime");
+                self.line(s);
+            }
+            Stmt::Arena(r, None, body, _) if r == "$forpar" => self.forpar(body)?,
+            Stmt::Arena(r, None, body, _) if r == "$budget" => self.budget06(body)?,
+            Stmt::Arena(r, None, body, _) if r == "$par" => self.par06(body)?,
+            Stmt::Arena(r, None, body, _) if r == "$deadline" => {
+                // Comptime (the emitters' observation model): no tick passes
+                // and every communication step traps first, so the body is
+                // never cancelled and the else block never runs (C.6.2).
+                let n = self.marker_operand(body)?;
+                let s = self.discard(&n);
+                self.line(s);
+                if let Some(Stmt::Arena(_, _, b, _)) = body.get(1) {
+                    self.open_block();
+                    self.block(b, false)?;
+                    self.close_block();
+                }
+            }
+            Stmt::Arena(r, None, body, _) if r == "$nondet" => {
+                // `select nondet` at comptime: the select itself traps
+                self.block(body, false)?;
+            }
+            Stmt::Arena(r, None, body, _) if r == "$atomic" => {
+                self.atomic_depth += 1;
+                self.open_block();
+                let res = self.block(body, false);
+                self.close_block();
+                self.atomic_depth -= 1;
+                res?;
+                if self.atomic_depth == 0 {
+                    // the buffered tells need the scheduler, which comptime lacks
+                    let s = self.trap_s("concurrency is not available at comptime");
+                    self.line(s);
+                }
+            }
+            Stmt::Arena(r, None, body, _) if r.starts_with("$group:") => {
+                self.group06(&r["$group:".len()..], body)?
+            }
+            Stmt::Arena(r, None, _, _) if r == "$barrier" => {
+                let s = self.trap_s("barrier outside a group");
                 self.line(s);
             }
             Stmt::Arena(_, Some(b), body, _) | Stmt::Device(_, Some(b), body, _) => {

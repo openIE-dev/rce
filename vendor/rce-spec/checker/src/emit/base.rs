@@ -40,6 +40,15 @@ pub(super) struct G<'a> {
     pub out: Vec<String>,
     pub ind: usize,
     pub tmp: usize,
+    /// inside a `for .. par` being emitted (enables the reset/collect hooks)
+    pub par_hooks: bool,
+    pub atomic_depth: usize,
+    /// loops opened inside each enclosing task closure (scope / deadline bodies)
+    pub cl: Vec<usize>,
+    pub loops: usize,
+    /// JavaScript: top-level functions for par branches run on workers
+    pub hoist: Vec<String>,
+    pub hoist_names: Vec<String>,
 }
 
 pub(super) type E = Result<String, String>;
@@ -143,6 +152,12 @@ impl<'a> G<'a> {
             out: vec![],
             ind: 0,
             tmp: 0,
+            par_hooks: false,
+            atomic_depth: 0,
+            cl: vec![],
+            loops: 0,
+            hoist: vec![],
+            hoist_names: vec![],
         };
         for i in &m.items {
             match i {

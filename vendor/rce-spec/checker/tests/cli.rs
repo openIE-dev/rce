@@ -11,11 +11,7 @@ fn rce(args: &[&str]) -> (i32, String, String) {
     let a: Vec<String> = args.iter().map(|s| s.to_string()).collect();
     let (mut out, mut err) = (vec![], vec![]);
     let code = cli::main(&a, &mut &b""[..], &mut out, &mut err);
-    (
-        code,
-        String::from_utf8(out).unwrap(),
-        String::from_utf8(err).unwrap(),
-    )
+    (code, String::from_utf8(out).unwrap(), String::from_utf8(err).unwrap())
 }
 
 fn tmp(name: &str, text: &str) -> String {
@@ -228,12 +224,7 @@ fn lsp_exit_without_shutdown_is_1_and_command_serves() {
     .map(frame)
     .collect::<String>();
     let mut out = vec![];
-    let code = cli::main(
-        &["lsp".to_string()],
-        &mut s.as_bytes(),
-        &mut out,
-        &mut vec![],
-    );
+    let code = cli::main(&["lsp".to_string()], &mut s.as_bytes(), &mut out, &mut vec![]);
     assert_eq!(code, 0);
     assert!(String::from_utf8(out).unwrap().contains("\"result\":null"));
 }

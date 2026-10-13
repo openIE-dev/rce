@@ -74,31 +74,25 @@ pub fn run(src: &str, events: Option<&str>) -> Result<RunOut, String> {
     let mut it = Interp::new(&m);
     let mut lines = vec![];
     let Some(evs) = events else {
-        let main = m.items.iter().find_map(|i| match i {
-            Item::Fn(f) if f.sig.name == "main" && f.sig.params.is_empty() => Some(f),
-            _ => None,
-        });
-        let Some(f) = main else {
-            return Err("nothing to run: give events, or declare `fn main()`".into());
-        };
-        it.outputs.clear();
-        let r = it.call_fn(f, &[], None);
-        for o in std::mem::take(&mut it.outputs) {
+        // fn main() runs on the tick runtime of chapter C (tasks, channels,
+        // actors, par, budgets, deadlines)
+        let r = crate::conc::run_main(&m, &crate::conc::RunCfg::default())
+            .map_err(|e| format!("{e}: give events, or declare `fn main()`"))?;
+        for o in &r.outputs {
             lines.push(format!("emit {}", o.show()));
         }
-        return Ok(match r {
-            Ok(_) => RunOut {
-                lines,
-                refused: false,
-            },
-            Err(e) => {
-                lines.push(format!("refused: {}", why(e)));
-                RunOut {
-                    lines,
-                    refused: true,
-                }
+        let refused = match r.outcome {
+            crate::conc::Outcome::Done => false,
+            crate::conc::Outcome::Deadlock => {
+                lines.push("deadlock".into());
+                true
             }
-        });
+            crate::conc::Outcome::Refused(e) => {
+                lines.push(format!("refused: {e}"));
+                true
+            }
+        };
+        return Ok(RunOut { lines, refused });
     };
     // The event list uses the syntax of an `example` line (3.x): parse it as one.
     let probe =
@@ -459,18 +453,12 @@ pub const USAGE_TEXT: &str = "usage:
   rce test FILE...               run every example and check; report per file
   rce emit TARGET FILE           TARGET: form (Form JSON), rust, python or js (a program printing its observations)
   rce fmt [--check] FILE...      rewrite files in canonical layout (--check: only report)
-  rce lsp                        language server on stdin/stdout
-  rce form COMMAND ...           the Form command line (rce form with no command lists its commands)";
+  rce lsp                        language server on stdin/stdout";
 
 /// The language commands of `rce`, given the arguments after the program
 /// name; returns the exit status (10.1). Output goes to `out` and `err`;
 /// `rce lsp` reads `input`.
-pub fn main(
-    a: &[String],
-    input: &mut dyn BufRead,
-    out: &mut dyn Write,
-    err: &mut dyn Write,
-) -> i32 {
+pub fn main(a: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &mut dyn Write) -> i32 {
     match run_main(a, input, out, err) {
         Ok(c) => c,
         Err(e) => {
@@ -484,12 +472,7 @@ fn read_file(p: &str) -> Result<String, String> {
     std::fs::read_to_string(p).map_err(|e| format!("{p}: {e}"))
 }
 
-fn run_main(
-    a: &[String],
-    input: &mut dyn BufRead,
-    out: &mut dyn Write,
-    err: &mut dyn Write,
-) -> Result<i32, String> {
+fn run_main(a: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &mut dyn Write) -> Result<i32, String> {
     let rest = if a.is_empty() { &[][..] } else { &a[1..] };
     let load = |ps: &[String]| -> Result<Vec<(String, String)>, String> {
         ps.iter().map(|p| Ok((p.clone(), read_file(p)?))).collect()
@@ -560,6 +543,15 @@ fn run_main(
                 }
             }
         },
+        Some("form") => {
+            writeln!(
+                err,
+                "rce form: the Form command line is not part of this build (spec 10.1); \
+                 this `rce` has the language commands only"
+            )
+            .map_err(w)?;
+            USAGE
+        }
         Some("fmt") if !rest.is_empty() => {
             let check = rest[0] == "--check";
             let files = if check { &rest[1..] } else { rest };

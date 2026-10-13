@@ -257,7 +257,7 @@ impl<'a> G<'a> {
         Ok(())
     }
 
-    fn step(
+    pub(super) fn step(
         &mut self,
         sid: &str,
         fields: &[Field],
@@ -428,7 +428,13 @@ impl<'a> G<'a> {
             steps.push((region.clone(), sid));
         }
         self.initial(&states)?;
+        self.actor_tables()?;
         self.tables(&fn_ids, &ms, &states, &steps);
+        if self.lang == Lang::Js {
+            let h = std::mem::take(&mut self.hoist);
+            self.out.extend(h);
+            self.out.push(format!("const PAR_FNS = {{ {} }};", self.hoist_names.join(", ")));
+        }
         self.driver()?;
         Ok(self.out.join("\n") + "\n")
     }
@@ -498,6 +504,11 @@ impl<'a> G<'a> {
                     o += &format!("    {} => u_{id}(slf, a),\n", q(n));
                 }
                 o += "    _ => trap(format!(\"unknown function {n}\")),\n  }\n}\n";
+                o += "fn has_user_fn(n: &str) -> bool {\n  matches!(n, \"\"";
+                for (n, _) in fn_ids.iter() {
+                    o += &format!(" | {}", q(n));
+                }
+                o += ")\n}\n";
                 o += "fn raw_fn(n: &str, a: Vec<V>) -> R<V> {\n  match n {\n";
                 for (n, id) in fn_ids {
                     o += &format!("    {} => r_{id}(a),\n", q(n));
@@ -585,7 +596,7 @@ impl<'a> G<'a> {
             let n = q(evn);
             evs.push(match (l, c) {
                 (Lang::Rust, c) => format!(
-                    "({n}, Rc::new(|| -> R<Option<V>> {{ Ok({}) }}) as Rc<dyn Fn() -> R<Option<V>>>)",
+                    "({n}, Rc::new(|| -> R<Option<V>> {{ Ok({}) }}) as Rc<dyn Fn() -> R<Option<V>> + Send + Sync>)",
                     c.map(|c| format!("Some({c})")).unwrap_or("None".into())
                 ),
                 (Lang::Python, c) => format!("({n}, lambda: {})", c.unwrap_or("None".into())),
@@ -604,6 +615,9 @@ impl<'a> G<'a> {
             Lang::Rust => self.open("fn main()"),
             Lang::Python => self.open("def observe()"),
             Lang::Js => self.open("function observe()"),
+        }
+        if l == Lang::Rust {
+            self.line("if std::env::args().any(|a| a == \"--run\") { run_tasks(\"main\"); return; }");
         }
         self.scopes = vec![vec![]];
         self.ctx = Ctx::Gen;
@@ -657,9 +671,9 @@ impl<'a> G<'a> {
         self.close();
         match l {
             Lang::Rust => {}
-            Lang::Python => self.line("observe()"),
+            Lang::Python => self.line("if \"--run\" in sys.argv: run_tasks(\"main\")\nelse: observe()"),
             Lang::Js => self.line(
-                "observe();\nprocess.stdout.write(LINES.map((x) => x + \"\\n\").join(\"\"));",
+                "if (!WT.isMainThread) { if (WT.workerData && WT.workerData.par) parMain(); else taskMain(); }\nelse if (process.argv.includes(\"--run\")) runTasks(\"main\");\nelse {\n  observe();\n  process.stdout.write(LINES.map((x) => x + \"\\n\").join(\"\"));\n}",
             ),
         }
         Ok(())

@@ -961,6 +961,7 @@ fn main() {
     }
     // 3. targets, in parallel
     let langs = [Lang::Rust, Lang::Python, Lang::Js];
+    #[allow(clippy::type_complexity)]
     let results: std::sync::Mutex<Vec<(usize, Lang, Result<Option<(usize, String, String)>, String>)>> =
         std::sync::Mutex::new(vec![]);
     let next = std::sync::atomic::AtomicUsize::new(0);

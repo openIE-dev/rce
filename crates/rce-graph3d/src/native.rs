@@ -23,6 +23,7 @@ pub fn code_graph(ix: &FormIndex) -> Graph {
             file: &d.file,
             line: d.line,
             rank: ix.rank.get(i).copied().unwrap_or(0.0),
+            note: &d.note,
         })
         .collect();
     let refs: Vec<(usize, usize, bool)> = ix.refs.iter().map(|r| (r.from, r.to, r.call)).collect();

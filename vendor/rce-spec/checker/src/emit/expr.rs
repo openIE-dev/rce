@@ -82,7 +82,7 @@ impl<'a> G<'a> {
                     .map(|x| self.ex(x))
                     .collect::<Result<Vec<_>, _>>()?;
                 let tup = matches!(e, Expr::Tuple(..));
-                match l {
+                let lv = match l {
                     Lang::Rust => format!(
                         "V::{}(vec![{}])",
                         if tup { "Tuple" } else { "List" },
@@ -92,7 +92,8 @@ impl<'a> G<'a> {
                         if tup { "Tup" } else { "Lst" },
                         &format!("[{}]", v.join(", ")),
                     ),
-                }
+                };
+                if tup { lv } else { self.pre_charge(4 + xs.len(), &lv) }
             }
             Expr::ListRepeat(x, n, _) => {
                 let (a, b) = (self.ex(x)?, self.ex(n)?);
@@ -105,8 +106,15 @@ impl<'a> G<'a> {
                     let (x, y) = (self.ex(a)?, self.ex(b)?);
                     v.push(self.pair(&x, &y));
                 }
-                self.h("mk_map", &[self.vec(&v)])
+                let mm = self.h("mk_map", &[self.vec(&v)]);
+                self.pre_charge(4 + ps.len(), &mm)
             }
+            Expr::ChanNew(t, cap, line) if self.tasks_on() => {
+                let session = matches!(t, Ty::Path(p, _) if p.len() == 1 && p[0] == "session");
+                let e = self.chan_new_e(cap.as_deref(), *line)?;
+                if session { e.replacen("chan_new(", "session_new(", 1).replacen("chanNew(", "sessionNew(", 1) } else { e }
+            }
+            Expr::Recv(c, _) if self.tasks_on() => self.recv_e(c)?,
             Expr::ChanNew(..) | Expr::Recv(..) => {
                 self.trap_e("channels are not available at comptime")
             }
@@ -121,7 +129,7 @@ impl<'a> G<'a> {
             Expr::Index(x, idx, _) => {
                 let a = self.ex(x)?;
                 let b = self.ex(&idx[0])?;
-                self.h("index", &[a, b])
+                self.h("cindex", &[a, b])
             }
             Expr::Slice(x, a, b, _) => {
                 let c = self.ex(x)?;
@@ -133,7 +141,7 @@ impl<'a> G<'a> {
                             x.map(|x| format!("Some({x})")).unwrap_or("None".into())
                         };
                         format!(
-                            "{{ let __c = {c}; slice_check(&__c)?; let __a = {}; let __b = {}; slice(__c, __a, __b)? }}",
+                            "{{ let __c = {c}; charge(1)?; slice_check(&__c)?; let __a = {}; let __b = {}; slice(__c, __a, __b)? }}",
                             o(av),
                             o(bv)
                         )
@@ -150,23 +158,23 @@ impl<'a> G<'a> {
             }
             Expr::Member(x, m, _) => {
                 let a = self.ex(x)?;
-                self.h("field", &[a, q(m)])
+                self.h("cfield", &[a, q(m)])
             }
             Expr::TupleMember(x, i, _) => {
                 let a = self.ex(x)?;
-                self.h("tmember", &[a, i.to_string()])
+                self.h("ctmember", &[a, i.to_string()])
             }
             Expr::Neg(x, _) => {
                 let a = self.ex(x)?;
-                self.h("neg", &[a])
+                self.h("cneg", &[a])
             }
             Expr::BitNot(x, _) => {
                 let a = self.ex(x)?;
-                self.h("bitnot", &[a])
+                self.h("cbitnot", &[a])
             }
             Expr::Not(x, _) => {
                 let a = self.ex(x)?;
-                self.h("not_", &[a])
+                self.h("cnot", &[a])
             }
             Expr::Borrow(_, x, _) | Expr::Comptime(x, _) => self.ex(x)?,
             Expr::Cast(x, t, _) => {
@@ -177,6 +185,12 @@ impl<'a> G<'a> {
             Expr::Bin(op, a, b, _) if op == "and" || op == "or" => {
                 let (x, y) = (self.ex(a)?, self.ex(b)?);
                 let (tx, ty) = (self.truthy(&x), self.truthy(&y));
+                // interp charges 1 before the left operand (C.6.4)
+                let tx = match l {
+                    Lang::Rust => format!("{{ charge(1)?; {tx} }}"),
+                    Lang::Python => format!("(charge(1), {tx})[1]"),
+                    Lang::Js => format!("(charge(1n), {tx})"),
+                };
                 let o = if l == Lang::Python {
                     op.as_str()
                 } else if op == "and" {
@@ -191,7 +205,7 @@ impl<'a> G<'a> {
             }
             Expr::Bin(op, a, b, _) => {
                 let (x, y) = (self.ex(a)?, self.ex(b)?);
-                self.h("binop", &[q(op), x, y])
+                self.h("cbinop", &[q(op), x, y])
             }
             Expr::Catch(x, bind, h, _) => {
                 let xv = self.ex(x)?;
@@ -340,7 +354,7 @@ impl<'a> G<'a> {
                     .map(|(i, x)| format!("let {x} = arg(&__a, {i}); "))
                     .collect();
                 format!(
-                    "{{ {cap}V::Clo(Rc::new(move |__a: Vec<V>| -> R<V> {{ let __a = fitall(__a, &[{}])?; {binds}Ok({b}) }})) }}",
+                    "{{ {cap}V::Clo(Rc::new(move |__a: Vec<V>| -> R<V> {{ charge(4)?; let __a = fitall(__a, &[{}])?; {binds}Ok({b}) }})) }}",
                     tys.join(", ")
                 )
             }
@@ -348,7 +362,7 @@ impl<'a> G<'a> {
                 let mut head = vec!["__a".to_string()];
                 head.extend(caps.iter().map(|c| format!("l_{0}=l_{0}", ident(c))));
                 format!(
-                    "Clo(lambda {}: (lambda {}: {b})(*(fitall(__a, [{}]) + [UNIT] * {n})[:{n}]))",
+                    "Clo(lambda {}: (charge(4), (lambda {}: {b})(*(fitall(__a, [{}]) + [UNIT] * {n})[:{n}]))[1])",
                     head.join(", "),
                     params.join(", "),
                     tys.join(", ")
@@ -357,7 +371,7 @@ impl<'a> G<'a> {
             Lang::Js => {
                 let cap: Vec<String> = caps.iter().map(|c| format!("l_{}", ident(c))).collect();
                 format!(
-                    "(({}) => new Clo((__a) => {{ const [{}] = [...fitall(__a, [{}]), ...Array({n}).fill(UNIT)].slice(0, {n}); return {b}; }}))({})",
+                    "(({}) => new Clo((__a) => {{ charge(4n); const [{}] = [...fitall(__a, [{}]), ...Array({n}).fill(UNIT)].slice(0, {n}); return {b}; }}))({})",
                     cap.join(", "),
                     params.join(", "),
                     tys.join(", "),
@@ -409,7 +423,7 @@ impl<'a> G<'a> {
                     let code = code?;
                     match l {
                         Lang::Rust => format!(
-                            "Some(Rc::new(|| -> R<V> {{ Ok({code}) }}) as Rc<dyn Fn() -> R<V>>)"
+                            "Some(Rc::new(|| -> R<V> {{ Ok({code}) }}) as Rc<dyn Fn() -> R<V> + Send + Sync>)"
                         ),
                         Lang::Python => format!("(lambda: {code})"),
                         Lang::Js => format!("(() => {code})"),
@@ -432,10 +446,20 @@ impl<'a> G<'a> {
         ))
     }
 
+    /// interp `call_fn` charges C_CALL before evaluating the arguments
     fn user_call(&self, id: &str, a: &[String]) -> String {
-        match self.lang {
+        let c = match self.lang {
             Lang::Rust => format!("{id}(None, vec![{}])?", a.join(", ")),
             _ => format!("{id}({}, [{}])", self.none(), a.join(", ")),
+        };
+        self.pre_charge(4, &c)
+    }
+    /// `v`, evaluated after charging `n` cost units
+    pub fn pre_charge(&self, n: usize, v: &str) -> String {
+        match self.lang {
+            Lang::Rust => format!("{{ charge({n})?; {v} }}"),
+            Lang::Python => format!("(charge({n}), {v})[1]"),
+            Lang::Js => format!("(charge({n}n), {v})"),
         }
     }
     fn val_of(&self, c: &str) -> String {
@@ -480,6 +504,17 @@ impl<'a> G<'a> {
                 if let Some(c) = self.construct_code(n, args)? {
                     return Ok(Some((c, None)));
                 }
+                if self.tasks_on() && self.m.items.iter().find(|i| matches!(i, Item::Actor { name, .. } if name == n)).is_some() && !self.local(n) {
+                    return Ok(Some((self.h("actor_new", &[q(n), f.line().to_string()]), None)));
+                }
+                if n == "lvar_new" {
+                    let a = self.args(args)?;
+                    let v = match l {
+                        Lang::Rust => format!("lvar_new(vec![{}])", a.join(", ")),
+                        _ => format!("{}([{}])", self.rt("lvar_new"), a.join(", ")),
+                    };
+                    return Ok(Some((v, None)));
+                }
                 Ok(Some((
                     self.trap_e(&format!("cannot call {n} at comptime")),
                     None,
@@ -500,6 +535,14 @@ impl<'a> G<'a> {
                     };
                 }
                 let recv = self.ex(obj)?;
+                let recv = self.h("pre_method", &[recv, q(m)]);
+                if self.tasks_on()
+                    && m == "choose"
+                    && let [Arg { e: Expr::Name(lb, _), .. }] = args
+                    && !self.local(lb)
+                {
+                    return Ok(Some((self.h("session_choose", &[recv, q(lb)]), None)));
+                }
                 let a = self.args(args)?;
                 let call = self.h("call_method", &[recv, q(m), self.vec(&a)]);
                 if MUTATING.contains(&m.as_str()) || self.mut_method_names.contains(m) {
@@ -520,6 +563,7 @@ impl<'a> G<'a> {
             }
             _ => {
                 let fv = self.ex(f)?;
+                let fv = self.h("pre_value", &[fv]);
                 let a = self.args(args)?;
                 Ok(Some((self.h("call_value", &[fv, self.vec(&a)]), None)))
             }
