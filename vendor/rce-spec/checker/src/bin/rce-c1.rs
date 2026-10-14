@@ -574,7 +574,7 @@ impl<'a> Bound<'a> {
             E::Neg(a, _) | E::Not(a, _) | E::BitNot(a, _) | E::Cast(a, _, _) => self.expr(a)?,
             E::Bin(_, a, b, _) => self.expr(a)? + self.expr(b)?,
             E::If(c, a, b, _) => self.expr(c)? + self.expr(a)?.max(self.expr(b)?),
-            E::Call(f, args, _) => {
+            E::Call(f, args, _, _) => {
                 let mut s = self.expr(f)? + 1;
                 for a in args {
                     s += self.expr(&a.e)?;

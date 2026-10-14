@@ -1,11 +1,13 @@
-## Appendix C. Draft 0.6 and 0.6b concurrency (normative for version 0.6 modules)
+## Appendix C. Draft 0.6 and 0.6b concurrency (normative for version 0.6 and 0.7 modules)
 
 This appendix defines the draft 0.6 language: structured parallelism
 (`par`, `for ... par`), budgets, deadlines, nondeterministic select and
 priorities (0.6), and the 0.6b extensions: workgroups, session types,
 structured spawn, cross-actor transactions, supervisors, nodes,
 interrupts, LVars and replicated state. It applies only to a module that
-declares `# rce-version: 0.6` (2.7). A 0.5 module never sees any of it:
+declares `# rce-version: 0.6` or `# rce-version: 0.7` (2.7); everything
+said here of a 0.6 module holds for a 0.7 module, except where C.6.4 and
+C.15 say otherwise. A 0.5 module never sees any of it:
 its words are ordinary names there, and none of its rules apply. The
 text is written from what the reference checker (`spec/checker`,
 `check.rs`, `check06b.rs`, `conc.rs`, `link.rs`) and the Lean files
@@ -30,7 +32,7 @@ node      supervisor strategy child     restart
 
 In a 0.5 module they are names (`fn f(node: i64)` is valid 0.5). The
 reference checker keeps them in `parse::DRAFT06_KEYWORDS`, separate from
-`parse::KEYWORDS`, and reserves them only when the module is version 0.6.
+`parse::KEYWORDS`, and reserves them only when the module is version 0.6 or 0.7.
 
 ### C.2 Grammar
 
@@ -150,7 +152,7 @@ Python and JavaScript runtimes charge the same costs
 | Operation | Cost |
 |---|---|
 | `c_call`: call of a user function or a closure | 4 |
-| standard library method (5.15) on receiver size n, first-argument size k | 4 + work(m, n, k), below |
+| standard library method (5.15) on receiver size n, first-argument size k | 0.7: 4 + work(m, n, k), below; 0.5 and 0.6: 4 |
 | `c_chan`: channel send or receive | 8 |
 | `c_spawn`: `spawn` | 32 |
 | `c_fork`: one `par` branch or `for ... par` chunk | 16 |
@@ -163,7 +165,10 @@ Python and JavaScript runtimes charge the same costs
 | float (f64, f32) `+`, `-`, `*` | 2 |
 | float (f64, f32) `/`, `%` | 8 |
 
-**Method work (normative).** A budget is a proxy for energy, and energy
+**Method work (normative for version 0.7).** In a version 0.6 module a
+standard library method costs `c_call` whatever its sizes, as draft 0.6
+defined it; a budget there bounds the number of operations. In a 0.7
+module it costs `c_call` plus work(m, n, k). A budget is a proxy for energy, and energy
 scales with the operations performed, so a method's cost must track its
 work. Sizes: text is its UTF-8 byte length, a list its length, a map its
 number of entries, any other value 0. n is the receiver's size and k the
@@ -304,6 +309,56 @@ evaluator, so `trap("budget")` falls on the same operation on every
 target. Workgroups run lane after lane per phase. The 0.6b actor, session
 and node constructs follow the limits of 10.5.
 
+### C.15 Version 0.7
+
+`# rce-version: 0.7` declares version 0.7. Its syntax, keywords, static
+rules and evaluation are those of version 0.6, with one difference: a
+standard library method costs `c_call + work(m, n, k)` (C.6.4) instead
+of `c_call`. The rule that decides what needs a new version: a module's
+meaning (its outputs, states and outcomes, including where a budget
+traps) must be determined by its declared version, so a change that
+gives a valid program of an existing version a different meaning that
+the old text defined is a new version; a change that makes the
+implementations meet text that already defined the meaning, or that
+only touches artifacts outside a program's meaning, is an erratum and
+applies to every version.
+
+**Which version governs a cost (normative).** A program may join modules
+of different versions (2.7). The cost of a standard library method call
+is fixed by the declared version of the module that contains the call
+expression, not by the version of the module that declared the function
+being run, of its caller, or of the program's first module. A call
+written in a 0.7 module, including one inside a closure written there,
+costs `c_call + work(m, n, k)` wherever it is executed from, and a call
+written in a 0.5 or 0.6 module costs `c_call` even when a 0.7 module
+calls the function around it. The rule is lexical, so linking modules
+changes no cost. Every other cost of C.6.4 is the same in 0.6 and 0.7.
+Example: a 0.6 function that holds `with budget B` and calls an imported
+0.7 function whose body sorts an 8-element list is charged 24 more than
+the same call to an identical function declared in a 0.6 module.
+
+| Change since draft 0.6 | Versions | Why |
+|---|---|---|
+| size-scaled method costs (C.6.4) | 0.7 only | draft 0.6 defined each method as `c_call`; where a 0.6 budget traps would change |
+| saturating budget arithmetic (C.6) | all (erratum) | changes nothing reachable: no program reaches a sum near the largest i128 |
+| closed standard library, no ambient I/O (5.15) | all (erratum) | states what the checker already enforced (W-NAME-1 on an unknown method); no valid program changes |
+| `&mut` write-back on `fail` (6.2, T33) | all (erratum) | the reference evaluator already updated in place; the emitters now agree with it (and T34 flattens nested calls without changing order) |
+| u64 values at or above 2^63 exact in order, min/max and f64 ops (6.3 N2) | all (erratum) | N2 has defined full-range u64 since draft 0.5; the runtimes now meet it |
+| literals take the success type of a fallible return (5.1) | all (erratum) | a checker bug against `τ <: τ ! ε`; it admits programs the text already admitted |
+| canonical D entry and hash-chained Form log (6.1) | all | the log format, not a program's meaning |
+| est_j receipts | all | measurement records outside the language (C.5: est_j is separate from budgets) |
+
+So a 0.6 program keeps its meaning, a 0.5 program is unaffected (it has
+no budgets), and a 0.7 program differs from the same program declared
+0.6 only in where a `with budget` block traps. Checked by
+`spec/checker/tests/method_costs.rs` (0.6 charges `c_call` alone, 0.7
+charges the table, in the reference and every runtime) and
+`spec/checker/tests/draft06_gate.rs`, and the per-call-site rule by
+`spec/checker/tests/call_site_cost.rs` (0.5, 0.6 and 0.7 modules joined
+by `use`, in the reference evaluator and the Rust, Python and JavaScript
+emitters on the linked program); the tree-sitter port and the
+LALR(1) check treat 0.7 as 0.6, since the grammar is the same.
+
 **Read receipt.** How many words does a version 0.6 module reserve in addition to the 0.5 keywords? (a number)
 
-<!-- body-sha256: 2e7604ee602db61fd17615ca0bde1454756accc45249b689328b5d5c15d1281d -->
+<!-- body-sha256: abdefff233178ef31f6bf646a2a702939839e6d35b48de4b53a2b4ac28815509 -->

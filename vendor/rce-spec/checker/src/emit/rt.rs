@@ -422,12 +422,13 @@ pub fn method_work(recv: &V, m: &str, args: &[V]) -> i128 {
     let lin = match recv { V::Text(_) => matches!(m, "strip" | "upper" | "lower" | "reverse" | "tostr" | "chars" | "words" | "lines" | "split" | "isdigit" | "isalpha" | "isspace" | "contains" | "startswith" | "endswith" | "toint" | "join"), V::List(_) => matches!(m, "reverse" | "contains" | "sum" | "map" | "filter" | "fold"), V::Map(_) => matches!(m, "get" | "contains" | "insert" | "remove" | "keys" | "values"), _ => false };
     if lin { n.saturating_add(k) } else if matches!(recv, V::List(_)) && m == "sort" { n.saturating_mul(ceil_log2(n)) } else { 0 }
 }
-pub fn call_method(recv: V, m: &str, args: Vec<V>) -> R<Call> {
+/// `sized`: the call expression is in a version 0.7 module (C.15).
+pub fn call_method(recv: V, m: &str, args: Vec<V>, sized: bool) -> R<Call> {
     let head = match &recv { V::Rec(n, _) => Some(kind_of(n).to_string()), V::List(_) => Some("List".to_string()), _ => None };
     if let Some(h) = head && let Some(f) = user_method(&h, m) {
         return f(Some(recv), args);
     }
-    charge(4i128.saturating_add(method_work(&recv, m, &args)))?;
+    charge(4i128.saturating_add(if sized { method_work(&recv, m, &args) } else { 0 }))?;
     let (v, s) = builtin(recv, m, args)?;
     Ok(Call { v, outs: vec![], slf: s })
 }

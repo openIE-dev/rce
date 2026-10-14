@@ -63,7 +63,7 @@ impl W<'_> {
             }
             Map(v, _) => { self.op(Op::Alloc); for (a, b) in v { self.e(a); self.e(b) } }
             ChanNew(_, x, _) => { self.op(Op::Chan); if let Some(x) = x { self.e(x) } }
-            Call(f, a, _) => {
+            Call(f, a, _, _) => {
                 self.op(Op::Call);
                 if let Name(n, _) = &**f { self.c.calls.push(n.clone()) } else { self.e(f) }
                 self.args(a)

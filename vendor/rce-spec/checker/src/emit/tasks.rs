@@ -61,7 +61,7 @@ impl<'a> G<'a> {
 
     /// `spawn f(args)`, as an expression yielding the handle
     pub(super) fn spawn_e(&mut self, e: &Expr, prio: &str) -> E {
-        let Expr::Call(f, args, line) = e else { return Ok(self.trap_e("spawn needs a call")) };
+        let Expr::Call(f, args, line, _) = e else { return Ok(self.trap_e("spawn needs a call")) };
         let Expr::Name(fname, _) = &**f else { return Ok(self.trap_e("spawn needs a function name")) };
         let mut vs = vec![];
         for a in args {

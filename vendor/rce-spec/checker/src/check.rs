@@ -2074,7 +2074,7 @@ impl Checker {
                     self.e(d(line, "W-ATOM-1", "spawn inside atomic"));
                 }
                 match e {
-                    Expr::Call(f, args, _) => {
+                    Expr::Call(f, args, _, _) => {
                         if let Expr::Name(n, _) = &**f {
                             if self.externs.contains_key(n) {
                                 self.e(d(
@@ -2673,7 +2673,7 @@ pub fn structural_violation(f: &FnDecl, is_ctor: &dyn Fn(&str) -> bool) -> Optio
         bad: &mut Option<usize>,
     ) {
         walk_expr(e, &mut |x| {
-            if let Expr::Call(g, args, l) = x
+            if let Expr::Call(g, args, l, _) = x
                 && matches!(&**g, Expr::Name(n, _) if n == me)
             {
                 let ok = args.iter().enumerate().any(|(i, a)| {
@@ -2838,7 +2838,7 @@ pub(crate) fn mutating_method(m: &str) -> bool {
 fn expr_writes(e: &Expr, r: &str) -> bool {
     let mut hit = false;
     walk_expr(e, &mut |x| {
-        if let Expr::Call(f, _, _) = x
+        if let Expr::Call(f, _, _, _) = x
             && let Expr::Member(o, m, _) = &**f
             && mutating_method(m)
             && place_root(o).as_deref() == Some(r)
@@ -2890,7 +2890,7 @@ pub fn walk_expr(e: &Expr, f: &mut dyn FnMut(&Expr)) {
             }
         }
         ChanNew(_, Some(x), _) => walk_expr(x, f),
-        Call(c, args, _) => {
+        Call(c, args, _, _) => {
             walk_expr(c, f);
             for a in args {
                 walk_expr(&a.e, f)
@@ -3217,7 +3217,7 @@ impl Checker {
                 }
                 T::Chan(Box::new(t))
             }
-            E::Call(f, args, l) => self.call(f, args, *l),
+            E::Call(f, args, l, _) => self.call(f, args, *l),
             E::Index(x, idx, l) => {
                 let xt = self.infer(x, false);
                 let base = peel(&self.sub.resolve(&xt));
@@ -4625,7 +4625,7 @@ fn foot_expr(e: &Expr, f: &mut Foot) {
             }
         }
         Expr::Recv(..) => f.effect = f.effect.or(Some("receive")),
-        Expr::Call(c, _, _) => {
+        Expr::Call(c, _, _, _) => {
             if let Expr::Member(o, m, _) = &**c
                 && mutating_method(m)
                 && let Some(r) = place_root(o)

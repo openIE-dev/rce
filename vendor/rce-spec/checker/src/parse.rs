@@ -303,6 +303,8 @@ pub struct Parser {
     p: usize,
     /// accept draft 0.6 syntax; `parse` clears it without the `conc06` feature
     pub allow06: bool,
+    /// the module declares version 0.7 (spec 2.7, C.13)
+    pub v07: bool,
 }
 
 type R<T> = Result<T, String>;
@@ -318,7 +320,7 @@ pub fn reserved(s: &str, draft06: bool) -> bool {
 
 impl Parser {
     pub fn new(t: Vec<(Tok, usize)>) -> Self {
-        Parser { t, p: 0, allow06: true }
+        Parser { t, p: 0, allow06: true, v07: false }
     }
     fn peek(&self) -> &Tok {
         &self.t[self.p].0
@@ -441,6 +443,7 @@ impl Parser {
             items: vec![],
             pubs: Default::default(),
             draft06: self.allow06,
+            v07: self.v07,
         };
         if self.eat_kw("module") {
             m.path = Some(self.path()?);
@@ -1783,7 +1786,7 @@ impl Parser {
             if self.eat_p("(") {
                 let a = if self.is_p(")") { vec![] } else { self.args()? };
                 self.want_p(")")?;
-                e = Expr::Call(Box::new(e), a, l);
+                e = Expr::Call(Box::new(e), a, l, self.v07);
             } else if self.eat_p("[") {
                 if self.eat_p(":") {
                     let hi = if self.is_p("]") {
@@ -2055,7 +2058,7 @@ pub const DRAFT06_KEYWORDS: &[&str] = &[
 ];
 
 /// Language versions a module may declare (spec 2.7).
-pub const VERSIONS: &[&str] = &["0.5", "0.6"];
+pub const VERSIONS: &[&str] = &["0.5", "0.6", "0.7"];
 
 /// The language version of a module (spec 2.7). The first line may be the
 /// comment `# rce-version: V`; V must be one of `VERSIONS` (W-VER-1).
@@ -2079,18 +2082,21 @@ pub fn declared_version(src: &str) -> Result<Option<&'static str>, String> {
     }
 }
 
-/// Whether a module is read as draft 0.6 (spec 2.7).
+/// Whether a module has the Appendix C syntax and rules: version 0.6 or
+/// 0.7 (spec 2.7).
 pub fn is_draft06(src: &str) -> Result<bool, String> {
     Ok(match declared_version(src)? {
-        Some(v) => v == "0.6",
+        Some(v) => v == "0.6" || v == "0.7",
         None => cfg!(feature = "conc06"),
     })
 }
 
 pub fn parse(src: &str) -> Result<Module, String> {
     let d06 = is_draft06(src)?;
+    let v07 = declared_version(src)? == Some("0.7");
     let toks = lex(src)?;
     let mut p = Parser::new(toks);
     p.allow06 = d06;
+    p.v07 = v07;
     p.module()
 }

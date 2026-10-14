@@ -620,14 +620,14 @@ def method_work(recv, m, args):
     if t is Lst and m == "sort": return n * ceil_log2(n)
     return 0
 
-def call_method(recv, m, args):
+def call_method(recv, m, args, sized):
     """(value, per-argument copy-out list, new receiver or None)"""
     t = type(recv)
     head = KIND_OF.get(recv.n, recv.n) if t is Rec else "List" if t is Lst else None
     if head is not None and (head, m) in METHODS:
         v, outs, s = METHODS[(head, m)](recv, args)
         return v, outs, s
-    charge(4 + method_work(recv, m, args))
+    charge(4 + (method_work(recv, m, args) if sized else 0))
     v, s = builtin(recv, m, args)
     return v, [], s
 

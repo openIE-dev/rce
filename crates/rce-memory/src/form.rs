@@ -161,7 +161,7 @@ impl Names {
                     self.expr(c)
                 }
             }
-            Call(f, a, _) => {
+            Call(f, a, _, _) => {
                 match &**f {
                     Name(n, _) => self.names.push((n.clone(), true)),
                     Member(r, n, _) => {

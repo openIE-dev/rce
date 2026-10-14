@@ -78,7 +78,7 @@ pub fn lower(m: &Module) -> Module {
 
 impl Cx {
     fn is_wb(&self, e: &Expr) -> bool {
-        let Expr::Call(f, _, _) = e else { return false };
+        let Expr::Call(f, _, _, _) = e else { return false };
         match &**f {
             Expr::Name(n, _) => self.fns.contains(n),
             Expr::Member(_, m, _) => MUTATING.contains(&m.as_str()) || self.methods.contains(m),
@@ -101,7 +101,7 @@ impl Cx {
         !self.has_wb(e) || (self.is_wb(core) && !self.args_have_wb(core))
     }
     fn args_have_wb(&self, call: &Expr) -> bool {
-        let Expr::Call(f, args, _) = call else { return false };
+        let Expr::Call(f, args, _, _) = call else { return false };
         let recv = match &**f {
             Expr::Member(o, _, _) => self.has_wb(o),
             _ => false,
@@ -250,7 +250,7 @@ impl Cx {
                 let x = v.remove(0);
                 Expr::Index(b(x), v, *l)
             }
-            Expr::Call(f, args, l) => {
+            Expr::Call(f, args, l, sz) => {
                 // a call that does not write back: callee receiver, then
                 // arguments; borrows of places are kept as arguments
                 if args.iter().any(|a| matches!(a.e, Expr::Borrow(..)) && self.has_wb(&a.e)) {
@@ -272,7 +272,7 @@ impl Cx {
                     _ => (**f).clone(),
                 };
                 let args2 = args.iter().zip(v).map(|(a, e)| Arg { label: a.label.clone(), e }).collect();
-                Expr::Call(b(f2), args2, *l)
+                Expr::Call(b(f2), args2, *l, *sz)
             }
             _ => return None,
         })
@@ -306,7 +306,7 @@ fn walk(e: &Expr, f: &mut dyn FnMut(&Expr)) {
             walk(b, f)
         }),
         ChanNew(_, Some(x), _) => walk(x, f),
-        Call(c, args, _) => {
+        Call(c, args, _, _) => {
             walk(c, f);
             args.iter().for_each(|a| walk(&a.e, f))
         }

@@ -41,7 +41,7 @@ impl S<'_> {
                 if k == 0 {
                     Expr::None(0)
                 } else {
-                    Expr::Call(Box::new(name("some")), vec![ex(self.sample(x, k, d)?)], 0)
+                    Expr::Call(Box::new(name("some")), vec![ex(self.sample(x, k, d)?)], 0, false)
                 }
             }
             Ty::Tuple(ts) => Expr::Tuple(
@@ -168,7 +168,7 @@ impl S<'_> {
         Some(if args.is_empty() {
             name(n)
         } else {
-            Expr::Call(Box::new(name(n)), args, 0)
+            Expr::Call(Box::new(name(n)), args, 0, false)
         })
     }
 
@@ -194,7 +194,7 @@ impl S<'_> {
                 args.push(ex(name(&n)));
             }
         }
-        let call = Expr::Call(Box::new(callee), args, 0);
+        let call = Expr::Call(Box::new(callee), args, 0, false);
         body.push(Stmt::Let(Pat::Path(vec!["__r".into()]), None, call, 0));
         let mut r = name("__r");
         if matches!(f.sig.ret, Some(Ty::Iter(_))) {
@@ -202,6 +202,7 @@ impl S<'_> {
                 Box::new(Expr::Member(Box::new(r), "collect".into(), 0)),
                 vec![],
                 0,
+                false,
             );
         }
         if recv.is_some() && matches!(f.sig.params.first(), Some(Param::SelfRef(true))) {

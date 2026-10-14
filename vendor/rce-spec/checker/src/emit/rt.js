@@ -513,10 +513,10 @@ function methodWork(recv, m, args) {
   if (recv instanceof Lst && m === "sort") return n * ceilLog2(n);
   return 0n;
 }
-function callMethod(recv, m, args) {
+function callMethod(recv, m, args, sized) {
   const head = recv instanceof Rec ? (KIND_OF[recv.n] ?? recv.n) : recv instanceof Lst ? "List" : null;
   if (head !== null && METHODS[head + "." + m]) { const [v, outs, s] = METHODS[head + "." + m](recv, args); return [v, outs, s]; }
-  charge(4n + methodWork(recv, m, args));
+  charge(4n + (sized ? methodWork(recv, m, args) : 0n));
   const [v, s] = builtin(recv, m, args);
   return [v, [], s];
 }

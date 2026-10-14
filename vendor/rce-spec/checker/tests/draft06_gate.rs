@@ -3,7 +3,8 @@
 //! module (undeclared in the default build, or declared 0.5 in any build)
 //! reads the draft 0.6 words as ordinary names, so a valid 0.5 program is
 //! never refused because of them. The `conc06` feature only changes the
-//! default for undeclared modules.
+//! default for undeclared modules. Version 0.7 has the same syntax as
+//! 0.6 (C.13).
 use rce_spec_check::parse::parse;
 
 const PAR: &str = "fn main()\n    var a: i64 = 0\n    var b: i64 = 0\n    par\n        branch one\n            a = 1\n        branch two\n            b = 2\n    emit a + b\n";
@@ -23,6 +24,18 @@ fn par_needs_version_06() {
     assert!(r.is_err(), "declared 0.5 never admits par");
 }
 
+/// Version 0.7 (C.13) has the 0.6 syntax and rules; only its method
+/// costs differ, so the AST records the version.
+#[test]
+fn version_07_has_the_06_syntax() {
+    let m = parse(&format!("# rce-version: 0.7\n{PAR}")).unwrap();
+    assert!(m.draft06 && m.v07);
+    let m = parse(&format!("# rce-version: 0.6\n{PAR}")).unwrap();
+    assert!(m.draft06 && !m.v07);
+    assert!(parse(&format!("# rce-version: 0.7\n{NAMES05}")).is_err(), "in a 0.7 module `node` is reserved");
+    assert_eq!(rce_spec_check::check_one(&format!("# rce-version: 0.7\n{PAR}")), Ok(()));
+}
+
 /// The keyword-collision bug: 0.6 words used as names in a valid 0.5 program.
 const NAMES05: &str = "fn f(node: i64, scope: i64, group: i64) -> i64\n    let child = node + scope\n    let par = child + group\n    return par\n\ncheck f(1, 2, 3) == 6\n";
 
@@ -39,7 +52,7 @@ fn draft06_words_are_names_in_05() {
 
 #[test]
 fn unknown_version_is_w_ver_1() {
-    let e = parse("# rce-version: 0.7\nfn main()\n    pass\n").unwrap_err();
+    let e = parse("# rce-version: 0.8\nfn main()\n    pass\n").unwrap_err();
     assert!(e.contains("W-VER-1"), "{e}");
 }
 
@@ -63,5 +76,7 @@ fn tree_sitter_follows_the_version() {
     assert!(ts.accepts(&format!("# rce-version: 0.5\n{NAMES05}")));
     assert!(!ts.accepts(&format!("# rce-version: 0.6\n{NAMES05}")));
     assert!(ts.accepts(&format!("# rce-version: 0.6\n{PAR}")));
+    assert!(ts.accepts(&format!("# rce-version: 0.7\n{PAR}")));
+    assert!(!ts.accepts(&format!("# rce-version: 0.7\n{NAMES05}")));
     assert!(!ts.accepts(&format!("fn f() -> i64 # rce-version: 0.6\n    return 1\n\n{PAR}")));
 }

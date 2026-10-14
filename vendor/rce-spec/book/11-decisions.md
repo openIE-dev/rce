@@ -212,6 +212,17 @@ handler spec and fit formats themselves are now Appendix D); whether emitters sh
 regions and lane-wise operators to real accelerator or vector code (today
 they run them on the CPU, which 5.13 allows).
 
+### 9.5 Changes in draft 0.7
+
+- Version 0.7 (2.7, C.15): version 0.6 with size-scaled standard library
+  method costs (C.6.4). Versions 0.5 and 0.6 keep their meaning.
+- Errata for every version, listed in C.15: closed standard library and
+  no ambient I/O (5.15), `&mut` write-back on `fail` in the emitters (6.2,
+  T33) with nested calls flattened by an order-preserving ANF pass (T34),
+  exact u64 at or above 2^63 (6.3 N2), the fallible-return literal fix
+  (5.1), saturating budget arithmetic (C.6), the hash-chained Form log
+  (6.1).
+
 **Read receipt.** The decisions list says it decides gaps in which file?
 
-<!-- body-sha256: fe6770a3a4f699c13462389094e5d2e83aab723583c7d2cd65005041f76eb780 -->
+<!-- body-sha256: fc357fd314cc892a9aafd29438a1fed1a9649512de33953ee1b8b8e8a4c0ff7b -->
