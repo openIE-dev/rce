@@ -2,6 +2,18 @@
 
 Rust only, toolchain 1.98.1. No model and no network in any crate here.
 
+## At a glance
+
+![The RCE IDE: editor with a live rce check diagnostic, proposals accepted or refused by the checker, receipts and energy, memory recall, network permission prompt](screens/ide.png)
+
+*The IDE. Left: the editor, with the checker naming the broken rule (W-STEP-1) on line 20. Right: proposals, each accepted or refused by `rce check` with a receipt; the receipt ledger with energy columns (empty where nothing was measured); memory recall; and a network request waiting for permission.*
+
+![Where the IDE sits: source, checker, Form, log, emit targets, host](https://raw.githubusercontent.com/openIE-dev/rce/main/docs/figures/rce-overview.svg)
+
+*Where the IDE sits in RCE: it edits source and calls the reference checker; accepted programs become a Form with a hash-chained log, and `rce emit` projects them to other targets. More figures: [openIE-dev/rce docs/figures](https://github.com/openIE-dev/rce/tree/main/docs/figures).*
+
+![Test and differential results, including 811 IDE tests](https://raw.githubusercontent.com/openIE-dev/rce/main/docs/figures/status.svg)
+
 - `crates/ide-receipt`: one receipt per action (action kind, gear, model, tokens in/out,
   E_sim, E_meas with source tag `rapl|nvml|powermetrics|jetson|estimated-remote`, delta,
   checker verdict, policy hash), BLAKE3 hash chain, ed25519 signature. JSONL ledger,
