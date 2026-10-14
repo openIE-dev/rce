@@ -62,9 +62,11 @@ function plain(neg, d, p) {
 }
 const negz = (x) => x < 0 || Object.is(x, -0);
 function fdisplay(x) {
-  if (x === 0) return negz(x) ? "-0" : "0";
-  const [d, p] = digitsOf(String(Math.abs(x)));
-  return plain(x < 0, d, p);
+  if (x === 0) return "0";
+  const a = Math.abs(x), [d, p] = digitsOf(String(a));
+  if (a >= 1e-5 && a < 1e16) return plain(x < 0, d, p);
+  const e = p - 1;
+  return (x < 0 ? "-" : "") + d[0] + (d.length > 1 ? "." + d.slice(1) : "") + "e" + (e >= 0 ? "+" : "") + e;
 }
 function fdebug(x) {
   if (x === 0) return negz(x) ? "-0.0" : "0.0";
@@ -183,7 +185,7 @@ function arith(op, a, b) {
       case "-": return chk(x - y, ty);
       case "*": return chk(x * y, ty);
       case "/": if (y === 0n) trap("division by zero"); return chk(x / y, ty);
-      case "%": if (y === 0n) trap("division by zero"); return chk(x % y, ty);
+      case "%": if (y === 0n) trap("division by zero"); chk(x / y, ty); return chk(x % y, ty);
       case "&": return chk(x & y, ty);
       case "|": return chk(x | y, ty);
       case "^": return chk(x ^ y, ty);
@@ -346,7 +348,7 @@ function toint(s) {
   if (u === "" || !/^[0-9]+$/.test(u)) trap("not an integer: " + rdebug(s));
   const n = BigInt(t[0] === "+" ? u : t);
   if (n < I128[0] || n > I128[1]) trap("not an integer: " + rdebug(s));
-  return new Int(n, "i64");
+  return chk(n, "i64");
 }
 function fround(x) { let r = Math.trunc(x); if (Math.abs(x - r) >= 0.5) r += Math.sign(x); return r; }
 function sortList(xs) {
@@ -407,6 +409,11 @@ function builtin(r, m, a) {
     const x = r.v;
     if (m === "sqrt") { if (x < 0) trap("non-finite float"); return [new F(Math.sqrt(x)), null]; }
     if (m === "abs") return [new F(Math.abs(x)), null];
+    if (m === "min" || m === "max") {
+      if (!(a[0] instanceof F)) trap(m);
+      const y = a[0].v;
+      return [new F(m === "min" ? (x <= y ? x : y) : x >= y ? x : y), null];
+    }
     if (m === "floor") return [new F(Math.floor(x)), null];
     if (m === "ceil") return [new F(Math.ceil(x)), null];
     if (m === "round") return [new F(fround(x)), null];
@@ -622,7 +629,8 @@ function try_(x, els) {
   return x;
 }
 function tryEval(th) { try { return th(); } catch (e) { if (isFlow(e)) return null; throw e; } }
-function compound(op, cur, r) { const t = cur instanceof Int ? cur.t : "lit"; const x = arith(op, cur, r); return x instanceof Int ? chk(x.v, t) : x; }
+function compound(op, cur, r) { charge(opCost(op, cur)); return compoundUncharged(op, cur, r); }
+function compoundUncharged(op, cur, r) { const t = cur instanceof Int ? cur.t : "lit"; const x = arith(op, cur, r); return x instanceof Int ? chk(x.v, t) : x; }
 function fixtag(cur, v) { return cur instanceof Int && cur.t !== "lit" && v instanceof Int ? chk(v.v, cur.t) : v; }
 function setField(rec, m, v) {
   if (!(rec instanceof Rec)) trap("member assignment on a non-record");
@@ -786,7 +794,7 @@ function parCombine(op, a, b) {
     if (op === "|") return a || b;
     if (op === "^") return a !== b;
   }
-  return compound(op, a, b);
+  return compoundUncharged(op, a, b);
 }
 function parTree(op, c, i) {
   if (c.length === 0) return i;

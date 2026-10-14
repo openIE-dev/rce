@@ -29,7 +29,8 @@ Names and modules
   `static`: refused with "memory safety is by construction" (there are no
   escape hatches in RCE other than the `extern` boundary of 5.11).
 - W-FFI-1 An `extern` declaration whose ABI is not `"C"`, that is comptime
-  or generic, or whose parameter or result types break 5.11.
+  or generic, or whose parameter or result types break 5.11; or a foreign
+  function's name used other than as the callee of a direct call.
 
 Types
 - W-TY-1 Any typing rule of section 5 fails.
@@ -87,4 +88,4 @@ W-LVAR-1, W-LVAR-2, W-NODE-1, W-SUP-1, W-SUP-2, W-INTR-1 and W-RT-1.
 
 **Read receipt.** Which rule refuses two unguarded steps in one region whose patterns overlap?
 
-<!-- body-sha256: eb687dbb49ffa4e868bae0ac0c55e8d755a304fa97560c784a7b389d540e87b7 -->
+<!-- body-sha256: dd076701a9e7d051297c3198dc8cd04b76a4fa8e6e23ade35841859151ea8cf0 -->

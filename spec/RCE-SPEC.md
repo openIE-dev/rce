@@ -1033,6 +1033,10 @@ RCE with the platform C calling convention. It has no body. Rules (W-FFI-1):
 - A foreign function may be called only from `fn main` and task functions
   (W-EFF-1), never from a pure function, a step, a handler or comptime, and
   it cannot be spawned (W-SPAWN-1). δ therefore never calls foreign code.
+- A foreign function is not a value: its name may appear only as the
+  callee of a direct call (W-FFI-1). The context rule above is checked at
+  the call, so a value would let a pure function receive a foreign
+  function from `main` and call it.
 - Each call is recorded in the log as `Foreign(f, arguments, result)`.
   Replay supplies the recorded result instead of calling f, so the run of a
   command remains a function of its inputs and its log (T1, T3), with
@@ -1117,7 +1121,7 @@ against the reference evaluator (`spec/checker/tests/stdlib_costs.rs`).
 | Receiver | RCE type | Methods |
 |---|---|---|
 | `Int` | integers (iN, uN, usize) | `abs`, `checked_add`, `checked_div`, `checked_mul`, `checked_sub`, `max`, `min`, `saturating_add`, `saturating_mul`, `saturating_sub`, `tostr`, `wrapping_add`, `wrapping_mul`, `wrapping_sub` |
-| `F` | f64 | `abs`, `ceil`, `floor`, `round`, `sqrt`, `tostr` |
+| `F` | f64 | `abs`, `ceil`, `floor`, `max`, `min`, `round`, `sqrt`, `tostr` |
 | `Bool` | bool | `tostr` |
 | `Text` | text | `chars`, `contains`, `endswith`, `isalpha`, `isdigit`, `isempty`, `isspace`, `join`, `len`, `lines`, `lower`, `reverse`, `split`, `startswith`, `strip`, `toint`, `tostr`, `upper`, `words` |
 | `F32` | f32 | `abs`, `tostr` |
@@ -1152,7 +1156,7 @@ This section gives the *dynamic semantics*: what a program computes, as a
 mapping into the Form. It also lists the exact edge behaviour of every
 primitive (overflow, division by zero, float rounding, text indexing), which
 every implementation must reproduce. Example: `-7 / 2` is `-3`, and
-`i64.MIN / -1` traps with "integer overflow".
+`i64.MIN / -1` traps with "overflow: 9223372036854775808 is outside i64".
 
 ### 6.1 The Form of a program
 
@@ -1221,9 +1225,12 @@ Expressions are evaluated by a big-step judgment
 and fields, and the result r is one of
 
 - `ok(v, σ′)`: a value and updated store,
-- `trap(m)`: a defined failure of the Form ("integer overflow", "division
-  by zero", "non-finite result", "index out of range", "size limit",
-  "loop bound", "value limit"),
+- `trap(m)`: a defined failure of the Form. The trap texts are exactly
+  those of 6.3 ("overflow: V is outside T", "division by zero",
+  "shift amount out of range", "non-finite float", "index K out of range",
+  "slice index out of range", "slice bounds reversed", "not a char
+  boundary", "size limit", "value limit"), "loop bound" (6.7) and "budget"
+  (C.5),
 - `fail(X, v)`: a user error raised by `fail` or propagated by `try`,
 - control signals `ret(v)`, `brk`, `cont` (statements only).
 
@@ -1300,7 +1307,8 @@ exactly.
   boundary (event payloads, state, outputs) and is invisible inside a
   computation because each RCE value carries its static type.
 - **N2 Integer arithmetic** is checked: overflow of the *static type's*
-  range is `trap("integer overflow")`, never a wrap. `/` truncates toward
+  range is `trap("overflow: V is outside T")` with V the exact result and
+  T the static type (`i64` for an untyped literal), never a wrap. `/` truncates toward
   zero (`-7 / 2 = -3`); `%` has the sign of the dividend (`-3 % 2 = -1`).
   Division or remainder by zero is `trap("division by zero")`.
   Modular and clamped arithmetic are explicit methods, never the default:
@@ -1311,15 +1319,17 @@ exactly.
   (draft 0.5), which compute the exact result and trap unless it lies in
   [0, 2^64); a value at or above 2^63 is carried as an unsigned Form int, so
   `18446744073709551615 - 1` is exact. Lean: `RCE/U64.lean`.
-  `i64.MIN / -1` and `i64.MIN % -1` are `trap("integer overflow")`
-  (Rust's `checked_rem`). Shifts: `x << n` and `x >> n` with n ≥ bit width
-  or n < 0 are `trap("integer overflow")`; `>>` is arithmetic for signed and
+  `i64.MIN / -1` and `i64.MIN % -1` are
+  `trap("overflow: 9223372036854775808 is outside i64")` (the quotient is
+  out of range; Rust's `checked_rem`). Shifts: `x << n` and `x >> n` with
+  n ≥ bit width or n < 0 are `trap("shift amount out of range")`; `>>` is arithmetic for signed and
   logical for unsigned types. Bitwise `& | ^ ~` act on the two's-complement
   representation of the static type.
 - **N3 Floats.** f64 operations are IEEE 754 binary64, round to nearest even.
-  `%` is fmod (sign of the dividend). A non-finite result (±inf, NaN) is
-  `trap("non-finite result")`: NaN and infinities never exist as values.
-  `x / 0.0` is `trap("division by zero")`. Canonical float text is the
+  `%` is not defined on floats (W-TY-1: `%` needs integers). A non-finite
+  result (±inf, NaN) is `trap("non-finite float")`: NaN and infinities
+  never exist as values. `x / 0.0` is `trap("non-finite float")` (its
+  result is ±inf or NaN), and so is `sqrt` of a negative number. Canonical float text is the
   shortest round-trip digits; decimal notation for 1e-5 ≤ |x| < 1e16, else
   `d.ddde±N` with `+` on positive exponents (`1e+300`, `1.5e-7`).
   **f32 (draft 0.5).** The Form ops `f32add f32sub f32mul f32div` round both
@@ -1328,14 +1338,14 @@ exactly.
   bits, so by Figueroa's theorem the result equals the correctly rounded
   binary32 result, and every target (Rust `f32`, Python `struct`, JavaScript
   `Math.fround`) gives the same bits. A result outside the binary32 range is
-  `trap("non-finite result")`. `x as f32` (Form `tof32`) rounds once.
+  `trap("non-finite float")`. `x as f32` (Form `tof32`) rounds once.
   Lean: `RCE/F32.lean`.
 - **N4 Mixed arithmetic** does not exist in RCE (both operands of a binary
   operator have the same static type). `a as f64` converts an integer exactly
   when |a| ≤ 2^53 and otherwise rounds to nearest even; `x as iN` truncates
   toward zero and traps if the result is out of range or x is not finite.
 - **N5 min / max** compare exactly on integers and by IEEE order on floats
-  (total, since operands are finite).
+  (total, since operands are finite); on a tie the receiver is returned.
 - **N6 Equality** is structural value equality after normalization;
   `1 == 1.0` is a type error in RCE (different static types), so the Form's
   "1 equals 1.0" rule matters only at the boundary.
@@ -1348,9 +1358,13 @@ exactly.
   `islower`) are ASCII-only; other characters are unchanged / false.
   `strip` and `words` split on ASCII whitespace (space, \t, \n, \r, \x0b,
   \x0c).
-- **N8 Indexing** `a[i]` with i < 0 counts from the end (Python style);
-  an index outside [−n, n) is `trap("index out of range")`. Slices `a[i:j]`
-  clamp both ends into [0, n] and never trap.
+- **N8 Indexing** The index `i` of `a[i]` and the ends of `a[i:j]` have
+  type `usize` (W-TY-1 otherwise), so no index is negative. `a[i]` with
+  i ≥ n is `trap("index i out of range")`. A slice end above n is
+  `trap("slice index out of range")`, and i > j is
+  `trap("slice bounds reversed")`; an omitted end is 0 or n. Indexing and
+  slicing are total or trapping by one rule: an out-of-range position is
+  never silently moved.
 - **N9 Limits.** A list or text built by any operation is at most
   SIZE_LIMIT = 1,000,000 elements (`trap("size limit")`). A value written to
   state is at most VALUE_LIMIT = 1,048,576 bytes of canonical JSON
@@ -1360,12 +1374,12 @@ exactly.
 - **N11 Time** is the logical clock only: `Tick` events and `after n`
   in `select`. No construct reads a wall clock.
 
-The built-in methods on text and lists (`len reverse sort sum min max upper
-lower strip chars words tostr toint abs all any unique flatten isdigit
-isalpha isupper islower get contains count index_of split join startswith
-endswith pow floordiv pmod zip replace append with map filter fold sort_by`)
-have exactly the semantics of the Form primitive of the same name in num.rs
-and ir.rs (`Prim`, `Map`, `Filter`, `Fold`, `SortBy`), at the RCE static type.
+The built-in methods are exactly the table of 5.15 (the closed standard
+library); each has the semantics of the Form primitive of the same name in
+num.rs and ir.rs (`Prim`, `Map`, `Filter`, `Fold`, `SortBy`), at the RCE
+static type. A Form primitive that is not in that table (for example
+`pow`, `floordiv`, `pmod`, `zip`, `replace`, `unique`) is not an RCE
+method and is W-NAME-1.
 `sort` and `sort_by` are stable.
 
 **Read receipt.** Which JavaScript function is named for rounding to binary32?
@@ -1562,7 +1576,8 @@ Names and modules
   `static`: refused with "memory safety is by construction" (there are no
   escape hatches in RCE other than the `extern` boundary of 5.11).
 - W-FFI-1 An `extern` declaration whose ABI is not `"C"`, that is comptime
-  or generic, or whose parameter or result types break 5.11.
+  or generic, or whose parameter or result types break 5.11; or a foreign
+  function's name used other than as the callee of a direct call.
 
 Types
 - W-TY-1 Any typing rule of section 5 fails.
@@ -2548,7 +2563,7 @@ Python and JavaScript runtimes charge the same costs
 | `and`, `or` | 1 |
 | binary operator on integer, bool or text operands, comparisons | 1 |
 | float (f64, f32) `+`, `-`, `*` | 2 |
-| float (f64, f32) `/`, `%` | 8 |
+| float (f64, f32) `/` | 8 |
 
 **Method work (normative for version 0.7).** In a version 0.6 module a
 standard library method costs `c_call` whatever its sizes, as draft 0.6
@@ -2732,6 +2747,13 @@ the same call to an identical function declared in a 0.6 module.
 | literals take the success type of a fallible return (5.1) | all (erratum) | a checker bug against `τ <: τ ! ε`; it admits programs the text already admitted |
 | canonical D entry and hash-chained Form log (6.1) | all | the log format, not a program's meaning |
 | est_j receipts | all | measurement records outside the language (C.5: est_j is separate from budgets) |
+| `i64.MIN % -1` traps; `toint` traps outside i64 (6.3 N2) | all (erratum) | N2 already defined both; the reference and runtimes returned 0 and an out-of-range i64 |
+| canonical float text in `tostr` and display (6.3 N3) | all (erratum) | N3 already defined it (`1e+300`, `1.5e-7`, `-0` is `0`); the implementations printed Rust's long decimal form |
+| `x op= y` charges the cost of `op` (C.6.4) | all (erratum) | C.6.4 already charges every binary operator; compound assignment was charged 0, so a budget could be exceeded |
+| 6.3 N2, N3, N8 and 6.2 state the trap texts, `usize` indices and trapping slices the implementations have always had; float `%` removed from N3 and C.6.4 | all (erratum) | the text contradicted the checker and every runtime; no accepted program changes, since the text described behaviour no program could reach (negative usize, float `%`) or contradicted what every implementation did |
+| f64 `min`/`max` (6.3 N5, 5.15) evaluate | all (erratum) | the checker accepted them and N5 defined them, but the evaluators trapped; a program that trapped now computes what the text defined |
+| f64 `pow` refused (W-NAME-1) | all (erratum) | not in the closed library of 5.15, which already made it W-NAME-1; the checker accepted it and every evaluator trapped on it, so no accepted program computed a value with it |
+| a foreign function is not a value (5.11, W-FFI-1) | all (erratum) | 5.11 already forbade a pure function calling foreign code; the value route was a checker hole |
 
 So a 0.6 program keeps its meaning, a 0.5 program is unaffected (it has
 no budgets), and a 0.7 program differs from the same program declared
@@ -3030,6 +3052,48 @@ J_model_path - J_handler <= 0, and otherwise {`kind`: `value`, `n`,
 records the same figures as text. Implemented in
 `src/runtime/break_even.rs`, tested there and in the engine's promotion
 tests.
+
+**Readings: provenance, boundary and amortization (normative; P4, P5,
+P6 of the receipt field proposals of 13 Oct 2026).** These rules apply to every
+term labeled `reported` or `measured`, in every receipt that holds one,
+and are checked where a term is built and where a record is read:
+
+1. A reading carries `provenance` = {`sampler`, `counter`, `interval_s`,
+   `idle_baseline_w`, `machine`, `boundary`}: the four names non-empty,
+   `interval_s` finite and > 0, `idle_baseline_w` finite and >= 0 (0 when
+   no baseline was subtracted). `boundary` says what the joules include
+   (`package`, `package+dram`, `rail:VDD_GPU`). A reading without a valid
+   provenance is refused; unknown fields in it are refused. Derivation:
+   the label `reported` or `measured` claims that something was read; a
+   reading that cannot be reproduced or compared (which counter, over what
+   interval, against which baseline, on which machine, inside which
+   boundary) does not support that claim, so a term that lacks it is not
+   a reading, and labeling it one would be unsound.
+2. A term labeled `est` or `unpriced` carries no `provenance` (nothing was
+   read); one that does is refused.
+3. A reading carries `amortization`, one of {`kind`: `per_call`},
+   {`kind`: `batch_mean`, `n` >= 1}, {`kind`: `per_solved_task`}. An
+   `est` term may carry one; the engine's own estimates omit it.
+4. Figures of different kinds are never added or subtracted: a sum of two
+   terms whose `amortization` differs (absent counts as its own kind) is
+   refused, and so is a break-even whose J_model_path and J_handler differ
+   in kind (n\* divides by their difference) or whose J_build is a mean
+   (`batch_mean` or `per_solved_task`; J_build is a one-off total).
+   Derivation: a batch mean added to a per-call figure, or a per-task
+   figure subtracted from a per-input one, is arithmetic on different
+   units; no result of it is a figure of either kind.
+5. A sum of two readings keeps the weaker label only when both come from
+   the same sampler, counter, machine and boundary (the intervals add);
+   otherwise it is refused. A sum with an `est` term is `est` with no
+   provenance (unpriced < est < reported < measured, as for n\*).
+6. A stored break-even receipt is re-derived from its terms when read; a
+   stored n\* that disagrees with them is refused.
+
+The `est` wire form is unchanged (`{"j": 2.5, "basis": "est"}`), so no
+stored receipt changes meaning; no receipt in the repository holds a
+reading today. Implemented by `Term`, `Provenance` and `Amortization` in
+`src/runtime/break_even.rs` (no constructor makes a reading without
+provenance and amortization), tested there (`p4_*`, `p6_*`).
 
 The receipt is a measurement record. It is not an input to δ, to any
 check, or to the decision to promote, so it does not change the meaning

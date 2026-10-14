@@ -66,7 +66,7 @@ fn by_path<'a>(all: &'a [&'a Module], p: &str) -> Option<&'a Module> {
 fn aliases(m: &Module, all: &[&Module]) -> BTreeMap<String, String> {
     let mut a = BTreeMap::new();
     for it in &m.items {
-        if let Item::Use(p, al) = it {
+        if let Item::Use(p, al, _) = it {
             let s = p.join(".");
             if by_path(all, &s).is_some() {
                 a.insert(al.clone().unwrap_or_else(|| p.last().cloned().unwrap_or_default()), s);

@@ -87,6 +87,10 @@ RCE with the platform C calling convention. It has no body. Rules (W-FFI-1):
 - A foreign function may be called only from `fn main` and task functions
   (W-EFF-1), never from a pure function, a step, a handler or comptime, and
   it cannot be spawned (W-SPAWN-1). δ therefore never calls foreign code.
+- A foreign function is not a value: its name may appear only as the
+  callee of a direct call (W-FFI-1). The context rule above is checked at
+  the call, so a value would let a pure function receive a foreign
+  function from `main` and call it.
 - Each call is recorded in the log as `Foreign(f, arguments, result)`.
   Replay supplies the recorded result instead of calling f, so the run of a
   command remains a function of its inputs and its log (T1, T3), with
@@ -171,7 +175,7 @@ against the reference evaluator (`spec/checker/tests/stdlib_costs.rs`).
 | Receiver | RCE type | Methods |
 |---|---|---|
 | `Int` | integers (iN, uN, usize) | `abs`, `checked_add`, `checked_div`, `checked_mul`, `checked_sub`, `max`, `min`, `saturating_add`, `saturating_mul`, `saturating_sub`, `tostr`, `wrapping_add`, `wrapping_mul`, `wrapping_sub` |
-| `F` | f64 | `abs`, `ceil`, `floor`, `round`, `sqrt`, `tostr` |
+| `F` | f64 | `abs`, `ceil`, `floor`, `max`, `min`, `round`, `sqrt`, `tostr` |
 | `Bool` | bool | `tostr` |
 | `Text` | text | `chars`, `contains`, `endswith`, `isalpha`, `isdigit`, `isempty`, `isspace`, `join`, `len`, `lines`, `lower`, `reverse`, `split`, `startswith`, `strip`, `toint`, `tostr`, `upper`, `words` |
 | `F32` | f32 | `abs`, `tostr` |
@@ -198,4 +202,4 @@ budget rules.
 
 **Read receipt.** What kind of channel does a capacity of 0 give? (one word)
 
-<!-- body-sha256: 0f0c4a2a2457da4a9dcedda9d940d7375ed0318aa79b79ec9ab38d8a37a6640a -->
+<!-- body-sha256: 13ee50f13fb7d8da974fda2cbaa63a452f35df2de1bc6d6b9d8b328f508e9db0 -->

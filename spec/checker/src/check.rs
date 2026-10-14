@@ -205,13 +205,13 @@ impl Checker {
                 }
             };
             match it {
-                Item::Use(p, _) => {
+                Item::Use(p, _, line) => {
                     let s = p.join(".");
                     if !STD_MODULES.contains(&s.as_str()) && !known_modules.contains(&s) {
-                        self.e(d(0, "W-NAME-1", format!("unknown module `{s}`")));
+                        self.e(d(*line, "W-NAME-1", format!("unknown module `{s}`")));
                     }
                     if m.path.as_ref().map(|q| q.join(".")) == Some(s.clone()) {
-                        self.e(d(0, "W-MOD-2", "a module imports itself"));
+                        self.e(d(*line, "W-MOD-2", "a module imports itself"));
                     }
                 }
                 Item::Const { name, ty, e, line } => {
@@ -1323,6 +1323,17 @@ impl Checker {
             .map(|(n, _)| n.clone())
             .collect();
         events.sort();
+        // where each event is declared, for diagnostics about it (an
+        // imported event has no line in this module: line 1)
+        let ev_line: HashMap<String, usize> = m
+            .items
+            .iter()
+            .filter_map(|it| match it {
+                Item::Event { name, line, .. } => Some((name.clone(), *line)),
+                _ => None,
+            })
+            .collect();
+        let at = |ev: &String| ev_line.get(ev).copied().unwrap_or(1).max(1);
         let mut handled: HashSet<String> = HashSet::new();
         let mut unguarded: HashMap<(String, String), usize> = HashMap::new();
         let mut step_events: HashSet<String> = HashSet::new();
@@ -1386,7 +1397,7 @@ impl Checker {
         for ev in &events {
             if !handled.contains(ev) {
                 self.e(d(
-                    0,
+                    at(ev),
                     "W-STEP-2",
                     format!("event `{ev}` is handled by no step or actor: δ would not be total"),
                 ));
@@ -1396,7 +1407,7 @@ impl Checker {
                 && step_events.contains(ev)
             {
                 self.e(d(
-                    0,
+                    at(ev),
                     "W-TY-2",
                     format!("event `{ev}` carries a channel but is handled by a state step"),
                 ));
@@ -1677,7 +1688,7 @@ impl Checker {
         for (i, s) in b.iter().enumerate() {
             if div {
                 self.e(d(
-                    0,
+                    crate::check06b::stmt_line(s).max(1),
                     "W-MATCH-2",
                     "unreachable statement after return, fail, break or continue",
                 ));
@@ -3094,6 +3105,12 @@ impl Checker {
                     };
                 }
                 if let Some(f) = self.fns.get(n).cloned() {
+                    // 5.11: a foreign function is not a value. Only a direct
+                    // call is checked against the context (W-EFF-1), so a
+                    // value would let a pure function call foreign code.
+                    if self.externs.contains_key(n) {
+                        self.e(d(*l, "W-FFI-1", format!("`{n}` is a foreign function: it can only be called directly, not used as a value")));
+                    }
                     self.effect_call(n, f.cx, *l);
                     let ps: Vec<T> = f
                         .decl
@@ -4259,7 +4276,8 @@ impl Checker {
                     T::F64
                 }
                 "tostr" => T::Text,
-                "min" | "max" | "pow" => {
+                "min" | "max" => {
+                    self.arity(m, args, 1, l);
                     let ts = self.arg_types(args);
                     for t in ts {
                         self.expect(&t, &T::F64, l);
