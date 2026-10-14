@@ -1,0 +1,114 @@
+{
+ "Python": {
+  "EXCLUDED": 13,
+  "DEFINED": 2,
+  "GAP": 1,
+  "DOMAIN_RUNS": 3,
+  "DOMAIN_GAP": 2
+ },
+ "C": {
+  "EXCLUDED": 13,
+  "DEFINED": 5,
+  "GAP": 1,
+  "DOMAIN_RUNS": 1,
+  "DOMAIN_GAP": 1
+ },
+ "C++": {
+  "EXCLUDED": 14,
+  "DEFINED": 4,
+  "GAP": 0,
+  "DOMAIN_RUNS": 3,
+  "DOMAIN_GAP": 0
+ },
+ "Rust": {
+  "EXCLUDED": 10,
+  "DEFINED": 3,
+  "GAP": 1,
+  "DOMAIN_RUNS": 3,
+  "DOMAIN_GAP": 1
+ },
+ "Zig": {
+  "EXCLUDED": 9,
+  "DEFINED": 4,
+  "GAP": 1,
+  "DOMAIN_RUNS": 2,
+  "DOMAIN_GAP": 0
+ },
+ "Mojo": {
+  "EXCLUDED": 6,
+  "DEFINED": 2,
+  "GAP": 2,
+  "DOMAIN_RUNS": 2,
+  "DOMAIN_GAP": 1
+ },
+ "Go": {
+  "EXCLUDED": 9,
+  "DEFINED": 4,
+  "GAP": 0,
+  "DOMAIN_RUNS": 2,
+  "DOMAIN_GAP": 1
+ },
+ "Java/JVM": {
+  "EXCLUDED": 10,
+  "DEFINED": 4,
+  "GAP": 0,
+  "DOMAIN_RUNS": 2,
+  "DOMAIN_GAP": 0
+ },
+ "JS/TS": {
+  "EXCLUDED": 11,
+  "DEFINED": 1,
+  "GAP": 0,
+  "DOMAIN_RUNS": 1,
+  "DOMAIN_GAP": 1
+ },
+ "Haskell": {
+  "EXCLUDED": 5,
+  "DEFINED": 2,
+  "GAP": 1,
+  "DOMAIN_RUNS": 3,
+  "DOMAIN_GAP": 0
+ },
+ "OCaml": {
+  "EXCLUDED": 6,
+  "DEFINED": 1,
+  "GAP": 1,
+  "DOMAIN_RUNS": 2,
+  "DOMAIN_GAP": 0
+ },
+ "Lisp/Clojure": {
+  "EXCLUDED": 8,
+  "DEFINED": 0,
+  "GAP": 0,
+  "DOMAIN_RUNS": 2,
+  "DOMAIN_GAP": 0
+ },
+ "Erlang/Elixir": {
+  "EXCLUDED": 6,
+  "DEFINED": 1,
+  "GAP": 1,
+  "DOMAIN_RUNS": 3,
+  "DOMAIN_GAP": 1
+ },
+ "Lean/Coq (as program languages)": {
+  "EXCLUDED": 3,
+  "DEFINED": 1,
+  "GAP": 1,
+  "DOMAIN_RUNS": 2,
+  "DOMAIN_GAP": 0
+ },
+ "SQL": {
+  "EXCLUDED": 6,
+  "DEFINED": 1,
+  "GAP": 0,
+  "DOMAIN_RUNS": 1,
+  "DOMAIN_GAP": 1
+ },
+ "CUDA": {
+  "EXCLUDED": 5,
+  "DEFINED": 2,
+  "GAP": 1,
+  "DOMAIN_RUNS": 2,
+  "DOMAIN_GAP": 1
+ }
+}

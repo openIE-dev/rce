@@ -1,0 +1,44 @@
+language,identity_vs_value,null,effects,determinism_time,totality,numerics_bitexact,concurrency,placement_fabric,capability_security,code_identity,eval_reflection,perf_by_default,source
+Futhark,right,n.a.,right,right,mixed,n.a.,right,right,n.a.,n.a.,right,right,"L1,P-FUT"
+Dex,right,n.a.,right,right,right,n.a.,right,mixed,n.a.,n.a.,right,mixed,P-DEX
+Halide,right,n.a.,right,right,right,mixed,right,right,n.a.,n.a.,right,mixed,"L2,P-HAL"
+Koka,right,right,right,mixed,right,n.a.,mixed,n.a.,mixed,n.a.,right,right,"L3,P-KOK,P-PER"
+Unison,right,right,right,mixed,n.a.,n.a.,mixed,right,mixed,right,right,n.a.,"L4,D-UNA"
+Elm,right,right,right,right,mixed,n.a.,n.a.,n.a.,mixed,n.a.,right,n.a.,D-ELM(partial)
+Roc,right,right,right,mixed,n.a.,n.a.,n.a.,n.a.,mixed,n.a.,right,mixed,D-ROC(partial)
+Lean 4,right,right,right,right,right,n.a.,n.a.,n.a.,n.a.,mixed,right,n.a.,P-LEAN
+Idris 2,right,right,right,right,right,n.a.,n.a.,n.a.,n.a.,n.a.,right,n.a.,P-IDR
+Pony,mixed,right,n.a.,mixed,n.a.,n.a.,right,n.a.,right,n.a.,right,n.a.,"L5,P-PONY"
+E/Monte,mixed,n.a.,mixed,mixed,n.a.,n.a.,right,mixed,right,n.a.,right,n.a.,P-MIL
+SPARK/Ada,mixed,right,right,right,right,mixed,mixed,n.a.,n.a.,n.a.,right,n.a.,D-SPK
+Esterel,right,mixed,mixed,right,right,mixed,right,n.a.,n.a.,n.a.,right,mixed,"P-EST5 (primer pages): id p25,p48 one status+value per instant; null p49,p52 undefined value until emitted, access is error; eff p47 functions side-effect free but host procs unchecked, p92 unordered concurrent calls; det p11-12,p83; tot p58 static non-instantaneous loops, p73 no recursive run, p87 constructive check; num p43,p46 float/double as C++/Java, no implicit conversion; conc p26,p73 synchronous parallel, no shared writes; place p106 code shape free but no distribution; eval p73 static instantiation; perf p4-5,p106 v3 automata blew up, v5 circuit/equation code"
+Lustre,right,mixed,right,right,right,mixed,right,mixed,n.a.,n.a.,right,mixed,P-LUS: id p1307 substitution; null p1307-8 nil from pre banned in clocks/outputs; eff p1306 no side effects; det p1306; tot p1311 no recursive nodes+cycles need pre; num p1307 real type unspecified; conc p1306 data-dep parallel; place p1317 OC2REP; eval p1311 static networks; perf p1316 automaton blowup
+Erlang/Elixir,right,mixed,wrong,mixed,n.a.,n.a.,right,mixed,n.a.,mixed,wrong,n.a.,P-ARM(partial)
+Datalog/Souffle,right,right,right,right,right,n.a.,mixed,n.a.,n.a.,n.a.,right,mixed,"P-SOU,D-SOUR"
+Dhall,right,right,right,right,right,n.a.,n.a.,n.a.,right,right,right,n.a.,D-DHL
+Zig,wrong,mixed,wrong,mixed,n.a.,right,wrong,n.a.,n.a.,n.a.,mixed,right,D-ZIG
+WebAssembly (det. profile),right,n.a.,n.a.,mixed,n.a.,mixed,mixed,mixed,right,n.a.,right,n.a.,F-WASM
+Mojo,mixed,mixed,n.a.,n.a.,n.a.,mixed,mixed,mixed,n.a.,n.a.,n.a.,mixed,D-MOJO
+Hylo/Val,right,right,n.a.,n.a.,n.a.,n.a.,right,n.a.,n.a.,n.a.,right,mixed,P-HYL
+Swift (value types),mixed,right,n.a.,n.a.,n.a.,n.a.,mixed,n.a.,n.a.,n.a.,mixed,n.a.,"L6,P-HYL"
+Rust,mixed,right,mixed,mixed,n.a.,mixed,right,n.a.,n.a.,n.a.,right,right,D-RST(partial)
+APL/BQN,right,n.a.,mixed,mixed,n.a.,n.a.,mixed,mixed,n.a.,n.a.,wrong,n.a.,D-BQN
+Clojure,right,wrong,mixed,mixed,n.a.,n.a.,right,n.a.,n.a.,n.a.,wrong,n.a.,D-CLJ
+Prolog,right,mixed,wrong,mixed,wrong,wrong,wrong,n.a.,n.a.,n.a.,wrong,mixed,"D-SWI,P-PRO (FY=Fifty Years TPLP22(6); PB=ProB TPLP22(5); ISO=Szabo&Szeredi ICLP06; TAU=TPLP24(1)): id FY p823 immutable terms, vars bind once; null FY p823 no null/uninit terms but unbound vars; eff FY p781,p834 assert/retract change resolution, no declarative semantics; det FY p780-781 ISO depth-first deterministic, but ISO p262 error order unspecified, p265 7//-3 impl-specific, PB p763 hashes differ across systems, PB p765 false pos/neg on 2nd system; tot FY p828 easy to loop; num FY p810 float repr unspecified, NaN/Inf/rounding differ, ISO p265 1/0 gives inf in some impls, PB p764 CLP(FD) overflow vs bignum; conc FY p812 ISO single-threaded only, p814 threads per tech rec with differences; eval FY p780 call/1 required, p817 read(X),call(X); perf FY p813 only first-arg indexing portable, PB p767 3x-15x slower, one 186x"
+Bend/HVM,right,n.a.,mixed,mixed,n.a.,n.a.,right,mixed,n.a.,n.a.,n.a.,mixed,"P-HVM2,D-HVM"
+Java (Valhalla),wrong,wrong,wrong,mixed,n.a.,mixed,mixed,n.a.,n.a.,n.a.,wrong,mixed,"S1,S1b,S1c,F-306"
+"Python (GIL, 2->3)",wrong,wrong,wrong,wrong,n.a.,mixed,wrong,n.a.,n.a.,n.a.,wrong,wrong,S2
+C/C++,wrong,wrong,wrong,wrong,wrong,wrong,wrong,n.a.,n.a.,n.a.,mixed,wrong,"S3,S3b,F-CUDA"
+JavaScript,wrong,wrong,wrong,mixed,n.a.,wrong,mixed,n.a.,n.a.,n.a.,wrong,wrong,D-ECMA
+Go (generics),mixed,wrong,wrong,mixed,n.a.,mixed,mixed,n.a.,n.a.,n.a.,mixed,mixed,"S4,S4b"
+C# (nullable),mixed,wrong,wrong,mixed,n.a.,mixed,mixed,n.a.,n.a.,n.a.,wrong,mixed,S5
+Scala 2->3,wrong,wrong,mixed,mixed,n.a.,n.a.,mixed,n.a.,n.a.,n.a.,wrong,n.a.,D-SC3(partial)
+Perl 6/Raku,wrong,wrong,wrong,mixed,n.a.,n.a.,mixed,n.a.,n.a.,n.a.,wrong,n.a.,D-RAKU(partial)
+PHP,wrong,wrong,wrong,mixed,n.a.,wrong,n.a.,n.a.,n.a.,n.a.,wrong,n.a.,D-PHP
+Julia,mixed,n.a.,wrong,wrong,n.a.,mixed,wrong,n.a.,n.a.,n.a.,wrong,mixed,"P-JUL: id paper p15 immutable types opt-in; eff manual @assume_effects is an unchecked assertion; det manual muladd 'can be different on the same machine', reduce associativity implementation-dependent, @spawn schedule nondeterministic, Random streams may change in minor releases, PROBE BLAS dgemm 3 distinct results over 1/2/4 threads, muladd contracts on native target but not generic; num manual Int wraps (modular), Float64 always RoundNearest, PROBE strict emitted code 0/200000 mismatches; conc manual manual locking; eval world age, @eval, invalidations blog; perf paper p14 type inference, manual @fastmath/@simd/@inbounds opt-in"
+MATLAB,right,n.a.,n.a.,wrong,n.a.,wrong,wrong,n.a.,n.a.,n.a.,n.a.,n.a.,"D-ML: id 'Avoid Unnecessary Copies' pass-by-value copy-on-write, handle classes opt-in; det MathWorks Answer 1871377 results differ by CPU and thread count; num 'Integers' saturating int arithmetic, int64 op double 'as if 80-bit extended', NaN->int 0; FP page IEEE RNE; conc maxNumCompThreads implicit multithreading default"
+GNU Octave,n.a.,n.a.,n.a.,n.a.,n.a.,wrong,n.a.,n.a.,n.a.,n.a.,n.a.,n.a.,"D-OCT: num 4.4.2 integer ops saturate to nearest, ./ on ints rounds to nearest (not truncate), complex narrowed to real automatically (4)"
+R,mixed,wrong,wrong,n.a.,n.a.,wrong,n.a.,n.a.,n.a.,n.a.,wrong,n.a.,"D-R: id R-ints 1.1.2 call-by-value illusion via refcount, <<- superassignment (R-lang 3.4.4); null R-lang 2.1.6 NULL plus typed NA 3.3.4; eff R-lang 4.3.3 lazy args may never be evaluated; num R-FAQ 7.31 'typically' 53 bits, equal only if same algorithm 'and not always even then'; eval R-lang 2.1.8 promises, substitute, simulated dynamic scope"
+Mathematica/Wolfram,n.a.,n.a.,n.a.,wrong,n.a.,mixed,n.a.,n.a.,n.a.,n.a.,n.a.,wrong,"D-WL: det Compile 'number of times and order ... may be different', machine numbers 'vary slightly from one computer system to another'; num exact Integer/Rational, precision tracking, overflow auto-converts to arbitrary precision, 1/0 ComplexInfinity; perf Compile RuntimeOptions->Speed disables overflow checks (opt-in wrong)"
+Fortran 2018/2023,n.a.,n.a.,mixed,wrong,n.a.,wrong,n.a.,n.a.,n.a.,n.a.,n.a.,n.a.,"D-F23 (J3/23-007r1): eff 15.7 PURE and 15.8 SIMPLE checked at compile time but optional; det 10.1.5.2.4 processor may evaluate any mathematically equivalent expression unless parenthesized, 16.9 SUM processor-dependent approximation (p448); num 17.1 IEEE modules' provision processor dependent, 17.4 initial rounding modes processor dependent; gfortran doc: full compliance needs -fno-unsafe-math-optimizations -frounding-math -fsignaling-nans; GCC -ffp-contract=fast default outside ISO C"
+NumPy (baseline),wrong,n.a.,n.a.,wrong,n.a.,wrong,n.a.,n.a.,n.a.,n.a.,n.a.,n.a.,"D-NP: id 'Copies and views' views share the buffer; det np.sum partial pairwise, precision depends on axis, PROBE 7-element np.sum != left fold; num integer arithmetic modular, no error on overflow; float errors default warn, global seterr mode"

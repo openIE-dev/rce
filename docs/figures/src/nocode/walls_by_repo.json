@@ -1,0 +1,7412 @@
+{
+"n8n-io/n8n": {
+"license_governance": [
+[
+"40",
+"269",
+"https://github.com/n8n-io/n8n/issues/40",
+"n8n is not open source and your project is gaslighting its users"
+]
+],
+"performance_scale": [
+[
+"14361",
+"33",
+"https://github.com/n8n-io/n8n/issues/14361",
+"AI Agent doesn't store the Tool usages in memory"
+],
+[
+"16005",
+"22",
+"https://github.com/n8n-io/n8n/issues/16005",
+"Bearer Authentication Not Working with HTTP Request Node Pagination"
+],
+[
+"11886",
+"17",
+"https://github.com/n8n-io/n8n/issues/11886",
+"AI nodes timeout after 5m"
+],
+[
+"19359",
+"15",
+"https://github.com/n8n-io/n8n/issues/19359",
+"Out of Memory when using \"Extract from File\" node with \"Extract From PDF\""
+],
+[
+"25360",
+"8",
+"https://github.com/n8n-io/n8n/issues/25360",
+"Timeout setting does not work for Ollama node when it takes more than 5 minutes"
+]
+],
+"ai_llm": [
+[
+"14361",
+"33",
+"https://github.com/n8n-io/n8n/issues/14361",
+"AI Agent doesn't store the Tool usages in memory"
+],
+[
+"15553",
+"12",
+"https://github.com/n8n-io/n8n/issues/15553",
+"MCP Client Tool doesn't work with gemini models"
+],
+[
+"21500",
+"11",
+"https://github.com/n8n-io/n8n/issues/21500",
+"MCP Client Tool sends additional parameter, that is not expected by MCP Server"
+],
+[
+"15603",
+"8",
+"https://github.com/n8n-io/n8n/issues/15603",
+"AI Agent to MCP Client Node Invalid Request Issue"
+],
+[
+"25360",
+"8",
+"https://github.com/n8n-io/n8n/issues/25360",
+"Timeout setting does not work for Ollama node when it takes more than 5 minutes"
+],
+[
+"36972",
+"8",
+"https://github.com/n8n-io/n8n/issues/36972",
+"Regression in 2.36.5 \u2014 Mistral Chat Model node fails with \"Failed to parse URL from [object Request]\" (works in 2.35.4)"
+],
+[
+"9862",
+"7",
+"https://github.com/n8n-io/n8n/issues/9862",
+"Custom OpenAI Endpoint does not work with non OpenAI models"
+],
+[
+"13807",
+"7",
+"https://github.com/n8n-io/n8n/issues/13807",
+"AI Agent Tools not working with Google Gemini 2.0 Flash"
+],
+[
+"24042",
+"7",
+"https://github.com/n8n-io/n8n/issues/24042",
+"AI Agent node: Tool node errors fail workflow instead of returning error to agent for handling"
+],
+[
+"22181",
+"6",
+"https://github.com/n8n-io/n8n/issues/22181",
+"[Google Gemini] Support for thought_signature missing in Tool Calls (Gemini 3 Pro / Thinking Models)"
+],
+[
+"37453",
+"6",
+"https://github.com/n8n-io/n8n/issues/37453",
+"Mistral Cloud Chat Model fails in AI Agent: \"Failed to parse URL from [object Request]\" \u2014 still broken in 2.36.9 Cloud (same as #25318)"
+]
+],
+"other": [
+[
+"11597",
+"31",
+"https://github.com/n8n-io/n8n/issues/11597",
+"responses are not streaming "
+],
+[
+"21210",
+"17",
+"https://github.com/n8n-io/n8n/issues/21210",
+"Error importing Workflows from CLI"
+],
+[
+"1244",
+"16",
+"https://github.com/n8n-io/n8n/issues/1244",
+"replace pdf-parse"
+],
+[
+"28541",
+"13",
+"https://github.com/n8n-io/n8n/issues/28541",
+"Wait node executions stuck forever: `dbTime.getTime is not a function` crashes wait-tracker poller (postgres)"
+],
+[
+"56",
+"11",
+"https://github.com/n8n-io/n8n/issues/56",
+"Provide CDK/SAM template to simplify setup on AWS"
+],
+[
+"16254",
+"11",
+"https://github.com/n8n-io/n8n/issues/16254",
+"Cannot read properties of undefined (reading 'googleApiCredentialTest')"
+],
+[
+"17522",
+"11",
+"https://github.com/n8n-io/n8n/issues/17522",
+"Cannot read properties of null (reading 'length')"
+],
+[
+"17817",
+"11",
+"https://github.com/n8n-io/n8n/issues/17817",
+"1.104.2: Error connecting to n8n"
+],
+[
+"11994",
+"8",
+"https://github.com/n8n-io/n8n/issues/11994",
+"Slack Trigger node throws errors on `File Shared` event"
+],
+[
+"17251",
+"8",
+"https://github.com/n8n-io/n8n/issues/17251",
+"Error: node execution output incorrect data"
+],
+[
+"22017",
+"8",
+"https://github.com/n8n-io/n8n/issues/22017",
+"After update to 1.120.3 -> window.crypto.randomUUID is not a function"
+],
+[
+"13149",
+"8",
+"https://github.com/n8n-io/n8n/issues/13149",
+"Need to remove <think></think> from response when using deepseek"
+],
+[
+"30",
+"7",
+"https://github.com/n8n-io/n8n/issues/30",
+"Better authentication with service providers"
+],
+[
+"13135",
+"7",
+"https://github.com/n8n-io/n8n/issues/13135",
+"Calling a sub-workflow with a wait by webhook node, don't return the data of the last node, but the node before the wait."
+],
+[
+"21518",
+"7",
+"https://github.com/n8n-io/n8n/issues/21518",
+"Cannot read properties of undefined (reading 'nodeName')"
+],
+[
+"15240",
+"7",
+"https://github.com/n8n-io/n8n/issues/15240",
+"Clicking on a folder with N8N_PATH and N8N_EDITOR_BASE_URL set causes 404"
+],
+[
+"45",
+"6",
+"https://github.com/n8n-io/n8n/issues/45",
+"Google Cloud Run start button"
+],
+[
+"2651",
+"6",
+"https://github.com/n8n-io/n8n/issues/2651",
+"Error to fetch resources with a custom N8N_PATH"
+],
+[
+"14153",
+"6",
+"https://github.com/n8n-io/n8n/issues/14153",
+"Jira Integration Fails with 403 CloudFront Error on \"Create Issue\" and Related Actions"
+],
+[
+"19489",
+"6",
+"https://github.com/n8n-io/n8n/issues/19489",
+"Breaking issue: Notion Node does not support latest Notion API (2025-09-03)"
+],
+[
+"22517",
+"6",
+"https://github.com/n8n-io/n8n/issues/22517",
+"Impossible to update from 1.120.4 to 1.121.X due to gen_random_uuid"
+],
+[
+"25852",
+"6",
+"https://github.com/n8n-io/n8n/issues/25852",
+"Chat UI Error: 'type' must be 'output_text' after second message in conversation"
+]
+],
+"cant_do_x_missing_primitive": [
+[
+"16005",
+"22",
+"https://github.com/n8n-io/n8n/issues/16005",
+"Bearer Authentication Not Working with HTTP Request Node Pagination"
+],
+[
+"15603",
+"8",
+"https://github.com/n8n-io/n8n/issues/15603",
+"AI Agent to MCP Client Node Invalid Request Issue"
+],
+[
+"36972",
+"8",
+"https://github.com/n8n-io/n8n/issues/36972",
+"Regression in 2.36.5 \u2014 Mistral Chat Model node fails with \"Failed to parse URL from [object Request]\" (works in 2.35.4)"
+],
+[
+"22181",
+"6",
+"https://github.com/n8n-io/n8n/issues/22181",
+"[Google Gemini] Support for thought_signature missing in Tool Calls (Gemini 3 Pro / Thinking Models)"
+],
+[
+"37453",
+"6",
+"https://github.com/n8n-io/n8n/issues/37453",
+"Mistral Cloud Chat Model fails in AI Agent: \"Failed to parse URL from [object Request]\" \u2014 still broken in 2.36.9 Cloud (same as #25318)"
+]
+],
+"escape_hatch_custom_code": [
+[
+"1149",
+"18",
+"https://github.com/n8n-io/n8n/issues/1149",
+"bootstrap doesn't work with npm 7 peerDependency changes"
+],
+[
+"22706",
+"18",
+"https://github.com/n8n-io/n8n/issues/22706",
+"installing community nodes get \"spawn npm ENOENT\" Issue in n8n on Windows"
+],
+[
+"24191",
+"8",
+"https://github.com/n8n-io/n8n/issues/24191",
+"Unable to add external NPM packages"
+]
+],
+"versioning_merge": [
+[
+"2527",
+"15",
+"https://github.com/n8n-io/n8n/issues/2527",
+"n8n import with fixed ID"
+],
+[
+"16281",
+"9",
+"https://github.com/n8n-io/n8n/issues/16281",
+"PDF parsing broken in version 1.97.1 and up"
+],
+[
+"4701",
+"8",
+"https://github.com/n8n-io/n8n/issues/4701",
+"n8n cli workflow import vs active workflows (cli and api missmatch)"
+],
+[
+"28922",
+"8",
+"https://github.com/n8n-io/n8n/issues/28922",
+"Issue listing 'Version History' since 2.17.5 upgrade"
+]
+],
+"determinism_concurrency": [
+[
+"14653",
+"12",
+"https://github.com/n8n-io/n8n/issues/14653",
+"Connection lost after upgrade to 1.88.0"
+],
+[
+"26803",
+"6",
+"https://github.com/n8n-io/n8n/issues/26803",
+"Segfault (exitCode 139) on ARM64 with n8n 2.11.2 \u2013 stable on 2.6.0"
+]
+],
+"security_auth": [
+[
+"23584",
+"11",
+"https://github.com/n8n-io/n8n/issues/23584",
+"AWS Failed to Assume Role with AWS EKS Pod Identity"
+],
+[
+"23602",
+"7",
+"https://github.com/n8n-io/n8n/issues/23602",
+"basic auth, n8n form. Problem submitting response"
+],
+[
+"17694",
+"6",
+"https://github.com/n8n-io/n8n/issues/17694",
+"Slack Trigger: \u201cCould not load list \u2013 Your Slack credential is missing required OAuth Scopes\u201d (even with all permissions set)"
+]
+],
+"data_relations_schema": [
+[
+"13440",
+"9",
+"https://github.com/n8n-io/n8n/issues/13440",
+"Received tool input did not match expected schema"
+]
+]
+},
+"appsmithorg/appsmith": {
+"escape_hatch_custom_code": [
+[
+"2033",
+"75",
+"https://github.com/appsmithorg/appsmith/issues/2033",
+"[Feature] Custom widget"
+],
+[
+"2430",
+"51",
+"https://github.com/appsmithorg/appsmith/issues/2430",
+"[Feature] Import Custom JS libraries into Appsmith"
+],
+[
+"1751",
+"19",
+"https://github.com/appsmithorg/appsmith/issues/1751",
+"[Product Note] JS Editor"
+],
+[
+"4874",
+"17",
+"https://github.com/appsmithorg/appsmith/issues/4874",
+"[Feature] Use JS to focus on input widgets"
+],
+[
+"13882",
+"13",
+"https://github.com/appsmithorg/appsmith/issues/13882",
+"[Feature]-[34]:Add TinyMCE CODE plugin in toolbar"
+],
+[
+"2806",
+"11",
+"https://github.com/appsmithorg/appsmith/issues/2806",
+"[Feature] Enable GraphQL Subscription"
+],
+[
+"7241",
+"11",
+"https://github.com/appsmithorg/appsmith/issues/7241",
+"Communication between embedded Appsmith dashboard iframe and parent applications"
+],
+[
+"3312",
+"10",
+"https://github.com/appsmithorg/appsmith/issues/3312",
+"[Feature] Enable Real-time Polling of Data"
+],
+[
+"9158",
+"10",
+"https://github.com/appsmithorg/appsmith/issues/9158",
+"[Bug]-[2800]:Mongo Plugin - get structure fails when system.views collection is present"
+],
+[
+"8329",
+"10",
+"https://github.com/appsmithorg/appsmith/issues/8329",
+"[Feature] Appsmith object should contain headers"
+]
+],
+"other": [
+[
+"2836",
+"68",
+"https://github.com/appsmithorg/appsmith/issues/2836",
+"[Feature] Multiple Environments"
+],
+[
+"3095",
+"48",
+"https://github.com/appsmithorg/appsmith/issues/3095",
+"[Feature] Custom styling(CSS) for widgets"
+],
+[
+"3636",
+"34",
+"https://github.com/appsmithorg/appsmith/issues/3636",
+"[Feature] Support deploying Appsmith on a subpath"
+],
+[
+"3129",
+"28",
+"https://github.com/appsmithorg/appsmith/issues/3129",
+"[Feature] BigQuery Datasource"
+],
+[
+"8377",
+"29",
+"https://github.com/appsmithorg/appsmith/issues/8377",
+"[Feature] Support IAM Instance Roles when Appsmith is hosted in AWS"
+],
+[
+"2284",
+"28",
+"https://github.com/appsmithorg/appsmith/issues/2284",
+"[Epic] Native GraphQL Integration"
+],
+[
+"1950",
+"24",
+"https://github.com/appsmithorg/appsmith/issues/1950",
+"[Feature] Server-side Workflows"
+],
+[
+"30037",
+"22",
+"https://github.com/appsmithorg/appsmith/issues/30037",
+"[Feature]: Managed Postgres Support"
+],
+[
+"10842",
+"19",
+"https://github.com/appsmithorg/appsmith/issues/10842",
+"[Feature]: Support MQTT as a data source"
+],
+[
+"1392",
+"18",
+"https://github.com/appsmithorg/appsmith/issues/1392",
+"[Feature] Datagrid widget"
+],
+[
+"17075",
+"18",
+"https://github.com/appsmithorg/appsmith/issues/17075",
+"[Feature]: grpc support"
+],
+[
+"12354",
+"17",
+"https://github.com/appsmithorg/appsmith/issues/12354",
+"[Feature]: InfluxDB Integration"
+],
+[
+"4630",
+"17",
+"https://github.com/appsmithorg/appsmith/issues/4630",
+"[Epic] Anvil: next generation responsive UI Builder"
+],
+[
+"7256",
+"16",
+"https://github.com/appsmithorg/appsmith/issues/7256",
+"[Feature] Grid Widget for layouts"
+],
+[
+"2266",
+"14",
+"https://github.com/appsmithorg/appsmith/issues/2266",
+"[Feature] Offline PWA / offline mode"
+],
+[
+"10096",
+"13",
+"https://github.com/appsmithorg/appsmith/issues/10096",
+"[Feature]: Integration with database Oracle"
+],
+[
+"6928",
+"13",
+"https://github.com/appsmithorg/appsmith/issues/6928",
+"[Feature] Autocomplete / Typeahead widget"
+],
+[
+"4493",
+"12",
+"https://github.com/appsmithorg/appsmith/issues/4493",
+"[Feature] Big Query integration"
+],
+[
+"9031",
+"12",
+"https://github.com/appsmithorg/appsmith/issues/9031",
+"[Feature]: Pivot Table Widget"
+],
+[
+"738",
+"11",
+"https://github.com/appsmithorg/appsmith/issues/738",
+"[Feature] Server-side Cron jobs"
+],
+[
+"2827",
+"10",
+"https://github.com/appsmithorg/appsmith/issues/2827",
+"[Feature] Tree Widget"
+],
+[
+"4577",
+"10",
+"https://github.com/appsmithorg/appsmith/issues/4577",
+"[Feature] Widget to scan QR code through device camera"
+],
+[
+"2410",
+"9",
+"https://github.com/appsmithorg/appsmith/issues/2410",
+"[Feature] Calendar widget"
+],
+[
+"14369",
+"9",
+"https://github.com/appsmithorg/appsmith/issues/14369",
+"[Feature]: Add CockroachDB support"
+]
+],
+"versioning_merge": [
+[
+"2430",
+"51",
+"https://github.com/appsmithorg/appsmith/issues/2430",
+"[Feature] Import Custom JS libraries into Appsmith"
+],
+[
+"1911",
+"37",
+"https://github.com/appsmithorg/appsmith/issues/1911",
+"[Epic] Reusable Queries & JS (Code Packages)"
+],
+[
+"5229",
+"33",
+"https://github.com/appsmithorg/appsmith/issues/5229",
+"[Feature] Reusable Widgets (UI Packages)"
+],
+[
+"3199",
+"31",
+"https://github.com/appsmithorg/appsmith/issues/3199",
+"[Epic] Git Sync & Version Control"
+],
+[
+"3920",
+"28",
+"https://github.com/appsmithorg/appsmith/issues/3920",
+"[Feature] Import API definition from swagger file"
+],
+[
+"7454",
+"14",
+"https://github.com/appsmithorg/appsmith/issues/7454",
+"[Feature] Read environment variables for datasources values"
+],
+[
+"11120",
+"10",
+"https://github.com/appsmithorg/appsmith/issues/11120",
+"[Feature]: Allow users to commit multiple applications in single repo"
+]
+],
+"i18n_ux": [
+[
+"4404",
+"39",
+"https://github.com/appsmithorg/appsmith/issues/4404",
+"[Feature] Internationalization (i18n) support to the editor"
+]
+],
+"cant_do_x_missing_primitive": [
+[
+"12153",
+"35",
+"https://github.com/appsmithorg/appsmith/issues/12153",
+"[Feature]: Add support for Clickhouse"
+],
+[
+"8780",
+"23",
+"https://github.com/appsmithorg/appsmith/issues/8780",
+"[Feature]: Support for SQLite3"
+],
+[
+"9210",
+"22",
+"https://github.com/appsmithorg/appsmith/issues/9210",
+"[Feature]: Support for GCS (google cloud storage)."
+],
+[
+"1866",
+"16",
+"https://github.com/appsmithorg/appsmith/issues/1866",
+"[Feature] Allow connecting to web sockets"
+],
+[
+"2806",
+"11",
+"https://github.com/appsmithorg/appsmith/issues/2806",
+"[Feature] Enable GraphQL Subscription"
+],
+[
+"3312",
+"10",
+"https://github.com/appsmithorg/appsmith/issues/3312",
+"[Feature] Enable Real-time Polling of Data"
+],
+[
+"11120",
+"10",
+"https://github.com/appsmithorg/appsmith/issues/11120",
+"[Feature]: Allow users to commit multiple applications in single repo"
+]
+],
+"security_auth": [
+[
+"2840",
+"26",
+"https://github.com/appsmithorg/appsmith/issues/2840",
+"[Epic] SAML/SSO"
+],
+[
+"3317",
+"20",
+"https://github.com/appsmithorg/appsmith/issues/3317",
+"[Epic] Granular Access Control | RBAC"
+],
+[
+"3313",
+"18",
+"https://github.com/appsmithorg/appsmith/issues/3313",
+"[Feature] User Specific OAuth"
+]
+],
+"debugging_observability": [
+[
+"3439",
+"15",
+"https://github.com/appsmithorg/appsmith/issues/3439",
+"[Epic] Audit Logs"
+]
+],
+"data_relations_schema": [
+[
+"2282",
+"13",
+"https://github.com/appsmithorg/appsmith/issues/2282",
+"[Feature] Add Sidebar Navigation & Page Group Options"
+]
+]
+},
+"Budibase/budibase": {
+"cant_do_x_missing_primitive": [
+[
+"3950",
+"42",
+"https://github.com/Budibase/budibase/issues/3950",
+"Ability to translate the interface"
+],
+[
+"5069",
+"15",
+"https://github.com/Budibase/budibase/issues/5069",
+"[BUDI-7803] Add support for OAuth authentication with REST APIs"
+],
+[
+"3463",
+"15",
+"https://github.com/Budibase/budibase/issues/3463",
+"Allow to change title and icon in browser"
+],
+[
+"5285",
+"10",
+"https://github.com/Budibase/budibase/issues/5285",
+"Global Media Management: Allow the user to store images to be used in the screens"
+],
+[
+"5917",
+"9",
+"https://github.com/Budibase/budibase/issues/5917",
+"Enable Cacheable Queries"
+],
+[
+"1373",
+"6",
+"https://github.com/Budibase/budibase/issues/1373",
+"Relationships should allow you to pick the table you are building the relationship in. "
+],
+[
+"3498",
+"6",
+"https://github.com/Budibase/budibase/issues/3498",
+"[BUDI-7798] Allow relationships within the same table"
+],
+[
+"5129",
+"6",
+"https://github.com/Budibase/budibase/issues/5129",
+"Allow fields formatting"
+],
+[
+"9010",
+"6",
+"https://github.com/Budibase/budibase/issues/9010",
+"Support for ClickHouse database?"
+],
+[
+"9531",
+"6",
+"https://github.com/Budibase/budibase/issues/9531",
+"[BUDI-6401] Ability to combine data providers"
+],
+[
+"5287",
+"5",
+"https://github.com/Budibase/budibase/issues/5287",
+"Allow users to choose 24-Hour time in Date Picker"
+],
+[
+"4774",
+"5",
+"https://github.com/Budibase/budibase/issues/4774",
+"Add support to do dynamic REST API calls"
+],
+[
+"6130",
+"5",
+"https://github.com/Budibase/budibase/issues/6130",
+"Allow self-host users to enable connection pooling for plus datasources"
+]
+],
+"other": [
+[
+"1372",
+"41",
+"https://github.com/Budibase/budibase/issues/1372",
+"PDF / Document component (Carbone Integration?)"
+],
+[
+"1405",
+"31",
+"https://github.com/Budibase/budibase/issues/1405",
+"GraphQL Integration"
+],
+[
+"5658",
+"25",
+"https://github.com/Budibase/budibase/issues/5658",
+"[BUDI-7440] Creating dynamic form components"
+],
+[
+"4400",
+"21",
+"https://github.com/Budibase/budibase/issues/4400",
+"n8n.io integration"
+],
+[
+"4402",
+"20",
+"https://github.com/Budibase/budibase/issues/4402",
+"Supabase Integration"
+],
+[
+"1768",
+"18",
+"https://github.com/Budibase/budibase/issues/1768",
+"Budibase as Backend API"
+],
+[
+"4379",
+"18",
+"https://github.com/Budibase/budibase/issues/4379",
+"Barcode/QR Scanner Component"
+],
+[
+"3992",
+"18",
+"https://github.com/Budibase/budibase/issues/3992",
+"[BUDI-7802] Auto refresh data provider on an interval "
+],
+[
+"3382",
+"13",
+"https://github.com/Budibase/budibase/issues/3382",
+"[BUDI-7704] JSON Support - Postgres/MySQL"
+],
+[
+"4366",
+"12",
+"https://github.com/Budibase/budibase/issues/4366",
+"Custom Components and DX"
+],
+[
+"4789",
+"11",
+"https://github.com/Budibase/budibase/issues/4789",
+"Per record access controls"
+],
+[
+"4380",
+"11",
+"https://github.com/Budibase/budibase/issues/4380",
+"Signature Component"
+],
+[
+"4160",
+"11",
+"https://github.com/Budibase/budibase/issues/4160",
+"Define default access for new users"
+],
+[
+"6216",
+"11",
+"https://github.com/Budibase/budibase/issues/6216",
+"Support Views - Currently getting 'No primary key' constraint error when fetching"
+],
+[
+"5587",
+"10",
+"https://github.com/Budibase/budibase/issues/5587",
+"S3 File Upload component should work with other S3-compatible services, not just AWS"
+],
+[
+"6659",
+"9",
+"https://github.com/Budibase/budibase/issues/6659",
+"Nested Links in Navigation Menu"
+],
+[
+"4302",
+"9",
+"https://github.com/Budibase/budibase/issues/4302",
+"Support attachment data type on PostgreSQL (and other external datasources)"
+],
+[
+"3432",
+"8",
+"https://github.com/Budibase/budibase/issues/3432",
+"Notion db as backend"
+],
+[
+"7348",
+"7",
+"https://github.com/Budibase/budibase/issues/7348",
+"Allowing Row Selection in Custom Query Data Sources and REST API"
+],
+[
+"4859",
+"7",
+"https://github.com/Budibase/budibase/issues/4859",
+"Disable login with email"
+],
+[
+"5659",
+"6",
+"https://github.com/Budibase/budibase/issues/5659",
+"Embed budibase into existing web app "
+],
+[
+"5319",
+"6",
+"https://github.com/Budibase/budibase/issues/5319",
+"Offline Apps"
+],
+[
+"4403",
+"6",
+"https://github.com/Budibase/budibase/issues/4403",
+"Google BigQuery Integration"
+],
+[
+"8939",
+"5",
+"https://github.com/Budibase/budibase/issues/8939",
+"Add Google Cloud Storage File Upload"
+],
+[
+"8653",
+"5",
+"https://github.com/Budibase/budibase/issues/8653",
+"Return custom value for automation by webhook"
+],
+[
+"10543",
+"6",
+"https://github.com/Budibase/budibase/issues/10543",
+"[BUDI-7070] Helm chart uses wrong image tags"
+],
+[
+"2093",
+"5",
+"https://github.com/Budibase/budibase/issues/2093",
+"Query Level Transformers"
+],
+[
+"3884",
+"5",
+"https://github.com/Budibase/budibase/issues/3884",
+"Expose Current User in data sources"
+],
+[
+"4728",
+"5",
+"https://github.com/Budibase/budibase/issues/4728",
+"bbproxy - host not found in resolver"
+]
+],
+"security_auth": [
+[
+"5069",
+"15",
+"https://github.com/Budibase/budibase/issues/5069",
+"[BUDI-7803] Add support for OAuth authentication with REST APIs"
+],
+[
+"5320",
+"5",
+"https://github.com/Budibase/budibase/issues/5320",
+"Advanced RBAC"
+]
+],
+"i18n_ux": [
+[
+"5173",
+"13",
+"https://github.com/Budibase/budibase/issues/5173",
+"Change locale of DatePicker"
+]
+],
+"versioning_merge": [
+[
+"3315",
+"12",
+"https://github.com/Budibase/budibase/issues/3315",
+"Export JSON/CSV from client applications"
+],
+[
+"3550",
+"10",
+"https://github.com/Budibase/budibase/issues/3550",
+"CTRL-Z - UNDO"
+],
+[
+"4360",
+"10",
+"https://github.com/Budibase/budibase/issues/4360",
+"Revision History and Version Control"
+],
+[
+"946",
+"6",
+"https://github.com/Budibase/budibase/issues/946",
+"Backup System"
+]
+],
+"escape_hatch_custom_code": [
+[
+"3571",
+"10",
+"https://github.com/Budibase/budibase/issues/3571",
+"Reusable Code/Functions"
+]
+],
+"data_relations_schema": [
+[
+"3421",
+"8",
+"https://github.com/Budibase/budibase/issues/3421",
+"Restrict to view/edit own records"
+]
+]
+},
+"ToolJet/ToolJet": {
+"cant_do_x_missing_primitive": [
+[
+"7222",
+"14",
+"https://github.com/ToolJet/ToolJet/issues/7222",
+"Publish arm Tooljet docker images"
+],
+[
+"229",
+"4",
+"https://github.com/ToolJet/ToolJet/issues/229",
+"Feature: Pages"
+],
+[
+"326",
+"3",
+"https://github.com/ToolJet/ToolJet/issues/326",
+"Add cypress tests for app deletion"
+],
+[
+"212",
+"3",
+"https://github.com/ToolJet/ToolJet/issues/212",
+"Feature Request: SQL Server"
+],
+[
+"850",
+"3",
+"https://github.com/ToolJet/ToolJet/issues/850",
+"run a javascript when clicked on button, radio box etc"
+],
+[
+"1023",
+"3",
+"https://github.com/ToolJet/ToolJet/issues/1023",
+"Support passing data source connection URLs to ToolJet server as environment variables"
+],
+[
+"1322",
+"2",
+"https://github.com/ToolJet/ToolJet/issues/1322",
+"All options as js"
+],
+[
+"2791",
+"3",
+"https://github.com/ToolJet/ToolJet/issues/2791",
+"[Improvement] Authentik / Generic OpenID (OIDC) SSO support"
+],
+[
+"1903",
+"3",
+"https://github.com/ToolJet/ToolJet/issues/1903",
+"Add `client_credentials` as Rest API Grant Type"
+],
+[
+"4850",
+"3",
+"https://github.com/ToolJet/ToolJet/issues/4850",
+"Create reusable component blocks"
+],
+[
+"195",
+"2",
+"https://github.com/ToolJet/ToolJet/issues/195",
+"[Feature request] GraphQL datasources"
+],
+[
+"2572",
+"2",
+"https://github.com/ToolJet/ToolJet/issues/2572",
+"ARM support"
+],
+[
+"3748",
+"2",
+"https://github.com/ToolJet/ToolJet/issues/3748",
+"[Feature]: Localisation Support"
+],
+[
+"4484",
+"2",
+"https://github.com/ToolJet/ToolJet/issues/4484",
+"[Datasource] - Create a new data source plugin for Microsoft Azure Blob Storage"
+],
+[
+"4277",
+"2",
+"https://github.com/ToolJet/ToolJet/issues/4277",
+"Changing parent component"
+],
+[
+"4276",
+"2",
+"https://github.com/ToolJet/ToolJet/issues/4276",
+"Folders, please"
+],
+[
+"4751",
+"2",
+"https://github.com/ToolJet/ToolJet/issues/4751",
+"Proposal to support for running Python code as a query ( client-side execution )"
+],
+[
+"10488",
+"2",
+"https://github.com/ToolJet/ToolJet/issues/10488",
+"Boolean"
+],
+[
+"4443",
+"2",
+"https://github.com/ToolJet/ToolJet/issues/4443",
+"use graphiql for GraphQL queries"
+],
+[
+"6169",
+"2",
+"https://github.com/ToolJet/ToolJet/issues/6169",
+"Custom CSS box in component 'Styles' tab"
+],
+[
+"1423",
+"1",
+"https://github.com/ToolJet/ToolJet/issues/1423",
+"New data source: BigQuery"
+],
+[
+"841",
+"1",
+"https://github.com/ToolJet/ToolJet/issues/841",
+"Data Source Separated from Apps"
+],
+[
+"532",
+"1",
+"https://github.com/ToolJet/ToolJet/issues/532",
+"SSL support for postgres datasource connection"
+],
+[
+"983",
+"1",
+"https://github.com/ToolJet/ToolJet/issues/983",
+"Add base URL setting for better reverse proxy support"
+],
+[
+"1043",
+"1",
+"https://github.com/ToolJet/ToolJet/issues/1043",
+"Support sharing database queries between different apps"
+],
+[
+"1737",
+"1",
+"https://github.com/ToolJet/ToolJet/issues/1737",
+"Support using AWS Instance Profile instead of access keys"
+],
+[
+"2529",
+"1",
+"https://github.com/ToolJet/ToolJet/issues/2529",
+"Create a data source plugin for CockroachDB"
+]
+],
+"versioning_merge": [
+[
+"2712",
+"7",
+"https://github.com/ToolJet/ToolJet/issues/2712",
+"[docs]: Contributing Guide Mac OS Instructions - Need to update npm version that is included with Node 14.17.3"
+],
+[
+"1023",
+"3",
+"https://github.com/ToolJet/ToolJet/issues/1023",
+"Support passing data source connection URLs to ToolJet server as environment variables"
+]
+],
+"escape_hatch_custom_code": [
+[
+"2712",
+"7",
+"https://github.com/ToolJet/ToolJet/issues/2712",
+"[docs]: Contributing Guide Mac OS Instructions - Need to update npm version that is included with Node 14.17.3"
+],
+[
+"850",
+"3",
+"https://github.com/ToolJet/ToolJet/issues/850",
+"run a javascript when clicked on button, radio box etc"
+],
+[
+"4850",
+"3",
+"https://github.com/ToolJet/ToolJet/issues/4850",
+"Create reusable component blocks"
+],
+[
+"4484",
+"2",
+"https://github.com/ToolJet/ToolJet/issues/4484",
+"[Datasource] - Create a new data source plugin for Microsoft Azure Blob Storage"
+],
+[
+"4751",
+"2",
+"https://github.com/ToolJet/ToolJet/issues/4751",
+"Proposal to support for running Python code as a query ( client-side execution )"
+],
+[
+"6169",
+"2",
+"https://github.com/ToolJet/ToolJet/issues/6169",
+"Custom CSS box in component 'Styles' tab"
+],
+[
+"2529",
+"1",
+"https://github.com/ToolJet/ToolJet/issues/2529",
+"Create a data source plugin for CockroachDB"
+]
+],
+"other": [
+[
+"5929",
+"5",
+"https://github.com/ToolJet/ToolJet/issues/5929",
+"Bounding box cannot be prepopulated"
+],
+[
+"2932",
+"4",
+"https://github.com/ToolJet/ToolJet/issues/2932",
+"Docusaurus default redirect issue"
+],
+[
+"190",
+"3",
+"https://github.com/ToolJet/ToolJet/issues/190",
+"Default credentials do not work (heroku)"
+],
+[
+"506",
+"3",
+"https://github.com/ToolJet/ToolJet/issues/506",
+"Cant seed data"
+],
+[
+"8733",
+"3",
+"https://github.com/ToolJet/ToolJet/issues/8733",
+"Creating workflow bug"
+],
+[
+"194",
+"2",
+"https://github.com/ToolJet/ToolJet/issues/194",
+"Session gets expired soon"
+],
+[
+"203",
+"2",
+"https://github.com/ToolJet/ToolJet/issues/203",
+"Create new app 403 forbidden on Heroku 1-click deployment"
+],
+[
+"3094",
+"2",
+"https://github.com/ToolJet/ToolJet/issues/3094",
+"[docs]: Explain how to include variables in GraphQL queries"
+],
+[
+"4369",
+"2",
+"https://github.com/ToolJet/ToolJet/issues/4369",
+"Needs check and fix in Sigin in the Mobile Website of Tooljet "
+],
+[
+"5407",
+"2",
+"https://github.com/ToolJet/ToolJet/issues/5407",
+"[listView] selectedRowId does not update when a button is clicked in a row"
+],
+[
+"8220",
+"2",
+"https://github.com/ToolJet/ToolJet/issues/8220",
+"Page change event is not getting triggered in the Table"
+],
+[
+"12656",
+"2",
+"https://github.com/ToolJet/ToolJet/issues/12656",
+"Unable to send multipart/form-data via REST API Data Source"
+],
+[
+"188",
+"1",
+"https://github.com/ToolJet/ToolJet/issues/188",
+"The Setup link is a 404 and shortening leads to an infinite redirect loop"
+],
+[
+"383",
+"1",
+"https://github.com/ToolJet/ToolJet/issues/383",
+"Can't build ToolJet using docker-compose on arm64 (aarch64)"
+],
+[
+"295",
+"1",
+"https://github.com/ToolJet/ToolJet/issues/295",
+"Error encountered when adding a datasource, with the .env LOCKBOX_MASTER_KEY and SECRET_KEY_BASE values"
+],
+[
+"202",
+"1",
+"https://github.com/ToolJet/ToolJet/issues/202",
+"Docker setup instructions seem to be broken (at least for docker 20.10.2) "
+],
+[
+"187",
+"1",
+"https://github.com/ToolJet/ToolJet/issues/187",
+"Forgot password not working."
+],
+[
+"425",
+"1",
+"https://github.com/ToolJet/ToolJet/issues/425",
+"Custom Authentication For GraphQL"
+],
+[
+"511",
+"1",
+"https://github.com/ToolJet/ToolJet/issues/511",
+"Change the editor look and feel"
+],
+[
+"1143",
+"1",
+"https://github.com/ToolJet/ToolJet/issues/1143",
+"Improvement/feature: border radius as a property for button"
+]
+],
+"testing": [
+[
+"326",
+"3",
+"https://github.com/ToolJet/ToolJet/issues/326",
+"Add cypress tests for app deletion"
+]
+],
+"security_auth": [
+[
+"2791",
+"3",
+"https://github.com/ToolJet/ToolJet/issues/2791",
+"[Improvement] Authentik / Generic OpenID (OIDC) SSO support"
+],
+[
+"2202",
+"2",
+"https://github.com/ToolJet/ToolJet/issues/2202",
+"Basic local LDAP Anonymous Auth"
+],
+[
+"177",
+"1",
+"https://github.com/ToolJet/ToolJet/issues/177",
+"User role drop down not collapsing properly"
+]
+]
+},
+"saltcorn/saltcorn": {
+"other": [
+[
+"1068",
+"4",
+"https://github.com/saltcorn/saltcorn/issues/1068",
+"Docs cooperation?"
+],
+[
+"1909",
+"3",
+"https://github.com/saltcorn/saltcorn/issues/1909",
+"FR: make it possible to customize the transitions between pages."
+],
+[
+"3286",
+"3",
+"https://github.com/saltcorn/saltcorn/issues/3286",
+"Edit: more things are live"
+],
+[
+"3272",
+"3",
+"https://github.com/saltcorn/saltcorn/issues/3272",
+"Writable provided tables"
+],
+[
+"3030",
+"3",
+"https://github.com/saltcorn/saltcorn/issues/3030",
+"\ud83d\udea6 State machines(statecharts) as an ultimative solution to all state management problems"
+],
+[
+"3390",
+"3",
+"https://github.com/saltcorn/saltcorn/issues/3390",
+"CSS gap in the SC visual builder"
+],
+[
+"3888",
+"2",
+"https://github.com/saltcorn/saltcorn/issues/3888",
+"\ud83d\udd10 ABAC for views, pages, actions, etc."
+],
+[
+"386",
+"2",
+"https://github.com/saltcorn/saltcorn/issues/386",
+"Create Docker compose for Saltcorn"
+],
+[
+"734",
+"2",
+"https://github.com/saltcorn/saltcorn/issues/734",
+"Issue : Discover Tables doesn't support frequently used PostgreSQL data types"
+],
+[
+"549",
+"2",
+"https://github.com/saltcorn/saltcorn/issues/549",
+"Feature: [wiki] Add repository for wiki.saltcorn.com"
+],
+[
+"1692",
+"2",
+"https://github.com/saltcorn/saltcorn/issues/1692",
+"How-to: time tracking app: sum the hours on a timesheet table for all tasks related to a specific project (3 tables with key relations between them)"
+],
+[
+"1685",
+"2",
+"https://github.com/saltcorn/saltcorn/issues/1685",
+"Formulas - accessing join fields using dot notation"
+],
+[
+"1528",
+"2",
+"https://github.com/saltcorn/saltcorn/issues/1528",
+"Default values for fields in edit views"
+],
+[
+"1920",
+"2",
+"https://github.com/saltcorn/saltcorn/issues/1920",
+"QR code generator "
+],
+[
+"1932",
+"2",
+"https://github.com/saltcorn/saltcorn/issues/1932",
+"More advanced state control. (url state is not enough) "
+],
+[
+"1852",
+"2",
+"https://github.com/saltcorn/saltcorn/issues/1852",
+"Custom error pages (\"Page not found\")"
+],
+[
+"1964",
+"2",
+"https://github.com/saltcorn/saltcorn/issues/1964",
+"Always focus first input on any page"
+],
+[
+"2051",
+"2",
+"https://github.com/saltcorn/saltcorn/issues/2051",
+"Search and Tags in the Saltcorn store"
+],
+[
+"2255",
+"2",
+"https://github.com/saltcorn/saltcorn/issues/2255",
+"Organization for Tables/Views/Pages"
+],
+[
+"3000",
+"2",
+"https://github.com/saltcorn/saltcorn/issues/3000",
+"\ud83d\udcf1Local-first apps in browser and mobile by embeddable pglite"
+],
+[
+"3273",
+"2",
+"https://github.com/saltcorn/saltcorn/issues/3273",
+"Real time collaboration"
+],
+[
+"3275",
+"2",
+"https://github.com/saltcorn/saltcorn/issues/3275",
+"Multinode: support real-time chat"
+],
+[
+"3285",
+"2",
+"https://github.com/saltcorn/saltcorn/issues/3285",
+"Monitoring"
+],
+[
+"2936",
+"2",
+"https://github.com/saltcorn/saltcorn/issues/2936",
+"External Data Sources"
+],
+[
+"3247",
+"2",
+"https://github.com/saltcorn/saltcorn/issues/3247",
+"A way to know if Modules need to be updated"
+],
+[
+"3394",
+"2",
+"https://github.com/saltcorn/saltcorn/issues/3394",
+"{degradation} `docker build -f Dockerfile.dev .` fails since 1.1.1"
+],
+[
+"3508",
+"2",
+"https://github.com/saltcorn/saltcorn/issues/3508",
+"Reduce client JS from modules"
+],
+[
+"3398",
+"2",
+"https://github.com/saltcorn/saltcorn/issues/3398",
+"Push notifications user policy"
+],
+[
+"3456",
+"2",
+"https://github.com/saltcorn/saltcorn/issues/3456",
+"\ud83e\ude84 ViewTransition API support"
+],
+[
+"3518",
+"2",
+"https://github.com/saltcorn/saltcorn/issues/3518",
+"Example of using writable provided tables to interact with a third-party REST API"
+],
+[
+"3446",
+"2",
+"https://github.com/saltcorn/saltcorn/issues/3446",
+"\ud83d\udc41 The ability of views to share state with other views"
+],
+[
+"4231",
+"2",
+"https://github.com/saltcorn/saltcorn/issues/4231",
+"1.7.0 Goals Meta-issue"
+]
+],
+"cant_do_x_missing_primitive": [
+[
+"1954",
+"4",
+"https://github.com/saltcorn/saltcorn/issues/1954",
+"Support for touch devices in the visual editor (drag-and-drop)."
+],
+[
+"3700",
+"4",
+"https://github.com/saltcorn/saltcorn/issues/3700",
+"\ud83d\udc41 Ability to set the view for \"no rows to show\""
+],
+[
+"2794",
+"3",
+"https://github.com/saltcorn/saltcorn/issues/2794",
+"Ability to leave the button label empty"
+],
+[
+"3502",
+"3",
+"https://github.com/saltcorn/saltcorn/issues/3502",
+"Request for plugin: tom-select"
+],
+[
+"1393",
+"2",
+"https://github.com/saltcorn/saltcorn/issues/1393",
+"FR: Ability to change language on-the-fly"
+],
+[
+"2465",
+"2",
+"https://github.com/saltcorn/saltcorn/issues/2465",
+"Feature-request: Where-clause in a field's edit-view should also be able to use join-fields"
+]
+],
+"data_relations_schema": [
+[
+"3700",
+"4",
+"https://github.com/saltcorn/saltcorn/issues/3700",
+"\ud83d\udc41 Ability to set the view for \"no rows to show\""
+],
+[
+"1176",
+"3",
+"https://github.com/saltcorn/saltcorn/issues/1176",
+"Feature: search and sort by Join Field"
+],
+[
+"2641",
+"3",
+"https://github.com/saltcorn/saltcorn/issues/2641",
+"Filter for two-level-select elements"
+],
+[
+"3591",
+"3",
+"https://github.com/saltcorn/saltcorn/issues/3591",
+"Notifications are removed when reloading a embedded view"
+],
+[
+"1882",
+"2",
+"https://github.com/saltcorn/saltcorn/issues/1882",
+"Updating the embedded view without reloading the parent view?"
+],
+[
+"2465",
+"2",
+"https://github.com/saltcorn/saltcorn/issues/2465",
+"Feature-request: Where-clause in a field's edit-view should also be able to use join-fields"
+],
+[
+"2547",
+"2",
+"https://github.com/saltcorn/saltcorn/issues/2547",
+"Show if Formula for Container Elements"
+],
+[
+"3547",
+"2",
+"https://github.com/saltcorn/saltcorn/issues/3547",
+"Question about \"Create an SQL view in the database with the fields in this list\""
+],
+[
+"3573",
+"2",
+"https://github.com/saltcorn/saltcorn/issues/3573",
+"Add additional (or move) \"Create view\" button to top of Views page."
+],
+[
+"2899",
+"2",
+"https://github.com/saltcorn/saltcorn/issues/2899",
+"Hide view with empty result set"
+],
+[
+"3262",
+"2",
+"https://github.com/saltcorn/saltcorn/issues/3262",
+"\"Sort by\" for drop downs and two-level-select"
+]
+],
+"escape_hatch_custom_code": [
+[
+"3502",
+"3",
+"https://github.com/saltcorn/saltcorn/issues/3502",
+"Request for plugin: tom-select"
+]
+],
+"versioning_merge": [
+[
+"3666",
+"3",
+"https://github.com/saltcorn/saltcorn/issues/3666",
+"\ud83d\udd03 Diff for snapshots [dev UX]"
+],
+[
+"1923",
+"2",
+"https://github.com/saltcorn/saltcorn/issues/1923",
+"Postgresql table provider and sync"
+]
+],
+"i18n_ux": [
+[
+"1393",
+"2",
+"https://github.com/saltcorn/saltcorn/issues/1393",
+"FR: Ability to change language on-the-fly"
+],
+[
+"3278",
+"2",
+"https://github.com/saltcorn/saltcorn/issues/3278",
+"RTL languages"
+]
+]
+},
+"node-red/node-red": {
+"other": [
+[
+"5362",
+"47",
+"https://github.com/node-red/node-red/issues/5362",
+"\ud83d\ude80 Node-RED 5.0"
+],
+[
+"5291",
+"14",
+"https://github.com/node-red/node-red/issues/5291",
+"Node-RED UX Modernisation"
+],
+[
+"46",
+"13",
+"https://github.com/node-red/node-red/issues/46",
+"Labels for Outputs"
+],
+[
+"597",
+"10",
+"https://github.com/node-red/node-red/issues/597",
+"Subflow status"
+],
+[
+"2596",
+"8",
+"https://github.com/node-red/node-red/issues/2596",
+"[RFC] Remove the 'Configuration Nodes' sidebar"
+],
+[
+"41",
+"6",
+"https://github.com/node-red/node-red/issues/41",
+"Using \"require\" inside function nodes"
+],
+[
+"596",
+"6",
+"https://github.com/node-red/node-red/issues/596",
+"Singleton subflows"
+],
+[
+"683",
+"5",
+"https://github.com/node-red/node-red/issues/683",
+"How do you stop deploying?"
+],
+[
+"2657",
+"4",
+"https://github.com/node-red/node-red/issues/2657",
+"Support multiple instance running on the same domain"
+],
+[
+"5102",
+"4",
+"https://github.com/node-red/node-red/issues/5102",
+"Feature: Usage telemetry"
+],
+[
+"5727",
+"4",
+"https://github.com/node-red/node-red/issues/5727",
+"FR: Support GH style Alerts in markdown"
+],
+[
+"5364",
+"4",
+"https://github.com/node-red/node-red/issues/5364",
+"NR5: Node Appearance improvements"
+],
+[
+"5066",
+"4",
+"https://github.com/node-red/node-red/issues/5066",
+"FR: Declarative creation of typedinputs"
+],
+[
+"5535",
+"4",
+"https://github.com/node-red/node-red/issues/5535",
+"NR5: Type definitions for Nodes"
+],
+[
+"610",
+"3",
+"https://github.com/node-red/node-red/issues/610",
+"Editor Theming"
+],
+[
+"1008",
+"3",
+"https://github.com/node-red/node-red/issues/1008",
+"Multiple node-red instances (embedded)"
+],
+[
+"5029",
+"3",
+"https://github.com/node-red/node-red/issues/5029",
+"FR: provide access to raw body in HTTP In node"
+],
+[
+"5242",
+"3",
+"https://github.com/node-red/node-red/issues/5242",
+"Cannot add node while clicking and dragging from a node when editing a subflow"
+],
+[
+"676",
+"3",
+"https://github.com/node-red/node-red/issues/676",
+"http-in not handling post error if headers set to application/json and non-json received"
+],
+[
+"5686",
+"3",
+"https://github.com/node-red/node-red/issues/5686",
+"Context Data pane shows no values until user clicks refresh"
+],
+[
+"4650",
+"3",
+"https://github.com/node-red/node-red/issues/4650",
+"FR: Align \"Name\" field across core nodes"
+],
+[
+"28",
+"2",
+"https://github.com/node-red/node-red/issues/28",
+"ntwitter - Authorisation not working if restart of node-red"
+],
+[
+"833",
+"2",
+"https://github.com/node-red/node-red/issues/833",
+"EventEmitter.emit is not asynchronous in Node.prototype.receive"
+],
+[
+"814",
+"2",
+"https://github.com/node-red/node-red/issues/814",
+"Enhancement: Add documentation section to each node."
+],
+[
+"1405",
+"2",
+"https://github.com/node-red/node-red/issues/1405",
+"Make link nodes show their names"
+],
+[
+"1322",
+"2",
+"https://github.com/node-red/node-red/issues/1322",
+"UI and HTTP nodes on different port numbers."
+],
+[
+"1470",
+"2",
+"https://github.com/node-red/node-red/issues/1470",
+"UDP:out error requires node-red restart after deployment"
+],
+[
+"1390",
+"2",
+"https://github.com/node-red/node-red/issues/1390",
+"Cannot Load library entry containing multi-byte characters"
+],
+[
+"2391",
+"2",
+"https://github.com/node-red/node-red/issues/2391",
+"Importing a flow that includes Japanese from the library is garbled (\u6587\u5b57\u5316\u3051)."
+],
+[
+"2522",
+"2",
+"https://github.com/node-red/node-red/issues/2522",
+"Context file contains \"undefined\" word, making node-red restarting all the time"
+],
+[
+"2857",
+"2",
+"https://github.com/node-red/node-red/issues/2857",
+"Please update bcrypt to v5"
+],
+[
+"3119",
+"2",
+"https://github.com/node-red/node-red/issues/3119",
+"Proposal for fixing Korean translation typo"
+],
+[
+"4057",
+"2",
+"https://github.com/node-red/node-red/issues/4057",
+"Feature: better visibilty of palette catalogues"
+],
+[
+"4337",
+"2",
+"https://github.com/node-red/node-red/issues/4337",
+"messages with `msg.reset` is allowed through the delay node "
+],
+[
+"4830",
+"2",
+"https://github.com/node-red/node-red/issues/4830",
+"Delay Node sends Message on msg.reset"
+],
+[
+"5041",
+"2",
+"https://github.com/node-red/node-red/issues/5041",
+"https://catalogue.nodered.org SSL Error (accoring to Cloudflare)"
+],
+[
+"5126",
+"2",
+"https://github.com/node-red/node-red/issues/5126",
+"Feature: flag deprecated modules in the palette manager"
+],
+[
+"5643",
+"2",
+"https://github.com/node-red/node-red/issues/5643",
+"FR: Avoid or handle multple HttpIn with same listening URL"
+],
+[
+"3429",
+"2",
+"https://github.com/node-red/node-red/issues/3429",
+"feature: Switch: support compound AND/OR rules"
+],
+[
+"1067",
+"2",
+"https://github.com/node-red/node-red/issues/1067",
+"Make the config folder XDG compatible."
+],
+[
+"5369",
+"2",
+"https://github.com/node-red/node-red/issues/5369",
+"Demote deprecated packages in the install list"
+],
+[
+"3815",
+"2",
+"https://github.com/node-red/node-red/issues/3815",
+"Many nodes don't execute second on 'input' callback"
+]
+],
+"debugging_observability": [
+[
+"4902",
+"7",
+"https://github.com/node-red/node-red/issues/4902",
+"Inject nodes and Debug nodes are not executable, and nodes that query HA entity states are not displaying state under nodes."
+]
+],
+"security_auth": [
+[
+"1055",
+"4",
+"https://github.com/node-red/node-red/issues/1055",
+"Provide a way to programmatically save Credentials nodes (OAUTH)"
+],
+[
+"2656",
+"2",
+"https://github.com/node-red/node-red/issues/2656",
+"Projects - git credential changes"
+],
+[
+"719",
+"2",
+"https://github.com/node-red/node-red/issues/719",
+"Support for OAuth"
+]
+],
+"escape_hatch_custom_code": [
+[
+"1988",
+"3",
+"https://github.com/node-red/node-red/issues/1988",
+"Function node syntax error on valid syntax (object spread ES6)"
+],
+[
+"1324",
+"2",
+"https://github.com/node-red/node-red/issues/1324",
+"File extension problem in flow library"
+]
+],
+"cant_do_x_missing_primitive": [
+[
+"4324",
+"3",
+"https://github.com/node-red/node-red/issues/4324",
+"\"http request\" node \"RequestError: connect ECONNREFUSED 127.0.0.1:443\""
+],
+[
+"4569",
+"3",
+"https://github.com/node-red/node-red/issues/4569",
+"FR: Command Line Option to show versions"
+],
+[
+"719",
+"2",
+"https://github.com/node-red/node-red/issues/719",
+"Support for OAuth"
+]
+],
+"versioning_merge": [
+[
+"2656",
+"2",
+"https://github.com/node-red/node-red/issues/2656",
+"Projects - git credential changes"
+]
+],
+"performance_scale": [
+[
+"2300",
+"2",
+"https://github.com/node-red/node-red/issues/2300",
+"localFileSystem context with large objects causes significant thread blocking"
+]
+]
+},
+"activepieces/activepieces": {
+"ai_llm": [
+[
+"3307",
+"19",
+"https://github.com/activepieces/activepieces/issues/3307",
+"Support Self Hosted Ollama as AI Provider"
+],
+[
+"8946",
+"4",
+"https://github.com/activepieces/activepieces/issues/8946",
+"Support configure baseurl when creating openAI AI provider"
+],
+[
+"3207",
+"2",
+"https://github.com/activepieces/activepieces/issues/3207",
+"Custom OpenAI endpoint support [AzureOpenai]"
+],
+[
+"7391",
+"2",
+"https://github.com/activepieces/activepieces/issues/7391",
+"Integration of Google Gemini as an AI provider"
+],
+[
+"8440",
+"2",
+"https://github.com/activepieces/activepieces/issues/8440",
+"Feature Request: Allow Model Selection in the \"AI Agent\" "
+]
+],
+"determinism_concurrency": [
+[
+"1204",
+"6",
+"https://github.com/activepieces/activepieces/issues/1204",
+"Parallel execution"
+]
+],
+"other": [
+[
+"9690",
+"6",
+"https://github.com/activepieces/activepieces/issues/9690",
+"Multiple triggers"
+],
+[
+"943",
+"5",
+"https://github.com/activepieces/activepieces/issues/943",
+"Private Pieces"
+],
+[
+"4168",
+"5",
+"https://github.com/activepieces/activepieces/issues/4168",
+"Support Dynamic Dropdown Field Inside Array Property"
+],
+[
+"727",
+"4",
+"https://github.com/activepieces/activepieces/issues/727",
+"Mattermost"
+],
+[
+"1527",
+"4",
+"https://github.com/activepieces/activepieces/issues/1527",
+"Run context should have information about the project/user"
+],
+[
+"2802",
+"4",
+"https://github.com/activepieces/activepieces/issues/2802",
+"Private Pieces"
+],
+[
+"1830",
+"4",
+"https://github.com/activepieces/activepieces/issues/1830",
+"Support dynamic dropdown inside OAuth2 props"
+],
+[
+"3810",
+"4",
+"https://github.com/activepieces/activepieces/issues/3810",
+"Moodle Events support"
+],
+[
+"519",
+"3",
+"https://github.com/activepieces/activepieces/issues/519",
+"Branches or conditional statements (if/else)"
+],
+[
+"4725",
+"3",
+"https://github.com/activepieces/activepieces/issues/4725",
+"Loop enhancements: x times loop & introduce variables"
+],
+[
+"3473",
+"3",
+"https://github.com/activepieces/activepieces/issues/3473",
+"The code should still compile after removing ee folder."
+],
+[
+"527",
+"2",
+"https://github.com/activepieces/activepieces/issues/527",
+"Manual Run Flow"
+],
+[
+"1682",
+"2",
+"https://github.com/activepieces/activepieces/issues/1682",
+"Property that is a collection of fields"
+],
+[
+"1725",
+"2",
+"https://github.com/activepieces/activepieces/issues/1725",
+"Button to Rerun Flows from Run"
+],
+[
+"812",
+"2",
+"https://github.com/activepieces/activepieces/issues/812",
+"Piece: Google Business Profile "
+],
+[
+"1234",
+"2",
+"https://github.com/activepieces/activepieces/issues/1234",
+"Bulk Actions (Delete Flows / Delete Connections / Rerun)"
+],
+[
+"2583",
+"2",
+"https://github.com/activepieces/activepieces/issues/2583",
+"[BUG]: What is Login Email and Password?"
+],
+[
+"1467",
+"2",
+"https://github.com/activepieces/activepieces/issues/1467",
+"Internationalization "
+],
+[
+"3239",
+"2",
+"https://github.com/activepieces/activepieces/issues/3239",
+"Reading Files from Google Drive"
+],
+[
+"4288",
+"2",
+"https://github.com/activepieces/activepieces/issues/4288",
+"[BUG]: error when trying to create a new piece"
+],
+[
+"6037",
+"2",
+"https://github.com/activepieces/activepieces/issues/6037",
+"Support Binary Data in HTTP Call (Custom API Call)"
+],
+[
+"6193",
+"2",
+"https://github.com/activepieces/activepieces/issues/6193",
+"Define the Path for Webhooks Endpoints"
+],
+[
+"7653",
+"2",
+"https://github.com/activepieces/activepieces/issues/7653",
+"Postmark"
+],
+[
+"7242",
+"2",
+"https://github.com/activepieces/activepieces/issues/7242",
+"Xero Piece Enhancement"
+],
+[
+"621",
+"1",
+"https://github.com/activepieces/activepieces/issues/621",
+"[BUG]: Airtable baseurl fetches from the Drip API"
+],
+[
+"1082",
+"1",
+"https://github.com/activepieces/activepieces/issues/1082",
+"Add button to remove optional inputs"
+],
+[
+"220",
+"1",
+"https://github.com/activepieces/activepieces/issues/220",
+"Dev Container in ARM [MacOS]"
+],
+[
+"195",
+"1",
+"https://github.com/activepieces/activepieces/issues/195",
+"Redirect URL + Webhook URL is wrong on Demo Instance"
+],
+[
+"653",
+"1",
+"https://github.com/activepieces/activepieces/issues/653",
+"New propery type: Date and/or Time"
+],
+[
+"804",
+"1",
+"https://github.com/activepieces/activepieces/issues/804",
+"Property.MultiArray"
+],
+[
+"725",
+"1",
+"https://github.com/activepieces/activepieces/issues/725",
+"Mastodon Piece"
+]
+],
+"security_auth": [
+[
+"1466",
+"5",
+"https://github.com/activepieces/activepieces/issues/1466",
+"SSO"
+],
+[
+"4260",
+"4",
+"https://github.com/activepieces/activepieces/issues/4260",
+"API Call for Custom User defined OAuth2 / Secret"
+]
+],
+"versioning_merge": [
+[
+"7106",
+"5",
+"https://github.com/activepieces/activepieces/issues/7106",
+"[BUG]: Error displaying Docker version 0.47.0"
+],
+[
+"1493",
+"2",
+"https://github.com/activepieces/activepieces/issues/1493",
+"[BUG]: -Send HTTP request- action  fails as not returning the full body of the response but a chunked version of it making a content evaluation fail"
+],
+[
+"9047",
+"2",
+"https://github.com/activepieces/activepieces/issues/9047",
+"[BUG]: Error Import Template from version 0.67.6 to version latest / 0.68.3"
+],
+[
+"11105",
+"2",
+"https://github.com/activepieces/activepieces/issues/11105",
+"Windows: git clone fails due to Zone.Identifier invalid path"
+]
+],
+"escape_hatch_custom_code": [
+[
+"6192",
+"3",
+"https://github.com/activepieces/activepieces/issues/6192",
+"Whitelist NPM packages In sandbox code only"
+]
+],
+"cant_do_x_missing_primitive": [
+[
+"1493",
+"2",
+"https://github.com/activepieces/activepieces/issues/1493",
+"[BUG]: -Send HTTP request- action  fails as not returning the full body of the response but a chunked version of it making a content evaluation fail"
+],
+[
+"3491",
+"2",
+"https://github.com/activepieces/activepieces/issues/3491",
+"Add the ability to use proxy for all requests"
+],
+[
+"8440",
+"2",
+"https://github.com/activepieces/activepieces/issues/8440",
+"Feature Request: Allow Model Selection in the \"AI Agent\" "
+]
+],
+"debugging_observability": [
+[
+"4661",
+"2",
+"https://github.com/activepieces/activepieces/issues/4661",
+"Strucuted Logging & Step Logging"
+]
+],
+"license_governance": [
+[
+"5285",
+"2",
+"https://github.com/activepieces/activepieces/issues/5285",
+"Make the new React UI fully Open Source"
+]
+],
+"performance_scale": [
+[
+"7475",
+"2",
+"https://github.com/activepieces/activepieces/issues/7475",
+"Server High Memory Usage"
+],
+[
+"14210",
+"2",
+"https://github.com/activepieces/activepieces/issues/14210",
+"API pegs CPU / Redis (~150k ops/s) when AP_WORKER_CONCURRENCY > 1 due to concurrent getNextJob on shared BullMQ Worker"
+]
+],
+"testing": [
+[
+"846",
+"1",
+"https://github.com/activepieces/activepieces/issues/846",
+"[BUG]:  Test flow failed on a Mac because isolate - it's not a binary"
+]
+]
+},
+"windmill-labs/windmill": {
+"other": [
+[
+"5014",
+"27",
+"https://github.com/windmill-labs/windmill/issues/5014",
+"An open letter to the Windmill team"
+],
+[
+"1435",
+"10",
+"https://github.com/windmill-labs/windmill/issues/1435",
+"feature: Add PowerShell execution support to Windmill"
+],
+[
+"1126",
+"6",
+"https://github.com/windmill-labs/windmill/issues/1126",
+"feature: Embeddable App Links"
+],
+[
+"5437",
+"6",
+"https://github.com/windmill-labs/windmill/issues/5437",
+"feature: Global Windmill AI copilot/chat"
+],
+[
+"4620",
+"5",
+"https://github.com/windmill-labs/windmill/issues/4620",
+"feature: add non root user docker images option"
+],
+[
+"4700",
+"5",
+"https://github.com/windmill-labs/windmill/issues/4700",
+"feature: Support Pydantic / dataclasses"
+],
+[
+"3201",
+"5",
+"https://github.com/windmill-labs/windmill/issues/3201",
+"feature: Ruby support"
+],
+[
+"5435",
+"5",
+"https://github.com/windmill-labs/windmill/issues/5435",
+"feature: Free form flows"
+],
+[
+"1734",
+"4",
+"https://github.com/windmill-labs/windmill/issues/1734",
+"feature: Hashicorp Vault secrets support"
+],
+[
+"4499",
+"4",
+"https://github.com/windmill-labs/windmill/issues/4499",
+"Feature: Add health endpoints to windmill workers and LSP"
+],
+[
+"5436",
+"4",
+"https://github.com/windmill-labs/windmill/issues/5436",
+"feature: AI step as Flow primitive"
+],
+[
+"7869",
+"4",
+"https://github.com/windmill-labs/windmill/issues/7869",
+"feature: add labels/tags to Scripts and Flows for filtering and organization"
+],
+[
+"5848",
+"4",
+"https://github.com/windmill-labs/windmill/issues/5848",
+"bug: Unable to change password or setup properly"
+],
+[
+"4422",
+"4",
+"https://github.com/windmill-labs/windmill/issues/4422",
+"bug:  <jemalloc>: Unsupported system page size on ARM64 system (Raspberry Pi 5)"
+],
+[
+"1633",
+"3",
+"https://github.com/windmill-labs/windmill/issues/1633",
+"feature: Add Directus Resource Api"
+],
+[
+"3529",
+"3",
+"https://github.com/windmill-labs/windmill/issues/3529",
+"feature: support `multipart/form-data in webhooks"
+],
+[
+"2584",
+"3",
+"https://github.com/windmill-labs/windmill/issues/2584",
+"Improve the local dev setup (Backend + Frontend) documentation in the README"
+],
+[
+"2402",
+"3",
+"https://github.com/windmill-labs/windmill/issues/2402",
+"feature: flag to execute jobs as non root "
+],
+[
+"5698",
+"3",
+"https://github.com/windmill-labs/windmill/issues/5698",
+"App Builder - cleared Text Input Component does not update with empty result"
+],
+[
+"1702",
+"3",
+"https://github.com/windmill-labs/windmill/issues/1702",
+"feature: PWA compatability for apps"
+],
+[
+"9086",
+"3",
+"https://github.com/windmill-labs/windmill/issues/9086",
+"feature: Update or add an official nix package or flake"
+],
+[
+"3",
+"2",
+"https://github.com/windmill-labs/windmill/issues/3",
+"Give clear self-host instructions"
+],
+[
+"1698",
+"2",
+"https://github.com/windmill-labs/windmill/issues/1698",
+"feature: Rich Text Editor"
+],
+[
+"3589",
+"2",
+"https://github.com/windmill-labs/windmill/issues/3589",
+"feature: Package wmill cli as a docker image"
+],
+[
+"3679",
+"2",
+"https://github.com/windmill-labs/windmill/issues/3679",
+"bug: Previous runs loads multiple times with PAYLOAD"
+],
+[
+"1966",
+"2",
+"https://github.com/windmill-labs/windmill/issues/1966",
+"feature: MQTT Trigger"
+],
+[
+"2586",
+"2",
+"https://github.com/windmill-labs/windmill/issues/2586",
+"feature: support XML in webhooks"
+],
+[
+"2676",
+"2",
+"https://github.com/windmill-labs/windmill/issues/2676",
+"Custom endpoints and public unauthenticated webhooks"
+],
+[
+"3562",
+"2",
+"https://github.com/windmill-labs/windmill/issues/3562",
+"feature: Required Field default, Placeholder & \"Date\" format for Form component"
+],
+[
+"4787",
+"2",
+"https://github.com/windmill-labs/windmill/issues/4787",
+"feature: Batch re-run UI"
+],
+[
+"5110",
+"2",
+"https://github.com/windmill-labs/windmill/issues/5110",
+"feature: Flow : Use Resource Type as Input"
+],
+[
+"5115",
+"2",
+"https://github.com/windmill-labs/windmill/issues/5115",
+"feature: Adding Signature verification for webhooks"
+],
+[
+"5448",
+"2",
+"https://github.com/windmill-labs/windmill/issues/5448",
+"feature: Database explorer for every SQL"
+],
+[
+"5433",
+"2",
+"https://github.com/windmill-labs/windmill/issues/5433",
+"feature: Full code/react UI builder"
+],
+[
+"5445",
+"2",
+"https://github.com/windmill-labs/windmill/issues/5445",
+"feature: gcp pubsub support (ee)"
+],
+[
+"6394",
+"2",
+"https://github.com/windmill-labs/windmill/issues/6394",
+"feature: Resizable Runs Columns"
+],
+[
+"6537",
+"2",
+"https://github.com/windmill-labs/windmill/issues/6537",
+"bug: Cannot deploy windmill in offline environments"
+]
+],
+"security_auth": [
+[
+"5678",
+"10",
+"https://github.com/windmill-labs/windmill/issues/5678",
+"feature: Add Pocket-ID support to OAuth"
+]
+],
+"determinism_concurrency": [
+[
+"173",
+"7",
+"https://github.com/windmill-labs/windmill/issues/173",
+"Generalize queue and worker to being able to be run on external systems"
+]
+],
+"testing": [
+[
+"4981",
+"7",
+"https://github.com/windmill-labs/windmill/issues/4981",
+"feature: Unit test capability for windmill flow steps & scripts"
+]
+],
+"escape_hatch_custom_code": [
+[
+"1392",
+"4",
+"https://github.com/windmill-labs/windmill/issues/1392",
+"feature: deploy script as a permanent high-performance endpoint "
+],
+[
+"67",
+"3",
+"https://github.com/windmill-labs/windmill/issues/67",
+"Make python lsp support arbitrary imports"
+],
+[
+"4589",
+"3",
+"https://github.com/windmill-labs/windmill/issues/4589",
+"feature: support for async def main in python"
+]
+],
+"performance_scale": [
+[
+"1392",
+"4",
+"https://github.com/windmill-labs/windmill/issues/1392",
+"feature: deploy script as a permanent high-performance endpoint "
+]
+],
+"debugging_observability": [
+[
+"5450",
+"4",
+"https://github.com/windmill-labs/windmill/issues/5450",
+"feature: hide sensitive values from logs"
+],
+[
+"5177",
+"2",
+"https://github.com/windmill-labs/windmill/issues/5177",
+"feature: Add ability to toggle worker log output"
+]
+],
+"cant_do_x_missing_primitive": [
+[
+"4589",
+"3",
+"https://github.com/windmill-labs/windmill/issues/4589",
+"feature: support for async def main in python"
+],
+[
+"4252",
+"2",
+"https://github.com/windmill-labs/windmill/issues/4252",
+"feature: ability to change baseURL for AI assistant"
+],
+[
+"5177",
+"2",
+"https://github.com/windmill-labs/windmill/issues/5177",
+"feature: Add ability to toggle worker log output"
+]
+],
+"i18n_ux": [
+[
+"1390",
+"2",
+"https://github.com/windmill-labs/windmill/issues/1390",
+"feature: SQL as a first class language"
+],
+[
+"5280",
+"2",
+"https://github.com/windmill-labs/windmill/issues/5280",
+"feature: Interface language localization"
+]
+],
+"ai_llm": [
+[
+"7252",
+"2",
+"https://github.com/windmill-labs/windmill/issues/7252",
+"feature: MCP Token UI doesn't support folder wildcards - forces manual API calls or workarounds"
+]
+],
+"versioning_merge": [
+[
+"6585",
+"2",
+"https://github.com/windmill-labs/windmill/issues/6585",
+"Diff viewer for workspace forks"
+]
+]
+},
+"nocodb/nocodb": {
+"cant_do_x_missing_primitive": [
+[
+"9596",
+"81",
+"https://github.com/nocodb/nocodb/issues/9596",
+"\ud83d\udd26 Feature: Ability to cross copy bases across installations."
+],
+[
+"9223",
+"78",
+"https://github.com/nocodb/nocodb/issues/9223",
+"\ud83d\udd26 Feature: Dashboard - ability to create charts based on the views"
+],
+[
+"179",
+"28",
+"https://github.com/nocodb/nocodb/issues/179",
+"Feature request : Import / Export file formats (CSV, JSON)"
+],
+[
+"494",
+"25",
+"https://github.com/nocodb/nocodb/issues/494",
+"Feature request : personnalization of title and logo"
+],
+[
+"544",
+"25",
+"https://github.com/nocodb/nocodb/issues/544",
+"\ud83d\udd26 Feature: Support for Pivot tables"
+],
+[
+"8414",
+"22",
+"https://github.com/nocodb/nocodb/issues/8414",
+"\ud83d\udd26 Feature: Option to select row color"
+],
+[
+"181",
+"18",
+"https://github.com/nocodb/nocodb/issues/181",
+"Feature request : CSS Styling"
+],
+[
+"7053",
+"15",
+"https://github.com/nocodb/nocodb/issues/7053",
+"\ud83d\udd26 Feature: Enable LTAR"
+]
+],
+"other": [
+[
+"148",
+"70",
+"https://github.com/nocodb/nocodb/issues/148",
+"\ud83d\udd26 Feature: Realtime Collaboration"
+],
+[
+"158",
+"66",
+"https://github.com/nocodb/nocodb/issues/158",
+"\ud83d\udd26 Feature: Making NocoDB responsive / Mobile Apps"
+],
+[
+"4728",
+"56",
+"https://github.com/nocodb/nocodb/issues/4728",
+"\ud83d\udd26 Feature: Should be able to add unique constraints to columns"
+],
+[
+"184",
+"54",
+"https://github.com/nocodb/nocodb/issues/184",
+"Feature : NoSQL DB support"
+],
+[
+"491",
+"45",
+"https://github.com/nocodb/nocodb/issues/491",
+"\ud83d\udd26 One-to-one in LinkToAnotherRecord not implemented"
+],
+[
+"6848",
+"41",
+"https://github.com/nocodb/nocodb/issues/6848",
+"\ud83d\udd26 Feature: Use existing columns between two tables to create a relationship."
+],
+[
+"2712",
+"38",
+"https://github.com/nocodb/nocodb/issues/2712",
+"\ud83d\udd26 Feature: Custom roles"
+],
+[
+"8583",
+"27",
+"https://github.com/nocodb/nocodb/issues/8583",
+"\ud83d\udd26 Feature: Calendar Range and Recurrence "
+],
+[
+"3568",
+"26",
+"https://github.com/nocodb/nocodb/issues/3568",
+"\ud83d\udd26 Feature: Infinite Scroll on table"
+],
+[
+"601",
+"20",
+"https://github.com/nocodb/nocodb/issues/601",
+"How to participate in Community\u2753"
+],
+[
+"1544",
+"20",
+"https://github.com/nocodb/nocodb/issues/1544",
+"[Feature] Helm chart"
+],
+[
+"4862",
+"19",
+"https://github.com/nocodb/nocodb/issues/4862",
+"\ud83d\udd26 Feature: Enum for Single Select in Postgres"
+],
+[
+"9818",
+"18",
+"https://github.com/nocodb/nocodb/issues/9818",
+"\ud83d\udd26 Feature: Support HTTP Header Based Authentication"
+],
+[
+"147",
+"18",
+"https://github.com/nocodb/nocodb/issues/147",
+"\ud83d\udd26 Feature: Templates"
+],
+[
+"978",
+"15",
+"https://github.com/nocodb/nocodb/issues/978",
+"[Feature] Copy-Pasting from NocoDB tables"
+],
+[
+"7091",
+"15",
+"https://github.com/nocodb/nocodb/issues/7091",
+"\ud83d\udd26 Feature:  Update content of a Table via form "
+],
+[
+"3567",
+"14",
+"https://github.com/nocodb/nocodb/issues/3567",
+"\ud83d\udd26 Feature: [Row Expansion] Copy Paste from excel to table + add more records as required"
+]
+],
+"security_auth": [
+[
+"517",
+"69",
+"https://github.com/nocodb/nocodb/issues/517",
+"\ud83d\udd26 Feature:  OAuth2.0 support"
+],
+[
+"742",
+"37",
+"https://github.com/nocodb/nocodb/issues/742",
+"\ud83d\udd26 Feature: OpenID Connect Auth"
+],
+[
+"2731",
+"28",
+"https://github.com/nocodb/nocodb/issues/2731",
+"\ud83d\udd26 Feature: Two factor authentication (2FA)"
+],
+[
+"363",
+"15",
+"https://github.com/nocodb/nocodb/issues/363",
+"\ud83d\udd26 Feature: LDAP / SAML / Active directory integration. authentication by AD and Authorization base on these roles."
+],
+[
+"5075",
+"14",
+"https://github.com/nocodb/nocodb/issues/5075",
+"\ud83d\udd26 Feature: Column base permission"
+]
+],
+"i18n_ux": [
+[
+"6883",
+"65",
+"https://github.com/nocodb/nocodb/issues/6883",
+"\ud83d\udd26 Feature: Dark Mode"
+]
+],
+"data_relations_schema": [
+[
+"188",
+"64",
+"https://github.com/nocodb/nocodb/issues/188",
+"Feature : Group By"
+],
+[
+"141",
+"64",
+"https://github.com/nocodb/nocodb/issues/141",
+"\ud83d\udd26 Feature : Gantt View"
+],
+[
+"140",
+"52",
+"https://github.com/nocodb/nocodb/issues/140",
+"Feature : Support Kanban view"
+],
+[
+"495",
+"42",
+"https://github.com/nocodb/nocodb/issues/495",
+"\ud83d\udd26 Feature: Calendar view"
+],
+[
+"298",
+"27",
+"https://github.com/nocodb/nocodb/issues/298",
+"Feature: Rich editor for multiline text"
+],
+[
+"580",
+"25",
+"https://github.com/nocodb/nocodb/issues/580",
+"[Extensions] Page Designer"
+],
+[
+"544",
+"25",
+"https://github.com/nocodb/nocodb/issues/544",
+"\ud83d\udd26 Feature: Support for Pivot tables"
+],
+[
+"138",
+"20",
+"https://github.com/nocodb/nocodb/issues/138",
+"Feature : Spreadsheet : Formula Column"
+],
+[
+"1041",
+"19",
+"https://github.com/nocodb/nocodb/issues/1041",
+"\ud83d\udd26 Feature: View level buttons for selected records"
+],
+[
+"9035",
+"16",
+"https://github.com/nocodb/nocodb/issues/9035",
+"\ud83d\udd26 Feature: Rollup & Lookup filters"
+],
+[
+"1331",
+"15",
+"https://github.com/nocodb/nocodb/issues/1331",
+"[Feature] Use rollup in formula"
+],
+[
+"7462",
+"15",
+"https://github.com/nocodb/nocodb/issues/7462",
+"\ud83d\udd26 Feature: Add Column Type 'Image URL' with image preview"
+],
+[
+"2382",
+"14",
+"https://github.com/nocodb/nocodb/issues/2382",
+"[Feature] Collaborator field (Link to User)"
+],
+[
+"144",
+"14",
+"https://github.com/nocodb/nocodb/issues/144",
+"Feature : Spreadsheet : Support Personal View"
+],
+[
+"5075",
+"14",
+"https://github.com/nocodb/nocodb/issues/5075",
+"\ud83d\udd26 Feature: Column base permission"
+],
+[
+"842",
+"13",
+"https://github.com/nocodb/nocodb/issues/842",
+"[Feature] More options for uploading attachment files, referencing external URLs as attachments"
+]
+],
+"versioning_merge": [
+[
+"179",
+"28",
+"https://github.com/nocodb/nocodb/issues/179",
+"Feature request : Import / Export file formats (CSV, JSON)"
+],
+[
+"1425",
+"21",
+"https://github.com/nocodb/nocodb/issues/1425",
+"[Feature]  Undo - Recover deleted row"
+],
+[
+"3803",
+"20",
+"https://github.com/nocodb/nocodb/issues/3803",
+"\ud83d\udd26 Feature:  CSV import support LinkToAnother Record"
+]
+],
+"license_governance": [
+[
+"446",
+"19",
+"https://github.com/nocodb/nocodb/issues/446",
+"Need Oracle Support"
+],
+[
+"13618",
+"17",
+"https://github.com/nocodb/nocodb/issues/13618",
+"\ud83d\udd26 Feature: Add \"hide enterprise features\" toggle for self-hosted instances"
+]
+],
+"performance_scale": [
+[
+"941",
+"16",
+"https://github.com/nocodb/nocodb/issues/941",
+"[Feature] Limit API Token Permissions"
+]
+]
+},
+"teableio/teable": {
+"cant_do_x_missing_primitive": [
+[
+"556",
+"21",
+"https://github.com/teableio/teable/issues/556",
+"[Feature request] Mount any existing database"
+],
+[
+"460",
+"10",
+"https://github.com/teableio/teable/issues/460",
+"[Feature request] Webhooks"
+],
+[
+"622",
+"6",
+"https://github.com/teableio/teable/issues/622",
+"Request for Enhancement of Teable Proprietary Module Support for n8n and Activepieces Automation Platforms"
+],
+[
+"1182",
+"6",
+"https://github.com/teableio/teable/issues/1182",
+"Allow JS or TS in a formula"
+],
+[
+"1142",
+"5",
+"https://github.com/teableio/teable/issues/1142",
+"[Feature request] Batch insert "
+],
+[
+"434",
+"4",
+"https://github.com/teableio/teable/issues/434",
+"[Feature request] OIDC login"
+],
+[
+"1682",
+"3",
+"https://github.com/teableio/teable/issues/1682",
+"\"Allow sending space invitations\" not working as expected"
+],
+[
+"2527",
+"3",
+"https://github.com/teableio/teable/issues/2527",
+"Feature Request for Enhanced Row Highlighting and Comment Management in Teable"
+],
+[
+"450",
+"2",
+"https://github.com/teableio/teable/issues/450",
+"[Feature request] Add Support for Row-Level Security (RLS) "
+],
+[
+"587",
+"2",
+"https://github.com/teableio/teable/issues/587",
+"[Feature Request] Duplicate Rows"
+],
+[
+"707",
+"2",
+"https://github.com/teableio/teable/issues/707",
+"[Feature Request] move some futures from .env to settings in the ui "
+],
+[
+"1099",
+"2",
+"https://github.com/teableio/teable/issues/1099",
+"[Feature request] Ability to Lock View Settings for Specific Views to Prevent Auto-Save by Other Users "
+],
+[
+"863",
+"2",
+"https://github.com/teableio/teable/issues/863",
+"[Feature Request] Overview of all shared views"
+],
+[
+"586",
+"1",
+"https://github.com/teableio/teable/issues/586",
+"[Feature Request] Duplicate Views"
+]
+],
+"data_relations_schema": [
+[
+"1125",
+"7",
+"https://github.com/teableio/teable/issues/1125",
+"gantt view "
+],
+[
+"1182",
+"6",
+"https://github.com/teableio/teable/issues/1182",
+"Allow JS or TS in a formula"
+],
+[
+"1122",
+"5",
+"https://github.com/teableio/teable/issues/1122",
+"Location field type and Mapview"
+],
+[
+"829",
+"3",
+"https://github.com/teableio/teable/issues/829",
+"[Plugin] Block editor view"
+],
+[
+"773",
+"2",
+"https://github.com/teableio/teable/issues/773",
+"Annotate a column as the official row label"
+],
+[
+"1099",
+"2",
+"https://github.com/teableio/teable/issues/1099",
+"[Feature request] Ability to Lock View Settings for Specific Views to Prevent Auto-Save by Other Users "
+]
+],
+"license_governance": [
+[
+"592",
+"6",
+"https://github.com/teableio/teable/issues/592",
+"License under a more permissive license?"
+]
+],
+"versioning_merge": [
+[
+"1307",
+"6",
+"https://github.com/teableio/teable/issues/1307",
+"Add multifactor login support (2FA TOTP, backup codes, etc.)"
+],
+[
+"777",
+"2",
+"https://github.com/teableio/teable/issues/777",
+"Invalid timzone when import table"
+],
+[
+"488",
+"1",
+"https://github.com/teableio/teable/issues/488",
+"Questioning the Role of the PUBLIC_ORIGIN Environment Variable in Docker Deployment Practices"
+],
+[
+"769",
+"1",
+"https://github.com/teableio/teable/issues/769",
+"add software version in admin panel"
+]
+],
+"security_auth": [
+[
+"1307",
+"6",
+"https://github.com/teableio/teable/issues/1307",
+"Add multifactor login support (2FA TOTP, backup codes, etc.)"
+],
+[
+"434",
+"4",
+"https://github.com/teableio/teable/issues/434",
+"[Feature request] OIDC login"
+],
+[
+"450",
+"2",
+"https://github.com/teableio/teable/issues/450",
+"[Feature request] Add Support for Row-Level Security (RLS) "
+],
+[
+"488",
+"1",
+"https://github.com/teableio/teable/issues/488",
+"Questioning the Role of the PUBLIC_ORIGIN Environment Variable in Docker Deployment Practices"
+]
+],
+"other": [
+[
+"1137",
+"6",
+"https://github.com/teableio/teable/issues/1137",
+"Markdown Document Field"
+],
+[
+"805",
+"5",
+"https://github.com/teableio/teable/issues/805",
+"We need Authority Matrix"
+],
+[
+"1306",
+"5",
+"https://github.com/teableio/teable/issues/1306",
+"Sign Up is still there"
+],
+[
+"1287",
+"5",
+"https://github.com/teableio/teable/issues/1287",
+"Add custom footer links"
+],
+[
+"1392",
+"4",
+"https://github.com/teableio/teable/issues/1392",
+"Conditional Link Filtering"
+],
+[
+"2066",
+"3",
+"https://github.com/teableio/teable/issues/2066",
+"Grouping not working properly"
+],
+[
+"2146",
+"3",
+"https://github.com/teableio/teable/issues/2146",
+"Update dependencies"
+],
+[
+"2854",
+"3",
+"https://github.com/teableio/teable/issues/2854",
+"Thumbnail generation does not respect EXIF Orientation tag"
+],
+[
+"541",
+"2",
+"https://github.com/teableio/teable/issues/541",
+"There is no Ctrl Z options "
+],
+[
+"444",
+"2",
+"https://github.com/teableio/teable/issues/444",
+"Docker Image for ARM64"
+],
+[
+"615",
+"2",
+"https://github.com/teableio/teable/issues/615",
+"[FR]Do we need to surpass NocoDB?"
+],
+[
+"931",
+"2",
+"https://github.com/teableio/teable/issues/931",
+"Latest images crashing"
+],
+[
+"719",
+"2",
+"https://github.com/teableio/teable/issues/719",
+"Pre-fill New Records' Values in Filtered Views"
+],
+[
+"1207",
+"2",
+"https://github.com/teableio/teable/issues/1207",
+"[Feature] GraphQL API Support"
+],
+[
+"1380",
+"2",
+"https://github.com/teableio/teable/issues/1380",
+"Files do not upload to s3-compatible storage"
+],
+[
+"1322",
+"2",
+"https://github.com/teableio/teable/issues/1322",
+"Logout is not working when password login is disabled"
+],
+[
+"1683",
+"2",
+"https://github.com/teableio/teable/issues/1683",
+"Cant register user which already existed"
+],
+[
+"1160",
+"2",
+"https://github.com/teableio/teable/issues/1160",
+"When grouping fields with multiple selection types and folding the grouping objects, it may cause some data to be disordered"
+],
+[
+"1403",
+"2",
+"https://github.com/teableio/teable/issues/1403",
+"network error"
+],
+[
+"3118",
+"2",
+"https://github.com/teableio/teable/issues/3118",
+"Conditional formatting for cells and text"
+],
+[
+"442",
+"1",
+"https://github.com/teableio/teable/issues/442",
+"there is no ui for listing all registered user in the app , and what is size of each user space "
+],
+[
+"532",
+"1",
+"https://github.com/teableio/teable/issues/532",
+"`PUBLIC_DATABASE_PROXY` isn't documented anywhere, but needed for Postgres Access"
+],
+[
+"486",
+"1",
+"https://github.com/teableio/teable/issues/486",
+"captcha in form"
+],
+[
+"503",
+"1",
+"https://github.com/teableio/teable/issues/503",
+"Android App"
+],
+[
+"467",
+"1",
+"https://github.com/teableio/teable/issues/467",
+"Paste does not paste"
+],
+[
+"800",
+"1",
+"https://github.com/teableio/teable/issues/800",
+"\u626b\u7801\u5f55\u5165\u4fe1\u606f\u529f\u80fd"
+],
+[
+"668",
+"1",
+"https://github.com/teableio/teable/issues/668",
+"Deleting row from mobile interface"
+]
+],
+"escape_hatch_custom_code": [
+[
+"829",
+"3",
+"https://github.com/teableio/teable/issues/829",
+"[Plugin] Block editor view"
+]
+],
+"determinism_concurrency": [
+[
+"587",
+"2",
+"https://github.com/teableio/teable/issues/587",
+"[Feature Request] Duplicate Rows"
+],
+[
+"586",
+"1",
+"https://github.com/teableio/teable/issues/586",
+"[Feature Request] Duplicate Views"
+]
+]
+},
+"GrapesJS/grapesjs": {
+"other": [
+[
+"74",
+"95",
+"https://github.com/GrapesJS/grapesjs/issues/74",
+"Roadmap"
+],
+[
+"1936",
+"39",
+"https://github.com/GrapesJS/grapesjs/issues/1936",
+"Absolute/Designer mode"
+],
+[
+"1798",
+"16",
+"https://github.com/GrapesJS/grapesjs/issues/1798",
+"GrapesJS out in the wild"
+],
+[
+"2686",
+"11",
+"https://github.com/GrapesJS/grapesjs/issues/2686",
+"Hire GrapesJS developers"
+],
+[
+"328",
+"6",
+"https://github.com/GrapesJS/grapesjs/issues/328",
+"[Bounty] Remove jQuery dependencies"
+],
+[
+"2414",
+"6",
+"https://github.com/GrapesJS/grapesjs/issues/2414",
+"Your document like shit just override it!"
+],
+[
+"1806",
+"6",
+"https://github.com/GrapesJS/grapesjs/issues/1806",
+"[Feature]: Add category on traits"
+],
+[
+"391",
+"5",
+"https://github.com/GrapesJS/grapesjs/issues/391",
+"Namespace CSS?"
+],
+[
+"761",
+"5",
+"https://github.com/GrapesJS/grapesjs/issues/761",
+"Text component problem"
+],
+[
+"2910",
+"5",
+"https://github.com/GrapesJS/grapesjs/issues/2910",
+"Issue in Asset manager handling"
+],
+[
+"6723",
+"5",
+"https://github.com/GrapesJS/grapesjs/issues/6723",
+"Dependency: grapesjs  >=0.21.13   Depends on vulnerable versions of underscore"
+],
+[
+"204",
+"4",
+"https://github.com/GrapesJS/grapesjs/issues/204",
+"Adding toolbar items"
+],
+[
+"50",
+"4",
+"https://github.com/GrapesJS/grapesjs/issues/50",
+"Adding a new component"
+],
+[
+"2555",
+"4",
+"https://github.com/GrapesJS/grapesjs/issues/2555",
+"[QUESTION] Update min max values of vue-slider "
+],
+[
+"4388",
+"4",
+"https://github.com/GrapesJS/grapesjs/issues/4388",
+"BUG: button traits command not working"
+],
+[
+"4704",
+"4",
+"https://github.com/GrapesJS/grapesjs/issues/4704",
+"BUG: Angular Component as Custom Color Picker is only created once"
+],
+[
+"1726",
+"4",
+"https://github.com/GrapesJS/grapesjs/issues/1726",
+"Changing \"start\" to \"flex-start\""
+],
+[
+"1011",
+"3",
+"https://github.com/GrapesJS/grapesjs/issues/1011",
+"[Question] Does grapejs provide variable selection in the UI"
+],
+[
+"367",
+"3",
+"https://github.com/GrapesJS/grapesjs/issues/367",
+"Community - Open collective & Discord."
+],
+[
+"679",
+"3",
+"https://github.com/GrapesJS/grapesjs/issues/679",
+"Categorize Traits similar to Blocks"
+],
+[
+"832",
+"3",
+"https://github.com/GrapesJS/grapesjs/issues/832",
+"Avoid settings hereditation"
+],
+[
+"1507",
+"3",
+"https://github.com/GrapesJS/grapesjs/issues/1507",
+"How to add a custom button with custom command in default panel of grapesjs"
+],
+[
+"1435",
+"3",
+"https://github.com/GrapesJS/grapesjs/issues/1435",
+"[BUG] - Checkbox Traits are not rendered correctly"
+],
+[
+"1708",
+"3",
+"https://github.com/GrapesJS/grapesjs/issues/1708",
+"StyleManager events fire multiple times per change"
+],
+[
+"1697",
+"3",
+"https://github.com/GrapesJS/grapesjs/issues/1697",
+"Implement TinyMCE and disable RTE"
+],
+[
+"2574",
+"3",
+"https://github.com/GrapesJS/grapesjs/issues/2574",
+"Thanks @artf for this work!"
+],
+[
+"2294",
+"3",
+"https://github.com/GrapesJS/grapesjs/issues/2294",
+"[Bug] Text components are removed with an error if they are dragged while you are editing their contents"
+],
+[
+"2212",
+"3",
+"https://github.com/GrapesJS/grapesjs/issues/2212",
+"Extending default image component, resizable properties ignored"
+],
+[
+"3481",
+"3",
+"https://github.com/GrapesJS/grapesjs/issues/3481",
+"BUG: Update underscore lib to 1.13.*"
+],
+[
+"3288",
+"3",
+"https://github.com/GrapesJS/grapesjs/issues/3288",
+"BUG: Edit a clone without affect the cloned components"
+],
+[
+"5657",
+"3",
+"https://github.com/GrapesJS/grapesjs/issues/5657",
+"BUG: HTML Comment Tags disable text edit"
+],
+[
+"161",
+"2",
+"https://github.com/GrapesJS/grapesjs/issues/161",
+"[Question] How to set options of 'SELECT' Traits type dynamically when its previous traits value is set?"
+]
+],
+"escape_hatch_custom_code": [
+[
+"3206",
+"6",
+"https://github.com/GrapesJS/grapesjs/issues/3206",
+"FEAT: Page Manager Plugin"
+],
+[
+"2289",
+"5",
+"https://github.com/GrapesJS/grapesjs/issues/2289",
+"[FeatureRequest] Allow to import javascript modules"
+],
+[
+"6687",
+"5",
+"https://github.com/GrapesJS/grapesjs/issues/6687",
+"Dependency: backbone-undo is deprecated (npm) \u2014 any plan to replace/remove?"
+],
+[
+"655",
+"4",
+"https://github.com/GrapesJS/grapesjs/issues/655",
+"Bootstrap blocks plugin"
+]
+],
+"versioning_merge": [
+[
+"2289",
+"5",
+"https://github.com/GrapesJS/grapesjs/issues/2289",
+"[FeatureRequest] Allow to import javascript modules"
+],
+[
+"6687",
+"5",
+"https://github.com/GrapesJS/grapesjs/issues/6687",
+"Dependency: backbone-undo is deprecated (npm) \u2014 any plan to replace/remove?"
+],
+[
+"270",
+"3",
+"https://github.com/GrapesJS/grapesjs/issues/270",
+"Undo/Redo does not work for traits"
+],
+[
+"1486",
+"3",
+"https://github.com/GrapesJS/grapesjs/issues/1486",
+"How to add/remove class undo manager"
+],
+[
+"2771",
+"3",
+"https://github.com/GrapesJS/grapesjs/issues/2771",
+"[BUG] component with textable:1 not working since version 0.16.12"
+],
+[
+"3883",
+"3",
+"https://github.com/GrapesJS/grapesjs/issues/3883",
+"BUG:  GrapesJS export functionality and 'View Code' functionality and the Canvas not operating in a similar manner with regards to hex colors."
+],
+[
+"5392",
+"3",
+"https://github.com/GrapesJS/grapesjs/issues/5392",
+"BUG: Latest version 0.21.6 doesn't come with src folder"
+],
+[
+"6047",
+"3",
+"https://github.com/GrapesJS/grapesjs/issues/6047",
+"Release Process"
+]
+],
+"cant_do_x_missing_primitive": [
+[
+"2289",
+"5",
+"https://github.com/GrapesJS/grapesjs/issues/2289",
+"[FeatureRequest] Allow to import javascript modules"
+],
+[
+"672",
+"4",
+"https://github.com/GrapesJS/grapesjs/issues/672",
+"Missing option to erase style options"
+],
+[
+"1039",
+"3",
+"https://github.com/GrapesJS/grapesjs/issues/1039",
+"[BUG] Missing support for empty-name traits"
+],
+[
+"3431",
+"3",
+"https://github.com/GrapesJS/grapesjs/issues/3431",
+"FEAT: Enable \"Discussions\" tab on GitHub"
+]
+],
+"performance_scale": [
+[
+"2403",
+"4",
+"https://github.com/GrapesJS/grapesjs/issues/2403",
+"editor.load possibly causes memory leak"
+],
+[
+"2066",
+"3",
+"https://github.com/GrapesJS/grapesjs/issues/2066",
+"[QUESTION] Page Limit "
+],
+[
+"2556",
+"3",
+"https://github.com/GrapesJS/grapesjs/issues/2556",
+"[Question] Limit UndoManager to X amount of steps"
+]
+],
+"security_auth": [
+[
+"3082",
+"4",
+"https://github.com/GrapesJS/grapesjs/issues/3082",
+"XSS Vulnerability in Live Preview"
+]
+],
+"data_relations_schema": [
+[
+"2282",
+"3",
+"https://github.com/GrapesJS/grapesjs/issues/2282",
+"[Editor UI]: Replace the current View for the core editor UI components"
+],
+[
+"3883",
+"3",
+"https://github.com/GrapesJS/grapesjs/issues/3883",
+"BUG:  GrapesJS export functionality and 'View Code' functionality and the Canvas not operating in a similar manner with regards to hex colors."
+]
+]
+},
+"langflow-ai/langflow": {
+"cant_do_x_missing_primitive": [
+[
+"1864",
+"64",
+"https://github.com/langflow-ai/langflow/issues/1864",
+"[Feature Request] Collaborative/Access Control enhancement "
+],
+[
+"1738",
+"28",
+"https://github.com/langflow-ai/langflow/issues/1738",
+"[Feature Request] Langflow Graph: Integrate Direct Management Tools to Replace LangGraph with Equivalent Functionalities"
+],
+[
+"631",
+"16",
+"https://github.com/langflow-ai/langflow/issues/631",
+"Feature Request: Export the LangFlow to a LangChain code implementation"
+],
+[
+"1976",
+"13",
+"https://github.com/langflow-ai/langflow/issues/1976",
+"Request for ARM64 Support in LangFlow Docker Images"
+],
+[
+"5849",
+"12",
+"https://github.com/langflow-ai/langflow/issues/5849",
+"Add support for deepseek model"
+],
+[
+"429",
+"9",
+"https://github.com/langflow-ai/langflow/issues/429",
+"Support for LocalAI"
+],
+[
+"8531",
+"9",
+"https://github.com/langflow-ai/langflow/issues/8531",
+"Request: Flow Sharing between users"
+],
+[
+"1731",
+"8",
+"https://github.com/langflow-ai/langflow/issues/1731",
+"[Feature Request] Case Components Management: Integrating Conditional Logic into Langflow with Custom Component Status Fields"
+],
+[
+"8272",
+"8",
+"https://github.com/langflow-ai/langflow/issues/8272",
+"Feature request: Export Standalone Executable Python Code from Flow"
+],
+[
+"144",
+"7",
+"https://github.com/langflow-ai/langflow/issues/144",
+"Add support for llama.cpp"
+],
+[
+"7300",
+"6",
+"https://github.com/langflow-ai/langflow/issues/7300",
+"Add support for OpenAI Compatible APIs"
+],
+[
+"5541",
+"6",
+"https://github.com/langflow-ai/langflow/issues/5541",
+"[Feature Request] Scheduled Trigger/cron-like component to run a flow repeatedly"
+],
+[
+"752",
+"5",
+"https://github.com/langflow-ai/langflow/issues/752",
+"Feature Request: Authentication needed for public domain"
+],
+[
+"1716",
+"5",
+"https://github.com/langflow-ai/langflow/issues/1716",
+"[Feature Request] Add Organizational Management for User-Specific Access Control"
+],
+[
+"5578",
+"5",
+"https://github.com/langflow-ai/langflow/issues/5578",
+"Feature to enable loop/map function to a subflow and assemble the ouput"
+]
+],
+"security_auth": [
+[
+"2855",
+"59",
+"https://github.com/langflow-ai/langflow/issues/2855",
+"Single Sign On (SSO) support with OIDC or OAuth2"
+]
+],
+"ai_llm": [
+[
+"4090",
+"21",
+"https://github.com/langflow-ai/langflow/issues/4090",
+"Question is it possible to implement multi-agent flows using langgraph in Langflow?"
+],
+[
+"8412",
+"13",
+"https://github.com/langflow-ai/langflow/issues/8412",
+"any plan for MCP Server to support Streamable HTTP transport protocol?"
+],
+[
+"5849",
+"12",
+"https://github.com/langflow-ai/langflow/issues/5849",
+"Add support for deepseek model"
+],
+[
+"3557",
+"8",
+"https://github.com/langflow-ai/langflow/issues/3557",
+"Voyage embedding component"
+],
+[
+"2885",
+"7",
+"https://github.com/langflow-ai/langflow/issues/2885",
+"Ollama component cannot get models from Ollama server"
+],
+[
+"4664",
+"7",
+"https://github.com/langflow-ai/langflow/issues/4664",
+"OpenAI-Like API support"
+],
+[
+"5980",
+"6",
+"https://github.com/langflow-ai/langflow/issues/5980",
+"Gemini model is reset on every load"
+],
+[
+"7300",
+"6",
+"https://github.com/langflow-ai/langflow/issues/7300",
+"Add support for OpenAI Compatible APIs"
+],
+[
+"9082",
+"5",
+"https://github.com/langflow-ai/langflow/issues/9082",
+"Dynamic MCP configuration for each flow invocation"
+],
+[
+"6096",
+"5",
+"https://github.com/langflow-ai/langflow/issues/6096",
+"Support Custom OpenAI-compatible Models (Custom Base URL, API Key & Model Name)"
+]
+],
+"other": [
+[
+"11547",
+"21",
+"https://github.com/langflow-ai/langflow/issues/11547",
+"Extend to support skills integratoin"
+],
+[
+"3794",
+"19",
+"https://github.com/langflow-ai/langflow/issues/3794",
+"Knowledge Graph Integration for LangFlow"
+],
+[
+"6867",
+"19",
+"https://github.com/langflow-ai/langflow/issues/6867",
+"Human-in-the-loop (HITL) Support"
+],
+[
+"1520",
+"15",
+"https://github.com/langflow-ai/langflow/issues/1520",
+"open webui integration "
+],
+[
+"3081",
+"11",
+"https://github.com/langflow-ai/langflow/issues/3081",
+"Implement LangfuseTracer"
+],
+[
+"6142",
+"11",
+"https://github.com/langflow-ai/langflow/issues/6142",
+"Disable Signing Up from the UI (`/signup`)"
+],
+[
+"7927",
+"11",
+"https://github.com/langflow-ai/langflow/issues/7927",
+"Streamable HTTP"
+],
+[
+"7440",
+"9",
+"https://github.com/langflow-ai/langflow/issues/7440",
+"bug: \ud83d\udc26\u200d\ud83d\udd25\ud83d\udd25\ud83d\udd25\ud83d\udd25\ud83d\udd25\ud83d\udd25\ud83d\udd25 Langflow 1.3.2 crashes with Langfuse tracing and Streaming Chat \ud83d\udd25\ud83d\udd25\ud83d\udd25\ud83d\udd25\ud83d\udd25\ud83d\udd25\ud83d\udc26\u200d\ud83d\udd25"
+],
+[
+"9306",
+"9",
+"https://github.com/langflow-ai/langflow/issues/9306",
+"Windows Desktop App Reinstalls Itself on Each Launch\""
+],
+[
+"263",
+"8",
+"https://github.com/langflow-ai/langflow/issues/263",
+"Self hosted LLMs Support"
+],
+[
+"4863",
+"8",
+"https://github.com/langflow-ai/langflow/issues/4863",
+"Guardrails Support"
+],
+[
+"11067",
+"8",
+"https://github.com/langflow-ai/langflow/issues/11067",
+"Agentic Capabilities"
+],
+[
+"11534",
+"7",
+"https://github.com/langflow-ai/langflow/issues/11534",
+"API always returns 500 Internal Server Error instead of propagating component errors"
+],
+[
+"2822",
+"6",
+"https://github.com/langflow-ai/langflow/issues/2822",
+"Component for interacting with LangSmith Prompt Hub"
+],
+[
+"3221",
+"6",
+"https://github.com/langflow-ai/langflow/issues/3221",
+"dosubot is so annoying"
+],
+[
+"7039",
+"6",
+"https://github.com/langflow-ai/langflow/issues/7039",
+"ModuleNotFoundError: Module langflow.base.astra_assistants.util not found. Please install it and try again"
+],
+[
+"9671",
+"6",
+"https://github.com/langflow-ai/langflow/issues/9671",
+"Custom components not loading"
+],
+[
+"597",
+"5",
+"https://github.com/langflow-ai/langflow/issues/597",
+"Customizable prompt in ConversationalRetrievalChain"
+],
+[
+"1532",
+"5",
+"https://github.com/langflow-ai/langflow/issues/1532",
+"Can langflow support multiple output? "
+],
+[
+"1530",
+"5",
+"https://github.com/langflow-ai/langflow/issues/1530",
+"pip always encounters failures when installing LangFlow       "
+],
+[
+"1748",
+"5",
+"https://github.com/langflow-ai/langflow/issues/1748",
+"how to get stream response from langflow flow api\uff1f"
+]
+],
+"versioning_merge": [
+[
+"631",
+"16",
+"https://github.com/langflow-ai/langflow/issues/631",
+"Feature Request: Export the LangFlow to a LangChain code implementation"
+],
+[
+"8634",
+"14",
+"https://github.com/langflow-ai/langflow/issues/8634",
+"Workflow Version History"
+],
+[
+"8272",
+"8",
+"https://github.com/langflow-ai/langflow/issues/8272",
+"Feature request: Export Standalone Executable Python Code from Flow"
+],
+[
+"4164",
+"7",
+"https://github.com/langflow-ai/langflow/issues/4164",
+"ImportError: cannot import name 'CodeInterpreter' from 'e2b_code_interpreter'"
+],
+[
+"4295",
+"5",
+"https://github.com/langflow-ai/langflow/issues/4295",
+"ImportError: cannot import name 'CodeInterpreter' from 'e2b_code_interpreter'"
+]
+],
+"escape_hatch_custom_code": [
+[
+"5530",
+"13",
+"https://github.com/langflow-ai/langflow/issues/5530",
+"Downloading or exporting langflow into standalone python code"
+],
+[
+"1731",
+"8",
+"https://github.com/langflow-ai/langflow/issues/1731",
+"[Feature Request] Case Components Management: Integrating Conditional Logic into Langflow with Custom Component Status Fields"
+],
+[
+"8272",
+"8",
+"https://github.com/langflow-ai/langflow/issues/8272",
+"Feature request: Export Standalone Executable Python Code from Flow"
+],
+[
+"4400",
+"6",
+"https://github.com/langflow-ai/langflow/issues/4400",
+"Custom Component ID"
+]
+]
+},
+"FlowiseAI/Flowise": {
+"versioning_merge": [
+[
+"275",
+"32",
+"https://github.com/FlowiseAI/Flowise/issues/275",
+"[FEATURE] Export to Python?"
+],
+[
+"2882",
+"12",
+"https://github.com/FlowiseAI/Flowise/issues/2882",
+"[FEATURE] Versioning flows"
+],
+[
+"4461",
+"8",
+"https://github.com/FlowiseAI/Flowise/issues/4461",
+"[BUG] Workspace Import Fails in v3.0.0"
+]
+],
+"escape_hatch_custom_code": [
+[
+"275",
+"32",
+"https://github.com/FlowiseAI/Flowise/issues/275",
+"[FEATURE] Export to Python?"
+],
+[
+"519",
+"8",
+"https://github.com/FlowiseAI/Flowise/issues/519",
+"[FEATURE]Custom node"
+],
+[
+"3639",
+"8",
+"https://github.com/FlowiseAI/Flowise/issues/3639",
+"[FEATURE] Add Image Upload to ChatOpenAI Custom node."
+],
+[
+"4811",
+"5",
+"https://github.com/FlowiseAI/Flowise/issues/4811",
+"[FEATURE] Allow Custom JS Function nodes to return and reference JSON objects"
+],
+[
+"4621",
+"5",
+"https://github.com/FlowiseAI/Flowise/issues/4621",
+"MCP SDK Tool Parameter Validation Error - \"Expected object, received string\" with Zod Schema (Works in Cursor, Fails in Flowise)"
+],
+[
+"1048",
+"5",
+"https://github.com/FlowiseAI/Flowise/issues/1048",
+"[FEATURE] Convert exported json file of flowise for load_chain() of langchain python"
+]
+],
+"other": [
+[
+"4779",
+"25",
+"https://github.com/FlowiseAI/Flowise/issues/4779",
+"Langfuse & LangSmith integration fails to track cost and usage in agentic flows"
+],
+[
+"2661",
+"21",
+"https://github.com/FlowiseAI/Flowise/issues/2661",
+"[FEATURE] Multi User Support"
+],
+[
+"1237",
+"16",
+"https://github.com/FlowiseAI/Flowise/issues/1237",
+"[FEATURE] Neo4J RETRIEVER"
+],
+[
+"2385",
+"15",
+"https://github.com/FlowiseAI/Flowise/issues/2385",
+"Text To Speech"
+],
+[
+"2837",
+"13",
+"https://github.com/FlowiseAI/Flowise/issues/2837",
+"[FEATURE] GraphRAG + Flowise"
+],
+[
+"2906",
+"12",
+"https://github.com/FlowiseAI/Flowise/issues/2906",
+"[FEATURE] Image embeddings "
+],
+[
+"1051",
+"10",
+"https://github.com/FlowiseAI/Flowise/issues/1051",
+"[FEATURE] Pls. add Parent Document Retriever and Ensemble Retriever to Flowise"
+],
+[
+"4283",
+"10",
+"https://github.com/FlowiseAI/Flowise/issues/4283",
+"[FEATURE] Support the Google A2A (Agent2Agent)  Protocol"
+],
+[
+"2940",
+"9",
+"https://github.com/FlowiseAI/Flowise/issues/2940",
+"[FEATURE] - Support streaming response over Sequential Agents"
+],
+[
+"1603",
+"9",
+"https://github.com/FlowiseAI/Flowise/issues/1603",
+"[FEATURE] Use prompts defined in Langfuse for Flowise Chatflows"
+],
+[
+"2911",
+"9",
+"https://github.com/FlowiseAI/Flowise/issues/2911",
+"Set Base-Path to access Flowise UI"
+],
+[
+"3194",
+"8",
+"https://github.com/FlowiseAI/Flowise/issues/3194",
+"[FEATURE] be able to modify existing standard nodes/blocks within the flow"
+],
+[
+"3316",
+"8",
+"https://github.com/FlowiseAI/Flowise/issues/3316",
+"[FEATURE] Integration of TTS services (Azure, Elevenlabs, others)"
+],
+[
+"1793",
+"7",
+"https://github.com/FlowiseAI/Flowise/issues/1793",
+"[BUG] Marketplaces doesn't load"
+],
+[
+"846",
+"7",
+"https://github.com/FlowiseAI/Flowise/issues/846",
+"Parent Document Retriever"
+],
+[
+"2429",
+"7",
+"https://github.com/FlowiseAI/Flowise/issues/2429",
+"React Native Chatbot"
+],
+[
+"4219",
+"6",
+"https://github.com/FlowiseAI/Flowise/issues/4219",
+"[BUG] Document Upload Failure in Basic Document Extraction Flow"
+],
+[
+"58",
+"6",
+"https://github.com/FlowiseAI/Flowise/issues/58",
+"Integrate Azure Open AI"
+],
+[
+"2760",
+"5",
+"https://github.com/FlowiseAI/Flowise/issues/2760",
+"[BUG] Cannot read properties of undefined (reading 'substring')"
+],
+[
+"4450",
+"5",
+"https://github.com/FlowiseAI/Flowise/issues/4450",
+"Flowise doesn't support Node v22.13.1"
+],
+[
+"5742",
+"5",
+"https://github.com/FlowiseAI/Flowise/issues/5742",
+"Chat UI in Agentic Flow shows delayed responses, duplicated/infinite executions, and incomplete chat clearing"
+],
+[
+"4544",
+"5",
+"https://github.com/FlowiseAI/Flowise/issues/4544",
+"[BUG] Workers are not starting after upgrading to 3.0.1"
+],
+[
+"1056",
+"5",
+"https://github.com/FlowiseAI/Flowise/issues/1056",
+"[FEATURE] Autogen Integration"
+]
+],
+"cant_do_x_missing_primitive": [
+[
+"1276",
+"15",
+"https://github.com/FlowiseAI/Flowise/issues/1276",
+" [FEATURE] support for lm studio "
+],
+[
+"1522",
+"11",
+"https://github.com/FlowiseAI/Flowise/issues/1522",
+"[FEATURE] Please Add support for Google Gemini Pro vision in flowise "
+],
+[
+"1701",
+"11",
+"https://github.com/FlowiseAI/Flowise/issues/1701",
+"[FEATURE] Add support for Azure OpenAI Assistants"
+],
+[
+"41",
+"8",
+"https://github.com/FlowiseAI/Flowise/issues/41",
+"[FEATURE] Add support for llama.cpp and Weaviate"
+],
+[
+"3099",
+"7",
+"https://github.com/FlowiseAI/Flowise/issues/3099",
+"Allow download documents from document stores, or link to original source"
+],
+[
+"345",
+"5",
+"https://github.com/FlowiseAI/Flowise/issues/345",
+"[FEATURE] Support ChatLocalAI having parameters to enable streaming chat."
+],
+[
+"4811",
+"5",
+"https://github.com/FlowiseAI/Flowise/issues/4811",
+"[FEATURE] Allow Custom JS Function nodes to return and reference JSON objects"
+]
+],
+"security_auth": [
+[
+"4137",
+"14",
+"https://github.com/FlowiseAI/Flowise/issues/4137",
+"[BUG] zero day (unpatched) pre-auth arbitrary file upload -> remote code execution vulnerability"
+],
+[
+"4563",
+"6",
+"https://github.com/FlowiseAI/Flowise/issues/4563",
+"[BUG] docker compose TypeError: JwtStrategy requires a secret or key"
+],
+[
+"4570",
+"5",
+"https://github.com/FlowiseAI/Flowise/issues/4570",
+"[BUG] Composio - Auth Status fails to update to Connected"
+]
+],
+"determinism_concurrency": [
+[
+"4673",
+"13",
+"https://github.com/FlowiseAI/Flowise/issues/4673",
+"[FEATURE] Not working parallel Node in AgentFlow 2"
+],
+[
+"4710",
+"6",
+"https://github.com/FlowiseAI/Flowise/issues/4710",
+"[BUG] Parallel Node Execution is causing State Contamination and Incorrect Data Flow"
+]
+],
+"ai_llm": [
+[
+"1522",
+"11",
+"https://github.com/FlowiseAI/Flowise/issues/1522",
+"[FEATURE] Please Add support for Google Gemini Pro vision in flowise "
+],
+[
+"1701",
+"11",
+"https://github.com/FlowiseAI/Flowise/issues/1701",
+"[FEATURE] Add support for Azure OpenAI Assistants"
+],
+[
+"3709",
+"10",
+"https://github.com/FlowiseAI/Flowise/issues/3709",
+"[FEATURE] Gemini 2.0 Flash Support"
+],
+[
+"5601",
+"8",
+"https://github.com/FlowiseAI/Flowise/issues/5601",
+"Agent Skills integration"
+],
+[
+"1893",
+"7",
+"https://github.com/FlowiseAI/Flowise/issues/1893",
+"[FEATURE] Could we please have Claude 3 Support"
+],
+[
+"3114",
+"7",
+"https://github.com/FlowiseAI/Flowise/issues/3114",
+"[FEATURE] Agent output as JSON format (Sequential Agents)"
+],
+[
+"1673",
+"6",
+"https://github.com/FlowiseAI/Flowise/issues/1673",
+"500 error calling Ollama API at /api/embeddings"
+],
+[
+"3100",
+"6",
+"https://github.com/FlowiseAI/Flowise/issues/3100",
+"[FEATURE] support ollama multimodal"
+],
+[
+"2217",
+"5",
+"https://github.com/FlowiseAI/Flowise/issues/2217",
+"[FEATURE] OpenAI Assistant API `V2` Release"
+],
+[
+"1112",
+"5",
+"https://github.com/FlowiseAI/Flowise/issues/1112",
+"[FEATURE] New Component For Remote Custom Model with Inference Endpoint, Schema (input & Output) and Target Field"
+],
+[
+"4621",
+"5",
+"https://github.com/FlowiseAI/Flowise/issues/4621",
+"MCP SDK Tool Parameter Validation Error - \"Expected object, received string\" with Zod Schema (Works in Cursor, Fails in Flowise)"
+]
+],
+"testing": [
+[
+"3029",
+"8",
+"https://github.com/FlowiseAI/Flowise/issues/3029",
+"[FEATURE] Testing Custom Tool in directly from UI"
+]
+],
+"data_relations_schema": [
+[
+"1112",
+"5",
+"https://github.com/FlowiseAI/Flowise/issues/1112",
+"[FEATURE] New Component For Remote Custom Model with Inference Endpoint, Schema (input & Output) and Target Field"
+],
+[
+"4621",
+"5",
+"https://github.com/FlowiseAI/Flowise/issues/4621",
+"MCP SDK Tool Parameter Validation Error - \"Expected object, received string\" with Zod Schema (Works in Cursor, Fails in Flowise)"
+]
+],
+"performance_scale": [
+[
+"2501",
+"5",
+"https://github.com/FlowiseAI/Flowise/issues/2501",
+"In Memory Vector Store not working [BUG]"
+]
+]
+},
+"langgenius/dify": {
+"versioning_merge": [
+[
+"6019",
+"102",
+"https://github.com/langgenius/dify/issues/6019",
+"Can Microsoft's Graph RAG be added to the new version?"
+],
+[
+"8905",
+"14",
+"https://github.com/langgenius/dify/issues/8905",
+"add Crawl4AI to tools and for sync data from website in Knowledge"
+]
+],
+"cant_do_x_missing_primitive": [
+[
+"6019",
+"102",
+"https://github.com/langgenius/dify/issues/6019",
+"Can Microsoft's Graph RAG be added to the new version?"
+],
+[
+"11415",
+"76",
+"https://github.com/langgenius/dify/issues/11415",
+"Add Support for Model Context Protocol (MCP)"
+],
+[
+"19352",
+"29",
+"https://github.com/langgenius/dify/issues/19352",
+"Support for the A2A protocol"
+],
+[
+"30052",
+"26",
+"https://github.com/langgenius/dify/issues/30052",
+"feat: Add Agent Skills support as new tool provider type"
+],
+[
+"7470",
+"26",
+"https://github.com/langgenius/dify/issues/7470",
+"Support agent node in a workflow"
+],
+[
+"19916",
+"20",
+"https://github.com/langgenius/dify/issues/19916",
+"Feature Request: Step-by-step Streaming Output for Agent Nodes"
+],
+[
+"23697",
+"17",
+"https://github.com/langgenius/dify/issues/23697",
+"RAG 2.0 scalability - Decoupled Knowledge Base"
+],
+[
+"27291",
+"16",
+"https://github.com/langgenius/dify/issues/27291",
+"Knowledge created in versions prior to 1.9.1 is not usable after upgrading to 1.9.2"
+],
+[
+"10917",
+"15",
+"https://github.com/langgenius/dify/issues/10917",
+"add Ollama rerank model"
+],
+[
+"8905",
+"14",
+"https://github.com/langgenius/dify/issues/8905",
+"add Crawl4AI to tools and for sync data from website in Knowledge"
+],
+[
+"21455",
+"13",
+"https://github.com/langgenius/dify/issues/21455",
+"Human-computer interaction workflow"
+],
+[
+"4850",
+"11",
+"https://github.com/langgenius/dify/issues/4850",
+"Support for file uploads and file assignment to each LLM."
+],
+[
+"9168",
+"12",
+"https://github.com/langgenius/dify/issues/9168",
+"Workflow Schedule Feature"
+],
+[
+"12354",
+"12",
+"https://github.com/langgenius/dify/issues/12354",
+"Enhancing Workflow with Loop and Sleep Nodes for Repeated Execution and Interval Control"
+],
+[
+"22718",
+"12",
+"https://github.com/langgenius/dify/issues/22718",
+"MCP Server supports header configuration"
+],
+[
+"4468",
+"11",
+"https://github.com/langgenius/dify/issues/4468",
+"Extend Tool/Plugin Support to Include Chatbots, Agents, and Workflows"
+],
+[
+"5697",
+"11",
+"https://github.com/langgenius/dify/issues/5697",
+"Request for a Scheduler Feature"
+],
+[
+"5432",
+"11",
+"https://github.com/langgenius/dify/issues/5432",
+"Support for File Upload and Processing in Workflow Code Blocks"
+],
+[
+"14161",
+"11",
+"https://github.com/langgenius/dify/issues/14161",
+"File Upload Issue with HTTP Request Module for Files Larger Than 1MB"
+],
+[
+"14349",
+"11",
+"https://github.com/langgenius/dify/issues/14349",
+"Feature request: support for claude 3.7 sonnet"
+],
+[
+"16353",
+"11",
+"https://github.com/langgenius/dify/issues/16353",
+"Uploading pictures in the workflow seems to get an error"
+],
+[
+"7504",
+"10",
+"https://github.com/langgenius/dify/issues/7504",
+"please add support change chatbot icon to app icon"
+],
+[
+"9747",
+"10",
+"https://github.com/langgenius/dify/issues/9747",
+"Ability to control logs. "
+],
+[
+"11882",
+"10",
+"https://github.com/langgenius/dify/issues/11882",
+"Support multi-agent"
+],
+[
+"12796",
+"10",
+"https://github.com/langgenius/dify/issues/12796",
+"Knowledge base search supports Filtered Search"
+],
+[
+"16349",
+"10",
+"https://github.com/langgenius/dify/issues/16349",
+"Add metadata filter support for external knowledge base"
+]
+],
+"ai_llm": [
+[
+"6019",
+"102",
+"https://github.com/langgenius/dify/issues/6019",
+"Can Microsoft's Graph RAG be added to the new version?"
+],
+[
+"11415",
+"76",
+"https://github.com/langgenius/dify/issues/11415",
+"Add Support for Model Context Protocol (MCP)"
+],
+[
+"8986",
+"52",
+"https://github.com/langgenius/dify/issues/8986",
+"Implement OpenAI's Realtime API"
+],
+[
+"19352",
+"29",
+"https://github.com/langgenius/dify/issues/19352",
+"Support for the A2A protocol"
+],
+[
+"30052",
+"26",
+"https://github.com/langgenius/dify/issues/30052",
+"feat: Add Agent Skills support as new tool provider type"
+],
+[
+"7470",
+"26",
+"https://github.com/langgenius/dify/issues/7470",
+"Support agent node in a workflow"
+],
+[
+"35689",
+"22",
+"https://github.com/langgenius/dify/issues/35689",
+"Questions regarding the roadmap of \"Agent x Skills\" and \"Skill Editor\": Why was it omitted in v1.14.0?"
+],
+[
+"19916",
+"20",
+"https://github.com/langgenius/dify/issues/19916",
+"Feature Request: Step-by-step Streaming Output for Agent Nodes"
+],
+[
+"23697",
+"17",
+"https://github.com/langgenius/dify/issues/23697",
+"RAG 2.0 scalability - Decoupled Knowledge Base"
+],
+[
+"27291",
+"16",
+"https://github.com/langgenius/dify/issues/27291",
+"Knowledge created in versions prior to 1.9.1 is not usable after upgrading to 1.9.2"
+],
+[
+"10917",
+"15",
+"https://github.com/langgenius/dify/issues/10917",
+"add Ollama rerank model"
+],
+[
+"5346",
+"14",
+"https://github.com/langgenius/dify/issues/5346",
+"LLM dialogue can only upload images at present? How to upload other types of files such as txt,doc, etc"
+],
+[
+"4850",
+"11",
+"https://github.com/langgenius/dify/issues/4850",
+"Support for file uploads and file assignment to each LLM."
+],
+[
+"22718",
+"12",
+"https://github.com/langgenius/dify/issues/22718",
+"MCP Server supports header configuration"
+],
+[
+"13738",
+"12",
+"https://github.com/langgenius/dify/issues/13738",
+"Enhancement of LLM Node Memory Function"
+],
+[
+"4468",
+"11",
+"https://github.com/langgenius/dify/issues/4468",
+"Extend Tool/Plugin Support to Include Chatbots, Agents, and Workflows"
+],
+[
+"14290",
+"11",
+"https://github.com/langgenius/dify/issues/14290",
+"Add new parameters for claude-3-7-sonnet thinking"
+],
+[
+"14349",
+"11",
+"https://github.com/langgenius/dify/issues/14349",
+"Feature request: support for claude 3.7 sonnet"
+],
+[
+"15529",
+"11",
+"https://github.com/langgenius/dify/issues/15529",
+"Support Gemini Text Embeddings API"
+],
+[
+"11882",
+"10",
+"https://github.com/langgenius/dify/issues/11882",
+"Support multi-agent"
+],
+[
+"12796",
+"10",
+"https://github.com/langgenius/dify/issues/12796",
+"Knowledge base search supports Filtered Search"
+],
+[
+"16349",
+"10",
+"https://github.com/langgenius/dify/issues/16349",
+"Add metadata filter support for external knowledge base"
+]
+],
+"other": [
+[
+"1542",
+"49",
+"https://github.com/langgenius/dify/issues/1542",
+"Let's build something awesome together! \ud83d\udca1\u2728"
+],
+[
+"9805",
+"26",
+"https://github.com/langgenius/dify/issues/9805",
+"Confluence and Jira Integration for Streamlined Workflows"
+],
+[
+"4275",
+"20",
+"https://github.com/langgenius/dify/issues/4275",
+"Fork Join Parallelism for Workflows"
+],
+[
+"27127",
+"18",
+"https://github.com/langgenius/dify/issues/27127",
+"[Tracker] 1.9.2 release blockers"
+],
+[
+"23981",
+"17",
+"https://github.com/langgenius/dify/issues/23981",
+"[\u2602\ufe0f] Dify Trigger \u2014 Event-driven Workflow Foundation"
+],
+[
+"34741",
+"14",
+"https://github.com/langgenius/dify/issues/34741",
+"[Tracker] 1.14.0 Release blockers"
+],
+[
+"3480",
+"12",
+"https://github.com/langgenius/dify/issues/3480",
+"Expand image upload capabilities and add document type file uploads, such as PDF"
+],
+[
+"4602",
+"11",
+"https://github.com/langgenius/dify/issues/4602",
+"Can the chat input box add file upload function, or add a plug-in for file reading"
+],
+[
+"19778",
+"11",
+"https://github.com/langgenius/dify/issues/19778",
+"After upgrading to Dify 1.4.0, the WebScraper tool cannot be worked."
+],
+[
+"21586",
+"11",
+"https://github.com/langgenius/dify/issues/21586",
+"Prompt management feature"
+],
+[
+"14654",
+"11",
+"https://github.com/langgenius/dify/issues/14654",
+"Unable to configure the API"
+],
+[
+"5575",
+"10",
+"https://github.com/langgenius/dify/issues/5575",
+"Pass input parameters to iframe"
+],
+[
+"16305",
+"10",
+"https://github.com/langgenius/dify/issues/16305",
+"Proposal: Package manager migration from `poetry` to `uv`"
+],
+[
+"14848",
+"10",
+"https://github.com/langgenius/dify/issues/14848",
+"\u5b8c\u5168\u79bb\u7ebf\u90e8\u7f72dify\u65f6\uff0c\u65e0\u6cd5\u5b89\u88c5\u63d2\u4ef6"
+],
+[
+"20117",
+"10",
+"https://github.com/langgenius/dify/issues/20117",
+"Dify Deployment using coolify"
+]
+],
+"determinism_concurrency": [
+[
+"3432",
+"16",
+"https://github.com/langgenius/dify/issues/3432",
+"Add workflow multitasking parallel support"
+]
+],
+"security_auth": [
+[
+"3471",
+"12",
+"https://github.com/langgenius/dify/issues/3471",
+"Use IAM Role rather then AK/SK for accessing AWS Bedrock"
+],
+[
+"14086",
+"11",
+"https://github.com/langgenius/dify/issues/14086",
+"Add App permission control"
+]
+],
+"performance_scale": [
+[
+"13738",
+"12",
+"https://github.com/langgenius/dify/issues/13738",
+"Enhancement of LLM Node Memory Function"
+]
+],
+"escape_hatch_custom_code": [
+[
+"4468",
+"11",
+"https://github.com/langgenius/dify/issues/4468",
+"Extend Tool/Plugin Support to Include Chatbots, Agents, and Workflows"
+]
+],
+"debugging_observability": [
+[
+"9747",
+"10",
+"https://github.com/langgenius/dify/issues/9747",
+"Ability to control logs. "
+]
+],
+"data_relations_schema": [
+[
+"16349",
+"10",
+"https://github.com/langgenius/dify/issues/16349",
+"Add metadata filter support for external knowledge base"
+]
+]
+},
+"directus/directus": {
+"other": [
+[
+"3151",
+"102",
+"https://github.com/directus/directus/issues/3151",
+"Conditional Fields"
+],
+[
+"15190",
+"29",
+"https://github.com/directus/directus/issues/15190",
+"Build API to ESM instead of CJS"
+],
+[
+"15604",
+"27",
+"https://github.com/directus/directus/issues/15604",
+"Required Translation Fields Cannot be Validated"
+],
+[
+"14185",
+"26",
+"https://github.com/directus/directus/issues/14185",
+"Re-Linking Flow fails: Field 'resolve' has to be unique"
+],
+[
+"8228",
+"25",
+"https://github.com/directus/directus/issues/8228",
+"Support nested relational values in conditional fields"
+],
+[
+"13354",
+"21",
+"https://github.com/directus/directus/issues/13354",
+"Relational custom validation based on the length doesn't work as expected"
+],
+[
+"11481",
+"20",
+"https://github.com/directus/directus/issues/11481",
+"Expose snapshot/apply endpoints in the API"
+],
+[
+"10916",
+"18",
+"https://github.com/directus/directus/issues/10916",
+"M2M relationship field bugged (blank) when adding existing item, but fixed on save."
+],
+[
+"20614",
+"17",
+"https://github.com/directus/directus/issues/20614",
+"Combining two filters on a M2M fields inside an _and close do not return expected results."
+],
+[
+"24727",
+"15",
+"https://github.com/directus/directus/issues/24727",
+"Startup sqlite3 error after upgrade to v11.5.0"
+],
+[
+"11775",
+"15",
+"https://github.com/directus/directus/issues/11775",
+"Permissions creating items"
+],
+[
+"2303",
+"14",
+"https://github.com/directus/directus/issues/2303",
+"Support multiple independent projects"
+],
+[
+"7383",
+"14",
+"https://github.com/directus/directus/issues/7383",
+"Date interface is displaying 1 day before"
+],
+[
+"2510",
+"13",
+"https://github.com/directus/directus/issues/2510",
+"Couldn't Reach API"
+],
+[
+"3158",
+"13",
+"https://github.com/directus/directus/issues/3158",
+"Issue Seeding with npx install on a MSSQL database"
+],
+[
+"13727",
+"13",
+"https://github.com/directus/directus/issues/13727",
+"Notifications go to page not found null/null"
+],
+[
+"18042",
+"13",
+"https://github.com/directus/directus/issues/18042",
+"Make `empty` and `nempty` work for Array types"
+],
+[
+"21128",
+"13",
+"https://github.com/directus/directus/issues/21128",
+"Metric List not displaying relational data / No way of specifying a display template"
+],
+[
+"13676",
+"12",
+"https://github.com/directus/directus/issues/13676",
+"Warn users when entering uppercase keys"
+],
+[
+"17964",
+"11",
+"https://github.com/directus/directus/issues/17964",
+"Flows with manual triggers show a success message even when they failed"
+],
+[
+"22187",
+"11",
+"https://github.com/directus/directus/issues/22187",
+"Bookmark views"
+],
+[
+"3647",
+"10",
+"https://github.com/directus/directus/issues/3647",
+"Consolidate UI for Repeater, M2A, M2M, and O2M interfaces"
+],
+[
+"2944",
+"10",
+"https://github.com/directus/directus/issues/2944",
+"No way to set unique fields"
+],
+[
+"2950",
+"10",
+"https://github.com/directus/directus/issues/2950",
+"Add OpenID Support"
+],
+[
+"3952",
+"8",
+"https://github.com/directus/directus/issues/3952",
+"Create a Flow for Managing Existing Fields"
+],
+[
+"11510",
+"10",
+"https://github.com/directus/directus/issues/11510",
+"M2O Relations can not be deleted"
+],
+[
+"19857",
+"10",
+"https://github.com/directus/directus/issues/19857",
+"Add theming capabilities"
+],
+[
+"23409",
+"10",
+"https://github.com/directus/directus/issues/23409",
+"Simpler way to get a user's policies needed"
+],
+[
+"16472",
+"10",
+"https://github.com/directus/directus/issues/16472",
+"Unable to update collection items with manually entered string primary keys"
+],
+[
+"2255",
+"9",
+"https://github.com/directus/directus/issues/2255",
+"OpenAPI 3.0 Spec \u2014 Generate Directus API Clients (SDKs)"
+],
+[
+"16013",
+"9",
+"https://github.com/directus/directus/issues/16013",
+"Use UUIDs for all system data + default to UUIDs for new tables"
+],
+[
+"16903",
+"9",
+"https://github.com/directus/directus/issues/16903",
+"Add native Supabase Storage abstraction"
+],
+[
+"20720",
+"9",
+"https://github.com/directus/directus/issues/20720",
+"Add sorting by timestamp, date, etc to O2M fields"
+]
+],
+"data_relations_schema": [
+[
+"18121",
+"102",
+"https://github.com/directus/directus/issues/18121",
+"Support TypeScript types generation in `/schema` endpoint"
+],
+[
+"10610",
+"21",
+"https://github.com/directus/directus/issues/10610",
+"GraphQL Schema is not respecting required fields"
+],
+[
+"2942",
+"12",
+"https://github.com/directus/directus/issues/2942",
+"Cascade Delete for Relational Items (Foreign Key Constraints)"
+],
+[
+"2948",
+"11",
+"https://github.com/directus/directus/issues/2948",
+"Sqlite does not support alter column"
+],
+[
+"9507",
+"11",
+"https://github.com/directus/directus/issues/9507",
+"Add foreign key constraint handler flow in app"
+],
+[
+"4489",
+"9",
+"https://github.com/directus/directus/issues/4489",
+"SQLite login error \"Invalid foreign key.\""
+]
+],
+"cant_do_x_missing_primitive": [
+[
+"9331",
+"38",
+"https://github.com/directus/directus/issues/9331",
+"Allow logging-in to same account via multiple auth providers"
+],
+[
+"19060",
+"9",
+"https://github.com/directus/directus/issues/19060",
+"Allow setting externals in extensions/bundles"
+]
+],
+"debugging_observability": [
+[
+"9331",
+"38",
+"https://github.com/directus/directus/issues/9331",
+"Allow logging-in to same account via multiple auth providers"
+],
+[
+"23166",
+"9",
+"https://github.com/directus/directus/issues/23166",
+"Support activity/revisions/logs retention"
+]
+],
+"security_auth": [
+[
+"9331",
+"38",
+"https://github.com/directus/directus/issues/9331",
+"Allow logging-in to same account via multiple auth providers"
+]
+],
+"versioning_merge": [
+[
+"2927",
+"21",
+"https://github.com/directus/directus/issues/2927",
+"Add import/export endpoints"
+],
+[
+"22124",
+"16",
+"https://github.com/directus/directus/issues/22124",
+"Update Directus Project to Support Node.js Version 20"
+],
+[
+"22783",
+"13",
+"https://github.com/directus/directus/issues/22783",
+"Content version does not return relational data"
+],
+[
+"6321",
+"9",
+"https://github.com/directus/directus/issues/6321",
+"Reset sequence value after file-based import "
+],
+[
+"23166",
+"9",
+"https://github.com/directus/directus/issues/23166",
+"Support activity/revisions/logs retention"
+]
+],
+"escape_hatch_custom_code": [
+[
+"16902",
+"21",
+"https://github.com/directus/directus/issues/16902",
+"Make Storage Adapters an extension type"
+],
+[
+"23297",
+"10",
+"https://github.com/directus/directus/issues/23297",
+"The error handling of the SDK is not type safe"
+]
+],
+"performance_scale": [
+[
+"25673",
+"11",
+"https://github.com/directus/directus/issues/25673",
+"v11.10.1 Critical Bug - Continuous crash-restart loop with the error: too many arguments for 'start'. Expected 0 arguments but got 2."
+],
+[
+"3889",
+"9",
+"https://github.com/directus/directus/issues/3889",
+"Add pagination to relational interfaces"
+]
+],
+"license_governance": [
+[
+"23166",
+"9",
+"https://github.com/directus/directus/issues/23166",
+"Support activity/revisions/logs retention"
+]
+]
+},
+"refinedev/refine": {
+"other": [
+[
+"5370",
+"32",
+"https://github.com/refinedev/refine/issues/5370",
+"[FEAT] React-Query v5 compatibility"
+],
+[
+"7140",
+"23",
+"https://github.com/refinedev/refine/issues/7140",
+"[FEAT] Support Ant Design v6"
+],
+[
+"6878",
+"22",
+"https://github.com/refinedev/refine/issues/6878",
+"[FEAT] `@refinedev/core` v5  Upgrade: TanStack Query v5 + React 19 Support"
+],
+[
+"6574",
+"13",
+"https://github.com/refinedev/refine/issues/6574",
+"[FEAT] React v19 Support"
+],
+[
+"2949",
+"12",
+"https://github.com/refinedev/refine/issues/2949",
+"Good \ud83d\ude0a"
+],
+[
+"6194",
+"10",
+"https://github.com/refinedev/refine/issues/6194",
+"[FEAT] TS-Rest Data Provider"
+],
+[
+"5623",
+"10",
+"https://github.com/refinedev/refine/issues/5623",
+"[FEAT] Codegen with OpenAPI"
+],
+[
+"1143",
+"9",
+"https://github.com/refinedev/refine/issues/1143",
+"refine Users \u2764\ufe0f  \ud83d\ude80 "
+],
+[
+"4819",
+"8",
+"https://github.com/refinedev/refine/issues/4819",
+"[FEAT] Dataprovider trpc for refine"
+],
+[
+"6841",
+"8",
+"https://github.com/refinedev/refine/issues/6841",
+"[FEAT] Convex.dev Integration (backend)"
+],
+[
+"3486",
+"6",
+"https://github.com/refinedev/refine/issues/3486",
+"[FEAT] Custom ID for resources"
+],
+[
+"5178",
+"6",
+"https://github.com/refinedev/refine/issues/5178",
+"[FEAT] Mantine v7 support?"
+],
+[
+"1550",
+"5",
+"https://github.com/refinedev/refine/issues/1550",
+"[FEAT] nestjs-query support"
+],
+[
+"5103",
+"5",
+"https://github.com/refinedev/refine/issues/5103",
+"[FEAT]Add app directory option for nextjs"
+],
+[
+"6430",
+"5",
+"https://github.com/refinedev/refine/issues/6430",
+"[FEAT] Support Nextjs v15"
+],
+[
+"1122",
+"4",
+"https://github.com/refinedev/refine/issues/1122",
+"[BUG] Vite unable to resolve package - incorrect module exports"
+],
+[
+"1140",
+"4",
+"https://github.com/refinedev/refine/issues/1140",
+"[FEAT] Modify strapi-graphql dataProvider to remove reliance on the Strapi REST interface and return both count and totalCount."
+],
+[
+"6086",
+"4",
+"https://github.com/refinedev/refine/issues/6086",
+"[BUG] - Serialized Error: { code: 'ERR_UNSUPPORTED_DIR_IMPORT' }"
+],
+[
+"6385",
+"4",
+"https://github.com/refinedev/refine/issues/6385",
+"[BUG] setFilters from useDataGrid causes infinite loop inside useEffects"
+],
+[
+"6888",
+"4",
+"https://github.com/refinedev/refine/issues/6888",
+"[Vulnerability] form-data 4.0.0 package that is part of axios 1.10.0 package is compromised"
+],
+[
+"7132",
+"4",
+"https://github.com/refinedev/refine/issues/7132",
+"[BUG] React Query double fetching in Refine v5 caused by unintended signal access (v4 did not do this)"
+],
+[
+"1128",
+"3",
+"https://github.com/refinedev/refine/issues/1128",
+"[FEAT] support  for Directus "
+],
+[
+"1115",
+"3",
+"https://github.com/refinedev/refine/issues/1115",
+"[DOC] Typo on home page"
+],
+[
+"2246",
+"3",
+"https://github.com/refinedev/refine/issues/2246",
+"[FEAT] Please make the PageHeader extra extensible"
+],
+[
+"2062",
+"3",
+"https://github.com/refinedev/refine/issues/2062",
+"[BUG] Invalid hook calls using the documentation suggested approach for handling data relationships in material-ui datagrid "
+],
+[
+"3326",
+"3",
+"https://github.com/refinedev/refine/issues/3326",
+"[FEAT] Inferencers with Hasura dataProvider"
+],
+[
+"3578",
+"3",
+"https://github.com/refinedev/refine/issues/3578",
+"[BUG] NextJS with Antd does not compile"
+],
+[
+"5279",
+"3",
+"https://github.com/refinedev/refine/issues/5279",
+"[BUG] Error [ERR_REQUIRE_ESM]: require() of ES Module "
+],
+[
+"5803",
+"3",
+"https://github.com/refinedev/refine/issues/5803",
+"[BUG] env utility breaks Vite dotenv conventions"
+],
+[
+"6675",
+"3",
+"https://github.com/refinedev/refine/issues/6675",
+"[FEAT] Expose all contexts"
+],
+[
+"6580",
+"3",
+"https://github.com/refinedev/refine/issues/6580",
+" [FEAT] Enhance Sider Customizability"
+],
+[
+"6902",
+"3",
+"https://github.com/refinedev/refine/issues/6902",
+"[BUG] Error 'Failed to resolve entry for package \"kbar\".' when starting a new project"
+],
+[
+"6921",
+"3",
+"https://github.com/refinedev/refine/issues/6921",
+"[BUG] CJS/AMD dependencies"
+],
+[
+"1117",
+"2",
+"https://github.com/refinedev/refine/issues/1117",
+"[BUG] couriers list page got blank"
+],
+[
+"608",
+"2",
+"https://github.com/refinedev/refine/issues/608",
+"Examples \u0130\u00e7in Dikkat Edilmesi Gerekenler"
+],
+[
+"1163",
+"2",
+"https://github.com/refinedev/refine/issues/1163",
+"[FEAT] Integrate dependabot and snyk"
+],
+[
+"1230",
+"2",
+"https://github.com/refinedev/refine/issues/1230",
+"[FEAT] React native support?"
+],
+[
+"1780",
+"2",
+"https://github.com/refinedev/refine/issues/1780",
+"[FEAT] Support Mantine UI lib"
+],
+[
+"3385",
+"2",
+"https://github.com/refinedev/refine/issues/3385",
+"[BUG] Next.js example app is not building/working"
+],
+[
+"2885",
+"2",
+"https://github.com/refinedev/refine/issues/2885",
+"[BUG] TimePicker.RangePicker gives error"
+],
+[
+"4006",
+"2",
+"https://github.com/refinedev/refine/issues/4006",
+"[FEAT] Single place to handle all notifications"
+],
+[
+"3659",
+"2",
+"https://github.com/refinedev/refine/issues/3659",
+"[FEAT] Use Vite instead of Create React App for demos and cli scaffold"
+],
+[
+"4698",
+"2",
+"https://github.com/refinedev/refine/issues/4698",
+"[FEAT] Support Yarn 2 (specifically Plug n Play)"
+]
+],
+"escape_hatch_custom_code": [
+[
+"6860",
+"4",
+"https://github.com/refinedev/refine/issues/6860",
+"[FEAT] Support better-auth and plugin admin"
+]
+],
+"security_auth": [
+[
+"6860",
+"4",
+"https://github.com/refinedev/refine/issues/6860",
+"[FEAT] Support better-auth and plugin admin"
+]
+],
+"cant_do_x_missing_primitive": [
+[
+"1489",
+"3",
+"https://github.com/refinedev/refine/issues/1489",
+"[FEAT] Metadata support for the Supabase data provider"
+],
+[
+"6333",
+"3",
+"https://github.com/refinedev/refine/issues/6333",
+"[FEAT] Support for MUI v6"
+],
+[
+"6739",
+"3",
+"https://github.com/refinedev/refine/issues/6739",
+"[FEAT] add support for TanStack Form"
+]
+],
+"performance_scale": [
+[
+"1746",
+"2",
+"https://github.com/refinedev/refine/issues/1746",
+"[BUG]Pagination does not take over filter conditions"
+]
+],
+"data_relations_schema": [
+[
+"1746",
+"2",
+"https://github.com/refinedev/refine/issues/1746",
+"[BUG]Pagination does not take over filter conditions"
+],
+[
+"2196",
+"2",
+"https://github.com/refinedev/refine/issues/2196",
+"[DOCS] How to generate automatic typescript types from your graphql schema. [Hasura]"
+]
+],
+"i18n_ux": [
+[
+"4543",
+"2",
+"https://github.com/refinedev/refine/issues/4543",
+"[DOC] i18n Provider Section -> i18n trying to fetch translation.json & updating the installation"
+]
+]
+},
+"huginn/huginn": {
+"other": [
+[
+"1774",
+"28",
+"https://github.com/huginn/huginn/issues/1774",
+" Proposing Huginn.io - Homepage and Scenario sharing site for Huginn "
+],
+[
+"1632",
+"12",
+"https://github.com/huginn/huginn/issues/1632",
+"Integration with homeassistant"
+],
+[
+"2563",
+"6",
+"https://github.com/huginn/huginn/issues/2563",
+"Running huginn on Raspberry Pi 4 - 4GB ram"
+],
+[
+"2757",
+"6",
+"https://github.com/huginn/huginn/issues/2757",
+"WebGUI isn't coming up (host OS: unRAID, official docker container)"
+],
+[
+"2964",
+"6",
+"https://github.com/huginn/huginn/issues/2964",
+"Loses connection to postgres and never recovers."
+],
+[
+"3037",
+"5",
+"https://github.com/huginn/huginn/issues/3037",
+"Twitter Service not showing up (Huginn on docker)"
+],
+[
+"166",
+"6",
+"https://github.com/huginn/huginn/issues/166",
+"Create Huginn iPhone / Android app"
+],
+[
+"3306",
+"5",
+"https://github.com/huginn/huginn/issues/3306",
+"Issues, Pull Requests and Milestones Cleanup (housekeeping)"
+],
+[
+"3134",
+"5",
+"https://github.com/huginn/huginn/issues/3134",
+"Newbie100%: 502 error and [YOUR_SERVER_FQDN]?"
+],
+[
+"3300",
+"5",
+"https://github.com/huginn/huginn/issues/3300",
+"A process blockage"
+],
+[
+"3386",
+"5",
+"https://github.com/huginn/huginn/issues/3386",
+"The recent Docker container images are broken"
+],
+[
+"2420",
+"4",
+"https://github.com/huginn/huginn/issues/2420",
+"Can't authenticate with Twitter"
+],
+[
+"3087",
+"4",
+"https://github.com/huginn/huginn/issues/3087",
+"DataOutputAgent: RSS feed output should pass validation"
+],
+[
+"3174",
+"4",
+"https://github.com/huginn/huginn/issues/3174",
+"Rootless Docker issues"
+],
+[
+"3232",
+"4",
+"https://github.com/huginn/huginn/issues/3232",
+"diagrams are broken since last commits"
+],
+[
+"2223",
+"4",
+"https://github.com/huginn/huginn/issues/2223",
+"Make WebhookAgent CORS compatible"
+],
+[
+"34",
+"3",
+"https://github.com/huginn/huginn/issues/34",
+"The future of Huginn"
+],
+[
+"873",
+"3",
+"https://github.com/huginn/huginn/issues/873",
+"Adding \"next\" page navigation to WebsiteAgent"
+],
+[
+"2398",
+"3",
+"https://github.com/huginn/huginn/issues/2398",
+"What is the password for the default user in the Docker container?"
+],
+[
+"2824",
+"3",
+"https://github.com/huginn/huginn/issues/2824",
+"Is it possible to disable user signup?"
+],
+[
+"2622",
+"3",
+"https://github.com/huginn/huginn/issues/2622",
+"[Info] Using Podman to run Huginn docker container (Fedora)"
+],
+[
+"2974",
+"3",
+"https://github.com/huginn/huginn/issues/2974",
+"Update to rails 6.0.3.6 to make huggin installable again"
+],
+[
+"2957",
+"3",
+"https://github.com/huginn/huginn/issues/2957",
+"How to extract uneven items from website, like category?"
+],
+[
+"3228",
+"3",
+"https://github.com/huginn/huginn/issues/3228",
+"SMTP Error: SSL_connect returned=1 errno=0 state=error: certificate verify failed (self signed certificate)"
+],
+[
+"3324",
+"3",
+"https://github.com/huginn/huginn/issues/3324",
+"manual install & update - error in Ruby install "
+],
+[
+"813",
+"2",
+"https://github.com/huginn/huginn/issues/813",
+"Upgrading Scenarios"
+],
+[
+"1429",
+"2",
+"https://github.com/huginn/huginn/issues/1429",
+"How to Disable new user login"
+],
+[
+"2569",
+"2",
+"https://github.com/huginn/huginn/issues/2569",
+"The change you wanted was rejected"
+],
+[
+"2598",
+"2",
+"https://github.com/huginn/huginn/issues/2598",
+"Helm chart?"
+],
+[
+"2807",
+"2",
+"https://github.com/huginn/huginn/issues/2807",
+"Events not consistently being received by appropriate agents, despite working with dry runs"
+]
+],
+"cant_do_x_missing_primitive": [
+[
+"2648",
+"20",
+"https://github.com/huginn/huginn/issues/2648",
+"Request: make a Docker image that is compatible with ARM devices"
+],
+[
+"2228",
+"11",
+"https://github.com/huginn/huginn/issues/2228",
+"Add support for sending attachments from Pushover Agent"
+],
+[
+"2498",
+"5",
+"https://github.com/huginn/huginn/issues/2498",
+"Feature request: Error handling event type or agent?"
+],
+[
+"2230",
+"3",
+"https://github.com/huginn/huginn/issues/2230",
+"Request: Mastodon agent"
+],
+[
+"1253",
+"2",
+"https://github.com/huginn/huginn/issues/1253",
+"Feature request: Option to sort working column"
+],
+[
+"2441",
+"2",
+"https://github.com/huginn/huginn/issues/2441",
+"Agent Request: Join Agent [Bounty]"
+]
+],
+"versioning_merge": [
+[
+"3147",
+"15",
+"https://github.com/huginn/huginn/issues/3147",
+"Git error unsafe repository"
+],
+[
+"2439",
+"3",
+"https://github.com/huginn/huginn/issues/2439",
+"Use named docker volume for easy backup"
+]
+],
+"security_auth": [
+[
+"3074",
+"13",
+"https://github.com/huginn/huginn/issues/3074",
+"SSO Support"
+]
+],
+"ai_llm": [
+[
+"2228",
+"11",
+"https://github.com/huginn/huginn/issues/2228",
+"Add support for sending attachments from Pushover Agent"
+],
+[
+"262",
+"5",
+"https://github.com/huginn/huginn/issues/262",
+"EventMixer Agent"
+],
+[
+"2498",
+"5",
+"https://github.com/huginn/huginn/issues/2498",
+"Feature request: Error handling event type or agent?"
+],
+[
+"2548",
+"5",
+"https://github.com/huginn/huginn/issues/2548",
+"Add retry capability to Website Agent"
+],
+[
+"1583",
+"4",
+"https://github.com/huginn/huginn/issues/1583",
+"Google Now-like \"Cards\" agent"
+],
+[
+"2230",
+"3",
+"https://github.com/huginn/huginn/issues/2230",
+"Request: Mastodon agent"
+],
+[
+"2860",
+"3",
+"https://github.com/huginn/huginn/issues/2860",
+"Matrix Agent"
+],
+[
+"2933",
+"3",
+"https://github.com/huginn/huginn/issues/2933",
+"Email Agent unable to send emails on Docker"
+],
+[
+"2895",
+"3",
+"https://github.com/huginn/huginn/issues/2895",
+"Weather Agent API Keys not available"
+],
+[
+"316",
+"2",
+"https://github.com/huginn/huginn/issues/316",
+"Facebook Graph API agent"
+],
+[
+"346",
+"2",
+"https://github.com/huginn/huginn/issues/346",
+"TrelloWebhookAgent (Initialization and Shutdown entry points)"
+],
+[
+"1577",
+"2",
+"https://github.com/huginn/huginn/issues/1577",
+" Receive attachment emails in IMAP agent"
+],
+[
+"2218",
+"2",
+"https://github.com/huginn/huginn/issues/2218",
+"SMTP email agent exception during receive. Execution expired."
+],
+[
+"2441",
+"2",
+"https://github.com/huginn/huginn/issues/2441",
+"Agent Request: Join Agent [Bounty]"
+],
+[
+"2983",
+"2",
+"https://github.com/huginn/huginn/issues/2983",
+"Adioso agent outdated"
+]
+],
+"determinism_concurrency": [
+[
+"2548",
+"5",
+"https://github.com/huginn/huginn/issues/2548",
+"Add retry capability to Website Agent"
+]
+],
+"data_relations_schema": [
+[
+"1253",
+"2",
+"https://github.com/huginn/huginn/issues/1253",
+"Feature request: Option to sort working column"
+]
+]
+},
+"kestra-io/kestra": {
+"escape_hatch_custom_code": [
+[
+"3060",
+"16",
+"https://github.com/kestra-io/kestra/issues/3060",
+"[Ecosystem] Add a Jetbrains IDE Plugin"
+],
+[
+"3016",
+"10",
+"https://github.com/kestra-io/kestra/issues/3016",
+"Add a Pulumi package equivalent to the Kestra Terraform provider"
+],
+[
+"2867",
+"4",
+"https://github.com/kestra-io/kestra/issues/2867",
+"Create Kestra plugin with tasks to list flows or namespaces and to download/upload flows "
+],
+[
+"579",
+"2",
+"https://github.com/kestra-io/kestra/issues/579",
+"add state save and delete to python and node package  "
+]
+],
+"performance_scale": [
+[
+"1400",
+"14",
+"https://github.com/kestra-io/kestra/issues/1400",
+"Concurrency limits: limit concurrent executions"
+],
+[
+"6739",
+"3",
+"https://github.com/kestra-io/kestra/issues/6739",
+"Ensure that the timeout property works on all tasks, both Flowable and Runnable"
+],
+[
+"2189",
+"3",
+"https://github.com/kestra-io/kestra/issues/2189",
+"Improve log scrolling to be more smooth (not flaky and not freezing the UI) when dealing with large amount of logs"
+]
+],
+"other": [
+[
+"3331",
+"10",
+"https://github.com/kestra-io/kestra/issues/3331",
+"Add Inputs, Outputs, Trigger and Variables autocompletion "
+],
+[
+"565",
+"5",
+"https://github.com/kestra-io/kestra/issues/565",
+"Type of workers to differentiate workload with runnerTags"
+],
+[
+"774",
+"5",
+"https://github.com/kestra-io/kestra/issues/774",
+"Enhance UI representation of subflows from a flow topology"
+],
+[
+"1528",
+"5",
+"https://github.com/kestra-io/kestra/issues/1528",
+"[UI] Refactor Outputs to gradually expand/collapse nested outputs"
+],
+[
+"5706",
+"5",
+"https://github.com/kestra-io/kestra/issues/5706",
+"Enhance multiple conditons with deadline"
+],
+[
+"3153",
+"4",
+"https://github.com/kestra-io/kestra/issues/3153",
+"New runners PoC: KUBERNETES and AWS_BATCH"
+],
+[
+"10210",
+"4",
+"https://github.com/kestra-io/kestra/issues/10210",
+"Expired KVs are not deleted from object storage"
+],
+[
+"3622",
+"4",
+"https://github.com/kestra-io/kestra/issues/3622",
+"Extend Autocompletion with task and taskrun expressions and the root available variables"
+],
+[
+"721",
+"3",
+"https://github.com/kestra-io/kestra/issues/721",
+"Template don't support description "
+],
+[
+"1865",
+"3",
+"https://github.com/kestra-io/kestra/issues/1865",
+"Simplify a secrets setup in the getting started process"
+],
+[
+"1907",
+"3",
+"https://github.com/kestra-io/kestra/issues/1907",
+"Deprecated Template"
+],
+[
+"4608",
+"3",
+"https://github.com/kestra-io/kestra/issues/4608",
+"Chat with your Elasticsearch data Blueprint."
+],
+[
+"5317",
+"3",
+"https://github.com/kestra-io/kestra/issues/5317",
+"Rewrite in Go / Rust"
+],
+[
+"4879",
+"3",
+"https://github.com/kestra-io/kestra/issues/4879",
+"Add a Wait task (or Sleep/Delay task)"
+],
+[
+"5599",
+"3",
+"https://github.com/kestra-io/kestra/issues/5599",
+"Add Exit task to immediately end the execution in a Success/Warning/Killed state without processing any downstream tasks"
+],
+[
+"6461",
+"3",
+"https://github.com/kestra-io/kestra/issues/6461",
+"UI - 2 'Cancelled' Options"
+],
+[
+"4127",
+"3",
+"https://github.com/kestra-io/kestra/issues/4127",
+"[Cooldown issue] Validate the possibility to optionally pass taskrun.value as object instead of JSON"
+],
+[
+"1082",
+"2",
+"https://github.com/kestra-io/kestra/issues/1082",
+"Bulk replay from any task run in selected failed Executions "
+]
+],
+"cant_do_x_missing_primitive": [
+[
+"3016",
+"10",
+"https://github.com/kestra-io/kestra/issues/3016",
+"Add a Pulumi package equivalent to the Kestra Terraform provider"
+],
+[
+"5857",
+"5",
+"https://github.com/kestra-io/kestra/issues/5857",
+"Add flow-level SLA property"
+],
+[
+"939",
+"4",
+"https://github.com/kestra-io/kestra/issues/939",
+"Allow continuously pushing changes to flow YAML files added locally outside of Kestra UI - CLI `--watch` flag on kestra server commands "
+],
+[
+"2000",
+"4",
+"https://github.com/kestra-io/kestra/issues/2000",
+"Extend `errors` with a failed task ID(s) and, if possible, also the stack trace(s) of the failed task(s)"
+],
+[
+"3148",
+"4",
+"https://github.com/kestra-io/kestra/issues/3148",
+"Feature: provide core task for easily manipulating JSON structured data"
+],
+[
+"566",
+"3",
+"https://github.com/kestra-io/kestra/issues/566",
+"Allow customization of columns displayed in the Executions data table"
+],
+[
+"2197",
+"3",
+"https://github.com/kestra-io/kestra/issues/2197",
+"Change the value of the execution's inputs before starting a Replay"
+],
+[
+"2495",
+"3",
+"https://github.com/kestra-io/kestra/issues/2495",
+"Possibility to have subflow fully included in flow (template-like behaviour)"
+],
+[
+"5939",
+"3",
+"https://github.com/kestra-io/kestra/issues/5939",
+"Unqueue an execution to a different state than RUNNING"
+],
+[
+"5987",
+"3",
+"https://github.com/kestra-io/kestra/issues/5987",
+"Capture filename on input type `FILE` "
+],
+[
+"5617",
+"3",
+"https://github.com/kestra-io/kestra/issues/5617",
+"Add revision history for Namespace Files"
+],
+[
+"311",
+"2",
+"https://github.com/kestra-io/kestra/issues/311",
+"Add a parameter to allow concurrent execution of any trigger (incl. schedule trigger)"
+]
+],
+"data_relations_schema": [
+[
+"15952",
+"7",
+"https://github.com/kestra-io/kestra/issues/15952",
+"[EPIC] Filters, backend changes needed for filter"
+],
+[
+"5350",
+"5",
+"https://github.com/kestra-io/kestra/issues/5350",
+"Improve Cross-Flow Dependency view (Flow of Flows = Dependencies tab on the Flow page doesn't make it clear which flow depends on which one)"
+],
+[
+"3629",
+"4",
+"https://github.com/kestra-io/kestra/issues/3629",
+"[UI] ID Column in the Flows page too small when too many triggers"
+],
+[
+"2226",
+"3",
+"https://github.com/kestra-io/kestra/issues/2226",
+"Running executions are not shown with default date filter"
+],
+[
+"3720",
+"3",
+"https://github.com/kestra-io/kestra/issues/3720",
+"Add a dropdown filter on the Trigger UI allowing to show only enabled or disabled triggers"
+],
+[
+"5845",
+"3",
+"https://github.com/kestra-io/kestra/issues/5845",
+"Improvements of new filter functionality"
+]
+],
+"debugging_observability": [
+[
+"2000",
+"4",
+"https://github.com/kestra-io/kestra/issues/2000",
+"Extend `errors` with a failed task ID(s) and, if possible, also the stack trace(s) of the failed task(s)"
+],
+[
+"988",
+"3",
+"https://github.com/kestra-io/kestra/issues/988",
+"Adjust log handling in JDBC backend to be written in bulk/async rather than in real-time"
+],
+[
+"1054",
+"3",
+"https://github.com/kestra-io/kestra/issues/1054",
+"Provide a task to debug a flow"
+],
+[
+"2189",
+"3",
+"https://github.com/kestra-io/kestra/issues/2189",
+"Improve log scrolling to be more smooth (not flaky and not freezing the UI) when dealing with large amount of logs"
+]
+],
+"versioning_merge": [
+[
+"2403",
+"4",
+"https://github.com/kestra-io/kestra/issues/2403",
+"Add VS Code command \"Sync local files to kestra\" allowing to keep an entire local directory in sync with a specific namespace"
+],
+[
+"5617",
+"3",
+"https://github.com/kestra-io/kestra/issues/5617",
+"Add revision history for Namespace Files"
+],
+[
+"13601",
+"3",
+"https://github.com/kestra-io/kestra/issues/13601",
+"Make the \"Sync to System\" color theme set by default"
+],
+[
+"15614",
+"3",
+"https://github.com/kestra-io/kestra/issues/15614",
+"Make clear the supported postgres version"
+],
+[
+"16124",
+"3",
+"https://github.com/kestra-io/kestra/issues/16124",
+"[AI Copilot] Chat history should be isolated per flow instead of being shared across all flows"
+]
+],
+"testing": [
+[
+"844",
+"3",
+"https://github.com/kestra-io/kestra/issues/844",
+"Test unit / integration of flows"
+]
+],
+"security_auth": [
+[
+"1442",
+"3",
+"https://github.com/kestra-io/kestra/issues/1442",
+"Add SECRET-type input"
+]
+],
+"i18n_ux": [
+[
+"13601",
+"3",
+"https://github.com/kestra-io/kestra/issues/13601",
+"Make the \"Sync to System\" color theme set by default"
+]
+]
+},
+"apache/hop": {
+"escape_hatch_custom_code": [
+[
+"2333",
+"6",
+"https://github.com/apache/hop/issues/2333",
+"[Feature Request]: upgrade AWS SDK for VFS S3 to v2"
+]
+],
+"cant_do_x_missing_primitive": [
+[
+"2333",
+"6",
+"https://github.com/apache/hop/issues/2333",
+"[Feature Request]: upgrade AWS SDK for VFS S3 to v2"
+],
+[
+"6914",
+"6",
+"https://github.com/apache/hop/issues/6914",
+"[Feature Request]: Improvements to Git integration"
+],
+[
+"5715",
+"5",
+"https://github.com/apache/hop/issues/5715",
+"[Feature Request]: Split-Screen View for Workflows and Pipelines"
+],
+[
+"7547",
+"5",
+"https://github.com/apache/hop/issues/7547",
+"[Feature Request]: Plugins from a marketplace"
+],
+[
+"2946",
+"5",
+"https://github.com/apache/hop/issues/2946",
+"[Feature Request]: Add support for OpenLineage, a data lineage collection and analisys solution"
+],
+[
+"5524",
+"5",
+"https://github.com/apache/hop/issues/5524",
+"[Feature Request]: Iceberg Input&Output as standard component"
+],
+[
+"4878",
+"4",
+"https://github.com/apache/hop/issues/4878",
+"[Feature Request]: Update field in all transforms upon renaming"
+],
+[
+"5304",
+"4",
+"https://github.com/apache/hop/issues/5304",
+"[Feature Request]: Ability to Monitor Live Execution of Pipelines and Workflows"
+],
+[
+"5539",
+"4",
+"https://github.com/apache/hop/issues/5539",
+"[Feature Request]: Export Hop Jobs and Pipelines as Markdown Documentation"
+],
+[
+"2365",
+"3",
+"https://github.com/apache/hop/issues/2365",
+"[Feature Request]: Add MySQL bulk loader transform support in a pipeline"
+],
+[
+"4277",
+"3",
+"https://github.com/apache/hop/issues/4277",
+"[Feature Request]:Give access to http headers and query parameters when exposing an web service "
+],
+[
+"3103",
+"3",
+"https://github.com/apache/hop/issues/3103",
+"[Feature Request]: Add \"linting\" feature for code quality evaluation"
+],
+[
+"4935",
+"3",
+"https://github.com/apache/hop/issues/4935",
+"[Feature Request]: Hidden Arguments for Shell Action"
+],
+[
+"6188",
+"3",
+"https://github.com/apache/hop/issues/6188",
+"[Feature Request]: add a notification system to Hop Gui"
+],
+[
+"2627",
+"2",
+"https://github.com/apache/hop/issues/2627",
+"[Feature Request]: VFS authentication types"
+],
+[
+"3644",
+"2",
+"https://github.com/apache/hop/issues/3644",
+"[Feature Request]: Procolo s3 with Minio"
+],
+[
+"4692",
+"2",
+"https://github.com/apache/hop/issues/4692",
+"[Feature Request]: Web Service Response HTTP Status Code"
+],
+[
+"5182",
+"2",
+"https://github.com/apache/hop/issues/5182",
+"[Feature Request]: Add \"SQL from file\" functionality to \"Table Input\" transform"
+],
+[
+"5175",
+"2",
+"https://github.com/apache/hop/issues/5175",
+"[Feature Request]: Add a button to rotate extra views for workflow/pipeline graph"
+],
+[
+"4396",
+"2",
+"https://github.com/apache/hop/issues/4396",
+"[Feature Request]: Support for Prompting Language Models (OpenAI, Anthropic, Hugging Face, Mistral, and Ollama)"
+],
+[
+"4912",
+"2",
+"https://github.com/apache/hop/issues/4912",
+"[Feature Request]: Improved user interface for pipeline and workflow verification"
+],
+[
+"5087",
+"2",
+"https://github.com/apache/hop/issues/5087",
+"[Feature Request]: \"Check webservice availability\" to work behind a proxy"
+],
+[
+"3138",
+"2",
+"https://github.com/apache/hop/issues/3138",
+"[Feature Request]: Request for Enhanced Execution Information for Steps Inside Pipelines in Main Job Execution"
+],
+[
+"5621",
+"2",
+"https://github.com/apache/hop/issues/5621",
+"[Feature Request]: Automatic OpenAPI 3.0 (OAS) Documentation Export for Web Services"
+],
+[
+"5658",
+"2",
+"https://github.com/apache/hop/issues/5658",
+"[Feature Request]: Ability to export database impact analyses"
+],
+[
+"5938",
+"2",
+"https://github.com/apache/hop/issues/5938",
+"[Feature Request]: add a terminal widget to Hop Gui"
+],
+[
+"6056",
+"2",
+"https://github.com/apache/hop/issues/6056",
+"[Feature Request]: resize notes"
+],
+[
+"6885",
+"2",
+"https://github.com/apache/hop/issues/6885",
+"[Feature Request]: Automatic Hash for upsert (Insert/Update) component"
+],
+[
+"7223",
+"2",
+"https://github.com/apache/hop/issues/7223",
+"[Feature Request]: Include version number in Header bar"
+],
+[
+"5237",
+"2",
+"https://github.com/apache/hop/issues/5237",
+"[Feature Request]: Enable export/import of basic project/environment to enable easy moves between enviromments"
+],
+[
+"7470",
+"2",
+"https://github.com/apache/hop/issues/7470",
+"[Feature Request]: Add more drill-down options for scripts"
+],
+[
+"7486",
+"2",
+"https://github.com/apache/hop/issues/7486",
+"[Feature Request]: A dedicated Spark pipeline execution engine"
+],
+[
+"6595",
+"2",
+"https://github.com/apache/hop/issues/6595",
+"[Feature Request]: Rest Client/Rest Connection to be OAUTH 1/2 capable out of the box."
+],
+[
+"2628",
+"2",
+"https://github.com/apache/hop/issues/2628",
+"[Feature Request]: Implement Authentication Provider plugins"
+],
+[
+"7544",
+"2",
+"https://github.com/apache/hop/issues/7544",
+"[Feature Request]: Native Spark SQL support for the Spark pipeline engine"
+],
+[
+"4881",
+"2",
+"https://github.com/apache/hop/issues/4881",
+"[Feature Request]:  Enhanced Configuration File Selection in Environment Properties"
+],
+[
+"2838",
+"2",
+"https://github.com/apache/hop/issues/2838",
+"[Feature Request]: Implement bulk apis in Salesforce transforms"
+],
+[
+"2363",
+"1",
+"https://github.com/apache/hop/issues/2363",
+"[Feature Request]: Support Opening a file via Drag&Drop from file browser"
+]
+],
+"versioning_merge": [
+[
+"6914",
+"6",
+"https://github.com/apache/hop/issues/6914",
+"[Feature Request]: Improvements to Git integration"
+],
+[
+"5539",
+"4",
+"https://github.com/apache/hop/issues/5539",
+"[Feature Request]: Export Hop Jobs and Pipelines as Markdown Documentation"
+],
+[
+"5995",
+"4",
+"https://github.com/apache/hop/issues/5995",
+"[Task]: Merge explorer and data orchestration perspective"
+],
+[
+"4849",
+"3",
+"https://github.com/apache/hop/issues/4849",
+"[Bug]: HOP_LOG_LEVEL=Minimal not considered on Kubernetes environment"
+],
+[
+"5621",
+"2",
+"https://github.com/apache/hop/issues/5621",
+"[Feature Request]: Automatic OpenAPI 3.0 (OAS) Documentation Export for Web Services"
+],
+[
+"5658",
+"2",
+"https://github.com/apache/hop/issues/5658",
+"[Feature Request]: Ability to export database impact analyses"
+],
+[
+"7223",
+"2",
+"https://github.com/apache/hop/issues/7223",
+"[Feature Request]: Include version number in Header bar"
+],
+[
+"5237",
+"2",
+"https://github.com/apache/hop/issues/5237",
+"[Feature Request]: Enable export/import of basic project/environment to enable easy moves between enviromments"
+],
+[
+"4881",
+"2",
+"https://github.com/apache/hop/issues/4881",
+"[Feature Request]:  Enhanced Configuration File Selection in Environment Properties"
+]
+],
+"data_relations_schema": [
+[
+"5715",
+"5",
+"https://github.com/apache/hop/issues/5715",
+"[Feature Request]: Split-Screen View for Workflows and Pipelines"
+]
+],
+"other": [
+[
+"6163",
+"4",
+"https://github.com/apache/hop/issues/6163",
+"[Task]: Selection of the latest projects used and searchable list"
+],
+[
+"8599",
+"3",
+"https://github.com/apache/hop/issues/8599",
+"[Bug]: \"Add Project \u2192 In Folder\" Browse converts home folder into ${PROJECT_HOME}, producing an endless substitution loop"
+],
+[
+"5201",
+"2",
+"https://github.com/apache/hop/issues/5201",
+"[Bug]: Calculator - missing URL encoding/decoding functions"
+],
+[
+"7430",
+"2",
+"https://github.com/apache/hop/issues/7430",
+"[Task]: Improve canvas rendering in Hop Web"
+],
+[
+"8434",
+"2",
+"https://github.com/apache/hop/issues/8434",
+"[Task]: I want crispy images in the treeviewer in hop web"
+],
+[
+"4",
+"1",
+"https://github.com/apache/hop/issues/4",
+"Remove Karaf from the code"
+],
+[
+"2152",
+"1",
+"https://github.com/apache/hop/issues/2152",
+"[Bug]: Metadata not correctly propagated to Hop server when using exported resources"
+],
+[
+"2217",
+"1",
+"https://github.com/apache/hop/issues/2217",
+"[Task]: add Weblate to translation contribution guide"
+],
+[
+"2216",
+"1",
+"https://github.com/apache/hop/issues/2216",
+"[Task]: Move Hop resources inside docker container"
+]
+],
+"security_auth": [
+[
+"4025",
+"2",
+"https://github.com/apache/hop/issues/4025",
+"[Task]: Documentation improvement - Metadata injection"
+],
+[
+"6595",
+"2",
+"https://github.com/apache/hop/issues/6595",
+"[Feature Request]: Rest Client/Rest Connection to be OAUTH 1/2 capable out of the box."
+]
+],
+"i18n_ux": [
+[
+"4396",
+"2",
+"https://github.com/apache/hop/issues/4396",
+"[Feature Request]: Support for Prompting Language Models (OpenAI, Anthropic, Hugging Face, Mistral, and Ollama)"
+]
+],
+"ai_llm": [
+[
+"4396",
+"2",
+"https://github.com/apache/hop/issues/4396",
+"[Feature Request]: Support for Prompting Language Models (OpenAI, Anthropic, Hugging Face, Mistral, and Ollama)"
+]
+]
+},
+"lowdefy/lowdefy": {
+"other": [
+[
+"642",
+"5",
+"https://github.com/lowdefy/lowdefy/issues/642",
+"API endpoints/webhooks/data pipelines"
+],
+[
+"689",
+"3",
+"https://github.com/lowdefy/lowdefy/issues/689",
+"Switch statement operator."
+],
+[
+"723",
+"3",
+"https://github.com/lowdefy/lowdefy/issues/723",
+"Lowdefy Node.js server"
+],
+[
+"297",
+"2",
+"https://github.com/lowdefy/lowdefy/issues/297",
+"Knex SQL Connector"
+],
+[
+"690",
+"2",
+"https://github.com/lowdefy/lowdefy/issues/690",
+"Create JSON Web Tokens for connections"
+],
+[
+"639",
+"2",
+"https://github.com/lowdefy/lowdefy/issues/639",
+"Nextjs static site build"
+],
+[
+"841",
+"2",
+"https://github.com/lowdefy/lowdefy/issues/841",
+"Do not use module federation for Renderer on production servers"
+],
+[
+"517",
+"1",
+"https://github.com/lowdefy/lowdefy/issues/517",
+"Shortcut keys to fire events."
+],
+[
+"783",
+"1",
+"https://github.com/lowdefy/lowdefy/issues/783",
+"Support `_uuid` on the client side and support different UUID versions"
+],
+[
+"1051",
+"1",
+"https://github.com/lowdefy/lowdefy/issues/1051",
+"Add a _dayjs or _moment operator for more convenient date logic."
+],
+[
+"887",
+"1",
+"https://github.com/lowdefy/lowdefy/issues/887",
+"Update Google Sheets tutorial"
+],
+[
+"641",
+"1",
+"https://github.com/lowdefy/lowdefy/issues/641",
+"Replace data objects on requests with a `payload` data object"
+],
+[
+"614",
+"1",
+"https://github.com/lowdefy/lowdefy/issues/614",
+"Unable to serve Lowdefy app when using Ingress on Kubernetes (but works with NodePort)"
+],
+[
+"637",
+"1",
+"https://github.com/lowdefy/lowdefy/issues/637",
+"CLI command to update an app"
+],
+[
+"685",
+"1",
+"https://github.com/lowdefy/lowdefy/issues/685",
+"Document responsive layouts"
+],
+[
+"745",
+"1",
+"https://github.com/lowdefy/lowdefy/issues/745",
+"Add async options to actions"
+],
+[
+"724",
+"1",
+"https://github.com/lowdefy/lowdefy/issues/724",
+"Add event debouncing "
+],
+[
+"670",
+"1",
+"https://github.com/lowdefy/lowdefy/issues/670",
+"Make blocks server URL configurable."
+],
+[
+"1680",
+"1",
+"https://github.com/lowdefy/lowdefy/issues/1680",
+"Tutorial sqlite connection doesn't seem to work"
+],
+[
+"1562",
+"1",
+"https://github.com/lowdefy/lowdefy/issues/1562",
+"Lowdefy4.0DocsError"
+],
+[
+"2010",
+"1",
+"https://github.com/lowdefy/lowdefy/issues/2010",
+"Lowdefy Static Site Output"
+],
+[
+"1512",
+"1",
+"https://github.com/lowdefy/lowdefy/issues/1512",
+"Using Postgresql lowdefy seems to just create new connections and never close idle ones."
+],
+[
+"799",
+"1",
+"https://github.com/lowdefy/lowdefy/issues/799",
+"_media doesn't evaluate dynamically"
+],
+[
+"1315",
+"1",
+"https://github.com/lowdefy/lowdefy/issues/1315",
+"Add additional _array operators"
+],
+[
+"261",
+"0",
+"https://github.com/lowdefy/lowdefy/issues/261",
+"CLI command to build for Netlify"
+],
+[
+"196",
+"0",
+"https://github.com/lowdefy/lowdefy/issues/196",
+"Secrets"
+],
+[
+"314",
+"0",
+"https://github.com/lowdefy/lowdefy/issues/314",
+"SSH key in Netlify env variable error"
+],
+[
+"195",
+"0",
+"https://github.com/lowdefy/lowdefy/issues/195",
+"Google sheets connector"
+],
+[
+"146",
+"0",
+"https://github.com/lowdefy/lowdefy/issues/146",
+"MVP Checklist"
+],
+[
+"147",
+"0",
+"https://github.com/lowdefy/lowdefy/issues/147",
+"MVP: Connection controller"
+],
+[
+"123",
+"0",
+"https://github.com/lowdefy/lowdefy/issues/123",
+"When developing a custom block, localhost should not be cached"
+],
+[
+"148",
+"0",
+"https://github.com/lowdefy/lowdefy/issues/148",
+"MVP: Finalize initial blocks"
+],
+[
+"197",
+"0",
+"https://github.com/lowdefy/lowdefy/issues/197",
+"Refactor connections"
+],
+[
+"266",
+"0",
+"https://github.com/lowdefy/lowdefy/issues/266",
+"Add public web static files"
+],
+[
+"499",
+"0",
+"https://github.com/lowdefy/lowdefy/issues/499",
+"Button gets stuck in loading"
+]
+],
+"debugging_observability": [
+[
+"688",
+"5",
+"https://github.com/lowdefy/lowdefy/issues/688",
+"Server logging"
+],
+[
+"121",
+"0",
+"https://github.com/lowdefy/lowdefy/issues/121",
+"Fix error message when block type cannot be resolved"
+],
+[
+"562",
+"0",
+"https://github.com/lowdefy/lowdefy/issues/562",
+"Input label shows an error message when it is supposed to show a warning message"
+]
+],
+"versioning_merge": [
+[
+"956",
+"4",
+"https://github.com/lowdefy/lowdefy/issues/956",
+"Version 4 Progress"
+],
+[
+"447",
+"0",
+"https://github.com/lowdefy/lowdefy/issues/447",
+"Shutdown dev server if Lowdefy version changes."
+]
+],
+"escape_hatch_custom_code": [
+[
+"298",
+"3",
+"https://github.com/lowdefy/lowdefy/issues/298",
+"GraphQL connection plugin"
+],
+[
+"219",
+"0",
+"https://github.com/lowdefy/lowdefy/issues/219",
+"Module federation use dynamic script should only add a script once for each federated module"
+]
+],
+"cant_do_x_missing_primitive": [
+[
+"563",
+"1",
+"https://github.com/lowdefy/lowdefy/issues/563",
+"Allow url query parameters like id_token_hint and client_id to be specified in logout url if logoutFromProvider is false"
+],
+[
+"502",
+"0",
+"https://github.com/lowdefy/lowdefy/issues/502",
+"Feature Request: Firestore Connector"
+]
+],
+"data_relations_schema": [
+[
+"776",
+"1",
+"https://github.com/lowdefy/lowdefy/issues/776",
+"debounce option missing from Lowdefy schema"
+],
+[
+"269",
+"0",
+"https://github.com/lowdefy/lowdefy/issues/269",
+"Use ajv-errors for build schema errors"
+]
+],
+"security_auth": [
+[
+"1511",
+"1",
+"https://github.com/lowdefy/lowdefy/issues/1511",
+"Auth UserFields remapping does not work."
+],
+[
+"265",
+"0",
+"https://github.com/lowdefy/lowdefy/issues/265",
+"Server security and performance best practices"
+]
+],
+"performance_scale": [
+[
+"265",
+"0",
+"https://github.com/lowdefy/lowdefy/issues/265",
+"Server security and performance best practices"
+]
+],
+"testing": [
+[
+"133",
+"0",
+"https://github.com/lowdefy/lowdefy/issues/133",
+"Add test coverage for validate and Label validation"
+]
+],
+"determinism_concurrency": [
+[
+"470",
+"0",
+"https://github.com/lowdefy/lowdefy/issues/470",
+"Race condition for displayMessage federation delay throws error."
+]
+]
+},
+"openblocks-dev/openblocks": {
+"other": [
+[
+"404",
+"6",
+"https://github.com/openblocks-dev/openblocks/issues/404",
+"PocketBlocks = Openblocks + Pocketbase"
+],
+[
+"23",
+"4",
+"https://github.com/openblocks-dev/openblocks/issues/23",
+"Firebase / Firestore support"
+],
+[
+"31",
+"4",
+"https://github.com/openblocks-dev/openblocks/issues/31",
+"Friendly App URLs"
+],
+[
+"281",
+"4",
+"https://github.com/openblocks-dev/openblocks/issues/281",
+"I really want to know the cause and team of openblocks"
+],
+[
+"34",
+"3",
+"https://github.com/openblocks-dev/openblocks/issues/34",
+"Can supporting to hide the top menu bar, Show the app full screen in browser?"
+],
+[
+"38",
+"3",
+"https://github.com/openblocks-dev/openblocks/issues/38",
+"is there an HELM chart available? "
+],
+[
+"58",
+"1",
+"https://github.com/openblocks-dev/openblocks/issues/58",
+"code scanner"
+],
+[
+"40",
+"2",
+"https://github.com/openblocks-dev/openblocks/issues/40",
+"Add sqlite as a datasource"
+],
+[
+"312",
+"2",
+"https://github.com/openblocks-dev/openblocks/issues/312",
+"[Suggestion] Make query list more maintainable"
+],
+[
+"319",
+"2",
+"https://github.com/openblocks-dev/openblocks/issues/319",
+"Enhancement: Query Library should be organized by folders"
+],
+[
+"22",
+"2",
+"https://github.com/openblocks-dev/openblocks/issues/22",
+"More table controls (e.g. vertical scrolling)"
+],
+[
+"26",
+"2",
+"https://github.com/openblocks-dev/openblocks/issues/26",
+"Published App only Users"
+],
+[
+"376",
+"2",
+"https://github.com/openblocks-dev/openblocks/issues/376",
+"Is openblocks closing down?"
+],
+[
+"398",
+"2",
+"https://github.com/openblocks-dev/openblocks/issues/398",
+"None of the examples in the readme work (NXDOMAIN on cloud.openblocks.dev"
+],
+[
+"406",
+"2",
+"https://github.com/openblocks-dev/openblocks/issues/406",
+"Is Openblocks still worth getting involved with?\n"
+],
+[
+"135",
+"1",
+"https://github.com/openblocks-dev/openblocks/issues/135",
+"Support disable background mask for modal/drawer"
+],
+[
+"82",
+"1",
+"https://github.com/openblocks-dev/openblocks/issues/82",
+"Download table data from endpoint"
+],
+[
+"52",
+"0",
+"https://github.com/openblocks-dev/openblocks/issues/52",
+"Drag and drop projects into folders"
+],
+[
+"234",
+"1",
+"https://github.com/openblocks-dev/openblocks/issues/234",
+"Table Columns Fixed Width Custom Values"
+],
+[
+"214",
+"1",
+"https://github.com/openblocks-dev/openblocks/issues/214",
+"Question how to uncheck table row programmatically?"
+],
+[
+"169",
+"1",
+"https://github.com/openblocks-dev/openblocks/issues/169",
+"Google Single Sign On"
+],
+[
+"364",
+"1",
+"https://github.com/openblocks-dev/openblocks/issues/364",
+"Pocketbase backend"
+],
+[
+"392",
+"1",
+"https://github.com/openblocks-dev/openblocks/issues/392",
+"docker compose file is not available"
+],
+[
+"371",
+"1",
+"https://github.com/openblocks-dev/openblocks/issues/371",
+"Still maintained?"
+],
+[
+"340",
+"1",
+"https://github.com/openblocks-dev/openblocks/issues/340",
+"Support PostgreSQL as a DB for Openblocks"
+],
+[
+"317",
+"1",
+"https://github.com/openblocks-dev/openblocks/issues/317",
+"Copy/paste components/queries/... as JSON"
+],
+[
+"10",
+"1",
+"https://github.com/openblocks-dev/openblocks/issues/10",
+"Signup Restriction"
+],
+[
+"25",
+"1",
+"https://github.com/openblocks-dev/openblocks/issues/25",
+"How to integrate an Openblocks app into a website or intranet?"
+],
+[
+"24",
+"1",
+"https://github.com/openblocks-dev/openblocks/issues/24",
+"How to run openblocks behind proxy?"
+],
+[
+"123",
+"1",
+"https://github.com/openblocks-dev/openblocks/issues/123",
+"Server-Side Searching / Filtering for Table Comproment"
+],
+[
+"140",
+"1",
+"https://github.com/openblocks-dev/openblocks/issues/140",
+"Calendar block"
+],
+[
+"283",
+"1",
+"https://github.com/openblocks-dev/openblocks/issues/283",
+"How to clear query result?"
+],
+[
+"360",
+"1",
+"https://github.com/openblocks-dev/openblocks/issues/360",
+"how to validate form programmatically(react-jsonschema-form)"
+],
+[
+"408",
+"1",
+"https://github.com/openblocks-dev/openblocks/issues/408",
+"Openblocks documentation return 404 page."
+]
+],
+"cant_do_x_missing_primitive": [
+[
+"297",
+"5",
+"https://github.com/openblocks-dev/openblocks/issues/297",
+"[Feature Request] Dynamic datasource"
+],
+[
+"9",
+"2",
+"https://github.com/openblocks-dev/openblocks/issues/9",
+"[Feature Request] GraphQL Datasources"
+],
+[
+"302",
+"2",
+"https://github.com/openblocks-dev/openblocks/issues/302",
+"[Feature Request]  Access to execute the queries/workflow on external application"
+],
+[
+"14",
+"1",
+"https://github.com/openblocks-dev/openblocks/issues/14",
+"Ability to pass arguments to queries / js functions at the event handler"
+],
+[
+"259",
+"1",
+"https://github.com/openblocks-dev/openblocks/issues/259",
+"feature request: add map plugin"
+],
+[
+"156",
+"1",
+"https://github.com/openblocks-dev/openblocks/issues/156",
+"Add ability to trust a self-signed certificate"
+],
+[
+"132",
+"1",
+"https://github.com/openblocks-dev/openblocks/issues/132",
+"Feature request: Release management with versioning system"
+],
+[
+"298",
+"1",
+"https://github.com/openblocks-dev/openblocks/issues/298",
+"[Feature Request] TableComp: Pagination support for GraphQL relay cursor"
+]
+],
+"security_auth": [
+[
+"93",
+"3",
+"https://github.com/openblocks-dev/openblocks/issues/93",
+"Question: OAUTH integration with Keycloak"
+],
+[
+"18",
+"2",
+"https://github.com/openblocks-dev/openblocks/issues/18",
+"LDAP/AD/SSO support"
+],
+[
+"356",
+"1",
+"https://github.com/openblocks-dev/openblocks/issues/356",
+"Enhancement: Use AWS IAM Role credentials to connect to AWS resources"
+]
+],
+"versioning_merge": [
+[
+"83",
+"2",
+"https://github.com/openblocks-dev/openblocks/issues/83",
+"Support workspace environment variables "
+],
+[
+"132",
+"1",
+"https://github.com/openblocks-dev/openblocks/issues/132",
+"Feature request: Release management with versioning system"
+],
+[
+"172",
+"1",
+"https://github.com/openblocks-dev/openblocks/issues/172",
+"Openapi Import for datasources"
+]
+],
+"data_relations_schema": [
+[
+"70",
+"1",
+"https://github.com/openblocks-dev/openblocks/issues/70",
+"Inputs, including cascader and number, are not showing values or saving state in the list view component"
+],
+[
+"370",
+"1",
+"https://github.com/openblocks-dev/openblocks/issues/370",
+"Add event for expanded view display on table component"
+]
+],
+"escape_hatch_custom_code": [
+[
+"259",
+"1",
+"https://github.com/openblocks-dev/openblocks/issues/259",
+"feature request: add map plugin"
+]
+],
+"determinism_concurrency": [
+[
+"133",
+"1",
+"https://github.com/openblocks-dev/openblocks/issues/133",
+"Question: are the Event Handlers for a particular element run in sequence or in parallel"
+]
+],
+"performance_scale": [
+[
+"298",
+"1",
+"https://github.com/openblocks-dev/openblocks/issues/298",
+"[Feature Request] TableComp: Pagination support for GraphQL relay cursor"
+]
+]
+}
+}

@@ -1,0 +1,183 @@
+language,class_id,failure_class,primary_source,status,rce_rule_or_theorem
+Python,TYPEDYN,Runtime type error (dynamic typing),"docs.python.org (pickle, ctypes, glossary)",EXCLUDED,static typing W-TY-1..3; T4 preservation
+Python,NONTERM,Nontermination / stack overflow from recursion,"docs.python.org (pickle, ctypes, glossary)",EXCLUDED,"structural recursion only W-REC-1; T2 (struct_total, calls_eq_size)"
+Python,CODEINJ,Code injection / eval (CWE-94),CWE Top 25 2024,EXCLUDED,"no eval, reflection or JIT (10.1, roadmap 'rejected by derivation'); closed library 5.15"
+Python,OSCMD,"OS command injection (CWE-78, CWE-77)",CWE Top 25 2024,EXCLUDED,no process or shell primitive: no ambient authority (5.15)
+Python,DESER,Deserialization of untrusted data (CWE-502),CWE Top 25 2024,EXCLUDED,"inputs are typed event payloads (6.1, W-TY-1); no code in data; canonical JSON (decision 26)"
+Python,SQLI,SQL injection (CWE-89),CWE Top 25 2024,EXCLUDED,P1 v0.8 5.16 Text[Sql]: only Sql.lit(literal) and Sql.encode; W-CTX-1 refuses plain text in query text; T36 ctx_meta_from_literals; commit 9ab62d3c1
+Python,XSS,Cross-site scripting (CWE-79),CWE Top 25 2024,EXCLUDED,"P1 v0.8 5.16 Text[Html]/Text[Url]: markup only from literals, untrusted text only via encode (W-CTX-1); T36; commit 9ab62d3c1"
+Python,GILFREE,Races after free-threaded (no-GIL) Python,Python glossary (GIL),EXCLUDED,W-SPAWN-1 share nothing; T16
+Python,MAPORDER,Randomized map iteration / hash seed,Go spec; Python PYTHONHASHSEED,EXCLUDED,maps ordered (decision 26)
+Python,FFI,Foreign code memory errors,language FFI docs,GAP,"extern trust boundary named (5.11), not excluded: T6 assumes the callee touches only its buffers"
+Python,IOVF,Integer overflow or wraparound (CWE-190),CWE Top 25 2024,DEFINED,6.3 N2 checked arithmetic traps in every build (decision 38); explicit wrapping_/saturating_ (R4); T14
+Python,DOS,Uncontrolled resource consumption (CWE-400),CWE Top 25 2024,EXCLUDED,bounded loops 6.7 and LOOP_LIMIT W-LOOP-1; N9 size limits; budgets C.6; arena bound R3; T2
+Python,AUTHZ,"Missing/incorrect authentication or authorization (CWE-287, 306, 862, 863, 269, 352)",CWE Top 25 2024,EXCLUDED,"P1 v0.8 5.16 Cap[A]/Guarded[τ,A]: guarded state written only on events carrying the unforgeable, unstorable capability (W-CAP-1/2, T36 guarded_needs_cap); policy is what the program declares; commit 9ab62d3c1"
+Python,INPUTV,Improper input validation (CWE-20),CWE Top 25 2024,DEFINED,"P2 refined types 5.1 W-REF-1: payload outside `type R = τ where p` is refused at admission, state write breaking p refuses the event (T35, RCE/Refine.lean); commit aa0abd3ee"
+Python,GCPAUSE,Nondeterministic memory reclamation (GC),"docs.python.org (pickle, ctypes, glossary)",EXCLUDED,no GC (roadmap: rejected by derivation); arenas and affine drops
+Python,PATH,"Path traversal / unrestricted upload / SSRF (CWE-22, CWE-434, CWE-918)",CWE Top 25 2024,EXCLUDED,no file or network primitive (5.15); I/O only through events and logged extern (5.11)
+C,OOB,"Out-of-bounds read/write (CWE-125, CWE-787, CWE-119)",CWE Top 25 2024 (view 1430),DEFINED,6.3 N8 index trap; no pointers or pointer arithmetic (W-SAFE-1); T6
+C,UAF,Use after free / dangling reference (CWE-416),CWE Top 25 2024,EXCLUDED,"affine ownership W-OWN-1/2/3; second-class borrows (decision 9); arenas W-REG-1, 5.7; T6"
+C,NULL,Null dereference (CWE-476),CWE Top 25 2024,EXCLUDED,no null (decision 28); option T? with exhaustive match W-MATCH-1; 6.3 N10
+C,IOVF,Integer overflow or wraparound (CWE-190),CWE Top 25 2024,DEFINED,6.3 N2 checked arithmetic traps in every build (decision 38); explicit wrapping_/saturating_ (R4); T14
+C,RACE,Data race,language memory model,EXCLUDED,"tasks share only channels W-SPAWN-1; par footprints W-PAR-1; T16, T17, T1 over 6.8 ticks"
+C,UNINIT,Read of uninitialized memory,ISO C11 N1570 Annex J.2,EXCLUDED,every binding has an initializer (section 3 LetStmt/VarStmt); W-NAME-1; T4
+C,DIV0,Division by zero,language UB list / runtime error,DEFINED,"trap (decision 7); refuses the event, state unchanged (T8)"
+C,ALIAS,"Aliasing violation (strict aliasing, &mut uniqueness)",ISO C11 N1570 Annex J.2,EXCLUDED,no raw pointers; borrow paths T6 (RCE/Borrow.lean)
+C,EVALORD,Unsequenced side effects / evaluation order,"C11 6.5p2, J.2",EXCLUDED,"fixed left-to-right order, ANF pass preserves it (T34); T1"
+C,UNIONTAG,Wrong union field / invalid enum discriminant,ISO C11 N1570 Annex J.2,EXCLUDED,"kinds are tagged, exhaustive match W-MATCH-1; no unions or transmute W-SAFE-1"
+C,NEGCAST,"Out-of-range conversion (negative to unsigned, float to int)",Zig reference; C11 6.3.1.4,DEFINED,"`as` conversions range-checked, trap (6.3 N2)"
+C,OSCMD,"OS command injection (CWE-78, CWE-77)",CWE Top 25 2024,EXCLUDED,no process or shell primitive: no ambient authority (5.15)
+C,DOS,Uncontrolled resource consumption (CWE-400),CWE Top 25 2024,EXCLUDED,bounded loops 6.7 and LOOP_LIMIT W-LOOP-1; N9 size limits; budgets C.6; arena bound R3; T2
+C,SQLI,SQL injection (CWE-89),CWE Top 25 2024,EXCLUDED,P1 v0.8 5.16 Text[Sql]: only Sql.lit(literal) and Sql.encode; W-CTX-1 refuses plain text in query text; T36 ctx_meta_from_literals; commit 9ab62d3c1
+C,AUTHZ,"Missing/incorrect authentication or authorization (CWE-287, 306, 862, 863, 269, 352)",CWE Top 25 2024,EXCLUDED,"P1 v0.8 5.16 Cap[A]/Guarded[τ,A]: guarded state written only on events carrying the unforgeable, unstorable capability (W-CAP-1/2, T36 guarded_needs_cap); policy is what the program declares; commit 9ab62d3c1"
+C,SECRET,"Hard-coded credentials, information exposure (CWE-798, CWE-200)",CWE Top 25 2024,EXCLUDED,"P1 v0.8 5.16 Secret[τ]: no literal/constructor (no hard-coded credential), never in emit/channel/error/foreign (W-SEC-1); T36 noninterference up to equality bits; commit 9ab62d3c1"
+C,INPUTV,Improper input validation (CWE-20),CWE Top 25 2024,DEFINED,"P2 refined types 5.1 W-REF-1: payload outside `type R = τ where p` is refused at admission, state write breaking p refuses the event (T35, RCE/Refine.lean); commit aa0abd3ee"
+C,BUILDMEAN,Meaning changes with build mode / optimizer,ISO C11 N1570 Annex J.2,EXCLUDED,no build profile changes meaning (decision 38); T9-F/T9-L one reference trace
+C,FFI,Foreign code memory errors,language FFI docs,GAP,"extern trust boundary named (5.11), not excluded: T6 assumes the callee touches only its buffers"
+C++,OOB,"Out-of-bounds read/write (CWE-125, CWE-787, CWE-119)",CWE Top 25 2024 (view 1430),DEFINED,6.3 N8 index trap; no pointers or pointer arithmetic (W-SAFE-1); T6
+C++,UAF,Use after free / dangling reference (CWE-416),CWE Top 25 2024,EXCLUDED,"affine ownership W-OWN-1/2/3; second-class borrows (decision 9); arenas W-REG-1, 5.7; T6"
+C++,NULL,Null dereference (CWE-476),CWE Top 25 2024,EXCLUDED,no null (decision 28); option T? with exhaustive match W-MATCH-1; 6.3 N10
+C++,IOVF,Integer overflow or wraparound (CWE-190),CWE Top 25 2024,DEFINED,6.3 N2 checked arithmetic traps in every build (decision 38); explicit wrapping_/saturating_ (R4); T14
+C++,RACE,Data race,language memory model,EXCLUDED,"tasks share only channels W-SPAWN-1; par footprints W-PAR-1; T16, T17, T1 over 6.8 ticks"
+C++,UNINIT,Read of uninitialized memory,cppreference: undefined behavior,EXCLUDED,every binding has an initializer (section 3 LetStmt/VarStmt); W-NAME-1; T4
+C++,DIV0,Division by zero,language UB list / runtime error,DEFINED,"trap (decision 7); refuses the event, state unchanged (T8)"
+C++,ALIAS,"Aliasing violation (strict aliasing, &mut uniqueness)",cppreference: undefined behavior,EXCLUDED,no raw pointers; borrow paths T6 (RCE/Borrow.lean)
+C++,EVALORD,Unsequenced side effects / evaluation order,"C11 6.5p2, J.2",EXCLUDED,"fixed left-to-right order, ANF pass preserves it (T34); T1"
+C++,ODR,Multiple conflicting definitions (ODR),C++ [basic.def.odr],EXCLUDED,"W-NAME-2, W-MOD-3, W-TRAIT-2 coherence"
+C++,ITERINV,Iterator/reference invalidation,C++ container docs,EXCLUDED,values never mutated through a live borrow; loop elements are borrows W-OWN-3
+C++,PANIC,Panic/exception unwinding through frames,Rust reference; Java exceptions,EXCLUDED,"no exceptions or unwinding (decision 28, 36); typed error sets with try/catch (decision 15)"
+C++,UNIONTAG,Wrong union field / invalid enum discriminant,cppreference: undefined behavior,EXCLUDED,"kinds are tagged, exhaustive match W-MATCH-1; no unions or transmute W-SAFE-1"
+C++,LEAK,Reference-count cycles / leaks,Rust Rc docs,EXCLUDED,no Rc/Arc W-SAFE-1; value semantics (decision 10)
+C++,DOS,Uncontrolled resource consumption (CWE-400),CWE Top 25 2024,EXCLUDED,bounded loops 6.7 and LOOP_LIMIT W-LOOP-1; N9 size limits; budgets C.6; arena bound R3; T2
+C++,AUTHZ,"Missing/incorrect authentication or authorization (CWE-287, 306, 862, 863, 269, 352)",CWE Top 25 2024,EXCLUDED,"P1 v0.8 5.16 Cap[A]/Guarded[τ,A]: guarded state written only on events carrying the unforgeable, unstorable capability (W-CAP-1/2, T36 guarded_needs_cap); policy is what the program declares; commit 9ab62d3c1"
+C++,INPUTV,Improper input validation (CWE-20),CWE Top 25 2024,DEFINED,"P2 refined types 5.1 W-REF-1: payload outside `type R = τ where p` is refused at admission, state write breaking p refuses the event (T35, RCE/Refine.lean); commit aa0abd3ee"
+C++,BUILDMEAN,Meaning changes with build mode / optimizer,cppreference: undefined behavior,EXCLUDED,no build profile changes meaning (decision 38); T9-F/T9-L one reference trace
+Rust,RACE,Data race,language memory model,EXCLUDED,"tasks share only channels W-SPAWN-1; par footprints W-PAR-1; T16, T17, T1 over 6.8 ticks"
+Rust,UAF,Use after free / dangling reference (CWE-416),CWE Top 25 2024,EXCLUDED,"affine ownership W-OWN-1/2/3; second-class borrows (decision 9); arenas W-REG-1, 5.7; T6"
+Rust,ALIAS,"Aliasing violation (strict aliasing, &mut uniqueness)",Rust Reference: behavior considered undefined,EXCLUDED,no raw pointers; borrow paths T6 (RCE/Borrow.lean)
+Rust,UNIONTAG,Wrong union field / invalid enum discriminant,Rust Reference: behavior considered undefined,EXCLUDED,"kinds are tagged, exhaustive match W-MATCH-1; no unions or transmute W-SAFE-1"
+Rust,UNSAFEIO,"Escape hatches (unsafePerformIO, Obj.magic, unsafe, transmute)",GHC base docs; OCaml Obj; Rust reference,EXCLUDED,W-SAFE-1 refuses escape hatches; effects by context W-EFF-1
+Rust,PANIC,Panic/exception unwinding through frames,Rust reference; Java exceptions,EXCLUDED,"no exceptions or unwinding (decision 28, 36); typed error sets with try/catch (decision 15)"
+Rust,LEAK,Reference-count cycles / leaks,Rust Rc docs,EXCLUDED,no Rc/Arc W-SAFE-1; value semantics (decision 10)
+Rust,DEADLOCK,Deadlock,Rust Reference: behavior considered undefined,DEFINED,"Deadlock is a defined, logged outcome (decision 21); not prevented statically"
+Rust,IOVF,Integer overflow or wraparound (CWE-190),CWE Top 25 2024,DEFINED,6.3 N2 checked arithmetic traps in every build (decision 38); explicit wrapping_/saturating_ (R4); T14
+Rust,BUILDMEAN,Meaning changes with build mode / optimizer,Rust Reference: behavior considered undefined,EXCLUDED,no build profile changes meaning (decision 38); T9-F/T9-L one reference trace
+Rust,FFI,Foreign code memory errors,language FFI docs,GAP,"extern trust boundary named (5.11), not excluded: T6 assumes the callee touches only its buffers"
+Rust,DOS,Uncontrolled resource consumption (CWE-400),CWE Top 25 2024,EXCLUDED,bounded loops 6.7 and LOOP_LIMIT W-LOOP-1; N9 size limits; budgets C.6; arena bound R3; T2
+Rust,AUTHZ,"Missing/incorrect authentication or authorization (CWE-287, 306, 862, 863, 269, 352)",CWE Top 25 2024,EXCLUDED,"P1 v0.8 5.16 Cap[A]/Guarded[τ,A]: guarded state written only on events carrying the unforgeable, unstorable capability (W-CAP-1/2, T36 guarded_needs_cap); policy is what the program declares; commit 9ab62d3c1"
+Rust,INPUTV,Improper input validation (CWE-20),CWE Top 25 2024,DEFINED,"P2 refined types 5.1 W-REF-1: payload outside `type R = τ where p` is refused at admission, state write breaking p refuses the event (T35, RCE/Refine.lean); commit aa0abd3ee"
+Zig,OOB,"Out-of-bounds read/write (CWE-125, CWE-787, CWE-119)",CWE Top 25 2024 (view 1430),DEFINED,6.3 N8 index trap; no pointers or pointer arithmetic (W-SAFE-1); T6
+Zig,NULL,Null dereference (CWE-476),CWE Top 25 2024,EXCLUDED,no null (decision 28); option T? with exhaustive match W-MATCH-1; 6.3 N10
+Zig,IOVF,Integer overflow or wraparound (CWE-190),CWE Top 25 2024,DEFINED,6.3 N2 checked arithmetic traps in every build (decision 38); explicit wrapping_/saturating_ (R4); T14
+Zig,DIV0,Division by zero,language UB list / runtime error,DEFINED,"trap (decision 7); refuses the event, state unchanged (T8)"
+Zig,UNREACH,Reaching unreachable code,Zig reference; C23 unreachable,EXCLUDED,no unreachable primitive; exhaustive match W-MATCH-1/2
+Zig,NEGCAST,"Out-of-range conversion (negative to unsigned, float to int)",Zig reference; C11 6.3.1.4,DEFINED,"`as` conversions range-checked, trap (6.3 N2)"
+Zig,UNIONTAG,Wrong union field / invalid enum discriminant,Zig 0.14 language reference: Illegal Behavior,EXCLUDED,"kinds are tagged, exhaustive match W-MATCH-1; no unions or transmute W-SAFE-1"
+Zig,RELFAST,ReleaseFast turns safety-checked illegal behaviour into UB,Zig language reference (Illegal Behavior),EXCLUDED,decision 38: no build mode changes meaning
+Zig,UAF,Use after free / dangling reference (CWE-416),CWE Top 25 2024,EXCLUDED,"affine ownership W-OWN-1/2/3; second-class borrows (decision 9); arenas W-REG-1, 5.7; T6"
+Zig,RACE,Data race,language memory model,EXCLUDED,"tasks share only channels W-SPAWN-1; par footprints W-PAR-1; T16, T17, T1 over 6.8 ticks"
+Zig,ALIAS,"Aliasing violation (strict aliasing, &mut uniqueness)",Zig 0.14 language reference: Illegal Behavior,EXCLUDED,no raw pointers; borrow paths T6 (RCE/Borrow.lean)
+Zig,DOS,Uncontrolled resource consumption (CWE-400),CWE Top 25 2024,EXCLUDED,bounded loops 6.7 and LOOP_LIMIT W-LOOP-1; N9 size limits; budgets C.6; arena bound R3; T2
+Zig,FFI,Foreign code memory errors,language FFI docs,GAP,"extern trust boundary named (5.11), not excluded: T6 assumes the callee touches only its buffers"
+Zig,AUTHZ,"Missing/incorrect authentication or authorization (CWE-287, 306, 862, 863, 269, 352)",CWE Top 25 2024,EXCLUDED,"P1 v0.8 5.16 Cap[A]/Guarded[τ,A]: guarded state written only on events carrying the unforgeable, unstorable capability (W-CAP-1/2, T36 guarded_needs_cap); policy is what the program declares; commit 9ab62d3c1"
+Mojo,MOJOPTR,UnsafePointer misuse,Mojo manual (ownership),EXCLUDED,no raw pointers W-SAFE-1
+Mojo,UAF,Use after free / dangling reference (CWE-416),CWE Top 25 2024,EXCLUDED,"affine ownership W-OWN-1/2/3; second-class borrows (decision 9); arenas W-REG-1, 5.7; T6"
+Mojo,RACE,Data race,language memory model,EXCLUDED,"tasks share only channels W-SPAWN-1; par footprints W-PAR-1; T16, T17, T1 over 6.8 ticks"
+Mojo,SHMRACE,Shared-memory race between threads in a block,CUDA programming guide,EXCLUDED,W-GRP-3 lanes may not read another lane's slot in a phase; T23
+Mojo,IOVF,Integer overflow or wraparound (CWE-190),CWE Top 25 2024,DEFINED,6.3 N2 checked arithmetic traps in every build (decision 38); explicit wrapping_/saturating_ (R4); T14
+Mojo,OOB,"Out-of-bounds read/write (CWE-125, CWE-787, CWE-119)",CWE Top 25 2024 (view 1430),DEFINED,6.3 N8 index trap; no pointers or pointer arithmetic (W-SAFE-1); T6
+Mojo,GPUREAL,Actual accelerator execution,CUDA programming guide,GAP,device regions run on CPU in emitters (9.4 open question)
+Mojo,FFI,Foreign code memory errors,language FFI docs,GAP,"extern trust boundary named (5.11), not excluded: T6 assumes the callee touches only its buffers"
+Mojo,DOS,Uncontrolled resource consumption (CWE-400),CWE Top 25 2024,EXCLUDED,bounded loops 6.7 and LOOP_LIMIT W-LOOP-1; N9 size limits; budgets C.6; arena bound R3; T2
+Mojo,AUTHZ,"Missing/incorrect authentication or authorization (CWE-287, 306, 862, 863, 269, 352)",CWE Top 25 2024,EXCLUDED,"P1 v0.8 5.16 Cap[A]/Guarded[τ,A]: guarded state written only on events carrying the unforgeable, unstorable capability (W-CAP-1/2, T36 guarded_needs_cap); policy is what the program declares; commit 9ab62d3c1"
+Go,RACE,Data race,language memory model,EXCLUDED,"tasks share only channels W-SPAWN-1; par footprints W-PAR-1; T16, T17, T1 over 6.8 ticks"
+Go,NULL,Null dereference (CWE-476),CWE Top 25 2024,EXCLUDED,no null (decision 28); option T? with exhaustive match W-MATCH-1; 6.3 N10
+Go,IOVF,Integer overflow or wraparound (CWE-190),CWE Top 25 2024,DEFINED,6.3 N2 checked arithmetic traps in every build (decision 38); explicit wrapping_/saturating_ (R4); T14
+Go,GOROUT,Goroutine/task leak,Go memory model,EXCLUDED,structured spawn W-SCOPE-1 (0.6); scope ends after every child T26 (model)
+Go,SELECTRAND,Uniform random select choice,"Go spec, select statements",EXCLUDED,"select rotation 6.8, T11; nondet only logged T21"
+Go,MAPORDER,Randomized map iteration / hash seed,Go spec; Python PYTHONHASHSEED,EXCLUDED,maps ordered (decision 26)
+Go,DEADLOCK,Deadlock,Go memory model; Go spec,DEFINED,"Deadlock is a defined, logged outcome (decision 21); not prevented statically"
+Go,OOB,"Out-of-bounds read/write (CWE-125, CWE-787, CWE-119)",CWE Top 25 2024 (view 1430),DEFINED,6.3 N8 index trap; no pointers or pointer arithmetic (W-SAFE-1); T6
+Go,DOS,Uncontrolled resource consumption (CWE-400),CWE Top 25 2024,EXCLUDED,bounded loops 6.7 and LOOP_LIMIT W-LOOP-1; N9 size limits; budgets C.6; arena bound R3; T2
+Go,SQLI,SQL injection (CWE-89),CWE Top 25 2024,EXCLUDED,P1 v0.8 5.16 Text[Sql]: only Sql.lit(literal) and Sql.encode; W-CTX-1 refuses plain text in query text; T36 ctx_meta_from_literals; commit 9ab62d3c1
+Go,AUTHZ,"Missing/incorrect authentication or authorization (CWE-287, 306, 862, 863, 269, 352)",CWE Top 25 2024,EXCLUDED,"P1 v0.8 5.16 Cap[A]/Guarded[τ,A]: guarded state written only on events carrying the unforgeable, unstorable capability (W-CAP-1/2, T36 guarded_needs_cap); policy is what the program declares; commit 9ab62d3c1"
+Go,INPUTV,Improper input validation (CWE-20),CWE Top 25 2024,DEFINED,"P2 refined types 5.1 W-REF-1: payload outside `type R = τ where p` is refused at admission, state write breaking p refuses the event (T35, RCE/Refine.lean); commit aa0abd3ee"
+Go,GCPAUSE,Nondeterministic memory reclamation (GC),Go memory model; Go spec,EXCLUDED,no GC (roadmap: rejected by derivation); arenas and affine drops
+Java/JVM,RACE,Data race,language memory model,EXCLUDED,"tasks share only channels W-SPAWN-1; par footprints W-PAR-1; T16, T17, T1 over 6.8 ticks"
+Java/JVM,NULL,Null dereference (CWE-476),CWE Top 25 2024,EXCLUDED,no null (decision 28); option T? with exhaustive match W-MATCH-1; 6.3 N10
+Java/JVM,IOVF,Integer overflow or wraparound (CWE-190),CWE Top 25 2024,DEFINED,6.3 N2 checked arithmetic traps in every build (decision 38); explicit wrapping_/saturating_ (R4); T14
+Java/JVM,REFLECT,"Reflection, ClassCastException",JLS 5.5 / 15.16,EXCLUDED,no reflection; no downcasts; T4
+Java/JVM,DESER,Deserialization of untrusted data (CWE-502),CWE Top 25 2024,EXCLUDED,"inputs are typed event payloads (6.1, W-TY-1); no code in data; canonical JSON (decision 26)"
+Java/JVM,GCPAUSE,Nondeterministic memory reclamation (GC),"JLS SE21 ch.15, ch.17",EXCLUDED,no GC (roadmap: rejected by derivation); arenas and affine drops
+Java/JVM,DIV0,Division by zero,language UB list / runtime error,DEFINED,"trap (decision 7); refuses the event, state unchanged (T8)"
+Java/JVM,OOB,"Out-of-bounds read/write (CWE-125, CWE-787, CWE-119)",CWE Top 25 2024 (view 1430),DEFINED,6.3 N8 index trap; no pointers or pointer arithmetic (W-SAFE-1); T6
+Java/JVM,DOS,Uncontrolled resource consumption (CWE-400),CWE Top 25 2024,EXCLUDED,bounded loops 6.7 and LOOP_LIMIT W-LOOP-1; N9 size limits; budgets C.6; arena bound R3; T2
+Java/JVM,SQLI,SQL injection (CWE-89),CWE Top 25 2024,EXCLUDED,P1 v0.8 5.16 Text[Sql]: only Sql.lit(literal) and Sql.encode; W-CTX-1 refuses plain text in query text; T36 ctx_meta_from_literals; commit 9ab62d3c1
+Java/JVM,XSS,Cross-site scripting (CWE-79),CWE Top 25 2024,EXCLUDED,"P1 v0.8 5.16 Text[Html]/Text[Url]: markup only from literals, untrusted text only via encode (W-CTX-1); T36; commit 9ab62d3c1"
+Java/JVM,AUTHZ,"Missing/incorrect authentication or authorization (CWE-287, 306, 862, 863, 269, 352)",CWE Top 25 2024,EXCLUDED,"P1 v0.8 5.16 Cap[A]/Guarded[τ,A]: guarded state written only on events carrying the unforgeable, unstorable capability (W-CAP-1/2, T36 guarded_needs_cap); policy is what the program declares; commit 9ab62d3c1"
+Java/JVM,SECRET,"Hard-coded credentials, information exposure (CWE-798, CWE-200)",CWE Top 25 2024,EXCLUDED,"P1 v0.8 5.16 Secret[τ]: no literal/constructor (no hard-coded credential), never in emit/channel/error/foreign (W-SEC-1); T36 noninterference up to equality bits; commit 9ab62d3c1"
+Java/JVM,INPUTV,Improper input validation (CWE-20),CWE Top 25 2024,DEFINED,"P2 refined types 5.1 W-REF-1: payload outside `type R = τ where p` is refused at admission, state write breaking p refuses the event (T35, RCE/Refine.lean); commit aa0abd3ee"
+JS/TS,NUMPREC,Silent precision loss of integers (Number > 2^53),ECMA-262 Number type,EXCLUDED,"exact integer types (5.1), no implicit conversion W-TY-3"
+JS/TS,COERCE,Implicit type coercion in equality/arithmetic,ECMA-262 abstract equality,EXCLUDED,"6.3 N4 no mixed arithmetic, N6 structural equality, W-TY-3"
+JS/TS,PROTO,Prototype pollution (CWE-1321),CWE,EXCLUDED,"no prototypes, no dynamic fields; struct fields fixed (W-NAME-1)"
+JS/TS,UNSOUNDTS,"Type system unsoundness (any, bivariance, unchecked casts)",TypeScript handbook (type compatibility),EXCLUDED,"one checker, no any or cast between unrelated types; T4"
+JS/TS,CODEINJ,Code injection / eval (CWE-94),CWE Top 25 2024,EXCLUDED,"no eval, reflection or JIT (10.1, roadmap 'rejected by derivation'); closed library 5.15"
+JS/TS,XSS,Cross-site scripting (CWE-79),CWE Top 25 2024,EXCLUDED,"P1 v0.8 5.16 Text[Html]/Text[Url]: markup only from literals, untrusted text only via encode (W-CTX-1); T36; commit 9ab62d3c1"
+JS/TS,DESER,Deserialization of untrusted data (CWE-502),CWE Top 25 2024,EXCLUDED,"inputs are typed event payloads (6.1, W-TY-1); no code in data; canonical JSON (decision 26)"
+JS/TS,TYPEDYN,Runtime type error (dynamic typing),ECMA-262 2024; TypeScript handbook,EXCLUDED,static typing W-TY-1..3; T4 preservation
+JS/TS,DOS,Uncontrolled resource consumption (CWE-400),CWE Top 25 2024,EXCLUDED,bounded loops 6.7 and LOOP_LIMIT W-LOOP-1; N9 size limits; budgets C.6; arena bound R3; T2
+JS/TS,AUTHZ,"Missing/incorrect authentication or authorization (CWE-287, 306, 862, 863, 269, 352)",CWE Top 25 2024,EXCLUDED,"P1 v0.8 5.16 Cap[A]/Guarded[τ,A]: guarded state written only on events carrying the unforgeable, unstorable capability (W-CAP-1/2, T36 guarded_needs_cap); policy is what the program declares; commit 9ab62d3c1"
+JS/TS,INPUTV,Improper input validation (CWE-20),CWE Top 25 2024,DEFINED,"P2 refined types 5.1 W-REF-1: payload outside `type R = τ where p` is refused at admission, state write breaking p refuses the event (T35, RCE/Refine.lean); commit aa0abd3ee"
+JS/TS,NONDET,Nondeterministic scheduling / iteration order,ECMA-262 2024; TypeScript handbook,EXCLUDED,"deterministic ticks 6.8 (decision 21), select rotation T11, ordered maps (decision 26), nondet choices logged T21"
+Haskell,IOVF,Integer overflow or wraparound (CWE-190),CWE Top 25 2024,DEFINED,6.3 N2 checked arithmetic traps in every build (decision 38); explicit wrapping_/saturating_ (R4); T14
+Haskell,PARTIAL,Partial functions / non-exhaustive patterns,Haskell 2010 report,EXCLUDED,W-MATCH-1 exhaustive match; Map get returns V ! Missing (decision 34)
+Haskell,NONTERM,Nontermination / stack overflow from recursion,Haskell 2010 report ch.6; GHC System.IO.Unsafe,EXCLUDED,"structural recursion only W-REC-1; T2 (struct_total, calls_eq_size)"
+Haskell,UNSAFEIO,"Escape hatches (unsafePerformIO, Obj.magic, unsafe, transmute)",GHC base docs; OCaml Obj; Rust reference,EXCLUDED,W-SAFE-1 refuses escape hatches; effects by context W-EFF-1
+Haskell,LAZYLEAK,Space leaks from lazy evaluation,GHC docs,EXCLUDED,strict evaluation (section 6); N9; budgets C.6
+Haskell,GCPAUSE,Nondeterministic memory reclamation (GC),Haskell 2010 report ch.6; GHC System.IO.Unsafe,EXCLUDED,no GC (roadmap: rejected by derivation); arenas and affine drops
+Haskell,DEPTYPE,Proof obligations and dependent specifications not expressible,Lean/Coq docs,DEFINED,"P2 refined types 5.1 W-REF-1 (decidable fragment, T35); obligation discharged or refused, undecidable dependent types excluded by derivation (soundness/determinism); commit aa0abd3ee"
+Haskell,FFI,Foreign code memory errors,language FFI docs,GAP,"extern trust boundary named (5.11), not excluded: T6 assumes the callee touches only its buffers"
+OCaml,UNSAFEIO,"Escape hatches (unsafePerformIO, Obj.magic, unsafe, transmute)",GHC base docs; OCaml Obj; Rust reference,EXCLUDED,W-SAFE-1 refuses escape hatches; effects by context W-EFF-1
+OCaml,RACE,Data race,language memory model,EXCLUDED,"tasks share only channels W-SPAWN-1; par footprints W-PAR-1; T16, T17, T1 over 6.8 ticks"
+OCaml,NONTERM,Nontermination / stack overflow from recursion,"OCaml 5.2 manual: memory model, Obj",EXCLUDED,"structural recursion only W-REC-1; T2 (struct_total, calls_eq_size)"
+OCaml,IOVF,Integer overflow or wraparound (CWE-190),CWE Top 25 2024,DEFINED,6.3 N2 checked arithmetic traps in every build (decision 38); explicit wrapping_/saturating_ (R4); T14
+OCaml,PANIC,Panic/exception unwinding through frames,Rust reference; Java exceptions,EXCLUDED,"no exceptions or unwinding (decision 28, 36); typed error sets with try/catch (decision 15)"
+OCaml,PARTIAL,Partial functions / non-exhaustive patterns,Haskell 2010 report,EXCLUDED,W-MATCH-1 exhaustive match; Map get returns V ! Missing (decision 34)
+OCaml,GCPAUSE,Nondeterministic memory reclamation (GC),"OCaml 5.2 manual: memory model, Obj",EXCLUDED,no GC (roadmap: rejected by derivation); arenas and affine drops
+OCaml,FFI,Foreign code memory errors,language FFI docs,GAP,"extern trust boundary named (5.11), not excluded: T6 assumes the callee touches only its buffers"
+Lisp/Clojure,TYPEDYN,Runtime type error (dynamic typing),clojure.org reference: refs,EXCLUDED,static typing W-TY-1..3; T4 preservation
+Lisp/Clojure,NULL,Null dereference (CWE-476),CWE Top 25 2024,EXCLUDED,no null (decision 28); option T? with exhaustive match W-MATCH-1; 6.3 N10
+Lisp/Clojure,MACRO,Unhygienic macros,Lisp docs,EXCLUDED,no macros (decision 28)
+Lisp/Clojure,STMIO,Side effects inside retried transactions,Clojure refs docs,EXCLUDED,W-ATOM-1 forbids waits in atomic; atomic is all-or-none T30
+Lisp/Clojure,CODEINJ,Code injection / eval (CWE-94),CWE Top 25 2024,EXCLUDED,"no eval, reflection or JIT (10.1, roadmap 'rejected by derivation'); closed library 5.15"
+Lisp/Clojure,GCPAUSE,Nondeterministic memory reclamation (GC),clojure.org reference: refs,EXCLUDED,no GC (roadmap: rejected by derivation); arenas and affine drops
+Lisp/Clojure,NONTERM,Nontermination / stack overflow from recursion,clojure.org reference: refs,EXCLUDED,"structural recursion only W-REC-1; T2 (struct_total, calls_eq_size)"
+Lisp/Clojure,DOS,Uncontrolled resource consumption (CWE-400),CWE Top 25 2024,EXCLUDED,bounded loops 6.7 and LOOP_LIMIT W-LOOP-1; N9 size limits; budgets C.6; arena bound R3; T2
+Erlang/Elixir,ATOMS,Atom table / unbounded mailbox exhaustion,Erlang system limits,EXCLUDED,no dynamic atoms; bounded channels with Backpressure (decision 21)
+Erlang/Elixir,TYPEDYN,Runtime type error (dynamic typing),"erlang.org system limits (fetch failed, see ledger)",EXCLUDED,static typing W-TY-1..3; T4 preservation
+Erlang/Elixir,NONDET,Nondeterministic scheduling / iteration order,"erlang.org system limits (fetch failed, see ledger)",EXCLUDED,"deterministic ticks 6.8 (decision 21), select rotation T11, ordered maps (decision 26), nondet choices logged T21"
+Erlang/Elixir,PARTITION,Network partition and distributed consistency,Erlang distribution docs,GAP,node placement and replicated state are models (T31 'close to trivial'); no network failure semantics
+Erlang/Elixir,DEADLOCK,Deadlock,"erlang.org system limits (fetch failed, see ledger)",DEFINED,"Deadlock is a defined, logged outcome (decision 21); not prevented statically"
+Erlang/Elixir,DOS,Uncontrolled resource consumption (CWE-400),CWE Top 25 2024,EXCLUDED,bounded loops 6.7 and LOOP_LIMIT W-LOOP-1; N9 size limits; budgets C.6; arena bound R3; T2
+Erlang/Elixir,CODEINJ,Code injection / eval (CWE-94),CWE Top 25 2024,EXCLUDED,"no eval, reflection or JIT (10.1, roadmap 'rejected by derivation'); closed library 5.15"
+Erlang/Elixir,DESER,Deserialization of untrusted data (CWE-502),CWE Top 25 2024,EXCLUDED,"inputs are typed event payloads (6.1, W-TY-1); no code in data; canonical JSON (decision 26)"
+Lean/Coq (as program languages),PARTIALDEF,partial def / unchecked nontermination in proof languages,"Lean reference, recursive definitions",EXCLUDED,W-REC-1 refuses non-structural recursion; T2
+Lean/Coq (as program languages),DEPTYPE,Proof obligations and dependent specifications not expressible,Lean/Coq docs,DEFINED,"P2 refined types 5.1 W-REF-1 (decidable fragment, T35); obligation discharged or refused, undecidable dependent types excluded by derivation (soundness/determinism); commit aa0abd3ee"
+Lean/Coq (as program languages),EXTRACT,Trust in extraction to another language,Coq extraction manual,GAP,T9-L proved for Rust on a core only; Python/JS emitters tested (roadmap W7)
+Lean/Coq (as program languages),UNSAFEIO,"Escape hatches (unsafePerformIO, Obj.magic, unsafe, transmute)",GHC base docs; OCaml Obj; Rust reference,EXCLUDED,W-SAFE-1 refuses escape hatches; effects by context W-EFF-1
+Lean/Coq (as program languages),GCPAUSE,Nondeterministic memory reclamation (GC),Lean reference: recursive definitions; Rocq extraction (fetch failed),EXCLUDED,no GC (roadmap: rejected by derivation); arenas and affine drops
+SQL,SQLNULL,Three-valued NULL logic,SQLite quirks; SQL standard,EXCLUDED,no null; option explicit N10
+SQL,ISOL,Isolation anomalies (serialization anomaly),PostgreSQL transaction isolation docs,EXCLUDED,"events applied atomically and serially by delta (T8, 6.4)"
+SQL,FLEXTYPE,Flexible column typing,SQLite quirks,EXCLUDED,static typing of state fields W-STATE-1..3
+SQL,SQLI,SQL injection (CWE-89),CWE Top 25 2024,EXCLUDED,P1 v0.8 5.16 Text[Sql]: only Sql.lit(literal) and Sql.encode; W-CTX-1 refuses plain text in query text; T36 ctx_meta_from_literals; commit 9ab62d3c1
+SQL,AUTHZ,"Missing/incorrect authentication or authorization (CWE-287, 306, 862, 863, 269, 352)",CWE Top 25 2024,EXCLUDED,"P1 v0.8 5.16 Cap[A]/Guarded[τ,A]: guarded state written only on events carrying the unforgeable, unstorable capability (W-CAP-1/2, T36 guarded_needs_cap); policy is what the program declares; commit 9ab62d3c1"
+SQL,INPUTV,Improper input validation (CWE-20),CWE Top 25 2024,DEFINED,"P2 refined types 5.1 W-REF-1: payload outside `type R = τ where p` is refused at admission, state write breaking p refuses the event (T35, RCE/Refine.lean); commit aa0abd3ee"
+SQL,DOS,Uncontrolled resource consumption (CWE-400),CWE Top 25 2024,EXCLUDED,bounded loops 6.7 and LOOP_LIMIT W-LOOP-1; N9 size limits; budgets C.6; arena bound R3; T2
+CUDA,SHMRACE,Shared-memory race between threads in a block,CUDA programming guide,EXCLUDED,W-GRP-3 lanes may not read another lane's slot in a phase; T23
+CUDA,BARRIER,Divergent barrier,CUDA programming guide,EXCLUDED,W-GRP-2: barrier only at the top level of a group body
+CUDA,OOB,"Out-of-bounds read/write (CWE-125, CWE-787, CWE-119)",CWE Top 25 2024 (view 1430),DEFINED,6.3 N8 index trap; no pointers or pointer arithmetic (W-SAFE-1); T6
+CUDA,FLOATORD,Float reduction order varies by schedule,CUDA / parallel docs,EXCLUDED,fixed reduction tree T18; f32 rounded once N3 (T13)
+CUDA,IOVF,Integer overflow or wraparound (CWE-190),CWE Top 25 2024,DEFINED,6.3 N2 checked arithmetic traps in every build (decision 38); explicit wrapping_/saturating_ (R4); T14
+CUDA,GPUREAL,Actual accelerator execution,CUDA programming guide,GAP,device regions run on CPU in emitters (9.4 open question)
+CUDA,UAF,Use after free / dangling reference (CWE-416),CWE Top 25 2024,EXCLUDED,"affine ownership W-OWN-1/2/3; second-class borrows (decision 9); arenas W-REG-1, 5.7; T6"
+CUDA,NULL,Null dereference (CWE-476),CWE Top 25 2024,EXCLUDED,no null (decision 28); option T? with exhaustive match W-MATCH-1; 6.3 N10

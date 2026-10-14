@@ -1,0 +1,47 @@
+language,domain,rce_example,status,rce_construct_or_gap
+Python,scripting and text processing,crates/rce/spec/examples/20_strings.rce,RUNS,text methods 5.15
+Python,data pipelines (map/filter/fold),crates/rce/spec/examples/24_lambda.rce,RUNS,"closures, list methods"
+Python,numeric and scientific,crates/rce/spec/examples/19_floats.rce,RUNS,f64 N3
+Python,"machine learning (tensors, autodiff)",,GAP,"no tensor type, no autodiff transform, no accelerator lowering"
+Python,web services and HTTP,,GAP,no network I/O (5.15); only events and extern
+C,systems and device handles,crates/rce/spec/examples/48_linear_handle.rce,CHECKS,"linear structs 5.12, extern 5.11"
+C,C ABI interop,crates/rce/spec/examples/40_extern.rce,CHECKS,"extern ""C"" (5.11)"
+C,"OS kernels, drivers, MMIO",,GAP,"no raw memory, volatile or interrupt vectors beyond C.11.12"
+C,embedded real-time control,crates/rce/spec/examples/17_traffic_light.rce,RUNS,states and steps; deadlines C.11.12
+C++,generic programming,crates/rce/spec/examples/09_generics.rce,RUNS,"monomorphized generics, traits 5.9"
+C++,game and simulation state,crates/rce/spec/examples/30_state_machine_guarded.rce,RUNS,guarded steps
+C++,bit manipulation,crates/rce/spec/examples/27_bitops.rce,RUNS,bitwise ops
+Rust,ownership-checked systems code,crates/rce/spec/examples/12_borrow.rce,RUNS,second-class borrows
+Rust,arena allocation,crates/rce/spec/examples/41_arena_bound_wrapping.rce,RUNS,arenas with bound R3
+Rust,compilers and parsers (self-hosting),,GAP,W-REC-1 refuses mutual recursion; no file input as events; roadmap W1
+Rust,cryptography and hashing,rce-replace/examples/sha256_chain.rce,RUNS,sha256 text method (this change)
+Zig,comptime metaprogramming,crates/rce/spec/examples/32_comptime_block.rce,RUNS,comptime 5.10
+Zig,fixed-width unsigned arithmetic,crates/rce/spec/examples/46_u64.rce,RUNS,full-range u64 N2
+Mojo,SIMD lanes,crates/rce/spec/examples/43_simd_lanes.rce,RUNS,lane-wise arrays W-SIMD-1
+Mojo,accelerator kernels,crates/rce/spec/examples/44_device_region.rce,RUNS,device regions (CPU meaning only)
+Mojo,GPU code generation,,GAP,emitters run device regions on CPU (9.4)
+Go,channels and tasks,crates/rce/spec/examples/13_spawn_chan.rce,RUNS,"spawn, chan 5.8"
+Go,select over channels,crates/rce/spec/examples/47_select_fair.rce,RUNS,select rotation 6.8
+Go,network servers,,GAP,no network I/O (5.15)
+Java/JVM,enterprise state and records,crates/rce/spec/examples/04_bank_account.rce,RUNS,"states, events, errors"
+Java/JVM,inventory/business rules,crates/rce/spec/examples/31_inventory.rce,RUNS,maps and steps
+JS/TS,UI state machines,crates/rce/spec/examples/17_traffic_light.rce,RUNS,rce form to XState/SCXML (T9-F)
+JS/TS,browser DOM and events,,GAP,no DOM binding; events only through host
+Haskell,algebraic data and pattern matching,crates/rce/spec/examples/05_kind_match.rce,RUNS,"kinds, exhaustive match"
+Haskell,structural recursion over trees,crates/rce/spec/examples/39_structural_recursion.rce,RUNS,W-REC-1 structural
+Haskell,streams and generators,crates/rce/spec/examples/50_iterators.rce,RUNS,push iterators 5.14
+OCaml,nested variants,crates/rce/spec/examples/29_nested_kind.rce,RUNS,kinds
+OCaml,option and error handling,crates/rce/spec/examples/07_error_union.rce,RUNS,error sets
+Lisp/Clojure,persistent maps,crates/rce/spec/examples/21_maps.rce,RUNS,ordered maps
+Lisp/Clojure,transactional state,crates/rce/spec/examples/../conc06b/accept/04_scope_atomic.rce,RUNS,atomic T30
+Erlang/Elixir,actors,crates/rce/spec/examples/15_actor.rce,RUNS,actors with mailboxes
+Erlang/Elixir,supervision,crates/rce/spec/examples/../conc06b/accept/05_supervisor_lvar.rce,RUNS,supervisor C.11.11 (model)
+Erlang/Elixir,distribution over nodes,crates/rce/spec/examples/../conc06b/accept/03_distributed.rce,RUNS,node placement; partitions GAP
+Erlang/Elixir,real network distribution,,GAP,no network failure semantics
+Lean/Coq (as program languages),total functional programs,crates/rce/spec/examples/39_structural_recursion.rce,RUNS,"structural recursion, T2"
+Lean/Coq (as program languages),proof-carrying programs,crates/rce/spec/examples/51_refined_input.rce,RUNS,"refined types 5.1 W-REF-1, T35 (decidable fragment)"
+SQL,keyed state updates,crates/rce/spec/examples/21_maps.rce,RUNS,Map methods
+SQL,"declarative queries, joins, indexes",,GAP,no query language; only comprehensions over lists/maps
+CUDA,parallel reduction,crates/rce/spec/examples/../conc06/accept/02_par_for_reduce.rce,RUNS,"for ... par, fixed tree T18"
+CUDA,workgroups with barriers,crates/rce/spec/examples/../conc06b/accept/01_workgroup.rce,RUNS,group/barrier C.11.2
+CUDA,device kernel code generation,,GAP,no PTX/SPIR-V emitter

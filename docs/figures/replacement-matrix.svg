@@ -1,0 +1,81 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="526" font-family="Helvetica,Arial,sans-serif" font-size="12">
+<rect width="100%" height="100%" fill="white"/>
+<text x="10" y="22" font-size="15" font-weight="bold">RCE Draft 0.7 replacement matrix: failure classes per language family</text>
+<text x="10" y="42" fill="#444">bars: classes excluded / defined / GAP; right: domains with a running RCE example vs GAP</text>
+<text x="242" y="76" text-anchor="end">Python</text>
+<rect x="250.0" y="63" width="348.9" height="18" fill="#2b7a3d"/><text x="424.5" y="76" fill="white" text-anchor="middle" font-size="11">13</text>
+<rect x="598.9" y="63" width="53.7" height="18" fill="#7fb069"/><text x="625.8" y="76" fill="white" text-anchor="middle" font-size="11">2</text>
+<rect x="652.6" y="63" width="26.8" height="18" fill="#c0392b"/><text x="666.1" y="76" fill="white" text-anchor="middle" font-size="11">1</text>
+<text x="770" y="76">domains 3 run / 2 GAP</text>
+<text x="242" y="102" text-anchor="end">C</text>
+<rect x="250.0" y="89" width="348.9" height="18" fill="#2b7a3d"/><text x="424.5" y="102" fill="white" text-anchor="middle" font-size="11">13</text>
+<rect x="598.9" y="89" width="134.2" height="18" fill="#7fb069"/><text x="666.1" y="102" fill="white" text-anchor="middle" font-size="11">5</text>
+<rect x="733.2" y="89" width="26.8" height="18" fill="#c0392b"/><text x="746.6" y="102" fill="white" text-anchor="middle" font-size="11">1</text>
+<text x="770" y="102">domains 1 run / 1 GAP</text>
+<text x="242" y="128" text-anchor="end">C++</text>
+<rect x="250.0" y="115" width="375.8" height="18" fill="#2b7a3d"/><text x="437.9" y="128" fill="white" text-anchor="middle" font-size="11">14</text>
+<rect x="625.8" y="115" width="107.4" height="18" fill="#7fb069"/><text x="679.5" y="128" fill="white" text-anchor="middle" font-size="11">4</text>
+<text x="770" y="128">domains 3 run / 0 GAP</text>
+<text x="242" y="154" text-anchor="end">Rust</text>
+<rect x="250.0" y="141" width="268.4" height="18" fill="#2b7a3d"/><text x="384.2" y="154" fill="white" text-anchor="middle" font-size="11">10</text>
+<rect x="518.4" y="141" width="80.5" height="18" fill="#7fb069"/><text x="558.7" y="154" fill="white" text-anchor="middle" font-size="11">3</text>
+<rect x="598.9" y="141" width="26.8" height="18" fill="#c0392b"/><text x="612.4" y="154" fill="white" text-anchor="middle" font-size="11">1</text>
+<text x="770" y="154">domains 3 run / 1 GAP</text>
+<text x="242" y="180" text-anchor="end">Zig</text>
+<rect x="250.0" y="167" width="241.6" height="18" fill="#2b7a3d"/><text x="370.8" y="180" fill="white" text-anchor="middle" font-size="11">9</text>
+<rect x="491.6" y="167" width="107.4" height="18" fill="#7fb069"/><text x="545.3" y="180" fill="white" text-anchor="middle" font-size="11">4</text>
+<rect x="598.9" y="167" width="26.8" height="18" fill="#c0392b"/><text x="612.4" y="180" fill="white" text-anchor="middle" font-size="11">1</text>
+<text x="770" y="180">domains 2 run / 0 GAP</text>
+<text x="242" y="206" text-anchor="end">Mojo</text>
+<rect x="250.0" y="193" width="161.1" height="18" fill="#2b7a3d"/><text x="330.5" y="206" fill="white" text-anchor="middle" font-size="11">6</text>
+<rect x="411.1" y="193" width="53.7" height="18" fill="#7fb069"/><text x="437.9" y="206" fill="white" text-anchor="middle" font-size="11">2</text>
+<rect x="464.7" y="193" width="53.7" height="18" fill="#c0392b"/><text x="491.6" y="206" fill="white" text-anchor="middle" font-size="11">2</text>
+<text x="770" y="206">domains 2 run / 1 GAP</text>
+<text x="242" y="232" text-anchor="end">Go</text>
+<rect x="250.0" y="219" width="241.6" height="18" fill="#2b7a3d"/><text x="370.8" y="232" fill="white" text-anchor="middle" font-size="11">9</text>
+<rect x="491.6" y="219" width="107.4" height="18" fill="#7fb069"/><text x="545.3" y="232" fill="white" text-anchor="middle" font-size="11">4</text>
+<text x="770" y="232">domains 2 run / 1 GAP</text>
+<text x="242" y="258" text-anchor="end">Java/JVM</text>
+<rect x="250.0" y="245" width="268.4" height="18" fill="#2b7a3d"/><text x="384.2" y="258" fill="white" text-anchor="middle" font-size="11">10</text>
+<rect x="518.4" y="245" width="107.4" height="18" fill="#7fb069"/><text x="572.1" y="258" fill="white" text-anchor="middle" font-size="11">4</text>
+<text x="770" y="258">domains 2 run / 0 GAP</text>
+<text x="242" y="284" text-anchor="end">JS/TS</text>
+<rect x="250.0" y="271" width="295.3" height="18" fill="#2b7a3d"/><text x="397.6" y="284" fill="white" text-anchor="middle" font-size="11">11</text>
+<rect x="545.3" y="271" width="26.8" height="18" fill="#7fb069"/><text x="558.7" y="284" fill="white" text-anchor="middle" font-size="11">1</text>
+<text x="770" y="284">domains 1 run / 1 GAP</text>
+<text x="242" y="310" text-anchor="end">Haskell</text>
+<rect x="250.0" y="297" width="134.2" height="18" fill="#2b7a3d"/><text x="317.1" y="310" fill="white" text-anchor="middle" font-size="11">5</text>
+<rect x="384.2" y="297" width="53.7" height="18" fill="#7fb069"/><text x="411.1" y="310" fill="white" text-anchor="middle" font-size="11">2</text>
+<rect x="437.9" y="297" width="26.8" height="18" fill="#c0392b"/><text x="451.3" y="310" fill="white" text-anchor="middle" font-size="11">1</text>
+<text x="770" y="310">domains 3 run / 0 GAP</text>
+<text x="242" y="336" text-anchor="end">OCaml</text>
+<rect x="250.0" y="323" width="161.1" height="18" fill="#2b7a3d"/><text x="330.5" y="336" fill="white" text-anchor="middle" font-size="11">6</text>
+<rect x="411.1" y="323" width="26.8" height="18" fill="#7fb069"/><text x="424.5" y="336" fill="white" text-anchor="middle" font-size="11">1</text>
+<rect x="437.9" y="323" width="26.8" height="18" fill="#c0392b"/><text x="451.3" y="336" fill="white" text-anchor="middle" font-size="11">1</text>
+<text x="770" y="336">domains 2 run / 0 GAP</text>
+<text x="242" y="362" text-anchor="end">Lisp/Clojure</text>
+<rect x="250.0" y="349" width="214.7" height="18" fill="#2b7a3d"/><text x="357.4" y="362" fill="white" text-anchor="middle" font-size="11">8</text>
+<text x="770" y="362">domains 2 run / 0 GAP</text>
+<text x="242" y="388" text-anchor="end">Erlang/Elixir</text>
+<rect x="250.0" y="375" width="161.1" height="18" fill="#2b7a3d"/><text x="330.5" y="388" fill="white" text-anchor="middle" font-size="11">6</text>
+<rect x="411.1" y="375" width="26.8" height="18" fill="#7fb069"/><text x="424.5" y="388" fill="white" text-anchor="middle" font-size="11">1</text>
+<rect x="437.9" y="375" width="26.8" height="18" fill="#c0392b"/><text x="451.3" y="388" fill="white" text-anchor="middle" font-size="11">1</text>
+<text x="770" y="388">domains 3 run / 1 GAP</text>
+<text x="242" y="414" text-anchor="end">Lean/Coq (as program languages)</text>
+<rect x="250.0" y="401" width="80.5" height="18" fill="#2b7a3d"/><text x="290.3" y="414" fill="white" text-anchor="middle" font-size="11">3</text>
+<rect x="330.5" y="401" width="26.8" height="18" fill="#7fb069"/><text x="343.9" y="414" fill="white" text-anchor="middle" font-size="11">1</text>
+<rect x="357.4" y="401" width="26.8" height="18" fill="#c0392b"/><text x="370.8" y="414" fill="white" text-anchor="middle" font-size="11">1</text>
+<text x="770" y="414">domains 2 run / 0 GAP</text>
+<text x="242" y="440" text-anchor="end">SQL</text>
+<rect x="250.0" y="427" width="161.1" height="18" fill="#2b7a3d"/><text x="330.5" y="440" fill="white" text-anchor="middle" font-size="11">6</text>
+<rect x="411.1" y="427" width="26.8" height="18" fill="#7fb069"/><text x="424.5" y="440" fill="white" text-anchor="middle" font-size="11">1</text>
+<text x="770" y="440">domains 1 run / 1 GAP</text>
+<text x="242" y="466" text-anchor="end">CUDA</text>
+<rect x="250.0" y="453" width="134.2" height="18" fill="#2b7a3d"/><text x="317.1" y="466" fill="white" text-anchor="middle" font-size="11">5</text>
+<rect x="384.2" y="453" width="53.7" height="18" fill="#7fb069"/><text x="411.1" y="466" fill="white" text-anchor="middle" font-size="11">2</text>
+<rect x="437.9" y="453" width="26.8" height="18" fill="#c0392b"/><text x="451.3" y="466" fill="white" text-anchor="middle" font-size="11">1</text>
+<text x="770" y="466">domains 2 run / 1 GAP</text>
+<rect x="250" y="488" width="12" height="12" fill="#2b7a3d"/><text x="266" y="498">EXCLUDED</text>
+<rect x="360" y="488" width="12" height="12" fill="#7fb069"/><text x="376" y="498">DEFINED</text>
+<rect x="470" y="488" width="12" height="12" fill="#c0392b"/><text x="486" y="498">GAP</text>
+</svg>

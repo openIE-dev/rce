@@ -1,0 +1,21 @@
+category,metric,value_box_B1,value_mac_B2,sourced_values,source_ids,label
+memory safety,share of vulns that are memory safety,,,"MS ~70% (S3); Chromium 70% of 912 (S5); Android <20% 2025 (S6)","S3,S5,S6",sourced
+memory safety,memsafety vulns per MLOC,,,"Rust ~0.2 vs C/C++ ~1000 (S6)",S6,sourced
+performance,syscall latency ns,78.4 (getpid),221.8 (getppid; loaded),"Linux getpid 191 to 217 with audit (S11)","B1,B2,S11",measured+sourced
+performance,IPC round trip,9155 ns pipe 2-proc,~319 us pipe (loaded),seL4 call 413 cycles A57 (S10),"B1,B2,S10",measured+sourced
+performance,wasm component call ns,52.3,51.9,,"B1,B2",measured
+performance,sha256 per log entry 1KiB ns,967,4486,,"B1,B2",measured
+performance,io_uring vs epoll pipe op ns,766 vs 554 (batch16 373),n/a (kqueue 2031),,B1;B2,measured
+performance efficiency,startup ms C/Rust/Python/Node,0.96/-/11.4/91.2,24.6/20.4/98.9/325 (loaded),,"B1,B2",measured
+performance efficiency,binary size bytes Rust/C/Go,336776/14472/1433784,342000/33424/-,,"B1,B2",measured
+security,kernel subsystem exploit share,,,io_uring 60% kCTF (S1),S1,sourced
+determinism,GPU ULP deviation default Metal,,,183/768 inputs 1 ULP (W-ferric-det),W-ferric-det,sourced
+determinism,determinism tax GPU kernels,,,+19% to +102% (W-ferric-det),W-ferric-det,sourced
+determinism,record/replay overhead,,,rr ~1.2x (S14); Hermit 3-6x (S9),"S9,S14",sourced
+energy,language energy C=1,,,"Rust 1.03 Go 3.23 Haskell 3.10 Python 75.88 (Pereira 2021 via LANGUAGE-REVIEW)",O-LR,sourced (secondary)
+concurrency,free-threaded Python overhead,,,1% to 8% (W-python-freethread),W-python-freethread,sourced
+real-time,GC pause,,,ZGC max pause under 1 ms (W-java-gc); Discord spikes ~2 min (O-LR),"W-java-gc,O-LR",sourced
+accessibility,,,,no metric found,,opinion only (QUALITY.csv)
+i18n,,,,no metric found,,opinion only (QUALITY.csv)
+licensing,,,,no metric found,,opinion only (QUALITY.csv)
+maintainability,,,,no metric found,,opinion only (QUALITY.csv)

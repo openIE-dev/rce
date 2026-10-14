@@ -20,6 +20,23 @@ In plain words:
    makes the checker refuse the program, and it names the rule that was
    broken.
 
+## At a glance
+
+![RCE overview: source, checker, Form, log, emit targets, host, fabrics](docs/figures/rce-overview.svg)
+
+*The pipeline. The checker accepts a program or names the rule it breaks; an accepted program is a Form P = (S, E, δ, D, λ); every step is appended to the hash-chained log D; `rce emit` projects the program to Rust, Scala, Haskell, Julia or wasm; a host runs it on a compute fabric.*
+
+| Host contract (Appendix E) | RCEdb: the log is the database |
+|---|---|
+| ![Host contract: five primitives, adapters, one admitter, log, replay](docs/figures/host-contract.svg) | ![RCEdb: log D, indexes written in RCE, queries](docs/figures/rcedb.svg) |
+| Five primitives every surveyed target supplies; everything else is an adapter whose result is logged by the single admitter, and replay runs with every adapter disconnected. | D is the one primary artefact. Indexes are deterministic folds written in RCE (example 55); queries read them in a defined order. |
+
+![Test and differential results](docs/figures/status.svg)
+
+*Status, October 2026: Scala emit 55/55 tests; Haskell emit checked by GHC, 451,037 of 451,037 cases agree; Julia probe, 0 mismatches in 200,000 cases; IDE, 811 tests pass.*
+
+More figures (host survey, no-code survey, emit target selection, failure-class matrix), with captions, scripts and data: [docs/figures](docs/figures/). Figures marked [opinion] there encode the author's judgement.
+
 ## Try it in the browser
 
 The [RCE playground](https://openie-dev.github.io/rce/) runs this checker, compiled to WebAssembly, in your browser: type a program and see whether it is accepted, which rule it breaks, and the trace of each `example`. Nothing to install. To run `fn main()` or emit code, install `rce` below.
