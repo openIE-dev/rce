@@ -17,6 +17,10 @@ In plain words:
 3. **It is a normal tree-sitter package.** It builds and is tested with the
    usual tree-sitter commands, with Rust, Node and C bindings.
 
+![RCE overview: source (parsed by this grammar), checker, Form, log, emit targets, host](https://raw.githubusercontent.com/openIE-dev/rce/main/docs/figures/rce-overview.svg)
+
+*Where this grammar sits: it parses `.rce` source for editors and is one of the reference checker's three parsers; the checker turns accepted programs into a Form. More figures: [openIE-dev/rce docs/figures](https://github.com/openIE-dev/rce/tree/main/docs/figures).*
+
 ## Quickstart
 
 You need the [tree-sitter CLI](https://tree-sitter.github.io/tree-sitter/creating-parsers/1-getting-started.html)
