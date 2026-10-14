@@ -51,7 +51,7 @@ RCE=/path/to/rce scripts/check.sh
 ## Areas without examples yet
 
 Some kinds of program have no example here, because RCE (language version 0.5,
-specification draft 0.6) has no construct for them:
+specification draft 0.7) has no construct for them:
 
 - **Machine learning.** There is no tensor type and no automatic
   differentiation.
@@ -69,7 +69,7 @@ output must equal the `.out` file next to it; and a folder with a
 `program.txt` is tested as one program.
 
 All programs are version 0.5 modules (sections 2 to 10 of specification
-draft 0.6).
+draft 0.7).
 
 ## Contributing
 
