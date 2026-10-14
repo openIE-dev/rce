@@ -7,7 +7,7 @@ an agent proves it read them by following `READ-PROTOCOL.md`.
 |---|---|---|
 | `00-overview.md` | `b43df751959d71cebc1ccb3581f92588878dac9712150d342ccc20902377baa6` | In the overview's tiny example, what is the name of the event? |
 | `01-notation.md` | `c76056a1984c61b4ddce8745feb78c2cff67ef2295e40b3d2082f67e4cbecef4` | In the grammar notation, what does a Repetition `{ ... }` mean, in the spec's words? |
-| `02-lexical.md` | `561f116dfcbf38130dac471178e99566013fd946bfc8f00e2246af6c0ed42c16` | Which code point is the horizontal tab, as written in this section? |
+| `02-lexical.md` | `921ab947ddc8d7add3bfb8ef045d934ab2e4efa1dc53a24496ba4badbbdfe7b2` | Which code point is the horizontal tab, as written in this section? |
 | `03-syntax.md` | `33c18e881e88f99afaba8b4797da5e26db03da9fae7aa1d4798491ff79cc5a81` | Which numbered resolution rule in 3.11 covers `send`? (for example R1) |
 | `04-programs.md` | `36aa75c5ccf91fc1e58278eac48086a4b441d0175ea55753e3ad5b3e3788f878` | What is the outermost scope called? (one word) |
 | `05-types-ownership.md` | `54d6978f571923b458fab4e0502b32d58ee3dfcf59a31f5b5c5a664f6cf026e2` | What is the name of the example kind used to illustrate error sets? |
@@ -24,4 +24,4 @@ an agent proves it read them by following `READ-PROTOCOL.md`.
 
 The single-file spec `spec/RCE-SPEC.md` is generated from these files.
 
-<!-- body-sha256: 68151a4c04b58047e2a1d5a527848cb7a13fa537ec183f5b48fe3f34213a9c6e -->
+<!-- body-sha256: cb19748b38f1e832f676af5ff8f11b32565f8d461bd3d0dff1926575bdf3b506 -->

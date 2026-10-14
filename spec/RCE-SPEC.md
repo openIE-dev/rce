@@ -306,8 +306,9 @@ is accepted unchanged by every conforming implementation. Because the
 declaration is a comment, the grammar of section 3 and its LALR(1) check
 are unchanged for 0.5; a 0.6 or 0.7 module is parsed by section 3 with the rules
 of C.2 applied, which is checked LALR(1) the same way. Each module of a program has its own version; a 0.6 or 0.7
-module may `use` a 0.5 module and the reverse. Costs (C.6.4) follow the
-version of the module that is run (`rce run`, or the emitted program). (The reference checker has a
+module may `use` a 0.5 module and the reverse. The cost of a standard library method call (C.6.4) is fixed by the
+declared version of the module where the call is written, wherever it is
+executed from (C.15, normative); linking modules changes no cost. (The reference checker has a
 non-normative `conc06` build feature that reads undeclared modules as 0.6,
 for the draft's own test corpora; a declared version always wins.)
 
