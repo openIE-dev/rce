@@ -291,6 +291,52 @@ as clean exactly when `rce check` accepts it (10.1, principle 3).
 - `rce run` uses the reference interpreter; there is no compiled runtime.
 - Idempotence of `fmt` is tested, not proved.
 
+### 10.9 `rce trace --json FILE [EVENTS]`: reference traces (informative)
+
+The trace format lets an independent projector (another compiler or
+runtime of the same Form) show that it agrees with the reference
+evaluator step by step. It adds no meaning: every field is a field of the
+log D of 6.1, so a trace is the log, and conformance to 6.1 implies
+conformance to the trace.
+
+`rce trace --json FILE` prints one trace per `example` of the module, in
+source order (the same logs `rce emit form` puts in `logs`); with EVENTS
+(the syntax of an `example` line, as in 10.3) it prints one trace of that
+event list. A module that is refused, or a trace of EVENTS that yields no
+step, is status 1. The output is one JSON object (format `rce-trace/1`),
+compact, with sorted keys:
+
+| Field | Meaning |
+|---|---|
+| `format` | `"rce-trace/1"` |
+| `file` | the file name, without directories |
+| `events` | the EVENTS argument, or null |
+| `genesis` | the first `prev_hash`: 64 zeros (6.1) |
+| `traces` | list of {`source`, `steps`}; `source` is `"example@L"` (the example's line) or `"events"` |
+| `steps[i].seq` | required: 0-based index in the trace |
+| `steps[i].event` | required: {`type`, `payload`}, payload values as in 6.1 |
+| `steps[i].state_hash` | required: SHA-256 (lower-case hex) of the canonical JSON of the state after the step |
+| `steps[i].prev_hash`, `steps[i].hash` | the 6.1 chain: `hash` is the SHA-256 of the canonical JSON of {event, prev_hash, seq, state_hash} |
+| `steps[i].outcome` | `"applied"` or {`refused`: error name}; derived, not hashed |
+
+A refused event is the last step of its trace, with the unchanged state's
+hash (T8). A projector conforms on a module when, for every trace, its
+steps have the same `seq`, `event` and `state_hash` as the reference, in
+order and with none missing or extra; when it also emits `prev_hash`,
+`hash` or `outcome` they must be equal too. Since `state_hash` covers
+the whole state, equal hashes mean equal states without exchanging them.
+
+`spec/traces/` holds the reference traces of the example corpus (one
+file per example that is admitted standalone, which excludes only the
+multi-module `26_use_module`, plus `01_counter.events.json`, the counter
+on a longer event list); examples without a state machine have an empty
+`traces` list. `spec/traces/rce-trace-diff.py REFERENCE OTHER` (Python 3,
+standard library only) compares two trace files or two directories of
+them and prints `exact match` or the first divergence (trace, `seq`,
+field, both values); exit 0 on full match. `spec/checker/tests/traces.rs`
+checks that the fixtures are current, that every step is on the 6.1
+chain, and that the runner finds a planted divergence.
+
 **Read receipt.** Which JSON-RPC error code does the language server return for a request it does not know? (a number)
 
-<!-- body-sha256: e7acda0628191b779c72cd4708e431c882c350364606fa49c55d571769f74bf2 -->
+<!-- body-sha256: 8dffc76f2a0428e554e3667e1d2307672e21ff71d4a028d6514b55fa3b7ce7f0 -->

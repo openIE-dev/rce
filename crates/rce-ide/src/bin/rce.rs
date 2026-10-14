@@ -5,8 +5,23 @@
 //!
 //! Without a budget flag, `rce test` behaves exactly as the reference
 //! checker. Every other subcommand is passed through unchanged.
+//!
+//! `rce --version` (or `-V`) prints the release, the specification draft
+//! the vendored checker implements and the language versions it accepts.
+
+/// The specification draft of the vendored reference checker.
+const SPEC_DRAFT: &str = "0.7";
+
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
+    if args.len() == 1 && matches!(args[0].as_str(), "--version" | "-V") {
+        println!(
+            "rce {} (rce-ide; RCE specification draft {SPEC_DRAFT}; language versions {})",
+            env!("CARGO_PKG_VERSION"),
+            rce_spec_check::parse::VERSIONS.join(", ")
+        );
+        return;
+    }
     let gated = args.first().map(String::as_str) == Some("test")
         && args.iter().any(|a| matches!(a.as_str(), "--energy-budget" | "--measured" | "--measure" | "--strict"));
     let code = if gated {

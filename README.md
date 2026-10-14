@@ -32,8 +32,8 @@ Vulkan, Metal, DX12 or GL), `rce` (the RCE checker CLI with the
 3. Unpack and put the binaries on your `PATH`:
 
    ```sh
-   tar xzf rce-ide-0.1.1-x86_64-unknown-linux-gnu.tar.gz
-   cd rce-ide-0.1.1-x86_64-unknown-linux-gnu
+   tar xzf rce-ide-0.1.2-x86_64-unknown-linux-gnu.tar.gz
+   cd rce-ide-0.1.2-x86_64-unknown-linux-gnu
    install -m 755 rce rce-ide rce-lsp rce-mcp ~/.local/bin/
    ```
 

@@ -19,7 +19,8 @@ rm -rf "$DST/checker/target"
 cp -a "$SRC/spec/examples" "$DST/examples"
 cp -a "$SRC/spec/book" "$DST/book"
 for t in conc06 conc06_check conc06_run conc06b_check conc06b_run emit06 emit06b \
-         emit_run lean_models lean_vectors par_paths theorem_index tree_sitter_sync; do
+         emit_run lean_models lean_vectors par_paths theorem_index tree_sitter_sync \
+         traces version surface_status; do
     rm -f "$DST/checker/tests/$t.rs"
 done
 rm -f "$DST/checker/tests/emit06.rce" "$DST/checker/Cargo.lock"

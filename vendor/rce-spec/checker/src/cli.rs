@@ -446,11 +446,73 @@ pub fn serve(r: &mut impl BufRead, w: &mut impl Write) -> i32 {
     if s.shutdown { 0 } else { 1 }
 }
 
+/// Version of the reference trace format (10.9, informative).
+pub const TRACE_FORMAT: &str = "rce-trace/1";
+
+/// `rce trace --json FILE [EVENTS]`: the reference trace of a Form (10.9).
+/// Without EVENTS, one trace per `example` of the module (its log D, 6.1);
+/// with EVENTS, one trace of that event list. Each step carries the
+/// canonical D fields `seq`, `event`, `state_hash`, `prev_hash`, `hash`
+/// and the derived `outcome`; a trace stops at the first refused event.
+/// Keys are sorted and the JSON is compact, so equal traces are equal bytes.
+pub fn trace(file: &str, src: &str, events: Option<&str>) -> Result<String, String> {
+    let d = diagnostics(src, &HashSet::new());
+    if !d.is_empty() {
+        return Err(d.into_iter().map(|x| x.1).collect::<Vec<_>>().join("; "));
+    }
+    let (m, only) = match events {
+        None => (parse(src)?, None),
+        Some(evs) => {
+            let probe = parse(&format!("{src}\nexample {evs} -> 0\n")).map_err(|e| format!("events: {e}"))?;
+            let Some(Item::Example(x)) = probe.items.last() else {
+                return Err("events: not an event list".into());
+            };
+            let line = x.line;
+            (probe, Some(line))
+        }
+    };
+    let form: serde_json::Value =
+        serde_json::from_str(&crate::interp::form_json(&m)).map_err(|e| format!("form json: {e}"))?;
+    let mut traces = vec![];
+    for l in form["logs"].as_array().into_iter().flatten() {
+        let line = l["example_line"].as_u64().unwrap_or(0) as usize;
+        if only.is_some_and(|o| o != line) {
+            continue;
+        }
+        let steps: Vec<serde_json::Value> = l["D"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .map(|e| {
+                serde_json::json!({
+                    "seq": e["seq"], "event": e["event"], "state_hash": e["state_hash"],
+                    "prev_hash": e["prev_hash"], "hash": e["hash"], "outcome": e["outcome"],
+                })
+            })
+            .collect();
+        let source = if only.is_some() { "events".to_string() } else { format!("example@{line}") };
+        traces.push(serde_json::json!({ "source": source, "steps": steps }));
+    }
+    if let (Some(evs), true) = (events, traces.is_empty()) {
+        return Err(format!("events: `{evs}` gives no trace (no state, or an unknown event)"));
+    }
+    let name = std::path::Path::new(file).file_name().map(|f| f.to_string_lossy().into_owned()).unwrap_or_default();
+    let v = serde_json::json!({
+        "format": TRACE_FORMAT,
+        "file": name,
+        "events": events,
+        "genesis": crate::interp::D_GENESIS,
+        "traces": traces,
+    });
+    Ok(v.to_string())
+}
+
 /// Usage of the language commands of `rce` (10.2 to 10.7).
 pub const USAGE_TEXT: &str = "usage:
   rce check FILE...              parse, type check and admit; one verdict per file
   rce run FILE [EVENTS]          apply EVENTS (example syntax, e.g. \"Inc, Inc, Dec\"), or run fn main()
   rce test FILE...               run every example and check; report per file
+  rce trace --json FILE [EVENTS] reference trace (seq, event, state_hash per step) of the examples, or of EVENTS
   rce emit TARGET FILE           TARGET: form (Form JSON), rust, python or js (a program printing its observations)
   rce fmt [--check] FILE...      rewrite files in canonical layout (--check: only report)
   rce lsp                        language server on stdin/stdout";
@@ -524,6 +586,18 @@ fn run_main(a: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &mu
             }
             writeln!(out, "{pass} passed, {fail} failed").map_err(w)?;
             if fail > 0 { REFUSED } else { OK }
+        }
+        Some("trace") if (rest.len() == 2 || rest.len() == 3) && rest[0] == "--json" => {
+            match trace(&rest[1], &read_file(&rest[1])?, rest.get(2).map(String::as_str)) {
+                Ok(t) => {
+                    writeln!(out, "{t}").map_err(w)?;
+                    OK
+                }
+                Err(e) => {
+                    writeln!(out, "REFUSED {}: {e}", rest[1]).map_err(w)?;
+                    REFUSED
+                }
+            }
         }
         Some("emit") if rest.len() == 2 => match emit(&rest[0], &read_file(&rest[1])?) {
             Ok(s) => {
