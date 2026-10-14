@@ -623,7 +623,7 @@ impl Lalr {
     /// action is (state, terminal, "s" | "r" | "acc", target) and each goto
     /// (state, nonterminal, target). The order is a function of the tables
     /// only, so the export is byte-identical for one grammar.
-    pub fn tables(&self) -> (Vec<(usize, usize, &'static str, usize)>, Vec<(usize, usize, usize)>) {
+    pub fn tables(&self) -> (Vec<ActionRow>, Vec<GotoRow>) {
         let mut a = vec![];
         for (st, row) in self.action.iter().enumerate() {
             for (&t, act) in row {
@@ -716,6 +716,11 @@ impl Lalr {
         self.tokens(src).is_some_and(|t| self.accepts_ids(&t))
     }
 }
+
+/// One exported ACTION row: (state, terminal, "s" | "r" | "acc", target).
+pub type ActionRow = (usize, usize, &'static str, usize);
+/// One exported GOTO row: (state, nonterminal, target).
+pub type GotoRow = (usize, usize, usize);
 
 #[cfg(test)]
 mod tests {

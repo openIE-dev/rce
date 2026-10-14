@@ -805,7 +805,7 @@ impl<'a> G<'a> {
         };
         if l == Lang::Rust {
             let r = run("run_tasks(\"main\")", false);
-            self.line(&format!("if std::env::args().any(|a| a == \"--run\") {{ {r}; return; }}"));
+            self.line(format!("if std::env::args().any(|a| a == \"--run\") {{ {r}; return; }}"));
         }
         self.scopes = vec![vec![]];
         self.ctx = Ctx::Gen;
@@ -865,11 +865,11 @@ impl<'a> G<'a> {
             Lang::Rust => {}
             Lang::Python => {
                 let r = run("run_tasks(\"main\")", true);
-                self.line(&format!("if \"--run\" in sys.argv: {r}\nelse: observe()"))
+                self.line(format!("if \"--run\" in sys.argv: {r}\nelse: observe()"))
             }
             Lang::Js => {
                 let r = run("runTasks(\"main\");", false);
-                self.line(&format!(
+                self.line(format!(
                     "if (!WT.isMainThread) {{ if (WT.workerData && WT.workerData.par) parMain(); else taskMain(); }}\nelse if (process.argv.includes(\"--run\")) {r}\nelse {{\n  observe();\n  process.stdout.write(LINES.map((x) => x + \"\\n\").join(\"\"));\n}}"
                 ))
             }

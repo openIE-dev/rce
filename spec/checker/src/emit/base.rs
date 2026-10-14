@@ -55,7 +55,7 @@ pub(super) struct G<'a> {
     /// JavaScript: top-level functions for par branches run on workers
     pub hoist: Vec<String>,
     pub hoist_names: Vec<String>,
-    /// > 0 while emitting code the reference evaluator does not evaluate
+    /// Above 0 while emitting code the reference evaluator does not evaluate
     /// (a place read only to keep a value's tag): no fuel ticks there.
     pub no_fuel: usize,
 }
