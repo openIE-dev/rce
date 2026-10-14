@@ -1,2 +1,2 @@
-REFUSED unhandled_event.rce: line 0: W-STEP-2 event `Dec` is handled by no step or actor: δ would not be total
+REFUSED unhandled_event.rce: line 5: W-STEP-2 event `Dec` is handled by no step or actor: δ would not be total
 exit status: 1
