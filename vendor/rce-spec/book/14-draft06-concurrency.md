@@ -348,6 +348,7 @@ the same call to an identical function declared in a 0.6 module.
 | canonical D entry and hash-chained Form log (6.1) | all | the log format, not a program's meaning |
 | `sha256` text method (5.15) | all (extension) | admits only programs that W-NAME-1 refused before, so no valid program of any version changes meaning |
 | mutual recursion with a decreasing summed measure (6.7, W-REC-1) | all (extension) | admits only programs whose call graph has a cycle of two or more functions, which W-REC-1 refused before; the rule for a function that calls only itself is unchanged, so no valid program of any version changes meaning |
+| maps iterate in canonical key order (6.7, 7.1) | all (erratum) | 6.7 has always said a map iterates in canonical order; the reference evaluator and the four emitter runtimes kept insertion order. They now keep every map sorted by the canonical order of its keys, so `for`, `keys()`, `values()` and display follow 6.7. A program whose output depended on insertion order was relying on behavior the text never gave it; tests/map_order.rs checks all targets |
 | self-recursion needs one fixed shrinking position, or layers (6.7, W-REC-1) | all (erratum, and extension for layers) | 6.7 has said since draft 0.4 that the value at one position i shrinks along any chain of calls, and T2 that every run ends; the checker took a different position per call, which admitted functions that never return. Refusing them makes the checker meet the text. Every function the text admitted is admitted by one layer, and layers admit only programs refused before, so no program the text admitted changes meaning |
 | a parameter typed by an alias of a channel type makes a task function (5.1, 5.2) | all (erratum) | the type grammar of 5.1 has no nominal alias, so `type A = chan τ` already named the channel type; the checker tested the written type, not the type it names, and refused such functions with W-SPAWN-1 or W-EFF-1. Only programs refused before are admitted |
 | declared recursion bounds `fn … bound n` (6.7, W-REC-1) | all (extension) | `bound` after a signature was W-SYN-1, and a cycle it admits was W-REC-1, so only programs refused before are admitted; no valid program of any version changes meaning |
@@ -391,4 +392,4 @@ different versions may `use` each other (2.7).
 
 **Read receipt.** How many words does a version 0.6 module reserve in addition to the 0.5 keywords? (a number)
 
-<!-- body-sha256: 78ecf181df4042a8dd09f4635de1e2ebda703cede45176a2e35007290b34a21a -->
+<!-- body-sha256: f182bec340b5d42103be80158ea4fe56e4108a868e13b316abbaf5f66761925c -->

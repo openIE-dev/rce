@@ -57,7 +57,8 @@ unchanged (T7).
 
 ### 6.7 Loops and fuel
 
-`for p in e` iterates over a finite value (list, set, map in canonical order,
+`for p in e` iterates over a finite value (list, set, map in canonical order
+of its keys, as in 7.1, never insertion order (an erratum, C.15),
 text by scalar value, or an integer range `a..b` / `a..=b`); its length is
 fixed when the loop starts, and mutating the iterated collection inside the
 loop is refused statically (it is borrowed). `while c bound n` and
@@ -216,4 +217,4 @@ holds (W-INT-1): the gate is part of the language, not of a test harness.
 
 **Read receipt.** Name-free hashing uses indices named after which logician? (two words)
 
-<!-- body-sha256: 59c642644ddf6e2559938f49dd7ad89185b6af717a8825cdad2a108db7b4c42c -->
+<!-- body-sha256: 829fc50b7504db98a35c3a0382beda7c371537723726a18f8538afb7720f1f64 -->

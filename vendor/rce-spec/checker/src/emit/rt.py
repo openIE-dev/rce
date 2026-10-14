@@ -334,7 +334,9 @@ def map_set(ps, k, v):
     out = list(ps)
     for i, (a, _) in enumerate(out):
         if eq(a, k): out[i] = (a, v); return out
-    out.append((k, v)); return out
+    i = 0
+    while i < len(out) and canon_cmp(out[i][0], k) < 0: i += 1
+    out.insert(i, (k, v)); return out
 def mk_map(pairs):
     ps = []
     for k, v in pairs: ps = map_set(ps, k, v)

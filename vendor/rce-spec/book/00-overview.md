@@ -7,6 +7,10 @@ a new state and an outcome, and the log of events. Every runtime that runs
 the Form must produce the same results bit for bit, and the rules that make
 this so are checked by machine.
 
+![RCE overview: source, checker, Form P = (S, E, delta, D, lambda), log D, emit targets, host, fabrics](https://raw.githubusercontent.com/openIE-dev/rce/main/docs/figures/rce-overview.svg)
+
+*Figure (informative). The pipeline from source to Form, log, emit targets and host. Source: [docs/figures](https://github.com/openIE-dev/rce/tree/main/docs/figures).*
+
 Three plain points:
 
 1. **Same answer on every target.** Arithmetic, text, floats and concurrency
@@ -119,4 +123,4 @@ and LALR(1) agree on all 4,977 syntax mutants.
 
 **Read receipt.** In the overview's tiny example, what is the name of the event?
 
-<!-- body-sha256: b43df751959d71cebc1ccb3581f92588878dac9712150d342ccc20902377baa6 -->
+<!-- body-sha256: 7c7905698ac336da05bd41b7544bf2a580c65806f22dac65639c5640cbe63d82 -->

@@ -160,10 +160,65 @@ impl Book {
         ));
         out.push((
             self.spec.join("RCE-SPEC.md"),
-            format!("{HEADER}{}", bodies.join("\n---\n\n")),
+            format!("{HEADER}{}", rebase_links(&bodies.join("\n---\n\n"))),
         ));
         out
     }
+}
+
+/// Rebase relative link and image targets written for a chapter in `book/`
+/// so they resolve from `spec/RCE-SPEC.md`: `../x` becomes `x`, `x` becomes
+/// `book/x`. Absolute URLs, site paths (`/x`) and anchors (`#x`) are kept.
+pub fn rebase_links(text: &str) -> String {
+    let mut out = String::with_capacity(text.len());
+    let mut fenced = false;
+    for line in text.split_inclusive('\n') {
+        if line.trim_start().starts_with("```") {
+            fenced = !fenced;
+        }
+        if fenced || line.starts_with("    ") || line.starts_with('\t') {
+            out.push_str(line);
+            continue;
+        }
+        // Outside code spans (even backtick segments) only.
+        for (k, seg) in line.split('`').enumerate() {
+            if k > 0 {
+                out.push('`');
+            }
+            if k % 2 == 1 {
+                out.push_str(seg);
+            } else {
+                out.push_str(&rebase_segment(seg));
+            }
+        }
+    }
+    out
+}
+
+fn rebase_segment(seg: &str) -> String {
+    let mut out = String::with_capacity(seg.len());
+    let mut rest = seg;
+    while let Some(i) = rest.find("](") {
+        out.push_str(&rest[..i + 2]);
+        rest = &rest[i + 2..];
+        let target = &rest[..rest.find(')').unwrap_or(rest.len())];
+        let is_path = !target.is_empty()
+            && !target.contains(char::is_whitespace)
+            && target.contains('.')
+            && !target.contains("://")
+            && !target.starts_with('/')
+            && !target.starts_with('#')
+            && !target.starts_with("mailto:");
+        if is_path {
+            if let Some(r) = rest.strip_prefix("../") {
+                rest = r;
+            } else {
+                out.push_str("book/");
+            }
+        }
+    }
+    out.push_str(rest);
+    out
 }
 
 fn rel(p: &Path, base: &Path) -> String {
@@ -258,5 +313,17 @@ impl Book {
             here: spec.join("book"),
             spec: spec.to_path_buf(),
         }
+    }
+}
+
+#[cfg(test)]
+mod rebase_tests {
+    #[test]
+    fn rebases_relative_targets_only() {
+        let t = "![a](../figures/x.svg) [b](09-wellformedness.md) [c](https://e.x/y) [d](#s) [e](/rce/) `f[T](x.y)` g[T](x)";
+        assert_eq!(
+            super::rebase_links(t),
+            "![a](figures/x.svg) [b](book/09-wellformedness.md) [c](https://e.x/y) [d](#s) [e](/rce/) `f[T](x.y)` g[T](x)"
+        );
     }
 }

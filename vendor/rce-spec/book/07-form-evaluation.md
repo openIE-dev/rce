@@ -12,6 +12,10 @@ Let the program declare regions R₁…Rₖ (`state` and `actor` declarations;
 actors also carry a mailbox), events E₁…Eₘ and errors X₁…Xⱼ. Its Form
 P = (S, E, δ, D, λ) is:
 
+![Form P = (S, E, delta, D, lambda) with its log D](https://raw.githubusercontent.com/openIE-dev/rce/main/docs/figures/rce-overview.svg)
+
+*Figure (informative). Where the Form sits between the checker, the log D and the emitters. Source: [docs/figures](https://github.com/openIE-dev/rce/tree/main/docs/figures).*
+
 - **S** = ⟦R₁⟧ × … × ⟦Rₖ⟧, where ⟦R⟧ is the set of records {fᵢ : ⟦τᵢ⟧} of R's
   field types, with the initial state s₀ = (r₁⁰, …, rₖ⁰), rᵢ⁰ the record of
   field initializers (evaluated at comptime). Actor regions add a mailbox
@@ -232,4 +236,4 @@ method and is W-NAME-1.
 
 **Read receipt.** Which JavaScript function is named for rounding to binary32?
 
-<!-- body-sha256: 9716fd2250d26108818fed2ac577808f800249e52ec7085e642c01bb8dd6f399 -->
+<!-- body-sha256: 4ac2cd808a0f75a796fa26b86f7bc2a7fe42fa05528f94bd5e8e24dfe571ee0a -->

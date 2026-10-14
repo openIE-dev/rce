@@ -297,11 +297,11 @@ impl<'a> Interp<'a> {
                 xs.into_iter().map(|x| self.fit(x, e)).collect::<R<_>>()?,
             )),
             (V::Map(xs), Ty::Path(p, a)) if p.len() == 1 && p[0] == "Map" && a.len() == 2 => {
-                Ok(V::Map(
-                    xs.into_iter()
-                        .map(|(k, v)| Ok((self.fit(k, &a[0])?, self.fit(v, &a[1])?)))
-                        .collect::<R<_>>()?,
-                ))
+                let mut m = vec![];
+                for (k, v) in xs {
+                    map_set(&mut m, self.fit(k, &a[0])?, self.fit(v, &a[1])?);
+                }
+                Ok(V::Map(m))
             }
             (V::Tuple(xs), Ty::Tuple(ts)) if xs.len() == ts.len() => Ok(V::Tuple(
                 xs.into_iter()
@@ -854,11 +854,36 @@ impl<'a> Interp<'a> {
     }
 }
 
+/// A map key as a Form value, for ordering only: records always carry their
+/// name, so no module is needed (6.7 erratum E-1: maps are kept in canonical
+/// key order, so iteration, keys(), values() and display follow it).
+fn key_form(v: &V) -> FV {
+    match v {
+        V::Rec(n, fs) => {
+            let mut f: Vec<(String, FV)> = fs.iter().map(|(k, x)| (k.clone(), key_form(x))).collect();
+            f.push(("$v".into(), FV::Text(n.clone())));
+            rec(f)
+        }
+        V::Opt(Some(x)) => key_form(x),
+        V::Err(x) => rec(vec![("$err".into(), key_form(x))]),
+        V::Tuple(xs) | V::List(xs) => FV::List(xs.iter().map(key_form).collect()),
+        V::Map(ps) => FV::List(ps.iter().map(|(k, v)| FV::List(vec![key_form(k), key_form(v)])).collect()),
+        V::Int(i, _) => FV::Int(*i),
+        V::F(f) | V::F32(f) => FV::Float(*f),
+        V::Bool(b) => FV::Bool(*b),
+        V::Text(t) => FV::Text(t.clone()),
+        V::Range(a, b, _) => FV::List((*a..*b).map(FV::Int).collect()),
+        V::Fn(n) => rec(vec![("$fn".into(), FV::Text(n.clone()))]),
+        _ => FV::Null,
+    }
+}
 fn map_set(m: &mut Vec<(V, V)>, k: V, v: V) {
     if let Some(e) = m.iter_mut().find(|(a, _)| *a == k) {
         e.1 = v;
     } else {
-        m.push((k, v));
+        let kf = key_form(&k);
+        let i = m.partition_point(|(a, _)| key_form(a).cmp_canon(&kf) == std::cmp::Ordering::Less);
+        m.insert(i, (k, v));
     }
 }
 fn contains(c: &V, x: &V) -> R<bool> {

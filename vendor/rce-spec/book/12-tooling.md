@@ -129,6 +129,10 @@ program (section 7).
 
 TARGET names an output. The file must pass `rce check` on its own.
 
+![Emit and IDE test results](https://raw.githubusercontent.com/openIE-dev/rce/main/docs/figures/status.svg)
+
+*Figure (informative). Test and differential results, October 2026, for the Scala and Haskell emitters, the Julia probe and the IDE. Source: [docs/figures](https://github.com/openIE-dev/rce/tree/main/docs/figures).*
+
 | TARGET | Output |
 |---|---|
 | `form` | the Form P = (S, E, δ, D, λ) as one line of JSON (6.1), then a line end |
@@ -144,7 +148,7 @@ deterministic function of the program text.
 module, not the Form. Each output is self-contained. It starts with a
 runtime that defines the values of 6.3 and their operations, following the
 reference evaluator (`spec/checker/src/interp.rs`) value by value. That
-includes the integer range checks, the trap messages, map insertion order
+includes the integer range checks, the trap messages, canonical map key order
 and the display of floats and text. After the runtime comes one target
 function per RCE function, method, step and constant. An expression becomes
 calls to runtime helpers with its operands in evaluation order; `if`,
@@ -430,4 +434,4 @@ chain, and that the runner finds a planted divergence.
 
 **Read receipt.** Which JSON-RPC error code does the language server return for a request it does not know? (a number)
 
-<!-- body-sha256: 1a429e5dd8e4f771e09dd71e01e782578168ebfb9b0b174ff9041bdb6acd8e49 -->
+<!-- body-sha256: 6b5bed95bc556853446c5211bac6697c3795faf850f184a2d552eabbc7294e94 -->
