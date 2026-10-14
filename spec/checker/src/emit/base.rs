@@ -11,6 +11,12 @@ pub(super) const MUTATING: &[&str] =
 pub(super) const RT_RS: &str = include_str!("rt.rs");
 pub(super) const RT_PY: &str = include_str!("rt.py");
 pub(super) const RT_JS: &str = include_str!("rt.js");
+pub(super) const RT_SCALA: &str = include_str!("rt.scala");
+
+thread_local! {
+    /// set while the Scala emitter runs: string literals use `\uXXXX`
+    pub(super) static SCALA_Q: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
 
 #[derive(Clone, PartialEq)]
 pub(super) enum Ctx {
@@ -49,6 +55,9 @@ pub(super) struct G<'a> {
     /// JavaScript: top-level functions for par branches run on workers
     pub hoist: Vec<String>,
     pub hoist_names: Vec<String>,
+    /// > 0 while emitting code the reference evaluator does not evaluate
+    /// (a place read only to keep a value's tag): no fuel ticks there.
+    pub no_fuel: usize,
 }
 
 pub(super) type E = Result<String, String>;
@@ -125,6 +134,9 @@ pub(super) fn q(s: &str) -> String {
             '\n' => o.push_str("\\n"),
             '\r' => o.push_str("\\r"),
             '\t' => o.push_str("\\t"),
+            c if ((c as u32) < 0x20 || c as u32 == 0x7f) && SCALA_Q.with(|s| s.get()) => {
+                o.push_str(&format!("\\u{:04x}", c as u32))
+            }
             c if (c as u32) < 0x20 || c as u32 == 0x7f => {
                 o.push_str(&format!("\\x{:02x}", c as u32))
             }
@@ -137,7 +149,12 @@ pub(super) fn q(s: &str) -> String {
 }
 
 impl<'a> G<'a> {
+    /// Scala output (rt.scala): JavaScript-shaped control flow, `Vector` for arrays
+    pub fn sc(&self) -> bool {
+        self.lang == Lang::Scala
+    }
     pub fn new(m: &'a Module, lang: Lang) -> Self {
+        SCALA_Q.with(|s| s.set(lang == Lang::Scala));
         let mut g = G {
             m,
             lang,
@@ -158,6 +175,7 @@ impl<'a> G<'a> {
             loops: 0,
             hoist: vec![],
             hoist_names: vec![],
+            no_fuel: 0,
         };
         for i in &m.items {
             match i {
@@ -306,18 +324,20 @@ impl<'a> G<'a> {
     pub fn vec(&self, xs: &[String]) -> String {
         match self.lang {
             Lang::Rust => format!("vec![{}]", xs.join(", ")),
+            Lang::Scala => format!("V({})", xs.join(", ")),
             _ => format!("[{}]", xs.join(", ")),
         }
     }
     pub fn pair(&self, a: &str, b: &str) -> String {
         match self.lang {
             Lang::Js => format!("[{a}, {b}]"),
+            Lang::Scala => format!("V({a}, {b})"),
             _ => format!("({a}, {b})"),
         }
     }
     pub fn new_(&self, class: &str, args: &str) -> String {
         match self.lang {
-            Lang::Js => format!("new {class}({args})"),
+            Lang::Js | Lang::Scala => format!("new {class}({args})"),
             _ => format!("{class}({args})"),
         }
     }
@@ -329,7 +349,7 @@ impl<'a> G<'a> {
         }
     }
     pub fn none(&self) -> &'static str {
-        if self.lang == Lang::Js {
+        if matches!(self.lang, Lang::Js | Lang::Scala) {
             "null"
         } else {
             "None"
@@ -365,6 +385,7 @@ impl<'a> G<'a> {
     pub fn rec0(&self, n: &str) -> String {
         match self.lang {
             Lang::Rust => format!("V::Rec({}.to_string(), vec![])", q(n)),
+            Lang::Scala => format!("new Rec({}, Vector())", q(n)),
             _ => self.new_("Rec", &format!("{}, []", q(n))),
         }
     }
@@ -379,6 +400,7 @@ impl<'a> G<'a> {
             Lang::Rust => format!("return Err(Flow::Trap({}.to_string()));", q(m)),
             Lang::Python => format!("trap({})", q(m)),
             Lang::Js => format!("trap({});", q(m)),
+            Lang::Scala => format!("trap({})", q(m)),
         }
     }
     pub fn var(&self, n: &str) -> String {
@@ -392,11 +414,12 @@ impl<'a> G<'a> {
             Lang::Rust => format!("let mut {name} = {e};"),
             Lang::Python => format!("{name} = {e}"),
             Lang::Js => format!("let {name} = {e};"),
+            Lang::Scala => format!("var {name} : Any = {e}"),
         }
     }
     pub fn set_(&self, name: &str, e: &str) -> String {
         match self.lang {
-            Lang::Python => format!("{name} = {e}"),
+            Lang::Python | Lang::Scala => format!("{name} = {e}"),
             _ => format!("{name} = {e};"),
         }
     }
@@ -405,6 +428,7 @@ impl<'a> G<'a> {
             Lang::Rust => format!("let _ = {e};"),
             Lang::Python => e.to_string(),
             Lang::Js => format!("{e};"),
+            Lang::Scala => format!("discard({e})"),
         }
     }
     pub fn stmt_call(&self, f: &str, a: &str) -> String {
@@ -412,6 +436,7 @@ impl<'a> G<'a> {
             Lang::Rust => format!("{f}({a})?;"),
             Lang::Python => format!("{f}({a})"),
             Lang::Js => format!("{}({a});", self.rt(f)),
+            Lang::Scala => format!("{f}({a})"),
         }
     }
     pub fn truthy(&self, e: &str) -> String {
@@ -449,7 +474,7 @@ impl<'a> G<'a> {
     }
     pub fn if_head(&self, cond: &str) -> String {
         match self.lang {
-            Lang::Js => format!("if ({cond})"),
+            Lang::Js | Lang::Scala => format!("if ({cond})"),
             _ => format!("if {cond}"),
         }
     }
@@ -465,6 +490,10 @@ impl<'a> G<'a> {
                 self.line(format!("const {bind} = {x};"));
                 self.open(&format!("if ({bind} !== null && {bind} !== undefined)"));
             }
+            Lang::Scala => {
+                self.line(format!("val {bind} = {x}"));
+                self.open(&format!("if ({bind} != null)"));
+            }
         }
     }
     /// A zero-argument closure returning `e`, capturing by value.
@@ -475,7 +504,7 @@ impl<'a> G<'a> {
                 self.captures(names)
             ),
             Lang::Python => format!("(lambda: {e})"),
-            Lang::Js => format!("(() => {e})"),
+            Lang::Js | Lang::Scala => format!("(() => {e})"),
         }
     }
     pub fn captures(&self, names: &HashSet<String>) -> String {
@@ -504,6 +533,14 @@ impl<'a> G<'a> {
                 "ref" => format!("tref({})", a[0]),
                 _ => "T::Any".into(),
             },
+            Lang::Scala => {
+                if k == "tup" {
+                    return format!("V(\"tup\", V({}))", a.join(", "));
+                }
+                let mut p = vec![format!("\"{k}\"")];
+                p.extend(a);
+                format!("V({})", p.join(", "))
+            }
             Lang::Python | Lang::Js => {
                 let (o, c) = if self.lang == Lang::Python {
                     ("(", ",)")
@@ -550,6 +587,30 @@ impl<'a> G<'a> {
                 if n == "Map" && a.len() == 2 {
                     return self.tdesc("map", vec![self.ty_d(&a[0], d), self.ty_d(&a[1], d)]);
                 }
+                if !self.types.contains_key(n) {
+                    // 5.16 indexed types are erased
+                    match (n, a.as_slice()) {
+                        ("Guarded", [x, _]) | ("Secret", [x]) => return self.ty_d(x, d),
+                        _ => {}
+                    }
+                }
+                if let Some(Item::TypeAlias { ty, pred: Some(e), .. }) = self.types.get(n)
+                    && let Some(bk) = crate::refine::base_of(ty)
+                    && let Ok(pr) = crate::refine::compile(e, bk)
+                {
+                    let inner = self.ty_d(ty, d);
+                    let pd = if self.sc() {
+                        crate::refine::desc(&pr, false, true).replace("(\"", "V(\"").replace(",)", ")")
+                    } else {
+                        crate::refine::desc(&pr, self.lang == Lang::Rust, self.lang == Lang::Python)
+                    };
+                    return match self.lang {
+                        Lang::Scala => format!("V(\"refn\", {inner}, \"{n}\", {pd})"),
+                        Lang::Rust => format!("trefn({inner}, \"{n}\", {pd})"),
+                        Lang::Python => format!("(\"refn\", {inner}, \"{n}\", {pd})"),
+                        Lang::Js => format!("[\"refn\", {inner}, \"{n}\", {pd}]"),
+                    };
+                }
                 if let Some(Item::TypeAlias { ty, .. }) = self.types.get(n) {
                     return self.ty_d(ty, d);
                 }
@@ -578,14 +639,21 @@ impl<'a> G<'a> {
                 p.extend(rest.iter().cloned());
                 format!("[{}]", p.join(", "))
             }
+            Lang::Scala => {
+                let mut p = vec![format!("\"{k}\"")];
+                p.extend(rest.iter().cloned());
+                format!("V({})", p.join(", "))
+            }
         }
     }
     /// A pattern as a runtime descriptor (literals and ranges as thunks).
     pub fn pat(&self, p: &Pat) -> E {
         let list = |xs: &[String]| match self.lang {
             Lang::Rust => format!("vec![{}]", xs.join(", ")),
+            Lang::Scala => format!("V({})", xs.join(", ")),
             _ => format!("[{}]", xs.join(", ")),
         };
+
         Ok(match p {
             Pat::Wild => self.pdesc("P::Wild".into(), "wild", &[]),
             Pat::Path(path) => {

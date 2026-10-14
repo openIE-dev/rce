@@ -10,6 +10,7 @@ impl<'a> G<'a> {
             Lang::Rust => format!("arg(&a, {i})"),
             Lang::Python => format!("(a[{i}] if len(a) > {i} else UNIT)"),
             Lang::Js => format!("(a.length > {i} ? a[{i}] : UNIT)"),
+            Lang::Scala => format!("atOr(a, {i}, UNIT)"),
         }
     }
 
@@ -39,6 +40,7 @@ impl<'a> G<'a> {
                 Lang::Rust => self.open(&format!("fn g_{id}(a: Vec<V>) -> R<()>")),
                 Lang::Python => self.open(&format!("def g_{id}(a)")),
                 Lang::Js => self.open(&format!("function g_{id}(a)")),
+                Lang::Scala => self.open(&format!("def g_{id}(a: Vector[Any]): Unit =")),
             }
             self.scopes = vec![vec![]];
             for (i, (n, _)) in named.iter().enumerate() {
@@ -64,6 +66,7 @@ impl<'a> G<'a> {
                 }
                 Lang::Python => self.open(&format!("def u_{id}(slf, a)")),
                 Lang::Js => self.open(&format!("function u_{id}(slf, a)")),
+                Lang::Scala => self.open(&format!("def u_{id}(slf: Any, a: Vector[Any]): Vector[Any] =")),
             }
             match l {
                 Lang::Rust => {
@@ -84,6 +87,12 @@ impl<'a> G<'a> {
                         "return [new Gen((cap) => genRun(() => g_{id}(fr), cap)), [], null];"
                     ));
                 }
+                Lang::Scala => {
+                    self.line(format!("val fr = fitall(a, V({tl}))"));
+                    self.line(format!(
+                        "V(new Gen((cap: Int) => gen_run(() => g_{id}(fr), cap)), V(), null)"
+                    ));
+                }
             }
             self.close();
             match l {
@@ -101,15 +110,25 @@ impl<'a> G<'a> {
                     self.open(&format!("function r_{id}(a)"));
                     self.line(format!("g_{id}(fitall(a, [{tl}])); return UNIT;"));
                 }
+                Lang::Scala => {
+                    self.open(&format!("def r_{id}(a: Vector[Any]): Any ="));
+                    self.line(format!("g_{id}(fitall(a, V({tl}))); UNIT"));
+                }
             }
             self.close();
             return Ok(());
         }
-        // b_: the frame of interp `call_fn`, parameters fitted.
+        // b_: the frame of interp `call_fn`, parameters fitted. With `bound
+        // n` (6.7) the body is c_ and b_ wraps it: c_ counts the call after
+        // fitting the parameters, b_ uncounts it on every outcome but a trap
+        // (a trap ends the observation, and each observation starts with no
+        // active calls).
+        let bn = if f.sig.bound.is_some() { "c" } else { "b" };
         match l {
-            Lang::Rust => self.open(&format!("fn b_{id}(slf: Option<V>, a: Vec<V>) -> R<Call>")),
-            Lang::Python => self.open(&format!("def b_{id}(slf, a)")),
-            Lang::Js => self.open(&format!("function b_{id}(slf, a)")),
+            Lang::Rust => self.open(&format!("fn {bn}_{id}(slf: Option<V>, a: Vec<V>) -> R<Call>")),
+            Lang::Python => self.open(&format!("def {bn}_{id}(slf, a)")),
+            Lang::Js => self.open(&format!("function {bn}_{id}(slf, a)")),
+            Lang::Scala => self.open(&format!("def {bn}_{id}(slf: Any, a: Vector[Any]): Vector[Any] =")),
         }
         self.scopes = vec![vec![]];
         for (i, (n, _)) in named.iter().enumerate() {
@@ -125,9 +144,18 @@ impl<'a> G<'a> {
                 Lang::Rust => "let mut l_self = slf.clone().unwrap_or(V::Unit);",
                 Lang::Python => "l_self = slf if slf is not None else UNIT",
                 Lang::Js => "let l_self = slf !== null ? slf : UNIT;",
+                Lang::Scala => "var l_self: Any = if (slf != null) slf else UNIT",
             };
             self.line(s);
             self.declare("self");
+        }
+        if let Some(n) = f.sig.bound {
+            match l {
+                Lang::Rust => self.line(format!("depth_enter(\"{id}\", {n})?;")),
+                Lang::Python => self.line(format!("depth_enter(\"{id}\", {n})")),
+                Lang::Js => self.line(format!("depthEnter(\"{id}\", {n}n);")),
+                Lang::Scala => self.line(format!("depth_enter(\"{id}\", {n}L)")),
+            }
         }
         let union = matches!(f.sig.ret, Some(Ty::Union(..)));
         // `&mut` write-back on failure (6.2, T33): a union function with
@@ -142,7 +170,7 @@ impl<'a> G<'a> {
                     self.ind += 1;
                 }
                 Lang::Python => self.open("try"),
-                Lang::Js => self.open("try"),
+                Lang::Js | Lang::Scala => self.open("try"),
             }
         }
         match &f.body {
@@ -180,9 +208,38 @@ impl<'a> G<'a> {
                         "}} catch (__e) {{ if (__e instanceof Fail) {{ __e.outs = [{outs}]; __e.slf = {slf}; }} throw __e; }}"
                     ));
                 }
+                Lang::Scala => {
+                    self.ind -= 1;
+                    self.line(format!(
+                        "}} catch {{ case __e: Fail => __e.outs = V({outs}); __e.slf = {slf}; throw __e }}"
+                    ));
+                }
             }
         }
         self.close();
+        if f.sig.bound.is_some() {
+            match l {
+                Lang::Rust => {
+                    self.open(&format!("fn b_{id}(slf: Option<V>, a: Vec<V>) -> R<Call>"));
+                    self.line(format!("let r = c_{id}(slf, a); if !matches!(r, Err(Flow::Trap(_))) {{ depth_exit(\"{id}\"); }} r"));
+                }
+                Lang::Python => {
+                    self.open(&format!("def b_{id}(slf, a)"));
+                    self.line(format!("try:\n    r = c_{id}(slf, a)\nexcept Trap:\n    raise\nexcept BaseException:\n    depth_exit(\"{id}\")\n    raise\ndepth_exit(\"{id}\")\nreturn r"));
+                }
+                Lang::Js => {
+                    self.open(&format!("function b_{id}(slf, a)"));
+                    self.line(format!("let r; try {{ r = c_{id}(slf, a); }} catch (e) {{ if (!(e instanceof Trap)) depthExit(\"{id}\"); throw e; }} depthExit(\"{id}\"); return r;"));
+                }
+                Lang::Scala => {
+                    self.open(&format!("def b_{id}(slf: Any, a: Vector[Any]): Vector[Any] ="));
+                    self.line(format!("val r = try {{ c_{id}(slf, a) }} catch {{ case e: Trap => throw e; case e: Throwable => {{ depth_exit(\"{id}\"); throw e }} }}"));
+                    self.line(format!("depth_exit(\"{id}\")"));
+                    self.line("r");
+                }
+            }
+            self.close();
+        }
         // u_: interp `call_fn`: fit the result; a failure of a union function is a value.
         let ret = f.sig.ret.as_ref().map(|t| self.ty(t));
         let nm = named.len();
@@ -245,6 +302,24 @@ impl<'a> G<'a> {
                     None => self.line("return [UNIT, r[1], r[2]];"),
                 }
             }
+            Lang::Scala => {
+                self.open(&format!("def u_{id}(slf: Any, a: Vector[Any]): Vector[Any] ="));
+                if wb_fail {
+                    self.line(format!(
+                        "val r = try {{ b_{id}(slf, a) }} catch {{ case e: Fail => return V(new Err(e.v), e.outs, e.slf) }}"
+                    ));
+                } else if union {
+                    self.line(format!(
+                        "val r = try {{ b_{id}(slf, a) }} catch {{ case e: Fail => return V(new Err(e.v), Vector.fill({nm})(null), null) }}"
+                    ));
+                } else {
+                    self.line(format!("val r = b_{id}(slf, a)"));
+                }
+                match &ret {
+                    Some(t) => self.line(format!("V(fit(r(0), {t}), r(1), r(2))")),
+                    None => self.line("V(UNIT, r(1), r(2))"),
+                }
+            }
         }
         self.close();
         // r_: interp `apply` of a function value (no result fit; failures propagate).
@@ -260,6 +335,10 @@ impl<'a> G<'a> {
             Lang::Js => {
                 self.open(&format!("function r_{id}(a)"));
                 self.line(format!("return b_{id}(null, a)[0];"));
+            }
+            Lang::Scala => {
+                self.open(&format!("def r_{id}(a: Vector[Any]): Any ="));
+                self.line(format!("b_{id}(null, a)(0)"));
             }
         }
         self.close();
@@ -277,23 +356,23 @@ impl<'a> G<'a> {
         match self.lang {
             Lang::Rust => {
                 self.line(format!(
-                    "thread_local! {{ static K_{k}: RefCell<Option<V>> = const {{ RefCell::new(None) }}; }}"
+                    "thread_local! {{ static K_{k}: RefCell<Option<(u64, V)>> = const {{ RefCell::new(None) }}; }}"
                 ));
                 self.open(&format!("fn k_{k}() -> R<V>"));
                 self.line(format!(
-                    "if let Some(v) = K_{k}.with(|c| c.borrow().clone()) {{ return Ok(v); }}"
+                    "if let Some((g, v)) = K_{k}.with(|c| c.borrow().clone()) && g == kgen() {{ return Ok(v); }}"
                 ));
                 self.line(format!("let v = {v};"));
                 self.line(format!(
-                    "K_{k}.with(|c| *c.borrow_mut() = Some(v.clone()));"
+                    "K_{k}.with(|c| *c.borrow_mut() = Some((kgen(), v.clone())));"
                 ));
                 self.line("Ok(v)");
             }
             Lang::Python => {
                 self.open(&format!("def k_{k}()"));
-                self.line(format!("if \"{k}\" in KC: return KC[\"{k}\"]"));
+                self.line(format!("if \"{k}\" in TLS.kc: return TLS.kc[\"{k}\"]"));
                 self.line(format!("v = {v}"));
-                self.line(format!("KC[\"{k}\"] = v"));
+                self.line(format!("TLS.kc[\"{k}\"] = v"));
                 self.line("return v");
             }
             Lang::Js => {
@@ -302,6 +381,13 @@ impl<'a> G<'a> {
                 self.line(format!("const v = {v};"));
                 self.line(format!("KC[\"{k}\"] = v;"));
                 self.line("return v;");
+            }
+            Lang::Scala => {
+                self.open(&format!("def k_{k}(): Any ="));
+                self.line(format!("if (KC.contains(\"{k}\")) return KC(\"{k}\")"));
+                self.line(format!("val v = {v}"));
+                self.line(format!("KC(\"{k}\") = v"));
+                self.line("v");
             }
         }
         self.close();
@@ -323,11 +409,14 @@ impl<'a> G<'a> {
             )),
             Lang::Python => self.open(&format!("def {sid}(fs, ev)")),
             Lang::Js => self.open(&format!("function {sid}(fs, ev)")),
+            Lang::Scala => self.open(&format!("def {sid}(fs: Vector[Any], ev: Any): Any =")),
         }
         self.scopes = vec![vec![]];
         self.ctx = Ctx::Step;
         for (j, f) in fields.iter().enumerate() {
-            let get = if l == Lang::Rust {
+            let get = if l == Lang::Scala {
+                format!("at(at(fs, {j}), 1)")
+            } else if l == Lang::Rust {
                 format!("fs[{j}].1.clone()")
             } else {
                 format!("fs[{j}][1]")
@@ -346,6 +435,9 @@ impl<'a> G<'a> {
             Lang::Js => self.line(format!(
                 "const __pm = pm({ps}, ev);\nif (__pm === null) return null;"
             )),
+            Lang::Scala => self.line(format!(
+                "val __pm = pm({ps}, ev)\nif (__pm == null) return null"
+            )),
         }
         let mut names = vec![];
         self.pat_names(pat, &mut names);
@@ -357,6 +449,7 @@ impl<'a> G<'a> {
                 Lang::Rust => format!("if !{t} {{ return Ok(None); }}"),
                 Lang::Python => format!("if not {t}: return None"),
                 Lang::Js => format!("if (!{t}) return null;"),
+                Lang::Scala => format!("if (!{t}) return null"),
             });
         }
         match body {
@@ -387,6 +480,7 @@ impl<'a> G<'a> {
             Lang::Rust => format!("Ok(Some(vec![{}]))", outs.join(", ")),
             Lang::Python => format!("return [{}]", outs.join(", ")),
             Lang::Js => format!("return [{}];", outs.join(", ")),
+            Lang::Scala => format!("V({})", outs.join(", ")),
         });
         self.close();
         Ok(())
@@ -417,13 +511,17 @@ impl<'a> G<'a> {
             }
             Lang::Python => {
                 self.out.push(RT_PY.to_string());
-                self.line(format!("LOOP_LIMIT = {loop_limit}\nKC = {{}}"));
+                self.line(format!("LOOP_LIMIT = {loop_limit}"));
             }
             Lang::Js => {
                 self.out.push(RT_JS.to_string());
                 self.line(format!(
                     "const LOOP_LIMIT = {loop_limit};\nconst KC = {{}};"
                 ));
+            }
+            Lang::Scala => {
+                self.out.push(RT_SCALA.to_string());
+                self.line(format!("val LOOP_LIMIT: BigInt = BigInt(\"{loop_limit}\")"));
             }
         }
         let mut fn_ids: Vec<(String, String)> = vec![];
@@ -496,6 +594,7 @@ impl<'a> G<'a> {
             Lang::Rust => self.open("fn initial_state() -> R<State>"),
             Lang::Python => self.open("def initial_state()"),
             Lang::Js => self.open("function initialState()"),
+            Lang::Scala => self.open("def initial_state(): Vector[Any] ="),
         }
         self.scopes = vec![vec![]];
         self.ctx = Ctx::Gen;
@@ -522,6 +621,7 @@ impl<'a> G<'a> {
             Lang::Rust => format!("Ok({r})"),
             Lang::Python => format!("return {r}"),
             Lang::Js => format!("return {r};"),
+            Lang::Scala => r.clone(),
         });
         self.close();
         Ok(())
@@ -587,6 +687,24 @@ impl<'a> G<'a> {
                 o += "    _ => vec![],\n  }\n}";
                 self.line(o);
             }
+            Lang::Scala => {
+                let fns: Vec<String> = fn_ids.iter().map(|(n, id)| format!("{} -> (u_{id} _)", q(n))).collect();
+                let raw: Vec<String> = fn_ids.iter().map(|(n, id)| format!("{} -> (r_{id} _)", q(n))).collect();
+                let meth: Vec<String> = ms.iter().map(|(h, n, id, _)| format!("{} -> (u_{id} _)", q(&format!("{h}.{n}")))).collect();
+                let kind: Vec<String> = kinds.iter().map(|(a, k)| format!("{} -> {}", q(a), q(k))).collect();
+                let st: Vec<String> = states
+                    .iter()
+                    .map(|(n, _)| {
+                        let f: Vec<String> = steps_of(n).iter().map(|s| format!("({s} _)")).collect();
+                        format!("{} -> Vector[(Vector[Any], Any) => Any]({})", q(n), f.join(", "))
+                    })
+                    .collect();
+                self.line(format!("lazy val FNS: Map[String, (Any, Vector[Any]) => Vector[Any]] = Map({})", fns.join(", ")));
+                self.line(format!("lazy val RAW: Map[String, Vector[Any] => Any] = Map({})", raw.join(", ")));
+                self.line(format!("lazy val METHODS: Map[String, (Any, Vector[Any]) => Vector[Any]] = Map({})", meth.join(", ")));
+                self.line(format!("lazy val KIND_OF: Map[String, String] = Map({})", kind.join(", ")));
+                self.line(format!("lazy val STEPS: Map[String, Vector[(Vector[Any], Any) => Any]] = Map({})", st.join(", ")));
+            }
             Lang::Python | Lang::Js => {
                 let py = self.lang == Lang::Python;
                 let decl = if py { "" } else { "const " };
@@ -636,6 +754,7 @@ impl<'a> G<'a> {
             Lang::Rust => format!("obs({label}, &|| Ok({v}));"),
             Lang::Python => format!("obs({label}, lambda: {v})"),
             Lang::Js => format!("obs({label}, () => {v});"),
+            Lang::Scala => format!("obs({label}, () => {v})"),
         });
     }
 
@@ -652,10 +771,16 @@ impl<'a> G<'a> {
                 ),
                 (Lang::Python, c) => format!("({n}, lambda: {})", c.unwrap_or("None".into())),
                 (Lang::Js, c) => format!("[{n}, () => {}]", c.unwrap_or("null".into())),
+                (Lang::Scala, c) => format!("V({n}, () => {})", c.unwrap_or("null".into())),
             });
         }
         let s = self.stmt_call("run_example", &format!("{}, {}", x.line, self.vec(&evs)));
-        self.line(s.replace(")?;", ");"));
+        // run_example returns nothing: drop only the statement's own `?`
+        let s = match s.strip_suffix(")?;") {
+            Some(h) => format!("{h});"),
+            None => s,
+        };
+        self.line(s);
         Ok(())
     }
 
@@ -666,9 +791,21 @@ impl<'a> G<'a> {
             Lang::Rust => self.open("fn main()"),
             Lang::Python => self.open("def observe()"),
             Lang::Js => self.open("function observe()"),
+            Lang::Scala => self.open("def observe(): Unit ="),
         }
+        // `--run` without `fn main()` refuses as `conc::run_main` does (10.3)
+        let has_main = m.items.iter().any(|i| matches!(i, Item::Fn(f) if f.sig.name == "main" && f.sig.params.is_empty()));
+        let run = |r: &str, py: bool| -> String {
+            match (l, has_main) {
+                (_, true) => r.to_string(),
+                (Lang::Python, false) if py => "(sys.stderr.write(\"nothing to run: declare `fn main()`\\n\"), sys.exit(1))".into(),
+                (Lang::Js, false) => "{ process.stderr.write(\"nothing to run: declare `fn main()`\\n\"); process.exit(1); }".into(),
+                _ => "{ eprintln!(\"nothing to run: declare `fn main()`\"); std::process::exit(1); }".into(),
+            }
+        };
         if l == Lang::Rust {
-            self.line("if std::env::args().any(|a| a == \"--run\") { run_tasks(\"main\"); return; }");
+            let r = run("run_tasks(\"main\")", false);
+            self.line(&format!("if std::env::args().any(|a| a == \"--run\") {{ {r}; return; }}"));
         }
         self.scopes = vec![vec![]];
         self.ctx = Ctx::Gen;
@@ -706,7 +843,10 @@ impl<'a> G<'a> {
                         Lang::Rust => format!("u_{id}(None, vec![])?.v"),
                         Lang::Python => format!("u_{id}(None, [])[0]"),
                         Lang::Js => format!("u_{id}(null, [])[0]"),
+                        Lang::Scala => format!("u_{id}(null, V())(0)"),
                     };
+                    // interp `call_fn` ticks on entry (6.7)
+                    let v = self.pre_fuel(&v);
                     self.obs_line(&format!("fn {}", f.sig.name), &v);
                 }
                 _ => {}
@@ -717,15 +857,33 @@ impl<'a> G<'a> {
                 Lang::Rust => format!("run_main(&u_{id});"),
                 Lang::Python => format!("run_main(u_{id})"),
                 Lang::Js => format!("runMain(u_{id});"),
+                Lang::Scala => format!("run_main(u_{id} _)"),
             });
         }
         self.close();
         match l {
             Lang::Rust => {}
-            Lang::Python => self.line("if \"--run\" in sys.argv: run_tasks(\"main\")\nelse: observe()"),
-            Lang::Js => self.line(
-                "if (!WT.isMainThread) { if (WT.workerData && WT.workerData.par) parMain(); else taskMain(); }\nelse if (process.argv.includes(\"--run\")) runTasks(\"main\");\nelse {\n  observe();\n  process.stdout.write(LINES.map((x) => x + \"\\n\").join(\"\"));\n}",
-            ),
+            Lang::Python => {
+                let r = run("run_tasks(\"main\")", true);
+                self.line(&format!("if \"--run\" in sys.argv: {r}\nelse: observe()"))
+            }
+            Lang::Js => {
+                let r = run("runTasks(\"main\");", false);
+                self.line(&format!(
+                    "if (!WT.isMainThread) {{ if (WT.workerData && WT.workerData.par) parMain(); else taskMain(); }}\nelse if (process.argv.includes(\"--run\")) {r}\nelse {{\n  observe();\n  process.stdout.write(LINES.map((x) => x + \"\\n\").join(\"\"));\n}}"
+                ))
+            }
+            Lang::Scala => {
+                let r = if has_main {
+                    "run_tasks(\"main\")"
+                } else {
+                    "{ System.err.println(\"nothing to run: declare `fn main()`\"); sys.exit(1) }"
+                };
+                self.line(format!(
+                    "@main def rce_main(args: String*): Unit = big_stack {{ () =>\n  init_args(args)\n  if (args.contains(\"--run\")) {r}\n  else {{\n    observe()\n    val o = new java.io.PrintStream(new java.io.FileOutputStream(java.io.FileDescriptor.out), false, \"UTF-8\")\n    for (x <- LINES) {{ o.print(x); o.print(\"\\n\") }}\n    o.flush()\n  }}\n}}"
+                ))
+            }
+
         }
         Ok(())
     }

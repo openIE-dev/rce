@@ -1,0 +1,23 @@
+# Mutual recursion: even and odd alternate on the tail of a list.
+kind L
+    Nil
+    Cons(h: i64, t: Box[L])
+
+fn even(xs: &L) -> bool
+    match xs
+        Nil -> return true
+        Cons(h: _, t: t) -> return odd(t)
+
+fn odd(xs: &L) -> bool
+    match xs
+        Nil -> return false
+        Cons(h: _, t: t) -> return even(t)
+
+fn three() -> L
+    Cons(h: 1, t: Box(Cons(h: 2, t: Box(Cons(h: 3, t: Box(Nil))))))
+
+fn parity() -> bool
+    let xs = three()
+    return odd(&xs) and not even(&xs)
+
+check parity()

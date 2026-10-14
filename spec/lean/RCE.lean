@@ -29,3 +29,7 @@ import RCE.Replay
 import RCE.WriteBack
 import RCE.Compose
 import RCE.Anf
+import RCE.Mutual
+import RCE.Refine
+import RCE.Label
+import RCE.Host

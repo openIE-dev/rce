@@ -13,6 +13,7 @@ fn tool(lang: Lang) -> &'static str {
         Lang::Rust => "rustc",
         Lang::Python => "python3",
         Lang::Js => "node",
+        Lang::Scala => "scala-cli",
     }
 }
 

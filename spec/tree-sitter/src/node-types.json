@@ -6101,6 +6101,10 @@
           "named": true
         },
         {
+          "type": "INT",
+          "named": true
+        },
+        {
           "type": "NAME",
           "named": true
         },
@@ -15384,7 +15388,27 @@
       "required": true,
       "types": [
         {
+          "type": "FLOAT",
+          "named": true
+        },
+        {
+          "type": "INT",
+          "named": true
+        },
+        {
           "type": "NAME",
+          "named": true
+        },
+        {
+          "type": "STRING",
+          "named": true
+        },
+        {
+          "type": "add_expr",
+          "named": true
+        },
+        {
+          "type": "and_expr",
           "named": true
         },
         {
@@ -15392,7 +15416,55 @@
           "named": true
         },
         {
+          "type": "band_expr",
+          "named": true
+        },
+        {
+          "type": "bitnot",
+          "named": true
+        },
+        {
+          "type": "bor_expr",
+          "named": true
+        },
+        {
+          "type": "borrow",
+          "named": true
+        },
+        {
+          "type": "bxor_expr",
+          "named": true
+        },
+        {
+          "type": "call",
+          "named": true
+        },
+        {
+          "type": "cast_expr",
+          "named": true
+        },
+        {
+          "type": "catch_expr",
+          "named": true
+        },
+        {
+          "type": "chan_new",
+          "named": true
+        },
+        {
           "type": "chan_type",
+          "named": true
+        },
+        {
+          "type": "cmp_expr",
+          "named": true
+        },
+        {
+          "type": "comptime_expr",
+          "named": true
+        },
+        {
+          "type": "false",
           "named": true
         },
         {
@@ -15404,7 +15476,35 @@
           "named": true
         },
         {
+          "type": "if_expr",
+          "named": true
+        },
+        {
+          "type": "index",
+          "named": true
+        },
+        {
           "type": "iter_type",
+          "named": true
+        },
+        {
+          "type": "lambda",
+          "named": true
+        },
+        {
+          "type": "list",
+          "named": true
+        },
+        {
+          "type": "list_comp",
+          "named": true
+        },
+        {
+          "type": "list_empty",
+          "named": true
+        },
+        {
+          "type": "list_repeat",
           "named": true
         },
         {
@@ -15412,7 +15512,51 @@
           "named": true
         },
         {
+          "type": "map",
+          "named": true
+        },
+        {
+          "type": "map_empty",
+          "named": true
+        },
+        {
+          "type": "member",
+          "named": true
+        },
+        {
+          "type": "mul_expr",
+          "named": true
+        },
+        {
+          "type": "name",
+          "named": true
+        },
+        {
+          "type": "neg",
+          "named": true
+        },
+        {
+          "type": "none",
+          "named": true
+        },
+        {
+          "type": "not_op",
+          "named": true
+        },
+        {
           "type": "opt_type",
+          "named": true
+        },
+        {
+          "type": "or_expr",
+          "named": true
+        },
+        {
+          "type": "range_expr",
+          "named": true
+        },
+        {
+          "type": "recv",
           "named": true
         },
         {
@@ -15424,11 +15568,39 @@
           "named": true
         },
         {
+          "type": "self_ref",
+          "named": true
+        },
+        {
           "type": "session_type",
           "named": true
         },
         {
+          "type": "shift_expr",
+          "named": true
+        },
+        {
+          "type": "slice",
+          "named": true
+        },
+        {
           "type": "slice_type",
+          "named": true
+        },
+        {
+          "type": "true",
+          "named": true
+        },
+        {
+          "type": "try_expr",
+          "named": true
+        },
+        {
+          "type": "tuple",
+          "named": true
+        },
+        {
+          "type": "tuple_member",
           "named": true
         },
         {
@@ -15441,6 +15613,10 @@
         },
         {
           "type": "union_type",
+          "named": true
+        },
+        {
+          "type": "unit",
           "named": true
         },
         {
@@ -16826,6 +17002,10 @@
   },
   {
     "type": "var",
+    "named": false
+  },
+  {
+    "type": "where",
     "named": false
   },
   {

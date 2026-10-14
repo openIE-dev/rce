@@ -109,6 +109,9 @@ Section 10 of the specification defines each command exactly.
 | `spec/lean/` | the Lean 4 model of the core language and its proofs (section 8) |
 | `spec/fuzz/` | results of the grammar-level program fuzzer |
 | `spec/LANGUAGE-REVIEW.md` | what RCE learned from Rust, Go, Python, Mojo, Zig and Haskell; drafts 0.4 and 0.5 follow it |
+| `spec/book/16-host-contract.md` | Appendix E, the host contract: one admitter, durable append per OS, fatal storage barrier, verify on open, inputs as events, capabilities, fabric entries and automatic placement, and RCEdb written in RCE (theorems T37 to T39, `spec/lean/RCE/Host.lean`, `spec/checker/tests/host_contract.rs`) |
+| `spec/data/` | the specification as data (grammar tables, rules, method and cost tables), read from the book by `rce-spec-data` |
+| `spec/traces/` | reference traces of the example corpus (`rce trace --json`) |
 | `spec/conc06/`, `spec/conc06b/` | test programs for the version 0.6 extensions of Appendix C |
 | `spec/checker-wasm/pkg/` | the built WebAssembly package (wasm-pack) |
 | `spec/wasm-test/` | Node test of the WebAssembly package against the examples |
@@ -120,7 +123,7 @@ change. The reference interpreter defines what programs mean and is not
 built for speed. There is no production compiler yet. Section 10.8 lists
 what the tools do not do yet.
 
-## Language versions 0.5, 0.6 and 0.7
+## Language versions 0.5, 0.6, 0.7 and 0.8
 
 Each module selects its language version with a first-line comment
 (section 2.7). A module without it is version 0.5, the language of
@@ -139,7 +142,17 @@ version of the module that contains a call expression decides that cost,
 so modules of different versions can be joined with `use`. Appendix D
 (`spec/book/15-handler-spec-profile.md`) defines handler specs and fits.
 A version 0.5 module never sees Appendix C, so every valid 0.5 program is
-accepted unchanged. The cargo feature `conc06` is a development aid only:
+accepted unchanged. Version 0.8 (`# rce-version: 0.8`, C.16, section 5.16)
+is 0.7 plus indexed values: context-typed text `Text[Html]`, `Text[Url]`,
+`Text[Sql]` and `Text[Json]` (made only from literals or by `encode`, so
+data never forms markup or a query), `Secret[τ]` (opaque, compared only by
+equality, never emitted), `Cap[A]` (authority carried by an event) and
+`Guarded[τ, A]` state fields (written only by steps whose events carry
+`Cap[A]`). In every version, refined types `type R = τ where p` (5.1,
+W-REF-1) check a decidable predicate wherever the declared range is
+checked, and functions may be mutually recursive when a summed measure
+falls on every call or a bound is declared (`fn … bound n`, 6.7,
+W-REC-1). The cargo feature `conc06` is a development aid only:
 it reads undeclared modules as 0.6 for the draft's test corpora and
 enables the 0.6 test suites.
 

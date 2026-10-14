@@ -18,6 +18,15 @@
     `INDEX.md` and `RCE-SPEC.md`; `rce-book verify receipt.json` checks a
     read receipt.
   - `rce-fuzz` is the program fuzzer.
+  - `rce-spec-data [--check]` writes (or checks) `data/spec-data.json`,
+    the spec as data (grammar tables, W-rules, 6.3 edges, the 5.15 and
+    C.6.4 method tables), read from the book only, and `data/spec-tables.json`,
+    the method and work tables cut from it. The checker compiles that
+    second file in and takes from it which builtin methods exist on each
+    receiver (W-NAME-1 otherwise), the C.6.4 work class of each method,
+    and the language server's method completions (`checker/src/specread.rs`,
+    `checker/tests/spec_read.rs`). After an edit to 5.15 or C.6.4, rerun
+    `rce-spec-data`; `tests/spec_data.rs` fails while the file is stale.
 
 ```
 cd checker && cargo run --release --bin rce-spec-check

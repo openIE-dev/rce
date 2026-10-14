@@ -656,7 +656,22 @@ fn corpus() -> Vec<(String, String)> {
         let stem = PathBuf::from(f).file_stem().unwrap().to_string_lossy().replace('-', "_");
         v.push((format!("x{stem}"), std::fs::read_to_string(f).unwrap()));
     }
+    v.extend(drivers());
     v
+}
+
+/// the concurrency examples 14, 15, 34 and 47 declare no `fn main`; each is
+/// run with a driver from tests/drivers/ appended to its unchanged text
+fn drivers() -> Vec<(String, String)> {
+    ["14_select", "15_actor", "34_chan_types", "47_select_fair"]
+        .iter()
+        .map(|n| {
+            let ex = std::fs::read_to_string(format!("../examples/{n}.rce")).unwrap();
+            let main = std::fs::read_to_string(format!("tests/drivers/{n}.main.rce")).unwrap();
+            assert!(!ex.contains("fn main"), "{n} gained a main; drop its driver");
+            (format!("d{n}"), ex + &main)
+        })
+        .collect()
 }
 
 #[test]
@@ -878,5 +893,29 @@ fn actor_refusals_match() {
         }
         let exe = build_lang(lang, &format!("refusals_{lang:?}"), REFUSALS);
         assert_eq!(run_log(&exe), w, "{lang:?}");
+    }
+}
+
+/// `--run` on a module without `fn main()` refuses as `rce run` does
+/// (10.3): status 1 and the reference's message, in every target, rather
+/// than starting a scheduler with no task
+#[test]
+fn run_without_main_refuses() {
+    for n in ["14_select", "15_actor", "34_chan_types", "47_select_fair"] {
+        let src = std::fs::read_to_string(format!("../examples/{n}.rce")).unwrap();
+        let m = parse(&src).unwrap();
+        let want = run_main(&m, &RunCfg::default()).err().expect("no main");
+        for lang in [Lang::Rust, Lang::Python, Lang::Js] {
+            let exe = build_lang(lang, &format!("nomain_{n}"), &src);
+            let mut c = Command::new("timeout");
+            c.arg("60");
+            if !exe.0.is_empty() {
+                c.arg(&exe.0);
+            }
+            let o = c.arg(&exe.1).arg("--run").output().unwrap();
+            assert_eq!(o.status.code(), Some(1), "{n} {lang:?}: {}", String::from_utf8_lossy(&o.stderr));
+            assert!(o.stdout.is_empty(), "{n} {lang:?}");
+            assert_eq!(String::from_utf8_lossy(&o.stderr).trim(), want, "{n} {lang:?}");
+        }
     }
 }

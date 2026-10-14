@@ -29,7 +29,9 @@ const checks = (src) => JSON.parse(check(src)).ok;
 const stage = (src) => JSON.parse(check(src)).stage;
 
 // 0.5 corpora.
-const valid = files("examples").filter((f) => !f.endsWith("26_use_module.rce"));
+const valid = files("examples");
+// the multi-module package of example 26 parses file by file; it checks as a program (rce check DIR)
+for (const f of files("examples/26_use_module/shop")) expect("ts accept", f, parses(read(f)), true);
 for (const f of valid) { expect("ts accept", f, parses(read(f)), true); expect("check accept", f, checks(read(f)), true); }
 for (const f of files("examples/reject")) { expect("ts refuse", f, parses(read(f)), false); expect("check refuse", f, checks(read(f)), false); }
 for (const d of ["examples/ill_typed", "examples/inadmissible"])

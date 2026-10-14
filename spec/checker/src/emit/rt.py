@@ -17,11 +17,41 @@ class Cancel(Exception):
 
 def trap(m): raise Trap(m)
 
+# Fuel (6.7, 10.5): one unit at each point where the reference evaluator
+# ticks (every expression, every statement, every user function call, every
+# comprehension element and every element a map, filter or fold visits).
+# Each observation starts with full fuel and empty constant caches, as the
+# reference starts each observation with a new evaluator.
+FUEL_LIMIT = int(next((a[7:] for a in sys.argv if a.startswith("--fuel=")), "50000000"))
+FUEL_TRACE = "--fuel-trace" in sys.argv
+# The pool and the constant cache are per thread (TLS), as the reference
+# gives every task its own evaluator; a par branch starts from its parent's
+# remaining fuel and is charged back in source order (par_resolve).
+def fuel():
+    t = TLS
+    if t.fuel == 0: trap("comptime fuel exhausted")
+    t.fuel -= 1
+# `bound n` (6.7): active calls of each bounded function, per thread
+def depth_enter(k, n):
+    d = TLS.depth.get(k, 0)
+    if d >= n: trap("recursion bound")
+    TLS.depth[k] = d + 1
+def depth_exit(k):
+    d = TLS.depth.get(k, 0)
+    if d > 0: TLS.depth[k] = d - 1
+def fuel_reset():
+    TLS.depth = {}
+    TLS.fuel = FUEL_LIMIT
+    TLS.kc = {}
+def fuel_report():
+    if FUEL_TRACE: print("fuel %d" % (FUEL_LIMIT - TLS.fuel))
+
 # per-thread runtime state: each task and par branch runs on its own thread
 class _TLS(threading.local):
     def __init__(s):
         s.yields = []; s.out = []; s.bud = []; s.puts = [0]; s.sched = [0]
         s.task = None; s.atomic = None; s.hsends = None; s.parcx = None
+        s.fuel = FUEL_LIMIT; s.kc = {}; s.depth = {}
 TLS = _TLS()
 
 RANGES = {"i8": (-128, 127), "i16": (-32768, 32767), "i32": (-2**31, 2**31 - 1),
@@ -400,7 +430,55 @@ def cast(v, T):
     if t is Int and n is None: return F(float(v.v))
     return v
 
+def ctx_lit(s):
+    charge(4)
+    return s
+def ctx_encode(c, s):
+    charge(4 + size_of(s))
+    if type(s) is not str: trap("context text")
+    if c == "Html": return "".join({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"}.get(ch, ch) for ch in s)
+    if c == "Url": return "".join(chr(b) if (48 <= b <= 57 or 65 <= b <= 90 or 97 <= b <= 122 or b in (45, 46, 95, 126)) else "%%%02X" % b for b in s.encode("utf-8"))
+    if c == "Sql": return "'" + s.replace("'", "''") + "'"
+    o = ['"']
+    for ch in s:
+        if ch == '"': o.append('\\"')
+        elif ch == "\\": o.append("\\\\")
+        elif ch == "\n": o.append("\\n")
+        elif ch == "\r": o.append("\\r")
+        elif ch == "\t": o.append("\\t")
+        elif ord(ch) < 0x20: o.append("\\u%04x" % ord(ch))
+        else: o.append(ch)
+    o.append('"')
+    return "".join(o)
+def ptm(t, v):
+    if t[0] == "lit": return t[1]
+    if t[0] == "self": return v.v if type(v) is Int else None
+    if type(v) is str: return len(v.encode("utf-8"))
+    if type(v) is Lst: return len(v.xs)
+    if type(v) is Mp: return len(v.ps)
+    return None
+def pholds(p, v):
+    k = p[0]
+    if k == "cmp":
+        x, y = ptm(p[2], v), ptm(p[3], v)
+        if x is None or y is None: return False
+        o = p[1]
+        return x < y if o == "<" else x <= y if o == "<=" else x > y if o == ">" else x >= y if o == ">=" else x == y if o == "==" else x != y
+    if k == "cls":
+        if type(v) is not str: return False
+        c = p[1]
+        if c == "isdigit": return v != "" and all("0" <= ch <= "9" for ch in v)
+        if c == "isalpha": return v != "" and all("a" <= ch <= "z" or "A" <= ch <= "Z" for ch in v)
+        if c == "isspace": return v != "" and all(ch in " \t\n\x0c\r" for ch in v)
+        return v == ""
+    if k == "and": return pholds(p[1], v) and pholds(p[2], v)
+    if k == "or": return pholds(p[1], v) or pholds(p[2], v)
+    return not pholds(p[1], v)
 def fit(v, T):
+    if T[0] == "refn":
+        v = fit(v, T[1])
+        if not pholds(T[3], v): trap("refinement: value is outside %s" % T[2])
+        return v
     k = T[0]; t = type(v)
     if t is Int:
         if k == "int":
@@ -475,7 +553,8 @@ def apply(f, vals):
     if type(f) is FnV: return RAW[f.n](vals)
     trap(show(f) + " is not callable")
 def call_value(f, vals):
-    if type(f) is FnV: return FNS[f.n](None, vals)[0]
+    if type(f) is FnV:
+        fuel(); return FNS[f.n](None, vals)[0]
     if type(f) is Clo: return f.f(vals)
     trap(show(f) + " is not callable")
 
@@ -537,9 +616,11 @@ def builtin(r, m, a):
     if t is str:
         if m == "strip": return rtrim(r), None
         if m == "upper": return aupper(r), None
+        if m == "sha256": return hashlib.sha256(r.encode("utf-8")).hexdigest(), None
         if m == "lower": return alower(r), None
         if m == "reverse": return r[::-1], None
         if m == "tostr": return r, None
+        if m == "raw": return r, None
         if m == "chars": return Lst(list(r)), None
         if m == "words": return Lst(rwords(r)), None
         if m == "lines": return Lst(rlines(r)), None
@@ -579,13 +660,13 @@ def builtin(r, m, a):
             acc = Int(0, "lit")
             for x in xs: acc = arith("+", acc, x)
             return acc, None
-        if m == "map": return Lst([apply(a[0], [x]) for x in xs]), None
-        if m == "filter": return Lst([x for x in xs if apply(a[0], [x]) is True]), None
+        if m == "map": return Lst([(fuel(), apply(a[0], [x]))[1] for x in xs]), None
+        if m == "filter": return Lst([x for x in xs if (fuel(), apply(a[0], [x]))[1] is True]), None
         if m == "pscan": return pscan(xs, a[0], a[1], False), None
         if m == "pscan_incl": return pscan(xs, a[0], a[1], True), None
         if m == "fold":
             acc = a[0]
-            for x in xs: acc = apply(a[1], [acc, x])
+            for x in xs: fuel(); acc = apply(a[1], [acc, x])
             return acc, None
     if t is Mp:
         ps = r.ps
@@ -609,7 +690,7 @@ def builtin(r, m, a):
     trap("%s has no method %s at comptime" % (show(r), m))
 
 # C.6.4 method work, as conc::method_work in the reference evaluator.
-LIN_TEXT = frozenset(("strip", "upper", "lower", "reverse", "tostr", "chars", "words", "lines", "split", "isdigit", "isalpha", "isspace", "contains", "startswith", "endswith", "toint", "join",))
+LIN_TEXT = frozenset(("strip", "upper", "lower", "reverse", "tostr", "chars", "words", "lines", "split", "isdigit", "isalpha", "isspace", "contains", "startswith", "endswith", "toint", "join", "sha256",))
 LIN_LIST = frozenset(("reverse", "contains", "sum", "map", "filter", "fold",))
 LIN_MAP = frozenset(("get", "contains", "insert", "remove", "keys", "values",))
 def size_of(v):
@@ -632,6 +713,7 @@ def call_method(recv, m, args, sized):
     t = type(recv)
     head = KIND_OF.get(recv.n, recv.n) if t is Rec else "List" if t is Lst else None
     if head is not None and (head, m) in METHODS:
+        fuel()
         v, outs, s = METHODS[(head, m)](recv, args)
         return v, outs, s
     charge(4 + (method_work(recv, m, args) if sized else 0))
@@ -739,6 +821,7 @@ def iterate(v):
 def listcomp(itv, P, names, body, cond):
     out = []
     for x in iter_items(itv):
+        fuel()
         b = {}
         if not pmatch(P, x, b): continue
         args = [b.get(n, UNIT) for n in names]
@@ -881,16 +964,22 @@ def emit(v):
     TLS.out.append(v)
 
 def obs(label, th):
+    fuel_reset()
     try:
         v = th()
         print(label + " = " + show(v))
     except (Trap, Fail, Stop, Ret) as e:
         print(label + " " + why(e))
+    fuel_report()
 
 def show_state(s):
     return "; ".join(r + " { " + ", ".join(n + " = " + show(v) for n, v in fs) + " }" for r, fs in s)
 
 def run_example(line, events):
+    fuel_reset()
+    try: run_example1(line, events)
+    finally: fuel_report()
+def run_example1(line, events):
     print("example %d" % line)
     try: s = initial_state()
     except (Trap, Fail, Stop, Ret) as e:
@@ -928,9 +1017,14 @@ def delta(s, ev):
     return nxt, outs
 
 def run_main(f):
+    fuel_reset()
+    try: run_main1(f)
+    finally: fuel_report()
+def run_main1(f):
     print("main")
     TLS.out.clear()
     try:
+        fuel()
         v = f(None, [])[0]
         for o in TLS.out: print("emit " + show(o))
         print("main = " + show(v))
@@ -1178,9 +1272,11 @@ def par_threads(k, branches):
     """run k branch functions on threads; returns [(exc or None, cost, writes)]"""
     cx = ParCx(k, TLS.parcx)
     bud = [list(b) for b in TLS.bud]
+    f0 = TLS.fuel
     out = [None] * k
     def run(i):
         TLS.parcx = cx
+        TLS.fuel = f0
         TLS.bud = [list(b) for b in bud]
         s0 = bud[0][0] if bud else 0
         e, w = None, None
@@ -1189,7 +1285,7 @@ def par_threads(k, branches):
         s1 = TLS.bud[0][0] if TLS.bud else 0
         with cx.cv:
             cx.running -= 1; cx.cv.notify_all()
-        out[i] = (e, s1 - s0, w)
+        out[i] = (e, s1 - s0, w, f0 - TLS.fuel, f0)
     ts = [threading.Thread(target=run, args=(i,)) for i in range(k)]
     for t in ts: t.start()
     for t in ts: t.join()
@@ -1205,12 +1301,16 @@ def par_split(items, k):
 def par_resolve(outs):
     rem = min((l - s for s, l in TLS.bud), default=None)
     cum = 0
-    for e, c, w in outs:
+    fcum = 0
+    for e, c, w, u, f0 in outs:
+        fcum += u
+        TLS.fuel = max(0, f0 - fcum)
+        if fcum > f0: trap("comptime fuel exhausted")
         if rem is not None and ((type(e) is Trap and e.m == "budget") or cum + c > rem): trap("budget")
         if e is not None: raise e
         cum += c
     for b in TLS.bud: b[0] += cum
-    return [w for _, _, w in outs]
+    return [o[2] for o in outs]
 def merge3(base, cur, new):
     if eq(new, base): return cur
     if eq(cur, base): return new
@@ -1348,6 +1448,7 @@ def _task_body(slot, f, args):
     if first[1][0] == "go":
         TLS.task.now = first[0]
         try:
+            for _ in range(len(args) + 1): fuel()
             v = FNS[f](None, args)[0]
             await_scope(0)
             r = ("ok", v)

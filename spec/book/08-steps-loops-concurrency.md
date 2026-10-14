@@ -71,15 +71,76 @@ evaluation uses the same bounds. `for x in f(…)` over an iterator function
 `RCE/Iter.lean` (`drive_total`, `drive_break`).
 
 **Structural recursion (draft 0.4).** A function may call itself when
-every self-call passes, in some parameter position i, a name bound inside a
-constructor pattern of a `match` whose scrutinee is parameter i (or a name
-already known to be such a component). The argument is then a strict
-component of the value received, so along any chain of calls the value at
-position i strictly shrinks and the depth of recursion is at most the
-number of constructor nodes in that value, which N9 bounds. A name that is
-rebound by `let`, `var`, assignment or a `for` pattern loses this status.
-Any other cycle in the call graph, including every mutual recursion, is
-refused (W-REC-1).
+every self-call passes, in one parameter position i fixed for the
+function, a name bound inside a constructor pattern of a `match` whose
+scrutinee is parameter i (or a name already known to be such a
+component). The argument is then a strict component of the value
+received, so along any chain of calls the value at position i strictly
+shrinks and the depth of recursion is at most the number of constructor
+nodes in that value, which N9 bounds. A name that is rebound by `let`,
+`var`, assignment or a `for` pattern loses this status. The checkers of
+drafts 0.4 to 0.7 let the position differ from call to call; that admits
+a function that never returns (`f(x, y)` whose one self-call takes a
+component of x and a fixed value for y, and whose other takes a fixed
+value for x and a component of y, runs forever from `f(Leaf, Node(…))`),
+so such a function is refused (W-REC-1; an erratum, C.15). Every function
+this paragraph admits is admitted by the rule below with one layer.
+
+**Recursion by layered measures.** Every cycle of the call graph (a
+strongly connected component: one function that calls itself, or two or
+more functions; trait methods excluded) is admitted when its calls can be
+done in layers. A layer gives each function f of the cycle a set P f of
+parameter positions and the *summed measure* μ_f(ā) = Σ_{i ∈ P f}
+size(aᵢ), with size the number of constructor nodes. A call g(b̄)
+written in f *keeps* the measure when the positions P g map one to one
+into P f so that the argument at each j ∈ P g is the parameter at its
+image i (unchanged, the name not rebound) or a component of it in the
+sense of structural recursion above; it *shrinks* the measure when at
+least one of them is a component. Layer 1 must be kept by every call of
+the cycle and shrunk by at least one; the calls it shrinks are done.
+Layer 2 must be kept by every call not yet done and shrunk by at least
+one of them, and so on. The cycle is admitted when the calls left after
+some layer k form no cycle among the functions. Then the tuple (μ₁, …,
+μ_k, rank of the function) falls lexicographically at every call: a call
+done at layer j keeps μ₁ … μ_{j−1} and shrinks μ_j, and a call left over
+keeps every μ and lowers the rank. The order is well founded, so every
+chain of calls is finite; with one layer a chain inside the cycle has at
+most (μ + 1)·k calls, with μ the measure of the first call and k the
+number of functions in the cycle, and N9 bounds μ. The reference checker
+tries every choice of the sets of a layer, in a fixed order, for a cycle
+with at most 16 parameters in total, takes the first choice that does
+the most calls, and refuses a larger cycle that needs a layer. Lean:
+`RCE/Mutual.lean` (`call_dec`, `call_keep`, `layer_dec`, `wf_total`,
+`wf_fuel_irrelevant`; one layer: `lex_dec`, `mutual_total`,
+`mutual_fuel_irrelevant`, `mutual_depth`). Examples: `even(xs)` and
+`odd(xs)` that each call the other on the tail of a matched `Cons`
+(one layer); `h(m, n)` that calls `h(m', n)` and `h(m, n')` on
+components m' of m and n' of n (layer {m} does the first call, layer {n}
+the second).
+
+**Declared bounds.** `fn f(…) -> τ bound n`, n a positive integer
+literal, allows at most n active calls of f at once: a call of f, once
+its arguments are evaluated and fitted to the parameter types, traps
+with `trap("recursion bound")` when n calls of f are already active, and
+otherwise counts as active until it returns or fails. A cycle that no
+layers admit is admitted when every cycle of calls inside it passes
+through a function declared with `bound` (the calls between functions
+without one form no cycle). Then the slack Σ (n_g − active calls of g)
+over the bounded functions falls at every call of a bounded function and
+the rank falls at every other call, so every run of the cycle ends, by
+its value or by the trap, within (slack + 1)·k nested calls. This covers
+recursion on integers or indices, which has no constructor measure
+(`gcd(a, b)` calling `gcd(b, a % b)`, a parser that recurses on a
+position). The counts belong to the task (6.8) that makes the calls, so
+`par` and `for … par` inside a function of a cycle with a bounded
+function are refused (W-REC-1): the branches could otherwise count calls
+differently on one thread and on several. `bound` on an iterator
+function (5.14), a foreign function or a trait signature is W-REC-1. The
+check costs nothing (C.6.4 is unchanged). Lean: `RCE/Mutual.lean`
+(`bump_slack`, `bound_dec`, with `lex_dec`, `mutual_total`,
+`mutual_depth`); tests: `spec/checker/tests/bound.rs`.
+
+Any other cycle in the call graph is refused (W-REC-1).
 
 This is what makes δ total (T2): every construct terminates in a number of
 steps bounded by a function of the program and the event.
@@ -155,4 +216,4 @@ holds (W-INT-1): the gate is part of the language, not of a test harness.
 
 **Read receipt.** Name-free hashing uses indices named after which logician? (two words)
 
-<!-- body-sha256: 4d90e5d4d01a0c866448c178c9c6fc93ea320e987af09bb5f66a527cbc41184d -->
+<!-- body-sha256: 59c642644ddf6e2559938f49dd7ad89185b6af717a8825cdad2a108db7b4c42c -->

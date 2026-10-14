@@ -13,11 +13,16 @@ fn spec() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap().to_path_buf()
 }
 
-/// The counter event list traced in addition to its examples.
-const COUNTER_EVENTS: &str = "Inc, Inc, Dec, Inc, Dec, Dec, Dec";
+/// Event lists traced in addition to the examples: the counter on a
+/// longer list, and example 16 (two regions, no `example` lines).
+const EVENT_TRACES: &[(&str, &str)] = &[
+    ("01_counter", "Inc, Inc, Dec, Inc, Dec, Dec, Dec"),
+    ("16_multi_region", "AddItem(name: \"milk\"), AddItem(name: \"eggs\"), RemoveItem(name: \"milk\"), AddItem(name: \"tea\"), Reset, AddItem(name: \"jam\")"),
+];
 
-/// (fixture name, trace) for the corpus; files refused standalone (a
-/// module that needs its imports) have no trace.
+/// (fixture name, trace) for the corpus: every top-level example (the
+/// multi-module example 26 is the package `examples/26_use_module/`,
+/// which has no state machine), plus the event-list traces.
 fn corpus() -> (Vec<(String, String)>, Vec<String>) {
     let ex = spec().join("examples");
     let mut fs: Vec<PathBuf> = std::fs::read_dir(&ex)
@@ -35,9 +40,11 @@ fn corpus() -> (Vec<(String, String)>, Vec<String>) {
             Err(_) => skipped.push(stem),
         }
     }
-    let c = ex.join("01_counter.rce");
-    let t = trace(&c.to_string_lossy(), &std::fs::read_to_string(&c).unwrap(), Some(COUNTER_EVENTS)).unwrap();
-    out.push(("01_counter.events.json".into(), t + "\n"));
+    for (stem, evs) in EVENT_TRACES {
+        let c = ex.join(format!("{stem}.rce"));
+        let t = trace(&c.to_string_lossy(), &std::fs::read_to_string(&c).unwrap(), Some(evs)).unwrap();
+        out.push((format!("{stem}.events.json"), t + "\n"));
+    }
     (out, skipped)
 }
 
@@ -45,8 +52,8 @@ fn corpus() -> (Vec<(String, String)>, Vec<String>) {
 fn fixtures_are_the_reference_traces() {
     let dir = spec().join("traces");
     let (all, skipped) = corpus();
-    assert_eq!(skipped, vec!["26_use_module".to_string()], "only the multi-module example has no standalone trace");
-    assert_eq!(all.len(), 51, "50 traceable examples plus the counter event list");
+    assert!(skipped.is_empty(), "every top-level example is admitted standalone: {skipped:?}");
+    assert_eq!(all.len(), 56, "54 top-level examples plus two event-list traces");
     let bless = std::env::var_os("RCE_BLESS_TRACES").is_some();
     for (n, t) in &all {
         let p = dir.join(n);
@@ -106,7 +113,7 @@ fn differential_runner_reports_match_and_first_divergence() {
     let o = Command::new("python3").arg(&script).arg(&a).arg(&b).output().unwrap();
     let s = String::from_utf8_lossy(&o.stdout);
     assert!(o.status.success(), "{s}");
-    assert!(s.contains("51/51 exact match"), "{s}");
+    assert!(s.contains("56/56 exact match"), "{s}");
     // diverge at seq 2 of the counter event list: a wrong state hash
     let n = "01_counter.events.json";
     let mut v: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(a.join(n)).unwrap()).unwrap();
@@ -116,7 +123,7 @@ fn differential_runner_reports_match_and_first_divergence() {
     let s = String::from_utf8_lossy(&o.stdout);
     assert_eq!(o.status.code(), Some(1), "{s}");
     assert!(s.contains("01_counter.events.json: DIVERGES: trace 0 (events) seq 2: state_hash"), "{s}");
-    assert!(s.contains("50/51 exact match"), "{s}");
+    assert!(s.contains("55/56 exact match"), "{s}");
     // a projector that stops early
     v["traces"][0]["steps"].as_array_mut().unwrap().truncate(1);
     std::fs::write(b.join(n), v.to_string()).unwrap();

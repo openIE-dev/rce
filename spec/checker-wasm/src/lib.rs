@@ -14,8 +14,14 @@ mod interp;
 mod link;
 #[path = "../../checker/src/parse.rs"]
 mod parse;
+#[path = "../../checker/src/index08.rs"]
+pub mod index08;
+#[path = "../../checker/src/refine.rs"]
+pub mod refine;
 #[path = "../../checker/src/types.rs"]
 mod types;
+#[path = "../../checker/src/specread.rs"]
+mod specread;
 use std::collections::HashSet;
 use wasm_bindgen::prelude::*;
 

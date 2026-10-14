@@ -177,12 +177,21 @@ against the reference evaluator (`spec/checker/tests/stdlib_costs.rs`).
 | `Int` | integers (iN, uN, usize) | `abs`, `checked_add`, `checked_div`, `checked_mul`, `checked_sub`, `max`, `min`, `saturating_add`, `saturating_mul`, `saturating_sub`, `tostr`, `wrapping_add`, `wrapping_mul`, `wrapping_sub` |
 | `F` | f64 | `abs`, `ceil`, `floor`, `max`, `min`, `round`, `sqrt`, `tostr` |
 | `Bool` | bool | `tostr` |
-| `Text` | text | `chars`, `contains`, `endswith`, `isalpha`, `isdigit`, `isempty`, `isspace`, `join`, `len`, `lines`, `lower`, `reverse`, `split`, `startswith`, `strip`, `toint`, `tostr`, `upper`, `words` |
+| `Text` | text | `chars`, `contains`, `endswith`, `isalpha`, `isdigit`, `isempty`, `isspace`, `join`, `len`, `lines`, `lower`, `raw`, `reverse`, `sha256`, `split`, `startswith`, `strip`, `toint`, `tostr`, `upper`, `words` |
 | `F32` | f32 | `abs`, `tostr` |
 | `Gen` | iter τ | `collect` |
 | `List` | List[τ], [τ; n] | `append`, `clear`, `contains`, `filter`, `fold`, `get`, `isempty`, `len`, `map`, `pop`, `push`, `reverse`, `sort`, `sum`, `with` |
 | `Map` | Map[k, v] | `contains`, `get`, `insert`, `keys`, `len`, `remove`, `values` |
 | `Opt` | τ? | `isnone`, `issome`, `or` |
+
+`raw` exists only in a version 0.8 module and only on `Text[C]` (5.16).
+
+**Hashing (normative).** `t.sha256()` on a `text` t is the SHA-256
+digest (FIPS 180-4) of the UTF-8 bytes of t, written as 64 lowercase
+hexadecimal digits, as a `text`. It is pure, total and the same on every
+target; it is the digest 6.1 and 6.8 apply to canonical JSON, so a
+program given the canonical JSON of a value as text computes the same
+hash as the Form log and the content-hash ids. It is in the linear class of C.6.4.
 
 **Effects and I/O (normative).** By derivation from least privilege, a
 program has no ambient authority: there is no file, clock, network,
@@ -200,6 +209,74 @@ version 0.7 module it costs in addition the work of its complexity class
 on the sizes of its receiver and argument (C.6.4, C.15); see C.6 for the
 budget rules.
 
+### 5.16 Indexed values (version 0.8)
+
+In a module declaring `# rce-version: 0.8` four type names and four
+contexts belong to the language: `Text[C]`, `Secret[τ]`, `Cap[A]`,
+`Guarded[τ, A]`, and `Html`, `Url`, `Sql`, `Json`. A 0.8 module may not
+declare an item with one of these names (W-NAME-2). Each is a type
+*index*: the value is a value of the base type (text, τ, `()`, τ), and
+the index is a static fact the checker carries. Indices are erased at
+run time, so δ, the log and the emitters are unchanged except for the
+encoders. Derivation (`spec/proposals/CORE-PROPERTIES.md`, P1): one
+meaning per construct requires that a text which is HTML in one place
+and SQL in another be two types; least privilege requires that
+authority be a value, not an ambient fact; soundness requires that the
+checker, not a convention, enforce both. The three indices are one
+mechanism: a value carries an index, and it crosses an index only by a
+named, total, costed construct.
+
+**Context-typed text (W-CTX-1).** `Text[C]` for C one of the contexts
+is text whose structure (markup, query syntax) is fixed by the program.
+It is made only by `C.lit(s)`, where s is a string literal (program
+text is trusted: its author wrote it), and by `C.encode(t)` for a `text`
+t, which escapes every metacharacter of C. `a + b` joins two values of
+one context; any other operator, or `+` with plain text or another
+context, is W-CTX-1. `x.raw()` gives the text of a `Text[C]` as `text`
+(going back only re-enters through `encode`). An event payload carries
+plain text only (W-CTX-1): context text cannot come from outside.
+`emit` may carry `Text[C]`; a host sink for C takes exactly that type.
+The encoders (normative, every runtime): `Html` maps `&` `<` `>` `"` `'`
+to `&amp;` `&lt;` `&gt;` `&quot;` `&#39;`; `Url` percent-encodes every
+UTF-8 byte except `A-Z a-z 0-9 - . _ ~` with uppercase hex; `Sql` gives
+a standard SQL string literal, the text between single quotes with each
+`'` doubled; `Json` gives a JSON string literal with `"` `\` newline,
+return and tab escaped and other code points below U+0020 as `\u00xx`.
+Consequence (T36): every structural metacharacter of a `Text[C]` value
+comes from a literal, so untrusted text cannot form markup or query
+syntax. SQL injection and cross-site scripting are not expressible.
+Example: `Sql.lit("WHERE name = ") + Sql.encode(b)` with b = `O'Brien`
+is `WHERE name = 'O''Brien'`; `Sql.lit("WHERE name = ") + b` is W-CTX-1.
+
+**Secrets (W-SEC-1).** `Secret[τ]` is opaque. A secret value comes only
+from an event payload field of a `Secret` type: there is no constructor
+and no literal of a secret type, so a credential cannot be written in
+the program (hard-coded credentials are not expressible; comparing a
+secret with a literal is W-TY-1). The only operations are binding,
+storing (in a state field, a struct, an option), passing and `==`/`!=`
+between two secrets of one type, whose boolean is the one release. Any
+other operator or method on a secret is W-SEC-1. A value that can hold a
+secret may not be emitted, sent on a channel, carried by an error
+payload (a refusal is an output, 6.1) or passed to a foreign function
+(W-SEC-1). So λ never carries a secret (T36, noninterference up to the
+equality bits). The log D holds admitted events with their payloads, as
+any store of the program's inputs does; it is not an output.
+
+**Capabilities (W-CAP-1, W-CAP-2).** `Cap[A]`, for A a declared struct,
+is the authority A as a value. It appears only as the type of an event
+payload field or of a parameter (W-CAP-1): it cannot be stored in a
+state, struct, collection, option or channel, so authority lives for one
+event and is never ambient. It cannot be constructed by an expression:
+the host that admits an event attests the capability (written `()` in an
+event list or `example`), exactly as it supplies every other input, and
+the attested event is logged. `Guarded[τ, A]` is the type of a state
+field only (W-CAP-1); reading it gives a τ, it keeps τ's range checks
+(6.3), and a step that writes it (assignment, `&mut` borrow, a mutating
+method, or the arrow form of its only field) must match only events
+whose payload has a field of type `Cap[A]` (W-CAP-2). So a missing
+authorization check is not expressible: a log of events without the
+capability never changes the guarded field (T36).
+
 **Read receipt.** What kind of channel does a capacity of 0 give? (one word)
 
-<!-- body-sha256: 13ee50f13fb7d8da974fda2cbaa63a452f35df2de1bc6d6b9d8b328f508e9db0 -->
+<!-- body-sha256: 32c25dd3faf5a8cb1f2f2e594db3b24adaa291248e2c971be6d11f7344f59c7e -->

@@ -161,7 +161,8 @@ evaluable at comptime.
 ### 9.3 Changes in draft 0.4 (from `spec/LANGUAGE-REVIEW.md`)
 
 - R1 (6.7, W-REC-1) Structural self-recursion is admitted; mutual recursion
-  and every other cycle stay refused. Checker: `structural_violation`.
+  and every other cycle stay refused. Checker: `structural_violation`, since
+  replaced by `lex_measure` (6.7: one fixed position, or layers).
   Lean: `RCE/Struct.lean`.
 - R2 (5.11, W-FFI-1, `extern`) A C-ABI foreign function interface: scalar
   and borrowed-buffer parameters, scalar results, callable only from `main`
@@ -222,7 +223,33 @@ they run them on the CPU, which 5.13 allows).
   exact u64 at or above 2^63 (6.3 N2), the fallible-return literal fix
   (5.1), saturating budget arithmetic (C.6), the hash-chained Form log
   (6.1).
+- Refined types (5.1, W-REF-1, T35): `type R = τ where p` with p in a
+  decidable fragment, checked where the declared integer range is
+  checked. Derived from soundness and one meaning per construct
+  (`spec/proposals/CORE-PROPERTIES.md`, P2). Closes the replacement-matrix
+  rows "improper input validation" (defined: refused at entry) and
+  "dependent specifications" (defined for the decidable fragment;
+  undecidable obligations excluded by derivation). An extension for
+  every version (C.15).
+- `sha256` text method (5.15): SHA-256 of the UTF-8 bytes as 64 lowercase
+  hex digits, linear cost class (C.6.4), in the reference evaluator and the
+  Rust, Python and JavaScript runtimes. Derived from self-hosting: the
+  hash-chained log (6.1) and content-hash ids (6.8) must be computable by
+  an RCE program. An extension for every version, since it only admits
+  programs refused before (C.15).
+
+### 9.6 Changes in draft 0.8
+
+- Version 0.8 (2.7, 5.16, C.16): 0.7 plus indexed values, context-typed
+  text `Text[C]`, opaque `Secret[τ]`, capabilities `Cap[A]` and
+  `Guarded[τ, A]` fields, with W-CTX-1, W-SEC-1, W-CAP-1, W-CAP-2 and T36.
+  A new version because the names it takes (`Text`, `Html`, ...) could be
+  a 0.7 program's own declarations, whose meaning would change. Derived
+  from one meaning per construct, least privilege and soundness
+  (`spec/proposals/CORE-PROPERTIES.md`, P1). Closes the replacement-matrix
+  rows SQL injection and XSS (excluded), missing authorization
+  (excluded), hard-coded credentials and information exposure (excluded).
 
 **Read receipt.** The decisions list says it decides gaps in which file?
 
-<!-- body-sha256: fc357fd314cc892a9aafd29438a1fed1a9649512de33953ee1b8b8e8a4c0ff7b -->
+<!-- body-sha256: 5ec607113e53f30a7430c572baef72d864bb3d508b0b414a90f03be6131f94a5 -->

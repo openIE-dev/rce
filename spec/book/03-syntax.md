@@ -39,7 +39,7 @@ CheckDecl   = "check" Expr NEWLINE .
 
 ```
 ConstDecl  = "const" NAME [ ":" Type ] "=" Expr NEWLINE .
-TypeDecl   = "type" NAME [ Generics ] "=" Type NEWLINE .
+TypeDecl   = "type" NAME [ Generics ] "=" Type [ "where" Expr ] NEWLINE .
 StructDecl = [ "linear" ] "struct" NAME [ Generics ] NEWLINE [ INDENT Field { Field } DEDENT ] .
 Field      = NAME ":" Type [ "=" Expr ] NEWLINE .
 StateDecl  = "state" NAME NEWLINE INDENT Field { Field } DEDENT .
@@ -72,7 +72,8 @@ parameters (3.11 R6 says why the keyword is needed).
 ### 3.5 Functions, steps and actors
 
 ```
-FnSig     = [ "comptime" ] "fn" NAME [ Generics ] "(" [ Params ] ")" [ "->" Type ] .
+FnSig     = [ "comptime" ] "fn" NAME [ Generics ] "(" [ Params ] ")" [ "->" Type ]
+            [ "bound" INT ] .                                 (6.7)
 FnDecl    = FnSig ( Block | "=" Expr NEWLINE ) .
 ExternDecl = "extern" STRING FnSig NEWLINE .            (5.11)
 Params    = Param { "," Param } [ "," ] .
@@ -310,4 +311,4 @@ SOUP=2): 16,092 inputs, 3,185 identical trees, 12,907 refused by both,
 
 **Read receipt.** Which numbered resolution rule in 3.11 covers `send`? (for example R1)
 
-<!-- body-sha256: 33c18e881e88f99afaba8b4797da5e26db03da9fae7aa1d4798491ff79cc5a81 -->
+<!-- body-sha256: 86baf828c7f79a62c2158222a7559b8ba950fa8f9e9be5d0facd6d65019d3e2a -->

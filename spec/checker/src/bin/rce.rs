@@ -6,7 +6,7 @@
 //! convenience of this program, not one of the language commands.
 
 /// The specification draft this checker implements.
-const SPEC_DRAFT: &str = "0.7";
+const SPEC_DRAFT: &str = "0.8";
 
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();

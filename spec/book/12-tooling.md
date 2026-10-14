@@ -35,9 +35,21 @@ Form command line (`rce form ...`), which reads the Form spec format rather
 than RCE programs, is not part of this build, and `rce form` exits with
 status 2.
 
-### 10.2 `rce check FILE...`
+The tables of 5.15 (which methods each receiver has) and C.6.4 (the work
+class of each method) are not typed into the checker a second time: it
+reads them from `spec/data/spec-data.json`, which `rce-spec-data`
+generates from this book. The two tables are cut from it into
+`spec/data/spec-tables.json`, the file compiled into `rce`, the checker
+and its wasm build; `rce-spec-data --check` fails when either file
+differs from what the book gives.
 
-All FILEs form one program: `use` resolves among them (4.1). Each file is
+### 10.2 `rce check FILE|DIR...`
+
+All FILEs form one program: `use` resolves among them (4.1). A DIR is a
+package: it stands for its `.rce` files, recursively, in sorted order,
+and reads nothing outside it (the multi-module example is the package
+`spec/examples/26_use_module/`, so `rce check spec/examples/26_use_module`
+checks it alone). Each file is
 parsed, type checked (section 5) and admitted (6.9: every `const`,
 `comptime` block, `check` and `example` is evaluated). For each file, in
 the order given, one line is printed:
@@ -96,7 +108,7 @@ The evaluator is the reference interpreter of the checker, with the fuel bound
 of 6.7 and the VALUE_LIMIT of 6.3. It is a definition of meaning, not a fast
 runtime.
 
-### 10.4 `rce test FILE...`
+### 10.4 `rce test FILE|DIR...`
 
 The test cases of a module are its `example` lines and its `check` items,
 including those inside `intent` blocks. `rce test` admits the files as
@@ -123,11 +135,12 @@ TARGET names an output. The file must pass `rce check` on its own.
 | `rust` | one Rust 2024 source file with a `main` |
 | `python` | one Python 3 source file |
 | `js` | one JavaScript module (ES2020 or later, BigInt) for Node |
+| `scala` | one Scala 3 source file with a `@main` for the JVM (Java 19 or later) |
 
 The Form JSON lists objects in canonical order (6.1), so it is a
 deterministic function of the program text.
 
-**The program emitters.** `rust`, `python` and `js` translate the checked
+**The program emitters.** `rust`, `python`, `js` and `scala` translate the checked
 module, not the Form. Each output is self-contained. It starts with a
 runtime that defines the values of 6.3 and their operations, following the
 reference evaluator (`spec/checker/src/interp.rs`) value by value. That
@@ -147,6 +160,15 @@ range. The theorem of T9 is about the Lean model of that emitter. The
 emitter in `rce` is tested against the reference evaluator; it is not
 proved.
 
+The Scala output is the functional-language target. Its values are the
+same dynamic values as the JavaScript output's (integers as `BigInt` with
+their type, floats as JVM `Double`, whose arithmetic is IEEE 754 binary64
+with round to nearest even and no contraction since Java 17, and whose
+`toString` is the shortest round trip since Java 19). Loops are `while`
+loops, and `break` and `continue` are control exceptions caught at the
+loop, so no RCE loop grows the stack; the observations run on one thread
+with a 2 GiB stack.
+
 **What an emitted program does.** Run it, and it prints the module's
 *observations*: one line per constant, per `check`, per function without
 parameters (other than `main`), per event of each example (the state after
@@ -165,7 +187,13 @@ evaluator's, line for line. All 51 agree on all three targets, with 299
 observation lines per target. Four programs (14, 15, 34, 47) contain only
 concurrency and give no observation. A separate program
 (`tests/emit_edge.rce`) covers range traps, loop bounds, `&mut` write-back,
-closures and float display. When `rustc`, `python3` or `node` is missing,
+closures and float display. The Scala target has its own test in the same
+file: on 2026-10-14, on the Apple M5 Max below, with Scala 3.10.0 run by
+scala-cli 1.18.0 on OpenJDK 27, all 55 programs of the current corpus
+(with the package files of example 26) agree with the reference, 0
+refused, 361 observation lines, and the edge program agrees on all four
+targets. Its oracle is `RCE_SCALA` (default `scala-cli`).
+When `rustc`, `python3` or `node` is missing,
 its test prints `SKIPPED` and the reason; a skipped target is never
 counted as a pass. The oracles used were Python 3.13.5 and Node 20.19.2.
 The test reads the oracle paths from `RCE_RUSTC`, `RCE_PYTHON` and
@@ -176,14 +204,69 @@ M5 Max (macOS 27.0.1, arm64) with rustc 1.98.1, Python 3.14.5 and Node
 skipped, 299 observation lines per target, and the edge program agrees on
 all three.
 
+**Fuel.** Each emitted program counts fuel (6.7) at the reference
+evaluator's charge points: one tick per evaluated expression, per
+executed statement, per call of a user function or method, and per
+element of a list comprehension and of `map`, `filter` and `fold`. A
+temporary introduced by the emitter's own lowering is not charged. The
+limit is 50,000,000; it is reset before each observation, as the reference
+starts a new evaluator for each, and running out traps with the message
+"comptime fuel exhausted". The argument `--fuel=N` sets the limit to N and
+`--fuel-trace` prints `fuel K` after each observation, K being the ticks
+used. These two arguments exist for the test below; the default program
+takes no argument.
+
+`spec/checker/tests/fuel.rs` compares the ticks used, line for line, on
+the 50 programs of the emitter tests (with probes) against
+`emit::observe_fuel` of the reference evaluator, in all three targets. It
+then runs ten programs at every limit from 0 up to 300 and at 400 evenly
+spaced limits above, up to one more than the program uses, and requires
+each target to trap at the same observation with the same output as the
+reference run at the same limit. Within one observation, the emitted
+order of ticks can differ from the reference where the emitter evaluates
+arguments before entering a call; the trap observation and the total are
+what the test fixes. The Scala target is in the same test (the emitted
+file is packaged once into a jar and run with `java -jar`); on 2026-10-14
+it agreed on all 54 programs of that corpus and at all 1,366 swept limits
+(`RCE_FUEL_LANGS=scala`).
+
+
+**Running `fn main`.** Run with the argument `--run`, an emitted program
+instead evaluates `fn main` with tasks, channels, `select`, actors and
+`par` on a runtime of its own: every task is a thread (a worker in
+JavaScript), and one scheduler admits their moves tick by tick in the
+order of `conc::run_main`, the reference of `rce run` without EVENTS. It
+prints `emit VALUE` per output and the line `outcome Done`,
+`outcome Deadlock` or `outcome Refused: REASON`. A module without
+`fn main()` prints the reference's message ("nothing to run") on standard
+error and exits with status 1, as `rce run` does. Fuel follows the reference's
+pools: each task has its own, starting full (its first ticks are the call
+of its function and one per argument); actor handlers share the
+scheduler's pool; a `par` branch or `for ... par` chunk starts from its
+parent's remaining fuel, and the branches are charged back in source
+order, so the trap falls where the reference's sequential run puts it.
+
+`spec/checker/tests/emit_run.rs` compares the three runtimes with
+`conc::run_main` on a corpus of task programs. Among them are the four
+concurrency examples 14, 15, 34 and 47, each run with a `fn main` from
+`spec/checker/tests/drivers/` appended to its unchanged text.
+`spec/checker/tests/fuel_run.rs` runs seven of these programs at every
+fuel limit where the reference's result changes and at the limit before
+it (258 runs over the three targets), and requires the same outputs and
+outcome.
+
 **Limits of the emitters.**
 
-- Channels, `spawn`, `select`, actors and `extern` functions trap in the
-  emitted code with the same message as in the reference evaluator
-  ("not available at comptime"). There is no concurrent runtime.
-- The reference evaluator's fuel limit (50,000,000 steps) is not copied.
-  An emitted program that runs longer keeps running, and deep recursion
-  ends with the target's own stack error.
+- In the observations, channels, `spawn`, `select`, actors and `extern`
+  functions trap with the same message as in the reference evaluator
+  ("not available at comptime"); they run only under `--run`. `extern`
+  functions trap there too.
+- Under `--run`, a `par` whose branches wait on an lvar runs its branches
+  at the same time in the reference (`ParMode::Threads`), each on a copy
+  of the parent's fuel; the emitted runtimes charge every `par` as the
+  sequential run does. The two differ only when such a `par` runs out of
+  fuel, and no test covers that case.
+- Deep recursion ends with the target's own stack error.
 - A call that writes back its receiver or a `&mut` argument (`xs.push(x)`,
   `f(&mut a)`) is translated only as a whole statement or as the right side
   of `let`, `var`, an assignment, `return`, `emit` or `fail`. Elsewhere,
@@ -194,6 +277,12 @@ all three.
 - The Python output has been checked with Python 3.13.5 and 3.14.5, and
   the JavaScript output with Node 20.19.2 and 26.11.1. Other versions have
   not been run.
+- The Scala output has been checked with Scala 3.10.0 on OpenJDK 27 only.
+  It has no `--run` runtime yet: with `--run` it prints that `--run` is not
+  available on this target and exits with status 2. A `par` runs its
+  branches in source order on one thread (by restart when they wait on
+  lvars), as the JavaScript output does when a local cannot go to a worker.
+
 
 For an unknown target, or a program that one of these emitters does not
 translate, `rce emit` prints nothing on standard output, prints the reason
@@ -283,8 +372,9 @@ as clean exactly when `rce check` accepts it (10.1, principle 3).
 
 ### 10.8 What is not yet implemented
 
-- The program emitters do not run concurrency, actors or `extern`
-  functions, and do not copy the fuel limit (10.5).
+- The program emitters do not run concurrency or actors in their
+  observations, only under `--run`, and never run `extern` functions
+  (10.5).
 - The language server resolves names within one document, without block
   scope, and counts columns in Unicode scalar values (10.7). It has no
   rename, references or semantic tokens.
@@ -326,11 +416,12 @@ order and with none missing or extra; when it also emits `prev_hash`,
 `hash` or `outcome` they must be equal too. Since `state_hash` covers
 the whole state, equal hashes mean equal states without exchanging them.
 
-`spec/traces/` holds the reference traces of the example corpus (one
-file per example that is admitted standalone, which excludes only the
-multi-module `26_use_module`, plus `01_counter.events.json`, the counter
-on a longer event list); examples without a state machine have an empty
-`traces` list. `spec/traces/rce-trace-diff.py REFERENCE OTHER` (Python 3,
+`spec/traces/` holds the reference traces of the example corpus: one
+file per top-level example (the package `26_use_module/` has no state
+machine), plus two event-list traces, `01_counter.events.json` (the
+counter on a longer list) and `16_multi_region.events.json` (two regions
+stepped by one event, which has no `example` lines). Examples without a
+state machine have an empty `traces` list. `spec/traces/rce-trace-diff.py REFERENCE OTHER` (Python 3,
 standard library only) compares two trace files or two directories of
 them and prints `exact match` or the first divergence (trace, `seq`,
 field, both values); exit 0 on full match. `spec/checker/tests/traces.rs`
@@ -339,4 +430,4 @@ chain, and that the runner finds a planted divergence.
 
 **Read receipt.** Which JSON-RPC error code does the language server return for a request it does not know? (a number)
 
-<!-- body-sha256: 8dffc76f2a0428e554e3667e1d2307672e21ff71d4a028d6514b55fa3b7ce7f0 -->
+<!-- body-sha256: 1a429e5dd8e4f771e09dd71e01e782578168ebfb9b0b174ff9041bdb6acd8e49 -->

@@ -1,0 +1,15 @@
+# A cycle of two functions on integers: one bounded function on the cycle
+# is enough, since every cycle of calls passes through it.
+fn ev(n: u64) -> bool bound 64
+    if n == 0
+        return true
+    return od(n - 1)
+
+fn od(n: u64) -> bool
+    if n == 0
+        return false
+    return ev(n - 1)
+
+check ev(10)
+check not od(10)
+check od(127)

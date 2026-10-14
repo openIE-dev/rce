@@ -6,7 +6,7 @@ fn version_flag_names_draft_and_language_versions() {
         assert!(o.status.success());
         let s = String::from_utf8(o.stdout).unwrap();
         assert!(s.starts_with("rce "), "{s}");
-        assert!(s.contains("specification draft 0.7"), "{s}");
+        assert!(s.contains("specification draft 0.8"), "{s}");
         for v in rce_spec_check::parse::VERSIONS {
             assert!(s.contains(v), "{s} lacks {v}");
         }

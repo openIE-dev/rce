@@ -161,7 +161,7 @@ pub fn emit(target: &str, src: &str) -> Result<String, String> {
             }
             Ok(form_json(&parse(src)?) + "\n")
         }
-        "rust" | "python" | "js" => {
+        "rust" | "python" | "js" | "scala" => {
             let d = diagnostics(src, &HashSet::new());
             if !d.is_empty() {
                 return Err(d.into_iter().map(|x| x.1).collect::<Vec<_>>().join("; "));
@@ -170,7 +170,7 @@ pub fn emit(target: &str, src: &str) -> Result<String, String> {
             crate::emit::emit(&parse(src)?, lang)
         }
         t => Err(format!(
-            "unknown emit target `{t}` (form, rust, python, js)"
+            "unknown emit target `{t}` (form, rust, python, js, scala)"
         )),
     }
 }
@@ -509,11 +509,11 @@ pub fn trace(file: &str, src: &str, events: Option<&str>) -> Result<String, Stri
 
 /// Usage of the language commands of `rce` (10.2 to 10.7).
 pub const USAGE_TEXT: &str = "usage:
-  rce check FILE...              parse, type check and admit; one verdict per file
+  rce check FILE|DIR...          parse, type check and admit; one verdict per file (a DIR is a package: its .rce files)
   rce run FILE [EVENTS]          apply EVENTS (example syntax, e.g. \"Inc, Inc, Dec\"), or run fn main()
-  rce test FILE...               run every example and check; report per file
+  rce test FILE|DIR...           run every example and check; report per file
   rce trace --json FILE [EVENTS] reference trace (seq, event, state_hash per step) of the examples, or of EVENTS
-  rce emit TARGET FILE           TARGET: form (Form JSON), rust, python or js (a program printing its observations)
+  rce emit TARGET FILE           TARGET: form (Form JSON), rust, python, js or scala (a program printing its observations)
   rce fmt [--check] FILE...      rewrite files in canonical layout (--check: only report)
   rce lsp                        language server on stdin/stdout";
 
@@ -534,10 +534,43 @@ fn read_file(p: &str) -> Result<String, String> {
     std::fs::read_to_string(p).map_err(|e| format!("{p}: {e}"))
 }
 
+/// The `.rce` files of a package directory (4.1), recursively, sorted.
+/// A directory argument names exactly these files, so the program is
+/// still the set of modules given together; nothing outside it is read.
+pub fn package_files(dir: &std::path::Path) -> Result<Vec<String>, String> {
+    let mut v = vec![];
+    let mut stack = vec![dir.to_path_buf()];
+    while let Some(d) = stack.pop() {
+        for e in std::fs::read_dir(&d).map_err(|e| format!("{}: {e}", d.display()))? {
+            let p = e.map_err(|e| e.to_string())?.path();
+            if p.is_dir() {
+                stack.push(p);
+            } else if p.extension().is_some_and(|x| x == "rce") {
+                v.push(p.to_string_lossy().into_owned());
+            }
+        }
+    }
+    v.sort();
+    Ok(v)
+}
+
+/// FILE and DIR arguments as the list of module files (a DIR is a package).
+fn expand(ps: &[String]) -> Result<Vec<String>, String> {
+    let mut v = vec![];
+    for p in ps {
+        if std::path::Path::new(p).is_dir() {
+            v.extend(package_files(std::path::Path::new(p))?);
+        } else {
+            v.push(p.clone());
+        }
+    }
+    Ok(v)
+}
+
 fn run_main(a: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &mut dyn Write) -> Result<i32, String> {
     let rest = if a.is_empty() { &[][..] } else { &a[1..] };
     let load = |ps: &[String]| -> Result<Vec<(String, String)>, String> {
-        ps.iter().map(|p| Ok((p.clone(), read_file(p)?))).collect()
+        expand(ps)?.iter().map(|p| Ok((p.clone(), read_file(p)?))).collect()
     };
     let w = |e: std::io::Error| e.to_string();
     // `rce SUB --help` / `-h` anywhere prints the usage (10.1: exit 0)

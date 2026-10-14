@@ -27,11 +27,15 @@ impl<'a> G<'a> {
     fn py(&self) -> bool {
         self.lang == Lang::Python
     }
+    fn scl(&self) -> bool {
+        self.lang == Lang::Scala
+    }
 
     pub(super) fn chan_new_e(&mut self, cap: Option<&Expr>, line: usize) -> E {
         let c = match cap {
             Some(e) => self.ex(e)?,
             None if self.js() => "lit(0n)".into(),
+            None if self.scl() => "lit(0L)".into(),
             None => "lit(0)".into(),
         };
         if self.py() {
@@ -39,6 +43,9 @@ impl<'a> G<'a> {
         }
         if self.js() {
             return Ok(format!("chanNew(() => {c}, {line})"));
+        }
+        if self.scl() {
+            return Ok(format!("chan_new(() => {c}, {line})"));
         }
         Ok(format!("chan_new(&|| Ok({c}), {line})?"))
     }
@@ -77,7 +84,7 @@ impl<'a> G<'a> {
 
     pub(super) fn select_s(&mut self, arms: &[SelArm], line: usize, nondet: bool, tail: bool) -> Result<(), String> {
         let av = self.fresh("arms");
-        if self.py() || self.js() {
+        if self.py() || self.js() || self.scl() {
             return self.select_py(&av, arms, line, nondet, tail);
         }
         self.line(format!("let mut {av}: Vec<SArm> = vec![];"));
@@ -130,6 +137,9 @@ impl<'a> G<'a> {
     }
 
     fn select_py(&mut self, av: &str, arms: &[SelArm], line: usize, nondet: bool, tail: bool) -> Result<(), String> {
+        if self.scl() {
+            return self.select_scala(av, arms, line, nondet, tail);
+        }
         let js = self.js();
         let sc = if js { ";" } else { "" };
         let push = if js { "push" } else { "append" };
@@ -185,6 +195,54 @@ impl<'a> G<'a> {
         Ok(())
     }
 
+    fn select_scala(&mut self, av: &str, arms: &[SelArm], line: usize, nondet: bool, tail: bool) -> Result<(), String> {
+        self.line(format!("val {av} = ArrayBuffer[Any]()"));
+        for a in arms {
+            match a {
+                SelArm::Recv(p, c, _) => {
+                    let v = self.ex(c)?;
+                    self.line(format!("{av} += V(\"recv\", {v}, {})", pat_class(p)));
+                }
+                SelArm::Send(v, c, _) => {
+                    let x = self.ex(v)?;
+                    let t = self.fresh("sv");
+                    self.line(format!("val {t} = {x}"));
+                    let cv = self.ex(c)?;
+                    self.line(format!("{av} += V(\"send\", {cv}, {t})"));
+                }
+                SelArm::After(n, _) => {
+                    let v = self.ex(n)?;
+                    self.line(format!("{av} += sarm_after({v})"));
+                }
+                SelArm::Default(_) => self.line(format!("{av} += V(\"default\")")),
+            }
+        }
+        let (k, sv, r) = (self.fresh("k"), self.fresh("sv"), self.fresh("sr"));
+        self.line(format!("val {r} = select_({av}.toVector, {line}, {nondet})"));
+        self.line(format!("val {k} = {r}(0); val {sv} = {r}(1)"));
+        for (i, a) in arms.iter().enumerate() {
+            self.open(&format!("if ({k} == {i})"));
+            self.scopes.push(vec![]);
+            let (pat, body) = match a {
+                SelArm::Recv(p, _, b) => (Some(p), b),
+                SelArm::Send(_, _, b) | SelArm::After(_, b) | SelArm::Default(b) => (None, b),
+            };
+            if let Some(p) = pat {
+                let ps = self.pat(p)?;
+                let mt = self.fresh("m");
+                self.line(format!("val {mt} = pm({ps}, {sv})"));
+                self.line(format!("if ({mt} == null) trap(\"select pattern did not match\")"));
+                let mut names = vec![];
+                self.pat_names(p, &mut names);
+                self.bind_from_map(&mt, &names);
+            }
+            self.block(body, tail)?;
+            self.scopes.pop();
+            self.close();
+        }
+        Ok(())
+    }
+
     fn closure_block(&mut self, body: &[Stmt], r: &str) -> Result<(), String> {
         self.line(format!("let {r}: R<()> = (|| -> R<()> {{"));
         self.ind += 1;
@@ -218,6 +276,15 @@ impl<'a> G<'a> {
 
     pub(super) fn scope_s(&mut self, body: &[Stmt]) -> Result<(), String> {
         let (sid, r) = (self.fresh("sid"), self.fresh("r"));
+        if self.scl() {
+            self.line(format!("val {sid} = scope_enter()"));
+            self.open("try");
+            self.block(body, false)?;
+            self.ind -= 1;
+            self.line("} finally { scope_exit() }");
+            self.line(format!("await_scope({sid})"));
+            return Ok(());
+        }
         if self.py() || self.js() {
             // return / break / continue leave through `finally`, skipping the await, as interp
             let sc = if self.js() { ";" } else { "" };
@@ -251,6 +318,24 @@ impl<'a> G<'a> {
             Some(Stmt::Arena(_, _, b, _)) => b,
             _ => &[],
         };
+        if self.scl() {
+            let e = self.fresh("e");
+            self.line(format!("val {f} = dl_enter({n})"));
+            self.open("try");
+            self.open("try");
+            self.block(b, false)?;
+            self.ind -= 1;
+            self.line("} finally { dl_exit() }");
+            self.ind -= 1;
+            self.line(format!("}} catch {{ case {e}: Cancel if {e}.f == {f} =>"));
+            self.ind += 1;
+            if let Some(Stmt::If(arms, _)) = body.get(2) {
+                self.block(&arms[0].1, false)?;
+            }
+            self.line("()");
+            self.close();
+            return Ok(());
+        }
         if self.js() {
             let e = self.fresh("e");
             self.line(format!("const {f} = dlEnter({n});"));
@@ -330,6 +415,8 @@ impl<'a> G<'a> {
             self.line(format!("{pv} = {prio}"));
         } else if self.js() {
             self.line(format!("const {pv} = {prio};"));
+        } else if self.scl() {
+            self.line(format!("val {pv} : Any = {prio}"));
         } else {
             self.line(format!("let {pv}: i128 = {prio};"));
         }
@@ -363,7 +450,29 @@ impl<'a> G<'a> {
             }
             hs.push((name.clone(), ids));
             let aid = format!("ai_{k}");
+            if self.scl() {
+                self.open(&format!("def {aid}(): Vector[Any] ="));
+                self.scopes = vec![vec![]];
+                self.ctx = Ctx::Gen;
+                self.line("val __fs = ArrayBuffer[Any]()");
+                self.line("var __v: Any = null");
+                for f in fields {
+                    let v = match &f.init {
+                        Some(e) => self.ex(e)?,
+                        None => "UNIT".into(),
+                    };
+                    self.line(format!("__v = try {{ {v} }} catch {{ case _: Flow => UNIT }}"));
+                    let fv = self.fit("__v", &self.ty(&f.ty));
+                    self.line(format!("__v = try {{ {fv} }} catch {{ case _: Flow => UNIT }}"));
+                    self.line(format!("__fs += V({}, __v)", q(&f.name)));
+                }
+                self.line("__fs.toVector");
+                self.close();
+                inits.push((name.clone(), aid));
+                continue;
+            }
             if self.js() {
+
                 self.open(&format!("function {aid}()"));
                 self.scopes = vec![vec![]];
                 self.ctx = Ctx::Gen;
@@ -447,7 +556,7 @@ impl<'a> G<'a> {
             self.close();
             inits.push((name.clone(), aid));
         }
-        if self.py() || self.js() {
+        if self.py() || self.js() || self.scl() {
             return self.actor_tables_py(&hs, &inits);
         }
         let mut o = String::new();
@@ -506,6 +615,9 @@ impl<'a> G<'a> {
 
     fn actor_tables_py(&mut self, hs: &[(String, Vec<String>)], inits: &[(String, String)]) -> Result<(), String> {
         let m = self.m;
+        if self.scl() {
+            return self.actor_tables_scala(hs, inits);
+        }
         let h: Vec<String> = hs.iter().map(|(n, ids)| format!("{}: [{}]", q(n), ids.join(", "))).collect();
         let (decl, end) = if self.js() { ("const ", ";") } else { ("", "") };
         self.line(format!("{decl}ACTOR_HANDLERS = {{{}}}{end}", h.join(", ")));
@@ -543,8 +655,62 @@ impl<'a> G<'a> {
         Ok(())
     }
 
+    fn actor_tables_scala(&mut self, hs: &[(String, Vec<String>)], inits: &[(String, String)]) -> Result<(), String> {
+        let m = self.m;
+        let h: Vec<String> = hs.iter().map(|(n, ids)| {
+            let f: Vec<String> = ids.iter().map(|i| format!("({i} _)")).collect();
+            format!("{} -> Vector[(Vector[Any], Any) => Any]({})", q(n), f.join(", "))
+        }).collect();
+        self.line(format!("lazy val ACTOR_HANDLERS: Map[String, Vector[(Vector[Any], Any) => Any]] = Map({})", h.join(", ")));
+        let i: Vec<String> = inits.iter().map(|(n, a)| format!("{} -> (() => {a}())", q(n))).collect();
+        self.line(format!("lazy val ACTOR_INIT: Map[String, () => Vector[Any]] = Map({})", i.join(", ")));
+        let mut nodes = vec![q("main")];
+        let mut place: Vec<(String, usize)> = vec![];
+        let mut sups: Vec<(String, String)> = vec![];
+        for it in &m.items {
+            match it {
+                Item::Node { name, actors, .. } => {
+                    nodes.push(q(name));
+                    for a in actors {
+                        place.retain(|(x, _)| x != a);
+                        place.push((a.clone(), nodes.len() - 1));
+                    }
+                }
+                Item::Supervisor { name, strategy, children, .. } => {
+                    let tys: Vec<String> = children.iter().map(|c| q(&c.ty)).collect();
+                    for c in children {
+                        if sups.iter().any(|(t, _)| *t == c.ty) {
+                            continue;
+                        }
+                        sups.push((c.ty.clone(), format!("V({}, {}, V({}), {}, {})", q(name), q(strategy), tys.join(", "), q(&c.name), c.restart)));
+                    }
+                }
+                _ => {}
+            }
+        }
+        self.line(format!("lazy val NODE_NAMES: Vector[String] = Vector({})", nodes.join(", ")));
+        let p: Vec<String> = place.iter().map(|(a, n)| format!("{} -> {n}", q(a))).collect();
+        self.line(format!("lazy val NODE_OF: Map[String, Int] = Map({})", p.join(", ")));
+        let sv: Vec<String> = sups.iter().map(|(t, v)| format!("{} -> {v}", q(t))).collect();
+        self.line(format!("lazy val SUPERVISORS: Map[String, Vector[Any]] = Map({})", sv.join(", ")));
+        Ok(())
+    }
+
+
     pub(super) fn atomic_s(&mut self, body: &[Stmt]) -> Result<(), String> {
         let (o, r) = (self.fresh("ao"), self.fresh("r"));
+        if self.scl() {
+            let (ok, buf) = (self.fresh("ok"), self.fresh("buf"));
+            self.line(format!("val {o} = atomic_enter()"));
+            self.line(format!("var {ok} = false; var {buf}: ArrayBuffer[Any] = null"));
+            self.open("try");
+            self.block(body, false)?;
+            self.line(format!("{ok} = true"));
+            self.ind -= 1;
+            self.line(format!("}} finally {{ {buf} = atomic_restore({o}) }}"));
+            self.line(format!("if ({ok}) atomic_commit({buf})"));
+            return Ok(());
+        }
         if self.js() {
             let (ok, buf) = (self.fresh("ok"), self.fresh("buf"));
             self.line(format!("const {o} = atomicEnter();"));

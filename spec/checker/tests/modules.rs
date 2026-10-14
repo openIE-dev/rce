@@ -81,8 +81,19 @@ fn private_unqualified_unknown_and_clashing_names_are_refused() {
 
 #[test]
 fn spec_example_26_still_checks() {
-    let a = include_str!("../../examples/26_use_module.rce");
-    let b = include_str!("../../examples/shop_pricing.rce");
+    let a = include_str!("../../examples/26_use_module/shop/orders.rce");
+    let b = include_str!("../../examples/26_use_module/shop/pricing.rce");
     let r = go(&[("26.rce", a), ("shop_pricing.rce", b)]);
     assert!(r.iter().all(|x| x.is_ok()), "{r:?}");
+}
+
+/// Example 26 is a package directory: `rce check DIR` checks it alone.
+#[test]
+fn spec_example_26_checks_alone_as_a_package() {
+    let dir = concat!(env!("CARGO_MANIFEST_DIR"), "/../examples/26_use_module");
+    let (mut out, mut err) = (vec![], vec![]);
+    let code = rce_spec_check::cli::main(&["check".into(), dir.into()], &mut &b""[..], &mut out, &mut err);
+    let out = String::from_utf8(out).unwrap();
+    assert_eq!(code, 0, "{out}{}", String::from_utf8_lossy(&err));
+    assert_eq!(out.lines().filter(|l| l.starts_with("ok ")).count(), 2, "{out}");
 }

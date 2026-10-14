@@ -253,6 +253,7 @@ pub fn with_probes(m: &Module) -> Module {
                         generics: vec![],
                         params: vec![],
                         ret: Some(Ty::Path(vec!["__any".into()], vec![])),
+                        bound: None,
                         line: 0,
                     },
                     body: Body::Block(b),

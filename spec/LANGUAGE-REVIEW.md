@@ -353,7 +353,7 @@ indentation; a conflict-free LALR(1) grammar.
 
 | Change | Grammar | Checker | Examples | Lean |
 |---|---|---|---|---|
-| R1 structural recursion (6.7, W-REC-1) | none | `structural_violation`; mutual recursion still refused | `39_structural_recursion`; refused: `rec_not_structural`, `rec_same_arg`, existing `recursion` | new `RCE/Struct.lean`: `struct_total`, `calls_eq_size`, `struct_fuel_irrelevant` |
+| R1 structural recursion (6.7, W-REC-1) | none | `structural_violation` (now `lex_measure`, 6.7); mutual recursion still refused | `39_structural_recursion`; refused: `rec_not_structural`, `rec_same_arg`, existing `recursion` | new `RCE/Struct.lean`: `struct_total`, `calls_eq_size`, `struct_fuel_irrelevant` |
 | R2 `extern "C" fn` (5.11, W-FFI-1) | `extern_decl`, keyword `extern` | type rules, call only from main/tasks, no spawn | `40_extern`; refused: `extern_in_pure`, `extern_owned_param`, `extern_spawn`, `extern_abi`, `extern_text_result` | not modelled; T1/T3 rely on logging foreign results as inputs; T6 now states the trust boundary |
 | R3 arena capacity (5.7) | `arena_stmt` takes `bound?` | bound typed u64; evaluator does not count bytes yet | `41_arena_bound_wrapping` | none needed: one more trap, T8 unchanged |
 | R4 `wrapping_*`, `saturating_*` (6.3 N2) | none | typed and evaluated | `41_arena_bound_wrapping` checks that `(250 as u8).wrapping_add(10)` is 4 and `saturating_add(10)` is 255 | not modelled |

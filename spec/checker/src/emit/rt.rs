@@ -8,6 +8,33 @@ use std::sync::Arc as Rc;
 use std::cell::RefCell;
 use std::collections::HashMap;
 
+/// SHA-256 (FIPS 180-4) of a byte string as 64 lowercase hex digits (5.15 `sha256`).
+pub fn sha256_hex(m: &[u8]) -> String {
+    const K: [u32; 64] = [0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2];
+    let mut h: [u32; 8] = [0x6a09e667,0xbb67ae85,0x3c6ef372,0xa54ff53a,0x510e527f,0x9b05688c,0x1f83d9ab,0x5be0cd19];
+    let mut d = m.to_vec();
+    d.push(0x80);
+    while d.len() % 64 != 56 { d.push(0); }
+    d.extend_from_slice(&((m.len() as u64).wrapping_mul(8)).to_be_bytes());
+    for c in d.chunks(64) {
+        let mut w = [0u32; 64];
+        for i in 0..16 { w[i] = u32::from_be_bytes([c[4 * i], c[4 * i + 1], c[4 * i + 2], c[4 * i + 3]]); }
+        for i in 16..64 {
+            let s0 = w[i - 15].rotate_right(7) ^ w[i - 15].rotate_right(18) ^ (w[i - 15] >> 3);
+            let s1 = w[i - 2].rotate_right(17) ^ w[i - 2].rotate_right(19) ^ (w[i - 2] >> 10);
+            w[i] = w[i - 16].wrapping_add(s0).wrapping_add(w[i - 7]).wrapping_add(s1);
+        }
+        let [mut a, mut b, mut cc, mut dd, mut e, mut f, mut g, mut hh] = h;
+        for i in 0..64 {
+            let t1 = hh.wrapping_add(e.rotate_right(6) ^ e.rotate_right(11) ^ e.rotate_right(25)).wrapping_add((e & f) ^ (!e & g)).wrapping_add(K[i]).wrapping_add(w[i]);
+            let t2 = (a.rotate_right(2) ^ a.rotate_right(13) ^ a.rotate_right(22)).wrapping_add((a & b) ^ (a & cc) ^ (b & cc));
+            hh = g; g = f; f = e; e = dd.wrapping_add(t1); dd = cc; cc = b; b = a; a = t1.wrapping_add(t2);
+        }
+        for (x, y) in h.iter_mut().zip([a, b, cc, dd, e, f, g, hh]) { *x = x.wrapping_add(y); }
+    }
+    h.iter().map(|x| format!("{x:08x}")).collect()
+}
+
 #[derive(Clone)]
 pub enum V {
     Int(i128, &'static str),
@@ -42,7 +69,37 @@ pub fn trap<T>(m: impl Into<String>) -> R<T> { Err(Flow::Trap(m.into())) }
 pub type M = HashMap<String, V>;
 pub struct Call { pub v: V, pub outs: Vec<Option<V>>, pub slf: Option<V> }
 #[derive(Clone)]
-pub enum T { Int(&'static str), F64, F32, Opt(Box<T>), List(Box<T>), Map(Box<T>, Box<T>), Tup(Vec<T>), Union(Box<T>), Ref(Box<T>), Any }
+pub enum T { Int(&'static str), F64, F32, Opt(Box<T>), List(Box<T>), Map(Box<T>, Box<T>), Tup(Vec<T>), Union(Box<T>), Ref(Box<T>), Refn(Box<T>, &'static str, Box<RP>), Any }
+/// Refined-type predicate (spec 5.1, W-REF-1): S = self, N = self.len(), L = literal.
+#[derive(Clone)]
+pub enum RTm { S, N, L(i128) }
+#[derive(Clone)]
+pub enum RP { C(&'static str, RTm, RTm), K(&'static str), A(Box<RP>, Box<RP>), O(Box<RP>, Box<RP>), Z(Box<RP>) }
+/// Context encoders (spec 5.16).
+pub fn ctx_lit(v: V) -> R<V> { charge(4)?; Ok(v) }
+pub fn ctx_encode(c: &str, v: V) -> R<V> {
+    charge(4i128.saturating_add(size_of(&v)))?;
+    let V::Text(s) = v else { return trap("context text") };
+    let mut o = String::new();
+    match c {
+        "Html" => for ch in s.chars() { match ch { '&' => o.push_str("&amp;"), '<' => o.push_str("&lt;"), '>' => o.push_str("&gt;"), '"' => o.push_str("&quot;"), '\'' => o.push_str("&#39;"), ch => o.push(ch) } },
+        "Url" => for b in s.bytes() { if b.is_ascii_alphanumeric() || matches!(b, b'-' | b'.' | b'_' | b'~') { o.push(b as char) } else { o.push_str(&format!("%{b:02X}")) } },
+        "Sql" => { o.push('\''); o.push_str(&s.replace('\'', "''")); o.push('\''); }
+        _ => { o.push('"'); for ch in s.chars() { match ch { '"' => o.push_str("\\\""), '\\' => o.push_str("\\\\"), '\n' => o.push_str("\\n"), '\r' => o.push_str("\\r"), '\t' => o.push_str("\\t"), ch if (ch as u32) < 0x20 => o.push_str(&format!("\\u{:04x}", ch as u32)), ch => o.push(ch) } } o.push('"'); }
+    }
+    Ok(V::Text(o))
+}
+pub fn trefn(t: T, n: &'static str, p: RP) -> T { T::Refn(Box::new(t), n, Box::new(p)) }
+fn ptm(t: &RTm, v: &V) -> Option<i128> { match (t, v) { (RTm::L(n), _) => Some(*n), (RTm::S, V::Int(x, _)) => Some(*x), (RTm::N, V::Text(s)) => Some(s.len() as i128), (RTm::N, V::List(x)) => Some(x.len() as i128), (RTm::N, V::Map(x)) => Some(x.len() as i128), _ => None } }
+pub fn pholds(p: &RP, v: &V) -> bool {
+    match p {
+        RP::C(op, a, b) => match (ptm(a, v), ptm(b, v)) { (Some(x), Some(y)) => match *op { "<" => x < y, "<=" => x <= y, ">" => x > y, ">=" => x >= y, "==" => x == y, _ => x != y }, _ => false },
+        RP::K(c) => match v { V::Text(s) => match *c { "isdigit" => !s.is_empty() && s.chars().all(|c| c.is_ascii_digit()), "isalpha" => !s.is_empty() && s.chars().all(|c| c.is_ascii_alphabetic()), "isspace" => !s.is_empty() && s.chars().all(|c| c.is_ascii_whitespace()), _ => s.is_empty() }, _ => false },
+        RP::A(a, b) => pholds(a, v) && pholds(b, v),
+        RP::O(a, b) => pholds(a, v) || pholds(b, v),
+        RP::Z(a) => !pholds(a, v),
+    }
+}
 pub fn ti(n: &'static str) -> T { T::Int(n) }
 pub fn topt(t: T) -> T { T::Opt(Box::new(t)) }
 pub fn tlist(t: T) -> T { T::List(Box::new(t)) }
@@ -302,6 +359,7 @@ pub fn cast(v: V, t: T) -> R<V> {
     }
 }
 pub fn fit(v: V, t: &T) -> R<V> {
+    if let T::Refn(b, n, p) = t { let v = fit(v, b)?; return if pholds(p, &v) { Ok(v) } else { trap(format!("refinement: value is outside {n}")) }; }
     match (v, t) {
         (V::Int(x, _), T::Int(n)) => { let (lo, hi) = irange(n); if x < lo || x > hi { return trap(format!("overflow: {x} is outside {n}")); } Ok(V::Int(x, n)) }
         (V::Int(x, _), T::F64) => Ok(V::F(x as f64)),
@@ -327,7 +385,7 @@ pub fn apply(f: &V, vals: Vec<V>) -> R<V> {
     match f { V::Clo(c) => c(vals), V::Fn(n) => raw_fn(n, vals), o => trap(format!("{} is not callable", show(o))) }
 }
 pub fn call_value(f: V, vals: Vec<V>) -> R<V> {
-    match f { V::Fn(n) => Ok(user_fn(&n, None, vals)?.v), V::Clo(c) => c(vals), o => trap(format!("{} is not callable", show(&o))) }
+    match f { V::Fn(n) => Ok({ fuel()?; user_fn(&n, None, vals)?.v }), V::Clo(c) => c(vals), o => trap(format!("{} is not callable", show(&o))) }
 }
 pub fn builtin(r: V, m: &str, a: Vec<V>) -> R<(V, Option<V>)> {
     use V::*;
@@ -363,9 +421,11 @@ pub fn builtin(r: V, m: &str, a: Vec<V>) -> R<(V, Option<V>)> {
         (Gen(g), "collect") => { let (items, _, err) = g(usize::MAX); if let Some(f) = err { return Result::Err(f); } List(items) }
         (Text(s), "strip") => Text(s.trim().into()),
         (Text(s), "upper") => Text(s.to_ascii_uppercase()),
+        (Text(s), "sha256") => Text(sha256_hex(s.as_bytes())),
         (Text(s), "lower") => Text(s.to_ascii_lowercase()),
         (Text(s), "reverse") => Text(s.chars().rev().collect()),
         (Text(s), "tostr") => Text(s),
+        (Text(s), "raw") => Text(s),
         (Text(s), "chars") => List(s.chars().map(|c| Text(c.to_string())).collect()),
         (Text(s), "words") => List(s.split_whitespace().map(|w| Text(w.into())).collect()),
         (Text(s), "lines") => List(s.lines().map(|w| Text(w.into())).collect()),
@@ -390,11 +450,11 @@ pub fn builtin(r: V, m: &str, a: Vec<V>) -> R<(V, Option<V>)> {
         (List(xs), "contains") => { let y = a0(); Bool(xs.iter().any(|x| eq(x, &y))) }
         (List(xs), "get") => match a0() { Int(i, _) => Opt(if i >= 0 { xs.get(i as usize).cloned().map(Box::new) } else { None }), _ => return trap("get") },
         (List(xs), "sum") => { let mut acc = Int(0, "lit"); for x in xs { acc = arith("+", acc, x)?; } acc }
-        (List(xs), "map") => { let f = a0(); let mut out = vec![]; for x in xs { out.push(apply(&f, vec![x])?); } List(out) }
-        (List(xs), "filter") => { let f = a0(); let mut out = vec![]; for x in xs { if matches!(apply(&f, vec![x.clone()])?, Bool(true)) { out.push(x); } } List(out) }
+        (List(xs), "map") => { let f = a0(); let mut out = vec![]; for x in xs { fuel()?; out.push(apply(&f, vec![x])?); } List(out) }
+        (List(xs), "filter") => { let f = a0(); let mut out = vec![]; for x in xs { fuel()?; if matches!(apply(&f, vec![x.clone()])?, Bool(true)) { out.push(x); } } List(out) }
         (List(xs), "pscan") => { let f = a0(); let e = a.get(1).cloned().unwrap_or(Unit); pscan(&xs, &f, e, false)? }
         (List(xs), "pscan_incl") => { let f = a0(); let e = a.get(1).cloned().unwrap_or(Unit); pscan(&xs, &f, e, true)? }
-        (List(xs), "fold") => { let f = a.get(1).cloned().unwrap_or(Unit); let mut acc = a0(); for x in xs { acc = apply(&f, vec![acc, x])?; } acc }
+        (List(xs), "fold") => { let f = a.get(1).cloned().unwrap_or(Unit); let mut acc = a0(); for x in xs { fuel()?; acc = apply(&f, vec![acc, x])?; } acc }
         (Map(mm), "len") => Int(mm.len() as i128, "usize"),
         (Map(mm), "get") => { let k = a0(); match mm.iter().find(|(x, _)| eq(x, &k)) { Some((_, v)) => v.clone(), None => Err(Box::new(Rec("Missing".into(), vec![]))) } }
         (Map(mm), "contains") => { let k = a0(); Bool(mm.iter().any(|(x, _)| eq(x, &k))) }
@@ -428,13 +488,14 @@ pub fn ceil_log2(n: i128) -> i128 { if n <= 1 { 0 } else { 128 - (n - 1).leading
 pub fn method_work(recv: &V, m: &str, args: &[V]) -> i128 {
     let n = size_of(recv);
     let k = args.first().map(size_of).unwrap_or(0);
-    let lin = match recv { V::Text(_) => matches!(m, "strip" | "upper" | "lower" | "reverse" | "tostr" | "chars" | "words" | "lines" | "split" | "isdigit" | "isalpha" | "isspace" | "contains" | "startswith" | "endswith" | "toint" | "join"), V::List(_) => matches!(m, "reverse" | "contains" | "sum" | "map" | "filter" | "fold"), V::Map(_) => matches!(m, "get" | "contains" | "insert" | "remove" | "keys" | "values"), _ => false };
+    let lin = match recv { V::Text(_) => matches!(m, "strip" | "upper" | "lower" | "reverse" | "tostr" | "chars" | "words" | "lines" | "split" | "isdigit" | "isalpha" | "isspace" | "contains" | "startswith" | "endswith" | "toint" | "join" | "sha256"), V::List(_) => matches!(m, "reverse" | "contains" | "sum" | "map" | "filter" | "fold"), V::Map(_) => matches!(m, "get" | "contains" | "insert" | "remove" | "keys" | "values"), _ => false };
     if lin { n.saturating_add(k) } else if matches!(recv, V::List(_)) && m == "sort" { n.saturating_mul(ceil_log2(n)) } else { 0 }
 }
 /// `sized`: the call expression is in a version 0.7 module (C.15).
 pub fn call_method(recv: V, m: &str, args: Vec<V>, sized: bool) -> R<Call> {
     let head = match &recv { V::Rec(n, _) => Some(kind_of(n).to_string()), V::List(_) => Some("List".to_string()), _ => None };
     if let Some(h) = head && let Some(f) = user_method(&h, m) {
+        fuel()?;
         return f(Some(recv), args);
     }
     charge(4i128.saturating_add(if sized { method_work(&recv, m, &args) } else { 0 }))?;
@@ -555,6 +616,7 @@ impl It {
 pub fn listcomp(itv: V, p: P, body: &dyn Fn(&M) -> R<V>, cond: Option<&dyn Fn(&M) -> R<V>>) -> R<V> {
     let mut out = vec![];
     for x in iter_items(itv)? {
+        fuel()?;
         let mut b = M::new();
         if !pmatch(&p, &x, &mut b)? { continue; }
         if let Some(c) = cond && !truthy(&c(&b)?)? { continue; }
@@ -693,7 +755,53 @@ pub fn emit(v: V) -> R<()> {
 }
 fn take_out() -> Vec<V> { OUT.with(|o| std::mem::take(&mut *o.borrow_mut())) }
 pub fn obs(label: &str, th: &dyn Fn() -> R<V>) {
+    fuel_reset();
     match th() { Ok(v) => println!("{label} = {}", show(&v)), Err(f) => println!("{label} {}", why(&f)) }
+    fuel_report();
+}
+// Fuel (6.7, 10.5): one unit at each point where the reference evaluator
+// ticks. Each observation starts with full fuel and empty constant caches
+// (a constant cache entry is valid only for the generation it was filled
+// in). The pool is per thread, as the reference gives every task its own
+// evaluator: a task thread starts full, actor handlers share the
+// scheduler thread's pool, and a `par` branch starts from its parent's
+// remaining fuel and is charged back in source order (par_fuel).
+thread_local! {
+    static FUEL: std::cell::Cell<Option<u64>> = const { std::cell::Cell::new(None) };
+    pub static KGEN: std::cell::Cell<u64> = std::cell::Cell::new(KGEN_NEXT.fetch_add(1, std::sync::atomic::Ordering::SeqCst));
+}
+static KGEN_NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+pub fn kgen() -> u64 { KGEN.with(|g| g.get()) }
+fn fuel_limit() -> u64 {
+    static L: std::sync::OnceLock<u64> = std::sync::OnceLock::new();
+    *L.get_or_init(|| std::env::args().find_map(|a| a.strip_prefix("--fuel=").and_then(|v| v.parse().ok())).unwrap_or(50_000_000))
+}
+pub fn fuel_left() -> u64 { FUEL.with(|f| f.get().unwrap_or_else(fuel_limit)) }
+fn fuel_set(n: u64) { FUEL.with(|f| f.set(Some(n))); }
+pub fn fuel() -> R<()> {
+    match fuel_left().checked_sub(1) { Some(n) => { fuel_set(n); Ok(()) } None => trap("comptime fuel exhausted") }
+}
+// `bound n` (6.7): active calls of each bounded function, per thread
+// (each task and par branch counts its own; W-REC-1 keeps par out of a
+// cycle with a bounded function, so this agrees with the evaluator)
+thread_local! { static DEPTH: RefCell<std::collections::HashMap<&'static str, u64>> = RefCell::new(std::collections::HashMap::new()); }
+pub fn depth_enter(k: &'static str, n: u64) -> R<()> {
+    let d = DEPTH.with(|m| m.borrow().get(k).copied().unwrap_or(0));
+    if d >= n { return trap("recursion bound"); }
+    DEPTH.with(|m| m.borrow_mut().insert(k, d + 1));
+    Ok(())
+}
+pub fn depth_exit(k: &'static str) { DEPTH.with(|m| { if let Some(d) = m.borrow_mut().get_mut(k) { *d = d.saturating_sub(1); } }); }
+pub fn fuel_reset() { DEPTH.with(|m| m.borrow_mut().clear()); fuel_set(fuel_limit()); KGEN.with(|g| g.set(KGEN_NEXT.fetch_add(1, std::sync::atomic::Ordering::SeqCst))); }
+pub fn fuel_report() { if std::env::args().any(|a| a == "--fuel-trace") { println!("fuel {}", fuel_limit() - fuel_left()); } }
+/// resolve one `par` branch in source order: the reference runs branches in
+/// sequence on one pool (ParMode::Seq), so branch i traps when the fuel of
+/// branches 0..=i exceeds what the parent had at the fork
+pub fn par_fuel(cum: &mut u64, f0: u64, used: u64) -> R<()> {
+    *cum = cum.saturating_add(used);
+    fuel_set(f0.saturating_sub(*cum));
+    if *cum > f0 { return trap("comptime fuel exhausted"); }
+    Ok(())
 }
 pub type State = Vec<(&'static str, Vec<(&'static str, V)>)>;
 fn show_state(s: &State) -> String {
@@ -718,6 +826,11 @@ pub fn delta(s: &State, ev: &V) -> Result<(State, Vec<V>), String> {
 }
 pub type Ev = (&'static str, Rc<dyn Fn() -> R<Option<V>> + Send + Sync>);
 pub fn run_example(line: usize, events: Vec<Ev>) {
+    fuel_reset();
+    run_example1(line, events);
+    fuel_report();
+}
+fn run_example1(line: usize, events: Vec<Ev>) {
     println!("example {line}");
     let mut s = match initial_state() { Ok(s) => s, Err(f) => { println!("initial {}", why(&f)); return; } };
     println!("0 (initial) {}", show_state(&s));
@@ -735,11 +848,13 @@ pub fn run_example(line: usize, events: Vec<Ev>) {
     }
 }
 pub fn run_main(f: &dyn Fn(Option<V>, Vec<V>) -> R<Call>) {
+    fuel_reset();
     println!("main");
     take_out();
-    let r = f(None, vec![]);
+    let r = fuel().and_then(|_| f(None, vec![]));
     for o in take_out() { println!("emit {}", show(&o)); }
     match r { Ok(c) => println!("main = {}", show(&c.v)), Err(e) => println!("main {}", why(&e)) }
+    fuel_report();
 }
 
 // ---- draft 0.6 (the draft 0.6 concurrency chapter, not published here C.5.2, C.11.2)
@@ -962,7 +1077,7 @@ pub fn lvar_wait(c: &Rc<LCell>, q: &V) -> R<V> {
 // ---- par on scoped OS threads (interp `par_exec`, Threads mode)
 #[derive(Default)]
 pub struct ParSt { running: usize, idle: usize, ver: u64, stuck: bool }
-pub struct ParCx { m: std::sync::Mutex<ParSt>, cv: std::sync::Condvar, parent: Option<Rc<ParCx>> }
+pub struct ParCx { m: std::sync::Mutex<ParSt>, cv: std::sync::Condvar, parent: Option<Rc<ParCx>>, pub fuel0: u64 }
 impl ParCx {
     fn bump(&self) {
         let mut g = self.m.lock().unwrap();
@@ -972,18 +1087,19 @@ impl ParCx {
 }
 thread_local! { static PARCX: RefCell<Option<Rc<ParCx>>> = const { RefCell::new(None) }; }
 pub fn par_cx_new(k: usize) -> Rc<ParCx> {
-    Rc::new(ParCx { m: std::sync::Mutex::new(ParSt { running: k, ..ParSt::default() }), cv: std::sync::Condvar::new(), parent: PARCX.with(|p| p.borrow().clone()) })
+    Rc::new(ParCx { m: std::sync::Mutex::new(ParSt { running: k, ..ParSt::default() }), cv: std::sync::Condvar::new(), parent: PARCX.with(|p| p.borrow().clone()), fuel0: fuel_left() })
 }
 /// run one branch on this (fresh) thread: (result, units it charged)
-pub fn par_branch(cx: Rc<ParCx>, bud: Vec<(i128, i128)>, f: impl FnOnce() -> R<()>) -> (R<()>, i128) {
+pub fn par_branch(cx: Rc<ParCx>, bud: Vec<(i128, i128)>, f: impl FnOnce() -> R<()>) -> (R<()>, (i128, u64)) {
     PARCX.with(|p| *p.borrow_mut() = Some(cx.clone()));
+    fuel_set(cx.fuel0);
     let s0 = bud.first().map(|b| b.0).unwrap_or(0);
     BUD.with(|b| *b.borrow_mut() = bud);
     let r = f();
     let s1 = BUD.with(|b| b.borrow().first().map(|b| b.0).unwrap_or(0));
     let mut g = cx.m.lock().unwrap();
     g.running -= 1; cx.cv.notify_all(); drop(g);
-    (r, s1 - s0)
+    (r, (s1 - s0, cx.fuel0 - fuel_left()))
 }
 /// `for ... par`: how many chunks (threads) for `n` items, and the split
 pub fn par_chunks(n: usize) -> usize {
@@ -1218,7 +1334,8 @@ impl Sched {
             let r = match first {
                 Ok((tick, Rep::Go)) => {
                     TASK.with(|t| t.borrow_mut().as_mut().unwrap().now = tick);
-                    match user_fn(&f, None, args) { Ok(c) => await_scope(0).map(|_| c.v), Err(e) => Err(e) }
+                    // the reference starts a task with call_fn on its arguments as names: one tick for the call and one per argument
+                    match (0..=args.len()).try_for_each(|_| fuel()).and_then(|_| user_fn(&f, None, args)) { Ok(c) => await_scope(0).map(|_| c.v), Err(e) => Err(e) }
                 }
                 _ => Err(Flow::Cancel(CANCEL_TASK)),
             };

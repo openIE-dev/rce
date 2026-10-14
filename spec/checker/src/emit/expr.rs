@@ -23,7 +23,35 @@ impl<'a> G<'a> {
         })
     }
 
+    /// `e` with the reference evaluator's fuel tick on entry (interp `eval`
+    /// ticks before it looks at the expression, 6.7). Hoisted temporaries
+    /// and the A-normal-form names of `anf.rs` are not source expressions:
+    /// their source expression ticked where it was evaluated.
     pub fn ex(&mut self, e: &Expr) -> E {
+        let v = self.ex_raw(e)?;
+        if self.no_fuel > 0 || matches!(e, Expr::Name(n, _) if n.starts_with('\u{1}') || n.starts_with("anf_") || n.starts_with("$fpchunk")) {
+            return Ok(v);
+        }
+        Ok(self.pre_fuel(&v))
+    }
+    /// `v` evaluated after one fuel tick.
+    pub fn pre_fuel(&self, v: &str) -> String {
+        match self.lang {
+            Lang::Rust => format!("{{ fuel()?; {v} }}"),
+            Lang::Python => format!("(fuel() or ({v}))"),
+            Lang::Js => format!("(fuel(), ({v}))"),
+            Lang::Scala => format!("{{ fuel(); {v} }}"),
+        }
+    }
+    /// `e` without a tick at any node (see `no_fuel`).
+    pub fn ex_nofuel(&mut self, e: &Expr) -> E {
+        self.no_fuel += 1;
+        let r = self.ex(e);
+        self.no_fuel -= 1;
+        r
+    }
+
+    fn ex_raw(&mut self, e: &Expr) -> E {
         let l = self.lang;
         Ok(match e {
             // a hoisted temporary (ex_stmt), not a source name
@@ -64,6 +92,8 @@ impl<'a> G<'a> {
             }
             Expr::Int(v, _) => match l {
                 Lang::Js => format!("lit({v}n)"),
+                Lang::Scala if *v >= i64::MIN as i128 && *v <= i64::MAX as i128 => format!("lit({v}L)"),
+                Lang::Scala => format!("lit(BigInt(\"{v}\"))"),
                 _ => format!("lit({v})"),
             },
             Expr::Float(f, _) => match l {
@@ -74,7 +104,7 @@ impl<'a> G<'a> {
             Expr::Bool(b, _) => match l {
                 Lang::Rust => format!("V::Bool({b})"),
                 Lang::Python => (if *b { "True" } else { "False" }).into(),
-                Lang::Js => b.to_string(),
+                Lang::Js | Lang::Scala => b.to_string(),
             },
             Expr::None(_) => match l {
                 Lang::Rust => "V::Opt(None)".into(),
@@ -91,6 +121,11 @@ impl<'a> G<'a> {
                     Lang::Rust => format!(
                         "V::{}(vec![{}])",
                         if tup { "Tuple" } else { "List" },
+                        v.join(", ")
+                    ),
+                    Lang::Scala => format!(
+                        "{}(V({}))",
+                        if tup { "Tup" } else { "Lst" },
                         v.join(", ")
                     ),
                     _ => self.new_(
@@ -195,6 +230,7 @@ impl<'a> G<'a> {
                     Lang::Rust => format!("{{ charge(1)?; {tx} }}"),
                     Lang::Python => format!("(charge(1), {tx})[1]"),
                     Lang::Js => format!("(charge(1n), {tx})"),
+                    Lang::Scala => format!("{{ charge(1); {tx} }}"),
                 };
                 let o = if l == Lang::Python {
                     op.as_str()
@@ -227,6 +263,7 @@ impl<'a> G<'a> {
                     ),
                     Lang::Python => format!("catch_({xv}, lambda {p}: {hv})"),
                     Lang::Js => format!("catch_({xv}, ({p}) => {hv})"),
+                    Lang::Scala => format!("catch_({xv}, ({p} : Any) => {hv})"),
                 }
             }
             Expr::Try(x, els, _) => {
@@ -238,7 +275,7 @@ impl<'a> G<'a> {
                     ),
                     (Lang::Rust, None) => format!("try_({xv}, None)?"),
                     (Lang::Python, Some(e)) => format!("try_({xv}, lambda: {e})"),
-                    (Lang::Js, Some(e)) => format!("try_({xv}, () => {e})"),
+                    (Lang::Js | Lang::Scala, Some(e)) => format!("try_({xv}, () => {e})"),
                     (_, None) => format!("try_({xv}, {})", self.none()),
                 }
             }
@@ -249,6 +286,7 @@ impl<'a> G<'a> {
                     Lang::Rust => format!("(if {t} {{ {av} }} else {{ {bv} }})"),
                     Lang::Python => format!("({av} if {t} else {bv})"),
                     Lang::Js => format!("({t} ? {av} : {bv})"),
+                    Lang::Scala => format!("(if ({t}) {av} else {bv})"),
                 }
             }
             Expr::Lambda(ps, body, _) => self.lambda(ps, body)?,
@@ -310,11 +348,16 @@ impl<'a> G<'a> {
                 let ns: Vec<String> = names.iter().map(|n| q(n)).collect();
                 let lam = |x: &str| match l {
                     Lang::Python => format!("(lambda {}: {x})", params.join(", ")),
+                    Lang::Scala => {
+                        let binds: String = params.iter().enumerate().map(|(i, p)| format!("val {p} : Any = __b({i}); ")).collect();
+                        format!("((__b: Vector[Any]) => {{ {binds}{x} }})")
+                    }
                     _ => format!("(({}) => {x})", params.join(", ")),
                 };
                 let cf = c.map(|c| lam(&c)).unwrap_or(self.none().into());
+                let (lo, hi) = if l == Lang::Scala { ("V(", ")") } else { ("[", "]") };
                 format!(
-                    "listcomp({itv}, {ps}, [{}], {}, {cf})",
+                    "listcomp({itv}, {ps}, {lo}{}{hi}, {}, {cf})",
                     ns.join(", "),
                     lam(&b)
                 )
@@ -383,6 +426,17 @@ impl<'a> G<'a> {
                     cap.join(", ")
                 )
             }
+            Lang::Scala => {
+                let capd: Vec<String> = caps.iter().map(|c| format!("l_{} : Any", ident(c))).collect();
+                let cap: Vec<String> = caps.iter().map(|c| format!("l_{}", ident(c))).collect();
+                let binds: String = params.iter().enumerate().map(|(i, x)| format!("val {x} : Any = argat(__f, {i}); ")).collect();
+                format!(
+                    "(({}) => new Clo((__a: Vector[Any]) => {{ charge(4); val __f = fitall(__a, V({})); {binds}{b} }}))({})",
+                    capd.join(", "),
+                    tys.join(", "),
+                    cap.join(", ")
+                )
+            }
         })
     }
 
@@ -431,13 +485,14 @@ impl<'a> G<'a> {
                             "Some(Rc::new(|| -> R<V> {{ Ok({code}) }}) as Rc<dyn Fn() -> R<V> + Send + Sync>)"
                         ),
                         Lang::Python => format!("(lambda: {code})"),
-                        Lang::Js => format!("(() => {code})"),
+                        Lang::Js | Lang::Scala => format!("(() => {code})"),
                     }
                 }
                 None => self.none().into(),
             };
             fs.push(match l {
                 Lang::Js => format!("[{}, {ty}, {iv}]", q(f)),
+                Lang::Scala => format!("V({}, {ty}, {iv})", q(f)),
                 _ => format!("({}, {ty}, {iv})", q(f)),
             });
         }
@@ -455,9 +510,12 @@ impl<'a> G<'a> {
     fn user_call(&self, id: &str, a: &[String]) -> String {
         let c = match self.lang {
             Lang::Rust => format!("{id}(None, vec![{}])?", a.join(", ")),
+            Lang::Scala => format!("{id}(null, V({}))", a.join(", ")),
             _ => format!("{id}({}, [{}])", self.none(), a.join(", ")),
         };
-        self.pre_charge(4, &c)
+        // interp `call_fn` ticks, then charges, then evaluates arguments
+        let c = self.pre_charge(4, &c);
+        self.pre_fuel(&c)
     }
     /// `v`, evaluated after charging `n` cost units
     pub fn pre_charge(&self, n: usize, v: &str) -> String {
@@ -465,11 +523,14 @@ impl<'a> G<'a> {
             Lang::Rust => format!("{{ charge({n})?; {v} }}"),
             Lang::Python => format!("(charge({n}), {v})[1]"),
             Lang::Js => format!("(charge({n}n), {v})"),
+            Lang::Scala => format!("{{ charge({n}); {v} }}"),
         }
     }
     fn val_of(&self, c: &str) -> String {
         match self.lang {
             Lang::Rust => format!("{c}.v"),
+            Lang::Scala => format!("at({c}, 0)"),
+
             _ => format!("{c}[0]"),
         }
     }
@@ -485,6 +546,17 @@ impl<'a> G<'a> {
         sized: bool,
     ) -> Result<Option<(String, Option<WriteBack>)>, String> {
         let l = self.lang;
+        // 5.16 context text
+        if let Expr::Member(o, m, _) = f
+            && let Expr::Name(c, _) = &**o
+            && crate::index08::CTX.contains(&c.as_str())
+            && !self.local(c)
+            && !self.types.contains_key(c)
+            && args.len() == 1
+        {
+            let a = self.ex(&args[0].e)?;
+            return Ok(Some((if m == "lit" { self.h("ctx_lit", &[a]) } else { self.h("ctx_encode", &[q(c), a]) }, None)));
+        }
         match f {
             Expr::Name(n, _) if !self.local(n) => {
                 match n.as_str() {
@@ -517,6 +589,8 @@ impl<'a> G<'a> {
                     let a = self.args(args)?;
                     let v = match l {
                         Lang::Rust => format!("lvar_new(vec![{}])", a.join(", ")),
+                        Lang::Scala => format!("lvar_new(V({}))", a.join(", ")),
+
                         _ => format!("{}([{}])", self.rt("lvar_new"), a.join(", ")),
                     };
                     return Ok(Some((v, None)));

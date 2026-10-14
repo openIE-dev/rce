@@ -29,6 +29,7 @@ fn cases() -> Vec<(String, String, i128)> {
         (t.clone(), "let u = t.upper()".into(), c(V::Text("hello".into()), "upper", vec![])),
         (t.clone(), "let b = t.contains(\"ll\")".into(), c(V::Text("hello".into()), "contains", vec![V::Text("ll".into())])),
         (t.clone(), "let k = t.len()".into(), c(V::Text("hello".into()), "len", vec![])),
+        (t.clone(), "let h = t.sha256()".into(), c(V::Text("hello".into()), "sha256", vec![])),
     ]
 }
 

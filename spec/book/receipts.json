@@ -78,5 +78,10 @@
   "question": "Which compiled node id does `deliverable D1` become? (for example role_R1)",
   "salt": "46b53ee81c4f538dbe339b114bbc8a2e",
   "answer_sha256": "b3346b17831f544379753ce3e8b81bd03fa90e5377b7a4a6d39a5606439c5add"
+ },
+ "16-host-contract.md": {
+  "question": "Which fcntl command is the append barrier on macOS? (for example F_SETFL)",
+  "salt": "e02e174904c24fc208af13ca94beb488",
+  "answer_sha256": "b22573f1f9bbe60b88ff8f9c4aca01d026d9754698b5e5e07001f6fe932e5f62"
  }
 }

@@ -721,6 +721,7 @@ fn run_target(lang: Lang, dir: &Path, stem: &str) -> Result<String, String> {
         }
         Lang::Python => Command::new("python3").arg(&src).output(),
         Lang::Js => Command::new("node").arg(&src).output(),
+        Lang::Scala => Command::new("scala-cli").args(["run", "-q", "--server=false", "--scala", "3.10.0", "--scalac-option", "-nowarn"]).arg(&src).output(),
     }
     .map_err(|e| e.to_string())?;
     if !out.status.success() {

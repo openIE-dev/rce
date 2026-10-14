@@ -293,7 +293,8 @@ comment
 
 The line must start with `#` in column 0 and hold, after optional spaces,
 `rce-version:` and a version; trailing spaces are allowed. The known
-versions are `0.5`, `0.6` and `0.7`; any other is refused (W-VER-1). A module
+versions are `0.5`, `0.6`, `0.7` and `0.8`; any other is refused (W-VER-1).
+Version 0.8 is version 0.7 plus the indexed values of 5.16 (C.16). A module
 without the declaration is version 0.5. Version 0.5 is the language of
 sections 2 to 10. Version 0.6 adds Appendix C: its 23 words become
 keywords (C.1) and its constructs and rules apply. Version 0.7 has the
@@ -357,7 +358,7 @@ CheckDecl   = "check" Expr NEWLINE .
 
 ```
 ConstDecl  = "const" NAME [ ":" Type ] "=" Expr NEWLINE .
-TypeDecl   = "type" NAME [ Generics ] "=" Type NEWLINE .
+TypeDecl   = "type" NAME [ Generics ] "=" Type [ "where" Expr ] NEWLINE .
 StructDecl = [ "linear" ] "struct" NAME [ Generics ] NEWLINE [ INDENT Field { Field } DEDENT ] .
 Field      = NAME ":" Type [ "=" Expr ] NEWLINE .
 StateDecl  = "state" NAME NEWLINE INDENT Field { Field } DEDENT .
@@ -390,7 +391,8 @@ parameters (3.11 R6 says why the keyword is needed).
 ### 3.5 Functions, steps and actors
 
 ```
-FnSig     = [ "comptime" ] "fn" NAME [ Generics ] "(" [ Params ] ")" [ "->" Type ] .
+FnSig     = [ "comptime" ] "fn" NAME [ Generics ] "(" [ Params ] ")" [ "->" Type ]
+            [ "bound" INT ] .                                 (6.7)
 FnDecl    = FnSig ( Block | "=" Expr NEWLINE ) .
 ExternDecl = "extern" STRING FnSig NEWLINE .            (5.11)
 Params    = Param { "," Param } [ "," ] .
@@ -739,6 +741,48 @@ implementation may use vector instructions; the result is defined by the
 lanes, so it is the same on every target. A list literal is a `List` unless
 it meets an array type of the same length, as an integer literal is i64
 unless it meets another integer type.
+
+**Type aliases.** `type A = τ` (and `type A[α₁, …, αₙ] = τ`) without
+`where` gives τ a second name: A, with its parameters substituted, is the
+type τ in every rule. It is not a nominal type, since N above ranges only
+over structs, kinds, actors and states. So a parameter `c: A` with
+`type A = chan τ′` is a `chan` parameter and makes its function a task
+function (5.2), and a value of type A is accepted wherever τ is and the
+reverse. Example: with `type Pipe = chan (u64, text)`, `fn feed(p: Pipe,
+n: u64)` may send on p and be spawned (`spec/checker/tests/alias.rs`).
+
+**Refined types (extension, all versions).** `type R = τ where p`
+declares R as the values of τ that satisfy the predicate p, in which
+`self` names the value. τ is an integer type, `text`, or a `List`, `Map`,
+`Set` or array type. p is in a decidable fragment: comparisons (`<`, `<=`,
+`>`, `>=`, `==`, `!=`) between `self` (integer τ), `self.len()` (text,
+in UTF-8 bytes as in 5.15, or a collection) and integer literals; the
+character classes `self.isdigit()`, `self.isalpha()`, `self.isspace()`,
+`self.isempty()` of a text; and `and`, `or`, `not`. Anything else is
+W-REF-1. `where` is contextual: no type is followed by a name, so the
+word stays an ordinary identifier. A refined value is checked exactly
+where a value is checked against its declared integer range (6.3, 6.4
+step 3): at a typed `let` or `var`, a parameter, a field or payload
+constructor, a field initializer and the write-back of a state field.
+The check fits the value to τ first, then evaluates p; if p is false the
+result is `trap("refinement: value is outside R")`. So an event whose
+payload is outside its refined type is refused before any step runs, as
+an out-of-range integer payload is, and a step whose new state breaks a
+field's predicate refuses the event with the state unchanged (6.4, T8).
+`R <: τ`: a refined value is used wherever τ is. Derivation: validation
+that the type does not record can be skipped (soundness), a predicate
+checked at one boundary has one outcome (determinism), and the
+refinement reuses the one boundary the language already has, the range
+check, rather than a second mechanism (one meaning per construct). The
+fragment is decidable in time linear in p and in the value, so the check
+has a fixed cost class (energy observability); full dependent types are
+excluded by the same derivation, since an undecidable obligation would
+make acceptance itself unbounded. Example: `type Pct = u8 where self <=
+100`; `event SetVolume(pct: Pct)`; `SetVolume(pct: 101)` is refused with
+`refinement: value is outside Pct`, and a step computing `level + 60` on
+`level: Pct = 60` refuses its event. Lean: `RCE/Refine.lean`
+(`holds_total`, `fit_sound`, `refine_preserved`,
+`refine_refused_unchanged`, `admit_sound`; T35).
 
 **Error sets.** In `τ ! ε`, ε is a finite set of declared `error` names,
 written as one error name or as the name of a `kind` whose variants are all
@@ -1123,12 +1167,21 @@ against the reference evaluator (`spec/checker/tests/stdlib_costs.rs`).
 | `Int` | integers (iN, uN, usize) | `abs`, `checked_add`, `checked_div`, `checked_mul`, `checked_sub`, `max`, `min`, `saturating_add`, `saturating_mul`, `saturating_sub`, `tostr`, `wrapping_add`, `wrapping_mul`, `wrapping_sub` |
 | `F` | f64 | `abs`, `ceil`, `floor`, `max`, `min`, `round`, `sqrt`, `tostr` |
 | `Bool` | bool | `tostr` |
-| `Text` | text | `chars`, `contains`, `endswith`, `isalpha`, `isdigit`, `isempty`, `isspace`, `join`, `len`, `lines`, `lower`, `reverse`, `split`, `startswith`, `strip`, `toint`, `tostr`, `upper`, `words` |
+| `Text` | text | `chars`, `contains`, `endswith`, `isalpha`, `isdigit`, `isempty`, `isspace`, `join`, `len`, `lines`, `lower`, `raw`, `reverse`, `sha256`, `split`, `startswith`, `strip`, `toint`, `tostr`, `upper`, `words` |
 | `F32` | f32 | `abs`, `tostr` |
 | `Gen` | iter τ | `collect` |
 | `List` | List[τ], [τ; n] | `append`, `clear`, `contains`, `filter`, `fold`, `get`, `isempty`, `len`, `map`, `pop`, `push`, `reverse`, `sort`, `sum`, `with` |
 | `Map` | Map[k, v] | `contains`, `get`, `insert`, `keys`, `len`, `remove`, `values` |
 | `Opt` | τ? | `isnone`, `issome`, `or` |
+
+`raw` exists only in a version 0.8 module and only on `Text[C]` (5.16).
+
+**Hashing (normative).** `t.sha256()` on a `text` t is the SHA-256
+digest (FIPS 180-4) of the UTF-8 bytes of t, written as 64 lowercase
+hexadecimal digits, as a `text`. It is pure, total and the same on every
+target; it is the digest 6.1 and 6.8 apply to canonical JSON, so a
+program given the canonical JSON of a value as text computes the same
+hash as the Form log and the content-hash ids. It is in the linear class of C.6.4.
 
 **Effects and I/O (normative).** By derivation from least privilege, a
 program has no ambient authority: there is no file, clock, network,
@@ -1145,6 +1198,74 @@ this list cannot be added by a library, because the library is closed.
 version 0.7 module it costs in addition the work of its complexity class
 on the sizes of its receiver and argument (C.6.4, C.15); see C.6 for the
 budget rules.
+
+### 5.16 Indexed values (version 0.8)
+
+In a module declaring `# rce-version: 0.8` four type names and four
+contexts belong to the language: `Text[C]`, `Secret[τ]`, `Cap[A]`,
+`Guarded[τ, A]`, and `Html`, `Url`, `Sql`, `Json`. A 0.8 module may not
+declare an item with one of these names (W-NAME-2). Each is a type
+*index*: the value is a value of the base type (text, τ, `()`, τ), and
+the index is a static fact the checker carries. Indices are erased at
+run time, so δ, the log and the emitters are unchanged except for the
+encoders. Derivation (`spec/proposals/CORE-PROPERTIES.md`, P1): one
+meaning per construct requires that a text which is HTML in one place
+and SQL in another be two types; least privilege requires that
+authority be a value, not an ambient fact; soundness requires that the
+checker, not a convention, enforce both. The three indices are one
+mechanism: a value carries an index, and it crosses an index only by a
+named, total, costed construct.
+
+**Context-typed text (W-CTX-1).** `Text[C]` for C one of the contexts
+is text whose structure (markup, query syntax) is fixed by the program.
+It is made only by `C.lit(s)`, where s is a string literal (program
+text is trusted: its author wrote it), and by `C.encode(t)` for a `text`
+t, which escapes every metacharacter of C. `a + b` joins two values of
+one context; any other operator, or `+` with plain text or another
+context, is W-CTX-1. `x.raw()` gives the text of a `Text[C]` as `text`
+(going back only re-enters through `encode`). An event payload carries
+plain text only (W-CTX-1): context text cannot come from outside.
+`emit` may carry `Text[C]`; a host sink for C takes exactly that type.
+The encoders (normative, every runtime): `Html` maps `&` `<` `>` `"` `'`
+to `&amp;` `&lt;` `&gt;` `&quot;` `&#39;`; `Url` percent-encodes every
+UTF-8 byte except `A-Z a-z 0-9 - . _ ~` with uppercase hex; `Sql` gives
+a standard SQL string literal, the text between single quotes with each
+`'` doubled; `Json` gives a JSON string literal with `"` `\` newline,
+return and tab escaped and other code points below U+0020 as `\u00xx`.
+Consequence (T36): every structural metacharacter of a `Text[C]` value
+comes from a literal, so untrusted text cannot form markup or query
+syntax. SQL injection and cross-site scripting are not expressible.
+Example: `Sql.lit("WHERE name = ") + Sql.encode(b)` with b = `O'Brien`
+is `WHERE name = 'O''Brien'`; `Sql.lit("WHERE name = ") + b` is W-CTX-1.
+
+**Secrets (W-SEC-1).** `Secret[τ]` is opaque. A secret value comes only
+from an event payload field of a `Secret` type: there is no constructor
+and no literal of a secret type, so a credential cannot be written in
+the program (hard-coded credentials are not expressible; comparing a
+secret with a literal is W-TY-1). The only operations are binding,
+storing (in a state field, a struct, an option), passing and `==`/`!=`
+between two secrets of one type, whose boolean is the one release. Any
+other operator or method on a secret is W-SEC-1. A value that can hold a
+secret may not be emitted, sent on a channel, carried by an error
+payload (a refusal is an output, 6.1) or passed to a foreign function
+(W-SEC-1). So λ never carries a secret (T36, noninterference up to the
+equality bits). The log D holds admitted events with their payloads, as
+any store of the program's inputs does; it is not an output.
+
+**Capabilities (W-CAP-1, W-CAP-2).** `Cap[A]`, for A a declared struct,
+is the authority A as a value. It appears only as the type of an event
+payload field or of a parameter (W-CAP-1): it cannot be stored in a
+state, struct, collection, option or channel, so authority lives for one
+event and is never ambient. It cannot be constructed by an expression:
+the host that admits an event attests the capability (written `()` in an
+event list or `example`), exactly as it supplies every other input, and
+the attested event is logged. `Guarded[τ, A]` is the type of a state
+field only (W-CAP-1); reading it gives a τ, it keeps τ's range checks
+(6.3), and a step that writes it (assignment, `&mut` borrow, a mutating
+method, or the arrow form of its only field) must match only events
+whose payload has a field of type `Cap[A]` (W-CAP-2). So a missing
+authorization check is not expressible: a log of events without the
+capability never changes the guarded field (T36).
 
 **Read receipt.** What kind of channel does a capacity of 0 give? (one word)
 
@@ -1459,15 +1580,76 @@ evaluation uses the same bounds. `for x in f(…)` over an iterator function
 `RCE/Iter.lean` (`drive_total`, `drive_break`).
 
 **Structural recursion (draft 0.4).** A function may call itself when
-every self-call passes, in some parameter position i, a name bound inside a
-constructor pattern of a `match` whose scrutinee is parameter i (or a name
-already known to be such a component). The argument is then a strict
-component of the value received, so along any chain of calls the value at
-position i strictly shrinks and the depth of recursion is at most the
-number of constructor nodes in that value, which N9 bounds. A name that is
-rebound by `let`, `var`, assignment or a `for` pattern loses this status.
-Any other cycle in the call graph, including every mutual recursion, is
-refused (W-REC-1).
+every self-call passes, in one parameter position i fixed for the
+function, a name bound inside a constructor pattern of a `match` whose
+scrutinee is parameter i (or a name already known to be such a
+component). The argument is then a strict component of the value
+received, so along any chain of calls the value at position i strictly
+shrinks and the depth of recursion is at most the number of constructor
+nodes in that value, which N9 bounds. A name that is rebound by `let`,
+`var`, assignment or a `for` pattern loses this status. The checkers of
+drafts 0.4 to 0.7 let the position differ from call to call; that admits
+a function that never returns (`f(x, y)` whose one self-call takes a
+component of x and a fixed value for y, and whose other takes a fixed
+value for x and a component of y, runs forever from `f(Leaf, Node(…))`),
+so such a function is refused (W-REC-1; an erratum, C.15). Every function
+this paragraph admits is admitted by the rule below with one layer.
+
+**Recursion by layered measures.** Every cycle of the call graph (a
+strongly connected component: one function that calls itself, or two or
+more functions; trait methods excluded) is admitted when its calls can be
+done in layers. A layer gives each function f of the cycle a set P f of
+parameter positions and the *summed measure* μ_f(ā) = Σ_{i ∈ P f}
+size(aᵢ), with size the number of constructor nodes. A call g(b̄)
+written in f *keeps* the measure when the positions P g map one to one
+into P f so that the argument at each j ∈ P g is the parameter at its
+image i (unchanged, the name not rebound) or a component of it in the
+sense of structural recursion above; it *shrinks* the measure when at
+least one of them is a component. Layer 1 must be kept by every call of
+the cycle and shrunk by at least one; the calls it shrinks are done.
+Layer 2 must be kept by every call not yet done and shrunk by at least
+one of them, and so on. The cycle is admitted when the calls left after
+some layer k form no cycle among the functions. Then the tuple (μ₁, …,
+μ_k, rank of the function) falls lexicographically at every call: a call
+done at layer j keeps μ₁ … μ_{j−1} and shrinks μ_j, and a call left over
+keeps every μ and lowers the rank. The order is well founded, so every
+chain of calls is finite; with one layer a chain inside the cycle has at
+most (μ + 1)·k calls, with μ the measure of the first call and k the
+number of functions in the cycle, and N9 bounds μ. The reference checker
+tries every choice of the sets of a layer, in a fixed order, for a cycle
+with at most 16 parameters in total, takes the first choice that does
+the most calls, and refuses a larger cycle that needs a layer. Lean:
+`RCE/Mutual.lean` (`call_dec`, `call_keep`, `layer_dec`, `wf_total`,
+`wf_fuel_irrelevant`; one layer: `lex_dec`, `mutual_total`,
+`mutual_fuel_irrelevant`, `mutual_depth`). Examples: `even(xs)` and
+`odd(xs)` that each call the other on the tail of a matched `Cons`
+(one layer); `h(m, n)` that calls `h(m', n)` and `h(m, n')` on
+components m' of m and n' of n (layer {m} does the first call, layer {n}
+the second).
+
+**Declared bounds.** `fn f(…) -> τ bound n`, n a positive integer
+literal, allows at most n active calls of f at once: a call of f, once
+its arguments are evaluated and fitted to the parameter types, traps
+with `trap("recursion bound")` when n calls of f are already active, and
+otherwise counts as active until it returns or fails. A cycle that no
+layers admit is admitted when every cycle of calls inside it passes
+through a function declared with `bound` (the calls between functions
+without one form no cycle). Then the slack Σ (n_g − active calls of g)
+over the bounded functions falls at every call of a bounded function and
+the rank falls at every other call, so every run of the cycle ends, by
+its value or by the trap, within (slack + 1)·k nested calls. This covers
+recursion on integers or indices, which has no constructor measure
+(`gcd(a, b)` calling `gcd(b, a % b)`, a parser that recurses on a
+position). The counts belong to the task (6.8) that makes the calls, so
+`par` and `for … par` inside a function of a cycle with a bounded
+function are refused (W-REC-1): the branches could otherwise count calls
+differently on one thread and on several. `bound` on an iterator
+function (5.14), a foreign function or a trait signature is W-REC-1. The
+check costs nothing (C.6.4 is unchanged). Lean: `RCE/Mutual.lean`
+(`bump_slack`, `bound_dec`, with `lex_dec`, `mutual_total`,
+`mutual_depth`); tests: `spec/checker/tests/bound.rs`.
+
+Any other cycle in the call graph is refused (W-REC-1).
 
 This is what makes δ total (T2): every construct terminates in a number of
 steps bounded by a function of the program and the event.
@@ -1607,7 +1789,12 @@ The Form
   reading another region's fields in a step; calling a foreign function
   anywhere but `fn main` or a task function.
 - W-REC-1 A cycle in the call graph, including through trait methods after
-  monomorphization, other than direct structural recursion (6.7).
+  monomorphization, other than a cycle of plain functions (one function
+  calling itself included) whose calls are done by layered summed
+  measures, or each of whose cycles of calls passes through a function
+  declared with `bound` (6.7); `par` or `for … par` in a function of a
+  cycle with a bounded function; `bound` on an iterator, a foreign
+  function or a trait signature.
 - W-CT-1 Comptime code that calls a non-comptime-safe function or traps or
   exceeds fuel.
 - W-INT-1 An `example` or `check` that does not hold.
@@ -1622,11 +1809,30 @@ The Form
 - W-ITER-1 An iterator function that is not pure or has an arrow body;
   `yield` outside an iterator function; an `iter τ` value used other than as
   a `for` operand or `.collect()` receiver (5.14).
+- W-REF-1 A refined type (5.1) that is generic, refines a type other than
+  an integer type, `text` or a collection, or whose predicate is outside
+  the decidable fragment (a term other than `self`, `self.len()` or an
+  integer literal, an operator other than a comparison, `and`, `or`,
+  `not`, or a call other than a text character class).
 - W-LOOP-1 A `LOOP_LIMIT` declaration that is not `const LOOP_LIMIT: u64 = n`
   with a positive literal n (6.7).
 - W-TRAIT-1 An impl not matching its trait; W-TRAIT-2 incoherent or orphan
   impls; W-TRAIT-3 a type used with `==`, `!=`, an ordering operator or a
   generic bound without implementing the trait it needs.
+
+Version 0.8 only (5.16)
+- W-CTX-1 Context text made other than by `C.lit` of a string literal or
+  `C.encode`; joined with another context or plain text; carried by an
+  event payload; an unknown context.
+- W-SEC-1 An operator or method on a secret other than `==`/`!=`; a
+  secret in an emitted value, a channel, an error payload or a foreign
+  call.
+- W-CAP-1 A capability outside an event payload field or a parameter;
+  `Guarded` outside a state field; an authority that is not a declared
+  struct.
+- W-CAP-2 A step that writes a `Guarded[τ, A]` field on an event without
+  a `Cap[A]` field. (W-NAME-2 refuses a declaration named after a 5.16
+  type or context.)
 
 Version 0.6 only (Appendix C, applies only to a module declaring
 `# rce-version: 0.6`): W-PAR-1 to W-PAR-4, W-DL-1, W-ND-1, W-GRP-1 to
@@ -1654,18 +1860,19 @@ ownership core (`RCE/Ownership.lean`), the concurrency rules of 6.8
 (`RCE/Bound.lean`), name-free hashing and ids (`RCE/NameFree.lean`) and the
 Rust emitter (`RCE/Emit.lean`, printer `RCE/EmitPrint.lean`, differential
 harness `emit-test/`), structural recursion (`RCE/Struct.lean`, draft
-0.4), and the draft 0.5 additions: select fairness (`RCE/Select.lean`),
+0.4), mutual recursion (`RCE/Mutual.lean`), and the draft 0.5 additions: select fairness (`RCE/Select.lean`),
 linear handles (`RCE/Linear.lean`), f32 (`RCE/F32.lean`), u64 arithmetic
 (`RCE/U64.lean`) and iterators (`RCE/Iter.lean`), and foreign replay
-(`RCE/Replay.lean`), `&mut` write-back (`RCE/WriteBack.lean`) and bound
-composition (`RCE/Compose.lean`). Build with `lake build`; no `sorry`,
+(`RCE/Replay.lean`), `&mut` write-back (`RCE/WriteBack.lean`), bound
+composition (`RCE/Compose.lean`) and the host contract of Appendix E
+(`RCE/Host.lean`). Build with `lake build`; no `sorry`,
 no added axioms (`#print axioms` lists only propext, Quot.sound,
 Classical.choice). Status per theorem:
 
 | | Status | Lean |
 |---|---|---|
 | T1 | proved for expressions, δ, and the 6.8 tick semantics (tasks, channels, select, actors): one tick from a configuration has exactly one result | `step_det`, `exec_unique`, `tstep_det`, `run_det`, `tick_det` |
-| T2 | proved, including the explicit bound: a statement reaches its `exec` result in at most B(s) steps (B from loop bounds and expression sizes), a region in at most BR, δ in at most |s|·BR(P). The Lean expression core has no user function calls. Structural recursion (0.4) is proved separately on a model with total leaf and combine bodies: fuel equal to the value's size always suffices, the result equals the function's denotation, extra fuel changes nothing, and the number of calls equals the size | `exec_unique`, `eval_bound`, `stmt_bound`, `region_bound`, `delta_bound`, `struct_total`, `calls_eq_size`, `struct_fuel_irrelevant`; composition along the call graph (a callee's bound adds to the caller's, a chain is bounded by the sum): `comp_bounded`, `comp_result`, `chain_bounded` |
+| T2 | proved, including the explicit bound: a statement reaches its `exec` result in at most B(s) steps (B from loop bounds and expression sizes), a region in at most BR, δ in at most |s|·BR(P). The Lean expression core has no user function calls. Structural recursion (0.4) is proved separately on a model with total leaf and combine bodies: fuel equal to the value's size always suffices, the result equals the function's denotation, extra fuel changes nothing, and the number of calls equals the size. Mutual recursion (6.7) is proved on a model of a family of functions whose calls lower a measure: the checker's call condition lowers the summed measure (`call_dec`), with the rank of the function it lowers the combined measure (`lex_dec`), fuel above the measure always suffices and extra fuel changes nothing, and a chain of calls has at most the measure plus one calls; with several layers (6.7) a call that keeps every earlier layer and shrinks one, or keeps all and lowers the rank, lowers the tuple in a well-founded lexicographic order (`call_keep`, `layer_dec`), every evaluation then ends for some fuel, and more fuel never changes the value; a declared bound (6.7) is modelled by counts of active calls carried in the state, whose slack falls by one at every admitted call of a bounded function, so the same measure argument applies | `exec_unique`, `eval_bound`, `stmt_bound`, `region_bound`, `delta_bound`, `struct_total`, `calls_eq_size`, `struct_fuel_irrelevant`, `call_dec`, `lex_dec`, `mutual_total`, `mutual_fuel_irrelevant`, `mutual_depth`, `call_keep`, `layer_dec`, `wf_total`, `wf_fuel_irrelevant`, `bump_slack`, `bound_dec`; composition along the call graph (a callee's bound adds to the caller's, a chain is bounded by the sum): `comp_bounded`, `comp_result`, `chain_bounded` |
 | T3 | proved | `fold_law`, `log_is_events`, `replay` |
 | T4 | proved for expressions, statements, δ and ticks (some task moves, or every task is done or blocked: the run ends or is `Deadlock`) | `progress`, `stmt_progress`, `delta_bound`, `run_progress`, `progress` (Conc) |
 | T5 | proved for expressions, statements, δ and the whole log; for ticks, the world invariant (typed channel contents, task-owned locations) is preserved | `preservation`, `exec_wt`, `delta_wt`, `run_wt`, `tick_inv` |
@@ -1680,7 +1887,12 @@ Classical.choice). Status per theorem:
 | T14 | proved: checked u64 ops return the exact result exactly when it lies in [0, 2^64), and udiv/urem satisfy b·q + r = a, r < b | `uadd_spec`, `usub_spec`, `umul_spec`, `udiv_urem`, `udiv_range`, `urem_range` |
 | T32 | proved for every oracle: replay of the log equals the live run, the log's events are the input events, an answer contract holds of every logged answer, and runs that logged the same answers agree | `replay_live`, `live_events`, `live_answers_satisfy`, `t32` |
 | T33 | proved: copy-out on every outcome equals in-place update; copy-out only on success does not | `t33`, `copyOk_differs` |
+| T36 | proved on models of 5.16: every metacharacter of rendered context text comes from a literal when the encoder emits none (and the HTML encoder emits none of `< > " '`); public outputs are equal for runs whose public inputs and secret-equality bits agree; a log of events without the capability leaves a guarded field unchanged. The checker rules are tested on accept/refuse cases and the encoders across the reference and the Rust, Python and JavaScript runtimes (`tests/indexed.rs`) | `ctx_meta_from_literals`, `html_enc_clean`, `noninterference`, `outputs_noninterfere`, `guarded_needs_cap` |
+| T35 | proved on a model of the boundary check: the predicate fragment decides (a total Bool function), a value that passes the check satisfies its predicate, admission accepts only payloads that satisfy their field predicates, and every state reached by the checked δ from an initial state that satisfies the field predicates satisfies them, with a refused event leaving the state unchanged; the reference evaluator and the Rust, Python and JavaScript runtimes are tested to accept and trap alike (`tests/refined.rs`) | `holds_total`, `fit_sound`, `admit_sound`, `refine_preserved`, `refine_refused_unchanged` |
 | T34 | proved for a core fragment (literals, reads, write-back calls, a charging operator, emit) with full ANF: the let-bound program gives the same value, store, and trace of charges and emits; the implementation (`anf.rs`, which binds fewer nodes and covers the surface language) is tested differentially on every target, including a budget sweep across the trap point | `t34`, `run_frame` |
+| T37 | proved on a model of the host (Appendix E): δ extended with host entries is the identity on them, replay of the log with no oracle equals the live run for every adapter oracle, a log of host entries alone leaves the state unchanged, and placement computed from the logged host entries agrees for equal logs; the example logs are re-folded with host entries interleaved in `tests/host_contract.rs` | `host_entry_identity`, `t37_replay`, `t37_host_only`, `t37_placement` |
+| T38 | proved for any hash function: the verified prefix is a prefix and a valid chain, a valid log is kept whole, and a valid log followed by an entry that does not link is cut back to it; the SHA-256 chain of every example log is tested with torn, flipped and swapped entries (`tests/host_contract.rs`) | `verify_prefix`, `verify_valid`, `verify_intact`, `verify_append`, `t38_torn` |
+| T39 | proved on an admitter model: after a failed barrier nothing is appended, and a running admitter's log is exactly the entries it was given | `t39_halted`, `t39_fault_stops`, `t39_run_complete` |
 | T15 | proved for iterators whose step between yields is total (T2): every run ends, delivers at most LOOP_LIMIT values and traps only after exactly LOOP_LIMIT; `break` yields a prefix of the full run; a run with a smaller cap is a prefix of one with a larger cap (the evaluator's re-run strategy) | `drive_total`, `drive_break`, `gen_prefix` |
 
 T16 to T31 belong to version 0.6 and are listed with their exact status
@@ -1696,10 +1908,15 @@ sequence of 6.8 is a function of the input events.
 
 **T2 Totality of δ.** For every s ∈ S and e ∈ E, evaluation of δ(s, e)
 terminates, and the number of evaluation steps is at most
-B(P) · (1 + size(s) + size(e)) for a bound B(P) computable from P
-(from loop bounds, SIZE_LIMIT and the call graph, which is acyclic except
-for structural self-calls; each of those contributes a factor bounded by
-the size of the value it recurses on, itself bounded by N9).
+B_P(size(s) + size(e)) for a function B_P computable from P (from loop
+bounds, SIZE_LIMIT and the call graph, which is acyclic except for
+recursive cycles admitted by layered measures or declared bounds, 6.7). When the call graph
+has no cycle, B_P(n) = B(P) · (1 + n). A recursive cycle contributes the
+number of calls of a chain of calls, which is finite because its tuple of
+measures falls in a well-founded order, and bounded by a function of the
+sizes of the values it recurses on, themselves bounded by N9; that
+function need not be linear (a function that calls itself twice on the
+same component makes a number of calls exponential in the size).
 
 **T3 Fold law.** For every log D = e₁…eₙ, the state the runtime reaches is
 foldl(δ₁, s₀, D), and replaying D from s₀ reproduces every state hash and
@@ -1777,6 +1994,30 @@ answer.
 **T33 `&mut` write-back.** A call that writes back its `&mut` arguments on
 every outcome (6.2) gives the same store and outcome as updating them in
 place.
+
+**T36 Indexed values.** In a version 0.8 module (5.16): untrusted text
+forms no structure of a `Text[C]` value; outputs do not depend on
+secrets beyond the equality bits; a guarded field changes only on events
+that carry its capability.
+
+**T35 Refinement invariance.** If the initial state satisfies the
+predicates of its refined fields, every state in the fold of the log
+(6.1) satisfies them, and an event whose payload or resulting state
+breaks a predicate is refused with the state unchanged (5.1).
+
+**T37 Host replay.** For every adapter oracle, replaying the log D with
+every adapter disconnected gives the live run's state after every entry;
+host entries leave the state unchanged; placement, a function of the
+logged host entries, is the same on replay (Appendix E).
+
+**T38 Verify on open.** The verified prefix of a hash-chained log is a
+prefix of it and a valid chain, equals the log when the log is valid, and
+cuts a valid log followed by an entry that does not link back to the
+valid log (Appendix E, HS-4).
+
+**T39 Fatal barrier.** After a failed storage barrier the admitter
+appends nothing more, and a running admitter's log holds exactly the
+entries it was given (Appendix E, HS-3).
 
 **T34 Order-preserving A-normal form.** Flattening an expression into
 `let`-bound steps in left-to-right order, with each temporary fresh,
@@ -1963,7 +2204,8 @@ evaluable at comptime.
 ### 9.3 Changes in draft 0.4 (from `spec/LANGUAGE-REVIEW.md`)
 
 - R1 (6.7, W-REC-1) Structural self-recursion is admitted; mutual recursion
-  and every other cycle stay refused. Checker: `structural_violation`.
+  and every other cycle stay refused. Checker: `structural_violation`, since
+  replaced by `lex_measure` (6.7: one fixed position, or layers).
   Lean: `RCE/Struct.lean`.
 - R2 (5.11, W-FFI-1, `extern`) A C-ABI foreign function interface: scalar
   and borrowed-buffer parameters, scalar results, callable only from `main`
@@ -2024,6 +2266,32 @@ they run them on the CPU, which 5.13 allows).
   exact u64 at or above 2^63 (6.3 N2), the fallible-return literal fix
   (5.1), saturating budget arithmetic (C.6), the hash-chained Form log
   (6.1).
+- Refined types (5.1, W-REF-1, T35): `type R = τ where p` with p in a
+  decidable fragment, checked where the declared integer range is
+  checked. Derived from soundness and one meaning per construct
+  (`spec/proposals/CORE-PROPERTIES.md`, P2). Closes the replacement-matrix
+  rows "improper input validation" (defined: refused at entry) and
+  "dependent specifications" (defined for the decidable fragment;
+  undecidable obligations excluded by derivation). An extension for
+  every version (C.15).
+- `sha256` text method (5.15): SHA-256 of the UTF-8 bytes as 64 lowercase
+  hex digits, linear cost class (C.6.4), in the reference evaluator and the
+  Rust, Python and JavaScript runtimes. Derived from self-hosting: the
+  hash-chained log (6.1) and content-hash ids (6.8) must be computable by
+  an RCE program. An extension for every version, since it only admits
+  programs refused before (C.15).
+
+### 9.6 Changes in draft 0.8
+
+- Version 0.8 (2.7, 5.16, C.16): 0.7 plus indexed values, context-typed
+  text `Text[C]`, opaque `Secret[τ]`, capabilities `Cap[A]` and
+  `Guarded[τ, A]` fields, with W-CTX-1, W-SEC-1, W-CAP-1, W-CAP-2 and T36.
+  A new version because the names it takes (`Text`, `Html`, ...) could be
+  a 0.7 program's own declarations, whose meaning would change. Derived
+  from one meaning per construct, least privilege and soundness
+  (`spec/proposals/CORE-PROPERTIES.md`, P1). Closes the replacement-matrix
+  rows SQL injection and XSS (excluded), missing authorization
+  (excluded), hard-coded credentials and information exposure (excluded).
 
 **Read receipt.** The decisions list says it decides gaps in which file?
 
@@ -2066,9 +2334,21 @@ Form command line (`rce form ...`), which reads the Form spec format rather
 than RCE programs, is not part of this build, and `rce form` exits with
 status 2.
 
-### 10.2 `rce check FILE...`
+The tables of 5.15 (which methods each receiver has) and C.6.4 (the work
+class of each method) are not typed into the checker a second time: it
+reads them from `spec/data/spec-data.json`, which `rce-spec-data`
+generates from this book. The two tables are cut from it into
+`spec/data/spec-tables.json`, the file compiled into `rce`, the checker
+and its wasm build; `rce-spec-data --check` fails when either file
+differs from what the book gives.
 
-All FILEs form one program: `use` resolves among them (4.1). Each file is
+### 10.2 `rce check FILE|DIR...`
+
+All FILEs form one program: `use` resolves among them (4.1). A DIR is a
+package: it stands for its `.rce` files, recursively, in sorted order,
+and reads nothing outside it (the multi-module example is the package
+`spec/examples/26_use_module/`, so `rce check spec/examples/26_use_module`
+checks it alone). Each file is
 parsed, type checked (section 5) and admitted (6.9: every `const`,
 `comptime` block, `check` and `example` is evaluated). For each file, in
 the order given, one line is printed:
@@ -2127,7 +2407,7 @@ The evaluator is the reference interpreter of the checker, with the fuel bound
 of 6.7 and the VALUE_LIMIT of 6.3. It is a definition of meaning, not a fast
 runtime.
 
-### 10.4 `rce test FILE...`
+### 10.4 `rce test FILE|DIR...`
 
 The test cases of a module are its `example` lines and its `check` items,
 including those inside `intent` blocks. `rce test` admits the files as
@@ -2154,11 +2434,12 @@ TARGET names an output. The file must pass `rce check` on its own.
 | `rust` | one Rust 2024 source file with a `main` |
 | `python` | one Python 3 source file |
 | `js` | one JavaScript module (ES2020 or later, BigInt) for Node |
+| `scala` | one Scala 3 source file with a `@main` for the JVM (Java 19 or later) |
 
 The Form JSON lists objects in canonical order (6.1), so it is a
 deterministic function of the program text.
 
-**The program emitters.** `rust`, `python` and `js` translate the checked
+**The program emitters.** `rust`, `python`, `js` and `scala` translate the checked
 module, not the Form. Each output is self-contained. It starts with a
 runtime that defines the values of 6.3 and their operations, following the
 reference evaluator (`spec/checker/src/interp.rs`) value by value. That
@@ -2178,6 +2459,15 @@ range. The theorem of T9 is about the Lean model of that emitter. The
 emitter in `rce` is tested against the reference evaluator; it is not
 proved.
 
+The Scala output is the functional-language target. Its values are the
+same dynamic values as the JavaScript output's (integers as `BigInt` with
+their type, floats as JVM `Double`, whose arithmetic is IEEE 754 binary64
+with round to nearest even and no contraction since Java 17, and whose
+`toString` is the shortest round trip since Java 19). Loops are `while`
+loops, and `break` and `continue` are control exceptions caught at the
+loop, so no RCE loop grows the stack; the observations run on one thread
+with a 2 GiB stack.
+
 **What an emitted program does.** Run it, and it prints the module's
 *observations*: one line per constant, per `check`, per function without
 parameters (other than `main`), per event of each example (the state after
@@ -2196,7 +2486,13 @@ evaluator's, line for line. All 51 agree on all three targets, with 299
 observation lines per target. Four programs (14, 15, 34, 47) contain only
 concurrency and give no observation. A separate program
 (`tests/emit_edge.rce`) covers range traps, loop bounds, `&mut` write-back,
-closures and float display. When `rustc`, `python3` or `node` is missing,
+closures and float display. The Scala target has its own test in the same
+file: on 2026-10-14, on the Apple M5 Max below, with Scala 3.10.0 run by
+scala-cli 1.18.0 on OpenJDK 27, all 55 programs of the current corpus
+(with the package files of example 26) agree with the reference, 0
+refused, 361 observation lines, and the edge program agrees on all four
+targets. Its oracle is `RCE_SCALA` (default `scala-cli`).
+When `rustc`, `python3` or `node` is missing,
 its test prints `SKIPPED` and the reason; a skipped target is never
 counted as a pass. The oracles used were Python 3.13.5 and Node 20.19.2.
 The test reads the oracle paths from `RCE_RUSTC`, `RCE_PYTHON` and
@@ -2207,14 +2503,69 @@ M5 Max (macOS 27.0.1, arm64) with rustc 1.98.1, Python 3.14.5 and Node
 skipped, 299 observation lines per target, and the edge program agrees on
 all three.
 
+**Fuel.** Each emitted program counts fuel (6.7) at the reference
+evaluator's charge points: one tick per evaluated expression, per
+executed statement, per call of a user function or method, and per
+element of a list comprehension and of `map`, `filter` and `fold`. A
+temporary introduced by the emitter's own lowering is not charged. The
+limit is 50,000,000; it is reset before each observation, as the reference
+starts a new evaluator for each, and running out traps with the message
+"comptime fuel exhausted". The argument `--fuel=N` sets the limit to N and
+`--fuel-trace` prints `fuel K` after each observation, K being the ticks
+used. These two arguments exist for the test below; the default program
+takes no argument.
+
+`spec/checker/tests/fuel.rs` compares the ticks used, line for line, on
+the 50 programs of the emitter tests (with probes) against
+`emit::observe_fuel` of the reference evaluator, in all three targets. It
+then runs ten programs at every limit from 0 up to 300 and at 400 evenly
+spaced limits above, up to one more than the program uses, and requires
+each target to trap at the same observation with the same output as the
+reference run at the same limit. Within one observation, the emitted
+order of ticks can differ from the reference where the emitter evaluates
+arguments before entering a call; the trap observation and the total are
+what the test fixes. The Scala target is in the same test (the emitted
+file is packaged once into a jar and run with `java -jar`); on 2026-10-14
+it agreed on all 54 programs of that corpus and at all 1,366 swept limits
+(`RCE_FUEL_LANGS=scala`).
+
+
+**Running `fn main`.** Run with the argument `--run`, an emitted program
+instead evaluates `fn main` with tasks, channels, `select`, actors and
+`par` on a runtime of its own: every task is a thread (a worker in
+JavaScript), and one scheduler admits their moves tick by tick in the
+order of `conc::run_main`, the reference of `rce run` without EVENTS. It
+prints `emit VALUE` per output and the line `outcome Done`,
+`outcome Deadlock` or `outcome Refused: REASON`. A module without
+`fn main()` prints the reference's message ("nothing to run") on standard
+error and exits with status 1, as `rce run` does. Fuel follows the reference's
+pools: each task has its own, starting full (its first ticks are the call
+of its function and one per argument); actor handlers share the
+scheduler's pool; a `par` branch or `for ... par` chunk starts from its
+parent's remaining fuel, and the branches are charged back in source
+order, so the trap falls where the reference's sequential run puts it.
+
+`spec/checker/tests/emit_run.rs` compares the three runtimes with
+`conc::run_main` on a corpus of task programs. Among them are the four
+concurrency examples 14, 15, 34 and 47, each run with a `fn main` from
+`spec/checker/tests/drivers/` appended to its unchanged text.
+`spec/checker/tests/fuel_run.rs` runs seven of these programs at every
+fuel limit where the reference's result changes and at the limit before
+it (258 runs over the three targets), and requires the same outputs and
+outcome.
+
 **Limits of the emitters.**
 
-- Channels, `spawn`, `select`, actors and `extern` functions trap in the
-  emitted code with the same message as in the reference evaluator
-  ("not available at comptime"). There is no concurrent runtime.
-- The reference evaluator's fuel limit (50,000,000 steps) is not copied.
-  An emitted program that runs longer keeps running, and deep recursion
-  ends with the target's own stack error.
+- In the observations, channels, `spawn`, `select`, actors and `extern`
+  functions trap with the same message as in the reference evaluator
+  ("not available at comptime"); they run only under `--run`. `extern`
+  functions trap there too.
+- Under `--run`, a `par` whose branches wait on an lvar runs its branches
+  at the same time in the reference (`ParMode::Threads`), each on a copy
+  of the parent's fuel; the emitted runtimes charge every `par` as the
+  sequential run does. The two differ only when such a `par` runs out of
+  fuel, and no test covers that case.
+- Deep recursion ends with the target's own stack error.
 - A call that writes back its receiver or a `&mut` argument (`xs.push(x)`,
   `f(&mut a)`) is translated only as a whole statement or as the right side
   of `let`, `var`, an assignment, `return`, `emit` or `fail`. Elsewhere,
@@ -2225,6 +2576,12 @@ all three.
 - The Python output has been checked with Python 3.13.5 and 3.14.5, and
   the JavaScript output with Node 20.19.2 and 26.11.1. Other versions have
   not been run.
+- The Scala output has been checked with Scala 3.10.0 on OpenJDK 27 only.
+  It has no `--run` runtime yet: with `--run` it prints that `--run` is not
+  available on this target and exits with status 2. A `par` runs its
+  branches in source order on one thread (by restart when they wait on
+  lvars), as the JavaScript output does when a local cannot go to a worker.
+
 
 For an unknown target, or a program that one of these emitters does not
 translate, `rce emit` prints nothing on standard output, prints the reason
@@ -2314,8 +2671,9 @@ as clean exactly when `rce check` accepts it (10.1, principle 3).
 
 ### 10.8 What is not yet implemented
 
-- The program emitters do not run concurrency, actors or `extern`
-  functions, and do not copy the fuel limit (10.5).
+- The program emitters do not run concurrency or actors in their
+  observations, only under `--run`, and never run `extern` functions
+  (10.5).
 - The language server resolves names within one document, without block
   scope, and counts columns in Unicode scalar values (10.7). It has no
   rename, references or semantic tokens.
@@ -2357,11 +2715,12 @@ order and with none missing or extra; when it also emits `prev_hash`,
 `hash` or `outcome` they must be equal too. Since `state_hash` covers
 the whole state, equal hashes mean equal states without exchanging them.
 
-`spec/traces/` holds the reference traces of the example corpus (one
-file per example that is admitted standalone, which excludes only the
-multi-module `26_use_module`, plus `01_counter.events.json`, the counter
-on a longer event list); examples without a state machine have an empty
-`traces` list. `spec/traces/rce-trace-diff.py REFERENCE OTHER` (Python 3,
+`spec/traces/` holds the reference traces of the example corpus: one
+file per top-level example (the package `26_use_module/` has no state
+machine), plus two event-list traces, `01_counter.events.json` (the
+counter on a longer list) and `16_multi_region.events.json` (two regions
+stepped by one event, which has no `example` lines). Examples without a
+state machine have an empty `traces` list. `spec/traces/rce-trace-diff.py REFERENCE OTHER` (Python 3,
 standard library only) compares two trace files or two directories of
 them and prints `exact match` or the first divergence (trace, `seq`,
 field, both values); exit 0 on full match. `spec/checker/tests/traces.rs`
@@ -2577,7 +2936,7 @@ method's complexity class in the reference evaluator:
 
 | Class | Methods | work |
 |---|---|---|
-| linear, text receiver | `strip`, `upper`, `lower`, `reverse`, `tostr`, `chars`, `words`, `lines`, `split`, `isdigit`, `isalpha`, `isspace`, `contains`, `startswith`, `endswith`, `toint`, `join` | n + k |
+| linear, text receiver | `strip`, `upper`, `lower`, `reverse`, `tostr`, `chars`, `words`, `lines`, `split`, `isdigit`, `isalpha`, `isspace`, `contains`, `startswith`, `endswith`, `toint`, `join`, `sha256` | n + k |
 | linear, list receiver | `reverse`, `contains`, `sum`, `map`, `filter`, `fold` | n + k |
 | linear, map receiver (maps are ordered association lists) | `get`, `contains`, `insert`, `remove`, `keys`, `values` | n + k |
 | n log n, list receiver | `sort` | n · ⌈log₂ n⌉, with ⌈log₂ n⌉ = 0 for n ≤ 1 |
@@ -2746,6 +3105,11 @@ the same call to an identical function declared in a 0.6 module.
 | u64 values at or above 2^63 exact in order, min/max and f64 ops (6.3 N2) | all (erratum) | N2 has defined full-range u64 since draft 0.5; the runtimes now meet it |
 | literals take the success type of a fallible return (5.1) | all (erratum) | a checker bug against `τ <: τ ! ε`; it admits programs the text already admitted |
 | canonical D entry and hash-chained Form log (6.1) | all | the log format, not a program's meaning |
+| `sha256` text method (5.15) | all (extension) | admits only programs that W-NAME-1 refused before, so no valid program of any version changes meaning |
+| mutual recursion with a decreasing summed measure (6.7, W-REC-1) | all (extension) | admits only programs whose call graph has a cycle of two or more functions, which W-REC-1 refused before; the rule for a function that calls only itself is unchanged, so no valid program of any version changes meaning |
+| self-recursion needs one fixed shrinking position, or layers (6.7, W-REC-1) | all (erratum, and extension for layers) | 6.7 has said since draft 0.4 that the value at one position i shrinks along any chain of calls, and T2 that every run ends; the checker took a different position per call, which admitted functions that never return. Refusing them makes the checker meet the text. Every function the text admitted is admitted by one layer, and layers admit only programs refused before, so no program the text admitted changes meaning |
+| a parameter typed by an alias of a channel type makes a task function (5.1, 5.2) | all (erratum) | the type grammar of 5.1 has no nominal alias, so `type A = chan τ` already named the channel type; the checker tested the written type, not the type it names, and refused such functions with W-SPAWN-1 or W-EFF-1. Only programs refused before are admitted |
+| declared recursion bounds `fn … bound n` (6.7, W-REC-1) | all (extension) | `bound` after a signature was W-SYN-1, and a cycle it admits was W-REC-1, so only programs refused before are admitted; no valid program of any version changes meaning |
 | est_j receipts | all | measurement records outside the language (C.5: est_j is separate from budgets) |
 | `i64.MIN % -1` traps; `toint` traps outside i64 (6.3 N2) | all (erratum) | N2 already defined both; the reference and runtimes returned 0 and an out-of-range i64 |
 | canonical float text in `tostr` and display (6.3 N3) | all (erratum) | N3 already defined it (`1e+300`, `1.5e-7`, `-0` is `0`); the implementations printed Rust's long decimal form |
@@ -2753,7 +3117,10 @@ the same call to an identical function declared in a 0.6 module.
 | 6.3 N2, N3, N8 and 6.2 state the trap texts, `usize` indices and trapping slices the implementations have always had; float `%` removed from N3 and C.6.4 | all (erratum) | the text contradicted the checker and every runtime; no accepted program changes, since the text described behaviour no program could reach (negative usize, float `%`) or contradicted what every implementation did |
 | f64 `min`/`max` (6.3 N5, 5.15) evaluate | all (erratum) | the checker accepted them and N5 defined them, but the evaluators trapped; a program that trapped now computes what the text defined |
 | f64 `pow` refused (W-NAME-1) | all (erratum) | not in the closed library of 5.15, which already made it W-NAME-1; the checker accepted it and every evaluator trapped on it, so no accepted program computed a value with it |
+| refined types `type R = τ where p` (5.1, W-REF-1) | all (extension) | `where` after a type was W-SYN-1 and stays an ordinary identifier, so only programs refused before are admitted; no valid program of any version changes meaning |
 | a foreign function is not a value (5.11, W-FFI-1) | all (erratum) | 5.11 already forbade a pure function calling foreign code; the value route was a checker hole |
+| host contract (Appendix E: one admitter, durable append per OS, fatal barrier, verify on open, inputs as events, capabilities, fabric entries, automatic placement) | all | constrains hosts and the log, not programs: a host entry has a `host.` type that no program can declare and δ is the identity on it, so the fold of every log of every valid program is unchanged |
+| host bindings (E.8: a host result delivered as an event the program declares) | all | the bound event is an ordinary declared event, admitted and typed as any other; a program that declares no binding target sees no new input |
 
 So a 0.6 program keeps its meaning, a 0.5 program is unaffected (it has
 no budgets), and a 0.7 program differs from the same program declared
@@ -2765,6 +3132,21 @@ charges the table, in the reference and every runtime) and
 by `use`, in the reference evaluator and the Rust, Python and JavaScript
 emitters on the linked program); the tree-sitter port and the
 LALR(1) check treat 0.7 as 0.6, since the grammar is the same.
+
+### C.16 Version 0.8
+
+`# rce-version: 0.8` declares version 0.8: the syntax, keywords, rules,
+evaluation and costs of 0.7, plus 5.16. It reserves no keyword, so the
+grammar, the LALR(1) check and the tree-sitter port treat it as 0.7. It
+is a version, not an extension, by the C.15 rule: the eight names of
+5.16 are ordinary names in 0.7, and a 0.7 program that declares one
+(`struct Text`, `struct Html`) would change meaning if 5.16 applied to
+it. In a 0.8 module `C.lit(s)` costs `c_call`, `C.encode(t)` costs
+`c_call` plus the size of t (the linear class of C.6.4) and `.raw()`
+costs `c_call` (the text is not copied), in the reference evaluator and
+every runtime; the indices are erased, so nothing else in C.6 changes. A 0.5, 0.6 or 0.7 module never
+sees 5.16 (`spec/checker/tests/indexed.rs`, gate test), and modules of
+different versions may `use` each other (2.7).
 
 **Read receipt.** How many words does a version 0.6 module reserve in addition to the 0.5 keywords? (a number)
 
@@ -3040,8 +3422,12 @@ the promoted handler has paid back its build:
   operations per sample plus one dispatch.
 
 Each term is {`j`, `basis`} with basis one of `est` (a model of the
-work), `reported` (a provider's figure), `measured` (a host
-measurement) or `unpriced` (no figure; `j` is null, never 0). A figure
+work, including a model provider's own figure), `reported` (an OS or
+on-chip energy counter: RAPL, NVML, IOReport), `measured` (a wall or
+shunt meter on a named rail) or `unpriced` (no figure; `j` is null,
+never 0). The terms the engine fills today are est or unpriced: a gear
+receipt's `est_j` is an estimate by schema and is never relabeled from
+its free text. A figure
 without a basis is refused when a record is read, and the type that
 holds a term has no constructor from a bare number. `n_star` is
 {`kind`: `unpriced`} when any term is unpriced (it is never computed
@@ -3101,3 +3487,275 @@ of any program or handler spec in any language version (C.15:
 receipts are version-independent).
 
 **Read receipt.** Which compiled node id does `deliverable D1` become? (for example role_R1)
+
+---
+
+## Appendix E. The host contract (normative)
+
+This appendix states what a host must do to run an RCE program. A *host*
+is everything outside δ and λ: the code that admits events, appends the
+log D (6.1), runs λ's outputs as effects, answers foreign calls and talks
+to devices. The language defines meaning; the host is conforming when
+every run it performs is the fold of its own log (T3) and the log it
+leaves on storage can be replayed with every adapter disconnected (T37).
+The appendix applies to every version (C.15): it constrains hosts and the
+format of D, and it gives no valid program a different meaning.
+
+The rules were derived from a survey of operating systems, embedded
+kernels, browsers, language runtimes, replay systems, storage engines and
+compute fabrics. A primitive is in the contract only when (a) every
+surveyed target can supply it and (b) its result is a pure function of
+logged data or is itself logged. What fails (b), because it depends on
+timing, ordering, hardware or another process, enters as an event, as
+5.15 already requires. Every target supplies: pure computation on bytes
+with integer operations and binary64 round-to-nearest-even, append-only
+storage, SHA-256 as pure code, one input queue and one output queue, and
+a monotonic counter read only by the admitter. Everything else is an
+adapter.
+
+### E.1 Terms
+
+- **Admitter.** The one component that orders inputs into E and appends
+  entries to D.
+- **Adapter.** Host code that turns one outside source (a keyboard, a
+  socket, a file, a clock, a GPU, a foreign library) into events, or one
+  output request into an effect and a result event.
+- **Host entry.** An entry of D whose event type starts with `host.`
+  (E.5). No RCE identifier contains a dot, so no program declares such an
+  event, and δ is the identity on it: δ(s, e) = (s, []) and the entry's
+  `state_hash` equals the previous entry's (or that of s₀ for the first).
+  The fold law of 6.1 is unchanged.
+- **Durable.** An entry is durable when the barrier of E.3 for its
+  storage returned success.
+
+### E.2 Admission, time and authority (HC-1 to HC-9)
+
+- **HC-1 One admitter.** A host has exactly one admitter per program
+  instance. Every input reaches δ only after the admitter appended it to
+  D, in D's order.
+- **HC-2 Only the admitter reads clocks.** Wall time and monotonic time
+  enter only as events (`Tick(n)`, and `host.WallTime` when an adapter
+  supplies it). Time inside the language is logical (6.3 N11, C.11.12).
+- **HC-3 Typed output requests.** Each effect requested by λ (a write, a
+  send, a draw, a foreign call) has exactly one result event: delivered,
+  failed, timed out or unreachable. A race inside the adapter (for
+  example a file checked and then opened) is resolved by the adapter;
+  the program sees one atomic outcome.
+- **HC-4 Foreign code.** Foreign code runs only through 5.11, with its
+  arguments copied or borrowed for the call only, under fuel, and its
+  result or trap logged as `Foreign(f, arguments, result)`. An isolated
+  component boundary (a WebAssembly component per call) is the
+  recommended adapter; it does not change the rule.
+- **HC-5 Capabilities.** Authority comes only from capabilities minted by
+  logged events (5.16 `Cap[A]` in a version 0.8 module). The host holds no
+  ambient authority on the program's behalf and enters the strictest
+  sandbox its platform offers at start (Landlock, Capsicum `cap_enter`,
+  seccomp, an app sandbox, a WASI world). The program loses nothing,
+  since 5.15 gives it no ambient authority.
+- **HC-6 Tick scheduler.** Concurrency runs under the tick semantics of
+  6.8. A host may execute tasks in parallel only when the result equals
+  the tick semantics (T1, T21).
+- **HC-7 Numerics and limits.** The host reproduces 6.3 bit for bit and
+  enforces fuel, SIZE_LIMIT and VALUE_LIMIT (6.7, N9) as the reference
+  does, on every run.
+- **HC-8 Replay.** A host offers a replay mode that reads D, disconnects
+  every adapter and re-derives every state hash. Replay reads no clock,
+  file, network, device or environment (T37).
+- **HC-9 Priority admission.** Interrupt sources carry a priority in
+  0..255 (T25, C.11.12). The admitter orders simultaneous inputs by (priority,
+  arrival) and logs the order it chose. A real-time bound holds only on a
+  kernel with a priority scheduler; a general-purpose OS gives none.
+
+### E.3 Storage: durable append (HS-1 to HS-5)
+
+- **HS-1 D is the base truth.** A host stores one primary artefact: D.
+  Snapshots and indexes are caches derived from it (HS-4, E.6).
+- **HS-2 Durable append.** An entry is durable only after the barrier for
+  its storage succeeded. The admitter reports no output of a step as
+  durable before the step's entry is durable.
+
+| Storage | Append barrier | New file or rename barrier |
+|---|---|---|
+| Linux | `write` then `fdatasync` (or `fsync`) on the segment | `fsync` of the directory after create or rename |
+| macOS, iOS | `fcntl(F_FULLFSYNC)`; plain `fsync` is not a barrier, since the drive may reorder and delay writes | `F_FULLFSYNC` on the directory |
+| Windows | `FILE_FLAG_WRITE_THROUGH` with `FILE_FLAG_NO_BUFFERING`, or `FlushFileBuffers` | `MoveFileEx` with `MOVEFILE_WRITE_THROUGH` |
+| FreeBSD, other POSIX | `fsync` on the segment | `fsync` of the directory |
+| WASI, browser, no file system | none | the host declares `volatile` in `host.StorageCaps` (E.5); no entry is reported durable |
+
+  A host that cannot meet its row declares `volatile`. A setting that
+  weakens a barrier (SQLite `synchronous=OFF`, RocksDB `sync=false`,
+  LMDB `MDB_NOSYNC`) is not a conforming D store.
+- **HS-3 A failed barrier is fatal.** After a failed barrier the file
+  system may already have discarded the failed pages and marked them
+  clean, so a retry can report success for data that is lost. The
+  admitter therefore stops: it admits nothing more, retries nothing,
+  emits `host.StorageFault` to the outside when it still can, and the
+  next start recovers by HS-4. It never retries and continues (T39).
+- **HS-4 Verify on open.** On open, the host checks the chain of D from
+  the genesis hash (64 zeros): each entry's `prev_hash` is the previous
+  entry's `hash` and its `hash` is the SHA-256 of the canonical JSON of
+  {event, prev_hash, seq, state_hash} (6.1). D is cut after the longest
+  prefix that verifies, and the host logs `host.Truncated` with the number
+  of entries dropped. A torn tail after a crash, a corrupted entry and a
+  misdirected write are detected, never folded into state (T38). Replay
+  of the kept prefix then re-derives each `state_hash` (HC-8); a mismatch
+  is a host fault (HS-3).
+- **HS-5 Snapshots are caches.** A snapshot is (seq, state_hash, bytes).
+  It is used only when the hash of its bytes equals the `state_hash` of D
+  at seq; otherwise it is discarded. Loading one changes no meaning.
+
+### E.4 Inputs are events (HC-10)
+
+**HC-10.** Every value that enters a run is an event or a logged answer
+in D. This includes key, pointer, resize and focus input; `Tick` and
+`host.WallTime`; every file, network, PTY, audio and GPU readback result;
+foreign results and traps; `select nondet` choices; Delivered, TimedOut
+and Unreachable; capability minting; lifecycle (suspend, resume, process
+kill); random bytes; and the host entries of E.5. An input that is not
+in D does not exist for the program.
+
+### E.5 Host entries
+
+A host entry is {type: `host.<Name>`, payload}. Its payload is canonical
+JSON. The host entries are:
+
+| Type | Payload | When |
+|---|---|---|
+| `host.StorageCaps` | barrier (E.3 row name, or `volatile`) | at open |
+| `host.Truncated` | dropped (u64) | at open, when HS-4 cut D |
+| `host.Synced` | upto (seq) | after a barrier succeeded; every entry up to seq is durable |
+| `host.StorageFault` | seq, error text | output only: written to the outside, never appended, since the admitter has stopped |
+| `host.FabricCaps` | the fabric record of E.7 | at start and on hot-plug |
+| `host.Calibrated` | fabric id, op class, overhead, throughput | after a calibration run |
+| `host.Exact` | fabric id, op class, probe digest, reference digest | after a probe (HC-12) |
+| `host.Placed` | op id, fabric id | when placement is decided (HC-11) |
+| `host.WallTime` | nanoseconds since the Unix epoch | when an adapter supplies wall time |
+| `host.Energy` | source, basis, joules | when a counter is read (D.11) |
+| `host.Bind` | host result kind, program event name | at start (E.8) |
+
+A program receives the content of a host entry only through a binding
+(E.8): the admitter then appends, after the host entry, an ordinary event
+the program declares, with the same payload. δ itself never reads a host
+entry.
+
+### E.6 Fabrics and placement (HC-11 to HC-14)
+
+- **HC-11 Fabric discovery as events.** At start and on hot-plug the host
+  appends `host.FabricCaps`: ISA flags, each GPU adapter's features and
+  float controls (rounding mode, denormal preservation, signed zero, inf
+  and NaN preservation per width), NPU receipts, memory topology and
+  which counters can be read. Replay reads the same record, so every
+  decision taken from it is a function of D.
+- **HC-12 Automatic placement.** The engine places each lane-wise array
+  operation, `for … par` body and reduction itself, from the cost table
+  of C.6.4 extended with per-fabric overhead and throughput (time =
+  overhead + work / throughput), whose calibration results are
+  `host.Calibrated` entries. A program needs no annotation. `with device`
+  (5.13) and device kernels stay hints that never change meaning.
+  Placement is a function of the host entries of D, so it is the same on
+  replay (T37).
+- **HC-13 Bit-exactness gate.** A fabric computes a value that reaches
+  state only for an operation on its logged exact list: integer
+  operations; IEEE add, sub, mul, div and sqrt with round-to-nearest-even,
+  no contraction and no flush to zero; and reductions in the fixed tree of
+  T18. An operation enters the list by a probe whose digest equals the
+  CPU reference digest, logged as `host.Exact`. Everything else
+  (transcendentals, vendor BLAS, f16, NPU, any WGSL float operation, whose
+  rounding WGSL does not specify) is either output only (λ sinks) or
+  verified: recomputed on the reference, or checked against a logged
+  digest per device.
+- **HC-14 No performance flags.** No user-visible setting chooses
+  performance. The engine derives the build profile (optimization, link
+  time optimization, codegen units, target ISA from `host.FabricCaps`),
+  the allocator and collection policy and the I/O backend. A knob is
+  admissible only when it cannot change meaning (decision 38; 10.1). Fast
+  math, floating contraction, excess precision and hash-seed
+  randomization do not exist under the contract. Capabilities whose use
+  changes no result are on by default; input capabilities (hardware
+  random numbers, clocks, energy and thermal counters) are events; those
+  that change bits are gated by HC-13.
+
+### E.7 The fabric record
+
+`host.FabricCaps` has the payload {cpu, gpus, npus, memory, counters}.
+`cpu` lists ISA feature names; each GPU and NPU entry has an id, an API
+name and the float controls as booleans; `memory` lists nodes with their
+size in bytes; `counters` names the readable energy and performance
+counters. Field order is canonical (6.1). A host that cannot query a
+field writes `null` for it; placement then treats that fabric as absent.
+
+### E.8 RCEdb: storage and queries written in RCE
+
+The database of an RCE system is written in RCE. The host supplies only
+durable append (E.3) and sync result events (`host.Synced`, delivered by a
+binding); it supplies no query engine, index or cache whose behaviour
+reaches δ.
+
+- **HS-6 Bindings.** At start the host appends one `host.Bind` per
+  result kind it delivers, naming an event the program declares (for
+  example `host.Synced` to `event Synced(upto: u64)`). The program's
+  checker types the bound event as any other; a payload that does not fit
+  is refused at admission (5.1).
+- **HS-7 Indexes are projections.** An index is a pure function of a
+  prefix of D and the index definition, rebuilt by folding D and checked
+  by a digest per seq. Its structure (B-tree, LSM, hash) is a placement
+  choice with no effect on meaning, so a foreign store (SQLite, RocksDB,
+  LMDB) may hold an index, and its durability settings do not matter for
+  correctness: a lost index is refolded from D.
+- **HS-8 Queries.** A query is an RCE term over state using keyed reads,
+  keyed joins and scans in canonical key order (6.1, D.5). Results are in
+  canonical order, never unspecified. A query states in its type whether
+  it is a set or a bag. Float aggregation uses the fixed tree of T18.
+  Recursive queries are not in D.5.
+- **HS-9 Time travel.** The state as of seq is the fold of D up to seq
+  (T3), so any past state is queryable with no storage beyond snapshots.
+
+Example 55 (`examples/55_rcedb.rce`) is a keyed store in RCE: puts are
+state writes, a scan sorts the keys (`keys()` then `sort()`) so its
+order is canonical, and a bound `Synced` event moves the durable mark.
+
+### E.9 Existing ecosystems
+
+Code in other languages and engines stays reachable as foreign calls
+(5.11, HC-4): a SQL engine, a numerical library, an operating system
+service or a model runtime is called from `fn main` or a task function,
+and its result is logged. Its order, its timing and its numerics are
+therefore recorded and replayed, never re-executed (T32). Text sent to a
+foreign SQL, HTML, URL or JSON sink is `Text[C]` (5.16), so no query or
+markup is built from data.
+
+### E.10 Theorems and conformance
+
+- **T37 Host replay.** For every adapter oracle, replaying D with every
+  adapter disconnected gives the live run's state after every entry, host
+  entries leave the state unchanged, and two runs that logged the same
+  host entries make the same placements.
+- **T38 Verify on open.** The verified prefix of a log is a prefix of it,
+  is a valid chain, equals the log when the log is valid, and a valid log
+  followed by any entry that does not link is cut back to the valid log.
+- **T39 Fatal barrier.** After a failed barrier the admitter appends
+  nothing, whatever arrives, and the log of an admitter still running is
+  exactly the entries it was given: a failed barrier is never followed by
+  further appends.
+
+Lean: `RCE/Host.lean`. Conformance: `spec/checker/tests/host_contract.rs`
+checks every example log against HS-4 (intact, torn tail, a flipped
+byte, a swapped pair), HC-8 and T37 (each example log re-folded with host
+entries interleaved, every state hash equal, every host entry's state
+hash equal to its predecessor's), HC-12 (placement from host entries
+only), HS-6 to HS-9 on example 55, and that every rule of this appendix
+is cited by a test.
+
+| Rule | Source in the survey | Test |
+|---|---|---|
+| HC-1 to HC-3 | single admitter, clocks, typed outputs | `admitter_order_is_d_order` |
+| HC-4, E.9 | foreign calls logged | `foreign_and_host_entries_replay` |
+| HC-5 | capabilities minted by events | `capability_examples_check` |
+| HC-6, HC-7 | tick scheduler, numerics | existing T1, T9 and 6.3 tests |
+| HC-8, HC-10, T37 | replay with adapters disconnected | `foreign_and_host_entries_replay` |
+| HC-9 | priority admission | `admitter_order_is_d_order` |
+| HS-1 to HS-5, T38, T39 | durable append, fatal barrier, verify on open | `verify_on_open_cuts_bad_suffix`, `fatal_barrier_stops_admission` |
+| HC-11 to HC-14 | fabrics, placement, exactness, no flags | `placement_is_a_function_of_host_entries` |
+| HS-6 to HS-9 | RCEdb in RCE | `rcedb_example_runs` |
+
+**Read receipt.** Which fcntl command is the append barrier on macOS? (for example F_SETFL)
