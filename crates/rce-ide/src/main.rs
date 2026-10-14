@@ -668,9 +668,25 @@ mod desktop {
     }
 }
 
+const USAGE: &str = "usage:
+  rce-ide --root DIR --file FILE [--lsp CMD...] [--no-memory] [--history N]
+          [--demo QUERY] [--export-model OUT.json] [--offscreen OUT.png] [--size WxH]
+  rce-ide test ...                 run the IDE checks without a window
+  rce-ide telemetry probe|setup|calibrate|export ...
+  rce-ide --version | -V           print the release
+  rce-ide --help | -h              print this text";
+
 fn main() {
     // `rce-ide telemetry probe|setup`: energy sources, no window needed.
     let args: Vec<String> = std::env::args().skip(1).collect();
+    if args.iter().any(|a| a == "--help" || a == "-h") && args.first().map(String::as_str) != Some("telemetry") {
+        println!("{USAGE}");
+        std::process::exit(0);
+    }
+    if matches!(args.first().map(String::as_str), Some("--version" | "-V")) && args.len() == 1 {
+        println!("rce-ide {}", env!("CARGO_PKG_VERSION"));
+        std::process::exit(0);
+    }
     if args.first().map(String::as_str) == Some("telemetry")
         && args.get(1).map(String::as_str) == Some("calibrate")
     {

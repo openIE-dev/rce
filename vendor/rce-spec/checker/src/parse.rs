@@ -27,6 +27,23 @@ pub enum Tok {
     Eof,
 }
 
+impl Tok {
+    /// How a diagnostic names this token (no internal representation).
+    pub fn describe(&self) -> String {
+        match self {
+            Tok::Id(s) => format!("`{s}`"),
+            Tok::Int(v) => format!("integer `{v}`"),
+            Tok::Float(v) => format!("float `{v}`"),
+            Tok::Str(_) => "a text literal".into(),
+            Tok::P(p) => format!("`{p}`"),
+            Tok::Nl => "end of line".into(),
+            Tok::Indent => "an indented block".into(),
+            Tok::Dedent => "end of block".into(),
+            Tok::Eof => "end of file".into(),
+        }
+    }
+}
+
 const PUNCT: &[&str] = &[
     "<<=", ">>=", "..=", "==", "!=", "<=", ">=", "<<", ">>", "+=", "-=", "*=", "/=", "%=", "&=",
     "|=", "^=", "<-", "->", "=>", "..", "+", "-", "*", "/", "%", "&", "|", "^", "~", "<", ">", "=",
@@ -37,8 +54,9 @@ pub fn lex(src: &str) -> Result<Vec<(Tok, usize)>, String> {
     if src.starts_with('\u{feff}') {
         return Err("line 1: W-LEX-1 byte-order mark".into());
     }
-    if src.contains('\t') {
-        return Err("W-LEX-1 tab character".into());
+    if let Some(k) = src.find('\t') {
+        let line = src[..k].matches('\n').count() + 1;
+        return Err(format!("line {line}: W-LEX-1 tab character"));
     }
     let s: Vec<char> = src.chars().collect();
     let mut out: Vec<(Tok, usize)> = vec![];
@@ -333,9 +351,9 @@ impl Parser {
     }
     fn err<T>(&self, m: &str) -> R<T> {
         Err(format!(
-            "line {}: W-SYN-1 {m} (found {:?})",
+            "line {}: W-SYN-1 {m} (found {})",
             self.line(),
-            self.peek()
+            self.peek().describe()
         ))
     }
     fn bump(&mut self) -> Tok {
@@ -489,6 +507,7 @@ impl Parser {
         let kw = self.head(kw);
         match kw.as_str() {
             "use" => {
+                let line = self.line();
                 self.bump();
                 let p = self.path()?;
                 let a = if self.eat_kw("as") {
@@ -497,7 +516,7 @@ impl Parser {
                     None
                 };
                 self.nl()?;
-                Ok(Item::Use(p, a))
+                Ok(Item::Use(p, a, line))
             }
             "intent" => {
                 self.bump();

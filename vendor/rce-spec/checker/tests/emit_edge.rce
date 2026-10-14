@@ -66,3 +66,11 @@ fn wide_sat() -> u64
 fn wide_wrap() -> u64
     let a: u64 = 18446744073709551615
     return a.wrapping_mul(a)
+
+fn fminmax() -> List[f64]
+    let a: f64 = 2.5
+    return [a.min(-1.0), a.max(-1.0), a.min(2.5), 1e300.max(1e-300)]
+
+fn imin_rem() -> i64
+    let m: i64 = -9223372036854775807 - 1
+    return m % -1

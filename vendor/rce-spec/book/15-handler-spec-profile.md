@@ -281,6 +281,48 @@ records the same figures as text. Implemented in
 `src/runtime/break_even.rs`, tested there and in the engine's promotion
 tests.
 
+**Readings: provenance, boundary and amortization (normative; P4, P5,
+P6 of the receipt field proposals of 13 Oct 2026).** These rules apply to every
+term labeled `reported` or `measured`, in every receipt that holds one,
+and are checked where a term is built and where a record is read:
+
+1. A reading carries `provenance` = {`sampler`, `counter`, `interval_s`,
+   `idle_baseline_w`, `machine`, `boundary`}: the four names non-empty,
+   `interval_s` finite and > 0, `idle_baseline_w` finite and >= 0 (0 when
+   no baseline was subtracted). `boundary` says what the joules include
+   (`package`, `package+dram`, `rail:VDD_GPU`). A reading without a valid
+   provenance is refused; unknown fields in it are refused. Derivation:
+   the label `reported` or `measured` claims that something was read; a
+   reading that cannot be reproduced or compared (which counter, over what
+   interval, against which baseline, on which machine, inside which
+   boundary) does not support that claim, so a term that lacks it is not
+   a reading, and labeling it one would be unsound.
+2. A term labeled `est` or `unpriced` carries no `provenance` (nothing was
+   read); one that does is refused.
+3. A reading carries `amortization`, one of {`kind`: `per_call`},
+   {`kind`: `batch_mean`, `n` >= 1}, {`kind`: `per_solved_task`}. An
+   `est` term may carry one; the engine's own estimates omit it.
+4. Figures of different kinds are never added or subtracted: a sum of two
+   terms whose `amortization` differs (absent counts as its own kind) is
+   refused, and so is a break-even whose J_model_path and J_handler differ
+   in kind (n\* divides by their difference) or whose J_build is a mean
+   (`batch_mean` or `per_solved_task`; J_build is a one-off total).
+   Derivation: a batch mean added to a per-call figure, or a per-task
+   figure subtracted from a per-input one, is arithmetic on different
+   units; no result of it is a figure of either kind.
+5. A sum of two readings keeps the weaker label only when both come from
+   the same sampler, counter, machine and boundary (the intervals add);
+   otherwise it is refused. A sum with an `est` term is `est` with no
+   provenance (unpriced < est < reported < measured, as for n\*).
+6. A stored break-even receipt is re-derived from its terms when read; a
+   stored n\* that disagrees with them is refused.
+
+The `est` wire form is unchanged (`{"j": 2.5, "basis": "est"}`), so no
+stored receipt changes meaning; no receipt in the repository holds a
+reading today. Implemented by `Term`, `Provenance` and `Amortization` in
+`src/runtime/break_even.rs` (no constructor makes a reading without
+provenance and amortization), tested there (`p4_*`, `p6_*`).
+
 The receipt is a measurement record. It is not an input to δ, to any
 check, or to the decision to promote, so it does not change the meaning
 of any program or handler spec in any language version (C.15:
@@ -288,4 +330,4 @@ receipts are version-independent).
 
 **Read receipt.** Which compiled node id does `deliverable D1` become? (for example role_R1)
 
-<!-- body-sha256: c553c04b34372a4bba8b83d92d2a05c0860733fdd82e8515d7d96164edaca8e8 -->
+<!-- body-sha256: 4f1bfbc9b937a79fd74fa0c7d899c16abbd0c85bb02336065a146472119b710e -->

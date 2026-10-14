@@ -1080,7 +1080,7 @@ fn block_has_session_new(b: &[Stmt]) -> bool {
     f
 }
 
-fn stmt_line(s: &Stmt) -> usize {
+pub(crate) fn stmt_line(s: &Stmt) -> usize {
     if let Some(e) = stmt_exprs(s).first() {
         return e.line();
     }

@@ -226,7 +226,8 @@ pub enum TraitMember {
 #[derive(Debug, Clone, PartialEq)]
 #[allow(clippy::large_enum_variant)]
 pub enum Item {
-    Use(Vec<String>, Option<String>),
+    /// `use a.b [as c]` and its line
+    Use(Vec<String>, Option<String>, usize),
     Intent(String, Vec<Example>, Vec<Expr>),
     Example(Example),
     Check(Expr),

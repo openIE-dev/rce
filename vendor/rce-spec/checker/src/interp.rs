@@ -63,7 +63,7 @@ impl V {
     pub fn show(&self) -> String {
         match self {
             V::Int(v, _) => v.to_string(),
-            V::F(f) => f.to_string(),
+            V::F(f) => float_text(*f),
             V::Bool(b) => b.to_string(),
             V::Text(t) => format!("{t:?}"),
             V::Unit => "()".into(),
@@ -344,6 +344,23 @@ pub(crate) fn wide_mul(x: i128, y: i128) -> String {
     }
 }
 
+/// Canonical float text (6.3 N3): shortest round-trip digits, decimal
+/// notation for 1e-5 <= |x| < 1e16, else `d.ddde+N` / `d.ddde-N`.
+pub fn float_text(x: f64) -> String {
+    if x == 0.0 {
+        return "0".into();
+    }
+    let a = x.abs();
+    if (1e-5..1e16).contains(&a) {
+        return x.to_string();
+    }
+    let e = format!("{x:e}");
+    match e.split_once('e') {
+        Some((m, ex)) if !ex.starts_with('-') => format!("{m}e+{ex}"),
+        _ => e,
+    }
+}
+
 pub(crate) fn chk(x: i128, t: &'static str) -> R<V> {
     let (lo, hi) = int_range(if t == "lit" { "i64" } else { t });
     if x < lo || x > hi {
@@ -399,6 +416,9 @@ impl<'a> Interp<'a> {
                         if y == 0 {
                             trap("division by zero")
                         } else {
+                            // i64.MIN % -1 traps like i64.MIN / -1 (6.3 N2,
+                            // Rust checked_rem): the quotient is out of range.
+                            chk(tdiv(x, y), ty)?;
                             chk(trem(x, y), ty)
                         }
                     }
@@ -1339,10 +1359,19 @@ impl<'a> Interp<'a> {
                 }
             }
             (F(x), "abs") => Ok(F(x.abs())),
+            // 6.3 N5: IEEE order (total on finite values); the receiver on a tie
+            (F(x), "min") => match &a[0] {
+                F(y) => Ok(F(if x <= *y { x } else { *y })),
+                _ => trap("min"),
+            },
+            (F(x), "max") => match &a[0] {
+                F(y) => Ok(F(if x >= *y { x } else { *y })),
+                _ => trap("max"),
+            },
             (F(x), "floor") => Ok(F(x.floor())),
             (F(x), "ceil") => Ok(F(x.ceil())),
             (F(x), "round") => Ok(F(x.round())),
-            (F(x), "tostr") => Ok(Text(x.to_string())),
+            (F(x), "tostr") => Ok(Text(float_text(x))),
             (Bool(b), "tostr") => Ok(Text(b.to_string())),
             (Text(s), "len") => Ok(Int(s.len() as i128, "usize")),
             (F32(x), "abs") => Ok(F32(x.abs())),
@@ -1391,8 +1420,8 @@ impl<'a> Interp<'a> {
             (Text(s), "toint") => s
                 .trim()
                 .parse::<i128>()
-                .map(|v| Int(v, "i64"))
-                .map_err(|_| Flow::Trap(format!("not an integer: {s:?}"))),
+                .map_err(|_| Flow::Trap(format!("not an integer: {s:?}")))
+                .and_then(|v| chk(v, "i64")),
             (Text(s), "join") => match &a[0] {
                 List(xs) => Ok(Text(
                     xs.iter()
@@ -1610,6 +1639,8 @@ impl<'a> Interp<'a> {
                     r
                 } else {
                     let cur = self.eval(place)?;
+                    // `x op= y` costs what `x = x op y` costs (C.6.4)
+                    self.charge(crate::conc::op_cost(&op[..op.len() - 1], &cur))?;
                     let t = if let V::Int(_, t) = cur { t } else { "lit" };
                     let x = self.arith(&op[..op.len() - 1], cur, r)?;
                     if let V::Int(x, _) = x { chk(x, t)? } else { x }

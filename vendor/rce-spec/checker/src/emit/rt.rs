@@ -62,12 +62,19 @@ pub fn lit(v: i128) -> V { V::Int(v, "lit") }
 pub fn text(s: &str) -> V { V::Text(s.to_string()) }
 pub fn some(v: V) -> V { V::Opt(Some(Box::new(v))) }
 
+/// Canonical float text (spec 6.3 N3).
+pub fn float_text(x: f64) -> String {
+    if x == 0.0 { return "0".into(); }
+    if (1e-5..1e16).contains(&x.abs()) { return x.to_string(); }
+    let e = format!("{x:e}");
+    match e.split_once('e') { Some((m, ex)) if !ex.starts_with('-') => format!("{m}e+{ex}"), _ => e }
+}
 fn rdebug(s: &str) -> String { format!("{s:?}") }
 pub fn show(v: &V) -> String {
     let j = |xs: &[V]| xs.iter().map(show).collect::<Vec<_>>().join(", ");
     match v {
         V::Int(x, _) => x.to_string(),
-        V::F(f) => f.to_string(),
+        V::F(f) => float_text(*f),
         V::Bool(b) => b.to_string(),
         V::Text(t) => rdebug(t),
         V::Unit => "()".into(),
@@ -153,7 +160,7 @@ pub fn arith(op: &str, a: V, b: V) -> R<V> {
                 "-" => ck(x.checked_sub(y), ty),
                 "*" => match x.checked_mul(y) { Some(p) => chk(p, ty), None => trap(format!("overflow: {} is outside {}", wide_mul(x, y), if ty == "lit" { "i64" } else { ty })) },
                 "/" => if y == 0 { trap("division by zero") } else { chk(x / y, ty) },
-                "%" => if y == 0 { trap("division by zero") } else { chk(x % y, ty) },
+                "%" => if y == 0 { trap("division by zero") } else { chk(x / y, ty)?; chk(x % y, ty) },
                 "&" => chk(x & y, ty),
                 "|" => chk(x | y, ty),
                 "^" => chk(x ^ y, ty),
@@ -343,10 +350,12 @@ pub fn builtin(r: V, m: &str, a: Vec<V>) -> R<(V, Option<V>)> {
         (Int(x, t), "max") => match a0() { Int(y, _) => Int(x.max(y), t), _ => return trap("max") },
         (F(x), "sqrt") => if x < 0.0 { return trap("non-finite float") } else { F(x.sqrt()) },
         (F(x), "abs") => F(x.abs()),
+        (F(x), "min") => match a0() { F(y) => F(if x <= y { x } else { y }), _ => return trap("min") },
+        (F(x), "max") => match a0() { F(y) => F(if x >= y { x } else { y }), _ => return trap("max") },
         (F(x), "floor") => F(x.floor()),
         (F(x), "ceil") => F(x.ceil()),
         (F(x), "round") => F(x.round()),
-        (F(x), "tostr") => Text(x.to_string()),
+        (F(x), "tostr") => Text(float_text(x)),
         (Bool(b), "tostr") => Text(b.to_string()),
         (Text(s), "len") => Int(s.len() as i128, "usize"),
         (F32(x), "abs") => F32(x.abs()),
@@ -368,7 +377,7 @@ pub fn builtin(r: V, m: &str, a: Vec<V>) -> R<(V, Option<V>)> {
         (Text(s), "contains") => match a0() { Text(d) => Bool(s.contains(d.as_str())), _ => return trap("contains") },
         (Text(s), "startswith") => match a0() { Text(d) => Bool(s.starts_with(d.as_str())), _ => return trap("startswith") },
         (Text(s), "endswith") => match a0() { Text(d) => Bool(s.ends_with(d.as_str())), _ => return trap("endswith") },
-        (Text(s), "toint") => s.trim().parse::<i128>().map(|v| Int(v, "i64")).map_err(|_| Flow::Trap(format!("not an integer: {s:?}")))?,
+        (Text(s), "toint") => s.trim().parse::<i128>().map_err(|_| Flow::Trap(format!("not an integer: {s:?}"))).and_then(|v| chk(v, "i64"))?,
         (Text(s), "join") => match a0() { List(xs) => Text(xs.iter().map(|x| if let Text(t) = x { t.clone() } else { show(x) }).collect::<Vec<_>>().join(&s)), _ => return trap("join") },
         (List(xs), "len") => Int(xs.len() as i128, "usize"),
         (List(xs), "isempty") => Bool(xs.is_empty()),
@@ -563,6 +572,12 @@ pub fn try_(x: V, els: Option<&dyn Fn() -> R<V>>) -> R<V> {
     }
 }
 pub fn compound(op: &str, cur: V, r: V) -> R<V> {
+    // `x op= y` charges the cost of `op` exactly as `x = x op y` (C.6.4)
+    charge(op_cost(op, &cur))?;
+    compound_uncharged(op, cur, r)
+}
+/// The combine step of a `par` reduction, which charges for itself.
+fn compound_uncharged(op: &str, cur: V, r: V) -> R<V> {
     let t = if let V::Int(_, t) = cur { t } else { "lit" };
     let x = arith(op, cur, r)?;
     if let V::Int(x, _) = x { chk(x, t) } else { Ok(x) }
@@ -748,7 +763,7 @@ pub fn par_combine(op: &str, a: V, b: V) -> R<V> {
         ("&", V::Bool(x), V::Bool(y)) => Ok(V::Bool(*x && *y)),
         ("|", V::Bool(x), V::Bool(y)) => Ok(V::Bool(*x || *y)),
         ("^", V::Bool(x), V::Bool(y)) => Ok(V::Bool(*x != *y)),
-        _ => compound(op, a, b),
+        _ => compound_uncharged(op, a, b),
     }
 }
 /// the fixed balanced tree T: h = ceil(m / 2)

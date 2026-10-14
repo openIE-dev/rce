@@ -181,3 +181,27 @@ fn class_table_in_the_book_is_method_work() {
         assert_eq!(method_work(&five(k), m, &[]), 0, "{k}.{m}");
     }
 }
+
+/// BUGS.md RCE-004: `x op= y` charges the operator's cost (C.6.4) like
+/// `x = x op y`, in the reference and every runtime. Before the fix a
+/// compound assignment cost 0, so a loop of `+=` ran unbounded inside a budget.
+#[test]
+fn compound_assignment_charges_the_operator_in_every_runtime() {
+    // int `+=` costs 1 (ten of them plus the range: 11); float `/=` costs 8
+    let cases = [
+        ("    var x = 0\n", "for i in 0..10\n            x += 1", 11),
+        ("    var y = 1.0\n", "y /= 3.0", 8),
+    ];
+    for (i, (setup, call, cost)) in cases.into_iter().enumerate() {
+        for (b, trap) in [(cost - 1, true), (cost, false)] {
+            let src = prog(setup, call, b);
+            let stem = format!("ca{i}_{b}");
+            assert_eq!(trapped(&rce_run(&src, &stem)), trap, "reference: `{call}` budget {b}");
+            for t in ["rust", "python", "js"] {
+                if let Some(out) = emitted(&src, &stem, t) {
+                    assert_eq!(trapped(&out), trap, "{t}: `{call}` budget {b}: {out}");
+                }
+            }
+        }
+    }
+}

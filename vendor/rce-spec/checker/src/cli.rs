@@ -540,6 +540,11 @@ fn run_main(a: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &mu
         ps.iter().map(|p| Ok((p.clone(), read_file(p)?))).collect()
     };
     let w = |e: std::io::Error| e.to_string();
+    // `rce SUB --help` / `-h` anywhere prints the usage (10.1: exit 0)
+    if a.len() > 1 && rest.iter().any(|x| x == "--help" || x == "-h") {
+        writeln!(out, "{USAGE_TEXT}").map_err(w)?;
+        return Ok(OK);
+    }
     Ok(match a.first().map(String::as_str) {
         Some("check") if !rest.is_empty() => {
             let mut bad = 0;
@@ -652,7 +657,7 @@ fn run_main(a: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &mu
             code
         }
         Some("lsp") if rest.is_empty() => serve_dyn(input, out),
-        Some("help") | Some("--help") => {
+        Some("help") | Some("--help") | Some("-h") => {
             writeln!(out, "{USAGE_TEXT}").map_err(w)?;
             OK
         }

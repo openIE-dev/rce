@@ -97,9 +97,11 @@ def _plain(neg, d, p):
     return ("-" if neg else "") + r
 def _neg(x): return math.copysign(1.0, x) < 0
 def fdisplay(x):
-    if x == 0: return "-0" if _neg(x) else "0"
-    d, p = _digits(repr(abs(x)))
-    return _plain(x < 0, d, p)
+    if x == 0: return "0"
+    a = abs(x); d, p = _digits(repr(a))
+    if 1e-5 <= a < 1e16: return _plain(x < 0, d, p)
+    m = d[0] + ("." + d[1:] if len(d) > 1 else ""); e = p - 1
+    return ("-" if x < 0 else "") + m + "e" + ("+" if e >= 0 else "") + str(e)
 def fdebug(x):
     if x == 0: return "-0.0" if _neg(x) else "0.0"
     a = abs(x); d, p = _digits(repr(a))
@@ -242,6 +244,7 @@ def arith(op, a, b):
             return chk(tdiv(x, y), ty)
         if op == "%":
             if y == 0: trap("division by zero")
+            chk(tdiv(x, y), ty)
             return chk(trem(x, y), ty)
         if op == "&": return chk(x & y, ty)
         if op == "|": return chk(x | y, ty)
@@ -449,7 +452,7 @@ def toint(s):
     if u == "" or not all("0" <= c <= "9" for c in u): trap("not an integer: " + rdebug(s))
     n = int(t)
     if n < I128[0] or n > I128[1]: trap("not an integer: " + rdebug(s))
-    return Int(n, "i64")
+    return chk(n, "i64")
 def fround(x):
     r = float(math.trunc(x))
     if abs(x - r) >= 0.5: r += math.copysign(1.0, x)
@@ -514,6 +517,10 @@ def builtin(r, m, a):
             if x < 0: trap("non-finite float")
             return F(math.sqrt(x)), None
         if m == "abs": return F(abs(x)), None
+        if m in ("min", "max"):
+            if type(a[0]) is not F: trap(m)
+            y = a[0].v
+            return F((x if x <= y else y) if m == "min" else (x if x >= y else y)), None
         if m == "floor": return F(float(math.floor(x))), None
         if m == "ceil": return F(float(math.ceil(x))), None
         if m == "round": return F(fround(x)), None
@@ -755,6 +762,9 @@ def try_eval(th):
     try: return th()
     except (Trap, Fail, Stop, Ret): return None
 def compound(op, cur, r):
+    charge(op_cost(op, cur))
+    return compound_uncharged(op, cur, r)
+def compound_uncharged(op, cur, r):
     t = cur.t if type(cur) is Int else "lit"
     x = arith(op, cur, r)
     return chk(x.v, t) if type(x) is Int else x
@@ -952,7 +962,7 @@ def par_combine(op, a, b):
         if op == "&": return a and b
         if op == "|": return a or b
         if op == "^": return a != b
-    return compound(op, a, b)
+    return compound_uncharged(op, a, b)
 def par_tree(op, c, i):
     if len(c) == 0: return i
     if len(c) == 1: return c[0]

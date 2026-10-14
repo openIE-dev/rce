@@ -163,7 +163,7 @@ Python and JavaScript runtimes charge the same costs
 | `and`, `or` | 1 |
 | binary operator on integer, bool or text operands, comparisons | 1 |
 | float (f64, f32) `+`, `-`, `*` | 2 |
-| float (f64, f32) `/`, `%` | 8 |
+| float (f64, f32) `/` | 8 |
 
 **Method work (normative for version 0.7).** In a version 0.6 module a
 standard library method costs `c_call` whatever its sizes, as draft 0.6
@@ -347,6 +347,13 @@ the same call to an identical function declared in a 0.6 module.
 | literals take the success type of a fallible return (5.1) | all (erratum) | a checker bug against `τ <: τ ! ε`; it admits programs the text already admitted |
 | canonical D entry and hash-chained Form log (6.1) | all | the log format, not a program's meaning |
 | est_j receipts | all | measurement records outside the language (C.5: est_j is separate from budgets) |
+| `i64.MIN % -1` traps; `toint` traps outside i64 (6.3 N2) | all (erratum) | N2 already defined both; the reference and runtimes returned 0 and an out-of-range i64 |
+| canonical float text in `tostr` and display (6.3 N3) | all (erratum) | N3 already defined it (`1e+300`, `1.5e-7`, `-0` is `0`); the implementations printed Rust's long decimal form |
+| `x op= y` charges the cost of `op` (C.6.4) | all (erratum) | C.6.4 already charges every binary operator; compound assignment was charged 0, so a budget could be exceeded |
+| 6.3 N2, N3, N8 and 6.2 state the trap texts, `usize` indices and trapping slices the implementations have always had; float `%` removed from N3 and C.6.4 | all (erratum) | the text contradicted the checker and every runtime; no accepted program changes, since the text described behaviour no program could reach (negative usize, float `%`) or contradicted what every implementation did |
+| f64 `min`/`max` (6.3 N5, 5.15) evaluate | all (erratum) | the checker accepted them and N5 defined them, but the evaluators trapped; a program that trapped now computes what the text defined |
+| f64 `pow` refused (W-NAME-1) | all (erratum) | not in the closed library of 5.15, which already made it W-NAME-1; the checker accepted it and every evaluator trapped on it, so no accepted program computed a value with it |
+| a foreign function is not a value (5.11, W-FFI-1) | all (erratum) | 5.11 already forbade a pure function calling foreign code; the value route was a checker hole |
 
 So a 0.6 program keeps its meaning, a 0.5 program is unaffected (it has
 no budgets), and a 0.7 program differs from the same program declared
@@ -361,4 +368,4 @@ LALR(1) check treat 0.7 as 0.6, since the grammar is the same.
 
 **Read receipt.** How many words does a version 0.6 module reserve in addition to the 0.5 keywords? (a number)
 
-<!-- body-sha256: abdefff233178ef31f6bf646a2a702939839e6d35b48de4b53a2b4ac28815509 -->
+<!-- body-sha256: 769a3ee9847068933603fc46a0971a88d7df8caed3d46470ab6eb438556db2db -->
