@@ -96,6 +96,10 @@ pub struct Checker {
     pub(crate) b6: crate::check06b::State06b,
     /// the module under check is language version 0.6 (spec 2.7)
     pub v06: bool,
+    /// version 0.8 module: indexed values of 5.16 are in scope
+    pub v08: bool,
+    /// structs and kinds that transitively hold a Secret (5.16, W-SEC-1)
+    pub secret_structs: HashSet<String>,
     /// functions and impl heads linked from imported modules (src/link.rs)
     pub imported_fns: HashSet<String>,
     pub imported_types: HashSet<String>,
@@ -109,7 +113,7 @@ fn d<X: std::fmt::Display>(line: usize, rule: &str, m: X) -> String {
     format!("line {line}: {rule} {m}")
 }
 
-fn fn_cx(sig: &FnSig, owner_is_impl: bool) -> Cx {
+fn fn_cx(sig: &FnSig, owner_is_impl: bool, al: &HashMap<String, Ty>) -> Cx {
     if sig.comptime {
         return Cx::Comptime;
     }
@@ -119,18 +123,28 @@ fn fn_cx(sig: &FnSig, owner_is_impl: bool) -> Cx {
     let has_chan = sig
         .params
         .iter()
-        .any(|p| matches!(p, Param::Named { ty, .. } if ty_mentions_chan(ty)));
+        .any(|p| matches!(p, Param::Named { ty, .. } if ty_mentions_chan(ty, al)));
     if has_chan { Cx::Task } else { Cx::Pure }
 }
-fn ty_mentions_chan(t: &Ty) -> bool {
-    match t {
-        Ty::Chan(_) => true,
-        Ty::Path(p, _) if p.len() == 1 && p[0] == "session" => true,
-        Ty::Path(_, a) => a.iter().any(ty_mentions_chan),
-        Ty::Ref(_, x) | Ty::Opt(x) | Ty::Slice(x) | Ty::Region(x, _) => ty_mentions_chan(x),
-        Ty::Tuple(v) => v.iter().any(ty_mentions_chan),
-        _ => false,
+/// Whether a type is or holds a channel. A type alias `type A = τ` is
+/// transparent (5.1): A is τ, so `fn f(c: A)` with τ a channel type is a
+/// task function. `al` maps alias names to their types; the depth cap
+/// stops a cyclic alias (refused elsewhere) from looping.
+fn ty_mentions_chan(t: &Ty, al: &HashMap<String, Ty>) -> bool {
+    fn go(t: &Ty, al: &HashMap<String, Ty>, depth: usize) -> bool {
+        match t {
+            Ty::Chan(_) => true,
+            Ty::Path(p, _) if p.len() == 1 && p[0] == "session" => true,
+            Ty::Path(p, a) => {
+                a.iter().any(|x| go(x, al, depth))
+                    || (depth < 32 && p.len() == 1 && al.get(&p[0]).is_some_and(|x| go(x, al, depth + 1)))
+            }
+            Ty::Ref(_, x) | Ty::Opt(x) | Ty::Slice(x) | Ty::Region(x, _) => go(x, al, depth),
+            Ty::Tuple(v) => v.iter().any(|x| go(x, al, depth)),
+            _ => false,
+        }
     }
+    go(t, al, 0)
 }
 
 impl Default for Checker {
@@ -171,6 +185,8 @@ impl Checker {
             iter_ok: false,
             b6: Default::default(),
             v06: false,
+            v08: false,
+            secret_structs: HashSet::new(),
             imported_fns: HashSet::new(),
             imported_types: HashSet::new(),
         }
@@ -187,9 +203,31 @@ impl Checker {
         }
     }
 
+    fn alias_types(&self) -> HashMap<String, Ty> {
+        self.types
+            .iter()
+            .filter_map(|(n, t)| if let TyDef::Alias { ty, .. } = t { Some((n.clone(), ty.clone())) } else { None })
+            .collect()
+    }
+
     pub fn check_module(&mut self, m: &Module, known_modules: &HashSet<String>) {
         self.v06 = m.draft06;
+        self.v08 = m.v08;
+        if m.v08 {
+            for e in crate::index08::check(m) {
+                self.e(e);
+            }
+            self.secret_structs = crate::index08::struct_secret(m);
+        }
         self.pre06b(m);
+        // type aliases of this module and of the modules it links, for the
+        // task-function test (5.1: an alias is the type it names)
+        let mut al: HashMap<String, Ty> = self.alias_types();
+        for it in &m.items {
+            if let Item::TypeAlias { name, ty, .. } = it {
+                al.insert(name.clone(), ty.clone());
+            }
+        }
         let mut seen: HashMap<String, usize> = HashMap::new();
         for it in &m.items {
             let mut decl = |c: &mut Checker, n: &str, line: usize| {
@@ -222,9 +260,26 @@ impl Checker {
                     name,
                     generics,
                     ty,
+                    pred,
                     line,
                 } => {
                     decl(self, name, *line);
+                    if let Some(p) = pred {
+                        // W-REF-1 (5.1): a refined type is not generic, refines an
+                        // integer, text or collection type, and its predicate is in
+                        // the decidable fragment.
+                        if !generics.is_empty() {
+                            self.e(d(*line, "W-REF-1", "a refined type has no type parameters"));
+                        }
+                        match crate::refine::base_of(ty) {
+                            None => self.e(d(*line, "W-REF-1", format!("a refined type refines an integer type, text or a collection, not {}", crate::interp::ty_str(ty)))),
+                            Some(b) => {
+                                if let Err(m) = crate::refine::compile(p, b) {
+                                    self.e(d(*line, "W-REF-1", m));
+                                }
+                            }
+                        }
+                    }
                     self.types.insert(
                         name.clone(),
                         TyDef::Alias {
@@ -322,6 +377,13 @@ impl Checker {
                     ..
                 } => {
                     decl(self, name, *line);
+                    for mb in members {
+                        if let TraitMember::Fn(s) = mb
+                            && s.bound.is_some()
+                        {
+                            self.e(d(s.line, "W-REC-1", "`bound` applies to a function with a body (6.7), not to a trait signature"));
+                        }
+                    }
                     self.types.insert(
                         name.clone(),
                         TyDef::Trait {
@@ -356,7 +418,10 @@ impl Checker {
                 }
                 Item::Fn(f) => {
                     decl(self, &f.sig.name, f.sig.line);
-                    let cx = fn_cx(&f.sig, false);
+                    if f.sig.bound.is_some() && matches!(f.sig.ret, Some(Ty::Iter(_))) {
+                        self.e(d(f.sig.line, "W-REC-1", "`bound` applies to a function, not to an iterator (6.7, 5.14)"));
+                    }
+                    let cx = fn_cx(&f.sig, false, &al);
                     self.fns.insert(
                         f.sig.name.clone(),
                         FnInfo {
@@ -368,6 +433,9 @@ impl Checker {
                 }
                 Item::Extern { abi, sig, line } => {
                     decl(self, &sig.name, *line);
+                    if sig.bound.is_some() {
+                        self.e(d(*line, "W-REC-1", "`bound` applies to a function with a body (6.7), not to a foreign function"));
+                    }
                     self.externs.insert(sig.name.clone(), (abi.clone(), *line));
                     self.fns.insert(
                         sig.name.clone(),
@@ -392,7 +460,7 @@ impl Checker {
                     let tr = trait_.as_ref().map(ty_head);
                     self.impls.push((head.clone(), tr.clone()));
                     for f in members {
-                        let cx = fn_cx(&f.sig, true);
+                        let cx = fn_cx(&f.sig, true, &al);
                         self.methods.push((
                             head.clone(),
                             FnInfo {
@@ -673,6 +741,25 @@ impl Checker {
         match t {
             Ty::Path(p, args) if p.len() == 1 && (p[0] == "session" || p[0] == "lvar") => {
                 self.lower06b(&p[0], args, line)
+            }
+            Ty::Path(p, args)
+                if self.v08 && p.len() == 1 && crate::index08::INDEXED.contains(&p[0].as_str()) =>
+            {
+                // 5.16 indexed types (well-formedness is W-CTX-1/W-SEC-1/W-CAP-1 in index08)
+                let name = |t: &Ty| match t {
+                    Ty::Path(q, _) if q.len() == 1 => q[0].clone(),
+                    _ => String::new(),
+                };
+                match p[0].as_str() {
+                    "Text" => T::Named("Text".into(), vec![T::Named(args.first().map(name).unwrap_or_default(), vec![])]),
+                    "Secret" => {
+                        let i = args.first().map(|a| self.lower(a, line)).unwrap_or(T::Never);
+                        T::Named("Secret".into(), vec![i])
+                    }
+                    "Cap" => T::Named("Cap".into(), vec![T::Named(args.first().map(name).unwrap_or_default(), vec![])]),
+                    // Guarded[τ, A] is τ for typing; writes are W-CAP-2
+                    _ => args.first().map(|a| self.lower(a, line)).unwrap_or(T::Never),
+                }
             }
             Ty::Path(p, args) => {
                 let largs: Vec<T> = args.iter().map(|a| self.lower(a, line)).collect();
@@ -1403,7 +1490,7 @@ impl Checker {
                 ));
             }
             if let Some(TyDef::Event { payload }) = self.types.get(ev).cloned()
-                && payload.iter().any(|(_, t)| ty_mentions_chan(t))
+                && payload.iter().any(|(_, t)| ty_mentions_chan(t, &self.alias_types()))
                 && step_events.contains(ev)
             {
                 self.e(d(
@@ -1487,9 +1574,16 @@ impl Checker {
             match self.types.get(ev).cloned() {
                 Some(TyDef::Event { payload }) => {
                     self.begin(Cx::Comptime, T::Unit, None, "example");
+                    // 5.16: in an example the host writes an attested capability
+                    // as `()` and a secret as its plain value.
+                    let host = |t: &Ty| match t {
+                        Ty::Path(p, a) if self.v08 && p.len() == 1 && p[0] == "Cap" && a.len() == 1 => Ty::Unit,
+                        Ty::Path(p, a) if self.v08 && p.len() == 1 && p[0] == "Secret" && a.len() == 1 => a[0].clone(),
+                        t => t.clone(),
+                    };
                     let fs: Vec<(String, Ty, bool)> = payload
                         .iter()
-                        .map(|(n, t)| (n.clone(), t.clone(), false))
+                        .map(|(n, t)| (n.clone(), host(t), false))
                         .collect();
                     self.ctor_args(ev, &fs, args, x.line);
                     self.end();
@@ -1555,23 +1649,69 @@ impl Checker {
 
     fn check_recursion(&mut self) {
         let mut g = self.calls.clone();
-        let mut names: Vec<String> = g.keys().cloned().collect();
-        names.sort();
-        for n in names {
-            if !g[&n].contains(&n) {
+        // every recursive cycle, a function calling itself included: a
+        // lexicographic tuple of summed measures and a rank (6.7)
+        for scc in sccs(&g) {
+            if scc.len() == 1 && !g.get(&scc[0]).is_some_and(|e| e.contains(&scc[0])) {
                 continue;
             }
-            let Some(fi) = self.fns.get(&n).cloned() else {
-                continue;
-            };
             let vs = self.variants.clone();
-            match structural_violation(&fi.decl, &|c| vs.contains_key(c)) {
-                None => {
-                    g.get_mut(&n).unwrap().remove(&n);
+            let members: BTreeSet<String> = scc.iter().cloned().collect();
+            let mut fs = vec![];
+            for n in &scc {
+                let Some(fi) = self.fns.get(n).cloned() else { continue };
+                let arity = fi.decl.sig.params.iter().filter(|p| matches!(p, Param::Named { .. })).count();
+                fs.push((n.clone(), arity, rec_sites(&fi.decl, &|c| members.contains(c), &|c| vs.contains_key(c))));
+            }
+            // a cycle through something other than plain functions (trait
+            // methods) is left to the cycle report below
+            if fs.len() != scc.len() {
+                continue;
+            }
+            // `bound n` (6.7): every cycle of calls through an unbounded
+            // function only would need the measure; one through a bounded
+            // function ends by its count
+            let decls: Vec<FnDecl> = scc.iter().filter_map(|n| self.fns.get(n).map(|f| f.decl.clone())).collect();
+            let bounded: Vec<bool> = decls.iter().map(|f| f.sig.bound.is_some()).collect();
+            if let Err(l) = lex_measure(&fs) {
+                let mut free: Vec<BTreeSet<usize>> = vec![BTreeSet::new(); scc.len()];
+                for (k, n) in scc.iter().enumerate() {
+                    if bounded[k] {
+                        continue;
+                    }
+                    for m in g.get(n).into_iter().flatten() {
+                        if let Some(j) = scc.iter().position(|x| x == m)
+                            && !bounded[j]
+                        {
+                            free[k].insert(j);
+                        }
+                    }
                 }
-                Some(l) => {
-                    self.e(d(l, "W-REC-1", format!("`{n}` calls itself on an argument that is not a constructor field of a parameter it matched (only structural recursion is admitted)")));
-                    g.get_mut(&n).unwrap().remove(&n);
+                if !acyclic(&free) {
+                    self.e(d(l, "W-REC-1", format!("recursion through {} has no decreasing measure (6.7): no layers of summed measures, each kept by every call not yet done and shrunk by at least one, leave the remaining calls without a cycle, and a cycle of its calls passes through no function declared with `bound`", scc.join(", "))));
+                }
+            }
+            if bounded.iter().any(|b| *b) {
+                for f in &decls {
+                    let mut hit = None;
+                    if let Body::Block(b) = &f.body {
+                        walk_stmts(b, &mut |s| {
+                            if let Stmt::Arena(r, None, _, l) = s
+                                && (r == "$par" || r == "$forpar")
+                                && hit.is_none()
+                            {
+                                hit = Some(*l);
+                            }
+                        });
+                    }
+                    if let Some(l) = hit {
+                        self.e(d(l, "W-REC-1", format!("`par` in `{}`, which is in a recursive cycle with a function declared with `bound` (6.7): the count of active calls is per task and branch", f.sig.name)));
+                    }
+                }
+            }
+            for n in &scc {
+                if let Some(es) = g.get_mut(n) {
+                    es.retain(|m| !members.contains(m));
                 }
             }
         }
@@ -2038,6 +2178,9 @@ impl Checker {
                 let t = self.infer(e, true);
                 if contains_ref(&self.sub.resolve(&t)) {
                     self.e(d(e.line(), "W-OWN-3", "emitted values cannot hold borrows"));
+                }
+                if self.v08 && self.holds_secret(&self.sub.resolve(&t)) {
+                    self.e(d(e.line(), "W-SEC-1", "an emitted value cannot hold a secret (5.16)"));
                 }
                 false
             }
@@ -2606,7 +2749,7 @@ pub fn is_place(e: &Expr) -> bool {
 /// is (a borrow of) a name bound inside a constructor pattern of a `match`
 /// whose scrutinee is parameter i or a name already known to be smaller
 /// than it. Returns the line of the first self-call that is not structural.
-fn stmt_direct_exprs(s: &Stmt) -> Vec<&Expr> {
+pub(crate) fn stmt_direct_exprs(s: &Stmt) -> Vec<&Expr> {
     match s {
         Stmt::Expr(e) | Stmt::Emit(e) | Stmt::Fail(e) | Stmt::Spawn(e) | Stmt::Check(e) => vec![e],
         Stmt::Assign(_, a, b) | Stmt::Send(a, b) => vec![a, b],
@@ -2662,146 +2805,6 @@ fn strip_borrow(e: &Expr) -> &Expr {
         Expr::Borrow(_, x, _) => strip_borrow(x),
         _ => e,
     }
-}
-pub fn structural_violation(f: &FnDecl, is_ctor: &dyn Fn(&str) -> bool) -> Option<usize> {
-    let params: Vec<String> = f
-        .sig
-        .params
-        .iter()
-        .filter_map(|p| {
-            if let Param::Named { name, .. } = p {
-                Some(name.clone())
-            } else {
-                None
-            }
-        })
-        .collect();
-    let me = f.sig.name.clone();
-    fn check_e(
-        e: &Expr,
-        me: &str,
-        sm: &[std::collections::HashSet<String>],
-        bad: &mut Option<usize>,
-    ) {
-        walk_expr(e, &mut |x| {
-            if let Expr::Call(g, args, l, _) = x
-                && matches!(&**g, Expr::Name(n, _) if n == me)
-            {
-                let ok = args.iter().enumerate().any(|(i, a)| {
-                    i < sm.len()
-                        && matches!(strip_borrow(&a.e), Expr::Name(n, _) if sm[i].contains(n))
-                });
-                if !ok && bad.is_none() {
-                    *bad = Some(*l);
-                }
-            }
-        });
-    }
-    fn go(
-        b: &[Stmt],
-        me: &str,
-        params: &[String],
-        sm: &mut [std::collections::HashSet<String>],
-        bad: &mut Option<usize>,
-        is_ctor: &dyn Fn(&str) -> bool,
-    ) {
-        for s in b {
-            for e in stmt_direct_exprs(s) {
-                check_e(e, me, sm, bad);
-            }
-            match s {
-                Stmt::Let(p, _, _, _) => {
-                    let mut v = vec![];
-                    pat_binders(p, true, &mut v, is_ctor);
-                    for n in v {
-                        for set in sm.iter_mut() {
-                            set.remove(&n);
-                        }
-                    }
-                }
-                Stmt::Var(n, _, _, _) => {
-                    for set in sm.iter_mut() {
-                        set.remove(n);
-                    }
-                }
-                Stmt::Assign(_, Expr::Name(n, _), _) => {
-                    for set in sm.iter_mut() {
-                        set.remove(n);
-                    }
-                }
-                Stmt::Match(scr, arms, _) => {
-                    let root = match strip_borrow(scr) {
-                        Expr::Name(n, _) => Some(n.clone()),
-                        _ => None,
-                    };
-                    let idx: Vec<usize> = (0..params.len())
-                        .filter(|&i| {
-                            root.as_ref()
-                                .is_some_and(|r| *r == params[i] || sm[i].contains(r))
-                        })
-                        .collect();
-                    for a in arms {
-                        let mut sm2 = sm.to_vec();
-                        let mut v = vec![];
-                        pat_binders(&a.pat, false, &mut v, is_ctor);
-                        for &i in &idx {
-                            for n in &v {
-                                sm2[i].insert(n.clone());
-                            }
-                        }
-                        if let Some(g) = &a.guard {
-                            check_e(g, me, &sm2, bad);
-                        }
-                        go(&a.body, me, params, &mut sm2, bad, is_ctor);
-                    }
-                }
-                Stmt::If(arms, els) => {
-                    for (_, x) in arms {
-                        go(x, me, params, &mut sm.to_vec(), bad, is_ctor);
-                    }
-                    if let Some(x) = els {
-                        go(x, me, params, &mut sm.to_vec(), bad, is_ctor);
-                    }
-                }
-                Stmt::While(_, _, x)
-                | Stmt::Loop(_, x)
-                | Stmt::Arena(_, _, x, _)
-                | Stmt::Device(_, _, x, _)
-                | Stmt::Comptime(x) => go(x, me, params, &mut sm.to_vec(), bad, is_ctor),
-                Stmt::For(p, _, x, _) => {
-                    let mut sm2 = sm.to_vec();
-                    let mut v = vec![];
-                    pat_binders(p, true, &mut v, is_ctor);
-                    for n in v {
-                        for set in sm2.iter_mut() {
-                            set.remove(&n);
-                        }
-                    }
-                    go(x, me, params, &mut sm2, bad, is_ctor)
-                }
-                Stmt::Select(arms, _) => {
-                    for a in arms {
-                        match a {
-                            SelArm::Recv(_, _, x)
-                            | SelArm::Send(_, _, x)
-                            | SelArm::After(_, x)
-                            | SelArm::Default(x) => {
-                                go(x, me, params, &mut sm.to_vec(), bad, is_ctor)
-                            }
-                        }
-                    }
-                }
-                _ => {}
-            }
-        }
-    }
-    let mut sm = vec![std::collections::HashSet::new(); params.len()];
-    let mut bad = None;
-    match &f.body {
-        Body::Arrow(e) => check_e(e, &me, &sm, &mut bad),
-        Body::Block(b) => go(b, &me, &params, &mut sm, &mut bad, is_ctor),
-    }
-    bad
 }
 pub(crate) fn walk_stmts(b: &[Stmt], f: &mut dyn FnMut(&Stmt)) {
     for s in b {
@@ -3499,6 +3502,16 @@ impl Checker {
 }
 
 impl Checker {
+    /// Whether a value of type t can hold a secret (5.16, W-SEC-1).
+    fn holds_secret(&self, t: &T) -> bool {
+        match t {
+            T::Named(n, a) => n == "Secret" || self.secret_structs.contains(n) || a.iter().any(|x| self.holds_secret(x)),
+            T::Tuple(v) => v.iter().any(|x| self.holds_secret(x)),
+            T::List(x) | T::Set(x) | T::Opt(x) | T::Array(x, _) | T::Slice(x) | T::Ref(_, x) | T::Iter(x) | T::Chan(x) | T::Region(x, _) => self.holds_secret(x),
+            T::Map(a, b) | T::Union(a, b) => self.holds_secret(a) || self.holds_secret(b),
+            _ => false,
+        }
+    }
     fn has_trait(&self, t: &T, tr: &str) -> bool {
         match self.sub.resolve(&peel(t)) {
             T::Param(p) => self
@@ -3680,6 +3693,21 @@ impl Checker {
             _ => {
                 let at = self.infer(a, false);
                 let bt = self.infer(b, false);
+                if self.v08 {
+                    let (ra, rb) = (self.sub.resolve(&peel(&at)), self.sub.resolve(&peel(&bt)));
+                    let ctx = |t: &T| matches!(t, T::Named(n, _) if n == "Text");
+                    if ctx(&ra) || ctx(&rb) {
+                        if op == "+" && ra == rb {
+                            return ra;
+                        }
+                        self.e(d(l, "W-CTX-1", format!("`{op}` on {ra} and {rb}: context-typed text joins only with text of the same context (5.16)")));
+                        return T::Never;
+                    }
+                    if matches!(&ra, T::Named(n, _) if n == "Secret" || n == "Cap") || matches!(&rb, T::Named(n, _) if n == "Secret" || n == "Cap") {
+                        self.e(d(l, "W-SEC-1", format!("`{op}` on {ra} and {rb}: a secret or capability is opaque (5.16)")));
+                        return T::Never;
+                    }
+                }
                 self.arith_op(op, &at, &bt, l, b)
             }
         }
@@ -3802,6 +3830,30 @@ impl Checker {
                         "W-OWN-2",
                         format!("`{r}` is borrowed mutably and again in one call"),
                     ));
+                }
+            }
+        }
+        if self.v08
+            && let Expr::Member(o, m, _) = f
+            && let Expr::Name(c, _) = &**o
+            && crate::index08::CTX.contains(&c.as_str())
+            && self.lookup(c).is_none()
+        {
+            let out = T::Named("Text".into(), vec![T::Named(c.clone(), vec![])]);
+            match (m.as_str(), args) {
+                ("lit", [a]) if matches!(a.e, Expr::Str(..)) => return out,
+                ("lit", _) => {
+                    self.e(d(l, "W-CTX-1", format!("`{c}.lit` takes one string literal: only program text is trusted (5.16)")));
+                    return out;
+                }
+                ("encode", [a]) => {
+                    let t = self.infer(&a.e, false);
+                    self.expect(&peel(&t), &T::Text, l);
+                    return out;
+                }
+                _ => {
+                    self.e(d(l, "W-NAME-1", format!("`{c}.{m}`: a context has `lit` and `encode` (5.16)")));
+                    return T::Never;
                 }
             }
         }
@@ -4115,6 +4167,13 @@ impl Checker {
         }
         let rt = self.sub.resolve(&ot);
         let base = peel(&rt);
+        if self.v08 && let T::Named(n, _) = &base && crate::index08::INDEXED.contains(&n.as_str()) {
+            if n == "Text" && m == "raw" && args.is_empty() {
+                return T::Text;
+            }
+            self.e(d(l, if n == "Text" { "W-CTX-1" } else if n == "Secret" { "W-SEC-1" } else { "W-CAP-1" }, format!("`.{m}` is not defined on {base} (5.16: context text has `.raw()`, secrets and capabilities are opaque)")));
+            return T::Never;
+        }
         // user methods
         let head = match &base {
             T::Named(n, _) => Some(n.clone()),
@@ -4231,6 +4290,25 @@ impl Checker {
         if let Some(t) = self.method06b(base, m, args, l) {
             return t;
         }
+        // 5.15, read from spec-data.json: a method the table does not list
+        // for this receiver does not exist (W-NAME-1)
+        let recv = match base {
+            T::Int(_) => Some("Int"),
+            T::F64 => Some("F"),
+            T::Bool => Some("Bool"),
+            T::Text => Some("Text"),
+            T::F32 => Some("F32"),
+            T::Iter(_) => Some("Gen"),
+            T::List(_) | T::Array(..) => Some("List"),
+            T::Map(..) => Some("Map"),
+            T::Opt(_) => Some("Opt"),
+            _ => None,
+        };
+        if let Some(r) = recv
+            && !crate::specread::has_method(r, m)
+        {
+            return unknown(self);
+        }
         match base {
             T::Int(_) => match m {
                 "checked_add" | "checked_sub" | "checked_mul" | "checked_div" => {
@@ -4303,7 +4381,7 @@ impl Checker {
                     self.arity(m, args, 0, l);
                     usize_
                 }
-                "strip" | "upper" | "lower" | "reverse" | "tostr" => {
+                "strip" | "upper" | "lower" | "reverse" | "tostr" | "sha256" => {
                     self.arity(m, args, 0, l);
                     T::Text
                 }
@@ -4963,4 +5041,339 @@ impl Checker {
         }
         false
     }
+}
+
+/// A call inside a recursive cycle (spec 6.7, mutual recursion): the callee,
+/// the line, and for each argument the caller's parameter positions it is
+/// tied to: `(i, false)` when it is parameter i itself, `(i, true)` when it
+/// is a name bound inside a constructor pattern of a `match` on parameter i
+/// (or on such a name), as for structural recursion.
+#[derive(Clone, Debug)]
+pub struct RecSite {
+    pub callee: String,
+    pub line: usize,
+    pub args: Vec<Vec<(usize, bool)>>,
+}
+
+#[derive(Clone)]
+struct RecSt {
+    sm: Vec<std::collections::HashSet<String>>,
+    eq: Vec<bool>,
+}
+
+impl RecSt {
+    fn unbind(&mut self, n: &str, params: &[String]) {
+        for s in self.sm.iter_mut() {
+            s.remove(n);
+        }
+        for (i, p) in params.iter().enumerate() {
+            if p == n {
+                self.eq[i] = false;
+            }
+        }
+    }
+}
+
+pub fn rec_sites(f: &FnDecl, is_target: &dyn Fn(&str) -> bool, is_ctor: &dyn Fn(&str) -> bool) -> Vec<RecSite> {
+    let params: Vec<String> = f
+        .sig
+        .params
+        .iter()
+        .filter_map(|p| if let Param::Named { name, .. } = p { Some(name.clone()) } else { None })
+        .collect();
+    fn sites_e(e: &Expr, params: &[String], st: &RecSt, is_target: &dyn Fn(&str) -> bool, out: &mut Vec<RecSite>) {
+        walk_expr(e, &mut |x| {
+            if let Expr::Call(g, args, l, _) = x
+                && let Expr::Name(n, _) = &**g
+                && is_target(n)
+            {
+                let args = args
+                    .iter()
+                    .map(|a| match strip_borrow(&a.e) {
+                        Expr::Name(v, _) => (0..params.len())
+                            .filter_map(|i| {
+                                if st.sm[i].contains(v) {
+                                    Some((i, true))
+                                } else if st.eq[i] && params[i] == *v {
+                                    Some((i, false))
+                                } else {
+                                    None
+                                }
+                            })
+                            .collect(),
+                        _ => vec![],
+                    })
+                    .collect();
+                out.push(RecSite { callee: n.clone(), line: *l, args });
+            }
+        });
+    }
+    fn go(b: &[Stmt], params: &[String], st: &mut RecSt, is_target: &dyn Fn(&str) -> bool, is_ctor: &dyn Fn(&str) -> bool, out: &mut Vec<RecSite>) {
+        for s in b {
+            for e in stmt_direct_exprs(s) {
+                sites_e(e, params, st, is_target, out);
+            }
+            match s {
+                Stmt::Let(p, _, _, _) => {
+                    let mut v = vec![];
+                    pat_binders(p, true, &mut v, is_ctor);
+                    for n in v {
+                        st.unbind(&n, params);
+                    }
+                }
+                Stmt::Var(n, _, _, _) | Stmt::Assign(_, Expr::Name(n, _), _) => st.unbind(n, params),
+                Stmt::Match(scr, arms, _) => {
+                    let root = match strip_borrow(scr) {
+                        Expr::Name(n, _) => Some(n.clone()),
+                        _ => None,
+                    };
+                    let idx: Vec<usize> = (0..params.len())
+                        .filter(|&i| root.as_ref().is_some_and(|r| (*r == params[i] && st.eq[i]) || st.sm[i].contains(r)))
+                        .collect();
+                    for a in arms {
+                        let mut st2 = st.clone();
+                        let mut v = vec![];
+                        pat_binders(&a.pat, false, &mut v, is_ctor);
+                        let mut all = vec![];
+                        pat_binders(&a.pat, true, &mut all, is_ctor);
+                        for n in &all {
+                            st2.unbind(n, params);
+                        }
+                        for &i in &idx {
+                            for n in &v {
+                                st2.sm[i].insert(n.clone());
+                            }
+                        }
+                        if let Some(g) = &a.guard {
+                            sites_e(g, params, &st2, is_target, out);
+                        }
+                        go(&a.body, params, &mut st2, is_target, is_ctor, out);
+                    }
+                }
+                Stmt::If(arms, els) => {
+                    for (_, x) in arms {
+                        go(x, params, &mut st.clone(), is_target, is_ctor, out);
+                    }
+                    if let Some(x) = els {
+                        go(x, params, &mut st.clone(), is_target, is_ctor, out);
+                    }
+                }
+                Stmt::While(_, _, x) | Stmt::Loop(_, x) | Stmt::Arena(_, _, x, _) | Stmt::Device(_, _, x, _) | Stmt::Comptime(x) => {
+                    go(x, params, &mut st.clone(), is_target, is_ctor, out)
+                }
+                Stmt::For(p, _, x, _) => {
+                    let mut st2 = st.clone();
+                    let mut v = vec![];
+                    pat_binders(p, true, &mut v, is_ctor);
+                    for n in v {
+                        st2.unbind(&n, params);
+                    }
+                    go(x, params, &mut st2, is_target, is_ctor, out)
+                }
+                Stmt::Select(arms, _) => {
+                    for a in arms {
+                        match a {
+                            SelArm::Recv(_, _, x) | SelArm::Send(_, _, x) | SelArm::After(_, x) | SelArm::Default(x) => {
+                                go(x, params, &mut st.clone(), is_target, is_ctor, out)
+                            }
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+    let mut st = RecSt { sm: vec![std::collections::HashSet::new(); params.len()], eq: vec![true; params.len()] };
+    let mut out = vec![];
+    match &f.body {
+        Body::Arrow(e) => sites_e(e, &params, &st, is_target, &mut out),
+        Body::Block(b) => go(b, &params, &mut st, is_target, is_ctor, &mut out),
+    }
+    out
+}
+
+/// Whether the designated positions `pg` of the callee map one to one into
+/// the caller's designated positions `pf`, each argument tied to its image
+/// (the same parameter, or a component of it) and at least one a strict
+/// component (Lean `RCE/Mutual.lean`, `call_dec`): Some(true). Some(false)
+/// when such a map exists with no strict component (the measure does not
+/// grow), None when there is none.
+fn site_decreases(site: &RecSite, pg: &[usize], pf: &[usize]) -> Option<bool> {
+    let tie = |j: usize, i: usize| -> Option<bool> {
+        site.args.get(j).and_then(|t| t.iter().filter(|(k, _)| *k == i).map(|(_, s)| *s).max())
+    };
+    // a matching of `rest` into `pf` minus `used`, by augmenting paths
+    fn matching(rest: &[usize], pf: &[usize], used: usize, tie: &dyn Fn(usize, usize) -> Option<bool>) -> bool {
+        let mut owner: Vec<Option<usize>> = vec![None; pf.len()];
+        fn aug(j: usize, pf: &[usize], used: usize, tie: &dyn Fn(usize, usize) -> Option<bool>, owner: &mut Vec<Option<usize>>, seen: &mut Vec<bool>) -> bool {
+            for b in 0..pf.len() {
+                if b == used || seen[b] || tie(j, pf[b]).is_none() {
+                    continue;
+                }
+                seen[b] = true;
+                if owner[b].is_none_or(|o| aug(o, pf, used, tie, owner, seen)) {
+                    owner[b] = Some(j);
+                    return true;
+                }
+            }
+            false
+        }
+        rest.iter().all(|&j| aug(j, pf, used, tie, &mut owner, &mut vec![false; pf.len()]))
+    }
+    for (a, &j) in pg.iter().enumerate() {
+        for (b, &i) in pf.iter().enumerate() {
+            if tie(j, i) == Some(true) {
+                let rest: Vec<usize> = pg.iter().enumerate().filter(|(x, _)| *x != a).map(|(_, &y)| y).collect();
+                if matching(&rest, pf, b, &tie) {
+                    return Some(true);
+                }
+            }
+        }
+    }
+    if matching(pg, pf, usize::MAX, &tie) { Some(false) } else { None }
+}
+
+/// Recursion (spec 6.7): a cycle of the call graph (one function calling
+/// itself, or several) is admitted when its calls can be done in layers.
+/// Each layer gives every function f a set P f of parameter positions; the
+/// summed size at those positions must not grow along any call not yet
+/// done (`site_decreases` is Some), and the calls where it shrinks
+/// (Some(true)) are done; when the calls left form no cycle among the
+/// functions, (μ₁, …, μ_k, rank) falls lexicographically at every call
+/// (Lean `RCE/Mutual.lean`: `call_dec`, `call_keep`, `layer_dec`,
+/// `wf_total`). Each layer takes, of all choices of sets tried in a fixed
+/// order, the first that does the most calls; the search runs while the
+/// cycle has at most MUTUAL_MAX_PARAMS parameters in total. Returns the
+/// layers, or the first line of a call no layer does.
+pub const MUTUAL_MAX_PARAMS: usize = 16;
+pub fn lex_measure(fs: &[(String, usize, Vec<RecSite>)]) -> Result<Vec<Vec<Vec<usize>>>, usize> {
+    let total: usize = fs.iter().map(|f| f.1).sum();
+    let idx = |n: &str| fs.iter().position(|f| f.0 == n);
+    let mut rest: Vec<(usize, usize, &RecSite)> = vec![];
+    for (k, f) in fs.iter().enumerate() {
+        for s in &f.2 {
+            if let Some(g) = idx(&s.callee) {
+                rest.push((k, g, s));
+            }
+        }
+    }
+    let first_line = |r: &[(usize, usize, &RecSite)]| r.iter().map(|x| x.2.line).min().unwrap_or(0);
+    let mut layers = vec![];
+    loop {
+        let mut weak: Vec<BTreeSet<usize>> = vec![BTreeSet::new(); fs.len()];
+        for &(k, g, _) in &rest {
+            weak[k].insert(g);
+        }
+        if acyclic(&weak) {
+            return Ok(layers);
+        }
+        if total > MUTUAL_MAX_PARAMS {
+            return Err(first_line(&rest));
+        }
+        let mut best: Option<(usize, Vec<Vec<usize>>, Vec<bool>)> = None;
+        for mask in 1u64..(1u64 << total) {
+            let mut sets = vec![];
+            let mut off = 0;
+            for f in fs {
+                sets.push((0..f.1).filter(|i| mask >> (off + i) & 1 == 1).collect::<Vec<usize>>());
+                off += f.1;
+            }
+            let mut strict = vec![];
+            let ok = rest.iter().all(|&(k, g, s)| match site_decreases(s, &sets[g], &sets[k]) {
+                Some(b) => {
+                    strict.push(b);
+                    true
+                }
+                None => false,
+            });
+            let n = strict.iter().filter(|b| **b).count();
+            if ok && n > 0 && best.as_ref().is_none_or(|b| n > b.0) {
+                best = Some((n, sets, strict));
+            }
+        }
+        let Some((_, sets, strict)) = best else { return Err(first_line(&rest)) };
+        let mut it = strict.iter();
+        rest.retain(|_| !*it.next().unwrap());
+        layers.push(sets);
+    }
+}
+
+/// Strongly connected components of a call graph (Tarjan), each sorted,
+/// in sorted order of their first member.
+pub fn sccs(g: &HashMap<String, BTreeSet<String>>) -> Vec<Vec<String>> {
+    struct T<'a> {
+        g: &'a HashMap<String, BTreeSet<String>>,
+        idx: HashMap<String, usize>,
+        low: HashMap<String, usize>,
+        on: BTreeSet<String>,
+        st: Vec<String>,
+        n: usize,
+        out: Vec<Vec<String>>,
+    }
+    fn visit(t: &mut T, v: &str) {
+        t.idx.insert(v.to_string(), t.n);
+        t.low.insert(v.to_string(), t.n);
+        t.n += 1;
+        t.st.push(v.to_string());
+        t.on.insert(v.to_string());
+        let es: Vec<String> = t.g.get(v).map(|e| e.iter().cloned().collect()).unwrap_or_default();
+        for w in es {
+            if !t.idx.contains_key(&w) {
+                visit(t, &w);
+                let lw = t.low[&w];
+                let lv = t.low.get_mut(v).unwrap();
+                *lv = (*lv).min(lw);
+            } else if t.on.contains(&w) {
+                let iw = t.idx[&w];
+                let lv = t.low.get_mut(v).unwrap();
+                *lv = (*lv).min(iw);
+            }
+        }
+        if t.low[v] == t.idx[v] {
+            let mut c = vec![];
+            loop {
+                let w = t.st.pop().unwrap();
+                t.on.remove(&w);
+                let done = w == v;
+                c.push(w);
+                if done {
+                    break;
+                }
+            }
+            c.sort();
+            t.out.push(c);
+        }
+    }
+    let mut t = T { g, idx: HashMap::new(), low: HashMap::new(), on: BTreeSet::new(), st: vec![], n: 0, out: vec![] };
+    let mut keys: Vec<&String> = g.keys().collect();
+    keys.sort();
+    for k in keys {
+        if !t.idx.contains_key(k.as_str()) {
+            visit(&mut t, k);
+        }
+    }
+    t.out.sort();
+    t.out
+}
+
+fn acyclic(g: &[BTreeSet<usize>]) -> bool {
+    let n = g.len();
+    let mut indeg = vec![0usize; n];
+    for es in g {
+        for &e in es {
+            indeg[e] += 1;
+        }
+    }
+    let mut q: Vec<usize> = (0..n).filter(|&i| indeg[i] == 0).collect();
+    let mut seen = 0;
+    while let Some(v) = q.pop() {
+        seen += 1;
+        for &e in &g[v] {
+            indeg[e] -= 1;
+            if indeg[e] == 0 {
+                q.push(e);
+            }
+        }
+    }
+    seen == n
 }

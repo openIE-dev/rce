@@ -184,6 +184,9 @@ pub struct FnSig {
     pub generics: Vec<GParam>,
     pub params: Vec<Param>,
     pub ret: Option<Ty>,
+    /// `bound n` after the signature (6.7): at most n active calls of this
+    /// function at once; the call that would be call n + 1 traps
+    pub bound: Option<u64>,
     pub line: usize,
 }
 
@@ -241,6 +244,8 @@ pub enum Item {
         name: String,
         generics: Vec<GParam>,
         ty: Ty,
+        /// `where p`: the predicate of a refined type (5.1, W-REF-1)
+        pred: Option<Expr>,
         line: usize,
     },
     Struct {
@@ -360,4 +365,7 @@ pub struct Module {
     /// language version 0.7 (spec 2.7, C.13): 0.6 plus size-scaled method
     /// costs (C.6.4); implies `draft06`
     pub v07: bool,
+    /// language version 0.8 (spec 2.7, 5.16): 0.7 plus indexed values
+    /// (context-typed text, secrets, capabilities); implies `v07`
+    pub v08: bool,
 }

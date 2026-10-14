@@ -177,7 +177,7 @@ method's complexity class in the reference evaluator:
 
 | Class | Methods | work |
 |---|---|---|
-| linear, text receiver | `strip`, `upper`, `lower`, `reverse`, `tostr`, `chars`, `words`, `lines`, `split`, `isdigit`, `isalpha`, `isspace`, `contains`, `startswith`, `endswith`, `toint`, `join` | n + k |
+| linear, text receiver | `strip`, `upper`, `lower`, `reverse`, `tostr`, `chars`, `words`, `lines`, `split`, `isdigit`, `isalpha`, `isspace`, `contains`, `startswith`, `endswith`, `toint`, `join`, `sha256` | n + k |
 | linear, list receiver | `reverse`, `contains`, `sum`, `map`, `filter`, `fold` | n + k |
 | linear, map receiver (maps are ordered association lists) | `get`, `contains`, `insert`, `remove`, `keys`, `values` | n + k |
 | n log n, list receiver | `sort` | n · ⌈log₂ n⌉, with ⌈log₂ n⌉ = 0 for n ≤ 1 |
@@ -346,6 +346,11 @@ the same call to an identical function declared in a 0.6 module.
 | u64 values at or above 2^63 exact in order, min/max and f64 ops (6.3 N2) | all (erratum) | N2 has defined full-range u64 since draft 0.5; the runtimes now meet it |
 | literals take the success type of a fallible return (5.1) | all (erratum) | a checker bug against `τ <: τ ! ε`; it admits programs the text already admitted |
 | canonical D entry and hash-chained Form log (6.1) | all | the log format, not a program's meaning |
+| `sha256` text method (5.15) | all (extension) | admits only programs that W-NAME-1 refused before, so no valid program of any version changes meaning |
+| mutual recursion with a decreasing summed measure (6.7, W-REC-1) | all (extension) | admits only programs whose call graph has a cycle of two or more functions, which W-REC-1 refused before; the rule for a function that calls only itself is unchanged, so no valid program of any version changes meaning |
+| self-recursion needs one fixed shrinking position, or layers (6.7, W-REC-1) | all (erratum, and extension for layers) | 6.7 has said since draft 0.4 that the value at one position i shrinks along any chain of calls, and T2 that every run ends; the checker took a different position per call, which admitted functions that never return. Refusing them makes the checker meet the text. Every function the text admitted is admitted by one layer, and layers admit only programs refused before, so no program the text admitted changes meaning |
+| a parameter typed by an alias of a channel type makes a task function (5.1, 5.2) | all (erratum) | the type grammar of 5.1 has no nominal alias, so `type A = chan τ` already named the channel type; the checker tested the written type, not the type it names, and refused such functions with W-SPAWN-1 or W-EFF-1. Only programs refused before are admitted |
+| declared recursion bounds `fn … bound n` (6.7, W-REC-1) | all (extension) | `bound` after a signature was W-SYN-1, and a cycle it admits was W-REC-1, so only programs refused before are admitted; no valid program of any version changes meaning |
 | est_j receipts | all | measurement records outside the language (C.5: est_j is separate from budgets) |
 | `i64.MIN % -1` traps; `toint` traps outside i64 (6.3 N2) | all (erratum) | N2 already defined both; the reference and runtimes returned 0 and an out-of-range i64 |
 | canonical float text in `tostr` and display (6.3 N3) | all (erratum) | N3 already defined it (`1e+300`, `1.5e-7`, `-0` is `0`); the implementations printed Rust's long decimal form |
@@ -353,7 +358,10 @@ the same call to an identical function declared in a 0.6 module.
 | 6.3 N2, N3, N8 and 6.2 state the trap texts, `usize` indices and trapping slices the implementations have always had; float `%` removed from N3 and C.6.4 | all (erratum) | the text contradicted the checker and every runtime; no accepted program changes, since the text described behaviour no program could reach (negative usize, float `%`) or contradicted what every implementation did |
 | f64 `min`/`max` (6.3 N5, 5.15) evaluate | all (erratum) | the checker accepted them and N5 defined them, but the evaluators trapped; a program that trapped now computes what the text defined |
 | f64 `pow` refused (W-NAME-1) | all (erratum) | not in the closed library of 5.15, which already made it W-NAME-1; the checker accepted it and every evaluator trapped on it, so no accepted program computed a value with it |
+| refined types `type R = τ where p` (5.1, W-REF-1) | all (extension) | `where` after a type was W-SYN-1 and stays an ordinary identifier, so only programs refused before are admitted; no valid program of any version changes meaning |
 | a foreign function is not a value (5.11, W-FFI-1) | all (erratum) | 5.11 already forbade a pure function calling foreign code; the value route was a checker hole |
+| host contract (Appendix E: one admitter, durable append per OS, fatal barrier, verify on open, inputs as events, capabilities, fabric entries, automatic placement) | all | constrains hosts and the log, not programs: a host entry has a `host.` type that no program can declare and δ is the identity on it, so the fold of every log of every valid program is unchanged |
+| host bindings (E.8: a host result delivered as an event the program declares) | all | the bound event is an ordinary declared event, admitted and typed as any other; a program that declares no binding target sees no new input |
 
 So a 0.6 program keeps its meaning, a 0.5 program is unaffected (it has
 no budgets), and a 0.7 program differs from the same program declared
@@ -366,6 +374,21 @@ by `use`, in the reference evaluator and the Rust, Python and JavaScript
 emitters on the linked program); the tree-sitter port and the
 LALR(1) check treat 0.7 as 0.6, since the grammar is the same.
 
+### C.16 Version 0.8
+
+`# rce-version: 0.8` declares version 0.8: the syntax, keywords, rules,
+evaluation and costs of 0.7, plus 5.16. It reserves no keyword, so the
+grammar, the LALR(1) check and the tree-sitter port treat it as 0.7. It
+is a version, not an extension, by the C.15 rule: the eight names of
+5.16 are ordinary names in 0.7, and a 0.7 program that declares one
+(`struct Text`, `struct Html`) would change meaning if 5.16 applied to
+it. In a 0.8 module `C.lit(s)` costs `c_call`, `C.encode(t)` costs
+`c_call` plus the size of t (the linear class of C.6.4) and `.raw()`
+costs `c_call` (the text is not copied), in the reference evaluator and
+every runtime; the indices are erased, so nothing else in C.6 changes. A 0.5, 0.6 or 0.7 module never
+sees 5.16 (`spec/checker/tests/indexed.rs`, gate test), and modules of
+different versions may `use` each other (2.7).
+
 **Read receipt.** How many words does a version 0.6 module reserve in addition to the 0.5 keywords? (a number)
 
-<!-- body-sha256: 769a3ee9847068933603fc46a0971a88d7df8caed3d46470ab6eb438556db2db -->
+<!-- body-sha256: 78ecf181df4042a8dd09f4635de1e2ebda703cede45176a2e35007290b34a21a -->

@@ -37,6 +37,8 @@ impl<'a> G<'a> {
         let Some((call, wb)) = self.call_expr(f, args, true, *sz)? else {
             return self.ex(e);
         };
+        // the call expression's own tick (interp `eval`), before its operands
+        let call = if self.no_fuel > 0 { call } else { self.pre_fuel(&call) };
         let Some(wb) = wb else { return Ok(call) };
         let l = self.lang;
         let t = wb.tmp.clone();
@@ -44,6 +46,7 @@ impl<'a> G<'a> {
             Lang::Rust => format!("let {t} = {call};"),
             Lang::Python => format!("{t} = {call}"),
             Lang::Js => format!("const {t} = {call};"),
+            Lang::Scala => format!("val {t} = {call}"),
         });
         // Arguments first, then the receiver (interp `call_fn`, then `builtin`).
         for (i, a) in wb.args.iter().enumerate() {
@@ -51,6 +54,7 @@ impl<'a> G<'a> {
                 Lang::Rust => format!("{t}.outs.get({i}).cloned().flatten()"),
                 Lang::Python => format!("({t}[1][{i}] if len({t}[1]) > {i} else None)"),
                 Lang::Js => format!("({t}[1].length > {i} ? {t}[1][{i}] : null)"),
+                Lang::Scala => format!("atOr(at({t}, 1), {i})"),
             };
             let o = self.fresh("o");
             self.open_some(&o, &get);
@@ -66,6 +70,7 @@ impl<'a> G<'a> {
             let o = self.fresh("o");
             let get = match l {
                 Lang::Rust => format!("{t}.slf.clone()"),
+                Lang::Scala => format!("at({t}, 2)"),
                 _ => format!("{t}[2]"),
             };
             self.open_some(&o, &get);
@@ -79,6 +84,7 @@ impl<'a> G<'a> {
         }
         Ok(match l {
             Lang::Rust => format!("{t}.v.clone()"),
+            Lang::Scala => format!("at({t}, 0)"),
             _ => format!("{t}[0]"),
         })
     }
@@ -152,11 +158,13 @@ impl<'a> G<'a> {
                 Lang::Rust => format!("{{ let _ = {v}; return Ok(()); }}"),
                 Lang::Python => format!("{v}\nreturn"),
                 Lang::Js => format!("{v}; return;"),
+                Lang::Scala => format!("discard({v}); return"),
             },
             Ctx::Step => match l {
                 Lang::Rust => format!("return Err(Flow::Ret({v}));"),
                 Lang::Python => format!("raise Ret({v})"),
                 Lang::Js => format!("throw new Ret({v});"),
+                Lang::Scala => format!("throw new Ret({v})"),
             },
         };
         self.line(s);
@@ -207,6 +215,7 @@ impl<'a> G<'a> {
             ),
             Lang::Python => format!("return ({v}, [{}], {slf})", outs.join(", ")),
             Lang::Js => format!("return [{v}, [{}], {slf}];", outs.join(", ")),
+            Lang::Scala => format!("return V({v}, V({}), {slf})", outs.join(", ")),
         }
     }
 
@@ -224,7 +233,7 @@ impl<'a> G<'a> {
         crate::conc::assign_ops(b, &mut targets);
         let local = crate::conc::declared_in(b);
         targets.retain(|(n, _)| !local.contains(n));
-        if super::conc06::forpar_threadable(b) {
+        if l != Lang::Scala && super::conc06::forpar_threadable(b) {
             return self.forpar_threads(&body[0], &targets);
         }
         if targets.is_empty() {
@@ -301,7 +310,11 @@ impl<'a> G<'a> {
         Ok(())
     }
     pub fn open_block(&mut self) {
-        if self.lang != Lang::Python {
+        if self.lang == Lang::Scala {
+            // a bare `{` after a line would be read as an argument block
+            self.line("locally {");
+            self.ind += 1;
+        } else if self.lang != Lang::Python {
             self.line("{");
             self.ind += 1;
         }
@@ -319,6 +332,7 @@ impl<'a> G<'a> {
                 Lang::Rust => format!("mget(&{m}, {})", q(n)),
                 Lang::Python => format!("{m}.get({}, UNIT)", q(n)),
                 Lang::Js => format!("({0} in {m} ? {m}[{0}] : UNIT)", q(n)),
+                Lang::Scala => format!("getb({m}, {})", q(n)),
             };
             let s = self.let_(&format!("l_{}", ident(n)), &get);
             self.line(s);
@@ -353,6 +367,10 @@ impl<'a> G<'a> {
                         self.line(format!("const {mt} = pm({ps}, {v});"));
                         self.line(format!("if ({mt} === null) trap(\"let pattern did not match\");"));
                     }
+                    Lang::Scala => {
+                        self.line(format!("val {mt} = pm({ps}, {v})"));
+                        self.line(format!("if ({mt} == null) trap(\"let pattern did not match\")"));
+                    }
                 }
                 let mut names = vec![];
                 self.pat_names(p, &mut names);
@@ -385,6 +403,10 @@ impl<'a> G<'a> {
                 self.line(format!("const {b} = {bound};"));
                 self.line(format!("let {n} = 0n;"));
             }
+            Lang::Scala => {
+                self.line(format!("val {b}: BigInt = {bound}"));
+                self.line(format!("var {n}: BigInt = BigInt(0)"));
+            }
         }
         Ok((b, n))
     }
@@ -404,7 +426,25 @@ impl<'a> G<'a> {
                 self.line(format!("{n} += 1n;"));
                 self.line(format!("if ({n} > {b}) trap(\"loop bound\");"));
             }
+            Lang::Scala => {
+                self.line(format!("{n} += 1"));
+                self.line(format!("if ({n} > {b}) trap(\"loop bound\")"));
+            }
         }
+    }
+    /// Scala has no `break` / `continue`: a loop is `try { while (true) {
+    /// try { .. } catch CONT } } catch BRK`, and the statements throw.
+    fn sc_loop_open(&mut self, head: &str) {
+        self.open("try");
+        self.open(head);
+        self.open("try");
+    }
+    fn sc_loop_close(&mut self) {
+        self.ind -= 1;
+        self.line("} catch { case _: ContEx => () }");
+        self.close();
+        self.ind -= 1;
+        self.line("} catch { case _: BrkEx => () }");
     }
     /// Close an `if` arm and open its `else`.
     fn else_(&mut self) {
@@ -420,6 +460,17 @@ impl<'a> G<'a> {
 
     pub fn stmt(&mut self, s: &Stmt, tail: bool) -> Result<(), String> {
         let l = self.lang;
+        // interp `exec` ticks once per statement (6.7); the `let` of an
+        // A-normal-form temporary is not a source statement.
+        // Nor are the hooks and the per-chunk loop of `for ... par`: the
+        // reference resets and collects targets without evaluating anything.
+        let synthetic = matches!(s, Stmt::Let(Pat::Path(p), None, _, _) if p.len() == 1 && p[0].starts_with("anf_"))
+            || matches!(s, Stmt::Expr(Expr::Call(f, _, _, _)) if matches!(&**f, Expr::Name(h, _) if h == "$par_reset" || h == "$par_collect"))
+            || matches!(s, Stmt::For(_, Expr::Name(n, _), _, _) if n.starts_with("$fpchunk"));
+        if !synthetic && self.no_fuel == 0 {
+            let t = self.stmt_call("fuel", "");
+            self.line(t);
+        }
         if let Stmt::Expr(Expr::Call(f, a, _, _)) = s
             && let Expr::Name(h, _) = &**f
             && (h == "$par_reset" || h == "$par_collect")
@@ -436,6 +487,7 @@ impl<'a> G<'a> {
                 self.line(match l {
                     Lang::Rust => format!("{x}.push({cur});"),
                     Lang::Python => format!("{x}.append({cur})"),
+                    Lang::Scala => format!("{x} = vpush({x}, {cur})"),
                     Lang::Js => format!("{x}.push({cur});"),
                 });
             }
@@ -467,7 +519,9 @@ impl<'a> G<'a> {
                     Lang::Rust => format!("(|| -> R<V> {{ Ok({pe}) }})().ok()"),
                     Lang::Python => format!("try_eval(lambda: {pe})"),
                     Lang::Js => format!("tryEval(() => {pe})"),
+                    Lang::Scala => format!("try_eval(() => {pe})"),
                 };
+
                 let vt = self.fresh("v");
                 let s = self.let_(&vt, &self.h("fixtag", &[cur, v]));
                 self.line(s);
@@ -513,6 +567,7 @@ impl<'a> G<'a> {
                     Lang::Rust => self.open("loop"),
                     Lang::Python => self.open("while True"),
                     Lang::Js => self.open("for (;;)"),
+                    Lang::Scala => self.sc_loop_open("while (true)"),
                 }
                 let cv = self.ex(c)?;
                 let t = self.truthy(&cv);
@@ -520,6 +575,7 @@ impl<'a> G<'a> {
                     Lang::Rust => format!("if !{t} {{ break; }}"),
                     Lang::Python => format!("if not {t}: break"),
                     Lang::Js => format!("if (!{t}) break;"),
+                    Lang::Scala => format!("if (!{t}) throw BRK"),
                 });
                 self.loop_tick(&b, &n);
                 self.loops += 1;
@@ -528,7 +584,7 @@ impl<'a> G<'a> {
                 self.loops -= 1;
                 if let Some(d) = self.cl.last_mut() { *d -= 1; }
                 rb?;
-                self.close();
+                if l == Lang::Scala { self.sc_loop_close() } else { self.close() }
             }
             Stmt::Loop(bnd, body) => {
                 let (b, n) = self.loop_counter(bnd)?;
@@ -536,6 +592,7 @@ impl<'a> G<'a> {
                     Lang::Rust => self.open("loop"),
                     Lang::Python => self.open("while True"),
                     Lang::Js => self.open("for (;;)"),
+                    Lang::Scala => self.sc_loop_open("while (true)"),
                 }
                 self.loop_tick(&b, &n);
                 self.loops += 1;
@@ -544,7 +601,7 @@ impl<'a> G<'a> {
                 self.loops -= 1;
                 if let Some(d) = self.cl.last_mut() { *d -= 1; }
                 rb?;
-                self.close();
+                if l == Lang::Scala { self.sc_loop_close() } else { self.close() }
             }
             Stmt::For(p, it, body, _) => {
                 let itv = self.ex(it)?;
@@ -557,6 +614,12 @@ impl<'a> G<'a> {
                     }
                     Lang::Python => self.open(&format!("for {x} in iterate({itv})")),
                     Lang::Js => self.open(&format!("for (const {x} of iterate({itv}))")),
+                    Lang::Scala => {
+                        let i = self.fresh("it");
+                        self.line(format!("val {i} = iterate({itv})"));
+                        self.sc_loop_open(&format!("while ({i}.hasNext)"));
+                        self.line(format!("val {x} = {i}.next()"));
+                    }
                 }
                 self.scopes.push(vec![]);
                 match p {
@@ -582,6 +645,10 @@ impl<'a> G<'a> {
                                 self.line(format!("const {mt} = {{}};"));
                                 self.line(format!("pmatch({ps}, {x}, {mt});"));
                             }
+                            Lang::Scala => {
+                                self.line(format!("val {mt} = new_binds()"));
+                                self.line(format!("pmatch({ps}, {x}, {mt})"));
+                            }
                         }
                         let mut names = vec![];
                         self.pat_names(p, &mut names);
@@ -595,7 +662,7 @@ impl<'a> G<'a> {
                 if let Some(d) = self.cl.last_mut() { *d -= 1; }
                 rb?;
                 self.scopes.pop();
-                self.close();
+                if l == Lang::Scala { self.sc_loop_close() } else { self.close() }
             }
             Stmt::Match(e, arms, _) => {
                 let v = self.ex(e)?;
@@ -607,6 +674,7 @@ impl<'a> G<'a> {
                     Lang::Rust => format!("let mut {d} = false;"),
                     Lang::Python => format!("{d} = False"),
                     Lang::Js => format!("let {d} = false;"),
+                    Lang::Scala => format!("var {d} = false"),
                 });
                 for a in arms {
                     let h = self.if_head(&self.not(&d));
@@ -633,6 +701,7 @@ impl<'a> G<'a> {
                     self.open(&h);
                     self.line(match l {
                         Lang::Python => format!("{d} = True"),
+                        Lang::Scala => format!("{d} = true"),
                         _ => format!("{d} = true;"),
                     });
                     self.block(&a.body, tail)?;
@@ -656,6 +725,8 @@ impl<'a> G<'a> {
             }
             Stmt::Break(_) if self.cl.last() == Some(&0) => self.line("return Err(Flow::Brk);"),
             Stmt::Continue(_) if self.cl.last() == Some(&0) => self.line("return Err(Flow::Cont);"),
+            Stmt::Break(_) if l == Lang::Scala => self.line("throw BRK"),
+            Stmt::Continue(_) if l == Lang::Scala => self.line("throw CONT"),
             Stmt::Break(_) => self.line(if l == Lang::Python { "break" } else { "break;" }),
             Stmt::Continue(_) => self.line(if l == Lang::Python {
                 "continue"
@@ -674,6 +745,7 @@ impl<'a> G<'a> {
                     Lang::Rust => format!("return Err(Flow::Fail({v}));"),
                     Lang::Python => format!("raise Fail({v})"),
                     Lang::Js => format!("throw new Fail({v});"),
+                    Lang::Scala => format!("throw new Fail({v})"),
                 });
             }
             Stmt::Send(t, v) if self.tasks_on() => self.send_s(t, v)?,
@@ -745,6 +817,7 @@ impl<'a> G<'a> {
                     Lang::Rust => format!("let {ab}: i128 = {bound};"),
                     Lang::Python => format!("{ab} = {bound}"),
                     Lang::Js => format!("const {ab} = {bound};"),
+                    Lang::Scala => format!("val {ab} = {bound}"),
                 });
                 self.open_block();
                 self.scopes.push(vec![]);
@@ -763,6 +836,7 @@ impl<'a> G<'a> {
                         .collect();
                     let a = match l {
                         Lang::Rust => format!("{ab}, &[{}]", vals.join(", ")),
+                        Lang::Scala => format!("{ab}, V({})", vals.join(", ")),
                         _ => format!("{ab}, [{}]", vals.join(", ")),
                     };
                     let s = self.stmt_call("arena_check", &a);

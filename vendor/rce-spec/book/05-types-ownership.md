@@ -59,6 +59,48 @@ lanes, so it is the same on every target. A list literal is a `List` unless
 it meets an array type of the same length, as an integer literal is i64
 unless it meets another integer type.
 
+**Type aliases.** `type A = τ` (and `type A[α₁, …, αₙ] = τ`) without
+`where` gives τ a second name: A, with its parameters substituted, is the
+type τ in every rule. It is not a nominal type, since N above ranges only
+over structs, kinds, actors and states. So a parameter `c: A` with
+`type A = chan τ′` is a `chan` parameter and makes its function a task
+function (5.2), and a value of type A is accepted wherever τ is and the
+reverse. Example: with `type Pipe = chan (u64, text)`, `fn feed(p: Pipe,
+n: u64)` may send on p and be spawned (`spec/checker/tests/alias.rs`).
+
+**Refined types (extension, all versions).** `type R = τ where p`
+declares R as the values of τ that satisfy the predicate p, in which
+`self` names the value. τ is an integer type, `text`, or a `List`, `Map`,
+`Set` or array type. p is in a decidable fragment: comparisons (`<`, `<=`,
+`>`, `>=`, `==`, `!=`) between `self` (integer τ), `self.len()` (text,
+in UTF-8 bytes as in 5.15, or a collection) and integer literals; the
+character classes `self.isdigit()`, `self.isalpha()`, `self.isspace()`,
+`self.isempty()` of a text; and `and`, `or`, `not`. Anything else is
+W-REF-1. `where` is contextual: no type is followed by a name, so the
+word stays an ordinary identifier. A refined value is checked exactly
+where a value is checked against its declared integer range (6.3, 6.4
+step 3): at a typed `let` or `var`, a parameter, a field or payload
+constructor, a field initializer and the write-back of a state field.
+The check fits the value to τ first, then evaluates p; if p is false the
+result is `trap("refinement: value is outside R")`. So an event whose
+payload is outside its refined type is refused before any step runs, as
+an out-of-range integer payload is, and a step whose new state breaks a
+field's predicate refuses the event with the state unchanged (6.4, T8).
+`R <: τ`: a refined value is used wherever τ is. Derivation: validation
+that the type does not record can be skipped (soundness), a predicate
+checked at one boundary has one outcome (determinism), and the
+refinement reuses the one boundary the language already has, the range
+check, rather than a second mechanism (one meaning per construct). The
+fragment is decidable in time linear in p and in the value, so the check
+has a fixed cost class (energy observability); full dependent types are
+excluded by the same derivation, since an undecidable obligation would
+make acceptance itself unbounded. Example: `type Pct = u8 where self <=
+100`; `event SetVolume(pct: Pct)`; `SetVolume(pct: 101)` is refused with
+`refinement: value is outside Pct`, and a step computing `level + 60` on
+`level: Pct = 60` refuses its event. Lean: `RCE/Refine.lean`
+(`holds_total`, `fit_sound`, `refine_preserved`,
+`refine_refused_unchanged`, `admit_sound`; T35).
+
 **Error sets.** In `τ ! ε`, ε is a finite set of declared `error` names,
 written as one error name or as the name of a `kind` whose variants are all
 errors (`type ParseErrs = …` is not needed; declare `kind ParseErrs` with
@@ -261,4 +303,4 @@ exactly one and no shared borrow overlapping p.
 
 **Read receipt.** What is the name of the example kind used to illustrate error sets?
 
-<!-- body-sha256: 54d6978f571923b458fab4e0502b32d58ee3dfcf59a31f5b5c5a664f6cf026e2 -->
+<!-- body-sha256: d74545f9b1aab9a1393a8d026a43591cbb186b12df7c8e7e43038c66238119bb -->

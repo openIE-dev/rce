@@ -8,6 +8,20 @@ class Stop extends Error { constructor() { super("stop"); } }
 class Ret extends Error { constructor(v) { super("ret"); this.v = v; } }
 class Refuse extends Error { constructor(r) { super("refuse"); this.r = r; } }
 const trap = (m) => { throw new Trap(m); };
+// Fuel (6.7, 10.5): one unit at each point where the reference evaluator
+// ticks; each observation starts with full fuel and empty constant caches.
+const FUEL_ARGS = (typeof process !== "undefined" && process.argv) ? process.argv : [];
+const FUEL_LIMIT = BigInt((FUEL_ARGS.find((a) => a.startsWith("--fuel=")) || "--fuel=50000000").slice(7));
+const FUEL_TRACE = FUEL_ARGS.includes("--fuel-trace");
+// per worker: every task and par branch is its own worker (own pool)
+let FUEL = FUEL_LIMIT;
+function fuel() { if (FUEL === 0n) trap("comptime fuel exhausted"); FUEL -= 1n; }
+// `bound n` (6.7): active calls of each bounded function, per worker
+const DEPTH = new Map();
+function depthEnter(k, n) { const d = DEPTH.get(k) || 0; if (BigInt(d) >= n) trap("recursion bound"); DEPTH.set(k, d + 1); }
+function depthExit(k) { const d = DEPTH.get(k) || 0; if (d > 0) DEPTH.set(k, d - 1); }
+function fuelReset() { DEPTH.clear(); FUEL = FUEL_LIMIT; for (const k of Object.keys(KC)) delete KC[k]; }
+function fuelReport() { if (FUEL_TRACE) say("fuel " + (FUEL_LIMIT - FUEL)); }
 class Cancel extends Error { constructor(f) { super("cancel"); this.f = f; } }
 const isFlow = (e) => e instanceof Trap || e instanceof Fail || e instanceof Stop || e instanceof Ret || e instanceof Cancel;
 
@@ -250,6 +264,31 @@ function listRepeat(x, n) {
   return trap("bad repeat count");
 }
 const enc = new TextEncoder(), dec = new TextDecoder("utf-8", { fatal: true });
+// SHA-256 (FIPS 180-4) of a byte array as 64 lowercase hex digits (5.15 `sha256`).
+const SHA_K = Uint32Array.from([0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2]);
+function sha256hex(m) {
+  const n = m.length, L = (((n + 8) >> 6) + 1) << 6, d = new Uint8Array(L);
+  d.set(m); d[n] = 0x80;
+  const bits = BigInt(n) * 8n;
+  for (let i = 0; i < 8; i++) d[L - 1 - i] = Number((bits >> BigInt(8 * i)) & 0xffn);
+  const h = Uint32Array.from([0x6a09e667,0xbb67ae85,0x3c6ef372,0xa54ff53a,0x510e527f,0x9b05688c,0x1f83d9ab,0x5be0cd19]);
+  const w = new Uint32Array(64), rr = (x, k) => (x >>> k) | (x << (32 - k));
+  for (let o = 0; o < L; o += 64) {
+    for (let i = 0; i < 16; i++) w[i] = (d[o + 4 * i] << 24) | (d[o + 4 * i + 1] << 16) | (d[o + 4 * i + 2] << 8) | d[o + 4 * i + 3];
+    for (let i = 16; i < 64; i++) {
+      const s0 = rr(w[i - 15], 7) ^ rr(w[i - 15], 18) ^ (w[i - 15] >>> 3), s1 = rr(w[i - 2], 17) ^ rr(w[i - 2], 19) ^ (w[i - 2] >>> 10);
+      w[i] = (w[i - 16] + s0 + w[i - 7] + s1) >>> 0;
+    }
+    let [a, b, c, e4, e, f, g, hh] = h;
+    for (let i = 0; i < 64; i++) {
+      const t1 = (hh + (rr(e, 6) ^ rr(e, 11) ^ rr(e, 25)) + ((e & f) ^ (~e & g)) + SHA_K[i] + w[i]) >>> 0;
+      const t2 = ((rr(a, 2) ^ rr(a, 13) ^ rr(a, 22)) + ((a & b) ^ (a & c) ^ (b & c))) >>> 0;
+      hh = g; g = f; f = e; e = (e4 + t1) >>> 0; e4 = c; c = b; b = a; a = (t1 + t2) >>> 0;
+    }
+    [a, b, c, e4, e, f, g, hh].forEach((x, i) => { h[i] = (h[i] + x) >>> 0; });
+  }
+  return Array.from(h, (x) => x.toString(16).padStart(8, "0")).join("");
+}
 const u8s = (s) => enc.encode(s);
 function index(c, i) {
   if (c instanceof Lst && i instanceof Int) {
@@ -314,7 +353,49 @@ function cast(v, T) {
   if (v instanceof Int && n === null) return new F(Number(v.v));
   return v;
 }
+function ctxLit(s) { charge(4n); return s; }
+function ctxEncode(c, s) {
+  charge(4n + sizeOf(s));
+  if (!isStr(s)) trap("context text");
+  if (c === "Html") return Array.from(s).map((ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[ch] ?? ch).join("");
+  if (c === "Url") return Array.from(enc.encode(s)).map((b) => ((b >= 48 && b <= 57) || (b >= 65 && b <= 90) || (b >= 97 && b <= 122) || b === 45 || b === 46 || b === 95 || b === 126) ? String.fromCharCode(b) : "%" + b.toString(16).toUpperCase().padStart(2, "0")).join("");
+  if (c === "Sql") return "'" + s.split("'").join("''") + "'";
+  let o = '"';
+  for (const ch of s) {
+    const u = ch.codePointAt(0);
+    if (ch === '"') o += '\\"'; else if (ch === "\\") o += "\\\\"; else if (ch === "\n") o += "\\n"; else if (ch === "\r") o += "\\r"; else if (ch === "\t") o += "\\t";
+    else if (u < 0x20) o += "\\u" + u.toString(16).padStart(4, "0"); else o += ch;
+  }
+  return o + '"';
+}
+function ptm(t, v) {
+  if (t[0] === "lit") return t[1];
+  if (t[0] === "self") return v instanceof Int ? v.v : null;
+  if (isStr(v)) return BigInt(enc.encode(v).length);
+  if (v instanceof Lst) return BigInt(v.xs.length);
+  if (v instanceof Mp) return BigInt(v.ps.length);
+  return null;
+}
+function pholds(p, v) {
+  const k = p[0];
+  if (k === "cmp") {
+    const x = ptm(p[2], v), y = ptm(p[3], v);
+    if (x === null || y === null) return false;
+    switch (p[1]) { case "<": return x < y; case "<=": return x <= y; case ">": return x > y; case ">=": return x >= y; case "==": return x === y; default: return x !== y; }
+  }
+  if (k === "cls") {
+    if (!isStr(v)) return false;
+    if (p[1] === "isdigit") return /^[0-9]+$/.test(v);
+    if (p[1] === "isalpha") return /^[A-Za-z]+$/.test(v);
+    if (p[1] === "isspace") return /^[ \t\n\r\f]+$/.test(v);
+    return v === "";
+  }
+  if (k === "and") return pholds(p[1], v) && pholds(p[2], v);
+  if (k === "or") return pholds(p[1], v) || pholds(p[2], v);
+  return !pholds(p[1], v);
+}
 function fit(v, T) {
+  if (T[0] === "refn") { v = fit(v, T[1]); if (!pholds(T[3], v)) trap("refinement: value is outside " + T[2]); return v; }
   const k = T[0];
   if (v instanceof Int) {
     if (k === "int") { const [lo, hi] = irange(T[1]); if (v.v < lo || v.v > hi) trap("overflow: " + v.v + " is outside " + T[1]); return new Int(v.v, T[1]); }
@@ -363,7 +444,7 @@ function apply(f, vals) {
   return trap(show(f) + " is not callable");
 }
 function callValue(f, vals) {
-  if (f instanceof FnV) return FNS[f.n](null, vals)[0];
+  if (f instanceof FnV) { fuel(); return FNS[f.n](null, vals)[0]; }
   if (f instanceof Clo) return f.f(vals);
   return trap(show(f) + " is not callable");
 }
@@ -434,9 +515,11 @@ function builtin(r, m, a) {
     switch (m) {
       case "strip": return [rtrim(r), null];
       case "upper": return [aupper(r), null];
+      case "sha256": return [sha256hex(enc.encode(r)), null];
       case "lower": return [alower(r), null];
       case "reverse": return [Array.from(r).reverse().join(""), null];
       case "tostr": return [r, null];
+      case "raw": return [r, null];
       case "chars": return [new Lst(Array.from(r)), null];
       case "words": return [new Lst(rwords(r)), null];
       case "lines": return [new Lst(rlines(r)), null];
@@ -475,11 +558,11 @@ function builtin(r, m, a) {
         return [k >= 0n && k < BigInt(xs.length) ? new Opt(xs[Number(k)]) : NONE, null];
       }
       case "sum": { let acc = new Int(0n, "lit"); for (const x of xs) acc = arith("+", acc, x); return [acc, null]; }
-      case "map": return [new Lst(xs.map((x) => apply(a[0], [x]))), null];
-      case "filter": return [new Lst(xs.filter((x) => apply(a[0], [x]) === true)), null];
+      case "map": return [new Lst(xs.map((x) => (fuel(), apply(a[0], [x])))), null];
+      case "filter": return [new Lst(xs.filter((x) => (fuel(), apply(a[0], [x])) === true)), null];
       case "pscan": return [pscan(xs, a[0], a[1], false), null];
       case "pscan_incl": return [pscan(xs, a[0], a[1], true), null];
-      case "fold": { let acc = a[0]; for (const x of xs) acc = apply(a[1], [acc, x]); return [acc, null]; }
+      case "fold": { let acc = a[0]; for (const x of xs) { fuel(); acc = apply(a[1], [acc, x]); } return [acc, null]; }
     }
   }
   if (r instanceof Mp) {
@@ -506,7 +589,7 @@ function builtin(r, m, a) {
   return trap(show(r) + " has no method " + m + " at comptime");
 }
 // C.6.4 method work, as conc::method_work in the reference evaluator.
-const LIN_TEXT = new Set(["strip", "upper", "lower", "reverse", "tostr", "chars", "words", "lines", "split", "isdigit", "isalpha", "isspace", "contains", "startswith", "endswith", "toint", "join"]), LIN_LIST = new Set(["reverse", "contains", "sum", "map", "filter", "fold"]), LIN_MAP = new Set(["get", "contains", "insert", "remove", "keys", "values"]);
+const LIN_TEXT = new Set(["strip", "upper", "lower", "reverse", "tostr", "chars", "words", "lines", "split", "isdigit", "isalpha", "isspace", "contains", "startswith", "endswith", "toint", "join", "sha256"]), LIN_LIST = new Set(["reverse", "contains", "sum", "map", "filter", "fold"]), LIN_MAP = new Set(["get", "contains", "insert", "remove", "keys", "values"]);
 function sizeOf(v) {
   if (isStr(v)) return BigInt(u8s(v).length);
   if (v instanceof Lst) return BigInt(v.xs.length);
@@ -522,7 +605,7 @@ function methodWork(recv, m, args) {
 }
 function callMethod(recv, m, args, sized) {
   const head = recv instanceof Rec ? (KIND_OF[recv.n] ?? recv.n) : recv instanceof Lst ? "List" : null;
-  if (head !== null && METHODS[head + "." + m]) { const [v, outs, s] = METHODS[head + "." + m](recv, args); return [v, outs, s]; }
+  if (head !== null && METHODS[head + "." + m]) { fuel(); const [v, outs, s] = METHODS[head + "." + m](recv, args); return [v, outs, s]; }
   charge(4n + (sized ? methodWork(recv, m, args) : 0n));
   const [v, s] = builtin(recv, m, args);
   return [v, [], s];
@@ -613,6 +696,7 @@ function* iterate(v) {
 function listcomp(itv, P, names, body, cond) {
   const out = [];
   for (const x of iterItems(itv)) {
+    fuel();
     const b = {};
     if (!pmatch(P, x, b)) continue;
     const args = names.map((n) => (n in b ? b[n] : UNIT));
@@ -727,7 +811,9 @@ function emit(v) { if (TASK !== null) { comm(["emit", v]); return; } OUT.push(v)
 const LINES = [];
 const say = (s) => { LINES.push(s); };
 function obs(label, th) {
+  fuelReset();
   try { say(label + " = " + show(th())); } catch (e) { if (!isFlow(e)) throw e; say(label + " " + why(e)); }
+  fuelReport();
 }
 const showState = (s) => s.map(([r, fs]) => r + " { " + fs.map(([n, v]) => n + " = " + show(v)).join(", ") + " }").join("; ");
 function delta(s, ev) {
@@ -745,6 +831,10 @@ function delta(s, ev) {
   return [nxt, outs];
 }
 function runExample(line, events) {
+  fuelReset();
+  try { runExample1(line, events); } finally { fuelReport(); }
+}
+function runExample1(line, events) {
   say("example " + line);
   let s;
   try { s = initialState(); } catch (e) { if (!isFlow(e)) throw e; say("initial " + why(e)); return; }
@@ -762,9 +852,14 @@ function runExample(line, events) {
   }
 }
 function runMain(f) {
+  fuelReset();
+  try { runMain1(f); } finally { fuelReport(); }
+}
+function runMain1(f) {
   say("main");
   OUT.length = 0;
   try {
+    fuel();
     const v = f(null, [])[0];
     for (const o of OUT) say("emit " + show(o));
     say("main = " + show(v));
@@ -1091,7 +1186,7 @@ function parWorkers(names, env, extras) {
   const ws = names.map((n, i) => {
     const mc = new WT.MessageChannel();
     const w = new WT.Worker(new URL(import.meta.url), { argv: process.argv.slice(2),
-      workerData: { par: true, fn: n, env: envE, extra: extE.xs[i], bud, sab: ctl.buffer, i: i + 1, port: mc.port2 },
+      workerData: { par: true, fn: n, env: envE, extra: extE.xs[i], bud, fuel: FUEL, sab: ctl.buffer, i: i + 1, port: mc.port2 },
       transferList: [mc.port2], resourceLimits: { stackSizeMb: 64 } });
     w.unref();
     return { w, port: mc.port1, i: i + 1, st: "run", q: null, res: null };
@@ -1108,7 +1203,7 @@ function parWorkers(names, env, extras) {
         const r = decV(m.message);
         const c = reg[r[1]];
         switch (r[0]) {
-          case "done": x.st = "done"; x.res = [decFlow(r[1]), r[2], r[3]]; break;
+          case "done": x.st = "done"; x.res = [decFlow(r[1]), r[2], r[3], r[4]]; break;
           case "get": reply(x, ["val", c.v]); break;
           case "cas":
             if (eq(c.v, r[2])) { const ch = !eq(r[3], c.v); if (ch) PUTS++; c.v = r[3]; reply(x, ["ok", ch]); }
@@ -1132,14 +1227,20 @@ function parWorkers(names, env, extras) {
     if (!any) Atomics.wait(ctl, 0, seen, 50);
   }
   LVDEC = (id) => reg[id];
-  try { return ws.map((x) => [x.res[0] === null ? null : x.res[0], x.res[1], x.res[2] === null ? null : decV(x.res[2])]); }
+  const f0 = FUEL;
+  try { return ws.map((x) => [x.res[0] === null ? null : x.res[0], x.res[1], x.res[2] === null ? null : decV(x.res[2]), x.res[3], f0]); }
   finally { LVDEC = (id, top) => new LVarP(id, top); for (const x of ws) x.port.close(); }
 }
 function parResolve(outs) {
   let rem = null;
   for (const [s, l] of BUD) { const r = l - s; if (rem === null || r < rem) rem = r; }
-  let cum = 0n;
-  for (const [e, c] of outs) {
+  let cum = 0n, fcum = 0n;
+  for (const [e, c, , u, f0] of outs) {
+    if (u !== undefined) {
+      fcum += u;
+      FUEL = f0 > fcum ? f0 - fcum : 0n;
+      if (fcum > f0) trap("comptime fuel exhausted");
+    }
     if (rem !== null && ((e instanceof Trap && e.m === "budget") || cum + c > rem)) trap("budget");
     if (e !== null) throw e;
     cum += c;
@@ -1162,13 +1263,15 @@ function parMain() {
   const d = WT.workerData;
   PARW = { port: d.port, ctl: new Int32Array(d.sab), i: d.i };
   budRestore(d.bud);
+  FUEL = d.fuel;
   const s0 = BUD.length ? BUD[0][0] : 0n;
   let err = null, w = null;
   try { w = PAR_FNS[d.fn](decV(d.env), decV(d.extra)); } catch (e) { if (!isFlow(e)) throw e; err = e; }
   const s1 = BUD.length ? BUD[0][0] : 0n;
   let msg;
-  try { msg = encV(["done", encFlow(err), s1 - s0, w]); }
-  catch (e) { if (!isFlow(e)) throw e; msg = encV(["done", encFlow(err !== null ? err : e), s1 - s0, null]); }
+  const used = d.fuel - FUEL;
+  try { msg = encV(["done", encFlow(err), s1 - s0, w, used]); }
+  catch (e) { if (!isFlow(e)) throw e; msg = encV(["done", encFlow(err !== null ? err : e), s1 - s0, null, used]); }
   d.port.postMessage(msg);
   Atomics.add(PARW.ctl, 0, 1); Atomics.notify(PARW.ctl, 0);
   d.port.close();
@@ -1278,7 +1381,7 @@ function taskMain() {
   let r;
   if (first[0] === "go") {
     TASK.now = tick;
-    try { const v = FNS[d.f](null, decV(d.args))[0]; awaitScope(0); r = encV(["ok", v]); }
+    try { const a = decV(d.args); for (let i = 0; i <= a.length; i++) fuel(); const v = FNS[d.f](null, a)[0]; awaitScope(0); r = encV(["ok", v]); }
     catch (e) { if (!isFlow(e)) throw e; r = encV(["err", e instanceof Cancel, why(e)]); }
   } else r = encV(["err", true, "cancelled"]);
   linkSend(d.req, flag, 0, { k: "arr", xs: [{ k: "arr", xs: ["done", r] }, { k: "arr", xs: [] }] });

@@ -462,6 +462,7 @@ impl Parser {
             pubs: Default::default(),
             draft06: self.allow06,
             v07: self.v07,
+            v08: false,
         };
         if self.eat_kw("module") {
             m.path = Some(self.path()?);
@@ -571,11 +572,20 @@ impl Parser {
                 let generics = self.generics_opt()?;
                 self.want_p("=")?;
                 let ty = self.ty()?;
+                // `where` is contextual: no type is followed by a name, so
+                // it reserves no identifier (5.1 refined types, C.15 extension).
+                let pred = if matches!(self.peek(), Tok::Id(w) if w == "where") {
+                    self.bump();
+                    Some(self.expr()?)
+                } else {
+                    None
+                };
                 self.nl()?;
                 Ok(Item::TypeAlias {
                     name,
                     generics,
                     ty,
+                    pred,
                     line,
                 })
             }
@@ -1090,12 +1100,21 @@ impl Parser {
         } else {
             None
         };
+        let bound = if self.eat_kw("bound") {
+            match self.bump() {
+                Tok::Int(k) if (1..=u64::MAX as i128).contains(&k) => Some(k as u64),
+                _ => return self.err("a recursion bound is a positive integer literal"),
+            }
+        } else {
+            None
+        };
         Ok(FnSig {
             comptime,
             name,
             generics,
             params,
             ret,
+            bound,
             line,
         })
     }
@@ -2077,7 +2096,7 @@ pub const DRAFT06_KEYWORDS: &[&str] = &[
 ];
 
 /// Language versions a module may declare (spec 2.7).
-pub const VERSIONS: &[&str] = &["0.5", "0.6", "0.7"];
+pub const VERSIONS: &[&str] = &["0.5", "0.6", "0.7", "0.8"];
 
 /// The language version of a module (spec 2.7). The first line may be the
 /// comment `# rce-version: V`; V must be one of `VERSIONS` (W-VER-1).
@@ -2105,17 +2124,22 @@ pub fn declared_version(src: &str) -> Result<Option<&'static str>, String> {
 /// 0.7 (spec 2.7).
 pub fn is_draft06(src: &str) -> Result<bool, String> {
     Ok(match declared_version(src)? {
-        Some(v) => v == "0.6" || v == "0.7",
+        Some(v) => v == "0.6" || v == "0.7" || v == "0.8",
         None => cfg!(feature = "conc06"),
     })
 }
 
 pub fn parse(src: &str) -> Result<Module, String> {
     let d06 = is_draft06(src)?;
-    let v07 = declared_version(src)? == Some("0.7");
+    let v = declared_version(src)?;
+    // 0.8 (5.16) is 0.7 plus indexed values; it keeps the 0.7 costs.
+    let v07 = v == Some("0.7") || v == Some("0.8");
+    let v08 = v == Some("0.8");
     let toks = lex(src)?;
     let mut p = Parser::new(toks);
     p.allow06 = d06;
     p.v07 = v07;
-    p.module()
+    let mut m = p.module()?;
+    m.v08 = v08;
+    Ok(m)
 }

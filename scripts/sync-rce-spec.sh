@@ -6,18 +6,20 @@
 # Copies the reference checker (spec/checker, without its build output and
 # without the tests that need files outside the checker: the draft 0.6
 # fixtures, the Lean vectors and sources and the tree-sitter cross-check),
-# the specification book (read by the grammar and cost tests) and the
-# example programs, and records the source commit in vendor/rce-spec/SOURCE.
+# the specification book (read by the grammar and cost tests), the spec data
+# (data/spec-tables.json is compiled into the checker) and the example
+# programs, and records the source commit in vendor/rce-spec/SOURCE.
 set -eu
 SRC="${1:?usage: scripts/sync-rce-spec.sh /path/to/rce}"
 cd "$(dirname "$0")/.."
 DST=vendor/rce-spec
-rm -rf "$DST/checker" "$DST/examples" "$DST/book"
+rm -rf "$DST/checker" "$DST/examples" "$DST/book" "$DST/data"
 mkdir -p "$DST"
 cp -a "$SRC/spec/checker" "$DST/checker"
 rm -rf "$DST/checker/target"
 cp -a "$SRC/spec/examples" "$DST/examples"
 cp -a "$SRC/spec/book" "$DST/book"
+cp -a "$SRC/spec/data" "$DST/data"
 for t in conc06 conc06_check conc06_run conc06b_check conc06b_run emit06 emit06b \
          emit_run lean_models lean_vectors par_paths theorem_index tree_sitter_sync \
          traces version surface_status; do

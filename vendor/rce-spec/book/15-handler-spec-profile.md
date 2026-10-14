@@ -268,8 +268,12 @@ the promoted handler has paid back its build:
   operations per sample plus one dispatch.
 
 Each term is {`j`, `basis`} with basis one of `est` (a model of the
-work), `reported` (a provider's figure), `measured` (a host
-measurement) or `unpriced` (no figure; `j` is null, never 0). A figure
+work, including a model provider's own figure), `reported` (an OS or
+on-chip energy counter: RAPL, NVML, IOReport), `measured` (a wall or
+shunt meter on a named rail) or `unpriced` (no figure; `j` is null,
+never 0). The terms the engine fills today are est or unpriced: a gear
+receipt's `est_j` is an estimate by schema and is never relabeled from
+its free text. A figure
 without a basis is refused when a record is read, and the type that
 holds a term has no constructor from a bare number. `n_star` is
 {`kind`: `unpriced`} when any term is unpriced (it is never computed
@@ -330,4 +334,4 @@ receipts are version-independent).
 
 **Read receipt.** Which compiled node id does `deliverable D1` become? (for example role_R1)
 
-<!-- body-sha256: 4f1bfbc9b937a79fd74fa0c7d899c16abbd0c85bb02336065a146472119b710e -->
+<!-- body-sha256: 78c5611767eb59366d670b4d9b81c357f6347df0f30663d46d98643491e9ea8a -->

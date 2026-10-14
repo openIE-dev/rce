@@ -48,6 +48,10 @@ path = "src/bin/fuzz.rs"
 required-features = ["tree-sitter"]
 
 [[bin]]
+name = "rce-spec-data"
+path = "src/bin/spec_data.rs"
+
+[[bin]]
 name = "rce-book"
 path = "src/bin/book.rs"
 

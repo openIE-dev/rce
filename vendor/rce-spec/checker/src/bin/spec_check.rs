@@ -227,7 +227,16 @@ fn main() {
         }
     }
     let ex = spec.join("examples");
-    let ok = load(&rce_files(&ex));
+    // examples/*.rce plus each package directory (4.1), e.g. 26_use_module
+    let mut okp = rce_files(&ex);
+    for e in std::fs::read_dir(&ex).unwrap().flatten() {
+        let p = e.path();
+        let n = e.file_name().to_string_lossy().into_owned();
+        if p.is_dir() && !["reject", "ill_typed", "inadmissible"].contains(&n.as_str()) {
+            okp.extend(rce_spec_check::cli::package_files(&p).unwrap().into_iter().map(PathBuf::from));
+        }
+    }
+    let ok = load(&okp);
     let rej = load(&rce_files(&ex.join("reject")));
     let ill = load(&rce_files(&ex.join("ill_typed")));
     let inad = load(&rce_files(&ex.join("inadmissible")));

@@ -1,0 +1,15 @@
+# Refused: the cycle od -> od2 -> od passes through no bounded function.
+fn ev(n: u64) -> bool bound 64
+    if n == 0
+        return true
+    return od(n - 1)
+
+fn od(n: u64) -> bool
+    if n == 0
+        return false
+    if n == 7
+        return od2(n - 1)
+    return ev(n - 1)
+
+fn od2(n: u64) -> bool
+    return od(n)

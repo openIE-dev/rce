@@ -15,18 +15,19 @@ ownership core (`RCE/Ownership.lean`), the concurrency rules of 6.8
 (`RCE/Bound.lean`), name-free hashing and ids (`RCE/NameFree.lean`) and the
 Rust emitter (`RCE/Emit.lean`, printer `RCE/EmitPrint.lean`, differential
 harness `emit-test/`), structural recursion (`RCE/Struct.lean`, draft
-0.4), and the draft 0.5 additions: select fairness (`RCE/Select.lean`),
+0.4), mutual recursion (`RCE/Mutual.lean`), and the draft 0.5 additions: select fairness (`RCE/Select.lean`),
 linear handles (`RCE/Linear.lean`), f32 (`RCE/F32.lean`), u64 arithmetic
 (`RCE/U64.lean`) and iterators (`RCE/Iter.lean`), and foreign replay
-(`RCE/Replay.lean`), `&mut` write-back (`RCE/WriteBack.lean`) and bound
-composition (`RCE/Compose.lean`). Build with `lake build`; no `sorry`,
+(`RCE/Replay.lean`), `&mut` write-back (`RCE/WriteBack.lean`), bound
+composition (`RCE/Compose.lean`) and the host contract of Appendix E
+(`RCE/Host.lean`). Build with `lake build`; no `sorry`,
 no added axioms (`#print axioms` lists only propext, Quot.sound,
 Classical.choice). Status per theorem:
 
 | | Status | Lean |
 |---|---|---|
 | T1 | proved for expressions, δ, and the 6.8 tick semantics (tasks, channels, select, actors): one tick from a configuration has exactly one result | `step_det`, `exec_unique`, `tstep_det`, `run_det`, `tick_det` |
-| T2 | proved, including the explicit bound: a statement reaches its `exec` result in at most B(s) steps (B from loop bounds and expression sizes), a region in at most BR, δ in at most |s|·BR(P). The Lean expression core has no user function calls. Structural recursion (0.4) is proved separately on a model with total leaf and combine bodies: fuel equal to the value's size always suffices, the result equals the function's denotation, extra fuel changes nothing, and the number of calls equals the size | `exec_unique`, `eval_bound`, `stmt_bound`, `region_bound`, `delta_bound`, `struct_total`, `calls_eq_size`, `struct_fuel_irrelevant`; composition along the call graph (a callee's bound adds to the caller's, a chain is bounded by the sum): `comp_bounded`, `comp_result`, `chain_bounded` |
+| T2 | proved, including the explicit bound: a statement reaches its `exec` result in at most B(s) steps (B from loop bounds and expression sizes), a region in at most BR, δ in at most |s|·BR(P). The Lean expression core has no user function calls. Structural recursion (0.4) is proved separately on a model with total leaf and combine bodies: fuel equal to the value's size always suffices, the result equals the function's denotation, extra fuel changes nothing, and the number of calls equals the size. Mutual recursion (6.7) is proved on a model of a family of functions whose calls lower a measure: the checker's call condition lowers the summed measure (`call_dec`), with the rank of the function it lowers the combined measure (`lex_dec`), fuel above the measure always suffices and extra fuel changes nothing, and a chain of calls has at most the measure plus one calls; with several layers (6.7) a call that keeps every earlier layer and shrinks one, or keeps all and lowers the rank, lowers the tuple in a well-founded lexicographic order (`call_keep`, `layer_dec`), every evaluation then ends for some fuel, and more fuel never changes the value; a declared bound (6.7) is modelled by counts of active calls carried in the state, whose slack falls by one at every admitted call of a bounded function, so the same measure argument applies | `exec_unique`, `eval_bound`, `stmt_bound`, `region_bound`, `delta_bound`, `struct_total`, `calls_eq_size`, `struct_fuel_irrelevant`, `call_dec`, `lex_dec`, `mutual_total`, `mutual_fuel_irrelevant`, `mutual_depth`, `call_keep`, `layer_dec`, `wf_total`, `wf_fuel_irrelevant`, `bump_slack`, `bound_dec`; composition along the call graph (a callee's bound adds to the caller's, a chain is bounded by the sum): `comp_bounded`, `comp_result`, `chain_bounded` |
 | T3 | proved | `fold_law`, `log_is_events`, `replay` |
 | T4 | proved for expressions, statements, δ and ticks (some task moves, or every task is done or blocked: the run ends or is `Deadlock`) | `progress`, `stmt_progress`, `delta_bound`, `run_progress`, `progress` (Conc) |
 | T5 | proved for expressions, statements, δ and the whole log; for ticks, the world invariant (typed channel contents, task-owned locations) is preserved | `preservation`, `exec_wt`, `delta_wt`, `run_wt`, `tick_inv` |
@@ -41,7 +42,12 @@ Classical.choice). Status per theorem:
 | T14 | proved: checked u64 ops return the exact result exactly when it lies in [0, 2^64), and udiv/urem satisfy b·q + r = a, r < b | `uadd_spec`, `usub_spec`, `umul_spec`, `udiv_urem`, `udiv_range`, `urem_range` |
 | T32 | proved for every oracle: replay of the log equals the live run, the log's events are the input events, an answer contract holds of every logged answer, and runs that logged the same answers agree | `replay_live`, `live_events`, `live_answers_satisfy`, `t32` |
 | T33 | proved: copy-out on every outcome equals in-place update; copy-out only on success does not | `t33`, `copyOk_differs` |
+| T36 | proved on models of 5.16: every metacharacter of rendered context text comes from a literal when the encoder emits none (and the HTML encoder emits none of `< > " '`); public outputs are equal for runs whose public inputs and secret-equality bits agree; a log of events without the capability leaves a guarded field unchanged. The checker rules are tested on accept/refuse cases and the encoders across the reference and the Rust, Python and JavaScript runtimes (`tests/indexed.rs`) | `ctx_meta_from_literals`, `html_enc_clean`, `noninterference`, `outputs_noninterfere`, `guarded_needs_cap` |
+| T35 | proved on a model of the boundary check: the predicate fragment decides (a total Bool function), a value that passes the check satisfies its predicate, admission accepts only payloads that satisfy their field predicates, and every state reached by the checked δ from an initial state that satisfies the field predicates satisfies them, with a refused event leaving the state unchanged; the reference evaluator and the Rust, Python and JavaScript runtimes are tested to accept and trap alike (`tests/refined.rs`) | `holds_total`, `fit_sound`, `admit_sound`, `refine_preserved`, `refine_refused_unchanged` |
 | T34 | proved for a core fragment (literals, reads, write-back calls, a charging operator, emit) with full ANF: the let-bound program gives the same value, store, and trace of charges and emits; the implementation (`anf.rs`, which binds fewer nodes and covers the surface language) is tested differentially on every target, including a budget sweep across the trap point | `t34`, `run_frame` |
+| T37 | proved on a model of the host (Appendix E): δ extended with host entries is the identity on them, replay of the log with no oracle equals the live run for every adapter oracle, a log of host entries alone leaves the state unchanged, and placement computed from the logged host entries agrees for equal logs; the example logs are re-folded with host entries interleaved in `tests/host_contract.rs` | `host_entry_identity`, `t37_replay`, `t37_host_only`, `t37_placement` |
+| T38 | proved for any hash function: the verified prefix is a prefix and a valid chain, a valid log is kept whole, and a valid log followed by an entry that does not link is cut back to it; the SHA-256 chain of every example log is tested with torn, flipped and swapped entries (`tests/host_contract.rs`) | `verify_prefix`, `verify_valid`, `verify_intact`, `verify_append`, `t38_torn` |
+| T39 | proved on an admitter model: after a failed barrier nothing is appended, and a running admitter's log is exactly the entries it was given | `t39_halted`, `t39_fault_stops`, `t39_run_complete` |
 | T15 | proved for iterators whose step between yields is total (T2): every run ends, delivers at most LOOP_LIMIT values and traps only after exactly LOOP_LIMIT; `break` yields a prefix of the full run; a run with a smaller cap is a prefix of one with a larger cap (the evaluator's re-run strategy) | `drive_total`, `drive_break`, `gen_prefix` |
 
 T16 to T31 belong to version 0.6 and are listed with their exact status
@@ -57,10 +63,15 @@ sequence of 6.8 is a function of the input events.
 
 **T2 Totality of δ.** For every s ∈ S and e ∈ E, evaluation of δ(s, e)
 terminates, and the number of evaluation steps is at most
-B(P) · (1 + size(s) + size(e)) for a bound B(P) computable from P
-(from loop bounds, SIZE_LIMIT and the call graph, which is acyclic except
-for structural self-calls; each of those contributes a factor bounded by
-the size of the value it recurses on, itself bounded by N9).
+B_P(size(s) + size(e)) for a function B_P computable from P (from loop
+bounds, SIZE_LIMIT and the call graph, which is acyclic except for
+recursive cycles admitted by layered measures or declared bounds, 6.7). When the call graph
+has no cycle, B_P(n) = B(P) · (1 + n). A recursive cycle contributes the
+number of calls of a chain of calls, which is finite because its tuple of
+measures falls in a well-founded order, and bounded by a function of the
+sizes of the values it recurses on, themselves bounded by N9; that
+function need not be linear (a function that calls itself twice on the
+same component makes a number of calls exponential in the size).
 
 **T3 Fold law.** For every log D = e₁…eₙ, the state the runtime reaches is
 foldl(δ₁, s₀, D), and replaying D from s₀ reproduces every state hash and
@@ -139,6 +150,30 @@ answer.
 every outcome (6.2) gives the same store and outcome as updating them in
 place.
 
+**T36 Indexed values.** In a version 0.8 module (5.16): untrusted text
+forms no structure of a `Text[C]` value; outputs do not depend on
+secrets beyond the equality bits; a guarded field changes only on events
+that carry its capability.
+
+**T35 Refinement invariance.** If the initial state satisfies the
+predicates of its refined fields, every state in the fold of the log
+(6.1) satisfies them, and an event whose payload or resulting state
+breaks a predicate is refused with the state unchanged (5.1).
+
+**T37 Host replay.** For every adapter oracle, replaying the log D with
+every adapter disconnected gives the live run's state after every entry;
+host entries leave the state unchanged; placement, a function of the
+logged host entries, is the same on replay (Appendix E).
+
+**T38 Verify on open.** The verified prefix of a hash-chained log is a
+prefix of it and a valid chain, equals the log when the log is valid, and
+cuts a valid log followed by an entry that does not link back to the
+valid log (Appendix E, HS-4).
+
+**T39 Fatal barrier.** After a failed storage barrier the admitter
+appends nothing more, and a running admitter's log holds exactly the
+entries it was given (Appendix E, HS-3).
+
 **T34 Order-preserving A-normal form.** Flattening an expression into
 `let`-bound steps in left-to-right order, with each temporary fresh,
 gives the same value, final store, and ordered trace of budget charges
@@ -159,4 +194,4 @@ tables is checked to exist (`spec/checker/tests/theorem_index.rs`).
 
 **Read receipt.** What is the deep embedding of the emitted Rust subset called?
 
-<!-- body-sha256: 182f9afb88e9a12e15e7e7ccc0a31cc1e895905a3e60aeb72b668b2fafea9921 -->
+<!-- body-sha256: 5bfae39f553379d66b8f3e4ef214de386e855cff0e5d4d518ab103e4bde86650 -->

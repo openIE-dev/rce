@@ -52,7 +52,7 @@ fn draft06_words_are_names_in_05() {
 
 #[test]
 fn unknown_version_is_w_ver_1() {
-    let e = parse("# rce-version: 0.8\nfn main()\n    pass\n").unwrap_err();
+    let e = parse("# rce-version: 0.9\nfn main()\n    pass\n").unwrap_err();
     assert!(e.contains("W-VER-1"), "{e}");
 }
 

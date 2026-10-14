@@ -60,7 +60,12 @@ The Form
   reading another region's fields in a step; calling a foreign function
   anywhere but `fn main` or a task function.
 - W-REC-1 A cycle in the call graph, including through trait methods after
-  monomorphization, other than direct structural recursion (6.7).
+  monomorphization, other than a cycle of plain functions (one function
+  calling itself included) whose calls are done by layered summed
+  measures, or each of whose cycles of calls passes through a function
+  declared with `bound` (6.7); `par` or `for … par` in a function of a
+  cycle with a bounded function; `bound` on an iterator, a foreign
+  function or a trait signature.
 - W-CT-1 Comptime code that calls a non-comptime-safe function or traps or
   exceeds fuel.
 - W-INT-1 An `example` or `check` that does not hold.
@@ -75,11 +80,30 @@ The Form
 - W-ITER-1 An iterator function that is not pure or has an arrow body;
   `yield` outside an iterator function; an `iter τ` value used other than as
   a `for` operand or `.collect()` receiver (5.14).
+- W-REF-1 A refined type (5.1) that is generic, refines a type other than
+  an integer type, `text` or a collection, or whose predicate is outside
+  the decidable fragment (a term other than `self`, `self.len()` or an
+  integer literal, an operator other than a comparison, `and`, `or`,
+  `not`, or a call other than a text character class).
 - W-LOOP-1 A `LOOP_LIMIT` declaration that is not `const LOOP_LIMIT: u64 = n`
   with a positive literal n (6.7).
 - W-TRAIT-1 An impl not matching its trait; W-TRAIT-2 incoherent or orphan
   impls; W-TRAIT-3 a type used with `==`, `!=`, an ordering operator or a
   generic bound without implementing the trait it needs.
+
+Version 0.8 only (5.16)
+- W-CTX-1 Context text made other than by `C.lit` of a string literal or
+  `C.encode`; joined with another context or plain text; carried by an
+  event payload; an unknown context.
+- W-SEC-1 An operator or method on a secret other than `==`/`!=`; a
+  secret in an emitted value, a channel, an error payload or a foreign
+  call.
+- W-CAP-1 A capability outside an event payload field or a parameter;
+  `Guarded` outside a state field; an authority that is not a declared
+  struct.
+- W-CAP-2 A step that writes a `Guarded[τ, A]` field on an event without
+  a `Cap[A]` field. (W-NAME-2 refuses a declaration named after a 5.16
+  type or context.)
 
 Version 0.6 only (Appendix C, applies only to a module declaring
 `# rce-version: 0.6`): W-PAR-1 to W-PAR-4, W-DL-1, W-ND-1, W-GRP-1 to
@@ -88,4 +112,4 @@ W-LVAR-1, W-LVAR-2, W-NODE-1, W-SUP-1, W-SUP-2, W-INTR-1 and W-RT-1.
 
 **Read receipt.** Which rule refuses two unguarded steps in one region whose patterns overlap?
 
-<!-- body-sha256: dd076701a9e7d051297c3198dc8cd04b76a4fa8e6e23ade35841859151ea8cf0 -->
+<!-- body-sha256: 2e6c0e0ff7bbee51116558a003506f9d6976ce57eb922edfd73a5e021b1ec50d -->

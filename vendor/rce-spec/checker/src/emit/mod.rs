@@ -1,4 +1,4 @@
-//! Emitters for `rce emit rust|python|js` (spec 10.5).
+//! Emitters for `rce emit rust|python|js|scala` (spec 10.5).
 //!
 //! Each emitter turns a checked module into one self-contained source file.
 //! The file starts with a runtime that follows the reference evaluator
@@ -34,6 +34,8 @@ pub enum Lang {
     Rust,
     Python,
     Js,
+    /// Scala 3 on the JVM (the functional-language target; see rt.scala)
+    Scala,
 }
 
 impl Lang {
@@ -42,6 +44,7 @@ impl Lang {
             "rust" => Some(Lang::Rust),
             "python" => Some(Lang::Python),
             "js" => Some(Lang::Js),
+            "scala" => Some(Lang::Scala),
             _ => None,
         }
     }
@@ -50,6 +53,8 @@ impl Lang {
             Lang::Rust => "rs",
             Lang::Python => "py",
             Lang::Js => "mjs",
+            Lang::Scala => "scala",
+
         }
     }
 }
@@ -90,6 +95,17 @@ fn res(out: &mut Vec<String>, label: String, r: Result<V, crate::interp::Flow>) 
 /// is one line per constant, `check`, zero-argument function, example event
 /// and `fn main` output, in item order, with `main` last.
 pub fn observe(m: &Module) -> Vec<String> {
+    observe_with(m, false)
+}
+
+/// `observe`, with a line `fuel N` after each observation giving the steps
+/// (fuel ticks, 6.7) it used; an emitted program run with `--fuel-trace`
+/// prints the same lines (tests/fuel.rs).
+pub fn observe_fuel(m: &Module) -> Vec<String> {
+    observe_with(m, true)
+}
+
+fn observe_with(m: &Module, fuel: bool) -> Vec<String> {
     let mut out = vec![];
     let mut main = None;
     for item in &m.items {
@@ -98,22 +114,24 @@ pub fn observe(m: &Module) -> Vec<String> {
                 let mut it = Interp::new(m);
                 let r = it.const_value(name);
                 res(&mut out, format!("const {name}"), r);
+                if fuel { out.push(format!("fuel {}", it.steps_used())); }
             }
-            Item::Check(e) => obs_check(m, e, &mut out),
+            Item::Check(e) => obs_check(m, e, &mut out, fuel),
             Item::Intent(_, xs, cks) => {
                 for e in cks {
-                    obs_check(m, e, &mut out);
+                    obs_check(m, e, &mut out, fuel);
                 }
                 for x in xs {
-                    obs_example(m, x, &mut out);
+                    obs_example(m, x, &mut out, fuel);
                 }
             }
-            Item::Example(x) => obs_example(m, x, &mut out),
+            Item::Example(x) => obs_example(m, x, &mut out, fuel),
             Item::Fn(f) if f.sig.name == "main" && f.sig.params.is_empty() => main = Some(f),
             Item::Fn(f) if zero_arg(f) => {
                 let mut it = Interp::new(m);
                 let r = it.call_fn(f, &[], None);
                 res(&mut out, format!("fn {}", f.sig.name), r);
+                if fuel { out.push(format!("fuel {}", it.steps_used())); }
             }
             _ => {}
         }
@@ -127,20 +145,27 @@ pub fn observe(m: &Module) -> Vec<String> {
             out.push(format!("emit {}", o.show()));
         }
         res(&mut out, "main".into(), r);
+        if fuel { out.push(format!("fuel {}", it.steps_used())); }
     }
     out
 }
 
-fn obs_check(m: &Module, e: &Expr, out: &mut Vec<String>) {
+fn obs_check(m: &Module, e: &Expr, out: &mut Vec<String>, fuel: bool) {
     let mut it = Interp::new(m);
     it.scopes = vec![HashMap::new()];
     let r = it.eval(e);
     res(out, format!("check {}", e.line()), r);
+    if fuel { out.push(format!("fuel {}", it.steps_used())); }
 }
 
-fn obs_example(m: &Module, x: &Example, out: &mut Vec<String>) {
-    out.push(format!("example {}", x.line));
+fn obs_example(m: &Module, x: &Example, out: &mut Vec<String>, fuel: bool) {
     let mut it = Interp::new(m);
+    obs_example1(m, x, out, &mut it);
+    if fuel { out.push(format!("fuel {}", it.steps_used())); }
+}
+
+fn obs_example1<'a>(_m: &'a Module, x: &'a Example, out: &mut Vec<String>, it: &mut Interp<'a>) {
+    out.push(format!("example {}", x.line));
     let mut s = match it.initial_state() {
         Ok(s) => s,
         Err(f) => {

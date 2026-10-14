@@ -138,6 +138,13 @@ pub(crate) fn trap<T>(m: impl Into<String>) -> R<T> {
 
 pub const LOOP_LIMIT: i128 = 1_000_000;
 pub const FUEL: u64 = 50_000_000;
+/// The fuel each new evaluator starts with (6.7). It is FUEL; the tests of
+/// tests/fuel.rs set it to find the trap step of small programs, and an
+/// emitted program takes the same number from its `--fuel=N` argument (10.5).
+pub static FUEL_LIMIT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(FUEL);
+pub fn fuel_limit() -> u64 {
+    FUEL_LIMIT.load(std::sync::atomic::Ordering::Relaxed)
+}
 
 pub struct Interp<'a> {
     pub m: &'a Module,
@@ -154,6 +161,9 @@ pub struct Interp<'a> {
     pub(crate) yields: Vec<(Vec<V>, usize)>,
     /// Concurrency state of draft 0.6 / 0.6b (see conc.rs).
     pub cx: crate::conc::TaskCx,
+    /// active calls of each function declared with `bound n` (6.7), keyed
+    /// by the declaration
+    pub(crate) depth: HashMap<usize, u64>,
 }
 
 fn int_name(t: &Ty) -> Option<&'static str> {
@@ -176,12 +186,13 @@ impl<'a> Interp<'a> {
             variants: HashMap::new(),
             consts: HashMap::new(),
             scopes: vec![],
-            fuel: FUEL,
+            fuel: fuel_limit(),
             outputs: vec![],
             loop_limit: LOOP_LIMIT,
             gens: vec![],
             yields: vec![],
             cx: Default::default(),
+            depth: HashMap::new(),
         };
         for i in &m.items {
             match i {
@@ -223,6 +234,18 @@ impl<'a> Interp<'a> {
         it
     }
     pub(crate) fn alias(&self, t: &Ty) -> Ty {
+        // 5.16 indexed types are erased: their values are those of the base
+        if let Ty::Path(p, a) = t
+            && p.len() == 1
+            && !self.types.contains_key(&p[0])
+        {
+            match (p[0].as_str(), a.as_slice()) {
+                ("Guarded", [x, _]) | ("Secret", [x]) => return self.alias(x),
+                ("Text", [_]) => return Ty::Path(vec!["text".into()], vec![]),
+                ("Cap", [_]) => return Ty::Unit,
+                _ => {}
+            }
+        }
         if let Ty::Path(p, _) = t
             && p.len() == 1
             && let Some(Item::TypeAlias { ty, .. }) = self.types.get(&p[0])
@@ -233,6 +256,21 @@ impl<'a> Interp<'a> {
     }
     /// Give literals the declared type and check integer ranges (6.3).
     pub fn fit(&self, v: V, t: &Ty) -> R<V> {
+        // A refined type (5.1, W-REF-1) is checked where its base type is:
+        // the value fits the base, then must satisfy the predicate.
+        if let Ty::Path(p, _) = t
+            && p.len() == 1
+            && let Some(Item::TypeAlias { ty, pred: Some(e), .. }) = self.types.get(&p[0])
+        {
+            let v = self.fit(v, ty)?;
+            if let Some(b) = crate::refine::base_of(&self.alias(ty))
+                && let Ok(pr) = crate::refine::compile(e, b)
+                && !crate::refine::holds(&pr, &v)
+            {
+                return trap(crate::refine::trap_text(&p[0]));
+            }
+            return Ok(v);
+        }
         let t = self.alias(t);
         match (v, &t) {
             (V::Int(x, _), _) if int_name(&t).is_some() => {
@@ -280,7 +318,7 @@ impl<'a> Interp<'a> {
     /// Evaluation steps (fuel ticks) taken so far by this evaluator; the
     /// unit in which the T2 step bound is measured by `rce-c1`.
     pub fn steps_used(&self) -> u64 {
-        FUEL - self.fuel
+        fuel_limit().saturating_sub(self.fuel)
     }
     pub(crate) fn tick(&mut self) -> R<()> {
         if self.fuel == 0 {
@@ -1106,6 +1144,24 @@ impl<'a> Interp<'a> {
     }
 
     fn call(&mut self, f: &Expr, args: &[Arg], sized: bool) -> R<V> {
+        // 5.16 context text: `C.lit("…")` is its literal, `C.encode(t)` escapes
+        if let Expr::Member(o, m, _) = f
+            && let Expr::Name(c, _) = &**o
+            && crate::index08::CTX.contains(&c.as_str())
+            && self.get(c).is_none()
+            && !self.types.contains_key(c)
+            && args.len() == 1
+        {
+            let v = self.eval(&args[0].e)?;
+            // C.16: `lit` costs c_call, `encode` c_call plus its text (linear class)
+            let w = if m == "encode" { crate::conc::size_of(&v) } else { 0 };
+            self.charge(crate::conc::C_CALL.saturating_add(w))?;
+            return match (m.as_str(), v) {
+                ("lit", V::Text(s)) => Ok(V::Text(s)),
+                ("encode", V::Text(s)) => Ok(V::Text(crate::index08::encode(c, &s))),
+                _ => trap("context text"),
+            };
+        }
         match f {
             Expr::Name(n, _) if self.get(n).is_none() => {
                 match n.as_str() {
@@ -1234,6 +1290,16 @@ impl<'a> Interp<'a> {
             self.gens.push((fd, frame));
             return Ok(V::Gen(self.gens.len() - 1));
         }
+        // `bound n` (6.7): the call that would be the (n + 1)-th active call
+        // of this function traps; arguments are evaluated and fitted first
+        let bkey = fd.sig.bound.map(|n| (fd as *const FnDecl as usize, n));
+        if let Some((k, n)) = bkey {
+            let d = self.depth.get(&k).copied().unwrap_or(0);
+            if d >= n {
+                return trap("recursion bound");
+            }
+            self.depth.insert(k, d + 1);
+        }
         let self_mut = matches!(fd.sig.params.first(), Some(Param::SelfRef(true)));
         if let Some((rv, _)) = &recv {
             frame.insert("self".into(), rv.clone());
@@ -1248,6 +1314,11 @@ impl<'a> Interp<'a> {
                 Err(f) => Err(f),
             },
         };
+        if let Some((k, _)) = bkey
+            && let Some(d) = self.depth.get_mut(&k)
+        {
+            *d -= 1;
+        }
         let fin = std::mem::replace(&mut self.scopes, saved);
         // copy-out for `&mut` arguments and a `&mut self` receiver
         for ((n, t), a) in named.iter().zip(args) {
@@ -1385,9 +1456,19 @@ impl<'a> Interp<'a> {
             }
             (Text(s), "strip") => Ok(Text(s.trim().into())),
             (Text(s), "upper") => Ok(Text(s.to_ascii_uppercase())),
+            (Text(s), "sha256") => {
+                use sha2::{Digest, Sha256};
+                Ok(Text(
+                    Sha256::digest(s.as_bytes())
+                        .iter()
+                        .map(|b| format!("{b:02x}"))
+                        .collect(),
+                ))
+            }
             (Text(s), "lower") => Ok(Text(s.to_ascii_lowercase())),
             (Text(s), "reverse") => Ok(Text(s.chars().rev().collect())),
             (Text(s), "tostr") => Ok(Text(s)),
+            (Text(s), "raw") => Ok(Text(s)),
             (Text(s), "chars") => Ok(List(s.chars().map(|c| Text(c.to_string())).collect())),
             (Text(s), "words") => Ok(List(s.split_whitespace().map(|w| Text(w.into())).collect())),
             (Text(s), "lines") => Ok(List(s.lines().map(|w| Text(w.into())).collect())),

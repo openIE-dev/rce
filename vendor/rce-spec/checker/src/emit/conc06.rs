@@ -32,6 +32,7 @@ impl<'a> G<'a> {
             Lang::Rust => format!("marker_int(&{v})?"),
             Lang::Python => format!("marker_int({v})"),
             Lang::Js => format!("markerInt({v})"),
+            Lang::Scala => format!("marker_int({v})"),
         })
     }
 
@@ -61,6 +62,13 @@ impl<'a> G<'a> {
                 self.line("budgetExit();");
                 self.close();
             }
+            Lang::Scala => {
+                self.line(format!("budget_enter({n})"));
+                self.open("try");
+                self.block(&body[1..], false)?;
+                self.ind -= 1;
+                self.line("} finally { budget_exit() }");
+            }
         }
         Ok(())
     }
@@ -77,6 +85,11 @@ impl<'a> G<'a> {
         let fork = 16 * k;
         let l = self.lang;
         let s = self.stmt_call("charge", &format!("{fork}{}", if l == Lang::Js { "n" } else { "" }));
+        if l == Lang::Scala {
+            self.line(s);
+            let waits = bodies.iter().any(|b| has_wait(b));
+            return self.par06_seq(&bodies, waits);
+        }
         self.line(s);
         let waits = bodies.iter().any(|b| has_wait(b));
         if matches!(l, Lang::Rust | Lang::Python) && k > 1 {
@@ -102,6 +115,9 @@ impl<'a> G<'a> {
             return Ok(());
         }
         let (pd, pr, prog) = (self.fresh("pd"), self.fresh("pr"), self.fresh("prog"));
+        if l == Lang::Scala {
+            return self.par06_seq_scala(bodies, &pd, &pr, &prog);
+        }
         self.open_block();
         match l {
             Lang::Rust => {
@@ -121,7 +137,7 @@ impl<'a> G<'a> {
                 self.line(format!("{prog} = False"));
                 self.line("__pc = puts()");
             }
-            Lang::Js => {
+            Lang::Js | Lang::Scala => {
                 self.line(format!("const {pd} = Array({k}).fill(false);"));
                 self.line(format!("const {pr} = Array({k}).fill(null);"));
                 self.line("parEnter();");
@@ -142,7 +158,7 @@ impl<'a> G<'a> {
                 .collect();
             let bs = self.fresh("bs");
             let head = match l {
-                Lang::Js => format!("if (!{pd}[{i}])"),
+                Lang::Js | Lang::Scala => format!("if (!{pd}[{i}])"),
                 Lang::Python => format!("if not {pd}[{i}]"),
                 Lang::Rust => format!("if !{pd}[{i}]"),
             };
@@ -160,7 +176,7 @@ impl<'a> G<'a> {
                 .chain(std::iter::once(match l {
                     Lang::Python => format!("bud_restore({bs})"),
                     Lang::Rust => format!("bud_restore({bs});"),
-                    Lang::Js => format!("budRestore({bs});"),
+                    Lang::Js | Lang::Scala => format!("budRestore({bs});"),
                 }))
                 .collect();
             match l {
@@ -198,7 +214,7 @@ impl<'a> G<'a> {
                     self.close();
                     self.close();
                 }
-                Lang::Js => {
+                Lang::Js | Lang::Scala => {
                     self.open("try");
                     self.block(b, false)?;
                     self.line(format!("{pd}[{i}] = true; {prog} = true;"));
@@ -254,7 +270,56 @@ impl<'a> G<'a> {
                 self.close();
                 self.line(format!("for (const __e of {pr}) if (__e !== null) throw __e;"));
             }
+            Lang::Scala => unreachable!(),
         }
+        self.close_block();
+        Ok(())
+    }
+
+    /// Scala: the restart schedule, with a flag in place of `break`
+    fn par06_seq_scala(&mut self, bodies: &[&[Stmt]], pd: &str, pr: &str, prog: &str) -> Result<(), String> {
+        let k = bodies.len();
+        let go = self.fresh("go");
+        self.open_block();
+        self.line(format!("val {pd} = Array.fill({k})(false)"));
+        self.line(format!("val {pr} = Array.fill[Throwable]({k})(null)"));
+        self.line(format!("var {go} = true"));
+        self.line("par_enter()");
+        self.open("try");
+        self.open(&format!("while ({go})"));
+        self.line(format!("var {prog} = false"));
+        self.line("val __pc = puts()");
+        for (i, b) in bodies.iter().enumerate() {
+            let roots: Vec<String> = written_roots(b).into_iter().filter(|n| self.local(n)).collect();
+            let snaps: Vec<(String, String)> = roots.iter().map(|n| (format!("l_{}", ident(n)), self.fresh("sn"))).collect();
+            let bs = self.fresh("bs");
+            self.open(&format!("if (!{pd}({i}))"));
+            for (v, sn) in &snaps {
+                self.line(format!("val {sn} = {v}"));
+            }
+            self.line(format!("val {bs} = bud_snap()"));
+            self.open("try");
+            self.block(b, false)?;
+            self.line(format!("{pd}({i}) = true; {prog} = true"));
+            self.ind -= 1;
+            self.line("} catch {");
+            self.ind += 1;
+            let mut rs: Vec<String> = snaps.iter().map(|(v, sn)| format!("{v} = {sn}")).collect();
+            rs.push(format!("bud_restore({bs})"));
+            self.line(format!("case __e: Trap if __e.m == \"$block\" => {}", rs.join("; ")));
+            self.line(format!("case __e: Flow if __e.isInstanceOf[Trap] || __e.isInstanceOf[Fail] => {pd}({i}) = true; {prog} = true; {pr}({i}) = __e"));
+            self.close();
+            self.close();
+        }
+        let stuck = "lvar wait cannot be satisfied";
+        self.line(format!("if ({pd}.forall(d => d)) {go} = false"));
+        self.line(format!(
+            "else if (!{prog} && par_stuck(__pc)) {{ for (j <- 0 until {k}) if (!{pd}(j)) {pr}(j) = new Trap(\"{stuck}\"); {go} = false }}"
+        ));
+        self.close();
+        self.ind -= 1;
+        self.line("} finally { par_exit() }");
+        self.line(format!("for (__e <- {pr}) if (__e != null) throw __e"));
         self.close_block();
         Ok(())
     }
@@ -359,7 +424,7 @@ impl<'a> G<'a> {
         }
         self.line(format!("let __pcx = par_cx_new({k});"));
         self.line("let __bud = bud_snap();");
-        self.line("let __outs: Vec<(R<()>, i128, Vec<V>)> = std::thread::scope(|__s| {");
+        self.line("let __outs: Vec<(R<()>, (i128, u64), Vec<V>)> = std::thread::scope(|__s| {");
         self.ind += 1;
         for (i, b) in bodies.iter().enumerate() {
             self.line(format!("let __h{i} = {{"));
@@ -391,12 +456,14 @@ impl<'a> G<'a> {
         self.ind -= 1;
         self.line("});");
         self.line("let __rem = bud_rem();");
+        self.line("let (__f0, mut __fcum) = (__pcx.fuel0, 0u64);");
         self.line("let mut __cum: i128 = 0;");
         self.line("let mut __ws: Vec<Vec<V>> = vec![];");
         self.open("for (__r, __c, __w) in __outs");
-        self.line("if let Some(__rm) = __rem { if matches!(&__r, Err(Flow::Trap(t)) if t == \"budget\") || __cum + __c > __rm { Err(Flow::Trap(\"budget\".to_string()))?; } }");
+        self.line("par_fuel(&mut __fcum, __f0, __c.1)?;");
+        self.line("if let Some(__rm) = __rem { if matches!(&__r, Err(Flow::Trap(t)) if t == \"budget\") || __cum + __c.0 > __rm { Err(Flow::Trap(\"budget\".to_string()))?; } }");
         self.line("__r?;");
-        self.line("__cum += __c;");
+        self.line("__cum += __c.0;");
         self.line("__ws.push(__w);");
         self.close();
         for (i, rs) in roots.iter().enumerate() {
@@ -487,7 +554,7 @@ impl<'a> G<'a> {
                 self.line(format!("if len({items}) > LOOP_LIMIT: trap(\"loop bound\")"));
                 self.line(format!("{nch} = par_chunks(len({items}))"));
             }
-            Lang::Js => {
+            Lang::Js | Lang::Scala => {
                 self.line(format!("const {items} = [...iterItems({itv})];"));
                 self.line(format!("if ({items}.length > LOOP_LIMIT) trap(\"loop bound\");"));
                 self.line(format!("const {nch} = parChunks({items}.length);"));
@@ -540,7 +607,7 @@ impl<'a> G<'a> {
                 let locals = self.all_locals();
                 self.line(format!("let __pcx = par_cx_new({nch});"));
                 self.line("let __bud = bud_snap();");
-                self.line("let __outs: Vec<(R<()>, i128, Vec<V>, Vec<Vec<V>>)> = std::thread::scope(|__s| {");
+                self.line("let __outs: Vec<(R<()>, (i128, u64), Vec<V>, Vec<Vec<V>>)> = std::thread::scope(|__s| {");
                 self.ind += 1;
                 self.line("let mut __hs = vec![];");
                 self.open(&format!("for __ch in par_split(&{items}, {nch})"));
@@ -577,15 +644,17 @@ impl<'a> G<'a> {
                 self.ind -= 1;
                 self.line("});");
                 self.line("let __rem = bud_rem();");
+        self.line("let (__f0, mut __fcum) = (__pcx.fuel0, 0u64);");
                 self.line("let mut __cum: i128 = 0;");
                 self.line(format!("let mut {ws}: Vec<Vec<V>> = vec![];"));
                 for ck in &cks {
                     self.line(format!("let mut {ck}: Vec<V> = vec![];"));
                 }
                 self.open("for (__r, __c, __w, __k) in __outs");
-                self.line("if let Some(__rm) = __rem { if matches!(&__r, Err(Flow::Trap(t)) if t == \"budget\") || __cum + __c > __rm { Err(Flow::Trap(\"budget\".to_string()))?; } }");
+                self.line("par_fuel(&mut __fcum, __f0, __c.1)?;");
+        self.line("if let Some(__rm) = __rem { if matches!(&__r, Err(Flow::Trap(t)) if t == \"budget\") || __cum + __c.0 > __rm { Err(Flow::Trap(\"budget\".to_string()))?; } }");
                 self.line("__r?;");
-                self.line("__cum += __c;");
+                self.line("__cum += __c.0;");
                 self.line(format!("{ws}.push(__w);"));
                 if !cks.is_empty() {
                     self.line("let mut __k = __k.into_iter();");
@@ -604,7 +673,7 @@ impl<'a> G<'a> {
                 self.close();
                 self.line("bud_add(__cum);");
             }
-            Lang::Js => {
+            Lang::Js | Lang::Scala => {
                 let locals = self.all_locals();
                 let env = self.fresh("pe");
                 let lv: Vec<String> = locals.iter().map(|n| format!("l_{}", ident(n))).collect();
@@ -731,6 +800,7 @@ impl<'a> G<'a> {
             Lang::Rust => self.line(format!("let ({gn}, {graw}) = lanes_of(&{nv})?;")),
             Lang::Python => self.line(format!("{gn}, {graw} = lanes_of({nv})")),
             Lang::Js => self.line(format!("const [{gn}, {graw}] = lanesOf({nv});")),
+            Lang::Scala => self.line(format!("val ({gn}, {graw}) = lanes_of({nv})")),
         }
         // per target: value before, identity, one accumulator per lane
         let mut tv = vec![];
@@ -750,6 +820,7 @@ impl<'a> G<'a> {
                 Lang::Rust => format!("vec![{ik}.clone(); {gn}]"),
                 Lang::Python => format!("[{ik}] * {gn}"),
                 Lang::Js => format!("Array({gn}).fill({ik})"),
+                Lang::Scala => format!("Vector.fill[Any]({gn})({ik})"),
             };
             let s = self.let_(&ak, &acc);
             self.line(s);
@@ -782,11 +853,13 @@ impl<'a> G<'a> {
                 Lang::Rust => self.open(&format!("for {lane} in 0..{gn}")),
                 Lang::Python => self.open(&format!("for {lane} in range({gn})")),
                 Lang::Js => self.open(&format!("for (let {lane} = 0; {lane} < {gn}; {lane}++)")),
+                Lang::Scala => self.open(&format!("for ({lane} <- 0 until {gn})")),
             }
             self.scopes.push(vec![]);
             for (t, _, _, _, ak) in &tv {
                 let v = match l {
                     Lang::Rust => format!("{ak}[{lane}].clone()"),
+                    Lang::Scala => format!("at({ak}, {lane})"),
                     _ => format!("{ak}[{lane}]"),
                 };
                 self.assign(&Expr::Name(t.clone(), 0), &v)?;
@@ -795,6 +868,7 @@ impl<'a> G<'a> {
                 Lang::Rust => format!("group_rec({lane}, {graw})"),
                 Lang::Python => format!("group_rec({lane}, {graw})"),
                 Lang::Js => format!("groupRec({lane}, {graw})"),
+                Lang::Scala => format!("group_rec({lane}, {graw})"),
             };
             let s = self.let_(&format!("l_{}", ident(g)), &gr);
             self.line(s);
@@ -809,6 +883,7 @@ impl<'a> G<'a> {
                         };
                         let head = match l {
                             Lang::Js => format!("if ({lane} === 0)"),
+                            Lang::Scala => format!("if ({lane} == 0)"),
                             _ => format!("if {lane} == 0"),
                         };
                         self.open(&head);
@@ -826,7 +901,12 @@ impl<'a> G<'a> {
             }
             for (t, _, _, _, ak) in &tv {
                 let cur = self.var(t);
-                let s = self.set_(&format!("{ak}[{lane}]"), &cur);
+                let s = if l == Lang::Scala {
+                    format!("{ak} = {ak}.updated({lane}, {cur})")
+                } else {
+                    self.set_(&format!("{ak}[{lane}]"), &cur)
+                };
+
                 self.line(s);
             }
             self.scopes.pop();

@@ -8,55 +8,6 @@ use crate::parse::{KEYWORDS, parse};
 use serde_json::{Value, json};
 use std::collections::HashSet;
 
-/// Builtin methods of the reference evaluator, offered after `.`.
-pub const BUILTIN_METHODS: &[&str] = &[
-    "abs",
-    "append",
-    "ceil",
-    "chars",
-    "clear",
-    "collect",
-    "contains",
-    "endswith",
-    "filter",
-    "floor",
-    "fold",
-    "get",
-    "insert",
-    "isalpha",
-    "isdigit",
-    "isempty",
-    "isnone",
-    "issome",
-    "isspace",
-    "join",
-    "keys",
-    "len",
-    "lines",
-    "lower",
-    "map",
-    "max",
-    "min",
-    "or",
-    "pop",
-    "push",
-    "remove",
-    "reverse",
-    "round",
-    "sort",
-    "split",
-    "sqrt",
-    "startswith",
-    "strip",
-    "sum",
-    "toint",
-    "tostr",
-    "upper",
-    "usize",
-    "values",
-    "with",
-    "words",
-];
 
 /// A named thing in a document, 1-based lines.
 #[derive(Clone, Debug)]
@@ -383,8 +334,8 @@ impl Index {
                     _ => {}
                 }
             }
-            for m in BUILTIN_METHODS {
-                add(m, 2, "builtin method");
+            for m in crate::specread::all_methods() {
+                add(&m, 2, "builtin method");
             }
         } else {
             let l = line + 1;

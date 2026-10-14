@@ -69,15 +69,18 @@ pub fn ceil_log2(n: i128) -> i128 {
 pub fn method_work(recv: &V, m: &str, args: &[V]) -> i128 {
     let n = size_of(recv);
     let k = args.first().map(size_of).unwrap_or(0);
-    let lin = match recv {
-        V::Text(_) => matches!(m, "strip" | "upper" | "lower" | "reverse" | "tostr" | "chars" | "words" | "lines" | "split" | "isdigit" | "isalpha" | "isspace" | "contains" | "startswith" | "endswith" | "toint" | "join"),
-        V::List(_) => matches!(m, "reverse" | "contains" | "sum" | "map" | "filter" | "fold"),
-        V::Map(_) => matches!(m, "get" | "contains" | "insert" | "remove" | "keys" | "values"),
-        _ => false,
+    // the classes are read from spec-data.json (C.6.4, `specread`)
+    let kind = match recv {
+        V::Text(_) => "text",
+        V::List(_) => "list",
+        V::Map(_) => "map",
+        _ => "",
     };
+    let class = crate::specread::work(kind, m);
+    let lin = class == crate::specread::Work::Linear;
     if lin {
         n.saturating_add(k)
-    } else if matches!(recv, V::List(_)) && m == "sort" {
+    } else if class == crate::specread::Work::NLogN {
         n.saturating_mul(ceil_log2(n))
     } else {
         0

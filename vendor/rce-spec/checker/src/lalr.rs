@@ -381,6 +381,10 @@ pub enum Act {
     Accept,
 }
 
+/// Contextual words: terminals of section 3 that are not reserved (2.4);
+/// `where` follows a type in a refined type declaration (5.1).
+pub const CONTEXTUAL: &[&str] = &["where"];
+
 pub struct Lalr {
     pub g: Grammar,
     pub states: usize,
@@ -615,6 +619,31 @@ impl Lalr {
         }
     }
 
+    /// The ACTION and GOTO tables as sorted rows, for export (W2): each
+    /// action is (state, terminal, "s" | "r" | "acc", target) and each goto
+    /// (state, nonterminal, target). The order is a function of the tables
+    /// only, so the export is byte-identical for one grammar.
+    pub fn tables(&self) -> (Vec<ActionRow>, Vec<GotoRow>) {
+        let mut a = vec![];
+        for (st, row) in self.action.iter().enumerate() {
+            for (&t, act) in row {
+                a.push(match *act {
+                    Act::Shift(x) => (st, t, "s", x),
+                    Act::Reduce(x) => (st, t, "r", x),
+                    Act::Accept => (st, t, "acc", 0),
+                });
+            }
+        }
+        a.sort();
+        let mut g = vec![];
+        for (st, row) in self.goto.iter().enumerate() {
+            for (&n, &x) in row {
+                g.push((st, n, x));
+            }
+        }
+        g.sort();
+        (a, g)
+    }
     pub fn term(&self, name: &str) -> Option<usize> {
         self.g.terms.iter().position(|t| t == name)
     }
@@ -623,8 +652,18 @@ impl Lalr {
     pub fn accepts_ids(&self, toks: &[usize]) -> bool {
         let mut stack = vec![0usize];
         let mut i = 0;
+        // Contextual words (5.1 `where`): the terminal where the parse state
+        // takes it, otherwise an ordinary NAME.
+        let ctx: Vec<usize> = CONTEXTUAL.iter().filter_map(|w| self.term(w)).collect();
+        let name = self.term("NAME");
         loop {
-            let a = toks.get(i).copied().unwrap_or(0);
+            let mut a = toks.get(i).copied().unwrap_or(0);
+            if ctx.contains(&a)
+                && !self.action[*stack.last().unwrap()].contains_key(&a)
+                && let Some(n) = name
+            {
+                a = n;
+            }
             match self.action[*stack.last().unwrap()].get(&a) {
                 Some(Act::Shift(t)) => {
                     stack.push(*t);
@@ -656,6 +695,7 @@ impl Lalr {
             let name: String = match &t {
                 Tok::Id(s) if s == "_" => "_".into(),
                 Tok::Id(s) if kw(s.as_str()) && !after_dot => s.clone(),
+                Tok::Id(s) if CONTEXTUAL.contains(&s.as_str()) && !after_dot && self.term(s).is_some() => s.clone(),
                 Tok::Id(_) => "NAME".into(),
                 Tok::Int(_) => "INT".into(),
                 Tok::Float(_) => "FLOAT".into(),
@@ -676,6 +716,11 @@ impl Lalr {
         self.tokens(src).is_some_and(|t| self.accepts_ids(&t))
     }
 }
+
+/// One exported ACTION row: (state, terminal, "s" | "r" | "acc", target).
+pub type ActionRow = (usize, usize, &'static str, usize);
+/// One exported GOTO row: (state, nonterminal, target).
+pub type GotoRow = (usize, usize, usize);
 
 #[cfg(test)]
 mod tests {

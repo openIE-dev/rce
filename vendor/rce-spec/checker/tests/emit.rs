@@ -8,12 +8,17 @@ use rce_spec_check::parse::parse;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
+/// Programs in spec/examples (51 through draft 0.7; 51_refined_input adds 5.1 refined types, 52-54 the 0.8 indexed values of 5.16).
+const CORPUS: usize = 56;
+
 fn examples() -> Vec<PathBuf> {
     let mut v: Vec<PathBuf> = std::fs::read_dir("../examples")
         .unwrap()
         .map(|e| e.unwrap().path())
         .filter(|p| p.extension().is_some_and(|x| x == "rce"))
         .collect();
+    // the modules of the package of example 26 (4.1), each emitted alone
+    v.extend(rce_spec_check::cli::package_files(Path::new("../examples/26_use_module")).unwrap().into_iter().map(PathBuf::from));
     v.sort();
     v
 }
@@ -25,6 +30,7 @@ fn tool(lang: Lang) -> String {
         Lang::Rust => ("RCE_RUSTC", "rustc"),
         Lang::Python => ("RCE_PYTHON", "python3"),
         Lang::Js => ("RCE_NODE", "node"),
+        Lang::Scala => ("RCE_SCALA", "scala-cli"),
     };
     std::env::var(var)
         .ok()
@@ -71,6 +77,12 @@ fn run(lang: Lang, dir: &Path, stem: &str, code: &str) -> Result<String, String>
         }
         Lang::Python => Command::new(tool(Lang::Python)).arg(&src).output(),
         Lang::Js => Command::new(tool(Lang::Js)).arg(&src).output(),
+        // Scala 3.10 on the JVM: scala-cli compiles and runs one file
+        Lang::Scala => Command::new(tool(Lang::Scala))
+            .args(["run", "-q", "--server=false", "--scala", "3.10.0", "--scalac-option", "-nowarn"])
+            .arg(&src)
+            .output(),
+
     }
     .map_err(|e| e.to_string())?;
     if !out.status.success() {
@@ -95,7 +107,7 @@ fn check_all(lang: Lang) -> (usize, Vec<String>) {
             (stem, observe(&m), emit(&m, lang))
         })
         .collect();
-    assert_eq!(progs.len(), 51, "the example corpus has 51 programs");
+    assert_eq!(progs.len(), CORPUS, "the example corpus has {CORPUS} programs");
     type Ran = (String, Vec<String>, Result<Result<String, String>, String>);
     let results: Vec<Ran> = std::thread::scope(|s| {
         let hs: Vec<_> = progs
@@ -159,7 +171,7 @@ fn check_all(lang: Lang) -> (usize, Vec<String>) {
         .collect();
     eprintln!("{lang:?}: {lines} observation lines; programs with none: {empty:?}");
     eprintln!(
-        "{lang:?}: {ok} of 51 agree with the reference; {} refused: {refused:?}",
+        "{lang:?}: {ok} of {CORPUS} agree with the reference; {} refused: {refused:?}",
         refused.len()
     );
     (ok, refused)
@@ -176,7 +188,7 @@ fn rust_emitter_agrees_with_reference() {
     };
     eprintln!("rust oracle: {v}");
     let (ok, refused) = check_all(Lang::Rust);
-    assert_eq!(ok + refused.len(), 51);
+    assert_eq!(ok + refused.len(), CORPUS);
 }
 
 #[test]
@@ -190,7 +202,7 @@ fn python_emitter_agrees_with_reference() {
     };
     eprintln!("python oracle: {v}");
     let (ok, refused) = check_all(Lang::Python);
-    assert_eq!(ok + refused.len(), 51);
+    assert_eq!(ok + refused.len(), CORPUS);
 }
 
 #[test]
@@ -204,7 +216,21 @@ fn js_emitter_agrees_with_reference() {
     };
     eprintln!("node oracle: {v}");
     let (ok, refused) = check_all(Lang::Js);
-    assert_eq!(ok + refused.len(), 51);
+    assert_eq!(ok + refused.len(), CORPUS);
+}
+
+#[test]
+fn scala_emitter_agrees_with_reference() {
+    let Some(v) = have(&tool(Lang::Scala), "--version") else {
+        eprintln!(
+            "SKIPPED scala emitter test: {} not found (not a pass)",
+            tool(Lang::Scala)
+        );
+        return;
+    };
+    eprintln!("scala oracle: {v}");
+    let (ok, refused) = check_all(Lang::Scala);
+    assert_eq!(ok + refused.len(), CORPUS);
 }
 
 /// Edge cases beyond the corpus: integer range traps, loop bounds, `&mut`
@@ -227,7 +253,7 @@ fn edge_program_agrees_on_every_available_target() {
     assert!(want.iter().any(|l| l == "fn wide_sat = 18446744073709551615"));
     assert!(want.iter().any(|l| l == "fn wide_wrap = 1"));
     let mut ran = 0;
-    for lang in [Lang::Rust, Lang::Python, Lang::Js] {
+    for lang in [Lang::Rust, Lang::Python, Lang::Js, Lang::Scala] {
         let t = tool(lang);
         if have(&t, "--version").is_none() {
             eprintln!("SKIPPED {lang:?} on the edge program: {t} not found (not a pass)");
@@ -239,5 +265,6 @@ fn edge_program_agrees_on_every_available_target() {
         assert_eq!(got.lines().collect::<Vec<_>>(), want, "{lang:?}");
         ran += 1;
     }
-    eprintln!("edge program: {ran} of 3 targets ran and agreed");
+    eprintln!("edge program: {ran} of 4 targets ran and agreed");
+
 }

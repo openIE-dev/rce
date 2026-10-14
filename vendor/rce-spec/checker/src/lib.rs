@@ -10,10 +10,14 @@ pub mod check06b;
 pub mod conc;
 pub mod cli;
 pub mod emit;
+pub mod index08;
 pub mod interp;
 pub mod lalr;
 pub mod lsp;
 pub mod parse;
+pub mod refine;
+pub mod specdata;
+pub mod specread;
 #[cfg(feature = "tree-sitter")]
 pub mod ts;
 pub mod types;
