@@ -6,6 +6,10 @@ Every RCE program means a *Form*: its states, events, step function, and
 the log of events it was tested with. `rce emit form` prints the Form of
 the counter from chapter 4 as one line of JSON:
 
+![The Form and the emit targets](https://raw.githubusercontent.com/openIE-dev/rce/main/docs/figures/rce-overview.svg)
+
+*The Form and the targets `rce emit` writes. More figures: [openIE-dev/rce docs/figures](https://github.com/openIE-dev/rce/tree/main/docs/figures).*
+
 ```text
 $ rce emit form counter.rce
 {{#include ../listings/ch15/form.out}}
@@ -28,6 +32,10 @@ reads a wall clock.
 program into one self-contained file. Running that file prints the
 program's *observations*: the result of each check, and the state after
 each event of each example.
+
+![Emit and IDE test results](https://raw.githubusercontent.com/openIE-dev/rce/main/docs/figures/status.svg)
+
+*Test and differential results for the emitters and the IDE, October 2026. More figures: [openIE-dev/rce docs/figures](https://github.com/openIE-dev/rce/tree/main/docs/figures).*
 
 ```text
 $ rce emit python counter.rce | python3 -

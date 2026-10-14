@@ -11,6 +11,10 @@ specification. A program is a text. Its meaning is a *Form*: a state machine
 made of states, events, a step function that takes a state and an event to
 a new state and some outputs, and a log of the events that happened.
 
+![RCE overview: source, checker, Form, log, emit targets, host](https://raw.githubusercontent.com/openIE-dev/rce/main/docs/figures/rce-overview.svg)
+
+*RCE at a glance: the checker accepts a program or names the rule it breaks; an accepted program is a Form; every step goes into the log; emitters project it to other languages; a host runs it. More figures: [openIE-dev/rce docs/figures](https://github.com/openIE-dev/rce/tree/main/docs/figures).*
+
 Three ideas run through the whole book:
 
 1. **The same program gives the same answer everywhere.** Arithmetic, text

@@ -88,6 +88,10 @@ step function is a plain function of the old state and the event, a list
 of events always leads to the same states. You can replay the list and get
 exactly the same run. Chapter 15 shows the Form itself.
 
+![Where state, events and steps sit: the Form P = (S, E, delta, D, lambda)](https://raw.githubusercontent.com/openIE-dev/rce/main/docs/figures/rce-overview.svg)
+
+*The states, events and steps of this chapter are the S, E and δ of the Form; the log of events is D. More figures: [openIE-dev/rce docs/figures](https://github.com/openIE-dev/rce/tree/main/docs/figures).*
+
 ## What you learned
 
 - `state`, `event`, `step` and `error`, and how a step is chosen.

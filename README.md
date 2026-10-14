@@ -18,6 +18,12 @@ In plain words:
    shown with the exact message the checker prints, so you learn why a
    rule exists and how to fix the program.
 
+## At a glance
+
+![RCE overview: source, checker, Form, log, emit targets, host](https://raw.githubusercontent.com/openIE-dev/rce/main/docs/figures/rce-overview.svg)
+
+*What the book teaches, in one picture: write a program, the checker accepts it or names the broken rule, the accepted program is a Form (states, events, steps, log), and `rce emit` turns it into other languages. More figures: [openIE-dev/rce docs/figures](https://github.com/openIE-dev/rce/tree/main/docs/figures).*
+
 ## Read it
 
 Build the book with [mdBook](https://rust-lang.github.io/mdBook/):
