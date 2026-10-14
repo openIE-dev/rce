@@ -17,7 +17,7 @@ typedef struct {
   uint8_t bad;
   uint8_t eof_nl;       // the end-of-file NEWLINE of spec 2.6 rule 4 was emitted
   uint8_t started;      // a token other than the first line's comment was seen
-  uint8_t v06;          // the module declares `# rce-version: 0.6` (spec 2.7)
+  uint8_t v06;          // the module declares `# rce-version: 0.6` or `0.7` (spec 2.7)
 } S;
 
 static const char *KW[] = {"actor","after","and","arena","as","bound","break","catch","chan","check","comptime",
@@ -61,7 +61,7 @@ static void comment(TSLexer *lx, S *s) {
   while (b[i] == ' ') i++;
   int e = n;
   while (e > i && b[e - 1] == ' ') e--;
-  if (e - i == 3 && strncmp(b + i, "0.6", 3) == 0) s->v06 = 1;
+  if (e - i == 3 && (strncmp(b + i, "0.6", 3) == 0 || strncmp(b + i, "0.7", 3) == 0)) s->v06 = 1;
 }
 
 static int is_id0(int32_t c) { return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_'; }
