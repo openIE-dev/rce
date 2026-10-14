@@ -148,7 +148,7 @@ deterministic function of the program text.
 module, not the Form. Each output is self-contained. It starts with a
 runtime that defines the values of 6.3 and their operations, following the
 reference evaluator (`spec/checker/src/interp.rs`) value by value. That
-includes the integer range checks, the trap messages, map insertion order
+includes the integer range checks, the trap messages, canonical map key order
 and the display of floats and text. After the runtime comes one target
 function per RCE function, method, step and constant. An expression becomes
 calls to runtime helpers with its operands in evaluation order; `if`,
@@ -434,4 +434,4 @@ chain, and that the runner finds a planted divergence.
 
 **Read receipt.** Which JSON-RPC error code does the language server return for a request it does not know? (a number)
 
-<!-- body-sha256: d1fd69f700529d81098bb10ef2c51942e1593dee93cea1232c173068b9a60d18 -->
+<!-- body-sha256: 6b5bed95bc556853446c5211bac6697c3795faf850f184a2d552eabbc7294e94 -->

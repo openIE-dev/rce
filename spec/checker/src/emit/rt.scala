@@ -307,7 +307,7 @@ def binop(op: String, x: Any, y: Any): Any = op match {
 }
 def map_set(ps: Vector[(Any, Any)], k: Any, v: Any): Vector[(Any, Any)] = {
   val i = ps.indexWhere(p => veq(p._1, k))
-  if (i >= 0) ps.updated(i, (ps(i)._1, v)) else ps :+ ((k, v))
+  if (i >= 0) ps.updated(i, (ps(i)._1, v)) else { val j = ps.indexWhere(p => canon_cmp(p._1, k) > 0); if (j < 0) ps :+ ((k, v)) else ps.patch(j, Seq((k, v)), 0) }
 }
 def mk_map(pairs: Vector[Any]): Mp = { var ps = Vector[(Any, Any)](); for (p <- pairs) ps = map_set(ps, at(p, 0), at(p, 1)); Mp(ps) }
 def list_repeat(x: Any, n: Any): Lst = n match {

@@ -280,7 +280,7 @@ pub fn binop(op: &str, x: V, y: V) -> R<V> {
     })
 }
 pub fn map_set(m: &mut Vec<(V, V)>, k: V, v: V) {
-    if let Some(e) = m.iter_mut().find(|(a, _)| eq(a, &k)) { e.1 = v; } else { m.push((k, v)); }
+    if let Some(e) = m.iter_mut().find(|(a, _)| eq(a, &k)) { e.1 = v; } else { let i = m.partition_point(|(a, _)| canon_cmp(a, &k) == std::cmp::Ordering::Less); m.insert(i, (k, v)); }
 }
 pub fn mk_map(ps: Vec<(V, V)>) -> R<V> {
     let mut m = vec![];

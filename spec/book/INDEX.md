@@ -13,16 +13,16 @@ an agent proves it read them by following `READ-PROTOCOL.md`.
 | `05-types-ownership.md` | `d74545f9b1aab9a1393a8d026a43591cbb186b12df7c8e7e43038c66238119bb` | What is the name of the example kind used to illustrate error sets? |
 | `06-regions-effects-extensions.md` | `32c25dd3faf5a8cb1f2f2e594db3b24adaa291248e2c971be6d11f7344f59c7e` | What kind of channel does a capacity of 0 give? (one word) |
 | `07-form-evaluation.md` | `4ac2cd808a0f75a796fa26b86f7bc2a7fe42fa05528f94bd5e8e24dfe571ee0a` | Which JavaScript function is named for rounding to binary32? |
-| `08-steps-loops-concurrency.md` | `59c642644ddf6e2559938f49dd7ad89185b6af717a8825cdad2a108db7b4c42c` | Name-free hashing uses indices named after which logician? (two words) |
+| `08-steps-loops-concurrency.md` | `829fc50b7504db98a35c3a0382beda7c371537723726a18f8538afb7720f1f64` | Name-free hashing uses indices named after which logician? (two words) |
 | `09-wellformedness.md` | `2e6c0e0ff7bbee51116558a003506f9d6976ce57eb922edfd73a5e021b1ec50d` | Which rule refuses two unguarded steps in one region whose patterns overlap? |
 | `10-theorems.md` | `5bfae39f553379d66b8f3e4ef214de386e855cff0e5d4d518ab103e4bde86650` | What is the deep embedding of the emitted Rust subset called? |
 | `11-decisions.md` | `5ec607113e53f30a7430c572baef72d864bb3d508b0b414a90f03be6131f94a5` | The decisions list says it decides gaps in which file? |
-| `12-tooling.md` | `d1fd69f700529d81098bb10ef2c51942e1593dee93cea1232c173068b9a60d18` | Which JSON-RPC error code does the language server return for a request it does not know? (a number) |
+| `12-tooling.md` | `6b5bed95bc556853446c5211bac6697c3795faf850f184a2d552eabbc7294e94` | Which JSON-RPC error code does the language server return for a request it does not know? (a number) |
 | `13-references.md` | `003af0204609ec8dcf5a0fdb7b9b3d5aacf5b596976fa870cd56d6a6a3a7c5e6` | Who wrote "Communicating Sequential Processes"? (surname) |
-| `14-draft06-concurrency.md` | `78ecf181df4042a8dd09f4635de1e2ebda703cede45176a2e35007290b34a21a` | How many words does a version 0.6 module reserve in addition to the 0.5 keywords? (a number) |
+| `14-draft06-concurrency.md` | `f182bec340b5d42103be80158ea4fe56e4108a868e13b316abbaf5f66761925c` | How many words does a version 0.6 module reserve in addition to the 0.5 keywords? (a number) |
 | `15-handler-spec-profile.md` | `78c5611767eb59366d670b4d9b81c357f6347df0f30663d46d98643491e9ea8a` | Which compiled node id does `deliverable D1` become? (for example role_R1) |
-| `16-host-contract.md` | `ae18a29a2e98c69572ad24459c23f06649d57282619cd15c1dd059c7ff5742cf` | Which fcntl command is the append barrier on macOS? (for example F_SETFL) |
+| `16-host-contract.md` | `77a18b0ca3a0b59304f5ded38ed78f96f7967d04234c9f6f5a5e49cb780a45a4` | Which fcntl command is the append barrier on macOS? (for example F_SETFL) |
 
 The single-file spec `spec/RCE-SPEC.md` is generated from these files.
 
-<!-- body-sha256: d37794247ae595844eda723e8c7ee600cca734949c7fb20e90530c9b38464078 -->
+<!-- body-sha256: 37b3f662dc6661d3ce8fbd83f87fa0ba66b838d5e10b1f82f682454aca5d806e -->

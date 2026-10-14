@@ -234,6 +234,20 @@ Example 55 (`examples/55_rcedb.rce`) is a keyed store in RCE: puts are
 state writes, a scan sorts the keys (`keys()` then `sort()`) so its
 order is canonical, and a bound `Synced` event moves the durable mark.
 
+#### E.8.1 The graph index (design refinement)
+
+![RCEdb: the log, its graph projection, and queries](https://raw.githubusercontent.com/openIE-dev/rce/main/docs/figures/rcedb-graph.svg)
+
+*Figure E.1. The base record is D, a hash-chained log and so a linear graph. The primary index is a typed property graph folded from a prefix of D by RCE code. Queries are typed RCE values evaluated against that graph. Source: [docs/figures](https://github.com/openIE-dev/rce/tree/main/docs/figures).*
+
+The base record does not change: it is the hash-chained log of E.3, and every other structure is a projection of it (HS-7). Three consequences follow from rules that are already normative, and so they hold for any index shape, the graph index included:
+
+- **As of is a fold of a prefix.** The state as of entry k is the fold of δ over the first k entries (HS-9, T37), so an "as of" query is the same query over a shorter prefix. There is no second time model to keep in step.
+- **Results have one order.** A query result is an RCE value, so it has the canonical order of 7.1 (HS-8, and the 6.7 erratum for maps). No result order is left to the engine.
+- **Queries terminate.** A query is an RCE function, so T2 and W-REC-1 apply: a query that the checker cannot show terminates is refused, not run with a timeout.
+
+The rest of the refinement is proposed, not normative. It is listed in E.11 as G-1 to G-6 so that it can be adopted, changed or rejected on its own.
+
 ### E.9 Existing ecosystems
 
 Code in other languages and engines stays reachable as foreign calls
@@ -278,6 +292,84 @@ is cited by a test.
 | HC-11 to HC-14 | fabrics, placement, exactness, no flags | `placement_is_a_function_of_host_entries` |
 | HS-6 to HS-9 | RCEdb in RCE | `rcedb_example_runs` |
 
+### E.11 Proposed rules (not normative)
+
+The rules in this section are **proposed**. They come from a survey of other languages (LESSONS.md in the language-structure study) and are recorded here so that they can be reviewed against this appendix. None of them is part of the host contract yet: a conformant host need not meet them, and no test enforces them. Each one is adopted, changed or rejected by a later draft. Where a proposal restates a rule that already holds (for example 6.3 numerics or T1 determinism), it says so.
+
+**Numerics.**
+
+- **N-1 (proposed).** Float operations are IEEE 754 binary64 or binary32, round to nearest even. No fused multiply-add unless the program writes one. Every NaN result is the canonical NaN. Transcendental functions are a fixed reference algorithm or correctly rounded. Relation: tightens 6.3 and HC-7.
+- **N-8 (proposed).** A float expression has exactly one evaluation: one rounding per operator, in source order. Contraction, reassociation and algebraic rewrites are not valid compilations, and a float rewrite is never admitted by the rewrite prover.
+- **N-9 (proposed).** Every reduction is a left fold unless the program names a different fixed tree. A parallel schedule chosen by placement (HC-12) must reproduce the bits of the named tree. Thread count, fabric and batch size are never inputs to a numeric result.
+
+**Ticks and causality.**
+
+- **K-1 (proposed).** The step index is the only built-in time. Physical time enters only as a logged input (`host.WallTime`, HC-2).
+- **K-2 (proposed).** Within a step each output field has exactly one defining expression, and evaluation order follows dependencies, not text order.
+- **K-3 (proposed).** The dependency graph inside a step is acyclic; feedback flows only through the prior state S. The check is conservative: some valid programs are rejected.
+- **K-4 (proposed).** Values sampled at different rates combine only through explicit sample and hold operators checked at compile time. There is no implicit buffering.
+- **K-5 (proposed).** Each compiled step has a worst-case cost bound computed statically and reported by the toolchain, per fabric.
+- **K-6 (proposed).** Every derived value in a step is computable by forward propagation from inputs and state. A step that is accepted only by guessing a fixpoint is rejected.
+- **K-7 (proposed).** Parallel sub-steps share only read-only state and broadcast values; writes are local to the sub-step.
+- **K-8 (proposed).** A merge of simultaneous writes uses a combiner from a checked library of commutative and associative operators, or one with a machine-checked proof. Float addition is not admitted.
+- **K-9 (proposed).** Cancellation and suspension of a sub-step are language constructs with defined strong and weak semantics at tick boundaries, and are logged. The draft must say which clock a delayed read uses under suspension.
+
+**Effects.**
+
+- **E-x (proposed).** The effects emitted in one step are totally ordered by a deterministic rule, and the order is recorded in the log. No effect order is left unspecified. Relation: HC-1 already orders admission; this extends the order to outputs inside one step.
+
+**Spec conformance.**
+
+- **S-1 (proposed).** The reference interpreter is normative. Prose is derived from it, and a disagreement is a spec bug resolved in favor of a versioned reference. (LESSONS.md uses S-1 twice; this is the conformance rule. The other, "no behavior depends on caching, interning, allocation or scheduling", is already implied by T1 and HC-8.) The 6.7 map order was such a disagreement, settled for the text: the reference now iterates maps in canonical key order (erratum, C.15).
+- **S-2 (proposed).** Every spec rule has machine-checkable conformance cases, and a runtime is conformant only if it passes all of them with bit-identical logs. E.10 follows this for the host rules.
+- **S-3 (proposed).** The spec has no implementation-defined or unspecified clauses. Every case has one defined result or is a compile-time error.
+- **S-4 (proposed).** Errors are values with a defined order of checking; which error a step yields is deterministic and logged.
+
+**Hashes.**
+
+- **C-3 (proposed).** The hash function, canonical serialization and byte order are fixed in the spec and versioned, so hashes are bit-identical across conformant runtimes. Relation: the D log already fixes SHA-256 over canonical JSON (E.3); the proposal adds a version tag to that choice.
+
+**Verification.**
+
+- **V-6 (proposed).** A release build replays a conformance and regression log on two independently built runtimes (for example the reference evaluator and an emitted target), and any divergence blocks the release.
+
+**Tensor unification of primitives.**
+
+![Proposed tensor unification: ranks 0 to 3, records over named axes, static shape check, fixed-order reductions, placement by shape and op, ragged values kept separate](https://raw.githubusercontent.com/openIE-dev/rce/main/docs/figures/tensor-unification.svg)
+
+*Figure (informative, proposed). Tensor unification of primitives. Source: `figures/src/infographics/make_tensor.py`; [PNG](https://raw.githubusercontent.com/openIE-dev/rce/main/docs/figures/tensor-unification.png).*
+
+- **TU-1 (proposed).** Every primitive value is an n-dimensional tensor `Tensor[elem, shape]`, where `elem` is one of the primitive element types of 5.1 and `shape` is a list of non-negative dimensions. A scalar is the rank 0 tensor `Tensor[elem, []]`. Relation: generalizes the primitive types of 5.1; a version 0.5 to 0.8 program keeps its meaning because each of its scalars is read as rank 0.
+- **TU-2 (proposed).** The shape is part of the type and is checked statically. An operation whose operand shapes do not agree (for example a matrix product of `[m, k]` and `[j, n]` with k not equal to j) is a checker error, never a run-time trap. Dimensions are literals or names bound in the signature; a shape that cannot be determined statically is refused. Relation: a new W-rule in 9 when adopted.
+- **TU-3 (proposed).** A record whose fields all have one element type and one shape may be read as a tensor over a named axis (`{x: f64, y: f64}` as `Tensor[f64, [axis: {x, y}]]`). Field names index that axis. A record with mixed field types stays a record.
+- **TU-4 (proposed).** Every reduction over an axis follows N-9: a left fold over the axis in index order unless the program names a different fixed tree. The shape and the named tree, never the thread count or fabric, determine the bits.
+- **TU-5 (proposed).** Text, maps, graphs and sum types remain separate canonical values. They are ragged and are never padded or densified into tensors; a tensor element is never one of them.
+- **TU-6 (proposed).** Placement (HC-12) keys the fabric cost table by (pure operation, element type, shape). Choosing a fabric changes cost only; HC-7 and N-9 fix the result bits.
+
+Convergence sources. Each source was read as noted; claims rest only on the passages cited.
+- BQN specification, types (read in full): "An array is a rectangular collection of data. It is defined by a shape, which is a list of non-negative integer lengths, and a ravel" whose length is the product of the shape; non-arrays are atoms. This is the shape-plus-ravel model of TU-1. APL, BQN's ancestor, was not read for this proposal.
+- Paszke et al., "Getting to the Point: Index Sets and Parallelism-Preserving Autodiff for Pointful Array Programming" (Dex), arXiv:2104.05372 (full text scanned, hits reviewed): arrays have types `n=>a` indexed by typed index sets (`IndexSet n`), so the index domain of an array is part of its type. This is the basis of TU-2 and of TU-3's named axes.
+- Henriksen et al., "Futhark: Purely Functional GPU-Programming with Nested Parallelism and In-Place Array Updates", PLDI 2017 (full text scanned, hits reviewed): "All arrays must be regular, meaning that, all rows of an array must have the same shape"; where shape cannot be verified statically, Futhark inserts dynamic checks. TU-2 takes the regularity rule and refuses instead of checking dynamically; TU-5 keeps irregular data out of tensors.
+- Julia manual, "Multi-dimensional Arrays" (read in full): "The base array type in Julia is the abstract type AbstractArray{T,N}. It is parameterized by the number of dimensions N and the element type T." Julia puts element type and rank in the type but checks sizes at run time; TU-2 goes further by putting the shape in the type.
+
+**RCEdb graph index (E.8.1).** These refine HS-6 to HS-9. Convergence sources are listed after the rules; they are observations of convergent design, not proof that the rules are right.
+
+- **G-1 (proposed).** The primary index of RCEdb is a typed property graph projected from the log: nodes and edges have declared RCE types (a label is a type, a property is a field), and the projection is ordinary RCE code, a fold of δ over a log prefix (HS-7).
+- **G-2 (proposed).** Every node and edge carries the id of the event that created it, and the id of the event that retracted it if any. Provenance is a field of the value, so it is checked, hashed and replayed like any other field.
+- **G-3 (proposed).** A query is a graph pattern written as a typed RCE value (node patterns, edge patterns, quantified paths, predicates as RCE functions), never as a string. Ill-typed patterns are refused by the checker; there is no query text to inject into (5.16).
+- **G-4 (proposed).** A query states in its type whether it returns a set or a bag of rows, and the result is in canonical order (7.1).
+- **G-5 (proposed).** The checker proves that every query terminates in one of two ways: each unbounded path quantifier is bounded by a declared length (`bound n`, 6.7) or by a restrictor that makes the match set finite (no repeated edge, no repeated node), or the query is recursive and is evaluated as a stratified fixpoint (negation and aggregation only over lower strata), which terminates because the graph is finite.
+- **G-6 (proposed).** Tables and documents are special cases of the graph projection: a table is a node type with scalar fields and no edges, a document is a tree of nodes reached by containment edges. They are projections of the same log, not separate stores.
+
+Convergence sources (read-ledger pass 8 of the language-structure survey; the ISO text itself was not read, it is paywalled):
+
+- GQL, ISO/IEC 39075:2024, published 12 April 2024, is the ISO standard query language for property graphs (G-1). Its pattern-matching part (GPML, Deutsch et al., arXiv 2112.06217, section 5) states that "GPML queries must demonstrably terminate", and requires every unbounded quantifier to sit inside a restrictor (TRAIL, ACYCLIC, SIMPLE) or a selector (G-5).
+- Cypher (Francis et al., SIGMOD 2018) defines MATCH over tables that are bags of records, and departs from homomorphism matching by not repeating a relationship in one match, which keeps the match set finite (G-4, G-5). openCypher is the open specification of that language.
+- Datalog and Soufflé (P-SOU, D-SOUR in pass 3): negation must be stratifiable, and evaluation is a fixpoint that ends when no new facts appear (G-5).
+- Datomic stores "a set of immutable atomic facts called datoms", each a five-tuple that includes the transaction that asserted or retracted it, and an as-of view keeps only the datoms true at a transaction (G-2, E.8.1). XTDB keeps the full system-time history of every entity so that a past version stays queryable (E.8.1).
+
+Where RCE differs from these sources: GQL and Cypher queries are strings and their result order is unspecified without ORDER BY; RCE patterns are typed values with one canonical order. GQL selectors such as ANY SHORTEST may pick one of several equal paths; under G-4 a selector that picks among ties must pick by canonical order.
+
 **Read receipt.** Which fcntl command is the append barrier on macOS? (for example F_SETFL)
 
-<!-- body-sha256: ae18a29a2e98c69572ad24459c23f06649d57282619cd15c1dd059c7ff5742cf -->
+<!-- body-sha256: 77a18b0ca3a0b59304f5ded38ed78f96f7967d04234c9f6f5a5e49cb780a45a4 -->

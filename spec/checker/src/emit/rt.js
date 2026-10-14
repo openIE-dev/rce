@@ -255,7 +255,9 @@ function binop(op, x, y) {
 function mapSet(ps, k, v) {
   const out = ps.slice();
   for (let i = 0; i < out.length; i++) if (eq(out[i][0], k)) { out[i] = [out[i][0], v]; return out; }
-  out.push([k, v]);
+  let i = 0;
+  while (i < out.length && canonCmp(out[i][0], k) < 0) i++;
+  out.splice(i, 0, [k, v]);
   return out;
 }
 function mkMap(pairs) { let ps = []; for (const [k, v] of pairs) ps = mapSet(ps, k, v); return new Mp(ps); }
