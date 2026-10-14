@@ -3,7 +3,7 @@ Run: python3 make_infographics.py  (writes SVG + PNG next to this file)."""
 import matplotlib; matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from matplotlib.patches import FancyBboxPatch, FancyArrowPatch
-plt.rcParams.update({"font.family": "DejaVu Sans", "font.size": 11, "svg.fonttype": "none"})
+plt.rcParams.update({"font.family": "DejaVu Sans", "font.size": 11, "svg.fonttype": "path"})
 C = dict(form="#dbeafe", chk="#dcfce7", log="#fef3c7", emit="#ede9fe", host="#fee2e2", fab="#e0f2fe", ink="#1f2937", edge="#475569")
 
 def box(ax, x, y, w, h, text, fc, fs=11, bold=False):

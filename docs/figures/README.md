@@ -13,6 +13,7 @@ than a measurement or a specification rule.
 | [host-contract](host-contract.svg) ([PNG](host-contract.png)) | Appendix E: the five primitives every surveyed target supplies, adapters, the single admitter, D, and replay with adapters disconnected (HC-1, HC-3, HC-8, T37). | `src/infographics/make_infographics.py`; spec Appendix E |
 | [rcedb](rcedb.svg) ([PNG](rcedb.png)) | RCEdb: D is the one primary artefact; indexes are deterministic folds written in RCE (example 55); queries read indexes with a defined order. | `src/infographics/make_infographics.py`; spec 6.1, D.5, D.6 |
 | [status](status.svg) ([PNG](status.png)) | Test and differential results, October 2026: Scala emit 55/55, Haskell emit checked by GHC 451,037/451,037, Julia probe 0 mismatches in 200,000, IDE 811 tests. | `src/infographics/make_infographics.py` |
+| [tensor-unification](tensor-unification.svg) ([PNG](tensor-unification.png)) | **Proposed, not normative.** Tensor unification of primitives (E.11 TU-1 to TU-6 in the engine draft): Tensor[elem, shape], static shape check, fixed-order reductions, placement by (op, elem, shape), ragged values kept separate. | `src/infographics/make_tensor.py` |
 
 ## Survey figures (inputs to Appendix E and the emit targets)
 
