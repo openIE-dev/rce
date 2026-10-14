@@ -17,7 +17,9 @@ In plain words:
 
 ## Quickstart
 
-Build `rce` from the [rce repository](https://github.com/openIE-dev/rce),
+Build `rce` from the [rce repository](https://github.com/openIE-dev/rce)
+or download it with the desktop IDE from the
+[rce-ide releases page](https://github.com/openIE-dev/rce-ide/releases/latest),
 then:
 
 ```sh
@@ -26,6 +28,9 @@ cd rce-examples
 rce test money/account.rce
 rce run systems/ring_buffer.rce "Push(v: 7), Push(v: 8), Pop, Pop, Pop"
 ```
+
+To check a program without installing anything, paste it into the
+[RCE playground](https://openie-dev.github.io/rce/).
 
 To check every program in the repository:
 
