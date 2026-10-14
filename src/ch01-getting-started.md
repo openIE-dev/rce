@@ -1,5 +1,10 @@
 # Getting started
 
+To try RCE without installing anything, open the
+[RCE playground](https://openie-dev.github.io/rce/): it runs the reference
+checker in your browser and shows whether a program is accepted and the
+trace of each `example`. To run programs with `rce run`, install `rce`.
+
 ## Install `rce`
 
 `rce` is built from source with Rust. The repository pins the Rust version
@@ -18,9 +23,16 @@ example:
 install -m 755 target/release/rce ~/.local/bin/
 ```
 
-Check that it runs. With no arguments it prints the list of commands:
+Prebuilt binaries of `rce` (together with the desktop IDE) for Linux,
+macOS and Windows are on the
+[rce-ide releases page](https://github.com/openIE-dev/rce-ide/releases/latest);
+unpack one and put `rce` on your `PATH` instead of building.
+
+Check that it runs. `rce --version` names the specification draft it
+implements, and with no arguments `rce` prints the list of commands:
 
 ```sh
+rce --version
 rce
 ```
 

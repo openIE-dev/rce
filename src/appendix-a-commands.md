@@ -6,9 +6,11 @@
 | `rce test FILE...` | the same, and count the examples and checks of each file |
 | `rce run FILE "E1, E2"` | apply events and print the state after each |
 | `rce run FILE` | run `fn main()` and print what it emits |
+| `rce trace --json FILE [EVENTS]` | the reference trace of each example, or of the events, as JSON |
 | `rce emit TARGET FILE` | `form`, `rust`, `python` or `js` |
 | `rce fmt [--check] FILE...` | rewrite files in the canonical layout |
 | `rce lsp` | language server on standard input and output |
+| `rce --version` | the checker version, the specification draft and the accepted language versions |
 
 All files given to one command form one program.
 
