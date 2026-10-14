@@ -1,0 +1,22 @@
+* { box-sizing: border-box; }
+body { margin: 0; font: 15px/1.45 system-ui, sans-serif; color: #1b1f24; background: #f7f7f5; }
+header { padding: 16px 24px 8px; border-bottom: 1px solid #ddd; background: #fff; }
+h1 { margin: 0 0 4px; font-size: 22px; }
+header p { margin: 4px 0 8px; max-width: 70em; }
+nav a { margin-right: 16px; }
+main { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; padding: 16px 24px; }
+@media (max-width: 900px) { main { grid-template-columns: 1fr; } }
+.bar { display: flex; gap: 12px; align-items: center; margin-bottom: 8px; flex-wrap: wrap; }
+#ver { color: #666; font-size: 13px; }
+textarea { width: 100%; height: 60vh; font: 14px/1.4 ui-monospace, Menlo, Consolas, monospace; padding: 10px; border: 1px solid #ccc; border-radius: 6px; tab-size: 4; resize: vertical; }
+.hint { color: #555; font-size: 13px; }
+.verdict { font-weight: 600; padding: 8px 12px; border-radius: 6px; background: #eee; }
+.verdict.ok { background: #e3f5e1; color: #17531a; }
+.verdict.bad { background: #fde7e7; color: #8a1414; }
+.err { font-family: ui-monospace, Menlo, monospace; font-size: 13px; padding: 6px 0; border-bottom: 1px solid #eee; white-space: pre-wrap; }
+.err b { color: #8a1414; }
+table { border-collapse: collapse; margin: 8px 0 16px; font-size: 13px; width: 100%; }
+td, th { border: 1px solid #ddd; padding: 3px 6px; text-align: left; font-family: ui-monospace, Menlo, monospace; vertical-align: top; }
+th { background: #f0f0ee; }
+.refused { color: #8a1414; }
+pre { overflow: auto; max-height: 40vh; background: #fff; border: 1px solid #ddd; padding: 8px; font-size: 12px; }

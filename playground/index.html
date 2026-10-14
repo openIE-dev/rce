@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RCE playground</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <h1>RCE playground</h1>
+  <p>Type an RCE program. The reference checker, compiled to WebAssembly, parses, type checks and admits it in your browser and runs every <code>example</code>. Nothing is sent to a server.</p>
+  <nav>
+    <a href="https://github.com/openIE-dev/rce">Specification and checker</a>
+    <a href="https://github.com/openIE-dev/rce-book">The RCE Book</a>
+    <a href="https://github.com/openIE-dev/rce-examples">Examples</a>
+    <a href="https://github.com/openIE-dev/rce-ide/releases/latest">Desktop IDE and <code>rce</code> CLI</a>
+  </nav>
+</header>
+<main>
+  <section class="editor">
+    <div class="bar">
+      <label>Example <select id="pick"></select></label>
+      <button id="share" type="button">Copy link</button>
+      <span id="ver"></span>
+    </div>
+    <textarea id="src" spellcheck="false" autocapitalize="off" autocomplete="off" aria-label="RCE source"></textarea>
+    <p class="hint">Indent with spaces; a tab is refused (W-LEX-1). Put <code># rce-version: 0.7</code> on the first line for language version 0.7 (spec 2.7); without it a module is version 0.5.</p>
+  </section>
+  <section class="out">
+    <div id="verdict" class="verdict">loading the checker...</div>
+    <div id="errors"></div>
+    <div id="examples"></div>
+    <details><summary>Form (JSON)</summary><pre id="form"></pre></details>
+    <p class="hint">The playground checks programs and shows their example traces. To run <code>fn main()</code> or emit Rust, Python or JavaScript, install <code>rce</code> (see the specification README).</p>
+  </section>
+</main>
+<script type="module" src="app.js"></script>
+</body>
+</html>

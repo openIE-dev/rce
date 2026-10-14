@@ -20,11 +20,15 @@ In plain words:
    makes the checker refuse the program, and it names the rule that was
    broken.
 
+## Try it in the browser
+
+The [RCE playground](https://openie-dev.github.io/rce/) runs this checker, compiled to WebAssembly, in your browser: type a program and see whether it is accepted, which rule it breaks, and the trace of each `example`. Nothing to install. To run `fn main()` or emit code, install `rce` below.
+
 ## Install
 
 `rce` is built from source. You need [Rust](https://rustup.rs); the
 version used is pinned in `spec/checker/rust-toolchain.toml` (1.98.1) and
-`rustup` installs it on first build.
+`rustup` installs it on first build. Prebuilt `rce` binaries (with the desktop IDE) are on the [rce-ide releases page](https://github.com/openIE-dev/rce-ide/releases/latest).
 
 ```sh
 git clone https://github.com/openIE-dev/rce
