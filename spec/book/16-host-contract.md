@@ -9,6 +9,10 @@ leaves on storage can be replayed with every adapter disconnected (T37).
 The appendix applies to every version (C.15): it constrains hosts and the
 format of D, and it gives no valid program a different meaning.
 
+![Host contract: five primitives, adapters, one admitter, log D, replay](https://raw.githubusercontent.com/openIE-dev/rce/main/docs/figures/host-contract.svg)
+
+*Figure (informative). The five primitives, adapters, the single admitter (HC-1), typed results (HC-3) and replay with adapters disconnected (HC-8, T37). Source: [docs/figures](https://github.com/openIE-dev/rce/tree/main/docs/figures).*
+
 The rules were derived from a survey of operating systems, embedded
 kernels, browsers, language runtimes, replay systems, storage engines and
 compute fabrics. A primitive is in the contract only when (a) every
@@ -183,6 +187,10 @@ entry.
   random numbers, clocks, energy and thermal counters) are events; those
   that change bits are gated by HC-13.
 
+![Cost of strict IEEE determinism on GPU kernels and fabric dispatch model](https://raw.githubusercontent.com/openIE-dev/rce/main/docs/figures/host-survey-fig4-fabric.png)
+
+*Figure (informative). Survey measurements behind E.6: cost of strict IEEE mode on GPU kernels and a calibrated dispatch model. Source: [docs/figures](https://github.com/openIE-dev/rce/tree/main/docs/figures).*
+
 ### E.7 The fabric record
 
 `host.FabricCaps` has the payload {cpu, gpus, npus, memory, counters}.
@@ -198,6 +206,10 @@ The database of an RCE system is written in RCE. The host supplies only
 durable append (E.3) and sync result events (`host.Synced`, delivered by a
 binding); it supplies no query engine, index or cache whose behaviour
 reaches δ.
+
+![RCEdb: log D, indexes as RCE folds, queries](https://raw.githubusercontent.com/openIE-dev/rce/main/docs/figures/rcedb.svg)
+
+*Figure (informative). D is the one primary artefact; indexes are deterministic folds written in RCE (example 55); queries read them in a defined order. Source: [docs/figures](https://github.com/openIE-dev/rce/tree/main/docs/figures).*
 
 - **HS-6 Bindings.** At start the host appends one `host.Bind` per
   result kind it delivers, naming an event the program declares (for
@@ -268,4 +280,4 @@ is cited by a test.
 
 **Read receipt.** Which fcntl command is the append barrier on macOS? (for example F_SETFL)
 
-<!-- body-sha256: e7177eb45e23c4e7c520c6b06164bfefe2a0991c1d6a57ee600ce63ff519ea03 -->
+<!-- body-sha256: ae18a29a2e98c69572ad24459c23f06649d57282619cd15c1dd059c7ff5742cf -->

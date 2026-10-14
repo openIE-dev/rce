@@ -129,6 +129,10 @@ program (section 7).
 
 TARGET names an output. The file must pass `rce check` on its own.
 
+![Emit and IDE test results](https://raw.githubusercontent.com/openIE-dev/rce/main/docs/figures/status.svg)
+
+*Figure (informative). Test and differential results, October 2026, for the Scala and Haskell emitters, the Julia probe and the IDE. Source: [docs/figures](https://github.com/openIE-dev/rce/tree/main/docs/figures).*
+
 | TARGET | Output |
 |---|---|
 | `form` | the Form P = (S, E, δ, D, λ) as one line of JSON (6.1), then a line end |
@@ -430,4 +434,4 @@ chain, and that the runner finds a planted divergence.
 
 **Read receipt.** Which JSON-RPC error code does the language server return for a request it does not know? (a number)
 
-<!-- body-sha256: 1a429e5dd8e4f771e09dd71e01e782578168ebfb9b0b174ff9041bdb6acd8e49 -->
+<!-- body-sha256: d1fd69f700529d81098bb10ef2c51942e1593dee93cea1232c173068b9a60d18 -->

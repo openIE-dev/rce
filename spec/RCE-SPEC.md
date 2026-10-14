@@ -10,6 +10,10 @@ a new state and an outcome, and the log of events. Every runtime that runs
 the Form must produce the same results bit for bit, and the rules that make
 this so are checked by machine.
 
+![RCE overview: source, checker, Form P = (S, E, delta, D, lambda), log D, emit targets, host, fabrics](https://raw.githubusercontent.com/openIE-dev/rce/main/docs/figures/rce-overview.svg)
+
+*Figure (informative). The pipeline from source to Form, log, emit targets and host. Source: [docs/figures](https://github.com/openIE-dev/rce/tree/main/docs/figures).*
+
 Three plain points:
 
 1. **Same answer on every target.** Arithmetic, text, floats and concurrency
@@ -1285,6 +1289,10 @@ Let the program declare regions R₁…Rₖ (`state` and `actor` declarations;
 actors also carry a mailbox), events E₁…Eₘ and errors X₁…Xⱼ. Its Form
 P = (S, E, δ, D, λ) is:
 
+![Form P = (S, E, delta, D, lambda) with its log D](https://raw.githubusercontent.com/openIE-dev/rce/main/docs/figures/rce-overview.svg)
+
+*Figure (informative). Where the Form sits between the checker, the log D and the emitters. Source: [docs/figures](https://github.com/openIE-dev/rce/tree/main/docs/figures).*
+
 - **S** = ⟦R₁⟧ × … × ⟦Rₖ⟧, where ⟦R⟧ is the set of records {fᵢ : ⟦τᵢ⟧} of R's
   field types, with the initial state s₀ = (r₁⁰, …, rₖ⁰), rᵢ⁰ the record of
   field initializers (evaluated at comptime). Actor regions add a mailbox
@@ -2428,6 +2436,10 @@ program (section 7).
 
 TARGET names an output. The file must pass `rce check` on its own.
 
+![Emit and IDE test results](https://raw.githubusercontent.com/openIE-dev/rce/main/docs/figures/status.svg)
+
+*Figure (informative). Test and differential results, October 2026, for the Scala and Haskell emitters, the Julia probe and the IDE. Source: [docs/figures](https://github.com/openIE-dev/rce/tree/main/docs/figures).*
+
 | TARGET | Output |
 |---|---|
 | `form` | the Form P = (S, E, δ, D, λ) as one line of JSON (6.1), then a line end |
@@ -3501,6 +3513,10 @@ leaves on storage can be replayed with every adapter disconnected (T37).
 The appendix applies to every version (C.15): it constrains hosts and the
 format of D, and it gives no valid program a different meaning.
 
+![Host contract: five primitives, adapters, one admitter, log D, replay](https://raw.githubusercontent.com/openIE-dev/rce/main/docs/figures/host-contract.svg)
+
+*Figure (informative). The five primitives, adapters, the single admitter (HC-1), typed results (HC-3) and replay with adapters disconnected (HC-8, T37). Source: [docs/figures](https://github.com/openIE-dev/rce/tree/main/docs/figures).*
+
 The rules were derived from a survey of operating systems, embedded
 kernels, browsers, language runtimes, replay systems, storage engines and
 compute fabrics. A primitive is in the contract only when (a) every
@@ -3675,6 +3691,10 @@ entry.
   random numbers, clocks, energy and thermal counters) are events; those
   that change bits are gated by HC-13.
 
+![Cost of strict IEEE determinism on GPU kernels and fabric dispatch model](https://raw.githubusercontent.com/openIE-dev/rce/main/docs/figures/host-survey-fig4-fabric.png)
+
+*Figure (informative). Survey measurements behind E.6: cost of strict IEEE mode on GPU kernels and a calibrated dispatch model. Source: [docs/figures](https://github.com/openIE-dev/rce/tree/main/docs/figures).*
+
 ### E.7 The fabric record
 
 `host.FabricCaps` has the payload {cpu, gpus, npus, memory, counters}.
@@ -3690,6 +3710,10 @@ The database of an RCE system is written in RCE. The host supplies only
 durable append (E.3) and sync result events (`host.Synced`, delivered by a
 binding); it supplies no query engine, index or cache whose behaviour
 reaches δ.
+
+![RCEdb: log D, indexes as RCE folds, queries](https://raw.githubusercontent.com/openIE-dev/rce/main/docs/figures/rcedb.svg)
+
+*Figure (informative). D is the one primary artefact; indexes are deterministic folds written in RCE (example 55); queries read them in a defined order. Source: [docs/figures](https://github.com/openIE-dev/rce/tree/main/docs/figures).*
 
 - **HS-6 Bindings.** At start the host appends one `host.Bind` per
   result kind it delivers, naming an event the program declares (for
