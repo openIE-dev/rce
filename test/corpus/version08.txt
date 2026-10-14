@@ -1,0 +1,338 @@
+========================================
+Refined type with where (5.1)
+========================================
+
+type Percent = u32 where self <= 100
+
+---
+
+(start
+  (pub_item
+    (type_decl
+      (NAME)
+      (type_path
+        (path
+          (NAME)))
+      (cmp_expr
+        (self_ref)
+        (cmp_op)
+        (INT)))))
+
+========================================
+Refined text type with and and len
+========================================
+
+type Sku = text where self.len() > 0 and self.len() <= 12
+
+---
+
+(start
+  (pub_item
+    (type_decl
+      (NAME)
+      (type_path
+        (path
+          (NAME)))
+      (and_expr
+        (cmp_expr
+          (call
+            (member
+              (self_ref)
+              (member_name
+                (NAME))))
+          (cmp_op)
+          (INT))
+        (cmp_expr
+          (call
+            (member
+              (self_ref)
+              (member_name
+                (NAME))))
+          (cmp_op)
+          (INT))))))
+
+========================================
+where stays an ordinary name outside a type declaration
+========================================
+
+fn where(where: u32) -> u32 = where + 1
+
+---
+
+(start
+  (pub_item
+    (fn_decl
+      (fn_sig
+        (NAME)
+        (params
+          (param
+            (NAME)
+            (type_path
+              (path
+                (NAME)))))
+        (type_path
+          (path
+            (NAME))))
+      (add_expr
+        (name
+          (NAME))
+        (add_op)
+        (INT)))))
+
+========================================
+Context-typed text, Secret, Cap and Guarded (version 0.8, 5.16)
+========================================
+
+# rce-version: 0.8
+module admin
+
+struct Root
+
+state Policy
+    limit: Guarded[u32, Root] = 100
+    page: Text[Html] = Html.lit("<p>")
+    stored: Secret[text]? = none
+
+event SetLimit(admin: Cap[Root], limit: u32)
+event Login(pw: Secret[text])
+
+step Policy on SetLimit(admin: _, limit: n) -> n
+
+fn render(s: text) -> Text[Html] = Html.lit("<b>") + Html.encode(s) + Html.lit("</b>")
+
+---
+
+(start
+  (module_header
+    (path
+      (NAME)))
+  (pub_item
+    (struct_decl
+      (NAME)))
+  (state_decl
+    (NAME)
+    (field
+      (NAME)
+      (type_path
+        (path
+          (NAME))
+        (type_list
+          (type_path
+            (path
+              (NAME)))
+          (type_path
+            (path
+              (NAME)))))
+      (INT))
+    (field
+      (NAME)
+      (type_path
+        (path
+          (NAME))
+        (type_list
+          (type_path
+            (path
+              (NAME)))))
+      (call
+        (member
+          (name
+            (NAME))
+          (member_name
+            (NAME)))
+        (args
+          (arg
+            (STRING)))))
+    (field
+      (NAME)
+      (opt_type
+        (type_path
+          (path
+            (NAME))
+          (type_list
+            (type_path
+              (path
+                (NAME))))))
+      (none)))
+  (event_decl
+    (NAME)
+    (payload
+      (field_list
+        (field_item
+          (NAME)
+          (type_path
+            (path
+              (NAME))
+            (type_list
+              (type_path
+                (path
+                  (NAME))))))
+        (field_item
+          (NAME)
+          (type_path
+            (path
+              (NAME)))))))
+  (event_decl
+    (NAME)
+    (payload
+      (field_list
+        (field_item
+          (NAME)
+          (type_path
+            (path
+              (NAME))
+            (type_list
+              (type_path
+                (path
+                  (NAME)))))))))
+  (step_decl
+    (NAME)
+    (ctor_pat
+      (path
+        (NAME))
+      (pat_args
+        (pat_arg
+          (NAME)
+          (wildcard))
+        (pat_arg
+          (NAME)
+          (name_pat
+            (path
+              (NAME))))))
+    (step_arrow
+      (name
+        (NAME))))
+  (pub_item
+    (fn_decl
+      (fn_sig
+        (NAME)
+        (params
+          (param
+            (NAME)
+            (type_path
+              (path
+                (NAME)))))
+        (type_path
+          (path
+            (NAME))
+          (type_list
+            (type_path
+              (path
+                (NAME))))))
+      (add_expr
+        (call
+          (member
+            (name
+              (NAME))
+            (member_name
+              (NAME)))
+          (args
+            (arg
+              (STRING))))
+        (add_op)
+        (call
+          (member
+            (name
+              (NAME))
+            (member_name
+              (NAME)))
+          (args
+            (arg
+              (name
+                (NAME)))))
+        (add_op)
+        (call
+          (member
+            (name
+              (NAME))
+            (member_name
+              (NAME)))
+          (args
+            (arg
+              (STRING))))))))
+
+========================================
+Mutual recursion with a declared bound (6.7, W-REC-1)
+========================================
+
+fn even(n: u32) -> bool bound 64
+    if n == 0
+        return true
+    return odd(n - 1)
+
+fn odd(n: u32) -> bool
+    if n == 0
+        return false
+    return even(n - 1)
+
+---
+
+(start
+  (pub_item
+    (fn_decl
+      (fn_sig
+        (NAME)
+        (params
+          (param
+            (NAME)
+            (type_path
+              (path
+                (NAME)))))
+        (type_path
+          (path
+            (NAME)))
+        (INT))
+      (block
+        (if_stmt
+          (cmp_expr
+            (name
+              (NAME))
+            (cmp_op)
+            (INT))
+          (block
+            (return_stmt
+              (true))))
+        (return_stmt
+          (call
+            (name
+              (NAME))
+            (args
+              (arg
+                (add_expr
+                  (name
+                    (NAME))
+                  (add_op)
+                  (INT)))))))))
+  (pub_item
+    (fn_decl
+      (fn_sig
+        (NAME)
+        (params
+          (param
+            (NAME)
+            (type_path
+              (path
+                (NAME)))))
+        (type_path
+          (path
+            (NAME))))
+      (block
+        (if_stmt
+          (cmp_expr
+            (name
+              (NAME))
+            (cmp_op)
+            (INT))
+          (block
+            (return_stmt
+              (false))))
+        (return_stmt
+          (call
+            (name
+              (NAME))
+            (args
+              (arg
+                (add_expr
+                  (name
+                    (NAME))
+                  (add_op)
+                  (INT))))))))))

@@ -5,7 +5,7 @@
   "module" "use" "as" "intent" "example" "refused" "check"
   "const" "type" "struct" "state" "event" "error" "kind"
   "trait" "impl" "forall" "extern" "step" "on" "actor"
-  "let" "var" "with" "arena" "device" "bound" "pass"
+  "let" "var" "with" "arena" "device" "bound" "pass" "where"
   "chan" "iter" "spawn" "select" "recv" "send" "to" "from" "after" "default"
 ] @keyword
 
@@ -56,6 +56,11 @@
 (type_decl (NAME) @type)
 (type_path (path (NAME) @type))
 (gparam (NAME) @type)
+
+; Version 0.8 indexed types (spec 5.16): context-typed text, secrets,
+; capabilities and guarded fields.
+((type_path (path (NAME) @type.builtin))
+  (#any-of? @type.builtin "Text" "Html" "Url" "Sql" "Json" "Secret" "Cap" "Guarded"))
 
 (event_decl (NAME) @constructor)
 (error_decl (NAME) @constructor)

@@ -36,7 +36,7 @@ module.exports = grammar({
     check_decl: $ => seq('check', $._expr, $._NL),
 
     const_decl: $ => seq('const', $.NAME, optional(seq(':', $._type)), '=', $._expr, $._NL),
-    type_decl: $ => seq('type', $.NAME, optional($.generics), '=', $._type, $._NL),
+    type_decl: $ => seq('type', $.NAME, optional($.generics), '=', $._type, optional(seq('where', $._expr)), $._NL),
     struct_decl: $ => seq(optional(alias('linear', $.LINEAR)), 'struct', $.NAME, optional($.generics), $._NL, optional(seq($._INDENT, repeat1($.field), $._DEDENT))),
     field: $ => seq($.NAME, ':', $._type, optional(seq('=', $._expr)), $._NL),
     state_decl: $ => seq(optional(alias('replicated', $.REPLICATED)), 'state', $.NAME, $._NL, $._INDENT, repeat1($.field), $._DEDENT),
@@ -56,7 +56,7 @@ module.exports = grammar({
     impl_decl: $ => seq('impl', optional(seq('forall', $.generics)), $._type, optional(seq('for', $._type)), $._NL, $._INDENT, repeat1($._impl_member), $._DEDENT),
     _impl_member: $ => choice($.type_decl, $.fn_decl),
 
-    fn_sig: $ => seq(optional(alias('comptime', $.COMPTIME)), 'fn', $.NAME, optional($.generics), '(', optional($.params), ')', optional(seq('->', $._type))),
+    fn_sig: $ => seq(optional(alias('comptime', $.COMPTIME)), 'fn', $.NAME, optional($.generics), '(', optional($.params), ')', optional(seq('->', $._type)), optional(seq('bound', $.INT))),
     fn_decl: $ => seq($.fn_sig, choice($.block, seq('=', $._expr, $._NL))),
     extern_decl: $ => seq('extern', $.STRING, $.fn_sig, $._NL),
     params: $ => list1($.param),

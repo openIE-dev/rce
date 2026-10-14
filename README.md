@@ -49,6 +49,17 @@ let tree = parser.parse("fn half(x: u64) -> u64 = x / 2\n", None).unwrap();
 | `bindings/` | Rust, Node and C bindings |
 | `scripts/check-sync.sh` | checks that this grammar matches the copy in the rce repository |
 
+## Language coverage
+
+The grammar tracks the RCE specification at openIE-dev/rce: language
+versions 0.5 to 0.8, including refined types `type R = τ where p` (`where`
+is a keyword only after the type of a type declaration and stays an
+ordinary name elsewhere), declared recursion bounds `fn … bound n`, and the
+version 0.8 indexed types `Text[Html]`, `Text[Url]`, `Text[Sql]`,
+`Text[Json]`, `Secret[τ]`, `Cap[A]` and `Guarded[τ, A]`, which parse as
+ordinary type applications and are highlighted as `@type.builtin`. Type
+rules such as W-CTX-1 or W-REC-1 belong to the checker, not the grammar.
+
 ## Known limits
 
 - Comments (`# ...`) are skipped by the scanner and do not appear in the

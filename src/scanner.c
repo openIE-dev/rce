@@ -61,7 +61,7 @@ static void comment(TSLexer *lx, S *s) {
   while (b[i] == ' ') i++;
   int e = n;
   while (e > i && b[e - 1] == ' ') e--;
-  if (e - i == 3 && (strncmp(b + i, "0.6", 3) == 0 || strncmp(b + i, "0.7", 3) == 0)) s->v06 = 1;
+  if (e - i == 3 && (strncmp(b + i, "0.6", 3) == 0 || strncmp(b + i, "0.7", 3) == 0 || strncmp(b + i, "0.8", 3) == 0)) s->v06 = 1;
 }
 
 static int is_id0(int32_t c) { return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_'; }
@@ -175,6 +175,9 @@ bool tree_sitter_rce_external_scanner_scan(void *p, TSLexer *lx, const bool *val
     if (n < 64) {
       w[n] = 0;
       if (strcmp(w, "_") == 0) return false;
+      // contextual word (5.1 refined types): `where` is the keyword only
+      // where a NAME cannot stand, i.e. after the type of a type declaration
+      if (strcmp(w, "where") == 0 && !valid[NAME]) return false;
       for (int i = 0; KW[i]; i++) if (strcmp(w, KW[i]) == 0) return false;
       if (s->v06)
         for (int i = kw06_start(); KW[i]; i++) if (strcmp(w, KW[i]) == 0) return false;
