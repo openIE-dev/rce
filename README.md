@@ -57,8 +57,8 @@ book says. Chapter 15 also runs the emitted Python and JavaScript, so
 | `scripts/check-listings.sh` | runs all of the above against a real `rce` |
 
 The book teaches language version 0.5 (sections 2 to 10 of specification
-draft 0.6). Every listing is a version 0.5 module; the version 0.6
-extensions of Appendix C are not covered yet.
+draft 0.7). Every listing is a version 0.5 module; the version 0.6 and
+0.7 extensions of Appendix C are not covered yet.
 
 ## Contributing
 
