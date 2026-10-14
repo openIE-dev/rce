@@ -17,11 +17,11 @@ an agent proves it read them by following `READ-PROTOCOL.md`.
 | `09-wellformedness.md` | `eb687dbb49ffa4e868bae0ac0c55e8d755a304fa97560c784a7b389d540e87b7` | Which rule refuses two unguarded steps in one region whose patterns overlap? |
 | `10-theorems.md` | `182f9afb88e9a12e15e7e7ccc0a31cc1e895905a3e60aeb72b668b2fafea9921` | What is the deep embedding of the emitted Rust subset called? |
 | `11-decisions.md` | `fc357fd314cc892a9aafd29438a1fed1a9649512de33953ee1b8b8e8a4c0ff7b` | The decisions list says it decides gaps in which file? |
-| `12-tooling.md` | `e7acda0628191b779c72cd4708e431c882c350364606fa49c55d571769f74bf2` | Which JSON-RPC error code does the language server return for a request it does not know? (a number) |
+| `12-tooling.md` | `8dffc76f2a0428e554e3667e1d2307672e21ff71d4a028d6514b55fa3b7ce7f0` | Which JSON-RPC error code does the language server return for a request it does not know? (a number) |
 | `13-references.md` | `003af0204609ec8dcf5a0fdb7b9b3d5aacf5b596976fa870cd56d6a6a3a7c5e6` | Who wrote "Communicating Sequential Processes"? (surname) |
 | `14-draft06-concurrency.md` | `abdefff233178ef31f6bf646a2a702939839e6d35b48de4b53a2b4ac28815509` | How many words does a version 0.6 module reserve in addition to the 0.5 keywords? (a number) |
-| `15-handler-spec-profile.md` | `697ddf5c7edf2a2bedb5043b8e8ab42f80169543c6486b36a94e1cde3e5070a7` | Which compiled node id does `deliverable D1` become? (for example role_R1) |
+| `15-handler-spec-profile.md` | `c553c04b34372a4bba8b83d92d2a05c0860733fdd82e8515d7d96164edaca8e8` | Which compiled node id does `deliverable D1` become? (for example role_R1) |
 
 The single-file spec `spec/RCE-SPEC.md` is generated from these files.
 
-<!-- body-sha256: cb19748b38f1e832f676af5ff8f11b32565f8d461bd3d0dff1926575bdf3b506 -->
+<!-- body-sha256: 23ace10e9d1d07d0126fe3b4d689f972327d08d49304e2e6fac9525e84367bd2 -->

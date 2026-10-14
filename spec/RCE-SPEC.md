@@ -2307,6 +2307,52 @@ as clean exactly when `rce check` accepts it (10.1, principle 3).
 - `rce run` uses the reference interpreter; there is no compiled runtime.
 - Idempotence of `fmt` is tested, not proved.
 
+### 10.9 `rce trace --json FILE [EVENTS]`: reference traces (informative)
+
+The trace format lets an independent projector (another compiler or
+runtime of the same Form) show that it agrees with the reference
+evaluator step by step. It adds no meaning: every field is a field of the
+log D of 6.1, so a trace is the log, and conformance to 6.1 implies
+conformance to the trace.
+
+`rce trace --json FILE` prints one trace per `example` of the module, in
+source order (the same logs `rce emit form` puts in `logs`); with EVENTS
+(the syntax of an `example` line, as in 10.3) it prints one trace of that
+event list. A module that is refused, or a trace of EVENTS that yields no
+step, is status 1. The output is one JSON object (format `rce-trace/1`),
+compact, with sorted keys:
+
+| Field | Meaning |
+|---|---|
+| `format` | `"rce-trace/1"` |
+| `file` | the file name, without directories |
+| `events` | the EVENTS argument, or null |
+| `genesis` | the first `prev_hash`: 64 zeros (6.1) |
+| `traces` | list of {`source`, `steps`}; `source` is `"example@L"` (the example's line) or `"events"` |
+| `steps[i].seq` | required: 0-based index in the trace |
+| `steps[i].event` | required: {`type`, `payload`}, payload values as in 6.1 |
+| `steps[i].state_hash` | required: SHA-256 (lower-case hex) of the canonical JSON of the state after the step |
+| `steps[i].prev_hash`, `steps[i].hash` | the 6.1 chain: `hash` is the SHA-256 of the canonical JSON of {event, prev_hash, seq, state_hash} |
+| `steps[i].outcome` | `"applied"` or {`refused`: error name}; derived, not hashed |
+
+A refused event is the last step of its trace, with the unchanged state's
+hash (T8). A projector conforms on a module when, for every trace, its
+steps have the same `seq`, `event` and `state_hash` as the reference, in
+order and with none missing or extra; when it also emits `prev_hash`,
+`hash` or `outcome` they must be equal too. Since `state_hash` covers
+the whole state, equal hashes mean equal states without exchanging them.
+
+`spec/traces/` holds the reference traces of the example corpus (one
+file per example that is admitted standalone, which excludes only the
+multi-module `26_use_module`, plus `01_counter.events.json`, the counter
+on a longer event list); examples without a state machine have an empty
+`traces` list. `spec/traces/rce-trace-diff.py REFERENCE OTHER` (Python 3,
+standard library only) compares two trace files or two directories of
+them and prints `exact match` or the first divergence (trace, `seq`,
+field, both values); exit 0 on full match. `spec/checker/tests/traces.rs`
+checks that the fixtures are current, that every step is on the 6.1
+chain, and that the runner finds a planted divergence.
+
 **Read receipt.** Which JSON-RPC error code does the language server return for a request it does not know? (a number)
 
 ---
@@ -2953,6 +2999,41 @@ check`, and each diagnostic names its rule.
   read as a float (`form::num`); no integer type of the language holds
   one.
 - The cost model of extraction (est_j) and the gate's certificate are
-  outside this appendix.
+  outside this appendix, except the break-even receipt of D.11.
+
+### D.11 Promotion break-even (receipt)
+
+Each promotion record (promoted or refused) carries a break-even
+receipt `break_even` with three terms and n\* =
+J_build / (J_model_path - J_handler), the number of inputs after which
+the promoted handler has paid back its build:
+
+- J_build: the est_j of the gear resolution that wrote the handler plus
+  the coverage shadow run of the promotion path. Static checks (proof,
+  kernel) are not priced and not included, so J_build and n\* are lower
+  bounds.
+- J_model_path: joules per input on the model path, the est_j of one
+  gear resolution (the price the retirement rule uses for savings).
+- J_handler: joules per input of the handler, the shadow run's priced
+  operations per sample plus one dispatch.
+
+Each term is {`j`, `basis`} with basis one of `est` (a model of the
+work), `reported` (a provider's figure), `measured` (a host
+measurement) or `unpriced` (no figure; `j` is null, never 0). A figure
+without a basis is refused when a record is read, and the type that
+holds a term has no constructor from a bare number. `n_star` is
+{`kind`: `unpriced`} when any term is unpriced (it is never computed
+from the other terms or from a default), {`kind`: `never`} when
+J_model_path - J_handler <= 0, and otherwise {`kind`: `value`, `n`,
+`inputs` = ⌈n⌉}; its basis is the weakest of the three
+(unpriced < est < reported < measured). The promotion path's last step
+records the same figures as text. Implemented in
+`src/runtime/break_even.rs`, tested there and in the engine's promotion
+tests.
+
+The receipt is a measurement record. It is not an input to δ, to any
+check, or to the decision to promote, so it does not change the meaning
+of any program or handler spec in any language version (C.15:
+receipts are version-independent).
 
 **Read receipt.** Which compiled node id does `deliverable D1` become? (for example role_R1)

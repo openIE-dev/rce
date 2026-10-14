@@ -249,8 +249,43 @@ check`, and each diagnostic names its rule.
   read as a float (`form::num`); no integer type of the language holds
   one.
 - The cost model of extraction (est_j) and the gate's certificate are
-  outside this appendix.
+  outside this appendix, except the break-even receipt of D.11.
+
+### D.11 Promotion break-even (receipt)
+
+Each promotion record (promoted or refused) carries a break-even
+receipt `break_even` with three terms and n\* =
+J_build / (J_model_path - J_handler), the number of inputs after which
+the promoted handler has paid back its build:
+
+- J_build: the est_j of the gear resolution that wrote the handler plus
+  the coverage shadow run of the promotion path. Static checks (proof,
+  kernel) are not priced and not included, so J_build and n\* are lower
+  bounds.
+- J_model_path: joules per input on the model path, the est_j of one
+  gear resolution (the price the retirement rule uses for savings).
+- J_handler: joules per input of the handler, the shadow run's priced
+  operations per sample plus one dispatch.
+
+Each term is {`j`, `basis`} with basis one of `est` (a model of the
+work), `reported` (a provider's figure), `measured` (a host
+measurement) or `unpriced` (no figure; `j` is null, never 0). A figure
+without a basis is refused when a record is read, and the type that
+holds a term has no constructor from a bare number. `n_star` is
+{`kind`: `unpriced`} when any term is unpriced (it is never computed
+from the other terms or from a default), {`kind`: `never`} when
+J_model_path - J_handler <= 0, and otherwise {`kind`: `value`, `n`,
+`inputs` = ⌈n⌉}; its basis is the weakest of the three
+(unpriced < est < reported < measured). The promotion path's last step
+records the same figures as text. Implemented in
+`src/runtime/break_even.rs`, tested there and in the engine's promotion
+tests.
+
+The receipt is a measurement record. It is not an input to δ, to any
+check, or to the decision to promote, so it does not change the meaning
+of any program or handler spec in any language version (C.15:
+receipts are version-independent).
 
 **Read receipt.** Which compiled node id does `deliverable D1` become? (for example role_R1)
 
-<!-- body-sha256: 697ddf5c7edf2a2bedb5043b8e8ab42f80169543c6486b36a94e1cde3e5070a7 -->
+<!-- body-sha256: c553c04b34372a4bba8b83d92d2a05c0860733fdd82e8515d7d96164edaca8e8 -->

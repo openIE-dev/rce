@@ -83,9 +83,11 @@ step, read [The RCE Book](https://github.com/openIE-dev/rce-book).
 | `rce check FILE...` | parse, type check and admit; one verdict per file |
 | `rce test FILE...` | the same, and count each file's examples and checks |
 | `rce run FILE [EVENTS]` | apply events, or run `fn main()` |
+| `rce trace --json FILE [EVENTS]` | reference trace of each example, or of EVENTS, for checking another implementation step by step |
 | `rce emit TARGET FILE` | `form` (the Form as JSON), `rust`, `python` or `js` |
 | `rce fmt [--check] FILE...` | rewrite files in the canonical layout |
 | `rce lsp` | language server on standard input and output |
+| `rce --version` | the checker version, the specification draft and the language versions it accepts |
 
 Section 10 of the specification defines each command exactly.
 
