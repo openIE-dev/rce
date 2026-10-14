@@ -1,4 +1,6 @@
-use ide_sandbox::jail::{Jail, JailError, JailPolicy, NoJail, platform_jail};
+#[cfg(target_os = "linux")]
+use ide_sandbox::jail::platform_jail;
+use ide_sandbox::jail::{Jail, JailError, JailPolicy, NoJail};
 use ide_sandbox::wasi::{FuelLimit, Sandbox, guest_path};
 use std::path::{Path, PathBuf};
 use std::process::Command;
