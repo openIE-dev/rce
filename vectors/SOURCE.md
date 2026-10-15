@@ -978,3 +978,76 @@ mutant removed, noted in its header).
 - `vectors/data/sync/automerge_map.json` sha256 `6c1a591d2304a154e80a50c7b8eb0239b4d4278a7ef063c9a76e3ab37f0c3617`
 - `vectors/data/sync/fast_json_patch.json` sha256 `59e159c6000c9218fb48cf6df94d1316955916bc64ddf62e40cc3414e55aa1ad`
 - `vectors/data/sync/pg_subscriptions.json` sha256 `134cb8582f750b1496ed7297ed798929197cc190e8c5008adc769175dcb10751`
+
+
+## num.linalg, num.special, num.stats (`lib/num/`)
+
+Floating point: rce 0.1.3 `f64` is IEEE 754 binary64 with correctly
+rounded + - * / and sqrt and no FMA contraction (spec 6.3 N3). Every
+reduction runs in one fixed, documented order, so a result is the same
+bits on every target.
+
+num.linalg (327 checks, `scripts/gen/linalg_gen.py`, `linalg_gen2.py`):
+- 244 checks bit for bit against Debian Reference BLAS/LAPACK 3.12.1-6
+  (`libblas3`, `liblapack3`, loaded by ctypes in `scripts/ref/reflapack.py`,
+  sha256 pinned; LAPACK sources from https://github.com/Reference-LAPACK/lapack
+  tag v3.12.1): ddot, daxpy, dnrm2, dasum, idamax, dgemv, dger, dtrsm,
+  dgemm, dgetf2 and dgetrs, dpotf2 and dpotrs, dgeqr2, dorg2r, dorm2r, dgels.
+  For n <= 32 the blocked drivers (dgetrf, dpotrf, dgeqrf, dgehrd, dhseqr)
+  take these unblocked paths, so the comparison is exact.
+- 83 eigen and SVD checks: 30 dgeev eigenvalue sets bit for bit, and
+  dsyev/dgesvd style tests with the LAPACK test ratios (residual and
+  orthogonality) below 30, the LAPACK pass threshold.
+
+num.special (3,421 checks, `scripts/gen/special_gen.py`): 1,897 bit for bit
+against FDLIBM 5.3 (netlib, sources and SHA256SUMS in `scripts/ref/fdlibm`,
+built with gcc -O0 -ffp-contract=off) and 1,524 within 1 ulp of the
+correctly rounded value from mpmath 1.4.1 at 200 bits. FDLIBM notice:
+"Copyright (C) 1993 by Sun Microsystems, Inc. All rights reserved.
+Developed at SunSoft, a Sun Microsystems, Inc. business. Permission to use,
+copy, modify, and distribute this software is freely granted, provided that
+this notice is preserved."
+
+num.stats (1,901 checks):
+- NIST Statistical Reference Datasets (https://www.itl.nist.gov/div898/strd/),
+  all 31 sets copied unchanged into `vectors/num/nist` (SHA256SUMS there):
+  univariate (PiDigits, Lottery, Lew, Mavro, Michelso, NumAcc1-4), linear
+  least squares (Norris, Pontius, NoInt1-2, Filip, Longley, Wampler1-5),
+  one-way ANOVA (SiRstv, SmLs01-09, AtmWtAg). `scripts/gen/stats_nist_gen.py`
+  writes 546 checks. Each certified value is checked twice by log relative
+  error (LRE): against the exact answer for the data as rounded to binary64
+  (mpmath at 400 bits), LRE >= 12, and against the NIST certified value,
+  LRE >= min(12, L - 0.5) where L is the LRE of that binary64-exact answer
+  (NumAcc3/4, Filip and SmLs04-09 lose up to 9 digits in the decimal to
+  binary rounding of their inputs alone). Measured: every value has LRE
+  >= 13.7 against the binary64-exact answer, including all Filip
+  coefficients and standard errors.
+- SciPy 1.18.1 and NumPy 2.5.4 (`scripts/gen/stats_scipy_gen.py`, 1,355
+  checks): pdf, cdf, sf and quantiles of the normal (referenced to mpmath
+  1.4.1 erfc at 60 digits, since `scipy.stats.norm.sf` has 5.7e-14 relative
+  error at x = 30), t, chi2, gamma, beta, F, exponential, binomial and
+  Poisson families with relative tolerances per family; `numpy.quantile`
+  for all nine methods bit for bit; `ttest_1samp`, `ttest_ind` (pooled and
+  Welch), `ttest_rel`, `chisquare`, `chi2_contingency` (with and without
+  Yates), `pearsonr`, `f_oneway`, `skew`, `kurtosis` to 1e-12.
+- Variates: 80 uniforms bit for bit against an independent Python ChaCha20
+  (checked against the RFC 8439 2.3.2 block vector) laid out as `rand.det`
+  streams; normal and exponential variates against `scipy.special.ndtri`
+  and `numpy.log` of the same uniforms.
+- Algorithms and their sources: C. Loader, "Fast and Accurate Computation
+  of Binomial Probabilities" (2000) for stirlerr, bd0 and the saddle-point
+  densities; M. J. Wichura, Algorithm AS 241 (Applied Statistics 37, 1988)
+  for the normal quantile (coefficients from the MIT-licensed `asa241.c`);
+  A. Bjorck, "Iterative refinement of linear least squares solutions I"
+  (BIT 7, 1967) for least squares; J. R. Shewchuk (1997) exact summation;
+  T. J. Dekker (1971) exact products; Hyndman and Fan (1996) quantile types.
+
+Mutation testing: `scripts/mut/num.py` 12/12 killed (the two left-out equivalent mutants are listed in its header).
+
+Open gaps: eigenvectors of nonsymmetric matrices are not provided; above
+n = 32 the results stay deterministic but are no longer bit-identical to
+the blocked LAPACK drivers; FDLIBM functions are faithful (1 ulp), not
+correctly rounded, until the `math` module's CORE-MATH ports land; far tails
+with large parameters (t with df = 1e5, binomial and Poisson pmf near 1e-300)
+reach relative errors of 3e-12 and 3e-13, from the rounding of exp arguments
+near 700.
