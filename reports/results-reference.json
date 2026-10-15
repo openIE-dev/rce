@@ -2,7 +2,7 @@
  "format": "rce-results/1",
  "adapter": "reference",
  "tally": {
-  "pass": 1990
+  "pass": 1991
  },
  "results": [
   {
@@ -36217,6 +36217,20 @@
    "status": "pass",
    "detail": "",
    "ms": 0
+  },
+  {
+   "path": "tests/proposed/act-1-every-actor-steps-each-tick.rce",
+   "id": "proposed/act-1-every-actor-steps-each-tick",
+   "area": "proposed",
+   "clauses": [
+    "ACT-1",
+    "T1",
+    "T4",
+    "T9"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 14
   },
   {
    "path": "tests/proposed/tu-4-reduction-is-left-fold.rce",

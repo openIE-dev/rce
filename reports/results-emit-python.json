@@ -2,7 +2,7 @@
  "format": "rce-results/1",
  "adapter": "emit-python",
  "tally": {
-  "pass": 1459,
+  "pass": 1460,
   "n/a": 531
  },
  "results": [
@@ -36218,6 +36218,20 @@
    "status": "n/a",
    "detail": "admission (parse, check, W-codes) is the front end's job; an emitter translates only admitted modules (10.5)",
    "ms": 0
+  },
+  {
+   "path": "tests/proposed/act-1-every-actor-steps-each-tick.rce",
+   "id": "proposed/act-1-every-actor-steps-each-tick",
+   "area": "proposed",
+   "clauses": [
+    "ACT-1",
+    "T1",
+    "T4",
+    "T9"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 164
   },
   {
    "path": "tests/proposed/tu-4-reduction-is-left-fold.rce",
