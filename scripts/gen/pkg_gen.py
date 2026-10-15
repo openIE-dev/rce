@@ -3,8 +3,7 @@
 #    vendored in vectors/os/semver/), each also confirmed against the
 #    crate itself, and random versions, requirements, comparisons and
 #    matches answered by the crate (scripts/ref/semver_ref.rs);
-#  - not run here: test_identifier's 5.6M-character prerelease (the
-#    rce evaluator is too slow on it); its 280 shorter lengths are run.
+#  - test_identifier's 5.6M-character prerelease has a shard of its own.
 # Usage: python3 scripts/gen/pkg_gen.py  (needs cargo and network)
 import ast, os, random, re, subprocess
 here = os.path.dirname(os.path.abspath(__file__)); root = os.path.join(here, '../..')
@@ -210,8 +209,9 @@ for f in os.listdir(os.path.join(root, 'tests/os')):
 shards = []
 N = 1200
 for k in range(0, len(rows), N): shards.append(rows[k:k + N])
+shards.append([big_row])
 for k, rs in enumerate(shards):
     name = 'pkg_checks.rce' if k == 0 else 'pkg_checks_%d.rce' % k
     with open(os.path.join(root, 'tests/os', name), 'w') as f:
         f.write(hdr + helpers + '\n'.join(rs) + '\n')
-print(len(rows), 'checks in', len(shards), 'files')
+print(len(rows) + 1, 'checks in', len(shards), 'files')

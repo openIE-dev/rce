@@ -1,8 +1,8 @@
 module os.pkg
 # Packages (survey M43), pure. Fetching a package is a host capability
 # effect under the `net` grant; this module holds the version model a
-# Form resolves with: a port of the semver crate (1.0.28) that Cargo
-# uses: Version, Comparator and VersionReq parsing with the crate's error
+# Form resolves with: a port of Cargo's semver crate (1.0.28):
+# Version, Comparator and VersionReq parsing with the crate's error
 # messages, display (with padding), ordering (pre-release and build
 # metadata rules), and requirement matching with its pre-release rule.
 
@@ -194,8 +194,23 @@ pub fn version_parse(t: &text) -> Version ! BadPkg
         fail BadPkg(why: e_unexpected_after(p, &cs[i as usize]))
     return Version(major: ma.val, minor: mi.val, patch: pa.val, pre: pre, build: build)
 
+# Identifiers whose every dot-separated segment is all letters or all
+# digits (and, for a pre-release, a multi-digit segment does not start
+# with 0) are accepted as they are without a walk over each character.
+fn plain_ids(t: &text, pre: bool) -> bool
+    if t == ""
+        return false
+    for seg in t.split(".")
+        if not (seg.isalpha() or seg.isdigit())
+            return false
+        if pre and seg.len() > 1 and seg.isdigit() and seg.startswith("0")
+            return false
+    return true
+
 # Prerelease::new and BuildMetadata::new.
 pub fn prerelease_new(t: &text) -> text ! BadPkg
+    if plain_ids(t, true)
+        return copy(t)
     let cs = t.chars()
     let r = ident(&cs, 0, 3)
     if r.err != ""
@@ -205,6 +220,8 @@ pub fn prerelease_new(t: &text) -> text ! BadPkg
     return r.val
 
 pub fn build_new(t: &text) -> text ! BadPkg
+    if plain_ids(t, false)
+        return copy(t)
     let cs = t.chars()
     let r = ident(&cs, 0, 4)
     if r.err != ""

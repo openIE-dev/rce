@@ -60,12 +60,15 @@ fn ones(n: i64) -> text
         i += 1
     return s
 fn rep(s: text, n: i64) -> text
-    var o: List[text] = []
-    var i: i64 = 0
-    while i < n bound 16777216
-        o.push(copy(s))
-        i += 1
-    return "".join(o)
+    var o = ""
+    var b = s
+    var k = n
+    while k > 0 bound 64
+        if k % 2 == 1
+            o = o + b
+        b = b + b
+        k = k / 2
+    return o
 check cp("~ 3.01.3 ") == "err invalid leading zero in minor version number"
 check cp(" 3.x") == "ok 3.*"
 check cp(" ~3.x") == "ok ~3"

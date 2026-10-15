@@ -60,12 +60,15 @@ fn ones(n: i64) -> text
         i += 1
     return s
 fn rep(s: text, n: i64) -> text
-    var o: List[text] = []
-    var i: i64 = 0
-    while i < n bound 16777216
-        o.push(copy(s))
-        i += 1
-    return "".join(o)
+    var o = ""
+    var b = s
+    var k = n
+    while k > 0 bound 64
+        if k % 2 == 1
+            o = o + b
+        b = b + b
+        k = k / 2
+    return o
 check vp("9.2.9223372036854775808.10") == "err unexpected character '.' after patch version number"
 check vp("0.18446744073709551615.00.1") == "err invalid leading zero in patch version number"
 check vp("501.1") == "err unexpected end of input while parsing minor version number"

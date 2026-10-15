@@ -222,6 +222,8 @@ M['pkg'] = [
     ('        return m_exact(c, v) or m_order(c, v, -1)', '        return m_order(c, v, -1)'),
     ('c.patch == v.patch and c.pre != ""', 'c.pre != ""'),
     ('    if v.pre == ""\n        return true\n    for c', '    if true\n        return true\n    for c'),
+    ('if pre and seg.len() > 1 and seg.isdigit() and seg.startswith("0")', 'if false'),
+    ('        if not (seg.isalpha() or seg.isdigit())', '        if not (seg.isalpha() or seg.isdigit() or seg.contains("-"))'),
 ]
 
 def one(job):
