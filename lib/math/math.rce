@@ -18,7 +18,8 @@ module math
 # Alexei Sibidanov, Paul Zimmermann et al., https://core-math.gitlabpages.inria.fr/)
 # and MPFR 4.2.2 vectors; see SOURCE.md.
 #
-# Non-finite results trap like every f64 op (6.3 N3): cbrt never traps.
+# Non-finite results trap like every f64 op (6.3 N3): cbrt and hypot only
+# trap when the true result overflows.
 
 const SPLITTER: f64 = 134217729.0
 const P52: f64 = 4503599627370496.0
@@ -195,3 +196,71 @@ pub fn cbrt(x: f64) -> f64
             break
     let s = pow2(k / 3)
     return if neg then 0.0 - y * s else y * s
+
+# ---- hypot --------------------------------------------------------------
+
+fn sq_cmp(s: &[f64], y: &[f64]) -> i64
+    let y2 = exp_mul(y, y)
+    let n = exp_neg(&y2)
+    let d = exp_add(s, &n)
+    return exp_sign(&d)
+
+fn grid(y: f64, us: f64) -> f64
+    var g = 1.0 / P52
+    if y >= 2.0
+        g = 2.0 / P52
+    return if us > g then us else g
+
+fn odd_on(y: f64, g: f64) -> bool
+    let q = y / g
+    let h = (q * 0.5).floor()
+    return q - 2.0 * h != 0.0
+
+# Correctly rounded sqrt(x^2 + y^2) without spurious overflow/underflow.
+pub fn hypot(x: f64, y: f64) -> f64
+    var a = fabs(x)
+    var b = fabs(y)
+    if b > a
+        let t = a
+        a = b
+        b = t
+    if b == 0.0
+        return a
+    # b < a 2^-28: a^2 + b^2 lies strictly inside a's rounding interval
+    if b < a / 268435456.0
+        return a
+    let fr = frexp1(a)
+    let k = fr[1] as i64
+    # two exact steps: 2^-k alone overflows for subnormal a
+    let s1 = pow2(0 - k / 2)
+    let s2 = pow2(k / 2 - k)
+    let aa = a * s1 * s2
+    let bb = b * s1 * s2
+    # output grid in the scaled domain: binade grid, or the subnormal grid
+    # 2^-1074 scaled when the unscaled result is subnormal
+    let us = if k < -1000 then pow2(-1074 - k) else 0.0
+    let a2 = two_prod(aa, aa)
+    let b2 = two_prod(bb, bb)
+    let s = exp_add(&a2, &b2)
+    var r = (aa * aa + bb * bb).sqrt()
+    let g0 = grid(r, us)
+    r = (r / g0).round() * g0
+    while true bound 64
+        let g = grid(r, us)
+        let hi = [r, g * 0.5]
+        let c = sq_cmp(&s, &hi)
+        if c > 0 or (c == 0 and odd_on(r, g))
+            r = r + g
+        else
+            break
+    while true bound 64
+        var d = grid(r, us)
+        if (r == 2.0 or r == 1.0) and d * 0.5 >= us
+            d = d * 0.5
+        let lo = [r, d * -0.5]
+        let c = sq_cmp(&s, &lo)
+        if c < 0 or (c == 0 and odd_on(r, grid(r, us)))
+            r = r - d
+        else
+            break
+    return r * pow2(k)

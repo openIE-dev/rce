@@ -10,7 +10,7 @@ RCE=${RCE:-rce}
 n=${1:-0}
 cd "$(dirname "$0")/.."
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
-for c in tests/math/math_checks.rce tests/math/math_checks_eft.rce tests/math/math_checks_*_"$n".rce; do
+for c in tests/math/math_checks.rce tests/math/math_checks_eft.rce tests/math/math_checks_ties.rce tests/math/math_checks_*_"$n".rce; do
   b=$(basename "$c" .rce)
   { cat lib/math/math.rce; echo; cat "$c"; } > "$tmp/$b.rce"
   "$RCE" emit rust "$tmp/$b.rce" > "$tmp/$b.rs"

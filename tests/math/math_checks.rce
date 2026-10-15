@@ -1,4 +1,10 @@
 # Derived checks (MPFR 4.2.2 expected values).
+# Exact hypot ties: a = t(t+1) 2^e, b = (2t+1)/2 2^e give a^2 + b^2 = (a + 2^(e-1))^2,
+# the midpoint above a; nearest-even keeps a.
+check hypot(4503599694479360.0, 67108864.5) == 4503599694479360.0
+check hypot(0.003906250058207661, 5.820766134714828e-11) == 0.003906250058207661
+check hypot(4.203046373462439e-286, 6.26302663832303e-294) == 4.203046373462439e-286
+check hypot(8.56521747791982e+286, 8.508779044326072e+278) == 8.56521747791982e+286
 check cbrt(1.0) == 1.0
 check cbrt(8.0) == 2.0
 check cbrt(27.0) == 3.0
@@ -14,4 +20,5 @@ check two_prod(0.1, 0.1)[0] + two_prod(0.1, 0.1)[1] == two_prod(0.1, 0.1)[0]
 check pow2(-1074) == 5e-324
 check pow2(1023) == 8.98846567431158e+307
 check cbrt(0.0 - 27.0) == 0.0 - 3.0
+check hypot(3.0, 4.0) == 5.0
 check sqrt(2.0) == 1.4142135623730951

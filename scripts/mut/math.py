@@ -4,7 +4,12 @@
 # Equivalent mutants removed: SPLITTER 2^27 instead of 2^27 + 1 (that
 # variant of Veltkamp's split is also exact; 300,000 random products
 # checked); the cbrt up-loop midpoint moved to a quarter step (the down
-# loop, which compares at the true midpoint, steps back).
+# loop, which compares at the true midpoint, steps back); the hypot
+# up-loop tie rule ("c > 0" or "c >= 0" alone): an exact tie
+# a^2 + b^2 = ((2R + 1) u / 2)^2 reduces to an odd square that is a sum of
+# two squares, so 2R + 1 = 1 mod 4 and R is always even (the rule never
+# steps up; a step up is undone by the down loop's tie rule, which is
+# tested by tests/math/math_checks_ties.rce).
 import glob, os, subprocess, sys, tempfile
 from concurrent.futures import ThreadPoolExecutor
 RCE = os.environ.get('RCE', 'rce')
@@ -31,6 +36,17 @@ M = [('core',) + m for m in [
     ('        if cube_cmp(m, &lo) < 0', '        if cube_cmp(m, &lo) < -1'),
     ('    return if neg then 0.0 - y * s else y * s', '    return y * s'),
     ('    let c = exp_mul(&y2, y)', '    let c = y2'),
+]] + [('hypot',) + m for m in [
+    ('    if b > a\n', '    if false\n'),
+    ('    if b < a / 268435456.0', '    if b < a / 16384.0'),
+    ('    let s2 = pow2(k / 2 - k)', '    let s2 = pow2(k / 2 - k + 1)'),
+    ('    let us = if k < -1000 then pow2(-1074 - k) else 0.0', '    let us = 0.0'),
+    ('        g = 2.0 / P52', '        g = 1.0 / P52'),
+    ('    return q - 2.0 * h != 0.0', '    return q - 2.0 * h == 0.0'),
+    ('        if (r == 2.0 or r == 1.0) and d * 0.5 >= us', '        if r == 1.0 and d * 0.5 >= us'),
+    ('        if c < 0 or (c == 0 and odd_on(r, grid(r, us)))', '        if c < 0'),
+    ('    let b2 = two_prod(bb, bb)', '    let b2 = [bb * bb]'),
+    ('    return r * pow2(k)', '    return r * pow2(k + 1)'),
 ]]
 SH = sorted(glob.glob(os.path.join(root, 'tests/math/math_checks*.rce')))
 

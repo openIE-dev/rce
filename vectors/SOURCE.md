@@ -843,14 +843,18 @@ sign combinations.
 | fn | CORE-MATH worst cases | random | edge | total |
 | --- | --- | --- | --- | --- |
 | cbrt | 106,244 | 2,999 | 12 | 109,255 |
+| hypot | 32,917 | 3,000 | 496 | 36,413 |
 
-Derived (`tests/math/math_checks.rce`, `math_checks_eft.rce`): TwoProduct
-and TwoSum error terms and frexp1 against exact rationals, small cases.
+Derived (`tests/math/math_checks.rce`, `math_checks_eft.rce`,
+`math_checks_ties.rce`): exact hypot midpoint ties (300, a = t(t+1) 2^e,
+b = (2t+1)/2 2^e), TwoProduct and TwoSum error terms and frexp1 against
+exact rationals, small cases.
 Cross-target: `scripts/math_parity.sh` emits the module with the derived
 checks and one shard per function to Rust, Python and JavaScript and
 requires identical transcripts, plus Scala 3 when scala-cli is installed
 (run on the box: Scala 3.9.0, JVM 17; all four identical).
-Mutation testing: `scripts/mut/math.py` 19/19 killed (equivalent mutants
+Mutation testing: `scripts/mut/math.py` 29/29 killed (equivalent mutants
 removed are listed in its header).
 
 - `vectors/math/cbrt.wc` sha256 `c0487c6527aafea0eb741a4464c745bd545c49fc2a00ff7dbb89ee882b16047a`
+- `vectors/math/hypot.wc` sha256 `a7f24bd5b59d371aa1e1a2385dd9d526e21c6b4f751f735471f72d505103fac7`
