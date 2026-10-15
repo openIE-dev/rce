@@ -1,3 +1,4 @@
 scripts/ref/*/target/
 scripts/ref/*/Cargo.lock
 __pycache__/
+scripts/ref/fdlibm/fdlibm_ref
