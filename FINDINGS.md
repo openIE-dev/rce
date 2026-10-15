@@ -9,6 +9,12 @@ Machine-readable records are in `findings/*.json`; the tests the reference fails
    diagnostic reports the value that failed. Fix: format the exact operand.
 2. **F9/F6 `-0.0` text.** f64 `tostr(-0.0)` prints `0`; f32 prints `-0`. F9
    requires text round-trip, and `0` reads back as +0. Fix: print `-0` for f64.
+   *Closed:* fixed in the engine (joulesperbit 04d8e7939/982eb3e63, f64 prints
+   `-0`); `numbers/targeted/f6-f64-tostr-minus-zero` passes. The fix exposed
+   that `gen_numbers.py` computed floor/ceil as +0 for a negative operand
+   (IEEE 754 keeps the sign), so 11 generated expectations now read `emit -0`,
+   and the harvested `57-float-vectors` tests carry the corpus's `-0.0` for
+   `Mul(0.0, -1.0)` (joulesperbit d7aeecd65).
 3. **T7 renames and D.** T7 says renaming keeps log hashes, but event and
    error names are part of D's input and D is injective, so renaming them
    must change the hash. Fix: restrict T7 to names that do not appear in D

@@ -65,7 +65,7 @@ def fop(op, a, b):
 
 def ftext(x):
     """F9 canonical float text (display, `tostr`)."""
-    if x == 0.0: return "0"
+    if x == 0.0: return "-0" if math.copysign(1, x) < 0 else "0"
     r = repr(x)
     m, _, e = r.partition("e")
     digits = m.replace("-", "").replace(".", "").lstrip("0").rstrip("0") or "0"
@@ -148,9 +148,10 @@ def gen_float(rnd):
     def val():
         if op in "+-*/": return fop(op, a, b)
         if op == "mulsub": return fop("-", fop("*", a, b), a)
-        if op == "floor": return float(math.floor(a))
-        if op == "ceil": return float(math.ceil(a))
-        if op == "round": return float(math.floor(abs(a) + 0.5)) * (1 if a >= 0 else -1) if abs(a) < 2**52 else a
+        # IEEE 754 roundToIntegral keeps the sign, so a zero result of a negative operand is -0.0
+        if op == "floor": return math.copysign(float(math.floor(a)), a)
+        if op == "ceil": return math.copysign(float(math.ceil(a)), a)
+        if op == "round": return math.copysign(float(math.floor(abs(a) + 0.5)), a) if abs(a) < 2**52 else a
         if op == "abs": return abs(a)
         if op == "min": return a if a <= b else b
         if op == "max": return a if a >= b else b
@@ -166,8 +167,10 @@ def gen_float(rnd):
         v = val()
     except Trap as e:
         return src, [], f"trap:{e}", cl
-    if isinstance(v, float) and v == 0.0 and math.copysign(1, v) < 0:
-        return None   # display of -0.0 is under finding F6-TOSTR; covered by trace tests instead
+    if isinstance(v, float) and v == 0.0 and math.copysign(1, v) < 0 and op not in ("floor", "ceil"):
+        # kept so the seeded stream (and every test id) stays as first generated; F6-TOSTR is closed
+        # (f64 tostr prints -0, joulesperbit 04d8e7939) and floor/ceil/round results now carry the sign
+        return None
     return src, [f"emit {v if isinstance(v, int) else ftext(v)}"], "done", cl
 
 def main():

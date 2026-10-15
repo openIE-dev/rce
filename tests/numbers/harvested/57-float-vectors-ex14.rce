@@ -10,7 +10,7 @@ intent "IEEE 754 binary64 vectors that every target computes bit for bit"
     example Div(a: 1.0, b: 3.0) -> 0.3333333333333333
     example Sqrt(a: 2.0) -> 1.4142135623730951
     example Mul(a: 5e-324, b: 0.5) -> 0.0
-    example Mul(a: 0.0, b: -1.0) -> 0.0
+    example Mul(a: 0.0, b: -1.0) -> -0.0
     example Mul(a: 5e-324, b: 3.0) -> 1.5e-323
     example Div(a: 2.2250738585072014e-308, b: 4503599627370496.0) -> 5e-324
     example Mul(a: 2.2250738585072014e-308, b: 0.5) -> 1.1125369292536007e-308
