@@ -1,0 +1,437 @@
+module os.fs
+
+# Descriptor-relative filesystem (survey M38), pure. The program never sees
+# an ambient root: every path is resolved beneath a preopened directory
+# (WASI style), and the host performs the real operations as logged
+# capability effects (cap Fs, grant fs per preopened subtree). This module
+# holds two pure parts:
+#  - the in-memory filesystem model used for tests and for replay: one
+#    preopened root, directories, regular files, open descriptors with a
+#    position and access mode. Results and errors follow Linux (openat2
+#    with RESOLVE_BENEATH | RESOLVE_NO_SYMLINKS, mkdirat, unlinkat,
+#    renameat, ftruncate, read, write, lseek), named with the
+#    wasi:filesystem@0.2.8 error-code cases. A path that would leave the
+#    preopen (an absolute path, or ".." at the root) fails with
+#    not-permitted (Linux reports EXDEV). Symlinks, hard links, sparse
+#    holes and timestamps are not modelled.
+#  - the error-code table of wasi:filesystem@0.2.8 and the Linux errno
+#    names that map onto it.
+
+error FsErr(code: text)
+
+# wasi:filesystem@0.2.8 types.wit, enum error-code, in declaration order.
+pub const ERROR_CODES: text = "access would-block already bad-descriptor busy deadlock quota exist file-too-large illegal-byte-sequence in-progress interrupted invalid io is-directory loop too-many-links message-size name-too-long no-device no-entry no-lock insufficient-memory insufficient-space not-directory not-empty not-recoverable unsupported no-tty no-such-device overflow not-permitted pipe read-only invalid-seek text-file-busy cross-device"
+
+# The POSIX errno each error-code stands for (wasi-libc's mapping, same order).
+pub const ERRNOS: text = "EACCES EAGAIN EALREADY EBADF EBUSY EDEADLK EDQUOT EEXIST EFBIG EILSEQ EINPROGRESS EINTR EINVAL EIO EISDIR ELOOP EMLINK EMSGSIZE ENAMETOOLONG ENODEV ENOENT ENOLCK ENOMEM ENOSPC ENOTDIR ENOTEMPTY ENOTRECOVERABLE ENOTSUP ENOTTY ENXIO EOVERFLOW EPERM EPIPE EROFS ESPIPE ETXTBSY EXDEV"
+
+pub fn code_index(c: text) -> i64
+    var i: i64 = 0
+    for x in ERROR_CODES.split(" ")
+        if x == c
+            return i
+        i += 1
+    return -1
+
+pub fn errno_of(c: text) -> text
+    let i = code_index(c)
+    if i < 0
+        return ""
+    return copy(ERRNOS.split(" ")[i as usize])
+
+pub fn code_of_errno(e: text) -> text
+    var i: usize = 0
+    let es = ERRNOS.split(" ")
+    while i < es.len() bound 64
+        if es[i] == e
+            return copy(ERROR_CODES.split(" ")[i])
+        i += 1
+    return ""
+
+# ---------------- the model ----------------
+
+pub struct Node
+    dir: bool
+    data: List[text]
+    parent: i64
+
+pub struct Ent
+    dir: i64
+    name: text
+    node: i64
+
+pub struct Desc
+    node: i64
+    pos: i64
+    rd: bool
+    wr: bool
+    app: bool
+    live: bool
+
+pub struct Fs
+    nodes: List[Node]
+    ents: List[Ent]
+    descs: List[Desc]
+
+# A fresh filesystem: node 0 is the preopened root directory.
+pub fn fs_new() -> Fs = Fs(nodes: [Node(dir: true, data: [], parent: -1)], ents: [], descs: [])
+
+fn bad(c: text) -> FsErr = FsErr(code: c)
+
+fn lookup(fs: &Fs, d: i64, name: &text) -> i64
+    for e in fs.ents
+        if e.dir == d and e.name == name
+            return e.node
+    return -1
+
+fn is_empty(fs: &Fs, d: i64) -> bool
+    for e in fs.ents
+        if e.dir == d
+            return false
+    return true
+
+# Where a path leads: the directory holding the last component, the last
+# component ("." or ".." or a name), the node it names (-1 when absent)
+# and whether the path ends in "/".
+pub struct Where
+    dir: i64
+    last: text
+    node: i64
+    slash: bool
+
+fn comps(path: &text) -> List[text]
+    var o: List[text] = []
+    for c in path.split("/")
+        if c != ""
+            o.push(c)
+    return o
+
+fn walk1(fs: &Fs, cur: i64, c: &text) -> i64 ! FsErr
+    if not fs.nodes[cur as usize].dir
+        fail bad("not-directory")
+    if c == "."
+        return cur
+    if c == ".."
+        let p = fs.nodes[cur as usize].parent
+        if p < 0
+            fail bad("not-permitted")
+        return p
+    let n = lookup(fs, cur, c)
+    if n < 0
+        fail bad("no-entry")
+    return n
+
+# follow: whether a final "." or ".." is stepped (open, stat, list); the
+# calls that create or remove an entry (mkdirat, unlinkat, renameat) look
+# only at the parent and refuse a final dot entry themselves.
+pub fn resolve(fs: &Fs, path: &text, follow: bool) -> Where ! FsErr
+    if path == ""
+        fail bad("no-entry")
+    if path.startswith("/")
+        fail bad("not-permitted")
+    let cs = comps(path)
+    var cur: i64 = 0
+    var i: usize = 0
+    while i + 1 < cs.len() bound 4096
+        cur = try walk1(fs, cur, &cs[i])
+        i += 1
+    if not fs.nodes[cur as usize].dir
+        fail bad("not-directory")
+    let last = copy(cs[cs.len() - 1])
+    var node: i64 = -1
+    if last == "." or last == ".."
+        if follow
+            node = try walk1(fs, cur, &last)
+    else
+        node = lookup(fs, cur, &last)
+    return Where(dir: cur, last: last, node: node, slash: path.endswith("/"))
+
+fn named(w: &Where) -> bool = w.last != "." and w.last != ".."
+
+fn add_node(fs: &mut Fs, dir: bool, parent: i64) -> i64
+    fs.nodes.push(Node(dir: dir, data: [], parent: parent))
+    return fs.nodes.len() as i64 - 1
+
+fn drop_ent(fs: &mut Fs, d: i64, name: &text)
+    var o: List[Ent] = []
+    for e in fs.ents
+        if not (e.dir == d and e.name == name)
+            o.push(copy(e))
+    fs.ents = o
+
+pub fn mkdir_at(fs: &mut Fs, path: &text) -> bool ! FsErr
+    let w = try resolve(fs, path, false)
+    if not named(&w) or w.node >= 0
+        fail bad("exist")
+    let n = add_node(fs, true, w.dir)
+    fs.ents.push(Ent(dir: w.dir, name: copy(w.last), node: n))
+    return true
+
+# Open flags as text: r (read), w (write), c (create), x (exclusive),
+# t (truncate), d (directory), a (append). Returns the descriptor index.
+pub fn open_at(fs: &mut Fs, path: &text, flags: &text) -> i64 ! FsErr
+    let rd = flags.contains("r")
+    let wr = flags.contains("w")
+    let cr = flags.contains("c")
+    let ex = flags.contains("x")
+    let tr = flags.contains("t")
+    let dr = flags.contains("d")
+    if cr and dr
+        fail bad("invalid")
+    let w = try resolve(fs, path, true)
+    if cr and w.slash and named(&w)
+        fail bad("is-directory")
+    var n = w.node
+    if n < 0
+        if not cr
+            fail bad("no-entry")
+        n = add_node(fs, false, w.dir)
+        fs.ents.push(Ent(dir: w.dir, name: copy(w.last), node: n))
+    elif cr and ex
+        fail bad("exist")
+    elif fs.nodes[n as usize].dir
+        if wr or cr or tr
+            fail bad("is-directory")
+    else
+        if dr or w.slash
+            fail bad("not-directory")
+        if tr
+            fs.nodes[n as usize].data = []
+    fs.descs.push(Desc(node: n, pos: 0, rd: rd, wr: wr, app: flags.contains("a"), live: true))
+    return fs.descs.len() as i64 - 1
+
+fn desc(fs: &Fs, h: i64) -> Desc ! FsErr
+    if h < 0 or h as usize >= fs.descs.len() or not fs.descs[h as usize].live
+        fail bad("bad-descriptor")
+    return copy(fs.descs[h as usize])
+
+pub fn read(fs: &mut Fs, h: i64, n: i64) -> text ! FsErr
+    let d = try desc(fs, h)
+    if not d.rd
+        fail bad("bad-descriptor")
+    if fs.nodes[d.node as usize].dir
+        fail bad("is-directory")
+    let data = copy(fs.nodes[d.node as usize].data)
+    var o = ""
+    var p = d.pos
+    while p < data.len() as i64 and p < d.pos + n bound 16777216
+        o = o + data[p as usize]
+        p += 1
+    fs.descs[h as usize].pos = p
+    return o
+
+pub fn write(fs: &mut Fs, h: i64, s: &text) -> bool ! FsErr
+    let d = try desc(fs, h)
+    if not d.wr
+        fail bad("bad-descriptor")
+    var data = copy(fs.nodes[d.node as usize].data)
+    var p = if d.app then data.len() as i64 else d.pos
+    while data.len() as i64 < p bound 16777216
+        data.push("\u{0}")
+    for c in s.chars()
+        if p < data.len() as i64
+            data[p as usize] = c
+        else
+            data.push(c)
+        p += 1
+    fs.nodes[d.node as usize].data = data
+    fs.descs[h as usize].pos = p
+    return true
+
+pub fn seek(fs: &mut Fs, h: i64, pos: i64) -> bool ! FsErr
+    let d = try desc(fs, h)
+    if pos < 0
+        fail bad("invalid")
+    fs.descs[h as usize].pos = pos
+    return true
+
+pub fn truncate(fs: &mut Fs, h: i64, len: i64) -> bool ! FsErr
+    let d = try desc(fs, h)
+    if not d.wr or len < 0
+        fail bad("invalid")
+    var data = copy(fs.nodes[d.node as usize].data)
+    var o: List[text] = []
+    var i: i64 = 0
+    while i < len bound 16777216
+        o.push(if i < data.len() as i64 then copy(data[i as usize]) else "\u{0}")
+        i += 1
+    fs.nodes[d.node as usize].data = o
+    return true
+
+pub fn close(fs: &mut Fs, h: i64) -> bool ! FsErr
+    let d = try desc(fs, h)
+    fs.descs[h as usize].live = false
+    return true
+
+pub fn unlink_at(fs: &mut Fs, path: &text) -> bool ! FsErr
+    let w = try resolve(fs, path, false)
+    if not named(&w)
+        fail bad("is-directory")
+    if w.node < 0
+        fail bad("no-entry")
+    if fs.nodes[w.node as usize].dir
+        fail bad("is-directory")
+    if w.slash
+        fail bad("not-directory")
+    drop_ent(fs, w.dir, &w.last)
+    return true
+
+pub fn rmdir_at(fs: &mut Fs, path: &text) -> bool ! FsErr
+    let w = try resolve(fs, path, false)
+    if w.last == "."
+        fail bad("invalid")
+    if w.last == ".."
+        fail bad("not-empty")
+    if w.node < 0
+        fail bad("no-entry")
+    if not fs.nodes[w.node as usize].dir
+        fail bad("not-directory")
+    if not is_empty(fs, w.node)
+        fail bad("not-empty")
+    drop_ent(fs, w.dir, &w.last)
+    return true
+
+# a is d or a directory above d.
+fn above(fs: &Fs, a: i64, d: i64) -> bool
+    var x = d
+    while x >= 0 bound 4096
+        if x == a
+            return true
+        x = fs.nodes[x as usize].parent
+    return false
+
+# The child of a on the way down to d (a strictly above d).
+fn child_towards(fs: &Fs, a: i64, d: i64) -> i64
+    var x = d
+    while fs.nodes[x as usize].parent != a bound 4096
+        x = fs.nodes[x as usize].parent
+    return x
+
+pub fn rename_at(fs: &mut Fs, src: &text, dst: &text) -> bool ! FsErr
+    let o = try resolve(fs, src, false)
+    let n = try resolve(fs, dst, false)
+    if not named(&o) or not named(&n)
+        fail bad("busy")
+    if o.node < 0
+        fail bad("no-entry")
+    let isdir = fs.nodes[o.node as usize].dir
+    if not isdir and (o.slash or n.slash)
+        fail bad("not-directory")
+    # lock_rename's trap: the entry under the common ancestor
+    if o.dir != n.dir
+        if above(fs, o.dir, n.dir) and child_towards(fs, o.dir, n.dir) == o.node
+            fail bad("invalid")
+        if above(fs, n.dir, o.dir) and child_towards(fs, n.dir, o.dir) == n.node
+            fail bad("not-empty")
+    if o.node == n.node
+        return true
+    if n.node >= 0
+        let tdir = fs.nodes[n.node as usize].dir
+        if isdir and not tdir
+            fail bad("not-directory")
+        if not isdir and tdir
+            fail bad("is-directory")
+        if tdir and not is_empty(fs, n.node)
+            fail bad("not-empty")
+        drop_ent(fs, n.dir, &n.last)
+    drop_ent(fs, o.dir, &o.last)
+    fs.ents.push(Ent(dir: n.dir, name: copy(n.last), node: o.node))
+    if isdir
+        fs.nodes[o.node as usize].parent = n.dir
+    return true
+
+# stat: "d" for a directory, else "f" and the size.
+pub fn stat_at(fs: &Fs, path: &text) -> text ! FsErr
+    let w = try resolve(fs, path, true)
+    if w.node < 0
+        fail bad("no-entry")
+    if fs.nodes[w.node as usize].dir
+        return "d"
+    if w.slash
+        fail bad("not-directory")
+    return "f" + fs.nodes[w.node as usize].data.len().tostr()
+
+# UTF-8 byte order (Linux sorts names as bytes).
+fn text_lt(a: &text, b: &text) -> bool
+    var i: usize = 0
+    while i < a.len() and i < b.len() bound 4096
+        if a[i] != b[i]
+            return a[i] < b[i]
+        i += 1
+    return a.len() < b.len()
+
+# The entry names of a directory, sorted (without "." and "..").
+pub fn list_at(fs: &Fs, path: &text) -> List[text] ! FsErr
+    let w = try resolve(fs, path, true)
+    if w.node < 0
+        fail bad("no-entry")
+    if not fs.nodes[w.node as usize].dir
+        fail bad("not-directory")
+    var o: List[text] = []
+    for e in fs.ents
+        if e.dir == w.node
+            var k = o.len()
+            o.push(copy(e.name))
+            while k > 0 and text_lt(&o[k], &o[k - 1]) bound 4096
+                let t = copy(o[k])
+                o[k] = copy(o[k - 1])
+                o[k - 1] = t
+                k -= 1
+    return o
+
+# ---------------- scripts ----------------
+
+fn num(s: &text) -> i64
+    var v: i64 = 0
+    for c in s.chars()
+        v = v * 10 + (c[0] as i64 - 48)
+    return v
+
+fn op1(fs: &mut Fs, a: &List[text]) -> text ! FsErr
+    let k = copy(a[0])
+    if k == "mkdir"
+        try mkdir_at(fs, &a[1])
+        return "ok"
+    if k == "open"
+        let h = try open_at(fs, &a[1], &a[2])
+        return "h" + h.tostr()
+    if k == "read"
+        let s = try read(fs, num(&a[1]), num(&a[2]))
+        return "=" + s
+    if k == "write"
+        try write(fs, num(&a[1]), &a[2])
+        return "ok"
+    if k == "seek"
+        try seek(fs, num(&a[1]), num(&a[2]))
+        return "ok"
+    if k == "trunc"
+        try truncate(fs, num(&a[1]), num(&a[2]))
+        return "ok"
+    if k == "close"
+        try close(fs, num(&a[1]))
+        return "ok"
+    if k == "unlink"
+        try unlink_at(fs, &a[1])
+        return "ok"
+    if k == "rmdir"
+        try rmdir_at(fs, &a[1])
+        return "ok"
+    if k == "rename"
+        try rename_at(fs, &a[1], &a[2])
+        return "ok"
+    if k == "stat"
+        return try stat_at(fs, &a[1])
+    if k == "list"
+        let l = try list_at(fs, &a[1])
+        return ":" + ",".join(l)
+    fail bad("invalid")
+
+# Run a script of ";"-separated operations on a fresh filesystem; the
+# outcome of each (ok, hN, =data, d, fN, :names or an error-code), joined by ";".
+pub fn script(s: text) -> text
+    var fs = fs_new()
+    var out: List[text] = []
+    for line in s.split(";")
+        let a = line.split(" ")
+        out.push(op1(&mut fs, &a) catch |e| e.code)
+    return ";".join(out)
