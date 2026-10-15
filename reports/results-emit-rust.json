@@ -2,8 +2,8 @@
  "format": "rce-results/1",
  "adapter": "emit-rust",
  "tally": {
-  "pass": 1444,
-  "n/a": 508
+  "pass": 1460,
+  "n/a": 531
  },
  "results": [
   {
@@ -3477,6 +3477,62 @@
    "ms": 0
   },
   {
+   "path": "tests/concurrency/targeted/backpressure-cap1.rce",
+   "id": "concurrency/targeted/backpressure-cap1",
+   "area": "concurrency",
+   "clauses": [
+    "T1",
+    "T26",
+    "T4",
+    "T9"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 10190
+  },
+  {
+   "path": "tests/concurrency/targeted/deadline-expires.rce",
+   "id": "concurrency/targeted/deadline-expires",
+   "area": "concurrency",
+   "clauses": [
+    "T1",
+    "T22",
+    "T4",
+    "T9",
+    "W-DL-1"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 6661
+  },
+  {
+   "path": "tests/concurrency/targeted/deadline-met.rce",
+   "id": "concurrency/targeted/deadline-met",
+   "area": "concurrency",
+   "clauses": [
+    "T1",
+    "T22",
+    "T4",
+    "T9"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 8780
+  },
+  {
+   "path": "tests/concurrency/targeted/deadlock-recv.rce",
+   "id": "concurrency/targeted/deadlock-recv",
+   "area": "concurrency",
+   "clauses": [
+    "T1",
+    "T4",
+    "T9"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 7108
+  },
+  {
    "path": "tests/concurrency/targeted/hc-12-float-reduction-schedule.rce",
    "id": "concurrency/targeted/hc-12-float-reduction-schedule",
    "area": "concurrency",
@@ -3554,6 +3610,76 @@
    "ms": 7358
   },
   {
+   "path": "tests/concurrency/targeted/scope-joins.rce",
+   "id": "concurrency/targeted/scope-joins",
+   "area": "concurrency",
+   "clauses": [
+    "T1",
+    "T26",
+    "T4",
+    "T9"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 10395
+  },
+  {
+   "path": "tests/concurrency/targeted/scope-waits-for-blocked-child.rce",
+   "id": "concurrency/targeted/scope-waits-for-blocked-child",
+   "area": "concurrency",
+   "clauses": [
+    "T1",
+    "T26",
+    "T4",
+    "T9"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 8095
+  },
+  {
+   "path": "tests/concurrency/targeted/select-after-waits.rce",
+   "id": "concurrency/targeted/select-after-waits",
+   "area": "concurrency",
+   "clauses": [
+    "N11",
+    "T1",
+    "T4",
+    "T9"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 7808
+  },
+  {
+   "path": "tests/concurrency/targeted/select-rotate-after.rce",
+   "id": "concurrency/targeted/select-rotate-after",
+   "area": "concurrency",
+   "clauses": [
+    "N11",
+    "T1",
+    "T4",
+    "T7",
+    "T9"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 10015
+  },
+  {
+   "path": "tests/concurrency/targeted/supervisor-stop-ends-run.rce",
+   "id": "concurrency/targeted/supervisor-stop-ends-run",
+   "area": "concurrency",
+   "clauses": [
+    "T1",
+    "T4",
+    "T9"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 8171
+  },
+  {
    "path": "tests/concurrency/targeted/t18-tree-reduce-equals-fold.rce",
    "id": "concurrency/targeted/t18-tree-reduce-equals-fold",
    "area": "concurrency",
@@ -3612,6 +3738,21 @@
    "status": "n/a",
    "detail": "admission (parse, check, W-codes) is the front end's job; an emitter translates only admitted modules (10.5)",
    "ms": 0
+  },
+  {
+   "path": "tests/concurrency/targeted/workgroup-neighbor-read.rce",
+   "id": "concurrency/targeted/workgroup-neighbor-read",
+   "area": "concurrency",
+   "clauses": [
+    "T1",
+    "T23",
+    "T4",
+    "T9",
+    "W-GRP-1"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 11591
   },
   {
    "path": "tests/effects-capabilities/harvested/comptime-check-reject.rce",
@@ -4893,6 +5034,19 @@
    "status": "pass",
    "detail": "",
    "ms": 10682
+  },
+  {
+   "path": "tests/evaluation-fuel/targeted/lambda-calls.rce",
+   "id": "evaluation-fuel/targeted/lambda-calls",
+   "area": "evaluation-fuel",
+   "clauses": [
+    "T1",
+    "T5",
+    "T9"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 11333
   },
   {
    "path": "tests/evaluation-fuel/targeted/n8-index-out-of-range.rce",
@@ -7000,6 +7154,185 @@
    "status": "pass",
    "detail": "",
    "ms": 7473
+  },
+  {
+   "path": "tests/forms-log/targeted/set-of-canonical-order.rce",
+   "id": "forms-log/targeted/set-of-canonical-order",
+   "area": "forms-log",
+   "clauses": [
+    "CH16-M-8dc47a03",
+    "T1",
+    "T4",
+    "T9"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 10576
+  },
+  {
+   "path": "tests/handler-spec/cur-1-zero-max-age.rce",
+   "id": "handler-spec/cur-1-zero-max-age",
+   "area": "handler-spec",
+   "clauses": [
+    "W-HS-CUR-1"
+   ],
+   "status": "n/a",
+   "detail": "chapter 12 commands and appendix D tools belong to the reference toolchain, not to a translated program",
+   "ms": 0
+  },
+  {
+   "path": "tests/handler-spec/cur-2-never-checked.rce",
+   "id": "handler-spec/cur-2-never-checked",
+   "area": "handler-spec",
+   "clauses": [
+    "W-HS-CUR-2"
+   ],
+   "status": "n/a",
+   "detail": "chapter 12 commands and appendix D tools belong to the reference toolchain, not to a translated program",
+   "ms": 0
+  },
+  {
+   "path": "tests/handler-spec/cur-2-stale-strict-refused.rce",
+   "id": "handler-spec/cur-2-stale-strict-refused",
+   "area": "handler-spec",
+   "clauses": [
+    "W-HS-CUR-2"
+   ],
+   "status": "n/a",
+   "detail": "chapter 12 commands and appendix D tools belong to the reference toolchain, not to a translated program",
+   "ms": 0
+  },
+  {
+   "path": "tests/handler-spec/cur-2-stale-warns.rce",
+   "id": "handler-spec/cur-2-stale-warns",
+   "area": "handler-spec",
+   "clauses": [
+    "W-HS-CUR-2"
+   ],
+   "status": "n/a",
+   "detail": "chapter 12 commands and appendix D tools belong to the reference toolchain, not to a translated program",
+   "ms": 0
+  },
+  {
+   "path": "tests/handler-spec/d2-error-budget-out-of-range.rce",
+   "id": "handler-spec/d2-error-budget-out-of-range",
+   "area": "handler-spec",
+   "clauses": [
+    "CH15-M-0a595561"
+   ],
+   "status": "n/a",
+   "detail": "chapter 12 commands and appendix D tools belong to the reference toolchain, not to a translated program",
+   "ms": 0
+  },
+  {
+   "path": "tests/handler-spec/dur-1-bad-timeout.rce",
+   "id": "handler-spec/dur-1-bad-timeout",
+   "area": "handler-spec",
+   "clauses": [
+    "W-HS-DUR-1"
+   ],
+   "status": "n/a",
+   "detail": "chapter 12 commands and appendix D tools belong to the reference toolchain, not to a translated program",
+   "ms": 0
+  },
+  {
+   "path": "tests/handler-spec/kw-1-unknown-change-control-word.rce",
+   "id": "handler-spec/kw-1-unknown-change-control-word",
+   "area": "handler-spec",
+   "clauses": [
+    "W-HS-KW-1"
+   ],
+   "status": "n/a",
+   "detail": "chapter 12 commands and appendix D tools belong to the reference toolchain, not to a translated program",
+   "ms": 0
+  },
+  {
+   "path": "tests/handler-spec/reason-1-role-without-reason.rce",
+   "id": "handler-spec/reason-1-role-without-reason",
+   "area": "handler-spec",
+   "clauses": [
+    "W-HS-REASON-1"
+   ],
+   "status": "n/a",
+   "detail": "chapter 12 commands and appendix D tools belong to the reference toolchain, not to a translated program",
+   "ms": 0
+  },
+  {
+   "path": "tests/handler-spec/reason-1-spec-without-reason.rce",
+   "id": "handler-spec/reason-1-spec-without-reason",
+   "area": "handler-spec",
+   "clauses": [
+    "W-HS-REASON-1"
+   ],
+   "status": "n/a",
+   "detail": "chapter 12 commands and appendix D tools belong to the reference toolchain, not to a translated program",
+   "ms": 0
+  },
+  {
+   "path": "tests/handler-spec/reason-1-unspecified.rce",
+   "id": "handler-spec/reason-1-unspecified",
+   "area": "handler-spec",
+   "clauses": [
+    "W-HS-REASON-1"
+   ],
+   "status": "n/a",
+   "detail": "chapter 12 commands and appendix D tools belong to the reference toolchain, not to a translated program",
+   "ms": 0
+  },
+  {
+   "path": "tests/handler-spec/ver-1-bad-version.rce",
+   "id": "handler-spec/ver-1-bad-version",
+   "area": "handler-spec",
+   "clauses": [
+    "W-HS-VER-1"
+   ],
+   "status": "n/a",
+   "detail": "chapter 12 commands and appendix D tools belong to the reference toolchain, not to a translated program",
+   "ms": 0
+  },
+  {
+   "path": "tests/handler-spec/ver-1-good-version.rce",
+   "id": "handler-spec/ver-1-good-version",
+   "area": "handler-spec",
+   "clauses": [
+    "W-HS-VER-1"
+   ],
+   "status": "n/a",
+   "detail": "chapter 12 commands and appendix D tools belong to the reference toolchain, not to a translated program",
+   "ms": 0
+  },
+  {
+   "path": "tests/handler-spec/ver-2-removal-needs-minor-bump.rce",
+   "id": "handler-spec/ver-2-removal-needs-minor-bump",
+   "area": "handler-spec",
+   "clauses": [
+    "W-HS-VER-2"
+   ],
+   "status": "n/a",
+   "detail": "chapter 12 commands and appendix D tools belong to the reference toolchain, not to a translated program",
+   "ms": 0
+  },
+  {
+   "path": "tests/handler-spec/ver-2-removal-with-minor-bump.rce",
+   "id": "handler-spec/ver-2-removal-with-minor-bump",
+   "area": "handler-spec",
+   "clauses": [
+    "W-HS-VER-2"
+   ],
+   "status": "n/a",
+   "detail": "chapter 12 commands and appendix D tools belong to the reference toolchain, not to a translated program",
+   "ms": 0
+  },
+  {
+   "path": "tests/handler-spec/ver-2-version-decrease.rce",
+   "id": "handler-spec/ver-2-version-decrease",
+   "area": "handler-spec",
+   "clauses": [
+    "W-HS-VER-2"
+   ],
+   "status": "n/a",
+   "detail": "chapter 12 commands and appendix D tools belong to the reference toolchain, not to a translated program",
+   "ms": 0
   },
   {
    "path": "tests/host-contract/generated/admit-order-7-000.rce",
@@ -35835,6 +36168,54 @@
    "ms": 0
   },
   {
+   "path": "tests/proposed/act-1-every-actor-steps-each-tick.rce",
+   "id": "proposed/act-1-every-actor-steps-each-tick",
+   "area": "proposed",
+   "clauses": [
+    "ACT-1",
+    "T1",
+    "T4",
+    "T9"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 8850
+  },
+  {
+   "path": "tests/proposed/tu-4-reduction-is-left-fold.rce",
+   "id": "proposed/tu-4-reduction-is-left-fold",
+   "area": "proposed",
+   "clauses": [
+    "TU-4"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 11092
+  },
+  {
+   "path": "tests/proposed/tu-5-text-stays-ragged.rce",
+   "id": "proposed/tu-5-text-stays-ragged",
+   "area": "proposed",
+   "clauses": [
+    "TU-5"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 10083
+  },
+  {
+   "path": "tests/proposed/tu-6-schedule-never-changes-bits.rce",
+   "id": "proposed/tu-6-schedule-never-changes-bits",
+   "area": "proposed",
+   "clauses": [
+    "CH12-M-1279943c",
+    "TU-6"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 10530
+  },
+  {
    "path": "tests/text-unicode/harvested/09-generics-accept.rce",
    "id": "text-unicode/harvested/09-generics-accept",
    "area": "text-unicode",
@@ -36027,6 +36408,95 @@
    "status": "pass",
    "detail": "",
    "ms": 6376
+  },
+  {
+   "path": "tests/tooling/emit-js-refused.rce",
+   "id": "tooling/emit-js-refused",
+   "area": "tooling",
+   "clauses": [
+    "CH12-M-bafe6c22"
+   ],
+   "status": "n/a",
+   "detail": "chapter 12 commands and appendix D tools belong to the reference toolchain, not to a translated program",
+   "ms": 0
+  },
+  {
+   "path": "tests/tooling/emit-python-refused.rce",
+   "id": "tooling/emit-python-refused",
+   "area": "tooling",
+   "clauses": [
+    "CH12-M-bafe6c22"
+   ],
+   "status": "n/a",
+   "detail": "chapter 12 commands and appendix D tools belong to the reference toolchain, not to a translated program",
+   "ms": 0
+  },
+  {
+   "path": "tests/tooling/emit-rust-refused.rce",
+   "id": "tooling/emit-rust-refused",
+   "area": "tooling",
+   "clauses": [
+    "CH12-M-bafe6c22"
+   ],
+   "status": "n/a",
+   "detail": "chapter 12 commands and appendix D tools belong to the reference toolchain, not to a translated program",
+   "ms": 0
+  },
+  {
+   "path": "tests/tooling/emit-scala-refused.rce",
+   "id": "tooling/emit-scala-refused",
+   "area": "tooling",
+   "clauses": [
+    "CH12-M-bafe6c22"
+   ],
+   "status": "n/a",
+   "detail": "chapter 12 commands and appendix D tools belong to the reference toolchain, not to a translated program",
+   "ms": 0
+  },
+  {
+   "path": "tests/tooling/run-main-no-params.rce",
+   "id": "tooling/run-main-no-params",
+   "area": "tooling",
+   "clauses": [
+    "CH12-M-6760dd1f"
+   ],
+   "status": "n/a",
+   "detail": "chapter 12 commands and appendix D tools belong to the reference toolchain, not to a translated program",
+   "ms": 0
+  },
+  {
+   "path": "tests/tooling/run-main-ok.rce",
+   "id": "tooling/run-main-ok",
+   "area": "tooling",
+   "clauses": [
+    "CH12-M-6760dd1f",
+    "CH12-M-6e12b079"
+   ],
+   "status": "n/a",
+   "detail": "chapter 12 commands and appendix D tools belong to the reference toolchain, not to a translated program",
+   "ms": 0
+  },
+  {
+   "path": "tests/tooling/run-needs-main.rce",
+   "id": "tooling/run-needs-main",
+   "area": "tooling",
+   "clauses": [
+    "CH12-M-6760dd1f"
+   ],
+   "status": "n/a",
+   "detail": "chapter 12 commands and appendix D tools belong to the reference toolchain, not to a translated program",
+   "ms": 0
+  },
+  {
+   "path": "tests/tooling/run-refused-one-line.rce",
+   "id": "tooling/run-refused-one-line",
+   "area": "tooling",
+   "clauses": [
+    "CH12-M-6e12b079"
+   ],
+   "status": "n/a",
+   "detail": "chapter 12 commands and appendix D tools belong to the reference toolchain, not to a translated program",
+   "ms": 0
   },
   {
    "path": "tests/types-checking/generated/mut-duplicate-01-par-branches-accept.rce",
