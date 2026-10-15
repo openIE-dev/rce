@@ -10,7 +10,13 @@ module os.svc
 #    RestartForceExitStatus= sets, with systemd's number syntax (decimal,
 #    0x hex, C octal, 0o and 0b prefixes);
 #  - the result of a main process exit (clean, exit-code, signal,
-#    core-dump) and the Restart= decision with its reason.
+#    core-dump) and the Restart= decision with its reason;
+#  - launchd's KeepAlive decision (launchd.plist(5): a bool, or a dict of
+#    SuccessfulExit and Crashed conditions) and the Windows service
+#    control manager's failure actions (sc failure / sc failureflag),
+#    both recorded live (vectors/os/svc/launchd_keepalive.tsv on macOS
+#    27.0.1, vectors/os/svc/scm_failure_actions.tsv on Windows build
+#    26200).
 # Codes and statuses are those of waitid(2): code "exited" with the exit
 # status, "killed" or "dumped" with the signal number.
 
@@ -331,3 +337,73 @@ pub fn shall_restart(p: &Policy, result: &text, code: &text, status: i64, manual
     if r == "on-abort"
         y = result == "signal" or result == "core-dump"
     return Restart(yes: y, reason: "restart setting")
+
+# ---------------- launchd ----------------
+
+# KeepAlive: form "none" (key absent), "bool" (value) or "dict" with
+# SuccessfulExit and Crashed each "", "true" or "false".
+pub struct KeepAlive
+    form: text
+    value: bool
+    successful: text
+    crashed: text
+
+# Darwin signals launchd counts as a crash: SIGILL, SIGTRAP, SIGABRT,
+# SIGFPE, SIGBUS, SIGSEGV, SIGSYS.
+pub fn darwin_crash_signal(sig: i64) -> bool = sig == 4 or sig == 5 or sig == 6 or sig == 8 or sig == 10 or sig == 11 or sig == 12
+
+# Whether launchd starts the job again after it ended: exited with
+# `status`, or (exited false) killed by Darwin signal `status`. A dict
+# keeps the job alive when any of its conditions holds: SuccessfulExit
+# true/false on an exit 0 / anything else, Crashed true/false on a crash
+# signal / anything else.
+pub fn launchd_relaunch(k: &KeepAlive, exited: bool, status: i64) -> bool
+    if k.form == "bool"
+        return k.value
+    if k.form != "dict"
+        return false
+    let ok = exited and status == 0
+    let crash = not exited and darwin_crash_signal(status)
+    if k.successful == "true" and ok
+        return true
+    if k.successful == "false" and not ok
+        return true
+    if k.crashed == "true" and crash
+        return true
+    if k.crashed == "false" and not crash
+        return true
+    return false
+
+# ---------------- Windows service control manager ----------------
+
+# The failure actions of `sc failure ... actions= a/d/a/d...` as their
+# kinds ("restart", "none", "run", "reboot"), and `sc failureflag` (on:
+# a stop with a non-zero exit code counts as a failure too).
+pub struct ScmPolicy
+    actions: List[text]
+    nonzero_is_failure: bool
+
+# Whether the SCM treats the end of the service process as a failure:
+# it ended without reporting SERVICE_STOPPED (crashed), or, with the
+# failure flag, reported SERVICE_STOPPED with a non-zero exit code.
+pub fn scm_failure(p: &ScmPolicy, crashed: bool, exit_code: i64) -> bool = crashed or (p.nonzero_is_failure and exit_code != 0)
+
+# The action for the n-th failure since the reset period began (n from
+# 1); the last action repeats; "none" when there are none.
+pub fn scm_action(p: &ScmPolicy, n: i64) -> text
+    if p.actions.len() == 0
+        return "none"
+    let i = if n > p.actions.len() as i64 then p.actions.len() - 1 else (n - 1) as usize
+    return copy(p.actions[i])
+
+# How many times the service runs when every run ends the same way,
+# capped at `cap` (a policy that keeps restarting reaches it).
+pub fn scm_runs(p: &ScmPolicy, crashed: bool, exit_code: i64, cap: i64) -> i64
+    var runs: i64 = 1
+    while runs < cap bound 1024
+        if not scm_failure(p, crashed, exit_code)
+            return runs
+        if scm_action(p, runs) != "restart"
+            return runs
+        runs += 1
+    return runs

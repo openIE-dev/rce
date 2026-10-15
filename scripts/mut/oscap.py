@@ -241,7 +241,27 @@ M['pkg'] = [
     ('        if not (seg.isalpha() or seg.isdigit())', '        if not (seg.isalpha() or seg.isdigit() or seg.contains("-"))'),
 ]
 
+# Equivalent, so not listed: `ok = status == 0` (a signal is never 0);
+# scm_action's last-index choice and `>` vs `>=` (scm_runs only reaches
+# n > len after every earlier action was restart, so first == last).
 M['svc'] = [
+    ('sig == 4 or sig == 5 or ', 'sig == 5 or '),
+    ('or sig == 6 or sig == 8', 'or sig == 8'),
+    ('or sig == 10 or sig == 11', 'or sig == 11'),
+    ('or sig == 11 or sig == 12', 'or sig == 12'),
+    ('sig == 11 or sig == 12\n', 'sig == 11\n'),
+    ('sig == 6 or sig == 8 or', 'sig == 6 or sig == 3 or sig == 8 or'),
+    ('    if k.form == "bool"\n        return k.value', '    if k.form == "bool"\n        return true'),
+    ('    if k.form != "dict"\n        return false', '    if k.form != "dict"\n        return true'),
+    ('    let crash = not exited and darwin', '    let crash = darwin'),
+    ('    if k.successful == "true" and ok\n', '    if k.successful == "true"\n'),
+    ('    if k.successful == "false" and not ok\n', '    if k.successful == "false" and ok\n'),
+    ('    if k.crashed == "true" and crash\n', '    if k.crashed == "true"\n'),
+    ('    if k.crashed == "false" and not crash\n', '    if k.crashed == "false" and crash\n'),
+    ('= crashed or (p.nonzero_is_failure and exit_code != 0)', '= crashed or exit_code != 0'),
+    ('= crashed or (p.nonzero_is_failure', '= (p.nonzero_is_failure'),
+    ('        if scm_action(p, runs) != "restart"', '        if scm_action(p, 1) != "restart"'),
+    ('    while runs < cap bound', '    while runs <= cap bound'),
     ('fn cspace(c: &text) -> bool = ws(c) or c == "\\u{b}" or c == "\\u{c}"', 'fn cspace(c: &text) -> bool = ws(c)'),
     ('    if i + 1 < cs.len() and cs[i] == "0" and (cs[i + 1] == "b" or cs[i + 1] == "B")\n        base = 2', '    if i + 1 < cs.len() and cs[i] == "0" and cs[i + 1] == "b"\n        base = 2'),
     ('            base = 8\n            i += 2', '            base = 10\n            i += 2'),
