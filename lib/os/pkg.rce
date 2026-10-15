@@ -1,0 +1,583 @@
+module os.pkg
+# Packages (survey M43), pure. Fetching a package is a host capability
+# effect under the `net` grant; this module holds the version model a
+# Form resolves with: a port of the semver crate (1.0.28) that Cargo
+# uses: Version, Comparator and VersionReq parsing with the crate's error
+# messages, display (with padding), ordering (pre-release and build
+# metadata rules), and requirement matching with its pre-release rule.
+
+error BadPkg(why: text)
+
+# ---------------- semver ----------------
+
+# Numbers are kept as their decimal text (u64 range, no leading zeros).
+pub struct Version
+    major: text
+    minor: text
+    patch: text
+    pre: text
+    build: text
+
+pub struct Comparator
+    op: text
+    major: text
+    minor: text
+    patch: text
+    pre: text
+
+pub struct VersionReq
+    comparators: List[Comparator]
+
+const U64_MAX: text = "18446744073709551615"
+
+fn pos_name(p: i64) -> text
+    if p == 0
+        return "major version number"
+    if p == 1
+        return "minor version number"
+    if p == 2
+        return "patch version number"
+    if p == 3
+        return "pre-release identifier"
+    return "build metadata"
+
+fn is_digit(c: &text) -> bool = c.len() == 1 and c[0] >= 48 and c[0] <= 57
+fn is_ident(c: &text) -> bool = c.len() == 1 and ((c[0] >= 65 and c[0] <= 90) or (c[0] >= 97 and c[0] <= 122) or c[0] == 45)
+
+const HEXD: text = "0123456789abcdef"
+
+fn hex_of(v: i64) -> text
+    let d = HEXD.chars()
+    var x = v
+    var s = ""
+    while true bound 8
+        s = d[(x % 16) as usize] + s
+        x = x / 16
+        if x == 0
+            break
+    return s
+
+# Rust's Debug of a char, as QuotedChar prints it.
+fn quoted(c: &text) -> text
+    if c.len() == 1
+        let b = c[0] as i64
+        if b == 0
+            return "'\\0'"
+        if b == 9
+            return "'\\t'"
+        if b == 10
+            return "'\\n'"
+        if b == 13
+            return "'\\r'"
+        if b == 39
+            return "'\\''"
+        if b == 92
+            return "'\\\\'"
+        if b < 32 or b == 127
+            return "'\\u{" + hex_of(b) + "}'"
+    return "'" + c + "'"
+
+fn e_unexpected_end(p: i64) -> text = "unexpected end of input while parsing " + pos_name(p)
+fn e_unexpected_char(p: i64, c: &text) -> text = "unexpected character " + quoted(c) + " while parsing " + pos_name(p)
+fn e_unexpected_after(p: i64, c: &text) -> text = "unexpected character " + quoted(c) + " after " + pos_name(p)
+fn e_comma(p: i64, c: &text) -> text = "expected comma after " + pos_name(p) + ", found " + quoted(c)
+fn e_empty_segment(p: i64) -> text = "empty identifier segment in " + pos_name(p)
+const E_AFTER_WILDCARD: text = "unexpected character after wildcard in version req"
+
+struct Out
+    val: text
+    i: i64
+    err: text
+
+fn numeric(cs: &List[text], i0: i64, p: i64) -> Out
+    var v = ""
+    var i = i0
+    while i < cs.len() as i64 and is_digit(&cs[i as usize]) bound 16777216
+        if v == "0"
+            return Out(val: "", i: i, err: "invalid leading zero in " + pos_name(p))
+        v = v + cs[i as usize]
+        if v.len() > 20 or (v.len() == 20 and v > U64_MAX)
+            return Out(val: "", i: i, err: "value of " + pos_name(p) + " exceeds u64::MAX")
+        i += 1
+    if v != ""
+        return Out(val: v, i: i, err: "")
+    if i < cs.len() as i64
+        return Out(val: "", i: i, err: e_unexpected_char(p, &cs[i as usize]))
+    return Out(val: "", i: i, err: e_unexpected_end(p))
+
+fn ident(cs: &List[text], i0: i64, p: i64) -> Out
+    var acc: i64 = 0
+    var seg: i64 = 0
+    var nondigit = false
+    let n = cs.len() as i64
+    while true bound 16777216
+        let j = i0 + acc + seg
+        let c = if j < n then copy(cs[j as usize]) else ""
+        if is_ident(&c)
+            seg += 1
+            nondigit = true
+        else
+            if is_digit(&c)
+                seg += 1
+            else
+                if seg == 0
+                    if acc == 0 and c != "."
+                        return Out(val: "", i: i0, err: "")
+                    return Out(val: "", i: i0, err: e_empty_segment(p))
+                if p == 3 and seg > 1 and not nondigit and cs[(i0 + acc) as usize] == "0"
+                    return Out(val: "", i: i0, err: "invalid leading zero in " + pos_name(p))
+                acc += seg
+                if c == "."
+                    acc += 1
+                    seg = 0
+                    nondigit = false
+                else
+                    var o: List[text] = []
+                    var k = i0
+                    while k < i0 + acc bound 16777216
+                        o.push(copy(cs[k as usize]))
+                        k += 1
+                    return Out(val: "".join(o), i: i0 + acc, err: "")
+    return Out(val: "", i: i0, err: "")
+
+fn at(cs: &List[text], i: i64, c: text) -> bool = i < cs.len() as i64 and cs[i as usize] == c
+
+fn dot(cs: &List[text], i: i64, p: i64) -> Out
+    if at(cs, i, ".")
+        return Out(val: "", i: i + 1, err: "")
+    if i < cs.len() as i64
+        return Out(val: "", i: i, err: e_unexpected_after(p, &cs[i as usize]))
+    return Out(val: "", i: i, err: e_unexpected_end(p))
+
+pub fn version_parse(t: &text) -> Version ! BadPkg
+    let cs = t.chars()
+    if cs.len() == 0
+        fail BadPkg(why: "empty string, expected a semver version")
+    let ma = numeric(&cs, 0, 0)
+    if ma.err != ""
+        fail BadPkg(why: ma.err)
+    let d1 = dot(&cs, ma.i, 0)
+    if d1.err != ""
+        fail BadPkg(why: d1.err)
+    let mi = numeric(&cs, d1.i, 1)
+    if mi.err != ""
+        fail BadPkg(why: mi.err)
+    let d2 = dot(&cs, mi.i, 1)
+    if d2.err != ""
+        fail BadPkg(why: d2.err)
+    let pa = numeric(&cs, d2.i, 2)
+    if pa.err != ""
+        fail BadPkg(why: pa.err)
+    var i = pa.i
+    var p: i64 = 2
+    var pre = ""
+    var build = ""
+    if at(&cs, i, "-")
+        p = 3
+        let r = ident(&cs, i + 1, 3)
+        if r.err != ""
+            fail BadPkg(why: r.err)
+        if r.val == ""
+            fail BadPkg(why: e_empty_segment(3))
+        pre = copy(r.val)
+        i = r.i
+    if at(&cs, i, "+")
+        p = 4
+        let r = ident(&cs, i + 1, 4)
+        if r.err != ""
+            fail BadPkg(why: r.err)
+        if r.val == ""
+            fail BadPkg(why: e_empty_segment(4))
+        build = copy(r.val)
+        i = r.i
+    if i < cs.len() as i64
+        fail BadPkg(why: e_unexpected_after(p, &cs[i as usize]))
+    return Version(major: ma.val, minor: mi.val, patch: pa.val, pre: pre, build: build)
+
+# Prerelease::new and BuildMetadata::new.
+pub fn prerelease_new(t: &text) -> text ! BadPkg
+    let cs = t.chars()
+    let r = ident(&cs, 0, 3)
+    if r.err != ""
+        fail BadPkg(why: r.err)
+    if r.i < cs.len() as i64
+        fail BadPkg(why: "unexpected character in pre-release identifier")
+    return r.val
+
+pub fn build_new(t: &text) -> text ! BadPkg
+    let cs = t.chars()
+    let r = ident(&cs, 0, 4)
+    if r.err != ""
+        fail BadPkg(why: r.err)
+    if r.i < cs.len() as i64
+        fail BadPkg(why: "unexpected character in build metadata")
+    return r.val
+
+pub fn version_text(v: &Version) -> text
+    var s = v.major + "." + v.minor + "." + v.patch
+    if v.pre != ""
+        s = s + "-" + v.pre
+    if v.build != ""
+        s = s + "+" + v.build
+    return s
+
+# Display with a width, fill and alignment ("<", ">" or "^"), as format!("{:*^20}").
+pub fn version_pad(v: &Version, width: i64, fill: &text, align: &text) -> text
+    let s = version_text(v)
+    let n = s.chars().len() as i64
+    if n >= width
+        return s
+    let pad = width - n
+    var before: i64 = 0
+    if align == ">"
+        before = pad
+    if align == "^"
+        before = pad / 2
+    var o = ""
+    var k: i64 = 0
+    while k < before bound 65536
+        o = o + fill
+        k += 1
+    o = o + s
+    while k < pad bound 65536
+        o = o + fill
+        k += 1
+    return o
+
+fn sign(a: bool, b: bool) -> i64
+    if a
+        return -1
+    return if b then 1 else 0
+
+fn num_cmp(a: &text, b: &text) -> i64
+    if a.len() != b.len()
+        return sign(a.len() < b.len(), true)
+    return sign(a < b, a > b)
+
+fn all_digits(s: &text) -> bool
+    for c in s.chars()
+        if not is_digit(&c)
+            return false
+    return true
+
+fn strip_zeros(s: &text) -> text
+    let cs = s.chars()
+    var i: usize = 0
+    while i < cs.len() and cs[i] == "0" bound 16777216
+        i += 1
+    var o = ""
+    while i < cs.len() bound 16777216
+        o = o + cs[i]
+        i += 1
+    return o
+
+# Dotted identifiers compared as the crate does; build metadata compares
+# numeric parts by value, then by length (0 < 00 < 1 < 01).
+fn ids_cmp(a: &text, b: &text, build: bool) -> i64
+    let l = a.split(".")
+    let r = b.split(".")
+    var i: usize = 0
+    while i < l.len() bound 16777216
+        if i >= r.len()
+            return 1
+        let x = copy(l[i])
+        let y = copy(r[i])
+        let dx = all_digits(&x)
+        let dy = all_digits(&y)
+        if dx and not dy
+            return -1
+        if dy and not dx
+            return 1
+        var o: i64 = 0
+        if dx
+            if build
+                let sx = strip_zeros(&x)
+                let sy = strip_zeros(&y)
+                o = num_cmp(&sx, &sy)
+                if o == 0
+                    o = sign(x.len() < y.len(), x.len() > y.len())
+            else
+                o = num_cmp(&x, &y)
+        else
+            o = sign(x < y, x > y)
+        if o != 0
+            return o
+        i += 1
+    return if i < r.len() then -1 else 0
+
+pub fn pre_cmp(a: &text, b: &text) -> i64
+    if a == b
+        return 0
+    if a == ""
+        return 1
+    if b == ""
+        return -1
+    return ids_cmp(a, b, false)
+
+pub fn build_cmp(a: &text, b: &text) -> i64
+    if a == b
+        return 0
+    if a == ""
+        return -1
+    if b == ""
+        return 1
+    return ids_cmp(a, b, true)
+
+# Ord of Version: major, minor, patch, pre-release, then build metadata.
+pub fn version_cmp(a: &Version, b: &Version) -> i64
+    var o = num_cmp(&a.major, &b.major)
+    if o == 0
+        o = num_cmp(&a.minor, &b.minor)
+    if o == 0
+        o = num_cmp(&a.patch, &b.patch)
+    if o == 0
+        o = pre_cmp(&a.pre, &b.pre)
+    if o == 0
+        o = build_cmp(&a.build, &b.build)
+    return o
+
+fn is_wild(cs: &List[text], i: i64) -> bool = at(cs, i, "*") or at(cs, i, "x") or at(cs, i, "X")
+
+fn skip_spaces(cs: &List[text], i0: i64) -> i64
+    var i = i0
+    while at(cs, i, " ") bound 16777216
+        i += 1
+    return i
+
+struct COut
+    c: Comparator
+    p: i64
+    i: i64
+    err: text
+
+fn cerr(e: text) -> COut = COut(c: Comparator(op: "", major: "", minor: "", patch: "", pre: ""), p: 0, i: 0, err: e)
+
+fn comparator_at(cs: &List[text], i0: i64) -> COut
+    var op = "^"
+    var i = i0
+    if at(cs, i, "=")
+        op = "="
+        i += 1
+    else
+        if at(cs, i, ">") or at(cs, i, "<")
+            op = copy(cs[i as usize])
+            i += 1
+            if at(cs, i, "=")
+                op = op + "="
+                i += 1
+        else
+            if at(cs, i, "~") or at(cs, i, "^")
+                op = copy(cs[i as usize])
+                i += 1
+    let default_op = i == i0
+    i = skip_spaces(cs, i)
+    var p: i64 = 0
+    let ma = numeric(cs, i, p)
+    if ma.err != ""
+        return cerr(ma.err)
+    i = ma.i
+    var wild = false
+    var minor = ""
+    var patch = ""
+    if at(cs, i, ".")
+        p = 1
+        if is_wild(cs, i + 1)
+            wild = true
+            if default_op
+                op = "*"
+            i += 2
+        else
+            let mi = numeric(cs, i + 1, p)
+            if mi.err != ""
+                return cerr(mi.err)
+            minor = copy(mi.val)
+            i = mi.i
+    if at(cs, i, ".")
+        p = 2
+        if is_wild(cs, i + 1)
+            if default_op
+                op = "*"
+            i += 2
+        else
+            if wild
+                return cerr(E_AFTER_WILDCARD)
+            let pa = numeric(cs, i + 1, p)
+            if pa.err != ""
+                return cerr(pa.err)
+            patch = copy(pa.val)
+            i = pa.i
+    var pre = ""
+    if patch != "" and at(cs, i, "-")
+        p = 3
+        let r = ident(cs, i + 1, 3)
+        if r.err != ""
+            return cerr(r.err)
+        if r.val == ""
+            return cerr(e_empty_segment(3))
+        pre = copy(r.val)
+        i = r.i
+    if patch != "" and at(cs, i, "+")
+        p = 4
+        let r = ident(cs, i + 1, 4)
+        if r.err != ""
+            return cerr(r.err)
+        if r.val == ""
+            return cerr(e_empty_segment(4))
+        i = r.i
+    i = skip_spaces(cs, i)
+    return COut(c: Comparator(op: op, major: ma.val, minor: minor, patch: patch, pre: pre), p: p, i: i, err: "")
+
+pub fn comparator_parse(t: &text) -> Comparator ! BadPkg
+    let cs = t.chars()
+    let r = comparator_at(&cs, skip_spaces(&cs, 0))
+    if r.err != ""
+        fail BadPkg(why: r.err)
+    if r.i < cs.len() as i64
+        fail BadPkg(why: e_unexpected_after(r.p, &cs[r.i as usize]))
+    return r.c
+
+fn e_wild_only(c: &text) -> text = "wildcard req (" + c + ") must be the only comparator in the version req"
+
+pub fn req_parse(t: &text) -> VersionReq ! BadPkg
+    let cs = t.chars()
+    var i = skip_spaces(&cs, 0)
+    if is_wild(&cs, i)
+        let rest = skip_spaces(&cs, i + 1)
+        if rest == cs.len() as i64
+            return VersionReq(comparators: [])
+        if at(&cs, rest, ",")
+            fail BadPkg(why: e_wild_only(&cs[i as usize]))
+        fail BadPkg(why: E_AFTER_WILDCARD)
+    var out: List[Comparator] = []
+    var depth: i64 = 0
+    while true bound 64
+        let r = comparator_at(&cs, i)
+        if r.err != ""
+            if is_wild(&cs, i)
+                let rest = skip_spaces(&cs, i + 1)
+                if rest == cs.len() as i64 or at(&cs, rest, ",")
+                    fail BadPkg(why: e_wild_only(&cs[i as usize]))
+            fail BadPkg(why: r.err)
+        out.push(copy(r.c))
+        if r.i == cs.len() as i64
+            break
+        if not at(&cs, r.i, ",")
+            fail BadPkg(why: e_comma(r.p, &cs[r.i as usize]))
+        i = skip_spaces(&cs, r.i + 1)
+        if depth + 1 == 32
+            fail BadPkg(why: "excessive number of version comparators")
+        depth += 1
+    return VersionReq(comparators: out)
+
+pub fn comparator_text(c: &Comparator) -> text
+    var s = (if c.op == "*" then "" else copy(c.op)) + c.major
+    if c.minor != ""
+        s = s + "." + c.minor
+        if c.patch != ""
+            s = s + "." + c.patch
+            if c.pre != ""
+                s = s + "-" + c.pre
+        else
+            if c.op == "*"
+                s = s + ".*"
+    else
+        if c.op == "*"
+            s = s + ".*"
+    return s
+
+pub fn req_text(r: &VersionReq) -> text
+    if r.comparators.len() == 0
+        return "*"
+    var o: List[text] = []
+    for c in r.comparators
+        o.push(comparator_text(&c))
+    return ", ".join(o)
+
+fn m_exact(c: &Comparator, v: &Version) -> bool
+    if v.major != c.major
+        return false
+    if c.minor != "" and v.minor != c.minor
+        return false
+    if c.patch != "" and v.patch != c.patch
+        return false
+    return v.pre == c.pre
+
+# matches_greater (dir 1) and matches_less (dir -1).
+fn m_order(c: &Comparator, v: &Version, dir: i64) -> bool
+    if v.major != c.major
+        return num_cmp(&v.major, &c.major) == dir
+    if c.minor == ""
+        return false
+    if v.minor != c.minor
+        return num_cmp(&v.minor, &c.minor) == dir
+    if c.patch == ""
+        return false
+    if v.patch != c.patch
+        return num_cmp(&v.patch, &c.patch) == dir
+    return pre_cmp(&v.pre, &c.pre) == dir
+
+fn m_tilde(c: &Comparator, v: &Version) -> bool
+    if v.major != c.major
+        return false
+    if c.minor != "" and v.minor != c.minor
+        return false
+    if c.patch != "" and v.patch != c.patch
+        return num_cmp(&v.patch, &c.patch) > 0
+    return pre_cmp(&v.pre, &c.pre) >= 0
+
+fn m_caret(c: &Comparator, v: &Version) -> bool
+    if v.major != c.major
+        return false
+    if c.minor == ""
+        return true
+    if c.patch == ""
+        if c.major != "0"
+            return num_cmp(&v.minor, &c.minor) >= 0
+        return v.minor == c.minor
+    if c.major != "0"
+        if v.minor != c.minor
+            return num_cmp(&v.minor, &c.minor) > 0
+        if v.patch != c.patch
+            return num_cmp(&v.patch, &c.patch) > 0
+    else
+        if c.minor != "0"
+            if v.minor != c.minor
+                return false
+            if v.patch != c.patch
+                return num_cmp(&v.patch, &c.patch) > 0
+        else
+            if v.minor != c.minor or v.patch != c.patch
+                return false
+    return pre_cmp(&v.pre, &c.pre) >= 0
+
+fn m_impl(c: &Comparator, v: &Version) -> bool
+    if c.op == "=" or c.op == "*"
+        return m_exact(c, v)
+    if c.op == ">"
+        return m_order(c, v, 1)
+    if c.op == ">="
+        return m_exact(c, v) or m_order(c, v, 1)
+    if c.op == "<"
+        return m_order(c, v, -1)
+    if c.op == "<="
+        return m_exact(c, v) or m_order(c, v, -1)
+    if c.op == "~"
+        return m_tilde(c, v)
+    return m_caret(c, v)
+
+fn pre_compatible(c: &Comparator, v: &Version) -> bool = c.major == v.major and c.minor == v.minor and c.patch == v.patch and c.pre != ""
+
+# VersionReq::matches: every comparator holds, and a pre-release version
+# needs a comparator naming the same major.minor.patch with a pre-release.
+pub fn req_matches(r: &VersionReq, v: &Version) -> bool
+    for c in r.comparators
+        if not m_impl(&c, v)
+            return false
+    if v.pre == ""
+        return true
+    for c in r.comparators
+        if pre_compatible(&c, v)
+            return true
+    return false
+
+pub fn comparator_matches(c: &Comparator, v: &Version) -> bool = m_impl(c, v) and (v.pre == "" or pre_compatible(c, v))

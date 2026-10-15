@@ -189,6 +189,41 @@ M['devices'] = [
     ('    if class != "Cpu" and class != "Simd"', '    if class != "Cpu"'),
 ]
 
+M['pkg'] = [
+    ('        if v == "0"\n            return Out(val: "", i: i, err: "invalid', '        if v == "00"\n            return Out(val: "", i: i, err: "invalid'),
+    ('v.len() > 20 or (v.len() == 20 and v > U64_MAX)', 'v.len() > 20'),
+    ('                if p == 3 and seg > 1 and not nondigit', '                if p == 3 and seg > 2 and not nondigit'),
+    ('                    if acc == 0 and c != "."', '                    if acc == 0'),
+    ('        if b == 0\n            return "\'\\\\0\'"', '        if b == 1\n            return "\'\\\\0\'"'),
+    ('        if b < 32 or b == 127', '        if b < 32'),
+    ('    if at(&cs, i, "+")\n        p = 4', '    if at(&cs, i, "+")\n        p = 3'),
+    ('        fail BadPkg(why: "unexpected character in pre-release identifier")', '        fail BadPkg(why: "unexpected character in build metadata")'),
+    ('        before = pad / 2', '        before = (pad + 1) / 2'),
+    ('        return sign(a.len() < b.len(), true)', '        return sign(a < b, true)'),
+    ('                    o = sign(x.len() < y.len(), x.len() > y.len())', '                    o = 0'),
+    ('        if dx and not dy\n            return -1', '        if dx and not dy\n            return 1'),
+    ('    return if i < r.len() then -1 else 0', '    return 0'),
+    ('    if a == ""\n        return 1\n', '    if a == ""\n        return -1\n'),
+    ('        o = build_cmp(&a.build, &b.build)', '        o = 0'),
+    ('            if default_op\n                op = "*"\n            i += 2\n        else\n            let mi', '            i += 2\n        else\n            let mi'),
+    ('            if wild\n                return cerr(E_AFTER_WILDCARD)', '            if false\n                return cerr(E_AFTER_WILDCARD)'),
+    ('    if patch != "" and at(cs, i, "-")', '    if at(cs, i, "-")'),
+    ('                if rest == cs.len() as i64 or at(&cs, rest, ",")', '                if rest == cs.len() as i64'),
+    ('        if depth + 1 == 32', '        if depth + 1 == 33'),
+    ('            fail BadPkg(why: e_wild_only(&cs[i as usize]))\n        fail BadPkg(why: E_AFTER_WILDCARD)', '            fail BadPkg(why: E_AFTER_WILDCARD)\n        fail BadPkg(why: E_AFTER_WILDCARD)'),
+    ('            if c.op == "*"\n                s = s + ".*"', '            s = s + ".*"'),
+    ('    if c.patch != "" and v.patch != c.patch\n        return false\n    return v.pre == c.pre', '    if c.patch != "" and v.patch != c.patch\n        return false\n    return true'),
+    ('    if c.minor == ""\n        return false\n    if v.minor', '    if c.minor == ""\n        return true\n    if v.minor'),
+    ('    return pre_cmp(&v.pre, &c.pre) == dir', '    return pre_cmp(&v.pre, &c.pre) != 0'),
+    ('        return num_cmp(&v.patch, &c.patch) > 0\n    return pre_cmp(&v.pre, &c.pre) >= 0\n\nfn m_caret', '        return num_cmp(&v.patch, &c.patch) < 0\n    return pre_cmp(&v.pre, &c.pre) >= 0\n\nfn m_caret'),
+    ('            return num_cmp(&v.minor, &c.minor) >= 0\n        return v.minor == c.minor', '            return num_cmp(&v.minor, &c.minor) >= 0\n        return true'),
+    ('        if c.minor != "0"\n', '        if true\n'),
+    ('        return m_exact(c, v) or m_order(c, v, 1)', '        return m_order(c, v, 1)'),
+    ('        return m_exact(c, v) or m_order(c, v, -1)', '        return m_order(c, v, -1)'),
+    ('c.patch == v.patch and c.pre != ""', 'c.pre != ""'),
+    ('    if v.pre == ""\n        return true\n    for c', '    if true\n        return true\n    for c'),
+]
+
 def one(job):
     name, a, b = job
     src = open(os.path.join(root, 'lib/os/%s.rce' % name)).read()
