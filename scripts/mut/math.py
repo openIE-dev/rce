@@ -112,6 +112,20 @@ M = [('core',) + m for m in [
     ('        let d = n_divs(&p, k)', '        let d = n_divs(&p, k + 2)'),
     ('(x as f32).tostr() == "-0"', '(x as f32).tostr() == "0"'),
     ('        return [(x * pow2(600) * pow2(474)) as i64, -1074]\n    return mant(x)', '        return [(x * pow2(600) * pow2(475)) as i64, -1074]\n    return mant(x)'),
+]] + [('pow',) + m for m in [
+    ('    if yint and y >= 2.0 and y <= 64.0', '    if false'),
+    ('        let v = n_round(&p, xo[1] * yi)', '        let v = n_round(&p, xo[1] * yi + 1)'),
+    ('    if y > 0.0 and ym[1] < 0 and ym[1] >= -5 and ym[0] <= 34', '    if false'),
+    ('        yodd = ay - 2.0 * h == 1.0', '        yodd = false'),
+    ('        return if yodd then x else 0.0', '        return 0.0'),
+    ('        let zneg = (lb[0][0] == 1) != (y < 0.0)', '        let zneg = lb[0][0] == 1'),
+    ('        let z = n_shr(&lp, fl2 - ey - f)', '        let z = n_shr(&lp, fl2 - ey - f + 1)'),
+    ('        if rneg and r.len() > 0\n            k -= 1', '        if false\n            k -= 1'),
+    ('    let neg = x < 0.0 and yodd', '    let neg = x < 0.0'),
+    ('    while o % 2 == 0 bound 64', '    while o % 4 == 0 bound 64'),
+    ('        if n_cmp(&rk, &mo) == 0 and es % (1 << k) == 0', '        if n_cmp(&rk, &mo) == 0'),
+    ('    if zd < -746.0', '    if zd < -700.0'),
+    ('            let v = n_round(&one, ex)', '            let v = n_round(&one, ex - 1)'),
 ]] + [('cos',) + m for m in [
     ('            neg = q == 1 or q == 2', '            neg = q == 2'),
     ('            useS = q % 2 == 1', '            useS = q % 2 == 0'),
@@ -142,7 +156,7 @@ assert not fails(SRC, SH[0]), 'unmutated source fails'
 k = n = 0
 for g, a, b in M:
     if want and g not in want: continue
-    if g in ('exp', 'log', 'log2', 'log10', 'sin', 'cos', 'tan', 'atan2') and 'pub fn %s(' % g not in SRC: continue
+    if g in ('exp', 'log', 'log2', 'log10', 'sin', 'cos', 'tan', 'atan2', 'pow') and 'pub fn %s(' % g not in SRC: continue
     assert SRC.count(a) >= 1, a
     n += 1
     if killed(SRC.replace(a, b, 1)): k += 1

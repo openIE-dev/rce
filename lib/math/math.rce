@@ -893,25 +893,199 @@ pub fn atan2(y: f64, x: f64) -> f64
     let a1 = n_of(mn[0])
     let b1 = n_of(md[0])
     for f in ZIV_F
-        # a tiny result keeps its relative precision, and atan(t) = t - t^3/3
-        # can sit within t^3 of a rounding midpoint (t = 2^-1075 is one), so
-        # 3d more fraction bits for t ~ 2^-d once the first try failed
-        let dd = if f == 200 then d else 3 * d
-        let fe = if not swap and not xneg and d > 0 then f + dd else f
-        let t = if fe - d >= 0 then n_div(&a1, &b1, fe - d) else []
-        var a = atan_fix(&t, fe)
-        if swap
-            let c = c_pio2()
-            let pc = cst(&c, 2100, fe)
-            a = n_sub(&pc, &a)
-        if xneg
-            let c = c_pio2()
-            let pc = cst(&c, 2100, fe)
-            let pi = n_muls(&pc, 2)
-            a = n_sub(&pi, &a)
-        let z = ziv(&a, 0 - fe)
+        let r = atan_core(&a1, &b1, 0 - d, d, swap, xneg, f)
+        let z = ziv(&r[1], 0 - r[0][0])
         if z[0] == z[1]
-            return if yneg then 0.0 - z[0] else z[0]
+            return if yneg then chs(z[0]) else z[0]
+    return 0.0 / 0.0
+
+# [[fe], N]: N / 2^fe = atan(t) (swap false) or pi/2 - atan(t) (swap true),
+# then pi minus that when xneg, for t = (a / b) 2^sh <= 1 known exactly;
+# 2^-d ~ t. A tiny result keeps its relative precision, and atan(t) =
+# t - t^3/3 can sit within t^3 of a rounding midpoint (t = 2^-1075 is
+# one), so 3d more fraction bits for t ~ 2^-d once the first try failed.
+fn atan_core(a: &[i64], b: &[i64], sh: i64, d: i64, swap: bool, xneg: bool, f: i64) -> List[List[i64]]
+    let dd = if f == 200 then d else 3 * d
+    let fe = if not swap and not xneg and d > 0 then f + dd else f
+    let t = if fe + sh >= 0 then n_div(a, b, fe + sh) else []
+    var r = atan_fix(&t, fe)
+    if swap
+        let c = c_pio2()
+        let pc = cst(&c, 2100, fe)
+        r = n_sub(&pc, &r)
+    if xneg
+        let c = c_pio2()
+        let pc = cst(&c, 2100, fe)
+        let pi = n_muls(&pc, 2)
+        r = n_sub(&pi, &r)
+    return [[fe], r]
+
+# ---- pow ---------------------------------------------------------------
+# Exact and midpoint results happen only for integer y (odd part of x to
+# the y-th power at most 54 bits) and for y = n / 2^k, k <= 5, with x's odd
+# part a perfect 2^k-th power: those are computed exactly and rounded once
+# (ties to even). Every other x^y is neither, and is exp(y log x) with
+# Ziv's loop (log at enough extra bits that y log x is known to 2^-f).
+
+fn chs(v: f64) -> f64
+    return v * (0.0 - 1.0)
+
+# [[neg], N]: log x = (neg ? -1 : 1) N / 2^fe, x > 0
+fn log_big(x: f64, fe: i64) -> List[List[i64]]
+    let fr = frexp1(x)
+    var m = fr[0]
+    var e = fr[1] as i64
+    if m >= 1.5
+        m = m * 0.5
+        e += 1
+    let mm = (m * P52 * 2.0) as i64
+    let one: i64 = 9007199254740992
+    let neg = mm < one
+    let num = if neg then one - mm else mm - one
+    let den = mm + one
+    let lm = if num == 0 then [] else log_fix(num, den, fe)
+    let c = c_ln2()
+    let l = cst(&c, 2100, fe)
+    let el = n_muls(&l, if e < 0 then 0 - e else e)
+    let a_neg = e < 0
+    if a_neg == neg
+        return [[if neg then 1 else 0], n_add(&el, &lm)]
+    if n_cmp(&el, &lm) >= 0
+        return [[if a_neg then 1 else 0], n_sub(&el, &lm)]
+    return [[if neg then 1 else 0], n_sub(&lm, &el)]
+
+# [[k], N]: exp(v) = N 2^(k - f) for v = (zneg ? -1 : 1) z / 2^f, |v| < 2048
+fn exp_big(zneg: bool, z: &[i64], f: i64) -> List[List[i64]]
+    let zd = n_round(z, 0 - f)
+    let v = if zneg then 0.0 - zd else zd
+    var k = (v / 0.6931471805599453).floor() as i64
+    let c = c_ln2()
+    let l = cst(&c, 2100, f)
+    var r: List[i64] = []
+    var ok = false
+    var tries: i64 = 0
+    while not ok bound 8
+        # r = v - k ln2, kept as a magnitude with its sign
+        let kl = n_muls(&l, if k < 0 then 0 - k else k)
+        let kneg = k < 0
+        var rneg = false
+        if zneg != kneg
+            r = n_add(z, &kl)
+            rneg = zneg
+        elif n_cmp(z, &kl) >= 0
+            r = n_sub(z, &kl)
+            rneg = zneg
+        else
+            r = n_sub(&kl, z)
+            rneg = not zneg
+        if rneg and r.len() > 0
+            k -= 1
+        elif n_cmp(&r, &l) >= 0
+            k += 1
+        else
+            ok = true
+        tries += 1
+    let e = exp_fix(&r, f)
+    return [[k], e]
+
+# odd part and its exponent: x = o 2^s, o odd (x > 0, from mant_any)
+fn odd_part(me: &[i64]) -> List[i64]
+    var o = me[0]
+    var s = me[1]
+    while o % 2 == 0 bound 64
+        o = o / 2
+        s += 1
+    return [o, s]
+
+fn n_pow(b: &[i64], n: i64) -> List[i64]
+    var r = [1]
+    for i in 0..n
+        r = n_mul(&r, b)
+    return r
+
+pub fn pow(x: f64, y: f64) -> f64
+    if y == 0.0 or x == 1.0
+        return 1.0
+    let yint = y == y.floor()
+    let ay = fabs(y)
+    var yodd = false
+    if yint and ay < 9007199254740992.0
+        let h = (ay * 0.5).floor()
+        yodd = ay - 2.0 * h == 1.0
+    if x == 0.0
+        if y < 0.0
+            return 1.7976931348623157e308 * 2.0
+        return if yodd then x else 0.0
+    if x < 0.0 and not yint
+        return 1.7976931348623157e308 * 2.0
+    let neg = x < 0.0 and yodd
+    if y == 1.0
+        return x
+    let ax = fabs(x)
+    if ax == 1.0
+        return if neg then 0.0 - 1.0 else 1.0
+    let xo = mant_any(ax)
+    let xm = odd_part(&xo)
+    let yo = mant_any(ay)
+    let ym = odd_part(&yo)
+    # x a power of two: x^y = 2^(e y), exact when e y is an integer (it can
+    # be a midpoint, 2^-1075)
+    if xm[0] == 1 and (yint or (ym[1] < 0 and ym[1] > -64 and xm[1] % (1 << (0 - ym[1])) == 0))
+        let lim = if ay < 4096.0 then fabs(y * (xm[1] as f64)) else 1e9
+        if lim < 4096.0
+            let ex = if yint then (y as i64) * xm[1] else (xm[1] / (1 << (0 - ym[1]))) * ym[0] * (if y < 0.0 then -1 else 1)
+            let one = [1]
+            let v = n_round(&one, ex)
+            return if neg then chs(v) else v
+    # exact: integer 2 <= y <= 64
+    if yint and y >= 2.0 and y <= 64.0
+        let yi = y as i64
+        let mb = n_of(xo[0])
+        let p = n_pow(&mb, yi)
+        let v = n_round(&p, xo[1] * yi)
+        return if neg then chs(v) else v
+    # exact: y = n / 2^k, 1 <= k <= 5, 0 < n <= 34, odd part a 2^k-th power
+    if y > 0.0 and ym[1] < 0 and ym[1] >= -5 and ym[0] <= 34
+        let k = 0 - ym[1]
+        var rd = xm[0] as f64
+        for i in 0..k
+            rd = rd.sqrt()
+        let r = (rd + 0.5).floor() as i64
+        let rb = n_of(r)
+        let rk = n_pow(&rb, 1 << k)
+        let mo = n_of(xm[0])
+        let es = xm[1] * ym[0]
+        if n_cmp(&rk, &mo) == 0 and es % (1 << k) == 0
+            let p = n_pow(&rb, ym[0])
+            let v = n_round(&p, es / (1 << k))
+            return if neg then chs(v) else v
+    # |y log x| from doubles decides overflow and underflow far away
+    let lxd = log(ax)
+    let fy = frexp1(ay)
+    let fl = frexp1(fabs(lxd))
+    let big = (y > 0.0) == (lxd > 0.0)
+    if (fy[1] as i64) + (fl[1] as i64) >= 11
+        if big
+            return 1.7976931348623157e308 * 2.0
+        return if neg then chs(0.0) else 0.0
+    let zd = y * lxd
+    if zd > 710.0
+        return 1.7976931348623157e308 * 2.0
+    if zd < -746.0
+        return if neg then chs(0.0) else 0.0
+    let ny = n_of(ym[0])
+    let nyb = n_bits(&ny)
+    let ey = ym[1]
+    for f in ZIV_F
+        let fl2 = f + nyb + (if ey > 0 then ey else 0) + 16
+        let lb = log_big(ax, fl2)
+        let lp = n_mul(&lb[1], &ny)
+        let z = n_shr(&lp, fl2 - ey - f)
+        let zneg = (lb[0][0] == 1) != (y < 0.0)
+        let eb = exp_big(zneg, &z, f)
+        let w = ziv(&eb[1], eb[0][0] - f)
+        if w[0] == w[1]
+            return if neg then chs(w[0]) else w[0]
     return 0.0 / 0.0
 
 # ---- constants (generated by scripts/gen/math_const.py with MPFR 4.2.2) ----

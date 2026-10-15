@@ -850,7 +850,9 @@ and checks compare exact bits (no tolerance). Inputs whose result
 overflows (a trap in RCE) and non-finite inputs are skipped. Random cases:
 uniform 64-bit patterns and uniform [-4, 4], seed 20261015 + arity; edge
 cases: zeros, subnormal and normal boundaries, max, small integers, all
-sign combinations.
+sign combinations. pow adds exact results and midpoints (integer y up to
+64, y = n/2^k with x's odd part a perfect 2^k-th power, powers of two to
+2^-1075) and random x in [0, 4] with y in [-300, 300].
 
 | fn | CORE-MATH worst cases | random | edge | total |
 | --- | --- | --- | --- | --- |
@@ -867,6 +869,8 @@ sign combinations.
 | atan2 (push CI sample) | 3,991 of 28,151 | 3,000 | 603 | 7,594 |
 | cos (full, off-repo run) | 1,088,192 | 2,999 | 107 | 1,091,298 |
 | sin (full, off-repo run) | 1,971,056 | 2,999 | 105 | 1,974,160 |
+| exp (full, off-repo run) | 1,129,105 | 2,503 | 99 | 1,131,707 |
+| pow (push CI sample) | 7,229 of 1003179 | 5,428 | 2,188 | 14,845 |
 
 The large CORE-MATH files (exp 25 MB, log 3 MB, sin 43 MB, cos 24 MB) are
 not copied: push CI runs an evenly spaced sample (`--sample 4000`), and the
@@ -883,7 +887,7 @@ Cross-target: `scripts/math_parity.sh` emits the module with the derived
 checks and one shard per function to Rust, Python and JavaScript and
 requires identical transcripts, plus Scala 3 when scala-cli is installed
 (run on the box: Scala 3.9.0, JVM 17; all four identical).
-Mutation testing: `scripts/mut/math.py` 29/29 killed (equivalent mutants
+Mutation testing: `scripts/mut/math.py` 42/42 killed (pow: 13/13) (equivalent mutants
 removed are listed in its header).
 
 - `vectors/math/cbrt.wc` sha256 `c0487c6527aafea0eb741a4464c745bd545c49fc2a00ff7dbb89ee882b16047a`
