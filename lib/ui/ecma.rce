@@ -1635,8 +1635,24 @@ fn finish_res(js: &mut Js, v: V) -> Res
     return Res(v: if w == "" then v else Und, ok: w == "", why: w)
 
 # evaluate an expression in scope env
+# an expression attribute may end in ";" (an ECMAScript expression
+# statement, e.g. expr="new f();"): drop trailing semicolons
+fn e_drop_semi(src: &text) -> text bound 8
+    let t = src.strip()
+    if not t.endswith(";")
+        return t
+    let ps = t.split(";")
+    var keep: List[text] = []
+    var i = 0
+    while i + 1 < ps.len()
+        keep.push(copy(ps[i]))
+        i += 1
+    let r = ";".join(keep)
+    return e_drop_semi(&r)
+
 pub fn eval_in(js: &mut Js, env: i64, src: &text) -> Res
-    let p = parse_expr(src)
+    let s0 = e_drop_semi(src)
+    let p = parse_expr(&s0)
     if not p.ok
         return Res(v: Und, ok: false, why: copy(p.why))
     let me = Und

@@ -1396,11 +1396,16 @@ fn exec_x(c: &Chart, r: &mut Run, s: i64, u: i64) -> bool bound 64
         let ex = "expr"
         if ahas_attr(c, u, &ex) and ecm
             let src = aattr(c, u, &ex)
+            # an empty expression logs the label alone
+            if src.strip() == ""
+                r.logs.push(lb + ":")
+                return true
             let v = jeval(c, r, s, &src)
             if not v.ok
                 raise_int(r, s, "error.execution")
                 return false
-            r.logs.push(lb + ":" + ecma.to_str(&mut r.js, &v.v))
+            let lv = ecma.to_str(&mut r.js, &v.v)
+            r.logs.push(if lb == "" then lv else lb + ":" + lv)
         else
             r.logs.push(lb)
         return true
@@ -1892,10 +1897,13 @@ fn exit_states(c: &Chart, r: &mut Run, ses: i64, ts: &[i64])
         r.conf[ses as usize][x as usize] = 0
 
 # cancel the invocations started by state x of session ses
-fn cancel_invokes(c: &Chart, r: &mut Run, ses: i64, x: i64)
+# leaving state x cancels its invocations: each child exits its active
+# states (running their onexit) and stops, with no done.invoke (6.4.5)
+fn cancel_invokes(c: &Chart, r: &mut Run, ses: i64, x: i64) bound 64
     for k in 0..r.smachine.len()
         if r.sparent[k] == ses and r.sinvstate[k] == x and r.srunning[k]
             r.srunning[k] = false
+            finish(c, r, k as i64)
 
 # late binding: the data of state s, the first time s is entered
 fn bind_state_data(c: &Chart, r: &mut Run, ses: i64, s: i64)
@@ -2295,7 +2303,7 @@ fn external(c: &Chart, r: &mut Run, s: i64, e: i64) bound 64
     let eu = e as usize
     # events from a cancelled invocation are dropped
     let frm = r.efrom[eu]
-    if frm >= 0 and frm != s and r.sparent[frm as usize] == s and not r.srunning[frm as usize] and not r.en[eu].startswith("done.invoke.")
+    if frm >= 0 and frm != s and r.sparent[frm as usize] == s and not r.srunning[frm as usize] and not r.sfinal[frm as usize] and not r.en[eu].startswith("done.invoke.")
         return
     r.ev = copy(r.en[eu])
     r.evid = e
