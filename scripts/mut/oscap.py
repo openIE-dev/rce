@@ -222,6 +222,21 @@ M['pkg'] = [
     ('        return m_exact(c, v) or m_order(c, v, -1)', '        return m_order(c, v, -1)'),
     ('c.patch == v.patch and c.pre != ""', 'c.pre != ""'),
     ('    if v.pre == ""\n        return true\n    for c', '    if true\n        return true\n    for c'),
+    ('    if parts.len() != 3 or parts[1].split("\\\\").len() != 1', '    if parts.len() != 3'),
+    ('                if i >= lines.len() or lines[i] != "]"', '                if i >= lines.len()'),
+    ('            if p.source == r.source\n                return i', '            if true\n                return i'),
+    ('        if p.source != ""\n            o.push("source', '        if true\n            o.push("source'),
+    ('            fail BadPkg(why: "Cargo.lock: bad version")', '            version = 0'),
+    ('        if sri_rank(&alg) < 0\n            continue', '        if alg == ""\n            continue'),
+    ('        if r > best\n', '        if r < best or best < 0\n'),
+    ('    if parsed.len() == 0\n        return true', '    if parsed.len() == 0\n        return false'),
+    ('            if kv2.len() == 2 and kv2[0] == s.alg', '            if kv2.len() == 2'),
+    ('        if not (is_digit(&ch) or (ch[0] >= 97 and ch[0] <= 102))', '        if not (is_digit(&ch) or (ch[0] >= 97 and ch[0] <= 103))'),
+    ('    return cs[0] + cs[1] + "/" + cs[2] + cs[3]', '    return cs[0] + cs[1] + "/" + cs[1] + cs[3]'),
+    ('        return dl + "/" + name + "/" + version + "/download"', '        return dl + "/" + name + "/" + version'),
+    ('        if p.source == source\n            o.push(Fetch', '        if true\n            o.push(Fetch'),
+    ('dev: jtrue(&e, "dev")', 'dev: false'),
+    ('        if name == ""\n            name = npm_name(&keys[i])', '        if name == ""\n            name = copy(keys[i])'),
     ('if pre and seg.len() > 1 and seg.isdigit() and seg.startswith("0")', 'if false'),
     ('        if not (seg.isalpha() or seg.isdigit())', '        if not (seg.isalpha() or seg.isdigit() or seg.contains("-"))'),
 ]
@@ -231,10 +246,13 @@ def one(job):
     src = open(os.path.join(root, 'lib/os/%s.rce' % name)).read()
     assert src.count(a) == 1, a
     chks = sorted(glob.glob(os.path.join(root, 'tests/os/%s_checks*.rce' % name)))
+    uses = subprocess.run(['python3', os.path.join(root, 'scripts/uses.py'), os.path.join(root, 'lib/os/%s.rce' % name)], capture_output=True, text=True, check=True).stdout.split()
     with tempfile.TemporaryDirectory() as d:
+        for u in uses:
+            open(os.path.join(d, os.path.basename(u) + '.rce'), 'w').write(open(os.path.join(root, 'lib', u + '.rce')).read())
         for c in chks:
-            f = os.path.join(d, 'm.rce'); open(f, 'w').write(src.replace(a, b) + '\n' + open(c).read())
-            if subprocess.run([RCE, 'test', f], capture_output=True).returncode != 0:
+            f = os.path.join(d, name + '.rce'); open(f, 'w').write(src.replace(a, b) + '\n' + open(c).read())
+            if subprocess.run([RCE, 'test', d], capture_output=True).returncode != 0:
                 return name, a, True
         return name, a, False
 mods = sys.argv[1:] or list(M)

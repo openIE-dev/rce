@@ -1,0 +1,49 @@
+fn lk(t: text) -> Lock
+    return lock_parse(&t) catch Lock(header: ["!"], version: 0, packages: [], extra: [])
+fn lk_rt(t: text) -> bool
+    let l = lk(copy(t))
+    return lock_text(&l) == t
+fn lk_sum(t: text) -> text
+    let l = lk(copy(t))
+    var o: List[text] = [l.version.tostr()]
+    for p in l.packages
+        o.push(p.name + "|" + p.version + "|" + p.source + "|" + p.checksum + "|" + ",".join(p.deps))
+    return ";".join(o)
+fn lk_err(t: text) -> text
+    let l = lock_parse(&t) catch |e| Lock(header: [e.why], version: -1, packages: [], extra: [])
+    return if l.version == -1 then copy(l.header[0]) else "ok"
+fn lk_res(t: text, ds: text) -> text
+    let l = lk(copy(t))
+    var o: List[text] = []
+    for d in ds.split(";")
+        o.push(dep_resolve(&l, &d).tostr())
+    return ",".join(o)
+fn lk_plan(t: text, src: text, dl: text) -> text
+    let l = lk(copy(t))
+    var o: List[text] = []
+    for f in fetch_plan(&l, &src, &dl)
+        o.push(f.url + " " + f.sha256)
+    return ";".join(o)
+fn np(t: text) -> text
+    let ps = npm_lock_parse(&t) catch [NpmPkg(path: "!", name: "", version: "", resolved: "", integrity: "", dev: false, optional: false, link: false)]
+    var o: List[text] = []
+    for p in ps
+        let fl = (if p.dev then "d" else "") + (if p.optional then "o" else "") + (if p.link then "l" else "")
+        o.push(p.path + "|" + p.name + "|" + p.version + "|" + p.resolved + "|" + p.integrity + "|" + fl)
+    return ";".join(o)
+fn sp(t: text) -> text
+    var o: List[text] = []
+    for s in sri_parse(&t)
+        o.push(s.alg + "-" + s.val)
+    return " ".join(o)
+fn ss(t: text) -> text
+    let p = sri_parse(&t)
+    var o: List[text] = []
+    for s in sri_strongest(&p)
+        o.push(s.alg + "-" + s.val)
+    return " ".join(o)
+fn sm(t: text, ds: text) -> bool
+    let l = if ds == "" then [] else ds.split(" ")
+    return sri_match(&t, &l)
+fn cm(c: text, h: text) -> bool = checksum_match(&c, &h)
+fn dlu(dl: text, n: text, v: text, c: text) -> text = dl_url(&dl, &n, &v, &c)

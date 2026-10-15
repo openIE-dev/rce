@@ -1,10 +1,22 @@
 module os.pkg
+# uses: enc.enc, data.events
+use enc
+use data.events
 # Packages (survey M43), pure. Fetching a package is a host capability
-# effect under the `net` grant; this module holds the version model a
-# Form resolves with: a port of Cargo's semver crate (1.0.28):
-# Version, Comparator and VersionReq parsing with the crate's error
-# messages, display (with padding), ordering (pre-release and build
-# metadata rules), and requirement matching with its pre-release rule.
+# effect under the `net` grant; this module holds what a Form resolves
+# and pins with:
+#  - Cargo's version model, a port of Cargo's semver crate (1.0.28):
+#    Version, Comparator and VersionReq parsing with the crate's error
+#    messages, display (with padding), ordering and requirement matching;
+#  - the Cargo.lock codec (as cargo writes it): [[package]] records with
+#    their dependency references, written back byte for byte;
+#  - npm package-lock.json (lockfileVersion 2 and 3): the `packages` map
+#    as records, with the JSON parser of data.events;
+#  - digest pinning: Subresource Integrity metadata (W3C SRI: parse,
+#    strongest algorithm, match) and Cargo's SHA-256 checksums, judged
+#    against digests the host computed;
+#  - the fetch plan: a registry's download URL from its config.json `dl`
+#    template and each lock entry's fetch with the digest it must match.
 
 error BadPkg(why: text)
 
@@ -598,3 +610,413 @@ pub fn req_matches(r: &VersionReq, v: &Version) -> bool
     return false
 
 pub fn comparator_matches(c: &Comparator, v: &Version) -> bool = m_impl(c, v) and (v.pre == "" or pre_compatible(c, v))
+
+# ---------------- Cargo.lock ----------------
+
+pub struct LockPkg
+    name: text
+    version: text
+    source: text
+    checksum: text
+    deps: List[text]
+
+pub struct Lock
+    header: List[text]
+    version: i64
+    packages: List[LockPkg]
+    extra: List[text]
+
+pub struct Dep
+    name: text
+    version: text
+    source: text
+
+fn unquote_toml(v: &text) -> text ! BadPkg
+    if v.len() < 2 or not v.startswith("\"") or not v.endswith("\"")
+        fail BadPkg(why: "Cargo.lock: expected a string")
+    let parts = v.split("\"")
+    if parts.len() != 3 or parts[1].split("\\").len() != 1
+        fail BadPkg(why: "Cargo.lock: escapes are not written by cargo")
+    return copy(parts[1])
+
+fn kv(line: &text) -> List[text]
+    let parts = line.split(" = ")
+    if parts.len() < 2
+        return []
+    var rest: List[text] = []
+    var i: usize = 1
+    while i < parts.len() bound 1024
+        rest.push(copy(parts[i]))
+        i += 1
+    return [copy(parts[0]), " = ".join(rest)]
+
+# Parse a Cargo.lock as cargo writes it: the comment header, `version = N`
+# (absent in format 1 and 2), [[package]] tables, then any other tables
+# (kept as they are, e.g. [metadata] of format 1).
+pub fn lock_parse(t: &text) -> Lock ! BadPkg
+    let lines = t.split("\n")
+    var header: List[text] = []
+    var version: i64 = 0
+    var pkgs: List[LockPkg] = []
+    var extra: List[text] = []
+    var i: usize = 0
+    while i < lines.len() and lines[i].startswith("#") bound 16777216
+        header.push(copy(lines[i]))
+        i += 1
+    if i < lines.len() and lines[i].startswith("version = ")
+        let v = kv(&lines[i])
+        let n = int_or(&v[1])
+        if n < 1
+            fail BadPkg(why: "Cargo.lock: bad version")
+        version = n
+        i += 1
+    while i < lines.len() bound 16777216
+        if lines[i] == ""
+            i += 1
+            continue
+        if lines[i] != "[[package]]"
+            while i < lines.len() bound 16777216
+                extra.push(copy(lines[i]))
+                i += 1
+            break
+        i += 1
+        var p = LockPkg(name: "", version: "", source: "", checksum: "", deps: [])
+        while i < lines.len() and lines[i] != "" bound 16777216
+            let f = kv(&lines[i])
+            if f.len() != 2
+                fail BadPkg(why: "Cargo.lock: expected key = value")
+            if f[0] == "dependencies"
+                if f[1] != "["
+                    fail BadPkg(why: "Cargo.lock: dependencies are written one per line")
+                i += 1
+                while i < lines.len() and lines[i] != "]" and lines[i] != "" bound 16777216
+                    let d = copy(lines[i])
+                    if not d.startswith(" \"") or not d.endswith("\",")
+                        fail BadPkg(why: "Cargo.lock: bad dependency line")
+                    let dp = d.split("\"")
+                    if dp.len() != 3
+                        fail BadPkg(why: "Cargo.lock: escapes are not written by cargo")
+                    let q = "\"" + dp[1] + "\""
+                    p.deps.push(try unquote_toml(&q))
+                    i += 1
+                if i >= lines.len() or lines[i] != "]"
+                    fail BadPkg(why: "Cargo.lock: unterminated dependencies")
+            else
+                let v = try unquote_toml(&f[1])
+                if f[0] == "name"
+                    p.name = v
+                else
+                    if f[0] == "version"
+                        p.version = v
+                    else
+                        if f[0] == "source"
+                            p.source = v
+                        else
+                            if f[0] == "checksum"
+                                p.checksum = v
+                            else
+                                fail BadPkg(why: "Cargo.lock: unknown key " + f[0])
+            i += 1
+        if p.name == "" or p.version == ""
+            fail BadPkg(why: "Cargo.lock: package without name or version")
+        pkgs.push(p)
+    return Lock(header: header, version: version, packages: pkgs, extra: extra)
+
+fn drop_ends(t: &text, a: i64, b: i64) -> text
+    let cs = t.chars()
+    var o: List[text] = []
+    var i = a as usize
+    while i + (b as usize) < cs.len() bound 16777216
+        o.push(copy(cs[i]))
+        i += 1
+    return "".join(o)
+
+# The text cargo writes for a lock.
+pub fn lock_text(l: &Lock) -> text
+    var o: List[text] = []
+    for h in l.header
+        o.push(copy(h))
+    if l.version > 0
+        o.push("version = " + l.version.tostr())
+    for p in l.packages
+        o.push("")
+        o.push("[[package]]")
+        o.push("name = \"" + p.name + "\"")
+        o.push("version = \"" + p.version + "\"")
+        if p.source != ""
+            o.push("source = \"" + p.source + "\"")
+        if p.checksum != ""
+            o.push("checksum = \"" + p.checksum + "\"")
+        if p.deps.len() > 0
+            o.push("dependencies = [")
+            for d in p.deps
+                o.push(" \"" + d + "\",")
+            o.push("]")
+    if l.extra.len() > 0
+        o.push("")
+        for x in l.extra
+            o.push(copy(x))
+    else
+        o.push("")
+    return "\n".join(o)
+
+# A dependency reference: "name", "name version" or "name version (source)".
+pub fn dep_parse(d: &text) -> Dep
+    let parts = d.split(" ")
+    let name = copy(parts[0])
+    if parts.len() == 1
+        return Dep(name: name, version: "", source: "")
+    let version = copy(parts[1])
+    if parts.len() == 2
+        return Dep(name: name, version: version, source: "")
+    var rest: List[text] = []
+    var i: usize = 2
+    while i < parts.len() bound 1024
+        rest.push(copy(parts[i]))
+        i += 1
+    let src = " ".join(rest)
+    return Dep(name: name, version: version, source: drop_ends(&src, 1, 1))
+
+# The package a dependency reference names (index into packages), -1 if
+# none. cargo leaves out the source of a path package, and of a registry
+# or git package when the name (and version) alone is unique, so a
+# reference without a source prefers a package without one.
+pub fn dep_resolve(l: &Lock, d: &text) -> i64
+    let r = dep_parse(d)
+    var i: i64 = 0
+    var loose: i64 = -1
+    for p in l.packages
+        if p.name == r.name and (r.version == "" or p.version == r.version)
+            if p.source == r.source
+                return i
+            if r.source == "" and loose < 0
+                loose = i
+        i += 1
+    return loose
+
+# ---------------- npm package-lock.json ----------------
+
+pub struct NpmPkg
+    path: text
+    name: text
+    version: text
+    resolved: text
+    integrity: text
+    dev: bool
+    optional: bool
+    link: bool
+
+fn js_str(v: &events.Jv) -> text
+    match v
+        events.JsStr(t: t) -> return copy(t)
+        _ -> return ""
+
+fn jstr(e: &events.Jv, n: text) -> text
+    let r = events.jget(e, &n)
+    match r
+        some(v) -> return js_str(&v)
+        none -> return ""
+
+fn jtrue(e: &events.Jv, n: text) -> bool
+    let r = events.jget(e, &n)
+    match r
+        some(v) -> return events.json_text(&v, false) == "true"
+        none -> return false
+
+# The `packages` map of a lockfileVersion 2 or 3 package-lock.json, in
+# order. The name is the `name` field, else the last node_modules/ part
+# of the path ("" for the root).
+pub fn npm_lock_parse(t: &text) -> List[NpmPkg] ! BadPkg
+    let j = events.json_parse(t) catch |e| events.JsNull
+    let lkey = "lockfileVersion"
+    let v = jnum(&j, lkey)
+    if v != 2 and v != 3
+        fail BadPkg(why: "package-lock: lockfileVersion 2 or 3 expected")
+    let pk = "packages"
+    let ps = events.jget(&j, &pk)
+    match ps
+        some(o) -> return npm_entries(&o)
+        none -> fail BadPkg(why: "package-lock: no packages")
+
+fn npm_entries(o: &events.Jv) -> List[NpmPkg] ! BadPkg
+    match o
+        events.JsObj(keys: keys, vals: vals) -> return npm_list(keys, vals)
+        _ -> fail BadPkg(why: "package-lock: packages is not an object")
+
+fn npm_list(keys: &[text], vals: &[events.Jv]) -> List[NpmPkg]
+    var out: List[NpmPkg] = []
+    for i in 0..keys.len()
+        let e = copy(vals[i])
+        var name = jstr(&e, "name")
+        if name == ""
+            name = npm_name(&keys[i])
+        out.push(NpmPkg(path: copy(keys[i]), name: name, version: jstr(&e, "version"), resolved: jstr(&e, "resolved"), integrity: jstr(&e, "integrity"), dev: jtrue(&e, "dev"), optional: jtrue(&e, "optional"), link: jtrue(&e, "link")))
+    return out
+
+fn jnum(e: &events.Jv, n: text) -> i64
+    let r = events.jget(e, &n)
+    match r
+        some(v) -> return js_int(&v)
+        none -> return -1
+
+fn js_int(v: &events.Jv) -> i64
+    match v
+        events.JsNum(raw: r) -> return int_or(r)
+        _ -> return -1
+
+fn int_or(t: &text) -> i64 = if t.isdigit() and t.len() < 18 then t.toint() else -1
+
+fn npm_name(path: &text) -> text
+    let parts = path.split("node_modules/")
+    let last = copy(parts[parts.len() - 1])
+    return if last.endswith("/") then drop_ends(&last, 0, 1) else last
+
+# ---------------- digests ----------------
+
+pub struct Sri
+    alg: text
+    val: text
+
+const SRI_ALGS: text = "sha256 sha384 sha512"
+
+fn sri_rank(a: &text) -> i64
+    var i: i64 = 0
+    for x in SRI_ALGS.split(" ")
+        if x == a
+            return i
+        i += 1
+    return -1
+
+fn ascii_ws(c: &text) -> bool = c == " " or c == "\t" or c == "\n" or c == "\r" or c == "\u{c}"
+
+# SRI 3.3.2 parse metadata: items split on ASCII whitespace, options
+# after "?" dropped, unknown algorithms skipped; the algorithm is kept
+# ASCII-lowercased.
+pub fn sri_parse(m: &text) -> List[Sri]
+    var items: List[text] = []
+    var cur: List[text] = []
+    for c in m.chars()
+        if ascii_ws(&c)
+            if cur.len() > 0
+                items.push("".join(cur))
+                cur = []
+        else
+            cur.push(c)
+    if cur.len() > 0
+        items.push("".join(cur))
+    var out: List[Sri] = []
+    for it in items
+        let ex = copy(it.split("?")[0])
+        let av = ex.split("-")
+        let alg = av[0].lower()
+        if sri_rank(&alg) < 0
+            continue
+        let val = if av.len() > 1 then copy(av[1]) else ""
+        out.push(Sri(alg: alg, val: val))
+    return out
+
+# SRI 3.3.3: the items of the strongest algorithm present.
+pub fn sri_strongest(set: &List[Sri]) -> List[Sri]
+    var best: i64 = -1
+    for s in set
+        let r = sri_rank(&s.alg)
+        if r > best
+            best = r
+    var out: List[Sri] = []
+    for s in set
+        if sri_rank(&s.alg) == best
+            out.push(copy(s))
+    return out
+
+# SRI 3.3.4 for digests the host computed: `digests` holds one entry per
+# algorithm as "alg:" + hex of the digest. True when the metadata holds
+# no known algorithm, or one strongest item matches its digest.
+pub fn sri_match(metadata: &text, digests: &List[text]) -> bool
+    let parsed = sri_parse(metadata)
+    if parsed.len() == 0
+        return true
+    for s in sri_strongest(&parsed)
+        for d in digests
+            let kv2 = d.split(":")
+            if kv2.len() == 2 and kv2[0] == s.alg
+                let b = hex_bytes(&kv2[1])
+                if enc.b64_encode(&b, false, true) == s.val
+                    return true
+    return false
+
+fn hex_bytes(h: &text) -> List[i64]
+    let d = HEXD.chars()
+    let cs = h.lower().chars()
+    var o: List[i64] = []
+    var i: usize = 0
+    while i + 1 < cs.len() bound 16777216
+        var hi: i64 = 0
+        var lo: i64 = 0
+        var k: i64 = 0
+        while k < 16 bound 16
+            if d[k as usize] == cs[i]
+                hi = k
+            if d[k as usize] == cs[i + 1]
+                lo = k
+            k += 1
+        o.push(hi * 16 + lo)
+        i += 2
+    return o
+
+# Cargo.lock `checksum`: the SHA-256 of the .crate, 64 lower-case hex digits.
+pub fn checksum_valid(c: &text) -> bool
+    if c.len() != 64
+        return false
+    for ch in c.chars()
+        if not (is_digit(&ch) or (ch[0] >= 97 and ch[0] <= 102))
+            return false
+    return true
+
+pub fn checksum_match(c: &text, sha256_hex: &text) -> bool = checksum_valid(c) and c == sha256_hex.lower()
+
+# ---------------- fetch plan ----------------
+
+# The registry download URL (Cargo registry index config.json `dl`): the
+# markers {crate} {version} {prefix} {lowerprefix} {sha256-checksum} are
+# replaced; a template without any marker gets "/{crate}/{version}/download".
+pub fn crate_prefix(name: &text) -> text
+    let cs = name.chars()
+    if cs.len() == 1
+        return "1"
+    if cs.len() == 2
+        return "2"
+    if cs.len() == 3
+        return "3/" + cs[0]
+    return cs[0] + cs[1] + "/" + cs[2] + cs[3]
+
+fn replace_all(t: &text, a: text, b: &text) -> text = b.join(t.split(&a))
+
+pub fn dl_url(dl: &text, name: &text, version: &text, checksum: &text) -> text
+    let marks = ["{crate}", "{version}", "{prefix}", "{lowerprefix}", "{sha256-checksum}"]
+    var any = false
+    for m in marks
+        if dl.contains(m)
+            any = true
+    if not any
+        return dl + "/" + name + "/" + version + "/download"
+    var u = replace_all(dl, "{crate}", name)
+    u = replace_all(&u, "{version}", version)
+    let p = crate_prefix(name)
+    u = replace_all(&u, "{prefix}", &p)
+    let lp = p.lower()
+    u = replace_all(&u, "{lowerprefix}", &lp)
+    u = replace_all(&u, "{sha256-checksum}", checksum)
+    return u
+
+pub struct Fetch
+    url: text
+    sha256: text
+
+# The fetches a lock needs from one registry source: each package of that
+# source, with the checksum its download must match.
+pub fn fetch_plan(l: &Lock, source: &text, dl: &text) -> List[Fetch]
+    var o: List[Fetch] = []
+    for p in l.packages
+        if p.source == source
+            o.push(Fetch(url: dl_url(dl, &p.name, &p.version, &p.checksum), sha256: copy(p.checksum)))
+    return o
