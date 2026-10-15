@@ -52,3 +52,9 @@ Machine-readable records are in `findings/*.json`; the tests the reference fails
     `clauses-pending.json`. The reference already behaves this way; six
     tests in `tests/evaluation-fuel/targeted/fuel-1-*` hold it, two of them
     controls showing budget exhaustion stays catchable.
+17. **T38 on Windows.** Reopening a torn D failed on windows-x86_64 with
+    `host.StorageFault: cut: Access is denied`: the store truncated through
+    its append-mode handle, which on Windows lacks write-data access. Law:
+    recovery (T38, HS-4) is the same on every target. Fixed in the engine
+    (`FileStore::cut` uses its own write handle), found by
+    `host-contract/targeted/t38-torn-tail-keeps-prefix` in the parity matrix.
