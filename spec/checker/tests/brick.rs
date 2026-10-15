@@ -36,15 +36,44 @@ fn lit(v: &Value) -> String {
 
 #[test]
 fn vectors_hold_in_the_reference_interpreter() {
+    let c = catalog();
     let mut src = FIX.to_string();
-    for v in vectors() {
+    for (k, v) in vectors().iter().enumerate() {
         let f = v[0].as_str().unwrap();
-        let args: Vec<String> = v[1].as_array().unwrap().iter().map(lit).collect();
-        src.push_str(&format!(
-            "\ncheck {f}({}) == {}\n",
-            args.join(", "),
-            lit(&v[2])
-        ));
+        let e = entry(&c, f);
+        // a borrowed parameter needs a place: bind the literal first
+        let mut args = vec![];
+        for (i, (a, p)) in v[1]
+            .as_array()
+            .unwrap()
+            .iter()
+            .zip(e["params"].as_array().unwrap())
+            .enumerate()
+        {
+            let ty = p[1].as_str().unwrap();
+            if let Some(inner) = ty.strip_prefix('&') {
+                let n = format!("ARG{k}_{i}");
+                src.push_str(&format!("\nconst {n}: {inner} = {}\n", lit(a)));
+                args.push(format!("&{n}"));
+            } else {
+                args.push(lit(a));
+            }
+        }
+        let call = format!("{f}({})", args.join(", "));
+        let fails = e["ret"].as_str().unwrap().contains(" ! ");
+        match v[2].get("$err").and_then(|e| e.as_object()) {
+            Some(err) => {
+                for (k, x) in err {
+                    src.push_str(&format!("\ncheck ({call} catch |e| e.{k}) == {}\n", lit(x)));
+                }
+            }
+            None if fails => src.push_str(&format!(
+                "\ncheck ({call} catch |e| {} + 1) == {}\n",
+                lit(&v[2]),
+                lit(&v[2])
+            )),
+            None => src.push_str(&format!("\ncheck {call} == {}\n", lit(&v[2]))),
+        }
     }
     check_one(&src).unwrap();
 }
@@ -88,10 +117,13 @@ fn index_records() {
     assert_eq!(
         names,
         [
+            "area",
             "between",
             "capped_sum",
             "clamp",
             "count_down",
+            "digit",
+            "digits_or",
             "fact",
             "find_first",
             "first",
@@ -102,13 +134,15 @@ fn index_records() {
             "mix",
             "popcount",
             "put2",
+            "put4",
             "rev",
             "safe_div",
             "shift",
             "sign",
             "sum_list",
             "swap_at",
-            "take_last"
+            "take_last",
+            "two_digits"
         ]
     );
     let f = entry(&c, "first");
@@ -121,7 +155,7 @@ fn index_records() {
         .to_string();
     assert!(r.contains("recursive call of fact"), "{r}");
     // loops, lists, structs, text `+`, bit operations, generics and usize lower
-    assert_eq!(c["lowered"], 20);
+    assert_eq!(c["lowered"], 25);
 }
 
 #[test]
@@ -136,7 +170,7 @@ fn search_by_type() {
     };
     assert_eq!(
         s("(i64, i64) -> i64"),
-        ["0 capped_sum", "0 mean2", "0 mix", "0 safe_div"]
+        ["0 area", "0 capped_sum", "0 mean2", "0 mix", "0 safe_div"]
     );
     assert_eq!(s("(i64, i64, i64) -> bool"), ["0 between"]);
     assert_eq!(s("(Pt, i64) -> Pt"), ["0 shift"]);

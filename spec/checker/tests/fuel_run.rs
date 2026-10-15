@@ -80,6 +80,18 @@ fn programs() -> Vec<(String, String)> {
         "forpar".into(),
         "fn sq(x: i64) -> i64\n    x * x\n\nfn main()\n    var s: i64 = 0\n    for i in 0..6 par\n        s += sq(i as i64)\n    emit s\n".into(),
     ));
+    // a par whose branches wait on lvars: the reference runs it on threads,
+    // each branch on a copy of the fork's fuel, and charges the branches back
+    // in source order (C.6.3); the emitters run it by restart and restore the
+    // fuel of an abandoned attempt. This was the untested case of 10.5.
+    v.push((
+        "lvarpar".into(),
+        "fn sq(x: i64) -> i64\n    x * x\n\nfn main()\n    let a = lvar_new(0)\n    let b = lvar_new(0)\n    var x: i64 = 0\n    var y: i64 = 0\n    par\n        branch one\n            for i in 0..3\n                x += sq(i)\n            x += a.wait([2])\n        branch two\n            y = b.wait([3])\n            for i in 0..4\n                y += sq(i)\n            a.put(2)\n        branch three\n            b.put(3)\n    emit x * 100 + y\n".into(),
+    ));
+    v.push((
+        "lvartrap".into(),
+        "fn sq(x: i64) -> i64\n    x * x\n\nfn main()\n    let a = lvar_new(0)\n    let z: i64 = 0\n    var x: i64 = 0\n    var y: i64 = 0\n    par\n        branch one\n            for i in 0..5\n                x += sq(i)\n            a.put(2)\n        branch two\n            y = a.wait([2])\n            for i in 0..5\n                y += sq(i)\n            y = y / z\n    emit x + y\n".into(),
+    ));
     v
 }
 
@@ -96,7 +108,11 @@ fn concurrent_fuel_matches_the_reference() {
             continue;
         }
         let full = reference(&src, 50_000_000);
-        assert_eq!(full.last().unwrap(), "outcome Done", "{stem}: {full:?}");
+        // every program ends Done except `lvartrap`, which ends with a trap
+        // late in a branch, so the fuel trap must win when the branches'
+        // summed fuel runs out before that point (source order, C.6.3)
+        let want = if stem == "lvartrap" { "outcome Refused: trap: division by zero" } else { "outcome Done" };
+        assert_eq!(full.last().unwrap(), want, "{stem}: {full:?}");
         // the smallest limit from which the run equals the unlimited run
         let mut top = 1u64;
         while reference(&src, top) != full {

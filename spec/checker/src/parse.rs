@@ -1593,6 +1593,13 @@ impl Parser {
                 if budget {
                     let mut v = vec![Stmt::Expr(n)];
                     v.extend(body);
+                    if self.eat_kw("else") {
+                        let eb = self.block()?;
+                        // the else runs only when the budget traps: encoded as
+                        // `if false` so a run that never charges past n never
+                        // evaluates it (comptime, emitters' observation model)
+                        v.push(Stmt::If(vec![(Expr::Bool(false, line), eb)], None));
+                    }
                     return Ok(Stmt::Arena("$budget".into(), None, v, line));
                 }
                 let mut v = vec![

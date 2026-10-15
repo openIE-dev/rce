@@ -100,3 +100,41 @@ pub fn le16(v: i64) -> List[i64]
     let t = take_last(&mut o)
     put2(&mut o, t)
     return o
+
+pub fn put4(b: &mut List[i64], v: i64)
+    put2(b, v)
+    put2(b, v >> 16)
+
+pub kind Shape
+    Circle(r: i64)
+    Sq(s: i64)
+    Dot
+
+pub fn area(k: i64, n: i64) -> i64
+    var sh = Dot
+    if k == 0
+        sh = Circle(r: n)
+    if k == 1
+        sh = Sq(s: n)
+    match sh
+        Circle(r: r) if r < 0 -> return -1
+        Circle(r: r) -> return 3 * r * r
+        Sq(s: s) -> return s * s
+        _ -> return 0
+
+error BadDigit(at: i64)
+
+pub fn digit(b: &List[i64], i: i64) -> i64 ! BadDigit
+    if i < 0 or i >= b.len() as i64
+        fail BadDigit(at: i)
+    let c = b[i as usize] - 48
+    if c < 0 or c > 9
+        fail BadDigit(at: i)
+    return c
+
+pub fn two_digits(b: &List[i64]) -> i64 ! BadDigit
+    let x = try digit(b, 0)
+    let y = try digit(b, 1) else BadDigit(at: 99)
+    return x * 10 + y
+
+pub fn digits_or(b: &List[i64], d: i64) -> i64 = two_digits(b) catch |e| d - e.at

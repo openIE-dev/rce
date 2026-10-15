@@ -22,6 +22,7 @@ pub mod lsp;
 pub mod parse;
 pub mod rcedb;
 pub mod refine;
+pub mod repl;
 pub mod sandbox;
 pub mod specdata;
 pub mod specread;

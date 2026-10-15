@@ -1225,6 +1225,12 @@ def par_enter(): TLS.sched[0] += 1
 def par_exit(): TLS.sched[0] -= 1
 def bud_snap(): return [list(b) for b in TLS.bud]
 def bud_restore(s): TLS.bud[:] = s
+# a restarted par attempt (C.14) restores both the budgets and the fuel, so an
+# abandoned attempt costs nothing, as in the reference's threaded run
+def par_snap(): return (bud_snap(), TLS.fuel)
+def par_restore(s):
+    bud_restore(s[0])
+    TLS.fuel = s[1]
 
 # ---- workgroups (C.11.1)
 def lanes_of(v):
@@ -1529,11 +1535,14 @@ class Sched:
         sv = SUPERVISORS.get(ty)
         if sv is None: return
         sup, strat, tys, child, bound = sv
-        c = s.restarts.get((sup, child), 0) + 1; s.restarts[(sup, child)] = c
+        tick = s.tick
+        h = [t for t in s.restarts.get((sup, child), []) if RESTART_WINDOW == 0 or tick - t < RESTART_WINDOW]
+        h.append(tick); s.restarts[(sup, child)] = h
+        c = len(h)
         if c > bound:
             s.alog.append("Stopped(supervisor %s)" % sup)
             s.stop = ("refused", "supervisor %s stopped: child %s restarted more than %d times" % (sup, child, bound)); return
-        s.alog.append("Restart(%s, %d)" % (child, c))
+        s.alog.append("Restart(%s, %s, %s, tick %d, %d)" % (child, aid, reason, tick, c))
         pos = tys.index(ty) if ty in tys else 0
         for a2, a in sorted(s.actors.items()):
             if strat == "one_for_all": hit = a.ty in tys
@@ -1558,7 +1567,12 @@ class Sched:
                 if r[0] == "err": refused = r[1]; break
                 results.append((aid, r[1]))
             if refused is not None:
-                s.alog.extend("Refused(%s)" % refused for _ in txn); continue
+                failed = len(results)
+                for k, (aid, _, _) in enumerate(txn):
+                    if k == failed: s.on_crash(aid, refused)
+                    else: s.alog.append("Refused(%s)" % refused)
+                if s.stop is not None: break
+                continue
             for aid, r in results: s.commit_handler(aid, r)
         for aid in sorted(s.actors):
             if aid in busy: continue

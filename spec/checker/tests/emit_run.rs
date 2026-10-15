@@ -343,6 +343,34 @@ fn main()
     emit s
 ";
 
+/// `with budget n ... else ...`: the innermost budget with an else catches a
+/// budget trap of its body; writes before the trap stay; with an outer limit
+/// passed the else's own charges trap again and the outer else catches
+fn budget_else(b: i64) -> String {
+    format!(
+        "fn main()
+    var a: i64 = 0
+    var r: i64 = 0
+    with budget {b}
+        with budget 40
+            for i in 0..100
+                a += 1
+        else
+            r = 1
+        for i in 0..20
+            a += 1
+    else
+        r += 10
+    emit a
+    emit r
+    with budget 5
+        for i in 0..10
+            a += 1
+    emit a
+"
+    )
+}
+
 /// par budget exhaustion: the branches run at the same time on their own
 /// threads, but the trap is placed where the sequential run would hit it
 fn par_budget(b: i64) -> String {
@@ -633,6 +661,9 @@ fn corpus() -> Vec<(String, String)> {
         ("scope_fail".into(), SCOPE_FAIL.into()),
         ("scope".into(), SCOPE.into()),
         ("budget_task".into(), BUDGET_TASK.into()),
+        ("budget_else_big".into(), budget_else(100000)),
+        ("budget_else_mid".into(), budget_else(60)),
+        ("budget_else_small".into(), budget_else(20)),
         ("many".into(), many(24)),
         ("escapes".into(), ESCAPES.into()),
         ("wait_chain".into(), WAIT_CHAIN.into()),
@@ -886,6 +917,13 @@ fn actor_refusals_match() {
     assert!(w.iter().filter(|l| l.starts_with("actorlog Refused")).count() >= 4, "{w:?}");
     let node = std::env::var("RCE_NODE").ok().filter(|v| !v.is_empty()).unwrap_or("node".into());
     let has_node = Command::new(&node).arg("--version").output().is_ok();
+    // the same program with an intensity window (C.11.11): restarts older
+    // than RESTART_WINDOW ticks no longer count toward the bound
+    let windowed = format!("const RESTART_WINDOW: u64 = 2\n{REFUSALS}");
+    let ww = want_log(&windowed);
+    assert_ne!(ww, w, "the window must change the outcome of this program");
+    // a crash inside `atomic` is supervised: the failing actor restarts
+    assert!(w.iter().filter(|l| l.starts_with("actorlog Restart(")).count() >= 2, "{w:?}");
     for lang in [Lang::Rust, Lang::Python, Lang::Js] {
         if lang == Lang::Js && !has_node {
             eprintln!("SKIPPED: js (not a pass)");
@@ -893,6 +931,8 @@ fn actor_refusals_match() {
         }
         let exe = build_lang(lang, &format!("refusals_{lang:?}"), REFUSALS);
         assert_eq!(run_log(&exe), w, "{lang:?}");
+        let exe = build_lang(lang, &format!("refusals_win_{lang:?}"), &windowed);
+        assert_eq!(run_log(&exe), ww, "windowed {lang:?}");
     }
 }
 

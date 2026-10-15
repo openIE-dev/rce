@@ -608,7 +608,8 @@ impl<'a> G<'a> {
         for (t, v) in sups {
             o += &format!("    {} => {v},\n", q(&t));
         }
-        o += "    _ => None,\n  }\n}";
+        o += "    _ => None,\n  }\n}\n";
+        o += &format!("fn restart_window() -> u64 {{ {} }}", restart_window(m));
         self.line(o);
         Ok(())
     }
@@ -652,6 +653,7 @@ impl<'a> G<'a> {
         self.line(format!("{decl}NODE_OF = {{{}}}{end}", p.join(", ")));
         let sv: Vec<String> = sups.iter().map(|(t, v)| format!("{}: {v}", q(t))).collect();
         self.line(format!("{decl}SUPERVISORS = {{{}}}{end}", sv.join(", ")));
+        self.line(format!("{decl}RESTART_WINDOW = {}{end}", restart_window(m)));
         Ok(())
     }
 
@@ -750,4 +752,15 @@ impl<'a> G<'a> {
         self.line("}");
         Ok(())
     }
+}
+
+/// `const RESTART_WINDOW: u64 = W` (C.11.11), or 0 for an unbounded window
+fn restart_window(m: &Module) -> u64 {
+    m.items
+        .iter()
+        .find_map(|i| match i {
+            Item::Const { name, e: Expr::Int(n, _), .. } if name == "RESTART_WINDOW" && *n > 0 => Some(*n as u64),
+            _ => None,
+        })
+        .unwrap_or(0)
 }

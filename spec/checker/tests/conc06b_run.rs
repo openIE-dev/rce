@@ -448,7 +448,13 @@ fn main()
 ";
     let r = run(src);
     assert_eq!(outs(&r), vec!["5", "0"]);
-    assert!(r.log.iter().any(|e| e.what == "Restart(w, 1)"));
+    // Restart{child, instance, reason, height}: an entry of the run log
+    assert!(r.log.iter().any(|e| e.what.starts_with("Restart(w, ") && e.what.ends_with(", 1)") && e.what.contains("tick ")), "{:?}", r.log);
+    // the log, restarts included, is a function of the program: a second run
+    // gives the same entries with the same vector clocks
+    let r2 = run(src);
+    let show = |l: &[rce_spec_check::conc::Entry]| l.iter().map(|e| format!("{} {} {:?}", e.tick, e.what, e.vc)).collect::<Vec<_>>();
+    assert_eq!(show(&r.log), show(&r2.log));
     assert!(matches!(&r.outcome, Outcome::Refused(e) if e.contains("supervisor Root stopped")));
 }
 

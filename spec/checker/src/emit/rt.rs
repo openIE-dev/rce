@@ -1132,6 +1132,9 @@ pub fn par_enter() { SCHED.with(|s| s.set(s.get() + 1)); }
 pub fn par_exit() { SCHED.with(|s| s.set(s.get() - 1)); }
 pub fn bud_snap() -> Vec<(i128, i128)> { BUD.with(|b| b.borrow().clone()) }
 pub fn bud_restore(s: Vec<(i128, i128)>) { BUD.with(|b| *b.borrow_mut() = s); }
+/// a restarted par attempt (C.14) restores the budgets and the fuel
+pub fn par_snap() -> (Vec<(i128, i128)>, u64) { (bud_snap(), fuel_left()) }
+pub fn par_restore(s: (Vec<(i128, i128)>, u64)) { bud_restore(s.0); fuel_set(s.1); }
 
 // ---- workgroups (C.11.1)
 pub fn lanes_of(v: &V) -> R<(usize, i128)> { let n = marker_int(v)?; Ok((n.max(0) as usize, n)) }
@@ -1319,7 +1322,7 @@ type HandlerOut = Option<(Vec<(&'static str, V)>, Vec<V>, Vec<(V, V)>)>;
 struct Sched {
     slots: Vec<Slot>, chans: BTreeMap<String, ChanSt>, staged: Vec<(String, V)>, outputs: Vec<V>, rng: u64, tick: u64, stop: Option<Outcome>, max_ticks: u64,
     actors: BTreeMap<String, ActorSt>, mail_staged: Vec<(String, String, V)>, txns: Vec<Vec<(String, String, V)>>, txn_staged: Vec<Vec<(String, String, V)>>,
-    held_links: Vec<(usize, usize, V, V)>, parted: Vec<(usize, usize)>, nodes: Vec<&'static str>, links: Vec<(u64, bool, String, String)>, restarts: HashMap<(String, String), u32>,
+    held_links: Vec<(usize, usize, V, V)>, parted: Vec<(usize, usize)>, nodes: Vec<&'static str>, links: Vec<(u64, bool, String, String)>, restarts: HashMap<(String, String), Vec<u64>>,
     /// actor log entries the interpreter also logs: Refused, Stopped, Restart
     alog: Vec<String>,
 }
@@ -1406,15 +1409,17 @@ impl Sched {
         self.alog.push(format!("Refused({reason})"));
         let ty = self.actors[id].ty.clone();
         let Some((sup, strat, tys, child, bound)) = supervisor_of(&ty) else { return };
-        let c = self.restarts.entry((sup.to_string(), child.to_string())).or_insert(0);
-        *c += 1;
-        let count = *c;
+        let (tick, w) = (self.tick, restart_window());
+        let h = self.restarts.entry((sup.to_string(), child.to_string())).or_default();
+        if w > 0 { h.retain(|&t| tick.saturating_sub(t) < w); }
+        h.push(tick);
+        let count = h.len() as u32;
         if count > bound {
             self.alog.push(format!("Stopped(supervisor {sup})"));
             self.stop = Some(Outcome::Refused(format!("supervisor {sup} stopped: child {child} restarted more than {bound} times")));
             return;
         }
-        self.alog.push(format!("Restart({child}, {count})"));
+        self.alog.push(format!("Restart({child}, {id}, {reason}, tick {tick}, {count})"));
         let pos = tys.iter().position(|t| *t == ty).unwrap_or(0);
         let affected: Vec<String> = self.actors.iter().filter(|(aid, a)| match strat {
             "one_for_all" => tys.contains(&a.ty.as_str()),
@@ -1442,7 +1447,12 @@ impl Sched {
                 busy.insert(id.clone());
                 match self.handler(id, m) { Ok(r) => results.push((id.clone(), r)), Err(e) => { refused = Some(e); break; } }
             }
-            if let Some(e) = refused { for _ in &txn { self.alog.push(format!("Refused({e})")); } continue; }
+            if let Some(e) = refused {
+                let failed = results.len();
+                for (k, (id, _, _)) in txn.iter().enumerate() { if k == failed { self.on_crash(id, &e); } else { self.alog.push(format!("Refused({e})")); } }
+                if self.stop.is_some() { break; }
+                continue;
+            }
             for (id, r) in results { self.commit_handler(&id, r); }
         }
         let ids: Vec<String> = self.actors.keys().cloned().collect();

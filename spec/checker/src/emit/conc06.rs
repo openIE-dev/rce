@@ -41,33 +41,91 @@ impl<'a> G<'a> {
             return Err("missing operand".into());
         };
         let n = self.ex(e)?;
+        let (rest, eb) = match body.last() {
+            Some(Stmt::If(arms, _))
+                if arms.len() == 1 && matches!(&arms[0].0, Expr::Bool(false, _)) =>
+            {
+                (&body[1..body.len() - 1], Some(&arms[0].1[..]))
+            }
+            _ => (&body[1..], None),
+        };
         match self.lang {
             Lang::Rust => {
-                self.open_block();
-                self.line(format!("let __bg = budget_enter({n})?;"));
-                self.block(&body[1..], false)?;
-                self.close_block();
+                if let Some(eb) = eb {
+                    self.line("let __r: R<()> = (|| -> R<()> {");
+                    self.ind += 1;
+                    self.line(format!("let __bg = budget_enter({n})?;"));
+                    self.block(rest, false)?;
+                    self.line("Ok(())");
+                    self.ind -= 1;
+                    self.line("})();");
+                    self.open("match __r");
+                    self.open("Err(Flow::Trap(t)) if t == \"budget\" =>");
+                    self.block(eb, false)?;
+                    self.close();
+                    self.line("r => r?,");
+                    self.close();
+                } else {
+                    self.open_block();
+                    self.line(format!("let __bg = budget_enter({n})?;"));
+                    self.block(rest, false)?;
+                    self.close_block();
+                }
             }
             Lang::Python => {
+                if eb.is_some() {
+                    self.open("try");
+                }
                 self.open(&format!("with budget({n})"));
-                self.block(&body[1..], false)?;
+                self.block(rest, false)?;
                 self.close();
+                if let Some(eb) = eb {
+                    self.close();
+                    self.open("except Trap as __t");
+                    self.open("if __t.m != 'budget'");
+                    self.line("raise");
+                    self.close();
+                    self.block(eb, false)?;
+                    self.close();
+                }
             }
             Lang::Js => {
+                if eb.is_some() {
+                    self.open("try");
+                }
                 self.line(format!("budgetEnter({n});"));
                 self.open("try");
-                self.block(&body[1..], false)?;
+                self.block(rest, false)?;
                 self.close();
                 self.open("finally");
                 self.line("budgetExit();");
                 self.close();
+                if let Some(eb) = eb {
+                    self.close();
+                    self.open("catch (__t)");
+                    self.open("if (!(__t instanceof Trap) || __t.message !== 'budget')");
+                    self.line("throw __t;");
+                    self.close();
+                    self.block(eb, false)?;
+                    self.close();
+                }
             }
             Lang::Scala => {
+                if eb.is_some() {
+                    self.open("try");
+                }
                 self.line(format!("budget_enter({n})"));
                 self.open("try");
-                self.block(&body[1..], false)?;
+                self.block(rest, false)?;
                 self.ind -= 1;
                 self.line("} finally { budget_exit() }");
+                if let Some(eb) = eb {
+                    self.ind -= 1;
+                    self.line("} catch { case __t: Trap if __t.m == \"budget\" =>");
+                    self.ind += 1;
+                    self.block(eb, false)?;
+                    self.close();
+                }
             }
         }
         Ok(())
@@ -168,15 +226,15 @@ impl<'a> G<'a> {
                 let s = self.let_(sn, &e);
                 self.line(s);
             }
-            let s = self.let_(&bs, &format!("{}()", self.rt("bud_snap")));
+            let s = self.let_(&bs, &format!("{}()", self.rt("par_snap")));
             self.line(s);
             let restore: Vec<String> = snaps
                 .iter()
                 .map(|(v, sn)| self.set_(v, sn))
                 .chain(std::iter::once(match l {
-                    Lang::Python => format!("bud_restore({bs})"),
-                    Lang::Rust => format!("bud_restore({bs});"),
-                    Lang::Js | Lang::Scala => format!("budRestore({bs});"),
+                    Lang::Python => format!("par_restore({bs})"),
+                    Lang::Rust => format!("par_restore({bs});"),
+                    Lang::Js | Lang::Scala => format!("parRestore({bs});"),
                 }))
                 .collect();
             match l {
@@ -297,7 +355,7 @@ impl<'a> G<'a> {
             for (v, sn) in &snaps {
                 self.line(format!("val {sn} = {v}"));
             }
-            self.line(format!("val {bs} = bud_snap()"));
+            self.line(format!("val {bs} = par_snap()"));
             self.open("try");
             self.block(b, false)?;
             self.line(format!("{pd}({i}) = true; {prog} = true"));
@@ -305,7 +363,7 @@ impl<'a> G<'a> {
             self.line("} catch {");
             self.ind += 1;
             let mut rs: Vec<String> = snaps.iter().map(|(v, sn)| format!("{v} = {sn}")).collect();
-            rs.push(format!("bud_restore({bs})"));
+            rs.push(format!("par_restore({bs})"));
             self.line(format!("case __e: Trap if __e.m == \"$block\" => {}", rs.join("; ")));
             self.line(format!("case __e: Flow if __e.isInstanceOf[Trap] || __e.isInstanceOf[Fail] => {pd}({i}) = true; {prog} = true; {pr}({i}) = __e"));
             self.close();

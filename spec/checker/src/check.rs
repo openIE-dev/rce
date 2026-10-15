@@ -4848,7 +4848,20 @@ impl Checker {
                     let t = self.infer(n, false);
                     self.expect(&t, &T::Int("u64"), line);
                 }
-                self.block(&body[1..])
+                let (rest, else_b) = match body.last() {
+                    Some(Stmt::If(arms, _)) if arms.len() == 1
+                        && matches!(&arms[0].0, Expr::Bool(false, _)) =>
+                        (&body[1..body.len() - 1], Some(&arms[0].1[..])),
+                    _ => (&body[1..], None),
+                };
+                let a = self.block(rest);
+                match else_b {
+                    Some(eb) => {
+                        let b = self.block(eb);
+                        a && b
+                    }
+                    None => a,
+                }
             }
             "$deadline" => {
                 if !matches!(self.cx, Cx::Main | Cx::Task) {

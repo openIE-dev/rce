@@ -1,0 +1,18 @@
+# rce-version: 0.6
+module admit_ticked
+
+intent "a logged Tick closes the admission window"
+    example Key(c: "a"), Tick(n: 1) -> seen == "a"
+
+event Key(c: text)
+event Tick(n: u64)
+
+state S
+    seen: text = ""
+    now: u64 = 0
+
+step S on Key(c: c)
+    seen = seen + c
+
+step S on Tick(n: n)
+    now = n

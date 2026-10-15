@@ -220,9 +220,18 @@ state-passing: its term returns `[result, final values of the &mut
 parameters in parameter order]` (the result is null for a function
 without one), and a call of it, as a statement, a `let` or `var`
 initializer or the right side of `=`, writes those values back to the
-borrowed places; such a call inside a larger expression is refused. Integers are i64 or usize (a usize variable that
+borrowed places; such a call inside a larger expression is refused.
+`match` lowers arm by arm (variants by their `$v` tag, `some`/`none`,
+literals, ranges, tuples, alternatives, guards; no arm traps), and a
+variant value is its fields with `$v`. A function with result `T ! E`
+lowers with its errors as values: `fail e` returns `{"$err": e}`, `try x
+[else e]` (as a `let`/`var` initializer, an assignment's right side, a
+statement or a `return` value) tests `x` with `has(x, "$err")` (`none`
+for an optional) and returns the error, and `x catch |e| h` tests the
+same and evaluates `h`; a call of such a function anywhere else is
+refused. Integers are i64 or usize (a usize variable that
 would become negative traps); floats, narrower integers,
-`match`, `catch`, closures and recursion are refused. A generic function
+closures and recursion are refused. A generic function
 lowers to one term for every instance, since the IR is untyped over JSON.
 A term over 1 MiB of JSON, not counting its definitions, or a program
 nested over 1000 levels is refused (catalog readers parse past JSON
@@ -379,4 +388,4 @@ receipts are version-independent).
 
 **Read receipt.** Which compiled node id does `deliverable D1` become? (for example role_R1)
 
-<!-- body-sha256: 24c5bed573317d35a073aac5ed9418a622bab356787c089febeae0a4a3cdf02a -->
+<!-- body-sha256: dbd4b1b52c0f8f9d3d65d69f4d68df0487172b28637c7e92d92d7a2eee5e0e2f -->

@@ -2575,11 +2575,19 @@ outcome.
   functions trap with the same message as in the reference evaluator
   ("not available at comptime"); they run only under `--run`. `extern`
   functions trap there too.
-- Under `--run`, a `par` whose branches wait on an lvar runs its branches
-  at the same time in the reference (`ParMode::Threads`), each on a copy
-  of the parent's fuel; the emitted runtimes charge every `par` as the
-  sequential run does. The two differ only when such a `par` runs out of
-  fuel, and no test covers that case.
+- A `par` whose branches wait on an lvar runs its branches at the same
+  time in the reference (`ParMode::Threads`), each on a copy of the fuel
+  left at the fork. The branches' uses are then summed in source order and
+  the run traps with "comptime fuel exhausted" at the first branch whose
+  running sum passes the fork's fuel, before that branch's own result is
+  taken (a sum-checked account, as C.6.3 does for budgets). The emitters
+  run such a `par` by restart and restore the fuel and the budgets of an
+  abandoned attempt (`par_snap`, `par_restore`), so each branch is charged
+  once for its completing attempt. A wait charges no fuel while blocked,
+  so a branch's use does not depend on the schedule.
+  `spec/checker/tests/fuel_run.rs` checks this at every change point on
+  two programs (`lvarpar`, and `lvartrap`, where a late division by zero
+  must lose to the fuel trap when fuel runs out first).
 - Deep recursion ends with the target's own stack error.
 - A call that writes back its receiver or a `&mut` argument (`xs.push(x)`,
   `f(&mut a)`) is translated only as a whole statement or as the right side
@@ -2929,6 +2937,20 @@ the branches in source order (C.4.2). Rules:
   target. The cost table is the reference evaluator's (`interp` and
   `conc.rs`, `charge`), listed in C.6.4.
   W-TY-1 if n is not an integer.
+  `with budget n Block else Else` recovers from exhaustion. A
+  `trap("budget")` raised while Block runs, by any enclosing budget, is
+  caught by the innermost budget that has an `else`; Else then runs in
+  place of the rest of Block, as the `else` of `with deadline` does.
+  Charges already made stay on every enclosing budget, and writes made
+  before the trap stay. When the trap came from an outer budget, Else
+  charges that same budget, so its next charge traps again and the trap
+  reaches the next budget out with an `else`, or refuses the event. A
+  budget without `else` behaves as before. The trap falls on the same
+  operation on every target, so the choice of Else is deterministic and
+  replay re-derives it. Checked by `spec/checker/tests/conc06_run.rs`
+  (`budget_else_catches`) and `emit_run.rs` (`budget_else_*` on the
+  reference and the emitted runtimes). Open: a typed `Exhausted` value
+  carrying the spent units is not yet given to Else.
 - `with deadline n` runs the block with an expiry n logical ticks after
   entry; if the block has not completed by then, the `else` block runs
   instead (T22). W-DL-1: outside `fn main` or a task
@@ -3062,6 +3084,33 @@ an associative operation with an identity (T18).
   twice. `supervisor S strategy k` with k one of `one_for_one`,
   `one_for_all`, `rest_for_one` (W-SUP-1); each `child` must be an actor
   (W-SUP-2), and W-NAME-2 refuses a duplicate child.
+  Run-time meaning (normative). A supervisor declaration is one static
+  supervisor; it supervises every actor whose type is one of its
+  children, so the set an actor belongs to is fixed by the program, not
+  by spawn order. When a handler of such an actor refuses its message
+  (a trap or a `fail`), the run log records `Refused(reason)`, then
+  `Restart(child, instance, reason, tick t, k)`, where `instance` is the
+  actor's id (6.6) and k counts this child's restarts in the window
+  below. The strategy then resets the region of the failed actor
+  (`one_for_one`), of every actor of the supervisor's child types
+  (`one_for_all`), or of those whose child is declared at or after the
+  failed one (`rest_for_one`), to the actor's initializers. Intensity is
+  measured in logical ticks, never wall time: with `const
+  RESTART_WINDOW: u64 = W` only restarts at ticks t' with t - t' < W
+  count, otherwise every restart of the run counts; more than the
+  child's `restart bound` stops the supervisor with `Stopped(supervisor
+  S)` and the run ends `Refused`. Mailbox policy: a restarted actor keeps
+  its mailbox, since Form law 3 drops no message; only the message that
+  failed is consumed, and it is logged as refused. A handler that fails
+  inside `atomic` (C.11.10) leaves every handler of the batch
+  uncommitted (T30), and the failing actor is then supervised as above.
+  Every restart is an entry of the run log and a function of the
+  program and its logged choices, so replay re-derives it
+  (`spec/checker/tests/conc06b_run.rs`, and `emit_run.rs`
+  `actor_refusals_match` on the reference and the Rust, Python and
+  JavaScript runtimes, with and without a window). The run log of `fn
+  main` is not D: actors run by `rce run`, not by the host of Appendix E
+  (HC-6).
 - C.11.12 Real time. `interrupt event E priority p` with p an integer
   literal in 0..=255 (W-INTR-1). `step ... deadline n` with n a positive
   integer literal in ticks, and `const TICK_NS: u64 = n` when declared
@@ -3430,9 +3479,18 @@ state-passing: its term returns `[result, final values of the &mut
 parameters in parameter order]` (the result is null for a function
 without one), and a call of it, as a statement, a `let` or `var`
 initializer or the right side of `=`, writes those values back to the
-borrowed places; such a call inside a larger expression is refused. Integers are i64 or usize (a usize variable that
+borrowed places; such a call inside a larger expression is refused.
+`match` lowers arm by arm (variants by their `$v` tag, `some`/`none`,
+literals, ranges, tuples, alternatives, guards; no arm traps), and a
+variant value is its fields with `$v`. A function with result `T ! E`
+lowers with its errors as values: `fail e` returns `{"$err": e}`, `try x
+[else e]` (as a `let`/`var` initializer, an assignment's right side, a
+statement or a `return` value) tests `x` with `has(x, "$err")` (`none`
+for an optional) and returns the error, and `x catch |e| h` tests the
+same and evaluates `h`; a call of such a function anywhere else is
+refused. Integers are i64 or usize (a usize variable that
 would become negative traps); floats, narrower integers,
-`match`, `catch`, closures and recursion are refused. A generic function
+closures and recursion are refused. A generic function
 lowers to one term for every instance, since the IR is untyped over JSON.
 A term over 1 MiB of JSON, not counting its definitions, or a program
 nested over 1000 levels is refused (catalog readers parse past JSON
@@ -3635,9 +3693,13 @@ adapter.
 
 ### E.2 Admission, time and authority (HC-1 to HC-9)
 
-- **HC-1 One admitter.** A host has exactly one admitter per program
-  instance. Every input reaches δ only after the admitter appended it to
-  D, in D's order.
+- **HC-1 One admitter per term.** At any log height a program instance
+  has exactly one admitter, the holder of the current term (E.2b). Every
+  input reaches δ only after the admitter appended it to D, in D's order.
+  The admitter is a role, not a machine: when it fails, another host takes
+  the role for a higher term and continues the same D (E.2b). A host
+  without replication holds term 0 for its lifetime, which is the single
+  admitter of earlier versions.
 - **HC-2 Only the admitter reads clocks.** Wall time and monotonic time
   enter only as events (`Tick(n)`, and `host.WallTime` when an adapter
   supplies it). Time inside the language is logical (6.3 N11, C.11.12).
@@ -3669,9 +3731,16 @@ adapter.
   JCP v0.3 (https://jcp.transaction.science); see REMAINING-PLAN W1h-std.
   The program loses nothing,
   since 5.15 gives it no ambient authority.
-- **HC-6 Tick scheduler.** Concurrency runs under the tick semantics of
-  6.8. A host may execute tasks in parallel only when the result equals
-  the tick semantics (T1, T21).
+- **HC-6 Concurrency and the host.** The concurrency of `fn main`
+  (tasks, actors, supervisors; C.5, C.13) runs under the tick semantics
+  of 6.8 in the reference run (`conc::run_main`) and its replay, which
+  re-executes with the recorded `select nondet` choices. The reference
+  host does not run `fn main`: it admits inputs to δ, and none of the
+  task, actor or restart steps of a `fn main` run is an entry of D. A
+  host that runs `fn main` must admit each scheduling decision as an
+  input (a tick, a crash, a restart) so that it is in D; the reference
+  host has no such scheduler, and no host may execute tasks in parallel
+  unless the result equals the tick semantics (T1, T21).
 - **HC-7 Numerics and limits.** The host reproduces 6.3 bit for bit and
   enforces fuel, SIZE_LIMIT and VALUE_LIMIT (6.7, N9) as the reference
   does, on every run.
@@ -3686,11 +3755,119 @@ adapter.
   every adapter and re-derives every state hash. Replay reads no clock,
   file, network, device or environment (T37).
 - **HC-9 Priority admission.** Interrupt sources carry a priority in
-  0..255 (T25, C.11.12). The admitter orders simultaneous inputs by (priority,
-  arrival) and logs the order it chose. A real-time bound holds only on a
-  kernel with a priority scheduler; a general-purpose OS gives none.
+  0..255 (T25, C.11.12). Inputs admitted together are ordered by priority,
+  highest first. Inputs with a source and sequence number are ordered by
+  the window key of HC-15. Inputs given together without source identity
+  (`admit_simultaneous`) are ordered by priority, then by the bytes of
+  their canonical event JSON, so the order is a function of the set of
+  inputs and not of the order the caller passed them in. Either way the
+  order chosen is D's order. A real-time bound holds only on a kernel with
+  a priority scheduler; a general-purpose OS gives none.
 
-### E.3 Storage: durable append (HS-1 to HS-5)
+### E.2a Canonical admission (HC-15 to HC-17)
+
+The order of D must not depend on when inputs arrive. Arrival timing may
+decide only which window an input lands in, and the window boundary is
+defined by logical time, never by a wall clock.
+
+- **HC-15 Windows.** Every input carries its source id (text), a
+  per-source sequence number (1, 2, ... with no reuse) and the logical
+  tick its source stamped on it. When the module declares
+  `event Tick(n: u64)`, a window closes when a `Tick(n)` input not yet in
+  D is offered: window k gets `upto = n`, holds every offered input with
+  tick at most `upto` that is not already in D, and the `Tick(n)` is its
+  last input. The boundary is therefore a logged fact, never a wall clock
+  and never a choice of the caller. An input whose tick is at or below the
+  `upto` of the last window in D is late: it is admitted in the next
+  window and its `host.Input` carries `"late":true`, so whether an input
+  was late is decided by D. A host whose module declares no `Tick` closes
+  windows by `close_window(upto)` from its own logical time. Apart from the closing `Tick`, the order
+  inside a window is the total key (priority descending, source id ascending, sequence ascending).
+  So two admitters given the same window contents append the same entries
+  in the same order whatever the arrival order, and two hosts given the
+  same inputs per window produce byte-identical D.
+- **HC-16 Exactly once.** The dedupe key is (source, seq). A (source, seq)
+  already in D, or offered twice, is a duplicate and is not appended
+  again. Two copies of one (source, seq) with different payloads are
+  ordered by their event bytes, and the lower one is admitted, so the
+  choice does not depend on arrival. An input after a gap in its source's
+  sequence is held for a later window, so each source is admitted in its
+  own order and nothing is skipped. A source retransmits until acked, and
+  the admitter acks an input only after the barrier (HS-2) that covers
+  its window succeeded. A crash before the ack leads to a retransmission,
+  which HC-16 turns into a duplicate when the input did reach D.
+- **HC-17 Window entries.** Closing a window appends `host.Window` {count,
+  id, term, upto}, then, before each admitted input, `host.Input` {late (only when
+  true), seq, source, window}. The dedupe state is the fold of these entries: on open
+  and on replay the admitter rebuilds, per source, the highest seq in D. A
+  `host.Input` counts only when the program entry it announces follows it,
+  so a cut between the two (HS-4) admits nothing. These are host entries:
+  δ never reads them and they leave the state hash unchanged.
+
+### E.2b Replicated D and admitter failover (HC-18 to HC-20)
+
+A host may keep D on a replicated log so that losing the admitter's
+machine neither stops the program for good nor forks D. The reference
+model is `spec/checker/src/repl.rs`; its rules are those of Raft as
+summarised in the convergence notes below, applied to whole logs.
+
+- **HC-18 Interface.** A replicated log offers the host the Store of E.3
+  with two additions: `elect(term)`, which succeeds only with grants from
+  a quorum of replicas, each of which then promises not to accept an
+  append from a lower term, and returns the most up-to-date log among the
+  granting quorum, ordered by (term of the last write, length); and an
+  append at a term that a replica accepts only while it has promised no
+  higher term. The barrier succeeds only when a quorum accepted every
+  entry up to it, so a durable entry (HS-2) is a committed entry.
+- **HC-19 Term fence in D.** A host that won `elect(t)` folds the log it
+  received (HS-4 verification of the whole chain, then HC-8), then appends
+  `host.Term` {leader, term} and makes it durable before admitting any
+  input. `t` must exceed every term already in D. Every `host.Window`
+  carries the term. A request emitted under an older term with no result
+  in D gets one result, `failed` with `interrupted` (HC-3). The term in D
+  is the fence token: an entry of D was appended by the holder of the
+  most recent `host.Term` before it.
+- **HC-20 Deposed admitter.** An admitter whose barrier is refused because
+  a higher term was granted has had its role taken. By HS-3 it appends
+  nothing further and acks nothing, so its unacked inputs are retransmitted
+  to the new admitter and HC-16 removes those that did commit. Committed
+  entries are never removed: the new admitter's log contains every entry
+  a quorum had accepted, so D after a failover extends D before it.
+
+Safety of HC-18 to HC-20 does not depend on clocks. A leader lease, which
+would let the admitter serve reads without a quorum round, relies on
+bounded clock skew and is not part of the contract.
+
+Convergence notes. Calvin (Thomson et al., SIGMOD 2012) also fixes the
+order of inputs before executing them: it "divides time into 10-millisecond
+epochs", each sequencer compiles the requests of an epoch into a batch, and
+schedulers interleave "(in a deterministic, round-robin manner) all
+sequencers' batches for that epoch". Its epochs are wall clock intervals;
+E.2a's windows are logical, and its merge key orders by priority, source
+and sequence where Calvin interleaves by sequencer. Calvin also states that
+"single-node sequencers ... represent potential single points of failure",
+the concern HC-18 to HC-20 address. FoundationDB (Zhou et al., SIGMOD 2021)
+keeps a singleton Sequencer that "assigns read and commit versions"; the
+Coordinators "form a disk Paxos group" and select a ClusterController,
+which recruits singletons that "are re-recruited if they fail or crash".
+Its transaction processing "is divided into epochs, where each epoch
+represents a generation of the transaction management system with its
+unique Sequencer process", and a recovering Sequencer "locks the
+coordinated states to prevent another Sequencer process from recovering at
+the same time". RCE's terms play the role of those generations, recorded
+in D as `host.Term`. Raft (Ongaro and Ousterhout, USENIX ATC 2014, extended
+version) gives the properties HC-18 relies on: "Election Safety: at most
+one leader can be elected in a given term"; "If a server receives a request
+with a stale term number, it rejects the request"; and "Leader
+Completeness: if a log entry is committed in a given term, then that entry
+will be present in the logs of the leaders for all higher-numbered terms".
+Raft notes that a heartbeat lease "would rely on timing for safety (it
+assumes bounded clock skew)", which is why E.2b leaves leases out. The
+reference model replicates whole logs instead of AppendEntries suffixes
+and keeps `promised` in memory; a real host must persist the promise
+before granting and ship suffixes with the log matching check.
+
+### E.3### E.3 Storage: durable append (HS-1 to HS-5)
 
 - **HS-1 D is the base truth.** A host stores one primary artefact: D.
   Snapshots and indexes are caches derived from it (HS-4, E.6).
@@ -3756,6 +3933,9 @@ JSON. The host entries are:
 | `host.WallTime` | nanoseconds since the Unix epoch | when an adapter supplies wall time |
 | `host.Energy` | source, basis, joules | when a counter is read (D.11) |
 | `host.Bind` | host result kind, program event name | at start (E.8) |
+| `host.Window` | count, id, term, upto (tick) | when a window closes (HC-17) |
+| `host.Input` | late (when true), seq, source, window | before each input of a window (HC-17) |
+| `host.Term` | leader, term | when a host takes the admitter role (HC-19) |
 
 A program receives the content of a host entry only through a binding
 (E.8): the admitter then appends, after the host entry, an ordinary event
@@ -3770,14 +3950,18 @@ entry.
   and NaN preservation per width), NPU receipts, memory topology and
   which counters can be read. Replay reads the same record, so every
   decision taken from it is a function of D.
-- **HC-12 Automatic placement.** The engine places each lane-wise array
-  operation, `for … par` body and reduction itself, from the cost table
-  of C.6.4 extended with per-fabric overhead and throughput (time =
-  overhead + work / throughput), whose calibration results are
-  `host.Calibrated` entries. A program needs no annotation. `with device`
-  (5.13) and device kernels stay hints that never change meaning.
-  Placement is a function of the host entries of D, so it is the same on
-  replay (T37).
+- **HC-12 Placement.** Placement of a lane-wise array operation, a
+  `for … par` body or a reduction is a function of the host entries of D
+  (`host.Calibrated`, `host.Exact`) and of the cost table of C.6.4
+  extended with per-fabric overhead and throughput (time = overhead +
+  work / throughput), so it is the same on replay (T37). A program needs
+  no annotation; `with device` (5.13) and device kernels stay hints that
+  never change meaning. The reference host performs no automatic
+  placement: it logs `host.FabricCaps`, never writes `host.Calibrated` or
+  `host.Placed`, and runs every operation on the CPU. The placement
+  function is specified by the conformance test
+  `placement_is_a_function_of_host_entries`, which checks it on
+  constructed host entries, not on a running host.
 - **HC-13 Bit-exactness gate.** A fabric computes a value that reaches
   state only for an operation on its logged exact list: integer
   operations; IEEE add, sub, mul, div and sqrt with round-to-nearest-even,
@@ -3897,10 +4081,12 @@ is cited by a test.
 | HC-1 to HC-3 | single admitter, clocks, typed outputs | `admitter_order_is_d_order` |
 | HC-4, E.9 | foreign calls logged | `foreign_and_host_entries_replay` |
 | HC-5 | capabilities minted by events | `capability_examples_check` |
-| HC-6, HC-7 | tick scheduler, numerics | existing T1, T9 and 6.3 tests |
+| HC-6, HC-7 | concurrency stays outside D in the reference host, numerics | existing T1, T9 and 6.3 tests |
 | HC-7a | fuel per input | `tests/fuel_per_input.rs` |
 | HC-8, HC-10, T37 | replay with adapters disconnected | `foreign_and_host_entries_replay` |
-| HC-9 | priority admission | `admitter_order_is_d_order` |
+| HC-9 | priority admission | `admitter_order_is_d_order`, `simultaneous_order_does_not_depend_on_caller_order` |
+| HC-15 to HC-17 | canonical windows, exactly once | `tests/host_admit.rs`: `two_hosts_different_arrival_orders_give_byte_identical_d`, `window_order_is_priority_then_source_then_seq`, `gap_is_held_and_admitted_once_filled`, `no_ack_without_a_durable_append`, `dedupe_state_survives_replay` |
+| HC-18 to HC-20 | replicated D, term fence, failover | `admitter_failover_keeps_one_d_and_exactly_once` |
 | HS-1 to HS-5, T38, T39 | durable append, fatal barrier, verify on open | `verify_on_open_cuts_bad_suffix`, `fatal_barrier_stops_admission` |
 | HC-11 to HC-14 | fabrics, placement, exactness, no flags | `placement_is_a_function_of_host_entries` |
 | HS-6 to HS-9 | RCEdb in RCE | `rcedb_example_runs` |

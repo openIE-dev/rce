@@ -237,3 +237,28 @@ fn run_main_corpus() {
     let r = run(include_str!("../../conc06/accept/08_run_main.rce"));
     assert_eq!(outs(&r), vec!["42", "45", "[0, 1, 4, 9]"]);
 }
+
+/// `with budget n ... else ...`: the innermost budget with an else catches a
+/// budget trap of its body, writes before the trap stay, and an outer limit
+/// passed is caught by the outer else once the inner else charges again
+#[test]
+fn budget_else_catches() {
+    let prog = |b: i64| {
+        format!(
+            "fn main()\n    var a: i64 = 0\n    var r: i64 = 0\n    with budget {b}\n        with budget 40\n            for i in 0..100\n                a += 1\n        else\n            r = 1\n        for i in 0..20\n            a += 1\n    else\n        r += 10\n    emit a\n    emit r\n"
+        )
+    };
+    let big = run(&prog(100000));
+    assert_eq!(big.outcome, Outcome::Done);
+    let o = outs(&big);
+    let a: i64 = o[0].parse().unwrap();
+    assert!(a > 20 && a < 120, "inner trap kept partial writes: {o:?}");
+    assert_eq!(o[1], "1", "inner else ran, outer did not");
+    let small = run(&prog(20));
+    assert_eq!(small.outcome, Outcome::Done);
+    let r = outs(&small)[1].clone();
+    assert!(r == "10" || r == "11", "outer limit passed: outer else ran last: {r}");
+    // without an else the event is refused as before
+    let bare = run("fn main()\n    var a: i64 = 0\n    with budget 5\n        for i in 0..10\n            a += 1\n    emit a\n");
+    assert!(matches!(bare.outcome, Outcome::Refused(_)), "{:?}", bare.outcome);
+}

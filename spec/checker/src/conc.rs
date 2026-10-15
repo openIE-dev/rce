@@ -495,11 +495,33 @@ impl<'a> Interp<'a> {
             "$par" => self.par_exec(body).map(|_| None),
             "$forpar" => self.forpar_exec(body).map(|_| None),
             "$budget" => {
+                // with budget n Block [else Else]: charge as C.6; a
+                // trap("budget") raised in the body is caught by the
+                // innermost budget with an else (as `with deadline` catches
+                // its own cancel); writes made before the trap stay, as for
+                // deadline. Without an else the event is refused.
                 let n = marker_int(self, body.first())?;
+                let (rest, else_b) = match body.last() {
+                    Some(Stmt::If(arms, _)) if arms.len() == 1
+                        && matches!(&arms[0].0, Expr::Bool(false, _)) =>
+                        (&body[1..body.len() - 1], Some(&arms[0].1[..])),
+                    _ => (&body[1..], None),
+                };
+                // the work done stays charged to every enclosing frame
                 self.cx.budgets.push((0, n));
-                let r = self.exec_block(&body[1..]);
+                let r = self.exec_block(rest);
                 self.cx.budgets.pop();
-                r.map(|_| None)
+                match r {
+                    Err(Flow::Trap(t)) if t == "budget" => {
+                        if let Some(eb) = else_b {
+                            self.exec_block(eb)?;
+                            Ok(None)
+                        } else {
+                            trap("budget")
+                        }
+                    }
+                    r => r.map(|_| None),
+                }
             }
             "$deadline" => {
                 let n = marker_int(self, body.first())?;
@@ -654,13 +676,24 @@ impl<'a> Interp<'a> {
         let rem = self.cx.budgets.iter().map(|(s, l)| l - s).min();
         let start = self.cx.spent;
         let fuel0 = self.fuel;
+        let mut fcum = 0u64;
         let mut cum = 0i128;
         let orig: Vec<_> = self.scopes.clone();
         let mut writes: Vec<(usize, String, V)> = vec![];
         for r in results.into_iter() {
             let (r, c) = r.expect("branch result");
             let cost = c.cx.spent - start;
-            self.fuel = self.fuel.saturating_sub(fuel0.saturating_sub(c.fuel));
+            // Sum-checked fuel account (C.6.3): each branch ran on a copy of
+            // the fuel left at the fork; charge them back in source order and
+            // trap at the branch whose cumulative use passes the fork's fuel,
+            // which is where the sequential run traps, whatever the schedule.
+            let used = fuel0.saturating_sub(c.fuel);
+            fcum = fcum.saturating_add(used);
+            self.fuel = fuel0.saturating_sub(fcum);
+            if fcum > fuel0 || matches!(&r, Err(Flow::Trap(t)) if t == "comptime fuel exhausted") {
+                self.fuel = 0;
+                return trap("comptime fuel exhausted");
+            }
             if let Some(rem) = rem
                 && (matches!(&r, Err(Flow::Trap(t)) if t == "budget") || cum + cost > rem)
             {
@@ -1419,7 +1452,8 @@ struct Sched<'a> {
     replay: VecDeque<usize>,
     rng: u64,
     tick: u64,
-    restarts: HashMap<(String, String), u32>,
+    /// restart ticks per (supervisor, child), for the intensity window (C.11.11)
+    restarts: HashMap<(String, String), Vec<u64>>,
     stop: Option<Outcome>,
 }
 
@@ -1984,6 +2018,15 @@ impl<'a> Sched<'a> {
         None
     }
 
+    /// The restart window W in ticks: `const RESTART_WINDOW: u64 = W` when
+    /// declared, else unbounded (every restart of the run counts).
+    fn restart_window(&self) -> Option<u64> {
+        self.m.items.iter().find_map(|i| match i {
+            Item::Const { name, e: Expr::Int(n, _), .. } if name == "RESTART_WINDOW" && *n > 0 => Some(*n as u64),
+            _ => None,
+        })
+    }
+
     fn on_crash(&mut self, id: &str, reason: &str) {
         let ty = self.actors[id].ty.clone();
         let node = self.actors[id].node;
@@ -1991,9 +2034,15 @@ impl<'a> Sched<'a> {
         let Some((sup, strat, tys, child, bound)) = self.supervisor_of(&ty) else {
             return;
         };
-        let c = self.restarts.entry((sup.clone(), child.clone())).or_insert(0);
-        *c += 1;
-        let count = *c;
+        // OTP-style intensity, measured in logical ticks: more than `bound`
+        // restarts of this child within the last W ticks stops the supervisor
+        let (tick, win) = (self.tick, self.restart_window());
+        let hist = self.restarts.entry((sup.clone(), child.clone())).or_default();
+        if let Some(w) = win {
+            hist.retain(|&t| tick.saturating_sub(t) < w);
+        }
+        hist.push(tick);
+        let count = hist.len() as u32;
         if count > bound {
             self.local(node, format!("Stopped(supervisor {sup})"));
             self.stop = Some(Outcome::Refused(format!(
@@ -2001,7 +2050,10 @@ impl<'a> Sched<'a> {
             )));
             return;
         }
-        self.local(node, format!("Restart({child}, {count})"));
+        // Restart{child instance, reason, height}: the restart is an entry of
+        // the run log, so replay re-derives it, and the instance id (a content
+        // hash, 6.6) names which actor was restarted
+        self.local(node, format!("Restart({child}, {id}, {reason}, tick {tick}, {count})"));
         let pos = tys.iter().position(|t| *t == ty).unwrap_or(0);
         let affected: Vec<String> = self
             .actors
@@ -2041,9 +2093,19 @@ impl<'a> Sched<'a> {
                 }
             }
             if let Some(e) = refused {
-                for (id, _, _) in &txn {
-                    let node = self.actors.get(id).map(|a| a.node).unwrap_or(0);
-                    self.local(node, format!("Refused({e})"));
+                // all or none (T30): no handler of the batch commits; the
+                // actor whose handler failed is then supervised like any crash
+                let failed = results.len();
+                for (k, (id, _, _)) in txn.iter().enumerate() {
+                    if k == failed {
+                        self.on_crash(id, &e);
+                    } else {
+                        let node = self.actors.get(id).map(|a| a.node).unwrap_or(0);
+                        self.local(node, format!("Refused({e})"));
+                    }
+                }
+                if self.stop.is_some() {
+                    break;
                 }
                 continue;
             }

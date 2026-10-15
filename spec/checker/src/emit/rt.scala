@@ -1109,6 +1109,9 @@ def par_enter(): Unit = SCHED += 1
 def par_exit(): Unit = SCHED -= 1
 def bud_snap(): Vector[Array[BigInt]] = BUD.map(b => b.clone()).toVector
 def bud_restore(s: Any): Unit = { BUD.clear(); for (b <- s.asInstanceOf[Vector[Array[BigInt]]]) BUD += b }
+// a restarted par attempt (C.14) restores the budgets and the fuel
+def par_snap(): (Any, Long) = (bud_snap(), FUEL)
+def par_restore(s: (Any, Long)): Unit = { bud_restore(s._1); FUEL = s._2 }
 // ---- workgroups (C.11.1)
 def lanes_of(v: Any): (Int, BigInt) = { val n = marker_int(v); (if (n > 0) n.toInt else 0, n) }
 def group_rec(lane: Int, n: BigInt): Rec = new Rec("$group", Vector(("lane", I(BigInt(lane), "usize")), ("lanes", I(n, "usize"))))

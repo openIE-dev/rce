@@ -1053,6 +1053,9 @@ function parEnter() { SCHED++; }
 function parExit() { SCHED--; }
 const budSnap = () => BUD.map((b) => [...b]);
 function budRestore(s) { BUD.length = 0; for (const b of s) BUD.push(b); }
+// a restarted par attempt (C.14) restores the budgets and the fuel
+const parSnap = () => [budSnap(), FUEL];
+function parRestore(s) { budRestore(s[0]); FUEL = s[1]; }
 
 // ---- workgroups (C.11.1)
 function lanesOf(v) { const n = markerInt(v); return [n > 0n ? Number(n) : 0, n]; }
@@ -1464,9 +1467,12 @@ class SchedJ {
     if (!sv) return;
     const [sup, strat, tys, child, bound] = sv;
     const key = sup + "\u0000" + child;
-    const c = (this.restarts.get(key) || 0) + 1; this.restarts.set(key, c);
+    const tick = this.tick;
+    const h = (this.restarts.get(key) || []).filter((t) => RESTART_WINDOW === 0 || tick - t < RESTART_WINDOW);
+    h.push(tick); this.restarts.set(key, h);
+    const c = h.length;
     if (c > bound) { this.alog.push("Stopped(supervisor " + sup + ")"); this.stop = ["refused", "supervisor " + sup + " stopped: child " + child + " restarted more than " + bound + " times"]; return; }
-    this.alog.push("Restart(" + child + ", " + c + ")");
+    this.alog.push("Restart(" + child + ", " + id + ", " + reason + ", tick " + tick + ", " + c + ")");
     const pos = Math.max(tys.indexOf(ty), 0);
     for (const aid of [...this.actors.keys()].sort()) {
       const a = this.actors.get(aid);
@@ -1495,7 +1501,12 @@ class SchedJ {
         if (r[0] === "err") { refused = r[1]; break; }
         results.push([id, r[1]]);
       }
-      if (refused !== null) { for (const _ of txn) this.alog.push("Refused(" + refused + ")"); continue; }
+      if (refused !== null) {
+        const failed = results.length;
+        txn.forEach(([id], k) => { if (k === failed) this.onCrash(id, refused); else this.alog.push("Refused(" + refused + ")"); });
+        if (this.stop !== null) break;
+        continue;
+      }
       for (const [id, r] of results) this.commitHandler(id, r);
     }
     for (const id of [...this.actors.keys()].sort()) {

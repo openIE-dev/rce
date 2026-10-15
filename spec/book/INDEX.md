@@ -17,12 +17,12 @@ an agent proves it read them by following `READ-PROTOCOL.md`.
 | `09-wellformedness.md` | `2e6c0e0ff7bbee51116558a003506f9d6976ce57eb922edfd73a5e021b1ec50d` | Which rule refuses two unguarded steps in one region whose patterns overlap? |
 | `10-theorems.md` | `5bfae39f553379d66b8f3e4ef214de386e855cff0e5d4d518ab103e4bde86650` | What is the deep embedding of the emitted Rust subset called? |
 | `11-decisions.md` | `5ec607113e53f30a7430c572baef72d864bb3d508b0b414a90f03be6131f94a5` | The decisions list says it decides gaps in which file? |
-| `12-tooling.md` | `c2639c1cdf4890c67abf706c388af5d62050b62e187629828bc83efe09a65a11` | Which JSON-RPC error code does the language server return for a request it does not know? (a number) |
+| `12-tooling.md` | `76dff372a33f2686d50eecd9a301e227a075f7c7755ece9eda547afeef902e3c` | Which JSON-RPC error code does the language server return for a request it does not know? (a number) |
 | `13-references.md` | `003af0204609ec8dcf5a0fdb7b9b3d5aacf5b596976fa870cd56d6a6a3a7c5e6` | Who wrote "Communicating Sequential Processes"? (surname) |
-| `14-draft06-concurrency.md` | `d6a1a6894f575dd98ceb07c7ce0115eb8ffda51623cc70a9e520e36522db35f3` | How many words does a version 0.6 module reserve in addition to the 0.5 keywords? (a number) |
-| `15-handler-spec-profile.md` | `24c5bed573317d35a073aac5ed9418a622bab356787c089febeae0a4a3cdf02a` | Which compiled node id does `deliverable D1` become? (for example role_R1) |
-| `16-host-contract.md` | `233eecaf3a038d636feeb220386e2329b357287cfcb579881d4e455eebded79d` | Which fcntl command is the append barrier on macOS? (for example F_SETFL) |
+| `14-draft06-concurrency.md` | `8c2dd83af4fd802756cc1ddc7802f1abf3e396f8e58cf93887f857f5b6c4997e` | How many words does a version 0.6 module reserve in addition to the 0.5 keywords? (a number) |
+| `15-handler-spec-profile.md` | `dbd4b1b52c0f8f9d3d65d69f4d68df0487172b28637c7e92d92d7a2eee5e0e2f` | Which compiled node id does `deliverable D1` become? (for example role_R1) |
+| `16-host-contract.md` | `78249361006a2a8dd651ef9a3b6f2d8338ed5cda64ba219613f7b50d8096fd7f` | Which fcntl command is the append barrier on macOS? (for example F_SETFL) |
 
 The single-file spec `spec/RCE-SPEC.md` is generated from these files.
 
-<!-- body-sha256: 2e842c2e990ea73dba8385d56f1f4c67bddd16d1c6af7020949ce0ce5fcc9e4f -->
+<!-- body-sha256: c1a96ef6d0322e9aadd1551ccc820fb546741b81e59d516b0897993ba179ac53 -->

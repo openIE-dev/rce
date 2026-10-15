@@ -423,7 +423,18 @@ fn arena(o: &mut String, d: usize, n: &str, b: Option<&Expr>, body: &[Stmt]) {
         "$budget" => {
             if let Some(e) = first_expr() {
                 line(o, d, &format!("with budget {}", expr(e)));
-                return block(o, d + 1, &body[1..]);
+                let (rest, else_b) = match body.last() {
+                    Some(Stmt::If(arms, _)) if arms.len() == 1
+                        && matches!(&arms[0].0, Expr::Bool(false, _)) =>
+                        (&body[1..body.len() - 1], Some(&arms[0].1[..])),
+                    _ => (&body[1..], None),
+                };
+                block(o, d + 1, rest);
+                if let Some(eb) = else_b {
+                    line(o, d, "else");
+                    block(o, d + 1, eb);
+                }
+                return;
             }
         }
         "$deadline" => {

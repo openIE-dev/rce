@@ -17,6 +17,10 @@
 //! - HC-7 fuel: each admitted input (one application of δ) gets the full
 //!   fuel of 6.7, so a long session never exhausts a budget shared across
 //!   inputs; replay does the same, so it is a function of D.
+//! - E.2a canonical admission: [`Host::close_window`] orders a window by
+//!   (priority, source, seq), dedupes by (source, seq), acks after the barrier.
+//! - E.2b admitter role: [`Host::take_role`] logs the term (fence token) and
+//!   [`Host::resume`] opens a log handed over by the replicated log.
 //! - HS-6 bindings: `host.Bind` at start, then `host.Synced` after each
 //!   barrier and the bound program event `Synced(upto)` when declared.
 //!
@@ -472,6 +476,49 @@ pub struct Host<'a> {
     bound: Vec<&'static str>,
     /// Requests emitted and not yet answered: (kind, req, request JSON), in emit order (E-x).
     queue: std::collections::VecDeque<(String, u64, Value)>,
+    /// E.2a: per source, the highest seq whose input is in D (dedupe key).
+    admitted: std::collections::BTreeMap<String, u64>,
+    /// E.2a: the id of the next admission window, and the tick the last one closed at.
+    window: u64,
+    closed_tick: u64,
+    /// E.2a: offered inputs not yet in a closed window (volatile; sources retransmit until acked).
+    offered: Vec<Sourced>,
+    /// E.2b: the term of the admitter role this host holds (0: unreplicated).
+    pub term: u64,
+}
+
+/// An input offered to the admitter (E.2a): its source, the source's
+/// sequence number (1, 2, ... per source), and the logical tick the source
+/// stamped on it. Arrival time is not part of it.
+#[derive(Clone, Debug)]
+pub struct Sourced {
+    pub source: String,
+    pub seq: u64,
+    pub tick: u64,
+    pub name: String,
+    pub args: Vec<Arg>,
+}
+
+impl Sourced {
+    pub fn new(source: &str, seq: u64, tick: u64, name: &str, args: Vec<Arg>) -> Sourced {
+        Sourced { source: source.into(), seq, tick, name: name.into(), args }
+    }
+}
+
+/// The result of closing one admission window (E.2a). `acks` are given only
+/// after the barrier covering the window succeeded (exactly once: a source
+/// retransmits an unacked input, and a retransmission of an input already
+/// in D is a duplicate).
+#[derive(Debug, Default)]
+pub struct WindowAck {
+    pub window: u64,
+    pub admitted: Vec<Admitted>,
+    pub acks: Vec<(String, u64)>,
+    pub dups: Vec<(String, u64)>,
+    /// Inputs after a gap in their source's sequence: kept for a later window.
+    pub held: Vec<(String, u64)>,
+    /// Inputs that are not events of the module: dropped, never in D.
+    pub rejected: Vec<(String, u64, String)>,
 }
 
 impl<'a> Host<'a> {
@@ -499,7 +546,7 @@ impl<'a> Host<'a> {
         let mut it = Interp::new(m);
         let state = it.initial_state().map_err(why)?;
         let state_hash = d_sha(&state_json(&state, m));
-        Ok(Host { m, it, state, state_hash, prev: D_GENESIS.into(), seq: 0, store, stopped: false, pending: 0, durable: None, from_snapshot: None, adapters, bound, queue: Default::default() })
+        Ok(Host { m, it, state, state_hash, prev: D_GENESIS.into(), seq: 0, store, stopped: false, pending: 0, durable: None, from_snapshot: None, adapters, bound, queue: Default::default(), admitted: Default::default(), window: 0, closed_tick: 0, offered: vec![], term: 0 })
     }
 
     fn start_entries(&mut self) -> Result<(), String> {
@@ -614,7 +661,16 @@ impl<'a> Host<'a> {
 
     /// Fold verified entries into this host without appending (HC-8).
     fn refold(&mut self, entries: &[Entry]) -> Result<(), String> {
+        // E.2a: a `host.Input` marks its source and seq admitted only when the
+        // program entry it announces follows it (a cut between them admits nothing).
+        let mut announced: Option<(String, u64)> = None;
         for e in entries {
+            if e.is_host() {
+                announced = None;
+                self.fold_admission(e, &mut announced);
+            } else if let Some((src, q)) = announced.take() {
+                self.admitted.insert(src, q);
+            }
             if !e.is_host() {
                 let (name, args) = decode_event(&e.event, self.m)?;
                 self.it.scopes = vec![HashMap::new()];
@@ -823,14 +879,16 @@ impl<'a> Host<'a> {
         }).unwrap_or(0)
     }
 
-    /// Admit inputs that arrived simultaneously (HC-9): the admitter orders
-    /// them by (priority, arrival), highest priority first and arrival order
-    /// among equals, and the order it chose is the order of their entries in
-    /// D, so replay needs no priority. One barrier for the batch (D-2).
+    /// Admit inputs that arrived simultaneously (HC-9), with no source
+    /// identity: the admitter orders them by priority, highest first, then by
+    /// the bytes of their canonical event JSON, so the order is a function of
+    /// the set of inputs and not of the order the caller passed them in. The
+    /// order is the order of their entries in D. One barrier (D-2). Inputs
+    /// that carry a source and sequence number use [`Host::close_window`].
     pub fn admit_simultaneous(&mut self, inputs: Vec<(String, Vec<Arg>)>) -> Result<Vec<Admitted>, String> {
-        let mut ord: Vec<(u8, usize, String, Vec<Arg>)> =
-            inputs.into_iter().enumerate().map(|(i, (n, a))| (self.priority(&n), i, n, a)).collect();
-        ord.sort_by(|a, b| b.0.cmp(&a.0).then(a.1.cmp(&b.1)));
+        let mut ord: Vec<(u8, String, String, Vec<Arg>)> =
+            inputs.into_iter().map(|(n, a)| (self.priority(&n), self.event_key(&n, &a), n, a)).collect();
+        ord.sort_by(|a, b| b.0.cmp(&a.0).then_with(|| a.1.cmp(&b.1)));
         let mut out = vec![];
         for (_, _, name, args) in ord {
             out.push(self.apply_named(&name, args)?);
@@ -838,6 +896,218 @@ impl<'a> Host<'a> {
         }
         self.confirm()?;
         Ok(out)
+    }
+
+    /// The canonical event JSON of an input, or `!` and the reason it is not one.
+    fn event_key(&mut self, name: &str, args: &[Arg]) -> String {
+        self.it.scopes = vec![HashMap::new()];
+        self.it.fuel = crate::interp::fuel_limit(); // HC-7a
+        match self.it.construct(name, args) {
+            Ok(Some(v)) => event_json(name, &v, self.m),
+            Ok(None) => format!("!`{name}` is not an event"),
+            Err(f) => format!("!{}", why(f)),
+        }
+    }
+
+    /// E.2a / E.2b: fold one host entry into the admission state.
+    fn fold_admission(&mut self, e: &Entry, announced: &mut Option<(String, u64)>) {
+        let k = e.kind();
+        if k != "host.Window" && k != "host.Input" && k != "host.Term" {
+            return;
+        }
+        let Ok(v) = serde_json::from_str::<Value>(&e.event) else { return };
+        let p = &v["payload"];
+        match k.as_str() {
+            "host.Window" => {
+                self.window = p["id"].as_u64().unwrap_or(0) + 1;
+                self.closed_tick = p["upto"].as_u64().unwrap_or(0);
+            }
+            "host.Input" => {
+                if let (Some(s), Some(q)) = (p["source"].as_str(), p["seq"].as_u64()) {
+                    *announced = Some((s.to_string(), q));
+                }
+            }
+            _ => self.term = p["term"].as_u64().unwrap_or(0),
+        }
+    }
+
+    /// Offer one input to the admitter (E.2a). Nothing is appended until the
+    /// window holding it closes; an offer is never acked by itself.
+    ///
+    /// HC-15: when the module declares `event Tick(n: u64)`, an offered
+    /// `Tick(n)` not yet in D closes the window at `upto = n`, and is itself
+    /// the last input of that window. So the window boundary is the logged
+    /// tick, and an input stamped with a tick at or below the last closed
+    /// `upto` (a fact of D) is late: it goes into the next window and its
+    /// `host.Input` says `"late":true`.
+    pub fn offer(&mut self, mut x: Sourced) -> Result<Option<WindowAck>, String> {
+        let n = self.tick_of(&x);
+        if let Some(n) = n {
+            x.tick = n;
+        }
+        let fresh = x.seq > self.admitted_upto(&x.source);
+        self.offered.push(x);
+        match n {
+            Some(n) if fresh && (n > self.closed_tick || self.window == 0) => self.close_window(n).map(Some),
+            _ => Ok(None),
+        }
+    }
+
+    /// The n of an offered `Tick(n)`, when the module declares `Tick`.
+    fn tick_of(&self, x: &Sourced) -> Option<u64> {
+        if x.name != "Tick" || !declares_event(self.m, "Tick") {
+            return None;
+        }
+        x.args.iter().find_map(|a| match (&a.label, &a.e) {
+            (Some(l), Expr::Int(n, _)) if l == "n" && *n >= 0 => Some(*n as u64),
+            _ => None,
+        })
+    }
+
+    /// The `upto` of the last closed window (0 before any), as folded from D.
+    pub fn closed_tick(&self) -> u64 {
+        self.closed_tick
+    }
+
+    /// The highest seq of `source` that is in D (0 when none).
+    pub fn admitted_upto(&self, source: &str) -> u64 {
+        self.admitted.get(source).copied().unwrap_or(0)
+    }
+
+    /// The id the next window will get.
+    pub fn next_window(&self) -> u64 {
+        self.window
+    }
+
+    /// Close the admission window at logical tick `upto` (E.2a). The window
+    /// holds every offered input stamped with a tick at or below `upto`.
+    /// Inside it the order is a total key on the inputs, not on their
+    /// arrival: priority (highest first), then source id, then source seq.
+    /// A (source, seq) already in D, or offered twice, is a duplicate; an
+    /// input after a gap in its source's sequence is held for a later
+    /// window, so each source is admitted in its own order with no loss.
+    /// The admitter appends `host.Window`, then `host.Input` before each
+    /// admitted input, and acks the window only after the barrier.
+    pub fn close_window(&mut self, upto: u64) -> Result<WindowAck, String> {
+        if self.stopped {
+            return Err("host.StorageFault: admitter stopped after a failed barrier".into());
+        }
+        let upto = upto.max(self.closed_tick);
+        let (take, keep): (Vec<Sourced>, Vec<Sourced>) = std::mem::take(&mut self.offered).into_iter().partition(|x| x.tick <= upto);
+        self.offered = keep;
+        let mut ack = WindowAck { window: self.window, ..Default::default() };
+        // Canonical candidate order: (source, seq, event bytes), so which of
+        // two conflicting copies of one (source, seq) wins is not arrival.
+        let mut cand: Vec<(String, Sourced)> = vec![];
+        for x in take {
+            let key = self.event_key(&x.name, &x.args);
+            if let Some(r) = key.strip_prefix('!') {
+                ack.rejected.push((x.source.clone(), x.seq, r.to_string()));
+            } else {
+                cand.push((key, x));
+            }
+        }
+        cand.sort_by(|a, b| (&a.1.source, a.1.seq, &a.0).cmp(&(&b.1.source, b.1.seq, &b.0)));
+        let mut next: std::collections::BTreeMap<String, u64> = Default::default();
+        let mut chosen: Vec<(u8, Sourced)> = vec![];
+        for (_, x) in cand {
+            let n = next.entry(x.source.clone()).or_insert_with(|| self.admitted.get(&x.source).copied().unwrap_or(0) + 1);
+            if x.seq < *n {
+                ack.dups.push((x.source.clone(), x.seq));
+            } else if x.seq > *n {
+                ack.held.push((x.source.clone(), x.seq));
+                self.offered.push(x);
+            } else {
+                *n += 1;
+                chosen.push((self.priority(&x.name), x));
+            }
+        }
+        // Held inputs may become contiguous only through inputs of this
+        // window; re-scan them once in seq order so the result is the same
+        // whatever order they were offered in.
+        loop {
+            let mut moved = false;
+            self.offered.sort_by(|a, b| (&a.source, a.seq).cmp(&(&b.source, b.seq)));
+            let mut rest = vec![];
+            for x in std::mem::take(&mut self.offered) {
+                let n = next.get(&x.source).copied();
+                if x.tick <= upto && n == Some(x.seq) {
+                    next.insert(x.source.clone(), x.seq + 1);
+                    ack.held.retain(|h| !(h.0 == x.source && h.1 == x.seq));
+                    chosen.push((self.priority(&x.name), x));
+                    moved = true;
+                } else if x.tick <= upto && n.is_some_and(|n| x.seq < n) {
+                    ack.held.retain(|h| !(h.0 == x.source && h.1 == x.seq));
+                    ack.dups.push((x.source.clone(), x.seq));
+                    moved = true;
+                } else {
+                    rest.push(x);
+                }
+            }
+            self.offered = rest;
+            if !moved {
+                break;
+            }
+        }
+        // The closing Tick goes last; the rest by (priority desc, source, seq).
+        let is_tick = |h: &Host, x: &Sourced| h.tick_of(x).is_some();
+        let mut keyed: Vec<(bool, u8, Sourced)> = chosen.into_iter().map(|(p, x)| (is_tick(self, &x), p, x)).collect();
+        keyed.sort_by(|a, b| a.0.cmp(&b.0).then(b.1.cmp(&a.1)).then_with(|| (&a.2.source, a.2.seq).cmp(&(&b.2.source, b.2.seq))));
+        let chosen: Vec<(u8, Sourced)> = keyed.into_iter().map(|(_, p, x)| (p, x)).collect();
+        let prev_upto = (self.window > 0).then_some(self.closed_tick);
+        let id = self.window;
+        self.append(host_event("Window", &format!("{{\"count\":{},\"id\":{id},\"term\":{},\"upto\":{upto}}}", chosen.len(), self.term)))?;
+        self.window += 1;
+        self.closed_tick = upto;
+        let mut acks = vec![];
+        for (_, x) in chosen {
+            let src = serde_json::to_string(&x.source).unwrap();
+            let late = if prev_upto.is_some_and(|u| x.tick <= u) { "\"late\":true," } else { "" };
+            self.append(host_event("Input", &format!("{{{late}\"seq\":{},\"source\":{src},\"window\":{id}}}", x.seq)))?;
+            let a = self.apply_named(&x.name, x.args)?;
+            self.admitted.insert(x.source.clone(), x.seq);
+            ack.admitted.push(a);
+            ack.admitted.extend(self.drain()?);
+            acks.push((x.source, x.seq));
+        }
+        self.confirm()?;
+        ack.acks = acks; // only now: every entry of the window is behind a successful barrier
+        Ok(ack)
+    }
+
+    /// E.2b: take the admitter role for `term`. The term is a fence token:
+    /// `host.Term` is appended (and made durable through the replicated log)
+    /// before any input of the new term, every later `host.Window` carries
+    /// it, and a lower or equal term is refused. Requests emitted under the
+    /// previous term with no result in D get `failed`/`interrupted` (HC-3).
+    pub fn take_role(&mut self, term: u64, leader: &str) -> Result<(), String> {
+        if term <= self.term {
+            return Err(format!("host.Term: term {term} is not above the current term {}", self.term));
+        }
+        self.term = term;
+        self.offered.clear();
+        let l = serde_json::to_string(leader).unwrap();
+        self.append(host_event("Term", &format!("{{\"leader\":{l},\"term\":{term}}}")))?;
+        while let Some((k, req, _)) = self.queue.pop_front() {
+            self.answer(&k, req, EffectResult::failed("interrupted"))?;
+        }
+        self.drain()?;
+        self.confirm()
+    }
+
+    /// E.2b: open a host on a log received from the replicated log (the
+    /// longest log among a quorum at election). The whole chain must verify;
+    /// the host appends nothing until [`Host::take_role`].
+    pub fn resume(m: &'a Module, text: &str, store: Box<dyn Store + 'a>) -> Result<Host<'a>, String> {
+        let lines: Vec<&str> = text.split_terminator('\n').collect();
+        let keep = verify_prefix(&lines);
+        if keep < lines.len() {
+            return Err(format!("D does not verify after entry {keep} of {}", lines.len()));
+        }
+        let entries: Vec<Entry> = lines.iter().map(|l| Entry::parse_line(l).unwrap()).collect();
+        let mut h = Host::fresh(m, store, vec![])?;
+        h.refold(&entries)?;
+        Ok(h)
     }
 
     /// Evaluate a query (HS-8): a step that reads state and emits its result

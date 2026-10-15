@@ -115,6 +115,20 @@ the branches in source order (C.4.2). Rules:
   target. The cost table is the reference evaluator's (`interp` and
   `conc.rs`, `charge`), listed in C.6.4.
   W-TY-1 if n is not an integer.
+  `with budget n Block else Else` recovers from exhaustion. A
+  `trap("budget")` raised while Block runs, by any enclosing budget, is
+  caught by the innermost budget that has an `else`; Else then runs in
+  place of the rest of Block, as the `else` of `with deadline` does.
+  Charges already made stay on every enclosing budget, and writes made
+  before the trap stay. When the trap came from an outer budget, Else
+  charges that same budget, so its next charge traps again and the trap
+  reaches the next budget out with an `else`, or refuses the event. A
+  budget without `else` behaves as before. The trap falls on the same
+  operation on every target, so the choice of Else is deterministic and
+  replay re-derives it. Checked by `spec/checker/tests/conc06_run.rs`
+  (`budget_else_catches`) and `emit_run.rs` (`budget_else_*` on the
+  reference and the emitted runtimes). Open: a typed `Exhausted` value
+  carrying the spent units is not yet given to Else.
 - `with deadline n` runs the block with an expiry n logical ticks after
   entry; if the block has not completed by then, the `else` block runs
   instead (T22). W-DL-1: outside `fn main` or a task
@@ -248,6 +262,33 @@ an associative operation with an identity (T18).
   twice. `supervisor S strategy k` with k one of `one_for_one`,
   `one_for_all`, `rest_for_one` (W-SUP-1); each `child` must be an actor
   (W-SUP-2), and W-NAME-2 refuses a duplicate child.
+  Run-time meaning (normative). A supervisor declaration is one static
+  supervisor; it supervises every actor whose type is one of its
+  children, so the set an actor belongs to is fixed by the program, not
+  by spawn order. When a handler of such an actor refuses its message
+  (a trap or a `fail`), the run log records `Refused(reason)`, then
+  `Restart(child, instance, reason, tick t, k)`, where `instance` is the
+  actor's id (6.6) and k counts this child's restarts in the window
+  below. The strategy then resets the region of the failed actor
+  (`one_for_one`), of every actor of the supervisor's child types
+  (`one_for_all`), or of those whose child is declared at or after the
+  failed one (`rest_for_one`), to the actor's initializers. Intensity is
+  measured in logical ticks, never wall time: with `const
+  RESTART_WINDOW: u64 = W` only restarts at ticks t' with t - t' < W
+  count, otherwise every restart of the run counts; more than the
+  child's `restart bound` stops the supervisor with `Stopped(supervisor
+  S)` and the run ends `Refused`. Mailbox policy: a restarted actor keeps
+  its mailbox, since Form law 3 drops no message; only the message that
+  failed is consumed, and it is logged as refused. A handler that fails
+  inside `atomic` (C.11.10) leaves every handler of the batch
+  uncommitted (T30), and the failing actor is then supervised as above.
+  Every restart is an entry of the run log and a function of the
+  program and its logged choices, so replay re-derives it
+  (`spec/checker/tests/conc06b_run.rs`, and `emit_run.rs`
+  `actor_refusals_match` on the reference and the Rust, Python and
+  JavaScript runtimes, with and without a window). The run log of `fn
+  main` is not D: actors run by `rce run`, not by the host of Appendix E
+  (HC-6).
 - C.11.12 Real time. `interrupt event E priority p` with p an integer
   literal in 0..=255 (W-INTR-1). `step ... deadline n` with n a positive
   integer literal in ticks, and `const TICK_NS: u64 = n` when declared
@@ -392,4 +433,4 @@ different versions may `use` each other (2.7).
 
 **Read receipt.** How many words does a version 0.6 module reserve in addition to the 0.5 keywords? (a number)
 
-<!-- body-sha256: d6a1a6894f575dd98ceb07c7ce0115eb8ffda51623cc70a9e520e36522db35f3 -->
+<!-- body-sha256: 8c2dd83af4fd802756cc1ddc7802f1abf3e396f8e58cf93887f857f5b6c4997e -->

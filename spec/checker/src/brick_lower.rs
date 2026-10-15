@@ -45,6 +45,18 @@ pub struct Lowerer<'a> {
     memo: HashMap<String, L>,
     /// format 2 definitions: digest of a callee's term → the term
     defs: BTreeMap<String, Value>,
+    /// variants of the module's kinds: name → field names in order
+    variants: HashMap<String, Vec<String>>,
+    /// nesting of `match` statements (names the scrutinee field `$m<k>`)
+    matches: usize,
+    /// the function being lowered has a result `T ! E`: `fail` and `try`
+    /// leave it with the error value `{"$err": e}`
+    fails: bool,
+    /// names the temporaries of `try` and `catch` (`$try<k>`, `$c<k>`)
+    tmps: usize,
+    /// the next call may have a result `T ! E` (it is the operand of `try`
+    /// or `catch`, or passed on by `return`); taken by that call
+    allow_union: bool,
 }
 
 /// Largest term (bytes of its JSON) a function lowers to, not counting
@@ -111,10 +123,20 @@ impl<'a> Lowerer<'a> {
     pub fn new(m: &'a Module, module: &str, consts: HashMap<String, Value>) -> Self {
         let mut fns = HashMap::new();
         let mut structs = HashMap::new();
+        let mut variants = HashMap::new();
         for it in &m.items {
             match it {
+                Item::Kind { variants: vs, .. } => {
+                    for (n, fs) in vs {
+                        variants.insert(n.clone(), fs.iter().map(|f| f.0.clone()).collect());
+                    }
+                }
                 Item::Fn(d) => {
                     fns.insert(d.sig.name.clone(), d);
+                }
+                // an error value is a record of its payload (no `$v`)
+                Item::Error { name, payload, .. } => {
+                    structs.insert(name.clone(), payload.iter().map(|f| f.0.clone()).collect());
                 }
                 Item::Struct { name, fields, .. } => {
                     structs.insert(
@@ -135,6 +157,11 @@ impl<'a> Lowerer<'a> {
             unsigned: HashSet::new(),
             memo: HashMap::new(),
             defs: BTreeMap::new(),
+            variants,
+            matches: 0,
+            fails: false,
+            tmps: 0,
+            allow_union: false,
         }
     }
 
@@ -286,6 +313,13 @@ impl<'a> Lowerer<'a> {
                 return Err(format!("line {l}: no result value"));
             }
             None | Some(Ty::Unit) => {}
+            Some(Ty::Union(t, _)) => {
+                if let Some(t) = non_i64_int(t) {
+                    return Err(format!(
+                        "line {l}: result type {t} is outside the lowered fragment"
+                    ));
+                }
+            }
             Some(t) => {
                 if let Some(t) = non_i64_int(t) {
                     return Err(format!(
@@ -297,6 +331,7 @@ impl<'a> Lowerer<'a> {
         let nn = self.node_of(name);
         let saved = (std::mem::replace(&mut self.node, nn), self.depth);
         let saved_u = std::mem::take(&mut self.unsigned);
+        let saved_f = std::mem::replace(&mut self.fails, matches!(d.sig.ret, Some(Ty::Union(..))));
         for p in &d.sig.params {
             if let Param::Named { name: n, ty, .. } = p
                 && is_usize(unmut(ty))
@@ -335,6 +370,7 @@ impl<'a> Lowerer<'a> {
             };
             match &d.body {
                 Body::Arrow(e) => {
+                    self.allow_union = self.fails && matches!(e, Expr::Call(..));
                     let r = self.expr(e, &s, stack)?;
                     Ok(Self::pipe(init, out(self, r)))
                 }
@@ -349,6 +385,7 @@ impl<'a> Lowerer<'a> {
         self.node = saved.0;
         self.depth = saved.1;
         self.unsigned = saved_u;
+        self.fails = saved_f;
         r
     }
 
@@ -446,6 +483,11 @@ impl<'a> Lowerer<'a> {
             return Ok(None);
         }
         let l = *l;
+        if matches!(d.sig.ret, Some(Ty::Union(..))) {
+            return Err(format!(
+                "line {l}: a call of {g} (it takes &mut and its result is T ! E)"
+            ));
+        }
         let names: Vec<String> = d
             .sig
             .params
@@ -466,6 +508,11 @@ impl<'a> Lowerer<'a> {
                 (Expr::Borrow(true, place, _), true) => {
                     places.push((n.clone(), (**place).clone()));
                     (**place).clone()
+                }
+                // a variable that is itself a &mut parameter, passed on
+                (Expr::Name(x, _), true) if s.contains(x) => {
+                    places.push((n.clone(), a.e.clone()));
+                    a.e.clone()
                 }
                 (_, true) => return Err(format!("line {l}: &mut argument {n} is not a place")),
                 (e, false) => e.clone(),
@@ -499,6 +546,258 @@ impl<'a> Lowerer<'a> {
         Ok(Some(Self::seq(ts)))
     }
 
+    /// `try x [else e]` as the initializer of `let`/`var`, the right side
+    /// of an assignment, a statement of its own or the value of `return`:
+    /// `x` once into `$try<k>`; an error (or `none`) leaves the function
+    /// with `{"$err": ..}` (`e` when given), else the statement runs with
+    /// the value. As in the evaluator, `try none` with no `else` traps.
+    fn try_stmt(
+        &mut self,
+        st: &Stmt,
+        s: &mut Vec<String>,
+        tail: bool,
+        stack: &mut Vec<String>,
+    ) -> Result<Option<Value>, String> {
+        let te = match st {
+            Stmt::Let(_, _, e, _) | Stmt::Var(_, _, e, _) | Stmt::Assign(_, _, e) => e,
+            Stmt::Expr(e) | Stmt::Return(Some(e), _) => e,
+            _ => return Ok(None),
+        };
+        let Expr::Try(x, els, l) = te else {
+            return Ok(None);
+        };
+        let l = *l;
+        if !self.fails {
+            return Err(format!(
+                "line {l}: try in a function whose result is not T ! E"
+            ));
+        }
+        let ret = match &**x {
+            Expr::Call(f, _, _, _) => match &**f {
+                Expr::Name(g, _) => self.fns.get(g).map(|d| d.sig.ret.clone()),
+                _ => None,
+            },
+            _ => None,
+        };
+        let Some(ret) = ret else {
+            return Err(format!(
+                "line {l}: try on an operand that is not a call of a function"
+            ));
+        };
+        let k = format!("$try{}", self.tmps);
+        self.tmps += 1;
+        self.allow_union = true;
+        let v = self.expr(x, s, stack);
+        self.allow_union = false;
+        let v = v?;
+        let mut s2 = s.clone();
+        s2.push(k.clone());
+        let mut ext: Vec<Value> = s.iter().map(|x| json!([x, self.proj(x)])).collect();
+        ext.push(json!([k, v]));
+        let name = Expr::Name(k.clone(), l);
+        let ok_st = match st {
+            Stmt::Let(p, ty, _, l2) => Stmt::Let(p.clone(), ty.clone(), name, *l2),
+            Stmt::Var(x, ty, _, l2) => Stmt::Var(x.clone(), ty.clone(), name, *l2),
+            Stmt::Assign(op, place, _) => Stmt::Assign(op.clone(), place.clone(), name),
+            Stmt::Return(_, l2) => Stmt::Return(Some(name), *l2),
+            _ => Stmt::Expr(name),
+        };
+        let els_v = match els {
+            Some(e) => Some(json!({"t": "obj", "fields": [["$err", self.expr(e, &s2, stack)?]]})),
+            None => None,
+        };
+        let leave = |me: &Self, r: Value| me.set(s, &[("$ret", r), ("$done", c(json!(true)))]);
+        let (test, bad) = match &ret {
+            Some(Ty::Union(..)) => (
+                self.prim("has", vec![self.proj(&k), c(json!("$err"))]),
+                leave(self, els_v.unwrap_or_else(|| self.proj(&k))),
+            ),
+            Some(Ty::Opt(_)) => (
+                self.prim("eq", vec![self.proj(&k), c(Value::Null)]),
+                match els_v {
+                    Some(r) => leave(self, r),
+                    None => self.err("trap: try on none"),
+                },
+            ),
+            _ => (c(json!(false)), json!({"t": "pass"})),
+        };
+        let ok = self.stmt(&ok_st, &mut s2, tail, stack)?;
+        s2.retain(|x| x != &k);
+        let ok = Self::pipe(ok, self.set(&s2, &[]));
+        *s = s2;
+        let body = if test == c(json!(false)) {
+            ok
+        } else {
+            self.cond(test, bad, ok)
+        };
+        Ok(Some(Self::pipe(json!({"t": "obj", "fields": ext}), body)))
+    }
+
+    fn and(&self, a: Value, b: Value) -> Value {
+        if a == c(json!(true)) {
+            return b;
+        }
+        if b == c(json!(true)) {
+            return a;
+        }
+        self.cond(a, b, c(json!(false)))
+    }
+
+    /// A pattern against the value `v` (a term on the environment): the
+    /// test, and the bindings (name, term). Values are the evaluator's
+    /// embedding: a variant is an object with `$v`, `some(x)` is x, `none`
+    /// is null.
+    fn pat(
+        &mut self,
+        p: &Pat,
+        v: Value,
+        s: &[String],
+        stack: &mut Vec<String>,
+        l: usize,
+        out: &mut Vec<(String, Value)>,
+    ) -> L {
+        let tag = |me: &Self, v: &Value| {
+            Self::pipe(
+                v.clone(),
+                json!({"t": "proj", "node": me.n(), "field": "$v"}),
+            )
+        };
+        match p {
+            Pat::Wild => Ok(c(json!(true))),
+            Pat::Path(q) => {
+                let n = &q[q.len() - 1];
+                if self.variants.contains_key(n) {
+                    Ok(self.prim("eq", vec![tag(self, &v), c(json!(n))]))
+                } else if n == "none" && q.len() == 1 {
+                    Ok(self.prim("eq", vec![v, c(Value::Null)]))
+                } else if q.len() == 1 {
+                    if s.contains(n) || out.iter().any(|(x, _)| x == n) {
+                        return Err(format!("line {l}: pattern binding {n} shadows a variable"));
+                    }
+                    out.push((n.clone(), v));
+                    Ok(c(json!(true)))
+                } else {
+                    Err(format!("line {l}: pattern {}", q.join(".")))
+                }
+            }
+            Pat::Ctor(q, args) => {
+                let n = &q[q.len() - 1];
+                if n == "some" && q.len() == 1 && args.len() == 1 {
+                    let some = self.prim("ne", vec![v.clone(), c(Value::Null)]);
+                    let inner = self.pat(&args[0].1, v, s, stack, l, out)?;
+                    return Ok(self.and(some, inner));
+                }
+                let Some(fs) = self.variants.get(n).cloned() else {
+                    return Err(format!("line {l}: pattern {n}(..)"));
+                };
+                let mut t = self.prim("eq", vec![tag(self, &v), c(json!(n))]);
+                for (i, (lb, q)) in args.iter().enumerate() {
+                    let f = match lb {
+                        Some(f) => f.clone(),
+                        None => fs
+                            .get(i)
+                            .cloned()
+                            .ok_or_else(|| format!("line {l}: pattern {n}: too many fields"))?,
+                    };
+                    let fv = Self::pipe(
+                        v.clone(),
+                        json!({"t": "proj", "node": self.n(), "field": f}),
+                    );
+                    let ti = self.pat(q, fv, s, stack, l, out)?;
+                    t = self.and(t, ti);
+                }
+                Ok(t)
+            }
+            Pat::Lit(e) => {
+                let x = self.expr(e, s, stack)?;
+                Ok(self.prim("eq", vec![v, x]))
+            }
+            Pat::Range(a, incl, b) => {
+                let (x, y) = (self.expr(a, s, stack)?, self.expr(b, s, stack)?);
+                let lo = self.prim("ge", vec![v.clone(), x]);
+                let hi = self.prim(if *incl { "le" } else { "lt" }, vec![v, y]);
+                Ok(self.and(lo, hi))
+            }
+            Pat::Tuple(ps) => {
+                let n = self.prim("size", vec![v.clone()]);
+                let mut t = self.prim("eq", vec![n, c(json!(ps.len()))]);
+                for (i, q) in ps.iter().enumerate() {
+                    let xi = self.prim("at", vec![v.clone(), c(json!(i))]);
+                    let ti = self.pat(q, xi, s, stack, l, out)?;
+                    t = self.and(t, ti);
+                }
+                Ok(t)
+            }
+            Pat::Alt(ps) => {
+                let mut t = c(json!(false));
+                for q in ps {
+                    let mut b = vec![];
+                    let ti = self.pat(q, v.clone(), s, stack, l, &mut b)?;
+                    if !b.is_empty() {
+                        return Err(format!("line {l}: an alternative pattern that binds"));
+                    }
+                    t = if t == c(json!(false)) {
+                        ti
+                    } else {
+                        self.cond(t, c(json!(true)), ti)
+                    };
+                }
+                Ok(t)
+            }
+        }
+    }
+
+    /// `match e`: the scrutinee once into `$m<k>`, then the arms in order
+    /// (pattern, bindings, guard); no arm traps, as in the evaluator.
+    fn match_stmt(
+        &mut self,
+        e: &Expr,
+        arms: &[Arm],
+        l: usize,
+        s: &mut Vec<String>,
+        tail: bool,
+        stack: &mut Vec<String>,
+    ) -> L {
+        let m = format!("$m{}", self.matches);
+        self.matches += 1;
+        let r = (|| {
+            let ev = self.expr(e, s, stack)?;
+            let mut sm = s.clone();
+            sm.push(m.clone());
+            let mut ext: Vec<Value> = s.iter().map(|v| json!([v, self.proj(v)])).collect();
+            ext.push(json!([m, ev]));
+            // arms from the last: each falls through to the next
+            let mut next = self.err("trap: no match arm");
+            for a in arms.iter().rev() {
+                let mut binds = vec![];
+                let test = self.pat(&a.pat, self.proj(&m), &sm, stack, a.line, &mut binds)?;
+                let mut sa = sm.clone();
+                let mut bf: Vec<Value> = sm.iter().map(|v| json!([v, self.proj(v)])).collect();
+                for (x, t) in &binds {
+                    bf.push(json!([x, t]));
+                    sa.push(x.clone());
+                }
+                let bind = json!({"t": "obj", "fields": bf});
+                let body = self.block(&a.body, &mut sa, tail, stack)?;
+                // leave with the outer scope (drops $m and the bindings)
+                let body = Self::pipe(body, self.set(s, &[]));
+                let taken = match &a.guard {
+                    None => body,
+                    Some(g) => {
+                        let gv = self.expr(g, &sa, stack)?;
+                        let back = self.set(&sm, &[]);
+                        self.cond(gv, body, Self::pipe(back, next.clone()))
+                    }
+                };
+                next = self.cond(test, Self::pipe(bind, taken), next);
+            }
+            let _ = l;
+            Ok(Self::pipe(json!({"t": "obj", "fields": ext}), next))
+        })();
+        self.matches -= 1;
+        r
+    }
+
     fn unsigned_guard(&self, v: Value) -> Value {
         let neg = self.prim("lt", vec![v.clone(), c(json!(0))]);
         self.cond(neg, self.err("trap: overflow: negative usize"), v)
@@ -506,6 +805,12 @@ impl<'a> Lowerer<'a> {
 
     fn stmt(&mut self, st: &Stmt, s: &mut Vec<String>, tail: bool, stack: &mut Vec<String>) -> L {
         if let Some(t) = self.mut_call_stmt(st, s, stack)? {
+            return Ok(t);
+        }
+        if let Stmt::Match(e, arms, l) = st {
+            return self.match_stmt(e, arms, *l, s, tail, stack);
+        }
+        if let Some(t) = self.try_stmt(st, s, tail, stack)? {
             return Ok(t);
         }
         match st {
@@ -598,6 +903,7 @@ impl<'a> Lowerer<'a> {
                         _ => return Err(format!("line {l}: method {m}")),
                     }
                 }
+                self.allow_union = tail && self.fails && matches!(e, Expr::Call(..));
                 let v = self.expr(e, s, stack)?;
                 if tail {
                     Ok(self.set(s, &[("$ret", v), ("$done", c(json!(true)))]))
@@ -608,6 +914,7 @@ impl<'a> Lowerer<'a> {
                 }
             }
             Stmt::Return(Some(e), _) => {
+                self.allow_union = self.fails && matches!(e, Expr::Call(..));
                 let v = self.expr(e, s, stack)?;
                 Ok(self.set(s, &[("$ret", v), ("$done", c(json!(true)))]))
             }
@@ -656,6 +963,17 @@ impl<'a> Lowerer<'a> {
                 Ok(self.cond(v, json!({"t": "pass"}), self.err("check is false")))
             }
             Stmt::Pass => Ok(json!({"t": "pass"})),
+            Stmt::Fail(e) => {
+                if !self.fails {
+                    return Err(format!(
+                        "line {}: fail in a function whose result is not T ! E",
+                        e.line()
+                    ));
+                }
+                let v = self.expr(e, s, stack)?;
+                let ev = json!({"t": "obj", "fields": [["$err", v]]});
+                Ok(self.set(s, &[("$ret", ev), ("$done", c(json!(true)))]))
+            }
             Stmt::Comptime(b) => self.block(b, s, false, stack),
             other => Err(format!(
                 "statement {} has no Form IR term",
@@ -794,6 +1112,8 @@ impl<'a> Lowerer<'a> {
                     Ok(self.proj(n))
                 } else if let Some(v) = self.consts.get(n) {
                     Ok(c(v.clone()))
+                } else if self.variants.get(n).is_some_and(|f| f.is_empty()) {
+                    Ok(c(json!({"$v": n})))
                 } else {
                     no(&format!("name {n}"))
                 }
@@ -879,6 +1199,42 @@ impl<'a> Lowerer<'a> {
                 _ => no("this cast"),
             },
             Expr::Call(f, args, _, _) => self.call(f, args, s, stack, l),
+            Expr::Catch(x, bind, h, _) => {
+                if !matches!(&**x, Expr::Call(..)) {
+                    return no("catch on this operand");
+                }
+                let k = format!("$c{}", self.tmps);
+                self.tmps += 1;
+                self.allow_union = true;
+                let v = self.expr(x, s, stack);
+                self.allow_union = false;
+                let v = v?;
+                let mut sh: Vec<String> = s.to_vec();
+                let mut bf: Vec<Value> = s.iter().map(|x| json!([x, self.proj(x)])).collect();
+                if let Some(b) = bind {
+                    if s.contains(b) {
+                        return Err(format!("line {l}: catch binding {b} shadows a variable"));
+                    }
+                    let ev = Self::pipe(
+                        self.proj(&k),
+                        json!({"t": "proj", "node": self.n(), "field": "$err"}),
+                    );
+                    bf.push(json!([b, ev]));
+                    sh.push(b.clone());
+                }
+                let hv = self.expr(h, &sh, stack)?;
+                let mut ext: Vec<Value> = s.iter().map(|x| json!([x, self.proj(x)])).collect();
+                ext.push(json!([k, v]));
+                let isr = self.prim("has", vec![self.proj(&k), c(json!("$err"))]);
+                Ok(Self::pipe(
+                    json!({"t": "obj", "fields": ext}),
+                    self.cond(
+                        isr,
+                        Self::pipe(json!({"t": "obj", "fields": bf}), hv),
+                        self.proj(&k),
+                    ),
+                ))
+            }
             Expr::Borrow(false, x, _) => self.expr(x, s, stack),
             other => no(expr_name(other)),
         }
@@ -893,6 +1249,7 @@ impl<'a> Lowerer<'a> {
         l: usize,
     ) -> L {
         let no = |what: &str| Err(format!("line {l}: {what} has no Form IR term"));
+        let union_ok = std::mem::take(&mut self.allow_union);
         match f {
             Expr::Member(r, m, _) => {
                 let rv = self.expr(r, s, stack)?;
@@ -909,6 +1266,23 @@ impl<'a> Lowerer<'a> {
                 }
             }
             Expr::Name(g, _) if g == "copy" && args.len() == 1 => self.expr(&args[0].e, s, stack),
+            // a variant: its fields and `$v` (the evaluator's embedding)
+            Expr::Name(g, _) if self.variants.contains_key(g) && !self.structs.contains_key(g) => {
+                let fields = self.variants[g].clone();
+                let mut out = vec![json!(["$v", c(json!(g))])];
+                for (i, a) in args.iter().enumerate() {
+                    let f = match &a.label {
+                        Some(f) if fields.contains(f) => f.clone(),
+                        None if i < fields.len() => fields[i].clone(),
+                        _ => return no(&format!("variant {g} with these arguments")),
+                    };
+                    out.push(json!([f, self.expr(&a.e, s, stack)?]));
+                }
+                if out.len() != fields.len() + 1 {
+                    return no(&format!("variant {g} with these arguments"));
+                }
+                Ok(json!({"t": "obj", "fields": out}))
+            }
             Expr::Name(g, _) if self.structs.contains_key(g) => {
                 let fields = self.structs[g].clone();
                 if args.len() != fields.len()
@@ -929,6 +1303,11 @@ impl<'a> Lowerer<'a> {
             }
             Expr::Name(g, _) if self.fns.contains_key(g) => {
                 let d = self.fns[g];
+                if matches!(d.sig.ret, Some(Ty::Union(..))) && !union_ok {
+                    return no(&format!(
+                        "a call of {g} (its result is T ! E) outside try, catch or return"
+                    ));
+                }
                 if !mut_params(d).is_empty() {
                     return no(&format!(
                         "a call of {g} (it takes &mut) inside an expression"
