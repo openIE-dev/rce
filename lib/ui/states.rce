@@ -539,7 +539,7 @@ fn effective_targets(c: &Chart, r: &Run, ses: i64, t: i64) -> List[i64]
 
 fn lcca(c: &Chart, ss: &[i64]) -> i64
     for a in proper_ancestors(c, ss[0], -1)
-        if c.skind[a as usize] == COMPOUND or c.skind[a as usize] == ROOT or (c.xs and c.skind[a as usize] == PARALLEL)
+        if c.xs or c.skind[a as usize] == COMPOUND or c.skind[a as usize] == ROOT
             var all = true
             for i in 1..ss.len()
                 if not is_desc(c, ss[i], a)
@@ -553,10 +553,10 @@ fn domain(c: &Chart, r: &Run, ses: i64, t: i64) -> i64
     if ts.len() == 0
         return -1
     let src = c.tsrc[t as usize]
-    if c.tint[t as usize] and (is_compound(c, src) or c.skind[src as usize] == ROOT)
+    if c.tint[t as usize] and (c.xs or is_compound(c, src) or c.skind[src as usize] == ROOT)
         var all = true
         for s in ts
-            if not is_desc(c, s, src)
+            if not is_desc(c, s, src) and not (c.xs and s == src)
                 all = false
         if all
             return src
@@ -753,14 +753,18 @@ fn entry_set(c: &Chart, r: &Run, ses: i64, ts: &[i64], enter: &mut List[i64], df
                 let ch = c.skids[d as usize][q]
                 if not is_hist(c, ch)
                     tk.push([3, ch, -1])
+        # XState mode: an internal transition to its own source enters nothing for it
+        let keep = c.xs and c.tint[t as usize] and d == c.tsrc[t as usize]
         var j = eff.len()
         while j > 0 bound 1048576
             j -= 1
-            tk.push([2, eff[j], d])
+            if not (keep and eff[j] == d)
+                tk.push([2, eff[j], d])
         j = c.ttgt[t as usize].len()
         while j > 0 bound 1048576
             j -= 1
-            tk.push([1, c.ttgt[t as usize][j], -1])
+            if not (keep and c.ttgt[t as usize][j] == d)
+                tk.push([1, c.ttgt[t as usize][j], -1])
     while tk.len() > 0 bound 16777216
         let w = copy(tk[tk.len() - 1])
         tk.pop()
