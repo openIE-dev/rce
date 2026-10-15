@@ -11,7 +11,9 @@
 # steps up; a step up is undone by the down loop's tie rule, which is
 # tested by tests/math/math_checks_ties.rce); n_round's overflow test at
 # e > 1024 instead of 1023 (the product q 2^(sh + drop) overflows and traps
-# all the same).
+# all the same); n_add's final carry limb (every sum is below 1024 with
+# 200, 500, 1000 or 2000 fraction bits, so it never carries past the top
+# limb: 2^(f + 10) and 2^(f + 20) are limb boundaries, nothing reaches them).
 import glob, os, subprocess, sys, tempfile
 from concurrent.futures import ThreadPoolExecutor
 RCE = os.environ.get('RCE', 'rce')
@@ -63,7 +65,6 @@ M = [('core',) + m for m in [
     ('        drop = -1074 - sh', '        drop = -1075 - sh'),
     ('    return n_shr(c, bits - f)', '    return n_shr(c, bits - f + 1)'),
 ]] + [('log',) + m for m in [
-    ('    if c > 0\n        o.push(c)\n    return o', '    return o'),
     ('        m = m * 0.5\n        e += 1', '        m = m * 0.5\n        e += 2'),
     ('        let d = n_divs(&t, k)', '        let d = n_divs(&t, k + 2)'),
     ('    return n_muls(&s, 2)', '    return n_muls(&s, 3)'),
