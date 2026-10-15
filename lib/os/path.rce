@@ -1,0 +1,557 @@
+module os.path
+
+# Path algebra (survey M34), pure and lexical: POSIX paths, Windows paths
+# and WASI preopen-relative paths. The POSIX and Windows functions follow
+# CPython 3.13 posixpath and ntpath exactly (the reference behind Python's
+# os.path and pathlib), including POSIX's implementation-defined "//"
+# root and Windows drives, UNC shares and \\?\ device paths. Nothing here
+# touches a file system: symbolic links, the current directory and case
+# folding of the file system are the host's (relpath takes the current
+# directory as an argument; Windows case folding is ASCII here, see
+# win_normcase). WASI resolution (wasi_resolve) is the lexical part of the
+# preview 1 and 2 rule that a path is relative to a granted directory
+# descriptor and never leaves it.
+
+error BadPath(why: text)
+
+pub struct Root
+    drive: text
+    root: text
+    tail: text
+
+pub struct Pair
+    head: text
+    tail: text
+
+fn sub(cs: &[text], lo: usize, hi: usize) -> text
+    var o = ""
+    var i = lo
+    while i < hi and i < cs.len() bound 16777216
+        o = o + cs[i]
+        i += 1
+    return o
+
+fn cat(cs: &[text]) -> text = sub(cs, 0, cs.len())
+
+fn rstrip_seps(t: &text, win: bool) -> text
+    let cs = t.chars()
+    var n = cs.len()
+    while n > 0 and (cs[n - 1] == "/" or (win and cs[n - 1] == "\\")) bound 16777216
+        n -= 1
+    return sub(&cs, 0, n)
+
+fn is_sep(c: &text, win: bool) -> bool = c == "/" or (win and c == "\\")
+
+fn split_on(t: &text, sep: text) -> List[text]
+    var o: List[text] = []
+    var cur = ""
+    for c in t.chars()
+        if c == sep
+            o.push(cur)
+            cur = ""
+        else
+            cur = cur + c
+    o.push(cur)
+    return o
+
+fn join_with(ps: &[text], sep: text) -> text
+    var o = ""
+    var i: usize = 0
+    while i < ps.len() bound 16777216
+        if i > 0
+            o = o + sep
+        o = o + ps[i]
+        i += 1
+    return o
+
+fn slashes_to_back(t: &text) -> text
+    var o = ""
+    for c in t.chars()
+        o = o + (if c == "/" then "\\" else c)
+    return o
+
+# Splitting the extension (genericpath._splitext): the last dot after the
+# last separator, unless every character before it in the name is a dot.
+fn splitext_any(p: &text, win: bool) -> Pair
+    let cs = p.chars()
+    var s: i64 = -1
+    var d: i64 = -1
+    var i: usize = 0
+    while i < cs.len() bound 16777216
+        if is_sep(&cs[i], win)
+            s = i as i64
+        if cs[i] == "."
+            d = i as i64
+        i += 1
+    if d > s
+        var k = (s + 1) as usize
+        while (k as i64) < d bound 16777216
+            if cs[k] != "."
+                return Pair(head: sub(&cs, 0, d as usize), tail: sub(&cs, d as usize, cs.len()))
+            k += 1
+    return Pair(head: copy(p), tail: "")
+
+# ---------------- POSIX ----------------
+
+pub fn posix_splitroot(p: &text) -> Root
+    let cs = p.chars()
+    if cs.len() == 0 or cs[0] != "/"
+        return Root(drive: "", root: "", tail: copy(p))
+    if cs.len() < 2 or cs[1] != "/" or (cs.len() > 2 and cs[2] == "/")
+        return Root(drive: "", root: "/", tail: sub(&cs, 1, cs.len()))
+    return Root(drive: "", root: "//", tail: sub(&cs, 2, cs.len()))
+
+pub fn posix_isabs(p: &text) -> bool = p.startswith("/")
+
+pub fn posix_join(parts: &[text]) -> text
+    var path = ""
+    var first = true
+    for b in parts
+        if first
+            path = copy(b)
+            first = false
+        elif b.startswith("/") or path == ""
+            path = copy(b)
+        elif path.endswith("/")
+            path = path + b
+        else
+            path = path + "/" + b
+    return path
+
+pub fn posix_split(p: &text) -> Pair
+    let cs = p.chars()
+    var i = cs.len()
+    while i > 0 and cs[i - 1] != "/" bound 16777216
+        i -= 1
+    var head = sub(&cs, 0, i)
+    let tail = sub(&cs, i, cs.len())
+    var all = true
+    for c in head.chars()
+        if c != "/"
+            all = false
+    if head != "" and not all
+        head = rstrip_seps(&head, false)
+    return Pair(head: head, tail: tail)
+
+pub fn posix_basename(p: &text) -> text = posix_split(p).tail
+
+pub fn posix_dirname(p: &text) -> text
+    let cs = p.chars()
+    var i = cs.len()
+    while i > 0 and cs[i - 1] != "/" bound 16777216
+        i -= 1
+    let head = sub(&cs, 0, i)
+    var all = true
+    for c in head.chars()
+        if c != "/"
+            all = false
+    return if head != "" and not all then rstrip_seps(&head, false) else head
+
+pub fn posix_splitext(p: &text) -> Pair = splitext_any(p, false)
+
+pub fn posix_normpath(p: &text) -> text
+    if p == ""
+        return "."
+    let r = posix_splitroot(p)
+    let init = copy(r.root)
+    var out: List[text] = []
+    for c in split_on(&r.tail, "/")
+        if c == "" or c == "."
+            continue
+        if c != ".." or (init == "" and out.len() == 0) or (out.len() > 0 and out[out.len() - 1] == "..")
+            out.push(copy(c))
+        elif out.len() > 0
+            out.pop()
+    let o = init + join_with(&out, "/")
+    return if o == "" then "." else o
+
+pub fn posix_abspath(p: &text, cwd: &text) -> text
+    if p.startswith("/")
+        return posix_normpath(p)
+    let ps: List[text] = [copy(cwd), copy(p)]
+    let j = posix_join(&ps)
+    return posix_normpath(&j)
+
+# Relative path from start to path, with cwd standing for os.getcwd().
+pub fn posix_relpath(path: &text, start: &text, cwd: &text) -> text ! BadPath
+    if path == ""
+        fail BadPath(why: "no path specified")
+    let sa = posix_abspath(start, cwd)
+    let pa = posix_abspath(path, cwd)
+    let s = strip_lead(&sa)
+    let t = strip_lead(&pa)
+    let sl = if s == "" then [] else split_on(&s, "/")
+    let tl = if t == "" then [] else split_on(&t, "/")
+    var i: usize = 0
+    while i < sl.len() and i < tl.len() and sl[i] == tl[i] bound 16777216
+        i += 1
+    var rel: List[text] = []
+    var k = i
+    while k < sl.len() bound 16777216
+        rel.push("..")
+        k += 1
+    k = i
+    while k < tl.len() bound 16777216
+        rel.push(copy(tl[k]))
+        k += 1
+    return if rel.len() == 0 then "." else join_with(&rel, "/")
+
+fn strip_lead(t: &text) -> text
+    let cs = t.chars()
+    var i: usize = 0
+    while i < cs.len() and cs[i] == "/" bound 16777216
+        i += 1
+    return sub(&cs, i, cs.len())
+
+fn comps_clean(t: &text, sep: text) -> List[text]
+    var o: List[text] = []
+    for c in split_on(t, sep)
+        if c != "" and c != "."
+            o.push(copy(c))
+    return o
+
+fn list_lt(a: &[text], b: &[text]) -> bool
+    var i: usize = 0
+    while i < a.len() and i < b.len() bound 16777216
+        if a[i] != b[i]
+            return text_lt(&a[i], &b[i])
+        i += 1
+    return a.len() < b.len()
+
+fn text_lt(a: &text, b: &text) -> bool
+    let x = cps(a)
+    let y = cps(b)
+    var i: usize = 0
+    while i < x.len() and i < y.len() bound 16777216
+        if x[i] != y[i]
+            return x[i] < y[i]
+        i += 1
+    return x.len() < y.len()
+
+# Code points of UTF-8 text (code point order is Python's string order).
+fn cps(t: &text) -> List[i64]
+    var o: List[i64] = []
+    var i: usize = 0
+    while i < t.len() bound 67108864
+        let b = t[i] as i64
+        if b < 128
+            o.push(b)
+            i += 1
+        elif b < 224
+            o.push((b & 31) << 6 | (t[i + 1] as i64 & 63))
+            i += 2
+        elif b < 240
+            o.push((b & 15) << 12 | (t[i + 1] as i64 & 63) << 6 | (t[i + 2] as i64 & 63))
+            i += 3
+        else
+            o.push((b & 7) << 18 | (t[i + 1] as i64 & 63) << 12 | (t[i + 2] as i64 & 63) << 6 | (t[i + 3] as i64 & 63))
+            i += 4
+    return o
+
+# Longest common prefix of the clean component lists of min and max.
+fn common_of(sp: &[List[text]]) -> List[text]
+    var lo: usize = 0
+    var hi: usize = 0
+    var i: usize = 1
+    while i < sp.len() bound 16777216
+        if list_lt(&sp[i], &sp[lo])
+            lo = i
+        if list_lt(&sp[hi], &sp[i])
+            hi = i
+        i += 1
+    let a = copy(sp[lo])
+    let b = copy(sp[hi])
+    var o: List[text] = []
+    var k: usize = 0
+    while k < a.len() bound 16777216
+        if k >= b.len() or a[k] != b[k]
+            break
+        o.push(copy(a[k]))
+        k += 1
+    return o
+
+pub fn posix_commonpath(ps: &[text]) -> text ! BadPath
+    if ps.len() == 0
+        fail BadPath(why: "empty")
+    let abs = ps[0].startswith("/")
+    var sp: List[List[text]] = []
+    for p in ps
+        if p.startswith("/") != abs
+            fail BadPath(why: "mix of absolute and relative")
+        sp.push(comps_clean(&p, "/"))
+    let c = common_of(&sp)
+    return (if abs then "/" else "") + join_with(&c, "/")
+
+# ---------------- Windows ----------------
+
+pub fn win_splitroot(p: &text) -> Root
+    let cs = p.chars()
+    var n: List[text] = []
+    for c in cs
+        n.push(if c == "/" then "\\" else copy(c))
+    if n.len() > 0 and n[0] == "\\"
+        if n.len() > 1 and n[1] == "\\"
+            let up = sub(&n, 0, 8).upper()
+            let start: usize = if up == "\\\\?\\UNC\\" then 8 else 2
+            var a = start
+            while a < n.len() and n[a] != "\\" bound 16777216
+                a += 1
+            if a >= n.len()
+                return Root(drive: copy(p), root: "", tail: "")
+            var b = a + 1
+            while b < n.len() and n[b] != "\\" bound 16777216
+                b += 1
+            if b >= n.len()
+                return Root(drive: copy(p), root: "", tail: "")
+            return Root(drive: sub(&cs, 0, b), root: sub(&cs, b, b + 1), tail: sub(&cs, b + 1, cs.len()))
+        return Root(drive: "", root: sub(&cs, 0, 1), tail: sub(&cs, 1, cs.len()))
+    if n.len() > 1 and n[1] == ":"
+        if n.len() > 2 and n[2] == "\\"
+            return Root(drive: sub(&cs, 0, 2), root: sub(&cs, 2, 3), tail: sub(&cs, 3, cs.len()))
+        return Root(drive: sub(&cs, 0, 2), root: "", tail: sub(&cs, 2, cs.len()))
+    return Root(drive: "", root: "", tail: copy(p))
+
+pub fn win_splitdrive(p: &text) -> Pair
+    let r = win_splitroot(p)
+    return Pair(head: copy(r.drive), tail: r.root + r.tail)
+
+pub fn win_isabs(p: &text) -> bool
+    let cs = p.chars()
+    var s: List[text] = []
+    var i: usize = 0
+    while i < 3 and i < cs.len() bound 3
+        s.push(if cs[i] == "/" then "\\" else copy(cs[i]))
+        i += 1
+    return (s.len() >= 3 and s[1] == ":" and s[2] == "\\") or (s.len() >= 2 and s[0] == "\\" and s[1] == "\\")
+
+# Case folding of win_normcase is ASCII only (Windows folds with the
+# invariant locale table; the host owns that table).
+pub fn win_normcase(p: &text) -> text = slashes_to_back(p).lower()
+
+pub fn win_join(parts: &[text]) -> text
+    if parts.len() == 0
+        return ""
+    let r0 = win_splitroot(&parts[0])
+    var rd = copy(r0.drive)
+    var rr = copy(r0.root)
+    var rp = copy(r0.tail)
+    var i: usize = 1
+    while i < parts.len() bound 16777216
+        let q = win_splitroot(&parts[i])
+        i += 1
+        if q.root != ""
+            if q.drive != "" or rd == ""
+                rd = copy(q.drive)
+            rr = copy(q.root)
+            rp = copy(q.tail)
+            continue
+        elif q.drive != "" and q.drive != rd
+            if q.drive.lower() != rd.lower()
+                rd = copy(q.drive)
+                rr = copy(q.root)
+                rp = copy(q.tail)
+                continue
+            rd = copy(q.drive)
+        let pc = rp.chars()
+        if pc.len() > 0 and not is_sep(&pc[pc.len() - 1], true)
+            rp = rp + "\\"
+        rp = rp + q.tail
+    let dc = rd.chars()
+    if rp != "" and rr == "" and dc.len() > 0 and not (dc[dc.len() - 1] == ":" or is_sep(&dc[dc.len() - 1], true))
+        return rd + "\\" + rp
+    return rd + rr + rp
+
+pub fn win_split(p: &text) -> Pair
+    let r = win_splitroot(p)
+    let cs = r.tail.chars()
+    var i = cs.len()
+    while i > 0 and not is_sep(&cs[i - 1], true) bound 16777216
+        i -= 1
+    let head = sub(&cs, 0, i)
+    return Pair(head: r.drive + r.root + rstrip_seps(&head, true), tail: sub(&cs, i, cs.len()))
+
+pub fn win_basename(p: &text) -> text = win_split(p).tail
+pub fn win_dirname(p: &text) -> text = win_split(p).head
+pub fn win_splitext(p: &text) -> Pair = splitext_any(p, true)
+
+pub fn win_normpath(p: &text) -> text
+    let q = slashes_to_back(p)
+    let r = win_splitroot(&q)
+    let prefix = r.drive + r.root
+    var comps = split_on(&r.tail, "\\")
+    var i: usize = 0
+    while i < comps.len() bound 16777216
+        if comps[i] == "" or comps[i] == "."
+            comps = remove_at(&comps, i, 1)
+        elif comps[i] == ".."
+            if i > 0 and comps[i - 1] != ".."
+                comps = remove_at(&comps, i - 1, 2)
+                i -= 1
+            elif i == 0 and r.root != ""
+                comps = remove_at(&comps, i, 1)
+            else
+                i += 1
+        else
+            i += 1
+    if prefix == "" and comps.len() == 0
+        comps.push(".")
+    return prefix + join_with(&comps, "\\")
+
+fn remove_at(xs: &[text], at: usize, n: usize) -> List[text]
+    var o: List[text] = []
+    var i: usize = 0
+    while i < xs.len() bound 16777216
+        if i < at or i >= at + n
+            o.push(copy(xs[i]))
+        i += 1
+    return o
+
+pub fn win_abspath(p: &text, cwd: &text) -> text
+    if win_isabs(p)
+        return win_normpath(p)
+    let ps: List[text] = [copy(cwd), copy(p)]
+    let j = win_join(&ps)
+    return win_normpath(&j)
+
+pub fn win_relpath(path: &text, start: &text, cwd: &text) -> text ! BadPath
+    if path == ""
+        fail BadPath(why: "no path specified")
+    let sx = win_abspath(start, cwd)
+    let px = win_abspath(path, cwd)
+    let sa = win_splitroot(&sx)
+    let pa = win_splitroot(&px)
+    if win_normcase(&sa.drive) != win_normcase(&pa.drive)
+        fail BadPath(why: "different mounts")
+    let sl = if sa.tail == "" then [] else split_on(&sa.tail, "\\")
+    let tl = if pa.tail == "" then [] else split_on(&pa.tail, "\\")
+    var i: usize = 0
+    while i < sl.len() and i < tl.len() and win_normcase(&sl[i]) == win_normcase(&tl[i]) bound 16777216
+        i += 1
+    var rel: List[text] = []
+    var k = i
+    while k < sl.len() bound 16777216
+        rel.push("..")
+        k += 1
+    k = i
+    while k < tl.len() bound 16777216
+        rel.push(copy(tl[k]))
+        k += 1
+    return if rel.len() == 0 then "." else join_with(&rel, "\\")
+
+pub fn win_commonpath(ps: &[text]) -> text ! BadPath
+    if ps.len() == 0
+        fail BadPath(why: "empty")
+    var sp: List[List[text]] = []
+    let l0 = slashes_to_back(&ps[0]).lower()
+    let r0 = win_splitroot(&l0)
+    for p in ps
+        let lp = slashes_to_back(&p).lower()
+        let r = win_splitroot(&lp)
+        if r.drive != r0.drive
+            fail BadPath(why: "different drives")
+        if r.root != r0.root
+            fail BadPath(why: "mix of rooted and not rooted")
+        sp.push(comps_clean(&r.tail, "\\"))
+    let b0 = slashes_to_back(&ps[0])
+    let f = win_splitroot(&b0)
+    var common = comps_clean(&f.tail, "\\")
+    let c = common_of(&sp)
+    var o: List[text] = []
+    var k: usize = 0
+    while k < c.len() and k < common.len() bound 16777216
+        o.push(copy(common[k]))
+        k += 1
+    return f.drive + f.root + join_with(&o, "\\")
+
+const RESERVED: text = "CON PRN AUX NUL CONIN$ CONOUT$ COM1 COM2 COM3 COM4 COM5 COM6 COM7 COM8 COM9 COM\u{b9} COM\u{b2} COM\u{b3} LPT1 LPT2 LPT3 LPT4 LPT5 LPT6 LPT7 LPT8 LPT9 LPT\u{b9} LPT\u{b2} LPT\u{b3}"
+
+fn reserved_name(n: &text) -> bool
+    let cs = n.chars()
+    if cs.len() > 0 and (cs[cs.len() - 1] == "." or cs[cs.len() - 1] == " ")
+        return n != "." and n != ".."
+    for c in cs
+        if c.len() == 1 and (c[0] < 32 or c == "\"" or c == "*" or c == ":" or c == "<" or c == ">" or c == "?" or c == "|" or c == "/" or c == "\\")
+            return true
+    var stem = ""
+    for c in cs
+        if c == "."
+            break
+        stem = stem + c
+    let s = rstrip_spaces(&stem).upper()
+    return RESERVED.split(" ").contains(s)
+
+fn rstrip_spaces(t: &text) -> text
+    let cs = t.chars()
+    var n = cs.len()
+    while n > 0 and cs[n - 1] == " " bound 16777216
+        n -= 1
+    return sub(&cs, 0, n)
+
+# A name Windows reserves anywhere in the path (DOS devices, trailing
+# dot or space, wildcards, colon, control characters).
+pub fn win_isreserved(p: &text) -> bool
+    let r = win_splitroot(p)
+    let bt = slashes_to_back(&r.tail)
+    for n in split_on(&bt, "\\")
+        if reserved_name(&n)
+            return true
+    return false
+
+# ---------------- WASI ----------------
+
+# The components of a path relative to a granted directory: "." and empty
+# components dropped, ".." taken lexically; an absolute path, or one that
+# climbs above the directory, is refused (WASI ENOTCAPABLE). Symbolic
+# links met on the way are resolved by the host under the same rule.
+pub fn wasi_resolve(p: &text) -> List[text] ! BadPath
+    if p.startswith("/")
+        fail BadPath(why: "absolute")
+    var out: List[text] = []
+    for c in split_on(p, "/")
+        if c == "" or c == "."
+            continue
+        if c == ".."
+            if out.len() == 0
+                fail BadPath(why: "escapes the directory")
+            out.pop()
+        else
+            out.push(copy(c))
+    return out
+
+pub struct Preopen
+    index: i64
+    rel: text
+
+# The granted directory for an absolute path, as wasi-libc's
+# __wasilibc_find_relpath picks it: the preopen whose components are the
+# longest prefix of the path's normalized components (the later one on a
+# tie), and the rest of the path relative to it ("." when equal).
+pub fn wasi_preopen(preopens: &[text], p: &text) -> Preopen ! BadPath
+    if not p.startswith("/")
+        fail BadPath(why: "not absolute")
+    let pn = posix_normpath(p)
+    let pc = comps_clean(&pn, "/")
+    var best: i64 = -1
+    var blen: i64 = -1
+    var i: usize = 0
+    while i < preopens.len() bound 16777216
+        let qn = posix_normpath(&preopens[i])
+        let qc = comps_clean(&qn, "/")
+        var ok = preopens[i].startswith("/") and qc.len() <= pc.len()
+        var k: usize = 0
+        while ok and k < qc.len() bound 16777216
+            if qc[k] != pc[k]
+                ok = false
+            k += 1
+        if ok and qc.len() as i64 >= blen
+            best = i as i64
+            blen = qc.len() as i64
+        i += 1
+    if best < 0
+        fail BadPath(why: "no preopen")
+    var rest: List[text] = []
+    var k = blen as usize
+    while k < pc.len() bound 16777216
+        rest.push(copy(pc[k]))
+        k += 1
+    return Preopen(index: best, rel: if rest.len() == 0 then "." else join_with(&rest, "/"))

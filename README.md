@@ -27,6 +27,7 @@ run replays bit for bit.
 | `lib/net/idna.rce` | `net.idna`: UTS #46 (Unicode 16.0.0) ToASCII and ToUnicode: IdnaMappingTable mapping, NFC/NFD (UAX #15), ContextJ (RFC 5892 A.1, A.2), bidi rules (RFC 5893), Punycode (RFC 3492); data generated from pinned, sha256-checked Unicode files |
 | `lib/net/http.rce` | `net.http`: HTTP/1.1 (RFC 9112) request and response parse and serialize over bytes, message body framing, chunked coding with trailers; strict on bare CR/LF, obs-fold, CL with TE and conflicting lengths |
 | `lib/net/dns.rce` | `net.dns`: DNS messages (RFC 1035): encode and decode, presentation-form names with escapes, compression pointers followed only backwards, record data with names expanded, query builder |
+| `lib/os/path.rce` | `os.path`: lexical path algebra for POSIX and Windows (drives, UNC, `\\?\` device paths; split, splitext, splitroot, join, normpath, relpath with an explicit cwd, commonpath, isreserved) matching CPython 3.13 posixpath and ntpath, and WASI preopen-relative resolution that never leaves the granted directory |
 
 Foundation modules live under `lib/<area>/` (a module that needs others names them on a `# uses:` line and is checked as a package with them); their vectors and property
 sweeps are in `tests/<area>/<name>_checks.rce`, which `scripts/check.sh`

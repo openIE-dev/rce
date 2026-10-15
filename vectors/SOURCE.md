@@ -390,3 +390,34 @@ and DNS label bytes are kept as \DDD; the WHATWG URL setters
 yet; host bindings for UDP (DNS) and a connection/stream binding for
 HTTP over TCP and TLS.
 
+## os.path (`lib/os/path.rce`)
+
+Pure and lexical (survey M34); symbolic links, the current directory and
+the file system's case folding belong to the `Fs` capability (M38).
+
+- **official inputs, reference outputs:** `vectors/os/test_posixpath.py`
+  (sha256 34ada45f0e4f0e2b8326404b7e7dbf1416a079081f6e0a1f90ab9d691e9a8be8)
+  and `vectors/os/test_ntpath.py` (sha256
+  53f7f0b39c1746c1553db4fc3d80d6f75780f0448b15fa478f11d66946e41089),
+  CPython v3.13.5 Lib/test. `scripts/gen/path_gen.py` takes every
+  argument tuple of a call to split, splitext, splitdrive, splitroot,
+  basename, dirname, isabs, join, normpath, relpath, commonpath and
+  isreserved in those files (assertEqual, tester(), NORMPATH_CASES,
+  splitextTest), and every string literal of the files as a single path
+  (984), and gets the expected value from CPython 3.13.5 posixpath and
+  ntpath (os.getcwd fixed to "/home/user/bar" and "C:\Users\u"). The
+  314 values the tests state themselves are asserted to agree (ntpath up
+  to "/" versus "\", as tester() compares). Plus 150 seeded random
+  join, relpath and commonpath cases per flavour, 16 derived join inputs,
+  11 derived wasi_resolve and 8 derived wasi_preopen cases (the latter
+  modelled on wasi-libc's __wasilibc_find_relpath: longest component
+  prefix, later preopen on a tie). 16907 checks in
+  `tests/os/path_checks.rce`.
+- `scripts/mut/os.py`: 27 of 27 mutants killed (three equivalent mutants
+  removed).
+
+Needs spec: case-insensitive comparison in win_relpath and win_normcase
+folds ASCII only (Windows uses the invariant-locale table, which a host
+must supply); wasi_resolve is lexical, the host resolves symlinks under
+the same never-leave rule.
+
