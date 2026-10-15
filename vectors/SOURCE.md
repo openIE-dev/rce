@@ -870,7 +870,7 @@ sign combinations. pow adds exact results and midpoints (integer y up to
 | cos (full, off-repo run) | 1,088,192 | 2,999 | 107 | 1,091,298 |
 | sin (full, off-repo run) | 1,971,056 | 2,999 | 105 | 1,974,160 |
 | exp (full, off-repo run) | 1,129,105 | 2,503 | 99 | 1,131,707 |
-| pow (push CI sample) | 7,229 of 1003179 | 5,428 | 2,188 | 14,845 |
+| pow (push CI sample) | 7,229 of 1,003,179 | 5,428 | 2,188 | 14,845 |
 
 The large CORE-MATH files (exp 25 MB, log 3 MB, sin 43 MB, cos 24 MB) are
 not copied: push CI runs an evenly spaced sample (`--sample 4000`), and the
