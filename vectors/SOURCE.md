@@ -847,6 +847,7 @@ sign combinations.
 | exp (push CI sample) | 4,005 of 1,129,105 | 2,504 | 122 | 6,631 |
 | log (push CI sample) | 4,089 of 134,941 | 1,484 | 70 | 5,643 |
 | log (full, off-repo run) | 134,941 | 1,483 | 7 | 136,431 |
+| log2 (push CI sample) | 4,155 of 33,279 | 1,483 | 94 | 5,732 |
 | sin (push CI sample) | 4,005 of 1,971,056 | 3,000 | 126 | 7,131 |
 | cos (push CI sample) | 4,008 of 1,090,196 | 3,000 | 126 | 7,134 |
 

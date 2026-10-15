@@ -72,6 +72,10 @@ M = [('core',) + m for m in [
     ('        digits.push(t / den)', '        digits.push((t / den) & 31)'),
     ('        p += 6', '        p += 5'),
     ('    if x == 1.0\n        return 0.0', '    if x == 1.0\n        return 1.0'),
+]] + [('log2',) + m for m in [
+    ('            kc = n_pow2(2100)', '            kc = n_pow2(2101)'),
+    ('            let sc = c_log2e()\n            let s1 = cst(&sc, 2100, f)', '            let sc = c_log2e()\n            let s1 = cst(&sc, 2101, f)'),
+    ('        if which == 1\n', '        if which == 3\n'),
 ]] + [('sin',) + m for m in [
     ('            o.push(a[i] & ((1 << b) - 1))', '            o.push(a[i])'),
     ('    if ax < 7.450580596923828e-09', '    if ax < 1e-6'),
@@ -112,7 +116,7 @@ assert not fails(SRC, SH[0]), 'unmutated source fails'
 k = n = 0
 for g, a, b in M:
     if want and g not in want: continue
-    if g in ('exp', 'log', 'sin', 'cos') and 'pub fn %s(' % g not in SRC: continue
+    if g in ('exp', 'log', 'log2', 'log10', 'sin', 'cos') and 'pub fn %s(' % g not in SRC: continue
     assert SRC.count(a) >= 1, a
     n += 1
     if killed(SRC.replace(a, b, 1)): k += 1
