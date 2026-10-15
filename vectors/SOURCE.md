@@ -844,6 +844,14 @@ sign combinations.
 | --- | --- | --- | --- | --- |
 | cbrt | 106,244 | 2,999 | 12 | 109,255 |
 | hypot | 32,917 | 3,000 | 496 | 36,413 |
+| exp (push CI sample) | 4,005 of 1,129,105 | 2,504 | 122 | 6,631 |
+
+The large CORE-MATH files (exp 25 MB, log 3 MB, sin 43 MB, cos 24 MB) are
+not copied: push CI runs an evenly spaced sample (`--sample 4000`), and the
+full files are run with `math_vec.py FN --cm core-math/src/binary64 --out DIR`
+and the same harness (results below, every case exact). Constants (ln 2,
+pi/2 to 2100 bits, 2/pi to 4200 bits) come from `scripts/gen/math_const.py`
+(MPFR, 9000 bits; `--check lib/math/math.rce`).
 
 Derived (`tests/math/math_checks.rce`, `math_checks_eft.rce`,
 `math_checks_ties.rce`): exact hypot midpoint ties (300, a = t(t+1) 2^e,

@@ -16,10 +16,10 @@ module math
 #
 # Validated against CORE-MATH's worst cases (MIT, Copyright (c) 2021-2022
 # Alexei Sibidanov, Paul Zimmermann et al., https://core-math.gitlabpages.inria.fr/)
-# and MPFR 4.2.2 vectors; see SOURCE.md.
+# and MPFR 4.2.2 vectors; see vectors/SOURCE.md.
 #
-# Non-finite results trap like every f64 op (6.3 N3): cbrt and hypot only
-# trap when the true result overflows.
+# Non-finite results trap like every f64 op (6.3 N3): hypot and exp trap
+# when the true result overflows, log when x <= 0; cbrt, sin and cos never.
 
 const SPLITTER: f64 = 134217729.0
 const P52: f64 = 4503599627370496.0
@@ -264,3 +264,297 @@ pub fn hypot(x: f64, y: f64) -> f64
         else
             break
     return r * pow2(k)
+
+# ---- transcendentals: Ziv's strategy over exact integers ----------------
+#
+# A transcendental value of a double is never a midpoint (Lindemann), so it
+# can be rounded once it is known closely enough. Each function computes N
+# with |N / 2^F - f(x)| < 2^16 / 2^F (every truncation is at most one unit
+# and far fewer than 2^16 occur), rounds N - 2^16 and N + 2^16, and
+# returns when both round to the same double; otherwise F grows (200, 500,
+# 1000, 2000 bits). CORE-MATH uses the same two-phase idea with
+# double-double fast paths; here every phase is exact integer arithmetic,
+# so its correctness does not rest on a worst-case table. Integers are
+# magnitudes in base 2^30 limbs.
+
+const LB: i64 = 30
+const LM: i64 = 1073741823
+const EB: i64 = 65536
+
+fn n_trim(a: List[i64]) -> List[i64]
+    var o = a
+    while o.len() > 0 and o[o.len() - 1] == 0 bound 1048576
+        o.pop()
+    return o
+
+fn n_of(v: i64) -> List[i64]
+    var o: List[i64] = []
+    var x = v
+    while x > 0 bound 4
+        o.push(x & LM)
+        x = x >> LB
+    return o
+
+fn n_to_i64(a: &[i64]) -> i64
+    var v: i64 = 0
+    var i = a.len()
+    while i > 0 bound 3
+        i -= 1
+        v = (v << LB) + a[i]
+    return v
+
+fn n_cmp(a: &[i64], b: &[i64]) -> i64
+    if a.len() != b.len()
+        return if a.len() < b.len() then -1 else 1
+    var i = a.len()
+    while i > 0 bound 1048576
+        i -= 1
+        if a[i] != b[i]
+            return if a[i] < b[i] then -1 else 1
+    return 0
+
+fn n_add(a: &[i64], b: &[i64]) -> List[i64]
+    var o: List[i64] = []
+    var c: i64 = 0
+    let n = if a.len() > b.len() then a.len() else b.len()
+    for i in 0..n
+        var s = c
+        if i < a.len()
+            s += a[i]
+        if i < b.len()
+            s += b[i]
+        o.push(s & LM)
+        c = s >> LB
+    if c > 0
+        o.push(c)
+    return o
+
+# a - b, a >= b
+fn n_sub(a: &[i64], b: &[i64]) -> List[i64]
+    var o: List[i64] = []
+    var br: i64 = 0
+    for i in 0..a.len()
+        var s = a[i] - br
+        if i < b.len()
+            s -= b[i]
+        if s < 0
+            s += LM + 1
+            br = 1
+        else
+            br = 0
+        o.push(s)
+    return n_trim(o)
+
+fn n_mul(a: &[i64], b: &[i64]) -> List[i64]
+    if a.len() == 0 or b.len() == 0
+        return []
+    var o: List[i64] = []
+    for k in 0..(a.len() + b.len())
+        o.push(0)
+    for i in 0..a.len()
+        var c: i64 = 0
+        for j in 0..b.len()
+            let t = o[i + j] + a[i] * b[j] + c
+            o[i + j] = t & LM
+            c = t >> LB
+        o[i + b.len()] = c
+    return n_trim(o)
+
+# a * s, 0 <= s < 2^30
+fn n_muls(a: &[i64], s: i64) -> List[i64]
+    var o: List[i64] = []
+    var c: i64 = 0
+    for x in a
+        let t = x * s + c
+        o.push(t & LM)
+        c = t >> LB
+    while c > 0 bound 4
+        o.push(c & LM)
+        c = c >> LB
+    return n_trim(o)
+
+# floor(a / s), 0 < s < 2^30
+fn n_divs(a: &[i64], s: i64) -> List[i64]
+    var o: List[i64] = []
+    for k in 0..a.len()
+        o.push(0)
+    var r: i64 = 0
+    var i = a.len()
+    while i > 0 bound 1048576
+        i -= 1
+        let t = (r << LB) + a[i]
+        o[i] = t / s
+        r = t % s
+    return n_trim(o)
+
+fn n_shr(a: &[i64], s: i64) -> List[i64]
+    let q = (s / LB) as usize
+    let b = s % LB
+    var o: List[i64] = []
+    var i = q
+    while i < a.len() bound 1048576
+        var v = a[i] >> b
+        if b > 0 and i + 1 < a.len()
+            v = v | ((a[i + 1] << (LB - b)) & LM)
+        o.push(v)
+        i += 1
+    return n_trim(o)
+
+fn n_shl(a: &[i64], s: i64) -> List[i64]
+    let q = s / LB
+    let b = s % LB
+    var o: List[i64] = []
+    for k in 0..q
+        o.push(0)
+    var c: i64 = 0
+    for x in a
+        o.push(((x << b) & LM) | c)
+        c = if b > 0 then x >> (LB - b) else 0
+    o.push(c)
+    return n_trim(o)
+
+# the low s bits of a
+fn n_low(a: &[i64], s: i64) -> List[i64]
+    let q = (s / LB) as usize
+    let b = s % LB
+    var o: List[i64] = []
+    var i: usize = 0
+    while i < a.len() and i <= q bound 1048576
+        if i < q
+            o.push(a[i])
+        else
+            o.push(a[i] & ((1 << b) - 1))
+        i += 1
+    return n_trim(o)
+
+fn n_bits(a: &[i64]) -> i64
+    if a.len() == 0
+        return 0
+    var t = a[a.len() - 1]
+    var n: i64 = 0
+    while t > 0 bound 31
+        t = t >> 1
+        n += 1
+    return ((a.len() - 1) as i64) * LB + n
+
+fn n_bit(a: &[i64], i: i64) -> bool
+    let q = (i / LB) as usize
+    if q >= a.len()
+        return false
+    return ((a[q] >> (i % LB)) & 1) == 1
+
+fn n_pow2(s: i64) -> List[i64]
+    let one = [1]
+    return n_shl(&one, s)
+
+# N * 2^sh rounded to nearest even binary64 (subnormals included); an
+# overflowing value traps (non-finite result).
+fn n_round(n: &[i64], sh: i64) -> f64
+    let l = n_bits(n)
+    if l == 0
+        return 0.0
+    let e = l - 1 + sh
+    if e > 1023
+        return 1.7976931348623157e308 * 2.0
+    var drop = l - 53
+    if e < -1022
+        drop = -1074 - sh
+    if drop <= 0
+        return (n_to_i64(n) as f64) * pow2(sh)
+    let qn = n_shr(n, drop)
+    var q = n_to_i64(&qn)
+    if n_bit(n, drop - 1)
+        let rest = n_low(n, drop - 1)
+        if rest.len() > 0 or q % 2 == 1
+            q += 1
+    return (q as f64) * pow2(sh + drop)
+
+# x = M 2^E exactly, M < 2^53 an integer, for normal x > 0: [M, E]
+# (exp and sin/cos only take it for |x| > 2^-60)
+fn mant(x: f64) -> List[i64]
+    let fr = frexp1(x)
+    return [(fr[0] * P52) as i64, (fr[1] as i64) - 52]
+
+# The value of the Ziv loop: [lo, hi] doubles of N -+ EB at scale 2^sh.
+fn ziv(n: &[i64], sh: i64) -> List[f64]
+    let eb = n_of(EB)
+    if n_cmp(n, &eb) <= 0
+        return [0.0, 1.0]
+    let lo = n_sub(n, &eb)
+    let hi = n_add(n, &eb)
+    return [n_round(&lo, sh), n_round(&hi, sh)]
+
+fn cst(c: &[i64], bits: i64, f: i64) -> List[i64]
+    return n_shr(c, bits - f)
+
+# x as a fixed-point magnitude with f fraction bits (exact when f is large
+# enough for x's last bit).
+fn fix(x: f64, f: i64) -> List[i64]
+    let me = mant(fabs(x))
+    let m = n_of(me[0])
+    if me[1] + f >= 0
+        return n_shl(&m, me[1] + f)
+    return n_shr(&m, 0 - me[1] - f)
+
+const ZIV_F: List[i64] = [200, 500, 1000, 2000]
+
+# ---- exp ----------------------------------------------------------------
+# x = k ln2 + r, 0 <= r < ln2, exp(x) = exp(r) 2^k.
+
+# exp(r) for 0 <= r < 1 at f fraction bits (Taylor)
+fn exp_fix(r: &[i64], f: i64) -> List[i64]
+    var s = n_pow2(f)
+    var t = n_pow2(f)
+    var k: i64 = 1
+    while t.len() > 0 bound 4096
+        let p = n_mul(&t, r)
+        let ps = n_shr(&p, f)
+        t = n_divs(&ps, k)
+        s = n_add(&s, &t)
+        k += 1
+    return s
+
+pub fn exp(x: f64) -> f64
+    if x == 0.0
+        return 1.0
+    if fabs(x) < 5.551115123125783e-17
+        return 1.0
+    if x > 709.7827128933841
+        return 1.7976931348623157e308 * 2.0
+    if x < -745.2
+        return 0.0
+    for f in ZIV_F
+        let xf = fix(x, f)
+        let c = c_ln2()
+        let l = cst(&c, 2100, f)
+        var k = (fabs(x) / 0.6931471805599453).floor() as i64
+        if x < 0.0
+            k += 1
+        var kl = n_muls(&l, k)
+        while x >= 0.0 and n_cmp(&kl, &xf) > 0 bound 4
+            k -= 1
+            kl = n_muls(&l, k)
+        while x < 0.0 and n_cmp(&kl, &xf) < 0 bound 4
+            k += 1
+            kl = n_muls(&l, k)
+        let r = if x >= 0.0 then n_sub(&xf, &kl) else n_sub(&kl, &xf)
+        let e = exp_fix(&r, f)
+        let kk = if x >= 0.0 then k else 0 - k
+        let z = ziv(&e, kk - f)
+        if z[0] == z[1]
+            return z[0]
+    return 0.0 / 0.0
+
+# ---- constants (generated by scripts/gen/math_const.py with MPFR 4.2.2) ----
+
+# floor(ln2 * 2^2100), base 2^30 limbs, little-endian
+fn c_ln2() -> List[i64]
+    return [456865368, 584271243, 407921857, 763183828, 296934193, 31710423, 744516785, 952431469,
+        504871386, 391405164, 890055829, 539578460, 665465028, 763385663, 243402573, 1042905170,
+        863414727, 214784296, 488990363, 793204773, 79798752, 618976339, 214716005, 300365007,
+        339637035, 576993650, 101152219, 47077469, 574480704, 1048928075, 493747230, 109820250,
+        260636245, 605569868, 301685755, 404738856, 284425564, 915105265, 790684578, 360613404,
+        50537606, 938061646, 625527541, 975095413, 1064613676, 674962837, 540747119, 789497049,
+        132882089, 72113934, 85642202, 411642787, 334064801, 73035273, 660028201, 81822992,
+        317383516, 1049019451, 357759818, 783442262, 123864798, 1049295342, 391875498, 414591028,
+        845621643, 735067344, 402911990, 791121614, 1025308570, 744261117]

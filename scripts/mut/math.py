@@ -9,7 +9,9 @@
 # a^2 + b^2 = ((2R + 1) u / 2)^2 reduces to an odd square that is a sum of
 # two squares, so 2R + 1 = 1 mod 4 and R is always even (the rule never
 # steps up; a step up is undone by the down loop's tie rule, which is
-# tested by tests/math/math_checks_ties.rce).
+# tested by tests/math/math_checks_ties.rce); n_round's overflow test at
+# e > 1024 instead of 1023 (the product q 2^(sh + drop) overflows and traps
+# all the same).
 import glob, os, subprocess, sys, tempfile
 from concurrent.futures import ThreadPoolExecutor
 RCE = os.environ.get('RCE', 'rce')
@@ -47,6 +49,44 @@ M = [('core',) + m for m in [
     ('        if c < 0 or (c == 0 and odd_on(r, grid(r, us)))', '        if c < 0'),
     ('    let b2 = two_prod(bb, bb)', '    let b2 = [bb * bb]'),
     ('    return r * pow2(k)', '    return r * pow2(k + 1)'),
+]] + [('exp',) + m for m in [
+    ('    if fabs(x) < 5.551115123125783e-17', '    if fabs(x) < 1e-10'),
+    ('    if x < -745.2\n        return 0.0', '    if x < -740.0\n        return 0.0'),
+    ('        t = n_divs(&ps, k)', '        t = n_divs(&ps, k + 1)'),
+    ('        let kk = if x >= 0.0 then k else 0 - k', '        let kk = if x >= 0.0 then k else 1 - k'),
+    ('        o[i + b.len()] = c', '        o[i + b.len()] = 0'),
+    ('            s += LM + 1', '            s += LM'),
+    ('            v = v | ((a[i + 1] << (LB - b)) & LM)', '            v = v'),
+    ('        c = if b > 0 then x >> (LB - b) else 0', '        c = 0'),
+    ('    return ((a.len() - 1) as i64) * LB + n', '    return ((a.len() - 1) as i64) * LB + n + 1'),
+    ('        r = t % s', '        r = 0'),
+    ('        drop = -1074 - sh', '        drop = -1075 - sh'),
+    ('    return n_shr(c, bits - f)', '    return n_shr(c, bits - f + 1)'),
+]] + [('log',) + m for m in [
+    ('    if c > 0\n        o.push(c)\n    return o', '    return o'),
+    ('        m = m * 0.5\n        e += 1', '        m = m * 0.5\n        e += 2'),
+    ('        let d = n_divs(&t, k)', '        let d = n_divs(&t, k + 2)'),
+    ('    return n_muls(&s, 2)', '    return n_muls(&s, 3)'),
+    ('            rneg = a_neg', '            rneg = neg'),
+    ('        digits.push(t / den)', '        digits.push((t / den) & 31)'),
+    ('        p += 6', '        p += 5'),
+    ('    if x == 1.0\n        return 0.0', '    if x == 1.0\n        return 1.0'),
+]] + [('sin',) + m for m in [
+    ('            o.push(a[i] & ((1 << b) - 1))', '            o.push(a[i])'),
+    ('    if ax < 7.450580596923828e-09', '    if ax < 1e-6'),
+    ('            q = (q + 1) % 4', '            q = q % 4'),
+    ('            neg = q >= 2', '            neg = q >= 3'),
+    ('            useS = q % 2 == 0', '            useS = q % 2 == 1'),
+    ('then not neg else neg', 'then neg else neg'),
+    ('        let ws = n_shr(&t, 4200 - me[1] - f)', '        let ws = n_shr(&t, 4201 - me[1] - f)'),
+    ('        t = n_divs(&ps, (k + 1) * (k + 2))', '        t = n_divs(&ps, (k + 1) * (k + 3))'),
+    ('            if useS and minus\n                neg = not neg\n        else', '            if false\n                neg = not neg\n        else'),
+]] + [('cos',) + m for m in [
+    ('            neg = q == 1 or q == 2', '            neg = q == 2'),
+    ('            useS = q % 2 == 1', '            useS = q % 2 == 0'),
+    ('    var cp = n_pow2(f)', '    var cp = n_pow2(f + 1)'),
+    ('    k = 0\n    plus = false', '    k = 1\n    plus = false'),
+    ('        return 1.0\n    let me = mant(ax)', '        return 0.0\n    let me = mant(ax)'),
 ]]
 SH = sorted(glob.glob(os.path.join(root, 'tests/math/math_checks*.rce')))
 
@@ -71,6 +111,7 @@ assert not fails(SRC, SH[0]), 'unmutated source fails'
 k = n = 0
 for g, a, b in M:
     if want and g not in want: continue
+    if g in ('exp', 'log', 'sin', 'cos') and 'pub fn %s(' % g not in SRC: continue
     assert SRC.count(a) >= 1, a
     n += 1
     if killed(SRC.replace(a, b, 1)): k += 1
