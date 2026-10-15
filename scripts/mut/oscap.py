@@ -116,6 +116,36 @@ M['signal'] = [
     ('    if code == 0\n        return 2', '    if code == 0\n        return 21'),
     ('fn is_stop(n: i64) -> bool = n == 19 or n == 20 or n == 21 or n == 22', 'fn is_stop(n: i64) -> bool = n == 19 or n == 20'),
 ]
+M['ipc'] = [
+    ('            if i == 1 and d.buf[0] == 48', '            if false'),
+    ('            if i > 9\n', '            if i > 10\n'),
+    ('        if i == 0 or d.buf[i] != 58', '        if d.buf[i] != 58'),
+    ('        if d.buf.len() <= end\n            return', '        if d.buf.len() < end\n            return'),
+    ('        if d.buf[end] != 44', '        if false'),
+    ('    o.push(44)\n', '    o.push(59)\n'),
+    ('        if n > d.max\n', '        if n > d.max + 1\n'),
+    ('        if (d.buf.len() as i64) < 4 + n\n', '        if (d.buf.len() as i64) < 3 + n\n'),
+    ('    let chars = n % PAGE', '    let chars = n % 4095'),
+    ('    if chars > 0 and p.bufs.len() > 0', '    if chars > 0 and p.bufs.len() > 1'),
+    ('        if p.bufs[k].offset + p.bufs[k].len + chars <= PAGE', '        if p.bufs[k].len + chars <= PAGE'),
+    ('            if ret == n\n                return ret\n    while', '            return ret\n    while'),
+    ('        let c = if n - ret < PAGE then n - ret else PAGE', '        let c = if n - ret < PAGE then n - ret else PAGE - 1'),
+    ('    return if ret == 0 then -1 else ret', '    return ret'),
+    ('        return if n == 0 then 0 else -1', '        return -1'),
+    ('        if p.bufs[0].len == 0\n', '        if p.bufs[0].len < 0\n'),
+    ('        p.bufs[0].offset += take', '        p.bufs[0].offset += 0'),
+    ('    while pages * PAGE < bytes bound 64', '    while pages * PAGE <= bytes bound 64'),
+    ('    if (p.bufs.len() as i64) > pages\n        return -1', '    if false\n        return -1'),
+    ('    if name_len == 0\n        return 8', '    if name_len == 0\n        return 2'),
+    ('    if name_len > SUN_PATH\n', '    if name_len >= SUN_PATH\n'),
+    ('        return 2 + name_len\n    return', '        return 3 + name_len\n    return'),
+    ('    if head.lower() != "pipe\\\\"', '    if head != "pipe\\\\"'),
+    ('    if nl == 0 or nl > 256 or name.contains("\\\\")', '    if nl == 0 or nl > 256'),
+    ('    if nl == 0 or nl > 256 or', '    if nl == 0 or nl > 257 or'),
+    ('    if i == 2 or i >= cs.len()', '    if i >= cs.len()'),
+    ('            if endpoint.startswith(&pre) and endpoint.len() > pre.len()', '            if endpoint.startswith(&pre)'),
+    ('                    if ec[k] == "/"\n                        ok = false', '                    if false\n                        ok = false'),
+]
 def one(job):
     name, a, b = job
     src = open(os.path.join(root, 'lib/os/%s.rce' % name)).read()

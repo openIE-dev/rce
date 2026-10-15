@@ -1,0 +1,59 @@
+fn hv(c: u8) -> u8 = if c >= 97 then c - 87 else c - 48
+fn unhex(t: &text) -> List[u8]
+    var o: List[u8] = []
+    if t == "-"
+        return o
+    var i: usize = 0
+    while i + 1 < t.len() bound 16777216
+        o.push(hv(t[i]) * 16 + hv(t[i + 1]))
+        i += 2
+    return o
+fn hx(b: &List[u8]) -> text
+    let d = "0123456789abcdef".chars()
+    var o = ""
+    for x in b
+        o = o + d[(x >> 4) as usize] + d[(x & 15) as usize]
+    return o
+fn ns_run(cs: text) -> text
+    var d = ns_new()
+    for t in cs.split(" ")
+        let c = unhex(&t)
+        ns_feed(&mut d, &c)
+    var o: List[text] = []
+    for f in d.out
+        o.push(hx(&f))
+    return ";".join(o) + "|" + d.bad
+fn lp_run(cs: text, mx: i64) -> text
+    var d = lp_new(mx)
+    for t in cs.split(" ")
+        let c = unhex(&t)
+        lp_feed(&mut d, &c)
+    var o: List[text] = []
+    for f in d.frames
+        o.push(hx(&f))
+    return ";".join(o) + "|" + d.bad
+fn pn(s: &text) -> i64
+    var v: i64 = 0
+    for c in s.chars()
+        v = v * 10 + (c[0] as i64 - 48)
+    return v
+fn pipe_run(s: text) -> text
+    var p = pipe_new()
+    var o: List[text] = []
+    for op in s.split(";")
+        let a = op.split(" ")
+        var r: i64 = 0
+        if a[0] == "w"
+            r = pipe_write(&mut p, pn(&a[1]))
+            o.push(if r < 0 then "EAGAIN" else r.tostr())
+        elif a[0] == "r"
+            r = pipe_read(&mut p, pn(&a[1]))
+            o.push(if r < 0 then "EAGAIN" else r.tostr())
+        else
+            r = pipe_set_size(&mut p, pn(&a[1]))
+            o.push(if r < 0 then "EBUSY" else r.tostr())
+    return ";".join(o)
+fn ns_enc(h: text) -> text
+    let b = unhex(&h)
+    let e = netstring(&b)
+    return hx(&e)
