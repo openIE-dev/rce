@@ -863,6 +863,7 @@ sign combinations.
 | log10 (push CI sample) | 4,095 of 65,553 | 1,484 | 238 | 5,817 |
 | sin (push CI sample) | 4,005 of 1,971,056 | 3,000 | 126 | 7,131 |
 | cos (push CI sample) | 4,008 of 1,090,196 | 3,000 | 126 | 7,134 |
+| tan (push CI sample) | 4,006 of 1,077,395 | 3,000 | 140 | 7,146 |
 
 The large CORE-MATH files (exp 25 MB, log 3 MB, sin 43 MB, cos 24 MB) are
 not copied: push CI runs an evenly spaced sample (`--sample 4000`), and the

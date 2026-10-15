@@ -22,6 +22,7 @@ FNS = {
  'log10': (1, lambda x: gmpy2.log10(x)),
  'sin': (1, lambda x: gmpy2.sin(x)),
  'cos': (1, lambda x: gmpy2.cos(x)),
+ 'tan': (1, lambda x: gmpy2.tan(x)),
 }
 
 def fin(x): return x == x and abs(x) != float('inf')
@@ -78,6 +79,7 @@ def main():
              2.0**1023, 1e22, 7.450580596923828e-09, nx(7.450580596923828e-09, -1), 2.0**-1074, 0.7853981633974483],
     }
     extra['cos'] = extra['sin']
+    extra['tan'] = extra['sin'] + [1.5707963267948966 * 3, 4.71238898038469]
     extra['log2'] = extra['log'] + [2.0**k for k in (-1074, -1022, -1, 1, 52, 1023)]
     extra['log10'] = extra['log'] + [10.0**k for k in range(0, 23)] + [1e23, 1e-5, 0.1]
     for e in extra.get(fn, []):
