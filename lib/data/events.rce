@@ -1,0 +1,1211 @@
+module data.events
+# uses: enc/enc
+use enc
+
+# CloudEvents 1.0 (survey M60): the common envelope of change feeds.
+# The JSON event format (structured mode, batches), the HTTP binding
+# (binary and structured content modes, percent-encoded header values)
+# and the Kafka binding (ce_ headers, key mapping from partitionkey).
+# Includes an RFC 8259 JSON parser (`Jv`, numbers kept as their source
+# lexeme) that data.cdc reuses for wal2json, Debezium and MongoDB events.
+# Attribute values are strings, integers or booleans (CloudEvents type
+# system as the JSON format carries it); a binding header always yields
+# a string (the canonical string form).
+# Not covered (needs spec): text from a code point outside the BMP and
+# U+1F000..U+1FFFF (rce 0.1.3 has no text-from-code-point built-in, so
+# \u escapes and percent-encoded UTF-8 decode through the CPTAB table);
+# JSON numbers are compared by lexeme (no f64 bit access).
+
+error BadEvent(why: text)
+
+# ---------------- JSON (RFC 8259) ----------------
+
+pub kind Jv
+    JsNull
+    JsBool(v: bool)
+    JsNum(raw: text)
+    JsStr(t: text)
+    JsArr(items: List[Jv])
+    JsObj(keys: List[text], vals: List[Jv])
+
+pub struct JOut
+    v: Jv
+    at: usize
+
+fn ev_ws(c: &text) -> bool = c == " " or c == "\t" or c == "\n" or c == "\r"
+
+fn ev_skip(cs: &[text], i: usize) -> usize
+    var k = i
+    while k < cs.len() and ev_ws(&cs[k]) bound 16777216
+        k += 1
+    return k
+
+fn ev_hexval(c: &text) -> i64
+    let x = c[0] as i64
+    if c.len() != 1
+        return -1
+    if x >= 48 and x <= 57
+        return x - 48
+    if x >= 97 and x <= 102
+        return x - 87
+    if x >= 65 and x <= 70
+        return x - 55
+    return -1
+
+fn ev_digit(c: &text) -> bool = c.len() == 1 and c[0] >= 48 and c[0] <= 57
+
+# Text of one Unicode scalar value (ASCII, the BMP and U+1F000..U+1FFFF).
+pub fn cp_text(cp: i64) -> text ! BadEvent
+    if cp < 0 or cp > 1114111 or (cp >= 55296 and cp <= 57343)
+        fail BadEvent(why: "not a scalar value")
+    if cp < 65536
+        return copy(CPTAB[(cp >> 8) as usize].chars()[(cp & 255) as usize])
+    if cp >= 126976 and cp < 131072
+        return copy(CPTAB[(256 + ((cp - 126976) >> 8)) as usize].chars()[(cp & 255) as usize])
+    fail BadEvent(why: "code point outside the table (needs spec)")
+
+fn ev_u4(cs: &[text], i: usize) -> i64
+    if i + 4 > cs.len()
+        return -1
+    var v: i64 = 0
+    for k in 0..4
+        let h = ev_hexval(&cs[i + k])
+        if h < 0
+            return -1
+        v = v * 16 + h
+    return v
+
+# String starting at the opening quote; returns the decoded text and the
+# index after the closing quote.
+fn ev_str(cs: &[text], i: usize) -> JOut ! BadEvent
+    var o = ""
+    var k = i + 1
+    while k < cs.len() bound 16777216
+        let c = copy(cs[k])
+        if c == "\""
+            return JOut(v: JsStr(t: o), at: k + 1)
+        if c == "\\"
+            if k + 1 >= cs.len()
+                fail BadEvent(why: "JSON: unterminated string")
+            let e = copy(cs[k + 1])
+            k += 2
+            if e == "\"" or e == "\\" or e == "/"
+                o = o + e
+            elif e == "b"
+                o = o + "\u{8}"
+            elif e == "f"
+                o = o + "\u{c}"
+            elif e == "n"
+                o = o + "\n"
+            elif e == "r"
+                o = o + "\r"
+            elif e == "t"
+                o = o + "\t"
+            elif e == "u"
+                var u = ev_u4(cs, k)
+                if u < 0
+                    fail BadEvent(why: "JSON: bad \\u escape")
+                k += 4
+                if u >= 55296 and u <= 56319
+                    if k + 6 > cs.len() or cs[k] != "\\" or cs[k + 1] != "u"
+                        fail BadEvent(why: "JSON: lone surrogate")
+                    let l = ev_u4(cs, k + 2)
+                    if l < 56320 or l > 57343
+                        fail BadEvent(why: "JSON: lone surrogate")
+                    u = 65536 + ((u - 55296) << 10) + (l - 56320)
+                    k += 6
+                elif u >= 56320 and u <= 57343
+                    fail BadEvent(why: "JSON: lone surrogate")
+                o = o + (try cp_text(u))
+            else
+                fail BadEvent(why: "JSON: bad escape")
+        elif c.len() == 1 and c[0] < 32
+            fail BadEvent(why: "JSON: control character in string")
+        else
+            o = o + c
+            k += 1
+    fail BadEvent(why: "JSON: unterminated string")
+
+# number = [ minus ] int [ frac ] [ exp ]
+fn ev_num(cs: &[text], i: usize) -> JOut ! BadEvent
+    var k = i
+    if k < cs.len() and cs[k] == "-"
+        k += 1
+    if k >= cs.len() or not ev_digit(&cs[k])
+        fail BadEvent(why: "JSON: bad number")
+    if cs[k] == "0"
+        k += 1
+    else
+        while k < cs.len() and ev_digit(&cs[k]) bound 16777216
+            k += 1
+    if k < cs.len() and cs[k] == "."
+        k += 1
+        if k >= cs.len() or not ev_digit(&cs[k])
+            fail BadEvent(why: "JSON: bad fraction")
+        while k < cs.len() and ev_digit(&cs[k]) bound 16777216
+            k += 1
+    if k < cs.len() and (cs[k] == "e" or cs[k] == "E")
+        k += 1
+        if k < cs.len() and (cs[k] == "+" or cs[k] == "-")
+            k += 1
+        if k >= cs.len() or not ev_digit(&cs[k])
+            fail BadEvent(why: "JSON: bad exponent")
+        while k < cs.len() and ev_digit(&cs[k]) bound 16777216
+            k += 1
+    var raw = ""
+    var j = i
+    while j < k bound 16777216
+        raw = raw + cs[j]
+        j += 1
+    return JOut(v: JsNum(raw: raw), at: k)
+
+fn ev_lit(cs: &[text], i: usize, w: text) -> bool
+    let ws = w.chars()
+    if i + ws.len() > cs.len()
+        return false
+    for k in 0..ws.len()
+        if cs[i + k] != ws[k]
+            return false
+    return true
+
+fn ev_value(cs: &[text], i0: usize) -> JOut ! BadEvent bound 64
+    let i = ev_skip(cs, i0)
+    if i >= cs.len()
+        fail BadEvent(why: "JSON: unexpected end")
+    let c = copy(cs[i])
+    if c == "{"
+        var keys: List[text] = []
+        var vals: List[Jv] = []
+        var k = ev_skip(cs, i + 1)
+        if k < cs.len() and cs[k] == "}"
+            return JOut(v: JsObj(keys: keys, vals: vals), at: k + 1)
+        while true bound 16777216
+            k = ev_skip(cs, k)
+            if k >= cs.len() or cs[k] != "\""
+                fail BadEvent(why: "JSON: expected a member name")
+            let ko = try ev_str(cs, k)
+            k = ev_skip(cs, ko.at)
+            if k >= cs.len() or cs[k] != ":"
+                fail BadEvent(why: "JSON: expected ':'")
+            let vo = try ev_value(cs, k + 1)
+            k = ev_skip(cs, vo.at)
+            match ko.v
+                JsStr(t: name) -> keys.push(copy(name))
+                _ -> fail BadEvent(why: "JSON: member name")
+            vals.push(vo.v)
+            if k < cs.len() and cs[k] == ","
+                k += 1
+            elif k < cs.len() and cs[k] == "}"
+                return JOut(v: JsObj(keys: keys, vals: vals), at: k + 1)
+            else
+                fail BadEvent(why: "JSON: expected ',' or '}'")
+        fail BadEvent(why: "JSON: unreachable")
+    if c == "["
+        var items: List[Jv] = []
+        var k = ev_skip(cs, i + 1)
+        if k < cs.len() and cs[k] == "]"
+            return JOut(v: JsArr(items: items), at: k + 1)
+        while true bound 16777216
+            let vo = try ev_value(cs, k)
+            k = ev_skip(cs, vo.at)
+            items.push(vo.v)
+            if k < cs.len() and cs[k] == ","
+                k += 1
+            elif k < cs.len() and cs[k] == "]"
+                return JOut(v: JsArr(items: items), at: k + 1)
+            else
+                fail BadEvent(why: "JSON: expected ',' or ']'")
+        fail BadEvent(why: "JSON: unreachable")
+    if c == "\""
+        return try ev_str(cs, i)
+    if ev_lit(cs, i, "true")
+        return JOut(v: JsBool(v: true), at: i + 4)
+    if ev_lit(cs, i, "false")
+        return JOut(v: JsBool(v: false), at: i + 5)
+    if ev_lit(cs, i, "null")
+        return JOut(v: JsNull, at: i + 4)
+    return try ev_num(cs, i)
+
+# One JSON text (RFC 8259 section 2): a value with optional whitespace.
+pub fn json_parse(t: &text) -> Jv ! BadEvent
+    let cs = t.chars()
+    let o = try ev_value(&cs, 0)
+    let at = o.at
+    if ev_skip(&cs, at) != cs.len()
+        fail BadEvent(why: "JSON: trailing data")
+    return o.v
+
+fn ev_key_lt(a: &text, b: &text) -> bool
+    var i: usize = 0
+    while i < a.len() and i < b.len() bound 16777216
+        if a[i] != b[i]
+            return a[i] < b[i]
+        i += 1
+    return a.len() < b.len()
+
+# Compact JSON; `sorted` orders object members by UTF-8 bytes of the
+# name (the canonical form used to compare values); otherwise members
+# keep their order. Strings are written as enc.jcs_string writes them.
+pub fn json_text(j: &Jv, sorted: bool) -> text bound 64
+    match j
+        JsNull -> return "null"
+        JsBool(v: v) -> return if v then "true" else "false"
+        JsNum(raw: r) -> return copy(r)
+        JsStr(t: t) -> return enc.jcs_string(t)
+        JsArr(items: items) -> return "[" + ",".join(items.map(fn(x: Jv) => json_text(&x, sorted))) + "]"
+        JsObj(keys: keys, vals: vals) -> return ev_obj_text(keys, vals, sorted)
+
+fn ev_obj_text(keys: &[text], vals: &[Jv], sorted: bool) -> text bound 64
+    var idx: List[usize] = []
+    for i in 0..keys.len()
+        var j = idx.len()
+        idx.push(i)
+        while sorted and j > 0 and ev_key_lt(&keys[i], &keys[idx[j - 1]]) bound 16777216
+            idx[j] = idx[j - 1]
+            j -= 1
+        idx[j] = i
+    var parts: List[text] = []
+    for i in idx
+        parts.push(enc.jcs_string(&keys[i]) + ":" + json_text(&vals[i], sorted))
+    return "{" + ",".join(parts) + "}"
+
+pub fn json_canon(j: &Jv) -> text = json_text(j, true)
+
+# Member of an object (the first with that name), none otherwise.
+pub fn jget(j: &Jv, name: &text) -> Jv?
+    match j
+        JsObj(keys: keys, vals: vals) -> return ev_find(keys, vals, name)
+        _ -> return none
+
+fn ev_find(keys: &[text], vals: &[Jv], name: &text) -> Jv?
+    for i in 0..keys.len()
+        if keys[i] == name
+            return some(copy(vals[i]))
+    return none
+
+# ---------------- events (CloudEvents 1.0, spec.md section 3) ----------------
+
+pub kind Val
+    VStr(t: text)
+    VInt(v: i64)
+    VBool(v: bool)
+
+pub struct Attr
+    name: text
+    val: Val
+
+pub kind Data
+    DNone
+    DJson(v: Jv)
+    DText(t: text)
+    DBin(b: List[i64])
+
+# attrs: every context attribute present, sorted by name (required,
+# optional and extension attributes alike).
+pub struct Event
+    attrs: List[Attr]
+    data: Data
+
+pub const REQUIRED: List[text] = ["id", "source", "specversion", "type"]
+
+pub fn is_str(v: &Val) -> bool
+    match v
+        VStr(t: t) -> return true
+        _ -> return false
+
+pub fn val_text(v: &Val) -> text
+    match v
+        VStr(t: t) -> return copy(t)
+        VInt(v: n) -> return n.tostr()
+        VBool(v: b) -> return if b then "true" else "false"
+
+pub fn attr(e: &Event, name: text) -> Val?
+    for a in e.attrs
+        if a.name == name
+            return some(copy(a.val))
+    return none
+
+# Canonical string of an attribute, "" when absent.
+pub fn attr_text(e: &Event, name: text) -> text
+    let v = attr(e, copy(name))
+    if v.isnone()
+        return ""
+    let x = v.or(VBool(v: false))
+    return val_text(&x)
+
+pub fn has_attr(e: &Event, name: text) -> bool = attr(e, name).issome()
+
+# Attribute names: [a-z0-9]+ (spec.md 3.1.1; the 20-character limit is
+# a SHOULD and is not enforced).
+pub fn valid_name(n: &text) -> bool
+    if n.len() == 0
+        return false
+    var i: usize = 0
+    while i < n.len() bound 16777216
+        let x = n[i]
+        if not ((x >= 97 and x <= 122) or (x >= 48 and x <= 57))
+            return false
+        i += 1
+    return true
+
+fn ev_is_ctl(t: &text) -> bool
+    for c in t.chars()
+        let x = c[0] as i64
+        if c.len() == 1 and (x < 32 or x == 127)
+            return true
+        if c.len() == 2 and x == 194 and c[1] < 160
+            return true
+    return false
+
+# RFC 3339 date-time (section 5.6): full-date "T" full-time, with "t",
+# "z" and fractional seconds accepted; ranges are checked (leap second
+# 60 allowed, day within the month).
+pub fn valid_time(t: &text) -> bool
+    let cs = t.chars()
+    if cs.len() < 20
+        return false
+    for k in [0, 1, 2, 3, 5, 6, 8, 9, 11, 12, 14, 15, 17, 18]
+        if not ev_digit(&cs[k])
+            return false
+    if cs[4] != "-" or cs[7] != "-" or (cs[10] != "T" and cs[10] != "t") or cs[13] != ":" or cs[16] != ":"
+        return false
+    let y = ev_n(&cs, 0, 4)
+    let mo = ev_n(&cs, 5, 2)
+    let d = ev_n(&cs, 8, 2)
+    let leap = (y % 4 == 0 and y % 100 != 0) or y % 400 == 0
+    let mdays = [31, if leap then 29 else 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+    if mo < 1 or mo > 12 or d < 1 or d > mdays[(mo - 1) as usize]
+        return false
+    if ev_n(&cs, 11, 2) > 23 or ev_n(&cs, 14, 2) > 59 or ev_n(&cs, 17, 2) > 60
+        return false
+    var k: usize = 19
+    if cs[k] == "."
+        k += 1
+        let s = k
+        while k < cs.len() and ev_digit(&cs[k]) bound 16777216
+            k += 1
+        if k == s
+            return false
+    if k == cs.len() - 1 and (cs[k] == "Z" or cs[k] == "z")
+        return true
+    if k + 6 != cs.len() or (cs[k] != "+" and cs[k] != "-") or cs[k + 3] != ":"
+        return false
+    if not (ev_digit(&cs[k + 1]) and ev_digit(&cs[k + 2]) and ev_digit(&cs[k + 4]) and ev_digit(&cs[k + 5]))
+        return false
+    return ev_n(&cs, k + 1, 2) <= 23 and ev_n(&cs, k + 4, 2) <= 59
+
+fn ev_n(cs: &[text], at: usize, n: usize) -> i64
+    var v: i64 = 0
+    for k in 0..n
+        v = v * 10 + (cs[at + k][0] as i64 - 48)
+    return v
+
+# Validity of an event (spec.md 3.1, 3.2): specversion "1.0"; id,
+# source, type non-empty strings; optional attributes strings of their
+# form (time RFC 3339, subject and dataschema non-empty); names valid;
+# no control characters in string values; data_base64 is not a name.
+pub fn validate(e: &Event) -> text?
+    for r in REQUIRED
+        let v = attr(e, copy(r))
+        if v.isnone()
+            return some("missing " + r)
+        let x = v.or(VBool(v: false))
+        if not is_str(&x)
+            return some(r + " must be a string")
+        if attr_text(e, copy(r)) == ""
+            return some("empty " + r)
+    if attr_text(e, "specversion") != "1.0"
+        return some("unsupported specversion")
+    var prev = ""
+    for a in e.attrs
+        if not valid_name(&a.name)
+            return some("bad attribute name " + a.name)
+        if prev != "" and not ev_key_lt(&prev, &a.name)
+            return some("attributes not sorted or duplicated")
+        prev = copy(a.name)
+        let opt = a.name == "datacontenttype" or a.name == "dataschema" or a.name == "subject" or a.name == "time"
+        let vt = val_text(&a.val)
+        if is_str(&a.val) and ev_is_ctl(&vt)
+            return some("control character in " + a.name)
+        if opt and not is_str(&a.val)
+            return some(a.name + " must be a string")
+        if opt and attr_text(e, copy(a.name)) == ""
+            return some("empty " + a.name)
+        if a.name == "time" and not valid_time(&vt)
+            return some("bad time")
+    return none
+
+fn ev_insert(attrs: &mut List[Attr], a: Attr)
+    var j = attrs.len()
+    attrs.push(copy(a))
+    while j > 0 and ev_key_lt(&a.name, &attrs[j - 1].name) bound 16777216
+        attrs[j] = copy(attrs[j - 1])
+        j -= 1
+    attrs[j] = a
+
+# An event from attributes in any order; duplicates and invalid events fail.
+pub fn make(attrs: &[Attr], data: Data) -> Event ! BadEvent
+    var s: List[Attr] = []
+    for a in attrs
+        ev_insert(&mut s, copy(a))
+    let e = Event(attrs: s, data: data)
+    match validate(&e)
+        some(w) -> fail BadEvent(why: w)
+        none -> return e
+
+pub fn sattr(n: text, v: text) -> Attr = Attr(name: n, val: VStr(t: v))
+
+# Media type without parameters, lower-case and trimmed.
+pub fn media_type(ct: &text) -> text
+    let parts = ct.split(";")
+    return parts[0].strip().lower()
+
+# */json or */*+json (json-format.md 3.1.1).
+pub fn is_json_type(ct: &text) -> bool
+    let m = media_type(ct)
+    let p = m.split("/")
+    if p.len() != 2
+        return false
+    return p[1] == "json" or p[1].endswith("+json")
+
+fn ev_json_ct(e: &Event) -> bool
+    let ct = attr_text(e, "datacontenttype")
+    return if has_attr(e, "datacontenttype") then is_json_type(&ct) else true
+
+# ---------------- JSON event format (json-format.md) ----------------
+
+# (A `Val? ! BadEvent` result loses its some() wrapper in rce 0.1.3's
+# comptime evaluator, so null is tested by the caller.)
+fn ev_is_null(v: &Jv) -> bool
+    match v
+        JsNull -> return true
+        _ -> return false
+
+fn ev_attr_val(name: &text, v: &Jv) -> Val ! BadEvent
+    match v
+        JsStr(t: t) -> return VStr(t: copy(t))
+        JsBool(v: b) -> return VBool(v: b)
+        JsNum(raw: r) -> return VInt(v: try ev_int(r))
+        _ -> fail BadEvent(why: "attribute " + name + " is not a scalar")
+
+# CloudEvents Integer: JSON number with no fraction or exponent, within
+# a signed 32-bit range (spec.md type system).
+fn ev_int(r: &text) -> i64 ! BadEvent
+    let cs = r.chars()
+    var v: i64 = 0
+    var k: usize = if cs[0] == "-" then 1 else 0
+    if cs.len() - k > 10
+        fail BadEvent(why: "integer out of range")
+    while k < cs.len() bound 16
+        if not ev_digit(&cs[k])
+            fail BadEvent(why: "attribute integer is not an integer")
+        v = v * 10 + (cs[k][0] as i64 - 48)
+        k += 1
+    if cs[0] == "-"
+        v = 0 - v
+    if v < -2147483648 or v > 2147483647
+        fail BadEvent(why: "integer out of range")
+    return v
+
+fn ev_from_obj(keys: &[text], vals: &[Jv]) -> Event ! BadEvent
+    var attrs: List[Attr] = []
+    var data = DNone
+    var dj: Jv? = none
+    var b64: text? = none
+    for i in 0..keys.len()
+        for j in 0..i
+            if keys[j] == keys[i]
+                fail BadEvent(why: "duplicate member " + keys[i])
+        let k = copy(keys[i])
+        if k == "data"
+            dj = some(copy(vals[i]))
+        elif k == "data_base64"
+            match vals[i]
+                JsStr(t: t) -> b64 = some(copy(t))
+                JsNull -> b64 = none
+                _ -> fail BadEvent(why: "data_base64 must be a string")
+        else
+            if not ev_is_null(&vals[i])
+                let av = try ev_attr_val(&k, &vals[i])
+                ev_insert(&mut attrs, Attr(name: k, val: av))
+    if dj.issome() and b64.issome()
+        fail BadEvent(why: "both data and data_base64")
+    let e0 = Event(attrs: attrs, data: DNone)
+    let w0 = validate(&e0)
+    if w0.issome()
+        fail BadEvent(why: w0.or(""))
+    if b64.issome()
+        let bt = b64.or("")
+        let bs = enc.b64_decode(&bt, false, true) catch [-1]
+        if bs.len() == 1 and bs[0] < 0
+            fail BadEvent(why: "bad data_base64")
+        data = DBin(b: bs)
+    if dj.issome()
+        data = ev_data_member(&e0, dj.or(JsNull))
+    return Event(attrs: e0.attrs, data: data)
+
+# 3.1.2: with a JSON content type the member is the value; otherwise a
+# string member is the text data (other values are kept as JSON).
+fn ev_data_member(e: &Event, v: Jv) -> Data
+    if ev_json_ct(e)
+        return DJson(v: v)
+    match v
+        JsStr(t: t) -> return DText(t: copy(t))
+        _ -> return DJson(v: v)
+
+pub fn from_json_value(j: &Jv) -> Event ! BadEvent
+    match j
+        JsObj(keys: keys, vals: vals) -> return try ev_from_obj(keys, vals)
+        _ -> fail BadEvent(why: "an event is a JSON object")
+
+# A structured-mode event (application/cloudevents+json).
+pub fn from_json(t: &text) -> Event ! BadEvent
+    let j = try json_parse(t)
+    return try from_json_value(&j)
+
+# A batch (application/cloudevents-batch+json): a JSON array of events.
+pub fn from_batch(t: &text) -> List[Event] ! BadEvent
+    let j = try json_parse(t)
+    var o: List[Event] = []
+    let items = ev_items(&j)
+    if items.isnone()
+        fail BadEvent(why: "a batch is a JSON array")
+    for x in items.or([])
+        o.push(try from_json_value(&x))
+    return o
+
+fn ev_items(j: &Jv) -> List[Jv]?
+    match j
+        JsArr(items: items) -> return some(copy(items))
+        _ -> return none
+
+fn ev_val_json(v: &Val) -> Jv
+    match v
+        VStr(t: t) -> return JsStr(t: copy(t))
+        VInt(v: n) -> return JsNum(raw: n.tostr())
+        VBool(v: b) -> return JsBool(v: b)
+
+pub fn to_json_value(e: &Event) -> Jv
+    var keys: List[text] = []
+    var vals: List[Jv] = []
+    for a in e.attrs
+        keys.push(copy(a.name))
+        vals.push(ev_val_json(&a.val))
+    match e.data
+        DNone -> keys = keys
+        DJson(v: v) -> ev_push(&mut keys, &mut vals, "data", copy(v))
+        DText(t: t) -> ev_push(&mut keys, &mut vals, "data", JsStr(t: copy(t)))
+        DBin(b: b) -> ev_push(&mut keys, &mut vals, "data_base64", JsStr(t: enc.b64_encode(b, false, true)))
+    return JsObj(keys: keys, vals: vals)
+
+fn ev_push(keys: &mut List[text], vals: &mut List[Jv], k: text, v: Jv)
+    keys.push(k)
+    vals.push(v)
+
+# Structured mode body: members sorted by name (attributes, then data or
+# data_base64 in name order), compact.
+pub fn to_json(e: &Event) -> text
+    let j = to_json_value(e)
+    return json_canon(&j)
+
+pub fn to_batch(es: &[Event]) -> text = "[" + ",".join(es.map(fn(e: Event) => to_json(&e))) + "]"
+
+# Data as canonical JSON text (for comparing payloads): JSON data is
+# canonicalized, text data parses as JSON when it is JSON, binary is
+# its base64 string.
+pub fn data_canon(e: &Event) -> text
+    match e.data
+        DNone -> return ""
+        DJson(v: v) -> return json_canon(v)
+        DText(t: t) -> return ev_canon_text(t)
+        DBin(b: b) -> return ev_b64_str(b)
+
+fn ev_b64_str(b: &[i64]) -> text
+    let t = enc.b64_encode(b, false, true)
+    return enc.jcs_string(&t)
+
+fn ev_canon_text(t: &text) -> text
+    let j = json_parse(t) catch JsStr(t: copy(t))
+    return json_canon(&j)
+
+# ---------------- percent-encoding of header values (http binding 3.1.3.2) ----------------
+
+const EV_HEX: text = "0123456789ABCDEF"
+
+fn ev_pct(o: &mut text, x: i64)
+    let h = EV_HEX.chars()
+    o = o + "%" + h[(x >> 4) as usize] + h[(x & 15) as usize]
+
+# Space, '"', '%' and everything outside U+0021..U+007E become %XY of
+# each UTF-8 byte, upper-case hex.
+pub fn pct_encode(t: &text) -> text
+    var o = ""
+    for c in t.chars()
+        let x = c[0] as i64
+        if c.len() == 1 and x > 32 and x < 127 and x != 34 and x != 37
+            o = o + c
+        else
+            var i: usize = 0
+            while i < c.len() bound 4
+                ev_pct(&mut o, c[i] as i64)
+                i += 1
+    return o
+
+# UTF-8 bytes to text; ill-formed sequences (overlongs, surrogates,
+# truncation) fail (Unicode Table 3-7).
+pub fn utf8_text(b: &[i64]) -> text ! BadEvent
+    var o = ""
+    var i: usize = 0
+    while i < b.len() bound 16777216
+        let x = b[i]
+        var n: usize = 0
+        var cp: i64 = 0
+        var lo: i64 = 128
+        var hi: i64 = 191
+        if x < 128
+            n = 1
+            cp = x
+        elif x >= 194 and x <= 223
+            n = 2
+            cp = x & 31
+        elif x >= 224 and x <= 239
+            n = 3
+            cp = x & 15
+            if x == 224
+                lo = 160
+            if x == 237
+                hi = 159
+        elif x >= 240 and x <= 244
+            n = 4
+            cp = x & 7
+            if x == 240
+                lo = 144
+            if x == 244
+                hi = 143
+        else
+            fail BadEvent(why: "invalid UTF-8")
+        if i + n > b.len()
+            fail BadEvent(why: "invalid UTF-8")
+        for k in 1..n
+            let y = b[i + k]
+            let l = if k == 1 then lo else 128
+            let h = if k == 1 then hi else 191
+            if y < l or y > h
+                fail BadEvent(why: "invalid UTF-8")
+            cp = (cp << 6) | (y & 63)
+        o = o + (try cp_text(cp))
+        i += n
+    return o
+
+# One round of percent-decoding; malformed escapes and invalid UTF-8
+# (e.g. the overlong "%C0%A0") fail; unnecessary escapes are accepted.
+pub fn pct_decode(t: &text) -> text ! BadEvent
+    let cs = t.chars()
+    var bs: List[i64] = []
+    var o = ""
+    var i: usize = 0
+    while i < cs.len() bound 16777216
+        if cs[i] == "%"
+            if i + 2 >= cs.len()
+                fail BadEvent(why: "truncated percent escape")
+            let h = ev_hexval(&cs[i + 1])
+            let l = ev_hexval(&cs[i + 2])
+            if h < 0 or l < 0
+                fail BadEvent(why: "bad percent escape")
+            bs.push(h * 16 + l)
+            i += 3
+        else
+            if bs.len() > 0
+                o = o + (try utf8_text(&bs))
+                bs = []
+            o = o + cs[i]
+            i += 1
+    if bs.len() > 0
+        o = o + (try utf8_text(&bs))
+    return o
+
+# RFC 7230 3.2.6: a header value that is a quoted-string is unquoted
+# (backslash escapes processed) before percent-decoding.
+pub fn unquote(v: &text) -> text ! BadEvent
+    let cs = v.chars()
+    if cs.len() == 0 or cs[0] != "\""
+        return copy(v)
+    var o = ""
+    var i: usize = 1
+    while i < cs.len() bound 16777216
+        if cs[i] == "\\"
+            if i + 1 >= cs.len()
+                fail BadEvent(why: "bad quoted-string")
+            o = o + cs[i + 1]
+            i += 2
+        elif cs[i] == "\""
+            if i != cs.len() - 1
+                fail BadEvent(why: "data after quoted-string")
+            return o
+        else
+            o = o + cs[i]
+            i += 1
+    fail BadEvent(why: "unterminated quoted-string")
+
+# ---------------- bindings ----------------
+
+pub struct Hdr
+    name: text
+    value: text
+
+pub kind Body
+    BEmpty
+    BText(t: text)
+    BBytes(b: List[i64])
+
+pub struct Msg
+    headers: List[Hdr]
+    body: Body
+
+# Kafka record: key absent when "" and has_key is false.
+pub struct Record
+    has_key: bool
+    key: text
+    headers: List[Hdr]
+    body: Body
+
+fn ev_hget(hs: &[Hdr], name: text, fold: bool) -> text?
+    for h in hs
+        if (if fold then h.name.lower() == name.lower() else h.name == name)
+            return some(copy(h.value))
+    return none
+
+fn ev_body_data(b: &Body, ct: &text, has_ct: bool) -> Data ! BadEvent
+    match b
+        BEmpty -> return DNone
+        BBytes(b: x) -> return if x.len() == 0 then DNone else DBin(b: copy(x))
+        BText(t: t) -> return try ev_text_data(t, ct, has_ct)
+
+# An empty body carries no data (binary mode).
+fn ev_text_data(t: &text, ct: &text, has_ct: bool) -> Data ! BadEvent
+    if t == ""
+        return DNone
+    if not has_ct or is_json_type(ct)
+        return DJson(v: try json_parse(t))
+    return DText(t: copy(t))
+
+fn ev_body_text(b: &Body) -> text ! BadEvent
+    match b
+        BText(t: t) -> return copy(t)
+        BEmpty -> return ""
+        BBytes(b: x) -> return try utf8_text(x)
+
+# Content mode by Content-Type: structured for application/cloudevents
+# (+json), batch for application/cloudevents-batch, binary otherwise.
+pub fn mode_of(ct: &text) -> text
+    let m = media_type(ct)
+    if m.startswith("application/cloudevents-batch")
+        return "batch"
+    if m.startswith("application/cloudevents")
+        return "structured"
+    return "binary"
+
+fn ev_binary(hs: &[Hdr], prefix: text, fold: bool, http: bool, body: &Body) -> Event ! BadEvent
+    var attrs: List[Attr] = []
+    let pl = prefix.chars().len()
+    for h in hs
+        let n = if fold then h.name.lower() else copy(h.name)
+        if n.startswith(copy(prefix))
+            let cs = n.chars()
+            var a = ""
+            for k in pl..cs.len()
+                a = a + cs[k]
+            for x in attrs
+                if x.name == a
+                    fail BadEvent(why: "duplicate header for " + a)
+            var v = copy(h.value)
+            if http
+                let uq = try unquote(&h.value)
+                v = try pct_decode(&uq)
+            ev_insert(&mut attrs, Attr(name: a, val: VStr(t: v)))
+    let ctn = if http then "content-type" else "content-type"
+    let cto = ev_hget(hs, copy(ctn), fold)
+    var ct = ""
+    match cto
+        some(c) -> ct = copy(c)
+        none -> ct = ""
+    if cto.issome()
+        for x in attrs
+            if x.name == "datacontenttype"
+                fail BadEvent(why: "datacontenttype given as a ce header")
+        ev_insert(&mut attrs, Attr(name: "datacontenttype", val: VStr(t: copy(ct))))
+    let e0 = Event(attrs: attrs, data: DNone)
+    match validate(&e0)
+        some(w) -> fail BadEvent(why: w)
+        none -> ct = ct
+    let d = try ev_body_data(body, &ct, cto.issome())
+    return Event(attrs: e0.attrs, data: d)
+
+# HTTP request or response to an event (structured or binary mode).
+# Header names compare without case. A batch fails here (from_http_batch).
+pub fn from_http(m: &Msg) -> Event ! BadEvent
+    let ct = ev_hget(&m.headers, "content-type", true).or("")
+    let md = mode_of(&ct)
+    if md == "structured"
+        if not is_json_type(&ct) and media_type(&ct) != "application/cloudevents"
+            fail BadEvent(why: "unsupported event format")
+        let bt = try ev_body_text(&m.body)
+        return try from_json(&bt)
+    if md == "batch"
+        fail BadEvent(why: "batch message")
+    return try ev_binary(&m.headers, "ce-", true, true, &m.body)
+
+pub fn from_http_batch(m: &Msg) -> List[Event] ! BadEvent
+    let ct = ev_hget(&m.headers, "content-type", true).or("")
+    if mode_of(&ct) != "batch"
+        fail BadEvent(why: "not a batch")
+    let bt = try ev_body_text(&m.body)
+    return try from_batch(&bt)
+
+fn ev_data_body(d: &Data) -> Body
+    match d
+        DNone -> return BEmpty
+        DJson(v: v) -> return BText(t: json_text(v, false))
+        DText(t: t) -> return BText(t: copy(t))
+        DBin(b: b) -> return BBytes(b: copy(b))
+
+# Binary mode: ce-<name> headers in attribute order (percent-encoded),
+# datacontenttype as Content-Type, data as the body.
+pub fn to_http_binary(e: &Event) -> Msg
+    var hs: List[Hdr] = []
+    for a in e.attrs
+        if a.name == "datacontenttype"
+            hs.push(Hdr(name: "content-type", value: val_text(&a.val)))
+        else
+            let vt = val_text(&a.val)
+            hs.push(Hdr(name: "ce-" + a.name, value: pct_encode(&vt)))
+    if ev_implied_json(e)
+        hs.push(Hdr(name: "content-type", value: "application/json"))
+    return Msg(headers: hs, body: ev_data_body(&e.data))
+
+# JSON data without datacontenttype: the re-encoded message states the
+# implied application/json (json-format.md 3.1.2, last paragraph).
+fn ev_implied_json(e: &Event) -> bool
+    if has_attr(e, "datacontenttype")
+        return false
+    match e.data
+        DJson(v: v) -> return true
+        _ -> return false
+
+pub fn to_http_structured(e: &Event) -> Msg = Msg(headers: [Hdr(name: "content-type", value: "application/cloudevents+json; charset=UTF-8")], body: BText(t: to_json(e)))
+
+pub fn to_http_batch(es: &[Event]) -> Msg = Msg(headers: [Hdr(name: "content-type", value: "application/cloudevents-batch+json; charset=UTF-8")], body: BText(t: to_batch(es)))
+
+# Kafka record to an event: content-type decides the mode; binary mode
+# reads ce_<name> headers (values are UTF-8 strings, not percent-encoded).
+# key_mapper "partitionkey": a record key with no partitionkey attribute
+# becomes that attribute (the inverse of the opt-in key mapper).
+pub fn from_kafka(r: &Record, key_mapper: &text) -> Event ! BadEvent
+    let ct = ev_hget(&r.headers, "content-type", false).or("")
+    let md = mode_of(&ct)
+    var e = Event(attrs: [], data: DNone)
+    if md == "structured"
+        let bt = try ev_body_text(&r.body)
+        e = try from_json(&bt)
+    elif md == "batch"
+        fail BadEvent(why: "batch is not defined for Kafka")
+    else
+        e = try ev_binary(&r.headers, "ce_", false, false, &r.body)
+    if key_mapper == "partitionkey" and r.has_key and not has_attr(&e, "partitionkey")
+        ev_insert(&mut e.attrs, Attr(name: "partitionkey", val: VStr(t: copy(r.key))))
+    return e
+
+# Event to a Kafka record; key_mapper "partitionkey" maps that extension
+# to the key (kafka binding 3.1), "" leaves the key unset.
+pub fn to_kafka_binary(e: &Event, key_mapper: &text) -> Record
+    var hs: List[Hdr] = []
+    for a in e.attrs
+        if a.name == "datacontenttype"
+            hs.push(Hdr(name: "content-type", value: val_text(&a.val)))
+        else
+            hs.push(Hdr(name: "ce_" + a.name, value: val_text(&a.val)))
+    if ev_implied_json(e)
+        hs.push(Hdr(name: "content-type", value: "application/json"))
+    let pk = key_mapper == "partitionkey" and has_attr(e, "partitionkey")
+    return Record(has_key: pk, key: if pk then attr_text(e, "partitionkey") else "", headers: hs, body: ev_data_body(&e.data))
+
+pub fn to_kafka_structured(e: &Event, key_mapper: &text) -> Record
+    let pk = key_mapper == "partitionkey" and has_attr(e, "partitionkey")
+    return Record(has_key: pk, key: if pk then attr_text(e, "partitionkey") else "", headers: [Hdr(name: "content-type", value: "application/cloudevents+json; charset=UTF-8")], body: BText(t: to_json(e)))
+
+# ---- cptab (generated by scripts/gen/cptab.py; do not edit)
+const CPTAB: List[text] = [
+    "\u{0}\u{1}\u{2}\u{3}\u{4}\u{5}\u{6}\u{7}\u{8}\u{9}\u{a}\u{b}\u{c}\u{d}\u{e}\u{f}\u{10}\u{11}\u{12}\u{13}\u{14}\u{15}\u{16}\u{17}\u{18}\u{19}\u{1a}\u{1b}\u{1c}\u{1d}\u{1e}\u{1f}\u{20}!\u{22}#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\u{5c}]^_`abcdefghijklmnopqrstuvwxyz{|}~\u{7f}\u{80}\u{81}\u{82}\u{83}\u{84}\u{85}\u{86}\u{87}\u{88}\u{89}\u{8a}\u{8b}\u{8c}\u{8d}\u{8e}\u{8f}\u{90}\u{91}\u{92}\u{93}\u{94}\u{95}\u{96}\u{97}\u{98}\u{99}\u{9a}\u{9b}\u{9c}\u{9d}\u{9e}\u{9f}\u{a0}¡¢£¤¥¦§¨©ª«¬\u{ad}®¯°±²³´µ¶·¸¹º»¼½¾¿ÀÁÂÃÄÅÆÇÈÉÊËÌÍÎÏÐÑÒÓÔÕÖ×ØÙÚÛÜÝÞßàáâãäåæçèéêëìíîïðñòóôõö÷øùúûüýþÿ",
+    "ĀāĂăĄąĆćĈĉĊċČčĎďĐđĒēĔĕĖėĘęĚěĜĝĞğĠġĢģĤĥĦħĨĩĪīĬĭĮįİıĲĳĴĵĶķĸĹĺĻļĽľĿŀŁłŃńŅņŇňŉŊŋŌōŎŏŐőŒœŔŕŖŗŘřŚśŜŝŞşŠšŢţŤťŦŧŨũŪūŬŭŮůŰűŲųŴŵŶŷŸŹźŻżŽžſƀƁƂƃƄƅƆƇƈƉƊƋƌƍƎƏƐƑƒƓƔƕƖƗƘƙƚƛƜƝƞƟƠơƢƣƤƥƦƧƨƩƪƫƬƭƮƯưƱƲƳƴƵƶƷƸƹƺƻƼƽƾƿǀǁǂǃǄǅǆǇǈǉǊǋǌǍǎǏǐǑǒǓǔǕǖǗǘǙǚǛǜǝǞǟǠǡǢǣǤǥǦǧǨǩǪǫǬǭǮǯǰǱǲǳǴǵǶǷǸǹǺǻǼǽǾǿ",
+    "ȀȁȂȃȄȅȆȇȈȉȊȋȌȍȎȏȐȑȒȓȔȕȖȗȘșȚțȜȝȞȟȠȡȢȣȤȥȦȧȨȩȪȫȬȭȮȯȰȱȲȳȴȵȶȷȸȹȺȻȼȽȾȿɀɁɂɃɄɅɆɇɈɉɊɋɌɍɎɏɐɑɒɓɔɕɖɗɘəɚɛɜɝɞɟɠɡɢɣɤɥɦɧɨɩɪɫɬɭɮɯɰɱɲɳɴɵɶɷɸɹɺɻɼɽɾɿʀʁʂʃʄʅʆʇʈʉʊʋʌʍʎʏʐʑʒʓʔʕʖʗʘʙʚʛʜʝʞʟʠʡʢʣʤʥʦʧʨʩʪʫʬʭʮʯʰʱʲʳʴʵʶʷʸʹʺʻʼʽʾʿˀˁ˂˃˄˅ˆˇˈˉˊˋˌˍˎˏːˑ˒˓˔˕˖˗˘˙˚˛˜˝˞˟ˠˡˢˣˤ˥˦˧˨˩˪˫ˬ˭ˮ˯˰˱˲˳˴˵˶˷˸˹˺˻˼˽˾˿",
+    "̴̵̶̷̸̡̢̧̨̛̖̗̘̙̜̝̞̟̠̣̤̥̦̩̪̫̬̭̮̯̰̱̲̳̹̺̻̼͇͈͉͍͎̀́̂̃̄̅̆̇̈̉̊̋̌̍̎̏̐̑̒̓̔̽̾̿̀́͂̓̈́͆͊͋͌̕̚ͅ͏͓͔͕͖͙͚͐͑͒͗͛ͣͤͥͦͧͨͩͪͫͬͭͮͯ͘͜͟͢͝͞͠͡ͰͱͲͳʹ͵Ͷͷ\u{378}\u{379}ͺͻͼͽ;Ϳ\u{380}\u{381}\u{382}\u{383}΄΅Ά·ΈΉΊ\u{38b}Ό\u{38d}ΎΏΐΑΒΓΔΕΖΗΘΙΚΛΜΝΞΟΠΡ\u{3a2}ΣΤΥΦΧΨΩΪΫάέήίΰαβγδεζηθικλμνξοπρςστυφχψωϊϋόύώϏϐϑϒϓϔϕϖϗϘϙϚϛϜϝϞϟϠϡϢϣϤϥϦϧϨϩϪϫϬϭϮϯϰϱϲϳϴϵ϶ϷϸϹϺϻϼϽϾϿ",
+    "ЀЁЂЃЄЅІЇЈЉЊЋЌЍЎЏАБВГДЕЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯабвгдежзийклмнопрстуфхцчшщъыьэюяѐёђѓєѕіїјљњћќѝўџѠѡѢѣѤѥѦѧѨѩѪѫѬѭѮѯѰѱѲѳѴѵѶѷѸѹѺѻѼѽѾѿҀҁ҂҃҄҅҆҇҈҉ҊҋҌҍҎҏҐґҒғҔҕҖҗҘҙҚқҜҝҞҟҠҡҢңҤҥҦҧҨҩҪҫҬҭҮүҰұҲҳҴҵҶҷҸҹҺһҼҽҾҿӀӁӂӃӄӅӆӇӈӉӊӋӌӍӎӏӐӑӒӓӔӕӖӗӘәӚӛӜӝӞӟӠӡӢӣӤӥӦӧӨөӪӫӬӭӮӯӰӱӲӳӴӵӶӷӸӹӺӻӼӽӾӿ",
+    "ԀԁԂԃԄԅԆԇԈԉԊԋԌԍԎԏԐԑԒԓԔԕԖԗԘԙԚԛԜԝԞԟԠԡԢԣԤԥԦԧԨԩԪԫԬԭԮԯ\u{530}ԱԲԳԴԵԶԷԸԹԺԻԼԽԾԿՀՁՂՃՄՅՆՇՈՉՊՋՌՍՎՏՐՑՒՓՔՕՖ\u{557}\u{558}ՙ՚՛՜՝՞՟ՠաբգդեզէըթժիլխծկհձղճմյնշոչպջռսվտրցւփքօֆևֈ։֊\u{58b}\u{58c}֍֎֏\u{590}ְֱֲֳִֵֶַָֹֺֻּֽ֑֖֛֢֣֤֥֦֧֪֚֭֮֒֓֔֕֗֘֙֜֝֞֟֠֡֨֩֫֬֯־ֿ׀ׁׂ׃ׅׄ׆ׇ\u{5c8}\u{5c9}\u{5ca}\u{5cb}\u{5cc}\u{5cd}\u{5ce}\u{5cf}אבגדהוזחטיךכלםמןנסעףפץצקרשת\u{5eb}\u{5ec}\u{5ed}\u{5ee}ׯװױײ׳״\u{5f5}\u{5f6}\u{5f7}\u{5f8}\u{5f9}\u{5fa}\u{5fb}\u{5fc}\u{5fd}\u{5fe}\u{5ff}",
+    "\u{600}\u{601}\u{602}\u{603}\u{604}\u{605}؆؇؈؉؊؋،؍؎؏ؘؙؚؐؑؒؓؔؕؖؗ؛\u{61c}؝؞؟ؠءآأؤإئابةتثجحخدذرزسشصضطظعغػؼؽؾؿـفقكلمنهوىيًٌٍَُِّْٕٖٜٟٓٔٗ٘ٙٚٛٝٞ٠١٢٣٤٥٦٧٨٩٪٫٬٭ٮٯٰٱٲٳٴٵٶٷٸٹٺٻټٽپٿڀځڂڃڄڅچڇڈډڊڋڌڍڎڏڐڑڒړڔڕږڗژڙښڛڜڝڞڟڠڡڢڣڤڥڦڧڨکڪګڬڭڮگڰڱڲڳڴڵڶڷڸڹںڻڼڽھڿۀہۂۃۄۅۆۇۈۉۊۋیۍێۏېۑےۓ۔ەۖۗۘۙۚۛۜ\u{6dd}۞ۣ۟۠ۡۢۤۥۦۧۨ۩۪ۭ۫۬ۮۯ۰۱۲۳۴۵۶۷۸۹ۺۻۼ۽۾ۿ",
+    "܀܁܂܃܄܅܆܇܈܉܊܋܌܍\u{70e}\u{70f}ܐܑܒܓܔܕܖܗܘܙܚܛܜܝܞܟܠܡܢܣܤܥܦܧܨܩܪܫܬܭܮܯܱܴܷܸܹܻܼܾ݂݄݆݈ܰܲܳܵܶܺܽܿ݀݁݃݅݇݉݊\u{74b}\u{74c}ݍݎݏݐݑݒݓݔݕݖݗݘݙݚݛݜݝݞݟݠݡݢݣݤݥݦݧݨݩݪݫݬݭݮݯݰݱݲݳݴݵݶݷݸݹݺݻݼݽݾݿހށނރބޅކއވމފދތލގޏސޑޒޓޔޕޖޗޘޙޚޛޜޝޞޟޠޡޢޣޤޥަާިީުޫެޭޮޯްޱ\u{7b2}\u{7b3}\u{7b4}\u{7b5}\u{7b6}\u{7b7}\u{7b8}\u{7b9}\u{7ba}\u{7bb}\u{7bc}\u{7bd}\u{7be}\u{7bf}߀߁߂߃߄߅߆߇߈߉ߊߋߌߍߎߏߐߑߒߓߔߕߖߗߘߙߚߛߜߝߞߟߠߡߢߣߤߥߦߧߨߩߪ߲߫߬߭߮߯߰߱߳ߴߵ߶߷߸߹ߺ\u{7fb}\u{7fc}߽߾߿",
+    "ࠀࠁࠂࠃࠄࠅࠆࠇࠈࠉࠊࠋࠌࠍࠎࠏࠐࠑࠒࠓࠔࠕࠖࠗ࠘࠙ࠚࠛࠜࠝࠞࠟࠠࠡࠢࠣࠤࠥࠦࠧࠨࠩࠪࠫࠬ࠭\u{82e}\u{82f}࠰࠱࠲࠳࠴࠵࠶࠷࠸࠹࠺࠻࠼࠽࠾\u{83f}ࡀࡁࡂࡃࡄࡅࡆࡇࡈࡉࡊࡋࡌࡍࡎࡏࡐࡑࡒࡓࡔࡕࡖࡗࡘ࡙࡚࡛\u{85c}\u{85d}࡞\u{85f}ࡠࡡࡢࡣࡤࡥࡦࡧࡨࡩࡪ\u{86b}\u{86c}\u{86d}\u{86e}\u{86f}ࡰࡱࡲࡳࡴࡵࡶࡷࡸࡹࡺࡻࡼࡽࡾࡿࢀࢁࢂࢃࢄࢅࢆࢇ࢈ࢉࢊࢋࢌࢍࢎ\u{88f}\u{890}\u{891}\u{892}\u{893}\u{894}\u{895}\u{896}\u{897}࢙࢚࢛࢘࢜࢝࢞࢟ࢠࢡࢢࢣࢤࢥࢦࢧࢨࢩࢪࢫࢬࢭࢮࢯࢰࢱࢲࢳࢴࢵࢶࢷࢸࢹࢺࢻࢼࢽࢾࢿࣀࣁࣂࣃࣄࣅࣆࣇࣈࣉ࣏࣐࣑࣒࣓࣊࣋࣌࣍࣎ࣔࣕࣖࣗࣘࣙࣚࣛࣜࣝࣞࣟ࣠࣡\u{8e2}ࣰࣱࣲࣣࣦࣩ࣭࣮࣯ࣶࣹࣺࣤࣥࣧࣨ࣪࣫࣬ࣳࣴࣵࣷࣸࣻࣼࣽࣾࣿ",
+    "ऀँंःऄअआइईउऊऋऌऍऎएऐऑऒओऔकखगघङचछजझञटठडढणतथदधनऩपफबभमयरऱलळऴवशषसहऺऻ़ऽािीुूृॄॅॆेैॉॊोौ्ॎॏॐ॒॑॓॔ॕॖॗक़ख़ग़ज़ड़ढ़फ़य़ॠॡॢॣ।॥०१२३४५६७८९॰ॱॲॳॴॵॶॷॸॹॺॻॼॽॾॿঀঁংঃ\u{984}অআইঈউঊঋঌ\u{98d}\u{98e}এঐ\u{991}\u{992}ওঔকখগঘঙচছজঝঞটঠডঢণতথদধন\u{9a9}পফবভমযর\u{9b1}ল\u{9b3}\u{9b4}\u{9b5}শষসহ\u{9ba}\u{9bb}়ঽািীুূৃৄ\u{9c5}\u{9c6}েৈ\u{9c9}\u{9ca}োৌ্ৎ\u{9cf}\u{9d0}\u{9d1}\u{9d2}\u{9d3}\u{9d4}\u{9d5}\u{9d6}ৗ\u{9d8}\u{9d9}\u{9da}\u{9db}ড়ঢ়\u{9de}য়ৠৡৢৣ\u{9e4}\u{9e5}০১২৩৪৫৬৭৮৯ৰৱ৲৳৴৵৶৷৸৹৺৻ৼ৽৾\u{9ff}",
+    "\u{a00}ਁਂਃ\u{a04}ਅਆਇਈਉਊ\u{a0b}\u{a0c}\u{a0d}\u{a0e}ਏਐ\u{a11}\u{a12}ਓਔਕਖਗਘਙਚਛਜਝਞਟਠਡਢਣਤਥਦਧਨ\u{a29}ਪਫਬਭਮਯਰ\u{a31}ਲਲ਼\u{a34}ਵਸ਼\u{a37}ਸਹ\u{a3a}\u{a3b}਼\u{a3d}ਾਿੀੁੂ\u{a43}\u{a44}\u{a45}\u{a46}ੇੈ\u{a49}\u{a4a}ੋੌ੍\u{a4e}\u{a4f}\u{a50}ੑ\u{a52}\u{a53}\u{a54}\u{a55}\u{a56}\u{a57}\u{a58}ਖ਼ਗ਼ਜ਼ੜ\u{a5d}ਫ਼\u{a5f}\u{a60}\u{a61}\u{a62}\u{a63}\u{a64}\u{a65}੦੧੨੩੪੫੬੭੮੯ੰੱੲੳੴੵ੶\u{a77}\u{a78}\u{a79}\u{a7a}\u{a7b}\u{a7c}\u{a7d}\u{a7e}\u{a7f}\u{a80}ઁંઃ\u{a84}અઆઇઈઉઊઋઌઍ\u{a8e}એઐઑ\u{a92}ઓઔકખગઘઙચછજઝઞટઠડઢણતથદધન\u{aa9}પફબભમયર\u{ab1}લળ\u{ab4}વશષસહ\u{aba}\u{abb}઼ઽાિીુૂૃૄૅ\u{ac6}ેૈૉ\u{aca}ોૌ્\u{ace}\u{acf}ૐ\u{ad1}\u{ad2}\u{ad3}\u{ad4}\u{ad5}\u{ad6}\u{ad7}\u{ad8}\u{ad9}\u{ada}\u{adb}\u{adc}\u{add}\u{ade}\u{adf}ૠૡૢૣ\u{ae4}\u{ae5}૦૧૨૩૪૫૬૭૮૯૰૱\u{af2}\u{af3}\u{af4}\u{af5}\u{af6}\u{af7}\u{af8}ૹૺૻૼ૽૾૿",
+    "\u{b00}ଁଂଃ\u{b04}ଅଆଇଈଉଊଋଌ\u{b0d}\u{b0e}ଏଐ\u{b11}\u{b12}ଓଔକଖଗଘଙଚଛଜଝଞଟଠଡଢଣତଥଦଧନ\u{b29}ପଫବଭମଯର\u{b31}ଲଳ\u{b34}ଵଶଷସହ\u{b3a}\u{b3b}଼ଽାିୀୁୂୃୄ\u{b45}\u{b46}େୈ\u{b49}\u{b4a}ୋୌ୍\u{b4e}\u{b4f}\u{b50}\u{b51}\u{b52}\u{b53}\u{b54}୕ୖୗ\u{b58}\u{b59}\u{b5a}\u{b5b}ଡ଼ଢ଼\u{b5e}ୟୠୡୢୣ\u{b64}\u{b65}୦୧୨୩୪୫୬୭୮୯୰ୱ୲୳୴୵୶୷\u{b78}\u{b79}\u{b7a}\u{b7b}\u{b7c}\u{b7d}\u{b7e}\u{b7f}\u{b80}\u{b81}ஂஃ\u{b84}அஆஇஈஉஊ\u{b8b}\u{b8c}\u{b8d}எஏஐ\u{b91}ஒஓஔக\u{b96}\u{b97}\u{b98}ஙச\u{b9b}ஜ\u{b9d}ஞட\u{ba0}\u{ba1}\u{ba2}ணத\u{ba5}\u{ba6}\u{ba7}நனப\u{bab}\u{bac}\u{bad}மயரறலளழவஶஷஸஹ\u{bba}\u{bbb}\u{bbc}\u{bbd}ாிீுூ\u{bc3}\u{bc4}\u{bc5}ெேை\u{bc9}ொோௌ்\u{bce}\u{bcf}ௐ\u{bd1}\u{bd2}\u{bd3}\u{bd4}\u{bd5}\u{bd6}ௗ\u{bd8}\u{bd9}\u{bda}\u{bdb}\u{bdc}\u{bdd}\u{bde}\u{bdf}\u{be0}\u{be1}\u{be2}\u{be3}\u{be4}\u{be5}௦௧௨௩௪௫௬௭௮௯௰௱௲௳௴௵௶௷௸௹௺\u{bfb}\u{bfc}\u{bfd}\u{bfe}\u{bff}",
+    "ఀఁంఃఄఅఆఇఈఉఊఋఌ\u{c0d}ఎఏఐ\u{c11}ఒఓఔకఖగఘఙచఛజఝఞటఠడఢణతథదధన\u{c29}పఫబభమయరఱలళఴవశషసహ\u{c3a}\u{c3b}఼ఽాిీుూృౄ\u{c45}ెేై\u{c49}ొోౌ్\u{c4e}\u{c4f}\u{c50}\u{c51}\u{c52}\u{c53}\u{c54}ౕౖ\u{c57}ౘౙౚ\u{c5b}\u{c5c}ౝ\u{c5e}\u{c5f}ౠౡౢౣ\u{c64}\u{c65}౦౧౨౩౪౫౬౭౮౯\u{c70}\u{c71}\u{c72}\u{c73}\u{c74}\u{c75}\u{c76}౷౸౹౺౻౼౽౾౿ಀಁಂಃ಄ಅಆಇಈಉಊಋಌ\u{c8d}ಎಏಐ\u{c91}ಒಓಔಕಖಗಘಙಚಛಜಝಞಟಠಡಢಣತಥದಧನ\u{ca9}ಪಫಬಭಮಯರಱಲಳ\u{cb4}ವಶಷಸಹ\u{cba}\u{cbb}಼ಽಾಿೀುೂೃೄ\u{cc5}ೆೇೈ\u{cc9}ೊೋೌ್\u{cce}\u{ccf}\u{cd0}\u{cd1}\u{cd2}\u{cd3}\u{cd4}ೕೖ\u{cd7}\u{cd8}\u{cd9}\u{cda}\u{cdb}\u{cdc}ೝೞ\u{cdf}ೠೡೢೣ\u{ce4}\u{ce5}೦೧೨೩೪೫೬೭೮೯\u{cf0}ೱೲೳ\u{cf4}\u{cf5}\u{cf6}\u{cf7}\u{cf8}\u{cf9}\u{cfa}\u{cfb}\u{cfc}\u{cfd}\u{cfe}\u{cff}",
+    "ഀഁംഃഄഅആഇഈഉഊഋഌ\u{d0d}എഏഐ\u{d11}ഒഓഔകഖഗഘങചഛജഝഞടഠഡഢണതഥദധനഩപഫബഭമയരറലളഴവശഷസഹഺ഻഼ഽാിീുൂൃൄ\u{d45}െേൈ\u{d49}ൊോൌ്ൎ൏\u{d50}\u{d51}\u{d52}\u{d53}ൔൕൖൗ൘൙൚൛൜൝൞ൟൠൡൢൣ\u{d64}\u{d65}൦൧൨൩൪൫൬൭൮൯൰൱൲൳൴൵൶൷൸൹ൺൻർൽൾൿ\u{d80}ඁංඃ\u{d84}අආඇඈඉඊඋඌඍඎඏඐඑඒඓඔඕඖ\u{d97}\u{d98}\u{d99}කඛගඝඞඟචඡජඣඤඥඦටඨඩඪණඬතථදධන\u{db2}ඳපඵබභමඹයර\u{dbc}ල\u{dbe}\u{dbf}වශෂසහළෆ\u{dc7}\u{dc8}\u{dc9}්\u{dcb}\u{dcc}\u{dcd}\u{dce}ාැෑිීු\u{dd5}ූ\u{dd7}ෘෙේෛොෝෞෟ\u{de0}\u{de1}\u{de2}\u{de3}\u{de4}\u{de5}෦෧෨෩෪෫෬෭෮෯\u{df0}\u{df1}ෲෳ෴\u{df5}\u{df6}\u{df7}\u{df8}\u{df9}\u{dfa}\u{dfb}\u{dfc}\u{dfd}\u{dfe}\u{dff}",
+    "\u{e00}กขฃคฅฆงจฉชซฌญฎฏฐฑฒณดตถทธนบปผฝพฟภมยรฤลฦวศษสหฬอฮฯะัาำิีึืฺุู\u{e3b}\u{e3c}\u{e3d}\u{e3e}฿เแโใไๅๆ็่้๊๋์ํ๎๏๐๑๒๓๔๕๖๗๘๙๚๛\u{e5c}\u{e5d}\u{e5e}\u{e5f}\u{e60}\u{e61}\u{e62}\u{e63}\u{e64}\u{e65}\u{e66}\u{e67}\u{e68}\u{e69}\u{e6a}\u{e6b}\u{e6c}\u{e6d}\u{e6e}\u{e6f}\u{e70}\u{e71}\u{e72}\u{e73}\u{e74}\u{e75}\u{e76}\u{e77}\u{e78}\u{e79}\u{e7a}\u{e7b}\u{e7c}\u{e7d}\u{e7e}\u{e7f}\u{e80}ກຂ\u{e83}ຄ\u{e85}ຆງຈຉຊ\u{e8b}ຌຍຎຏຐຑຒຓດຕຖທຘນບປຜຝພຟຠມຢຣ\u{ea4}ລ\u{ea6}ວຨຩສຫຬອຮຯະັາຳິີຶື຺ຸູົຼຽ\u{ebe}\u{ebf}ເແໂໃໄ\u{ec5}ໆ\u{ec7}່້໊໋໌ໍ໎\u{ecf}໐໑໒໓໔໕໖໗໘໙\u{eda}\u{edb}ໜໝໞໟ\u{ee0}\u{ee1}\u{ee2}\u{ee3}\u{ee4}\u{ee5}\u{ee6}\u{ee7}\u{ee8}\u{ee9}\u{eea}\u{eeb}\u{eec}\u{eed}\u{eee}\u{eef}\u{ef0}\u{ef1}\u{ef2}\u{ef3}\u{ef4}\u{ef5}\u{ef6}\u{ef7}\u{ef8}\u{ef9}\u{efa}\u{efb}\u{efc}\u{efd}\u{efe}\u{eff}",
+    "ༀ༁༂༃༄༅༆༇༈༉༊་༌།༎༏༐༑༒༓༔༕༖༗༘༙༚༛༜༝༞༟༠༡༢༣༤༥༦༧༨༩༪༫༬༭༮༯༰༱༲༳༴༵༶༷༸༹༺༻༼༽༾༿ཀཁགགྷངཅཆཇ\u{f48}ཉཊཋཌཌྷཎཏཐདདྷནཔཕབབྷམཙཚཛཛྷཝཞཟའཡརལཤཥསཧཨཀྵཪཫཬ\u{f6d}\u{f6e}\u{f6f}\u{f70}ཱཱཱིིུུྲྀཷླྀཹེཻོཽཾཿ྄ཱྀྀྂྃ྅྆྇ྈྉྊྋྌྍྎྏྐྑྒྒྷྔྕྖྗ\u{f98}ྙྚྛྜྜྷྞྟྠྡྡྷྣྤྥྦྦྷྨྩྪྫྫྷྭྮྯྰྱྲླྴྵྶྷྸྐྵྺྻྼ\u{fbd}྾྿࿀࿁࿂࿃࿄࿅࿆࿇࿈࿉࿊࿋࿌\u{fcd}࿎࿏࿐࿑࿒࿓࿔࿕࿖࿗࿘࿙࿚\u{fdb}\u{fdc}\u{fdd}\u{fde}\u{fdf}\u{fe0}\u{fe1}\u{fe2}\u{fe3}\u{fe4}\u{fe5}\u{fe6}\u{fe7}\u{fe8}\u{fe9}\u{fea}\u{feb}\u{fec}\u{fed}\u{fee}\u{fef}\u{ff0}\u{ff1}\u{ff2}\u{ff3}\u{ff4}\u{ff5}\u{ff6}\u{ff7}\u{ff8}\u{ff9}\u{ffa}\u{ffb}\u{ffc}\u{ffd}\u{ffe}\u{fff}",
+    "ကခဂဃငစဆဇဈဉညဋဌဍဎဏတထဒဓနပဖဗဘမယရလဝသဟဠအဢဣဤဥဦဧဨဩဪါာိီုူေဲဳဴဵံ့း္်ျြွှဿ၀၁၂၃၄၅၆၇၈၉၊။၌၍၎၏ၐၑၒၓၔၕၖၗၘၙၚၛၜၝၞၟၠၡၢၣၤၥၦၧၨၩၪၫၬၭၮၯၰၱၲၳၴၵၶၷၸၹၺၻၼၽၾၿႀႁႂႃႄႅႆႇႈႉႊႋႌႍႎႏ႐႑႒႓႔႕႖႗႘႙ႚႛႜႝ႞႟ႠႡႢႣႤႥႦႧႨႩႪႫႬႭႮႯႰႱႲႳႴႵႶႷႸႹႺႻႼႽႾႿჀჁჂჃჄჅ\u{10c6}Ⴧ\u{10c8}\u{10c9}\u{10ca}\u{10cb}\u{10cc}Ⴭ\u{10ce}\u{10cf}აბგდევზთიკლმნოპჟრსტუფქღყშჩცძწჭხჯჰჱჲჳჴჵჶჷჸჹჺ჻ჼჽჾჿ",
+    "ᄀᄁᄂᄃᄄᄅᄆᄇᄈᄉᄊᄋᄌᄍᄎᄏᄐᄑᄒᄓᄔᄕᄖᄗᄘᄙᄚᄛᄜᄝᄞᄟᄠᄡᄢᄣᄤᄥᄦᄧᄨᄩᄪᄫᄬᄭᄮᄯᄰᄱᄲᄳᄴᄵᄶᄷᄸᄹᄺᄻᄼᄽᄾᄿᅀᅁᅂᅃᅄᅅᅆᅇᅈᅉᅊᅋᅌᅍᅎᅏᅐᅑᅒᅓᅔᅕᅖᅗᅘᅙᅚᅛᅜᅝᅞᅟᅠᅡᅢᅣᅤᅥᅦᅧᅨᅩᅪᅫᅬᅭᅮᅯᅰᅱᅲᅳᅴᅵᅶᅷᅸᅹᅺᅻᅼᅽᅾᅿᆀᆁᆂᆃᆄᆅᆆᆇᆈᆉᆊᆋᆌᆍᆎᆏᆐᆑᆒᆓᆔᆕᆖᆗᆘᆙᆚᆛᆜᆝᆞᆟᆠᆡᆢᆣᆤᆥᆦᆧᆨᆩᆪᆫᆬᆭᆮᆯᆰᆱᆲᆳᆴᆵᆶᆷᆸᆹᆺᆻᆼᆽᆾᆿᇀᇁᇂᇃᇄᇅᇆᇇᇈᇉᇊᇋᇌᇍᇎᇏᇐᇑᇒᇓᇔᇕᇖᇗᇘᇙᇚᇛᇜᇝᇞᇟᇠᇡᇢᇣᇤᇥᇦᇧᇨᇩᇪᇫᇬᇭᇮᇯᇰᇱᇲᇳᇴᇵᇶᇷᇸᇹᇺᇻᇼᇽᇾᇿ",
+    "ሀሁሂሃሄህሆሇለሉሊላሌልሎሏሐሑሒሓሔሕሖሗመሙሚማሜምሞሟሠሡሢሣሤሥሦሧረሩሪራሬርሮሯሰሱሲሳሴስሶሷሸሹሺሻሼሽሾሿቀቁቂቃቄቅቆቇቈ\u{1249}ቊቋቌቍ\u{124e}\u{124f}ቐቑቒቓቔቕቖ\u{1257}ቘ\u{1259}ቚቛቜቝ\u{125e}\u{125f}በቡቢባቤብቦቧቨቩቪቫቬቭቮቯተቱቲታቴትቶቷቸቹቺቻቼችቾቿኀኁኂኃኄኅኆኇኈ\u{1289}ኊኋኌኍ\u{128e}\u{128f}ነኑኒናኔንኖኗኘኙኚኛኜኝኞኟአኡኢኣኤእኦኧከኩኪካኬክኮኯኰ\u{12b1}ኲኳኴኵ\u{12b6}\u{12b7}ኸኹኺኻኼኽኾ\u{12bf}ዀ\u{12c1}ዂዃዄዅ\u{12c6}\u{12c7}ወዉዊዋዌውዎዏዐዑዒዓዔዕዖ\u{12d7}ዘዙዚዛዜዝዞዟዠዡዢዣዤዥዦዧየዩዪያዬይዮዯደዱዲዳዴድዶዷዸዹዺዻዼዽዾዿ",
+    "ጀጁጂጃጄጅጆጇገጉጊጋጌግጎጏጐ\u{1311}ጒጓጔጕ\u{1316}\u{1317}ጘጙጚጛጜጝጞጟጠጡጢጣጤጥጦጧጨጩጪጫጬጭጮጯጰጱጲጳጴጵጶጷጸጹጺጻጼጽጾጿፀፁፂፃፄፅፆፇፈፉፊፋፌፍፎፏፐፑፒፓፔፕፖፗፘፙፚ\u{135b}\u{135c}፝፞፟፠፡።፣፤፥፦፧፨፩፪፫፬፭፮፯፰፱፲፳፴፵፶፷፸፹፺፻፼\u{137d}\u{137e}\u{137f}ᎀᎁᎂᎃᎄᎅᎆᎇᎈᎉᎊᎋᎌᎍᎎᎏ᎐᎑᎒᎓᎔᎕᎖᎗᎘᎙\u{139a}\u{139b}\u{139c}\u{139d}\u{139e}\u{139f}ᎠᎡᎢᎣᎤᎥᎦᎧᎨᎩᎪᎫᎬᎭᎮᎯᎰᎱᎲᎳᎴᎵᎶᎷᎸᎹᎺᎻᎼᎽᎾᎿᏀᏁᏂᏃᏄᏅᏆᏇᏈᏉᏊᏋᏌᏍᏎᏏᏐᏑᏒᏓᏔᏕᏖᏗᏘᏙᏚᏛᏜᏝᏞᏟᏠᏡᏢᏣᏤᏥᏦᏧᏨᏩᏪᏫᏬᏭᏮᏯᏰᏱᏲᏳᏴᏵ\u{13f6}\u{13f7}ᏸᏹᏺᏻᏼᏽ\u{13fe}\u{13ff}",
+    "᐀ᐁᐂᐃᐄᐅᐆᐇᐈᐉᐊᐋᐌᐍᐎᐏᐐᐑᐒᐓᐔᐕᐖᐗᐘᐙᐚᐛᐜᐝᐞᐟᐠᐡᐢᐣᐤᐥᐦᐧᐨᐩᐪᐫᐬᐭᐮᐯᐰᐱᐲᐳᐴᐵᐶᐷᐸᐹᐺᐻᐼᐽᐾᐿᑀᑁᑂᑃᑄᑅᑆᑇᑈᑉᑊᑋᑌᑍᑎᑏᑐᑑᑒᑓᑔᑕᑖᑗᑘᑙᑚᑛᑜᑝᑞᑟᑠᑡᑢᑣᑤᑥᑦᑧᑨᑩᑪᑫᑬᑭᑮᑯᑰᑱᑲᑳᑴᑵᑶᑷᑸᑹᑺᑻᑼᑽᑾᑿᒀᒁᒂᒃᒄᒅᒆᒇᒈᒉᒊᒋᒌᒍᒎᒏᒐᒑᒒᒓᒔᒕᒖᒗᒘᒙᒚᒛᒜᒝᒞᒟᒠᒡᒢᒣᒤᒥᒦᒧᒨᒩᒪᒫᒬᒭᒮᒯᒰᒱᒲᒳᒴᒵᒶᒷᒸᒹᒺᒻᒼᒽᒾᒿᓀᓁᓂᓃᓄᓅᓆᓇᓈᓉᓊᓋᓌᓍᓎᓏᓐᓑᓒᓓᓔᓕᓖᓗᓘᓙᓚᓛᓜᓝᓞᓟᓠᓡᓢᓣᓤᓥᓦᓧᓨᓩᓪᓫᓬᓭᓮᓯᓰᓱᓲᓳᓴᓵᓶᓷᓸᓹᓺᓻᓼᓽᓾᓿ",
+    "ᔀᔁᔂᔃᔄᔅᔆᔇᔈᔉᔊᔋᔌᔍᔎᔏᔐᔑᔒᔓᔔᔕᔖᔗᔘᔙᔚᔛᔜᔝᔞᔟᔠᔡᔢᔣᔤᔥᔦᔧᔨᔩᔪᔫᔬᔭᔮᔯᔰᔱᔲᔳᔴᔵᔶᔷᔸᔹᔺᔻᔼᔽᔾᔿᕀᕁᕂᕃᕄᕅᕆᕇᕈᕉᕊᕋᕌᕍᕎᕏᕐᕑᕒᕓᕔᕕᕖᕗᕘᕙᕚᕛᕜᕝᕞᕟᕠᕡᕢᕣᕤᕥᕦᕧᕨᕩᕪᕫᕬᕭᕮᕯᕰᕱᕲᕳᕴᕵᕶᕷᕸᕹᕺᕻᕼᕽᕾᕿᖀᖁᖂᖃᖄᖅᖆᖇᖈᖉᖊᖋᖌᖍᖎᖏᖐᖑᖒᖓᖔᖕᖖᖗᖘᖙᖚᖛᖜᖝᖞᖟᖠᖡᖢᖣᖤᖥᖦᖧᖨᖩᖪᖫᖬᖭᖮᖯᖰᖱᖲᖳᖴᖵᖶᖷᖸᖹᖺᖻᖼᖽᖾᖿᗀᗁᗂᗃᗄᗅᗆᗇᗈᗉᗊᗋᗌᗍᗎᗏᗐᗑᗒᗓᗔᗕᗖᗗᗘᗙᗚᗛᗜᗝᗞᗟᗠᗡᗢᗣᗤᗥᗦᗧᗨᗩᗪᗫᗬᗭᗮᗯᗰᗱᗲᗳᗴᗵᗶᗷᗸᗹᗺᗻᗼᗽᗾᗿ",
+    "ᘀᘁᘂᘃᘄᘅᘆᘇᘈᘉᘊᘋᘌᘍᘎᘏᘐᘑᘒᘓᘔᘕᘖᘗᘘᘙᘚᘛᘜᘝᘞᘟᘠᘡᘢᘣᘤᘥᘦᘧᘨᘩᘪᘫᘬᘭᘮᘯᘰᘱᘲᘳᘴᘵᘶᘷᘸᘹᘺᘻᘼᘽᘾᘿᙀᙁᙂᙃᙄᙅᙆᙇᙈᙉᙊᙋᙌᙍᙎᙏᙐᙑᙒᙓᙔᙕᙖᙗᙘᙙᙚᙛᙜᙝᙞᙟᙠᙡᙢᙣᙤᙥᙦᙧᙨᙩᙪᙫᙬ᙭᙮ᙯᙰᙱᙲᙳᙴᙵᙶᙷᙸᙹᙺᙻᙼᙽᙾᙿ\u{1680}ᚁᚂᚃᚄᚅᚆᚇᚈᚉᚊᚋᚌᚍᚎᚏᚐᚑᚒᚓᚔᚕᚖᚗᚘᚙᚚ᚛᚜\u{169d}\u{169e}\u{169f}ᚠᚡᚢᚣᚤᚥᚦᚧᚨᚩᚪᚫᚬᚭᚮᚯᚰᚱᚲᚳᚴᚵᚶᚷᚸᚹᚺᚻᚼᚽᚾᚿᛀᛁᛂᛃᛄᛅᛆᛇᛈᛉᛊᛋᛌᛍᛎᛏᛐᛑᛒᛓᛔᛕᛖᛗᛘᛙᛚᛛᛜᛝᛞᛟᛠᛡᛢᛣᛤᛥᛦᛧᛨᛩᛪ᛫᛬᛭ᛮᛯᛰᛱᛲᛳᛴᛵᛶᛷᛸ\u{16f9}\u{16fa}\u{16fb}\u{16fc}\u{16fd}\u{16fe}\u{16ff}",
+    "ᜀᜁᜂᜃᜄᜅᜆᜇᜈᜉᜊᜋᜌᜍᜎᜏᜐᜑᜒᜓ᜔᜕\u{1716}\u{1717}\u{1718}\u{1719}\u{171a}\u{171b}\u{171c}\u{171d}\u{171e}ᜟᜠᜡᜢᜣᜤᜥᜦᜧᜨᜩᜪᜫᜬᜭᜮᜯᜰᜱᜲᜳ᜴᜵᜶\u{1737}\u{1738}\u{1739}\u{173a}\u{173b}\u{173c}\u{173d}\u{173e}\u{173f}ᝀᝁᝂᝃᝄᝅᝆᝇᝈᝉᝊᝋᝌᝍᝎᝏᝐᝑᝒᝓ\u{1754}\u{1755}\u{1756}\u{1757}\u{1758}\u{1759}\u{175a}\u{175b}\u{175c}\u{175d}\u{175e}\u{175f}ᝠᝡᝢᝣᝤᝥᝦᝧᝨᝩᝪᝫᝬ\u{176d}ᝮᝯᝰ\u{1771}ᝲᝳ\u{1774}\u{1775}\u{1776}\u{1777}\u{1778}\u{1779}\u{177a}\u{177b}\u{177c}\u{177d}\u{177e}\u{177f}កខគឃងចឆជឈញដឋឌឍណតថទធនបផពភមយរលវឝឞសហឡអឣឤឥឦឧឨឩឪឫឬឭឮឯឰឱឲឳ឴឵ាិីឹឺុូួើឿៀេែៃោៅំះៈ៉៊់៌៍៎៏័៑្៓។៕៖ៗ៘៙៚៛ៜ៝\u{17de}\u{17df}០១២៣៤៥៦៧៨៩\u{17ea}\u{17eb}\u{17ec}\u{17ed}\u{17ee}\u{17ef}៰៱៲៳៴៵៶៷៸៹\u{17fa}\u{17fb}\u{17fc}\u{17fd}\u{17fe}\u{17ff}",
+    "᠀᠁᠂᠃᠄᠅᠆᠇᠈᠉᠊᠋᠌᠍\u{180e}᠏᠐᠑᠒᠓᠔᠕᠖᠗᠘᠙\u{181a}\u{181b}\u{181c}\u{181d}\u{181e}\u{181f}ᠠᠡᠢᠣᠤᠥᠦᠧᠨᠩᠪᠫᠬᠭᠮᠯᠰᠱᠲᠳᠴᠵᠶᠷᠸᠹᠺᠻᠼᠽᠾᠿᡀᡁᡂᡃᡄᡅᡆᡇᡈᡉᡊᡋᡌᡍᡎᡏᡐᡑᡒᡓᡔᡕᡖᡗᡘᡙᡚᡛᡜᡝᡞᡟᡠᡡᡢᡣᡤᡥᡦᡧᡨᡩᡪᡫᡬᡭᡮᡯᡰᡱᡲᡳᡴᡵᡶᡷᡸ\u{1879}\u{187a}\u{187b}\u{187c}\u{187d}\u{187e}\u{187f}ᢀᢁᢂᢃᢄᢅᢆᢇᢈᢉᢊᢋᢌᢍᢎᢏᢐᢑᢒᢓᢔᢕᢖᢗᢘᢙᢚᢛᢜᢝᢞᢟᢠᢡᢢᢣᢤᢥᢦᢧᢨᢩᢪ\u{18ab}\u{18ac}\u{18ad}\u{18ae}\u{18af}ᢰᢱᢲᢳᢴᢵᢶᢷᢸᢹᢺᢻᢼᢽᢾᢿᣀᣁᣂᣃᣄᣅᣆᣇᣈᣉᣊᣋᣌᣍᣎᣏᣐᣑᣒᣓᣔᣕᣖᣗᣘᣙᣚᣛᣜᣝᣞᣟᣠᣡᣢᣣᣤᣥᣦᣧᣨᣩᣪᣫᣬᣭᣮᣯᣰᣱᣲᣳᣴᣵ\u{18f6}\u{18f7}\u{18f8}\u{18f9}\u{18fa}\u{18fb}\u{18fc}\u{18fd}\u{18fe}\u{18ff}",
+    "ᤀᤁᤂᤃᤄᤅᤆᤇᤈᤉᤊᤋᤌᤍᤎᤏᤐᤑᤒᤓᤔᤕᤖᤗᤘᤙᤚᤛᤜᤝᤞ\u{191f}ᤠᤡᤢᤣᤤᤥᤦᤧᤨᤩᤪᤫ\u{192c}\u{192d}\u{192e}\u{192f}ᤰᤱᤲᤳᤴᤵᤶᤷᤸ᤻᤹᤺\u{193c}\u{193d}\u{193e}\u{193f}᥀\u{1941}\u{1942}\u{1943}᥄᥅᥆᥇᥈᥉᥊᥋᥌᥍᥎᥏ᥐᥑᥒᥓᥔᥕᥖᥗᥘᥙᥚᥛᥜᥝᥞᥟᥠᥡᥢᥣᥤᥥᥦᥧᥨᥩᥪᥫᥬᥭ\u{196e}\u{196f}ᥰᥱᥲᥳᥴ\u{1975}\u{1976}\u{1977}\u{1978}\u{1979}\u{197a}\u{197b}\u{197c}\u{197d}\u{197e}\u{197f}ᦀᦁᦂᦃᦄᦅᦆᦇᦈᦉᦊᦋᦌᦍᦎᦏᦐᦑᦒᦓᦔᦕᦖᦗᦘᦙᦚᦛᦜᦝᦞᦟᦠᦡᦢᦣᦤᦥᦦᦧᦨᦩᦪᦫ\u{19ac}\u{19ad}\u{19ae}\u{19af}ᦰᦱᦲᦳᦴᦵᦶᦷᦸᦹᦺᦻᦼᦽᦾᦿᧀᧁᧂᧃᧄᧅᧆᧇᧈᧉ\u{19ca}\u{19cb}\u{19cc}\u{19cd}\u{19ce}\u{19cf}᧐᧑᧒᧓᧔᧕᧖᧗᧘᧙᧚\u{19db}\u{19dc}\u{19dd}᧞᧟᧠᧡᧢᧣᧤᧥᧦᧧᧨᧩᧪᧫᧬᧭᧮᧯᧰᧱᧲᧳᧴᧵᧶᧷᧸᧹᧺᧻᧼᧽᧾᧿",
+    "ᨀᨁᨂᨃᨄᨅᨆᨇᨈᨉᨊᨋᨌᨍᨎᨏᨐᨑᨒᨓᨔᨕᨖᨘᨗᨙᨚᨛ\u{1a1c}\u{1a1d}᨞᨟ᨠᨡᨢᨣᨤᨥᨦᨧᨨᨩᨪᨫᨬᨭᨮᨯᨰᨱᨲᨳᨴᨵᨶᨷᨸᨹᨺᨻᨼᨽᨾᨿᩀᩁᩂᩃᩄᩅᩆᩇᩈᩉᩊᩋᩌᩍᩎᩏᩐᩑᩒᩓᩔᩕᩖᩗᩘᩙᩚᩛᩜᩝᩞ\u{1a5f}᩠ᩡᩢᩣᩤᩥᩦᩧᩨᩩᩪᩫᩬᩭᩮᩯᩰᩱᩲᩳᩴ᩵᩶᩷᩸᩹᩺᩻᩼\u{1a7d}\u{1a7e}᩿᪀᪁᪂᪃᪄᪅᪆᪇᪈᪉\u{1a8a}\u{1a8b}\u{1a8c}\u{1a8d}\u{1a8e}\u{1a8f}᪐᪑᪒᪓᪔᪕᪖᪗᪘᪙\u{1a9a}\u{1a9b}\u{1a9c}\u{1a9d}\u{1a9e}\u{1a9f}᪠᪡᪢᪣᪤᪥᪦ᪧ᪨᪩᪪᪫᪬᪭\u{1aae}\u{1aaf}᪵᪶᪷᪸᪹᪺᪽᪰᪱᪲᪳᪴᪻᪼᪾ᪿᫀ᫃᫄᫊᫁᫂᫅᫆᫇᫈᫉᫋ᫌᫍᫎ\u{1acf}\u{1ad0}\u{1ad1}\u{1ad2}\u{1ad3}\u{1ad4}\u{1ad5}\u{1ad6}\u{1ad7}\u{1ad8}\u{1ad9}\u{1ada}\u{1adb}\u{1adc}\u{1add}\u{1ade}\u{1adf}\u{1ae0}\u{1ae1}\u{1ae2}\u{1ae3}\u{1ae4}\u{1ae5}\u{1ae6}\u{1ae7}\u{1ae8}\u{1ae9}\u{1aea}\u{1aeb}\u{1aec}\u{1aed}\u{1aee}\u{1aef}\u{1af0}\u{1af1}\u{1af2}\u{1af3}\u{1af4}\u{1af5}\u{1af6}\u{1af7}\u{1af8}\u{1af9}\u{1afa}\u{1afb}\u{1afc}\u{1afd}\u{1afe}\u{1aff}",
+    "ᬀᬁᬂᬃᬄᬅᬆᬇᬈᬉᬊᬋᬌᬍᬎᬏᬐᬑᬒᬓᬔᬕᬖᬗᬘᬙᬚᬛᬜᬝᬞᬟᬠᬡᬢᬣᬤᬥᬦᬧᬨᬩᬪᬫᬬᬭᬮᬯᬰᬱᬲᬳ᬴ᬵᬶᬷᬸᬹᬺᬻᬼᬽᬾᬿᭀᭁᭂᭃ᭄ᭅᭆᭇᭈᭉᭊᭋᭌ\u{1b4d}\u{1b4e}\u{1b4f}᭐᭑᭒᭓᭔᭕᭖᭗᭘᭙᭚᭛᭜᭝᭞᭟᭠᭡᭢᭣᭤᭥᭦᭧᭨᭩᭪᭬᭫᭭᭮᭯᭰᭱᭲᭳᭴᭵᭶᭷᭸᭹᭺᭻᭼᭽᭾\u{1b7f}ᮀᮁᮂᮃᮄᮅᮆᮇᮈᮉᮊᮋᮌᮍᮎᮏᮐᮑᮒᮓᮔᮕᮖᮗᮘᮙᮚᮛᮜᮝᮞᮟᮠᮡᮢᮣᮤᮥᮦᮧᮨᮩ᮪᮫ᮬᮭᮮᮯ᮰᮱᮲᮳᮴᮵᮶᮷᮸᮹ᮺᮻᮼᮽᮾᮿᯀᯁᯂᯃᯄᯅᯆᯇᯈᯉᯊᯋᯌᯍᯎᯏᯐᯑᯒᯓᯔᯕᯖᯗᯘᯙᯚᯛᯜᯝᯞᯟᯠᯡᯢᯣᯤᯥ᯦ᯧᯨᯩᯪᯫᯬᯭᯮᯯᯰᯱ᯲᯳\u{1bf4}\u{1bf5}\u{1bf6}\u{1bf7}\u{1bf8}\u{1bf9}\u{1bfa}\u{1bfb}᯼᯽᯾᯿",
+    "ᰀᰁᰂᰃᰄᰅᰆᰇᰈᰉᰊᰋᰌᰍᰎᰏᰐᰑᰒᰓᰔᰕᰖᰗᰘᰙᰚᰛᰜᰝᰞᰟᰠᰡᰢᰣᰤᰥᰦᰧᰨᰩᰪᰫᰬᰭᰮᰯᰰᰱᰲᰳᰴᰵᰶ᰷\u{1c38}\u{1c39}\u{1c3a}᰻᰼᰽᰾᰿᱀᱁᱂᱃᱄᱅᱆᱇᱈᱉\u{1c4a}\u{1c4b}\u{1c4c}ᱍᱎᱏ᱐᱑᱒᱓᱔᱕᱖᱗᱘᱙ᱚᱛᱜᱝᱞᱟᱠᱡᱢᱣᱤᱥᱦᱧᱨᱩᱪᱫᱬᱭᱮᱯᱰᱱᱲᱳᱴᱵᱶᱷᱸᱹᱺᱻᱼᱽ᱾᱿ᲀᲁᲂᲃᲄᲅᲆᲇᲈ\u{1c89}\u{1c8a}\u{1c8b}\u{1c8c}\u{1c8d}\u{1c8e}\u{1c8f}ᲐᲑᲒᲓᲔᲕᲖᲗᲘᲙᲚᲛᲜᲝᲞᲟᲠᲡᲢᲣᲤᲥᲦᲧᲨᲩᲪᲫᲬᲭᲮᲯᲰᲱᲲᲳᲴᲵᲶᲷᲸᲹᲺ\u{1cbb}\u{1cbc}ᲽᲾᲿ᳀᳁᳂᳃᳄᳅᳆᳇\u{1cc8}\u{1cc9}\u{1cca}\u{1ccb}\u{1ccc}\u{1ccd}\u{1cce}\u{1ccf}᳐᳑᳒᳓᳔᳕᳖᳗᳘᳙᳜᳝᳞᳟᳚᳛᳠᳡᳢᳣᳤᳥᳦᳧᳨ᳩᳪᳫᳬ᳭ᳮᳯᳰᳱᳲᳳ᳴ᳵᳶ᳷᳸᳹ᳺ\u{1cfb}\u{1cfc}\u{1cfd}\u{1cfe}\u{1cff}",
+    "ᴀᴁᴂᴃᴄᴅᴆᴇᴈᴉᴊᴋᴌᴍᴎᴏᴐᴑᴒᴓᴔᴕᴖᴗᴘᴙᴚᴛᴜᴝᴞᴟᴠᴡᴢᴣᴤᴥᴦᴧᴨᴩᴪᴫᴬᴭᴮᴯᴰᴱᴲᴳᴴᴵᴶᴷᴸᴹᴺᴻᴼᴽᴾᴿᵀᵁᵂᵃᵄᵅᵆᵇᵈᵉᵊᵋᵌᵍᵎᵏᵐᵑᵒᵓᵔᵕᵖᵗᵘᵙᵚᵛᵜᵝᵞᵟᵠᵡᵢᵣᵤᵥᵦᵧᵨᵩᵪᵫᵬᵭᵮᵯᵰᵱᵲᵳᵴᵵᵶᵷᵸᵹᵺᵻᵼᵽᵾᵿᶀᶁᶂᶃᶄᶅᶆᶇᶈᶉᶊᶋᶌᶍᶎᶏᶐᶑᶒᶓᶔᶕᶖᶗᶘᶙᶚᶛᶜᶝᶞᶟᶠᶡᶢᶣᶤᶥᶦᶧᶨᶩᶪᶫᶬᶭᶮᶯᶰᶱᶲᶳᶴᶵᶶᶷᶸᶹᶺᶻᶼᶽᶾᶿ᷐᷎᷺᷂᷊᷏᷹᷽᷿᷷᷸᷀᷁᷃᷄᷅᷆᷇᷈᷉᷋᷌᷑᷒ᷓᷔᷕᷖᷗᷘᷙᷚᷛᷜᷝᷞᷟᷠᷡᷢᷣᷤᷥᷦᷧᷨᷩᷪᷫᷬᷭᷮᷯᷰᷱᷲᷳᷴ᷵᷻᷾᷶᷼᷍",
+    "ḀḁḂḃḄḅḆḇḈḉḊḋḌḍḎḏḐḑḒḓḔḕḖḗḘḙḚḛḜḝḞḟḠḡḢḣḤḥḦḧḨḩḪḫḬḭḮḯḰḱḲḳḴḵḶḷḸḹḺḻḼḽḾḿṀṁṂṃṄṅṆṇṈṉṊṋṌṍṎṏṐṑṒṓṔṕṖṗṘṙṚṛṜṝṞṟṠṡṢṣṤṥṦṧṨṩṪṫṬṭṮṯṰṱṲṳṴṵṶṷṸṹṺṻṼṽṾṿẀẁẂẃẄẅẆẇẈẉẊẋẌẍẎẏẐẑẒẓẔẕẖẗẘẙẚẛẜẝẞẟẠạẢảẤấẦầẨẩẪẫẬậẮắẰằẲẳẴẵẶặẸẹẺẻẼẽẾếỀềỂểỄễỆệỈỉỊịỌọỎỏỐốỒồỔổỖỗỘộỚớỜờỞởỠỡỢợỤụỦủỨứỪừỬửỮữỰựỲỳỴỵỶỷỸỹỺỻỼỽỾỿ",
+    "ἀἁἂἃἄἅἆἇἈἉἊἋἌἍἎἏἐἑἒἓἔἕ\u{1f16}\u{1f17}ἘἙἚἛἜἝ\u{1f1e}\u{1f1f}ἠἡἢἣἤἥἦἧἨἩἪἫἬἭἮἯἰἱἲἳἴἵἶἷἸἹἺἻἼἽἾἿὀὁὂὃὄὅ\u{1f46}\u{1f47}ὈὉὊὋὌὍ\u{1f4e}\u{1f4f}ὐὑὒὓὔὕὖὗ\u{1f58}Ὑ\u{1f5a}Ὓ\u{1f5c}Ὕ\u{1f5e}ὟὠὡὢὣὤὥὦὧὨὩὪὫὬὭὮὯὰάὲέὴήὶίὸόὺύὼώ\u{1f7e}\u{1f7f}ᾀᾁᾂᾃᾄᾅᾆᾇᾈᾉᾊᾋᾌᾍᾎᾏᾐᾑᾒᾓᾔᾕᾖᾗᾘᾙᾚᾛᾜᾝᾞᾟᾠᾡᾢᾣᾤᾥᾦᾧᾨᾩᾪᾫᾬᾭᾮᾯᾰᾱᾲᾳᾴ\u{1fb5}ᾶᾷᾸᾹᾺΆᾼ᾽ι᾿῀῁ῂῃῄ\u{1fc5}ῆῇῈΈῊΉῌ῍῎῏ῐῑῒΐ\u{1fd4}\u{1fd5}ῖῗῘῙῚΊ\u{1fdc}῝῞῟ῠῡῢΰῤῥῦῧῨῩῪΎῬ῭΅`\u{1ff0}\u{1ff1}ῲῳῴ\u{1ff5}ῶῷῸΌῺΏῼ´῾\u{1fff}",
+    "\u{2000}\u{2001}\u{2002}\u{2003}\u{2004}\u{2005}\u{2006}\u{2007}\u{2008}\u{2009}\u{200a}\u{200b}\u{200c}\u{200d}\u{200e}\u{200f}‐‑‒–—―‖‗‘’‚‛“”„‟†‡•‣․‥…‧\u{2028}\u{2029}\u{202a}\u{202b}\u{202c}\u{202d}\u{202e}\u{202f}‰‱′″‴‵‶‷‸‹›※‼‽‾‿⁀⁁⁂⁃⁄⁅⁆⁇⁈⁉⁊⁋⁌⁍⁎⁏⁐⁑⁒⁓⁔⁕⁖⁗⁘⁙⁚⁛⁜⁝⁞\u{205f}\u{2060}\u{2061}\u{2062}\u{2063}\u{2064}\u{2065}\u{2066}\u{2067}\u{2068}\u{2069}\u{206a}\u{206b}\u{206c}\u{206d}\u{206e}\u{206f}⁰ⁱ\u{2072}\u{2073}⁴⁵⁶⁷⁸⁹⁺⁻⁼⁽⁾ⁿ₀₁₂₃₄₅₆₇₈₉₊₋₌₍₎\u{208f}ₐₑₒₓₔₕₖₗₘₙₚₛₜ\u{209d}\u{209e}\u{209f}₠₡₢₣₤₥₦₧₨₩₪₫€₭₮₯₰₱₲₳₴₵₶₷₸₹₺₻₼₽₾₿⃀\u{20c1}\u{20c2}\u{20c3}\u{20c4}\u{20c5}\u{20c6}\u{20c7}\u{20c8}\u{20c9}\u{20ca}\u{20cb}\u{20cc}\u{20cd}\u{20ce}\u{20cf}⃒⃓⃘⃙⃚⃐⃑⃔⃕⃖⃗⃛⃜⃝⃞⃟⃠⃡⃢⃣⃤⃥⃦⃪⃫⃨⃬⃭⃮⃯⃧⃩⃰\u{20f1}\u{20f2}\u{20f3}\u{20f4}\u{20f5}\u{20f6}\u{20f7}\u{20f8}\u{20f9}\u{20fa}\u{20fb}\u{20fc}\u{20fd}\u{20fe}\u{20ff}",
+    "℀℁ℂ℃℄℅℆ℇ℈℉ℊℋℌℍℎℏℐℑℒℓ℔ℕ№℗℘ℙℚℛℜℝ℞℟℠℡™℣ℤ℥Ω℧ℨ℩KÅℬℭ℮ℯℰℱℲℳℴℵℶℷℸℹ℺℻ℼℽℾℿ⅀⅁⅂⅃⅄ⅅⅆⅇⅈⅉ⅊⅋⅌⅍ⅎ⅏⅐⅑⅒⅓⅔⅕⅖⅗⅘⅙⅚⅛⅜⅝⅞⅟ⅠⅡⅢⅣⅤⅥⅦⅧⅨⅩⅪⅫⅬⅭⅮⅯⅰⅱⅲⅳⅴⅵⅶⅷⅸⅹⅺⅻⅼⅽⅾⅿↀↁↂↃↄↅↆↇↈ↉↊↋\u{218c}\u{218d}\u{218e}\u{218f}←↑→↓↔↕↖↗↘↙↚↛↜↝↞↟↠↡↢↣↤↥↦↧↨↩↪↫↬↭↮↯↰↱↲↳↴↵↶↷↸↹↺↻↼↽↾↿⇀⇁⇂⇃⇄⇅⇆⇇⇈⇉⇊⇋⇌⇍⇎⇏⇐⇑⇒⇓⇔⇕⇖⇗⇘⇙⇚⇛⇜⇝⇞⇟⇠⇡⇢⇣⇤⇥⇦⇧⇨⇩⇪⇫⇬⇭⇮⇯⇰⇱⇲⇳⇴⇵⇶⇷⇸⇹⇺⇻⇼⇽⇾⇿",
+    "∀∁∂∃∄∅∆∇∈∉∊∋∌∍∎∏∐∑−∓∔∕∖∗∘∙√∛∜∝∞∟∠∡∢∣∤∥∦∧∨∩∪∫∬∭∮∯∰∱∲∳∴∵∶∷∸∹∺∻∼∽∾∿≀≁≂≃≄≅≆≇≈≉≊≋≌≍≎≏≐≑≒≓≔≕≖≗≘≙≚≛≜≝≞≟≠≡≢≣≤≥≦≧≨≩≪≫≬≭≮≯≰≱≲≳≴≵≶≷≸≹≺≻≼≽≾≿⊀⊁⊂⊃⊄⊅⊆⊇⊈⊉⊊⊋⊌⊍⊎⊏⊐⊑⊒⊓⊔⊕⊖⊗⊘⊙⊚⊛⊜⊝⊞⊟⊠⊡⊢⊣⊤⊥⊦⊧⊨⊩⊪⊫⊬⊭⊮⊯⊰⊱⊲⊳⊴⊵⊶⊷⊸⊹⊺⊻⊼⊽⊾⊿⋀⋁⋂⋃⋄⋅⋆⋇⋈⋉⋊⋋⋌⋍⋎⋏⋐⋑⋒⋓⋔⋕⋖⋗⋘⋙⋚⋛⋜⋝⋞⋟⋠⋡⋢⋣⋤⋥⋦⋧⋨⋩⋪⋫⋬⋭⋮⋯⋰⋱⋲⋳⋴⋵⋶⋷⋸⋹⋺⋻⋼⋽⋾⋿",
+    "⌀⌁⌂⌃⌄⌅⌆⌇⌈⌉⌊⌋⌌⌍⌎⌏⌐⌑⌒⌓⌔⌕⌖⌗⌘⌙⌚⌛⌜⌝⌞⌟⌠⌡⌢⌣⌤⌥⌦⌧⌨〈〉⌫⌬⌭⌮⌯⌰⌱⌲⌳⌴⌵⌶⌷⌸⌹⌺⌻⌼⌽⌾⌿⍀⍁⍂⍃⍄⍅⍆⍇⍈⍉⍊⍋⍌⍍⍎⍏⍐⍑⍒⍓⍔⍕⍖⍗⍘⍙⍚⍛⍜⍝⍞⍟⍠⍡⍢⍣⍤⍥⍦⍧⍨⍩⍪⍫⍬⍭⍮⍯⍰⍱⍲⍳⍴⍵⍶⍷⍸⍹⍺⍻⍼⍽⍾⍿⎀⎁⎂⎃⎄⎅⎆⎇⎈⎉⎊⎋⎌⎍⎎⎏⎐⎑⎒⎓⎔⎕⎖⎗⎘⎙⎚⎛⎜⎝⎞⎟⎠⎡⎢⎣⎤⎥⎦⎧⎨⎩⎪⎫⎬⎭⎮⎯⎰⎱⎲⎳⎴⎵⎶⎷⎸⎹⎺⎻⎼⎽⎾⎿⏀⏁⏂⏃⏄⏅⏆⏇⏈⏉⏊⏋⏌⏍⏎⏏⏐⏑⏒⏓⏔⏕⏖⏗⏘⏙⏚⏛⏜⏝⏞⏟⏠⏡⏢⏣⏤⏥⏦⏧⏨⏩⏪⏫⏬⏭⏮⏯⏰⏱⏲⏳⏴⏵⏶⏷⏸⏹⏺⏻⏼⏽⏾⏿",
+    "␀␁␂␃␄␅␆␇␈␉␊␋␌␍␎␏␐␑␒␓␔␕␖␗␘␙␚␛␜␝␞␟␠␡␢␣␤␥␦\u{2427}\u{2428}\u{2429}\u{242a}\u{242b}\u{242c}\u{242d}\u{242e}\u{242f}\u{2430}\u{2431}\u{2432}\u{2433}\u{2434}\u{2435}\u{2436}\u{2437}\u{2438}\u{2439}\u{243a}\u{243b}\u{243c}\u{243d}\u{243e}\u{243f}⑀⑁⑂⑃⑄⑅⑆⑇⑈⑉⑊\u{244b}\u{244c}\u{244d}\u{244e}\u{244f}\u{2450}\u{2451}\u{2452}\u{2453}\u{2454}\u{2455}\u{2456}\u{2457}\u{2458}\u{2459}\u{245a}\u{245b}\u{245c}\u{245d}\u{245e}\u{245f}①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳⑴⑵⑶⑷⑸⑹⑺⑻⑼⑽⑾⑿⒀⒁⒂⒃⒄⒅⒆⒇⒈⒉⒊⒋⒌⒍⒎⒏⒐⒑⒒⒓⒔⒕⒖⒗⒘⒙⒚⒛⒜⒝⒞⒟⒠⒡⒢⒣⒤⒥⒦⒧⒨⒩⒪⒫⒬⒭⒮⒯⒰⒱⒲⒳⒴⒵ⒶⒷⒸⒹⒺⒻⒼⒽⒾⒿⓀⓁⓂⓃⓄⓅⓆⓇⓈⓉⓊⓋⓌⓍⓎⓏⓐⓑⓒⓓⓔⓕⓖⓗⓘⓙⓚⓛⓜⓝⓞⓟⓠⓡⓢⓣⓤⓥⓦⓧⓨⓩ⓪⓫⓬⓭⓮⓯⓰⓱⓲⓳⓴⓵⓶⓷⓸⓹⓺⓻⓼⓽⓾⓿",
+    "─━│┃┄┅┆┇┈┉┊┋┌┍┎┏┐┑┒┓└┕┖┗┘┙┚┛├┝┞┟┠┡┢┣┤┥┦┧┨┩┪┫┬┭┮┯┰┱┲┳┴┵┶┷┸┹┺┻┼┽┾┿╀╁╂╃╄╅╆╇╈╉╊╋╌╍╎╏═║╒╓╔╕╖╗╘╙╚╛╜╝╞╟╠╡╢╣╤╥╦╧╨╩╪╫╬╭╮╯╰╱╲╳╴╵╶╷╸╹╺╻╼╽╾╿▀▁▂▃▄▅▆▇█▉▊▋▌▍▎▏▐░▒▓▔▕▖▗▘▙▚▛▜▝▞▟■□▢▣▤▥▦▧▨▩▪▫▬▭▮▯▰▱▲△▴▵▶▷▸▹►▻▼▽▾▿◀◁◂◃◄◅◆◇◈◉◊○◌◍◎●◐◑◒◓◔◕◖◗◘◙◚◛◜◝◞◟◠◡◢◣◤◥◦◧◨◩◪◫◬◭◮◯◰◱◲◳◴◵◶◷◸◹◺◻◼◽◾◿",
+    "☀☁☂☃☄★☆☇☈☉☊☋☌☍☎☏☐☑☒☓☔☕☖☗☘☙☚☛☜☝☞☟☠☡☢☣☤☥☦☧☨☩☪☫☬☭☮☯☰☱☲☳☴☵☶☷☸☹☺☻☼☽☾☿♀♁♂♃♄♅♆♇♈♉♊♋♌♍♎♏♐♑♒♓♔♕♖♗♘♙♚♛♜♝♞♟♠♡♢♣♤♥♦♧♨♩♪♫♬♭♮♯♰♱♲♳♴♵♶♷♸♹♺♻♼♽♾♿⚀⚁⚂⚃⚄⚅⚆⚇⚈⚉⚊⚋⚌⚍⚎⚏⚐⚑⚒⚓⚔⚕⚖⚗⚘⚙⚚⚛⚜⚝⚞⚟⚠⚡⚢⚣⚤⚥⚦⚧⚨⚩⚪⚫⚬⚭⚮⚯⚰⚱⚲⚳⚴⚵⚶⚷⚸⚹⚺⚻⚼⚽⚾⚿⛀⛁⛂⛃⛄⛅⛆⛇⛈⛉⛊⛋⛌⛍⛎⛏⛐⛑⛒⛓⛔⛕⛖⛗⛘⛙⛚⛛⛜⛝⛞⛟⛠⛡⛢⛣⛤⛥⛦⛧⛨⛩⛪⛫⛬⛭⛮⛯⛰⛱⛲⛳⛴⛵⛶⛷⛸⛹⛺⛻⛼⛽⛾⛿",
+    "✀✁✂✃✄✅✆✇✈✉✊✋✌✍✎✏✐✑✒✓✔✕✖✗✘✙✚✛✜✝✞✟✠✡✢✣✤✥✦✧✨✩✪✫✬✭✮✯✰✱✲✳✴✵✶✷✸✹✺✻✼✽✾✿❀❁❂❃❄❅❆❇❈❉❊❋❌❍❎❏❐❑❒❓❔❕❖❗❘❙❚❛❜❝❞❟❠❡❢❣❤❥❦❧❨❩❪❫❬❭❮❯❰❱❲❳❴❵❶❷❸❹❺❻❼❽❾❿➀➁➂➃➄➅➆➇➈➉➊➋➌➍➎➏➐➑➒➓➔➕➖➗➘➙➚➛➜➝➞➟➠➡➢➣➤➥➦➧➨➩➪➫➬➭➮➯➰➱➲➳➴➵➶➷➸➹➺➻➼➽➾➿⟀⟁⟂⟃⟄⟅⟆⟇⟈⟉⟊⟋⟌⟍⟎⟏⟐⟑⟒⟓⟔⟕⟖⟗⟘⟙⟚⟛⟜⟝⟞⟟⟠⟡⟢⟣⟤⟥⟦⟧⟨⟩⟪⟫⟬⟭⟮⟯⟰⟱⟲⟳⟴⟵⟶⟷⟸⟹⟺⟻⟼⟽⟾⟿",
+    "⠀⠁⠂⠃⠄⠅⠆⠇⠈⠉⠊⠋⠌⠍⠎⠏⠐⠑⠒⠓⠔⠕⠖⠗⠘⠙⠚⠛⠜⠝⠞⠟⠠⠡⠢⠣⠤⠥⠦⠧⠨⠩⠪⠫⠬⠭⠮⠯⠰⠱⠲⠳⠴⠵⠶⠷⠸⠹⠺⠻⠼⠽⠾⠿⡀⡁⡂⡃⡄⡅⡆⡇⡈⡉⡊⡋⡌⡍⡎⡏⡐⡑⡒⡓⡔⡕⡖⡗⡘⡙⡚⡛⡜⡝⡞⡟⡠⡡⡢⡣⡤⡥⡦⡧⡨⡩⡪⡫⡬⡭⡮⡯⡰⡱⡲⡳⡴⡵⡶⡷⡸⡹⡺⡻⡼⡽⡾⡿⢀⢁⢂⢃⢄⢅⢆⢇⢈⢉⢊⢋⢌⢍⢎⢏⢐⢑⢒⢓⢔⢕⢖⢗⢘⢙⢚⢛⢜⢝⢞⢟⢠⢡⢢⢣⢤⢥⢦⢧⢨⢩⢪⢫⢬⢭⢮⢯⢰⢱⢲⢳⢴⢵⢶⢷⢸⢹⢺⢻⢼⢽⢾⢿⣀⣁⣂⣃⣄⣅⣆⣇⣈⣉⣊⣋⣌⣍⣎⣏⣐⣑⣒⣓⣔⣕⣖⣗⣘⣙⣚⣛⣜⣝⣞⣟⣠⣡⣢⣣⣤⣥⣦⣧⣨⣩⣪⣫⣬⣭⣮⣯⣰⣱⣲⣳⣴⣵⣶⣷⣸⣹⣺⣻⣼⣽⣾⣿",
+    "⤀⤁⤂⤃⤄⤅⤆⤇⤈⤉⤊⤋⤌⤍⤎⤏⤐⤑⤒⤓⤔⤕⤖⤗⤘⤙⤚⤛⤜⤝⤞⤟⤠⤡⤢⤣⤤⤥⤦⤧⤨⤩⤪⤫⤬⤭⤮⤯⤰⤱⤲⤳⤴⤵⤶⤷⤸⤹⤺⤻⤼⤽⤾⤿⥀⥁⥂⥃⥄⥅⥆⥇⥈⥉⥊⥋⥌⥍⥎⥏⥐⥑⥒⥓⥔⥕⥖⥗⥘⥙⥚⥛⥜⥝⥞⥟⥠⥡⥢⥣⥤⥥⥦⥧⥨⥩⥪⥫⥬⥭⥮⥯⥰⥱⥲⥳⥴⥵⥶⥷⥸⥹⥺⥻⥼⥽⥾⥿⦀⦁⦂⦃⦄⦅⦆⦇⦈⦉⦊⦋⦌⦍⦎⦏⦐⦑⦒⦓⦔⦕⦖⦗⦘⦙⦚⦛⦜⦝⦞⦟⦠⦡⦢⦣⦤⦥⦦⦧⦨⦩⦪⦫⦬⦭⦮⦯⦰⦱⦲⦳⦴⦵⦶⦷⦸⦹⦺⦻⦼⦽⦾⦿⧀⧁⧂⧃⧄⧅⧆⧇⧈⧉⧊⧋⧌⧍⧎⧏⧐⧑⧒⧓⧔⧕⧖⧗⧘⧙⧚⧛⧜⧝⧞⧟⧠⧡⧢⧣⧤⧥⧦⧧⧨⧩⧪⧫⧬⧭⧮⧯⧰⧱⧲⧳⧴⧵⧶⧷⧸⧹⧺⧻⧼⧽⧾⧿",
+    "⨀⨁⨂⨃⨄⨅⨆⨇⨈⨉⨊⨋⨌⨍⨎⨏⨐⨑⨒⨓⨔⨕⨖⨗⨘⨙⨚⨛⨜⨝⨞⨟⨠⨡⨢⨣⨤⨥⨦⨧⨨⨩⨪⨫⨬⨭⨮⨯⨰⨱⨲⨳⨴⨵⨶⨷⨸⨹⨺⨻⨼⨽⨾⨿⩀⩁⩂⩃⩄⩅⩆⩇⩈⩉⩊⩋⩌⩍⩎⩏⩐⩑⩒⩓⩔⩕⩖⩗⩘⩙⩚⩛⩜⩝⩞⩟⩠⩡⩢⩣⩤⩥⩦⩧⩨⩩⩪⩫⩬⩭⩮⩯⩰⩱⩲⩳⩴⩵⩶⩷⩸⩹⩺⩻⩼⩽⩾⩿⪀⪁⪂⪃⪄⪅⪆⪇⪈⪉⪊⪋⪌⪍⪎⪏⪐⪑⪒⪓⪔⪕⪖⪗⪘⪙⪚⪛⪜⪝⪞⪟⪠⪡⪢⪣⪤⪥⪦⪧⪨⪩⪪⪫⪬⪭⪮⪯⪰⪱⪲⪳⪴⪵⪶⪷⪸⪹⪺⪻⪼⪽⪾⪿⫀⫁⫂⫃⫄⫅⫆⫇⫈⫉⫊⫋⫌⫍⫎⫏⫐⫑⫒⫓⫔⫕⫖⫗⫘⫙⫚⫛⫝̸⫝⫞⫟⫠⫡⫢⫣⫤⫥⫦⫧⫨⫩⫪⫫⫬⫭⫮⫯⫰⫱⫲⫳⫴⫵⫶⫷⫸⫹⫺⫻⫼⫽⫾⫿",
+    "⬀⬁⬂⬃⬄⬅⬆⬇⬈⬉⬊⬋⬌⬍⬎⬏⬐⬑⬒⬓⬔⬕⬖⬗⬘⬙⬚⬛⬜⬝⬞⬟⬠⬡⬢⬣⬤⬥⬦⬧⬨⬩⬪⬫⬬⬭⬮⬯⬰⬱⬲⬳⬴⬵⬶⬷⬸⬹⬺⬻⬼⬽⬾⬿⭀⭁⭂⭃⭄⭅⭆⭇⭈⭉⭊⭋⭌⭍⭎⭏⭐⭑⭒⭓⭔⭕⭖⭗⭘⭙⭚⭛⭜⭝⭞⭟⭠⭡⭢⭣⭤⭥⭦⭧⭨⭩⭪⭫⭬⭭⭮⭯⭰⭱⭲⭳\u{2b74}\u{2b75}⭶⭷⭸⭹⭺⭻⭼⭽⭾⭿⮀⮁⮂⮃⮄⮅⮆⮇⮈⮉⮊⮋⮌⮍⮎⮏⮐⮑⮒⮓⮔⮕\u{2b96}⮗⮘⮙⮚⮛⮜⮝⮞⮟⮠⮡⮢⮣⮤⮥⮦⮧⮨⮩⮪⮫⮬⮭⮮⮯⮰⮱⮲⮳⮴⮵⮶⮷⮸⮹⮺⮻⮼⮽⮾⮿⯀⯁⯂⯃⯄⯅⯆⯇⯈⯉⯊⯋⯌⯍⯎⯏⯐⯑⯒⯓⯔⯕⯖⯗⯘⯙⯚⯛⯜⯝⯞⯟⯠⯡⯢⯣⯤⯥⯦⯧⯨⯩⯪⯫⯬⯭⯮⯯⯰⯱⯲⯳⯴⯵⯶⯷⯸⯹⯺⯻⯼⯽⯾⯿",
+    "ⰀⰁⰂⰃⰄⰅⰆⰇⰈⰉⰊⰋⰌⰍⰎⰏⰐⰑⰒⰓⰔⰕⰖⰗⰘⰙⰚⰛⰜⰝⰞⰟⰠⰡⰢⰣⰤⰥⰦⰧⰨⰩⰪⰫⰬⰭⰮⰯⰰⰱⰲⰳⰴⰵⰶⰷⰸⰹⰺⰻⰼⰽⰾⰿⱀⱁⱂⱃⱄⱅⱆⱇⱈⱉⱊⱋⱌⱍⱎⱏⱐⱑⱒⱓⱔⱕⱖⱗⱘⱙⱚⱛⱜⱝⱞⱟⱠⱡⱢⱣⱤⱥⱦⱧⱨⱩⱪⱫⱬⱭⱮⱯⱰⱱⱲⱳⱴⱵⱶⱷⱸⱹⱺⱻⱼⱽⱾⱿⲀⲁⲂⲃⲄⲅⲆⲇⲈⲉⲊⲋⲌⲍⲎⲏⲐⲑⲒⲓⲔⲕⲖⲗⲘⲙⲚⲛⲜⲝⲞⲟⲠⲡⲢⲣⲤⲥⲦⲧⲨⲩⲪⲫⲬⲭⲮⲯⲰⲱⲲⲳⲴⲵⲶⲷⲸⲹⲺⲻⲼⲽⲾⲿⳀⳁⳂⳃⳄⳅⳆⳇⳈⳉⳊⳋⳌⳍⳎⳏⳐⳑⳒⳓⳔⳕⳖⳗⳘⳙⳚⳛⳜⳝⳞⳟⳠⳡⳢⳣⳤ⳥⳦⳧⳨⳩⳪ⳫⳬⳭⳮ⳯⳰⳱Ⳳⳳ\u{2cf4}\u{2cf5}\u{2cf6}\u{2cf7}\u{2cf8}⳹⳺⳻⳼⳽⳾⳿",
+    "ⴀⴁⴂⴃⴄⴅⴆⴇⴈⴉⴊⴋⴌⴍⴎⴏⴐⴑⴒⴓⴔⴕⴖⴗⴘⴙⴚⴛⴜⴝⴞⴟⴠⴡⴢⴣⴤⴥ\u{2d26}ⴧ\u{2d28}\u{2d29}\u{2d2a}\u{2d2b}\u{2d2c}ⴭ\u{2d2e}\u{2d2f}ⴰⴱⴲⴳⴴⴵⴶⴷⴸⴹⴺⴻⴼⴽⴾⴿⵀⵁⵂⵃⵄⵅⵆⵇⵈⵉⵊⵋⵌⵍⵎⵏⵐⵑⵒⵓⵔⵕⵖⵗⵘⵙⵚⵛⵜⵝⵞⵟⵠⵡⵢⵣⵤⵥⵦⵧ\u{2d68}\u{2d69}\u{2d6a}\u{2d6b}\u{2d6c}\u{2d6d}\u{2d6e}ⵯ⵰\u{2d71}\u{2d72}\u{2d73}\u{2d74}\u{2d75}\u{2d76}\u{2d77}\u{2d78}\u{2d79}\u{2d7a}\u{2d7b}\u{2d7c}\u{2d7d}\u{2d7e}⵿ⶀⶁⶂⶃⶄⶅⶆⶇⶈⶉⶊⶋⶌⶍⶎⶏⶐⶑⶒⶓⶔⶕⶖ\u{2d97}\u{2d98}\u{2d99}\u{2d9a}\u{2d9b}\u{2d9c}\u{2d9d}\u{2d9e}\u{2d9f}ⶠⶡⶢⶣⶤⶥⶦ\u{2da7}ⶨⶩⶪⶫⶬⶭⶮ\u{2daf}ⶰⶱⶲⶳⶴⶵⶶ\u{2db7}ⶸⶹⶺⶻⶼⶽⶾ\u{2dbf}ⷀⷁⷂⷃⷄⷅⷆ\u{2dc7}ⷈⷉⷊⷋⷌⷍⷎ\u{2dcf}ⷐⷑⷒⷓⷔⷕⷖ\u{2dd7}ⷘⷙⷚⷛⷜⷝⷞ\u{2ddf}ⷠⷡⷢⷣⷤⷥⷦⷧⷨⷩⷪⷫⷬⷭⷮⷯⷰⷱⷲⷳⷴⷵⷶⷷⷸⷹⷺⷻⷼⷽⷾⷿ",
+    "⸀⸁⸂⸃⸄⸅⸆⸇⸈⸉⸊⸋⸌⸍⸎⸏⸐⸑⸒⸓⸔⸕⸖⸗⸘⸙⸚⸛⸜⸝⸞⸟⸠⸡⸢⸣⸤⸥⸦⸧⸨⸩⸪⸫⸬⸭⸮ⸯ⸰⸱⸲⸳⸴⸵⸶⸷⸸⸹⸺⸻⸼⸽⸾⸿⹀⹁⹂⹃⹄⹅⹆⹇⹈⹉⹊⹋⹌⹍⹎⹏⹐⹑⹒⹓⹔⹕⹖⹗⹘⹙⹚⹛⹜⹝\u{2e5e}\u{2e5f}\u{2e60}\u{2e61}\u{2e62}\u{2e63}\u{2e64}\u{2e65}\u{2e66}\u{2e67}\u{2e68}\u{2e69}\u{2e6a}\u{2e6b}\u{2e6c}\u{2e6d}\u{2e6e}\u{2e6f}\u{2e70}\u{2e71}\u{2e72}\u{2e73}\u{2e74}\u{2e75}\u{2e76}\u{2e77}\u{2e78}\u{2e79}\u{2e7a}\u{2e7b}\u{2e7c}\u{2e7d}\u{2e7e}\u{2e7f}⺀⺁⺂⺃⺄⺅⺆⺇⺈⺉⺊⺋⺌⺍⺎⺏⺐⺑⺒⺓⺔⺕⺖⺗⺘⺙\u{2e9a}⺛⺜⺝⺞⺟⺠⺡⺢⺣⺤⺥⺦⺧⺨⺩⺪⺫⺬⺭⺮⺯⺰⺱⺲⺳⺴⺵⺶⺷⺸⺹⺺⺻⺼⺽⺾⺿⻀⻁⻂⻃⻄⻅⻆⻇⻈⻉⻊⻋⻌⻍⻎⻏⻐⻑⻒⻓⻔⻕⻖⻗⻘⻙⻚⻛⻜⻝⻞⻟⻠⻡⻢⻣⻤⻥⻦⻧⻨⻩⻪⻫⻬⻭⻮⻯⻰⻱⻲⻳\u{2ef4}\u{2ef5}\u{2ef6}\u{2ef7}\u{2ef8}\u{2ef9}\u{2efa}\u{2efb}\u{2efc}\u{2efd}\u{2efe}\u{2eff}",
+    "⼀⼁⼂⼃⼄⼅⼆⼇⼈⼉⼊⼋⼌⼍⼎⼏⼐⼑⼒⼓⼔⼕⼖⼗⼘⼙⼚⼛⼜⼝⼞⼟⼠⼡⼢⼣⼤⼥⼦⼧⼨⼩⼪⼫⼬⼭⼮⼯⼰⼱⼲⼳⼴⼵⼶⼷⼸⼹⼺⼻⼼⼽⼾⼿⽀⽁⽂⽃⽄⽅⽆⽇⽈⽉⽊⽋⽌⽍⽎⽏⽐⽑⽒⽓⽔⽕⽖⽗⽘⽙⽚⽛⽜⽝⽞⽟⽠⽡⽢⽣⽤⽥⽦⽧⽨⽩⽪⽫⽬⽭⽮⽯⽰⽱⽲⽳⽴⽵⽶⽷⽸⽹⽺⽻⽼⽽⽾⽿⾀⾁⾂⾃⾄⾅⾆⾇⾈⾉⾊⾋⾌⾍⾎⾏⾐⾑⾒⾓⾔⾕⾖⾗⾘⾙⾚⾛⾜⾝⾞⾟⾠⾡⾢⾣⾤⾥⾦⾧⾨⾩⾪⾫⾬⾭⾮⾯⾰⾱⾲⾳⾴⾵⾶⾷⾸⾹⾺⾻⾼⾽⾾⾿⿀⿁⿂⿃⿄⿅⿆⿇⿈⿉⿊⿋⿌⿍⿎⿏⿐⿑⿒⿓⿔⿕\u{2fd6}\u{2fd7}\u{2fd8}\u{2fd9}\u{2fda}\u{2fdb}\u{2fdc}\u{2fdd}\u{2fde}\u{2fdf}\u{2fe0}\u{2fe1}\u{2fe2}\u{2fe3}\u{2fe4}\u{2fe5}\u{2fe6}\u{2fe7}\u{2fe8}\u{2fe9}\u{2fea}\u{2feb}\u{2fec}\u{2fed}\u{2fee}\u{2fef}⿰⿱⿲⿳⿴⿵⿶⿷⿸⿹⿺⿻⿼⿽⿾⿿",
+    "\u{3000}、。〃〄々〆〇〈〉《》「」『』【】〒〓〔〕〖〗〘〙〚〛〜〝〞〟〠〡〢〣〤〥〦〧〨〩〪〭〮〯〫〬〰〱〲〳〴〵〶〷〸〹〺〻〼〽〾〿\u{3040}ぁあぃいぅうぇえぉおかがきぎくぐけげこごさざしじすずせぜそぞただちぢっつづてでとどなにぬねのはばぱひびぴふぶぷへべぺほぼぽまみむめもゃやゅゆょよらりるれろゎわゐゑをんゔゕゖ\u{3097}\u{3098}゙゚゛゜ゝゞゟ゠ァアィイゥウェエォオカガキギクグケゲコゴサザシジスズセゼソゾタダチヂッツヅテデトドナニヌネノハバパヒビピフブプヘベペホボポマミムメモャヤュユョヨラリルレロヮワヰヱヲンヴヵヶヷヸヹヺ・ーヽヾヿ",
+    "\u{3100}\u{3101}\u{3102}\u{3103}\u{3104}ㄅㄆㄇㄈㄉㄊㄋㄌㄍㄎㄏㄐㄑㄒㄓㄔㄕㄖㄗㄘㄙㄚㄛㄜㄝㄞㄟㄠㄡㄢㄣㄤㄥㄦㄧㄨㄩㄪㄫㄬㄭㄮㄯ\u{3130}ㄱㄲㄳㄴㄵㄶㄷㄸㄹㄺㄻㄼㄽㄾㄿㅀㅁㅂㅃㅄㅅㅆㅇㅈㅉㅊㅋㅌㅍㅎㅏㅐㅑㅒㅓㅔㅕㅖㅗㅘㅙㅚㅛㅜㅝㅞㅟㅠㅡㅢㅣㅤㅥㅦㅧㅨㅩㅪㅫㅬㅭㅮㅯㅰㅱㅲㅳㅴㅵㅶㅷㅸㅹㅺㅻㅼㅽㅾㅿㆀㆁㆂㆃㆄㆅㆆㆇㆈㆉㆊㆋㆌㆍㆎ\u{318f}㆐㆑㆒㆓㆔㆕㆖㆗㆘㆙㆚㆛㆜㆝㆞㆟ㆠㆡㆢㆣㆤㆥㆦㆧㆨㆩㆪㆫㆬㆭㆮㆯㆰㆱㆲㆳㆴㆵㆶㆷㆸㆹㆺㆻㆼㆽㆾㆿ㇀㇁㇂㇃㇄㇅㇆㇇㇈㇉㇊㇋㇌㇍㇎㇏㇐㇑㇒㇓㇔㇕㇖㇗㇘㇙㇚㇛㇜㇝㇞㇟㇠㇡㇢㇣\u{31e4}\u{31e5}\u{31e6}\u{31e7}\u{31e8}\u{31e9}\u{31ea}\u{31eb}\u{31ec}\u{31ed}\u{31ee}㇯ㇰㇱㇲㇳㇴㇵㇶㇷㇸㇹㇺㇻㇼㇽㇾㇿ",
+    "㈀㈁㈂㈃㈄㈅㈆㈇㈈㈉㈊㈋㈌㈍㈎㈏㈐㈑㈒㈓㈔㈕㈖㈗㈘㈙㈚㈛㈜㈝㈞\u{321f}㈠㈡㈢㈣㈤㈥㈦㈧㈨㈩㈪㈫㈬㈭㈮㈯㈰㈱㈲㈳㈴㈵㈶㈷㈸㈹㈺㈻㈼㈽㈾㈿㉀㉁㉂㉃㉄㉅㉆㉇㉈㉉㉊㉋㉌㉍㉎㉏㉐㉑㉒㉓㉔㉕㉖㉗㉘㉙㉚㉛㉜㉝㉞㉟㉠㉡㉢㉣㉤㉥㉦㉧㉨㉩㉪㉫㉬㉭㉮㉯㉰㉱㉲㉳㉴㉵㉶㉷㉸㉹㉺㉻㉼㉽㉾㉿㊀㊁㊂㊃㊄㊅㊆㊇㊈㊉㊊㊋㊌㊍㊎㊏㊐㊑㊒㊓㊔㊕㊖㊗㊘㊙㊚㊛㊜㊝㊞㊟㊠㊡㊢㊣㊤㊥㊦㊧㊨㊩㊪㊫㊬㊭㊮㊯㊰㊱㊲㊳㊴㊵㊶㊷㊸㊹㊺㊻㊼㊽㊾㊿㋀㋁㋂㋃㋄㋅㋆㋇㋈㋉㋊㋋㋌㋍㋎㋏㋐㋑㋒㋓㋔㋕㋖㋗㋘㋙㋚㋛㋜㋝㋞㋟㋠㋡㋢㋣㋤㋥㋦㋧㋨㋩㋪㋫㋬㋭㋮㋯㋰㋱㋲㋳㋴㋵㋶㋷㋸㋹㋺㋻㋼㋽㋾㋿",
+    "㌀㌁㌂㌃㌄㌅㌆㌇㌈㌉㌊㌋㌌㌍㌎㌏㌐㌑㌒㌓㌔㌕㌖㌗㌘㌙㌚㌛㌜㌝㌞㌟㌠㌡㌢㌣㌤㌥㌦㌧㌨㌩㌪㌫㌬㌭㌮㌯㌰㌱㌲㌳㌴㌵㌶㌷㌸㌹㌺㌻㌼㌽㌾㌿㍀㍁㍂㍃㍄㍅㍆㍇㍈㍉㍊㍋㍌㍍㍎㍏㍐㍑㍒㍓㍔㍕㍖㍗㍘㍙㍚㍛㍜㍝㍞㍟㍠㍡㍢㍣㍤㍥㍦㍧㍨㍩㍪㍫㍬㍭㍮㍯㍰㍱㍲㍳㍴㍵㍶㍷㍸㍹㍺㍻㍼㍽㍾㍿㎀㎁㎂㎃㎄㎅㎆㎇㎈㎉㎊㎋㎌㎍㎎㎏㎐㎑㎒㎓㎔㎕㎖㎗㎘㎙㎚㎛㎜㎝㎞㎟㎠㎡㎢㎣㎤㎥㎦㎧㎨㎩㎪㎫㎬㎭㎮㎯㎰㎱㎲㎳㎴㎵㎶㎷㎸㎹㎺㎻㎼㎽㎾㎿㏀㏁㏂㏃㏄㏅㏆㏇㏈㏉㏊㏋㏌㏍㏎㏏㏐㏑㏒㏓㏔㏕㏖㏗㏘㏙㏚㏛㏜㏝㏞㏟㏠㏡㏢㏣㏤㏥㏦㏧㏨㏩㏪㏫㏬㏭㏮㏯㏰㏱㏲㏳㏴㏵㏶㏷㏸㏹㏺㏻㏼㏽㏾㏿",
+    "㐀㐁㐂㐃㐄㐅㐆㐇㐈㐉㐊㐋㐌㐍㐎㐏㐐㐑㐒㐓㐔㐕㐖㐗㐘㐙㐚㐛㐜㐝㐞㐟㐠㐡㐢㐣㐤㐥㐦㐧㐨㐩㐪㐫㐬㐭㐮㐯㐰㐱㐲㐳㐴㐵㐶㐷㐸㐹㐺㐻㐼㐽㐾㐿㑀㑁㑂㑃㑄㑅㑆㑇㑈㑉㑊㑋㑌㑍㑎㑏㑐㑑㑒㑓㑔㑕㑖㑗㑘㑙㑚㑛㑜㑝㑞㑟㑠㑡㑢㑣㑤㑥㑦㑧㑨㑩㑪㑫㑬㑭㑮㑯㑰㑱㑲㑳㑴㑵㑶㑷㑸㑹㑺㑻㑼㑽㑾㑿㒀㒁㒂㒃㒄㒅㒆㒇㒈㒉㒊㒋㒌㒍㒎㒏㒐㒑㒒㒓㒔㒕㒖㒗㒘㒙㒚㒛㒜㒝㒞㒟㒠㒡㒢㒣㒤㒥㒦㒧㒨㒩㒪㒫㒬㒭㒮㒯㒰㒱㒲㒳㒴㒵㒶㒷㒸㒹㒺㒻㒼㒽㒾㒿㓀㓁㓂㓃㓄㓅㓆㓇㓈㓉㓊㓋㓌㓍㓎㓏㓐㓑㓒㓓㓔㓕㓖㓗㓘㓙㓚㓛㓜㓝㓞㓟㓠㓡㓢㓣㓤㓥㓦㓧㓨㓩㓪㓫㓬㓭㓮㓯㓰㓱㓲㓳㓴㓵㓶㓷㓸㓹㓺㓻㓼㓽㓾㓿",
+    "㔀㔁㔂㔃㔄㔅㔆㔇㔈㔉㔊㔋㔌㔍㔎㔏㔐㔑㔒㔓㔔㔕㔖㔗㔘㔙㔚㔛㔜㔝㔞㔟㔠㔡㔢㔣㔤㔥㔦㔧㔨㔩㔪㔫㔬㔭㔮㔯㔰㔱㔲㔳㔴㔵㔶㔷㔸㔹㔺㔻㔼㔽㔾㔿㕀㕁㕂㕃㕄㕅㕆㕇㕈㕉㕊㕋㕌㕍㕎㕏㕐㕑㕒㕓㕔㕕㕖㕗㕘㕙㕚㕛㕜㕝㕞㕟㕠㕡㕢㕣㕤㕥㕦㕧㕨㕩㕪㕫㕬㕭㕮㕯㕰㕱㕲㕳㕴㕵㕶㕷㕸㕹㕺㕻㕼㕽㕾㕿㖀㖁㖂㖃㖄㖅㖆㖇㖈㖉㖊㖋㖌㖍㖎㖏㖐㖑㖒㖓㖔㖕㖖㖗㖘㖙㖚㖛㖜㖝㖞㖟㖠㖡㖢㖣㖤㖥㖦㖧㖨㖩㖪㖫㖬㖭㖮㖯㖰㖱㖲㖳㖴㖵㖶㖷㖸㖹㖺㖻㖼㖽㖾㖿㗀㗁㗂㗃㗄㗅㗆㗇㗈㗉㗊㗋㗌㗍㗎㗏㗐㗑㗒㗓㗔㗕㗖㗗㗘㗙㗚㗛㗜㗝㗞㗟㗠㗡㗢㗣㗤㗥㗦㗧㗨㗩㗪㗫㗬㗭㗮㗯㗰㗱㗲㗳㗴㗵㗶㗷㗸㗹㗺㗻㗼㗽㗾㗿",
+    "㘀㘁㘂㘃㘄㘅㘆㘇㘈㘉㘊㘋㘌㘍㘎㘏㘐㘑㘒㘓㘔㘕㘖㘗㘘㘙㘚㘛㘜㘝㘞㘟㘠㘡㘢㘣㘤㘥㘦㘧㘨㘩㘪㘫㘬㘭㘮㘯㘰㘱㘲㘳㘴㘵㘶㘷㘸㘹㘺㘻㘼㘽㘾㘿㙀㙁㙂㙃㙄㙅㙆㙇㙈㙉㙊㙋㙌㙍㙎㙏㙐㙑㙒㙓㙔㙕㙖㙗㙘㙙㙚㙛㙜㙝㙞㙟㙠㙡㙢㙣㙤㙥㙦㙧㙨㙩㙪㙫㙬㙭㙮㙯㙰㙱㙲㙳㙴㙵㙶㙷㙸㙹㙺㙻㙼㙽㙾㙿㚀㚁㚂㚃㚄㚅㚆㚇㚈㚉㚊㚋㚌㚍㚎㚏㚐㚑㚒㚓㚔㚕㚖㚗㚘㚙㚚㚛㚜㚝㚞㚟㚠㚡㚢㚣㚤㚥㚦㚧㚨㚩㚪㚫㚬㚭㚮㚯㚰㚱㚲㚳㚴㚵㚶㚷㚸㚹㚺㚻㚼㚽㚾㚿㛀㛁㛂㛃㛄㛅㛆㛇㛈㛉㛊㛋㛌㛍㛎㛏㛐㛑㛒㛓㛔㛕㛖㛗㛘㛙㛚㛛㛜㛝㛞㛟㛠㛡㛢㛣㛤㛥㛦㛧㛨㛩㛪㛫㛬㛭㛮㛯㛰㛱㛲㛳㛴㛵㛶㛷㛸㛹㛺㛻㛼㛽㛾㛿",
+    "㜀㜁㜂㜃㜄㜅㜆㜇㜈㜉㜊㜋㜌㜍㜎㜏㜐㜑㜒㜓㜔㜕㜖㜗㜘㜙㜚㜛㜜㜝㜞㜟㜠㜡㜢㜣㜤㜥㜦㜧㜨㜩㜪㜫㜬㜭㜮㜯㜰㜱㜲㜳㜴㜵㜶㜷㜸㜹㜺㜻㜼㜽㜾㜿㝀㝁㝂㝃㝄㝅㝆㝇㝈㝉㝊㝋㝌㝍㝎㝏㝐㝑㝒㝓㝔㝕㝖㝗㝘㝙㝚㝛㝜㝝㝞㝟㝠㝡㝢㝣㝤㝥㝦㝧㝨㝩㝪㝫㝬㝭㝮㝯㝰㝱㝲㝳㝴㝵㝶㝷㝸㝹㝺㝻㝼㝽㝾㝿㞀㞁㞂㞃㞄㞅㞆㞇㞈㞉㞊㞋㞌㞍㞎㞏㞐㞑㞒㞓㞔㞕㞖㞗㞘㞙㞚㞛㞜㞝㞞㞟㞠㞡㞢㞣㞤㞥㞦㞧㞨㞩㞪㞫㞬㞭㞮㞯㞰㞱㞲㞳㞴㞵㞶㞷㞸㞹㞺㞻㞼㞽㞾㞿㟀㟁㟂㟃㟄㟅㟆㟇㟈㟉㟊㟋㟌㟍㟎㟏㟐㟑㟒㟓㟔㟕㟖㟗㟘㟙㟚㟛㟜㟝㟞㟟㟠㟡㟢㟣㟤㟥㟦㟧㟨㟩㟪㟫㟬㟭㟮㟯㟰㟱㟲㟳㟴㟵㟶㟷㟸㟹㟺㟻㟼㟽㟾㟿",
+    "㠀㠁㠂㠃㠄㠅㠆㠇㠈㠉㠊㠋㠌㠍㠎㠏㠐㠑㠒㠓㠔㠕㠖㠗㠘㠙㠚㠛㠜㠝㠞㠟㠠㠡㠢㠣㠤㠥㠦㠧㠨㠩㠪㠫㠬㠭㠮㠯㠰㠱㠲㠳㠴㠵㠶㠷㠸㠹㠺㠻㠼㠽㠾㠿㡀㡁㡂㡃㡄㡅㡆㡇㡈㡉㡊㡋㡌㡍㡎㡏㡐㡑㡒㡓㡔㡕㡖㡗㡘㡙㡚㡛㡜㡝㡞㡟㡠㡡㡢㡣㡤㡥㡦㡧㡨㡩㡪㡫㡬㡭㡮㡯㡰㡱㡲㡳㡴㡵㡶㡷㡸㡹㡺㡻㡼㡽㡾㡿㢀㢁㢂㢃㢄㢅㢆㢇㢈㢉㢊㢋㢌㢍㢎㢏㢐㢑㢒㢓㢔㢕㢖㢗㢘㢙㢚㢛㢜㢝㢞㢟㢠㢡㢢㢣㢤㢥㢦㢧㢨㢩㢪㢫㢬㢭㢮㢯㢰㢱㢲㢳㢴㢵㢶㢷㢸㢹㢺㢻㢼㢽㢾㢿㣀㣁㣂㣃㣄㣅㣆㣇㣈㣉㣊㣋㣌㣍㣎㣏㣐㣑㣒㣓㣔㣕㣖㣗㣘㣙㣚㣛㣜㣝㣞㣟㣠㣡㣢㣣㣤㣥㣦㣧㣨㣩㣪㣫㣬㣭㣮㣯㣰㣱㣲㣳㣴㣵㣶㣷㣸㣹㣺㣻㣼㣽㣾㣿",
+    "㤀㤁㤂㤃㤄㤅㤆㤇㤈㤉㤊㤋㤌㤍㤎㤏㤐㤑㤒㤓㤔㤕㤖㤗㤘㤙㤚㤛㤜㤝㤞㤟㤠㤡㤢㤣㤤㤥㤦㤧㤨㤩㤪㤫㤬㤭㤮㤯㤰㤱㤲㤳㤴㤵㤶㤷㤸㤹㤺㤻㤼㤽㤾㤿㥀㥁㥂㥃㥄㥅㥆㥇㥈㥉㥊㥋㥌㥍㥎㥏㥐㥑㥒㥓㥔㥕㥖㥗㥘㥙㥚㥛㥜㥝㥞㥟㥠㥡㥢㥣㥤㥥㥦㥧㥨㥩㥪㥫㥬㥭㥮㥯㥰㥱㥲㥳㥴㥵㥶㥷㥸㥹㥺㥻㥼㥽㥾㥿㦀㦁㦂㦃㦄㦅㦆㦇㦈㦉㦊㦋㦌㦍㦎㦏㦐㦑㦒㦓㦔㦕㦖㦗㦘㦙㦚㦛㦜㦝㦞㦟㦠㦡㦢㦣㦤㦥㦦㦧㦨㦩㦪㦫㦬㦭㦮㦯㦰㦱㦲㦳㦴㦵㦶㦷㦸㦹㦺㦻㦼㦽㦾㦿㧀㧁㧂㧃㧄㧅㧆㧇㧈㧉㧊㧋㧌㧍㧎㧏㧐㧑㧒㧓㧔㧕㧖㧗㧘㧙㧚㧛㧜㧝㧞㧟㧠㧡㧢㧣㧤㧥㧦㧧㧨㧩㧪㧫㧬㧭㧮㧯㧰㧱㧲㧳㧴㧵㧶㧷㧸㧹㧺㧻㧼㧽㧾㧿",
+    "㨀㨁㨂㨃㨄㨅㨆㨇㨈㨉㨊㨋㨌㨍㨎㨏㨐㨑㨒㨓㨔㨕㨖㨗㨘㨙㨚㨛㨜㨝㨞㨟㨠㨡㨢㨣㨤㨥㨦㨧㨨㨩㨪㨫㨬㨭㨮㨯㨰㨱㨲㨳㨴㨵㨶㨷㨸㨹㨺㨻㨼㨽㨾㨿㩀㩁㩂㩃㩄㩅㩆㩇㩈㩉㩊㩋㩌㩍㩎㩏㩐㩑㩒㩓㩔㩕㩖㩗㩘㩙㩚㩛㩜㩝㩞㩟㩠㩡㩢㩣㩤㩥㩦㩧㩨㩩㩪㩫㩬㩭㩮㩯㩰㩱㩲㩳㩴㩵㩶㩷㩸㩹㩺㩻㩼㩽㩾㩿㪀㪁㪂㪃㪄㪅㪆㪇㪈㪉㪊㪋㪌㪍㪎㪏㪐㪑㪒㪓㪔㪕㪖㪗㪘㪙㪚㪛㪜㪝㪞㪟㪠㪡㪢㪣㪤㪥㪦㪧㪨㪩㪪㪫㪬㪭㪮㪯㪰㪱㪲㪳㪴㪵㪶㪷㪸㪹㪺㪻㪼㪽㪾㪿㫀㫁㫂㫃㫄㫅㫆㫇㫈㫉㫊㫋㫌㫍㫎㫏㫐㫑㫒㫓㫔㫕㫖㫗㫘㫙㫚㫛㫜㫝㫞㫟㫠㫡㫢㫣㫤㫥㫦㫧㫨㫩㫪㫫㫬㫭㫮㫯㫰㫱㫲㫳㫴㫵㫶㫷㫸㫹㫺㫻㫼㫽㫾㫿",
+    "㬀㬁㬂㬃㬄㬅㬆㬇㬈㬉㬊㬋㬌㬍㬎㬏㬐㬑㬒㬓㬔㬕㬖㬗㬘㬙㬚㬛㬜㬝㬞㬟㬠㬡㬢㬣㬤㬥㬦㬧㬨㬩㬪㬫㬬㬭㬮㬯㬰㬱㬲㬳㬴㬵㬶㬷㬸㬹㬺㬻㬼㬽㬾㬿㭀㭁㭂㭃㭄㭅㭆㭇㭈㭉㭊㭋㭌㭍㭎㭏㭐㭑㭒㭓㭔㭕㭖㭗㭘㭙㭚㭛㭜㭝㭞㭟㭠㭡㭢㭣㭤㭥㭦㭧㭨㭩㭪㭫㭬㭭㭮㭯㭰㭱㭲㭳㭴㭵㭶㭷㭸㭹㭺㭻㭼㭽㭾㭿㮀㮁㮂㮃㮄㮅㮆㮇㮈㮉㮊㮋㮌㮍㮎㮏㮐㮑㮒㮓㮔㮕㮖㮗㮘㮙㮚㮛㮜㮝㮞㮟㮠㮡㮢㮣㮤㮥㮦㮧㮨㮩㮪㮫㮬㮭㮮㮯㮰㮱㮲㮳㮴㮵㮶㮷㮸㮹㮺㮻㮼㮽㮾㮿㯀㯁㯂㯃㯄㯅㯆㯇㯈㯉㯊㯋㯌㯍㯎㯏㯐㯑㯒㯓㯔㯕㯖㯗㯘㯙㯚㯛㯜㯝㯞㯟㯠㯡㯢㯣㯤㯥㯦㯧㯨㯩㯪㯫㯬㯭㯮㯯㯰㯱㯲㯳㯴㯵㯶㯷㯸㯹㯺㯻㯼㯽㯾㯿",
+    "㰀㰁㰂㰃㰄㰅㰆㰇㰈㰉㰊㰋㰌㰍㰎㰏㰐㰑㰒㰓㰔㰕㰖㰗㰘㰙㰚㰛㰜㰝㰞㰟㰠㰡㰢㰣㰤㰥㰦㰧㰨㰩㰪㰫㰬㰭㰮㰯㰰㰱㰲㰳㰴㰵㰶㰷㰸㰹㰺㰻㰼㰽㰾㰿㱀㱁㱂㱃㱄㱅㱆㱇㱈㱉㱊㱋㱌㱍㱎㱏㱐㱑㱒㱓㱔㱕㱖㱗㱘㱙㱚㱛㱜㱝㱞㱟㱠㱡㱢㱣㱤㱥㱦㱧㱨㱩㱪㱫㱬㱭㱮㱯㱰㱱㱲㱳㱴㱵㱶㱷㱸㱹㱺㱻㱼㱽㱾㱿㲀㲁㲂㲃㲄㲅㲆㲇㲈㲉㲊㲋㲌㲍㲎㲏㲐㲑㲒㲓㲔㲕㲖㲗㲘㲙㲚㲛㲜㲝㲞㲟㲠㲡㲢㲣㲤㲥㲦㲧㲨㲩㲪㲫㲬㲭㲮㲯㲰㲱㲲㲳㲴㲵㲶㲷㲸㲹㲺㲻㲼㲽㲾㲿㳀㳁㳂㳃㳄㳅㳆㳇㳈㳉㳊㳋㳌㳍㳎㳏㳐㳑㳒㳓㳔㳕㳖㳗㳘㳙㳚㳛㳜㳝㳞㳟㳠㳡㳢㳣㳤㳥㳦㳧㳨㳩㳪㳫㳬㳭㳮㳯㳰㳱㳲㳳㳴㳵㳶㳷㳸㳹㳺㳻㳼㳽㳾㳿",
+    "㴀㴁㴂㴃㴄㴅㴆㴇㴈㴉㴊㴋㴌㴍㴎㴏㴐㴑㴒㴓㴔㴕㴖㴗㴘㴙㴚㴛㴜㴝㴞㴟㴠㴡㴢㴣㴤㴥㴦㴧㴨㴩㴪㴫㴬㴭㴮㴯㴰㴱㴲㴳㴴㴵㴶㴷㴸㴹㴺㴻㴼㴽㴾㴿㵀㵁㵂㵃㵄㵅㵆㵇㵈㵉㵊㵋㵌㵍㵎㵏㵐㵑㵒㵓㵔㵕㵖㵗㵘㵙㵚㵛㵜㵝㵞㵟㵠㵡㵢㵣㵤㵥㵦㵧㵨㵩㵪㵫㵬㵭㵮㵯㵰㵱㵲㵳㵴㵵㵶㵷㵸㵹㵺㵻㵼㵽㵾㵿㶀㶁㶂㶃㶄㶅㶆㶇㶈㶉㶊㶋㶌㶍㶎㶏㶐㶑㶒㶓㶔㶕㶖㶗㶘㶙㶚㶛㶜㶝㶞㶟㶠㶡㶢㶣㶤㶥㶦㶧㶨㶩㶪㶫㶬㶭㶮㶯㶰㶱㶲㶳㶴㶵㶶㶷㶸㶹㶺㶻㶼㶽㶾㶿㷀㷁㷂㷃㷄㷅㷆㷇㷈㷉㷊㷋㷌㷍㷎㷏㷐㷑㷒㷓㷔㷕㷖㷗㷘㷙㷚㷛㷜㷝㷞㷟㷠㷡㷢㷣㷤㷥㷦㷧㷨㷩㷪㷫㷬㷭㷮㷯㷰㷱㷲㷳㷴㷵㷶㷷㷸㷹㷺㷻㷼㷽㷾㷿",
+    "㸀㸁㸂㸃㸄㸅㸆㸇㸈㸉㸊㸋㸌㸍㸎㸏㸐㸑㸒㸓㸔㸕㸖㸗㸘㸙㸚㸛㸜㸝㸞㸟㸠㸡㸢㸣㸤㸥㸦㸧㸨㸩㸪㸫㸬㸭㸮㸯㸰㸱㸲㸳㸴㸵㸶㸷㸸㸹㸺㸻㸼㸽㸾㸿㹀㹁㹂㹃㹄㹅㹆㹇㹈㹉㹊㹋㹌㹍㹎㹏㹐㹑㹒㹓㹔㹕㹖㹗㹘㹙㹚㹛㹜㹝㹞㹟㹠㹡㹢㹣㹤㹥㹦㹧㹨㹩㹪㹫㹬㹭㹮㹯㹰㹱㹲㹳㹴㹵㹶㹷㹸㹹㹺㹻㹼㹽㹾㹿㺀㺁㺂㺃㺄㺅㺆㺇㺈㺉㺊㺋㺌㺍㺎㺏㺐㺑㺒㺓㺔㺕㺖㺗㺘㺙㺚㺛㺜㺝㺞㺟㺠㺡㺢㺣㺤㺥㺦㺧㺨㺩㺪㺫㺬㺭㺮㺯㺰㺱㺲㺳㺴㺵㺶㺷㺸㺹㺺㺻㺼㺽㺾㺿㻀㻁㻂㻃㻄㻅㻆㻇㻈㻉㻊㻋㻌㻍㻎㻏㻐㻑㻒㻓㻔㻕㻖㻗㻘㻙㻚㻛㻜㻝㻞㻟㻠㻡㻢㻣㻤㻥㻦㻧㻨㻩㻪㻫㻬㻭㻮㻯㻰㻱㻲㻳㻴㻵㻶㻷㻸㻹㻺㻻㻼㻽㻾㻿",
+    "㼀㼁㼂㼃㼄㼅㼆㼇㼈㼉㼊㼋㼌㼍㼎㼏㼐㼑㼒㼓㼔㼕㼖㼗㼘㼙㼚㼛㼜㼝㼞㼟㼠㼡㼢㼣㼤㼥㼦㼧㼨㼩㼪㼫㼬㼭㼮㼯㼰㼱㼲㼳㼴㼵㼶㼷㼸㼹㼺㼻㼼㼽㼾㼿㽀㽁㽂㽃㽄㽅㽆㽇㽈㽉㽊㽋㽌㽍㽎㽏㽐㽑㽒㽓㽔㽕㽖㽗㽘㽙㽚㽛㽜㽝㽞㽟㽠㽡㽢㽣㽤㽥㽦㽧㽨㽩㽪㽫㽬㽭㽮㽯㽰㽱㽲㽳㽴㽵㽶㽷㽸㽹㽺㽻㽼㽽㽾㽿㾀㾁㾂㾃㾄㾅㾆㾇㾈㾉㾊㾋㾌㾍㾎㾏㾐㾑㾒㾓㾔㾕㾖㾗㾘㾙㾚㾛㾜㾝㾞㾟㾠㾡㾢㾣㾤㾥㾦㾧㾨㾩㾪㾫㾬㾭㾮㾯㾰㾱㾲㾳㾴㾵㾶㾷㾸㾹㾺㾻㾼㾽㾾㾿㿀㿁㿂㿃㿄㿅㿆㿇㿈㿉㿊㿋㿌㿍㿎㿏㿐㿑㿒㿓㿔㿕㿖㿗㿘㿙㿚㿛㿜㿝㿞㿟㿠㿡㿢㿣㿤㿥㿦㿧㿨㿩㿪㿫㿬㿭㿮㿯㿰㿱㿲㿳㿴㿵㿶㿷㿸㿹㿺㿻㿼㿽㿾㿿",
+    "䀀䀁䀂䀃䀄䀅䀆䀇䀈䀉䀊䀋䀌䀍䀎䀏䀐䀑䀒䀓䀔䀕䀖䀗䀘䀙䀚䀛䀜䀝䀞䀟䀠䀡䀢䀣䀤䀥䀦䀧䀨䀩䀪䀫䀬䀭䀮䀯䀰䀱䀲䀳䀴䀵䀶䀷䀸䀹䀺䀻䀼䀽䀾䀿䁀䁁䁂䁃䁄䁅䁆䁇䁈䁉䁊䁋䁌䁍䁎䁏䁐䁑䁒䁓䁔䁕䁖䁗䁘䁙䁚䁛䁜䁝䁞䁟䁠䁡䁢䁣䁤䁥䁦䁧䁨䁩䁪䁫䁬䁭䁮䁯䁰䁱䁲䁳䁴䁵䁶䁷䁸䁹䁺䁻䁼䁽䁾䁿䂀䂁䂂䂃䂄䂅䂆䂇䂈䂉䂊䂋䂌䂍䂎䂏䂐䂑䂒䂓䂔䂕䂖䂗䂘䂙䂚䂛䂜䂝䂞䂟䂠䂡䂢䂣䂤䂥䂦䂧䂨䂩䂪䂫䂬䂭䂮䂯䂰䂱䂲䂳䂴䂵䂶䂷䂸䂹䂺䂻䂼䂽䂾䂿䃀䃁䃂䃃䃄䃅䃆䃇䃈䃉䃊䃋䃌䃍䃎䃏䃐䃑䃒䃓䃔䃕䃖䃗䃘䃙䃚䃛䃜䃝䃞䃟䃠䃡䃢䃣䃤䃥䃦䃧䃨䃩䃪䃫䃬䃭䃮䃯䃰䃱䃲䃳䃴䃵䃶䃷䃸䃹䃺䃻䃼䃽䃾䃿",
+    "䄀䄁䄂䄃䄄䄅䄆䄇䄈䄉䄊䄋䄌䄍䄎䄏䄐䄑䄒䄓䄔䄕䄖䄗䄘䄙䄚䄛䄜䄝䄞䄟䄠䄡䄢䄣䄤䄥䄦䄧䄨䄩䄪䄫䄬䄭䄮䄯䄰䄱䄲䄳䄴䄵䄶䄷䄸䄹䄺䄻䄼䄽䄾䄿䅀䅁䅂䅃䅄䅅䅆䅇䅈䅉䅊䅋䅌䅍䅎䅏䅐䅑䅒䅓䅔䅕䅖䅗䅘䅙䅚䅛䅜䅝䅞䅟䅠䅡䅢䅣䅤䅥䅦䅧䅨䅩䅪䅫䅬䅭䅮䅯䅰䅱䅲䅳䅴䅵䅶䅷䅸䅹䅺䅻䅼䅽䅾䅿䆀䆁䆂䆃䆄䆅䆆䆇䆈䆉䆊䆋䆌䆍䆎䆏䆐䆑䆒䆓䆔䆕䆖䆗䆘䆙䆚䆛䆜䆝䆞䆟䆠䆡䆢䆣䆤䆥䆦䆧䆨䆩䆪䆫䆬䆭䆮䆯䆰䆱䆲䆳䆴䆵䆶䆷䆸䆹䆺䆻䆼䆽䆾䆿䇀䇁䇂䇃䇄䇅䇆䇇䇈䇉䇊䇋䇌䇍䇎䇏䇐䇑䇒䇓䇔䇕䇖䇗䇘䇙䇚䇛䇜䇝䇞䇟䇠䇡䇢䇣䇤䇥䇦䇧䇨䇩䇪䇫䇬䇭䇮䇯䇰䇱䇲䇳䇴䇵䇶䇷䇸䇹䇺䇻䇼䇽䇾䇿",
+    "䈀䈁䈂䈃䈄䈅䈆䈇䈈䈉䈊䈋䈌䈍䈎䈏䈐䈑䈒䈓䈔䈕䈖䈗䈘䈙䈚䈛䈜䈝䈞䈟䈠䈡䈢䈣䈤䈥䈦䈧䈨䈩䈪䈫䈬䈭䈮䈯䈰䈱䈲䈳䈴䈵䈶䈷䈸䈹䈺䈻䈼䈽䈾䈿䉀䉁䉂䉃䉄䉅䉆䉇䉈䉉䉊䉋䉌䉍䉎䉏䉐䉑䉒䉓䉔䉕䉖䉗䉘䉙䉚䉛䉜䉝䉞䉟䉠䉡䉢䉣䉤䉥䉦䉧䉨䉩䉪䉫䉬䉭䉮䉯䉰䉱䉲䉳䉴䉵䉶䉷䉸䉹䉺䉻䉼䉽䉾䉿䊀䊁䊂䊃䊄䊅䊆䊇䊈䊉䊊䊋䊌䊍䊎䊏䊐䊑䊒䊓䊔䊕䊖䊗䊘䊙䊚䊛䊜䊝䊞䊟䊠䊡䊢䊣䊤䊥䊦䊧䊨䊩䊪䊫䊬䊭䊮䊯䊰䊱䊲䊳䊴䊵䊶䊷䊸䊹䊺䊻䊼䊽䊾䊿䋀䋁䋂䋃䋄䋅䋆䋇䋈䋉䋊䋋䋌䋍䋎䋏䋐䋑䋒䋓䋔䋕䋖䋗䋘䋙䋚䋛䋜䋝䋞䋟䋠䋡䋢䋣䋤䋥䋦䋧䋨䋩䋪䋫䋬䋭䋮䋯䋰䋱䋲䋳䋴䋵䋶䋷䋸䋹䋺䋻䋼䋽䋾䋿",
+    "䌀䌁䌂䌃䌄䌅䌆䌇䌈䌉䌊䌋䌌䌍䌎䌏䌐䌑䌒䌓䌔䌕䌖䌗䌘䌙䌚䌛䌜䌝䌞䌟䌠䌡䌢䌣䌤䌥䌦䌧䌨䌩䌪䌫䌬䌭䌮䌯䌰䌱䌲䌳䌴䌵䌶䌷䌸䌹䌺䌻䌼䌽䌾䌿䍀䍁䍂䍃䍄䍅䍆䍇䍈䍉䍊䍋䍌䍍䍎䍏䍐䍑䍒䍓䍔䍕䍖䍗䍘䍙䍚䍛䍜䍝䍞䍟䍠䍡䍢䍣䍤䍥䍦䍧䍨䍩䍪䍫䍬䍭䍮䍯䍰䍱䍲䍳䍴䍵䍶䍷䍸䍹䍺䍻䍼䍽䍾䍿䎀䎁䎂䎃䎄䎅䎆䎇䎈䎉䎊䎋䎌䎍䎎䎏䎐䎑䎒䎓䎔䎕䎖䎗䎘䎙䎚䎛䎜䎝䎞䎟䎠䎡䎢䎣䎤䎥䎦䎧䎨䎩䎪䎫䎬䎭䎮䎯䎰䎱䎲䎳䎴䎵䎶䎷䎸䎹䎺䎻䎼䎽䎾䎿䏀䏁䏂䏃䏄䏅䏆䏇䏈䏉䏊䏋䏌䏍䏎䏏䏐䏑䏒䏓䏔䏕䏖䏗䏘䏙䏚䏛䏜䏝䏞䏟䏠䏡䏢䏣䏤䏥䏦䏧䏨䏩䏪䏫䏬䏭䏮䏯䏰䏱䏲䏳䏴䏵䏶䏷䏸䏹䏺䏻䏼䏽䏾䏿",
+    "䐀䐁䐂䐃䐄䐅䐆䐇䐈䐉䐊䐋䐌䐍䐎䐏䐐䐑䐒䐓䐔䐕䐖䐗䐘䐙䐚䐛䐜䐝䐞䐟䐠䐡䐢䐣䐤䐥䐦䐧䐨䐩䐪䐫䐬䐭䐮䐯䐰䐱䐲䐳䐴䐵䐶䐷䐸䐹䐺䐻䐼䐽䐾䐿䑀䑁䑂䑃䑄䑅䑆䑇䑈䑉䑊䑋䑌䑍䑎䑏䑐䑑䑒䑓䑔䑕䑖䑗䑘䑙䑚䑛䑜䑝䑞䑟䑠䑡䑢䑣䑤䑥䑦䑧䑨䑩䑪䑫䑬䑭䑮䑯䑰䑱䑲䑳䑴䑵䑶䑷䑸䑹䑺䑻䑼䑽䑾䑿䒀䒁䒂䒃䒄䒅䒆䒇䒈䒉䒊䒋䒌䒍䒎䒏䒐䒑䒒䒓䒔䒕䒖䒗䒘䒙䒚䒛䒜䒝䒞䒟䒠䒡䒢䒣䒤䒥䒦䒧䒨䒩䒪䒫䒬䒭䒮䒯䒰䒱䒲䒳䒴䒵䒶䒷䒸䒹䒺䒻䒼䒽䒾䒿䓀䓁䓂䓃䓄䓅䓆䓇䓈䓉䓊䓋䓌䓍䓎䓏䓐䓑䓒䓓䓔䓕䓖䓗䓘䓙䓚䓛䓜䓝䓞䓟䓠䓡䓢䓣䓤䓥䓦䓧䓨䓩䓪䓫䓬䓭䓮䓯䓰䓱䓲䓳䓴䓵䓶䓷䓸䓹䓺䓻䓼䓽䓾䓿",
+    "䔀䔁䔂䔃䔄䔅䔆䔇䔈䔉䔊䔋䔌䔍䔎䔏䔐䔑䔒䔓䔔䔕䔖䔗䔘䔙䔚䔛䔜䔝䔞䔟䔠䔡䔢䔣䔤䔥䔦䔧䔨䔩䔪䔫䔬䔭䔮䔯䔰䔱䔲䔳䔴䔵䔶䔷䔸䔹䔺䔻䔼䔽䔾䔿䕀䕁䕂䕃䕄䕅䕆䕇䕈䕉䕊䕋䕌䕍䕎䕏䕐䕑䕒䕓䕔䕕䕖䕗䕘䕙䕚䕛䕜䕝䕞䕟䕠䕡䕢䕣䕤䕥䕦䕧䕨䕩䕪䕫䕬䕭䕮䕯䕰䕱䕲䕳䕴䕵䕶䕷䕸䕹䕺䕻䕼䕽䕾䕿䖀䖁䖂䖃䖄䖅䖆䖇䖈䖉䖊䖋䖌䖍䖎䖏䖐䖑䖒䖓䖔䖕䖖䖗䖘䖙䖚䖛䖜䖝䖞䖟䖠䖡䖢䖣䖤䖥䖦䖧䖨䖩䖪䖫䖬䖭䖮䖯䖰䖱䖲䖳䖴䖵䖶䖷䖸䖹䖺䖻䖼䖽䖾䖿䗀䗁䗂䗃䗄䗅䗆䗇䗈䗉䗊䗋䗌䗍䗎䗏䗐䗑䗒䗓䗔䗕䗖䗗䗘䗙䗚䗛䗜䗝䗞䗟䗠䗡䗢䗣䗤䗥䗦䗧䗨䗩䗪䗫䗬䗭䗮䗯䗰䗱䗲䗳䗴䗵䗶䗷䗸䗹䗺䗻䗼䗽䗾䗿",
+    "䘀䘁䘂䘃䘄䘅䘆䘇䘈䘉䘊䘋䘌䘍䘎䘏䘐䘑䘒䘓䘔䘕䘖䘗䘘䘙䘚䘛䘜䘝䘞䘟䘠䘡䘢䘣䘤䘥䘦䘧䘨䘩䘪䘫䘬䘭䘮䘯䘰䘱䘲䘳䘴䘵䘶䘷䘸䘹䘺䘻䘼䘽䘾䘿䙀䙁䙂䙃䙄䙅䙆䙇䙈䙉䙊䙋䙌䙍䙎䙏䙐䙑䙒䙓䙔䙕䙖䙗䙘䙙䙚䙛䙜䙝䙞䙟䙠䙡䙢䙣䙤䙥䙦䙧䙨䙩䙪䙫䙬䙭䙮䙯䙰䙱䙲䙳䙴䙵䙶䙷䙸䙹䙺䙻䙼䙽䙾䙿䚀䚁䚂䚃䚄䚅䚆䚇䚈䚉䚊䚋䚌䚍䚎䚏䚐䚑䚒䚓䚔䚕䚖䚗䚘䚙䚚䚛䚜䚝䚞䚟䚠䚡䚢䚣䚤䚥䚦䚧䚨䚩䚪䚫䚬䚭䚮䚯䚰䚱䚲䚳䚴䚵䚶䚷䚸䚹䚺䚻䚼䚽䚾䚿䛀䛁䛂䛃䛄䛅䛆䛇䛈䛉䛊䛋䛌䛍䛎䛏䛐䛑䛒䛓䛔䛕䛖䛗䛘䛙䛚䛛䛜䛝䛞䛟䛠䛡䛢䛣䛤䛥䛦䛧䛨䛩䛪䛫䛬䛭䛮䛯䛰䛱䛲䛳䛴䛵䛶䛷䛸䛹䛺䛻䛼䛽䛾䛿",
+    "䜀䜁䜂䜃䜄䜅䜆䜇䜈䜉䜊䜋䜌䜍䜎䜏䜐䜑䜒䜓䜔䜕䜖䜗䜘䜙䜚䜛䜜䜝䜞䜟䜠䜡䜢䜣䜤䜥䜦䜧䜨䜩䜪䜫䜬䜭䜮䜯䜰䜱䜲䜳䜴䜵䜶䜷䜸䜹䜺䜻䜼䜽䜾䜿䝀䝁䝂䝃䝄䝅䝆䝇䝈䝉䝊䝋䝌䝍䝎䝏䝐䝑䝒䝓䝔䝕䝖䝗䝘䝙䝚䝛䝜䝝䝞䝟䝠䝡䝢䝣䝤䝥䝦䝧䝨䝩䝪䝫䝬䝭䝮䝯䝰䝱䝲䝳䝴䝵䝶䝷䝸䝹䝺䝻䝼䝽䝾䝿䞀䞁䞂䞃䞄䞅䞆䞇䞈䞉䞊䞋䞌䞍䞎䞏䞐䞑䞒䞓䞔䞕䞖䞗䞘䞙䞚䞛䞜䞝䞞䞟䞠䞡䞢䞣䞤䞥䞦䞧䞨䞩䞪䞫䞬䞭䞮䞯䞰䞱䞲䞳䞴䞵䞶䞷䞸䞹䞺䞻䞼䞽䞾䞿䟀䟁䟂䟃䟄䟅䟆䟇䟈䟉䟊䟋䟌䟍䟎䟏䟐䟑䟒䟓䟔䟕䟖䟗䟘䟙䟚䟛䟜䟝䟞䟟䟠䟡䟢䟣䟤䟥䟦䟧䟨䟩䟪䟫䟬䟭䟮䟯䟰䟱䟲䟳䟴䟵䟶䟷䟸䟹䟺䟻䟼䟽䟾䟿",
+    "䠀䠁䠂䠃䠄䠅䠆䠇䠈䠉䠊䠋䠌䠍䠎䠏䠐䠑䠒䠓䠔䠕䠖䠗䠘䠙䠚䠛䠜䠝䠞䠟䠠䠡䠢䠣䠤䠥䠦䠧䠨䠩䠪䠫䠬䠭䠮䠯䠰䠱䠲䠳䠴䠵䠶䠷䠸䠹䠺䠻䠼䠽䠾䠿䡀䡁䡂䡃䡄䡅䡆䡇䡈䡉䡊䡋䡌䡍䡎䡏䡐䡑䡒䡓䡔䡕䡖䡗䡘䡙䡚䡛䡜䡝䡞䡟䡠䡡䡢䡣䡤䡥䡦䡧䡨䡩䡪䡫䡬䡭䡮䡯䡰䡱䡲䡳䡴䡵䡶䡷䡸䡹䡺䡻䡼䡽䡾䡿䢀䢁䢂䢃䢄䢅䢆䢇䢈䢉䢊䢋䢌䢍䢎䢏䢐䢑䢒䢓䢔䢕䢖䢗䢘䢙䢚䢛䢜䢝䢞䢟䢠䢡䢢䢣䢤䢥䢦䢧䢨䢩䢪䢫䢬䢭䢮䢯䢰䢱䢲䢳䢴䢵䢶䢷䢸䢹䢺䢻䢼䢽䢾䢿䣀䣁䣂䣃䣄䣅䣆䣇䣈䣉䣊䣋䣌䣍䣎䣏䣐䣑䣒䣓䣔䣕䣖䣗䣘䣙䣚䣛䣜䣝䣞䣟䣠䣡䣢䣣䣤䣥䣦䣧䣨䣩䣪䣫䣬䣭䣮䣯䣰䣱䣲䣳䣴䣵䣶䣷䣸䣹䣺䣻䣼䣽䣾䣿",
+    "䤀䤁䤂䤃䤄䤅䤆䤇䤈䤉䤊䤋䤌䤍䤎䤏䤐䤑䤒䤓䤔䤕䤖䤗䤘䤙䤚䤛䤜䤝䤞䤟䤠䤡䤢䤣䤤䤥䤦䤧䤨䤩䤪䤫䤬䤭䤮䤯䤰䤱䤲䤳䤴䤵䤶䤷䤸䤹䤺䤻䤼䤽䤾䤿䥀䥁䥂䥃䥄䥅䥆䥇䥈䥉䥊䥋䥌䥍䥎䥏䥐䥑䥒䥓䥔䥕䥖䥗䥘䥙䥚䥛䥜䥝䥞䥟䥠䥡䥢䥣䥤䥥䥦䥧䥨䥩䥪䥫䥬䥭䥮䥯䥰䥱䥲䥳䥴䥵䥶䥷䥸䥹䥺䥻䥼䥽䥾䥿䦀䦁䦂䦃䦄䦅䦆䦇䦈䦉䦊䦋䦌䦍䦎䦏䦐䦑䦒䦓䦔䦕䦖䦗䦘䦙䦚䦛䦜䦝䦞䦟䦠䦡䦢䦣䦤䦥䦦䦧䦨䦩䦪䦫䦬䦭䦮䦯䦰䦱䦲䦳䦴䦵䦶䦷䦸䦹䦺䦻䦼䦽䦾䦿䧀䧁䧂䧃䧄䧅䧆䧇䧈䧉䧊䧋䧌䧍䧎䧏䧐䧑䧒䧓䧔䧕䧖䧗䧘䧙䧚䧛䧜䧝䧞䧟䧠䧡䧢䧣䧤䧥䧦䧧䧨䧩䧪䧫䧬䧭䧮䧯䧰䧱䧲䧳䧴䧵䧶䧷䧸䧹䧺䧻䧼䧽䧾䧿",
+    "䨀䨁䨂䨃䨄䨅䨆䨇䨈䨉䨊䨋䨌䨍䨎䨏䨐䨑䨒䨓䨔䨕䨖䨗䨘䨙䨚䨛䨜䨝䨞䨟䨠䨡䨢䨣䨤䨥䨦䨧䨨䨩䨪䨫䨬䨭䨮䨯䨰䨱䨲䨳䨴䨵䨶䨷䨸䨹䨺䨻䨼䨽䨾䨿䩀䩁䩂䩃䩄䩅䩆䩇䩈䩉䩊䩋䩌䩍䩎䩏䩐䩑䩒䩓䩔䩕䩖䩗䩘䩙䩚䩛䩜䩝䩞䩟䩠䩡䩢䩣䩤䩥䩦䩧䩨䩩䩪䩫䩬䩭䩮䩯䩰䩱䩲䩳䩴䩵䩶䩷䩸䩹䩺䩻䩼䩽䩾䩿䪀䪁䪂䪃䪄䪅䪆䪇䪈䪉䪊䪋䪌䪍䪎䪏䪐䪑䪒䪓䪔䪕䪖䪗䪘䪙䪚䪛䪜䪝䪞䪟䪠䪡䪢䪣䪤䪥䪦䪧䪨䪩䪪䪫䪬䪭䪮䪯䪰䪱䪲䪳䪴䪵䪶䪷䪸䪹䪺䪻䪼䪽䪾䪿䫀䫁䫂䫃䫄䫅䫆䫇䫈䫉䫊䫋䫌䫍䫎䫏䫐䫑䫒䫓䫔䫕䫖䫗䫘䫙䫚䫛䫜䫝䫞䫟䫠䫡䫢䫣䫤䫥䫦䫧䫨䫩䫪䫫䫬䫭䫮䫯䫰䫱䫲䫳䫴䫵䫶䫷䫸䫹䫺䫻䫼䫽䫾䫿",
+    "䬀䬁䬂䬃䬄䬅䬆䬇䬈䬉䬊䬋䬌䬍䬎䬏䬐䬑䬒䬓䬔䬕䬖䬗䬘䬙䬚䬛䬜䬝䬞䬟䬠䬡䬢䬣䬤䬥䬦䬧䬨䬩䬪䬫䬬䬭䬮䬯䬰䬱䬲䬳䬴䬵䬶䬷䬸䬹䬺䬻䬼䬽䬾䬿䭀䭁䭂䭃䭄䭅䭆䭇䭈䭉䭊䭋䭌䭍䭎䭏䭐䭑䭒䭓䭔䭕䭖䭗䭘䭙䭚䭛䭜䭝䭞䭟䭠䭡䭢䭣䭤䭥䭦䭧䭨䭩䭪䭫䭬䭭䭮䭯䭰䭱䭲䭳䭴䭵䭶䭷䭸䭹䭺䭻䭼䭽䭾䭿䮀䮁䮂䮃䮄䮅䮆䮇䮈䮉䮊䮋䮌䮍䮎䮏䮐䮑䮒䮓䮔䮕䮖䮗䮘䮙䮚䮛䮜䮝䮞䮟䮠䮡䮢䮣䮤䮥䮦䮧䮨䮩䮪䮫䮬䮭䮮䮯䮰䮱䮲䮳䮴䮵䮶䮷䮸䮹䮺䮻䮼䮽䮾䮿䯀䯁䯂䯃䯄䯅䯆䯇䯈䯉䯊䯋䯌䯍䯎䯏䯐䯑䯒䯓䯔䯕䯖䯗䯘䯙䯚䯛䯜䯝䯞䯟䯠䯡䯢䯣䯤䯥䯦䯧䯨䯩䯪䯫䯬䯭䯮䯯䯰䯱䯲䯳䯴䯵䯶䯷䯸䯹䯺䯻䯼䯽䯾䯿",
+    "䰀䰁䰂䰃䰄䰅䰆䰇䰈䰉䰊䰋䰌䰍䰎䰏䰐䰑䰒䰓䰔䰕䰖䰗䰘䰙䰚䰛䰜䰝䰞䰟䰠䰡䰢䰣䰤䰥䰦䰧䰨䰩䰪䰫䰬䰭䰮䰯䰰䰱䰲䰳䰴䰵䰶䰷䰸䰹䰺䰻䰼䰽䰾䰿䱀䱁䱂䱃䱄䱅䱆䱇䱈䱉䱊䱋䱌䱍䱎䱏䱐䱑䱒䱓䱔䱕䱖䱗䱘䱙䱚䱛䱜䱝䱞䱟䱠䱡䱢䱣䱤䱥䱦䱧䱨䱩䱪䱫䱬䱭䱮䱯䱰䱱䱲䱳䱴䱵䱶䱷䱸䱹䱺䱻䱼䱽䱾䱿䲀䲁䲂䲃䲄䲅䲆䲇䲈䲉䲊䲋䲌䲍䲎䲏䲐䲑䲒䲓䲔䲕䲖䲗䲘䲙䲚䲛䲜䲝䲞䲟䲠䲡䲢䲣䲤䲥䲦䲧䲨䲩䲪䲫䲬䲭䲮䲯䲰䲱䲲䲳䲴䲵䲶䲷䲸䲹䲺䲻䲼䲽䲾䲿䳀䳁䳂䳃䳄䳅䳆䳇䳈䳉䳊䳋䳌䳍䳎䳏䳐䳑䳒䳓䳔䳕䳖䳗䳘䳙䳚䳛䳜䳝䳞䳟䳠䳡䳢䳣䳤䳥䳦䳧䳨䳩䳪䳫䳬䳭䳮䳯䳰䳱䳲䳳䳴䳵䳶䳷䳸䳹䳺䳻䳼䳽䳾䳿",
+    "䴀䴁䴂䴃䴄䴅䴆䴇䴈䴉䴊䴋䴌䴍䴎䴏䴐䴑䴒䴓䴔䴕䴖䴗䴘䴙䴚䴛䴜䴝䴞䴟䴠䴡䴢䴣䴤䴥䴦䴧䴨䴩䴪䴫䴬䴭䴮䴯䴰䴱䴲䴳䴴䴵䴶䴷䴸䴹䴺䴻䴼䴽䴾䴿䵀䵁䵂䵃䵄䵅䵆䵇䵈䵉䵊䵋䵌䵍䵎䵏䵐䵑䵒䵓䵔䵕䵖䵗䵘䵙䵚䵛䵜䵝䵞䵟䵠䵡䵢䵣䵤䵥䵦䵧䵨䵩䵪䵫䵬䵭䵮䵯䵰䵱䵲䵳䵴䵵䵶䵷䵸䵹䵺䵻䵼䵽䵾䵿䶀䶁䶂䶃䶄䶅䶆䶇䶈䶉䶊䶋䶌䶍䶎䶏䶐䶑䶒䶓䶔䶕䶖䶗䶘䶙䶚䶛䶜䶝䶞䶟䶠䶡䶢䶣䶤䶥䶦䶧䶨䶩䶪䶫䶬䶭䶮䶯䶰䶱䶲䶳䶴䶵䶶䶷䶸䶹䶺䶻䶼䶽䶾䶿䷀䷁䷂䷃䷄䷅䷆䷇䷈䷉䷊䷋䷌䷍䷎䷏䷐䷑䷒䷓䷔䷕䷖䷗䷘䷙䷚䷛䷜䷝䷞䷟䷠䷡䷢䷣䷤䷥䷦䷧䷨䷩䷪䷫䷬䷭䷮䷯䷰䷱䷲䷳䷴䷵䷶䷷䷸䷹䷺䷻䷼䷽䷾䷿",
+    "一丁丂七丄丅丆万丈三上下丌不与丏丐丑丒专且丕世丗丘丙业丛东丝丞丟丠両丢丣两严並丧丨丩个丫丬中丮丯丰丱串丳临丵丶丷丸丹为主丼丽举丿乀乁乂乃乄久乆乇么义乊之乌乍乎乏乐乑乒乓乔乕乖乗乘乙乚乛乜九乞也习乡乢乣乤乥书乧乨乩乪乫乬乭乮乯买乱乲乳乴乵乶乷乸乹乺乻乼乽乾乿亀亁亂亃亄亅了亇予争亊事二亍于亏亐云互亓五井亖亗亘亙亚些亜亝亞亟亠亡亢亣交亥亦产亨亩亪享京亭亮亯亰亱亲亳亴亵亶亷亸亹人亻亼亽亾亿什仁仂仃仄仅仆仇仈仉今介仌仍从仏仐仑仒仓仔仕他仗付仙仚仛仜仝仞仟仠仡仢代令以仦仧仨仩仪仫们仭仮仯仰仱仲仳仴仵件价仸仹仺任仼份仾仿",
+    "伀企伂伃伄伅伆伇伈伉伊伋伌伍伎伏伐休伒伓伔伕伖众优伙会伛伜伝伞伟传伡伢伣伤伥伦伧伨伩伪伫伬伭伮伯估伱伲伳伴伵伶伷伸伹伺伻似伽伾伿佀佁佂佃佄佅但佇佈佉佊佋佌位低住佐佑佒体佔何佖佗佘余佚佛作佝佞佟你佡佢佣佤佥佦佧佨佩佪佫佬佭佮佯佰佱佲佳佴併佶佷佸佹佺佻佼佽佾使侀侁侂侃侄侅來侇侈侉侊例侌侍侎侏侐侑侒侓侔侕侖侗侘侙侚供侜依侞侟侠価侢侣侤侥侦侧侨侩侪侫侬侭侮侯侰侱侲侳侴侵侶侷侸侹侺侻侼侽侾便俀俁係促俄俅俆俇俈俉俊俋俌俍俎俏俐俑俒俓俔俕俖俗俘俙俚俛俜保俞俟俠信俢俣俤俥俦俧俨俩俪俫俬俭修俯俰俱俲俳俴俵俶俷俸俹俺俻俼俽俾俿",
+    "倀倁倂倃倄倅倆倇倈倉倊個倌倍倎倏倐們倒倓倔倕倖倗倘候倚倛倜倝倞借倠倡倢倣値倥倦倧倨倩倪倫倬倭倮倯倰倱倲倳倴倵倶倷倸倹债倻值倽倾倿偀偁偂偃偄偅偆假偈偉偊偋偌偍偎偏偐偑偒偓偔偕偖偗偘偙做偛停偝偞偟偠偡偢偣偤健偦偧偨偩偪偫偬偭偮偯偰偱偲偳側偵偶偷偸偹偺偻偼偽偾偿傀傁傂傃傄傅傆傇傈傉傊傋傌傍傎傏傐傑傒傓傔傕傖傗傘備傚傛傜傝傞傟傠傡傢傣傤傥傦傧储傩傪傫催傭傮傯傰傱傲傳傴債傶傷傸傹傺傻傼傽傾傿僀僁僂僃僄僅僆僇僈僉僊僋僌働僎像僐僑僒僓僔僕僖僗僘僙僚僛僜僝僞僟僠僡僢僣僤僥僦僧僨僩僪僫僬僭僮僯僰僱僲僳僴僵僶僷僸價僺僻僼僽僾僿",
+    "儀儁儂儃億儅儆儇儈儉儊儋儌儍儎儏儐儑儒儓儔儕儖儗儘儙儚儛儜儝儞償儠儡儢儣儤儥儦儧儨儩優儫儬儭儮儯儰儱儲儳儴儵儶儷儸儹儺儻儼儽儾儿兀允兂元兄充兆兇先光兊克兌免兎兏児兑兒兓兔兕兖兗兘兙党兛兜兝兞兟兠兡兢兣兤入兦內全兩兪八公六兮兯兰共兲关兴兵其具典兹兺养兼兽兾兿冀冁冂冃冄内円冇冈冉冊冋册再冎冏冐冑冒冓冔冕冖冗冘写冚军农冝冞冟冠冡冢冣冤冥冦冧冨冩冪冫冬冭冮冯冰冱冲决冴况冶冷冸冹冺冻冼冽冾冿净凁凂凃凄凅准凇凈凉凊凋凌凍凎减凐凑凒凓凔凕凖凗凘凙凚凛凜凝凞凟几凡凢凣凤凥処凧凨凩凪凫凬凭凮凯凰凱凲凳凴凵凶凷凸凹出击凼函凾凿",
+    "刀刁刂刃刄刅分切刈刉刊刋刌刍刎刏刐刑划刓刔刕刖列刘则刚创刜初刞刟删刡刢刣判別刦刧刨利刪别刬刭刮刯到刱刲刳刴刵制刷券刹刺刻刼刽刾刿剀剁剂剃剄剅剆則剈剉削剋剌前剎剏剐剑剒剓剔剕剖剗剘剙剚剛剜剝剞剟剠剡剢剣剤剥剦剧剨剩剪剫剬剭剮副剰剱割剳剴創剶剷剸剹剺剻剼剽剾剿劀劁劂劃劄劅劆劇劈劉劊劋劌劍劎劏劐劑劒劓劔劕劖劗劘劙劚力劜劝办功加务劢劣劤劥劦劧动助努劫劬劭劮劯劰励劲劳労劵劶劷劸効劺劻劼劽劾势勀勁勂勃勄勅勆勇勈勉勊勋勌勍勎勏勐勑勒勓勔動勖勗勘務勚勛勜勝勞募勠勡勢勣勤勥勦勧勨勩勪勫勬勭勮勯勰勱勲勳勴勵勶勷勸勹勺勻勼勽勾勿",
+    "匀匁匂匃匄包匆匇匈匉匊匋匌匍匎匏匐匑匒匓匔匕化北匘匙匚匛匜匝匞匟匠匡匢匣匤匥匦匧匨匩匪匫匬匭匮匯匰匱匲匳匴匵匶匷匸匹区医匼匽匾匿區十卂千卄卅卆升午卉半卋卌卍华协卐卑卒卓協单卖南単卙博卛卜卝卞卟占卡卢卣卤卥卦卧卨卩卪卫卬卭卮卯印危卲即却卵卶卷卸卹卺卻卼卽卾卿厀厁厂厃厄厅历厇厈厉厊压厌厍厎厏厐厑厒厓厔厕厖厗厘厙厚厛厜厝厞原厠厡厢厣厤厥厦厧厨厩厪厫厬厭厮厯厰厱厲厳厴厵厶厷厸厹厺去厼厽厾县叀叁参參叄叅叆叇又叉及友双反収叏叐发叒叓叔叕取受变叙叚叛叜叝叞叟叠叡叢口古句另叧叨叩只叫召叭叮可台叱史右叴叵叶号司叹叺叻叼叽叾叿",
+    "吀吁吂吃各吅吆吇合吉吊吋同名后吏吐向吒吓吔吕吖吗吘吙吚君吜吝吞吟吠吡吢吣吤吥否吧吨吩吪含听吭吮启吰吱吲吳吴吵吶吷吸吹吺吻吼吽吾吿呀呁呂呃呄呅呆呇呈呉告呋呌呍呎呏呐呑呒呓呔呕呖呗员呙呚呛呜呝呞呟呠呡呢呣呤呥呦呧周呩呪呫呬呭呮呯呰呱呲味呴呵呶呷呸呹呺呻呼命呾呿咀咁咂咃咄咅咆咇咈咉咊咋和咍咎咏咐咑咒咓咔咕咖咗咘咙咚咛咜咝咞咟咠咡咢咣咤咥咦咧咨咩咪咫咬咭咮咯咰咱咲咳咴咵咶咷咸咹咺咻咼咽咾咿哀品哂哃哄哅哆哇哈哉哊哋哌响哎哏哐哑哒哓哔哕哖哗哘哙哚哛哜哝哞哟哠員哢哣哤哥哦哧哨哩哪哫哬哭哮哯哰哱哲哳哴哵哶哷哸哹哺哻哼哽哾哿",
+    "唀唁唂唃唄唅唆唇唈唉唊唋唌唍唎唏唐唑唒唓唔唕唖唗唘唙唚唛唜唝唞唟唠唡唢唣唤唥唦唧唨唩唪唫唬唭售唯唰唱唲唳唴唵唶唷唸唹唺唻唼唽唾唿啀啁啂啃啄啅商啇啈啉啊啋啌啍啎問啐啑啒啓啔啕啖啗啘啙啚啛啜啝啞啟啠啡啢啣啤啥啦啧啨啩啪啫啬啭啮啯啰啱啲啳啴啵啶啷啸啹啺啻啼啽啾啿喀喁喂喃善喅喆喇喈喉喊喋喌喍喎喏喐喑喒喓喔喕喖喗喘喙喚喛喜喝喞喟喠喡喢喣喤喥喦喧喨喩喪喫喬喭單喯喰喱喲喳喴喵営喷喸喹喺喻喼喽喾喿嗀嗁嗂嗃嗄嗅嗆嗇嗈嗉嗊嗋嗌嗍嗎嗏嗐嗑嗒嗓嗔嗕嗖嗗嗘嗙嗚嗛嗜嗝嗞嗟嗠嗡嗢嗣嗤嗥嗦嗧嗨嗩嗪嗫嗬嗭嗮嗯嗰嗱嗲嗳嗴嗵嗶嗷嗸嗹嗺嗻嗼嗽嗾嗿",
+    "嘀嘁嘂嘃嘄嘅嘆嘇嘈嘉嘊嘋嘌嘍嘎嘏嘐嘑嘒嘓嘔嘕嘖嘗嘘嘙嘚嘛嘜嘝嘞嘟嘠嘡嘢嘣嘤嘥嘦嘧嘨嘩嘪嘫嘬嘭嘮嘯嘰嘱嘲嘳嘴嘵嘶嘷嘸嘹嘺嘻嘼嘽嘾嘿噀噁噂噃噄噅噆噇噈噉噊噋噌噍噎噏噐噑噒噓噔噕噖噗噘噙噚噛噜噝噞噟噠噡噢噣噤噥噦噧器噩噪噫噬噭噮噯噰噱噲噳噴噵噶噷噸噹噺噻噼噽噾噿嚀嚁嚂嚃嚄嚅嚆嚇嚈嚉嚊嚋嚌嚍嚎嚏嚐嚑嚒嚓嚔嚕嚖嚗嚘嚙嚚嚛嚜嚝嚞嚟嚠嚡嚢嚣嚤嚥嚦嚧嚨嚩嚪嚫嚬嚭嚮嚯嚰嚱嚲嚳嚴嚵嚶嚷嚸嚹嚺嚻嚼嚽嚾嚿囀囁囂囃囄囅囆囇囈囉囊囋囌囍囎囏囐囑囒囓囔囕囖囗囘囙囚四囜囝回囟因囡团団囤囥囦囧囨囩囪囫囬园囮囯困囱囲図围囵囶囷囸囹固囻囼国图囿",
+    "圀圁圂圃圄圅圆圇圈圉圊國圌圍圎圏圐圑園圓圔圕圖圗團圙圚圛圜圝圞土圠圡圢圣圤圥圦圧在圩圪圫圬圭圮圯地圱圲圳圴圵圶圷圸圹场圻圼圽圾圿址坁坂坃坄坅坆均坈坉坊坋坌坍坎坏坐坑坒坓坔坕坖块坘坙坚坛坜坝坞坟坠坡坢坣坤坥坦坧坨坩坪坫坬坭坮坯坰坱坲坳坴坵坶坷坸坹坺坻坼坽坾坿垀垁垂垃垄垅垆垇垈垉垊型垌垍垎垏垐垑垒垓垔垕垖垗垘垙垚垛垜垝垞垟垠垡垢垣垤垥垦垧垨垩垪垫垬垭垮垯垰垱垲垳垴垵垶垷垸垹垺垻垼垽垾垿埀埁埂埃埄埅埆埇埈埉埊埋埌埍城埏埐埑埒埓埔埕埖埗埘埙埚埛埜埝埞域埠埡埢埣埤埥埦埧埨埩埪埫埬埭埮埯埰埱埲埳埴埵埶執埸培基埻埼埽埾埿",
+    "堀堁堂堃堄堅堆堇堈堉堊堋堌堍堎堏堐堑堒堓堔堕堖堗堘堙堚堛堜堝堞堟堠堡堢堣堤堥堦堧堨堩堪堫堬堭堮堯堰報堲堳場堵堶堷堸堹堺堻堼堽堾堿塀塁塂塃塄塅塆塇塈塉塊塋塌塍塎塏塐塑塒塓塔塕塖塗塘塙塚塛塜塝塞塟塠塡塢塣塤塥塦塧塨塩塪填塬塭塮塯塰塱塲塳塴塵塶塷塸塹塺塻塼塽塾塿墀墁墂境墄墅墆墇墈墉墊墋墌墍墎墏墐墑墒墓墔墕墖増墘墙墚墛墜墝增墟墠墡墢墣墤墥墦墧墨墩墪墫墬墭墮墯墰墱墲墳墴墵墶墷墸墹墺墻墼墽墾墿壀壁壂壃壄壅壆壇壈壉壊壋壌壍壎壏壐壑壒壓壔壕壖壗壘壙壚壛壜壝壞壟壠壡壢壣壤壥壦壧壨壩壪士壬壭壮壯声壱売壳壴壵壶壷壸壹壺壻壼壽壾壿",
+    "夀夁夂夃处夅夆备夈変夊夋夌复夎夏夐夑夒夓夔夕外夗夘夙多夛夜夝夞够夠夡夢夣夤夥夦大夨天太夫夬夭央夯夰失夲夳头夵夶夷夸夹夺夻夼夽夾夿奀奁奂奃奄奅奆奇奈奉奊奋奌奍奎奏奐契奒奓奔奕奖套奘奙奚奛奜奝奞奟奠奡奢奣奤奥奦奧奨奩奪奫奬奭奮奯奰奱奲女奴奵奶奷奸她奺奻奼好奾奿妀妁如妃妄妅妆妇妈妉妊妋妌妍妎妏妐妑妒妓妔妕妖妗妘妙妚妛妜妝妞妟妠妡妢妣妤妥妦妧妨妩妪妫妬妭妮妯妰妱妲妳妴妵妶妷妸妹妺妻妼妽妾妿姀姁姂姃姄姅姆姇姈姉姊始姌姍姎姏姐姑姒姓委姕姖姗姘姙姚姛姜姝姞姟姠姡姢姣姤姥姦姧姨姩姪姫姬姭姮姯姰姱姲姳姴姵姶姷姸姹姺姻姼姽姾姿",
+    "娀威娂娃娄娅娆娇娈娉娊娋娌娍娎娏娐娑娒娓娔娕娖娗娘娙娚娛娜娝娞娟娠娡娢娣娤娥娦娧娨娩娪娫娬娭娮娯娰娱娲娳娴娵娶娷娸娹娺娻娼娽娾娿婀婁婂婃婄婅婆婇婈婉婊婋婌婍婎婏婐婑婒婓婔婕婖婗婘婙婚婛婜婝婞婟婠婡婢婣婤婥婦婧婨婩婪婫婬婭婮婯婰婱婲婳婴婵婶婷婸婹婺婻婼婽婾婿媀媁媂媃媄媅媆媇媈媉媊媋媌媍媎媏媐媑媒媓媔媕媖媗媘媙媚媛媜媝媞媟媠媡媢媣媤媥媦媧媨媩媪媫媬媭媮媯媰媱媲媳媴媵媶媷媸媹媺媻媼媽媾媿嫀嫁嫂嫃嫄嫅嫆嫇嫈嫉嫊嫋嫌嫍嫎嫏嫐嫑嫒嫓嫔嫕嫖嫗嫘嫙嫚嫛嫜嫝嫞嫟嫠嫡嫢嫣嫤嫥嫦嫧嫨嫩嫪嫫嫬嫭嫮嫯嫰嫱嫲嫳嫴嫵嫶嫷嫸嫹嫺嫻嫼嫽嫾嫿",
+    "嬀嬁嬂嬃嬄嬅嬆嬇嬈嬉嬊嬋嬌嬍嬎嬏嬐嬑嬒嬓嬔嬕嬖嬗嬘嬙嬚嬛嬜嬝嬞嬟嬠嬡嬢嬣嬤嬥嬦嬧嬨嬩嬪嬫嬬嬭嬮嬯嬰嬱嬲嬳嬴嬵嬶嬷嬸嬹嬺嬻嬼嬽嬾嬿孀孁孂孃孄孅孆孇孈孉孊孋孌孍孎孏子孑孒孓孔孕孖字存孙孚孛孜孝孞孟孠孡孢季孤孥学孧孨孩孪孫孬孭孮孯孰孱孲孳孴孵孶孷學孹孺孻孼孽孾孿宀宁宂它宄宅宆宇守安宊宋完宍宎宏宐宑宒宓宔宕宖宗官宙定宛宜宝实実宠审客宣室宥宦宧宨宩宪宫宬宭宮宯宰宱宲害宴宵家宷宸容宺宻宼宽宾宿寀寁寂寃寄寅密寇寈寉寊寋富寍寎寏寐寑寒寓寔寕寖寗寘寙寚寛寜寝寞察寠寡寢寣寤寥實寧寨審寪寫寬寭寮寯寰寱寲寳寴寵寶寷寸对寺寻导寽対寿",
+    "尀封専尃射尅将將專尉尊尋尌對導小尐少尒尓尔尕尖尗尘尙尚尛尜尝尞尟尠尡尢尣尤尥尦尧尨尩尪尫尬尭尮尯尰就尲尳尴尵尶尷尸尹尺尻尼尽尾尿局屁层屃屄居屆屇屈屉届屋屌屍屎屏屐屑屒屓屔展屖屗屘屙屚屛屜屝属屟屠屡屢屣層履屦屧屨屩屪屫屬屭屮屯屰山屲屳屴屵屶屷屸屹屺屻屼屽屾屿岀岁岂岃岄岅岆岇岈岉岊岋岌岍岎岏岐岑岒岓岔岕岖岗岘岙岚岛岜岝岞岟岠岡岢岣岤岥岦岧岨岩岪岫岬岭岮岯岰岱岲岳岴岵岶岷岸岹岺岻岼岽岾岿峀峁峂峃峄峅峆峇峈峉峊峋峌峍峎峏峐峑峒峓峔峕峖峗峘峙峚峛峜峝峞峟峠峡峢峣峤峥峦峧峨峩峪峫峬峭峮峯峰峱峲峳峴峵島峷峸峹峺峻峼峽峾峿",
+    "崀崁崂崃崄崅崆崇崈崉崊崋崌崍崎崏崐崑崒崓崔崕崖崗崘崙崚崛崜崝崞崟崠崡崢崣崤崥崦崧崨崩崪崫崬崭崮崯崰崱崲崳崴崵崶崷崸崹崺崻崼崽崾崿嵀嵁嵂嵃嵄嵅嵆嵇嵈嵉嵊嵋嵌嵍嵎嵏嵐嵑嵒嵓嵔嵕嵖嵗嵘嵙嵚嵛嵜嵝嵞嵟嵠嵡嵢嵣嵤嵥嵦嵧嵨嵩嵪嵫嵬嵭嵮嵯嵰嵱嵲嵳嵴嵵嵶嵷嵸嵹嵺嵻嵼嵽嵾嵿嶀嶁嶂嶃嶄嶅嶆嶇嶈嶉嶊嶋嶌嶍嶎嶏嶐嶑嶒嶓嶔嶕嶖嶗嶘嶙嶚嶛嶜嶝嶞嶟嶠嶡嶢嶣嶤嶥嶦嶧嶨嶩嶪嶫嶬嶭嶮嶯嶰嶱嶲嶳嶴嶵嶶嶷嶸嶹嶺嶻嶼嶽嶾嶿巀巁巂巃巄巅巆巇巈巉巊巋巌巍巎巏巐巑巒巓巔巕巖巗巘巙巚巛巜川州巟巠巡巢巣巤工左巧巨巩巪巫巬巭差巯巰己已巳巴巵巶巷巸巹巺巻巼巽巾巿",
+    "帀币市布帄帅帆帇师帉帊帋希帍帎帏帐帑帒帓帔帕帖帗帘帙帚帛帜帝帞帟帠帡帢帣帤帥带帧帨帩帪師帬席帮帯帰帱帲帳帴帵帶帷常帹帺帻帼帽帾帿幀幁幂幃幄幅幆幇幈幉幊幋幌幍幎幏幐幑幒幓幔幕幖幗幘幙幚幛幜幝幞幟幠幡幢幣幤幥幦幧幨幩幪幫幬幭幮幯幰幱干平年幵并幷幸幹幺幻幼幽幾广庀庁庂広庄庅庆庇庈庉床庋庌庍庎序庐庑庒库应底庖店庘庙庚庛府庝庞废庠庡庢庣庤庥度座庨庩庪庫庬庭庮庯庰庱庲庳庴庵庶康庸庹庺庻庼庽庾庿廀廁廂廃廄廅廆廇廈廉廊廋廌廍廎廏廐廑廒廓廔廕廖廗廘廙廚廛廜廝廞廟廠廡廢廣廤廥廦廧廨廩廪廫廬廭廮廯廰廱廲廳廴廵延廷廸廹建廻廼廽廾廿",
+    "开弁异弃弄弅弆弇弈弉弊弋弌弍弎式弐弑弒弓弔引弖弗弘弙弚弛弜弝弞弟张弡弢弣弤弥弦弧弨弩弪弫弬弭弮弯弰弱弲弳弴張弶強弸弹强弻弼弽弾弿彀彁彂彃彄彅彆彇彈彉彊彋彌彍彎彏彐彑归当彔录彖彗彘彙彚彛彜彝彞彟彠彡形彣彤彥彦彧彨彩彪彫彬彭彮彯彰影彲彳彴彵彶彷彸役彺彻彼彽彾彿往征徂徃径待徆徇很徉徊律後徍徎徏徐徑徒従徔徕徖得徘徙徚徛徜徝從徟徠御徢徣徤徥徦徧徨復循徫徬徭微徯徰徱徲徳徴徵徶德徸徹徺徻徼徽徾徿忀忁忂心忄必忆忇忈忉忊忋忌忍忎忏忐忑忒忓忔忕忖志忘忙忚忛応忝忞忟忠忡忢忣忤忥忦忧忨忩忪快忬忭忮忯忰忱忲忳忴念忶忷忸忹忺忻忼忽忾忿",
+    "怀态怂怃怄怅怆怇怈怉怊怋怌怍怎怏怐怑怒怓怔怕怖怗怘怙怚怛怜思怞怟怠怡怢怣怤急怦性怨怩怪怫怬怭怮怯怰怱怲怳怴怵怶怷怸怹怺总怼怽怾怿恀恁恂恃恄恅恆恇恈恉恊恋恌恍恎恏恐恑恒恓恔恕恖恗恘恙恚恛恜恝恞恟恠恡恢恣恤恥恦恧恨恩恪恫恬恭恮息恰恱恲恳恴恵恶恷恸恹恺恻恼恽恾恿悀悁悂悃悄悅悆悇悈悉悊悋悌悍悎悏悐悑悒悓悔悕悖悗悘悙悚悛悜悝悞悟悠悡悢患悤悥悦悧您悩悪悫悬悭悮悯悰悱悲悳悴悵悶悷悸悹悺悻悼悽悾悿惀惁惂惃惄情惆惇惈惉惊惋惌惍惎惏惐惑惒惓惔惕惖惗惘惙惚惛惜惝惞惟惠惡惢惣惤惥惦惧惨惩惪惫惬惭惮惯惰惱惲想惴惵惶惷惸惹惺惻惼惽惾惿",
+    "愀愁愂愃愄愅愆愇愈愉愊愋愌愍愎意愐愑愒愓愔愕愖愗愘愙愚愛愜愝愞感愠愡愢愣愤愥愦愧愨愩愪愫愬愭愮愯愰愱愲愳愴愵愶愷愸愹愺愻愼愽愾愿慀慁慂慃慄慅慆慇慈慉慊態慌慍慎慏慐慑慒慓慔慕慖慗慘慙慚慛慜慝慞慟慠慡慢慣慤慥慦慧慨慩慪慫慬慭慮慯慰慱慲慳慴慵慶慷慸慹慺慻慼慽慾慿憀憁憂憃憄憅憆憇憈憉憊憋憌憍憎憏憐憑憒憓憔憕憖憗憘憙憚憛憜憝憞憟憠憡憢憣憤憥憦憧憨憩憪憫憬憭憮憯憰憱憲憳憴憵憶憷憸憹憺憻憼憽憾憿懀懁懂懃懄懅懆懇懈應懊懋懌懍懎懏懐懑懒懓懔懕懖懗懘懙懚懛懜懝懞懟懠懡懢懣懤懥懦懧懨懩懪懫懬懭懮懯懰懱懲懳懴懵懶懷懸懹懺懻懼懽懾懿",
+    "戀戁戂戃戄戅戆戇戈戉戊戋戌戍戎戏成我戒戓戔戕或戗战戙戚戛戜戝戞戟戠戡戢戣戤戥戦戧戨戩截戫戬戭戮戯戰戱戲戳戴戵戶户戸戹戺戻戼戽戾房所扁扂扃扄扅扆扇扈扉扊手扌才扎扏扐扑扒打扔払扖扗托扙扚扛扜扝扞扟扠扡扢扣扤扥扦执扨扩扪扫扬扭扮扯扰扱扲扳扴扵扶扷扸批扺扻扼扽找承技抁抂抃抄抅抆抇抈抉把抋抌抍抎抏抐抑抒抓抔投抖抗折抙抚抛抜抝択抟抠抡抢抣护报抦抧抨抩抪披抬抭抮抯抰抱抲抳抴抵抶抷抸抹抺抻押抽抾抿拀拁拂拃拄担拆拇拈拉拊拋拌拍拎拏拐拑拒拓拔拕拖拗拘拙拚招拜拝拞拟拠拡拢拣拤拥拦拧拨择拪拫括拭拮拯拰拱拲拳拴拵拶拷拸拹拺拻拼拽拾拿",
+    "挀持挂挃挄挅挆指挈按挊挋挌挍挎挏挐挑挒挓挔挕挖挗挘挙挚挛挜挝挞挟挠挡挢挣挤挥挦挧挨挩挪挫挬挭挮振挰挱挲挳挴挵挶挷挸挹挺挻挼挽挾挿捀捁捂捃捄捅捆捇捈捉捊捋捌捍捎捏捐捑捒捓捔捕捖捗捘捙捚捛捜捝捞损捠捡换捣捤捥捦捧捨捩捪捫捬捭据捯捰捱捲捳捴捵捶捷捸捹捺捻捼捽捾捿掀掁掂掃掄掅掆掇授掉掊掋掌掍掎掏掐掑排掓掔掕掖掗掘掙掚掛掜掝掞掟掠採探掣掤接掦控推掩措掫掬掭掮掯掰掱掲掳掴掵掶掷掸掹掺掻掼掽掾掿揀揁揂揃揄揅揆揇揈揉揊揋揌揍揎描提揑插揓揔揕揖揗揘揙揚換揜揝揞揟揠握揢揣揤揥揦揧揨揩揪揫揬揭揮揯揰揱揲揳援揵揶揷揸揹揺揻揼揽揾揿",
+    "搀搁搂搃搄搅搆搇搈搉搊搋搌損搎搏搐搑搒搓搔搕搖搗搘搙搚搛搜搝搞搟搠搡搢搣搤搥搦搧搨搩搪搫搬搭搮搯搰搱搲搳搴搵搶搷搸搹携搻搼搽搾搿摀摁摂摃摄摅摆摇摈摉摊摋摌摍摎摏摐摑摒摓摔摕摖摗摘摙摚摛摜摝摞摟摠摡摢摣摤摥摦摧摨摩摪摫摬摭摮摯摰摱摲摳摴摵摶摷摸摹摺摻摼摽摾摿撀撁撂撃撄撅撆撇撈撉撊撋撌撍撎撏撐撑撒撓撔撕撖撗撘撙撚撛撜撝撞撟撠撡撢撣撤撥撦撧撨撩撪撫撬播撮撯撰撱撲撳撴撵撶撷撸撹撺撻撼撽撾撿擀擁擂擃擄擅擆擇擈擉擊擋擌操擎擏擐擑擒擓擔擕擖擗擘擙據擛擜擝擞擟擠擡擢擣擤擥擦擧擨擩擪擫擬擭擮擯擰擱擲擳擴擵擶擷擸擹擺擻擼擽擾擿",
+    "攀攁攂攃攄攅攆攇攈攉攊攋攌攍攎攏攐攑攒攓攔攕攖攗攘攙攚攛攜攝攞攟攠攡攢攣攤攥攦攧攨攩攪攫攬攭攮支攰攱攲攳攴攵收攷攸改攺攻攼攽放政敀敁敂敃敄故敆敇效敉敊敋敌敍敎敏敐救敒敓敔敕敖敗敘教敚敛敜敝敞敟敠敡敢散敤敥敦敧敨敩敪敫敬敭敮敯数敱敲敳整敵敶敷數敹敺敻敼敽敾敿斀斁斂斃斄斅斆文斈斉斊斋斌斍斎斏斐斑斒斓斔斕斖斗斘料斚斛斜斝斞斟斠斡斢斣斤斥斦斧斨斩斪斫斬断斮斯新斱斲斳斴斵斶斷斸方斺斻於施斾斿旀旁旂旃旄旅旆旇旈旉旊旋旌旍旎族旐旑旒旓旔旕旖旗旘旙旚旛旜旝旞旟无旡既旣旤日旦旧旨早旪旫旬旭旮旯旰旱旲旳旴旵时旷旸旹旺旻旼旽旾旿",
+    "昀昁昂昃昄昅昆昇昈昉昊昋昌昍明昏昐昑昒易昔昕昖昗昘昙昚昛昜昝昞星映昡昢昣昤春昦昧昨昩昪昫昬昭昮是昰昱昲昳昴昵昶昷昸昹昺昻昼昽显昿晀晁時晃晄晅晆晇晈晉晊晋晌晍晎晏晐晑晒晓晔晕晖晗晘晙晚晛晜晝晞晟晠晡晢晣晤晥晦晧晨晩晪晫晬晭普景晰晱晲晳晴晵晶晷晸晹智晻晼晽晾晿暀暁暂暃暄暅暆暇暈暉暊暋暌暍暎暏暐暑暒暓暔暕暖暗暘暙暚暛暜暝暞暟暠暡暢暣暤暥暦暧暨暩暪暫暬暭暮暯暰暱暲暳暴暵暶暷暸暹暺暻暼暽暾暿曀曁曂曃曄曅曆曇曈曉曊曋曌曍曎曏曐曑曒曓曔曕曖曗曘曙曚曛曜曝曞曟曠曡曢曣曤曥曦曧曨曩曪曫曬曭曮曯曰曱曲曳更曵曶曷書曹曺曻曼曽曾替",
+    "最朁朂會朄朅朆朇月有朊朋朌服朎朏朐朑朒朓朔朕朖朗朘朙朚望朜朝朞期朠朡朢朣朤朥朦朧木朩未末本札朮术朰朱朲朳朴朵朶朷朸朹机朻朼朽朾朿杀杁杂权杄杅杆杇杈杉杊杋杌杍李杏材村杒杓杔杕杖杗杘杙杚杛杜杝杞束杠条杢杣杤来杦杧杨杩杪杫杬杭杮杯杰東杲杳杴杵杶杷杸杹杺杻杼杽松板枀极枂枃构枅枆枇枈枉枊枋枌枍枎枏析枑枒枓枔枕枖林枘枙枚枛果枝枞枟枠枡枢枣枤枥枦枧枨枩枪枫枬枭枮枯枰枱枲枳枴枵架枷枸枹枺枻枼枽枾枿柀柁柂柃柄柅柆柇柈柉柊柋柌柍柎柏某柑柒染柔柕柖柗柘柙柚柛柜柝柞柟柠柡柢柣柤查柦柧柨柩柪柫柬柭柮柯柰柱柲柳柴柵柶柷柸柹柺査柼柽柾柿",
+    "栀栁栂栃栄栅栆标栈栉栊栋栌栍栎栏栐树栒栓栔栕栖栗栘栙栚栛栜栝栞栟栠校栢栣栤栥栦栧栨栩株栫栬栭栮栯栰栱栲栳栴栵栶样核根栺栻格栽栾栿桀桁桂桃桄桅框桇案桉桊桋桌桍桎桏桐桑桒桓桔桕桖桗桘桙桚桛桜桝桞桟桠桡桢档桤桥桦桧桨桩桪桫桬桭桮桯桰桱桲桳桴桵桶桷桸桹桺桻桼桽桾桿梀梁梂梃梄梅梆梇梈梉梊梋梌梍梎梏梐梑梒梓梔梕梖梗梘梙梚梛梜條梞梟梠梡梢梣梤梥梦梧梨梩梪梫梬梭梮梯械梱梲梳梴梵梶梷梸梹梺梻梼梽梾梿检棁棂棃棄棅棆棇棈棉棊棋棌棍棎棏棐棑棒棓棔棕棖棗棘棙棚棛棜棝棞棟棠棡棢棣棤棥棦棧棨棩棪棫棬棭森棯棰棱棲棳棴棵棶棷棸棹棺棻棼棽棾棿",
+    "椀椁椂椃椄椅椆椇椈椉椊椋椌植椎椏椐椑椒椓椔椕椖椗椘椙椚椛検椝椞椟椠椡椢椣椤椥椦椧椨椩椪椫椬椭椮椯椰椱椲椳椴椵椶椷椸椹椺椻椼椽椾椿楀楁楂楃楄楅楆楇楈楉楊楋楌楍楎楏楐楑楒楓楔楕楖楗楘楙楚楛楜楝楞楟楠楡楢楣楤楥楦楧楨楩楪楫楬業楮楯楰楱楲楳楴極楶楷楸楹楺楻楼楽楾楿榀榁概榃榄榅榆榇榈榉榊榋榌榍榎榏榐榑榒榓榔榕榖榗榘榙榚榛榜榝榞榟榠榡榢榣榤榥榦榧榨榩榪榫榬榭榮榯榰榱榲榳榴榵榶榷榸榹榺榻榼榽榾榿槀槁槂槃槄槅槆槇槈槉槊構槌槍槎槏槐槑槒槓槔槕槖槗様槙槚槛槜槝槞槟槠槡槢槣槤槥槦槧槨槩槪槫槬槭槮槯槰槱槲槳槴槵槶槷槸槹槺槻槼槽槾槿",
+    "樀樁樂樃樄樅樆樇樈樉樊樋樌樍樎樏樐樑樒樓樔樕樖樗樘標樚樛樜樝樞樟樠模樢樣樤樥樦樧樨権横樫樬樭樮樯樰樱樲樳樴樵樶樷樸樹樺樻樼樽樾樿橀橁橂橃橄橅橆橇橈橉橊橋橌橍橎橏橐橑橒橓橔橕橖橗橘橙橚橛橜橝橞機橠橡橢橣橤橥橦橧橨橩橪橫橬橭橮橯橰橱橲橳橴橵橶橷橸橹橺橻橼橽橾橿檀檁檂檃檄檅檆檇檈檉檊檋檌檍檎檏檐檑檒檓檔檕檖檗檘檙檚檛檜檝檞檟檠檡檢檣檤檥檦檧檨檩檪檫檬檭檮檯檰檱檲檳檴檵檶檷檸檹檺檻檼檽檾檿櫀櫁櫂櫃櫄櫅櫆櫇櫈櫉櫊櫋櫌櫍櫎櫏櫐櫑櫒櫓櫔櫕櫖櫗櫘櫙櫚櫛櫜櫝櫞櫟櫠櫡櫢櫣櫤櫥櫦櫧櫨櫩櫪櫫櫬櫭櫮櫯櫰櫱櫲櫳櫴櫵櫶櫷櫸櫹櫺櫻櫼櫽櫾櫿",
+    "欀欁欂欃欄欅欆欇欈欉權欋欌欍欎欏欐欑欒欓欔欕欖欗欘欙欚欛欜欝欞欟欠次欢欣欤欥欦欧欨欩欪欫欬欭欮欯欰欱欲欳欴欵欶欷欸欹欺欻欼欽款欿歀歁歂歃歄歅歆歇歈歉歊歋歌歍歎歏歐歑歒歓歔歕歖歗歘歙歚歛歜歝歞歟歠歡止正此步武歧歨歩歪歫歬歭歮歯歰歱歲歳歴歵歶歷歸歹歺死歼歽歾歿殀殁殂殃殄殅殆殇殈殉殊残殌殍殎殏殐殑殒殓殔殕殖殗殘殙殚殛殜殝殞殟殠殡殢殣殤殥殦殧殨殩殪殫殬殭殮殯殰殱殲殳殴段殶殷殸殹殺殻殼殽殾殿毀毁毂毃毄毅毆毇毈毉毊毋毌母毎每毐毑毒毓比毕毖毗毘毙毚毛毜毝毞毟毠毡毢毣毤毥毦毧毨毩毪毫毬毭毮毯毰毱毲毳毴毵毶毷毸毹毺毻毼毽毾毿",
+    "氀氁氂氃氄氅氆氇氈氉氊氋氌氍氎氏氐民氒氓气氕氖気氘氙氚氛氜氝氞氟氠氡氢氣氤氥氦氧氨氩氪氫氬氭氮氯氰氱氲氳水氵氶氷永氹氺氻氼氽氾氿汀汁求汃汄汅汆汇汈汉汊汋汌汍汎汏汐汑汒汓汔汕汖汗汘汙汚汛汜汝汞江池污汢汣汤汥汦汧汨汩汪汫汬汭汮汯汰汱汲汳汴汵汶汷汸汹決汻汼汽汾汿沀沁沂沃沄沅沆沇沈沉沊沋沌沍沎沏沐沑沒沓沔沕沖沗沘沙沚沛沜沝沞沟沠没沢沣沤沥沦沧沨沩沪沫沬沭沮沯沰沱沲河沴沵沶沷沸油沺治沼沽沾沿泀況泂泃泄泅泆泇泈泉泊泋泌泍泎泏泐泑泒泓泔法泖泗泘泙泚泛泜泝泞泟泠泡波泣泤泥泦泧注泩泪泫泬泭泮泯泰泱泲泳泴泵泶泷泸泹泺泻泼泽泾泿",
+    "洀洁洂洃洄洅洆洇洈洉洊洋洌洍洎洏洐洑洒洓洔洕洖洗洘洙洚洛洜洝洞洟洠洡洢洣洤津洦洧洨洩洪洫洬洭洮洯洰洱洲洳洴洵洶洷洸洹洺活洼洽派洿浀流浂浃浄浅浆浇浈浉浊测浌浍济浏浐浑浒浓浔浕浖浗浘浙浚浛浜浝浞浟浠浡浢浣浤浥浦浧浨浩浪浫浬浭浮浯浰浱浲浳浴浵浶海浸浹浺浻浼浽浾浿涀涁涂涃涄涅涆涇消涉涊涋涌涍涎涏涐涑涒涓涔涕涖涗涘涙涚涛涜涝涞涟涠涡涢涣涤涥润涧涨涩涪涫涬涭涮涯涰涱液涳涴涵涶涷涸涹涺涻涼涽涾涿淀淁淂淃淄淅淆淇淈淉淊淋淌淍淎淏淐淑淒淓淔淕淖淗淘淙淚淛淜淝淞淟淠淡淢淣淤淥淦淧淨淩淪淫淬淭淮淯淰深淲淳淴淵淶混淸淹淺添淼淽淾淿",
+    "渀渁渂渃渄清渆渇済渉渊渋渌渍渎渏渐渑渒渓渔渕渖渗渘渙渚減渜渝渞渟渠渡渢渣渤渥渦渧渨温渪渫測渭渮港渰渱渲渳渴渵渶渷游渹渺渻渼渽渾渿湀湁湂湃湄湅湆湇湈湉湊湋湌湍湎湏湐湑湒湓湔湕湖湗湘湙湚湛湜湝湞湟湠湡湢湣湤湥湦湧湨湩湪湫湬湭湮湯湰湱湲湳湴湵湶湷湸湹湺湻湼湽湾湿満溁溂溃溄溅溆溇溈溉溊溋溌溍溎溏源溑溒溓溔溕準溗溘溙溚溛溜溝溞溟溠溡溢溣溤溥溦溧溨溩溪溫溬溭溮溯溰溱溲溳溴溵溶溷溸溹溺溻溼溽溾溿滀滁滂滃滄滅滆滇滈滉滊滋滌滍滎滏滐滑滒滓滔滕滖滗滘滙滚滛滜滝滞滟滠满滢滣滤滥滦滧滨滩滪滫滬滭滮滯滰滱滲滳滴滵滶滷滸滹滺滻滼滽滾滿",
+    "漀漁漂漃漄漅漆漇漈漉漊漋漌漍漎漏漐漑漒漓演漕漖漗漘漙漚漛漜漝漞漟漠漡漢漣漤漥漦漧漨漩漪漫漬漭漮漯漰漱漲漳漴漵漶漷漸漹漺漻漼漽漾漿潀潁潂潃潄潅潆潇潈潉潊潋潌潍潎潏潐潑潒潓潔潕潖潗潘潙潚潛潜潝潞潟潠潡潢潣潤潥潦潧潨潩潪潫潬潭潮潯潰潱潲潳潴潵潶潷潸潹潺潻潼潽潾潿澀澁澂澃澄澅澆澇澈澉澊澋澌澍澎澏澐澑澒澓澔澕澖澗澘澙澚澛澜澝澞澟澠澡澢澣澤澥澦澧澨澩澪澫澬澭澮澯澰澱澲澳澴澵澶澷澸澹澺澻澼澽澾澿激濁濂濃濄濅濆濇濈濉濊濋濌濍濎濏濐濑濒濓濔濕濖濗濘濙濚濛濜濝濞濟濠濡濢濣濤濥濦濧濨濩濪濫濬濭濮濯濰濱濲濳濴濵濶濷濸濹濺濻濼濽濾濿",
+    "瀀瀁瀂瀃瀄瀅瀆瀇瀈瀉瀊瀋瀌瀍瀎瀏瀐瀑瀒瀓瀔瀕瀖瀗瀘瀙瀚瀛瀜瀝瀞瀟瀠瀡瀢瀣瀤瀥瀦瀧瀨瀩瀪瀫瀬瀭瀮瀯瀰瀱瀲瀳瀴瀵瀶瀷瀸瀹瀺瀻瀼瀽瀾瀿灀灁灂灃灄灅灆灇灈灉灊灋灌灍灎灏灐灑灒灓灔灕灖灗灘灙灚灛灜灝灞灟灠灡灢灣灤灥灦灧灨灩灪火灬灭灮灯灰灱灲灳灴灵灶灷灸灹灺灻灼災灾灿炀炁炂炃炄炅炆炇炈炉炊炋炌炍炎炏炐炑炒炓炔炕炖炗炘炙炚炛炜炝炞炟炠炡炢炣炤炥炦炧炨炩炪炫炬炭炮炯炰炱炲炳炴炵炶炷炸点為炻炼炽炾炿烀烁烂烃烄烅烆烇烈烉烊烋烌烍烎烏烐烑烒烓烔烕烖烗烘烙烚烛烜烝烞烟烠烡烢烣烤烥烦烧烨烩烪烫烬热烮烯烰烱烲烳烴烵烶烷烸烹烺烻烼烽烾烿",
+    "焀焁焂焃焄焅焆焇焈焉焊焋焌焍焎焏焐焑焒焓焔焕焖焗焘焙焚焛焜焝焞焟焠無焢焣焤焥焦焧焨焩焪焫焬焭焮焯焰焱焲焳焴焵然焷焸焹焺焻焼焽焾焿煀煁煂煃煄煅煆煇煈煉煊煋煌煍煎煏煐煑煒煓煔煕煖煗煘煙煚煛煜煝煞煟煠煡煢煣煤煥煦照煨煩煪煫煬煭煮煯煰煱煲煳煴煵煶煷煸煹煺煻煼煽煾煿熀熁熂熃熄熅熆熇熈熉熊熋熌熍熎熏熐熑熒熓熔熕熖熗熘熙熚熛熜熝熞熟熠熡熢熣熤熥熦熧熨熩熪熫熬熭熮熯熰熱熲熳熴熵熶熷熸熹熺熻熼熽熾熿燀燁燂燃燄燅燆燇燈燉燊燋燌燍燎燏燐燑燒燓燔燕燖燗燘燙燚燛燜燝燞營燠燡燢燣燤燥燦燧燨燩燪燫燬燭燮燯燰燱燲燳燴燵燶燷燸燹燺燻燼燽燾燿",
+    "爀爁爂爃爄爅爆爇爈爉爊爋爌爍爎爏爐爑爒爓爔爕爖爗爘爙爚爛爜爝爞爟爠爡爢爣爤爥爦爧爨爩爪爫爬爭爮爯爰爱爲爳爴爵父爷爸爹爺爻爼爽爾爿牀牁牂牃牄牅牆片版牉牊牋牌牍牎牏牐牑牒牓牔牕牖牗牘牙牚牛牜牝牞牟牠牡牢牣牤牥牦牧牨物牪牫牬牭牮牯牰牱牲牳牴牵牶牷牸特牺牻牼牽牾牿犀犁犂犃犄犅犆犇犈犉犊犋犌犍犎犏犐犑犒犓犔犕犖犗犘犙犚犛犜犝犞犟犠犡犢犣犤犥犦犧犨犩犪犫犬犭犮犯犰犱犲犳犴犵状犷犸犹犺犻犼犽犾犿狀狁狂狃狄狅狆狇狈狉狊狋狌狍狎狏狐狑狒狓狔狕狖狗狘狙狚狛狜狝狞狟狠狡狢狣狤狥狦狧狨狩狪狫独狭狮狯狰狱狲狳狴狵狶狷狸狹狺狻狼狽狾狿",
+    "猀猁猂猃猄猅猆猇猈猉猊猋猌猍猎猏猐猑猒猓猔猕猖猗猘猙猚猛猜猝猞猟猠猡猢猣猤猥猦猧猨猩猪猫猬猭献猯猰猱猲猳猴猵猶猷猸猹猺猻猼猽猾猿獀獁獂獃獄獅獆獇獈獉獊獋獌獍獎獏獐獑獒獓獔獕獖獗獘獙獚獛獜獝獞獟獠獡獢獣獤獥獦獧獨獩獪獫獬獭獮獯獰獱獲獳獴獵獶獷獸獹獺獻獼獽獾獿玀玁玂玃玄玅玆率玈玉玊王玌玍玎玏玐玑玒玓玔玕玖玗玘玙玚玛玜玝玞玟玠玡玢玣玤玥玦玧玨玩玪玫玬玭玮环现玱玲玳玴玵玶玷玸玹玺玻玼玽玾玿珀珁珂珃珄珅珆珇珈珉珊珋珌珍珎珏珐珑珒珓珔珕珖珗珘珙珚珛珜珝珞珟珠珡珢珣珤珥珦珧珨珩珪珫珬班珮珯珰珱珲珳珴珵珶珷珸珹珺珻珼珽現珿",
+    "琀琁琂球琄琅理琇琈琉琊琋琌琍琎琏琐琑琒琓琔琕琖琗琘琙琚琛琜琝琞琟琠琡琢琣琤琥琦琧琨琩琪琫琬琭琮琯琰琱琲琳琴琵琶琷琸琹琺琻琼琽琾琿瑀瑁瑂瑃瑄瑅瑆瑇瑈瑉瑊瑋瑌瑍瑎瑏瑐瑑瑒瑓瑔瑕瑖瑗瑘瑙瑚瑛瑜瑝瑞瑟瑠瑡瑢瑣瑤瑥瑦瑧瑨瑩瑪瑫瑬瑭瑮瑯瑰瑱瑲瑳瑴瑵瑶瑷瑸瑹瑺瑻瑼瑽瑾瑿璀璁璂璃璄璅璆璇璈璉璊璋璌璍璎璏璐璑璒璓璔璕璖璗璘璙璚璛璜璝璞璟璠璡璢璣璤璥璦璧璨璩璪璫璬璭璮璯環璱璲璳璴璵璶璷璸璹璺璻璼璽璾璿瓀瓁瓂瓃瓄瓅瓆瓇瓈瓉瓊瓋瓌瓍瓎瓏瓐瓑瓒瓓瓔瓕瓖瓗瓘瓙瓚瓛瓜瓝瓞瓟瓠瓡瓢瓣瓤瓥瓦瓧瓨瓩瓪瓫瓬瓭瓮瓯瓰瓱瓲瓳瓴瓵瓶瓷瓸瓹瓺瓻瓼瓽瓾瓿",
+    "甀甁甂甃甄甅甆甇甈甉甊甋甌甍甎甏甐甑甒甓甔甕甖甗甘甙甚甛甜甝甞生甠甡產産甤甥甦甧用甩甪甫甬甭甮甯田由甲申甴电甶男甸甹町画甼甽甾甿畀畁畂畃畄畅畆畇畈畉畊畋界畍畎畏畐畑畒畓畔畕畖畗畘留畚畛畜畝畞畟畠畡畢畣畤略畦畧畨畩番畫畬畭畮畯異畱畲畳畴畵當畷畸畹畺畻畼畽畾畿疀疁疂疃疄疅疆疇疈疉疊疋疌疍疎疏疐疑疒疓疔疕疖疗疘疙疚疛疜疝疞疟疠疡疢疣疤疥疦疧疨疩疪疫疬疭疮疯疰疱疲疳疴疵疶疷疸疹疺疻疼疽疾疿痀痁痂痃痄病痆症痈痉痊痋痌痍痎痏痐痑痒痓痔痕痖痗痘痙痚痛痜痝痞痟痠痡痢痣痤痥痦痧痨痩痪痫痬痭痮痯痰痱痲痳痴痵痶痷痸痹痺痻痼痽痾痿",
+    "瘀瘁瘂瘃瘄瘅瘆瘇瘈瘉瘊瘋瘌瘍瘎瘏瘐瘑瘒瘓瘔瘕瘖瘗瘘瘙瘚瘛瘜瘝瘞瘟瘠瘡瘢瘣瘤瘥瘦瘧瘨瘩瘪瘫瘬瘭瘮瘯瘰瘱瘲瘳瘴瘵瘶瘷瘸瘹瘺瘻瘼瘽瘾瘿癀癁療癃癄癅癆癇癈癉癊癋癌癍癎癏癐癑癒癓癔癕癖癗癘癙癚癛癜癝癞癟癠癡癢癣癤癥癦癧癨癩癪癫癬癭癮癯癰癱癲癳癴癵癶癷癸癹発登發白百癿皀皁皂皃的皅皆皇皈皉皊皋皌皍皎皏皐皑皒皓皔皕皖皗皘皙皚皛皜皝皞皟皠皡皢皣皤皥皦皧皨皩皪皫皬皭皮皯皰皱皲皳皴皵皶皷皸皹皺皻皼皽皾皿盀盁盂盃盄盅盆盇盈盉益盋盌盍盎盏盐监盒盓盔盕盖盗盘盙盚盛盜盝盞盟盠盡盢監盤盥盦盧盨盩盪盫盬盭目盯盰盱盲盳直盵盶盷相盹盺盻盼盽盾盿",
+    "眀省眂眃眄眅眆眇眈眉眊看県眍眎眏眐眑眒眓眔眕眖眗眘眙眚眛眜眝眞真眠眡眢眣眤眥眦眧眨眩眪眫眬眭眮眯眰眱眲眳眴眵眶眷眸眹眺眻眼眽眾眿着睁睂睃睄睅睆睇睈睉睊睋睌睍睎睏睐睑睒睓睔睕睖睗睘睙睚睛睜睝睞睟睠睡睢督睤睥睦睧睨睩睪睫睬睭睮睯睰睱睲睳睴睵睶睷睸睹睺睻睼睽睾睿瞀瞁瞂瞃瞄瞅瞆瞇瞈瞉瞊瞋瞌瞍瞎瞏瞐瞑瞒瞓瞔瞕瞖瞗瞘瞙瞚瞛瞜瞝瞞瞟瞠瞡瞢瞣瞤瞥瞦瞧瞨瞩瞪瞫瞬瞭瞮瞯瞰瞱瞲瞳瞴瞵瞶瞷瞸瞹瞺瞻瞼瞽瞾瞿矀矁矂矃矄矅矆矇矈矉矊矋矌矍矎矏矐矑矒矓矔矕矖矗矘矙矚矛矜矝矞矟矠矡矢矣矤知矦矧矨矩矪矫矬短矮矯矰矱矲石矴矵矶矷矸矹矺矻矼矽矾矿",
+    "砀码砂砃砄砅砆砇砈砉砊砋砌砍砎砏砐砑砒砓研砕砖砗砘砙砚砛砜砝砞砟砠砡砢砣砤砥砦砧砨砩砪砫砬砭砮砯砰砱砲砳破砵砶砷砸砹砺砻砼砽砾砿础硁硂硃硄硅硆硇硈硉硊硋硌硍硎硏硐硑硒硓硔硕硖硗硘硙硚硛硜硝硞硟硠硡硢硣硤硥硦硧硨硩硪硫硬硭确硯硰硱硲硳硴硵硶硷硸硹硺硻硼硽硾硿碀碁碂碃碄碅碆碇碈碉碊碋碌碍碎碏碐碑碒碓碔碕碖碗碘碙碚碛碜碝碞碟碠碡碢碣碤碥碦碧碨碩碪碫碬碭碮碯碰碱碲碳碴碵碶碷碸碹確碻碼碽碾碿磀磁磂磃磄磅磆磇磈磉磊磋磌磍磎磏磐磑磒磓磔磕磖磗磘磙磚磛磜磝磞磟磠磡磢磣磤磥磦磧磨磩磪磫磬磭磮磯磰磱磲磳磴磵磶磷磸磹磺磻磼磽磾磿",
+    "礀礁礂礃礄礅礆礇礈礉礊礋礌礍礎礏礐礑礒礓礔礕礖礗礘礙礚礛礜礝礞礟礠礡礢礣礤礥礦礧礨礩礪礫礬礭礮礯礰礱礲礳礴礵礶礷礸礹示礻礼礽社礿祀祁祂祃祄祅祆祇祈祉祊祋祌祍祎祏祐祑祒祓祔祕祖祗祘祙祚祛祜祝神祟祠祡祢祣祤祥祦祧票祩祪祫祬祭祮祯祰祱祲祳祴祵祶祷祸祹祺祻祼祽祾祿禀禁禂禃禄禅禆禇禈禉禊禋禌禍禎福禐禑禒禓禔禕禖禗禘禙禚禛禜禝禞禟禠禡禢禣禤禥禦禧禨禩禪禫禬禭禮禯禰禱禲禳禴禵禶禷禸禹禺离禼禽禾禿秀私秂秃秄秅秆秇秈秉秊秋秌种秎秏秐科秒秓秔秕秖秗秘秙秚秛秜秝秞租秠秡秢秣秤秥秦秧秨秩秪秫秬秭秮积称秱秲秳秴秵秶秷秸秹秺移秼秽秾秿",
+    "稀稁稂稃稄稅稆稇稈稉稊程稌稍税稏稐稑稒稓稔稕稖稗稘稙稚稛稜稝稞稟稠稡稢稣稤稥稦稧稨稩稪稫稬稭種稯稰稱稲稳稴稵稶稷稸稹稺稻稼稽稾稿穀穁穂穃穄穅穆穇穈穉穊穋穌積穎穏穐穑穒穓穔穕穖穗穘穙穚穛穜穝穞穟穠穡穢穣穤穥穦穧穨穩穪穫穬穭穮穯穰穱穲穳穴穵究穷穸穹空穻穼穽穾穿窀突窂窃窄窅窆窇窈窉窊窋窌窍窎窏窐窑窒窓窔窕窖窗窘窙窚窛窜窝窞窟窠窡窢窣窤窥窦窧窨窩窪窫窬窭窮窯窰窱窲窳窴窵窶窷窸窹窺窻窼窽窾窿竀竁竂竃竄竅竆竇竈竉竊立竌竍竎竏竐竑竒竓竔竕竖竗竘站竚竛竜竝竞竟章竡竢竣竤童竦竧竨竩竪竫竬竭竮端竰竱竲竳竴竵競竷竸竹竺竻竼竽竾竿",
+    "笀笁笂笃笄笅笆笇笈笉笊笋笌笍笎笏笐笑笒笓笔笕笖笗笘笙笚笛笜笝笞笟笠笡笢笣笤笥符笧笨笩笪笫第笭笮笯笰笱笲笳笴笵笶笷笸笹笺笻笼笽笾笿筀筁筂筃筄筅筆筇筈等筊筋筌筍筎筏筐筑筒筓答筕策筗筘筙筚筛筜筝筞筟筠筡筢筣筤筥筦筧筨筩筪筫筬筭筮筯筰筱筲筳筴筵筶筷筸筹筺筻筼筽签筿简箁箂箃箄箅箆箇箈箉箊箋箌箍箎箏箐箑箒箓箔箕箖算箘箙箚箛箜箝箞箟箠管箢箣箤箥箦箧箨箩箪箫箬箭箮箯箰箱箲箳箴箵箶箷箸箹箺箻箼箽箾箿節篁篂篃範篅篆篇篈築篊篋篌篍篎篏篐篑篒篓篔篕篖篗篘篙篚篛篜篝篞篟篠篡篢篣篤篥篦篧篨篩篪篫篬篭篮篯篰篱篲篳篴篵篶篷篸篹篺篻篼篽篾篿",
+    "簀簁簂簃簄簅簆簇簈簉簊簋簌簍簎簏簐簑簒簓簔簕簖簗簘簙簚簛簜簝簞簟簠簡簢簣簤簥簦簧簨簩簪簫簬簭簮簯簰簱簲簳簴簵簶簷簸簹簺簻簼簽簾簿籀籁籂籃籄籅籆籇籈籉籊籋籌籍籎籏籐籑籒籓籔籕籖籗籘籙籚籛籜籝籞籟籠籡籢籣籤籥籦籧籨籩籪籫籬籭籮籯籰籱籲米籴籵籶籷籸籹籺类籼籽籾籿粀粁粂粃粄粅粆粇粈粉粊粋粌粍粎粏粐粑粒粓粔粕粖粗粘粙粚粛粜粝粞粟粠粡粢粣粤粥粦粧粨粩粪粫粬粭粮粯粰粱粲粳粴粵粶粷粸粹粺粻粼粽精粿糀糁糂糃糄糅糆糇糈糉糊糋糌糍糎糏糐糑糒糓糔糕糖糗糘糙糚糛糜糝糞糟糠糡糢糣糤糥糦糧糨糩糪糫糬糭糮糯糰糱糲糳糴糵糶糷糸糹糺系糼糽糾糿",
+    "紀紁紂紃約紅紆紇紈紉紊紋紌納紎紏紐紑紒紓純紕紖紗紘紙級紛紜紝紞紟素紡索紣紤紥紦紧紨紩紪紫紬紭紮累細紱紲紳紴紵紶紷紸紹紺紻紼紽紾紿絀絁終絃組絅絆絇絈絉絊絋経絍絎絏結絑絒絓絔絕絖絗絘絙絚絛絜絝絞絟絠絡絢絣絤絥給絧絨絩絪絫絬絭絮絯絰統絲絳絴絵絶絷絸絹絺絻絼絽絾絿綀綁綂綃綄綅綆綇綈綉綊綋綌綍綎綏綐綑綒經綔綕綖綗綘継続綛綜綝綞綟綠綡綢綣綤綥綦綧綨綩綪綫綬維綮綯綰綱網綳綴綵綶綷綸綹綺綻綼綽綾綿緀緁緂緃緄緅緆緇緈緉緊緋緌緍緎総緐緑緒緓緔緕緖緗緘緙線緛緜緝緞緟締緡緢緣緤緥緦緧編緩緪緫緬緭緮緯緰緱緲緳練緵緶緷緸緹緺緻緼緽緾緿",
+    "縀縁縂縃縄縅縆縇縈縉縊縋縌縍縎縏縐縑縒縓縔縕縖縗縘縙縚縛縜縝縞縟縠縡縢縣縤縥縦縧縨縩縪縫縬縭縮縯縰縱縲縳縴縵縶縷縸縹縺縻縼總績縿繀繁繂繃繄繅繆繇繈繉繊繋繌繍繎繏繐繑繒繓織繕繖繗繘繙繚繛繜繝繞繟繠繡繢繣繤繥繦繧繨繩繪繫繬繭繮繯繰繱繲繳繴繵繶繷繸繹繺繻繼繽繾繿纀纁纂纃纄纅纆纇纈纉纊纋續纍纎纏纐纑纒纓纔纕纖纗纘纙纚纛纜纝纞纟纠纡红纣纤纥约级纨纩纪纫纬纭纮纯纰纱纲纳纴纵纶纷纸纹纺纻纼纽纾线绀绁绂练组绅细织终绉绊绋绌绍绎经绐绑绒结绔绕绖绗绘给绚绛络绝绞统绠绡绢绣绤绥绦继绨绩绪绫绬续绮绯绰绱绲绳维绵绶绷绸绹绺绻综绽绾绿",
+    "缀缁缂缃缄缅缆缇缈缉缊缋缌缍缎缏缐缑缒缓缔缕编缗缘缙缚缛缜缝缞缟缠缡缢缣缤缥缦缧缨缩缪缫缬缭缮缯缰缱缲缳缴缵缶缷缸缹缺缻缼缽缾缿罀罁罂罃罄罅罆罇罈罉罊罋罌罍罎罏罐网罒罓罔罕罖罗罘罙罚罛罜罝罞罟罠罡罢罣罤罥罦罧罨罩罪罫罬罭置罯罰罱署罳罴罵罶罷罸罹罺罻罼罽罾罿羀羁羂羃羄羅羆羇羈羉羊羋羌羍美羏羐羑羒羓羔羕羖羗羘羙羚羛羜羝羞羟羠羡羢羣群羥羦羧羨義羪羫羬羭羮羯羰羱羲羳羴羵羶羷羸羹羺羻羼羽羾羿翀翁翂翃翄翅翆翇翈翉翊翋翌翍翎翏翐翑習翓翔翕翖翗翘翙翚翛翜翝翞翟翠翡翢翣翤翥翦翧翨翩翪翫翬翭翮翯翰翱翲翳翴翵翶翷翸翹翺翻翼翽翾翿",
+    "耀老耂考耄者耆耇耈耉耊耋而耍耎耏耐耑耒耓耔耕耖耗耘耙耚耛耜耝耞耟耠耡耢耣耤耥耦耧耨耩耪耫耬耭耮耯耰耱耲耳耴耵耶耷耸耹耺耻耼耽耾耿聀聁聂聃聄聅聆聇聈聉聊聋职聍聎聏聐聑聒聓联聕聖聗聘聙聚聛聜聝聞聟聠聡聢聣聤聥聦聧聨聩聪聫聬聭聮聯聰聱聲聳聴聵聶職聸聹聺聻聼聽聾聿肀肁肂肃肄肅肆肇肈肉肊肋肌肍肎肏肐肑肒肓肔肕肖肗肘肙肚肛肜肝肞肟肠股肢肣肤肥肦肧肨肩肪肫肬肭肮肯肰肱育肳肴肵肶肷肸肹肺肻肼肽肾肿胀胁胂胃胄胅胆胇胈胉胊胋背胍胎胏胐胑胒胓胔胕胖胗胘胙胚胛胜胝胞胟胠胡胢胣胤胥胦胧胨胩胪胫胬胭胮胯胰胱胲胳胴胵胶胷胸胹胺胻胼能胾胿",
+    "脀脁脂脃脄脅脆脇脈脉脊脋脌脍脎脏脐脑脒脓脔脕脖脗脘脙脚脛脜脝脞脟脠脡脢脣脤脥脦脧脨脩脪脫脬脭脮脯脰脱脲脳脴脵脶脷脸脹脺脻脼脽脾脿腀腁腂腃腄腅腆腇腈腉腊腋腌腍腎腏腐腑腒腓腔腕腖腗腘腙腚腛腜腝腞腟腠腡腢腣腤腥腦腧腨腩腪腫腬腭腮腯腰腱腲腳腴腵腶腷腸腹腺腻腼腽腾腿膀膁膂膃膄膅膆膇膈膉膊膋膌膍膎膏膐膑膒膓膔膕膖膗膘膙膚膛膜膝膞膟膠膡膢膣膤膥膦膧膨膩膪膫膬膭膮膯膰膱膲膳膴膵膶膷膸膹膺膻膼膽膾膿臀臁臂臃臄臅臆臇臈臉臊臋臌臍臎臏臐臑臒臓臔臕臖臗臘臙臚臛臜臝臞臟臠臡臢臣臤臥臦臧臨臩自臫臬臭臮臯臰臱臲至致臵臶臷臸臹臺臻臼臽臾臿",
+    "舀舁舂舃舄舅舆與興舉舊舋舌舍舎舏舐舑舒舓舔舕舖舗舘舙舚舛舜舝舞舟舠舡舢舣舤舥舦舧舨舩航舫般舭舮舯舰舱舲舳舴舵舶舷舸船舺舻舼舽舾舿艀艁艂艃艄艅艆艇艈艉艊艋艌艍艎艏艐艑艒艓艔艕艖艗艘艙艚艛艜艝艞艟艠艡艢艣艤艥艦艧艨艩艪艫艬艭艮良艰艱色艳艴艵艶艷艸艹艺艻艼艽艾艿芀芁节芃芄芅芆芇芈芉芊芋芌芍芎芏芐芑芒芓芔芕芖芗芘芙芚芛芜芝芞芟芠芡芢芣芤芥芦芧芨芩芪芫芬芭芮芯芰花芲芳芴芵芶芷芸芹芺芻芼芽芾芿苀苁苂苃苄苅苆苇苈苉苊苋苌苍苎苏苐苑苒苓苔苕苖苗苘苙苚苛苜苝苞苟苠苡苢苣苤若苦苧苨苩苪苫苬苭苮苯苰英苲苳苴苵苶苷苸苹苺苻苼苽苾苿",
+    "茀茁茂范茄茅茆茇茈茉茊茋茌茍茎茏茐茑茒茓茔茕茖茗茘茙茚茛茜茝茞茟茠茡茢茣茤茥茦茧茨茩茪茫茬茭茮茯茰茱茲茳茴茵茶茷茸茹茺茻茼茽茾茿荀荁荂荃荄荅荆荇荈草荊荋荌荍荎荏荐荑荒荓荔荕荖荗荘荙荚荛荜荝荞荟荠荡荢荣荤荥荦荧荨荩荪荫荬荭荮药荰荱荲荳荴荵荶荷荸荹荺荻荼荽荾荿莀莁莂莃莄莅莆莇莈莉莊莋莌莍莎莏莐莑莒莓莔莕莖莗莘莙莚莛莜莝莞莟莠莡莢莣莤莥莦莧莨莩莪莫莬莭莮莯莰莱莲莳莴莵莶获莸莹莺莻莼莽莾莿菀菁菂菃菄菅菆菇菈菉菊菋菌菍菎菏菐菑菒菓菔菕菖菗菘菙菚菛菜菝菞菟菠菡菢菣菤菥菦菧菨菩菪菫菬菭菮華菰菱菲菳菴菵菶菷菸菹菺菻菼菽菾菿",
+    "萀萁萂萃萄萅萆萇萈萉萊萋萌萍萎萏萐萑萒萓萔萕萖萗萘萙萚萛萜萝萞萟萠萡萢萣萤营萦萧萨萩萪萫萬萭萮萯萰萱萲萳萴萵萶萷萸萹萺萻萼落萾萿葀葁葂葃葄葅葆葇葈葉葊葋葌葍葎葏葐葑葒葓葔葕葖著葘葙葚葛葜葝葞葟葠葡葢董葤葥葦葧葨葩葪葫葬葭葮葯葰葱葲葳葴葵葶葷葸葹葺葻葼葽葾葿蒀蒁蒂蒃蒄蒅蒆蒇蒈蒉蒊蒋蒌蒍蒎蒏蒐蒑蒒蒓蒔蒕蒖蒗蒘蒙蒚蒛蒜蒝蒞蒟蒠蒡蒢蒣蒤蒥蒦蒧蒨蒩蒪蒫蒬蒭蒮蒯蒰蒱蒲蒳蒴蒵蒶蒷蒸蒹蒺蒻蒼蒽蒾蒿蓀蓁蓂蓃蓄蓅蓆蓇蓈蓉蓊蓋蓌蓍蓎蓏蓐蓑蓒蓓蓔蓕蓖蓗蓘蓙蓚蓛蓜蓝蓞蓟蓠蓡蓢蓣蓤蓥蓦蓧蓨蓩蓪蓫蓬蓭蓮蓯蓰蓱蓲蓳蓴蓵蓶蓷蓸蓹蓺蓻蓼蓽蓾蓿",
+    "蔀蔁蔂蔃蔄蔅蔆蔇蔈蔉蔊蔋蔌蔍蔎蔏蔐蔑蔒蔓蔔蔕蔖蔗蔘蔙蔚蔛蔜蔝蔞蔟蔠蔡蔢蔣蔤蔥蔦蔧蔨蔩蔪蔫蔬蔭蔮蔯蔰蔱蔲蔳蔴蔵蔶蔷蔸蔹蔺蔻蔼蔽蔾蔿蕀蕁蕂蕃蕄蕅蕆蕇蕈蕉蕊蕋蕌蕍蕎蕏蕐蕑蕒蕓蕔蕕蕖蕗蕘蕙蕚蕛蕜蕝蕞蕟蕠蕡蕢蕣蕤蕥蕦蕧蕨蕩蕪蕫蕬蕭蕮蕯蕰蕱蕲蕳蕴蕵蕶蕷蕸蕹蕺蕻蕼蕽蕾蕿薀薁薂薃薄薅薆薇薈薉薊薋薌薍薎薏薐薑薒薓薔薕薖薗薘薙薚薛薜薝薞薟薠薡薢薣薤薥薦薧薨薩薪薫薬薭薮薯薰薱薲薳薴薵薶薷薸薹薺薻薼薽薾薿藀藁藂藃藄藅藆藇藈藉藊藋藌藍藎藏藐藑藒藓藔藕藖藗藘藙藚藛藜藝藞藟藠藡藢藣藤藥藦藧藨藩藪藫藬藭藮藯藰藱藲藳藴藵藶藷藸藹藺藻藼藽藾藿",
+    "蘀蘁蘂蘃蘄蘅蘆蘇蘈蘉蘊蘋蘌蘍蘎蘏蘐蘑蘒蘓蘔蘕蘖蘗蘘蘙蘚蘛蘜蘝蘞蘟蘠蘡蘢蘣蘤蘥蘦蘧蘨蘩蘪蘫蘬蘭蘮蘯蘰蘱蘲蘳蘴蘵蘶蘷蘸蘹蘺蘻蘼蘽蘾蘿虀虁虂虃虄虅虆虇虈虉虊虋虌虍虎虏虐虑虒虓虔處虖虗虘虙虚虛虜虝虞號虠虡虢虣虤虥虦虧虨虩虪虫虬虭虮虯虰虱虲虳虴虵虶虷虸虹虺虻虼虽虾虿蚀蚁蚂蚃蚄蚅蚆蚇蚈蚉蚊蚋蚌蚍蚎蚏蚐蚑蚒蚓蚔蚕蚖蚗蚘蚙蚚蚛蚜蚝蚞蚟蚠蚡蚢蚣蚤蚥蚦蚧蚨蚩蚪蚫蚬蚭蚮蚯蚰蚱蚲蚳蚴蚵蚶蚷蚸蚹蚺蚻蚼蚽蚾蚿蛀蛁蛂蛃蛄蛅蛆蛇蛈蛉蛊蛋蛌蛍蛎蛏蛐蛑蛒蛓蛔蛕蛖蛗蛘蛙蛚蛛蛜蛝蛞蛟蛠蛡蛢蛣蛤蛥蛦蛧蛨蛩蛪蛫蛬蛭蛮蛯蛰蛱蛲蛳蛴蛵蛶蛷蛸蛹蛺蛻蛼蛽蛾蛿",
+    "蜀蜁蜂蜃蜄蜅蜆蜇蜈蜉蜊蜋蜌蜍蜎蜏蜐蜑蜒蜓蜔蜕蜖蜗蜘蜙蜚蜛蜜蜝蜞蜟蜠蜡蜢蜣蜤蜥蜦蜧蜨蜩蜪蜫蜬蜭蜮蜯蜰蜱蜲蜳蜴蜵蜶蜷蜸蜹蜺蜻蜼蜽蜾蜿蝀蝁蝂蝃蝄蝅蝆蝇蝈蝉蝊蝋蝌蝍蝎蝏蝐蝑蝒蝓蝔蝕蝖蝗蝘蝙蝚蝛蝜蝝蝞蝟蝠蝡蝢蝣蝤蝥蝦蝧蝨蝩蝪蝫蝬蝭蝮蝯蝰蝱蝲蝳蝴蝵蝶蝷蝸蝹蝺蝻蝼蝽蝾蝿螀螁螂螃螄螅螆螇螈螉螊螋螌融螎螏螐螑螒螓螔螕螖螗螘螙螚螛螜螝螞螟螠螡螢螣螤螥螦螧螨螩螪螫螬螭螮螯螰螱螲螳螴螵螶螷螸螹螺螻螼螽螾螿蟀蟁蟂蟃蟄蟅蟆蟇蟈蟉蟊蟋蟌蟍蟎蟏蟐蟑蟒蟓蟔蟕蟖蟗蟘蟙蟚蟛蟜蟝蟞蟟蟠蟡蟢蟣蟤蟥蟦蟧蟨蟩蟪蟫蟬蟭蟮蟯蟰蟱蟲蟳蟴蟵蟶蟷蟸蟹蟺蟻蟼蟽蟾蟿",
+    "蠀蠁蠂蠃蠄蠅蠆蠇蠈蠉蠊蠋蠌蠍蠎蠏蠐蠑蠒蠓蠔蠕蠖蠗蠘蠙蠚蠛蠜蠝蠞蠟蠠蠡蠢蠣蠤蠥蠦蠧蠨蠩蠪蠫蠬蠭蠮蠯蠰蠱蠲蠳蠴蠵蠶蠷蠸蠹蠺蠻蠼蠽蠾蠿血衁衂衃衄衅衆衇衈衉衊衋行衍衎衏衐衑衒術衔衕衖街衘衙衚衛衜衝衞衟衠衡衢衣衤补衦衧表衩衪衫衬衭衮衯衰衱衲衳衴衵衶衷衸衹衺衻衼衽衾衿袀袁袂袃袄袅袆袇袈袉袊袋袌袍袎袏袐袑袒袓袔袕袖袗袘袙袚袛袜袝袞袟袠袡袢袣袤袥袦袧袨袩袪被袬袭袮袯袰袱袲袳袴袵袶袷袸袹袺袻袼袽袾袿裀裁裂裃裄装裆裇裈裉裊裋裌裍裎裏裐裑裒裓裔裕裖裗裘裙裚裛補裝裞裟裠裡裢裣裤裥裦裧裨裩裪裫裬裭裮裯裰裱裲裳裴裵裶裷裸裹裺裻裼製裾裿",
+    "褀褁褂褃褄褅褆複褈褉褊褋褌褍褎褏褐褑褒褓褔褕褖褗褘褙褚褛褜褝褞褟褠褡褢褣褤褥褦褧褨褩褪褫褬褭褮褯褰褱褲褳褴褵褶褷褸褹褺褻褼褽褾褿襀襁襂襃襄襅襆襇襈襉襊襋襌襍襎襏襐襑襒襓襔襕襖襗襘襙襚襛襜襝襞襟襠襡襢襣襤襥襦襧襨襩襪襫襬襭襮襯襰襱襲襳襴襵襶襷襸襹襺襻襼襽襾西覀要覂覃覄覅覆覇覈覉覊見覌覍覎規覐覑覒覓覔覕視覗覘覙覚覛覜覝覞覟覠覡覢覣覤覥覦覧覨覩親覫覬覭覮覯覰覱覲観覴覵覶覷覸覹覺覻覼覽覾覿觀见观觃规觅视觇览觉觊觋觌觍觎觏觐觑角觓觔觕觖觗觘觙觚觛觜觝觞觟觠觡觢解觤觥触觧觨觩觪觫觬觭觮觯觰觱觲觳觴觵觶觷觸觹觺觻觼觽觾觿",
+    "言訁訂訃訄訅訆訇計訉訊訋訌訍討訏訐訑訒訓訔訕訖託記訙訚訛訜訝訞訟訠訡訢訣訤訥訦訧訨訩訪訫訬設訮訯訰許訲訳訴訵訶訷訸訹診註証訽訾訿詀詁詂詃詄詅詆詇詈詉詊詋詌詍詎詏詐詑詒詓詔評詖詗詘詙詚詛詜詝詞詟詠詡詢詣詤詥試詧詨詩詪詫詬詭詮詯詰話該詳詴詵詶詷詸詹詺詻詼詽詾詿誀誁誂誃誄誅誆誇誈誉誊誋誌認誎誏誐誑誒誓誔誕誖誗誘誙誚誛誜誝語誟誠誡誢誣誤誥誦誧誨誩說誫説読誮誯誰誱課誳誴誵誶誷誸誹誺誻誼誽誾調諀諁諂諃諄諅諆談諈諉諊請諌諍諎諏諐諑諒諓諔諕論諗諘諙諚諛諜諝諞諟諠諡諢諣諤諥諦諧諨諩諪諫諬諭諮諯諰諱諲諳諴諵諶諷諸諹諺諻諼諽諾諿",
+    "謀謁謂謃謄謅謆謇謈謉謊謋謌謍謎謏謐謑謒謓謔謕謖謗謘謙謚講謜謝謞謟謠謡謢謣謤謥謦謧謨謩謪謫謬謭謮謯謰謱謲謳謴謵謶謷謸謹謺謻謼謽謾謿譀譁譂譃譄譅譆譇譈證譊譋譌譍譎譏譐譑譒譓譔譕譖譗識譙譚譛譜譝譞譟譠譡譢譣譤譥警譧譨譩譪譫譬譭譮譯議譱譲譳譴譵譶護譸譹譺譻譼譽譾譿讀讁讂讃讄讅讆讇讈讉變讋讌讍讎讏讐讑讒讓讔讕讖讗讘讙讚讛讜讝讞讟讠计订讣认讥讦讧讨让讪讫讬训议讯记讱讲讳讴讵讶讷许讹论讻讼讽设访诀证诂诃评诅识诇诈诉诊诋诌词诎诏诐译诒诓诔试诖诗诘诙诚诛诜话诞诟诠诡询诣诤该详诧诨诩诪诫诬语诮误诰诱诲诳说诵诶请诸诹诺读诼诽课诿",
+    "谀谁谂调谄谅谆谇谈谉谊谋谌谍谎谏谐谑谒谓谔谕谖谗谘谙谚谛谜谝谞谟谠谡谢谣谤谥谦谧谨谩谪谫谬谭谮谯谰谱谲谳谴谵谶谷谸谹谺谻谼谽谾谿豀豁豂豃豄豅豆豇豈豉豊豋豌豍豎豏豐豑豒豓豔豕豖豗豘豙豚豛豜豝豞豟豠象豢豣豤豥豦豧豨豩豪豫豬豭豮豯豰豱豲豳豴豵豶豷豸豹豺豻豼豽豾豿貀貁貂貃貄貅貆貇貈貉貊貋貌貍貎貏貐貑貒貓貔貕貖貗貘貙貚貛貜貝貞貟負財貢貣貤貥貦貧貨販貪貫責貭貮貯貰貱貲貳貴貵貶買貸貹貺費貼貽貾貿賀賁賂賃賄賅賆資賈賉賊賋賌賍賎賏賐賑賒賓賔賕賖賗賘賙賚賛賜賝賞賟賠賡賢賣賤賥賦賧賨賩質賫賬賭賮賯賰賱賲賳賴賵賶賷賸賹賺賻購賽賾賿",
+    "贀贁贂贃贄贅贆贇贈贉贊贋贌贍贎贏贐贑贒贓贔贕贖贗贘贙贚贛贜贝贞负贠贡财责贤败账货质贩贪贫贬购贮贯贰贱贲贳贴贵贶贷贸费贺贻贼贽贾贿赀赁赂赃资赅赆赇赈赉赊赋赌赍赎赏赐赑赒赓赔赕赖赗赘赙赚赛赜赝赞赟赠赡赢赣赤赥赦赧赨赩赪赫赬赭赮赯走赱赲赳赴赵赶起赸赹赺赻赼赽赾赿趀趁趂趃趄超趆趇趈趉越趋趌趍趎趏趐趑趒趓趔趕趖趗趘趙趚趛趜趝趞趟趠趡趢趣趤趥趦趧趨趩趪趫趬趭趮趯趰趱趲足趴趵趶趷趸趹趺趻趼趽趾趿跀跁跂跃跄跅跆跇跈跉跊跋跌跍跎跏跐跑跒跓跔跕跖跗跘跙跚跛跜距跞跟跠跡跢跣跤跥跦跧跨跩跪跫跬跭跮路跰跱跲跳跴践跶跷跸跹跺跻跼跽跾跿",
+    "踀踁踂踃踄踅踆踇踈踉踊踋踌踍踎踏踐踑踒踓踔踕踖踗踘踙踚踛踜踝踞踟踠踡踢踣踤踥踦踧踨踩踪踫踬踭踮踯踰踱踲踳踴踵踶踷踸踹踺踻踼踽踾踿蹀蹁蹂蹃蹄蹅蹆蹇蹈蹉蹊蹋蹌蹍蹎蹏蹐蹑蹒蹓蹔蹕蹖蹗蹘蹙蹚蹛蹜蹝蹞蹟蹠蹡蹢蹣蹤蹥蹦蹧蹨蹩蹪蹫蹬蹭蹮蹯蹰蹱蹲蹳蹴蹵蹶蹷蹸蹹蹺蹻蹼蹽蹾蹿躀躁躂躃躄躅躆躇躈躉躊躋躌躍躎躏躐躑躒躓躔躕躖躗躘躙躚躛躜躝躞躟躠躡躢躣躤躥躦躧躨躩躪身躬躭躮躯躰躱躲躳躴躵躶躷躸躹躺躻躼躽躾躿軀軁軂軃軄軅軆軇軈軉車軋軌軍軎軏軐軑軒軓軔軕軖軗軘軙軚軛軜軝軞軟軠軡転軣軤軥軦軧軨軩軪軫軬軭軮軯軰軱軲軳軴軵軶軷軸軹軺軻軼軽軾軿",
+    "輀輁輂較輄輅輆輇輈載輊輋輌輍輎輏輐輑輒輓輔輕輖輗輘輙輚輛輜輝輞輟輠輡輢輣輤輥輦輧輨輩輪輫輬輭輮輯輰輱輲輳輴輵輶輷輸輹輺輻輼輽輾輿轀轁轂轃轄轅轆轇轈轉轊轋轌轍轎轏轐轑轒轓轔轕轖轗轘轙轚轛轜轝轞轟轠轡轢轣轤轥车轧轨轩轪轫转轭轮软轰轱轲轳轴轵轶轷轸轹轺轻轼载轾轿辀辁辂较辄辅辆辇辈辉辊辋辌辍辎辏辐辑辒输辔辕辖辗辘辙辚辛辜辝辞辟辠辡辢辣辤辥辦辧辨辩辪辫辬辭辮辯辰辱農辳辴辵辶辷辸边辺辻込辽达辿迀迁迂迃迄迅迆过迈迉迊迋迌迍迎迏运近迒迓返迕迖迗还这迚进远违连迟迠迡迢迣迤迥迦迧迨迩迪迫迬迭迮迯述迱迲迳迴迵迶迷迸迹迺迻迼追迾迿",
+    "退送适逃逄逅逆逇逈选逊逋逌逍逎透逐逑递逓途逕逖逗逘這通逛逜逝逞速造逡逢連逤逥逦逧逨逩逪逫逬逭逮逯逰週進逳逴逵逶逷逸逹逺逻逼逽逾逿遀遁遂遃遄遅遆遇遈遉遊運遌遍過遏遐遑遒道達違遖遗遘遙遚遛遜遝遞遟遠遡遢遣遤遥遦遧遨適遪遫遬遭遮遯遰遱遲遳遴遵遶遷選遹遺遻遼遽遾避邀邁邂邃還邅邆邇邈邉邊邋邌邍邎邏邐邑邒邓邔邕邖邗邘邙邚邛邜邝邞邟邠邡邢那邤邥邦邧邨邩邪邫邬邭邮邯邰邱邲邳邴邵邶邷邸邹邺邻邼邽邾邿郀郁郂郃郄郅郆郇郈郉郊郋郌郍郎郏郐郑郒郓郔郕郖郗郘郙郚郛郜郝郞郟郠郡郢郣郤郥郦郧部郩郪郫郬郭郮郯郰郱郲郳郴郵郶郷郸郹郺郻郼都郾郿",
+    "鄀鄁鄂鄃鄄鄅鄆鄇鄈鄉鄊鄋鄌鄍鄎鄏鄐鄑鄒鄓鄔鄕鄖鄗鄘鄙鄚鄛鄜鄝鄞鄟鄠鄡鄢鄣鄤鄥鄦鄧鄨鄩鄪鄫鄬鄭鄮鄯鄰鄱鄲鄳鄴鄵鄶鄷鄸鄹鄺鄻鄼鄽鄾鄿酀酁酂酃酄酅酆酇酈酉酊酋酌配酎酏酐酑酒酓酔酕酖酗酘酙酚酛酜酝酞酟酠酡酢酣酤酥酦酧酨酩酪酫酬酭酮酯酰酱酲酳酴酵酶酷酸酹酺酻酼酽酾酿醀醁醂醃醄醅醆醇醈醉醊醋醌醍醎醏醐醑醒醓醔醕醖醗醘醙醚醛醜醝醞醟醠醡醢醣醤醥醦醧醨醩醪醫醬醭醮醯醰醱醲醳醴醵醶醷醸醹醺醻醼醽醾醿釀釁釂釃釄釅釆采釈釉释釋里重野量釐金釒釓釔釕釖釗釘釙釚釛釜針釞釟釠釡釢釣釤釥釦釧釨釩釪釫釬釭釮釯釰釱釲釳釴釵釶釷釸釹釺釻釼釽釾釿",
+    "鈀鈁鈂鈃鈄鈅鈆鈇鈈鈉鈊鈋鈌鈍鈎鈏鈐鈑鈒鈓鈔鈕鈖鈗鈘鈙鈚鈛鈜鈝鈞鈟鈠鈡鈢鈣鈤鈥鈦鈧鈨鈩鈪鈫鈬鈭鈮鈯鈰鈱鈲鈳鈴鈵鈶鈷鈸鈹鈺鈻鈼鈽鈾鈿鉀鉁鉂鉃鉄鉅鉆鉇鉈鉉鉊鉋鉌鉍鉎鉏鉐鉑鉒鉓鉔鉕鉖鉗鉘鉙鉚鉛鉜鉝鉞鉟鉠鉡鉢鉣鉤鉥鉦鉧鉨鉩鉪鉫鉬鉭鉮鉯鉰鉱鉲鉳鉴鉵鉶鉷鉸鉹鉺鉻鉼鉽鉾鉿銀銁銂銃銄銅銆銇銈銉銊銋銌銍銎銏銐銑銒銓銔銕銖銗銘銙銚銛銜銝銞銟銠銡銢銣銤銥銦銧銨銩銪銫銬銭銮銯銰銱銲銳銴銵銶銷銸銹銺銻銼銽銾銿鋀鋁鋂鋃鋄鋅鋆鋇鋈鋉鋊鋋鋌鋍鋎鋏鋐鋑鋒鋓鋔鋕鋖鋗鋘鋙鋚鋛鋜鋝鋞鋟鋠鋡鋢鋣鋤鋥鋦鋧鋨鋩鋪鋫鋬鋭鋮鋯鋰鋱鋲鋳鋴鋵鋶鋷鋸鋹鋺鋻鋼鋽鋾鋿",
+    "錀錁錂錃錄錅錆錇錈錉錊錋錌錍錎錏錐錑錒錓錔錕錖錗錘錙錚錛錜錝錞錟錠錡錢錣錤錥錦錧錨錩錪錫錬錭錮錯錰錱録錳錴錵錶錷錸錹錺錻錼錽錾錿鍀鍁鍂鍃鍄鍅鍆鍇鍈鍉鍊鍋鍌鍍鍎鍏鍐鍑鍒鍓鍔鍕鍖鍗鍘鍙鍚鍛鍜鍝鍞鍟鍠鍡鍢鍣鍤鍥鍦鍧鍨鍩鍪鍫鍬鍭鍮鍯鍰鍱鍲鍳鍴鍵鍶鍷鍸鍹鍺鍻鍼鍽鍾鍿鎀鎁鎂鎃鎄鎅鎆鎇鎈鎉鎊鎋鎌鎍鎎鎏鎐鎑鎒鎓鎔鎕鎖鎗鎘鎙鎚鎛鎜鎝鎞鎟鎠鎡鎢鎣鎤鎥鎦鎧鎨鎩鎪鎫鎬鎭鎮鎯鎰鎱鎲鎳鎴鎵鎶鎷鎸鎹鎺鎻鎼鎽鎾鎿鏀鏁鏂鏃鏄鏅鏆鏇鏈鏉鏊鏋鏌鏍鏎鏏鏐鏑鏒鏓鏔鏕鏖鏗鏘鏙鏚鏛鏜鏝鏞鏟鏠鏡鏢鏣鏤鏥鏦鏧鏨鏩鏪鏫鏬鏭鏮鏯鏰鏱鏲鏳鏴鏵鏶鏷鏸鏹鏺鏻鏼鏽鏾鏿",
+    "鐀鐁鐂鐃鐄鐅鐆鐇鐈鐉鐊鐋鐌鐍鐎鐏鐐鐑鐒鐓鐔鐕鐖鐗鐘鐙鐚鐛鐜鐝鐞鐟鐠鐡鐢鐣鐤鐥鐦鐧鐨鐩鐪鐫鐬鐭鐮鐯鐰鐱鐲鐳鐴鐵鐶鐷鐸鐹鐺鐻鐼鐽鐾鐿鑀鑁鑂鑃鑄鑅鑆鑇鑈鑉鑊鑋鑌鑍鑎鑏鑐鑑鑒鑓鑔鑕鑖鑗鑘鑙鑚鑛鑜鑝鑞鑟鑠鑡鑢鑣鑤鑥鑦鑧鑨鑩鑪鑫鑬鑭鑮鑯鑰鑱鑲鑳鑴鑵鑶鑷鑸鑹鑺鑻鑼鑽鑾鑿钀钁钂钃钄钅钆钇针钉钊钋钌钍钎钏钐钑钒钓钔钕钖钗钘钙钚钛钜钝钞钟钠钡钢钣钤钥钦钧钨钩钪钫钬钭钮钯钰钱钲钳钴钵钶钷钸钹钺钻钼钽钾钿铀铁铂铃铄铅铆铇铈铉铊铋铌铍铎铏铐铑铒铓铔铕铖铗铘铙铚铛铜铝铞铟铠铡铢铣铤铥铦铧铨铩铪铫铬铭铮铯铰铱铲铳铴铵银铷铸铹铺铻铼铽链铿",
+    "销锁锂锃锄锅锆锇锈锉锊锋锌锍锎锏锐锑锒锓锔锕锖锗锘错锚锛锜锝锞锟锠锡锢锣锤锥锦锧锨锩锪锫锬锭键锯锰锱锲锳锴锵锶锷锸锹锺锻锼锽锾锿镀镁镂镃镄镅镆镇镈镉镊镋镌镍镎镏镐镑镒镓镔镕镖镗镘镙镚镛镜镝镞镟镠镡镢镣镤镥镦镧镨镩镪镫镬镭镮镯镰镱镲镳镴镵镶長镸镹镺镻镼镽镾长門閁閂閃閄閅閆閇閈閉閊開閌閍閎閏閐閑閒間閔閕閖閗閘閙閚閛閜閝閞閟閠閡関閣閤閥閦閧閨閩閪閫閬閭閮閯閰閱閲閳閴閵閶閷閸閹閺閻閼閽閾閿闀闁闂闃闄闅闆闇闈闉闊闋闌闍闎闏闐闑闒闓闔闕闖闗闘闙闚闛關闝闞闟闠闡闢闣闤闥闦闧门闩闪闫闬闭问闯闰闱闲闳间闵闶闷闸闹闺闻闼闽闾闿",
+    "阀阁阂阃阄阅阆阇阈阉阊阋阌阍阎阏阐阑阒阓阔阕阖阗阘阙阚阛阜阝阞队阠阡阢阣阤阥阦阧阨阩阪阫阬阭阮阯阰阱防阳阴阵阶阷阸阹阺阻阼阽阾阿陀陁陂陃附际陆陇陈陉陊陋陌降陎陏限陑陒陓陔陕陖陗陘陙陚陛陜陝陞陟陠陡院陣除陥陦陧陨险陪陫陬陭陮陯陰陱陲陳陴陵陶陷陸陹険陻陼陽陾陿隀隁隂隃隄隅隆隇隈隉隊隋隌隍階随隐隑隒隓隔隕隖隗隘隙隚際障隝隞隟隠隡隢隣隤隥隦隧隨隩險隫隬隭隮隯隰隱隲隳隴隵隶隷隸隹隺隻隼隽难隿雀雁雂雃雄雅集雇雈雉雊雋雌雍雎雏雐雑雒雓雔雕雖雗雘雙雚雛雜雝雞雟雠雡離難雤雥雦雧雨雩雪雫雬雭雮雯雰雱雲雳雴雵零雷雸雹雺電雼雽雾雿",
+    "需霁霂霃霄霅霆震霈霉霊霋霌霍霎霏霐霑霒霓霔霕霖霗霘霙霚霛霜霝霞霟霠霡霢霣霤霥霦霧霨霩霪霫霬霭霮霯霰霱露霳霴霵霶霷霸霹霺霻霼霽霾霿靀靁靂靃靄靅靆靇靈靉靊靋靌靍靎靏靐靑青靓靔靕靖靗靘静靚靛靜靝非靟靠靡面靣靤靥靦靧靨革靪靫靬靭靮靯靰靱靲靳靴靵靶靷靸靹靺靻靼靽靾靿鞀鞁鞂鞃鞄鞅鞆鞇鞈鞉鞊鞋鞌鞍鞎鞏鞐鞑鞒鞓鞔鞕鞖鞗鞘鞙鞚鞛鞜鞝鞞鞟鞠鞡鞢鞣鞤鞥鞦鞧鞨鞩鞪鞫鞬鞭鞮鞯鞰鞱鞲鞳鞴鞵鞶鞷鞸鞹鞺鞻鞼鞽鞾鞿韀韁韂韃韄韅韆韇韈韉韊韋韌韍韎韏韐韑韒韓韔韕韖韗韘韙韚韛韜韝韞韟韠韡韢韣韤韥韦韧韨韩韪韫韬韭韮韯韰韱韲音韴韵韶韷韸韹韺韻韼韽韾響",
+    "頀頁頂頃頄項順頇須頉頊頋頌頍頎頏預頑頒頓頔頕頖頗領頙頚頛頜頝頞頟頠頡頢頣頤頥頦頧頨頩頪頫頬頭頮頯頰頱頲頳頴頵頶頷頸頹頺頻頼頽頾頿顀顁顂顃顄顅顆顇顈顉顊顋題額顎顏顐顑顒顓顔顕顖顗願顙顚顛顜顝類顟顠顡顢顣顤顥顦顧顨顩顪顫顬顭顮顯顰顱顲顳顴页顶顷顸项顺须顼顽顾顿颀颁颂颃预颅领颇颈颉颊颋颌颍颎颏颐频颒颓颔颕颖颗题颙颚颛颜额颞颟颠颡颢颣颤颥颦颧風颩颪颫颬颭颮颯颰颱颲颳颴颵颶颷颸颹颺颻颼颽颾颿飀飁飂飃飄飅飆飇飈飉飊飋飌飍风飏飐飑飒飓飔飕飖飗飘飙飚飛飜飝飞食飠飡飢飣飤飥飦飧飨飩飪飫飬飭飮飯飰飱飲飳飴飵飶飷飸飹飺飻飼飽飾飿",
+    "餀餁餂餃餄餅餆餇餈餉養餋餌餍餎餏餐餑餒餓餔餕餖餗餘餙餚餛餜餝餞餟餠餡餢餣餤餥餦餧館餩餪餫餬餭餮餯餰餱餲餳餴餵餶餷餸餹餺餻餼餽餾餿饀饁饂饃饄饅饆饇饈饉饊饋饌饍饎饏饐饑饒饓饔饕饖饗饘饙饚饛饜饝饞饟饠饡饢饣饤饥饦饧饨饩饪饫饬饭饮饯饰饱饲饳饴饵饶饷饸饹饺饻饼饽饾饿馀馁馂馃馄馅馆馇馈馉馊馋馌馍馎馏馐馑馒馓馔馕首馗馘香馚馛馜馝馞馟馠馡馢馣馤馥馦馧馨馩馪馫馬馭馮馯馰馱馲馳馴馵馶馷馸馹馺馻馼馽馾馿駀駁駂駃駄駅駆駇駈駉駊駋駌駍駎駏駐駑駒駓駔駕駖駗駘駙駚駛駜駝駞駟駠駡駢駣駤駥駦駧駨駩駪駫駬駭駮駯駰駱駲駳駴駵駶駷駸駹駺駻駼駽駾駿",
+    "騀騁騂騃騄騅騆騇騈騉騊騋騌騍騎騏騐騑騒験騔騕騖騗騘騙騚騛騜騝騞騟騠騡騢騣騤騥騦騧騨騩騪騫騬騭騮騯騰騱騲騳騴騵騶騷騸騹騺騻騼騽騾騿驀驁驂驃驄驅驆驇驈驉驊驋驌驍驎驏驐驑驒驓驔驕驖驗驘驙驚驛驜驝驞驟驠驡驢驣驤驥驦驧驨驩驪驫马驭驮驯驰驱驲驳驴驵驶驷驸驹驺驻驼驽驾驿骀骁骂骃骄骅骆骇骈骉骊骋验骍骎骏骐骑骒骓骔骕骖骗骘骙骚骛骜骝骞骟骠骡骢骣骤骥骦骧骨骩骪骫骬骭骮骯骰骱骲骳骴骵骶骷骸骹骺骻骼骽骾骿髀髁髂髃髄髅髆髇髈髉髊髋髌髍髎髏髐髑髒髓體髕髖髗高髙髚髛髜髝髞髟髠髡髢髣髤髥髦髧髨髩髪髫髬髭髮髯髰髱髲髳髴髵髶髷髸髹髺髻髼髽髾髿",
+    "鬀鬁鬂鬃鬄鬅鬆鬇鬈鬉鬊鬋鬌鬍鬎鬏鬐鬑鬒鬓鬔鬕鬖鬗鬘鬙鬚鬛鬜鬝鬞鬟鬠鬡鬢鬣鬤鬥鬦鬧鬨鬩鬪鬫鬬鬭鬮鬯鬰鬱鬲鬳鬴鬵鬶鬷鬸鬹鬺鬻鬼鬽鬾鬿魀魁魂魃魄魅魆魇魈魉魊魋魌魍魎魏魐魑魒魓魔魕魖魗魘魙魚魛魜魝魞魟魠魡魢魣魤魥魦魧魨魩魪魫魬魭魮魯魰魱魲魳魴魵魶魷魸魹魺魻魼魽魾魿鮀鮁鮂鮃鮄鮅鮆鮇鮈鮉鮊鮋鮌鮍鮎鮏鮐鮑鮒鮓鮔鮕鮖鮗鮘鮙鮚鮛鮜鮝鮞鮟鮠鮡鮢鮣鮤鮥鮦鮧鮨鮩鮪鮫鮬鮭鮮鮯鮰鮱鮲鮳鮴鮵鮶鮷鮸鮹鮺鮻鮼鮽鮾鮿鯀鯁鯂鯃鯄鯅鯆鯇鯈鯉鯊鯋鯌鯍鯎鯏鯐鯑鯒鯓鯔鯕鯖鯗鯘鯙鯚鯛鯜鯝鯞鯟鯠鯡鯢鯣鯤鯥鯦鯧鯨鯩鯪鯫鯬鯭鯮鯯鯰鯱鯲鯳鯴鯵鯶鯷鯸鯹鯺鯻鯼鯽鯾鯿",
+    "鰀鰁鰂鰃鰄鰅鰆鰇鰈鰉鰊鰋鰌鰍鰎鰏鰐鰑鰒鰓鰔鰕鰖鰗鰘鰙鰚鰛鰜鰝鰞鰟鰠鰡鰢鰣鰤鰥鰦鰧鰨鰩鰪鰫鰬鰭鰮鰯鰰鰱鰲鰳鰴鰵鰶鰷鰸鰹鰺鰻鰼鰽鰾鰿鱀鱁鱂鱃鱄鱅鱆鱇鱈鱉鱊鱋鱌鱍鱎鱏鱐鱑鱒鱓鱔鱕鱖鱗鱘鱙鱚鱛鱜鱝鱞鱟鱠鱡鱢鱣鱤鱥鱦鱧鱨鱩鱪鱫鱬鱭鱮鱯鱰鱱鱲鱳鱴鱵鱶鱷鱸鱹鱺鱻鱼鱽鱾鱿鲀鲁鲂鲃鲄鲅鲆鲇鲈鲉鲊鲋鲌鲍鲎鲏鲐鲑鲒鲓鲔鲕鲖鲗鲘鲙鲚鲛鲜鲝鲞鲟鲠鲡鲢鲣鲤鲥鲦鲧鲨鲩鲪鲫鲬鲭鲮鲯鲰鲱鲲鲳鲴鲵鲶鲷鲸鲹鲺鲻鲼鲽鲾鲿鳀鳁鳂鳃鳄鳅鳆鳇鳈鳉鳊鳋鳌鳍鳎鳏鳐鳑鳒鳓鳔鳕鳖鳗鳘鳙鳚鳛鳜鳝鳞鳟鳠鳡鳢鳣鳤鳥鳦鳧鳨鳩鳪鳫鳬鳭鳮鳯鳰鳱鳲鳳鳴鳵鳶鳷鳸鳹鳺鳻鳼鳽鳾鳿",
+    "鴀鴁鴂鴃鴄鴅鴆鴇鴈鴉鴊鴋鴌鴍鴎鴏鴐鴑鴒鴓鴔鴕鴖鴗鴘鴙鴚鴛鴜鴝鴞鴟鴠鴡鴢鴣鴤鴥鴦鴧鴨鴩鴪鴫鴬鴭鴮鴯鴰鴱鴲鴳鴴鴵鴶鴷鴸鴹鴺鴻鴼鴽鴾鴿鵀鵁鵂鵃鵄鵅鵆鵇鵈鵉鵊鵋鵌鵍鵎鵏鵐鵑鵒鵓鵔鵕鵖鵗鵘鵙鵚鵛鵜鵝鵞鵟鵠鵡鵢鵣鵤鵥鵦鵧鵨鵩鵪鵫鵬鵭鵮鵯鵰鵱鵲鵳鵴鵵鵶鵷鵸鵹鵺鵻鵼鵽鵾鵿鶀鶁鶂鶃鶄鶅鶆鶇鶈鶉鶊鶋鶌鶍鶎鶏鶐鶑鶒鶓鶔鶕鶖鶗鶘鶙鶚鶛鶜鶝鶞鶟鶠鶡鶢鶣鶤鶥鶦鶧鶨鶩鶪鶫鶬鶭鶮鶯鶰鶱鶲鶳鶴鶵鶶鶷鶸鶹鶺鶻鶼鶽鶾鶿鷀鷁鷂鷃鷄鷅鷆鷇鷈鷉鷊鷋鷌鷍鷎鷏鷐鷑鷒鷓鷔鷕鷖鷗鷘鷙鷚鷛鷜鷝鷞鷟鷠鷡鷢鷣鷤鷥鷦鷧鷨鷩鷪鷫鷬鷭鷮鷯鷰鷱鷲鷳鷴鷵鷶鷷鷸鷹鷺鷻鷼鷽鷾鷿",
+    "鸀鸁鸂鸃鸄鸅鸆鸇鸈鸉鸊鸋鸌鸍鸎鸏鸐鸑鸒鸓鸔鸕鸖鸗鸘鸙鸚鸛鸜鸝鸞鸟鸠鸡鸢鸣鸤鸥鸦鸧鸨鸩鸪鸫鸬鸭鸮鸯鸰鸱鸲鸳鸴鸵鸶鸷鸸鸹鸺鸻鸼鸽鸾鸿鹀鹁鹂鹃鹄鹅鹆鹇鹈鹉鹊鹋鹌鹍鹎鹏鹐鹑鹒鹓鹔鹕鹖鹗鹘鹙鹚鹛鹜鹝鹞鹟鹠鹡鹢鹣鹤鹥鹦鹧鹨鹩鹪鹫鹬鹭鹮鹯鹰鹱鹲鹳鹴鹵鹶鹷鹸鹹鹺鹻鹼鹽鹾鹿麀麁麂麃麄麅麆麇麈麉麊麋麌麍麎麏麐麑麒麓麔麕麖麗麘麙麚麛麜麝麞麟麠麡麢麣麤麥麦麧麨麩麪麫麬麭麮麯麰麱麲麳麴麵麶麷麸麹麺麻麼麽麾麿黀黁黂黃黄黅黆黇黈黉黊黋黌黍黎黏黐黑黒黓黔黕黖黗默黙黚黛黜黝點黟黠黡黢黣黤黥黦黧黨黩黪黫黬黭黮黯黰黱黲黳黴黵黶黷黸黹黺黻黼黽黾黿",
+    "鼀鼁鼂鼃鼄鼅鼆鼇鼈鼉鼊鼋鼌鼍鼎鼏鼐鼑鼒鼓鼔鼕鼖鼗鼘鼙鼚鼛鼜鼝鼞鼟鼠鼡鼢鼣鼤鼥鼦鼧鼨鼩鼪鼫鼬鼭鼮鼯鼰鼱鼲鼳鼴鼵鼶鼷鼸鼹鼺鼻鼼鼽鼾鼿齀齁齂齃齄齅齆齇齈齉齊齋齌齍齎齏齐齑齒齓齔齕齖齗齘齙齚齛齜齝齞齟齠齡齢齣齤齥齦齧齨齩齪齫齬齭齮齯齰齱齲齳齴齵齶齷齸齹齺齻齼齽齾齿龀龁龂龃龄龅龆龇龈龉龊龋龌龍龎龏龐龑龒龓龔龕龖龗龘龙龚龛龜龝龞龟龠龡龢龣龤龥龦龧龨龩龪龫龬龭龮龯龰龱龲龳龴龵龶龷龸龹龺龻龼龽龾龿鿀鿁鿂鿃鿄鿅鿆鿇鿈鿉鿊鿋鿌鿍鿎鿏鿐鿑鿒鿓鿔鿕鿖鿗鿘鿙鿚鿛鿜鿝鿞鿟鿠鿡鿢鿣鿤鿥鿦鿧鿨鿩鿪鿫鿬鿭鿮鿯鿰鿱鿲鿳鿴鿵鿶鿷鿸鿹鿺鿻鿼鿽鿾鿿",
+    "ꀀꀁꀂꀃꀄꀅꀆꀇꀈꀉꀊꀋꀌꀍꀎꀏꀐꀑꀒꀓꀔꀕꀖꀗꀘꀙꀚꀛꀜꀝꀞꀟꀠꀡꀢꀣꀤꀥꀦꀧꀨꀩꀪꀫꀬꀭꀮꀯꀰꀱꀲꀳꀴꀵꀶꀷꀸꀹꀺꀻꀼꀽꀾꀿꁀꁁꁂꁃꁄꁅꁆꁇꁈꁉꁊꁋꁌꁍꁎꁏꁐꁑꁒꁓꁔꁕꁖꁗꁘꁙꁚꁛꁜꁝꁞꁟꁠꁡꁢꁣꁤꁥꁦꁧꁨꁩꁪꁫꁬꁭꁮꁯꁰꁱꁲꁳꁴꁵꁶꁷꁸꁹꁺꁻꁼꁽꁾꁿꂀꂁꂂꂃꂄꂅꂆꂇꂈꂉꂊꂋꂌꂍꂎꂏꂐꂑꂒꂓꂔꂕꂖꂗꂘꂙꂚꂛꂜꂝꂞꂟꂠꂡꂢꂣꂤꂥꂦꂧꂨꂩꂪꂫꂬꂭꂮꂯꂰꂱꂲꂳꂴꂵꂶꂷꂸꂹꂺꂻꂼꂽꂾꂿꃀꃁꃂꃃꃄꃅꃆꃇꃈꃉꃊꃋꃌꃍꃎꃏꃐꃑꃒꃓꃔꃕꃖꃗꃘꃙꃚꃛꃜꃝꃞꃟꃠꃡꃢꃣꃤꃥꃦꃧꃨꃩꃪꃫꃬꃭꃮꃯꃰꃱꃲꃳꃴꃵꃶꃷꃸꃹꃺꃻꃼꃽꃾꃿ",
+    "ꄀꄁꄂꄃꄄꄅꄆꄇꄈꄉꄊꄋꄌꄍꄎꄏꄐꄑꄒꄓꄔꄕꄖꄗꄘꄙꄚꄛꄜꄝꄞꄟꄠꄡꄢꄣꄤꄥꄦꄧꄨꄩꄪꄫꄬꄭꄮꄯꄰꄱꄲꄳꄴꄵꄶꄷꄸꄹꄺꄻꄼꄽꄾꄿꅀꅁꅂꅃꅄꅅꅆꅇꅈꅉꅊꅋꅌꅍꅎꅏꅐꅑꅒꅓꅔꅕꅖꅗꅘꅙꅚꅛꅜꅝꅞꅟꅠꅡꅢꅣꅤꅥꅦꅧꅨꅩꅪꅫꅬꅭꅮꅯꅰꅱꅲꅳꅴꅵꅶꅷꅸꅹꅺꅻꅼꅽꅾꅿꆀꆁꆂꆃꆄꆅꆆꆇꆈꆉꆊꆋꆌꆍꆎꆏꆐꆑꆒꆓꆔꆕꆖꆗꆘꆙꆚꆛꆜꆝꆞꆟꆠꆡꆢꆣꆤꆥꆦꆧꆨꆩꆪꆫꆬꆭꆮꆯꆰꆱꆲꆳꆴꆵꆶꆷꆸꆹꆺꆻꆼꆽꆾꆿꇀꇁꇂꇃꇄꇅꇆꇇꇈꇉꇊꇋꇌꇍꇎꇏꇐꇑꇒꇓꇔꇕꇖꇗꇘꇙꇚꇛꇜꇝꇞꇟꇠꇡꇢꇣꇤꇥꇦꇧꇨꇩꇪꇫꇬꇭꇮꇯꇰꇱꇲꇳꇴꇵꇶꇷꇸꇹꇺꇻꇼꇽꇾꇿ",
+    "ꈀꈁꈂꈃꈄꈅꈆꈇꈈꈉꈊꈋꈌꈍꈎꈏꈐꈑꈒꈓꈔꈕꈖꈗꈘꈙꈚꈛꈜꈝꈞꈟꈠꈡꈢꈣꈤꈥꈦꈧꈨꈩꈪꈫꈬꈭꈮꈯꈰꈱꈲꈳꈴꈵꈶꈷꈸꈹꈺꈻꈼꈽꈾꈿꉀꉁꉂꉃꉄꉅꉆꉇꉈꉉꉊꉋꉌꉍꉎꉏꉐꉑꉒꉓꉔꉕꉖꉗꉘꉙꉚꉛꉜꉝꉞꉟꉠꉡꉢꉣꉤꉥꉦꉧꉨꉩꉪꉫꉬꉭꉮꉯꉰꉱꉲꉳꉴꉵꉶꉷꉸꉹꉺꉻꉼꉽꉾꉿꊀꊁꊂꊃꊄꊅꊆꊇꊈꊉꊊꊋꊌꊍꊎꊏꊐꊑꊒꊓꊔꊕꊖꊗꊘꊙꊚꊛꊜꊝꊞꊟꊠꊡꊢꊣꊤꊥꊦꊧꊨꊩꊪꊫꊬꊭꊮꊯꊰꊱꊲꊳꊴꊵꊶꊷꊸꊹꊺꊻꊼꊽꊾꊿꋀꋁꋂꋃꋄꋅꋆꋇꋈꋉꋊꋋꋌꋍꋎꋏꋐꋑꋒꋓꋔꋕꋖꋗꋘꋙꋚꋛꋜꋝꋞꋟꋠꋡꋢꋣꋤꋥꋦꋧꋨꋩꋪꋫꋬꋭꋮꋯꋰꋱꋲꋳꋴꋵꋶꋷꋸꋹꋺꋻꋼꋽꋾꋿ",
+    "ꌀꌁꌂꌃꌄꌅꌆꌇꌈꌉꌊꌋꌌꌍꌎꌏꌐꌑꌒꌓꌔꌕꌖꌗꌘꌙꌚꌛꌜꌝꌞꌟꌠꌡꌢꌣꌤꌥꌦꌧꌨꌩꌪꌫꌬꌭꌮꌯꌰꌱꌲꌳꌴꌵꌶꌷꌸꌹꌺꌻꌼꌽꌾꌿꍀꍁꍂꍃꍄꍅꍆꍇꍈꍉꍊꍋꍌꍍꍎꍏꍐꍑꍒꍓꍔꍕꍖꍗꍘꍙꍚꍛꍜꍝꍞꍟꍠꍡꍢꍣꍤꍥꍦꍧꍨꍩꍪꍫꍬꍭꍮꍯꍰꍱꍲꍳꍴꍵꍶꍷꍸꍹꍺꍻꍼꍽꍾꍿꎀꎁꎂꎃꎄꎅꎆꎇꎈꎉꎊꎋꎌꎍꎎꎏꎐꎑꎒꎓꎔꎕꎖꎗꎘꎙꎚꎛꎜꎝꎞꎟꎠꎡꎢꎣꎤꎥꎦꎧꎨꎩꎪꎫꎬꎭꎮꎯꎰꎱꎲꎳꎴꎵꎶꎷꎸꎹꎺꎻꎼꎽꎾꎿꏀꏁꏂꏃꏄꏅꏆꏇꏈꏉꏊꏋꏌꏍꏎꏏꏐꏑꏒꏓꏔꏕꏖꏗꏘꏙꏚꏛꏜꏝꏞꏟꏠꏡꏢꏣꏤꏥꏦꏧꏨꏩꏪꏫꏬꏭꏮꏯꏰꏱꏲꏳꏴꏵꏶꏷꏸꏹꏺꏻꏼꏽꏾꏿ",
+    "ꐀꐁꐂꐃꐄꐅꐆꐇꐈꐉꐊꐋꐌꐍꐎꐏꐐꐑꐒꐓꐔꐕꐖꐗꐘꐙꐚꐛꐜꐝꐞꐟꐠꐡꐢꐣꐤꐥꐦꐧꐨꐩꐪꐫꐬꐭꐮꐯꐰꐱꐲꐳꐴꐵꐶꐷꐸꐹꐺꐻꐼꐽꐾꐿꑀꑁꑂꑃꑄꑅꑆꑇꑈꑉꑊꑋꑌꑍꑎꑏꑐꑑꑒꑓꑔꑕꑖꑗꑘꑙꑚꑛꑜꑝꑞꑟꑠꑡꑢꑣꑤꑥꑦꑧꑨꑩꑪꑫꑬꑭꑮꑯꑰꑱꑲꑳꑴꑵꑶꑷꑸꑹꑺꑻꑼꑽꑾꑿꒀꒁꒂꒃꒄꒅꒆꒇꒈꒉꒊꒋꒌ\u{a48d}\u{a48e}\u{a48f}꒐꒑꒒꒓꒔꒕꒖꒗꒘꒙꒚꒛꒜꒝꒞꒟꒠꒡꒢꒣꒤꒥꒦꒧꒨꒩꒪꒫꒬꒭꒮꒯꒰꒱꒲꒳꒴꒵꒶꒷꒸꒹꒺꒻꒼꒽꒾꒿꓀꓁꓂꓃꓄꓅꓆\u{a4c7}\u{a4c8}\u{a4c9}\u{a4ca}\u{a4cb}\u{a4cc}\u{a4cd}\u{a4ce}\u{a4cf}ꓐꓑꓒꓓꓔꓕꓖꓗꓘꓙꓚꓛꓜꓝꓞꓟꓠꓡꓢꓣꓤꓥꓦꓧꓨꓩꓪꓫꓬꓭꓮꓯꓰꓱꓲꓳꓴꓵꓶꓷꓸꓹꓺꓻꓼꓽ꓾꓿",
+    "ꔀꔁꔂꔃꔄꔅꔆꔇꔈꔉꔊꔋꔌꔍꔎꔏꔐꔑꔒꔓꔔꔕꔖꔗꔘꔙꔚꔛꔜꔝꔞꔟꔠꔡꔢꔣꔤꔥꔦꔧꔨꔩꔪꔫꔬꔭꔮꔯꔰꔱꔲꔳꔴꔵꔶꔷꔸꔹꔺꔻꔼꔽꔾꔿꕀꕁꕂꕃꕄꕅꕆꕇꕈꕉꕊꕋꕌꕍꕎꕏꕐꕑꕒꕓꕔꕕꕖꕗꕘꕙꕚꕛꕜꕝꕞꕟꕠꕡꕢꕣꕤꕥꕦꕧꕨꕩꕪꕫꕬꕭꕮꕯꕰꕱꕲꕳꕴꕵꕶꕷꕸꕹꕺꕻꕼꕽꕾꕿꖀꖁꖂꖃꖄꖅꖆꖇꖈꖉꖊꖋꖌꖍꖎꖏꖐꖑꖒꖓꖔꖕꖖꖗꖘꖙꖚꖛꖜꖝꖞꖟꖠꖡꖢꖣꖤꖥꖦꖧꖨꖩꖪꖫꖬꖭꖮꖯꖰꖱꖲꖳꖴꖵꖶꖷꖸꖹꖺꖻꖼꖽꖾꖿꗀꗁꗂꗃꗄꗅꗆꗇꗈꗉꗊꗋꗌꗍꗎꗏꗐꗑꗒꗓꗔꗕꗖꗗꗘꗙꗚꗛꗜꗝꗞꗟꗠꗡꗢꗣꗤꗥꗦꗧꗨꗩꗪꗫꗬꗭꗮꗯꗰꗱꗲꗳꗴꗵꗶꗷꗸꗹꗺꗻꗼꗽꗾꗿ",
+    "ꘀꘁꘂꘃꘄꘅꘆꘇꘈꘉꘊꘋꘌ꘍꘎꘏ꘐꘑꘒꘓꘔꘕꘖꘗꘘꘙꘚꘛꘜꘝꘞꘟ꘠꘡꘢꘣꘤꘥꘦꘧꘨꘩ꘪꘫ\u{a62c}\u{a62d}\u{a62e}\u{a62f}\u{a630}\u{a631}\u{a632}\u{a633}\u{a634}\u{a635}\u{a636}\u{a637}\u{a638}\u{a639}\u{a63a}\u{a63b}\u{a63c}\u{a63d}\u{a63e}\u{a63f}ꙀꙁꙂꙃꙄꙅꙆꙇꙈꙉꙊꙋꙌꙍꙎꙏꙐꙑꙒꙓꙔꙕꙖꙗꙘꙙꙚꙛꙜꙝꙞꙟꙠꙡꙢꙣꙤꙥꙦꙧꙨꙩꙪꙫꙬꙭꙮ꙯꙰꙱꙲꙳ꙴꙵꙶꙷꙸꙹꙺꙻ꙼꙽꙾ꙿꚀꚁꚂꚃꚄꚅꚆꚇꚈꚉꚊꚋꚌꚍꚎꚏꚐꚑꚒꚓꚔꚕꚖꚗꚘꚙꚚꚛꚜꚝꚞꚟꚠꚡꚢꚣꚤꚥꚦꚧꚨꚩꚪꚫꚬꚭꚮꚯꚰꚱꚲꚳꚴꚵꚶꚷꚸꚹꚺꚻꚼꚽꚾꚿꛀꛁꛂꛃꛄꛅꛆꛇꛈꛉꛊꛋꛌꛍꛎꛏꛐꛑꛒꛓꛔꛕꛖꛗꛘꛙꛚꛛꛜꛝꛞꛟꛠꛡꛢꛣꛤꛥꛦꛧꛨꛩꛪꛫꛬꛭꛮꛯ꛰꛱꛲꛳꛴꛵꛶꛷\u{a6f8}\u{a6f9}\u{a6fa}\u{a6fb}\u{a6fc}\u{a6fd}\u{a6fe}\u{a6ff}",
+    "꜀꜁꜂꜃꜄꜅꜆꜇꜈꜉꜊꜋꜌꜍꜎꜏꜐꜑꜒꜓꜔꜕꜖ꜗꜘꜙꜚꜛꜜꜝꜞꜟ꜠꜡ꜢꜣꜤꜥꜦꜧꜨꜩꜪꜫꜬꜭꜮꜯꜰꜱꜲꜳꜴꜵꜶꜷꜸꜹꜺꜻꜼꜽꜾꜿꝀꝁꝂꝃꝄꝅꝆꝇꝈꝉꝊꝋꝌꝍꝎꝏꝐꝑꝒꝓꝔꝕꝖꝗꝘꝙꝚꝛꝜꝝꝞꝟꝠꝡꝢꝣꝤꝥꝦꝧꝨꝩꝪꝫꝬꝭꝮꝯꝰꝱꝲꝳꝴꝵꝶꝷꝸꝹꝺꝻꝼꝽꝾꝿꞀꞁꞂꞃꞄꞅꞆꞇꞈ꞉꞊ꞋꞌꞍꞎꞏꞐꞑꞒꞓꞔꞕꞖꞗꞘꞙꞚꞛꞜꞝꞞꞟꞠꞡꞢꞣꞤꞥꞦꞧꞨꞩꞪꞫꞬꞭꞮꞯꞰꞱꞲꞳꞴꞵꞶꞷꞸꞹꞺꞻꞼꞽꞾꞿꟀꟁꟂꟃꟄꟅꟆꟇꟈꟉꟊ\u{a7cb}\u{a7cc}\u{a7cd}\u{a7ce}\u{a7cf}Ꟑꟑ\u{a7d2}ꟓ\u{a7d4}ꟕꟖꟗꟘꟙ\u{a7da}\u{a7db}\u{a7dc}\u{a7dd}\u{a7de}\u{a7df}\u{a7e0}\u{a7e1}\u{a7e2}\u{a7e3}\u{a7e4}\u{a7e5}\u{a7e6}\u{a7e7}\u{a7e8}\u{a7e9}\u{a7ea}\u{a7eb}\u{a7ec}\u{a7ed}\u{a7ee}\u{a7ef}\u{a7f0}\u{a7f1}ꟲꟳꟴꟵꟶꟷꟸꟹꟺꟻꟼꟽꟾꟿ",
+    "ꠀꠁꠂꠃꠄꠅ꠆ꠇꠈꠉꠊꠋꠌꠍꠎꠏꠐꠑꠒꠓꠔꠕꠖꠗꠘꠙꠚꠛꠜꠝꠞꠟꠠꠡꠢꠣꠤꠥꠦꠧ꠨꠩꠪꠫꠬\u{a82d}\u{a82e}\u{a82f}꠰꠱꠲꠳꠴꠵꠶꠷꠸꠹\u{a83a}\u{a83b}\u{a83c}\u{a83d}\u{a83e}\u{a83f}ꡀꡁꡂꡃꡄꡅꡆꡇꡈꡉꡊꡋꡌꡍꡎꡏꡐꡑꡒꡓꡔꡕꡖꡗꡘꡙꡚꡛꡜꡝꡞꡟꡠꡡꡢꡣꡤꡥꡦꡧꡨꡩꡪꡫꡬꡭꡮꡯꡰꡱꡲꡳ꡴꡵꡶꡷\u{a878}\u{a879}\u{a87a}\u{a87b}\u{a87c}\u{a87d}\u{a87e}\u{a87f}ꢀꢁꢂꢃꢄꢅꢆꢇꢈꢉꢊꢋꢌꢍꢎꢏꢐꢑꢒꢓꢔꢕꢖꢗꢘꢙꢚꢛꢜꢝꢞꢟꢠꢡꢢꢣꢤꢥꢦꢧꢨꢩꢪꢫꢬꢭꢮꢯꢰꢱꢲꢳꢴꢵꢶꢷꢸꢹꢺꢻꢼꢽꢾꢿꣀꣁꣂꣃ꣄ꣅ\u{a8c6}\u{a8c7}\u{a8c8}\u{a8c9}\u{a8ca}\u{a8cb}\u{a8cc}\u{a8cd}꣎꣏꣐꣑꣒꣓꣔꣕꣖꣗꣘꣙\u{a8da}\u{a8db}\u{a8dc}\u{a8dd}\u{a8de}\u{a8df}꣠꣡꣢꣣꣤꣥꣦꣧꣨꣩꣪꣫꣬꣭꣮꣯꣰꣱ꣲꣳꣴꣵꣶꣷ꣸꣹꣺ꣻ꣼ꣽꣾꣿ",
+    "꤀꤁꤂꤃꤄꤅꤆꤇꤈꤉ꤊꤋꤌꤍꤎꤏꤐꤑꤒꤓꤔꤕꤖꤗꤘꤙꤚꤛꤜꤝꤞꤟꤠꤡꤢꤣꤤꤥꤦꤧꤨꤩꤪ꤫꤬꤭꤮꤯ꤰꤱꤲꤳꤴꤵꤶꤷꤸꤹꤺꤻꤼꤽꤾꤿꥀꥁꥂꥃꥄꥅꥆꥇꥈꥉꥊꥋꥌꥍꥎꥏꥐꥑꥒ꥓\u{a954}\u{a955}\u{a956}\u{a957}\u{a958}\u{a959}\u{a95a}\u{a95b}\u{a95c}\u{a95d}\u{a95e}꥟ꥠꥡꥢꥣꥤꥥꥦꥧꥨꥩꥪꥫꥬꥭꥮꥯꥰꥱꥲꥳꥴꥵꥶꥷꥸꥹꥺꥻꥼ\u{a97d}\u{a97e}\u{a97f}ꦀꦁꦂꦃꦄꦅꦆꦇꦈꦉꦊꦋꦌꦍꦎꦏꦐꦑꦒꦓꦔꦕꦖꦗꦘꦙꦚꦛꦜꦝꦞꦟꦠꦡꦢꦣꦤꦥꦦꦧꦨꦩꦪꦫꦬꦭꦮꦯꦰꦱꦲ꦳ꦴꦵꦶꦷꦸꦹꦺꦻꦼꦽꦾꦿ꧀꧁꧂꧃꧄꧅꧆꧇꧈꧉꧊꧋꧌꧍\u{a9ce}ꧏ꧐꧑꧒꧓꧔꧕꧖꧗꧘꧙\u{a9da}\u{a9db}\u{a9dc}\u{a9dd}꧞꧟ꧠꧡꧢꧣꧤꧥꧦꧧꧨꧩꧪꧫꧬꧭꧮꧯ꧰꧱꧲꧳꧴꧵꧶꧷꧸꧹ꧺꧻꧼꧽꧾ\u{a9ff}",
+    "ꨀꨁꨂꨃꨄꨅꨆꨇꨈꨉꨊꨋꨌꨍꨎꨏꨐꨑꨒꨓꨔꨕꨖꨗꨘꨙꨚꨛꨜꨝꨞꨟꨠꨡꨢꨣꨤꨥꨦꨧꨨꨩꨪꨫꨬꨭꨮꨯꨰꨱꨲꨳꨴꨵꨶ\u{aa37}\u{aa38}\u{aa39}\u{aa3a}\u{aa3b}\u{aa3c}\u{aa3d}\u{aa3e}\u{aa3f}ꩀꩁꩂꩃꩄꩅꩆꩇꩈꩉꩊꩋꩌꩍ\u{aa4e}\u{aa4f}꩐꩑꩒꩓꩔꩕꩖꩗꩘꩙\u{aa5a}\u{aa5b}꩜꩝꩞꩟ꩠꩡꩢꩣꩤꩥꩦꩧꩨꩩꩪꩫꩬꩭꩮꩯꩰꩱꩲꩳꩴꩵꩶ꩷꩸꩹ꩺꩻꩼꩽꩾꩿꪀꪁꪂꪃꪄꪅꪆꪇꪈꪉꪊꪋꪌꪍꪎꪏꪐꪑꪒꪓꪔꪕꪖꪗꪘꪙꪚꪛꪜꪝꪞꪟꪠꪡꪢꪣꪤꪥꪦꪧꪨꪩꪪꪫꪬꪭꪮꪯꪰꪱꪴꪲꪳꪵꪶꪷꪸꪹꪺꪻꪼꪽꪾ꪿ꫀ꫁ꫂ\u{aac3}\u{aac4}\u{aac5}\u{aac6}\u{aac7}\u{aac8}\u{aac9}\u{aaca}\u{aacb}\u{aacc}\u{aacd}\u{aace}\u{aacf}\u{aad0}\u{aad1}\u{aad2}\u{aad3}\u{aad4}\u{aad5}\u{aad6}\u{aad7}\u{aad8}\u{aad9}\u{aada}ꫛꫜꫝ꫞꫟ꫠꫡꫢꫣꫤꫥꫦꫧꫨꫩꫪꫫꫬꫭꫮꫯ꫰꫱ꫲꫳꫴꫵ꫶\u{aaf7}\u{aaf8}\u{aaf9}\u{aafa}\u{aafb}\u{aafc}\u{aafd}\u{aafe}\u{aaff}",
+    "\u{ab00}ꬁꬂꬃꬄꬅꬆ\u{ab07}\u{ab08}ꬉꬊꬋꬌꬍꬎ\u{ab0f}\u{ab10}ꬑꬒꬓꬔꬕꬖ\u{ab17}\u{ab18}\u{ab19}\u{ab1a}\u{ab1b}\u{ab1c}\u{ab1d}\u{ab1e}\u{ab1f}ꬠꬡꬢꬣꬤꬥꬦ\u{ab27}ꬨꬩꬪꬫꬬꬭꬮ\u{ab2f}ꬰꬱꬲꬳꬴꬵꬶꬷꬸꬹꬺꬻꬼꬽꬾꬿꭀꭁꭂꭃꭄꭅꭆꭇꭈꭉꭊꭋꭌꭍꭎꭏꭐꭑꭒꭓꭔꭕꭖꭗꭘꭙꭚ꭛ꭜꭝꭞꭟꭠꭡꭢꭣꭤꭥꭦꭧꭨꭩ꭪꭫\u{ab6c}\u{ab6d}\u{ab6e}\u{ab6f}ꭰꭱꭲꭳꭴꭵꭶꭷꭸꭹꭺꭻꭼꭽꭾꭿꮀꮁꮂꮃꮄꮅꮆꮇꮈꮉꮊꮋꮌꮍꮎꮏꮐꮑꮒꮓꮔꮕꮖꮗꮘꮙꮚꮛꮜꮝꮞꮟꮠꮡꮢꮣꮤꮥꮦꮧꮨꮩꮪꮫꮬꮭꮮꮯꮰꮱꮲꮳꮴꮵꮶꮷꮸꮹꮺꮻꮼꮽꮾꮿꯀꯁꯂꯃꯄꯅꯆꯇꯈꯉꯊꯋꯌꯍꯎꯏꯐꯑꯒꯓꯔꯕꯖꯗꯘꯙꯚꯛꯜꯝꯞꯟꯠꯡꯢꯣꯤꯥꯦꯧꯨꯩꯪ꯫꯬꯭\u{abee}\u{abef}꯰꯱꯲꯳꯴꯵꯶꯷꯸꯹\u{abfa}\u{abfb}\u{abfc}\u{abfd}\u{abfe}\u{abff}",
+    "가각갂갃간갅갆갇갈갉갊갋갌갍갎갏감갑값갓갔강갖갗갘같갚갛개객갞갟갠갡갢갣갤갥갦갧갨갩갪갫갬갭갮갯갰갱갲갳갴갵갶갷갸갹갺갻갼갽갾갿걀걁걂걃걄걅걆걇걈걉걊걋걌걍걎걏걐걑걒걓걔걕걖걗걘걙걚걛걜걝걞걟걠걡걢걣걤걥걦걧걨걩걪걫걬걭걮걯거걱걲걳건걵걶걷걸걹걺걻걼걽걾걿검겁겂것겄겅겆겇겈겉겊겋게겍겎겏겐겑겒겓겔겕겖겗겘겙겚겛겜겝겞겟겠겡겢겣겤겥겦겧겨격겪겫견겭겮겯결겱겲겳겴겵겶겷겸겹겺겻겼경겾겿곀곁곂곃계곅곆곇곈곉곊곋곌곍곎곏곐곑곒곓곔곕곖곗곘곙곚곛곜곝곞곟고곡곢곣곤곥곦곧골곩곪곫곬곭곮곯곰곱곲곳곴공곶곷곸곹곺곻과곽곾곿",
+    "관괁괂괃괄괅괆괇괈괉괊괋괌괍괎괏괐광괒괓괔괕괖괗괘괙괚괛괜괝괞괟괠괡괢괣괤괥괦괧괨괩괪괫괬괭괮괯괰괱괲괳괴괵괶괷괸괹괺괻괼괽괾괿굀굁굂굃굄굅굆굇굈굉굊굋굌굍굎굏교굑굒굓굔굕굖굗굘굙굚굛굜굝굞굟굠굡굢굣굤굥굦굧굨굩굪굫구국굮굯군굱굲굳굴굵굶굷굸굹굺굻굼굽굾굿궀궁궂궃궄궅궆궇궈궉궊궋권궍궎궏궐궑궒궓궔궕궖궗궘궙궚궛궜궝궞궟궠궡궢궣궤궥궦궧궨궩궪궫궬궭궮궯궰궱궲궳궴궵궶궷궸궹궺궻궼궽궾궿귀귁귂귃귄귅귆귇귈귉귊귋귌귍귎귏귐귑귒귓귔귕귖귗귘귙귚귛규귝귞귟균귡귢귣귤귥귦귧귨귩귪귫귬귭귮귯귰귱귲귳귴귵귶귷그극귺귻근귽귾귿",
+    "글긁긂긃긄긅긆긇금급긊긋긌긍긎긏긐긑긒긓긔긕긖긗긘긙긚긛긜긝긞긟긠긡긢긣긤긥긦긧긨긩긪긫긬긭긮긯기긱긲긳긴긵긶긷길긹긺긻긼긽긾긿김깁깂깃깄깅깆깇깈깉깊깋까깍깎깏깐깑깒깓깔깕깖깗깘깙깚깛깜깝깞깟깠깡깢깣깤깥깦깧깨깩깪깫깬깭깮깯깰깱깲깳깴깵깶깷깸깹깺깻깼깽깾깿꺀꺁꺂꺃꺄꺅꺆꺇꺈꺉꺊꺋꺌꺍꺎꺏꺐꺑꺒꺓꺔꺕꺖꺗꺘꺙꺚꺛꺜꺝꺞꺟꺠꺡꺢꺣꺤꺥꺦꺧꺨꺩꺪꺫꺬꺭꺮꺯꺰꺱꺲꺳꺴꺵꺶꺷꺸꺹꺺꺻꺼꺽꺾꺿껀껁껂껃껄껅껆껇껈껉껊껋껌껍껎껏껐껑껒껓껔껕껖껗께껙껚껛껜껝껞껟껠껡껢껣껤껥껦껧껨껩껪껫껬껭껮껯껰껱껲껳껴껵껶껷껸껹껺껻껼껽껾껿",
+    "꼀꼁꼂꼃꼄꼅꼆꼇꼈꼉꼊꼋꼌꼍꼎꼏꼐꼑꼒꼓꼔꼕꼖꼗꼘꼙꼚꼛꼜꼝꼞꼟꼠꼡꼢꼣꼤꼥꼦꼧꼨꼩꼪꼫꼬꼭꼮꼯꼰꼱꼲꼳꼴꼵꼶꼷꼸꼹꼺꼻꼼꼽꼾꼿꽀꽁꽂꽃꽄꽅꽆꽇꽈꽉꽊꽋꽌꽍꽎꽏꽐꽑꽒꽓꽔꽕꽖꽗꽘꽙꽚꽛꽜꽝꽞꽟꽠꽡꽢꽣꽤꽥꽦꽧꽨꽩꽪꽫꽬꽭꽮꽯꽰꽱꽲꽳꽴꽵꽶꽷꽸꽹꽺꽻꽼꽽꽾꽿꾀꾁꾂꾃꾄꾅꾆꾇꾈꾉꾊꾋꾌꾍꾎꾏꾐꾑꾒꾓꾔꾕꾖꾗꾘꾙꾚꾛꾜꾝꾞꾟꾠꾡꾢꾣꾤꾥꾦꾧꾨꾩꾪꾫꾬꾭꾮꾯꾰꾱꾲꾳꾴꾵꾶꾷꾸꾹꾺꾻꾼꾽꾾꾿꿀꿁꿂꿃꿄꿅꿆꿇꿈꿉꿊꿋꿌꿍꿎꿏꿐꿑꿒꿓꿔꿕꿖꿗꿘꿙꿚꿛꿜꿝꿞꿟꿠꿡꿢꿣꿤꿥꿦꿧꿨꿩꿪꿫꿬꿭꿮꿯꿰꿱꿲꿳꿴꿵꿶꿷꿸꿹꿺꿻꿼꿽꿾꿿",
+    "뀀뀁뀂뀃뀄뀅뀆뀇뀈뀉뀊뀋뀌뀍뀎뀏뀐뀑뀒뀓뀔뀕뀖뀗뀘뀙뀚뀛뀜뀝뀞뀟뀠뀡뀢뀣뀤뀥뀦뀧뀨뀩뀪뀫뀬뀭뀮뀯뀰뀱뀲뀳뀴뀵뀶뀷뀸뀹뀺뀻뀼뀽뀾뀿끀끁끂끃끄끅끆끇끈끉끊끋끌끍끎끏끐끑끒끓끔끕끖끗끘끙끚끛끜끝끞끟끠끡끢끣끤끥끦끧끨끩끪끫끬끭끮끯끰끱끲끳끴끵끶끷끸끹끺끻끼끽끾끿낀낁낂낃낄낅낆낇낈낉낊낋낌낍낎낏낐낑낒낓낔낕낖낗나낙낚낛난낝낞낟날낡낢낣낤낥낦낧남납낪낫났낭낮낯낰낱낲낳내낵낶낷낸낹낺낻낼낽낾낿냀냁냂냃냄냅냆냇냈냉냊냋냌냍냎냏냐냑냒냓냔냕냖냗냘냙냚냛냜냝냞냟냠냡냢냣냤냥냦냧냨냩냪냫냬냭냮냯냰냱냲냳냴냵냶냷냸냹냺냻냼냽냾냿",
+    "넀넁넂넃넄넅넆넇너넉넊넋넌넍넎넏널넑넒넓넔넕넖넗넘넙넚넛넜넝넞넟넠넡넢넣네넥넦넧넨넩넪넫넬넭넮넯넰넱넲넳넴넵넶넷넸넹넺넻넼넽넾넿녀녁녂녃년녅녆녇녈녉녊녋녌녍녎녏념녑녒녓녔녕녖녗녘녙녚녛녜녝녞녟녠녡녢녣녤녥녦녧녨녩녪녫녬녭녮녯녰녱녲녳녴녵녶녷노녹녺녻논녽녾녿놀놁놂놃놄놅놆놇놈놉놊놋놌농놎놏놐놑높놓놔놕놖놗놘놙놚놛놜놝놞놟놠놡놢놣놤놥놦놧놨놩놪놫놬놭놮놯놰놱놲놳놴놵놶놷놸놹놺놻놼놽놾놿뇀뇁뇂뇃뇄뇅뇆뇇뇈뇉뇊뇋뇌뇍뇎뇏뇐뇑뇒뇓뇔뇕뇖뇗뇘뇙뇚뇛뇜뇝뇞뇟뇠뇡뇢뇣뇤뇥뇦뇧뇨뇩뇪뇫뇬뇭뇮뇯뇰뇱뇲뇳뇴뇵뇶뇷뇸뇹뇺뇻뇼뇽뇾뇿",
+    "눀눁눂눃누눅눆눇눈눉눊눋눌눍눎눏눐눑눒눓눔눕눖눗눘눙눚눛눜눝눞눟눠눡눢눣눤눥눦눧눨눩눪눫눬눭눮눯눰눱눲눳눴눵눶눷눸눹눺눻눼눽눾눿뉀뉁뉂뉃뉄뉅뉆뉇뉈뉉뉊뉋뉌뉍뉎뉏뉐뉑뉒뉓뉔뉕뉖뉗뉘뉙뉚뉛뉜뉝뉞뉟뉠뉡뉢뉣뉤뉥뉦뉧뉨뉩뉪뉫뉬뉭뉮뉯뉰뉱뉲뉳뉴뉵뉶뉷뉸뉹뉺뉻뉼뉽뉾뉿늀늁늂늃늄늅늆늇늈늉늊늋늌늍늎늏느늑늒늓는늕늖늗늘늙늚늛늜늝늞늟늠늡늢늣늤능늦늧늨늩늪늫늬늭늮늯늰늱늲늳늴늵늶늷늸늹늺늻늼늽늾늿닀닁닂닃닄닅닆닇니닉닊닋닌닍닎닏닐닑닒닓닔닕닖닗님닙닚닛닜닝닞닟닠닡닢닣다닥닦닧단닩닪닫달닭닮닯닰닱닲닳담답닶닷닸당닺닻닼닽닾닿",
+    "대댁댂댃댄댅댆댇댈댉댊댋댌댍댎댏댐댑댒댓댔댕댖댗댘댙댚댛댜댝댞댟댠댡댢댣댤댥댦댧댨댩댪댫댬댭댮댯댰댱댲댳댴댵댶댷댸댹댺댻댼댽댾댿덀덁덂덃덄덅덆덇덈덉덊덋덌덍덎덏덐덑덒덓더덕덖덗던덙덚덛덜덝덞덟덠덡덢덣덤덥덦덧덨덩덪덫덬덭덮덯데덱덲덳덴덵덶덷델덹덺덻덼덽덾덿뎀뎁뎂뎃뎄뎅뎆뎇뎈뎉뎊뎋뎌뎍뎎뎏뎐뎑뎒뎓뎔뎕뎖뎗뎘뎙뎚뎛뎜뎝뎞뎟뎠뎡뎢뎣뎤뎥뎦뎧뎨뎩뎪뎫뎬뎭뎮뎯뎰뎱뎲뎳뎴뎵뎶뎷뎸뎹뎺뎻뎼뎽뎾뎿돀돁돂돃도독돆돇돈돉돊돋돌돍돎돏돐돑돒돓돔돕돖돗돘동돚돛돜돝돞돟돠돡돢돣돤돥돦돧돨돩돪돫돬돭돮돯돰돱돲돳돴돵돶돷돸돹돺돻돼돽돾돿",
+    "됀됁됂됃됄됅됆됇됈됉됊됋됌됍됎됏됐됑됒됓됔됕됖됗되됙됚됛된됝됞됟될됡됢됣됤됥됦됧됨됩됪됫됬됭됮됯됰됱됲됳됴됵됶됷됸됹됺됻됼됽됾됿둀둁둂둃둄둅둆둇둈둉둊둋둌둍둎둏두둑둒둓둔둕둖둗둘둙둚둛둜둝둞둟둠둡둢둣둤둥둦둧둨둩둪둫둬둭둮둯둰둱둲둳둴둵둶둷둸둹둺둻둼둽둾둿뒀뒁뒂뒃뒄뒅뒆뒇뒈뒉뒊뒋뒌뒍뒎뒏뒐뒑뒒뒓뒔뒕뒖뒗뒘뒙뒚뒛뒜뒝뒞뒟뒠뒡뒢뒣뒤뒥뒦뒧뒨뒩뒪뒫뒬뒭뒮뒯뒰뒱뒲뒳뒴뒵뒶뒷뒸뒹뒺뒻뒼뒽뒾뒿듀듁듂듃듄듅듆듇듈듉듊듋듌듍듎듏듐듑듒듓듔듕듖듗듘듙듚듛드득듞듟든듡듢듣들듥듦듧듨듩듪듫듬듭듮듯듰등듲듳듴듵듶듷듸듹듺듻듼듽듾듿",
+    "딀딁딂딃딄딅딆딇딈딉딊딋딌딍딎딏딐딑딒딓디딕딖딗딘딙딚딛딜딝딞딟딠딡딢딣딤딥딦딧딨딩딪딫딬딭딮딯따딱딲딳딴딵딶딷딸딹딺딻딼딽딾딿땀땁땂땃땄땅땆땇땈땉땊땋때땍땎땏땐땑땒땓땔땕땖땗땘땙땚땛땜땝땞땟땠땡땢땣땤땥땦땧땨땩땪땫땬땭땮땯땰땱땲땳땴땵땶땷땸땹땺땻땼땽땾땿떀떁떂떃떄떅떆떇떈떉떊떋떌떍떎떏떐떑떒떓떔떕떖떗떘떙떚떛떜떝떞떟떠떡떢떣떤떥떦떧떨떩떪떫떬떭떮떯떰떱떲떳떴떵떶떷떸떹떺떻떼떽떾떿뗀뗁뗂뗃뗄뗅뗆뗇뗈뗉뗊뗋뗌뗍뗎뗏뗐뗑뗒뗓뗔뗕뗖뗗뗘뗙뗚뗛뗜뗝뗞뗟뗠뗡뗢뗣뗤뗥뗦뗧뗨뗩뗪뗫뗬뗭뗮뗯뗰뗱뗲뗳뗴뗵뗶뗷뗸뗹뗺뗻뗼뗽뗾뗿",
+    "똀똁똂똃똄똅똆똇똈똉똊똋똌똍똎똏또똑똒똓똔똕똖똗똘똙똚똛똜똝똞똟똠똡똢똣똤똥똦똧똨똩똪똫똬똭똮똯똰똱똲똳똴똵똶똷똸똹똺똻똼똽똾똿뙀뙁뙂뙃뙄뙅뙆뙇뙈뙉뙊뙋뙌뙍뙎뙏뙐뙑뙒뙓뙔뙕뙖뙗뙘뙙뙚뙛뙜뙝뙞뙟뙠뙡뙢뙣뙤뙥뙦뙧뙨뙩뙪뙫뙬뙭뙮뙯뙰뙱뙲뙳뙴뙵뙶뙷뙸뙹뙺뙻뙼뙽뙾뙿뚀뚁뚂뚃뚄뚅뚆뚇뚈뚉뚊뚋뚌뚍뚎뚏뚐뚑뚒뚓뚔뚕뚖뚗뚘뚙뚚뚛뚜뚝뚞뚟뚠뚡뚢뚣뚤뚥뚦뚧뚨뚩뚪뚫뚬뚭뚮뚯뚰뚱뚲뚳뚴뚵뚶뚷뚸뚹뚺뚻뚼뚽뚾뚿뛀뛁뛂뛃뛄뛅뛆뛇뛈뛉뛊뛋뛌뛍뛎뛏뛐뛑뛒뛓뛔뛕뛖뛗뛘뛙뛚뛛뛜뛝뛞뛟뛠뛡뛢뛣뛤뛥뛦뛧뛨뛩뛪뛫뛬뛭뛮뛯뛰뛱뛲뛳뛴뛵뛶뛷뛸뛹뛺뛻뛼뛽뛾뛿",
+    "뜀뜁뜂뜃뜄뜅뜆뜇뜈뜉뜊뜋뜌뜍뜎뜏뜐뜑뜒뜓뜔뜕뜖뜗뜘뜙뜚뜛뜜뜝뜞뜟뜠뜡뜢뜣뜤뜥뜦뜧뜨뜩뜪뜫뜬뜭뜮뜯뜰뜱뜲뜳뜴뜵뜶뜷뜸뜹뜺뜻뜼뜽뜾뜿띀띁띂띃띄띅띆띇띈띉띊띋띌띍띎띏띐띑띒띓띔띕띖띗띘띙띚띛띜띝띞띟띠띡띢띣띤띥띦띧띨띩띪띫띬띭띮띯띰띱띲띳띴띵띶띷띸띹띺띻라락띾띿란랁랂랃랄랅랆랇랈랉랊랋람랍랎랏랐랑랒랓랔랕랖랗래랙랚랛랜랝랞랟랠랡랢랣랤랥랦랧램랩랪랫랬랭랮랯랰랱랲랳랴략랶랷랸랹랺랻랼랽랾랿럀럁럂럃럄럅럆럇럈량럊럋럌럍럎럏럐럑럒럓럔럕럖럗럘럙럚럛럜럝럞럟럠럡럢럣럤럥럦럧럨럩럪럫러럭럮럯런럱럲럳럴럵럶럷럸럹럺럻럼럽럾럿",
+    "렀렁렂렃렄렅렆렇레렉렊렋렌렍렎렏렐렑렒렓렔렕렖렗렘렙렚렛렜렝렞렟렠렡렢렣려력렦렧련렩렪렫렬렭렮렯렰렱렲렳렴렵렶렷렸령렺렻렼렽렾렿례롁롂롃롄롅롆롇롈롉롊롋롌롍롎롏롐롑롒롓롔롕롖롗롘롙롚롛로록롞롟론롡롢롣롤롥롦롧롨롩롪롫롬롭롮롯롰롱롲롳롴롵롶롷롸롹롺롻롼롽롾롿뢀뢁뢂뢃뢄뢅뢆뢇뢈뢉뢊뢋뢌뢍뢎뢏뢐뢑뢒뢓뢔뢕뢖뢗뢘뢙뢚뢛뢜뢝뢞뢟뢠뢡뢢뢣뢤뢥뢦뢧뢨뢩뢪뢫뢬뢭뢮뢯뢰뢱뢲뢳뢴뢵뢶뢷뢸뢹뢺뢻뢼뢽뢾뢿룀룁룂룃룄룅룆룇룈룉룊룋료룍룎룏룐룑룒룓룔룕룖룗룘룙룚룛룜룝룞룟룠룡룢룣룤룥룦룧루룩룪룫룬룭룮룯룰룱룲룳룴룵룶룷룸룹룺룻룼룽룾룿",
+    "뤀뤁뤂뤃뤄뤅뤆뤇뤈뤉뤊뤋뤌뤍뤎뤏뤐뤑뤒뤓뤔뤕뤖뤗뤘뤙뤚뤛뤜뤝뤞뤟뤠뤡뤢뤣뤤뤥뤦뤧뤨뤩뤪뤫뤬뤭뤮뤯뤰뤱뤲뤳뤴뤵뤶뤷뤸뤹뤺뤻뤼뤽뤾뤿륀륁륂륃륄륅륆륇륈륉륊륋륌륍륎륏륐륑륒륓륔륕륖륗류륙륚륛륜륝륞륟률륡륢륣륤륥륦륧륨륩륪륫륬륭륮륯륰륱륲륳르륵륶륷른륹륺륻를륽륾륿릀릁릂릃름릅릆릇릈릉릊릋릌릍릎릏릐릑릒릓릔릕릖릗릘릙릚릛릜릝릞릟릠릡릢릣릤릥릦릧릨릩릪릫리릭릮릯린릱릲릳릴릵릶릷릸릹릺릻림립릾릿맀링맂맃맄맅맆맇마막맊맋만맍많맏말맑맒맓맔맕맖맗맘맙맚맛맜망맞맟맠맡맢맣매맥맦맧맨맩맪맫맬맭맮맯맰맱맲맳맴맵맶맷맸맹맺맻맼맽맾맿",
+    "먀먁먂먃먄먅먆먇먈먉먊먋먌먍먎먏먐먑먒먓먔먕먖먗먘먙먚먛먜먝먞먟먠먡먢먣먤먥먦먧먨먩먪먫먬먭먮먯먰먱먲먳먴먵먶먷머먹먺먻먼먽먾먿멀멁멂멃멄멅멆멇멈멉멊멋멌멍멎멏멐멑멒멓메멕멖멗멘멙멚멛멜멝멞멟멠멡멢멣멤멥멦멧멨멩멪멫멬멭멮멯며멱멲멳면멵멶멷멸멹멺멻멼멽멾멿몀몁몂몃몄명몆몇몈몉몊몋몌몍몎몏몐몑몒몓몔몕몖몗몘몙몚몛몜몝몞몟몠몡몢몣몤몥몦몧모목몪몫몬몭몮몯몰몱몲몳몴몵몶몷몸몹몺못몼몽몾몿뫀뫁뫂뫃뫄뫅뫆뫇뫈뫉뫊뫋뫌뫍뫎뫏뫐뫑뫒뫓뫔뫕뫖뫗뫘뫙뫚뫛뫜뫝뫞뫟뫠뫡뫢뫣뫤뫥뫦뫧뫨뫩뫪뫫뫬뫭뫮뫯뫰뫱뫲뫳뫴뫵뫶뫷뫸뫹뫺뫻뫼뫽뫾뫿",
+    "묀묁묂묃묄묅묆묇묈묉묊묋묌묍묎묏묐묑묒묓묔묕묖묗묘묙묚묛묜묝묞묟묠묡묢묣묤묥묦묧묨묩묪묫묬묭묮묯묰묱묲묳무묵묶묷문묹묺묻물묽묾묿뭀뭁뭂뭃뭄뭅뭆뭇뭈뭉뭊뭋뭌뭍뭎뭏뭐뭑뭒뭓뭔뭕뭖뭗뭘뭙뭚뭛뭜뭝뭞뭟뭠뭡뭢뭣뭤뭥뭦뭧뭨뭩뭪뭫뭬뭭뭮뭯뭰뭱뭲뭳뭴뭵뭶뭷뭸뭹뭺뭻뭼뭽뭾뭿뮀뮁뮂뮃뮄뮅뮆뮇뮈뮉뮊뮋뮌뮍뮎뮏뮐뮑뮒뮓뮔뮕뮖뮗뮘뮙뮚뮛뮜뮝뮞뮟뮠뮡뮢뮣뮤뮥뮦뮧뮨뮩뮪뮫뮬뮭뮮뮯뮰뮱뮲뮳뮴뮵뮶뮷뮸뮹뮺뮻뮼뮽뮾뮿므믁믂믃믄믅믆믇믈믉믊믋믌믍믎믏믐믑믒믓믔믕믖믗믘믙믚믛믜믝믞믟믠믡믢믣믤믥믦믧믨믩믪믫믬믭믮믯믰믱믲믳믴믵믶믷미믹믺믻민믽믾믿",
+    "밀밁밂밃밄밅밆밇밈밉밊밋밌밍밎및밐밑밒밓바박밖밗반밙밚받발밝밞밟밠밡밢밣밤밥밦밧밨방밪밫밬밭밮밯배백밲밳밴밵밶밷밸밹밺밻밼밽밾밿뱀뱁뱂뱃뱄뱅뱆뱇뱈뱉뱊뱋뱌뱍뱎뱏뱐뱑뱒뱓뱔뱕뱖뱗뱘뱙뱚뱛뱜뱝뱞뱟뱠뱡뱢뱣뱤뱥뱦뱧뱨뱩뱪뱫뱬뱭뱮뱯뱰뱱뱲뱳뱴뱵뱶뱷뱸뱹뱺뱻뱼뱽뱾뱿벀벁벂벃버벅벆벇번벉벊벋벌벍벎벏벐벑벒벓범법벖벗벘벙벚벛벜벝벞벟베벡벢벣벤벥벦벧벨벩벪벫벬벭벮벯벰벱벲벳벴벵벶벷벸벹벺벻벼벽벾벿변볁볂볃별볅볆볇볈볉볊볋볌볍볎볏볐병볒볓볔볕볖볗볘볙볚볛볜볝볞볟볠볡볢볣볤볥볦볧볨볩볪볫볬볭볮볯볰볱볲볳보복볶볷본볹볺볻볼볽볾볿",
+    "봀봁봂봃봄봅봆봇봈봉봊봋봌봍봎봏봐봑봒봓봔봕봖봗봘봙봚봛봜봝봞봟봠봡봢봣봤봥봦봧봨봩봪봫봬봭봮봯봰봱봲봳봴봵봶봷봸봹봺봻봼봽봾봿뵀뵁뵂뵃뵄뵅뵆뵇뵈뵉뵊뵋뵌뵍뵎뵏뵐뵑뵒뵓뵔뵕뵖뵗뵘뵙뵚뵛뵜뵝뵞뵟뵠뵡뵢뵣뵤뵥뵦뵧뵨뵩뵪뵫뵬뵭뵮뵯뵰뵱뵲뵳뵴뵵뵶뵷뵸뵹뵺뵻뵼뵽뵾뵿부북붂붃분붅붆붇불붉붊붋붌붍붎붏붐붑붒붓붔붕붖붗붘붙붚붛붜붝붞붟붠붡붢붣붤붥붦붧붨붩붪붫붬붭붮붯붰붱붲붳붴붵붶붷붸붹붺붻붼붽붾붿뷀뷁뷂뷃뷄뷅뷆뷇뷈뷉뷊뷋뷌뷍뷎뷏뷐뷑뷒뷓뷔뷕뷖뷗뷘뷙뷚뷛뷜뷝뷞뷟뷠뷡뷢뷣뷤뷥뷦뷧뷨뷩뷪뷫뷬뷭뷮뷯뷰뷱뷲뷳뷴뷵뷶뷷뷸뷹뷺뷻뷼뷽뷾뷿",
+    "븀븁븂븃븄븅븆븇븈븉븊븋브븍븎븏븐븑븒븓블븕븖븗븘븙븚븛븜븝븞븟븠븡븢븣븤븥븦븧븨븩븪븫븬븭븮븯븰븱븲븳븴븵븶븷븸븹븺븻븼븽븾븿빀빁빂빃비빅빆빇빈빉빊빋빌빍빎빏빐빑빒빓빔빕빖빗빘빙빚빛빜빝빞빟빠빡빢빣빤빥빦빧빨빩빪빫빬빭빮빯빰빱빲빳빴빵빶빷빸빹빺빻빼빽빾빿뺀뺁뺂뺃뺄뺅뺆뺇뺈뺉뺊뺋뺌뺍뺎뺏뺐뺑뺒뺓뺔뺕뺖뺗뺘뺙뺚뺛뺜뺝뺞뺟뺠뺡뺢뺣뺤뺥뺦뺧뺨뺩뺪뺫뺬뺭뺮뺯뺰뺱뺲뺳뺴뺵뺶뺷뺸뺹뺺뺻뺼뺽뺾뺿뻀뻁뻂뻃뻄뻅뻆뻇뻈뻉뻊뻋뻌뻍뻎뻏뻐뻑뻒뻓뻔뻕뻖뻗뻘뻙뻚뻛뻜뻝뻞뻟뻠뻡뻢뻣뻤뻥뻦뻧뻨뻩뻪뻫뻬뻭뻮뻯뻰뻱뻲뻳뻴뻵뻶뻷뻸뻹뻺뻻뻼뻽뻾뻿",
+    "뼀뼁뼂뼃뼄뼅뼆뼇뼈뼉뼊뼋뼌뼍뼎뼏뼐뼑뼒뼓뼔뼕뼖뼗뼘뼙뼚뼛뼜뼝뼞뼟뼠뼡뼢뼣뼤뼥뼦뼧뼨뼩뼪뼫뼬뼭뼮뼯뼰뼱뼲뼳뼴뼵뼶뼷뼸뼹뼺뼻뼼뼽뼾뼿뽀뽁뽂뽃뽄뽅뽆뽇뽈뽉뽊뽋뽌뽍뽎뽏뽐뽑뽒뽓뽔뽕뽖뽗뽘뽙뽚뽛뽜뽝뽞뽟뽠뽡뽢뽣뽤뽥뽦뽧뽨뽩뽪뽫뽬뽭뽮뽯뽰뽱뽲뽳뽴뽵뽶뽷뽸뽹뽺뽻뽼뽽뽾뽿뾀뾁뾂뾃뾄뾅뾆뾇뾈뾉뾊뾋뾌뾍뾎뾏뾐뾑뾒뾓뾔뾕뾖뾗뾘뾙뾚뾛뾜뾝뾞뾟뾠뾡뾢뾣뾤뾥뾦뾧뾨뾩뾪뾫뾬뾭뾮뾯뾰뾱뾲뾳뾴뾵뾶뾷뾸뾹뾺뾻뾼뾽뾾뾿뿀뿁뿂뿃뿄뿅뿆뿇뿈뿉뿊뿋뿌뿍뿎뿏뿐뿑뿒뿓뿔뿕뿖뿗뿘뿙뿚뿛뿜뿝뿞뿟뿠뿡뿢뿣뿤뿥뿦뿧뿨뿩뿪뿫뿬뿭뿮뿯뿰뿱뿲뿳뿴뿵뿶뿷뿸뿹뿺뿻뿼뿽뿾뿿",
+    "쀀쀁쀂쀃쀄쀅쀆쀇쀈쀉쀊쀋쀌쀍쀎쀏쀐쀑쀒쀓쀔쀕쀖쀗쀘쀙쀚쀛쀜쀝쀞쀟쀠쀡쀢쀣쀤쀥쀦쀧쀨쀩쀪쀫쀬쀭쀮쀯쀰쀱쀲쀳쀴쀵쀶쀷쀸쀹쀺쀻쀼쀽쀾쀿쁀쁁쁂쁃쁄쁅쁆쁇쁈쁉쁊쁋쁌쁍쁎쁏쁐쁑쁒쁓쁔쁕쁖쁗쁘쁙쁚쁛쁜쁝쁞쁟쁠쁡쁢쁣쁤쁥쁦쁧쁨쁩쁪쁫쁬쁭쁮쁯쁰쁱쁲쁳쁴쁵쁶쁷쁸쁹쁺쁻쁼쁽쁾쁿삀삁삂삃삄삅삆삇삈삉삊삋삌삍삎삏삐삑삒삓삔삕삖삗삘삙삚삛삜삝삞삟삠삡삢삣삤삥삦삧삨삩삪삫사삭삮삯산삱삲삳살삵삶삷삸삹삺삻삼삽삾삿샀상샂샃샄샅샆샇새색샊샋샌샍샎샏샐샑샒샓샔샕샖샗샘샙샚샛샜생샞샟샠샡샢샣샤샥샦샧샨샩샪샫샬샭샮샯샰샱샲샳샴샵샶샷샸샹샺샻샼샽샾샿",
+    "섀섁섂섃섄섅섆섇섈섉섊섋섌섍섎섏섐섑섒섓섔섕섖섗섘섙섚섛서석섞섟선섡섢섣설섥섦섧섨섩섪섫섬섭섮섯섰성섲섳섴섵섶섷세섹섺섻센섽섾섿셀셁셂셃셄셅셆셇셈셉셊셋셌셍셎셏셐셑셒셓셔셕셖셗션셙셚셛셜셝셞셟셠셡셢셣셤셥셦셧셨셩셪셫셬셭셮셯셰셱셲셳셴셵셶셷셸셹셺셻셼셽셾셿솀솁솂솃솄솅솆솇솈솉솊솋소속솎솏손솑솒솓솔솕솖솗솘솙솚솛솜솝솞솟솠송솢솣솤솥솦솧솨솩솪솫솬솭솮솯솰솱솲솳솴솵솶솷솸솹솺솻솼솽솾솿쇀쇁쇂쇃쇄쇅쇆쇇쇈쇉쇊쇋쇌쇍쇎쇏쇐쇑쇒쇓쇔쇕쇖쇗쇘쇙쇚쇛쇜쇝쇞쇟쇠쇡쇢쇣쇤쇥쇦쇧쇨쇩쇪쇫쇬쇭쇮쇯쇰쇱쇲쇳쇴쇵쇶쇷쇸쇹쇺쇻쇼쇽쇾쇿",
+    "숀숁숂숃숄숅숆숇숈숉숊숋숌숍숎숏숐숑숒숓숔숕숖숗수숙숚숛순숝숞숟술숡숢숣숤숥숦숧숨숩숪숫숬숭숮숯숰숱숲숳숴숵숶숷숸숹숺숻숼숽숾숿쉀쉁쉂쉃쉄쉅쉆쉇쉈쉉쉊쉋쉌쉍쉎쉏쉐쉑쉒쉓쉔쉕쉖쉗쉘쉙쉚쉛쉜쉝쉞쉟쉠쉡쉢쉣쉤쉥쉦쉧쉨쉩쉪쉫쉬쉭쉮쉯쉰쉱쉲쉳쉴쉵쉶쉷쉸쉹쉺쉻쉼쉽쉾쉿슀슁슂슃슄슅슆슇슈슉슊슋슌슍슎슏슐슑슒슓슔슕슖슗슘슙슚슛슜슝슞슟슠슡슢슣스슥슦슧슨슩슪슫슬슭슮슯슰슱슲슳슴습슶슷슸승슺슻슼슽슾슿싀싁싂싃싄싅싆싇싈싉싊싋싌싍싎싏싐싑싒싓싔싕싖싗싘싙싚싛시식싞싟신싡싢싣실싥싦싧싨싩싪싫심십싮싯싰싱싲싳싴싵싶싷싸싹싺싻싼싽싾싿",
+    "쌀쌁쌂쌃쌄쌅쌆쌇쌈쌉쌊쌋쌌쌍쌎쌏쌐쌑쌒쌓쌔쌕쌖쌗쌘쌙쌚쌛쌜쌝쌞쌟쌠쌡쌢쌣쌤쌥쌦쌧쌨쌩쌪쌫쌬쌭쌮쌯쌰쌱쌲쌳쌴쌵쌶쌷쌸쌹쌺쌻쌼쌽쌾쌿썀썁썂썃썄썅썆썇썈썉썊썋썌썍썎썏썐썑썒썓썔썕썖썗썘썙썚썛썜썝썞썟썠썡썢썣썤썥썦썧써썩썪썫썬썭썮썯썰썱썲썳썴썵썶썷썸썹썺썻썼썽썾썿쎀쎁쎂쎃쎄쎅쎆쎇쎈쎉쎊쎋쎌쎍쎎쎏쎐쎑쎒쎓쎔쎕쎖쎗쎘쎙쎚쎛쎜쎝쎞쎟쎠쎡쎢쎣쎤쎥쎦쎧쎨쎩쎪쎫쎬쎭쎮쎯쎰쎱쎲쎳쎴쎵쎶쎷쎸쎹쎺쎻쎼쎽쎾쎿쏀쏁쏂쏃쏄쏅쏆쏇쏈쏉쏊쏋쏌쏍쏎쏏쏐쏑쏒쏓쏔쏕쏖쏗쏘쏙쏚쏛쏜쏝쏞쏟쏠쏡쏢쏣쏤쏥쏦쏧쏨쏩쏪쏫쏬쏭쏮쏯쏰쏱쏲쏳쏴쏵쏶쏷쏸쏹쏺쏻쏼쏽쏾쏿",
+    "쐀쐁쐂쐃쐄쐅쐆쐇쐈쐉쐊쐋쐌쐍쐎쐏쐐쐑쐒쐓쐔쐕쐖쐗쐘쐙쐚쐛쐜쐝쐞쐟쐠쐡쐢쐣쐤쐥쐦쐧쐨쐩쐪쐫쐬쐭쐮쐯쐰쐱쐲쐳쐴쐵쐶쐷쐸쐹쐺쐻쐼쐽쐾쐿쑀쑁쑂쑃쑄쑅쑆쑇쑈쑉쑊쑋쑌쑍쑎쑏쑐쑑쑒쑓쑔쑕쑖쑗쑘쑙쑚쑛쑜쑝쑞쑟쑠쑡쑢쑣쑤쑥쑦쑧쑨쑩쑪쑫쑬쑭쑮쑯쑰쑱쑲쑳쑴쑵쑶쑷쑸쑹쑺쑻쑼쑽쑾쑿쒀쒁쒂쒃쒄쒅쒆쒇쒈쒉쒊쒋쒌쒍쒎쒏쒐쒑쒒쒓쒔쒕쒖쒗쒘쒙쒚쒛쒜쒝쒞쒟쒠쒡쒢쒣쒤쒥쒦쒧쒨쒩쒪쒫쒬쒭쒮쒯쒰쒱쒲쒳쒴쒵쒶쒷쒸쒹쒺쒻쒼쒽쒾쒿쓀쓁쓂쓃쓄쓅쓆쓇쓈쓉쓊쓋쓌쓍쓎쓏쓐쓑쓒쓓쓔쓕쓖쓗쓘쓙쓚쓛쓜쓝쓞쓟쓠쓡쓢쓣쓤쓥쓦쓧쓨쓩쓪쓫쓬쓭쓮쓯쓰쓱쓲쓳쓴쓵쓶쓷쓸쓹쓺쓻쓼쓽쓾쓿",
+    "씀씁씂씃씄씅씆씇씈씉씊씋씌씍씎씏씐씑씒씓씔씕씖씗씘씙씚씛씜씝씞씟씠씡씢씣씤씥씦씧씨씩씪씫씬씭씮씯씰씱씲씳씴씵씶씷씸씹씺씻씼씽씾씿앀앁앂앃아악앆앇안앉않앋알앍앎앏앐앑앒앓암압앖앗았앙앚앛앜앝앞앟애액앢앣앤앥앦앧앨앩앪앫앬앭앮앯앰앱앲앳앴앵앶앷앸앹앺앻야약앾앿얀얁얂얃얄얅얆얇얈얉얊얋얌얍얎얏얐양얒얓얔얕얖얗얘얙얚얛얜얝얞얟얠얡얢얣얤얥얦얧얨얩얪얫얬얭얮얯얰얱얲얳어억얶얷언얹얺얻얼얽얾얿엀엁엂엃엄업없엇었엉엊엋엌엍엎엏에엑엒엓엔엕엖엗엘엙엚엛엜엝엞엟엠엡엢엣엤엥엦엧엨엩엪엫여역엮엯연엱엲엳열엵엶엷엸엹엺엻염엽엾엿",
+    "였영옂옃옄옅옆옇예옉옊옋옌옍옎옏옐옑옒옓옔옕옖옗옘옙옚옛옜옝옞옟옠옡옢옣오옥옦옧온옩옪옫올옭옮옯옰옱옲옳옴옵옶옷옸옹옺옻옼옽옾옿와왁왂왃완왅왆왇왈왉왊왋왌왍왎왏왐왑왒왓왔왕왖왗왘왙왚왛왜왝왞왟왠왡왢왣왤왥왦왧왨왩왪왫왬왭왮왯왰왱왲왳왴왵왶왷외왹왺왻왼왽왾왿욀욁욂욃욄욅욆욇욈욉욊욋욌욍욎욏욐욑욒욓요욕욖욗욘욙욚욛욜욝욞욟욠욡욢욣욤욥욦욧욨용욪욫욬욭욮욯우욱욲욳운욵욶욷울욹욺욻욼욽욾욿움웁웂웃웄웅웆웇웈웉웊웋워웍웎웏원웑웒웓월웕웖웗웘웙웚웛웜웝웞웟웠웡웢웣웤웥웦웧웨웩웪웫웬웭웮웯웰웱웲웳웴웵웶웷웸웹웺웻웼웽웾웿",
+    "윀윁윂윃위윅윆윇윈윉윊윋윌윍윎윏윐윑윒윓윔윕윖윗윘윙윚윛윜윝윞윟유육윢윣윤윥윦윧율윩윪윫윬윭윮윯윰윱윲윳윴융윶윷윸윹윺윻으윽윾윿은읁읂읃을읅읆읇읈읉읊읋음읍읎읏읐응읒읓읔읕읖읗의읙읚읛읜읝읞읟읠읡읢읣읤읥읦읧읨읩읪읫읬읭읮읯읰읱읲읳이익읶읷인읹읺읻일읽읾읿잀잁잂잃임입잆잇있잉잊잋잌잍잎잏자작잒잓잔잕잖잗잘잙잚잛잜잝잞잟잠잡잢잣잤장잦잧잨잩잪잫재잭잮잯잰잱잲잳잴잵잶잷잸잹잺잻잼잽잾잿쟀쟁쟂쟃쟄쟅쟆쟇쟈쟉쟊쟋쟌쟍쟎쟏쟐쟑쟒쟓쟔쟕쟖쟗쟘쟙쟚쟛쟜쟝쟞쟟쟠쟡쟢쟣쟤쟥쟦쟧쟨쟩쟪쟫쟬쟭쟮쟯쟰쟱쟲쟳쟴쟵쟶쟷쟸쟹쟺쟻쟼쟽쟾쟿",
+    "저적젂젃전젅젆젇절젉젊젋젌젍젎젏점접젒젓젔정젖젗젘젙젚젛제젝젞젟젠젡젢젣젤젥젦젧젨젩젪젫젬젭젮젯젰젱젲젳젴젵젶젷져젹젺젻젼젽젾젿졀졁졂졃졄졅졆졇졈졉졊졋졌졍졎졏졐졑졒졓졔졕졖졗졘졙졚졛졜졝졞졟졠졡졢졣졤졥졦졧졨졩졪졫졬졭졮졯조족졲졳존졵졶졷졸졹졺졻졼졽졾졿좀좁좂좃좄종좆좇좈좉좊좋좌좍좎좏좐좑좒좓좔좕좖좗좘좙좚좛좜좝좞좟좠좡좢좣좤좥좦좧좨좩좪좫좬좭좮좯좰좱좲좳좴좵좶좷좸좹좺좻좼좽좾좿죀죁죂죃죄죅죆죇죈죉죊죋죌죍죎죏죐죑죒죓죔죕죖죗죘죙죚죛죜죝죞죟죠죡죢죣죤죥죦죧죨죩죪죫죬죭죮죯죰죱죲죳죴죵죶죷죸죹죺죻주죽죾죿",
+    "준줁줂줃줄줅줆줇줈줉줊줋줌줍줎줏줐중줒줓줔줕줖줗줘줙줚줛줜줝줞줟줠줡줢줣줤줥줦줧줨줩줪줫줬줭줮줯줰줱줲줳줴줵줶줷줸줹줺줻줼줽줾줿쥀쥁쥂쥃쥄쥅쥆쥇쥈쥉쥊쥋쥌쥍쥎쥏쥐쥑쥒쥓쥔쥕쥖쥗쥘쥙쥚쥛쥜쥝쥞쥟쥠쥡쥢쥣쥤쥥쥦쥧쥨쥩쥪쥫쥬쥭쥮쥯쥰쥱쥲쥳쥴쥵쥶쥷쥸쥹쥺쥻쥼쥽쥾쥿즀즁즂즃즄즅즆즇즈즉즊즋즌즍즎즏즐즑즒즓즔즕즖즗즘즙즚즛즜증즞즟즠즡즢즣즤즥즦즧즨즩즪즫즬즭즮즯즰즱즲즳즴즵즶즷즸즹즺즻즼즽즾즿지직짂짃진짅짆짇질짉짊짋짌짍짎짏짐집짒짓짔징짖짗짘짙짚짛짜짝짞짟짠짡짢짣짤짥짦짧짨짩짪짫짬짭짮짯짰짱짲짳짴짵짶짷째짹짺짻짼짽짾짿",
+    "쨀쨁쨂쨃쨄쨅쨆쨇쨈쨉쨊쨋쨌쨍쨎쨏쨐쨑쨒쨓쨔쨕쨖쨗쨘쨙쨚쨛쨜쨝쨞쨟쨠쨡쨢쨣쨤쨥쨦쨧쨨쨩쨪쨫쨬쨭쨮쨯쨰쨱쨲쨳쨴쨵쨶쨷쨸쨹쨺쨻쨼쨽쨾쨿쩀쩁쩂쩃쩄쩅쩆쩇쩈쩉쩊쩋쩌쩍쩎쩏쩐쩑쩒쩓쩔쩕쩖쩗쩘쩙쩚쩛쩜쩝쩞쩟쩠쩡쩢쩣쩤쩥쩦쩧쩨쩩쩪쩫쩬쩭쩮쩯쩰쩱쩲쩳쩴쩵쩶쩷쩸쩹쩺쩻쩼쩽쩾쩿쪀쪁쪂쪃쪄쪅쪆쪇쪈쪉쪊쪋쪌쪍쪎쪏쪐쪑쪒쪓쪔쪕쪖쪗쪘쪙쪚쪛쪜쪝쪞쪟쪠쪡쪢쪣쪤쪥쪦쪧쪨쪩쪪쪫쪬쪭쪮쪯쪰쪱쪲쪳쪴쪵쪶쪷쪸쪹쪺쪻쪼쪽쪾쪿쫀쫁쫂쫃쫄쫅쫆쫇쫈쫉쫊쫋쫌쫍쫎쫏쫐쫑쫒쫓쫔쫕쫖쫗쫘쫙쫚쫛쫜쫝쫞쫟쫠쫡쫢쫣쫤쫥쫦쫧쫨쫩쫪쫫쫬쫭쫮쫯쫰쫱쫲쫳쫴쫵쫶쫷쫸쫹쫺쫻쫼쫽쫾쫿",
+    "쬀쬁쬂쬃쬄쬅쬆쬇쬈쬉쬊쬋쬌쬍쬎쬏쬐쬑쬒쬓쬔쬕쬖쬗쬘쬙쬚쬛쬜쬝쬞쬟쬠쬡쬢쬣쬤쬥쬦쬧쬨쬩쬪쬫쬬쬭쬮쬯쬰쬱쬲쬳쬴쬵쬶쬷쬸쬹쬺쬻쬼쬽쬾쬿쭀쭁쭂쭃쭄쭅쭆쭇쭈쭉쭊쭋쭌쭍쭎쭏쭐쭑쭒쭓쭔쭕쭖쭗쭘쭙쭚쭛쭜쭝쭞쭟쭠쭡쭢쭣쭤쭥쭦쭧쭨쭩쭪쭫쭬쭭쭮쭯쭰쭱쭲쭳쭴쭵쭶쭷쭸쭹쭺쭻쭼쭽쭾쭿쮀쮁쮂쮃쮄쮅쮆쮇쮈쮉쮊쮋쮌쮍쮎쮏쮐쮑쮒쮓쮔쮕쮖쮗쮘쮙쮚쮛쮜쮝쮞쮟쮠쮡쮢쮣쮤쮥쮦쮧쮨쮩쮪쮫쮬쮭쮮쮯쮰쮱쮲쮳쮴쮵쮶쮷쮸쮹쮺쮻쮼쮽쮾쮿쯀쯁쯂쯃쯄쯅쯆쯇쯈쯉쯊쯋쯌쯍쯎쯏쯐쯑쯒쯓쯔쯕쯖쯗쯘쯙쯚쯛쯜쯝쯞쯟쯠쯡쯢쯣쯤쯥쯦쯧쯨쯩쯪쯫쯬쯭쯮쯯쯰쯱쯲쯳쯴쯵쯶쯷쯸쯹쯺쯻쯼쯽쯾쯿",
+    "찀찁찂찃찄찅찆찇찈찉찊찋찌찍찎찏찐찑찒찓찔찕찖찗찘찙찚찛찜찝찞찟찠찡찢찣찤찥찦찧차착찪찫찬찭찮찯찰찱찲찳찴찵찶찷참찹찺찻찼창찾찿챀챁챂챃채책챆챇챈챉챊챋챌챍챎챏챐챑챒챓챔챕챖챗챘챙챚챛챜챝챞챟챠챡챢챣챤챥챦챧챨챩챪챫챬챭챮챯챰챱챲챳챴챵챶챷챸챹챺챻챼챽챾챿첀첁첂첃첄첅첆첇첈첉첊첋첌첍첎첏첐첑첒첓첔첕첖첗처척첚첛천첝첞첟철첡첢첣첤첥첦첧첨첩첪첫첬청첮첯첰첱첲첳체첵첶첷첸첹첺첻첼첽첾첿쳀쳁쳂쳃쳄쳅쳆쳇쳈쳉쳊쳋쳌쳍쳎쳏쳐쳑쳒쳓쳔쳕쳖쳗쳘쳙쳚쳛쳜쳝쳞쳟쳠쳡쳢쳣쳤쳥쳦쳧쳨쳩쳪쳫쳬쳭쳮쳯쳰쳱쳲쳳쳴쳵쳶쳷쳸쳹쳺쳻쳼쳽쳾쳿",
+    "촀촁촂촃촄촅촆촇초촉촊촋촌촍촎촏촐촑촒촓촔촕촖촗촘촙촚촛촜총촞촟촠촡촢촣촤촥촦촧촨촩촪촫촬촭촮촯촰촱촲촳촴촵촶촷촸촹촺촻촼촽촾촿쵀쵁쵂쵃쵄쵅쵆쵇쵈쵉쵊쵋쵌쵍쵎쵏쵐쵑쵒쵓쵔쵕쵖쵗쵘쵙쵚쵛최쵝쵞쵟쵠쵡쵢쵣쵤쵥쵦쵧쵨쵩쵪쵫쵬쵭쵮쵯쵰쵱쵲쵳쵴쵵쵶쵷쵸쵹쵺쵻쵼쵽쵾쵿춀춁춂춃춄춅춆춇춈춉춊춋춌춍춎춏춐춑춒춓추축춖춗춘춙춚춛출춝춞춟춠춡춢춣춤춥춦춧춨충춪춫춬춭춮춯춰춱춲춳춴춵춶춷춸춹춺춻춼춽춾춿췀췁췂췃췄췅췆췇췈췉췊췋췌췍췎췏췐췑췒췓췔췕췖췗췘췙췚췛췜췝췞췟췠췡췢췣췤췥췦췧취췩췪췫췬췭췮췯췰췱췲췳췴췵췶췷췸췹췺췻췼췽췾췿",
+    "츀츁츂츃츄츅츆츇츈츉츊츋츌츍츎츏츐츑츒츓츔츕츖츗츘츙츚츛츜츝츞츟츠측츢츣츤츥츦츧츨츩츪츫츬츭츮츯츰츱츲츳츴층츶츷츸츹츺츻츼츽츾츿칀칁칂칃칄칅칆칇칈칉칊칋칌칍칎칏칐칑칒칓칔칕칖칗치칙칚칛친칝칞칟칠칡칢칣칤칥칦칧침칩칪칫칬칭칮칯칰칱칲칳카칵칶칷칸칹칺칻칼칽칾칿캀캁캂캃캄캅캆캇캈캉캊캋캌캍캎캏캐캑캒캓캔캕캖캗캘캙캚캛캜캝캞캟캠캡캢캣캤캥캦캧캨캩캪캫캬캭캮캯캰캱캲캳캴캵캶캷캸캹캺캻캼캽캾캿컀컁컂컃컄컅컆컇컈컉컊컋컌컍컎컏컐컑컒컓컔컕컖컗컘컙컚컛컜컝컞컟컠컡컢컣커컥컦컧컨컩컪컫컬컭컮컯컰컱컲컳컴컵컶컷컸컹컺컻컼컽컾컿",
+    "케켁켂켃켄켅켆켇켈켉켊켋켌켍켎켏켐켑켒켓켔켕켖켗켘켙켚켛켜켝켞켟켠켡켢켣켤켥켦켧켨켩켪켫켬켭켮켯켰켱켲켳켴켵켶켷켸켹켺켻켼켽켾켿콀콁콂콃콄콅콆콇콈콉콊콋콌콍콎콏콐콑콒콓코콕콖콗콘콙콚콛콜콝콞콟콠콡콢콣콤콥콦콧콨콩콪콫콬콭콮콯콰콱콲콳콴콵콶콷콸콹콺콻콼콽콾콿쾀쾁쾂쾃쾄쾅쾆쾇쾈쾉쾊쾋쾌쾍쾎쾏쾐쾑쾒쾓쾔쾕쾖쾗쾘쾙쾚쾛쾜쾝쾞쾟쾠쾡쾢쾣쾤쾥쾦쾧쾨쾩쾪쾫쾬쾭쾮쾯쾰쾱쾲쾳쾴쾵쾶쾷쾸쾹쾺쾻쾼쾽쾾쾿쿀쿁쿂쿃쿄쿅쿆쿇쿈쿉쿊쿋쿌쿍쿎쿏쿐쿑쿒쿓쿔쿕쿖쿗쿘쿙쿚쿛쿜쿝쿞쿟쿠쿡쿢쿣쿤쿥쿦쿧쿨쿩쿪쿫쿬쿭쿮쿯쿰쿱쿲쿳쿴쿵쿶쿷쿸쿹쿺쿻쿼쿽쿾쿿",
+    "퀀퀁퀂퀃퀄퀅퀆퀇퀈퀉퀊퀋퀌퀍퀎퀏퀐퀑퀒퀓퀔퀕퀖퀗퀘퀙퀚퀛퀜퀝퀞퀟퀠퀡퀢퀣퀤퀥퀦퀧퀨퀩퀪퀫퀬퀭퀮퀯퀰퀱퀲퀳퀴퀵퀶퀷퀸퀹퀺퀻퀼퀽퀾퀿큀큁큂큃큄큅큆큇큈큉큊큋큌큍큎큏큐큑큒큓큔큕큖큗큘큙큚큛큜큝큞큟큠큡큢큣큤큥큦큧큨큩큪큫크큭큮큯큰큱큲큳클큵큶큷큸큹큺큻큼큽큾큿킀킁킂킃킄킅킆킇킈킉킊킋킌킍킎킏킐킑킒킓킔킕킖킗킘킙킚킛킜킝킞킟킠킡킢킣키킥킦킧킨킩킪킫킬킭킮킯킰킱킲킳킴킵킶킷킸킹킺킻킼킽킾킿타탁탂탃탄탅탆탇탈탉탊탋탌탍탎탏탐탑탒탓탔탕탖탗탘탙탚탛태택탞탟탠탡탢탣탤탥탦탧탨탩탪탫탬탭탮탯탰탱탲탳탴탵탶탷탸탹탺탻탼탽탾탿",
+    "턀턁턂턃턄턅턆턇턈턉턊턋턌턍턎턏턐턑턒턓턔턕턖턗턘턙턚턛턜턝턞턟턠턡턢턣턤턥턦턧턨턩턪턫턬턭턮턯터턱턲턳턴턵턶턷털턹턺턻턼턽턾턿텀텁텂텃텄텅텆텇텈텉텊텋테텍텎텏텐텑텒텓텔텕텖텗텘텙텚텛템텝텞텟텠텡텢텣텤텥텦텧텨텩텪텫텬텭텮텯텰텱텲텳텴텵텶텷텸텹텺텻텼텽텾텿톀톁톂톃톄톅톆톇톈톉톊톋톌톍톎톏톐톑톒톓톔톕톖톗톘톙톚톛톜톝톞톟토톡톢톣톤톥톦톧톨톩톪톫톬톭톮톯톰톱톲톳톴통톶톷톸톹톺톻톼톽톾톿퇀퇁퇂퇃퇄퇅퇆퇇퇈퇉퇊퇋퇌퇍퇎퇏퇐퇑퇒퇓퇔퇕퇖퇗퇘퇙퇚퇛퇜퇝퇞퇟퇠퇡퇢퇣퇤퇥퇦퇧퇨퇩퇪퇫퇬퇭퇮퇯퇰퇱퇲퇳퇴퇵퇶퇷퇸퇹퇺퇻퇼퇽퇾퇿",
+    "툀툁툂툃툄툅툆툇툈툉툊툋툌툍툎툏툐툑툒툓툔툕툖툗툘툙툚툛툜툝툞툟툠툡툢툣툤툥툦툧툨툩툪툫투툭툮툯툰툱툲툳툴툵툶툷툸툹툺툻툼툽툾툿퉀퉁퉂퉃퉄퉅퉆퉇퉈퉉퉊퉋퉌퉍퉎퉏퉐퉑퉒퉓퉔퉕퉖퉗퉘퉙퉚퉛퉜퉝퉞퉟퉠퉡퉢퉣퉤퉥퉦퉧퉨퉩퉪퉫퉬퉭퉮퉯퉰퉱퉲퉳퉴퉵퉶퉷퉸퉹퉺퉻퉼퉽퉾퉿튀튁튂튃튄튅튆튇튈튉튊튋튌튍튎튏튐튑튒튓튔튕튖튗튘튙튚튛튜튝튞튟튠튡튢튣튤튥튦튧튨튩튪튫튬튭튮튯튰튱튲튳튴튵튶튷트특튺튻튼튽튾튿틀틁틂틃틄틅틆틇틈틉틊틋틌틍틎틏틐틑틒틓틔틕틖틗틘틙틚틛틜틝틞틟틠틡틢틣틤틥틦틧틨틩틪틫틬틭틮틯티틱틲틳틴틵틶틷틸틹틺틻틼틽틾틿",
+    "팀팁팂팃팄팅팆팇팈팉팊팋파팍팎팏판팑팒팓팔팕팖팗팘팙팚팛팜팝팞팟팠팡팢팣팤팥팦팧패팩팪팫팬팭팮팯팰팱팲팳팴팵팶팷팸팹팺팻팼팽팾팿퍀퍁퍂퍃퍄퍅퍆퍇퍈퍉퍊퍋퍌퍍퍎퍏퍐퍑퍒퍓퍔퍕퍖퍗퍘퍙퍚퍛퍜퍝퍞퍟퍠퍡퍢퍣퍤퍥퍦퍧퍨퍩퍪퍫퍬퍭퍮퍯퍰퍱퍲퍳퍴퍵퍶퍷퍸퍹퍺퍻퍼퍽퍾퍿펀펁펂펃펄펅펆펇펈펉펊펋펌펍펎펏펐펑펒펓펔펕펖펗페펙펚펛펜펝펞펟펠펡펢펣펤펥펦펧펨펩펪펫펬펭펮펯펰펱펲펳펴펵펶펷편펹펺펻펼펽펾펿폀폁폂폃폄폅폆폇폈평폊폋폌폍폎폏폐폑폒폓폔폕폖폗폘폙폚폛폜폝폞폟폠폡폢폣폤폥폦폧폨폩폪폫포폭폮폯폰폱폲폳폴폵폶폷폸폹폺폻폼폽폾폿",
+    "퐀퐁퐂퐃퐄퐅퐆퐇퐈퐉퐊퐋퐌퐍퐎퐏퐐퐑퐒퐓퐔퐕퐖퐗퐘퐙퐚퐛퐜퐝퐞퐟퐠퐡퐢퐣퐤퐥퐦퐧퐨퐩퐪퐫퐬퐭퐮퐯퐰퐱퐲퐳퐴퐵퐶퐷퐸퐹퐺퐻퐼퐽퐾퐿푀푁푂푃푄푅푆푇푈푉푊푋푌푍푎푏푐푑푒푓푔푕푖푗푘푙푚푛표푝푞푟푠푡푢푣푤푥푦푧푨푩푪푫푬푭푮푯푰푱푲푳푴푵푶푷푸푹푺푻푼푽푾푿풀풁풂풃풄풅풆풇품풉풊풋풌풍풎풏풐풑풒풓풔풕풖풗풘풙풚풛풜풝풞풟풠풡풢풣풤풥풦풧풨풩풪풫풬풭풮풯풰풱풲풳풴풵풶풷풸풹풺풻풼풽풾풿퓀퓁퓂퓃퓄퓅퓆퓇퓈퓉퓊퓋퓌퓍퓎퓏퓐퓑퓒퓓퓔퓕퓖퓗퓘퓙퓚퓛퓜퓝퓞퓟퓠퓡퓢퓣퓤퓥퓦퓧퓨퓩퓪퓫퓬퓭퓮퓯퓰퓱퓲퓳퓴퓵퓶퓷퓸퓹퓺퓻퓼퓽퓾퓿",
+    "픀픁픂픃프픅픆픇픈픉픊픋플픍픎픏픐픑픒픓픔픕픖픗픘픙픚픛픜픝픞픟픠픡픢픣픤픥픦픧픨픩픪픫픬픭픮픯픰픱픲픳픴픵픶픷픸픹픺픻피픽픾픿핀핁핂핃필핅핆핇핈핉핊핋핌핍핎핏핐핑핒핓핔핕핖핗하학핚핛한핝핞핟할핡핢핣핤핥핦핧함합핪핫핬항핮핯핰핱핲핳해핵핶핷핸핹핺핻핼핽핾핿햀햁햂햃햄햅햆햇했행햊햋햌햍햎햏햐햑햒햓햔햕햖햗햘햙햚햛햜햝햞햟햠햡햢햣햤향햦햧햨햩햪햫햬햭햮햯햰햱햲햳햴햵햶햷햸햹햺햻햼햽햾햿헀헁헂헃헄헅헆헇허헉헊헋헌헍헎헏헐헑헒헓헔헕헖헗험헙헚헛헜헝헞헟헠헡헢헣헤헥헦헧헨헩헪헫헬헭헮헯헰헱헲헳헴헵헶헷헸헹헺헻헼헽헾헿",
+    "혀혁혂혃현혅혆혇혈혉혊혋혌혍혎혏혐협혒혓혔형혖혗혘혙혚혛혜혝혞혟혠혡혢혣혤혥혦혧혨혩혪혫혬혭혮혯혰혱혲혳혴혵혶혷호혹혺혻혼혽혾혿홀홁홂홃홄홅홆홇홈홉홊홋홌홍홎홏홐홑홒홓화확홖홗환홙홚홛활홝홞홟홠홡홢홣홤홥홦홧홨황홪홫홬홭홮홯홰홱홲홳홴홵홶홷홸홹홺홻홼홽홾홿횀횁횂횃횄횅횆횇횈횉횊횋회획횎횏횐횑횒횓횔횕횖횗횘횙횚횛횜횝횞횟횠횡횢횣횤횥횦횧효횩횪횫횬횭횮횯횰횱횲횳횴횵횶횷횸횹횺횻횼횽횾횿훀훁훂훃후훅훆훇훈훉훊훋훌훍훎훏훐훑훒훓훔훕훖훗훘훙훚훛훜훝훞훟훠훡훢훣훤훥훦훧훨훩훪훫훬훭훮훯훰훱훲훳훴훵훶훷훸훹훺훻훼훽훾훿",
+    "휀휁휂휃휄휅휆휇휈휉휊휋휌휍휎휏휐휑휒휓휔휕휖휗휘휙휚휛휜휝휞휟휠휡휢휣휤휥휦휧휨휩휪휫휬휭휮휯휰휱휲휳휴휵휶휷휸휹휺휻휼휽휾휿흀흁흂흃흄흅흆흇흈흉흊흋흌흍흎흏흐흑흒흓흔흕흖흗흘흙흚흛흜흝흞흟흠흡흢흣흤흥흦흧흨흩흪흫희흭흮흯흰흱흲흳흴흵흶흷흸흹흺흻흼흽흾흿힀힁힂힃힄힅힆힇히힉힊힋힌힍힎힏힐힑힒힓힔힕힖힗힘힙힚힛힜힝힞힟힠힡힢힣\u{d7a4}\u{d7a5}\u{d7a6}\u{d7a7}\u{d7a8}\u{d7a9}\u{d7aa}\u{d7ab}\u{d7ac}\u{d7ad}\u{d7ae}\u{d7af}ힰힱힲힳힴힵힶힷힸힹힺힻힼힽힾힿퟀퟁퟂퟃퟄퟅퟆ\u{d7c7}\u{d7c8}\u{d7c9}\u{d7ca}ퟋퟌퟍퟎퟏퟐퟑퟒퟓퟔퟕퟖퟗퟘퟙퟚퟛퟜퟝퟞퟟퟠퟡퟢퟣퟤퟥퟦퟧퟨퟩퟪퟫퟬퟭퟮퟯퟰퟱퟲퟳퟴퟵퟶퟷퟸퟹퟺퟻ\u{d7fc}\u{d7fd}\u{d7fe}\u{d7ff}",
+    "����������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������",
+    "����������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������",
+    "����������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������",
+    "����������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������",
+    "����������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������",
+    "����������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������",
+    "����������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������",
+    "����������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������",
+    "\u{e000}\u{e001}\u{e002}\u{e003}\u{e004}\u{e005}\u{e006}\u{e007}\u{e008}\u{e009}\u{e00a}\u{e00b}\u{e00c}\u{e00d}\u{e00e}\u{e00f}\u{e010}\u{e011}\u{e012}\u{e013}\u{e014}\u{e015}\u{e016}\u{e017}\u{e018}\u{e019}\u{e01a}\u{e01b}\u{e01c}\u{e01d}\u{e01e}\u{e01f}\u{e020}\u{e021}\u{e022}\u{e023}\u{e024}\u{e025}\u{e026}\u{e027}\u{e028}\u{e029}\u{e02a}\u{e02b}\u{e02c}\u{e02d}\u{e02e}\u{e02f}\u{e030}\u{e031}\u{e032}\u{e033}\u{e034}\u{e035}\u{e036}\u{e037}\u{e038}\u{e039}\u{e03a}\u{e03b}\u{e03c}\u{e03d}\u{e03e}\u{e03f}\u{e040}\u{e041}\u{e042}\u{e043}\u{e044}\u{e045}\u{e046}\u{e047}\u{e048}\u{e049}\u{e04a}\u{e04b}\u{e04c}\u{e04d}\u{e04e}\u{e04f}\u{e050}\u{e051}\u{e052}\u{e053}\u{e054}\u{e055}\u{e056}\u{e057}\u{e058}\u{e059}\u{e05a}\u{e05b}\u{e05c}\u{e05d}\u{e05e}\u{e05f}\u{e060}\u{e061}\u{e062}\u{e063}\u{e064}\u{e065}\u{e066}\u{e067}\u{e068}\u{e069}\u{e06a}\u{e06b}\u{e06c}\u{e06d}\u{e06e}\u{e06f}\u{e070}\u{e071}\u{e072}\u{e073}\u{e074}\u{e075}\u{e076}\u{e077}\u{e078}\u{e079}\u{e07a}\u{e07b}\u{e07c}\u{e07d}\u{e07e}\u{e07f}\u{e080}\u{e081}\u{e082}\u{e083}\u{e084}\u{e085}\u{e086}\u{e087}\u{e088}\u{e089}\u{e08a}\u{e08b}\u{e08c}\u{e08d}\u{e08e}\u{e08f}\u{e090}\u{e091}\u{e092}\u{e093}\u{e094}\u{e095}\u{e096}\u{e097}\u{e098}\u{e099}\u{e09a}\u{e09b}\u{e09c}\u{e09d}\u{e09e}\u{e09f}\u{e0a0}\u{e0a1}\u{e0a2}\u{e0a3}\u{e0a4}\u{e0a5}\u{e0a6}\u{e0a7}\u{e0a8}\u{e0a9}\u{e0aa}\u{e0ab}\u{e0ac}\u{e0ad}\u{e0ae}\u{e0af}\u{e0b0}\u{e0b1}\u{e0b2}\u{e0b3}\u{e0b4}\u{e0b5}\u{e0b6}\u{e0b7}\u{e0b8}\u{e0b9}\u{e0ba}\u{e0bb}\u{e0bc}\u{e0bd}\u{e0be}\u{e0bf}\u{e0c0}\u{e0c1}\u{e0c2}\u{e0c3}\u{e0c4}\u{e0c5}\u{e0c6}\u{e0c7}\u{e0c8}\u{e0c9}\u{e0ca}\u{e0cb}\u{e0cc}\u{e0cd}\u{e0ce}\u{e0cf}\u{e0d0}\u{e0d1}\u{e0d2}\u{e0d3}\u{e0d4}\u{e0d5}\u{e0d6}\u{e0d7}\u{e0d8}\u{e0d9}\u{e0da}\u{e0db}\u{e0dc}\u{e0dd}\u{e0de}\u{e0df}\u{e0e0}\u{e0e1}\u{e0e2}\u{e0e3}\u{e0e4}\u{e0e5}\u{e0e6}\u{e0e7}\u{e0e8}\u{e0e9}\u{e0ea}\u{e0eb}\u{e0ec}\u{e0ed}\u{e0ee}\u{e0ef}\u{e0f0}\u{e0f1}\u{e0f2}\u{e0f3}\u{e0f4}\u{e0f5}\u{e0f6}\u{e0f7}\u{e0f8}\u{e0f9}\u{e0fa}\u{e0fb}\u{e0fc}\u{e0fd}\u{e0fe}\u{e0ff}",
+    "\u{e100}\u{e101}\u{e102}\u{e103}\u{e104}\u{e105}\u{e106}\u{e107}\u{e108}\u{e109}\u{e10a}\u{e10b}\u{e10c}\u{e10d}\u{e10e}\u{e10f}\u{e110}\u{e111}\u{e112}\u{e113}\u{e114}\u{e115}\u{e116}\u{e117}\u{e118}\u{e119}\u{e11a}\u{e11b}\u{e11c}\u{e11d}\u{e11e}\u{e11f}\u{e120}\u{e121}\u{e122}\u{e123}\u{e124}\u{e125}\u{e126}\u{e127}\u{e128}\u{e129}\u{e12a}\u{e12b}\u{e12c}\u{e12d}\u{e12e}\u{e12f}\u{e130}\u{e131}\u{e132}\u{e133}\u{e134}\u{e135}\u{e136}\u{e137}\u{e138}\u{e139}\u{e13a}\u{e13b}\u{e13c}\u{e13d}\u{e13e}\u{e13f}\u{e140}\u{e141}\u{e142}\u{e143}\u{e144}\u{e145}\u{e146}\u{e147}\u{e148}\u{e149}\u{e14a}\u{e14b}\u{e14c}\u{e14d}\u{e14e}\u{e14f}\u{e150}\u{e151}\u{e152}\u{e153}\u{e154}\u{e155}\u{e156}\u{e157}\u{e158}\u{e159}\u{e15a}\u{e15b}\u{e15c}\u{e15d}\u{e15e}\u{e15f}\u{e160}\u{e161}\u{e162}\u{e163}\u{e164}\u{e165}\u{e166}\u{e167}\u{e168}\u{e169}\u{e16a}\u{e16b}\u{e16c}\u{e16d}\u{e16e}\u{e16f}\u{e170}\u{e171}\u{e172}\u{e173}\u{e174}\u{e175}\u{e176}\u{e177}\u{e178}\u{e179}\u{e17a}\u{e17b}\u{e17c}\u{e17d}\u{e17e}\u{e17f}\u{e180}\u{e181}\u{e182}\u{e183}\u{e184}\u{e185}\u{e186}\u{e187}\u{e188}\u{e189}\u{e18a}\u{e18b}\u{e18c}\u{e18d}\u{e18e}\u{e18f}\u{e190}\u{e191}\u{e192}\u{e193}\u{e194}\u{e195}\u{e196}\u{e197}\u{e198}\u{e199}\u{e19a}\u{e19b}\u{e19c}\u{e19d}\u{e19e}\u{e19f}\u{e1a0}\u{e1a1}\u{e1a2}\u{e1a3}\u{e1a4}\u{e1a5}\u{e1a6}\u{e1a7}\u{e1a8}\u{e1a9}\u{e1aa}\u{e1ab}\u{e1ac}\u{e1ad}\u{e1ae}\u{e1af}\u{e1b0}\u{e1b1}\u{e1b2}\u{e1b3}\u{e1b4}\u{e1b5}\u{e1b6}\u{e1b7}\u{e1b8}\u{e1b9}\u{e1ba}\u{e1bb}\u{e1bc}\u{e1bd}\u{e1be}\u{e1bf}\u{e1c0}\u{e1c1}\u{e1c2}\u{e1c3}\u{e1c4}\u{e1c5}\u{e1c6}\u{e1c7}\u{e1c8}\u{e1c9}\u{e1ca}\u{e1cb}\u{e1cc}\u{e1cd}\u{e1ce}\u{e1cf}\u{e1d0}\u{e1d1}\u{e1d2}\u{e1d3}\u{e1d4}\u{e1d5}\u{e1d6}\u{e1d7}\u{e1d8}\u{e1d9}\u{e1da}\u{e1db}\u{e1dc}\u{e1dd}\u{e1de}\u{e1df}\u{e1e0}\u{e1e1}\u{e1e2}\u{e1e3}\u{e1e4}\u{e1e5}\u{e1e6}\u{e1e7}\u{e1e8}\u{e1e9}\u{e1ea}\u{e1eb}\u{e1ec}\u{e1ed}\u{e1ee}\u{e1ef}\u{e1f0}\u{e1f1}\u{e1f2}\u{e1f3}\u{e1f4}\u{e1f5}\u{e1f6}\u{e1f7}\u{e1f8}\u{e1f9}\u{e1fa}\u{e1fb}\u{e1fc}\u{e1fd}\u{e1fe}\u{e1ff}",
+    "\u{e200}\u{e201}\u{e202}\u{e203}\u{e204}\u{e205}\u{e206}\u{e207}\u{e208}\u{e209}\u{e20a}\u{e20b}\u{e20c}\u{e20d}\u{e20e}\u{e20f}\u{e210}\u{e211}\u{e212}\u{e213}\u{e214}\u{e215}\u{e216}\u{e217}\u{e218}\u{e219}\u{e21a}\u{e21b}\u{e21c}\u{e21d}\u{e21e}\u{e21f}\u{e220}\u{e221}\u{e222}\u{e223}\u{e224}\u{e225}\u{e226}\u{e227}\u{e228}\u{e229}\u{e22a}\u{e22b}\u{e22c}\u{e22d}\u{e22e}\u{e22f}\u{e230}\u{e231}\u{e232}\u{e233}\u{e234}\u{e235}\u{e236}\u{e237}\u{e238}\u{e239}\u{e23a}\u{e23b}\u{e23c}\u{e23d}\u{e23e}\u{e23f}\u{e240}\u{e241}\u{e242}\u{e243}\u{e244}\u{e245}\u{e246}\u{e247}\u{e248}\u{e249}\u{e24a}\u{e24b}\u{e24c}\u{e24d}\u{e24e}\u{e24f}\u{e250}\u{e251}\u{e252}\u{e253}\u{e254}\u{e255}\u{e256}\u{e257}\u{e258}\u{e259}\u{e25a}\u{e25b}\u{e25c}\u{e25d}\u{e25e}\u{e25f}\u{e260}\u{e261}\u{e262}\u{e263}\u{e264}\u{e265}\u{e266}\u{e267}\u{e268}\u{e269}\u{e26a}\u{e26b}\u{e26c}\u{e26d}\u{e26e}\u{e26f}\u{e270}\u{e271}\u{e272}\u{e273}\u{e274}\u{e275}\u{e276}\u{e277}\u{e278}\u{e279}\u{e27a}\u{e27b}\u{e27c}\u{e27d}\u{e27e}\u{e27f}\u{e280}\u{e281}\u{e282}\u{e283}\u{e284}\u{e285}\u{e286}\u{e287}\u{e288}\u{e289}\u{e28a}\u{e28b}\u{e28c}\u{e28d}\u{e28e}\u{e28f}\u{e290}\u{e291}\u{e292}\u{e293}\u{e294}\u{e295}\u{e296}\u{e297}\u{e298}\u{e299}\u{e29a}\u{e29b}\u{e29c}\u{e29d}\u{e29e}\u{e29f}\u{e2a0}\u{e2a1}\u{e2a2}\u{e2a3}\u{e2a4}\u{e2a5}\u{e2a6}\u{e2a7}\u{e2a8}\u{e2a9}\u{e2aa}\u{e2ab}\u{e2ac}\u{e2ad}\u{e2ae}\u{e2af}\u{e2b0}\u{e2b1}\u{e2b2}\u{e2b3}\u{e2b4}\u{e2b5}\u{e2b6}\u{e2b7}\u{e2b8}\u{e2b9}\u{e2ba}\u{e2bb}\u{e2bc}\u{e2bd}\u{e2be}\u{e2bf}\u{e2c0}\u{e2c1}\u{e2c2}\u{e2c3}\u{e2c4}\u{e2c5}\u{e2c6}\u{e2c7}\u{e2c8}\u{e2c9}\u{e2ca}\u{e2cb}\u{e2cc}\u{e2cd}\u{e2ce}\u{e2cf}\u{e2d0}\u{e2d1}\u{e2d2}\u{e2d3}\u{e2d4}\u{e2d5}\u{e2d6}\u{e2d7}\u{e2d8}\u{e2d9}\u{e2da}\u{e2db}\u{e2dc}\u{e2dd}\u{e2de}\u{e2df}\u{e2e0}\u{e2e1}\u{e2e2}\u{e2e3}\u{e2e4}\u{e2e5}\u{e2e6}\u{e2e7}\u{e2e8}\u{e2e9}\u{e2ea}\u{e2eb}\u{e2ec}\u{e2ed}\u{e2ee}\u{e2ef}\u{e2f0}\u{e2f1}\u{e2f2}\u{e2f3}\u{e2f4}\u{e2f5}\u{e2f6}\u{e2f7}\u{e2f8}\u{e2f9}\u{e2fa}\u{e2fb}\u{e2fc}\u{e2fd}\u{e2fe}\u{e2ff}",
+    "\u{e300}\u{e301}\u{e302}\u{e303}\u{e304}\u{e305}\u{e306}\u{e307}\u{e308}\u{e309}\u{e30a}\u{e30b}\u{e30c}\u{e30d}\u{e30e}\u{e30f}\u{e310}\u{e311}\u{e312}\u{e313}\u{e314}\u{e315}\u{e316}\u{e317}\u{e318}\u{e319}\u{e31a}\u{e31b}\u{e31c}\u{e31d}\u{e31e}\u{e31f}\u{e320}\u{e321}\u{e322}\u{e323}\u{e324}\u{e325}\u{e326}\u{e327}\u{e328}\u{e329}\u{e32a}\u{e32b}\u{e32c}\u{e32d}\u{e32e}\u{e32f}\u{e330}\u{e331}\u{e332}\u{e333}\u{e334}\u{e335}\u{e336}\u{e337}\u{e338}\u{e339}\u{e33a}\u{e33b}\u{e33c}\u{e33d}\u{e33e}\u{e33f}\u{e340}\u{e341}\u{e342}\u{e343}\u{e344}\u{e345}\u{e346}\u{e347}\u{e348}\u{e349}\u{e34a}\u{e34b}\u{e34c}\u{e34d}\u{e34e}\u{e34f}\u{e350}\u{e351}\u{e352}\u{e353}\u{e354}\u{e355}\u{e356}\u{e357}\u{e358}\u{e359}\u{e35a}\u{e35b}\u{e35c}\u{e35d}\u{e35e}\u{e35f}\u{e360}\u{e361}\u{e362}\u{e363}\u{e364}\u{e365}\u{e366}\u{e367}\u{e368}\u{e369}\u{e36a}\u{e36b}\u{e36c}\u{e36d}\u{e36e}\u{e36f}\u{e370}\u{e371}\u{e372}\u{e373}\u{e374}\u{e375}\u{e376}\u{e377}\u{e378}\u{e379}\u{e37a}\u{e37b}\u{e37c}\u{e37d}\u{e37e}\u{e37f}\u{e380}\u{e381}\u{e382}\u{e383}\u{e384}\u{e385}\u{e386}\u{e387}\u{e388}\u{e389}\u{e38a}\u{e38b}\u{e38c}\u{e38d}\u{e38e}\u{e38f}\u{e390}\u{e391}\u{e392}\u{e393}\u{e394}\u{e395}\u{e396}\u{e397}\u{e398}\u{e399}\u{e39a}\u{e39b}\u{e39c}\u{e39d}\u{e39e}\u{e39f}\u{e3a0}\u{e3a1}\u{e3a2}\u{e3a3}\u{e3a4}\u{e3a5}\u{e3a6}\u{e3a7}\u{e3a8}\u{e3a9}\u{e3aa}\u{e3ab}\u{e3ac}\u{e3ad}\u{e3ae}\u{e3af}\u{e3b0}\u{e3b1}\u{e3b2}\u{e3b3}\u{e3b4}\u{e3b5}\u{e3b6}\u{e3b7}\u{e3b8}\u{e3b9}\u{e3ba}\u{e3bb}\u{e3bc}\u{e3bd}\u{e3be}\u{e3bf}\u{e3c0}\u{e3c1}\u{e3c2}\u{e3c3}\u{e3c4}\u{e3c5}\u{e3c6}\u{e3c7}\u{e3c8}\u{e3c9}\u{e3ca}\u{e3cb}\u{e3cc}\u{e3cd}\u{e3ce}\u{e3cf}\u{e3d0}\u{e3d1}\u{e3d2}\u{e3d3}\u{e3d4}\u{e3d5}\u{e3d6}\u{e3d7}\u{e3d8}\u{e3d9}\u{e3da}\u{e3db}\u{e3dc}\u{e3dd}\u{e3de}\u{e3df}\u{e3e0}\u{e3e1}\u{e3e2}\u{e3e3}\u{e3e4}\u{e3e5}\u{e3e6}\u{e3e7}\u{e3e8}\u{e3e9}\u{e3ea}\u{e3eb}\u{e3ec}\u{e3ed}\u{e3ee}\u{e3ef}\u{e3f0}\u{e3f1}\u{e3f2}\u{e3f3}\u{e3f4}\u{e3f5}\u{e3f6}\u{e3f7}\u{e3f8}\u{e3f9}\u{e3fa}\u{e3fb}\u{e3fc}\u{e3fd}\u{e3fe}\u{e3ff}",
+    "\u{e400}\u{e401}\u{e402}\u{e403}\u{e404}\u{e405}\u{e406}\u{e407}\u{e408}\u{e409}\u{e40a}\u{e40b}\u{e40c}\u{e40d}\u{e40e}\u{e40f}\u{e410}\u{e411}\u{e412}\u{e413}\u{e414}\u{e415}\u{e416}\u{e417}\u{e418}\u{e419}\u{e41a}\u{e41b}\u{e41c}\u{e41d}\u{e41e}\u{e41f}\u{e420}\u{e421}\u{e422}\u{e423}\u{e424}\u{e425}\u{e426}\u{e427}\u{e428}\u{e429}\u{e42a}\u{e42b}\u{e42c}\u{e42d}\u{e42e}\u{e42f}\u{e430}\u{e431}\u{e432}\u{e433}\u{e434}\u{e435}\u{e436}\u{e437}\u{e438}\u{e439}\u{e43a}\u{e43b}\u{e43c}\u{e43d}\u{e43e}\u{e43f}\u{e440}\u{e441}\u{e442}\u{e443}\u{e444}\u{e445}\u{e446}\u{e447}\u{e448}\u{e449}\u{e44a}\u{e44b}\u{e44c}\u{e44d}\u{e44e}\u{e44f}\u{e450}\u{e451}\u{e452}\u{e453}\u{e454}\u{e455}\u{e456}\u{e457}\u{e458}\u{e459}\u{e45a}\u{e45b}\u{e45c}\u{e45d}\u{e45e}\u{e45f}\u{e460}\u{e461}\u{e462}\u{e463}\u{e464}\u{e465}\u{e466}\u{e467}\u{e468}\u{e469}\u{e46a}\u{e46b}\u{e46c}\u{e46d}\u{e46e}\u{e46f}\u{e470}\u{e471}\u{e472}\u{e473}\u{e474}\u{e475}\u{e476}\u{e477}\u{e478}\u{e479}\u{e47a}\u{e47b}\u{e47c}\u{e47d}\u{e47e}\u{e47f}\u{e480}\u{e481}\u{e482}\u{e483}\u{e484}\u{e485}\u{e486}\u{e487}\u{e488}\u{e489}\u{e48a}\u{e48b}\u{e48c}\u{e48d}\u{e48e}\u{e48f}\u{e490}\u{e491}\u{e492}\u{e493}\u{e494}\u{e495}\u{e496}\u{e497}\u{e498}\u{e499}\u{e49a}\u{e49b}\u{e49c}\u{e49d}\u{e49e}\u{e49f}\u{e4a0}\u{e4a1}\u{e4a2}\u{e4a3}\u{e4a4}\u{e4a5}\u{e4a6}\u{e4a7}\u{e4a8}\u{e4a9}\u{e4aa}\u{e4ab}\u{e4ac}\u{e4ad}\u{e4ae}\u{e4af}\u{e4b0}\u{e4b1}\u{e4b2}\u{e4b3}\u{e4b4}\u{e4b5}\u{e4b6}\u{e4b7}\u{e4b8}\u{e4b9}\u{e4ba}\u{e4bb}\u{e4bc}\u{e4bd}\u{e4be}\u{e4bf}\u{e4c0}\u{e4c1}\u{e4c2}\u{e4c3}\u{e4c4}\u{e4c5}\u{e4c6}\u{e4c7}\u{e4c8}\u{e4c9}\u{e4ca}\u{e4cb}\u{e4cc}\u{e4cd}\u{e4ce}\u{e4cf}\u{e4d0}\u{e4d1}\u{e4d2}\u{e4d3}\u{e4d4}\u{e4d5}\u{e4d6}\u{e4d7}\u{e4d8}\u{e4d9}\u{e4da}\u{e4db}\u{e4dc}\u{e4dd}\u{e4de}\u{e4df}\u{e4e0}\u{e4e1}\u{e4e2}\u{e4e3}\u{e4e4}\u{e4e5}\u{e4e6}\u{e4e7}\u{e4e8}\u{e4e9}\u{e4ea}\u{e4eb}\u{e4ec}\u{e4ed}\u{e4ee}\u{e4ef}\u{e4f0}\u{e4f1}\u{e4f2}\u{e4f3}\u{e4f4}\u{e4f5}\u{e4f6}\u{e4f7}\u{e4f8}\u{e4f9}\u{e4fa}\u{e4fb}\u{e4fc}\u{e4fd}\u{e4fe}\u{e4ff}",
+    "\u{e500}\u{e501}\u{e502}\u{e503}\u{e504}\u{e505}\u{e506}\u{e507}\u{e508}\u{e509}\u{e50a}\u{e50b}\u{e50c}\u{e50d}\u{e50e}\u{e50f}\u{e510}\u{e511}\u{e512}\u{e513}\u{e514}\u{e515}\u{e516}\u{e517}\u{e518}\u{e519}\u{e51a}\u{e51b}\u{e51c}\u{e51d}\u{e51e}\u{e51f}\u{e520}\u{e521}\u{e522}\u{e523}\u{e524}\u{e525}\u{e526}\u{e527}\u{e528}\u{e529}\u{e52a}\u{e52b}\u{e52c}\u{e52d}\u{e52e}\u{e52f}\u{e530}\u{e531}\u{e532}\u{e533}\u{e534}\u{e535}\u{e536}\u{e537}\u{e538}\u{e539}\u{e53a}\u{e53b}\u{e53c}\u{e53d}\u{e53e}\u{e53f}\u{e540}\u{e541}\u{e542}\u{e543}\u{e544}\u{e545}\u{e546}\u{e547}\u{e548}\u{e549}\u{e54a}\u{e54b}\u{e54c}\u{e54d}\u{e54e}\u{e54f}\u{e550}\u{e551}\u{e552}\u{e553}\u{e554}\u{e555}\u{e556}\u{e557}\u{e558}\u{e559}\u{e55a}\u{e55b}\u{e55c}\u{e55d}\u{e55e}\u{e55f}\u{e560}\u{e561}\u{e562}\u{e563}\u{e564}\u{e565}\u{e566}\u{e567}\u{e568}\u{e569}\u{e56a}\u{e56b}\u{e56c}\u{e56d}\u{e56e}\u{e56f}\u{e570}\u{e571}\u{e572}\u{e573}\u{e574}\u{e575}\u{e576}\u{e577}\u{e578}\u{e579}\u{e57a}\u{e57b}\u{e57c}\u{e57d}\u{e57e}\u{e57f}\u{e580}\u{e581}\u{e582}\u{e583}\u{e584}\u{e585}\u{e586}\u{e587}\u{e588}\u{e589}\u{e58a}\u{e58b}\u{e58c}\u{e58d}\u{e58e}\u{e58f}\u{e590}\u{e591}\u{e592}\u{e593}\u{e594}\u{e595}\u{e596}\u{e597}\u{e598}\u{e599}\u{e59a}\u{e59b}\u{e59c}\u{e59d}\u{e59e}\u{e59f}\u{e5a0}\u{e5a1}\u{e5a2}\u{e5a3}\u{e5a4}\u{e5a5}\u{e5a6}\u{e5a7}\u{e5a8}\u{e5a9}\u{e5aa}\u{e5ab}\u{e5ac}\u{e5ad}\u{e5ae}\u{e5af}\u{e5b0}\u{e5b1}\u{e5b2}\u{e5b3}\u{e5b4}\u{e5b5}\u{e5b6}\u{e5b7}\u{e5b8}\u{e5b9}\u{e5ba}\u{e5bb}\u{e5bc}\u{e5bd}\u{e5be}\u{e5bf}\u{e5c0}\u{e5c1}\u{e5c2}\u{e5c3}\u{e5c4}\u{e5c5}\u{e5c6}\u{e5c7}\u{e5c8}\u{e5c9}\u{e5ca}\u{e5cb}\u{e5cc}\u{e5cd}\u{e5ce}\u{e5cf}\u{e5d0}\u{e5d1}\u{e5d2}\u{e5d3}\u{e5d4}\u{e5d5}\u{e5d6}\u{e5d7}\u{e5d8}\u{e5d9}\u{e5da}\u{e5db}\u{e5dc}\u{e5dd}\u{e5de}\u{e5df}\u{e5e0}\u{e5e1}\u{e5e2}\u{e5e3}\u{e5e4}\u{e5e5}\u{e5e6}\u{e5e7}\u{e5e8}\u{e5e9}\u{e5ea}\u{e5eb}\u{e5ec}\u{e5ed}\u{e5ee}\u{e5ef}\u{e5f0}\u{e5f1}\u{e5f2}\u{e5f3}\u{e5f4}\u{e5f5}\u{e5f6}\u{e5f7}\u{e5f8}\u{e5f9}\u{e5fa}\u{e5fb}\u{e5fc}\u{e5fd}\u{e5fe}\u{e5ff}",
+    "\u{e600}\u{e601}\u{e602}\u{e603}\u{e604}\u{e605}\u{e606}\u{e607}\u{e608}\u{e609}\u{e60a}\u{e60b}\u{e60c}\u{e60d}\u{e60e}\u{e60f}\u{e610}\u{e611}\u{e612}\u{e613}\u{e614}\u{e615}\u{e616}\u{e617}\u{e618}\u{e619}\u{e61a}\u{e61b}\u{e61c}\u{e61d}\u{e61e}\u{e61f}\u{e620}\u{e621}\u{e622}\u{e623}\u{e624}\u{e625}\u{e626}\u{e627}\u{e628}\u{e629}\u{e62a}\u{e62b}\u{e62c}\u{e62d}\u{e62e}\u{e62f}\u{e630}\u{e631}\u{e632}\u{e633}\u{e634}\u{e635}\u{e636}\u{e637}\u{e638}\u{e639}\u{e63a}\u{e63b}\u{e63c}\u{e63d}\u{e63e}\u{e63f}\u{e640}\u{e641}\u{e642}\u{e643}\u{e644}\u{e645}\u{e646}\u{e647}\u{e648}\u{e649}\u{e64a}\u{e64b}\u{e64c}\u{e64d}\u{e64e}\u{e64f}\u{e650}\u{e651}\u{e652}\u{e653}\u{e654}\u{e655}\u{e656}\u{e657}\u{e658}\u{e659}\u{e65a}\u{e65b}\u{e65c}\u{e65d}\u{e65e}\u{e65f}\u{e660}\u{e661}\u{e662}\u{e663}\u{e664}\u{e665}\u{e666}\u{e667}\u{e668}\u{e669}\u{e66a}\u{e66b}\u{e66c}\u{e66d}\u{e66e}\u{e66f}\u{e670}\u{e671}\u{e672}\u{e673}\u{e674}\u{e675}\u{e676}\u{e677}\u{e678}\u{e679}\u{e67a}\u{e67b}\u{e67c}\u{e67d}\u{e67e}\u{e67f}\u{e680}\u{e681}\u{e682}\u{e683}\u{e684}\u{e685}\u{e686}\u{e687}\u{e688}\u{e689}\u{e68a}\u{e68b}\u{e68c}\u{e68d}\u{e68e}\u{e68f}\u{e690}\u{e691}\u{e692}\u{e693}\u{e694}\u{e695}\u{e696}\u{e697}\u{e698}\u{e699}\u{e69a}\u{e69b}\u{e69c}\u{e69d}\u{e69e}\u{e69f}\u{e6a0}\u{e6a1}\u{e6a2}\u{e6a3}\u{e6a4}\u{e6a5}\u{e6a6}\u{e6a7}\u{e6a8}\u{e6a9}\u{e6aa}\u{e6ab}\u{e6ac}\u{e6ad}\u{e6ae}\u{e6af}\u{e6b0}\u{e6b1}\u{e6b2}\u{e6b3}\u{e6b4}\u{e6b5}\u{e6b6}\u{e6b7}\u{e6b8}\u{e6b9}\u{e6ba}\u{e6bb}\u{e6bc}\u{e6bd}\u{e6be}\u{e6bf}\u{e6c0}\u{e6c1}\u{e6c2}\u{e6c3}\u{e6c4}\u{e6c5}\u{e6c6}\u{e6c7}\u{e6c8}\u{e6c9}\u{e6ca}\u{e6cb}\u{e6cc}\u{e6cd}\u{e6ce}\u{e6cf}\u{e6d0}\u{e6d1}\u{e6d2}\u{e6d3}\u{e6d4}\u{e6d5}\u{e6d6}\u{e6d7}\u{e6d8}\u{e6d9}\u{e6da}\u{e6db}\u{e6dc}\u{e6dd}\u{e6de}\u{e6df}\u{e6e0}\u{e6e1}\u{e6e2}\u{e6e3}\u{e6e4}\u{e6e5}\u{e6e6}\u{e6e7}\u{e6e8}\u{e6e9}\u{e6ea}\u{e6eb}\u{e6ec}\u{e6ed}\u{e6ee}\u{e6ef}\u{e6f0}\u{e6f1}\u{e6f2}\u{e6f3}\u{e6f4}\u{e6f5}\u{e6f6}\u{e6f7}\u{e6f8}\u{e6f9}\u{e6fa}\u{e6fb}\u{e6fc}\u{e6fd}\u{e6fe}\u{e6ff}",
+    "\u{e700}\u{e701}\u{e702}\u{e703}\u{e704}\u{e705}\u{e706}\u{e707}\u{e708}\u{e709}\u{e70a}\u{e70b}\u{e70c}\u{e70d}\u{e70e}\u{e70f}\u{e710}\u{e711}\u{e712}\u{e713}\u{e714}\u{e715}\u{e716}\u{e717}\u{e718}\u{e719}\u{e71a}\u{e71b}\u{e71c}\u{e71d}\u{e71e}\u{e71f}\u{e720}\u{e721}\u{e722}\u{e723}\u{e724}\u{e725}\u{e726}\u{e727}\u{e728}\u{e729}\u{e72a}\u{e72b}\u{e72c}\u{e72d}\u{e72e}\u{e72f}\u{e730}\u{e731}\u{e732}\u{e733}\u{e734}\u{e735}\u{e736}\u{e737}\u{e738}\u{e739}\u{e73a}\u{e73b}\u{e73c}\u{e73d}\u{e73e}\u{e73f}\u{e740}\u{e741}\u{e742}\u{e743}\u{e744}\u{e745}\u{e746}\u{e747}\u{e748}\u{e749}\u{e74a}\u{e74b}\u{e74c}\u{e74d}\u{e74e}\u{e74f}\u{e750}\u{e751}\u{e752}\u{e753}\u{e754}\u{e755}\u{e756}\u{e757}\u{e758}\u{e759}\u{e75a}\u{e75b}\u{e75c}\u{e75d}\u{e75e}\u{e75f}\u{e760}\u{e761}\u{e762}\u{e763}\u{e764}\u{e765}\u{e766}\u{e767}\u{e768}\u{e769}\u{e76a}\u{e76b}\u{e76c}\u{e76d}\u{e76e}\u{e76f}\u{e770}\u{e771}\u{e772}\u{e773}\u{e774}\u{e775}\u{e776}\u{e777}\u{e778}\u{e779}\u{e77a}\u{e77b}\u{e77c}\u{e77d}\u{e77e}\u{e77f}\u{e780}\u{e781}\u{e782}\u{e783}\u{e784}\u{e785}\u{e786}\u{e787}\u{e788}\u{e789}\u{e78a}\u{e78b}\u{e78c}\u{e78d}\u{e78e}\u{e78f}\u{e790}\u{e791}\u{e792}\u{e793}\u{e794}\u{e795}\u{e796}\u{e797}\u{e798}\u{e799}\u{e79a}\u{e79b}\u{e79c}\u{e79d}\u{e79e}\u{e79f}\u{e7a0}\u{e7a1}\u{e7a2}\u{e7a3}\u{e7a4}\u{e7a5}\u{e7a6}\u{e7a7}\u{e7a8}\u{e7a9}\u{e7aa}\u{e7ab}\u{e7ac}\u{e7ad}\u{e7ae}\u{e7af}\u{e7b0}\u{e7b1}\u{e7b2}\u{e7b3}\u{e7b4}\u{e7b5}\u{e7b6}\u{e7b7}\u{e7b8}\u{e7b9}\u{e7ba}\u{e7bb}\u{e7bc}\u{e7bd}\u{e7be}\u{e7bf}\u{e7c0}\u{e7c1}\u{e7c2}\u{e7c3}\u{e7c4}\u{e7c5}\u{e7c6}\u{e7c7}\u{e7c8}\u{e7c9}\u{e7ca}\u{e7cb}\u{e7cc}\u{e7cd}\u{e7ce}\u{e7cf}\u{e7d0}\u{e7d1}\u{e7d2}\u{e7d3}\u{e7d4}\u{e7d5}\u{e7d6}\u{e7d7}\u{e7d8}\u{e7d9}\u{e7da}\u{e7db}\u{e7dc}\u{e7dd}\u{e7de}\u{e7df}\u{e7e0}\u{e7e1}\u{e7e2}\u{e7e3}\u{e7e4}\u{e7e5}\u{e7e6}\u{e7e7}\u{e7e8}\u{e7e9}\u{e7ea}\u{e7eb}\u{e7ec}\u{e7ed}\u{e7ee}\u{e7ef}\u{e7f0}\u{e7f1}\u{e7f2}\u{e7f3}\u{e7f4}\u{e7f5}\u{e7f6}\u{e7f7}\u{e7f8}\u{e7f9}\u{e7fa}\u{e7fb}\u{e7fc}\u{e7fd}\u{e7fe}\u{e7ff}",
+    "\u{e800}\u{e801}\u{e802}\u{e803}\u{e804}\u{e805}\u{e806}\u{e807}\u{e808}\u{e809}\u{e80a}\u{e80b}\u{e80c}\u{e80d}\u{e80e}\u{e80f}\u{e810}\u{e811}\u{e812}\u{e813}\u{e814}\u{e815}\u{e816}\u{e817}\u{e818}\u{e819}\u{e81a}\u{e81b}\u{e81c}\u{e81d}\u{e81e}\u{e81f}\u{e820}\u{e821}\u{e822}\u{e823}\u{e824}\u{e825}\u{e826}\u{e827}\u{e828}\u{e829}\u{e82a}\u{e82b}\u{e82c}\u{e82d}\u{e82e}\u{e82f}\u{e830}\u{e831}\u{e832}\u{e833}\u{e834}\u{e835}\u{e836}\u{e837}\u{e838}\u{e839}\u{e83a}\u{e83b}\u{e83c}\u{e83d}\u{e83e}\u{e83f}\u{e840}\u{e841}\u{e842}\u{e843}\u{e844}\u{e845}\u{e846}\u{e847}\u{e848}\u{e849}\u{e84a}\u{e84b}\u{e84c}\u{e84d}\u{e84e}\u{e84f}\u{e850}\u{e851}\u{e852}\u{e853}\u{e854}\u{e855}\u{e856}\u{e857}\u{e858}\u{e859}\u{e85a}\u{e85b}\u{e85c}\u{e85d}\u{e85e}\u{e85f}\u{e860}\u{e861}\u{e862}\u{e863}\u{e864}\u{e865}\u{e866}\u{e867}\u{e868}\u{e869}\u{e86a}\u{e86b}\u{e86c}\u{e86d}\u{e86e}\u{e86f}\u{e870}\u{e871}\u{e872}\u{e873}\u{e874}\u{e875}\u{e876}\u{e877}\u{e878}\u{e879}\u{e87a}\u{e87b}\u{e87c}\u{e87d}\u{e87e}\u{e87f}\u{e880}\u{e881}\u{e882}\u{e883}\u{e884}\u{e885}\u{e886}\u{e887}\u{e888}\u{e889}\u{e88a}\u{e88b}\u{e88c}\u{e88d}\u{e88e}\u{e88f}\u{e890}\u{e891}\u{e892}\u{e893}\u{e894}\u{e895}\u{e896}\u{e897}\u{e898}\u{e899}\u{e89a}\u{e89b}\u{e89c}\u{e89d}\u{e89e}\u{e89f}\u{e8a0}\u{e8a1}\u{e8a2}\u{e8a3}\u{e8a4}\u{e8a5}\u{e8a6}\u{e8a7}\u{e8a8}\u{e8a9}\u{e8aa}\u{e8ab}\u{e8ac}\u{e8ad}\u{e8ae}\u{e8af}\u{e8b0}\u{e8b1}\u{e8b2}\u{e8b3}\u{e8b4}\u{e8b5}\u{e8b6}\u{e8b7}\u{e8b8}\u{e8b9}\u{e8ba}\u{e8bb}\u{e8bc}\u{e8bd}\u{e8be}\u{e8bf}\u{e8c0}\u{e8c1}\u{e8c2}\u{e8c3}\u{e8c4}\u{e8c5}\u{e8c6}\u{e8c7}\u{e8c8}\u{e8c9}\u{e8ca}\u{e8cb}\u{e8cc}\u{e8cd}\u{e8ce}\u{e8cf}\u{e8d0}\u{e8d1}\u{e8d2}\u{e8d3}\u{e8d4}\u{e8d5}\u{e8d6}\u{e8d7}\u{e8d8}\u{e8d9}\u{e8da}\u{e8db}\u{e8dc}\u{e8dd}\u{e8de}\u{e8df}\u{e8e0}\u{e8e1}\u{e8e2}\u{e8e3}\u{e8e4}\u{e8e5}\u{e8e6}\u{e8e7}\u{e8e8}\u{e8e9}\u{e8ea}\u{e8eb}\u{e8ec}\u{e8ed}\u{e8ee}\u{e8ef}\u{e8f0}\u{e8f1}\u{e8f2}\u{e8f3}\u{e8f4}\u{e8f5}\u{e8f6}\u{e8f7}\u{e8f8}\u{e8f9}\u{e8fa}\u{e8fb}\u{e8fc}\u{e8fd}\u{e8fe}\u{e8ff}",
+    "\u{e900}\u{e901}\u{e902}\u{e903}\u{e904}\u{e905}\u{e906}\u{e907}\u{e908}\u{e909}\u{e90a}\u{e90b}\u{e90c}\u{e90d}\u{e90e}\u{e90f}\u{e910}\u{e911}\u{e912}\u{e913}\u{e914}\u{e915}\u{e916}\u{e917}\u{e918}\u{e919}\u{e91a}\u{e91b}\u{e91c}\u{e91d}\u{e91e}\u{e91f}\u{e920}\u{e921}\u{e922}\u{e923}\u{e924}\u{e925}\u{e926}\u{e927}\u{e928}\u{e929}\u{e92a}\u{e92b}\u{e92c}\u{e92d}\u{e92e}\u{e92f}\u{e930}\u{e931}\u{e932}\u{e933}\u{e934}\u{e935}\u{e936}\u{e937}\u{e938}\u{e939}\u{e93a}\u{e93b}\u{e93c}\u{e93d}\u{e93e}\u{e93f}\u{e940}\u{e941}\u{e942}\u{e943}\u{e944}\u{e945}\u{e946}\u{e947}\u{e948}\u{e949}\u{e94a}\u{e94b}\u{e94c}\u{e94d}\u{e94e}\u{e94f}\u{e950}\u{e951}\u{e952}\u{e953}\u{e954}\u{e955}\u{e956}\u{e957}\u{e958}\u{e959}\u{e95a}\u{e95b}\u{e95c}\u{e95d}\u{e95e}\u{e95f}\u{e960}\u{e961}\u{e962}\u{e963}\u{e964}\u{e965}\u{e966}\u{e967}\u{e968}\u{e969}\u{e96a}\u{e96b}\u{e96c}\u{e96d}\u{e96e}\u{e96f}\u{e970}\u{e971}\u{e972}\u{e973}\u{e974}\u{e975}\u{e976}\u{e977}\u{e978}\u{e979}\u{e97a}\u{e97b}\u{e97c}\u{e97d}\u{e97e}\u{e97f}\u{e980}\u{e981}\u{e982}\u{e983}\u{e984}\u{e985}\u{e986}\u{e987}\u{e988}\u{e989}\u{e98a}\u{e98b}\u{e98c}\u{e98d}\u{e98e}\u{e98f}\u{e990}\u{e991}\u{e992}\u{e993}\u{e994}\u{e995}\u{e996}\u{e997}\u{e998}\u{e999}\u{e99a}\u{e99b}\u{e99c}\u{e99d}\u{e99e}\u{e99f}\u{e9a0}\u{e9a1}\u{e9a2}\u{e9a3}\u{e9a4}\u{e9a5}\u{e9a6}\u{e9a7}\u{e9a8}\u{e9a9}\u{e9aa}\u{e9ab}\u{e9ac}\u{e9ad}\u{e9ae}\u{e9af}\u{e9b0}\u{e9b1}\u{e9b2}\u{e9b3}\u{e9b4}\u{e9b5}\u{e9b6}\u{e9b7}\u{e9b8}\u{e9b9}\u{e9ba}\u{e9bb}\u{e9bc}\u{e9bd}\u{e9be}\u{e9bf}\u{e9c0}\u{e9c1}\u{e9c2}\u{e9c3}\u{e9c4}\u{e9c5}\u{e9c6}\u{e9c7}\u{e9c8}\u{e9c9}\u{e9ca}\u{e9cb}\u{e9cc}\u{e9cd}\u{e9ce}\u{e9cf}\u{e9d0}\u{e9d1}\u{e9d2}\u{e9d3}\u{e9d4}\u{e9d5}\u{e9d6}\u{e9d7}\u{e9d8}\u{e9d9}\u{e9da}\u{e9db}\u{e9dc}\u{e9dd}\u{e9de}\u{e9df}\u{e9e0}\u{e9e1}\u{e9e2}\u{e9e3}\u{e9e4}\u{e9e5}\u{e9e6}\u{e9e7}\u{e9e8}\u{e9e9}\u{e9ea}\u{e9eb}\u{e9ec}\u{e9ed}\u{e9ee}\u{e9ef}\u{e9f0}\u{e9f1}\u{e9f2}\u{e9f3}\u{e9f4}\u{e9f5}\u{e9f6}\u{e9f7}\u{e9f8}\u{e9f9}\u{e9fa}\u{e9fb}\u{e9fc}\u{e9fd}\u{e9fe}\u{e9ff}",
+    "\u{ea00}\u{ea01}\u{ea02}\u{ea03}\u{ea04}\u{ea05}\u{ea06}\u{ea07}\u{ea08}\u{ea09}\u{ea0a}\u{ea0b}\u{ea0c}\u{ea0d}\u{ea0e}\u{ea0f}\u{ea10}\u{ea11}\u{ea12}\u{ea13}\u{ea14}\u{ea15}\u{ea16}\u{ea17}\u{ea18}\u{ea19}\u{ea1a}\u{ea1b}\u{ea1c}\u{ea1d}\u{ea1e}\u{ea1f}\u{ea20}\u{ea21}\u{ea22}\u{ea23}\u{ea24}\u{ea25}\u{ea26}\u{ea27}\u{ea28}\u{ea29}\u{ea2a}\u{ea2b}\u{ea2c}\u{ea2d}\u{ea2e}\u{ea2f}\u{ea30}\u{ea31}\u{ea32}\u{ea33}\u{ea34}\u{ea35}\u{ea36}\u{ea37}\u{ea38}\u{ea39}\u{ea3a}\u{ea3b}\u{ea3c}\u{ea3d}\u{ea3e}\u{ea3f}\u{ea40}\u{ea41}\u{ea42}\u{ea43}\u{ea44}\u{ea45}\u{ea46}\u{ea47}\u{ea48}\u{ea49}\u{ea4a}\u{ea4b}\u{ea4c}\u{ea4d}\u{ea4e}\u{ea4f}\u{ea50}\u{ea51}\u{ea52}\u{ea53}\u{ea54}\u{ea55}\u{ea56}\u{ea57}\u{ea58}\u{ea59}\u{ea5a}\u{ea5b}\u{ea5c}\u{ea5d}\u{ea5e}\u{ea5f}\u{ea60}\u{ea61}\u{ea62}\u{ea63}\u{ea64}\u{ea65}\u{ea66}\u{ea67}\u{ea68}\u{ea69}\u{ea6a}\u{ea6b}\u{ea6c}\u{ea6d}\u{ea6e}\u{ea6f}\u{ea70}\u{ea71}\u{ea72}\u{ea73}\u{ea74}\u{ea75}\u{ea76}\u{ea77}\u{ea78}\u{ea79}\u{ea7a}\u{ea7b}\u{ea7c}\u{ea7d}\u{ea7e}\u{ea7f}\u{ea80}\u{ea81}\u{ea82}\u{ea83}\u{ea84}\u{ea85}\u{ea86}\u{ea87}\u{ea88}\u{ea89}\u{ea8a}\u{ea8b}\u{ea8c}\u{ea8d}\u{ea8e}\u{ea8f}\u{ea90}\u{ea91}\u{ea92}\u{ea93}\u{ea94}\u{ea95}\u{ea96}\u{ea97}\u{ea98}\u{ea99}\u{ea9a}\u{ea9b}\u{ea9c}\u{ea9d}\u{ea9e}\u{ea9f}\u{eaa0}\u{eaa1}\u{eaa2}\u{eaa3}\u{eaa4}\u{eaa5}\u{eaa6}\u{eaa7}\u{eaa8}\u{eaa9}\u{eaaa}\u{eaab}\u{eaac}\u{eaad}\u{eaae}\u{eaaf}\u{eab0}\u{eab1}\u{eab2}\u{eab3}\u{eab4}\u{eab5}\u{eab6}\u{eab7}\u{eab8}\u{eab9}\u{eaba}\u{eabb}\u{eabc}\u{eabd}\u{eabe}\u{eabf}\u{eac0}\u{eac1}\u{eac2}\u{eac3}\u{eac4}\u{eac5}\u{eac6}\u{eac7}\u{eac8}\u{eac9}\u{eaca}\u{eacb}\u{eacc}\u{eacd}\u{eace}\u{eacf}\u{ead0}\u{ead1}\u{ead2}\u{ead3}\u{ead4}\u{ead5}\u{ead6}\u{ead7}\u{ead8}\u{ead9}\u{eada}\u{eadb}\u{eadc}\u{eadd}\u{eade}\u{eadf}\u{eae0}\u{eae1}\u{eae2}\u{eae3}\u{eae4}\u{eae5}\u{eae6}\u{eae7}\u{eae8}\u{eae9}\u{eaea}\u{eaeb}\u{eaec}\u{eaed}\u{eaee}\u{eaef}\u{eaf0}\u{eaf1}\u{eaf2}\u{eaf3}\u{eaf4}\u{eaf5}\u{eaf6}\u{eaf7}\u{eaf8}\u{eaf9}\u{eafa}\u{eafb}\u{eafc}\u{eafd}\u{eafe}\u{eaff}",
+    "\u{eb00}\u{eb01}\u{eb02}\u{eb03}\u{eb04}\u{eb05}\u{eb06}\u{eb07}\u{eb08}\u{eb09}\u{eb0a}\u{eb0b}\u{eb0c}\u{eb0d}\u{eb0e}\u{eb0f}\u{eb10}\u{eb11}\u{eb12}\u{eb13}\u{eb14}\u{eb15}\u{eb16}\u{eb17}\u{eb18}\u{eb19}\u{eb1a}\u{eb1b}\u{eb1c}\u{eb1d}\u{eb1e}\u{eb1f}\u{eb20}\u{eb21}\u{eb22}\u{eb23}\u{eb24}\u{eb25}\u{eb26}\u{eb27}\u{eb28}\u{eb29}\u{eb2a}\u{eb2b}\u{eb2c}\u{eb2d}\u{eb2e}\u{eb2f}\u{eb30}\u{eb31}\u{eb32}\u{eb33}\u{eb34}\u{eb35}\u{eb36}\u{eb37}\u{eb38}\u{eb39}\u{eb3a}\u{eb3b}\u{eb3c}\u{eb3d}\u{eb3e}\u{eb3f}\u{eb40}\u{eb41}\u{eb42}\u{eb43}\u{eb44}\u{eb45}\u{eb46}\u{eb47}\u{eb48}\u{eb49}\u{eb4a}\u{eb4b}\u{eb4c}\u{eb4d}\u{eb4e}\u{eb4f}\u{eb50}\u{eb51}\u{eb52}\u{eb53}\u{eb54}\u{eb55}\u{eb56}\u{eb57}\u{eb58}\u{eb59}\u{eb5a}\u{eb5b}\u{eb5c}\u{eb5d}\u{eb5e}\u{eb5f}\u{eb60}\u{eb61}\u{eb62}\u{eb63}\u{eb64}\u{eb65}\u{eb66}\u{eb67}\u{eb68}\u{eb69}\u{eb6a}\u{eb6b}\u{eb6c}\u{eb6d}\u{eb6e}\u{eb6f}\u{eb70}\u{eb71}\u{eb72}\u{eb73}\u{eb74}\u{eb75}\u{eb76}\u{eb77}\u{eb78}\u{eb79}\u{eb7a}\u{eb7b}\u{eb7c}\u{eb7d}\u{eb7e}\u{eb7f}\u{eb80}\u{eb81}\u{eb82}\u{eb83}\u{eb84}\u{eb85}\u{eb86}\u{eb87}\u{eb88}\u{eb89}\u{eb8a}\u{eb8b}\u{eb8c}\u{eb8d}\u{eb8e}\u{eb8f}\u{eb90}\u{eb91}\u{eb92}\u{eb93}\u{eb94}\u{eb95}\u{eb96}\u{eb97}\u{eb98}\u{eb99}\u{eb9a}\u{eb9b}\u{eb9c}\u{eb9d}\u{eb9e}\u{eb9f}\u{eba0}\u{eba1}\u{eba2}\u{eba3}\u{eba4}\u{eba5}\u{eba6}\u{eba7}\u{eba8}\u{eba9}\u{ebaa}\u{ebab}\u{ebac}\u{ebad}\u{ebae}\u{ebaf}\u{ebb0}\u{ebb1}\u{ebb2}\u{ebb3}\u{ebb4}\u{ebb5}\u{ebb6}\u{ebb7}\u{ebb8}\u{ebb9}\u{ebba}\u{ebbb}\u{ebbc}\u{ebbd}\u{ebbe}\u{ebbf}\u{ebc0}\u{ebc1}\u{ebc2}\u{ebc3}\u{ebc4}\u{ebc5}\u{ebc6}\u{ebc7}\u{ebc8}\u{ebc9}\u{ebca}\u{ebcb}\u{ebcc}\u{ebcd}\u{ebce}\u{ebcf}\u{ebd0}\u{ebd1}\u{ebd2}\u{ebd3}\u{ebd4}\u{ebd5}\u{ebd6}\u{ebd7}\u{ebd8}\u{ebd9}\u{ebda}\u{ebdb}\u{ebdc}\u{ebdd}\u{ebde}\u{ebdf}\u{ebe0}\u{ebe1}\u{ebe2}\u{ebe3}\u{ebe4}\u{ebe5}\u{ebe6}\u{ebe7}\u{ebe8}\u{ebe9}\u{ebea}\u{ebeb}\u{ebec}\u{ebed}\u{ebee}\u{ebef}\u{ebf0}\u{ebf1}\u{ebf2}\u{ebf3}\u{ebf4}\u{ebf5}\u{ebf6}\u{ebf7}\u{ebf8}\u{ebf9}\u{ebfa}\u{ebfb}\u{ebfc}\u{ebfd}\u{ebfe}\u{ebff}",
+    "\u{ec00}\u{ec01}\u{ec02}\u{ec03}\u{ec04}\u{ec05}\u{ec06}\u{ec07}\u{ec08}\u{ec09}\u{ec0a}\u{ec0b}\u{ec0c}\u{ec0d}\u{ec0e}\u{ec0f}\u{ec10}\u{ec11}\u{ec12}\u{ec13}\u{ec14}\u{ec15}\u{ec16}\u{ec17}\u{ec18}\u{ec19}\u{ec1a}\u{ec1b}\u{ec1c}\u{ec1d}\u{ec1e}\u{ec1f}\u{ec20}\u{ec21}\u{ec22}\u{ec23}\u{ec24}\u{ec25}\u{ec26}\u{ec27}\u{ec28}\u{ec29}\u{ec2a}\u{ec2b}\u{ec2c}\u{ec2d}\u{ec2e}\u{ec2f}\u{ec30}\u{ec31}\u{ec32}\u{ec33}\u{ec34}\u{ec35}\u{ec36}\u{ec37}\u{ec38}\u{ec39}\u{ec3a}\u{ec3b}\u{ec3c}\u{ec3d}\u{ec3e}\u{ec3f}\u{ec40}\u{ec41}\u{ec42}\u{ec43}\u{ec44}\u{ec45}\u{ec46}\u{ec47}\u{ec48}\u{ec49}\u{ec4a}\u{ec4b}\u{ec4c}\u{ec4d}\u{ec4e}\u{ec4f}\u{ec50}\u{ec51}\u{ec52}\u{ec53}\u{ec54}\u{ec55}\u{ec56}\u{ec57}\u{ec58}\u{ec59}\u{ec5a}\u{ec5b}\u{ec5c}\u{ec5d}\u{ec5e}\u{ec5f}\u{ec60}\u{ec61}\u{ec62}\u{ec63}\u{ec64}\u{ec65}\u{ec66}\u{ec67}\u{ec68}\u{ec69}\u{ec6a}\u{ec6b}\u{ec6c}\u{ec6d}\u{ec6e}\u{ec6f}\u{ec70}\u{ec71}\u{ec72}\u{ec73}\u{ec74}\u{ec75}\u{ec76}\u{ec77}\u{ec78}\u{ec79}\u{ec7a}\u{ec7b}\u{ec7c}\u{ec7d}\u{ec7e}\u{ec7f}\u{ec80}\u{ec81}\u{ec82}\u{ec83}\u{ec84}\u{ec85}\u{ec86}\u{ec87}\u{ec88}\u{ec89}\u{ec8a}\u{ec8b}\u{ec8c}\u{ec8d}\u{ec8e}\u{ec8f}\u{ec90}\u{ec91}\u{ec92}\u{ec93}\u{ec94}\u{ec95}\u{ec96}\u{ec97}\u{ec98}\u{ec99}\u{ec9a}\u{ec9b}\u{ec9c}\u{ec9d}\u{ec9e}\u{ec9f}\u{eca0}\u{eca1}\u{eca2}\u{eca3}\u{eca4}\u{eca5}\u{eca6}\u{eca7}\u{eca8}\u{eca9}\u{ecaa}\u{ecab}\u{ecac}\u{ecad}\u{ecae}\u{ecaf}\u{ecb0}\u{ecb1}\u{ecb2}\u{ecb3}\u{ecb4}\u{ecb5}\u{ecb6}\u{ecb7}\u{ecb8}\u{ecb9}\u{ecba}\u{ecbb}\u{ecbc}\u{ecbd}\u{ecbe}\u{ecbf}\u{ecc0}\u{ecc1}\u{ecc2}\u{ecc3}\u{ecc4}\u{ecc5}\u{ecc6}\u{ecc7}\u{ecc8}\u{ecc9}\u{ecca}\u{eccb}\u{eccc}\u{eccd}\u{ecce}\u{eccf}\u{ecd0}\u{ecd1}\u{ecd2}\u{ecd3}\u{ecd4}\u{ecd5}\u{ecd6}\u{ecd7}\u{ecd8}\u{ecd9}\u{ecda}\u{ecdb}\u{ecdc}\u{ecdd}\u{ecde}\u{ecdf}\u{ece0}\u{ece1}\u{ece2}\u{ece3}\u{ece4}\u{ece5}\u{ece6}\u{ece7}\u{ece8}\u{ece9}\u{ecea}\u{eceb}\u{ecec}\u{eced}\u{ecee}\u{ecef}\u{ecf0}\u{ecf1}\u{ecf2}\u{ecf3}\u{ecf4}\u{ecf5}\u{ecf6}\u{ecf7}\u{ecf8}\u{ecf9}\u{ecfa}\u{ecfb}\u{ecfc}\u{ecfd}\u{ecfe}\u{ecff}",
+    "\u{ed00}\u{ed01}\u{ed02}\u{ed03}\u{ed04}\u{ed05}\u{ed06}\u{ed07}\u{ed08}\u{ed09}\u{ed0a}\u{ed0b}\u{ed0c}\u{ed0d}\u{ed0e}\u{ed0f}\u{ed10}\u{ed11}\u{ed12}\u{ed13}\u{ed14}\u{ed15}\u{ed16}\u{ed17}\u{ed18}\u{ed19}\u{ed1a}\u{ed1b}\u{ed1c}\u{ed1d}\u{ed1e}\u{ed1f}\u{ed20}\u{ed21}\u{ed22}\u{ed23}\u{ed24}\u{ed25}\u{ed26}\u{ed27}\u{ed28}\u{ed29}\u{ed2a}\u{ed2b}\u{ed2c}\u{ed2d}\u{ed2e}\u{ed2f}\u{ed30}\u{ed31}\u{ed32}\u{ed33}\u{ed34}\u{ed35}\u{ed36}\u{ed37}\u{ed38}\u{ed39}\u{ed3a}\u{ed3b}\u{ed3c}\u{ed3d}\u{ed3e}\u{ed3f}\u{ed40}\u{ed41}\u{ed42}\u{ed43}\u{ed44}\u{ed45}\u{ed46}\u{ed47}\u{ed48}\u{ed49}\u{ed4a}\u{ed4b}\u{ed4c}\u{ed4d}\u{ed4e}\u{ed4f}\u{ed50}\u{ed51}\u{ed52}\u{ed53}\u{ed54}\u{ed55}\u{ed56}\u{ed57}\u{ed58}\u{ed59}\u{ed5a}\u{ed5b}\u{ed5c}\u{ed5d}\u{ed5e}\u{ed5f}\u{ed60}\u{ed61}\u{ed62}\u{ed63}\u{ed64}\u{ed65}\u{ed66}\u{ed67}\u{ed68}\u{ed69}\u{ed6a}\u{ed6b}\u{ed6c}\u{ed6d}\u{ed6e}\u{ed6f}\u{ed70}\u{ed71}\u{ed72}\u{ed73}\u{ed74}\u{ed75}\u{ed76}\u{ed77}\u{ed78}\u{ed79}\u{ed7a}\u{ed7b}\u{ed7c}\u{ed7d}\u{ed7e}\u{ed7f}\u{ed80}\u{ed81}\u{ed82}\u{ed83}\u{ed84}\u{ed85}\u{ed86}\u{ed87}\u{ed88}\u{ed89}\u{ed8a}\u{ed8b}\u{ed8c}\u{ed8d}\u{ed8e}\u{ed8f}\u{ed90}\u{ed91}\u{ed92}\u{ed93}\u{ed94}\u{ed95}\u{ed96}\u{ed97}\u{ed98}\u{ed99}\u{ed9a}\u{ed9b}\u{ed9c}\u{ed9d}\u{ed9e}\u{ed9f}\u{eda0}\u{eda1}\u{eda2}\u{eda3}\u{eda4}\u{eda5}\u{eda6}\u{eda7}\u{eda8}\u{eda9}\u{edaa}\u{edab}\u{edac}\u{edad}\u{edae}\u{edaf}\u{edb0}\u{edb1}\u{edb2}\u{edb3}\u{edb4}\u{edb5}\u{edb6}\u{edb7}\u{edb8}\u{edb9}\u{edba}\u{edbb}\u{edbc}\u{edbd}\u{edbe}\u{edbf}\u{edc0}\u{edc1}\u{edc2}\u{edc3}\u{edc4}\u{edc5}\u{edc6}\u{edc7}\u{edc8}\u{edc9}\u{edca}\u{edcb}\u{edcc}\u{edcd}\u{edce}\u{edcf}\u{edd0}\u{edd1}\u{edd2}\u{edd3}\u{edd4}\u{edd5}\u{edd6}\u{edd7}\u{edd8}\u{edd9}\u{edda}\u{eddb}\u{eddc}\u{eddd}\u{edde}\u{eddf}\u{ede0}\u{ede1}\u{ede2}\u{ede3}\u{ede4}\u{ede5}\u{ede6}\u{ede7}\u{ede8}\u{ede9}\u{edea}\u{edeb}\u{edec}\u{eded}\u{edee}\u{edef}\u{edf0}\u{edf1}\u{edf2}\u{edf3}\u{edf4}\u{edf5}\u{edf6}\u{edf7}\u{edf8}\u{edf9}\u{edfa}\u{edfb}\u{edfc}\u{edfd}\u{edfe}\u{edff}",
+    "\u{ee00}\u{ee01}\u{ee02}\u{ee03}\u{ee04}\u{ee05}\u{ee06}\u{ee07}\u{ee08}\u{ee09}\u{ee0a}\u{ee0b}\u{ee0c}\u{ee0d}\u{ee0e}\u{ee0f}\u{ee10}\u{ee11}\u{ee12}\u{ee13}\u{ee14}\u{ee15}\u{ee16}\u{ee17}\u{ee18}\u{ee19}\u{ee1a}\u{ee1b}\u{ee1c}\u{ee1d}\u{ee1e}\u{ee1f}\u{ee20}\u{ee21}\u{ee22}\u{ee23}\u{ee24}\u{ee25}\u{ee26}\u{ee27}\u{ee28}\u{ee29}\u{ee2a}\u{ee2b}\u{ee2c}\u{ee2d}\u{ee2e}\u{ee2f}\u{ee30}\u{ee31}\u{ee32}\u{ee33}\u{ee34}\u{ee35}\u{ee36}\u{ee37}\u{ee38}\u{ee39}\u{ee3a}\u{ee3b}\u{ee3c}\u{ee3d}\u{ee3e}\u{ee3f}\u{ee40}\u{ee41}\u{ee42}\u{ee43}\u{ee44}\u{ee45}\u{ee46}\u{ee47}\u{ee48}\u{ee49}\u{ee4a}\u{ee4b}\u{ee4c}\u{ee4d}\u{ee4e}\u{ee4f}\u{ee50}\u{ee51}\u{ee52}\u{ee53}\u{ee54}\u{ee55}\u{ee56}\u{ee57}\u{ee58}\u{ee59}\u{ee5a}\u{ee5b}\u{ee5c}\u{ee5d}\u{ee5e}\u{ee5f}\u{ee60}\u{ee61}\u{ee62}\u{ee63}\u{ee64}\u{ee65}\u{ee66}\u{ee67}\u{ee68}\u{ee69}\u{ee6a}\u{ee6b}\u{ee6c}\u{ee6d}\u{ee6e}\u{ee6f}\u{ee70}\u{ee71}\u{ee72}\u{ee73}\u{ee74}\u{ee75}\u{ee76}\u{ee77}\u{ee78}\u{ee79}\u{ee7a}\u{ee7b}\u{ee7c}\u{ee7d}\u{ee7e}\u{ee7f}\u{ee80}\u{ee81}\u{ee82}\u{ee83}\u{ee84}\u{ee85}\u{ee86}\u{ee87}\u{ee88}\u{ee89}\u{ee8a}\u{ee8b}\u{ee8c}\u{ee8d}\u{ee8e}\u{ee8f}\u{ee90}\u{ee91}\u{ee92}\u{ee93}\u{ee94}\u{ee95}\u{ee96}\u{ee97}\u{ee98}\u{ee99}\u{ee9a}\u{ee9b}\u{ee9c}\u{ee9d}\u{ee9e}\u{ee9f}\u{eea0}\u{eea1}\u{eea2}\u{eea3}\u{eea4}\u{eea5}\u{eea6}\u{eea7}\u{eea8}\u{eea9}\u{eeaa}\u{eeab}\u{eeac}\u{eead}\u{eeae}\u{eeaf}\u{eeb0}\u{eeb1}\u{eeb2}\u{eeb3}\u{eeb4}\u{eeb5}\u{eeb6}\u{eeb7}\u{eeb8}\u{eeb9}\u{eeba}\u{eebb}\u{eebc}\u{eebd}\u{eebe}\u{eebf}\u{eec0}\u{eec1}\u{eec2}\u{eec3}\u{eec4}\u{eec5}\u{eec6}\u{eec7}\u{eec8}\u{eec9}\u{eeca}\u{eecb}\u{eecc}\u{eecd}\u{eece}\u{eecf}\u{eed0}\u{eed1}\u{eed2}\u{eed3}\u{eed4}\u{eed5}\u{eed6}\u{eed7}\u{eed8}\u{eed9}\u{eeda}\u{eedb}\u{eedc}\u{eedd}\u{eede}\u{eedf}\u{eee0}\u{eee1}\u{eee2}\u{eee3}\u{eee4}\u{eee5}\u{eee6}\u{eee7}\u{eee8}\u{eee9}\u{eeea}\u{eeeb}\u{eeec}\u{eeed}\u{eeee}\u{eeef}\u{eef0}\u{eef1}\u{eef2}\u{eef3}\u{eef4}\u{eef5}\u{eef6}\u{eef7}\u{eef8}\u{eef9}\u{eefa}\u{eefb}\u{eefc}\u{eefd}\u{eefe}\u{eeff}",
+    "\u{ef00}\u{ef01}\u{ef02}\u{ef03}\u{ef04}\u{ef05}\u{ef06}\u{ef07}\u{ef08}\u{ef09}\u{ef0a}\u{ef0b}\u{ef0c}\u{ef0d}\u{ef0e}\u{ef0f}\u{ef10}\u{ef11}\u{ef12}\u{ef13}\u{ef14}\u{ef15}\u{ef16}\u{ef17}\u{ef18}\u{ef19}\u{ef1a}\u{ef1b}\u{ef1c}\u{ef1d}\u{ef1e}\u{ef1f}\u{ef20}\u{ef21}\u{ef22}\u{ef23}\u{ef24}\u{ef25}\u{ef26}\u{ef27}\u{ef28}\u{ef29}\u{ef2a}\u{ef2b}\u{ef2c}\u{ef2d}\u{ef2e}\u{ef2f}\u{ef30}\u{ef31}\u{ef32}\u{ef33}\u{ef34}\u{ef35}\u{ef36}\u{ef37}\u{ef38}\u{ef39}\u{ef3a}\u{ef3b}\u{ef3c}\u{ef3d}\u{ef3e}\u{ef3f}\u{ef40}\u{ef41}\u{ef42}\u{ef43}\u{ef44}\u{ef45}\u{ef46}\u{ef47}\u{ef48}\u{ef49}\u{ef4a}\u{ef4b}\u{ef4c}\u{ef4d}\u{ef4e}\u{ef4f}\u{ef50}\u{ef51}\u{ef52}\u{ef53}\u{ef54}\u{ef55}\u{ef56}\u{ef57}\u{ef58}\u{ef59}\u{ef5a}\u{ef5b}\u{ef5c}\u{ef5d}\u{ef5e}\u{ef5f}\u{ef60}\u{ef61}\u{ef62}\u{ef63}\u{ef64}\u{ef65}\u{ef66}\u{ef67}\u{ef68}\u{ef69}\u{ef6a}\u{ef6b}\u{ef6c}\u{ef6d}\u{ef6e}\u{ef6f}\u{ef70}\u{ef71}\u{ef72}\u{ef73}\u{ef74}\u{ef75}\u{ef76}\u{ef77}\u{ef78}\u{ef79}\u{ef7a}\u{ef7b}\u{ef7c}\u{ef7d}\u{ef7e}\u{ef7f}\u{ef80}\u{ef81}\u{ef82}\u{ef83}\u{ef84}\u{ef85}\u{ef86}\u{ef87}\u{ef88}\u{ef89}\u{ef8a}\u{ef8b}\u{ef8c}\u{ef8d}\u{ef8e}\u{ef8f}\u{ef90}\u{ef91}\u{ef92}\u{ef93}\u{ef94}\u{ef95}\u{ef96}\u{ef97}\u{ef98}\u{ef99}\u{ef9a}\u{ef9b}\u{ef9c}\u{ef9d}\u{ef9e}\u{ef9f}\u{efa0}\u{efa1}\u{efa2}\u{efa3}\u{efa4}\u{efa5}\u{efa6}\u{efa7}\u{efa8}\u{efa9}\u{efaa}\u{efab}\u{efac}\u{efad}\u{efae}\u{efaf}\u{efb0}\u{efb1}\u{efb2}\u{efb3}\u{efb4}\u{efb5}\u{efb6}\u{efb7}\u{efb8}\u{efb9}\u{efba}\u{efbb}\u{efbc}\u{efbd}\u{efbe}\u{efbf}\u{efc0}\u{efc1}\u{efc2}\u{efc3}\u{efc4}\u{efc5}\u{efc6}\u{efc7}\u{efc8}\u{efc9}\u{efca}\u{efcb}\u{efcc}\u{efcd}\u{efce}\u{efcf}\u{efd0}\u{efd1}\u{efd2}\u{efd3}\u{efd4}\u{efd5}\u{efd6}\u{efd7}\u{efd8}\u{efd9}\u{efda}\u{efdb}\u{efdc}\u{efdd}\u{efde}\u{efdf}\u{efe0}\u{efe1}\u{efe2}\u{efe3}\u{efe4}\u{efe5}\u{efe6}\u{efe7}\u{efe8}\u{efe9}\u{efea}\u{efeb}\u{efec}\u{efed}\u{efee}\u{efef}\u{eff0}\u{eff1}\u{eff2}\u{eff3}\u{eff4}\u{eff5}\u{eff6}\u{eff7}\u{eff8}\u{eff9}\u{effa}\u{effb}\u{effc}\u{effd}\u{effe}\u{efff}",
+    "\u{f000}\u{f001}\u{f002}\u{f003}\u{f004}\u{f005}\u{f006}\u{f007}\u{f008}\u{f009}\u{f00a}\u{f00b}\u{f00c}\u{f00d}\u{f00e}\u{f00f}\u{f010}\u{f011}\u{f012}\u{f013}\u{f014}\u{f015}\u{f016}\u{f017}\u{f018}\u{f019}\u{f01a}\u{f01b}\u{f01c}\u{f01d}\u{f01e}\u{f01f}\u{f020}\u{f021}\u{f022}\u{f023}\u{f024}\u{f025}\u{f026}\u{f027}\u{f028}\u{f029}\u{f02a}\u{f02b}\u{f02c}\u{f02d}\u{f02e}\u{f02f}\u{f030}\u{f031}\u{f032}\u{f033}\u{f034}\u{f035}\u{f036}\u{f037}\u{f038}\u{f039}\u{f03a}\u{f03b}\u{f03c}\u{f03d}\u{f03e}\u{f03f}\u{f040}\u{f041}\u{f042}\u{f043}\u{f044}\u{f045}\u{f046}\u{f047}\u{f048}\u{f049}\u{f04a}\u{f04b}\u{f04c}\u{f04d}\u{f04e}\u{f04f}\u{f050}\u{f051}\u{f052}\u{f053}\u{f054}\u{f055}\u{f056}\u{f057}\u{f058}\u{f059}\u{f05a}\u{f05b}\u{f05c}\u{f05d}\u{f05e}\u{f05f}\u{f060}\u{f061}\u{f062}\u{f063}\u{f064}\u{f065}\u{f066}\u{f067}\u{f068}\u{f069}\u{f06a}\u{f06b}\u{f06c}\u{f06d}\u{f06e}\u{f06f}\u{f070}\u{f071}\u{f072}\u{f073}\u{f074}\u{f075}\u{f076}\u{f077}\u{f078}\u{f079}\u{f07a}\u{f07b}\u{f07c}\u{f07d}\u{f07e}\u{f07f}\u{f080}\u{f081}\u{f082}\u{f083}\u{f084}\u{f085}\u{f086}\u{f087}\u{f088}\u{f089}\u{f08a}\u{f08b}\u{f08c}\u{f08d}\u{f08e}\u{f08f}\u{f090}\u{f091}\u{f092}\u{f093}\u{f094}\u{f095}\u{f096}\u{f097}\u{f098}\u{f099}\u{f09a}\u{f09b}\u{f09c}\u{f09d}\u{f09e}\u{f09f}\u{f0a0}\u{f0a1}\u{f0a2}\u{f0a3}\u{f0a4}\u{f0a5}\u{f0a6}\u{f0a7}\u{f0a8}\u{f0a9}\u{f0aa}\u{f0ab}\u{f0ac}\u{f0ad}\u{f0ae}\u{f0af}\u{f0b0}\u{f0b1}\u{f0b2}\u{f0b3}\u{f0b4}\u{f0b5}\u{f0b6}\u{f0b7}\u{f0b8}\u{f0b9}\u{f0ba}\u{f0bb}\u{f0bc}\u{f0bd}\u{f0be}\u{f0bf}\u{f0c0}\u{f0c1}\u{f0c2}\u{f0c3}\u{f0c4}\u{f0c5}\u{f0c6}\u{f0c7}\u{f0c8}\u{f0c9}\u{f0ca}\u{f0cb}\u{f0cc}\u{f0cd}\u{f0ce}\u{f0cf}\u{f0d0}\u{f0d1}\u{f0d2}\u{f0d3}\u{f0d4}\u{f0d5}\u{f0d6}\u{f0d7}\u{f0d8}\u{f0d9}\u{f0da}\u{f0db}\u{f0dc}\u{f0dd}\u{f0de}\u{f0df}\u{f0e0}\u{f0e1}\u{f0e2}\u{f0e3}\u{f0e4}\u{f0e5}\u{f0e6}\u{f0e7}\u{f0e8}\u{f0e9}\u{f0ea}\u{f0eb}\u{f0ec}\u{f0ed}\u{f0ee}\u{f0ef}\u{f0f0}\u{f0f1}\u{f0f2}\u{f0f3}\u{f0f4}\u{f0f5}\u{f0f6}\u{f0f7}\u{f0f8}\u{f0f9}\u{f0fa}\u{f0fb}\u{f0fc}\u{f0fd}\u{f0fe}\u{f0ff}",
+    "\u{f100}\u{f101}\u{f102}\u{f103}\u{f104}\u{f105}\u{f106}\u{f107}\u{f108}\u{f109}\u{f10a}\u{f10b}\u{f10c}\u{f10d}\u{f10e}\u{f10f}\u{f110}\u{f111}\u{f112}\u{f113}\u{f114}\u{f115}\u{f116}\u{f117}\u{f118}\u{f119}\u{f11a}\u{f11b}\u{f11c}\u{f11d}\u{f11e}\u{f11f}\u{f120}\u{f121}\u{f122}\u{f123}\u{f124}\u{f125}\u{f126}\u{f127}\u{f128}\u{f129}\u{f12a}\u{f12b}\u{f12c}\u{f12d}\u{f12e}\u{f12f}\u{f130}\u{f131}\u{f132}\u{f133}\u{f134}\u{f135}\u{f136}\u{f137}\u{f138}\u{f139}\u{f13a}\u{f13b}\u{f13c}\u{f13d}\u{f13e}\u{f13f}\u{f140}\u{f141}\u{f142}\u{f143}\u{f144}\u{f145}\u{f146}\u{f147}\u{f148}\u{f149}\u{f14a}\u{f14b}\u{f14c}\u{f14d}\u{f14e}\u{f14f}\u{f150}\u{f151}\u{f152}\u{f153}\u{f154}\u{f155}\u{f156}\u{f157}\u{f158}\u{f159}\u{f15a}\u{f15b}\u{f15c}\u{f15d}\u{f15e}\u{f15f}\u{f160}\u{f161}\u{f162}\u{f163}\u{f164}\u{f165}\u{f166}\u{f167}\u{f168}\u{f169}\u{f16a}\u{f16b}\u{f16c}\u{f16d}\u{f16e}\u{f16f}\u{f170}\u{f171}\u{f172}\u{f173}\u{f174}\u{f175}\u{f176}\u{f177}\u{f178}\u{f179}\u{f17a}\u{f17b}\u{f17c}\u{f17d}\u{f17e}\u{f17f}\u{f180}\u{f181}\u{f182}\u{f183}\u{f184}\u{f185}\u{f186}\u{f187}\u{f188}\u{f189}\u{f18a}\u{f18b}\u{f18c}\u{f18d}\u{f18e}\u{f18f}\u{f190}\u{f191}\u{f192}\u{f193}\u{f194}\u{f195}\u{f196}\u{f197}\u{f198}\u{f199}\u{f19a}\u{f19b}\u{f19c}\u{f19d}\u{f19e}\u{f19f}\u{f1a0}\u{f1a1}\u{f1a2}\u{f1a3}\u{f1a4}\u{f1a5}\u{f1a6}\u{f1a7}\u{f1a8}\u{f1a9}\u{f1aa}\u{f1ab}\u{f1ac}\u{f1ad}\u{f1ae}\u{f1af}\u{f1b0}\u{f1b1}\u{f1b2}\u{f1b3}\u{f1b4}\u{f1b5}\u{f1b6}\u{f1b7}\u{f1b8}\u{f1b9}\u{f1ba}\u{f1bb}\u{f1bc}\u{f1bd}\u{f1be}\u{f1bf}\u{f1c0}\u{f1c1}\u{f1c2}\u{f1c3}\u{f1c4}\u{f1c5}\u{f1c6}\u{f1c7}\u{f1c8}\u{f1c9}\u{f1ca}\u{f1cb}\u{f1cc}\u{f1cd}\u{f1ce}\u{f1cf}\u{f1d0}\u{f1d1}\u{f1d2}\u{f1d3}\u{f1d4}\u{f1d5}\u{f1d6}\u{f1d7}\u{f1d8}\u{f1d9}\u{f1da}\u{f1db}\u{f1dc}\u{f1dd}\u{f1de}\u{f1df}\u{f1e0}\u{f1e1}\u{f1e2}\u{f1e3}\u{f1e4}\u{f1e5}\u{f1e6}\u{f1e7}\u{f1e8}\u{f1e9}\u{f1ea}\u{f1eb}\u{f1ec}\u{f1ed}\u{f1ee}\u{f1ef}\u{f1f0}\u{f1f1}\u{f1f2}\u{f1f3}\u{f1f4}\u{f1f5}\u{f1f6}\u{f1f7}\u{f1f8}\u{f1f9}\u{f1fa}\u{f1fb}\u{f1fc}\u{f1fd}\u{f1fe}\u{f1ff}",
+    "\u{f200}\u{f201}\u{f202}\u{f203}\u{f204}\u{f205}\u{f206}\u{f207}\u{f208}\u{f209}\u{f20a}\u{f20b}\u{f20c}\u{f20d}\u{f20e}\u{f20f}\u{f210}\u{f211}\u{f212}\u{f213}\u{f214}\u{f215}\u{f216}\u{f217}\u{f218}\u{f219}\u{f21a}\u{f21b}\u{f21c}\u{f21d}\u{f21e}\u{f21f}\u{f220}\u{f221}\u{f222}\u{f223}\u{f224}\u{f225}\u{f226}\u{f227}\u{f228}\u{f229}\u{f22a}\u{f22b}\u{f22c}\u{f22d}\u{f22e}\u{f22f}\u{f230}\u{f231}\u{f232}\u{f233}\u{f234}\u{f235}\u{f236}\u{f237}\u{f238}\u{f239}\u{f23a}\u{f23b}\u{f23c}\u{f23d}\u{f23e}\u{f23f}\u{f240}\u{f241}\u{f242}\u{f243}\u{f244}\u{f245}\u{f246}\u{f247}\u{f248}\u{f249}\u{f24a}\u{f24b}\u{f24c}\u{f24d}\u{f24e}\u{f24f}\u{f250}\u{f251}\u{f252}\u{f253}\u{f254}\u{f255}\u{f256}\u{f257}\u{f258}\u{f259}\u{f25a}\u{f25b}\u{f25c}\u{f25d}\u{f25e}\u{f25f}\u{f260}\u{f261}\u{f262}\u{f263}\u{f264}\u{f265}\u{f266}\u{f267}\u{f268}\u{f269}\u{f26a}\u{f26b}\u{f26c}\u{f26d}\u{f26e}\u{f26f}\u{f270}\u{f271}\u{f272}\u{f273}\u{f274}\u{f275}\u{f276}\u{f277}\u{f278}\u{f279}\u{f27a}\u{f27b}\u{f27c}\u{f27d}\u{f27e}\u{f27f}\u{f280}\u{f281}\u{f282}\u{f283}\u{f284}\u{f285}\u{f286}\u{f287}\u{f288}\u{f289}\u{f28a}\u{f28b}\u{f28c}\u{f28d}\u{f28e}\u{f28f}\u{f290}\u{f291}\u{f292}\u{f293}\u{f294}\u{f295}\u{f296}\u{f297}\u{f298}\u{f299}\u{f29a}\u{f29b}\u{f29c}\u{f29d}\u{f29e}\u{f29f}\u{f2a0}\u{f2a1}\u{f2a2}\u{f2a3}\u{f2a4}\u{f2a5}\u{f2a6}\u{f2a7}\u{f2a8}\u{f2a9}\u{f2aa}\u{f2ab}\u{f2ac}\u{f2ad}\u{f2ae}\u{f2af}\u{f2b0}\u{f2b1}\u{f2b2}\u{f2b3}\u{f2b4}\u{f2b5}\u{f2b6}\u{f2b7}\u{f2b8}\u{f2b9}\u{f2ba}\u{f2bb}\u{f2bc}\u{f2bd}\u{f2be}\u{f2bf}\u{f2c0}\u{f2c1}\u{f2c2}\u{f2c3}\u{f2c4}\u{f2c5}\u{f2c6}\u{f2c7}\u{f2c8}\u{f2c9}\u{f2ca}\u{f2cb}\u{f2cc}\u{f2cd}\u{f2ce}\u{f2cf}\u{f2d0}\u{f2d1}\u{f2d2}\u{f2d3}\u{f2d4}\u{f2d5}\u{f2d6}\u{f2d7}\u{f2d8}\u{f2d9}\u{f2da}\u{f2db}\u{f2dc}\u{f2dd}\u{f2de}\u{f2df}\u{f2e0}\u{f2e1}\u{f2e2}\u{f2e3}\u{f2e4}\u{f2e5}\u{f2e6}\u{f2e7}\u{f2e8}\u{f2e9}\u{f2ea}\u{f2eb}\u{f2ec}\u{f2ed}\u{f2ee}\u{f2ef}\u{f2f0}\u{f2f1}\u{f2f2}\u{f2f3}\u{f2f4}\u{f2f5}\u{f2f6}\u{f2f7}\u{f2f8}\u{f2f9}\u{f2fa}\u{f2fb}\u{f2fc}\u{f2fd}\u{f2fe}\u{f2ff}",
+    "\u{f300}\u{f301}\u{f302}\u{f303}\u{f304}\u{f305}\u{f306}\u{f307}\u{f308}\u{f309}\u{f30a}\u{f30b}\u{f30c}\u{f30d}\u{f30e}\u{f30f}\u{f310}\u{f311}\u{f312}\u{f313}\u{f314}\u{f315}\u{f316}\u{f317}\u{f318}\u{f319}\u{f31a}\u{f31b}\u{f31c}\u{f31d}\u{f31e}\u{f31f}\u{f320}\u{f321}\u{f322}\u{f323}\u{f324}\u{f325}\u{f326}\u{f327}\u{f328}\u{f329}\u{f32a}\u{f32b}\u{f32c}\u{f32d}\u{f32e}\u{f32f}\u{f330}\u{f331}\u{f332}\u{f333}\u{f334}\u{f335}\u{f336}\u{f337}\u{f338}\u{f339}\u{f33a}\u{f33b}\u{f33c}\u{f33d}\u{f33e}\u{f33f}\u{f340}\u{f341}\u{f342}\u{f343}\u{f344}\u{f345}\u{f346}\u{f347}\u{f348}\u{f349}\u{f34a}\u{f34b}\u{f34c}\u{f34d}\u{f34e}\u{f34f}\u{f350}\u{f351}\u{f352}\u{f353}\u{f354}\u{f355}\u{f356}\u{f357}\u{f358}\u{f359}\u{f35a}\u{f35b}\u{f35c}\u{f35d}\u{f35e}\u{f35f}\u{f360}\u{f361}\u{f362}\u{f363}\u{f364}\u{f365}\u{f366}\u{f367}\u{f368}\u{f369}\u{f36a}\u{f36b}\u{f36c}\u{f36d}\u{f36e}\u{f36f}\u{f370}\u{f371}\u{f372}\u{f373}\u{f374}\u{f375}\u{f376}\u{f377}\u{f378}\u{f379}\u{f37a}\u{f37b}\u{f37c}\u{f37d}\u{f37e}\u{f37f}\u{f380}\u{f381}\u{f382}\u{f383}\u{f384}\u{f385}\u{f386}\u{f387}\u{f388}\u{f389}\u{f38a}\u{f38b}\u{f38c}\u{f38d}\u{f38e}\u{f38f}\u{f390}\u{f391}\u{f392}\u{f393}\u{f394}\u{f395}\u{f396}\u{f397}\u{f398}\u{f399}\u{f39a}\u{f39b}\u{f39c}\u{f39d}\u{f39e}\u{f39f}\u{f3a0}\u{f3a1}\u{f3a2}\u{f3a3}\u{f3a4}\u{f3a5}\u{f3a6}\u{f3a7}\u{f3a8}\u{f3a9}\u{f3aa}\u{f3ab}\u{f3ac}\u{f3ad}\u{f3ae}\u{f3af}\u{f3b0}\u{f3b1}\u{f3b2}\u{f3b3}\u{f3b4}\u{f3b5}\u{f3b6}\u{f3b7}\u{f3b8}\u{f3b9}\u{f3ba}\u{f3bb}\u{f3bc}\u{f3bd}\u{f3be}\u{f3bf}\u{f3c0}\u{f3c1}\u{f3c2}\u{f3c3}\u{f3c4}\u{f3c5}\u{f3c6}\u{f3c7}\u{f3c8}\u{f3c9}\u{f3ca}\u{f3cb}\u{f3cc}\u{f3cd}\u{f3ce}\u{f3cf}\u{f3d0}\u{f3d1}\u{f3d2}\u{f3d3}\u{f3d4}\u{f3d5}\u{f3d6}\u{f3d7}\u{f3d8}\u{f3d9}\u{f3da}\u{f3db}\u{f3dc}\u{f3dd}\u{f3de}\u{f3df}\u{f3e0}\u{f3e1}\u{f3e2}\u{f3e3}\u{f3e4}\u{f3e5}\u{f3e6}\u{f3e7}\u{f3e8}\u{f3e9}\u{f3ea}\u{f3eb}\u{f3ec}\u{f3ed}\u{f3ee}\u{f3ef}\u{f3f0}\u{f3f1}\u{f3f2}\u{f3f3}\u{f3f4}\u{f3f5}\u{f3f6}\u{f3f7}\u{f3f8}\u{f3f9}\u{f3fa}\u{f3fb}\u{f3fc}\u{f3fd}\u{f3fe}\u{f3ff}",
+    "\u{f400}\u{f401}\u{f402}\u{f403}\u{f404}\u{f405}\u{f406}\u{f407}\u{f408}\u{f409}\u{f40a}\u{f40b}\u{f40c}\u{f40d}\u{f40e}\u{f40f}\u{f410}\u{f411}\u{f412}\u{f413}\u{f414}\u{f415}\u{f416}\u{f417}\u{f418}\u{f419}\u{f41a}\u{f41b}\u{f41c}\u{f41d}\u{f41e}\u{f41f}\u{f420}\u{f421}\u{f422}\u{f423}\u{f424}\u{f425}\u{f426}\u{f427}\u{f428}\u{f429}\u{f42a}\u{f42b}\u{f42c}\u{f42d}\u{f42e}\u{f42f}\u{f430}\u{f431}\u{f432}\u{f433}\u{f434}\u{f435}\u{f436}\u{f437}\u{f438}\u{f439}\u{f43a}\u{f43b}\u{f43c}\u{f43d}\u{f43e}\u{f43f}\u{f440}\u{f441}\u{f442}\u{f443}\u{f444}\u{f445}\u{f446}\u{f447}\u{f448}\u{f449}\u{f44a}\u{f44b}\u{f44c}\u{f44d}\u{f44e}\u{f44f}\u{f450}\u{f451}\u{f452}\u{f453}\u{f454}\u{f455}\u{f456}\u{f457}\u{f458}\u{f459}\u{f45a}\u{f45b}\u{f45c}\u{f45d}\u{f45e}\u{f45f}\u{f460}\u{f461}\u{f462}\u{f463}\u{f464}\u{f465}\u{f466}\u{f467}\u{f468}\u{f469}\u{f46a}\u{f46b}\u{f46c}\u{f46d}\u{f46e}\u{f46f}\u{f470}\u{f471}\u{f472}\u{f473}\u{f474}\u{f475}\u{f476}\u{f477}\u{f478}\u{f479}\u{f47a}\u{f47b}\u{f47c}\u{f47d}\u{f47e}\u{f47f}\u{f480}\u{f481}\u{f482}\u{f483}\u{f484}\u{f485}\u{f486}\u{f487}\u{f488}\u{f489}\u{f48a}\u{f48b}\u{f48c}\u{f48d}\u{f48e}\u{f48f}\u{f490}\u{f491}\u{f492}\u{f493}\u{f494}\u{f495}\u{f496}\u{f497}\u{f498}\u{f499}\u{f49a}\u{f49b}\u{f49c}\u{f49d}\u{f49e}\u{f49f}\u{f4a0}\u{f4a1}\u{f4a2}\u{f4a3}\u{f4a4}\u{f4a5}\u{f4a6}\u{f4a7}\u{f4a8}\u{f4a9}\u{f4aa}\u{f4ab}\u{f4ac}\u{f4ad}\u{f4ae}\u{f4af}\u{f4b0}\u{f4b1}\u{f4b2}\u{f4b3}\u{f4b4}\u{f4b5}\u{f4b6}\u{f4b7}\u{f4b8}\u{f4b9}\u{f4ba}\u{f4bb}\u{f4bc}\u{f4bd}\u{f4be}\u{f4bf}\u{f4c0}\u{f4c1}\u{f4c2}\u{f4c3}\u{f4c4}\u{f4c5}\u{f4c6}\u{f4c7}\u{f4c8}\u{f4c9}\u{f4ca}\u{f4cb}\u{f4cc}\u{f4cd}\u{f4ce}\u{f4cf}\u{f4d0}\u{f4d1}\u{f4d2}\u{f4d3}\u{f4d4}\u{f4d5}\u{f4d6}\u{f4d7}\u{f4d8}\u{f4d9}\u{f4da}\u{f4db}\u{f4dc}\u{f4dd}\u{f4de}\u{f4df}\u{f4e0}\u{f4e1}\u{f4e2}\u{f4e3}\u{f4e4}\u{f4e5}\u{f4e6}\u{f4e7}\u{f4e8}\u{f4e9}\u{f4ea}\u{f4eb}\u{f4ec}\u{f4ed}\u{f4ee}\u{f4ef}\u{f4f0}\u{f4f1}\u{f4f2}\u{f4f3}\u{f4f4}\u{f4f5}\u{f4f6}\u{f4f7}\u{f4f8}\u{f4f9}\u{f4fa}\u{f4fb}\u{f4fc}\u{f4fd}\u{f4fe}\u{f4ff}",
+    "\u{f500}\u{f501}\u{f502}\u{f503}\u{f504}\u{f505}\u{f506}\u{f507}\u{f508}\u{f509}\u{f50a}\u{f50b}\u{f50c}\u{f50d}\u{f50e}\u{f50f}\u{f510}\u{f511}\u{f512}\u{f513}\u{f514}\u{f515}\u{f516}\u{f517}\u{f518}\u{f519}\u{f51a}\u{f51b}\u{f51c}\u{f51d}\u{f51e}\u{f51f}\u{f520}\u{f521}\u{f522}\u{f523}\u{f524}\u{f525}\u{f526}\u{f527}\u{f528}\u{f529}\u{f52a}\u{f52b}\u{f52c}\u{f52d}\u{f52e}\u{f52f}\u{f530}\u{f531}\u{f532}\u{f533}\u{f534}\u{f535}\u{f536}\u{f537}\u{f538}\u{f539}\u{f53a}\u{f53b}\u{f53c}\u{f53d}\u{f53e}\u{f53f}\u{f540}\u{f541}\u{f542}\u{f543}\u{f544}\u{f545}\u{f546}\u{f547}\u{f548}\u{f549}\u{f54a}\u{f54b}\u{f54c}\u{f54d}\u{f54e}\u{f54f}\u{f550}\u{f551}\u{f552}\u{f553}\u{f554}\u{f555}\u{f556}\u{f557}\u{f558}\u{f559}\u{f55a}\u{f55b}\u{f55c}\u{f55d}\u{f55e}\u{f55f}\u{f560}\u{f561}\u{f562}\u{f563}\u{f564}\u{f565}\u{f566}\u{f567}\u{f568}\u{f569}\u{f56a}\u{f56b}\u{f56c}\u{f56d}\u{f56e}\u{f56f}\u{f570}\u{f571}\u{f572}\u{f573}\u{f574}\u{f575}\u{f576}\u{f577}\u{f578}\u{f579}\u{f57a}\u{f57b}\u{f57c}\u{f57d}\u{f57e}\u{f57f}\u{f580}\u{f581}\u{f582}\u{f583}\u{f584}\u{f585}\u{f586}\u{f587}\u{f588}\u{f589}\u{f58a}\u{f58b}\u{f58c}\u{f58d}\u{f58e}\u{f58f}\u{f590}\u{f591}\u{f592}\u{f593}\u{f594}\u{f595}\u{f596}\u{f597}\u{f598}\u{f599}\u{f59a}\u{f59b}\u{f59c}\u{f59d}\u{f59e}\u{f59f}\u{f5a0}\u{f5a1}\u{f5a2}\u{f5a3}\u{f5a4}\u{f5a5}\u{f5a6}\u{f5a7}\u{f5a8}\u{f5a9}\u{f5aa}\u{f5ab}\u{f5ac}\u{f5ad}\u{f5ae}\u{f5af}\u{f5b0}\u{f5b1}\u{f5b2}\u{f5b3}\u{f5b4}\u{f5b5}\u{f5b6}\u{f5b7}\u{f5b8}\u{f5b9}\u{f5ba}\u{f5bb}\u{f5bc}\u{f5bd}\u{f5be}\u{f5bf}\u{f5c0}\u{f5c1}\u{f5c2}\u{f5c3}\u{f5c4}\u{f5c5}\u{f5c6}\u{f5c7}\u{f5c8}\u{f5c9}\u{f5ca}\u{f5cb}\u{f5cc}\u{f5cd}\u{f5ce}\u{f5cf}\u{f5d0}\u{f5d1}\u{f5d2}\u{f5d3}\u{f5d4}\u{f5d5}\u{f5d6}\u{f5d7}\u{f5d8}\u{f5d9}\u{f5da}\u{f5db}\u{f5dc}\u{f5dd}\u{f5de}\u{f5df}\u{f5e0}\u{f5e1}\u{f5e2}\u{f5e3}\u{f5e4}\u{f5e5}\u{f5e6}\u{f5e7}\u{f5e8}\u{f5e9}\u{f5ea}\u{f5eb}\u{f5ec}\u{f5ed}\u{f5ee}\u{f5ef}\u{f5f0}\u{f5f1}\u{f5f2}\u{f5f3}\u{f5f4}\u{f5f5}\u{f5f6}\u{f5f7}\u{f5f8}\u{f5f9}\u{f5fa}\u{f5fb}\u{f5fc}\u{f5fd}\u{f5fe}\u{f5ff}",
+    "\u{f600}\u{f601}\u{f602}\u{f603}\u{f604}\u{f605}\u{f606}\u{f607}\u{f608}\u{f609}\u{f60a}\u{f60b}\u{f60c}\u{f60d}\u{f60e}\u{f60f}\u{f610}\u{f611}\u{f612}\u{f613}\u{f614}\u{f615}\u{f616}\u{f617}\u{f618}\u{f619}\u{f61a}\u{f61b}\u{f61c}\u{f61d}\u{f61e}\u{f61f}\u{f620}\u{f621}\u{f622}\u{f623}\u{f624}\u{f625}\u{f626}\u{f627}\u{f628}\u{f629}\u{f62a}\u{f62b}\u{f62c}\u{f62d}\u{f62e}\u{f62f}\u{f630}\u{f631}\u{f632}\u{f633}\u{f634}\u{f635}\u{f636}\u{f637}\u{f638}\u{f639}\u{f63a}\u{f63b}\u{f63c}\u{f63d}\u{f63e}\u{f63f}\u{f640}\u{f641}\u{f642}\u{f643}\u{f644}\u{f645}\u{f646}\u{f647}\u{f648}\u{f649}\u{f64a}\u{f64b}\u{f64c}\u{f64d}\u{f64e}\u{f64f}\u{f650}\u{f651}\u{f652}\u{f653}\u{f654}\u{f655}\u{f656}\u{f657}\u{f658}\u{f659}\u{f65a}\u{f65b}\u{f65c}\u{f65d}\u{f65e}\u{f65f}\u{f660}\u{f661}\u{f662}\u{f663}\u{f664}\u{f665}\u{f666}\u{f667}\u{f668}\u{f669}\u{f66a}\u{f66b}\u{f66c}\u{f66d}\u{f66e}\u{f66f}\u{f670}\u{f671}\u{f672}\u{f673}\u{f674}\u{f675}\u{f676}\u{f677}\u{f678}\u{f679}\u{f67a}\u{f67b}\u{f67c}\u{f67d}\u{f67e}\u{f67f}\u{f680}\u{f681}\u{f682}\u{f683}\u{f684}\u{f685}\u{f686}\u{f687}\u{f688}\u{f689}\u{f68a}\u{f68b}\u{f68c}\u{f68d}\u{f68e}\u{f68f}\u{f690}\u{f691}\u{f692}\u{f693}\u{f694}\u{f695}\u{f696}\u{f697}\u{f698}\u{f699}\u{f69a}\u{f69b}\u{f69c}\u{f69d}\u{f69e}\u{f69f}\u{f6a0}\u{f6a1}\u{f6a2}\u{f6a3}\u{f6a4}\u{f6a5}\u{f6a6}\u{f6a7}\u{f6a8}\u{f6a9}\u{f6aa}\u{f6ab}\u{f6ac}\u{f6ad}\u{f6ae}\u{f6af}\u{f6b0}\u{f6b1}\u{f6b2}\u{f6b3}\u{f6b4}\u{f6b5}\u{f6b6}\u{f6b7}\u{f6b8}\u{f6b9}\u{f6ba}\u{f6bb}\u{f6bc}\u{f6bd}\u{f6be}\u{f6bf}\u{f6c0}\u{f6c1}\u{f6c2}\u{f6c3}\u{f6c4}\u{f6c5}\u{f6c6}\u{f6c7}\u{f6c8}\u{f6c9}\u{f6ca}\u{f6cb}\u{f6cc}\u{f6cd}\u{f6ce}\u{f6cf}\u{f6d0}\u{f6d1}\u{f6d2}\u{f6d3}\u{f6d4}\u{f6d5}\u{f6d6}\u{f6d7}\u{f6d8}\u{f6d9}\u{f6da}\u{f6db}\u{f6dc}\u{f6dd}\u{f6de}\u{f6df}\u{f6e0}\u{f6e1}\u{f6e2}\u{f6e3}\u{f6e4}\u{f6e5}\u{f6e6}\u{f6e7}\u{f6e8}\u{f6e9}\u{f6ea}\u{f6eb}\u{f6ec}\u{f6ed}\u{f6ee}\u{f6ef}\u{f6f0}\u{f6f1}\u{f6f2}\u{f6f3}\u{f6f4}\u{f6f5}\u{f6f6}\u{f6f7}\u{f6f8}\u{f6f9}\u{f6fa}\u{f6fb}\u{f6fc}\u{f6fd}\u{f6fe}\u{f6ff}",
+    "\u{f700}\u{f701}\u{f702}\u{f703}\u{f704}\u{f705}\u{f706}\u{f707}\u{f708}\u{f709}\u{f70a}\u{f70b}\u{f70c}\u{f70d}\u{f70e}\u{f70f}\u{f710}\u{f711}\u{f712}\u{f713}\u{f714}\u{f715}\u{f716}\u{f717}\u{f718}\u{f719}\u{f71a}\u{f71b}\u{f71c}\u{f71d}\u{f71e}\u{f71f}\u{f720}\u{f721}\u{f722}\u{f723}\u{f724}\u{f725}\u{f726}\u{f727}\u{f728}\u{f729}\u{f72a}\u{f72b}\u{f72c}\u{f72d}\u{f72e}\u{f72f}\u{f730}\u{f731}\u{f732}\u{f733}\u{f734}\u{f735}\u{f736}\u{f737}\u{f738}\u{f739}\u{f73a}\u{f73b}\u{f73c}\u{f73d}\u{f73e}\u{f73f}\u{f740}\u{f741}\u{f742}\u{f743}\u{f744}\u{f745}\u{f746}\u{f747}\u{f748}\u{f749}\u{f74a}\u{f74b}\u{f74c}\u{f74d}\u{f74e}\u{f74f}\u{f750}\u{f751}\u{f752}\u{f753}\u{f754}\u{f755}\u{f756}\u{f757}\u{f758}\u{f759}\u{f75a}\u{f75b}\u{f75c}\u{f75d}\u{f75e}\u{f75f}\u{f760}\u{f761}\u{f762}\u{f763}\u{f764}\u{f765}\u{f766}\u{f767}\u{f768}\u{f769}\u{f76a}\u{f76b}\u{f76c}\u{f76d}\u{f76e}\u{f76f}\u{f770}\u{f771}\u{f772}\u{f773}\u{f774}\u{f775}\u{f776}\u{f777}\u{f778}\u{f779}\u{f77a}\u{f77b}\u{f77c}\u{f77d}\u{f77e}\u{f77f}\u{f780}\u{f781}\u{f782}\u{f783}\u{f784}\u{f785}\u{f786}\u{f787}\u{f788}\u{f789}\u{f78a}\u{f78b}\u{f78c}\u{f78d}\u{f78e}\u{f78f}\u{f790}\u{f791}\u{f792}\u{f793}\u{f794}\u{f795}\u{f796}\u{f797}\u{f798}\u{f799}\u{f79a}\u{f79b}\u{f79c}\u{f79d}\u{f79e}\u{f79f}\u{f7a0}\u{f7a1}\u{f7a2}\u{f7a3}\u{f7a4}\u{f7a5}\u{f7a6}\u{f7a7}\u{f7a8}\u{f7a9}\u{f7aa}\u{f7ab}\u{f7ac}\u{f7ad}\u{f7ae}\u{f7af}\u{f7b0}\u{f7b1}\u{f7b2}\u{f7b3}\u{f7b4}\u{f7b5}\u{f7b6}\u{f7b7}\u{f7b8}\u{f7b9}\u{f7ba}\u{f7bb}\u{f7bc}\u{f7bd}\u{f7be}\u{f7bf}\u{f7c0}\u{f7c1}\u{f7c2}\u{f7c3}\u{f7c4}\u{f7c5}\u{f7c6}\u{f7c7}\u{f7c8}\u{f7c9}\u{f7ca}\u{f7cb}\u{f7cc}\u{f7cd}\u{f7ce}\u{f7cf}\u{f7d0}\u{f7d1}\u{f7d2}\u{f7d3}\u{f7d4}\u{f7d5}\u{f7d6}\u{f7d7}\u{f7d8}\u{f7d9}\u{f7da}\u{f7db}\u{f7dc}\u{f7dd}\u{f7de}\u{f7df}\u{f7e0}\u{f7e1}\u{f7e2}\u{f7e3}\u{f7e4}\u{f7e5}\u{f7e6}\u{f7e7}\u{f7e8}\u{f7e9}\u{f7ea}\u{f7eb}\u{f7ec}\u{f7ed}\u{f7ee}\u{f7ef}\u{f7f0}\u{f7f1}\u{f7f2}\u{f7f3}\u{f7f4}\u{f7f5}\u{f7f6}\u{f7f7}\u{f7f8}\u{f7f9}\u{f7fa}\u{f7fb}\u{f7fc}\u{f7fd}\u{f7fe}\u{f7ff}",
+    "\u{f800}\u{f801}\u{f802}\u{f803}\u{f804}\u{f805}\u{f806}\u{f807}\u{f808}\u{f809}\u{f80a}\u{f80b}\u{f80c}\u{f80d}\u{f80e}\u{f80f}\u{f810}\u{f811}\u{f812}\u{f813}\u{f814}\u{f815}\u{f816}\u{f817}\u{f818}\u{f819}\u{f81a}\u{f81b}\u{f81c}\u{f81d}\u{f81e}\u{f81f}\u{f820}\u{f821}\u{f822}\u{f823}\u{f824}\u{f825}\u{f826}\u{f827}\u{f828}\u{f829}\u{f82a}\u{f82b}\u{f82c}\u{f82d}\u{f82e}\u{f82f}\u{f830}\u{f831}\u{f832}\u{f833}\u{f834}\u{f835}\u{f836}\u{f837}\u{f838}\u{f839}\u{f83a}\u{f83b}\u{f83c}\u{f83d}\u{f83e}\u{f83f}\u{f840}\u{f841}\u{f842}\u{f843}\u{f844}\u{f845}\u{f846}\u{f847}\u{f848}\u{f849}\u{f84a}\u{f84b}\u{f84c}\u{f84d}\u{f84e}\u{f84f}\u{f850}\u{f851}\u{f852}\u{f853}\u{f854}\u{f855}\u{f856}\u{f857}\u{f858}\u{f859}\u{f85a}\u{f85b}\u{f85c}\u{f85d}\u{f85e}\u{f85f}\u{f860}\u{f861}\u{f862}\u{f863}\u{f864}\u{f865}\u{f866}\u{f867}\u{f868}\u{f869}\u{f86a}\u{f86b}\u{f86c}\u{f86d}\u{f86e}\u{f86f}\u{f870}\u{f871}\u{f872}\u{f873}\u{f874}\u{f875}\u{f876}\u{f877}\u{f878}\u{f879}\u{f87a}\u{f87b}\u{f87c}\u{f87d}\u{f87e}\u{f87f}\u{f880}\u{f881}\u{f882}\u{f883}\u{f884}\u{f885}\u{f886}\u{f887}\u{f888}\u{f889}\u{f88a}\u{f88b}\u{f88c}\u{f88d}\u{f88e}\u{f88f}\u{f890}\u{f891}\u{f892}\u{f893}\u{f894}\u{f895}\u{f896}\u{f897}\u{f898}\u{f899}\u{f89a}\u{f89b}\u{f89c}\u{f89d}\u{f89e}\u{f89f}\u{f8a0}\u{f8a1}\u{f8a2}\u{f8a3}\u{f8a4}\u{f8a5}\u{f8a6}\u{f8a7}\u{f8a8}\u{f8a9}\u{f8aa}\u{f8ab}\u{f8ac}\u{f8ad}\u{f8ae}\u{f8af}\u{f8b0}\u{f8b1}\u{f8b2}\u{f8b3}\u{f8b4}\u{f8b5}\u{f8b6}\u{f8b7}\u{f8b8}\u{f8b9}\u{f8ba}\u{f8bb}\u{f8bc}\u{f8bd}\u{f8be}\u{f8bf}\u{f8c0}\u{f8c1}\u{f8c2}\u{f8c3}\u{f8c4}\u{f8c5}\u{f8c6}\u{f8c7}\u{f8c8}\u{f8c9}\u{f8ca}\u{f8cb}\u{f8cc}\u{f8cd}\u{f8ce}\u{f8cf}\u{f8d0}\u{f8d1}\u{f8d2}\u{f8d3}\u{f8d4}\u{f8d5}\u{f8d6}\u{f8d7}\u{f8d8}\u{f8d9}\u{f8da}\u{f8db}\u{f8dc}\u{f8dd}\u{f8de}\u{f8df}\u{f8e0}\u{f8e1}\u{f8e2}\u{f8e3}\u{f8e4}\u{f8e5}\u{f8e6}\u{f8e7}\u{f8e8}\u{f8e9}\u{f8ea}\u{f8eb}\u{f8ec}\u{f8ed}\u{f8ee}\u{f8ef}\u{f8f0}\u{f8f1}\u{f8f2}\u{f8f3}\u{f8f4}\u{f8f5}\u{f8f6}\u{f8f7}\u{f8f8}\u{f8f9}\u{f8fa}\u{f8fb}\u{f8fc}\u{f8fd}\u{f8fe}\u{f8ff}",
+    "豈更車賈滑串句龜龜契金喇奈懶癩羅蘿螺裸邏樂洛烙珞落酪駱亂卵欄爛蘭鸞嵐濫藍襤拉臘蠟廊朗浪狼郎來冷勞擄櫓爐盧老蘆虜路露魯鷺碌祿綠菉錄鹿論壟弄籠聾牢磊賂雷壘屢樓淚漏累縷陋勒肋凜凌稜綾菱陵讀拏樂諾丹寧怒率異北磻便復不泌數索參塞省葉說殺辰沈拾若掠略亮兩凉梁糧良諒量勵呂女廬旅濾礪閭驪麗黎力曆歷轢年憐戀撚漣煉璉秊練聯輦蓮連鍊列劣咽烈裂說廉念捻殮簾獵令囹寧嶺怜玲瑩羚聆鈴零靈領例禮醴隸惡了僚寮尿料樂燎療蓼遼龍暈阮劉杻柳流溜琉留硫紐類六戮陸倫崙淪輪律慄栗率隆利吏履易李梨泥理痢罹裏裡里離匿溺吝燐璘藺隣鱗麟林淋臨立笠粒狀炙識什茶刺",
+    "切度拓糖宅洞暴輻行降見廓兀嗀﨎﨏塚﨑晴﨓﨔凞猪益礼神祥福靖精羽﨟蘒﨡諸﨣﨤逸都﨧﨨﨩飯飼館鶴郞隷侮僧免勉勤卑喝嘆器塀墨層屮悔慨憎懲敏既暑梅海渚漢煮爫琢碑社祉祈祐祖祝禍禎穀突節練縉繁署者臭艹艹著褐視謁謹賓贈辶逸難響頻恵𤋮舘\u{fa6e}\u{fa6f}並况全侀充冀勇勺喝啕喙嗢塚墳奄奔婢嬨廒廙彩徭惘慎愈憎慠懲戴揄搜摒敖晴朗望杖歹殺流滛滋漢瀞煮瞧爵犯猪瑱甆画瘝瘟益盛直睊着磌窱節类絛練缾者荒華蝹襁覆視調諸請謁諾諭謹變贈輸遲醙鉶陼難靖韛響頋頻鬒龜𢡊𢡄𣏕㮝䀘䀹𥉉𥳐𧻓齃龎\u{fada}\u{fadb}\u{fadc}\u{fadd}\u{fade}\u{fadf}\u{fae0}\u{fae1}\u{fae2}\u{fae3}\u{fae4}\u{fae5}\u{fae6}\u{fae7}\u{fae8}\u{fae9}\u{faea}\u{faeb}\u{faec}\u{faed}\u{faee}\u{faef}\u{faf0}\u{faf1}\u{faf2}\u{faf3}\u{faf4}\u{faf5}\u{faf6}\u{faf7}\u{faf8}\u{faf9}\u{fafa}\u{fafb}\u{fafc}\u{fafd}\u{fafe}\u{faff}",
+    "ﬀﬁﬂﬃﬄﬅﬆ\u{fb07}\u{fb08}\u{fb09}\u{fb0a}\u{fb0b}\u{fb0c}\u{fb0d}\u{fb0e}\u{fb0f}\u{fb10}\u{fb11}\u{fb12}ﬓﬔﬕﬖﬗ\u{fb18}\u{fb19}\u{fb1a}\u{fb1b}\u{fb1c}יִﬞײַﬠﬡﬢﬣﬤﬥﬦﬧﬨ﬩שׁשׂשּׁשּׂאַאָאּבּגּדּהּוּזּ\u{fb37}טּיּךּכּלּ\u{fb3d}מּ\u{fb3f}נּסּ\u{fb42}ףּפּ\u{fb45}צּקּרּשּתּוֹבֿכֿפֿﭏﭐﭑﭒﭓﭔﭕﭖﭗﭘﭙﭚﭛﭜﭝﭞﭟﭠﭡﭢﭣﭤﭥﭦﭧﭨﭩﭪﭫﭬﭭﭮﭯﭰﭱﭲﭳﭴﭵﭶﭷﭸﭹﭺﭻﭼﭽﭾﭿﮀﮁﮂﮃﮄﮅﮆﮇﮈﮉﮊﮋﮌﮍﮎﮏﮐﮑﮒﮓﮔﮕﮖﮗﮘﮙﮚﮛﮜﮝﮞﮟﮠﮡﮢﮣﮤﮥﮦﮧﮨﮩﮪﮫﮬﮭﮮﮯﮰﮱ﮲﮳﮴﮵﮶﮷﮸﮹﮺﮻﮼﮽﮾﮿﯀﯁﯂\u{fbc3}\u{fbc4}\u{fbc5}\u{fbc6}\u{fbc7}\u{fbc8}\u{fbc9}\u{fbca}\u{fbcb}\u{fbcc}\u{fbcd}\u{fbce}\u{fbcf}\u{fbd0}\u{fbd1}\u{fbd2}ﯓﯔﯕﯖﯗﯘﯙﯚﯛﯜﯝﯞﯟﯠﯡﯢﯣﯤﯥﯦﯧﯨﯩﯪﯫﯬﯭﯮﯯﯰﯱﯲﯳﯴﯵﯶﯷﯸﯹﯺﯻﯼﯽﯾﯿ",
+    "ﰀﰁﰂﰃﰄﰅﰆﰇﰈﰉﰊﰋﰌﰍﰎﰏﰐﰑﰒﰓﰔﰕﰖﰗﰘﰙﰚﰛﰜﰝﰞﰟﰠﰡﰢﰣﰤﰥﰦﰧﰨﰩﰪﰫﰬﰭﰮﰯﰰﰱﰲﰳﰴﰵﰶﰷﰸﰹﰺﰻﰼﰽﰾﰿﱀﱁﱂﱃﱄﱅﱆﱇﱈﱉﱊﱋﱌﱍﱎﱏﱐﱑﱒﱓﱔﱕﱖﱗﱘﱙﱚﱛﱜﱝﱞﱟﱠﱡﱢﱣﱤﱥﱦﱧﱨﱩﱪﱫﱬﱭﱮﱯﱰﱱﱲﱳﱴﱵﱶﱷﱸﱹﱺﱻﱼﱽﱾﱿﲀﲁﲂﲃﲄﲅﲆﲇﲈﲉﲊﲋﲌﲍﲎﲏﲐﲑﲒﲓﲔﲕﲖﲗﲘﲙﲚﲛﲜﲝﲞﲟﲠﲡﲢﲣﲤﲥﲦﲧﲨﲩﲪﲫﲬﲭﲮﲯﲰﲱﲲﲳﲴﲵﲶﲷﲸﲹﲺﲻﲼﲽﲾﲿﳀﳁﳂﳃﳄﳅﳆﳇﳈﳉﳊﳋﳌﳍﳎﳏﳐﳑﳒﳓﳔﳕﳖﳗﳘﳙﳚﳛﳜﳝﳞﳟﳠﳡﳢﳣﳤﳥﳦﳧﳨﳩﳪﳫﳬﳭﳮﳯﳰﳱﳲﳳﳴﳵﳶﳷﳸﳹﳺﳻﳼﳽﳾﳿ",
+    "ﴀﴁﴂﴃﴄﴅﴆﴇﴈﴉﴊﴋﴌﴍﴎﴏﴐﴑﴒﴓﴔﴕﴖﴗﴘﴙﴚﴛﴜﴝﴞﴟﴠﴡﴢﴣﴤﴥﴦﴧﴨﴩﴪﴫﴬﴭﴮﴯﴰﴱﴲﴳﴴﴵﴶﴷﴸﴹﴺﴻﴼﴽ﴾﴿﵀﵁﵂﵃﵄﵅﵆﵇﵈﵉﵊﵋﵌﵍﵎﵏ﵐﵑﵒﵓﵔﵕﵖﵗﵘﵙﵚﵛﵜﵝﵞﵟﵠﵡﵢﵣﵤﵥﵦﵧﵨﵩﵪﵫﵬﵭﵮﵯﵰﵱﵲﵳﵴﵵﵶﵷﵸﵹﵺﵻﵼﵽﵾﵿﶀﶁﶂﶃﶄﶅﶆﶇﶈﶉﶊﶋﶌﶍﶎﶏ\u{fd90}\u{fd91}ﶒﶓﶔﶕﶖﶗﶘﶙﶚﶛﶜﶝﶞﶟﶠﶡﶢﶣﶤﶥﶦﶧﶨﶩﶪﶫﶬﶭﶮﶯﶰﶱﶲﶳﶴﶵﶶﶷﶸﶹﶺﶻﶼﶽﶾﶿﷀﷁﷂﷃﷄﷅﷆﷇ\u{fdc8}\u{fdc9}\u{fdca}\u{fdcb}\u{fdcc}\u{fdcd}\u{fdce}﷏\u{fdd0}\u{fdd1}\u{fdd2}\u{fdd3}\u{fdd4}\u{fdd5}\u{fdd6}\u{fdd7}\u{fdd8}\u{fdd9}\u{fdda}\u{fddb}\u{fddc}\u{fddd}\u{fdde}\u{fddf}\u{fde0}\u{fde1}\u{fde2}\u{fde3}\u{fde4}\u{fde5}\u{fde6}\u{fde7}\u{fde8}\u{fde9}\u{fdea}\u{fdeb}\u{fdec}\u{fded}\u{fdee}\u{fdef}ﷰﷱﷲﷳﷴﷵﷶﷷﷸﷹﷺﷻ﷼﷽﷾﷿",
+    "︀︁︂︃︄︅︆︇︈︉︊︋︌︍︎️︐︑︒︓︔︕︖︗︘︙\u{fe1a}\u{fe1b}\u{fe1c}\u{fe1d}\u{fe1e}\u{fe1f}︧︨︩︪︫︬︭︠︡︢︣︤︥︦︮︯︰︱︲︳︴︵︶︷︸︹︺︻︼︽︾︿﹀﹁﹂﹃﹄﹅﹆﹇﹈﹉﹊﹋﹌﹍﹎﹏﹐﹑﹒\u{fe53}﹔﹕﹖﹗﹘﹙﹚﹛﹜﹝﹞﹟﹠﹡﹢﹣﹤﹥﹦\u{fe67}﹨﹩﹪﹫\u{fe6c}\u{fe6d}\u{fe6e}\u{fe6f}ﹰﹱﹲﹳﹴ\u{fe75}ﹶﹷﹸﹹﹺﹻﹼﹽﹾﹿﺀﺁﺂﺃﺄﺅﺆﺇﺈﺉﺊﺋﺌﺍﺎﺏﺐﺑﺒﺓﺔﺕﺖﺗﺘﺙﺚﺛﺜﺝﺞﺟﺠﺡﺢﺣﺤﺥﺦﺧﺨﺩﺪﺫﺬﺭﺮﺯﺰﺱﺲﺳﺴﺵﺶﺷﺸﺹﺺﺻﺼﺽﺾﺿﻀﻁﻂﻃﻄﻅﻆﻇﻈﻉﻊﻋﻌﻍﻎﻏﻐﻑﻒﻓﻔﻕﻖﻗﻘﻙﻚﻛﻜﻝﻞﻟﻠﻡﻢﻣﻤﻥﻦﻧﻨﻩﻪﻫﻬﻭﻮﻯﻰﻱﻲﻳﻴﻵﻶﻷﻸﻹﻺﻻﻼ\u{fefd}\u{fefe}\u{feff}",
+    "\u{ff00}！＂＃＄％＆＇（）＊＋，－．／０１２３４５６７８９：；＜＝＞？＠ＡＢＣＤＥＦＧＨＩＪＫＬＭＮＯＰＱＲＳＴＵＶＷＸＹＺ［＼］＾＿｀ａｂｃｄｅｆｇｈｉｊｋｌｍｎｏｐｑｒｓｔｕｖｗｘｙｚ｛｜｝～｟｠｡｢｣､･ｦｧｨｩｪｫｬｭｮｯｰｱｲｳｴｵｶｷｸｹｺｻｼｽｾｿﾀﾁﾂﾃﾄﾅﾆﾇﾈﾉﾊﾋﾌﾍﾎﾏﾐﾑﾒﾓﾔﾕﾖﾗﾘﾙﾚﾛﾜﾝﾞﾟﾠﾡﾢﾣﾤﾥﾦﾧﾨﾩﾪﾫﾬﾭﾮﾯﾰﾱﾲﾳﾴﾵﾶﾷﾸﾹﾺﾻﾼﾽﾾ\u{ffbf}\u{ffc0}\u{ffc1}ￂￃￄￅￆￇ\u{ffc8}\u{ffc9}ￊￋￌￍￎￏ\u{ffd0}\u{ffd1}ￒￓￔￕￖￗ\u{ffd8}\u{ffd9}ￚￛￜ\u{ffdd}\u{ffde}\u{ffdf}￠￡￢￣￤￥￦\u{ffe7}￨￩￪￫￬￭￮\u{ffef}\u{fff0}\u{fff1}\u{fff2}\u{fff3}\u{fff4}\u{fff5}\u{fff6}\u{fff7}\u{fff8}\u{fff9}\u{fffa}\u{fffb}￼�\u{fffe}\u{ffff}",
+    "🀀🀁🀂🀃🀄🀅🀆🀇🀈🀉🀊🀋🀌🀍🀎🀏🀐🀑🀒🀓🀔🀕🀖🀗🀘🀙🀚🀛🀜🀝🀞🀟🀠🀡🀢🀣🀤🀥🀦🀧🀨🀩🀪🀫\u{1f02c}\u{1f02d}\u{1f02e}\u{1f02f}🀰🀱🀲🀳🀴🀵🀶🀷🀸🀹🀺🀻🀼🀽🀾🀿🁀🁁🁂🁃🁄🁅🁆🁇🁈🁉🁊🁋🁌🁍🁎🁏🁐🁑🁒🁓🁔🁕🁖🁗🁘🁙🁚🁛🁜🁝🁞🁟🁠🁡🁢🁣🁤🁥🁦🁧🁨🁩🁪🁫🁬🁭🁮🁯🁰🁱🁲🁳🁴🁵🁶🁷🁸🁹🁺🁻🁼🁽🁾🁿🂀🂁🂂🂃🂄🂅🂆🂇🂈🂉🂊🂋🂌🂍🂎🂏🂐🂑🂒🂓\u{1f094}\u{1f095}\u{1f096}\u{1f097}\u{1f098}\u{1f099}\u{1f09a}\u{1f09b}\u{1f09c}\u{1f09d}\u{1f09e}\u{1f09f}🂠🂡🂢🂣🂤🂥🂦🂧🂨🂩🂪🂫🂬🂭🂮\u{1f0af}\u{1f0b0}🂱🂲🂳🂴🂵🂶🂷🂸🂹🂺🂻🂼🂽🂾🂿\u{1f0c0}🃁🃂🃃🃄🃅🃆🃇🃈🃉🃊🃋🃌🃍🃎🃏\u{1f0d0}🃑🃒🃓🃔🃕🃖🃗🃘🃙🃚🃛🃜🃝🃞🃟🃠🃡🃢🃣🃤🃥🃦🃧🃨🃩🃪🃫🃬🃭🃮🃯🃰🃱🃲🃳🃴🃵\u{1f0f6}\u{1f0f7}\u{1f0f8}\u{1f0f9}\u{1f0fa}\u{1f0fb}\u{1f0fc}\u{1f0fd}\u{1f0fe}\u{1f0ff}",
+    "🄀🄁🄂🄃🄄🄅🄆🄇🄈🄉🄊🄋🄌🄍🄎🄏🄐🄑🄒🄓🄔🄕🄖🄗🄘🄙🄚🄛🄜🄝🄞🄟🄠🄡🄢🄣🄤🄥🄦🄧🄨🄩🄪🄫🄬🄭🄮🄯🄰🄱🄲🄳🄴🄵🄶🄷🄸🄹🄺🄻🄼🄽🄾🄿🅀🅁🅂🅃🅄🅅🅆🅇🅈🅉🅊🅋🅌🅍🅎🅏🅐🅑🅒🅓🅔🅕🅖🅗🅘🅙🅚🅛🅜🅝🅞🅟🅠🅡🅢🅣🅤🅥🅦🅧🅨🅩🅪🅫🅬🅭🅮🅯🅰🅱🅲🅳🅴🅵🅶🅷🅸🅹🅺🅻🅼🅽🅾🅿🆀🆁🆂🆃🆄🆅🆆🆇🆈🆉🆊🆋🆌🆍🆎🆏🆐🆑🆒🆓🆔🆕🆖🆗🆘🆙🆚🆛🆜🆝🆞🆟🆠🆡🆢🆣🆤🆥🆦🆧🆨🆩🆪🆫🆬🆭\u{1f1ae}\u{1f1af}\u{1f1b0}\u{1f1b1}\u{1f1b2}\u{1f1b3}\u{1f1b4}\u{1f1b5}\u{1f1b6}\u{1f1b7}\u{1f1b8}\u{1f1b9}\u{1f1ba}\u{1f1bb}\u{1f1bc}\u{1f1bd}\u{1f1be}\u{1f1bf}\u{1f1c0}\u{1f1c1}\u{1f1c2}\u{1f1c3}\u{1f1c4}\u{1f1c5}\u{1f1c6}\u{1f1c7}\u{1f1c8}\u{1f1c9}\u{1f1ca}\u{1f1cb}\u{1f1cc}\u{1f1cd}\u{1f1ce}\u{1f1cf}\u{1f1d0}\u{1f1d1}\u{1f1d2}\u{1f1d3}\u{1f1d4}\u{1f1d5}\u{1f1d6}\u{1f1d7}\u{1f1d8}\u{1f1d9}\u{1f1da}\u{1f1db}\u{1f1dc}\u{1f1dd}\u{1f1de}\u{1f1df}\u{1f1e0}\u{1f1e1}\u{1f1e2}\u{1f1e3}\u{1f1e4}\u{1f1e5}🇦🇧🇨🇩🇪🇫🇬🇭🇮🇯🇰🇱🇲🇳🇴🇵🇶🇷🇸🇹🇺🇻🇼🇽🇾🇿",
+    "🈀🈁🈂\u{1f203}\u{1f204}\u{1f205}\u{1f206}\u{1f207}\u{1f208}\u{1f209}\u{1f20a}\u{1f20b}\u{1f20c}\u{1f20d}\u{1f20e}\u{1f20f}🈐🈑🈒🈓🈔🈕🈖🈗🈘🈙🈚🈛🈜🈝🈞🈟🈠🈡🈢🈣🈤🈥🈦🈧🈨🈩🈪🈫🈬🈭🈮🈯🈰🈱🈲🈳🈴🈵🈶🈷🈸🈹🈺🈻\u{1f23c}\u{1f23d}\u{1f23e}\u{1f23f}🉀🉁🉂🉃🉄🉅🉆🉇🉈\u{1f249}\u{1f24a}\u{1f24b}\u{1f24c}\u{1f24d}\u{1f24e}\u{1f24f}🉐🉑\u{1f252}\u{1f253}\u{1f254}\u{1f255}\u{1f256}\u{1f257}\u{1f258}\u{1f259}\u{1f25a}\u{1f25b}\u{1f25c}\u{1f25d}\u{1f25e}\u{1f25f}🉠🉡🉢🉣🉤🉥\u{1f266}\u{1f267}\u{1f268}\u{1f269}\u{1f26a}\u{1f26b}\u{1f26c}\u{1f26d}\u{1f26e}\u{1f26f}\u{1f270}\u{1f271}\u{1f272}\u{1f273}\u{1f274}\u{1f275}\u{1f276}\u{1f277}\u{1f278}\u{1f279}\u{1f27a}\u{1f27b}\u{1f27c}\u{1f27d}\u{1f27e}\u{1f27f}\u{1f280}\u{1f281}\u{1f282}\u{1f283}\u{1f284}\u{1f285}\u{1f286}\u{1f287}\u{1f288}\u{1f289}\u{1f28a}\u{1f28b}\u{1f28c}\u{1f28d}\u{1f28e}\u{1f28f}\u{1f290}\u{1f291}\u{1f292}\u{1f293}\u{1f294}\u{1f295}\u{1f296}\u{1f297}\u{1f298}\u{1f299}\u{1f29a}\u{1f29b}\u{1f29c}\u{1f29d}\u{1f29e}\u{1f29f}\u{1f2a0}\u{1f2a1}\u{1f2a2}\u{1f2a3}\u{1f2a4}\u{1f2a5}\u{1f2a6}\u{1f2a7}\u{1f2a8}\u{1f2a9}\u{1f2aa}\u{1f2ab}\u{1f2ac}\u{1f2ad}\u{1f2ae}\u{1f2af}\u{1f2b0}\u{1f2b1}\u{1f2b2}\u{1f2b3}\u{1f2b4}\u{1f2b5}\u{1f2b6}\u{1f2b7}\u{1f2b8}\u{1f2b9}\u{1f2ba}\u{1f2bb}\u{1f2bc}\u{1f2bd}\u{1f2be}\u{1f2bf}\u{1f2c0}\u{1f2c1}\u{1f2c2}\u{1f2c3}\u{1f2c4}\u{1f2c5}\u{1f2c6}\u{1f2c7}\u{1f2c8}\u{1f2c9}\u{1f2ca}\u{1f2cb}\u{1f2cc}\u{1f2cd}\u{1f2ce}\u{1f2cf}\u{1f2d0}\u{1f2d1}\u{1f2d2}\u{1f2d3}\u{1f2d4}\u{1f2d5}\u{1f2d6}\u{1f2d7}\u{1f2d8}\u{1f2d9}\u{1f2da}\u{1f2db}\u{1f2dc}\u{1f2dd}\u{1f2de}\u{1f2df}\u{1f2e0}\u{1f2e1}\u{1f2e2}\u{1f2e3}\u{1f2e4}\u{1f2e5}\u{1f2e6}\u{1f2e7}\u{1f2e8}\u{1f2e9}\u{1f2ea}\u{1f2eb}\u{1f2ec}\u{1f2ed}\u{1f2ee}\u{1f2ef}\u{1f2f0}\u{1f2f1}\u{1f2f2}\u{1f2f3}\u{1f2f4}\u{1f2f5}\u{1f2f6}\u{1f2f7}\u{1f2f8}\u{1f2f9}\u{1f2fa}\u{1f2fb}\u{1f2fc}\u{1f2fd}\u{1f2fe}\u{1f2ff}",
+    "🌀🌁🌂🌃🌄🌅🌆🌇🌈🌉🌊🌋🌌🌍🌎🌏🌐🌑🌒🌓🌔🌕🌖🌗🌘🌙🌚🌛🌜🌝🌞🌟🌠🌡🌢🌣🌤🌥🌦🌧🌨🌩🌪🌫🌬🌭🌮🌯🌰🌱🌲🌳🌴🌵🌶🌷🌸🌹🌺🌻🌼🌽🌾🌿🍀🍁🍂🍃🍄🍅🍆🍇🍈🍉🍊🍋🍌🍍🍎🍏🍐🍑🍒🍓🍔🍕🍖🍗🍘🍙🍚🍛🍜🍝🍞🍟🍠🍡🍢🍣🍤🍥🍦🍧🍨🍩🍪🍫🍬🍭🍮🍯🍰🍱🍲🍳🍴🍵🍶🍷🍸🍹🍺🍻🍼🍽🍾🍿🎀🎁🎂🎃🎄🎅🎆🎇🎈🎉🎊🎋🎌🎍🎎🎏🎐🎑🎒🎓🎔🎕🎖🎗🎘🎙🎚🎛🎜🎝🎞🎟🎠🎡🎢🎣🎤🎥🎦🎧🎨🎩🎪🎫🎬🎭🎮🎯🎰🎱🎲🎳🎴🎵🎶🎷🎸🎹🎺🎻🎼🎽🎾🎿🏀🏁🏂🏃🏄🏅🏆🏇🏈🏉🏊🏋🏌🏍🏎🏏🏐🏑🏒🏓🏔🏕🏖🏗🏘🏙🏚🏛🏜🏝🏞🏟🏠🏡🏢🏣🏤🏥🏦🏧🏨🏩🏪🏫🏬🏭🏮🏯🏰🏱🏲🏳🏴🏵🏶🏷🏸🏹🏺🏻🏼🏽🏾🏿",
+    "🐀🐁🐂🐃🐄🐅🐆🐇🐈🐉🐊🐋🐌🐍🐎🐏🐐🐑🐒🐓🐔🐕🐖🐗🐘🐙🐚🐛🐜🐝🐞🐟🐠🐡🐢🐣🐤🐥🐦🐧🐨🐩🐪🐫🐬🐭🐮🐯🐰🐱🐲🐳🐴🐵🐶🐷🐸🐹🐺🐻🐼🐽🐾🐿👀👁👂👃👄👅👆👇👈👉👊👋👌👍👎👏👐👑👒👓👔👕👖👗👘👙👚👛👜👝👞👟👠👡👢👣👤👥👦👧👨👩👪👫👬👭👮👯👰👱👲👳👴👵👶👷👸👹👺👻👼👽👾👿💀💁💂💃💄💅💆💇💈💉💊💋💌💍💎💏💐💑💒💓💔💕💖💗💘💙💚💛💜💝💞💟💠💡💢💣💤💥💦💧💨💩💪💫💬💭💮💯💰💱💲💳💴💵💶💷💸💹💺💻💼💽💾💿📀📁📂📃📄📅📆📇📈📉📊📋📌📍📎📏📐📑📒📓📔📕📖📗📘📙📚📛📜📝📞📟📠📡📢📣📤📥📦📧📨📩📪📫📬📭📮📯📰📱📲📳📴📵📶📷📸📹📺📻📼📽📾📿",
+    "🔀🔁🔂🔃🔄🔅🔆🔇🔈🔉🔊🔋🔌🔍🔎🔏🔐🔑🔒🔓🔔🔕🔖🔗🔘🔙🔚🔛🔜🔝🔞🔟🔠🔡🔢🔣🔤🔥🔦🔧🔨🔩🔪🔫🔬🔭🔮🔯🔰🔱🔲🔳🔴🔵🔶🔷🔸🔹🔺🔻🔼🔽🔾🔿🕀🕁🕂🕃🕄🕅🕆🕇🕈🕉🕊🕋🕌🕍🕎🕏🕐🕑🕒🕓🕔🕕🕖🕗🕘🕙🕚🕛🕜🕝🕞🕟🕠🕡🕢🕣🕤🕥🕦🕧🕨🕩🕪🕫🕬🕭🕮🕯🕰🕱🕲🕳🕴🕵🕶🕷🕸🕹🕺🕻🕼🕽🕾🕿🖀🖁🖂🖃🖄🖅🖆🖇🖈🖉🖊🖋🖌🖍🖎🖏🖐🖑🖒🖓🖔🖕🖖🖗🖘🖙🖚🖛🖜🖝🖞🖟🖠🖡🖢🖣🖤🖥🖦🖧🖨🖩🖪🖫🖬🖭🖮🖯🖰🖱🖲🖳🖴🖵🖶🖷🖸🖹🖺🖻🖼🖽🖾🖿🗀🗁🗂🗃🗄🗅🗆🗇🗈🗉🗊🗋🗌🗍🗎🗏🗐🗑🗒🗓🗔🗕🗖🗗🗘🗙🗚🗛🗜🗝🗞🗟🗠🗡🗢🗣🗤🗥🗦🗧🗨🗩🗪🗫🗬🗭🗮🗯🗰🗱🗲🗳🗴🗵🗶🗷🗸🗹🗺🗻🗼🗽🗾🗿",
+    "😀😁😂😃😄😅😆😇😈😉😊😋😌😍😎😏😐😑😒😓😔😕😖😗😘😙😚😛😜😝😞😟😠😡😢😣😤😥😦😧😨😩😪😫😬😭😮😯😰😱😲😳😴😵😶😷😸😹😺😻😼😽😾😿🙀🙁🙂🙃🙄🙅🙆🙇🙈🙉🙊🙋🙌🙍🙎🙏🙐🙑🙒🙓🙔🙕🙖🙗🙘🙙🙚🙛🙜🙝🙞🙟🙠🙡🙢🙣🙤🙥🙦🙧🙨🙩🙪🙫🙬🙭🙮🙯🙰🙱🙲🙳🙴🙵🙶🙷🙸🙹🙺🙻🙼🙽🙾🙿🚀🚁🚂🚃🚄🚅🚆🚇🚈🚉🚊🚋🚌🚍🚎🚏🚐🚑🚒🚓🚔🚕🚖🚗🚘🚙🚚🚛🚜🚝🚞🚟🚠🚡🚢🚣🚤🚥🚦🚧🚨🚩🚪🚫🚬🚭🚮🚯🚰🚱🚲🚳🚴🚵🚶🚷🚸🚹🚺🚻🚼🚽🚾🚿🛀🛁🛂🛃🛄🛅🛆🛇🛈🛉🛊🛋🛌🛍🛎🛏🛐🛑🛒🛓🛔🛕🛖🛗\u{1f6d8}\u{1f6d9}\u{1f6da}\u{1f6db}🛜🛝🛞🛟🛠🛡🛢🛣🛤🛥🛦🛧🛨🛩🛪🛫🛬\u{1f6ed}\u{1f6ee}\u{1f6ef}🛰🛱🛲🛳🛴🛵🛶🛷🛸🛹🛺🛻🛼\u{1f6fd}\u{1f6fe}\u{1f6ff}",
+    "🜀🜁🜂🜃🜄🜅🜆🜇🜈🜉🜊🜋🜌🜍🜎🜏🜐🜑🜒🜓🜔🜕🜖🜗🜘🜙🜚🜛🜜🜝🜞🜟🜠🜡🜢🜣🜤🜥🜦🜧🜨🜩🜪🜫🜬🜭🜮🜯🜰🜱🜲🜳🜴🜵🜶🜷🜸🜹🜺🜻🜼🜽🜾🜿🝀🝁🝂🝃🝄🝅🝆🝇🝈🝉🝊🝋🝌🝍🝎🝏🝐🝑🝒🝓🝔🝕🝖🝗🝘🝙🝚🝛🝜🝝🝞🝟🝠🝡🝢🝣🝤🝥🝦🝧🝨🝩🝪🝫🝬🝭🝮🝯🝰🝱🝲🝳🝴🝵🝶\u{1f777}\u{1f778}\u{1f779}\u{1f77a}🝻🝼🝽🝾🝿🞀🞁🞂🞃🞄🞅🞆🞇🞈🞉🞊🞋🞌🞍🞎🞏🞐🞑🞒🞓🞔🞕🞖🞗🞘🞙🞚🞛🞜🞝🞞🞟🞠🞡🞢🞣🞤🞥🞦🞧🞨🞩🞪🞫🞬🞭🞮🞯🞰🞱🞲🞳🞴🞵🞶🞷🞸🞹🞺🞻🞼🞽🞾🞿🟀🟁🟂🟃🟄🟅🟆🟇🟈🟉🟊🟋🟌🟍🟎🟏🟐🟑🟒🟓🟔🟕🟖🟗🟘🟙\u{1f7da}\u{1f7db}\u{1f7dc}\u{1f7dd}\u{1f7de}\u{1f7df}🟠🟡🟢🟣🟤🟥🟦🟧🟨🟩🟪🟫\u{1f7ec}\u{1f7ed}\u{1f7ee}\u{1f7ef}🟰\u{1f7f1}\u{1f7f2}\u{1f7f3}\u{1f7f4}\u{1f7f5}\u{1f7f6}\u{1f7f7}\u{1f7f8}\u{1f7f9}\u{1f7fa}\u{1f7fb}\u{1f7fc}\u{1f7fd}\u{1f7fe}\u{1f7ff}",
+    "🠀🠁🠂🠃🠄🠅🠆🠇🠈🠉🠊🠋\u{1f80c}\u{1f80d}\u{1f80e}\u{1f80f}🠐🠑🠒🠓🠔🠕🠖🠗🠘🠙🠚🠛🠜🠝🠞🠟🠠🠡🠢🠣🠤🠥🠦🠧🠨🠩🠪🠫🠬🠭🠮🠯🠰🠱🠲🠳🠴🠵🠶🠷🠸🠹🠺🠻🠼🠽🠾🠿🡀🡁🡂🡃🡄🡅🡆🡇\u{1f848}\u{1f849}\u{1f84a}\u{1f84b}\u{1f84c}\u{1f84d}\u{1f84e}\u{1f84f}🡐🡑🡒🡓🡔🡕🡖🡗🡘🡙\u{1f85a}\u{1f85b}\u{1f85c}\u{1f85d}\u{1f85e}\u{1f85f}🡠🡡🡢🡣🡤🡥🡦🡧🡨🡩🡪🡫🡬🡭🡮🡯🡰🡱🡲🡳🡴🡵🡶🡷🡸🡹🡺🡻🡼🡽🡾🡿🢀🢁🢂🢃🢄🢅🢆🢇\u{1f888}\u{1f889}\u{1f88a}\u{1f88b}\u{1f88c}\u{1f88d}\u{1f88e}\u{1f88f}🢐🢑🢒🢓🢔🢕🢖🢗🢘🢙🢚🢛🢜🢝🢞🢟🢠🢡🢢🢣🢤🢥🢦🢧🢨🢩🢪🢫🢬🢭\u{1f8ae}\u{1f8af}🢰🢱\u{1f8b2}\u{1f8b3}\u{1f8b4}\u{1f8b5}\u{1f8b6}\u{1f8b7}\u{1f8b8}\u{1f8b9}\u{1f8ba}\u{1f8bb}\u{1f8bc}\u{1f8bd}\u{1f8be}\u{1f8bf}\u{1f8c0}\u{1f8c1}\u{1f8c2}\u{1f8c3}\u{1f8c4}\u{1f8c5}\u{1f8c6}\u{1f8c7}\u{1f8c8}\u{1f8c9}\u{1f8ca}\u{1f8cb}\u{1f8cc}\u{1f8cd}\u{1f8ce}\u{1f8cf}\u{1f8d0}\u{1f8d1}\u{1f8d2}\u{1f8d3}\u{1f8d4}\u{1f8d5}\u{1f8d6}\u{1f8d7}\u{1f8d8}\u{1f8d9}\u{1f8da}\u{1f8db}\u{1f8dc}\u{1f8dd}\u{1f8de}\u{1f8df}\u{1f8e0}\u{1f8e1}\u{1f8e2}\u{1f8e3}\u{1f8e4}\u{1f8e5}\u{1f8e6}\u{1f8e7}\u{1f8e8}\u{1f8e9}\u{1f8ea}\u{1f8eb}\u{1f8ec}\u{1f8ed}\u{1f8ee}\u{1f8ef}\u{1f8f0}\u{1f8f1}\u{1f8f2}\u{1f8f3}\u{1f8f4}\u{1f8f5}\u{1f8f6}\u{1f8f7}\u{1f8f8}\u{1f8f9}\u{1f8fa}\u{1f8fb}\u{1f8fc}\u{1f8fd}\u{1f8fe}\u{1f8ff}",
+    "🤀🤁🤂🤃🤄🤅🤆🤇🤈🤉🤊🤋🤌🤍🤎🤏🤐🤑🤒🤓🤔🤕🤖🤗🤘🤙🤚🤛🤜🤝🤞🤟🤠🤡🤢🤣🤤🤥🤦🤧🤨🤩🤪🤫🤬🤭🤮🤯🤰🤱🤲🤳🤴🤵🤶🤷🤸🤹🤺🤻🤼🤽🤾🤿🥀🥁🥂🥃🥄🥅🥆🥇🥈🥉🥊🥋🥌🥍🥎🥏🥐🥑🥒🥓🥔🥕🥖🥗🥘🥙🥚🥛🥜🥝🥞🥟🥠🥡🥢🥣🥤🥥🥦🥧🥨🥩🥪🥫🥬🥭🥮🥯🥰🥱🥲🥳🥴🥵🥶🥷🥸🥹🥺🥻🥼🥽🥾🥿🦀🦁🦂🦃🦄🦅🦆🦇🦈🦉🦊🦋🦌🦍🦎🦏🦐🦑🦒🦓🦔🦕🦖🦗🦘🦙🦚🦛🦜🦝🦞🦟🦠🦡🦢🦣🦤🦥🦦🦧🦨🦩🦪🦫🦬🦭🦮🦯🦰🦱🦲🦳🦴🦵🦶🦷🦸🦹🦺🦻🦼🦽🦾🦿🧀🧁🧂🧃🧄🧅🧆🧇🧈🧉🧊🧋🧌🧍🧎🧏🧐🧑🧒🧓🧔🧕🧖🧗🧘🧙🧚🧛🧜🧝🧞🧟🧠🧡🧢🧣🧤🧥🧦🧧🧨🧩🧪🧫🧬🧭🧮🧯🧰🧱🧲🧳🧴🧵🧶🧷🧸🧹🧺🧻🧼🧽🧾🧿",
+    "🨀🨁🨂🨃🨄🨅🨆🨇🨈🨉🨊🨋🨌🨍🨎🨏🨐🨑🨒🨓🨔🨕🨖🨗🨘🨙🨚🨛🨜🨝🨞🨟🨠🨡🨢🨣🨤🨥🨦🨧🨨🨩🨪🨫🨬🨭🨮🨯🨰🨱🨲🨳🨴🨵🨶🨷🨸🨹🨺🨻🨼🨽🨾🨿🩀🩁🩂🩃🩄🩅🩆🩇🩈🩉🩊🩋🩌🩍🩎🩏🩐🩑🩒🩓\u{1fa54}\u{1fa55}\u{1fa56}\u{1fa57}\u{1fa58}\u{1fa59}\u{1fa5a}\u{1fa5b}\u{1fa5c}\u{1fa5d}\u{1fa5e}\u{1fa5f}🩠🩡🩢🩣🩤🩥🩦🩧🩨🩩🩪🩫🩬🩭\u{1fa6e}\u{1fa6f}🩰🩱🩲🩳🩴🩵🩶🩷🩸🩹🩺🩻🩼\u{1fa7d}\u{1fa7e}\u{1fa7f}🪀🪁🪂🪃🪄🪅🪆🪇🪈\u{1fa89}\u{1fa8a}\u{1fa8b}\u{1fa8c}\u{1fa8d}\u{1fa8e}\u{1fa8f}🪐🪑🪒🪓🪔🪕🪖🪗🪘🪙🪚🪛🪜🪝🪞🪟🪠🪡🪢🪣🪤🪥🪦🪧🪨🪩🪪🪫🪬🪭🪮🪯🪰🪱🪲🪳🪴🪵🪶🪷🪸🪹🪺🪻🪼🪽\u{1fabe}🪿🫀🫁🫂🫃🫄🫅\u{1fac6}\u{1fac7}\u{1fac8}\u{1fac9}\u{1faca}\u{1facb}\u{1facc}\u{1facd}🫎🫏🫐🫑🫒🫓🫔🫕🫖🫗🫘🫙🫚🫛\u{1fadc}\u{1fadd}\u{1fade}\u{1fadf}🫠🫡🫢🫣🫤🫥🫦🫧🫨\u{1fae9}\u{1faea}\u{1faeb}\u{1faec}\u{1faed}\u{1faee}\u{1faef}🫰🫱🫲🫳🫴🫵🫶🫷🫸\u{1faf9}\u{1fafa}\u{1fafb}\u{1fafc}\u{1fafd}\u{1fafe}\u{1faff}",
+    "🬀🬁🬂🬃🬄🬅🬆🬇🬈🬉🬊🬋🬌🬍🬎🬏🬐🬑🬒🬓🬔🬕🬖🬗🬘🬙🬚🬛🬜🬝🬞🬟🬠🬡🬢🬣🬤🬥🬦🬧🬨🬩🬪🬫🬬🬭🬮🬯🬰🬱🬲🬳🬴🬵🬶🬷🬸🬹🬺🬻🬼🬽🬾🬿🭀🭁🭂🭃🭄🭅🭆🭇🭈🭉🭊🭋🭌🭍🭎🭏🭐🭑🭒🭓🭔🭕🭖🭗🭘🭙🭚🭛🭜🭝🭞🭟🭠🭡🭢🭣🭤🭥🭦🭧🭨🭩🭪🭫🭬🭭🭮🭯🭰🭱🭲🭳🭴🭵🭶🭷🭸🭹🭺🭻🭼🭽🭾🭿🮀🮁🮂🮃🮄🮅🮆🮇🮈🮉🮊🮋🮌🮍🮎🮏🮐🮑🮒\u{1fb93}🮔🮕🮖🮗🮘🮙🮚🮛🮜🮝🮞🮟🮠🮡🮢🮣🮤🮥🮦🮧🮨🮩🮪🮫🮬🮭🮮🮯🮰🮱🮲🮳🮴🮵🮶🮷🮸🮹🮺🮻🮼🮽🮾🮿🯀🯁🯂🯃🯄🯅🯆🯇🯈🯉🯊\u{1fbcb}\u{1fbcc}\u{1fbcd}\u{1fbce}\u{1fbcf}\u{1fbd0}\u{1fbd1}\u{1fbd2}\u{1fbd3}\u{1fbd4}\u{1fbd5}\u{1fbd6}\u{1fbd7}\u{1fbd8}\u{1fbd9}\u{1fbda}\u{1fbdb}\u{1fbdc}\u{1fbdd}\u{1fbde}\u{1fbdf}\u{1fbe0}\u{1fbe1}\u{1fbe2}\u{1fbe3}\u{1fbe4}\u{1fbe5}\u{1fbe6}\u{1fbe7}\u{1fbe8}\u{1fbe9}\u{1fbea}\u{1fbeb}\u{1fbec}\u{1fbed}\u{1fbee}\u{1fbef}🯰🯱🯲🯳🯴🯵🯶🯷🯸🯹\u{1fbfa}\u{1fbfb}\u{1fbfc}\u{1fbfd}\u{1fbfe}\u{1fbff}",
+    "\u{1fc00}\u{1fc01}\u{1fc02}\u{1fc03}\u{1fc04}\u{1fc05}\u{1fc06}\u{1fc07}\u{1fc08}\u{1fc09}\u{1fc0a}\u{1fc0b}\u{1fc0c}\u{1fc0d}\u{1fc0e}\u{1fc0f}\u{1fc10}\u{1fc11}\u{1fc12}\u{1fc13}\u{1fc14}\u{1fc15}\u{1fc16}\u{1fc17}\u{1fc18}\u{1fc19}\u{1fc1a}\u{1fc1b}\u{1fc1c}\u{1fc1d}\u{1fc1e}\u{1fc1f}\u{1fc20}\u{1fc21}\u{1fc22}\u{1fc23}\u{1fc24}\u{1fc25}\u{1fc26}\u{1fc27}\u{1fc28}\u{1fc29}\u{1fc2a}\u{1fc2b}\u{1fc2c}\u{1fc2d}\u{1fc2e}\u{1fc2f}\u{1fc30}\u{1fc31}\u{1fc32}\u{1fc33}\u{1fc34}\u{1fc35}\u{1fc36}\u{1fc37}\u{1fc38}\u{1fc39}\u{1fc3a}\u{1fc3b}\u{1fc3c}\u{1fc3d}\u{1fc3e}\u{1fc3f}\u{1fc40}\u{1fc41}\u{1fc42}\u{1fc43}\u{1fc44}\u{1fc45}\u{1fc46}\u{1fc47}\u{1fc48}\u{1fc49}\u{1fc4a}\u{1fc4b}\u{1fc4c}\u{1fc4d}\u{1fc4e}\u{1fc4f}\u{1fc50}\u{1fc51}\u{1fc52}\u{1fc53}\u{1fc54}\u{1fc55}\u{1fc56}\u{1fc57}\u{1fc58}\u{1fc59}\u{1fc5a}\u{1fc5b}\u{1fc5c}\u{1fc5d}\u{1fc5e}\u{1fc5f}\u{1fc60}\u{1fc61}\u{1fc62}\u{1fc63}\u{1fc64}\u{1fc65}\u{1fc66}\u{1fc67}\u{1fc68}\u{1fc69}\u{1fc6a}\u{1fc6b}\u{1fc6c}\u{1fc6d}\u{1fc6e}\u{1fc6f}\u{1fc70}\u{1fc71}\u{1fc72}\u{1fc73}\u{1fc74}\u{1fc75}\u{1fc76}\u{1fc77}\u{1fc78}\u{1fc79}\u{1fc7a}\u{1fc7b}\u{1fc7c}\u{1fc7d}\u{1fc7e}\u{1fc7f}\u{1fc80}\u{1fc81}\u{1fc82}\u{1fc83}\u{1fc84}\u{1fc85}\u{1fc86}\u{1fc87}\u{1fc88}\u{1fc89}\u{1fc8a}\u{1fc8b}\u{1fc8c}\u{1fc8d}\u{1fc8e}\u{1fc8f}\u{1fc90}\u{1fc91}\u{1fc92}\u{1fc93}\u{1fc94}\u{1fc95}\u{1fc96}\u{1fc97}\u{1fc98}\u{1fc99}\u{1fc9a}\u{1fc9b}\u{1fc9c}\u{1fc9d}\u{1fc9e}\u{1fc9f}\u{1fca0}\u{1fca1}\u{1fca2}\u{1fca3}\u{1fca4}\u{1fca5}\u{1fca6}\u{1fca7}\u{1fca8}\u{1fca9}\u{1fcaa}\u{1fcab}\u{1fcac}\u{1fcad}\u{1fcae}\u{1fcaf}\u{1fcb0}\u{1fcb1}\u{1fcb2}\u{1fcb3}\u{1fcb4}\u{1fcb5}\u{1fcb6}\u{1fcb7}\u{1fcb8}\u{1fcb9}\u{1fcba}\u{1fcbb}\u{1fcbc}\u{1fcbd}\u{1fcbe}\u{1fcbf}\u{1fcc0}\u{1fcc1}\u{1fcc2}\u{1fcc3}\u{1fcc4}\u{1fcc5}\u{1fcc6}\u{1fcc7}\u{1fcc8}\u{1fcc9}\u{1fcca}\u{1fccb}\u{1fccc}\u{1fccd}\u{1fcce}\u{1fccf}\u{1fcd0}\u{1fcd1}\u{1fcd2}\u{1fcd3}\u{1fcd4}\u{1fcd5}\u{1fcd6}\u{1fcd7}\u{1fcd8}\u{1fcd9}\u{1fcda}\u{1fcdb}\u{1fcdc}\u{1fcdd}\u{1fcde}\u{1fcdf}\u{1fce0}\u{1fce1}\u{1fce2}\u{1fce3}\u{1fce4}\u{1fce5}\u{1fce6}\u{1fce7}\u{1fce8}\u{1fce9}\u{1fcea}\u{1fceb}\u{1fcec}\u{1fced}\u{1fcee}\u{1fcef}\u{1fcf0}\u{1fcf1}\u{1fcf2}\u{1fcf3}\u{1fcf4}\u{1fcf5}\u{1fcf6}\u{1fcf7}\u{1fcf8}\u{1fcf9}\u{1fcfa}\u{1fcfb}\u{1fcfc}\u{1fcfd}\u{1fcfe}\u{1fcff}",
+    "\u{1fd00}\u{1fd01}\u{1fd02}\u{1fd03}\u{1fd04}\u{1fd05}\u{1fd06}\u{1fd07}\u{1fd08}\u{1fd09}\u{1fd0a}\u{1fd0b}\u{1fd0c}\u{1fd0d}\u{1fd0e}\u{1fd0f}\u{1fd10}\u{1fd11}\u{1fd12}\u{1fd13}\u{1fd14}\u{1fd15}\u{1fd16}\u{1fd17}\u{1fd18}\u{1fd19}\u{1fd1a}\u{1fd1b}\u{1fd1c}\u{1fd1d}\u{1fd1e}\u{1fd1f}\u{1fd20}\u{1fd21}\u{1fd22}\u{1fd23}\u{1fd24}\u{1fd25}\u{1fd26}\u{1fd27}\u{1fd28}\u{1fd29}\u{1fd2a}\u{1fd2b}\u{1fd2c}\u{1fd2d}\u{1fd2e}\u{1fd2f}\u{1fd30}\u{1fd31}\u{1fd32}\u{1fd33}\u{1fd34}\u{1fd35}\u{1fd36}\u{1fd37}\u{1fd38}\u{1fd39}\u{1fd3a}\u{1fd3b}\u{1fd3c}\u{1fd3d}\u{1fd3e}\u{1fd3f}\u{1fd40}\u{1fd41}\u{1fd42}\u{1fd43}\u{1fd44}\u{1fd45}\u{1fd46}\u{1fd47}\u{1fd48}\u{1fd49}\u{1fd4a}\u{1fd4b}\u{1fd4c}\u{1fd4d}\u{1fd4e}\u{1fd4f}\u{1fd50}\u{1fd51}\u{1fd52}\u{1fd53}\u{1fd54}\u{1fd55}\u{1fd56}\u{1fd57}\u{1fd58}\u{1fd59}\u{1fd5a}\u{1fd5b}\u{1fd5c}\u{1fd5d}\u{1fd5e}\u{1fd5f}\u{1fd60}\u{1fd61}\u{1fd62}\u{1fd63}\u{1fd64}\u{1fd65}\u{1fd66}\u{1fd67}\u{1fd68}\u{1fd69}\u{1fd6a}\u{1fd6b}\u{1fd6c}\u{1fd6d}\u{1fd6e}\u{1fd6f}\u{1fd70}\u{1fd71}\u{1fd72}\u{1fd73}\u{1fd74}\u{1fd75}\u{1fd76}\u{1fd77}\u{1fd78}\u{1fd79}\u{1fd7a}\u{1fd7b}\u{1fd7c}\u{1fd7d}\u{1fd7e}\u{1fd7f}\u{1fd80}\u{1fd81}\u{1fd82}\u{1fd83}\u{1fd84}\u{1fd85}\u{1fd86}\u{1fd87}\u{1fd88}\u{1fd89}\u{1fd8a}\u{1fd8b}\u{1fd8c}\u{1fd8d}\u{1fd8e}\u{1fd8f}\u{1fd90}\u{1fd91}\u{1fd92}\u{1fd93}\u{1fd94}\u{1fd95}\u{1fd96}\u{1fd97}\u{1fd98}\u{1fd99}\u{1fd9a}\u{1fd9b}\u{1fd9c}\u{1fd9d}\u{1fd9e}\u{1fd9f}\u{1fda0}\u{1fda1}\u{1fda2}\u{1fda3}\u{1fda4}\u{1fda5}\u{1fda6}\u{1fda7}\u{1fda8}\u{1fda9}\u{1fdaa}\u{1fdab}\u{1fdac}\u{1fdad}\u{1fdae}\u{1fdaf}\u{1fdb0}\u{1fdb1}\u{1fdb2}\u{1fdb3}\u{1fdb4}\u{1fdb5}\u{1fdb6}\u{1fdb7}\u{1fdb8}\u{1fdb9}\u{1fdba}\u{1fdbb}\u{1fdbc}\u{1fdbd}\u{1fdbe}\u{1fdbf}\u{1fdc0}\u{1fdc1}\u{1fdc2}\u{1fdc3}\u{1fdc4}\u{1fdc5}\u{1fdc6}\u{1fdc7}\u{1fdc8}\u{1fdc9}\u{1fdca}\u{1fdcb}\u{1fdcc}\u{1fdcd}\u{1fdce}\u{1fdcf}\u{1fdd0}\u{1fdd1}\u{1fdd2}\u{1fdd3}\u{1fdd4}\u{1fdd5}\u{1fdd6}\u{1fdd7}\u{1fdd8}\u{1fdd9}\u{1fdda}\u{1fddb}\u{1fddc}\u{1fddd}\u{1fdde}\u{1fddf}\u{1fde0}\u{1fde1}\u{1fde2}\u{1fde3}\u{1fde4}\u{1fde5}\u{1fde6}\u{1fde7}\u{1fde8}\u{1fde9}\u{1fdea}\u{1fdeb}\u{1fdec}\u{1fded}\u{1fdee}\u{1fdef}\u{1fdf0}\u{1fdf1}\u{1fdf2}\u{1fdf3}\u{1fdf4}\u{1fdf5}\u{1fdf6}\u{1fdf7}\u{1fdf8}\u{1fdf9}\u{1fdfa}\u{1fdfb}\u{1fdfc}\u{1fdfd}\u{1fdfe}\u{1fdff}",
+    "\u{1fe00}\u{1fe01}\u{1fe02}\u{1fe03}\u{1fe04}\u{1fe05}\u{1fe06}\u{1fe07}\u{1fe08}\u{1fe09}\u{1fe0a}\u{1fe0b}\u{1fe0c}\u{1fe0d}\u{1fe0e}\u{1fe0f}\u{1fe10}\u{1fe11}\u{1fe12}\u{1fe13}\u{1fe14}\u{1fe15}\u{1fe16}\u{1fe17}\u{1fe18}\u{1fe19}\u{1fe1a}\u{1fe1b}\u{1fe1c}\u{1fe1d}\u{1fe1e}\u{1fe1f}\u{1fe20}\u{1fe21}\u{1fe22}\u{1fe23}\u{1fe24}\u{1fe25}\u{1fe26}\u{1fe27}\u{1fe28}\u{1fe29}\u{1fe2a}\u{1fe2b}\u{1fe2c}\u{1fe2d}\u{1fe2e}\u{1fe2f}\u{1fe30}\u{1fe31}\u{1fe32}\u{1fe33}\u{1fe34}\u{1fe35}\u{1fe36}\u{1fe37}\u{1fe38}\u{1fe39}\u{1fe3a}\u{1fe3b}\u{1fe3c}\u{1fe3d}\u{1fe3e}\u{1fe3f}\u{1fe40}\u{1fe41}\u{1fe42}\u{1fe43}\u{1fe44}\u{1fe45}\u{1fe46}\u{1fe47}\u{1fe48}\u{1fe49}\u{1fe4a}\u{1fe4b}\u{1fe4c}\u{1fe4d}\u{1fe4e}\u{1fe4f}\u{1fe50}\u{1fe51}\u{1fe52}\u{1fe53}\u{1fe54}\u{1fe55}\u{1fe56}\u{1fe57}\u{1fe58}\u{1fe59}\u{1fe5a}\u{1fe5b}\u{1fe5c}\u{1fe5d}\u{1fe5e}\u{1fe5f}\u{1fe60}\u{1fe61}\u{1fe62}\u{1fe63}\u{1fe64}\u{1fe65}\u{1fe66}\u{1fe67}\u{1fe68}\u{1fe69}\u{1fe6a}\u{1fe6b}\u{1fe6c}\u{1fe6d}\u{1fe6e}\u{1fe6f}\u{1fe70}\u{1fe71}\u{1fe72}\u{1fe73}\u{1fe74}\u{1fe75}\u{1fe76}\u{1fe77}\u{1fe78}\u{1fe79}\u{1fe7a}\u{1fe7b}\u{1fe7c}\u{1fe7d}\u{1fe7e}\u{1fe7f}\u{1fe80}\u{1fe81}\u{1fe82}\u{1fe83}\u{1fe84}\u{1fe85}\u{1fe86}\u{1fe87}\u{1fe88}\u{1fe89}\u{1fe8a}\u{1fe8b}\u{1fe8c}\u{1fe8d}\u{1fe8e}\u{1fe8f}\u{1fe90}\u{1fe91}\u{1fe92}\u{1fe93}\u{1fe94}\u{1fe95}\u{1fe96}\u{1fe97}\u{1fe98}\u{1fe99}\u{1fe9a}\u{1fe9b}\u{1fe9c}\u{1fe9d}\u{1fe9e}\u{1fe9f}\u{1fea0}\u{1fea1}\u{1fea2}\u{1fea3}\u{1fea4}\u{1fea5}\u{1fea6}\u{1fea7}\u{1fea8}\u{1fea9}\u{1feaa}\u{1feab}\u{1feac}\u{1fead}\u{1feae}\u{1feaf}\u{1feb0}\u{1feb1}\u{1feb2}\u{1feb3}\u{1feb4}\u{1feb5}\u{1feb6}\u{1feb7}\u{1feb8}\u{1feb9}\u{1feba}\u{1febb}\u{1febc}\u{1febd}\u{1febe}\u{1febf}\u{1fec0}\u{1fec1}\u{1fec2}\u{1fec3}\u{1fec4}\u{1fec5}\u{1fec6}\u{1fec7}\u{1fec8}\u{1fec9}\u{1feca}\u{1fecb}\u{1fecc}\u{1fecd}\u{1fece}\u{1fecf}\u{1fed0}\u{1fed1}\u{1fed2}\u{1fed3}\u{1fed4}\u{1fed5}\u{1fed6}\u{1fed7}\u{1fed8}\u{1fed9}\u{1feda}\u{1fedb}\u{1fedc}\u{1fedd}\u{1fede}\u{1fedf}\u{1fee0}\u{1fee1}\u{1fee2}\u{1fee3}\u{1fee4}\u{1fee5}\u{1fee6}\u{1fee7}\u{1fee8}\u{1fee9}\u{1feea}\u{1feeb}\u{1feec}\u{1feed}\u{1feee}\u{1feef}\u{1fef0}\u{1fef1}\u{1fef2}\u{1fef3}\u{1fef4}\u{1fef5}\u{1fef6}\u{1fef7}\u{1fef8}\u{1fef9}\u{1fefa}\u{1fefb}\u{1fefc}\u{1fefd}\u{1fefe}\u{1feff}",
+    "\u{1ff00}\u{1ff01}\u{1ff02}\u{1ff03}\u{1ff04}\u{1ff05}\u{1ff06}\u{1ff07}\u{1ff08}\u{1ff09}\u{1ff0a}\u{1ff0b}\u{1ff0c}\u{1ff0d}\u{1ff0e}\u{1ff0f}\u{1ff10}\u{1ff11}\u{1ff12}\u{1ff13}\u{1ff14}\u{1ff15}\u{1ff16}\u{1ff17}\u{1ff18}\u{1ff19}\u{1ff1a}\u{1ff1b}\u{1ff1c}\u{1ff1d}\u{1ff1e}\u{1ff1f}\u{1ff20}\u{1ff21}\u{1ff22}\u{1ff23}\u{1ff24}\u{1ff25}\u{1ff26}\u{1ff27}\u{1ff28}\u{1ff29}\u{1ff2a}\u{1ff2b}\u{1ff2c}\u{1ff2d}\u{1ff2e}\u{1ff2f}\u{1ff30}\u{1ff31}\u{1ff32}\u{1ff33}\u{1ff34}\u{1ff35}\u{1ff36}\u{1ff37}\u{1ff38}\u{1ff39}\u{1ff3a}\u{1ff3b}\u{1ff3c}\u{1ff3d}\u{1ff3e}\u{1ff3f}\u{1ff40}\u{1ff41}\u{1ff42}\u{1ff43}\u{1ff44}\u{1ff45}\u{1ff46}\u{1ff47}\u{1ff48}\u{1ff49}\u{1ff4a}\u{1ff4b}\u{1ff4c}\u{1ff4d}\u{1ff4e}\u{1ff4f}\u{1ff50}\u{1ff51}\u{1ff52}\u{1ff53}\u{1ff54}\u{1ff55}\u{1ff56}\u{1ff57}\u{1ff58}\u{1ff59}\u{1ff5a}\u{1ff5b}\u{1ff5c}\u{1ff5d}\u{1ff5e}\u{1ff5f}\u{1ff60}\u{1ff61}\u{1ff62}\u{1ff63}\u{1ff64}\u{1ff65}\u{1ff66}\u{1ff67}\u{1ff68}\u{1ff69}\u{1ff6a}\u{1ff6b}\u{1ff6c}\u{1ff6d}\u{1ff6e}\u{1ff6f}\u{1ff70}\u{1ff71}\u{1ff72}\u{1ff73}\u{1ff74}\u{1ff75}\u{1ff76}\u{1ff77}\u{1ff78}\u{1ff79}\u{1ff7a}\u{1ff7b}\u{1ff7c}\u{1ff7d}\u{1ff7e}\u{1ff7f}\u{1ff80}\u{1ff81}\u{1ff82}\u{1ff83}\u{1ff84}\u{1ff85}\u{1ff86}\u{1ff87}\u{1ff88}\u{1ff89}\u{1ff8a}\u{1ff8b}\u{1ff8c}\u{1ff8d}\u{1ff8e}\u{1ff8f}\u{1ff90}\u{1ff91}\u{1ff92}\u{1ff93}\u{1ff94}\u{1ff95}\u{1ff96}\u{1ff97}\u{1ff98}\u{1ff99}\u{1ff9a}\u{1ff9b}\u{1ff9c}\u{1ff9d}\u{1ff9e}\u{1ff9f}\u{1ffa0}\u{1ffa1}\u{1ffa2}\u{1ffa3}\u{1ffa4}\u{1ffa5}\u{1ffa6}\u{1ffa7}\u{1ffa8}\u{1ffa9}\u{1ffaa}\u{1ffab}\u{1ffac}\u{1ffad}\u{1ffae}\u{1ffaf}\u{1ffb0}\u{1ffb1}\u{1ffb2}\u{1ffb3}\u{1ffb4}\u{1ffb5}\u{1ffb6}\u{1ffb7}\u{1ffb8}\u{1ffb9}\u{1ffba}\u{1ffbb}\u{1ffbc}\u{1ffbd}\u{1ffbe}\u{1ffbf}\u{1ffc0}\u{1ffc1}\u{1ffc2}\u{1ffc3}\u{1ffc4}\u{1ffc5}\u{1ffc6}\u{1ffc7}\u{1ffc8}\u{1ffc9}\u{1ffca}\u{1ffcb}\u{1ffcc}\u{1ffcd}\u{1ffce}\u{1ffcf}\u{1ffd0}\u{1ffd1}\u{1ffd2}\u{1ffd3}\u{1ffd4}\u{1ffd5}\u{1ffd6}\u{1ffd7}\u{1ffd8}\u{1ffd9}\u{1ffda}\u{1ffdb}\u{1ffdc}\u{1ffdd}\u{1ffde}\u{1ffdf}\u{1ffe0}\u{1ffe1}\u{1ffe2}\u{1ffe3}\u{1ffe4}\u{1ffe5}\u{1ffe6}\u{1ffe7}\u{1ffe8}\u{1ffe9}\u{1ffea}\u{1ffeb}\u{1ffec}\u{1ffed}\u{1ffee}\u{1ffef}\u{1fff0}\u{1fff1}\u{1fff2}\u{1fff3}\u{1fff4}\u{1fff5}\u{1fff6}\u{1fff7}\u{1fff8}\u{1fff9}\u{1fffa}\u{1fffb}\u{1fffc}\u{1fffd}\u{1fffe}\u{1ffff}"
+]
+# ---- cptab end
