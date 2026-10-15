@@ -14,6 +14,9 @@
 # all the same); n_add's final carry limb (every sum is below 1024 with
 # 200, 500, 1000 or 2000 fraction bits, so it never carries past the top
 # limb: 2^(f + 10) and 2^(f + 20) are limb boundaries, nothing reaches them).
+# Exact results (log10(10^k) = k, log2(2^k) = k) need no special case: the
+# bracket around a representable value rounds to it at once (only a midpoint
+# could stall Ziv's loop).
 import glob, os, subprocess, sys, tempfile
 from concurrent.futures import ThreadPoolExecutor
 RCE = os.environ.get('RCE', 'rce')
@@ -76,6 +79,9 @@ M = [('core',) + m for m in [
     ('            kc = n_pow2(2100)', '            kc = n_pow2(2101)'),
     ('            let sc = c_log2e()\n            let s1 = cst(&sc, 2100, f)', '            let sc = c_log2e()\n            let s1 = cst(&sc, 2101, f)'),
     ('        if which == 1\n', '        if which == 3\n'),
+]] + [('log10',) + m for m in [
+    ('        elif which == 2\n', '        elif which == 3\n'),
+    ('            kc = c_log10_2()', '            kc = c_ln2()'),
 ]] + [('sin',) + m for m in [
     ('            o.push(a[i] & ((1 << b) - 1))', '            o.push(a[i])'),
     ('    if ax < 7.450580596923828e-09', '    if ax < 1e-6'),

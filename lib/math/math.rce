@@ -597,13 +597,6 @@ fn log_gen(x: f64, which: i64) -> f64
     let fr = frexp1(x)
     var m = fr[0]
     var e = fr[1] as i64
-    if which == 2
-        # exact results: 10^k is a double for 0 <= k <= 22
-        var p: f64 = 10.0
-        for k in 1..23
-            if x == p
-                return k as f64
-            p = p * 10.0
     if m >= 1.5
         m = m * 0.5
         e += 1
@@ -653,6 +646,9 @@ pub fn log(x: f64) -> f64
 
 pub fn log2(x: f64) -> f64
     return log_gen(x, 1)
+
+pub fn log10(x: f64) -> f64
+    return log_gen(x, 2)
 
 # ---- sin, cos -------------------------------------------------------------
 # Payne-Hanek: x = M 2^E times 2/pi (4200 bits), mod 4, exact for every
