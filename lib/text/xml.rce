@@ -1,0 +1,412 @@
+module text.xml
+# uses: data.events
+use data.events
+
+# A small XML 1.0 reader (with Namespaces in XML 1.0), pure: elements,
+# attributes, character data (entity and character references decoded,
+# CDATA sections kept as text), comments, processing instructions and a
+# DOCTYPE without an internal subset skipped. The document is a flat
+# arena: node 0 is the document, element and text nodes follow in
+# document order. Element names are split into prefix-free local name
+# and namespace URI resolved through the in-scope xmlns declarations;
+# attributes keep their names as written.
+
+pub const DOC: i64 = 0
+pub const ELEM: i64 = 1
+pub const TEXT: i64 = 2
+
+pub struct Xml
+    nk: List[i64]
+    name: List[text]
+    ns: List[text]
+    an: List[List[text]]
+    av: List[List[text]]
+    kids: List[List[i64]]
+    par: List[i64]
+    txt: List[text]
+    ok: bool
+    why: text
+
+fn xnone() -> List[text] = []
+fn inone() -> List[i64] = []
+
+fn xbad(x: &mut Xml, why: text)
+    if x.ok
+        x.ok = false
+        x.why = why
+
+fn new_node(x: &mut Xml, k: i64, p: i64) -> i64
+    x.nk.push(k)
+    x.name.push("")
+    x.ns.push("")
+    x.an.push(xnone())
+    x.av.push(xnone())
+    x.kids.push(inone())
+    x.par.push(p)
+    x.txt.push("")
+    let n = (x.nk.len() - 1) as i64
+    if p >= 0
+        x.kids[p as usize].push(n)
+    return n
+
+fn is_ws(c: &text) -> bool = c == " " or c == "\n" or c == "\t" or c == "\r"
+
+fn is_name_ch(c: &text) -> bool
+    if c == "" or is_ws(c)
+        return false
+    return not (c == "<" or c == ">" or c == "/" or c == "=" or c == "\"" or c == "'" or c == "&" or c == "?" or c == "!")
+
+fn hexval(c: &text) -> i64
+    let h = "0123456789abcdef"
+    let l = c.lower()
+    var i: i64 = 0
+    for d in h.chars()
+        if d == l
+            return i
+        i += 1
+    return -1
+
+# decode &...; references in a run of characters
+pub fn unescape(x: &mut Xml, s: &text) -> text
+    let cs = s.chars()
+    var o = ""
+    var i: usize = 0
+    while i < cs.len() bound 16777216
+        if cs[i] == "&"
+            var j = i + 1
+            var nm = ""
+            while j < cs.len() and cs[j] != ";" and j - i < 12 bound 64
+                nm = nm + cs[j]
+                j += 1
+            if j >= cs.len() or cs[j] != ";"
+                xbad(x, "bad reference")
+                return o
+            if nm == "lt"
+                o = o + "<"
+            elif nm == "gt"
+                o = o + ">"
+            elif nm == "amp"
+                o = o + "&"
+            elif nm == "quot"
+                o = o + "\""
+            elif nm == "apos"
+                o = o + "'"
+            elif nm.startswith("#")
+                var v: i64 = 0
+                let ds = nm.chars()
+                var ok = ds.len() > 1
+                if ds.len() > 1 and ds[1] == "x"
+                    ok = ds.len() > 2
+                    for k in 2..ds.len()
+                        let h = hexval(&ds[k])
+                        if h < 0
+                            ok = false
+                        v = v * 16 + h
+                else
+                    for k in 1..ds.len()
+                        if not ds[k].isdigit()
+                            ok = false
+                        else
+                            v = v * 10 + ds[k].toint()
+                if not ok or v <= 0 or v > 1114111
+                    xbad(x, "bad character reference")
+                    return o
+                o = o + text_from_code(v)
+            else
+                xbad(x, "unknown entity " + nm)
+                return o
+            i = j + 1
+        else
+            o = o + cs[i]
+            i += 1
+    return o
+
+fn text_from_code(v: i64) -> text = events.cp_text(v) catch "\u{fffd}"
+
+fn starts_at(cs: &[text], i: usize, p: &text) -> bool
+    let ps = p.chars()
+    if i + ps.len() > cs.len()
+        return false
+    for k in 0..ps.len()
+        if cs[i + k] != ps[k]
+            return false
+    return true
+
+# index of the first occurrence of p at or after i, or cs.len()
+fn find_at(cs: &[text], i: usize, p: &text) -> usize
+    var k = i
+    while k < cs.len() bound 67108864
+        if starts_at(cs, k, p)
+            return k
+        k += 1
+    return cs.len()
+
+fn ns_lookup(x: &Xml, n: i64, pre: &text) -> text
+    let key = if pre == "" then "xmlns" else "xmlns:" + pre
+    var p = n
+    while p > 0 bound 1048576
+        let names = copy(x.an[p as usize])
+        for k in 0..names.len()
+            if names[k] == key
+                return copy(x.av[p as usize][k])
+        p = x.par[p as usize]
+    if pre == "xml"
+        return "http://www.w3.org/XML/1998/namespace"
+    return ""
+
+fn add_text(x: &mut Xml, p: i64, t: text)
+    if t == ""
+        return
+    let ks = copy(x.kids[p as usize])
+    if ks.len() > 0 and x.nk[ks[ks.len() - 1] as usize] == TEXT
+        let l = ks[ks.len() - 1] as usize
+        x.txt[l] = x.txt[l] + t
+        return
+    let n = new_node(x, TEXT, p)
+    x.txt[n as usize] = t
+
+pub fn parse(src: &text) -> Xml
+    var x = Xml(nk: [], name: [], ns: [], an: [], av: [], kids: [], par: [], txt: [], ok: true, why: "")
+    let d = new_node(&mut x, DOC, -1)
+    let cs = src.chars()
+    var i: usize = 0
+    var cur = d
+    var run = ""
+    var seen_root = false
+    while i < cs.len() and x.ok bound 67108864
+        if cs[i] != "<"
+            run = run + cs[i]
+            i += 1
+        else
+            if run != ""
+                if cur == d
+                    for c in run.chars()
+                        if not is_ws(&c)
+                            xbad(&mut x, "text outside the root element")
+                else
+                    let t = unescape(&mut x, &run)
+                    add_text(&mut x, cur, t)
+                run = ""
+            let lt = "<!--"
+            let cd = "<![CDATA["
+            let pi = "<?"
+            let dt = "<!DOCTYPE"
+            if starts_at(&cs, i, &lt)
+                let e = "-->"
+                let j = find_at(&cs, i + 4, &e)
+                if j >= cs.len()
+                    xbad(&mut x, "unterminated comment")
+                i = j + 3
+            elif starts_at(&cs, i, &cd)
+                let e = "]]>"
+                let j = find_at(&cs, i + 9, &e)
+                if j >= cs.len() or cur == d
+                    xbad(&mut x, "bad CDATA section")
+                else
+                    var t = ""
+                    for k in i + 9..j
+                        t = t + cs[k]
+                    add_text(&mut x, cur, t)
+                i = j + 3
+            elif starts_at(&cs, i, &pi)
+                let e = "?>"
+                let j = find_at(&cs, i + 2, &e)
+                if j >= cs.len()
+                    xbad(&mut x, "unterminated processing instruction")
+                i = j + 2
+            elif starts_at(&cs, i, &dt)
+                let e = ">"
+                let j = find_at(&cs, i, &e)
+                if j >= cs.len()
+                    xbad(&mut x, "unterminated DOCTYPE")
+                i = j + 1
+            elif i + 1 < cs.len() and cs[i + 1] == "/"
+                var j = i + 2
+                var nm = ""
+                while j < cs.len() and is_name_ch(&cs[j]) bound 4096
+                    nm = nm + cs[j]
+                    j += 1
+                while j < cs.len() and is_ws(&cs[j]) bound 4096
+                    j += 1
+                if j >= cs.len() or cs[j] != ">" or cur == d or x.txt[cur as usize] != nm
+                    xbad(&mut x, "mismatched end tag " + nm)
+                else
+                    cur = x.par[cur as usize]
+                i = j + 1
+            else
+                var j = i + 1
+                var nm = ""
+                while j < cs.len() and is_name_ch(&cs[j]) bound 4096
+                    nm = nm + cs[j]
+                    j += 1
+                if nm == "" or (cur == d and seen_root)
+                    xbad(&mut x, "bad start tag")
+                    return x
+                seen_root = true
+                let n = new_node(&mut x, ELEM, cur)
+                # the qualified name, kept in txt until the tag is closed
+                x.txt[n as usize] = copy(nm)
+                var closed = false
+                var empty = false
+                while not closed and x.ok bound 4096
+                    while j < cs.len() and is_ws(&cs[j]) bound 4096
+                        j += 1
+                    if j >= cs.len()
+                        xbad(&mut x, "unterminated start tag")
+                    elif cs[j] == ">"
+                        closed = true
+                        j += 1
+                    elif cs[j] == "/" and j + 1 < cs.len() and cs[j + 1] == ">"
+                        closed = true
+                        empty = true
+                        j += 2
+                    else
+                        var a = ""
+                        while j < cs.len() and is_name_ch(&cs[j]) bound 4096
+                            a = a + cs[j]
+                            j += 1
+                        while j < cs.len() and is_ws(&cs[j]) bound 4096
+                            j += 1
+                        if a == "" or j >= cs.len() or cs[j] != "="
+                            xbad(&mut x, "bad attribute")
+                            return x
+                        j += 1
+                        while j < cs.len() and is_ws(&cs[j]) bound 4096
+                            j += 1
+                        if j >= cs.len() or (cs[j] != "\"" and cs[j] != "'")
+                            xbad(&mut x, "unquoted attribute value")
+                            return x
+                        let q = copy(cs[j])
+                        j += 1
+                        var v = ""
+                        while j < cs.len() and cs[j] != q bound 1048576
+                            if cs[j] == "<"
+                                xbad(&mut x, "< in attribute value")
+                            # attribute-value normalization of white space
+                            v = v + (if cs[j] == "\n" or cs[j] == "\t" or cs[j] == "\r" then " " else cs[j])
+                            j += 1
+                        j += 1
+                        if x.an[n as usize].contains(a)
+                            xbad(&mut x, "duplicate attribute " + a)
+                        let uv = unescape(&mut x, &v)
+                        x.an[n as usize].push(a)
+                        x.av[n as usize].push(uv)
+                i = j
+                # resolve the element name
+                let parts = nm.split(":")
+                var pre = ""
+                var loc = copy(nm)
+                if parts.len() == 2
+                    pre = copy(parts[0])
+                    loc = copy(parts[1])
+                x.name[n as usize] = loc
+                x.ns[n as usize] = ns_lookup(&x, n, &pre)
+                if pre != "" and x.ns[n as usize] == ""
+                    xbad(&mut x, "unbound prefix " + pre)
+                if empty
+                    x.txt[n as usize] = ""
+                else
+                    cur = n
+    if x.ok and cur != d
+        xbad(&mut x, "unclosed element")
+    if x.ok and not seen_root
+        xbad(&mut x, "no root element")
+    # clear the qualified names kept on open elements
+    for k in 0..x.nk.len()
+        if x.nk[k] == ELEM
+            x.txt[k] = ""
+    return x
+
+# value of attribute a of element n, or "" (see has_attr)
+pub fn xattr(x: &Xml, n: i64, a: &text) -> text
+    let names = copy(x.an[n as usize])
+    for k in 0..names.len()
+        if names[k] == a
+            return copy(x.av[n as usize][k])
+    return ""
+
+pub fn xhas_attr(x: &Xml, n: i64, a: &text) -> bool = x.an[n as usize].contains(copy(a))
+
+# child elements of n, in order
+pub fn elems(x: &Xml, n: i64) -> List[i64]
+    var o: List[i64] = []
+    for k in x.kids[n as usize]
+        if x.nk[k as usize] == ELEM
+            o.push(k)
+    return o
+
+# the root element (the document's element child), or -1
+pub fn root(x: &Xml) -> i64
+    let es = elems(x, 0)
+    if es.len() == 0
+        return -1
+    return es[0]
+
+# text content: the concatenated character data of the descendants
+pub fn text_content(x: &Xml, n: i64) -> text
+    if x.nk[n as usize] == TEXT
+        return copy(x.txt[n as usize])
+    var o = ""
+    var st: List[i64] = [n]
+    var out: List[i64] = []
+    while st.len() > 0 bound 16777216
+        let k = st[st.len() - 1]
+        st.pop()
+        if x.nk[k as usize] == TEXT
+            o = o + x.txt[k as usize]
+        else
+            var j = x.kids[k as usize].len()
+            while j > 0 bound 1048576
+                j -= 1
+                st.push(x.kids[k as usize][j])
+    return o
+
+# descendant elements of n with local name nm, in document order
+pub fn by_tag(x: &Xml, n: i64, nm: &text) -> List[i64]
+    var o: List[i64] = []
+    for k in (n + 1) as usize..x.nk.len()
+        if x.nk[k] == ELEM and (nm == "*" or x.name[k] == nm) and is_under(x, k as i64, n)
+            o.push(k as i64)
+    return o
+
+pub fn is_under(x: &Xml, k: i64, n: i64) -> bool
+    var p = x.par[k as usize]
+    while p >= 0 bound 1048576
+        if p == n
+            return true
+        p = x.par[p as usize]
+    return false
+
+fn esc(t: &text, isattr: bool) -> text
+    var o = ""
+    for c in t.chars()
+        if c == "<"
+            o = o + "&lt;"
+        elif c == "&"
+            o = o + "&amp;"
+        elif c == ">"
+            o = o + "&gt;"
+        elif isattr and c == "\""
+            o = o + "&quot;"
+        else
+            o = o + c
+    return o
+
+# serialize n (element: local names, attributes as written, empty elements
+# as <a/>; namespace declarations only as written in attributes)
+pub fn serialize(x: &Xml, n: i64) -> text bound 256
+    if x.nk[n as usize] == TEXT
+        return esc(&x.txt[n as usize], false)
+    var o = ""
+    if x.nk[n as usize] == ELEM
+        o = "<" + x.name[n as usize]
+        for k in 0..x.an[n as usize].len()
+            o = o + " " + x.an[n as usize][k] + "=\"" + esc(&x.av[n as usize][k], true) + "\""
+        if x.kids[n as usize].len() == 0
+            return o + "/>"
+        o = o + ">"
+    for k in x.kids[n as usize]
+        o = o + serialize(x, k)
+    if x.nk[n as usize] == ELEM
+        o = o + "</" + x.name[n as usize] + ">"
+    return o

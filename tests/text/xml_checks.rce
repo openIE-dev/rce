@@ -1,0 +1,28 @@
+fn xt(s: text) -> text
+    let x = parse(&s)
+    if not x.ok
+        return "err " + x.why
+    return serialize(&x, root(&x))
+check xt("<a/>") == "<a/>"
+check xt("<?xml version=\"1.0\"?>\n<!-- c --><a x='1' y=\"&lt;&amp;\"><b>t&#65;&#x42;</b><![CDATA[<z>]]></a>") == "<a x=\"1\" y=\"&lt;&amp;\"><b>tAB</b>&lt;z&gt;</a>"
+check xt("<a><b></a>") == "err mismatched end tag a"
+check xt("<a x='1' x='2'/>") == "err duplicate attribute x"
+check xt("<a>&foo;</a>") == "err unknown entity foo"
+check xt("<a/><b/>") == "err bad start tag"
+check xt("<p:a/>") == "err unbound prefix p"
+fn nsof(s: text) -> text
+    let x = parse(&s)
+    let r = root(&x)
+    let es = elems(&x, r)
+    return x.ns[r as usize] + "|" + x.ns[es[0] as usize] + "|" + x.name[es[0] as usize]
+check nsof("<scxml xmlns=\"http://www.w3.org/2005/07/scxml\"><books xmlns=\"\"/></scxml>") == "http://www.w3.org/2005/07/scxml||books"
+check nsof("<a xmlns:c=\"u\"><c:b/></a>") == "|u|b"
+fn bt(s: text) -> text
+    let x = parse(&s)
+    var o = ""
+    let bk = "book"
+    let tt = "title"
+    for k in by_tag(&x, root(&x), &bk)
+        o = o + xattr(&x, k, &tt) + ","
+    return o + text_content(&x, root(&x))
+check bt("<books> <book title=\"t1\"/> <book title=\"t2\">x</book> </books>") == "t1,t2,  x "
