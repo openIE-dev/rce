@@ -999,10 +999,15 @@ num.linalg (327 checks, `scripts/gen/linalg_gen.py`, `linalg_gen2.py`):
   dsyev/dgesvd style tests with the LAPACK test ratios (residual and
   orthogonality) below 30, the LAPACK pass threshold.
 
-num.special (3,421 checks, `scripts/gen/special_gen.py`): 1,897 bit for bit
+num.special (3,421 checks, `scripts/gen/special_gen.py`): exp and log are
+the correctly rounded `math.exp` and `math.log`, re-exported as `cr_exp` and
+`cr_log` (521 checks bit for bit against mpmath 1.4.1, with the subnormal
+results rounded exactly on the 2^-1074 grid, since mpmath's float() rounds
+twice there). The FDLIBM ports stay as `exp_fdlibm` and `log_fdlibm` under
+erf, erfc and lgamma: 1,897 checks bit for bit
 against FDLIBM 5.3 (netlib, sources and SHA256SUMS in `scripts/ref/fdlibm`,
 built with gcc -O0 -ffp-contract=off) and 1,524 within 1 ulp of the
-correctly rounded value from mpmath 1.4.1 at 200 bits. FDLIBM notice:
+correctly rounded value from mpmath 1.4.1 at 200 bits (exp and log: equal). FDLIBM notice:
 "Copyright (C) 1993 by Sun Microsystems, Inc. All rights reserved.
 Developed at SunSoft, a Sun Microsystems, Inc. business. Permission to use,
 copy, modify, and distribute this software is freely granted, provided that
@@ -1030,10 +1035,13 @@ num.stats (1,901 checks):
   for all nine methods bit for bit; `ttest_1samp`, `ttest_ind` (pooled and
   Welch), `ttest_rel`, `chisquare`, `chi2_contingency` (with and without
   Yates), `pearsonr`, `f_oneway`, `skew`, `kurtosis` to 1e-12.
-- Variates: 80 uniforms bit for bit against an independent Python ChaCha20
-  (checked against the RFC 8439 2.3.2 block vector) laid out as `rand.det`
-  streams; normal and exponential variates against `scipy.special.ndtri`
-  and `numpy.log` of the same uniforms.
+- Variates: the draws of a `rand.det` stream computed by an independent
+  Python ChaCha20 (checked against the RFC 8439 2.3.2 block vector); 80
+  uniforms bit for bit, normal and exponential variates against
+  `scipy.special.ndtri` and `numpy.log` of the same uniforms. The variate
+  functions take the integer `det.bits(r, k)`, not the generator, because
+  `math` and `rand.det` both declare a public `split` and so cannot share a
+  package yet.
 - Algorithms and their sources: C. Loader, "Fast and Accurate Computation
   of Binomial Probabilities" (2000) for stirlerr, bd0 and the saddle-point
   densities; M. J. Wichura, Algorithm AS 241 (Applied Statistics 37, 1988)
@@ -1046,8 +1054,8 @@ Mutation testing: `scripts/mut/num.py` 12/12 killed (the two left-out equivalent
 
 Open gaps: eigenvectors of nonsymmetric matrices are not provided; above
 n = 32 the results stay deterministic but are no longer bit-identical to
-the blocked LAPACK drivers; FDLIBM functions are faithful (1 ulp), not
-correctly rounded, until the `math` module's CORE-MATH ports land; far tails
+the blocked LAPACK drivers; log1p, expm1, erf, erfc and lgamma are FDLIBM
+(faithful, within 1 ulp), not correctly rounded, until `math` has them; far tails
 with large parameters (t with df = 1e5, binomial and Poisson pmf near 1e-300)
 reach relative errors of 3e-12 and 3e-13, from the rounding of exp arguments
 near 700.
