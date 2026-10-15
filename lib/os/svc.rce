@@ -1,0 +1,333 @@
+module os.svc
+# Services (survey M44), pure: the supervision decisions a host makes for a
+# service unit, as systemd makes them (src/shared/exit-status.c,
+# src/basic/signal-util.c, src/core/service.c at systemd main, Oct 2026):
+#  - exit status names (SUCCESS, TEMPFAIL, NAMESPACE, ...) and their class
+#    (libc, systemd, LSB, BSD), and the exit status a word names;
+#  - signal names as systemd reads them: numbers, HUP or SIGHUP,
+#    RTMIN+n and RTMAX-n (Linux numbering: SIGRTMIN 34, SIGRTMAX 64);
+#  - SuccessExitStatus=, RestartPreventExitStatus= and
+#    RestartForceExitStatus= sets, with systemd's number syntax (decimal,
+#    0x hex, C octal, 0o and 0b prefixes);
+#  - the result of a main process exit (clean, exit-code, signal,
+#    core-dump) and the Restart= decision with its reason.
+# Codes and statuses are those of waitid(2): code "exited" with the exit
+# status, "killed" or "dumped" with the signal number.
+
+error BadSvc(why: text)
+
+const EINVAL: i64 = -22
+const ERANGE: i64 = -34
+const SIGRTMIN: i64 = 34
+const SIGRTMAX: i64 = 64
+const NSIG: i64 = 65
+
+const EXIT_CODES: List[i64] = [0, 1, 2, 3, 4, 5, 6, 7, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 200, 201, 202, 203, 204, 205, 206, 207, 208, 209, 210, 211, 212, 213, 214, 215, 216, 217, 218, 219, 220, 221, 222, 224, 225, 226, 227, 228, 229, 230, 231, 232, 233, 235, 236, 237, 238, 239, 240, 241, 242, 243, 244, 245, 246, 255]
+const EXIT_NAMES: List[text] = ["SUCCESS", "FAILURE", "INVALIDARGUMENT", "NOTIMPLEMENTED", "NOPERMISSION", "NOTINSTALLED", "NOTCONFIGURED", "NOTRUNNING", "USAGE", "DATAERR", "NOINPUT", "NOUSER", "NOHOST", "UNAVAILABLE", "SOFTWARE", "OSERR", "OSFILE", "CANTCREAT", "IOERR", "TEMPFAIL", "PROTOCOL", "NOPERM", "CONFIG", "CHDIR", "NICE", "FDS", "EXEC", "MEMORY", "LIMITS", "OOM_ADJUST", "SIGNAL_MASK", "STDIN", "STDOUT", "CHROOT", "IOPRIO", "TIMERSLACK", "SECUREBITS", "SETSCHEDULER", "CPUAFFINITY", "GROUP", "USER", "CAPABILITIES", "CGROUP", "SETSID", "CONFIRM", "STDERR", "PAM", "NETWORK", "NAMESPACE", "NO_NEW_PRIVILEGES", "SECCOMP", "SELINUX_CONTEXT", "PERSONALITY", "APPARMOR", "ADDRESS_FAMILIES", "RUNTIME_DIRECTORY", "CHOWN", "SMACK_PROCESS_LABEL", "KEYRING", "STATE_DIRECTORY", "CACHE_DIRECTORY", "LOGS_DIRECTORY", "CONFIGURATION_DIRECTORY", "NUMA_POLICY", "CREDENTIALS", "BPF", "KSM", "MEMORY_THP", "EXCEPTION"]
+const EXIT_CLASSES: List[text] = ["libc", "libc", "LSB", "LSB", "LSB", "LSB", "LSB", "LSB", "BSD", "BSD", "BSD", "BSD", "BSD", "BSD", "BSD", "BSD", "BSD", "BSD", "BSD", "BSD", "BSD", "BSD", "BSD", "systemd", "systemd", "systemd", "systemd", "systemd", "systemd", "systemd", "systemd", "systemd", "systemd", "systemd", "systemd", "systemd", "systemd", "systemd", "systemd", "systemd", "systemd", "systemd", "systemd", "systemd", "systemd", "systemd", "systemd", "systemd", "systemd", "systemd", "systemd", "systemd", "systemd", "systemd", "systemd", "systemd", "systemd", "systemd", "systemd", "systemd", "systemd", "systemd", "systemd", "systemd", "systemd", "systemd", "systemd", "systemd", "systemd"]
+const SIGNAMES: List[text] = ["", "HUP", "INT", "QUIT", "ILL", "TRAP", "ABRT", "BUS", "FPE", "KILL", "USR1", "SEGV", "USR2", "PIPE", "ALRM", "TERM", "STKFLT", "CHLD", "CONT", "STOP", "TSTP", "TTIN", "TTOU", "URG", "XCPU", "XFSZ", "VTALRM", "PROF", "WINCH", "IO", "PWR", "SYS"]
+
+# ---------------- numbers as systemd reads them ----------------
+
+fn ws(c: &text) -> bool = c == " " or c == "\t" or c == "\n" or c == "\r"
+# isspace() of the C locale, which strtoul skips on its own
+fn cspace(c: &text) -> bool = ws(c) or c == "\u{b}" or c == "\u{c}"
+
+fn digit_val(c: &text) -> i64
+    if c.len() != 1
+        return 99
+    let b = c[0] as i64
+    if b >= 48 and b <= 57
+        return b - 48
+    if b >= 97 and b <= 122
+        return b - 87
+    if b >= 65 and b <= 90
+        return b - 55
+    return 99
+
+pub struct Num
+    err: i64
+    val: i64
+    neg: bool
+
+# strtoul()/strtol() after systemd's mangle_base(): leading WHITESPACE is
+# dropped, "0b"/"0B" and "0o"/"0O" select base 2 and 8, otherwise C's
+# base 0 rules (0x hex, a leading 0 octal). The whole text must be a
+# number; values past 2^40 are reported as out of range (every caller
+# needs them below 2^31).
+fn c_num(s: &text) -> Num
+    let cs = s.chars()
+    var i: usize = 0
+    while i < cs.len() and ws(&cs[i]) bound 16777216
+        i += 1
+    var base: i64 = 0
+    if i + 1 < cs.len() and cs[i] == "0" and (cs[i + 1] == "b" or cs[i + 1] == "B")
+        base = 2
+        i += 2
+    else
+        if i + 1 < cs.len() and cs[i] == "0" and (cs[i + 1] == "o" or cs[i + 1] == "O")
+            base = 8
+            i += 2
+    while i < cs.len() and cspace(&cs[i]) bound 16777216
+        i += 1
+    var neg = false
+    if i < cs.len() and (cs[i] == "+" or cs[i] == "-")
+        neg = cs[i] == "-"
+        i += 1
+    # glibc 2.38+ (C23, as systemd is built): 0x before hex digits in
+    # base 0, 0b before binary digits in base 0 and base 2
+    let pre_x = i + 2 < cs.len() and cs[i] == "0" and (cs[i + 1] == "x" or cs[i + 1] == "X") and digit_val(&cs[i + 2]) < 16
+    let pre_b = i + 2 < cs.len() and cs[i] == "0" and (cs[i + 1] == "b" or cs[i + 1] == "B") and digit_val(&cs[i + 2]) < 2
+    if base == 0 and pre_x
+        base = 16
+        i += 2
+    if (base == 0 or base == 2) and pre_b
+        base = 2
+        i += 2
+    if base == 0
+        base = if i < cs.len() and cs[i] == "0" then 8 else 10
+    var v: i64 = 0
+    var n: i64 = 0
+    var big = false
+    while i < cs.len() and digit_val(&cs[i]) < base bound 16777216
+        v = v * base + digit_val(&cs[i])
+        if v > 1099511627776
+            big = true
+            v = 1099511627776
+        n += 1
+        i += 1
+    if big
+        return Num(err: ERANGE, val: 0, neg: neg)
+    if n == 0 or i < cs.len()
+        return Num(err: EINVAL, val: 0, neg: neg)
+    return Num(err: 0, val: v, neg: neg)
+
+# safe_atou8: 0 to 255, negative numbers out of range.
+fn atou8(s: &text) -> i64
+    let r = c_num(s)
+    if r.err < 0
+        return r.err
+    if r.neg and r.val != 0
+        return ERANGE
+    if r.val > 255
+        return ERANGE
+    return r.val
+
+# safe_atoi: the signed value, or an error.
+fn atoi(s: &text) -> Num
+    let r = c_num(s)
+    if r.err < 0
+        return r
+    if r.val > 2147483648 or (r.val == 2147483648 and not r.neg)
+        return Num(err: ERANGE, val: 0, neg: false)
+    return Num(err: 0, val: if r.neg then 0 - r.val else r.val, neg: r.neg)
+
+# ---------------- exit statuses and signals ----------------
+
+# The name systemd gives an exit status ("" if none).
+pub fn exit_status_name(code: i64) -> text
+    var i: usize = 0
+    while i < EXIT_CODES.len() bound 1024
+        if EXIT_CODES[i] == code
+            return copy(EXIT_NAMES[i])
+        i += 1
+    return ""
+
+# libc, systemd, LSB or BSD ("" if the status has no name).
+pub fn exit_status_class(code: i64) -> text
+    var i: usize = 0
+    while i < EXIT_CODES.len() bound 1024
+        if EXIT_CODES[i] == code
+            return copy(EXIT_CLASSES[i])
+        i += 1
+    return ""
+
+# exit_status_from_string: a name, or a number 0 to 255; a negative errno
+# (-22 malformed, -34 out of range) otherwise.
+pub fn exit_status_from_string(s: &text) -> i64
+    var i: usize = 0
+    while i < EXIT_NAMES.len() bound 1024
+        if EXIT_NAMES[i] == s
+            return EXIT_CODES[i]
+        i += 1
+    return atou8(s)
+
+fn rt_offset(p: &text, lo: i64, hi: i64, base: i64) -> i64
+    let r = atoi(p)
+    if r.err < 0
+        return r.err
+    if r.val < lo or r.val > hi
+        return ERANGE
+    return r.val + base
+
+# signal_from_string: a number 1 to 64, a name with or without SIG,
+# RTMIN, RTMIN+n, RTMAX, RTMAX-n; a negative errno otherwise.
+pub fn signal_from_string(s: &text) -> i64
+    let n = atoi(s)
+    if n.err == 0
+        return if n.val > 0 and n.val < NSIG then n.val else ERANGE
+    let t = if s.startswith("SIG") then drop_front(s, 3) else copy(s)
+    var i: usize = 1
+    while i < SIGNAMES.len() bound 64
+        if SIGNAMES[i] == t
+            return i as i64
+        i += 1
+    if t.startswith("RTMIN")
+        let p = drop_front(&t, 5)
+        if p == ""
+            return SIGRTMIN
+        if not p.startswith("+")
+            return EINVAL
+        return rt_offset(&p, 0, SIGRTMAX - SIGRTMIN, SIGRTMIN)
+    if t.startswith("RTMAX")
+        let p = drop_front(&t, 5)
+        if p == ""
+            return SIGRTMAX
+        if not p.startswith("-")
+            return EINVAL
+        return rt_offset(&p, SIGRTMIN - SIGRTMAX, 0, SIGRTMAX)
+    return EINVAL
+
+fn drop_front(t: &text, n: i64) -> text
+    let cs = t.chars()
+    var o: List[text] = []
+    var i = n as usize
+    while i < cs.len() bound 16777216
+        o.push(copy(cs[i]))
+        i += 1
+    return "".join(o)
+
+# The name of a signal (HUP, RTMIN+3), or its number.
+pub fn signal_name(n: i64) -> text
+    if n > 0 and n < 32
+        return copy(SIGNAMES[n as usize])
+    if n >= SIGRTMIN and n <= SIGRTMAX
+        return "RTMIN+" + (n - SIGRTMIN).tostr()
+    return n.tostr()
+
+# ---------------- status sets ----------------
+
+# Exit statuses and signals, each ascending without duplicates.
+pub struct StatusSet
+    status: List[i64]
+    signal: List[i64]
+
+fn add_sorted(xs: &List[i64], v: i64) -> List[i64]
+    var o: List[i64] = []
+    var done = false
+    for x in xs
+        if not done and v <= x
+            if v < x
+                o.push(v)
+            done = true
+        o.push(x)
+    if not done
+        o.push(v)
+    return o
+
+fn has(xs: &List[i64], v: i64) -> bool
+    for x in xs
+        if x == v
+            return true
+    return false
+
+# A SuccessExitStatus=-style value: words separated by whitespace, each an
+# exit status (name or number) or else a signal; words that are neither
+# are skipped (systemd logs and ignores them). Quotes and backslashes are
+# refused (systemd's word splitter would unquote them).
+pub fn status_set_parse(v: &text) -> StatusSet ! BadSvc
+    if v.contains("\"") or v.contains("'") or v.contains("\\")
+        fail BadSvc(why: "quoted words are not supported")
+    var st: List[i64] = []
+    var sg: List[i64] = []
+    var cur: List[text] = []
+    var words: List[text] = []
+    for c in v.chars()
+        if ws(&c)
+            if cur.len() > 0
+                words.push("".join(cur))
+                cur = []
+        else
+            cur.push(c)
+    if cur.len() > 0
+        words.push("".join(cur))
+    for w in words
+        let e = exit_status_from_string(&w)
+        if e >= 0
+            st = add_sorted(&st, e)
+        else
+            let g = signal_from_string(&w)
+            if g >= 0
+                sg = add_sorted(&sg, g)
+    return StatusSet(status: st, signal: sg)
+
+fn set_test(x: &StatusSet, code: &text, status: i64) -> bool
+    if code == "exited" and has(&x.status, status)
+        return true
+    return (code == "killed" or code == "dumped") and has(&x.signal, status)
+
+# is_clean_exit: a daemon (a main process not of Type=oneshot) may also
+# die of SIGHUP, SIGINT, SIGTERM or SIGPIPE. `success` holds
+# SuccessExitStatus= (systemd's own helper processes pass none: use_set
+# false).
+pub fn is_clean_exit(code: &text, status: i64, daemon: bool, success: &StatusSet, use_set: bool) -> bool
+    if code == "exited"
+        return status == 0 or (use_set and has(&success.status, status))
+    if code == "killed"
+        return (daemon and (status == 1 or status == 2 or status == 15 or status == 13)) or (use_set and has(&success.signal, status))
+    return false
+
+# The result of a main process exit (service_sigchld_event).
+pub fn exit_result(stype: &text, code: &text, status: i64, success: &StatusSet) -> text
+    let daemon = stype != "oneshot"
+    if is_clean_exit(code, status, daemon, success, true)
+        return "success"
+    if code == "exited"
+        return "exit-code"
+    if code == "killed"
+        return "signal"
+    return "core-dump"
+
+# ---------------- Restart= ----------------
+
+pub struct Restart
+    yes: bool
+    reason: text
+
+pub struct Policy
+    restart: text
+    stype: text
+    prevent: StatusSet
+    force: StatusSet
+
+# service_shall_restart: Restart= is one of no, on-success, on-failure,
+# on-abnormal, on-watchdog, on-abort, always; result one of success,
+# resources, protocol, timeout, exit-code, signal, core-dump, watchdog,
+# start-limit-hit, oom-kill, condition; code/status the main process's
+# exit; manual_stop when the stop was asked for.
+pub fn shall_restart(p: &Policy, result: &text, code: &text, status: i64, manual_stop: bool) -> Restart
+    if manual_stop
+        return Restart(yes: false, reason: "manual stop")
+    if set_test(&p.prevent, code, status)
+        return Restart(yes: false, reason: "prevented by exit status")
+    if set_test(&p.force, code, status)
+        if p.stype == "oneshot" and result == "success"
+            return Restart(yes: false, reason: "service type and exit status")
+        return Restart(yes: true, reason: "forced by exit status")
+    let r = p.restart
+    let ok = result == "success"
+    let skip = result == "condition"
+    var y = false
+    if r == "always"
+        y = not skip
+    if r == "on-success"
+        y = ok
+    if r == "on-failure"
+        y = not ok and not skip
+    if r == "on-abnormal"
+        y = not ok and not skip and result != "exit-code"
+    if r == "on-watchdog"
+        y = result == "watchdog"
+    if r == "on-abort"
+        y = result == "signal" or result == "core-dump"
+    return Restart(yes: y, reason: "restart setting")

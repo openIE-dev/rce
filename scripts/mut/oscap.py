@@ -241,6 +241,37 @@ M['pkg'] = [
     ('        if not (seg.isalpha() or seg.isdigit())', '        if not (seg.isalpha() or seg.isdigit() or seg.contains("-"))'),
 ]
 
+M['svc'] = [
+    ('fn cspace(c: &text) -> bool = ws(c) or c == "\\u{b}" or c == "\\u{c}"', 'fn cspace(c: &text) -> bool = ws(c)'),
+    ('    if i + 1 < cs.len() and cs[i] == "0" and (cs[i + 1] == "b" or cs[i + 1] == "B")\n        base = 2', '    if i + 1 < cs.len() and cs[i] == "0" and cs[i + 1] == "b"\n        base = 2'),
+    ('            base = 8\n            i += 2', '            base = 10\n            i += 2'),
+    ('    if (base == 0 or base == 2) and pre_b', '    if base == 0 and pre_b'),
+    ('        base = if i < cs.len() and cs[i] == "0" then 8 else 10', '        base = 10'),
+    ('    if n == 0 or i < cs.len()', '    if n == 0'),
+    ('    if r.neg and r.val != 0\n        return ERANGE', '    if false\n        return ERANGE'),
+    ('    if r.val > 255', '    if r.val > 256'),
+    ('    if r.val > 2147483648 or (r.val == 2147483648 and not r.neg)', '    if r.val > 2147483648'),
+    ('        return if n.val > 0 and n.val < NSIG then n.val else ERANGE', '        return if n.val >= 0 and n.val < NSIG then n.val else ERANGE'),
+    ('    let t = if s.startswith("SIG") then drop_front(s, 3) else copy(s)', '    let t = copy(s)'),
+    ('        if not p.startswith("+")\n            return EINVAL', '        if false\n            return EINVAL'),
+    ('        return rt_offset(&p, 0, SIGRTMAX - SIGRTMIN, SIGRTMIN)', '        return rt_offset(&p, 0, SIGRTMAX - SIGRTMIN + 1, SIGRTMIN)'),
+    ('        return rt_offset(&p, SIGRTMIN - SIGRTMAX, 0, SIGRTMAX)', '        return rt_offset(&p, SIGRTMIN - SIGRTMAX - 1, 0, SIGRTMAX)'),
+    ('        return "RTMIN+" + (n - SIGRTMIN).tostr()', '        return "RTMIN+" + (n - SIGRTMIN + 1).tostr()'),
+    ('            if v < x\n                o.push(v)', '            o.push(v)'),
+    ('        if e >= 0\n            st = add_sorted(&st, e)', '        if e > 0\n            st = add_sorted(&st, e)'),
+    ('    return (code == "killed" or code == "dumped") and has(&x.signal, status)', '    return code == "killed" and has(&x.signal, status)'),
+    ('(status == 1 or status == 2 or status == 15 or status == 13)', '(status == 1 or status == 2 or status == 15)'),
+    ('        return status == 0 or (use_set and has(&success.status, status))', '        return status == 0 or has(&success.status, status)'),
+    ('    let daemon = stype != "oneshot"', '    let daemon = true'),
+    ('    if code == "killed"\n        return "signal"', '    if code == "dumped"\n        return "signal"'),
+    ('    if set_test(&p.prevent, code, status)', '    if false'),
+    ('        if p.stype == "oneshot" and result == "success"', '        if p.stype == "oneshot"'),
+    ('        y = not skip\n', '        y = true\n'),
+    ('        y = not ok and not skip and result != "exit-code"', '        y = not ok and not skip'),
+    ('        y = result == "signal" or result == "core-dump"', '        y = result == "signal"'),
+    ('    if manual_stop\n', '    if false\n'),
+]
+
 def one(job):
     name, a, b = job
     src = open(os.path.join(root, 'lib/os/%s.rce' % name)).read()
