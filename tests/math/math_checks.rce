@@ -1,0 +1,17 @@
+# Derived checks (MPFR 4.2.2 expected values).
+check cbrt(1.0) == 1.0
+check cbrt(8.0) == 2.0
+check cbrt(27.0) == 3.0
+check cbrt(0.125) == 0.5
+check cbrt(5e-324) == 1.7031839360032603e-108
+check cbrt(8.98846567431158e+307) == 4.4794894843556084e+102
+check cbrt(1.7976931348623157e+308) == 5.643803094122362e+102
+check cbrt(6.675221575521604e-308) == 4.0565350118095865e-103
+# error-free transformations are exact
+check two_sum(1.0, 1e-30)[1] == 1e-30
+check two_prod(134217729.0, 134217729.0)[1] == 1.0
+check two_prod(0.1, 0.1)[0] + two_prod(0.1, 0.1)[1] == two_prod(0.1, 0.1)[0]
+check pow2(-1074) == 5e-324
+check pow2(1023) == 8.98846567431158e+307
+check cbrt(0.0 - 27.0) == 0.0 - 3.0
+check sqrt(2.0) == 1.4142135623730951

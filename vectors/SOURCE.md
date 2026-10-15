@@ -825,3 +825,32 @@ text, its child list, then its matched children), where Vue patches
 children depth first while scanning. Minimality holds for the moves
 given the matching; the greedy unkeyed matching is Vue's and is not
 optimised.
+## math (lib/math/math.rce)
+
+Worst cases from CORE-MATH (https://gitlab.inria.fr/core-math/core-math,
+commit dae5dd8c0d5bd2691b45de28c9edbe12f067c3d3, MIT; Copyright (c)
+2021-2022 Alexei Sibidanov, Paul Zimmermann and the CORE-MATH authors),
+`src/binary64/<fn>/<fn>.wc`, copied unchanged with their license header.
+Expected values are not taken from any libm: `scripts/gen/math_vec.py`
+computes each with MPFR 4.2.2 (gmpy2, ieee(64) context, subnormalized,
+round to nearest even), so each is the correctly rounded binary64 result,
+and checks compare exact bits (no tolerance). Inputs whose result
+overflows (a trap in RCE) and non-finite inputs are skipped. Random cases:
+uniform 64-bit patterns and uniform [-4, 4], seed 20261015 + arity; edge
+cases: zeros, subnormal and normal boundaries, max, small integers, all
+sign combinations.
+
+| fn | CORE-MATH worst cases | random | edge | total |
+| --- | --- | --- | --- | --- |
+| cbrt | 106,244 | 2,999 | 12 | 109,255 |
+
+Derived (`tests/math/math_checks.rce`, `math_checks_eft.rce`): TwoProduct
+and TwoSum error terms and frexp1 against exact rationals, small cases.
+Cross-target: `scripts/math_parity.sh` emits the module with the derived
+checks and one shard per function to Rust, Python and JavaScript and
+requires identical transcripts, plus Scala 3 when scala-cli is installed
+(run on the box: Scala 3.9.0, JVM 17; all four identical).
+Mutation testing: `scripts/mut/math.py` 19/19 killed (equivalent mutants
+removed are listed in its header).
+
+- `vectors/math/cbrt.wc` sha256 `c0487c6527aafea0eb741a4464c745bd545c49fc2a00ff7dbb89ee882b16047a`
