@@ -1,0 +1,347 @@
+module col
+
+# Collections (survey M6) beyond the built-in List and Map: deque, binary
+# heap, ordered map and ordered set (sorted vectors, canonical key order),
+# and a hash map with fixed hashing (FNV-1a 32, no seed) whose iteration
+# order is insertion order. Every operation is deterministic: no seeds, no
+# addresses, no host input. Containers are generic structs used through
+# &mut / & functions (rce 0.1.3 resolves generic fields that way).
+
+# ---------------- Deque ----------------
+# Two stacks: front holds the front elements reversed. Amortized O(1).
+
+pub struct Deque[T]
+    front: List[T]
+    back: List[T]
+
+pub fn dq_len[T](d: &Deque[T]) -> usize = d.front.len() + d.back.len()
+
+pub fn dq_push_back[T](d: &mut Deque[T], x: T)
+    d.back.push(x)
+
+pub fn dq_push_front[T](d: &mut Deque[T], x: T)
+    d.front.push(x)
+
+fn dq_spill_to_front[T](d: &mut Deque[T])
+    # move the older half of back to front, keeping the rest in back
+    let n = d.back.len()
+    let k = (n + 1) / 2
+    var rest: List[T] = []
+    var i: usize = k
+    while i < n bound 16777216
+        rest.push(copy(d.back[i]))
+        i += 1
+    var j = k
+    while j > 0 bound 16777216
+        j -= 1
+        d.front.push(copy(d.back[j]))
+    d.back = rest
+
+fn dq_spill_to_back[T](d: &mut Deque[T])
+    let n = d.front.len()
+    let k = (n + 1) / 2
+    var rest: List[T] = []
+    var i: usize = k
+    while i < n bound 16777216
+        rest.push(copy(d.front[i]))
+        i += 1
+    var j = k
+    while j > 0 bound 16777216
+        j -= 1
+        d.back.push(copy(d.front[j]))
+    d.front = rest
+
+pub fn dq_pop_front[T](d: &mut Deque[T]) -> T?
+    if d.front.len() == 0
+        dq_spill_to_front(d)
+    if d.front.len() == 0
+        return none
+    let x = copy(d.front[d.front.len() - 1])
+    d.front.pop()
+    return some(x)
+
+pub fn dq_pop_back[T](d: &mut Deque[T]) -> T?
+    if d.back.len() == 0
+        dq_spill_to_back(d)
+    if d.back.len() == 0
+        return none
+    let x = copy(d.back[d.back.len() - 1])
+    d.back.pop()
+    return some(x)
+
+# Element i from the front (0-based); traps when out of range.
+pub fn dq_get[T](d: &Deque[T], i: usize) -> T
+    if i < d.front.len()
+        return copy(d.front[d.front.len() - 1 - i])
+    return copy(d.back[i - d.front.len()])
+
+pub fn dq_to_list[T](d: &Deque[T]) -> List[T]
+    var o: List[T] = []
+    var i = d.front.len()
+    while i > 0 bound 16777216
+        i -= 1
+        o.push(copy(d.front[i]))
+    for x in d.back
+        o.push(copy(x))
+    return o
+
+# ---------------- Binary min-heap ----------------
+# heap_pop returns the least element; among equal elements the order is
+# fixed by the algorithm (deterministic, not stable).
+
+pub fn heap_push[T: Ord](h: &mut List[T], x: T)
+    h.push(x)
+    var i = h.len() - 1
+    while i > 0 bound 64
+        let p = (i - 1) / 2
+        if h[i] < h[p]
+            let t = copy(h[i])
+            h[i] = copy(h[p])
+            h[p] = t
+            i = p
+        else
+            i = 0
+
+pub fn heap_peek[T: Ord](h: &[T]) -> T? = if h.len() == 0 then none else some(copy(h[0]))
+
+pub fn heap_pop[T: Ord](h: &mut List[T]) -> T?
+    if h.len() == 0
+        return none
+    let top = copy(h[0])
+    let last = copy(h[h.len() - 1])
+    h.pop()
+    let n = h.len()
+    if n == 0
+        return some(top)
+    h[0] = last
+    var i: usize = 0
+    var go = true
+    while go bound 64
+        let l = 2 * i + 1
+        let r = l + 1
+        var m = i
+        if l < n and h[l] < h[m]
+            m = l
+        if r < n and h[r] < h[m]
+            m = r
+        if m == i
+            go = false
+        else
+            let t = copy(h[i])
+            h[i] = copy(h[m])
+            h[m] = t
+            i = m
+    return some(top)
+
+# ---------------- Ordered map and set ----------------
+# Sorted vectors: lookup O(log n), insert/remove O(n), iteration in
+# ascending key order (the canonical order the survey requires).
+
+pub struct OrdMap[K, V]
+    keys: List[K]
+    vals: List[V]
+
+# First index whose key is >= k.
+pub fn lower_bound[K: Ord + Eq](xs: &[K], k: &K) -> usize
+    var lo: usize = 0
+    var hi = xs.len()
+    while lo < hi bound 64
+        let mid = (lo + hi) / 2
+        if xs[mid] < k
+            lo = mid + 1
+        else
+            hi = mid
+    return lo
+
+fn insert_at[T](xs: &mut List[T], i: usize, x: T)
+    xs.push(x)
+    var j = xs.len() - 1
+    while j > i bound 16777216
+        let t = copy(xs[j])
+        xs[j] = copy(xs[j - 1])
+        xs[j - 1] = t
+        j -= 1
+
+fn remove_at[T](xs: &mut List[T], i: usize)
+    var j = i
+    while j + 1 < xs.len() bound 16777216
+        xs[j] = copy(xs[j + 1])
+        j += 1
+    xs.pop()
+
+pub fn om_len[K, V](m: &OrdMap[K, V]) -> usize = m.keys.len()
+
+pub fn om_insert[K: Ord + Eq, V](m: &mut OrdMap[K, V], k: K, v: V)
+    let i = lower_bound(&m.keys, &k)
+    if i < m.keys.len() and m.keys[i] == k
+        m.vals[i] = v
+    else
+        insert_at(&mut m.keys, i, k)
+        insert_at(&mut m.vals, i, v)
+
+pub fn om_get[K: Ord + Eq, V](m: &OrdMap[K, V], k: &K) -> V?
+    let i = lower_bound(&m.keys, k)
+    if i < m.keys.len() and m.keys[i] == k
+        return some(copy(m.vals[i]))
+    return none
+
+pub fn om_contains[K: Ord + Eq, V](m: &OrdMap[K, V], k: &K) -> bool
+    let i = lower_bound(&m.keys, k)
+    return i < m.keys.len() and m.keys[i] == k
+
+pub fn om_remove[K: Ord + Eq, V](m: &mut OrdMap[K, V], k: &K) -> bool
+    let i = lower_bound(&m.keys, k)
+    if i < m.keys.len() and m.keys[i] == k
+        remove_at(&mut m.keys, i)
+        remove_at(&mut m.vals, i)
+        return true
+    return false
+
+# All keys, ascending. (Use this, not m.keys: rce 0.1.3 does not resolve a
+# generic struct's field types on direct access outside generic code.)
+pub fn om_keys[K: Ord + Eq, V](m: &OrdMap[K, V]) -> List[K] = copy(m.keys)
+
+# Keys in [lo, hi), ascending.
+pub fn om_range[K: Ord + Eq, V](m: &OrdMap[K, V], lo: &K, hi: &K) -> List[K]
+    var o: List[K] = []
+    var i = lower_bound(&m.keys, lo)
+    while i < m.keys.len() and m.keys[i] < hi bound 16777216
+        o.push(copy(m.keys[i]))
+        i += 1
+    return o
+
+pub fn set_add[K: Ord + Eq](s: &mut List[K], k: K) -> bool
+    let i = lower_bound(s, &k)
+    if i < s.len() and s[i] == k
+        return false
+    insert_at(s, i, k)
+    return true
+
+pub fn set_contains[K: Ord + Eq](s: &[K], k: &K) -> bool
+    let i = lower_bound(s, k)
+    return i < s.len() and s[i] == k
+
+pub fn set_remove[K: Ord + Eq](s: &mut List[K], k: &K) -> bool
+    let i = lower_bound(s, k)
+    if i < s.len() and s[i] == k
+        remove_at(s, i)
+        return true
+    return false
+
+pub fn set_union[K: Ord + Eq](a: &[K], b: &[K]) -> List[K]
+    var o: List[K] = []
+    var i: usize = 0
+    var j: usize = 0
+    while i < a.len() or j < b.len() bound 33554432
+        if j >= b.len() or (i < a.len() and a[i] < b[j])
+            o.push(copy(a[i]))
+            i += 1
+        elif i >= a.len() or b[j] < a[i]
+            o.push(copy(b[j]))
+            j += 1
+        else
+            o.push(copy(a[i]))
+            i += 1
+            j += 1
+    return o
+
+pub fn set_inter[K: Ord + Eq](a: &[K], b: &[K]) -> List[K]
+    var o: List[K] = []
+    var i: usize = 0
+    var j: usize = 0
+    while i < a.len() and j < b.len() bound 33554432
+        if a[i] < b[j]
+            i += 1
+        elif b[j] < a[i]
+            j += 1
+        else
+            o.push(copy(a[i]))
+            i += 1
+            j += 1
+    return o
+
+# ---------------- Fixed-hash map (text keys) ----------------
+# FNV-1a 32-bit (no seed), open addressing with linear probing over a
+# power-of-two table, load <= 1/2. Entries live in insertion order in
+# keys/vals; slots hold entry index + 1 (0 empty). Removal compacts the
+# entries and rebuilds the slots, so iteration order is always insertion
+# order of the live keys.
+
+pub fn fnv1a32(s: &text) -> i64
+    var h: i64 = 2166136261
+    var i: usize = 0
+    while i < s.len() bound 16777216
+        h = ((h ^ (s[i] as i64)) * 16777619) & 4294967295
+        i += 1
+    return h
+
+pub struct HMap[V]
+    keys: List[text]
+    vals: List[V]
+    slots: List[i64]
+
+fn hm_rebuild[V](m: &mut HMap[V], cap: usize)
+    var sl: List[i64] = []
+    for i in 0..cap
+        sl.push(0)
+    var e: usize = 0
+    while e < m.keys.len() bound 16777216
+        var p = (fnv1a32(&m.keys[e]) as usize) & (cap - 1)
+        while sl[p] != 0 bound 16777216
+            p = (p + 1) & (cap - 1)
+        sl[p] = (e + 1) as i64
+        e += 1
+    m.slots = sl
+
+fn hm_find[V](m: &HMap[V], k: &text) -> i64
+    let cap = m.slots.len()
+    if cap == 0
+        return -1
+    var p = (fnv1a32(k) as usize) & (cap - 1)
+    while m.slots[p] != 0 bound 16777216
+        let e = (m.slots[p] - 1) as usize
+        if m.keys[e] == k
+            return e as i64
+        p = (p + 1) & (cap - 1)
+    return -1
+
+pub fn hm_len[V](m: &HMap[V]) -> usize = m.keys.len()
+
+pub fn hm_get[V](m: &HMap[V], k: &text) -> V?
+    let e = hm_find(m, k)
+    if e < 0
+        return none
+    return some(copy(m.vals[e as usize]))
+
+pub fn hm_contains[V](m: &HMap[V], k: &text) -> bool = hm_find(m, k) >= 0
+
+pub fn hm_insert[V](m: &mut HMap[V], k: text, v: V)
+    let e = hm_find(m, &k)
+    if e >= 0
+        m.vals[e as usize] = v
+        return
+    m.keys.push(k)
+    m.vals.push(v)
+    if 2 * m.keys.len() > m.slots.len()
+        var cap: usize = 8
+        while cap < 2 * m.keys.len() bound 40
+            cap = cap * 2
+        hm_rebuild(m, cap)
+    else
+        let cap = m.slots.len()
+        var p = (fnv1a32(&m.keys[m.keys.len() - 1]) as usize) & (cap - 1)
+        while m.slots[p] != 0 bound 16777216
+            p = (p + 1) & (cap - 1)
+        m.slots[p] = m.keys.len() as i64
+
+pub fn hm_remove[V](m: &mut HMap[V], k: &text) -> bool
+    let e = hm_find(m, k)
+    if e < 0
+        return false
+    remove_at(&mut m.keys, e as usize)
+    remove_at(&mut m.vals, e as usize)
+    let cap = m.slots.len()
+    hm_rebuild(m, cap)
+    return true
+
+pub fn hm_keys[V](m: &HMap[V]) -> List[text] = copy(m.keys)

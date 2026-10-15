@@ -55,3 +55,13 @@ to build `text` from UTF-8 bytes (none in 5.15), and a native byte type
 the language's own `T?` and error unions (`T ! E`), so no core.option or
 core.result library is added.
 
+## col (`lib/col/col.rce`)
+
+FNV-1a 32 values for "", "a" and "foobar" are from the FNV authors' test
+suite (http://www.isthe.com/chongo/tech/comp/fnv/). Deque, heap, ordered
+map/set and fixed-hash map are checked by seeded model-based sweeps
+against List and the built-in Map (`tests/col/col_checks.rce`).
+Needs engine fix (rce 0.1.3): a generic struct's field types are not
+resolved on direct access outside generic code (`m.keys` is "unknown type
+K"), and a generic constructor with no arguments cannot infer its type;
+col exposes accessor functions (`om_keys`, `hm_keys`, `dq_to_list`).

@@ -1,0 +1,152 @@
+# Checks for lib/col/col.rce: FNV-1a 32 reference values (the FNV
+# authors' test suite, http://www.isthe.com/chongo/tech/comp/fnv/) and
+# seeded model-based property sweeps against List and the built-in Map.
+
+const E0: text = ""
+const EA: text = "a"
+const EFOO: text = "foobar"
+
+fn rnd(s: i64) -> i64 = (s * 1103515245 + 12345) & 2147483647
+
+# Deque against a List model under random push/pop at both ends.
+fn deque_sweep(n: i64) -> bool
+    var d: Deque[i64] = Deque(front: [], back: [])
+    var model: List[i64] = []
+    var s: i64 = 11
+    var ok = true
+    for i in 0..n
+        s = rnd(s)
+        let op = (s >> 8) % 4
+        if op == 0
+            dq_push_back(&mut d, i)
+            model.push(i)
+        elif op == 1
+            dq_push_front(&mut d, i)
+            var m2: List[i64] = [i]
+            for x in model
+                m2.push(x)
+            model = m2
+        elif op == 2
+            let got = dq_pop_front(&mut d)
+            if model.len() == 0
+                ok = ok and got == none
+            else
+                ok = ok and got == some(model[0])
+                var m2: List[i64] = []
+                for j in 1..model.len()
+                    m2.push(model[j])
+                model = m2
+        else
+            let got = dq_pop_back(&mut d)
+            if model.len() == 0
+                ok = ok and got == none
+            else
+                ok = ok and got == some(model[model.len() - 1])
+                model.pop()
+        ok = ok and dq_to_list(&d) == model and dq_len(&d) == model.len()
+    if model.len() > 0
+        ok = ok and dq_get(&d, model.len() - 1) == model[model.len() - 1]
+    return ok
+
+# Heap sort output is ascending and a permutation of the input.
+fn heap_sweep(n: i64) -> bool
+    var h: List[i64] = []
+    var s: i64 = 5
+    var counts: Map[i64, i64] = {}
+    for i in 0..n
+        s = rnd(s)
+        let v = s % 50
+        heap_push(&mut h, v)
+        counts[v] = (counts.get(v) catch 0) + 1
+    var ok = heap_peek(&h) != none
+    var prev: i64 = -1
+    for i in 0..n
+        let v = h[0]
+        ok = ok and heap_pop(&mut h) == some(v) and v >= prev
+        prev = v
+        counts[v] = (counts.get(v) catch 0) - 1
+    ok = ok and heap_pop(&mut h) == none
+    for k in 0..50
+        ok = ok and (counts.get(k) catch 0) == 0
+    return ok
+
+# OrdMap and HMap against the built-in Map; OrdMap keys stay ascending,
+# HMap keys stay in insertion order of live keys.
+fn map_sweep(n: i64) -> bool
+    var om: OrdMap[i64, i64] = OrdMap(keys: [], vals: [])
+    var hm: HMap[i64] = HMap(keys: [], vals: [], slots: [])
+    var model: Map[i64, i64] = {}
+    var order: List[text] = []
+    var s: i64 = 3
+    var ok = true
+    for i in 0..n
+        s = rnd(s)
+        let k = (s >> 4) % 40
+        let kt = "k" + k.tostr()
+        if (s >> 12) % 3 == 0
+            let had = model.contains(k)
+            ok = ok and om_remove(&mut om, &k) == had and hm_remove(&mut hm, &kt) == had
+            if had
+                model.remove(k)
+                var o2: List[text] = []
+                for x in order
+                    if x != kt
+                        o2.push(copy(x))
+                order = o2
+        else
+            if not model.contains(k)
+                order.push(copy(kt))
+            om_insert(&mut om, k, i)
+            hm_insert(&mut hm, copy(kt), i)
+            model[k] = i
+        ok = ok and om_len(&om) == model.len() and hm_len(&hm) == model.len()
+    for k in 0..40
+        let kt = "k" + k.tostr()
+        let want = if model.contains(k) then some(model.get(k) catch 0) else none
+        ok = ok and om_get(&om, &k) == want and hm_get(&hm, &kt) == want and om_contains(&om, &k) == model.contains(k) and hm_contains(&hm, &kt) == model.contains(k)
+    let ks = om_keys(&om)
+    for j in 1..ks.len()
+        ok = ok and ks[j - 1] < ks[j]
+    ok = ok and hm_keys(&hm) == order
+    return ok
+
+# Set union/intersection against membership.
+fn set_sweep(n: i64) -> bool
+    var a: List[i64] = []
+    var b: List[i64] = []
+    var s: i64 = 9
+    for i in 0..n
+        s = rnd(s)
+        set_add(&mut a, s % 30)
+        s = rnd(s)
+        set_add(&mut b, s % 30)
+    let u = set_union(&a, &b)
+    let x = set_inter(&a, &b)
+    var ok = true
+    for k in 0..30
+        ok = ok and set_contains(&u, &k) == (set_contains(&a, &k) or set_contains(&b, &k))
+        ok = ok and set_contains(&x, &k) == (set_contains(&a, &k) and set_contains(&b, &k))
+    for j in 1..u.len()
+        ok = ok and u[j - 1] < u[j]
+    let five: i64 = 5
+    let had = set_contains(&a, &five)
+    ok = ok and set_remove(&mut a, &five) == had and not set_contains(&a, &five)
+    return ok
+
+fn range_ok() -> bool
+    var m: OrdMap[text, i64] = OrdMap(keys: [], vals: [])
+    om_insert(&mut m, "pear", 1)
+    om_insert(&mut m, "apple", 2)
+    om_insert(&mut m, "fig", 3)
+    om_insert(&mut m, "apple", 4)
+    let lo = "b"
+    let hi = "p"
+    let ap = "apple"
+    return om_keys(&m) == ["apple", "fig", "pear"] and om_range(&m, &lo, &hi) == ["fig"] and om_get(&m, &ap) == some(4)
+
+check fnv1a32(&E0) == 2166136261 and fnv1a32(&EA) == 3826002220 and fnv1a32(&EFOO) == 3214735720
+check deque_sweep(300)
+check heap_sweep(200)
+check map_sweep(400)
+check set_sweep(40)
+check range_ok()
