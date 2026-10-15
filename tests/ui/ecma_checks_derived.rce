@@ -1,0 +1,20 @@
+# derived checks (values from Node v20.19.2 V8, as the generated shards):
+# null/undefined equal only each other; && binds tighter than ||;
+# relational binds tighter than equality; string order by code unit,
+# then length
+fn edj(ex: text) -> text
+    var js = js_new()
+    let g = new_scope(&mut js, -1)
+    let r = eval_in(&mut js, g, &ex)
+    if not r.ok
+        return "err"
+    return type_of(&js, &r.v) + ":" + to_str(&mut js, &r.v)
+check edj("null == 0") == "boolean:false"
+check edj("undefined == \"\"") == "boolean:false"
+check edj("null == false") == "boolean:false"
+check edj("null == undefined") == "boolean:true"
+check edj("true || false && false") == "boolean:true"
+check edj("0 == 1 < 0") == "boolean:true"
+check edj("\"ab\" < \"ab\"") == "boolean:false"
+check edj("\"ab\" <= \"a\"") == "boolean:false"
+check edj("\"a\" < \"ab\"") == "boolean:true"
