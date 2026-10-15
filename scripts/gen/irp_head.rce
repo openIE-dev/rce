@@ -1,0 +1,26 @@
+# the outcome of an IRP document: the id of the top-level final state
+# reached ("pass" or "fail"), or "err <why>" when it is rejected
+fn irp(doc: text, names: List[text], bodies: List[text]) -> text
+    let no_evs: List[text] = []
+    let r = run_scxml(&doc, &names, &bodies, &no_evs)
+    if r.err != ""
+        return "err " + r.err
+    return copy(r.outcome)
+fn irp_trace(doc: text, names: List[text], bodies: List[text]) -> text
+    let no_evs: List[text] = []
+    let r = run_scxml(&doc, &names, &bodies, &no_evs)
+    return ",".join(r.trace)
+fn irp_logs(doc: text, names: List[text], bodies: List[text]) -> text
+    let no_evs: List[text] = []
+    let r = run_scxml(&doc, &names, &bodies, &no_evs)
+    return "|".join(r.logs)
+# the child's and the parent's logs of the forwarded event agree
+fn irp_same(doc: text, names: List[text], bodies: List[text]) -> text
+    let no_evs: List[text] = []
+    let r = run_scxml(&doc, &names, &bodies, &no_evs)
+    if r.logs.len() != 14
+        return "logs " + "|".join(r.logs)
+    for i in 0..7
+        if r.logs[i] != r.logs[i + 7]
+            return "differ " + r.logs[i] + " / " + r.logs[i + 7]
+    return ""
