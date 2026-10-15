@@ -1,0 +1,12 @@
+# rce-version: 0.6
+# expect: W-INTR-1
+const P: u8 = 3
+interrupt event Alarm priority P
+#--- rce-test
+# id: types-checking/harvested/w-intr-1-priority-not-literal-reject
+# area: types-checking
+# clauses: [CH09-M-82e65964, W-STEP-2]
+# expect: reject
+# diagnostic: W-STEP-2
+# provenance: harvested conc06b/ill_typed/W-INTR-1_priority_not_literal.rce
+#---

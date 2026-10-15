@@ -1,0 +1,14 @@
+state S
+    n: i64 = 0
+event Inc
+step S on Inc -> n + 1
+#--- rce-test
+# id: host-contract/targeted/t38-torn-tail-keeps-prefix
+# area: host-contract
+# clauses: [CH16-M-262166d9, CH16-M-bf12d963, HC-1, HC-10, HC-8, T38, T39]
+# expect: host
+# steps: [{"batch":"Inc, Inc"},{"batch":"Inc"}]
+# tear: 5
+# host_expect: {"torn_reopen_state_hash":"12277e08433fe3a11a4aa40ae1db180bcbac26074e9e2ad6013e0068d669a6ee"}
+# provenance: targeted.py: expected result read off the clause
+#---

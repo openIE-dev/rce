@@ -1,0 +1,31 @@
+# rce-version: 0.6
+module admit_ticked
+
+intent "a logged Tick closes the admission window"
+    example Key(c: "a"), Tick(n: 1) -> seen == "a"
+
+event Key(c: text)
+event Tick(n: u64)
+
+state S
+    seen: text = ""
+    now: u64 = 0
+
+step S on Key(c: c)
+    seen = seen + c
+
+step S on Tick(n: n)
+    now = n
+
+fn unsafe_probe() -> i64
+    let unsafe = 1
+    return unsafe
+#--- rce-test
+# id: types-checking/generated/mut-unsafe-ticked-accept
+# area: types-checking
+# clauses: [CH09-M-82e65964, W-SAFE-1]
+# expect: reject
+# diagnostic: W-SAFE-1
+# flags: [generated]
+# provenance: gen_props.py seed 7: mutation `unsafe` of ticked-accept
+#---

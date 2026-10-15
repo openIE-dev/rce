@@ -1,0 +1,25 @@
+intent "a counter that never goes negative"
+    example Inc, Inc, Dec -> 1
+    example Dec -> refused: Underflow
+
+state Counter
+    n: u64 = 0
+
+event Inc
+event Dec
+
+error Underflow
+
+step Counter on Inc -> n + 1
+step Counter on Dec -> try n.checked_sub(1) else Underflow
+
+const BIG_LIT = 99999999999999999999999
+#--- rce-test
+# id: lexing-parsing/generated/mut-bigint-01-counter-accept
+# area: lexing-parsing
+# clauses: [CH09-M-82e65964, W-LEX-3]
+# expect: reject
+# diagnostic: W-LEX-3
+# flags: [generated]
+# provenance: gen_props.py seed 7: mutation `bigint` of 01-counter-accept
+#---

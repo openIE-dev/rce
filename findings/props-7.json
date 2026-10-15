@@ -1,0 +1,9 @@
+[
+ {
+  "kind": "T7-SCOPE",
+  "base": "tests/forms-log/harvested/01-counter-ex2-trace.rce",
+  "original_head": "fe10321c292127aeb0bb33654e4363288eb3728cdfd6f64c5f66fda65462de16",
+  "renamed_head": "665a600b6a73ae467aeb05fc81b617e48e3b574017aa4fd52797ee8f9cb13bca",
+  "note": "event rename Inc->Up changes every log hash; T7 as written says it must not"
+ }
+]

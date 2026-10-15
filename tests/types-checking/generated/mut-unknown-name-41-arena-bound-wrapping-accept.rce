@@ -1,0 +1,23 @@
+# An arena with a fixed capacity, and explicit wrapping arithmetic for hashing.
+fn fnv1a(s: &text) -> u32
+    var h: u32 = 2166136261
+    with arena scratch bound 4096
+        let cs: List[text] @scratch = s.chars()
+        for c in cs
+            h = (h ^ (c.len() as u32)).wrapping_mul(16777619)
+    return h
+
+check (250 as u8).wrapping_add(10) == 4
+check (250 as u8).saturating_add(10) == 255
+
+fn probe_unknown() -> i64
+    return no_such_name_zz
+#--- rce-test
+# id: types-checking/generated/mut-unknown-name-41-arena-bound-wrapping-accept
+# area: types-checking
+# clauses: [CH09-M-82e65964, W-NAME-1]
+# expect: reject
+# diagnostic: W-NAME-1
+# flags: [generated]
+# provenance: gen_props.py seed 7: mutation `unknown-name` of 41-arena-bound-wrapping-accept
+#---

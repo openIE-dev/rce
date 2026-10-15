@@ -1,0 +1,13 @@
+module app
+use lib.a
+fn main()
+    emit a.hidden()
+#--- rce-test
+# id: types-checking/targeted/w-mod-1-private
+# area: types-checking
+# clauses: [CH09-M-82e65964, W-MOD-1, W-VIS-1]
+# expect: reject
+# diagnostic: W-VIS-1
+# provenance: targeted.py: expected result read off the clause
+# fixtures: [lib-a_FIXTURE.rce]
+#---

@@ -1,0 +1,10 @@
+state S
+    r: &i64 = 0
+#--- rce-test
+# id: types-checking/targeted/w-state-3-borrow-field
+# area: types-checking
+# clauses: [CH09-M-82e65964, W-STATE-3]
+# expect: reject
+# diagnostic: W-STATE-3
+# provenance: targeted.py: expected result read off the clause
+#---

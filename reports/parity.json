@@ -1,0 +1,52 @@
+{
+ "adapters": {
+  "emit-js": {
+   "agree": 1241,
+   "disagree": 1,
+   "unsupported": 603,
+   "missing": 0
+  },
+  "emit-python": {
+   "agree": 1241,
+   "disagree": 1,
+   "unsupported": 603,
+   "missing": 0
+  },
+  "wasm-playground": {
+   "agree": 239,
+   "disagree": 2,
+   "unsupported": 1254,
+   "missing": 350
+  }
+ },
+ "disagreements": [
+  {
+   "id": "forms-log/targeted/s1-guard-trap-refuses",
+   "adapter": "emit-js",
+   "reference": "pass",
+   "adapter_status": "fail",
+   "detail": "run error: emit: line 6: W-INT-1 example does not hold: event 2 (Div) refused: trap(division by zero)"
+  },
+  {
+   "id": "forms-log/targeted/s1-guard-trap-refuses",
+   "adapter": "emit-python",
+   "reference": "pass",
+   "adapter_status": "fail",
+   "detail": "run error: emit: line 6: W-INT-1 example does not hold: event 2 (Div) refused: trap(division by zero)"
+  },
+  {
+   "id": "evaluation-fuel/harvested/ok-7000-accept",
+   "adapter": "wasm-playground",
+   "reference": "pass",
+   "adapter_status": "fail",
+   "detail": "adapter: adapter closed its output"
+  },
+  {
+   "id": "evaluation-fuel/harvested/trap-10000-reject",
+   "adapter": "wasm-playground",
+   "reference": "pass",
+   "adapter_status": "fail",
+   "detail": "adapter: adapter closed its output"
+  }
+ ]
+}

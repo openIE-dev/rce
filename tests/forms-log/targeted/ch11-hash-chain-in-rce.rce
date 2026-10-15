@@ -1,0 +1,14 @@
+fn main()
+    let e: text = "{\"event\":{\"payload\":{},\"type\":\"Inc\"},\"prev_hash\":\"0000000000000000000000000000000000000000000000000000000000000000\",\"seq\":0,\"state_hash\":\"a8d94f4388d06db57160fa4235a0c303c6da53e9dd48d7ff7b4a08c5689de184\"}"
+    emit e.sha256()
+#--- rce-test
+# id: forms-log/targeted/ch11-hash-chain-in-rce
+# area: forms-log
+# clauses: [CH00-M-61b6ac06, CH07-M-0a0bd71f, CH11-M-ba4b6fd9, T1, T3, T4, T5, T9]
+# expect: run
+# outcome: done
+# outputs:
+#   - emit "f5b9e4f9376ffb85dcfaaf9ec0ba5e83a84e87e6d9a4920e99d3db076fa8fae6"
+# provenance: targeted.py: expected result read off the clause
+# note: the head of 01_counter after one Inc (golden trace), recomputed by an RCE program from the canonical JSON of the entry
+#---

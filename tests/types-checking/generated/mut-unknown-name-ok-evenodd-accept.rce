@@ -1,0 +1,35 @@
+# Mutual recursion: even and odd alternate on the tail of a list.
+kind L
+    Nil
+    Cons(h: i64, t: Box[L])
+
+fn even(xs: &L) -> bool
+    match xs
+        Nil -> return true
+        Cons(h: _, t: t) -> return odd(t)
+
+fn odd(xs: &L) -> bool
+    match xs
+        Nil -> return false
+        Cons(h: _, t: t) -> return even(t)
+
+fn three() -> L
+    Cons(h: 1, t: Box(Cons(h: 2, t: Box(Cons(h: 3, t: Box(Nil))))))
+
+fn parity() -> bool
+    let xs = three()
+    return odd(&xs) and not even(&xs)
+
+check parity()
+
+fn probe_unknown() -> i64
+    return no_such_name_zz
+#--- rce-test
+# id: types-checking/generated/mut-unknown-name-ok-evenodd-accept
+# area: types-checking
+# clauses: [CH09-M-82e65964, W-NAME-1]
+# expect: reject
+# diagnostic: W-NAME-1
+# flags: [generated]
+# provenance: gen_props.py seed 7: mutation `unknown-name` of ok-evenodd-accept
+#---

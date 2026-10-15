@@ -1,0 +1,19 @@
+kind Expr
+    Num(v: i64)
+    Add(a: Box[Expr], b: Box[Expr])
+    Neg(e: Box[Expr])
+
+fn depth_shallow(e: &Box[Expr]) -> u32 = 1
+
+fn depth(e: &Expr) -> u32
+    match e
+        Num(v: _) -> 1
+        Neg(e: inner) -> 1 + depth_shallow(inner)
+        Add(a: _, b: _) -> 2
+#--- rce-test
+# id: evaluation-fuel/harvested/29-nested-kind-accept
+# area: evaluation-fuel
+# clauses: [CH03-M-28cdd241, T10, T6]
+# expect: accept
+# provenance: harvested examples/29_nested_kind.rce
+#---

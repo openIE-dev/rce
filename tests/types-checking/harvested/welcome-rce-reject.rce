@@ -1,0 +1,96 @@
+event WLoad(t: text)
+event WOpen(kp: text, init: text)
+event WInfo(psks: text)
+event WEpoch(z: i64)
+event WSigPub(pk: text)
+event TLoad(t: text)
+event TFromGi(z: i64)
+event TStart(z: i64)
+event TStep(k: i64)
+event THash(z: i64)
+event WSigTree(z: i64)
+
+state S
+    out: List[text] = []
+    wx: text = ""
+    gsx: text = ""
+    egi: text = ""
+    gi: List[i64] = []
+    mem: text = ""
+    tb: List[i64] = []
+    pos: i64 = 0
+    tend: i64 = 0
+    nodes: List[text] = []
+
+step S on WLoad(t: t)
+    wx = wx + t
+    out.push("O:ok")
+
+step S on WOpen(kp: kp, init: init)
+    let r = welcome_secrets(copy(wx), kp, init)
+    wx = ""
+    if r == ""
+        out.push("O:none")
+    else
+        let parts = r.split(".")
+        gsx = copy(parts[0])
+        egi = copy(parts[1])
+        out.push("O:" + (gsx != "").tostr())
+
+step S on WInfo(psks: psks)
+    let parts = welcome_group_info(copy(gsx), copy(egi), psks).split(".")
+    gi = unhex(copy(parts[0]))
+    mem = copy(parts[1])
+    out.push("O:" + (gi.len() > 1).tostr())
+
+step S on WEpoch(z: z)
+    let parts = welcome_epoch(copy(gi), copy(mem)).split(".")
+    out.push("O:" + tohex(derive_secret(unhex(copy(parts[0])), "authentication")) + "/" + copy(parts[1]))
+
+step S on WSigPub(pk: pk)
+    out.push("O:" + gi_signature_ok(copy(gi), pk).tostr())
+
+step S on TLoad(t: t)
+    for x in unhex(t)
+        tb.push(x)
+    out.push("O:ok")
+
+step S on TFromGi(z: z)
+    tb = unhex(gi_ratchet_tree(copy(gi)))
+    out.push("O:" + tb.len().tostr())
+
+step S on TStart(z: z)
+    let r = rd_v(copy(tb), 0)
+    pos = r[1]
+    tend = r[0] + r[1]
+    nodes = []
+    out.push("O:started")
+
+step S on TStep(k: k)
+    var j: i64 = 0
+    while j < k and pos < tend bound 1024
+        let e = rt_node_end(copy(tb), pos as usize)
+        nodes.push(rt_node(copy(tb), pos as usize, e))
+        pos = e as i64
+        j += 1
+    if pos < tend
+        out.push("O:more")
+    else
+        nodes = rt_pad(copy(nodes))
+        tb = []
+        out.push("O:done")
+
+step S on THash(z: z)
+    let th = copy(tree_hashes(copy(nodes))[(nodes.len() / 2) as usize])
+    out.push("O:" + (th == gi_tree_hash(copy(gi))).tostr())
+
+step S on WSigTree(z: z)
+    out.push("O:" + gi_signature_ok(copy(gi), leaf_sig_key(copy(nodes), gi_signer(copy(gi)))).tostr())
+#--- rce-test
+# id: types-checking/harvested/welcome-rce-reject
+# area: types-checking
+# clauses: [CH09-M-82e65964, W-NAME-1]
+# expect: reject
+# diagnostic: W-NAME-1
+# provenance: harvested checker/tests/welcome_rce.rs#0
+#---

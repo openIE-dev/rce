@@ -1,0 +1,30 @@
+# rce-version: 0.6
+module admit_order
+
+intent "simultaneous inputs are admitted by (priority, arrival); D records the order"
+    example Key(c: "a"), Alarm(n: 1) -> seen == "a!"
+
+interrupt event Alarm(n: u64) priority 200
+event Key(c: text)
+
+state S
+    seen: text = ""
+
+step S on Key(c: c)
+    seen = seen + c
+
+step S on Alarm(n: n)
+    seen = seen + "!"
+#--- rce-test
+# id: host-contract/harvested/priority-ex5
+# area: host-contract
+# clauses: [CH00-M-61b6ac06, CH07-M-0a0bd71f, T1, T4, T5, T9]
+# expect: run
+# events: Key(c: "a"), Alarm(n: 1)
+# outcome: done
+# outputs:
+#   - 0 (initial) S { seen = "" }
+#   - 1 Key(c: "a") S { seen = "a" }
+#   - 2 Alarm(n: 1) S { seen = "a!" }
+# provenance: harvested checker/tests/host/priority.rce example@5
+#---

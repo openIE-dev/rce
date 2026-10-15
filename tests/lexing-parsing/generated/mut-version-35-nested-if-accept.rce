@@ -1,0 +1,21 @@
+# rce-version: 0.1
+fn grade(score: u32) -> text
+    if score >= 90
+        return "A"
+    elif score >= 80
+        return "B"
+    elif score >= 70
+        if score == 77
+            return "lucky C"
+        return "C"
+    else
+        return "F"
+#--- rce-test
+# id: lexing-parsing/generated/mut-version-35-nested-if-accept
+# area: lexing-parsing
+# clauses: [CH09-M-82e65964, W-VER-1]
+# expect: reject
+# diagnostic: W-VER-1
+# flags: [generated]
+# provenance: gen_props.py seed 7: mutation `version` of 35-nested-if-accept
+#---

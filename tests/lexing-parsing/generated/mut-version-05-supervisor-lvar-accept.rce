@@ -1,0 +1,28 @@
+# rce-version: 0.3
+event Tick(n: i64)
+
+actor Counter
+    n: i64 = 0
+    on Tick(n: k)
+        n += k
+
+actor Logger
+    seen: i64 = 0
+    on Tick(n: k)
+        seen += 1
+
+supervisor Root strategy one_for_one
+    child counter: Counter restart bound 3
+    child logger: Logger
+
+fn seen(s: lvar Set[i64]) -> bool
+    true
+#--- rce-test
+# id: lexing-parsing/generated/mut-version-05-supervisor-lvar-accept
+# area: lexing-parsing
+# clauses: [CH09-M-82e65964, W-VER-1]
+# expect: reject
+# diagnostic: W-VER-1
+# flags: [generated]
+# provenance: gen_props.py seed 7: mutation `version` of 05-supervisor-lvar-accept
+#---

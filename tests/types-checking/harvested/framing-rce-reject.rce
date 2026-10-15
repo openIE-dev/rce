@@ -1,0 +1,28 @@
+event Msg(h: text)
+event Walk(what: text, h: text)
+
+state S
+    out: List[text] = []
+    seq: i64 = 0
+
+step S on Msg(h: h)
+    seq += 1
+    let f = mls_decode(copy(h))
+    if f.len() == 0
+        out = ["O:" + seq.tostr() + "#refused"]
+    else
+        let ok = mls_encode(copy(f)) == h
+        let ct = if f.len() == 10 then copy(f[5]) else copy(f[3])
+        out = ["O:" + seq.tostr() + "#" + ok.tostr() + "/" + copy(f[0]) + ct]
+
+step S on Walk(what: k, h: h)
+    seq += 1
+    out = ["O:" + seq.tostr() + "#" + walk_ok(k, h).tostr()]
+#--- rce-test
+# id: types-checking/harvested/framing-rce-reject
+# area: types-checking
+# clauses: [CH09-M-82e65964, W-NAME-1]
+# expect: reject
+# diagnostic: W-NAME-1
+# provenance: harvested checker/tests/framing_rce.rs#0
+#---

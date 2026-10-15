@@ -1,0 +1,15 @@
+fn main()
+    let a: f64 = 1e-05
+    let b: f64 = 1e-05
+    emit a.max(b)
+#--- rce-test
+# id: numbers/generated/num-3-0373
+# area: numbers
+# clauses: [CH00-M-61b6ac06, CH05-M-2405dfe8, CH07-M-0a0bd71f, F7, F9, N1, N3, N5, T1, T4, T5, T9]
+# expect: run
+# outcome: done
+# outputs:
+#   - emit 0.00001
+# flags: [generated]
+# provenance: gen_numbers.py seed 3; oracle-derived
+#---

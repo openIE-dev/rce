@@ -1,0 +1,12 @@
+fn main()
+    let s: text = "é"
+    let i: usize = 1
+    emit s[0:i]
+#--- rce-test
+# id: text-unicode/targeted/n7-not-char-boundary
+# area: text-unicode
+# clauses: [CH00-M-61b6ac06, CH05-M-84afe529, CH07-M-0a0bd71f, N7, N8, T1, T4, T5, T9]
+# expect: run
+# outcome: trap:not a char boundary
+# provenance: targeted.py: expected result read off the clause
+#---

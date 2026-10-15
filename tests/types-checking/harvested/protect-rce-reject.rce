@@ -1,0 +1,42 @@
+event LeafKey(es: text, n: i64, i: i64, label: text, g: i64)
+event SdKey(sds: text, ct: text)
+event Open(msg: text, es: text, sds: text, n: i64, gc: text, pk: text)
+event Pub(msg: text, gc: text, pk: text, mk: text)
+event Gc(gid: text, ep: i64, th: text, cth: text)
+
+state S
+    out: List[text] = []
+    seq: i64 = 0
+
+step S on LeafKey(es: es, n: n, i: i, label: label, g: g)
+    seq += 1
+    out = ["O:" + seq.tostr() + "#" + st_key_nonce(st_leaf_secret(es, n, i), label, g)]
+
+step S on SdKey(sds: sds, ct: ct)
+    seq += 1
+    out = ["O:" + seq.tostr() + "#" + sd_key_nonce(sds, ct)]
+
+step S on Open(msg: msg, es: es, sds: sds, n: n, gc: gc, pk: pk)
+    seq += 1
+    let o = priv_open(copy(msg), es, sds, n)
+    if o.len() == 0
+        out = ["O:" + seq.tostr() + "#refused"]
+    else
+        let ok = priv_signature_ok(msg, copy(o), gc, pk)
+        out = ["O:" + seq.tostr() + "#" + copy(o[0]) + "/" + copy(o[1]) + "/" + copy(o[3]) + "/" + ok.tostr()]
+
+step S on Pub(msg: msg, gc: gc, pk: pk, mk: mk)
+    seq += 1
+    out = ["O:" + seq.tostr() + "#" + pub_ok(msg, gc, pk, mk).tostr()]
+
+step S on Gc(gid: gid, ep: ep, th: th, cth: cth)
+    seq += 1
+    out = ["O:" + seq.tostr() + "#" + group_context(gid, ep, th, cth)]
+#--- rce-test
+# id: types-checking/harvested/protect-rce-reject
+# area: types-checking
+# clauses: [CH09-M-82e65964, W-NAME-1]
+# expect: reject
+# diagnostic: W-NAME-1
+# provenance: harvested checker/tests/protect_rce.rs#0
+#---

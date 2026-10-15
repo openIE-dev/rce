@@ -1,0 +1,16 @@
+# rce-version: 0.2
+fn saxpy(a: f64, x: [f64; 4], y: [f64; 4]) -> [f64; 4]
+    var out: [f64; 4] = [0.0; 4]
+    with device d bound 256
+        for i in 0..4 par
+            out[i] = a * x[i] + y[i]
+    out
+#--- rce-test
+# id: lexing-parsing/generated/mut-version-06-device-kernel-accept
+# area: lexing-parsing
+# clauses: [CH09-M-82e65964, W-VER-1]
+# expect: reject
+# diagnostic: W-VER-1
+# flags: [generated]
+# provenance: gen_props.py seed 7: mutation `version` of 06-device-kernel-accept
+#---

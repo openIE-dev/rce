@@ -1,0 +1,24 @@
+fn producer(out: chan i64, n: i64)
+    for i in 0..n
+        out <- i
+    out.close()
+
+fn main()
+    let c = chan[i64](8)
+    spawn producer(c, 100)
+    var total = 0
+    loop
+        match <- c
+            some(v) -> total += v
+            none -> break
+    emit total
+#--- rce-test
+# id: concurrency/harvested/13-spawn-chan-main
+# area: concurrency
+# clauses: [CH00-M-61b6ac06, CH06-M-5912c594, CH07-M-0a0bd71f, N10, N8, T1, T19b, T24, T4, T5, T9]
+# expect: run
+# outcome: done
+# outputs:
+#   - emit 4950
+# provenance: harvested examples/13_spawn_chan.rce
+#---

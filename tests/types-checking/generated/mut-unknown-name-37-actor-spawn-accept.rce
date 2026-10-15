@@ -1,0 +1,25 @@
+event Ping(n: u64, reply: chan u64)
+
+actor Echo
+    seen: u64 = 0
+    on Ping(n: n, reply: r)
+        seen += 1
+        r <- n
+
+fn main()
+    let e = Echo()
+    let r = chan[u64](1)
+    e <- Ping(n: 7, reply: r)
+    emit <- r
+
+fn probe_unknown() -> i64
+    return no_such_name_zz
+#--- rce-test
+# id: types-checking/generated/mut-unknown-name-37-actor-spawn-accept
+# area: types-checking
+# clauses: [CH09-M-82e65964, W-NAME-1]
+# expect: reject
+# diagnostic: W-NAME-1
+# flags: [generated]
+# provenance: gen_props.py seed 7: mutation `unknown-name` of 37-actor-spawn-accept
+#---

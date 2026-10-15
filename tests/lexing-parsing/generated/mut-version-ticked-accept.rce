@@ -1,0 +1,27 @@
+# rce-version: 0.1
+module admit_ticked
+
+intent "a logged Tick closes the admission window"
+    example Key(c: "a"), Tick(n: 1) -> seen == "a"
+
+event Key(c: text)
+event Tick(n: u64)
+
+state S
+    seen: text = ""
+    now: u64 = 0
+
+step S on Key(c: c)
+    seen = seen + c
+
+step S on Tick(n: n)
+    now = n
+#--- rce-test
+# id: lexing-parsing/generated/mut-version-ticked-accept
+# area: lexing-parsing
+# clauses: [CH09-M-82e65964, W-VER-1]
+# expect: reject
+# diagnostic: W-VER-1
+# flags: [generated]
+# provenance: gen_props.py seed 7: mutation `version` of ticked-accept
+#---

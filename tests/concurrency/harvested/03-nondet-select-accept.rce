@@ -1,0 +1,14 @@
+# rce-version: 0.6
+fn relay(a: chan i64, b: chan i64)
+    loop bound 10
+        select nondet
+            recv v from a -> emit v
+            recv w from b -> emit w
+            after 3 -> break
+#--- rce-test
+# id: concurrency/harvested/03-nondet-select-accept
+# area: concurrency
+# clauses: [CH02-M-a696f3a3, CH03-M-28cdd241, T10, T11, T21]
+# expect: accept
+# provenance: harvested conc06/accept/03_nondet_select.rce
+#---

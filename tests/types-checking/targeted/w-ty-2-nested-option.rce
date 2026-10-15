@@ -1,0 +1,10 @@
+fn f(x: i64??) -> i64 = 0
+#--- rce-test
+# id: types-checking/targeted/w-ty-2-nested-option
+# area: types-checking
+# clauses: [CH09-M-82e65964, W-TY-2]
+# expect: reject
+# diagnostic: any
+# provenance: targeted.py: expected result read off the clause
+# note: see finding W-TY-2-UNREACHABLE: the grammar has no `τ??`, so W-TY-2 cannot be the rule that refuses it
+#---

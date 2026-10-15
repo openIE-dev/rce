@@ -1,0 +1,79 @@
+module media
+
+intent "media capture and playback: each Tick reads one frame from the open track; D logs only (track, seq, digest) and the frame's Tick, the frame bytes stay a blob addressed by digest; every captured frame is played back to the sink by digest"
+    example Open(source: "pattern:2"), MediaOpenDone(req: 1, status: "delivered", data: some(1), err: "") -> track == 1
+
+struct MediaOpen
+    req: u64
+    source: text
+
+struct MediaRead
+    req: u64
+    id: u64
+
+struct MediaPlay
+    req: u64
+    track: text
+    digest: text
+
+event Open(source: text)
+event Tick(n: u64)
+event MediaOpenDone(req: u64, status: text, data: u64?, err: text)
+event MediaReadDone(req: u64, status: text, data: text?, err: text)
+event MediaPlayDone(req: u64, status: text, data: u64?, err: text)
+
+state Call
+    next: u64 = 0
+    track: u64 = 0
+    tick: u64 = 0
+    ended: bool = false
+    frames: List[text] = []
+    played: u64 = 0
+    bytes: u64 = 0
+    errors: u64 = 0
+
+step Call on Open(source: s)
+    next += 1
+    emit MediaOpen(req: next, source: s)
+
+step Call on MediaOpenDone(req: r, status: st, data: d, err: e)
+    if st == "delivered"
+        track = d.or(0)
+    else
+        errors += 1
+
+step Call on Tick(n: n)
+    tick = n
+    if track > 0 and not ended
+        next += 1
+        emit MediaRead(req: next, id: track)
+
+# a frame: "track/seq/digest@tick"; the bytes are never in state or D
+step Call on MediaReadDone(req: r, status: st, data: d, err: e)
+    if st == "delivered"
+        let zq_f_renamed = d.or("").split(":")
+        frames.push(track.tostr() + "/" + copy(zq_f_renamed[0]) + "/" + copy(zq_f_renamed[1]) + "@" + tick.tostr())
+        next += 1
+        emit MediaPlay(req: next, track: "loopback", digest: copy(zq_f_renamed[1]))
+    else
+        if e == "eof"
+            ended = true
+        else
+            errors += 1
+
+step Call on MediaPlayDone(req: r, status: st, data: d, err: e)
+    if st == "delivered"
+        played += 1
+        bytes += d.or(0)
+    else
+        errors += 1
+#--- rce-test
+# id: forms-log/generated/t7-media-ex4-trace
+# area: forms-log
+# clauses: [CH00-M-61b6ac06, CH07-M-0a0bd71f, CH07-M-265230fb, T1, T3, T5, T7]
+# expect: trace
+# events: Open(source: "pattern:2"), MediaOpenDone(req: 1, status: "delivered", data: some(1), err: "")
+# trace_head: 5dc389765b96bcfad4112d7b28884e7a84f01c9c17fb137c483756fcf77c77f2
+# flags: [generated]
+# provenance: gen_props.py: functions and locals of media-ex4-trace.rce renamed; head must not change (T7)
+#---

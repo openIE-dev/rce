@@ -1,0 +1,17 @@
+state S
+    n: i64 = 0
+event Work
+step S on Work
+    var k: i64 = 0
+    for _ in 0..20000
+        k += 1
+    n = n + k
+#--- rce-test
+# id: host-contract/targeted/hc-7a-fuel-per-input
+# area: host-contract
+# clauses: [CH16-M-262166d9, CH16-M-bf12d963, HC-1, HC-10, HC-7, HC-7a]
+# expect: host
+# steps: [{"batch":"Work, Work, Work, Work, Work, Work, Work, Work"}]
+# host_expect: {"admitted":[[3,"Work",{"ok":[]}],[4,"Work",{"ok":[]}],[5,"Work",{"ok":[]}],[6,"Work",{"ok":[]}],[7,"Work",{"ok":[]}],[8,"Work",{"ok":[]}],[9,"Work",{"ok":[]}],[10,"Work",{"ok":[]}]]}
+# provenance: targeted.py: expected result read off the clause
+#---

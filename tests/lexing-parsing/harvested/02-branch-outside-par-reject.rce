@@ -1,0 +1,12 @@
+# rce-version: 0.6
+fn f()
+    branch x
+        pass
+#--- rce-test
+# id: lexing-parsing/harvested/02-branch-outside-par-reject
+# area: lexing-parsing
+# clauses: [CH02-M-69371f07, CH03-M-28cdd241, CH09-M-82e65964, T10, W-SYN-1]
+# expect: reject
+# diagnostic: W-SYN-1
+# provenance: harvested conc06/reject/02_branch_outside_par.rce
+#---

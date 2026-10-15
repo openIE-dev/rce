@@ -1,0 +1,38 @@
+module foreign
+
+intent "a foreign call is an effect: its result or trap is logged and replayed, never re-run"
+    example Call(code: "m", func: "f", args: [1]), WasmCallDone(req: 1, status: "failed", data: none, err: "trap") -> traps == 1
+
+struct WasmCall
+    req: u64
+    code: text
+    func: text
+    args: List[i64]
+
+event Call(code: text, func: text, args: List[i64])
+event WasmCallDone(req: u64, status: text, data: List[i64]?, err: text)
+
+state F
+    next: u64 = 0
+    results: List[i64] = []
+    traps: u64 = 0
+
+step F on Call(code: m, func: f, args: a)
+    next += 1
+    emit WasmCall(req: next, code: m, func: f, args: a)
+
+step F on WasmCallDone(req: r, status: s, data: d, err: e)
+    if s == "delivered"
+        for x in d.or([])
+            results.push(x)
+    else
+        traps += 1
+#--- rce-test
+# id: forms-log/harvested/foreign-ex4-trace
+# area: forms-log
+# clauses: [CH00-M-61b6ac06, CH07-M-0a0bd71f, CH07-M-265230fb, T1, T3, T5]
+# expect: trace
+# events: Call(code: "m", func: "f", args: [1]), WasmCallDone(req: 1, status: "failed", data: none, err: "trap")
+# trace_head: 7e61f5f1e263fc8cfcf0d2417d4135901d9c18c9d3ed119ddbb1c41fa38440f1
+# provenance: harvested checker/tests/host/foreign.rce example@4
+#---

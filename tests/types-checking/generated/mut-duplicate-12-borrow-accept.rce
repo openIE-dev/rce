@@ -1,0 +1,24 @@
+fn push_all(dst: &mut List[i64], src: &[i64])
+    for x in src
+        dst.append(x)
+
+fn demo() -> usize
+    var a: List[i64] = [1, 2, 3]
+    let b: List[i64] = [4, 5]
+    push_all(&mut a, &b)
+    return a.len()
+
+fn dup_zz() -> i64
+    return 1
+
+fn dup_zz() -> i64
+    return 2
+#--- rce-test
+# id: types-checking/generated/mut-duplicate-12-borrow-accept
+# area: types-checking
+# clauses: [CH09-M-82e65964, W-NAME-2]
+# expect: reject
+# diagnostic: W-NAME-2
+# flags: [generated]
+# provenance: gen_props.py seed 7: mutation `duplicate` of 12-borrow-accept
+#---

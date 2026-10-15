@@ -1,0 +1,27 @@
+# rce-version: 0.8
+module page
+
+intent "untrusted text reaches HTML and SQL only through the context's encoder (5.16): markup and query syntax come from program literals"
+    example Comment(body: "<script>x</script>") -> html.raw() == "<p>&lt;script&gt;x&lt;/script&gt;</p>"
+    example Comment(body: "O'Brien") -> query.raw() == "SELECT id FROM users WHERE name = 'O''Brien'"
+    example Comment(body: "a b&c") -> link.raw() == "/search?q=a%20b%26c"
+
+state Page
+    html: Text[Html] = Html.lit("<p></p>")
+    query: Text[Sql] = Sql.lit("")
+    link: Text[Url] = Url.lit("/")
+
+event Comment(body: text)
+
+step Page on Comment(body: b)
+    html = Html.lit("<p>") + Html.encode(b) + Html.lit("</p>")
+    query = Sql.lit("SELECT id FROM users WHERE name = ") + Sql.encode(b)
+    link = Url.lit("/search?q=") + Url.encode(b)
+    emit html
+#--- rce-test
+# id: forms-log/harvested/52-context-text-accept
+# area: forms-log
+# clauses: [CH02-M-a696f3a3, CH03-M-28cdd241, CH08-M-9a15157f, T10, T6]
+# expect: accept
+# provenance: harvested examples/52_context_text.rce
+#---

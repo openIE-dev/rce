@@ -1,0 +1,58 @@
+module floatvec
+
+# Cross-target float vectors (6.3 N3). Every target must reproduce these bits:
+# the trace hashes each state, so one differing bit changes the parity hash.
+# Non-finite results (overflow, x / 0.0, sqrt of a negative) trap; examples
+# cannot state a trap, so tests/float_rules.rs holds those vectors.
+intent "IEEE 754 binary64 vectors that every target computes bit for bit"
+    example MulSub(a: 0.1, b: 10.0, c: 1.0) -> 0.0
+    example Add(a: 0.1, b: 0.2) -> 0.30000000000000004
+    example Div(a: 1.0, b: 3.0) -> 0.3333333333333333
+    example Sqrt(a: 2.0) -> 1.4142135623730951
+    example Mul(a: 5e-324, b: 0.5) -> 0.0
+    example Mul(a: 0.0, b: -1.0) -> 0.0
+    example Mul(a: 5e-324, b: 3.0) -> 1.5e-323
+    example Div(a: 2.2250738585072014e-308, b: 4503599627370496.0) -> 5e-324
+    example Mul(a: 2.2250738585072014e-308, b: 0.5) -> 1.1125369292536007e-308
+    example Add(a: 1e16, b: 1.0) -> 10000000000000000.0
+    example Add(a: 1e16, b: 3.0) -> 10000000000000004.0
+    example Round(a: 2.5) -> 3.0
+    example Round(a: -2.5) -> -3.0
+    example Conv(n: 9007199254740993) -> 9007199254740992.0
+    example F32Mul(a: 0.1, b: 3.0) -> 0.30000001192092896
+    example Add(a: 1.7976931348623157e308, b: 1e291) -> 1.7976931348623157e308
+
+state Lab
+    x: f64 = 0.0
+
+event MulSub(a: f64, b: f64, c: f64)
+event Add(a: f64, b: f64)
+event Mul(a: f64, b: f64)
+event Div(a: f64, b: f64)
+event Sqrt(a: f64)
+event Round(a: f64)
+event Conv(n: i64)
+event F32Mul(a: f64, b: f64)
+
+# a * b - c is two roundings (no contraction): 0.1 * 10.0 rounds to 1.0, so
+# the result is 0; a fused multiply-add would give 5.551115123125783e-17.
+step Lab on MulSub(a: a, b: b, c: c) -> a * b - c
+step Lab on Add(a: a, b: b) -> a + b
+step Lab on Mul(a: a, b: b) -> a * b
+step Lab on Div(a: a, b: b) -> a / b
+step Lab on Sqrt(a: a) -> a.sqrt()
+step Lab on Round(a: a) -> a.round()
+step Lab on Conv(n: n) -> n as f64
+step Lab on F32Mul(a: a, b: b) -> ((a as f32) * (b as f32)) as f64
+#--- rce-test
+# id: numbers/harvested/57-float-vectors-ex13
+# area: numbers
+# clauses: [CH00-M-61b6ac06, CH05-M-2405dfe8, CH07-M-0a0bd71f, F7, F9, N1, N3, T1, T4, T5, T9]
+# expect: run
+# events: Mul(a: 0.0, b: -1.0)
+# outcome: done
+# outputs:
+#   - 0 (initial) Lab { x = 0 }
+#   - 1 Mul(a: 0, b: -1) Lab { x = 0 }
+# provenance: harvested examples/57_float_vectors.rce example@13
+#---

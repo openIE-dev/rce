@@ -1,0 +1,23 @@
+# rce-version: 0.6
+fn worker(c: chan i64)
+    c <- 1
+
+fn main()
+    let c = chan[i64](4)
+    scope
+        spawn worker(c) -> h1
+        spawn worker(c) priority 1 -> h2
+    atomic
+        c <- 2
+        c <- 3
+
+const BIG_LIT = 99999999999999999999999
+#--- rce-test
+# id: lexing-parsing/generated/mut-bigint-04-scope-atomic-accept
+# area: lexing-parsing
+# clauses: [CH09-M-82e65964, W-LEX-3]
+# expect: reject
+# diagnostic: W-LEX-3
+# flags: [generated]
+# provenance: gen_props.py seed 7: mutation `bigint` of 04-scope-atomic-accept
+#---

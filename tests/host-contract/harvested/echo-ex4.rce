@@ -1,0 +1,40 @@
+module echo
+
+intent "an effect request is an emitted struct with a req id; the host answers each with exactly one EchoDone"
+    example Say(msg: "hi"), EchoDone(req: 1, status: "failed", data: none, err: "x") -> failed == 1
+
+struct Echo
+    req: u64
+    msg: text
+
+event Say(msg: text)
+event EchoDone(req: u64, status: text, data: text?, err: text)
+
+state S
+    next: u64 = 0
+    got: List[text] = []
+    failed: u64 = 0
+
+step S on Say(msg: m)
+    next += 1
+    emit Echo(req: next, msg: m)
+
+step S on EchoDone(req: r, status: st, data: d, err: e)
+    if st == "delivered"
+        got.push(d.or(""))
+    else
+        failed += 1
+#--- rce-test
+# id: host-contract/harvested/echo-ex4
+# area: host-contract
+# clauses: [CH00-M-61b6ac06, CH07-M-0a0bd71f, N10, N8, T1, T4, T5, T9]
+# expect: run
+# events: Say(msg: "hi"), EchoDone(req: 1, status: "failed", data: none, err: "x")
+# outcome: done
+# outputs:
+#   - 0 (initial) S { next = 0, got = [], failed = 0 }
+#   - 1 Say(msg: "hi") S { next = 1, got = [], failed = 0 }
+#   - "  emit Echo(req: 1, msg: \"hi\")"
+#   - 2 EchoDone(req: 1, status: "failed", data: none, err: "x") S { next = 1, got = [], failed = 1 }
+# provenance: harvested checker/tests/host/echo.rce example@4
+#---

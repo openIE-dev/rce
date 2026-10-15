@@ -1,0 +1,13 @@
+state S
+    n: i64 = 0
+event Inc
+step S on Inc -> n + 1
+#--- rce-test
+# id: host-contract/targeted/hc-11-fabric-caps-logged
+# area: host-contract
+# clauses: [CH16-M-262166d9, CH16-M-bf12d963, HC-1, HC-10, HC-11, HC-13, HC-14]
+# expect: host
+# steps: [{"batch":"Inc"}]
+# host_expect: {"fabric_caps_first":true}
+# provenance: targeted.py: expected result read off the clause
+#---

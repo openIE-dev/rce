@@ -1,0 +1,16 @@
+# A foreign function: C ABI, scalar results, borrowed buffers only.
+# Only main and task functions may call it; its results enter the log.
+extern "C" fn crc32(data: &[u8], seed: u32) -> u32
+
+fn main()
+    let bytes: List[u8] = [1, 2, 3]
+    emit crc32(&bytes, 0)
+#--- rce-test
+# id: numbers/harvested/40-extern-main
+# area: numbers
+# clauses: [CH00-M-61b6ac06, CH05-M-2405dfe8, CH07-M-0a0bd71f, F7, F9, N1, N3, N8, T1, T4, T5, T6, T9]
+# expect: run
+# outcome: trap:cannot call crc32 at comptime
+# outputs:
+# provenance: harvested examples/40_extern.rce
+#---

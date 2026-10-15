@@ -1,0 +1,15 @@
+fn main()
+    let a: u64 = 7
+    let b: u64 = 9223372036854775808
+    emit a.max(b)
+#--- rce-test
+# id: numbers/generated/num-2-0100
+# area: numbers
+# clauses: [CH00-M-61b6ac06, CH05-M-2405dfe8, CH07-M-0a0bd71f, F7, F9, N1, N2, N3, N5, T1, T4, T5, T9]
+# expect: run
+# outcome: done
+# outputs:
+#   - emit 9223372036854775808
+# flags: [generated]
+# provenance: gen_numbers.py seed 2; oracle-derived
+#---

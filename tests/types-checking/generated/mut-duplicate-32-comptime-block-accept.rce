@@ -1,0 +1,22 @@
+fn table_size() -> usize
+    comptime
+        check N > 0
+        check N % 8 == 0
+    return N * 2
+
+const N: usize = 16
+
+fn dup_zz() -> i64
+    return 1
+
+fn dup_zz() -> i64
+    return 2
+#--- rce-test
+# id: types-checking/generated/mut-duplicate-32-comptime-block-accept
+# area: types-checking
+# clauses: [CH09-M-82e65964, W-NAME-2]
+# expect: reject
+# diagnostic: W-NAME-2
+# flags: [generated]
+# provenance: gen_props.py seed 7: mutation `duplicate` of 32-comptime-block-accept
+#---

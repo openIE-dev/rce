@@ -1,0 +1,13 @@
+fn main()
+    var s: text = "x"
+    for _ in 0..21
+        s = s + s
+    emit s.len()
+#--- rce-test
+# id: evaluation-fuel/targeted/n9-size-limit
+# area: evaluation-fuel
+# clauses: [CH00-M-61b6ac06, CH05-M-84afe529, CH07-M-0a0bd71f, N7, N9, T1, T4, T5, T9]
+# expect: run
+# outcome: trap:size limit
+# provenance: targeted.py: expected result read off the clause
+#---

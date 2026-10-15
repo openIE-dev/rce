@@ -1,0 +1,165 @@
+[
+ {
+  "test": "lexing-parsing/targeted/r5-generic-call",
+  "law": [
+   [
+    "emit 7"
+   ],
+   "done"
+  ],
+  "reference": [
+   null,
+   null,
+   null,
+   [
+    {
+     "code": "W-NAME-1",
+     "line": 3,
+     "message": "line 3: W-NAME-1 unknown type `T`"
+    },
+    {
+     "code": "W-NAME-1",
+     "line": 3,
+     "message": "line 3: W-NAME-1 unknown name `i64`"
+    },
+    {
+     "code": "W-TY-1",
+     "line": 3,
+     "message": "line 3: W-TY-1 cannot index fn(never) -> never"
+    }
+   ]
+  ]
+ },
+ {
+  "test": "numbers/targeted/n6-int-float-equality",
+  "law": [
+   "reject",
+   "W-TY-3"
+  ],
+  "reference": [
+   "reject",
+   [
+    "W-TY-1"
+   ]
+  ],
+  "messages": [
+   "line 1: W-TY-1 cannot compare ?0 with f64"
+  ]
+ },
+ {
+  "test": "numbers/targeted/w-ty-3-mixing",
+  "law": [
+   "reject",
+   "W-TY-3"
+  ],
+  "reference": [
+   "reject",
+   [
+    "W-TY-1",
+    "W-TY-1"
+   ]
+  ],
+  "messages": [
+   "line 1: W-TY-1 `+` on i64 and f64: no implicit conversion",
+   "line 1: W-TY-1 expected f64, found i64"
+  ]
+ },
+ {
+  "test": "numbers/targeted/w-ty-3-narrowing",
+  "law": [
+   "reject",
+   "W-TY-3"
+  ],
+  "reference": [
+   "reject",
+   [
+    "W-TY-1"
+   ]
+  ],
+  "messages": [
+   "line 2: W-TY-1 expected i32, found i64"
+  ]
+ },
+ {
+  "test": "numbers/targeted/f6-f64-tostr-minus-zero",
+  "law": [
+   [
+    "emit \"-0\""
+   ],
+   "done"
+  ],
+  "reference": [
+   [
+    "emit \"0\""
+   ],
+   "done",
+   null,
+   null
+  ]
+ },
+ {
+  "test": "evaluation-fuel/targeted/n9-size-limit",
+  "law": [
+   null,
+   "trap:size limit"
+  ],
+  "reference": [
+   [
+    "emit 2097152"
+   ],
+   "done",
+   null,
+   null
+  ]
+ },
+ {
+  "test": "types-checking/targeted/w-state-3-borrow-field",
+  "law": [
+   "reject",
+   "W-STATE-3"
+  ],
+  "reference": [
+   "reject",
+   [
+    "W-TY-2",
+    "W-TY-1"
+   ]
+  ],
+  "messages": [
+   "line 1: W-TY-2 state field (W-STATE-3) cannot hold a borrow",
+   "line 2: W-TY-1 expected &i64, found ?0"
+  ]
+ },
+ {
+  "test": "types-checking/targeted/w-trait-1-impl-mismatch",
+  "law": [
+   "reject",
+   "W-TRAIT-1"
+  ],
+  "reference": [
+   "accept",
+   []
+  ],
+  "messages": []
+ },
+ {
+  "test": "types-checking/targeted/w-mod-2-cycle",
+  "law": [
+   "reject",
+   "W-MOD-2"
+  ],
+  "reference": [
+   "crash",
+   []
+  ],
+  "messages": []
+ },
+ {
+  "test": "host-contract/targeted/t38-torn-tail-keeps-prefix",
+  "kind": "REPLAY-TORN",
+  "law": "replay of D equals what reopening D derives",
+  "reference": {
+   "error": "D does not verify after entry 7 of 8"
+  }
+ }
+]

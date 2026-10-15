@@ -1,0 +1,36 @@
+# Admitted by two layers: first m (the n call keeps it), then n.
+kind N
+    Z
+    S(p: Box[N])
+
+fn ack(m: &N, n: &N) -> i64
+    match m
+        Z -> return 1
+        S(p: q)
+            match n
+                Z -> return ack(q, n) 
+                S(p: r) -> return ack(q, n) + ack(m, r)
+
+fn two(a: &N, b: &N) -> i64
+    match a
+        Z -> return 0
+        S(p: x)
+            match b
+                Z -> return two(x, b)
+                S(p: y) -> return 1 + two(a, y) + two(x, b)
+
+fn demo() -> i64
+    let three = S(p: Box(S(p: Box(S(p: Box(Z))))))
+    let two_ = S(p: Box(S(p: Box(Z))))
+    return ack(&three, &two_) + two(&two_, &three)
+
+check demo() > 0
+#--- rce-test
+# id: lexing-parsing/generated/mut-cr-ok-lex-accept
+# area: lexing-parsing
+# clauses: [CH09-M-82e65964, W-LEX-1]
+# expect: reject
+# diagnostic: W-LEX-1
+# flags: [generated]
+# provenance: gen_props.py seed 7: mutation `cr` of ok-lex-accept
+#---

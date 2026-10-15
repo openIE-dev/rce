@@ -1,0 +1,1 @@
+{"name": "emit-python", "cmd": ["python3", "adapters/emit_adapter.py", "python"], "ops": ["run"], "features": ["fuel"]}

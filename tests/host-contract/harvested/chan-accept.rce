@@ -1,0 +1,56 @@
+module remote_channels
+
+intent "remote channels: sends have one logged outcome, receives are logged inputs, duplicates are dropped by id"
+    example Send(peer: "p", body: "x"), ChanSendDone(req: 1, status: "unreachable", data: none, err: "x") -> lost == 1
+
+struct ChanSend
+    req: u64
+    peer: text
+    id: u64
+    body: text
+    reliable: bool
+
+struct ChanRecv
+    req: u64
+    max: u64
+
+event Send(peer: text, body: text)
+event Ping(peer: text)
+event Poll
+event ChanSendDone(req: u64, status: text, data: u64?, err: text)
+event ChanRecvDone(req: u64, status: text, data: List[text]?, err: text)
+
+state C
+    next: u64 = 0
+    sent: u64 = 0
+    lost: u64 = 0
+    inbox: List[text] = []
+
+step C on Send(peer: p, body: b)
+    next += 1
+    emit ChanSend(req: next, peer: p, id: next, body: b, reliable: true)
+
+step C on Ping(peer: p)
+    next += 1
+    emit ChanSend(req: next, peer: p, id: next, body: "typing", reliable: false)
+
+step C on Poll
+    next += 1
+    emit ChanRecv(req: next, max: 64)
+
+step C on ChanSendDone(req: r, status: s, data: d, err: e)
+    if s == "delivered"
+        sent += 1
+    else
+        lost += 1
+
+step C on ChanRecvDone(req: r, status: s, data: d, err: e)
+    for m in d.or([])
+        inbox.push(m)
+#--- rce-test
+# id: host-contract/harvested/chan-accept
+# area: host-contract
+# clauses: [CH03-M-28cdd241, CH08-M-9a15157f, T10]
+# expect: accept
+# provenance: harvested checker/tests/host/chan.rce
+#---

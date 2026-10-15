@@ -1,0 +1,24 @@
+# rce-version: 0.6
+event Add(k: i64)
+actor A
+    n: i64 = 0
+    on Add(k: k) -> n + k
+actor B
+    n: i64 = 0
+    on Add(k: k) -> n + k
+node east { A }
+node west { B }
+fn main()
+    let a = A()
+    let b = B()
+    atomic
+        a <- Add(k: 1)
+        b <- Add(k: 2)
+#--- rce-test
+# id: concurrency/targeted/w-atom-2-two-nodes
+# area: concurrency
+# clauses: [CH09-M-82e65964, T30, W-ATOM-2]
+# expect: reject
+# diagnostic: W-ATOM-2
+# provenance: targeted.py: expected result read off the clause
+#---

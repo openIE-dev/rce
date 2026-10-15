@@ -1,0 +1,2147 @@
+{
+ "format": "rce-coverage/1",
+ "clauses": 204,
+ "covered": 204,
+ "percent": 100.0,
+ "tests_by_area": {
+  "concurrency": 147,
+  "effects-capabilities": 19,
+  "evaluation-fuel": 68,
+  "forms-log": 123,
+  "host-contract": 79,
+  "lexing-parsing": 132,
+  "numbers": 1165,
+  "text-unicode": 12,
+  "types-checking": 100
+ },
+ "tests_total": 1845,
+ "per_clause": [
+  {
+   "id": "CH00-M-61b6ac06",
+   "kind": "modal",
+   "chapter": "00-overview.md",
+   "line": 3,
+   "tests": 1344,
+   "reference": {
+    "pass": 1330,
+    "fail": 14
+   }
+  },
+  {
+   "id": "CH02-M-69371f07",
+   "kind": "modal",
+   "chapter": "02-lexical.md",
+   "line": 99,
+   "tests": 53,
+   "reference": {
+    "pass": 53
+   }
+  },
+  {
+   "id": "CH02-M-a696f3a3",
+   "kind": "modal",
+   "chapter": "02-lexical.md",
+   "line": 120,
+   "tests": 19,
+   "reference": {
+    "pass": 19
+   }
+  },
+  {
+   "id": "R1",
+   "kind": "rule",
+   "chapter": "03-syntax.md",
+   "line": 242,
+   "tests": 1,
+   "reference": {
+    "pass": 1
+   }
+  },
+  {
+   "id": "R2",
+   "kind": "rule",
+   "chapter": "03-syntax.md",
+   "line": 245,
+   "tests": 1,
+   "reference": {
+    "pass": 1
+   }
+  },
+  {
+   "id": "R3",
+   "kind": "rule",
+   "chapter": "03-syntax.md",
+   "line": 249,
+   "tests": 2,
+   "reference": {
+    "pass": 2
+   }
+  },
+  {
+   "id": "R4",
+   "kind": "rule",
+   "chapter": "03-syntax.md",
+   "line": 251,
+   "tests": 1,
+   "reference": {
+    "pass": 1
+   }
+  },
+  {
+   "id": "R5",
+   "kind": "rule",
+   "chapter": "03-syntax.md",
+   "line": 253,
+   "tests": 1,
+   "reference": {
+    "fail": 1
+   }
+  },
+  {
+   "id": "R6",
+   "kind": "rule",
+   "chapter": "03-syntax.md",
+   "line": 256,
+   "tests": 1,
+   "reference": {
+    "pass": 1
+   }
+  },
+  {
+   "id": "R7",
+   "kind": "rule",
+   "chapter": "03-syntax.md",
+   "line": 259,
+   "tests": 1,
+   "reference": {
+    "pass": 1
+   }
+  },
+  {
+   "id": "R8",
+   "kind": "rule",
+   "chapter": "03-syntax.md",
+   "line": 262,
+   "tests": 1,
+   "reference": {
+    "pass": 1
+   }
+  },
+  {
+   "id": "R9",
+   "kind": "rule",
+   "chapter": "03-syntax.md",
+   "line": 266,
+   "tests": 1,
+   "reference": {
+    "pass": 1
+   }
+  },
+  {
+   "id": "CH03-M-28cdd241",
+   "kind": "modal",
+   "chapter": "03-syntax.md",
+   "line": 289,
+   "tests": 136,
+   "reference": {
+    "pass": 136
+   }
+  },
+  {
+   "id": "CH04-M-c3c51cd1",
+   "kind": "modal",
+   "chapter": "04-programs.md",
+   "line": 10,
+   "tests": 1,
+   "reference": {
+    "pass": 1
+   }
+  },
+  {
+   "id": "CH05-M-84afe529",
+   "kind": "modal",
+   "chapter": "05-types-ownership.md",
+   "line": 45,
+   "tests": 18,
+   "reference": {
+    "pass": 17,
+    "fail": 1
+   }
+  },
+  {
+   "id": "CH05-M-2405dfe8",
+   "kind": "modal",
+   "chapter": "05-types-ownership.md",
+   "line": 167,
+   "tests": 1136,
+   "reference": {
+    "pass": 1123,
+    "fail": 13
+   }
+  },
+  {
+   "id": "CH05-M-d8ee78b3",
+   "kind": "modal",
+   "chapter": "05-types-ownership.md",
+   "line": 229,
+   "tests": 15,
+   "reference": {
+    "pass": 15
+   }
+  },
+  {
+   "id": "CH05-M-c643f9c7",
+   "kind": "modal",
+   "chapter": "05-types-ownership.md",
+   "line": 268,
+   "tests": 1,
+   "reference": {
+    "pass": 1
+   }
+  },
+  {
+   "id": "CH06-M-5912c594",
+   "kind": "modal",
+   "chapter": "06-regions-effects-extensions.md",
+   "line": 36,
+   "tests": 17,
+   "reference": {
+    "pass": 17
+   }
+  },
+  {
+   "id": "CH06-M-8e9952a9",
+   "kind": "modal",
+   "chapter": "06-regions-effects-extensions.md",
+   "line": 51,
+   "tests": 4,
+   "reference": {
+    "pass": 3,
+    "fail": 1
+   }
+  },
+  {
+   "id": "CH06-M-02b1c842",
+   "kind": "modal",
+   "chapter": "06-regions-effects-extensions.md",
+   "line": 51,
+   "tests": 3,
+   "reference": {
+    "pass": 3
+   }
+  },
+  {
+   "id": "CH06-M-ca6452be",
+   "kind": "modal",
+   "chapter": "06-regions-effects-extensions.md",
+   "line": 106,
+   "tests": 2,
+   "reference": {
+    "pass": 2
+   }
+  },
+  {
+   "id": "CH06-M-f43a675d",
+   "kind": "modal",
+   "chapter": "06-regions-effects-extensions.md",
+   "line": 106,
+   "tests": 2,
+   "reference": {
+    "pass": 2
+   }
+  },
+  {
+   "id": "CH06-M-7c164794",
+   "kind": "modal",
+   "chapter": "06-regions-effects-extensions.md",
+   "line": 281,
+   "tests": 1,
+   "reference": {
+    "pass": 1
+   }
+  },
+  {
+   "id": "CH07-M-0a0bd71f",
+   "kind": "modal",
+   "chapter": "07-form-evaluation.md",
+   "line": 3,
+   "tests": 1344,
+   "reference": {
+    "pass": 1330,
+    "fail": 14
+   }
+  },
+  {
+   "id": "CH07-M-265230fb",
+   "kind": "modal",
+   "chapter": "07-form-evaluation.md",
+   "line": 34,
+   "tests": 102,
+   "reference": {
+    "pass": 102
+   }
+  },
+  {
+   "id": "N1",
+   "kind": "rule",
+   "chapter": "07-form-evaluation.md",
+   "line": 154,
+   "tests": 1136,
+   "reference": {
+    "pass": 1124,
+    "fail": 12
+   }
+  },
+  {
+   "id": "N2",
+   "kind": "rule",
+   "chapter": "07-form-evaluation.md",
+   "line": 165,
+   "tests": 552,
+   "reference": {
+    "pass": 552
+   }
+  },
+  {
+   "id": "N3",
+   "kind": "rule",
+   "chapter": "07-form-evaluation.md",
+   "line": 184,
+   "tests": 1135,
+   "reference": {
+    "pass": 1123,
+    "fail": 12
+   }
+  },
+  {
+   "id": "F1",
+   "kind": "rule",
+   "chapter": "07-form-evaluation.md",
+   "line": 189,
+   "tests": 204,
+   "reference": {
+    "pass": 204
+   }
+  },
+  {
+   "id": "F2",
+   "kind": "rule",
+   "chapter": "07-form-evaluation.md",
+   "line": 196,
+   "tests": 81,
+   "reference": {
+    "pass": 81
+   }
+  },
+  {
+   "id": "F3",
+   "kind": "rule",
+   "chapter": "07-form-evaluation.md",
+   "line": 207,
+   "tests": 30,
+   "reference": {
+    "pass": 30
+   }
+  },
+  {
+   "id": "F4",
+   "kind": "rule",
+   "chapter": "07-form-evaluation.md",
+   "line": 212,
+   "tests": 86,
+   "reference": {
+    "pass": 86
+   }
+  },
+  {
+   "id": "F5",
+   "kind": "rule",
+   "chapter": "07-form-evaluation.md",
+   "line": 227,
+   "tests": 2,
+   "reference": {
+    "pass": 2
+   }
+  },
+  {
+   "id": "F6",
+   "kind": "rule",
+   "chapter": "07-form-evaluation.md",
+   "line": 235,
+   "tests": 4,
+   "reference": {
+    "pass": 3,
+    "fail": 1
+   }
+  },
+  {
+   "id": "F7",
+   "kind": "rule",
+   "chapter": "07-form-evaluation.md",
+   "line": 245,
+   "tests": 1135,
+   "reference": {
+    "pass": 1123,
+    "fail": 12
+   }
+  },
+  {
+   "id": "F8",
+   "kind": "rule",
+   "chapter": "07-form-evaluation.md",
+   "line": 248,
+   "tests": 170,
+   "reference": {
+    "pass": 170
+   }
+  },
+  {
+   "id": "F9",
+   "kind": "rule",
+   "chapter": "07-form-evaluation.md",
+   "line": 252,
+   "tests": 1135,
+   "reference": {
+    "pass": 1123,
+    "fail": 12
+   }
+  },
+  {
+   "id": "N4",
+   "kind": "rule",
+   "chapter": "07-form-evaluation.md",
+   "line": 276,
+   "tests": 44,
+   "reference": {
+    "fail": 12,
+    "pass": 32
+   }
+  },
+  {
+   "id": "N5",
+   "kind": "rule",
+   "chapter": "07-form-evaluation.md",
+   "line": 280,
+   "tests": 191,
+   "reference": {
+    "pass": 191
+   }
+  },
+  {
+   "id": "N6",
+   "kind": "rule",
+   "chapter": "07-form-evaluation.md",
+   "line": 282,
+   "tests": 2,
+   "reference": {
+    "fail": 1,
+    "pass": 1
+   }
+  },
+  {
+   "id": "N7",
+   "kind": "rule",
+   "chapter": "07-form-evaluation.md",
+   "line": 286,
+   "tests": 20,
+   "reference": {
+    "pass": 19,
+    "fail": 1
+   }
+  },
+  {
+   "id": "N8",
+   "kind": "rule",
+   "chapter": "07-form-evaluation.md",
+   "line": 307,
+   "tests": 88,
+   "reference": {
+    "pass": 87,
+    "fail": 1
+   }
+  },
+  {
+   "id": "N9",
+   "kind": "rule",
+   "chapter": "07-form-evaluation.md",
+   "line": 314,
+   "tests": 1,
+   "reference": {
+    "fail": 1
+   }
+  },
+  {
+   "id": "N10",
+   "kind": "rule",
+   "chapter": "07-form-evaluation.md",
+   "line": 318,
+   "tests": 12,
+   "reference": {
+    "pass": 12
+   }
+  },
+  {
+   "id": "N11",
+   "kind": "rule",
+   "chapter": "07-form-evaluation.md",
+   "line": 320,
+   "tests": 3,
+   "reference": {
+    "pass": 3
+   }
+  },
+  {
+   "id": "CH08-M-286d2fd4",
+   "kind": "modal",
+   "chapter": "08-steps-loops-concurrency.md",
+   "line": 90,
+   "tests": 10,
+   "reference": {
+    "pass": 10
+   }
+  },
+  {
+   "id": "CH08-M-cbd85cbd",
+   "kind": "modal",
+   "chapter": "08-steps-loops-concurrency.md",
+   "line": 90,
+   "tests": 10,
+   "reference": {
+    "pass": 10
+   }
+  },
+  {
+   "id": "CH08-M-51f39d7d",
+   "kind": "modal",
+   "chapter": "08-steps-loops-concurrency.md",
+   "line": 204,
+   "tests": 4,
+   "reference": {
+    "pass": 4
+   }
+  },
+  {
+   "id": "CH08-M-9a15157f",
+   "kind": "modal",
+   "chapter": "08-steps-loops-concurrency.md",
+   "line": 211,
+   "tests": 21,
+   "reference": {
+    "pass": 21
+   }
+  },
+  {
+   "id": "CH09-M-82e65964",
+   "kind": "modal",
+   "chapter": "09-wellformedness.md",
+   "line": 3,
+   "tests": 351,
+   "reference": {
+    "pass": 345,
+    "fail": 6
+   }
+  },
+  {
+   "id": "W-LEX-1",
+   "kind": "rule",
+   "chapter": "09-wellformedness.md",
+   "line": 11,
+   "tests": 36,
+   "reference": {
+    "pass": 36
+   }
+  },
+  {
+   "id": "W-LEX-2",
+   "kind": "rule",
+   "chapter": "09-wellformedness.md",
+   "line": 12,
+   "tests": 7,
+   "reference": {
+    "pass": 7
+   }
+  },
+  {
+   "id": "W-LEX-3",
+   "kind": "rule",
+   "chapter": "09-wellformedness.md",
+   "line": 13,
+   "tests": 25,
+   "reference": {
+    "pass": 25
+   }
+  },
+  {
+   "id": "W-SYN-1",
+   "kind": "rule",
+   "chapter": "09-wellformedness.md",
+   "line": 14,
+   "tests": 40,
+   "reference": {
+    "pass": 40
+   }
+  },
+  {
+   "id": "W-VER-1",
+   "kind": "rule",
+   "chapter": "09-wellformedness.md",
+   "line": 15,
+   "tests": 12,
+   "reference": {
+    "pass": 12
+   }
+  },
+  {
+   "id": "W-NAME-1",
+   "kind": "rule",
+   "chapter": "09-wellformedness.md",
+   "line": 19,
+   "tests": 26,
+   "reference": {
+    "pass": 26
+   }
+  },
+  {
+   "id": "W-NAME-2",
+   "kind": "rule",
+   "chapter": "09-wellformedness.md",
+   "line": 20,
+   "tests": 13,
+   "reference": {
+    "pass": 13
+   }
+  },
+  {
+   "id": "W-MOD-1",
+   "kind": "rule",
+   "chapter": "09-wellformedness.md",
+   "line": 22,
+   "tests": 1,
+   "reference": {
+    "pass": 1
+   }
+  },
+  {
+   "id": "W-MOD-2",
+   "kind": "rule",
+   "chapter": "09-wellformedness.md",
+   "line": 22,
+   "tests": 1,
+   "reference": {
+    "fail": 1
+   }
+  },
+  {
+   "id": "W-MOD-3",
+   "kind": "rule",
+   "chapter": "09-wellformedness.md",
+   "line": 25,
+   "tests": 1,
+   "reference": {
+    "pass": 1
+   }
+  },
+  {
+   "id": "W-SAFE-1",
+   "kind": "rule",
+   "chapter": "09-wellformedness.md",
+   "line": 28,
+   "tests": 13,
+   "reference": {
+    "pass": 13
+   }
+  },
+  {
+   "id": "W-FFI-1",
+   "kind": "rule",
+   "chapter": "09-wellformedness.md",
+   "line": 31,
+   "tests": 3,
+   "reference": {
+    "pass": 3
+   }
+  },
+  {
+   "id": "W-TY-1",
+   "kind": "rule",
+   "chapter": "09-wellformedness.md",
+   "line": 36,
+   "tests": 14,
+   "reference": {
+    "pass": 14
+   }
+  },
+  {
+   "id": "W-TY-2",
+   "kind": "rule",
+   "chapter": "09-wellformedness.md",
+   "line": 37,
+   "tests": 2,
+   "reference": {
+    "pass": 2
+   }
+  },
+  {
+   "id": "W-TY-3",
+   "kind": "rule",
+   "chapter": "09-wellformedness.md",
+   "line": 39,
+   "tests": 3,
+   "reference": {
+    "fail": 3
+   }
+  },
+  {
+   "id": "W-PAT-1",
+   "kind": "rule",
+   "chapter": "09-wellformedness.md",
+   "line": 40,
+   "tests": 2,
+   "reference": {
+    "pass": 2
+   }
+  },
+  {
+   "id": "W-MATCH-1",
+   "kind": "rule",
+   "chapter": "09-wellformedness.md",
+   "line": 41,
+   "tests": 1,
+   "reference": {
+    "pass": 1
+   }
+  },
+  {
+   "id": "W-MATCH-2",
+   "kind": "rule",
+   "chapter": "09-wellformedness.md",
+   "line": 41,
+   "tests": 1,
+   "reference": {
+    "pass": 1
+   }
+  },
+  {
+   "id": "W-OWN-1",
+   "kind": "rule",
+   "chapter": "09-wellformedness.md",
+   "line": 46,
+   "tests": 1,
+   "reference": {
+    "pass": 1
+   }
+  },
+  {
+   "id": "W-SPAWN-1",
+   "kind": "rule",
+   "chapter": "09-wellformedness.md",
+   "line": 49,
+   "tests": 2,
+   "reference": {
+    "pass": 2
+   }
+  },
+  {
+   "id": "W-STATE-1",
+   "kind": "rule",
+   "chapter": "09-wellformedness.md",
+   "line": 52,
+   "tests": 1,
+   "reference": {
+    "pass": 1
+   }
+  },
+  {
+   "id": "W-STATE-2",
+   "kind": "rule",
+   "chapter": "09-wellformedness.md",
+   "line": 52,
+   "tests": 1,
+   "reference": {
+    "pass": 1
+   }
+  },
+  {
+   "id": "W-STATE-3",
+   "kind": "rule",
+   "chapter": "09-wellformedness.md",
+   "line": 52,
+   "tests": 1,
+   "reference": {
+    "fail": 1
+   }
+  },
+  {
+   "id": "W-STEP-1",
+   "kind": "rule",
+   "chapter": "09-wellformedness.md",
+   "line": 54,
+   "tests": 1,
+   "reference": {
+    "pass": 1
+   }
+  },
+  {
+   "id": "W-EFF-1",
+   "kind": "rule",
+   "chapter": "09-wellformedness.md",
+   "line": 59,
+   "tests": 2,
+   "reference": {
+    "pass": 2
+   }
+  },
+  {
+   "id": "W-REC-1",
+   "kind": "rule",
+   "chapter": "09-wellformedness.md",
+   "line": 62,
+   "tests": 9,
+   "reference": {
+    "pass": 9
+   }
+  },
+  {
+   "id": "W-CT-1",
+   "kind": "rule",
+   "chapter": "09-wellformedness.md",
+   "line": 69,
+   "tests": 3,
+   "reference": {
+    "pass": 3
+   }
+  },
+  {
+   "id": "W-INT-1",
+   "kind": "rule",
+   "chapter": "09-wellformedness.md",
+   "line": 71,
+   "tests": 13,
+   "reference": {
+    "pass": 13
+   }
+  },
+  {
+   "id": "W-SIMD-1",
+   "kind": "rule",
+   "chapter": "09-wellformedness.md",
+   "line": 72,
+   "tests": 2,
+   "reference": {
+    "pass": 2
+   }
+  },
+  {
+   "id": "W-LIN-1",
+   "kind": "rule",
+   "chapter": "09-wellformedness.md",
+   "line": 74,
+   "tests": 6,
+   "reference": {
+    "pass": 6
+   }
+  },
+  {
+   "id": "W-DEV-1",
+   "kind": "rule",
+   "chapter": "09-wellformedness.md",
+   "line": 77,
+   "tests": 3,
+   "reference": {
+    "pass": 3
+   }
+  },
+  {
+   "id": "W-ITER-1",
+   "kind": "rule",
+   "chapter": "09-wellformedness.md",
+   "line": 80,
+   "tests": 3,
+   "reference": {
+    "pass": 3
+   }
+  },
+  {
+   "id": "W-REF-1",
+   "kind": "rule",
+   "chapter": "09-wellformedness.md",
+   "line": 83,
+   "tests": 1,
+   "reference": {
+    "pass": 1
+   }
+  },
+  {
+   "id": "W-LOOP-1",
+   "kind": "rule",
+   "chapter": "09-wellformedness.md",
+   "line": 88,
+   "tests": 1,
+   "reference": {
+    "pass": 1
+   }
+  },
+  {
+   "id": "W-TRAIT-1",
+   "kind": "rule",
+   "chapter": "09-wellformedness.md",
+   "line": 90,
+   "tests": 1,
+   "reference": {
+    "fail": 1
+   }
+  },
+  {
+   "id": "W-TRAIT-2",
+   "kind": "rule",
+   "chapter": "09-wellformedness.md",
+   "line": 90,
+   "tests": 1,
+   "reference": {
+    "pass": 1
+   }
+  },
+  {
+   "id": "W-TRAIT-3",
+   "kind": "rule",
+   "chapter": "09-wellformedness.md",
+   "line": 90,
+   "tests": 1,
+   "reference": {
+    "pass": 1
+   }
+  },
+  {
+   "id": "W-CTX-1",
+   "kind": "rule",
+   "chapter": "09-wellformedness.md",
+   "line": 95,
+   "tests": 1,
+   "reference": {
+    "pass": 1
+   }
+  },
+  {
+   "id": "W-SEC-1",
+   "kind": "rule",
+   "chapter": "09-wellformedness.md",
+   "line": 98,
+   "tests": 2,
+   "reference": {
+    "pass": 2
+   }
+  },
+  {
+   "id": "W-CAP-1",
+   "kind": "rule",
+   "chapter": "09-wellformedness.md",
+   "line": 101,
+   "tests": 1,
+   "reference": {
+    "pass": 1
+   }
+  },
+  {
+   "id": "W-CAP-2",
+   "kind": "rule",
+   "chapter": "09-wellformedness.md",
+   "line": 104,
+   "tests": 1,
+   "reference": {
+    "pass": 1
+   }
+  },
+  {
+   "id": "T1",
+   "kind": "theorem",
+   "chapter": "10-theorems.md",
+   "line": 29,
+   "tests": 1344,
+   "reference": {
+    "pass": 1330,
+    "fail": 14
+   }
+  },
+  {
+   "id": "T2",
+   "kind": "theorem",
+   "chapter": "10-theorems.md",
+   "line": 30,
+   "tests": 14,
+   "reference": {
+    "pass": 14
+   }
+  },
+  {
+   "id": "T3",
+   "kind": "theorem",
+   "chapter": "10-theorems.md",
+   "line": 31,
+   "tests": 103,
+   "reference": {
+    "pass": 103
+   }
+  },
+  {
+   "id": "T4",
+   "kind": "theorem",
+   "chapter": "10-theorems.md",
+   "line": 32,
+   "tests": 1242,
+   "reference": {
+    "pass": 1228,
+    "fail": 14
+   }
+  },
+  {
+   "id": "T5",
+   "kind": "theorem",
+   "chapter": "10-theorems.md",
+   "line": 33,
+   "tests": 1344,
+   "reference": {
+    "pass": 1330,
+    "fail": 14
+   }
+  },
+  {
+   "id": "T6",
+   "kind": "theorem",
+   "chapter": "10-theorems.md",
+   "line": 34,
+   "tests": 29,
+   "reference": {
+    "pass": 29
+   }
+  },
+  {
+   "id": "T7",
+   "kind": "theorem",
+   "chapter": "10-theorems.md",
+   "line": 35,
+   "tests": 7,
+   "reference": {
+    "pass": 7
+   }
+  },
+  {
+   "id": "T8",
+   "kind": "theorem",
+   "chapter": "10-theorems.md",
+   "line": 36,
+   "tests": 45,
+   "reference": {
+    "pass": 45
+   }
+  },
+  {
+   "id": "T9",
+   "kind": "theorem",
+   "chapter": "10-theorems.md",
+   "line": 37,
+   "tests": 1242,
+   "reference": {
+    "pass": 1228,
+    "fail": 14
+   }
+  },
+  {
+   "id": "T10",
+   "kind": "theorem",
+   "chapter": "10-theorems.md",
+   "line": 38,
+   "tests": 143,
+   "reference": {
+    "pass": 143
+   }
+  },
+  {
+   "id": "T11",
+   "kind": "theorem",
+   "chapter": "10-theorems.md",
+   "line": 39,
+   "tests": 3,
+   "reference": {
+    "pass": 3
+   }
+  },
+  {
+   "id": "T12",
+   "kind": "theorem",
+   "chapter": "10-theorems.md",
+   "line": 40,
+   "tests": 2,
+   "reference": {
+    "pass": 2
+   }
+  },
+  {
+   "id": "T13",
+   "kind": "theorem",
+   "chapter": "10-theorems.md",
+   "line": 41,
+   "tests": 2,
+   "reference": {
+    "pass": 2
+   }
+  },
+  {
+   "id": "T14",
+   "kind": "theorem",
+   "chapter": "10-theorems.md",
+   "line": 42,
+   "tests": 2,
+   "reference": {
+    "pass": 2
+   }
+  },
+  {
+   "id": "T32",
+   "kind": "theorem",
+   "chapter": "10-theorems.md",
+   "line": 43,
+   "tests": 1,
+   "reference": {
+    "pass": 1
+   }
+  },
+  {
+   "id": "T33",
+   "kind": "theorem",
+   "chapter": "10-theorems.md",
+   "line": 44,
+   "tests": 3,
+   "reference": {
+    "pass": 3
+   }
+  },
+  {
+   "id": "T36",
+   "kind": "theorem",
+   "chapter": "10-theorems.md",
+   "line": 45,
+   "tests": 4,
+   "reference": {
+    "pass": 4
+   }
+  },
+  {
+   "id": "T35",
+   "kind": "theorem",
+   "chapter": "10-theorems.md",
+   "line": 46,
+   "tests": 2,
+   "reference": {
+    "pass": 2
+   }
+  },
+  {
+   "id": "T34",
+   "kind": "theorem",
+   "chapter": "10-theorems.md",
+   "line": 47,
+   "tests": 1,
+   "reference": {
+    "pass": 1
+   }
+  },
+  {
+   "id": "T37",
+   "kind": "theorem",
+   "chapter": "10-theorems.md",
+   "line": 48,
+   "tests": 1,
+   "reference": {
+    "pass": 1
+   }
+  },
+  {
+   "id": "T38",
+   "kind": "theorem",
+   "chapter": "10-theorems.md",
+   "line": 49,
+   "tests": 1,
+   "reference": {
+    "pass": 1
+   }
+  },
+  {
+   "id": "T39",
+   "kind": "theorem",
+   "chapter": "10-theorems.md",
+   "line": 50,
+   "tests": 22,
+   "reference": {
+    "pass": 22
+   }
+  },
+  {
+   "id": "T40",
+   "kind": "theorem",
+   "chapter": "10-theorems.md",
+   "line": 51,
+   "tests": 25,
+   "reference": {
+    "pass": 25
+   }
+  },
+  {
+   "id": "T41",
+   "kind": "theorem",
+   "chapter": "10-theorems.md",
+   "line": 52,
+   "tests": 30,
+   "reference": {
+    "pass": 30
+   }
+  },
+  {
+   "id": "T15",
+   "kind": "theorem",
+   "chapter": "10-theorems.md",
+   "line": 53,
+   "tests": 2,
+   "reference": {
+    "pass": 2
+   }
+  },
+  {
+   "id": "CH11-M-7fed7576",
+   "kind": "modal",
+   "chapter": "11-decisions.md",
+   "line": 29,
+   "tests": 11,
+   "reference": {
+    "pass": 11
+   }
+  },
+  {
+   "id": "S1",
+   "kind": "rule",
+   "chapter": "11-decisions.md",
+   "line": 132,
+   "tests": 1,
+   "reference": {
+    "pass": 1
+   }
+  },
+  {
+   "id": "S2",
+   "kind": "rule",
+   "chapter": "11-decisions.md",
+   "line": 134,
+   "tests": 1,
+   "reference": {
+    "pass": 1
+   }
+  },
+  {
+   "id": "S3",
+   "kind": "rule",
+   "chapter": "11-decisions.md",
+   "line": 137,
+   "tests": 2,
+   "reference": {
+    "pass": 2
+   }
+  },
+  {
+   "id": "S4",
+   "kind": "rule",
+   "chapter": "11-decisions.md",
+   "line": 140,
+   "tests": 1,
+   "reference": {
+    "pass": 1
+   }
+  },
+  {
+   "id": "S5",
+   "kind": "rule",
+   "chapter": "11-decisions.md",
+   "line": 141,
+   "tests": 1,
+   "reference": {
+    "pass": 1
+   }
+  },
+  {
+   "id": "CH11-M-ba4b6fd9",
+   "kind": "modal",
+   "chapter": "11-decisions.md",
+   "line": 242,
+   "tests": 1,
+   "reference": {
+    "pass": 1
+   }
+  },
+  {
+   "id": "W-PAR-1",
+   "kind": "rule",
+   "chapter": "14-draft06-concurrency.md",
+   "line": 103,
+   "tests": 83,
+   "reference": {
+    "pass": 83
+   }
+  },
+  {
+   "id": "W-PAR-2",
+   "kind": "rule",
+   "chapter": "14-draft06-concurrency.md",
+   "line": 105,
+   "tests": 2,
+   "reference": {
+    "pass": 2
+   }
+  },
+  {
+   "id": "CH14-M-90d1ad7f",
+   "kind": "modal",
+   "chapter": "14-draft06-concurrency.md",
+   "line": 144,
+   "tests": 42,
+   "reference": {
+    "pass": 42
+   }
+  },
+  {
+   "id": "W-BUD-1",
+   "kind": "rule",
+   "chapter": "14-draft06-concurrency.md",
+   "line": 174,
+   "tests": 1,
+   "reference": {
+    "pass": 1
+   }
+  },
+  {
+   "id": "W-DL-1",
+   "kind": "rule",
+   "chapter": "14-draft06-concurrency.md",
+   "line": 189,
+   "tests": 1,
+   "reference": {
+    "pass": 1
+   }
+  },
+  {
+   "id": "W-ND-1",
+   "kind": "rule",
+   "chapter": "14-draft06-concurrency.md",
+   "line": 193,
+   "tests": 1,
+   "reference": {
+    "pass": 1
+   }
+  },
+  {
+   "id": "CH14-M-6d53e2af",
+   "kind": "modal",
+   "chapter": "14-draft06-concurrency.md",
+   "line": 239,
+   "tests": 1,
+   "reference": {
+    "pass": 1
+   }
+  },
+  {
+   "id": "W-PAR-3",
+   "kind": "rule",
+   "chapter": "14-draft06-concurrency.md",
+   "line": 281,
+   "tests": 3,
+   "reference": {
+    "pass": 3
+   }
+  },
+  {
+   "id": "W-PAR-4",
+   "kind": "rule",
+   "chapter": "14-draft06-concurrency.md",
+   "line": 284,
+   "tests": 2,
+   "reference": {
+    "pass": 2
+   }
+  },
+  {
+   "id": "W-GRP-1",
+   "kind": "rule",
+   "chapter": "14-draft06-concurrency.md",
+   "line": 291,
+   "tests": 1,
+   "reference": {
+    "pass": 1
+   }
+  },
+  {
+   "id": "W-GRP-2",
+   "kind": "rule",
+   "chapter": "14-draft06-concurrency.md",
+   "line": 291,
+   "tests": 1,
+   "reference": {
+    "pass": 1
+   }
+  },
+  {
+   "id": "W-GRP-3",
+   "kind": "rule",
+   "chapter": "14-draft06-concurrency.md",
+   "line": 291,
+   "tests": 2,
+   "reference": {
+    "pass": 2
+   }
+  },
+  {
+   "id": "W-SES-1",
+   "kind": "rule",
+   "chapter": "14-draft06-concurrency.md",
+   "line": 296,
+   "tests": 4,
+   "reference": {
+    "pass": 4
+   }
+  },
+  {
+   "id": "W-SES-2",
+   "kind": "rule",
+   "chapter": "14-draft06-concurrency.md",
+   "line": 296,
+   "tests": 1,
+   "reference": {
+    "pass": 1
+   }
+  },
+  {
+   "id": "W-SES-3",
+   "kind": "rule",
+   "chapter": "14-draft06-concurrency.md",
+   "line": 296,
+   "tests": 1,
+   "reference": {
+    "pass": 1
+   }
+  },
+  {
+   "id": "CH14-M-9202f003",
+   "kind": "modal",
+   "chapter": "14-draft06-concurrency.md",
+   "line": 304,
+   "tests": 2,
+   "reference": {
+    "pass": 2
+   }
+  },
+  {
+   "id": "W-LVAR-1",
+   "kind": "rule",
+   "chapter": "14-draft06-concurrency.md",
+   "line": 335,
+   "tests": 1,
+   "reference": {
+    "pass": 1
+   }
+  },
+  {
+   "id": "W-LVAR-2",
+   "kind": "rule",
+   "chapter": "14-draft06-concurrency.md",
+   "line": 335,
+   "tests": 1,
+   "reference": {
+    "pass": 1
+   }
+  },
+  {
+   "id": "W-ATOM-1",
+   "kind": "rule",
+   "chapter": "14-draft06-concurrency.md",
+   "line": 400,
+   "tests": 1,
+   "reference": {
+    "pass": 1
+   }
+  },
+  {
+   "id": "W-ATOM-2",
+   "kind": "rule",
+   "chapter": "14-draft06-concurrency.md",
+   "line": 400,
+   "tests": 1,
+   "reference": {
+    "pass": 1
+   }
+  },
+  {
+   "id": "W-NODE-1",
+   "kind": "rule",
+   "chapter": "14-draft06-concurrency.md",
+   "line": 403,
+   "tests": 1,
+   "reference": {
+    "pass": 1
+   }
+  },
+  {
+   "id": "T16",
+   "kind": "theorem",
+   "chapter": "14-draft06-concurrency.md",
+   "line": 479,
+   "tests": 42,
+   "reference": {
+    "pass": 42
+   }
+  },
+  {
+   "id": "T17",
+   "kind": "theorem",
+   "chapter": "14-draft06-concurrency.md",
+   "line": 480,
+   "tests": 42,
+   "reference": {
+    "pass": 42
+   }
+  },
+  {
+   "id": "T18",
+   "kind": "theorem",
+   "chapter": "14-draft06-concurrency.md",
+   "line": 481,
+   "tests": 2,
+   "reference": {
+    "pass": 2
+   }
+  },
+  {
+   "id": "T19a",
+   "kind": "theorem",
+   "chapter": "14-draft06-concurrency.md",
+   "line": 482,
+   "tests": 44,
+   "reference": {
+    "pass": 44
+   }
+  },
+  {
+   "id": "T19b",
+   "kind": "theorem",
+   "chapter": "14-draft06-concurrency.md",
+   "line": 483,
+   "tests": 10,
+   "reference": {
+    "pass": 10
+   }
+  },
+  {
+   "id": "T20",
+   "kind": "theorem",
+   "chapter": "14-draft06-concurrency.md",
+   "line": 484,
+   "tests": 1,
+   "reference": {
+    "pass": 1
+   }
+  },
+  {
+   "id": "T21",
+   "kind": "theorem",
+   "chapter": "14-draft06-concurrency.md",
+   "line": 485,
+   "tests": 1,
+   "reference": {
+    "pass": 1
+   }
+  },
+  {
+   "id": "T22",
+   "kind": "theorem",
+   "chapter": "14-draft06-concurrency.md",
+   "line": 486,
+   "tests": 2,
+   "reference": {
+    "pass": 2
+   }
+  },
+  {
+   "id": "T23",
+   "kind": "theorem",
+   "chapter": "14-draft06-concurrency.md",
+   "line": 487,
+   "tests": 1,
+   "reference": {
+    "pass": 1
+   }
+  },
+  {
+   "id": "T24",
+   "kind": "theorem",
+   "chapter": "14-draft06-concurrency.md",
+   "line": 488,
+   "tests": 10,
+   "reference": {
+    "pass": 10
+   }
+  },
+  {
+   "id": "T25",
+   "kind": "theorem",
+   "chapter": "14-draft06-concurrency.md",
+   "line": 489,
+   "tests": 25,
+   "reference": {
+    "pass": 25
+   }
+  },
+  {
+   "id": "T26",
+   "kind": "theorem",
+   "chapter": "14-draft06-concurrency.md",
+   "line": 490,
+   "tests": 3,
+   "reference": {
+    "pass": 3
+   }
+  },
+  {
+   "id": "T27",
+   "kind": "theorem",
+   "chapter": "14-draft06-concurrency.md",
+   "line": 491,
+   "tests": 3,
+   "reference": {
+    "pass": 3
+   }
+  },
+  {
+   "id": "T28",
+   "kind": "theorem",
+   "chapter": "14-draft06-concurrency.md",
+   "line": 492,
+   "tests": 3,
+   "reference": {
+    "pass": 3
+   }
+  },
+  {
+   "id": "T29",
+   "kind": "theorem",
+   "chapter": "14-draft06-concurrency.md",
+   "line": 493,
+   "tests": 1,
+   "reference": {
+    "pass": 1
+   }
+  },
+  {
+   "id": "T29q",
+   "kind": "theorem",
+   "chapter": "14-draft06-concurrency.md",
+   "line": 494,
+   "tests": 1,
+   "reference": {
+    "pass": 1
+   }
+  },
+  {
+   "id": "T29s",
+   "kind": "theorem",
+   "chapter": "14-draft06-concurrency.md",
+   "line": 495,
+   "tests": 2,
+   "reference": {
+    "pass": 2
+   }
+  },
+  {
+   "id": "T29a",
+   "kind": "theorem",
+   "chapter": "14-draft06-concurrency.md",
+   "line": 496,
+   "tests": 1,
+   "reference": {
+    "pass": 1
+   }
+  },
+  {
+   "id": "T30",
+   "kind": "theorem",
+   "chapter": "14-draft06-concurrency.md",
+   "line": 497,
+   "tests": 5,
+   "reference": {
+    "pass": 5
+   }
+  },
+  {
+   "id": "T31",
+   "kind": "theorem",
+   "chapter": "14-draft06-concurrency.md",
+   "line": 498,
+   "tests": 31,
+   "reference": {
+    "pass": 31
+   }
+  },
+  {
+   "id": "CH14-M-fb31f51f",
+   "kind": "modal",
+   "chapter": "14-draft06-concurrency.md",
+   "line": 521,
+   "tests": 14,
+   "reference": {
+    "pass": 14
+   }
+  },
+  {
+   "id": "CH16-M-262166d9",
+   "kind": "modal",
+   "chapter": "16-host-contract.md",
+   "line": 3,
+   "tests": 30,
+   "reference": {
+    "pass": 30
+   }
+  },
+  {
+   "id": "HC-1",
+   "kind": "rule",
+   "chapter": "16-host-contract.md",
+   "line": 45,
+   "tests": 30,
+   "reference": {
+    "pass": 30
+   }
+  },
+  {
+   "id": "HC-2",
+   "kind": "rule",
+   "chapter": "16-host-contract.md",
+   "line": 52,
+   "tests": 3,
+   "reference": {
+    "pass": 3
+   }
+  },
+  {
+   "id": "HC-3",
+   "kind": "rule",
+   "chapter": "16-host-contract.md",
+   "line": 55,
+   "tests": 2,
+   "reference": {
+    "pass": 2
+   }
+  },
+  {
+   "id": "HC-4",
+   "kind": "rule",
+   "chapter": "16-host-contract.md",
+   "line": 60,
+   "tests": 16,
+   "reference": {
+    "pass": 16
+   }
+  },
+  {
+   "id": "HC-5",
+   "kind": "rule",
+   "chapter": "16-host-contract.md",
+   "line": 65,
+   "tests": 3,
+   "reference": {
+    "pass": 3
+   }
+  },
+  {
+   "id": "HC-6",
+   "kind": "rule",
+   "chapter": "16-host-contract.md",
+   "line": 83,
+   "tests": 1,
+   "reference": {
+    "pass": 1
+   }
+  },
+  {
+   "id": "HC-7",
+   "kind": "rule",
+   "chapter": "16-host-contract.md",
+   "line": 113,
+   "tests": 15,
+   "reference": {
+    "pass": 15
+   }
+  },
+  {
+   "id": "HC-7a",
+   "kind": "rule",
+   "chapter": "16-host-contract.md",
+   "line": 116,
+   "tests": 1,
+   "reference": {
+    "pass": 1
+   }
+  },
+  {
+   "id": "HC-8",
+   "kind": "rule",
+   "chapter": "16-host-contract.md",
+   "line": 123,
+   "tests": 27,
+   "reference": {
+    "pass": 27
+   }
+  },
+  {
+   "id": "HC-9",
+   "kind": "rule",
+   "chapter": "16-host-contract.md",
+   "line": 126,
+   "tests": 26,
+   "reference": {
+    "pass": 26
+   }
+  },
+  {
+   "id": "CH16-M-bf12d963",
+   "kind": "modal",
+   "chapter": "16-host-contract.md",
+   "line": 138,
+   "tests": 30,
+   "reference": {
+    "pass": 30
+   }
+  },
+  {
+   "id": "HC-15",
+   "kind": "rule",
+   "chapter": "16-host-contract.md",
+   "line": 142,
+   "tests": 25,
+   "reference": {
+    "pass": 25
+   }
+  },
+  {
+   "id": "HC-16",
+   "kind": "rule",
+   "chapter": "16-host-contract.md",
+   "line": 158,
+   "tests": 25,
+   "reference": {
+    "pass": 25
+   }
+  },
+  {
+   "id": "HC-17",
+   "kind": "rule",
+   "chapter": "16-host-contract.md",
+   "line": 168,
+   "tests": 25,
+   "reference": {
+    "pass": 25
+   }
+  },
+  {
+   "id": "HC-18",
+   "kind": "rule",
+   "chapter": "16-host-contract.md",
+   "line": 186,
+   "tests": 30,
+   "reference": {
+    "pass": 30
+   }
+  },
+  {
+   "id": "HC-19",
+   "kind": "rule",
+   "chapter": "16-host-contract.md",
+   "line": 194,
+   "tests": 30,
+   "reference": {
+    "pass": 30
+   }
+  },
+  {
+   "id": "HC-18a",
+   "kind": "rule",
+   "chapter": "16-host-contract.md",
+   "line": 202,
+   "tests": 30,
+   "reference": {
+    "pass": 30
+   }
+  },
+  {
+   "id": "HC-20",
+   "kind": "rule",
+   "chapter": "16-host-contract.md",
+   "line": 234,
+   "tests": 21,
+   "reference": {
+    "pass": 21
+   }
+  },
+  {
+   "id": "HC-10",
+   "kind": "rule",
+   "chapter": "16-host-contract.md",
+   "line": 369,
+   "tests": 30,
+   "reference": {
+    "pass": 30
+   }
+  },
+  {
+   "id": "HC-11",
+   "kind": "rule",
+   "chapter": "16-host-contract.md",
+   "line": 410,
+   "tests": 1,
+   "reference": {
+    "pass": 1
+   }
+  },
+  {
+   "id": "HC-12",
+   "kind": "rule",
+   "chapter": "16-host-contract.md",
+   "line": 416,
+   "tests": 1,
+   "reference": {
+    "pass": 1
+   }
+  },
+  {
+   "id": "HC-13",
+   "kind": "rule",
+   "chapter": "16-host-contract.md",
+   "line": 457,
+   "tests": 1,
+   "reference": {
+    "pass": 1
+   }
+  },
+  {
+   "id": "HC-14",
+   "kind": "rule",
+   "chapter": "16-host-contract.md",
+   "line": 467,
+   "tests": 1,
+   "reference": {
+    "pass": 1
+   }
+  },
+  {
+   "id": "CH16-M-a84fabb6",
+   "kind": "modal",
+   "chapter": "16-host-contract.md",
+   "line": 626,
+   "tests": 2,
+   "reference": {
+    "pass": 2
+   }
+  },
+  {
+   "id": "W-STEP-3",
+   "kind": "rule",
+   "chapter": "05-types-ownership.md",
+   "line": 231,
+   "tests": 1,
+   "reference": {
+    "pass": 1
+   }
+  },
+  {
+   "id": "W-VIS-1",
+   "kind": "rule",
+   "chapter": "09-wellformedness.md",
+   "line": 23,
+   "tests": 1,
+   "reference": {
+    "pass": 1
+   }
+  },
+  {
+   "id": "W-OWN-2",
+   "kind": "rule",
+   "chapter": "09-wellformedness.md",
+   "line": 46,
+   "tests": 2,
+   "reference": {
+    "pass": 2
+   }
+  },
+  {
+   "id": "W-OWN-3",
+   "kind": "rule",
+   "chapter": "09-wellformedness.md",
+   "line": 47,
+   "tests": 1,
+   "reference": {
+    "pass": 1
+   }
+  },
+  {
+   "id": "W-REG-1",
+   "kind": "rule",
+   "chapter": "09-wellformedness.md",
+   "line": 48,
+   "tests": 1,
+   "reference": {
+    "pass": 1
+   }
+  },
+  {
+   "id": "W-STEP-2",
+   "kind": "rule",
+   "chapter": "09-wellformedness.md",
+   "line": 55,
+   "tests": 2,
+   "reference": {
+    "pass": 2
+   }
+  },
+  {
+   "id": "W-STEP-4",
+   "kind": "rule",
+   "chapter": "09-wellformedness.md",
+   "line": 57,
+   "tests": 1,
+   "reference": {
+    "pass": 1
+   }
+  },
+  {
+   "id": "W-CRDT-1",
+   "kind": "rule",
+   "chapter": "09-wellformedness.md",
+   "line": 110,
+   "tests": 5,
+   "reference": {
+    "pass": 5
+   }
+  },
+  {
+   "id": "W-SCOPE-1",
+   "kind": "rule",
+   "chapter": "09-wellformedness.md",
+   "line": 110,
+   "tests": 1,
+   "reference": {
+    "pass": 1
+   }
+  },
+  {
+   "id": "W-INTR-1",
+   "kind": "rule",
+   "chapter": "09-wellformedness.md",
+   "line": 111,
+   "tests": 1,
+   "reference": {
+    "pass": 1
+   }
+  },
+  {
+   "id": "W-RT-1",
+   "kind": "rule",
+   "chapter": "09-wellformedness.md",
+   "line": 111,
+   "tests": 1,
+   "reference": {
+    "pass": 1
+   }
+  },
+  {
+   "id": "W-SUP-1",
+   "kind": "rule",
+   "chapter": "09-wellformedness.md",
+   "line": 111,
+   "tests": 2,
+   "reference": {
+    "pass": 2
+   }
+  },
+  {
+   "id": "W-SUP-2",
+   "kind": "rule",
+   "chapter": "09-wellformedness.md",
+   "line": 111,
+   "tests": 1,
+   "reference": {
+    "pass": 1
+   }
+  }
+ ],
+ "untested": [],
+ "unknown_clause_ids_in_tests": {},
+ "profiles": {
+  "language": {
+   "clauses": 204,
+   "covered": 204
+  },
+  "tooling": {
+   "clauses": 7,
+   "covered": 0
+  },
+  "handler-spec": {
+   "clauses": 14,
+   "covered": 0
+  },
+  "editorial": {
+   "clauses": 1,
+   "covered": 0
+  },
+  "proposed": {
+   "clauses": 6,
+   "covered": 0
+  }
+ },
+ "untested_other_profiles": [
+  "CH00-M-1742ac42",
+  "CH12-M-6e12b079",
+  "CH12-M-6760dd1f",
+  "CH12-M-bafe6c22",
+  "CH12-M-1279943c",
+  "CH12-M-f71aaadc",
+  "CH12-M-d81e64a6",
+  "CH15-M-0a595561",
+  "CH15-M-a4388ad4",
+  "CH15-M-af6429fd",
+  "L1",
+  "L2",
+  "L3",
+  "L4",
+  "W-HS-VER-1",
+  "W-HS-VER-2",
+  "W-HS-CUR-1",
+  "W-HS-CUR-2",
+  "W-HS-REASON-1",
+  "W-HS-DUR-1",
+  "W-HS-KW-1",
+  "CH16-M-b00d3084",
+  "TU-1",
+  "TU-2",
+  "TU-3",
+  "TU-4",
+  "TU-5",
+  "TU-6"
+ ],
+ "informative": [
+  "CH00-M-4b9475c5",
+  "CH00-M-d5ed1b66",
+  "CH03-M-f54cd5c4",
+  "CH03-M-8435434a",
+  "CH12-M-4abd3617",
+  "CH16-M-55446a60",
+  "CH16-M-39be5392",
+  "CH16-M-befbed6a",
+  "CH16-M-9e91473d",
+  "CH16-M-f557368c",
+  "CH16-M-5d267804",
+  "CH16-M-8dc47a03"
+ ]
+}

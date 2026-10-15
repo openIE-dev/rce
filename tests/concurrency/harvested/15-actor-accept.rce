@@ -1,0 +1,15 @@
+event Get(reply: chan i64)
+event Add(k: i64)
+
+actor Tally
+    total: i64 = 0
+    on Add(k: k) -> total + k
+    on Get(reply: r)
+        r <- total
+#--- rce-test
+# id: concurrency/harvested/15-actor-accept
+# area: concurrency
+# clauses: [CH03-M-28cdd241, T10]
+# expect: accept
+# provenance: harvested examples/15_actor.rce
+#---

@@ -1,0 +1,31 @@
+intent "a traffic light that cycles on each tick"
+    example Tick, Tick -> light == Yellow
+
+kind Light
+    Red
+    Green
+    Yellow
+
+state Signal
+    light: Light = Red
+
+event Tick
+
+step Signal on Tick
+    match light
+        Red -> light = Green
+        Green -> light = Yellow
+        Yellow -> light = Red
+#--- rce-test
+# id: forms-log/harvested/17-traffic-light-ex2
+# area: forms-log
+# clauses: [CH00-M-61b6ac06, CH07-M-0a0bd71f, HC-2, N11, T1, T4, T5, T9]
+# expect: run
+# events: Tick, Tick
+# outcome: done
+# outputs:
+#   - 0 (initial) Signal { light = Red }
+#   - 1 Tick Signal { light = Green }
+#   - 2 Tick Signal { light = Yellow }
+# provenance: harvested examples/17_traffic_light.rce example@2
+#---

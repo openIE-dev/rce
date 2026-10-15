@@ -1,0 +1,16 @@
+# rce-version: 0.6
+# expect: W-SES-2
+protocol P
+    send text
+    recv i64
+
+fn client(c: session P)
+    c <- "x"
+#--- rce-test
+# id: concurrency/harvested/w-ses-2-unfinished-reject
+# area: concurrency
+# clauses: [CH09-M-82e65964, W-SES-2]
+# expect: reject
+# diagnostic: W-SES-2
+# provenance: harvested conc06b/ill_typed/W-SES-2_unfinished.rce
+#---

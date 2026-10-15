@@ -1,0 +1,29 @@
+# rce-version: 0.9
+state Cart
+    items: List[text] = []
+
+state Stats
+    adds: u64 = 0
+    removes: u64 = 0
+
+event AddItem(name: text)
+event RemoveItem(name: text)
+event Reset
+
+step Cart on AddItem(name: n) -> items.with(n)
+step Stats on AddItem(name: _)
+    adds += 1
+step Cart on RemoveItem(name: n)
+    items = [copy(i) for i in items if i != n]
+step Stats on RemoveItem(name: _)
+    removes += 1
+step Cart on Reset -> []
+#--- rce-test
+# id: lexing-parsing/generated/mut-version-16-multi-region-accept
+# area: lexing-parsing
+# clauses: [CH09-M-82e65964, W-VER-1]
+# expect: reject
+# diagnostic: W-VER-1
+# flags: [generated]
+# provenance: gen_props.py seed 7: mutation `version` of 16-multi-region-accept
+#---

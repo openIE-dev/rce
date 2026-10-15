@@ -1,0 +1,26 @@
+# A linear handle must be consumed exactly once on every path.
+linear struct File
+    fd: i32
+
+extern "C" fn c_open(path: &text) -> File
+extern "C" fn c_close(f: File) -> i32
+extern "C" fn c_write(f: File, n: u32) -> File
+
+fn main()
+    let p = "log.txt"
+    let f = c_open(&p)
+    let g = c_write(f, 3)
+    if g.fd < 0
+        let _ = c_close(g)
+    else
+        let r = c_close(g)
+        emit r
+#--- rce-test
+# id: numbers/harvested/48-linear-handle-main
+# area: numbers
+# clauses: [CH00-M-61b6ac06, CH05-M-2405dfe8, CH06-M-ca6452be, CH06-M-f43a675d, CH07-M-0a0bd71f, F7, F9, N1, N3, T1, T12, T4, T5, T6, T9]
+# expect: run
+# outcome: trap:cannot call c_open at comptime
+# outputs:
+# provenance: harvested examples/48_linear_handle.rce
+#---

@@ -1,0 +1,17 @@
+const MASK: u32 = 0xFF_FF
+const FLAGS: u8 = 0b1010_0101
+const PERMS: u16 = 0o755
+const BIG: f64 = 1.5e+300
+const SMALL: f64 = 2.5e-7
+
+fn paren_zz() -> i64
+    return (1 + 2
+#--- rce-test
+# id: lexing-parsing/generated/mut-paren-38-hex-bin-accept
+# area: lexing-parsing
+# clauses: [CH02-M-69371f07, CH03-M-28cdd241, CH09-M-82e65964, T10, W-SYN-1]
+# expect: reject
+# diagnostic: W-SYN-1
+# flags: [generated]
+# provenance: gen_props.py seed 7: mutation `paren` of 38-hex-bin-accept
+#---

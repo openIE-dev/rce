@@ -1,0 +1,18 @@
+error Diverged
+
+fn collatz_steps(n: u64) -> u64 ! Diverged
+    var x = n
+    var k: u64 = 0
+    while x != 1 bound 10_000
+        x = if x % 2 == 0 then x / 2 else 3 * x + 1
+	    k += 1
+    return k
+#--- rce-test
+# id: lexing-parsing/generated/mut-tab-18-while-bound-accept
+# area: lexing-parsing
+# clauses: [CH09-M-82e65964, W-LEX-1]
+# expect: reject
+# diagnostic: W-LEX-1
+# flags: [generated]
+# provenance: gen_props.py seed 7: mutation `tab` of 18-while-bound-accept
+#---

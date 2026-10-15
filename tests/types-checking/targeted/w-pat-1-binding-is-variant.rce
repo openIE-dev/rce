@@ -1,0 +1,16 @@
+kind Light
+    Red
+    Green
+fn f(l: Light) -> i64
+    match l
+        Light.Red -> return 1
+        x -> return 2
+fn g(Red: i64) -> i64 = Red
+#--- rce-test
+# id: types-checking/targeted/w-pat-1-binding-is-variant
+# area: types-checking
+# clauses: [CH09-M-82e65964, W-PAT-1]
+# expect: reject
+# diagnostic: W-PAT-1
+# provenance: targeted.py: expected result read off the clause
+#---

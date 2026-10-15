@@ -1,0 +1,65 @@
+event Tree(n: i64, what: text)
+event Epoch(init: text, commit: text, psk: text, ctx: text)
+event Export(secret: text, label: text, context: text, n: u64)
+event ExtPub(secret: text)
+event Ewl(secret: text, label: text, context: text, n: u64)
+event Ds(secret: text, label: text)
+event Dts(secret: text, label: text, generation: i64, n: u64)
+event Ref(label: text, value: text)
+event Swl(seed: text, label: text, content: text)
+event Vwl(pk: text, label: text, content: text, sig: text)
+
+state G
+    out: List[text] = []
+
+step G on Tree(n: n, what: w)
+    let width = tm_width(n)
+    let r = tm_root(n)
+    var parts = ""
+    for x in 0..width
+        var v = "-"
+        if w == "left" and tm_level(x) > 0
+            v = tm_left(x).tostr()
+        if w == "right" and tm_level(x) > 0
+            v = tm_right(x, n).tostr()
+        if w == "parent" and x != r
+            v = tm_parent(x, n).tostr()
+        if w == "sibling" and x != r
+            v = tm_sibling(x, n).tostr()
+        parts = if x == 0 then v else parts + "," + v
+    out.push(r.tostr() + ":" + parts)
+
+step G on Epoch(init: i, commit: c, psk: p, ctx: x)
+    out.push(mls_epoch(i, c, p, x))
+
+step G on Export(secret: s, label: l, context: c, n: n)
+    out.push(mls_export(s, l, c, n as usize))
+
+step G on ExtPub(secret: s)
+    out.push(mls_external_pub(s))
+
+step G on Ewl(secret: s, label: l, context: c, n: n)
+    out.push(tohex(expand_label(unhex(s), l, unhex(c), n as usize)))
+
+step G on Ds(secret: s, label: l)
+    out.push(tohex(derive_secret(unhex(s), l)))
+
+step G on Dts(secret: s, label: l, generation: g, n: n)
+    out.push(derive_tree_secret(s, l, g, n as usize))
+
+step G on Ref(label: l, value: v)
+    out.push(ref_hash(l, v))
+
+step G on Swl(seed: k, label: l, content: c)
+    out.push(sign_with_label(k, l, c))
+
+step G on Vwl(pk: p, label: l, content: c, sig: g)
+    out.push(verify_with_label(p, l, c, g).tostr())
+#--- rce-test
+# id: types-checking/harvested/mls-rce-reject
+# area: types-checking
+# clauses: [CH09-M-82e65964, W-NAME-1]
+# expect: reject
+# diagnostic: W-NAME-1
+# provenance: harvested checker/tests/mls_rce.rs#0
+#---

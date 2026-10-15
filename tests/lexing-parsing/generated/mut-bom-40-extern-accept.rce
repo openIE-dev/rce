@@ -1,0 +1,16 @@
+﻿# A foreign function: C ABI, scalar results, borrowed buffers only.
+# Only main and task functions may call it; its results enter the log.
+extern "C" fn crc32(data: &[u8], seed: u32) -> u32
+
+fn main()
+    let bytes: List[u8] = [1, 2, 3]
+    emit crc32(&bytes, 0)
+#--- rce-test
+# id: lexing-parsing/generated/mut-bom-40-extern-accept
+# area: lexing-parsing
+# clauses: [CH09-M-82e65964, HC-4, W-LEX-1]
+# expect: reject
+# diagnostic: W-LEX-1
+# flags: [generated]
+# provenance: gen_props.py seed 7: mutation `bom` of 40-extern-accept
+#---

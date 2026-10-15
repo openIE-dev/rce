@@ -1,0 +1,12 @@
+# rce-version: 0.6
+# expect: W-SUP-2
+supervisor S strategy one_for_one
+    child a: i64
+#--- rce-test
+# id: concurrency/harvested/w-sup-2-child-not-actor-reject
+# area: concurrency
+# clauses: [CH09-M-82e65964, W-SUP-2]
+# expect: reject
+# diagnostic: W-SUP-2
+# provenance: harvested conc06b/ill_typed/W-SUP-2_child_not_actor.rce
+#---

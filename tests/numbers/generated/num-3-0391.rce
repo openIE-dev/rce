@@ -1,0 +1,15 @@
+fn main()
+    let a: f64 = 123456.789
+    let b: f64 = 1.8775229796083e-142
+    emit a / b
+#--- rce-test
+# id: numbers/generated/num-3-0391
+# area: numbers
+# clauses: [CH00-M-61b6ac06, CH05-M-2405dfe8, CH07-M-0a0bd71f, F1, F4, F7, F9, N1, N3, T1, T4, T5, T9]
+# expect: run
+# outcome: done
+# outputs:
+#   - emit 6.575514139686125e+146
+# flags: [generated]
+# provenance: gen_numbers.py seed 3; oracle-derived
+#---

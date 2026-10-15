@@ -1,0 +1,19 @@
+# rce-version: 0.9
+fn popcount(x: u64) -> u32
+    var v = x
+    var c: u32 = 0
+    while v != 0 bound 64
+        v &= v - 1
+        c += 1
+    return c
+
+fn mix(a: u32, b: u32) -> u32 = (a << 5 | a >> 27) ^ ~b & 0xFF
+#--- rce-test
+# id: lexing-parsing/generated/mut-version-27-bitops-accept
+# area: lexing-parsing
+# clauses: [CH09-M-82e65964, W-VER-1]
+# expect: reject
+# diagnostic: W-VER-1
+# flags: [generated]
+# provenance: gen_props.py seed 7: mutation `version` of 27-bitops-accept
+#---

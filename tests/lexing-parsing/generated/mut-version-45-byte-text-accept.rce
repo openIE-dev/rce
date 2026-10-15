@@ -1,0 +1,20 @@
+# rce-version: 0.3
+# Text is indexed and measured in UTF-8 bytes.
+fn first_byte(s: &text) -> u8
+    return s[0]
+
+check "héllo".len() == 6
+const A: text = "A"
+check first_byte(&A) == 65
+check "héllo"[1] == 195
+check "héllo"[0:1] == "h"
+check "héllo"[1:3] == "é"
+#--- rce-test
+# id: lexing-parsing/generated/mut-version-45-byte-text-accept
+# area: lexing-parsing
+# clauses: [CH09-M-82e65964, W-VER-1]
+# expect: reject
+# diagnostic: W-VER-1
+# flags: [generated]
+# provenance: gen_props.py seed 7: mutation `version` of 45-byte-text-accept
+#---

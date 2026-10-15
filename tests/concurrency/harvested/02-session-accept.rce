@@ -1,0 +1,35 @@
+# rce-version: 0.6
+protocol Lookup
+    send text
+    offer
+        Found
+            recv i64
+        Missing
+    loop
+        choose
+            More
+                send text
+                recv i64
+            Done
+                break
+
+fn client(c: session Lookup)
+    c <- "key"
+    match c.offer()
+        Found
+            let v = <- c
+            emit v
+        Missing -> pass
+    loop bound 3
+        c.choose(More)
+        c <- "next"
+        let w = <- c
+        emit w
+    c.choose(Done)
+#--- rce-test
+# id: concurrency/harvested/02-session-accept
+# area: concurrency
+# clauses: [CH02-M-a696f3a3, CH03-M-28cdd241, T10, T28]
+# expect: accept
+# provenance: harvested conc06b/accept/02_session.rce
+#---

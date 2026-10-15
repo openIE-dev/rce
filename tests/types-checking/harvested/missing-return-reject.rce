@@ -1,0 +1,11 @@
+fn f(x: i64) -> i64
+    if x > 0
+        return 1
+#--- rce-test
+# id: types-checking/harvested/missing-return-reject
+# area: types-checking
+# clauses: [CH09-M-82e65964, W-TY-1]
+# expect: reject
+# diagnostic: W-TY-1
+# provenance: harvested examples/ill_typed/missing_return.rce
+#---

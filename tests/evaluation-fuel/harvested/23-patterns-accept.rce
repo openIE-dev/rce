@@ -1,0 +1,15 @@
+fn classify(n: i64) -> text
+    match n
+        0 -> "zero"
+        1 | 2 | 3 -> "small"
+        4..=9 -> "digit"
+        -1 -> "minus one"
+        _ if n < 0 -> "negative"
+        _ -> "large"
+#--- rce-test
+# id: evaluation-fuel/harvested/23-patterns-accept
+# area: evaluation-fuel
+# clauses: [CH03-M-28cdd241, T10]
+# expect: accept
+# provenance: harvested examples/23_patterns.rce
+#---

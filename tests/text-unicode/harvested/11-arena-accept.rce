@@ -1,0 +1,14 @@
+fn word_lengths(s: &text) -> List[u32]
+    var out: List[u32] = []
+    with arena scratch
+        let ws: List[text] @scratch = s.words()
+        for w in ws
+            out.append(w.len() as u32)
+    return out
+#--- rce-test
+# id: text-unicode/harvested/11-arena-accept
+# area: text-unicode
+# clauses: [CH03-M-28cdd241, T10, T6]
+# expect: accept
+# provenance: harvested examples/11_arena.rce
+#---

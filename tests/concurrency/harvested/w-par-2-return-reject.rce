@@ -1,0 +1,15 @@
+# rce-version: 0.6
+# expect: W-PAR-2
+fn f() -> i64
+    par
+        branch x
+            return 1
+    0
+#--- rce-test
+# id: concurrency/harvested/w-par-2-return-reject
+# area: concurrency
+# clauses: [CH09-M-82e65964, W-PAR-2]
+# expect: reject
+# diagnostic: W-PAR-2
+# provenance: harvested conc06/ill_typed/W-PAR-2_return.rce
+#---

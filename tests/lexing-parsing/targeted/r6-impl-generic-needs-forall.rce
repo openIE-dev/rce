@@ -1,0 +1,12 @@
+struct Box[T]
+    v: T
+impl [T] Box[T]
+    fn get(self) -> T = self.v
+#--- rce-test
+# id: lexing-parsing/targeted/r6-impl-generic-needs-forall
+# area: lexing-parsing
+# clauses: [CH02-M-69371f07, CH03-M-28cdd241, CH09-M-82e65964, R6, T10]
+# expect: reject
+# diagnostic: W-SYN-1
+# provenance: targeted.py: expected result read off the clause
+#---

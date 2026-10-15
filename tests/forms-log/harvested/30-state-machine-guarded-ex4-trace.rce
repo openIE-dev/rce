@@ -1,0 +1,38 @@
+intent "a door that locks only when closed"
+    "the door starts closed and unlocked"
+    example Open, Close, Lock -> locked
+    example Open, Lock -> refused: DoorOpen
+
+state Door
+    open: bool = false
+    locked: bool = false
+
+event Open
+event Close
+event Lock
+event Unlock
+
+error DoorOpen
+error Locked
+
+step Door on Open if locked
+    fail Locked
+step Door on Open
+    open = true
+step Door on Close
+    open = false
+step Door on Lock if open
+    fail DoorOpen
+step Door on Lock
+    locked = true
+step Door on Unlock
+    locked = false
+#--- rce-test
+# id: forms-log/harvested/30-state-machine-guarded-ex4-trace
+# area: forms-log
+# clauses: [CH00-M-61b6ac06, CH05-M-d8ee78b3, CH07-M-0a0bd71f, CH07-M-265230fb, T1, T3, T5, T8]
+# expect: trace
+# events: Open, Lock
+# trace_head: b269d597d4eeab5e34ed5ecf01945c2d223d9a846152691ad390080c7ab0941d
+# provenance: harvested examples/30_state_machine_guarded.rce example@4
+#---

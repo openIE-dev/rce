@@ -1,0 +1,12 @@
+fn main()
+    let xs: List[i64] = [1, 2, 3]
+    let i: usize = 3
+    emit xs[i]
+#--- rce-test
+# id: evaluation-fuel/targeted/n8-index-out-of-range
+# area: evaluation-fuel
+# clauses: [CH00-M-61b6ac06, CH07-M-0a0bd71f, N8, T1, T4, T5, T9]
+# expect: run
+# outcome: trap:index 3 out of range
+# provenance: targeted.py: expected result read off the clause
+#---

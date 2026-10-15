@@ -1,0 +1,39 @@
+# rce-version: 0.1
+intent "a door that locks only when closed"
+    "the door starts closed and unlocked"
+    example Open, Close, Lock -> locked
+    example Open, Lock -> refused: DoorOpen
+
+state Door
+    open: bool = false
+    locked: bool = false
+
+event Open
+event Close
+event Lock
+event Unlock
+
+error DoorOpen
+error Locked
+
+step Door on Open if locked
+    fail Locked
+step Door on Open
+    open = true
+step Door on Close
+    open = false
+step Door on Lock if open
+    fail DoorOpen
+step Door on Lock
+    locked = true
+step Door on Unlock
+    locked = false
+#--- rce-test
+# id: lexing-parsing/generated/mut-version-30-state-machine-guarded-accept
+# area: lexing-parsing
+# clauses: [CH09-M-82e65964, W-VER-1]
+# expect: reject
+# diagnostic: W-VER-1
+# flags: [generated]
+# provenance: gen_props.py seed 7: mutation `version` of 30-state-machine-guarded-accept
+#---

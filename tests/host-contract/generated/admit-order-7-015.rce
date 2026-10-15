@@ -1,0 +1,27 @@
+# rce-version: 0.6
+module admit_order
+
+intent "simultaneous inputs are admitted by (priority, arrival); D records the order"
+    example Key(c: "a"), Alarm(n: 1) -> seen == "a!"
+
+interrupt event Alarm(n: u64) priority 200
+event Key(c: text)
+
+state S
+    seen: text = ""
+
+step S on Key(c: c)
+    seen = seen + c
+
+step S on Alarm(n: n)
+    seen = seen + "!"
+#--- rce-test
+# id: host-contract/generated/admit-order-7-015
+# area: host-contract
+# clauses: [CH16-M-262166d9, CH16-M-bf12d963, HC-1, HC-10, HC-15, HC-16, HC-17, HC-8, HC-9, T25, T40]
+# expect: host
+# steps: [{"offer":{"source":"kbd","seq":4,"tick":3,"event":"Key","args":{"c":"d"}}},{"offer":{"source":"kbd","seq":4,"tick":3,"event":"Key","args":{"c":"d"}}},{"offer":{"source":"kbd","seq":1,"tick":0,"event":"Key","args":{"c":"a"}}},{"offer":{"source":"irq","seq":1,"tick":0,"event":"Alarm","args":{"n":1}}},{"offer":{"source":"irq","seq":1,"tick":0,"event":"Alarm","args":{"n":1}}},{"offer":{"source":"net","seq":1,"tick":1,"event":"Key","args":{"c":"B"}}},{"offer":{"source":"kbd","seq":2,"tick":1,"event":"Key","args":{"c":"b"}}},{"offer":{"source":"kbd","seq":2,"tick":1,"event":"Key","args":{"c":"b"}}},{"offer":{"source":"irq","seq":2,"tick":3,"event":"Alarm","args":{"n":2}}},{"offer":{"source":"kbd","seq":3,"tick":2,"event":"Key","args":{"c":"c"}}},{"offer":{"source":"kbd","seq":3,"tick":2,"event":"Key","args":{"c":"c"}}},{"offer":{"source":"net","seq":2,"tick":3,"event":"Key","args":{"c":"D"}}},{"close":3},{"offer":{"source":"kbd","seq":8,"tick":7,"event":"Key","args":{"c":"h"}}},{"offer":{"source":"kbd","seq":8,"tick":7,"event":"Key","args":{"c":"h"}}},{"offer":{"source":"net","seq":4,"tick":7,"event":"Key","args":{"c":"H"}}},{"offer":{"source":"irq","seq":3,"tick":6,"event":"Alarm","args":{"n":3}}},{"offer":{"source":"irq","seq":3,"tick":6,"event":"Alarm","args":{"n":3}}},{"offer":{"source":"kbd","seq":7,"tick":6,"event":"Key","args":{"c":"g"}}},{"offer":{"source":"kbd","seq":5,"tick":4,"event":"Key","args":{"c":"e"}}},{"offer":{"source":"kbd","seq":5,"tick":4,"event":"Key","args":{"c":"e"}}},{"offer":{"source":"net","seq":3,"tick":5,"event":"Key","args":{"c":"F"}}},{"offer":{"source":"kbd","seq":6,"tick":5,"event":"Key","args":{"c":"f"}}},{"offer":{"source":"kbd","seq":6,"tick":5,"event":"Key","args":{"c":"f"}}},{"close":7},{"offer":{"source":"kbd","seq":9,"tick":8,"event":"Key","args":{"c":"i"}}},{"offer":{"source":"kbd","seq":9,"tick":8,"event":"Key","args":{"c":"i"}}},{"offer":{"source":"kbd","seq":10,"tick":9,"event":"Key","args":{"c":"j"}}},{"offer":{"source":"net","seq":5,"tick":9,"event":"Key","args":{"c":"J"}}},{"offer":{"source":"net","seq":5,"tick":9,"event":"Key","args":{"c":"J"}}},{"offer":{"source":"kbd","seq":12,"tick":11,"event":"Key","args":{"c":"l"}}},{"offer":{"source":"kbd","seq":11,"tick":10,"event":"Key","args":{"c":"k"}}},{"offer":{"source":"kbd","seq":11,"tick":10,"event":"Key","args":{"c":"k"}}},{"offer":{"source":"irq","seq":4,"tick":9,"event":"Alarm","args":{"n":4}}},{"offer":{"source":"net","seq":6,"tick":11,"event":"Key","args":{"c":"L"}}},{"offer":{"source":"net","seq":6,"tick":11,"event":"Key","args":{"c":"L"}}},{"close":11}]
+# host_expect: {"state_hash":"8058b9431c2a63f9837248538e897dfe0bbe1db7af55aa18f3ecfd4d3a3b8883","admitted":[[5,"Alarm(n: 1)",{"ok":[]}],[7,"Alarm(n: 2)",{"ok":[]}],[9,"Key(c: \"a\")",{"ok":[]}],[11,"Key(c: \"b\")",{"ok":[]}],[13,"Key(c: \"c\")",{"ok":[]}],[15,"Key(c: \"d\")",{"ok":[]}],[17,"Key(c: \"B\")",{"ok":[]}],[19,"Key(c: \"D\")",{"ok":[]}],[23,"Alarm(n: 3)",{"ok":[]}],[25,"Key(c: \"e\")",{"ok":[]}],[27,"Key(c: \"f\")",{"ok":[]}],[29,"Key(c: \"g\")",{"ok":[]}],[31,"Key(c: \"h\")",{"ok":[]}],[33,"Key(c: \"F\")",{"ok":[]}],[35,"Key(c: \"H\")",{"ok":[]}],[39,"Alarm(n: 4)",{"ok":[]}],[41,"Key(c: \"i\")",{"ok":[]}],[43,"Key(c: \"j\")",{"ok":[]}],[45,"Key(c: \"k\")",{"ok":[]}],[47,"Key(c: \"l\")",{"ok":[]}],[49,"Key(c: \"J\")",{"ok":[]}],[51,"Key(c: \"L\")",{"ok":[]}]],"entries":["host.Synced","host.Window","host.Input","Alarm","host.Input","Alarm","host.Input","Key","host.Input","Key","host.Input","Key","host.Input","Key","host.Input","Key","host.Input","Key","host.Synced","host.Window","host.Input","Alarm","host.Input","Key","host.Input","Key","host.Input","Key","host.Input","Key","host.Input","Key","host.Input","Key","host.Synced","host.Window","host.Input","Alarm","host.Input","Key","host.Input","Key","host.Input","Key","host.Input","Key","host.Input","Key","host.Input","Key","host.Synced"]}
+# flags: [generated]
+# provenance: gen_props.py seed 7: arrival permutation 15, retransmit every 2; D must not depend on arrival
+#---

@@ -1,0 +1,26 @@
+
+fn prod(c: chan u64, base: u64, n: u64)
+    for i in 0..n
+        c <- base + i
+    c.close()
+
+fn main()
+    let a = chan[u64](1)
+    let b = chan[u64](1)
+    let out = chan[u64](32)
+    spawn prod(a, 100, 6)
+    spawn prod(b, 200, 6)
+    fan_in(a, b, out)
+    out.close()
+    loop bound 100
+        match <- out
+            some(v) -> emit v
+            none -> break
+#--- rce-test
+# id: types-checking/harvested/47-select-fair-main-reject
+# area: types-checking
+# clauses: [CH09-M-82e65964, W-NAME-1]
+# expect: reject
+# diagnostic: W-NAME-1
+# provenance: harvested checker/tests/drivers/47_select_fair.main.rce
+#---
