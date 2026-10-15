@@ -219,5 +219,24 @@
    302
   ]
  },
- "kill_rate_after_targeted": 94.5
+ "kill_rate_after_targeted": 94.5,
+ "rerun_round3": {
+  "note": "survivor-targeted tests (round 3) rerun per mutant on the surviving set; unmutated baseline passes (mutk-0); 112 (log-only effect) and 133 (lattice sample cap) still survive",
+  "killed_now": [
+   37,
+   65,
+   72,
+   73,
+   86,
+   94,
+   97,
+   103,
+   124
+  ],
+  "still_surviving": [
+   112,
+   133
+  ]
+ },
+ "kill_rate_after_round3": 99.0
 }
