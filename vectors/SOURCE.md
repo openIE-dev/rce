@@ -43,3 +43,12 @@ ML-KEM-768 results are checked against the RustCrypto `ml-kem` crate
   copied unchanged. All 35 input lengths (0 to 102400) are checked in all
   three modes (hash, keyed_hash, derive_key) at the full 131-byte extended
   output: 105 checks, sharded over `tests/hash/blake3_checks*.rce`.
+
+## core.bytes (`lib/core/bytes.rce`)
+
+No official vector set applies; `tests/core/bytes_checks.rce` holds hand
+vectors and a seeded property sweep (200 cases). Needs spec: a built-in
+to build `text` from UTF-8 bytes (none in 5.15), and a native byte type
+(bytes stay `List[i64]` until one exists). Option and result types are
+the language's own `T?` and error unions (`T ! E`), so no core.option or
+core.result library is added.

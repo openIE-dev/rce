@@ -1,0 +1,58 @@
+# Checks for lib/core/bytes.rce: hand vectors and a seeded property sweep.
+
+const ABC: text = "abc"
+const H1: text = "00ff10Ab"
+const H2: text = "0g"
+const H3: text = "abc"
+const A5: List[i64] = [0, 1, 0, 0, 0]
+const A12: List[i64] = [1, 2]
+const A120: List[i64] = [1, 2, 0]
+const A2: List[i64] = [2]
+const A19: List[i64] = [1, 9]
+const A5B: List[i64] = [1, 2, 3, 2, 3]
+const A23: List[i64] = [2, 3]
+const A1: List[i64] = [1]
+const A4: List[i64] = [1, 2, 3, 4]
+const AV: List[i64] = [0, 255]
+const AI: List[i64] = [256]
+
+fn hex_or(h: &text) -> List[i64] = unhex(h) catch [999]
+
+fn bad_at(h: &text) -> i64
+    let r = unhex(h) catch |e| [0 - e.at - 1]
+    return 0 - r[0] - 1
+
+# For seeded values: get(put(v)) == v at every width and both orders,
+# hex round trip, cmp antisymmetry, xor involution, reverse involution.
+fn prop_sweep(n: i64) -> bool
+    var s: i64 = 7
+    var ok = true
+    for i in 0..n
+        s = (s * 1103515245 + 12345) & 2147483647
+        let w = 1 + s % 7
+        let v = (s * 33554432 + s) & ((1 << (8 * w)) - 1)
+        let b1 = be(v, w)
+        let l1 = le(v, w)
+        ok = ok and get_be(&b1, 0, w) == v and get_le(&l1, 0, w) == v and bytes_reverse(&b1) == l1
+        let h = tohex(&b1)
+        ok = ok and hex_or(&h) == b1
+        ok = ok and bytes_cmp(&b1, &l1) == 0 - bytes_cmp(&l1, &b1)
+        let x = bytes_xor(&b1, &l1)
+        ok = ok and bytes_xor(&x, &l1) == b1
+    return ok
+
+check prop_sweep(200)
+check bytes_of_text(&ABC) == [97, 98, 99]
+check hex_or(&H1) == [0, 255, 16, 171]
+check bad_at(&H2) == 1 and bad_at(&H3) == 3
+check be(258, 2) == [1, 2] and le(258, 2) == [2, 1] and be(-1, 3) == [255, 255, 255]
+check get_be(&A5, 1, 4) == 16777216
+check bytes_cmp(&A12, &A120) == -1 and bytes_cmp(&A2, &A19) == 1
+check bytes_find(&A5B, &A23) == 1 and bytes_find(&A1, &A2) == -1
+check bytes_slice(&A4, 1, 3) == [2, 3] and bytes_cat(&A1, &A2) == [1, 2]
+check bytes_valid(&AV) and not bytes_valid(&AI)
+fn z3() -> text
+    let z = bytes_zero(3)
+    return tohex(&z)
+
+check z3() == "000000"
