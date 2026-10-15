@@ -1,0 +1,1256 @@
+module data.cdc
+# uses: enc.enc, data.events, data.feed
+use enc
+use data.events
+use data.feed
+
+# Change data capture (survey M61): decoders that turn the change records
+# of external systems into one `Change` shape, which `feed_event` turns
+# into the {type, payload} event a data.feed log admits.
+# - PostgreSQL logical decoding: the pgoutput protocol (version 1,
+#   "Logical Replication Message Formats"), and wal2json formats 1 and 2.
+#   Column values follow wal2json's typing (numbers for int2/4/8, oid,
+#   float4/8 and numeric, null for NaN and +-Infinity, booleans, bytea
+#   as hex without "\x", text otherwise), so both plugins give the same
+#   Change for the same transaction.
+# - Debezium change event envelopes (before/after/source/op, JSON
+#   converter with or without schema, MongoDB's JSON-string documents).
+# - MongoDB change events (Extended JSON v2), applying an
+#   updateDescription to the pre-image, and the cluster time in a resume
+#   token.
+# - CouchDB/PouchDB _changes responses and continuous-feed lines.
+# - SQLite session changesets and patchsets.
+# - Redis Stream entries in RESP2/RESP3 replies.
+# - NATS JetStream: MSG/HMSG frames, NATS headers, $JS.ACK metadata,
+#   publish acknowledgements.
+# Values that are not JSON (SQLite reals, bytes that are not UTF-8) are
+# objects: {"f": 16 hex digits of the IEEE 754 bits}, {"b": hex}.
+# Not covered (needs spec): pgoutput protocol 2-4 streaming and two-phase
+# messages and the binary tuple format; truncate options (decoded and
+# dropped); CouchDB op from the revision (generation 1 is "c").
+
+error BadCdc(why: text)
+
+# op: "c" insert, "u" update, "d" delete, "t" truncate, "m" message,
+# "r" snapshot read (Debezium), or "s:<type>" for a control event.
+# Absent parts are JSON null. pos: the source's position (LSN, resume
+# token, sequence, entry id); tx: the transaction id or "".
+pub struct Change
+    src: text
+    op: text
+    ns: text
+    key: events.Jv
+    pre: events.Jv
+    post: events.Jv
+    delta: events.Jv
+    pos: text
+    tx: text
+
+fn cd_s(t: &text) -> events.Jv = events.JsStr(t: copy(t))
+
+pub fn change_value(c: &Change) -> events.Jv = events.JsObj(keys: ["after", "before", "delta", "key", "ns", "op", "pos", "src", "tx"], vals: [copy(c.post), copy(c.pre), copy(c.delta), copy(c.key), cd_s(&c.ns), cd_s(&c.op), cd_s(&c.pos), cd_s(&c.src), cd_s(&c.tx)])
+
+pub fn change_json(c: &Change) -> text
+    let v = change_value(c)
+    return events.json_canon(&v)
+
+pub fn changes_json(cs: &[Change]) -> text = "[" + ",".join(cs.map(fn(c: Change) => change_json(&c))) + "]"
+
+# The event a feed log admits for a change: type "cdc.<src>.<op>".
+pub fn feed_event(c: &Change) -> events.Jv
+    let ty = "cdc." + c.src + "." + c.op
+    let v = change_value(c)
+    return feed.event_json(&ty, &v)
+
+fn mk(src: text, op: text, ns: text, key: events.Jv, pre: events.Jv, post: events.Jv, delta: events.Jv, pos: text, tx: text) -> Change = Change(src: src, op: op, ns: ns, key: key, pre: pre, post: post, delta: delta, pos: pos, tx: tx)
+
+# ---------------- bytes ----------------
+
+fn cd_hv(c: i64) -> i64
+    if c >= 48 and c <= 57
+        return c - 48
+    if c >= 97 and c <= 102
+        return c - 87
+    if c >= 65 and c <= 70
+        return c - 55
+    return -1
+
+pub fn hex_bytes(t: &text) -> List[i64] ! BadCdc
+    if t.len() % 2 != 0
+        fail BadCdc(why: "odd hex")
+    var o: List[i64] = []
+    var i: usize = 0
+    while i < t.len() bound 16777216
+        let h = cd_hv(t[i] as i64)
+        let l = cd_hv(t[i + 1] as i64)
+        if h < 0 or l < 0
+            fail BadCdc(why: "bad hex")
+        o.push(h * 16 + l)
+        i += 2
+    return o
+
+const HEXD: List[text] = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "a", "b", "c", "d", "e", "f"]
+const HEXU: List[text] = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "A", "B", "C", "D", "E", "F"]
+
+pub fn bytes_hex(b: &[i64]) -> text
+    var o = ""
+    for x in b
+        o = o + HEXD[(x >> 4) as usize] + HEXD[(x & 15) as usize]
+    return o
+
+# Upper-case hex of n >= 0 without leading zeros ("0" for 0).
+fn cd_hexnum(n: i64) -> text
+    if n == 0
+        return "0"
+    var o = ""
+    var v = n
+    while v > 0 bound 16
+        o = HEXU[(v & 15) as usize] + o
+        v = v >> 4
+    return o
+
+# Well-formed UTF-8 (Unicode Table 3-7) whose code points events.cp_text
+# covers (the BMP and U+1F000..U+1FFFF).
+pub fn utf8_ok(b: &[i64]) -> bool
+    var i: usize = 0
+    while i < b.len() bound 16777216
+        let x = b[i]
+        var n: usize = 1
+        var cp: i64 = x
+        var lo: i64 = 128
+        var hi: i64 = 191
+        if x < 128
+            n = 1
+        elif x >= 194 and x <= 223
+            n = 2
+            cp = x & 31
+        elif x >= 224 and x <= 239
+            n = 3
+            cp = x & 15
+            lo = if x == 224 then 160 else 128
+            hi = if x == 237 then 159 else 191
+        elif x >= 240 and x <= 244
+            n = 4
+            cp = x & 7
+            lo = if x == 240 then 144 else 128
+            hi = if x == 244 then 143 else 191
+        else
+            return false
+        if i + n > b.len()
+            return false
+        for k in 1..n
+            let y = b[i + k]
+            if y < (if k == 1 then lo else 128) or y > (if k == 1 then hi else 191)
+                return false
+            cp = (cp << 6) | (y & 63)
+        if cp >= 65536 and (cp < 126976 or cp >= 131072)
+            return false
+        i += n
+    return true
+
+fn cd_text(b: &[i64]) -> text ! BadCdc
+    if not utf8_ok(b)
+        fail BadCdc(why: "invalid UTF-8 (or a code point outside the table)")
+    return events.utf8_text(b) catch ""
+
+# Bytes as a JSON string when they are UTF-8, else {"b": hex}.
+pub fn bytes_value(b: &[i64]) -> events.Jv
+    if utf8_ok(b)
+        return events.JsStr(t: events.utf8_text(b) catch "")
+    return events.JsObj(keys: ["b"], vals: [events.JsStr(t: bytes_hex(b))])
+
+pub struct Rd
+    b: List[i64]
+    at: usize
+
+fn rd_need(r: &Rd, n: usize) -> bool = r.at + n <= r.b.len()
+
+fn rd_u8(r: &mut Rd) -> i64 ! BadCdc
+    if not rd_need(r, 1)
+        fail BadCdc(why: "truncated")
+    r.at += 1
+    return r.b[r.at - 1]
+
+# Unsigned big-endian of n <= 7 bytes.
+fn rd_un(r: &mut Rd, n: usize) -> i64 ! BadCdc
+    if not rd_need(r, n)
+        fail BadCdc(why: "truncated")
+    var v: i64 = 0
+    for k in 0..n
+        v = v * 256 + r.b[r.at + k]
+    r.at += n
+    return v
+
+# Signed big-endian 64-bit (two's complement).
+fn rd_i64(r: &mut Rd) -> i64 ! BadCdc
+    if not rd_need(r, 8)
+        fail BadCdc(why: "truncated")
+    let top = r.b[r.at]
+    var v: i64 = if top >= 128 then top - 256 else top
+    for k in 1..8
+        v = v * 256 + r.b[r.at + k]
+    r.at += 8
+    return v
+
+fn rd_bytes(r: &mut Rd, n: usize) -> List[i64] ! BadCdc
+    if not rd_need(r, n)
+        fail BadCdc(why: "truncated")
+    var o: List[i64] = []
+    for k in 0..n
+        o.push(r.b[r.at + k])
+    r.at += n
+    return o
+
+# NUL-terminated string.
+fn rd_cstr(r: &mut Rd) -> text ! BadCdc
+    var o: List[i64] = []
+    while true bound 16777216
+        let c = try rd_u8(r)
+        if c == 0
+            return try cd_text(&o)
+        o.push(c)
+    fail BadCdc(why: "unreachable")
+
+# ---------------- PostgreSQL: pgoutput (protocol version 1) ----------------
+
+pub struct PgMsg
+    lsn: text
+    hex: text
+
+pub struct PgRel
+    id: i64
+    ns: text
+    names: List[text]
+    types: List[i64]
+    key: List[bool]
+
+pub struct Pg
+    rels: List[PgRel]
+    xid: text
+    out: List[Change]
+    txs: List[text]
+
+# LSN text as PostgreSQL prints it: %X/%X of the two 32-bit halves.
+pub fn lsn_text(hi: i64, lo: i64) -> text = cd_hexnum(hi) + "/" + cd_hexnum(lo)
+
+fn rd_lsn(r: &mut Rd) -> text ! BadCdc
+    let hi = try rd_un(r, 4)
+    let lo = try rd_un(r, 4)
+    return lsn_text(hi, lo)
+
+fn cd_ci_prefix(t: &text, p: text) -> bool = t.lower().startswith(p.lower())
+
+fn cd_numeric_chars(t: &text) -> bool
+    for c in t.chars()
+        if not ("0123456789+-eE.".contains(c))
+            return false
+    return true
+
+# A column value typed as wal2json types it (wal2json.c, pg_decode_write_value).
+pub fn pg_value(oid: i64, t: &text) -> events.Jv ! BadCdc
+    if oid == 20 or oid == 21 or oid == 23 or oid == 26 or oid == 700 or oid == 701 or oid == 1700
+        if cd_ci_prefix(t, "NaN") or cd_ci_prefix(t, "Infinity") or cd_ci_prefix(t, "-Infinity")
+            return events.JsNull
+        if not cd_numeric_chars(t)
+            fail BadCdc(why: t + " is not a number")
+        return events.JsNum(raw: copy(t))
+    if oid == 16
+        return events.JsBool(v: t == "t")
+    if oid == 17
+        let cs = t.chars()
+        var o = ""
+        for i in 2..cs.len()
+            o = o + cs[i]
+        return events.JsStr(t: o)
+    return events.JsStr(t: copy(t))
+
+fn pg_rel_at(p: &Pg, id: i64) -> usize ! BadCdc
+    for i in 0..p.rels.len()
+        if p.rels[i].id == id
+            return i
+    fail BadCdc(why: "change for an unknown relation")
+
+# TupleData: the columns that carry a value ('n' null, 't' text); 'u'
+# (unchanged TOAST) columns are left out. key_only keeps key columns.
+fn pg_tuple(r: &mut Rd, rel: &PgRel, key_only: bool) -> events.Jv ! BadCdc
+    let n = try rd_un(r, 2)
+    if n as usize != rel.names.len()
+        fail BadCdc(why: "tuple column count")
+    var ks: List[text] = []
+    var vs: List[events.Jv] = []
+    for i in 0..(n as usize)
+        let kd = try rd_u8(r)
+        var v = events.JsNull
+        var have = true
+        if kd == 116
+            let len = try rd_un(r, 4)
+            let bs = try rd_bytes(r, len as usize)
+            let t = try cd_text(&bs)
+            v = try pg_value(rel.types[i], &t)
+        elif kd == 117
+            have = false
+        elif kd != 110
+            fail BadCdc(why: "tuple value kind (binary tuples need spec)")
+        if have and (rel.key[i] or not key_only)
+            ks.push(copy(rel.names[i]))
+            vs.push(v)
+    return events.JsObj(keys: ks, vals: vs)
+
+fn pg_keyof(post: &events.Jv, rel: &PgRel) -> events.Jv
+    var ks: List[text] = []
+    var vs: List[events.Jv] = []
+    for i in 0..rel.names.len()
+        if rel.key[i]
+            if events.jget(post, &rel.names[i]).issome()
+                ks.push(copy(rel.names[i]))
+                vs.push(cd_get(post, copy(rel.names[i])))
+    return events.JsObj(keys: ks, vals: vs)
+
+fn pg_ns(rel: &PgRel) -> text = copy(rel.ns)
+
+fn pg_one(p: &mut Pg, m: &PgMsg) -> bool ! BadCdc
+    let b = try hex_bytes(&m.hex)
+    var r = Rd(b: b, at: 0)
+    let t = try rd_u8(&mut r)
+    if t == 66
+        let fl = try rd_lsn(&mut r)
+        let ts = try rd_i64(&mut r)
+        let xid = try rd_un(&mut r, 4)
+        p.xid = xid.tostr()
+        p.txs.push("B " + p.xid + " " + fl)
+    elif t == 67
+        let fl = try rd_u8(&mut r)
+        let cl = try rd_lsn(&mut r)
+        let el = try rd_lsn(&mut r)
+        let cts = try rd_i64(&mut r)
+        p.txs.push("C " + p.xid + " " + cl + " " + el)
+        p.xid = ""
+    elif t == 82
+        let id = try rd_un(&mut r, 4)
+        let nsp = try rd_cstr(&mut r)
+        let name = try rd_cstr(&mut r)
+        let ident = try rd_u8(&mut r)
+        let nc = try rd_un(&mut r, 2)
+        var names: List[text] = []
+        var types: List[i64] = []
+        var key: List[bool] = []
+        for i in 0..(nc as usize)
+            let f = try rd_u8(&mut r)
+            names.push(try rd_cstr(&mut r))
+            types.push(try rd_un(&mut r, 4))
+            let tm = try rd_un(&mut r, 4)
+            key.push((f & 1) == 1)
+        let rel = PgRel(id: id, ns: nsp + "." + name, names: names, types: types, key: key)
+        var kept: List[PgRel] = []
+        for x in p.rels
+            if x.id != id
+                kept.push(copy(x))
+        kept.push(rel)
+        p.rels = kept
+    elif t == 89 or t == 79
+        return true
+    elif t == 73
+        let id = try rd_un(&mut r, 4)
+        let ri = try pg_rel_at(p, id)
+        let rel = copy(p.rels[ri])
+        if (try rd_u8(&mut r)) != 78
+            fail BadCdc(why: "insert without a new tuple")
+        let post = try pg_tuple(&mut r, &rel, false)
+        p.out.push(mk("pgoutput", "c", pg_ns(&rel), events.JsNull, events.JsNull, post, events.JsNull, copy(m.lsn), copy(p.xid)))
+    elif t == 85
+        let id = try rd_un(&mut r, 4)
+        let ri = try pg_rel_at(p, id)
+        let rel = copy(p.rels[ri])
+        var k = try rd_u8(&mut r)
+        var key = events.JsNull
+        var have_key = false
+        if k == 75 or k == 79
+            key = try pg_tuple(&mut r, &rel, true)
+            have_key = true
+            k = try rd_u8(&mut r)
+        if k != 78
+            fail BadCdc(why: "update without a new tuple")
+        let post = try pg_tuple(&mut r, &rel, false)
+        if not have_key
+            key = pg_keyof(&post, &rel)
+        p.out.push(mk("pgoutput", "u", pg_ns(&rel), key, events.JsNull, post, events.JsNull, copy(m.lsn), copy(p.xid)))
+    elif t == 68
+        let id = try rd_un(&mut r, 4)
+        let ri = try pg_rel_at(p, id)
+        let rel = copy(p.rels[ri])
+        let k = try rd_u8(&mut r)
+        if k != 75 and k != 79
+            fail BadCdc(why: "delete without an old tuple")
+        let key = try pg_tuple(&mut r, &rel, true)
+        p.out.push(mk("pgoutput", "d", pg_ns(&rel), key, events.JsNull, events.JsNull, events.JsNull, copy(m.lsn), copy(p.xid)))
+    elif t == 84
+        let n = try rd_un(&mut r, 4)
+        let opts = try rd_u8(&mut r)
+        for i in 0..(n as usize)
+            let id = try rd_un(&mut r, 4)
+            let ri = try pg_rel_at(p, id)
+            let ns = pg_ns(&p.rels[ri])
+            p.out.push(mk("pgoutput", "t", ns, events.JsNull, events.JsNull, events.JsNull, events.JsNull, copy(m.lsn), copy(p.xid)))
+    elif t == 77
+        let fl = try rd_u8(&mut r)
+        let ml = try rd_lsn(&mut r)
+        let prefix = try rd_cstr(&mut r)
+        let n = try rd_un(&mut r, 4)
+        let bs = try rd_bytes(&mut r, n as usize)
+        let content = try cd_text(&bs)
+        let post = events.JsObj(keys: ["content", "prefix", "transactional"], vals: [events.JsStr(t: content), events.JsStr(t: prefix), events.JsBool(v: fl == 1)])
+        let tx = if fl == 1 then copy(p.xid) else ""
+        p.out.push(mk("pgoutput", "m", "", events.JsNull, events.JsNull, post, events.JsNull, copy(m.lsn), tx))
+    else
+        fail BadCdc(why: "pgoutput message type (protocol 1 only)")
+    if r.at != r.b.len()
+        fail BadCdc(why: "trailing bytes in a pgoutput message")
+    return true
+
+fn pg_run(ms: &[PgMsg]) -> Pg ! BadCdc
+    var p = Pg(rels: [], xid: "", out: [], txs: [])
+    for m in ms
+        let ok = try pg_one(&mut p, &m)
+    return p
+
+# Changes of a sequence of pgoutput messages (one decoding session: a
+# Relation message precedes the first change of each relation).
+pub fn pg_decode(ms: &[PgMsg]) -> List[Change] ! BadCdc
+    let p = try pg_run(ms)
+    return p.out
+
+# Transaction boundaries: "B xid final_lsn", "C xid commit_lsn end_lsn".
+pub fn pg_txs(ms: &[PgMsg]) -> List[text] ! BadCdc
+    let p = try pg_run(ms)
+    return p.txs
+
+# ---------------- wal2json ----------------
+
+fn cd_get(j: &events.Jv, k: text) -> events.Jv
+    let v = events.jget(j, &k)
+    match v
+        some(x) -> return copy(x)
+        none -> return events.JsNull
+
+fn cd_str(j: &events.Jv) -> text
+    match j
+        events.JsStr(t: t) -> return copy(t)
+        events.JsNum(raw: r) -> return copy(r)
+        _ -> return ""
+
+fn cd_field(j: &events.Jv, k: text) -> text
+    let v = cd_get(j, k)
+    return cd_str(&v)
+
+fn cd_items(j: &events.Jv) -> List[events.Jv]
+    match j
+        events.JsArr(items: items) -> return copy(items)
+        _ -> return []
+
+fn cd_is_null(j: &events.Jv) -> bool
+    match j
+        events.JsNull -> return true
+        _ -> return false
+
+# [{"name", "type", "value"}] to an object.
+fn w2_cols(j: &events.Jv) -> events.Jv
+    var ks: List[text] = []
+    var vs: List[events.Jv] = []
+    for c in cd_items(j)
+        ks.push(cd_field(&c, "name"))
+        vs.push(cd_get(&c, "value"))
+    return events.JsObj(keys: ks, vals: vs)
+
+fn w2_op(a: &text) -> text
+    if a == "I"
+        return "c"
+    if a == "U"
+        return "u"
+    if a == "D"
+        return "d"
+    if a == "T"
+        return "t"
+    return "m"
+
+# format-version 2: one JSON object per line ("action" B, C, I, U, D, T, M).
+pub fn wal2json_v2(lines: &[text]) -> List[Change] ! BadCdc
+    var out: List[Change] = []
+    for l in lines
+        let j = events.json_parse(&l) catch events.JsNull
+        if cd_is_null(&j)
+            fail BadCdc(why: "wal2json: not JSON")
+        let a = cd_field(&j, "action")
+        let xid = cd_field(&j, "xid")
+        let lsn = cd_field(&j, "lsn")
+        if a == "I" or a == "U" or a == "D" or a == "T"
+            let ns = cd_field(&j, "schema") + "." + cd_field(&j, "table")
+            let cols = cd_get(&j, "columns")
+            let ident = cd_get(&j, "identity")
+            let post = if a == "I" or a == "U" then w2_cols(&cols) else events.JsNull
+            let key = if a == "U" or a == "D" then w2_cols(&ident) else events.JsNull
+            out.push(mk("wal2json", w2_op(&a), ns, key, events.JsNull, post, events.JsNull, lsn, xid))
+        elif a == "M"
+            let post = events.JsObj(keys: ["content", "prefix", "transactional"], vals: [cd_get(&j, "content"), cd_get(&j, "prefix"), cd_get(&j, "transactional")])
+            out.push(mk("wal2json", "m", "", events.JsNull, events.JsNull, post, events.JsNull, lsn, xid))
+        elif a != "B" and a != "C"
+            fail BadCdc(why: "wal2json: action " + a)
+    return out
+
+fn w1_obj(names: &events.Jv, vals: &events.Jv) -> events.Jv
+    var ks: List[text] = []
+    for n in cd_items(names)
+        ks.push(cd_str(&n))
+    return events.JsObj(keys: ks, vals: cd_items(vals))
+
+# format-version 1: one JSON object per transaction with a "change" array
+# (no per-change LSN: pos is "").
+pub fn wal2json_v1(docs: &[text]) -> List[Change] ! BadCdc
+    var out: List[Change] = []
+    for d in docs
+        let j = events.json_parse(&d) catch events.JsNull
+        if cd_is_null(&j)
+            fail BadCdc(why: "wal2json: not JSON")
+        let xid = cd_field(&j, "xid")
+        let chs = cd_get(&j, "change")
+        for c in cd_items(&chs)
+            let kd = cd_field(&c, "kind")
+            let ns = cd_field(&c, "schema") + "." + cd_field(&c, "table")
+            let ok = cd_get(&c, "oldkeys")
+            let kn = cd_get(&ok, "keynames")
+            let kv = cd_get(&ok, "keyvalues")
+            let key = if cd_is_null(&ok) then events.JsNull else w1_obj(&kn, &kv)
+            let cn = cd_get(&c, "columnnames")
+            let cv = cd_get(&c, "columnvalues")
+            if kd == "insert"
+                out.push(mk("wal2json", "c", ns, events.JsNull, events.JsNull, w1_obj(&cn, &cv), events.JsNull, "", copy(xid)))
+            elif kd == "update"
+                out.push(mk("wal2json", "u", ns, key, events.JsNull, w1_obj(&cn, &cv), events.JsNull, "", copy(xid)))
+            elif kd == "delete"
+                out.push(mk("wal2json", "d", ns, key, events.JsNull, events.JsNull, events.JsNull, "", copy(xid)))
+            elif kd == "truncate"
+                out.push(mk("wal2json", "t", ns, events.JsNull, events.JsNull, events.JsNull, events.JsNull, "", copy(xid)))
+            elif kd == "message"
+                let post = events.JsObj(keys: ["content", "prefix", "transactional"], vals: [cd_get(&c, "content"), cd_get(&c, "prefix"), cd_get(&c, "transactional")])
+                let tr = cd_get(&c, "transactional")
+                let tx = if tr == events.JsBool(v: false) then "" else copy(xid)
+                out.push(mk("wal2json", "m", "", events.JsNull, events.JsNull, post, events.JsNull, "", tx))
+            else
+                fail BadCdc(why: "wal2json: kind " + kd)
+    return out
+
+# ---------------- Debezium ----------------
+
+fn dz_doc(j: &events.Jv) -> events.Jv ! BadCdc
+    match j
+        events.JsStr(t: t) -> return events.json_parse(t) catch |e| events.JsStr(t: "\u{0}bad")
+        _ -> return copy(j)
+
+fn dz_bad(j: &events.Jv) -> bool = j == events.JsStr(t: "\u{0}bad")
+
+# A Debezium change event value (JSON converter): {"schema", "payload"}
+# or the bare payload. ns: source db.collection (MongoDB) or
+# schema.table, or db.table when there is no schema; pos: source.lsn
+# (PostgreSQL), source.ord (MongoDB), source.pos (MySQL) or "";
+# tx: source.txId or transaction.id or "".
+pub fn from_debezium(t: &text) -> Change ! BadCdc
+    let j = events.json_parse(t) catch events.JsNull
+    if cd_is_null(&j)
+        fail BadCdc(why: "debezium: not JSON")
+    let pl0 = cd_get(&j, "payload")
+    let pl = if cd_is_null(&pl0) then copy(j) else pl0
+    let op = cd_field(&pl, "op")
+    if op == ""
+        fail BadCdc(why: "debezium: no op")
+    let src = cd_get(&pl, "source")
+    let coll = cd_field(&src, "collection")
+    let sch = cd_field(&src, "schema")
+    let tbl = cd_field(&src, "table")
+    let db = cd_field(&src, "db")
+    var ns = ""
+    if coll != ""
+        ns = db + "." + coll
+    elif tbl != "" and sch != ""
+        ns = sch + "." + tbl
+    elif tbl != ""
+        ns = db + "." + tbl
+    var pos = cd_field(&src, "lsn")
+    if pos == ""
+        pos = cd_field(&src, "ord")
+    if pos == ""
+        pos = cd_field(&src, "pos")
+    var tx = cd_field(&src, "txId")
+    if tx == ""
+        let tr = cd_get(&pl, "transaction")
+        tx = cd_field(&tr, "id")
+    let b0 = cd_get(&pl, "before")
+    let a0 = cd_get(&pl, "after")
+    let pre = try dz_doc(&b0)
+    let post0 = try dz_doc(&a0)
+    if dz_bad(&pre) or dz_bad(&post0)
+        fail BadCdc(why: "debezium: document string is not JSON")
+    let msg = cd_get(&pl, "message")
+    let post = if op == "m" then msg else post0
+    let ud = cd_get(&pl, "updateDescription")
+    let uf0 = cd_get(&ud, "updatedFields")
+    var delta = copy(ud)
+    if not cd_is_null(&ud)
+        let uf = try dz_doc(&uf0)
+        delta = events.JsObj(keys: ["removedFields", "truncatedArrays", "updatedFields"], vals: [cd_get(&ud, "removedFields"), cd_get(&ud, "truncatedArrays"), uf])
+    return mk("debezium", op, ns, events.JsNull, pre, post, delta, pos, tx)
+
+# ---------------- MongoDB change events ----------------
+
+fn mg_op(t: &text) -> text
+    if t == "insert"
+        return "c"
+    if t == "update" or t == "replace"
+        return "u"
+    if t == "delete"
+        return "d"
+    return "s:" + t
+
+# A change event document in Extended JSON (canonical or relaxed).
+# key: documentKey; before: fullDocumentBeforeChange; after:
+# fullDocument; delta: updateDescription; pos: the resume token's _data;
+# tx: txnNumber.
+pub fn from_mongo(t: &text) -> Change ! BadCdc
+    let j = events.json_parse(t) catch events.JsNull
+    if cd_is_null(&j)
+        fail BadCdc(why: "mongodb: not JSON")
+    let ty = cd_field(&j, "operationType")
+    if ty == ""
+        fail BadCdc(why: "mongodb: no operationType")
+    let nsj = cd_get(&j, "ns")
+    let coll = cd_field(&nsj, "coll")
+    let ns = if coll == "" then cd_field(&nsj, "db") else cd_field(&nsj, "db") + "." + coll
+    let id = cd_get(&j, "_id")
+    let tn = cd_get(&j, "txnNumber")
+    var tx = cd_field(&tn, "$numberLong")
+    if tx == ""
+        tx = cd_str(&tn)
+    return mk("mongodb", mg_op(&ty), ns, cd_get(&j, "documentKey"), cd_get(&j, "fullDocumentBeforeChange"), cd_get(&j, "fullDocument"), cd_get(&j, "updateDescription"), cd_field(&id, "_data"), tx)
+
+# The cluster time in a resume token's _data (KeyString: type byte 130,
+# then the timestamp's seconds and increment as big-endian 32-bit), as
+# "t,i".
+pub fn token_time(data: &text) -> text ! BadCdc
+    let b = try hex_bytes(data)
+    if b.len() < 9 or b[0] != 130
+        fail BadCdc(why: "resume token: no timestamp")
+    var r = Rd(b: b, at: 1)
+    let t = try rd_un(&mut r, 4)
+    let i = try rd_un(&mut r, 4)
+    return t.tostr() + "," + i.tostr()
+
+fn mg_set(doc: &events.Jv, path: &[text], v: &events.Jv) -> events.Jv bound 64
+    if path.len() == 0
+        return copy(v)
+    var rest: List[text] = []
+    for i in 1..path.len()
+        rest.push(copy(path[i]))
+    match doc
+        events.JsObj(keys: ks, vals: vs) -> return mg_set_obj(ks, vs, &path[0], &rest, v)
+        events.JsArr(items: xs) -> return mg_set_arr(xs, &path[0], &rest, v)
+        _ -> return mg_set_new(&path[0], &rest, v)
+
+fn mg_set_new(k: &text, rest: &[text], v: &events.Jv) -> events.Jv bound 64
+    let ks: List[text] = []
+    let vs: List[events.Jv] = []
+    return mg_set_obj(&ks, &vs, k, rest, v)
+
+fn mg_set_obj(ks: &[text], vs: &[events.Jv], k: &text, rest: &[text], v: &events.Jv) -> events.Jv bound 64
+    var nk: List[text] = []
+    var nv: List[events.Jv] = []
+    var found = false
+    for i in 0..ks.len()
+        nk.push(copy(ks[i]))
+        if ks[i] == k
+            nv.push(mg_set(&vs[i], rest, v))
+            found = true
+        else
+            nv.push(copy(vs[i]))
+    if not found
+        nk.push(copy(k))
+        let nul = events.JsNull
+        nv.push(mg_set(&nul, rest, v))
+    return events.JsObj(keys: nk, vals: nv)
+
+fn mg_set_arr(xs: &[events.Jv], k: &text, rest: &[text], v: &events.Jv) -> events.Jv bound 64
+    let n = k.toint() as usize
+    var o: List[events.Jv] = []
+    for i in 0..xs.len()
+        o.push(if i == n then mg_set(&xs[i], rest, v) else copy(xs[i]))
+    while o.len() <= n bound 16777216
+        let nul = events.JsNull
+        o.push(if o.len() == n then mg_set(&nul, rest, v) else events.JsNull)
+    return events.JsArr(items: o)
+
+fn mg_unset(doc: &events.Jv, path: &[text]) -> events.Jv bound 64
+    if path.len() == 0
+        return copy(doc)
+    var rest: List[text] = []
+    for i in 1..path.len()
+        rest.push(copy(path[i]))
+    match doc
+        events.JsObj(keys: ks, vals: vs) -> return mg_unset_obj(ks, vs, &path[0], &rest)
+        events.JsArr(items: xs) -> return mg_unset_arr(xs, &path[0], &rest)
+        _ -> return copy(doc)
+
+# A path through an array element (removedFields "arr.4.pad"); the
+# element itself is never removed.
+fn mg_unset_arr(xs: &[events.Jv], k: &text, rest: &[text]) -> events.Jv bound 64
+    let n = if k.isdigit() then k.toint() else -1
+    var o: List[events.Jv] = []
+    for i in 0..xs.len()
+        o.push(if i as i64 == n and rest.len() > 0 then mg_unset(&xs[i], rest) else copy(xs[i]))
+    return events.JsArr(items: o)
+
+fn mg_unset_obj(ks: &[text], vs: &[events.Jv], k: &text, rest: &[text]) -> events.Jv bound 64
+    var nk: List[text] = []
+    var nv: List[events.Jv] = []
+    for i in 0..ks.len()
+        if ks[i] != k
+            nk.push(copy(ks[i]))
+            nv.push(copy(vs[i]))
+        elif rest.len() > 0
+            nk.push(copy(ks[i]))
+            nv.push(mg_unset(&vs[i], rest))
+    return events.JsObj(keys: nk, vals: nv)
+
+fn mg_trunc(doc: &events.Jv, path: &[text], n: usize) -> events.Jv bound 64
+    if path.len() == 0
+        match doc
+            events.JsArr(items: xs) -> return mg_first(xs, n)
+            _ -> return copy(doc)
+    var rest: List[text] = []
+    for i in 1..path.len()
+        rest.push(copy(path[i]))
+    let sub = cd_get(doc, copy(path[0]))
+    let nv = mg_trunc(&sub, &rest, n)
+    let p0 = [copy(path[0])]
+    return mg_set(doc, &p0, &nv)
+
+fn mg_first(xs: &[events.Jv], n: usize) -> events.Jv
+    var o: List[events.Jv] = []
+    for i in 0..xs.len()
+        if i < n
+            o.push(copy(xs[i]))
+    return events.JsArr(items: o)
+
+# An integer in relaxed or canonical Extended JSON ($numberInt, $numberLong).
+fn mg_int(j: &events.Jv) -> i64
+    var t = cd_str(j)
+    if t == ""
+        t = cd_field(j, "$numberInt")
+    if t == ""
+        t = cd_field(j, "$numberLong")
+    return if t.isdigit() then t.toint() else 0
+
+fn mg_path(p: &text, dis: &events.Jv) -> List[text]
+    let d = cd_get(dis, copy(p))
+    match d
+        events.JsArr(items: xs) -> return xs.map(fn(x: events.Jv) => cd_str(&x))
+        _ -> return p.split(".")
+
+# The post-image of an update: updateDescription (updatedFields,
+# removedFields, truncatedArrays; disambiguatedPaths for field names
+# with dots or numeric names) applied to the pre-image.
+pub fn apply_update(pre: &events.Jv, ud: &events.Jv) -> events.Jv
+    let dis = cd_get(ud, "disambiguatedPaths")
+    var doc = copy(pre)
+    let tas = cd_get(ud, "truncatedArrays")
+    for ta in cd_items(&tas)
+        let f = cd_field(&ta, "field")
+        let p = mg_path(&f, &dis)
+        let ns = cd_get(&ta, "newSize")
+        doc = mg_trunc(&doc, &p, mg_int(&ns) as usize)
+    let rms = cd_get(ud, "removedFields")
+    for rm in cd_items(&rms)
+        let f = cd_str(&rm)
+        let p = mg_path(&f, &dis)
+        doc = mg_unset(&doc, &p)
+    let uf = cd_get(ud, "updatedFields")
+    match uf
+        events.JsObj(keys: ks, vals: vs) -> doc = mg_apply_set(&doc, ks, vs, &dis)
+        _ -> doc = copy(doc)
+    return doc
+
+fn mg_apply_set(doc0: &events.Jv, ks: &[text], vs: &[events.Jv], dis: &events.Jv) -> events.Jv
+    var doc = copy(doc0)
+    for i in 0..ks.len()
+        let p = mg_path(&ks[i], dis)
+        doc = mg_set(&doc, &p, &vs[i])
+    return doc
+
+# ---------------- CouchDB _changes ----------------
+
+fn cd_raw(j: &events.Jv) -> text
+    match j
+        events.JsStr(t: t) -> return copy(t)
+        _ -> return events.json_canon(j)
+
+# One row of a _changes response. op: "d" for a deleted row, "c" when
+# the winning revision is generation 1, else "u"; key {"_id"}; after:
+# the doc (include_docs) unless deleted; delta {"revs": [...]} (the
+# leaf revisions listed); pos: seq (a string or a number's lexeme).
+pub fn couch_row(row: &events.Jv, db: &text) -> Change
+    let id = cd_get(row, "id")
+    let del = cd_get(row, "deleted") == events.JsBool(v: true)
+    let chs = cd_get(row, "changes")
+    var revs: List[events.Jv] = []
+    for c in cd_items(&chs)
+        revs.push(cd_get(&c, "rev"))
+    let doc = cd_get(row, "doc")
+    var rev = cd_field(&doc, "_rev")
+    if rev == "" and revs.len() > 0
+        rev = cd_str(&revs[revs.len() - 1])
+    let op = if del then "d" else (if rev.startswith("1-") then "c" else "u")
+    let post = if del then events.JsNull else doc
+    let seq = cd_get(row, "seq")
+    return mk("couchdb", op, copy(db), events.JsObj(keys: ["_id"], vals: [id]), events.JsNull, post, events.JsObj(keys: ["revs"], vals: [events.JsArr(items: revs)]), cd_raw(&seq), "")
+
+# A normal or longpoll response {"results": [...], "last_seq", "pending"}.
+pub fn couch_changes(t: &text, db: &text) -> List[Change] ! BadCdc
+    let j = events.json_parse(t) catch events.JsNull
+    let rs = cd_get(&j, "results")
+    match rs
+        events.JsArr(items: xs) -> return xs.map(fn(x: events.Jv) => couch_row(&x, db))
+        _ -> fail BadCdc(why: "couchdb: no results")
+
+pub fn couch_last_seq(t: &text) -> text ! BadCdc
+    let j = events.json_parse(t) catch events.JsNull
+    let ls = cd_get(&j, "last_seq")
+    if cd_is_null(&ls)
+        fail BadCdc(why: "couchdb: no last_seq")
+    return cd_raw(&ls)
+
+# Lines of a continuous feed: empty lines are heartbeats; a final
+# {"last_seq"} line ends a feed with a limit. Rows only.
+pub fn couch_continuous(lines: &[text], db: &text) -> List[Change] ! BadCdc
+    var out: List[Change] = []
+    for l in lines
+        if l.strip() != ""
+            let j = events.json_parse(&l) catch events.JsNull
+            if cd_is_null(&j)
+                fail BadCdc(why: "couchdb: line is not JSON")
+            let ls = cd_get(&j, "last_seq")
+            if cd_is_null(&ls)
+                out.push(couch_row(&j, db))
+    return out
+
+# ---------------- SQLite session changesets ----------------
+
+# SQLite varint (big-endian groups of 7 bits, the 9th byte is 8 bits).
+fn sq_varint(r: &mut Rd) -> i64 ! BadCdc
+    var v: i64 = 0
+    for i in 0..9
+        let b = try rd_u8(r)
+        if i == 8
+            return (v << 8) | b
+        v = (v << 7) | (b & 127)
+        if b < 128
+            return v
+    return v
+
+fn sq_val(r: &mut Rd) -> events.Jv ! BadCdc
+    let t = try rd_u8(r)
+    if t == 0
+        return events.JsStr(t: "\u{0}undef")
+    if t == 1
+        let v = try rd_i64(r)
+        return events.JsNum(raw: v.tostr())
+    if t == 2
+        let b = try rd_bytes(r, 8)
+        return events.JsObj(keys: ["f"], vals: [events.JsStr(t: bytes_hex(&b))])
+    if t == 3
+        let n = try sq_varint(r)
+        let b = try rd_bytes(r, n as usize)
+        return events.JsStr(t: try cd_text(&b))
+    if t == 4
+        let n = try sq_varint(r)
+        let b = try rd_bytes(r, n as usize)
+        return events.JsObj(keys: ["b"], vals: [events.JsStr(t: bytes_hex(&b))])
+    if t == 5
+        return events.JsNull
+    fail BadCdc(why: "sqlite: value type")
+
+fn sq_undef(v: &events.Jv) -> bool = v == events.JsStr(t: "\u{0}undef")
+
+# A record of n values; columns named by index ("0", "1", ...); undefined
+# values (unchanged in an UPDATE) are left out. `pk_only`: the record
+# holds the primary key columns only (a patchset DELETE).
+fn sq_rec(r: &mut Rd, pk: &[bool], pk_only: bool) -> events.Jv ! BadCdc
+    var ks: List[text] = []
+    var vs: List[events.Jv] = []
+    for i in 0..pk.len()
+        if pk[i] or not pk_only
+            let v = try sq_val(r)
+            if not sq_undef(&v)
+                ks.push(i.tostr())
+                vs.push(v)
+    return events.JsObj(keys: ks, vals: vs)
+
+fn sq_pkof(rec: &events.Jv, pk: &[bool]) -> events.Jv
+    var ks: List[text] = []
+    var vs: List[events.Jv] = []
+    for i in 0..pk.len()
+        let k = i.tostr()
+        if pk[i] and events.jget(rec, &k).issome()
+            ks.push(copy(k))
+            vs.push(cd_get(rec, k))
+    return events.JsObj(keys: ks, vals: vs)
+
+# Changes of a changeset or patchset blob (sqlite3session.h, "changeset
+# format"): table headers 'T' (changeset) or 'P' (patchset), then
+# INSERT (18), DELETE (9) and UPDATE (23) records. In a patchset a
+# DELETE carries the primary key only and an UPDATE no old values (the
+# key is taken from the new record). delta: {"indirect": true} for an
+# indirect change, else null.
+pub fn sqlite_changes(hex: &text) -> List[Change] ! BadCdc
+    let b = try hex_bytes(hex)
+    var r = Rd(b: b, at: 0)
+    var out: List[Change] = []
+    var tbl = ""
+    var pk: List[bool] = []
+    var patch = false
+    while r.at < r.b.len() bound 16777216
+        let op = try rd_u8(&mut r)
+        if op == 84 or op == 80
+            patch = op == 80
+            let n = try sq_varint(&mut r)
+            var p: List[bool] = []
+            for i in 0..(n as usize)
+                p.push((try rd_u8(&mut r)) != 0)
+            pk = p
+            tbl = try rd_cstr(&mut r)
+        elif op == 18 or op == 9 or op == 23
+            if pk.len() == 0
+                fail BadCdc(why: "sqlite: change before a table header")
+            let ind = (try rd_u8(&mut r)) != 0
+            let delta = if ind then events.JsObj(keys: ["indirect"], vals: [events.JsBool(v: true)]) else events.JsNull
+            if op == 18
+                let nw = try sq_rec(&mut r, &pk, false)
+                out.push(mk("sqlite", "c", copy(tbl), sq_pkof(&nw, &pk), events.JsNull, nw, delta, "", ""))
+            elif op == 9
+                let old = try sq_rec(&mut r, &pk, patch)
+                out.push(mk("sqlite", "d", copy(tbl), sq_pkof(&old, &pk), if patch then events.JsNull else copy(old), events.JsNull, delta, "", ""))
+            else
+                var old = events.JsNull
+                if not patch
+                    old = try sq_rec(&mut r, &pk, false)
+                let nw = try sq_rec(&mut r, &pk, false)
+                let key = if patch then sq_pkof(&nw, &pk) else sq_pkof(&old, &pk)
+                out.push(mk("sqlite", "u", copy(tbl), key, old, nw, delta, "", ""))
+        else
+            fail BadCdc(why: "sqlite: record type")
+    return out
+
+# ---------------- RESP (Redis serialization protocol 2 and 3) ----------------
+
+pub struct RespOut
+    v: events.Jv
+    at: usize
+
+fn rs_line(r: &Rd) -> usize ! BadCdc
+    var k = r.at
+    while k + 1 < r.b.len() bound 16777216
+        if r.b[k] == 13 and r.b[k + 1] == 10
+            return k
+        k += 1
+    fail BadCdc(why: "resp: truncated")
+
+fn rs_head(r: &mut Rd) -> text ! BadCdc
+    let e = try rs_line(r)
+    var bs: List[i64] = []
+    for k in r.at..e
+        bs.push(r.b[k])
+    r.at = e + 2
+    return try cd_text(&bs)
+
+fn rs_int(t: &text) -> i64 ! BadCdc
+    let neg = t.startswith("-")
+    let d = if neg then t.chars().len() - 1 else t.chars().len()
+    var s = ""
+    let cs = t.chars()
+    for i in (if neg then 1 else 0)..cs.len()
+        s = s + cs[i]
+    if d == 0 or not s.isdigit()
+        fail BadCdc(why: "resp: bad length")
+    return if neg then 0 - s.toint() else s.toint()
+
+fn rs_tag(k: text, v: events.Jv) -> events.Jv = events.JsObj(keys: [k], vals: [v])
+
+# One RESP value as JSON: bulk and verbatim strings as text (or {"b":
+# hex}), simple strings {"s"}, errors {"err"}, integers and doubles and
+# big numbers as numbers, null (_ , $-1, *-1) as null, booleans,
+# arrays, sets {"set": [...]}, pushes {"push": [...]}, maps {"map":
+# [k1, v1, ...]}. Attribute (|) replies fail (needs spec).
+pub fn resp_value(r: &mut Rd) -> events.Jv ! BadCdc bound 64
+    let t = try rd_u8(r)
+    let h = try rs_head(r)
+    if t == 43
+        return rs_tag("s", events.JsStr(t: h))
+    if t == 45 or t == 33
+        if t == 33
+            let n = try rs_int(&h)
+            let b = try rd_bytes(r, n as usize)
+            r.at += 2
+            return rs_tag("err", bytes_value(&b))
+        return rs_tag("err", events.JsStr(t: h))
+    if t == 58 or t == 44 or t == 40
+        return events.JsNum(raw: h)
+    if t == 95
+        return events.JsNull
+    if t == 35
+        return events.JsBool(v: h == "t")
+    if t == 36 or t == 61
+        let n = try rs_int(&h)
+        if n < 0
+            return events.JsNull
+        let b = try rd_bytes(r, n as usize)
+        if r.at + 2 > r.b.len() or r.b[r.at] != 13 or r.b[r.at + 1] != 10
+            fail BadCdc(why: "resp: bulk string terminator")
+        r.at += 2
+        if t == 61
+            var o: List[i64] = []
+            for i in 4..b.len()
+                o.push(b[i])
+            return bytes_value(&o)
+        return bytes_value(&b)
+    if t == 42 or t == 126 or t == 62 or t == 37
+        let n = try rs_int(&h)
+        if n < 0
+            return events.JsNull
+        let m = if t == 37 then n * 2 else n
+        var xs: List[events.Jv] = []
+        for i in 0..(m as usize)
+            xs.push(try resp_value(r))
+        if t == 126
+            return rs_tag("set", events.JsArr(items: xs))
+        if t == 62
+            return rs_tag("push", events.JsArr(items: xs))
+        if t == 37
+            return rs_tag("map", events.JsArr(items: xs))
+        return events.JsArr(items: xs)
+    fail BadCdc(why: "resp: type byte")
+
+pub fn resp_json(hex: &text) -> text ! BadCdc
+    let b = try hex_bytes(hex)
+    var r = Rd(b: b, at: 0)
+    let v = try resp_value(&mut r)
+    if r.at != r.b.len()
+        fail BadCdc(why: "resp: trailing bytes")
+    return events.json_canon(&v)
+
+fn rd_entry(e: &events.Jv, stream: &text) -> Change ! BadCdc
+    let xs = cd_items(e)
+    if xs.len() != 2
+        fail BadCdc(why: "redis: entry is not [id, fields]")
+    let id = cd_str(&xs[0])
+    let fs = cd_items(&xs[1])
+    if fs.len() % 2 != 0
+        fail BadCdc(why: "redis: odd field list")
+    var pairs: List[events.Jv] = []
+    var i: usize = 0
+    while i < fs.len() bound 16777216
+        pairs.push(events.JsArr(items: [copy(fs[i]), copy(fs[i + 1])]))
+        i += 2
+    return mk("redis", "c", copy(stream), events.JsObj(keys: ["id"], vals: [events.JsStr(t: copy(id))]), events.JsNull, events.JsObj(keys: ["fields"], vals: [events.JsArr(items: pairs)]), events.JsNull, id, "")
+
+fn rd_entries(v: &events.Jv, stream: &text) -> List[Change] ! BadCdc
+    var out: List[Change] = []
+    for e in cd_items(v)
+        if not cd_is_null(&e)
+            out.push(try rd_entry(&e, stream))
+    return out
+
+fn cd_is_arr(j: &events.Jv) -> bool
+    match j
+        events.JsArr(items: xs) -> return true
+        _ -> return false
+
+# [stream, [[id, fields], ...]] (XREAD) rather than [id, [f, v, ...]].
+fn rd_is_xread(x: &events.Jv) -> bool
+    let f = cd_items(x)
+    if f.len() != 2
+        return false
+    let es = cd_items(&f[1])
+    return es.len() > 0 and cd_is_arr(&es[0])
+
+# Entries of an XRANGE / XREVRANGE reply (stream named by the caller) or
+# of an XREAD / XREADGROUP reply (RESP2 [[stream, entries], ...] or RESP3
+# map); a null reply has no entries. Fields keep their order and
+# repeats: after = {"fields": [[name, value], ...]}; pos = entry id.
+pub fn redis_entries(hex: &text, stream: &text) -> List[Change] ! BadCdc
+    let b = try hex_bytes(hex)
+    var r = Rd(b: b, at: 0)
+    let v = try resp_value(&mut r)
+    let m = cd_get(&v, "map")
+    if not cd_is_null(&m)
+        let xs = cd_items(&m)
+        var out: List[Change] = []
+        var i: usize = 0
+        while i + 1 < xs.len() bound 16777216
+            let s = cd_str(&xs[i])
+            let es = try rd_entries(&xs[i + 1], &s)
+            for c in es
+                out.push(copy(c))
+            i += 2
+        return out
+    let xs = cd_items(&v)
+    if xs.len() > 0
+        if rd_is_xread(&xs[0])
+            var out: List[Change] = []
+            for sx in xs
+                let p = cd_items(&sx)
+                let s = cd_str(&p[0])
+                let es = try rd_entries(&p[1], &s)
+                for c in es
+                    out.push(copy(c))
+            return out
+    return try rd_entries(&v, stream)
+
+# ---------------- NATS JetStream ----------------
+
+pub struct AckMeta
+    domain: text
+    stream: text
+    consumer: text
+    delivered: i64
+    stream_seq: i64
+    consumer_seq: i64
+    ts: text
+    pending: i64
+
+fn js_n(t: &text) -> i64 ! BadCdc
+    if not t.isdigit()
+        fail BadCdc(why: "jetstream: ack field is not a number")
+    return t.toint()
+
+# $JS.ACK reply subject metadata (ADR-15): v1 $JS.ACK.<stream>.<consumer>.
+# <delivered>.<sseq>.<cseq>.<ts>.<pending> (9 tokens), v2 $JS.ACK.<domain>.
+# <account hash>.<stream>.<consumer>.<delivered>.<sseq>.<cseq>.<ts>.
+# <pending>[.<random>] (11 or more tokens; domain "_" is none).
+pub fn ack_meta(reply: &text) -> AckMeta ! BadCdc
+    let t = reply.split(".")
+    if t.len() < 9 or t[0] != "$JS" or t[1] != "ACK" or t.len() == 10
+        fail BadCdc(why: "jetstream: not an ack subject")
+    let o: usize = if t.len() == 9 then 2 else 4
+    let dom = if t.len() == 9 then "" else (if t[2] == "_" then "" else copy(t[2]))
+    return AckMeta(domain: dom, stream: copy(t[o]), consumer: copy(t[o + 1]), delivered: try js_n(&t[o + 2]), stream_seq: try js_n(&t[o + 3]), consumer_seq: try js_n(&t[o + 4]), ts: copy(t[o + 5]), pending: try js_n(&t[o + 6]))
+
+pub fn ack_text(m: &AckMeta) -> text = m.domain + "|" + m.stream + "|" + m.consumer + "|" + m.delivered.tostr() + "|" + m.stream_seq.tostr() + "|" + m.consumer_seq.tostr() + "|" + m.ts + "|" + m.pending.tostr()
+
+pub struct Frame
+    op: text
+    subject: text
+    sid: text
+    reply: text
+    status: text
+    desc: text
+    headers: List[events.Jv]
+    payload: List[i64]
+
+fn js_trim(t: &text) -> text = t.strip()
+
+# NATS headers block (ADR-4): "NATS/1.0[ <status>[ <description>]]\r\n",
+# then "Name: value" lines (name case kept, value trimmed, repeats kept
+# in order), then an empty line.
+fn js_headers(b: &[i64], f: &mut Frame) -> bool ! BadCdc
+    let t = try cd_text(b)
+    let ls = t.split("\r\n")
+    if ls.len() < 2 or not ls[0].startswith("NATS/1.0")
+        fail BadCdc(why: "jetstream: header version line")
+    let vl = ls[0].split("NATS/1.0")
+    let st = js_trim(&vl[1])
+    if st != ""
+        let ps = st.split(" ")
+        f.status = copy(ps[0])
+        var d: List[text] = []
+        for i in 1..ps.len()
+            d.push(copy(ps[i]))
+        f.desc = " ".join(d)
+    for i in 1..ls.len()
+        if ls[i] != ""
+            let c = ls[i].split(":")
+            if c.len() < 2
+                fail BadCdc(why: "jetstream: header line")
+            var v: List[text] = []
+            for k in 1..c.len()
+                v.push(copy(c[k]))
+            let vj = ":".join(v)
+            f.headers.push(events.JsArr(items: [events.JsStr(t: copy(c[0])), events.JsStr(t: js_trim(&vj))]))
+    return true
+
+# One MSG or HMSG frame: "MSG <subject> <sid> [reply] <#bytes>\r\n<payload>\r\n",
+# "HMSG <subject> <sid> [reply] <#header bytes> <#total bytes>\r\n<headers><payload>\r\n".
+pub fn frame(hex: &text) -> Frame ! BadCdc
+    let b = try hex_bytes(hex)
+    var r = Rd(b: b, at: 0)
+    let line = try rs_head(&mut r)
+    let ps = line.split(" ")
+    var f = Frame(op: copy(ps[0]), subject: "", sid: "", reply: "", status: "", desc: "", headers: [], payload: [])
+    let h = f.op == "HMSG"
+    if f.op != "MSG" and not h
+        fail BadCdc(why: "jetstream: not a message frame")
+    let nf = ps.len()
+    let want = if h then 5 else 4
+    if nf != want and nf != want + 1
+        fail BadCdc(why: "jetstream: frame fields")
+    f.subject = copy(ps[1])
+    f.sid = copy(ps[2])
+    if nf == want + 1
+        f.reply = copy(ps[3])
+    let total = try js_n(&ps[nf - 1])
+    var hl: i64 = 0
+    if h
+        hl = try js_n(&ps[nf - 2])
+    if hl > total
+        fail BadCdc(why: "jetstream: header length")
+    let hb = try rd_bytes(&mut r, hl as usize)
+    f.payload = try rd_bytes(&mut r, (total - hl) as usize)
+    if r.at + 2 != r.b.len() or r.b[r.at] != 13 or r.b[r.at + 1] != 10
+        fail BadCdc(why: "jetstream: frame terminator")
+    if h
+        let ok = try js_headers(&hb, &mut f)
+    return f
+
+fn js_hdr(f: &Frame, name: text) -> text
+    for h in f.headers
+        let kv = cd_items(&h)
+        if cd_str(&kv[0]).lower() == name.lower()
+            return cd_str(&kv[1])
+    return ""
+
+# A stream message delivered to a consumer: op "c", ns the stream, key
+# {"msg_id"} from Nats-Msg-Id (or null), after {"subject", "headers",
+# "data"}, delta the ack metadata, pos the stream sequence. A status
+# message (no ack reply: 404 No Messages, 408, 409, 100 heartbeat) is
+# op "s:<status>".
+pub fn js_change(hex: &text) -> Change ! BadCdc
+    let f = try frame(hex)
+    let hs = events.JsArr(items: copy(f.headers))
+    if not f.reply.startswith("$JS.ACK.")
+        return mk("jetstream", "s:" + f.status, "", events.JsNull, events.JsNull, events.JsObj(keys: ["description", "headers"], vals: [events.JsStr(t: copy(f.desc)), hs]), events.JsNull, "", "")
+    let m = try ack_meta(&f.reply)
+    let id = js_hdr(&f, "Nats-Msg-Id")
+    let key = if id == "" then events.JsNull else events.JsObj(keys: ["msg_id"], vals: [events.JsStr(t: id)])
+    let post = events.JsObj(keys: ["data", "headers", "subject"], vals: [bytes_value(&f.payload), hs, events.JsStr(t: copy(f.subject))])
+    let delta = events.JsObj(keys: ["consumer", "consumer_seq", "delivered", "domain", "pending", "ts"], vals: [events.JsStr(t: copy(m.consumer)), events.JsNum(raw: m.consumer_seq.tostr()), events.JsNum(raw: m.delivered.tostr()), events.JsStr(t: copy(m.domain)), events.JsNum(raw: m.pending.tostr()), events.JsStr(t: copy(m.ts))])
+    return mk("jetstream", "c", copy(m.stream), key, events.JsNull, post, delta, m.stream_seq.tostr(), "")
+
+# A publish acknowledgement (the reply to a publish on a stream subject):
+# "<stream>:<seq>" with ":dup" when the server deduplicated it
+# (Nats-Msg-Id inside the duplicate window), "err:<err_code>" for an
+# API error, "status:<code>" for a status reply (503 no responders).
+pub fn puback(hex: &text) -> text ! BadCdc
+    let f = try frame(hex)
+    if f.status != ""
+        return "status:" + f.status
+    let t = try cd_text(&f.payload)
+    let j = events.json_parse(&t) catch events.JsNull
+    let e = cd_get(&j, "error")
+    if not cd_is_null(&e)
+        return "err:" + cd_field(&e, "err_code")
+    let dup = cd_get(&j, "duplicate") == events.JsBool(v: true)
+    return cd_field(&j, "stream") + ":" + cd_field(&j, "seq") + (if dup then ":dup" else "")

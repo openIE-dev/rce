@@ -720,3 +720,39 @@ Needs spec (engine): host input adapters emit these values as logged
 events in read order. A read carries its bytes and whether more input is
 available. The terminal host records raw mode.
 
+## data.cdc (`lib/data/cdc.rce`)
+
+Official vectors (20 checks): the worked examples in the Debezium 3.0.0.Final
+connector docs (`postgresql.adoc`, `mongodb.adoc`, debezium/debezium tag v3.0.0.Final commit 2450021e), extracted by
+`scripts/gen/cdc_debezium_extract.py` into `examples_3.0.0.json` (11 examples).
+The doc examples are not all valid JSON as printed; the extractor records each fix
+(trailing commas, `...` elisions, comments) next to the example. CouchDB 3.4.2
+`changes.rst` (apache/couchdb-documentation commit 1df690da) normal and continuous feed examples.
+
+Derived vectors (174 checks), produced by live reference servers on the box, no sudo:
+- PostgreSQL 17.11 (conda-forge) with wal2json 2.6 (eulerto/wal2json 75629c2e):
+  `scripts/gen/cdc_pg.py` records raw pgoutput protocol v1 messages
+  (pg_logical_slot_peek_binary_changes, proto_version 1) and the wal2json
+  format-1 and format-2 output of the same transactions (6 cases: insert/update/delete,
+  REPLICA IDENTITY FULL, unchanged TOAST, truncate, logical message, NULL/NaN/Infinity/bytea).
+  Every pgoutput case decodes to exactly the wal2json v2 change list.
+- MongoDB 8.3.7 replica set (pymongo): `cdc_mongo.py`, 17 change events with
+  pre/post images (`whenAvailable`), updateDescription incl. truncatedArrays;
+  `apply_update` reproduces the server post-image from pre-image + updateDescription.
+- SQLite changesets/patchsets from APSW 3.54.0.0 Session (`cdc_sqlite.py`), incl. a 9-byte varint.
+- Redis streams (RESP2/RESP3 raw replies, `cdc_redis.py`), NATS 2.10.22 JetStream
+  (HMSG frames, $JS.ACK v1/v2 subjects, PubAck; `cdc_nats.py`),
+  PouchDB 6.0.0 pouchdb-memory changes feed (`cdc_pouch.js`).
+
+Mutation testing: `scripts/mut/data.py cdc` 41/41 killed (equivalent mutants removed are listed in its header).
+
+- `vectors/data/couchdb/changes.rst` sha256 `3c04f9bdd9e046fa916c6f26aaf7f500a04a8dc4c1117362a9304e813e6765e3`
+- `vectors/data/couchdb/pouchdb_changes.json` sha256 `893374b23008354fa0577dde26abbfa9ecdf049524fb6f90bba049dd0bf7a29c`
+- `vectors/data/debezium/examples_3.0.0.json` sha256 `6a1cf25b0fded9da8195a5d25622ad06479c69bb5e00f9a03c960eec8da73750`
+- `vectors/data/debezium/mongodb.adoc` sha256 `75b243246512d4c6a477b6e3efac9dafdbcd25536b015886229b278c67b8a289`
+- `vectors/data/debezium/postgresql.adoc` sha256 `3fbbf683a44763c0a9ae1e7448c4d9877041e2ab1f792ae539a2bbb639ae8598`
+- `vectors/data/mongodb/live_events.json` sha256 `334ca38720f4dd33368d6b9d604a7f5c25fccc00f92ba60d9622e967eadbd7f1`
+- `vectors/data/nats/jetstream.json` sha256 `1bd1cecd0f13e8e1f89d4664b2c3282b8ab1da5f9efaa402761870d7271accdf`
+- `vectors/data/postgres/pg_live.json` sha256 `92c74ef35ac4ed3af1915177b1e8e446eeb8d354ba408077cbb72cbc96b9ce6e`
+- `vectors/data/redis/streams.json` sha256 `74a61edda5c37dd0f8f07e31ac4664d7e94181cda62d974122efb7d4c3a5c283`
+- `vectors/data/sqlite/changesets.json` sha256 `37b4c5174afd875073bc7b819dc672b38b635c26ac46a9106b6ed18e50d634d2`

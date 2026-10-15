@@ -4,13 +4,16 @@
 # Equivalent mutant removed: the E0 hi bound in utf8_text (a surrogate
 # that gets past it is refused by cp_text). For feed: searching the
 # source history for the target's session from i instead of i + 1 (the
-# entry at i was already checked against the target history).
+# entry at i was already checked against the target history). For cdc:
+# the empty transaction id of a non-transactional message (pgoutput and
+# wal2json format 1) - PostgreSQL decodes such a message outside any
+# transaction, where the current id is already "".
 # Usage: RCE=path/to/rce python3 scripts/mut/data.py [module...]
 import glob, os, re, shutil, subprocess, sys, tempfile
 from concurrent.futures import ThreadPoolExecutor
 RCE = os.environ.get('RCE', 'rce')
 root = os.path.join(os.path.dirname(os.path.abspath(__file__)), '../..')
-MODS = ('events', 'feed')
+MODS = ('events', 'feed', 'cdc')
 SRC = {n: open(os.path.join(root, 'lib/data/%s.rce' % n)).read() for n in MODS}
 sys.path.insert(0, os.path.join(root, 'scripts'))
 import uses
@@ -77,6 +80,49 @@ M = [('events',) + m for m in [
     ('    if ib.used >= ib.budget\n', '    if ib.used > ib.budget\n'),
     ('        if ib.pending_height[i] < durable\n', '        if ib.pending_height[i] <= durable\n'),
     ('    ib.used = 0\n', '    ib.used = ib.used\n'),
+
+]] + [('cdc',) + m for m in [
+    ('    if c >= 97 and c <= 102\n        return c - 87', '    if c >= 97 and c <= 102\n        return c - 86'),
+    ('        o = HEXU[(v & 15) as usize] + o', '        o = o + HEXU[(v & 15) as usize]'),
+    ('    var v: i64 = if top >= 128 then top - 256 else top', '    var v: i64 = top'),
+    ('        if cp >= 65536 and (cp < 126976 or cp >= 131072)\n            return false', '        if false\n            return false'),
+    ('            lo = if x == 224 then 160 else 128', '            lo = 128'),
+    ('        if cd_ci_prefix(t, "NaN") or cd_ci_prefix(t, "Infinity") or cd_ci_prefix(t, "-Infinity")', '        if cd_ci_prefix(t, "NaN") or cd_ci_prefix(t, "Infinity")'),
+    ('        return events.JsBool(v: t == "t")', '        return events.JsBool(v: t != "f" and t != "t")'),
+    ('    if oid == 17\n', '    if false\n'),
+    ('        elif kd == 117\n            have = false', '        elif kd == 117\n            have = true'),
+    ('        if have and (rel.key[i] or not key_only)', '        if have'),
+    ('            key.push((f & 1) == 1)', '            key.push(true)'),
+    ('        if not have_key\n            key = pg_keyof(&post, &rel)', '        if false\n            key = pg_keyof(&post, &rel)'),
+    ('        let cts = try rd_i64(&mut r)\n', '\n'),
+    ('            let ns = cd_field(&j, "schema") + "." + cd_field(&j, "table")', '            let ns = cd_field(&j, "table")'),
+    ('            let key = if a == "U" or a == "D" then w2_cols(&ident) else events.JsNull', '            let key = if a == "D" then w2_cols(&ident) else events.JsNull'),
+    ('    if coll != ""\n        ns = db + "." + coll', '    if coll != ""\n        ns = coll'),
+    ('    elif tbl != "" and sch != ""\n        ns = sch + "." + tbl', '    elif tbl != "" and sch != ""\n        ns = db + "." + tbl'),
+    ('    if pos == ""\n        pos = cd_field(&src, "ord")', '    if pos == ""\n        pos = ""'),
+    ('    let post = if op == "m" then msg else post0', '    let post = post0'),
+    ('    if t == "update" or t == "replace"\n        return "u"', '    if t == "update"\n        return "u"'),
+    ('    let ns = if coll == "" then cd_field(&nsj, "db") else cd_field(&nsj, "db") + "." + coll', '    let ns = cd_field(&nsj, "db") + "." + coll'),
+    ('    if b.len() < 9 or b[0] != 130', '    if b.len() < 9'),
+    ('        doc = mg_trunc(&doc, &p, mg_int(&ns) as usize)', '        doc = copy(doc)'),
+    ('        t = cd_field(j, "$numberInt")', '        t = ""'),
+    ('        events.JsArr(items: xs) -> return mg_unset_arr(xs, &path[0], &rest)\n', ''),
+    ('        doc = mg_unset(&doc, &p)', '        doc = copy(doc)'),
+    ('        nv.push(mg_set(&nul, rest, v))\n', '\n'),
+    ('    let op = if del then "d" else (if rev.startswith("1-") then "c" else "u")', '    let op = if del then "d" else "u"'),
+    ('    let post = if del then events.JsNull else doc', '    let post = doc'),
+    ('        if i == 8\n            return (v << 8) | b', '        if i == 8\n            return (v << 7) | b'),
+    ('                p.push((try rd_u8(&mut r)) != 0)', '                p.push((try rd_u8(&mut r)) == 0)'),
+    ('            if not sq_undef(&v)\n', '            if true\n'),
+    ('                let key = if patch then sq_pkof(&nw, &pk) else sq_pkof(&old, &pk)', '                let key = sq_pkof(&nw, &pk)'),
+    ('        if t == 61\n            var o', '        if false\n            var o'),
+    ('    if not cd_is_null(&m)\n        let xs = cd_items(&m)', '    if false\n        let xs = cd_items(&m)'),
+    ('    return es.len() > 0 and cd_is_arr(&es[0])', '    return es.len() > 0'),
+    ('    let o: usize = if t.len() == 9 then 2 else 4', '    let o: usize = 2'),
+    ('    let dom = if t.len() == 9 then "" else (if t[2] == "_" then "" else copy(t[2]))', '    let dom = if t.len() == 9 then "" else copy(t[2])'),
+    ('            f.headers.push(events.JsArr(items: [events.JsStr(t: copy(c[0])), events.JsStr(t: js_trim(&vj))]))', '            f.headers.push(events.JsArr(items: [events.JsStr(t: copy(c[0])), events.JsStr(t: copy(vj))]))'),
+    ('    if nf == want + 1\n        f.reply = copy(ps[3])', '    if false\n        f.reply = copy(ps[3])'),
+    ('    return cd_field(&j, "stream") + ":" + cd_field(&j, "seq") + (if dup then ":dup" else "")', '    return cd_field(&j, "stream") + ":" + cd_field(&j, "seq")'),
 ]]
 def one(ab):
     i, (name, a, b) = ab
