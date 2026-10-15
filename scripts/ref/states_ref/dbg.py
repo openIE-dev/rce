@@ -2,8 +2,8 @@
 import re, subprocess, sys
 RCE = '/tmp/rce-ide-0.1.3-x86_64-unknown-linux-gnu/rce'
 lib = sys.argv[1]; tests = sys.argv[2]; idx = int(sys.argv[3])
-s = open(tests).read(); H = s[:s.index('check lv(')]
-cs = re.findall(r'^check (lv\(.*\)) == (".*")$', s, re.M)
+s = open(tests).read(); H = s[:s.index('check l')]
+cs = re.findall(r'^check (l[vx]\(.*\)) == (".*")$', s, re.M)
 call, exp = cs[idx]
 base = open(lib).read() + H + 'fn got() -> text = ' + call + '\n'
 def ok(c):
@@ -12,8 +12,14 @@ def ok(c):
     return 'check is false' not in r.stdout + r.stderr and r.returncode == 0
 def q(x): return '"' + x.replace('\\', '\\\\').replace('"', '\\"') + '"'
 alpha = sorted(set(' +-|,0123456789abcdefghijklmnopqrstuvwxyz_.'))
-got = ''
-while True:
+e = eval(exp)
+lo, hi = 0, len(e)
+while lo < hi:
+    m = (lo + hi + 1) // 2
+    if ok('check got().startswith(%s)' % q(e[:m])): lo = m
+    else: hi = m - 1
+got = e[:lo]
+for _ in range(60):
     if ok('check got() == %s' % q(got)): break
     found = False
     for ch in alpha:

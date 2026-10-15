@@ -76,11 +76,12 @@ pub struct Chart
     an: List[i64]
     ok: bool
     why: text
+    xs: bool
 
 fn no_ints() -> List[i64] = []
 fn no_texts() -> List[text] = []
 
-fn chart0() -> Chart = Chart(sid: [], skind: [], spar: [], smach: [], sinit: [], sinitblk: [], sentry: [], sexit: [], sinv: [], skids: [], strans: [], mroot: [], mvars: [], mexpr: [], tsrc: [], tev: [], tcond: [], tint: [], ttgt: [], tblk: [], blocks: [], aop: [], aa: [], ab: [], an: [], ok: true, why: "")
+fn chart0() -> Chart = Chart(sid: [], skind: [], spar: [], smach: [], sinit: [], sinitblk: [], sentry: [], sexit: [], sinv: [], skids: [], strans: [], mroot: [], mvars: [], mexpr: [], tsrc: [], tev: [], tcond: [], tint: [], ttgt: [], tblk: [], blocks: [], aop: [], aa: [], ab: [], an: [], ok: true, why: "", xs: false)
 
 fn kind_of(t: &text) -> i64
     if t == "root"
@@ -523,7 +524,7 @@ fn effective_targets(c: &Chart, r: &Run, ses: i64, t: i64) -> List[i64]
 
 fn lcca(c: &Chart, ss: &[i64]) -> i64
     for a in proper_ancestors(c, ss[0], -1)
-        if c.skind[a as usize] == COMPOUND or c.skind[a as usize] == ROOT
+        if c.skind[a as usize] == COMPOUND or c.skind[a as usize] == ROOT or (c.xs and c.skind[a as usize] == PARALLEL)
             var all = true
             for i in 1..ss.len()
                 if not is_desc(c, ss[i], a)
@@ -684,6 +685,14 @@ fn entry_set(c: &Chart, r: &Run, ses: i64, ts: &[i64], enter: &mut List[i64], df
         let t = ts[i]
         let d = domain(c, r, ses, t)
         let eff = effective_targets(c, r, ses, t)
+        # XState mode: a parallel domain re-enters its other regions
+        if c.xs and d >= 0 and c.skind[d as usize] == PARALLEL
+            var q = c.skids[d as usize].len()
+            while q > 0 bound 1048576
+                q -= 1
+                let ch = c.skids[d as usize][q]
+                if not is_hist(c, ch)
+                    tk.push([3, ch, -1])
         var j = eff.len()
         while j > 0 bound 1048576
             j -= 1
@@ -838,6 +847,8 @@ fn finish(c: &Chart, r: &mut Run, ses: i64)
     while s > 0 bound 16777216
         s -= 1
         if r.conf[ses as usize][s] == 1
+            if ses == 0 and c.skind[s] != ROOT
+                r.trace.push("-" + c.sid[s])
             for b in c.sexit[s]
                 exec_block(c, r, ses, b)
             for k in 0..r.smachine.len()
@@ -930,8 +941,14 @@ pub struct Result
 # Run machine 0 of chart text src: external events evs at time 0 in
 # order, then delayed events in due order, until machine 0 stops or the
 # queue is empty.
-pub fn run(src: &text, evs: &[text]) -> Result
-    let c0 = parse_chart(src)
+pub fn run(src: &text, evs: &[text]) -> Result = run_mode(src, evs, false)
+
+# xstate: XState 5 transition domains, where a parallel state also
+# bounds a transition between its regions (SCXML exits the parallel
+# state itself); the mode the XState vectors check.
+pub fn run_mode(src: &text, evs: &[text], xstate: bool) -> Result
+    var c0 = parse_chart(src)
+    c0.xs = xstate
     if not c0.ok
         return Result(outcome: "", conf: [], leaves: [], trace: [], logs: [], vals: [], isset: [], err: copy(c0.why))
     let c = with_inits(&c0)

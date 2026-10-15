@@ -7,13 +7,20 @@ N = int(sys.argv[1]); seed = int(sys.argv[2])
 R = random.Random(seed); cases = []
 for _ in range(N):
     d, e = chart(R); cases.append((d, e))
-p = subprocess.run(['node', 'scion_live.js'], input=''.join(d + '\t' + ','.join(e) + '\n' for d, e in cases), capture_output=True, text=True, timeout=600)
+import json
+REF = sys.argv[4] if len(sys.argv) > 4 else 'xstate'
+if REF == 'xstate':
+    p = subprocess.run(['node', 'xstate_live.js'], input=''.join(json.dumps({'src': compile_doc(d), 'evs': e}) + '\n' for d, e in cases), capture_output=True, text=True, timeout=600)
+else:
+    p = subprocess.run(['node', 'scion_live.js'], input=''.join(d + '\t' + ','.join(e) + '\n' for d, e in cases), capture_output=True, text=True, timeout=600)
 outs = p.stdout.split('\n')
-H = '''fn lv(src: text, evs: text) -> text
+H = '''fn lv(src: text, evs: text) -> text = lvm(src, evs, false)
+fn lx(src: text, evs: text) -> text = lvm(src, evs, true)
+fn lvm(src: text, evs: text, xs: bool) -> text
     var es: List[text] = []
     if evs != ""
         es = evs.split(",")
-    let r = run(&src, &es)
+    let r = run_mode(&src, &es, xs)
     if r.err != ""
         return "error " + r.err
     var vs: List[text] = []
@@ -34,6 +41,6 @@ for (d, e), o in zip(cases, outs):
     conf = [x for x in order if x in conf.split(',')] if conf else []
     tops = [l.split()[1] for l in src.split('\n') if l.startswith('state ') and l.split()[2] == 'final' and l.split()[3] == '_scxml']
     fin = 'final' if any(x in tops for x in conf) else 'live'
-    lines.append('check lv(%s, "%s") == %s\n' % (q(src), ','.join(e), q('%s %s | %s | %s' % (fin, ','.join(conf), tr, dm))))
+    lines.append('check ' + ('lx' if REF == 'xstate' else 'lv') + '(%s, "%s") == %s\n' % (q(src), ','.join(e), q('%s %s | %s | %s' % (fin, ','.join(conf), tr, dm))))
 open(sys.argv[3], 'w').write(''.join(lines))
 print('skipped', skipped, file=sys.stderr)
