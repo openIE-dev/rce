@@ -11,6 +11,14 @@ run replays bit for bit.
 | `lib/pq.rce` | Keccak (SHA3-256, SHA3-512, SHAKE128, SHAKE256 of FIPS 202), ML-KEM-768 (FIPS 203) and PQXDH |
 | `lib/hpke.rce` | AES-128-GCM (FIPS 197, SP 800-38D) and HPKE base mode (RFC 9180) with DHKEM(X25519, HKDF-SHA256) |
 | `lib/mls.rce` | MLS (RFC 9420) cipher suite 1: ratchet tree math, the key schedule, the exporter, crypto basics |
+| `lib/core/exact.rce` | `core.exact`: big integers (base 2^24 limbs), rationals, unbounded decimals with explicit rounding modes, binary fixed-point |
+
+Foundation modules live under `lib/<area>/`; their vectors and property
+sweeps are in `tests/<area>/<name>_checks.rce`, which `scripts/check.sh`
+appends to the module. `rce` 0.1.3 embeds only `crypto`, `pq`, `hpke` and
+`mls` for `#!lib`; until a release embeds the foundation modules, give the
+file to `rce` together with the program (`rce check lib/core/exact.rce app.rce`
+with `use core.exact`).
 
 `pq`, `hpke` and `mls` build on `crypto`. The libraries are reference
 code for correctness and replay. They are **not constant time**.

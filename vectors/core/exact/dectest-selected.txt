@@ -1,0 +1,230 @@
+add.decTest: addx001 add 1       1       ->  2
+add.decTest: addx023 add 2 1 -> 3
+add.decTest: addx046 add '10000e+9'  '7' -> '10000000000007'
+add.decTest: addx062 add 1 '0.00001' -> '1.00001'
+add.decTest: addx082 add  99999999 1  -> 100000000
+add.decTest: addx097 add '-56267E-0'    0 ->  '-56267'
+add.decTest: addx123 add 0  '-5E-10'     ->  '-5E-10'
+add.decTest: addx150 add '00.0'  '0.00'  ->  '0.00'
+add.decTest: addx162 add '1E+12'  '1.11' -> '1000000000001.11'
+add.decTest: addx183 add '0.444444444444444'  '0.555555555555550' -> '0.999999999999994'
+add.decTest: addx306 add  99   1      -> 100
+add.decTest: addx322 add  0.00  0.01    ->  0.01
+add.decTest: addx336 add  1.01 -0.01    ->  1.00
+add.decTest: addx400 add   1   77e-7       ->  1.0000077
+add.decTest: addx461 add  -77e-8        1   ->  0.99999923
+add.decTest: addx545 add 1234567890  0 -> 1234567890
+add.decTest: addx704 add 0E-3  00.00  -> 0.000
+add.decTest: addx723 add 00.E+1 0E+3  -> 0E+1
+add.decTest: addx745 add -1     0     -> -1
+add.decTest: addx775 add -1.0   0.0   -> -1.0
+add.decTest: addx1410 add  0 1.23456789012345E-10 -> 1.23456789012345E-10
+add.decTest: addx1422 add  0 1.123456789012345E-2  -> 0.01123456789012345
+add.decTest: addx1434 add  0 1.123456789012345E-14 -> 1.123456789012345E-14
+add.decTest: addx1446 add 1.123456789012345E-6  0 -> 0.000001123456789012345
+add.decTest: addx1458 add 1.123456789012345E-18 0 -> 1.123456789012345E-18
+add.decTest: addx1470 add 1.123456789012345  0E-10  -> 1.123456789012345
+add.decTest: addx1620 add  0        0E-19  ->  0E-19
+add.decTest: addx6002 add 2       3       ->  5
+add.decTest: addx6024 add 3 1 -> 4
+add.decTest: addx6047 add '10000e+9'  '70' -> '10000000000070'
+add.decTest: addx6063 add 1 '0.0001' -> '1.0001'
+add.decTest: addx6075 add  0  1   -> 1
+add.decTest: addx6088 add              999 1  -> 1000
+add.decTest: addx6107 add '-5E15'        0 ->  '-5000000000000000'
+add.decTest: addx6141 add 1E+11   0.0000   ->  '100000000000.0000'
+add.decTest: addx6156 add '3'     '3'     ->  '6'
+add.decTest: addx6168 add '-1'    '7E+13' -> '69999999999999'
+add.decTest: addx6266 add '6543210123456789' 1             -> '6543210123456790'
+add.decTest: addx6312 add  12  -1      ->  11
+add.decTest: addx6328 add  1.01  0.01    ->  1.02
+add.decTest: addx6349 add 1E+15   7    ->    1000000000000007
+add.decTest: addx6451 add  10   -77e-15      ->   9.999999999999923
+add.decTest: addx6703 add 00.00 0E-3   -> 0.000
+add.decTest: addx6722 add 00.    0E+3  -> 0
+add.decTest: addx6743 add  0     1     ->  1
+add.decTest: addx6773 add  0.0   1.0   ->  1.0
+add.decTest: addx61429 add  0 1.123456789012345E-9  -> 1.123456789012345E-9
+add.decTest: addx61441 add 1.123456789012345E-1  0 -> 0.1123456789012345
+add.decTest: addx61453 add 1.123456789012345E-13 0 -> 1.123456789012345E-13
+add.decTest: addx61465 add 1.123456789012345  0E-5   -> 1.123456789012345
+multiply.decTest: mulx000 multiply 2      2 -> 4
+multiply.decTest: mulx002 multiply 5      1 -> 5
+multiply.decTest: mulx004 multiply 1.20   2 -> 2.40
+multiply.decTest: mulx006 multiply 1.20  -2 -> -2.40
+multiply.decTest: mulx009 multiply -1.20 -2 -> 2.40
+multiply.decTest: mulx011 multiply 2.5    4 -> 10.0
+multiply.decTest: mulx015 multiply 2.50   4 -> 10.00
+multiply.decTest: mulx160 multiply 999999999999 9765625 -> 9765624999990234375
+multiply.decTest: mulx030 multiply  5.00   1E-3  ->  0.00500
+multiply.decTest: mulx032 multiply  00.00  0E-3  ->  0.00000
+multiply.decTest: mulx042 multiply -5.00  -1E-3  ->  0.00500
+multiply.decTest: mulx051 multiply 7    3        -> 21
+multiply.decTest: mulx060 multiply 123.45 1e7  ->  1.2345E+9
+multiply.decTest: mulx062 multiply 123.45 1e+9 ->  1.2345E+11
+multiply.decTest: mulx064 multiply 123.45 1e11 ->  1.2345E+13
+multiply.decTest: mulx066 multiply 123.45 1e13 ->  1.2345E+15
+multiply.decTest: mulx084 multiply 0.1 123456789          -> 12345678.9
+multiply.decTest: mulx094 multiply 123456789          0.1 -> 12345678.9
+multiply.decTest: mulx102 multiply 9 90   -> 810
+multiply.decTest: mulx104 multiply 9 9000   -> 81000
+multiply.decTest: mulx106 multiply 9 900000   -> 8100000
+multiply.decTest: mulx108 multiply 9 90000000   -> 810000000
+multiply.decTest: mulx110 multiply 9 9000000000   -> 81000000000
+multiply.decTest: mulx112 multiply 9 900000000000   -> 8100000000000
+multiply.decTest: mulx114 multiply 9 90000000000000   -> 810000000000000
+multiply.decTest: mulx116 multiply 9 9000000000000000   -> 81000000000000000
+multiply.decTest: mulx118 multiply 9 900000000000000000   -> 8100000000000000000
+multiply.decTest: mulx120 multiply 9 90000000000000000000   -> 810000000000000000000
+multiply.decTest: mulx122 multiply 9 9000000000000000000000   -> 81000000000000000000000
+multiply.decTest: mulx131 multiply 3 3   -> 9
+multiply.decTest: mulx133 multiply 3 300   -> 900
+multiply.decTest: mulx135 multiply 3 30000   -> 90000
+multiply.decTest: mulx137 multiply 3 3000000   -> 9000000
+multiply.decTest: mulx139 multiply 3 300000000   -> 900000000
+multiply.decTest: mulx141 multiply 3 30000000000   -> 90000000000
+multiply.decTest: mulx143 multiply 3 3000000000000   -> 9000000000000
+multiply.decTest: mulx145 multiply 3 300000000000000   -> 900000000000000
+multiply.decTest: mulx147 multiply 3 30000000000000000   -> 90000000000000000
+multiply.decTest: mulx149 multiply 3 3000000000000000000   -> 9000000000000000000
+multiply.decTest: mulx151 multiply 3 300000000000000000000   -> 900000000000000000000
+multiply.decTest: mulx153 multiply 3 30000000000000000000000   -> 90000000000000000000000
+multiply.decTest: mulx302 multiply 9 90   -> 810
+multiply.decTest: mulx304 multiply 9 9000   -> 81000
+multiply.decTest: mulx306 multiply 9 900000   -> 8100000
+multiply.decTest: mulx308 multiply 9 90000000   -> 810000000
+multiply.decTest: mulx547 multiply  1     0     ->  0
+multiply.decTest: mulx557 multiply  1.0   0     ->  0.0
+multiply.decTest: mulx567 multiply  1     0.0   ->  0.0
+multiply.decTest: mulx577 multiply  1.0   0.0   ->  0.00
+multiply.decTest: mulx1001  multiply 130E-2  120E-2 -> 1.5600
+quantize.decTest: quax001 quantize 0       1e0   -> 0
+quantize.decTest: quax007 quantize 0.1    1e-1   -> 0.1
+quantize.decTest: quax012 quantize 0.9    1e+0   -> 1 Inexact Rounded
+quantize.decTest: quax032 quantize -0.9   1e+0   -> -1 Inexact Rounded
+quantize.decTest: quax062 quantize 2.17   0.1    -> 2.2 Inexact Rounded
+quantize.decTest: quax073 quantize 217    1e+1   -> 2.2E+2 Inexact Rounded
+quantize.decTest: quax092 quantize 12     1e+1   -> 1E+1 Inexact Rounded
+quantize.decTest: quax097 quantize 0.0001 1e-2   -> 0.00 Inexact Rounded
+quantize.decTest: quax102 quantize -1     1e-1   ->  -1.0
+quantize.decTest: quax107 quantize  0.00   1e0   ->  0
+quantize.decTest: quax112 quantize +1     1e-2   ->  1.00
+quantize.decTest: quax124 quantize   1.05  1e-3 ->  1.050
+quantize.decTest: quax133 quantize   1.06  1e-2 ->  1.06
+quantize.decTest: quax142 quantize   +10    1e-2  ->  10.00
+quantize.decTest: quax148 quantize   0E-10  1e-2  ->  0.00
+quantize.decTest: quax154 quantize   1.0600 1e-1 ->  1.1 Inexact Rounded
+quantize.decTest: quax165 quantize 0.1    0e+1   -> 0E+1 Inexact Rounded
+quantize.decTest: quax170 quantize 0.9 6666e+2   -> 0E+2 Inexact Rounded
+quantize.decTest: quax175 quantize 0.9  1.1e-3   -> 0.9000
+quantize.decTest: quax205 quantize    0   1e+1 ->  0E+1
+quantize.decTest: quax220 quantize   1.04 1e+3 ->  0E+3 Inexact Rounded
+quantize.decTest: quax225 quantize   1.05 1e+2 ->  0E+2 Inexact Rounded
+quantize.decTest: quax230 quantize   1.05 1e+1 ->  0E+1 Inexact Rounded
+quantize.decTest: quax235 quantize   1.06 1e+0 ->  1 Inexact Rounded
+quantize.decTest: quax244 quantize   1E+2  1e+1  ->  1.0E+2
+quantize.decTest: quax249 quantize   1E+7  1e+1  ->  1.000000E+7
+quantize.decTest: quax255 quantize   0E-10 1e+1  ->  0E+1
+quantize.decTest: quax265 quantize   1E+3  1e+2  ->  1.0E+3
+quantize.decTest: quax270 quantize   1E+8  1e+2  ->  1.000000E+8
+quantize.decTest: quax275 quantize   0E-10 1e+2  ->  0E+2
+quantize.decTest: quax285 quantize   1E+3  1e+3  ->  1E+3
+quantize.decTest: quax290 quantize   1E+8  1e+3  ->  1.00000E+8
+quantize.decTest: quax295 quantize   0E-10 1e+3  ->  0E+3
+quantize.decTest: quax304 quantize   0.0078 1e-1 ->  0.0 Inexact Rounded
+quantize.decTest: quax321 quantize   0.078 1e-4 ->  0.0780
+quantize.decTest: quax326 quantize   0.078 1e+1 ->  0E+1 Inexact Rounded
+quantize.decTest: quax343 quantize   0.78 1e-2 ->  0.78
+quantize.decTest: quax355 quantize  -0.78  1e0 -> -1 Inexact Rounded
+quantize.decTest: quax364 quantize   7.8 1e-1 ->  7.8
+quantize.decTest: quax370 quantize  -7.8 1e-5 -> -7.80000
+quantize.decTest: quax375 quantize  -7.8  1e0 -> -8 Inexact Rounded
+quantize.decTest: quax385 quantize  -3523645.06 1e-2 -> -3523645.06
+quantize.decTest: quax401 quantize   9.999        1e-4  ->  9.9990
+quantize.decTest: quax406 quantize   9.999         1e1  -> 1E+1      Inexact Rounded
+quantize.decTest: quax413 quantize   0.999        1e-2  ->  1.00     Inexact Rounded
+quantize.decTest: quax421 quantize   0.0999       1e-4  ->  0.0999
+quantize.decTest: quax426 quantize   0.0999        1e1  -> 0E+1      Inexact Rounded
+quantize.decTest: quax434 quantize   0.00999      1e-1  ->  0.0      Inexact Rounded
+quantize.decTest: quax442 quantize   0.000999     1e-3  ->  0.001    Inexact Rounded
+quantize.decTest: quax450 quantize   9.999E-15    1e-22 ->  9.9990000E-15
+quantize.decTest: quax455 quantize   9.999E-15    1e-17 ->  1.000E-14 Inexact Rounded
+quantize.decTest: quax460 quantize   9.999E-15    1e-12 ->  0E-12     Inexact Rounded
+quantize.decTest: quax465 quantize   9.999E-15     1e-7 ->  0E-7      Inexact Rounded
+quantize.decTest: quax470 quantize   9.999E-15     1e-2 ->  0.00      Inexact Rounded
+quantize.decTest: quax902 quantize   9.999E-15    1e-20 ->  9.99900E-15
+quantize.decTest: quax907 quantize   9.999E-15    1e-15 ->  1.0E-14   Inexact Rounded
+quantize.decTest: quax912 quantize   9.999E-15    1e-10 ->  0E-10     Inexact Rounded
+quantize.decTest: quax917 quantize   9.999E-15     1e-5 ->  0.00000   Inexact Rounded
+quantize.decTest: quax922 quantize   9.999E-15      1e0 ->  0         Inexact Rounded
+quantize.decTest: quax935 quantize   9.999E-15    1e-17 ->  1.000E-14 Inexact Rounded
+quantize.decTest: quax940 quantize   9.999E-15    1e-12 ->  0E-12     Inexact Rounded
+quantize.decTest: quax945 quantize   9.999E-15     1e-7 ->  0E-7      Inexact Rounded
+quantize.decTest: quax950 quantize   9.999E-15     1e-2 ->  0.00      Inexact Rounded
+quantize.decTest: quax967 quantize   9.999E-15    1e-15 ->  1.0E-14   Inexact Rounded
+quantize.decTest: quax972 quantize   9.999E-15    1e-10 ->  0E-10     Inexact Rounded
+quantize.decTest: quax977 quantize   9.999E-15     1e-5 ->  0.00000   Inexact Rounded
+quantize.decTest: quax982 quantize   9.999E-15      1e0 ->  0         Inexact Rounded
+quantize.decTest: quax1004 quantize  0.0018       0.001 ->  0.002     Inexact Rounded
+quantize.decTest: quax1009 quantize  0.9992       0.001 ->  0.999     Inexact Rounded
+quantize.decTest: quax485 quantize 12345678901 1e+2 -> 1.23456789E+10 Inexact Rounded
+quantize.decTest: quax492 quantize 1234567800  1e+1 -> 1.23456780E+9 Rounded
+quantize.decTest: quax497 quantize 1234.987643 1e-4 -> 1234.9876 Inexact Rounded
+quantize.decTest: quax503 quantize   0.0  1e-1 ->  0.0
+quantize.decTest: quax508 quantize   0E+1 1e+1 ->  0E+1
+quantize.decTest: quax1043 quantize -2147483649     0 -> -2147483649
+quantize.decTest: quax1048 quantize  4294967294     0 ->  4294967294
+quantize.decTest: quax1102 quantize  4000000000     0 ->  4000000000
+quantize.decTest: quax1107 quantize  0001000000     0 ->  1000000
+quantize.decTest: quax1112 quantize  0000000010     0 ->  10
+quantize.decTest: quax1123 quantize -2000000000     0 -> -2000000000
+subtract.decTest: subx001 subtract  0   0  -> '0'
+subtract.decTest: subx006 subtract  3   2  -> '1'
+subtract.decTest: subx015 subtract -2   2  -> '-4'
+subtract.decTest: subx024 subtract  2  -1  -> '3'
+subtract.decTest: subx031 subtract  10  1  ->  9
+subtract.decTest: subx036 subtract -9   1  -> -10
+subtract.decTest: subx042 subtract '-5'   '-3'   -> '-2'
+subtract.decTest: subx050 subtract '1.23456789'    '1.00000000' -> '0.23456789'
+subtract.decTest: subx093 subtract '00.0'    '0.00' -> '0.00'
+subtract.decTest: subx098 subtract '3.00' '.3'   -> '2.70'
+subtract.decTest: subx103 subtract '3.'   '0.3'  -> '2.7'
+subtract.decTest: subx108 subtract '3'    '-3.0' -> '6.0'
+subtract.decTest: subx124 subtract  '10.23456788'    '10.23456789'  -> '-1E-8'
+subtract.decTest: subx129 subtract  '10.23456793'    '10.23456789'  -> '4E-8'
+subtract.decTest: subx134 subtract  '10.23456784'    '10.23456786'  -> '-2E-8'
+subtract.decTest: subx139 subtract  '10.23456789'    '10.23456786'  -> '3E-8'
+subtract.decTest: subx144 subtract  '-10.23456780'   '-10.23456786' -> '6E-8'
+subtract.decTest: subx180 subtract '0.0'     '-.1'      -> '0.1'
+subtract.decTest: subx185 subtract '0.0'     '-.307'    -> '0.307'
+subtract.decTest: subx190 subtract '0.0'     '-.26'     -> '0.26'
+subtract.decTest: subx200 subtract '0'     '-.1'      -> '0.1'
+subtract.decTest: subx205 subtract '0'     '-.307'    -> '0.307'
+subtract.decTest: subx210 subtract '0'     '-.26'     -> '0.26'
+subtract.decTest: subx220 subtract '-56267E-12' 0  -> '-5.6267E-8'
+subtract.decTest: subx240 subtract 0 '-56267E-12'  -> '5.6267E-8'
+subtract.decTest: subx245 subtract 0 '-56267E-7'   -> '0.0056267'
+subtract.decTest: subx250 subtract 0 '-56267E-0'   -> '56267'
+subtract.decTest: subx323 subtract '0.9998'  '0.0002' -> '0.9996'
+subtract.decTest: subx346 subtract '10000e+9'  '7'   -> '9999999999993'
+subtract.decTest: subx351 subtract '10000e+9'  '700000'   -> '9999999300000'
+subtract.decTest: subx356 subtract '70000' '10000e+9'   -> '-9999999930000'
+subtract.decTest: subx370 subtract 1  0  -> 1
+subtract.decTest: subx375 subtract 0.  1 -> -1
+subtract.decTest: subx922 subtract 133.123456 33.1234565 ->  99.9999995
+subtract.decTest: subx928 subtract 101.123456 91.1234566 ->   9.9999994
+subtract.decTest: subx935 subtract 101 92.01       ->  8.99
+subtract.decTest: subx940 subtract 101 92.001      ->  8.999
+subtract.decTest: subx945 subtract 101 2.00001     -> 98.99999
+subtract.decTest: subx950 subtract 101 92.0000006  ->  8.9999994
+subtract.decTest: subx394 subtract '-56267E-3'    0 ->  '-56.267'
+subtract.decTest: subx399 subtract '-5E-7'        0 ->  '-5E-7'
+subtract.decTest: subx420 subtract 0  '-56267E-10' ->  '0.0000056267'
+subtract.decTest: subx425 subtract 0  '-56267E-2'  ->  '562.67'
+subtract.decTest: subx430 subtract 0  '-5E-6'      ->  '0.000005'
+subtract.decTest: subx435 subtract 0  '-5E1'       ->  '50'
+subtract.decTest: subx463 subtract '1.11'  '-1E+12'  -> '1000000000001.11'
+subtract.decTest: subx468 subtract '-1'    '-7E+12'  -> '6999999999999'
+subtract.decTest: subx482 subtract '0.444444444444444'  '-0.555555555555551' -> '0.999999999999995'
+subtract.decTest: subx536 subtract '123456789' 1             -> '123456788'
+subtract.decTest: subx620 subtract 0             '123456789' -> '-123456789'

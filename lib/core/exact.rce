@@ -1,0 +1,546 @@
+module core.exact
+
+# Exact arithmetic for Form bricks (survey M2): big integers, rationals,
+# decimals and binary fixed-point, in pure RCE over List[i64] limbs.
+# Big: sign and magnitude; mag is little-endian base 2^24 limbs with no
+# high zero limbs (zero is neg false, mag []). Limb products stay below 2^48,
+# so a column sum of up to 2^15 products fits i64.
+# Division by zero traps (an integer division by zero in mag_divmod).
+# Rounding is always an explicit argument; there is no ambient context.
+
+const BASE: i64 = 16777216
+const LMASK: i64 = 16777215
+const LBITS: i64 = 24
+
+pub struct Big
+    neg: bool
+    mag: List[i64]
+
+pub fn mag_trim(m: List[i64]) -> List[i64]
+    var o = m
+    while o.len() > 0 and o[o.len() - 1] == 0 bound 1048576
+        o.pop()
+    return o
+
+fn mk(neg: bool, m: List[i64]) -> Big
+    let t = mag_trim(m)
+    return Big(neg: neg and t.len() > 0, mag: t)
+
+pub fn big_zero() -> Big = Big(neg: false, mag: [])
+
+pub fn big_is_zero(a: Big) -> bool = a.mag.len() == 0
+
+pub fn big_from_int(n: i64) -> Big
+    # digits of a negative i64 are taken negatively, so i64 min is exact
+    var o: List[i64] = []
+    var v = n
+    while v != 0 bound 4
+        let r = v % BASE
+        o.push(if r < 0 then 0 - r else r)
+        v = v / BASE
+    return mk(n < 0, o)
+
+# Some(i64) as (ok, value): ok false when |a| does not fit in i64.
+pub fn big_fits_int(a: Big) -> bool
+    if a.mag.len() < 3
+        return true
+    if a.mag.len() > 3
+        return false
+    let top = a.mag[2]
+    if top < 32768
+        return true
+    return a.neg and top == 32768 and a.mag[1] == 0 and a.mag[0] == 0
+
+pub fn big_to_int(a: Big) -> i64
+    var v: i64 = 0
+    var i = a.mag.len()
+    while i > 0 bound 4
+        i -= 1
+        if a.neg
+            v = v * BASE - a.mag[i]
+        else
+            v = v * BASE + a.mag[i]
+    return v
+
+pub fn mag_cmp(a: &[i64], b: &[i64]) -> i64
+    if a.len() != b.len()
+        return if a.len() < b.len() then -1 else 1
+    var i = a.len()
+    while i > 0 bound 1048576
+        i -= 1
+        if a[i] != b[i]
+            return if a[i] < b[i] then -1 else 1
+    return 0
+
+pub fn mag_add(a: &[i64], b: &[i64]) -> List[i64]
+    var o: List[i64] = []
+    var c: i64 = 0
+    var i: usize = 0
+    let n = if a.len() > b.len() then a.len() else b.len()
+    while i < n bound 1048576
+        var s = c
+        if i < a.len()
+            s += a[i]
+        if i < b.len()
+            s += b[i]
+        o.push(s & LMASK)
+        c = s >> LBITS
+        i += 1
+    if c > 0
+        o.push(c)
+    return o
+
+# a - b for a >= b
+pub fn mag_sub(a: &[i64], b: &[i64]) -> List[i64]
+    var o: List[i64] = []
+    var br: i64 = 0
+    var i: usize = 0
+    while i < a.len() bound 1048576
+        var s = a[i] - br
+        if i < b.len()
+            s -= b[i]
+        if s < 0
+            s += BASE
+            br = 1
+        else
+            br = 0
+        o.push(s)
+        i += 1
+    return mag_trim(o)
+
+pub fn mag_mul(a: &[i64], b: &[i64]) -> List[i64]
+    if a.len() == 0 or b.len() == 0
+        return []
+    var o: List[i64] = []
+    for k in 0..(a.len() + b.len())
+        o.push(0)
+    var i: usize = 0
+    while i < a.len() bound 1048576
+        var c: i64 = 0
+        var j: usize = 0
+        while j < b.len() bound 1048576
+            let t = o[i + j] + a[i] * b[j] + c
+            o[i + j] = t & LMASK
+            c = t >> LBITS
+            j += 1
+        var k = i + b.len()
+        while c > 0 bound 1048576
+            let t = o[k] + c
+            o[k] = t & LMASK
+            c = t >> LBITS
+            k += 1
+        i += 1
+    return mag_trim(o)
+
+# (quotient, remainder) of a magnitude by a small divisor 0 < d < 2^24,
+# remainder appended as the last element.
+pub fn mag_divsmall(a: &[i64], d: i64) -> List[i64]
+    var q: List[i64] = []
+    for k in 0..a.len()
+        q.push(0)
+    var r: i64 = 0
+    var i = a.len()
+    while i > 0 bound 1048576
+        i -= 1
+        let cur = r * BASE + a[i]
+        q[i] = cur / d
+        r = cur % d
+    var o = mag_trim(q)
+    o.push(r)
+    return o
+
+pub fn mag_shl(a: &[i64], n: i64) -> List[i64]
+    if a.len() == 0
+        return []
+    var o: List[i64] = []
+    let w = n / LBITS
+    let b = n % LBITS
+    for k in 0..(w as usize)
+        o.push(0)
+    var c: i64 = 0
+    for x in a
+        let t = (x << b) | c
+        o.push(t & LMASK)
+        c = t >> LBITS
+    if c > 0
+        o.push(c)
+    return o
+
+pub fn mag_shr(a: &[i64], n: i64) -> List[i64]
+    let w = (n / LBITS) as usize
+    let b = n % LBITS
+    var o: List[i64] = []
+    var i = w
+    while i < a.len() bound 1048576
+        var t = a[i] >> b
+        if i + 1 < a.len()
+            t = t | ((a[i + 1] << (LBITS - b)) & LMASK)
+        o.push(t)
+        i += 1
+    return mag_trim(o)
+
+pub fn mag_bitlen(a: &[i64]) -> i64
+    if a.len() == 0
+        return 0
+    var top = a[a.len() - 1]
+    var n = ((a.len() - 1) as i64) * LBITS
+    while top > 0 bound 25
+        top = top >> 1
+        n += 1
+    return n
+
+pub fn mag_bit(a: &[i64], i: i64) -> i64
+    let w = (i / LBITS) as usize
+    if w >= a.len()
+        return 0
+    return (a[w] >> (i % LBITS)) & 1
+
+# Quotient and remainder of magnitudes, schoolbook binary long division:
+# result is [quotient limbs..., remainder limbs..., len(quotient)].
+pub struct QR
+    q: List[i64]
+    r: List[i64]
+
+pub fn mag_divmod(a: &[i64], b: &[i64]) -> QR
+    # division by zero traps here (6.3: a trap refuses the step)
+    let nz = 1 / (b.len() as i64)
+    if mag_cmp(a, b) < 0
+        return QR(q: [], r: mag_trim(copy(a)))
+    if b.len() == 1
+        var qs = mag_divsmall(a, b[0])
+        let r = qs[qs.len() - 1]
+        qs.pop()
+        return QR(q: qs, r: mag_trim([r]))
+    var q: List[i64] = []
+    for k in 0..a.len()
+        q.push(0)
+    var r: List[i64] = []
+    var i = mag_bitlen(a)
+    while i > 0 bound 33554432
+        i -= 1
+        r = mag_shl(&r, 1)
+        if mag_bit(a, i) == 1
+            if r.len() == 0
+                r.push(1)
+            else
+                r[0] = r[0] | 1
+        if mag_cmp(&r, b) >= 0
+            r = mag_sub(&r, b)
+            let w = (i / LBITS) as usize
+            q[w] = q[w] | (1 << (i % LBITS))
+    return QR(q: mag_trim(q), r: r)
+
+pub fn big_neg(a: Big) -> Big
+    let z = a.mag.len() == 0
+    return Big(neg: not a.neg and not z, mag: a.mag)
+
+pub fn big_abs(a: Big) -> Big = Big(neg: false, mag: a.mag)
+
+pub fn big_sign(a: Big) -> i64
+    if a.mag.len() == 0
+        return 0
+    return if a.neg then -1 else 1
+
+pub fn big_cmp(a: Big, b: Big) -> i64
+    if a.neg != b.neg
+        return if a.neg then -1 else 1
+    let c = mag_cmp(&a.mag, &b.mag)
+    return if a.neg then 0 - c else c
+
+pub fn big_eq(a: Big, b: Big) -> bool = big_cmp(a, b) == 0
+
+pub fn big_add(a: Big, b: Big) -> Big
+    if a.neg == b.neg
+        return mk(a.neg, mag_add(&a.mag, &b.mag))
+    let c = mag_cmp(&a.mag, &b.mag)
+    if c >= 0
+        return mk(a.neg, mag_sub(&a.mag, &b.mag))
+    return mk(b.neg, mag_sub(&b.mag, &a.mag))
+
+pub fn big_sub(a: Big, b: Big) -> Big = big_add(a, big_neg(b))
+
+pub fn big_mul(a: Big, b: Big) -> Big = mk(a.neg != b.neg, mag_mul(&a.mag, &b.mag))
+
+# Truncating division (rounds toward zero; remainder has the sign of a).
+pub fn big_quot(a: Big, b: Big) -> Big
+    let qr = mag_divmod(&a.mag, &b.mag)
+    return mk(a.neg != b.neg, qr.q)
+
+pub fn big_rem(a: Big, b: Big) -> Big
+    let qr = mag_divmod(&a.mag, &b.mag)
+    return mk(a.neg, qr.r)
+
+# Floor division and modulo (Python semantics; modulo has the sign of b).
+pub fn big_div(a: Big, b: Big) -> Big
+    let qr = mag_divmod(&a.mag, &b.mag)
+    let inexact = qr.r.len() > 0
+    let q = mk(a.neg != b.neg, qr.q)
+    if a.neg != b.neg and inexact
+        return big_sub(q, big_from_int(1))
+    return q
+
+pub fn big_mod(a: Big, b: Big) -> Big
+    let qr = mag_divmod(&a.mag, &b.mag)
+    let r = mk(a.neg, qr.r)
+    if a.neg != b.neg and r.mag.len() > 0
+        return big_add(r, b)
+    return r
+
+pub fn big_pow(a: Big, e: i64) -> Big
+    var r = big_from_int(1)
+    var base = a
+    var k = e
+    while k > 0 bound 64
+        if k & 1 == 1
+            r = big_mul(r, copy(base))
+        k = k >> 1
+        if k > 0
+            base = big_mul(copy(base), copy(base))
+    return r
+
+pub fn big_gcd(a: Big, b: Big) -> Big
+    var x = a.mag
+    var y = b.mag
+    while y.len() > 0 bound 1048576
+        let qr = mag_divmod(&x, &y)
+        x = y
+        y = qr.r
+    return Big(neg: false, mag: x)
+
+pub fn big_shl(a: Big, n: i64) -> Big = mk(a.neg, mag_shl(&a.mag, n))
+
+# Arithmetic shift right: floor(a / 2^n).
+pub fn big_shr(a: Big, n: i64) -> Big = big_div(a, big_shl(big_from_int(1), n))
+
+pub fn big_tostr(a: Big) -> text
+    if a.mag.len() == 0
+        return "0"
+    var m = copy(a.mag)
+    var parts: List[i64] = []
+    while m.len() > 0 bound 1048576
+        var qs = mag_divsmall(&m, 10000000)
+        parts.push(qs[qs.len() - 1])
+        qs.pop()
+        m = qs
+    var s = if a.neg then "-" else ""
+    var i = parts.len()
+    i -= 1
+    s = s + parts[i].tostr()
+    while i > 0 bound 1048576
+        i -= 1
+        let d = parts[i].tostr()
+        var pad = ""
+        for k in 0..(7 - d.len())
+            pad = pad + "0"
+        s = s + pad + d
+    return s
+
+error BadNumber(at: i64)
+
+# Parse an optional '-' then one or more decimal digits; anything else fails
+# with BadNumber at the offending byte. Leading zeros are accepted.
+pub fn big_parse(s: text) -> Big ! BadNumber
+    var neg = false
+    var i: usize = 0
+    if s.len() > 0 and s[0] == 45
+        neg = true
+        i = 1
+    if i >= s.len()
+        fail BadNumber(at: i as i64)
+    var m: List[i64] = []
+    let ten: List[i64] = [10]
+    while i < s.len() bound 1048576
+        let d = (s[i] as i64) - 48
+        if d < 0 or d > 9
+            fail BadNumber(at: i as i64)
+        let dl = mag_trim([d])
+        let m10 = mag_mul(&m, &ten)
+        m = mag_add(&m10, &dl)
+        i += 1
+    return mk(neg, m)
+
+# Floor square root of a >= 0 (Newton iteration from above).
+pub fn big_isqrt(a: Big) -> Big
+    if a.mag.len() == 0
+        return big_zero()
+    var x = big_shl(big_from_int(1), (mag_bitlen(&a.mag) + 1) / 2)
+    var go = true
+    while go bound 4096
+        let y = big_shr(big_add(copy(x), big_quot(copy(a), copy(x))), 1)
+        if big_cmp(copy(y), copy(x)) >= 0
+            go = false
+        else
+            x = y
+    return x
+
+# ---------------- Rationals ----------------
+# Rat: num/den with den > 0 and gcd(num, den) = 1 (canonical, so == on Rat
+# is value equality). A zero denominator traps.
+
+pub struct Rat
+    num: Big
+    den: Big
+
+pub fn rat_make(n: Big, d: Big) -> Rat
+    let nz = 1 / (d.mag.len() as i64)
+    let g = big_gcd(copy(n), copy(d))
+    var nn = big_quot(n, copy(g))
+    var dd = big_quot(d, g)
+    if dd.neg
+        nn = big_neg(nn)
+        dd = big_neg(dd)
+    return Rat(num: nn, den: dd)
+
+pub fn rat_from_ints(n: i64, d: i64) -> Rat = rat_make(big_from_int(n), big_from_int(d))
+
+pub fn rat_add(a: Rat, b: Rat) -> Rat = rat_make(big_add(big_mul(copy(a.num), copy(b.den)), big_mul(copy(b.num), copy(a.den))), big_mul(copy(a.den), copy(b.den)))
+
+pub fn rat_sub(a: Rat, b: Rat) -> Rat = rat_make(big_sub(big_mul(copy(a.num), copy(b.den)), big_mul(copy(b.num), copy(a.den))), big_mul(copy(a.den), copy(b.den)))
+
+pub fn rat_mul(a: Rat, b: Rat) -> Rat = rat_make(big_mul(copy(a.num), copy(b.num)), big_mul(copy(a.den), copy(b.den)))
+
+pub fn rat_div(a: Rat, b: Rat) -> Rat = rat_make(big_mul(copy(a.num), copy(b.den)), big_mul(copy(a.den), copy(b.num)))
+
+pub fn rat_cmp(a: Rat, b: Rat) -> i64 = big_cmp(big_mul(copy(a.num), copy(b.den)), big_mul(copy(b.num), copy(a.den)))
+
+pub fn rat_tostr(a: Rat) -> text
+    if a.den.mag == [1]
+        return big_tostr(copy(a.num))
+    return big_tostr(copy(a.num)) + "/" + big_tostr(copy(a.den))
+
+pub fn rat_floor(a: Rat) -> Big = big_div(copy(a.num), copy(a.den))
+
+# ---------------- Rounding ----------------
+# Explicit rounding modes (General Decimal Arithmetic / IEEE 754 names).
+const HALF_EVEN: i64 = 0
+const HALF_UP: i64 = 1
+const HALF_DOWN: i64 = 2
+const DOWN: i64 = 3
+const UP: i64 = 4
+const FLOOR: i64 = 5
+const CEILING: i64 = 6
+
+# Round n / d to an integer under a rounding mode.
+pub fn big_round_div(n: Big, d: Big, mode: i64) -> Big
+    let neg = n.neg != d.neg
+    let qr = mag_divmod(&n.mag, &d.mag)
+    if qr.r.len() == 0
+        return mk(neg, qr.q)
+    let r2 = mag_shl(&qr.r, 1)
+    let c = mag_cmp(&r2, &d.mag)
+    var away = false
+    if mode == HALF_EVEN
+        away = c > 0 or (c == 0 and mag_bit(&qr.q, 0) == 1)
+    elif mode == HALF_UP
+        away = c >= 0
+    elif mode == HALF_DOWN
+        away = c > 0
+    elif mode == UP
+        away = true
+    elif mode == FLOOR
+        away = neg
+    elif mode == CEILING
+        away = not neg
+    if away
+        let one: List[i64] = [1]
+        return mk(neg, mag_add(&qr.q, &one))
+    return mk(neg, qr.q)
+
+pub fn rat_round(a: Rat, mode: i64) -> Big = big_round_div(copy(a.num), copy(a.den), mode)
+
+# ---------------- Decimal ----------------
+# Dec: coef * 10^exp, exact (General Decimal Arithmetic finite numbers,
+# unbounded precision). add, sub and mul are exact; div and quantize take a
+# target exponent and a rounding mode.
+
+pub struct Dec
+    coef: Big
+    exp: i64
+
+pub fn pow10(n: i64) -> Big = big_pow(big_from_int(10), n)
+
+fn dec_align(a: Dec, e: i64) -> Big = big_mul(copy(a.coef), pow10(a.exp - e))
+
+fn min_i(a: i64, b: i64) -> i64 = if a < b then a else b
+
+pub fn dec_add(a: Dec, b: Dec) -> Dec
+    let e = min_i(a.exp, b.exp)
+    return Dec(coef: big_add(dec_align(a, e), dec_align(b, e)), exp: e)
+
+pub fn dec_sub(a: Dec, b: Dec) -> Dec
+    let e = min_i(a.exp, b.exp)
+    return Dec(coef: big_sub(dec_align(a, e), dec_align(b, e)), exp: e)
+
+pub fn dec_mul(a: Dec, b: Dec) -> Dec = Dec(coef: big_mul(copy(a.coef), copy(b.coef)), exp: a.exp + b.exp)
+
+pub fn dec_cmp(a: Dec, b: Dec) -> i64
+    let e = min_i(a.exp, b.exp)
+    return big_cmp(dec_align(a, e), dec_align(b, e))
+
+pub fn dec_to_rat(a: Dec) -> Rat
+    if a.exp >= 0
+        return rat_make(big_mul(copy(a.coef), pow10(a.exp)), big_from_int(1))
+    return rat_make(copy(a.coef), pow10(0 - a.exp))
+
+# Round a rational to exponent e: the result is coef * 10^e.
+pub fn dec_from_rat(r: Rat, e: i64, mode: i64) -> Dec
+    if e >= 0
+        return Dec(coef: big_round_div(copy(r.num), big_mul(copy(r.den), pow10(e)), mode), exp: e)
+    return Dec(coef: big_round_div(big_mul(copy(r.num), pow10(0 - e)), copy(r.den), mode), exp: e)
+
+pub fn dec_quantize(a: Dec, e: i64, mode: i64) -> Dec
+    if a.exp >= e
+        return Dec(coef: dec_align(a, e), exp: e)
+    let k = e - a.exp
+    return Dec(coef: big_round_div(copy(a.coef), pow10(k), mode), exp: e)
+
+pub fn dec_div(a: Dec, b: Dec, e: i64, mode: i64) -> Dec = dec_from_rat(rat_div(dec_to_rat(a), dec_to_rat(b)), e, mode)
+
+# Plain notation, no exponent: "-12.340", "1200", "0.05".
+pub fn dec_tostr(a: Dec) -> text
+    if a.exp >= 0
+        return big_tostr(dec_align(a, 0))
+    let neg = a.coef.neg
+    let k = (0 - a.exp) as usize
+    var digits = big_tostr(big_abs(copy(a.coef)))
+    while digits.len() <= k bound 1048576
+        digits = "0" + digits
+    let p = digits.len() - k
+    let sign = if neg then "-" else ""
+    return sign + digits[0:p] + "." + digits[p:digits.len()]
+
+# Parse plain notation: optional '-', digits, optional '.' and digits. The
+# exponent is minus the number of fraction digits (trailing zeros are kept,
+# so "1.50" has coef 150, exp -2).
+pub fn dec_parse(s: text) -> Dec ! BadNumber
+    var t = ""
+    var e: i64 = 0
+    var seen = false
+    var at: i64 = 0
+    for c in s.chars()
+        if c == "." and not seen and at > 0
+            seen = true
+        else
+            if seen
+                e -= 1
+            t = t + c
+        at += 1
+    return Dec(coef: try big_parse(t), exp: e)
+
+# ---------------- Binary fixed-point ----------------
+# A fixed-point number is an i64 raw with f fraction bits (value raw / 2^f).
+# mul and div are computed exactly through Big and rounded under mode; a
+# result outside i64 traps (checked integers, survey M1).
+
+pub fn fx_from_int(n: i64, f: i64) -> i64 = n << f
+
+fn checked_int(a: Big) -> i64
+    let ok = 1 / (if big_fits_int(copy(a)) then 1 else 0)
+    return big_to_int(a)
+
+pub fn fx_mul(a: i64, b: i64, f: i64, mode: i64) -> i64 = checked_int(big_round_div(big_mul(big_from_int(a), big_from_int(b)), big_shl(big_from_int(1), f), mode))
+
+pub fn fx_div(a: i64, b: i64, f: i64, mode: i64) -> i64 = checked_int(big_round_div(big_shl(big_from_int(a), f), big_from_int(b), mode))
+
+# Decimal text of a fixed-point value rounded half-even to `digits` places.
+pub fn fx_tostr(a: i64, f: i64, digits: i64) -> text = dec_tostr(dec_from_rat(rat_make(big_from_int(a), big_shl(big_from_int(1), f)), 0 - digits, HALF_EVEN))

@@ -17,3 +17,20 @@ its upstream repository.
 ML-KEM-768 results are checked against the RustCrypto `ml-kem` crate
 (version 0.2.3); the FIPS 197, SP 800-38D and FIPS 202 vectors are the
 `check` lines inside the library files.
+
+## core.exact (`lib/core/exact.rce`)
+
+- `core/exact/dectest-selected.txt`: test cases selected, unchanged, from
+  the General Decimal Arithmetic test suite by Mike Cowlishaw
+  (https://speleotrove.com/decimal/dectest.zip, version 2.62):
+  `add.decTest`, `subtract.decTest` and `multiply.decTest` cases with exact
+  results (no conditions), and `quantize.decTest` cases whose only
+  conditions are Inexact/Rounded, under each case's rounding directive.
+  Cases with NaN, infinities, negative zero, clamping, or coefficients over
+  60 digits are not selected (core.exact has no special values, no signed
+  zero and unbounded precision). Each line became one `check` in
+  `tests/core/exact_checks.rce` (generator: `scripts/gen/exact_gen.py`).
+- Big integer and rational cross-checks (`big_mul`, floor and truncating
+  division, `gcd`, `isqrt`, rational add/div) were computed with CPython
+  3 `int`, `math` and `fractions` from seed 20261015; they are derived
+  vectors, not official ones.
