@@ -466,12 +466,12 @@ function builtin(r, m, a) {
   if (r instanceof LVarP) {
     if (m === "put") { lvarPut(r, a.length > 0 ? a[0] : UNIT); return [UNIT, null]; }
     if (m === "wait") return [lvarWait(r, a.length > 0 ? a[0] : UNIT), null];
-    if (m === "freeze") return [parRpc(["get", r.id])[1], null];
+    if (m === "freeze") return [parRpc(["freeze", r.id])[1], null];
   }
   if (r instanceof LVar) {
     if (m === "put") { lvarPut(r, a.length > 0 ? a[0] : UNIT); return [UNIT, null]; }
     if (m === "wait") return [lvarWait(r, a.length > 0 ? a[0] : UNIT), null];
-    if (m === "freeze") return [r.v, null];
+    if (m === "freeze") { r.frz = true; return [r.v, null]; }
   }
   if (r instanceof Int) {
     const x = r.v, ty = r.t;
@@ -961,7 +961,7 @@ function preValue(f) { if (f instanceof FnV) charge(4n); return f; }
 function markerInt(v) { if (v instanceof Int) return v.v; return trap("expected an integer, got " + show(v)); }
 
 // ---- LVars (C.11.8) and the built-in Merge instances (C.11.5)
-class LVar { constructor(v, top) { this.v = v; this.top = top; } }
+class LVar { constructor(v, top) { this.v = v; this.top = top; this.frz = false; } }
 const lvarNew = (a) => new LVar(a.length > 0 ? a[0] : UNIT, a.length > 1 ? a[1] : null);
 function crank(v) {
   if (v === UNIT || (v instanceof Opt && v.x === null)) return 0;
@@ -1030,17 +1030,33 @@ function lvarPut(c, v) {
       cur = r[1];
     }
   }
-  const nv = mergeValues(c.v, v); if (c.top !== null && eq(nv, c.top)) trap("lvar conflict"); if (!eq(nv, c.v)) PUTS++; c.v = nv; }
+  const nv = mergeValues(c.v, v); if (c.top !== null && eq(nv, c.top)) trap("lvar conflict");
+  if (!eq(nv, c.v)) { if (c.frz) trap("lvar put after freeze"); PUTS++; }
+  c.v = nv; }
+// merge for a threshold test: the program's Merge, charged nothing (interp `merge_free`)
+function mergeFree(a, b) {
+  const bud = BUD.splice(0, BUD.length), f = FUEL;
+  FUEL = FUEL_LIMIT;
+  try { return mergeValues(a, b); } finally { FUEL = f; BUD.push(...bud); }
+}
+function lvarAbove(ths, cur) { for (const t of ths) if (eq(mergeFree(t, cur), cur)) return t; return null; }
+function lvarIncomp(top, ths) {
+  for (let i = 0; i < ths.length; i++) for (let j = i + 1; j < ths.length; j++) {
+    if (eq(ths[i], ths[j])) continue;
+    if (top === undefined || top === null || !eq(mergeFree(ths[i], ths[j]), top)) trap("lvar thresholds are not pairwise incompatible");
+  }
+}
 let SCHED = 0;
 function lvarWait(c, q) {
   if (!(q instanceof Lst)) trap("wait needs a list of thresholds");
+  lvarIncomp(c.top, q.xs);
   if (c instanceof LVarP) {
     const r = parRpc([SCHED > 0 ? "try" : "wait", c.id, q]);
     if (r[0] === "val") return r[1];
     if (r[0] === "no") trap("$block");
     return trap(r[1]);
   }
-  for (const t of q.xs) if (eq(mergeBuiltin(t, c.v), c.v)) return t;
+  { const t = lvarAbove(q.xs, c.v); if (t !== null) return t; }
   if (SCHED > 0) trap("$block");
   return trap("lvar wait cannot be satisfied");
 }
@@ -1198,7 +1214,7 @@ function parWorkers(names, env, extras) {
     return { w, port: mc.port1, i: i + 1, st: "run", q: null, res: null };
   });
   const reply = (x, msg) => { x.st = "run"; x.port.postMessage(encV([...msg, PUTS])); Atomics.store(ctl, x.i, 1); Atomics.notify(ctl, x.i); };
-  const sat = (x) => { const c = reg[x.q[0]]; for (const t of x.q[1].xs) if (eq(mergeBuiltin(t, c.v), c.v)) return t; return null; };
+  const sat = (x) => lvarAbove(x.q[1].xs, reg[x.q[0]].v);
   for (;;) {
     const seen = Atomics.load(ctl, 0);
     let any = false;
@@ -1211,8 +1227,13 @@ function parWorkers(names, env, extras) {
         switch (r[0]) {
           case "done": x.st = "done"; x.res = [decFlow(r[1]), r[2], r[3], r[4]]; break;
           case "get": reply(x, ["val", c.v]); break;
+          case "freeze": c.frz = true; reply(x, ["val", c.v]); break;
           case "cas":
-            if (eq(c.v, r[2])) { const ch = !eq(r[3], c.v); if (ch) PUTS++; c.v = r[3]; reply(x, ["ok", ch]); }
+            if (eq(c.v, r[2])) {
+              const ch = !eq(r[3], c.v);
+              if (ch && c.frz) { reply(x, ["trap", "lvar put after freeze"]); break; }
+              if (ch) PUTS++; c.v = r[3]; reply(x, ["ok", ch]);
+            }
             else reply(x, ["retry", c.v]);
             break;
           case "try": { x.q = [r[1], r[2]]; const t = sat(x); x.q = null; reply(x, t === null ? ["no"] : ["val", t]); break; }

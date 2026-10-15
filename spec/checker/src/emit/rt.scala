@@ -92,7 +92,7 @@ final class Chan(val id: String, val cap: BigInt)
 final class Task(val id: String)
 final class Actor(val id: String, val ty: String)
 final class Session(val out: String, val inn: String, val cap: BigInt)
-final class LVar(var v: Any, val top: Any)
+final class LVar(var v: Any, val top: Any) { var frz: Boolean = false }
 def some(x: Any): Opt = new Opt(x)
 def lit(v: Long): I = I(BigInt(v), "lit")
 def lit(v: BigInt): I = I(v, "lit")
@@ -519,7 +519,7 @@ def builtin(r: Any, m: String, a: Vector[Any]): (Any, Any) = {
     case lv: LVar =>
       if (m == "put") { lvar_put(lv, a0(a)); return (UNIT, null) }
       if (m == "wait") return (lvar_wait(lv, a0(a)), null)
-      if (m == "freeze") return (lv.v, null)
+      if (m == "freeze") { lv.frz = true; return (lv.v, null) }
     case _ =>
   }
   r match {
@@ -1094,13 +1094,23 @@ def puts(): Int = PUTS
 def lvar_put(c: LVar, v: Any): Unit = {
   val nv = merge_values(c.v, v)
   if (c.top != null && veq(nv, c.top)) trap("lvar conflict")
-  if (!veq(nv, c.v)) PUTS += 1
+  if (!veq(nv, c.v)) { if (c.frz) trap("lvar put after freeze"); PUTS += 1 }
   c.v = nv
 }
+// merge for a threshold test: the program's Merge, charged nothing (interp `merge_free`)
+def merge_free(a: Any, b: Any): Any = {
+  val bud = bud_snap(); val f = FUEL
+  BUD.clear(); FUEL = FUEL_LIMIT.toLong
+  try merge_values(a, b) finally { FUEL = f; bud_restore(bud) }
+}
+def lvar_incomp(c: LVar, ts: Vector[Any]): Unit =
+  for (i <- ts.indices; j <- (i + 1) until ts.length)
+    if (!veq(ts(i), ts(j)) && (c.top == null || !veq(merge_free(ts(i), ts(j)), c.top))) trap("lvar thresholds are not pairwise incompatible")
 var SCHED = 0
 def lvar_wait(c: LVar, q: Any): Any = {
   val ts = q match { case l: Lst => l.xs; case _ => trap("wait needs a list of thresholds") }
-  for (t <- ts) if (veq(merge_builtin(t, c.v), c.v)) return t
+  lvar_incomp(c, ts.toVector)
+  for (t <- ts) if (veq(merge_free(t, c.v), c.v)) return t
   if (SCHED > 0) trap("$block")
   trap("lvar wait cannot be satisfied")
 }

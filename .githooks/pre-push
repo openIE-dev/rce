@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+# Refuse a push whose RCE spec artefacts are stale (RCE-SPEC.md, book/INDEX.md,
+# spec/data/*.json are derived; see scripts/regen-spec.sh).
+# Checks the exact commits being pushed, not the working tree: each pushed
+# tip that touches spec is exported to a scratch tree and checked
+# there. Installed per worktree: git config --worktree core.hooksPath .githooks
+set -euo pipefail
+zero=0000000000000000000000000000000000000000
+status=0
+while read -r lref lsha rref rsha; do
+  [ "$lsha" = "$zero" ] && continue
+  if [ "$rsha" = "$zero" ]; then range="$lsha"; else range="$rsha..$lsha"; fi
+  git diff --quiet "${rsha/$zero/$(git hash-object -t tree /dev/null)}" "$lsha" -- spec 2>/dev/null && continue
+  top="$(git rev-parse --show-toplevel)"
+  [ -x "$top/scripts/regen-spec.sh" ] || continue
+  scratch="${TMPDIR:-/tmp}/rce-prepush-$(id -u)"
+  rm -rf "$scratch/tree"; mkdir -p "$scratch/tree"
+  git archive "$lsha" spec scripts rcedb lib apps | tar -x -C "$scratch/tree"
+  cp "$top/scripts/regen-spec.sh" "$scratch/tree/scripts/"
+  echo "pre-push: checking spec artefacts of ${lsha:0:9} ($range)" >&2
+  if ! CARGO_TARGET_DIR="$scratch/target" bash "$scratch/tree/scripts/regen-spec.sh" --check >&2; then
+    echo "pre-push: REFUSED ${lref} -> ${rref}: run scripts/regen-spec.sh, commit the result, push again" >&2
+    status=1
+  fi
+done
+exit $status

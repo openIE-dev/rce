@@ -157,8 +157,11 @@ defined by logical time, never by a wall clock.
 
 A host may keep D on a replicated log so that losing the admitter's
 machine neither stops the program for good nor forks D. The reference
-model is `spec/checker/src/repl.rs`; its rules are those of Raft as
-summarised in the convergence notes below, applied to whole logs.
+implementation is `spec/checker/src/raft.rs` (Raft log replication behind a
+`Transport` trait, with a loopback switch and a TCP transport, and
+`RaftStore`, the E.3 Store of a host on the leader).
+`spec/checker/src/repl.rs` is a smaller model of the same rules on whole
+logs.
 
 - **HC-18 Interface.** A replicated log offers the host the Store of E.3
   with two additions: `elect(term)`, which succeeds only with grants from
@@ -176,6 +179,20 @@ summarised in the convergence notes below, applied to whole logs.
   in D gets one result, `failed` with `interrupted` (HC-3). The term in D
   is the fence token: an entry of D was appended by the holder of the
   most recent `host.Term` before it.
+- **HC-18a Transport.** Replication follows Raft's AppendEntries and
+  RequestVote: an append carries (prev_idx, prev_term) and a follower
+  refuses it unless its log has an entry at prev_idx with that term (log
+  matching), deletes a conflicting suffix and appends what is missing.
+  The current term and the vote are written to stable storage before a
+  candidate asks for votes, before a vote is granted, and before an
+  append is acknowledged. A vote goes only to a candidate whose log is at
+  least as up-to-date by (last term, last index). The leader advances the
+  commit index only over entries of its own term held by a quorum. A
+  follower that needs entries the leader has compacted receives the
+  leader's snapshot (an HS-5 snapshot of the state at that index) and keeps
+  any suffix of its own log that matches it. The transport may lose,
+  delay, duplicate or reorder messages. Timeouts are counted in logical
+  ticks, so a loopback run is a function of its seed.
 - **HC-20 Deposed admitter.** An admitter whose barrier is refused because
   a higher term was granted has had its role taken. By HS-3 it appends
   nothing further and acks nothing, so its unacked inputs are retransmitted
@@ -211,12 +228,12 @@ with a stale term number, it rejects the request"; and "Leader
 Completeness: if a log entry is committed in a given term, then that entry
 will be present in the logs of the leaders for all higher-numbered terms".
 Raft notes that a heartbeat lease "would rely on timing for safety (it
-assumes bounded clock skew)", which is why E.2b leaves leases out. The
-reference model replicates whole logs instead of AppendEntries suffixes
-and keeps `promised` in memory; a real host must persist the promise
-before granting and ship suffixes with the log matching check.
+assumes bounded clock skew)", which is why E.2b leaves leases out. Raft's
+Figure 2 lists currentTerm, votedFor and log[] as "Persistent state on all
+servers: (Updated on stable storage before responding to RPCs)", which is
+the order HC-18a requires. Membership changes are not implemented.
 
-### E.3### E.3 Storage: durable append (HS-1 to HS-5)
+### E.3 Storage: durable append (HS-1 to HS-5)
 
 - **HS-1 D is the base truth.** A host stores one primary artefact: D.
   Snapshots and indexes are caches derived from it (HS-4, E.6).
@@ -417,7 +434,22 @@ markup is built from data.
   exactly the entries it was given: a failed barrier is never followed by
   further appends.
 
-Lean: `RCE/Host.lean`. Conformance: `spec/checker/tests/host_contract.rs`
+- **T40 Canonical windows.** The entries of a window are a function of
+  its inputs: any permutation of a window's inputs gives the same entries,
+  so D is independent of arrival order within every window of a sequence
+  of windows, and sorting a window loses and adds no input. Proved on a
+  model where an input has an injective key (the HC-15 key with the event
+  bytes) and dedupe keeps one copy of each key.
+- **T41 Prefix across terms.** A replica that promised a higher term
+  leaves its log unchanged on an append from a lower one, and under Raft's
+  Leader Completeness (a hypothesis of the model, not proved) every
+  committed prefix is a prefix of D after any number of term changes. This
+  is T38 and T39 under leader change; quorum intersection, message loss
+  and the Rust code are not modeled.
+
+Lean: `RCE/Host.lean` (T37 to T39), `RCE/Admit.lean` (T40, T41:
+`window_perm`, `log_permwise`, `window_complete`,
+`fenced_append_unchanged`, `committed_prefix_preserved`). Conformance: `spec/checker/tests/host_contract.rs`
 checks every example log against HS-4 (intact, torn tail, a flipped
 byte, a swapped pair), HC-8 and T37 (each example log re-folded with host
 entries interleaved, every state hash equal, every host entry's state
@@ -435,7 +467,7 @@ is cited by a test.
 | HC-8, HC-10, T37 | replay with adapters disconnected | `foreign_and_host_entries_replay` |
 | HC-9 | priority admission | `admitter_order_is_d_order`, `simultaneous_order_does_not_depend_on_caller_order` |
 | HC-15 to HC-17 | canonical windows, exactly once | `tests/host_admit.rs`: `two_hosts_different_arrival_orders_give_byte_identical_d`, `window_order_is_priority_then_source_then_seq`, `gap_is_held_and_admitted_once_filled`, `no_ack_without_a_durable_append`, `dedupe_state_survives_replay` |
-| HC-18 to HC-20 | replicated D, term fence, failover | `admitter_failover_keeps_one_d_and_exactly_once` |
+| HC-18 to HC-20 | replicated D, term fence, failover | `admitter_failover_keeps_one_d_and_exactly_once`; `tests/host_raft.rs`: partitions, reordering and loss, crash and restart, durable vote, log matching, snapshot install, TCP, `host_fails_over_through_raft` |
 | HS-1 to HS-5, T38, T39 | durable append, fatal barrier, verify on open | `verify_on_open_cuts_bad_suffix`, `fatal_barrier_stops_admission` |
 | HC-11 to HC-14 | fabrics, placement, exactness, no flags | `placement_is_a_function_of_host_entries` |
 | HS-6 to HS-9 | RCEdb in RCE | `rcedb_example_runs` |
@@ -521,4 +553,4 @@ Where RCE differs from these sources: GQL and Cypher queries are strings and the
 
 **Read receipt.** Which fcntl command is the append barrier on macOS? (for example F_SETFL)
 
-<!-- body-sha256: 78249361006a2a8dd651ef9a3b6f2d8338ed5cda64ba219613f7b50d8096fd7f -->
+<!-- body-sha256: f0142cc17b59a7a6253750df99fff495a98181e92bb9aa1af9fa4a8ad2bb84fe -->

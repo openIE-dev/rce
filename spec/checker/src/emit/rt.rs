@@ -468,7 +468,7 @@ pub fn builtin(r: V, m: &str, a: Vec<V>) -> R<(V, Option<V>)> {
         (Opt(x), "or") => match x { Some(v) => *v, None => a0() },
         (LVar(c), "put") => { lvar_put(&c, a0())?; Unit }
         (LVar(c), "wait") => lvar_wait(&c, &a0())?,
-        (LVar(c), "freeze") => c.borrow().0.clone(),
+        (LVar(c), "freeze") => lvar_freeze(&c),
         (Chan(..), "close") => { comm(Op::Close(r_chan.clone()))?; Unit }
         (Session(_, inn, cap), "offer") => {
             charge(8)?;
@@ -972,7 +972,7 @@ pub fn marker_int(v: &V) -> R<i128> {
 pub fn lvar_new(a: Vec<V>) -> V {
     let mut it = a.into_iter();
     let b = it.next().unwrap_or(V::Unit);
-    V::LVar(Rc::new(LCell(std::sync::Mutex::new((b, it.next())))))
+    V::LVar(Rc::new(LCell(std::sync::Mutex::new((b, it.next(), false)))))
 }
 fn crank(v: &V) -> u8 {
     match v { V::Unit | V::Opt(None) => 0, V::Bool(_) => 1, V::Int(..) | V::F(_) | V::F32(_) => 2, V::Text(_) => 3, V::List(_) | V::Tuple(_) => 4, _ => 5 }
@@ -1039,6 +1039,7 @@ pub fn lvar_put(c: &Rc<LCell>, v: V) -> R<()> {
         if !eq(&g.0, &cur) { continue; } // another branch put in between: merge again
         if let Some(top) = &g.1 && eq(&nv, top) { return trap("lvar conflict"); }
         let ch = !eq(&nv, &cur);
+        if ch && g.2 { return trap("lvar put after freeze"); }
         g.0 = nv;
         break ch;
     };
@@ -1052,12 +1053,41 @@ thread_local! { static SCHED: std::cell::Cell<usize> = const { std::cell::Cell::
 thread_local! { static PUTS: std::cell::Cell<u64> = const { std::cell::Cell::new(0) }; }
 /// number of puts that changed an lvar so far (progress of the restart scheduler)
 pub fn puts() -> u64 { PUTS.with(|p| p.get()) }
+/// `freeze()`: set the frozen bit, read the exact value
+pub fn lvar_freeze(c: &Rc<LCell>) -> V { let mut g = c.borrow_mut(); g.2 = true; g.0.clone() }
+/// merge for a threshold test: the program's Merge, charged nothing (interp `merge_free`)
+pub fn merge_free(a: &V, b: &V) -> R<V> {
+    let bud = BUD.with(|x| std::mem::take(&mut *x.borrow_mut()));
+    let f = fuel_left();
+    fuel_set(fuel_limit());
+    let r = merge_values(a, b);
+    fuel_set(f);
+    BUD.with(|x| *x.borrow_mut() = bud);
+    r
+}
+fn lvar_above(ths: &[V], cur: &V) -> R<Option<V>> {
+    for t in ths { if eq(&merge_free(t, cur)?, cur) { return Ok(Some(t.clone())); } }
+    Ok(None)
+}
+/// W-LVAR-2 at run time: distinct thresholds must join to the declared top
+pub fn lvar_incomp(top: &Option<V>, ths: &[V]) -> R<()> {
+    for (i, a) in ths.iter().enumerate() {
+        for b in &ths[i + 1..] {
+            if eq(a, b) { continue; }
+            let ok = match top { Some(t) => eq(&merge_free(a, b)?, t), None => false };
+            if !ok { return trap("lvar thresholds are not pairwise incompatible"); }
+        }
+    }
+    Ok(())
+}
 pub fn lvar_wait(c: &Rc<LCell>, q: &V) -> R<V> {
     let V::List(ths) = q else { return trap("wait needs a list of thresholds") };
+    let top = c.borrow().1.clone();
+    lvar_incomp(&top, ths)?;
     let cur = c.borrow().0.clone();
-    for t in ths { if eq(&merge_builtin(t, &cur)?, &cur) { return Ok(t.clone()); } }
+    if let Some(t) = lvar_above(ths, &cur)? { return Ok(t); }
     if let Some(cx) = PARCX.with(|p| p.borrow().clone()) {
-        let above = |cur: &V| -> R<Option<V>> { for t in ths { if eq(&merge_builtin(t, cur)?, cur) { return Ok(Some(t.clone())); } } Ok(None) };
+        let above = |cur: &V| lvar_above(ths, cur);
         let mut g = cx.m.lock().unwrap();
         let mut seen: Option<u64> = None;
         loop {
@@ -1143,10 +1173,11 @@ pub fn group_rec(lane: usize, n: i128) -> V {
 }
 
 /// an lvar cell, shared between threads
-pub struct LCell(pub std::sync::Mutex<(V, Option<V>)>);
+/// (value, top, frozen bit); the bit is read and set under the same lock as the value
+pub struct LCell(pub std::sync::Mutex<(V, Option<V>, bool)>);
 impl LCell {
-    pub fn borrow(&self) -> std::sync::MutexGuard<'_, (V, Option<V>)> { self.0.lock().unwrap_or_else(|e| e.into_inner()) }
-    pub fn borrow_mut(&self) -> std::sync::MutexGuard<'_, (V, Option<V>)> { self.borrow() }
+    pub fn borrow(&self) -> std::sync::MutexGuard<'_, (V, Option<V>, bool)> { self.0.lock().unwrap_or_else(|e| e.into_inner()) }
+    pub fn borrow_mut(&self) -> std::sync::MutexGuard<'_, (V, Option<V>, bool)> { self.borrow() }
 }
 
 // ---- SHA-256 (FIPS 180-4), for the content-hash ids of 6.6

@@ -115,20 +115,6 @@ the branches in source order (C.4.2). Rules:
   target. The cost table is the reference evaluator's (`interp` and
   `conc.rs`, `charge`), listed in C.6.4.
   W-TY-1 if n is not an integer.
-  `with budget n Block else Else` recovers from exhaustion. A
-  `trap("budget")` raised while Block runs, by any enclosing budget, is
-  caught by the innermost budget that has an `else`; Else then runs in
-  place of the rest of Block, as the `else` of `with deadline` does.
-  Charges already made stay on every enclosing budget, and writes made
-  before the trap stay. When the trap came from an outer budget, Else
-  charges that same budget, so its next charge traps again and the trap
-  reaches the next budget out with an `else`, or refuses the event. A
-  budget without `else` behaves as before. The trap falls on the same
-  operation on every target, so the choice of Else is deterministic and
-  replay re-derives it. Checked by `spec/checker/tests/conc06_run.rs`
-  (`budget_else_catches`) and `emit_run.rs` (`budget_else_*` on the
-  reference and the emitted runtimes). Open: a typed `Exhausted` value
-  carrying the spent units is not yet given to Else.
 - `with deadline n` runs the block with an expiry n logical ticks after
   entry; if the block has not completed by then, the `else` block runs
   instead (T22). W-DL-1: outside `fn main` or a task
@@ -243,12 +229,61 @@ an associative operation with an identity (T18).
   its protocol when it goes out of scope or is closed. W-SES-3: a label
   that appears twice, a protocol loop with no message before it repeats,
   or `break` outside a protocol loop. W-TY-1: a payload of the wrong type.
-- C.11.5 Merge. `impl Merge for T` declares a join. The admission gate
-  (`conc::crdt_gate`) checks the merge laws (commutative, associative,
-  idempotent) by evaluation on generated values; a failure is W-CRDT-1.
-- C.11.8 LVars. `lvar T` requires `T: Merge` (W-CRDT-1). W-LVAR-1:
-  `freeze()` before the `par` or loop that puts to the LVar has joined.
-  W-LVAR-2: `wait` with other than one threshold.
+- C.11.5 Merge. `impl Merge for T` declares a join. Its laws
+  (associative, commutative, idempotent, `bottom()` an identity) are an
+  admission obligation (W-CRDT-1, `conc::crdt_gate`). For a kind of
+  nullary variants the gate evaluates every triple, which decides them. A
+  `merge` written componentwise, `T(f: self.f.max(o.f), g: self.g or o.g,
+  ...)` over integer and bool fields, has them by `MergeLaws.prodSL`,
+  `intMax` and `boolOr`. Any other impl is refused; the refusal names a
+  counterexample when a search on a finite sample finds one, and
+  otherwise says the obligation is not discharged. The built-in
+  instances (integers under `max`, `bool` under `or`, sets and lists
+  under union, maps pointwise, tuples and records componentwise, `none` as
+  bottom) have the laws by `MergeLaws.lean`, up to the point left open
+  there: that sorted lists without duplicates represent sets and maps
+  canonically.
+- C.11.8 LVars. `lvar T` requires `T: Merge` (W-CRDT-1). An LVar holds a
+  value, the optional top of `lvar_new(bottom, top)`, and a frozen bit.
+  `put(d)` sets the value `v` to `v ⊔ d` with the program's `Merge`; it
+  is `trap("lvar conflict")` when the result is the top, and
+  `trap("lvar put after freeze")` when the LVar is frozen and the result
+  differs from `v` (a put that changes nothing is allowed). `freeze()`
+  sets the bit and returns the exact value. `wait(Q)` returns the `t` in
+  `Q` with `t ⊔ v = v`, in the same `Merge` order as `put`, and blocks
+  until there is one. The threshold tests charge no fuel and no budget,
+  so the cost of a `wait` does not depend on how often a schedule
+  rechecks it. A `Q` with more than one element must be pairwise
+  incompatible: distinct elements join to the top. Every `wait` checks
+  this before it reads the value and is otherwise
+  `trap("lvar thresholds are not pairwise incompatible")`; the check does
+  not read the value, so its outcome does not depend on the schedule. A
+  trap is a defined result, so δ stays total. W-LVAR-1: inside the
+  branches of one `par`, or the body of a `for ... par`, a `freeze`
+  while some branch may `put`, where a call to a function or method that
+  puts to (or freezes) an LVar it did not create counts as a put (or a
+  freeze). An LVar a branch creates with `lvar_new` and does not rebind is
+  its own and does not count. The rule does not match the name of a put
+  with the name of a freeze, so an
+  alias, a parameter or a helper cannot hide a freeze. W-LVAR-2: an empty
+  threshold list, or a literal list with two elements one below the
+  other in the program's `Merge` (decided at admission, `conc::lvar_gate`).
+  Model: T29q.
+- C.11.8 convergence notes. The frozen bit, and the rule that only a put
+  that would change a frozen LVar is an error, follow Kuper, Turon,
+  Krishnaswami and Newton (POPL 2014, Sec. 3.3 and 4.2). Threshold sets
+  and their `incomp` premise follow Kuper and Newton (FHPC 2013, Sec.
+  3.3). T29q has the shape of the POPL 2014 Theorem 1 for this fragment.
+  Their proof goes through an Independence lemma and quasi-confluence;
+  the one here uses an invariant (the value joined with the puts still to
+  come is the join of all puts), which suffices because the fragment has
+  one LVar and no allocation. Their library marks code that freezes as
+  `QuasiDet` in its type. RCE instead refuses, by W-LVAR-1, the freezes
+  that could race with a put, so an admitted program is deterministic,
+  and the frozen bit turns a race the rule misses into an error instead
+  of a different answer. FHPC 2013 suggests validating user lattices
+  with QuickCheck; the sample search here is that kind of test, and is
+  used only to find counterexamples.
 - C.11.9 Structured spawn. `spawn f(...) -> h` gives a join handle. In a
   version 0.6 module a task function may spawn only inside `scope`; `fn
   main` is an implicit scope (W-SCOPE-1). A join handle cannot leave its
@@ -262,33 +297,6 @@ an associative operation with an identity (T18).
   twice. `supervisor S strategy k` with k one of `one_for_one`,
   `one_for_all`, `rest_for_one` (W-SUP-1); each `child` must be an actor
   (W-SUP-2), and W-NAME-2 refuses a duplicate child.
-  Run-time meaning (normative). A supervisor declaration is one static
-  supervisor; it supervises every actor whose type is one of its
-  children, so the set an actor belongs to is fixed by the program, not
-  by spawn order. When a handler of such an actor refuses its message
-  (a trap or a `fail`), the run log records `Refused(reason)`, then
-  `Restart(child, instance, reason, tick t, k)`, where `instance` is the
-  actor's id (6.6) and k counts this child's restarts in the window
-  below. The strategy then resets the region of the failed actor
-  (`one_for_one`), of every actor of the supervisor's child types
-  (`one_for_all`), or of those whose child is declared at or after the
-  failed one (`rest_for_one`), to the actor's initializers. Intensity is
-  measured in logical ticks, never wall time: with `const
-  RESTART_WINDOW: u64 = W` only restarts at ticks t' with t - t' < W
-  count, otherwise every restart of the run counts; more than the
-  child's `restart bound` stops the supervisor with `Stopped(supervisor
-  S)` and the run ends `Refused`. Mailbox policy: a restarted actor keeps
-  its mailbox, since Form law 3 drops no message; only the message that
-  failed is consumed, and it is logged as refused. A handler that fails
-  inside `atomic` (C.11.10) leaves every handler of the batch
-  uncommitted (T30), and the failing actor is then supervised as above.
-  Every restart is an entry of the run log and a function of the
-  program and its logged choices, so replay re-derives it
-  (`spec/checker/tests/conc06b_run.rs`, and `emit_run.rs`
-  `actor_refusals_match` on the reference and the Rust, Python and
-  JavaScript runtimes, with and without a window). The run log of `fn
-  main` is not D: actors run by `rce run`, not by the host of Appendix E
-  (HC-6).
 - C.11.12 Real time. `interrupt event E priority p` with p an integer
   literal in 0..=255 (W-INTR-1). `step ... deadline n` with n a positive
   integer literal in ticks, and `const TICK_NS: u64 = n` when declared
@@ -333,6 +341,7 @@ is a correspondence on samples, not a proof about the evaluator.
 | T27 | an actor answers as its sequential specification | model; vectors | `t27`, `ModelVectors` |
 | T28 | session duality, subject reduction and progress, with recursion | proved on a session calculus; encoding of surface protocols mechanized | `t28r_preserve`, `t28r_progress`, `enc_comp` |
 | T29 | LVar puts commute; one-threshold reads are order independent | model; vectors | `lvar_interleave`, `t29_perm` |
+| T29q | LVars over any join-semilattice with an absorbing top, threshold reads in the same order, and a frozen bit: two runs that complete every thread without error end in the same configuration (value, frozen bit, every result); without `freeze`, a program with a completing run has no erroring run; with `freeze`, whether a run errs can depend on the schedule | proved on a calculus (put, get with incompatible sets, freeze, on one LVar shared by any number of threads); runs that block forever are not covered; the built-in Merge instances are semilattices | `LVarQD.quasi_det`, `det_no_err`, `quasi_not_det`, `MergeLaws` |
 | T30 | an atomic batch applies all or none | model; vectors | `t30` |
 | T31 | replicas agree on equal prefixes | model (the statement is close to trivial) | `t31` |
 
@@ -345,7 +354,8 @@ footprints beyond the core of `ParSem.lean` (W-PAR-1 on variables).
 `rce run` runs version 0.6 programs on the reference evaluator
 (`conc.rs`). The program emitters (`emit/conc06.rs`) run `par` branches in
 source order (C.4.2), which the meaning allows; a `par` whose branches
-wait on LVars is run by restart, and budgets charge the same costs as the
+wait on LVars is run by restart (a repeated attempt puts nothing new,
+since puts are joins and W-CRDT-1 makes every join idempotent), and budgets charge the same costs as the
 evaluator, so `trap("budget")` falls on the same operation on every
 target. Workgroups run lane after lane per phase. The 0.6b actor, session
 and node constructs follow the limits of 10.5.
@@ -433,4 +443,4 @@ different versions may `use` each other (2.7).
 
 **Read receipt.** How many words does a version 0.6 module reserve in addition to the 0.5 keywords? (a number)
 
-<!-- body-sha256: 8c2dd83af4fd802756cc1ddc7802f1abf3e396f8e58cf93887f857f5b6c4997e -->
+<!-- body-sha256: dfeefb550415988c82da72b58768536072a22b8b508e3f5f422d231c79b2d9da -->

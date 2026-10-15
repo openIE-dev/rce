@@ -20,6 +20,7 @@ pub mod lalr;
 pub mod link;
 pub mod lsp;
 pub mod parse;
+pub mod raft;
 pub mod rcedb;
 pub mod refine;
 pub mod repl;

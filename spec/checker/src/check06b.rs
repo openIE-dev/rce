@@ -462,11 +462,14 @@ impl Checker {
                     let t = self.infer(&args[0].e, true);
                     self.expect(&t, &T::List(Box::new(a[0].clone())), l);
                     // W-LVAR-2: the threshold set must be pairwise incompatible
-                    // (Kuper and Newton), else the threshold returned depends on
-                    // the schedule; for the built-in lattices without a top any
-                    // two thresholds are compatible, so one threshold is required
-                    if !matches!(&args[0].e, Expr::List(xs, _) if xs.len() == 1) {
-                        self.e(d(l, "W-LVAR-2", "`wait` takes a one-element threshold list: several thresholds are not pairwise incompatible, so the threshold returned would depend on the schedule"));
+                    // (Kuper and Newton, FHPC 2013: distinct thresholds join to
+                    // top), else the threshold returned depends on the schedule.
+                    // A literal list is decided at admission (`conc::lvar_gate`:
+                    // two comparable thresholds are refused); every `wait`
+                    // checks the set against the cell's top at run time, which
+                    // does not read the value, so the outcome is schedule-free.
+                    if matches!(&args[0].e, Expr::List(xs, _) if xs.is_empty()) {
+                        self.e(d(l, "W-LVAR-2", "`wait` needs a non-empty threshold list"));
                     }
                 } else {
                     self.e(d(l, "W-TY-1", "`wait` takes a threshold list"));
@@ -1028,34 +1031,71 @@ impl Checker {
     }
 
     /// W-LVAR-1: `x.freeze()` only after the par or loop that puts to x has
-    /// joined (C.11.8).
+    /// joined (C.11.8). The rule is closed under aliasing: inside the
+    /// branches of one par (or the body of a `for ... par`), a put or a
+    /// freeze counts unless its receiver is an lvar the same branch made
+    /// with `lvar_new` (and has not rebound), whatever the name; a call to a
+    /// function or method that puts to or freezes an lvar it did not make
+    /// counts as that put or freeze. If any branch may put to an outside
+    /// lvar, no branch may freeze one. The frozen bit makes a missed case
+    /// an error rather than a wrong answer (T29q); this rule makes it a
+    /// static error, so an admitted program is deterministic.
     pub(crate) fn lvar_freeze06(&mut self, bodies: &[&[Stmt]], line: usize) {
-        let mut puts = BTreeSet::new();
-        let mut freezes = BTreeSet::new();
-        for b in bodies {
-            walk_stmts(b, &mut |s| {
-                for e in stmt_exprs(s) {
-                    walk_expr(e, &mut |x| {
-                        if let Expr::Call(f, _, _, _) = x
-                            && let Expr::Member(o, m, _) = &**f
-                            && let Expr::Name(n, _) = &**o
-                        {
-                            match m.as_str() {
-                                "put" => {
-                                    puts.insert(n.clone());
-                                }
-                                "freeze" => {
-                                    freezes.insert(n.clone());
-                                }
-                                _ => {}
-                            }
-                        }
-                    });
+        let sm = self.lvar_summaries();
+        let uses: Vec<LvarUse> = bodies
+            .iter()
+            .map(|b| {
+                let mut u = LvarUse::default();
+                lv_scan(b, &mut BTreeSet::new(), &sm, &mut u);
+                u
+            })
+            .collect();
+        let put = uses.iter().find_map(|u| u.put.first().cloned());
+        let Some(put) = put else { return };
+        let mut seen = BTreeSet::new();
+        for u in &uses {
+            for f in &u.frz {
+                if seen.insert(f.clone()) {
+                    self.e(d(
+                        line,
+                        "W-LVAR-1",
+                        format!("{f} inside a par may freeze an lvar that {put} puts to before the par has joined (an alias, a parameter or a helper can name the same lvar)"),
+                    ));
                 }
-            });
+            }
         }
-        for n in puts.intersection(&freezes) {
-            self.e(d(line, "W-LVAR-1", format!("`{n}.freeze()` before the par or loop that puts to `{n}` has joined")));
+    }
+
+    /// functions and methods that put to / freeze an lvar they did not make
+    /// (a fixpoint over calls)
+    fn lvar_summaries(&self) -> LvarSumm {
+        let mut bodies: Vec<(bool, String, &Body)> = vec![];
+        for (n, f) in &self.fns {
+            bodies.push((false, n.clone(), &f.decl.body));
+        }
+        for (_, f) in &self.methods {
+            bodies.push((true, f.decl.sig.name.clone(), &f.decl.body));
+        }
+        let mut sm = LvarSumm::default();
+        loop {
+            let mut changed = false;
+            for (meth, n, b) in &bodies {
+                let mut u = LvarUse::default();
+                match b {
+                    Body::Arrow(e) => lv_expr(e, &BTreeSet::new(), &sm, &mut u),
+                    Body::Block(st) => lv_scan(st, &mut BTreeSet::new(), &sm, &mut u),
+                }
+                let (pset, fset) = if *meth { (&mut sm.put_m, &mut sm.frz_m) } else { (&mut sm.put_f, &mut sm.frz_f) };
+                if !u.put.is_empty() && pset.insert(n.clone()) {
+                    changed = true;
+                }
+                if !u.frz.is_empty() && fset.insert(n.clone()) {
+                    changed = true;
+                }
+            }
+            if !changed {
+                return sm;
+            }
         }
     }
 
@@ -1064,6 +1104,141 @@ impl Checker {
     }
     fn pop_scope06(&mut self) {
         self.pop_scope_pub();
+    }
+}
+
+#[derive(Default)]
+struct LvarSumm {
+    put_f: BTreeSet<String>,
+    frz_f: BTreeSet<String>,
+    put_m: BTreeSet<String>,
+    frz_m: BTreeSet<String>,
+}
+
+/// puts and freezes whose lvar may have been made outside the block
+#[derive(Default)]
+struct LvarUse {
+    put: Vec<String>,
+    frz: Vec<String>,
+}
+
+fn lv_is_new(e: &Expr) -> bool {
+    matches!(e, Expr::Call(f, _, _, _) if matches!(&**f, Expr::Name(n, _) if n == "lvar_new"))
+}
+
+fn lv_expr(e: &Expr, fresh: &BTreeSet<String>, sm: &LvarSumm, u: &mut LvarUse) {
+    walk_expr(e, &mut |x| {
+        let Expr::Call(f, _, _, _) = x else { return };
+        match &**f {
+            Expr::Member(o, m, _) if m == "put" || m == "freeze" => {
+                let own = matches!(&**o, Expr::Name(n, _) if fresh.contains(n));
+                if !own {
+                    let who = match &**o {
+                        Expr::Name(n, _) => format!("`{n}.{m}()`"),
+                        _ => format!("`.{m}()`"),
+                    };
+                    if m == "put" { u.put.push(who) } else { u.frz.push(who) }
+                }
+            }
+            Expr::Member(_, m, _) => {
+                if sm.put_m.contains(m) {
+                    u.put.push(format!("method `{m}`"));
+                }
+                if sm.frz_m.contains(m) {
+                    u.frz.push(format!("method `{m}`"));
+                }
+            }
+            Expr::Name(g, _) => {
+                if sm.put_f.contains(g) {
+                    u.put.push(format!("`{g}`"));
+                }
+                if sm.frz_f.contains(g) {
+                    u.frz.push(format!("`{g}`"));
+                }
+            }
+            _ => {}
+        }
+    });
+}
+
+/// scan a block in order; `fresh` holds the names bound here to `lvar_new`
+fn lv_scan(b: &[Stmt], fresh: &mut BTreeSet<String>, sm: &LvarSumm, u: &mut LvarUse) {
+    for s in b {
+        for e in stmt_exprs(s) {
+            lv_expr(e, fresh, sm, u);
+        }
+        let mut sub = |b: &[Stmt], fresh: &BTreeSet<String>, u: &mut LvarUse| lv_scan(b, &mut fresh.clone(), sm, u);
+        match s {
+            Stmt::Let(p, _, e, _) => {
+                let mut names = vec![];
+                lv_pat_names(p, &mut names);
+                for n in names {
+                    if lv_is_new(e) && matches!(p, Pat::Path(_)) {
+                        fresh.insert(n);
+                    } else {
+                        fresh.remove(&n);
+                    }
+                }
+            }
+            Stmt::Var(n, _, e, _) => {
+                if lv_is_new(e) {
+                    fresh.insert(n.clone());
+                } else {
+                    fresh.remove(n);
+                }
+            }
+            Stmt::Assign(_, Expr::Name(n, _), _) => {
+                fresh.remove(n);
+            }
+            Stmt::If(arms, els) => {
+                for (_, b) in arms {
+                    sub(b, fresh, u);
+                }
+                if let Some(b) = els {
+                    sub(b, fresh, u);
+                }
+            }
+            Stmt::While(_, _, b)
+            | Stmt::Loop(_, b)
+            | Stmt::For(_, _, b, _)
+            | Stmt::Arena(_, _, b, _)
+            | Stmt::Device(_, _, b, _)
+            | Stmt::Comptime(b) => sub(b, fresh, u),
+            Stmt::Match(_, arms, _) => {
+                for a in arms {
+                    if let Some(g) = &a.guard {
+                        lv_expr(g, fresh, sm, u);
+                    }
+                    sub(&a.body, fresh, u);
+                }
+            }
+            Stmt::Select(arms, _) => {
+                for a in arms {
+                    match a {
+                        SelArm::Recv(_, e, b) | SelArm::After(e, b) => {
+                            lv_expr(e, fresh, sm, u);
+                            sub(b, fresh, u);
+                        }
+                        SelArm::Send(a, c, b) => {
+                            lv_expr(a, fresh, sm, u);
+                            lv_expr(c, fresh, sm, u);
+                            sub(b, fresh, u);
+                        }
+                        SelArm::Default(b) => sub(b, fresh, u),
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+}
+
+fn lv_pat_names(p: &Pat, out: &mut Vec<String>) {
+    match p {
+        Pat::Path(v) if v.len() == 1 => out.push(v[0].clone()),
+        Pat::Ctor(_, fs) => fs.iter().for_each(|(_, q)| lv_pat_names(q, out)),
+        Pat::Tuple(v) | Pat::Alt(v) => v.iter().for_each(|q| lv_pat_names(q, out)),
+        _ => {}
     }
 }
 

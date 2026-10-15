@@ -33,3 +33,6 @@ import RCE.Mutual
 import RCE.Refine
 import RCE.Label
 import RCE.Host
+import RCE.LVarQD
+import RCE.MergeLaws
+import RCE.Admit

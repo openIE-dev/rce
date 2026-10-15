@@ -165,10 +165,14 @@ impl ParCtx {
     }
 }
 
-/// A lattice cell (C.11.8).
+/// A lattice cell (C.11.8): the value, the optional top, and the frozen
+/// bit of Kuper, Turon, Krishnaswami and Newton (POPL 2014, Sec. 4.2). The
+/// bit is read and written under the value's lock, so a put and a freeze
+/// are ordered. Model: `RCE/LVarQD.lean` (T29q).
 pub struct LCell {
     v: Mutex<V>,
     top: Option<V>,
+    frz: std::sync::atomic::AtomicBool,
 }
 impl std::fmt::Debug for LCell {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -179,6 +183,15 @@ impl LCell {
     pub fn peek(&self) -> V {
         self.v.lock().map(|g| g.clone()).unwrap_or(V::Unit)
     }
+    pub fn frozen(&self) -> bool {
+        self.frz.load(std::sync::atomic::Ordering::SeqCst)
+    }
+    /// `freeze()`: set the frozen bit and read the exact value (E-FREEZE-SIMPLE)
+    pub fn freeze(&self) -> V {
+        let g = self.v.lock().unwrap();
+        self.frz.store(true, std::sync::atomic::Ordering::SeqCst);
+        g.clone()
+    }
     /// `lvar_new(bottom)` or `lvar_new(bottom, top)`.
     pub fn new_value(vals: Vec<V>) -> V {
         let mut it = vals.into_iter();
@@ -186,6 +199,7 @@ impl LCell {
         V::LVar(Arc::new(LCell {
             v: Mutex::new(b),
             top: it.next(),
+            frz: std::sync::atomic::AtomicBool::new(false),
         }))
     }
 }
@@ -1003,6 +1017,11 @@ impl<'a> Interp<'a> {
                 return trap("lvar conflict");
             }
             let changed = *g != nv;
+            // a put that would change a frozen lvar is an error (POPL 2014);
+            // one that changes nothing is allowed
+            if changed && c.frozen() {
+                return trap("lvar put after freeze");
+            }
             *g = nv;
             break changed;
         };
@@ -1012,20 +1031,60 @@ impl<'a> Interp<'a> {
         Ok(())
     }
 
+    /// `merge` for a threshold test: the program's own `Merge` (the order
+    /// `put` grows the value in), charged nothing, so the cost of a `wait`
+    /// does not depend on how often a schedule rechecks it
+    fn merge_free(&mut self, a: &V, b: &V) -> R<V> {
+        let saved = (self.fuel, std::mem::take(&mut self.cx.budgets), self.cx.spent);
+        self.fuel = crate::interp::fuel_limit();
+        let r = self.merge_values(a, b);
+        self.fuel = saved.0;
+        self.cx.budgets = saved.1;
+        self.cx.spent = saved.2;
+        r
+    }
+
+    /// `t ⊑ cur` in the program's lattice: `t ⊔ cur = cur`
+    fn lvar_above(&mut self, ths: &[V], cur: &V) -> R<Option<V>> {
+        for t in ths {
+            if self.merge_free(t, cur)? == *cur {
+                return Ok(Some(t.clone()));
+            }
+        }
+        Ok(None)
+    }
+
+    /// W-LVAR-2 at run time: a threshold set of more than one element must
+    /// be pairwise incompatible, `a ⊔ b = top` for distinct a, b (the
+    /// `incomp(Q)` premise of FHPC 2013 E-GETVAL). The test does not read
+    /// the cell's value, so its outcome does not depend on the schedule.
+    fn lvar_incomp(&mut self, c: &LCell, ths: &[V]) -> R<()> {
+        for (i, a) in ths.iter().enumerate() {
+            for b in &ths[i + 1..] {
+                if a == b {
+                    continue;
+                }
+                let ok = match &c.top {
+                    Some(top) => self.merge_free(a, b)? == *top,
+                    None => false,
+                };
+                if !ok {
+                    return trap("lvar thresholds are not pairwise incompatible");
+                }
+            }
+        }
+        Ok(())
+    }
+
     fn lvar_wait(&mut self, c: &Arc<LCell>, q: &V) -> R<V> {
         let V::List(ths) = q else {
             return trap("wait needs a list of thresholds");
         };
-        let above = |cur: &V| -> R<Option<V>> {
-            for t in ths {
-                if merge_builtin(t, cur)? == *cur {
-                    return Ok(Some(t.clone()));
-                }
-            }
-            Ok(None)
-        };
+        let ths = ths.clone();
+        self.lvar_incomp(c, &ths)?;
         let Some(ctx) = self.cx.par_ctx.clone() else {
-            return match above(&c.peek())? {
+            let cur = c.peek();
+            return match self.lvar_above(&ths, &cur)? {
                 Some(t) => Ok(t),
                 None => trap("lvar wait cannot be satisfied"),
             };
@@ -1039,7 +1098,8 @@ impl<'a> Interp<'a> {
             if seen != Some(g.ver) {
                 // a put bumps `ver` after writing the cell, so a check at
                 // this `ver` sees every put it counts
-                if let Some(t) = above(&c.peek())? {
+                let cur = c.peek();
+                if let Some(t) = self.lvar_above(&ths, &cur)? {
                     return Ok(t);
                 }
                 seen = Some(g.ver);
@@ -1098,7 +1158,7 @@ impl<'a> Interp<'a> {
                 V::Unit
             }
             (V::LVar(c), "wait") => self.lvar_wait(c, a.first().unwrap_or(&V::Unit))?,
-            (V::LVar(c), "freeze") => c.peek(),
+            (V::LVar(c), "freeze") => c.freeze(),
             (V::List(xs), "pscan" | "pscan_incl") if a.len() == 2 => {
                 self.pscan(xs, &a[0], &a[1], m == "pscan_incl")?
             }
@@ -2481,12 +2541,20 @@ impl Replicas {
 
 // ---------------------------------------------------------------- Merge laws (C.11.5, W-CRDT-1)
 
-/// Admission check of every `impl Merge for T`: commutativity,
-/// associativity, idempotence and identity of `bottom()` on a finite sample
-/// of T. The sample is every value when T is a kind of nullary variants;
-/// otherwise it is `bottom()` and the module's `const` values of T, closed
-/// under `merge` to depth 3 (at most 24 values). A sampled check is a test,
-/// not a proof.
+/// Admission check of every `impl Merge for T` (W-CRDT-1). The laws
+/// (associativity, commutativity, idempotence, `bottom()` an identity) are
+/// an obligation, discharged in one of three ways:
+/// * T is a kind of nullary variants: every triple is evaluated, which
+///   decides the laws (`MergeLaws.laws_of_enum`);
+/// * `merge` is componentwise, `T(f: max(self.f, o.f), g: self.g or o.g, ...)`
+///   over integer and bool fields: the laws follow from `MergeLaws.prodSL`,
+///   `intMax` and `boolOr`;
+/// * otherwise the obligation is not discharged and the impl is refused.
+/// Before that, a search on a finite sample (`bottom()`, the module's
+/// constants of T, closed under `merge` to depth 3, at most 24 values)
+/// looks for a counterexample, so a refusal names one when it can.
+/// Types without an `impl Merge` use the built-in instances, whose laws are
+/// proved in `MergeLaws.lean`.
 pub fn crdt_gate(m: &Module) -> Vec<String> {
     let mut errs = vec![];
     for it in &m.items {
@@ -2494,6 +2562,7 @@ pub fn crdt_gate(m: &Module) -> Vec<String> {
             ty: Ty::Path(tp, _),
             trait_: Some(Ty::Path(tr, _)),
             line,
+            members,
             ..
         } = it
         else {
@@ -2503,15 +2572,16 @@ pub fn crdt_gate(m: &Module) -> Vec<String> {
             continue;
         }
         let t = tp[0].clone();
-        match merge_laws(m, &t) {
+        match merge_laws(m, &t, members) {
             Ok(()) => {}
             Err(e) => errs.push(format!("line {line}: W-CRDT-1 impl Merge for {t}: {e}")),
         }
     }
+    errs.extend(lvar_gate(m));
     errs
 }
 
-fn merge_laws(m: &Module, t: &str) -> Result<(), String> {
+fn merge_laws(m: &Module, t: &str, members: &[FnDecl]) -> Result<(), String> {
     let mut it = Interp::new(m);
     let w = |f: Flow| crate::interp::why(f);
     let Some(bot) = it.methods.get(&(t.to_string(), "bottom".to_string())).copied() else {
@@ -2564,6 +2634,8 @@ fn merge_laws(m: &Module, t: &str) -> Result<(), String> {
         }
     }
     let s = sample;
+    // on an enumeration every triple is tried, which decides the laws
+    let third = if exhaustive { s.len() } else { 12 };
     for a in &s {
         if it.merge_values(a, a).map_err(w)? != *a {
             return Err(format!("not idempotent at {}", a.show()));
@@ -2576,7 +2648,7 @@ fn merge_laws(m: &Module, t: &str) -> Result<(), String> {
             if ac != it.merge_values(c, a).map_err(w)? {
                 return Err(format!("not commutative at {}, {}", a.show(), c.show()));
             }
-            for e in s.iter().take(12) {
+            for e in s.iter().take(third) {
                 let l = it.merge_values(&ac, e).map_err(w)?;
                 let ce = it.merge_values(c, e).map_err(w)?;
                 if l != it.merge_values(a, &ce).map_err(w)? {
@@ -2590,7 +2662,143 @@ fn merge_laws(m: &Module, t: &str) -> Result<(), String> {
             }
         }
     }
-    Ok(())
+    if exhaustive || merge_componentwise(m, t, members) {
+        return Ok(());
+    }
+    Err("the Merge laws are a proof obligation the checker cannot discharge (no counterexample found on a sample, which is not a proof): write `merge` componentwise from `max` on integer fields and `or` on bool fields, make the type a kind of nullary variants, or drop the impl and use the built-in componentwise merge".into())
+}
+
+/// `merge` is `T(f: max(self.f, o.f), g: self.g or o.g, ...)`, each field
+/// once, `max` on integer fields, `or` on bool fields (either operand order)
+fn merge_componentwise(m: &Module, t: &str, members: &[FnDecl]) -> bool {
+    let Some(fields) = m.items.iter().find_map(|i| match i {
+        Item::Struct { name, fields, .. } if name == t => Some(fields),
+        _ => None,
+    }) else {
+        return false;
+    };
+    let Some(fd) = members.iter().find(|f| f.sig.name == "merge") else {
+        return false;
+    };
+    let o = match fd.sig.params.as_slice() {
+        [Param::SelfVal, Param::Named { name, .. }] => name.clone(),
+        _ => return false,
+    };
+    let e = match &fd.body {
+        Body::Arrow(e) => e,
+        Body::Block(b) => match b.as_slice() {
+            [Stmt::Expr(e)] | [Stmt::Return(Some(e), _)] => e,
+            _ => return false,
+        },
+    };
+    let Expr::Call(f, args, _, _) = e else { return false };
+    if !matches!(&**f, Expr::Name(n, _) if n == t) || args.len() != fields.len() {
+        return false;
+    }
+    let is_self = |x: &Expr| matches!(x, Expr::SelfRef(_)) || matches!(x, Expr::Name(n, _) if n == "self");
+    let fld = |x: &Expr, k: &str, mine: bool| match x {
+        Expr::Member(r, f, _) if f == k => if mine { is_self(r) } else { matches!(&**r, Expr::Name(n, _) if *n == o) },
+        _ => false,
+    };
+    let pair = |a: &Expr, b: &Expr, k: &str| (fld(a, k, true) && fld(b, k, false)) || (fld(a, k, false) && fld(b, k, true));
+    let ints = ["i8", "i16", "i32", "i64", "i128", "u8", "u16", "u32", "u64", "u128", "isize", "usize"];
+    let mut seen = std::collections::BTreeSet::new();
+    for a in args {
+        let Some(k) = &a.label else { return false };
+        let Some(fdef) = fields.iter().find(|f| f.name == *k) else { return false };
+        if !seen.insert(k.clone()) {
+            return false;
+        }
+        let tyname = match &fdef.ty {
+            Ty::Path(p, g) if p.len() == 1 && g.is_empty() => p[0].as_str(),
+            _ => return false,
+        };
+        let ok = match &a.e {
+            Expr::Call(c, xs, _, _) if ints.contains(&tyname) => match (&**c, xs.as_slice()) {
+                (Expr::Name(n, _), [x, y]) if n == "max" => pair(&x.e, &y.e, k),
+                (Expr::Member(x, n, _), [y]) if n == "max" => pair(x, &y.e, k),
+                _ => false,
+            },
+            Expr::Bin(op, x, y, _) if tyname == "bool" && (op == "or" || op == "||") => pair(x, y, k),
+            _ => false,
+        };
+        if !ok {
+            return false;
+        }
+    }
+    seen.len() == fields.len()
+}
+
+/// W-LVAR-2 at admission: in a literal threshold list, two thresholds where
+/// one is below the other (`a ⊔ b ∈ {a, b}` in the program's Merge) are
+/// compatible for any top, so the set is refused. Other lists are checked
+/// against the cell's top by every `wait` (interp `lvar_incomp`).
+pub fn lvar_gate(m: &Module) -> Vec<String> {
+    let mut lists: Vec<(Vec<Expr>, usize)> = vec![];
+    let mut grab = |e: &Expr| {
+        crate::check::walk_expr(e, &mut |x| {
+            if let Expr::Call(f, args, l, _) = x
+                && let Expr::Member(_, n, _) = &**f
+                && n == "wait"
+                && let [a] = args.as_slice()
+                && let Expr::List(xs, _) = &a.e
+                && xs.len() > 1
+            {
+                lists.push((xs.clone(), *l));
+            }
+        })
+    };
+    let mut bodies: Vec<&Body> = vec![];
+    for i in &m.items {
+        match i {
+            Item::Fn(f) => bodies.push(&f.body),
+            Item::Impl { members, .. } => bodies.extend(members.iter().map(|f| &f.body)),
+            _ => {}
+        }
+    }
+    for b in bodies {
+        match b {
+            Body::Arrow(e) => grab(e),
+            Body::Block(st) => crate::check::walk_stmts(st, &mut |s| {
+                for e in crate::check::stmt_exprs(s) {
+                    grab(e)
+                }
+            }),
+        }
+    }
+    let mut errs = vec![];
+    if lists.is_empty() {
+        return errs;
+    }
+    let mut it = Interp::new(m);
+    'list: for (xs, l) in lists {
+        let mut vs = vec![];
+        for x in &xs {
+            it.scopes = vec![HashMap::new()];
+            match it.eval(x) {
+                Ok(v) => vs.push(v),
+                Err(_) => continue 'list, // not constant: checked at run time
+            }
+        }
+        for (i, a) in vs.iter().enumerate() {
+            for b in &vs[i + 1..] {
+                if a == b {
+                    continue;
+                }
+                let Ok(j) = it.merge_values(a, b) else { continue };
+                if j == *a || j == *b {
+                    errs.push(format!(
+                        "line {l}: W-LVAR-2 thresholds {} and {} are compatible ({} is below the other), so the threshold `wait` returns would depend on the schedule; a threshold set must be pairwise incompatible",
+                        a.show(),
+                        b.show(),
+                        if j == *b { a.show() } else { b.show() }
+                    ));
+                    continue 'list;
+                }
+            }
+        }
+    }
+    errs
 }
 
 /// Three-way merge of a variable written by par branches (base = value at

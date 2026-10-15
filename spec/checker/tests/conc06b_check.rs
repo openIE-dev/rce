@@ -59,6 +59,8 @@ fn syntax_rejects_refused_by_parser() {
     }
 }
 
+/// a componentwise merge discharges the Merge laws (MergeLaws.prodSL);
+/// lvar_freeze.rs covers the refused forms
 #[test]
 fn lawful_merge_is_admitted() {
     let src = "struct Hi
@@ -66,9 +68,7 @@ fn lawful_merge_is_admitted() {
 
 impl Merge for Hi
     fn merge(self, other: Hi) -> Hi
-        if other.v > self.v
-            return other
-        self
+        Hi(v: self.v.max(other.v))
     fn bottom() -> Hi
         Hi(v: 0)
 

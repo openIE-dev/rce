@@ -578,7 +578,7 @@ def builtin(r, m, a):
     if t is LVar:
         if m == "put": lvar_put(r, a[0] if a else UNIT); return UNIT, None
         if m == "wait": return lvar_wait(r, a[0] if a else UNIT), None
-        if m == "freeze": return r.v, None
+        if m == "freeze": return lvar_freeze(r), None
     if t is Int:
         x, ty = r.v, r.t
         if m in ("checked_add", "checked_sub", "checked_mul", "checked_div"):
@@ -1138,8 +1138,8 @@ def marker_int(v):
 
 # ---- LVars (C.11.8) and the built-in Merge instances (C.11.5)
 class LVar:
-    __slots__ = ("v", "top")
-    def __init__(s, v, top): s.v = v; s.top = top
+    __slots__ = ("v", "top", "frz")
+    def __init__(s, v, top): s.v = v; s.top = top; s.frz = False
 def lvar_new(a):
     return LVar(a[0] if a else UNIT, a[1] if len(a) > 1 else None)
 def _crank(v):
@@ -1211,14 +1211,36 @@ def lvar_put(c, v):
     if TLS.parcx is not None: return lvar_put_t(c, v)
     nv = merge_values(c.v, v)
     if c.top is not None and eq(nv, c.top): trap("lvar conflict")
-    if not eq(nv, c.v): TLS.puts[0] += 1
+    if not eq(nv, c.v):
+        if c.frz: trap("lvar put after freeze")
+        TLS.puts[0] += 1
     c.v = nv
+def lvar_freeze(c):
+    with _LVLOCK:
+        c.frz = True
+        return c.v
+# merge for a threshold test: the program's Merge, charged nothing (interp `merge_free`)
+def merge_free(a, b):
+    bud, f = TLS.bud, TLS.fuel
+    TLS.bud = []; TLS.fuel = FUEL_LIMIT
+    try: return merge_values(a, b)
+    finally: TLS.bud = bud; TLS.fuel = f
+def lvar_above(ths, cur):
+    for t in ths:
+        if eq(merge_free(t, cur), cur): return t
+    return None
+def lvar_incomp(c, ths):
+    for i, a in enumerate(ths):
+        for b in ths[i + 1:]:
+            if eq(a, b): continue
+            if c.top is None or not eq(merge_free(a, b), c.top): trap("lvar thresholds are not pairwise incompatible")
 def puts(): return TLS.puts[0]
 def lvar_wait(c, q):
     if type(q) is not Lst: trap("wait needs a list of thresholds")
+    lvar_incomp(c, q.xs)
     if TLS.parcx is not None: return lvar_wait_t(c, q)
-    for t in q.xs:
-        if eq(merge_builtin(t, c.v), c.v): return t
+    t = lvar_above(q.xs, c.v)
+    if t is not None: return t
     if TLS.sched[0] > 0: trap("$block")
     trap("lvar wait cannot be satisfied")
 def par_enter(): TLS.sched[0] += 1
@@ -1257,6 +1279,7 @@ def lvar_put_t(c, v):
             if c.v is not cur: continue
             if c.top is not None and eq(nv, c.top): trap("lvar conflict")
             ch = not eq(nv, cur)
+            if ch and c.frz: trap("lvar put after freeze")
             c.v = nv
         break
     if ch:
@@ -1265,10 +1288,7 @@ def lvar_put_t(c, v):
 def lvar_wait_t(c, q):
     cx = TLS.parcx
     ths = q.xs
-    def above(cur):
-        for t in ths:
-            if eq(merge_builtin(t, cur), cur): return t
-        return None
+    def above(cur): return lvar_above(ths, cur)
     with cx.cv:
         seen = None
         while True:

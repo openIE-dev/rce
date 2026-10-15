@@ -1904,6 +1904,8 @@ Classical.choice). Status per theorem:
 | T37 | proved on a model of the host (Appendix E): δ extended with host entries is the identity on them, replay of the log with no oracle equals the live run for every adapter oracle, a log of host entries alone leaves the state unchanged, and placement computed from the logged host entries agrees for equal logs; the example logs are re-folded with host entries interleaved in `tests/host_contract.rs` | `host_entry_identity`, `t37_replay`, `t37_host_only`, `t37_placement` |
 | T38 | proved for any hash function: the verified prefix is a prefix and a valid chain, a valid log is kept whole, and a valid log followed by an entry that does not link is cut back to it; the SHA-256 chain of every example log is tested with torn, flipped and swapped entries (`tests/host_contract.rs`) | `verify_prefix`, `verify_valid`, `verify_intact`, `verify_append`, `t38_torn` |
 | T39 | proved on an admitter model: after a failed barrier nothing is appended, and a running admitter's log is exactly the entries it was given | `t39_halted`, `t39_fault_stops`, `t39_run_complete` |
+| T40 | proved on a window model (Appendix E.2a): with an injective input key, the entries of a window are equal for any permutation of its inputs, D is equal for any per-window permutation of a sequence of windows, and sorting keeps every input; two hosts with different arrival orders give byte-identical D in `tests/host_admit.rs` | `window_perm`, `log_permwise`, `window_complete`, `ins_comm` |
+| T41 | proved on a term model (Appendix E.2b) under Leader Completeness as a hypothesis: a fenced append leaves a replica unchanged and every committed prefix survives any number of term changes; partitions, reordering, crash and restart are tested in `tests/host_raft.rs` | `fenced_append_unchanged`, `committed_prefix_preserved`, `accepted_append` |
 | T15 | proved for iterators whose step between yields is total (T2): every run ends, delivers at most LOOP_LIMIT values and traps only after exactly LOOP_LIMIT; `break` yields a prefix of the full run; a run with a smaller cap is a prefix of one with a larger cap (the evaluator's re-run strategy) | `drive_total`, `drive_break`, `gen_prefix` |
 
 T16 to T31 belong to version 0.6 and are listed with their exact status
@@ -2937,20 +2939,6 @@ the branches in source order (C.4.2). Rules:
   target. The cost table is the reference evaluator's (`interp` and
   `conc.rs`, `charge`), listed in C.6.4.
   W-TY-1 if n is not an integer.
-  `with budget n Block else Else` recovers from exhaustion. A
-  `trap("budget")` raised while Block runs, by any enclosing budget, is
-  caught by the innermost budget that has an `else`; Else then runs in
-  place of the rest of Block, as the `else` of `with deadline` does.
-  Charges already made stay on every enclosing budget, and writes made
-  before the trap stay. When the trap came from an outer budget, Else
-  charges that same budget, so its next charge traps again and the trap
-  reaches the next budget out with an `else`, or refuses the event. A
-  budget without `else` behaves as before. The trap falls on the same
-  operation on every target, so the choice of Else is deterministic and
-  replay re-derives it. Checked by `spec/checker/tests/conc06_run.rs`
-  (`budget_else_catches`) and `emit_run.rs` (`budget_else_*` on the
-  reference and the emitted runtimes). Open: a typed `Exhausted` value
-  carrying the spent units is not yet given to Else.
 - `with deadline n` runs the block with an expiry n logical ticks after
   entry; if the block has not completed by then, the `else` block runs
   instead (T22). W-DL-1: outside `fn main` or a task
@@ -3065,12 +3053,61 @@ an associative operation with an identity (T18).
   its protocol when it goes out of scope or is closed. W-SES-3: a label
   that appears twice, a protocol loop with no message before it repeats,
   or `break` outside a protocol loop. W-TY-1: a payload of the wrong type.
-- C.11.5 Merge. `impl Merge for T` declares a join. The admission gate
-  (`conc::crdt_gate`) checks the merge laws (commutative, associative,
-  idempotent) by evaluation on generated values; a failure is W-CRDT-1.
-- C.11.8 LVars. `lvar T` requires `T: Merge` (W-CRDT-1). W-LVAR-1:
-  `freeze()` before the `par` or loop that puts to the LVar has joined.
-  W-LVAR-2: `wait` with other than one threshold.
+- C.11.5 Merge. `impl Merge for T` declares a join. Its laws
+  (associative, commutative, idempotent, `bottom()` an identity) are an
+  admission obligation (W-CRDT-1, `conc::crdt_gate`). For a kind of
+  nullary variants the gate evaluates every triple, which decides them. A
+  `merge` written componentwise, `T(f: self.f.max(o.f), g: self.g or o.g,
+  ...)` over integer and bool fields, has them by `MergeLaws.prodSL`,
+  `intMax` and `boolOr`. Any other impl is refused; the refusal names a
+  counterexample when a search on a finite sample finds one, and
+  otherwise says the obligation is not discharged. The built-in
+  instances (integers under `max`, `bool` under `or`, sets and lists
+  under union, maps pointwise, tuples and records componentwise, `none` as
+  bottom) have the laws by `MergeLaws.lean`, up to the point left open
+  there: that sorted lists without duplicates represent sets and maps
+  canonically.
+- C.11.8 LVars. `lvar T` requires `T: Merge` (W-CRDT-1). An LVar holds a
+  value, the optional top of `lvar_new(bottom, top)`, and a frozen bit.
+  `put(d)` sets the value `v` to `v ⊔ d` with the program's `Merge`; it
+  is `trap("lvar conflict")` when the result is the top, and
+  `trap("lvar put after freeze")` when the LVar is frozen and the result
+  differs from `v` (a put that changes nothing is allowed). `freeze()`
+  sets the bit and returns the exact value. `wait(Q)` returns the `t` in
+  `Q` with `t ⊔ v = v`, in the same `Merge` order as `put`, and blocks
+  until there is one. The threshold tests charge no fuel and no budget,
+  so the cost of a `wait` does not depend on how often a schedule
+  rechecks it. A `Q` with more than one element must be pairwise
+  incompatible: distinct elements join to the top. Every `wait` checks
+  this before it reads the value and is otherwise
+  `trap("lvar thresholds are not pairwise incompatible")`; the check does
+  not read the value, so its outcome does not depend on the schedule. A
+  trap is a defined result, so δ stays total. W-LVAR-1: inside the
+  branches of one `par`, or the body of a `for ... par`, a `freeze`
+  while some branch may `put`, where a call to a function or method that
+  puts to (or freezes) an LVar it did not create counts as a put (or a
+  freeze). An LVar a branch creates with `lvar_new` and does not rebind is
+  its own and does not count. The rule does not match the name of a put
+  with the name of a freeze, so an
+  alias, a parameter or a helper cannot hide a freeze. W-LVAR-2: an empty
+  threshold list, or a literal list with two elements one below the
+  other in the program's `Merge` (decided at admission, `conc::lvar_gate`).
+  Model: T29q.
+- C.11.8 convergence notes. The frozen bit, and the rule that only a put
+  that would change a frozen LVar is an error, follow Kuper, Turon,
+  Krishnaswami and Newton (POPL 2014, Sec. 3.3 and 4.2). Threshold sets
+  and their `incomp` premise follow Kuper and Newton (FHPC 2013, Sec.
+  3.3). T29q has the shape of the POPL 2014 Theorem 1 for this fragment.
+  Their proof goes through an Independence lemma and quasi-confluence;
+  the one here uses an invariant (the value joined with the puts still to
+  come is the join of all puts), which suffices because the fragment has
+  one LVar and no allocation. Their library marks code that freezes as
+  `QuasiDet` in its type. RCE instead refuses, by W-LVAR-1, the freezes
+  that could race with a put, so an admitted program is deterministic,
+  and the frozen bit turns a race the rule misses into an error instead
+  of a different answer. FHPC 2013 suggests validating user lattices
+  with QuickCheck; the sample search here is that kind of test, and is
+  used only to find counterexamples.
 - C.11.9 Structured spawn. `spawn f(...) -> h` gives a join handle. In a
   version 0.6 module a task function may spawn only inside `scope`; `fn
   main` is an implicit scope (W-SCOPE-1). A join handle cannot leave its
@@ -3084,33 +3121,6 @@ an associative operation with an identity (T18).
   twice. `supervisor S strategy k` with k one of `one_for_one`,
   `one_for_all`, `rest_for_one` (W-SUP-1); each `child` must be an actor
   (W-SUP-2), and W-NAME-2 refuses a duplicate child.
-  Run-time meaning (normative). A supervisor declaration is one static
-  supervisor; it supervises every actor whose type is one of its
-  children, so the set an actor belongs to is fixed by the program, not
-  by spawn order. When a handler of such an actor refuses its message
-  (a trap or a `fail`), the run log records `Refused(reason)`, then
-  `Restart(child, instance, reason, tick t, k)`, where `instance` is the
-  actor's id (6.6) and k counts this child's restarts in the window
-  below. The strategy then resets the region of the failed actor
-  (`one_for_one`), of every actor of the supervisor's child types
-  (`one_for_all`), or of those whose child is declared at or after the
-  failed one (`rest_for_one`), to the actor's initializers. Intensity is
-  measured in logical ticks, never wall time: with `const
-  RESTART_WINDOW: u64 = W` only restarts at ticks t' with t - t' < W
-  count, otherwise every restart of the run counts; more than the
-  child's `restart bound` stops the supervisor with `Stopped(supervisor
-  S)` and the run ends `Refused`. Mailbox policy: a restarted actor keeps
-  its mailbox, since Form law 3 drops no message; only the message that
-  failed is consumed, and it is logged as refused. A handler that fails
-  inside `atomic` (C.11.10) leaves every handler of the batch
-  uncommitted (T30), and the failing actor is then supervised as above.
-  Every restart is an entry of the run log and a function of the
-  program and its logged choices, so replay re-derives it
-  (`spec/checker/tests/conc06b_run.rs`, and `emit_run.rs`
-  `actor_refusals_match` on the reference and the Rust, Python and
-  JavaScript runtimes, with and without a window). The run log of `fn
-  main` is not D: actors run by `rce run`, not by the host of Appendix E
-  (HC-6).
 - C.11.12 Real time. `interrupt event E priority p` with p an integer
   literal in 0..=255 (W-INTR-1). `step ... deadline n` with n a positive
   integer literal in ticks, and `const TICK_NS: u64 = n` when declared
@@ -3155,6 +3165,7 @@ is a correspondence on samples, not a proof about the evaluator.
 | T27 | an actor answers as its sequential specification | model; vectors | `t27`, `ModelVectors` |
 | T28 | session duality, subject reduction and progress, with recursion | proved on a session calculus; encoding of surface protocols mechanized | `t28r_preserve`, `t28r_progress`, `enc_comp` |
 | T29 | LVar puts commute; one-threshold reads are order independent | model; vectors | `lvar_interleave`, `t29_perm` |
+| T29q | LVars over any join-semilattice with an absorbing top, threshold reads in the same order, and a frozen bit: two runs that complete every thread without error end in the same configuration (value, frozen bit, every result); without `freeze`, a program with a completing run has no erroring run; with `freeze`, whether a run errs can depend on the schedule | proved on a calculus (put, get with incompatible sets, freeze, on one LVar shared by any number of threads); runs that block forever are not covered; the built-in Merge instances are semilattices | `LVarQD.quasi_det`, `det_no_err`, `quasi_not_det`, `MergeLaws` |
 | T30 | an atomic batch applies all or none | model; vectors | `t30` |
 | T31 | replicas agree on equal prefixes | model (the statement is close to trivial) | `t31` |
 
@@ -3167,7 +3178,8 @@ footprints beyond the core of `ParSem.lean` (W-PAR-1 on variables).
 `rce run` runs version 0.6 programs on the reference evaluator
 (`conc.rs`). The program emitters (`emit/conc06.rs`) run `par` branches in
 source order (C.4.2), which the meaning allows; a `par` whose branches
-wait on LVars is run by restart, and budgets charge the same costs as the
+wait on LVars is run by restart (a repeated attempt puts nothing new,
+since puts are joins and W-CRDT-1 makes every join idempotent), and budgets charge the same costs as the
 evaluator, so `trap("budget")` falls on the same operation on every
 target. Workgroups run lane after lane per phase. The 0.6b actor, session
 and node constructs follow the limits of 10.5.
@@ -3808,8 +3820,11 @@ defined by logical time, never by a wall clock.
 
 A host may keep D on a replicated log so that losing the admitter's
 machine neither stops the program for good nor forks D. The reference
-model is `spec/checker/src/repl.rs`; its rules are those of Raft as
-summarised in the convergence notes below, applied to whole logs.
+implementation is `spec/checker/src/raft.rs` (Raft log replication behind a
+`Transport` trait, with a loopback switch and a TCP transport, and
+`RaftStore`, the E.3 Store of a host on the leader).
+`spec/checker/src/repl.rs` is a smaller model of the same rules on whole
+logs.
 
 - **HC-18 Interface.** A replicated log offers the host the Store of E.3
   with two additions: `elect(term)`, which succeeds only with grants from
@@ -3827,6 +3842,20 @@ summarised in the convergence notes below, applied to whole logs.
   in D gets one result, `failed` with `interrupted` (HC-3). The term in D
   is the fence token: an entry of D was appended by the holder of the
   most recent `host.Term` before it.
+- **HC-18a Transport.** Replication follows Raft's AppendEntries and
+  RequestVote: an append carries (prev_idx, prev_term) and a follower
+  refuses it unless its log has an entry at prev_idx with that term (log
+  matching), deletes a conflicting suffix and appends what is missing.
+  The current term and the vote are written to stable storage before a
+  candidate asks for votes, before a vote is granted, and before an
+  append is acknowledged. A vote goes only to a candidate whose log is at
+  least as up-to-date by (last term, last index). The leader advances the
+  commit index only over entries of its own term held by a quorum. A
+  follower that needs entries the leader has compacted receives the
+  leader's snapshot (an HS-5 snapshot of the state at that index) and keeps
+  any suffix of its own log that matches it. The transport may lose,
+  delay, duplicate or reorder messages. Timeouts are counted in logical
+  ticks, so a loopback run is a function of its seed.
 - **HC-20 Deposed admitter.** An admitter whose barrier is refused because
   a higher term was granted has had its role taken. By HS-3 it appends
   nothing further and acks nothing, so its unacked inputs are retransmitted
@@ -3862,12 +3891,12 @@ with a stale term number, it rejects the request"; and "Leader
 Completeness: if a log entry is committed in a given term, then that entry
 will be present in the logs of the leaders for all higher-numbered terms".
 Raft notes that a heartbeat lease "would rely on timing for safety (it
-assumes bounded clock skew)", which is why E.2b leaves leases out. The
-reference model replicates whole logs instead of AppendEntries suffixes
-and keeps `promised` in memory; a real host must persist the promise
-before granting and ship suffixes with the log matching check.
+assumes bounded clock skew)", which is why E.2b leaves leases out. Raft's
+Figure 2 lists currentTerm, votedFor and log[] as "Persistent state on all
+servers: (Updated on stable storage before responding to RPCs)", which is
+the order HC-18a requires. Membership changes are not implemented.
 
-### E.3### E.3 Storage: durable append (HS-1 to HS-5)
+### E.3 Storage: durable append (HS-1 to HS-5)
 
 - **HS-1 D is the base truth.** A host stores one primary artefact: D.
   Snapshots and indexes are caches derived from it (HS-4, E.6).
@@ -4068,7 +4097,22 @@ markup is built from data.
   exactly the entries it was given: a failed barrier is never followed by
   further appends.
 
-Lean: `RCE/Host.lean`. Conformance: `spec/checker/tests/host_contract.rs`
+- **T40 Canonical windows.** The entries of a window are a function of
+  its inputs: any permutation of a window's inputs gives the same entries,
+  so D is independent of arrival order within every window of a sequence
+  of windows, and sorting a window loses and adds no input. Proved on a
+  model where an input has an injective key (the HC-15 key with the event
+  bytes) and dedupe keeps one copy of each key.
+- **T41 Prefix across terms.** A replica that promised a higher term
+  leaves its log unchanged on an append from a lower one, and under Raft's
+  Leader Completeness (a hypothesis of the model, not proved) every
+  committed prefix is a prefix of D after any number of term changes. This
+  is T38 and T39 under leader change; quorum intersection, message loss
+  and the Rust code are not modeled.
+
+Lean: `RCE/Host.lean` (T37 to T39), `RCE/Admit.lean` (T40, T41:
+`window_perm`, `log_permwise`, `window_complete`,
+`fenced_append_unchanged`, `committed_prefix_preserved`). Conformance: `spec/checker/tests/host_contract.rs`
 checks every example log against HS-4 (intact, torn tail, a flipped
 byte, a swapped pair), HC-8 and T37 (each example log re-folded with host
 entries interleaved, every state hash equal, every host entry's state
@@ -4086,7 +4130,7 @@ is cited by a test.
 | HC-8, HC-10, T37 | replay with adapters disconnected | `foreign_and_host_entries_replay` |
 | HC-9 | priority admission | `admitter_order_is_d_order`, `simultaneous_order_does_not_depend_on_caller_order` |
 | HC-15 to HC-17 | canonical windows, exactly once | `tests/host_admit.rs`: `two_hosts_different_arrival_orders_give_byte_identical_d`, `window_order_is_priority_then_source_then_seq`, `gap_is_held_and_admitted_once_filled`, `no_ack_without_a_durable_append`, `dedupe_state_survives_replay` |
-| HC-18 to HC-20 | replicated D, term fence, failover | `admitter_failover_keeps_one_d_and_exactly_once` |
+| HC-18 to HC-20 | replicated D, term fence, failover | `admitter_failover_keeps_one_d_and_exactly_once`; `tests/host_raft.rs`: partitions, reordering and loss, crash and restart, durable vote, log matching, snapshot install, TCP, `host_fails_over_through_raft` |
 | HS-1 to HS-5, T38, T39 | durable append, fatal barrier, verify on open | `verify_on_open_cuts_bad_suffix`, `fatal_barrier_stops_admission` |
 | HC-11 to HC-14 | fabrics, placement, exactness, no flags | `placement_is_a_function_of_host_entries` |
 | HS-6 to HS-9 | RCEdb in RCE | `rcedb_example_runs` |
