@@ -486,6 +486,21 @@ fn name_match(descs: &[text], e: &text) -> bool
             return true
     return false
 
+# best rank of a descriptor list for e: 0 exact, 1 prefix, 2 "*"
+fn match_rank(descs: &[text], e: &text) -> i64
+    var best: i64 = 3
+    for d in descs
+        let one: List[text] = [copy(d)]
+        if name_match(&one, e)
+            var k: i64 = 1
+            if d == e
+                k = 0
+            elif d == "*"
+                k = 2
+            if k < best
+                best = k
+    return best
+
 # ---------------- algorithm (SCXML Appendix D) ----------------
 fn proper_ancestors(c: &Chart, s: i64, upto: i64) -> List[i64]
     var o: List[i64] = []
@@ -600,19 +615,25 @@ fn select_tr(c: &Chart, r: &mut Run, ses: i64, e: &text) -> List[i64]
                 chain.push(a)
             var done = false
             for a in chain
-                if not done
-                    for t in c.strans[a as usize]
-                        if not done and not is_hist(c, a)
-                            let evs = copy(c.tev[t as usize])
-                            var hit = false
-                            if e == ""
-                                hit = evs.len() == 0
-                            else
-                                hit = evs.len() > 0 and name_match(&evs, e)
-                            if hit and cond_ok(c, r, ses, &c.tcond[t as usize])
-                                if not en.contains(t)
-                                    en.push(t)
-                                done = true
+                # XState mode ranks a state's candidates: exact event
+                # names, then partial descriptors, then "*"
+                var passes: List[i64] = [-1]
+                if c.xs and e != ""
+                    passes = [0, 1, 2]
+                for pz in passes
+                    if not done
+                        for t in c.strans[a as usize]
+                            if not done and not is_hist(c, a)
+                                let evs = copy(c.tev[t as usize])
+                                var hit = false
+                                if e == ""
+                                    hit = evs.len() == 0
+                                else
+                                    hit = evs.len() > 0 and name_match(&evs, e) and (pz < 0 or match_rank(&evs, e) == pz)
+                                if hit and cond_ok(c, r, ses, &c.tcond[t as usize])
+                                    if not en.contains(t)
+                                        en.push(t)
+                                    done = true
     return remove_conflicts(c, r, ses, &en)
 
 fn in_final(c: &Chart, r: &Run, ses: i64, s: i64) -> bool
