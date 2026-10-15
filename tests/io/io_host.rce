@@ -1,0 +1,110 @@
+# Host checks for io against the reference host's file adapter (rce host
+# run --fs): every request gets one result, paired by the request table;
+# path_ok predicts which paths the adapter refuses; FileRead data read
+# back through the line reader equals what was written.
+# host-flags: --fs
+# event: Save(path: "a.txt", body: "one\ntwo\r\nthree")
+# event: Load(path: "a.txt", body: "one\ntwo\r\nthree")
+# event: Save(path: "./b é.txt", body: "😀\n")
+# event: Load(path: "b é.txt", body: "😀\n")
+# event: Save(path: "../escape.txt", body: "x")
+# event: Load(path: "/etc/hostname", body: "")
+# event: Load(path: "a/../a.txt", body: "")
+# event: Ls(path: "..", names: [])
+# event: Ls(path: "", names: ["a.txt", "b é.txt"])
+const K_WRITE: text = "FileWrite"
+const K_READ: text = "FileRead"
+const K_LIST: text = "FileList"
+
+state H
+    p: Pending = pending_new()
+    expect_ok: List[bool] = []
+    good: u64 = 0
+    bad: u64 = 0
+
+struct FileWrite
+    req: u64
+    path: text
+    data: text
+
+struct FileRead
+    req: u64
+    path: text
+
+struct FileList
+    req: u64
+    path: text
+
+event Save(path: text, body: text)
+event Load(path: text, body: text)
+event Ls(path: text, names: List[text])
+event FileWriteDone(req: u64, status: text, data: u64?, err: text)
+event FileReadDone(req: u64, status: text, data: text?, err: text)
+event FileListDone(req: u64, status: text, data: List[text]?, err: text)
+
+fn read_lines(t: &text) -> List[text]
+    var r = reader_new()
+    var out = feed(&mut r, t)
+    let tail = finish(&mut r)
+    var i: usize = 0
+    while i < tail.len() bound 16
+        out.push(copy(tail[i]))
+        i += 1
+    return out
+
+step H on Save(path: q, body: b)
+    let id = issue(&mut p, &K_WRITE, &b)
+    expect_ok.push(path_ok(&q, false))
+    emit FileWrite(req: id, path: q, data: b)
+
+step H on Load(path: q, body: b)
+    let id = issue(&mut p, &K_READ, &b)
+    expect_ok.push(path_ok(&q, false))
+    emit FileRead(req: id, path: q)
+
+step H on Ls(path: q, names: n)
+    var t = ""
+    var i: usize = 0
+    while i < n.len() bound 64
+        t = t + n[i] + "/"
+        i += 1
+    let id = issue(&mut p, &K_LIST, &t)
+    expect_ok.push(path_ok(&q, true))
+    emit FileList(req: id, path: q)
+
+fn want(xs: &[bool], req: u64) -> bool = xs[(req - 1) as usize]
+
+step H on FileWriteDone(req: r, status: s, data: d, err: e)
+    let tag = settle(&mut p, &K_WRITE, r)
+    let ok = result_ok(&s, copy(d), &e) and tag != none and (s == DELIVERED) == want(&expect_ok, r)
+    let n = delivered(&s, copy(d), &e)
+    let sized = s != DELIVERED or n == some(tag.or("").len() as u64)
+    if ok and sized
+        good += 1
+    else
+        bad += 1
+
+step H on FileReadDone(req: r, status: s, data: d, err: e)
+    let tag = settle(&mut p, &K_READ, r)
+    let ok = result_ok(&s, copy(d), &e) and tag != none and (s == DELIVERED) == want(&expect_ok, r)
+    let t = delivered(&s, copy(d), &e).or("")
+    let w = tag.or("?")
+    let same = s != DELIVERED or read_lines(&t) == read_lines(&w)
+    if ok and same
+        good += 1
+    else
+        bad += 1
+
+step H on FileListDone(req: r, status: s, data: d, err: e)
+    let tag = settle(&mut p, &K_LIST, r)
+    let ok = result_ok(&s, copy(d), &e) and tag != none and (s == DELIVERED) == want(&expect_ok, r)
+    var t = ""
+    let ns = delivered(&s, copy(d), &e).or([])
+    var i: usize = 0
+    while i < ns.len() bound 64
+        t = t + ns[i] + "/"
+        i += 1
+    if ok and (s != DELIVERED or some(t) == tag) and outstanding(&p) == 0
+        good += 1
+    else
+        bad += 1

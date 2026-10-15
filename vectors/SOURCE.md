@@ -224,3 +224,41 @@ results (E.5), so receipts can be built from them directly (here
 cost_uj and its provenance are parameters). Module imports do not rename
 names yet (W-MOD-3), so `enc` and `hash.blake3` private helpers were
 renamed (`enc_cat`, `b3_g`) to coexist with `crypto`.
+
+## io (`lib/io/io.rce`)
+
+- No official vectors exist for a reader/writer library over RCE host
+  adapters. The reference is the host itself: RCE spec Appendix E (HC-3:
+  one result per request, delivered/failed/timed_out/unreachable; HC-10)
+  and the rce 0.1.3 file adapter (`rce host run --fs`), whose path rule
+  (relative, not empty except for FileList, normal names and "." only)
+  `path_ok` mirrors.
+- Derived with `scripts/gen/io_gen.py` (a Python model of each part,
+  seed 18): status names and result shapes (12 cases, each also through
+  `delivered`); 30 request-table scripts (ids, tags, outstanding,
+  settled, stray: unknown ids, second results, wrong kinds); 51 line
+  reader runs (CRLF, lone CR, multibyte text cut anywhere, with and
+  without eof) plus reads after eof; 40 writer runs (partial acks on
+  character boundaries, failed writes resent, max 0, a character longer
+  than max) plus refused acks (beyond the chunk, inside a character,
+  nothing in flight); 40 path cases. 195 comptime checks.
+- Host checks (`tests/io/io_host.rce`, flattened with the module, run
+  under `rce host run --fs` on an empty root): 9 requests (writes, reads
+  back through the line reader, a non-ASCII name, `..`, an absolute path,
+  `a/../a.txt`, listings); each result pairs with its request, has the
+  predicted outcome and the expected data, and the host's replay with
+  adapters disconnected re-derives the state. 9 of 9. `scripts/check.sh`
+  now reads `# event:` lines (events with arguments) and `# host-flags:
+  --fs`.
+- `scripts/mut/io.py`: 29 of 29 mutants killed (three equivalent ones
+  were removed by simplifying the code).
+
+Needs spec: a generic function cannot take a borrowed option (`&T?`
+does not unify with `&text?` in rce 0.1.3), so `result_ok` and
+`delivered` take the data by value; a library cannot declare the
+request structs and `<Kind>Done` events (W-HOST-1 looks for them in the
+program), so each program repeats them; the file adapter reports a
+missing file and a refused path both as `failed` with free text, so a
+program cannot tell them apart without parsing `err`; no adapter yet
+reads a file in chunks, so the line reader is exercised over one
+FileRead and over arbitrary chunkings in the comptime checks.

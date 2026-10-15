@@ -21,6 +21,7 @@ run replays bit for bit.
 | `lib/rand/det.rce` | `rand.det`: seeded ChaCha20 (RFC 8439) streams: words, bits, unbiased `below`/`range`, bytes, shuffle, split; fresh seeds only through `from_entropy`, which takes a `Cap[Entropy]` (`# rce-version: 0.8`) |
 | `lib/fmt/fmt.rce` | `fmt`: locale-free integer text in radixes 2..36 (strict parse, overflow refused), padding and digit grouping, `{}`/`{N}` templates, and a linear-time regex (Thompson NFA run as a Pike VM: classes, `\d\w\s`, `* + ? {m,n}`, alternation, groups, anchors) |
 | `lib/energy/energy.rce` | `energy`: JCP v0.3 `jcp/2` receipts (JCR-1): canonical core, blake3 content id, COSE_Sign1 (EdDSA) seal and verify (checked against the JCP conformance/v1 vectors), did:key for Ed25519, strict decoding under the profile a receipt names (`jcp/1` opens, never minted), replay of a receipt stream into budget state and per-worker tallies; uses `enc`, `hash.blake3` and `crypto` |
+| `lib/io/io.rce` | `io`: request/result patterns over host adapters (HC-3, HC-10): result well-formedness, a request table pairing each `<Kind>Done` with the one request it answers (strays counted), a line reader over received chunks (CRLF, eof), a writer that cuts at character boundaries and resends after partial writes, and the `--fs` adapter path rule; no effects of its own |
 
 Foundation modules live under `lib/<area>/` (a module that needs others names them on a `# uses:` line and is checked as a package with them); their vectors and property
 sweeps are in `tests/<area>/<name>_checks.rce`, which `scripts/check.sh`

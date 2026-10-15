@@ -38,11 +38,15 @@ for f in lib/*/*.rce; do
   h="${t%_checks}_host.rce"
   if [ -f "$h" ]; then
     python3 scripts/flatten.py "$f" "$t.rce" "$h" > "$tmp/host.rce"
-    ev=$(sed -n "s/^# events: //p" "$h" | tr -d ' ' | tr ',' '\n')
+    # "# events: A, B" lists events without arguments; "# event: E" lines
+    # give one event each (with arguments). "# host-flags: --fs" grants a
+    # fresh empty file root.
+    if grep -q "^# event: " "$h"; then ev=$(sed -n "s/^# event: //p" "$h"); else ev=$(sed -n "s/^# events: //p" "$h" | tr -d ' ' | tr ',' '\n'); fi
+    hf=""; if grep -q "^# host-flags: --fs" "$h"; then rm -rf "$tmp/fs"; mkdir "$tmp/fs"; hf="--fs $tmp/fs"; fi
     n=$(printf '%s\n' "$ev" | grep -c .)
-    res=$(printf '%s\n' "$ev" | "$RCE" host run "$tmp/host.rce" --log "$tmp/hostlog")
+    res=$(printf '%s\n' "$ev" | "$RCE" host run "$tmp/host.rce" --log "$tmp/hostlog" $hf)
     printf '%s\n' "$res" | tail -3
-    printf '%s\n' "$res" | grep -q "{ good = $n, bad = 0 }" || { echo "FAIL host checks $h"; exit 1; }
+    printf '%s\n' "$res" | grep -q "good = $n, bad = 0 }" || { echo "FAIL host checks $h"; exit 1; }
     rm -rf "$tmp/hostlog"*
   fi
 done
