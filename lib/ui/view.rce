@@ -12,10 +12,12 @@ use text.utf8
 # - diff(a, b) gives the operations that turn tree a into tree b, and
 #   apply(a, b, ops) replays them; apply(a, b, diff(a, b)) encodes the
 #   same as b (vectors and property sweeps check this).
-# - Child lists are reconciled the way Vue 3 and Inferno do: two nodes
-#   are the same when tag and key agree; a common prefix and suffix are
-#   patched in place; in the middle, keyed nodes match by key and an
-#   unkeyed old node matches the first free unkeyed new node of its tag.
+# - Two nodes are the same when tag and key agree. diff matches child
+#   lists optimally (match_opt: a longest common subsequence stays in
+#   place, then all remaining same pairs), giving the fewest removals,
+#   creations and moves. diff_vue matches as Vue 3 and Inferno do (common
+#   prefix and suffix, keyed by key, an unkeyed old node to the first
+#   free unkeyed new node of its tag); the Vue vectors check that mode.
 #   Unmatched old nodes are removed (in old order), then new nodes are
 #   visited right to left: unmatched ones are created and matched ones
 #   are moved unless they lie on a longest increasing subsequence of
@@ -256,13 +258,85 @@ pub fn match_kids(a: &View, ak: &[i64], b: &View, bk: &[i64]) -> List[i64]
         o += 1
     return m
 
+# Optimal matching: prefix and suffix as above, then a longest common
+# subsequence of the middle under `same` (those pairs stay in place),
+# then every remaining same-tag-and-key pair (keyed by key, unkeyed
+# first-free in order). Container operations number
+# |old| + |new| - |M| - LIS(M); M is as large as the tags allow and
+# LIS(M) = LCS, the most any matching keeps in order, so the count is
+# the least possible (vectors/SOURCE.md; checked by breadth-first search).
+pub fn match_opt(a: &View, ak: &[i64], b: &View, bk: &[i64]) -> List[i64]
+    var m: List[i64] = []
+    for j in 0..bk.len()
+        m.push(-1)
+    var i: i64 = 0
+    let na = ak.len() as i64
+    let nb = bk.len() as i64
+    while i < nb and i < na and same(a, ak[i as usize], b, bk[i as usize])
+        m[i as usize] = i
+        i += 1
+    var e1 = na - 1
+    var e2 = nb - 1
+    while e2 >= i and e1 >= i and same(a, ak[e1 as usize], b, bk[e2 as usize]) bound 16777216
+        m[e2 as usize] = e1
+        e1 -= 1
+        e2 -= 1
+    let r = e1 - i + 1
+    let c = e2 - i + 1
+    if r <= 0 or c <= 0
+        return m
+    # t[(p * (c + 1)) + q]: LCS of old[i + p ..] and new[i + q ..]
+    var t: List[i64] = []
+    for z in 0..((r + 1) * (c + 1)) as usize
+        t.push(0)
+    var p = r
+    while p > 0 bound 16777216
+        p -= 1
+        var q = c
+        while q > 0 bound 16777216
+            q -= 1
+            let at = (p * (c + 1) + q) as usize
+            if same(a, ak[(i + p) as usize], b, bk[(i + q) as usize])
+                t[at] = t[((p + 1) * (c + 1) + q + 1) as usize] + 1
+            else
+                let d = t[((p + 1) * (c + 1) + q) as usize]
+                let e = t[(p * (c + 1) + q + 1) as usize]
+                t[at] = if d >= e then d else e
+    var used: List[i64] = []
+    for o in 0..ak.len()
+        used.push(0)
+    p = 0
+    var q: i64 = 0
+    while p < r and q < c bound 16777216
+        if same(a, ak[(i + p) as usize], b, bk[(i + q) as usize])
+            m[(i + q) as usize] = i + p
+            used[(i + p) as usize] = 1
+            p += 1
+            q += 1
+        elif t[((p + 1) * (c + 1) + q) as usize] >= t[(p * (c + 1) + q + 1) as usize]
+            p += 1
+        else
+            q += 1
+    var o = i
+    while o <= e1 bound 16777216
+        if used[o as usize] == 0
+            var j = i
+            var done = false
+            while j <= e2 and not done bound 16777216
+                if m[j as usize] < 0 and same(a, ak[o as usize], b, bk[j as usize])
+                    m[j as usize] = o
+                    done = true
+                j += 1
+        o += 1
+    return m
+
 # Child-list operations of a matched parent pair (x in a, y in b) whose
 # live id is px.
-fn kid_ops(a: &View, b: &View, x: i64, y: i64, px: i64, ops: &mut List[Op], qa: &mut List[i64], qb: &mut List[i64])
+fn kid_ops(a: &View, b: &View, x: i64, y: i64, px: i64, as_vue: bool, ops: &mut List[Op], qa: &mut List[i64], qb: &mut List[i64])
     let off = a.tag.len() as i64
     let ak = copy(a.kids[x as usize])
     let bk = copy(b.kids[y as usize])
-    let m = match_kids(a, &ak, b, &bk)
+    let m = if as_vue then match_kids(a, &ak, b, &bk) else match_opt(a, &ak, b, &bk)
     let na = ak.len() as i64
     let nb = bk.len() as i64
     var live: List[i64] = []
@@ -351,8 +425,12 @@ fn node_ops(a: &View, b: &View, x: i64, y: i64, ops: &mut List[Op])
             j += 1
 
 # Operations turning a into b, breadth first: a node's own changes, then
-# its child list, then its matched children in b's order.
-pub fn diff(a: &View, b: &View) -> List[Op]
+# its child list, then its matched children in b's order. diff matches
+# children optimally (match_opt); diff_vue matches them as Vue 3 does
+# (match_kids), the mode the Vue vectors check.
+pub fn diff(a: &View, b: &View) -> List[Op] = diff_mode(a, b, false)
+pub fn diff_vue(a: &View, b: &View) -> List[Op] = diff_mode(a, b, true)
+fn diff_mode(a: &View, b: &View, as_vue: bool) -> List[Op]
     var ops: List[Op] = []
     let off = a.tag.len() as i64
     if not same(a, 0, b, 0)
@@ -366,7 +444,7 @@ pub fn diff(a: &View, b: &View) -> List[Op]
         let x = qa[h]
         let y = qb[h]
         node_ops(a, b, x, y, &mut ops)
-        kid_ops(a, b, x, y, x, &mut ops, &mut qa, &mut qb)
+        kid_ops(a, b, x, y, x, as_vue, &mut ops, &mut qa, &mut qb)
         h += 1
     return ops
 

@@ -815,16 +815,28 @@ The child-list algorithm is derived from its laws, not copied:
   the Python `blake3` package's (`tests/ui/view_checks_tree*.rce`).
 - **derived:** `scripts/gen/view_derived.rce` (LIS cases, exact
   operation lists, CBOR key order, well-formedness, frame record bytes).
-- `scripts/mut/view.py`: 41 of 41 mutants killed. One equivalent
-  mutant was removed: dropping `not put` in `attach` (sibling ids are
-  distinct, so the anchor occurs at most once).
+- **optimal matching (`diff`):** `match_opt` keeps a longest common
+  subsequence (under same tag and key) in place, then matches every
+  remaining same pair. Container operations are |old| + |new| - |M| -
+  LIS(M): |M| is the most the tags and keys allow, and LIS(M) <= LCS
+  for any matching, with equality here, so no matching does better.
+  Checked against a breadth-first search over removals, creations and
+  moves on 1,500 distinct random list pairs of up to 5 children (keyed
+  spans, unkeyed `<s>`/`<p>`, text nodes): `tests/ui/view_checks_opt*.rce`,
+  all equal. Vue's first-free matching (`diff_vue`, the mode the Vue
+  vectors use) costs more on 23 of them.
+- `scripts/mut/view.py`: 48 of 48 mutants killed. Three equivalent
+  mutants were removed: dropping `not put` in `attach` (sibling ids are
+  distinct, so the anchor occurs at most once), dropping match_opt's
+  common-suffix loop (a common suffix lies on some LCS, so the count is
+  unchanged; this mode specifies the count, not the sequence), and
+  `and` for `or` in its empty-side test.
 
 Divergences from Vue, by design: key matching requires the same tag (see
 above); operations are ordered breadth first (a node's attributes and
 text, its child list, then its matched children), where Vue patches
-children depth first while scanning. Minimality holds for the moves
-given the matching; the greedy unkeyed matching is Vue's and is not
-optimised.
+children depth first while scanning. In `diff_vue` minimality holds for the moves given Vue's matching;
+`diff` is optimal over all matchings.
 ## math (lib/math/math.rce)
 
 Worst cases from CORE-MATH (https://gitlab.inria.fr/core-math/core-math,

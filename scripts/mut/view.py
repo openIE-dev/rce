@@ -9,7 +9,7 @@ SRC = open(os.path.join(root, 'lib/ui/view.rce')).read()
 DEPS = {n: open(os.path.join(root, 'lib', p)).read() for n, p in
         [('enc.rce', 'enc/enc.rce'), ('blake3.rce', 'hash/blake3.rce'), ('utf8.rce', 'text/utf8.rce')]}
 T = os.path.join(root, 'tests/ui')
-SH = [os.path.join(T, 'view_checks.rce')] + sorted(glob.glob(os.path.join(T, 'view_checks_min*.rce'))) \
+SH = [os.path.join(T, 'view_checks.rce')] + sorted(glob.glob(os.path.join(T, 'view_checks_min*.rce'))) + sorted(glob.glob(os.path.join(T, 'view_checks_opt*.rce'))) \
     + sorted(glob.glob(os.path.join(T, 'view_checks_live*.rce'))) + sorted(glob.glob(os.path.join(T, 'view_checks_tree*.rce')))
 # Equivalent mutant removed: attach's `c == before and not put` without
 # `not put` (sibling ids are distinct, so before occurs at most once).
@@ -66,6 +66,14 @@ M = [
  ('    let tag = "rce.ui.frame/1"', '    let tag = "rce.ui.frame/0"'),
  ('    put_head(&mut o, 2, 32)', '    put_head(&mut o, 3, 32)'),
  ('    for x in enc.cbor_head(3, bs.len() as i64)', '    for x in enc.cbor_head(2, bs.len() as i64)'),
+  # optimal matching
+ ('    while i < nb and i < na and same(a, ak[i as usize], b, bk[i as usize])', '    while i < nb and i < na and false'),
+ ('                t[at] = t[((p + 1) * (c + 1) + q + 1) as usize] + 1', '                t[at] = t[((p + 1) * (c + 1) + q + 1) as usize]'),
+ ('                t[at] = if d >= e then d else e', '                t[at] = d'),
+ ('        elif t[((p + 1) * (c + 1) + q) as usize] >= t[(p * (c + 1) + q + 1) as usize]\n            p += 1', '        elif true\n            p += 1'),
+ ('            used[(i + p) as usize] = 1\n', ''),
+ ('                if m[j as usize] < 0 and same(a, ak[o as usize], b, bk[j as usize])', '                if same(a, ak[o as usize], b, bk[j as usize])'),
+ ('    let m = if as_vue then match_kids(a, &ak, b, &bk) else match_opt(a, &ak, b, &bk)', '    let m = match_kids(a, &ak, b, &bk)'),
 ]
 def run(src, f):
     with tempfile.TemporaryDirectory() as d:
