@@ -1,0 +1,15 @@
+spec "orders" 0.1
+reason "Demo spec" by "david"
+currency max_age=24h last_checked=2999-01-01T00:00:00Z
+#--- rce-test
+# id: handler-spec/ver-1-bad-version
+# area: handler-spec
+# clauses: [W-HS-VER-1]
+# expect: cli
+# tool: engine
+# argv: ["check", "main.rce"]
+# status: 1
+# output_has:
+#   - W-HS-VER-1
+# provenance: targeted (round 3): appendix D, the version is not MAJOR.MINOR.PATCH
+#---

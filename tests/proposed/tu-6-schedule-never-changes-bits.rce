@@ -18,7 +18,7 @@ fn main()
 #--- rce-test
 # id: proposed/tu-6-schedule-never-changes-bits
 # area: proposed
-# clauses: [TU-6]
+# clauses: [CH12-M-1279943c, TU-6]
 # expect: run
 # schedule_seeds: [1, 2, 3, 4, 5, 6, 7, 8]
 # outcome: done

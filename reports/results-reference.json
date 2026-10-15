@@ -2,41 +2,173 @@
  "format": "rce-results/1",
  "adapter": "reference",
  "tally": {
-  "pass": 3
+  "pass": 15
  },
  "results": [
   {
-   "path": "tests/proposed/tu-4-reduction-is-left-fold.rce",
-   "id": "proposed/tu-4-reduction-is-left-fold",
-   "area": "proposed",
+   "path": "tests/handler-spec/cur-1-zero-max-age.rce",
+   "id": "handler-spec/cur-1-zero-max-age",
+   "area": "handler-spec",
    "clauses": [
-    "TU-4"
+    "W-HS-CUR-1"
    ],
    "status": "pass",
    "detail": "",
-   "ms": 11
+   "ms": 17
   },
   {
-   "path": "tests/proposed/tu-5-text-stays-ragged.rce",
-   "id": "proposed/tu-5-text-stays-ragged",
-   "area": "proposed",
+   "path": "tests/handler-spec/cur-2-never-checked.rce",
+   "id": "handler-spec/cur-2-never-checked",
+   "area": "handler-spec",
    "clauses": [
-    "TU-5"
+    "W-HS-CUR-2"
    ],
    "status": "pass",
    "detail": "",
-   "ms": 9
+   "ms": 23
   },
   {
-   "path": "tests/proposed/tu-6-schedule-never-changes-bits.rce",
-   "id": "proposed/tu-6-schedule-never-changes-bits",
-   "area": "proposed",
+   "path": "tests/handler-spec/cur-2-stale-strict-refused.rce",
+   "id": "handler-spec/cur-2-stale-strict-refused",
+   "area": "handler-spec",
    "clauses": [
-    "TU-6"
+    "W-HS-CUR-2"
    ],
    "status": "pass",
    "detail": "",
-   "ms": 31
+   "ms": 10
+  },
+  {
+   "path": "tests/handler-spec/cur-2-stale-warns.rce",
+   "id": "handler-spec/cur-2-stale-warns",
+   "area": "handler-spec",
+   "clauses": [
+    "W-HS-CUR-2"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 64
+  },
+  {
+   "path": "tests/handler-spec/d2-error-budget-out-of-range.rce",
+   "id": "handler-spec/d2-error-budget-out-of-range",
+   "area": "handler-spec",
+   "clauses": [
+    "CH15-M-0a595561"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 37
+  },
+  {
+   "path": "tests/handler-spec/dur-1-bad-timeout.rce",
+   "id": "handler-spec/dur-1-bad-timeout",
+   "area": "handler-spec",
+   "clauses": [
+    "W-HS-DUR-1"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 48
+  },
+  {
+   "path": "tests/handler-spec/kw-1-unknown-change-control-word.rce",
+   "id": "handler-spec/kw-1-unknown-change-control-word",
+   "area": "handler-spec",
+   "clauses": [
+    "W-HS-KW-1"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 45
+  },
+  {
+   "path": "tests/handler-spec/reason-1-role-without-reason.rce",
+   "id": "handler-spec/reason-1-role-without-reason",
+   "area": "handler-spec",
+   "clauses": [
+    "W-HS-REASON-1"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 32
+  },
+  {
+   "path": "tests/handler-spec/reason-1-spec-without-reason.rce",
+   "id": "handler-spec/reason-1-spec-without-reason",
+   "area": "handler-spec",
+   "clauses": [
+    "W-HS-REASON-1"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 53
+  },
+  {
+   "path": "tests/handler-spec/reason-1-unspecified.rce",
+   "id": "handler-spec/reason-1-unspecified",
+   "area": "handler-spec",
+   "clauses": [
+    "W-HS-REASON-1"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 51
+  },
+  {
+   "path": "tests/handler-spec/ver-1-bad-version.rce",
+   "id": "handler-spec/ver-1-bad-version",
+   "area": "handler-spec",
+   "clauses": [
+    "W-HS-VER-1"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 34
+  },
+  {
+   "path": "tests/handler-spec/ver-1-good-version.rce",
+   "id": "handler-spec/ver-1-good-version",
+   "area": "handler-spec",
+   "clauses": [
+    "W-HS-VER-1"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 29
+  },
+  {
+   "path": "tests/handler-spec/ver-2-removal-needs-minor-bump.rce",
+   "id": "handler-spec/ver-2-removal-needs-minor-bump",
+   "area": "handler-spec",
+   "clauses": [
+    "W-HS-VER-2"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 28
+  },
+  {
+   "path": "tests/handler-spec/ver-2-removal-with-minor-bump.rce",
+   "id": "handler-spec/ver-2-removal-with-minor-bump",
+   "area": "handler-spec",
+   "clauses": [
+    "W-HS-VER-2"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 24
+  },
+  {
+   "path": "tests/handler-spec/ver-2-version-decrease.rce",
+   "id": "handler-spec/ver-2-version-decrease",
+   "area": "handler-spec",
+   "clauses": [
+    "W-HS-VER-2"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 20
   }
  ]
 }
