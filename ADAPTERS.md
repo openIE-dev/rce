@@ -19,5 +19,8 @@ Shipped adapters: `reference` (the `rce-conform` binary from
 `crates/rce/spec/checker`), `emit-rust`, `emit-python`, `emit-js`,
 `emit-scala` (via `adapters/emit_adapter.py`: emit, compile, run with
 `--run --fuel=N`, events as appended `example` blocks), `wasm-playground`
-(check only, via node). Emitted programs cannot observe a trap on the last
+(check only, via node), `lean-core` (`rce-conform-lean` from
+`crates/rce/spec/checker`: reference entry, then the Lean core semantics in
+`spec/lean` on the elaborated `fn main`; run op only, programs outside the
+core subset are `unsupported`; env `RCE_CONFORM_LEAN`, `RCE_LEAN_DIR`). Emitted programs cannot observe a trap on the last
 event (see finding EXAMPLE-TRAP), so those cases are `unsupported`.
