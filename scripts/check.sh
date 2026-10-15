@@ -50,3 +50,10 @@ for f in lib/*/*.rce; do
     rm -rf "$tmp/hostlog"*
   fi
 done
+# A tests/<area>/<name>_probes.py script checks the rce checker itself
+# against a rule table of the spec (e.g. the effect contexts of 5.2).
+for p in tests/*/*_probes.py; do
+  [ -f "$p" ] || continue
+  RCE="$RCE" python3 "$p" | tail -1
+  RCE="$RCE" python3 "$p" > /dev/null || { echo "FAIL probes $p"; exit 1; }
+done

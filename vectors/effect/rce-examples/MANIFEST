@@ -1,0 +1,20 @@
+# Copied unchanged from github.com/openIE-dev/rce at 24b9e4c, spec/examples,
+# spec/examples/ill_typed (renamed ill_*), spec/conc06/ill_typed and
+# spec/conc06b/ill_typed (Apache-2.0 OR MIT). "admit": the checker admits
+# it; otherwise the rule the refusal must name (from the file name or
+# spec/LANGUAGE-REVIEW.md).
+13_spawn_chan.rce admit
+14_select.rce admit
+15_actor.rce admit
+37_actor_spawn.rce admit
+40_extern.rce admit
+47_select_fair.rce admit
+ill_pure_send.rce W-EFF-1
+ill_extern_in_pure.rce W-EFF-1
+ill_extern_spawn.rce W-SPAWN-1
+ill_iter_effect.rce W-ITER-1
+ill_device_emit.rce W-DEV-1
+ill_device_extern.rce W-DEV-1
+ill_spawn_borrow.rce W-SPAWN-1
+ill_nd_step.rce W-ND-1
+ill_spawn_outside_scope.rce W-SCOPE-1

@@ -1,0 +1,14 @@
+[package]
+name = "canon-ref"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+# The engine's canonical JSON and SHA-256 (rce src/canon.rs, the scheme of
+# oracle keys in Appendix D.4), used to confirm scripts/gen/effect_gen.py.
+
+[dependencies]
+serde_json = { version = "1", features = ["preserve_order"] }
+sha2 = "0.10"
+
+[workspace]

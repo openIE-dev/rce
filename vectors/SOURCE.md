@@ -262,3 +262,46 @@ missing file and a refused path both as `failed` with free text, so a
 program cannot tell them apart without parsing `err`; no adapter yet
 reads a file in chunks, so the line reader is exercised over one
 FileRead and over arbitrary chunkings in the comptime checks.
+
+## effect (`lib/effect/effect.rce`)
+
+- RCE spec 5.2, the effect-context table and the call rules (task and
+  foreign functions only from main and tasks; W-EFF-1, W-SPAWN-1), and
+  5.11. `tests/effect/effect_probes.py` writes one probe program per
+  table cell (6 contexts x their effects, 43 cells; comptime `fail` is a
+  compile error and not probed) and per call pair (10), runs `rce check`
+  on each, and requires admission where the table allows and refusal
+  naming W-EFF-1 or W-SPAWN-1 where it does not: 53 of 53 agree.
+- Official corpus, `vectors/effect/rce-examples/` (MANIFEST): 15 programs
+  copied unchanged from github.com/openIE-dev/rce at 24b9e4c (spec/examples
+  13, 14, 15, 37, 40, 47 admitted; ill_typed pure_send, extern_in_pure,
+  extern_spawn, iter_effect, device_emit, device_extern, spawn_borrow,
+  conc06 W-ND-1_step, conc06b W-SCOPE-1_spawn_outside_scope refused with
+  the named rule): 15 of 15. `scripts/check.sh` now runs every
+  `tests/*/*_probes.py`.
+- Canonical JSON and oracle keys: rce src/canon.rs (bytewise key order,
+  serde_json strings and integers), copied unchanged into
+  `scripts/ref/canon` (cargo); `scripts/gen/effect_gen.py --ref` confirms
+  every one of its 60 values (20 fixed: escapes, U+2028, U+E000 against
+  astral keys, i64 limits; 40 random, seed 19) against it. The oracle
+  miss text is the engine's (`form/ir.rs`).
+- Derived (`scripts/gen/effect_gen.py`): the table (63 `allows` and 56
+  `may_call`/`may_spawn` cells, unknown names included), canonical JSON
+  and SHA-256 of the 60 values, one oracle
+  run (key order does not change a key; re-recording replaces), 35
+  backoff delays, 30 retry runs over HC-3 outcomes, 7 deadline cases.
+  318 comptime checks with the hand-written ones (plans, byte order).
+- `scripts/mut/effect.py`: 35 of 35 mutants killed.
+
+Needs spec: 5.2 says a step may send "to actors and declared channels",
+but in rce 0.1.3 a step can reach neither (an event handled by a state
+step may not carry a channel, W-TY-2; actors start only in main or a
+task, W-EFF-1); a channel the step makes itself is admitted, so the probe
+uses that. How an RCE module is used as a fit (D.7) is open, so the
+recorded handler is a library value, not an engine fit; the engine's
+canonical JSON is not RFC 8785 (key order, integer range), and the two
+are not reconciled in the spec. Handlers in the Koka/OCaml sense
+(resumable effects) are not expressible: effects are fixed by context,
+so this module offers effects as data instead. W-HOST-1 result events
+must be declared by the program (see io).
+
