@@ -1,7 +1,18 @@
 {
  "format": "rce-clauses-pending/1",
  "note": "Normative rules that are in force but not yet written in the book. Each carries its derivation and moves to the book through a finding; the id is kept when it does.",
- "clauses": [],
+ "clauses": [
+  {
+   "id": "ACT-1",
+   "kind": "rule",
+   "profile": "proposed",
+   "normative": false,
+   "chapter": "pending",
+   "line": 0,
+   "source": "proposed by the conformance suite (FINDINGS.md 22, mutant 112); awaiting David Charlot's decision",
+   "text": "Within a tick, every actor whose mailbox is nonempty at the start of the actor phase processes exactly one message, in actor id order, before the tick ends (6.8 now says 'at most one message per tick', which also admits serving only one actor per tick)."
+  }
+ ],
  "retired": [
   {
    "id": "FUEL-1",

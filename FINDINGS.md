@@ -72,8 +72,23 @@ Machine-readable records are in `findings/*.json`; the tests the reference fails
     evaluated on the normative split tree of C.4, so on non-associative float
     addition it can differ from `fold` (`proposed/tu-6-*`: 2 against 1.5).
     Both are fixed by the program, never by the schedule.
-21. **Mutation survivors.** After the round-3 tests, 2 of the 11 survivors
-    remain: 112 (`conc.rs`, stop check after an actor delivery) changes only
-    the actor log, which the adapter protocol does not expose, so it is
-    equivalent in outputs; 133 (lattice law sample cap) only changes how many
-    merged values the law search samples.
+21. **Mutation survivors (round 4).** 112 is not equivalent: negating the
+    stop check after an actor delivery (`conc.rs` `actors_phase`) serves one
+    actor per tick, which reorders outputs when two actors have mail in the
+    same tick. `proposed/act-1-every-actor-steps-each-tick` kills it, but it
+    rests on the proposed rule in 22, so the kill counts only once 22 is
+    decided. 133 is equivalent with respect to the spec: the sample loop
+    runs only for a kind that is not an enumeration, and there C.11.5 makes
+    the verdict depend on the certificate alone ("never by sampling"). A
+    certified merge satisfies the laws on every sample (`MergeCert.cert_laws`),
+    so it is accepted with or without the cap. An uncertified merge is refused
+    as W-CRDT-1 either way. The mutant changes only the message text
+    (a law counterexample against "no W-CRDT-1 certificate"), and the harness
+    checks diagnostic codes, not text, which the book does not fix.
+22. **6.8 actor scheduling is underspecified (proposed ACT-1).** "Each actor
+    processes at most one message per tick" also allows serving one actor
+    per tick, as mutant 112 does. The reference serves every actor with mail
+    once per tick, in id order. Proposed fix (needs David's decision): "every
+    actor whose mailbox is nonempty at the start of the actor phase processes
+    exactly one message". Recorded as non-normative ACT-1 in
+    `clauses-pending.json`.
