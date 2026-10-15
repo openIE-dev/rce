@@ -1,0 +1,70 @@
+# ---- derived (scripts/gen/view_derived.rce) ----
+# LIS: strictly increasing, the patience-sorting choice
+fn lis_of(a: List[i64]) -> List[i64] = lis(&a)
+check lis_of([]) == []
+check lis_of([5]) == [0]
+check lis_of([3, 1, 2]) == [1, 2]
+check lis_of([2, 2, 2]) == [2]
+check lis_of([2, 3, 1, 5, 4]) == [0, 1, 4]
+check lis_of([0, 8, 4, 12, 2, 10, 6, 14, 1, 9, 5, 13, 3, 11, 7, 15]).len() == 6
+# exact operations (live ids: old index; |a| + new index when created)
+check ops_of("<div @a=1 @b=2 >", "<div @b=3 @c=4 >") == "unset 0 a;set 0 b=3;set 0 c=4"
+check ops_of("<div ~x >", "<div ~y >") == "text 1 y"
+check ops_of("<div @a=1 >", "<div @a=1 @b=2 >") == "set 0 b=2"
+check ops_of("<div #a >", "<div #b >") == "remove 0;create 1 in -1 before -1"
+check ops_of("<div >", "<p >") == "remove 0;create 1 in -1 before -1"
+check ops_of("<ul <li #a > <li #b > >", "<ul <li #b > <li #a > >") == "move 2 in 0 before 1"
+check ops_of("<ul <li #a > >", "<ul <li #a > <li #b > >") == "create 4 in 0 before -1"
+check ops_of("<ul <li #a > <li #b > >", "<ul <li #a > >") == "remove 2"
+check ops_of("<ul <li #a ~x > >", "<ul <p #a ~x > >") == "remove 1;create 4 in 0 before -1"
+check ops_of("<div <span @k=1 > <span @k=2 > >", "<div <span @k=2 > >") == "remove 2;set 1 k=2"
+# attribute names in CBOR order: shorter first, then bytewise
+fn lt2(a: text, b: text) -> bool = name_lt(&a, &b)
+check lt2("id", "aa") == false
+check lt2("aa", "id") == true
+check lt2("ab", "abc") == true
+check lt2("id", "id") == false
+fn cbor_order() -> text
+    var v = view_new("div", "")
+    set_attr(&mut v, 0, "style", "s")
+    set_attr(&mut v, 0, "id", "i")
+    set_attr(&mut v, 0, "aria-label", "a")
+    set_attr(&mut v, 0, "id", "j")
+    let ns = copy(v.names[0])
+    let vs = copy(v.values[0])
+    return ",".join(ns) + ":" + ",".join(vs)
+check cbor_order() == "id,style,aria-label:j,s,a"
+# well-formedness
+fn bad_text_kids() -> bool
+    var v = view_new("div", "")
+    let t = add_text(&mut v, 0, "x")
+    add_el(&mut v, t, "p", "")
+    return view_ok(&v)
+check bad_text_kids() == false
+fn bad_parent() -> bool
+    var v = view_new("div", "")
+    let c = add_el(&mut v, 0, "p", "")
+    v.parent[c as usize] = 5
+    return view_ok(&v)
+check bad_parent() == false
+fn bad_root() -> bool
+    var v = view_new("div", "")
+    v.parent[0] = 0
+    return view_ok(&v)
+check bad_root() == false
+fn orphan() -> bool
+    var v = view_new("div", "")
+    add_el(&mut v, -1, "p", "")
+    return view_ok(&v)
+check orphan() == false
+fn ok_tree(s: text) -> bool
+    let v = tv(s)
+    return view_ok(&v)
+check ok_tree("<div <p #a > <p #b > ~t >") == true
+check ok_tree("<div <p #a > <p #a > >") == false
+# frame record layout: ["rce.ui.frame/1", seq, h'<32 bytes>']
+fn rec_head() -> List[i64]
+    let v = tv("<div >")
+    let r = frame_record(70000, &v)
+    return [r[0], r[1], r[16], r[17], r[18], r[19], r[20], r[21], r[22], r.len() as i64]
+check rec_head() == [131, 110, 26, 0, 1, 17, 112, 88, 32, 23 + 32]

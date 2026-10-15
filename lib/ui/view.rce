@@ -1,0 +1,548 @@
+module ui.view
+# uses: enc.enc, hash.blake3, text.utf8
+use enc
+use hash.blake3
+use text.utf8
+
+# View tree, diff and frame digest (survey M49), pure.
+# - A view is a flat arena: node i has a tag ("" for a text node), a key
+#   ("" for unkeyed), text, attributes kept sorted, a parent and an
+#   ordered list of children. Node 0 is the root. Nodes need not be
+#   stored in tree order.
+# - diff(a, b) gives the operations that turn tree a into tree b, and
+#   apply(a, b, ops) replays them; apply(a, b, diff(a, b)) encodes the
+#   same as b (vectors and property sweeps check this).
+# - Child lists are reconciled the way Vue 3 and Inferno do: two nodes
+#   are the same when tag and key agree; a common prefix and suffix are
+#   patched in place; in the middle, keyed nodes match by key and an
+#   unkeyed old node matches the first free unkeyed new node of its tag.
+#   Unmatched old nodes are removed (in old order), then new nodes are
+#   visited right to left: unmatched ones are created and matched ones
+#   are moved unless they lie on a longest increasing subsequence of
+#   their old positions. For a fixed matching this move count is the
+#   least possible (nodes never moved keep their relative order, so they
+#   form an increasing subsequence; see vectors/SOURCE.md), and it is
+#   checked against a breadth-first search over all single-node moves.
+# - Live node ids in operations: an old node keeps its index in a; a node
+#   created from b's node j has id |a| + j.
+# - Encoding: each node is the deterministic CBOR (RFC 8949 4.2.1) array
+#   [tag, key, {attrs}, text, [children]]; view_digest is its BLAKE3, and
+#   a frame record is ["rce.ui.frame/1", seq, view_digest] with
+#   frame_digest its BLAKE3. Backends that agree on frames agree on these.
+
+pub struct View
+    tag: List[text]
+    key: List[text]
+    text: List[text]
+    names: List[List[text]]
+    values: List[List[text]]
+    parent: List[i64]
+    kids: List[List[i64]]
+
+fn empty_texts() -> List[text] = []
+fn empty_ints() -> List[i64] = []
+
+pub fn view_new(tag: text, key: text) -> View
+    var v = View(tag: [], key: [], text: [], names: [], values: [], parent: [], kids: [])
+    push_node(&mut v, -1, tag, key, "")
+    return v
+
+fn push_node(v: &mut View, p: i64, tag: text, key: text, t: text) -> i64
+    let n = v.tag.len() as i64
+    v.tag.push(tag)
+    v.key.push(key)
+    v.text.push(t)
+    v.names.push(empty_texts())
+    v.values.push(empty_texts())
+    v.parent.push(p)
+    v.kids.push(empty_ints())
+    if p >= 0
+        v.kids[p as usize].push(n)
+    return n
+
+pub fn add_el(v: &mut View, p: i64, tag: text, key: text) -> i64 = push_node(v, p, tag, key, "")
+pub fn add_text(v: &mut View, p: i64, t: text) -> i64 = push_node(v, p, "", "", t)
+pub fn size(v: &View) -> i64 = v.tag.len() as i64
+
+# CBOR map key order: shorter encoding first, then bytewise.
+pub fn name_lt(a: &text, b: &text) -> bool
+    if a.len() != b.len()
+        return a.len() < b.len()
+    var i: usize = 0
+    while i < a.len()
+        if a[i] != b[i]
+            return a[i] < b[i]
+        i += 1
+    return false
+
+pub fn set_attr(v: &mut View, n: i64, name: text, value: text)
+    let u = n as usize
+    var i: usize = 0
+    while i < v.names[u].len()
+        if v.names[u][i] == name
+            v.values[u][i] = value
+            return
+        i += 1
+    v.names[u].push(name)
+    v.values[u].push(value)
+    var j = v.names[u].len() - 1
+    while j > 0 bound 16777216
+        let c = copy(v.names[u][j - 1])
+        if not name_lt(&v.names[u][j], &c)
+            return
+        let cv = copy(v.values[u][j - 1])
+        v.names[u][j - 1] = copy(v.names[u][j])
+        v.values[u][j - 1] = copy(v.values[u][j])
+        v.names[u][j] = c
+        v.values[u][j] = cv
+        j -= 1
+
+pub fn unset_attr(v: &mut View, n: i64, name: &text)
+    let u = n as usize
+    var ns = empty_texts()
+    var vs = empty_texts()
+    var i: usize = 0
+    while i < v.names[u].len()
+        if v.names[u][i] != name
+            ns.push(copy(v.names[u][i]))
+            vs.push(copy(v.values[u][i]))
+        i += 1
+    v.names[u] = ns
+    v.values[u] = vs
+
+pub fn attr(v: &View, n: i64, name: &text) -> text?
+    let u = n as usize
+    var i: usize = 0
+    while i < v.names[u].len()
+        if v.names[u][i] == name
+            return some(copy(v.values[u][i]))
+        i += 1
+    return none
+
+# Well-formed: parent links agree with child lists, every node but the
+# root has one parent, text nodes have no key, attributes or children,
+# and sibling keys are distinct.
+pub fn view_ok(v: &View) -> bool
+    let n = v.tag.len()
+    if n == 0 or v.parent[0] != -1
+        return false
+    var seen: List[i64] = []
+    for i in 0..n
+        seen.push(0)
+    seen[0] = 1
+    for i in 0..n
+        if v.tag[i] == "" and (v.key[i] != "" or v.names[i].len() > 0 or v.kids[i].len() > 0)
+            return false
+        var keys = empty_texts()
+        for c in v.kids[i]
+            if c <= 0 or c >= n as i64 or v.parent[c as usize] != i as i64 or seen[c as usize] != 0
+                return false
+            seen[c as usize] = 1
+            if v.key[c as usize] != ""
+                if keys.contains(v.key[c as usize])
+                    return false
+                keys.push(copy(v.key[c as usize]))
+    # every node reached from the root
+    var reach: List[i64] = [0]
+    var h: usize = 0
+    while h < reach.len() bound 16777216
+        for c in v.kids[reach[h] as usize]
+            reach.push(c)
+        h += 1
+    return reach.len() == n
+
+# ---------------- longest increasing subsequence ----------------
+# Patience sorting with predecessor links (strictly increasing), the
+# subsequence Vue's getSequence and Inferno pick: positions into a.
+pub fn lis(a: &[i64]) -> List[i64]
+    var tails: List[i64] = []
+    var prev: List[i64] = []
+    for i in 0..a.len()
+        let x = a[i]
+        var lo: usize = 0
+        var hi = tails.len()
+        while lo < hi bound 64
+            let m = (lo + hi) / 2
+            if a[tails[m] as usize] < x
+                lo = m + 1
+            else
+                hi = m
+        if lo > 0
+            prev.push(tails[lo - 1])
+        else
+            prev.push(-1)
+        if lo == tails.len()
+            tails.push(i as i64)
+        else
+            tails[lo] = i as i64
+    var out: List[i64] = []
+    if tails.len() == 0
+        return out
+    var k = tails[tails.len() - 1]
+    while k >= 0 bound 16777216
+        out.push(k)
+        k = prev[k as usize]
+    var r: List[i64] = []
+    var t = out.len()
+    while t > 0 bound 16777216
+        t -= 1
+        r.push(out[t])
+    return r
+
+# ---------------- operations ----------------
+pub const OP_REMOVE: i64 = 1
+pub const OP_CREATE: i64 = 2
+pub const OP_MOVE: i64 = 3
+pub const OP_SET: i64 = 4
+pub const OP_UNSET: i64 = 5
+pub const OP_TEXT: i64 = 6
+
+# node: live id. CREATE copies b's subtree |a| + j; CREATE and MOVE
+# insert under parent before `before` (-1: at the end; parent -1: root).
+pub struct Op
+    op: i64
+    node: i64
+    parent: i64
+    before: i64
+    name: text
+    value: text
+
+fn mk(o: i64, n: i64, p: i64, b: i64, name: text, value: text) -> Op = Op(op: o, node: n, parent: p, before: b, name: name, value: value)
+
+pub fn op_text(o: &Op) -> text
+    let at = " in " + o.parent.tostr() + " before " + o.before.tostr()
+    if o.op == OP_REMOVE
+        return "remove " + o.node.tostr()
+    if o.op == OP_CREATE
+        return "create " + o.node.tostr() + at
+    if o.op == OP_MOVE
+        return "move " + o.node.tostr() + at
+    if o.op == OP_SET
+        return "set " + o.node.tostr() + " " + o.name + "=" + o.value
+    if o.op == OP_UNSET
+        return "unset " + o.node.tostr() + " " + o.name
+    return "text " + o.node.tostr() + " " + o.value
+
+fn same(a: &View, x: i64, b: &View, y: i64) -> bool = a.tag[x as usize] == b.tag[y as usize] and a.key[x as usize] == b.key[y as usize]
+
+# m[j]: index into ak matched to bk[j], or -1.
+pub fn match_kids(a: &View, ak: &[i64], b: &View, bk: &[i64]) -> List[i64]
+    var m: List[i64] = []
+    for j in 0..bk.len()
+        m.push(-1)
+    var i: i64 = 0
+    let na = ak.len() as i64
+    let nb = bk.len() as i64
+    while i < na and i < nb and same(a, ak[i as usize], b, bk[i as usize])
+        m[i as usize] = i
+        i += 1
+    var e1 = na - 1
+    var e2 = nb - 1
+    while e1 >= i and e2 >= i and same(a, ak[e1 as usize], b, bk[e2 as usize]) bound 16777216
+        m[e2 as usize] = e1
+        e1 -= 1
+        e2 -= 1
+    var o = i
+    while o <= e1 bound 16777216
+        let x = ak[o as usize]
+        var j = i
+        var done = false
+        while j <= e2 and not done bound 16777216
+            let y = bk[j as usize]
+            if m[j as usize] < 0 and same(a, x, b, y)
+                m[j as usize] = o
+                done = true
+            j += 1
+        o += 1
+    return m
+
+# Child-list operations of a matched parent pair (x in a, y in b) whose
+# live id is px.
+fn kid_ops(a: &View, b: &View, x: i64, y: i64, px: i64, ops: &mut List[Op], qa: &mut List[i64], qb: &mut List[i64])
+    let off = a.tag.len() as i64
+    let ak = copy(a.kids[x as usize])
+    let bk = copy(b.kids[y as usize])
+    let m = match_kids(a, &ak, b, &bk)
+    let na = ak.len() as i64
+    let nb = bk.len() as i64
+    var live: List[i64] = []
+    for j in 0..bk.len()
+        if m[j] >= 0
+            live.push(ak[m[j] as usize])
+        else
+            live.push(off + bk[j])
+    # prefix and suffix bounds, as match_kids found them
+    var i: i64 = 0
+    while i < na and i < nb and m[i as usize] == i
+        i += 1
+    var e1 = na - 1
+    var e2 = nb - 1
+    while e1 >= i and e2 >= i and m[e2 as usize] == e1 bound 16777216
+        e1 -= 1
+        e2 -= 1
+    if i > e1
+        # only insertions: in order, before the first suffix node
+        var anc: i64 = -1
+        if e2 + 1 < nb
+            anc = live[(e2 + 1) as usize]
+        var j = i
+        while j <= e2 bound 16777216
+            ops.push(mk(OP_CREATE, live[j as usize], px, anc, "", ""))
+            j += 1
+    else
+        var used: List[i64] = []
+        for o in 0..ak.len()
+            used.push(0)
+        for t in m
+            if t >= 0
+                used[t as usize] = 1
+        for o in 0..ak.len()
+            if used[o] == 0
+                ops.push(mk(OP_REMOVE, ak[o], -1, -1, "", ""))
+        var cj: List[i64] = []
+        var pos: List[i64] = []
+        for j in 0..bk.len()
+            if m[j] >= 0
+                cj.push(j as i64)
+                pos.push(m[j])
+        var keep: List[i64] = []
+        for j in 0..bk.len()
+            keep.push(0)
+        for t in lis(&pos)
+            keep[cj[t as usize] as usize] = 1
+        var j = nb
+        while j > 0 bound 16777216
+            j -= 1
+            var anc: i64 = -1
+            if j + 1 < nb
+                anc = live[(j + 1) as usize]
+            if m[j as usize] < 0
+                ops.push(mk(OP_CREATE, live[j as usize], px, anc, "", ""))
+            elif keep[j as usize] == 0
+                ops.push(mk(OP_MOVE, live[j as usize], px, anc, "", ""))
+    for j in 0..bk.len()
+        if m[j] >= 0
+            qa.push(ak[m[j] as usize])
+            qb.push(bk[j])
+
+fn node_ops(a: &View, b: &View, x: i64, y: i64, ops: &mut List[Op])
+    let u = x as usize
+    let w = y as usize
+    if a.tag[u] == ""
+        if a.text[u] != b.text[w]
+            ops.push(mk(OP_TEXT, x, -1, -1, "", copy(b.text[w])))
+        return
+    # merge of the two sorted attribute lists
+    var i: usize = 0
+    var j: usize = 0
+    let na = a.names[u].len()
+    let nb = b.names[w].len()
+    while i < na or j < nb bound 16777216
+        if j >= nb or (i < na and name_lt(&a.names[u][i], &b.names[w][j]))
+            ops.push(mk(OP_UNSET, x, -1, -1, copy(a.names[u][i]), ""))
+            i += 1
+        elif i >= na or name_lt(&b.names[w][j], &a.names[u][i])
+            ops.push(mk(OP_SET, x, -1, -1, copy(b.names[w][j]), copy(b.values[w][j])))
+            j += 1
+        else
+            if a.values[u][i] != b.values[w][j]
+                ops.push(mk(OP_SET, x, -1, -1, copy(b.names[w][j]), copy(b.values[w][j])))
+            i += 1
+            j += 1
+
+# Operations turning a into b, breadth first: a node's own changes, then
+# its child list, then its matched children in b's order.
+pub fn diff(a: &View, b: &View) -> List[Op]
+    var ops: List[Op] = []
+    let off = a.tag.len() as i64
+    if not same(a, 0, b, 0)
+        ops.push(mk(OP_REMOVE, 0, -1, -1, "", ""))
+        ops.push(mk(OP_CREATE, off, -1, -1, "", ""))
+        return ops
+    var qa: List[i64] = [0]
+    var qb: List[i64] = [0]
+    var h: usize = 0
+    while h < qa.len() bound 16777216
+        let x = qa[h]
+        let y = qb[h]
+        node_ops(a, b, x, y, &mut ops)
+        kid_ops(a, b, x, y, x, &mut ops, &mut qa, &mut qb)
+        h += 1
+    return ops
+
+# ---------------- replay ----------------
+fn detach(v: &mut View, n: i64)
+    let p = v.parent[n as usize]
+    if p < 0
+        return
+    var ks: List[i64] = []
+    for c in v.kids[p as usize]
+        if c != n
+            ks.push(c)
+    v.kids[p as usize] = ks
+    v.parent[n as usize] = -1
+
+fn attach(v: &mut View, n: i64, p: i64, before: i64)
+    var ks: List[i64] = []
+    var put = false
+    for c in v.kids[p as usize]
+        if c == before and not put
+            ks.push(n)
+            put = true
+        ks.push(c)
+    if not put
+        ks.push(n)
+    v.kids[p as usize] = ks
+    v.parent[n as usize] = p
+
+# Replays ops on a (b supplies created subtrees) and returns the
+# resulting tree, rebuilt in pre-order.
+pub fn apply(a: &View, b: &View, ops: &[Op]) -> View
+    let off = a.tag.len() as i64
+    var v = copy(a)
+    for j in 0..b.tag.len()
+        push_node(&mut v, -1, "", "", "")
+    var root: i64 = 0
+    for o in ops
+        let n = o.node
+        if o.op == OP_REMOVE
+            if n == root
+                root = -1
+            detach(&mut v, n)
+        elif o.op == OP_CREATE
+            # copy b's subtree under live ids off + j
+            var st: List[i64] = [n - off]
+            var h: usize = 0
+            while h < st.len() bound 16777216
+                let d = st[h] as usize
+                let l = (off as usize) + d
+                v.tag[l] = copy(b.tag[d])
+                v.key[l] = copy(b.key[d])
+                v.text[l] = copy(b.text[d])
+                v.names[l] = copy(b.names[d])
+                v.values[l] = copy(b.values[d])
+                var ks: List[i64] = []
+                for c in b.kids[d]
+                    ks.push(off + c)
+                    v.parent[(off + c) as usize] = l as i64
+                    st.push(c)
+                v.kids[l] = ks
+                h += 1
+            v.parent[n as usize] = -1
+            if o.parent < 0
+                root = n
+            else
+                attach(&mut v, n, o.parent, o.before)
+        elif o.op == OP_MOVE
+            detach(&mut v, n)
+            attach(&mut v, n, o.parent, o.before)
+        elif o.op == OP_SET
+            set_attr(&mut v, n, copy(o.name), copy(o.value))
+        elif o.op == OP_UNSET
+            unset_attr(&mut v, n, &o.name)
+        else
+            v.text[n as usize] = copy(o.value)
+    return compact(&v, root)
+
+# The tree under r, renumbered in pre-order.
+pub fn compact(v: &View, r: i64) -> View
+    var out = view_new(copy(v.tag[r as usize]), copy(v.key[r as usize]))
+    var src: List[i64] = [r]
+    var dst: List[i64] = [0]
+    var h: usize = 0
+    while h < src.len() bound 16777216
+        let s = src[h] as usize
+        let d = dst[h] as usize
+        out.text[d] = copy(v.text[s])
+        out.names[d] = copy(v.names[s])
+        out.values[d] = copy(v.values[s])
+        for c in v.kids[s]
+            src.push(c)
+            dst.push(push_node(&mut out, d as i64, copy(v.tag[c as usize]), copy(v.key[c as usize]), ""))
+        h += 1
+    return compact_pre(&out)
+
+# breadth-first numbering above; renumber depth-first (pre-order)
+fn compact_pre(v: &View) -> View
+    var out = view_new(copy(v.tag[0]), copy(v.key[0]))
+    var src: List[i64] = [0]
+    var dst: List[i64] = [0]
+    while src.len() > 0 bound 16777216
+        let s = src[src.len() - 1] as usize
+        let d = dst[dst.len() - 1]
+        src.pop()
+        dst.pop()
+        out.text[d as usize] = copy(v.text[s])
+        out.names[d as usize] = copy(v.names[s])
+        out.values[d as usize] = copy(v.values[s])
+        # children created now, in order; visited in order from the stack
+        var made: List[i64] = []
+        for c in v.kids[s]
+            made.push(push_node(&mut out, d, copy(v.tag[c as usize]), copy(v.key[c as usize]), ""))
+        var t = made.len()
+        while t > 0 bound 16777216
+            t -= 1
+            src.push(v.kids[s][t])
+            dst.push(made[t])
+    return out
+
+# ---------------- encoding and digests ----------------
+fn put_text(o: &mut List[i64], t: &text)
+    let bs = utf8.text_bytes(t)
+    for x in enc.cbor_head(3, bs.len() as i64)
+        o.push(x)
+    for x in bs
+        o.push(x)
+
+fn put_head(o: &mut List[i64], m: i64, n: i64)
+    for x in enc.cbor_head(m, n)
+        o.push(x)
+
+# Deterministic CBOR of the tree under node 0 (pre-order, definite lengths).
+pub fn view_cbor(v: &View) -> List[i64]
+    var o: List[i64] = []
+    var st: List[i64] = [0]
+    while st.len() > 0 bound 16777216
+        let u = st[st.len() - 1] as usize
+        st.pop()
+        put_head(&mut o, 4, 5)
+        put_text(&mut o, &v.tag[u])
+        put_text(&mut o, &v.key[u])
+        put_head(&mut o, 5, v.names[u].len() as i64)
+        for i in 0..v.names[u].len()
+            put_text(&mut o, &v.names[u][i])
+            put_text(&mut o, &v.values[u][i])
+        put_text(&mut o, &v.text[u])
+        put_head(&mut o, 4, v.kids[u].len() as i64)
+        var t = v.kids[u].len()
+        while t > 0 bound 16777216
+            t -= 1
+            st.push(v.kids[u][t])
+    return o
+
+pub fn view_digest(v: &View) -> List[i64]
+    let c = view_cbor(v)
+    return blake3.blake3(&c)
+
+pub fn frame_record(seq: i64, v: &View) -> List[i64]
+    var o: List[i64] = []
+    put_head(&mut o, 4, 3)
+    let tag = "rce.ui.frame/1"
+    put_text(&mut o, &tag)
+    put_head(&mut o, 0, seq)
+    let d = view_digest(v)
+    put_head(&mut o, 2, 32)
+    for x in d
+        o.push(x)
+    return o
+
+pub fn frame_digest(seq: i64, v: &View) -> List[i64]
+    let r = frame_record(seq, v)
+    return blake3.blake3(&r)
+
+pub fn hex(b: &[i64]) -> text
+    let ds = "0123456789abcdef".chars()
+    var o = ""
+    for x in b
+        o = o + ds[(x >> 4) as usize] + ds[(x & 15) as usize]
+    return o

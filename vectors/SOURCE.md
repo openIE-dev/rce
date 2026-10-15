@@ -756,3 +756,72 @@ Mutation testing: `scripts/mut/data.py cdc` 41/41 killed (equivalent mutants rem
 - `vectors/data/postgres/pg_live.json` sha256 `92c74ef35ac4ed3af1915177b1e8e446eeb8d354ba408077cbb72cbc96b9ce6e`
 - `vectors/data/redis/streams.json` sha256 `74a61edda5c37dd0f8f07e31ac4664d7e94181cda62d974122efb7d4c3a5c283`
 - `vectors/data/sqlite/changesets.json` sha256 `37b4c5174afd875073bc7b819dc672b38b635c26ac46a9106b6ed18e50d634d2`
+
+## ui.view (`lib/ui/view.rce`)
+
+Pure (survey M49). A view is a flat arena of nodes (tag, key, sorted
+attributes, text, parent, ordered children); `diff(a, b)` lists the
+operations that turn a into b and `apply` replays them. The frame digest
+is BLAKE3 over deterministic CBOR (RFC 8949 4.2.1): each node is
+`[tag, key, {attrs}, text, [children]]`, and a frame record is
+`["rce.ui.frame/1", seq, h'view digest']`.
+
+The child-list algorithm is derived from its laws, not copied:
+- Matching: nodes are the same when tag and key agree. A common prefix
+  and suffix are matched in place; in the middle, keyed nodes match by
+  key (and tag) and an unkeyed old node takes the first free unkeyed new
+  node of its tag, as in Vue 3.
+- Removals and creations are forced by the matching (each unmatched node
+  once). Moves: a node never moved keeps its order relative to the other
+  unmoved nodes, so the unmoved nodes are an increasing subsequence of
+  old positions taken in new order; hence moves >= n - LIS. Visiting new
+  nodes right to left and moving exactly the matched nodes off one LIS
+  (each before its already-placed right neighbour) reaches the target
+  with n - LIS moves, so that count is the least possible. The LIS is
+  the patience-sorting one (Vue's `getSequence`, Inferno).
+- Checked against a breadth-first search over all single-node moves:
+  every permutation of up to 6 keys and 600 random lists with insertions
+  and removals (`tests/ui/view_checks_min*.rce`, 1,474 checks).
+
+- **official:** `vectors/ui/vue_rendererChildren.spec.ts` (vuejs/core
+  v3.5.44, commit bf5f0dd877dd3c23ce85c2cbc1dd771567e84c8c, sha256
+  f8a3acaf503ff8c27f1f832a1f6cd4e716eb02682a592cd6f00b90cb91d07a4c).
+  Each test becomes an old/new child list (`scripts/gen/view_gen.py`
+  `OFFICIAL`); the test's final children are checked by replaying our
+  operations and comparing the trees, and the container operation log is
+  compared with Vue's. `random shuffle` (Math.random) uses 5 seeded
+  shuffles, also as trees with the per-position `style` attribute.
+  `should warn with duplicate keys`: such a list is rejected by
+  `view_ok`. `h('div', 'hello')` text children are a text node child.
+  `vectors/ui/vue_official.tsv` (sha256 7cb247e8…): 41 cases. 40 logs
+  equal Vue's. `children with the same key but with different tag`
+  differs by design: Vue matches by key alone, replaces the node in
+  place and then moves the replacements (3 moves); here a key match
+  needs the same tag, so the nodes are removed and created (1 move). The
+  final children are the spec's in both.
+- **live reference:** `scripts/ref/view_ref/vue_ref.js` runs
+  @vue/runtime-core 3.5.44 with a recording renderer (`npm install` in
+  that directory). 6,000 seeded lists (keyed, keyed with other tags,
+  unkeyed, text, comments, relabelled unkeyed nodes, retagged keys) in
+  `vectors/ui/vue_live.tsv` (sha256 a64e1862…). 5,779 logs equal Vue's
+  exactly; the other 221 all have a key reused with another tag, and in
+  each our move count is no larger than Vue's (asserted by the
+  generator). `--refresh` reproduces both TSVs byte for byte.
+  `scripts/ref/view_ref/model.py` is the Python statement of the rules
+  used to state our expected logs.
+- **digest reference:** 400 random trees and edits: the CBOR bytes equal
+  Python cbor2 5.6.5 `dumps(canonical=True)` of nested lists, and the
+  view digest after `apply(a, b, diff(a, b))` and the frame digest equal
+  the Python `blake3` package's (`tests/ui/view_checks_tree*.rce`).
+- **derived:** `scripts/gen/view_derived.rce` (LIS cases, exact
+  operation lists, CBOR key order, well-formedness, frame record bytes).
+- `scripts/mut/view.py`: 41 of 41 mutants killed. One equivalent
+  mutant was removed: dropping `not put` in `attach` (sibling ids are
+  distinct, so the anchor occurs at most once).
+
+Divergences from Vue, by design: key matching requires the same tag (see
+above); operations are ordered breadth first (a node's attributes and
+text, its child list, then its matched children), where Vue patches
+children depth first while scanning. Minimality holds for the moves
+given the matching; the greedy unkeyed matching is Vue's and is not
+optimised.
