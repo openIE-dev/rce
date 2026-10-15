@@ -1,11 +1,9 @@
 # Checks for lib/net/url.rce from the WPT URL test data
 # (vectors/net/urltestdata.json, web-platform-tests/wpt at c48d5874,
 # url/resources/urltestdata.json). Each test becomes one check of the
-# href and the nine getters, or of failure. Tests whose host may need UTS
-# #46 (non-ASCII text, "xn--", or a percent-encoded non-ASCII byte
-# anywhere in input or base) accept either the WPT answer or the module's
-# explicit "IDNA" refusal. Tests holding lone surrogates cannot be written
-# as RCE text and are skipped (counted). Usage:
+# href and the nine getters, or of failure; every check is exact (hosts
+# that need UTS #46 go through net.idna). Tests holding lone surrogates
+# cannot be written as RCE text (UTF-8) and are skipped (counted). Usage:
 #   python3 scripts/gen/url_gen.py SHARD_SIZE   (writes tests/net/url_checks[_N].rce)
 import json, os, re, sys
 root = os.path.join(os.path.dirname(os.path.abspath(__file__)), '../..')
@@ -41,15 +39,13 @@ fn why(i: &text, b: &Url, hb: bool) -> text
 
 fn url_with_why(e: BadUrl) -> Url
     var x = url_empty()
-    x.scheme = if e.why == "idna" then "IDNA" else "FAIL"
+    x.scheme = "FAIL"
     return x
 
 fn show(i: &text, r: &Url, b: &Url, hb: bool) -> text
     if r.scheme == ""
         return why(i, b, hb)
     return href(r) + "|" + protocol(r) + "|" + r.username + "|" + r.password + "|" + host_text(r) + "|" + hostname(r) + "|" + port_text(r) + "|" + pathname(r) + "|" + search(r) + "|" + hash(r)
-
-fn ok_or_idna(got: text, want: text) -> bool = got == want or got == "IDNA"
 '''
 def main():
     size = int(sys.argv[1]) if len(sys.argv) > 1 else 100
@@ -64,10 +60,8 @@ def main():
         else:
             want = '|'.join([t['href'], t['protocol'], t['username'], t['password'], t['host'], t['hostname'], t['port'], t['pathname'], t['search'], t['hash']])
         call = 'wpt(%s, %s, %s)' % (q(inp), q(base or ''), 'true' if base is not None else 'false')
-        if idna(inp + (base or '')):
-            flagged += 1; lines.append('check ok_or_idna(%s, %s)' % (call, q(want)))
-        else:
-            lines.append('check %s == %s' % (call, q(want)))
+        if idna(inp + (base or '')): flagged += 1
+        lines.append('check %s == %s' % (call, q(want)))
     # derived: five IPv4 parts with a zero last part still fail (4.3)
     lines.append('check wpt("http://1.2.3.4.0/", "", false) == "FAIL"')
     lines.append('check wpt("http://1.2.3.4/", "", false) == "http://1.2.3.4/|http:|||1.2.3.4|1.2.3.4||/||"')
@@ -78,5 +72,5 @@ def main():
     for k in range(0, len(lines), size):
         name = 'url_checks.rce' if k == 0 else 'url_checks_%d.rce' % (k // size + 1)
         open(os.path.join(out, name), 'w').write(HEAD + '\n' + '\n'.join(lines[k:k + size]) + '\n')
-    print('%d tests: %d checks (%d accept IDNA), %d skipped (lone surrogates)' % (len(tests), len(lines), flagged, skipped))
+    print('%d tests: %d checks (%d with non-ASCII, xn-- or percent-encoded non-ASCII), %d skipped (lone surrogates)' % (len(tests), len(lines), flagged, skipped))
 main()

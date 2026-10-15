@@ -1,12 +1,16 @@
 module net.url
+# uses: net/idna text/utf8
+use net.idna
+use text.utf8
 
 # WHATWG URL Standard (survey M25, pure part): the basic URL parser
 # (section 4.4, no state override), host parsing (IPv4, IPv6, opaque
 # hosts, ASCII domains), and serialization with the URL API getters.
-# Checked against the WPT url/resources/urltestdata.json. Domains with
-# non-ASCII code points, and ASCII labels starting "xn--", need UTS #46
-# (IDNA mapping and validity tables, needs spec or data): parsing such a
-# host fails with BadUrl(why: "idna"), never with a guessed answer.
+# Checked against the WPT url/resources/urltestdata.json. Non-ASCII domains go
+# through "domain to ASCII" (section 3.3, beStrict false): UTS #46 ToASCII
+# from net.idna with CheckHyphens false, CheckBidi and CheckJoiners true,
+# UseSTD3ASCIIRules false, Nontransitional, VerifyDnsLength false; a
+# recorded UTS #46 error fails with BadUrl(why: "idna").
 # Code points: text is UTF-8, so input is split with chars() and each
 # code point value is decoded here.
 
@@ -350,15 +354,31 @@ pub fn ipv6_text(a: &[i64]) -> text
         k += 1
     return o
 
-fn bytes_text_ascii(b: &[i64]) -> text ! BadUrl
-    var o = ""
-    for x in b
-        if x >= 128
-            fail BadUrl(why: "idna")
-        if x < 32 or x == 127
-            fail BadUrl(why: "forbidden domain code point")
-        o = o + ascii_char(lower_cp(x))
-    return o
+# Domain to ASCII (URL Standard 3.3, beStrict false) of the code points
+# of a domain. An ASCII domain is lowercased whatever UTS #46 says (web
+# compatibility: "xn--" alone and undecodable Punycode pass); the strict
+# run there only reports a validation error, which this parser does not
+# collect.
+pub fn domain_to_ascii(cps: &[i64]) -> text ! BadUrl
+    var ascii = true
+    for c in cps
+        if c >= 128
+            ascii = false
+    if ascii
+        var o: List[i64] = []
+        for c in cps
+            o.push(lower_cp(c))
+        let t = idna.ascii_text(&o)
+        if t == ""
+            fail BadUrl(why: "empty host")
+        return t
+    let f = idna.url_flags()
+    let r = idna.to_ascii(cps, &f)
+    if r.err
+        fail BadUrl(why: "idna")
+    if r.host == ""
+        fail BadUrl(why: "empty host")
+    return r.host
 
 # Host parser (section 3.5); `special` is "not opaque".
 pub fn host_parse(input: &text, special: bool) -> text ! BadUrl
@@ -381,15 +401,11 @@ pub fn host_parse(input: &text, special: bool) -> text ! BadUrl
             o = o + pct_encode(&c, 0)
         return o
     let d = pct_decode(input)
-    let ascii = try bytes_text_ascii(&d)
+    let cps = utf8.utf8_decode_lossy(&d)
+    let ascii = try domain_to_ascii(&cps)
     for c in ascii.chars()
         if forbidden_domain(cp_of(&c))
             fail BadUrl(why: "forbidden domain code point")
-    for l in split_dots(&ascii)
-        if l.startswith("xn--")
-            fail BadUrl(why: "idna")
-    if ascii == ""
-        fail BadUrl(why: "empty host")
     if ends_in_number(&ascii)
         let v = try ipv4_parse(&ascii)
         return ipv4_text(v)

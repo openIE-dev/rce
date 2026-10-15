@@ -1,6 +1,6 @@
 # Mutation test for lib/net/{url,http,dns}.rce: each mutant must fail its
 # file's comptime checks. Usage: RCE=path/to/rce python3 scripts/mut/net.py
-import os, subprocess, sys, tempfile
+import os, shutil, subprocess, sys, tempfile
 RCE = os.environ.get('RCE', 'rce')
 root = os.path.join(os.path.dirname(os.path.abspath(__file__)), '../..')
 L = lambda p: open(os.path.join(root, p)).read()
@@ -25,6 +25,10 @@ M = {
     ('                u.query = u.query + pct_encode(&cc, if sp then 3 else 2)', '                u.query = u.query + pct_encode(&cc, 2)'),
     ('    elif not u.opaque and u.path.len() > 1 and u.path[0] == ""\n        o = o + "/."', '    elif false\n        o = o + "/."'),
     ('pub fn search(u: &Url) -> text = if u.has_query and u.query != "" then', 'pub fn search(u: &Url) -> text = if u.has_query then'),
+    ('        if c >= 128\n            ascii = false', '        if c >= 256\n            ascii = false'),
+    ('            o.push(lower_cp(c))\n        let t = idna.ascii_text', '            o.push(c)\n        let t = idna.ascii_text'),
+    ('    if r.err\n        fail BadUrl(why: "idna")', '    if false\n        fail BadUrl(why: "idna")'),
+    ('    let cps = utf8.utf8_decode_lossy(&d)', '    let cps = d'),
  ],
  'http': [
     ('            if b[k + 1] != 10\n', '            if false\n'),
@@ -68,7 +72,12 @@ with tempfile.TemporaryDirectory() as d:
         src = L('lib/net/%s.rce' % name); chk = L('tests/net/%s_checks.rce' % name)
         for i, (a, b) in enumerate(ms):
             assert src.count(a) == 1, (name, a)
-            f = os.path.join(d, '%s%d.rce' % (name, i)); open(f, 'w').write(src.replace(a, b) + '\n' + chk)
+            if name == 'url':  # package with net/idna and text/utf8
+                f = os.path.join(d, 'url%d' % i); os.mkdir(f)
+                for u in ('net/idna', 'text/utf8'): shutil.copy(os.path.join(root, 'lib/%s.rce' % u), f)
+                open(os.path.join(f, 'url.rce'), 'w').write(src.replace(a, b) + '\n' + chk)
+            else:
+                f = os.path.join(d, '%s%d.rce' % (name, i)); open(f, 'w').write(src.replace(a, b) + '\n' + chk)
             dead = subprocess.run([RCE, 'test', f], capture_output=True).returncode != 0
             killed += dead; total += 1
             print('%s %s %2d %s' % ('killed' if dead else 'SURVIVED', name, i, a.strip().split('\n')[0]), flush=True)
