@@ -1,6 +1,6 @@
 # Clause coverage
 
-Language profile: 206 of 206 normative clauses have at least one test (100.0%). 1946 tests.
+Language profile: 207 of 207 normative clauses have at least one test (100.0%). 1952 tests.
 
 ## Tests by area
 
@@ -8,7 +8,7 @@ Language profile: 206 of 206 normative clauses have at least one test (100.0%). 
 |---|---|
 | concurrency | 243 |
 | effects-capabilities | 19 |
-| evaluation-fuel | 68 |
+| evaluation-fuel | 74 |
 | forms-log | 123 |
 | host-contract | 79 |
 | lexing-parsing | 133 |
@@ -20,7 +20,7 @@ Language profile: 206 of 206 normative clauses have at least one test (100.0%). 
 
 | profile | clauses | covered |
 |---|---|---|
-| language | 206 | 206 |
+| language | 207 | 207 |
 | tooling | 7 | 0 |
 | handler-spec | 14 | 0 |
 | editorial | 1 | 0 |
@@ -127,7 +127,7 @@ none
 | W-CAP-1 | rule | 09-wellformedness.md:101 | 1 | {'not-run': 1} |
 | W-CAP-2 | rule | 09-wellformedness.md:104 | 1 | {'not-run': 1} |
 | T1 | theorem | 10-theorems.md:29 | 1344 | {'not-run': 1344} |
-| T2 | theorem | 10-theorems.md:30 | 14 | {'not-run': 14} |
+| T2 | theorem | 10-theorems.md:30 | 15 | {'not-run': 15} |
 | T3 | theorem | 10-theorems.md:31 | 103 | {'not-run': 103} |
 | T4 | theorem | 10-theorems.md:32 | 1242 | {'not-run': 1242} |
 | T5 | theorem | 10-theorems.md:33 | 1344 | {'not-run': 1344} |
@@ -161,7 +161,7 @@ none
 | W-PAR-1 | rule | 14-draft06-concurrency.md:103 | 83 | {'not-run': 83} |
 | W-PAR-2 | rule | 14-draft06-concurrency.md:105 | 2 | {'not-run': 2} |
 | CH14-M-90d1ad7f | modal | 14-draft06-concurrency.md:144 | 42 | {'not-run': 42} |
-| W-BUD-1 | rule | 14-draft06-concurrency.md:174 | 1 | {'not-run': 1} |
+| W-BUD-1 | rule | 14-draft06-concurrency.md:174 | 2 | {'not-run': 2} |
 | W-DL-1 | rule | 14-draft06-concurrency.md:196 | 1 | {'not-run': 1} |
 | W-ND-1 | rule | 14-draft06-concurrency.md:200 | 1 | {'not-run': 1} |
 | CH14-M-6d53e2af | modal | 14-draft06-concurrency.md:246 | 1 | {'not-run': 1} |
@@ -180,7 +180,7 @@ none
 | W-ATOM-1 | rule | 14-draft06-concurrency.md:471 | 1 | {'not-run': 1} |
 | W-ATOM-2 | rule | 14-draft06-concurrency.md:471 | 1 | {'not-run': 1} |
 | W-NODE-1 | rule | 14-draft06-concurrency.md:474 | 1 | {'not-run': 1} |
-| T16 | theorem | 14-draft06-concurrency.md:557 | 42 | {'not-run': 42} |
+| T16 | theorem | 14-draft06-concurrency.md:557 | 43 | {'not-run': 43} |
 | T17 | theorem | 14-draft06-concurrency.md:558 | 42 | {'not-run': 42} |
 | T18 | theorem | 14-draft06-concurrency.md:559 | 92 | {'not-run': 92} |
 | T19a | theorem | 14-draft06-concurrency.md:560 | 44 | {'not-run': 44} |
@@ -208,7 +208,7 @@ none
 | HC-4 | rule | 16-host-contract.md:60 | 16 | {'not-run': 16} |
 | HC-5 | rule | 16-host-contract.md:65 | 3 | {'not-run': 3} |
 | HC-6 | rule | 16-host-contract.md:83 | 1 | {'not-run': 1} |
-| HC-7 | rule | 16-host-contract.md:121 | 15 | {'not-run': 15} |
+| HC-7 | rule | 16-host-contract.md:121 | 20 | {'not-run': 20} |
 | HC-7a | rule | 16-host-contract.md:124 | 1 | {'not-run': 1} |
 | HC-8 | rule | 16-host-contract.md:131 | 27 | {'not-run': 27} |
 | HC-9 | rule | 16-host-contract.md:134 | 26 | {'not-run': 26} |
@@ -240,3 +240,4 @@ none
 | W-RT-1 | rule | 09-wellformedness.md:111 | 1 | {'not-run': 1} |
 | W-SUP-1 | rule | 09-wellformedness.md:111 | 2 | {'not-run': 2} |
 | W-SUP-2 | rule | 09-wellformedness.md:111 | 1 | {'not-run': 1} |
+| FUEL-1 | rule | pending:0 | 6 | {'not-run': 6} |
