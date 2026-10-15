@@ -649,3 +649,74 @@ host must agree to it.
 - Official: mongodb/specifications (commit ca7d473e) change-streams unified tests `change-streams-resume-allowlist.json` (sha256 c8a3ba12…), `change-streams-resume-errorLabels.json` (05644e91…), `change-streams-errors.json` (6cdf3b08…), `change-streams.json` (39b13699…), replayed through a scripted server at several wire versions; the Resumable Error table and prose tests 1-4, 11, 13, 14, 17-19 from `change-streams.md` (0039cb9e…) and `change-streams-tests-README.md` (2c701acf…).
 - Derived: hash chains from `rce trace --json` (rce 0.1.3) saved in `vectors/data/rce_trace_feed.json` (0bc872f7…); PouchDB 9.0.0 checkpointer compare/update cases from `scripts/gen/feed_pouch.js`, saved in `vectors/data/couchdb/pouchdb_checkpointer_9.0.0.json` (ecdc535f…); admission scripts.
 - Mutation testing: `scripts/mut/data.py feed`, 26 of 26 mutants killed (one documented equivalent mutant excluded).
+
+## ui.input (`lib/ui/input.rce`)
+
+Pure (survey M46). The host reads terminal bytes or window or DOM input
+and admits each read as a logged event. This module decodes and maps the
+input.
+
+The terminal decoder is a port of crossterm 0.29.0's Unix parser
+(`src/event/sys/unix/parse.rs`) and of its `Parser::advance` stream loop.
+Results follow release builds: u16 coordinates wrap, so a 0 coordinate
+gives 65535. `raw` stands for crossterm's raw-mode query.
+`is_upper` is Rust's `char::is_uppercase` (rustc 1.99.0, Unicode 17.0.0:
+DerivedCoreProperties-17.0.0.txt, sha256
+24c7fed1195c482faaefd5c1e7eb821c5ee1fb6de07ecdbaa64b56a99da22c08,
+fetched into ~/.cache/rce-ucd/17 by `scripts/gen/input_data.py`).
+
+- **official:**
+  - `vectors/ui/crossterm_parse.rs` is the crate's parse.rs (crate sha256
+    d8b9f2e4c67f833b660cdb0a3523065869fb35570177239812ed4c905aeff87b,
+    file 689b765d67be62703f7935abfa1475d98994987461e413836b54c7936966ce2b).
+    `scripts/ref/input_ref` runs its 30 unit tests, and each `assert_eq!`
+    and `assert!(is_err)` also records its value in canonical form. That
+    gives 75 assertions in `vectors/ui/crossterm_official.tsv` (sha256
+    5381a85a…), all passing.
+  - UI Events KeyboardEvent code values (`vectors/ui/uievents-code.html`,
+    w3c/uievents-code b201684d1de0af90bc403814bbdee6aa96647130, sha256
+    d0c8f75d…): 172 values with their Required flag.
+  - KeyboardEvent key values (`vectors/ui/uievents-key.html`,
+    w3c/uievents-key 140cae88d6039b3fb1a51787978678115111c433, sha256
+    702040ce…): 284 named values with Required.
+  - The implicit "F"/"Soft" + index names that the spec text gives
+    ("F13" to "F15", "F24", "Soft8").
+  - Pointer Events `buttons` table (`vectors/ui/pointerevents.html`,
+    w3c/pointerevents 7affe62fa4332543f8b13c56292104e4e9dfa517, sha256
+    9231bce9…): 7 rows.
+  - Total: 539 checks, all passing.
+- **live reference:** the same harness (`cargo run --release`) runs 20,000
+  seeded single `parse_event` calls and 5,000 multi-sequence streams
+  through `Parser::advance`. These cover legacy, SS3 and CSI keys, CSI u,
+  all three mouse encodings, paste, DA1, flags, partial and invalid
+  UTF-8, both raw modes, and input_available. The results are saved as
+  `vectors/ui/crossterm_live.tsv` (sha256 ddd8620b…), and all 25,000
+  match in `tests/ui/input_checks_live*.rce`. `python3
+  scripts/ref/input_ref/make.py` rebuilds the patched parse.rs, and the
+  harness reproduces both TSVs byte for byte.
+- **derived:** 61 checks in `scripts/gen/input_derived.rce`, covering:
+  - DOM mapping: every crossterm key code maps to a named UI Events key;
+    location; repeat/up; modifier and lock flags.
+  - Key-string rules.
+  - Pointer button bitmask state across down/drag/up.
+  - Wheel deltas in lines.
+  - Composition order.
+  - is_upper spot checks.
+  - Split reads.
+  - Edge cases confirmed with the harness's `one` mode (a final byte
+    above 126, a leading "+" in numbers, invalid shifted code points,
+    invalid UTF-8 in an SGR field, keypad Enter).
+- `scripts/mut/input.py`: 64 of 64 mutants killed.
+
+Not used: xterm ctlseqs (patch #411 was read for the encodings, but it
+has no machine-checkable cases), and esctest, which tests terminal output
+(M55). Derived and not from a spec: `dom_key` (terminals report no
+physical key, so there is no `code`; crossterm Media Reverse and
+IsoLevel5Shift become "Unidentified"; SUPER and META both set metaKey),
+`dom_pointer` (mouse is pointerId 1 and primary, coordinates in cells),
+and `dom_wheel`.
+
+Needs spec (engine): host input adapters emit these values as logged
+events in read order. A read carries its bytes and whether more input is
+available. The terminal host records raw mode.
+
