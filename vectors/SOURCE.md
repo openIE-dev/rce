@@ -126,3 +126,29 @@ not be turned back into text without that built-in.
 Needs spec or data: named time zones need the IANA tz database as a
 pinned, content-addressed input (or a logged host result); only fixed UTC
 offsets are supported. Leap seconds would need a pinned leap-second table.
+
+## rand.det (`lib/rand/det.rce`)
+
+- `rand/rfc8439.txt`: RFC 8439, "ChaCha20 and Poly1305 for IETF
+  Protocols" (https://www.rfc-editor.org/rfc/rfc8439.txt, fetched
+  2026-10-15, sha256 25bef70fbf7a07ff45c2fe4cb7c6ce954eac687413d8610603268b4e4415324c),
+  copied unchanged. `scripts/gen/rand_gen.py` extracts the 11 ChaCha20
+  vectors from it (2.1.1 quarter round, 2.3.2 block, 2.4.2 encryption,
+  Appendix A.1 #1-#5 block, A.2 #1-#3 encryption), checks them against a
+  pure-Python ChaCha20 and prints them as checks.
+- Derived, not official: 30 generator vectors (word streams, bits, below,
+  range, bytes, shuffle, split, counter carry past 2^32) from the Python
+  model in the same script; distribution checks over fixed seeds
+  (chi-square of below(10) x 5000 and a die x 3000 under the p = 0.001
+  critical values, bit balance within 4 sigma over 6400 bits, range
+  bounds and endpoints over 40 spans). `scripts/mut/rand_det.py` is a
+  mutation test: each mutant of the module must fail the checks.
+
+Needs spec: a `Cap` is an opaque token and cannot carry data, so the
+seed bytes travel beside it in the event and nothing ties those bytes to
+the host's Random adapter; `from_seed` (needed for replay and vectors)
+accepts any bytes. A host-issued value type (bytes that only an adapter
+can mint, e.g. `Guarded`-style provenance on a payload field) would close
+this. `Guarded[τ, A]` cannot hold a generator, since every draw writes it
+and so every drawing event would need the capability. Example syntax
+writes a capability argument as `()`.

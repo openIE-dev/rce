@@ -1,0 +1,202 @@
+# rce-version: 0.8
+module rand.det
+
+# Deterministic random streams (survey M12). A generator is the RFC 8439
+# ChaCha20 keystream under a 32-byte seed, so a run replays bit for bit
+# from its seed. The library draws no entropy: fresh seed bytes enter a
+# program as a logged host result, and `from_entropy` takes them only
+# together with a `Cap[Entropy]` (5.16), which a program holds only while
+# handling an event that carries it. `from_seed` is for seeds that are
+# already part of the program or its log (test vectors, replays, a value
+# split from another generator). Not for keys: this is reference code and
+# not constant time; key material comes straight from logged Random bytes.
+#
+# Stream: key = the 32 seed bytes; nonce = stream id (bytes 0..7, little
+# endian) followed by 4 zero bytes; block counter starts at 0. Blocks past
+# 2^32 carry into the third nonce word, so for counters below 2^32 the
+# output is exactly the RFC 8439 keystream. Words are taken in order and
+# serialise little endian. Bytes are List[i64] with values 0..255; words
+# are i64 masked to 32 bits.
+
+const M32: i64 = 4294967295
+
+# The authority to seed from fresh entropy. A host grants it by putting a
+# Cap[Entropy] in the event that delivers the Random bytes.
+pub struct Entropy
+    source: text
+
+error BadSeed(len: i64)
+error BadRange(lo: i64, hi: i64)
+
+pub struct Rng
+    key: List[i64]
+    stream: i64
+    block: i64
+    buf: List[i64]
+    pos: i64
+
+fn rotl32(x: i64, n: i64) -> i64 = ((x << n) | (x >> (32 - n))) & M32
+
+fn le32(b: &[i64], i: usize) -> i64 = b[i] | (b[i + 1] << 8) | (b[i + 2] << 16) | (b[i + 3] << 24)
+
+pub fn quarter(v: &mut List[i64], a: usize, b: usize, c: usize, d: usize)
+    v[a] = (v[a] + v[b]) & M32
+    v[d] = rotl32(v[d] ^ v[a], 16)
+    v[c] = (v[c] + v[d]) & M32
+    v[b] = rotl32(v[b] ^ v[c], 12)
+    v[a] = (v[a] + v[b]) & M32
+    v[d] = rotl32(v[d] ^ v[a], 8)
+    v[c] = (v[c] + v[d]) & M32
+    v[b] = rotl32(v[b] ^ v[c], 7)
+
+# The ChaCha20 block function of RFC 8439 2.3 on words: 8 key words, the
+# 32-bit counter, 3 nonce words; 16 output words.
+pub fn block_words(key: &[i64], counter: i64, nonce: &[i64]) -> List[i64]
+    var s: List[i64] = [1634760805, 857760878, 2036477234, 1797285236]
+    for i in 0..8
+        s.push(key[i])
+    s.push(counter & M32)
+    for i in 0..3
+        s.push(nonce[i])
+    var x = copy(s)
+    for _ in 0..10
+        quarter(&mut x, 0, 4, 8, 12)
+        quarter(&mut x, 1, 5, 9, 13)
+        quarter(&mut x, 2, 6, 10, 14)
+        quarter(&mut x, 3, 7, 11, 15)
+        quarter(&mut x, 0, 5, 10, 15)
+        quarter(&mut x, 1, 6, 11, 12)
+        quarter(&mut x, 2, 7, 8, 13)
+        quarter(&mut x, 3, 4, 9, 14)
+    var out: List[i64] = []
+    for i in 0..16
+        out.push((x[i] + s[i]) & M32)
+    return out
+
+fn words_le(b: &[i64]) -> List[i64]
+    var w: List[i64] = []
+    for i in 0..(b.len() / 4)
+        w.push(le32(b, 4 * i))
+    return w
+
+fn bytes_le(w: &[i64]) -> List[i64]
+    var o: List[i64] = []
+    for v in w
+        o.push(v & 255)
+        o.push((v >> 8) & 255)
+        o.push((v >> 16) & 255)
+        o.push((v >> 24) & 255)
+    return o
+
+# RFC 8439 2.3 on bytes: 32-byte key, counter, 12-byte nonce; 64 bytes.
+pub fn chacha20_block(key: &[i64], counter: i64, nonce: &[i64]) -> List[i64]
+    let kw = words_le(key)
+    let nw = words_le(nonce)
+    let w = block_words(&kw, counter, &nw)
+    return bytes_le(&w)
+
+# RFC 8439 2.4: XOR data with the keystream from the initial counter.
+pub fn chacha20(key: &[i64], counter: i64, nonce: &[i64], data: &[i64]) -> List[i64]
+    var out: List[i64] = []
+    var ks: List[i64] = []
+    var ctr = counter
+    var i: usize = 0
+    for x in data
+        if i % 64 == 0
+            ks = chacha20_block(key, ctr, nonce)
+            ctr += 1
+        out.push(x ^ ks[i % 64])
+        i += 1
+    return out
+
+fn make(seed: &[i64], stream: i64) -> Rng ! BadSeed
+    if seed.len() != 32 or stream < 0
+        fail BadSeed(len: seed.len() as i64)
+    for b in seed
+        if b < 0 or b > 255
+            fail BadSeed(len: seed.len() as i64)
+    return Rng(key: words_le(seed), stream: stream, block: 0, buf: [], pos: 16)
+
+# A generator from fresh entropy: 32 logged Random bytes, admitted only
+# with the capability that came with them.
+pub fn from_entropy(c: Cap[Entropy], seed: &[i64], stream: i64) -> Rng ! BadSeed = make(seed, stream)
+
+# A generator from a seed already in the program or its log.
+pub fn from_seed(seed: &[i64], stream: i64) -> Rng ! BadSeed = make(seed, stream)
+
+fn refill(r: &mut Rng)
+    let nonce = [r.stream & M32, r.stream >> 32, r.block >> 32]
+    r.buf = block_words(&r.key, r.block & M32, &nonce)
+    r.block += 1
+    r.pos = 0
+
+# The next 32-bit word of the stream, 0 .. 2^32 - 1.
+pub fn next_u32(r: &mut Rng) -> i64
+    if r.pos >= 16
+        refill(r)
+    let v = r.buf[r.pos as usize]
+    r.pos += 1
+    return v
+
+# k uniform bits, 0 <= k <= 62 (one word for k <= 32, else two, high first).
+pub fn bits(r: &mut Rng, k: i64) -> i64
+    if k <= 0
+        return 0
+    if k <= 32
+        return next_u32(r) >> (32 - k)
+    let hi = next_u32(r) >> (64 - k)
+    let lo = next_u32(r)
+    return (hi << 32) | lo
+
+fn bitlen(x: i64) -> i64
+    var n: i64 = 0
+    var v = x
+    while v > 0 bound 64
+        v = v >> 1
+        n += 1
+    return n
+
+# Uniform in 0 .. n - 1 for 1 <= n <= 2^62, by masked rejection (no
+# modulo bias). n = 1 draws nothing.
+pub fn below(r: &mut Rng, n: i64) -> i64 ! BadRange
+    if n < 1 or n > 4611686018427387904
+        fail BadRange(lo: 0, hi: n)
+    let k = bitlen(n - 1)
+    var v = bits(r, k)
+    while v >= n bound 256
+        v = bits(r, k)
+    return v
+
+# Uniform in lo ..= hi (hi - lo < 2^62).
+pub fn range(r: &mut Rng, lo: i64, hi: i64) -> i64 ! BadRange
+    if hi < lo or hi - lo >= 4611686018427387904
+        fail BadRange(lo: lo, hi: hi)
+    let v = try below(r, hi - lo + 1)
+    return lo + v
+
+# n bytes of the stream (each from its own word's low-order byte order:
+# the keystream bytes, little endian).
+pub fn bytes(r: &mut Rng, n: i64) -> List[i64]
+    var o: List[i64] = []
+    var w: i64 = 0
+    for i in 0..n
+        if i % 4 == 0
+            w = next_u32(r)
+        o.push((w >> (8 * (i % 4))) & 255)
+    return o
+
+# Fisher-Yates (Durstenfeld) shuffle of a list of i64 in place.
+pub fn shuffle(r: &mut Rng, xs: &mut List[i64])
+    var i = xs.len() as i64 - 1
+    while i > 0 bound 1000000
+        let j = below(r, i + 1) catch 0
+        let t = xs[i as usize]
+        xs[i as usize] = xs[j as usize]
+        xs[j as usize] = t
+        i -= 1
+
+# A child generator: the next 32 bytes of r are its seed, `stream` its
+# stream id. The parent advances by 8 words.
+pub fn split(r: &mut Rng, stream: i64) -> Rng ! BadSeed
+    let seed = bytes(r, 32)
+    return make(&seed, stream)
