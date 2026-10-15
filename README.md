@@ -29,6 +29,7 @@ run replays bit for bit.
 | `lib/net/dns.rce` | `net.dns`: DNS messages (RFC 1035): encode and decode, presentation-form names with escapes, compression pointers followed only backwards, record data with names expanded, query builder |
 | `lib/os/path.rce` | `os.path`: lexical path algebra for POSIX and Windows (drives, UNC, `\\?\` device paths; split, splitext, splitroot, join, normpath, relpath with an explicit cwd, commonpath, isreserved) matching CPython 3.13 posixpath and ntpath, and WASI preopen-relative resolution that never leaves the granted directory |
 | `lib/os/env.rce` | `os.env`: environment entries and lookup with POSIX and Windows rules (first match wins, `=C:` keys, case-insensitive Windows keys), pure set/unset, the granted and canonical snapshot a host admits as one logged event, Go `os.Expand`, and the Windows command line codec (CommandLineToArgvW parsing, CreateProcessW quoting) |
+| `lib/os/perm.rce` | `os.perm`: mode bits and `ls`-style filemode, GNU chmod symbolic and octal modes (gnulib modechange port, including umask and the directory setuid/setgid rules), the POSIX access check, Windows SIDs (text and binary) and DACL access checks, Landlock rights per ABI with layered rule evaluation, and the grant-to-mode/Landlock mapping |
 
 Foundation modules live under `lib/<area>/` (a module that needs others names them on a `# uses:` line and is checked as a package with them); their vectors and property
 sweeps are in `tests/<area>/<name>_checks.rce`, which `scripts/check.sh`

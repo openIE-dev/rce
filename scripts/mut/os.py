@@ -1,4 +1,4 @@
-# Mutation test for lib/os/{path,env}.rce: each mutant must fail the comptime
+# Mutation test for lib/os/{path,env,perm}.rce: each mutant must fail the comptime
 # checks (three equivalent mutants removed: a dot test when there is
 # neither dot nor separator, a UNC share without a second separator, and
 # keeping an empty drive; for env two equivalent ones in Go's "${"
@@ -7,8 +7,8 @@ import os, subprocess, sys, tempfile
 from concurrent.futures import ThreadPoolExecutor
 RCE = os.environ.get('RCE', 'rce')
 root = os.path.join(os.path.dirname(os.path.abspath(__file__)), '../..')
-SRC = {n: open(os.path.join(root, 'lib/os/%s.rce' % n)).read() for n in ('path', 'env')}
-CHK = {n: open(os.path.join(root, 'tests/os/%s_checks.rce' % n)).read() for n in ('path', 'env')}
+SRC = {n: open(os.path.join(root, 'lib/os/%s.rce' % n)).read() for n in ('path', 'env', 'perm')}
+CHK = {n: open(os.path.join(root, 'tests/os/%s_checks.rce' % n)).read() for n in ('path', 'env', 'perm')}
 M = [('path',) + m for m in [
     ('            if cs[k] != "."\n', '            if true\n'),
     ('    if cs.len() < 2 or cs[1] != "/" or (cs.len() > 2 and cs[2] == "/")', '    if cs.len() < 2 or cs[1] != "/"'),
@@ -59,6 +59,39 @@ M = [('path',) + m for m in [
     ('                while h <= bs bound', '                while h < bs bound'),
     ('        while h < bs bound 16777216\n            o = o + "\\\\"\n            h += 1\n        o = o + "\\""', '        while false bound 16777216\n            o = o + "\\\\"\n            h += 1\n        o = o + "\\""'),
     ('    while i < n and ws(&cs[i]) bound 16777216\n        i += 1\n    out.push(cur)', '    out.push(cur)'),
+]] + [('perm',) + m for m in [
+    ('        return "p"\n', '        return "f"\n'),
+    ('    let e = if special then (if x then lo else up) else (if x then "x" else "-")', '    let e = if special then lo else (if x then "x" else "-")'),
+    ('    return type_char(m) + trio(m, 6, m & S_ISUID != 0, "s", "S") + trio(m, 3, m & S_ISGID != 0, "s", "S")', '    return type_char(m) + trio(m, 6, m & S_ISUID != 0, "s", "S") + trio(m, 3, m & S_ISUID != 0, "s", "S")'),
+    ('        let men = if k < 5 then (v & (S_ISUID | S_ISGID)) | S_ISVTX | 511 else 4095', '        let men = 4095'),
+    ('        if v < 0 or k != cs.len()\n', '        if v < 0\n'),
+    ('            elif c == "o"\n                affected = affected | 519', '            elif c == "o"\n                affected = affected | 7'),
+    ('                if v < 0 or affected != 0 or (k < cs.len() and cs[k] != ",")', '                if v < 0 or (k < cs.len() and cs[k] != ",")'),
+    ('            elif c == "g"\n                value = 56\n                i += 1', '            elif c == "g"\n                value = 448\n                i += 1'),
+    ('                    elif d == "s"\n                        value = value | 3072', '                    elif d == "s"\n                        value = value | 2048'),
+    # equivalent, removed: men = value when mentioned == 0 (only '+'/'-' reach it, and omit is used only by '=')
+    # equivalent, removed: early 'left == 0' return in access_check
+    ('        let omit = (if dir then S_ISUID | S_ISGID else 0) & ~c.mentioned', '        let omit: i64 = 0'),
+    ('            if value & 146 != 0\n                spread = spread | 146', '            if false\n                spread = spread | 146'),
+    ('            if nm & 73 != 0 or dir\n', '            if nm & 73 != 0\n'),
+    ('        value = value & (if c.affected != 0 then c.affected else ~umask) & ~omit', '        value = value & (if c.affected != 0 then c.affected else 4095) & ~omit'),
+    ('            let preserved = (if c.affected != 0 then ~c.affected else 0) | omit', '            let preserved = (if c.affected != 0 then ~c.affected else 0)'),
+    ('    if c.uid == owner\n', '    if c.uid == owner and false\n'),
+    ('            if g == group\n                in_group = true', '            if false\n                in_group = true'),
+    ('    return cls & want == want', '    return cls & want != 0 or want == 0'),
+    ('        if first and j - i > 2 and cs[i] == "0" and (cs[i + 1] == "x" or cs[i + 1] == "X")', '        if false'),
+    ('        if v < 0 or (first and v >= 281474976710656) or (not first and v >= 4294967296)', '        if v < 0 or (first and v >= 281474976710656)'),
+    ('    if parts.len() > 15\n', '    if parts.len() > 16\n'),
+    ('    var o = "S-1-" + (if s.authority < 4294967296 then', '    var o = "S-1-" + (if s.authority < 281474976710656 then'),
+    ('        o.push((x >> 16) & 255)', '        o.push((x >> 8) & 255)'),
+    ('    if b.len() < 8 or b[0] != 1 or b[1] > 15 or b.len() != 8 + 4 * b[1] as usize', '    if b.len() < 8 or b[1] > 15 or b.len() != 8 + 4 * b[1] as usize'),
+    ('    if not has_dacl\n        return true', '    if not has_dacl\n        return false'),
+    ('        if not a.allow and a.mask & left != 0\n', '        if not a.allow and a.mask & want != 0\n'),
+    ('    if abi >= 3\n        r = r | LL_TRUNCATE', '    if abi >= 4\n        r = r | LL_TRUNCATE'),
+    ('        let need = want & l.handled', '        let need = want'),
+    ('    if rule.len() > p.len()\n        return false', '    if false\n        return false'),
+    ('            r = r | LL_WRITE_FILE | LL_TRUNCATE |', '            r = r | LL_WRITE_FILE |'),
+    ('    if rights & LL_EXECUTE != 0\n', '    if rights & LL_READ_FILE != 0\n'),
 ]]
 def one(ab):
     i, (name, a, b) = ab
