@@ -152,3 +152,24 @@ can mint, e.g. `Guarded`-style provenance on a payload field) would close
 this. `Guarded[τ, A]` cannot hold a generator, since every draw writes it
 and so every drawing event would need the capability. Example syntax
 writes a capability argument as `()`.
+
+## fmt (`lib/fmt/fmt.rce`)
+
+No official vector files. All checks are derived, with CPython 3 as the
+oracle (`scripts/gen/fmt_gen.py`, seed 20261015):
+- 46 integers (both i64 extremes, random values) in radixes 2..36 and
+  back; 7 strict parses and 15 refusals (empty, bare sign, whitespace,
+  "0x", "_", overflow by one in either direction, bad digits);
+- `format(v, ',')` and `format(v, '0Nd')` for grouping and zero padding;
+- 8 templates against `str.format` and 6 that it refuses;
+- a 34-pattern x 41-input grid (1394 checks), full and partial matching
+  against `re` with `re.ASCII` (the library's `$` is checked as `\Z`), and
+  16 malformed patterns;
+- linear-time cases (`(a?){25}a{25}` on a^25, `(x+x+)+y` on x^40) that
+  are exponential for backtracking engines.
+`scripts/mut/fmt.py`: each of 25 mutants of the module fails the checks.
+
+Needs spec for the rest of M17: parser combinators need function values
+or closures (no `fn` types in 5.15), and regex captures need a match
+result type; both are left out. Regex classes are ASCII ranges until a
+pinned UCD (M9) gives Unicode classes.
