@@ -20,8 +20,9 @@ run replays bit for bit.
 | `lib/hash/blake3.rce` | `hash.blake3`: BLAKE3 hash, keyed hash, derive_key and extendable output (SHA-2 stays in `crypto`, SHA-3 in `pq`) |
 | `lib/rand/det.rce` | `rand.det`: seeded ChaCha20 (RFC 8439) streams: words, bits, unbiased `below`/`range`, bytes, shuffle, split; fresh seeds only through `from_entropy`, which takes a `Cap[Entropy]` (`# rce-version: 0.8`) |
 | `lib/fmt/fmt.rce` | `fmt`: locale-free integer text in radixes 2..36 (strict parse, overflow refused), padding and digit grouping, `{}`/`{N}` templates, and a linear-time regex (Thompson NFA run as a Pike VM: classes, `\d\w\s`, `* + ? {m,n}`, alternation, groups, anchors) |
+| `lib/energy/energy.rce` | `energy`: JCP v0.3 `jcp/2` receipts (JCR-1): canonical core, blake3 content id, COSE_Sign1 (EdDSA) seal and verify, did:key for Ed25519, strict decoding under the profile a receipt names (`jcp/1` opens, never minted), replay of a receipt stream into budget state and per-worker tallies; uses `enc`, `hash.blake3` and `crypto` |
 
-Foundation modules live under `lib/<area>/`; their vectors and property
+Foundation modules live under `lib/<area>/` (a module that needs others names them on a `# uses:` line and is checked as a package with them); their vectors and property
 sweeps are in `tests/<area>/<name>_checks.rce`, which `scripts/check.sh`
 appends to the module. `rce` 0.1.3 embeds only `crypto`, `pq`, `hpke` and
 `mls` for `#!lib`; until a release embeds the foundation modules, give the

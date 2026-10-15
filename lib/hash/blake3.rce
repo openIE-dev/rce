@@ -23,7 +23,7 @@ fn b3_perm() -> List[i64] = [2, 6, 3, 10, 7, 0, 4, 13, 1, 11, 12, 5, 9, 14, 15, 
 
 fn rotr32(x: i64, n: i64) -> i64 = ((x >> n) | (x << (32 - n))) & M32
 
-fn g(v: &mut List[i64], a: usize, b: usize, c: usize, d: usize, mx: i64, my: i64)
+fn b3_g(v: &mut List[i64], a: usize, b: usize, c: usize, d: usize, mx: i64, my: i64)
     v[a] = (v[a] + v[b] + mx) & M32
     v[d] = rotr32(v[d] ^ v[a], 16)
     v[c] = (v[c] + v[d]) & M32
@@ -41,14 +41,14 @@ pub fn b3_compress(cv: &[i64], block: &[i64], counter: i64, blen: i64, flags: i6
     var v: List[i64] = [cv[0], cv[1], cv[2], cv[3], cv[4], cv[5], cv[6], cv[7], iv[0], iv[1], iv[2], iv[3], counter & M32, (counter >> 32) & M32, blen, flags]
     var m = copy(block)
     for r in 0..7
-        g(&mut v, 0, 4, 8, 12, m[0], m[1])
-        g(&mut v, 1, 5, 9, 13, m[2], m[3])
-        g(&mut v, 2, 6, 10, 14, m[4], m[5])
-        g(&mut v, 3, 7, 11, 15, m[6], m[7])
-        g(&mut v, 0, 5, 10, 15, m[8], m[9])
-        g(&mut v, 1, 6, 11, 12, m[10], m[11])
-        g(&mut v, 2, 7, 8, 13, m[12], m[13])
-        g(&mut v, 3, 4, 9, 14, m[14], m[15])
+        b3_g(&mut v, 0, 4, 8, 12, m[0], m[1])
+        b3_g(&mut v, 1, 5, 9, 13, m[2], m[3])
+        b3_g(&mut v, 2, 6, 10, 14, m[4], m[5])
+        b3_g(&mut v, 3, 7, 11, 15, m[6], m[7])
+        b3_g(&mut v, 0, 5, 10, 15, m[8], m[9])
+        b3_g(&mut v, 1, 6, 11, 12, m[10], m[11])
+        b3_g(&mut v, 2, 7, 8, 13, m[12], m[13])
+        b3_g(&mut v, 3, 4, 9, 14, m[14], m[15])
         if r < 6
             var p: List[i64] = []
             for i in 0..16

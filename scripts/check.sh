@@ -16,14 +16,33 @@ done
 # as a standalone module) and then with its checks file appended (vectors
 # and property sweeps live in tests/<area>/<name>_checks[_N].rce so a library's
 # own comptime fuel stays small for programs that use it).
+# A module with a "# uses: a/b c/d" line is checked as a package together
+# with lib/a/b.rce and lib/c/d.rce. A tests/<area>/<name>_host.rce file
+# holds checks too heavy for comptime fuel: it is flattened with the module
+# and its first checks file (scripts/flatten.py), its "# events:" are fed
+# to `rce host run` one per input line, and the final state must read
+# "good = N, bad = 0" for the N events.
 for f in lib/*/*.rce; do
-  "$RCE" check "$f"
+  uses=$(sed -n 's/^# uses: //p' "$f")
+  pk="$tmp/pkg"; rm -rf "$pk"; mkdir "$pk"
+  for u in $uses; do cp "lib/$u.rce" "$pk/"; done
+  if [ -n "$uses" ]; then cp "$f" "$pk/"; "$RCE" check "$pk"; else "$RCE" check "$f"; fi
   t="tests/${f#lib/}"; t="${t%.rce}_checks"
   # one comptime fuel budget per file: heavy vector sets are sharded
   for c in "$t".rce "$t"_*.rce; do
     [ -f "$c" ] || continue
-    o="$tmp/$(basename "$c")"
+    o="$pk/$(basename "$f")"
     { cat "$f"; echo; cat "$c"; } > "$o"
-    "$RCE" test "$o"
+    if [ -n "$uses" ]; then "$RCE" test "$pk"; else "$RCE" test "$o"; fi
   done
+  h="${t%_checks}_host.rce"
+  if [ -f "$h" ]; then
+    python3 scripts/flatten.py "$f" "$t.rce" "$h" > "$tmp/host.rce"
+    ev=$(sed -n "s/^# events: //p" "$h" | tr -d ' ' | tr ',' '\n')
+    n=$(printf '%s\n' "$ev" | grep -c .)
+    res=$(printf '%s\n' "$ev" | "$RCE" host run "$tmp/host.rce" --log "$tmp/hostlog")
+    printf '%s\n' "$res" | tail -3
+    printf '%s\n' "$res" | grep -q "{ good = $n, bad = 0 }" || { echo "FAIL host checks $h"; exit 1; }
+    rm -rf "$tmp/hostlog"*
+  fi
 done

@@ -169,7 +169,42 @@ oracle (`scripts/gen/fmt_gen.py`, seed 20261015):
   are exponential for backtracking engines.
 `scripts/mut/fmt.py`: each of 25 mutants of the module fails the checks.
 
-Needs spec for the rest of M17: parser combinators need function values
-or closures (no `fn` types in 5.15), and regex captures need a match
-result type; both are left out. Regex classes are ASCII ranges until a
+Left for M17 part 2: parser combinators (function values exist, e.g.
+`fn(f: fn(i64) -> i64, ...)` and `fn(x) => ...` admit under rce 0.1.3,
+so this needs design, not spec; an earlier note here said otherwise) and
+regex captures (a match result type). Regex classes are ASCII ranges until a
 pinned UCD (M9) gives Unicode classes.
+
+## energy (`lib/energy/energy.rce`)
+
+- JCP v0.3 draft (the JCP specification text, section 8 "The receipt",
+  sections 3 and 8.1-8.2; read 2026-10-15). Its conformance vectors
+  (`conformance/v1/`) were not reachable from here, so every receipt
+  vector is derived.
+- draft-msporny-base58-03 section 5: the three base58btc examples
+  ("Hello World!", the quick brown fox, 0x0000287fb4cd), official.
+- Derived with `scripts/gen/energy_gen.py` (cbor2, blake3 and
+  cryptography in Python; RFC 8032 test 1 and 2 seeds): did:key ids of
+  both keys; six jcp/2 receipts (allow, deny, Partial coverage, budget
+  deny, two chained debits) as canonical cores, blake3 ids,
+  Sig_structures and COSE_Sign1 envelopes, decoded back; replay and
+  per-(grant, subject) tallies of that stream; a jcp/1 core that opens;
+  16 malformed envelopes refused (missing or extra payload_hash, unknown
+  profile or field, negative or text cost, Whole written out, allow with
+  a reason, deny without, no steward, bad trust, non-canonical head, wrong
+  kid, tag 98, alg -7, kid label 5). 46 comptime checks.
+- Host checks (`tests/energy/energy_host.rce`, one Ed25519 operation per
+  input under `rce host run`): seal matches cryptography's bytes; two
+  envelopes verify; a payload substitution with the old signature fails
+  (JCP C23); a receipt signed by another key fails (C5); sealing with a
+  seed that is not the steward's is refused. 6 of 6.
+- `scripts/mut/energy.py`: 24 of 24 mutants killed.
+
+Needs spec or data: the JCP conformance vectors; the exact COSE `kid`
+encoding (taken here as the UTF-8 bytes of the steward's did:key) and
+whether `chain_ids` belongs in the signed jcp/2 core (taken as yes, when
+the chain has more than one link); and the shape of `host.Energy`
+results (E.5), so receipts can be built from them directly (here
+cost_uj and its provenance are parameters). Module imports do not rename
+names yet (W-MOD-3), so `enc` and `hash.blake3` private helpers were
+renamed (`enc_cat`, `b3_g`) to coexist with `crypto`.

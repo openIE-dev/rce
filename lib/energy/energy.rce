@@ -1,0 +1,551 @@
+module energy
+#!lib crypto
+# uses: enc/enc hash/blake3
+use enc
+use hash.blake3
+
+# JCP v0.3 energy receipts (survey M16, part 1): the JCR-1 receipt of
+# JCP section 8 under the `jcp/2` profile, its content id, the COSE_Sign1
+# envelope (RFC 9052, EdDSA, alg -8) signed with Ed25519 (crypto), did:key
+# identities for Ed25519 keys, and replay of a verified receipt stream
+# into budget state (8.1) and per-worker accounting (8.2).
+# Canonical bytes are deterministic CBOR from `enc` (RFC 8949 4.2.1) and
+# ids are blake3(canonical_cbor(value)) in lowercase hex (JCP section 3).
+# The library never reads a meter: cost_uj and its provenance come from
+# the caller (a logged host.Energy result).
+# Signing and verifying cost one Ed25519 operation each (about 30M fuel),
+# so run them one per input on the host.
+
+error BadReceipt(why: text)
+error BadDid(at: i64)
+
+pub const PROV_HW: text = "HwShunt"
+pub const PROV_MODEL: text = "ModelBased"
+pub const PROV_EST: text = "Estimator"
+
+# One decision. deny_reason is "" on allow; partial = false means
+# energy_coverage Whole (omitted from the core); chain_ids is [] for a
+# one-link chain; payload_hash is "" only in a decoded jcp/1 receipt.
+pub struct Receipt
+    profile: text
+    grant_id: text
+    issuer: text
+    subject: text
+    resource: text
+    action: text
+    payload_hash: text
+    frame_kind: text
+    trust: text
+    verdict: text
+    deny_reason: text
+    cost_uj: i64
+    provenance: text
+    partial: bool
+    budget_remaining_uj: i64
+    budget_uj: i64
+    steward: text
+    chain_ids: List[text]
+
+fn en_cat(a: List[i64], b: &[i64]) -> List[i64]
+    var o = a
+    for x in b
+        o.push(x)
+    return o
+
+pub fn hex_of(b: &[i64]) -> text
+    let ds = "0123456789abcdef".chars()
+    var s = ""
+    for x in b
+        s = s + copy(ds[(x >> 4) as usize]) + copy(ds[(x & 15) as usize])
+    return s
+
+fn hnib(c: i64) -> i64
+    if c >= 48 and c <= 57
+        return c - 48
+    if c >= 97 and c <= 102
+        return c - 87
+    return -1
+
+fn is_hex(t: &text) -> bool
+    if t.len() % 2 == 1
+        return false
+    var ok = true
+    var i: usize = 0
+    while i < t.len() bound 16777216
+        ok = ok and hnib(t[i] as i64) >= 0
+        i += 1
+    return ok
+
+fn utf8_of(t: &text) -> List[i64]
+    var o: List[i64] = []
+    var i: usize = 0
+    while i < t.len() bound 16777216
+        o.push(t[i] as i64)
+        i += 1
+    return o
+
+# ---------------- base58btc and did:key ----------------
+
+const B58: text = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
+
+pub fn base58_encode(b: &[i64]) -> text
+    var zeros: usize = 0
+    while zeros < b.len() and b[zeros] == 0 bound 16777216
+        zeros += 1
+    # base-58 digits, least significant first
+    var ds: List[i64] = []
+    for x in b
+        var cy = x
+        for k in 0..ds.len()
+            let v = ds[k] * 256 + cy
+            ds[k] = v % 58
+            cy = v / 58
+        while cy > 0 bound 64
+            ds.push(cy % 58)
+            cy = cy / 58
+    let al = B58.chars()
+    var s = ""
+    for _ in 0..zeros
+        s = s + "1"
+    var k = ds.len()
+    while k > 0 bound 16777216
+        k -= 1
+        s = s + copy(al[ds[k] as usize])
+    return s
+
+fn b58_val(c: i64) -> i64
+    let al = utf8_of(&B58)
+    for k in 0..al.len()
+        if al[k] == c
+            return k as i64
+    return -1
+
+pub fn base58_decode(s: &text) -> List[i64] ! BadDid
+    var zeros: usize = 0
+    while zeros < s.len() and (s[zeros] as i64) == 49 bound 16777216
+        zeros += 1
+    var bs: List[i64] = []
+    var i: usize = 0
+    while i < s.len() bound 16777216
+        let d = b58_val(s[i] as i64)
+        if d < 0
+            fail BadDid(at: i as i64)
+        var cy = d
+        for k in 0..bs.len()
+            let v = bs[k] * 58 + cy
+            bs[k] = v & 255
+            cy = v >> 8
+        while cy > 0 bound 64
+            bs.push(cy & 255)
+            cy = cy >> 8
+        i += 1
+    var o: List[i64] = []
+    for _ in 0..zeros
+        o.push(0)
+    var k = bs.len()
+    while k > 0 bound 16777216
+        k -= 1
+        o.push(bs[k])
+    return o
+
+# did:key of a 32-byte Ed25519 public key: "did:key:z" + base58btc of the
+# multicodec ed25519-pub prefix 0xed 0x01 and the key (W3C did:key).
+pub fn did_key(pk: &[i64]) -> text
+    let b = en_cat([237, 1], pk)
+    return "did:key:z" + base58_encode(&b)
+
+pub fn did_key_pk(did: &text) -> List[i64] ! BadDid
+    let p = "did:key:z"
+    let pb = utf8_of(&p)
+    let db = utf8_of(did)
+    if db.len() <= pb.len()
+        fail BadDid(at: 0)
+    for k in 0..pb.len()
+        if db[k] != pb[k]
+            fail BadDid(at: k as i64)
+    var rest = ""
+    let cs = did.chars()
+    for k in pb.len()..cs.len()
+        rest = rest + copy(cs[k])
+    let b = try base58_decode(&rest)
+    if b.len() != 34 or b[0] != 237 or b[1] != 1
+        fail BadDid(at: pb.len() as i64)
+    var pk: List[i64] = []
+    for k in 2..34
+        pk.push(b[k])
+    return pk
+
+# ---------------- the jcp/2 core ----------------
+
+fn jt(t: text) -> enc.Cbor = enc.CText(t: t)
+
+fn jn(v: i64) -> enc.Cbor = enc.CInt(v: v)
+
+fn check_fields(r: &Receipt, need_payload: bool) -> text
+    if not is_hex(&r.grant_id) or r.grant_id.len() == 0
+        return "grant_id"
+    if not is_hex(&r.resource)
+        return "resource"
+    if need_payload and (not is_hex(&r.payload_hash) or r.payload_hash.len() == 0)
+        return "payload_hash"
+    if r.trust != "control" and r.trust != "data"
+        return "trust"
+    if r.verdict != "allow" and r.verdict != "deny"
+        return "verdict"
+    if r.verdict == "allow" and r.deny_reason != ""
+        return "deny_reason"
+    if r.verdict == "deny" and r.deny_reason == ""
+        return "deny_reason"
+    if r.provenance != PROV_HW and r.provenance != PROV_MODEL and r.provenance != PROV_EST
+        return "energy_provenance"
+    if r.cost_uj < 0 or r.budget_uj < 0 or r.budget_remaining_uj < 0
+        return "uint"
+    if r.budget_remaining_uj > r.budget_uj
+        return "budget_remaining_uj"
+    for g in r.chain_ids
+        if not is_hex(&g) or g.len() == 0
+            return "chain_ids"
+    return ""
+
+fn core_value(r: &Receipt) -> enc.Cbor
+    var ks: List[enc.Cbor] = [jt("jcp_receipt"), jt("grant_id"), jt("issuer"), jt("subject"), jt("resource"), jt("action")]
+    var vs: List[enc.Cbor] = [jt(copy(r.profile)), jt(copy(r.grant_id)), jt(copy(r.issuer)), jt(copy(r.subject)), jt(copy(r.resource)), jt(copy(r.action))]
+    ks.push(jt("payload_hash"))
+    vs.push(jt(copy(r.payload_hash)))
+    ks.push(jt("frame_kind"))
+    vs.push(jt(copy(r.frame_kind)))
+    ks.push(jt("trust"))
+    vs.push(jt(copy(r.trust)))
+    ks.push(jt("verdict"))
+    vs.push(jt(copy(r.verdict)))
+    if r.verdict == "deny"
+        ks.push(jt("deny_reason"))
+        vs.push(jt(copy(r.deny_reason)))
+    ks.push(jt("cost_uj"))
+    vs.push(jn(r.cost_uj))
+    ks.push(jt("energy_provenance"))
+    vs.push(jt(copy(r.provenance)))
+    if r.partial
+        ks.push(jt("energy_coverage"))
+        vs.push(jt("Partial"))
+    ks.push(jt("budget_remaining_uj"))
+    vs.push(jn(r.budget_remaining_uj))
+    ks.push(jt("budget_uj"))
+    vs.push(jn(r.budget_uj))
+    ks.push(jt("steward"))
+    vs.push(jt(copy(r.steward)))
+    if r.chain_ids.len() > 0
+        var items: List[enc.Cbor] = []
+        for g in r.chain_ids
+            items.push(jt(copy(g)))
+        ks.push(jt("chain_ids"))
+        vs.push(enc.CArr(items: items))
+    return enc.CMap(keys: ks, vals: vs)
+
+# The canonical bytes of a receipt core. Only jcp/2 is minted (JCP 8:
+# implementations MUST NOT mint jcp/1).
+pub fn receipt_core(r: &Receipt) -> List[i64] ! BadReceipt
+    if r.profile != "jcp/2"
+        fail BadReceipt(why: "profile")
+    let bad = check_fields(r, true)
+    if bad != ""
+        fail BadReceipt(why: bad)
+    let v = core_value(r)
+    return enc.cbor_encode(&v)
+
+# Content id: blake3 of the canonical core, lowercase hex.
+pub fn receipt_id(r: &Receipt) -> text ! BadReceipt
+    let c = try receipt_core(r)
+    let h = blake3.blake3(&c)
+    return hex_of(&h)
+
+pub fn content_id(c: &enc.Cbor) -> text
+    let b = enc.cbor_encode(c)
+    let h = blake3.blake3(&b)
+    return hex_of(&h)
+
+# ---------------- COSE_Sign1 ----------------
+
+# Protected header {1: -8} (alg EdDSA), as its bstr contents.
+pub fn protected_header() -> List[i64] = [161, 1, 39]
+
+# Sig_structure = ["Signature1", protected, external_aad = h'', payload]
+pub fn sig_structure(payload: &[i64]) -> List[i64]
+    let v = enc.CArr(items: [jt("Signature1"), enc.CBytes(b: protected_header()), enc.CBytes(b: []), enc.CBytes(b: copy(payload))])
+    return enc.cbor_encode(&v)
+
+# Tag 18 [protected, {4: kid}, payload, signature]; kid is the steward id
+# as UTF-8 bytes.
+pub fn envelope(payload: &[i64], kid: &text, sig: &[i64]) -> List[i64]
+    let unprot = enc.CMap(keys: [jn(4)], vals: [enc.CBytes(b: utf8_of(kid))])
+    let v = enc.CTag(tag: 18, item: Box(enc.CArr(items: [enc.CBytes(b: protected_header()), unprot, enc.CBytes(b: copy(payload)), enc.CBytes(b: copy(sig))])))
+    return enc.cbor_encode(&v)
+
+pub struct OpenedReceipt
+    receipt: Receipt
+    payload: List[i64]
+    kid: text
+    sig: List[i64]
+
+fn bytes_field(c: &enc.Cbor) -> List[i64] ! BadReceipt
+    match c
+        CBytes(b: b) -> return copy(b)
+        _ -> fail BadReceipt(why: "envelope")
+
+fn text_of(c: &enc.Cbor) -> text ! BadReceipt
+    match c
+        CText(t: t) -> return copy(t)
+        _ -> fail BadReceipt(why: "type")
+
+fn uint_of(c: &enc.Cbor) -> i64 ! BadReceipt
+    match c
+        CInt(v: v) -> return if v >= 0 then v else 0 - 1
+        _ -> fail BadReceipt(why: "type")
+
+fn map_keys(c: &enc.Cbor, why: text) -> List[enc.Cbor] ! BadReceipt
+    match c
+        CMap(keys: ks, vals: vs) -> return copy(ks)
+        _ -> fail BadReceipt(why: why)
+
+fn map_vals(c: &enc.Cbor, why: text) -> List[enc.Cbor] ! BadReceipt
+    match c
+        CMap(keys: ks, vals: vs) -> return copy(vs)
+        _ -> fail BadReceipt(why: why)
+
+fn arr_of(c: &enc.Cbor, why: text) -> List[enc.Cbor] ! BadReceipt
+    match c
+        CArr(items: items) -> return copy(items)
+        _ -> fail BadReceipt(why: why)
+
+fn tag_num(c: &enc.Cbor) -> i64
+    match c
+        CTag(tag: tag, item: item) -> return tag
+        _ -> return -1
+
+fn cbor_copy(c: &enc.Cbor) -> enc.Cbor = copy(c)
+
+fn tag_item(c: &enc.Cbor) -> enc.Cbor
+    match c
+        CTag(tag: tag, item: item) -> return cbor_copy(item)
+        _ -> return enc.CInt(v: -1)
+
+fn kid_text(b: &[i64]) -> text
+    let al = " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~".chars()
+    var s = ""
+    for x in b
+        if x >= 32 and x < 127
+            s = s + copy(al[(x - 32) as usize])
+        else
+            s = s + "?"
+    return s
+
+const FIELDS: text = "jcp_receipt grant_id issuer subject resource action payload_hash frame_kind trust verdict deny_reason cost_uj energy_provenance energy_coverage budget_remaining_uj budget_uj steward chain_ids"
+
+# Decode a core strictly: canonical bytes (enc refuses non-canonical
+# input), only known fields, the right types, and the profile named in
+# the core itself: jcp/2 needs payload_hash, jcp/1 must not cy it.
+pub fn decode_core(payload: &[i64]) -> Receipt ! BadReceipt
+    let c = enc.cbor_decode(payload) catch enc.CInt(v: -1)
+    var r = Receipt(profile: "", grant_id: "", issuer: "", subject: "", resource: "", action: "", payload_hash: "", frame_kind: "", trust: "", verdict: "", deny_reason: "", cost_uj: -1, provenance: "", partial: false, budget_remaining_uj: -1, budget_uj: -1, steward: "", chain_ids: [])
+    var seen = ""
+    let ks = try map_keys(&c, "core")
+    let vs = try map_vals(&c, "core")
+    let fields = FIELDS.split(" ")
+    for k in 0..ks.len()
+        let name = try text_of(&ks[k])
+        if not fields.contains(name)
+            fail BadReceipt(why: "unknown field")
+        seen = seen + " " + copy(name)
+        let v = copy(vs[k])
+        if name == "cost_uj"
+            r.cost_uj = try uint_of(&v)
+            continue
+        if name == "budget_uj"
+            r.budget_uj = try uint_of(&v)
+            continue
+        if name == "budget_remaining_uj"
+            r.budget_remaining_uj = try uint_of(&v)
+            continue
+        if name == "chain_ids"
+            let items = try arr_of(&v, "type")
+            for it in items
+                r.chain_ids.push(try text_of(&it))
+            if r.chain_ids.len() == 0
+                fail BadReceipt(why: "chain_ids")
+            continue
+        let t = try text_of(&v)
+        if name == "jcp_receipt"
+            r.profile = copy(t)
+        if name == "grant_id"
+            r.grant_id = copy(t)
+        if name == "issuer"
+            r.issuer = copy(t)
+        if name == "subject"
+            r.subject = copy(t)
+        if name == "resource"
+            r.resource = copy(t)
+        if name == "action"
+            r.action = copy(t)
+        if name == "payload_hash"
+            r.payload_hash = copy(t)
+        if name == "frame_kind"
+            r.frame_kind = copy(t)
+        if name == "trust"
+            r.trust = copy(t)
+        if name == "verdict"
+            r.verdict = copy(t)
+        if name == "deny_reason"
+            r.deny_reason = copy(t)
+        if name == "energy_provenance"
+            r.provenance = copy(t)
+        if name == "steward"
+            r.steward = copy(t)
+        if name == "energy_coverage"
+            if t != "Partial"
+                fail BadReceipt(why: "energy_coverage")
+            r.partial = true
+    if r.profile != "jcp/2" and r.profile != "jcp/1"
+        fail BadReceipt(why: "profile")
+    let has_payload = seen.split(" ").contains("payload_hash")
+    if (r.profile == "jcp/2") != has_payload
+        fail BadReceipt(why: "payload_hash")
+    let need = ["grant_id", "issuer", "subject", "resource", "action", "frame_kind", "trust", "verdict", "cost_uj", "energy_provenance", "budget_remaining_uj", "budget_uj", "steward"]
+    let got = seen.split(" ")
+    for f in need
+        if not got.contains(f)
+            fail BadReceipt(why: "missing " + f)
+    let bad = check_fields(&r, r.profile == "jcp/2")
+    if bad != ""
+        fail BadReceipt(why: bad)
+    return r
+
+# Open an envelope without checking its signature.
+pub fn open_envelope(env: &[i64]) -> OpenedReceipt ! BadReceipt
+    let c = enc.cbor_decode(env) catch enc.CInt(v: -1)
+    if tag_num(&c) != 18
+        fail BadReceipt(why: "envelope")
+    let inner = tag_item(&c)
+    let it = try arr_of(&inner, "envelope")
+    if it.len() != 4
+        fail BadReceipt(why: "envelope")
+    let ph = try bytes_field(&it[0])
+    if ph != protected_header()
+        fail BadReceipt(why: "alg")
+    let ks = try map_keys(&it[1], "kid")
+    let vs = try map_vals(&it[1], "kid")
+    if ks.len() != 1 or ks[0] != jn(4)
+        fail BadReceipt(why: "kid")
+    let kid = try bytes_field(&vs[0])
+    let payload = try bytes_field(&it[2])
+    let sig = try bytes_field(&it[3])
+    if sig.len() != 64
+        fail BadReceipt(why: "signature")
+    let r = try decode_core(&payload)
+    let kt = kid_text(&kid)
+    if utf8_of(&kt) != kid or kt != r.steward
+        fail BadReceipt(why: "steward")
+    return OpenedReceipt(receipt: r, payload: payload, kid: kt, sig: sig)
+
+# seal_receipt: sign the Sig_structure with the steward's 32-byte seed (hex).
+# The steward must be the did:key of that seed's public key.
+pub fn seal_receipt(r: &Receipt, seed_hex: text) -> List[i64] ! BadReceipt
+    let core = try receipt_core(r)
+    let pk = ed_pubkey(copy(seed_hex))
+    let pkb = did_key_pk(&r.steward) catch []
+    if hex_of(&pkb) != pk
+        fail BadReceipt(why: "steward")
+    let sig = ed_sign(seed_hex, sig_structure(&core))
+    let sb = hex_bytes(&sig)
+    return envelope(&core, &r.steward, &sb)
+
+fn hex_bytes(h: &text) -> List[i64]
+    var o: List[i64] = []
+    var i: usize = 0
+    while i + 1 < h.len() bound 16777216
+        o.push(hnib(h[i] as i64) * 16 + hnib(h[i + 1] as i64))
+        i += 2
+    return o
+
+# Verify an envelope: it opens, its core is valid under its own profile,
+# and the signature verifies under the steward's did:key (a wrong steward
+# fails, JCP C5).
+pub fn verify(env: &[i64]) -> bool
+    let o = open_envelope(env) catch OpenedReceipt(receipt: Receipt(profile: "", grant_id: "", issuer: "", subject: "", resource: "", action: "", payload_hash: "", frame_kind: "", trust: "", verdict: "", deny_reason: "", cost_uj: -1, provenance: "", partial: false, budget_remaining_uj: -1, budget_uj: -1, steward: "", chain_ids: []), payload: [], kid: "", sig: [])
+    if o.payload.len() == 0
+        return false
+    let pk = did_key_pk(&o.receipt.steward) catch []
+    if pk.len() != 32
+        return false
+    return ed_verify(hex_of(&pk), sig_structure(&o.payload), hex_of(&o.sig))
+
+# ---------------- replay and accounting ----------------
+
+pub struct Spend
+    grant_id: text
+    spent_uj: i64
+
+# Replay a verified receipt stream (JCP 8.1): every allow debits its cost
+# to each grant it names (chain_ids, root first, or grant_id alone); a
+# deny debits nothing (C3). Grants appear in first-seen order.
+pub fn replay(rs: &[Receipt]) -> List[Spend]
+    var out: List[Spend] = []
+    for r in rs
+        if r.verdict != "allow"
+            continue
+        var names: List[text] = copy(r.chain_ids)
+        if names.len() == 0
+            names.push(copy(r.grant_id))
+        for g in names
+            var hit = false
+            for k in 0..out.len()
+                if out[k].grant_id == g
+                    out[k].spent_uj += r.cost_uj
+                    hit = true
+            if not hit
+                out.push(Spend(grant_id: copy(g), spent_uj: r.cost_uj))
+    return out
+
+pub fn spent(ls: &[Spend], g: &text) -> i64
+    for s in ls
+        if s.grant_id == copy(g)
+            return s.spent_uj
+    return 0
+
+# Conservation over a stream: replaying receipts in order, each receipt's
+# budget_remaining_uj equals budget_uj minus what its grant has spent so
+# far (after its own debit when it allows).
+pub fn conserves(rs: &[Receipt]) -> bool
+    var seen: List[Receipt] = []
+    for r in rs
+        seen.push(copy(r))
+        let led = replay(&seen)
+        let s = spent(&led, &r.grant_id)
+        if r.budget_remaining_uj != r.budget_uj - s
+            return false
+    return true
+
+pub struct Tally
+    grant_id: text
+    subject: text
+    allowed: i64
+    denied: i64
+    joules_uj: i64
+
+# Group accounting (JCP 8.2), keyed by (grant_id, subject).
+pub fn tally(rs: &[Receipt]) -> List[Tally]
+    var out: List[Tally] = []
+    for r in rs
+        var at: i64 = -1
+        for k in 0..out.len()
+            if out[k].grant_id == r.grant_id and out[k].subject == r.subject
+                at = k as i64
+        if at < 0
+            out.push(Tally(grant_id: copy(r.grant_id), subject: copy(r.subject), allowed: 0, denied: 0, joules_uj: 0))
+            at = (out.len() - 1) as i64
+        let i = at as usize
+        if r.verdict == "allow"
+            out[i].allowed += 1
+            out[i].joules_uj += r.cost_uj
+        else
+            out[i].denied += 1
+    return out

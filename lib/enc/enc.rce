@@ -10,7 +10,7 @@ module enc
 # f64 bit access in 5.15), CBOR integers beyond i64, decoding non-ASCII
 # CBOR text (no text-from-UTF-8 built-in).
 
-fn cat(a: List[i64], b: &[i64]) -> List[i64]
+fn enc_cat(a: List[i64], b: &[i64]) -> List[i64]
     var o = a
     for x in b
         o.push(x)
@@ -186,7 +186,7 @@ fn lex_cmp(a: &[i64], b: &[i64]) -> i64
 fn enc_arr(n: usize, parts: List[List[i64]]) -> List[i64]
     var o = cbor_head(4, n as i64)
     for p in parts
-        o = cat(o, &p)
+        o = enc_cat(o, &p)
     return o
 
 # Map: sort entries by the bytes of their encoded keys; a duplicate key
@@ -204,13 +204,13 @@ fn enc_map(ks: List[List[i64]], vs: List[List[i64]]) -> List[i64]
         let ok = 1 / (if lex_cmp(&ks[idx[j - 1]], &ks[idx[j]]) < 0 then 1 else 0)
     var o = cbor_head(5, ks.len() as i64)
     for i in idx
-        o = cat(o, &ks[i])
-        o = cat(o, &vs[i])
+        o = enc_cat(o, &ks[i])
+        o = enc_cat(o, &vs[i])
     return o
 
 fn enc_text(t: &text) -> List[i64]
     let b = bytes_of(t)
-    return cat(cbor_head(3, b.len() as i64), &b)
+    return enc_cat(cbor_head(3, b.len() as i64), &b)
 
 fn enc_int(v: i64) -> List[i64] = if v >= 0 then cbor_head(0, v) else cbor_head(1, -1 - v)
 
@@ -229,7 +229,7 @@ fn enc_simple(v: i64) -> List[i64]
         o.push(v)
     return o
 
-fn enc_tag(t: i64, inner: List[i64]) -> List[i64] = cat(cbor_head(6, t), &inner)
+fn enc_tag(t: i64, inner: List[i64]) -> List[i64] = enc_cat(cbor_head(6, t), &inner)
 
 # Nesting depth is bounded by 64.
 pub fn cbor_encode(c: &Cbor) -> List[i64] bound 64
