@@ -1,0 +1,12 @@
+fn main()
+    let c = chan[i64](1)
+    let v = <- c
+    emit v
+#--- rce-test
+# id: concurrency/targeted/deadlock-recv
+# area: concurrency
+# clauses: [T1, T4, T9]
+# expect: run
+# outcome: deadlock
+# provenance: targeted (mutation survivors, round 3): a receive nothing can satisfy ends the run as Deadlock (T4; mutant 124); outputs read off the reference and checked by the four emitters
+#---

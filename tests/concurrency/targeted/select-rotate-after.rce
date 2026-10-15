@@ -1,0 +1,30 @@
+fn feed(c: chan i64, base: i64)
+    for i in 0..4
+        c <- base + i
+fn main()
+    let a = chan[i64](1)
+    let b = chan[i64](1)
+    spawn feed(a, 10)
+    spawn feed(b, 20)
+    loop bound 20
+        select
+            recv v from a -> emit v
+            recv w from b -> emit w
+            after 2 -> break
+#--- rce-test
+# id: concurrency/targeted/select-rotate-after
+# area: concurrency
+# clauses: [N11, T1, T4, T7, T9]
+# expect: run
+# outcome: done
+# outputs:
+#   - emit some(10)
+#   - emit some(20)
+#   - emit some(11)
+#   - emit some(12)
+#   - emit some(21)
+#   - emit some(13)
+#   - emit some(22)
+#   - emit some(23)
+# provenance: targeted (mutation survivors, round 3): select without nondet takes the ready arm by rotation and `after n` fires only after n idle ticks (kills mutants 94, 103); outputs read off the reference and checked by the four emitters
+#---

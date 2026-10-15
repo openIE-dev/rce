@@ -2,8 +2,7 @@
  "format": "rce-results/1",
  "adapter": "reference",
  "tally": {
-  "pass": 1926,
-  "fail": 20
+  "pass": 1991
  },
  "results": [
   {
@@ -26,7 +25,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 4
+   "ms": 106
   },
   {
    "path": "tests/concurrency/generated/par-7-001.rce",
@@ -48,7 +47,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 5
+   "ms": 106
   },
   {
    "path": "tests/concurrency/generated/par-7-002.rce",
@@ -70,7 +69,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 20
+   "ms": 67
   },
   {
    "path": "tests/concurrency/generated/par-7-003.rce",
@@ -92,7 +91,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 9
+   "ms": 4
   },
   {
    "path": "tests/concurrency/generated/par-7-004.rce",
@@ -114,7 +113,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 7
+   "ms": 35
   },
   {
    "path": "tests/concurrency/generated/par-7-005.rce",
@@ -158,7 +157,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 6
+   "ms": 20
   },
   {
    "path": "tests/concurrency/generated/par-7-007.rce",
@@ -180,7 +179,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 8
+   "ms": 9
   },
   {
    "path": "tests/concurrency/generated/par-7-008.rce",
@@ -202,7 +201,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 5
+   "ms": 1
   },
   {
    "path": "tests/concurrency/generated/par-7-009.rce",
@@ -224,7 +223,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 4
+   "ms": 1
   },
   {
    "path": "tests/concurrency/generated/par-7-010.rce",
@@ -246,7 +245,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 17
+   "ms": 1
   },
   {
    "path": "tests/concurrency/generated/par-7-011.rce",
@@ -268,7 +267,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 15
+   "ms": 2
   },
   {
    "path": "tests/concurrency/generated/par-7-012.rce",
@@ -290,7 +289,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 12
+   "ms": 4
   },
   {
    "path": "tests/concurrency/generated/par-7-013.rce",
@@ -312,7 +311,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 13
+   "ms": 2
   },
   {
    "path": "tests/concurrency/generated/par-7-014.rce",
@@ -334,7 +333,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 9
+   "ms": 3
   },
   {
    "path": "tests/concurrency/generated/par-7-015.rce",
@@ -356,7 +355,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 6
+   "ms": 3
   },
   {
    "path": "tests/concurrency/generated/par-7-016.rce",
@@ -378,7 +377,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 6
+   "ms": 1
   },
   {
    "path": "tests/concurrency/generated/par-7-017.rce",
@@ -400,7 +399,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 5
+   "ms": 1
   },
   {
    "path": "tests/concurrency/generated/par-7-018.rce",
@@ -444,7 +443,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 2
+   "ms": 1
   },
   {
    "path": "tests/concurrency/generated/par-7-020.rce",
@@ -466,7 +465,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 7
+   "ms": 2
   },
   {
    "path": "tests/concurrency/generated/par-7-021.rce",
@@ -532,7 +531,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 2
+   "ms": 1
   },
   {
    "path": "tests/concurrency/generated/par-7-024.rce",
@@ -554,7 +553,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 2
+   "ms": 1
   },
   {
    "path": "tests/concurrency/generated/par-7-025.rce",
@@ -576,7 +575,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 2
+   "ms": 1
   },
   {
    "path": "tests/concurrency/generated/par-7-026.rce",
@@ -598,7 +597,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 2
+   "ms": 1
   },
   {
    "path": "tests/concurrency/generated/par-7-027.rce",
@@ -642,7 +641,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 3
+   "ms": 2
   },
   {
    "path": "tests/concurrency/generated/par-7-029.rce",
@@ -730,7 +729,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 3
+   "ms": 1
   },
   {
    "path": "tests/concurrency/generated/par-7-033.rce",
@@ -752,7 +751,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 2
+   "ms": 1
   },
   {
    "path": "tests/concurrency/generated/par-7-034.rce",
@@ -774,7 +773,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 2
+   "ms": 1
   },
   {
    "path": "tests/concurrency/generated/par-7-035.rce",
@@ -796,7 +795,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 3
+   "ms": 1
   },
   {
    "path": "tests/concurrency/generated/par-7-036.rce",
@@ -818,7 +817,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 1
+   "ms": 2
   },
   {
    "path": "tests/concurrency/generated/par-7-037.rce",
@@ -840,7 +839,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 2
+   "ms": 1
   },
   {
    "path": "tests/concurrency/generated/par-7-038.rce",
@@ -862,7 +861,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 2
+   "ms": 3
   },
   {
    "path": "tests/concurrency/generated/par-7-039.rce",
@@ -884,7 +883,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 1
+   "ms": 2
   },
   {
    "path": "tests/concurrency/generated/par-overlap-7-000.rce",
@@ -1560,7 +1559,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 3
+   "ms": 0
   },
   {
    "path": "tests/concurrency/generated/tree-prod-014.rce",
@@ -1784,7 +1783,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 3
+   "ms": 0
   },
   {
    "path": "tests/concurrency/generated/tree-prod-030.rce",
@@ -3477,12 +3476,69 @@
    "ms": 0
   },
   {
+   "path": "tests/concurrency/targeted/backpressure-cap1.rce",
+   "id": "concurrency/targeted/backpressure-cap1",
+   "area": "concurrency",
+   "clauses": [
+    "T1",
+    "T26",
+    "T4",
+    "T9"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 0
+  },
+  {
+   "path": "tests/concurrency/targeted/deadline-expires.rce",
+   "id": "concurrency/targeted/deadline-expires",
+   "area": "concurrency",
+   "clauses": [
+    "T1",
+    "T22",
+    "T4",
+    "T9",
+    "W-DL-1"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 0
+  },
+  {
+   "path": "tests/concurrency/targeted/deadline-met.rce",
+   "id": "concurrency/targeted/deadline-met",
+   "area": "concurrency",
+   "clauses": [
+    "T1",
+    "T22",
+    "T4",
+    "T9"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 0
+  },
+  {
+   "path": "tests/concurrency/targeted/deadlock-recv.rce",
+   "id": "concurrency/targeted/deadlock-recv",
+   "area": "concurrency",
+   "clauses": [
+    "T1",
+    "T4",
+    "T9"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 0
+  },
+  {
    "path": "tests/concurrency/targeted/hc-12-float-reduction-schedule.rce",
    "id": "concurrency/targeted/hc-12-float-reduction-schedule",
    "area": "concurrency",
    "clauses": [
     "CH00-M-61b6ac06",
     "CH07-M-0a0bd71f",
+    "CH12-M-1279943c",
     "CH14-M-90d1ad7f",
     "CH16-M-a84fabb6",
     "HC-12",
@@ -3530,7 +3586,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 2
+   "ms": 0
   },
   {
    "path": "tests/concurrency/targeted/s2-task-fn-with-chan.rce",
@@ -3551,7 +3607,77 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 3
+   "ms": 0
+  },
+  {
+   "path": "tests/concurrency/targeted/scope-joins.rce",
+   "id": "concurrency/targeted/scope-joins",
+   "area": "concurrency",
+   "clauses": [
+    "T1",
+    "T26",
+    "T4",
+    "T9"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 0
+  },
+  {
+   "path": "tests/concurrency/targeted/scope-waits-for-blocked-child.rce",
+   "id": "concurrency/targeted/scope-waits-for-blocked-child",
+   "area": "concurrency",
+   "clauses": [
+    "T1",
+    "T26",
+    "T4",
+    "T9"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 1
+  },
+  {
+   "path": "tests/concurrency/targeted/select-after-waits.rce",
+   "id": "concurrency/targeted/select-after-waits",
+   "area": "concurrency",
+   "clauses": [
+    "N11",
+    "T1",
+    "T4",
+    "T9"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 0
+  },
+  {
+   "path": "tests/concurrency/targeted/select-rotate-after.rce",
+   "id": "concurrency/targeted/select-rotate-after",
+   "area": "concurrency",
+   "clauses": [
+    "N11",
+    "T1",
+    "T4",
+    "T7",
+    "T9"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 1
+  },
+  {
+   "path": "tests/concurrency/targeted/supervisor-stop-ends-run.rce",
+   "id": "concurrency/targeted/supervisor-stop-ends-run",
+   "area": "concurrency",
+   "clauses": [
+    "T1",
+    "T4",
+    "T9"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 0
   },
   {
    "path": "tests/concurrency/targeted/t18-tree-reduce-equals-fold.rce",
@@ -3608,6 +3734,21 @@
     "CH09-M-82e65964",
     "HC-9",
     "W-INTR-1"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 0
+  },
+  {
+   "path": "tests/concurrency/targeted/workgroup-neighbor-read.rce",
+   "id": "concurrency/targeted/workgroup-neighbor-read",
+   "area": "concurrency",
+   "clauses": [
+    "T1",
+    "T23",
+    "T4",
+    "T9",
+    "W-GRP-1"
    ],
    "status": "pass",
    "detail": "",
@@ -3968,7 +4109,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 4
+   "ms": 1
   },
   {
    "path": "tests/evaluation-fuel/generated/fuel-ok-37-actor-spawn-main.rce",
@@ -4014,7 +4155,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 1
+   "ms": 0
   },
   {
    "path": "tests/evaluation-fuel/generated/fuel-trap-02-hello-main-main.rce",
@@ -4081,7 +4222,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 13
+   "ms": 0
   },
   {
    "path": "tests/evaluation-fuel/generated/fuel-trap-08-run-main-main.rce",
@@ -4102,7 +4243,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 2
+   "ms": 0
   },
   {
    "path": "tests/evaluation-fuel/generated/fuel-trap-13-spawn-chan-main.rce",
@@ -4402,7 +4543,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 5
+   "ms": 0
   },
   {
    "path": "tests/evaluation-fuel/harvested/bad-iter-reject.rce",
@@ -4576,7 +4717,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 2
+   "ms": 0
   },
   {
    "path": "tests/evaluation-fuel/harvested/loop-limit-type-reject.rce",
@@ -4600,7 +4741,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 17
+   "ms": 11
   },
   {
    "path": "tests/evaluation-fuel/harvested/ok-evenodd-accept.rce",
@@ -4632,7 +4773,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 1
+   "ms": 0
   },
   {
    "path": "tests/evaluation-fuel/harvested/ok-lex-accept.rce",
@@ -4724,7 +4865,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 19
+   "ms": 17
   },
   {
    "path": "tests/evaluation-fuel/harvested/u64-underflow-reject.rce",
@@ -4782,7 +4923,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 1
+   "ms": 0
   },
   {
    "path": "tests/evaluation-fuel/harvested/wrong-example-value-reject.rce",
@@ -4818,7 +4959,94 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 2
+   "ms": 0
+  },
+  {
+   "path": "tests/evaluation-fuel/targeted/fuel-1-budget-else-as-does-not-catch.rce",
+   "id": "evaluation-fuel/targeted/fuel-1-budget-else-as-does-not-catch",
+   "area": "evaluation-fuel",
+   "clauses": [
+    "E1",
+    "HC-7"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 3
+  },
+  {
+   "path": "tests/evaluation-fuel/targeted/fuel-1-budget-else-does-not-catch.rce",
+   "id": "evaluation-fuel/targeted/fuel-1-budget-else-does-not-catch",
+   "area": "evaluation-fuel",
+   "clauses": [
+    "E1",
+    "HC-7",
+    "T2"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 1
+  },
+  {
+   "path": "tests/evaluation-fuel/targeted/fuel-1-control-budget-is-catchable.rce",
+   "id": "evaluation-fuel/targeted/fuel-1-control-budget-is-catchable",
+   "area": "evaluation-fuel",
+   "clauses": [
+    "E1",
+    "W-BUD-1"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 1
+  },
+  {
+   "path": "tests/evaluation-fuel/targeted/fuel-1-control-enough-fuel.rce",
+   "id": "evaluation-fuel/targeted/fuel-1-control-enough-fuel",
+   "area": "evaluation-fuel",
+   "clauses": [
+    "E1",
+    "HC-7"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 58
+  },
+  {
+   "path": "tests/evaluation-fuel/targeted/fuel-1-fuel-before-budget.rce",
+   "id": "evaluation-fuel/targeted/fuel-1-fuel-before-budget",
+   "area": "evaluation-fuel",
+   "clauses": [
+    "E1",
+    "HC-7"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 1
+  },
+  {
+   "path": "tests/evaluation-fuel/targeted/fuel-1-par-branch-not-caught.rce",
+   "id": "evaluation-fuel/targeted/fuel-1-par-branch-not-caught",
+   "area": "evaluation-fuel",
+   "clauses": [
+    "E1",
+    "T16",
+    "HC-7"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 4
+  },
+  {
+   "path": "tests/evaluation-fuel/targeted/lambda-calls.rce",
+   "id": "evaluation-fuel/targeted/lambda-calls",
+   "area": "evaluation-fuel",
+   "clauses": [
+    "T1",
+    "T5",
+    "T9"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 0
   },
   {
    "path": "tests/evaluation-fuel/targeted/n8-index-out-of-range.rce",
@@ -4854,7 +5082,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 2
+   "ms": 0
   },
   {
    "path": "tests/evaluation-fuel/targeted/n9-size-limit.rce",
@@ -4871,9 +5099,9 @@
     "T5",
     "T9"
    ],
-   "status": "fail",
-   "detail": "outcome done != trap:size limit (seed None)",
-   "ms": 2
+   "status": "pass",
+   "detail": "",
+   "ms": 0
   },
   {
    "path": "tests/evaluation-fuel/targeted/s5-tail-value.rce",
@@ -4890,7 +5118,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 3
+   "ms": 0
   },
   {
    "path": "tests/forms-log/generated/t7-55-rcedb-ex4-trace.rce",
@@ -4908,7 +5136,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 0
+   "ms": 13
   },
   {
    "path": "tests/forms-log/generated/t7-55-rcedb-ex5-trace.rce",
@@ -4998,7 +5226,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/forms-log/generated/t7-media-ex4-trace.rce",
@@ -5015,7 +5243,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 1
+   "ms": 0
   },
   {
    "path": "tests/forms-log/harvested/01-counter-ex2-trace.rce",
@@ -5025,6 +5253,7 @@
     "CH00-M-61b6ac06",
     "CH07-M-0a0bd71f",
     "CH07-M-265230fb",
+    "CH12-M-f71aaadc",
     "T1",
     "T3",
     "T5",
@@ -5042,6 +5271,7 @@
     "CH00-M-61b6ac06",
     "CH07-M-0a0bd71f",
     "CH07-M-265230fb",
+    "CH12-M-f71aaadc",
     "T1",
     "T3",
     "T5",
@@ -5049,7 +5279,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 0
+   "ms": 3
   },
   {
    "path": "tests/forms-log/harvested/04-bank-account-accept.rce",
@@ -5075,6 +5305,7 @@
     "CH05-M-d8ee78b3",
     "CH07-M-0a0bd71f",
     "CH07-M-265230fb",
+    "CH12-M-f71aaadc",
     "T1",
     "T3",
     "T5",
@@ -5110,6 +5341,7 @@
     "CH05-M-d8ee78b3",
     "CH07-M-0a0bd71f",
     "CH07-M-265230fb",
+    "CH12-M-f71aaadc",
     "T1",
     "T3",
     "T5",
@@ -5135,7 +5367,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 2
+   "ms": 6
   },
   {
    "path": "tests/forms-log/harvested/17-traffic-light-accept.rce",
@@ -5158,6 +5390,7 @@
     "CH00-M-61b6ac06",
     "CH07-M-0a0bd71f",
     "CH07-M-265230fb",
+    "CH12-M-f71aaadc",
     "T1",
     "T3",
     "T5"
@@ -5182,7 +5415,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 0
+   "ms": 4
   },
   {
    "path": "tests/forms-log/harvested/30-state-machine-guarded-accept.rce",
@@ -5208,6 +5441,7 @@
     "CH05-M-d8ee78b3",
     "CH07-M-0a0bd71f",
     "CH07-M-265230fb",
+    "CH12-M-f71aaadc",
     "T1",
     "T3",
     "T5",
@@ -5243,6 +5477,7 @@
     "CH05-M-d8ee78b3",
     "CH07-M-0a0bd71f",
     "CH07-M-265230fb",
+    "CH12-M-f71aaadc",
     "T1",
     "T3",
     "T5",
@@ -5268,7 +5503,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 1
+   "ms": 2
   },
   {
    "path": "tests/forms-log/harvested/31-inventory-accept.rce",
@@ -5290,6 +5525,7 @@
     "CH00-M-61b6ac06",
     "CH07-M-0a0bd71f",
     "CH07-M-265230fb",
+    "CH12-M-f71aaadc",
     "T1",
     "T3",
     "T5",
@@ -5307,6 +5543,7 @@
     "CH00-M-61b6ac06",
     "CH07-M-0a0bd71f",
     "CH07-M-265230fb",
+    "CH12-M-f71aaadc",
     "T1",
     "T3",
     "T5",
@@ -5324,6 +5561,7 @@
     "CH00-M-61b6ac06",
     "CH07-M-0a0bd71f",
     "CH07-M-265230fb",
+    "CH12-M-f71aaadc",
     "T1",
     "T3",
     "T5",
@@ -5331,7 +5569,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 1
+   "ms": 0
   },
   {
    "path": "tests/forms-log/harvested/51-refined-input-ex7-trace.rce",
@@ -5341,6 +5579,7 @@
     "CH00-M-61b6ac06",
     "CH07-M-0a0bd71f",
     "CH07-M-265230fb",
+    "CH12-M-f71aaadc",
     "T1",
     "T3",
     "T5",
@@ -5373,6 +5612,7 @@
     "CH00-M-61b6ac06",
     "CH07-M-0a0bd71f",
     "CH07-M-265230fb",
+    "CH12-M-f71aaadc",
     "T1",
     "T3",
     "T5"
@@ -5397,7 +5637,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 1
+   "ms": 4
   },
   {
    "path": "tests/forms-log/harvested/52-context-text-ex6-trace.rce",
@@ -5407,6 +5647,7 @@
     "CH00-M-61b6ac06",
     "CH07-M-0a0bd71f",
     "CH07-M-265230fb",
+    "CH12-M-f71aaadc",
     "T1",
     "T3",
     "T5"
@@ -5441,6 +5682,7 @@
     "CH00-M-61b6ac06",
     "CH07-M-0a0bd71f",
     "CH07-M-265230fb",
+    "CH12-M-f71aaadc",
     "T1",
     "T3",
     "T5"
@@ -5465,7 +5707,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 1
+   "ms": 0
   },
   {
    "path": "tests/forms-log/harvested/53-capability-accept.rce",
@@ -5490,13 +5732,14 @@
     "CH00-M-61b6ac06",
     "CH07-M-0a0bd71f",
     "CH07-M-265230fb",
+    "CH12-M-f71aaadc",
     "T1",
     "T3",
     "T5"
    ],
    "status": "pass",
    "detail": "",
-   "ms": 2
+   "ms": 0
   },
   {
    "path": "tests/forms-log/harvested/53-capability-ex5.rce",
@@ -5523,13 +5766,14 @@
     "CH00-M-61b6ac06",
     "CH07-M-0a0bd71f",
     "CH07-M-265230fb",
+    "CH12-M-f71aaadc",
     "T1",
     "T3",
     "T5"
    ],
    "status": "pass",
    "detail": "",
-   "ms": 0
+   "ms": 9
   },
   {
    "path": "tests/forms-log/harvested/53-capability-ex6.rce",
@@ -5556,13 +5800,14 @@
     "CH00-M-61b6ac06",
     "CH07-M-0a0bd71f",
     "CH07-M-265230fb",
+    "CH12-M-f71aaadc",
     "T1",
     "T3",
     "T5"
    ],
    "status": "pass",
    "detail": "",
-   "ms": 3
+   "ms": 0
   },
   {
    "path": "tests/forms-log/harvested/53-capability-ex7.rce",
@@ -5579,7 +5824,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/forms-log/harvested/54-secret-accept.rce",
@@ -5593,7 +5838,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 1
+   "ms": 0
   },
   {
    "path": "tests/forms-log/harvested/54-secret-ex5-trace.rce",
@@ -5603,6 +5848,7 @@
     "CH00-M-61b6ac06",
     "CH07-M-0a0bd71f",
     "CH07-M-265230fb",
+    "CH12-M-f71aaadc",
     "T1",
     "T3",
     "T5"
@@ -5637,6 +5883,7 @@
     "CH00-M-61b6ac06",
     "CH07-M-0a0bd71f",
     "CH07-M-265230fb",
+    "CH12-M-f71aaadc",
     "T1",
     "T3",
     "T5"
@@ -5661,7 +5908,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 0
+   "ms": 20
   },
   {
    "path": "tests/forms-log/harvested/55-rcedb-ex4-trace.rce",
@@ -5671,6 +5918,7 @@
     "CH00-M-61b6ac06",
     "CH07-M-0a0bd71f",
     "CH07-M-265230fb",
+    "CH12-M-f71aaadc",
     "T1",
     "T3",
     "T5",
@@ -5678,7 +5926,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 1
+   "ms": 0
   },
   {
    "path": "tests/forms-log/harvested/55-rcedb-ex5-trace.rce",
@@ -5688,6 +5936,7 @@
     "CH00-M-61b6ac06",
     "CH07-M-0a0bd71f",
     "CH07-M-265230fb",
+    "CH12-M-f71aaadc",
     "T1",
     "T3",
     "T5",
@@ -5705,6 +5954,7 @@
     "CH00-M-61b6ac06",
     "CH07-M-0a0bd71f",
     "CH07-M-265230fb",
+    "CH12-M-f71aaadc",
     "T1",
     "T3",
     "T5",
@@ -5722,6 +5972,7 @@
     "CH00-M-61b6ac06",
     "CH07-M-0a0bd71f",
     "CH07-M-265230fb",
+    "CH12-M-f71aaadc",
     "T1",
     "T3",
     "T5",
@@ -5739,6 +5990,7 @@
     "CH00-M-61b6ac06",
     "CH07-M-0a0bd71f",
     "CH07-M-265230fb",
+    "CH12-M-f71aaadc",
     "T1",
     "T3",
     "T5",
@@ -5746,7 +5998,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 2
+   "ms": 0
   },
   {
    "path": "tests/forms-log/harvested/56-utf8-ex4-trace.rce",
@@ -5756,6 +6008,7 @@
     "CH00-M-61b6ac06",
     "CH07-M-0a0bd71f",
     "CH07-M-265230fb",
+    "CH12-M-f71aaadc",
     "T1",
     "T3",
     "T5",
@@ -5763,7 +6016,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 2
+   "ms": 0
   },
   {
    "path": "tests/forms-log/harvested/57-float-vectors-ex10-trace.rce",
@@ -5773,22 +6026,7 @@
     "CH00-M-61b6ac06",
     "CH07-M-0a0bd71f",
     "CH07-M-265230fb",
-    "T1",
-    "T3",
-    "T5"
-   ],
-   "status": "pass",
-   "detail": "",
-   "ms": 0
-  },
-  {
-   "path": "tests/forms-log/harvested/57-float-vectors-ex11-trace.rce",
-   "id": "forms-log/harvested/57-float-vectors-ex11-trace",
-   "area": "forms-log",
-   "clauses": [
-    "CH00-M-61b6ac06",
-    "CH07-M-0a0bd71f",
-    "CH07-M-265230fb",
+    "CH12-M-f71aaadc",
     "T1",
     "T3",
     "T5"
@@ -5798,6 +6036,23 @@
    "ms": 1
   },
   {
+   "path": "tests/forms-log/harvested/57-float-vectors-ex11-trace.rce",
+   "id": "forms-log/harvested/57-float-vectors-ex11-trace",
+   "area": "forms-log",
+   "clauses": [
+    "CH00-M-61b6ac06",
+    "CH07-M-0a0bd71f",
+    "CH07-M-265230fb",
+    "CH12-M-f71aaadc",
+    "T1",
+    "T3",
+    "T5"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 21
+  },
+  {
    "path": "tests/forms-log/harvested/57-float-vectors-ex12-trace.rce",
    "id": "forms-log/harvested/57-float-vectors-ex12-trace",
    "area": "forms-log",
@@ -5805,13 +6060,14 @@
     "CH00-M-61b6ac06",
     "CH07-M-0a0bd71f",
     "CH07-M-265230fb",
+    "CH12-M-f71aaadc",
     "T1",
     "T3",
     "T5"
    ],
    "status": "pass",
    "detail": "",
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/forms-log/harvested/57-float-vectors-ex13-trace.rce",
@@ -5821,6 +6077,7 @@
     "CH00-M-61b6ac06",
     "CH07-M-0a0bd71f",
     "CH07-M-265230fb",
+    "CH12-M-f71aaadc",
     "T1",
     "T3",
     "T5"
@@ -5837,13 +6094,14 @@
     "CH00-M-61b6ac06",
     "CH07-M-0a0bd71f",
     "CH07-M-265230fb",
+    "CH12-M-f71aaadc",
     "T1",
     "T3",
     "T5"
    ],
    "status": "pass",
    "detail": "",
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/forms-log/harvested/57-float-vectors-ex15-trace.rce",
@@ -5853,13 +6111,14 @@
     "CH00-M-61b6ac06",
     "CH07-M-0a0bd71f",
     "CH07-M-265230fb",
+    "CH12-M-f71aaadc",
     "T1",
     "T3",
     "T5"
    ],
    "status": "pass",
    "detail": "",
-   "ms": 10
+   "ms": 0
   },
   {
    "path": "tests/forms-log/harvested/57-float-vectors-ex16-trace.rce",
@@ -5869,6 +6128,7 @@
     "CH00-M-61b6ac06",
     "CH07-M-0a0bd71f",
     "CH07-M-265230fb",
+    "CH12-M-f71aaadc",
     "T1",
     "T3",
     "T5"
@@ -5885,6 +6145,7 @@
     "CH00-M-61b6ac06",
     "CH07-M-0a0bd71f",
     "CH07-M-265230fb",
+    "CH12-M-f71aaadc",
     "T1",
     "T3",
     "T5"
@@ -5901,13 +6162,14 @@
     "CH00-M-61b6ac06",
     "CH07-M-0a0bd71f",
     "CH07-M-265230fb",
+    "CH12-M-f71aaadc",
     "T1",
     "T3",
     "T5"
    ],
    "status": "pass",
    "detail": "",
-   "ms": 1
+   "ms": 2
   },
   {
    "path": "tests/forms-log/harvested/57-float-vectors-ex19-trace.rce",
@@ -5917,6 +6179,7 @@
     "CH00-M-61b6ac06",
     "CH07-M-0a0bd71f",
     "CH07-M-265230fb",
+    "CH12-M-f71aaadc",
     "T1",
     "T3",
     "T5"
@@ -5933,13 +6196,14 @@
     "CH00-M-61b6ac06",
     "CH07-M-0a0bd71f",
     "CH07-M-265230fb",
+    "CH12-M-f71aaadc",
     "T1",
     "T3",
     "T5"
    ],
    "status": "pass",
    "detail": "",
-   "ms": 1
+   "ms": 0
   },
   {
    "path": "tests/forms-log/harvested/57-float-vectors-ex21-trace.rce",
@@ -5949,13 +6213,14 @@
     "CH00-M-61b6ac06",
     "CH07-M-0a0bd71f",
     "CH07-M-265230fb",
+    "CH12-M-f71aaadc",
     "T1",
     "T3",
     "T5"
    ],
    "status": "pass",
    "detail": "",
-   "ms": 1
+   "ms": 0
   },
   {
    "path": "tests/forms-log/harvested/57-float-vectors-ex22-trace.rce",
@@ -5965,13 +6230,14 @@
     "CH00-M-61b6ac06",
     "CH07-M-0a0bd71f",
     "CH07-M-265230fb",
+    "CH12-M-f71aaadc",
     "T1",
     "T3",
     "T5"
    ],
    "status": "pass",
    "detail": "",
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/forms-log/harvested/57-float-vectors-ex23-trace.rce",
@@ -5981,54 +6247,7 @@
     "CH00-M-61b6ac06",
     "CH07-M-0a0bd71f",
     "CH07-M-265230fb",
-    "T1",
-    "T3",
-    "T5"
-   ],
-   "status": "pass",
-   "detail": "",
-   "ms": 1
-  },
-  {
-   "path": "tests/forms-log/harvested/57-float-vectors-ex8-trace.rce",
-   "id": "forms-log/harvested/57-float-vectors-ex8-trace",
-   "area": "forms-log",
-   "clauses": [
-    "CH00-M-61b6ac06",
-    "CH07-M-0a0bd71f",
-    "CH07-M-265230fb",
-    "T1",
-    "T3",
-    "T5"
-   ],
-   "status": "pass",
-   "detail": "",
-   "ms": 1
-  },
-  {
-   "path": "tests/forms-log/harvested/57-float-vectors-ex9-trace.rce",
-   "id": "forms-log/harvested/57-float-vectors-ex9-trace",
-   "area": "forms-log",
-   "clauses": [
-    "CH00-M-61b6ac06",
-    "CH07-M-0a0bd71f",
-    "CH07-M-265230fb",
-    "T1",
-    "T3",
-    "T5"
-   ],
-   "status": "pass",
-   "detail": "",
-   "ms": 1
-  },
-  {
-   "path": "tests/forms-log/harvested/chan-ex4-trace.rce",
-   "id": "forms-log/harvested/chan-ex4-trace",
-   "area": "forms-log",
-   "clauses": [
-    "CH00-M-61b6ac06",
-    "CH07-M-0a0bd71f",
-    "CH07-M-265230fb",
+    "CH12-M-f71aaadc",
     "T1",
     "T3",
     "T5"
@@ -6038,6 +6257,57 @@
    "ms": 0
   },
   {
+   "path": "tests/forms-log/harvested/57-float-vectors-ex8-trace.rce",
+   "id": "forms-log/harvested/57-float-vectors-ex8-trace",
+   "area": "forms-log",
+   "clauses": [
+    "CH00-M-61b6ac06",
+    "CH07-M-0a0bd71f",
+    "CH07-M-265230fb",
+    "CH12-M-f71aaadc",
+    "T1",
+    "T3",
+    "T5"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 0
+  },
+  {
+   "path": "tests/forms-log/harvested/57-float-vectors-ex9-trace.rce",
+   "id": "forms-log/harvested/57-float-vectors-ex9-trace",
+   "area": "forms-log",
+   "clauses": [
+    "CH00-M-61b6ac06",
+    "CH07-M-0a0bd71f",
+    "CH07-M-265230fb",
+    "CH12-M-f71aaadc",
+    "T1",
+    "T3",
+    "T5"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 0
+  },
+  {
+   "path": "tests/forms-log/harvested/chan-ex4-trace.rce",
+   "id": "forms-log/harvested/chan-ex4-trace",
+   "area": "forms-log",
+   "clauses": [
+    "CH00-M-61b6ac06",
+    "CH07-M-0a0bd71f",
+    "CH07-M-265230fb",
+    "CH12-M-f71aaadc",
+    "T1",
+    "T3",
+    "T5"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 1
+  },
+  {
    "path": "tests/forms-log/harvested/echo-ex4-trace.rce",
    "id": "forms-log/harvested/echo-ex4-trace",
    "area": "forms-log",
@@ -6045,6 +6315,7 @@
     "CH00-M-61b6ac06",
     "CH07-M-0a0bd71f",
     "CH07-M-265230fb",
+    "CH12-M-f71aaadc",
     "T1",
     "T3",
     "T5"
@@ -6061,6 +6332,7 @@
     "CH00-M-61b6ac06",
     "CH07-M-0a0bd71f",
     "CH07-M-265230fb",
+    "CH12-M-f71aaadc",
     "T1",
     "T3",
     "T5"
@@ -6077,6 +6349,7 @@
     "CH00-M-61b6ac06",
     "CH07-M-0a0bd71f",
     "CH07-M-265230fb",
+    "CH12-M-f71aaadc",
     "T1",
     "T3",
     "T5"
@@ -6100,7 +6373,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/forms-log/harvested/golden-01-counter-example-2.rce",
@@ -6117,7 +6390,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 3
+   "ms": 0
   },
   {
    "path": "tests/forms-log/harvested/golden-01-counter-example-3.rce",
@@ -6152,7 +6425,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 2
+   "ms": 0
   },
   {
    "path": "tests/forms-log/harvested/golden-04-bank-account-example-5.rce",
@@ -6170,7 +6443,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/forms-log/harvested/golden-16-multi-region-events-events.rce",
@@ -6186,7 +6459,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 0
+   "ms": 3
   },
   {
    "path": "tests/forms-log/harvested/golden-17-traffic-light-example-2.rce",
@@ -6322,7 +6595,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/forms-log/harvested/golden-52-context-text-example-6.rce",
@@ -6354,7 +6627,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 1
+   "ms": 0
   },
   {
    "path": "tests/forms-log/harvested/golden-53-capability-example-5.rce",
@@ -6418,7 +6691,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 10
+   "ms": 0
   },
   {
    "path": "tests/forms-log/harvested/golden-54-secret-example-6.rce",
@@ -6519,7 +6792,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 1
+   "ms": 0
   },
   {
    "path": "tests/forms-log/harvested/golden-56-utf8-example-4.rce",
@@ -6648,7 +6921,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 1
+   "ms": 0
   },
   {
    "path": "tests/forms-log/harvested/golden-57-float-vectors-example-17.rce",
@@ -6664,7 +6937,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/forms-log/harvested/golden-57-float-vectors-example-18.rce",
@@ -6696,7 +6969,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/forms-log/harvested/golden-57-float-vectors-example-20.rce",
@@ -6712,7 +6985,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 3
+   "ms": 0
   },
   {
    "path": "tests/forms-log/harvested/golden-57-float-vectors-example-21.rce",
@@ -6728,7 +7001,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 3
+   "ms": 1
   },
   {
    "path": "tests/forms-log/harvested/golden-57-float-vectors-example-22.rce",
@@ -6744,7 +7017,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 3
+   "ms": 1
   },
   {
    "path": "tests/forms-log/harvested/golden-57-float-vectors-example-23.rce",
@@ -6776,7 +7049,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 1
+   "ms": 0
   },
   {
    "path": "tests/forms-log/harvested/golden-57-float-vectors-example-9.rce",
@@ -6792,7 +7065,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 1
+   "ms": 0
   },
   {
    "path": "tests/forms-log/harvested/media-ex4-trace.rce",
@@ -6802,13 +7075,14 @@
     "CH00-M-61b6ac06",
     "CH07-M-0a0bd71f",
     "CH07-M-265230fb",
+    "CH12-M-f71aaadc",
     "T1",
     "T3",
     "T5"
    ],
    "status": "pass",
    "detail": "",
-   "ms": 1
+   "ms": 0
   },
   {
    "path": "tests/forms-log/harvested/net-ex4-trace.rce",
@@ -6818,13 +7092,14 @@
     "CH00-M-61b6ac06",
     "CH07-M-0a0bd71f",
     "CH07-M-265230fb",
+    "CH12-M-f71aaadc",
     "T1",
     "T3",
     "T5"
    ],
    "status": "pass",
    "detail": "",
-   "ms": 1
+   "ms": 2
   },
   {
    "path": "tests/forms-log/harvested/priority-ex5-trace.rce",
@@ -6834,6 +7109,7 @@
     "CH00-M-61b6ac06",
     "CH07-M-0a0bd71f",
     "CH07-M-265230fb",
+    "CH12-M-f71aaadc",
     "T1",
     "T3",
     "T5"
@@ -6850,6 +7126,7 @@
     "CH00-M-61b6ac06",
     "CH07-M-0a0bd71f",
     "CH07-M-265230fb",
+    "CH12-M-f71aaadc",
     "T1",
     "T3",
     "T5"
@@ -6866,6 +7143,7 @@
     "CH00-M-61b6ac06",
     "CH07-M-0a0bd71f",
     "CH07-M-265230fb",
+    "CH12-M-f71aaadc",
     "T1",
     "T3",
     "T5"
@@ -6882,13 +7160,14 @@
     "CH00-M-61b6ac06",
     "CH07-M-0a0bd71f",
     "CH07-M-265230fb",
+    "CH12-M-f71aaadc",
     "T1",
     "T3",
     "T5"
    ],
    "status": "pass",
    "detail": "",
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/forms-log/targeted/ch11-hash-chain-in-rce.rce",
@@ -6928,6 +7207,185 @@
    "ms": 0
   },
   {
+   "path": "tests/forms-log/targeted/set-of-canonical-order.rce",
+   "id": "forms-log/targeted/set-of-canonical-order",
+   "area": "forms-log",
+   "clauses": [
+    "CH16-M-8dc47a03",
+    "T1",
+    "T4",
+    "T9"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 0
+  },
+  {
+   "path": "tests/handler-spec/cur-1-zero-max-age.rce",
+   "id": "handler-spec/cur-1-zero-max-age",
+   "area": "handler-spec",
+   "clauses": [
+    "W-HS-CUR-1"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 28
+  },
+  {
+   "path": "tests/handler-spec/cur-2-never-checked.rce",
+   "id": "handler-spec/cur-2-never-checked",
+   "area": "handler-spec",
+   "clauses": [
+    "W-HS-CUR-2"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 28
+  },
+  {
+   "path": "tests/handler-spec/cur-2-stale-strict-refused.rce",
+   "id": "handler-spec/cur-2-stale-strict-refused",
+   "area": "handler-spec",
+   "clauses": [
+    "W-HS-CUR-2"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 45
+  },
+  {
+   "path": "tests/handler-spec/cur-2-stale-warns.rce",
+   "id": "handler-spec/cur-2-stale-warns",
+   "area": "handler-spec",
+   "clauses": [
+    "W-HS-CUR-2"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 20
+  },
+  {
+   "path": "tests/handler-spec/d2-error-budget-out-of-range.rce",
+   "id": "handler-spec/d2-error-budget-out-of-range",
+   "area": "handler-spec",
+   "clauses": [
+    "CH15-M-0a595561"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 11
+  },
+  {
+   "path": "tests/handler-spec/dur-1-bad-timeout.rce",
+   "id": "handler-spec/dur-1-bad-timeout",
+   "area": "handler-spec",
+   "clauses": [
+    "W-HS-DUR-1"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 12
+  },
+  {
+   "path": "tests/handler-spec/kw-1-unknown-change-control-word.rce",
+   "id": "handler-spec/kw-1-unknown-change-control-word",
+   "area": "handler-spec",
+   "clauses": [
+    "W-HS-KW-1"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 32
+  },
+  {
+   "path": "tests/handler-spec/reason-1-role-without-reason.rce",
+   "id": "handler-spec/reason-1-role-without-reason",
+   "area": "handler-spec",
+   "clauses": [
+    "W-HS-REASON-1"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 22
+  },
+  {
+   "path": "tests/handler-spec/reason-1-spec-without-reason.rce",
+   "id": "handler-spec/reason-1-spec-without-reason",
+   "area": "handler-spec",
+   "clauses": [
+    "W-HS-REASON-1"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 59
+  },
+  {
+   "path": "tests/handler-spec/reason-1-unspecified.rce",
+   "id": "handler-spec/reason-1-unspecified",
+   "area": "handler-spec",
+   "clauses": [
+    "W-HS-REASON-1"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 44
+  },
+  {
+   "path": "tests/handler-spec/ver-1-bad-version.rce",
+   "id": "handler-spec/ver-1-bad-version",
+   "area": "handler-spec",
+   "clauses": [
+    "W-HS-VER-1"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 64
+  },
+  {
+   "path": "tests/handler-spec/ver-1-good-version.rce",
+   "id": "handler-spec/ver-1-good-version",
+   "area": "handler-spec",
+   "clauses": [
+    "W-HS-VER-1"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 68
+  },
+  {
+   "path": "tests/handler-spec/ver-2-removal-needs-minor-bump.rce",
+   "id": "handler-spec/ver-2-removal-needs-minor-bump",
+   "area": "handler-spec",
+   "clauses": [
+    "W-HS-VER-2"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 18
+  },
+  {
+   "path": "tests/handler-spec/ver-2-removal-with-minor-bump.rce",
+   "id": "handler-spec/ver-2-removal-with-minor-bump",
+   "area": "handler-spec",
+   "clauses": [
+    "W-HS-VER-2"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 23
+  },
+  {
+   "path": "tests/handler-spec/ver-2-version-decrease.rce",
+   "id": "handler-spec/ver-2-version-decrease",
+   "area": "handler-spec",
+   "clauses": [
+    "W-HS-VER-2"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 16
+  },
+  {
    "path": "tests/host-contract/generated/admit-order-7-000.rce",
    "id": "host-contract/generated/admit-order-7-000",
    "area": "host-contract",
@@ -6946,7 +7404,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 280
+   "ms": 169
   },
   {
    "path": "tests/host-contract/generated/admit-order-7-001.rce",
@@ -6967,7 +7425,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 246
+   "ms": 190
   },
   {
    "path": "tests/host-contract/generated/admit-order-7-002.rce",
@@ -6988,7 +7446,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 260
+   "ms": 161
   },
   {
    "path": "tests/host-contract/generated/admit-order-7-003.rce",
@@ -7009,7 +7467,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 289
+   "ms": 68
   },
   {
    "path": "tests/host-contract/generated/admit-order-7-004.rce",
@@ -7030,7 +7488,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 279
+   "ms": 62
   },
   {
    "path": "tests/host-contract/generated/admit-order-7-005.rce",
@@ -7051,7 +7509,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 289
+   "ms": 137
   },
   {
    "path": "tests/host-contract/generated/admit-order-7-006.rce",
@@ -7072,7 +7530,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 303
+   "ms": 152
   },
   {
    "path": "tests/host-contract/generated/admit-order-7-007.rce",
@@ -7093,7 +7551,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 298
+   "ms": 174
   },
   {
    "path": "tests/host-contract/generated/admit-order-7-008.rce",
@@ -7114,7 +7572,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 295
+   "ms": 186
   },
   {
    "path": "tests/host-contract/generated/admit-order-7-009.rce",
@@ -7135,7 +7593,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 304
+   "ms": 156
   },
   {
    "path": "tests/host-contract/generated/admit-order-7-010.rce",
@@ -7156,7 +7614,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 282
+   "ms": 148
   },
   {
    "path": "tests/host-contract/generated/admit-order-7-011.rce",
@@ -7177,7 +7635,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 297
+   "ms": 109
   },
   {
    "path": "tests/host-contract/generated/admit-order-7-012.rce",
@@ -7198,7 +7656,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 307
+   "ms": 73
   },
   {
    "path": "tests/host-contract/generated/admit-order-7-013.rce",
@@ -7219,7 +7677,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 311
+   "ms": 144
   },
   {
    "path": "tests/host-contract/generated/admit-order-7-014.rce",
@@ -7240,7 +7698,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 286
+   "ms": 188
   },
   {
    "path": "tests/host-contract/generated/admit-order-7-015.rce",
@@ -7261,7 +7719,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 28
+   "ms": 173
   },
   {
    "path": "tests/host-contract/generated/admit-order-7-016.rce",
@@ -7282,7 +7740,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 217
+   "ms": 137
   },
   {
    "path": "tests/host-contract/generated/admit-order-7-017.rce",
@@ -7303,7 +7761,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 240
+   "ms": 147
   },
   {
    "path": "tests/host-contract/generated/admit-order-7-018.rce",
@@ -7324,7 +7782,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 187
+   "ms": 165
   },
   {
    "path": "tests/host-contract/generated/admit-order-7-019.rce",
@@ -7345,7 +7803,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 215
+   "ms": 172
   },
   {
    "path": "tests/host-contract/generated/admit-order-7-020.rce",
@@ -7366,7 +7824,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 191
+   "ms": 184
   },
   {
    "path": "tests/host-contract/generated/admit-order-7-021.rce",
@@ -7387,7 +7845,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 187
+   "ms": 152
   },
   {
    "path": "tests/host-contract/generated/admit-order-7-022.rce",
@@ -7408,7 +7866,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 189
+   "ms": 130
   },
   {
    "path": "tests/host-contract/generated/admit-order-7-023.rce",
@@ -7429,7 +7887,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 163
+   "ms": 142
   },
   {
    "path": "tests/host-contract/generated/admit-order-7-024.rce",
@@ -7450,7 +7908,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 177
+   "ms": 58
   },
   {
    "path": "tests/host-contract/generated/replicate-11-000.rce",
@@ -7810,7 +8268,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 0
+   "ms": 8
   },
   {
    "path": "tests/host-contract/generated/replicate-11-022.rce",
@@ -8067,7 +8525,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/host-contract/harvested/media-accept.rce",
@@ -8112,7 +8570,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 1
+   "ms": 0
   },
   {
    "path": "tests/host-contract/harvested/net-ex4.rce",
@@ -8159,7 +8617,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/host-contract/harvested/pty-accept.rce",
@@ -8192,7 +8650,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 1
+   "ms": 4
   },
   {
    "path": "tests/host-contract/harvested/records-accept.rce",
@@ -8274,7 +8732,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 93
+   "ms": 61
   },
   {
    "path": "tests/host-contract/targeted/hc-7a-fuel-per-input.rce",
@@ -8290,7 +8748,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 175
+   "ms": 566
   },
   {
    "path": "tests/host-contract/targeted/hc-8-t32-t37-replay-equals-live.rce",
@@ -8309,7 +8767,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 116
+   "ms": 93
   },
   {
    "path": "tests/host-contract/targeted/t38-torn-tail-keeps-prefix.rce",
@@ -8326,7 +8784,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 104
+   "ms": 59
   },
   {
    "path": "tests/lexing-parsing/generated/mut-bad-escape-02-par-for-reduce-accept.rce",
@@ -8386,7 +8844,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/lexing-parsing/generated/mut-bad-escape-31-inventory-accept.rce",
@@ -10002,8 +10460,8 @@
     "T5",
     "T9"
    ],
-   "status": "fail",
-   "detail": "refused at entry: [{\"code\": \"W-NAME-1\", \"line\": 3, \"message\": \"line 3: W-NAME-1 unknown type `T`\"}, {\"code\": \"W-NAME-1\", \"line\": 3, \"message\": \"line 3: W-NAME-1 unknown name `i64`\"}, {\"code\": \"W-TY-1\", \"line\": 3, \"message\": \"line 3: W-TY-1 cannot index fn(never) -> never\"}]",
+   "status": "pass",
+   "detail": "",
    "ms": 0
   },
   {
@@ -10152,7 +10610,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 0
+   "ms": 5
   },
   {
    "path": "tests/numbers/generated/num-1-0002.rce",
@@ -10240,8 +10698,8 @@
     "T5",
     "T9"
    ],
-   "status": "fail",
-   "detail": "outcome trap:overflow: -170141183460469231731687303715884105728 is outside i64 != trap:overflow: -1692420980419363832697434237787796296503908952754690552920537789582314181042195122797885347169158193885740825152664865956004369456899371696332701593673968135089608751437005921230587186455184528204945767268608321964598099968 is outside i64 (seed None)",
+   "status": "pass",
+   "detail": "",
    "ms": 0
   },
   {
@@ -11312,7 +11770,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 0
+   "ms": 4
   },
   {
    "path": "tests/numbers/generated/num-1-0054.rce",
@@ -11488,7 +11946,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-1-0062.rce",
@@ -11687,7 +12145,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-1-0071.rce",
@@ -12111,7 +12569,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 0
+   "ms": 19
   },
   {
    "path": "tests/numbers/generated/num-1-0090.rce",
@@ -12289,7 +12747,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 0
+   "ms": 21
   },
   {
    "path": "tests/numbers/generated/num-1-0098.rce",
@@ -12399,7 +12857,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 0
+   "ms": 8
   },
   {
    "path": "tests/numbers/generated/num-1-0103.rce",
@@ -12466,7 +12924,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 0
+   "ms": 2
   },
   {
    "path": "tests/numbers/generated/num-1-0106.rce",
@@ -12821,7 +13279,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 0
+   "ms": 4
   },
   {
    "path": "tests/numbers/generated/num-1-0122.rce",
@@ -13264,7 +13722,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 0
+   "ms": 14
   },
   {
    "path": "tests/numbers/generated/num-1-0142.rce",
@@ -13354,7 +13812,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-1-0146.rce",
@@ -13444,7 +13902,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 0
+   "ms": 26
   },
   {
    "path": "tests/numbers/generated/num-1-0150.rce",
@@ -13466,7 +13924,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 0
+   "ms": 4
   },
   {
    "path": "tests/numbers/generated/num-1-0151.rce",
@@ -13532,7 +13990,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-1-0154.rce",
@@ -13709,7 +14167,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 0
+   "ms": 2
   },
   {
    "path": "tests/numbers/generated/num-1-0162.rce",
@@ -13975,7 +14433,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-1-0174.rce",
@@ -14241,8 +14699,8 @@
     "T5",
     "T9"
    ],
-   "status": "fail",
-   "detail": "outcome trap:overflow: -170141183460469231731687303715884105728 is outside i64 != trap:overflow: -341236961884379123224539868576342742138880 is outside i64 (seed None)",
+   "status": "pass",
+   "detail": "",
    "ms": 0
   },
   {
@@ -14511,7 +14969,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-1-0198.rce",
@@ -14688,7 +15146,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-1-0206.rce",
@@ -15219,7 +15677,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 0
+   "ms": 2
   },
   {
    "path": "tests/numbers/generated/num-1-0230.rce",
@@ -15395,7 +15853,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 0
+   "ms": 2
   },
   {
    "path": "tests/numbers/generated/num-1-0238.rce",
@@ -15573,7 +16031,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-1-0246.rce",
@@ -16571,7 +17029,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 1
+   "ms": 0
   },
   {
    "path": "tests/numbers/generated/num-1-0291.rce",
@@ -17124,8 +17582,8 @@
     "T5",
     "T9"
    ],
-   "status": "fail",
-   "detail": "outcome trap:overflow: 170141183460469231731687303715884105727 is outside i64 != trap:overflow: 384742175234322737514698339615622093043777344573479670160865536275356991789452458532197596705918781305385242790516140664236913754562252378042714148689341665290818620506426662675104991750679914072032026663485980061643911753854046108341112069088841457465486103950431268667215745378812734472192 is outside i64 (seed None)",
+   "status": "pass",
+   "detail": "",
    "ms": 0
   },
   {
@@ -17370,7 +17828,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-2-0027.rce",
@@ -17611,8 +18069,8 @@
     "T5",
     "T9"
    ],
-   "status": "fail",
-   "detail": "outcome trap:overflow: -170141183460469231731687303715884105728 is outside i64 != trap:overflow: -30301742480518993218651225906795321906726558003577531511773263404913030621110346099222238410842665791655101450429637306576494768250821071310052894404084526473380044308150960460583141376 is outside i64 (seed None)",
+   "status": "pass",
+   "detail": "",
    "ms": 0
   },
   {
@@ -18548,7 +19006,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 3
+   "ms": 0
   },
   {
    "path": "tests/numbers/generated/num-2-0080.rce",
@@ -20063,8 +20521,8 @@
     "T5",
     "T9"
    ],
-   "status": "fail",
-   "detail": "outcome trap:overflow: 170141183460469231731687303715884105727 is outside i64 != trap:overflow: 121114979656257237943277854281080147810371004499641353548159308359510541193820624444131062797299577843780828749515490730066744612412150288158611359482625536649381135101214857069246288184366124351359626338121123695539994302006551914557154650778129327891445985999702204291448510357420145561829376 is outside i64 (seed None)",
+   "status": "pass",
+   "detail": "",
    "ms": 0
   },
   {
@@ -21349,8 +21807,8 @@
     "T5",
     "T9"
    ],
-   "status": "fail",
-   "detail": "outcome trap:overflow: 170141183460469231731687303715884105727 is outside i64 != trap:overflow: 179769313486231570814527423731704356798070567525844996598917476803157260780028538760589558632766878171540458953514382464234321326889464182768467546703537516986049910576551282076245490090389328944075868508455133942304583236903222948165808559332123348274797826204144723168738177180919299881250404026184124858368 is outside i64 (seed None)",
+   "status": "pass",
+   "detail": "",
    "ms": 0
   },
   {
@@ -23754,7 +24212,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 13
+   "ms": 0
   },
   {
    "path": "tests/numbers/generated/num-2-0314.rce",
@@ -24552,7 +25010,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 2
+   "ms": 0
   },
   {
    "path": "tests/numbers/generated/num-2-0350.rce",
@@ -24953,7 +25411,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 6
+   "ms": 0
   },
   {
    "path": "tests/numbers/generated/num-2-0368.rce",
@@ -25838,9 +26296,9 @@
     "T5",
     "T9"
    ],
-   "status": "fail",
-   "detail": "outcome trap:overflow: -170141183460469231731687303715884105728 is outside i64 != trap:overflow: -10778489588176309548974715078456053586157212506397155265468381939163451005416000787238497215677405082538926196671678352142419535213998464719360517640049809665117221957250988759637559540718445953553981148756155429831049216 is outside i64 (seed None)",
-   "ms": 0
+   "status": "pass",
+   "detail": "",
+   "ms": 2
   },
   {
    "path": "tests/numbers/generated/num-3-0008.rce",
@@ -26019,7 +26477,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 0
+   "ms": 3
   },
   {
    "path": "tests/numbers/generated/num-3-0016.rce",
@@ -27620,7 +28078,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 0
+   "ms": 22
   },
   {
    "path": "tests/numbers/generated/num-3-0088.rce",
@@ -27797,7 +28255,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 0
+   "ms": 82
   },
   {
    "path": "tests/numbers/generated/num-3-0096.rce",
@@ -27839,8 +28297,8 @@
     "T5",
     "T9"
    ],
-   "status": "fail",
-   "detail": "outcome trap:overflow: -170141183460469231731687303715884105728 is outside i64 != trap:overflow: -15604602807033627195143194505519840970364658907843736694520659220443506127891795654025713229454653404614131804714637674935661367051551078453642708556283384946709646336668518364866803711618460255150588936573274239194425050164548287598625657044462067137904640 is outside i64 (seed None)",
+   "status": "pass",
+   "detail": "",
    "ms": 0
   },
   {
@@ -27974,7 +28432,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 0
+   "ms": 10
   },
   {
    "path": "tests/numbers/generated/num-3-0104.rce",
@@ -28151,7 +28609,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 0
+   "ms": 10
   },
   {
    "path": "tests/numbers/generated/num-3-0112.rce",
@@ -29331,7 +29789,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-3-0165.rce",
@@ -30063,8 +30521,8 @@
     "T5",
     "T9"
    ],
-   "status": "fail",
-   "detail": "outcome trap:overflow: -170141183460469231731687303715884105728 is outside i64 != trap:overflow: -59434224610062561846262362649767843530380149376545130013696388523318435600598958522123681268328395266976789532676643019712710684472911608242785520451584 is outside i64 (seed None)",
+   "status": "pass",
+   "detail": "",
    "ms": 0
   },
   {
@@ -31620,8 +32078,8 @@
     "T5",
     "T9"
    ],
-   "status": "fail",
-   "detail": "outcome trap:overflow: -170141183460469231731687303715884105728 is outside i64 != trap:overflow: -18766014074568473260818664955304864834794345725952 is outside i64 (seed None)",
+   "status": "pass",
+   "detail": "",
    "ms": 0
   },
   {
@@ -32108,8 +32566,8 @@
     "T5",
     "T9"
    ],
-   "status": "fail",
-   "detail": "outcome trap:overflow: 170141183460469231731687303715884105727 is outside i64 != trap:overflow: 31734385748311335994319477760100688035347920015104892682675321895377927661284666664230386732197140648579372473534247689110097107478526420423178110257343896063661074539624290898892901325118866249019155283968 is outside i64 (seed None)",
+   "status": "pass",
+   "detail": "",
    "ms": 0
   },
   {
@@ -32956,7 +33414,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 2
+   "ms": 0
   },
   {
    "path": "tests/numbers/generated/num-3-0328.rce",
@@ -34813,7 +35271,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 2
+   "ms": 0
   },
   {
    "path": "tests/numbers/harvested/45-byte-text-accept.rce",
@@ -34892,7 +35350,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 1301
+   "ms": 2673
   },
   {
    "path": "tests/numbers/harvested/50-iterators-accept.rce",
@@ -35048,7 +35506,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 1
+   "ms": 2
   },
   {
    "path": "tests/numbers/harvested/55-rcedb-ex5.rce",
@@ -35215,7 +35673,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 1
+   "ms": 2
   },
   {
    "path": "tests/numbers/harvested/57-float-vectors-ex15.rce",
@@ -35257,7 +35715,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 120
+   "ms": 1
   },
   {
    "path": "tests/numbers/harvested/57-float-vectors-ex17.rce",
@@ -35555,7 +36013,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 0
+   "ms": 5
   },
   {
    "path": "tests/numbers/targeted/f6-f64-tostr-minus-zero.rce",
@@ -35575,8 +36033,8 @@
     "T5",
     "T9"
    ],
-   "status": "fail",
-   "detail": "outputs differ (seed None): got ['emit \"0\"'] expected ['emit \"-0\"']",
+   "status": "pass",
+   "detail": "",
    "ms": 0
   },
   {
@@ -35606,9 +36064,9 @@
     "N6",
     "W-TY-3"
    ],
-   "status": "fail",
-   "detail": "expected diagnostic W-TY-3, got ['W-TY-1']",
-   "ms": 7
+   "status": "pass",
+   "detail": "",
+   "ms": 0
   },
   {
    "path": "tests/numbers/targeted/n6-signed-zero-equal.rce",
@@ -35744,8 +36202,8 @@
     "N4",
     "W-TY-3"
    ],
-   "status": "fail",
-   "detail": "expected diagnostic W-TY-3, got ['W-TY-1', 'W-TY-1']",
+   "status": "pass",
+   "detail": "",
    "ms": 0
   },
   {
@@ -35756,9 +36214,57 @@
     "CH09-M-82e65964",
     "W-TY-3"
    ],
-   "status": "fail",
-   "detail": "expected diagnostic W-TY-3, got ['W-TY-1']",
+   "status": "pass",
+   "detail": "",
    "ms": 0
+  },
+  {
+   "path": "tests/proposed/act-1-every-actor-steps-each-tick.rce",
+   "id": "proposed/act-1-every-actor-steps-each-tick",
+   "area": "proposed",
+   "clauses": [
+    "ACT-1",
+    "T1",
+    "T4",
+    "T9"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 14
+  },
+  {
+   "path": "tests/proposed/tu-4-reduction-is-left-fold.rce",
+   "id": "proposed/tu-4-reduction-is-left-fold",
+   "area": "proposed",
+   "clauses": [
+    "TU-4"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 0
+  },
+  {
+   "path": "tests/proposed/tu-5-text-stays-ragged.rce",
+   "id": "proposed/tu-5-text-stays-ragged",
+   "area": "proposed",
+   "clauses": [
+    "TU-5"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 0
+  },
+  {
+   "path": "tests/proposed/tu-6-schedule-never-changes-bits.rce",
+   "id": "proposed/tu-6-schedule-never-changes-bits",
+   "area": "proposed",
+   "clauses": [
+    "CH12-M-1279943c",
+    "TU-6"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 8
   },
   {
    "path": "tests/text-unicode/harvested/09-generics-accept.rce",
@@ -35898,7 +36404,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 14
+   "ms": 0
   },
   {
    "path": "tests/text-unicode/targeted/n7-byte-len.rce",
@@ -35953,6 +36459,95 @@
    "status": "pass",
    "detail": "",
    "ms": 0
+  },
+  {
+   "path": "tests/tooling/emit-js-refused.rce",
+   "id": "tooling/emit-js-refused",
+   "area": "tooling",
+   "clauses": [
+    "CH12-M-bafe6c22"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 227
+  },
+  {
+   "path": "tests/tooling/emit-python-refused.rce",
+   "id": "tooling/emit-python-refused",
+   "area": "tooling",
+   "clauses": [
+    "CH12-M-bafe6c22"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 230
+  },
+  {
+   "path": "tests/tooling/emit-rust-refused.rce",
+   "id": "tooling/emit-rust-refused",
+   "area": "tooling",
+   "clauses": [
+    "CH12-M-bafe6c22"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 221
+  },
+  {
+   "path": "tests/tooling/emit-scala-refused.rce",
+   "id": "tooling/emit-scala-refused",
+   "area": "tooling",
+   "clauses": [
+    "CH12-M-bafe6c22"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 224
+  },
+  {
+   "path": "tests/tooling/run-main-no-params.rce",
+   "id": "tooling/run-main-no-params",
+   "area": "tooling",
+   "clauses": [
+    "CH12-M-6760dd1f"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 227
+  },
+  {
+   "path": "tests/tooling/run-main-ok.rce",
+   "id": "tooling/run-main-ok",
+   "area": "tooling",
+   "clauses": [
+    "CH12-M-6760dd1f",
+    "CH12-M-6e12b079"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 223
+  },
+  {
+   "path": "tests/tooling/run-needs-main.rce",
+   "id": "tooling/run-needs-main",
+   "area": "tooling",
+   "clauses": [
+    "CH12-M-6760dd1f"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 162
+  },
+  {
+   "path": "tests/tooling/run-refused-one-line.rce",
+   "id": "tooling/run-refused-one-line",
+   "area": "tooling",
+   "clauses": [
+    "CH12-M-6e12b079"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 153
   },
   {
    "path": "tests/types-checking/generated/mut-duplicate-01-par-branches-accept.rce",
@@ -36048,7 +36643,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 0
+   "ms": 2
   },
   {
    "path": "tests/types-checking/generated/mut-duplicate-47-select-fair-accept.rce",
@@ -36073,7 +36668,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 1
+   "ms": 0
   },
   {
    "path": "tests/types-checking/generated/mut-duplicate-net-accept.rce",
@@ -36097,7 +36692,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 0
+   "ms": 2
   },
   {
    "path": "tests/types-checking/generated/mut-unknown-name-06-device-kernel-accept.rce",
@@ -36145,7 +36740,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 0
+   "ms": 2
   },
   {
    "path": "tests/types-checking/generated/mut-unknown-name-37-actor-spawn-accept.rce",
@@ -36629,7 +37224,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 0
+   "ms": 11
   },
   {
    "path": "tests/types-checking/harvested/linear-unconsumed-reject.rce",
@@ -36902,7 +37497,8 @@
    "area": "types-checking",
    "clauses": [
     "CH09-M-82e65964",
-    "W-TY-1"
+    "W-PAR-3",
+    "W-TY-3"
    ],
    "status": "pass",
    "detail": "",
@@ -36954,7 +37550,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/types-checking/targeted/borrow-cannot-be-returned.rce",
@@ -37002,7 +37598,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 81
+   "ms": 20
   },
   {
    "path": "tests/types-checking/targeted/w-match-2-unreachable.rce",
@@ -37027,7 +37623,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 0
+   "ms": 6
   },
   {
    "path": "tests/types-checking/targeted/w-mod-2-cycle.rce",
@@ -37037,9 +37633,9 @@
     "CH09-M-82e65964",
     "W-MOD-2"
    ],
-   "status": "fail",
-   "detail": "adapter: adapter closed its output",
-   "ms": 72
+   "status": "pass",
+   "detail": "",
+   "ms": 0
   },
   {
    "path": "tests/types-checking/targeted/w-mod-3-clash.rce",
@@ -37074,7 +37670,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 0
+   "ms": 55
   },
   {
    "path": "tests/types-checking/targeted/w-ref-1-float-refined.rce",
@@ -37109,8 +37705,8 @@
     "CH09-M-82e65964",
     "W-STATE-3"
    ],
-   "status": "fail",
-   "detail": "expected diagnostic W-STATE-3, got ['W-TY-2', 'W-TY-1']",
+   "status": "pass",
+   "detail": "",
    "ms": 0
   },
   {
@@ -37123,7 +37719,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 0
+   "ms": 4
   },
   {
    "path": "tests/types-checking/targeted/w-step-3-arrow-multi-field.rce",
@@ -37146,8 +37742,8 @@
     "CH09-M-82e65964",
     "W-TRAIT-1"
    ],
-   "status": "fail",
-   "detail": "expected reject, got accept: []",
+   "status": "pass",
+   "detail": "",
    "ms": 0
   },
   {
@@ -37172,7 +37768,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 0
+   "ms": 9
   },
   {
    "path": "tests/types-checking/targeted/w-ty-2-nested-option.rce",

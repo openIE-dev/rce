@@ -1,0 +1,26 @@
+fn late(c: chan i64)
+    for i in 0..3
+        emit 100 + i
+    c <- 7
+fn main()
+    let c = chan[i64](1)
+    spawn late(c)
+    loop bound 10
+        select
+            recv v from c -> emit v
+            after 6 -> break
+    emit 0
+#--- rce-test
+# id: concurrency/targeted/select-after-waits
+# area: concurrency
+# clauses: [N11, T1, T4, T9]
+# expect: run
+# outcome: done
+# outputs:
+#   - emit 100
+#   - emit 101
+#   - emit 102
+#   - emit some(7)
+#   - emit 0
+# provenance: targeted (mutation survivors, round 3): `after n` counts logical ticks from the first idle select (N11); the late value still wins (mutant 103); outputs read off the reference and checked by the four emitters
+#---

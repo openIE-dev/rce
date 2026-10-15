@@ -1,19 +1,22 @@
 # Clause coverage
 
-Language profile: 207 of 207 normative clauses have at least one test (100.0%). 1952 tests.
+Language profile: 207 of 207 normative clauses have at least one test (100.0%). 1990 tests.
 
 ## Tests by area
 
 | area | tests |
 |---|---|
-| concurrency | 243 |
+| concurrency | 253 |
 | effects-capabilities | 19 |
-| evaluation-fuel | 74 |
-| forms-log | 123 |
+| evaluation-fuel | 75 |
+| forms-log | 124 |
+| handler-spec | 15 |
 | host-contract | 79 |
 | lexing-parsing | 133 |
 | numbers | 1168 |
+| proposed | 3 |
 | text-unicode | 12 |
+| tooling | 8 |
 | types-checking | 101 |
 
 ## Profiles
@@ -21,10 +24,10 @@ Language profile: 207 of 207 normative clauses have at least one test (100.0%). 
 | profile | clauses | covered |
 |---|---|---|
 | language | 207 | 207 |
-| tooling | 7 | 0 |
-| handler-spec | 14 | 0 |
+| tooling | 7 | 3 |
+| handler-spec | 14 | 8 |
 | editorial | 1 | 0 |
-| proposed | 6 | 0 |
+| proposed | 6 | 3 |
 
 ## Untested clauses (language profile)
 
@@ -80,7 +83,7 @@ none
 | N8 | rule | 07-form-evaluation.md:335 | 88 | {'not-run': 88} |
 | N9 | rule | 07-form-evaluation.md:342 | 1 | {'not-run': 1} |
 | N10 | rule | 07-form-evaluation.md:346 | 12 | {'not-run': 12} |
-| N11 | rule | 07-form-evaluation.md:348 | 3 | {'not-run': 3} |
+| N11 | rule | 07-form-evaluation.md:348 | 5 | {'not-run': 5} |
 | CH08-M-286d2fd4 | modal | 08-steps-loops-concurrency.md:97 | 10 | {'not-run': 10} |
 | CH08-M-cbd85cbd | modal | 08-steps-loops-concurrency.md:97 | 10 | {'not-run': 10} |
 | CH08-M-51f39d7d | modal | 08-steps-loops-concurrency.md:211 | 4 | {'not-run': 4} |
@@ -98,9 +101,9 @@ none
 | W-MOD-3 | rule | 09-wellformedness.md:25 | 1 | {'not-run': 1} |
 | W-SAFE-1 | rule | 09-wellformedness.md:28 | 13 | {'not-run': 13} |
 | W-FFI-1 | rule | 09-wellformedness.md:31 | 3 | {'not-run': 3} |
-| W-TY-1 | rule | 09-wellformedness.md:36 | 14 | {'not-run': 14} |
+| W-TY-1 | rule | 09-wellformedness.md:36 | 13 | {'not-run': 13} |
 | W-TY-2 | rule | 09-wellformedness.md:37 | 2 | {'not-run': 2} |
-| W-TY-3 | rule | 09-wellformedness.md:39 | 3 | {'not-run': 3} |
+| W-TY-3 | rule | 09-wellformedness.md:39 | 4 | {'not-run': 4} |
 | W-PAT-1 | rule | 09-wellformedness.md:40 | 2 | {'not-run': 2} |
 | W-MATCH-1 | rule | 09-wellformedness.md:41 | 1 | {'not-run': 1} |
 | W-MATCH-2 | rule | 09-wellformedness.md:41 | 1 | {'not-run': 1} |
@@ -127,15 +130,15 @@ none
 | W-SEC-1 | rule | 09-wellformedness.md:98 | 2 | {'not-run': 2} |
 | W-CAP-1 | rule | 09-wellformedness.md:101 | 1 | {'not-run': 1} |
 | W-CAP-2 | rule | 09-wellformedness.md:104 | 1 | {'not-run': 1} |
-| T1 | theorem | 10-theorems.md:29 | 1344 | {'not-run': 1344} |
+| T1 | theorem | 10-theorems.md:29 | 1356 | {'not-run': 1356} |
 | T2 | theorem | 10-theorems.md:30 | 15 | {'not-run': 15} |
 | T3 | theorem | 10-theorems.md:31 | 103 | {'not-run': 103} |
-| T4 | theorem | 10-theorems.md:32 | 1242 | {'not-run': 1242} |
-| T5 | theorem | 10-theorems.md:33 | 1344 | {'not-run': 1344} |
+| T4 | theorem | 10-theorems.md:32 | 1253 | {'not-run': 1253} |
+| T5 | theorem | 10-theorems.md:33 | 1345 | {'not-run': 1345} |
 | T6 | theorem | 10-theorems.md:34 | 29 | {'not-run': 29} |
-| T7 | theorem | 10-theorems.md:35 | 7 | {'not-run': 7} |
+| T7 | theorem | 10-theorems.md:35 | 8 | {'not-run': 8} |
 | T8 | theorem | 10-theorems.md:36 | 45 | {'not-run': 45} |
-| T9 | theorem | 10-theorems.md:37 | 1242 | {'not-run': 1242} |
+| T9 | theorem | 10-theorems.md:37 | 1254 | {'not-run': 1254} |
 | T10 | theorem | 10-theorems.md:38 | 143 | {'not-run': 143} |
 | T11 | theorem | 10-theorems.md:39 | 3 | {'not-run': 3} |
 | T12 | theorem | 10-theorems.md:40 | 2 | {'not-run': 2} |
@@ -163,13 +166,13 @@ none
 | W-PAR-2 | rule | 14-draft06-concurrency.md:105 | 2 | {'not-run': 2} |
 | CH14-M-90d1ad7f | modal | 14-draft06-concurrency.md:144 | 42 | {'not-run': 42} |
 | W-BUD-1 | rule | 14-draft06-concurrency.md:174 | 2 | {'not-run': 2} |
-| W-DL-1 | rule | 14-draft06-concurrency.md:196 | 1 | {'not-run': 1} |
+| W-DL-1 | rule | 14-draft06-concurrency.md:196 | 2 | {'not-run': 2} |
 | W-ND-1 | rule | 14-draft06-concurrency.md:200 | 1 | {'not-run': 1} |
 | CH14-M-6d53e2af | modal | 14-draft06-concurrency.md:246 | 1 | {'not-run': 1} |
-| W-PAR-3 | rule | 14-draft06-concurrency.md:288 | 93 | {'not-run': 93} |
+| W-PAR-3 | rule | 14-draft06-concurrency.md:288 | 94 | {'not-run': 94} |
 | W-PAR-4 | rule | 14-draft06-concurrency.md:291 | 2 | {'not-run': 2} |
 | CH14-M-ca5a98d7 | modal | 14-draft06-concurrency.md:293 | 90 | {'not-run': 90} |
-| W-GRP-1 | rule | 14-draft06-concurrency.md:323 | 1 | {'not-run': 1} |
+| W-GRP-1 | rule | 14-draft06-concurrency.md:323 | 2 | {'not-run': 2} |
 | W-GRP-2 | rule | 14-draft06-concurrency.md:323 | 1 | {'not-run': 1} |
 | W-GRP-3 | rule | 14-draft06-concurrency.md:323 | 2 | {'not-run': 2} |
 | W-SES-1 | rule | 14-draft06-concurrency.md:328 | 4 | {'not-run': 4} |
@@ -188,11 +191,11 @@ none
 | T19b | theorem | 14-draft06-concurrency.md:606 | 10 | {'not-run': 10} |
 | T20 | theorem | 14-draft06-concurrency.md:607 | 1 | {'not-run': 1} |
 | T21 | theorem | 14-draft06-concurrency.md:608 | 1 | {'not-run': 1} |
-| T22 | theorem | 14-draft06-concurrency.md:609 | 2 | {'not-run': 2} |
-| T23 | theorem | 14-draft06-concurrency.md:610 | 1 | {'not-run': 1} |
+| T22 | theorem | 14-draft06-concurrency.md:609 | 4 | {'not-run': 4} |
+| T23 | theorem | 14-draft06-concurrency.md:610 | 2 | {'not-run': 2} |
 | T24 | theorem | 14-draft06-concurrency.md:611 | 10 | {'not-run': 10} |
 | T25 | theorem | 14-draft06-concurrency.md:612 | 25 | {'not-run': 25} |
-| T26 | theorem | 14-draft06-concurrency.md:613 | 3 | {'not-run': 3} |
+| T26 | theorem | 14-draft06-concurrency.md:613 | 6 | {'not-run': 6} |
 | T27 | theorem | 14-draft06-concurrency.md:614 | 3 | {'not-run': 3} |
 | T28 | theorem | 14-draft06-concurrency.md:615 | 3 | {'not-run': 3} |
 | T29 | theorem | 14-draft06-concurrency.md:616 | 1 | {'not-run': 1} |

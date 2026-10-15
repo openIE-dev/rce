@@ -1,0 +1,15 @@
+spec "orders" v0.1.0
+reason "Demo spec" by "david"
+currency max_age=24h
+#--- rce-test
+# id: handler-spec/cur-2-never-checked
+# area: handler-spec
+# clauses: [W-HS-CUR-2]
+# expect: cli
+# tool: engine
+# argv: ["check", "main.rce"]
+# status: 0
+# output_has:
+#   - W-HS-CUR-2
+# provenance: targeted (round 3): appendix D, never checked is stale
+#---

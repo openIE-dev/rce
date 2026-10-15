@@ -7,7 +7,9 @@
 An adapter is any program that speaks rce-adapter/1 (see ADAPTERS.md) on
 stdin/stdout. The adapter file names its command line and which ops it
 claims; tests that need an op it does not claim are reported as
-`unsupported`, never as passes.
+`unsupported`, never as passes. An adapter may instead list an op under
+`not_applicable` with the reason it belongs to another component (an
+emitter does not admit modules or run the host); those tests are `n/a`.
 """
 import argparse, concurrent.futures as cf, json, os, pathlib, select, shlex, subprocess, sys, time
 TIMEOUT = float(os.environ.get("RCE_TEST_TIMEOUT", "120"))
@@ -66,10 +68,13 @@ def load_tests(root, filt=None):
 def judge(t, a, ops):
     m, src = t["meta"], t["src"]
     exp = m.get("expect")
-    need = {"accept": "check", "reject": "check", "run": "run", "trace": "trace", "host": "host", "replicate": "replicate"}.get(exp)
+    need = {"accept": "check", "reject": "check", "run": "run", "trace": "trace", "host": "host", "replicate": "replicate", "cli": "cli"}.get(exp)
     if need is None:
         return "error", f"unknown expect `{exp}`"
     if need not in ops:
+        na = (a.spec.get("not_applicable") or {}).get(need)
+        if na:   # the op belongs to another component, by the law the adapter cites
+            return "n/a", na
         return "unsupported", f"adapter does not claim `{need}`"
     if exp in ("accept", "reject"):
         files = {"main.rce": src, **t.get("fixtures", {})}
@@ -146,6 +151,8 @@ def judge(t, a, ops):
             if not snap[0].get("term") or snap[0]["term"] <= iso[0]["old_term"]:
                 return "fail", f"the new term does not exceed the deposed leader's: {evs}"
         return "pass", ""
+    if exp == "cli":
+        return judge_cli(t, a.spec)
     if exp == "trace":
         r = a.call({"op": "trace", "source": src, "events": m.get("events")})
         if "error" in r:
@@ -161,6 +168,44 @@ def judge(t, a, ops):
         if head != m.get("trace_head"):
             return "fail", f"trace head {head} != {m.get('trace_head')}"
         return "pass", ""
+
+def judge_cli(t, spec):
+    """Tooling and profile tests (chapter 12, appendix D): run one command of
+    the implementation's own tools, named by the adapter's `cli` map, in a
+    scratch directory holding the test source as main.rce plus its fixtures,
+    and compare the exit status and required/forbidden output text."""
+    import tempfile
+    m = t["meta"]
+    tool = m.get("tool", "checker")
+    base = (spec.get("cli") or {}).get(tool)
+    if not base:
+        return "unsupported", f"adapter names no `{tool}` command"
+    base = [os.path.expandvars(os.path.expanduser(x)) for x in base]
+    if any(x.startswith("$") for x in base):
+        return "unsupported", f"`{tool}` command not configured ({' '.join(base)})"
+    with tempfile.TemporaryDirectory() as d:
+        pathlib.Path(d, "main.rce").write_text(t["src"], encoding="utf-8")
+        for name, body in (t.get("fixtures") or {}).items():
+            pathlib.Path(d, name).write_text(body, encoding="utf-8")
+        try:
+            p = subprocess.run(base + [str(x) for x in m.get("argv", [])], cwd=d, capture_output=True, text=True,
+                               timeout=TIMEOUT, stdin=subprocess.DEVNULL)
+        except subprocess.TimeoutExpired:
+            return "fail", "timeout"
+    out = (p.stdout + p.stderr).replace(d + os.sep, "").replace(d, ".")
+    if "status" in m and p.returncode != m["status"]:
+        return "fail", f"exit status {p.returncode} != {m['status']}: {out[-300:]}"
+    for x in m.get("output_has", []) or []:
+        if x not in out:
+            return "fail", f"output lacks {x!r}: {out[-300:]}"
+    for x in m.get("output_lacks", []) or []:
+        if x in out:
+            return "fail", f"output has {x!r}: {out[-300:]}"
+    if "lines" in m:
+        n = len([l for l in p.stdout.splitlines() if l.strip()])
+        if n != m["lines"]:
+            return "fail", f"{n} stdout lines != {m['lines']}: {out[-300:]}"
+    return "pass", ""
 
 STOP = None  # set when --stop-on-fail: (threading.Event, ids to ignore)
 

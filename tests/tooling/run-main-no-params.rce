@@ -1,0 +1,13 @@
+fn main(x: i64)
+    emit x
+#--- rce-test
+# id: tooling/run-main-no-params
+# area: tooling
+# clauses: [CH12-M-6760dd1f]
+# expect: cli
+# argv: ["run", "main.rce"]
+# status: 1
+# output_has:
+#   - REFUSED
+# provenance: targeted (round 3): 10.3, fn main() takes no parameters
+#---

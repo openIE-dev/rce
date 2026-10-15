@@ -1,0 +1,33 @@
+fn prod(c: chan i64)
+    for i in 0..6
+        c <- i
+        emit i * 100
+    c.close()
+fn main()
+    let c = chan[i64](1)
+    spawn prod(c)
+    loop
+        match <- c
+            some(v) -> emit v
+            none -> break
+#--- rce-test
+# id: concurrency/targeted/backpressure-cap1
+# area: concurrency
+# clauses: [T1, T26, T4, T9]
+# expect: run
+# outcome: done
+# outputs:
+#   - emit 0
+#   - emit 0
+#   - emit 100
+#   - emit 1
+#   - emit 200
+#   - emit 2
+#   - emit 300
+#   - emit 3
+#   - emit 400
+#   - emit 4
+#   - emit 500
+#   - emit 5
+# provenance: targeted (mutation survivors, round 3): a capacity-1 channel interleaves producer and consumer in source order (T4, T26); outputs read off the reference and checked by the four emitters
+#---

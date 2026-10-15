@@ -219,5 +219,30 @@
    302
   ]
  },
- "kill_rate_after_targeted": 94.5
+ "kill_rate_after_targeted": 94.5,
+ "rerun_round3": {
+  "note": "survivor-targeted tests (round 3) rerun per mutant on the surviving set; unmutated baseline passes (mutk-0); 112 (log-only effect) and 133 (lattice sample cap) still survive",
+  "killed_now": [
+   37,
+   65,
+   72,
+   73,
+   86,
+   94,
+   97,
+   103,
+   124
+  ],
+  "still_surviving": [
+   112,
+   133
+  ]
+ },
+ "kill_rate_after_round3": 99.0,
+ "round4": {
+  "112": "killed by proposed/act-1-every-actor-steps-each-tick (reference passes, RCE_MUTANT=112 fails), conditional on proposed ACT-1 (finding 22)",
+  "133": "equivalent w.r.t. the spec: C.11.5 decides non-enumeration kinds by certificate only; the sample changes only the W-CRDT-1 message text (finding 21)",
+  "kill_rate_counting_133_equivalent": 99.5,
+  "kill_rate_if_act1_adopted": 100.0
+ }
 }

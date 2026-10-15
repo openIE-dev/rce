@@ -1,0 +1,4 @@
+spec "orders" v0.1.0
+reason "Demo spec" by "david"
+role r1 "w" execution_node
+  reason "x"

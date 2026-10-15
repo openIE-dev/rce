@@ -1,0 +1,15 @@
+spec "orders" v0.1.0
+reason "Demo spec" by "david"
+currency max_age=0h last_checked=2999-01-01T00:00:00Z
+#--- rce-test
+# id: handler-spec/cur-1-zero-max-age
+# area: handler-spec
+# clauses: [W-HS-CUR-1]
+# expect: cli
+# tool: engine
+# argv: ["check", "main.rce"]
+# status: 1
+# output_has:
+#   - W-HS-CUR-1
+# provenance: targeted (round 3): appendix D, max_age must be a positive number of hours
+#---

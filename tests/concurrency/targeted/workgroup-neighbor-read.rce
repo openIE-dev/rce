@@ -1,0 +1,22 @@
+# rce-version: 0.6
+fn rot(x: [f64; 8]) -> f64
+    var total: f64 = 0.0
+    with device d bound 1024
+        with group g lanes 8
+            var tile: [f64; 8] = [0.0; 8]
+            tile[g.lane] = x[g.lane]
+            barrier
+            total += tile[(g.lane + 1) % 8] * (g.lane as f64)
+    total
+fn main()
+    emit rot([1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0])
+#--- rce-test
+# id: concurrency/targeted/workgroup-neighbor-read
+# area: concurrency
+# clauses: [T1, T23, T4, T9, W-GRP-1]
+# expect: run
+# outcome: done
+# outputs:
+#   - emit 140
+# provenance: targeted (mutation survivors, round 3): after a barrier each lane reads a neighbour's slot: phase-then-lane order (T23; mutants 72, 73); outputs read off the reference and checked by the four emitters
+#---

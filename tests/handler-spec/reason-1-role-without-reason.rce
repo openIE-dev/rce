@@ -1,0 +1,16 @@
+spec "orders" v0.1.0
+reason "Demo spec" by "david"
+currency max_age=24h last_checked=2999-01-01T00:00:00Z
+role r1 "worker" execution_node
+#--- rce-test
+# id: handler-spec/reason-1-role-without-reason
+# area: handler-spec
+# clauses: [W-HS-REASON-1]
+# expect: cli
+# tool: engine
+# argv: ["check", "main.rce"]
+# status: 1
+# output_has:
+#   - W-HS-REASON-1
+# provenance: targeted (round 3): appendix D, a role compiles to a node and needs a reason
+#---

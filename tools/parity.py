@@ -17,11 +17,12 @@ table, split = {}, []
 for name, res in runs.items():
     if name == "reference":
         continue
-    t = {"agree": 0, "disagree": 0, "unsupported": 0, "missing": 0}
+    t = {"agree": 0, "disagree": 0, "n/a": 0, "unsupported": 0, "missing": 0}
     for tid, r in ref.items():
         o = res.get(tid)
         if o is None: t["missing"] += 1
         elif o["status"] == "unsupported": t["unsupported"] += 1
+        elif o["status"] == "n/a": t["n/a"] += 1   # the op belongs to another component (adapter not_applicable)
         elif o["status"] == r["status"]: t["agree"] += 1
         else:
             t["disagree"] += 1
@@ -29,9 +30,9 @@ for name, res in runs.items():
     table[name] = t
 json.dump({"adapters": table, "disagreements": split}, open(os.path.join(root, "reports", "parity.json"), "w"), indent=1)
 with open(os.path.join(root, "reports", "parity.md"), "w") as w:
-    w.write("# Emission parity against the reference\n\n| adapter | agree | disagree | unsupported | not run |\n|---|---|---|---|---|\n")
+    w.write("# Emission parity against the reference\n\n| adapter | agree | disagree | n/a | unsupported | not run |\n|---|---|---|---|---|---|\n")
     for n, t in table.items():
-        w.write(f"| {n} | {t['agree']} | {t['disagree']} | {t['unsupported']} | {t['missing']} |\n")
+        w.write(f"| {n} | {t['agree']} | {t['disagree']} | {t['n/a']} | {t['unsupported']} | {t['missing']} |\n")
     w.write("\n## Disagreements\n\n")
     for s in split:
         w.write(f"- `{s['id']}` {s['adapter']}: reference {s['reference']}, adapter {s['adapter_status']}\n")

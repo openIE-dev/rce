@@ -1,0 +1,22 @@
+# rce-version: 0.6
+fn put(c: chan i64)
+    c <- 5
+fn main()
+    let c = chan[i64](1)
+    spawn put(c)
+    with deadline 10
+        match <- c
+            some(v) -> emit v
+            none -> emit 1
+    else
+        emit 0
+#--- rce-test
+# id: concurrency/targeted/deadline-met
+# area: concurrency
+# clauses: [T1, T22, T4, T9]
+# expect: run
+# outcome: done
+# outputs:
+#   - emit 5
+# provenance: targeted (mutation survivors, round 3): a deadline met in time runs the body only (T22); outputs read off the reference and checked by the four emitters
+#---

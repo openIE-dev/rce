@@ -1,0 +1,15 @@
+spec "orders" v0.1.1
+reason "Demo spec" by "david"
+#--- rce-test
+# id: handler-spec/ver-2-removal-needs-minor-bump
+# area: handler-spec
+# clauses: [W-HS-VER-2]
+# expect: cli
+# tool: engine
+# argv: ["diff", "old_FIXTURE.rce", "main.rce"]
+# status: 1
+# fixtures: [old_FIXTURE.rce]
+# output_has:
+#   - W-HS-VER-2
+# provenance: targeted (round 3): D.9, removing a declaration at MAJOR 0 must raise MINOR
+#---
