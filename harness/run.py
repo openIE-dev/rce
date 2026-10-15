@@ -162,10 +162,14 @@ def judge(t, a, ops):
             return "fail", f"trace head {head} != {m.get('trace_head')}"
         return "pass", ""
 
+STOP = None  # set when --stop-on-fail: (threading.Event, ids to ignore)
+
 def run_chunk(spec, tests, ops):
     a = Adapter(spec); res = []
     try:
         for t in tests:
+            if STOP and STOP[0].is_set():
+                break
             if "error" in t:
                 res.append({"path": t["path"], "status": "error", "detail": t["error"]}); continue
             t0 = time.time()
@@ -174,6 +178,8 @@ def run_chunk(spec, tests, ops):
             except Exception as e:  # adapter crash counts against the implementation
                 st, why = "fail", f"adapter: {e}"
                 a.close(); a = Adapter(spec)
+            if STOP and st in ("fail", "error") and t["meta"].get("id") not in STOP[1] and t["path"] not in STOP[1]:
+                STOP[0].set()
             res.append({"path": t["path"], "id": t["meta"].get("id"), "area": t["meta"].get("area"),
                         "clauses": t["meta"].get("clauses", []), "status": st, "detail": why,
                         "ms": int((time.time() - t0) * 1000)})
@@ -192,6 +198,13 @@ def main():
     ap.add_argument("--known-failures", help="file of test ids expected to fail (findings); exit 0 iff the failing set equals it")
     ap.add_argument("--stop-on-fail", action="store_true", help="mutation runs: stop at the first failing test")
     a = ap.parse_args()
+    if a.stop_on_fail:
+        import threading
+        global STOP
+        known = set()
+        if a.known_failures:
+            known = {l.split("#")[0].strip() for l in open(a.known_failures)} - {""}
+        STOP = (threading.Event(), known)
     spec = json.load(open(a.adapter))
     ops = set(spec.get("ops", ["check", "run", "trace"]))
     tests = load_tests(a.tests, a.filter)
@@ -220,7 +233,8 @@ def main():
     if a.known_failures:
         known = {l.split("#")[0].strip() for l in open(a.known_failures)} - {""}
         bad = {r["id"] for r in results if r["status"] in ("fail", "error")}
-        new, fixed = sorted(bad - known), sorted(known - bad)
+        ran = {r["id"] for r in results}
+        new, fixed = sorted(bad - known), sorted((known & ran) - bad)
         for t in new: print(f"NEW FAILURE {t}")
         for t in fixed: print(f"NOW PASSES (update the baseline and FINDINGS.md) {t}")
         sys.exit(1 if new or fixed else 0)

@@ -36,6 +36,23 @@ See `INTERPRETING.md` for the file format and `ADAPTERS.md` for the protocol.
     python3 tools/coverage.py
     python3 tools/parity.py
 
+## Status
+
+Generated from `reports/` on the reference at joulesperbit `rce/host` (2026-10-15):
+
+- 1946 tests. Language profile: 206 of 206 normative clauses covered (100%).
+  Not yet covered: the handler-spec profile (chapter 15, 14 clauses, implemented
+  in `crates/rce` rather than the reference checker), tooling (7), proposed (6),
+  editorial (1).
+- Reference: 1926 pass, 20 fail; every failure is a finding, listed in
+  `findings/known-failures-reference.txt`.
+- Emitters (Python, JS, Rust): 1321 pass, 611 unsupported (ops an emitted
+  program cannot answer: check, trace, host, replicate, trap refusals), 14 fail,
+  all shared with the reference. Scala and the wasm playground: see
+  `reports/results-*.json`.
+- Mutation: 200 of 712 schema sites in the checker and evaluator sampled
+  (seed 1); 189 killed (94.5%). Survivors are in `reports/mutation.json`.
+
 ## Convergence notes
 
 The suite converges on ideas already established elsewhere. These notes cite

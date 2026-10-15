@@ -1,0 +1,223 @@
+{
+ "format": "rce-mutation/1",
+ "sites": 712,
+ "sampled": 200,
+ "seed": 1,
+ "killed": 185,
+ "kill_rate": 92.5,
+ "baseline_failures": [
+  "tests/evaluation-fuel/targeted/n9-size-limit.rce",
+  "tests/lexing-parsing/targeted/r5-generic-call.rce",
+  "tests/numbers/generated/num-1-0005.rce",
+  "tests/numbers/generated/num-1-0185.rce",
+  "tests/numbers/generated/num-2-0015.rce",
+  "tests/numbers/generated/num-2-0037.rce",
+  "tests/numbers/generated/num-2-0147.rce",
+  "tests/numbers/generated/num-2-0205.rce",
+  "tests/numbers/generated/num-3-0007.rce",
+  "tests/numbers/generated/num-3-0097.rce",
+  "tests/numbers/generated/num-3-0197.rce",
+  "tests/numbers/generated/num-3-0267.rce",
+  "tests/numbers/generated/num-3-0289.rce",
+  "tests/numbers/targeted/f6-f64-tostr-minus-zero.rce",
+  "tests/numbers/targeted/n6-int-float-equality.rce",
+  "tests/numbers/targeted/w-ty-3-mixing.rce",
+  "tests/numbers/targeted/w-ty-3-narrowing.rce",
+  "tests/types-checking/targeted/w-mod-2-cycle.rce",
+  "tests/types-checking/targeted/w-state-3-borrow-field.rce",
+  "tests/types-checking/targeted/w-trait-1-impl-mismatch.rce"
+ ],
+ "by_operator_file": {
+  "NEG src/interp.rs": {
+   "killed": 20,
+   "total": 22
+  },
+  "NEG src/conc.rs": {
+   "killed": 9,
+   "total": 19
+  },
+  "NEG src/parse.rs": {
+   "killed": 37,
+   "total": 39
+  },
+  "NEG src/check.rs": {
+   "killed": 61,
+   "total": 61
+  },
+  "DEL src/check.rs": {
+   "killed": 38,
+   "total": 39
+  },
+  "NEG src/check06b.rs": {
+   "killed": 11,
+   "total": 11
+  },
+  "DEL src/check06b.rs": {
+   "killed": 9,
+   "total": 9
+  }
+ },
+ "survivors": [
+  {
+   "k": 10,
+   "op": "NEG",
+   "file": "src/interp.rs",
+   "line": 485,
+   "orig": "if y < 0 || y >= bits as i128 {",
+   "killed": false,
+   "by": [],
+   "n_failing": null
+  },
+  {
+   "k": 37,
+   "op": "NEG",
+   "file": "src/interp.rs",
+   "line": 1324,
+   "orig": "if r.is_ok() {",
+   "killed": false,
+   "by": [],
+   "n_failing": null
+  },
+  {
+   "k": 65,
+   "op": "NEG",
+   "file": "src/conc.rs",
+   "line": 241,
+   "orig": "if ra != rb {",
+   "killed": false,
+   "by": [],
+   "n_failing": null
+  },
+  {
+   "k": 72,
+   "op": "NEG",
+   "file": "src/conc.rs",
+   "line": 845,
+   "orig": "if matches!(s, Stmt::Arena(m, _, _, _) if m == \"$barrier\") {",
+   "killed": false,
+   "by": [],
+   "n_failing": null
+  },
+  {
+   "k": 73,
+   "op": "NEG",
+   "file": "src/conc.rs",
+   "line": 888,
+   "orig": "if top_decl && lane > 0 {",
+   "killed": false,
+   "by": [],
+   "n_failing": null
+  },
+  {
+   "k": 86,
+   "op": "NEG",
+   "file": "src/conc.rs",
+   "line": 1204,
+   "orig": "if self.cx.link.is_none() {",
+   "killed": false,
+   "by": [],
+   "n_failing": null
+  },
+  {
+   "k": 94,
+   "op": "NEG",
+   "file": "src/conc.rs",
+   "line": 1815,
+   "orig": "if !nondet {",
+   "killed": false,
+   "by": [],
+   "n_failing": null
+  },
+  {
+   "k": 97,
+   "op": "NEG",
+   "file": "src/conc.rs",
+   "line": 1874,
+   "orig": "if self.slots[i].released {",
+   "killed": false,
+   "by": [],
+   "n_failing": null
+  },
+  {
+   "k": 103,
+   "op": "NEG",
+   "file": "src/conc.rs",
+   "line": 1952,
+   "orig": "if self.tick - self.slots[i].since >= n {",
+   "killed": false,
+   "by": [],
+   "n_failing": null
+  },
+  {
+   "k": 112,
+   "op": "NEG",
+   "file": "src/conc.rs",
+   "line": 2256,
+   "orig": "if self.stop.is_some() {",
+   "killed": false,
+   "by": [],
+   "n_failing": null
+  },
+  {
+   "k": 124,
+   "op": "NEG",
+   "file": "src/conc.rs",
+   "line": 2460,
+   "orig": "if !timers && !future_links {",
+   "killed": false,
+   "by": [],
+   "n_failing": null
+  },
+  {
+   "k": 133,
+   "op": "NEG",
+   "file": "src/conc.rs",
+   "line": 2691,
+   "orig": "if sample.len() >= 24 {",
+   "killed": false,
+   "by": [],
+   "n_failing": null
+  },
+  {
+   "k": 238,
+   "op": "NEG",
+   "file": "src/parse.rs",
+   "line": 1238,
+   "orig": "if !self.eat_p(\",\") {",
+   "killed": false,
+   "by": [],
+   "n_failing": 0
+  },
+  {
+   "k": 291,
+   "op": "NEG",
+   "file": "src/parse.rs",
+   "line": 2099,
+   "orig": "if !self.eat_p(\",\") {",
+   "killed": false,
+   "by": [],
+   "n_failing": 0
+  },
+  {
+   "k": 302,
+   "op": "DEL",
+   "file": "src/check.rs",
+   "line": 249,
+   "orig": "self.e(d(*line, \"W-NAME-1\", format!(\"unknown module `{s}`\")));",
+   "killed": false,
+   "by": [],
+   "n_failing": 0
+  }
+ ],
+ "seconds": 146,
+ "rerun_after_targeted": {
+  "note": "survivors rerun after adding survivor-targeted tests, against a baseline recomputed on the current suite",
+  "killed_now": [
+   10,
+   238,
+   291,
+   302
+  ]
+ },
+ "kill_rate_after_targeted": 94.5
+}

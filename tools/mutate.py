@@ -68,16 +68,27 @@ def run(work, sample, seed):
     spec = {"name": "mutant", "cmd": [exe], "ops": ["check", "run", "trace", "host", "replicate"], "features": ["fuel", "schedule_seed", "trace"]}
     sp = work / "adapter.json"; json.dump(spec, open(sp, "w"))
     # mutant 0 is the unmutated build: its failures are the baseline, not kills
+    basef = work / "baseline.txt"
     def suite(k):
         e = dict(os.environ, RCE_MUTANT=str(k), RCE_TEST_TIMEOUT="20")
         out = work / f"res-{k}.json"
-        subprocess.run([sys.executable, str(ROOT / "harness" / "run.py"), "--adapter", str(sp), "--quiet", "--out", str(out)],
+        # past the baseline, stop at the first failure the unmutated build does not have
+        stop = ["--stop-on-fail", "--known-failures", str(basef)] if k else []
+        subprocess.run([sys.executable, str(ROOT / "harness" / "run.py"), "--adapter", str(sp), "--quiet", "--out", str(out)] + stop,
                        env=e, capture_output=True, text=True, cwd=ROOT)
         r = json.load(open(out)); out.unlink()
         return {x["path"] for x in r["results"] if x["status"] in ("fail", "error")}
     base = suite(0); results = []
+    basef.write_text("".join(p + "\n" for p in sorted(base)))
+    # resume: reuse verdicts already logged for this seed's sample
+    done = {}
+    for l in open("/tmp/rce-conformance-progress.log"):
+        m = re.search(r"mutant (\d+) \S+ \S+ killed=(True|False)", l)
+        if m: done[int(m.group(1))] = m.group(2) == "True"
     t0 = time.time()
     for s in pick:
+        if s["k"] in done:
+            results.append(dict(s, killed=done[s["k"]], by=[], n_failing=None)); continue
         failed = suite(s["k"]) - base
         s = dict(s, killed=bool(failed), by=sorted(failed)[:3], n_failing=len(failed)); results.append(s)
         with open("/tmp/rce-conformance-progress.log", "a") as lg:

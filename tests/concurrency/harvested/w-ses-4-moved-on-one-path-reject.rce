@@ -1,0 +1,19 @@
+# rce-version: 0.6
+# expect: W-SES-4
+protocol P
+    send i64
+
+fn helper(c: session P)
+    c <- 1
+
+fn client(c: session P, k: i64)
+    if k > 0
+        helper(c)
+#--- rce-test
+# id: concurrency/harvested/w-ses-4-moved-on-one-path-reject
+# area: concurrency
+# clauses: [W-SES-4]
+# expect: reject
+# diagnostic: W-SES-4
+# provenance: harvested conc06b/ill_typed/W-SES-4_moved_on_one_path.rce
+#---

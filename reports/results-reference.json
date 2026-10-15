@@ -2,7 +2,7 @@
  "format": "rce-results/1",
  "adapter": "reference",
  "tally": {
-  "pass": 1825,
+  "pass": 1926,
   "fail": 20
  },
  "results": [
@@ -26,7 +26,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 5
+   "ms": 46
   },
   {
    "path": "tests/concurrency/generated/par-7-001.rce",
@@ -48,7 +48,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 4
+   "ms": 41
   },
   {
    "path": "tests/concurrency/generated/par-7-002.rce",
@@ -70,7 +70,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 11
+   "ms": 35
   },
   {
    "path": "tests/concurrency/generated/par-7-003.rce",
@@ -92,7 +92,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 11
+   "ms": 32
   },
   {
    "path": "tests/concurrency/generated/par-7-004.rce",
@@ -114,7 +114,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 10
+   "ms": 41
   },
   {
    "path": "tests/concurrency/generated/par-7-005.rce",
@@ -136,7 +136,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 8
+   "ms": 33
   },
   {
    "path": "tests/concurrency/generated/par-7-006.rce",
@@ -158,7 +158,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 5
+   "ms": 6
   },
   {
    "path": "tests/concurrency/generated/par-7-007.rce",
@@ -180,7 +180,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 5
+   "ms": 4
   },
   {
    "path": "tests/concurrency/generated/par-7-008.rce",
@@ -202,7 +202,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 2
+   "ms": 4
   },
   {
    "path": "tests/concurrency/generated/par-7-009.rce",
@@ -224,7 +224,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 1
+   "ms": 15
   },
   {
    "path": "tests/concurrency/generated/par-7-010.rce",
@@ -246,7 +246,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 4
+   "ms": 10
   },
   {
    "path": "tests/concurrency/generated/par-7-011.rce",
@@ -268,7 +268,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 5
+   "ms": 43
   },
   {
    "path": "tests/concurrency/generated/par-7-012.rce",
@@ -290,7 +290,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 2
+   "ms": 46
   },
   {
    "path": "tests/concurrency/generated/par-7-013.rce",
@@ -312,7 +312,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 1
+   "ms": 27
   },
   {
    "path": "tests/concurrency/generated/par-7-014.rce",
@@ -334,7 +334,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 1
+   "ms": 5
   },
   {
    "path": "tests/concurrency/generated/par-7-015.rce",
@@ -356,7 +356,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 1
+   "ms": 12
   },
   {
    "path": "tests/concurrency/generated/par-7-016.rce",
@@ -378,7 +378,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 1
+   "ms": 8
   },
   {
    "path": "tests/concurrency/generated/par-7-017.rce",
@@ -400,7 +400,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 1
+   "ms": 12
   },
   {
    "path": "tests/concurrency/generated/par-7-018.rce",
@@ -444,7 +444,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 1
+   "ms": 2
   },
   {
    "path": "tests/concurrency/generated/par-7-020.rce",
@@ -510,7 +510,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 1
+   "ms": 2
   },
   {
    "path": "tests/concurrency/generated/par-7-023.rce",
@@ -554,7 +554,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 1
+   "ms": 2
   },
   {
    "path": "tests/concurrency/generated/par-7-025.rce",
@@ -576,7 +576,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 1
+   "ms": 2
   },
   {
    "path": "tests/concurrency/generated/par-7-026.rce",
@@ -620,7 +620,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 1
+   "ms": 41
   },
   {
    "path": "tests/concurrency/generated/par-7-028.rce",
@@ -642,7 +642,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 2
+   "ms": 21
   },
   {
    "path": "tests/concurrency/generated/par-7-029.rce",
@@ -664,7 +664,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 1
+   "ms": 5
   },
   {
    "path": "tests/concurrency/generated/par-7-030.rce",
@@ -686,7 +686,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 1
+   "ms": 3
   },
   {
    "path": "tests/concurrency/generated/par-7-031.rce",
@@ -708,7 +708,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 2
+   "ms": 3
   },
   {
    "path": "tests/concurrency/generated/par-7-032.rce",
@@ -774,7 +774,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 1
+   "ms": 10
   },
   {
    "path": "tests/concurrency/generated/par-7-035.rce",
@@ -818,7 +818,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 2
+   "ms": 1
   },
   {
    "path": "tests/concurrency/generated/par-7-037.rce",
@@ -840,7 +840,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 2
+   "ms": 1
   },
   {
    "path": "tests/concurrency/generated/par-7-038.rce",
@@ -884,7 +884,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 2
+   "ms": 1
   },
   {
    "path": "tests/concurrency/generated/par-overlap-7-000.rce",
@@ -968,7 +968,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 0
+   "ms": 3
   },
   {
    "path": "tests/concurrency/generated/par-overlap-7-007.rce",
@@ -1367,6 +1367,1266 @@
    "ms": 0
   },
   {
+   "path": "tests/concurrency/generated/tree-prod-000.rce",
+   "id": "concurrency/generated/tree-prod-000",
+   "area": "concurrency",
+   "clauses": [
+    "CH14-M-ca5a98d7",
+    "T18",
+    "HC-12",
+    "W-PAR-3"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 0
+  },
+  {
+   "path": "tests/concurrency/generated/tree-prod-001.rce",
+   "id": "concurrency/generated/tree-prod-001",
+   "area": "concurrency",
+   "clauses": [
+    "CH14-M-ca5a98d7",
+    "T18",
+    "HC-12",
+    "W-PAR-3"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 2
+  },
+  {
+   "path": "tests/concurrency/generated/tree-prod-002.rce",
+   "id": "concurrency/generated/tree-prod-002",
+   "area": "concurrency",
+   "clauses": [
+    "CH14-M-ca5a98d7",
+    "T18",
+    "HC-12",
+    "W-PAR-3"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 20
+  },
+  {
+   "path": "tests/concurrency/generated/tree-prod-003.rce",
+   "id": "concurrency/generated/tree-prod-003",
+   "area": "concurrency",
+   "clauses": [
+    "CH14-M-ca5a98d7",
+    "T18",
+    "HC-12",
+    "W-PAR-3"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 0
+  },
+  {
+   "path": "tests/concurrency/generated/tree-prod-004.rce",
+   "id": "concurrency/generated/tree-prod-004",
+   "area": "concurrency",
+   "clauses": [
+    "CH14-M-ca5a98d7",
+    "T18",
+    "HC-12",
+    "W-PAR-3"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 0
+  },
+  {
+   "path": "tests/concurrency/generated/tree-prod-005.rce",
+   "id": "concurrency/generated/tree-prod-005",
+   "area": "concurrency",
+   "clauses": [
+    "CH14-M-ca5a98d7",
+    "T18",
+    "HC-12",
+    "W-PAR-3"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 0
+  },
+  {
+   "path": "tests/concurrency/generated/tree-prod-006.rce",
+   "id": "concurrency/generated/tree-prod-006",
+   "area": "concurrency",
+   "clauses": [
+    "CH14-M-ca5a98d7",
+    "T18",
+    "HC-12",
+    "W-PAR-3"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 0
+  },
+  {
+   "path": "tests/concurrency/generated/tree-prod-007.rce",
+   "id": "concurrency/generated/tree-prod-007",
+   "area": "concurrency",
+   "clauses": [
+    "CH14-M-ca5a98d7",
+    "T18",
+    "HC-12",
+    "W-PAR-3"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 0
+  },
+  {
+   "path": "tests/concurrency/generated/tree-prod-008.rce",
+   "id": "concurrency/generated/tree-prod-008",
+   "area": "concurrency",
+   "clauses": [
+    "CH14-M-ca5a98d7",
+    "T18",
+    "HC-12",
+    "W-PAR-3"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 0
+  },
+  {
+   "path": "tests/concurrency/generated/tree-prod-009.rce",
+   "id": "concurrency/generated/tree-prod-009",
+   "area": "concurrency",
+   "clauses": [
+    "CH14-M-ca5a98d7",
+    "T18",
+    "HC-12",
+    "W-PAR-3"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 0
+  },
+  {
+   "path": "tests/concurrency/generated/tree-prod-010.rce",
+   "id": "concurrency/generated/tree-prod-010",
+   "area": "concurrency",
+   "clauses": [
+    "CH14-M-ca5a98d7",
+    "T18",
+    "HC-12",
+    "W-PAR-3"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 0
+  },
+  {
+   "path": "tests/concurrency/generated/tree-prod-011.rce",
+   "id": "concurrency/generated/tree-prod-011",
+   "area": "concurrency",
+   "clauses": [
+    "CH14-M-ca5a98d7",
+    "T18",
+    "HC-12",
+    "W-PAR-3"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 0
+  },
+  {
+   "path": "tests/concurrency/generated/tree-prod-012.rce",
+   "id": "concurrency/generated/tree-prod-012",
+   "area": "concurrency",
+   "clauses": [
+    "CH14-M-ca5a98d7",
+    "T18",
+    "HC-12",
+    "W-PAR-3"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 0
+  },
+  {
+   "path": "tests/concurrency/generated/tree-prod-013.rce",
+   "id": "concurrency/generated/tree-prod-013",
+   "area": "concurrency",
+   "clauses": [
+    "CH14-M-ca5a98d7",
+    "T18",
+    "HC-12",
+    "W-PAR-3"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 0
+  },
+  {
+   "path": "tests/concurrency/generated/tree-prod-014.rce",
+   "id": "concurrency/generated/tree-prod-014",
+   "area": "concurrency",
+   "clauses": [
+    "CH14-M-ca5a98d7",
+    "T18",
+    "HC-12",
+    "W-PAR-3"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 0
+  },
+  {
+   "path": "tests/concurrency/generated/tree-prod-015.rce",
+   "id": "concurrency/generated/tree-prod-015",
+   "area": "concurrency",
+   "clauses": [
+    "CH14-M-ca5a98d7",
+    "T18",
+    "HC-12",
+    "W-PAR-3"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 0
+  },
+  {
+   "path": "tests/concurrency/generated/tree-prod-016.rce",
+   "id": "concurrency/generated/tree-prod-016",
+   "area": "concurrency",
+   "clauses": [
+    "CH14-M-ca5a98d7",
+    "T18",
+    "HC-12",
+    "W-PAR-3"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 0
+  },
+  {
+   "path": "tests/concurrency/generated/tree-prod-017.rce",
+   "id": "concurrency/generated/tree-prod-017",
+   "area": "concurrency",
+   "clauses": [
+    "CH14-M-ca5a98d7",
+    "T18",
+    "HC-12",
+    "W-PAR-3"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 0
+  },
+  {
+   "path": "tests/concurrency/generated/tree-prod-018.rce",
+   "id": "concurrency/generated/tree-prod-018",
+   "area": "concurrency",
+   "clauses": [
+    "CH14-M-ca5a98d7",
+    "T18",
+    "HC-12",
+    "W-PAR-3"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 0
+  },
+  {
+   "path": "tests/concurrency/generated/tree-prod-019.rce",
+   "id": "concurrency/generated/tree-prod-019",
+   "area": "concurrency",
+   "clauses": [
+    "CH14-M-ca5a98d7",
+    "T18",
+    "HC-12",
+    "W-PAR-3"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 0
+  },
+  {
+   "path": "tests/concurrency/generated/tree-prod-020.rce",
+   "id": "concurrency/generated/tree-prod-020",
+   "area": "concurrency",
+   "clauses": [
+    "CH14-M-ca5a98d7",
+    "T18",
+    "HC-12",
+    "W-PAR-3"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 1
+  },
+  {
+   "path": "tests/concurrency/generated/tree-prod-021.rce",
+   "id": "concurrency/generated/tree-prod-021",
+   "area": "concurrency",
+   "clauses": [
+    "CH14-M-ca5a98d7",
+    "T18",
+    "HC-12",
+    "W-PAR-3"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 0
+  },
+  {
+   "path": "tests/concurrency/generated/tree-prod-022.rce",
+   "id": "concurrency/generated/tree-prod-022",
+   "area": "concurrency",
+   "clauses": [
+    "CH14-M-ca5a98d7",
+    "T18",
+    "HC-12",
+    "W-PAR-3"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 0
+  },
+  {
+   "path": "tests/concurrency/generated/tree-prod-023.rce",
+   "id": "concurrency/generated/tree-prod-023",
+   "area": "concurrency",
+   "clauses": [
+    "CH14-M-ca5a98d7",
+    "T18",
+    "HC-12",
+    "W-PAR-3"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 1
+  },
+  {
+   "path": "tests/concurrency/generated/tree-prod-024.rce",
+   "id": "concurrency/generated/tree-prod-024",
+   "area": "concurrency",
+   "clauses": [
+    "CH14-M-ca5a98d7",
+    "T18",
+    "HC-12",
+    "W-PAR-3"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 0
+  },
+  {
+   "path": "tests/concurrency/generated/tree-prod-025.rce",
+   "id": "concurrency/generated/tree-prod-025",
+   "area": "concurrency",
+   "clauses": [
+    "CH14-M-ca5a98d7",
+    "T18",
+    "HC-12",
+    "W-PAR-3"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 0
+  },
+  {
+   "path": "tests/concurrency/generated/tree-prod-026.rce",
+   "id": "concurrency/generated/tree-prod-026",
+   "area": "concurrency",
+   "clauses": [
+    "CH14-M-ca5a98d7",
+    "T18",
+    "HC-12",
+    "W-PAR-3"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 0
+  },
+  {
+   "path": "tests/concurrency/generated/tree-prod-027.rce",
+   "id": "concurrency/generated/tree-prod-027",
+   "area": "concurrency",
+   "clauses": [
+    "CH14-M-ca5a98d7",
+    "T18",
+    "HC-12",
+    "W-PAR-3"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 0
+  },
+  {
+   "path": "tests/concurrency/generated/tree-prod-028.rce",
+   "id": "concurrency/generated/tree-prod-028",
+   "area": "concurrency",
+   "clauses": [
+    "CH14-M-ca5a98d7",
+    "T18",
+    "HC-12",
+    "W-PAR-3"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 0
+  },
+  {
+   "path": "tests/concurrency/generated/tree-prod-029.rce",
+   "id": "concurrency/generated/tree-prod-029",
+   "area": "concurrency",
+   "clauses": [
+    "CH14-M-ca5a98d7",
+    "T18",
+    "HC-12",
+    "W-PAR-3"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 0
+  },
+  {
+   "path": "tests/concurrency/generated/tree-prod-030.rce",
+   "id": "concurrency/generated/tree-prod-030",
+   "area": "concurrency",
+   "clauses": [
+    "CH14-M-ca5a98d7",
+    "T18",
+    "HC-12",
+    "W-PAR-3"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 0
+  },
+  {
+   "path": "tests/concurrency/generated/tree-prod-031.rce",
+   "id": "concurrency/generated/tree-prod-031",
+   "area": "concurrency",
+   "clauses": [
+    "CH14-M-ca5a98d7",
+    "T18",
+    "HC-12",
+    "W-PAR-3"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 0
+  },
+  {
+   "path": "tests/concurrency/generated/tree-prod-032.rce",
+   "id": "concurrency/generated/tree-prod-032",
+   "area": "concurrency",
+   "clauses": [
+    "CH14-M-ca5a98d7",
+    "T18",
+    "HC-12",
+    "W-PAR-3"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 0
+  },
+  {
+   "path": "tests/concurrency/generated/tree-prod-033.rce",
+   "id": "concurrency/generated/tree-prod-033",
+   "area": "concurrency",
+   "clauses": [
+    "CH14-M-ca5a98d7",
+    "T18",
+    "HC-12",
+    "W-PAR-3"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 0
+  },
+  {
+   "path": "tests/concurrency/generated/tree-prod-034.rce",
+   "id": "concurrency/generated/tree-prod-034",
+   "area": "concurrency",
+   "clauses": [
+    "CH14-M-ca5a98d7",
+    "T18",
+    "HC-12",
+    "W-PAR-3"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 0
+  },
+  {
+   "path": "tests/concurrency/generated/tree-prod-035.rce",
+   "id": "concurrency/generated/tree-prod-035",
+   "area": "concurrency",
+   "clauses": [
+    "CH14-M-ca5a98d7",
+    "T18",
+    "HC-12",
+    "W-PAR-3"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 0
+  },
+  {
+   "path": "tests/concurrency/generated/tree-prod-036.rce",
+   "id": "concurrency/generated/tree-prod-036",
+   "area": "concurrency",
+   "clauses": [
+    "CH14-M-ca5a98d7",
+    "T18",
+    "HC-12",
+    "W-PAR-3"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 0
+  },
+  {
+   "path": "tests/concurrency/generated/tree-prod-037.rce",
+   "id": "concurrency/generated/tree-prod-037",
+   "area": "concurrency",
+   "clauses": [
+    "CH14-M-ca5a98d7",
+    "T18",
+    "HC-12",
+    "W-PAR-3"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 0
+  },
+  {
+   "path": "tests/concurrency/generated/tree-prod-038.rce",
+   "id": "concurrency/generated/tree-prod-038",
+   "area": "concurrency",
+   "clauses": [
+    "CH14-M-ca5a98d7",
+    "T18",
+    "HC-12",
+    "W-PAR-3"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 2
+  },
+  {
+   "path": "tests/concurrency/generated/tree-prod-039.rce",
+   "id": "concurrency/generated/tree-prod-039",
+   "area": "concurrency",
+   "clauses": [
+    "CH14-M-ca5a98d7",
+    "T18",
+    "HC-12",
+    "W-PAR-3"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 0
+  },
+  {
+   "path": "tests/concurrency/generated/tree-prod-040.rce",
+   "id": "concurrency/generated/tree-prod-040",
+   "area": "concurrency",
+   "clauses": [
+    "CH14-M-ca5a98d7",
+    "T18",
+    "HC-12",
+    "W-PAR-3"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 0
+  },
+  {
+   "path": "tests/concurrency/generated/tree-prod-063.rce",
+   "id": "concurrency/generated/tree-prod-063",
+   "area": "concurrency",
+   "clauses": [
+    "CH14-M-ca5a98d7",
+    "T18",
+    "HC-12",
+    "W-PAR-3"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 0
+  },
+  {
+   "path": "tests/concurrency/generated/tree-prod-064.rce",
+   "id": "concurrency/generated/tree-prod-064",
+   "area": "concurrency",
+   "clauses": [
+    "CH14-M-ca5a98d7",
+    "T18",
+    "HC-12",
+    "W-PAR-3"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 0
+  },
+  {
+   "path": "tests/concurrency/generated/tree-prod-065.rce",
+   "id": "concurrency/generated/tree-prod-065",
+   "area": "concurrency",
+   "clauses": [
+    "CH14-M-ca5a98d7",
+    "T18",
+    "HC-12",
+    "W-PAR-3"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 0
+  },
+  {
+   "path": "tests/concurrency/generated/tree-prod-100.rce",
+   "id": "concurrency/generated/tree-prod-100",
+   "area": "concurrency",
+   "clauses": [
+    "CH14-M-ca5a98d7",
+    "T18",
+    "HC-12",
+    "W-PAR-3"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 0
+  },
+  {
+   "path": "tests/concurrency/generated/tree-sum-000.rce",
+   "id": "concurrency/generated/tree-sum-000",
+   "area": "concurrency",
+   "clauses": [
+    "CH14-M-ca5a98d7",
+    "T18",
+    "HC-12",
+    "W-PAR-3"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 0
+  },
+  {
+   "path": "tests/concurrency/generated/tree-sum-001.rce",
+   "id": "concurrency/generated/tree-sum-001",
+   "area": "concurrency",
+   "clauses": [
+    "CH14-M-ca5a98d7",
+    "T18",
+    "HC-12",
+    "W-PAR-3"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 0
+  },
+  {
+   "path": "tests/concurrency/generated/tree-sum-002.rce",
+   "id": "concurrency/generated/tree-sum-002",
+   "area": "concurrency",
+   "clauses": [
+    "CH14-M-ca5a98d7",
+    "T18",
+    "HC-12",
+    "W-PAR-3"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 0
+  },
+  {
+   "path": "tests/concurrency/generated/tree-sum-003.rce",
+   "id": "concurrency/generated/tree-sum-003",
+   "area": "concurrency",
+   "clauses": [
+    "CH14-M-ca5a98d7",
+    "T18",
+    "HC-12",
+    "W-PAR-3"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 0
+  },
+  {
+   "path": "tests/concurrency/generated/tree-sum-004.rce",
+   "id": "concurrency/generated/tree-sum-004",
+   "area": "concurrency",
+   "clauses": [
+    "CH14-M-ca5a98d7",
+    "T18",
+    "HC-12",
+    "W-PAR-3"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 0
+  },
+  {
+   "path": "tests/concurrency/generated/tree-sum-005.rce",
+   "id": "concurrency/generated/tree-sum-005",
+   "area": "concurrency",
+   "clauses": [
+    "CH14-M-ca5a98d7",
+    "T18",
+    "HC-12",
+    "W-PAR-3"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 0
+  },
+  {
+   "path": "tests/concurrency/generated/tree-sum-006.rce",
+   "id": "concurrency/generated/tree-sum-006",
+   "area": "concurrency",
+   "clauses": [
+    "CH14-M-ca5a98d7",
+    "T18",
+    "HC-12",
+    "W-PAR-3"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 0
+  },
+  {
+   "path": "tests/concurrency/generated/tree-sum-007.rce",
+   "id": "concurrency/generated/tree-sum-007",
+   "area": "concurrency",
+   "clauses": [
+    "CH14-M-ca5a98d7",
+    "T18",
+    "HC-12",
+    "W-PAR-3"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 0
+  },
+  {
+   "path": "tests/concurrency/generated/tree-sum-008.rce",
+   "id": "concurrency/generated/tree-sum-008",
+   "area": "concurrency",
+   "clauses": [
+    "CH14-M-ca5a98d7",
+    "T18",
+    "HC-12",
+    "W-PAR-3"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 0
+  },
+  {
+   "path": "tests/concurrency/generated/tree-sum-009.rce",
+   "id": "concurrency/generated/tree-sum-009",
+   "area": "concurrency",
+   "clauses": [
+    "CH14-M-ca5a98d7",
+    "T18",
+    "HC-12",
+    "W-PAR-3"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 0
+  },
+  {
+   "path": "tests/concurrency/generated/tree-sum-010.rce",
+   "id": "concurrency/generated/tree-sum-010",
+   "area": "concurrency",
+   "clauses": [
+    "CH14-M-ca5a98d7",
+    "T18",
+    "HC-12",
+    "W-PAR-3"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 0
+  },
+  {
+   "path": "tests/concurrency/generated/tree-sum-011.rce",
+   "id": "concurrency/generated/tree-sum-011",
+   "area": "concurrency",
+   "clauses": [
+    "CH14-M-ca5a98d7",
+    "T18",
+    "HC-12",
+    "W-PAR-3"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 0
+  },
+  {
+   "path": "tests/concurrency/generated/tree-sum-012.rce",
+   "id": "concurrency/generated/tree-sum-012",
+   "area": "concurrency",
+   "clauses": [
+    "CH14-M-ca5a98d7",
+    "T18",
+    "HC-12",
+    "W-PAR-3"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 0
+  },
+  {
+   "path": "tests/concurrency/generated/tree-sum-013.rce",
+   "id": "concurrency/generated/tree-sum-013",
+   "area": "concurrency",
+   "clauses": [
+    "CH14-M-ca5a98d7",
+    "T18",
+    "HC-12",
+    "W-PAR-3"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 0
+  },
+  {
+   "path": "tests/concurrency/generated/tree-sum-014.rce",
+   "id": "concurrency/generated/tree-sum-014",
+   "area": "concurrency",
+   "clauses": [
+    "CH14-M-ca5a98d7",
+    "T18",
+    "HC-12",
+    "W-PAR-3"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 0
+  },
+  {
+   "path": "tests/concurrency/generated/tree-sum-015.rce",
+   "id": "concurrency/generated/tree-sum-015",
+   "area": "concurrency",
+   "clauses": [
+    "CH14-M-ca5a98d7",
+    "T18",
+    "HC-12",
+    "W-PAR-3"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 0
+  },
+  {
+   "path": "tests/concurrency/generated/tree-sum-016.rce",
+   "id": "concurrency/generated/tree-sum-016",
+   "area": "concurrency",
+   "clauses": [
+    "CH14-M-ca5a98d7",
+    "T18",
+    "HC-12",
+    "W-PAR-3"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 0
+  },
+  {
+   "path": "tests/concurrency/generated/tree-sum-017.rce",
+   "id": "concurrency/generated/tree-sum-017",
+   "area": "concurrency",
+   "clauses": [
+    "CH14-M-ca5a98d7",
+    "T18",
+    "HC-12",
+    "W-PAR-3"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 0
+  },
+  {
+   "path": "tests/concurrency/generated/tree-sum-018.rce",
+   "id": "concurrency/generated/tree-sum-018",
+   "area": "concurrency",
+   "clauses": [
+    "CH14-M-ca5a98d7",
+    "T18",
+    "HC-12",
+    "W-PAR-3"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 0
+  },
+  {
+   "path": "tests/concurrency/generated/tree-sum-019.rce",
+   "id": "concurrency/generated/tree-sum-019",
+   "area": "concurrency",
+   "clauses": [
+    "CH14-M-ca5a98d7",
+    "T18",
+    "HC-12",
+    "W-PAR-3"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 0
+  },
+  {
+   "path": "tests/concurrency/generated/tree-sum-020.rce",
+   "id": "concurrency/generated/tree-sum-020",
+   "area": "concurrency",
+   "clauses": [
+    "CH14-M-ca5a98d7",
+    "T18",
+    "HC-12",
+    "W-PAR-3"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 0
+  },
+  {
+   "path": "tests/concurrency/generated/tree-sum-021.rce",
+   "id": "concurrency/generated/tree-sum-021",
+   "area": "concurrency",
+   "clauses": [
+    "CH14-M-ca5a98d7",
+    "T18",
+    "HC-12",
+    "W-PAR-3"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 0
+  },
+  {
+   "path": "tests/concurrency/generated/tree-sum-022.rce",
+   "id": "concurrency/generated/tree-sum-022",
+   "area": "concurrency",
+   "clauses": [
+    "CH14-M-ca5a98d7",
+    "T18",
+    "HC-12",
+    "W-PAR-3"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 0
+  },
+  {
+   "path": "tests/concurrency/generated/tree-sum-023.rce",
+   "id": "concurrency/generated/tree-sum-023",
+   "area": "concurrency",
+   "clauses": [
+    "CH14-M-ca5a98d7",
+    "T18",
+    "HC-12",
+    "W-PAR-3"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 0
+  },
+  {
+   "path": "tests/concurrency/generated/tree-sum-024.rce",
+   "id": "concurrency/generated/tree-sum-024",
+   "area": "concurrency",
+   "clauses": [
+    "CH14-M-ca5a98d7",
+    "T18",
+    "HC-12",
+    "W-PAR-3"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 0
+  },
+  {
+   "path": "tests/concurrency/generated/tree-sum-025.rce",
+   "id": "concurrency/generated/tree-sum-025",
+   "area": "concurrency",
+   "clauses": [
+    "CH14-M-ca5a98d7",
+    "T18",
+    "HC-12",
+    "W-PAR-3"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 0
+  },
+  {
+   "path": "tests/concurrency/generated/tree-sum-026.rce",
+   "id": "concurrency/generated/tree-sum-026",
+   "area": "concurrency",
+   "clauses": [
+    "CH14-M-ca5a98d7",
+    "T18",
+    "HC-12",
+    "W-PAR-3"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 0
+  },
+  {
+   "path": "tests/concurrency/generated/tree-sum-027.rce",
+   "id": "concurrency/generated/tree-sum-027",
+   "area": "concurrency",
+   "clauses": [
+    "CH14-M-ca5a98d7",
+    "T18",
+    "HC-12",
+    "W-PAR-3"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 0
+  },
+  {
+   "path": "tests/concurrency/generated/tree-sum-028.rce",
+   "id": "concurrency/generated/tree-sum-028",
+   "area": "concurrency",
+   "clauses": [
+    "CH14-M-ca5a98d7",
+    "T18",
+    "HC-12",
+    "W-PAR-3"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 0
+  },
+  {
+   "path": "tests/concurrency/generated/tree-sum-029.rce",
+   "id": "concurrency/generated/tree-sum-029",
+   "area": "concurrency",
+   "clauses": [
+    "CH14-M-ca5a98d7",
+    "T18",
+    "HC-12",
+    "W-PAR-3"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 0
+  },
+  {
+   "path": "tests/concurrency/generated/tree-sum-030.rce",
+   "id": "concurrency/generated/tree-sum-030",
+   "area": "concurrency",
+   "clauses": [
+    "CH14-M-ca5a98d7",
+    "T18",
+    "HC-12",
+    "W-PAR-3"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 0
+  },
+  {
+   "path": "tests/concurrency/generated/tree-sum-031.rce",
+   "id": "concurrency/generated/tree-sum-031",
+   "area": "concurrency",
+   "clauses": [
+    "CH14-M-ca5a98d7",
+    "T18",
+    "HC-12",
+    "W-PAR-3"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 0
+  },
+  {
+   "path": "tests/concurrency/generated/tree-sum-032.rce",
+   "id": "concurrency/generated/tree-sum-032",
+   "area": "concurrency",
+   "clauses": [
+    "CH14-M-ca5a98d7",
+    "T18",
+    "HC-12",
+    "W-PAR-3"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 0
+  },
+  {
+   "path": "tests/concurrency/generated/tree-sum-033.rce",
+   "id": "concurrency/generated/tree-sum-033",
+   "area": "concurrency",
+   "clauses": [
+    "CH14-M-ca5a98d7",
+    "T18",
+    "HC-12",
+    "W-PAR-3"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 0
+  },
+  {
+   "path": "tests/concurrency/generated/tree-sum-034.rce",
+   "id": "concurrency/generated/tree-sum-034",
+   "area": "concurrency",
+   "clauses": [
+    "CH14-M-ca5a98d7",
+    "T18",
+    "HC-12",
+    "W-PAR-3"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 0
+  },
+  {
+   "path": "tests/concurrency/generated/tree-sum-035.rce",
+   "id": "concurrency/generated/tree-sum-035",
+   "area": "concurrency",
+   "clauses": [
+    "CH14-M-ca5a98d7",
+    "T18",
+    "HC-12",
+    "W-PAR-3"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 0
+  },
+  {
+   "path": "tests/concurrency/generated/tree-sum-036.rce",
+   "id": "concurrency/generated/tree-sum-036",
+   "area": "concurrency",
+   "clauses": [
+    "CH14-M-ca5a98d7",
+    "T18",
+    "HC-12",
+    "W-PAR-3"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 0
+  },
+  {
+   "path": "tests/concurrency/generated/tree-sum-037.rce",
+   "id": "concurrency/generated/tree-sum-037",
+   "area": "concurrency",
+   "clauses": [
+    "CH14-M-ca5a98d7",
+    "T18",
+    "HC-12",
+    "W-PAR-3"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 0
+  },
+  {
+   "path": "tests/concurrency/generated/tree-sum-038.rce",
+   "id": "concurrency/generated/tree-sum-038",
+   "area": "concurrency",
+   "clauses": [
+    "CH14-M-ca5a98d7",
+    "T18",
+    "HC-12",
+    "W-PAR-3"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 0
+  },
+  {
+   "path": "tests/concurrency/generated/tree-sum-039.rce",
+   "id": "concurrency/generated/tree-sum-039",
+   "area": "concurrency",
+   "clauses": [
+    "CH14-M-ca5a98d7",
+    "T18",
+    "HC-12",
+    "W-PAR-3"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 0
+  },
+  {
+   "path": "tests/concurrency/generated/tree-sum-040.rce",
+   "id": "concurrency/generated/tree-sum-040",
+   "area": "concurrency",
+   "clauses": [
+    "CH14-M-ca5a98d7",
+    "T18",
+    "HC-12",
+    "W-PAR-3"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 0
+  },
+  {
+   "path": "tests/concurrency/generated/tree-sum-063.rce",
+   "id": "concurrency/generated/tree-sum-063",
+   "area": "concurrency",
+   "clauses": [
+    "CH14-M-ca5a98d7",
+    "T18",
+    "HC-12",
+    "W-PAR-3"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 0
+  },
+  {
+   "path": "tests/concurrency/generated/tree-sum-064.rce",
+   "id": "concurrency/generated/tree-sum-064",
+   "area": "concurrency",
+   "clauses": [
+    "CH14-M-ca5a98d7",
+    "T18",
+    "HC-12",
+    "W-PAR-3"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 0
+  },
+  {
+   "path": "tests/concurrency/generated/tree-sum-065.rce",
+   "id": "concurrency/generated/tree-sum-065",
+   "area": "concurrency",
+   "clauses": [
+    "CH14-M-ca5a98d7",
+    "T18",
+    "HC-12",
+    "W-PAR-3"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 0
+  },
+  {
+   "path": "tests/concurrency/generated/tree-sum-100.rce",
+   "id": "concurrency/generated/tree-sum-100",
+   "area": "concurrency",
+   "clauses": [
+    "CH14-M-ca5a98d7",
+    "T18",
+    "HC-12",
+    "W-PAR-3"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 0
+  },
+  {
    "path": "tests/concurrency/harvested/01-par-branches-accept.rce",
    "id": "concurrency/harvested/01-par-branches-accept",
    "area": "concurrency",
@@ -1645,7 +2905,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 1
+   "ms": 2
   },
   {
    "path": "tests/concurrency/harvested/14-select-accept.rce",
@@ -2127,6 +3387,72 @@
    "ms": 0
   },
   {
+   "path": "tests/concurrency/harvested/w-ses-4-moved-in-loop-reject.rce",
+   "id": "concurrency/harvested/w-ses-4-moved-in-loop-reject",
+   "area": "concurrency",
+   "clauses": [
+    "W-SES-4"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 0
+  },
+  {
+   "path": "tests/concurrency/harvested/w-ses-4-moved-on-one-path-reject.rce",
+   "id": "concurrency/harvested/w-ses-4-moved-on-one-path-reject",
+   "area": "concurrency",
+   "clauses": [
+    "W-SES-4"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 0
+  },
+  {
+   "path": "tests/concurrency/harvested/w-ses-4-moved-twice-reject.rce",
+   "id": "concurrency/harvested/w-ses-4-moved-twice-reject",
+   "area": "concurrency",
+   "clauses": [
+    "W-SES-4"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 0
+  },
+  {
+   "path": "tests/concurrency/harvested/w-ses-4-send-after-close-reject.rce",
+   "id": "concurrency/harvested/w-ses-4-send-after-close-reject",
+   "area": "concurrency",
+   "clauses": [
+    "W-SES-4"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 0
+  },
+  {
+   "path": "tests/concurrency/harvested/w-ses-4-use-after-move-reject.rce",
+   "id": "concurrency/harvested/w-ses-4-use-after-move-reject",
+   "area": "concurrency",
+   "clauses": [
+    "W-SES-4"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 0
+  },
+  {
+   "path": "tests/concurrency/harvested/w-ses-4-use-after-send-reject.rce",
+   "id": "concurrency/harvested/w-ses-4-use-after-send-reject",
+   "area": "concurrency",
+   "clauses": [
+    "W-SES-4"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 0
+  },
+  {
    "path": "tests/concurrency/harvested/w-sup-1-bad-strategy-reject.rce",
    "id": "concurrency/harvested/w-sup-1-bad-strategy-reject",
    "area": "concurrency",
@@ -2247,7 +3573,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 1
+   "ms": 0
   },
   {
    "path": "tests/concurrency/targeted/w-atom-2-two-nodes.rce",
@@ -2574,7 +3900,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/evaluation-fuel/generated/fuel-ok-05-priority-spawn-main.rce",
@@ -2597,7 +3923,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/evaluation-fuel/generated/fuel-ok-08-run-main-main.rce",
@@ -2688,7 +4014,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 1
+   "ms": 0
   },
   {
    "path": "tests/evaluation-fuel/generated/fuel-trap-02-hello-main-main.rce",
@@ -3274,7 +4600,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 11
+   "ms": 13
   },
   {
    "path": "tests/evaluation-fuel/harvested/ok-evenodd-accept.rce",
@@ -3398,7 +4724,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 18
+   "ms": 20
   },
   {
    "path": "tests/evaluation-fuel/harvested/u64-underflow-reject.rce",
@@ -3456,7 +4782,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/evaluation-fuel/harvested/wrong-example-value-reject.rce",
@@ -3971,7 +5297,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/forms-log/harvested/51-refined-input-ex5-trace.rce",
@@ -4220,7 +5546,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 2
+   "ms": 0
   },
   {
    "path": "tests/forms-log/harvested/53-capability-ex7-trace.rce",
@@ -4453,7 +5779,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 1
+   "ms": 0
   },
   {
    "path": "tests/forms-log/harvested/57-float-vectors-ex11-trace.rce",
@@ -4533,7 +5859,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/forms-log/harvested/57-float-vectors-ex16-trace.rce",
@@ -4613,7 +5939,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/forms-log/harvested/57-float-vectors-ex21-trace.rce",
@@ -4661,7 +5987,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/forms-log/harvested/57-float-vectors-ex8-trace.rce",
@@ -4693,7 +6019,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 1
+   "ms": 0
   },
   {
    "path": "tests/forms-log/harvested/chan-ex4-trace.rce",
@@ -4725,7 +6051,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/forms-log/harvested/files-ex4-trace.rce",
@@ -5176,7 +6502,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/forms-log/harvested/golden-56-utf8-example-3.rce",
@@ -5274,7 +6600,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/forms-log/harvested/golden-57-float-vectors-example-14.rce",
@@ -5290,7 +6616,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/forms-log/harvested/golden-57-float-vectors-example-15.rce",
@@ -5306,7 +6632,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/forms-log/harvested/golden-57-float-vectors-example-16.rce",
@@ -5322,7 +6648,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/forms-log/harvested/golden-57-float-vectors-example-17.rce",
@@ -5370,7 +6696,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 1
+   "ms": 0
   },
   {
    "path": "tests/forms-log/harvested/golden-57-float-vectors-example-20.rce",
@@ -5434,7 +6760,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/forms-log/harvested/golden-57-float-vectors-example-8.rce",
@@ -5450,7 +6776,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 1
+   "ms": 0
   },
   {
    "path": "tests/forms-log/harvested/golden-57-float-vectors-example-9.rce",
@@ -5482,7 +6808,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 1
+   "ms": 0
   },
   {
    "path": "tests/forms-log/harvested/net-ex4-trace.rce",
@@ -5514,7 +6840,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 0
+   "ms": 2
   },
   {
    "path": "tests/forms-log/harvested/pty-ex4-trace.rce",
@@ -5530,7 +6856,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 0
+   "ms": 2
   },
   {
    "path": "tests/forms-log/harvested/records-ex4-trace.rce",
@@ -5620,7 +6946,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 125
+   "ms": 134
   },
   {
    "path": "tests/host-contract/generated/admit-order-7-001.rce",
@@ -5641,7 +6967,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 114
+   "ms": 153
   },
   {
    "path": "tests/host-contract/generated/admit-order-7-002.rce",
@@ -5662,7 +6988,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 105
+   "ms": 154
   },
   {
    "path": "tests/host-contract/generated/admit-order-7-003.rce",
@@ -5683,7 +7009,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 37
+   "ms": 122
   },
   {
    "path": "tests/host-contract/generated/admit-order-7-004.rce",
@@ -5704,7 +7030,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 59
+   "ms": 189
   },
   {
    "path": "tests/host-contract/generated/admit-order-7-005.rce",
@@ -5725,7 +7051,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 136
+   "ms": 130
   },
   {
    "path": "tests/host-contract/generated/admit-order-7-006.rce",
@@ -5746,7 +7072,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 132
+   "ms": 222
   },
   {
    "path": "tests/host-contract/generated/admit-order-7-007.rce",
@@ -5767,7 +7093,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 125
+   "ms": 203
   },
   {
    "path": "tests/host-contract/generated/admit-order-7-008.rce",
@@ -5788,7 +7114,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 170
+   "ms": 189
   },
   {
    "path": "tests/host-contract/generated/admit-order-7-009.rce",
@@ -5809,7 +7135,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 151
+   "ms": 209
   },
   {
    "path": "tests/host-contract/generated/admit-order-7-010.rce",
@@ -5830,7 +7156,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 159
+   "ms": 157
   },
   {
    "path": "tests/host-contract/generated/admit-order-7-011.rce",
@@ -5851,7 +7177,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 100
+   "ms": 189
   },
   {
    "path": "tests/host-contract/generated/admit-order-7-012.rce",
@@ -5872,7 +7198,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 120
+   "ms": 142
   },
   {
    "path": "tests/host-contract/generated/admit-order-7-013.rce",
@@ -5893,7 +7219,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 163
+   "ms": 170
   },
   {
    "path": "tests/host-contract/generated/admit-order-7-014.rce",
@@ -5914,7 +7240,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 146
+   "ms": 173
   },
   {
    "path": "tests/host-contract/generated/admit-order-7-015.rce",
@@ -5935,7 +7261,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 166
+   "ms": 154
   },
   {
    "path": "tests/host-contract/generated/admit-order-7-016.rce",
@@ -5956,7 +7282,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 109
+   "ms": 151
   },
   {
    "path": "tests/host-contract/generated/admit-order-7-017.rce",
@@ -5977,7 +7303,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 105
+   "ms": 154
   },
   {
    "path": "tests/host-contract/generated/admit-order-7-018.rce",
@@ -5998,7 +7324,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 113
+   "ms": 121
   },
   {
    "path": "tests/host-contract/generated/admit-order-7-019.rce",
@@ -6019,7 +7345,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 140
+   "ms": 121
   },
   {
    "path": "tests/host-contract/generated/admit-order-7-020.rce",
@@ -6040,7 +7366,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 138
+   "ms": 154
   },
   {
    "path": "tests/host-contract/generated/admit-order-7-021.rce",
@@ -6061,7 +7387,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 117
+   "ms": 120
   },
   {
    "path": "tests/host-contract/generated/admit-order-7-022.rce",
@@ -6082,7 +7408,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 133
+   "ms": 210
   },
   {
    "path": "tests/host-contract/generated/admit-order-7-023.rce",
@@ -6103,7 +7429,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 125
+   "ms": 194
   },
   {
    "path": "tests/host-contract/generated/admit-order-7-024.rce",
@@ -6124,7 +7450,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 85
+   "ms": 96
   },
   {
    "path": "tests/host-contract/generated/replicate-11-000.rce",
@@ -6158,7 +7484,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 1
+   "ms": 0
   },
   {
    "path": "tests/host-contract/generated/replicate-11-002.rce",
@@ -6273,7 +7599,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/host-contract/generated/replicate-11-009.rce",
@@ -6290,7 +7616,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/host-contract/generated/replicate-11-010.rce",
@@ -6469,7 +7795,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 0
+   "ms": 2
   },
   {
    "path": "tests/host-contract/generated/replicate-11-021.rce",
@@ -6773,7 +8099,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 1
+   "ms": 2
   },
   {
    "path": "tests/host-contract/harvested/net-accept.rce",
@@ -6803,7 +8129,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 3
+   "ms": 2
   },
   {
    "path": "tests/host-contract/harvested/priority-accept.rce",
@@ -6899,7 +8225,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/host-contract/harvested/ticked-accept.rce",
@@ -6948,7 +8274,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 59
+   "ms": 60
   },
   {
    "path": "tests/host-contract/targeted/hc-7a-fuel-per-input.rce",
@@ -6964,7 +8290,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 217
+   "ms": 480
   },
   {
    "path": "tests/host-contract/targeted/hc-8-t32-t37-replay-equals-live.rce",
@@ -6983,7 +8309,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 74
+   "ms": 72
   },
   {
    "path": "tests/host-contract/targeted/t38-torn-tail-keeps-prefix.rce",
@@ -7000,7 +8326,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 77
+   "ms": 29
   },
   {
    "path": "tests/lexing-parsing/generated/mut-bad-escape-02-par-for-reduce-accept.rce",
@@ -7156,7 +8482,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/lexing-parsing/generated/mut-bigint-04-scope-atomic-accept.rce",
@@ -8773,6 +10099,17 @@
    "ms": 0
   },
   {
+   "path": "tests/lexing-parsing/targeted/tuple-three-type-and-pattern.rce",
+   "id": "lexing-parsing/targeted/tuple-three-type-and-pattern",
+   "area": "lexing-parsing",
+   "clauses": [
+    "W-SYN-1"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 0
+  },
+  {
    "path": "tests/numbers/generated/num-1-0000.rce",
    "id": "numbers/generated/num-1-0000",
    "area": "numbers",
@@ -9975,7 +11312,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-1-0054.rce",
@@ -9997,7 +11334,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-1-0055.rce",
@@ -10372,7 +11709,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 0
+   "ms": 5
   },
   {
    "path": "tests/numbers/generated/num-1-0072.rce",
@@ -10394,7 +11731,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-1-0073.rce",
@@ -10774,7 +12111,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 0
+   "ms": 2
   },
   {
    "path": "tests/numbers/generated/num-1-0090.rce",
@@ -10796,7 +12133,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 0
+   "ms": 6
   },
   {
    "path": "tests/numbers/generated/num-1-0091.rce",
@@ -10952,7 +12289,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 1
+   "ms": 0
   },
   {
    "path": "tests/numbers/generated/num-1-0098.rce",
@@ -11129,7 +12466,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 14
+   "ms": 0
   },
   {
    "path": "tests/numbers/generated/num-1-0106.rce",
@@ -11306,7 +12643,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 8
+   "ms": 0
   },
   {
    "path": "tests/numbers/generated/num-1-0114.rce",
@@ -14213,7 +15550,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-1-0245.rce",
@@ -16476,7 +17813,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-2-0047.rce",
@@ -16498,7 +17835,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-2-0048.rce",
@@ -16921,7 +18258,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 0
+   "ms": 2
   },
   {
    "path": "tests/numbers/generated/num-2-0067.rce",
@@ -17634,7 +18971,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-2-0099.rce",
@@ -21215,7 +22552,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/numbers/generated/num-2-0260.rce",
@@ -33555,7 +34892,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 1775
+   "ms": 3077
   },
   {
    "path": "tests/numbers/harvested/50-iterators-accept.rce",
@@ -33711,7 +35048,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 10
+   "ms": 1
   },
   {
    "path": "tests/numbers/harvested/55-rcedb-ex5.rce",
@@ -33760,7 +35097,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 1
+   "ms": 0
   },
   {
    "path": "tests/numbers/harvested/57-float-vectors-accept.rce",
@@ -33920,7 +35257,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 1
+   "ms": 30
   },
   {
    "path": "tests/numbers/harvested/57-float-vectors-ex17.rce",
@@ -34271,7 +35608,7 @@
    ],
    "status": "fail",
    "detail": "expected diagnostic W-TY-3, got ['W-TY-1']",
-   "ms": 0
+   "ms": 14
   },
   {
    "path": "tests/numbers/targeted/n6-signed-zero-equal.rce",
@@ -34291,6 +35628,39 @@
     "T4",
     "T5",
     "T9"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 0
+  },
+  {
+   "path": "tests/numbers/targeted/shift-at-width-traps.rce",
+   "id": "numbers/targeted/shift-at-width-traps",
+   "area": "numbers",
+   "clauses": [
+    "N2"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 0
+  },
+  {
+   "path": "tests/numbers/targeted/shift-in-range.rce",
+   "id": "numbers/targeted/shift-in-range",
+   "area": "numbers",
+   "clauses": [
+    "N2"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 3
+  },
+  {
+   "path": "tests/numbers/targeted/shift-right-at-width-traps.rce",
+   "id": "numbers/targeted/shift-right-at-width-traps",
+   "area": "numbers",
+   "clauses": [
+    "N2"
    ],
    "status": "pass",
    "detail": "",
@@ -34454,7 +35824,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 0
+   "ms": 2
   },
   {
    "path": "tests/text-unicode/harvested/56-utf8-ex2.rce",
@@ -34492,7 +35862,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 1
+   "ms": 9
   },
   {
    "path": "tests/text-unicode/harvested/56-utf8-ex4.rce",
@@ -34511,7 +35881,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 1
+   "ms": 9
   },
   {
    "path": "tests/text-unicode/targeted/n7-ascii-case.rce",
@@ -34528,7 +35898,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 0
+   "ms": 41
   },
   {
    "path": "tests/text-unicode/targeted/n7-byte-len.rce",
@@ -34751,7 +36121,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 0
+   "ms": 1
   },
   {
    "path": "tests/types-checking/generated/mut-unknown-name-21-maps-accept.rce",
@@ -34763,7 +36133,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 0
+   "ms": 13
   },
   {
    "path": "tests/types-checking/generated/mut-unknown-name-32-comptime-block-accept.rce",
@@ -34799,7 +36169,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 1
+   "ms": 0
   },
   {
    "path": "tests/types-checking/generated/mut-unknown-name-47-select-fair-accept.rce",
@@ -34895,7 +36265,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 1
+   "ms": 0
   },
   {
    "path": "tests/types-checking/generated/mut-unsafe-06-option-accept.rce",
@@ -34955,7 +36325,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 0
+   "ms": 3
   },
   {
    "path": "tests/types-checking/generated/mut-unsafe-35-nested-if-accept.rce",
@@ -34967,7 +36337,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 0
+   "ms": 3
   },
   {
    "path": "tests/types-checking/generated/mut-unsafe-files-accept.rce",
@@ -34979,7 +36349,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 0
+   "ms": 15
   },
   {
    "path": "tests/types-checking/generated/mut-unsafe-foreign-accept.rce",
@@ -35160,7 +36530,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 2
+   "ms": 6
   },
   {
    "path": "tests/types-checking/harvested/hpke-rce-reject.rce",
@@ -35184,7 +36554,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 1
+   "ms": 0
   },
   {
    "path": "tests/types-checking/harvested/iter-yield-type-reject.rce",
@@ -35196,7 +36566,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 0
+   "ms": 22
   },
   {
    "path": "tests/types-checking/harvested/linear-copy-reject.rce",
@@ -35380,7 +36750,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 4
+   "ms": 0
   },
   {
    "path": "tests/types-checking/harvested/state-no-init-reject.rce",
@@ -35416,7 +36786,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 2
+   "ms": 4
   },
   {
    "path": "tests/types-checking/harvested/u64-mixed-reject.rce",
@@ -35584,7 +36954,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 1
+   "ms": 0
   },
   {
    "path": "tests/types-checking/targeted/borrow-cannot-be-returned.rce",
@@ -35632,7 +37002,7 @@
    ],
    "status": "pass",
    "detail": "",
-   "ms": 71
+   "ms": 97
   },
   {
    "path": "tests/types-checking/targeted/w-match-2-unreachable.rce",
@@ -35669,7 +37039,7 @@
    ],
    "status": "fail",
    "detail": "adapter: adapter closed its output",
-   "ms": 32
+   "ms": 46
   },
   {
    "path": "tests/types-checking/targeted/w-mod-3-clash.rce",
@@ -35678,6 +37048,17 @@
    "clauses": [
     "CH09-M-82e65964",
     "W-MOD-3"
+   ],
+   "status": "pass",
+   "detail": "",
+   "ms": 0
+  },
+  {
+   "path": "tests/types-checking/targeted/w-name-1-unknown-module.rce",
+   "id": "types-checking/targeted/w-name-1-unknown-module",
+   "area": "types-checking",
+   "clauses": [
+    "W-NAME-1"
    ],
    "status": "pass",
    "detail": "",
@@ -35767,7 +37148,7 @@
    ],
    "status": "fail",
    "detail": "expected reject, got accept: []",
-   "ms": 2
+   "ms": 0
   },
   {
    "path": "tests/types-checking/targeted/w-trait-3-eq-without-trait.rce",

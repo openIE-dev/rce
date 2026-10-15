@@ -1,20 +1,20 @@
 {
  "format": "rce-coverage/1",
- "clauses": 204,
- "covered": 204,
+ "clauses": 206,
+ "covered": 206,
  "percent": 100.0,
  "tests_by_area": {
-  "concurrency": 147,
+  "concurrency": 243,
   "effects-capabilities": 19,
   "evaluation-fuel": 68,
   "forms-log": 123,
   "host-contract": 79,
-  "lexing-parsing": 132,
-  "numbers": 1165,
+  "lexing-parsing": 133,
+  "numbers": 1168,
   "text-unicode": 12,
-  "types-checking": 100
+  "types-checking": 101
  },
- "tests_total": 1845,
+ "tests_total": 1946,
  "per_clause": [
   {
    "id": "CH00-M-61b6ac06",
@@ -23,8 +23,7 @@
    "line": 3,
    "tests": 1344,
    "reference": {
-    "pass": 1330,
-    "fail": 14
+    "not-run": 1344
    }
   },
   {
@@ -34,7 +33,7 @@
    "line": 99,
    "tests": 53,
    "reference": {
-    "pass": 53
+    "not-run": 53
    }
   },
   {
@@ -44,7 +43,7 @@
    "line": 120,
    "tests": 19,
    "reference": {
-    "pass": 19
+    "not-run": 19
    }
   },
   {
@@ -54,7 +53,7 @@
    "line": 242,
    "tests": 1,
    "reference": {
-    "pass": 1
+    "not-run": 1
    }
   },
   {
@@ -64,7 +63,7 @@
    "line": 245,
    "tests": 1,
    "reference": {
-    "pass": 1
+    "not-run": 1
    }
   },
   {
@@ -74,7 +73,7 @@
    "line": 249,
    "tests": 2,
    "reference": {
-    "pass": 2
+    "not-run": 2
    }
   },
   {
@@ -84,7 +83,7 @@
    "line": 251,
    "tests": 1,
    "reference": {
-    "pass": 1
+    "not-run": 1
    }
   },
   {
@@ -94,7 +93,7 @@
    "line": 253,
    "tests": 1,
    "reference": {
-    "fail": 1
+    "not-run": 1
    }
   },
   {
@@ -104,7 +103,7 @@
    "line": 256,
    "tests": 1,
    "reference": {
-    "pass": 1
+    "not-run": 1
    }
   },
   {
@@ -114,7 +113,7 @@
    "line": 259,
    "tests": 1,
    "reference": {
-    "pass": 1
+    "not-run": 1
    }
   },
   {
@@ -124,7 +123,7 @@
    "line": 262,
    "tests": 1,
    "reference": {
-    "pass": 1
+    "not-run": 1
    }
   },
   {
@@ -134,7 +133,7 @@
    "line": 266,
    "tests": 1,
    "reference": {
-    "pass": 1
+    "not-run": 1
    }
   },
   {
@@ -144,7 +143,7 @@
    "line": 289,
    "tests": 136,
    "reference": {
-    "pass": 136
+    "not-run": 136
    }
   },
   {
@@ -154,7 +153,7 @@
    "line": 10,
    "tests": 1,
    "reference": {
-    "pass": 1
+    "not-run": 1
    }
   },
   {
@@ -164,8 +163,7 @@
    "line": 45,
    "tests": 18,
    "reference": {
-    "pass": 17,
-    "fail": 1
+    "not-run": 18
    }
   },
   {
@@ -175,8 +173,7 @@
    "line": 167,
    "tests": 1136,
    "reference": {
-    "pass": 1123,
-    "fail": 13
+    "not-run": 1136
    }
   },
   {
@@ -186,7 +183,7 @@
    "line": 229,
    "tests": 15,
    "reference": {
-    "pass": 15
+    "not-run": 15
    }
   },
   {
@@ -196,7 +193,7 @@
    "line": 268,
    "tests": 1,
    "reference": {
-    "pass": 1
+    "not-run": 1
    }
   },
   {
@@ -206,7 +203,7 @@
    "line": 36,
    "tests": 17,
    "reference": {
-    "pass": 17
+    "not-run": 17
    }
   },
   {
@@ -216,8 +213,7 @@
    "line": 51,
    "tests": 4,
    "reference": {
-    "pass": 3,
-    "fail": 1
+    "not-run": 4
    }
   },
   {
@@ -227,7 +223,7 @@
    "line": 51,
    "tests": 3,
    "reference": {
-    "pass": 3
+    "not-run": 3
    }
   },
   {
@@ -237,7 +233,7 @@
    "line": 106,
    "tests": 2,
    "reference": {
-    "pass": 2
+    "not-run": 2
    }
   },
   {
@@ -247,17 +243,17 @@
    "line": 106,
    "tests": 2,
    "reference": {
-    "pass": 2
+    "not-run": 2
    }
   },
   {
    "id": "CH06-M-7c164794",
    "kind": "modal",
    "chapter": "06-regions-effects-extensions.md",
-   "line": 281,
+   "line": 285,
    "tests": 1,
    "reference": {
-    "pass": 1
+    "not-run": 1
    }
   },
   {
@@ -267,8 +263,7 @@
    "line": 3,
    "tests": 1344,
    "reference": {
-    "pass": 1330,
-    "fail": 14
+    "not-run": 1344
    }
   },
   {
@@ -278,7 +273,7 @@
    "line": 34,
    "tests": 102,
    "reference": {
-    "pass": 102
+    "not-run": 102
    }
   },
   {
@@ -288,8 +283,7 @@
    "line": 154,
    "tests": 1136,
    "reference": {
-    "pass": 1124,
-    "fail": 12
+    "not-run": 1136
    }
   },
   {
@@ -297,9 +291,9 @@
    "kind": "rule",
    "chapter": "07-form-evaluation.md",
    "line": 165,
-   "tests": 552,
+   "tests": 555,
    "reference": {
-    "pass": 552
+    "not-run": 555
    }
   },
   {
@@ -309,8 +303,7 @@
    "line": 184,
    "tests": 1135,
    "reference": {
-    "pass": 1123,
-    "fail": 12
+    "not-run": 1135
    }
   },
   {
@@ -320,7 +313,7 @@
    "line": 189,
    "tests": 204,
    "reference": {
-    "pass": 204
+    "not-run": 204
    }
   },
   {
@@ -330,7 +323,7 @@
    "line": 196,
    "tests": 81,
    "reference": {
-    "pass": 81
+    "not-run": 81
    }
   },
   {
@@ -340,7 +333,7 @@
    "line": 207,
    "tests": 30,
    "reference": {
-    "pass": 30
+    "not-run": 30
    }
   },
   {
@@ -350,7 +343,7 @@
    "line": 212,
    "tests": 86,
    "reference": {
-    "pass": 86
+    "not-run": 86
    }
   },
   {
@@ -360,7 +353,7 @@
    "line": 227,
    "tests": 2,
    "reference": {
-    "pass": 2
+    "not-run": 2
    }
   },
   {
@@ -370,8 +363,7 @@
    "line": 235,
    "tests": 4,
    "reference": {
-    "pass": 3,
-    "fail": 1
+    "not-run": 4
    }
   },
   {
@@ -381,8 +373,7 @@
    "line": 245,
    "tests": 1135,
    "reference": {
-    "pass": 1123,
-    "fail": 12
+    "not-run": 1135
    }
   },
   {
@@ -392,7 +383,7 @@
    "line": 248,
    "tests": 170,
    "reference": {
-    "pass": 170
+    "not-run": 170
    }
   },
   {
@@ -402,92 +393,87 @@
    "line": 252,
    "tests": 1135,
    "reference": {
-    "pass": 1123,
-    "fail": 12
+    "not-run": 1135
    }
   },
   {
    "id": "N4",
    "kind": "rule",
    "chapter": "07-form-evaluation.md",
-   "line": 276,
+   "line": 277,
    "tests": 44,
    "reference": {
-    "fail": 12,
-    "pass": 32
+    "not-run": 44
    }
   },
   {
    "id": "N5",
    "kind": "rule",
    "chapter": "07-form-evaluation.md",
-   "line": 280,
+   "line": 281,
    "tests": 191,
    "reference": {
-    "pass": 191
+    "not-run": 191
    }
   },
   {
    "id": "N6",
    "kind": "rule",
    "chapter": "07-form-evaluation.md",
-   "line": 282,
+   "line": 283,
    "tests": 2,
    "reference": {
-    "fail": 1,
-    "pass": 1
+    "not-run": 2
    }
   },
   {
    "id": "N7",
    "kind": "rule",
    "chapter": "07-form-evaluation.md",
-   "line": 286,
+   "line": 287,
    "tests": 20,
    "reference": {
-    "pass": 19,
-    "fail": 1
+    "not-run": 20
    }
   },
   {
    "id": "N8",
    "kind": "rule",
    "chapter": "07-form-evaluation.md",
-   "line": 307,
+   "line": 308,
    "tests": 88,
    "reference": {
-    "pass": 87,
-    "fail": 1
+    "not-run": 88
    }
   },
   {
    "id": "N9",
    "kind": "rule",
    "chapter": "07-form-evaluation.md",
-   "line": 314,
+   "line": 315,
    "tests": 1,
    "reference": {
-    "fail": 1
+    "not-run": 1
    }
   },
   {
    "id": "N10",
    "kind": "rule",
    "chapter": "07-form-evaluation.md",
-   "line": 318,
+   "line": 319,
    "tests": 12,
    "reference": {
-    "pass": 12
+    "not-run": 12
    }
   },
   {
    "id": "N11",
    "kind": "rule",
    "chapter": "07-form-evaluation.md",
-   "line": 320,
+   "line": 321,
    "tests": 3,
    "reference": {
-    "pass": 3
+    "not-run": 3
    }
   },
   {
@@ -497,7 +483,7 @@
    "line": 90,
    "tests": 10,
    "reference": {
-    "pass": 10
+    "not-run": 10
    }
   },
   {
@@ -507,7 +493,7 @@
    "line": 90,
    "tests": 10,
    "reference": {
-    "pass": 10
+    "not-run": 10
    }
   },
   {
@@ -517,7 +503,7 @@
    "line": 204,
    "tests": 4,
    "reference": {
-    "pass": 4
+    "not-run": 4
    }
   },
   {
@@ -527,7 +513,7 @@
    "line": 211,
    "tests": 21,
    "reference": {
-    "pass": 21
+    "not-run": 21
    }
   },
   {
@@ -537,8 +523,7 @@
    "line": 3,
    "tests": 351,
    "reference": {
-    "pass": 345,
-    "fail": 6
+    "not-run": 351
    }
   },
   {
@@ -548,7 +533,7 @@
    "line": 11,
    "tests": 36,
    "reference": {
-    "pass": 36
+    "not-run": 36
    }
   },
   {
@@ -558,7 +543,7 @@
    "line": 12,
    "tests": 7,
    "reference": {
-    "pass": 7
+    "not-run": 7
    }
   },
   {
@@ -568,7 +553,7 @@
    "line": 13,
    "tests": 25,
    "reference": {
-    "pass": 25
+    "not-run": 25
    }
   },
   {
@@ -576,9 +561,9 @@
    "kind": "rule",
    "chapter": "09-wellformedness.md",
    "line": 14,
-   "tests": 40,
+   "tests": 41,
    "reference": {
-    "pass": 40
+    "not-run": 41
    }
   },
   {
@@ -588,7 +573,7 @@
    "line": 15,
    "tests": 12,
    "reference": {
-    "pass": 12
+    "not-run": 12
    }
   },
   {
@@ -596,9 +581,9 @@
    "kind": "rule",
    "chapter": "09-wellformedness.md",
    "line": 19,
-   "tests": 26,
+   "tests": 27,
    "reference": {
-    "pass": 26
+    "not-run": 27
    }
   },
   {
@@ -608,7 +593,7 @@
    "line": 20,
    "tests": 13,
    "reference": {
-    "pass": 13
+    "not-run": 13
    }
   },
   {
@@ -618,7 +603,7 @@
    "line": 22,
    "tests": 1,
    "reference": {
-    "pass": 1
+    "not-run": 1
    }
   },
   {
@@ -628,7 +613,7 @@
    "line": 22,
    "tests": 1,
    "reference": {
-    "fail": 1
+    "not-run": 1
    }
   },
   {
@@ -638,7 +623,7 @@
    "line": 25,
    "tests": 1,
    "reference": {
-    "pass": 1
+    "not-run": 1
    }
   },
   {
@@ -648,7 +633,7 @@
    "line": 28,
    "tests": 13,
    "reference": {
-    "pass": 13
+    "not-run": 13
    }
   },
   {
@@ -658,7 +643,7 @@
    "line": 31,
    "tests": 3,
    "reference": {
-    "pass": 3
+    "not-run": 3
    }
   },
   {
@@ -668,7 +653,7 @@
    "line": 36,
    "tests": 14,
    "reference": {
-    "pass": 14
+    "not-run": 14
    }
   },
   {
@@ -678,7 +663,7 @@
    "line": 37,
    "tests": 2,
    "reference": {
-    "pass": 2
+    "not-run": 2
    }
   },
   {
@@ -688,7 +673,7 @@
    "line": 39,
    "tests": 3,
    "reference": {
-    "fail": 3
+    "not-run": 3
    }
   },
   {
@@ -698,7 +683,7 @@
    "line": 40,
    "tests": 2,
    "reference": {
-    "pass": 2
+    "not-run": 2
    }
   },
   {
@@ -708,7 +693,7 @@
    "line": 41,
    "tests": 1,
    "reference": {
-    "pass": 1
+    "not-run": 1
    }
   },
   {
@@ -718,7 +703,7 @@
    "line": 41,
    "tests": 1,
    "reference": {
-    "pass": 1
+    "not-run": 1
    }
   },
   {
@@ -728,7 +713,7 @@
    "line": 46,
    "tests": 1,
    "reference": {
-    "pass": 1
+    "not-run": 1
    }
   },
   {
@@ -738,7 +723,7 @@
    "line": 49,
    "tests": 2,
    "reference": {
-    "pass": 2
+    "not-run": 2
    }
   },
   {
@@ -748,7 +733,7 @@
    "line": 52,
    "tests": 1,
    "reference": {
-    "pass": 1
+    "not-run": 1
    }
   },
   {
@@ -758,7 +743,7 @@
    "line": 52,
    "tests": 1,
    "reference": {
-    "pass": 1
+    "not-run": 1
    }
   },
   {
@@ -768,7 +753,7 @@
    "line": 52,
    "tests": 1,
    "reference": {
-    "fail": 1
+    "not-run": 1
    }
   },
   {
@@ -778,7 +763,7 @@
    "line": 54,
    "tests": 1,
    "reference": {
-    "pass": 1
+    "not-run": 1
    }
   },
   {
@@ -788,7 +773,7 @@
    "line": 59,
    "tests": 2,
    "reference": {
-    "pass": 2
+    "not-run": 2
    }
   },
   {
@@ -798,7 +783,7 @@
    "line": 62,
    "tests": 9,
    "reference": {
-    "pass": 9
+    "not-run": 9
    }
   },
   {
@@ -808,7 +793,7 @@
    "line": 69,
    "tests": 3,
    "reference": {
-    "pass": 3
+    "not-run": 3
    }
   },
   {
@@ -818,7 +803,7 @@
    "line": 71,
    "tests": 13,
    "reference": {
-    "pass": 13
+    "not-run": 13
    }
   },
   {
@@ -828,7 +813,7 @@
    "line": 72,
    "tests": 2,
    "reference": {
-    "pass": 2
+    "not-run": 2
    }
   },
   {
@@ -838,7 +823,7 @@
    "line": 74,
    "tests": 6,
    "reference": {
-    "pass": 6
+    "not-run": 6
    }
   },
   {
@@ -848,7 +833,7 @@
    "line": 77,
    "tests": 3,
    "reference": {
-    "pass": 3
+    "not-run": 3
    }
   },
   {
@@ -858,7 +843,7 @@
    "line": 80,
    "tests": 3,
    "reference": {
-    "pass": 3
+    "not-run": 3
    }
   },
   {
@@ -868,7 +853,7 @@
    "line": 83,
    "tests": 1,
    "reference": {
-    "pass": 1
+    "not-run": 1
    }
   },
   {
@@ -878,7 +863,7 @@
    "line": 88,
    "tests": 1,
    "reference": {
-    "pass": 1
+    "not-run": 1
    }
   },
   {
@@ -888,7 +873,7 @@
    "line": 90,
    "tests": 1,
    "reference": {
-    "fail": 1
+    "not-run": 1
    }
   },
   {
@@ -898,7 +883,7 @@
    "line": 90,
    "tests": 1,
    "reference": {
-    "pass": 1
+    "not-run": 1
    }
   },
   {
@@ -908,7 +893,7 @@
    "line": 90,
    "tests": 1,
    "reference": {
-    "pass": 1
+    "not-run": 1
    }
   },
   {
@@ -918,7 +903,7 @@
    "line": 95,
    "tests": 1,
    "reference": {
-    "pass": 1
+    "not-run": 1
    }
   },
   {
@@ -928,7 +913,7 @@
    "line": 98,
    "tests": 2,
    "reference": {
-    "pass": 2
+    "not-run": 2
    }
   },
   {
@@ -938,7 +923,7 @@
    "line": 101,
    "tests": 1,
    "reference": {
-    "pass": 1
+    "not-run": 1
    }
   },
   {
@@ -948,7 +933,7 @@
    "line": 104,
    "tests": 1,
    "reference": {
-    "pass": 1
+    "not-run": 1
    }
   },
   {
@@ -958,8 +943,7 @@
    "line": 29,
    "tests": 1344,
    "reference": {
-    "pass": 1330,
-    "fail": 14
+    "not-run": 1344
    }
   },
   {
@@ -969,7 +953,7 @@
    "line": 30,
    "tests": 14,
    "reference": {
-    "pass": 14
+    "not-run": 14
    }
   },
   {
@@ -979,7 +963,7 @@
    "line": 31,
    "tests": 103,
    "reference": {
-    "pass": 103
+    "not-run": 103
    }
   },
   {
@@ -989,8 +973,7 @@
    "line": 32,
    "tests": 1242,
    "reference": {
-    "pass": 1228,
-    "fail": 14
+    "not-run": 1242
    }
   },
   {
@@ -1000,8 +983,7 @@
    "line": 33,
    "tests": 1344,
    "reference": {
-    "pass": 1330,
-    "fail": 14
+    "not-run": 1344
    }
   },
   {
@@ -1011,7 +993,7 @@
    "line": 34,
    "tests": 29,
    "reference": {
-    "pass": 29
+    "not-run": 29
    }
   },
   {
@@ -1021,7 +1003,7 @@
    "line": 35,
    "tests": 7,
    "reference": {
-    "pass": 7
+    "not-run": 7
    }
   },
   {
@@ -1031,7 +1013,7 @@
    "line": 36,
    "tests": 45,
    "reference": {
-    "pass": 45
+    "not-run": 45
    }
   },
   {
@@ -1041,8 +1023,7 @@
    "line": 37,
    "tests": 1242,
    "reference": {
-    "pass": 1228,
-    "fail": 14
+    "not-run": 1242
    }
   },
   {
@@ -1052,7 +1033,7 @@
    "line": 38,
    "tests": 143,
    "reference": {
-    "pass": 143
+    "not-run": 143
    }
   },
   {
@@ -1062,7 +1043,7 @@
    "line": 39,
    "tests": 3,
    "reference": {
-    "pass": 3
+    "not-run": 3
    }
   },
   {
@@ -1072,7 +1053,7 @@
    "line": 40,
    "tests": 2,
    "reference": {
-    "pass": 2
+    "not-run": 2
    }
   },
   {
@@ -1082,7 +1063,7 @@
    "line": 41,
    "tests": 2,
    "reference": {
-    "pass": 2
+    "not-run": 2
    }
   },
   {
@@ -1092,7 +1073,7 @@
    "line": 42,
    "tests": 2,
    "reference": {
-    "pass": 2
+    "not-run": 2
    }
   },
   {
@@ -1102,7 +1083,7 @@
    "line": 43,
    "tests": 1,
    "reference": {
-    "pass": 1
+    "not-run": 1
    }
   },
   {
@@ -1112,7 +1093,7 @@
    "line": 44,
    "tests": 3,
    "reference": {
-    "pass": 3
+    "not-run": 3
    }
   },
   {
@@ -1122,7 +1103,7 @@
    "line": 45,
    "tests": 4,
    "reference": {
-    "pass": 4
+    "not-run": 4
    }
   },
   {
@@ -1132,7 +1113,7 @@
    "line": 46,
    "tests": 2,
    "reference": {
-    "pass": 2
+    "not-run": 2
    }
   },
   {
@@ -1142,7 +1123,7 @@
    "line": 47,
    "tests": 1,
    "reference": {
-    "pass": 1
+    "not-run": 1
    }
   },
   {
@@ -1152,7 +1133,7 @@
    "line": 48,
    "tests": 1,
    "reference": {
-    "pass": 1
+    "not-run": 1
    }
   },
   {
@@ -1162,7 +1143,7 @@
    "line": 49,
    "tests": 1,
    "reference": {
-    "pass": 1
+    "not-run": 1
    }
   },
   {
@@ -1172,7 +1153,7 @@
    "line": 50,
    "tests": 22,
    "reference": {
-    "pass": 22
+    "not-run": 22
    }
   },
   {
@@ -1182,7 +1163,7 @@
    "line": 51,
    "tests": 25,
    "reference": {
-    "pass": 25
+    "not-run": 25
    }
   },
   {
@@ -1192,7 +1173,7 @@
    "line": 52,
    "tests": 30,
    "reference": {
-    "pass": 30
+    "not-run": 30
    }
   },
   {
@@ -1202,7 +1183,7 @@
    "line": 53,
    "tests": 2,
    "reference": {
-    "pass": 2
+    "not-run": 2
    }
   },
   {
@@ -1212,7 +1193,7 @@
    "line": 29,
    "tests": 11,
    "reference": {
-    "pass": 11
+    "not-run": 11
    }
   },
   {
@@ -1222,7 +1203,7 @@
    "line": 132,
    "tests": 1,
    "reference": {
-    "pass": 1
+    "not-run": 1
    }
   },
   {
@@ -1232,7 +1213,7 @@
    "line": 134,
    "tests": 1,
    "reference": {
-    "pass": 1
+    "not-run": 1
    }
   },
   {
@@ -1242,7 +1223,7 @@
    "line": 137,
    "tests": 2,
    "reference": {
-    "pass": 2
+    "not-run": 2
    }
   },
   {
@@ -1252,7 +1233,7 @@
    "line": 140,
    "tests": 1,
    "reference": {
-    "pass": 1
+    "not-run": 1
    }
   },
   {
@@ -1262,7 +1243,7 @@
    "line": 141,
    "tests": 1,
    "reference": {
-    "pass": 1
+    "not-run": 1
    }
   },
   {
@@ -1272,7 +1253,7 @@
    "line": 242,
    "tests": 1,
    "reference": {
-    "pass": 1
+    "not-run": 1
    }
   },
   {
@@ -1282,7 +1263,7 @@
    "line": 103,
    "tests": 83,
    "reference": {
-    "pass": 83
+    "not-run": 83
    }
   },
   {
@@ -1292,7 +1273,7 @@
    "line": 105,
    "tests": 2,
    "reference": {
-    "pass": 2
+    "not-run": 2
    }
   },
   {
@@ -1302,7 +1283,7 @@
    "line": 144,
    "tests": 42,
    "reference": {
-    "pass": 42
+    "not-run": 42
    }
   },
   {
@@ -1312,387 +1293,397 @@
    "line": 174,
    "tests": 1,
    "reference": {
-    "pass": 1
+    "not-run": 1
    }
   },
   {
    "id": "W-DL-1",
    "kind": "rule",
    "chapter": "14-draft06-concurrency.md",
-   "line": 189,
+   "line": 196,
    "tests": 1,
    "reference": {
-    "pass": 1
+    "not-run": 1
    }
   },
   {
    "id": "W-ND-1",
    "kind": "rule",
    "chapter": "14-draft06-concurrency.md",
-   "line": 193,
+   "line": 200,
    "tests": 1,
    "reference": {
-    "pass": 1
+    "not-run": 1
    }
   },
   {
    "id": "CH14-M-6d53e2af",
    "kind": "modal",
    "chapter": "14-draft06-concurrency.md",
-   "line": 239,
+   "line": 246,
    "tests": 1,
    "reference": {
-    "pass": 1
+    "not-run": 1
    }
   },
   {
    "id": "W-PAR-3",
    "kind": "rule",
    "chapter": "14-draft06-concurrency.md",
-   "line": 281,
-   "tests": 3,
+   "line": 288,
+   "tests": 93,
    "reference": {
-    "pass": 3
+    "not-run": 93
    }
   },
   {
    "id": "W-PAR-4",
    "kind": "rule",
    "chapter": "14-draft06-concurrency.md",
-   "line": 284,
+   "line": 291,
    "tests": 2,
    "reference": {
-    "pass": 2
+    "not-run": 2
+   }
+  },
+  {
+   "id": "CH14-M-ca5a98d7",
+   "kind": "modal",
+   "chapter": "14-draft06-concurrency.md",
+   "line": 293,
+   "tests": 90,
+   "reference": {
+    "not-run": 90
    }
   },
   {
    "id": "W-GRP-1",
    "kind": "rule",
    "chapter": "14-draft06-concurrency.md",
-   "line": 291,
+   "line": 320,
    "tests": 1,
    "reference": {
-    "pass": 1
+    "not-run": 1
    }
   },
   {
    "id": "W-GRP-2",
    "kind": "rule",
    "chapter": "14-draft06-concurrency.md",
-   "line": 291,
+   "line": 320,
    "tests": 1,
    "reference": {
-    "pass": 1
+    "not-run": 1
    }
   },
   {
    "id": "W-GRP-3",
    "kind": "rule",
    "chapter": "14-draft06-concurrency.md",
-   "line": 291,
+   "line": 320,
    "tests": 2,
    "reference": {
-    "pass": 2
+    "not-run": 2
    }
   },
   {
    "id": "W-SES-1",
    "kind": "rule",
    "chapter": "14-draft06-concurrency.md",
-   "line": 296,
+   "line": 325,
    "tests": 4,
    "reference": {
-    "pass": 4
+    "not-run": 4
    }
   },
   {
    "id": "W-SES-2",
    "kind": "rule",
    "chapter": "14-draft06-concurrency.md",
-   "line": 296,
+   "line": 325,
    "tests": 1,
    "reference": {
-    "pass": 1
+    "not-run": 1
    }
   },
   {
    "id": "W-SES-3",
    "kind": "rule",
    "chapter": "14-draft06-concurrency.md",
-   "line": 296,
+   "line": 325,
    "tests": 1,
    "reference": {
-    "pass": 1
+    "not-run": 1
    }
   },
   {
    "id": "CH14-M-9202f003",
    "kind": "modal",
    "chapter": "14-draft06-concurrency.md",
-   "line": 304,
+   "line": 349,
    "tests": 2,
    "reference": {
-    "pass": 2
+    "not-run": 2
    }
   },
   {
    "id": "W-LVAR-1",
    "kind": "rule",
    "chapter": "14-draft06-concurrency.md",
-   "line": 335,
+   "line": 406,
    "tests": 1,
    "reference": {
-    "pass": 1
+    "not-run": 1
    }
   },
   {
    "id": "W-LVAR-2",
    "kind": "rule",
    "chapter": "14-draft06-concurrency.md",
-   "line": 335,
+   "line": 406,
    "tests": 1,
    "reference": {
-    "pass": 1
+    "not-run": 1
    }
   },
   {
    "id": "W-ATOM-1",
    "kind": "rule",
    "chapter": "14-draft06-concurrency.md",
-   "line": 400,
+   "line": 471,
    "tests": 1,
    "reference": {
-    "pass": 1
+    "not-run": 1
    }
   },
   {
    "id": "W-ATOM-2",
    "kind": "rule",
    "chapter": "14-draft06-concurrency.md",
-   "line": 400,
+   "line": 471,
    "tests": 1,
    "reference": {
-    "pass": 1
+    "not-run": 1
    }
   },
   {
    "id": "W-NODE-1",
    "kind": "rule",
    "chapter": "14-draft06-concurrency.md",
-   "line": 403,
+   "line": 474,
    "tests": 1,
    "reference": {
-    "pass": 1
+    "not-run": 1
    }
   },
   {
    "id": "T16",
    "kind": "theorem",
    "chapter": "14-draft06-concurrency.md",
-   "line": 479,
+   "line": 557,
    "tests": 42,
    "reference": {
-    "pass": 42
+    "not-run": 42
    }
   },
   {
    "id": "T17",
    "kind": "theorem",
    "chapter": "14-draft06-concurrency.md",
-   "line": 480,
+   "line": 558,
    "tests": 42,
    "reference": {
-    "pass": 42
+    "not-run": 42
    }
   },
   {
    "id": "T18",
    "kind": "theorem",
    "chapter": "14-draft06-concurrency.md",
-   "line": 481,
-   "tests": 2,
+   "line": 559,
+   "tests": 92,
    "reference": {
-    "pass": 2
+    "not-run": 92
    }
   },
   {
    "id": "T19a",
    "kind": "theorem",
    "chapter": "14-draft06-concurrency.md",
-   "line": 482,
+   "line": 560,
    "tests": 44,
    "reference": {
-    "pass": 44
+    "not-run": 44
    }
   },
   {
    "id": "T19b",
    "kind": "theorem",
    "chapter": "14-draft06-concurrency.md",
-   "line": 483,
+   "line": 561,
    "tests": 10,
    "reference": {
-    "pass": 10
+    "not-run": 10
    }
   },
   {
    "id": "T20",
    "kind": "theorem",
    "chapter": "14-draft06-concurrency.md",
-   "line": 484,
+   "line": 562,
    "tests": 1,
    "reference": {
-    "pass": 1
+    "not-run": 1
    }
   },
   {
    "id": "T21",
    "kind": "theorem",
    "chapter": "14-draft06-concurrency.md",
-   "line": 485,
+   "line": 563,
    "tests": 1,
    "reference": {
-    "pass": 1
+    "not-run": 1
    }
   },
   {
    "id": "T22",
    "kind": "theorem",
    "chapter": "14-draft06-concurrency.md",
-   "line": 486,
+   "line": 564,
    "tests": 2,
    "reference": {
-    "pass": 2
+    "not-run": 2
    }
   },
   {
    "id": "T23",
    "kind": "theorem",
    "chapter": "14-draft06-concurrency.md",
-   "line": 487,
+   "line": 565,
    "tests": 1,
    "reference": {
-    "pass": 1
+    "not-run": 1
    }
   },
   {
    "id": "T24",
    "kind": "theorem",
    "chapter": "14-draft06-concurrency.md",
-   "line": 488,
+   "line": 566,
    "tests": 10,
    "reference": {
-    "pass": 10
+    "not-run": 10
    }
   },
   {
    "id": "T25",
    "kind": "theorem",
    "chapter": "14-draft06-concurrency.md",
-   "line": 489,
+   "line": 567,
    "tests": 25,
    "reference": {
-    "pass": 25
+    "not-run": 25
    }
   },
   {
    "id": "T26",
    "kind": "theorem",
    "chapter": "14-draft06-concurrency.md",
-   "line": 490,
+   "line": 568,
    "tests": 3,
    "reference": {
-    "pass": 3
+    "not-run": 3
    }
   },
   {
    "id": "T27",
    "kind": "theorem",
    "chapter": "14-draft06-concurrency.md",
-   "line": 491,
+   "line": 569,
    "tests": 3,
    "reference": {
-    "pass": 3
+    "not-run": 3
    }
   },
   {
    "id": "T28",
    "kind": "theorem",
    "chapter": "14-draft06-concurrency.md",
-   "line": 492,
+   "line": 570,
    "tests": 3,
    "reference": {
-    "pass": 3
+    "not-run": 3
    }
   },
   {
    "id": "T29",
    "kind": "theorem",
    "chapter": "14-draft06-concurrency.md",
-   "line": 493,
+   "line": 571,
    "tests": 1,
    "reference": {
-    "pass": 1
+    "not-run": 1
    }
   },
   {
    "id": "T29q",
    "kind": "theorem",
    "chapter": "14-draft06-concurrency.md",
-   "line": 494,
+   "line": 572,
    "tests": 1,
    "reference": {
-    "pass": 1
+    "not-run": 1
    }
   },
   {
    "id": "T29s",
    "kind": "theorem",
    "chapter": "14-draft06-concurrency.md",
-   "line": 495,
+   "line": 573,
    "tests": 2,
    "reference": {
-    "pass": 2
+    "not-run": 2
    }
   },
   {
    "id": "T29a",
    "kind": "theorem",
    "chapter": "14-draft06-concurrency.md",
-   "line": 496,
+   "line": 574,
    "tests": 1,
    "reference": {
-    "pass": 1
+    "not-run": 1
    }
   },
   {
    "id": "T30",
    "kind": "theorem",
    "chapter": "14-draft06-concurrency.md",
-   "line": 497,
+   "line": 575,
    "tests": 5,
    "reference": {
-    "pass": 5
+    "not-run": 5
    }
   },
   {
    "id": "T31",
    "kind": "theorem",
    "chapter": "14-draft06-concurrency.md",
-   "line": 498,
+   "line": 576,
    "tests": 31,
    "reference": {
-    "pass": 31
+    "not-run": 31
    }
   },
   {
    "id": "CH14-M-fb31f51f",
    "kind": "modal",
    "chapter": "14-draft06-concurrency.md",
-   "line": 521,
+   "line": 599,
    "tests": 14,
    "reference": {
-    "pass": 14
+    "not-run": 14
    }
   },
   {
@@ -1702,7 +1693,7 @@
    "line": 3,
    "tests": 30,
    "reference": {
-    "pass": 30
+    "not-run": 30
    }
   },
   {
@@ -1712,7 +1703,7 @@
    "line": 45,
    "tests": 30,
    "reference": {
-    "pass": 30
+    "not-run": 30
    }
   },
   {
@@ -1722,7 +1713,7 @@
    "line": 52,
    "tests": 3,
    "reference": {
-    "pass": 3
+    "not-run": 3
    }
   },
   {
@@ -1732,7 +1723,7 @@
    "line": 55,
    "tests": 2,
    "reference": {
-    "pass": 2
+    "not-run": 2
    }
   },
   {
@@ -1742,7 +1733,7 @@
    "line": 60,
    "tests": 16,
    "reference": {
-    "pass": 16
+    "not-run": 16
    }
   },
   {
@@ -1752,7 +1743,7 @@
    "line": 65,
    "tests": 3,
    "reference": {
-    "pass": 3
+    "not-run": 3
    }
   },
   {
@@ -1762,187 +1753,187 @@
    "line": 83,
    "tests": 1,
    "reference": {
-    "pass": 1
+    "not-run": 1
    }
   },
   {
    "id": "HC-7",
    "kind": "rule",
    "chapter": "16-host-contract.md",
-   "line": 113,
+   "line": 121,
    "tests": 15,
    "reference": {
-    "pass": 15
+    "not-run": 15
    }
   },
   {
    "id": "HC-7a",
    "kind": "rule",
    "chapter": "16-host-contract.md",
-   "line": 116,
+   "line": 124,
    "tests": 1,
    "reference": {
-    "pass": 1
+    "not-run": 1
    }
   },
   {
    "id": "HC-8",
    "kind": "rule",
    "chapter": "16-host-contract.md",
-   "line": 123,
+   "line": 131,
    "tests": 27,
    "reference": {
-    "pass": 27
+    "not-run": 27
    }
   },
   {
    "id": "HC-9",
    "kind": "rule",
    "chapter": "16-host-contract.md",
-   "line": 126,
+   "line": 134,
    "tests": 26,
    "reference": {
-    "pass": 26
+    "not-run": 26
    }
   },
   {
    "id": "CH16-M-bf12d963",
    "kind": "modal",
    "chapter": "16-host-contract.md",
-   "line": 138,
+   "line": 146,
    "tests": 30,
    "reference": {
-    "pass": 30
+    "not-run": 30
    }
   },
   {
    "id": "HC-15",
    "kind": "rule",
    "chapter": "16-host-contract.md",
-   "line": 142,
+   "line": 150,
    "tests": 25,
    "reference": {
-    "pass": 25
+    "not-run": 25
    }
   },
   {
    "id": "HC-16",
    "kind": "rule",
    "chapter": "16-host-contract.md",
-   "line": 158,
+   "line": 166,
    "tests": 25,
    "reference": {
-    "pass": 25
+    "not-run": 25
    }
   },
   {
    "id": "HC-17",
    "kind": "rule",
    "chapter": "16-host-contract.md",
-   "line": 168,
+   "line": 176,
    "tests": 25,
    "reference": {
-    "pass": 25
+    "not-run": 25
    }
   },
   {
    "id": "HC-18",
    "kind": "rule",
    "chapter": "16-host-contract.md",
-   "line": 186,
+   "line": 194,
    "tests": 30,
    "reference": {
-    "pass": 30
+    "not-run": 30
    }
   },
   {
    "id": "HC-19",
    "kind": "rule",
    "chapter": "16-host-contract.md",
-   "line": 194,
+   "line": 202,
    "tests": 30,
    "reference": {
-    "pass": 30
+    "not-run": 30
    }
   },
   {
    "id": "HC-18a",
    "kind": "rule",
    "chapter": "16-host-contract.md",
-   "line": 202,
+   "line": 210,
    "tests": 30,
    "reference": {
-    "pass": 30
+    "not-run": 30
    }
   },
   {
    "id": "HC-20",
    "kind": "rule",
    "chapter": "16-host-contract.md",
-   "line": 234,
+   "line": 242,
    "tests": 21,
    "reference": {
-    "pass": 21
+    "not-run": 21
    }
   },
   {
    "id": "HC-10",
    "kind": "rule",
    "chapter": "16-host-contract.md",
-   "line": 369,
+   "line": 377,
    "tests": 30,
    "reference": {
-    "pass": 30
+    "not-run": 30
    }
   },
   {
    "id": "HC-11",
    "kind": "rule",
    "chapter": "16-host-contract.md",
-   "line": 410,
+   "line": 418,
    "tests": 1,
    "reference": {
-    "pass": 1
+    "not-run": 1
    }
   },
   {
    "id": "HC-12",
    "kind": "rule",
    "chapter": "16-host-contract.md",
-   "line": 416,
-   "tests": 1,
+   "line": 424,
+   "tests": 91,
    "reference": {
-    "pass": 1
+    "not-run": 91
    }
   },
   {
    "id": "HC-13",
    "kind": "rule",
    "chapter": "16-host-contract.md",
-   "line": 457,
+   "line": 465,
    "tests": 1,
    "reference": {
-    "pass": 1
+    "not-run": 1
    }
   },
   {
    "id": "HC-14",
    "kind": "rule",
    "chapter": "16-host-contract.md",
-   "line": 467,
+   "line": 475,
    "tests": 1,
    "reference": {
-    "pass": 1
+    "not-run": 1
    }
   },
   {
    "id": "CH16-M-a84fabb6",
    "kind": "modal",
    "chapter": "16-host-contract.md",
-   "line": 626,
+   "line": 634,
    "tests": 2,
    "reference": {
-    "pass": 2
+    "not-run": 2
    }
   },
   {
@@ -1952,7 +1943,7 @@
    "line": 231,
    "tests": 1,
    "reference": {
-    "pass": 1
+    "not-run": 1
    }
   },
   {
@@ -1962,7 +1953,7 @@
    "line": 23,
    "tests": 1,
    "reference": {
-    "pass": 1
+    "not-run": 1
    }
   },
   {
@@ -1972,7 +1963,7 @@
    "line": 46,
    "tests": 2,
    "reference": {
-    "pass": 2
+    "not-run": 2
    }
   },
   {
@@ -1982,7 +1973,7 @@
    "line": 47,
    "tests": 1,
    "reference": {
-    "pass": 1
+    "not-run": 1
    }
   },
   {
@@ -1992,7 +1983,7 @@
    "line": 48,
    "tests": 1,
    "reference": {
-    "pass": 1
+    "not-run": 1
    }
   },
   {
@@ -2002,7 +1993,7 @@
    "line": 55,
    "tests": 2,
    "reference": {
-    "pass": 2
+    "not-run": 2
    }
   },
   {
@@ -2012,7 +2003,7 @@
    "line": 57,
    "tests": 1,
    "reference": {
-    "pass": 1
+    "not-run": 1
    }
   },
   {
@@ -2022,7 +2013,7 @@
    "line": 110,
    "tests": 5,
    "reference": {
-    "pass": 5
+    "not-run": 5
    }
   },
   {
@@ -2032,7 +2023,17 @@
    "line": 110,
    "tests": 1,
    "reference": {
-    "pass": 1
+    "not-run": 1
+   }
+  },
+  {
+   "id": "W-SES-4",
+   "kind": "rule",
+   "chapter": "09-wellformedness.md",
+   "line": 110,
+   "tests": 6,
+   "reference": {
+    "not-run": 6
    }
   },
   {
@@ -2042,7 +2043,7 @@
    "line": 111,
    "tests": 1,
    "reference": {
-    "pass": 1
+    "not-run": 1
    }
   },
   {
@@ -2052,7 +2053,7 @@
    "line": 111,
    "tests": 1,
    "reference": {
-    "pass": 1
+    "not-run": 1
    }
   },
   {
@@ -2062,7 +2063,7 @@
    "line": 111,
    "tests": 2,
    "reference": {
-    "pass": 2
+    "not-run": 2
    }
   },
   {
@@ -2072,7 +2073,7 @@
    "line": 111,
    "tests": 1,
    "reference": {
-    "pass": 1
+    "not-run": 1
    }
   }
  ],
@@ -2080,8 +2081,8 @@
  "unknown_clause_ids_in_tests": {},
  "profiles": {
   "language": {
-   "clauses": 204,
-   "covered": 204
+   "clauses": 206,
+   "covered": 206
   },
   "tooling": {
    "clauses": 7,
