@@ -65,3 +65,24 @@ Needs engine fix (rce 0.1.3): a generic struct's field types are not
 resolved on direct access outside generic code (`m.keys` is "unknown type
 K"), and a generic constructor with no arguments cannot infer its type;
 col exposes accessor functions (`om_keys`, `hm_keys`, `dq_to_list`).
+
+## enc (`lib/enc/enc.rce`)
+
+Official vectors, transcribed as `check` lines in `tests/enc/enc_checks.rce`:
+- RFC 4648 section 10: all seven base64 vectors (encode and strict decode).
+- RFC 8949 Appendix A: the 43 items within the enc model (integers in
+  i64, simple values, tags 0/1/23/24/32, byte and text strings, definite
+  arrays and maps); encoding is checked for all 43, decoding round trip for
+  the 39 ASCII-text ones. Not taken: floats, 2^64-range integers and
+  bignums, and the indefinite-length items (non-deterministic by 4.2.1;
+  the decoder rejects them). Also the 4.2.1 map key-order example.
+- RFC 8785: the 3.2.2.2 string-escaping example and the 3.2.3 key-sorting
+  example (UTF-16 code-unit order, including a supplementary character).
+- Varint and zigzag: values from the protobuf encoding guide
+  (https://protobuf.dev/programming-guides/encoding/) and the LEB128
+  example 624485 -> e5 8e 26.
+
+Needs spec: f64 bit access (CBOR floats and JCS/ECMAScript number
+formatting), text from UTF-8 bytes (decoding non-ASCII CBOR text, JSON
+\u escapes in a parser). CBOR integers beyond i64 need core.exact
+integration (planned, not a spec gap).
