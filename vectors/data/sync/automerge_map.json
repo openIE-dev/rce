@@ -1,0 +1,4638 @@
+{
+ "generator": "scripts/gen/sync_automerge.js",
+ "reference": "@automerge/automerge 2.2.9",
+ "seed": 4242,
+ "sessions": [
+  {
+   "ops": [
+    {
+     "id": "3@bb",
+     "key": "k3",
+     "action": "set",
+     "value": false,
+     "pred": []
+    },
+    {
+     "id": "2@cc",
+     "key": "k1",
+     "action": "set",
+     "value": false,
+     "pred": []
+    },
+    {
+     "id": "4@cc",
+     "key": "k2",
+     "action": "set",
+     "value": 2,
+     "pred": []
+    },
+    {
+     "id": "2@bb",
+     "key": "k1",
+     "action": "set",
+     "value": null,
+     "pred": []
+    },
+    {
+     "id": "1@cc",
+     "key": "k3",
+     "action": "set",
+     "value": null,
+     "pred": []
+    },
+    {
+     "id": "4@bb",
+     "key": "k2",
+     "action": "set",
+     "value": 2,
+     "pred": [
+      "1@bb"
+     ]
+    },
+    {
+     "id": "3@cc",
+     "key": "k3",
+     "action": "set",
+     "value": "a",
+     "pred": [
+      "1@cc"
+     ]
+    },
+    {
+     "id": "5@cc",
+     "key": "k3",
+     "action": "del",
+     "value": null,
+     "pred": [
+      "3@cc"
+     ]
+    },
+    {
+     "id": "1@aa",
+     "key": "k1",
+     "action": "set",
+     "value": 1,
+     "pred": []
+    },
+    {
+     "id": "1@bb",
+     "key": "k2",
+     "action": "set",
+     "value": true,
+     "pred": []
+    }
+   ],
+   "doc": {
+    "k1": false,
+    "k2": 2,
+    "k3": false
+   },
+   "conflicts": {
+    "k1": [
+     "1@aa",
+     "2@bb",
+     "2@cc"
+    ],
+    "k2": [
+     "4@bb",
+     "4@cc"
+    ]
+   }
+  },
+  {
+   "ops": [
+    {
+     "id": "1@aa",
+     "key": "k1",
+     "action": "set",
+     "value": 2,
+     "pred": []
+    },
+    {
+     "id": "1@bb",
+     "key": "k2",
+     "action": "set",
+     "value": true,
+     "pred": []
+    },
+    {
+     "id": "1@cc",
+     "key": "k3",
+     "action": "set",
+     "value": 2,
+     "pred": []
+    },
+    {
+     "id": "3@cc",
+     "key": "k4",
+     "action": "set",
+     "value": false,
+     "pred": []
+    },
+    {
+     "id": "2@cc",
+     "key": "k2",
+     "action": "set",
+     "value": 2,
+     "pred": []
+    },
+    {
+     "id": "2@aa",
+     "key": "k4",
+     "action": "set",
+     "value": "a",
+     "pred": []
+    }
+   ],
+   "doc": {
+    "k1": 2,
+    "k2": 2,
+    "k3": 2,
+    "k4": false
+   },
+   "conflicts": {
+    "k2": [
+     "1@bb",
+     "2@cc"
+    ],
+    "k4": [
+     "2@aa",
+     "3@cc"
+    ]
+   }
+  },
+  {
+   "ops": [
+    {
+     "id": "1@bb",
+     "key": "k4",
+     "action": "set",
+     "value": "a",
+     "pred": []
+    },
+    {
+     "id": "5@cc",
+     "key": "k2",
+     "action": "set",
+     "value": false,
+     "pred": []
+    },
+    {
+     "id": "2@cc",
+     "key": "k4",
+     "action": "set",
+     "value": null,
+     "pred": []
+    },
+    {
+     "id": "4@cc",
+     "key": "k3",
+     "action": "set",
+     "value": true,
+     "pred": []
+    },
+    {
+     "id": "1@cc",
+     "key": "k1",
+     "action": "set",
+     "value": false,
+     "pred": []
+    },
+    {
+     "id": "2@bb",
+     "key": "k2",
+     "action": "set",
+     "value": "a",
+     "pred": []
+    },
+    {
+     "id": "3@cc",
+     "key": "k1",
+     "action": "set",
+     "value": 2,
+     "pred": [
+      "1@cc"
+     ]
+    }
+   ],
+   "doc": {
+    "k1": 2,
+    "k2": false,
+    "k3": true,
+    "k4": null
+   },
+   "conflicts": {
+    "k2": [
+     "2@bb",
+     "5@cc"
+    ],
+    "k4": [
+     "1@bb",
+     "2@cc"
+    ]
+   }
+  },
+  {
+   "ops": [
+    {
+     "id": "4@bb",
+     "key": "k1",
+     "action": "set",
+     "value": false,
+     "pred": [
+      "3@bb"
+     ]
+    },
+    {
+     "id": "3@bb",
+     "key": "k1",
+     "action": "set",
+     "value": "b",
+     "pred": []
+    },
+    {
+     "id": "1@bb",
+     "key": "k2",
+     "action": "set",
+     "value": 2,
+     "pred": []
+    },
+    {
+     "id": "2@aa",
+     "key": "k2",
+     "action": "set",
+     "value": "a",
+     "pred": []
+    },
+    {
+     "id": "2@bb",
+     "key": "k4",
+     "action": "set",
+     "value": "a",
+     "pred": []
+    },
+    {
+     "id": "1@aa",
+     "key": "k4",
+     "action": "set",
+     "value": 2,
+     "pred": []
+    },
+    {
+     "id": "4@aa",
+     "key": "k1",
+     "action": "set",
+     "value": null,
+     "pred": []
+    },
+    {
+     "id": "3@aa",
+     "key": "k4",
+     "action": "set",
+     "value": "",
+     "pred": [
+      "1@aa"
+     ]
+    },
+    {
+     "id": "6@bb",
+     "key": "k2",
+     "action": "set",
+     "value": "b",
+     "pred": [
+      "1@bb"
+     ]
+    },
+    {
+     "id": "5@aa",
+     "key": "k1",
+     "action": "set",
+     "value": true,
+     "pred": [
+      "4@aa"
+     ]
+    },
+    {
+     "id": "5@bb",
+     "key": "k3",
+     "action": "set",
+     "value": 1,
+     "pred": []
+    }
+   ],
+   "doc": {
+    "k1": true,
+    "k2": "b",
+    "k3": 1,
+    "k4": ""
+   },
+   "conflicts": {
+    "k1": [
+     "4@bb",
+     "5@aa"
+    ],
+    "k2": [
+     "2@aa",
+     "6@bb"
+    ],
+    "k4": [
+     "2@bb",
+     "3@aa"
+    ]
+   }
+  },
+  {
+   "ops": [
+    {
+     "id": "1@bb",
+     "key": "k4",
+     "action": "set",
+     "value": "a",
+     "pred": []
+    },
+    {
+     "id": "1@aa",
+     "key": "k2",
+     "action": "set",
+     "value": 2,
+     "pred": []
+    },
+    {
+     "id": "3@bb",
+     "key": "k1",
+     "action": "set",
+     "value": 1,
+     "pred": []
+    },
+    {
+     "id": "2@bb",
+     "key": "k2",
+     "action": "set",
+     "value": null,
+     "pred": []
+    }
+   ],
+   "doc": {
+    "k1": 1,
+    "k2": null,
+    "k4": "a"
+   },
+   "conflicts": {
+    "k2": [
+     "1@aa",
+     "2@bb"
+    ]
+   }
+  },
+  {
+   "ops": [
+    {
+     "id": "5@cc",
+     "key": "k2",
+     "action": "set",
+     "value": true,
+     "pred": [
+      "1@cc"
+     ]
+    },
+    {
+     "id": "4@cc",
+     "key": "k1",
+     "action": "set",
+     "value": 1,
+     "pred": []
+    },
+    {
+     "id": "3@cc",
+     "key": "k4",
+     "action": "set",
+     "value": "a",
+     "pred": [
+      "2@cc"
+     ]
+    },
+    {
+     "id": "2@aa",
+     "key": "k1",
+     "action": "set",
+     "value": "",
+     "pred": []
+    },
+    {
+     "id": "2@cc",
+     "key": "k4",
+     "action": "set",
+     "value": -7,
+     "pred": []
+    },
+    {
+     "id": "1@aa",
+     "key": "k3",
+     "action": "set",
+     "value": true,
+     "pred": []
+    },
+    {
+     "id": "6@bb",
+     "key": "k4",
+     "action": "set",
+     "value": true,
+     "pred": [
+      "5@bb"
+     ]
+    },
+    {
+     "id": "3@bb",
+     "key": "k1",
+     "action": "set",
+     "value": "",
+     "pred": []
+    },
+    {
+     "id": "1@bb",
+     "key": "k2",
+     "action": "set",
+     "value": 1,
+     "pred": []
+    },
+    {
+     "id": "5@bb",
+     "key": "k4",
+     "action": "set",
+     "value": -7,
+     "pred": [
+      "4@bb"
+     ]
+    },
+    {
+     "id": "2@bb",
+     "key": "k2",
+     "action": "del",
+     "value": null,
+     "pred": [
+      "1@bb"
+     ]
+    },
+    {
+     "id": "1@cc",
+     "key": "k2",
+     "action": "set",
+     "value": 2,
+     "pred": []
+    },
+    {
+     "id": "4@bb",
+     "key": "k4",
+     "action": "set",
+     "value": "a",
+     "pred": []
+    }
+   ],
+   "doc": {
+    "k1": 1,
+    "k2": true,
+    "k3": true,
+    "k4": true
+   },
+   "conflicts": {
+    "k1": [
+     "2@aa",
+     "3@bb",
+     "4@cc"
+    ],
+    "k4": [
+     "3@cc",
+     "6@bb"
+    ]
+   }
+  },
+  {
+   "ops": [
+    {
+     "id": "1@aa",
+     "key": "k1",
+     "action": "set",
+     "value": 2,
+     "pred": []
+    },
+    {
+     "id": "3@cc",
+     "key": "k3",
+     "action": "set",
+     "value": false,
+     "pred": [
+      "1@cc"
+     ]
+    },
+    {
+     "id": "2@cc",
+     "key": "k4",
+     "action": "set",
+     "value": "a",
+     "pred": []
+    },
+    {
+     "id": "7@cc",
+     "key": "k4",
+     "action": "set",
+     "value": false,
+     "pred": [
+      "6@cc"
+     ]
+    },
+    {
+     "id": "1@cc",
+     "key": "k3",
+     "action": "set",
+     "value": 2,
+     "pred": []
+    },
+    {
+     "id": "3@bb",
+     "key": "k1",
+     "action": "set",
+     "value": 1,
+     "pred": [
+      "2@bb"
+     ]
+    },
+    {
+     "id": "2@bb",
+     "key": "k1",
+     "action": "set",
+     "value": "b",
+     "pred": [
+      "1@bb"
+     ]
+    },
+    {
+     "id": "5@cc",
+     "key": "k2",
+     "action": "set",
+     "value": true,
+     "pred": []
+    },
+    {
+     "id": "8@cc",
+     "key": "k3",
+     "action": "del",
+     "value": null,
+     "pred": [
+      "3@cc"
+     ]
+    },
+    {
+     "id": "1@bb",
+     "key": "k1",
+     "action": "set",
+     "value": "a",
+     "pred": []
+    },
+    {
+     "id": "4@cc",
+     "key": "k4",
+     "action": "del",
+     "value": null,
+     "pred": [
+      "2@cc"
+     ]
+    },
+    {
+     "id": "6@cc",
+     "key": "k4",
+     "action": "set",
+     "value": 1,
+     "pred": []
+    }
+   ],
+   "doc": {
+    "k1": 1,
+    "k2": true,
+    "k4": false
+   },
+   "conflicts": {
+    "k1": [
+     "1@aa",
+     "3@bb"
+    ]
+   }
+  },
+  {
+   "ops": [
+    {
+     "id": "1@bb",
+     "key": "k1",
+     "action": "set",
+     "value": "",
+     "pred": []
+    },
+    {
+     "id": "5@cc",
+     "key": "k1",
+     "action": "set",
+     "value": 2,
+     "pred": []
+    },
+    {
+     "id": "1@aa",
+     "key": "k4",
+     "action": "set",
+     "value": "b",
+     "pred": []
+    },
+    {
+     "id": "2@cc",
+     "key": "k4",
+     "action": "set",
+     "value": "b",
+     "pred": []
+    },
+    {
+     "id": "3@cc",
+     "key": "k4",
+     "action": "del",
+     "value": null,
+     "pred": [
+      "2@cc"
+     ]
+    },
+    {
+     "id": "2@aa",
+     "key": "k3",
+     "action": "set",
+     "value": "",
+     "pred": []
+    },
+    {
+     "id": "4@cc",
+     "key": "k4",
+     "action": "set",
+     "value": "b",
+     "pred": []
+    },
+    {
+     "id": "1@cc",
+     "key": "k3",
+     "action": "set",
+     "value": true,
+     "pred": []
+    }
+   ],
+   "doc": {
+    "k1": 2,
+    "k3": "",
+    "k4": "b"
+   },
+   "conflicts": {
+    "k1": [
+     "1@bb",
+     "5@cc"
+    ],
+    "k3": [
+     "1@cc",
+     "2@aa"
+    ],
+    "k4": [
+     "1@aa",
+     "4@cc"
+    ]
+   }
+  },
+  {
+   "ops": [
+    {
+     "id": "4@bb",
+     "key": "k2",
+     "action": "set",
+     "value": "b",
+     "pred": []
+    },
+    {
+     "id": "1@cc",
+     "key": "k4",
+     "action": "set",
+     "value": false,
+     "pred": []
+    },
+    {
+     "id": "1@bb",
+     "key": "k1",
+     "action": "set",
+     "value": "b",
+     "pred": []
+    },
+    {
+     "id": "2@cc",
+     "key": "k2",
+     "action": "set",
+     "value": null,
+     "pred": []
+    },
+    {
+     "id": "1@aa",
+     "key": "k4",
+     "action": "set",
+     "value": -7,
+     "pred": []
+    },
+    {
+     "id": "5@bb",
+     "key": "k1",
+     "action": "del",
+     "value": null,
+     "pred": [
+      "1@bb"
+     ]
+    },
+    {
+     "id": "2@bb",
+     "key": "k4",
+     "action": "set",
+     "value": 1,
+     "pred": []
+    },
+    {
+     "id": "2@aa",
+     "key": "k2",
+     "action": "set",
+     "value": 2,
+     "pred": []
+    },
+    {
+     "id": "3@aa",
+     "key": "k1",
+     "action": "set",
+     "value": "b",
+     "pred": []
+    },
+    {
+     "id": "3@cc",
+     "key": "k2",
+     "action": "set",
+     "value": -7,
+     "pred": [
+      "2@cc"
+     ]
+    },
+    {
+     "id": "3@bb",
+     "key": "k4",
+     "action": "set",
+     "value": "a",
+     "pred": [
+      "2@bb"
+     ]
+    },
+    {
+     "id": "4@aa",
+     "key": "k3",
+     "action": "set",
+     "value": null,
+     "pred": []
+    }
+   ],
+   "doc": {
+    "k1": "b",
+    "k2": "b",
+    "k3": null,
+    "k4": "a"
+   },
+   "conflicts": {
+    "k2": [
+     "2@aa",
+     "3@cc",
+     "4@bb"
+    ],
+    "k4": [
+     "1@aa",
+     "1@cc",
+     "3@bb"
+    ]
+   }
+  },
+  {
+   "ops": [
+    {
+     "id": "2@cc",
+     "key": "k1",
+     "action": "set",
+     "value": 1,
+     "pred": []
+    },
+    {
+     "id": "3@cc",
+     "key": "k2",
+     "action": "set",
+     "value": false,
+     "pred": []
+    },
+    {
+     "id": "4@cc",
+     "key": "k4",
+     "action": "del",
+     "value": null,
+     "pred": [
+      "1@cc"
+     ]
+    },
+    {
+     "id": "1@cc",
+     "key": "k4",
+     "action": "set",
+     "value": 1,
+     "pred": []
+    }
+   ],
+   "doc": {
+    "k1": 1,
+    "k2": false
+   },
+   "conflicts": {}
+  },
+  {
+   "ops": [
+    {
+     "id": "2@cc",
+     "key": "k4",
+     "action": "set",
+     "value": "a",
+     "pred": []
+    },
+    {
+     "id": "1@aa",
+     "key": "k2",
+     "action": "set",
+     "value": null,
+     "pred": []
+    },
+    {
+     "id": "1@cc",
+     "key": "k1",
+     "action": "set",
+     "value": "a",
+     "pred": []
+    }
+   ],
+   "doc": {
+    "k1": "a",
+    "k2": null,
+    "k4": "a"
+   },
+   "conflicts": {}
+  },
+  {
+   "ops": [
+    {
+     "id": "1@aa",
+     "key": "k4",
+     "action": "set",
+     "value": "b",
+     "pred": []
+    },
+    {
+     "id": "1@cc",
+     "key": "k1",
+     "action": "set",
+     "value": 1,
+     "pred": []
+    },
+    {
+     "id": "4@bb",
+     "key": "k3",
+     "action": "del",
+     "value": null,
+     "pred": [
+      "1@bb"
+     ]
+    },
+    {
+     "id": "1@bb",
+     "key": "k3",
+     "action": "set",
+     "value": true,
+     "pred": []
+    },
+    {
+     "id": "3@bb",
+     "key": "k2",
+     "action": "set",
+     "value": "b",
+     "pred": []
+    },
+    {
+     "id": "2@cc",
+     "key": "k1",
+     "action": "set",
+     "value": false,
+     "pred": [
+      "1@cc"
+     ]
+    },
+    {
+     "id": "2@bb",
+     "key": "k4",
+     "action": "set",
+     "value": 1,
+     "pred": []
+    },
+    {
+     "id": "5@bb",
+     "key": "k4",
+     "action": "del",
+     "value": null,
+     "pred": [
+      "2@bb"
+     ]
+    }
+   ],
+   "doc": {
+    "k1": false,
+    "k2": "b",
+    "k4": "b"
+   },
+   "conflicts": {}
+  },
+  {
+   "ops": [
+    {
+     "id": "1@bb",
+     "key": "k3",
+     "action": "set",
+     "value": 1,
+     "pred": []
+    },
+    {
+     "id": "1@cc",
+     "key": "k2",
+     "action": "set",
+     "value": 2,
+     "pred": []
+    },
+    {
+     "id": "2@bb",
+     "key": "k4",
+     "action": "set",
+     "value": true,
+     "pred": []
+    },
+    {
+     "id": "2@cc",
+     "key": "k1",
+     "action": "set",
+     "value": 2,
+     "pred": []
+    }
+   ],
+   "doc": {
+    "k1": 2,
+    "k2": 2,
+    "k3": 1,
+    "k4": true
+   },
+   "conflicts": {}
+  },
+  {
+   "ops": [
+    {
+     "id": "1@aa",
+     "key": "k1",
+     "action": "set",
+     "value": -7,
+     "pred": []
+    },
+    {
+     "id": "1@bb",
+     "key": "k3",
+     "action": "set",
+     "value": "a",
+     "pred": []
+    },
+    {
+     "id": "1@cc",
+     "key": "k1",
+     "action": "set",
+     "value": "",
+     "pred": []
+    },
+    {
+     "id": "2@bb",
+     "key": "k3",
+     "action": "set",
+     "value": 1,
+     "pred": [
+      "1@bb"
+     ]
+    }
+   ],
+   "doc": {
+    "k1": "",
+    "k3": 1
+   },
+   "conflicts": {
+    "k1": [
+     "1@aa",
+     "1@cc"
+    ]
+   }
+  },
+  {
+   "ops": [
+    {
+     "id": "4@bb",
+     "key": "k3",
+     "action": "set",
+     "value": true,
+     "pred": []
+    },
+    {
+     "id": "5@bb",
+     "key": "k1",
+     "action": "set",
+     "value": "b",
+     "pred": [
+      "3@bb"
+     ]
+    },
+    {
+     "id": "1@aa",
+     "key": "k1",
+     "action": "set",
+     "value": false,
+     "pred": []
+    },
+    {
+     "id": "2@aa",
+     "key": "k4",
+     "action": "set",
+     "value": null,
+     "pred": []
+    },
+    {
+     "id": "3@bb",
+     "key": "k1",
+     "action": "set",
+     "value": 2,
+     "pred": [
+      "1@aa"
+     ]
+    }
+   ],
+   "doc": {
+    "k1": "b",
+    "k3": true,
+    "k4": null
+   },
+   "conflicts": {}
+  },
+  {
+   "ops": [
+    {
+     "id": "2@aa",
+     "key": "k4",
+     "action": "set",
+     "value": null,
+     "pred": []
+    },
+    {
+     "id": "3@aa",
+     "key": "k2",
+     "action": "set",
+     "value": "b",
+     "pred": []
+    },
+    {
+     "id": "2@cc",
+     "key": "k2",
+     "action": "set",
+     "value": "",
+     "pred": []
+    },
+    {
+     "id": "5@aa",
+     "key": "k3",
+     "action": "set",
+     "value": null,
+     "pred": [
+      "1@aa"
+     ]
+    },
+    {
+     "id": "1@aa",
+     "key": "k3",
+     "action": "set",
+     "value": "a",
+     "pred": []
+    },
+    {
+     "id": "3@cc",
+     "key": "k3",
+     "action": "set",
+     "value": false,
+     "pred": []
+    },
+    {
+     "id": "4@aa",
+     "key": "k4",
+     "action": "set",
+     "value": -7,
+     "pred": [
+      "2@aa"
+     ]
+    },
+    {
+     "id": "1@cc",
+     "key": "k4",
+     "action": "set",
+     "value": "b",
+     "pred": []
+    },
+    {
+     "id": "6@aa",
+     "key": "k4",
+     "action": "set",
+     "value": "",
+     "pred": [
+      "4@aa"
+     ]
+    }
+   ],
+   "doc": {
+    "k2": "b",
+    "k3": null,
+    "k4": ""
+   },
+   "conflicts": {
+    "k2": [
+     "2@cc",
+     "3@aa"
+    ],
+    "k3": [
+     "3@cc",
+     "5@aa"
+    ],
+    "k4": [
+     "1@cc",
+     "6@aa"
+    ]
+   }
+  },
+  {
+   "ops": [
+    {
+     "id": "4@cc",
+     "key": "k2",
+     "action": "set",
+     "value": null,
+     "pred": []
+    },
+    {
+     "id": "1@aa",
+     "key": "k1",
+     "action": "set",
+     "value": null,
+     "pred": []
+    },
+    {
+     "id": "1@cc",
+     "key": "k4",
+     "action": "set",
+     "value": false,
+     "pred": []
+    },
+    {
+     "id": "2@cc",
+     "key": "k1",
+     "action": "set",
+     "value": "a",
+     "pred": []
+    },
+    {
+     "id": "3@cc",
+     "key": "k4",
+     "action": "set",
+     "value": "",
+     "pred": [
+      "1@cc"
+     ]
+    }
+   ],
+   "doc": {
+    "k1": "a",
+    "k2": null,
+    "k4": ""
+   },
+   "conflicts": {
+    "k1": [
+     "1@aa",
+     "2@cc"
+    ]
+   }
+  },
+  {
+   "ops": [
+    {
+     "id": "4@aa",
+     "key": "k3",
+     "action": "set",
+     "value": 2,
+     "pred": []
+    },
+    {
+     "id": "6@bb",
+     "key": "k1",
+     "action": "set",
+     "value": null,
+     "pred": [
+      "5@aa"
+     ]
+    },
+    {
+     "id": "3@aa",
+     "key": "k4",
+     "action": "del",
+     "value": null,
+     "pred": [
+      "2@aa"
+     ]
+    },
+    {
+     "id": "2@aa",
+     "key": "k4",
+     "action": "set",
+     "value": "a",
+     "pred": []
+    },
+    {
+     "id": "1@aa",
+     "key": "k1",
+     "action": "set",
+     "value": "a",
+     "pred": []
+    },
+    {
+     "id": "1@cc",
+     "key": "k1",
+     "action": "set",
+     "value": null,
+     "pred": []
+    },
+    {
+     "id": "1@bb",
+     "key": "k3",
+     "action": "set",
+     "value": true,
+     "pred": []
+    },
+    {
+     "id": "7@bb",
+     "key": "k4",
+     "action": "set",
+     "value": -7,
+     "pred": []
+    },
+    {
+     "id": "5@aa",
+     "key": "k1",
+     "action": "set",
+     "value": -7,
+     "pred": [
+      "1@aa"
+     ]
+    },
+    {
+     "id": "8@bb",
+     "key": "k2",
+     "action": "set",
+     "value": true,
+     "pred": []
+    },
+    {
+     "id": "2@cc",
+     "key": "k1",
+     "action": "set",
+     "value": "b",
+     "pred": [
+      "1@cc"
+     ]
+    }
+   ],
+   "doc": {
+    "k1": null,
+    "k2": true,
+    "k3": 2,
+    "k4": -7
+   },
+   "conflicts": {
+    "k1": [
+     "2@cc",
+     "6@bb"
+    ],
+    "k3": [
+     "1@bb",
+     "4@aa"
+    ]
+   }
+  },
+  {
+   "ops": [
+    {
+     "id": "1@cc",
+     "key": "k1",
+     "action": "set",
+     "value": 2,
+     "pred": []
+    },
+    {
+     "id": "5@bb",
+     "key": "k3",
+     "action": "set",
+     "value": 2,
+     "pred": []
+    },
+    {
+     "id": "1@aa",
+     "key": "k4",
+     "action": "set",
+     "value": "b",
+     "pred": []
+    },
+    {
+     "id": "2@cc",
+     "key": "k2",
+     "action": "set",
+     "value": -7,
+     "pred": []
+    },
+    {
+     "id": "2@bb",
+     "key": "k1",
+     "action": "del",
+     "value": null,
+     "pred": [
+      "1@bb"
+     ]
+    },
+    {
+     "id": "3@bb",
+     "key": "k1",
+     "action": "set",
+     "value": "",
+     "pred": [
+      "1@cc"
+     ]
+    },
+    {
+     "id": "4@bb",
+     "key": "k4",
+     "action": "set",
+     "value": null,
+     "pred": []
+    },
+    {
+     "id": "1@bb",
+     "key": "k1",
+     "action": "set",
+     "value": "a",
+     "pred": []
+    }
+   ],
+   "doc": {
+    "k1": "",
+    "k2": -7,
+    "k3": 2,
+    "k4": null
+   },
+   "conflicts": {
+    "k4": [
+     "1@aa",
+     "4@bb"
+    ]
+   }
+  },
+  {
+   "ops": [
+    {
+     "id": "1@cc",
+     "key": "k4",
+     "action": "set",
+     "value": "a",
+     "pred": []
+    },
+    {
+     "id": "2@bb",
+     "key": "k4",
+     "action": "set",
+     "value": "",
+     "pred": []
+    },
+    {
+     "id": "3@cc",
+     "key": "k1",
+     "action": "set",
+     "value": true,
+     "pred": []
+    },
+    {
+     "id": "1@bb",
+     "key": "k2",
+     "action": "set",
+     "value": "b",
+     "pred": []
+    },
+    {
+     "id": "4@bb",
+     "key": "k4",
+     "action": "set",
+     "value": null,
+     "pred": [
+      "2@bb"
+     ]
+    },
+    {
+     "id": "3@bb",
+     "key": "k1",
+     "action": "set",
+     "value": true,
+     "pred": []
+    },
+    {
+     "id": "2@cc",
+     "key": "k4",
+     "action": "set",
+     "value": -7,
+     "pred": [
+      "1@cc"
+     ]
+    },
+    {
+     "id": "5@bb",
+     "key": "k3",
+     "action": "set",
+     "value": -7,
+     "pred": []
+    }
+   ],
+   "doc": {
+    "k1": true,
+    "k2": "b",
+    "k3": -7,
+    "k4": null
+   },
+   "conflicts": {
+    "k1": [
+     "3@bb",
+     "3@cc"
+    ],
+    "k4": [
+     "2@cc",
+     "4@bb"
+    ]
+   }
+  },
+  {
+   "ops": [
+    {
+     "id": "1@cc",
+     "key": "k4",
+     "action": "set",
+     "value": 2,
+     "pred": []
+    }
+   ],
+   "doc": {
+    "k4": 2
+   },
+   "conflicts": {}
+  },
+  {
+   "ops": [
+    {
+     "id": "1@cc",
+     "key": "k1",
+     "action": "set",
+     "value": "b",
+     "pred": []
+    },
+    {
+     "id": "2@cc",
+     "key": "k1",
+     "action": "set",
+     "value": -7,
+     "pred": [
+      "1@cc"
+     ]
+    },
+    {
+     "id": "1@aa",
+     "key": "k3",
+     "action": "set",
+     "value": -7,
+     "pred": []
+    }
+   ],
+   "doc": {
+    "k1": -7,
+    "k3": -7
+   },
+   "conflicts": {}
+  },
+  {
+   "ops": [
+    {
+     "id": "1@cc",
+     "key": "k1",
+     "action": "set",
+     "value": 2,
+     "pred": []
+    },
+    {
+     "id": "1@bb",
+     "key": "k4",
+     "action": "set",
+     "value": -7,
+     "pred": []
+    },
+    {
+     "id": "4@aa",
+     "key": "k1",
+     "action": "set",
+     "value": 2,
+     "pred": []
+    },
+    {
+     "id": "1@aa",
+     "key": "k2",
+     "action": "set",
+     "value": true,
+     "pred": []
+    },
+    {
+     "id": "3@aa",
+     "key": "k2",
+     "action": "set",
+     "value": 2,
+     "pred": [
+      "1@aa"
+     ]
+    },
+    {
+     "id": "2@bb",
+     "key": "k1",
+     "action": "set",
+     "value": false,
+     "pred": []
+    },
+    {
+     "id": "2@aa",
+     "key": "k3",
+     "action": "set",
+     "value": -7,
+     "pred": []
+    },
+    {
+     "id": "3@bb",
+     "key": "k4",
+     "action": "set",
+     "value": "b",
+     "pred": [
+      "1@bb"
+     ]
+    },
+    {
+     "id": "2@cc",
+     "key": "k3",
+     "action": "set",
+     "value": 1,
+     "pred": []
+    }
+   ],
+   "doc": {
+    "k1": 2,
+    "k2": 2,
+    "k3": 1,
+    "k4": "b"
+   },
+   "conflicts": {
+    "k1": [
+     "1@cc",
+     "2@bb",
+     "4@aa"
+    ],
+    "k3": [
+     "2@aa",
+     "2@cc"
+    ]
+   }
+  },
+  {
+   "ops": [
+    {
+     "id": "5@bb",
+     "key": "k2",
+     "action": "set",
+     "value": false,
+     "pred": []
+    },
+    {
+     "id": "5@cc",
+     "key": "k3",
+     "action": "set",
+     "value": 1,
+     "pred": [
+      "4@cc"
+     ]
+    },
+    {
+     "id": "2@cc",
+     "key": "k2",
+     "action": "set",
+     "value": 1,
+     "pred": [
+      "1@cc"
+     ]
+    },
+    {
+     "id": "1@cc",
+     "key": "k2",
+     "action": "set",
+     "value": true,
+     "pred": []
+    },
+    {
+     "id": "2@bb",
+     "key": "k1",
+     "action": "set",
+     "value": "a",
+     "pred": []
+    },
+    {
+     "id": "6@cc",
+     "key": "k4",
+     "action": "set",
+     "value": 1,
+     "pred": []
+    },
+    {
+     "id": "4@bb",
+     "key": "k4",
+     "action": "set",
+     "value": 2,
+     "pred": [
+      "1@bb"
+     ]
+    },
+    {
+     "id": "6@bb",
+     "key": "k3",
+     "action": "del",
+     "value": null,
+     "pred": [
+      "3@bb"
+     ]
+    },
+    {
+     "id": "3@bb",
+     "key": "k3",
+     "action": "set",
+     "value": "",
+     "pred": []
+    },
+    {
+     "id": "4@cc",
+     "key": "k3",
+     "action": "set",
+     "value": "",
+     "pred": []
+    },
+    {
+     "id": "3@cc",
+     "key": "k1",
+     "action": "set",
+     "value": "",
+     "pred": []
+    },
+    {
+     "id": "1@bb",
+     "key": "k4",
+     "action": "set",
+     "value": "",
+     "pred": []
+    },
+    {
+     "id": "2@aa",
+     "key": "k3",
+     "action": "set",
+     "value": 2,
+     "pred": []
+    },
+    {
+     "id": "1@aa",
+     "key": "k2",
+     "action": "set",
+     "value": 2,
+     "pred": []
+    }
+   ],
+   "doc": {
+    "k1": "",
+    "k2": false,
+    "k3": 1,
+    "k4": 1
+   },
+   "conflicts": {
+    "k1": [
+     "2@bb",
+     "3@cc"
+    ],
+    "k2": [
+     "1@aa",
+     "2@cc",
+     "5@bb"
+    ],
+    "k3": [
+     "2@aa",
+     "5@cc"
+    ],
+    "k4": [
+     "4@bb",
+     "6@cc"
+    ]
+   }
+  },
+  {
+   "ops": [
+    {
+     "id": "2@cc",
+     "key": "k4",
+     "action": "set",
+     "value": "b",
+     "pred": []
+    },
+    {
+     "id": "7@cc",
+     "key": "k3",
+     "action": "del",
+     "value": null,
+     "pred": [
+      "4@cc"
+     ]
+    },
+    {
+     "id": "6@cc",
+     "key": "k4",
+     "action": "set",
+     "value": "",
+     "pred": []
+    },
+    {
+     "id": "10@cc",
+     "key": "k4",
+     "action": "set",
+     "value": false,
+     "pred": [
+      "8@cc"
+     ]
+    },
+    {
+     "id": "4@cc",
+     "key": "k3",
+     "action": "set",
+     "value": null,
+     "pred": [
+      "3@cc"
+     ]
+    },
+    {
+     "id": "2@aa",
+     "key": "k1",
+     "action": "set",
+     "value": false,
+     "pred": []
+    },
+    {
+     "id": "9@cc",
+     "key": "k2",
+     "action": "del",
+     "value": null,
+     "pred": [
+      "1@cc"
+     ]
+    },
+    {
+     "id": "1@cc",
+     "key": "k2",
+     "action": "set",
+     "value": -7,
+     "pred": []
+    },
+    {
+     "id": "1@bb",
+     "key": "k3",
+     "action": "set",
+     "value": "",
+     "pred": []
+    },
+    {
+     "id": "5@cc",
+     "key": "k4",
+     "action": "del",
+     "value": null,
+     "pred": [
+      "2@cc"
+     ]
+    },
+    {
+     "id": "1@aa",
+     "key": "k4",
+     "action": "set",
+     "value": "b",
+     "pred": []
+    },
+    {
+     "id": "2@bb",
+     "key": "k3",
+     "action": "set",
+     "value": false,
+     "pred": [
+      "1@bb"
+     ]
+    },
+    {
+     "id": "8@cc",
+     "key": "k4",
+     "action": "set",
+     "value": -7,
+     "pred": [
+      "6@cc"
+     ]
+    },
+    {
+     "id": "3@cc",
+     "key": "k3",
+     "action": "set",
+     "value": 1,
+     "pred": []
+    },
+    {
+     "id": "3@aa",
+     "key": "k2",
+     "action": "set",
+     "value": -7,
+     "pred": []
+    },
+    {
+     "id": "3@bb",
+     "key": "k1",
+     "action": "set",
+     "value": "a",
+     "pred": []
+    }
+   ],
+   "doc": {
+    "k1": "a",
+    "k2": -7,
+    "k3": false,
+    "k4": false
+   },
+   "conflicts": {
+    "k1": [
+     "2@aa",
+     "3@bb"
+    ],
+    "k4": [
+     "10@cc",
+     "1@aa"
+    ]
+   }
+  },
+  {
+   "ops": [
+    {
+     "id": "5@cc",
+     "key": "k3",
+     "action": "set",
+     "value": null,
+     "pred": [
+      "3@cc"
+     ]
+    },
+    {
+     "id": "6@cc",
+     "key": "k1",
+     "action": "set",
+     "value": null,
+     "pred": []
+    },
+    {
+     "id": "1@cc",
+     "key": "k2",
+     "action": "set",
+     "value": false,
+     "pred": []
+    },
+    {
+     "id": "1@bb",
+     "key": "k2",
+     "action": "set",
+     "value": true,
+     "pred": []
+    },
+    {
+     "id": "1@aa",
+     "key": "k4",
+     "action": "set",
+     "value": false,
+     "pred": []
+    },
+    {
+     "id": "2@bb",
+     "key": "k3",
+     "action": "set",
+     "value": 1,
+     "pred": []
+    },
+    {
+     "id": "2@cc",
+     "key": "k4",
+     "action": "set",
+     "value": "b",
+     "pred": []
+    },
+    {
+     "id": "3@cc",
+     "key": "k3",
+     "action": "set",
+     "value": true,
+     "pred": []
+    },
+    {
+     "id": "9@cc",
+     "key": "k1",
+     "action": "set",
+     "value": "b",
+     "pred": [
+      "8@cc"
+     ]
+    },
+    {
+     "id": "8@cc",
+     "key": "k1",
+     "action": "set",
+     "value": -7,
+     "pred": [
+      "6@cc"
+     ]
+    },
+    {
+     "id": "3@bb",
+     "key": "k3",
+     "action": "del",
+     "value": null,
+     "pred": [
+      "2@bb"
+     ]
+    },
+    {
+     "id": "4@cc",
+     "key": "k2",
+     "action": "del",
+     "value": null,
+     "pred": [
+      "1@cc"
+     ]
+    },
+    {
+     "id": "7@cc",
+     "key": "k2",
+     "action": "set",
+     "value": 2,
+     "pred": []
+    }
+   ],
+   "doc": {
+    "k1": "b",
+    "k2": 2,
+    "k3": null,
+    "k4": "b"
+   },
+   "conflicts": {
+    "k2": [
+     "1@bb",
+     "7@cc"
+    ],
+    "k4": [
+     "1@aa",
+     "2@cc"
+    ]
+   }
+  },
+  {
+   "ops": [
+    {
+     "id": "1@aa",
+     "key": "k2",
+     "action": "set",
+     "value": null,
+     "pred": []
+    },
+    {
+     "id": "1@bb",
+     "key": "k4",
+     "action": "set",
+     "value": 1,
+     "pred": []
+    },
+    {
+     "id": "2@bb",
+     "key": "k2",
+     "action": "set",
+     "value": "b",
+     "pred": []
+    },
+    {
+     "id": "3@aa",
+     "key": "k3",
+     "action": "set",
+     "value": 1,
+     "pred": []
+    },
+    {
+     "id": "2@aa",
+     "key": "k2",
+     "action": "del",
+     "value": null,
+     "pred": [
+      "1@aa"
+     ]
+    },
+    {
+     "id": "5@aa",
+     "key": "k4",
+     "action": "set",
+     "value": 2,
+     "pred": []
+    },
+    {
+     "id": "4@aa",
+     "key": "k3",
+     "action": "del",
+     "value": null,
+     "pred": [
+      "3@aa"
+     ]
+    },
+    {
+     "id": "3@bb",
+     "key": "k2",
+     "action": "del",
+     "value": null,
+     "pred": [
+      "2@bb"
+     ]
+    },
+    {
+     "id": "1@cc",
+     "key": "k4",
+     "action": "set",
+     "value": "b",
+     "pred": []
+    }
+   ],
+   "doc": {
+    "k4": 2
+   },
+   "conflicts": {
+    "k4": [
+     "1@bb",
+     "1@cc",
+     "5@aa"
+    ]
+   }
+  },
+  {
+   "ops": [
+    {
+     "id": "2@aa",
+     "key": "k2",
+     "action": "set",
+     "value": "b",
+     "pred": []
+    },
+    {
+     "id": "6@aa",
+     "key": "k3",
+     "action": "del",
+     "value": null,
+     "pred": [
+      "4@aa"
+     ]
+    },
+    {
+     "id": "5@aa",
+     "key": "k4",
+     "action": "set",
+     "value": 2,
+     "pred": []
+    },
+    {
+     "id": "3@aa",
+     "key": "k3",
+     "action": "set",
+     "value": -7,
+     "pred": []
+    },
+    {
+     "id": "4@aa",
+     "key": "k3",
+     "action": "set",
+     "value": true,
+     "pred": [
+      "3@aa"
+     ]
+    },
+    {
+     "id": "1@bb",
+     "key": "k3",
+     "action": "set",
+     "value": true,
+     "pred": []
+    },
+    {
+     "id": "1@aa",
+     "key": "k1",
+     "action": "set",
+     "value": -7,
+     "pred": []
+    }
+   ],
+   "doc": {
+    "k1": -7,
+    "k2": "b",
+    "k3": true,
+    "k4": 2
+   },
+   "conflicts": {}
+  },
+  {
+   "ops": [
+    {
+     "id": "4@cc",
+     "key": "k3",
+     "action": "set",
+     "value": "b",
+     "pred": []
+    },
+    {
+     "id": "2@cc",
+     "key": "k4",
+     "action": "set",
+     "value": "",
+     "pred": [
+      "1@cc"
+     ]
+    },
+    {
+     "id": "1@cc",
+     "key": "k4",
+     "action": "set",
+     "value": false,
+     "pred": []
+    },
+    {
+     "id": "3@cc",
+     "key": "k4",
+     "action": "del",
+     "value": null,
+     "pred": [
+      "2@cc"
+     ]
+    }
+   ],
+   "doc": {
+    "k3": "b"
+   },
+   "conflicts": {}
+  },
+  {
+   "ops": [
+    {
+     "id": "3@cc",
+     "key": "k1",
+     "action": "set",
+     "value": false,
+     "pred": [
+      "2@cc"
+     ]
+    },
+    {
+     "id": "1@cc",
+     "key": "k4",
+     "action": "set",
+     "value": -7,
+     "pred": []
+    },
+    {
+     "id": "1@aa",
+     "key": "k2",
+     "action": "set",
+     "value": 2,
+     "pred": []
+    },
+    {
+     "id": "2@aa",
+     "key": "k2",
+     "action": "set",
+     "value": null,
+     "pred": [
+      "1@aa"
+     ]
+    },
+    {
+     "id": "2@cc",
+     "key": "k1",
+     "action": "set",
+     "value": -7,
+     "pred": []
+    }
+   ],
+   "doc": {
+    "k1": false,
+    "k2": null,
+    "k4": -7
+   },
+   "conflicts": {}
+  },
+  {
+   "ops": [
+    {
+     "id": "3@bb",
+     "key": "k3",
+     "action": "set",
+     "value": -7,
+     "pred": [
+      "2@bb"
+     ]
+    },
+    {
+     "id": "2@bb",
+     "key": "k3",
+     "action": "set",
+     "value": "",
+     "pred": []
+    },
+    {
+     "id": "2@cc",
+     "key": "k2",
+     "action": "set",
+     "value": 2,
+     "pred": []
+    },
+    {
+     "id": "4@cc",
+     "key": "k4",
+     "action": "set",
+     "value": "a",
+     "pred": []
+    },
+    {
+     "id": "3@cc",
+     "key": "k1",
+     "action": "del",
+     "value": null,
+     "pred": [
+      "1@cc"
+     ]
+    },
+    {
+     "id": "5@bb",
+     "key": "k4",
+     "action": "set",
+     "value": null,
+     "pred": []
+    },
+    {
+     "id": "4@bb",
+     "key": "k1",
+     "action": "set",
+     "value": "a",
+     "pred": []
+    },
+    {
+     "id": "1@bb",
+     "key": "k2",
+     "action": "set",
+     "value": -7,
+     "pred": []
+    },
+    {
+     "id": "1@cc",
+     "key": "k1",
+     "action": "set",
+     "value": false,
+     "pred": []
+    }
+   ],
+   "doc": {
+    "k1": "a",
+    "k2": 2,
+    "k3": -7,
+    "k4": null
+   },
+   "conflicts": {
+    "k2": [
+     "1@bb",
+     "2@cc"
+    ],
+    "k4": [
+     "4@cc",
+     "5@bb"
+    ]
+   }
+  },
+  {
+   "ops": [
+    {
+     "id": "1@cc",
+     "key": "k1",
+     "action": "set",
+     "value": "b",
+     "pred": []
+    },
+    {
+     "id": "4@cc",
+     "key": "k1",
+     "action": "del",
+     "value": null,
+     "pred": [
+      "3@cc"
+     ]
+    },
+    {
+     "id": "9@aa",
+     "key": "k3",
+     "action": "set",
+     "value": false,
+     "pred": [
+      "8@aa"
+     ]
+    },
+    {
+     "id": "6@aa",
+     "key": "k3",
+     "action": "set",
+     "value": 1,
+     "pred": [
+      "2@aa"
+     ]
+    },
+    {
+     "id": "1@aa",
+     "key": "k4",
+     "action": "set",
+     "value": -7,
+     "pred": []
+    },
+    {
+     "id": "7@aa",
+     "key": "k2",
+     "action": "del",
+     "value": null,
+     "pred": [
+      "4@aa"
+     ]
+    },
+    {
+     "id": "2@aa",
+     "key": "k3",
+     "action": "set",
+     "value": "",
+     "pred": []
+    },
+    {
+     "id": "2@cc",
+     "key": "k4",
+     "action": "set",
+     "value": -7,
+     "pred": []
+    },
+    {
+     "id": "11@aa",
+     "key": "k3",
+     "action": "set",
+     "value": -7,
+     "pred": [
+      "10@aa"
+     ]
+    },
+    {
+     "id": "1@bb",
+     "key": "k1",
+     "action": "set",
+     "value": null,
+     "pred": []
+    },
+    {
+     "id": "3@aa",
+     "key": "k4",
+     "action": "del",
+     "value": null,
+     "pred": [
+      "1@aa"
+     ]
+    },
+    {
+     "id": "4@aa",
+     "key": "k2",
+     "action": "set",
+     "value": 1,
+     "pred": []
+    },
+    {
+     "id": "5@cc",
+     "key": "k4",
+     "action": "del",
+     "value": null,
+     "pred": [
+      "2@cc"
+     ]
+    },
+    {
+     "id": "3@cc",
+     "key": "k1",
+     "action": "set",
+     "value": null,
+     "pred": [
+      "1@cc"
+     ]
+    },
+    {
+     "id": "5@aa",
+     "key": "k1",
+     "action": "set",
+     "value": "a",
+     "pred": []
+    },
+    {
+     "id": "10@aa",
+     "key": "k3",
+     "action": "set",
+     "value": "",
+     "pred": [
+      "9@aa"
+     ]
+    },
+    {
+     "id": "8@aa",
+     "key": "k3",
+     "action": "set",
+     "value": "a",
+     "pred": [
+      "6@aa"
+     ]
+    },
+    {
+     "id": "12@aa",
+     "key": "k2",
+     "action": "set",
+     "value": "",
+     "pred": []
+    }
+   ],
+   "doc": {
+    "k1": "a",
+    "k2": "",
+    "k3": -7
+   },
+   "conflicts": {
+    "k1": [
+     "1@bb",
+     "5@aa"
+    ]
+   }
+  },
+  {
+   "ops": [
+    {
+     "id": "1@aa",
+     "key": "k4",
+     "action": "set",
+     "value": -7,
+     "pred": []
+    },
+    {
+     "id": "2@aa",
+     "key": "k3",
+     "action": "set",
+     "value": null,
+     "pred": []
+    },
+    {
+     "id": "1@bb",
+     "key": "k2",
+     "action": "set",
+     "value": null,
+     "pred": []
+    },
+    {
+     "id": "3@cc",
+     "key": "k4",
+     "action": "set",
+     "value": 2,
+     "pred": []
+    },
+    {
+     "id": "1@cc",
+     "key": "k2",
+     "action": "set",
+     "value": "",
+     "pred": []
+    },
+    {
+     "id": "2@bb",
+     "key": "k3",
+     "action": "set",
+     "value": 1,
+     "pred": []
+    },
+    {
+     "id": "2@cc",
+     "key": "k3",
+     "action": "set",
+     "value": "",
+     "pred": []
+    }
+   ],
+   "doc": {
+    "k2": "",
+    "k3": "",
+    "k4": 2
+   },
+   "conflicts": {
+    "k2": [
+     "1@bb",
+     "1@cc"
+    ],
+    "k3": [
+     "2@aa",
+     "2@bb",
+     "2@cc"
+    ],
+    "k4": [
+     "1@aa",
+     "3@cc"
+    ]
+   }
+  },
+  {
+   "ops": [
+    {
+     "id": "3@bb",
+     "key": "k2",
+     "action": "set",
+     "value": "a",
+     "pred": [
+      "1@bb"
+     ]
+    },
+    {
+     "id": "1@aa",
+     "key": "k1",
+     "action": "set",
+     "value": 1,
+     "pred": []
+    },
+    {
+     "id": "4@bb",
+     "key": "k2",
+     "action": "set",
+     "value": -7,
+     "pred": [
+      "3@bb"
+     ]
+    },
+    {
+     "id": "1@bb",
+     "key": "k2",
+     "action": "set",
+     "value": null,
+     "pred": []
+    },
+    {
+     "id": "2@bb",
+     "key": "k1",
+     "action": "set",
+     "value": false,
+     "pred": []
+    }
+   ],
+   "doc": {
+    "k1": false,
+    "k2": -7
+   },
+   "conflicts": {
+    "k1": [
+     "1@aa",
+     "2@bb"
+    ]
+   }
+  },
+  {
+   "ops": [
+    {
+     "id": "1@aa",
+     "key": "k4",
+     "action": "set",
+     "value": 2,
+     "pred": []
+    },
+    {
+     "id": "4@cc",
+     "key": "k4",
+     "action": "set",
+     "value": "",
+     "pred": []
+    },
+    {
+     "id": "3@cc",
+     "key": "k2",
+     "action": "set",
+     "value": "b",
+     "pred": [
+      "1@cc"
+     ]
+    },
+    {
+     "id": "3@bb",
+     "key": "k1",
+     "action": "del",
+     "value": null,
+     "pred": [
+      "2@bb"
+     ]
+    },
+    {
+     "id": "4@bb",
+     "key": "k3",
+     "action": "set",
+     "value": "a",
+     "pred": []
+    },
+    {
+     "id": "5@cc",
+     "key": "k1",
+     "action": "set",
+     "value": 1,
+     "pred": []
+    },
+    {
+     "id": "2@cc",
+     "key": "k3",
+     "action": "set",
+     "value": "",
+     "pred": []
+    },
+    {
+     "id": "3@aa",
+     "key": "k4",
+     "action": "set",
+     "value": false,
+     "pred": []
+    },
+    {
+     "id": "2@bb",
+     "key": "k1",
+     "action": "set",
+     "value": 1,
+     "pred": []
+    },
+    {
+     "id": "1@bb",
+     "key": "k4",
+     "action": "set",
+     "value": -7,
+     "pred": []
+    },
+    {
+     "id": "1@cc",
+     "key": "k2",
+     "action": "set",
+     "value": 1,
+     "pred": []
+    },
+    {
+     "id": "2@aa",
+     "key": "k4",
+     "action": "del",
+     "value": null,
+     "pred": [
+      "1@aa"
+     ]
+    }
+   ],
+   "doc": {
+    "k1": 1,
+    "k2": "b",
+    "k3": "a",
+    "k4": ""
+   },
+   "conflicts": {
+    "k3": [
+     "2@cc",
+     "4@bb"
+    ],
+    "k4": [
+     "1@bb",
+     "3@aa",
+     "4@cc"
+    ]
+   }
+  },
+  {
+   "ops": [
+    {
+     "id": "4@cc",
+     "key": "k2",
+     "action": "del",
+     "value": null,
+     "pred": [
+      "2@cc"
+     ]
+    },
+    {
+     "id": "3@aa",
+     "key": "k3",
+     "action": "set",
+     "value": "a",
+     "pred": []
+    },
+    {
+     "id": "3@bb",
+     "key": "k4",
+     "action": "set",
+     "value": "",
+     "pred": []
+    },
+    {
+     "id": "1@cc",
+     "key": "k1",
+     "action": "set",
+     "value": true,
+     "pred": []
+    },
+    {
+     "id": "2@cc",
+     "key": "k2",
+     "action": "set",
+     "value": 1,
+     "pred": []
+    },
+    {
+     "id": "2@bb",
+     "key": "k3",
+     "action": "set",
+     "value": null,
+     "pred": []
+    },
+    {
+     "id": "1@bb",
+     "key": "k2",
+     "action": "set",
+     "value": 1,
+     "pred": []
+    },
+    {
+     "id": "3@cc",
+     "key": "k1",
+     "action": "set",
+     "value": false,
+     "pred": [
+      "1@cc"
+     ]
+    },
+    {
+     "id": "4@aa",
+     "key": "k3",
+     "action": "del",
+     "value": null,
+     "pred": [
+      "3@aa"
+     ]
+    }
+   ],
+   "doc": {
+    "k1": false,
+    "k2": 1,
+    "k3": null,
+    "k4": ""
+   },
+   "conflicts": {}
+  },
+  {
+   "ops": [
+    {
+     "id": "1@aa",
+     "key": "k2",
+     "action": "set",
+     "value": "a",
+     "pred": []
+    },
+    {
+     "id": "3@aa",
+     "key": "k2",
+     "action": "del",
+     "value": null,
+     "pred": [
+      "1@aa"
+     ]
+    },
+    {
+     "id": "1@bb",
+     "key": "k4",
+     "action": "set",
+     "value": true,
+     "pred": []
+    },
+    {
+     "id": "2@bb",
+     "key": "k3",
+     "action": "set",
+     "value": -7,
+     "pred": []
+    },
+    {
+     "id": "3@cc",
+     "key": "k3",
+     "action": "set",
+     "value": "a",
+     "pred": []
+    },
+    {
+     "id": "2@cc",
+     "key": "k1",
+     "action": "del",
+     "value": null,
+     "pred": [
+      "1@cc"
+     ]
+    },
+    {
+     "id": "2@aa",
+     "key": "k1",
+     "action": "set",
+     "value": 1,
+     "pred": []
+    },
+    {
+     "id": "1@cc",
+     "key": "k1",
+     "action": "set",
+     "value": "b",
+     "pred": []
+    },
+    {
+     "id": "4@aa",
+     "key": "k4",
+     "action": "set",
+     "value": null,
+     "pred": []
+    }
+   ],
+   "doc": {
+    "k1": 1,
+    "k3": "a",
+    "k4": null
+   },
+   "conflicts": {
+    "k3": [
+     "2@bb",
+     "3@cc"
+    ],
+    "k4": [
+     "1@bb",
+     "4@aa"
+    ]
+   }
+  },
+  {
+   "ops": [
+    {
+     "id": "1@cc",
+     "key": "k4",
+     "action": "set",
+     "value": 1,
+     "pred": []
+    },
+    {
+     "id": "4@bb",
+     "key": "k4",
+     "action": "set",
+     "value": 1,
+     "pred": [
+      "1@bb"
+     ]
+    },
+    {
+     "id": "6@bb",
+     "key": "k1",
+     "action": "set",
+     "value": -7,
+     "pred": [
+      "3@bb"
+     ]
+    },
+    {
+     "id": "5@bb",
+     "key": "k4",
+     "action": "set",
+     "value": "b",
+     "pred": [
+      "4@bb"
+     ]
+    },
+    {
+     "id": "2@bb",
+     "key": "k2",
+     "action": "set",
+     "value": 2,
+     "pred": []
+    },
+    {
+     "id": "1@bb",
+     "key": "k4",
+     "action": "set",
+     "value": "a",
+     "pred": []
+    },
+    {
+     "id": "2@cc",
+     "key": "k1",
+     "action": "set",
+     "value": -7,
+     "pred": []
+    },
+    {
+     "id": "3@bb",
+     "key": "k1",
+     "action": "set",
+     "value": true,
+     "pred": []
+    }
+   ],
+   "doc": {
+    "k1": -7,
+    "k2": 2,
+    "k4": "b"
+   },
+   "conflicts": {
+    "k1": [
+     "2@cc",
+     "6@bb"
+    ],
+    "k4": [
+     "1@cc",
+     "5@bb"
+    ]
+   }
+  },
+  {
+   "ops": [
+    {
+     "id": "5@cc",
+     "key": "k3",
+     "action": "set",
+     "value": true,
+     "pred": [
+      "2@cc"
+     ]
+    },
+    {
+     "id": "3@cc",
+     "key": "k1",
+     "action": "set",
+     "value": "b",
+     "pred": []
+    },
+    {
+     "id": "1@cc",
+     "key": "k3",
+     "action": "set",
+     "value": false,
+     "pred": []
+    },
+    {
+     "id": "1@aa",
+     "key": "k1",
+     "action": "set",
+     "value": -7,
+     "pred": []
+    },
+    {
+     "id": "2@aa",
+     "key": "k2",
+     "action": "set",
+     "value": false,
+     "pred": []
+    },
+    {
+     "id": "6@cc",
+     "key": "k4",
+     "action": "del",
+     "value": null,
+     "pred": [
+      "4@cc"
+     ]
+    },
+    {
+     "id": "2@cc",
+     "key": "k3",
+     "action": "set",
+     "value": null,
+     "pred": [
+      "1@cc"
+     ]
+    },
+    {
+     "id": "4@cc",
+     "key": "k4",
+     "action": "set",
+     "value": 1,
+     "pred": []
+    },
+    {
+     "id": "7@cc",
+     "key": "k2",
+     "action": "set",
+     "value": 1,
+     "pred": []
+    },
+    {
+     "id": "1@bb",
+     "key": "k4",
+     "action": "set",
+     "value": 1,
+     "pred": []
+    }
+   ],
+   "doc": {
+    "k1": "b",
+    "k2": 1,
+    "k3": true,
+    "k4": 1
+   },
+   "conflicts": {
+    "k1": [
+     "1@aa",
+     "3@cc"
+    ],
+    "k2": [
+     "2@aa",
+     "7@cc"
+    ]
+   }
+  },
+  {
+   "ops": [
+    {
+     "id": "4@bb",
+     "key": "k2",
+     "action": "del",
+     "value": null,
+     "pred": [
+      "2@aa"
+     ]
+    },
+    {
+     "id": "3@bb",
+     "key": "k1",
+     "action": "set",
+     "value": true,
+     "pred": [
+      "1@aa"
+     ]
+    },
+    {
+     "id": "6@bb",
+     "key": "k2",
+     "action": "set",
+     "value": 1,
+     "pred": []
+    },
+    {
+     "id": "1@aa",
+     "key": "k1",
+     "action": "set",
+     "value": 1,
+     "pred": []
+    },
+    {
+     "id": "7@bb",
+     "key": "k1",
+     "action": "del",
+     "value": null,
+     "pred": [
+      "3@bb"
+     ]
+    },
+    {
+     "id": "1@cc",
+     "key": "k2",
+     "action": "set",
+     "value": null,
+     "pred": []
+    },
+    {
+     "id": "2@aa",
+     "key": "k2",
+     "action": "set",
+     "value": true,
+     "pred": []
+    },
+    {
+     "id": "2@cc",
+     "key": "k4",
+     "action": "set",
+     "value": false,
+     "pred": []
+    },
+    {
+     "id": "5@bb",
+     "key": "k4",
+     "action": "set",
+     "value": -7,
+     "pred": []
+    }
+   ],
+   "doc": {
+    "k2": 1,
+    "k4": -7
+   },
+   "conflicts": {
+    "k2": [
+     "1@cc",
+     "6@bb"
+    ],
+    "k4": [
+     "2@cc",
+     "5@bb"
+    ]
+   }
+  },
+  {
+   "ops": [
+    {
+     "id": "7@aa",
+     "key": "k2",
+     "action": "set",
+     "value": 1,
+     "pred": [
+      "3@aa"
+     ]
+    },
+    {
+     "id": "1@cc",
+     "key": "k1",
+     "action": "set",
+     "value": "",
+     "pred": []
+    },
+    {
+     "id": "2@cc",
+     "key": "k2",
+     "action": "set",
+     "value": "b",
+     "pred": []
+    },
+    {
+     "id": "6@aa",
+     "key": "k1",
+     "action": "set",
+     "value": "",
+     "pred": [
+      "5@aa"
+     ]
+    },
+    {
+     "id": "3@aa",
+     "key": "k2",
+     "action": "set",
+     "value": true,
+     "pred": [
+      "2@cc"
+     ]
+    },
+    {
+     "id": "5@aa",
+     "key": "k1",
+     "action": "set",
+     "value": "b",
+     "pred": [
+      "1@cc"
+     ]
+    },
+    {
+     "id": "4@aa",
+     "key": "k3",
+     "action": "set",
+     "value": true,
+     "pred": []
+    }
+   ],
+   "doc": {
+    "k1": "",
+    "k2": 1,
+    "k3": true
+   },
+   "conflicts": {}
+  },
+  {
+   "ops": [
+    {
+     "id": "1@bb",
+     "key": "k4",
+     "action": "set",
+     "value": 1,
+     "pred": []
+    },
+    {
+     "id": "4@cc",
+     "key": "k4",
+     "action": "del",
+     "value": null,
+     "pred": [
+      "2@cc"
+     ]
+    },
+    {
+     "id": "1@cc",
+     "key": "k3",
+     "action": "set",
+     "value": true,
+     "pred": []
+    },
+    {
+     "id": "3@aa",
+     "key": "k4",
+     "action": "set",
+     "value": true,
+     "pred": []
+    },
+    {
+     "id": "1@aa",
+     "key": "k1",
+     "action": "set",
+     "value": "a",
+     "pred": []
+    },
+    {
+     "id": "4@aa",
+     "key": "k4",
+     "action": "set",
+     "value": "",
+     "pred": [
+      "3@aa"
+     ]
+    },
+    {
+     "id": "3@bb",
+     "key": "k4",
+     "action": "del",
+     "value": null,
+     "pred": [
+      "2@bb"
+     ]
+    },
+    {
+     "id": "3@cc",
+     "key": "k2",
+     "action": "set",
+     "value": null,
+     "pred": []
+    },
+    {
+     "id": "2@cc",
+     "key": "k4",
+     "action": "set",
+     "value": -7,
+     "pred": []
+    },
+    {
+     "id": "2@bb",
+     "key": "k4",
+     "action": "set",
+     "value": "",
+     "pred": [
+      "1@bb"
+     ]
+    },
+    {
+     "id": "2@aa",
+     "key": "k3",
+     "action": "set",
+     "value": "",
+     "pred": []
+    }
+   ],
+   "doc": {
+    "k1": "a",
+    "k2": null,
+    "k3": "",
+    "k4": ""
+   },
+   "conflicts": {
+    "k3": [
+     "1@cc",
+     "2@aa"
+    ]
+   }
+  },
+  {
+   "ops": [
+    {
+     "id": "4@aa",
+     "key": "k4",
+     "action": "set",
+     "value": 2,
+     "pred": [
+      "2@aa"
+     ]
+    },
+    {
+     "id": "5@aa",
+     "key": "k2",
+     "action": "set",
+     "value": true,
+     "pred": [
+      "3@aa"
+     ]
+    },
+    {
+     "id": "2@bb",
+     "key": "k2",
+     "action": "del",
+     "value": null,
+     "pred": [
+      "1@bb"
+     ]
+    },
+    {
+     "id": "1@bb",
+     "key": "k2",
+     "action": "set",
+     "value": 1,
+     "pred": []
+    },
+    {
+     "id": "2@aa",
+     "key": "k4",
+     "action": "set",
+     "value": "b",
+     "pred": []
+    },
+    {
+     "id": "3@aa",
+     "key": "k2",
+     "action": "set",
+     "value": "a",
+     "pred": []
+    },
+    {
+     "id": "1@aa",
+     "key": "k1",
+     "action": "set",
+     "value": "",
+     "pred": []
+    }
+   ],
+   "doc": {
+    "k1": "",
+    "k2": true,
+    "k4": 2
+   },
+   "conflicts": {}
+  },
+  {
+   "ops": [
+    {
+     "id": "1@bb",
+     "key": "k4",
+     "action": "set",
+     "value": 1,
+     "pred": []
+    },
+    {
+     "id": "2@bb",
+     "key": "k1",
+     "action": "set",
+     "value": -7,
+     "pred": []
+    },
+    {
+     "id": "1@cc",
+     "key": "k4",
+     "action": "set",
+     "value": null,
+     "pred": []
+    },
+    {
+     "id": "2@aa",
+     "key": "k2",
+     "action": "set",
+     "value": null,
+     "pred": []
+    },
+    {
+     "id": "5@aa",
+     "key": "k1",
+     "action": "set",
+     "value": false,
+     "pred": [
+      "3@aa"
+     ]
+    },
+    {
+     "id": "3@aa",
+     "key": "k1",
+     "action": "set",
+     "value": 1,
+     "pred": []
+    },
+    {
+     "id": "6@aa",
+     "key": "k1",
+     "action": "set",
+     "value": null,
+     "pred": [
+      "5@aa"
+     ]
+    },
+    {
+     "id": "4@aa",
+     "key": "k4",
+     "action": "set",
+     "value": false,
+     "pred": []
+    },
+    {
+     "id": "1@aa",
+     "key": "k3",
+     "action": "set",
+     "value": -7,
+     "pred": []
+    }
+   ],
+   "doc": {
+    "k1": null,
+    "k2": null,
+    "k3": -7,
+    "k4": false
+   },
+   "conflicts": {
+    "k1": [
+     "2@bb",
+     "6@aa"
+    ],
+    "k4": [
+     "1@bb",
+     "1@cc",
+     "4@aa"
+    ]
+   }
+  },
+  {
+   "ops": [
+    {
+     "id": "2@bb",
+     "key": "k4",
+     "action": "set",
+     "value": 1,
+     "pred": []
+    },
+    {
+     "id": "3@cc",
+     "key": "k1",
+     "action": "set",
+     "value": "b",
+     "pred": []
+    },
+    {
+     "id": "4@bb",
+     "key": "k3",
+     "action": "set",
+     "value": 2,
+     "pred": []
+    },
+    {
+     "id": "1@bb",
+     "key": "k2",
+     "action": "set",
+     "value": 1,
+     "pred": []
+    },
+    {
+     "id": "3@bb",
+     "key": "k2",
+     "action": "del",
+     "value": null,
+     "pred": [
+      "1@bb"
+     ]
+    },
+    {
+     "id": "2@cc",
+     "key": "k4",
+     "action": "set",
+     "value": "",
+     "pred": []
+    },
+    {
+     "id": "3@aa",
+     "key": "k4",
+     "action": "set",
+     "value": "a",
+     "pred": []
+    },
+    {
+     "id": "1@aa",
+     "key": "k1",
+     "action": "set",
+     "value": null,
+     "pred": []
+    },
+    {
+     "id": "4@cc",
+     "key": "k1",
+     "action": "set",
+     "value": 2,
+     "pred": [
+      "3@cc"
+     ]
+    },
+    {
+     "id": "1@cc",
+     "key": "k3",
+     "action": "set",
+     "value": -7,
+     "pred": []
+    },
+    {
+     "id": "5@bb",
+     "key": "k1",
+     "action": "set",
+     "value": true,
+     "pred": []
+    },
+    {
+     "id": "2@aa",
+     "key": "k3",
+     "action": "set",
+     "value": true,
+     "pred": []
+    }
+   ],
+   "doc": {
+    "k1": true,
+    "k3": 2,
+    "k4": "a"
+   },
+   "conflicts": {
+    "k1": [
+     "1@aa",
+     "4@cc",
+     "5@bb"
+    ],
+    "k3": [
+     "1@cc",
+     "2@aa",
+     "4@bb"
+    ],
+    "k4": [
+     "2@bb",
+     "2@cc",
+     "3@aa"
+    ]
+   }
+  },
+  {
+   "ops": [
+    {
+     "id": "2@aa",
+     "key": "k2",
+     "action": "set",
+     "value": "b",
+     "pred": []
+    },
+    {
+     "id": "1@cc",
+     "key": "k2",
+     "action": "set",
+     "value": "",
+     "pred": []
+    },
+    {
+     "id": "1@aa",
+     "key": "k4",
+     "action": "set",
+     "value": "",
+     "pred": []
+    },
+    {
+     "id": "1@bb",
+     "key": "k2",
+     "action": "set",
+     "value": null,
+     "pred": []
+    },
+    {
+     "id": "4@cc",
+     "key": "k2",
+     "action": "del",
+     "value": null,
+     "pred": [
+      "1@cc"
+     ]
+    },
+    {
+     "id": "3@cc",
+     "key": "k3",
+     "action": "set",
+     "value": true,
+     "pred": [
+      "2@cc"
+     ]
+    },
+    {
+     "id": "2@cc",
+     "key": "k3",
+     "action": "set",
+     "value": 2,
+     "pred": []
+    }
+   ],
+   "doc": {
+    "k2": "b",
+    "k3": true,
+    "k4": ""
+   },
+   "conflicts": {
+    "k2": [
+     "1@bb",
+     "2@aa"
+    ]
+   }
+  },
+  {
+   "ops": [
+    {
+     "id": "3@bb",
+     "key": "k3",
+     "action": "set",
+     "value": false,
+     "pred": [
+      "1@bb"
+     ]
+    },
+    {
+     "id": "5@bb",
+     "key": "k1",
+     "action": "set",
+     "value": -7,
+     "pred": [
+      "4@bb"
+     ]
+    },
+    {
+     "id": "6@bb",
+     "key": "k4",
+     "action": "set",
+     "value": "",
+     "pred": []
+    },
+    {
+     "id": "5@cc",
+     "key": "k3",
+     "action": "set",
+     "value": -7,
+     "pred": [
+      "2@cc"
+     ]
+    },
+    {
+     "id": "1@bb",
+     "key": "k3",
+     "action": "set",
+     "value": 1,
+     "pred": []
+    },
+    {
+     "id": "4@bb",
+     "key": "k1",
+     "action": "set",
+     "value": true,
+     "pred": []
+    },
+    {
+     "id": "1@cc",
+     "key": "k1",
+     "action": "set",
+     "value": "",
+     "pred": []
+    },
+    {
+     "id": "3@cc",
+     "key": "k4",
+     "action": "set",
+     "value": "a",
+     "pred": []
+    },
+    {
+     "id": "6@cc",
+     "key": "k1",
+     "action": "del",
+     "value": null,
+     "pred": [
+      "1@cc"
+     ]
+    },
+    {
+     "id": "2@cc",
+     "key": "k3",
+     "action": "set",
+     "value": 2,
+     "pred": []
+    },
+    {
+     "id": "4@cc",
+     "key": "k4",
+     "action": "set",
+     "value": null,
+     "pred": [
+      "3@cc"
+     ]
+    },
+    {
+     "id": "2@bb",
+     "key": "k2",
+     "action": "set",
+     "value": 1,
+     "pred": []
+    }
+   ],
+   "doc": {
+    "k1": -7,
+    "k2": 1,
+    "k3": -7,
+    "k4": ""
+   },
+   "conflicts": {
+    "k3": [
+     "3@bb",
+     "5@cc"
+    ],
+    "k4": [
+     "4@cc",
+     "6@bb"
+    ]
+   }
+  },
+  {
+   "ops": [
+    {
+     "id": "1@cc",
+     "key": "k1",
+     "action": "set",
+     "value": 2,
+     "pred": []
+    },
+    {
+     "id": "2@aa",
+     "key": "k1",
+     "action": "set",
+     "value": "b",
+     "pred": []
+    },
+    {
+     "id": "2@cc",
+     "key": "k3",
+     "action": "set",
+     "value": "b",
+     "pred": []
+    },
+    {
+     "id": "1@aa",
+     "key": "k4",
+     "action": "set",
+     "value": "b",
+     "pred": []
+    }
+   ],
+   "doc": {
+    "k1": "b",
+    "k3": "b",
+    "k4": "b"
+   },
+   "conflicts": {
+    "k1": [
+     "1@cc",
+     "2@aa"
+    ]
+   }
+  },
+  {
+   "ops": [
+    {
+     "id": "1@aa",
+     "key": "k2",
+     "action": "set",
+     "value": true,
+     "pred": []
+    },
+    {
+     "id": "1@cc",
+     "key": "k1",
+     "action": "set",
+     "value": "b",
+     "pred": []
+    },
+    {
+     "id": "4@aa",
+     "key": "k4",
+     "action": "set",
+     "value": "",
+     "pred": []
+    },
+    {
+     "id": "2@aa",
+     "key": "k3",
+     "action": "set",
+     "value": "",
+     "pred": []
+    },
+    {
+     "id": "3@aa",
+     "key": "k1",
+     "action": "set",
+     "value": null,
+     "pred": []
+    }
+   ],
+   "doc": {
+    "k1": null,
+    "k2": true,
+    "k3": "",
+    "k4": ""
+   },
+   "conflicts": {
+    "k1": [
+     "1@cc",
+     "3@aa"
+    ]
+   }
+  },
+  {
+   "ops": [
+    {
+     "id": "2@cc",
+     "key": "k1",
+     "action": "set",
+     "value": false,
+     "pred": []
+    },
+    {
+     "id": "1@cc",
+     "key": "k4",
+     "action": "set",
+     "value": false,
+     "pred": []
+    },
+    {
+     "id": "2@aa",
+     "key": "k1",
+     "action": "set",
+     "value": "",
+     "pred": []
+    },
+    {
+     "id": "1@aa",
+     "key": "k4",
+     "action": "set",
+     "value": true,
+     "pred": []
+    }
+   ],
+   "doc": {
+    "k1": false,
+    "k4": false
+   },
+   "conflicts": {
+    "k1": [
+     "2@aa",
+     "2@cc"
+    ],
+    "k4": [
+     "1@aa",
+     "1@cc"
+    ]
+   }
+  },
+  {
+   "ops": [
+    {
+     "id": "2@bb",
+     "key": "k3",
+     "action": "set",
+     "value": "b",
+     "pred": [
+      "1@bb"
+     ]
+    },
+    {
+     "id": "1@bb",
+     "key": "k3",
+     "action": "set",
+     "value": false,
+     "pred": []
+    },
+    {
+     "id": "3@bb",
+     "key": "k1",
+     "action": "set",
+     "value": 1,
+     "pred": []
+    },
+    {
+     "id": "4@bb",
+     "key": "k4",
+     "action": "set",
+     "value": null,
+     "pred": []
+    }
+   ],
+   "doc": {
+    "k1": 1,
+    "k3": "b",
+    "k4": null
+   },
+   "conflicts": {}
+  },
+  {
+   "ops": [
+    {
+     "id": "7@cc",
+     "key": "k3",
+     "action": "set",
+     "value": "b",
+     "pred": [
+      "6@cc"
+     ]
+    },
+    {
+     "id": "2@cc",
+     "key": "k3",
+     "action": "set",
+     "value": true,
+     "pred": [
+      "1@cc"
+     ]
+    },
+    {
+     "id": "2@aa",
+     "key": "k2",
+     "action": "set",
+     "value": -7,
+     "pred": []
+    },
+    {
+     "id": "3@aa",
+     "key": "k2",
+     "action": "set",
+     "value": "",
+     "pred": [
+      "2@aa"
+     ]
+    },
+    {
+     "id": "1@cc",
+     "key": "k3",
+     "action": "set",
+     "value": 2,
+     "pred": []
+    },
+    {
+     "id": "3@cc",
+     "key": "k2",
+     "action": "set",
+     "value": false,
+     "pred": []
+    },
+    {
+     "id": "1@aa",
+     "key": "k3",
+     "action": "set",
+     "value": false,
+     "pred": []
+    },
+    {
+     "id": "4@aa",
+     "key": "k2",
+     "action": "set",
+     "value": 1,
+     "pred": [
+      "3@aa"
+     ]
+    },
+    {
+     "id": "2@bb",
+     "key": "k2",
+     "action": "set",
+     "value": null,
+     "pred": []
+    },
+    {
+     "id": "5@cc",
+     "key": "k3",
+     "action": "set",
+     "value": null,
+     "pred": [
+      "4@cc"
+     ]
+    },
+    {
+     "id": "6@cc",
+     "key": "k3",
+     "action": "set",
+     "value": 2,
+     "pred": [
+      "5@cc"
+     ]
+    },
+    {
+     "id": "4@cc",
+     "key": "k3",
+     "action": "set",
+     "value": "b",
+     "pred": [
+      "2@cc"
+     ]
+    },
+    {
+     "id": "1@bb",
+     "key": "k4",
+     "action": "set",
+     "value": null,
+     "pred": []
+    }
+   ],
+   "doc": {
+    "k2": 1,
+    "k3": "b",
+    "k4": null
+   },
+   "conflicts": {
+    "k2": [
+     "2@bb",
+     "3@cc",
+     "4@aa"
+    ],
+    "k3": [
+     "1@aa",
+     "7@cc"
+    ]
+   }
+  },
+  {
+   "ops": [
+    {
+     "id": "1@aa",
+     "key": "k4",
+     "action": "set",
+     "value": "",
+     "pred": []
+    },
+    {
+     "id": "3@bb",
+     "key": "k1",
+     "action": "set",
+     "value": -7,
+     "pred": []
+    },
+    {
+     "id": "4@bb",
+     "key": "k3",
+     "action": "set",
+     "value": -7,
+     "pred": []
+    },
+    {
+     "id": "7@aa",
+     "key": "k1",
+     "action": "set",
+     "value": null,
+     "pred": [
+      "3@aa"
+     ]
+    },
+    {
+     "id": "1@bb",
+     "key": "k4",
+     "action": "set",
+     "value": 1,
+     "pred": []
+    },
+    {
+     "id": "5@bb",
+     "key": "k2",
+     "action": "set",
+     "value": null,
+     "pred": []
+    },
+    {
+     "id": "2@aa",
+     "key": "k2",
+     "action": "set",
+     "value": "b",
+     "pred": []
+    },
+    {
+     "id": "3@aa",
+     "key": "k1",
+     "action": "set",
+     "value": -7,
+     "pred": []
+    },
+    {
+     "id": "5@aa",
+     "key": "k3",
+     "action": "set",
+     "value": "",
+     "pred": [
+      "4@aa"
+     ]
+    },
+    {
+     "id": "4@aa",
+     "key": "k3",
+     "action": "set",
+     "value": "b",
+     "pred": []
+    },
+    {
+     "id": "6@aa",
+     "key": "k2",
+     "action": "set",
+     "value": "",
+     "pred": [
+      "2@aa"
+     ]
+    },
+    {
+     "id": "2@bb",
+     "key": "k4",
+     "action": "set",
+     "value": "b",
+     "pred": [
+      "1@bb"
+     ]
+    },
+    {
+     "id": "6@bb",
+     "key": "k3",
+     "action": "set",
+     "value": false,
+     "pred": [
+      "4@bb"
+     ]
+    },
+    {
+     "id": "8@aa",
+     "key": "k1",
+     "action": "set",
+     "value": -7,
+     "pred": [
+      "7@aa"
+     ]
+    }
+   ],
+   "doc": {
+    "k1": -7,
+    "k2": "",
+    "k3": false,
+    "k4": "b"
+   },
+   "conflicts": {
+    "k1": [
+     "3@bb",
+     "8@aa"
+    ],
+    "k2": [
+     "5@bb",
+     "6@aa"
+    ],
+    "k3": [
+     "5@aa",
+     "6@bb"
+    ],
+    "k4": [
+     "1@aa",
+     "2@bb"
+    ]
+   }
+  },
+  {
+   "ops": [
+    {
+     "id": "2@bb",
+     "key": "k1",
+     "action": "set",
+     "value": "a",
+     "pred": []
+    },
+    {
+     "id": "1@bb",
+     "key": "k4",
+     "action": "set",
+     "value": false,
+     "pred": []
+    },
+    {
+     "id": "1@cc",
+     "key": "k3",
+     "action": "set",
+     "value": "b",
+     "pred": []
+    }
+   ],
+   "doc": {
+    "k1": "a",
+    "k3": "b",
+    "k4": false
+   },
+   "conflicts": {}
+  },
+  {
+   "ops": [],
+   "doc": {},
+   "conflicts": {}
+  },
+  {
+   "ops": [
+    {
+     "id": "5@aa",
+     "key": "k1",
+     "action": "set",
+     "value": true,
+     "pred": []
+    },
+    {
+     "id": "2@aa",
+     "key": "k2",
+     "action": "set",
+     "value": 1,
+     "pred": []
+    },
+    {
+     "id": "4@aa",
+     "key": "k4",
+     "action": "set",
+     "value": false,
+     "pred": [
+      "3@aa"
+     ]
+    },
+    {
+     "id": "3@aa",
+     "key": "k4",
+     "action": "set",
+     "value": "b",
+     "pred": []
+    },
+    {
+     "id": "1@aa",
+     "key": "k3",
+     "action": "set",
+     "value": null,
+     "pred": []
+    }
+   ],
+   "doc": {
+    "k1": true,
+    "k2": 1,
+    "k3": null,
+    "k4": false
+   },
+   "conflicts": {}
+  },
+  {
+   "ops": [
+    {
+     "id": "1@aa",
+     "key": "k3",
+     "action": "set",
+     "value": 1,
+     "pred": []
+    },
+    {
+     "id": "2@aa",
+     "key": "k1",
+     "action": "set",
+     "value": null,
+     "pred": []
+    },
+    {
+     "id": "1@cc",
+     "key": "k1",
+     "action": "set",
+     "value": true,
+     "pred": []
+    },
+    {
+     "id": "2@cc",
+     "key": "k1",
+     "action": "del",
+     "value": null,
+     "pred": [
+      "1@cc"
+     ]
+    },
+    {
+     "id": "4@bb",
+     "key": "k4",
+     "action": "set",
+     "value": 1,
+     "pred": []
+    },
+    {
+     "id": "3@aa",
+     "key": "k4",
+     "action": "set",
+     "value": true,
+     "pred": []
+    },
+    {
+     "id": "2@bb",
+     "key": "k1",
+     "action": "set",
+     "value": 1,
+     "pred": []
+    },
+    {
+     "id": "3@bb",
+     "key": "k1",
+     "action": "set",
+     "value": -7,
+     "pred": [
+      "2@bb"
+     ]
+    },
+    {
+     "id": "1@bb",
+     "key": "k2",
+     "action": "set",
+     "value": true,
+     "pred": []
+    }
+   ],
+   "doc": {
+    "k1": -7,
+    "k2": true,
+    "k3": 1,
+    "k4": 1
+   },
+   "conflicts": {
+    "k1": [
+     "2@aa",
+     "3@bb"
+    ],
+    "k4": [
+     "3@aa",
+     "4@bb"
+    ]
+   }
+  },
+  {
+   "ops": [
+    {
+     "id": "2@cc",
+     "key": "k2",
+     "action": "set",
+     "value": null,
+     "pred": []
+    },
+    {
+     "id": "7@bb",
+     "key": "k2",
+     "action": "set",
+     "value": null,
+     "pred": []
+    },
+    {
+     "id": "5@bb",
+     "key": "k4",
+     "action": "set",
+     "value": false,
+     "pred": []
+    },
+    {
+     "id": "2@bb",
+     "key": "k3",
+     "action": "set",
+     "value": 2,
+     "pred": []
+    },
+    {
+     "id": "4@bb",
+     "key": "k1",
+     "action": "set",
+     "value": null,
+     "pred": [
+      "1@bb"
+     ]
+    },
+    {
+     "id": "6@bb",
+     "key": "k3",
+     "action": "set",
+     "value": "",
+     "pred": []
+    },
+    {
+     "id": "3@bb",
+     "key": "k3",
+     "action": "del",
+     "value": null,
+     "pred": [
+      "2@bb"
+     ]
+    },
+    {
+     "id": "1@cc",
+     "key": "k1",
+     "action": "set",
+     "value": -7,
+     "pred": []
+    },
+    {
+     "id": "1@bb",
+     "key": "k1",
+     "action": "set",
+     "value": -7,
+     "pred": []
+    }
+   ],
+   "doc": {
+    "k1": null,
+    "k2": null,
+    "k3": "",
+    "k4": false
+   },
+   "conflicts": {
+    "k1": [
+     "1@cc",
+     "4@bb"
+    ],
+    "k2": [
+     "2@cc",
+     "7@bb"
+    ]
+   }
+  },
+  {
+   "ops": [
+    {
+     "id": "1@aa",
+     "key": "k2",
+     "action": "set",
+     "value": false,
+     "pred": []
+    },
+    {
+     "id": "2@aa",
+     "key": "k3",
+     "action": "set",
+     "value": 2,
+     "pred": []
+    },
+    {
+     "id": "1@cc",
+     "key": "k2",
+     "action": "set",
+     "value": -7,
+     "pred": []
+    },
+    {
+     "id": "1@bb",
+     "key": "k4",
+     "action": "set",
+     "value": 1,
+     "pred": []
+    },
+    {
+     "id": "2@cc",
+     "key": "k4",
+     "action": "set",
+     "value": "a",
+     "pred": []
+    }
+   ],
+   "doc": {
+    "k2": -7,
+    "k3": 2,
+    "k4": "a"
+   },
+   "conflicts": {
+    "k2": [
+     "1@aa",
+     "1@cc"
+    ],
+    "k4": [
+     "1@bb",
+     "2@cc"
+    ]
+   }
+  },
+  {
+   "ops": [
+    {
+     "id": "5@aa",
+     "key": "k1",
+     "action": "del",
+     "value": null,
+     "pred": [
+      "2@aa"
+     ]
+    },
+    {
+     "id": "4@bb",
+     "key": "k1",
+     "action": "set",
+     "value": "b",
+     "pred": [
+      "1@bb"
+     ]
+    },
+    {
+     "id": "1@bb",
+     "key": "k1",
+     "action": "set",
+     "value": false,
+     "pred": []
+    },
+    {
+     "id": "3@aa",
+     "key": "k4",
+     "action": "set",
+     "value": "a",
+     "pred": []
+    },
+    {
+     "id": "2@aa",
+     "key": "k1",
+     "action": "set",
+     "value": -7,
+     "pred": []
+    },
+    {
+     "id": "1@aa",
+     "key": "k3",
+     "action": "set",
+     "value": false,
+     "pred": []
+    },
+    {
+     "id": "4@aa",
+     "key": "k3",
+     "action": "set",
+     "value": 2,
+     "pred": [
+      "1@aa"
+     ]
+    },
+    {
+     "id": "3@bb",
+     "key": "k2",
+     "action": "set",
+     "value": 1,
+     "pred": []
+    },
+    {
+     "id": "2@bb",
+     "key": "k4",
+     "action": "set",
+     "value": "b",
+     "pred": []
+    }
+   ],
+   "doc": {
+    "k1": "b",
+    "k2": 1,
+    "k3": 2,
+    "k4": "a"
+   },
+   "conflicts": {
+    "k4": [
+     "2@bb",
+     "3@aa"
+    ]
+   }
+  }
+ ]
+}

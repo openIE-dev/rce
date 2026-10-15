@@ -815,16 +815,29 @@ The child-list algorithm is derived from its laws, not copied:
   the Python `blake3` package's (`tests/ui/view_checks_tree*.rce`).
 - **derived:** `scripts/gen/view_derived.rce` (LIS cases, exact
   operation lists, CBOR key order, well-formedness, frame record bytes).
-- `scripts/mut/view.py`: 41 of 41 mutants killed. One equivalent
-  mutant was removed: dropping `not put` in `attach` (sibling ids are
-  distinct, so the anchor occurs at most once).
+- **optimal matching (`diff`):** `match_opt` keeps a longest common
+  subsequence (under same tag and key) in place, then matches every
+  remaining same pair. Container operations are |old| + |new| - |M| -
+  LIS(M): |M| is the most the tags and keys allow, and LIS(M) <= LCS
+  for any matching, with equality here, so no matching does better.
+  Checked against a breadth-first search over removals, creations and
+  moves on 1,500 distinct random list pairs of up to 5 children (keyed
+  spans, unkeyed `<s>`/`<p>`, text nodes): `tests/ui/view_checks_opt*.rce`,
+  all equal. Vue's first-free matching (`diff_vue`, the mode the Vue
+  vectors use) costs more on 23 of them.
+- `scripts/mut/view.py`: 48 of 48 mutants killed. Three equivalent
+  mutants were removed: dropping `not put` in `attach` (sibling ids are
+  distinct, so the anchor occurs at most once), dropping match_opt's
+  common-suffix loop (a common suffix lies on some LCS, so the count is
+  unchanged; this mode specifies the count, not the sequence), and
+  `and` for `or` in its empty-side test.
 
 Divergences from Vue, by design: key matching requires the same tag (see
 above); operations are ordered breadth first (a node's attributes and
 text, its child list, then its matched children), where Vue patches
-children depth first while scanning. Minimality holds for the moves
-given the matching; the greedy unkeyed matching is Vue's and is not
-optimised.
+children depth first while scanning. In `diff_vue` minimality holds for the moves given Vue's matching;
+`diff` is optimal over all matchings.
+
 ## ui.states (`lib/ui/states.rce`), ui.ecma (`lib/ui/ecma.rce`), text.xml (`lib/text/xml.rce`)
 
 Pure (survey M53). `ui.states` is an SCXML interpreter that follows the
@@ -879,7 +892,9 @@ and checks compare exact bits (no tolerance). Inputs whose result
 overflows (a trap in RCE) and non-finite inputs are skipped. Random cases:
 uniform 64-bit patterns and uniform [-4, 4], seed 20261015 + arity; edge
 cases: zeros, subnormal and normal boundaries, max, small integers, all
-sign combinations.
+sign combinations. pow adds exact results and midpoints (integer y up to
+64, y = n/2^k with x's odd part a perfect 2^k-th power, powers of two to
+2^-1075) and random x in [0, 4] with y in [-300, 300].
 
 | fn | CORE-MATH worst cases | random | edge | total |
 | --- | --- | --- | --- | --- |
@@ -888,8 +903,16 @@ sign combinations.
 | exp (push CI sample) | 4,005 of 1,129,105 | 2,504 | 122 | 6,631 |
 | log (push CI sample) | 4,089 of 134,941 | 1,484 | 70 | 5,643 |
 | log (full, off-repo run) | 134,941 | 1,483 | 7 | 136,431 |
+| log2 (push CI sample) | 4,155 of 33,279 | 1,483 | 94 | 5,732 |
+| log10 (push CI sample) | 4,095 of 65,553 | 1,484 | 238 | 5,817 |
 | sin (push CI sample) | 4,005 of 1,971,056 | 3,000 | 126 | 7,131 |
 | cos (push CI sample) | 4,008 of 1,090,196 | 3,000 | 126 | 7,134 |
+| tan (push CI sample) | 4,006 of 1,077,395 | 3,000 | 140 | 7,146 |
+| atan2 (push CI sample) | 3,991 of 28,151 | 3,000 | 603 | 7,594 |
+| cos (full, off-repo run) | 1,088,192 | 2,999 | 107 | 1,091,298 |
+| sin (full, off-repo run) | 1,971,056 | 2,999 | 105 | 1,974,160 |
+| exp (full, off-repo run) | 1,129,105 | 2,503 | 99 | 1,131,707 |
+| pow (push CI sample) | 7,229 of 1,003,179 | 5,428 | 2,188 | 14,845 |
 
 The large CORE-MATH files (exp 25 MB, log 3 MB, sin 43 MB, cos 24 MB) are
 not copied: push CI runs an evenly spaced sample (`--sample 4000`), and the
@@ -906,8 +929,52 @@ Cross-target: `scripts/math_parity.sh` emits the module with the derived
 checks and one shard per function to Rust, Python and JavaScript and
 requires identical transcripts, plus Scala 3 when scala-cli is installed
 (run on the box: Scala 3.9.0, JVM 17; all four identical).
-Mutation testing: `scripts/mut/math.py` 29/29 killed (equivalent mutants
+Mutation testing: `scripts/mut/math.py` 42/42 killed (pow: 13/13) (equivalent mutants
 removed are listed in its header).
 
 - `vectors/math/cbrt.wc` sha256 `c0487c6527aafea0eb741a4464c745bd545c49fc2a00ff7dbb89ee882b16047a`
 - `vectors/math/hypot.wc` sha256 `a7f24bd5b59d371aa1e1a2385dd9d526e21c6b4f751f735471f72d505103fac7`
+## data.sync (`lib/data/sync.rce`)
+
+Official vectors (127 checks):
+- json-patch/json-patch-tests commit 2a928f90 (2025-02-21), `tests.json` and
+  `spec_tests.json` copied verbatim: all 112 cases, the 4 marked disabled
+  included (two `op` members in one operation, a scalar root); duplicate
+  member names are kept as in the source text when the case is rendered.
+- RFC 7396 Appendix A, the 15 merge-patch examples, transcribed into
+  `rfc7396_appendix_a.json` (rfc-editor.org text, sha256 545e1d61...c6).
+
+Derived vectors (1145 checks):
+- fast-json-patch 3.1.1 (`scripts/gen/sync_fjp.js`, seed 20261015): 150
+  `compare` diffs applied by `patch_apply`, and `diff` checked by its law
+  `patch_apply(a, diff(a, b)) == b` on the same pairs; 199 random patches
+  applied with validation. Skipped where fast-json-patch departs from the
+  RFCs: `~2` in a pointer (RFC 6901 allows only `~0`/`~1`), root targets and
+  a move from the root (later ops on a scalar root are ignored), and 8
+  TypeError/undefined results; RFC rules for those are checked directly.
+- @automerge/automerge 2.2.9 (`scripts/gen/sync_automerge.js`, seed 4242):
+  60 sessions of concurrent map puts/deletes on three replicas, 478 ops in
+  shuffled order; the merged document and `getConflicts` per key (82 keys
+  with several values) against `map_state` / `map_conflicts`; each session
+  also merged from two overlapping halves in both orders.
+- PostgreSQL 17.11 with wal2json 2.6 (`scripts/gen/sync_pg.py`, seed 6262):
+  30 random transactions on a REPLICA IDENTITY FULL table, decoded with
+  format-version 2; `table_apply` must give the server's table, and for 7
+  subscription queries `sub_update` must give the server's own
+  `(new WHERE q) EXCEPT (old WHERE q)` and the reverse (text compared
+  COLLATE "C").
+- Laws, stated in `scripts/gen/sync_gen.py`: PN-counter, OR-set (add wins)
+  and LWW merge are commutative, associative and idempotent and give the
+  expected value; the mutation log (Replicache push/pull: dedupe by client
+  and mutation id, a gap refused, replay(log) == db, pending mutations
+  rebased on pull, all views equal the server after a settle round).
+
+Mutation testing: `scripts/mut/data.py sync` 48/48 killed (one equivalent
+mutant removed, noted in its header).
+
+- `vectors/data/jsonpatch/rfc7396_appendix_a.json` sha256 `9b5fd611d7564a0e926756d912a50a118e4b9f32b84f0a8dc13ad70058488ad6`
+- `vectors/data/jsonpatch/spec_tests.json` sha256 `a26b050292207033e5cccc5d6102b7bd6f8add7db0d0680e5d46a7ecf40a8c7b`
+- `vectors/data/jsonpatch/tests.json` sha256 `de3dce3d0d5029fed83007e50b54607750dd3d1478d3c59ca35fdc18fb1a04ae`
+- `vectors/data/sync/automerge_map.json` sha256 `6c1a591d2304a154e80a50c7b8eb0239b4d4278a7ef063c9a76e3ab37f0c3617`
+- `vectors/data/sync/fast_json_patch.json` sha256 `59e159c6000c9218fb48cf6df94d1316955916bc64ddf62e40cc3414e55aa1ad`
+- `vectors/data/sync/pg_subscriptions.json` sha256 `134cb8582f750b1496ed7297ed798929197cc190e8c5008adc769175dcb10751`

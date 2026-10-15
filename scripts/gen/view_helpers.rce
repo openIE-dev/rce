@@ -67,7 +67,7 @@ fn same_tree(a: &View, b: &View) -> bool
 fn vue(s: text, t: text) -> text
     let a = lv(s)
     let b = lv(t)
-    let ops = diff(&a, &b)
+    let ops = diff_vue(&a, &b)
     let r = apply(&a, &b, &ops)
     if not same_tree(&r, &b)
         return "BAD"
@@ -81,6 +81,20 @@ fn vue(s: text, t: text) -> text
         elif x.op == OP_MOVE and x.parent == 0
             o.push("m " + lab_or_text(&a, &b, x.node) + " " + lab_or_text(&a, &b, x.before))
     return ";".join(o)
+# container operations of the optimal diff; -1 if the replay differs
+fn cost(s: text, t: text) -> i64
+    let a = lv(s)
+    let b = lv(t)
+    let ops = diff(&a, &b)
+    let r = apply(&a, &b, &ops)
+    if not same_tree(&r, &b)
+        return -1
+    var n: i64 = 0
+    for x in ops
+        if x.op == OP_REMOVE or x.op == OP_CREATE or x.op == OP_MOVE
+            if x.op != OP_REMOVE or a.parent[x.node as usize] == 0
+                n += 1
+    return n
 fn moves(s: text, t: text) -> i64
     let a = lv(s)
     let b = lv(t)

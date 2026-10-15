@@ -14,6 +14,13 @@
 # all the same); n_add's final carry limb (every sum is below 1024 with
 # 200, 500, 1000 or 2000 fraction bits, so it never carries past the top
 # limb: 2^(f + 10) and 2^(f + 20) are limb boundaries, nothing reaches them).
+# Exact results (log10(10^k) = k, log2(2^k) = k) need no special case: the
+# bracket around a representable value rounds to it at once (only a midpoint
+# could stall Ziv's loop). Error-bound margins (EB, tan's (1 + Q^2) term)
+# are soundness slack, not observable on vectors, so not mutated; n_div's
+# remainder == divisor step (never hit: the dividends are transcendental);
+# n_div's start window lb - 52 instead of lb - 53 (the same Y0, one bit
+# fewer read from b).
 import glob, os, subprocess, sys, tempfile
 from concurrent.futures import ThreadPoolExecutor
 RCE = os.environ.get('RCE', 'rce')
@@ -72,6 +79,13 @@ M = [('core',) + m for m in [
     ('        digits.push(t / den)', '        digits.push((t / den) & 31)'),
     ('        p += 6', '        p += 5'),
     ('    if x == 1.0\n        return 0.0', '    if x == 1.0\n        return 1.0'),
+]] + [('log2',) + m for m in [
+    ('            kc = n_pow2(2100)', '            kc = n_pow2(2101)'),
+    ('            let sc = c_log2e()\n            let s1 = cst(&sc, 2100, f)', '            let sc = c_log2e()\n            let s1 = cst(&sc, 2101, f)'),
+    ('        if which == 1\n', '        if which == 3\n'),
+]] + [('log10',) + m for m in [
+    ('        elif which == 2\n', '        elif which == 3\n'),
+    ('            kc = c_log10_2()', '            kc = c_ln2()'),
 ]] + [('sin',) + m for m in [
     ('            o.push(a[i] & ((1 << b) - 1))', '            o.push(a[i])'),
     ('    if ax < 7.450580596923828e-09', '    if ax < 1e-6'),
@@ -82,6 +96,36 @@ M = [('core',) + m for m in [
     ('        let ws = n_shr(&t, 4200 - me[1] - f)', '        let ws = n_shr(&t, 4201 - me[1] - f)'),
     ('        t = n_divs(&ps, (k + 1) * (k + 2))', '        t = n_divs(&ps, (k + 1) * (k + 3))'),
     ('            if useS and minus\n                neg = not neg\n        else', '            if false\n                neg = not neg\n        else'),
+]] + [('tan',) + m for m in [
+    ('            var s = if even then minus else not minus', '            var s = if even then minus else minus'),
+    ('                s = not s\n                return if s', '                s = s\n                return if s'),
+    ('    let qa = n_mul(&num, &y)\n    var q = n_shr(&qa, k)', '    let qa = n_mul(&num, &y)\n    var q = n_shr(&qa, k + 1)'),
+    ('            let tq = if even then n_div(&s0, &s1, f) else n_div(&s1, &s0, f)', '            let tq = n_div(&s0, &s1, f)'),
+]] + [('atan2',) + m for m in [
+    ('        let dd = if f == 200 then d else 3 * d', '        let dd = d'),
+    ('    if y == 0.0\n        if xneg', '    if y == 0.0\n        if false'),
+    ('    let swap = ay > ax', '    let swap = false'),
+    ('            a = n_sub(&pc, &a)\n        if xneg', '            a = n_add(&pc, &a)\n        if xneg'),
+    ('            let pi = n_muls(&pc, 2)', '            let pi = n_muls(&pc, 3)'),
+    ('        u = n_div(&num, &den, fe)', '        u = copy(num)'),
+    ('        uneg = n_cmp(t, &c) < 0', '        uneg = n_cmp(t, &c) > 0'),
+    ('        let d = n_divs(&p, k)', '        let d = n_divs(&p, k + 2)'),
+    ('(x as f32).tostr() == "-0"', '(x as f32).tostr() == "0"'),
+    ('        return [(x * pow2(600) * pow2(474)) as i64, -1074]\n    return mant(x)', '        return [(x * pow2(600) * pow2(475)) as i64, -1074]\n    return mant(x)'),
+]] + [('pow',) + m for m in [
+    ('    if yint and y >= 2.0 and y <= 64.0', '    if false'),
+    ('        let v = n_round(&p, xo[1] * yi)', '        let v = n_round(&p, xo[1] * yi + 1)'),
+    ('    if y > 0.0 and ym[1] < 0 and ym[1] >= -5 and ym[0] <= 34', '    if false'),
+    ('        yodd = ay - 2.0 * h == 1.0', '        yodd = false'),
+    ('        return if yodd then x else 0.0', '        return 0.0'),
+    ('        let zneg = (lb[0][0] == 1) != (y < 0.0)', '        let zneg = lb[0][0] == 1'),
+    ('        let z = n_shr(&lp, fl2 - ey - f)', '        let z = n_shr(&lp, fl2 - ey - f + 1)'),
+    ('        if rneg and r.len() > 0\n            k -= 1', '        if false\n            k -= 1'),
+    ('    let neg = x < 0.0 and yodd', '    let neg = x < 0.0'),
+    ('    while o % 2 == 0 bound 64', '    while o % 4 == 0 bound 64'),
+    ('        if n_cmp(&rk, &mo) == 0 and es % (1 << k) == 0', '        if n_cmp(&rk, &mo) == 0'),
+    ('    if zd < -746.0', '    if zd < -700.0'),
+    ('            let v = n_round(&one, ex)', '            let v = n_round(&one, ex - 1)'),
 ]] + [('cos',) + m for m in [
     ('            neg = q == 1 or q == 2', '            neg = q == 2'),
     ('            useS = q % 2 == 1', '            useS = q % 2 == 0'),
@@ -112,7 +156,7 @@ assert not fails(SRC, SH[0]), 'unmutated source fails'
 k = n = 0
 for g, a, b in M:
     if want and g not in want: continue
-    if g in ('exp', 'log', 'sin', 'cos') and 'pub fn %s(' % g not in SRC: continue
+    if g in ('exp', 'log', 'log2', 'log10', 'sin', 'cos', 'tan', 'atan2', 'pow') and 'pub fn %s(' % g not in SRC: continue
     assert SRC.count(a) >= 1, a
     n += 1
     if killed(SRC.replace(a, b, 1)): k += 1

@@ -145,6 +145,30 @@ def bfs_moves(a, b):
                 if z not in seen: seen.add(z); d.append((z, k + 1))
     raise AssertionError
 
+def bfs_ops(a, b):
+    """least removals + creations + moves turning child list a into one
+    whose (tag, key) sequence is b's; created nodes take any needed sig"""
+    sig = lambda x: (tag(x), key(x))
+    goal = tuple(sig(x) for x in b)
+    start = tuple(('o', sig(x), i) for i, x in enumerate(a))
+    look = lambda st: tuple(x[1] for x in st)
+    if look(start) == goal: return 0
+    need = sorted(set(goal)); seen = {start}; d = deque([(start, 0)])
+    while d:
+        st, k = d.popleft(); nxt = []
+        for i in range(len(st)):
+            y = st[:i] + st[i + 1:]
+            nxt.append(y)
+            for j in range(len(st)):
+                if j != i: nxt.append(y[:j] + (st[i],) + y[j:])
+        if len(st) < len(goal) + 1:
+            for g in need:
+                for j in range(len(st) + 1): nxt.append(st[:j] + (('n', g, 0),) + st[j:])
+        for z in nxt:
+            if look(z) == goal: return k + 1
+            if z not in seen: seen.add(z); d.append((z, k + 1))
+    raise AssertionError
+
 # ---- trees for the digest and replay sweeps (prefix form, see helpers) ----
 import cbor2, blake3  # noqa: E402  (pip: cbor2==5.6.5 blake3)
 NAMES = ['id', 'class', 'style', 'l', 'aria-label', 'x']
@@ -245,6 +269,27 @@ def main():
         ka = [x for x in a if x in kept]; kb = [x for x in b if x in kept]
         ms.append('check moves(%s, %s) == %d\n' % (q(J(a)), q(J(b)), bfs_moves(ka, kb)))
     shard('min', ms, 400)
+    # optimal unkeyed alignment: least container operations (removals,
+    # creations, moves) by breadth-first search, lists of up to 5 children
+    # mixing keyed spans, unkeyed <s>/<p> and text nodes
+    R = random.Random(53); os_ = []; seen = set()
+    while len(os_) < 1500:
+        def lst(pfx):
+            n = R.randint(0, 5); out = []; ks = set()
+            for i in range(n):
+                c = R.choice(['s', 'p', '~', 'k'])
+                if c == 'k':
+                    k = R.choice('123')
+                    if k in ks: continue
+                    ks.add(k); out.append(k)
+                elif c == '~': out.append('~%s%d' % (pfx, i))
+                else: out.append('%s:%s%d' % (c, pfx, i))
+            return out
+        a, b = lst('a'), lst('b')
+        if (J(a), J(b)) in seen: continue
+        seen.add((J(a), J(b)))
+        os_.append('check cost(%s, %s) == %d\n' % (q(J(a)), q(J(b)), bfs_ops(a, b)))
+    shard('opt', os_, 300)
     # trees: Python cbor2/blake3 encodings, replay of random edits
     R = random.Random(49); ts = []
     for i in range(400):
