@@ -1,14 +1,15 @@
-# Mutation test for lib/os/path.rce: each mutant must fail the comptime
+# Mutation test for lib/os/{path,env}.rce: each mutant must fail the comptime
 # checks (three equivalent mutants removed: a dot test when there is
 # neither dot nor separator, a UNC share without a second separator, and
-# keeping an empty drive). Usage: RCE=path/to/rce python3 scripts/mut/os.py
+# keeping an empty drive; for env two equivalent ones in Go's "${"
+# scanning, whose fast paths give what the general scan gives). Usage: RCE=path/to/rce python3 scripts/mut/os.py
 import os, subprocess, sys, tempfile
 from concurrent.futures import ThreadPoolExecutor
 RCE = os.environ.get('RCE', 'rce')
 root = os.path.join(os.path.dirname(os.path.abspath(__file__)), '../..')
-src = open(os.path.join(root, 'lib/os/path.rce')).read()
-chk = open(os.path.join(root, 'tests/os/path_checks.rce')).read()
-M = [
+SRC = {n: open(os.path.join(root, 'lib/os/%s.rce' % n)).read() for n in ('path', 'env')}
+CHK = {n: open(os.path.join(root, 'tests/os/%s_checks.rce' % n)).read() for n in ('path', 'env')}
+M = [('path',) + m for m in [
     ('            if cs[k] != "."\n', '            if true\n'),
     ('    if cs.len() < 2 or cs[1] != "/" or (cs.len() > 2 and cs[2] == "/")', '    if cs.len() < 2 or cs[1] != "/"'),
     ('        elif b.startswith("/") or path == ""', '        elif b.startswith("/")'),
@@ -36,9 +37,32 @@ M = [
     ('            if out.len() == 0\n                fail BadPath(why: "escapes the directory")', '            if false\n                fail BadPath(why: "escapes the directory")'),
     ('        if ok and qc.len() as i64 >= blen\n', '        if ok and qc.len() as i64 > blen\n'),
     ('    var ok = preopens[i].startswith("/") and qc.len() <= pc.len()', '    var ok = qc.len() <= pc.len()'),
-]
+]] + [('env',) + m for m in [
+    ('    var i: usize = if win and cs.len() > 0 then 1 else 0\n    while i < cs.len() bound 16777216\n        if cs[i] == "="', '    var i: usize = 0\n    while i < cs.len() bound 16777216\n        if cs[i] == "="'),
+    ('fn same_key(a: &text, b: &text, win: bool) -> bool = if win then upper_ascii(a) == upper_ascii(b) else a == b', 'fn same_key(a: &text, b: &text, win: bool) -> bool = a == b'),
+    ('    var i: usize = if win then 1 else 0\n    while i < cs.len() bound 16777216\n        if cs[i] == "=" or', '    var i: usize = 1\n    while i < cs.len() bound 16777216\n        if cs[i] == "=" or'),
+    ('            if not done\n                o.push', '            if true\n                o.push'),
+    ('    if not done\n        o.push(Var(key: copy(key)', '    if false\n        o.push(Var(key: copy(key)'),
+    ('        if not dup\n            vs.push(v)', '        if true\n            vs.push(v)'),
+    ('        while j > 0 and key_lt(&vs[j].key, &vs[j - 1].key) bound', '        while false bound'),
+    ('            return a[i] < b[i]', '            return a[i] > b[i]'),
+    ('        return Name(name: "", width: 1)', '        return Name(name: "", width: 0)'),
+    ('            elif n.name == ""\n                o = o + "$"', '            elif n.name == ""\n                o = o'),
+    ('fn special(c: &text) -> bool = c == "*" or c == "#" or', 'fn special(c: &text) -> bool = c == "*" or'),
+    ('    return x == 95 or (x >= 48', '    return (x >= 48'),
+    ('        if c == "\\""\n            q = not q', '        if false\n            q = not q'),
+    ('            if i < n and cs[i] == "\\""\n                var h', '            if false\n                var h'),
+    ('                if k % 2 == 1\n', '                if k % 2 == 0\n'),
+    ('            if i < n and cs[i] == "\\""\n                cur = cur + "\\""\n                i += 1', '            if false\n                cur = cur + "\\""\n                i += 1'),
+    ('    if cur != "" or q\n        out.push(cur)', '    if cur != ""\n        out.push(cur)'),
+    ('    var quote = force or arg == ""', '    var quote = force'),
+    ('                while h <= bs bound', '                while h < bs bound'),
+    ('        while h < bs bound 16777216\n            o = o + "\\\\"\n            h += 1\n        o = o + "\\""', '        while false bound 16777216\n            o = o + "\\\\"\n            h += 1\n        o = o + "\\""'),
+    ('    while i < n and ws(&cs[i]) bound 16777216\n        i += 1\n    out.push(cur)', '    out.push(cur)'),
+]]
 def one(ab):
-    i, (a, b) = ab
+    i, (name, a, b) = ab
+    src = SRC[name]; chk = CHK[name]
     assert src.count(a) == 1, a
     with tempfile.TemporaryDirectory() as d:
         f = os.path.join(d, 'm.rce'); open(f, 'w').write(src.replace(a, b) + '\n' + chk)
@@ -50,3 +74,4 @@ with ThreadPoolExecutor(os.cpu_count() or 4) as ex:
         print('%s %2d %s' % ('killed' if dead else 'SURVIVED', i, a.strip().split('\n')[0]), flush=True)
 print('%d of %d mutants killed' % (killed, len(M)))
 sys.exit(0 if killed == len(M) else 1)
+
