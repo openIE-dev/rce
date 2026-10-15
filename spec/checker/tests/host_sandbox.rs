@@ -79,7 +79,10 @@ fn landlock_confines_the_terminal_shell() {
         eprintln!("Landlock unavailable on this kernel: {err}");
         return;
     }
-    assert!(err.contains("Linux Landlock"), "{err}");
+    assert!(err.contains("Landlock ABI"), "{err}");
+    if err.contains("sandbox,") {
+        assert!(err.contains("Linux target"), "{err}");
+    }
     assert!(out.contains("\nIN-OK") && out.contains("\nOUT-DENIED"), "{out}");
     assert!(!outside.exists());
     let _ = std::fs::remove_dir_all(&dir);
