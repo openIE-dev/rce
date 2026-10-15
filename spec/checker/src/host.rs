@@ -133,6 +133,21 @@ impl<T: Store + ?Sized> Store for &mut T {
     }
 }
 
+/// E.3: a new file needs the directory barrier too. POSIX makes the new
+/// directory entry durable by fsyncing the directory. Windows cannot open a
+/// directory as a file (`Access is denied`) and NTFS journals the entry with
+/// the file's own flush; WASI preview 1 has no directory sync (`Bad file
+/// descriptor`). On those targets the file's own `sync_all` is the barrier.
+#[cfg(unix)]
+fn sync_dir(path: &Path) -> io::Result<()> {
+    let dir = path.parent().filter(|d| !d.as_os_str().is_empty()).unwrap_or(Path::new("."));
+    File::open(dir)?.sync_all()
+}
+#[cfg(not(unix))]
+fn sync_dir(_path: &Path) -> io::Result<()> {
+    Ok(())
+}
+
 /// D in a file: one entry per line, append only.
 pub struct FileStore {
     f: File,
@@ -144,9 +159,7 @@ impl FileStore {
         let created = !path.exists();
         let mut f = OpenOptions::new().read(true).append(true).create(true).open(path)?;
         if created {
-            // E.3: a new file needs the directory barrier too
-            let dir = path.parent().filter(|d| !d.as_os_str().is_empty()).unwrap_or(Path::new("."));
-            File::open(dir)?.sync_all()?;
+            sync_dir(path)?;
         }
         let mut s = String::new();
         f.read_to_string(&mut s)?;

@@ -22,5 +22,7 @@ rce host run "$here/spec/examples/55_rcedb.rce" --log "$tmp/db.log" 'Put(key: "b
 rnd=$(printf '5a%.0s' $(seq 1 96))
 ev="Setup(me: \"ann\", peers: []), RandomDone(req: 1, status: \"delivered\", data: some(\"$rnd\"), err: \"\"), Poll, Poll, Poll, Do(op: \"post\", conv: \"c\", topic: \"t\", body: \"hi\"), Do(op: \"react\", conv: \"c\", topic: \"+1\", body: \"\"), Do(op: \"dm\", conv: \"bob\", topic: \"\", body: \"secret\")"
 printf '%s trace apps/chat.rce (keygen, post, react, dm)\n' "$(rce trace --json "$here/apps/chat.rce" "$ev" 2>&1 | sha)"
-rce test "$here/lib/crypto.rce" | sed -n 1p | sed 's/^/crypto /;s#'"$here"'##'
+# on Windows the binary prints the mixed form C:/... of $here
+herem="$(cygpath -m "$here" 2>/dev/null || echo "$here")"
+rce test "$here/lib/crypto.rce" | sed -n 1p | sed 's/^/crypto /;s#'"$herem"'##;s#'"$here"'##'
 rm -rf "$tmp"
