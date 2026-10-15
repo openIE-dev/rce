@@ -479,3 +479,57 @@ Needs spec: the grant names table (what `fs.read` and similar names map to)
 belongs in the survey's grant table item; Windows SDDL strings, ACE
 inheritance, owner rights, and integrity levels are not modelled; and
 AppContainer capability SIDs are needed for the Windows mapping of grants.
+
+## os.clock (`lib/os/clock.rce`)
+
+Pure (survey M37). A program never reads a clock. The host admits each
+monotonic or wall reading, and each timer firing, as a logged event in D
+order; this module holds what a program does with those values.
+
+- **official:** `vectors/os/rust_core_time_tests.rs` (rust-lang/rust
+  8a9dd7abdf013ec10cfeaaa3685feba18ef1c90c,
+  library/coretests/tests/time.rs, sha256
+  e43ac73c5c17279b6185071a1703e8d28ce90a5f635308529eab2a3533fb25af):
+  every integer assertion and `#[should_panic]` test of `Duration`,
+  translated mechanically, is 234 checks. The 15 float tests (`*_f32`,
+  `*_f64`, `duration_const`, `from_neg_zero`, `duration_fp_*`) are skipped
+  because the module has no floats. `vectors/os/rust_std_time_tests.rs`
+  (same commit, library/std/tests/time.rs, sha256
+  dab3fa3fda7c92e542c68e5b51c4ec67a99c39342c59484f4399bd5995b3715a): its
+  deterministic Instant and SystemTime assertions (saturating and checked
+  `duration_since`, SystemTime MAX/MIN with the 1 ns unix interval) are
+  restated in the derived file. `vectors/os/wasi_monotonic-clock.wit` and
+  `vectors/os/wasi_wall-clock.wit` (WebAssembly/wasi-clocks
+  71e486b1b44a49687dbe17d5b979d6da6112c7f2, wasi:clocks@0.2.8, sha256
+  854db80e062a173aab086569d6ced88b83eecfa6ac2239e8b53197c64eb0062a and
+  c63feef78e2ffe115f193f3eae8f63efe698a34829ea8fd51155572569199bec)
+  define the instant, duration and datetime types and their ranges.
+- **live reference:** `scripts/gen/clock_ref.rs`, built with rustc 1.99.0,
+  run on 1,200 seeded rows. Its output is saved as
+  `vectors/os/rust_duration_live.tsv` (sha256
+  a78c589a803b8f1490ebaba0faa6b7657371e8a4a6bd2c5f8f548bb7be458f56). It
+  covers checked add/sub/mul/div, abs_diff, 17 Debug format specs
+  (precision, width, alignment, sign), and SystemTime add/sub and
+  `duration_since` in both directions: 33,600 checks in
+  `tests/os/clock_checks_live.rce`.
+- **range adaptation:** Dur secs are i64, not u64, so `Duration::MAX` is
+  i64::MAX seconds. In the official tests u64::MAX becomes i64::MAX; the
+  printed u64::MAX (+1) becomes i64::MAX (+1), and the widths in
+  `debug_formatting_extreme_values` drop by one to match. 18 live results
+  above i64::MAX seconds are expected as `none`. `as_nanos` is an i64
+  (none past about 292 years), and the u128 `from_nanos_u128` overflow
+  input is refused.
+- **derived:** 70 checks for Timespec edges, wasi value mapping, Mono
+  admission (a reading below the last one is raised to it and counted),
+  and the timer queue (fires in deadline order then subscribe order;
+  cancel; next deadline; saturating `subscribe-duration`).
+  `tests/os/clock_checks.rce` has 304 checks; both shards are generated
+  by `scripts/gen/clock_gen.py` (with `scripts/gen/clock_derived.rce`).
+- `scripts/mut/os.py` (clock part): 40 of 40 mutants killed (three
+  equivalent mutants removed). The mutation test runs every shard.
+
+Needs spec (engine): the host admits timer firings as events in the order
+`fire` gives, at tick boundaries; the wasi pollable maps to a timer id. A
+monotonic instant at or above 2^63 ns is refused, and wall-clock
+resolution and clock identity (which clock a reading came from) are carried
+by the event, not modelled here.

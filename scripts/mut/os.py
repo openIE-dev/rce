@@ -1,14 +1,16 @@
-# Mutation test for lib/os/{path,env,perm}.rce: each mutant must fail the comptime
+# Mutation test for lib/os/{path,env,perm,clock}.rce: each mutant must fail the comptime
 # checks (three equivalent mutants removed: a dot test when there is
 # neither dot nor separator, a UNC share without a second separator, and
 # keeping an empty drive; for env two equivalent ones in Go's "${"
 # scanning, whose fast paths give what the general scan gives). Usage: RCE=path/to/rce python3 scripts/mut/os.py
-import os, subprocess, sys, tempfile
+import glob, os, subprocess, sys, tempfile
 from concurrent.futures import ThreadPoolExecutor
 RCE = os.environ.get('RCE', 'rce')
 root = os.path.join(os.path.dirname(os.path.abspath(__file__)), '../..')
-SRC = {n: open(os.path.join(root, 'lib/os/%s.rce' % n)).read() for n in ('path', 'env', 'perm')}
-CHK = {n: open(os.path.join(root, 'tests/os/%s_checks.rce' % n)).read() for n in ('path', 'env', 'perm')}
+MODS = ('path', 'env', 'perm', 'clock')
+SRC = {n: open(os.path.join(root, 'lib/os/%s.rce' % n)).read() for n in MODS}
+# every shard (tests/os/<name>_checks*.rce); a mutant is killed when any shard fails
+CHK = {n: [open(f).read() for f in sorted(glob.glob(os.path.join(root, 'tests/os/%s_checks*.rce' % n)))] for n in MODS}
 M = [('path',) + m for m in [
     ('            if cs[k] != "."\n', '            if true\n'),
     ('    if cs.len() < 2 or cs[1] != "/" or (cs.len() > 2 and cs[2] == "/")', '    if cs.len() < 2 or cs[1] != "/"'),
@@ -92,14 +94,61 @@ M = [('path',) + m for m in [
     ('    if rule.len() > p.len()\n        return false', '    if false\n        return false'),
     ('            r = r | LL_WRITE_FILE | LL_TRUNCATE |', '            r = r | LL_WRITE_FILE |'),
     ('    if rights & LL_EXECUTE != 0\n', '    if rights & LL_READ_FILE != 0\n'),
+]] + [('clock',) + m for m in [
+    # equivalent, removed: padding when width == cells (zero spaces either way); the
+    # t.secs == -1 subtraction guard (d.secs > i64::MAX never holds); the seq tie-break
+    # in before() (timers are inserted in seq order, so equal deadlines already queue FIFO)
+    ('    let extra = nanos / NANOS_PER_SEC\n    if extra > MAX_SECS - secs', '    let extra = nanos / NANOS_PER_SEC\n    if extra > MAX_SECS - secs + 1'),
+    ('    if secs < 0 or nanos < 0\n', '    if secs < 0\n'),
+    ('pub fn from_millis(ms: i64) -> Dur ! BadClock = dur_new(ms / 1000, (ms % 1000) * 1000000)', 'pub fn from_millis(ms: i64) -> Dur ! BadClock = dur_new(ms / 1000, (ms % 1000) * 100000)'),
+    ('    if n > MAX_SECS / unit\n', '    if n > MAX_SECS\n'),
+    ('pub fn subsec_micros(d: &Dur) -> i64 = d.nanos / 1000', 'pub fn subsec_micros(d: &Dur) -> i64 = d.nanos / 1000000'),
+    ('    if d.secs > (MAX_SECS - d.nanos) / NANOS_PER_SEC\n        return none\n    return some(d.secs', '    if d.secs > MAX_SECS / NANOS_PER_SEC\n        return none\n    return some(d.secs'),
+    ('    if n >= NANOS_PER_SEC\n        n -= NANOS_PER_SEC\n        if s == MAX_SECS', '    if n > NANOS_PER_SEC\n        n -= NANOS_PER_SEC\n        if s == MAX_SECS'),
+    ('        if s == 0\n            return none\n        s -= 1', '        s -= 1'),
+    ('pub fn saturating_sub(a: &Dur, b: &Dur) -> Dur = checked_sub(a, b).or(dur_zero())', 'pub fn saturating_sub(a: &Dur, b: &Dur) -> Dur = checked_sub(a, b).or(dur_max())'),
+    ('    if dur_cmp(a, b) >= 0\n        return checked_sub(a, b)', '    if true\n        return checked_sub(a, b)'),
+    ('    if k < 0 or k > 4294967295\n        return none\n    let total', '    if k < 0\n        return none\n    let total'),
+    ('    if k != 0 and a.secs > (MAX_SECS - extra) / k', '    if k != 0 and a.secs > MAX_SECS / k'),
+    ('    let extra = (carry * NANOS_PER_SEC + a.nanos % k) / k', '    let extra = carry * NANOS_PER_SEC / k'),
+    ('    if k <= 0 or k > 4294967295\n        return none\n    let s', '    if k < 0 or k > 4294967295\n        return none\n    let s'),
+    ('    let lim = if prec < 0 then 9 else prec', '    let lim = 9'),
+    ('    if fp > 0 and fp >= dv * 5\n', '    if fp > 0 and fp > dv * 5\n'),
+    ('        if not (tie and not odd)\n', '        if true\n'),
+    ('        let odd = if pos > 0 then copy(buf[(pos - 1) as usize]) % 2 == 1 else ip % 2 == 1', '        let odd = ip % 2 == 1'),
+    ('                if buf[r as usize] < 9\n', '                if buf[r as usize] < 10\n'),
+    ('                if ip == MAX_SECS\n                    big = true', '                if false\n                    big = true'),
+    ('    let end = if prec >= 0 then (if prec < 9 then prec else 9) else pos', '    let end = if prec >= 0 then prec else pos'),
+    ('    let pre = if align == ">" then padn else (if align == "^" then padn / 2 else 0)', '    let pre = if align == ">" then padn else (if align == "^" then (padn + 1) / 2 else 0)'),
+    ('    if d.nanos >= 1000000\n', '    if d.nanos > 1000000\n'),
+    ('    let p = if plus then "+" else ""', '    let p = ""'),
+    ('    var cells = prefix.chars().len() + postfix.chars().len()', '    var cells = prefix.len() + postfix.len()'),
+    ('    if t.secs >= 0 and d.secs > MAX_SECS - t.secs\n', '    if d.secs > MAX_SECS - t.secs and t.secs > 0\n'),
+    ('        if s == MIN_SECS\n            return none\n        s -= 1', '        s -= 1'),
+    ('    if b.secs < 0 and a.secs > MAX_SECS + b.secs\n        return dur_max()', '    if b.secs < -1 and a.secs > MAX_SECS + b.secs\n        return dur_max()'),
+    ('        return Diff(ok: true, d: mag(a, b))', '        return Diff(ok: true, d: mag(b, a))'),
+    ('    if ts_cmp(a, b) >= 0\n        return Diff', '    if ts_cmp(a, b) > 0\n        return Diff'),
+    ('    if ns < 0\n        fail BadClock(why: "instant out of range")', '    if false\n        fail BadClock(why: "instant out of range")'),
+    ('    if t.secs < 0 or t.secs > (MAX_SECS - t.nanos) / NANOS_PER_SEC\n', '    if t.secs < 0 or t.secs > MAX_SECS / NANOS_PER_SEC\n'),
+    ('    if nanos < 0 or nanos >= NANOS_PER_SEC\n', '    if nanos < 0 or nanos > NANOS_PER_SEC\n'),
+    ('    if m.seen and ts_cmp(r, &m.last) < 0\n', '    if ts_cmp(r, &m.last) < 0\n'),
+    ('        m.raised += 1\n', ''),
+    ('        if not placed and before(&t, &x)\n', '        if not placed and before(&x, &t)\n'),
+    ('    let at = ts_saturating_add(now, d)', '    let at = copy(now)'),
+    ('        if x.id == id\n            hit = true', '        if x.id == id and not hit\n            hit = true'),
+    ('        if ts_cmp(&x.at, now) <= 0\n', '        if ts_cmp(&x.at, now) < 0\n'),
+    ('    return some(copy(q.list[0].at))', '    return some(copy(q.list[q.list.len() - 1].at))'),
 ]]
 def one(ab):
     i, (name, a, b) = ab
-    src = SRC[name]; chk = CHK[name]
+    src = SRC[name]
     assert src.count(a) == 1, a
     with tempfile.TemporaryDirectory() as d:
-        f = os.path.join(d, 'm.rce'); open(f, 'w').write(src.replace(a, b) + '\n' + chk)
-        return i, a, subprocess.run([RCE, 'test', f], capture_output=True).returncode != 0
+        for chk in CHK[name]:
+            f = os.path.join(d, 'm.rce'); open(f, 'w').write(src.replace(a, b) + '\n' + chk)
+            if subprocess.run([RCE, 'test', f], capture_output=True).returncode != 0:
+                return i, a, True
+        return i, a, False
 killed = 0
 with ThreadPoolExecutor(os.cpu_count() or 4) as ex:
     for i, a, dead in ex.map(one, enumerate(M)):

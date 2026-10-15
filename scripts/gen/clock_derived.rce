@@ -1,0 +1,130 @@
+fn T(s: i64, n: i64) -> Timespec = Timespec(secs: s, nanos: n)
+fn D(s: i64, n: i64) -> Dur = Dur(secs: s, nanos: n)
+fn tsa(t: Timespec, d: Dur) -> text = tk(ts_checked_add(&t, &d))
+fn tss(t: Timespec, d: Dur) -> text = tk(ts_checked_sub(&t, &d))
+fn tsat(t: Timespec, d: Dur, add: bool) -> text
+    if add
+        return tk(some(ts_saturating_add(&t, &d)))
+    return tk(some(ts_saturating_sub(&t, &d)))
+fn since(a: Timespec, b: Timespec) -> text = dk(some(duration_since(&a, &b)))
+fn csince(a: Timespec, b: Timespec) -> text = dk(checked_duration_since(&a, &b))
+fn tk(t: Timespec?) -> text
+    match t
+        some(x) -> return x.secs.tostr() + "." + x.nanos.tostr()
+        none -> return "none"
+fn nanos_of(d: Dur) -> i64 = as_nanos(&d).or(-1)
+fn mw(ns: i64) -> text = tk(some(mono_from_wasi(ns) catch T(-1, 0)))
+fn mtw(t: Timespec) -> i64 = mono_to_wasi(&t) catch -1
+fn ww(s: i64, n: i64) -> text = tk(some(wall_from_wasi(s, n) catch T(-1, 0)))
+fn admit_seq(rs: List[i64]) -> text
+    var m = mono_new()
+    var o = ""
+    for r in rs
+        let t = T(r, 0)
+        let v = mono_admit(&mut m, &t)
+        o = o + v.secs.tostr() + ","
+    return o + "r" + m.raised.tostr()
+# timers: ops are [kind, a, b, id]: 0 = subscribe at a.b secs, 1 = subscribe after
+# a secs from now b, 2 = cancel id, 3 = fire at a secs (records ids)
+fn run_timers(ops: List[List[i64]]) -> text
+    var q = timers_new()
+    var o = ""
+    for op in ops
+        let k = copy(op[0])
+        if k == 0
+            let at = T(copy(op[1]), copy(op[2]))
+            subscribe_instant(&mut q, &at, copy(op[3]))
+        elif k == 1
+            let now = T(copy(op[2]), 0)
+            let d = D(copy(op[1]), 0)
+            subscribe_duration(&mut q, &now, &d, copy(op[3]))
+        elif k == 2
+            o = o + (if cancel(&mut q, copy(op[3])) then "c" else "n")
+        else
+            let now = T(copy(op[1]), 0)
+            let ids = fire(&mut q, &now)
+            o = o + "["
+            for i in ids
+                o = o + i.tostr() + " "
+            o = o + "]"
+    let nd = next_deadline(&q)
+    return o + " p" + pending(&q).tostr() + " next " + tk(nd)
+
+# Rust std tests (library/std/tests/time.rs), unix point type: MIN_INTERVAL = 1ns
+check since(T(100, 0), T(186500, 0)) == "0.0"
+check csince(T(9, 0), T(10, 0)) == "none"
+check csince(T(11, 0), T(10, 0)) == "1.0"
+check csince(T(10, 0), T(10, 0)) == "0.0"
+check tsa(ts_max(), D(0, 0)) == "9223372036854775807.999999999"
+check tss(ts_max(), D(0, 0)) == "9223372036854775807.999999999"
+check tsa(ts_min(), D(0, 0)) == "-9223372036854775808.0"
+check tss(ts_min(), D(0, 0)) == "-9223372036854775808.0"
+check tsa(ts_max(), D(0, 1)) == "none"
+check tss(ts_max(), D(0, 1)) == "9223372036854775807.999999998"
+check tsa(ts_min(), D(0, 1)) == "-9223372036854775808.1"
+check tss(ts_min(), D(0, 1)) == "none"
+check tsat(ts_max(), D(1, 0), true) == "9223372036854775807.999999999"
+check tsa(ts_max(), D(1, 0)) == "none"
+check tsat(ts_min(), D(1, 0), false) == "-9223372036854775808.0"
+check tss(ts_min(), D(1, 0)) == "none"
+check tsat(ts_min(), D(0, 0), false) == "-9223372036854775808.0"
+check since(ts_max(), ts_max()) == "0.0"
+check since(ts_min(), ts_max()) == "0.0"
+check csince(ts_min(), ts_max()) == "none"
+# MAX - MIN is about 2^64 secs: Rust gives Duration::MAX (u64 secs); saturates to our Dur MAX
+check since(ts_max(), ts_min()) == "9223372036854775807.999999999"
+check tsa(T(MAX_SECS, 0), D(MAX_SECS, 0)) == "none"
+check tsa(T(-5, 0), D(MAX_SECS, 0)) == "9223372036854775802.0"
+check tss(T(5, 0), D(MAX_SECS, 0)) == "-9223372036854775802.0"
+check tss(T(-1, 0), D(MAX_SECS, 0)) == "-9223372036854775808.0"
+check tss(T(-1, 0), D(MAX_SECS, 1)) == "none"
+# as_nanos fits i64 up to 9223372036.854775807 s
+check nanos_of(D(9223372036, 854775807)) == 9223372036854775807
+check nanos_of(D(9223372036, 854775808)) == -1
+check nanos_of(D(0, 5)) == 5
+# constructors refuse negatives and overflow
+check dk(N(-1, 0)) == "none"
+check dk(N(0, -1)) == "none"
+check dk(N(MAX_SECS, 999999999)) == "9223372036854775807.999999999"
+check dk(N(MAX_SECS, 1000000000)) == "none"
+check dk(N(MAX_SECS - 1, 1999999999)) == "9223372036854775807.999999999"
+check dk(Fmins(153722867280912930)) == "9223372036854775800.0"
+check dk(Fmins(153722867280912931)) == "none"
+check dk(Fweeks(-1)) == "none"
+check dk(Fmillis(-1)) == "none"
+check dk(Omul(N(1, 0), 4294967296)) == "none"
+check dk(Odiv(N(1, 0), -1)) == "none"
+check dk(Odiv(N(5, 0), 4294967295)) == "0.1"
+# wasi:clocks@0.2.8
+check mw(0) == "0.0"
+check mw(1500000001) == "1.500000001"
+check mw(-1) == "-1.0"
+check mtw(T(1, 500000001)) == 1500000001
+check mtw(T(9223372036, 854775807)) == 9223372036854775807
+check mtw(T(9223372036, 854775808)) == -1
+check mtw(T(-1, 0)) == -1
+check ww(1760536620, 999999999) == "1760536620.999999999"
+check ww(0, 1000000000) == "-1.0"
+check ww(-1, 0) == "-1.0"
+check ww(5, -1) == "-1.0"
+# monotonic admission: a reading below the last admitted one is raised to it
+check admit_seq([1, 2, 2, 5, 3, 4, 9, 0]) == "1,2,2,5,5,5,9,9,r3"
+check admit_seq([7]) == "7,r0"
+check admit_seq([]) == "r0"
+# timers fire in (deadline, subscribe order)
+check run_timers([[0, 5, 0, 1], [0, 3, 0, 2], [0, 5, 0, 3], [0, 3, 0, 4], [3, 4, 0, 0], [3, 5, 0, 0]]) == "[2 4 ][1 3 ] p0 next none"
+check run_timers([[0, 5, 0, 1], [3, 4, 0, 0]]) == "[] p1 next 5.0"
+check run_timers([[1, 10, 2, 1], [0, 12, 0, 2], [3, 11, 0, 0], [3, 12, 0, 0]]) == "[][1 2 ] p0 next none"
+check run_timers([[0, 5, 1, 1], [3, 5, 0, 0], [0, 5, 0, 2], [3, 5, 0, 0]]) == "[][2 ] p1 next 5.1"
+check run_timers([[0, 5, 0, 1], [0, 6, 0, 2], [2, 0, 0, 1], [2, 0, 0, 1], [3, 9, 0, 0]]) == "cn[2 ] p0 next none"
+check run_timers([[0, 5, 0, 7], [0, 1, 0, 7], [2, 0, 0, 7]]) == "c p0 next none"
+check run_timers([[1, MAX_SECS, 100, 1], [3, MAX_SECS, 0, 0]]) == "[] p1 next 9223372036854775807.999999999"
+check run_timers([[0, 0, 0, 1], [3, 0, 0, 0], [3, 0, 0, 0]]) == "[1 ][] p0 next none"
+check run_timers([[0, 2, 0, 1], [0, 1, 0, 2], [0, 2, 0, 3], [0, 1, 500000000, 4], [3, 9, 0, 0]]) == "[2 4 1 3 ] p0 next none"
+# overflow edges (mutation test)
+check dk(Omul(N(3074457345618258602, 700000000), 3)) == "none"
+check dk(Omul(N(3074457345618258602, 300000000), 3)) == "9223372036854775806.900000000"
+check since(T(MAX_SECS, 0), T(-1, 0)) == "9223372036854775807.999999999"
+check since(T(MAX_SECS - 1, 0), T(-1, 0)) == "9223372036854775807.0"
+check admit_seq([-3, -5, -1]) == "-3,-3,-1,r1"
+check run_timers([[0, 9, 0, 2], [0, 5, 0, 1]]) == " p2 next 5.0"
