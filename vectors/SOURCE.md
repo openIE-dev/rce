@@ -589,3 +589,56 @@ of the BMP and U+1F000..U+1FFFF; other supplementary code points are
 refused. JSON numbers are kept and compared as lexemes (no f64 bit
 access). A `T? ! E` result loses its `some()` wrapper in the 0.1.3
 comptime evaluator; the module avoids that shape.
+
+## ui.text (`lib/ui/text.rce`)
+
+Pure (survey M47), on Unicode 16.0.0: UAX #29 revision 45, UAX #14
+revision 53, UAX #9 revision 50, without tailoring. Code points are i64;
+`cps` decodes UTF-8 through `text/utf8`. The property tables (gcb, wb,
+sb, lb, ea, gc, bidi class, Extended_Pictographic, InCB, bidi brackets)
+are if-trees written after the `# ---- data` marker by
+`scripts/gen/text_data.py`, which checks every UCD file against its pin.
+
+- **official:** every line of the Unicode 16.0.0 test files passes:
+  GraphemeBreakTest.txt 1,093, WordBreakTest.txt 1,826,
+  SentenceBreakTest.txt 512 (sha256 ee2b9354…, ad985d57…, 0aef8403…, in
+  vectors/ui), LineBreakTest.txt 16,672 (910759a6…), BidiTest.txt 490,846
+  cases in all their paragraph directions (93e5eb9d…), and
+  BidiCharacterTest.txt 91,707 (d04a51a9…). The last three and
+  DerivedCoreProperties.txt (39d35161…) are fetched from unicode.org into
+  ~/.cache/rce-ucd/16 and checked against their pins; DerivedBidiClass.txt
+  (71ed943a…) is the copy in vectors/idna. Property files in vectors/ui:
+  GraphemeBreakProperty c29360bd…, WordBreakProperty 476464e7…,
+  SentenceBreakProperty 20aab5ec…, LineBreak e97e4259…, EastAsianWidth
+  43adc76c…, emoji-data f1365a51…, DerivedGeneralCategory 7676ab75…,
+  BidiBrackets b8f32554…. Shards are written by `scripts/gen/text_gen.py`:
+  `tests/ui/text_checks.rce` (segmentation and derived),
+  `text_checks_line*`, `text_checks_bidi*` and `text_checks_bidichar*`.
+- **live reference:** ICU 76.1 (libicuuc.so.76, Unicode 16.0, root
+  locale) through ctypes, `scripts/gen/text_icu.py`. Its character, word,
+  sentence and line break iterators are run on 15,000 seeded sequences
+  drawn from every property value plus the characters the rules name. The
+  output is saved as `vectors/ui/icu76_live.tsv` (sha256
+  56c71bee8f8c95d3e7b735a58e573045d5bf095b487a3750b9739aec253e622e), and
+  all 15,000 match in `text_checks_icu*`. The pools leave out what ICU
+  tailors: lb=SA, and for words Han, Hiragana, Katakana, Hangul syllables
+  (dictionary segmentation), plus the colons CLDR root removes from
+  MidLetter. ubidi is not used as a reference: ICU 76 resolves an AN
+  right after L in an LTR paragraph to level 0, while UAX 9 I1 (and
+  BidiTest) give 2.
+- **derived:** 36 checks in `scripts/gen/text_derived.rce`: empty input,
+  `segments`, `line_kinds` and `line_mandatory`, paragraph level, and
+  cell width. Width is not a Unicode algorithm. It is derived as
+  wcwidth-like: 0 for Mn, Me, Cf, Cc, ZWSP and Hangul medial and final
+  jamo; 2 for East Asian W and F; 1 otherwise. A cluster takes its first
+  non-zero width, and becomes 2 when a pictographic base is followed by
+  VS16. The derived checks also include LB25 PR/PO OP IS NU, confirmed
+  with ICU.
+- `scripts/mut/ui.py`: 65 of 65 mutants killed. Three were removed as
+  equivalent; the reasons are in the script header.
+
+Needs spec: tailoring (dictionary segmentation for SA, CJK and Hangul,
+and locale word rules) and the bidi paragraph API above one paragraph
+(the caller splits at B). Width follows no standard, so the terminal
+host must agree to it.
+
