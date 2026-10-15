@@ -1,4 +1,14 @@
 module num.special
+# uses: math.math
+
+use math
+
+# exp and log: cr_exp and cr_log are math.exp and math.log (correctly
+# rounded, CORE-MATH ports), re-exported under names that do not clash
+# where math and another module are both imported. The FDLIBM 5.3 ports stay
+# here as exp_fdlibm and log_fdlibm because erf, erfc and lgamma are
+# FDLIBM algorithms built on them and are checked bit for bit against
+# FDLIBM.
 
 # Elementary and special functions for num.stats, in pure RCE over IEEE
 # binary64. Every function is a fixed sequence of correctly rounded
@@ -340,7 +350,7 @@ const KC_C6: f64 = -1.1359647557788195e-11
 # ---------------------------------------------------------------- exp, log
 # FDLIBM e_exp.c: x = k ln2 + r, ln2 split hi/lo (hi has 32 trailing
 # zero bits so k * hi is exact), a degree-5 Remez rational in r.
-pub fn exp(x0: f64) -> f64
+pub fn exp_fdlibm(x0: f64) -> f64
     var x = x0
     let hx0 = hi_word(x)
     let xsb: i64 = if hx0 < 0 then 1 else 0
@@ -381,7 +391,7 @@ pub fn exp(x0: f64) -> f64
 
 # FDLIBM e_log.c: x = 2^k (1 + f), f in [sqrt(2)/2 - 1, sqrt(2) - 1],
 # log(1 + f) = 2s + s R(s^2) with s = f / (2 + f).
-pub fn log(x0: f64) -> f64
+pub fn log_fdlibm(x0: f64) -> f64
     var x = x0
     var hx = hi_word(x)
     var k: i64 = 0
@@ -571,7 +581,7 @@ fn sp_erf_pa(s: f64) -> f64
 # word cleared, so z * z is exact.
 fn sp_erf_tail(x: f64, rs: &[f64]) -> f64
     let z = set_lo(x, 0)
-    return exp((0.0 - z) * z - 0.5625) * exp((z - x) * (z + x) + rs[0] / rs[1])
+    return exp_fdlibm((0.0 - z) * z - 0.5625) * exp_fdlibm((z - x) * (z + x) + rs[0] / rs[1])
 
 # FDLIBM s_erf.c.
 pub fn erf(x: f64) -> f64
@@ -710,8 +720,8 @@ pub fn lgamma_r(x0: f64) -> Lgamma
         return Lgamma(value: sp_nonfinite(), sign: 1)
     if ix < 999292928
         if hx < 0
-            return Lgamma(value: 0.0 - log(0.0 - x), sign: -1)
-        return Lgamma(value: 0.0 - log(x), sign: 1)
+            return Lgamma(value: 0.0 - log_fdlibm(0.0 - x), sign: -1)
+        return Lgamma(value: 0.0 - log_fdlibm(x), sign: 1)
     var nadj = 0.0
     if hx < 0
         if ix >= 1127219200
@@ -719,7 +729,7 @@ pub fn lgamma_r(x0: f64) -> Lgamma
         let t = sp_sin_pi(x)
         if t == 0.0
             return Lgamma(value: sp_nonfinite(), sign: 1)
-        nadj = log(GA_PI / sp_abs(t * x))
+        nadj = log_fdlibm(GA_PI / sp_abs(t * x))
         if t < 0.0
             sgn = -1
         x = 0.0 - x
@@ -730,7 +740,7 @@ pub fn lgamma_r(x0: f64) -> Lgamma
         var y = 0.0
         var i: i64 = 0
         if ix <= 1072483532
-            r = 0.0 - log(x)
+            r = 0.0 - log_fdlibm(x)
             if ix >= 1072130372
                 y = 1.0 - x
                 i = 0
@@ -786,17 +796,21 @@ pub fn lgamma_r(x0: f64) -> Lgamma
             z = z * (y + 3.0)
         if i >= 3
             z = z * (y + 2.0)
-            r = r + log(z)
+            r = r + log_fdlibm(z)
     elif ix < 1133510656
-        let t = log(x)
+        let t = log_fdlibm(x)
         let z = 1.0 / x
         let y = z * z
         let w = GA_W0 + z * (GA_W1 + y * (GA_W2 + y * (GA_W3 + y * (GA_W4 + y * (GA_W5 + y * GA_W6)))))
         r = (x - 0.5) * (t - 1.0) + w
     else
-        r = x * (log(x) - 1.0)
+        r = x * (log_fdlibm(x) - 1.0)
     if hx < 0
         r = nadj - r
     return Lgamma(value: r, sign: sgn)
 
 pub fn lgamma(x: f64) -> f64 = lgamma_r(x).value
+
+pub fn cr_exp(x: f64) -> f64 = math.exp(x)
+
+pub fn cr_log(x: f64) -> f64 = math.log(x)
