@@ -86,3 +86,23 @@ Needs spec: f64 bit access (CBOR floats and JCS/ECMAScript number
 formatting), text from UTF-8 bytes (decoding non-ASCII CBOR text, JSON
 \u escapes in a parser). CBOR integers beyond i64 need core.exact
 integration (planned, not a spec gap).
+
+## text.utf8 (`lib/text/utf8.rce`)
+
+- `text/UTF-8-test.txt`: Markus Kuhn's "UTF-8 decoder capability and
+  stress test" (https://www.cl.cam.ac.uk/~mgk25/ucs/examples/UTF-8-test.txt,
+  fetched 2026-10-15, sha256 b51cfe9a8d2689c90b10a13a3624092d546e0837c6ff835b6e5d713c5749c8c6),
+  copied unchanged. All 83 lines holding a non-ASCII byte (68 ill-formed)
+  and the whole file are checked: validity, first-error offset, strict
+  decode, and lossy decode. Expected code points come from CPython 3
+  `bytes.decode('utf-8', 'replace')`, which substitutes one U+FFFD per
+  maximal subpart, the Unicode 3.9 recommended practice.
+- Unicode 15.0 section 3.9, Table 3-8 (U+FFFD substitution example) and
+  the Table 3-7 boundaries, as hand checks.
+
+Needs spec for the rest of M9: building text from code points or UTF-8
+bytes (no built-in in 5.15), and a pinned UCD (normalization data,
+grapheme break and case-folding properties) as part of the content
+address. Normalization (NFC/NFD over code-point lists) is feasible in pure
+RCE once UCD tables are generated into the library, but its result could
+not be turned back into text without that built-in.
