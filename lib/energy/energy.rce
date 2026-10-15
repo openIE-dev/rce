@@ -1,6 +1,6 @@
 module energy
 #!lib crypto
-# uses: enc/enc hash/blake3
+# uses: enc.enc, hash.blake3
 use enc
 use hash.blake3
 

@@ -1,5 +1,5 @@
 module ui.input
-# uses: text/utf8
+# uses: text.utf8
 use text.utf8
 
 # Input events (survey M46), pure. The host reads terminal bytes, window

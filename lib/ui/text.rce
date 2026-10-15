@@ -1,5 +1,5 @@
 module ui.text
-# uses: text/utf8
+# uses: text.utf8
 use text.utf8
 
 # Text segmentation, line breaking, bidi and terminal width (survey M47),

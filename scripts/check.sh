@@ -16,14 +16,17 @@ done
 # as a standalone module) and then with its checks file appended (vectors
 # and property sweeps live in tests/<area>/<name>_checks[_N].rce so a library's
 # own comptime fuel stays small for programs that use it).
-# A module with a "# uses: a/b c/d" line is checked as a package together
-# with lib/a/b.rce and lib/c/d.rce. A tests/<area>/<name>_host.rce file
+# A module with a "# uses: a.b, c.d" line is checked as a package together
+# with lib/a/b.rce and lib/c/d.rce. scripts/uses.py parses that marker
+# strictly: a malformed or unknown entry stops the run with an error. A tests/<area>/<name>_host.rce file
 # holds checks too heavy for comptime fuel: it is flattened with the module
 # and its first checks file (scripts/flatten.py), its "# events:" are fed
 # to `rce host run` one per input line, and the final state must read
 # "good = N, bad = 0" for the N events.
+python3 scripts/uses.py --selftest
+python3 scripts/uses.py --all
 for f in lib/*/*.rce; do
-  uses=$(sed -n 's/^# uses: //p' "$f")
+  uses=$(python3 scripts/uses.py "$f") || { echo "check.sh: bad dependency marker in $f" >&2; exit 1; }
   pk="$tmp/pkg"; rm -rf "$pk"; mkdir "$pk"
   for u in $uses; do cp "lib/$u.rce" "$pk/"; done
   if [ -n "$uses" ]; then cp "$f" "$pk/"; "$RCE" check "$pk"; else "$RCE" check "$f"; fi

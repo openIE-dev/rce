@@ -7,8 +7,12 @@
 import re, sys, os
 root = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..')
 main = open(sys.argv[1]).read()
-m = re.search(r'^# uses: (.*)$', main, re.M)
-deps = m.group(1).split() if m else []
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import uses
+try:
+    deps = uses.deps(sys.argv[1])
+except uses.UsesError as e:
+    sys.exit('flatten.py: %s' % e)
 out = []
 lines = main.split('\n')
 head, body = lines[0], lines[1:]

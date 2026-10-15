@@ -12,7 +12,9 @@ RCE = os.environ.get('RCE', 'rce')
 root = os.path.join(os.path.dirname(os.path.abspath(__file__)), '../..')
 MODS = ('events', 'feed')
 SRC = {n: open(os.path.join(root, 'lib/data/%s.rce' % n)).read() for n in MODS}
-USES = {n: (re.search(r'^# uses: (.*)$', SRC[n], re.M).group(1).split() if re.search(r'^# uses: ', SRC[n], re.M) else []) for n in MODS}
+sys.path.insert(0, os.path.join(root, 'scripts'))
+import uses
+USES = {n: uses.deps(os.path.join(root, 'lib/data/%s.rce' % n)) for n in MODS}
 CHK = {n: [open(f).read() for f in sorted(glob.glob(os.path.join(root, 'tests/data/%s_checks*.rce' % n)))] for n in MODS}
 M = [('events',) + m for m in [
     ('    if x >= 97 and x <= 102\n        return x - 87', '    if x >= 97 and x <= 102\n        return x - 86'),

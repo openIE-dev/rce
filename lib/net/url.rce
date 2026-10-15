@@ -1,5 +1,5 @@
 module net.url
-# uses: net/idna text/utf8
+# uses: net.idna, text.utf8
 use net.idna
 use text.utf8
 

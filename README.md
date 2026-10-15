@@ -36,7 +36,7 @@ run replays bit for bit.
 | `lib/data/feed.rce` | `data.feed` (survey M59): a change feed as a hash-chained log (D log spec 6.1 entry hash, resume token = height + digest, verify, resume_at); the MongoDB change-stream driver rules (resumable errors, cached resume token, resume position, split events); CouchDB/PouchDB replication checkpoints (compareReplicationLogs, history of 5); an admission inbox (ack only after admission, dedupe inside a window, budget and overflow) |
 | `lib/ui/input.rce` | `ui.input`: input event values and the terminal byte decoder. Covers keys with modifiers, kind and lock state, X10/rxvt/SGR mouse, focus, bracketed paste, cursor position and kitty keyboard flags (a port of crossterm 0.29's Unix parser and its stream loop), and the UI Events `code` and `key` value tables. Also maps decoded keys to DOM KeyboardEvent values, and mouse to PointerEvent (button/buttons) and WheelEvent. Includes composition order, resize and clipboard records |
 
-Foundation modules live under `lib/<area>/` (a module that needs others names them on a `# uses:` line and is checked as a package with them); their vectors and property
+Foundation modules live under `lib/<area>/` (a module that needs others names them on one `# uses: a.b, c.d` line, parsed strictly by `scripts/uses.py`, and is checked as a package with them); their vectors and property
 sweeps are in `tests/<area>/<name>_checks.rce`, which `scripts/check.sh`
 appends to the module. `rce` 0.1.3 embeds only `crypto`, `pq`, `hpke` and
 `mls` for `#!lib`; until a release embeds the foundation modules, give the

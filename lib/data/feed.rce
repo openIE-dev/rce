@@ -1,5 +1,5 @@
 module data.feed
-# uses: enc/enc data/events
+# uses: enc.enc, data.events
 use enc
 use data.events
 

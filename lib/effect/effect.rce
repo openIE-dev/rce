@@ -15,7 +15,7 @@ module effect
 #   escalates with the engine's reason text;
 # - retry and deadline policy on logical ticks (6.3 N11), driven by the
 #   HC-3 outcome of each attempt.
-# uses: enc/enc
+# uses: enc.enc
 
 use enc
 

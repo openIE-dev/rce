@@ -1,5 +1,5 @@
 module data.events
-# uses: enc/enc
+# uses: enc.enc
 use enc
 
 # CloudEvents 1.0 (survey M60): the common envelope of change feeds.
