@@ -15,8 +15,10 @@ jobs:
         run: |
           tree-sitter generate --js-runtime native
           git diff --exit-code src/
-      - name: Corpus tests
+      - name: Corpus and highlight tests
         run: tree-sitter test
+      - name: Query checks
+        run: scripts/check-queries.sh
       - name: Rust binding
         run: cargo test
 

@@ -103,6 +103,7 @@ fn render(s: text) -> Text[Html] = Html.lit("<b>") + Html.encode(s) + Html.lit("
 ---
 
 (start
+  (comment)
   (module_header
     (path
       (NAME)))

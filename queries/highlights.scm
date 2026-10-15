@@ -88,3 +88,5 @@
 
 ["(" ")" "[" "]" "{" "}"] @punctuation.bracket
 ["," "." ":" ";"] @punctuation.delimiter
+
+(comment) @comment

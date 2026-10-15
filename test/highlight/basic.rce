@@ -1,0 +1,27 @@
+# a module comment
+# <- comment
+struct Point
+# <- keyword
+#      ^ type
+    x: i64
+#   ^ property
+#      ^ type
+
+fn norm(p: Point) -> i64  # trailing
+# <- keyword.function
+#  ^ function
+#       ^ variable.parameter
+#                         ^ comment
+    let s = p.x * p.x
+#   ^ keyword
+#             ^ property
+#               ^ operator
+    if s > 100
+#   ^ keyword.conditional
+#        ^ operator
+#          ^ number
+        return true
+#       ^ keyword.return
+#              ^ boolean
+    return none
+#          ^ constant.builtin

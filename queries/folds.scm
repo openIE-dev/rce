@@ -1,0 +1,22 @@
+; Folding ranges for RCE (nvim-treesitter @fold capture).
+[
+  (block)
+  (intent_decl)
+  (struct_decl)
+  (state_decl)
+  (kind_decl)
+  (trait_decl)
+  (impl_decl)
+  (actor_decl)
+  (protocol_decl)
+  (proto_offer)
+  (proto_choose)
+  (proto_loop)
+  (supervisor_decl)
+  (match_stmt)
+  (select_stmt)
+  (par_stmt)
+  (list)
+  (map)
+  (args)
+] @fold
