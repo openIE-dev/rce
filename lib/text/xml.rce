@@ -435,3 +435,34 @@ pub fn serialize(x: &Xml, n: i64) -> text bound 256
     if x.nk[n as usize] == ELEM
         o = o + "</" + x.name[n as usize] + ">"
     return o
+
+# serialize n as a standalone document fragment: like serialize, but an
+# element whose namespace differs from its parent's (the subtree root
+# counting as a child of no namespace) declares it with xmlns="..."
+pub fn serialize_ns(x: &Xml, n: i64) -> text
+    return x_ser_ns(x, n, "")
+
+fn x_ser_ns(x: &Xml, n: i64, pns: text) -> text bound 256
+    if x.nk[n as usize] == TEXT
+        return esc(&x.txt[n as usize], false)
+    var o = ""
+    var mine = copy(pns)
+    if x.nk[n as usize] == ELEM
+        mine = copy(x.ns[n as usize])
+        o = "<" + x.name[n as usize]
+        var decl = false
+        for k in 0..x.an[n as usize].len()
+            if x.an[n as usize][k] == "xmlns"
+                decl = true
+        if not decl and mine != pns
+            o = o + " xmlns=\"" + esc(&mine, true) + "\""
+        for k in 0..x.an[n as usize].len()
+            o = o + " " + x.an[n as usize][k] + "=\"" + esc(&x.av[n as usize][k], true) + "\""
+        if x.kids[n as usize].len() == 0
+            return o + "/>"
+        o = o + ">"
+    for k in x.kids[n as usize]
+        o = o + x_ser_ns(x, k, copy(mine))
+    if x.nk[n as usize] == ELEM
+        o = o + "</" + x.name[n as usize] + ">"
+    return o

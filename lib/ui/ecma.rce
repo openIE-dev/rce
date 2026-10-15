@@ -1510,6 +1510,52 @@ fn e_index_of(s: &text, t: &text) -> i64
         i += 1
     return -1
 
+# String.prototype.slice / substring / charAt over code points (the
+# same as UTF-16 code units for text in the BMP)
+fn e_str_part(js: &mut Js, s: &text, m: &text, args: &[V]) -> text
+    let cs = s.chars()
+    let n = cs.len() as i64
+    var a: i64 = 0
+    var b: i64 = n
+    if args.len() > 0
+        a = e_int_arg(js, &args[0])
+    if args.len() > 1 and vtag(&args[1]) != 0
+        b = e_int_arg(js, &args[1])
+    if m == "charAt"
+        b = a + 1
+        if a < 0
+            return ""
+    elif m == "slice"
+        if a < 0
+            a = a + n
+        if b < 0
+            b = b + n
+    else
+        if a < 0
+            a = 0
+        if b < 0
+            b = 0
+        if a > b
+            let t = a
+            a = b
+            b = t
+    if a < 0
+        a = 0
+    if b > n
+        b = n
+    var o = ""
+    var i = a
+    while i < b bound 1048576
+        o = o + cs[i as usize]
+        i += 1
+    return o
+
+fn e_int_arg(js: &mut Js, v: &V) -> i64
+    let x = to_num(js, v)
+    if vtag(&x) == 3
+        return num_of(&x)
+    return 0
+
 fn e_method(js: &mut Js, rcv: &V, m: &text, args: &[V]) -> V
     let t = vtag(rcv)
     if t == 5
@@ -1525,6 +1571,8 @@ fn e_method(js: &mut Js, rcv: &V, m: &text, args: &[V]) -> V
         if m == "indexOf"
             let x = if args.len() > 0 then to_str(js, &args[0]) else "undefined"
             return Nm(n: e_index_of(&s, &x))
+        if m == "slice" or m == "substring" or m == "charAt"
+            return St(s: e_str_part(js, &s, m, args))
         if m == "toString" or m == "valueOf"
             return St(s: s)
         if m == "toUpperCase"

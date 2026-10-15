@@ -501,7 +501,7 @@ fn tgt_ids(c: &mut Chart, m: i64, t: &text) -> List[i64]
 fn content_of(x: &xml.Xml, e: i64) -> List[text]
     let es = xml.elems(x, e)
     if es.len() > 0
-        return ["1", xml.serialize(x, es[0]), "1"]
+        return ["1", xml.serialize_ns(x, es[0]), "1"]
     var any = false
     for k in x.kids[e as usize]
         any = true
@@ -768,6 +768,18 @@ pub fn load_scxml(doc: &text, names: &[text], bodies: &[text]) -> Chart
             let fx = xml.parse(&bodies[i])
             if fx.ok
                 c.fmach[i] = load_machine(&mut c, &fx, xml.doc_root(&fx))
+    # documents given as markup to <assign>/<data> (for <content expr>)
+    let na = c.aop.len()
+    for u in 0..na
+        if c.acx[u] and c.acont[u].contains("<scxml")
+            let t = copy(c.acont[u])
+            let ax = xml.parse(&t)
+            if ax.ok
+                c.fname.push("#content")
+                c.fbody.push(t)
+                c.fmach.push(-1)
+                let k = c.fmach.len() - 1
+                c.fmach[k] = load_machine(&mut c, &ax, xml.doc_root(&ax))
     # second chance for invoke src naming a file loaded after
     for v in 0..c.vk.len()
         if c.vmach[v] < 0
@@ -806,6 +818,9 @@ pub struct Run
     sdinit: List[List[i64]]
     sdone: List[ecma.V]
     sfinal: List[bool]
+    # DOM documents made from <content>/<data> markup, and their source
+    xcell: List[i64]
+    xtext: List[text]
     iq: List[List[i64]]
     qtime: List[i64]
     qseq: List[i64]
@@ -958,7 +973,10 @@ fn content_value(c: &Chart, r: &mut Run, s: i64, t: &text, isxml: bool) -> ecma.
     if isxml or t.strip().startswith("<")
         let x = xml.parse(t)
         if x.ok
-            return ecma.Rf(r: ecma.dom_doc(&mut r.js, &x))
+            let d = ecma.dom_doc(&mut r.js, &x)
+            r.xcell.push(d)
+            r.xtext.push(copy(t))
+            return ecma.Rf(r: d)
     if json_like(t)
         let v = jeval(c, r, s, t)
         if v.ok
@@ -1010,6 +1028,14 @@ fn find_session(r: &Run, name: &text) -> i64
 fn http_loc(s: i64) -> text = "http://scxml.local/" + session_name(s) + "/basichttp"
 
 # form encoding (application/x-www-form-urlencoded) of a text
+# percent-encoding with spaces as %20 (a <content> body)
+fn pct_enc(t: &text) -> text
+    let ps = t.split(" ")
+    var o: List[text] = []
+    for p in ps
+        o.push(form_enc(&p))
+    return "%20".join(o)
+
 fn form_enc(t: &text) -> text
     var o = ""
     let hx = "0123456789ABCDEF".chars()
@@ -1152,9 +1178,10 @@ fn attr_or_expr(c: &Chart, r: &mut Run, s: i64, u: i64, a: text, ax: text) -> Li
         return ["ok", ecma.to_str(&mut r.js, &v.v)]
     return ["ok", aattr(c, u, &a)]
 
-# the data of params/namelist/content of action u: [ok, value]
+# the data of params/namelist/content of action u: [ok, value, raw]: raw is the
+# parameters form-encoded in order, duplicates kept ("" for content)
 fn send_data(c: &Chart, r: &mut Run, s: i64, u: i64, names: &[text]) -> List[ecma.V]
-    let nodata: List[ecma.V] = [ecma.Bo(b: false), ecma.Und]
+    let nodata: List[ecma.V] = [ecma.Bo(b: false), ecma.Und, ecma.St(s: "")]
     if c.ahas[u as usize]
         let cx = "#contentexpr"
         if ahas_attr(c, u, &cx)
@@ -1162,16 +1189,19 @@ fn send_data(c: &Chart, r: &mut Run, s: i64, u: i64, names: &[text]) -> List[ecm
             let v = jeval(c, r, s, &src)
             if not v.ok
                 return nodata
-            return [ecma.Bo(b: true), v.v]
+            return [ecma.Bo(b: true), v.v, ecma.St(s: "")]
         let t = copy(c.acont[u as usize])
-        return [ecma.Bo(b: true), content_value(c, r, s, &t, c.acx[u as usize])]
+        return [ecma.Bo(b: true), content_value(c, r, s, &t, c.acx[u as usize]), ecma.St(s: "")]
     if names.len() == 0 and c.apar[u as usize].len() == 0
-        return [ecma.Bo(b: true), ecma.Und]
+        return [ecma.Bo(b: true), ecma.Und, ecma.St(s: "")]
     let o = ecma.new_obj(&mut r.js)
+    var raw: List[text] = []
     for nm in names
         let v = jeval(c, r, s, &nm)
         if not v.ok
             return nodata
+        let h0 = ecma.to_str(&mut r.js, &v.v)
+        raw.push(form_enc(&nm) + "=" + form_enc(&h0))
         ecma.set_prop(&mut r.js, o, &nm, v.v)
     for p in c.apar[u as usize]
         let pn = at(c, p, "name")
@@ -1192,8 +1222,10 @@ fn send_data(c: &Chart, r: &mut Run, s: i64, u: i64, names: &[text]) -> List[ecm
             if not w.ok
                 return nodata
             v = w.v
+        let h1 = ecma.to_str(&mut r.js, &v)
+        raw.push(form_enc(&pn) + "=" + form_enc(&h1))
         ecma.set_prop(&mut r.js, o, &pn, v)
-    return [ecma.Bo(b: true), ecma.Rf(r: o)]
+    return [ecma.Bo(b: true), ecma.Rf(r: o), ecma.St(s: "&".join(raw))]
 
 # the sending session's origin (the SCXML processor location)
 fn origin_of(s: i64) -> text = "#_scxml_" + session_name(s)
@@ -1274,20 +1306,45 @@ fn do_send(c: &Chart, r: &mut Run, s: i64, u: i64) -> bool
             return true
         r.eorig[ku] = http_loc(s)
         r.eotype[ku] = T_HTTP
+        # the body: <content> percent-encoded, else the parameters as a
+        # form, led by the event name as _scxmleventname (C.2)
+        let praw = ecma.to_str(&mut r.js, &dat[2])
+        var body = ""
+        var plain = ""
+        if c.ahas[u as usize]
+            plain = form_body(r, &dat[1])
+            body = pct_enc(&plain)
+        else
+            var fs: List[text] = []
+            if r.en[ku] != "" and not praw.startswith("_scxmleventname=") and not praw.contains("&_scxmleventname=")
+                fs.push("_scxmleventname=" + form_enc(&r.en[ku]))
+            if praw != ""
+                fs.push(praw)
+            body = "&".join(fs)
         if r.en[ku] == ""
-            r.en[ku] = "HTTP.POST"
-        let body = form_body(r, &dat[1])
+            let o7 = ecma.vr(&dat[1])
+            let kn = "_scxmleventname"
+            if o7 >= 0 and ecma.has_own(&r.js, o7, &kn)
+                let w7 = ecma.get_prop(&r.js, o7, &kn)
+                r.en[ku] = ecma.to_str(&mut r.js, &w7)
+            else
+                r.en[ku] = "HTTP.POST"
         r.eraw[ku] = "POST /" + session_name(dest) + "/basichttp HTTP/1.1\r\nHost: scxml.local\r\nContent-Type: application/x-www-form-urlencoded\r\n_scxmleventname: " + r.en[ku] + "\r\nContent-Length: " + body.len().tostr() + "\r\n\r\n" + body
         r.eflags[ku] = r.eflags[ku] + F_RAW
         # parameters arrive as form fields (strings); content as the body
         if not c.ahas[u as usize]
             r.edata[ku] = copy(dat[1])
         else
-            r.edata[ku] = str_v(body)
+            r.edata[ku] = str_v(plain)
         push_ev(r, dest, k, delay, copy(sendid), s)
         return true
     r.eorig[ku] = origin_of(s)
     r.eotype[ku] = T_SCXML
+    # the SCXML processor's message: the parameters, form-encoded
+    let sraw = ecma.to_str(&mut r.js, &dat[2])
+    if sraw != ""
+        r.eraw[ku] = sraw
+        r.eflags[ku] = r.eflags[ku] + F_RAW
     if t == "#_internal"
         r.etype[ku] = "internal"
         raise_ev(r, s, k)
@@ -2182,7 +2239,18 @@ fn start_invoke(c: &Chart, r: &mut Run, ses: i64, v: i64) bound 64
         if not w.ok
             raise_int(r, ses, "error.execution")
             return
+        # a document value: markup assigned from <content>, or a string
+        var src = ""
+        let q = ecma.vr(&w.v)
+        for i in 0..r.xcell.len()
+            if r.xcell[i] == q
+                src = copy(r.xtext[i])
+        if src == "" and ecma.vtag(&w.v) == 5
+            src = ecma.to_str(&mut r.js, &w.v)
         m = -1
+        for i in 0..c.fbody.len()
+            if c.fname[i] == "#content" and c.fbody[i] == src
+                m = c.fmach[i]
     var id = vt(c, v, "id")
     if id == ""
         r.nsend += 1
@@ -2239,7 +2307,7 @@ fn with_inits(c0: &Chart) -> Chart
             let t = new_transition(&mut c, root, no_texts(), "init", true, copy(c.sinit[root as usize]), b, false)
     return c
 
-fn run0() -> Run = Run(conf: [], hist: [], hset: [], vbound: [], vval: [], smachine: [], sparent: [], srunning: [], sinvstate: [], sinvid: [], sinvdef: [], sglob: [], sdinit: [], sdone: [], sfinal: [], iq: [], qtime: [], qseq: [], qsess: [], qev: [], qsid: [], qfrom: [], en: [], etype: [], esend: [], eorig: [], eotype: [], einv: [], edata: [], eraw: [], eflags: [], efrom: [], js: ecma.js_new(), now: 0, seq: 0, nsend: 0, toinv: [], trace: [], logs: [], outcome: "", ev: "", evid: -1, fuel: 100000)
+fn run0() -> Run = Run(conf: [], hist: [], hset: [], vbound: [], vval: [], smachine: [], sparent: [], srunning: [], sinvstate: [], sinvid: [], sinvdef: [], sglob: [], sdinit: [], sdone: [], sfinal: [], xcell: [], xtext: [], iq: [], qtime: [], qseq: [], qsess: [], qev: [], qsid: [], qfrom: [], en: [], etype: [], esend: [], eorig: [], eotype: [], einv: [], edata: [], eraw: [], eflags: [], efrom: [], js: ecma.js_new(), now: 0, seq: 0, nsend: 0, toinv: [], trace: [], logs: [], outcome: "", ev: "", evid: -1, fuel: 100000)
 
 pub struct Result
     outcome: text
@@ -2314,7 +2382,7 @@ fn external(c: &Chart, r: &mut Run, s: i64, e: i64) bound 64
         if v >= 0 and c.vfin[v as usize] >= 0
             let ok = exec_block(c, r, s, c.vfin[v as usize])
     for k in 0..r.smachine.len()
-        if r.sparent[k] == s and r.srunning[k] and k as i64 != frm
+        if r.sparent[k] == s and r.srunning[k]
             let v = r.sinvdef[k]
             if v >= 0 and vt(c, v, "autoforward") == "true"
                 let f = new_event(r, copy(r.en[eu]), "external")
