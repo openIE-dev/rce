@@ -6,7 +6,7 @@ import json, pathlib, sys
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "harness"))
 import rcetest
-clauses = {c["id"]: c for c in json.load(open(ROOT / "clauses.json"))["clauses"]}
+clauses = {c["id"]: c for c in (json.load(open(ROOT / "clauses.json"))["clauses"] + json.load(open(ROOT / "clauses-pending.json"))["clauses"])}
 EXPECT = {"accept", "reject", "run", "trace", "host", "replicate"}
 errs, ids, hit = [], set(), set()
 tests = [p for p in sorted((ROOT / "tests").rglob("*.rce")) if "_FIXTURE" not in p.name]

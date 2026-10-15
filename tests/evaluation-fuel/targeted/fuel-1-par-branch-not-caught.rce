@@ -1,0 +1,30 @@
+# rce-version: 0.6
+fn spin(n: i64) -> i64
+    var s = 0
+    for i in 0..n
+        s += i
+    return s
+fn main()
+    var a = 0
+    var b = 0
+    with budget 1000000000
+        par
+            branch x
+                a = spin(100000)
+            branch y
+                b = 1
+    else
+        a = -1
+    emit a
+    emit b
+#--- rce-test
+# id: evaluation-fuel/targeted/fuel-1-par-branch-not-caught
+# area: evaluation-fuel
+# clauses: [FUEL-1, T16, HC-7]
+# expect: run
+# fuel: 5000
+# schedule_seeds: [1, 2, 3]
+# outcome: trap:comptime fuel exhausted
+# outputs:
+# provenance: FUEL-1 (clauses-pending.json); expected outcome derived from the rule, controls show budget exhaustion stays catchable
+#---

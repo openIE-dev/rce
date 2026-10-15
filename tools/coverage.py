@@ -8,7 +8,7 @@ import collections, json, os, pathlib, sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "harness"))
 import rcetest
 ROOT = pathlib.Path(__file__).resolve().parent.parent
-clauses = json.load(open(ROOT / "clauses.json"))["clauses"]
+clauses = (json.load(open(ROOT / "clauses.json"))["clauses"] + json.load(open(ROOT / "clauses-pending.json"))["clauses"])
 res = {}
 if len(sys.argv) > 1:
     for r in json.load(open(sys.argv[1]))["results"]:

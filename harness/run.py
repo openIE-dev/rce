@@ -60,7 +60,7 @@ def load_tests(root, filt=None):
         fixtures = {}
         for fx in meta.get("fixtures", []) or []:
             fixtures[fx] = (p.parent / fx).read_text(encoding="utf-8")
-        out.append({"path": str(p.relative_to(ROOT)) if p.is_absolute() else str(p), "src": src, "meta": meta, "fixtures": fixtures})
+        out.append({"path": str(p.relative_to(ROOT)) if p.is_absolute() and p.is_relative_to(ROOT) else str(p), "src": src, "meta": meta, "fixtures": fixtures})
     return out
 
 def judge(t, a, ops):
