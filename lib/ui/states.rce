@@ -2,6 +2,7 @@ module ui.states
 # uses: enc.enc, data.events, text.xml, ui.ecma
 use text.xml
 use ui.ecma
+use data.events
 
 # Statecharts (survey M53 `ui.state`; `state` is an rce keyword), pure: the
 # SCXML 1.0 execution algorithm (W3C Recommendation 2015-09-01,
@@ -1461,8 +1462,8 @@ fn exec_x(c: &Chart, r: &mut Run, s: i64, u: i64) -> bool bound 64
             if not v.ok
                 raise_int(r, s, "error.execution")
                 return false
-            let lv = ecma.to_str(&mut r.js, &v.v)
-            r.logs.push(if lb == "" then lv else lb + ":" + lv)
+            let lval = ecma.to_str(&mut r.js, &v.v)
+            r.logs.push(if lb == "" then lval else lb + ":" + lval)
         else
             r.logs.push(lb)
         return true
