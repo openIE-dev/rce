@@ -9,8 +9,8 @@ const chain = (sub, op) => seq(sub, repeat1(seq(op, sub)));
 
 module.exports = grammar({
   name: 'rce',
-  externals: $ => [$._NL, $._INDENT, $._DEDENT, $.NAME, '(', ')', '[', ']', '{', '}', $._skip_nl, $.INT, $.FLOAT, $.SEND, $._bad, $._error_sentinel],
-  extras: $ => [/ +/, $._skip_nl],
+  externals: $ => [$._NL, $._INDENT, $._DEDENT, $.NAME, '(', ')', '[', ']', '{', '}', $._skip_nl, $.INT, $.FLOAT, $.SEND, $._bad, $.comment, $._error_sentinel],
+  extras: $ => [/ +/, $._skip_nl, $.comment],
   conflicts: $ => [],
   rules: {
     start: $ => seq(repeat($._NL), optional($.module_header), repeat($._item)),

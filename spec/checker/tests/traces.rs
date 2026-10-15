@@ -53,7 +53,7 @@ fn fixtures_are_the_reference_traces() {
     let dir = spec().join("traces");
     let (all, skipped) = corpus();
     assert!(skipped.is_empty(), "every top-level example is admitted standalone: {skipped:?}");
-    assert_eq!(all.len(), 56, "54 top-level examples plus two event-list traces");
+    assert_eq!(all.len(), 57, "55 top-level examples plus two event-list traces");
     let bless = std::env::var_os("RCE_BLESS_TRACES").is_some();
     for (n, t) in &all {
         let p = dir.join(n);
@@ -113,7 +113,7 @@ fn differential_runner_reports_match_and_first_divergence() {
     let o = Command::new("python3").arg(&script).arg(&a).arg(&b).output().unwrap();
     let s = String::from_utf8_lossy(&o.stdout);
     assert!(o.status.success(), "{s}");
-    assert!(s.contains("56/56 exact match"), "{s}");
+    assert!(s.contains("57/57 exact match"), "{s}");
     // diverge at seq 2 of the counter event list: a wrong state hash
     let n = "01_counter.events.json";
     let mut v: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(a.join(n)).unwrap()).unwrap();
@@ -123,7 +123,7 @@ fn differential_runner_reports_match_and_first_divergence() {
     let s = String::from_utf8_lossy(&o.stdout);
     assert_eq!(o.status.code(), Some(1), "{s}");
     assert!(s.contains("01_counter.events.json: DIVERGES: trace 0 (events) seq 2: state_hash"), "{s}");
-    assert!(s.contains("55/56 exact match"), "{s}");
+    assert!(s.contains("56/57 exact match"), "{s}");
     // a projector that stops early
     v["traces"][0]["steps"].as_array_mut().unwrap().truncate(1);
     std::fs::write(b.join(n), v.to_string()).unwrap();

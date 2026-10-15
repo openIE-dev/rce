@@ -110,7 +110,7 @@ pub fn struct_secret(m: &Module) -> HashSet<String> {
 }
 
 const READS: &[&str] = &[
-    "len", "get", "contains", "isempty", "keys", "values", "tostr", "map", "filter", "fold", "sum",
+    "len", "get", "contains", "isempty", "keys", "values", "tostr", "map", "filter", "fold", "sum", "utf8",
     "with", "or", "issome", "isnone", "abs", "max", "min", "startswith", "endswith", "split", "lines",
     "words", "chars", "strip", "upper", "lower", "toint", "sha256", "isdigit", "isalpha", "isspace",
     "join", "checked_add", "checked_sub", "checked_mul", "checked_div", "saturating_add",

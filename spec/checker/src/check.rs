@@ -4496,6 +4496,11 @@ impl Checker {
                         }
                         T::Opt(Box::new(e))
                     }
+                    "utf8" => {
+                        self.arity(m, args, 0, l);
+                        self.expect(&e, &T::Int("i64"), l);
+                        T::Text
+                    }
                     "sum" => {
                         if !self.num(&e) {
                             self.e(d(l, "W-TY-1", "`.sum` needs numbers"));

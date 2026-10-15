@@ -606,6 +606,10 @@ def builtin(r: Any, m: String, a: Vector[Any]): (Any, Any) = {
         case "get" =>
           val k = a(0) match { case i: I => i.v; case _ => trap("get") }
           return (if (k >= 0 && k < xs.length) new Opt(xs(k.toInt)) else NONE, null)
+        case "utf8" =>
+          val bs = xs.map { case i: I if i.v >= 0 && i.v <= 255 => i.v.toByte; case _ => trap("utf8: byte outside 0..255") }.toArray
+          val dec = java.nio.charset.StandardCharsets.UTF_8.newDecoder().onMalformedInput(java.nio.charset.CodingErrorAction.REPORT).onUnmappableCharacter(java.nio.charset.CodingErrorAction.REPORT)
+          try return (dec.decode(java.nio.ByteBuffer.wrap(bs)).toString, null) catch { case _: java.nio.charset.CharacterCodingException => trap("utf8: invalid UTF-8") }
         case "sum" => var acc: Any = I(0, "lit"); for (x <- xs) acc = arith("+", acc, x); return (acc, null)
         case "map" => return (Lst(xs.map { x => fuel(); apply_(a(0), Vector(x)) }), null)
         case "filter" => return (Lst(xs.filter { x => fuel(); apply_(a(0), Vector(x)) == true }), null)
@@ -639,7 +643,7 @@ def builtin(r: Any, m: String, a: Vector[Any]): (Any, Any) = {
 }
 // C.6.4 method work, as conc::method_work in the reference evaluator.
 val LIN_TEXT = Set("strip", "upper", "lower", "reverse", "tostr", "chars", "words", "lines", "split", "isdigit", "isalpha", "isspace", "contains", "startswith", "endswith", "toint", "join", "sha256")
-val LIN_LIST = Set("reverse", "contains", "sum", "map", "filter", "fold")
+val LIN_LIST = Set("reverse", "contains", "sum", "map", "filter", "fold", "utf8")
 val LIN_MAP = Set("get", "contains", "insert", "remove", "keys", "values")
 def size_of(v: Any): BigInt = v match { case s: String => BigInt(u8s(s).length); case l: Lst => BigInt(l.xs.length); case m: Mp => BigInt(m.ps.length); case _ => BigInt(0) }
 def ceil_log2(n: BigInt): BigInt = if (n <= 1) 0 else BigInt((n - 1).bitLength)

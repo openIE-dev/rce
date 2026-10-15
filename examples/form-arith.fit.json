@@ -1,0 +1,508 @@
+{
+ "handlers": {
+  "dep_DEP1": {
+   "kind": "passthrough"
+  },
+  "role_R1": {
+   "kind": "term",
+   "term": {
+    "t": "obj",
+    "fields": [
+     [
+      "a",
+      {
+       "t": "proj",
+       "node": "role_R1",
+       "field": "a"
+      }
+     ],
+     [
+      "b",
+      {
+       "t": "proj",
+       "node": "role_R1",
+       "field": "b"
+      }
+     ],
+     [
+      "r",
+      {
+       "t": "arith",
+       "node": "role_R1",
+       "op": "add",
+       "a": {
+        "t": "proj",
+        "node": "role_R1",
+        "field": "a"
+       },
+       "b": {
+        "t": "proj",
+        "node": "role_R1",
+        "field": "b"
+       }
+      }
+     ]
+    ]
+   }
+  },
+  "del_D1": {
+   "kind": "passthrough"
+  },
+  "role_R2": {
+   "kind": "term",
+   "term": {
+    "t": "obj",
+    "fields": [
+     [
+      "a",
+      {
+       "t": "proj",
+       "node": "role_R2",
+       "field": "a"
+      }
+     ],
+     [
+      "b",
+      {
+       "t": "proj",
+       "node": "role_R2",
+       "field": "b"
+      }
+     ],
+     [
+      "r",
+      {
+       "t": "arith",
+       "node": "role_R2",
+       "op": "sub",
+       "a": {
+        "t": "proj",
+        "node": "role_R2",
+        "field": "a"
+       },
+       "b": {
+        "t": "proj",
+        "node": "role_R2",
+        "field": "b"
+       }
+      }
+     ]
+    ]
+   }
+  },
+  "del_D2": {
+   "kind": "passthrough"
+  },
+  "role_R3": {
+   "kind": "term",
+   "term": {
+    "t": "obj",
+    "fields": [
+     [
+      "a",
+      {
+       "t": "proj",
+       "node": "role_R3",
+       "field": "a"
+      }
+     ],
+     [
+      "b",
+      {
+       "t": "proj",
+       "node": "role_R3",
+       "field": "b"
+      }
+     ],
+     [
+      "r",
+      {
+       "t": "arith",
+       "node": "role_R3",
+       "op": "mul",
+       "a": {
+        "t": "proj",
+        "node": "role_R3",
+        "field": "a"
+       },
+       "b": {
+        "t": "proj",
+        "node": "role_R3",
+        "field": "b"
+       }
+      }
+     ]
+    ]
+   }
+  },
+  "del_D3": {
+   "kind": "passthrough"
+  },
+  "role_R4": {
+   "kind": "term",
+   "term": {
+    "t": "obj",
+    "fields": [
+     [
+      "a",
+      {
+       "t": "proj",
+       "node": "role_R4",
+       "field": "a"
+      }
+     ],
+     [
+      "b",
+      {
+       "t": "proj",
+       "node": "role_R4",
+       "field": "b"
+      }
+     ],
+     [
+      "r",
+      {
+       "t": "arith",
+       "node": "role_R4",
+       "op": "div",
+       "a": {
+        "t": "proj",
+        "node": "role_R4",
+        "field": "a"
+       },
+       "b": {
+        "t": "proj",
+        "node": "role_R4",
+        "field": "b"
+       }
+      }
+     ]
+    ]
+   }
+  },
+  "del_D4": {
+   "kind": "passthrough"
+  },
+  "role_R5": {
+   "kind": "term",
+   "term": {
+    "t": "obj",
+    "fields": [
+     [
+      "a",
+      {
+       "t": "proj",
+       "node": "role_R5",
+       "field": "a"
+      }
+     ],
+     [
+      "b",
+      {
+       "t": "proj",
+       "node": "role_R5",
+       "field": "b"
+      }
+     ],
+     [
+      "r",
+      {
+       "t": "arith",
+       "node": "role_R5",
+       "op": "rem",
+       "a": {
+        "t": "proj",
+        "node": "role_R5",
+        "field": "a"
+       },
+       "b": {
+        "t": "proj",
+        "node": "role_R5",
+        "field": "b"
+       }
+      }
+     ]
+    ]
+   }
+  },
+  "del_D5": {
+   "kind": "passthrough"
+  },
+  "role_R6": {
+   "kind": "term",
+   "term": {
+    "t": "obj",
+    "fields": [
+     [
+      "a",
+      {
+       "t": "proj",
+       "node": "role_R6",
+       "field": "a"
+      }
+     ],
+     [
+      "b",
+      {
+       "t": "proj",
+       "node": "role_R6",
+       "field": "b"
+      }
+     ],
+     [
+      "r",
+      {
+       "t": "arith",
+       "node": "role_R6",
+       "op": "fdiv",
+       "a": {
+        "t": "proj",
+        "node": "role_R6",
+        "field": "a"
+       },
+       "b": {
+        "t": "proj",
+        "node": "role_R6",
+        "field": "b"
+       }
+      }
+     ]
+    ]
+   }
+  },
+  "del_D6": {
+   "kind": "passthrough"
+  },
+  "role_R7": {
+   "kind": "term",
+   "term": {
+    "t": "obj",
+    "fields": [
+     [
+      "a",
+      {
+       "t": "proj",
+       "node": "role_R7",
+       "field": "a"
+      }
+     ],
+     [
+      "b",
+      {
+       "t": "proj",
+       "node": "role_R7",
+       "field": "b"
+      }
+     ],
+     [
+      "r",
+      {
+       "t": "arith",
+       "node": "role_R7",
+       "op": "min",
+       "a": {
+        "t": "proj",
+        "node": "role_R7",
+        "field": "a"
+       },
+       "b": {
+        "t": "proj",
+        "node": "role_R7",
+        "field": "b"
+       }
+      }
+     ]
+    ]
+   }
+  },
+  "del_D7": {
+   "kind": "passthrough"
+  },
+  "role_R8": {
+   "kind": "term",
+   "term": {
+    "t": "obj",
+    "fields": [
+     [
+      "a",
+      {
+       "t": "proj",
+       "node": "role_R8",
+       "field": "a"
+      }
+     ],
+     [
+      "b",
+      {
+       "t": "proj",
+       "node": "role_R8",
+       "field": "b"
+      }
+     ],
+     [
+      "r",
+      {
+       "t": "arith",
+       "node": "role_R8",
+       "op": "max",
+       "a": {
+        "t": "proj",
+        "node": "role_R8",
+        "field": "a"
+       },
+       "b": {
+        "t": "proj",
+        "node": "role_R8",
+        "field": "b"
+       }
+      }
+     ]
+    ]
+   }
+  },
+  "del_D8": {
+   "kind": "passthrough"
+  },
+  "role_R9": {
+   "kind": "term",
+   "term": {
+    "t": "obj",
+    "fields": [
+     [
+      "a",
+      {
+       "t": "proj",
+       "node": "role_R9",
+       "field": "a"
+      }
+     ],
+     [
+      "b",
+      {
+       "t": "proj",
+       "node": "role_R9",
+       "field": "b"
+      }
+     ],
+     [
+      "r",
+      {
+       "t": "arith",
+       "node": "role_R9",
+       "op": "fadd",
+       "a": {
+        "t": "proj",
+        "node": "role_R9",
+        "field": "a"
+       },
+       "b": {
+        "t": "proj",
+        "node": "role_R9",
+        "field": "b"
+       }
+      }
+     ]
+    ]
+   }
+  },
+  "del_D9": {
+   "kind": "passthrough"
+  },
+  "role_R10": {
+   "kind": "term",
+   "term": {
+    "t": "obj",
+    "fields": [
+     [
+      "a",
+      {
+       "t": "proj",
+       "node": "role_R10",
+       "field": "a"
+      }
+     ],
+     [
+      "b",
+      {
+       "t": "proj",
+       "node": "role_R10",
+       "field": "b"
+      }
+     ],
+     [
+      "r",
+      {
+       "t": "arith",
+       "node": "role_R10",
+       "op": "fsub",
+       "a": {
+        "t": "proj",
+        "node": "role_R10",
+        "field": "a"
+       },
+       "b": {
+        "t": "proj",
+        "node": "role_R10",
+        "field": "b"
+       }
+      }
+     ]
+    ]
+   }
+  },
+  "del_D10": {
+   "kind": "passthrough"
+  },
+  "role_R11": {
+   "kind": "term",
+   "term": {
+    "t": "obj",
+    "fields": [
+     [
+      "a",
+      {
+       "t": "proj",
+       "node": "role_R11",
+       "field": "a"
+      }
+     ],
+     [
+      "b",
+      {
+       "t": "proj",
+       "node": "role_R11",
+       "field": "b"
+      }
+     ],
+     [
+      "r",
+      {
+       "t": "arith",
+       "node": "role_R11",
+       "op": "fmul",
+       "a": {
+        "t": "proj",
+        "node": "role_R11",
+        "field": "a"
+       },
+       "b": {
+        "t": "proj",
+        "node": "role_R11",
+        "field": "b"
+       }
+      }
+     ]
+    ]
+   }
+  },
+  "del_D11": {
+   "kind": "passthrough"
+  }
+ },
+ "types": {
+  "dep_DEP1": {
+   "a": "float",
+   "b": "float"
+  }
+ }
+}

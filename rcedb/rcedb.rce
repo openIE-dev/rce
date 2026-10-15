@@ -1,0 +1,281 @@
+module rcedb_v1
+
+intent "RCEdb v1: tables of keyed rows and a labelled edge set, written in RCE over D; scans in canonical key order; the durable mark moves only on a bound Synced; a table may carry a typed schema that every row must match, and secondary indexes that are folds of D"
+    example Insert(table: "t", key: "b", row: "{}"), Insert(table: "t", key: "a", row: "{}"), Synced(upto: 3) -> durable == 3
+    example Insert(table: "t", key: "k", row: "{}"), Delete(table: "t", key: "k") -> rows.len() == 0
+    example Delete(table: "t", key: "x") -> refused: Missing
+    example Link(src: "a", label: "knows", dst: "b"), Unlink(src: "a", label: "knows", dst: "b") -> edges.len() == 0
+    example Schema(table: "u", cols: "name:text,age:i64,admin:bool"), Insert(table: "u", key: "a", row: "Ann\t41\tfalse") -> rows.len() == 1
+    example Schema(table: "u", cols: "name:text,age:i64"), Insert(table: "u", key: "a", row: "Ann\tforty") -> refused: BadRow
+    example Schema(table: "u", cols: "name:text,age:i64"), Insert(table: "u", key: "a", row: "Ann") -> refused: BadRow
+    example Schema(table: "u", cols: "name:float") -> refused: BadSchema
+    example Insert(table: "u", key: "a", row: "x"), Schema(table: "u", cols: "name:text") -> refused: Exists
+    example Schema(table: "u", cols: "name:text,age:i64"), Insert(table: "u", key: "a", row: "Ann\t41"), Index(table: "u", col: "age"), Insert(table: "u", key: "a", row: "Ann\t42") -> idx.len() == 1
+    example Schema(table: "u", cols: "name:text"), Index(table: "u", col: "age") -> refused: NoColumn
+    example Schema(table: "u", cols: "name:text"), Index(table: "u", col: "name"), Insert(table: "u", key: "a", row: "Ann"), Delete(table: "u", key: "a") -> idx.len() == 0
+
+state Db
+    rows: Map[text, text] = {}
+    tables: Map[text, u64] = {}
+    edges: Map[text, text] = {}
+    schemas: Map[text, text] = {}
+    indexes: Map[text, u64] = {}
+    idx: Map[text, text] = {}
+    writes: u64 = 0
+    durable: u64 = 0
+
+event Insert(table: text, key: text, row: text)
+event Delete(table: text, key: text)
+event Link(src: text, label: text, dst: text)
+event Unlink(src: text, label: text, dst: text)
+event Synced(upto: u64)
+event Schema(table: text, cols: text)
+event Index(table: text, col: text)
+event Scan(table: text, start: text)
+event Lookup(table: text, col: text, value: text)
+event Edges(src: text)
+event Dump
+event Describe
+
+error Missing(key: text)
+error Exists(name: text)
+error BadSchema(reason: text)
+error BadRow(reason: text)
+error NoColumn(col: text)
+
+struct Row
+    table: text
+    key: text
+    row: text
+
+struct Edge
+    src: text
+    label: text
+    dst: text
+
+struct Table
+    table: text
+    rows: u64
+    cols: text
+    indexes: text
+
+const SEP: text = "\u{1f}"
+
+# A schema is "name:type,name:type,..." with type text, i64 or bool and
+# distinct non-empty names. "" if valid, else the reason.
+fn schema_error(cols: text) -> text
+    if cols == ""
+        return "no columns"
+    var seen: Map[text, u64] = {}
+    for c in cols.split(",")
+        let p = c.split(":")
+        if p.len() != 2
+            return "column is not name:type: " + copy(c)
+        let n = copy(p[0])
+        let t = copy(p[1])
+        if n == "" or n.contains("\t") or n.contains(SEP)
+            return "bad column name: " + copy(n)
+        if t != "text" and t != "i64" and t != "bool"
+            return "unknown type " + copy(t) + " (text, i64 or bool)"
+        if seen.contains(n)
+            return "duplicate column " + copy(n)
+        seen[n] = 1
+    return ""
+
+# A typed row is its values in column order, separated by tabs.
+fn row_error(cols: text, row: text) -> text
+    let cs = cols.split(",")
+    let vs = row.split("\t")
+    if vs.len() != cs.len()
+        return "expected " + cs.len().tostr() + " tab-separated values, got " + vs.len().tostr()
+    for i in 0..cs.len()
+        let p = cs[i].split(":")
+        let t = copy(p[1])
+        let v = copy(vs[i])
+        if t == "bool" and v != "true" and v != "false"
+            return copy(p[0]) + ": not a bool: " + copy(v)
+        if t == "i64" and not is_i64(copy(v))
+            return copy(p[0]) + ": not an i64: " + copy(v)
+    return ""
+
+# Canonical decimal i64: optional "-", digits, no leading zero, in range.
+fn is_i64(v: text) -> bool
+    var d = copy(v)
+    if v.startswith("-")
+        let cs = v.chars()
+        d = ""
+        for i in 1..cs.len()
+            d = d + copy(cs[i])
+    if d == "" or not d.isdigit() or d.len() > 19
+        return false
+    if d.len() > 1 and d.startswith("0")
+        return false
+    if v == "-0"
+        return false
+    if d.len() == 19 and d > "9223372036854775807"
+        return v == "-9223372036854775808"
+    return true
+
+fn col_pos(cols: text, col: text) -> i64
+    let cs = cols.split(",")
+    for i in 0..cs.len()
+        let p = cs[i].split(":")
+        if copy(p[0]) == copy(col)
+            return i as i64
+    return -1
+
+fn cell(row: text, pos: u64) -> text
+    let vs = row.split("\t")
+    if (pos as usize) < vs.len()
+        return copy(vs[pos as usize])
+    return ""
+
+step Db on Schema(table: t, cols: c)
+    if schemas.contains(t) or (tables.get(t) catch 0) > 0
+        fail Exists(name: t)
+    let e = schema_error(copy(c))
+    if e != ""
+        fail BadSchema(reason: e)
+    schemas[t] = copy(c)
+    writes += 1
+
+step Db on Index(table: t, col: c)
+    let cols = schemas.get(t) catch ""
+    let pos = col_pos(cols, copy(c))
+    if pos < 0
+        fail NoColumn(col: copy(c))
+    let ik = copy(t) + SEP + copy(c)
+    if indexes.contains(ik)
+        fail Exists(name: ik)
+    indexes[ik] = pos as u64
+    var ks = rows.keys()
+    ks.sort()
+    for id in ks
+        let parts = id.split(SEP)
+        if copy(parts[0]) == copy(t)
+            let r = rows.get(id) catch ""
+            idx[copy(ik) + SEP + cell(r, pos as u64) + SEP + copy(parts[1])] = copy(parts[1])
+    writes += 1
+
+step Db on Insert(table: t, key: k, row: r)
+    if schemas.contains(t)
+        let e = row_error(schemas.get(t) catch "", copy(r))
+        if e != ""
+            fail BadRow(reason: e)
+    let id = t + SEP + k
+    if not rows.contains(id)
+        tables[t] = (tables.get(t) catch 0) + 1
+    var ik = indexes.keys()
+    ik.sort()
+    for i in ik
+        let ip = i.split(SEP)
+        if copy(ip[0]) == copy(t)
+            let pos = indexes.get(i) catch 0
+            if rows.contains(id)
+                idx.remove(copy(i) + SEP + cell(rows.get(id) catch "", pos) + SEP + copy(k))
+            idx[copy(i) + SEP + cell(copy(r), pos) + SEP + copy(k)] = copy(k)
+    rows[id] = r
+    writes += 1
+
+step Db on Delete(table: t, key: k)
+    let id = t + SEP + k
+    if not rows.contains(id)
+        fail Missing(key: k)
+    var ik = indexes.keys()
+    ik.sort()
+    for i in ik
+        let ip = i.split(SEP)
+        if copy(ip[0]) == copy(t)
+            let pos = indexes.get(i) catch 0
+            idx.remove(copy(i) + SEP + cell(rows.get(id) catch "", pos) + SEP + copy(k))
+    rows.remove(id)
+    tables[t] = (tables.get(t) catch 1) - 1
+    writes += 1
+
+step Db on Link(src: s, label: l, dst: d)
+    edges[s + SEP + l + SEP + d] = l
+    writes += 1
+
+step Db on Unlink(src: s, label: l, dst: d)
+    let id = s + SEP + l + SEP + d
+    if not edges.contains(id)
+        fail Missing(key: id)
+    edges.remove(id)
+    writes += 1
+
+step Db on Synced(upto: n)
+    if n > durable
+        durable = n
+
+step Db on Scan(table: t, start: f)
+    var ks = rows.keys()
+    ks.sort()
+    for id in ks
+        let parts = id.split(SEP)
+        if copy(parts[0]) == copy(t) and copy(parts[1]) >= copy(f)
+            let v = rows.get(id) catch ""
+            emit Row(table: copy(t), key: copy(parts[1]), row: v)
+
+# Rows of t whose column col equals value, in key order. With an index
+# the walk is over the index; without one it is a scan. Same answer.
+step Db on Lookup(table: t, col: c, value: v)
+    let ik = copy(t) + SEP + copy(c)
+    if indexes.contains(ik)
+        let pre = copy(ik) + SEP + copy(v) + SEP
+        var ks = idx.keys()
+        ks.sort()
+        for i in ks
+            if i.startswith(copy(pre))
+                let k = idx.get(i) catch ""
+                let r = rows.get(copy(t) + SEP + copy(k)) catch ""
+                emit Row(table: copy(t), key: k, row: r)
+    else
+        let pos = col_pos(schemas.get(t) catch "", c)
+        if pos >= 0
+            var ks = rows.keys()
+            ks.sort()
+            for id in ks
+                let parts = id.split(SEP)
+                if copy(parts[0]) == copy(t)
+                    let r = rows.get(id) catch ""
+                    if cell(copy(r), pos as u64) == copy(v)
+                        emit Row(table: copy(t), key: copy(parts[1]), row: r)
+
+step Db on Edges(src: s)
+    var ks = edges.keys()
+    ks.sort()
+    for id in ks
+        let parts = id.split(SEP)
+        if copy(parts[0]) == copy(s)
+            emit Edge(src: copy(s), label: copy(parts[1]), dst: copy(parts[2]))
+
+step Db on Describe
+    var names: Map[text, u64] = {}
+    for t in tables.keys()
+        names[t] = 1
+    for t in schemas.keys()
+        names[t] = 1
+    var ns = names.keys()
+    ns.sort()
+    var iks = indexes.keys()
+    iks.sort()
+    for t in ns
+        var ix: List[text] = []
+        for i in iks
+            let ip = i.split(SEP)
+            if copy(ip[0]) == copy(t)
+                ix.push(copy(ip[1]))
+        emit Table(table: copy(t), rows: tables.get(t) catch 0, cols: schemas.get(t) catch "", indexes: ",".join(ix))
+
+step Db on Dump
+    var ks = rows.keys()
+    ks.sort()
+    for id in ks
+        let parts = id.split(SEP)
+        let v = rows.get(id) catch ""
+        emit Row(table: copy(parts[0]), key: copy(parts[1]), row: v)
+    var es = edges.keys()
+    es.sort()
+    for id in es
+        let parts = id.split(SEP)
+        emit Edge(src: copy(parts[0]), label: copy(parts[1]), dst: copy(parts[2]))

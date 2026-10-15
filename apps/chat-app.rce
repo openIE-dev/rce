@@ -1,0 +1,589 @@
+module chat
+
+intent "chat v1: workspaces, channels and topic threads, DMs and groups, reactions, presence, file shares and call rooms as one replicated RCE state; every change is an op applied locally and sent to peers over P4 channels; messages order by (Lamport clock, author) so replicas converge; direct messages are end-to-end encrypted (signed-prekey X3DH, one Double Ratchet per peer)"
+    example Setup(me: "a", peers: []), Do(op: "post", conv: "c", topic: "t", body: "hi") -> messages.len() == 1
+    example Setup(me: "a", peers: []), Do(op: "post", conv: "c", topic: "t", body: "hi"), Do(op: "react", conv: "c\u{1f}t\u{1f}000000000001\u{1f}a", topic: "+1", body: "") -> reactions.len() == 1
+    example Setup(me: "a", peers: []), Do(op: "join", conv: "room", topic: "", body: ""), Do(op: "track", conv: "room", topic: "audio", body: "on") -> tracks.len() == 1
+    example Setup(me: "a", peers: []), ChanRecvDone(req: 1, status: "delivered", data: some(["b\t1\tpost\u{1e}b\u{1e}5\u{1e}c\u{1e}t\u{1e}yo"]), err: "") -> clock == 5
+    example Setup(me: "a", peers: []), Do(op: "post", conv: "c", topic: "t", body: "hi"), Do(op: "edit", conv: "c\u{1f}t\u{1f}000000000001\u{1f}a", topic: "", body: "hello") -> edited.len() == 1
+    example Setup(me: "a", peers: []), Do(op: "post", conv: "c", topic: "t", body: "hi"), Do(op: "delete", conv: "c\u{1f}t\u{1f}000000000001\u{1f}a", topic: "", body: "") -> deleted.len() == 1
+    example Setup(me: "a", peers: []), ChanRecvDone(req: 1, status: "delivered", data: some(["b\t1\tpost\u{1e}b\u{1e}5\u{1e}c\u{1e}t\u{1e}yo"]), err: ""), Do(op: "edit", conv: "c\u{1f}t\u{1f}000000000005\u{1f}b", topic: "", body: "hijack") -> edited.len() == 0
+    example Setup(me: "a", peers: []), Do(op: "dm", conv: "b", topic: "", body: "secret") -> outbox.len() == 1
+    example Setup(me: "a", peers: []), RandomDone(req: 1, status: "delivered", data: some("1111111111111111111111111111111111111111111111111111111111111111222222222222222222222222222222222222222222222222222222222222222233333333333333333333333333333333333333333333333333333333333333333"), err: "") -> keys.len() == 0
+
+# ---------------------------------------------------------------- chat app
+# Source of apps/chat.rce together with lib/crypto.rce (scripts/build-chat.sh
+# concatenates them; tests/app_chat.rs fails while apps/chat.rce is stale).
+#
+# E2EE (W4): each replica has an X25519 identity key, an Ed25519 signing key
+# and an X25519 signed prekey, all from one logged Random result (HC-10).
+# The bundle (identity, signing key, prekey, Ed25519 signature of the
+# prekey) is broadcast; a received bundle is used only when its signature
+# verifies. For each pair of peers the one whose name sorts first runs X3DH
+# as initiator; each side then holds one Double Ratchet per peer. "dm" ops
+# carry only ratchet headers and ciphertext; plaintext is kept as hex and
+# shown with `.utf8()`; a message whose plaintext is not well-formed UTF-8 is
+# dropped and counted in `rejected`.
+#
+# Every public-key operation runs as one job per input (Poll), so
+# each input stays inside the fuel of 6.7 (HC-7a): jobs are queued by the
+# input that makes them and run in order, one per input.
+#
+# Secrets: private keys and ratchet state are state of this replica and the
+# Random results that made them are in its D. D is device-local; it must not
+# be replicated off the device (CHAT-DESIGN-NOTES).
+
+struct ChanSend
+    req: u64
+    peer: text
+    id: u64
+    body: text
+    reliable: bool
+
+struct ChanRecv
+    req: u64
+    max: u64
+
+struct Random
+    req: u64
+    n: u64
+
+struct Display
+    data: text
+
+event Setup(me: text, peers: List[text])
+event Do(op: text, conv: text, topic: text, body: text)
+event Poll
+event Show(conv: text, topic: text)
+event ChanSendDone(req: u64, status: text, data: u64?, err: text)
+event ChanRecvDone(req: u64, status: text, data: List[text]?, err: text)
+event RandomDone(req: u64, status: text, data: text?, err: text)
+
+fn pad(n: u64) -> text
+    var s = n.tostr()
+    for _ in 0..12
+        if s.len() < 12
+            s = "0" + s
+    s
+
+fn hexslice(h: text, lo: usize, hi: usize) -> text = tohex(slice(unhex(h), lo, hi))
+
+fn no_ratchet() -> Ratchet = Ratchet(dhs: "", dhs_pub: "", dhr: "", rk: "", cks: "", ckr: "", ns: 0, nr: 0, pn: 0, skipped: {})
+
+fn dm_conv(a: text, b: text) -> text
+    if a < b
+        return "dm:" + a + "," + b
+    return "dm:" + b + "," + a
+
+# RFC 3629 well-formed UTF-8 (the bytes `.utf8()` accepts)
+fn valid_utf8(b: List[i64]) -> bool
+    var i: usize = 0
+    while i < b.len() bound 1048576
+        let c = b[i]
+        var n: usize = 0
+        var lo: i64 = 128
+        var hi: i64 = 191
+        if c < 0 or c > 255
+            return false
+        if c < 128
+            n = 0
+        elif c >= 194 and c <= 223
+            n = 1
+        elif c >= 224 and c <= 239
+            n = 2
+            if c == 224
+                lo = 160
+            if c == 237
+                hi = 159
+        elif c >= 240 and c <= 244
+            n = 3
+            if c == 240
+                lo = 144
+            if c == 244
+                hi = 143
+        else
+            return false
+        if i + n >= b.len() and n > 0
+            return false
+        for k in 0..n
+            let d = b[i + 1 + k]
+            if k == 0
+                if d < lo or d > hi
+                    return false
+            elif d < 128 or d > 191
+                return false
+        i += n + 1
+    return true
+
+state Chat
+    me: text = ""
+    peers: List[text] = []
+    clock: u64 = 0
+    next: u64 = 0
+    unsent: u64 = 0
+    workspaces: Map[text, text] = {}
+    channels: Map[text, text] = {}
+    convs: Map[text, text] = {}
+    messages: Map[text, text] = {}
+    reactions: Map[text, u64] = {}
+    presence: Map[text, text] = {}
+    calls: Map[text, u64] = {}
+    tracks: Map[text, text] = {}
+    keys: Map[text, text] = {}
+    bundles: Map[text, text] = {}
+    addr: Map[text, text] = {}
+    sessions: Map[text, Ratchet] = {}
+    outbox: Map[text, List[text]] = {}
+    wants: Map[u64, text] = {}
+    jobs: Map[u64, text] = {}
+    jhead: u64 = 0
+    jtail: u64 = 0
+    rejected: u64 = 0
+    edited: Map[text, u64] = {}
+    deleted: Map[text, u64] = {}
+    read: Map[text, text] = {}
+    ipeer: Map[u64, text] = {}
+    iwire: Map[u64, text] = {}
+    tries: Map[u64, u64] = {}
+    retry: Map[u64, u64] = {}
+    polls: u64 = 0
+    got: Map[text, u64] = {}
+    held: Map[text, text] = {}
+
+step Chat on Setup(me: m, peers: ps)
+    me = m
+    peers = ps
+    next += 1
+    wants[next] = "keys"
+    emit Random(req: next, n: 96)
+
+step Chat on Do(op: k, conv: c, topic: t, body: b)
+    clock += 1
+    let who = copy(me)
+    if k == "ws"
+        workspaces[copy(c)] = copy(b)
+    elif k == "ch"
+        channels[copy(c)] = copy(b)
+    elif k == "conv"
+        convs[copy(c)] = copy(b)
+    elif k == "post" or k == "file"
+        messages[copy(c) + "\u{1f}" + copy(t) + "\u{1f}" + pad(clock) + "\u{1f}" + copy(who)] = copy(k) + ":" + copy(b)
+    elif k == "react"
+        let rk = copy(c) + "\u{1f}" + copy(t) + "\u{1f}" + copy(who)
+        if reactions.contains(rk)
+            reactions.remove(rk)
+        else
+            reactions[rk] = 1
+    elif k == "presence"
+        presence[copy(who)] = copy(b)
+    elif k == "join"
+        calls[copy(c) + "\u{1f}" + copy(who)] = 1
+    elif k == "leave"
+        let ck = copy(c) + "\u{1f}" + copy(who)
+        if calls.contains(ck)
+            calls.remove(ck)
+    elif k == "track"
+        tracks[copy(c) + "\u{1f}" + copy(who) + "\u{1f}" + copy(t)] = copy(b)
+    elif k == "edit" or k == "delete"
+        # c is a message key (conv, topic, clock, author); only its author may change it
+        let mf = copy(c).split("\u{1f}")
+        if mf.len() == 4 and copy(mf[3]) == copy(who) and messages.contains(copy(c)) and not deleted.contains(copy(c))
+            if k == "edit"
+                messages[copy(c)] = "post:" + copy(b)
+                edited[copy(c)] = clock
+            else
+                messages[copy(c)] = "deleted"
+                deleted[copy(c)] = clock
+    elif k == "read"
+        # read marker of this replica: everything up to now in (conv, topic) is read
+        read[copy(c) + "\u{1f}" + copy(t)] = pad(clock)
+    elif k == "dm"
+        # c is the peer's name; the plaintext b never leaves this replica
+        messages[dm_conv(copy(who), copy(c)) + "\u{1f}\u{1f}" + pad(clock) + "\u{1f}" + copy(who)] = "e2e:" + tohex(tobytes(copy(b)))
+        var q = outbox.get(copy(c)) catch []
+        q.push(pad(clock) + ":" + tohex(tobytes(copy(b))))
+        outbox[copy(c)] = q
+        let s = sessions.get(copy(c)) catch no_ratchet()
+        if s.cks != ""
+            jobs[jtail] = "flush\u{1f}" + copy(c)
+            jtail += 1
+    if k != "dm" and k != "read"
+        let wire = copy(k) + "\u{1e}" + copy(who) + "\u{1e}" + clock.tostr() + "\u{1e}" + copy(c) + "\u{1e}" + copy(t) + "\u{1e}" + copy(b)
+        for p in peers
+            next += 1
+            emit ChanSend(req: next, peer: copy(p), id: next, body: copy(wire), reliable: k != "presence")
+            if k != "presence"
+                ipeer[next] = copy(p)
+                iwire[next] = copy(wire)
+
+# one queued job per input, then receive (the host loop sends Poll)
+step Chat on Poll
+    # resend reliable ops whose send did not end Delivered, with backoff
+    polls += 1
+    var due = retry.keys()
+    due.sort()
+    for r0 in due
+        if (retry.get(r0) catch 0) <= polls
+            retry.remove(r0)
+            next += 1
+            ipeer[next] = ipeer.get(r0) catch ""
+            iwire[next] = iwire.get(r0) catch ""
+            tries[next] = tries.get(r0) catch 0
+            ipeer.remove(r0)
+            iwire.remove(r0)
+            if tries.contains(r0)
+                tries.remove(r0)
+            emit ChanSend(req: next, peer: ipeer.get(next) catch "", id: next, body: iwire.get(next) catch "", reliable: true)
+    if jhead < jtail
+        let j = jobs.get(jhead) catch ""
+        jobs.remove(jhead)
+        jhead += 1
+        let f = j.split("\u{1f}")
+        let jk = copy(f[0])
+        if jk == "k1"
+            keys["ik_pub"] = pubkey(keys.get("ik") catch "")
+            keys["spk_pub"] = pubkey(keys.get("spk") catch "")
+            jobs[jtail] = "k2"
+            jtail += 1
+        elif jk == "k2"
+            keys["ed_pub"] = ed_pubkey(keys.get("ed") catch "")
+            jobs[jtail] = "k3"
+            jtail += 1
+        elif jk == "k3"
+            keys["sig"] = ed_sign(keys.get("ed") catch "", unhex(keys.get("spk_pub") catch ""))
+            let bundle = (keys.get("ik_pub") catch "") + "." + (keys.get("ed_pub") catch "") + "." + (keys.get("spk_pub") catch "") + "." + (keys.get("sig") catch "")
+            clock += 1
+            let wire = "bundle\u{1e}" + copy(me) + "\u{1e}" + clock.tostr() + "\u{1e}\u{1e}\u{1e}" + bundle
+            for p in peers
+                next += 1
+                emit ChanSend(req: next, peer: copy(p), id: next, body: copy(wire), reliable: true)
+                ipeer[next] = copy(p)
+                iwire[next] = copy(wire)
+            # bundles that arrived before ours was ready
+            for w in bundles.keys()
+                if copy(me) < copy(w) and not sessions.contains(copy(w))
+                    next += 1
+                    wants[next] = "eph\u{1f}" + copy(w)
+                    emit Random(req: next, n: 64)
+        elif jk == "vb" and f.len() == 3
+            let w = copy(f[1])
+            let parts = copy(f[2]).split(".")
+            if parts.len() == 4 and ed_verify(copy(parts[1]), unhex(copy(parts[2])), copy(parts[3]))
+                bundles[copy(w)] = copy(f[2])
+                if keys.contains("sig") and copy(me) < copy(w) and not sessions.contains(copy(w))
+                    next += 1
+                    wants[next] = "eph\u{1f}" + copy(w)
+                    emit Random(req: next, n: 64)
+            else
+                rejected += 1
+        elif jk == "xa" and f.len() == 3
+            let w = copy(f[1])
+            let parts = (bundles.get(copy(w)) catch "").split(".")
+            let r = copy(f[2])
+            let eka = hexslice(copy(r), 0, 32)
+            let sk = x3dh_init(keys.get("ik") catch "", copy(eka), copy(parts[0]), copy(parts[2]))
+            jobs[jtail] = "ia\u{1f}" + copy(w) + "\u{1f}" + sk + "\u{1f}" + eka + "\u{1f}" + hexslice(r, 32, 64)
+            jtail += 1
+        elif jk == "ia" and f.len() == 5
+            let w = copy(f[1])
+            let parts = (bundles.get(copy(w)) catch "").split(".")
+            sessions[copy(w)] = ratchet_init_alice(copy(f[2]), copy(parts[2]), copy(f[4]))
+            let hello = (keys.get("ik_pub") catch "") + "." + pubkey(copy(f[3]))
+            clock += 1
+            let wire = "x3dh\u{1e}" + copy(me) + "\u{1e}" + clock.tostr() + "\u{1e}\u{1e}\u{1e}" + hello
+            next += 1
+            ipeer[next] = addr.get(copy(w)) catch ""
+            iwire[next] = copy(wire)
+            emit ChanSend(req: next, peer: addr.get(copy(w)) catch "", id: next, body: wire, reliable: true)
+            # Alice sends first, so Bob's ratchet can turn
+            var q = outbox.get(copy(w)) catch []
+            if q.len() == 0
+                q.push("")
+                outbox[copy(w)] = q
+            jobs[jtail] = "flush\u{1f}" + copy(w)
+            jtail += 1
+        elif jk == "xb" and f.len() == 3
+            let w = copy(f[1])
+            let parts = copy(f[2]).split(".")
+            if parts.len() == 2
+                let sk = x3dh_resp(keys.get("ik") catch "", keys.get("spk") catch "", copy(parts[0]), copy(parts[1]))
+                jobs[jtail] = "ib\u{1f}" + copy(w) + "\u{1f}" + sk
+                jtail += 1
+        elif jk == "ib" and f.len() == 3
+            sessions[copy(f[1])] = ratchet_init_bob(copy(f[2]), keys.get("spk") catch "")
+        elif jk == "dec" and f.len() == 6
+            let w = copy(f[1])
+            if not sessions.contains(copy(w))
+                # its X3DH has not finished: run it again later
+                jobs[jtail] = copy(j)
+                jtail += 1
+            else
+                let o = ratchet_decrypt(sessions.get(copy(w)) catch no_ratchet(), copy(f[3]), copy(f[4]), copy(f[5]))
+                if o.ok and valid_utf8(copy(o.plain))
+                    sessions[copy(w)] = copy(o.st)
+                    let rc = copy(f[2]).toint() as u64
+                    if rc > clock
+                        clock = rc
+                    if o.plain.len() > 0
+                        messages[dm_conv(copy(me), copy(w)) + "\u{1f}\u{1f}" + pad(rc) + "\u{1f}" + copy(w)] = "e2e:" + tohex(o.plain)
+                    if (outbox.get(copy(w)) catch []).len() > 0
+                        jobs[jtail] = "flush\u{1f}" + copy(w)
+                        jtail += 1
+                else
+                    rejected += 1
+        elif jk == "flush" and f.len() == 2
+            let w = copy(f[1])
+            var s = sessions.get(copy(w)) catch no_ratchet()
+            if s.cks != ""
+                # an entry is "clock:hex" (the clock of its Do, which keys the
+                # message on both sides), or "" (the empty opener, given a clock now)
+                for e in outbox.get(copy(w)) catch []
+                    let ep = copy(e).split(":")
+                    var rc0: u64 = 0
+                    var pt = ""
+                    if ep.len() == 2
+                        rc0 = copy(ep[0]).toint() as u64
+                        pt = copy(ep[1])
+                    else
+                        clock += 1
+                        rc0 = clock
+                    let sealed = ratchet_encrypt(copy(s), unhex(pt))
+                    s = copy(sealed.st)
+                    let wire = "dm\u{1e}" + copy(me) + "\u{1e}" + rc0.tostr() + "\u{1e}\u{1e}\u{1e}" + copy(sealed.header) + "|" + copy(sealed.body)
+                    next += 1
+                    ipeer[next] = addr.get(copy(w)) catch ""
+                    iwire[next] = copy(wire)
+                    emit ChanSend(req: next, peer: addr.get(copy(w)) catch "", id: next, body: wire, reliable: true)
+                sessions[copy(w)] = s
+                outbox[copy(w)] = []
+    next += 1
+    emit ChanRecv(req: next, max: 256)
+
+step Chat on RandomDone(req: r, status: s, data: d, err: e)
+    let why = wants.get(r) catch ""
+    if wants.contains(r)
+        wants.remove(r)
+    let bytes = d.or("")
+    if s == "delivered" and bytes.len() == 192
+        if why == "keys"
+            keys["ik"] = hexslice(copy(bytes), 0, 32)
+            keys["ed"] = hexslice(copy(bytes), 32, 64)
+            keys["spk"] = hexslice(bytes, 64, 96)
+            jobs[jtail] = "k1"
+            jtail += 1
+    elif s == "delivered" and bytes.len() == 128
+        let f = why.split("\u{1f}")
+        if f.len() == 2 and copy(f[0]) == "eph"
+            jobs[jtail] = "xa\u{1f}" + copy(f[1]) + "\u{1f}" + bytes
+            jtail += 1
+    elif s == "delivered" and bytes.len() == 64
+        let f = why.split("\u{1f}")
+        if f.len() == 5 and copy(f[0]) == "dm"
+            jobs[jtail] = "dec\u{1f}" + copy(f[1]) + "\u{1f}" + copy(f[2]) + "\u{1f}" + copy(f[3]) + "\u{1f}" + copy(f[4]) + "\u{1f}" + bytes
+            jtail += 1
+
+# A reliable op that did not end Delivered (timed out, unreachable, or
+# interrupted by a restart) is resent after 2, 4, ... 64 polls, until a send
+# of it is Delivered. Receivers apply each (author, clock) once (`got`), so
+# a resend of an op that did arrive changes nothing.
+step Chat on ChanSendDone(req: r, status: s, data: d, err: e)
+    if s != "delivered"
+        unsent += 1
+        if iwire.contains(r)
+            let n = (tries.get(r) catch 0) + 1
+            tries[r] = n
+            var wait: u64 = 1
+            for i in 0..n
+                if i < 6
+                    wait = wait * 2
+            retry[r] = polls + wait
+    elif iwire.contains(r)
+        ipeer.remove(r)
+        iwire.remove(r)
+        if tries.contains(r)
+            tries.remove(r)
+
+step Chat on ChanRecvDone(req: r, status: s, data: d, err: e)
+    for line in d.or([])
+        let f = line.split("\t")
+        if f.len() == 3
+            let o = copy(f[2]).split("\u{1e}")
+            if o.len() == 6 and not got.contains(op_id(copy(o)))
+                got[op_id(copy(o))] = 1
+                let k = copy(o[0])
+                let who = copy(o[1])
+                let rc = copy(o[2]).toint() as u64
+                let c = copy(o[3])
+                let t = copy(o[4])
+                let b = copy(o[5])
+                addr[copy(who)] = copy(f[0])
+                if rc > clock and k != "dm"
+                    clock = rc
+                if k == "ws"
+                    workspaces[copy(c)] = copy(b)
+                elif k == "ch"
+                    channels[copy(c)] = copy(b)
+                elif k == "conv"
+                    convs[copy(c)] = copy(b)
+                elif k == "post" or k == "file"
+                    let mk = copy(c) + "\u{1f}" + copy(t) + "\u{1f}" + pad(rc) + "\u{1f}" + copy(who)
+                    messages[copy(mk)] = copy(k) + ":" + copy(b)
+                    # edits and deletes of it that arrived first
+                    var hk = held.keys()
+                    hk.sort()
+                    for h0 in hk
+                        let w0 = (held.get(copy(h0)) catch "").split("\u{1e}")
+                        if w0.len() == 6 and copy(w0[3]) == copy(mk)
+                            held.remove(copy(h0))
+                            let hrc = copy(w0[2]).toint() as u64
+                            if deleted.contains(copy(mk))
+                                if copy(w0[0]) == "delete" and hrc < (deleted.get(copy(mk)) catch 0)
+                                    deleted[copy(mk)] = hrc
+                            else
+                                if copy(w0[0]) == "edit"
+                                    if hrc > (edited.get(copy(mk)) catch 0)
+                                        messages[copy(mk)] = "post:" + copy(w0[5])
+                                        edited[copy(mk)] = hrc
+                                else
+                                    messages[copy(mk)] = "deleted"
+                                    deleted[copy(mk)] = hrc
+                elif k == "react"
+                    let rk = copy(c) + "\u{1f}" + copy(t) + "\u{1f}" + copy(who)
+                    if reactions.contains(rk)
+                        reactions.remove(rk)
+                    else
+                        reactions[rk] = 1
+                elif k == "presence"
+                    presence[copy(who)] = copy(b)
+                elif k == "join"
+                    calls[copy(c) + "\u{1f}" + copy(who)] = 1
+                elif k == "leave"
+                    let ck = copy(c) + "\u{1f}" + copy(who)
+                    if calls.contains(ck)
+                        calls.remove(ck)
+                elif k == "track"
+                    tracks[copy(c) + "\u{1f}" + copy(who) + "\u{1f}" + copy(t)] = copy(b)
+                elif k == "edit" or k == "delete"
+                    let mf = copy(c).split("\u{1f}")
+                    if mf.len() == 4 and copy(mf[3]) == copy(who) and not messages.contains(copy(c))
+                        # the message has not arrived yet: hold this until it does
+                        held[op_id(copy(o))] = copy(f[2])
+                    elif k == "delete" and deleted.contains(copy(c))
+                        # several deletes of one message: the first (by clock) is kept on every replica
+                        if rc < (deleted.get(copy(c)) catch 0)
+                            deleted[copy(c)] = rc
+                    elif mf.len() == 4 and copy(mf[3]) == copy(who) and not deleted.contains(copy(c))
+                        if k == "edit"
+                            if rc > (edited.get(copy(c)) catch 0)
+                                messages[copy(c)] = "post:" + copy(b)
+                                edited[copy(c)] = rc
+                        else
+                            messages[copy(c)] = "deleted"
+                            deleted[copy(c)] = rc
+                elif k == "bundle"
+                    jobs[jtail] = "vb\u{1f}" + copy(who) + "\u{1f}" + copy(b)
+                    jtail += 1
+                elif k == "x3dh"
+                    jobs[jtail] = "xb\u{1f}" + copy(who) + "\u{1f}" + copy(b)
+                    jtail += 1
+                elif k == "dm"
+                    let hb = b.split("|")
+                    if hb.len() == 2
+                        next += 1
+                        wants[next] = "dm\u{1f}" + copy(who) + "\u{1f}" + rc.tostr() + "\u{1f}" + copy(hb[0]) + "\u{1f}" + copy(hb[1])
+                        emit Random(req: next, n: 32)
+
+# An op's identity: (author, the author's clock when it was sent).
+fn op_id(o: List[text]) -> text
+    if o.len() < 3
+        return ""
+    return copy(o[1]) + "\u{1f}" + copy(o[2])
+
+# The thread view: one line per message in (clock, author) order; edited
+# and deleted messages are marked, and a marker line precedes the first
+# message from someone else after this replica's read marker.
+step Chat on Show(conv: c, topic: t)
+    var ks = messages.keys()
+    ks.sort()
+    let mark = read.get(copy(c) + "\u{1f}" + copy(t)) catch ""
+    var marked = false
+    for mk in ks
+        let f = mk.split("\u{1f}")
+        if copy(f[0]) == copy(c) and copy(f[1]) == copy(t)
+            let v = messages.get(copy(mk)) catch ""
+            if not marked and copy(f[2]) > copy(mark) and copy(f[3]) != copy(me)
+                marked = true
+                emit Display(data: "-- new --\n")
+            var line = ""
+            if deleted.contains(copy(mk))
+                line = "[deleted]"
+            elif v.startswith("e2e:")
+                let h = copy(v).split(":")
+                line = unhex(copy(h[1])).utf8()
+            elif v.startswith("post:")
+                let ps = copy(v).split(":")
+                line = copy(ps[1])
+                var i: usize = 2
+                while i < ps.len() bound 4096
+                    line = line + ":" + copy(ps[i])
+                    i += 1
+            else
+                line = copy(v)
+            if edited.contains(copy(mk)) and not deleted.contains(copy(mk))
+                line = line + " (edited)"
+            emit Display(data: copy(f[3]) + ": " + line + "\n")
+
+# Unread counts per thread: messages from others after the read marker.
+event Unread
+
+step Chat on Unread
+    var counts: Map[text, u64] = {}
+    for mk in messages.keys()
+        let f = mk.split("\u{1f}")
+        let th = copy(f[0]) + "\u{1f}" + copy(f[1])
+        let mark = read.get(copy(th)) catch ""
+        if copy(f[2]) > mark and copy(f[3]) != copy(me) and not deleted.contains(copy(mk))
+            counts[copy(th)] = (counts.get(copy(th)) catch 0) + 1
+    var ts = counts.keys()
+    ts.sort()
+    for th in ts
+        let f = th.split("\u{1f}")
+        emit Display(data: copy(f[0]) + " #" + copy(f[1]) + ": " + (counts.get(copy(th)) catch 0).tostr() + " unread\n")
+
+# The thread view for a front end (scripts/chat-ui.py): one line per message
+# in (clock, author) order, tab-separated: "view", the message key, author,
+# flags ("new" after the read marker, "edited", "deleted", "e2e"), text.
+# Ends with "view-end". Reads only; changes no state.
+event View(conv: text, topic: text)
+
+step Chat on View(conv: c, topic: t)
+    var ks = messages.keys()
+    ks.sort()
+    let mark = read.get(copy(c) + "\u{1f}" + copy(t)) catch ""
+    for mk in ks
+        let f = mk.split("\u{1f}")
+        if copy(f[0]) == copy(c) and copy(f[1]) == copy(t)
+            let v = messages.get(copy(mk)) catch ""
+            var flags = ""
+            if copy(f[2]) > copy(mark) and copy(f[3]) != copy(me)
+                flags = flags + "new,"
+            var line = ""
+            if deleted.contains(copy(mk))
+                flags = flags + "deleted,"
+            elif v.startswith("e2e:")
+                flags = flags + "e2e,"
+                let h = copy(v).split(":")
+                line = unhex(copy(h[1])).utf8()
+            elif v.startswith("post:")
+                let ps = copy(v).split(":")
+                line = copy(ps[1])
+                var i: usize = 2
+                while i < ps.len() bound 4096
+                    line = line + ":" + copy(ps[i])
+                    i += 1
+            else
+                line = copy(v)
+            if edited.contains(copy(mk)) and not deleted.contains(copy(mk))
+                flags = flags + "edited,"
+            emit Display(data: "view\t" + copy(mk) + "\t" + copy(f[3]) + "\t" + flags + "\t" + line + "\n")
+    emit Display(data: "view-end\n")

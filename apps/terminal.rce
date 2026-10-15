@@ -1,0 +1,308 @@
+module terminal
+
+intent "terminal v2: a screen model (rows x cols cells, cursor, LF/CR/BS/TAB, CSI cursor moves, erase and SGR) with bounded scrollback, queried by Screen and History; v1: resize and interrupt as events; v0: a shell on a PTY, driven by Tick and Input events on the RCE host; output goes to the Display sink; everything the shell said is in D, so a session replays with no PTY"
+    example Tick, PtyOpenDone(req: 1, status: "delivered", data: none, err: "") -> opened
+    example Tick, PtyOpenDone(req: 1, status: "failed", data: none, err: "no pty") -> closed
+    example Tick, PtyOpenDone(req: 1, status: "delivered", data: some(7), err: ""), Resize(rows: 40, cols: 120) -> cols == 120
+    example Tick, PtyOpenDone(req: 1, status: "delivered", data: some(7), err: ""), Input(data: "ls\n"), Interrupt -> commands == 1
+    example Tick, PtyOpenDone(req: 1, status: "delivered", data: some(7), err: ""), PtyReadDone(req: 2, status: "delivered", data: some("ab\rc"), err: "") -> screen[0].startswith("cb ") and ccol == 1
+    example Tick, PtyOpenDone(req: 1, status: "delivered", data: some(7), err: ""), PtyReadDone(req: 2, status: "delivered", data: some("x\u{1b}[5;3Hy\u{1b}[1;1H\u{1b}[K"), err: "") -> screen[0].strip() == "" and screen[4].startswith("  y ")
+
+struct PtyOpen
+    req: u64
+    argv: List[text]
+    rows: u64
+    cols: u64
+
+struct PtyWrite
+    req: u64
+    id: u64
+    data: text
+
+struct PtyRead
+    req: u64
+    id: u64
+    max: u64
+
+struct PtyResize
+    req: u64
+    id: u64
+    rows: u64
+    cols: u64
+
+struct PtyClose
+    req: u64
+    id: u64
+
+struct Display
+    data: text
+
+struct Exit
+    code: u64
+
+event Tick
+event Input(data: text)
+event Resize(rows: u64, cols: u64)
+event Interrupt
+event PtyResizeDone(req: u64, status: text, data: u64?, err: text)
+event PtyOpenDone(req: u64, status: text, data: u64?, err: text)
+event PtyWriteDone(req: u64, status: text, data: u64?, err: text)
+event PtyReadDone(req: u64, status: text, data: text?, err: text)
+event PtyCloseDone(req: u64, status: text, data: u64?, err: text)
+event Screen
+event History(start: u64, count: u64)
+
+const SCROLLBACK: u64 = 2000
+
+# The screen is one text per row, each exactly `cols` characters, so a
+# write rebuilds one row (O(cols)) and a scroll moves rows, not cells.
+fn blank_row(n: u64) -> text
+    var s = ""
+    for _ in 0..n
+        s = s + " "
+    return s
+
+fn blank_screen(r: u64, c: u64) -> List[text]
+    var o: List[text] = []
+    for _ in 0..r
+        o.push(blank_row(c))
+    return o
+
+# row with the cells x0..=x1 replaced by c (one character each)
+fn put(row: text, x0: u64, x1: u64, c: text) -> text
+    let cs = row.chars()
+    var o = ""
+    for i in 0..cs.len()
+        if (i as u64) >= x0 and (i as u64) <= x1
+            o = o + copy(c)
+        else
+            o = o + copy(cs[i])
+    return o
+
+# row cut or padded to n characters
+fn fit(row: text, n: u64) -> text
+    let cs = row.chars()
+    var o = ""
+    for i in 0..n
+        if (i as usize) < cs.len()
+            o = o + copy(cs[i as usize])
+        else
+            o = o + " "
+    return o
+
+fn num(p: text, dflt: u64) -> u64
+    if p == "" or not p.isdigit() or p.len() > 6
+        return dflt
+    let v = p.toint() as u64
+    if v == 0
+        return dflt
+    return v
+
+fn rtrim(r: text) -> text
+    let cs = r.chars()
+    var n = cs.len()
+    while n > 0 and cs[n - 1] == " " bound 1048576
+        n -= 1
+    var o = ""
+    for i in 0..n
+        o = o + copy(cs[i])
+    return o
+
+state Term
+    next: u64 = 0
+    id: u64 = 0
+    opening: bool = false
+    opened: bool = false
+    closed: bool = false
+    shown: u64 = 0
+    lines: u64 = 0
+    rows: u64 = 24
+    cols: u64 = 80
+    commands: u64 = 0
+    last_command: text = ""
+    screen: List[text] = blank_screen(24, 80)
+    crow: u64 = 0
+    ccol: u64 = 0
+    esc: u64 = 0
+    csi: text = ""
+    sb: Map[u64, text] = {}
+    sb_head: u64 = 0
+    sb_tail: u64 = 0
+    pending: text = ""
+
+step Term on Tick
+    if closed
+        pass
+    elif not opening
+        opening = true
+        next += 1
+        emit PtyOpen(req: next, argv: ["/bin/sh"], rows: rows, cols: cols)
+    elif opened
+        next += 1
+        emit PtyRead(req: next, id: id, max: 65536)
+
+step Term on Input(data: d)
+    if opened and not closed
+        commands += 1
+        last_command = copy(d)
+        next += 1
+        emit PtyWrite(req: next, id: id, data: d)
+    elif not closed
+        # typed before the PTY opened: kept and written once it is open
+        commands += 1
+        last_command = copy(d)
+        pending = pending + d
+
+step Term on Resize(rows: r, cols: c)
+    # keep the overlapping top-left part of the screen
+    var ns: List[text] = []
+    for y in 0..r
+        if y < rows
+            ns.push(fit(copy(screen[y as usize]), c))
+        else
+            ns.push(blank_row(c))
+    screen = ns
+    if crow >= r
+        crow = r - 1
+    if ccol >= c
+        ccol = c - 1
+    rows = r
+    cols = c
+    if opened and not closed
+        next += 1
+        emit PtyResize(req: next, id: id, rows: r, cols: c)
+
+step Term on Interrupt
+    if opened and not closed
+        next += 1
+        emit PtyWrite(req: next, id: id, data: "\u{3}")
+
+step Term on PtyResizeDone(req: r, status: s, data: d, err: e)
+    pass
+
+step Term on PtyOpenDone(req: r, status: s, data: d, err: e)
+    if s == "delivered"
+        id = d.or(0)
+        opened = true
+        if rows != 24 or cols != 80
+            # resized while the PTY was opening
+            next += 1
+            emit PtyResize(req: next, id: id, rows: rows, cols: cols)
+        if pending != ""
+            next += 1
+            emit PtyWrite(req: next, id: id, data: copy(pending))
+            pending = ""
+    else
+        closed = true
+        emit Display(data: "terminal: " + e + "\n")
+        emit Exit(code: 1)
+
+step Term on PtyWriteDone(req: r, status: s, data: d, err: e)
+    pass
+
+step Term on PtyReadDone(req: r, status: s, data: d, err: e)
+    if s == "delivered"
+        let out = d.or("")
+        if out.len() > 0
+            shown += out.len() as u64
+            for c in copy(out).chars()
+                if c == "\n"
+                    lines += 1
+                if esc == 1
+                    if c == "["
+                        esc = 2
+                        csi = ""
+                    else
+                        esc = 0
+                elif esc == 2
+                    if c.isdigit() or c == ";" or c == "?"
+                        csi = csi + c
+                    else
+                        esc = 0
+                        let ps = copy(csi).split(";")
+                        let p0 = num(copy(ps[0]).strip(), 1)
+                        if c == "A"
+                            crow = crow - p0.min(crow)
+                        elif c == "B"
+                            crow = (crow + p0).min(rows - 1)
+                        elif c == "C"
+                            ccol = (ccol + p0).min(cols - 1)
+                        elif c == "D"
+                            ccol = ccol - p0.min(ccol)
+                        elif c == "H" or c == "f"
+                            var p1: u64 = 1
+                            if ps.len() > 1
+                                p1 = num(copy(ps[1]), 1)
+                            crow = (p0 - 1).min(rows - 1)
+                            ccol = (p1 - 1).min(cols - 1)
+                        elif c == "J"
+                            let mode = num(copy(csi), 0)
+                            for y in 0..rows
+                                if mode == 2 or (mode == 0 and y > crow) or (mode == 1 and y < crow)
+                                    screen[y as usize] = blank_row(cols)
+                            if mode == 0
+                                screen[crow as usize] = put(copy(screen[crow as usize]), ccol, cols, " ")
+                            elif mode == 1
+                                screen[crow as usize] = put(copy(screen[crow as usize]), 0, ccol, " ")
+                        elif c == "K"
+                            let mode = num(copy(csi), 0)
+                            if mode == 2
+                                screen[crow as usize] = blank_row(cols)
+                            elif mode == 0
+                                screen[crow as usize] = put(copy(screen[crow as usize]), ccol, cols, " ")
+                            elif mode == 1
+                                screen[crow as usize] = put(copy(screen[crow as usize]), 0, ccol, " ")
+                elif c == "\u{1b}"
+                    esc = 1
+                elif c == "\r"
+                    ccol = 0
+                elif c == "\u{8}"
+                    if ccol > 0
+                        ccol -= 1
+                elif c == "\t"
+                    ccol = ((ccol / 8 + 1) * 8).min(cols - 1)
+                elif c == "\n" or ccol >= cols
+                    if c != "\n"
+                        ccol = 0
+                    if crow + 1 < rows
+                        crow += 1
+                    else
+                        # scroll: the top row goes to the scrollback
+                        sb[sb_tail] = rtrim(copy(screen[0]))
+                        sb_tail += 1
+                        if sb_tail - sb_head > SCROLLBACK
+                            sb.remove(sb_head)
+                            sb_head += 1
+                        var ns: List[text] = []
+                        for y in 1..rows
+                            ns.push(copy(screen[y as usize]))
+                        ns.push(blank_row(cols))
+                        screen = ns
+                    if c != "\n"
+                        screen[crow as usize] = put(copy(screen[crow as usize]), ccol, ccol, copy(c))
+                        ccol += 1
+                elif c >= " "
+                    screen[crow as usize] = put(copy(screen[crow as usize]), ccol, ccol, copy(c))
+                    ccol += 1
+            emit Display(data: out)
+    else
+        closed = true
+        next += 1
+        emit PtyClose(req: next, id: id)
+
+step Term on PtyCloseDone(req: r, status: s, data: d, err: e)
+    emit Exit(code: d.or(0))
+
+# The visible screen, one Display per row (trailing blanks trimmed), then
+# the cursor.
+step Term on Screen
+    for y in 0..rows
+        emit Display(data: rtrim(copy(screen[y as usize])) + "\n")
+    emit Display(data: "cursor " + (crow + 1).tostr() + ";" + (ccol + 1).tostr() + "\n")
+
+# Scrollback lines start..start+count (0 is the oldest kept line).
+step Term on History(start: f, count: n)
+    var i = sb_head + f
+    while i < sb_tail and i < sb_head + f + n bound 2000
+        emit Display(data: (sb.get(i) catch "") + "\n")
+        i += 1

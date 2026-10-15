@@ -1,0 +1,85 @@
+{
+  "handlers": {
+    "dep_DEP1": {
+      "kind": "passthrough"
+    },
+    "dep_DEP2": {
+      "kind": "pipeline",
+      "stages": [
+        {
+          "kind": "passthrough"
+        },
+        {
+          "kind": "passthrough"
+        }
+      ]
+    },
+    "role_R1": {
+      "kind": "validate",
+      "required_fields": [
+        "id",
+        "amount"
+      ],
+      "on_success": {
+        "kind": "passthrough"
+      }
+    },
+    "role_R2": {
+      "kind": "pipeline",
+      "stages": [
+        {
+          "kind": "passthrough"
+        },
+        {
+          "kind": "wrap",
+          "envelope_field": "order"
+        }
+      ]
+    },
+    "role_R4": {
+      "kind": "pipeline",
+      "stages": [
+        {
+          "kind": "wrap",
+          "envelope_field": "record"
+        },
+        {
+          "kind": "project",
+          "field": "record"
+        },
+        {
+          "kind": "project",
+          "field": "id"
+        },
+        {
+          "kind": "wrap",
+          "envelope_field": "audit_id"
+        }
+      ]
+    },
+    "del_D1": {
+      "kind": "passthrough"
+    },
+    "del_D2": {
+      "kind": "passthrough"
+    }
+  },
+  "types": {
+    "dep_DEP1": {
+      "id": "int",
+      "amount": "float"
+    },
+    "dep_DEP2": {
+      "id": "int",
+      "amount": "float"
+    }
+  },
+  "keys": {
+    "del_D1": [
+      "order.id"
+    ],
+    "del_D2": [
+      "audit_id"
+    ]
+  }
+}

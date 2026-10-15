@@ -5,7 +5,7 @@
 #include <string.h>
 #include <stdint.h>
 
-enum { NL, INDENT, DEDENT, NAME, LPAR, RPAR, LSQB, RSQB, LBRACE, RBRACE, SKIP_NL, INT, FLOAT, SEND, BAD, SENTINEL };
+enum { NL, INDENT, DEDENT, NAME, LPAR, RPAR, LSQB, RSQB, LBRACE, RBRACE, SKIP_NL, INT, FLOAT, SEND, BAD, COMMENT, SENTINEL };
 
 #define MAXD 120
 typedef struct {
@@ -18,6 +18,8 @@ typedef struct {
   uint8_t eof_nl;       // the end-of-file NEWLINE of spec 2.6 rule 4 was emitted
   uint8_t started;      // a token other than the first line's comment was seen
   uint8_t v06;          // the module declares `# rce-version: 0.6` or `0.7` (spec 2.7)
+  uint8_t cont;         // the last line end stopped before a comment line; the layout
+                        // decision for the following code line was already made
 } S;
 
 static const char *KW[] = {"actor","after","and","arena","as","bound","break","catch","chan","check","comptime",
@@ -128,11 +130,26 @@ bool tree_sitter_rce_external_scanner_scan(void *p, TSLexer *lx, const bool *val
     if (s->n > 1) { s->n--; lx->result_symbol = DEDENT; return true; }
     return false;
   }
+  if (c == '#' && valid[COMMENT]) {
+    // A comment is an extra token. It never includes the line end, so the
+    // layout pass below still sees every line end.
+    comment(lx, s);
+    lx->mark_end(lx);
+    lx->result_symbol = COMMENT;
+    return true;
+  }
   if (c == '\n' || c == '\r' || c == '#') {
-    // _NL: (/\r?\n[ ]*/ | COMMENT)+ ; indentation = spaces after the last newline
-    int ind = 0, sawnl = 0;
+    // _NL: (/\r?\n[ ]*/ | COMMENT)+ ; indentation = spaces after the last newline.
+    // When comments are tokens, the line end token stops before the first
+    // comment line, but the scan continues past comment lines (lookahead
+    // only, no mark_end) to find the indentation of the next code line.
+    int ind = 0, sawnl = 0, stopped = 0;
     for (;;) {
-      if (lx->lookahead == '#') { comment(lx, s); continue; }
+      if (lx->lookahead == '#') {
+        if (!stopped && sawnl && valid[COMMENT]) { lx->mark_end(lx); stopped = 1; }
+        comment(lx, s);
+        continue;
+      }
       if (lx->lookahead == '\r') { lx->advance(lx, false); if (lx->lookahead != '\n') { s->bad = 1; break; } }
       if (lx->lookahead == '\n') {
         lx->advance(lx, false); sawnl = 1; ind = 0; s->started = 1;
@@ -141,8 +158,12 @@ bool tree_sitter_rce_external_scanner_scan(void *p, TSLexer *lx, const bool *val
       }
       break;
     }
-    lx->mark_end(lx);
-    if (s->depth > 0) { lx->result_symbol = SKIP_NL; return true; }
+    if (!stopped) lx->mark_end(lx);
+    int was_cont = s->cont;
+    s->cont = stopped;
+    // Inside brackets, or the rest of a run whose layout was already decided:
+    // the line ends are an extra.
+    if (s->depth > 0 || was_cont) { lx->result_symbol = SKIP_NL; return true; }
     lx->result_symbol = NL;
     if (!sawnl) return true;  // a comment at EOF without newline (no final line end)
     int top = s->stack[s->n - 1];

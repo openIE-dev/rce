@@ -9,7 +9,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 /// Programs in spec/examples (51 through draft 0.7; 51_refined_input adds 5.1 refined types, 52-54 the 0.8 indexed values of 5.16).
-const CORPUS: usize = 56;
+const CORPUS: usize = 57;
 
 fn examples() -> Vec<PathBuf> {
     let mut v: Vec<PathBuf> = std::fs::read_dir("../examples")
@@ -79,7 +79,7 @@ fn run(lang: Lang, dir: &Path, stem: &str, code: &str) -> Result<String, String>
         Lang::Js => Command::new(tool(Lang::Js)).arg(&src).output(),
         // Scala 3.10 on the JVM: scala-cli compiles and runs one file
         Lang::Scala => Command::new(tool(Lang::Scala))
-            .args(["run", "-q", "--server=false", "--scala", "3.10.0", "--scalac-option", "-nowarn"])
+            .args(["run", "-q", "--server=false", "--jvm", "21", "--scala", "3.10.0", "--scalac-option", "-nowarn"])
             .arg(&src)
             .output(),
 

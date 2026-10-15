@@ -1,5 +1,5 @@
 //! Abstract syntax of RCE (RCE-SPEC.md section 3).
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum Ty {
     Path(Vec<String>, Vec<Ty>),
     Unit,
@@ -15,13 +15,13 @@ pub enum Ty {
     Region(Box<Ty>, String),
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct Arg {
     pub label: Option<String>,
     pub e: Expr,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum Expr {
     Name(String, usize),
     SelfRef(usize),
@@ -98,7 +98,7 @@ impl Expr {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum Pat {
     Wild,
     Path(Vec<String>),
@@ -109,13 +109,13 @@ pub enum Pat {
     Alt(Vec<Pat>),
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum Body {
     Arrow(Expr),
     Block(Vec<Stmt>),
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct Arm {
     pub pat: Pat,
     pub guard: Option<Expr>,
@@ -123,7 +123,7 @@ pub struct Arm {
     pub line: usize,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum SelArm {
     Recv(Pat, Expr, Vec<Stmt>),
     Send(Expr, Expr, Vec<Stmt>),
@@ -131,7 +131,7 @@ pub enum SelArm {
     Default(Vec<Stmt>),
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum Stmt {
     Expr(Expr),
     Assign(String, Expr, Expr),
@@ -158,7 +158,7 @@ pub enum Stmt {
     Check(Expr),
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum Param {
     Named {
         comptime: bool,
@@ -170,14 +170,14 @@ pub enum Param {
     SelfRef(bool),
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct GParam {
     pub comptime: bool,
     pub name: String,
     pub bounds: Vec<Ty>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct FnSig {
     pub comptime: bool,
     pub name: String,
@@ -190,13 +190,13 @@ pub struct FnSig {
     pub line: usize,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct FnDecl {
     pub sig: FnSig,
     pub body: Body,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct Field {
     pub name: String,
     pub ty: Ty,
@@ -204,7 +204,7 @@ pub struct Field {
     pub line: usize,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct Example {
     pub events: Vec<(String, Vec<Arg>)>,
     pub refused: Option<String>,
@@ -212,7 +212,7 @@ pub struct Example {
     pub line: usize,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct Handler {
     pub pat: Pat,
     pub guard: Option<Expr>,
@@ -220,13 +220,13 @@ pub struct Handler {
     pub line: usize,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum TraitMember {
     Type(String),
     Fn(FnSig),
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 #[allow(clippy::large_enum_variant)]
 pub enum Item {
     /// `use a.b [as c]` and its line
@@ -335,7 +335,7 @@ pub enum Item {
 }
 
 /// A step of a `protocol` (C.11.3), from one endpoint's point of view.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum ProtoStep {
     Send(Ty),
     Recv(Ty),
@@ -346,7 +346,7 @@ pub enum ProtoStep {
 }
 
 /// `child name: Type [restart bound n]` of a supervisor (C.11.11).
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct SupChild {
     pub name: String,
     pub ty: String,
@@ -354,7 +354,7 @@ pub struct SupChild {
     pub line: usize,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct Module {
     pub path: Option<Vec<String>>,
     pub items: Vec<Item>,

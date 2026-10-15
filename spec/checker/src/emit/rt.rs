@@ -449,6 +449,7 @@ pub fn builtin(r: V, m: &str, a: Vec<V>) -> R<(V, Option<V>)> {
         (List(mut xs), "reverse") => { xs.reverse(); List(xs) }
         (List(xs), "contains") => { let y = a0(); Bool(xs.iter().any(|x| eq(x, &y))) }
         (List(xs), "get") => match a0() { Int(i, _) => Opt(if i >= 0 { xs.get(i as usize).cloned().map(Box::new) } else { None }), _ => return trap("get") },
+        (List(xs), "utf8") => { let mut b = vec![]; for x in xs { match x { Int(v, _) if (0..=255).contains(&v) => b.push(v as u8), _ => return trap("utf8: byte outside 0..255") } } match String::from_utf8(b).ok() { Some(s) => Text(s), None => return trap("utf8: invalid UTF-8") } }
         (List(xs), "sum") => { let mut acc = Int(0, "lit"); for x in xs { acc = arith("+", acc, x)?; } acc }
         (List(xs), "map") => { let f = a0(); let mut out = vec![]; for x in xs { fuel()?; out.push(apply(&f, vec![x])?); } List(out) }
         (List(xs), "filter") => { let f = a0(); let mut out = vec![]; for x in xs { fuel()?; if matches!(apply(&f, vec![x.clone()])?, Bool(true)) { out.push(x); } } List(out) }
@@ -488,7 +489,7 @@ pub fn ceil_log2(n: i128) -> i128 { if n <= 1 { 0 } else { 128 - (n - 1).leading
 pub fn method_work(recv: &V, m: &str, args: &[V]) -> i128 {
     let n = size_of(recv);
     let k = args.first().map(size_of).unwrap_or(0);
-    let lin = match recv { V::Text(_) => matches!(m, "strip" | "upper" | "lower" | "reverse" | "tostr" | "chars" | "words" | "lines" | "split" | "isdigit" | "isalpha" | "isspace" | "contains" | "startswith" | "endswith" | "toint" | "join" | "sha256"), V::List(_) => matches!(m, "reverse" | "contains" | "sum" | "map" | "filter" | "fold"), V::Map(_) => matches!(m, "get" | "contains" | "insert" | "remove" | "keys" | "values"), _ => false };
+    let lin = match recv { V::Text(_) => matches!(m, "strip" | "upper" | "lower" | "reverse" | "tostr" | "chars" | "words" | "lines" | "split" | "isdigit" | "isalpha" | "isspace" | "contains" | "startswith" | "endswith" | "toint" | "join" | "sha256"), V::List(_) => matches!(m, "reverse" | "contains" | "sum" | "map" | "filter" | "fold" | "utf8"), V::Map(_) => matches!(m, "get" | "contains" | "insert" | "remove" | "keys" | "values"), _ => false };
     if lin { n.saturating_add(k) } else if matches!(recv, V::List(_)) && m == "sort" { n.saturating_mul(ceil_log2(n)) } else { 0 }
 }
 /// `sized`: the call expression is in a version 0.7 module (C.15).

@@ -565,7 +565,15 @@ impl<'a> Interp<'a> {
         }
     }
 
+    /// Every recursion of the evaluator (nested expressions, calls up to a
+    /// declared `bound`, 6.7) passes through here. The engine grows its own
+    /// stack on the heap when fewer than 256 KiB remain, so evaluation never
+    /// depends on the caller's thread stack or on a setting (HC-14).
     pub fn eval(&mut self, e: &Expr) -> R<V> {
+        stacker::maybe_grow(256 * 1024, 8 * 1024 * 1024, || self.eval_inner(e))
+    }
+
+    fn eval_inner(&mut self, e: &Expr) -> R<V> {
         self.tick()?;
         use Expr as E;
         match e {
@@ -1584,6 +1592,19 @@ impl<'a> Interp<'a> {
                 })),
                 _ => trap("get"),
             },
+            (List(xs), "utf8") => {
+                let mut b = Vec::with_capacity(xs.len());
+                for x in xs {
+                    match x {
+                        Int(v, _) if (0..=255).contains(&v) => b.push(v as u8),
+                        _ => return trap("utf8: byte outside 0..255"),
+                    }
+                }
+                match String::from_utf8(b).ok() {
+                    Some(s) => Ok(Text(s)),
+                    None => trap("utf8: invalid UTF-8"),
+                }
+            }
             (List(xs), "sum") => {
                 let mut acc = Int(0, "lit");
                 for x in xs {
@@ -2343,6 +2364,7 @@ pub fn trace_examples(m: &Module) -> Vec<(usize, Vec<TraceStep>)> {
         }];
         for (evn, args) in &x.events {
             it.scopes = vec![HashMap::new()];
+            it.fuel = fuel_limit(); // HC-7a: each input is one run of δ, as on the host
             let label = if args.is_empty() {
                 evn.clone()
             } else {
@@ -2497,6 +2519,20 @@ impl FV {
 fn rec(mut fs: Vec<(String, FV)>) -> FV {
     fs.sort_by(|a, b| a.0.cmp(&b.0));
     FV::Rec(fs)
+}
+
+/// The canonical JSON of a state (6.1), whose SHA-256 is an entry's `state_hash`.
+pub fn state_json(s: &[Region], m: &Module) -> String {
+    rec(s
+        .iter()
+        .map(|r| (r.0.clone(), rec(r.1.iter().map(|(n, v, _)| (n.clone(), form_value(v, m))).collect())))
+        .collect())
+    .json()
+}
+
+/// The canonical JSON of an event as D stores it: `{"payload":..,"type":..}`.
+pub fn event_json(name: &str, ev: &V, m: &Module) -> String {
+    format!("{{\"payload\":{},\"type\":{}}}", form_value(ev, m).json(), jstr(name))
 }
 
 /// Embed an evaluated value into the Form's values (the table in 6.1).
@@ -2730,6 +2766,7 @@ pub fn form_json(m: &Module) -> String {
             let mut prev = D_GENESIS.to_string();
             for (evn, args) in &x.events {
                 it.scopes = vec![HashMap::new()];
+                it.fuel = fuel_limit(); // HC-7a: each input is one run of δ, as on the host
                 let ev = match it.construct(evn, args) {
                     Ok(Some(v)) => v,
                     _ => break,

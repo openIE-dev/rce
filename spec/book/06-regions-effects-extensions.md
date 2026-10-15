@@ -180,7 +180,7 @@ against the reference evaluator (`spec/checker/tests/stdlib_costs.rs`).
 | `Text` | text | `chars`, `contains`, `endswith`, `isalpha`, `isdigit`, `isempty`, `isspace`, `join`, `len`, `lines`, `lower`, `raw`, `reverse`, `sha256`, `split`, `startswith`, `strip`, `toint`, `tostr`, `upper`, `words` |
 | `F32` | f32 | `abs`, `tostr` |
 | `Gen` | iter τ | `collect` |
-| `List` | List[τ], [τ; n] | `append`, `clear`, `contains`, `filter`, `fold`, `get`, `isempty`, `len`, `map`, `pop`, `push`, `reverse`, `sort`, `sum`, `with` |
+| `List` | List[τ], [τ; n] | `append`, `clear`, `contains`, `filter`, `fold`, `get`, `isempty`, `len`, `map`, `pop`, `push`, `reverse`, `sort`, `sum`, `utf8`, `with` |
 | `Map` | Map[k, v] | `contains`, `get`, `insert`, `keys`, `len`, `remove`, `values` |
 | `Opt` | τ? | `isnone`, `issome`, `or` |
 
@@ -192,6 +192,8 @@ hexadecimal digits, as a `text`. It is pure, total and the same on every
 target; it is the digest 6.1 and 6.8 apply to canonical JSON, so a
 program given the canonical JSON of a value as text computes the same
 hash as the Form log and the content-hash ids. It is in the linear class of C.6.4.
+
+**Bytes to text (normative).** `b.utf8()` on a `List[i64]` b is the `text` whose UTF-8 encoding is exactly the bytes of b. It traps, and so refuses the event it runs in (T8), when an element is outside 0..255 or the bytes are not well-formed UTF-8 (RFC 3629: no overlong forms, no surrogates, nothing above U+10FFFF); it never substitutes characters, since that would change content silently. A leading byte-order mark is kept. It is pure, total on well-formed input, the same on every target, and in the linear class of C.6.4.
 
 **Effects and I/O (normative).** By derivation from least privilege, a
 program has no ambient authority: there is no file, clock, network,
@@ -279,4 +281,4 @@ capability never changes the guarded field (T36).
 
 **Read receipt.** What kind of channel does a capacity of 0 give? (one word)
 
-<!-- body-sha256: 32c25dd3faf5a8cb1f2f2e594db3b24adaa291248e2c971be6d11f7344f59c7e -->
+<!-- body-sha256: 21077fbff8c5f2130986fe87680644c391a6c39997502e3e2f486e76e988fe32 -->

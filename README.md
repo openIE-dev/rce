@@ -54,7 +54,7 @@ cargo build --release
 install -m 755 target/release/rce ~/.local/bin/
 ```
 
-The default build is pure Rust and needs no C compiler.
+The default build needs a C compiler only for `ring`, the crypto provider of the TLS adapter (Xcode command line tools on macOS, `build-essential` on Debian and Ubuntu).
 
 ## Quickstart
 
@@ -132,6 +132,12 @@ Section 10 of the specification defines each command exactly.
 | `spec/conc06/`, `spec/conc06b/` | test programs for the version 0.6 extensions of Appendix C |
 | `spec/checker-wasm/pkg/` | the built WebAssembly package (wasm-pack) |
 | `spec/wasm-test/` | Node test of the WebAssembly package against the examples |
+| `spec/checker/src/host.rs`, `adapters.rs`, `sandbox.rs`, `tls.rs`, `rcedb.rs` | the host runtime of Appendix E (`rce host`): the admitter and log, adapters (files, network, PTY terminal, media, foreign wasm), the OS sandbox, mutual TLS between hosts, and RCEdb |
+| `lib/` | libraries written in RCE: `crypto.rce` (SHA-2, X25519, Ed25519, X3DH, double ratchet), `hpke.rce` (RFC 9180), `mls.rce` (RFC 9420 key schedule), `pq.rce` (ML-KEM) |
+| `apps/` | applications in RCE run by `rce host`: end-to-end encrypted chat, an SFU and a terminal |
+| `rcedb/` | RCEdb, the log-as-database indexes, written in RCE |
+| `examples/` | further example programs (Form, surface and ingest examples) |
+| `scripts/` | helper scripts: proofs, Lean audit, cross-architecture hashes, the chat demo |
 
 ## Status
 

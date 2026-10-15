@@ -19,6 +19,10 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::atomic::Ordering;
 
+#[path = "common/scala_java.rs"]
+mod scala_java;
+use scala_java::scala_java;
+
 fn tool(l: Lang) -> &'static str {
     match l {
         Lang::Rust => "rustc",
@@ -59,7 +63,8 @@ fn build(l: Lang, dir: &Path, stem: &str, code: &str) -> Result<Vec<PathBuf>, St
             if !c.status.success() {
                 return Err(format!("scala-cli: {}", String::from_utf8_lossy(&c.stderr)));
             }
-            Ok(vec![PathBuf::from("java"), PathBuf::from("-jar"), jar])
+            let java = scala_java().ok_or("no Java 19 or later for the Scala jar")?;
+            Ok(vec![java, PathBuf::from("-jar"), jar])
         }
         _ => Ok(vec![PathBuf::from(tool(l)), src]),
     }
@@ -98,6 +103,13 @@ fn langs() -> Vec<Lang> {
 
         .filter(|l| only.is_empty() || only.split(',').any(|x| x == l.ext()))
         .filter(|l| Command::new(tool(*l)).arg("--version").output().is_ok_and(|o| o.status.success()))
+        .filter(|l| {
+            let ok = *l != Lang::Scala || scala_java().is_some();
+            if !ok {
+                eprintln!("SKIPPED Scala: no Java 19 or later found (not a pass)");
+            }
+            ok
+        })
         .collect()
 }
 

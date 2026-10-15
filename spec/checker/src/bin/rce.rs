@@ -9,6 +9,8 @@
 const SPEC_DRAFT: &str = "0.8";
 
 fn main() {
+    // HC-5: `rce host run|serve` enters the sandbox's OS enforcement target after opening D.
+    rce_spec_check::sandbox::enable();
     let args: Vec<String> = std::env::args().skip(1).collect();
     if matches!(args.first().map(String::as_str), Some("--version" | "-V")) && args.len() == 1 {
         println!(
@@ -18,9 +20,13 @@ fn main() {
         );
         return;
     }
+    // `rce host serve` reads stdin on its own thread (the host loop), so the
+    // main thread must not hold the stdin lock.
+    let serve = args.first().is_some_and(|a| a == "host") && args.get(1).is_some_and(|a| a == "serve");
+    let mut input: Box<dyn std::io::BufRead> = if serve { Box::new(std::io::empty()) } else { Box::new(std::io::stdin().lock()) };
     let code = rce_spec_check::cli::main(
         &args,
-        &mut std::io::stdin().lock(),
+        &mut input,
         &mut std::io::stdout(),
         &mut std::io::stderr(),
     );

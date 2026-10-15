@@ -1174,7 +1174,7 @@ against the reference evaluator (`spec/checker/tests/stdlib_costs.rs`).
 | `Text` | text | `chars`, `contains`, `endswith`, `isalpha`, `isdigit`, `isempty`, `isspace`, `join`, `len`, `lines`, `lower`, `raw`, `reverse`, `sha256`, `split`, `startswith`, `strip`, `toint`, `tostr`, `upper`, `words` |
 | `F32` | f32 | `abs`, `tostr` |
 | `Gen` | iter τ | `collect` |
-| `List` | List[τ], [τ; n] | `append`, `clear`, `contains`, `filter`, `fold`, `get`, `isempty`, `len`, `map`, `pop`, `push`, `reverse`, `sort`, `sum`, `with` |
+| `List` | List[τ], [τ; n] | `append`, `clear`, `contains`, `filter`, `fold`, `get`, `isempty`, `len`, `map`, `pop`, `push`, `reverse`, `sort`, `sum`, `utf8`, `with` |
 | `Map` | Map[k, v] | `contains`, `get`, `insert`, `keys`, `len`, `remove`, `values` |
 | `Opt` | τ? | `isnone`, `issome`, `or` |
 
@@ -1186,6 +1186,8 @@ hexadecimal digits, as a `text`. It is pure, total and the same on every
 target; it is the digest 6.1 and 6.8 apply to canonical JSON, so a
 program given the canonical JSON of a value as text computes the same
 hash as the Form log and the content-hash ids. It is in the linear class of C.6.4.
+
+**Bytes to text (normative).** `b.utf8()` on a `List[i64]` b is the `text` whose UTF-8 encoding is exactly the bytes of b. It traps, and so refuses the event it runs in (T8), when an element is outside 0..255 or the bytes are not well-formed UTF-8 (RFC 3629: no overlong forms, no surrogates, nothing above U+10FFFF); it never substitutes characters, since that would change content silently. A leading byte-order mark is kept. It is pure, total on well-formed input, the same on every target, and in the linear class of C.6.4.
 
 **Effects and I/O (normative).** By derivation from least privilege, a
 program has no ambient authority: there is no file, clock, network,
@@ -2950,7 +2952,7 @@ method's complexity class in the reference evaluator:
 | Class | Methods | work |
 |---|---|---|
 | linear, text receiver | `strip`, `upper`, `lower`, `reverse`, `tostr`, `chars`, `words`, `lines`, `split`, `isdigit`, `isalpha`, `isspace`, `contains`, `startswith`, `endswith`, `toint`, `join`, `sha256` | n + k |
-| linear, list receiver | `reverse`, `contains`, `sum`, `map`, `filter`, `fold` | n + k |
+| linear, list receiver | `reverse`, `contains`, `sum`, `map`, `filter`, `fold`, `utf8` | n + k |
 | linear, map receiver (maps are ordered association lists) | `get`, `contains`, `insert`, `remove`, `keys`, `values` | n + k |
 | n log n, list receiver | `sort` | n · ⌈log₂ n⌉, with ⌈log₂ n⌉ = 0 for n ≤ 1 |
 | constant | every other method of 5.15 | 0 |
@@ -3566,9 +3568,21 @@ adapter.
   recommended adapter; it does not change the rule.
 - **HC-5 Capabilities.** Authority comes only from capabilities minted by
   logged events (5.16 `Cap[A]` in a version 0.8 module). The host holds no
-  ambient authority on the program's behalf and enters the strictest
-  sandbox its platform offers at start (Landlock, Capsicum `cap_enter`,
-  seccomp, an app sandbox, a WASI world). The program loses nothing,
+  ambient authority on the program's behalf. This is the sandbox, and its
+  contract is independent of any OS: the checker admits only programs whose
+  effects go through granted capabilities, and the deterministic host
+  refuses any effect without one, before any OS layer is involved. The
+  same contract then has enforcement targets underneath the host, entered
+  at start as strictly as the target allows: WASM (the module imports only
+  the granted host functions), bare metal (no OS; the engine is the only
+  host and capabilities are the whole I/O surface), Linux (Landlock and
+  seccomp), macOS (Seatbelt, `sandbox_init`), Windows (AppContainer, to
+  do) and other OSes (FreeBSD Capsicum `cap_enter`, OpenBSD
+  pledge/unveil, iOS, Android: to do). The contract is planned to conform
+  to OpenIE's Sandbox v0.1 standard (https://sandbox.transaction.science:
+  S0-S7 tiers, §5 Grants, §6 energy and §7 attestation receipts) and to
+  JCP v0.3 (https://jcp.transaction.science); see REMAINING-PLAN W1h-std.
+  The program loses nothing,
   since 5.15 gives it no ambient authority.
 - **HC-6 Tick scheduler.** Concurrency runs under the tick semantics of
   6.8. A host may execute tasks in parallel only when the result equals
@@ -3576,6 +3590,13 @@ adapter.
 - **HC-7 Numerics and limits.** The host reproduces 6.3 bit for bit and
   enforces fuel, SIZE_LIMIT and VALUE_LIMIT (6.7, N9) as the reference
   does, on every run.
+- **HC-7a Fuel per input.** A host is event driven, so fuel is charged per
+  admitted input: each input (one application of δ, including constructing
+  its event) starts with the full fuel of 6.7, and no budget is shared
+  across inputs. Every input has its own bound and a session never starves
+  however long it runs. The reference trace (`rce trace`), the host and
+  replay all reset fuel per input, so a refusal for fuel is a function of
+  that input and the state before it, and D is the same on each.
 - **HC-8 Replay.** A host offers a replay mode that reads D, disconnects
   every adapter and re-derives every state hash. Replay reads no clock,
   file, network, device or environment (T37).
@@ -3792,6 +3813,7 @@ is cited by a test.
 | HC-4, E.9 | foreign calls logged | `foreign_and_host_entries_replay` |
 | HC-5 | capabilities minted by events | `capability_examples_check` |
 | HC-6, HC-7 | tick scheduler, numerics | existing T1, T9 and 6.3 tests |
+| HC-7a | fuel per input | `tests/fuel_per_input.rs` |
 | HC-8, HC-10, T37 | replay with adapters disconnected | `foreign_and_host_entries_replay` |
 | HC-9 | priority admission | `admitter_order_is_d_order` |
 | HS-1 to HS-5, T38, T39 | durable append, fatal barrier, verify on open | `verify_on_open_cuts_bad_suffix`, `fatal_barrier_stops_admission` |

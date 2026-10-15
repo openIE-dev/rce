@@ -559,6 +559,7 @@ function builtin(r, m, a) {
         const k = a[0].v;
         return [k >= 0n && k < BigInt(xs.length) ? new Opt(xs[Number(k)]) : NONE, null];
       }
+      case "utf8": { if (!xs.every((x) => x instanceof Int && x.v >= 0n && x.v <= 255n)) trap("utf8: byte outside 0..255"); try { return [new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(Uint8Array.from(xs, (x) => Number(x.v))), null]; } catch (e) { if (e instanceof Trap) throw e; trap("utf8: invalid UTF-8"); } }
       case "sum": { let acc = new Int(0n, "lit"); for (const x of xs) acc = arith("+", acc, x); return [acc, null]; }
       case "map": return [new Lst(xs.map((x) => (fuel(), apply(a[0], [x])))), null];
       case "filter": return [new Lst(xs.filter((x) => (fuel(), apply(a[0], [x])) === true)), null];
@@ -591,7 +592,7 @@ function builtin(r, m, a) {
   return trap(show(r) + " has no method " + m + " at comptime");
 }
 // C.6.4 method work, as conc::method_work in the reference evaluator.
-const LIN_TEXT = new Set(["strip", "upper", "lower", "reverse", "tostr", "chars", "words", "lines", "split", "isdigit", "isalpha", "isspace", "contains", "startswith", "endswith", "toint", "join", "sha256"]), LIN_LIST = new Set(["reverse", "contains", "sum", "map", "filter", "fold"]), LIN_MAP = new Set(["get", "contains", "insert", "remove", "keys", "values"]);
+const LIN_TEXT = new Set(["strip", "upper", "lower", "reverse", "tostr", "chars", "words", "lines", "split", "isdigit", "isalpha", "isspace", "contains", "startswith", "endswith", "toint", "join", "sha256"]), LIN_LIST = new Set(["reverse", "contains", "sum", "map", "filter", "fold", "utf8"]), LIN_MAP = new Set(["get", "contains", "insert", "remove", "keys", "values"]);
 function sizeOf(v) {
   if (isStr(v)) return BigInt(u8s(v).length);
   if (v instanceof Lst) return BigInt(v.xs.length);

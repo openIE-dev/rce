@@ -178,7 +178,7 @@ method's complexity class in the reference evaluator:
 | Class | Methods | work |
 |---|---|---|
 | linear, text receiver | `strip`, `upper`, `lower`, `reverse`, `tostr`, `chars`, `words`, `lines`, `split`, `isdigit`, `isalpha`, `isspace`, `contains`, `startswith`, `endswith`, `toint`, `join`, `sha256` | n + k |
-| linear, list receiver | `reverse`, `contains`, `sum`, `map`, `filter`, `fold` | n + k |
+| linear, list receiver | `reverse`, `contains`, `sum`, `map`, `filter`, `fold`, `utf8` | n + k |
 | linear, map receiver (maps are ordered association lists) | `get`, `contains`, `insert`, `remove`, `keys`, `values` | n + k |
 | n log n, list receiver | `sort` | n · ⌈log₂ n⌉, with ⌈log₂ n⌉ = 0 for n ≤ 1 |
 | constant | every other method of 5.15 | 0 |
@@ -392,4 +392,4 @@ different versions may `use` each other (2.7).
 
 **Read receipt.** How many words does a version 0.6 module reserve in addition to the 0.5 keywords? (a number)
 
-<!-- body-sha256: f182bec340b5d42103be80158ea4fe56e4108a868e13b316abbaf5f66761925c -->
+<!-- body-sha256: d6a1a6894f575dd98ceb07c7ce0115eb8ffda51623cc70a9e520e36522db35f3 -->

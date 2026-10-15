@@ -658,6 +658,10 @@ def builtin(r, m, a):
             if type(a[0]) is not Int: trap("get")
             k = a[0].v
             return (Opt(xs[k]) if 0 <= k < len(xs) else NONE), None
+        if m == "utf8":
+            if not all(type(x) is Int and 0 <= x.v <= 255 for x in xs): trap("utf8: byte outside 0..255")
+            try: return bytes(x.v for x in xs).decode("utf-8", "strict"), None
+            except UnicodeDecodeError: trap("utf8: invalid UTF-8")
         if m == "sum":
             acc = Int(0, "lit")
             for x in xs: acc = arith("+", acc, x)
@@ -693,7 +697,7 @@ def builtin(r, m, a):
 
 # C.6.4 method work, as conc::method_work in the reference evaluator.
 LIN_TEXT = frozenset(("strip", "upper", "lower", "reverse", "tostr", "chars", "words", "lines", "split", "isdigit", "isalpha", "isspace", "contains", "startswith", "endswith", "toint", "join", "sha256",))
-LIN_LIST = frozenset(("reverse", "contains", "sum", "map", "filter", "fold",))
+LIN_LIST = frozenset(("reverse", "contains", "sum", "map", "filter", "fold", "utf8",))
 LIN_MAP = frozenset(("get", "contains", "insert", "remove", "keys", "values",))
 def size_of(v):
     t = type(v)

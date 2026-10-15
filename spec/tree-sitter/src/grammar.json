@@ -6067,6 +6067,10 @@
     {
       "type": "SYMBOL",
       "name": "_skip_nl"
+    },
+    {
+      "type": "SYMBOL",
+      "name": "comment"
     }
   ],
   "conflicts": [],
@@ -6131,6 +6135,10 @@
     {
       "type": "SYMBOL",
       "name": "_bad"
+    },
+    {
+      "type": "SYMBOL",
+      "name": "comment"
     },
     {
       "type": "SYMBOL",

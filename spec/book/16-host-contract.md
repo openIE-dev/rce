@@ -60,9 +60,21 @@ adapter.
   recommended adapter; it does not change the rule.
 - **HC-5 Capabilities.** Authority comes only from capabilities minted by
   logged events (5.16 `Cap[A]` in a version 0.8 module). The host holds no
-  ambient authority on the program's behalf and enters the strictest
-  sandbox its platform offers at start (Landlock, Capsicum `cap_enter`,
-  seccomp, an app sandbox, a WASI world). The program loses nothing,
+  ambient authority on the program's behalf. This is the sandbox, and its
+  contract is independent of any OS: the checker admits only programs whose
+  effects go through granted capabilities, and the deterministic host
+  refuses any effect without one, before any OS layer is involved. The
+  same contract then has enforcement targets underneath the host, entered
+  at start as strictly as the target allows: WASM (the module imports only
+  the granted host functions), bare metal (no OS; the engine is the only
+  host and capabilities are the whole I/O surface), Linux (Landlock and
+  seccomp), macOS (Seatbelt, `sandbox_init`), Windows (AppContainer, to
+  do) and other OSes (FreeBSD Capsicum `cap_enter`, OpenBSD
+  pledge/unveil, iOS, Android: to do). The contract is planned to conform
+  to OpenIE's Sandbox v0.1 standard (https://sandbox.transaction.science:
+  S0-S7 tiers, §5 Grants, §6 energy and §7 attestation receipts) and to
+  JCP v0.3 (https://jcp.transaction.science); see REMAINING-PLAN W1h-std.
+  The program loses nothing,
   since 5.15 gives it no ambient authority.
 - **HC-6 Tick scheduler.** Concurrency runs under the tick semantics of
   6.8. A host may execute tasks in parallel only when the result equals
@@ -70,6 +82,13 @@ adapter.
 - **HC-7 Numerics and limits.** The host reproduces 6.3 bit for bit and
   enforces fuel, SIZE_LIMIT and VALUE_LIMIT (6.7, N9) as the reference
   does, on every run.
+- **HC-7a Fuel per input.** A host is event driven, so fuel is charged per
+  admitted input: each input (one application of δ, including constructing
+  its event) starts with the full fuel of 6.7, and no budget is shared
+  across inputs. Every input has its own bound and a session never starves
+  however long it runs. The reference trace (`rce trace`), the host and
+  replay all reset fuel per input, so a refusal for fuel is a function of
+  that input and the state before it, and D is the same on each.
 - **HC-8 Replay.** A host offers a replay mode that reads D, disconnects
   every adapter and re-derives every state hash. Replay reads no clock,
   file, network, device or environment (T37).
@@ -286,6 +305,7 @@ is cited by a test.
 | HC-4, E.9 | foreign calls logged | `foreign_and_host_entries_replay` |
 | HC-5 | capabilities minted by events | `capability_examples_check` |
 | HC-6, HC-7 | tick scheduler, numerics | existing T1, T9 and 6.3 tests |
+| HC-7a | fuel per input | `tests/fuel_per_input.rs` |
 | HC-8, HC-10, T37 | replay with adapters disconnected | `foreign_and_host_entries_replay` |
 | HC-9 | priority admission | `admitter_order_is_d_order` |
 | HS-1 to HS-5, T38, T39 | durable append, fatal barrier, verify on open | `verify_on_open_cuts_bad_suffix`, `fatal_barrier_stops_admission` |
@@ -373,4 +393,4 @@ Where RCE differs from these sources: GQL and Cypher queries are strings and the
 
 **Read receipt.** Which fcntl command is the append barrier on macOS? (for example F_SETFL)
 
-<!-- body-sha256: b1c3f821a21c7cc6f5d737ca8e46def05c3d2d66e3407022b533e4ef59b73996 -->
+<!-- body-sha256: 233eecaf3a038d636feeb220386e2329b357287cfcb579881d4e455eebded79d -->

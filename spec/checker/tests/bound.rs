@@ -67,7 +67,7 @@ fn emitted_targets_agree() {
                     Err(_) => { eprintln!("SKIPPED node (not a pass)"); continue }
                 },
                 Lang::Scala => match Command::new(std::env::var("RCE_SCALA").unwrap_or("scala-cli".into()))
-                    .args(["run", "-q", "--server=false", "--scala", "3.10.0", "--scalac-option", "-nowarn"])
+                    .args(["run", "-q", "--server=false", "--jvm", "21", "--scala", "3.10.0", "--scalac-option", "-nowarn"])
                     .arg(&f)
                     .output()
                 {
