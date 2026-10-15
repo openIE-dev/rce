@@ -1,0 +1,338 @@
+module data.feed
+# uses: enc/enc data/events
+use enc
+use data.events
+
+# Change feeds (survey M59): an external feed is a log; its events are
+# admitted one per Tick into a Form, whose log D gives the total order.
+# - D entries and resume tokens: the 6.1 hash chain (SHA-256 of the
+#   canonical JSON of {event, prev_hash, seq, state_hash}); a token is
+#   (height, digest) and verifying it against a log is an integrity check.
+# - The MongoDB change stream driver rules (change-streams.md): resumable
+#   errors, the cached resume token, the resume command, resume once.
+# - CouchDB replication checkpoints (replication protocol, "Compare
+#   Replication Logs"): the common session in source and target histories.
+# - Admission: dedupe keys inside the window δ, a per-tick budget whose
+#   overflow is an explicit outcome, and acknowledgement of the external
+#   cursor only after its event is admitted.
+
+error BadFeed(why: text)
+
+# ---------------- D entries and tokens (spec 6.1) ----------------
+
+pub const GENESIS: text = "0000000000000000000000000000000000000000000000000000000000000000"
+
+pub struct Entry
+    seq: i64
+    ev: events.Jv
+    prev_hash: text
+    state_hash: text
+    hash: text
+
+# Resume token: the height (entries admitted, = seq + 1 of the last one)
+# and the hash of entry height - 1 (GENESIS at height 0).
+pub struct Token
+    height: i64
+    digest: text
+
+pub fn token_text(t: &Token) -> text = t.height.tostr() + ":" + t.digest
+
+pub fn token_parse(s: &text) -> Token ! BadFeed
+    let p = s.split(":")
+    if p.len() != 2 or p[1].len() != 64 or not p[0].isdigit()
+        fail BadFeed(why: "bad token")
+    for c in p[1].chars()
+        if not ((c >= "0" and c <= "9") or (c >= "a" and c <= "f"))
+            fail BadFeed(why: "bad token")
+    return Token(height: p[0].toint(), digest: copy(p[1]))
+
+# The event of an entry: {type, payload} with payload a JSON object.
+pub fn event_json(ty: &text, payload: &events.Jv) -> events.Jv = events.JsObj(keys: ["payload", "type"], vals: [copy(payload), events.JsStr(t: copy(ty))])
+
+pub fn entry_hash(ev: &events.Jv, prev_hash: &text, seq: i64, state_hash: &text) -> text
+    let o = events.JsObj(keys: ["event", "prev_hash", "seq", "state_hash"], vals: [copy(ev), events.JsStr(t: copy(prev_hash)), events.JsNum(raw: seq.tostr()), events.JsStr(t: copy(state_hash))])
+    return events.json_canon(&o).sha256()
+
+# Append an admitted event: the next entry of the chain.
+pub fn append(log: &[Entry], ev: events.Jv, state_hash: text) -> Entry
+    let prev = if log.len() == 0 then copy(GENESIS) else copy(log[log.len() - 1].hash)
+    let seq = log.len() as i64
+    let h = entry_hash(&ev, &prev, seq, &state_hash)
+    return Entry(seq: seq, ev: ev, prev_hash: prev, state_hash: state_hash, hash: h)
+
+pub fn tip(log: &[Entry]) -> Token = Token(height: log.len() as i64, digest: if log.len() == 0 then copy(GENESIS) else copy(log[log.len() - 1].hash))
+
+# Index of the first entry that breaks the chain (seq, prev_hash or
+# hash), or -1 when the log is intact.
+pub fn verify(log: &[Entry]) -> i64
+    var prev = copy(GENESIS)
+    for i in 0..log.len()
+        let e = &log[i]
+        if e.seq != i as i64 or e.prev_hash != prev or entry_hash(&e.ev, &e.prev_hash, e.seq, &e.state_hash) != e.hash
+            return i as i64
+        prev = copy(e.hash)
+    return -1
+
+# Where a reader holding `t` resumes: the index of the next entry. A
+# token whose digest is not the hash at its height (a fork, a truncated
+# or rewritten log) fails rather than replaying from a wrong place.
+pub fn resume_at(log: &[Entry], t: &Token) -> i64 ! BadFeed
+    if t.height < 0 or t.height > log.len() as i64
+        fail BadFeed(why: "token beyond the log")
+    let d = if t.height == 0 then copy(GENESIS) else copy(log[(t.height - 1) as usize].hash)
+    if d != t.digest
+        fail BadFeed(why: "token not on this log")
+    return t.height
+
+# ---------------- MongoDB change stream rules (change-streams.md) ----------------
+
+pub const RESUMABLE_CODES: List[i64] = [6, 7, 89, 91, 189, 262, 9001, 10107, 11600, 11602, 13435, 13436, 63, 150, 13388, 234, 133]
+
+# An error seen by the driver: `server` false for network errors and
+# timeouts; `cmd` is the command, "aggregate" or "getMore"; wire is the
+# wire version of the connection that ran it.
+pub struct Err
+    server: bool
+    code: i64
+    labels: List[text]
+    cmd: text
+    wire: i64
+
+# "Resumable Error": only getMore errors; any non-server error; code 43
+# (CursorNotFound); the ResumableChangeStreamError label from wire 9; the
+# code table below wire 9.
+pub fn resumable(e: &Err) -> bool
+    if e.cmd != "getMore"
+        return false
+    if not e.server or e.code == 43
+        return true
+    if e.wire >= 9
+        return e.labels.contains("ResumableChangeStreamError")
+    return RESUMABLE_CODES.contains(e.code)
+
+# Options of the $changeStream stage that position the stream ("" unset).
+pub struct Pos
+    start_after: text
+    resume_after: text
+    start_at_op_time: text
+
+pub struct Cs
+    opts: Pos
+    token: text
+    op_time: text
+    returned: bool
+    closed: bool
+    err_code: i64
+
+# err_code of a stream closed by the driver itself (prose test 2).
+pub const MISSING_TOKEN: i64 = -2
+
+pub fn cs_start(o: &Pos) -> Cs
+    let tok = if o.start_after != "" then copy(o.start_after) else copy(o.resume_after)
+    return Cs(opts: copy(o), token: tok, op_time: copy(o.start_at_op_time), returned: false, closed: false, err_code: 0)
+
+# The initial aggregate response: save operationTime when no position
+# option was given, the batch is empty and there is no postBatchResumeToken.
+pub fn cs_initial(cs: &mut Cs, batch_len: i64, pbrt: &text, op_time: &text)
+    let o = &cs.opts
+    if o.start_after == "" and o.resume_after == "" and o.start_at_op_time == "" and batch_len == 0 and pbrt == ""
+        cs.op_time = copy(op_time)
+    cs_batch(cs, batch_len, pbrt)
+
+# Any aggregate or getMore response: an empty batch with a
+# postBatchResumeToken caches it.
+pub fn cs_batch(cs: &mut Cs, batch_len: i64, pbrt: &text)
+    if batch_len == 0 and pbrt != ""
+        cs.token = copy(pbrt)
+
+# Returning a document: the last of a batch caches the
+# postBatchResumeToken when there is one, else the document's _id; a
+# document without _id closes the stream with MISSING_TOKEN.
+pub fn cs_doc(cs: &mut Cs, id: &text, last: bool, pbrt: &text) -> bool
+    if id == ""
+        cs.closed = true
+        cs.err_code = MISSING_TOKEN
+        return false
+    cs.returned = true
+    cs.token = if last and pbrt != "" then copy(pbrt) else copy(id)
+    return true
+
+pub fn get_resume_token(cs: &Cs) -> text = copy(cs.token)
+
+# The positioning of the resume aggregate ("Resume Process").
+pub fn resume_pos(cs: &Cs) -> Pos
+    if cs.token != ""
+        if cs.opts.start_after != "" and not cs.returned
+            return Pos(start_after: copy(cs.token), resume_after: "", start_at_op_time: "")
+        return Pos(start_after: "", resume_after: copy(cs.token), start_at_op_time: "")
+    if cs.op_time != ""
+        return Pos(start_after: "", resume_after: "", start_at_op_time: copy(cs.op_time))
+    return Pos(start_after: "", resume_after: "", start_at_op_time: "")
+
+# An error on the stream: true when the driver resumes (it then sends the
+# resume aggregate with resume_pos); any other error closes the stream.
+# Resuming once per error follows from the rules: the resume is an
+# aggregate, and an aggregate error is never resumable, while a getMore
+# error after a successful resume aggregate may resume again.
+pub fn cs_error(cs: &mut Cs, e: &Err) -> bool
+    if resumable(e)
+        return true
+    cs.closed = true
+    cs.err_code = if e.server then e.code else -1
+    return false
+
+# $changeStreamSplitLargeEvent fragments: the fragments of one event
+# arrive in order 1..of; returns the number of complete events, or fails
+# on a fragment out of order.
+pub fn split_complete(frags: &[i64], ofs: &[i64]) -> i64 ! BadFeed
+    var want: i64 = 1
+    var total: i64 = 0
+    var of: i64 = 0
+    for i in 0..frags.len()
+        if frags[i] != want or (want > 1 and ofs[i] != of) or ofs[i] < 1 or frags[i] > ofs[i]
+            fail BadFeed(why: "split event fragment out of order")
+        of = ofs[i]
+        if want == of
+            total += 1
+            want = 1
+        else
+            want += 1
+    if want != 1
+        fail BadFeed(why: "incomplete split event")
+    return total
+
+# ---------------- CouchDB replication checkpoints ----------------
+
+pub struct Hist
+    session_id: text
+    last_seq: text
+
+pub struct Ckpt
+    session_id: text
+    last_seq: text
+    history: List[Hist]
+
+pub const HISTORY_SIZE: i64 = 5
+
+fn fd_has_session(id: &text, h: &[Hist], at: usize) -> bool
+    if id == ""
+        return false
+    var k = at
+    while k < h.len() bound 16777216
+        if h[k].session_id == id
+            return true
+        k += 1
+    return false
+
+# "Compare Replication Logs": the same session on both sides gives the
+# source's last_seq; else the newest common session of the histories;
+# else "0" (replicate from the start).
+pub fn compare_logs(src: &Ckpt, tgt: &Ckpt) -> Hist
+    if src.session_id == tgt.session_id
+        return Hist(session_id: copy(src.session_id), last_seq: copy(src.last_seq))
+    var i: usize = 0
+    var j: usize = 0
+    while i < src.history.len() and j < tgt.history.len() bound 16777216
+        let s = &src.history[i]
+        if fd_has_session(&s.session_id, &tgt.history, j)
+            return copy(s)
+        let t = &tgt.history[j]
+        if fd_has_session(&t.session_id, &src.history, i + 1)
+            return copy(t)
+        i += 1
+        j += 1
+    return Hist(session_id: "", last_seq: "0")
+
+# Recording a checkpoint (written to both sides): the session's entry
+# moves to the front of the history, which keeps HISTORY_SIZE entries;
+# an unchanged last_seq is not rewritten.
+pub fn record(c: &Ckpt, session: &text, seq: &text) -> Ckpt
+    if c.last_seq == seq
+        return copy(c)
+    var h: List[Hist] = [Hist(session_id: copy(session), last_seq: copy(seq))]
+    for x in c.history
+        if x.session_id != session and (h.len() as i64) < HISTORY_SIZE
+            h.push(copy(x))
+    return Ckpt(session_id: copy(session), last_seq: copy(seq), history: h)
+
+# ---------------- admission (ack after admit, dedupe inside δ) ----------------
+
+# Per-feed state kept in the Form: the external cursor of each admitted
+# event (pending acknowledgement until the entry is durable), the dedupe
+# keys with the height that admitted them (kept for `window` heights),
+# the per-tick budget and the overflow count.
+pub struct Inbox
+    window: i64
+    budget: i64
+    used: i64
+    keys: List[text]
+    key_height: List[i64]
+    pending: List[text]
+    pending_height: List[i64]
+    acked: text
+    overflow: i64
+    dups: i64
+
+pub fn inbox(window: i64, budget: i64) -> Inbox = Inbox(window: window, budget: budget, used: 0, keys: [], key_height: [], pending: [], pending_height: [], acked: "", overflow: 0, dups: 0)
+
+pub const ADMITTED: text = "admitted"
+pub const DUPLICATE: text = "duplicate"
+pub const OVERFLOW: text = "overflow"
+
+# One external event at D height h with dedupe key k and external
+# cursor c. A key seen within the window is a duplicate (a no-op, so
+# at-least-once delivery has exactly-once effect); past the per-tick
+# budget the event is not admitted and the overflow is counted (the
+# caller logs it; the upstream redelivers since it was not acked).
+pub fn offer(ib: &mut Inbox, k: &text, c: &text, h: i64) -> text
+    var ks: List[text] = []
+    var kh: List[i64] = []
+    for i in 0..ib.keys.len()
+        if ib.key_height[i] + ib.window > h
+            ks.push(copy(ib.keys[i]))
+            kh.push(ib.key_height[i])
+    ib.keys = ks
+    ib.key_height = kh
+    if ib.keys.contains(copy(k))
+        ib.dups += 1
+        return copy(DUPLICATE)
+    if ib.used >= ib.budget
+        ib.overflow += 1
+        return copy(OVERFLOW)
+    ib.used += 1
+    ib.keys.push(copy(k))
+    ib.key_height.push(h)
+    ib.pending.push(copy(c))
+    ib.pending_height.push(h)
+    return copy(ADMITTED)
+
+pub fn tick(ib: &mut Inbox)
+    ib.used = 0
+
+# The log is durable up to height `durable` (entries below it are
+# committed): every pending cursor admitted below it may be acked; the
+# newest such cursor is returned ("" when nothing new can be acked).
+pub fn ack(ib: &mut Inbox, durable: i64) -> text
+    var out = ""
+    var ps: List[text] = []
+    var ph: List[i64] = []
+    for i in 0..ib.pending.len()
+        if ib.pending_height[i] < durable
+            out = copy(ib.pending[i])
+        else
+            ps.push(copy(ib.pending[i]))
+            ph.push(ib.pending_height[i])
+    ib.pending = ps
+    ib.pending_height = ph
+    if out != ""
+        ib.acked = copy(out)
+    return out
+
+# A checkpoint pairs the external cursor with the internal token; both
+# are stored together so a restart resumes upstream at `ext` and the
+# Form at `tok`, and the pair is what the source side records too.
+pub struct Pair
+    ext: text
+    tok: Token
+
+pub fn pair_text(p: &Pair) -> text = p.ext + "@" + token_text(&p.tok)

@@ -2,13 +2,15 @@
 # checks (any shard of tests/data/<name>_checks*.rce). Modules with a
 # "# uses:" line are tested as a package with those modules.
 # Equivalent mutant removed: the E0 hi bound in utf8_text (a surrogate
-# that gets past it is refused by cp_text).
+# that gets past it is refused by cp_text). For feed: searching the
+# source history for the target's session from i instead of i + 1 (the
+# entry at i was already checked against the target history).
 # Usage: RCE=path/to/rce python3 scripts/mut/data.py [module...]
 import glob, os, re, shutil, subprocess, sys, tempfile
 from concurrent.futures import ThreadPoolExecutor
 RCE = os.environ.get('RCE', 'rce')
 root = os.path.join(os.path.dirname(os.path.abspath(__file__)), '../..')
-MODS = ('events',)
+MODS = ('events', 'feed')
 SRC = {n: open(os.path.join(root, 'lib/data/%s.rce' % n)).read() for n in MODS}
 USES = {n: (re.search(r'^# uses: (.*)$', SRC[n], re.M).group(1).split() if re.search(r'^# uses: ', SRC[n], re.M) else []) for n in MODS}
 CHK = {n: [open(f).read() for f in sorted(glob.glob(os.path.join(root, 'tests/data/%s_checks*.rce' % n)))] for n in MODS}
@@ -46,9 +48,34 @@ M = [('events',) + m for m in [
     ('    let pk = key_mapper == "partitionkey" and has_attr(e, "partitionkey")\n    return Record(has_key: pk, key: if pk then attr_text(e, "partitionkey") else "", headers: hs', '    let pk = false\n    return Record(has_key: pk, key: if pk then attr_text(e, "partitionkey") else "", headers: hs'),
     ('        BBytes(b: x) -> return if x.len() == 0 then DNone else DBin(b: copy(x))', '        BBytes(b: x) -> return DBin(b: copy(x))'),
     ('    if not has_ct or is_json_type(ct)\n        return DJson', '    if is_json_type(ct)\n        return DJson'),
-    ('                if datacontenttype_dup', 'XX'),
+]] + [('feed',) + m for m in [
+    ('    let prev = if log.len() == 0 then copy(GENESIS) else copy(log[log.len() - 1].hash)', '    let prev = copy(GENESIS)'),
+    ('vals: [copy(ev), events.JsStr(t: copy(prev_hash)), events.JsNum(raw: seq.tostr())', 'vals: [copy(ev), events.JsStr(t: copy(prev_hash)), events.JsNum(raw: (seq + 1).tostr())'),
+    ('        if e.seq != i as i64 or e.prev_hash != prev or', '        if e.seq != i as i64 or'),
+    ('    if d != t.digest\n', '    if false\n'),
+    ('    if t.height < 0 or t.height > log.len() as i64\n', '    if t.height < 0 or t.height > log.len() as i64 + 1\n'),
+    ('    if p.len() != 2 or p[1].len() != 64 or not p[0].isdigit()', '    if p.len() != 2 or not p[0].isdigit()'),
+    ('    if e.cmd != "getMore"\n', '    if false\n'),
+    ('    if not e.server or e.code == 43\n', '    if not e.server\n'),
+    ('    if e.wire >= 9\n', '    if e.wire >= 8\n'),
+    ('        return e.labels.contains("ResumableChangeStreamError")', '        return true'),
+    ('    let tok = if o.start_after != "" then copy(o.start_after) else copy(o.resume_after)', '    let tok = copy(o.resume_after)'),
+    ('    if o.start_after == "" and o.resume_after == "" and o.start_at_op_time == "" and batch_len == 0 and pbrt == ""', '    if false'),
+    ('    if batch_len == 0 and pbrt != ""\n', '    if pbrt != ""\n'),
+    ('    cs.token = if last and pbrt != "" then copy(pbrt) else copy(id)', '    cs.token = copy(id)'),
+    ('        if cs.opts.start_after != "" and not cs.returned\n', '        if cs.opts.start_after != ""\n'),
+    ('    if cs.op_time != ""\n', '    if false\n'),
+    ('        if frags[i] != want or (want > 1 and ofs[i] != of) or ofs[i] < 1 or frags[i] > ofs[i]', '        if frags[i] != want or ofs[i] < 1'),
+    ('    if want != 1\n        fail', '    if false\n        fail'),
+    ('    if src.session_id == tgt.session_id\n', '    if false\n'),
+    ('        if fd_has_session(&s.session_id, &tgt.history, j)', '        if fd_has_session(&s.session_id, &tgt.history, j + 1)'),
+    ('    if c.last_seq == seq\n', '    if false\n'),
+    ('        if x.session_id != session and (h.len() as i64) < HISTORY_SIZE', '        if (h.len() as i64) < HISTORY_SIZE'),
+    ('        if ib.key_height[i] + ib.window > h\n', '        if true\n'),
+    ('    if ib.used >= ib.budget\n', '    if ib.used > ib.budget\n'),
+    ('        if ib.pending_height[i] < durable\n', '        if ib.pending_height[i] <= durable\n'),
+    ('    ib.used = 0\n', '    ib.used = ib.used\n'),
 ]]
-M = [m for m in M if m[1] != '                if datacontenttype_dup']
 def one(ab):
     i, (name, a, b) = ab
     src = SRC[name]
