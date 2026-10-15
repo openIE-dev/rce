@@ -134,6 +134,29 @@ for i in range(0, 66):
     want = SIGN[i - 1] if 1 <= i <= 31 else ('RTMIN+%d' % (i - 34) if 34 <= i <= 64 else str(i))
     rows.append('check signal_name(%d) == %s' % (i, q(want)))
 shards.append(rows)
+
+# launchd and the SCM: recorded live (scripts/ref/launchd_rec.py on macOS,
+# scripts/ref/scm_rec.ps1 on Windows), not computed
+DARWIN = {'HUP': 1, 'INT': 2, 'QUIT': 3, 'ILL': 4, 'TRAP': 5, 'ABRT': 6, 'EMT': 7, 'FPE': 8, 'KILL': 9, 'BUS': 10, 'SEGV': 11, 'SYS': 12, 'PIPE': 13, 'ALRM': 14, 'TERM': 15, 'XCPU': 24, 'USR1': 30}
+KAF = {'none': ('none', 'false', '', ''), 'false': ('bool', 'false', '', ''), 'true': ('bool', 'true', '', ''), 'empty': ('dict', 'false', '', '')}
+rows = []
+for l in open(os.path.join(root, 'vectors/os/svc/launchd_keepalive.tsv')).read().split('\n'):
+    if not l: continue
+    k, e, y = l.split('\t')[:3]
+    if k in KAF: f = KAF[k]
+    else:
+        se = 'true' if 'se_t' in k else 'false' if 'se_f' in k else ''
+        cr = 'true' if 'cr_t' in k else 'false' if 'cr_f' in k else ''
+        f = ('dict', 'false', se, cr)
+    ex = e in ('ok', 'fail') or e[0] == 'x' and e[1:].isdigit()
+    st = ({'ok': 0, 'fail': 3}[e] if e[0] != 'x' else int(e[1:])) if ex else DARWIN[e.upper()]
+    rows.append('check ld(%s, %s, %s, %s, %s, %d) == %s' % (q(f[0]), f[1], q(f[2]), q(f[3]), 'true' if ex else 'false', st, 'true' if y == '1' else 'false'))
+for l in open(os.path.join(root, 'vectors/os/svc/scm_failure_actions.tsv')).read().split('\n'):
+    if not l: continue
+    c, acts, flag, mode, runs = l.split('\t')
+    kinds = ','.join(acts.split('/')[0::2]) if acts else ''
+    rows.append('check scr(%s, %s, %s, %d) == %s' % (q(kinds), 'true' if flag == '1' else 'false', 'true' if mode == 'crash' else 'false', 1 if mode == 'stop1' else 0, runs))
+shards.append(rows)
 helpers = open(os.path.join(here, 'svc_helpers.rce')).read()
 for f in os.listdir(os.path.join(root, 'tests/os')):
     if f.startswith('svc_checks'): os.remove(os.path.join(root, 'tests/os', f))

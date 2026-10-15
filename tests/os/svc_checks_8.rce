@@ -20,6 +20,13 @@ fn rs(r: text, ty: text, res: text, c: text, st: i64, pv: text, fc: text, manual
     return (if d.yes then "1 " else "0 ") + d.reason
 fn esf(t: text) -> i64 = exit_status_from_string(&t)
 fn sgf(t: text) -> i64 = signal_from_string(&t)
+fn ld(form: text, v: bool, se: text, cr: text, exited: bool, st: i64) -> bool
+    let k = KeepAlive(form: form, value: v, successful: se, crashed: cr)
+    return launchd_relaunch(&k, exited, st)
+fn scr(kinds: text, flag: bool, crashed: bool, code: i64) -> i64
+    let a = if kinds == "" then [] else kinds.split(",")
+    let p = ScmPolicy(actions: a, nonzero_is_failure: flag)
+    return scm_runs(&p, crashed, code, 5)
 check rs("on-watchdog", "simple", "core-dump", "exited", 0, "", "3 SIGKILL", false) == "0 restart setting"
 check rs("on-watchdog", "simple", "core-dump", "exited", 0, "", "3 SIGKILL", true) == "0 manual stop"
 check rs("on-watchdog", "simple", "core-dump", "exited", 0, "SIGTERM", "0", false) == "1 forced by exit status"
