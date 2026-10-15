@@ -40,11 +40,12 @@ See `INTERPRETING.md` for the file format and `ADAPTERS.md` for the protocol.
 
 Generated from `reports/` on the reference at joulesperbit `rce/host` (2026-10-15):
 
-- 1946 tests. Language profile: 206 of 206 normative clauses covered (100%).
+- 1952 tests. Language profile: 207 of 207 normative clauses covered (100%),
+  counting FUEL-1 from `clauses-pending.json` (in force, not yet in the book).
   Not yet covered: the handler-spec profile (chapter 15, 14 clauses, implemented
   in `crates/rce` rather than the reference checker), tooling (7), proposed (6),
   editorial (1).
-- Reference: 1926 pass, 20 fail; every failure is a finding, listed in
+- Reference: 1932 pass, 20 fail; every failure is a finding, listed in
   `findings/known-failures-reference.txt`.
 - Emitters (Python, JS, Rust): 1321 pass, 611 unsupported (ops an emitted
   program cannot answer: check, trace, host, replicate, trap refusals), 14 fail,
