@@ -252,6 +252,7 @@ fn edge_program_agrees_on_every_available_target() {
         == "fn wide trap: overflow: 340282366920938463426481119284349108225 is outside u64"));
     assert!(want.iter().any(|l| l == "fn wide_sat = 18446744073709551615"));
     assert!(want.iter().any(|l| l == "fn wide_wrap = 1"));
+    assert!(want.iter().any(|l| l.starts_with("fn f32texts = [\"0.000000000000000000000000000000000000000000001\"")), "{want:?}");
     let mut ran = 0;
     for lang in [Lang::Rust, Lang::Python, Lang::Js, Lang::Scala] {
         let t = tool(lang);

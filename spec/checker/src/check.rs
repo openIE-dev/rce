@@ -3862,6 +3862,16 @@ impl Checker {
                 if self.lookup(n).is_none() {
                     match n.as_str() {
                         "lvar_new" => return self.lvar_new_ty(args, l),
+                        "set_of" => {
+                            if args.len() != 1 {
+                                self.e(d(l, "W-TY-1", "`set_of` takes one list"));
+                                return T::Never;
+                            }
+                            let t = self.infer(&args[0].e, true);
+                            let e = self.sub.fresh();
+                            self.expect(&t, &T::List(Box::new(e.clone())), l);
+                            return T::Set(Box::new(e));
+                        }
                         "some" => {
                             if args.len() != 1 {
                                 self.e(d(l, "W-TY-1", "`some` takes one value"));
@@ -4301,6 +4311,7 @@ impl Checker {
             T::Iter(_) => Some("Gen"),
             T::List(_) | T::Array(..) => Some("List"),
             T::Map(..) => Some("Map"),
+            T::Set(_) => Some("Set"),
             T::Opt(_) => Some("Opt"),
             _ => None,
         };
@@ -4539,9 +4550,38 @@ impl Checker {
                     _ => unknown(self),
                 }
             }
+            T::Set(e) => {
+                let e = (**e).clone();
+                match m {
+                    "union" | "inter" => {
+                        if self.arity(m, args, 1, l) {
+                            let t = self.infer(&args[0].e, false);
+                            self.expect(&peel(&t), base, l);
+                        }
+                        base.clone()
+                    }
+                    "insert" => {
+                        self.need_mut_receiver(obj, m, l);
+                        if self.arity(m, args, 1, l) {
+                            let t = self.infer(&args[0].e, true);
+                            self.expect(&t, &e, l);
+                        }
+                        T::Unit
+                    }
+                    "tolist" => T::List(Box::new(e)),
+                    _ => unknown(self),
+                }
+            }
             T::Map(k, v) => {
                 let (k, v) = ((**k).clone(), (**v).clone());
                 match m {
+                    "merge" => {
+                        if self.arity(m, args, 1, l) {
+                            let t = self.infer(&args[0].e, false);
+                            self.expect(&peel(&t), base, l);
+                        }
+                        base.clone()
+                    }
                     "len" => usize_,
                     "get" => {
                         if self.arity(m, args, 1, l) {

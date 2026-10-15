@@ -124,13 +124,16 @@ def digits_of(s0: String): (String, Int) = {
 // Java prints at least two significant digits ("4.9E-324" for the least
 // subnormal), so a two-digit result is checked for a one-digit round-trip
 // form, choosing the nearer one as Rust does ("5e-324").
-def sdigits(a: Double): (String, Int) = {
-  val (d, p) = digits_of(java.lang.Double.toString(a))
+def sdigits(a: Double): (String, Int) =
+  shortest1(java.lang.Double.toString(a), new java.math.BigDecimal(a), t => java.lang.Double.parseDouble(t) == a)
+def sdigits32(a: Float): (String, Int) =
+  shortest1(java.lang.Float.toString(a), new java.math.BigDecimal(a.toDouble), t => java.lang.Float.parseFloat(t) == a)
+def shortest1(js: String, exact: java.math.BigDecimal, same: String => Boolean): (String, Int) = {
+  val (d, p) = digits_of(js)
   if (d.length != 2) return (d, p)
-  val exact = new java.math.BigDecimal(a)
   val c0 = d(0) - '0'
   val cands = Seq((c0.toString, p), (if (c0 == 9) ("1", p + 1) else ((c0 + 1).toString, p)))
-    .filter { case (c, q) => java.lang.Double.parseDouble("0." + c + "e" + q) == a }
+    .filter { case (c, q) => same("0." + c + "e" + q) }
   if (cands.isEmpty) (d, p)
   else cands.minBy { case (c, q) => new java.math.BigDecimal("0." + c + "e" + q).subtract(exact).abs }
 }
@@ -159,7 +162,7 @@ def fdebug(x: Double): String = {
 }
 def f32display(x: Double): String = {
   if (x == 0) return if (negz(x)) "-0" else "0"
-  val (d, p) = digits_of(java.lang.Float.toString(math.abs(x).toFloat))
+  val (d, p) = sdigits32(math.abs(x).toFloat)
   plain(x < 0, d, p)
 }
 def fround32(x: Double): Double = x.toFloat.toDouble
@@ -629,11 +632,17 @@ def builtin(r: Any, m: String, a: Vector[Any]): (Any, Any) = {
         case "pscan" => return (pscan(xs, a(0), a(1), false), null)
         case "pscan_incl" => return (pscan(xs, a(0), a(1), true), null)
         case "fold" => var acc = a(0); for (x <- xs) { fuel(); acc = apply_(a(1), Vector(acc, x)) }; return (acc, null)
+        // a Set[τ] is a list in canonical order without duplicates
+        case "union" => return (merge_builtin(r, a(0)), null)
+        case "inter" => val ys = a(0).asInstanceOf[Lst].xs; return (Lst(xs.filter(x => ys.exists(y => veq(x, y)))), null)
+        case "insert" => return (UNIT, merge_builtin(r, Lst(Vector(a(0)))))
+        case "tolist" => return (r, null)
         case _ =>
       }
     case mp: Mp =>
       val ps = mp.ps
       m match {
+        case "merge" => return (map_merge(ps, a(0).asInstanceOf[Mp].ps), null)
         case "len" => return (I(BigInt(ps.length), "usize"), null)
         case "get" => ps.find(p => veq(p._1, a(0))) match { case Some(p) => return (p._2, null); case None => return (new Err(new Rec("Missing", Vector())), null) }
         case "contains" => return (ps.exists(p => veq(p._1, a(0))), null)
@@ -656,8 +665,8 @@ def builtin(r: Any, m: String, a: Vector[Any]): (Any, Any) = {
 }
 // C.6.4 method work, as conc::method_work in the reference evaluator.
 val LIN_TEXT = Set("strip", "upper", "lower", "reverse", "tostr", "chars", "words", "lines", "split", "isdigit", "isalpha", "isspace", "contains", "startswith", "endswith", "toint", "join", "sha256")
-val LIN_LIST = Set("reverse", "contains", "sum", "map", "filter", "fold", "utf8")
-val LIN_MAP = Set("get", "contains", "insert", "remove", "keys", "values")
+val LIN_LIST = Set("reverse", "contains", "sum", "map", "filter", "fold", "utf8", "union", "inter", "insert")
+val LIN_MAP = Set("get", "contains", "insert", "remove", "keys", "values", "merge")
 def size_of(v: Any): BigInt = v match { case s: String => BigInt(u8s(s).length); case l: Lst => BigInt(l.xs.length); case m: Mp => BigInt(m.ps.length); case _ => BigInt(0) }
 def ceil_log2(n: BigInt): BigInt = if (n <= 1) 0 else BigInt((n - 1).bitLength)
 def method_work(recv: Any, m: String, args: Vector[Any]): BigInt = {
@@ -1097,6 +1106,15 @@ def merge_builtin(a: Any, b: Any): Any = (a, b) match {
   case (x: Opt, y: Opt) => new Opt(merge_builtin(x.x, y.x))
   case _ => trap("no Merge instance for " + show(a) + " and " + show(b))
 }
+def map_merge(xs: Vector[(Any, Any)], ys: Vector[(Any, Any)]): Mp = {
+  var out = xs
+  for ((k, v) <- ys) {
+    val i = out.indexWhere(p => veq(p._1, k))
+    if (i >= 0) out = out.updated(i, (out(i)._1, merge_values(out(i)._2, v))) else out = out :+ ((k, v))
+  }
+  Mp(out.sortWith((p, q) => canon_cmp(p._1, q._1) < 0))
+}
+def set_of(v: Any): Any = merge_builtin(v, Lst(Vector()))
 def merge_values(a: Any, b: Any): Any = {
   a match {
     case r: Rec => val h = KIND_OF.getOrElse(r.n, r.n); METHODS.get(h + ".merge") match { case Some(f) => charge(4); return f(a, Vector(b))(0); case None => }

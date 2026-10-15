@@ -4,6 +4,7 @@ certificates the checker derives for the certified test programs. Do not
 edit: regenerate with RCE_BLESS=1 cargo test --features conc06 --test lvar_rules.
 -/
 import RCE.LVarStore
+import RCE.LVarAlloc
 import RCE.MergeCert
 import RCE.MergeLaws
 
@@ -39,6 +40,20 @@ namespace RCE.LVarRules
 #check @RCE.MergeLaws.laws_of_enum
 -- LVar without top: absorbing top added
 #check @RCE.MergeLaws.withTop
+-- lvar_new: allocates a fresh location
+#check @RCE.LVarAlloc.Step.new
+-- lvar_new: locations from a deterministic counter
+#check @RCE.LVarAlloc.counter_owner
+-- store with allocation: quasi-determinism
+#check @RCE.LVarAlloc.alloc_quasi_det
+-- store with allocation: no error without freeze
+#check @RCE.LVarAlloc.alloc_det_no_err
+-- executable semantics: each step is a Step
+#check @RCE.LVarAlloc.stepAt_sound
+-- executable semantics: each run is a run
+#check @RCE.LVarAlloc.exec_sound
+-- W-CRDT-1 Set.union, Set.inter, Map.merge
+#check @RCE.MergeCert.mapS
 
 /-- impl Merge for Hw -/
 example : RCE.MergeCert.Semi (RCE.MergeCert.Cert.ty (.prod .maxI .orB)) :=
@@ -52,6 +67,9 @@ example : RCE.MergeCert.Semi (RCE.MergeCert.Cert.ty (.prod (.prod .minI .andB) .
 /-- impl Merge for Ver -/
 example : RCE.MergeCert.Semi (RCE.MergeCert.Cert.ty (.lex (.prod .maxI .orB))) :=
   RCE.MergeCert.Cert.semi (.lex (.prod .maxI .orB))
+/-- impl Merge for Reg -/
+example : RCE.MergeCert.Semi (RCE.MergeCert.Cert.ty (.prod .union (.prod .inter (.prod (.map .maxI) (.map .union))))) :=
+  RCE.MergeCert.Cert.semi (.prod .union (.prod .inter (.prod (.map .maxI) (.map .union))))
 /-- impl Merge for Hi -/
 example : RCE.MergeCert.Semi (RCE.MergeCert.Cert.ty .maxI) :=
   RCE.MergeCert.Cert.semi .maxI

@@ -472,6 +472,12 @@ pub fn builtin(r: V, m: &str, a: Vec<V>) -> R<(V, Option<V>)> {
         (Map(mut mm), "remove") => { let k = a0(); let i = mm.iter().position(|(x, _)| eq(x, &k)); let r = i.map(|i| mm.remove(i).1); return Ok((Opt(r.map(Box::new)), Some(Map(mm)))); }
         (Map(mm), "keys") => List(mm.into_iter().map(|x| x.0).collect()),
         (Map(mm), "values") => List(mm.into_iter().map(|x| x.1).collect()),
+        (Map(mm), "merge") => match a0() { Map(ys) => map_merge(mm, ys)?, _ => return trap("merge with a non-map") },
+        // a Set[τ] is a list in canonical order without duplicates
+        (List(xs), "union") => merge_builtin(&List(xs), &a0())?,
+        (List(xs), "inter") => match a0() { List(ys) => List(xs.into_iter().filter(|x| ys.iter().any(|y| eq(x, y))).collect()), _ => return trap("inter") },
+        (List(xs), "insert") => { let r = merge_builtin(&List(xs), &List(vec![a0()]))?; return Ok((Unit, Some(r))); }
+        (List(xs), "tolist") => List(xs),
         (Opt(x), "isnone") => Bool(x.is_none()),
         (Opt(x), "issome") => Bool(x.is_some()),
         (Opt(x), "or") => match x { Some(v) => *v, None => a0() },
@@ -498,7 +504,7 @@ pub fn ceil_log2(n: i128) -> i128 { if n <= 1 { 0 } else { 128 - (n - 1).leading
 pub fn method_work(recv: &V, m: &str, args: &[V]) -> i128 {
     let n = size_of(recv);
     let k = args.first().map(size_of).unwrap_or(0);
-    let lin = match recv { V::Text(_) => matches!(m, "strip" | "upper" | "lower" | "reverse" | "tostr" | "chars" | "words" | "lines" | "split" | "isdigit" | "isalpha" | "isspace" | "contains" | "startswith" | "endswith" | "toint" | "join" | "sha256"), V::List(_) => matches!(m, "reverse" | "contains" | "sum" | "map" | "filter" | "fold" | "utf8"), V::Map(_) => matches!(m, "get" | "contains" | "insert" | "remove" | "keys" | "values"), _ => false };
+    let lin = match recv { V::Text(_) => matches!(m, "strip" | "upper" | "lower" | "reverse" | "tostr" | "chars" | "words" | "lines" | "split" | "isdigit" | "isalpha" | "isspace" | "contains" | "startswith" | "endswith" | "toint" | "join" | "sha256"), V::List(_) => matches!(m, "reverse" | "contains" | "sum" | "map" | "filter" | "fold" | "utf8" | "union" | "inter" | "insert"), V::Map(_) => matches!(m, "get" | "contains" | "insert" | "remove" | "keys" | "values" | "merge"), _ => false };
     if lin { n.saturating_add(k) } else if matches!(recv, V::List(_)) && m == "sort" { n.saturating_mul(ceil_log2(n)) } else { 0 }
 }
 /// `sized`: the call expression is in a version 0.7 module (C.15).
@@ -1036,6 +1042,15 @@ pub fn merge_builtin(a: &V, b: &V) -> R<V> {
         (x, y) => return trap(format!("no Merge instance for {} and {}", show(x), show(y))),
     })
 }
+pub fn map_merge(xs: Vec<(V, V)>, ys: Vec<(V, V)>) -> R<V> {
+    let mut out = xs;
+    for (k, v) in ys {
+        if let Some(i) = out.iter().position(|(k2, _)| eq(k2, &k)) { let m = merge_values(&out[i].1, &v)?; out[i].1 = m; } else { out.push((k, v)); }
+    }
+    out.sort_by(|p, q| canon_cmp(&p.0, &q.0));
+    Ok(V::Map(out))
+}
+pub fn set_of(v: V) -> R<V> { merge_builtin(&v, &V::List(vec![])) }
 pub fn merge_values(a: &V, b: &V) -> R<V> {
     if let V::Rec(n, _) = a && let Some(f) = user_method(kind_of(n), "merge") {
         charge(4)?;

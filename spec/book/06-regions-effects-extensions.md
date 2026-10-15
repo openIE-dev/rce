@@ -181,10 +181,24 @@ against the reference evaluator (`spec/checker/tests/stdlib_costs.rs`).
 | `F32` | f32 | `abs`, `tostr` |
 | `Gen` | iter τ | `collect` |
 | `List` | List[τ], [τ; n] | `append`, `clear`, `contains`, `filter`, `fold`, `get`, `isempty`, `len`, `map`, `pop`, `push`, `reverse`, `sort`, `sum`, `utf8`, `with` |
-| `Map` | Map[k, v] | `contains`, `get`, `insert`, `keys`, `len`, `remove`, `values` |
+| `Map` | Map[k, v] | `contains`, `get`, `insert`, `keys`, `len`, `merge`, `remove`, `values` |
+| `Set` | Set[τ] | `insert`, `inter`, `tolist`, `union` |
 | `Opt` | τ? | `isnone`, `issome`, `or` |
 
 `raw` exists only in a version 0.8 module and only on `Text[C]` (5.16).
+
+**Sets and map merge (normative).** A `Set[τ]` is a list in canonical
+order without duplicates (7.1). `set_of(xs)` makes one from a
+`List[τ]`. `s.union(t)` is the set of the elements of either,
+`s.inter(t)` of the elements of both, `s.insert(x)` sets `s` to
+`s.union(set_of([x]))` (a `var` receiver), and `s.tolist()` is the
+elements as a list in that order. `m.merge(n)` on two `Map[k, v]` has
+the keys of either; a key in both maps to `m[k] ⊔ n[k]` by the `Merge` of
+`v` (a user `impl Merge`, or the built-in instance, C.11.5), and the
+result is in canonical key order. `union`, `inter` and `merge` borrow
+their argument. These are the join (and, for `inter`, the meet) of the
+set and pointwise map lattices, so a `merge` written from them is
+certified (C.11.5).
 
 **Hashing (normative).** `t.sha256()` on a `text` t is the SHA-256
 digest (FIPS 180-4) of the UTF-8 bytes of t, written as 64 lowercase
@@ -281,4 +295,4 @@ capability never changes the guarded field (T36).
 
 **Read receipt.** What kind of channel does a capacity of 0 give? (one word)
 
-<!-- body-sha256: 21077fbff8c5f2130986fe87680644c391a6c39997502e3e2f486e76e988fe32 -->
+<!-- body-sha256: 350558d934b1128b283bfd3348c032658783e93b9d4242165fbfcd2dd77041ae -->

@@ -402,6 +402,52 @@ pub fn is_ws(c: char) -> bool {
     WHITE_SPACE.contains(&c)
 }
 
+/// 6.3 N3: the one canonical JSON form of a float, used for hashes and for
+/// every trace or log written as JSON. Shortest round-trip digits (from
+/// `{:e}`, which is shortest-digit, Ryu-style); decimal with at least one
+/// fractional digit for 1e-4 <= |x| < 1e16 (`10.0`, `0.0001`), otherwise
+/// `d.ddde-N` / `d.dddeN` with no `+` (`1e16`, `5e-324`); `-0.0` keeps its
+/// sign. Built here rather than taken from `{:?}` so the form is ours.
+pub fn float_json(x: f64) -> String {
+    if x == 0.0 {
+        return if x.is_sign_negative() { "-0.0".into() } else { "0.0".into() };
+    }
+    let e = format!("{:e}", x.abs());
+    let (m, ex) = e.split_once('e').unwrap();
+    let ex: i32 = ex.parse().unwrap();
+    let digits: String = m.chars().filter(|c| *c != '.').collect();
+    let sign = if x < 0.0 { "-" } else { "" };
+    let a = x.abs();
+    if (1e-4..1e16).contains(&a) {
+        let p = ex + 1; // digits before the point
+        let body = if p <= 0 {
+            format!("0.{}{}", "0".repeat((-p) as usize), digits)
+        } else if p as usize >= digits.len() {
+            format!("{}{}.0", digits, "0".repeat(p as usize - digits.len()))
+        } else {
+            format!("{}.{}", &digits[..p as usize], &digits[p as usize..])
+        };
+        format!("{sign}{body}")
+    } else {
+        format!("{sign}{m}e{ex}")
+    }
+}
+
+/// Canonical JSON of a serde value with floats in the [`float_json`] form
+/// (keys are already sorted: serde_json's map is ordered by key).
+pub fn canon_json(v: &serde_json::Value) -> String {
+    use serde_json::Value as J;
+    match v {
+        J::Number(n) if n.is_f64() => float_json(n.as_f64().unwrap()),
+        J::Array(xs) => format!("[{}]", xs.iter().map(canon_json).collect::<Vec<_>>().join(",")),
+        J::Object(m) => format!(
+            "{{{}}}",
+            m.iter().map(|(k, x)| format!("{}:{}", J::String(k.clone()), canon_json(x))).collect::<Vec<_>>().join(",")
+        ),
+        other => other.to_string(),
+    }
+}
+
 pub fn float_text(x: f64) -> String {
     if x == 0.0 {
         return "0".into();
@@ -1227,6 +1273,10 @@ impl<'a> Interp<'a> {
                         return Ok(V::Opt(Some(Box::new(v))));
                     }
                     "copy" | "Box" => return self.eval(&args[0].e),
+                    "set_of" => {
+                        let v = self.eval(&args[0].e)?;
+                        return crate::conc::merge_builtin(&v, &V::List(vec![]));
+                    }
                     "lvar_new" => {
                         let vals: Vec<V> = args.iter().map(|a| self.eval(&a.e)).collect::<R<_>>()?;
                         return Ok(crate::conc::LCell::new_value(vals));
@@ -1423,7 +1473,34 @@ impl<'a> Interp<'a> {
             return Ok(v);
         }
         use V::*;
+        // a Set[τ] is a list in canonical order without duplicates (7.1)
+        use V::List as Set;
         match (recv, m) {
+            (Set(xs), "union") => crate::conc::merge_builtin(&Set(xs), &a[0]),
+            (Set(xs), "inter") => match &a[0] {
+                Set(ys) => Ok(Set(xs.into_iter().filter(|x| ys.contains(x)).collect())),
+                o => trap(format!("inter with {}", o.show())),
+            },
+            (Set(xs), "insert") => {
+                let r = crate::conc::merge_builtin(&Set(xs), &Set(vec![a[0].clone()]))?;
+                self.assign(obj, r)?;
+                Ok(Unit)
+            }
+            (Set(xs), "tolist") => Ok(List(xs)),
+            (Map(xs), "merge") => {
+                let Map(ys) = &a[0] else { return trap("merge with a non-map") };
+                let mut out = xs;
+                for (k, v) in ys {
+                    if let Some(i) = out.iter().position(|(k2, _)| k2 == k) {
+                        let m = self.merge_values(&out[i].1, v)?;
+                        out[i].1 = m;
+                    } else {
+                        out.push((k.clone(), v.clone()));
+                    }
+                }
+                out.sort_by(|p, q| crate::conc::canon_cmp(&p.0, &q.0));
+                Ok(Map(out))
+            }
             (Int(x, t), "checked_add" | "checked_sub" | "checked_mul" | "checked_div") => {
                 let op = match m {
                     "checked_add" => "+",
@@ -2520,10 +2597,7 @@ impl FV {
             FV::Null => "null".into(),
             FV::Bool(b) => b.to_string(),
             FV::Int(i) => i.to_string(),
-            FV::Float(f) => {
-                let s = format!("{f:?}");
-                s
-            }
+            FV::Float(f) => float_json(*f),
             FV::Text(t) => jstr(t),
             FV::List(xs) => format!(
                 "[{}]",

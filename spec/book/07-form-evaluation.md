@@ -55,7 +55,7 @@ of RCE types into them is fixed:
 |---|---|
 | bool | bool |
 | iN, uN, usize | int, with the range of the RCE type checked at every write |
-| f64 | float, finite, normalized (6.3 N1) |
+| f64 | float, finite, type kept (6.3 N1) |
 | text | text (sequence of Unicode scalar values) |
 | () | null |
 | (a, b, …), [τ; n], List[τ] | list |
@@ -151,13 +151,17 @@ given a different meaning. Tested on every target
 These are the Form's own rules; every implementation reproduces them
 exactly.
 
-- **N1 Numbers.** A Form number is an int (i64) or a float (finite f64). At
-  every event boundary a payload is normalized: a finite float with no
-  fractional part and |x| < 2^63 becomes the int (`3.0` is `3`, `-0.0` is
-  `0`). RCE's static types make the int/float distinction visible to the
-  programmer; normalization is applied only when values cross the Form
-  boundary (event payloads, state, outputs) and is invisible inside a
-  computation because each RCE value carries its static type.
+- **N1 Numbers.** A Form number is an int (i64, or u64 per N2) or a float
+  (finite f64). The type is part of the value and is kept across every
+  boundary: a float with no fractional part stays a float (`10.0` is
+  written `10.0` in canonical JSON, `10` is an int), and `-0.0` keeps its
+  sign (N3 F6). Derivation: encoding must be injective and round-trip,
+  `decode(encode(v)) == v`, because replay rebuilds state from D. Turning
+  `10.0` into `10` at a boundary would decode as an int, changing the
+  static type a later step sees and the bits of later float arithmetic,
+  so no normalization is applied. RCE's static types make the int/float
+  distinction visible to the programmer, and canonical JSON keeps it
+  visible in D.
 - **N2 Integer arithmetic** is checked: overflow of the *static type's*
   range is `trap("overflow: V is outside T")` with V the exact result and
   T the static type (`i64` for an untyped literal), never a wrap. `/` truncates toward
@@ -228,14 +232,16 @@ exactly.
     the same for every NaN. A fabric or target that can produce NaN (GPU,
     NPU, WASM SIMD) canonicalizes or traps before a value reaches state
     (HC-13; `wasm_float.rs` rewrites NaN to the canonical positive NaN).
-  - **F6 Signed zero.** `-0.0` arises by the standard's sign rules, which
-    are exact, so every target produces it in the same places (vector
-    `Mul(0.0, -1.0)`). It compares equal to `0.0`, `tostr` gives `0` for
-    both and `1.0 / -0.0` traps like `1.0 / 0.0`, but canonical JSON keeps
-    the sign, so a state holding `-0.0` has a different `state_hash` from
-    one holding `0.0`. (Open question for review: equal values with
-    different hashes; canonicalizing `-0.0` to `0.0` in canonical JSON
-    changes D for such states and must change every producer at once.)
+  - **F6 Signed zero is a distinct state.** `-0.0` arises by the
+    standard's sign rules, which are exact, so every target produces it in
+    the same places (vector `Mul(0.0, -1.0)`). It is observable: `as f32`
+    keeps the sign and f32 `tostr` prints `-0`, and the sign decides later
+    results through the same exact rules. The state hash must be injective
+    on observable state (otherwise two states a program can tell apart
+    share a log entry), so canonical JSON keeps the sign and a state
+    holding `-0.0` hashes differently from one holding `0.0`; this is
+    correct, not a defect. `-0.0 == 0.0` is true (IEEE comparison), and
+    f64 `tostr` prints `0` for both.
   - **F7 Exception flags are not state.** Inexact and underflow raise
     nothing (F1 already fixes the result); overflow, divideByZero and
     invalid are the trap of F4. No program reads a flag.
@@ -254,9 +260,10 @@ exactly.
   Canonical float text is the shortest round-trip digits; decimal notation
   for 1e-5 ≤ |x| < 1e16, else `d.ddde±N` with `+` on positive exponents
   (`1e+300`, `1.5e-7`).
-  In canonical JSON (6.1) a float is written as Rust's `{:?}` writes it,
-  which every producer reproduces: shortest round-trip digits, decimal with
-  at least one fractional digit for 1e-4 ≤ |x| < 1e16 (`10.0`, `0.0001`),
+  Canonical JSON (6.1) has one float form, `interp::float_json`, used for
+  hashes and for every trace and log written as JSON, so a trace shows the
+  bytes that were hashed: shortest round-trip digits, decimal with at
+  least one fractional digit for 1e-4 ≤ |x| < 1e16 (`10.0`, `0.0001`),
   otherwise exponent form without `+` (`1e16`, `1e-5`, `5e-324`), and
   `-0.0` keeps its sign (`tests/traces.rs` pins these forms).
   **f32 (draft 0.5).** The Form ops `f32add f32sub f32mul f32div` round both
@@ -273,9 +280,10 @@ exactly.
   toward zero and traps if the result is out of range or x is not finite.
 - **N5 min / max** compare exactly on integers and by IEEE order on floats
   (total, since operands are finite); on a tie the receiver is returned.
-- **N6 Equality** is structural value equality after normalization;
-  `1 == 1.0` is a type error in RCE (different static types), so the Form's
-  "1 equals 1.0" rule matters only at the boundary.
+- **N6 Equality** is structural value equality within one static type;
+  `1 == 1.0` is a type error (the type is part of the value, N1). Float
+  `==` is IEEE comparison, so `-0.0 == 0.0` although the two are distinct
+  states (N3 F6).
 - **N7 Text** is a sequence of Unicode scalar values compared by code point,
   stored as UTF-8. From draft 0.5, `len`, indexing and slicing count UTF-8
   bytes (Form `blen`, `bget`, `bslice`): `s[i]` is a `u8`, and a slice whose
@@ -323,4 +331,4 @@ method and is W-NAME-1.
 
 **Read receipt.** Which JavaScript function is named for rounding to binary32?
 
-<!-- body-sha256: 8caa95f44e22a22df26601dd74e4845a9468250fb801422f7dd50199537ad996 -->
+<!-- body-sha256: 356ea55e4d885c7c7f3c184cdb52c751e400d14e85b42780cef5634e9961f5bf -->

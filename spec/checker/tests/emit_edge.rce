@@ -74,3 +74,7 @@ fn fminmax() -> List[f64]
 fn imin_rem() -> i64
     let m: i64 = -9223372036854775807 - 1
     return m % -1
+
+# f32 display at the edges: least subnormal (Java prints 1.4E-45, Rust 1e-45),
+# largest finite, negative zero, a two-digit shortest form
+fn f32texts() -> List[text] = [(1e-45 as f32).tostr(), (3.4028234663852886e38 as f32).tostr(), ((0.0 * -1.0) as f32).tostr(), (0.1 as f32).tostr(), (1.5e-45 as f32).tostr(), (9.2e-44 as f32).tostr()]

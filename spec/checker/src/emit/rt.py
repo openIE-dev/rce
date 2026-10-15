@@ -674,8 +674,15 @@ def builtin(r, m, a):
             acc = a[0]
             for x in xs: fuel(); acc = apply(a[1], [acc, x])
             return acc, None
+    if t is Lst:
+        # a Set[τ] is a list in canonical order without duplicates
+        if m == "union": return merge_builtin(r, a[0]), None
+        if m == "inter": return Lst([x for x in r.xs if any(eq(x, y) for y in a[0].xs)]), None
+        if m == "insert": return UNIT, merge_builtin(r, Lst([a[0]]))
+        if m == "tolist": return r, None
     if t is Mp:
         ps = r.ps
+        if m == "merge": return map_merge(ps, a[0].ps), None
         if m == "len": return Int(len(ps), "usize"), None
         if m == "get":
             for k, v in ps:
@@ -697,8 +704,8 @@ def builtin(r, m, a):
 
 # C.6.4 method work, as conc::method_work in the reference evaluator.
 LIN_TEXT = frozenset(("strip", "upper", "lower", "reverse", "tostr", "chars", "words", "lines", "split", "isdigit", "isalpha", "isspace", "contains", "startswith", "endswith", "toint", "join", "sha256",))
-LIN_LIST = frozenset(("reverse", "contains", "sum", "map", "filter", "fold", "utf8",))
-LIN_MAP = frozenset(("get", "contains", "insert", "remove", "keys", "values",))
+LIN_LIST = frozenset(("reverse", "contains", "sum", "map", "filter", "fold", "utf8", "union", "inter", "insert",))
+LIN_MAP = frozenset(("get", "contains", "insert", "remove", "keys", "values", "merge",))
 def size_of(v):
     t = type(v)
     if t is str: return len(u8s(v))
@@ -1202,6 +1209,15 @@ def merge_builtin(a, b):
     if tb is Opt and b.x is None: return a
     if ta is Opt and tb is Opt: return Opt(merge_builtin(a.x, b.x))
     trap("no Merge instance for %s and %s" % (show(a), show(b)))
+def map_merge(xs, ys):
+    out = list(xs)
+    for k, v in ys:
+        for i, (k2, v2) in enumerate(out):
+            if eq(k2, k): out[i] = (k2, merge_values(v2, v)); break
+        else: out.append((k, v))
+    out.sort(key=functools.cmp_to_key(lambda p, q: canon_cmp(p[0], q[0])))
+    return Mp(out)
+def set_of(v): return merge_builtin(v, Lst([]))
 def merge_values(a, b):
     if type(a) is Rec:
         h = KIND_OF.get(a.n, a.n)

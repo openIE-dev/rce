@@ -585,6 +585,14 @@ impl<'a> G<'a> {
                 if self.tasks_on() && self.m.items.iter().find(|i| matches!(i, Item::Actor { name, .. } if name == n)).is_some() && !self.local(n) {
                     return Ok(Some((self.h("actor_new", &[q(n), f.line().to_string()]), None)));
                 }
+                if n == "set_of" {
+                    let a = self.args(args)?;
+                    let v = match l {
+                        Lang::Rust => format!("set_of({})?", a.join(", ")),
+                        _ => format!("{}({})", self.rt(if matches!(l, Lang::Js) { "setOf" } else { "set_of" }), a.join(", ")),
+                    };
+                    return Ok(Some((v, None)));
+                }
                 if n == "lvar_new" {
                     let a = self.args(args)?;
                     let v = match l {

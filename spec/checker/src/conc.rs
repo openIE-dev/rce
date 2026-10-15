@@ -76,7 +76,11 @@ pub fn method_work(recv: &V, m: &str, args: &[V]) -> i128 {
         V::Map(_) => "map",
         _ => "",
     };
-    let class = crate::specread::work(kind, m);
+    // a Set[τ] value is a list; its methods are the set row of C.6.4
+    let class = match crate::specread::work(kind, m) {
+        crate::specread::Work::Constant if kind == "list" => crate::specread::work("set", m),
+        c => c,
+    };
     let lin = class == crate::specread::Work::Linear;
     if lin {
         n.saturating_add(k)
@@ -2738,6 +2742,9 @@ fn merge_laws(m: &Module, t: &str, members: &[FnDecl]) -> Result<(), String> {
 /// total. `Ref` is a field whose type has its own certified `impl Merge`.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Cert {
+    Union,
+    Inter,
+    Map(Box<Cert>),
     MaxI,
     MinI,
     OrB,
@@ -2759,6 +2766,9 @@ impl Cert {
             Cert::OrB => ".orB".into(),
             Cert::AndB => ".andB".into(),
             Cert::Enum(_) => ".unit".into(),
+            Cert::Union => ".union".into(),
+            Cert::Inter => ".inter".into(),
+            Cert::Map(v) => format!("(.map {})", v.to_lean(env)),
             Cert::Ref(t) => env(t).map(|c| c.to_lean(env)).unwrap_or_else(|| ".unit".into()),
             Cert::Lex(_, b) => format!("(.lex {})", b.to_lean(env)),
             Cert::Prod(fs) => match fs.split_last() {
@@ -2774,6 +2784,34 @@ impl Cert {
             },
         }
     }
+}
+
+/// a field type as a key: `i64`, `Set[i64]`, `Map[text,Set[i64]]`
+fn ty_key(t: &Ty) -> Option<String> {
+    let Ty::Path(p, g) = t else { return None };
+    if p.len() != 1 {
+        return None;
+    }
+    if g.is_empty() {
+        return Some(p[0].clone());
+    }
+    let gs: Vec<String> = g.iter().map(ty_key).collect::<Option<_>>()?;
+    Some(format!("{}[{}]", p[0], gs.join(",")))
+}
+
+/// `v` of `Map[k,v]` (split at the top-level comma)
+fn map_val(t: &str) -> Option<&str> {
+    let inner = t.strip_prefix("Map[")?.strip_suffix(']')?;
+    let mut depth = 0;
+    for (i, c) in inner.char_indices() {
+        match c {
+            '[' => depth += 1,
+            ']' => depth -= 1,
+            ',' if depth == 0 => return Some(&inner[i + 1..]),
+            _ => {}
+        }
+    }
+    None
 }
 
 const INTS: [&str; 12] = ["i8", "i16", "i32", "i64", "i128", "u8", "u16", "u32", "u64", "u128", "isize", "usize"];
@@ -2853,13 +2891,7 @@ fn merge_cert(m: &Module, t: &str, members: &[FnDecl], known: &HashMap<String, C
     {
         lex = Some(((**c1).clone(), (**e1).clone(), (**c2).clone(), (**e2).clone(), (**e3).clone()));
     }
-    let fty = |k: &str| -> Option<String> {
-        let f = fields.iter().find(|f| f.name == k)?;
-        match &f.ty {
-            Ty::Path(p, g) if p.len() == 1 && g.is_empty() => Some(p[0].clone()),
-            _ => None,
-        }
-    };
+    let fty = |k: &str| -> Option<String> { ty_key(&fields.iter().find(|f| f.name == k)?.ty) };
     let cx = Cx { t, o: &o, known };
     if let Some((c, a, b2)) = &sel
         && fields.len() == 1
@@ -2958,6 +2990,24 @@ impl Cx<'_> {
         }
         Some(Cert::Prod(out))
     }
+    /// the certificate of the Merge that `merge_values` applies to a value
+    /// of type `ty` (a user impl, or the built-in instance)
+    fn builtin(&self, ty: &str) -> Option<Cert> {
+        if let Some(_c) = self.known.get(ty) {
+            return Some(Cert::Ref(ty.to_string()));
+        }
+        if INTS.contains(&ty) {
+            Some(Cert::MaxI)
+        } else if ty == "bool" {
+            Some(Cert::OrB)
+        } else if ty.starts_with("Set[") {
+            Some(Cert::Union)
+        } else if ty.starts_with("Map[") {
+            Some(Cert::Map(Box::new(self.builtin(map_val(ty)?)?)))
+        } else {
+            None
+        }
+    }
     fn field(&self, e: &Expr, k: &str, ty: &str) -> Option<Cert> {
         let int = INTS.contains(&ty);
         match e {
@@ -2969,6 +3019,10 @@ impl Cx<'_> {
                     "max" if int => Some(Cert::MaxI),
                     "min" if int => Some(Cert::MinI),
                     "merge" if self.known.contains_key(ty) => Some(Cert::Ref(ty.to_string())),
+                    // Map[k, v].merge: pointwise, each value by the Merge of v
+                    "merge" if ty.starts_with("Map[") => Some(Cert::Map(Box::new(self.builtin(map_val(ty)?)?))),
+                    "union" if ty.starts_with("Set[") => Some(Cert::Union),
+                    "inter" if ty.starts_with("Set[") => Some(Cert::Inter),
                     _ => None,
                 },
                 _ => None,
@@ -2988,29 +3042,69 @@ impl Cx<'_> {
 /// compatible for any top, so the set is refused. Other lists are checked
 /// against the cell's top by every `wait` (interp `lvar_incomp`).
 pub fn lvar_gate(m: &Module) -> Vec<String> {
-    let mut lists: Vec<(Vec<Expr>, usize)> = vec![];
-    let mut grab = |e: &Expr| {
-        crate::check::walk_expr(e, &mut |x| {
-            if let Expr::Call(f, args, l, _) = x
-                && let Expr::Member(_, n, _) = &**f
-                && n == "wait"
-                && let [a] = args.as_slice()
-                && let Expr::List(xs, _) = &a.e
-                && xs.len() > 1
-            {
-                lists.push((xs.clone(), *l));
+    // per body: the parameters of a finite type (a kind of nullary variants,
+    // or bool) that the body never rebinds, each with every value it can take
+    let finite = |t: &Ty| -> Option<Vec<V>> {
+        let Ty::Path(p, g) = t else { return None };
+        if p.len() != 1 || !g.is_empty() {
+            return None;
+        }
+        if p[0] == "bool" {
+            return Some(vec![V::Bool(false), V::Bool(true)]);
+        }
+        m.items.iter().find_map(|i| match i {
+            Item::Kind { name, variants, .. } if *name == p[0] && variants.iter().all(|v| v.1.is_empty()) => {
+                Some(variants.iter().map(|v| V::Rec(v.0.clone(), vec![])).collect())
             }
+            _ => None,
         })
     };
-    let mut bodies: Vec<&Body> = vec![];
+    let mut fns: Vec<(&Body, HashMap<String, Vec<V>>)> = vec![];
+    let add = |f: &FnDecl| -> HashMap<String, Vec<V>> {
+        let dbg = format!("{:?}", f.body);
+        let mut env = HashMap::new();
+        for p in &f.sig.params {
+            if let Param::Named { name, ty, .. } = p
+                && let Some(vs) = finite(ty)
+                && !dbg.contains(&format!("Path([{name:?}])"))
+                && !dbg.contains(&format!("Var({name:?}"))
+                && !dbg.contains(&format!("Assign({name:?}"))
+            {
+                env.insert(name.clone(), vs);
+            }
+        }
+        env
+    };
     for i in &m.items {
         match i {
-            Item::Fn(f) => bodies.push(&f.body),
-            Item::Impl { members, .. } => bodies.extend(members.iter().map(|f| &f.body)),
+            Item::Fn(f) => {
+                let env = add(f);
+                fns.push((&f.body, env));
+            }
+            Item::Impl { members, .. } => {
+                for f in members {
+                    let env = add(f);
+                    fns.push((&f.body, env));
+                }
+            }
             _ => {}
         }
     }
-    for b in bodies {
+    let mut lists: Vec<(Vec<Expr>, usize, HashMap<String, Vec<V>>)> = vec![];
+    for (b, env) in fns {
+        let mut grab = |e: &Expr| {
+            crate::check::walk_expr(e, &mut |x| {
+                if let Expr::Call(f, args, l, _) = x
+                    && let Expr::Member(_, n, _) = &**f
+                    && n == "wait"
+                    && let [a] = args.as_slice()
+                    && let Expr::List(xs, _) = &a.e
+                    && xs.len() > 1
+                {
+                    lists.push((xs.clone(), *l, env.clone()));
+                }
+            })
+        };
         match b {
             Body::Arrow(e) => grab(e),
             Body::Block(st) => crate::check::walk_stmts(st, &mut |s| {
@@ -3025,13 +3119,13 @@ pub fn lvar_gate(m: &Module) -> Vec<String> {
         return errs;
     }
     let mut it = Interp::new(m);
-    'list: for (xs, l) in lists {
+    'list: for (xs, l, env) in lists {
         // each threshold as the finite set of values it can take: a
         // constant, or `if c then a else b` over such (the condition is
         // abstracted, so every combination is checked)
         let mut vs: Vec<Vec<V>> = vec![];
         for x in &xs {
-            match thr_values(&mut it, x) {
+            match thr_values(&mut it, x, &env) {
                 Some(v) => vs.push(v),
                 None => continue 'list, // not finite: checked against top by every `wait` at run time
             }
@@ -3063,10 +3157,15 @@ pub fn lvar_gate(m: &Module) -> Vec<String> {
     errs
 }
 
-fn thr_values(it: &mut Interp, x: &Expr) -> Option<Vec<V>> {
+fn thr_values(it: &mut Interp, x: &Expr, env: &HashMap<String, Vec<V>>) -> Option<Vec<V>> {
+    if let Expr::Name(n, _) = x
+        && let Some(vs) = env.get(n)
+    {
+        return Some(vs.clone());
+    }
     if let Expr::If(_, a, b, _) = x {
-        let mut v = thr_values(it, a)?;
-        for y in thr_values(it, b)? {
+        let mut v = thr_values(it, a, env)?;
+        for y in thr_values(it, b, env)? {
             if !v.contains(&y) {
                 v.push(y);
             }
@@ -3132,12 +3231,19 @@ pub const LVAR_RULES: &[(&str, Option<&str>, &str)] = &[
     ("W-CRDT-1 lex needs a chain key", None, "RCE.MergeCert.lex_needs_chain"),
     ("W-CRDT-1 kind of nullary variants: decided by enumeration", None, "RCE.MergeLaws.laws_of_enum"),
     ("LVar without top: absorbing top added", None, "RCE.MergeLaws.withTop"),
+    ("lvar_new: allocates a fresh location", None, "RCE.LVarAlloc.Step.new"),
+    ("lvar_new: locations from a deterministic counter", None, "RCE.LVarAlloc.counter_owner"),
+    ("store with allocation: quasi-determinism", None, "RCE.LVarAlloc.alloc_quasi_det"),
+    ("store with allocation: no error without freeze", None, "RCE.LVarAlloc.alloc_det_no_err"),
+    ("executable semantics: each step is a Step", None, "RCE.LVarAlloc.stepAt_sound"),
+    ("executable semantics: each run is a run", None, "RCE.LVarAlloc.exec_sound"),
+    ("W-CRDT-1 Set.union, Set.inter, Map.merge", None, "RCE.MergeCert.mapS"),
 ];
 
 /// lean/RCE/LVarRules.lean for the table and the given certificates
 pub fn lvar_rules_lean(certs: &[(String, String)]) -> String {
     let mut s = String::from(
-        "/-\nGenerated by checker/tests/lvar_rules.rs from `conc::LVAR_RULES` and the\ncertificates the checker derives for the certified test programs. Do not\nedit: regenerate with RCE_BLESS=1 cargo test --features conc06 --test lvar_rules.\n-/\nimport RCE.LVarStore\nimport RCE.MergeCert\nimport RCE.MergeLaws\n\nnamespace RCE.LVarRules\n\n",
+        "/-\nGenerated by checker/tests/lvar_rules.rs from `conc::LVAR_RULES` and the\ncertificates the checker derives for the certified test programs. Do not\nedit: regenerate with RCE_BLESS=1 cargo test --features conc06 --test lvar_rules.\n-/\nimport RCE.LVarStore\nimport RCE.LVarAlloc\nimport RCE.MergeCert\nimport RCE.MergeLaws\n\nnamespace RCE.LVarRules\n\n",
     );
     for (rule, trap, decl) in LVAR_RULES {
         let t = trap.map(|t| format!(" (trap \"{t}\")")).unwrap_or_default();

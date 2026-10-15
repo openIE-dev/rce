@@ -250,7 +250,8 @@ method's complexity class in the reference evaluator:
 |---|---|---|
 | linear, text receiver | `strip`, `upper`, `lower`, `reverse`, `tostr`, `chars`, `words`, `lines`, `split`, `isdigit`, `isalpha`, `isspace`, `contains`, `startswith`, `endswith`, `toint`, `join`, `sha256` | n + k |
 | linear, list receiver | `reverse`, `contains`, `sum`, `map`, `filter`, `fold`, `utf8` | n + k |
-| linear, map receiver (maps are ordered association lists) | `get`, `contains`, `insert`, `remove`, `keys`, `values` | n + k |
+| linear, map receiver (maps are ordered association lists) | `get`, `contains`, `insert`, `remove`, `keys`, `values`, `merge` | n + k |
+| linear, set receiver (sets are sorted lists without duplicates) | `union`, `inter`, `insert` | n + k |
 | n log n, list receiver | `sort` | n · ⌈log₂ n⌉, with ⌈log₂ n⌉ = 0 for n ≤ 1 |
 | constant | every other method of 5.15 | 0 |
 
@@ -309,9 +310,11 @@ an associative operation with an identity (T18).
   gate evaluates every triple, which decides them
   (`MergeLaws.laws_of_enum`). Otherwise the gate reads the body of
   `merge` as a term over proven combinators (`conc::merge_certs`): per
-  field, `max` or `min` on an integer, `or` or `and` on a bool, or
-  `.merge` of a field whose type has a certified impl (componentwise
-  product); on a record of one integer field, a selection that keeps
+  field, `max` or `min` on an integer, `or` or `and` on a bool,
+  `union` or `inter` on a `Set[τ]`, `merge` on a `Map[k, v]` (pointwise,
+  certified when the `Merge` of `v` is: an integer, a bool, a set, a map
+  of such, or a type with a certified impl), or `.merge` of a field whose
+  type has a certified impl (componentwise product); on a record of one integer field, a selection that keeps
   `o` when `o.k > self.k` and `self` otherwise (max, or min when the
   smaller side is kept); and lexicographic on an integer key: `self` when
   `self.k > o.k`, `o` when `o.k > self.k`, and otherwise the key with the
@@ -357,10 +360,16 @@ an associative operation with an identity (T18).
   This is decided at admission when every element takes finitely many
   values: a constant, or `if c then a else b` over such, with every
   combination checked, since two thresholds where one is below the other
-  are compatible for any top. Where an element is not finite in this
-  sense (a parameter, a computed value), incompatibility depends on the
-  input, and the check every `wait` makes against the top, with its trap,
-  is the defined behaviour. Model: T29q, T29s; the rule table
+  are compatible for any top. A parameter whose declared type is finite
+  (a kind of nullary variants, or `bool`) and which the body never
+  rebinds ranges over every value of its type, so it is decided too;
+  since every value of such a type is at or above its bottom, a list
+  with such a parameter and another element is refused whenever the
+  bottom is below that element. Where an element is not finite in this
+  sense (a parameter of an unbounded type, a computed value),
+  incompatibility depends on the input, and the check every `wait` makes
+  against the top, with its trap, is the defined behaviour. Model: T29q,
+  T29s, T29a; the rule table
   `conc::LVAR_RULES` ties each rule and trap to its Lean declaration
   (see T29s).
 - C.11.8 convergence notes. The frozen bit, and the rule that only a put
@@ -372,8 +381,11 @@ an associative operation with an identity (T18).
   the one here uses an invariant (the value joined with the puts still to
   come is the join of all puts), which suffices because there is no
   allocation: T29s takes a store of many LVars as the product lattice
-  over locations, each location an `lvar_new` site, and proves the
-  invariant per location. Their library marks code that freezes as
+  over locations and proves the invariant per location, and T29a adds
+  `lvar_new` as a step that allocates a location named by a
+  deterministic counter (thread i's k-th allocation is `(i, k)`), so
+  locations do not depend on the schedule and the POPL 2014 permutation
+  of locations is not needed. Their library marks code that freezes as
   `QuasiDet` in its type. RCE instead refuses, by W-LVAR-1, the freezes
   that could race with a put, so an admitted program is deterministic,
   and the frozen bit turns a race the rule misses into an error instead
@@ -480,7 +492,8 @@ is a correspondence on samples, not a proof about the evaluator.
 | T28 | session duality, subject reduction and progress, with recursion | proved on a session calculus; encoding of surface protocols mechanized | `t28r_preserve`, `t28r_progress`, `enc_comp` |
 | T29 | LVar puts commute; one-threshold reads are order independent | model; vectors | `lvar_interleave`, `t29_perm` |
 | T29q | LVars over any join-semilattice with an absorbing top, threshold reads in the same order, and a frozen bit: two runs that complete every thread without error end in the same configuration (value, frozen bit, every result); without `freeze`, a program with a completing run has no erroring run; with `freeze`, whether a run errs can depend on the schedule | proved on a calculus (put, get with incompatible sets, freeze, on one LVar shared by any number of threads); runs that block forever are not covered; the built-in Merge instances are semilattices | `LVarQD.quasi_det`, `det_no_err`, `quasi_not_det`, `MergeLaws` |
-| T29s | A store of many LVars shared by any number of threads (the product lattice over locations, a frozen bit per location): two runs that complete every thread without error end in the same store, frozen bits and results; without `freeze`, no run errs if one completes. W-CRDT-1 certificates are lawful by construction. Each row of `conc::LVAR_RULES` (rule, trap, Lean declaration) and the certificate of each certified test program is generated into `LVarRules.lean`, which `lake build` elaborates, and the same test checks each trap string in the evaluator and every emitter runtime | locations allocated before the threads start (no renaming of locations as in POPL 2014); the generated table checks that the named declarations exist and the certificates elaborate, not that the evaluator refines the calculus | `LVarStore.store_quasi_det`, `store_det_no_err`, `MergeCert.cert_laws`, `LVarRules`, `checker/tests/lvar_rules.rs` |
+| T29s | A store of many LVars shared by any number of threads (the product lattice over locations, a frozen bit per location): two runs that complete every thread without error end in the same store, frozen bits and results; without `freeze`, no run errs if one completes. W-CRDT-1 certificates are lawful by construction. Each row of `conc::LVAR_RULES` (rule, trap, Lean declaration) and the certificate of each certified test program is generated into `LVarRules.lean`, which `lake build` elaborates, and the same test checks each trap string in the evaluator and every emitter runtime | locations allocated before the threads start (T29a adds allocation); the generated table checks that the named declarations exist and the certificates elaborate, not that the evaluator refines the calculus | `LVarStore.store_quasi_det`, `store_det_no_err`, `MergeCert.cert_laws`, `LVarRules`, `checker/tests/lvar_rules.rs` |
+| T29a | The store of T29s with dynamic allocation: `new l` allocates `l` (only once; operations on `l` wait for it), locations from a deterministic counter (`counter_owner`). Two runs that complete every thread without error reach the same store, frozen bits, allocation map and results; without `freeze`, no run errs if one completes. An executable semantics `stepAt` / `exec` is proved sound against the relation (`stepAt_sound`, `exec_sound`); 60 runs extracted from it over the lattice 0..6 under max are replayed on the evaluator and the Rust, Python and JavaScript emitters, which must give the same `wait` and `freeze` results and the same error | the vectors cover `put`, single-threshold `get`, `freeze` and allocation on integer cells, in the order the schedule ran them (each run is replayed sequentially, so evaluator scheduling is not exercised); `stepAt` is sound, not complete (it does not show every `Step` is reachable by some schedule) | `LVarAlloc.alloc_quasi_det`, `alloc_det_no_err`, `stepAt_sound`, `exec_sound`, `LVarVectors`, `checker/tests/lean_lvar.rs` |
 | T30 | an atomic batch applies all or none | model; vectors | `t30` |
 | T31 | replicas agree on equal prefixes | model (the statement is close to trivial) | `t31` |
 
@@ -586,4 +599,4 @@ different versions may `use` each other (2.7).
 
 **Read receipt.** How many words does a version 0.6 module reserve in addition to the 0.5 keywords? (a number)
 
-<!-- body-sha256: b6cc0af8b9dfcc62c00f083f0dcaeabb797846c3b59826b0986696c71ef6c217 -->
+<!-- body-sha256: f31927494ae82d1f36aa8d69d4e8a40800913fdc0591783876bd2faf8753c0f4 -->

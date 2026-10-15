@@ -84,3 +84,19 @@ fn f9_no_transcendentals() {
         assert!(!out.contains("emit \""), "{m} exists: {out}");
     }
 }
+
+#[test]
+fn f6_negative_zero_is_observable_and_hashes_apart() {
+    // observable: the f32 display keeps the sign
+    let got = run("    emit ((0.0 * -1.0) as f32).tostr()\n    emit ((0.0 * 1.0) as f32).tostr()\n", "f6-obs");
+    assert!(got.contains("emit \"-0\"") && got.contains("emit \"0\""), "{got}");
+    // so the state hash, injective on observable state, tells them apart
+    let p = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../examples/57_float_vectors.rce");
+    let h = |ev: &str| {
+        let o = Command::new(env!("CARGO_BIN_EXE_rce")).args(["trace", "--json"]).arg(&p).arg(ev).output().unwrap();
+        let v: serde_json::Value = serde_json::from_slice(&o.stdout).unwrap();
+        let t = v["traces"].as_array().unwrap().last().unwrap()["steps"].as_array().unwrap().last().unwrap().clone();
+        t["state_hash"].as_str().unwrap().to_string()
+    };
+    assert_ne!(h("Mul(a: 0.0, b: -1.0)"), h("Mul(a: 0.0, b: 1.0)"));
+}

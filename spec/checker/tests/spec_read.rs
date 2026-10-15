@@ -23,6 +23,7 @@ fn use_method(recv: &str, m: &str) -> String {
         "F32" => ("f32", ""),
         "List" => ("List[i64]", ""),
         "Map" => ("Map[text, i64]", ""),
+        "Set" => ("Set[i64]", ""),
         "Opt" => ("i64?", ""),
         "Gen" => return format!("fn g() -> iter i64\n    yield 1\n\nfn f() -> i64\n    let y = g().{m}()\n    return 0\n"),
         r => panic!("receiver {r} has no sample type"),
@@ -58,7 +59,8 @@ fn method_work_follows_the_classes() {
     let text = V::Text("abcdefgh".into());
     for ((recv, m), w) in &TABLES.work {
         let r = match recv.as_str() {
-            "list" => list.clone(),
+            // a Set[τ] value is a list in canonical order
+            "list" | "set" => list.clone(),
             "text" => text.clone(),
             "map" => continue,
             x => panic!("{x}"),

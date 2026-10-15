@@ -74,7 +74,7 @@ fn fixtures_are_the_reference_traces() {
 fn cj(v: &serde_json::Value) -> String {
     use serde_json::Value as J;
     match v {
-        J::Number(n) if n.is_f64() => format!("{:?}", n.as_f64().unwrap()),
+        J::Number(n) if n.is_f64() => rce_spec_check::interp::float_json(n.as_f64().unwrap()),
         J::Array(xs) => format!("[{}]", xs.iter().map(cj).collect::<Vec<_>>().join(",")),
         J::Object(m) => {
             let mut ks: Vec<_> = m.iter().collect();
@@ -89,8 +89,9 @@ fn cj(v: &serde_json::Value) -> String {
 #[test]
 fn canonical_json_float_form() {
     for (x, want) in [(10.0, "10.0"), (0.1, "0.1"), (1e-4, "0.0001"), (1e-5, "1e-5"), (1e16, "1e16"),
-        (9007199254740992.0, "9007199254740992.0"), (5e-324, "5e-324"), (f64::MAX, "1.7976931348623157e308"), (-0.0, "-0.0")] {
-        assert_eq!(format!("{x:?}"), want);
+        (9007199254740992.0, "9007199254740992.0"), (5e-324, "5e-324"), (f64::MAX, "1.7976931348623157e308"), (-0.0, "-0.0"), (-2.5, "-2.5"), (1.5e-7, "1.5e-7"), (123456.789, "123456.789"), (1e15, "1000000000000000.0")] {
+        assert_eq!(rce_spec_check::interp::float_json(x), want);
+        assert_eq!(format!("{x:?}"), want, "the former formatter, kept equal so no hash moves");
     }
 }
 

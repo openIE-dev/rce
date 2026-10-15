@@ -568,9 +568,19 @@ function builtin(r, m, a) {
       case "fold": { let acc = a[0]; for (const x of xs) { fuel(); acc = apply(a[1], [acc, x]); } return [acc, null]; }
     }
   }
+  if (r instanceof Lst) {
+    // a Set[τ] is a list in canonical order without duplicates
+    switch (m) {
+      case "union": return [mergeBuiltin(r, a[0]), null];
+      case "inter": return [new Lst(r.xs.filter((x) => a[0].xs.some((y) => eq(x, y)))), null];
+      case "insert": return [UNIT, mergeBuiltin(r, new Lst([a[0]]))];
+      case "tolist": return [r, null];
+    }
+  }
   if (r instanceof Mp) {
     const ps = r.ps;
     switch (m) {
+      case "merge": return [mapMerge(ps, a[0].ps), null];
       case "len": return [new Int(BigInt(ps.length), "usize"), null];
       case "get": for (const [k, v] of ps) if (eq(k, a[0])) return [v, null]; return [new Err(new Rec("Missing", [])), null];
       case "contains": return [ps.some(([k]) => eq(k, a[0])), null];
@@ -592,7 +602,7 @@ function builtin(r, m, a) {
   return trap(show(r) + " has no method " + m + " at comptime");
 }
 // C.6.4 method work, as conc::method_work in the reference evaluator.
-const LIN_TEXT = new Set(["strip", "upper", "lower", "reverse", "tostr", "chars", "words", "lines", "split", "isdigit", "isalpha", "isspace", "contains", "startswith", "endswith", "toint", "join", "sha256"]), LIN_LIST = new Set(["reverse", "contains", "sum", "map", "filter", "fold", "utf8"]), LIN_MAP = new Set(["get", "contains", "insert", "remove", "keys", "values"]);
+const LIN_TEXT = new Set(["strip", "upper", "lower", "reverse", "tostr", "chars", "words", "lines", "split", "isdigit", "isalpha", "isspace", "contains", "startswith", "endswith", "toint", "join", "sha256"]), LIN_LIST = new Set(["reverse", "contains", "sum", "map", "filter", "fold", "utf8", "union", "inter", "insert"]), LIN_MAP = new Set(["get", "contains", "insert", "remove", "keys", "values", "merge"]);
 function sizeOf(v) {
   if (isStr(v)) return BigInt(u8s(v).length);
   if (v instanceof Lst) return BigInt(v.xs.length);
@@ -1012,6 +1022,16 @@ function mergeBuiltin(a, b) {
   if (a instanceof Opt && b instanceof Opt) return new Opt(mergeBuiltin(a.x, b.x));
   return trap("no Merge instance for " + show(a) + " and " + show(b));
 }
+function mapMerge(xs, ys) {
+  const out = xs.slice();
+  for (const [k, v] of ys) {
+    const i = out.findIndex(([k2]) => eq(k2, k));
+    if (i >= 0) out[i] = [out[i][0], mergeValues(out[i][1], v)]; else out.push([k, v]);
+  }
+  out.sort((p, q) => canonCmp(p[0], q[0]));
+  return new Mp(out);
+}
+function setOf(v) { return mergeBuiltin(v, new Lst([])); }
 function mergeValues(a, b) {
   if (a instanceof Rec) { const h = KIND_OF[a.n] ?? a.n; const f = METHODS[h + ".merge"]; if (f) { charge(4n); return f(a, [b])[0]; } }
   return mergeBuiltin(a, b);

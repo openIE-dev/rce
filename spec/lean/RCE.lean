@@ -40,5 +40,6 @@ import RCE.Quorum
 import RCE.AdmitVectors
 import RCE.MergeCert
 import RCE.LVarStore
+import RCE.LVarAlloc
 import RCE.LVarRules
 import RCE.ParFuel

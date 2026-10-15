@@ -520,7 +520,7 @@ pub fn trace(file: &str, src: &str, events: Option<&str>) -> Result<String, Stri
         "genesis": crate::interp::D_GENESIS,
         "traces": traces,
     });
-    Ok(v.to_string())
+    Ok(crate::interp::canon_json(&v))
 }
 
 /// Usage of the language commands of `rce` (10.2 to 10.7).

@@ -284,6 +284,25 @@ fn g() -> i64
         "W-LVAR-2",
     );
     assert!(e.contains("can be, on some input"), "{e}");
+    // a parameter of a finite kind ranges over every variant (type-directed)
+    let e = refused(
+        &format!("{LVL}
+fn g(t: Lvl) -> i64
+    let x = lvar_new(Lo)
+    x.put(Hi)
+    rank(x.wait([t, Hi]))
+"),
+        "W-LVAR-2",
+    );
+    assert!(e.contains("can be, on some input"), "{e}");
+    // a rebound parameter is not known to be finite: checked at run time
+    admitted(&format!("{LVL}
+fn g(t: Lvl) -> i64
+    var u = t
+    let x = lvar_new(Lo)
+    x.put(Hi)
+    rank(x.wait([u, Hi]))
+"));
     // not finite: the runtime check against top is the defined behaviour
     admitted(
         "fn f(n: i64) -> i64
@@ -469,4 +488,43 @@ impl Merge for Ab
         "W-CRDT-1",
     );
     assert!(e.contains("not "), "{e}");
+}
+
+const REG: &str = "struct Reg
+    seen: Set[i64]
+    common: Set[i64]
+    hi: Map[text, i64]
+
+impl Merge for Reg
+    fn merge(self, other: Reg) -> Reg
+        Reg(seen: self.seen.union(other.seen), common: self.common.inter(other.common), hi: self.hi.merge(other.hi))
+    fn bottom() -> Reg
+        Reg(seen: set_of([]), common: set_of([1, 2, 3]), hi: {\"z\": 0})
+";
+
+#[test]
+fn set_and_map_combinators_agree_and_certify() {
+    let src = format!("{REG}
+fn main()
+    let s = set_of([3, 1, 3])
+    var t = set_of([2])
+    t.insert(5)
+    t.insert(1)
+    emit s.union(t).tolist()
+    emit s.inter(set_of([1, 9])).tolist()
+    let m: Map[text, i64] = {{\"b\": 5, \"a\": 1}}
+    let n: Map[text, i64] = {{\"a\": 4, \"c\": 2}}
+    emit m.merge(n)
+    let x = lvar_new(Reg(seen: set_of([]), common: set_of([1, 2, 3]), hi: {{\"z\": 0}}))
+    x.put(Reg(seen: set_of([7]), common: set_of([1, 2]), hi: {{\"a\": 3}}))
+    x.put(Reg(seen: set_of([4, 7]), common: set_of([2, 3]), hi: {{\"a\": 1, \"b\": 2}}))
+    let v = x.freeze()
+    emit v.seen.tolist()
+    emit v.common.tolist()
+    emit v.hi
+");
+    let l = agree("sets", &src);
+    for want in ["emit [1, 2, 3, 5]", "emit [1]", "emit [2]", "emit [4, 7]"] {
+        assert!(l.iter().any(|x| x == want), "missing {want:?} in {l:?}");
+    }
 }

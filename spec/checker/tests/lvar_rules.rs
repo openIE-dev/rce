@@ -12,6 +12,7 @@ pub const PROGRAMS: &[&str] = &[
     "struct Hw\n    hi: i64\n    seen: bool\n\nimpl Merge for Hw\n    fn merge(self, other: Hw) -> Hw\n        Hw(hi: self.hi.max(other.hi), seen: self.seen or other.seen)\n    fn bottom() -> Hw\n        Hw(hi: 0, seen: false)\n",
     "struct Lo\n    lo: i64\n    all: bool\n\nimpl Merge for Lo\n    fn merge(self, other: Lo) -> Lo\n        Lo(lo: self.lo.min(other.lo), all: self.all and other.all)\n    fn bottom() -> Lo\n        Lo(lo: 1000, all: true)\n\nstruct Pair\n    a: Lo\n    n: i64\n\nimpl Merge for Pair\n    fn merge(self, other: Pair) -> Pair\n        Pair(a: self.a.merge(other.a), n: self.n.max(other.n))\n    fn bottom() -> Pair\n        Pair(a: Lo(lo: 1000, all: true), n: 0)\n",
     "struct Ver\n    ts: i64\n    hi: i64\n    ok: bool\n\nimpl Merge for Ver\n    fn merge(self, other: Ver) -> Ver\n        if self.ts > other.ts\n            self\n        elif other.ts > self.ts\n            other\n        else\n            Ver(ts: self.ts, hi: self.hi.max(other.hi), ok: self.ok or other.ok)\n    fn bottom() -> Ver\n        Ver(ts: 0, hi: 0, ok: false)\n",
+    "struct Reg\n    seen: Set[i64]\n    common: Set[i64]\n    hi: Map[text, i64]\n    tags: Map[text, Set[i64]]\n\nimpl Merge for Reg\n    fn merge(self, other: Reg) -> Reg\n        Reg(seen: self.seen.union(other.seen), common: self.common.inter(other.common), hi: self.hi.merge(other.hi), tags: self.tags.merge(other.tags))\n    fn bottom() -> Reg\n        Reg(seen: set_of([]), common: set_of([1]), hi: {\"z\": 0}, tags: {\"z\": set_of([])})\n",
     "struct Hi\n    v: i64\n\nimpl Merge for Hi\n    fn merge(self, other: Hi) -> Hi\n        if other.v > self.v\n            return other\n        self\n    fn bottom() -> Hi\n        Hi(v: 0)\n",
 ];
 
@@ -38,11 +39,12 @@ fn lean_path() -> std::path::PathBuf {
 fn every_test_program_is_certified() {
     let c = certs();
     let names: Vec<_> = c.iter().map(|x| x.0.as_str()).collect();
-    assert_eq!(names, ["Hw", "Lo", "Pair", "Ver", "Hi"], "{c:?}");
+    assert_eq!(names, ["Hw", "Lo", "Pair", "Ver", "Reg", "Hi"], "{c:?}");
     assert_eq!(c[0].1, "(.prod .maxI .orB)");
     assert_eq!(c[2].1, "(.prod (.prod .minI .andB) .maxI)");
     assert_eq!(c[3].1, "(.lex (.prod .maxI .orB))");
-    assert_eq!(c[4].1, ".maxI");
+    assert_eq!(c[4].1, "(.prod .union (.prod .inter (.prod (.map .maxI) (.map .union))))");
+    assert_eq!(c[5].1, ".maxI");
 }
 
 #[test]
