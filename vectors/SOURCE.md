@@ -872,3 +872,47 @@ removed are listed in its header).
 
 - `vectors/math/cbrt.wc` sha256 `c0487c6527aafea0eb741a4464c745bd545c49fc2a00ff7dbb89ee882b16047a`
 - `vectors/math/hypot.wc` sha256 `a7f24bd5b59d371aa1e1a2385dd9d526e21c6b4f751f735471f72d505103fac7`
+## data.sync (`lib/data/sync.rce`)
+
+Official vectors (127 checks):
+- json-patch/json-patch-tests commit 2a928f90 (2025-02-21), `tests.json` and
+  `spec_tests.json` copied verbatim: all 112 cases, the 4 marked disabled
+  included (two `op` members in one operation, a scalar root); duplicate
+  member names are kept as in the source text when the case is rendered.
+- RFC 7396 Appendix A, the 15 merge-patch examples, transcribed into
+  `rfc7396_appendix_a.json` (rfc-editor.org text, sha256 545e1d61...c6).
+
+Derived vectors (1145 checks):
+- fast-json-patch 3.1.1 (`scripts/gen/sync_fjp.js`, seed 20261015): 150
+  `compare` diffs applied by `patch_apply`, and `diff` checked by its law
+  `patch_apply(a, diff(a, b)) == b` on the same pairs; 199 random patches
+  applied with validation. Skipped where fast-json-patch departs from the
+  RFCs: `~2` in a pointer (RFC 6901 allows only `~0`/`~1`), root targets and
+  a move from the root (later ops on a scalar root are ignored), and 8
+  TypeError/undefined results; RFC rules for those are checked directly.
+- @automerge/automerge 2.2.9 (`scripts/gen/sync_automerge.js`, seed 4242):
+  60 sessions of concurrent map puts/deletes on three replicas, 478 ops in
+  shuffled order; the merged document and `getConflicts` per key (82 keys
+  with several values) against `map_state` / `map_conflicts`; each session
+  also merged from two overlapping halves in both orders.
+- PostgreSQL 17.11 with wal2json 2.6 (`scripts/gen/sync_pg.py`, seed 6262):
+  30 random transactions on a REPLICA IDENTITY FULL table, decoded with
+  format-version 2; `table_apply` must give the server's table, and for 7
+  subscription queries `sub_update` must give the server's own
+  `(new WHERE q) EXCEPT (old WHERE q)` and the reverse (text compared
+  COLLATE "C").
+- Laws, stated in `scripts/gen/sync_gen.py`: PN-counter, OR-set (add wins)
+  and LWW merge are commutative, associative and idempotent and give the
+  expected value; the mutation log (Replicache push/pull: dedupe by client
+  and mutation id, a gap refused, replay(log) == db, pending mutations
+  rebased on pull, all views equal the server after a settle round).
+
+Mutation testing: `scripts/mut/data.py sync` 48/48 killed (one equivalent
+mutant removed, noted in its header).
+
+- `vectors/data/jsonpatch/rfc7396_appendix_a.json` sha256 `9b5fd611d7564a0e926756d912a50a118e4b9f32b84f0a8dc13ad70058488ad6`
+- `vectors/data/jsonpatch/spec_tests.json` sha256 `a26b050292207033e5cccc5d6102b7bd6f8add7db0d0680e5d46a7ecf40a8c7b`
+- `vectors/data/jsonpatch/tests.json` sha256 `de3dce3d0d5029fed83007e50b54607750dd3d1478d3c59ca35fdc18fb1a04ae`
+- `vectors/data/sync/automerge_map.json` sha256 `6c1a591d2304a154e80a50c7b8eb0239b4d4278a7ef063c9a76e3ab37f0c3617`
+- `vectors/data/sync/fast_json_patch.json` sha256 `59e159c6000c9218fb48cf6df94d1316955916bc64ddf62e40cc3414e55aa1ad`
+- `vectors/data/sync/pg_subscriptions.json` sha256 `134cb8582f750b1496ed7297ed798929197cc190e8c5008adc769175dcb10751`

@@ -7,13 +7,16 @@
 # entry at i was already checked against the target history). For cdc:
 # the empty transaction id of a non-transactional message (pgoutput and
 # wal2json format 1) - PostgreSQL decodes such a message outside any
-# transaction, where the current id is already "".
+# transaction, where the current id is already "". For sync: the
+# RFC 6902 4.4 check that a move's from is not a proper prefix of its
+# path (the remove of from takes the path's parent with it, so the add
+# fails anyway; the check stays as the RFC's stated rule).
 # Usage: RCE=path/to/rce python3 scripts/mut/data.py [module...]
 import glob, os, re, shutil, subprocess, sys, tempfile
 from concurrent.futures import ThreadPoolExecutor
 RCE = os.environ.get('RCE', 'rce')
 root = os.path.join(os.path.dirname(os.path.abspath(__file__)), '../..')
-MODS = ('events', 'feed', 'cdc')
+MODS = ('events', 'feed', 'cdc', 'sync')
 SRC = {n: open(os.path.join(root, 'lib/data/%s.rce' % n)).read() for n in MODS}
 sys.path.insert(0, os.path.join(root, 'scripts'))
 import uses
@@ -123,6 +126,55 @@ M = [('events',) + m for m in [
     ('            f.headers.push(events.JsArr(items: [events.JsStr(t: copy(c[0])), events.JsStr(t: js_trim(&vj))]))', '            f.headers.push(events.JsArr(items: [events.JsStr(t: copy(c[0])), events.JsStr(t: copy(vj))]))'),
     ('    if nf == want + 1\n        f.reply = copy(ps[3])', '    if false\n        f.reply = copy(ps[3])'),
     ('    return cd_field(&j, "stream") + ":" + cd_field(&j, "seq") + (if dup then ":dup" else "")', '    return cd_field(&j, "stream") + ":" + cd_field(&j, "seq")'),
+]] + [('sync',) + m for m in [
+    ('    if not p.startswith("/")\n        fail BadSync(why: "pointer: must start with /")', '    if false\n        fail BadSync(why: "pointer: must start with /")'),
+    ('            if i + 1 < cs.len() and cs[i + 1] == "0"\n                o = o + "~"', '            if i + 1 < cs.len() and cs[i + 1] == "0"\n                o = o + "/"'),
+    ('            else\n                fail BadSync(why: "pointer: bad ~ escape")', '            else\n                o = o + "~"'),
+    ('        o = o + (if c == "~" then "~0" else (if c == "/" then "~1" else c))', '        o = o + (if c == "/" then "~1" else c)'),
+    ('    if t.len() > 1 and t.startswith("0")\n        return -1', '    if false\n        return -1'),
+    ('    if n < 0 or n as usize >= xs.len()\n        fail BadSync(why: "pointer: bad array index")', '    if n < 0 or n as usize > xs.len()\n        fail BadSync(why: "pointer: bad array index")'),
+    ('            e -= 1\n            i += 1', '            i += 1'),
+    ('        e += if eneg then -x else x', '        e += x'),
+    ('    while b > a and dc[b - 1] == "0" bound 16777216\n        b -= 1\n        e += 1', '    while false bound 16777216\n        b -= 1\n        e += 1'),
+    ('        events.JsNull -> return sy_is_null(b)', '        events.JsNull -> return true'),
+    ('    if ks.len() != k2.len()\n        return false', '    if false\n        return false'),
+    ('    if xs.len() != ys.len()\n        return false', '    if xs.len() > ys.len()\n        return false'),
+    ('        if i + 1 != toks.len()\n            fail BadSync(why: "patch: path not found")', '        if false\n            fail BadSync(why: "patch: path not found")'),
+    ('    if n < 0 or n as usize > xs.len() or (not last and n as usize == xs.len())', '    if n < 0 or n as usize > xs.len()'),
+    ('            if last\n                o.push(copy(v))\n                o.push(copy(xs[j]))', '            if last\n                o.push(copy(xs[j]))\n                o.push(copy(v))'),
+    ('        fail BadSync(why: "patch: cannot remove the root")', '        return events.JsNull'),
+    ('    if not found\n        fail BadSync(why: "patch: path not found")\n    return events.JsObj(keys: nk, vals: nv)', '    return events.JsObj(keys: nk, vals: nv)'),
+    ('    if sy_dup_members(op)\n', '    if false\n'),
+    ('        if name == "copy"\n            return try jp_add(doc, &path, 0, &v)', '        if name == "copy"\n            return try jp_add(doc, &src, 0, &v)'),
+    ('        if not json_eq(&have, &v)\n', '        if false\n'),
+    ('    fail BadSync(why: "patch: unknown op")', '    return copy(doc)'),
+    ('        if sy_is_null(&pv[i])\n            if at >= 0', '        if false\n            if at >= 0'),
+    ('            let nv = merge_patch(&vs[at as usize], &pv[i])', '            let nv = copy(pv[i])'),
+    ('            vs.push(merge_patch(&nul, &pv[i]))', '            vs.push(copy(pv[i]))'),
+    ('    while k > n bound 16777216\n        k -= 1', '    while k > n + 1 bound 16777216\n        k -= 1'),
+    ('        let p = at + "/" + ptr_escape(&ka[i])', '        let p = at + "/" + ka[i]'),
+    ('    return a.who < b.who', '    return a.who > b.who'),
+    ('                    if mo_same(&q, &o.id)\n                        dead = true', '                    if false\n                        dead = true'),
+    ('            vs.push(copy(vis[vis.len() - 1].value))', '            vs.push(copy(vis[0].value))'),
+    ('        if o.key == key and not o.del', '        if o.key == key'),
+    ('            if t.replica == s.replica and t.n > n', '            if t.replica == s.replica'),
+    ('    return PN(p: copy(c.p), n: gc_inc(&c.n, replica, -by))', '    return PN(p: copy(c.p), n: gc_inc(&c.n, replica, by))'),
+    ('    if b.ts > a.ts or (b.ts == a.ts and b.replica > a.replica)', '    if b.ts > a.ts'),
+    ('        if t.elem == elem and not g.contains(&t.tag)', '        if not g.contains(&t.tag)'),
+    ('    for t in b.gone\n        if not g.contains(&t)\n            g.push(copy(t))', '    for t in b.gone\n        if false\n            g.push(copy(t))'),
+    ('        if not s.gone.contains(&t.tag) and not out.contains(&t.elem)', '        if not out.contains(&t.elem)'),
+    ('        if m.id > last + 1\n            fail BadSync(why: "push: mutation id gap")', '        if false\n            fail BadSync(why: "push: mutation id gap")'),
+    ('        if m.id == last + 1\n            let st', '        if m.id >= last\n            let st'),
+    ('    if not ok or by.isnone()\n        return copy(st)', '    if by.isnone()\n        return copy(st)'),
+    ('        if m.id > p.lmid\n            keep.push(copy(m))', '        if m.id >= p.lmid\n            keep.push(copy(m))'),
+    ('        if kv_get(db, &k).isnone()\n            ops.push(pl_op("del", &k, none))', '        if false\n            ops.push(pl_op("del", &k, none))'),
+    ('    if op == "!="\n        return c != 0', '    if op == "!="\n        return c == 0'),
+    ('    if op == "<="\n        return c <= 0', '    if op == "<="\n        return c < 0'),
+    ('    if op == ">="\n        return c >= 0', '    if op == ">="\n        return c > 0'),
+    ('        none -> return false\n\nfn cond_value', '        none -> return true\n\nfn cond_value'),
+    ('        if not rows_has(&b, &r)\n            dels.push(copy(r))', '        if true\n            dels.push(copy(r))'),
+    ('        elif c.action == "U"\n            nx.push(copy(c.new))', '        elif c.action == "U"\n            nx.push(copy(c.old))'),
+    ('        let key = if c.action == "I" then row_id(&c.new) else row_id(&c.old)', '        let key = row_id(&c.new)'),
 ]]
 def one(ab):
     i, (name, a, b) = ab
