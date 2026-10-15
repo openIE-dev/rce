@@ -825,6 +825,47 @@ text, its child list, then its matched children), where Vue patches
 children depth first while scanning. Minimality holds for the moves
 given the matching; the greedy unkeyed matching is Vue's and is not
 optimised.
+## ui.states (`lib/ui/states.rce`), ui.ecma (`lib/ui/ecma.rce`), text.xml (`lib/text/xml.rce`)
+
+Pure (survey M53). `ui.states` is an SCXML interpreter that follows the
+W3C SCXML Recommendation Appendix D algorithm. It reads SCXML documents
+(through `text.xml`) with the ECMAScript data model (through `ui.ecma`, a
+subset of ECMAScript that covers what SCXML documents use), and it also
+reads a compact chart notation. It covers send/cancel/invoke (with
+autoforward and finalize), delayed events, donedata, late binding and the
+Basic HTTP Event I/O Processor (requests are passed in as logged inputs).
+`run_mode(src, evs, true)` is an XState 5 compatibility mode (event
+selection, parallel regions and transition domain as XState computes
+them).
+
+- **official:** the W3C SCXML 1.0 Implementation Report Plan test suite
+  (https://www.w3.org/Voice/2013/scxml-irp/, `manifest.xml` sha256
+  5974da27…, `confEcma.xsl` sha256 f93de8fb…, both matching the W3C copy).
+  It is vendored in `vectors/ui/scxml-irp-full`. `scripts/gen/irp_xslt.py`
+  applies the suite's own `confEcma.xsl` with Saxon-HE (the stylesheet
+  is XSLT 2.0), and `scripts/gen/irp_gen.py` writes
+  `tests/ui/states_checks_irp*.rce`. All 200 tests pass: 166 mandatory
+  and 34 optional, including the 9 manual tests (each is checked against
+  what its description asks the tester to observe) and test 513 (Basic
+  HTTP). `text.xml` reads all 206 IRP documents the same way lxml does
+  (`tests/text/xml_checks_irp*.rce`, 206 checks).
+- **live reference:** XState 5.33.2 (npm). `scripts/ref/states_ref` runs
+  300 generated charts with event sequences, and the final
+  configurations, entry/exit traces and data all match
+  (`tests/ui/states_checks_live*.rce`). SCION 4.3.28 deviates from
+  Appendix D, so it is used only as a cross-check after
+  `patch_scion.py`. For `ui.ecma`, Node v20.19.2 (V8) evaluates
+  495 expressions and scripts (`scripts/ref/ecma_ref`), and all of them
+  agree (`tests/ui/ecma_checks*.rce`).
+- **derived:** 37 compact-notation charts from IRP section 3
+  (`tests/ui/states_checks.rce`). From the Appendix D text: across
+  parallel regions, the LCCA is the nearest compound ancestor, and states
+  exit in reverse document order. From ECMA-262: abstract equality with
+  null/undefined, precedence of `&&` and of relational over equality, and
+  string ordering. From XML 1.0 WFC Legal Character: `&#0;`.
+- **mutation:** `scripts/mut/states.py` 16/16, `scripts/mut/ecma.py`
+  10/10, `scripts/mut/xml.py` 8/8 killed.
+
 ## math (lib/math/math.rce)
 
 Worst cases from CORE-MATH (https://gitlab.inria.fr/core-math/core-math,
