@@ -266,23 +266,27 @@ pub fn content_id(c: &enc.Cbor) -> text
 
 # ---------------- COSE_Sign1 ----------------
 
-# Protected header {1: -8} (alg EdDSA), as its bstr contents.
-pub fn protected_header() -> List[i64] = [161, 1, 39]
-
-# Sig_structure = ["Signature1", protected, external_aad = h'', payload]
-pub fn sig_structure(payload: &[i64]) -> List[i64]
-    let v = enc.CArr(items: [jt("Signature1"), enc.CBytes(b: protected_header()), enc.CBytes(b: []), enc.CBytes(b: copy(payload))])
+# Protected header {1: -8 (alg EdDSA), 4: kid}, as its bstr contents; kid
+# is the steward id as UTF-8 bytes (as in JCP conformance/v1). The
+# unprotected header is the empty map.
+pub fn protected_header(kid: &text) -> List[i64]
+    let v = enc.CMap(keys: [jn(1), jn(4)], vals: [jn(-8), enc.CBytes(b: utf8_of(kid))])
     return enc.cbor_encode(&v)
 
-# Tag 18 [protected, {4: kid}, payload, signature]; kid is the steward id
-# as UTF-8 bytes.
+# Sig_structure = ["Signature1", protected, external_aad = h'', payload]
+pub fn sig_structure(prot: &[i64], payload: &[i64]) -> List[i64]
+    let v = enc.CArr(items: [jt("Signature1"), enc.CBytes(b: copy(prot)), enc.CBytes(b: []), enc.CBytes(b: copy(payload))])
+    return enc.cbor_encode(&v)
+
+# Tag 18 [protected, {}, payload, signature]
 pub fn envelope(payload: &[i64], kid: &text, sig: &[i64]) -> List[i64]
-    let unprot = enc.CMap(keys: [jn(4)], vals: [enc.CBytes(b: utf8_of(kid))])
-    let v = enc.CTag(tag: 18, item: Box(enc.CArr(items: [enc.CBytes(b: protected_header()), unprot, enc.CBytes(b: copy(payload)), enc.CBytes(b: copy(sig))])))
+    let unprot = enc.CMap(keys: [], vals: [])
+    let v = enc.CTag(tag: 18, item: Box(enc.CArr(items: [enc.CBytes(b: protected_header(kid)), unprot, enc.CBytes(b: copy(payload)), enc.CBytes(b: copy(sig))])))
     return enc.cbor_encode(&v)
 
 pub struct OpenedReceipt
     receipt: Receipt
+    prot: List[i64]
     payload: List[i64]
     kid: text
     sig: List[i64]
@@ -429,13 +433,17 @@ pub fn open_envelope(env: &[i64]) -> OpenedReceipt ! BadReceipt
     if it.len() != 4
         fail BadReceipt(why: "envelope")
     let ph = try bytes_field(&it[0])
-    if ph != protected_header()
+    let pc = enc.cbor_decode(&ph) catch enc.CInt(v: -1)
+    let ks = try map_keys(&pc, "protected")
+    let vs = try map_vals(&pc, "protected")
+    if ks.len() != 2 or ks[0] != jn(1) or ks[1] != jn(4)
+        fail BadReceipt(why: "protected")
+    if vs[0] != jn(-8)
         fail BadReceipt(why: "alg")
-    let ks = try map_keys(&it[1], "kid")
-    let vs = try map_vals(&it[1], "kid")
-    if ks.len() != 1 or ks[0] != jn(4)
-        fail BadReceipt(why: "kid")
-    let kid = try bytes_field(&vs[0])
+    let kid = try bytes_field(&vs[1])
+    let uk = try map_keys(&it[1], "unprotected")
+    if uk.len() != 0
+        fail BadReceipt(why: "unprotected")
     let payload = try bytes_field(&it[2])
     let sig = try bytes_field(&it[3])
     if sig.len() != 64
@@ -444,7 +452,7 @@ pub fn open_envelope(env: &[i64]) -> OpenedReceipt ! BadReceipt
     let kt = kid_text(&kid)
     if utf8_of(&kt) != kid or kt != r.steward
         fail BadReceipt(why: "steward")
-    return OpenedReceipt(receipt: r, payload: payload, kid: kt, sig: sig)
+    return OpenedReceipt(receipt: r, prot: ph, payload: payload, kid: kt, sig: sig)
 
 # seal_receipt: sign the Sig_structure with the steward's 32-byte seed (hex).
 # The steward must be the did:key of that seed's public key.
@@ -454,7 +462,8 @@ pub fn seal_receipt(r: &Receipt, seed_hex: text) -> List[i64] ! BadReceipt
     let pkb = did_key_pk(&r.steward) catch []
     if hex_of(&pkb) != pk
         fail BadReceipt(why: "steward")
-    let sig = ed_sign(seed_hex, sig_structure(&core))
+    let prot = protected_header(&r.steward)
+    let sig = ed_sign(seed_hex, sig_structure(&prot, &core))
     let sb = hex_bytes(&sig)
     return envelope(&core, &r.steward, &sb)
 
@@ -466,17 +475,22 @@ fn hex_bytes(h: &text) -> List[i64]
         i += 2
     return o
 
-# Verify an envelope: it opens, its core is valid under its own profile,
-# and the signature verifies under the steward's did:key (a wrong steward
-# fails, JCP C5).
+fn opened_none() -> OpenedReceipt = OpenedReceipt(receipt: Receipt(profile: "", grant_id: "", issuer: "", subject: "", resource: "", action: "", payload_hash: "", frame_kind: "", trust: "", verdict: "", deny_reason: "", cost_uj: -1, provenance: "", partial: false, budget_remaining_uj: -1, budget_uj: -1, steward: "", chain_ids: []), prot: [], payload: [], kid: "", sig: [])
+
+# Verify an envelope under a given Ed25519 public key (32 bytes): it
+# opens, its core is valid under its own profile, and the signature over
+# the Sig_structure verifies (a wrong steward key fails, JCP C5).
+pub fn verify_with(env: &[i64], pk: &[i64]) -> bool
+    let o = open_envelope(env) catch opened_none()
+    if o.payload.len() == 0 or pk.len() != 32
+        return false
+    return ed_verify(hex_of(pk), sig_structure(&o.prot, &o.payload), hex_of(&o.sig))
+
+# Verify an envelope whose steward is a did:key (the key is the id).
 pub fn verify(env: &[i64]) -> bool
-    let o = open_envelope(env) catch OpenedReceipt(receipt: Receipt(profile: "", grant_id: "", issuer: "", subject: "", resource: "", action: "", payload_hash: "", frame_kind: "", trust: "", verdict: "", deny_reason: "", cost_uj: -1, provenance: "", partial: false, budget_remaining_uj: -1, budget_uj: -1, steward: "", chain_ids: []), payload: [], kid: "", sig: [])
-    if o.payload.len() == 0
-        return false
+    let o = open_envelope(env) catch opened_none()
     let pk = did_key_pk(&o.receipt.steward) catch []
-    if pk.len() != 32
-        return false
-    return ed_verify(hex_of(&pk), sig_structure(&o.payload), hex_of(&o.sig))
+    return pk.len() == 32 and verify_with(env, &pk)
 
 # ---------------- replay and accounting ----------------
 

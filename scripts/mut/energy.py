@@ -8,7 +8,10 @@ L = lambda p: open(os.path.join(root, p)).read()
 src = L('lib/energy/energy.rce'); chk = L('tests/energy/energy_checks.rce'); host = L('tests/energy/energy_host.rce')
 events = re.search(r'^# events: (.*)$', host, re.M).group(1).replace(' ', '').split(',')
 M = [
-    ('pub fn protected_header() -> List[i64] = [161, 1, 39]', 'pub fn protected_header() -> List[i64] = [161, 1, 38]', 0),
+    ('vals: [jn(-8), enc.CBytes(b: utf8_of(kid))]', 'vals: [jn(-7), enc.CBytes(b: utf8_of(kid))]', 0),
+    ('    if vs[0] != jn(-8)\n', '    if false\n', 0),
+    ('    if uk.len() != 0\n', '    if false\n', 0),
+    ('let unprot = enc.CMap(keys: [], vals: [])', 'let unprot = enc.CMap(keys: [jn(4)], vals: [enc.CBytes(b: utf8_of(kid))])', 0),
     ('[jt("Signature1"),', '[jt("Signature"),', 0),
     ('let b = en_cat([237, 1], pk)', 'let b = en_cat([237, 0], pk)', 0),
     ('const B58: text = "123456789ABC', 'const B58: text = "123456789ACB', 0),
@@ -29,8 +32,9 @@ M = [
     ('            if t != "Partial"\n', '            if false\n', 0),
     ('    if r.trust != "control" and r.trust != "data"\n', '    if false\n', 0),
     ('    if r.verdict == "allow" and r.deny_reason != ""\n', '    if false\n', 0),
-    ('    if ks.len() != 1 or ks[0] != jn(4)\n', '    if ks.len() != 1\n', 0),
-    ('    return ed_verify(hex_of(&pk), sig_structure(&o.payload), hex_of(&o.sig))', '    return true', 1),
+    ('    if ks.len() != 2 or ks[0] != jn(1) or ks[1] != jn(4)\n', '    if ks.len() != 2\n', 0),
+    ('    return ed_verify(hex_of(pk), sig_structure(&o.prot, &o.payload), hex_of(&o.sig))', '    return true', 1),
+    ('enc.CBytes(b: copy(prot)), enc.CBytes(b: [])', 'enc.CBytes(b: []), enc.CBytes(b: [])', 1),
     ('    if hex_of(&pkb) != pk\n        fail BadReceipt(why: "steward")\n', '', 1),
 ]
 killed = 0

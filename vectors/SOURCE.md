@@ -178,9 +178,24 @@ pinned UCD (M9) gives Unicode classes.
 ## energy (`lib/energy/energy.rce`)
 
 - JCP v0.3 draft (the JCP specification text, section 8 "The receipt",
-  sections 3 and 8.1-8.2; read 2026-10-15). Its conformance vectors
-  (`conformance/v1/`) were not reachable from here, so every receipt
-  vector is derived.
+  sections 3 and 8.1-8.2; read 2026-10-15).
+- JCP conformance/v1, official: `vectors/energy/jcp-conformance-v1/`
+  (`vectors.json`, `legacy_jcp1.json`, `dual_ceilings.json`, `meta.json`),
+  copied from the JCP reference repository at commit
+  72aec523d2dc9a6c93ea6838773a322a2e378860 (jcp.transaction.science is
+  OpenIE's own; taken from a local working tree, not a public
+  repository). sha256 prefixes: vectors.json 1e82c7ea88cd4ce5,
+  legacy_jcp1.json 00a46131f2d248b7, dual_ceilings.json 8ec04771502d8956,
+  meta.json 01ba3099d2ec373a. Seven receipts (two jcp/2, two jcp/1,
+  three dual-ceiling incl. funds-exceeded and currency-mismatch denies):
+  each envelope opens, its payload is the published signed core, its
+  fields equal the published wire values, and each jcp/2 core re-mints
+  to the same bytes (7 comptime checks); every envelope verifies under
+  meta.json `pubkey_hex` and a one-bit flip does not (8 host checks).
+  They fix the COSE layout: protected header {1: -8, 4: kid} with the kid
+  as the steward id's UTF-8 bytes, empty unprotected map; a steward need
+  not be a did:key (`verify_with` takes the key). `action_receipt.json`
+  (ar/1-draft) and `standing.json` are not used yet.
 - draft-msporny-base58-03 section 5: the three base58btc examples
   ("Hello World!", the quick brown fox, 0x0000287fb4cd), official.
 - Derived with `scripts/gen/energy_gen.py` (cbor2, blake3 and
@@ -189,21 +204,22 @@ pinned UCD (M9) gives Unicode classes.
   deny, two chained debits) as canonical cores, blake3 ids,
   Sig_structures and COSE_Sign1 envelopes, decoded back; replay and
   per-(grant, subject) tallies of that stream; a jcp/1 core that opens;
-  16 malformed envelopes refused (missing or extra payload_hash, unknown
+  18 malformed envelopes refused (missing or extra payload_hash, unknown
   profile or field, negative or text cost, Whole written out, allow with
   a reason, deny without, no steward, bad trust, non-canonical head, wrong
-  kid, tag 98, alg -7, kid label 5). 46 comptime checks.
+  kid, tag 98, alg -7, kid label 5, kid unprotected, unprotected not
+  empty). 55 comptime checks in all.
 - Host checks (`tests/energy/energy_host.rce`, one Ed25519 operation per
   input under `rce host run`): seal matches cryptography's bytes; two
   envelopes verify; a payload substitution with the old signature fails
-  (JCP C23); a receipt signed by another key fails (C5); sealing with a
-  seed that is not the steward's is refused. 6 of 6.
-- `scripts/mut/energy.py`: 24 of 24 mutants killed.
+  (JCP C23); a receipt signed by another key fails (C5); the 8
+  conformance checks above; sealing with a seed that is not the
+  steward's is refused. 14 of 14.
+- `scripts/mut/energy.py`: 28 of 28 mutants killed.
 
-Needs spec or data: the JCP conformance vectors; the exact COSE `kid`
-encoding (taken here as the UTF-8 bytes of the steward's did:key) and
-whether `chain_ids` belongs in the signed jcp/2 core (taken as yes, when
-the chain has more than one link); and the shape of `host.Energy`
+Needs spec or data: whether `chain_ids` belongs in the signed jcp/2 core
+(taken as yes, when the chain has more than one link; no conformance
+vector has a chain); and the shape of `host.Energy`
 results (E.5), so receipts can be built from them directly (here
 cost_uj and its provenance are parameters). Module imports do not rename
 names yet (W-MOD-3), so `enc` and `hash.blake3` private helpers were

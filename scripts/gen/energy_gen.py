@@ -47,10 +47,18 @@ def core(r, profile=None):
     m.update({'budget_remaining_uj': r[14], 'budget_uj': r[15], 'steward': r[16]})
     if r[17]: m['chain_ids'] = list(r[17])
     return m
-PROT = canon({1: -8}); assert PROT == bytes([0xa1, 1, 0x27])
-def sigs(payload): return canon(['Signature1', PROT, b'', payload])
-def env(payload, kid, sig): return canon(cbor2.CBORTag(18, [PROT, {4: kid.encode()}, payload, sig]))
-def sign(seed, payload): return Ed25519PrivateKey.from_private_bytes(bytes.fromhex(seed)).sign(sigs(payload))
+def prot(kid): return canon({1: -8, 4: kid.encode()})
+def sigs(payload, kid): return canon(['Signature1', prot(kid), b'', payload])
+def env(payload, kid, sig): return canon(cbor2.CBORTag(18, [prot(kid), {}, payload, sig]))
+def sign(seed, payload, kid): return Ed25519PrivateKey.from_private_bytes(bytes.fromhex(seed)).sign(sigs(payload, kid))
+import json, os
+CONF = os.path.join(os.path.dirname(os.path.abspath(__file__)), '../../vectors/energy/jcp-conformance-v1')
+def conf():
+    for f in ['vectors.json', 'legacy_jcp1.json', 'dual_ceilings.json']:
+        for r in json.load(open(os.path.join(CONF, f)))['receipts']:
+            yield f, r
+def wire_tuple(w):
+    return (w['jcp_receipt'], w['grant_id'], w['issuer'], w['subject'], w['resource'], w['action'], w.get('payload_hash', ''), w['frame_kind'], w['trust'], w['verdict'], w.get('deny_reason', ''), w['cost_uj'], w['energy_provenance'], w.get('energy_coverage') == 'Partial', w['budget_remaining_uj'], w['budget_uj'], w['steward'], w.get('chain_ids', []))
 def q(s): return '"' + s + '"'
 def rce_receipt(r):
     return 'Receipt(profile: %s, grant_id: %s, issuer: %s, subject: %s, resource: %s, action: %s, payload_hash: %s, frame_kind: %s, trust: %s, verdict: %s, deny_reason: %s, cost_uj: %d, provenance: %s, partial: %s, budget_remaining_uj: %d, budget_uj: %d, steward: %s, chain_ids: [%s])' % (
@@ -69,9 +77,9 @@ if out == 'checks':
     for s in SEEDS: print('check did_ok("%s", "%s")' % (pk(s).hex(), did(pk(s))))
     print('# derived: cores, ids, Sig_structures and envelopes (cbor2, blake3, cryptography)')
     for i, r in enumerate(S):
-        c = canon(core(r)); sg = sign(SEEDS[1], c)
+        c = canon(core(r)); sg = sign(SEEDS[1], c, r[16])
         print('check core_ok(%d, "%s", "%s")' % (i, c.hex(), blake3.blake3(c).hexdigest()))
-        print('check sigs_ok(%d, "%s")' % (i, sigs(c).hex()))
+        print('check sigs_ok(%d, "%s")' % (i, sigs(c, r[16]).hex()))
         print('check env_ok(%d, "%s", "%s")' % (i, sg.hex(), env(c, r[16], sg).hex()))
     tally = {}
     spent = {}
@@ -102,14 +110,22 @@ if out == 'checks':
     c0 = canon(core(S[0]))
     print('check rejects("non-canonical text head", "%s")' % env(c0[:1] + bytes([0x78, c0[1] & 31]) + c0[2:], S[0][16], bytes(64)).hex())
     print('check rejects("wrong kid", "%s")' % env(c0, D0, bytes(64)).hex())
-    print('check rejects("tag 98", "%s")' % canon(cbor2.CBORTag(98, [PROT, {4: S[0][16].encode()}, c0, bytes(64)])).hex())
-    print('check rejects("kid label 5", "%s")' % canon(cbor2.CBORTag(18, [PROT, {5: S[0][16].encode()}, c0, bytes(64)])).hex())
-    print('check rejects("alg -7", "%s")' % canon(cbor2.CBORTag(18, [canon({1: -7}), {4: S[0][16].encode()}, c0, bytes(64)])).hex())
+    print('check rejects("tag 98", "%s")' % canon(cbor2.CBORTag(98, [prot(S[0][16]), {}, c0, bytes(64)])).hex())
+    print('check rejects("kid label 5", "%s")' % canon(cbor2.CBORTag(18, [canon({1: -8, 5: S[0][16].encode()}), {}, c0, bytes(64)])).hex())
+    print('check rejects("kid unprotected", "%s")' % canon(cbor2.CBORTag(18, [canon({1: -8}), {4: S[0][16].encode()}, c0, bytes(64)])).hex())
+    print('check rejects("unprotected not empty", "%s")' % canon(cbor2.CBORTag(18, [prot(S[0][16]), {3: 0}, c0, bytes(64)])).hex())
+    print('check rejects("alg -7", "%s")' % canon(cbor2.CBORTag(18, [canon({1: -7, 4: S[0][16].encode()}), {}, c0, bytes(64)])).hex())
+    print('# JCP conformance/v1 (official): open, published core, wire fields, re-mint')
+    for f, r in conf():
+        core = cbor2.loads(cbor2.loads(bytes.fromhex(r['envelope_hex'])).value[2])
+        assert core == r['wire']
+        c = cbor2.loads(bytes.fromhex(r['envelope_hex'])).value[2]
+        print('check conf_ok("%s", "%s", %s)' % (r['envelope_hex'], c.hex(), rce_receipt(wire_tuple(r['wire']))))
 else:
     # host checks: one Ed25519 operation per event
-    c0 = canon(core(S[0])); sg0 = sign(SEEDS[1], c0)
+    c0 = canon(core(S[0])); sg0 = sign(SEEDS[1], c0, S[0][16])
     e0 = env(c0, S[0][16], sg0)
-    c4 = canon(core(S[4])); e4 = env(c4, S[4][16], sign(SEEDS[1], c4))
+    c4 = canon(core(S[4])); e4 = env(c4, S[4][16], sign(SEEDS[1], c4, S[4][16]))
     tampered = canon(core(S[0][:6] + (P[5],) + S[0][7:]))
     def count(cond): return '    if %s\n        good += 1\n    else\n        bad += 1' % cond
     def vstep(name, e, want):
@@ -120,5 +136,11 @@ else:
     print('# payload substitution (C23): same signature over a different payload_hash')
     print(vstep('Substituted', env(tampered, S[0][16], sg0), False))
     print('# wrong steward (C5): signed by the RFC 8032 test 1 key, steward is test 2')
-    print(vstep('WrongSigner', env(c0, S[0][16], sign(SEEDS[0], c0)), False))
+    print(vstep('WrongSigner', env(c0, S[0][16], sign(SEEDS[0], c0, S[0][16])), False))
+    mpk = json.load(open(os.path.join(CONF, 'meta.json')))['pubkey_hex']
+    print('# JCP conformance/v1 (official): every published envelope verifies under meta.json pubkey_hex')
+    for i, (f, r) in enumerate(conf()):
+        print('step H on Conf%d\n    let e = hexb("%s")\n    let k = hexb("%s")\n' % (i, r['envelope_hex'], mpk) + count('verify_with(&e, &k)'))
+    e = bytearray(bytes.fromhex(next(conf())[1]['envelope_hex'])); e[-1] ^= 1
+    print('step H on ConfFlipped\n    let e = hexb("%s")\n    let k = hexb("%s")\n' % (e.hex(), mpk) + count('not verify_with(&e, &k)'))
     print('step H on SealWrongSeed\n    let r = sample(0)\n' + count('(seal_receipt(&r, "%s") catch [7]) == [7]' % SEEDS[0]))
