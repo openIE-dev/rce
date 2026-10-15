@@ -305,3 +305,55 @@ are not reconciled in the spec. Handlers in the Koka/OCaml sense
 so this module offers effects as data instead. W-HOST-1 result events
 must be declared by the program (see io).
 
+## net (`lib/net/url.rce`, `lib/net/http.rce`, `lib/net/dns.rce`)
+
+Pure codecs only (survey M25). Anything that moves bytes needs a host
+binding and is not here: there is no UDP adapter in rce 0.1.3 (DNS
+resolution), the TCP adapter (`NetConnect`/`NetSend`/`NetRecv`) is used
+through the io request/result pattern by the program, and TLS is the
+host's (`--tls`). Connection management (keep-alive, pipelining,
+timeouts) is program state over those events and is left to a later
+module once the bindings are specified.
+
+- **net.url, official:** `vectors/net/urltestdata.json`, web-platform-tests/wpt
+  at c48d58747e1f211527fb695fd60548a997fae617 (2026-09-19),
+  url/resources/urltestdata.json, sha256 81e85fd3c199c08e.... All 896
+  tests become checks (href and the nine getters, or failure), generated
+  by `scripts/gen/url_gen.py` into `tests/net/url_checks.rce`: 816 must
+  match exactly; 80 tests that may need UTS #46 (non-ASCII, `xn--` or a
+  percent-encoded non-ASCII byte in input or base) accept the WPT answer
+  or the module's explicit IDNA refusal, and 40 of those match exactly
+  (the other 40 are refused as IDNA). So 856 of 896 WPT tests pass
+  exactly and none gives a wrong answer. Plus 2 derived IPv4 checks.
+  898 checks.
+- **net.http, derived and cross-checked:** `scripts/gen/http_gen.py`, a
+  Python model of the module's RFC 9112 rules (seed 25): 47 fixed cases
+  (framing, chunked with extensions and trailers, every strict refusal,
+  1xx/204/304/HEAD, close-delimited bodies, partial input) and 60 random
+  ones; each accepted message is also parsed by h11 0.16.0, which agrees
+  on 68 and differs on 4 where h11 is stricter (it rejects a leading
+  empty line, "Content-Length: 5, 5", a non-chunked response coding, and
+  whitespace before a chunk extension; RFC 9112 2.2, 6.3 and 7.1.1 allow
+  them). 7 serializations, 5 chunkings, header joining, refused
+  serializations (bad method, status 99, CRLF in a value). 121 checks.
+- **net.dns, derived and cross-checked:** `scripts/gen/dns_gen.py` with
+  dnspython 2.9.0 (seed 53): 40 random messages (A, AAAA, NS, CNAME,
+  PTR, MX, SOA, TXT, SRV; names with escapes and specials) written by
+  dnspython with compression, decoded to dnspython's own reading of the
+  wire, and re-encoded byte for byte to an uncompressed form dnspython
+  reads back as the same message; 10 names each way, 7 refused names, 14
+  malformed wires dnspython also refuses, 7 pointer and length edge
+  cases (forward pointer, 128 vs 130 hops, label types 01/10, 255 vs 256
+  bytes), flags, a query and rdata builders. 133 checks.
+- `scripts/mut/net.py`: 50 of 50 mutants killed (four equivalent
+  mutants removed: "#" in the query set, "0X", "@" vs "%40" in userinfo,
+  the port overflow guard).
+
+Needs spec or data: UTS #46 (IDNA mapping, validity and Punycode label
+checks) for non-ASCII and `xn--` hosts; building text from arbitrary
+bytes, so HTTP field values with obs-text (bytes 0x80-0xFF) are refused
+and DNS label bytes are kept as \DDD; the WHATWG URL setters
+(setters_tests.json) and application/x-www-form-urlencoded are not done
+yet; host bindings for UDP (DNS) and a connection/stream binding for
+HTTP over TCP and TLS.
+

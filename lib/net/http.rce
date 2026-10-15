@@ -1,0 +1,482 @@
+module net.http
+
+# HTTP/1.1 messages (RFC 9112, survey M25 pure part): parse and serialize
+# requests and responses over bytes (List[i64], 0..255), with message
+# body framing (RFC 9112 6) and chunked transfer coding (7.1). Strict
+# where the RFC lets a recipient choose: lines end in CRLF (a bare CR or
+# LF is refused), obs-fold is refused (5.2), whitespace before a field
+# colon is refused (5.1), Transfer-Encoding together with Content-Length
+# is refused (6.1, request smuggling), differing Content-Length values
+# are refused (6.3). Field values must be ASCII (obs-text needs text built
+# from bytes, which RCE 0.1.3 cannot do). No socket here: a connection is
+# the io module's request/result pattern; parse fails with a why that
+# starts "incomplete" when more bytes are needed.
+
+error BadHttp(why: text)
+
+pub struct Message
+    request: bool
+    method: text
+    target: text
+    major: i64
+    minor: i64
+    status: i64
+    reason: text
+    names: List[text]
+    values: List[text]
+    body: List[i64]
+    trailer_names: List[text]
+    trailer_values: List[text]
+    used: i64
+
+pub fn message_empty() -> Message = Message(request: true, method: "", target: "", major: 1, minor: 1, status: 0, reason: "", names: [], values: [], body: [], trailer_names: [], trailer_values: [], used: 0)
+
+const HT_ASCII: text = " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~"
+
+fn ch(x: i64) -> text = copy(HT_ASCII.chars()[(x - 32) as usize])
+
+fn tchar(c: i64) -> bool
+    if (c >= 48 and c <= 57) or (c >= 65 and c <= 90) or (c >= 97 and c <= 122)
+        return true
+    return c == 33 or c == 35 or c == 36 or c == 37 or c == 38 or c == 39 or c == 42 or c == 43 or c == 45 or c == 46 or c == 94 or c == 95 or c == 96 or c == 124 or c == 126
+
+fn vchar(c: i64) -> bool = c >= 33 and c <= 126
+
+fn lower(t: &text) -> text
+    var o = ""
+    for c in t.chars()
+        let x = c[0] as i64
+        o = o + (if x >= 65 and x <= 90 then ch(x + 32) else c)
+    return o
+
+pub fn bytes_of(t: &text) -> List[i64]
+    var o: List[i64] = []
+    var i: usize = 0
+    while i < t.len() bound 16777216
+        o.push(t[i] as i64)
+        i += 1
+    return o
+
+# Index of the CRLF ending the line that starts at i, or -1 when the
+# buffer ends first. A bare CR or LF is refused.
+fn line_end(b: &[i64], i: usize) -> i64 ! BadHttp
+    var k = i
+    while k < b.len() bound 16777216
+        if b[k] == 13
+            if k + 1 >= b.len()
+                return -1
+            if b[k + 1] != 10
+                fail BadHttp(why: "bare CR")
+            return k as i64
+        if b[k] == 10
+            fail BadHttp(why: "bare LF")
+        k += 1
+    return -1
+
+fn ascii_text(b: &[i64], lo: usize, hi: usize) -> text ! BadHttp
+    var o = ""
+    var k = lo
+    while k < hi bound 16777216
+        let x = b[k]
+        if x == 9
+            o = o + "\t"
+        elif x < 32 or x > 126
+            fail BadHttp(why: "not ASCII text")
+        else
+            o = o + ch(x)
+        k += 1
+    return o
+
+fn version(t: &text, m: &mut Message) -> bool
+    let cs = t.chars()
+    if cs.len() != 8 or not t.startswith("HTTP/") or cs[6] != "."
+        return false
+    let a = cs[5][0] as i64
+    let b = cs[7][0] as i64
+    if a < 48 or a > 57 or b < 48 or b > 57
+        return false
+    m.major = a - 48
+    m.minor = b - 48
+    return true
+
+fn split_sp(t: &text) -> List[text]
+    var parts: List[text] = []
+    var cur = ""
+    for c in t.chars()
+        if c == " "
+            parts.push(cur)
+            cur = ""
+        else
+            cur = cur + c
+    parts.push(cur)
+    return parts
+
+fn start_line(t: &text, m: &mut Message, req: bool) -> bool ! BadHttp
+    if req
+        let ps = split_sp(t)
+        if ps.len() != 3 or ps[0] == "" or ps[1] == ""
+            fail BadHttp(why: "request line")
+        for c in ps[0].chars()
+            if not tchar(c[0] as i64)
+                fail BadHttp(why: "method")
+        for c in ps[1].chars()
+            if not vchar(c[0] as i64)
+                fail BadHttp(why: "target")
+        if not version(&ps[2], m)
+            fail BadHttp(why: "version")
+        m.method = copy(ps[0])
+        m.target = copy(ps[1])
+        return true
+    # status-line = HTTP-version SP status-code SP [ reason-phrase ]
+    let cs = t.chars()
+    if cs.len() < 12 or cs[8] != " "
+        fail BadHttp(why: "status line")
+    var v = ""
+    var i: usize = 0
+    while i < 8 bound 8
+        v = v + cs[i]
+        i += 1
+    if not version(&v, m)
+        fail BadHttp(why: "version")
+    var s: i64 = 0
+    var k: usize = 9
+    while k < 12 bound 3
+        let x = cs[k][0] as i64
+        if x < 48 or x > 57
+            fail BadHttp(why: "status code")
+        s = s * 10 + x - 48
+        k += 1
+    if cs.len() > 12 and cs[12] != " "
+        fail BadHttp(why: "status line")
+    var r = ""
+    var j: usize = 13
+    while j < cs.len() bound 16777216
+        r = r + cs[j]
+        j += 1
+    m.status = s
+    m.reason = r
+    m.request = false
+    return true
+
+fn trim_ows(t: &text) -> text
+    let cs = t.chars()
+    var lo: usize = 0
+    var hi = cs.len()
+    while lo < hi and (cs[lo] == " " or cs[lo] == "\t") bound 16777216
+        lo += 1
+    while hi > lo and (cs[hi - 1] == " " or cs[hi - 1] == "\t") bound 16777216
+        hi -= 1
+    var o = ""
+    var i = lo
+    while i < hi bound 16777216
+        o = o + cs[i]
+        i += 1
+    return o
+
+# One field line "name: value" into names/values.
+fn field(t: &text, names: &mut List[text], values: &mut List[text]) -> bool ! BadHttp
+    let cs = t.chars()
+    if cs.len() > 0 and (cs[0] == " " or cs[0] == "\t")
+        fail BadHttp(why: "obs-fold")
+    var name = ""
+    var i: usize = 0
+    while i < cs.len() and cs[i] != ":" bound 16777216
+        if not tchar(cs[i][0] as i64)
+            fail BadHttp(why: "field name")
+        name = name + cs[i]
+        i += 1
+    if i >= cs.len() or name == ""
+        fail BadHttp(why: "field line")
+    var v = ""
+    var j = i + 1
+    while j < cs.len() bound 16777216
+        v = v + cs[j]
+        j += 1
+    names.push(name)
+    values.push(trim_ows(&v))
+    return true
+
+# The value of a field (case-insensitive name): the field values joined
+# with ", " (RFC 9110 5.3), or none.
+pub fn header(names: &[text], values: &[text], name: &text) -> text?
+    let want = lower(name)
+    var found = false
+    var o = ""
+    for i in 0..names.len()
+        if lower(&names[i]) == want
+            o = if found then o + ", " + values[i] else copy(values[i])
+            found = true
+    return if found then some(o) else none
+
+fn list_items(v: &text) -> List[text]
+    var out: List[text] = []
+    var cur = ""
+    for c in v.chars()
+        if c == ","
+            out.push(trim_ows(&cur))
+            cur = ""
+        else
+            cur = cur + c
+    out.push(trim_ows(&cur))
+    return out
+
+fn dec(t: &text) -> i64
+    if t == "" or t.len() > 15
+        return -1
+    var v: i64 = 0
+    for c in t.chars()
+        let x = c[0] as i64
+        if x < 48 or x > 57
+            return -1
+        v = v * 10 + x - 48
+    return v
+
+fn hexnum(t: &text) -> i64
+    if t == "" or t.len() > 15
+        return -1
+    var v: i64 = 0
+    for c in t.chars()
+        let x = c[0] as i64
+        var d: i64 = -1
+        if x >= 48 and x <= 57
+            d = x - 48
+        elif x >= 97 and x <= 102
+            d = x - 87
+        elif x >= 65 and x <= 70
+            d = x - 55
+        if d < 0
+            return -1
+        v = v * 16 + d
+    return v
+
+# Head: start line and fields, ending at the empty line. Returns the
+# offset after it. Leading empty lines before a request are skipped (2.2).
+fn head(b: &[i64], m: &mut Message, req: bool) -> i64 ! BadHttp
+    var i: usize = 0
+    if req
+        while i + 1 < b.len() and b[i] == 13 and b[i + 1] == 10 bound 16
+            i += 2
+    let e = try line_end(b, i)
+    if e < 0
+        return -1
+    let sl = try ascii_text(b, i, e as usize)
+    let x = try start_line(&sl, m, req)
+    i = (e + 2) as usize
+    while true bound 16777216
+        let f = try line_end(b, i)
+        if f < 0
+            return -1
+        if f as usize == i
+            return (i + 2) as i64
+        let t = try ascii_text(b, i, f as usize)
+        var ns = copy(m.names)
+        var vs = copy(m.values)
+        let y = try field(&t, &mut ns, &mut vs)
+        m.names = ns
+        m.values = vs
+        i = (f + 2) as usize
+    return -1
+
+fn chunked(b: &[i64], start: usize, m: &mut Message) -> i64 ! BadHttp
+    var i = start
+    var body: List[i64] = []
+    while true bound 16777216
+        let e = try line_end(b, i)
+        if e < 0
+            return -1
+        let line = try ascii_text(b, i, e as usize)
+        var size = ""
+        for c in line.chars()
+            if c == ";" or c == " " or c == "\t"
+                break
+            size = size + c
+        let n = hexnum(&size)
+        if n < 0
+            fail BadHttp(why: "chunk size")
+        i = (e + 2) as usize
+        if n == 0
+            while true bound 16777216
+                let f = try line_end(b, i)
+                if f < 0
+                    return -1
+                if f as usize == i
+                    m.body = body
+                    return (i + 2) as i64
+                let t = try ascii_text(b, i, f as usize)
+                var ns = copy(m.trailer_names)
+                var vs = copy(m.trailer_values)
+                let y = try field(&t, &mut ns, &mut vs)
+                m.trailer_names = ns
+                m.trailer_values = vs
+                i = (f + 2) as usize
+        if i + (n as usize) + 2 > b.len()
+            return -1
+        var k: usize = 0
+        while k < n as usize bound 16777216
+            body.push(b[i + k])
+            k += 1
+        i += n as usize
+        if b[i] != 13 or b[i + 1] != 10
+            fail BadHttp(why: "chunk end")
+        i += 2
+    return -1
+
+# Parse one message from the front of b. `eof` says the peer closed the
+# connection (a response without a length then ends there). `head_req`
+# says the response answers a HEAD request (no body). BadHttp(why:
+# "incomplete ...") when b holds only part of the message.
+pub fn parse_message(b: &[i64], req: bool, head_req: bool, eof: bool) -> Message ! BadHttp
+    var m = message_empty()
+    m.request = req
+    let h = try head(b, &mut m, req)
+    if h < 0
+        fail BadHttp(why: "incomplete head")
+    let ten = "transfer-encoding"
+    let cln = "content-length"
+    let te = header(&m.names, &m.values, &ten)
+    let cl = header(&m.names, &m.values, &cln)
+    let no_body = not req and (head_req or (m.status >= 100 and m.status < 200) or m.status == 204 or m.status == 304)
+    if no_body
+        m.used = h
+        return m
+    if te != none
+        if cl != none
+            fail BadHttp(why: "both Transfer-Encoding and Content-Length")
+        let tv = te.or("")
+        let items = list_items(&tv)
+        if lower(&items[items.len() - 1]) != "chunked"
+            if req
+                fail BadHttp(why: "transfer coding")
+            # a response: read until close (6.3 rule 4)
+            if not eof
+                fail BadHttp(why: "incomplete close")
+            m.body = rest(b, h as usize)
+            m.used = b.len() as i64
+            return m
+        for k in 0..items.len() - 1
+            if lower(&items[k]) == "chunked"
+                fail BadHttp(why: "chunked twice")
+        if items.len() > 1
+            fail BadHttp(why: "unsupported transfer coding")
+        let used = try chunked(b, h as usize, &mut m)
+        if used < 0
+            fail BadHttp(why: "incomplete chunk")
+        m.used = used
+        return m
+    if cl != none
+        let cv = cl.or("")
+        let items = list_items(&cv)
+        let n = dec(&items[0])
+        for it in items
+            if dec(&it) != n
+                fail BadHttp(why: "Content-Length")
+        if n < 0
+            fail BadHttp(why: "Content-Length")
+        if (h as usize) + (n as usize) > b.len()
+            fail BadHttp(why: "incomplete body")
+        var body: List[i64] = []
+        var k: usize = 0
+        while k < n as usize bound 16777216
+            body.push(b[(h as usize) + k])
+            k += 1
+        m.body = body
+        m.used = h + n
+        return m
+    if req
+        m.used = h
+        return m
+    if not eof
+        fail BadHttp(why: "incomplete close")
+    m.body = rest(b, h as usize)
+    m.used = b.len() as i64
+    return m
+
+fn rest(b: &[i64], i: usize) -> List[i64]
+    var o: List[i64] = []
+    var k = i
+    while k < b.len() bound 16777216
+        o.push(b[k])
+        k += 1
+    return o
+
+# ---------------- serialization ----------------
+
+fn put(o: &mut List[i64], t: &text)
+    var i: usize = 0
+    while i < t.len() bound 16777216
+        o.push(t[i] as i64)
+        i += 1
+
+# Serialize with the given fields in order, then Content-Length of the
+# body unless a Content-Length or Transfer-Encoding field is given or the
+# message has no body by its status. The body is written as is (a caller
+# that set Transfer-Encoding: chunked passes chunked bytes, see chunk).
+pub fn serialize(m: &Message) -> List[i64] ! BadHttp
+    var o: List[i64] = []
+    if m.request
+        for c in m.method.chars()
+            if not tchar(c[0] as i64)
+                fail BadHttp(why: "method")
+        let line = m.method + " " + m.target + " HTTP/" + m.major.tostr() + "." + m.minor.tostr() + "\r\n"
+        put(&mut o, &line)
+    else
+        if m.status < 100 or m.status > 999
+            fail BadHttp(why: "status code")
+        let line = "HTTP/" + m.major.tostr() + "." + m.minor.tostr() + " " + m.status.tostr() + " " + m.reason + "\r\n"
+        put(&mut o, &line)
+    var framed = false
+    for i in 0..m.names.len()
+        for c in m.names[i].chars()
+            if not tchar(c[0] as i64)
+                fail BadHttp(why: "field name")
+        for c in m.values[i].chars()
+            let x = c[0] as i64
+            if c.len() != 1 or (x < 32 and x != 9) or x == 127
+                fail BadHttp(why: "field value")
+        let l = lower(&m.names[i])
+        if l == "content-length" or l == "transfer-encoding"
+            framed = true
+        let line = m.names[i] + ": " + m.values[i] + "\r\n"
+        put(&mut o, &line)
+    let bodyless = not m.request and ((m.status >= 100 and m.status < 200) or m.status == 204 or m.status == 304)
+    if not framed and not bodyless and (not m.request or m.body.len() > 0)
+        let line = "Content-Length: " + m.body.len().tostr() + "\r\n"
+        put(&mut o, &line)
+    let crlf = "\r\n"
+    put(&mut o, &crlf)
+    for x in m.body
+        o.push(x)
+    return o
+
+fn hexlow(n: i64) -> text
+    if n == 0
+        return "0"
+    let hs = "0123456789abcdef".chars()
+    var o = ""
+    var x = n
+    while x > 0 bound 16
+        o = copy(hs[(x & 15) as usize]) + o
+        x = x >> 4
+    return o
+
+# Chunked transfer coding of data in chunks of at most size bytes, with
+# the last chunk and an empty trailer.
+pub fn chunk(data: &[i64], size: i64) -> List[i64]
+    var o: List[i64] = []
+    let sz = if size < 1 then 1 else size
+    var i: i64 = 0
+    let n = data.len() as i64
+    while i < n bound 16777216
+        let k = if n - i < sz then n - i else sz
+        let line = hexlow(k) + "\r\n"
+        put(&mut o, &line)
+        var j: i64 = 0
+        while j < k bound 16777216
+            o.push(data[(i + j) as usize])
+            j += 1
+        let crlf = "\r\n"
+        put(&mut o, &crlf)
+        i += k
+    let last = "0\r\n\r\n"
+    put(&mut o, &last)
+    return o

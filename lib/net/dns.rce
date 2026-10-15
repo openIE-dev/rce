@@ -1,0 +1,365 @@
+module net.dns
+
+# DNS messages (RFC 1035 section 4, survey M25 pure part): encode and
+# decode over bytes (List[i64]). Names are text in presentation form
+# (RFC 1035 5.1): labels joined by ".", a label byte that is not
+# printable ASCII written \DDD, and the specials " $ ( ) . ; @ \ escaped
+# with a backslash (as BIND and dnspython write them); the root is ".".
+# Decoding follows compression pointers (4.1.4) only backwards, at most 128 of them, and refuses names over 255
+# bytes, labels over 63, and the reserved label types 01 and 10. Record
+# data of NS, CNAME, PTR, MX, SOA and SRV is returned uncompressed (names
+# expanded), so it compares and re-encodes the same; other types are
+# kept as bytes. Encoding writes no compression (always valid). No
+# resolver here: sending a query is an io request through a host
+# adapter (no UDP adapter exists in rce 0.1.3).
+
+error BadDns(why: text)
+
+pub struct Question
+    name: text
+    qtype: i64
+    qclass: i64
+
+pub struct Record
+    name: text
+    rtype: i64
+    rclass: i64
+    ttl: i64
+    rdata: List[i64]
+
+pub struct Dns
+    id: i64
+    flags: i64
+    questions: List[Question]
+    answers: List[Record]
+    authority: List[Record]
+    additional: List[Record]
+
+pub const A: i64 = 1
+pub const NS: i64 = 2
+pub const CNAME: i64 = 5
+pub const SOA: i64 = 6
+pub const PTR: i64 = 12
+pub const MX: i64 = 15
+pub const TXT: i64 = 16
+pub const AAAA: i64 = 28
+pub const SRV: i64 = 33
+pub const IN: i64 = 1
+
+const DN_ASCII: text = " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~"
+
+fn dch(x: i64) -> text = copy(DN_ASCII.chars()[(x - 32) as usize])
+
+fn d3(x: i64) -> text = (x / 100).tostr() + ((x / 10) % 10).tostr() + (x % 10).tostr()
+
+# ---------------- flags ----------------
+
+pub fn qr(f: i64) -> bool = (f >> 15) & 1 == 1
+pub fn opcode(f: i64) -> i64 = (f >> 11) & 15
+pub fn aa(f: i64) -> bool = (f >> 10) & 1 == 1
+pub fn tc(f: i64) -> bool = (f >> 9) & 1 == 1
+pub fn rd(f: i64) -> bool = (f >> 8) & 1 == 1
+pub fn ra(f: i64) -> bool = (f >> 7) & 1 == 1
+pub fn rcode(f: i64) -> i64 = f & 15
+
+pub fn make_flags(is_qr: bool, op: i64, is_aa: bool, is_tc: bool, is_rd: bool, is_ra: bool, rc: i64) -> i64
+    var f = (op & 15) << 11 | (rc & 15)
+    if is_qr
+        f = f | 32768
+    if is_aa
+        f = f | 1024
+    if is_tc
+        f = f | 512
+    if is_rd
+        f = f | 256
+    if is_ra
+        f = f | 128
+    return f
+
+# ---------------- names ----------------
+
+# Wire labels of a presentation name (without compression).
+pub fn name_wire(n: &text) -> List[i64] ! BadDns
+    var out: List[i64] = []
+    if n == "." or n == ""
+        out.push(0)
+        return out
+    let cs = n.chars()
+    var lab: List[i64] = []
+    var i: usize = 0
+    var labels: List[List[i64]] = []
+    while i < cs.len() bound 16777216
+        let c = copy(cs[i])
+        if c.len() != 1
+            fail BadDns(why: "non-ASCII name")
+        if c == "\\"
+            if i + 1 >= cs.len()
+                fail BadDns(why: "escape")
+            let d = cs[i + 1][0] as i64
+            if d >= 48 and d <= 57
+                if i + 3 >= cs.len() + 0 and i + 4 > cs.len()
+                    fail BadDns(why: "escape")
+                var v: i64 = 0
+                for k in 1..4
+                    let x = cs[i + k][0] as i64
+                    if x < 48 or x > 57
+                        fail BadDns(why: "escape")
+                    v = v * 10 + x - 48
+                if v > 255
+                    fail BadDns(why: "escape")
+                lab.push(v)
+                i += 4
+            else
+                lab.push(d)
+                i += 2
+        elif c == "."
+            if lab.len() == 0
+                fail BadDns(why: "empty label")
+            labels.push(lab)
+            lab = []
+            i += 1
+        else
+            lab.push(c[0] as i64)
+            i += 1
+    if lab.len() > 0
+        labels.push(lab)
+    for l in labels
+        if l.len() > 63
+            fail BadDns(why: "label over 63")
+        out.push(l.len() as i64)
+        for x in l
+            out.push(x)
+    out.push(0)
+    if out.len() > 255
+        fail BadDns(why: "name over 255")
+    return out
+
+fn label_text(b: &[i64], lo: usize, n: usize) -> text
+    var o = ""
+    var k: usize = 0
+    while k < n bound 64
+        let x = b[lo + k]
+        if x == 34 or x == 36 or x == 40 or x == 41 or x == 46 or x == 59 or x == 64 or x == 92
+            o = o + "\\" + dch(x)
+        elif x > 32 and x < 127
+            o = o + dch(x)
+        else
+            o = o + "\\" + d3(x)
+        k += 1
+    return o
+
+pub struct NameAt
+    name: text
+    next: i64
+
+# The name at offset off of message b, and the offset after it.
+pub fn read_name(b: &[i64], off: i64) -> NameAt ! BadDns
+    var p = off
+    var next: i64 = -1
+    var hops: i64 = 0
+    var limit = off
+    var o = ""
+    var wire: i64 = 1
+    while true bound 16777216
+        if p < 0 or p >= b.len() as i64
+            fail BadDns(why: "name out of bounds")
+        let l = b[p as usize]
+        if l & 192 == 192
+            if p + 1 >= b.len() as i64
+                fail BadDns(why: "name out of bounds")
+            let t = ((l & 63) << 8) | b[(p + 1) as usize]
+            if next < 0
+                next = p + 2
+            if t >= limit
+                fail BadDns(why: "forward pointer")
+            hops += 1
+            if hops > 128
+                fail BadDns(why: "pointer loop")
+            limit = t
+            p = t
+            continue
+        if l & 192 != 0
+            fail BadDns(why: "label type")
+        if l == 0
+            if next < 0
+                next = p + 1
+            return NameAt(name: if o == "" then "." else o, next: next)
+        if p + 1 + l > b.len() as i64
+            fail BadDns(why: "name out of bounds")
+        wire += l + 1
+        if wire > 255
+            fail BadDns(why: "name over 255")
+        o = o + label_text(b, (p + 1) as usize, l as usize) + "."
+        p += l + 1
+    fail BadDns(why: "name")
+
+# ---------------- messages ----------------
+
+fn u16(b: &[i64], p: i64) -> i64 ! BadDns
+    if p < 0 or p + 2 > b.len() as i64
+        fail BadDns(why: "truncated")
+    return b[p as usize] * 256 + b[(p + 1) as usize]
+
+fn push16(o: &mut List[i64], v: i64)
+    o.push((v >> 8) & 255)
+    o.push(v & 255)
+
+fn push32(o: &mut List[i64], v: i64)
+    push16(o, (v >> 16) & 65535)
+    push16(o, v & 65535)
+
+fn cat(o: &mut List[i64], b: &[i64])
+    for x in b
+        o.push(x)
+
+fn slice(b: &[i64], lo: i64, n: i64) -> List[i64]
+    var o: List[i64] = []
+    var k: i64 = 0
+    while k < n bound 16777216
+        o.push(b[(lo + k) as usize])
+        k += 1
+    return o
+
+# Record data with names expanded, for the types that hold names.
+fn rdata_of(b: &[i64], t: i64, p: i64, n: i64) -> List[i64] ! BadDns
+    let end = p + n
+    if t == NS or t == CNAME or t == PTR or t == MX or t == SOA or t == SRV
+        var o: List[i64] = []
+        var q = p
+        let fixed_before = if t == MX then 2 else (if t == SRV then 6 else 0)
+        let pre = slice(b, q, fixed_before)
+        cat(&mut o, &pre)
+        q += fixed_before
+        let r = try read_name(b, q)
+        let w = try name_wire(&r.name)
+        cat(&mut o, &w)
+        q = r.next
+        if t == SOA
+            let r2 = try read_name(b, q)
+            let w2 = try name_wire(&r2.name)
+            cat(&mut o, &w2)
+            q = r2.next
+            if q + 20 != end
+                fail BadDns(why: "rdata length")
+            let tail = slice(b, q, 20)
+            cat(&mut o, &tail)
+            return o
+        if q != end
+            fail BadDns(why: "rdata length")
+        return o
+    if t == A and n != 4
+        fail BadDns(why: "A length")
+    if t == AAAA and n != 16
+        fail BadDns(why: "AAAA length")
+    return slice(b, p, n)
+
+fn read_records(b: &[i64], p0: i64, count: i64, out: &mut List[Record]) -> i64 ! BadDns
+    var p = p0
+    var k: i64 = 0
+    while k < count bound 65536
+        let r = try read_name(b, p)
+        p = r.next
+        let t = try u16(b, p)
+        let c = try u16(b, p + 2)
+        let hi = try u16(b, p + 4)
+        let lo = try u16(b, p + 6)
+        let n = try u16(b, p + 8)
+        p += 10
+        if p + n > b.len() as i64
+            fail BadDns(why: "truncated")
+        let d = try rdata_of(b, t, p, n)
+        out.push(Record(name: copy(r.name), rtype: t, rclass: c, ttl: hi * 65536 + lo, rdata: d))
+        p += n
+        k += 1
+    return p
+
+pub fn decode(b: &[i64]) -> Dns ! BadDns
+    for x in b
+        if x < 0 or x > 255
+            fail BadDns(why: "not bytes")
+    let id = try u16(b, 0)
+    let fl = try u16(b, 2)
+    let qd = try u16(b, 4)
+    let an = try u16(b, 6)
+    let ns = try u16(b, 8)
+    let ar = try u16(b, 10)
+    var p: i64 = 12
+    var qs: List[Question] = []
+    var k: i64 = 0
+    while k < qd bound 65536
+        let r = try read_name(b, p)
+        let t = try u16(b, r.next)
+        let c = try u16(b, r.next + 2)
+        qs.push(Question(name: copy(r.name), qtype: t, qclass: c))
+        p = r.next + 4
+        k += 1
+    var a1: List[Record] = []
+    var a2: List[Record] = []
+    var a3: List[Record] = []
+    p = try read_records(b, p, an, &mut a1)
+    p = try read_records(b, p, ns, &mut a2)
+    p = try read_records(b, p, ar, &mut a3)
+    if p != b.len() as i64
+        fail BadDns(why: "trailing bytes")
+    return Dns(id: id, flags: fl, questions: qs, answers: a1, authority: a2, additional: a3)
+
+fn put_records(o: &mut List[i64], rs: &[Record]) -> bool ! BadDns
+    for r in rs
+        let w = try name_wire(&r.name)
+        cat(o, &w)
+        push16(o, r.rtype)
+        push16(o, r.rclass)
+        push32(o, r.ttl)
+        if r.rdata.len() > 65535
+            fail BadDns(why: "rdata over 65535")
+        push16(o, r.rdata.len() as i64)
+        cat(o, &r.rdata)
+    return true
+
+pub fn encode(m: &Dns) -> List[i64] ! BadDns
+    var o: List[i64] = []
+    push16(&mut o, m.id & 65535)
+    push16(&mut o, m.flags & 65535)
+    push16(&mut o, m.questions.len() as i64)
+    push16(&mut o, m.answers.len() as i64)
+    push16(&mut o, m.authority.len() as i64)
+    push16(&mut o, m.additional.len() as i64)
+    for q in m.questions
+        let w = try name_wire(&q.name)
+        cat(&mut o, &w)
+        push16(&mut o, q.qtype)
+        push16(&mut o, q.qclass)
+    let x = try put_records(&mut o, &m.answers)
+    let y = try put_records(&mut o, &m.authority)
+    let z = try put_records(&mut o, &m.additional)
+    return o
+
+# A recursive query for name and type (RD set, class IN).
+pub fn query(id: i64, name: &text, qtype: i64) -> Dns
+    return Dns(id: id, flags: 256, questions: [Question(name: copy(name), qtype: qtype, qclass: IN)], answers: [], authority: [], additional: [])
+
+# ---------------- record data helpers ----------------
+
+pub fn a_rdata(a: i64, b: i64, c: i64, d: i64) -> List[i64] = [a & 255, b & 255, c & 255, d & 255]
+
+pub fn a_text(d: &[i64]) -> text = d[0].tostr() + "." + d[1].tostr() + "." + d[2].tostr() + "." + d[3].tostr()
+
+pub fn mx_rdata(pref: i64, host: &text) -> List[i64] ! BadDns
+    var o: List[i64] = []
+    push16(&mut o, pref)
+    let w = try name_wire(host)
+    cat(&mut o, &w)
+    return o
+
+# TXT data from character-strings of at most 255 bytes each (ASCII text).
+pub fn txt_rdata(parts: &[text]) -> List[i64] ! BadDns
+    var o: List[i64] = []
+    for t in parts
+        if t.len() > 255
+            fail BadDns(why: "character-string over 255")
+        o.push(t.len() as i64)
+        var i: usize = 0
+        while i < t.len() bound 255
+            o.push(t[i] as i64)
+            i += 1
+    return o
