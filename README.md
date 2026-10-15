@@ -31,6 +31,16 @@ Honesty rules: an uncalibrated simulator predicts `None`; without a readable met
 
 Run: `cargo run -p rce-mcp -- --root DIR [--ledger FILE] [--key FILE] [--calibration FILE]`.
 
+## Binary-only releases (0.1.2 and later)
+
+From 0.1.2 on, rce-ide is published as prebuilt binaries on the
+[releases page](https://github.com/openIE-dev/rce-ide/releases). 0.1.3 and later
+are built from the private RCE engine (host runtime, `rce db`, `--media`,
+`--redact`, the chat and SFU apps) and embed the standard host libraries,
+whose source is public in [openIE-dev/rce-stdlib](https://github.com/openIE-dev/rce-stdlib).
+The source in this repository, including `vendor/rce-spec`, is the 0.1.2
+snapshot and is not what the 0.1.3+ binaries are built from.
+
 ## Install (prebuilt binaries)
 
 Release archives contain four programs: `rce-ide` (the desktop IDE, wgpu on
