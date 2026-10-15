@@ -1,7 +1,12 @@
-{"format": "rce-clauses-pending/1",
+{
+ "format": "rce-clauses-pending/1",
  "note": "Normative rules that are in force but not yet written in the book. Each carries its derivation and moves to the book through a finding; the id is kept when it does.",
- "clauses": [
-  {"id": "FUEL-1", "kind": "rule", "profile": "language", "normative": true, "chapter": "pending", "line": 0,
-   "source": "directive of 2026-10-15 (David Charlot); book text pending, see FINDINGS.md 16",
-   "text": "Fuel exhaustion is uncatchable. When the fuel of 6.7 runs out, the run or the event ends in trap(\"comptime fuel exhausted\"), whatever encloses the operation: a `with budget n ... else [as e]` block (at any n, even one not yet reached), a `par` branch, or a spawned task. No Else block runs, nothing after the exhausting operation is emitted, and the outcome is the same on every schedule."}
- ]}
+ "clauses": [],
+ "retired": [
+  {
+   "id": "FUEL-1",
+   "now": "E1",
+   "book_commit": "c613c07bf"
+  }
+ ]
+}

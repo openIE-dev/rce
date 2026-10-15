@@ -20,11 +20,11 @@ fn main()
 #--- rce-test
 # id: evaluation-fuel/targeted/fuel-1-par-branch-not-caught
 # area: evaluation-fuel
-# clauses: [FUEL-1, T16, HC-7]
+# clauses: [E1, T16, HC-7]
 # expect: run
 # fuel: 5000
 # schedule_seeds: [1, 2, 3]
 # outcome: trap:comptime fuel exhausted
 # outputs:
-# provenance: FUEL-1 (clauses-pending.json); expected outcome derived from the rule, controls show budget exhaustion stays catchable
+# provenance: E1 (clauses-pending.json); expected outcome derived from the rule, controls show budget exhaustion stays catchable
 #---

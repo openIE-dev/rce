@@ -40,8 +40,7 @@ See `INTERPRETING.md` for the file format and `ADAPTERS.md` for the protocol.
 
 Generated from `reports/` on the reference at joulesperbit `rce/host` (2026-10-15):
 
-- 1952 tests. Language profile: 207 of 207 normative clauses covered (100%),
-  counting FUEL-1 from `clauses-pending.json` (in force, not yet in the book).
+- 1952 tests. Language profile: 207 of 207 normative clauses covered (100%) (E1, fuel exhaustion is uncatchable, included).
   Not yet covered: the handler-spec profile (chapter 15, 14 clauses, implemented
   in `crates/rce` rather than the reference checker), tooling (7), proposed (6),
   editorial (1).

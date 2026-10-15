@@ -14,10 +14,10 @@ fn main()
 #--- rce-test
 # id: evaluation-fuel/targeted/fuel-1-budget-else-does-not-catch
 # area: evaluation-fuel
-# clauses: [FUEL-1, HC-7, T2]
+# clauses: [E1, HC-7, T2]
 # expect: run
 # fuel: 5000
 # outcome: trap:comptime fuel exhausted
 # outputs:
-# provenance: FUEL-1 (clauses-pending.json); expected outcome derived from the rule, controls show budget exhaustion stays catchable
+# provenance: E1 (clauses-pending.json); expected outcome derived from the rule, controls show budget exhaustion stays catchable
 #---

@@ -41,17 +41,10 @@ Machine-readable records are in `findings/*.json`; the tests the reference fails
     `-> trapped(<kind>)` to example syntax.
 15. **Conservative, not a bug.** The lex Merge certificate accepts only the
     expression form and integer keys. Sound but incomplete.
-16. **FUEL-1 not in the book.** Fuel exhaustion is uncatchable (directive of
-    2026-10-15), but no chapter says so; C.5 says `with budget ... else`
-    "makes exhaustion a value" without excluding fuel. Derivation: fuel is
-    the host's bound on a step (6.7, HC-7), not a resource the program
-    holds; if an Else could observe it, the value of a program would depend
-    on the host's limit and on how far a branch got before it ran out, so
-    replay (T1) and schedule independence (T16) would no longer fix the
-    outcome. Fix: add FUEL-1 to C.5 and 6.7 with the text in
-    `clauses-pending.json`. The reference already behaves this way; six
-    tests in `tests/evaluation-fuel/targeted/fuel-1-*` hold it, two of them
-    controls showing budget exhaustion stays catchable.
+16. **CLOSED. FUEL-1 not in the book.** Landed as E1 in chapter 7
+    (joulesperbit c613c07bf, derived from fuel monotonicity). Tests
+    `evaluation-fuel/targeted/fuel-1-*` now cite E1; the pending entry is
+    retired in `clauses-pending.json`.
 17. **T38 on Windows.** Reopening a torn D failed on windows-x86_64 with
     `host.StorageFault: cut: Access is denied`: the store truncated through
     its append-mode handle, which on Windows lacks write-data access. Law:
