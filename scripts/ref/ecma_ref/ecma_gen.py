@@ -1,0 +1,63 @@
+# Generates tests/ui/ecma_checks*.rce: expressions and scripts evaluated by
+# ui.ecma and by Node's V8 (scripts/ref/ecma_ref/ecma_ref.js, the live
+# reference); every case where V8 stays in the integer subset must agree.
+import json, random, subprocess, sys, os
+here = os.path.dirname(os.path.abspath(__file__))
+out = sys.argv[1]; N = int(sys.argv[2]) if len(sys.argv) > 2 else 600
+R = random.Random(53)
+HAND = [
+ ('', '1 + 2 * 3'), ('', "'a' + 1"), ('', '[].concat(1, [4])'), ('', '7 % 3'), ('', '-7 % 3'), ('', '6 / 3'),
+ ('', "'5' * '2'"), ('', "'5' - 2"), ('', "'' + null"), ('', 'null + 1'), ('', 'undefined + 1'), ('', 'true + true'),
+ ('', "'b' > 'a'"), ('', "'10' < '9'"), ('', "'10' < 9"), ('', 'null == undefined'), ('', 'null === undefined'),
+ ('', "0 == ''"), ('', "'0' == false"), ('', "[1,2] == '1,2'"), ('', 'NaN == NaN'), ('', 'typeof NaN'), ('', 'typeof null'),
+ ('', 'typeof undefinedVar'), ('', 'undefinedVar'), ('', 'undefinedVar.x'), ('', 'null.x'), ('', '({}).x'), ('', '({a: 1}).a'),
+ ('', "({'a b': 2})['a b']"), ('', '[1,2,3].length'), ('', "'abc'.length"), ('', "'abc'[1]"), ('', '[1,2,3][5]'),
+ ('', '1 | 2'), ('', '6 & 3'), ('', '5 ^ 1'), ('', '!0'), ('', '!!"x"'), ('', '1 && 2'), ('', '0 || "d"'), ('', '1 ? 2 : 3'),
+ ('', '(1, 2)'), ('', "'POST /x'.search('POST') !== -1"), ('', "'this+is+some+content'.search(/this\\+is/)"),
+ ('', "'a%20b'.search(/a%20b/)"), ('', "'aaab'.search(/a+b/)"), ('', "'xyz'.search(/q/)"), ('', "'abc'.indexOf('c')"),
+ ('', '[1,2].indexOf(2)'), ('', '[1,[2,3]].join("-")'), ('', 'new Array(1, 2).length'), ('', '[] instanceof Array'),
+ ('', '({}) instanceof Array'), ('', "'a' in {a: 1}"), ('', "'length' in [1]"), ('', '0 in [5]'), ('', '1 in [5]'),
+ ('', 'function(invar) {return invar + 1;}(2)'), ('', '1 +'), ('', '"foo'), ('', 'return'), ('', 'foo.bar.baz '),
+ ('', '++x'), ('', '5 = 1'), ('', "'a' + {}"), ('', 'String(12) + 1'), ('', 'Number("12") + 1'), ('', 'Number("1x")'),
+ ('var Var1 = 1', 'Var1'), ('var Var1 = 1; Var1 += 1', 'Var1'), ('var var1 = 0', '++var1==1'), ('var x = 1', 'x++ + x'),
+ ('var x = 1', 'x-- - x'), ('function testobject() {\n this.bar = 0;}', 'new testobject().bar'),
+ ('function testobject() {\n this.bar = 0;}', 'new testobject() instanceof testobject'),
+ ('var var1 = function(invar) {return invar + 1;}', 'var1(2) == 3'), ('var f = function(n) { if (n) { return 1 } else { return 2 } }', 'f(0) + f(1)'),
+ ('var o = {}; o.a = {b: 3}', 'o.a.b'), ('var a = [1]; a[3] = 4', 'a.length + ":" + a'), ('var a = [1]; a.push(2, 3)', 'a.join("")'),
+ ('var c = function() { var k = 5; return function() { return k; } }', 'c()()'), ('var s = "x"', 's += 1'),
+ ('var Var1 = [1,2,3]', "[].concat(Var1, [4]).join('')"), ('var e = {name: "foo", data: {aParam: 1}}', "e.data.aParam == 1 && e.name == 'foo'"),
+ ('var e = {name:"n", type:"t", sendid:"", origin:"o", origintype:"x", invokeid:"", data: undefined}', "'name' in e && 'type' in e && 'sendid' in e && 'origin' in e && 'origintype' in e && 'invokeid' in e && 'data' in e"),
+ ('var e = {}', 'typeof e.data === \'undefined\''), ('var Var4 = 0; var Var3 = 1', 'Var4==0 | Var3 != 2'),
+ ('', '{ "productName" : "bar", "size" : 27 }.size'), ('', '[1, 2, 3]'), ('', "'1.5s'"), ('var a = 1; var a', 'a'),
+ ('var x = 3; x *= 2; x -= 1', 'x'), ('', '-(-3)'), ('', '+"7"'), ('', 'void 0'), ('', '1 < 2 < 3'), ('', '"" || 0 || null'),
+]
+def rnd_e(d):
+    if d <= 0 or R.random() < 0.25:
+        return R.choice(['0', '1', '2', '7', '13', "'a'", "'b'", "''", "'3'", 'true', 'false', 'null', 'undefined', 'x', 'y', 's', 'arr', 'o.k', 'arr.length', "s.length", '[]', '[1,2]', '({})', 'NaN'])
+    k = R.randrange(9)
+    a = rnd_e(d - 1); b = rnd_e(d - 1)
+    if k < 4: return '(%s %s %s)' % (a, R.choice(['+', '-', '*', '%', '==', '===', '!=', '!==', '<', '>', '<=', '>=', '&&', '||', '|', '&', '^']), b)
+    if k == 4: return '(%s ? %s : %s)' % (a, b, rnd_e(d - 1))
+    if k == 5: return '%s(%s)' % (R.choice(['!', '-', '+', 'typeof ']), a)
+    if k == 6: return '[%s, %s]' % (a, b)
+    if k == 7: return "(%s + '')" % a
+    return '({k: %s}).k' % a
+SET = "var x = 3; var y = -2; var s = 'ab'; var arr = [1, 'q']; var o = {k: 5}"
+cases = list(HAND)
+seen = set(c[1] for c in cases)
+while len(cases) < len(HAND) + N:
+    e = rnd_e(R.randrange(1, 4))
+    if e in seen: continue
+    seen.add(e); cases.append((SET, e))
+p = subprocess.run(['node', os.path.join(here, 'ecma_ref.js')], input=''.join(json.dumps({'setup': s, 'expr': e}) + '\n' for s, e in cases), capture_output=True, text=True, check=True)
+res = [json.loads(l) for l in p.stdout.splitlines()]
+def rq(s): return '"' + s.replace('\\', '\\\\').replace('"', '\\"').replace('\n', '\\n') + '"'
+H = open(os.path.join(here, 'ecma_head.rce')).read()
+keep = [(s, e, r) for (s, e), r in zip(cases, res) if r != 'skip']
+shards = 4
+for k in range(shards):
+    with open('%s/ecma_checks%s.rce' % (out, '' if k == 0 else '_%d' % k), 'w') as w:
+        w.write('# generated by scripts/ref/ecma_ref/ecma_gen.py; do not edit\n' + H)
+        for s, e, r in keep[k::shards]:
+            w.write('check ejs(%s, %s) == %s\n' % (rq(s), rq(e), rq(r)))
+print(len(cases), 'cases,', len(keep), 'kept,', sum(1 for r in res if r == 'err'), 'errors')
