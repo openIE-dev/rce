@@ -748,6 +748,12 @@ pub mod chan {
     /// dropped (crate::tls).
     pub fn chan_adapters_tls(me: &str, peers: &[(String, [u8; 32])], id: &crate::tls::Identity) -> Result<Vec<ChanAdapter>, String> {
         let l = TcpListener::bind(me).map_err(|e| e.to_string())?;
+        chan_adapters_tls_on(l, me, peers, id)
+    }
+
+    /// As `chan_adapters_tls`, on a listener the caller already bound (for example to
+    /// port 0), so there is no window between choosing the address and listening on it.
+    pub fn chan_adapters_tls_on(l: TcpListener, me: &str, peers: &[(String, [u8; 32])], id: &crate::tls::Identity) -> Result<Vec<ChanAdapter>, String> {
         let shared: Arc<(Mutex<Shared>, Condvar)> = Default::default();
         let pins: Arc<HashMap<String, [u8; 32]>> = Arc::new(peers.iter().cloned().collect());
         let scfg = crate::tls::server_config(id, peers.iter().map(|p| p.1).collect())?;

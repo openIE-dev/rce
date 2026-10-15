@@ -2,12 +2,23 @@
 //! pinned peers exchange frames; a peer pinned to a different key gets no
 //! delivery; a plain-TCP sender is never heard; `rce host tls-id` is stable,
 //! the seed file is private and D logs only the public key.
-use rce_spec_check::adapters::chan::{chan_adapters_tls, ChanAdapter};
+use rce_spec_check::adapters::chan::{chan_adapters_tls_on, ChanAdapter};
+use std::net::TcpListener;
 use rce_spec_check::host::{Adapter, Status};
 use rce_spec_check::tls::{Identity, hex};
 use serde_json::json;
 use std::io::Write;
 
+/// A listener on a kernel-chosen port, kept open so no other process can take the
+/// port before the adapter listens on it, and its address.
+fn listen() -> (TcpListener, String) {
+    let l = TcpListener::bind("127.0.0.1:0").unwrap();
+    let a = l.local_addr().unwrap().to_string();
+    (l, a)
+}
+
+/// An address for a peer that is never listened on in-process (it is handed to a
+/// child process or only dialled).
 fn port() -> String {
     format!("127.0.0.1:{}", std::net::TcpListener::bind("127.0.0.1:0").unwrap().local_addr().unwrap().port())
 }
@@ -23,16 +34,16 @@ fn recv(a: &mut [ChanAdapter]) -> Vec<String> {
 #[test]
 fn pinned_peers_talk_and_others_do_not() {
     let (ia, ib, ic) = (Identity::from_seed([1; 32]).unwrap(), Identity::from_seed([2; 32]).unwrap(), Identity::from_seed([3; 32]).unwrap());
-    let (pa, pb, pc) = (port(), port(), port());
-    let mut a = chan_adapters_tls(&pa, &[(pb.clone(), ib.public)], &ia).unwrap();
-    let mut b = chan_adapters_tls(&pb, &[(pa.clone(), ia.public), (pc.clone(), ic.public)], &ib).unwrap();
+    let ((la, pa), (lb, pb), (lc, pc)) = (listen(), listen(), listen());
+    let mut a = chan_adapters_tls_on(la, &pa, &[(pb.clone(), ib.public)], &ia).unwrap();
+    let mut b = chan_adapters_tls_on(lb, &pb, &[(pa.clone(), ia.public), (pc.clone(), ic.public)], &ib).unwrap();
     assert_eq!(send(&mut a, &pb, 1, "over tls"), Status::Delivered);
     assert_eq!(send(&mut b, &pa, 7, "and back"), Status::Delivered);
     assert_eq!(recv(&mut b), vec![format!("{pa}\t1\tover tls")]);
     assert_eq!(recv(&mut a), vec![format!("{pb}\t7\tand back")]);
 
     // c pins the wrong key for b (a's): the handshake fails, nothing arrives
-    let mut c = chan_adapters_tls(&pc, &[(pb.clone(), ia.public)], &ic).unwrap();
+    let mut c = chan_adapters_tls_on(lc, &pc, &[(pb.clone(), ia.public)], &ic).unwrap();
     assert_ne!(send(&mut c, &pb, 2, "wrong pin"), Status::Delivered);
     // a plain TCP sender claiming to be a is not heard
     let mut s = std::net::TcpStream::connect(&pb).unwrap();
