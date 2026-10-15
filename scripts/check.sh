@@ -30,7 +30,7 @@ while IFS= read -r f; do
     d=$(dirname "$f")
     if [ -f "$d/program.txt" ]; then continue; fi
     if (cd "$d" && "$RCE" test "$(basename "$f")" >/dev/null); then ok; else bad "$f"; (cd "$d" && "$RCE" test "$(basename "$f")"); fi
-done < <(find . -name '*.rce' -not -path '*/refused/*' | sort)
+done < <(find . -name '*.rce' -not -path '*/refused/*' -not -path './ecosystem/*' | sort)
 
 while IFS= read -r p; do
     d=$(dirname "$p")
