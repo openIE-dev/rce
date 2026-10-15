@@ -233,9 +233,10 @@ def main():
     if a.known_failures:
         known = {l.split("#")[0].strip() for l in open(a.known_failures)} - {""}
         bad = {r["id"] for r in results if r["status"] in ("fail", "error")}
-        ran = {r["id"] for r in results}
+        ran = {r["id"] for r in results if r["status"] == "pass"}
         new, fixed = sorted(bad - known), sorted((known & ran) - bad)
-        for t in new: print(f"NEW FAILURE {t}")
+        det = {r["id"]: r.get("detail", "") for r in results}
+        for t in new: print(f"NEW FAILURE {t}: {det.get(t, '')[:400]}")
         for t in fixed: print(f"NOW PASSES (update the baseline and FINDINGS.md) {t}")
         sys.exit(1 if new or fixed else 0)
     sys.exit(1 if tally.get("fail") or tally.get("error") else 0)
