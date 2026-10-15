@@ -116,9 +116,17 @@ mod landlock {
     use std::os::fd::AsRawFd;
     use std::path::Path;
 
-    const CREATE_RULESET: libc::c_long = 444;
-    const ADD_RULE: libc::c_long = 445;
-    const RESTRICT_SELF: libc::c_long = 446;
+    // Landlock's numbers are 444..446 in the unified syscall table; MIPS
+    // offsets its tables (o32 +4000, n64 +5000).
+    #[cfg(target_arch = "mips")]
+    const BASE: libc::c_long = 4000;
+    #[cfg(target_arch = "mips64")]
+    const BASE: libc::c_long = 5000;
+    #[cfg(not(any(target_arch = "mips", target_arch = "mips64")))]
+    const BASE: libc::c_long = 0;
+    const CREATE_RULESET: libc::c_long = BASE + 444;
+    const ADD_RULE: libc::c_long = BASE + 445;
+    const RESTRICT_SELF: libc::c_long = BASE + 446;
     const FLAG_VERSION: u32 = 1;
     const RULE_PATH_BENEATH: u32 = 1;
     const RULE_NET_PORT: u32 = 2;
@@ -224,8 +232,59 @@ mod landlock {
 /// falls back to `clone`). Without `--pty`, execve and execveat fail;
 /// without a network grant, `socket` for AF_INET and AF_INET6 fails. A
 /// foreign architecture kills the process.
+///
+/// The filter needs the audit architecture of the build target ([`arch`]).
+/// The table covers every Linux architecture Rust targets that Landlock
+/// runs on: x86_64, x86, aarch64, arm, riscv64, loongarch64, powerpc64
+/// (both byte orders), s390x and MIPS (32 and 64, both byte orders). On any
+/// other architecture the module still builds, [`install`] returns `Err`
+/// naming the architecture, and the host reports "seccomp not entered", so
+/// enforcement is reduced visibly, never silently.
 #[cfg(target_os = "linux")]
 pub mod seccomp {
+    /// The `AUDIT_ARCH_*` value of the build target, its name, and whether a
+    /// filter can be built for it (`None` outside the table).
+    pub const fn arch() -> (Option<u32>, &'static str) {
+        const LE: u32 = 0x4000_0000; // __AUDIT_ARCH_LE
+        const B64: u32 = 0x8000_0000; // __AUDIT_ARCH_64BIT
+        let le = if cfg!(target_endian = "little") { LE } else { 0 };
+        let a = if cfg!(target_arch = "x86_64") {
+            Some(B64 | LE | 62) // EM_X86_64
+        } else if cfg!(target_arch = "x86") {
+            Some(LE | 3) // EM_386
+        } else if cfg!(target_arch = "aarch64") {
+            Some(B64 | LE | 183) // EM_AARCH64
+        } else if cfg!(target_arch = "arm") {
+            Some(le | 40) // EM_ARM
+        } else if cfg!(target_arch = "riscv64") {
+            Some(B64 | LE | 243) // EM_RISCV
+        } else if cfg!(target_arch = "loongarch64") {
+            Some(B64 | LE | 258) // EM_LOONGARCH
+        } else if cfg!(target_arch = "powerpc64") {
+            Some(B64 | le | 21) // EM_PPC64
+        } else if cfg!(target_arch = "s390x") {
+            Some(B64 | 22) // EM_S390, big-endian only
+        } else if cfg!(target_arch = "mips") {
+            Some(le | 8) // EM_MIPS, o32
+        } else if cfg!(target_arch = "mips64") {
+            Some(B64 | le | 8) // EM_MIPS, n64
+        } else {
+            None
+        };
+        (a, std::env::consts::ARCH)
+    }
+
+    #[cfg(any(target_arch = "x86_64", target_arch = "x86", target_arch = "aarch64", target_arch = "arm", target_arch = "riscv64", target_arch = "loongarch64", target_arch = "powerpc64", target_arch = "s390x", target_arch = "mips", target_arch = "mips64"))]
+    pub use filter::*;
+
+    /// Outside the table: no filter, and saying so.
+    #[cfg(not(any(target_arch = "x86_64", target_arch = "x86", target_arch = "aarch64", target_arch = "arm", target_arch = "riscv64", target_arch = "loongarch64", target_arch = "powerpc64", target_arch = "s390x", target_arch = "mips", target_arch = "mips64")))]
+    pub fn install(_pty: bool, _net: bool) -> Result<String, String> {
+        Err(format!("seccomp: no audit-architecture table for {}, filter not installed", arch().1))
+    }
+
+    #[cfg(any(target_arch = "x86_64", target_arch = "x86", target_arch = "aarch64", target_arch = "arm", target_arch = "riscv64", target_arch = "loongarch64", target_arch = "powerpc64", target_arch = "s390x", target_arch = "mips", target_arch = "mips64"))]
+    mod filter {
     use libc::sock_filter;
 
     const LD_W_ABS: u16 = 0x20;
@@ -237,11 +296,16 @@ pub mod seccomp {
     const RET_KILL_PROCESS: u32 = 0x8000_0000;
     const OFF_NR: u32 = 0;
     const OFF_ARCH: u32 = 4;
-    const OFF_ARG0: u32 = 16; // low 32 bits on little-endian targets
-    #[cfg(target_arch = "x86_64")]
-    const AUDIT_ARCH: u32 = 0xC000_003E;
-    #[cfg(target_arch = "aarch64")]
-    const AUDIT_ARCH: u32 = 0xC000_00B7;
+    /// `seccomp_data.args[i]` is a u64 at offset 16 + 8i; BPF loads 32
+    /// bits, and the low half sits at +0 on little-endian, +4 on big-endian.
+    pub const fn off_arg_lo(i: u32) -> u32 {
+        16 + 8 * i + if cfg!(target_endian = "big") { 4 } else { 0 }
+    }
+    const OFF_ARG0: u32 = off_arg_lo(0);
+    /// The argument of `clone` that carries the flags: s390 swaps the first
+    /// two (CLONE_BACKWARDS2), every other table architecture passes them first.
+    pub const OFF_CLONE_FLAGS: u32 = off_arg_lo(if cfg!(target_arch = "s390x") { 1 } else { 0 });
+    const AUDIT_ARCH: u32 = match super::arch().0 { Some(a) => a, None => 0 };
     const CLONE_NEW: u32 = 0x0002_0000 | 0x0200_0000 | 0x0400_0000 | 0x0800_0000 | 0x1000_0000 | 0x2000_0000 | 0x4000_0000 | 0x0000_0080;
 
     fn st(code: u16, k: u32) -> sock_filter {
@@ -257,13 +321,22 @@ pub mod seccomp {
         #[allow(unused_mut)]
         let mut v = vec![
             SYS_ptrace, SYS_process_vm_readv, SYS_process_vm_writev, SYS_mount, SYS_umount2, SYS_pivot_root, SYS_chroot,
-            SYS_kexec_load, SYS_kexec_file_load, SYS_init_module, SYS_finit_module, SYS_delete_module, SYS_reboot,
+            SYS_kexec_load, SYS_init_module, SYS_finit_module, SYS_delete_module, SYS_reboot,
             SYS_swapon, SYS_swapoff, SYS_bpf, SYS_perf_event_open, SYS_userfaultfd, SYS_keyctl, SYS_add_key,
             SYS_request_key, SYS_unshare, SYS_setns, SYS_personality, SYS_acct, SYS_quotactl, SYS_open_by_handle_at,
             SYS_name_to_handle_at, SYS_settimeofday, SYS_clock_settime, SYS_clock_adjtime, SYS_adjtimex, SYS_syslog,
             SYS_fsopen, SYS_fsmount, SYS_fsconfig, SYS_fspick, SYS_move_mount, SYS_open_tree, SYS_mount_setattr,
             SYS_io_uring_setup, SYS_io_uring_enter, SYS_io_uring_register, SYS_pidfd_getfd,
         ];
+        // kexec_file_load: libc names it where it has the number; riscv64
+        // (294) and s390x (381) have the syscall but not the libc name; x86
+        // (32-bit) has no such syscall.
+        #[cfg(not(any(target_arch = "riscv64", target_arch = "s390x", target_arch = "x86")))]
+        v.push(SYS_kexec_file_load);
+        #[cfg(target_arch = "riscv64")]
+        v.push(294);
+        #[cfg(target_arch = "s390x")]
+        v.push(381);
         #[cfg(target_arch = "x86_64")]
         v.extend([SYS_iopl, SYS_ioperm, SYS_uselib, SYS_ustat, SYS_sysfs, SYS_vhangup, SYS_modify_ldt]);
         v
@@ -295,10 +368,18 @@ pub mod seccomp {
         p.push(jmp(JEQ_K, libc::SYS_clone3 as u32, 0, 1));
         p.push(st(RET_K, RET_ERRNO | libc::ENOSYS as u32));
         p.push(jmp(JEQ_K, libc::SYS_clone as u32, 0, 4));
-        p.push(st(LD_W_ABS, OFF_ARG0));
+        p.push(st(LD_W_ABS, OFF_CLONE_FLAGS));
         p.push(jmp(JSET_K, CLONE_NEW, 0, 1));
         p.push(st(RET_K, eperm));
         p.push(st(RET_K, RET_ALLOW));
+        #[cfg(any(target_arch = "x86", target_arch = "s390x", target_arch = "powerpc64", target_arch = "mips"))]
+        if !net {
+            // socketcall multiplexes socket(2); its domain sits behind a
+            // pointer the filter cannot read, so without a network grant it
+            // is refused whole (libc uses the direct calls on these kernels).
+            p.push(jmp(JEQ_K, libc::SYS_socketcall as u32, 0, 1));
+            p.push(st(RET_K, eperm));
+        }
         if !net {
             p.push(jmp(JEQ_K, libc::SYS_socket as u32, 0, 5));
             p.push(st(LD_W_ABS, OFF_ARG0));
@@ -325,5 +406,48 @@ pub mod seccomp {
             return Err(format!("seccomp: {}", if rc > 0 { format!("thread {rc} could not be synchronised") } else { std::io::Error::last_os_error().to_string() }));
         }
         Ok(format!("seccomp filter ({} instructions) on all threads{}{}", prog.len(), if pty { "" } else { ", no exec" }, if net { "" } else { ", no IP sockets" }))
+    }
+}
+}
+
+#[cfg(all(test, target_os = "linux"))]
+mod tests {
+    use super::seccomp;
+
+    /// The table against the kernel's `AUDIT_ARCH_*` values (include/uapi/linux/audit.h).
+    #[test]
+    fn audit_arch_matches_the_kernel_header() {
+        let want: Option<u32> = if cfg!(target_arch = "x86_64") {
+            Some(0xC000_003E)
+        } else if cfg!(target_arch = "x86") {
+            Some(0x4000_0003)
+        } else if cfg!(target_arch = "aarch64") {
+            Some(0xC000_00B7)
+        } else if cfg!(target_arch = "arm") {
+            Some(0x4000_0028)
+        } else if cfg!(target_arch = "riscv64") {
+            Some(0xC000_00F3)
+        } else if cfg!(target_arch = "loongarch64") {
+            Some(0xC000_0102)
+        } else if cfg!(all(target_arch = "powerpc64", target_endian = "little")) {
+            Some(0xC000_0015)
+        } else if cfg!(target_arch = "powerpc64") {
+            Some(0x8000_0015)
+        } else if cfg!(target_arch = "s390x") {
+            Some(0x8000_0016)
+        } else {
+            seccomp::arch().0
+        };
+        assert_eq!(seccomp::arch().0, want);
+    }
+
+    /// The low 32 bits of each argument, by byte order (s390x: +4).
+    #[cfg(any(target_arch = "x86_64", target_arch = "aarch64", target_arch = "s390x", target_arch = "powerpc64", target_arch = "riscv64"))]
+    #[test]
+    fn argument_offsets_follow_byte_order() {
+        let be = cfg!(target_endian = "big");
+        assert_eq!(seccomp::off_arg_lo(0), if be { 20 } else { 16 });
+        assert_eq!(seccomp::off_arg_lo(1), if be { 28 } else { 24 });
+        assert_eq!(seccomp::OFF_CLONE_FLAGS, if cfg!(target_arch = "s390x") { 28 } else { 16 });
     }
 }
