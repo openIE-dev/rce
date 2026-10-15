@@ -86,6 +86,36 @@ M['proc'] = [
     ('            if esc_from == "\\"" and c != "\\"" and c != "\\\\"', '            if esc_from == "\\"" and c != "\\""'),
     ('        o = o + (if c == "\'" then', '        o = o + (if false then'),
     ('(if v < 16 then "0" else "") + hex(v)', 'hex(v)'),]
+M['signal'] = [
+    ('SIGBUS 7 10 10 10 10 Core', 'SIGBUS 7 10 10 10 10 Term'),
+    ('SIGUSR1 10 30 16 16 30', 'SIGUSR1 10 30 16 16 31'),
+    ('SIGPWR 30 29/- 19 19', 'SIGPWR 30 29 19 19'),
+    ('SIGWINCH 28 28 20 23 28 Ign P2024', 'SIGWINCH 28 28 20 23 28 Ign P2001'),
+    ('        return num(&r.mips)', '        return num(&r.parisc)'),
+    ('        let k: usize = if target == "alpha" then 0 else 1', '        let k: usize = 0'),
+    ('    if s == "" or s == "-"\n        return -1', '    if s == ""\n        return -1'),
+    ('SIGUNUSED SIGINFO"', 'SIGUNUSED"'),
+    ('and not (target == "darwin" and r.name == "SIGINFO")', ''),
+    ('        if n - RTMIN <= 15', '        if n - RTMIN < 15'),
+    ('    if n == 0\n        return "EXIT"', '    if false\n        return "EXIT"'),
+    ('    var i: usize = 3\n', '    var i: usize = 0\n'),
+    ('Stopped (signal)|Stopped|', 'Stopped|Stopped (signal)|'),
+    ('    if n >= RTMIN and n <= RTMAX\n        return "Real-time signal "', '    if n >= 32 and n <= RTMAX\n        return "Real-time signal "'),
+    ('    if code == 1 or code == 2 or code == 5 or code == 6', '    if code == 1 or code == 2'),
+    ('fn is_rt(n: i64) -> bool = n >= 32', 'fn is_rt(n: i64) -> bool = n >= 40'),
+    ('fn kernel_ignore(n: i64) -> bool = n == 18 or n == 17', 'fn kernel_ignore(n: i64) -> bool = n == 17'),
+    ('    let ign = how == "ign" or (how == "dfl" and kernel_ignore(n))', '    let ign = how == "ign"'),
+    ('    if ign\n        flush(p, n)', '    if false\n        flush(p, n)'),
+    ('    if is_stop(n)\n        flush(p, 18)', '    if false\n        flush(p, 18)'),
+    ('        flush(p, 19)\n        flush(p, 20)\n        flush(p, 21)', '        flush(p, 19)\n        flush(p, 20)'),
+    ('    elif not p.std[n as usize]\n', '    else\n'),
+    ('fn sync_sig(n: i64) -> bool = n == 11 or n == 7', 'fn sync_sig(n: i64) -> bool = n == 11'),
+    ('        if best < 0 or (s and not bsync) or (s == bsync and n < best)', '        if best < 0 or (s == bsync and n < best)'),
+    ('        if best < 0 or (s and not bsync) or (s == bsync and n < best)', '        if best < 0 or (s and not bsync) or n < best'),
+    ('        if got.sig < 0 and q.sig == best', '        if q.sig == best'),
+    ('    if code == 0\n        return 2', '    if code == 0\n        return 21'),
+    ('fn is_stop(n: i64) -> bool = n == 19 or n == 20 or n == 21 or n == 22', 'fn is_stop(n: i64) -> bool = n == 19 or n == 20'),
+]
 def one(job):
     name, a, b = job
     src = open(os.path.join(root, 'lib/os/%s.rce' % name)).read()
