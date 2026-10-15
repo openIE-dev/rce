@@ -1,5 +1,5 @@
 fn T(s: i64, n: i64) -> Timespec = Timespec(secs: s, nanos: n)
-fn D(s: i64, n: i64) -> Dur = Dur(secs: s, nanos: n)
+fn D(s: u64, n: i64) -> Dur = Dur(secs: s, nanos: n)
 fn tsa(t: Timespec, d: Dur) -> text = tk(ts_checked_add(&t, &d))
 fn tss(t: Timespec, d: Dur) -> text = tk(ts_checked_sub(&t, &d))
 fn tsat(t: Timespec, d: Dur, add: bool) -> text
@@ -12,10 +12,15 @@ fn tk(t: Timespec?) -> text
     match t
         some(x) -> return x.secs.tostr() + "." + x.nanos.tostr()
         none -> return "none"
-fn nanos_of(d: Dur) -> i64 = as_nanos(&d).or(-1)
-fn mw(ns: i64) -> text = tk(some(mono_from_wasi(ns) catch T(-1, 0)))
-fn mtw(t: Timespec) -> i64 = mono_to_wasi(&t) catch -1
-fn ww(s: i64, n: i64) -> text = tk(some(wall_from_wasi(s, n) catch T(-1, 0)))
+fn nanos_of(d: Dur) -> text = as_nanos(&d)
+fn micros_of(d: Dur) -> text = as_micros(&d)
+fn millis_of(d: Dur) -> text = as_millis(&d)
+fn mw(ns: u64) -> text = tk(some(mono_from_wasi(ns)))
+fn mtw(t: Timespec) -> text
+    let v = mono_to_wasi(&t) catch 0
+    let ok = (mono_to_wasi(&t) catch 1) == v
+    return if ok then v.tostr() else "err"
+fn ww(s: u64, n: i64) -> text = tk(some(wall_from_wasi(s, n) catch T(-1, 0)))
 fn admit_seq(rs: List[i64]) -> text
     var m = mono_new()
     var o = ""
@@ -36,7 +41,7 @@ fn run_timers(ops: List[List[i64]]) -> text
             subscribe_instant(&mut q, &at, copy(op[3]))
         elif k == 1
             let now = T(copy(op[2]), 0)
-            let d = D(copy(op[1]), 0)
+            let d = D(copy(op[1]) as u64, 0)
             subscribe_duration(&mut q, &now, &d, copy(op[3]))
         elif k == 2
             o = o + (if cancel(&mut q, copy(op[3])) then "c" else "n")
@@ -71,41 +76,59 @@ check tsat(ts_min(), D(0, 0), false) == "-9223372036854775808.0"
 check since(ts_max(), ts_max()) == "0.0"
 check since(ts_min(), ts_max()) == "0.0"
 check csince(ts_min(), ts_max()) == "none"
-# MAX - MIN is about 2^64 secs: Rust gives Duration::MAX (u64 secs); saturates to our Dur MAX
-check since(ts_max(), ts_min()) == "9223372036854775807.999999999"
-check tsa(T(MAX_SECS, 0), D(MAX_SECS, 0)) == "none"
-check tsa(T(-5, 0), D(MAX_SECS, 0)) == "9223372036854775802.0"
-check tss(T(5, 0), D(MAX_SECS, 0)) == "-9223372036854775802.0"
-check tss(T(-1, 0), D(MAX_SECS, 0)) == "-9223372036854775808.0"
-check tss(T(-1, 0), D(MAX_SECS, 1)) == "none"
-# as_nanos fits i64 up to 9223372036.854775807 s
-check nanos_of(D(9223372036, 854775807)) == 9223372036854775807
-check nanos_of(D(9223372036, 854775808)) == -1
-check nanos_of(D(0, 5)) == 5
+# MAX - MIN is u64::MAX secs: Duration::MAX (system_time_duration_since_max_range_on_unix)
+check since(ts_max(), ts_min()) == "18446744073709551615.999999999"
+check tss(ts_max(), D(18446744073709551615, 999999999)) == "-9223372036854775808.0"
+check tsa(ts_min(), D(18446744073709551615, 999999999)) == "9223372036854775807.999999999"
+check tsa(ts_min(), D(18446744073709551615, 0)) == "9223372036854775807.0"
+check tsa(T(-1, 0), D(18446744073709551615, 0)) == "none"
+check tss(T(1, 0), D(18446744073709551615, 0)) == "none"
+check tss(T(0, 0), D(9223372036854775808, 0)) == "-9223372036854775808.0"
+check tss(T(0, 0), D(9223372036854775808, 1)) == "none"
+check tsa(T(MAX_SECS, 0), D(9223372036854775807, 0)) == "none"
+check tsa(T(-5, 0), D(9223372036854775807, 0)) == "9223372036854775802.0"
+check tss(T(5, 0), D(9223372036854775807, 0)) == "-9223372036854775802.0"
+check tss(T(-1, 0), D(9223372036854775807, 0)) == "-9223372036854775808.0"
+check tss(T(-1, 0), D(9223372036854775807, 1)) == "none"
+# as_nanos, as_micros, as_millis are exact (u128 in Rust)
+check nanos_of(D(9223372036, 854775807)) == "9223372036854775807"
+check nanos_of(D(18446744073709551615, 999999999)) == "18446744073709551615999999999"
+check nanos_of(D(0, 5)) == "5"
+check nanos_of(D(1, 5)) == "1000000005"
+check micros_of(D(0, 1500)) == "1"
+check micros_of(D(2, 1500)) == "2000001"
+check millis_of(D(1, 5)) == "1000"
+check millis_of(D(0, 0)) == "0"
 # constructors refuse negatives and overflow
-check dk(N(-1, 0)) == "none"
 check dk(N(0, -1)) == "none"
-check dk(N(MAX_SECS, 999999999)) == "9223372036854775807.999999999"
-check dk(N(MAX_SECS, 1000000000)) == "none"
-check dk(N(MAX_SECS - 1, 1999999999)) == "9223372036854775807.999999999"
-check dk(Fmins(153722867280912930)) == "9223372036854775800.0"
-check dk(Fmins(153722867280912931)) == "none"
-check dk(Fweeks(-1)) == "none"
-check dk(Fmillis(-1)) == "none"
+check dk(N(18446744073709551615, 999999999)) == "18446744073709551615.999999999"
+check dk(N(18446744073709551615, 1000000000)) == "none"
+check dk(N(18446744073709551614, 1999999999)) == "18446744073709551615.999999999"
+check dk(Fmins(307445734561825860)) == "18446744073709551600.0"
+check dk(Fmins(307445734561825861)) == "none"
+check dk(Fmillis(18446744073709551615)) == "18446744073709551.615000000"
+check dk(Fnanos(18446744073709551615)) == "18446744073.709551615"
+check dk(Fnanos_text("18446744073709551615999999999")) == "18446744073709551615.999999999"
+check dk(Fnanos_text("18446744073709551616000000000")) == "none"
+check dk(Fnanos_text("5")) == "0.5"
+check dk(Fnanos_text("12a")) == "none"
+check dk(Fnanos_text("")) == "none"
 check dk(Omul(N(1, 0), 4294967296)) == "none"
 check dk(Odiv(N(1, 0), -1)) == "none"
 check dk(Odiv(N(5, 0), 4294967295)) == "0.1"
 # wasi:clocks@0.2.8
 check mw(0) == "0.0"
 check mw(1500000001) == "1.500000001"
-check mw(-1) == "-1.0"
-check mtw(T(1, 500000001)) == 1500000001
-check mtw(T(9223372036, 854775807)) == 9223372036854775807
-check mtw(T(9223372036, 854775808)) == -1
-check mtw(T(-1, 0)) == -1
+check mw(18446744073709551615) == "18446744073.709551615"
+check mtw(T(1, 500000001)) == "1500000001"
+check mtw(T(18446744073, 709551615)) == "18446744073709551615"
+check mtw(T(18446744073, 709551616)) == "err"
+check mtw(T(18446744074, 0)) == "err"
+check mtw(T(-1, 0)) == "err"
 check ww(1760536620, 999999999) == "1760536620.999999999"
 check ww(0, 1000000000) == "-1.0"
-check ww(-1, 0) == "-1.0"
+check ww(9223372036854775807, 0) == "9223372036854775807.0"
+check ww(9223372036854775808, 0) == "-1.0"
 check ww(5, -1) == "-1.0"
 # monotonic admission: a reading below the last admitted one is raised to it
 check admit_seq([1, 2, 2, 5, 3, 4, 9, 0]) == "1,2,2,5,5,5,9,9,r3"
@@ -122,9 +145,10 @@ check run_timers([[1, MAX_SECS, 100, 1], [3, MAX_SECS, 0, 0]]) == "[] p1 next 92
 check run_timers([[0, 0, 0, 1], [3, 0, 0, 0], [3, 0, 0, 0]]) == "[1 ][] p0 next none"
 check run_timers([[0, 2, 0, 1], [0, 1, 0, 2], [0, 2, 0, 3], [0, 1, 500000000, 4], [3, 9, 0, 0]]) == "[2 4 1 3 ] p0 next none"
 # overflow edges (mutation test)
-check dk(Omul(N(3074457345618258602, 700000000), 3)) == "none"
-check dk(Omul(N(3074457345618258602, 300000000), 3)) == "9223372036854775806.900000000"
-check since(T(MAX_SECS, 0), T(-1, 0)) == "9223372036854775807.999999999"
+check dk(Omul(N(6148914691236517205, 700000000), 3)) == "none"
+check dk(Omul(N(6148914691236517205, 300000000), 3)) == "18446744073709551615.900000000"
+check since(T(MAX_SECS, 0), T(-1, 0)) == "9223372036854775808.0"
+check since(T(MAX_SECS, 0), T(-1, 1)) == "9223372036854775807.999999999"
 check since(T(MAX_SECS - 1, 0), T(-1, 0)) == "9223372036854775807.0"
 check admit_seq([-3, -5, -1]) == "-3,-3,-1,r1"
 check run_timers([[0, 9, 0, 2], [0, 5, 0, 1]]) == " p2 next 5.0"
