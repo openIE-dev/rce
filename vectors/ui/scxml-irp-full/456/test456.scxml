@@ -1,4 +1,4 @@
-<!-- we can't test that _any_ ecmascript is valid inside <script>, so we
+<?xml version="1.0" encoding="UTF-8"?><!-- we can't test that _any_ ecmascript is valid inside <script>, so we
 just run a simple one and check that it can update the data model. --><scxml xmlns="http://www.w3.org/2005/07/scxml" xmlns:conf="http://www.w3.org/2005/scxml-conformance" initial="s0" version="1.0" datamodel="ecmascript">
 <datamodel>
   <data id="Var1" expr="0"/>
@@ -10,7 +10,7 @@ just run a simple one and check that it can update the data model. --><scxml xml
       Var1+=1
       </script>
    </onentry> 
-   <transition cond="" target="pass"/>
+   <transition cond="Var1==1" target="pass"/>
    <transition target="fail"/>
    </state>
    

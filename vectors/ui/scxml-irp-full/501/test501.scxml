@@ -1,4 +1,4 @@
-<!-- test that the location entry for the SCXML Event I/O processor can be used as the target for an event --><scxml xmlns="http://www.w3.org/2005/07/scxml" xmlns:conf="http://www.w3.org/2005/scxml-conformance" initial="s0" version="1.0" datamodel="ecmascript">
+<?xml version="1.0" encoding="UTF-8"?><!-- test that the location entry for the SCXML Event I/O processor can be used as the target for an event --><scxml xmlns="http://www.w3.org/2005/07/scxml" xmlns:conf="http://www.w3.org/2005/scxml-conformance" initial="s0" version="1.0" datamodel="ecmascript">
 <datamodel>
   <data id="Var1" expr="_ioprocessors['http://www.w3.org/TR/scxml/#SCXMLEventProcessor'].location"/>
   </datamodel>

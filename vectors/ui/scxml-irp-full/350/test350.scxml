@@ -1,4 +1,4 @@
-<!-- test that target value is used to decide what session to deliver the event to.  A session should be
+<?xml version="1.0" encoding="UTF-8"?><!-- test that target value is used to decide what session to deliver the event to.  A session should be
 able to send an event to itself using its own session ID as the target --><scxml xmlns="http://www.w3.org/2005/07/scxml" xmlns:conf="http://www.w3.org/2005/scxml-conformance" initial="s0" datamodel="ecmascript" version="1.0">
 <datamodel>
   <data id="Var1" expr="'#_scxml_'"/>

@@ -1,4 +1,4 @@
-<!-- we test that omitting target and targetexpr of <send> when using the
+<?xml version="1.0" encoding="UTF-8"?><!-- we test that omitting target and targetexpr of <send> when using the
 SCXML event i/o processor puts the event on the external queue.  --><scxml xmlns="http://www.w3.org/2005/07/scxml" xmlns:conf="http://www.w3.org/2005/scxml-conformance" initial="s0" version="1.0" datamodel="ecmascript">
 
   

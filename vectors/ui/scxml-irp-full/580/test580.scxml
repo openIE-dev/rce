@@ -1,4 +1,4 @@
-<!-- test that a history state never ends up part of the configuration --><scxml xmlns="http://www.w3.org/2005/07/scxml" xmlns:conf="http://www.w3.org/2005/scxml-conformance" version="1.0" initial="p1" datamodel="ecmascript">
+<?xml version="1.0" encoding="UTF-8"?><!-- test that a history state never ends up part of the configuration --><scxml xmlns="http://www.w3.org/2005/07/scxml" xmlns:conf="http://www.w3.org/2005/scxml-conformance" version="1.0" initial="p1" datamodel="ecmascript">
 	<datamodel>
 		  <data id="Var1" expr="0"/>
 		</datamodel>
@@ -32,8 +32,8 @@
   		
   	<state id="s12"/>
   <transition cond="In('sh1')" target="fail"/>
- <transition cond="" target="sh1"/>
- <transition cond="" target="pass"/>
+ <transition cond="Var1==0" target="sh1"/>
+ <transition cond="Var1==1" target="pass"/>
    <onexit>
   	<assign location="Var1" expr="Var1 + 1"/>
   	</onexit>

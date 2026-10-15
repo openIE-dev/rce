@@ -1,4 +1,4 @@
-<!-- in the ECMA data model, test that if the child of <data> is JSON, the processor
+<?xml version="1.0" encoding="UTF-8"?><!-- in the ECMA data model, test that if the child of <data> is JSON, the processor
  assigns it as the value of the var --><scxml xmlns="http://www.w3.org/2005/07/scxml" xmlns:conf="http://www.w3.org/2005/scxml-conformance" initial="s0" version="1.0" datamodel="ecmascript">
  <datamodel>
    <data id="var1">[1, 2, 3]</data>

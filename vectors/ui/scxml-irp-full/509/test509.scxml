@@ -1,4 +1,4 @@
-<!-- test that Basic HTTP Event I/O processor uses POST method and that it can receive messages
+<?xml version="1.0" encoding="UTF-8"?><!-- test that Basic HTTP Event I/O processor uses POST method and that it can receive messages
 at the accessURI --><scxml xmlns="http://www.w3.org/2005/07/scxml" xmlns:conf="http://www.w3.org/2005/scxml-conformance" initial="s0" datamodel="ecmascript" version="1.0">
    
 <state id="s0">

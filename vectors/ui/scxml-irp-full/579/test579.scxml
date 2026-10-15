@@ -1,4 +1,4 @@
-<!-- test that default history content is executed correctly.   The Process MUST execute any executable content in the transition after the parent state's onentry handlers, and, in the case where the history pseudo-state is the target of an <initial> transition, 
+<?xml version="1.0" encoding="UTF-8"?><!-- test that default history content is executed correctly.   The Process MUST execute any executable content in the transition after the parent state's onentry handlers, and, in the case where the history pseudo-state is the target of an <initial> transition, 
 the executable content inside the <initial> transition.  However the Processor MUST
 execute this content only if there is no stored history.  Once the history state's
 parent state has been visited and exited, the default history content must not be executed --><scxml xmlns="http://www.w3.org/2005/07/scxml" xmlns:conf="http://www.w3.org/2005/scxml-conformance" version="1.0" initial="s0" datamodel="ecmascript">
@@ -37,8 +37,8 @@ parent state has been visited and exited, the default history content must not b
   			</state>
   <state id="s03">
   	
-  	<transition cond="" event="event3" target="s0"/>
-  	<transition cond="" event="event1" target="s2"/>
+  	<transition cond="Var1==0" event="event3" target="s0"/>
+  	<transition cond="Var1==1" event="event1" target="s2"/>
   	<transition event="*" target="fail"/>
   	</state>
 </state> 

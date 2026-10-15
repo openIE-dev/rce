@@ -1,4 +1,4 @@
-<!--  test that ecmascript objects defined by <data> have value undefined if <data> does not assign a value --><scxml xmlns="http://www.w3.org/2005/07/scxml" xmlns:conf="http://www.w3.org/2005/scxml-conformance" datamodel="ecmascript" version="1.0">
+<?xml version="1.0" encoding="UTF-8"?><!--  test that ecmascript objects defined by <data> have value undefined if <data> does not assign a value --><scxml xmlns="http://www.w3.org/2005/07/scxml" xmlns:conf="http://www.w3.org/2005/scxml-conformance" datamodel="ecmascript" version="1.0">
   <datamodel>
     <data id="var1"/>
     </datamodel>

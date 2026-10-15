@@ -1,4 +1,4 @@
-<!-- we test that multiple key/value pairs are included, even when the keys are the same.
+<?xml version="1.0" encoding="UTF-8"?><!-- we test that multiple key/value pairs are included, even when the keys are the same.
 This is a manual test.  The tester must look at the log output and verify that both
 keys are there.  (This test uses the SCXML Event I/O processor, which is the only
 one that all platforms must support.  It does not specify the message format, so 

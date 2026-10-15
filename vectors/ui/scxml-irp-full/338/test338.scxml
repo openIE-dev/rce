@@ -1,4 +1,4 @@
-<!-- test that invokeid is set correctly in events received from an invoked process.  timeout event catches the 
+<?xml version="1.0" encoding="UTF-8"?><!-- test that invokeid is set correctly in events received from an invoked process.  timeout event catches the 
 case where the invoke doesn't work correctly --><scxml xmlns="http://www.w3.org/2005/07/scxml" xmlns:conf="http://www.w3.org/2005/scxml-conformance" initial="s0" version="1.0" datamodel="ecmascript">
 <datamodel>
   <data id="Var1"/>
@@ -27,7 +27,7 @@ case where the invoke doesn't work correctly --><scxml xmlns="http://www.w3.org/
    </state>
 
 <state id="s1">
-  <transition cond="" target="pass"/>
+  <transition cond="Var1===Var2" target="pass"/>
   <transition target="fail"/>
   </state>
   

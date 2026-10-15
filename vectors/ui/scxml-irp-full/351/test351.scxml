@@ -1,4 +1,4 @@
-<!-- test that sendid is set in event if present in send, blank otherwise --><scxml xmlns="http://www.w3.org/2005/07/scxml" xmlns:conf="http://www.w3.org/2005/scxml-conformance" initial="s0" datamodel="ecmascript" version="1.0">
+<?xml version="1.0" encoding="UTF-8"?><!-- test that sendid is set in event if present in send, blank otherwise --><scxml xmlns="http://www.w3.org/2005/07/scxml" xmlns:conf="http://www.w3.org/2005/scxml-conformance" initial="s0" datamodel="ecmascript" version="1.0">
 <datamodel>
   <data id="Var1"/>
   <data id="Var2"/>
@@ -20,7 +20,7 @@
 </state>
 
 <state id="s1">
-  <transition cond="" target="s2"/>
+  <transition cond="Var1=='send1'" target="s2"/>
   <transition target="fail"/>
  </state>
  

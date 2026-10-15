@@ -1,4 +1,4 @@
-<!-- we test that #_invokeid works as  a target of  <send> .  A child  script is invoked and sends us
+<?xml version="1.0" encoding="UTF-8"?><!-- we test that #_invokeid works as  a target of  <send> .  A child  script is invoked and sends us
 childToParent once its running.  Then we send it the event parentToChild using its invokeid as the target.  
 If it receives this event, it sends sends the event eventReceived to its parent session (ths session). 
 If we get this event, we pass, otherwise the child script eventually times out sends invoke.done and we fail.

@@ -1,4 +1,4 @@
-<!-- test that the scxml event I/O processor works by sending events back and forth between an invoked child
+<?xml version="1.0" encoding="UTF-8"?><!-- test that the scxml event I/O processor works by sending events back and forth between an invoked child
 and its parent process --><scxml xmlns="http://www.w3.org/2005/07/scxml" xmlns:conf="http://www.w3.org/2005/scxml-conformance" initial="s0" datamodel="ecmascript" version="1.0">
 
   

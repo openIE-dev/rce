@@ -1,4 +1,4 @@
-<!-- Test that at the end of a macrostep, the processor executes all invokes in states
+<?xml version="1.0" encoding="UTF-8"?><!-- Test that at the end of a macrostep, the processor executes all invokes in states
 that have been entered and not exited during the step.  (The invokes are supposed to be executed
 in document order, but we can test that since each invocation is separate and they may take
 different amounts to time to start up.)  In this case, there are three invoke statements,
@@ -17,7 +17,7 @@ in s11. So we should receive invokeS1, invokeS12, but not invokeS12.  Furthermor
  	   	</transition>
  	   	<transition event="invokeS11" target="fail"/>
  	  
- 	  <transition event="timeout" cond="" target="pass"/>
+ 	  <transition event="timeout" cond="Var1==2" target="pass"/>
  	  <transition event="timeout" target="fail"/>
      <invoke>
      	  <content>

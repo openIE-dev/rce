@@ -1,4 +1,4 @@
-<!-- test that assigment to a non-declared var causes an error.  the transition on foo catches the case
+<?xml version="1.0" encoding="UTF-8"?><!-- test that assigment to a non-declared var causes an error.  the transition on foo catches the case
 where no error is raised --><scxml xmlns="http://www.w3.org/2005/07/scxml" xmlns:conf="http://www.w3.org/2005/scxml-conformance" version="1.0" datamodel="ecmascript" initial="s0">
    
      

@@ -1,4 +1,4 @@
-<!-- test the origintype is 'http://www.w3.org/TR/scxml/#SCXMLEventProcessor' --><scxml xmlns="http://www.w3.org/2005/07/scxml" xmlns:conf="http://www.w3.org/2005/scxml-conformance" initial="s0" version="1.0" datamodel="ecmascript">
+<?xml version="1.0" encoding="UTF-8"?><!-- test the origintype is 'http://www.w3.org/TR/scxml/#SCXMLEventProcessor' --><scxml xmlns="http://www.w3.org/2005/07/scxml" xmlns:conf="http://www.w3.org/2005/scxml-conformance" initial="s0" version="1.0" datamodel="ecmascript">
 <datamodel>
   <data id="Var1"/>
   </datamodel>
@@ -18,7 +18,7 @@
 </state>
 
 <state id="s1">
-  <transition cond="" target="pass"/>
+  <transition cond="Var1=='http://www.w3.org/TR/scxml/#SCXMLEventProcessor'" target="pass"/>
   <transition target="fail"/>
  </state>
  

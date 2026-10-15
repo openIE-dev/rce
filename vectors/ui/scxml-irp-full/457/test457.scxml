@@ -1,4 +1,4 @@
-<!-- test that an the legal iterable collections are arrays, namely objects that satisfy instanceof(Array) in ECMAScript.
+<?xml version="1.0" encoding="UTF-8"?><!-- test that an the legal iterable collections are arrays, namely objects that satisfy instanceof(Array) in ECMAScript.
  	     the legal values for the 'item' attribute on foreach are legal ECMAScript variable names.. --><scxml xmlns="http://www.w3.org/2005/07/scxml" xmlns:conf="http://www.w3.org/2005/scxml-conformance" initial="s0" datamodel="ecmascript" version="1.0">
 <datamodel>
   <data id="Var1" expr="0"/>

@@ -1,4 +1,4 @@
-<!-- test that in() predicate works in null data model --><scxml xmlns="http://www.w3.org/2005/07/scxml" xmlns:conf="http://www.w3.org/2005/scxml-conformance" datamodel="null" version="1.0" initial="p">
+<?xml version="1.0" encoding="UTF-8"?><!-- test that in() predicate works in null data model --><scxml xmlns="http://www.w3.org/2005/07/scxml" xmlns:conf="http://www.w3.org/2005/scxml-conformance" datamodel="null" version="1.0" initial="p">
 
      
  <parallel id="p">

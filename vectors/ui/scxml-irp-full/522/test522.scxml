@@ -1,4 +1,4 @@
-<!-- test that location field the entry for Basic HTTP Event I/O processor can be used
+<?xml version="1.0" encoding="UTF-8"?><!-- test that location field the entry for Basic HTTP Event I/O processor can be used
 to send a message to the processor --><scxml xmlns="http://www.w3.org/2005/07/scxml" xmlns:conf="http://www.w3.org/2005/scxml-conformance" initial="s0" datamodel="ecmascript" version="1.0">
   
 <state id="s0">

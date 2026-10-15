@@ -1,4 +1,4 @@
-<!-- test that event.data can be populated using both namelist, param and <content>
+<?xml version="1.0" encoding="UTF-8"?><!-- test that event.data can be populated using both namelist, param and <content>
 and that correct values are used --><scxml xmlns="http://www.w3.org/2005/07/scxml" xmlns:conf="http://www.w3.org/2005/scxml-conformance" initial="s0" version="1.0" datamodel="ecmascript">
 <datamodel>
   <data id="Var1" expr="1"/>
@@ -24,12 +24,12 @@ and that correct values are used --><scxml xmlns="http://www.w3.org/2005/07/scxm
 
 <state id="s1">
   
-  <transition cond="" target="s2"/>
+  <transition cond="Var2==1" target="s2"/>
   <transition target="fail"/>
   </state>
 
 <state id="s2">
-    <transition cond="" target="s3"/>
+    <transition cond="Var3==2" target="s3"/>
   <transition target="fail"/>
   </state>
 
