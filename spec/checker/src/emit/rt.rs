@@ -90,6 +90,15 @@ pub fn ctx_encode(c: &str, v: V) -> R<V> {
     Ok(V::Text(o))
 }
 pub fn trefn(t: T, n: &'static str, p: RP) -> T { T::Refn(Box::new(t), n, Box::new(p)) }
+
+/// 6.3 N7: the whitespace of `strip`, `words` and `toint`, enumerated so that
+/// no result depends on the Unicode tables of a toolchain: the White_Space
+/// property of Unicode 18.0.0 (unchanged since Unicode 6.3), frozen here.
+const WHITE_SPACE: [char; 25] = ['\t', '\n', '\u{0b}', '\u{0c}', '\r', ' ', '\u{85}', '\u{a0}', '\u{1680}', '\u{2000}', '\u{2001}', '\u{2002}', '\u{2003}', '\u{2004}', '\u{2005}', '\u{2006}', '\u{2007}', '\u{2008}', '\u{2009}', '\u{200a}', '\u{2028}', '\u{2029}', '\u{202f}', '\u{205f}', '\u{3000}'];
+fn is_ws(c: char) -> bool {
+    WHITE_SPACE.contains(&c)
+}
+
 fn ptm(t: &RTm, v: &V) -> Option<i128> { match (t, v) { (RTm::L(n), _) => Some(*n), (RTm::S, V::Int(x, _)) => Some(*x), (RTm::N, V::Text(s)) => Some(s.len() as i128), (RTm::N, V::List(x)) => Some(x.len() as i128), (RTm::N, V::Map(x)) => Some(x.len() as i128), _ => None } }
 pub fn pholds(p: &RP, v: &V) -> bool {
     match p {
@@ -419,7 +428,7 @@ pub fn builtin(r: V, m: &str, a: Vec<V>) -> R<(V, Option<V>)> {
         (F32(x), "abs") => F32(x.abs()),
         (F32(x), "tostr") => Text((x as f32).to_string()),
         (Gen(g), "collect") => { let (items, _, err) = g(usize::MAX); if let Some(f) = err { return Result::Err(f); } List(items) }
-        (Text(s), "strip") => Text(s.trim().into()),
+        (Text(s), "strip") => Text(s.trim_matches(is_ws).into()),
         (Text(s), "upper") => Text(s.to_ascii_uppercase()),
         (Text(s), "sha256") => Text(sha256_hex(s.as_bytes())),
         (Text(s), "lower") => Text(s.to_ascii_lowercase()),
@@ -427,7 +436,7 @@ pub fn builtin(r: V, m: &str, a: Vec<V>) -> R<(V, Option<V>)> {
         (Text(s), "tostr") => Text(s),
         (Text(s), "raw") => Text(s),
         (Text(s), "chars") => List(s.chars().map(|c| Text(c.to_string())).collect()),
-        (Text(s), "words") => List(s.split_whitespace().map(|w| Text(w.into())).collect()),
+        (Text(s), "words") => List(s.split(is_ws).filter(|w| !w.is_empty()).map(|w| Text(w.into())).collect()),
         (Text(s), "lines") => List(s.lines().map(|w| Text(w.into())).collect()),
         (Text(s), "split") => match a0() { Text(d) => List(s.split(d.as_str()).map(|w| Text(w.into())).collect()), _ => return trap("split") },
         (Text(s), "isdigit") => Bool(!s.is_empty() && s.chars().all(|c| c.is_ascii_digit())),
@@ -437,7 +446,7 @@ pub fn builtin(r: V, m: &str, a: Vec<V>) -> R<(V, Option<V>)> {
         (Text(s), "contains") => match a0() { Text(d) => Bool(s.contains(d.as_str())), _ => return trap("contains") },
         (Text(s), "startswith") => match a0() { Text(d) => Bool(s.starts_with(d.as_str())), _ => return trap("startswith") },
         (Text(s), "endswith") => match a0() { Text(d) => Bool(s.ends_with(d.as_str())), _ => return trap("endswith") },
-        (Text(s), "toint") => s.trim().parse::<i128>().map_err(|_| Flow::Trap(format!("not an integer: {s:?}"))).and_then(|v| chk(v, "i64"))?,
+        (Text(s), "toint") => s.trim_matches(is_ws).parse::<i128>().map_err(|_| Flow::Trap(format!("not an integer: {s:?}"))).and_then(|v| chk(v, "i64"))?,
         (Text(s), "join") => match a0() { List(xs) => Text(xs.iter().map(|x| if let Text(t) = x { t.clone() } else { show(x) }).collect::<Vec<_>>().join(&s)), _ => return trap("join") },
         (List(xs), "len") => Int(xs.len() as i128, "usize"),
         (List(xs), "isempty") => Bool(xs.is_empty()),
@@ -938,7 +947,10 @@ pub fn charge(u: i128) -> R<()> {
     })
 }
 pub struct BudgetGuard;
-impl Drop for BudgetGuard { fn drop(&mut self) { BUD.with(|b| { b.borrow_mut().pop(); }); } }
+impl Drop for BudgetGuard { fn drop(&mut self) { BUD.with(|b| { if let Some((u, _)) = b.borrow_mut().pop() { BUD_LAST.with(|l| l.set(u)); } }); } }
+thread_local! { static BUD_LAST: std::cell::Cell<i128> = const { std::cell::Cell::new(0) }; }
+/// units the most recently left budget frame had spent (Exhausted.used, C.5)
+pub fn budget_last() -> V { V::Int(BUD_LAST.with(|l| l.get()), "u64") }
 pub fn budget_enter(n: V) -> R<BudgetGuard> {
     let n = marker_int(&n)?;
     BUD.with(|b| b.borrow_mut().push((0, n)));
@@ -1166,7 +1178,7 @@ pub fn bud_restore(s: Vec<(i128, i128)>) { BUD.with(|b| *b.borrow_mut() = s); }
 pub fn par_snap() -> (Vec<(i128, i128)>, u64) { (bud_snap(), fuel_left()) }
 pub fn par_restore(s: (Vec<(i128, i128)>, u64)) { bud_restore(s.0); fuel_set(s.1); }
 
-// ---- workgroups (C.11.1)
+// ---- workgroups (C.11.2)
 pub fn lanes_of(v: &V) -> R<(usize, i128)> { let n = marker_int(v)?; Ok((n.max(0) as usize, n)) }
 pub fn group_rec(lane: usize, n: i128) -> V {
     V::Rec("$group".into(), vec![("lane".into(), V::Int(lane as i128, "usize")), ("lanes".into(), V::Int(n, "usize"))])

@@ -266,18 +266,28 @@ outcome.
   ("not available at comptime"); they run only under `--run`. `extern`
   functions trap there too.
 - A `par` whose branches wait on an lvar runs its branches at the same
-  time in the reference (`ParMode::Threads`), each on a copy of the fuel
-  left at the fork. The branches' uses are then summed in source order and
-  the run traps with "comptime fuel exhausted" at the first branch whose
-  running sum passes the fork's fuel, before that branch's own result is
-  taken (a sum-checked account, as C.6.3 does for budgets). The emitters
-  run such a `par` by restart and restore the fuel and the budgets of an
-  abandoned attempt (`par_snap`, `par_restore`), so each branch is charged
-  once for its completing attempt. A wait charges no fuel while blocked,
-  so a branch's use does not depend on the schedule.
-  `spec/checker/tests/fuel_run.rs` checks this at every change point on
-  two programs (`lvarpar`, and `lvartrap`, where a late division by zero
-  must lose to the fuel trap when fuel runs out first).
+  time in the reference (`ParMode::Threads`). Derivation. The governing
+  law is schedule independence: a `par` must be observationally equal to
+  one fixed sequential order, source order (C.4). Fuel is additive over
+  sequential composition, so the sequential run traps at the first
+  branch i where the uses of branches 1..i sum past the fuel left at the
+  fork. The reference therefore gives each branch a copy of that fuel,
+  sums the branches' uses in source order after they finish, and traps
+  with "comptime fuel exhausted" at the first branch whose running sum
+  passes it, before that branch's own result is taken. The trap point is
+  the sequential one. A split of the fuel before the fork would make the
+  set of programs that trap depend on the split rule and would agree
+  with no sequential order, with no gain in soundness, so it is not
+  used. The cost of running branches ahead is bounded: at most k times
+  the fuel left at the fork is evaluated for a `par` of k branches, of
+  which the excess over the sequential run is discarded. A wait charges
+  no fuel while blocked, so a branch's use does not depend on the
+  schedule. The emitters run such a `par` by restart and restore the
+  fuel and the budgets of an abandoned attempt (`par_snap`,
+  `par_restore`), so each branch is charged once, for its completing
+  attempt. `spec/checker/tests/fuel_run.rs` checks this at every change
+  point on two programs (`lvarpar`, and `lvartrap`, where a late
+  division by zero must lose to the fuel trap when fuel runs out first).
 - Deep recursion ends with the target's own stack error.
 - A call that writes back its receiver or a `&mut` argument (`xs.push(x)`,
   `f(&mut a)`) is translated only as a whole statement or as the right side
@@ -482,4 +492,4 @@ give equal output bytes.
 
 **Read receipt.** Which JSON-RPC error code does the language server return for a request it does not know? (a number)
 
-<!-- body-sha256: 76dff372a33f2686d50eecd9a301e227a075f7c7755ece9eda547afeef902e3c -->
+<!-- body-sha256: 9e9a299d131246b173c6baf45c989a4e9c3506009466e1cebd8ea227167ed695 -->

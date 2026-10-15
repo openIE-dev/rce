@@ -138,3 +138,13 @@ pub fn two_digits(b: &List[i64]) -> i64 ! BadDigit
     return x * 10 + y
 
 pub fn digits_or(b: &List[i64], d: i64) -> i64 = two_digits(b) catch |e| d - e.at
+
+pub fn is_even(n: i64) -> bool bound 1000
+    if n <= 0
+        return n == 0
+    return is_odd(n - 1)
+
+pub fn is_odd(n: i64) -> bool
+    if n <= 0
+        return false
+    return is_even(n - 1)

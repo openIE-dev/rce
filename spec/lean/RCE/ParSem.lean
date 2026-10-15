@@ -61,7 +61,7 @@ def FV : St → List Nat
 
 def upd (σ : Store) (x : Nat) (v : Int) : Store := fun y => if y = x then v else σ y
 
-/-- the source-order meaning (C.4.2): `par a b` is `a; b` -/
+/-- the source-order meaning (C.4, T16): `par a b` is `a; b` -/
 def exec : St → Store → Store
   | .skip, σ => σ
   | .assign x e, σ => upd σ x (e.eval σ)
@@ -331,7 +331,7 @@ theorem steps_count {n s σ σ'} (h : Steps n s σ .skip σ') (hw : WF s) : n = 
   | refl => subst hk; rfl
   | head hs _ ih => have := step_work hs hw; rw [ih (step_wf hs hw) hk]; omega
 
-/-- the work law of `par` (C.4.3, T20): the branches' work plus one fork step;
+/-- the work law of `par` (C.6, T20): the branches' work plus one fork step;
     under W-PAR-1 the second branch's work does not depend on the first -/
 theorem work_par (a b : St) (σ : Store) (hw : WF (.par a b)) :
     work (.par a b) σ = work a σ + work b σ + 1 := by

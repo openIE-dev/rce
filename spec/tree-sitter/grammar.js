@@ -159,7 +159,7 @@ module.exports = grammar({
     // draft 0.6 (Appendix C, book/14-draft06-concurrency.md C.2)
     par_stmt: $ => seq('par', $._NL, $._INDENT, repeat1($.branch), $._DEDENT),
     branch: $ => seq('branch', $.NAME, $.block),
-    budget_stmt: $ => seq('with', 'budget', $._expr, $.block, optional(seq('else', $.block))),
+    budget_stmt: $ => seq('with', 'budget', $._expr, $.block, optional(seq('else', optional(seq('as', $._pattern)), $.block))),
     deadline_stmt: $ => seq('with', 'deadline', $._expr, $.block, optional($.else_clause)),
     // draft 0.6b (C.11)
     group_stmt: $ => seq('with', 'group', $.NAME, 'lanes', $._expr, $.block),

@@ -4857,7 +4857,41 @@ impl Checker {
                 let a = self.block(rest);
                 match else_b {
                     Some(eb) => {
+                        // W-BUD-1: a budget with an else is undone as a whole
+                        // when it traps, so its block may hold only effects
+                        // that can be undone (its own writes)
+                        let mut put = None;
+                        walk_stmts(rest, &mut |s| {
+                            for e in stmt_exprs(s) {
+                                walk_expr(e, &mut |x| {
+                                    if let Expr::Call(c, _, _, _) = x
+                                        && let Expr::Member(_, m, _) = &**c
+                                        && (m == "put" || m == "freeze")
+                                    {
+                                        put = Some("lvar put or freeze");
+                                    }
+                                });
+                            }
+                        });
+                        if let Some(eff) = footprint(rest).effect.or(put) {
+                            self.e(d(
+                                line,
+                                "W-BUD-1",
+                                format!("`with budget ... else` block has an effect ({eff}) that a trap cannot undo"),
+                            ));
+                        }
+                        if footprint(rest).escape {
+                            self.e(d(
+                                line,
+                                "W-BUD-1",
+                                "`with budget ... else` block returns, breaks or continues out of it".to_string(),
+                            ));
+                        }
+                        self.push_scope_pub();
+                        self.declare("\u{1}__bn", T::Int("u64"), false, line, false);
+                        self.declare("\u{1}__bu", T::Int("u64"), false, line, false);
                         let b = self.block(eb);
+                        self.pop_scope_pub();
                         a && b
                     }
                     None => a,

@@ -36,6 +36,10 @@ fn run(lang: Lang, tag: &str, code: &str) -> Result<String, String> {
             }
             Command::new(&exe).output()
         }
+        Lang::Scala => Command::new("scala-cli")
+            .args(["run", "-q", "--server=false", "--jvm", "21", "--scala", "3.10.0", "--scalac-option", "-nowarn"])
+            .arg(&src)
+            .output(),
         _ => Command::new(tool(lang)).arg(&src).output(),
     }
     .map_err(|e| e.to_string())?;
@@ -48,11 +52,15 @@ fn run(lang: Lang, tag: &str, code: &str) -> Result<String, String> {
 
 /// admitted by rce-check, then every available target prints the evaluator's lines
 fn agree(tag: &str, src: &str) -> Vec<String> {
+    agree_on(tag, src, &[Lang::Rust, Lang::Python, Lang::Js])
+}
+
+fn agree_on(tag: &str, src: &str, langs: &[Lang]) -> Vec<String> {
     let d = rce_spec_check::check_program(&[("e.rce".into(), src.to_string())], false);
     assert!(d[0].1.is_ok(), "{tag}: {:?}\n{src}", d[0].1);
     let m = with_probes(&parse(src).unwrap());
     let want = observe(&m);
-    for lang in [Lang::Rust, Lang::Python, Lang::Js] {
+    for &lang in langs {
         if Command::new(tool(lang)).arg("--version").output().is_err() {
             eprintln!("SKIPPED {lang:?}: {} not found (not a pass)", tool(lang));
             continue;
@@ -363,4 +371,24 @@ fn lvar_wait_chains_agree() {
     let l = agree("chains", &fns);
     let stuck = l.iter().filter(|x| x.ends_with("lvar wait cannot be satisfied")).count();
     assert!(stuck >= 1 && stuck < l.len(), "{l:?}");
+}
+
+/// `with budget n ... else as e` (C.5): the block is atomic, so a trap undoes
+/// every write of the block (locals and struct fields alike) and the else
+/// sees the entry state and Exhausted{limit, used}. Checked on all four
+/// targets, the limit swept across the cost of the block.
+#[test]
+fn budget_else_is_atomic_on_every_target() {
+    let mut fns = String::new();
+    for n in [0u32, 3, 10, 25, 40, 60, 90, 140, 400] {
+        fns += &format!(
+            "fn b{n}() -> List[u64]\n    var p = P(x: 1, f: 0.5)\n    var xs = [1, 2]\n    var lim: u64 = 0\n    var used: u64 = 0\n    with budget {n}\n        for i in 0..8\n            p.x += i\n            xs[0] = p.x\n            xs.push(i)\n    else as e\n        lim = e.limit\n        used = e.used\n    [lim, used, p.x as u64, xs.len() as u64]\n\n"
+        );
+    }
+    fns += "fn nested() -> List[i64]\n    var a: i64 = 0\n    var r: i64 = 0\n    with budget 30\n        with budget 1000\n            for i in 0..50\n                a += 1\n        else\n            r = 1\n        a += 100\n    else\n        r += 10\n    [a, r]\n";
+    let src = format!("{WORK}\n{fns}");
+    let lines = agree_on("budget-else", &src, &[Lang::Rust, Lang::Python, Lang::Js, Lang::Scala]);
+    assert!(lines.iter().any(|l| l.starts_with("fn b400 = [0, 0, 29, 10]")), "{lines:?}");
+    assert!(lines.iter().any(|l| l.starts_with("fn b3 = [3, ")), "{lines:?}");
+    assert!(lines.iter().any(|l| l == "fn nested = [0, 10]"), "{lines:?}");
 }

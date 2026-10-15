@@ -1110,8 +1110,10 @@ class budget:
         s.n = marker_int(n)
     def __enter__(s): TLS.bud.append([0, s.n])
     def __exit__(s, *a):
-        TLS.bud.pop()
+        TLS.budlast = TLS.bud.pop()[0]
         return False
+def budget_last():
+    return Int(getattr(TLS, "budlast", 0), "u64")
 def op_cost(op, x):
     if type(x) is F or type(x) is F32:
         return 2 if op in ("+", "-", "*") else 8 if op in ("/", "%") else 1
@@ -1254,7 +1256,7 @@ def par_restore(s):
     bud_restore(s[0])
     TLS.fuel = s[1]
 
-# ---- workgroups (C.11.1)
+# ---- workgroups (C.11.2)
 def lanes_of(v):
     n = marker_int(v)
     return max(n, 0), n

@@ -229,9 +229,15 @@ lowers with its errors as values: `fail e` returns `{"$err": e}`, `try x
 statement or a `return` value) tests `x` with `has(x, "$err")` (`none`
 for an optional) and returns the error, and `x catch |e| h` tests the
 same and evaluates `h`; a call of such a function anywhere else is
-refused. Integers are i64 or usize (a usize variable that
-would become negative traps); floats, narrower integers,
-closures and recursion are refused. A generic function
+refused. A recursive group (a cycle of the call graph) lowers to one
+`fix` term of its members' bodies, a call inside it being `rec` of the
+callee's index; `bound n` is a counter of active calls passed by every
+`rec`, trapping past n as in 6.7. The evaluator bounds `rec` nesting at
+20000 (the reference evaluator's nesting limit) and calls per evaluation
+at 50000000 (its fuel); past either is an error, and an input on which
+the reference evaluator meets its own limits gives no vector. Integers
+are i64 or usize (a usize variable that would become negative traps);
+floats, narrower integers and closures are refused. A generic function
 lowers to one term for every instance, since the IR is untyped over JSON.
 A term over 1 MiB of JSON, not counting its definitions, or a program
 nested over 1000 levels is refused (catalog readers parse past JSON
@@ -388,4 +394,4 @@ receipts are version-independent).
 
 **Read receipt.** Which compiled node id does `deliverable D1` become? (for example role_R1)
 
-<!-- body-sha256: dbd4b1b52c0f8f9d3d65d69f4d68df0487172b28637c7e92d92d7a2eee5e0e2f -->
+<!-- body-sha256: 77247f238663dcfbf3dd4ce08bc2e54ed7ea6131ae4284439540c6592ab305e7 -->

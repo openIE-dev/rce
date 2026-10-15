@@ -939,7 +939,9 @@ function charge(u) {
 function budgetEnter(n) {
   BUD.push([0n, markerInt(n)]);
 }
-function budgetExit() { BUD.pop(); }
+let BUD_LAST = 0n;
+function budgetExit() { const b = BUD.pop(); if (b) BUD_LAST = b[0]; }
+function budgetLast() { return new Int(BUD_LAST, "u64"); }
 function opCost(op, x) {
   if (x instanceof F || x instanceof F32) return op === "+" || op === "-" || op === "*" ? 2n : op === "/" || op === "%" ? 8n : 1n;
   return 1n;
@@ -1073,7 +1075,7 @@ function budRestore(s) { BUD.length = 0; for (const b of s) BUD.push(b); }
 const parSnap = () => [budSnap(), FUEL];
 function parRestore(s) { budRestore(s[0]); FUEL = s[1]; }
 
-// ---- workgroups (C.11.1)
+// ---- workgroups (C.11.2)
 function lanesOf(v) { const n = markerInt(v); return [n > 0n ? Number(n) : 0, n]; }
 const groupRec = (lane, n) => new Rec("$group", [["lane", new Int(BigInt(lane), "usize")], ["lanes", new Int(n, "usize")]]);
 

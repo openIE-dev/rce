@@ -128,6 +128,8 @@ fn index_records() {
             "find_first",
             "first",
             "greet",
+            "is_even",
+            "is_odd",
             "is_short",
             "le16",
             "mean2",
@@ -149,13 +151,11 @@ fn index_records() {
     assert_eq!(f["key"], "(List[t0], t0) -> t0");
     assert_eq!(f["checked"], true);
     assert_eq!(entry(&c, "clamp")["key"], "(i64, i64, i64) -> i64");
-    let r = entry(&c, "fact")["lowering"]["refused"]
-        .as_str()
-        .unwrap()
-        .to_string();
-    assert!(r.contains("recursive call of fact"), "{r}");
+    // recursion lowers to a fix (with `bound 64` counted in the term)
+    assert_eq!(entry(&c, "fact")["lowering"]["term"]["t"], "fix");
+    assert_eq!(entry(&c, "is_even")["lowering"]["term"]["t"], "fix");
     // loops, lists, structs, text `+`, bit operations, generics and usize lower
-    assert_eq!(c["lowered"], 25);
+    assert_eq!(c["lowered"], 28);
 }
 
 #[test]

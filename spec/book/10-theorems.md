@@ -49,7 +49,7 @@ Classical.choice). Status per theorem:
 | T38 | proved for any hash function: the verified prefix is a prefix and a valid chain, a valid log is kept whole, and a valid log followed by an entry that does not link is cut back to it; the SHA-256 chain of every example log is tested with torn, flipped and swapped entries (`tests/host_contract.rs`) | `verify_prefix`, `verify_valid`, `verify_intact`, `verify_append`, `t38_torn` |
 | T39 | proved on an admitter model: after a failed barrier nothing is appended, and a running admitter's log is exactly the entries it was given | `t39_halted`, `t39_fault_stops`, `t39_run_complete` |
 | T40 | proved on a window model (Appendix E.2a): with an injective input key, the entries of a window are equal for any permutation of its inputs, D is equal for any per-window permutation of a sequence of windows, and sorting keeps every input; two hosts with different arrival orders give byte-identical D in `tests/host_admit.rs` | `window_perm`, `log_permwise`, `window_complete`, `ins_comm` |
-| T41 | proved on a term model (Appendix E.2b) under Leader Completeness as a hypothesis: a fenced append leaves a replica unchanged and every committed prefix survives any number of term changes; partitions, reordering, crash and restart are tested in `tests/host_raft.rs` | `fenced_append_unchanged`, `committed_prefix_preserved`, `accepted_append` |
+| T41 | proved on a term model (Appendix E.2b): quorum intersection, Election Safety and Leader Completeness for every reachable state of the whole-log protocol model (elections with the vote rule, appends, fenced writes, commits), by strong induction on terms with no further hypotheses, a fenced append leaves a replica unchanged, and every committed prefix survives any number of term changes; partitions, reordering, crash and restart are tested in `tests/host_raft.rs` | `fenced_append_unchanged`, `committed_prefix_preserved`, `quorum_intersect`, `election_safety`, `elect_fresh`, `commit_seed`, `leader_completeness` |
 | T15 | proved for iterators whose step between yields is total (T2): every run ends, delivers at most LOOP_LIMIT values and traps only after exactly LOOP_LIMIT; `break` yields a prefix of the full run; a run with a smaller cap is a prefix of one with a larger cap (the evaluator's re-run strategy) | `drive_total`, `drive_break`, `gen_prefix` |
 
 T16 to T31 belong to version 0.6 and are listed with their exact status
@@ -196,4 +196,4 @@ tables is checked to exist (`spec/checker/tests/theorem_index.rs`).
 
 **Read receipt.** What is the deep embedding of the emitted Rust subset called?
 
-<!-- body-sha256: 1c9263518038ffe52dbc01e68287a048cc2ec806f8f975bed5a2c3f3562ef1f2 -->
+<!-- body-sha256: 925406c4a664c8898fe2833acc52c72402a8bfa3aeb2567f2037dbd85f7396c3 -->

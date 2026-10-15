@@ -57,6 +57,107 @@ pub struct Lowerer<'a> {
     /// the next call may have a result `T ! E` (it is the operand of `try`
     /// or `catch`, or passed on by `return`); taken by that call
     allow_union: bool,
+    /// the recursive group (a strongly connected component of the call
+    /// graph) of each function that calls itself, directly or not
+    groups: HashMap<String, Vec<String>>,
+    /// the group being lowered: a call of a member is `rec` of its index
+    group: Option<Vec<String>>,
+    /// the counters of the group's members declared with `bound n` (6.7):
+    /// `$b<i>` is the number of active calls of member i, passed by every
+    /// `rec` call (a call from outside the group starts them at 0)
+    rec_bound: Vec<String>,
+}
+
+/// The functions a body calls by name.
+fn callees(d: &FnDecl) -> BTreeSet<String> {
+    fn walk(v: &Value, out: &mut BTreeSet<String>) {
+        match v {
+            Value::Object(m) => {
+                if let Some(Value::Array(a)) = m.get("Call")
+                    && let Some(Value::Array(n)) = a.first().and_then(|f| f.get("Name"))
+                    && let Some(Value::String(g)) = n.first()
+                {
+                    out.insert(g.clone());
+                }
+                m.values().for_each(|x| walk(x, out));
+            }
+            Value::Array(a) => a.iter().for_each(|x| walk(x, out)),
+            _ => {}
+        }
+    }
+    let mut out = BTreeSet::new();
+    walk(
+        &serde_json::to_value(&d.body).unwrap_or(Value::Null),
+        &mut out,
+    );
+    out
+}
+
+/// The recursive groups of a call graph (Tarjan): each strongly connected
+/// component of more than one function, or of one that calls itself, with
+/// its members in name order.
+fn recursive_groups(g: &BTreeMap<String, BTreeSet<String>>) -> HashMap<String, Vec<String>> {
+    struct T<'a> {
+        g: &'a BTreeMap<String, BTreeSet<String>>,
+        idx: HashMap<&'a str, usize>,
+        low: HashMap<&'a str, usize>,
+        on: HashSet<&'a str>,
+        st: Vec<&'a str>,
+        n: usize,
+        out: HashMap<String, Vec<String>>,
+    }
+    fn go<'a>(t: &mut T<'a>, v: &'a str) {
+        t.idx.insert(v, t.n);
+        t.low.insert(v, t.n);
+        t.n += 1;
+        t.st.push(v);
+        t.on.insert(v);
+        for w in t.g[v].iter().filter(|w| t.g.contains_key(w.as_str())) {
+            let w = w.as_str();
+            if !t.idx.contains_key(w) {
+                go(t, w);
+                let lw = t.low[w];
+                let lv = t.low.get_mut(v).unwrap();
+                *lv = (*lv).min(lw);
+            } else if t.on.contains(w) {
+                let iw = t.idx[w];
+                let lv = t.low.get_mut(v).unwrap();
+                *lv = (*lv).min(iw);
+            }
+        }
+        if t.low[v] == t.idx[v] {
+            let mut c = vec![];
+            loop {
+                let w = t.st.pop().unwrap();
+                t.on.remove(w);
+                c.push(w.to_string());
+                if w == v {
+                    break;
+                }
+            }
+            if c.len() > 1 || t.g[v].contains(v) {
+                c.sort();
+                for m in &c {
+                    t.out.insert(m.clone(), c.clone());
+                }
+            }
+        }
+    }
+    let mut t = T {
+        g,
+        idx: HashMap::new(),
+        low: HashMap::new(),
+        on: HashSet::new(),
+        st: vec![],
+        n: 0,
+        out: HashMap::new(),
+    };
+    for v in g.keys() {
+        if !t.idx.contains_key(v.as_str()) {
+            go(&mut t, v);
+        }
+    }
+    t.out
 }
 
 /// Largest term (bytes of its JSON) a function lowers to, not counting
@@ -147,6 +248,8 @@ impl<'a> Lowerer<'a> {
                 _ => {}
             }
         }
+        let calls: BTreeMap<String, BTreeSet<String>> =
+            fns.iter().map(|(n, d)| (n.clone(), callees(d))).collect();
         Lowerer {
             fns,
             structs,
@@ -162,6 +265,9 @@ impl<'a> Lowerer<'a> {
             fails: false,
             tmps: 0,
             allow_union: false,
+            groups: recursive_groups(&calls),
+            group: None,
+            rec_bound: vec![],
         }
     }
 
@@ -252,6 +358,9 @@ impl<'a> Lowerer<'a> {
         if let Some(r) = self.memo.get(name) {
             return r.clone();
         }
+        if let Some(members) = self.groups.get(name).cloned() {
+            return self.lower_group(name, members, stack);
+        }
         if stack.iter().any(|s| s == name) {
             let l = self.fns.get(name).map(|d| d.sig.line).unwrap_or(0);
             return Err(format!("line {l}: recursive call of {name}"));
@@ -271,6 +380,60 @@ impl<'a> Lowerer<'a> {
             self.memo.insert(name.to_string(), r.clone());
         }
         r
+    }
+
+    /// A recursive group as one `fix` of its members' bodies, a call of a
+    /// member inside being `rec` of its index; each member is the fix with
+    /// its own entry (the same bodies, so one evaluation of the group).
+    fn lower_group(&mut self, name: &str, members: Vec<String>, stack: &mut Vec<String>) -> L {
+        let r = (|| {
+            let saved = self.group.replace(members.clone());
+            let mut bodies = vec![];
+            let mut err = None;
+            for m in &members {
+                match self.lower_fn_uncached(m, stack) {
+                    Ok(b) => bodies.push(b),
+                    Err(e) => {
+                        err = Some(e);
+                        break;
+                    }
+                }
+            }
+            self.group = saved;
+            if let Some(e) = err {
+                return Err(e);
+            }
+            let size = serde_json::to_string(&bodies)
+                .map(|x| x.len())
+                .unwrap_or(usize::MAX);
+            if size > MAX_TERM_BYTES {
+                return Err(format!("its term is {size} bytes, over {MAX_TERM_BYTES}"));
+            }
+            Ok(bodies)
+        })();
+        for (i, m) in members.iter().enumerate() {
+            let t = r.clone().map(
+                |bodies| json!({"t": "fix", "node": self.node_of(m), "bodies": bodies, "entry": i}),
+            );
+            self.memo.insert(m.clone(), t);
+        }
+        self.memo[name].clone()
+    }
+
+    /// A call of `g`: `rec` inside its own group, else a `ref` to its term.
+    fn callee_term(&mut self, g: &str, stack: &mut Vec<String>) -> L {
+        if let Some(i) = self
+            .group
+            .as_ref()
+            .and_then(|ms| ms.iter().position(|m| m == g))
+        {
+            return Ok(json!({"t": "rec", "node": self.n(), "index": i}));
+        }
+        let callee = self.lower_fn_in(g, stack)?;
+        // format 2: the callee once in the table, a ref at the call
+        let k = crate::brick::digest(&callee);
+        self.defs.entry(k.clone()).or_insert(callee);
+        Ok(json!({"t": "ref", "node": self.n(), "def": k}))
     }
 
     fn lower_fn_uncached(&mut self, name: &str, stack: &mut Vec<String>) -> L {
@@ -341,12 +504,46 @@ impl<'a> Lowerer<'a> {
         }
         self.depth = 0;
         stack.push(name.to_string());
+        // in a group, the counters of its bounded members and this one's bound
+        let (counters, bound) = match &self.group {
+            Some(ms) => {
+                let cs: Vec<(String, bool)> = ms
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, m)| self.fns[m.as_str()].sig.bound.is_some())
+                    .map(|(i, m)| (format!("$b{i}"), m == name))
+                    .collect();
+                (cs, d.sig.bound)
+            }
+            None => (vec![], None),
+        };
+        let saved_b = std::mem::replace(
+            &mut self.rec_bound,
+            counters.iter().map(|c| c.0.clone()).collect(),
+        );
         let r = (|| {
             let mut s: Vec<String> = params.clone();
             s.extend(CTRL.iter().map(|x| x.to_string()));
+            // `bound n` (6.7): this call is active call number $b<self>,
+            // counted from the call that entered the group (which passes no
+            // counters); past n it traps
+            let mut bfield = vec![];
+            for (f, me) in &counters {
+                s.push(f.clone());
+                let prev = json!({"t": "if_has", "field": f,
+                    "then": self.proj(f), "otherwise": c(json!(0))});
+                let v = if *me {
+                    self.arith("add", prev, c(json!(1)))
+                } else {
+                    prev
+                };
+                bfield.push(json!([f, v]));
+            }
+            let mine = counters.iter().find(|c| c.1).map(|c| c.0.clone());
             let init_fields: Vec<Value> = params
                 .iter()
                 .map(|p| json!([p, self.proj(p)]))
+                .chain(bfield)
                 .chain([
                     json!(["$brk", c(json!(false))]),
                     json!(["$cnt", c(json!(false))]),
@@ -354,7 +551,18 @@ impl<'a> Lowerer<'a> {
                     json!(["$ret", c(Value::Null)]),
                 ])
                 .collect();
-            let init = json!({"t": "obj", "fields": init_fields});
+            let mut init = json!({"t": "obj", "fields": init_fields});
+            if let (Some(n), Some(f)) = (bound, &mine) {
+                let over = self.prim("gt", vec![self.proj(f), c(json!(n))]);
+                init = Self::pipe(
+                    init,
+                    self.cond(
+                        over,
+                        self.err("trap: recursion bound"),
+                        json!({"t": "pass"}),
+                    ),
+                );
+            }
             // state-passing: with &mut parameters the result is
             // [result, final values of the &mut parameters in order]
             let out = |me: &Self, r: Value| {
@@ -382,6 +590,7 @@ impl<'a> Lowerer<'a> {
             }
         })();
         stack.pop();
+        self.rec_bound = saved_b;
         self.node = saved.0;
         self.depth = saved.1;
         self.unsigned = saved_u;
@@ -519,13 +728,13 @@ impl<'a> Lowerer<'a> {
             };
             fields.push(json!([n, self.expr(&e, s, stack)?]));
         }
-        let callee = self.lower_fn_in(g, stack)?;
-        let k = crate::brick::digest(&callee);
-        self.defs.entry(k.clone()).or_insert(callee);
-        let t = Self::pipe(
-            json!({"t": "obj", "fields": fields}),
-            json!({"t": "ref", "node": self.n(), "def": k}),
-        );
+        let call = self.callee_term(g, stack)?;
+        if call["t"] == "rec" {
+            for f in &self.rec_bound {
+                fields.push(json!([f, self.proj(f)]));
+            }
+        }
+        let t = Self::pipe(json!({"t": "obj", "fields": fields}), call);
         // env + $call
         let mut s2 = s.clone();
         let mut ext: Vec<Value> = s.iter().map(|v| json!([v, self.proj(v)])).collect();
@@ -1339,14 +1548,13 @@ impl<'a> Lowerer<'a> {
                     used.insert(n.clone());
                     fields.push(json!([n, self.expr(&a.e, s, stack)?]));
                 }
-                let callee = self.lower_fn_in(g, stack)?;
-                // format 2: the callee once in the table, a ref at the call
-                let k = crate::brick::digest(&callee);
-                self.defs.entry(k.clone()).or_insert(callee);
-                Ok(Self::pipe(
-                    json!({"t": "obj", "fields": fields}),
-                    json!({"t": "ref", "node": self.n(), "def": k}),
-                ))
+                let call = self.callee_term(g, stack)?;
+                if call["t"] == "rec" {
+                    for f in &self.rec_bound {
+                        fields.push(json!([f, self.proj(f)]));
+                    }
+                }
+                Ok(Self::pipe(json!({"t": "obj", "fields": fields}), call))
             }
             _ => no("this call"),
         }

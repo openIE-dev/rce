@@ -80,16 +80,36 @@ adapter.
   JCP v0.3 (https://jcp.transaction.science); see REMAINING-PLAN W1h-std.
   The program loses nothing,
   since 5.15 gives it no ambient authority.
-- **HC-6 Concurrency and the host.** The concurrency of `fn main`
-  (tasks, actors, supervisors; C.5, C.13) runs under the tick semantics
-  of 6.8 in the reference run (`conc::run_main`) and its replay, which
-  re-executes with the recorded `select nondet` choices. The reference
-  host does not run `fn main`: it admits inputs to δ, and none of the
-  task, actor or restart steps of a `fn main` run is an entry of D. A
-  host that runs `fn main` must admit each scheduling decision as an
-  input (a tick, a crash, a restart) so that it is in D; the reference
-  host has no such scheduler, and no host may execute tasks in parallel
-  unless the result equals the tick semantics (T1, T21).
+- **HC-6 Tick scheduler.** Concurrency runs under the tick semantics of
+  6.8. The host runs `fn main` (tasks, actors, supervisors; C.5, C.13)
+  with its scheduler as a live task whose every transition is an entry
+  of D. `host.MainStart` {links, max_ticks, seed} starts the task;
+  `host.MainInput` {a, b, partition, tick} logs an input to it (a link
+  change); `host.Step` {cause, i, node, tick, what} logs one scheduler
+  step, including the arm the environment chose at each `select nondet`;
+  `host.MainEnd` {choices, outcome, ticks} ends it. Program inputs to δ
+  may be admitted between any two of these entries. While the task is
+  live its state (the start entry, the inputs logged so far, the number of
+  steps logged and a hash chain over them) is part of the state D folds
+  to, and the `state_hash` of every entry covers it, so the state after
+  each entry is the fold of D up to that entry and a host rebuilt from any
+  prefix continues the same run. Replay re-runs the scheduler on the
+  logged inputs and refuses an entry unless the step it logs is the next
+  step the scheduler takes and the end agrees in outcome and choices
+  (T21). An input whose tick is not after the last logged step is refused
+  before it is logged, and an input is also refused if re-running on it
+  would change a step already in D, so an input never rewrites the past.
+  No snapshot is taken while a task is live. A host may execute tasks in
+  parallel only when the result equals the tick semantics (T1, T21).
+  Reference: `Host::main_begin`, `main_input`, `main_step`, `main_end`,
+  and `run_main` for a run whose inputs are all known at the start.
+  Derivation: law 1 of E.2c makes each nondeterministic choice of the
+  run an entry of D, and the requirement that state be the fold of D at
+  every entry, not only between runs, makes the task's progress part of
+  that state. The task's inputs today are link changes and the
+  environment's choices; a channel from δ's outputs into a running task
+  belongs to the scheduler of 6.8 (`conc.rs`), and would enter D as
+  `host.MainInput` entries of a new kind under the same causality rule.
 - **HC-7 Numerics and limits.** The host reproduces 6.3 bit for bit and
   enforces fuel, SIZE_LIMIT and VALUE_LIMIT (6.7, N9) as the reference
   does, on every run.
@@ -193,6 +213,24 @@ logs.
   any suffix of its own log that matches it. The transport may lose,
   delay, duplicate or reorder messages. Timeouts are counted in logical
   ticks, so a loopback run is a function of its seed.
+  Snapshots travel in chunks of bounded size, each carrying its byte
+  offset; a follower accepts a chunk only at the offset it expects,
+  acknowledges the next offset it needs, and installs the snapshot only
+  when the final chunk arrives, so loss, duplication and reordering of
+  chunks cannot install a partial state. Membership changes use joint
+  consensus: the leader appends a configuration entry C_old,new; a node
+  uses the latest configuration in its log whether or not it is committed;
+  while C_old,new is in force, elections and commitment need a majority of
+  C_old and a majority of C_new; once C_old,new commits the leader appends
+  C_new, and a leader that is not in C_new steps down once C_new commits.
+  Derivation: safety rests on any two quorums intersecting (Quorum.lean,
+  `quorum_intersect`). Switching directly from C_old to C_new admits a
+  majority of each that share no node, hence two leaders in one term;
+  requiring both majorities during the transition keeps every pair of
+  deciding quorums intersecting. Between hosts the transport runs over TCP
+  inside mutual TLS with pinned ed25519 keys: a frame is accepted
+  only if the peer id it claims matches the key that authenticated the
+  connection, so a node without a pinned key cannot vote or append.
 - **HC-20 Deposed admitter.** An admitter whose barrier is refused because
   a higher term was granted has had its role taken. By HS-3 it appends
   nothing further and acks nothing, so its unacked inputs are retransmitted
@@ -231,7 +269,62 @@ Raft notes that a heartbeat lease "would rely on timing for safety (it
 assumes bounded clock skew)", which is why E.2b leaves leases out. Raft's
 Figure 2 lists currentTerm, votedFor and log[] as "Persistent state on all
 servers: (Updated on stable storage before responding to RPCs)", which is
-the order HC-18a requires. Membership changes are not implemented.
+the order HC-18a requires. On membership, Raft states that "Agreement (for
+elections and entry commitment) requires separate majorities from both the
+old and new configurations" and that "a server always uses the latest
+configuration in its log, regardless of whether the entry is committed";
+HC-18a follows both. Raft's rule that servers disregard RequestVote while
+they believe a current leader exists, which limits disruption by removed
+servers, is a liveness measure and is not implemented.
+
+### E.2c Derivation from laws (informative)
+
+E.2a to E.2b and HC-6, HC-12 are derived from the following laws rather
+than from the code that existed when they were written. Each law is stated,
+then the design it forces.
+
+1. **Deterministic state machines agree when their logs agree.** Raft:
+   "Each log contains the same commands in the same order, so each state
+   machine processes the same sequence of commands. Since the state
+   machines are deterministic, each computes the same state and the same
+   sequence of outputs." So every nondeterministic choice that can affect
+   a result must be an entry of D: the order of inputs (HC-15), the
+   scheduler's choices and the environment seed of a `fn main` run (HC-6),
+   and placement decisions (HC-12). Replay re-derives each one and refuses
+   D when a derivation differs, so D is checked, not trusted.
+2. **Safety must not depend on timing; liveness must.** Raft: "safety must
+   not depend on timing ... However, availability ... must inevitably
+   depend on timing." The law behind it is Fischer, Lynch and Paterson
+   (JACM 1985), Theorem 1: "No consensus protocol is totally correct in
+   spite of one fault", in a model where processes "do not have access to
+   synchronized clocks, so algorithms based on time-outs, for example,
+   cannot be used". Their conclusion asks for "more refined models of
+   distributed computing that better reflect realistic assumptions about
+   processor and communication timings". Raft's election timeout is such
+   an assumption, and it is the only place E.2b uses one.
+   So terms, votes and fences decide safety (HC-18 to HC-20), timeouts
+   count logical ticks and decide only when an election starts (HC-18a),
+   window boundaries are logged ticks (HC-15), and leader leases, which
+   would make safety depend on bounded clock skew, are excluded.
+3. **Exactly once is at-least-once delivery plus idempotent dedupe.**
+   Raft: "clients ... assign unique serial numbers to every command. Then,
+   the state machine tracks the latest serial number processed for each
+   client". So sources retransmit until acked and the admitter dedupes by
+   (source, seq), with the dedupe state folded from D so that it survives
+   failover (HC-16, HC-17). No transport is trusted to deliver once.
+4. **End-to-end argument.** A guarantee that only the endpoints can check
+   belongs at the endpoints. Durability and exactly-once are checked where
+   D is committed: the admitter acks only after a quorum commit (HC-16,
+   HC-18), and the transport may lose, duplicate or reorder (HC-18a).
+5. **Under a partition, consistency or availability (CAP); otherwise,
+   latency or consistency (PACELC).** RCE chooses consistency: a minority
+   side cannot commit, so it cannot admit (HC-20). Without a partition each
+   window costs one quorum round; windows batch inputs to amortise it, the
+   same trade Calvin makes with its epochs.
+6. **Floating-point addition is not associative.** A parallel reduction
+   reproduces the sequential bits only if it evaluates one fixed tree. So
+   placement may change cost and never bits (HC-12, HC-13, T18), and a
+   fabric enters only after a probe equal to the reference.
 
 ### E.3 Storage: durable append (HS-1 to HS-5)
 
@@ -295,13 +388,17 @@ JSON. The host entries are:
 | `host.FabricCaps` | the fabric record of E.7 | at start and on hot-plug |
 | `host.Calibrated` | fabric id, op class, overhead, throughput | after a calibration run |
 | `host.Exact` | fabric id, op class, probe digest, reference digest | after a probe (HC-12) |
-| `host.Placed` | op id, fabric id | when placement is decided (HC-11) |
+| `host.Placed` | class, fabric id, op id, work | when placement is decided, before the operation runs (HC-12) |
 | `host.WallTime` | nanoseconds since the Unix epoch | when an adapter supplies wall time |
 | `host.Energy` | source, basis, joules | when a counter is read (D.11) |
 | `host.Bind` | host result kind, program event name | at start (E.8) |
 | `host.Window` | count, id, term, upto (tick) | when a window closes (HC-17) |
 | `host.Input` | late (when true), seq, source, window | before each input of a window (HC-17) |
 | `host.Term` | leader, term | when a host takes the admitter role (HC-19) |
+| `host.MainStart` | links, max_ticks, seed | when a `fn main` run starts (HC-6) |
+| `host.MainInput` | a, b, partition, tick | an input to the live task, after its last logged step (HC-6) |
+| `host.Step` | cause, i, node, tick, what | one per scheduler step of the run (HC-6) |
+| `host.MainEnd` | choices, outcome, ticks | when the run ends (HC-6) |
 
 A program receives the content of a host entry only through a binding
 (E.8): the admitter then appends, after the host entry, an ordinary event
@@ -316,18 +413,47 @@ entry.
   and NaN preservation per width), NPU receipts, memory topology and
   which counters can be read. Replay reads the same record, so every
   decision taken from it is a function of D.
-- **HC-12 Placement.** Placement of a lane-wise array operation, a
-  `for … par` body or a reduction is a function of the host entries of D
-  (`host.Calibrated`, `host.Exact`) and of the cost table of C.6.4
-  extended with per-fabric overhead and throughput (time = overhead +
-  work / throughput), so it is the same on replay (T37). A program needs
-  no annotation; `with device` (5.13) and device kernels stay hints that
-  never change meaning. The reference host performs no automatic
-  placement: it logs `host.FabricCaps`, never writes `host.Calibrated` or
-  `host.Placed`, and runs every operation on the CPU. The placement
-  function is specified by the conformance test
-  `placement_is_a_function_of_host_entries`, which checks it on
-  constructed host entries, not on a running host.
+- **HC-12 Automatic placement.** The engine places each lane-wise array
+  operation, `for … par` body and reduction itself, from the cost table
+  of C.6.4 extended with per-fabric overhead and throughput (time =
+  overhead + work / throughput), whose calibration results are
+  `host.Calibrated` entries. A program needs no annotation. `with device`
+  (5.13) and device kernels stay hints that never change meaning.
+  Placement is a function of the host entries of D, so it is the same on
+  replay (T37): the host logs each decision as `host.Placed` and replay
+  re-derives it and refuses D when it differs. A fabric is a candidate for
+  a class only after a `host.Exact` probe equal to the CPU reference
+  (HC-13). Reference executor (`Host::place_sum`, `place_lanes`,
+  `place_par`): the classes are `sum.f64`, `lanes.f64.<op>` for the
+  lane-wise binary64 operations add, sub, mul, div, neg and sqrt, and
+  `par.<class>` for a `for … par` body over `0..n` combined by a given
+  operation. On `cpu` and `cpu.threads` lanes are split into contiguous
+  chunks across threads, which cannot change a lane's result because
+  lanes do not read each other, and every combination, sums included, is
+  evaluated as the fixed tree of T18, whose shape is a function of the
+  length alone, so the bits are the same for any thread count and any
+  combine, associative or not. `Host::probe_fabric` runs the probe
+  vector (signed zeros, subnormal results, infinities, NaN, and sums of
+  every length up to 64 with cancellation) on the fabric and on the CPU
+  reference and logs `host.Exact` with both digests. A placement onto a
+  fabric without an executor is refused before it is logged; replay
+  re-derives placements from D and needs no executor. Derivation: law 6
+  of E.2c fixes the tree; law 1 makes the choice of fabric an entry of D;
+  HC-13 makes a fabric trusted only by evidence in D.
+  Platform fabrics (informative interface). A GPU through wgpu, or an
+  NPU, enters by implementing `FabricExec` {id, lanes(op, a, b), sum(xs)}
+  and `Host::register_fabric`. The contract: each lane is the correctly
+  rounded binary64 result of the named operation, with no contraction
+  into fused multiply-add and no flushing of subnormals, and `sum`
+  evaluates exactly the fixed tree. A device without binary64, or one
+  that cannot meet the contract, fails its probe and is never placed. A
+  run-time error from a placed fabric falls back to the CPU reference,
+  which has the same bits. `for … par` bodies are host closures and run
+  only on `cpu` or `cpu.threads`; placing them on a device needs the body
+  compiled to a kernel, which belongs to the platform worker together with
+  the wgpu implementation of this interface. The tick scheduler's own
+  parallel execution of `for … par` (`conc.rs`) is separate and keeps its
+  own equality with the tick semantics (T1, T21).
 - **HC-13 Bit-exactness gate.** A fabric computes a value that reaches
   state only for an operation on its logged exact list: integer
   operations; IEEE add, sub, mul, div and sqrt with round-to-nearest-even,
@@ -441,15 +567,32 @@ markup is built from data.
   model where an input has an injective key (the HC-15 key with the event
   bytes) and dedupe keeps one copy of each key.
 - **T41 Prefix across terms.** A replica that promised a higher term
-  leaves its log unchanged on an append from a lower one, and under Raft's
-  Leader Completeness (a hypothesis of the model, not proved) every
+  leaves its log unchanged on an append from a lower one, and every
   committed prefix is a prefix of D after any number of term changes. This
-  is T38 and T39 under leader change; quorum intersection, message loss
-  and the Rust code are not modeled.
+  is T38 and T39 under leader change. Quorum intersection, Election Safety
+  (one leader per term, from the durable single vote) and Leader
+  Completeness are proved for every reachable state of a whole-log
+  protocol model whose steps are elections under the vote rule, leader
+  appends, fenced writes and commits, from the initial state and with no
+  further hypotheses. The proof is strong induction on terms: a leader of
+  a term above t shares a voter with the commit quorum, the vote rule makes
+  its starting log at least as up to date as that voter's, so it either
+  holds the committed prefix directly or was started from the log of an
+  earlier term above t, which holds it by induction. Election Safety is
+  derived in the same model, from the durable vote and quorum
+  intersection, rather than assumed. Verdi (Woos et al., CPP 2016)
+  reports a Coq proof of state machine safety for Raft in "530 lines of
+  code and 50,000 lines of proof"; RCE's proof is smaller and covers the
+  whole-log model only.
 
-Lean: `RCE/Host.lean` (T37 to T39), `RCE/Admit.lean` (T40, T41:
+Lean: `RCE/Host.lean` (T37 to T39), `RCE/Quorum.lean` (T41: `quorum_intersect`, `election_safety`,
+`elect_fresh`, `commit_seed`, `leader_completeness`, `committed_in_later_replicas`, proved for every reachable state of the protocol model with no further hypotheses; only Lean's standard axioms), `RCE/Admit.lean` (T40, T41:
 `window_perm`, `log_permwise`, `window_complete`,
-`fenced_append_unchanged`, `committed_prefix_preserved`). Conformance: `spec/checker/tests/host_contract.rs`
+`fenced_append_unchanged`, `committed_prefix_preserved`). The link from
+Lean to the host: `RCE/AdmitVectors.lean` extracts 40 vectors from
+`window` (`lake env lean --run`), and `tests/lean_admit.rs` requires the
+checked-in vectors to equal that output and `host.rs` to produce the same
+window order for each vector's arrival order. Conformance: `spec/checker/tests/host_contract.rs`
 checks every example log against HS-4 (intact, torn tail, a flipped
 byte, a swapped pair), HC-8 and T37 (each example log re-folded with host
 entries interleaved, every state hash equal, every host entry's state
@@ -462,14 +605,14 @@ is cited by a test.
 | HC-1 to HC-3 | single admitter, clocks, typed outputs | `admitter_order_is_d_order` |
 | HC-4, E.9 | foreign calls logged | `foreign_and_host_entries_replay` |
 | HC-5 | capabilities minted by events | `capability_examples_check` |
-| HC-6, HC-7 | concurrency stays outside D in the reference host, numerics | existing T1, T9 and 6.3 tests |
+| HC-6, HC-7 | tick scheduler logged in D, numerics | `tests/host_sched.rs` (`main_run_is_logged_and_replays_exactly`, `main_steps_interleave_with_inputs_and_state_is_the_fold_of_d`, `main_input_after_the_last_step_only`), existing T1, T9 and 6.3 tests |
 | HC-7a | fuel per input | `tests/fuel_per_input.rs` |
 | HC-8, HC-10, T37 | replay with adapters disconnected | `foreign_and_host_entries_replay` |
 | HC-9 | priority admission | `admitter_order_is_d_order`, `simultaneous_order_does_not_depend_on_caller_order` |
 | HC-15 to HC-17 | canonical windows, exactly once | `tests/host_admit.rs`: `two_hosts_different_arrival_orders_give_byte_identical_d`, `window_order_is_priority_then_source_then_seq`, `gap_is_held_and_admitted_once_filled`, `no_ack_without_a_durable_append`, `dedupe_state_survives_replay` |
-| HC-18 to HC-20 | replicated D, term fence, failover | `admitter_failover_keeps_one_d_and_exactly_once`; `tests/host_raft.rs`: partitions, reordering and loss, crash and restart, durable vote, log matching, snapshot install, TCP, `host_fails_over_through_raft` |
+| HC-18 to HC-20 | replicated D, term fence, failover | `admitter_failover_keeps_one_d_and_exactly_once`; `tests/host_raft.rs`: partitions, reordering and loss, crash and restart, durable vote, log matching, chunked snapshot install under reordering, joint consensus membership changes, TCP, mutual TLS with an unpinned intruder refused, `host_fails_over_through_raft` |
 | HS-1 to HS-5, T38, T39 | durable append, fatal barrier, verify on open | `verify_on_open_cuts_bad_suffix`, `fatal_barrier_stops_admission` |
-| HC-11 to HC-14 | fabrics, placement, exactness, no flags | `placement_is_a_function_of_host_entries` |
+| HC-11 to HC-14 | fabrics, placement, exactness, no flags | `placement_is_a_function_of_host_entries`, `placement_executor_follows_d_and_replays`, `fixed_tree_bits_do_not_depend_on_the_fabric`; `tests/host_place.rs`: `lanes_and_trees_have_the_same_bits_for_every_thread_count`, `lane_and_par_placement_follow_d_and_replay`, `platform_fabric_is_used_only_after_an_exact_probe` |
 | HS-6 to HS-9 | RCEdb in RCE | `rcedb_example_runs` |
 
 ### E.11 Proposed rules (not normative)
@@ -478,8 +621,8 @@ The rules in this section are **proposed**. They come from a survey of other lan
 
 **Numerics.**
 
-- **N-1 (proposed).** Float operations are IEEE 754 binary64 or binary32, round to nearest even. No fused multiply-add unless the program writes one. Every NaN result is the canonical NaN. Transcendental functions are a fixed reference algorithm or correctly rounded. Relation: tightens 6.3 and HC-7.
-- **N-8 (proposed).** A float expression has exactly one evaluation: one rounding per operator, in source order. Contraction, reassociation and algebraic rewrites are not valid compilations, and a float rewrite is never admitted by the rewrite prover.
+- **N-1 (adopted as 6.3 N3, F1 to F9).** Float operations are IEEE 754 binary64 or binary32, round to nearest even. No fused multiply-add unless the program writes one. No NaN reaches a value (F4, F5). Transcendental functions are correctly rounded or absent (F9).
+- **N-8 (adopted as 6.3 N3 F2).** A float expression has exactly one evaluation: one rounding per operator, in source order. Contraction, reassociation and algebraic rewrites are not valid compilations, and a float rewrite is never admitted by the rewrite prover.
 - **N-9 (proposed).** Every reduction is a left fold unless the program names a different fixed tree. A parallel schedule chosen by placement (HC-12) must reproduce the bits of the named tree. Thread count, fabric and batch size are never inputs to a numeric result.
 
 **Ticks and causality.**
@@ -553,4 +696,4 @@ Where RCE differs from these sources: GQL and Cypher queries are strings and the
 
 **Read receipt.** Which fcntl command is the append barrier on macOS? (for example F_SETFL)
 
-<!-- body-sha256: f0142cc17b59a7a6253750df99fff495a98181e92bb9aa1af9fa4a8ad2bb84fe -->
+<!-- body-sha256: 41797bb8bddf6eae3f21b767ba1af2abc894dfc7967df7434ea8c0c00deaa862 -->

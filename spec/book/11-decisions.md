@@ -118,6 +118,14 @@ each can be reversed independently.
 49. **LOOP_LIMIT is a per-program constant** with default 1,000,000.
 50. **Push iterators** (Go 1.23) rather than pull generators (Python, Rust):
     no suspended state, so δ stays total and replay needs nothing new.
+51. **Floats derived from IEEE 754-2019 and totality** (6.3 N3, F1 to F9):
+    correctly rounded basic operations only, one rounding per operator,
+    subnormals kept, non-finite results trap because NaN and infinities
+    break equality, order and JSON encoding, no transcendentals until a
+    correctly rounded one runs on every target.
+52. **Unicode 18.0.0 pinned, no tables read at run time** (6.3 N7): the
+    whitespace set is enumerated, so a toolchain upgrade cannot change a
+    result.
 
 ### 9.1 Changes made while mechanizing (draft 0.1 → 0.2)
 
@@ -252,4 +260,4 @@ they run them on the CPU, which 5.13 allows).
 
 **Read receipt.** The decisions list says it decides gaps in which file?
 
-<!-- body-sha256: 5ec607113e53f30a7430c572baef72d864bb3d508b0b414a90f03be6131f94a5 -->
+<!-- body-sha256: 1855f984ba5ac9080eafaf9ef3173df0cc97c536d2029815c9fb0197fa925276 -->

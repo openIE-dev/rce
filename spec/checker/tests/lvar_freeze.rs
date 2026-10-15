@@ -274,6 +274,24 @@ fn g() -> i64
         "W-LVAR-2",
     );
     assert!(e.contains("compatible"), "{e}");
+    // a symbolic set over finite values: every combination is decided
+    let e = refused(
+        "fn f(b: bool) -> i64
+    let x = lvar_new(0, 100)
+    x.put(5)
+    x.wait([if b then 7 else 3, 5])
+",
+        "W-LVAR-2",
+    );
+    assert!(e.contains("can be, on some input"), "{e}");
+    // not finite: the runtime check against top is the defined behaviour
+    admitted(
+        "fn f(n: i64) -> i64
+    let x = lvar_new(0, 100)
+    x.put(5)
+    x.wait([n, 5])
+",
+    );
 }
 
 #[test]
@@ -396,22 +414,46 @@ fn main()
     );
     // a finite kind: decided by enumeration
     admitted(&format!("{LVL}\nfn main()\n    emit 1\n"));
-    // lawful but not in a decidable form: the obligation is not discharged
+    // certificates from the proven combinators (lean/RCE/MergeCert.lean); the
+    // certified programs of tests/lvar_rules.rs are admitted here as well
+    for p in [
+        "struct Hi\n    v: i64\n\nimpl Merge for Hi\n    fn merge(self, other: Hi) -> Hi\n        if other.v > self.v\n            return other\n        self\n    fn bottom() -> Hi\n        Hi(v: 0)\n",
+        "struct Lo\n    lo: i64\n    all: bool\n\nimpl Merge for Lo\n    fn merge(self, other: Lo) -> Lo\n        Lo(lo: self.lo.min(other.lo), all: self.all and other.all)\n    fn bottom() -> Lo\n        Lo(lo: 1000, all: true)\n",
+        "struct Ver\n    ts: i64\n    hi: i64\n\nimpl Merge for Ver\n    fn merge(self, other: Ver) -> Ver\n        if self.ts > other.ts\n            self\n        elif other.ts > self.ts\n            other\n        else\n            Ver(ts: self.ts, hi: self.hi.max(other.hi))\n    fn bottom() -> Ver\n        Ver(ts: 0, hi: 0)\n",
+    ] {
+        admitted(p);
+    }
+    // lawful (bitwise or is a join) but not built from the combinators: no certificate
     let e = refused(
-        "struct Hi
+        "struct Bits
     v: i64
 
-impl Merge for Hi
-    fn merge(self, other: Hi) -> Hi
-        if other.v > self.v
-            return other
-        self
-    fn bottom() -> Hi
-        Hi(v: 0)
+impl Merge for Bits
+    fn merge(self, other: Bits) -> Bits
+        Bits(v: self.v | other.v)
+    fn bottom() -> Bits
+        Bits(v: 0)
 ",
         "W-CRDT-1",
     );
-    assert!(e.contains("proof obligation"), "{e}");
+    assert!(e.contains("no W-CRDT-1 certificate"), "{e}");
+    // selection that keeps a non-key field on ties is not lawful: no certificate
+    let e = refused(
+        "struct Tag
+    ts: i64
+    who: i64
+
+impl Merge for Tag
+    fn merge(self, other: Tag) -> Tag
+        if other.ts > self.ts
+            return other
+        self
+    fn bottom() -> Tag
+        Tag(ts: 0, who: 0)
+",
+        "W-CRDT-1",
+    );
+    assert!(e.contains("not commutative") || e.contains("no W-CRDT-1 certificate"), "{e}");
     // unlawful: refuted with a counterexample
     let e = refused(
         "kind Ab

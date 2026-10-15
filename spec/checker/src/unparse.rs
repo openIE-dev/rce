@@ -431,8 +431,19 @@ fn arena(o: &mut String, d: usize, n: &str, b: Option<&Expr>, body: &[Stmt]) {
                 };
                 block(o, d + 1, rest);
                 if let Some(eb) = else_b {
-                    line(o, d, "else");
-                    block(o, d + 1, eb);
+                    match eb.first() {
+                        Some(Stmt::Let(p, None, Expr::Call(c, a, _, _), _))
+                            if matches!(&**c, Expr::Name(n, _) if n == "Exhausted")
+                                && a.iter().any(|x| matches!(&x.e, Expr::Name(n, _) if n == "\u{1}__bu")) =>
+                        {
+                            line(o, d, &format!("else as {}", pat(p)));
+                            block(o, d + 1, &eb[1..]);
+                        }
+                        _ => {
+                            line(o, d, "else");
+                            block(o, d + 1, eb);
+                        }
+                    }
                 }
                 return;
             }

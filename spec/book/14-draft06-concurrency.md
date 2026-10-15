@@ -98,7 +98,7 @@ is a prefix of, or has as prefix, a path read or written by the other.
 ### C.4 `par`
 
 `par` runs its branches; each branch is a block. The result equals running
-the branches in source order (C.4.2). Rules:
+the branches in source order (T16). Rules:
 
 - W-PAR-1: the footprints of two branches overlap (write/write or
   write/read), including through a `&mut self` method call.
@@ -106,6 +106,38 @@ the branches in source order (C.4.2). Rules:
   channel operations, spawn, foreign calls), or returns, breaks or
   continues out of the `par`.
 - W-NAME-2 also refuses two branches with one name.
+
+Derivation of the rules (confluence). Determinism of a parallel
+composition is a confluence property: every way of interleaving the
+branches' steps must reach one result, which is then the result of any
+fixed order, source order among them. By the Church-Rosser method it is
+enough to show the diamond: one step of branch a and one step of branch
+b, taken from the same configuration in either order, reach the same
+configuration. A step changes only its write set and depends only on
+its free variables, so the two steps commute exactly when neither writes
+what the other reads or writes. That is W-PAR-1, derived, not chosen: it
+is the weakest footprint condition under which the diamond holds for
+every store. Termination of each branch (T19) and the diamond give
+confluence (Newman's lemma), so every complete interleaving gives the
+source-order store (T16). An effect that leaves the store (`emit`,
+channel operations, spawn, a foreign call) is observed in the order it
+happens, so it would make the observation depend on the interleaving
+even when the store does not; W-PAR-2 removes these. Traps follow the
+same law: a trap is observed at the first branch in source order that
+traps, because that is where the sequential run traps; the reference
+and the emitters place both arithmetic traps and resource traps (fuel,
+budget) at that branch (book/12-tooling.md 10.5). Mechanized in
+`spec/lean`: the diamond on a core with `par` (`RCE.ParSem.diamond`),
+determinism of complete runs (`RCE.ParSem.par_det`), refinement to a
+model of the reference evaluator including overflow traps
+(`RCE.ParSem.refine`), and the fuel account, whose sum-checked trap
+point equals the sequential one and whose evaluated work is at most k
+times the fuel left at the fork (`RCE.ParFuel.sumcheck_eq_seq`,
+`RCE.ParFuel.overrun_bound`). LVars weaken the diamond to
+quasi-determinism (C.11.8, T29q). Open: the core has no loops, calls or
+data structures, so the link from the core to the full evaluator rests
+on the generated vectors (`ParVectors.lean`) and the differential tests,
+not on a proof.
 
 ### C.5 Budgets, deadlines and nondeterminism
 
@@ -115,6 +147,45 @@ the branches in source order (C.4.2). Rules:
   target. The cost table is the reference evaluator's (`interp` and
   `conc.rs`, `charge`), listed in C.6.4.
   W-TY-1 if n is not an integer.
+  `with budget n Block else [as e] Else` makes exhaustion a value.
+  Derivation. Totality (T2) asks every step to end in a value; a trap
+  that refuses the event is an outcome of the step, not a value the
+  program can act on. To act on it the program needs a point where the
+  trap is caught, and the state at that point must be one that some
+  sequential execution reaches at a well-defined place, or Else observes
+  a state no specification of Block describes. The only such states are
+  the entry of Block and its completion; the trap rules out completion,
+  so a caught trap restores the entry state. Block is therefore atomic:
+  all of its writes or none (the same law as T30 for `atomic`).
+  Normative rules:
+  - A `trap("budget")` raised while Block runs, by this budget or any
+    enclosing one, is caught by the innermost enclosing budget that has
+    an `else`. Every write Block made (locals, struct fields, state
+    fields, `self`) is undone, then Else runs.
+  - `as e` binds `e: Exhausted`, the builtin
+    `struct Exhausted { limit: u64, used: u64 }`, where `limit` is n and
+    `used` is the units this frame had spent before the operation that
+    would have passed a limit.
+  - Charges stay. Cost counts operations performed (C.6.1), so the
+    units spent in Block remain on every enclosing budget. When the trap
+    came from an outer budget, Else charges that budget, its next charge
+    traps again, and the trap reaches the next budget out with an
+    `else`, or refuses the event.
+  - W-BUD-1: Block of a budget with an `else` holds an effect that a
+    trap cannot undo (`emit`, channel operations, spawn, select, yield,
+    lvar `put` or `freeze`), or returns, breaks or continues out of it.
+  - A budget without `else` behaves as before: the trap refuses the
+    event.
+  The trap falls on the same operation on every target, so whether Else
+  runs, and the value of `e`, are functions of the program and its
+  inputs, and replay re-derives them. The emitters save every local the
+  block writes at entry (struct fields and state fields are locals of
+  the emitted step) and restore them on the trap. Checked by
+  `spec/checker/tests/conc06_run.rs` (`budget_else_catches`,
+  `budget_else_refuses_undoable_effects`), `emit_run.rs`
+  (`budget_else_*`, reference against the Rust, Python and JavaScript
+  runtimes) and `emit06b.rs` (`budget_else_is_atomic_on_every_target`,
+  the limit swept across the block's cost on all four targets).
 - `with deadline n` runs the block with an expiry n logical ticks after
   entry; if the block has not completed by then, the `else` block runs
   instead (T22). W-DL-1: outside `fn main` or a task
@@ -141,7 +212,7 @@ operations whose running total stays at most n.
 C.6.3 `par` and `for ... par` charge `c_fork` per branch (or chunk),
 then each branch's own costs. The branches' costs are summed in source
 order, and exhaustion is placed where the sequential run would hit it
-(C.4.2), so the trap does not depend on scheduling.
+(C.4, T16), so the trap does not depend on scheduling.
 
 C.6.4 The cost table (normative). Operations not listed (literals of
 scalars, variable reads, assignment, control flow, `let`) cost 0. The
@@ -230,14 +301,29 @@ an associative operation with an identity (T18).
   that appears twice, a protocol loop with no message before it repeats,
   or `break` outside a protocol loop. W-TY-1: a payload of the wrong type.
 - C.11.5 Merge. `impl Merge for T` declares a join. Its laws
-  (associative, commutative, idempotent, `bottom()` an identity) are an
-  admission obligation (W-CRDT-1, `conc::crdt_gate`). For a kind of
-  nullary variants the gate evaluates every triple, which decides them. A
-  `merge` written componentwise, `T(f: self.f.max(o.f), g: self.g or o.g,
-  ...)` over integer and bool fields, has them by `MergeLaws.prodSL`,
-  `intMax` and `boolOr`. Any other impl is refused; the refusal names a
-  counterexample when a search on a finite sample finds one, and
-  otherwise says the obligation is not discharged. The built-in
+  (associative, commutative, idempotent) are an admission obligation
+  (W-CRDT-1, `conc::crdt_gate`), discharged by a certificate and never by
+  sampling. `bottom()` is the initial state; the states an LVar can reach
+  are the up-set of it, which the join preserves, so the laws on that
+  up-set are the laws of the type. For a kind of nullary variants the
+  gate evaluates every triple, which decides them
+  (`MergeLaws.laws_of_enum`). Otherwise the gate reads the body of
+  `merge` as a term over proven combinators (`conc::merge_certs`): per
+  field, `max` or `min` on an integer, `or` or `and` on a bool, or
+  `.merge` of a field whose type has a certified impl (componentwise
+  product); on a record of one integer field, a selection that keeps
+  `o` when `o.k > self.k` and `self` otherwise (max, or min when the
+  smaller side is kept); and lexicographic on an integer key: `self` when
+  `self.k > o.k`, `o` when `o.k > self.k`, and otherwise the key with the
+  other fields merged by the rules above. Each term is a `Cert` of
+  `MergeCert.lean`, and `Cert.semi` turns every certificate into a proof
+  of the three laws, so they compose by construction. The lexicographic
+  rule needs its key to be a chain (a total order); without that it is
+  not a join (`MergeCert.lex_needs_chain`), which is why the key must be
+  an integer. Any other impl is refused, also a lawful one written
+  differently (for example bitwise `|`), with a message naming the
+  combinators; a search on a finite sample runs first and, when it finds
+  a counterexample, the refusal names it. The built-in
   instances (integers under `max`, `bool` under `or`, sets and lists
   under union, maps pointwise, tuples and records componentwise, `none` as
   bottom) have the laws by `MergeLaws.lean`, up to the point left open
@@ -266,9 +352,17 @@ an associative operation with an identity (T18).
   its own and does not count. The rule does not match the name of a put
   with the name of a freeze, so an
   alias, a parameter or a helper cannot hide a freeze. W-LVAR-2: an empty
-  threshold list, or a literal list with two elements one below the
-  other in the program's `Merge` (decided at admission, `conc::lvar_gate`).
-  Model: T29q.
+  threshold list, or a list with two elements that are, or on some input
+  can be, one below the other in the program's `Merge` (`conc::lvar_gate`).
+  This is decided at admission when every element takes finitely many
+  values: a constant, or `if c then a else b` over such, with every
+  combination checked, since two thresholds where one is below the other
+  are compatible for any top. Where an element is not finite in this
+  sense (a parameter, a computed value), incompatibility depends on the
+  input, and the check every `wait` makes against the top, with its trap,
+  is the defined behaviour. Model: T29q, T29s; the rule table
+  `conc::LVAR_RULES` ties each rule and trap to its Lean declaration
+  (see T29s).
 - C.11.8 convergence notes. The frozen bit, and the rule that only a put
   that would change a frozen LVar is an error, follow Kuper, Turon,
   Krishnaswami and Newton (POPL 2014, Sec. 3.3 and 4.2). Threshold sets
@@ -276,8 +370,10 @@ an associative operation with an identity (T18).
   3.3). T29q has the shape of the POPL 2014 Theorem 1 for this fragment.
   Their proof goes through an Independence lemma and quasi-confluence;
   the one here uses an invariant (the value joined with the puts still to
-  come is the join of all puts), which suffices because the fragment has
-  one LVar and no allocation. Their library marks code that freezes as
+  come is the join of all puts), which suffices because there is no
+  allocation: T29s takes a store of many LVars as the product lattice
+  over locations, each location an `lvar_new` site, and proves the
+  invariant per location. Their library marks code that freezes as
   `QuasiDet` in its type. RCE instead refuses, by W-LVAR-1, the freezes
   that could race with a put, so an admitted program is deterministic,
   and the frozen bit turns a race the rule misses into an error instead
@@ -297,6 +393,48 @@ an associative operation with an identity (T18).
   twice. `supervisor S strategy k` with k one of `one_for_one`,
   `one_for_all`, `rest_for_one` (W-SUP-1); each `child` must be an actor
   (W-SUP-2), and W-NAME-2 refuses a duplicate child.
+  Run-time meaning (normative). A supervisor declaration is one static
+  supervisor; it supervises every actor whose type is one of its
+  children, so the set an actor belongs to is fixed by the program, not
+  by spawn order. When a handler of such an actor refuses its message
+  (a trap or a `fail`), the run log records `Refused(reason)`, then
+  `Restart(child, instance, reason, tick t, k)`, where `instance` is the
+  actor's id (6.6) and k counts this child's restarts in the window
+  below. The strategy then resets the region of the failed actor
+  (`one_for_one`), of every actor of the supervisor's child types
+  (`one_for_all`), or of those whose child is declared at or after the
+  failed one (`rest_for_one`), to the actor's initializers. Intensity is
+  measured in logical ticks, never wall time: with `const
+  RESTART_WINDOW: u64 = W` only restarts at ticks t' with t - t' < W
+  count, otherwise every restart of the run counts; more than the
+  child's `restart bound` stops the supervisor with `Stopped(supervisor
+  S)` and the run ends `Refused`. Mailbox policy: a restarted actor keeps
+  its mailbox, since Form law 3 drops no message; only the message that
+  failed is consumed, and it is logged as refused. A handler that fails
+  inside `atomic` (C.11.10) leaves every handler of the batch
+  uncommitted (T30), and the failing actor is then supervised as above.
+  Restart as input. Derivation. The state of a run is the fold of its
+  log (T3). A restart changes actor state without a message, so it must
+  be an entry of the log that the fold applies, or the state is not a
+  function of the log. The decision is therefore an input of the run:
+  at a crash the run records `RestartIn{tick, sup, child, id, reset,
+  stop}` (`RunResult.restarts`), and a replay given these inputs
+  (`RunCfg.restarts`) applies each logged decision at its crash without
+  consulting the supervisor's policy. A log thus replays under the
+  decisions it records even after the strategy, bound or
+  `RESTART_WINDOW` in the source has changed (the resolver rule of
+  Appendix D, applied to supervision). A replayed decision for another
+  actor or supervisor than the one that crashed is `replay diverged`.
+  Checked by `spec/checker/tests/conc06b_run.rs`
+  (`supervisor_restarts_then_stops`,
+  `restart_is_an_input_replay_consumes`: replay reproduces the log,
+  logged decisions govern under a changed bound, an edited decision is
+  applied as logged, a mismatched one diverges) and `emit_run.rs`
+  `actor_refusals_match` (the Rust, Python and JavaScript runtimes take
+  the same decisions as the reference, with and without a window; they
+  record, but do not yet replay, restart inputs). The run log of `fn
+  main` is not D: actors run by `rce run`, not by the host of Appendix E
+  (HC-6).
 - C.11.12 Real time. `interrupt event E priority p` with p an integer
   literal in 0..=255 (W-INTR-1). `step ... deadline n` with n a positive
   integer literal in ticks, and `const TICK_NS: u64 = n` when declared
@@ -342,6 +480,7 @@ is a correspondence on samples, not a proof about the evaluator.
 | T28 | session duality, subject reduction and progress, with recursion | proved on a session calculus; encoding of surface protocols mechanized | `t28r_preserve`, `t28r_progress`, `enc_comp` |
 | T29 | LVar puts commute; one-threshold reads are order independent | model; vectors | `lvar_interleave`, `t29_perm` |
 | T29q | LVars over any join-semilattice with an absorbing top, threshold reads in the same order, and a frozen bit: two runs that complete every thread without error end in the same configuration (value, frozen bit, every result); without `freeze`, a program with a completing run has no erroring run; with `freeze`, whether a run errs can depend on the schedule | proved on a calculus (put, get with incompatible sets, freeze, on one LVar shared by any number of threads); runs that block forever are not covered; the built-in Merge instances are semilattices | `LVarQD.quasi_det`, `det_no_err`, `quasi_not_det`, `MergeLaws` |
+| T29s | A store of many LVars shared by any number of threads (the product lattice over locations, a frozen bit per location): two runs that complete every thread without error end in the same store, frozen bits and results; without `freeze`, no run errs if one completes. W-CRDT-1 certificates are lawful by construction. Each row of `conc::LVAR_RULES` (rule, trap, Lean declaration) and the certificate of each certified test program is generated into `LVarRules.lean`, which `lake build` elaborates, and the same test checks each trap string in the evaluator and every emitter runtime | locations allocated before the threads start (no renaming of locations as in POPL 2014); the generated table checks that the named declarations exist and the certificates elaborate, not that the evaluator refines the calculus | `LVarStore.store_quasi_det`, `store_det_no_err`, `MergeCert.cert_laws`, `LVarRules`, `checker/tests/lvar_rules.rs` |
 | T30 | an atomic batch applies all or none | model; vectors | `t30` |
 | T31 | replicas agree on equal prefixes | model (the statement is close to trivial) | `t31` |
 
@@ -352,8 +491,12 @@ footprints beyond the core of `ParSem.lean` (W-PAR-1 on variables).
 ### C.14 Emitters and running
 
 `rce run` runs version 0.6 programs on the reference evaluator
-(`conc.rs`). The program emitters (`emit/conc06.rs`) run `par` branches in
-source order (C.4.2), which the meaning allows; a `par` whose branches
+(`conc.rs`). The program emitters (`emit/conc06.rs`) run the branches of a
+`par` with more than one branch at the same time where the target allows
+it (Rust and Python threads, JavaScript workers) and in source order in
+Scala; in every case the store, the outputs and the trap point are those
+of source order (C.4, T16), the branches' results and costs being merged
+in source order after they finish; a `par` whose branches
 wait on LVars is run by restart (a repeated attempt puts nothing new,
 since puts are joins and W-CRDT-1 makes every join idempotent), and budgets charge the same costs as the
 evaluator, so `trap("budget")` falls on the same operation on every
@@ -443,4 +586,4 @@ different versions may `use` each other (2.7).
 
 **Read receipt.** How many words does a version 0.6 module reserve in addition to the 0.5 keywords? (a number)
 
-<!-- body-sha256: dfeefb550415988c82da72b58768536072a22b8b508e3f5f422d231c79b2d9da -->
+<!-- body-sha256: b6cc0af8b9dfcc62c00f083f0dcaeabb797846c3b59826b0986696c71ef6c217 -->

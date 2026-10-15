@@ -351,21 +351,34 @@ fn budget_else(b: i64) -> String {
         "fn main()
     var a: i64 = 0
     var r: i64 = 0
+    var xs = [0, 0]
+    var u: u64 = 0
+    var k = Exhausted(limit: 0, used: 0)
     with budget {b}
         with budget 40
             for i in 0..100
                 a += 1
-        else
+                xs[0] = a
+        else as e
             r = 1
+            u = e.used
+            k = e
         for i in 0..20
             a += 1
-    else
+            xs[1] = a
+    else as e2
         r += 10
+        k = e2
     emit a
     emit r
+    emit xs
+    emit u
+    emit k
     with budget 5
         for i in 0..10
             a += 1
+    else
+        emit 7
     emit a
 "
     )

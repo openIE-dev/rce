@@ -5,7 +5,7 @@
 //! * `with budget n`: every Form operation charges its C.6.4 cost through
 //!   the runtime's `charge`, at the same point as interp `charge`, so the
 //!   `trap("budget")` falls on the same operation on every target.
-//! * `par`: branches in source order (C.4.2), after the fork cost. A `par`
+//! * `par`: branches in source order (C.4, T16), after the fork cost. A `par`
 //!   whose branches wait on lvars cannot run in source order (a branch may
 //!   wait for a later one), so it is run by restart: each pending branch is
 //!   attempted; a wait that is not yet satisfied abandons the attempt,
@@ -49,83 +49,140 @@ impl<'a> G<'a> {
             }
             _ => (&body[1..], None),
         };
-        match self.lang {
-            Lang::Rust => {
-                if let Some(eb) = eb {
-                    self.line("let __r: R<()> = (|| -> R<()> {");
-                    self.ind += 1;
-                    self.line(format!("let __bg = budget_enter({n})?;"));
-                    self.block(rest, false)?;
-                    self.line("Ok(())");
-                    self.ind -= 1;
-                    self.line("})();");
-                    self.open("match __r");
-                    self.open("Err(Flow::Trap(t)) if t == \"budget\" =>");
-                    self.block(eb, false)?;
-                    self.close();
-                    self.line("r => r?,");
-                    self.close();
-                } else {
+        let l = self.lang;
+        let Some(eb) = eb else {
+            match l {
+                Lang::Rust => {
                     self.open_block();
                     self.line(format!("let __bg = budget_enter({n})?;"));
                     self.block(rest, false)?;
                     self.close_block();
                 }
+                Lang::Python => {
+                    self.open(&format!("with budget({n})"));
+                    self.block(rest, false)?;
+                    self.close();
+                }
+                Lang::Js => {
+                    self.line(format!("budgetEnter({n});"));
+                    self.open("try");
+                    self.block(rest, false)?;
+                    self.close();
+                    self.open("finally");
+                    self.line("budgetExit();");
+                    self.close();
+                }
+                Lang::Scala => {
+                    self.line(format!("budget_enter({n})"));
+                    self.open("try");
+                    self.block(rest, false)?;
+                    self.ind -= 1;
+                    self.line("} finally { budget_exit() }");
+                }
+            }
+            return Ok(());
+        };
+        // with an else: the block is atomic (C.5). Every local the block
+        // writes (state fields and `self` are locals of the emitted step) is
+        // saved at entry and put back when the budget traps, then the else
+        // runs with __bn (limit) and __bu (units spent) for `as e`.
+        let roots: Vec<String> = written_roots(rest).into_iter().filter(|x| self.local(x)).collect();
+        let snaps: Vec<(String, String)> = roots
+            .iter()
+            .map(|x| (format!("l_{}", ident(x)), self.fresh("bsn")))
+            .collect();
+        if l != Lang::Python {
+            self.open_block();
+        }
+        // the limit is kept under a fresh name (Python has no block scope,
+        // so a nested budget must not overwrite it) and bound to __bn for
+        // the else only
+        let bn = self.fresh("bn");
+        let s = self.let_(&bn, &n);
+        self.line(s);
+        for (v, sn) in &snaps {
+            let e = if l == Lang::Rust { format!("{v}.clone()") } else { v.clone() };
+            let s = self.let_(sn, &e);
+            self.line(s);
+        }
+        let restore: Vec<String> = snaps.iter().map(|(v, sn)| self.set_(v, sn)).collect();
+        match l {
+            Lang::Rust => {
+                self.line("let __r: R<()> = (|| -> R<()> {");
+                self.ind += 1;
+                self.line(format!("let __bg = budget_enter({bn}.clone())?;"));
+                self.block(rest, false)?;
+                self.line("Ok(())");
+                self.ind -= 1;
+                self.line("})();");
+                self.open("match __r");
+                self.open("Err(Flow::Trap(t)) if t == \"budget\" =>");
+                for r in &restore {
+                    self.line(r);
+                }
+                self.line(format!("let __bn = {bn}.clone(); let __bu = budget_last();"));
+                self.block(eb, false)?;
+                self.close();
+                self.line("r => r?,");
+                self.close();
+                self.close_block();
             }
             Lang::Python => {
-                if eb.is_some() {
-                    self.open("try");
-                }
-                self.open(&format!("with budget({n})"));
+                self.open("try");
+                self.open(&format!("with budget({bn})"));
                 self.block(rest, false)?;
                 self.close();
-                if let Some(eb) = eb {
-                    self.close();
-                    self.open("except Trap as __t");
-                    self.open("if __t.m != 'budget'");
-                    self.line("raise");
-                    self.close();
-                    self.block(eb, false)?;
-                    self.close();
+                self.close();
+                self.open("except Trap as __t");
+                self.open("if __t.m != 'budget'");
+                self.line("raise");
+                self.close();
+                for r in &restore {
+                    self.line(r);
                 }
+                self.line(format!("__bn = {bn}; __bu = budget_last()"));
+                self.block(eb, false)?;
+                self.close();
             }
             Lang::Js => {
-                if eb.is_some() {
-                    self.open("try");
-                }
-                self.line(format!("budgetEnter({n});"));
+                self.open("try");
+                self.line(format!("budgetEnter({bn});"));
                 self.open("try");
                 self.block(rest, false)?;
                 self.close();
                 self.open("finally");
                 self.line("budgetExit();");
                 self.close();
-                if let Some(eb) = eb {
-                    self.close();
-                    self.open("catch (__t)");
-                    self.open("if (!(__t instanceof Trap) || __t.message !== 'budget')");
-                    self.line("throw __t;");
-                    self.close();
-                    self.block(eb, false)?;
-                    self.close();
+                self.close();
+                self.open("catch (__t)");
+                self.open("if (!(__t instanceof Trap) || __t.m !== 'budget')");
+                self.line("throw __t;");
+                self.close();
+                for r in &restore {
+                    self.line(r);
                 }
+                self.line(format!("const __bn = {bn}; const __bu = budgetLast();"));
+                self.block(eb, false)?;
+                self.close();
+                self.close_block();
             }
             Lang::Scala => {
-                if eb.is_some() {
-                    self.open("try");
-                }
-                self.line(format!("budget_enter({n})"));
+                self.open("try");
+                self.line(format!("budget_enter({bn})"));
                 self.open("try");
                 self.block(rest, false)?;
                 self.ind -= 1;
                 self.line("} finally { budget_exit() }");
-                if let Some(eb) = eb {
-                    self.ind -= 1;
-                    self.line("} catch { case __t: Trap if __t.m == \"budget\" =>");
-                    self.ind += 1;
-                    self.block(eb, false)?;
-                    self.close();
+                self.ind -= 1;
+                self.line("} catch { case __t: Trap if __t.m == \"budget\" =>");
+                self.ind += 1;
+                for r in &restore {
+                    self.line(r);
                 }
+                self.line(format!("val __bn: Any = {bn}; val __bu: Any = budget_last()"));
+                self.block(eb, false)?;
+                self.close();
+                self.close_block();
             }
         }
         Ok(())

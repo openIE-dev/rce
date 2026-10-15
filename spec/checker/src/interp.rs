@@ -394,6 +394,14 @@ pub(crate) fn wide_mul(x: i128, y: i128) -> String {
 
 /// Canonical float text (6.3 N3): shortest round-trip digits, decimal
 /// notation for 1e-5 <= |x| < 1e16, else `d.ddde+N` / `d.ddde-N`.
+/// 6.3 N7: the whitespace of `strip`, `words` and `toint`, enumerated so that
+/// no result depends on the Unicode tables of a toolchain: the White_Space
+/// property of Unicode 18.0.0 (unchanged since Unicode 6.3), frozen here.
+pub const WHITE_SPACE: [char; 25] = ['\t', '\n', '\u{0b}', '\u{0c}', '\r', ' ', '\u{85}', '\u{a0}', '\u{1680}', '\u{2000}', '\u{2001}', '\u{2002}', '\u{2003}', '\u{2004}', '\u{2005}', '\u{2006}', '\u{2007}', '\u{2008}', '\u{2009}', '\u{200a}', '\u{2028}', '\u{2029}', '\u{202f}', '\u{205f}', '\u{3000}'];
+pub fn is_ws(c: char) -> bool {
+    WHITE_SPACE.contains(&c)
+}
+
 pub fn float_text(x: f64) -> String {
     if x == 0.0 {
         return "0".into();
@@ -1503,7 +1511,7 @@ impl<'a> Interp<'a> {
                 }
                 Ok(List(items))
             }
-            (Text(s), "strip") => Ok(Text(s.trim().into())),
+            (Text(s), "strip") => Ok(Text(s.trim_matches(is_ws).into())),
             (Text(s), "upper") => Ok(Text(s.to_ascii_uppercase())),
             (Text(s), "sha256") => {
                 use sha2::{Digest, Sha256};
@@ -1519,7 +1527,7 @@ impl<'a> Interp<'a> {
             (Text(s), "tostr") => Ok(Text(s)),
             (Text(s), "raw") => Ok(Text(s)),
             (Text(s), "chars") => Ok(List(s.chars().map(|c| Text(c.to_string())).collect())),
-            (Text(s), "words") => Ok(List(s.split_whitespace().map(|w| Text(w.into())).collect())),
+            (Text(s), "words") => Ok(List(s.split(is_ws).filter(|w| !w.is_empty()).map(|w| Text(w.into())).collect())),
             (Text(s), "lines") => Ok(List(s.lines().map(|w| Text(w.into())).collect())),
             (Text(s), "split") => match &a[0] {
                 Text(d) => Ok(List(s.split(d.as_str()).map(|w| Text(w.into())).collect())),
@@ -1548,7 +1556,7 @@ impl<'a> Interp<'a> {
                 _ => trap("endswith"),
             },
             (Text(s), "toint") => s
-                .trim()
+                .trim_matches(is_ws)
                 .parse::<i128>()
                 .map_err(|_| Flow::Trap(format!("not an integer: {s:?}")))
                 .and_then(|v| chk(v, "i64")),

@@ -2,15 +2,15 @@
 //! (Appendix C, book/14-draft06-concurrency.md). This module gives the evaluator:
 //!
 //! * the cost table of C.6.4 and `with budget` (`trap("budget")`);
-//! * `par` (C.4.2: meaning = branches in source order; the evaluator can
+//! * `par` (C.4, T16: meaning = branches in source order; the evaluator can
 //!   also run the branches in a permuted order or on threads, which by T16
 //!   gives the same result, and is used to test T16);
 //! * `for ... par` with the fixed reduction tree T(n) of C.5.2;
-//! * workgroups and barriers (C.11.1), `pscan` (C.11.2), LVars (C.11.8)
+//! * workgroups and barriers (C.11.2), `pscan` (not yet in Appendix C), LVars (C.11.8)
 //!   and the built-in `Merge` instances (C.11.5);
 //! * the tick runtime of 6.8 for `fn main`: tasks on threads that move one
 //!   communication step per tick, channels with held sends, `select` with
-//!   rotation or `nondet` choice logged as `Choice` (C.6.3), `spawn ...
+//!   rotation or `nondet` choice logged as `Choice` (C.5), `spawn ...
 //!   priority` (order (-p, id)), `with deadline ... else` cancellation at
 //!   communication steps (C.6.2), actors with mailboxes, `scope` and join
 //!   handles (C.11.9), `atomic` (C.11.10), supervisors (C.11.11), nodes,
@@ -90,7 +90,7 @@ pub fn method_work(recv: &V, m: &str, args: &[V]) -> i128 {
 // ---------------------------------------------------------------- task context
 
 /// How the evaluator runs the branches of a `par`. The meaning is fixed
-/// (source order, C.4.2); the modes other than `Seq` exist to test T16.
+/// (source order, C.4, T16); the modes other than `Seq` exist to test T16.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub enum ParMode {
     #[default]
@@ -509,11 +509,15 @@ impl<'a> Interp<'a> {
             "$par" => self.par_exec(body).map(|_| None),
             "$forpar" => self.forpar_exec(body).map(|_| None),
             "$budget" => {
-                // with budget n Block [else Else]: charge as C.6; a
-                // trap("budget") raised in the body is caught by the
-                // innermost budget with an else (as `with deadline` catches
-                // its own cancel); writes made before the trap stay, as for
-                // deadline. Without an else the event is refused.
+                // with budget n Block [else [as e] Else] (C.5). Atomicity: a
+                // trapped block is all or nothing, so on trap("budget") every
+                // write of Block is undone before Else runs, and Else sees
+                // the state of block entry, which a sequential run also
+                // reaches. The work done stays charged to every enclosing
+                // budget (C.6.1). `as e` binds Exhausted{limit, used}, used
+                // being the units this frame spent before the trapping
+                // operation. W-BUD-1 keeps Block free of effects that cannot
+                // be undone (emit, channels, spawn, lvar puts, foreign calls).
                 let n = marker_int(self, body.first())?;
                 let (rest, else_b) = match body.last() {
                     Some(Stmt::If(arms, _)) if arms.len() == 1
@@ -521,20 +525,23 @@ impl<'a> Interp<'a> {
                         (&body[1..body.len() - 1], Some(&arms[0].1[..])),
                     _ => (&body[1..], None),
                 };
-                // the work done stays charged to every enclosing frame
+                let snap = else_b.map(|_| self.scopes.clone());
                 self.cx.budgets.push((0, n));
                 let r = self.exec_block(rest);
+                let used = self.cx.budgets.last().map(|(s, _)| *s).unwrap_or(0);
                 self.cx.budgets.pop();
-                match r {
-                    Err(Flow::Trap(t)) if t == "budget" => {
-                        if let Some(eb) = else_b {
-                            self.exec_block(eb)?;
-                            Ok(None)
-                        } else {
-                            trap("budget")
-                        }
+                match (r, else_b, snap) {
+                    (Err(Flow::Trap(t)), Some(eb), Some(snap)) if t == "budget" => {
+                        self.scopes = snap;
+                        let mut hidden = HashMap::new();
+                        hidden.insert("\u{1}__bn".to_string(), V::Int(n, "u64"));
+                        hidden.insert("\u{1}__bu".to_string(), V::Int(used, "u64"));
+                        self.scopes.push(hidden);
+                        let r = self.exec_block(eb);
+                        self.scopes.pop();
+                        r.map(|_| None)
                     }
-                    r => r.map(|_| None),
+                    (r, _, _) => r.map(|_| None),
                 }
             }
             "$deadline" => {
@@ -825,7 +832,7 @@ impl<'a> Interp<'a> {
         }
     }
 
-    // ---- workgroups (C.11.1)
+    // ---- workgroups (C.11.2)
     fn group_exec(&mut self, g: &str, body: &[Stmt]) -> R<()> {
         let n = marker_int(self, body.first())?;
         let stmts = &body[1..];
@@ -1399,7 +1406,7 @@ impl<'a> Interp<'a> {
 /// Configuration of a run of `fn main` (inputs other than the program).
 #[derive(Clone, Debug)]
 pub struct RunCfg {
-    /// seed of the environment's choices for `select nondet` (C.6.3)
+    /// seed of the environment's choices for `select nondet` (C.5)
     pub seed: u64,
     /// replay: the arm indices of a previous run's `Choice` entries
     pub choices: Option<Vec<usize>>,
@@ -1407,6 +1414,23 @@ pub struct RunCfg {
     pub links: Vec<(u64, bool, String, String)>,
     pub max_ticks: u64,
     pub par_mode: ParMode,
+    /// replay: the supervision decisions of a previous run (`RunResult.
+    /// restarts`). A restart is an input (C.11.11): replay applies the
+    /// logged decision and does not consult the supervisor's policy
+    pub restarts: Option<Vec<RestartIn>>,
+}
+
+/// A supervision decision, logged as an input of the run (C.11.11): at a
+/// crash of actor `id` (a child of `sup`), either restart the actors in
+/// `reset` to their initializers, or stop the supervisor.
+#[derive(Clone, Debug, PartialEq)]
+pub struct RestartIn {
+    pub tick: u64,
+    pub sup: String,
+    pub child: String,
+    pub id: String,
+    pub reset: Vec<String>,
+    pub stop: bool,
 }
 impl Default for RunCfg {
     fn default() -> Self {
@@ -1416,6 +1440,7 @@ impl Default for RunCfg {
             links: vec![],
             max_ticks: 100_000,
             par_mode: ParMode::Seq,
+            restarts: None,
         }
     }
 }
@@ -1444,6 +1469,8 @@ pub struct RunResult {
     pub outcome: Outcome,
     pub log: Vec<Entry>,
     pub choices: Vec<usize>,
+    /// the supervision decisions taken, in order: the run's restart inputs
+    pub restarts: Vec<RestartIn>,
     pub ticks: u64,
     pub nodes: Vec<String>,
 }
@@ -1514,6 +1541,8 @@ struct Sched<'a> {
     tick: u64,
     /// restart ticks per (supervisor, child), for the intensity window (C.11.11)
     restarts: HashMap<(String, String), Vec<u64>>,
+    restart_log: Vec<RestartIn>,
+    restart_replay: Option<VecDeque<RestartIn>>,
     stop: Option<Outcome>,
 }
 
@@ -1559,6 +1588,8 @@ impl<'a> Sched<'a> {
             rng: cfg.seed | 1,
             tick: 0,
             restarts: HashMap::new(),
+            restart_log: vec![],
+            restart_replay: cfg.restarts.clone().map(|v| v.into()),
             stop: None,
         }
     }
@@ -2094,41 +2125,71 @@ impl<'a> Sched<'a> {
         let Some((sup, strat, tys, child, bound)) = self.supervisor_of(&ty) else {
             return;
         };
-        // OTP-style intensity, measured in logical ticks: more than `bound`
-        // restarts of this child within the last W ticks stops the supervisor
-        let (tick, win) = (self.tick, self.restart_window());
-        let hist = self.restarts.entry((sup.clone(), child.clone())).or_default();
-        if let Some(w) = win {
-            hist.retain(|&t| tick.saturating_sub(t) < w);
-        }
-        hist.push(tick);
-        let count = hist.len() as u32;
-        if count > bound {
+        // Restart as input. The state of a supervised run is the fold of its
+        // log, so the decision taken at a crash (which actors are reset, or
+        // that the supervisor stops) is an input of the run: recorded here
+        // as a RestartIn, and on replay taken from the log instead of the
+        // policy, so a log replays under the decisions it records even if
+        // the policy (strategy, bound, RESTART_WINDOW) has changed since.
+        let tick = self.tick;
+        let dec = if let Some(q) = self.restart_replay.as_mut() {
+            match q.pop_front() {
+                Some(r) if r.id == id && r.sup == sup => r,
+                _ => {
+                    self.stop = Some(Outcome::Refused("replay diverged".into()));
+                    return;
+                }
+            }
+        } else {
+            // OTP-style intensity, measured in logical ticks: more than
+            // `bound` restarts of this child within the last W ticks stops
+            // the supervisor
+            let win = self.restart_window();
+            let hist = self.restarts.entry((sup.clone(), child.clone())).or_default();
+            if let Some(w) = win {
+                hist.retain(|&t| tick.saturating_sub(t) < w);
+            }
+            hist.push(tick);
+            let stop = hist.len() as u32 > bound;
+            let pos = tys.iter().position(|t| *t == ty).unwrap_or(0);
+            let reset: Vec<String> = if stop {
+                vec![]
+            } else {
+                self.actors
+                    .iter()
+                    .filter(|(aid, a)| match strat.as_str() {
+                        "one_for_all" => tys.contains(&a.ty),
+                        "rest_for_one" => tys.iter().position(|t| *t == a.ty).is_some_and(|p| p >= pos),
+                        _ => aid.as_str() == id,
+                    })
+                    .map(|(aid, _)| aid.clone())
+                    .collect()
+            };
+            RestartIn { tick, sup: sup.clone(), child: child.clone(), id: id.to_string(), reset, stop }
+        };
+        self.restart_log.push(dec.clone());
+        // k: this child's decisions in the intensity window (all of the run
+        // without a window), the one just taken included
+        let win = self.restart_window();
+        let count = self
+            .restart_log
+            .iter()
+            .filter(|r| r.sup == sup && r.child == child && win.is_none_or(|w| tick.saturating_sub(r.tick) < w))
+            .count();
+        if dec.stop {
             self.local(node, format!("Stopped(supervisor {sup})"));
             self.stop = Some(Outcome::Refused(format!(
                 "supervisor {sup} stopped: child {child} restarted more than {bound} times"
             )));
             return;
         }
-        // Restart{child instance, reason, height}: the restart is an entry of
-        // the run log, so replay re-derives it, and the instance id (a content
-        // hash, 6.6) names which actor was restarted
+        // the log entry carries the instance id (a content hash, 6.6)
         self.local(node, format!("Restart({child}, {id}, {reason}, tick {tick}, {count})"));
-        let pos = tys.iter().position(|t| *t == ty).unwrap_or(0);
-        let affected: Vec<String> = self
-            .actors
-            .iter()
-            .filter(|(aid, a)| match strat.as_str() {
-                "one_for_all" => tys.contains(&a.ty),
-                "rest_for_one" => tys.iter().position(|t| *t == a.ty).is_some_and(|p| p >= pos),
-                _ => aid.as_str() == id,
-            })
-            .map(|(aid, _)| aid.clone())
-            .collect();
-        for aid in affected {
-            let t = self.actors[&aid].ty.clone();
-            let init = self.actor_init(&t);
-            self.actors.get_mut(&aid).unwrap().fields = init;
+        for aid in dec.reset {
+            if let Some(t) = self.actors.get(&aid).map(|a| a.ty.clone()) {
+                let init = self.actor_init(&t);
+                self.actors.get_mut(&aid).unwrap().fields = init;
+            }
         }
     }
 
@@ -2441,6 +2502,7 @@ pub fn run_main(m: &Module, cfg: &RunCfg) -> Result<RunResult, String> {
         outcome,
         log: sch.log,
         choices: sch.choices,
+        restarts: sch.restart_log,
         ticks: sch.tick,
         nodes: sch.nodes,
     })
@@ -2662,71 +2724,263 @@ fn merge_laws(m: &Module, t: &str, members: &[FnDecl]) -> Result<(), String> {
             }
         }
     }
-    if exhaustive || merge_componentwise(m, t, members) {
+    let _ = members;
+    if exhaustive || merge_certs(m).contains_key(t) {
         return Ok(());
     }
-    Err("the Merge laws are a proof obligation the checker cannot discharge (no counterexample found on a sample, which is not a proof): write `merge` componentwise from `max` on integer fields and `or` on bool fields, make the type a kind of nullary variants, or drop the impl and use the built-in componentwise merge".into())
+    Err("no W-CRDT-1 certificate: the laws hold by construction only for a `merge` built from the proven combinators (per field: `max` or `min` on integers, `or` or `and` on bools, `.merge` of a field type with a certified impl; lexicographic on an integer key: `if self.k > o.k { self } else if o.k > self.k { o } else { T(k: self.k, ...) }`), or a kind of nullary variants (decided by enumeration); a counterexample-free sample is not a proof".into())
 }
 
-/// `merge` is `T(f: max(self.f, o.f), g: self.g or o.g, ...)`, each field
-/// once, `max` on integer fields, `or` on bool fields (either operand order)
-fn merge_componentwise(m: &Module, t: &str, members: &[FnDecl]) -> bool {
-    let Some(fields) = m.items.iter().find_map(|i| match i {
+/// A W-CRDT-1 certificate: the `merge` body read as a term over proven
+/// combinators. Every certificate denotes a join with the three laws by
+/// construction (lean/RCE/MergeCert.lean, `Cert.semi`, `cert_laws`); the
+/// checker's only job is to read the body as one, which is syntactic and
+/// total. `Ref` is a field whose type has its own certified `impl Merge`.
+#[derive(Clone, Debug, PartialEq)]
+pub enum Cert {
+    MaxI,
+    MinI,
+    OrB,
+    AndB,
+    Prod(Vec<(String, Cert)>),
+    Lex(String, Box<Cert>),
+    Ref(String),
+    Enum(String),
+}
+
+impl Cert {
+    /// the Lean term (`RCE.MergeCert.Cert`); `Ref` and `Enum` stand for the
+    /// certificate of the named type (an enumeration is decided by
+    /// `MergeLaws.laws_of_enum`, modelled as `unit` in the term)
+    pub fn to_lean(&self, env: &dyn Fn(&str) -> Option<Cert>) -> String {
+        match self {
+            Cert::MaxI => ".maxI".into(),
+            Cert::MinI => ".minI".into(),
+            Cert::OrB => ".orB".into(),
+            Cert::AndB => ".andB".into(),
+            Cert::Enum(_) => ".unit".into(),
+            Cert::Ref(t) => env(t).map(|c| c.to_lean(env)).unwrap_or_else(|| ".unit".into()),
+            Cert::Lex(_, b) => format!("(.lex {})", b.to_lean(env)),
+            Cert::Prod(fs) => match fs.split_last() {
+                None => ".unit".into(),
+                Some((l, [])) => l.1.to_lean(env),
+                Some((l, init)) => {
+                    let mut t = l.1.to_lean(env);
+                    for f in init.iter().rev() {
+                        t = format!("(.prod {} {t})", f.1.to_lean(env));
+                    }
+                    t
+                }
+            },
+        }
+    }
+}
+
+const INTS: [&str; 12] = ["i8", "i16", "i32", "i64", "i128", "u8", "u16", "u32", "u64", "u128", "isize", "usize"];
+
+/// certificates of every `impl Merge` in the module (least fixpoint, so a
+/// field may refer to another certified type but not to itself)
+pub fn merge_certs(m: &Module) -> HashMap<String, Cert> {
+    let mut out: HashMap<String, Cert> = HashMap::new();
+    loop {
+        let mut grew = false;
+        for it in &m.items {
+            let Item::Impl { ty: Ty::Path(tp, _), trait_: Some(Ty::Path(tr, _)), members, .. } = it else {
+                continue;
+            };
+            if tr.len() != 1 || tr[0] != "Merge" || tp.len() != 1 || out.contains_key(&tp[0]) {
+                continue;
+            }
+            if let Some(c) = merge_cert(m, &tp[0], members, &out) {
+                out.insert(tp[0].clone(), c);
+                grew = true;
+            }
+        }
+        if !grew {
+            return out;
+        }
+    }
+}
+
+fn merge_cert(m: &Module, t: &str, members: &[FnDecl], known: &HashMap<String, Cert>) -> Option<Cert> {
+    if m.items.iter().any(|i| matches!(i, Item::Kind { name, variants, .. } if name == t && variants.iter().all(|v| v.1.is_empty()))) {
+        return Some(Cert::Enum(t.to_string()));
+    }
+    let fields = m.items.iter().find_map(|i| match i {
         Item::Struct { name, fields, .. } if name == t => Some(fields),
         _ => None,
-    }) else {
-        return false;
-    };
-    let Some(fd) = members.iter().find(|f| f.sig.name == "merge") else {
-        return false;
-    };
+    })?;
+    let fd = members.iter().find(|f| f.sig.name == "merge")?;
     let o = match fd.sig.params.as_slice() {
         [Param::SelfVal, Param::Named { name, .. }] => name.clone(),
-        _ => return false,
+        _ => return None,
     };
+    let one = |b: &'_ [Stmt]| -> Option<Expr> {
+        match b {
+            [Stmt::Expr(e)] | [Stmt::Return(Some(e), _)] => Some(e.clone()),
+            _ => None,
+        }
+    };
+    // the lexicographic shape, from `if .. then .. else ..` or an `if` statement
+    let mut lex: Option<(Expr, Expr, Expr, Expr, Expr)> = None;
     let e = match &fd.body {
-        Body::Arrow(e) => e,
+        Body::Arrow(e) => e.clone(),
         Body::Block(b) => match b.as_slice() {
-            [Stmt::Expr(e)] | [Stmt::Return(Some(e), _)] => e,
-            _ => return false,
+            [Stmt::If(arms, Some(els))] if arms.len() == 2 => {
+                lex = Some((arms[0].0.clone(), one(&arms[0].1)?, arms[1].0.clone(), one(&arms[1].1)?, one(els)?));
+                Expr::Unit(0)
+            }
+            b => one(b).unwrap_or(Expr::Unit(0)),
         },
     };
-    let Expr::Call(f, args, _, _) = e else { return false };
-    if !matches!(&**f, Expr::Name(n, _) if n == t) || args.len() != fields.len() {
-        return false;
-    }
-    let is_self = |x: &Expr| matches!(x, Expr::SelfRef(_)) || matches!(x, Expr::Name(n, _) if n == "self");
-    let fld = |x: &Expr, k: &str, mine: bool| match x {
-        Expr::Member(r, f, _) if f == k => if mine { is_self(r) } else { matches!(&**r, Expr::Name(n, _) if *n == o) },
-        _ => false,
+    // selection on a single integer field: `if o.k > self.k { o } else { self }` is max (min when the smaller side is kept)
+    let sel: Option<(Expr, Expr, Expr)> = match (&fd.body, &e) {
+        (Body::Block(b), _) if b.len() == 2 => match (&b[0], &b[1]) {
+            (Stmt::If(arms, None), last) if arms.len() == 1 => {
+                Some((arms[0].0.clone(), one(&arms[0].1)?, one(std::slice::from_ref(last))?))
+            }
+            _ => None,
+        },
+        (Body::Block(b), _) if b.len() == 1 => match &b[0] {
+            Stmt::If(arms, Some(els)) if arms.len() == 1 => Some((arms[0].0.clone(), one(&arms[0].1)?, one(els)?)),
+            _ => None,
+        },
+        (_, Expr::If(c, a, b2, _)) if !matches!(&**b2, Expr::If(..)) => Some(((**c).clone(), (**a).clone(), (**b2).clone())),
+        _ => None,
     };
-    let pair = |a: &Expr, b: &Expr, k: &str| (fld(a, k, true) && fld(b, k, false)) || (fld(a, k, false) && fld(b, k, true));
-    let ints = ["i8", "i16", "i32", "i64", "i128", "u8", "u16", "u32", "u64", "u128", "isize", "usize"];
-    let mut seen = std::collections::BTreeSet::new();
-    for a in args {
-        let Some(k) = &a.label else { return false };
-        let Some(fdef) = fields.iter().find(|f| f.name == *k) else { return false };
-        if !seen.insert(k.clone()) {
-            return false;
+    if let Expr::If(c1, e1, rest, _) = &e
+        && let Expr::If(c2, e2, e3, _) = &**rest
+    {
+        lex = Some(((**c1).clone(), (**e1).clone(), (**c2).clone(), (**e2).clone(), (**e3).clone()));
+    }
+    let fty = |k: &str| -> Option<String> {
+        let f = fields.iter().find(|f| f.name == k)?;
+        match &f.ty {
+            Ty::Path(p, g) if p.len() == 1 && g.is_empty() => Some(p[0].clone()),
+            _ => None,
         }
-        let tyname = match &fdef.ty {
-            Ty::Path(p, g) if p.len() == 1 && g.is_empty() => p[0].as_str(),
-            _ => return false,
-        };
-        let ok = match &a.e {
-            Expr::Call(c, xs, _, _) if ints.contains(&tyname) => match (&**c, xs.as_slice()) {
-                (Expr::Name(n, _), [x, y]) if n == "max" => pair(&x.e, &y.e, k),
-                (Expr::Member(x, n, _), [y]) if n == "max" => pair(x, &y.e, k),
-                _ => false,
-            },
-            Expr::Bin(op, x, y, _) if tyname == "bool" && (op == "or" || op == "||") => pair(x, y, k),
-            _ => false,
-        };
-        if !ok {
-            return false;
+    };
+    let cx = Cx { t, o: &o, known };
+    if let Some((c, a, b2)) = &sel
+        && fields.len() == 1
+    {
+        let (k, hi) = cx.cmp(c)?;
+        if !INTS.contains(&fty(&k)?.as_str()) || cx.side(b2)? == cx.side(a)? {
+            return None;
+        }
+        let keep = cx.side(a)?;
+        return Some(Cert::Prod(vec![(k, if keep == hi { Cert::MaxI } else { Cert::MinI })]));
+    }
+    // lexicographic: if self.k > o.k { self } else if o.k > self.k { o } else { T(k: self.k, ...) }
+    if let Some((c1, e1, c2, e2, e3)) = &lex {
+        let (k, hi1) = cx.cmp(c1)?;
+        let (k2, hi2) = cx.cmp(c2)?;
+        if k != k2 || hi1 == hi2 || !INTS.contains(&fty(&k)?.as_str()) || !cx.whole(e1, hi1) || !cx.whole(e2, hi2) {
+            return None;
+        }
+        let Cert::Prod(fs) = cx.ctor(e3, fields.len(), &fty, Some(&k))? else { return None };
+        return Some(Cert::Lex(k, Box::new(Cert::Prod(fs))));
+    }
+    cx.ctor(&e, fields.len(), &fty, None)
+}
+
+struct Cx<'a> {
+    t: &'a str,
+    o: &'a str,
+    known: &'a HashMap<String, Cert>,
+}
+
+impl Cx<'_> {
+    fn is_self(x: &Expr) -> bool {
+        matches!(x, Expr::SelfRef(_)) || matches!(x, Expr::Name(n, _) if n == "self")
+    }
+    fn is_o(&self, x: &Expr) -> bool {
+        matches!(x, Expr::Name(n, _) if n == self.o)
+    }
+    /// `true` = self, `false` = other
+    fn side(&self, x: &Expr) -> Option<bool> {
+        if Self::is_self(x) {
+            Some(true)
+        } else if self.is_o(x) {
+            Some(false)
+        } else {
+            None
         }
     }
-    seen.len() == fields.len()
+    fn fld(&self, x: &Expr) -> Option<(String, bool)> {
+        match x {
+            Expr::Member(r, f, _) => Some((f.clone(), self.side(r)?)),
+            _ => None,
+        }
+    }
+    /// `self.k > o.k` (or `<`): the key and which side is strictly larger
+    fn cmp(&self, c: &Expr) -> Option<(String, bool)> {
+        let Expr::Bin(op, x, y, _) = c else { return None };
+        let (kx, sx) = self.fld(x)?;
+        let (ky, sy) = self.fld(y)?;
+        if kx != ky || sx == sy {
+            return None;
+        }
+        match op.as_str() {
+            ">" => Some((kx, sx)),
+            "<" => Some((kx, sy)),
+            _ => None,
+        }
+    }
+    fn whole(&self, x: &Expr, side: bool) -> bool {
+        self.side(x) == Some(side)
+    }
+    /// both operands of a binary field combinator, one per side
+    fn pair(&self, x: &Expr, y: &Expr, k: &str) -> bool {
+        matches!((self.fld(x), self.fld(y)), (Some((a, sa)), Some((b, sb))) if a == k && b == k && sa != sb)
+    }
+    fn ctor(&self, e: &Expr, n: usize, fty: &dyn Fn(&str) -> Option<String>, key: Option<&str>) -> Option<Cert> {
+        let Expr::Call(f, args, _, _) = e else { return None };
+        if !matches!(&**f, Expr::Name(x, _) if x == self.t) || args.len() != n {
+            return None;
+        }
+        let mut seen = std::collections::BTreeSet::new();
+        let mut out = vec![];
+        for a in args {
+            let k = a.label.clone()?;
+            if !seen.insert(k.clone()) {
+                return None;
+            }
+            let ty = fty(&k)?;
+            if Some(k.as_str()) == key {
+                // the tie case of a lexicographic merge keeps the (equal) key
+                if self.fld(&a.e).map(|p| p.0) != Some(k.clone()) {
+                    return None;
+                }
+                continue;
+            }
+            out.push((k.clone(), self.field(&a.e, &k, &ty)?));
+        }
+        Some(Cert::Prod(out))
+    }
+    fn field(&self, e: &Expr, k: &str, ty: &str) -> Option<Cert> {
+        let int = INTS.contains(&ty);
+        match e {
+            Expr::Call(c, xs, _, _) => match (&**c, xs.as_slice()) {
+                (Expr::Name(n, _), [x, y]) if int && (n == "max" || n == "min") && self.pair(&x.e, &y.e, k) => {
+                    Some(if n == "max" { Cert::MaxI } else { Cert::MinI })
+                }
+                (Expr::Member(x, n, _), [y]) if self.pair(x, &y.e, k) => match n.as_str() {
+                    "max" if int => Some(Cert::MaxI),
+                    "min" if int => Some(Cert::MinI),
+                    "merge" if self.known.contains_key(ty) => Some(Cert::Ref(ty.to_string())),
+                    _ => None,
+                },
+                _ => None,
+            },
+            Expr::Bin(op, x, y, _) if ty == "bool" && self.pair(x, y, k) => match op.as_str() {
+                "or" | "||" => Some(Cert::OrB),
+                "and" | "&&" => Some(Cert::AndB),
+                _ => None,
+            },
+            _ => None,
+        }
+    }
 }
 
 /// W-LVAR-2 at admission: in a literal threshold list, two thresholds where
@@ -2772,33 +3026,55 @@ pub fn lvar_gate(m: &Module) -> Vec<String> {
     }
     let mut it = Interp::new(m);
     'list: for (xs, l) in lists {
-        let mut vs = vec![];
+        // each threshold as the finite set of values it can take: a
+        // constant, or `if c then a else b` over such (the condition is
+        // abstracted, so every combination is checked)
+        let mut vs: Vec<Vec<V>> = vec![];
         for x in &xs {
-            it.scopes = vec![HashMap::new()];
-            match it.eval(x) {
-                Ok(v) => vs.push(v),
-                Err(_) => continue 'list, // not constant: checked at run time
+            match thr_values(&mut it, x) {
+                Some(v) => vs.push(v),
+                None => continue 'list, // not finite: checked against top by every `wait` at run time
             }
         }
-        for (i, a) in vs.iter().enumerate() {
-            for b in &vs[i + 1..] {
-                if a == b {
-                    continue;
-                }
-                let Ok(j) = it.merge_values(a, b) else { continue };
-                if j == *a || j == *b {
-                    errs.push(format!(
-                        "line {l}: W-LVAR-2 thresholds {} and {} are compatible ({} is below the other), so the threshold `wait` returns would depend on the schedule; a threshold set must be pairwise incompatible",
-                        a.show(),
-                        b.show(),
-                        if j == *b { a.show() } else { b.show() }
-                    ));
-                    continue 'list;
+        for (i, sa) in vs.iter().enumerate() {
+            for sb in &vs[i + 1..] {
+                for a in sa {
+                    for b in sb {
+                        if a == b {
+                            continue;
+                        }
+                        let Ok(j) = it.merge_values(a, b) else { continue };
+                        if j == *a || j == *b {
+                            let lit = sa.len() == 1 && sb.len() == 1;
+                            errs.push(format!(
+                                "line {l}: W-LVAR-2 thresholds {} and {} {} compatible ({} is below the other), so the threshold `wait` returns would depend on the schedule; a threshold set must be pairwise incompatible",
+                                a.show(),
+                                b.show(),
+                                if lit { "are" } else { "can be, on some input, and are then" },
+                                if j == *b { a.show() } else { b.show() }
+                            ));
+                            continue 'list;
+                        }
+                    }
                 }
             }
         }
     }
     errs
+}
+
+fn thr_values(it: &mut Interp, x: &Expr) -> Option<Vec<V>> {
+    if let Expr::If(_, a, b, _) = x {
+        let mut v = thr_values(it, a)?;
+        for y in thr_values(it, b)? {
+            if !v.contains(&y) {
+                v.push(y);
+            }
+        }
+        return Some(v);
+    }
+    it.scopes = vec![HashMap::new()];
+    it.eval(x).ok().map(|v| vec![v])
 }
 
 /// Three-way merge of a variable written by par branches (base = value at
@@ -2830,4 +3106,49 @@ pub(crate) fn merge3(base: &V, cur: &V, new: V) -> V {
         }
         (_, _, n) => n,
     }
+}
+
+/// The LVar rule table: each evaluator rule or checker rule of C.11.5 and
+/// C.11.8 with the trap it raises (if any) and the Lean declaration that
+/// models or proves it. `tests/lvar_rules.rs` generates
+/// lean/RCE/LVarRules.lean from this table (one `#check` per row, plus the
+/// certificate of each certified test program as a typed term), so
+/// `lake build` fails when a row names a declaration that does not exist or
+/// a certificate that does not elaborate; the same test checks that every
+/// trap string is raised by the evaluator and by every emitter runtime.
+pub const LVAR_RULES: &[(&str, Option<&str>, &str)] = &[
+    ("put: v := v ⊔ d in the program Merge", None, "RCE.LVarStore.Step.put"),
+    ("put: v ⊔ d = top is an error", Some("lvar conflict"), "RCE.LVarStore.Step.put_top"),
+    ("put: a frozen cell that would change is an error", Some("lvar put after freeze"), "RCE.LVarStore.Step.put_frozen"),
+    ("wait: threshold set pairwise incompatible against top", Some("lvar thresholds are not pairwise incompatible"), "RCE.LVarQD.Incomp"),
+    ("wait: at most one threshold is reached", None, "RCE.LVarQD.incomp_unique"),
+    ("wait: answers q ⊑ v in the Merge order", None, "RCE.LVarStore.Step.get"),
+    ("freeze: sets the bit, returns the exact value", None, "RCE.LVarStore.Step.freeze"),
+    ("store of LVars: quasi-determinism", None, "RCE.LVarStore.store_quasi_det"),
+    ("store of LVars: no error without freeze", None, "RCE.LVarStore.store_det_no_err"),
+    ("one LVar: quasi-determinism", None, "RCE.LVarQD.quasi_det"),
+    ("W-LVAR-1 is needed: a racing freeze errs on some schedule", None, "RCE.LVarQD.quasi_not_det"),
+    ("W-CRDT-1 certificate: laws by construction", None, "RCE.MergeCert.cert_laws"),
+    ("W-CRDT-1 lex needs a chain key", None, "RCE.MergeCert.lex_needs_chain"),
+    ("W-CRDT-1 kind of nullary variants: decided by enumeration", None, "RCE.MergeLaws.laws_of_enum"),
+    ("LVar without top: absorbing top added", None, "RCE.MergeLaws.withTop"),
+];
+
+/// lean/RCE/LVarRules.lean for the table and the given certificates
+pub fn lvar_rules_lean(certs: &[(String, String)]) -> String {
+    let mut s = String::from(
+        "/-\nGenerated by checker/tests/lvar_rules.rs from `conc::LVAR_RULES` and the\ncertificates the checker derives for the certified test programs. Do not\nedit: regenerate with RCE_BLESS=1 cargo test --features conc06 --test lvar_rules.\n-/\nimport RCE.LVarStore\nimport RCE.MergeCert\nimport RCE.MergeLaws\n\nnamespace RCE.LVarRules\n\n",
+    );
+    for (rule, trap, decl) in LVAR_RULES {
+        let t = trap.map(|t| format!(" (trap \"{t}\")")).unwrap_or_default();
+        s.push_str(&format!("-- {rule}{t}\n#check @{decl}\n"));
+    }
+    s.push('\n');
+    for (name, term) in certs {
+        s.push_str(&format!(
+            "/-- impl Merge for {name} -/\nexample : RCE.MergeCert.Semi (RCE.MergeCert.Cert.ty {term}) :=\n  RCE.MergeCert.Cert.semi {term}\n"
+        ));
+    }
+    s.push_str("\nend RCE.LVarRules\n");
+    s
 }

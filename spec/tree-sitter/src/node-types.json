@@ -2333,6 +2333,10 @@
           "named": true
         },
         {
+          "type": "alt_pattern",
+          "named": true
+        },
+        {
           "type": "and_expr",
           "named": true
         },
@@ -2385,7 +2389,15 @@
           "named": true
         },
         {
+          "type": "ctor_pat",
+          "named": true
+        },
+        {
           "type": "false",
+          "named": true
+        },
+        {
+          "type": "false_pat",
           "named": true
         },
         {
@@ -2417,6 +2429,10 @@
           "named": true
         },
         {
+          "type": "literal_pat",
+          "named": true
+        },
+        {
           "type": "map",
           "named": true
         },
@@ -2437,11 +2453,23 @@
           "named": true
         },
         {
+          "type": "name_pat",
+          "named": true
+        },
+        {
           "type": "neg",
           "named": true
         },
         {
+          "type": "neg_literal_pat",
+          "named": true
+        },
+        {
           "type": "none",
+          "named": true
+        },
+        {
+          "type": "none_pat",
           "named": true
         },
         {
@@ -2454,6 +2482,10 @@
         },
         {
           "type": "range_expr",
+          "named": true
+        },
+        {
+          "type": "range_pat",
           "named": true
         },
         {
@@ -2477,6 +2509,10 @@
           "named": true
         },
         {
+          "type": "true_pat",
+          "named": true
+        },
+        {
           "type": "try_expr",
           "named": true
         },
@@ -2489,7 +2525,15 @@
           "named": true
         },
         {
+          "type": "tuple_pat",
+          "named": true
+        },
+        {
           "type": "unit",
+          "named": true
+        },
+        {
+          "type": "wildcard",
           "named": true
         }
       ]

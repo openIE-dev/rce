@@ -520,3 +520,74 @@ fn t29_wait_chain_is_not_reported_stuck() {
         assert_eq!(outs(&r), vec!["33"]);
     }
 }
+
+/// C.11.11 restart as input: the supervision decisions of a run are inputs
+/// (`RunResult.restarts`). Replaying them reproduces the run; the logged
+/// decision governs even when the policy in the source has changed; a
+/// decision is applied as logged (an empty reset keeps the actor's state);
+/// a decision for another actor is a divergence.
+#[test]
+fn restart_is_an_input_replay_consumes() {
+    let src = |bound: u32| format!("event Hit(k: i64)
+event Show
+error Boom
+
+actor Worker
+    n: i64 = 0
+    on Hit(k: k)
+        n += k
+        if k == 0
+            fail Boom
+    on Show
+        emit n
+
+supervisor Root strategy one_for_one
+    child w: Worker restart bound {bound}
+
+fn main()
+    let w = Worker()
+    w <- Hit(k: 5)
+    w <- Show
+    w <- Hit(k: 0)
+    w <- Show
+    w <- Hit(k: 7)
+    w <- Hit(k: 0)
+    w <- Hit(k: 0)
+    w <- Show
+");
+    let rec = run(&src(2));
+    assert_eq!(rec.restarts.len(), 3);
+    assert!(rec.restarts[2].stop && !rec.restarts[0].stop);
+    let replay = |s: &str, rs: Vec<rce_spec_check::conc::RestartIn>| {
+        run_cfg(s, &RunCfg { restarts: Some(rs), ..RunCfg::default() })
+    };
+    let show = |l: &[rce_spec_check::conc::Entry]| l.iter().map(|e| format!("{} {}", e.tick, e.what)).collect::<Vec<_>>();
+    // replay reproduces the run
+    let r = replay(&src(2), rec.restarts.clone());
+    assert_eq!(show(&r.log), show(&rec.log));
+    assert_eq!(r.outcome, rec.outcome);
+    // the logged decisions govern under a changed policy (bound 9)
+    let free = run(&src(9));
+    assert_eq!(free.outcome, Outcome::Done, "the new policy alone would not stop");
+    let r = replay(&src(9), rec.restarts.clone());
+    assert!(matches!(&r.outcome, Outcome::Refused(e) if e.contains("supervisor Root stopped")), "{:?}", r.outcome);
+    // a decision is applied as logged: no reset keeps n
+    let mut keep = rec.restarts.clone();
+    keep[0].reset.clear();
+    keep.truncate(1);
+    let mut rs = keep.clone();
+    let mut two = rec.restarts[1].clone();
+    two.reset.clear();
+    two.stop = false;
+    rs.push(two.clone());
+    let mut three = two.clone();
+    three.tick = rec.restarts[2].tick;
+    rs.push(three);
+    let r = replay(&src(9), rs);
+    assert_eq!(outs(&r), vec!["5", "5", "12"], "{:?}", r.log);
+    // a decision for another actor diverges
+    let mut bad = rec.restarts.clone();
+    bad[0].id = "nobody".into();
+    let r = replay(&src(2), bad);
+    assert!(matches!(&r.outcome, Outcome::Refused(e) if e == "replay diverged"), "{:?}", r.outcome);
+}

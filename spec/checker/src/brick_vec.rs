@@ -8,7 +8,7 @@
 //! field by field, a generic parameter at i64. A vector holds the
 //! arguments in the Form's JSON embedding and either `out` (the result,
 //! `interp::form_value`) or `trap` (the trap). An input on which the
-//! interpreter runs out of fuel gives no vector.
+//! interpreter runs out of fuel or nesting gives no vector.
 use crate::ast::*;
 use serde_json::{Value, json};
 use std::collections::HashMap;
@@ -241,7 +241,10 @@ pub fn vectors(m: &Module, d: &FnDecl, n: usize) -> Vec<Value> {
             }
             Err(f) => {
                 let w = crate::interp::why(f);
-                if w.contains("fuel") {
+                // resource limits, not results: the IR has its own bounds
+                // (form::ir REC_DEPTH, REC_CALLS) and agreement is claimed
+                // on results only
+                if w.contains("fuel") || w.contains("evaluation depth") {
                     continue;
                 }
                 out.push(json!({"args": vs, "trap": w}));

@@ -29,10 +29,10 @@ Classical.choice):
   quasi-determinism statement cannot be strengthened.
 
 Not covered: runs that block forever on a `get` (the theorems are about
-complete and erroring runs), handlers and quiescence, and several LVars
-with allocation. This is a model; the link to the evaluator is the rule
-table in RCE-SPEC.md C.11.8 and the cross-target tests
-(checker/tests/lvar_freeze.rs).
+complete and erroring runs), handlers and quiescence, and allocation with
+renaming. Many LVars are LVarStore.lean (T29s). The link to the evaluator
+is the generated rule table LVarRules.lean (from `conc::LVAR_RULES`) and
+the cross-target tests (checker/tests/lvar_freeze.rs).
 -/
 namespace RCE.LVarQD
 

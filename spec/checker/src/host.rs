@@ -485,7 +485,231 @@ pub struct Host<'a> {
     offered: Vec<Sourced>,
     /// E.2b: the term of the admitter role this host holds (0: unreplicated).
     pub term: u64,
+    /// HC-6: a `fn main` run being folded from D (start payload, step entries).
+    /// HC-6: the live `fn main` task, part of the state D folds to.
+    task: Option<MainTask>,
+    /// HC-12: fabric executors registered by the platform (wgpu, NPU, ...).
+    fabrics: Vec<Box<dyn FabricExec + 'a>>,
+    /// HC-12: calibration (fabric, class) -> (overhead, throughput), and the
+    /// (fabric, class) pairs admitted by a matching probe, folded from D.
+    calib: std::collections::BTreeMap<(String, String), (f64, f64)>,
+    exacts: std::collections::BTreeSet<(String, String)>,
 }
+
+/// HC-6: a live `fn main` task. Its state is a function of D: the start
+/// entry, the inputs logged so far and the steps logged so far. `run` is a
+/// cache of the scheduler re-run on those inputs and is not part of it.
+#[derive(Debug)]
+struct MainTask {
+    start: Value,
+    inputs: Vec<(u64, bool, String, String)>,
+    steps: usize,
+    digest: String,
+    last_tick: u64,
+    run: Option<crate::conc::RunResult>,
+}
+
+impl MainTask {
+    fn json(&self) -> String {
+        let ins: Vec<Value> = self.inputs.iter().map(|(t, p, a, b)| serde_json::json!([t, p, a, b])).collect();
+        serde_json::json!({"digest": self.digest, "inputs": ins, "start": self.start, "steps": self.steps}).to_string()
+    }
+}
+
+/// HC-6: what one scheduled `fn main` run did.
+#[derive(Debug)]
+pub struct MainRun {
+    pub outputs: Vec<String>,
+    pub outcome: String,
+    pub steps: usize,
+    pub choices: Vec<usize>,
+}
+
+/// HC-12: the CPU's cost line (overhead, throughput) in the units of C.6.4.
+pub const CPU_COST: (f64, f64) = (16.0, 1.0);
+
+/// HC-12: choose the fabric for an operation of `class` and size `work`:
+/// the least overhead + work / throughput among the CPU and every fabric
+/// with a `host.Calibrated` row for the class and a `host.Exact` probe
+/// equal to the reference. Ties go to the lexically smaller fabric id, the
+/// CPU first. A function of the host entries only.
+pub fn place_from(calib: &std::collections::BTreeMap<(String, String), (f64, f64)>, exacts: &std::collections::BTreeSet<(String, String)>, class: &str, work: f64) -> String {
+    let mut best = ("cpu".to_string(), CPU_COST.0 + work / CPU_COST.1);
+    for ((f, c), (o, th)) in calib {
+        if c != class || !exacts.contains(&(f.clone(), c.clone())) || *th <= 0.0 {
+            continue;
+        }
+        let t = o + work / th;
+        if t < best.1 {
+            best = (f.clone(), t);
+        }
+    }
+    best.0
+}
+
+/// T18's fixed reduction tree for f64 addition: split at the largest power
+/// of two below the length, add left and right. The tree is fixed by the
+/// length alone, so any executor that evaluates it gives the same bits.
+pub fn fixed_tree_sum(xs: &[f64]) -> f64 {
+    match xs.len() {
+        0 => 0.0,
+        1 => xs[0],
+        n => {
+            let h = (n.next_power_of_two() / 2).max(1);
+            fixed_tree_sum(&xs[..h]) + fixed_tree_sum(&xs[h..])
+        }
+    }
+}
+
+/// The `cpu.threads` fabric: the same tree, its top `depth` levels run on
+/// scoped threads. Bit-identical to [`fixed_tree_sum`] by construction.
+pub fn fixed_tree_sum_threads(xs: &[f64], depth: u32) -> f64 {
+    if depth == 0 || xs.len() < 2 {
+        return fixed_tree_sum(xs);
+    }
+    let h = (xs.len().next_power_of_two() / 2).max(1);
+    let (l, r) = xs.split_at(h);
+    let (a, b) = std::thread::scope(|s| {
+        let a = s.spawn(|| fixed_tree_sum_threads(l, depth - 1));
+        let b = fixed_tree_sum_threads(r, depth - 1);
+        (a.join().unwrap(), b)
+    });
+    a + b
+}
+
+fn lane_op(class: &str) -> Option<LaneOp> {
+    [LaneOp::Add, LaneOp::Sub, LaneOp::Mul, LaneOp::Div, LaneOp::Neg, LaneOp::Sqrt].into_iter().find(|o| o.class() == class)
+}
+
+/// HC-12: the fixed tree of [`fixed_tree_sum`] for any combine `f`. Its
+/// shape is fixed by the length alone.
+pub fn fixed_tree<T: Clone>(xs: &[T], zero: &T, f: &impl Fn(&T, &T) -> T) -> T {
+    match xs.len() {
+        0 => zero.clone(),
+        1 => xs[0].clone(),
+        n => {
+            let h = (n.next_power_of_two() / 2).max(1);
+            f(&fixed_tree(&xs[..h], zero, f), &fixed_tree(&xs[h..], zero, f))
+        }
+    }
+}
+
+/// [`fixed_tree`] with its top `depth` levels on scoped threads. The same
+/// tree, so the same bits for every depth.
+pub fn fixed_tree_threads<T: Clone + Send + Sync>(xs: &[T], zero: &T, f: &(impl Fn(&T, &T) -> T + Sync), depth: u32) -> T {
+    if depth == 0 || xs.len() < 2 {
+        return fixed_tree(xs, zero, f);
+    }
+    let h = (xs.len().next_power_of_two() / 2).max(1);
+    let (l, r) = xs.split_at(h);
+    let (a, b) = std::thread::scope(|s| {
+        let a = s.spawn(|| fixed_tree_threads(l, zero, f, depth - 1));
+        let b = fixed_tree_threads(r, zero, f, depth - 1);
+        (a.join().unwrap(), b)
+    });
+    f(&a, &b)
+}
+
+/// Lane-wise evaluation `out[i] = f(i)` on `threads` scoped threads, each
+/// taking a contiguous chunk. Lanes do not read each other, so the result
+/// is the sequential one for every thread count.
+pub fn lanes_threads<T: Send>(n: usize, threads: usize, f: &(impl Fn(usize) -> T + Sync)) -> Vec<T> {
+    let threads = threads.clamp(1, n.max(1));
+    if threads == 1 {
+        return (0..n).map(f).collect();
+    }
+    let chunk = n.div_ceil(threads);
+    std::thread::scope(|s| {
+        let hs: Vec<_> = (0..threads)
+            .map(|t| s.spawn(move || (t * chunk..((t + 1) * chunk).min(n)).map(f).collect::<Vec<T>>()))
+            .collect();
+        hs.into_iter().flat_map(|h| h.join().unwrap()).collect()
+    })
+}
+
+/// HC-12: the lane-wise f64 operations a fabric can be asked to run. Each
+/// is a single IEEE 754 binary64 operation per lane, correctly rounded, so
+/// its result has one right answer on every conforming fabric.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum LaneOp {
+    Add,
+    Sub,
+    Mul,
+    Div,
+    Neg,
+    Sqrt,
+}
+
+impl LaneOp {
+    pub fn name(self) -> &'static str {
+        match self {
+            LaneOp::Add => "add",
+            LaneOp::Sub => "sub",
+            LaneOp::Mul => "mul",
+            LaneOp::Div => "div",
+            LaneOp::Neg => "neg",
+            LaneOp::Sqrt => "sqrt",
+        }
+    }
+    /// The placement class, e.g. `lanes.f64.add`.
+    pub fn class(self) -> String {
+        format!("lanes.f64.{}", self.name())
+    }
+    /// The CPU reference for one lane.
+    pub fn eval(self, a: f64, b: f64) -> f64 {
+        match self {
+            LaneOp::Add => a + b,
+            LaneOp::Sub => a - b,
+            LaneOp::Mul => a * b,
+            LaneOp::Div => a / b,
+            LaneOp::Neg => -a,
+            LaneOp::Sqrt => a.sqrt(),
+        }
+    }
+}
+
+/// HC-12: the interface a platform fabric (a wgpu device, an NPU) offers
+/// the placement executor. Contract: `lanes` returns, for each lane, the
+/// correctly rounded binary64 result of `op` (unary ops ignore `b`), and
+/// `sum` evaluates exactly the tree of [`fixed_tree_sum`]. A fabric is used
+/// for a class only after `Host::probe_fabric` found its output equal to
+/// the CPU reference on the probe vector and logged `host.Exact`; until
+/// then, and whenever it reports an error, the CPU result is the one that
+/// counts and nothing about the fabric is trusted.
+pub trait FabricExec {
+    fn id(&self) -> &str;
+    fn lanes(&self, op: LaneOp, a: &[f64], b: &[f64]) -> Result<Vec<f64>, String>;
+    fn sum(&self, xs: &[f64]) -> Result<f64, String>;
+}
+
+/// The probe vector for HC-13: signed zeros, subnormals, infinities, NaN,
+/// and values whose sums cancel, so a fabric that reassociates, flushes
+/// subnormals or contracts operations differs from the reference.
+pub fn probe_vector() -> (Vec<f64>, Vec<f64>) {
+    let mut a = vec![0.0, -0.0, f64::MIN_POSITIVE / 4.0, 1e308, -1e308, f64::INFINITY, f64::NAN, 1.0, 3.0, 1e16, -1e16, 0.1];
+    let mut b = vec![-0.0, 0.0, f64::MIN_POSITIVE / 8.0, 1e308, 1e-308, 1.0, 2.0, 3.0, 7.0, 1.0, 1.0, 0.2];
+    // Lanes with subnormal results, so a fabric that flushes them to zero
+    // differs from the reference.
+    a.extend([f64::MIN_POSITIVE, f64::MIN_POSITIVE / 4.0, f64::MIN_POSITIVE * 0.75]);
+    b.extend([0.5, 1.0, -f64::MIN_POSITIVE / 2.0]);
+    for i in 0..1000 {
+        a.push(((i * 7919) % 1009) as f64 * if i % 3 == 0 { -1e8 } else { 1.0 / 3.0 });
+        b.push(((i * 104_729) % 1013) as f64 + 0.5);
+    }
+    (a, b)
+}
+
+fn bits_digest(xs: &[f64]) -> String {
+    let mut s = String::with_capacity(xs.len() * 17);
+    for x in xs {
+        // NaN payloads are not portable across fabrics; every NaN is one class.
+        let b = if x.is_nan() { 0x7ff8_0000_0000_0000u64 } else { x.to_bits() };
+        s.push_str(&format!("{b:016x}"));
+    }
+    d_sha(&s)
+}
+
+const CPU_THREADS: usize = 8;
 
 /// An input offered to the admitter (E.2a): its source, the source's
 /// sequence number (1, 2, ... per source), and the logical tick the source
@@ -546,7 +770,7 @@ impl<'a> Host<'a> {
         let mut it = Interp::new(m);
         let state = it.initial_state().map_err(why)?;
         let state_hash = d_sha(&state_json(&state, m));
-        Ok(Host { m, it, state, state_hash, prev: D_GENESIS.into(), seq: 0, store, stopped: false, pending: 0, durable: None, from_snapshot: None, adapters, bound, queue: Default::default(), admitted: Default::default(), window: 0, closed_tick: 0, offered: vec![], term: 0 })
+        Ok(Host { m, it, state, state_hash, prev: D_GENESIS.into(), seq: 0, store, stopped: false, pending: 0, durable: None, from_snapshot: None, adapters, bound, queue: Default::default(), admitted: Default::default(), window: 0, closed_tick: 0, offered: vec![], term: 0, task: None, fabrics: vec![], calib: Default::default(), exacts: Default::default() })
     }
 
     fn start_entries(&mut self) -> Result<(), String> {
@@ -619,7 +843,7 @@ impl<'a> Host<'a> {
     /// between batches, when no effect request is outstanding, so the
     /// entries after it rebuild every request that matters.
     pub fn snapshot(&self) -> Option<Snapshot> {
-        if !self.queue.is_empty() || self.seq == 0 {
+        if !self.queue.is_empty() || self.seq == 0 || self.task.is_some() {
             return None;
         }
         Some(Snapshot { seq: self.seq - 1, state_hash: self.state_hash.clone(), bytes: state_json(&self.state, self.m) })
@@ -668,6 +892,8 @@ impl<'a> Host<'a> {
             if e.is_host() {
                 announced = None;
                 self.fold_admission(e, &mut announced);
+                self.fold_sched(e).map_err(|x| format!("host fault: seq {}: {x}", e.seq))?;
+                self.rehash();
             } else if let Some((src, q)) = announced.take() {
                 self.admitted.insert(src, q);
             }
@@ -690,7 +916,7 @@ impl<'a> Host<'a> {
                 }
                 if let Ok((s2, outs)) = self.it.delta(&self.state, &ev) {
                     self.state = s2;
-                    self.state_hash = d_sha(&state_json(&self.state, self.m));
+                    self.rehash();
                     self.enqueue(&outs);
                 }
             }
@@ -815,7 +1041,7 @@ impl<'a> Host<'a> {
         let (old_state, old_hash) = (self.state.clone(), self.state_hash.clone());
         if let Some(s2) = next {
             self.state = s2;
-            self.state_hash = d_sha(&state_json(&self.state, self.m));
+            self.rehash();
         }
         match self.append(ej.clone()) {
             Ok(e) => {
@@ -962,6 +1188,372 @@ impl<'a> Host<'a> {
             (Some(l), Expr::Int(n, _)) if l == "n" && *n >= 0 => Some(*n as u64),
             _ => None,
         })
+    }
+
+    /// HC-6 / HC-12: fold one host entry of a `fn main` run or of placement,
+    /// and check what replay re-derives against what D says.
+    fn fold_sched(&mut self, e: &Entry) -> Result<(), String> {
+        let k = e.kind();
+        let v: Value = match k.as_str() {
+            "host.MainStart" | "host.MainInput" | "host.Step" | "host.MainEnd" | "host.Calibrated" | "host.Exact" | "host.Placed" => serde_json::from_str(&e.event).map_err(|x| x.to_string())?,
+            _ => return Ok(()),
+        };
+        let p = v["payload"].clone();
+        match k.as_str() {
+            "host.MainStart" | "host.MainInput" | "host.Step" | "host.MainEnd" => {
+                self.apply_main(k.as_str(), &p)?;
+            }
+            "host.Calibrated" => {
+                let key = (p["fabric"].as_str().unwrap_or("").to_string(), p["class"].as_str().unwrap_or("").to_string());
+                self.calib.insert(key, (p["overhead"].as_f64().unwrap_or(f64::INFINITY), p["throughput"].as_f64().unwrap_or(0.0)));
+            }
+            "host.Exact" => {
+                if p.get("probe").is_some() && p["probe"] == p["reference"] {
+                    self.exacts.insert((p["fabric"].as_str().unwrap_or("").to_string(), p["class"].as_str().unwrap_or("").to_string()));
+                }
+            }
+            _ => {
+                let got = place_from(&self.calib, &self.exacts, p["class"].as_str().unwrap_or(""), p["work"].as_f64().unwrap_or(0.0));
+                if p["fabric"].as_str() != Some(got.as_str()) {
+                    return Err(format!("placement re-derives {got}, D has {}", p["fabric"]));
+                }
+            }
+        }
+        Ok(())
+    }
+
+    fn exec_main(&self, start: &Value, choices: Option<Vec<usize>>) -> Result<crate::conc::RunResult, String> {
+        let links = start["links"].as_array().cloned().unwrap_or_default().iter().filter_map(|l| {
+            let a = l.as_array()?;
+            Some((a.first()?.as_u64()?, a.get(1)?.as_bool()?, a.get(2)?.as_str()?.to_string(), a.get(3)?.as_str()?.to_string()))
+        }).collect();
+        let cfg = crate::conc::RunCfg { seed: start["seed"].as_u64().unwrap_or(0), choices, links, max_ticks: start["max_ticks"].as_u64().unwrap_or(100_000), par_mode: crate::conc::ParMode::Seq, restarts: None };
+        crate::conc::run_main(self.m, &cfg)
+    }
+
+    fn step_payloads(r: &crate::conc::RunResult) -> Vec<Value> {
+        r.log.iter().enumerate().map(|(i, e)| {
+            serde_json::json!({"cause": e.cause, "i": i, "node": r.nodes.get(e.node).cloned().unwrap_or_default(), "tick": e.tick, "what": e.what})
+        }).collect()
+    }
+
+    fn outcome_text(o: &crate::conc::Outcome) -> String {
+        match o {
+            crate::conc::Outcome::Done => "done".into(),
+            crate::conc::Outcome::Refused(r) => format!("refused: {r}"),
+            crate::conc::Outcome::Deadlock => "deadlock".into(),
+        }
+    }
+
+    /// The state hash of δ's state and, while a `fn main` task is live,
+    /// the task's state: the state after each entry is the fold of D.
+    fn rehash(&mut self) {
+        let sj = state_json(&self.state, self.m);
+        self.state_hash = match &self.task {
+            None => d_sha(&sj),
+            Some(t) => d_sha(&format!("{sj}\n{}", t.json())),
+        };
+    }
+
+    fn task_run(&mut self) -> Result<&crate::conc::RunResult, String> {
+        let t = self.task.as_ref().ok_or("no fn main task is live")?;
+        if t.run.is_none() {
+            let mut start = t.start.clone();
+            let mut links: Vec<Value> = start["links"].as_array().cloned().unwrap_or_default();
+            links.extend(t.inputs.iter().map(|(a, b, c, d)| serde_json::json!([a, b, c, d])));
+            start["links"] = Value::Array(links);
+            let r = self.exec_main(&start, None)?;
+            self.task.as_mut().unwrap().run = Some(r);
+        }
+        Ok(self.task.as_ref().unwrap().run.as_ref().unwrap())
+    }
+
+    /// HC-6: the transition of the live task on one host entry, shared by
+    /// the live path (before the entry is appended) and by replay. Anything
+    /// the scheduler re-derives that differs from D refuses the entry.
+    fn apply_main(&mut self, kind: &str, p: &Value) -> Result<(), String> {
+        match kind {
+            "host.MainStart" => {
+                if self.task.is_some() {
+                    return Err("host.MainStart while a fn main task is live".into());
+                }
+                self.task = Some(MainTask { start: p.clone(), inputs: vec![], steps: 0, digest: String::new(), last_tick: 0, run: None });
+            }
+            "host.MainInput" => {
+                let t = self.task.as_ref().ok_or("host.MainInput outside a run")?;
+                let tick = p["tick"].as_u64().ok_or("tick")?;
+                if t.steps > 0 && tick <= t.last_tick {
+                    return Err(format!("late input: tick {tick} is not after the last logged step (tick {})", t.last_tick));
+                }
+                let inp = (tick, p["partition"].as_bool().ok_or("partition")?, p["a"].as_str().ok_or("a")?.to_string(), p["b"].as_str().ok_or("b")?.to_string());
+                let (old_steps, old_digest) = (t.steps, t.digest.clone());
+                let t = self.task.as_mut().unwrap();
+                t.inputs.push(inp);
+                t.run = None;
+                // Causality: the steps already in D do not change.
+                let want = Self::step_payloads(self.task_run()?);
+                let mut d = String::new();
+                for s in want.iter().take(old_steps) {
+                    d = d_sha(&format!("{d}{s}"));
+                }
+                if want.len() < old_steps || d != old_digest {
+                    let t = self.task.as_mut().unwrap();
+                    t.inputs.pop();
+                    t.run = None;
+                    return Err("input would change steps already in D".into());
+                }
+            }
+            "host.Step" => {
+                let k = self.task.as_ref().ok_or("host.Step outside a run")?.steps;
+                let want = Self::step_payloads(self.task_run()?);
+                if want.get(k) != Some(p) {
+                    return Err(format!("fn main step {k} differs from the scheduler's"));
+                }
+                let t = self.task.as_mut().unwrap();
+                t.digest = d_sha(&format!("{}{p}", t.digest));
+                t.steps += 1;
+                t.last_tick = p["tick"].as_u64().unwrap_or(0);
+            }
+            _ => {
+                let k = self.task.as_ref().ok_or("host.MainEnd outside a run")?.steps;
+                let r = self.task_run()?;
+                let choices: Vec<Value> = r.choices.iter().map(|c| serde_json::json!(c)).collect();
+                if r.log.len() != k || Self::outcome_text(&r.outcome) != p["outcome"].as_str().unwrap_or("") || p["choices"].as_array() != Some(&choices) {
+                    return Err("fn main replay differs from the logged steps".into());
+                }
+                self.task = None;
+            }
+        }
+        Ok(())
+    }
+
+    fn main_entry(&mut self, kind: &str, p: Value) -> Result<(), String> {
+        if self.stopped {
+            return Err("host.StorageFault: admitter stopped after a failed barrier".into());
+        }
+        self.apply_main(&format!("host.{kind}"), &p)?;
+        self.rehash();
+        self.append(host_event(kind, &p.to_string()))?;
+        self.confirm()
+    }
+
+    /// HC-6: start `fn main` as a live task: log `host.MainStart` {links,
+    /// max_ticks, seed}. From here the task advances one logged step at a
+    /// time ([`Host::main_step`]), and inputs to it ([`Host::main_input`])
+    /// and to δ interleave with its steps in D.
+    pub fn main_begin(&mut self, seed: u64, links: Vec<(u64, bool, String, String)>, max_ticks: u64) -> Result<(), String> {
+        let lj: Vec<Value> = links.iter().map(|(t, p, a, b)| serde_json::json!([t, p, a, b])).collect();
+        self.main_entry("MainStart", serde_json::json!({"links": lj, "max_ticks": max_ticks, "seed": seed}))
+    }
+
+    /// HC-6: log a link change for the live task (`host.MainInput`). It is
+    /// refused unless its tick is after the last logged step, so the input
+    /// cannot rewrite steps D already holds.
+    pub fn main_input(&mut self, tick: u64, partition: bool, a: &str, b: &str) -> Result<(), String> {
+        self.main_entry("MainInput", serde_json::json!({"a": a, "b": b, "partition": partition, "tick": tick}))
+    }
+
+    /// HC-6: log the task's next scheduler step (`host.Step`); `None` when
+    /// the scheduler has no further step on the inputs logged so far.
+    pub fn main_step(&mut self) -> Result<Option<Value>, String> {
+        let k = self.task.as_ref().ok_or("no fn main task is live")?.steps;
+        let Some(p) = Self::step_payloads(self.task_run()?).get(k).cloned() else { return Ok(None) };
+        self.main_entry("Step", p.clone())?;
+        Ok(Some(p))
+    }
+
+    /// HC-6: end the live task after its last step: log `host.MainEnd`
+    /// {choices, outcome, ticks}.
+    pub fn main_end(&mut self) -> Result<MainRun, String> {
+        while self.main_step()?.is_some() {}
+        let r = self.task_run()?;
+        let outputs = r.outputs.iter().map(|o| o.show()).collect();
+        let outcome = Self::outcome_text(&r.outcome);
+        let (choices, steps, ticks) = (r.choices.clone(), r.log.len(), r.ticks);
+        self.main_entry("MainEnd", serde_json::json!({"choices": choices, "outcome": outcome, "ticks": ticks}))?;
+        Ok(MainRun { outputs, outcome, steps, choices })
+    }
+
+    /// HC-6: `fn main` with all its inputs known up front: begin, every
+    /// step, end.
+    pub fn run_main(&mut self, seed: u64, links: Vec<(u64, bool, String, String)>, max_ticks: u64) -> Result<MainRun, String> {
+        self.main_begin(seed, links, max_ticks)?;
+        self.main_end()
+    }
+
+    /// The live task's step count, if a task is live.
+    pub fn main_steps(&self) -> Option<usize> {
+        self.task.as_ref().map(|t| t.steps)
+    }
+
+    /// HC-12: log a calibration row (`host.Calibrated`).
+    pub fn calibrate(&mut self, fabric: &str, class: &str, overhead: f64, throughput: f64) -> Result<(), String> {
+        let p = serde_json::json!({"class": class, "fabric": fabric, "overhead": overhead, "throughput": throughput});
+        self.append(host_event("Calibrated", &p.to_string()))?;
+        self.calib.insert((fabric.into(), class.into()), (overhead, throughput));
+        self.confirm()
+    }
+
+    /// HC-13: probe a fabric on `class` against the CPU reference and log
+    /// `host.Exact` with both digests; the fabric is admitted for the class
+    /// only when they are equal.
+    pub fn probe(&mut self, fabric: &str, class: &str, probe_digest: &str, reference_digest: &str) -> Result<bool, String> {
+        let p = serde_json::json!({"class": class, "fabric": fabric, "probe": probe_digest, "reference": reference_digest});
+        self.append(host_event("Exact", &p.to_string()))?;
+        let ok = probe_digest == reference_digest;
+        if ok {
+            self.exacts.insert((fabric.into(), class.into()));
+        }
+        self.confirm()?;
+        Ok(ok)
+    }
+
+    /// HC-12: register a platform fabric executor (see [`FabricExec`]).
+    /// Registration changes nothing in D; the fabric becomes a placement
+    /// candidate only through `host.Calibrated` and `host.Exact` entries.
+    pub fn register_fabric(&mut self, f: Box<dyn FabricExec + 'a>) {
+        self.fabrics.retain(|g| g.id() != f.id());
+        self.fabrics.push(f);
+    }
+
+    fn fabric(&self, id: &str) -> Option<&(dyn FabricExec + 'a)> {
+        self.fabrics.iter().find(|f| f.id() == id).map(|b| b.as_ref())
+    }
+
+    /// HC-13: probe a fabric on a class against the CPU reference using
+    /// [`probe_vector`], and log `host.Exact` with both digests. `class`
+    /// is `sum.f64` or a lane class `lanes.f64.<op>`. `cpu.threads` is
+    /// probed like any other fabric.
+    pub fn probe_fabric(&mut self, fabric: &str, class: &str) -> Result<bool, String> {
+        let (a, b) = probe_vector();
+        let (reference, got): (Vec<f64>, Result<Vec<f64>, String>) = if class == "sum.f64" {
+            // Sums of every length 0..=64 and of the whole finite vector,
+            // so each tree shape up to 64 and cancellation are covered;
+            // the special values are checked by a separate sum each.
+            let fin: Vec<f64> = a.iter().copied().filter(|x| x.is_finite()).collect();
+            let mut cases: Vec<Vec<f64>> = (0..=64).map(|k| fin[..k].to_vec()).collect();
+            cases.push(fin.clone());
+            cases.extend(a.iter().filter(|x| !x.is_finite() || **x == 0.0).map(|x| vec![1.0, *x, -1.0]));
+            let r: Vec<f64> = cases.iter().map(|c| fixed_tree_sum(c)).collect();
+            let g: Result<Vec<f64>, String> = match fabric {
+                "cpu.threads" => Ok(cases.iter().map(|c| fixed_tree_sum_threads(c, 3)).collect()),
+                f => {
+                    let fx = self.fabric(f).ok_or(format!("no executor for fabric `{f}`"))?;
+                    cases.iter().map(|c| fx.sum(c)).collect()
+                }
+            };
+            (r, g)
+        } else {
+            let op = lane_op(class).ok_or(format!("unknown class `{class}`"))?;
+            let r: Vec<f64> = (0..a.len()).map(|i| op.eval(a[i], b[i])).collect();
+            let g = match fabric {
+                "cpu.threads" => Ok(lanes_threads(a.len(), CPU_THREADS, &|i| op.eval(a[i], b[i]))),
+                f => self.fabric(f).ok_or(format!("no executor for fabric `{f}`"))?.lanes(op, &a, &b),
+            };
+            (r, g)
+        };
+        let probe = match got {
+            Ok(g) if g.len() == reference.len() => bits_digest(&g),
+            Ok(_) => "wrong-length".into(),
+            Err(e) => format!("error: {e}"),
+        };
+        self.probe(fabric, class, &probe, &bits_digest(&reference))
+    }
+
+    fn placed(&mut self, class: &str, op: &str, work: f64, fabric: &str) -> Result<(), String> {
+        let p = serde_json::json!({"class": class, "fabric": fabric, "op": op, "work": work});
+        self.append(host_event("Placed", &p.to_string()))?;
+        self.confirm()
+    }
+
+    fn can_run(&self, fabric: &str) -> bool {
+        fabric == "cpu" || fabric == "cpu.threads" || self.fabric(fabric).is_some()
+    }
+
+    /// HC-12 placement executor for the reduction class `sum.f64`: choose
+    /// the fabric from D's host entries, log `host.Placed`, and run the
+    /// fixed tree of T18 on it. A placement on a fabric this host cannot
+    /// execute is refused before anything is logged. A registered fabric
+    /// that errors at run time is replaced by the CPU reference, which by
+    /// HC-13 gives the same bits.
+    pub fn place_sum(&mut self, op: &str, xs: &[f64]) -> Result<(String, f64), String> {
+        let class = "sum.f64";
+        let work = xs.len() as f64;
+        let fabric = place_from(&self.calib, &self.exacts, class, work);
+        if !self.can_run(&fabric) {
+            return Err(format!("no executor for fabric `{fabric}`"));
+        }
+        self.placed(class, op, work, &fabric)?;
+        let r = match fabric.as_str() {
+            "cpu" => fixed_tree_sum(xs),
+            "cpu.threads" => fixed_tree_sum_threads(xs, 3),
+            f => self.fabric(f).unwrap().sum(xs).unwrap_or_else(|_| fixed_tree_sum(xs)),
+        };
+        Ok((fabric, r))
+    }
+
+    /// HC-12 placement executor for a lane-wise array operation
+    /// `out[i] = op(a[i], b[i])` (unary ops ignore `b`, which may be empty).
+    pub fn place_lanes(&mut self, op_id: &str, op: LaneOp, a: &[f64], b: &[f64]) -> Result<(String, Vec<f64>), String> {
+        let unary = matches!(op, LaneOp::Neg | LaneOp::Sqrt);
+        if !unary && a.len() != b.len() {
+            return Err("lane-wise operands differ in length".into());
+        }
+        let class = op.class();
+        let work = a.len() as f64;
+        let fabric = place_from(&self.calib, &self.exacts, &class, work);
+        if !self.can_run(&fabric) {
+            return Err(format!("no executor for fabric `{fabric}`"));
+        }
+        self.placed(&class, op_id, work, &fabric)?;
+        let bb = |i: usize| if unary { 0.0 } else { b[i] };
+        let cpu = || (0..a.len()).map(|i| op.eval(a[i], bb(i))).collect::<Vec<f64>>();
+        let r = match fabric.as_str() {
+            "cpu" => cpu(),
+            "cpu.threads" => lanes_threads(a.len(), CPU_THREADS, &|i| op.eval(a[i], bb(i))),
+            f => {
+                let bv: Vec<f64> = if unary { vec![0.0; a.len()] } else { b.to_vec() };
+                match self.fabric(f).unwrap().lanes(op, a, &bv) {
+                    Ok(v) if v.len() == a.len() => v,
+                    _ => cpu(),
+                }
+            }
+        };
+        Ok((fabric, r))
+    }
+
+    /// HC-12 placement executor for a `for … par` body over `0..n` whose
+    /// results are combined by `combine` (identity `zero`): the bodies run
+    /// lane-wise (they share no mutable state, 5.13), and the combination
+    /// is the fixed tree, so the result is the same on `cpu` and
+    /// `cpu.threads` for any combine, including non-associative ones. The
+    /// class is `par.<class>`. Bodies are host closures, so only CPU
+    /// fabrics can execute them; a placement elsewhere is refused before
+    /// it is logged.
+    pub fn place_par<T: Clone + Send + Sync>(
+        &mut self,
+        op_id: &str,
+        class: &str,
+        n: usize,
+        body: &(impl Fn(usize) -> T + Sync),
+        zero: &T,
+        combine: &(impl Fn(&T, &T) -> T + Sync),
+    ) -> Result<(String, T), String> {
+        let class = format!("par.{class}");
+        let work = n as f64;
+        let fabric = place_from(&self.calib, &self.exacts, &class, work);
+        if fabric != "cpu" && fabric != "cpu.threads" {
+            return Err(format!("no executor for fabric `{fabric}` on a `for … par` body"));
+        }
+        self.placed(&class, op_id, work, &fabric)?;
+        let r = if fabric == "cpu" {
+            let xs: Vec<T> = (0..n).map(body).collect();
+            fixed_tree(&xs, zero, combine)
+        } else {
+            let xs = lanes_threads(n, CPU_THREADS, body);
+            fixed_tree_threads(&xs, zero, combine, 3)
+        };
+        Ok((fabric, r))
     }
 
     /// The `upto` of the last closed window (0 before any), as folded from D.

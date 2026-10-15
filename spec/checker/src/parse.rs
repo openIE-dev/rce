@@ -321,6 +321,9 @@ pub struct Parser {
     p: usize,
     /// accept draft 0.6 syntax; `parse` clears it without the `conc06` feature
     pub allow06: bool,
+    /// a `with budget ... else as e` was parsed: the builtin
+    /// `struct Exhausted { limit: u64, used: u64 }` is added to the module
+    pub need_exhausted: bool,
     /// the module declares version 0.7 (spec 2.7, C.13)
     pub v07: bool,
 }
@@ -338,7 +341,7 @@ pub fn reserved(s: &str, draft06: bool) -> bool {
 
 impl Parser {
     pub fn new(t: Vec<(Tok, usize)>) -> Self {
-        Parser { t, p: 0, allow06: true, v07: false }
+        Parser { t, p: 0, allow06: true, v07: false, need_exhausted: false }
     }
     fn peek(&self) -> &Tok {
         &self.t[self.p].0
@@ -475,6 +478,18 @@ impl Parser {
                 m.pubs.insert(n);
             }
             m.items.push(it);
+        }
+        if self.need_exhausted
+            && !m.items.iter().any(|it| matches!(it, Item::Struct { name, .. } if name == "Exhausted"))
+        {
+            let f = |n: &str| Field { name: n.into(), ty: Ty::Path(vec!["u64".into()], vec![]), init: None, line: 0 };
+            m.items.push(Item::Struct {
+                name: "Exhausted".into(),
+                generics: vec![],
+                fields: vec![f("limit"), f("used")],
+                line: 0,
+                linear: false,
+            });
         }
         Ok(m)
     }
@@ -1594,7 +1609,29 @@ impl Parser {
                     let mut v = vec![Stmt::Expr(n)];
                     v.extend(body);
                     if self.eat_kw("else") {
-                        let eb = self.block()?;
+                        // `else as e` binds the typed outcome
+                        // Exhausted{limit, used} (C.5); the runtimes supply
+                        // the two values through hidden names
+                        let bind = if self.eat_kw("as") { Some(self.pattern()?) } else { None };
+                        let mut eb = self.block()?;
+                        if let Some(pat) = bind {
+                            self.need_exhausted = true;
+                            let arg = |l: &str, n: &str| Arg {
+                                label: Some(l.into()),
+                                e: Expr::Name(format!("\u{1}{n}"), line),
+                            };
+                            eb.insert(0, Stmt::Let(
+                                pat,
+                                None,
+                                Expr::Call(
+                                    Box::new(Expr::Name("Exhausted".into(), line)),
+                                    vec![arg("limit", "__bn"), arg("used", "__bu")],
+                                    line,
+                                    false,
+                                ),
+                                line,
+                            ));
+                        }
                         // the else runs only when the budget traps: encoded as
                         // `if false` so a run that never charges past n never
                         // evaluates it (comptime, emitters' observation model)

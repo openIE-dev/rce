@@ -238,27 +238,31 @@ fn run_main_corpus() {
     assert_eq!(outs(&r), vec!["42", "45", "[0, 1, 4, 9]"]);
 }
 
-/// `with budget n ... else ...`: the innermost budget with an else catches a
-/// budget trap of its body, writes before the trap stay, and an outer limit
-/// passed is caught by the outer else once the inner else charges again
+/// `with budget n ... else as e ...`: atomic budget block. The innermost
+/// budget with an else catches a budget trap of its body, every write of the
+/// body is undone, and e is Exhausted{limit, used}
 #[test]
 fn budget_else_catches() {
     let prog = |b: i64| {
         format!(
-            "fn main()\n    var a: i64 = 0\n    var r: i64 = 0\n    with budget {b}\n        with budget 40\n            for i in 0..100\n                a += 1\n        else\n            r = 1\n        for i in 0..20\n            a += 1\n    else\n        r += 10\n    emit a\n    emit r\n"
+            "fn main()\n    var a: i64 = 0\n    var r: i64 = 0\n    var lim: u64 = 0\n    with budget {b}\n        with budget 40\n            for i in 0..100\n                a += 1\n        else as e\n            r = 1\n            lim = e.limit\n        for i in 0..20\n            a += 1\n    else\n        r += 10\n    emit a\n    emit r\n    emit lim\n"
         )
     };
     let big = run(&prog(100000));
     assert_eq!(big.outcome, Outcome::Done);
     let o = outs(&big);
-    let a: i64 = o[0].parse().unwrap();
-    assert!(a > 20 && a < 120, "inner trap kept partial writes: {o:?}");
-    assert_eq!(o[1], "1", "inner else ran, outer did not");
+    assert_eq!(o, vec!["20", "1", "40"], "inner writes undone, else saw limit 40, then 20 outer increments");
     let small = run(&prog(20));
     assert_eq!(small.outcome, Outcome::Done);
-    let r = outs(&small)[1].clone();
-    assert!(r == "10" || r == "11", "outer limit passed: outer else ran last: {r}");
-    // without an else the event is refused as before
+    let o = outs(&small);
+    assert_eq!(o, vec!["0", "10", "0"], "outer trap undoes every write of the outer block");
     let bare = run("fn main()\n    var a: i64 = 0\n    with budget 5\n        for i in 0..10\n            a += 1\n    emit a\n");
     assert!(matches!(bare.outcome, Outcome::Refused(_)), "{:?}", bare.outcome);
+}
+
+#[test]
+fn budget_else_refuses_undoable_effects() {
+    let d = rce_spec_check::check_program(&[("t.rce".into(), "fn main()\n    with budget 5\n        emit 1\n    else\n        emit 2\n".to_string())], false);
+    let e = d[0].1.clone().unwrap_err();
+    assert!(e.contains("W-BUD-1"), "{e}");
 }

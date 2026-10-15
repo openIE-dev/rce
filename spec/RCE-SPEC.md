@@ -1456,13 +1456,88 @@ exactly.
   n ≥ bit width or n < 0 are `trap("shift amount out of range")`; `>>` is arithmetic for signed and
   logical for unsigned types. Bitwise `& | ^ ~` act on the two's-complement
   representation of the static type.
-- **N3 Floats.** f64 operations are IEEE 754 binary64, round to nearest even.
-  `%` is not defined on floats (W-TY-1: `%` needs integers). A non-finite
-  result (±inf, NaN) is `trap("non-finite float")`: NaN and infinities
-  never exist as values. `x / 0.0` is `trap("non-finite float")` (its
-  result is ±inf or NaN), and so is `sqrt` of a negative number. Canonical float text is the
-  shortest round-trip digits; decimal notation for 1e-5 ≤ |x| < 1e16, else
-  `d.ddde±N` with `+` on positive exponents (`1e+300`, `1.5e-7`).
+- **N3 Floats.** The rules below are derived from IEEE 754-2019 and from
+  two requirements of the Form: replay must give the same bits on every
+  target (T1), and δ must be total (S1). `tests/float_rules.rs` checks
+  each rule on the interpreter; the parity set carries the vectors of
+  `examples/57_float_vectors.rce` to every CI target.
+  - **F1 Correct rounding.** f64 is IEEE binary64. `+ - * /` and `sqrt` are
+    the standard's basic operations, correctly rounded with
+    roundTiesToEven, the default rounding-direction attribute; so are the
+    conversion of an integer (`as f64`) and of a decimal literal. A
+    correctly rounded operation is a function of its operands' bits alone,
+    so every conforming target gives the same result: this is the only
+    property determinism needs, and no other rounding mode exists in RCE.
+  - **F2 One rounding per operator, in source order.** Float addition and
+    multiplication are not associative and `a * b + c` with one rounding
+    differs from two roundings (vector `MulSub`: `0.1 * 10.0 - 1.0` is `0`,
+    fused it is `5.551115123125783e-17`). Contraction to fused
+    multiply-add, reassociation, excess precision and every other
+    value-changing optimization the standard allows a language to permit
+    are therefore not valid compilations (HC-14). A fused multiply-add is
+    itself correctly rounded, so it may exist only as an explicit named
+    operation; RCE has none yet. Adding one needs a correctly rounded
+    implementation on every runtime (Rust `f64::mul_add`, Java
+    `Math.fma`, exact rational rounding in Python and JavaScript).
+  - **F3 Subnormals are preserved.** Gradual underflow is part of the
+    binary64 format; flush-to-zero and denormals-are-zero modes are not
+    IEEE operations and would make `x - y == 0` hold for `x != y`. A host
+    never enables them (HC-13); vectors `Mul(5e-324, 3.0)` and
+    `Mul(2.2250738585072014e-308, 0.5)` detect either mode.
+  - **F4 Non-finite results trap (from totality).** A Form value must
+    have a reflexive equality and a total order (6.2, N5, N6) and must
+    encode as a JSON number for hashing (N1). NaN is unequal to itself
+    under IEEE comparison, and an infinity is not a JSON number and
+    reintroduces NaN through `inf - inf` and `0 * inf`; the largest subset
+    of binary64 closed under these requirements is the finite values. δ is
+    total as a function into values and traps, so an operation whose IEEE
+    result is not finite (the standard's overflow, divideByZero and
+    invalid exceptions) is `trap("non-finite float")`. The alternatives
+    fail a law: admitting NaN under the standard's totalOrder makes `==`
+    disagree with IEEE comparison and needs a canonical NaN for hashing;
+    saturating to the largest finite value is not an IEEE result and
+    breaks `x * 2.0 / 2.0 == x` without a signal. With the trap every
+    value is finite and every result that does not trap is the IEEE result.
+    `x / 0.0` and `sqrt` of a negative number trap.
+  - **F5 NaN payloads are never observable.** By F4 no NaN becomes a
+    value, so its sign, payload and quiet bit cannot reach state, output
+    or a hash; the standard leaves payload propagation to the
+    implementation, which is why this matters. An implementation tests
+    for a non-finite result before any NaN escapes, and the trap text is
+    the same for every NaN. A fabric or target that can produce NaN (GPU,
+    NPU, WASM SIMD) canonicalizes or traps before a value reaches state
+    (HC-13; `wasm_float.rs` rewrites NaN to the canonical positive NaN).
+  - **F6 Signed zero.** `-0.0` arises by the standard's sign rules, which
+    are exact, so every target produces it in the same places (vector
+    `Mul(0.0, -1.0)`). It compares equal to `0.0`, `tostr` gives `0` for
+    both and `1.0 / -0.0` traps like `1.0 / 0.0`, but canonical JSON keeps
+    the sign, so a state holding `-0.0` has a different `state_hash` from
+    one holding `0.0`. (Open question for review: equal values with
+    different hashes; canonicalizing `-0.0` to `0.0` in canonical JSON
+    changes D for such states and must change every producer at once.)
+  - **F7 Exception flags are not state.** Inexact and underflow raise
+    nothing (F1 already fixes the result); overflow, divideByZero and
+    invalid are the trap of F4. No program reads a flag.
+  - **F8 Exact operations.** `floor`, `ceil` and `round` are the standard's
+    roundToIntegral operations toward negative, toward positive and
+    ties-away (`(2.5).round()` is `3`, `(-2.5).round()` is `-3`); `abs`
+    clears the sign. `min` and `max` follow N5. None of these rounds.
+  - **F9 Transcendentals are excluded.** IEEE 754-2019 recommends but does
+    not require correctly rounded `exp`, `log`, `sin`, `pow` and the like,
+    and platform math libraries differ in the last bit. RCE has none. One
+    may be added only with a correctly rounded implementation in the
+    CORE-MATH or CRlibm style (correct rounding proved, or checked
+    exhaustively for binary32), carried by every runtime rather than taken
+    from the platform library; until then device versions are output only
+    or verified (HC-13).
+  Canonical float text is the shortest round-trip digits; decimal notation
+  for 1e-5 ≤ |x| < 1e16, else `d.ddde±N` with `+` on positive exponents
+  (`1e+300`, `1.5e-7`).
+  In canonical JSON (6.1) a float is written as Rust's `{:?}` writes it,
+  which every producer reproduces: shortest round-trip digits, decimal with
+  at least one fractional digit for 1e-4 ≤ |x| < 1e16 (`10.0`, `0.0001`),
+  otherwise exponent form without `+` (`1e16`, `1e-5`, `5e-324`), and
+  `-0.0` keeps its sign (`tests/traces.rs` pins these forms).
   **f32 (draft 0.5).** The Form ops `f32add f32sub f32mul f32div` round both
   operands to binary32, compute in binary64, and round the result to
   binary32 (round to nearest even). Binary64 has 53 ≥ 2·24 + 2 significand
@@ -1487,8 +1562,20 @@ exactly.
   `for c in s` and `chars()` still go by character. Case mapping
   (`upper`, `lower`) and class tests (`isdigit`, `isalpha`, `isupper`,
   `islower`) are ASCII-only; other characters are unchanged / false.
-  `strip` and `words` split on ASCII whitespace (space, \t, \n, \r, \x0b,
-  \x0c).
+  `strip`, `words` and `toint` treat as whitespace exactly the 25 code
+  points of the White_Space property of Unicode 18.0.0: U+0009 to U+000D,
+  U+0020, U+0085, U+00A0, U+1680, U+2000 to U+200A, U+2028, U+2029,
+  U+202F, U+205F and U+3000 (`interp::WHITE_SPACE`). `isspace` is ASCII
+  (space, \t, \n, \x0c, \r).
+  **Unicode pin.** RCE pins Unicode 18.0.0
+  (https://www.unicode.org/versions/Unicode18.0.0/) and reads no Unicode
+  table at run time: scalar values and UTF-8 do not change between
+  versions, case and class operations are ASCII, and the one property used,
+  White_Space, is enumerated above rather than taken from the toolchain. A
+  newer Rust, Python, JavaScript or JVM therefore cannot change a result;
+  `tests/unicode_pin.rs` checks the set and scans the runtimes for calls
+  that would read the toolchain's tables. Moving the pin is a spec change
+  that must leave the enumerated set unchanged or bump the draft.
 - **N8 Indexing** The index `i` of `a[i]` and the ends of `a[i:j]` have
   type `usize` (W-TY-1 otherwise), so no index is negative. `a[i]` with
   i ≥ n is `trap("index i out of range")`. A slice end above n is
@@ -1905,7 +1992,7 @@ Classical.choice). Status per theorem:
 | T38 | proved for any hash function: the verified prefix is a prefix and a valid chain, a valid log is kept whole, and a valid log followed by an entry that does not link is cut back to it; the SHA-256 chain of every example log is tested with torn, flipped and swapped entries (`tests/host_contract.rs`) | `verify_prefix`, `verify_valid`, `verify_intact`, `verify_append`, `t38_torn` |
 | T39 | proved on an admitter model: after a failed barrier nothing is appended, and a running admitter's log is exactly the entries it was given | `t39_halted`, `t39_fault_stops`, `t39_run_complete` |
 | T40 | proved on a window model (Appendix E.2a): with an injective input key, the entries of a window are equal for any permutation of its inputs, D is equal for any per-window permutation of a sequence of windows, and sorting keeps every input; two hosts with different arrival orders give byte-identical D in `tests/host_admit.rs` | `window_perm`, `log_permwise`, `window_complete`, `ins_comm` |
-| T41 | proved on a term model (Appendix E.2b) under Leader Completeness as a hypothesis: a fenced append leaves a replica unchanged and every committed prefix survives any number of term changes; partitions, reordering, crash and restart are tested in `tests/host_raft.rs` | `fenced_append_unchanged`, `committed_prefix_preserved`, `accepted_append` |
+| T41 | proved on a term model (Appendix E.2b): quorum intersection, Election Safety and Leader Completeness for every reachable state of the whole-log protocol model (elections with the vote rule, appends, fenced writes, commits), by strong induction on terms with no further hypotheses, a fenced append leaves a replica unchanged, and every committed prefix survives any number of term changes; partitions, reordering, crash and restart are tested in `tests/host_raft.rs` | `fenced_append_unchanged`, `committed_prefix_preserved`, `quorum_intersect`, `election_safety`, `elect_fresh`, `commit_seed`, `leader_completeness` |
 | T15 | proved for iterators whose step between yields is total (T2): every run ends, delivers at most LOOP_LIMIT values and traps only after exactly LOOP_LIMIT; `break` yields a prefix of the full run; a run with a smaller cap is a prefix of one with a larger cap (the evaluator's re-run strategy) | `drive_total`, `drive_break`, `gen_prefix` |
 
 T16 to T31 belong to version 0.6 and are listed with their exact status
@@ -2174,6 +2261,14 @@ each can be reversed independently.
 49. **LOOP_LIMIT is a per-program constant** with default 1,000,000.
 50. **Push iterators** (Go 1.23) rather than pull generators (Python, Rust):
     no suspended state, so δ stays total and replay needs nothing new.
+51. **Floats derived from IEEE 754-2019 and totality** (6.3 N3, F1 to F9):
+    correctly rounded basic operations only, one rounding per operator,
+    subnormals kept, non-finite results trap because NaN and infinities
+    break equality, order and JSON encoding, no transcendentals until a
+    correctly rounded one runs on every target.
+52. **Unicode 18.0.0 pinned, no tables read at run time** (6.3 N7): the
+    whitespace set is enumerated, so a toolchain upgrade cannot change a
+    result.
 
 ### 9.1 Changes made while mechanizing (draft 0.1 → 0.2)
 
@@ -2578,18 +2673,28 @@ outcome.
   ("not available at comptime"); they run only under `--run`. `extern`
   functions trap there too.
 - A `par` whose branches wait on an lvar runs its branches at the same
-  time in the reference (`ParMode::Threads`), each on a copy of the fuel
-  left at the fork. The branches' uses are then summed in source order and
-  the run traps with "comptime fuel exhausted" at the first branch whose
-  running sum passes the fork's fuel, before that branch's own result is
-  taken (a sum-checked account, as C.6.3 does for budgets). The emitters
-  run such a `par` by restart and restore the fuel and the budgets of an
-  abandoned attempt (`par_snap`, `par_restore`), so each branch is charged
-  once for its completing attempt. A wait charges no fuel while blocked,
-  so a branch's use does not depend on the schedule.
-  `spec/checker/tests/fuel_run.rs` checks this at every change point on
-  two programs (`lvarpar`, and `lvartrap`, where a late division by zero
-  must lose to the fuel trap when fuel runs out first).
+  time in the reference (`ParMode::Threads`). Derivation. The governing
+  law is schedule independence: a `par` must be observationally equal to
+  one fixed sequential order, source order (C.4). Fuel is additive over
+  sequential composition, so the sequential run traps at the first
+  branch i where the uses of branches 1..i sum past the fuel left at the
+  fork. The reference therefore gives each branch a copy of that fuel,
+  sums the branches' uses in source order after they finish, and traps
+  with "comptime fuel exhausted" at the first branch whose running sum
+  passes it, before that branch's own result is taken. The trap point is
+  the sequential one. A split of the fuel before the fork would make the
+  set of programs that trap depend on the split rule and would agree
+  with no sequential order, with no gain in soundness, so it is not
+  used. The cost of running branches ahead is bounded: at most k times
+  the fuel left at the fork is evaluated for a `par` of k branches, of
+  which the excess over the sequential run is discarded. A wait charges
+  no fuel while blocked, so a branch's use does not depend on the
+  schedule. The emitters run such a `par` by restart and restore the
+  fuel and the budgets of an abandoned attempt (`par_snap`,
+  `par_restore`), so each branch is charged once, for its completing
+  attempt. `spec/checker/tests/fuel_run.rs` checks this at every change
+  point on two programs (`lvarpar`, and `lvartrap`, where a late
+  division by zero must lose to the fuel trap when fuel runs out first).
 - Deep recursion ends with the target's own stack error.
 - A call that writes back its receiver or a `&mut` argument (`xs.push(x)`,
   `f(&mut a)`) is translated only as a whole statement or as the right side
@@ -2815,6 +2920,9 @@ the f32 rule in 6.3 cites Figueroa, "When is double rounding innocuous?".
 - Zig 0.15.1 release notes (wrapping `+%` and saturating `+|` operators, allocators as parameters).
 - Full citations for every draft 0.4 decision are in `spec/LANGUAGE-REVIEW.md`.
 - S. A. Figueroa, When is double rounding innocuous?, ACM SIGNUM Newsletter 30(3), 1995 (f32 via f64).
+- IEEE Std 754-2019, IEEE Standard for Floating-Point Arithmetic, doi:10.1109/IEEESTD.2019.8766229 (6.3 N3).
+- The CORE-MATH project, correctly rounded mathematical functions, https://core-math.gitlabpages.inria.fr/ (6.3 N3 F9).
+- The Unicode Standard, Version 18.0.0, https://www.unicode.org/versions/Unicode18.0.0/ (6.3 N7).
 - Go 1.23 release notes, range-over-func iterators (push iterators, 5.14).
 - G. Plotkin, A Structural Approach to Operational Semantics, 1981; A. Wright, M. Felleisen, A Syntactic Approach to Type Soundness, 1994 (progress and preservation).
 
@@ -2922,7 +3030,7 @@ is a prefix of, or has as prefix, a path read or written by the other.
 ### C.4 `par`
 
 `par` runs its branches; each branch is a block. The result equals running
-the branches in source order (C.4.2). Rules:
+the branches in source order (T16). Rules:
 
 - W-PAR-1: the footprints of two branches overlap (write/write or
   write/read), including through a `&mut self` method call.
@@ -2930,6 +3038,38 @@ the branches in source order (C.4.2). Rules:
   channel operations, spawn, foreign calls), or returns, breaks or
   continues out of the `par`.
 - W-NAME-2 also refuses two branches with one name.
+
+Derivation of the rules (confluence). Determinism of a parallel
+composition is a confluence property: every way of interleaving the
+branches' steps must reach one result, which is then the result of any
+fixed order, source order among them. By the Church-Rosser method it is
+enough to show the diamond: one step of branch a and one step of branch
+b, taken from the same configuration in either order, reach the same
+configuration. A step changes only its write set and depends only on
+its free variables, so the two steps commute exactly when neither writes
+what the other reads or writes. That is W-PAR-1, derived, not chosen: it
+is the weakest footprint condition under which the diamond holds for
+every store. Termination of each branch (T19) and the diamond give
+confluence (Newman's lemma), so every complete interleaving gives the
+source-order store (T16). An effect that leaves the store (`emit`,
+channel operations, spawn, a foreign call) is observed in the order it
+happens, so it would make the observation depend on the interleaving
+even when the store does not; W-PAR-2 removes these. Traps follow the
+same law: a trap is observed at the first branch in source order that
+traps, because that is where the sequential run traps; the reference
+and the emitters place both arithmetic traps and resource traps (fuel,
+budget) at that branch (book/12-tooling.md 10.5). Mechanized in
+`spec/lean`: the diamond on a core with `par` (`RCE.ParSem.diamond`),
+determinism of complete runs (`RCE.ParSem.par_det`), refinement to a
+model of the reference evaluator including overflow traps
+(`RCE.ParSem.refine`), and the fuel account, whose sum-checked trap
+point equals the sequential one and whose evaluated work is at most k
+times the fuel left at the fork (`RCE.ParFuel.sumcheck_eq_seq`,
+`RCE.ParFuel.overrun_bound`). LVars weaken the diamond to
+quasi-determinism (C.11.8, T29q). Open: the core has no loops, calls or
+data structures, so the link from the core to the full evaluator rests
+on the generated vectors (`ParVectors.lean`) and the differential tests,
+not on a proof.
 
 ### C.5 Budgets, deadlines and nondeterminism
 
@@ -2939,6 +3079,45 @@ the branches in source order (C.4.2). Rules:
   target. The cost table is the reference evaluator's (`interp` and
   `conc.rs`, `charge`), listed in C.6.4.
   W-TY-1 if n is not an integer.
+  `with budget n Block else [as e] Else` makes exhaustion a value.
+  Derivation. Totality (T2) asks every step to end in a value; a trap
+  that refuses the event is an outcome of the step, not a value the
+  program can act on. To act on it the program needs a point where the
+  trap is caught, and the state at that point must be one that some
+  sequential execution reaches at a well-defined place, or Else observes
+  a state no specification of Block describes. The only such states are
+  the entry of Block and its completion; the trap rules out completion,
+  so a caught trap restores the entry state. Block is therefore atomic:
+  all of its writes or none (the same law as T30 for `atomic`).
+  Normative rules:
+  - A `trap("budget")` raised while Block runs, by this budget or any
+    enclosing one, is caught by the innermost enclosing budget that has
+    an `else`. Every write Block made (locals, struct fields, state
+    fields, `self`) is undone, then Else runs.
+  - `as e` binds `e: Exhausted`, the builtin
+    `struct Exhausted { limit: u64, used: u64 }`, where `limit` is n and
+    `used` is the units this frame had spent before the operation that
+    would have passed a limit.
+  - Charges stay. Cost counts operations performed (C.6.1), so the
+    units spent in Block remain on every enclosing budget. When the trap
+    came from an outer budget, Else charges that budget, its next charge
+    traps again, and the trap reaches the next budget out with an
+    `else`, or refuses the event.
+  - W-BUD-1: Block of a budget with an `else` holds an effect that a
+    trap cannot undo (`emit`, channel operations, spawn, select, yield,
+    lvar `put` or `freeze`), or returns, breaks or continues out of it.
+  - A budget without `else` behaves as before: the trap refuses the
+    event.
+  The trap falls on the same operation on every target, so whether Else
+  runs, and the value of `e`, are functions of the program and its
+  inputs, and replay re-derives them. The emitters save every local the
+  block writes at entry (struct fields and state fields are locals of
+  the emitted step) and restore them on the trap. Checked by
+  `spec/checker/tests/conc06_run.rs` (`budget_else_catches`,
+  `budget_else_refuses_undoable_effects`), `emit_run.rs`
+  (`budget_else_*`, reference against the Rust, Python and JavaScript
+  runtimes) and `emit06b.rs` (`budget_else_is_atomic_on_every_target`,
+  the limit swept across the block's cost on all four targets).
 - `with deadline n` runs the block with an expiry n logical ticks after
   entry; if the block has not completed by then, the `else` block runs
   instead (T22). W-DL-1: outside `fn main` or a task
@@ -2965,7 +3144,7 @@ operations whose running total stays at most n.
 C.6.3 `par` and `for ... par` charge `c_fork` per branch (or chunk),
 then each branch's own costs. The branches' costs are summed in source
 order, and exhaustion is placed where the sequential run would hit it
-(C.4.2), so the trap does not depend on scheduling.
+(C.4, T16), so the trap does not depend on scheduling.
 
 C.6.4 The cost table (normative). Operations not listed (literals of
 scalars, variable reads, assignment, control flow, `let`) cost 0. The
@@ -3054,14 +3233,29 @@ an associative operation with an identity (T18).
   that appears twice, a protocol loop with no message before it repeats,
   or `break` outside a protocol loop. W-TY-1: a payload of the wrong type.
 - C.11.5 Merge. `impl Merge for T` declares a join. Its laws
-  (associative, commutative, idempotent, `bottom()` an identity) are an
-  admission obligation (W-CRDT-1, `conc::crdt_gate`). For a kind of
-  nullary variants the gate evaluates every triple, which decides them. A
-  `merge` written componentwise, `T(f: self.f.max(o.f), g: self.g or o.g,
-  ...)` over integer and bool fields, has them by `MergeLaws.prodSL`,
-  `intMax` and `boolOr`. Any other impl is refused; the refusal names a
-  counterexample when a search on a finite sample finds one, and
-  otherwise says the obligation is not discharged. The built-in
+  (associative, commutative, idempotent) are an admission obligation
+  (W-CRDT-1, `conc::crdt_gate`), discharged by a certificate and never by
+  sampling. `bottom()` is the initial state; the states an LVar can reach
+  are the up-set of it, which the join preserves, so the laws on that
+  up-set are the laws of the type. For a kind of nullary variants the
+  gate evaluates every triple, which decides them
+  (`MergeLaws.laws_of_enum`). Otherwise the gate reads the body of
+  `merge` as a term over proven combinators (`conc::merge_certs`): per
+  field, `max` or `min` on an integer, `or` or `and` on a bool, or
+  `.merge` of a field whose type has a certified impl (componentwise
+  product); on a record of one integer field, a selection that keeps
+  `o` when `o.k > self.k` and `self` otherwise (max, or min when the
+  smaller side is kept); and lexicographic on an integer key: `self` when
+  `self.k > o.k`, `o` when `o.k > self.k`, and otherwise the key with the
+  other fields merged by the rules above. Each term is a `Cert` of
+  `MergeCert.lean`, and `Cert.semi` turns every certificate into a proof
+  of the three laws, so they compose by construction. The lexicographic
+  rule needs its key to be a chain (a total order); without that it is
+  not a join (`MergeCert.lex_needs_chain`), which is why the key must be
+  an integer. Any other impl is refused, also a lawful one written
+  differently (for example bitwise `|`), with a message naming the
+  combinators; a search on a finite sample runs first and, when it finds
+  a counterexample, the refusal names it. The built-in
   instances (integers under `max`, `bool` under `or`, sets and lists
   under union, maps pointwise, tuples and records componentwise, `none` as
   bottom) have the laws by `MergeLaws.lean`, up to the point left open
@@ -3090,9 +3284,17 @@ an associative operation with an identity (T18).
   its own and does not count. The rule does not match the name of a put
   with the name of a freeze, so an
   alias, a parameter or a helper cannot hide a freeze. W-LVAR-2: an empty
-  threshold list, or a literal list with two elements one below the
-  other in the program's `Merge` (decided at admission, `conc::lvar_gate`).
-  Model: T29q.
+  threshold list, or a list with two elements that are, or on some input
+  can be, one below the other in the program's `Merge` (`conc::lvar_gate`).
+  This is decided at admission when every element takes finitely many
+  values: a constant, or `if c then a else b` over such, with every
+  combination checked, since two thresholds where one is below the other
+  are compatible for any top. Where an element is not finite in this
+  sense (a parameter, a computed value), incompatibility depends on the
+  input, and the check every `wait` makes against the top, with its trap,
+  is the defined behaviour. Model: T29q, T29s; the rule table
+  `conc::LVAR_RULES` ties each rule and trap to its Lean declaration
+  (see T29s).
 - C.11.8 convergence notes. The frozen bit, and the rule that only a put
   that would change a frozen LVar is an error, follow Kuper, Turon,
   Krishnaswami and Newton (POPL 2014, Sec. 3.3 and 4.2). Threshold sets
@@ -3100,8 +3302,10 @@ an associative operation with an identity (T18).
   3.3). T29q has the shape of the POPL 2014 Theorem 1 for this fragment.
   Their proof goes through an Independence lemma and quasi-confluence;
   the one here uses an invariant (the value joined with the puts still to
-  come is the join of all puts), which suffices because the fragment has
-  one LVar and no allocation. Their library marks code that freezes as
+  come is the join of all puts), which suffices because there is no
+  allocation: T29s takes a store of many LVars as the product lattice
+  over locations, each location an `lvar_new` site, and proves the
+  invariant per location. Their library marks code that freezes as
   `QuasiDet` in its type. RCE instead refuses, by W-LVAR-1, the freezes
   that could race with a put, so an admitted program is deterministic,
   and the frozen bit turns a race the rule misses into an error instead
@@ -3121,6 +3325,48 @@ an associative operation with an identity (T18).
   twice. `supervisor S strategy k` with k one of `one_for_one`,
   `one_for_all`, `rest_for_one` (W-SUP-1); each `child` must be an actor
   (W-SUP-2), and W-NAME-2 refuses a duplicate child.
+  Run-time meaning (normative). A supervisor declaration is one static
+  supervisor; it supervises every actor whose type is one of its
+  children, so the set an actor belongs to is fixed by the program, not
+  by spawn order. When a handler of such an actor refuses its message
+  (a trap or a `fail`), the run log records `Refused(reason)`, then
+  `Restart(child, instance, reason, tick t, k)`, where `instance` is the
+  actor's id (6.6) and k counts this child's restarts in the window
+  below. The strategy then resets the region of the failed actor
+  (`one_for_one`), of every actor of the supervisor's child types
+  (`one_for_all`), or of those whose child is declared at or after the
+  failed one (`rest_for_one`), to the actor's initializers. Intensity is
+  measured in logical ticks, never wall time: with `const
+  RESTART_WINDOW: u64 = W` only restarts at ticks t' with t - t' < W
+  count, otherwise every restart of the run counts; more than the
+  child's `restart bound` stops the supervisor with `Stopped(supervisor
+  S)` and the run ends `Refused`. Mailbox policy: a restarted actor keeps
+  its mailbox, since Form law 3 drops no message; only the message that
+  failed is consumed, and it is logged as refused. A handler that fails
+  inside `atomic` (C.11.10) leaves every handler of the batch
+  uncommitted (T30), and the failing actor is then supervised as above.
+  Restart as input. Derivation. The state of a run is the fold of its
+  log (T3). A restart changes actor state without a message, so it must
+  be an entry of the log that the fold applies, or the state is not a
+  function of the log. The decision is therefore an input of the run:
+  at a crash the run records `RestartIn{tick, sup, child, id, reset,
+  stop}` (`RunResult.restarts`), and a replay given these inputs
+  (`RunCfg.restarts`) applies each logged decision at its crash without
+  consulting the supervisor's policy. A log thus replays under the
+  decisions it records even after the strategy, bound or
+  `RESTART_WINDOW` in the source has changed (the resolver rule of
+  Appendix D, applied to supervision). A replayed decision for another
+  actor or supervisor than the one that crashed is `replay diverged`.
+  Checked by `spec/checker/tests/conc06b_run.rs`
+  (`supervisor_restarts_then_stops`,
+  `restart_is_an_input_replay_consumes`: replay reproduces the log,
+  logged decisions govern under a changed bound, an edited decision is
+  applied as logged, a mismatched one diverges) and `emit_run.rs`
+  `actor_refusals_match` (the Rust, Python and JavaScript runtimes take
+  the same decisions as the reference, with and without a window; they
+  record, but do not yet replay, restart inputs). The run log of `fn
+  main` is not D: actors run by `rce run`, not by the host of Appendix E
+  (HC-6).
 - C.11.12 Real time. `interrupt event E priority p` with p an integer
   literal in 0..=255 (W-INTR-1). `step ... deadline n` with n a positive
   integer literal in ticks, and `const TICK_NS: u64 = n` when declared
@@ -3166,6 +3412,7 @@ is a correspondence on samples, not a proof about the evaluator.
 | T28 | session duality, subject reduction and progress, with recursion | proved on a session calculus; encoding of surface protocols mechanized | `t28r_preserve`, `t28r_progress`, `enc_comp` |
 | T29 | LVar puts commute; one-threshold reads are order independent | model; vectors | `lvar_interleave`, `t29_perm` |
 | T29q | LVars over any join-semilattice with an absorbing top, threshold reads in the same order, and a frozen bit: two runs that complete every thread without error end in the same configuration (value, frozen bit, every result); without `freeze`, a program with a completing run has no erroring run; with `freeze`, whether a run errs can depend on the schedule | proved on a calculus (put, get with incompatible sets, freeze, on one LVar shared by any number of threads); runs that block forever are not covered; the built-in Merge instances are semilattices | `LVarQD.quasi_det`, `det_no_err`, `quasi_not_det`, `MergeLaws` |
+| T29s | A store of many LVars shared by any number of threads (the product lattice over locations, a frozen bit per location): two runs that complete every thread without error end in the same store, frozen bits and results; without `freeze`, no run errs if one completes. W-CRDT-1 certificates are lawful by construction. Each row of `conc::LVAR_RULES` (rule, trap, Lean declaration) and the certificate of each certified test program is generated into `LVarRules.lean`, which `lake build` elaborates, and the same test checks each trap string in the evaluator and every emitter runtime | locations allocated before the threads start (no renaming of locations as in POPL 2014); the generated table checks that the named declarations exist and the certificates elaborate, not that the evaluator refines the calculus | `LVarStore.store_quasi_det`, `store_det_no_err`, `MergeCert.cert_laws`, `LVarRules`, `checker/tests/lvar_rules.rs` |
 | T30 | an atomic batch applies all or none | model; vectors | `t30` |
 | T31 | replicas agree on equal prefixes | model (the statement is close to trivial) | `t31` |
 
@@ -3176,8 +3423,12 @@ footprints beyond the core of `ParSem.lean` (W-PAR-1 on variables).
 ### C.14 Emitters and running
 
 `rce run` runs version 0.6 programs on the reference evaluator
-(`conc.rs`). The program emitters (`emit/conc06.rs`) run `par` branches in
-source order (C.4.2), which the meaning allows; a `par` whose branches
+(`conc.rs`). The program emitters (`emit/conc06.rs`) run the branches of a
+`par` with more than one branch at the same time where the target allows
+it (Rust and Python threads, JavaScript workers) and in source order in
+Scala; in every case the store, the outputs and the trap point are those
+of source order (C.4, T16), the branches' results and costs being merged
+in source order after they finish; a `par` whose branches
 wait on LVars is run by restart (a repeated attempt puts nothing new,
 since puts are joins and W-CRDT-1 makes every join idempotent), and budgets charge the same costs as the
 evaluator, so `trap("budget")` falls on the same operation on every
@@ -3500,9 +3751,15 @@ lowers with its errors as values: `fail e` returns `{"$err": e}`, `try x
 statement or a `return` value) tests `x` with `has(x, "$err")` (`none`
 for an optional) and returns the error, and `x catch |e| h` tests the
 same and evaluates `h`; a call of such a function anywhere else is
-refused. Integers are i64 or usize (a usize variable that
-would become negative traps); floats, narrower integers,
-closures and recursion are refused. A generic function
+refused. A recursive group (a cycle of the call graph) lowers to one
+`fix` term of its members' bodies, a call inside it being `rec` of the
+callee's index; `bound n` is a counter of active calls passed by every
+`rec`, trapping past n as in 6.7. The evaluator bounds `rec` nesting at
+20000 (the reference evaluator's nesting limit) and calls per evaluation
+at 50000000 (its fuel); past either is an error, and an input on which
+the reference evaluator meets its own limits gives no vector. Integers
+are i64 or usize (a usize variable that would become negative traps);
+floats, narrower integers and closures are refused. A generic function
 lowers to one term for every instance, since the IR is untyped over JSON.
 A term over 1 MiB of JSON, not counting its definitions, or a program
 nested over 1000 levels is refused (catalog readers parse past JSON
@@ -3743,16 +4000,36 @@ adapter.
   JCP v0.3 (https://jcp.transaction.science); see REMAINING-PLAN W1h-std.
   The program loses nothing,
   since 5.15 gives it no ambient authority.
-- **HC-6 Concurrency and the host.** The concurrency of `fn main`
-  (tasks, actors, supervisors; C.5, C.13) runs under the tick semantics
-  of 6.8 in the reference run (`conc::run_main`) and its replay, which
-  re-executes with the recorded `select nondet` choices. The reference
-  host does not run `fn main`: it admits inputs to δ, and none of the
-  task, actor or restart steps of a `fn main` run is an entry of D. A
-  host that runs `fn main` must admit each scheduling decision as an
-  input (a tick, a crash, a restart) so that it is in D; the reference
-  host has no such scheduler, and no host may execute tasks in parallel
-  unless the result equals the tick semantics (T1, T21).
+- **HC-6 Tick scheduler.** Concurrency runs under the tick semantics of
+  6.8. The host runs `fn main` (tasks, actors, supervisors; C.5, C.13)
+  with its scheduler as a live task whose every transition is an entry
+  of D. `host.MainStart` {links, max_ticks, seed} starts the task;
+  `host.MainInput` {a, b, partition, tick} logs an input to it (a link
+  change); `host.Step` {cause, i, node, tick, what} logs one scheduler
+  step, including the arm the environment chose at each `select nondet`;
+  `host.MainEnd` {choices, outcome, ticks} ends it. Program inputs to δ
+  may be admitted between any two of these entries. While the task is
+  live its state (the start entry, the inputs logged so far, the number of
+  steps logged and a hash chain over them) is part of the state D folds
+  to, and the `state_hash` of every entry covers it, so the state after
+  each entry is the fold of D up to that entry and a host rebuilt from any
+  prefix continues the same run. Replay re-runs the scheduler on the
+  logged inputs and refuses an entry unless the step it logs is the next
+  step the scheduler takes and the end agrees in outcome and choices
+  (T21). An input whose tick is not after the last logged step is refused
+  before it is logged, and an input is also refused if re-running on it
+  would change a step already in D, so an input never rewrites the past.
+  No snapshot is taken while a task is live. A host may execute tasks in
+  parallel only when the result equals the tick semantics (T1, T21).
+  Reference: `Host::main_begin`, `main_input`, `main_step`, `main_end`,
+  and `run_main` for a run whose inputs are all known at the start.
+  Derivation: law 1 of E.2c makes each nondeterministic choice of the
+  run an entry of D, and the requirement that state be the fold of D at
+  every entry, not only between runs, makes the task's progress part of
+  that state. The task's inputs today are link changes and the
+  environment's choices; a channel from δ's outputs into a running task
+  belongs to the scheduler of 6.8 (`conc.rs`), and would enter D as
+  `host.MainInput` entries of a new kind under the same causality rule.
 - **HC-7 Numerics and limits.** The host reproduces 6.3 bit for bit and
   enforces fuel, SIZE_LIMIT and VALUE_LIMIT (6.7, N9) as the reference
   does, on every run.
@@ -3856,6 +4133,24 @@ logs.
   any suffix of its own log that matches it. The transport may lose,
   delay, duplicate or reorder messages. Timeouts are counted in logical
   ticks, so a loopback run is a function of its seed.
+  Snapshots travel in chunks of bounded size, each carrying its byte
+  offset; a follower accepts a chunk only at the offset it expects,
+  acknowledges the next offset it needs, and installs the snapshot only
+  when the final chunk arrives, so loss, duplication and reordering of
+  chunks cannot install a partial state. Membership changes use joint
+  consensus: the leader appends a configuration entry C_old,new; a node
+  uses the latest configuration in its log whether or not it is committed;
+  while C_old,new is in force, elections and commitment need a majority of
+  C_old and a majority of C_new; once C_old,new commits the leader appends
+  C_new, and a leader that is not in C_new steps down once C_new commits.
+  Derivation: safety rests on any two quorums intersecting (Quorum.lean,
+  `quorum_intersect`). Switching directly from C_old to C_new admits a
+  majority of each that share no node, hence two leaders in one term;
+  requiring both majorities during the transition keeps every pair of
+  deciding quorums intersecting. Between hosts the transport runs over TCP
+  inside mutual TLS with pinned ed25519 keys: a frame is accepted
+  only if the peer id it claims matches the key that authenticated the
+  connection, so a node without a pinned key cannot vote or append.
 - **HC-20 Deposed admitter.** An admitter whose barrier is refused because
   a higher term was granted has had its role taken. By HS-3 it appends
   nothing further and acks nothing, so its unacked inputs are retransmitted
@@ -3894,7 +4189,62 @@ Raft notes that a heartbeat lease "would rely on timing for safety (it
 assumes bounded clock skew)", which is why E.2b leaves leases out. Raft's
 Figure 2 lists currentTerm, votedFor and log[] as "Persistent state on all
 servers: (Updated on stable storage before responding to RPCs)", which is
-the order HC-18a requires. Membership changes are not implemented.
+the order HC-18a requires. On membership, Raft states that "Agreement (for
+elections and entry commitment) requires separate majorities from both the
+old and new configurations" and that "a server always uses the latest
+configuration in its log, regardless of whether the entry is committed";
+HC-18a follows both. Raft's rule that servers disregard RequestVote while
+they believe a current leader exists, which limits disruption by removed
+servers, is a liveness measure and is not implemented.
+
+### E.2c Derivation from laws (informative)
+
+E.2a to E.2b and HC-6, HC-12 are derived from the following laws rather
+than from the code that existed when they were written. Each law is stated,
+then the design it forces.
+
+1. **Deterministic state machines agree when their logs agree.** Raft:
+   "Each log contains the same commands in the same order, so each state
+   machine processes the same sequence of commands. Since the state
+   machines are deterministic, each computes the same state and the same
+   sequence of outputs." So every nondeterministic choice that can affect
+   a result must be an entry of D: the order of inputs (HC-15), the
+   scheduler's choices and the environment seed of a `fn main` run (HC-6),
+   and placement decisions (HC-12). Replay re-derives each one and refuses
+   D when a derivation differs, so D is checked, not trusted.
+2. **Safety must not depend on timing; liveness must.** Raft: "safety must
+   not depend on timing ... However, availability ... must inevitably
+   depend on timing." The law behind it is Fischer, Lynch and Paterson
+   (JACM 1985), Theorem 1: "No consensus protocol is totally correct in
+   spite of one fault", in a model where processes "do not have access to
+   synchronized clocks, so algorithms based on time-outs, for example,
+   cannot be used". Their conclusion asks for "more refined models of
+   distributed computing that better reflect realistic assumptions about
+   processor and communication timings". Raft's election timeout is such
+   an assumption, and it is the only place E.2b uses one.
+   So terms, votes and fences decide safety (HC-18 to HC-20), timeouts
+   count logical ticks and decide only when an election starts (HC-18a),
+   window boundaries are logged ticks (HC-15), and leader leases, which
+   would make safety depend on bounded clock skew, are excluded.
+3. **Exactly once is at-least-once delivery plus idempotent dedupe.**
+   Raft: "clients ... assign unique serial numbers to every command. Then,
+   the state machine tracks the latest serial number processed for each
+   client". So sources retransmit until acked and the admitter dedupes by
+   (source, seq), with the dedupe state folded from D so that it survives
+   failover (HC-16, HC-17). No transport is trusted to deliver once.
+4. **End-to-end argument.** A guarantee that only the endpoints can check
+   belongs at the endpoints. Durability and exactly-once are checked where
+   D is committed: the admitter acks only after a quorum commit (HC-16,
+   HC-18), and the transport may lose, duplicate or reorder (HC-18a).
+5. **Under a partition, consistency or availability (CAP); otherwise,
+   latency or consistency (PACELC).** RCE chooses consistency: a minority
+   side cannot commit, so it cannot admit (HC-20). Without a partition each
+   window costs one quorum round; windows batch inputs to amortise it, the
+   same trade Calvin makes with its epochs.
+6. **Floating-point addition is not associative.** A parallel reduction
+   reproduces the sequential bits only if it evaluates one fixed tree. So
+   placement may change cost and never bits (HC-12, HC-13, T18), and a
+   fabric enters only after a probe equal to the reference.
 
 ### E.3 Storage: durable append (HS-1 to HS-5)
 
@@ -3958,13 +4308,17 @@ JSON. The host entries are:
 | `host.FabricCaps` | the fabric record of E.7 | at start and on hot-plug |
 | `host.Calibrated` | fabric id, op class, overhead, throughput | after a calibration run |
 | `host.Exact` | fabric id, op class, probe digest, reference digest | after a probe (HC-12) |
-| `host.Placed` | op id, fabric id | when placement is decided (HC-11) |
+| `host.Placed` | class, fabric id, op id, work | when placement is decided, before the operation runs (HC-12) |
 | `host.WallTime` | nanoseconds since the Unix epoch | when an adapter supplies wall time |
 | `host.Energy` | source, basis, joules | when a counter is read (D.11) |
 | `host.Bind` | host result kind, program event name | at start (E.8) |
 | `host.Window` | count, id, term, upto (tick) | when a window closes (HC-17) |
 | `host.Input` | late (when true), seq, source, window | before each input of a window (HC-17) |
 | `host.Term` | leader, term | when a host takes the admitter role (HC-19) |
+| `host.MainStart` | links, max_ticks, seed | when a `fn main` run starts (HC-6) |
+| `host.MainInput` | a, b, partition, tick | an input to the live task, after its last logged step (HC-6) |
+| `host.Step` | cause, i, node, tick, what | one per scheduler step of the run (HC-6) |
+| `host.MainEnd` | choices, outcome, ticks | when the run ends (HC-6) |
 
 A program receives the content of a host entry only through a binding
 (E.8): the admitter then appends, after the host entry, an ordinary event
@@ -3979,18 +4333,47 @@ entry.
   and NaN preservation per width), NPU receipts, memory topology and
   which counters can be read. Replay reads the same record, so every
   decision taken from it is a function of D.
-- **HC-12 Placement.** Placement of a lane-wise array operation, a
-  `for … par` body or a reduction is a function of the host entries of D
-  (`host.Calibrated`, `host.Exact`) and of the cost table of C.6.4
-  extended with per-fabric overhead and throughput (time = overhead +
-  work / throughput), so it is the same on replay (T37). A program needs
-  no annotation; `with device` (5.13) and device kernels stay hints that
-  never change meaning. The reference host performs no automatic
-  placement: it logs `host.FabricCaps`, never writes `host.Calibrated` or
-  `host.Placed`, and runs every operation on the CPU. The placement
-  function is specified by the conformance test
-  `placement_is_a_function_of_host_entries`, which checks it on
-  constructed host entries, not on a running host.
+- **HC-12 Automatic placement.** The engine places each lane-wise array
+  operation, `for … par` body and reduction itself, from the cost table
+  of C.6.4 extended with per-fabric overhead and throughput (time =
+  overhead + work / throughput), whose calibration results are
+  `host.Calibrated` entries. A program needs no annotation. `with device`
+  (5.13) and device kernels stay hints that never change meaning.
+  Placement is a function of the host entries of D, so it is the same on
+  replay (T37): the host logs each decision as `host.Placed` and replay
+  re-derives it and refuses D when it differs. A fabric is a candidate for
+  a class only after a `host.Exact` probe equal to the CPU reference
+  (HC-13). Reference executor (`Host::place_sum`, `place_lanes`,
+  `place_par`): the classes are `sum.f64`, `lanes.f64.<op>` for the
+  lane-wise binary64 operations add, sub, mul, div, neg and sqrt, and
+  `par.<class>` for a `for … par` body over `0..n` combined by a given
+  operation. On `cpu` and `cpu.threads` lanes are split into contiguous
+  chunks across threads, which cannot change a lane's result because
+  lanes do not read each other, and every combination, sums included, is
+  evaluated as the fixed tree of T18, whose shape is a function of the
+  length alone, so the bits are the same for any thread count and any
+  combine, associative or not. `Host::probe_fabric` runs the probe
+  vector (signed zeros, subnormal results, infinities, NaN, and sums of
+  every length up to 64 with cancellation) on the fabric and on the CPU
+  reference and logs `host.Exact` with both digests. A placement onto a
+  fabric without an executor is refused before it is logged; replay
+  re-derives placements from D and needs no executor. Derivation: law 6
+  of E.2c fixes the tree; law 1 makes the choice of fabric an entry of D;
+  HC-13 makes a fabric trusted only by evidence in D.
+  Platform fabrics (informative interface). A GPU through wgpu, or an
+  NPU, enters by implementing `FabricExec` {id, lanes(op, a, b), sum(xs)}
+  and `Host::register_fabric`. The contract: each lane is the correctly
+  rounded binary64 result of the named operation, with no contraction
+  into fused multiply-add and no flushing of subnormals, and `sum`
+  evaluates exactly the fixed tree. A device without binary64, or one
+  that cannot meet the contract, fails its probe and is never placed. A
+  run-time error from a placed fabric falls back to the CPU reference,
+  which has the same bits. `for … par` bodies are host closures and run
+  only on `cpu` or `cpu.threads`; placing them on a device needs the body
+  compiled to a kernel, which belongs to the platform worker together with
+  the wgpu implementation of this interface. The tick scheduler's own
+  parallel execution of `for … par` (`conc.rs`) is separate and keeps its
+  own equality with the tick semantics (T1, T21).
 - **HC-13 Bit-exactness gate.** A fabric computes a value that reaches
   state only for an operation on its logged exact list: integer
   operations; IEEE add, sub, mul, div and sqrt with round-to-nearest-even,
@@ -4104,15 +4487,32 @@ markup is built from data.
   model where an input has an injective key (the HC-15 key with the event
   bytes) and dedupe keeps one copy of each key.
 - **T41 Prefix across terms.** A replica that promised a higher term
-  leaves its log unchanged on an append from a lower one, and under Raft's
-  Leader Completeness (a hypothesis of the model, not proved) every
+  leaves its log unchanged on an append from a lower one, and every
   committed prefix is a prefix of D after any number of term changes. This
-  is T38 and T39 under leader change; quorum intersection, message loss
-  and the Rust code are not modeled.
+  is T38 and T39 under leader change. Quorum intersection, Election Safety
+  (one leader per term, from the durable single vote) and Leader
+  Completeness are proved for every reachable state of a whole-log
+  protocol model whose steps are elections under the vote rule, leader
+  appends, fenced writes and commits, from the initial state and with no
+  further hypotheses. The proof is strong induction on terms: a leader of
+  a term above t shares a voter with the commit quorum, the vote rule makes
+  its starting log at least as up to date as that voter's, so it either
+  holds the committed prefix directly or was started from the log of an
+  earlier term above t, which holds it by induction. Election Safety is
+  derived in the same model, from the durable vote and quorum
+  intersection, rather than assumed. Verdi (Woos et al., CPP 2016)
+  reports a Coq proof of state machine safety for Raft in "530 lines of
+  code and 50,000 lines of proof"; RCE's proof is smaller and covers the
+  whole-log model only.
 
-Lean: `RCE/Host.lean` (T37 to T39), `RCE/Admit.lean` (T40, T41:
+Lean: `RCE/Host.lean` (T37 to T39), `RCE/Quorum.lean` (T41: `quorum_intersect`, `election_safety`,
+`elect_fresh`, `commit_seed`, `leader_completeness`, `committed_in_later_replicas`, proved for every reachable state of the protocol model with no further hypotheses; only Lean's standard axioms), `RCE/Admit.lean` (T40, T41:
 `window_perm`, `log_permwise`, `window_complete`,
-`fenced_append_unchanged`, `committed_prefix_preserved`). Conformance: `spec/checker/tests/host_contract.rs`
+`fenced_append_unchanged`, `committed_prefix_preserved`). The link from
+Lean to the host: `RCE/AdmitVectors.lean` extracts 40 vectors from
+`window` (`lake env lean --run`), and `tests/lean_admit.rs` requires the
+checked-in vectors to equal that output and `host.rs` to produce the same
+window order for each vector's arrival order. Conformance: `spec/checker/tests/host_contract.rs`
 checks every example log against HS-4 (intact, torn tail, a flipped
 byte, a swapped pair), HC-8 and T37 (each example log re-folded with host
 entries interleaved, every state hash equal, every host entry's state
@@ -4125,14 +4525,14 @@ is cited by a test.
 | HC-1 to HC-3 | single admitter, clocks, typed outputs | `admitter_order_is_d_order` |
 | HC-4, E.9 | foreign calls logged | `foreign_and_host_entries_replay` |
 | HC-5 | capabilities minted by events | `capability_examples_check` |
-| HC-6, HC-7 | concurrency stays outside D in the reference host, numerics | existing T1, T9 and 6.3 tests |
+| HC-6, HC-7 | tick scheduler logged in D, numerics | `tests/host_sched.rs` (`main_run_is_logged_and_replays_exactly`, `main_steps_interleave_with_inputs_and_state_is_the_fold_of_d`, `main_input_after_the_last_step_only`), existing T1, T9 and 6.3 tests |
 | HC-7a | fuel per input | `tests/fuel_per_input.rs` |
 | HC-8, HC-10, T37 | replay with adapters disconnected | `foreign_and_host_entries_replay` |
 | HC-9 | priority admission | `admitter_order_is_d_order`, `simultaneous_order_does_not_depend_on_caller_order` |
 | HC-15 to HC-17 | canonical windows, exactly once | `tests/host_admit.rs`: `two_hosts_different_arrival_orders_give_byte_identical_d`, `window_order_is_priority_then_source_then_seq`, `gap_is_held_and_admitted_once_filled`, `no_ack_without_a_durable_append`, `dedupe_state_survives_replay` |
-| HC-18 to HC-20 | replicated D, term fence, failover | `admitter_failover_keeps_one_d_and_exactly_once`; `tests/host_raft.rs`: partitions, reordering and loss, crash and restart, durable vote, log matching, snapshot install, TCP, `host_fails_over_through_raft` |
+| HC-18 to HC-20 | replicated D, term fence, failover | `admitter_failover_keeps_one_d_and_exactly_once`; `tests/host_raft.rs`: partitions, reordering and loss, crash and restart, durable vote, log matching, chunked snapshot install under reordering, joint consensus membership changes, TCP, mutual TLS with an unpinned intruder refused, `host_fails_over_through_raft` |
 | HS-1 to HS-5, T38, T39 | durable append, fatal barrier, verify on open | `verify_on_open_cuts_bad_suffix`, `fatal_barrier_stops_admission` |
-| HC-11 to HC-14 | fabrics, placement, exactness, no flags | `placement_is_a_function_of_host_entries` |
+| HC-11 to HC-14 | fabrics, placement, exactness, no flags | `placement_is_a_function_of_host_entries`, `placement_executor_follows_d_and_replays`, `fixed_tree_bits_do_not_depend_on_the_fabric`; `tests/host_place.rs`: `lanes_and_trees_have_the_same_bits_for_every_thread_count`, `lane_and_par_placement_follow_d_and_replay`, `platform_fabric_is_used_only_after_an_exact_probe` |
 | HS-6 to HS-9 | RCEdb in RCE | `rcedb_example_runs` |
 
 ### E.11 Proposed rules (not normative)
@@ -4141,8 +4541,8 @@ The rules in this section are **proposed**. They come from a survey of other lan
 
 **Numerics.**
 
-- **N-1 (proposed).** Float operations are IEEE 754 binary64 or binary32, round to nearest even. No fused multiply-add unless the program writes one. Every NaN result is the canonical NaN. Transcendental functions are a fixed reference algorithm or correctly rounded. Relation: tightens 6.3 and HC-7.
-- **N-8 (proposed).** A float expression has exactly one evaluation: one rounding per operator, in source order. Contraction, reassociation and algebraic rewrites are not valid compilations, and a float rewrite is never admitted by the rewrite prover.
+- **N-1 (adopted as 6.3 N3, F1 to F9).** Float operations are IEEE 754 binary64 or binary32, round to nearest even. No fused multiply-add unless the program writes one. No NaN reaches a value (F4, F5). Transcendental functions are correctly rounded or absent (F9).
+- **N-8 (adopted as 6.3 N3 F2).** A float expression has exactly one evaluation: one rounding per operator, in source order. Contraction, reassociation and algebraic rewrites are not valid compilations, and a float rewrite is never admitted by the rewrite prover.
 - **N-9 (proposed).** Every reduction is a left fold unless the program names a different fixed tree. A parallel schedule chosen by placement (HC-12) must reproduce the bits of the named tree. Thread count, fabric and batch size are never inputs to a numeric result.
 
 **Ticks and causality.**

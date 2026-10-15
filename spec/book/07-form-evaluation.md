@@ -177,13 +177,88 @@ exactly.
   n ≥ bit width or n < 0 are `trap("shift amount out of range")`; `>>` is arithmetic for signed and
   logical for unsigned types. Bitwise `& | ^ ~` act on the two's-complement
   representation of the static type.
-- **N3 Floats.** f64 operations are IEEE 754 binary64, round to nearest even.
-  `%` is not defined on floats (W-TY-1: `%` needs integers). A non-finite
-  result (±inf, NaN) is `trap("non-finite float")`: NaN and infinities
-  never exist as values. `x / 0.0` is `trap("non-finite float")` (its
-  result is ±inf or NaN), and so is `sqrt` of a negative number. Canonical float text is the
-  shortest round-trip digits; decimal notation for 1e-5 ≤ |x| < 1e16, else
-  `d.ddde±N` with `+` on positive exponents (`1e+300`, `1.5e-7`).
+- **N3 Floats.** The rules below are derived from IEEE 754-2019 and from
+  two requirements of the Form: replay must give the same bits on every
+  target (T1), and δ must be total (S1). `tests/float_rules.rs` checks
+  each rule on the interpreter; the parity set carries the vectors of
+  `examples/57_float_vectors.rce` to every CI target.
+  - **F1 Correct rounding.** f64 is IEEE binary64. `+ - * /` and `sqrt` are
+    the standard's basic operations, correctly rounded with
+    roundTiesToEven, the default rounding-direction attribute; so are the
+    conversion of an integer (`as f64`) and of a decimal literal. A
+    correctly rounded operation is a function of its operands' bits alone,
+    so every conforming target gives the same result: this is the only
+    property determinism needs, and no other rounding mode exists in RCE.
+  - **F2 One rounding per operator, in source order.** Float addition and
+    multiplication are not associative and `a * b + c` with one rounding
+    differs from two roundings (vector `MulSub`: `0.1 * 10.0 - 1.0` is `0`,
+    fused it is `5.551115123125783e-17`). Contraction to fused
+    multiply-add, reassociation, excess precision and every other
+    value-changing optimization the standard allows a language to permit
+    are therefore not valid compilations (HC-14). A fused multiply-add is
+    itself correctly rounded, so it may exist only as an explicit named
+    operation; RCE has none yet. Adding one needs a correctly rounded
+    implementation on every runtime (Rust `f64::mul_add`, Java
+    `Math.fma`, exact rational rounding in Python and JavaScript).
+  - **F3 Subnormals are preserved.** Gradual underflow is part of the
+    binary64 format; flush-to-zero and denormals-are-zero modes are not
+    IEEE operations and would make `x - y == 0` hold for `x != y`. A host
+    never enables them (HC-13); vectors `Mul(5e-324, 3.0)` and
+    `Mul(2.2250738585072014e-308, 0.5)` detect either mode.
+  - **F4 Non-finite results trap (from totality).** A Form value must
+    have a reflexive equality and a total order (6.2, N5, N6) and must
+    encode as a JSON number for hashing (N1). NaN is unequal to itself
+    under IEEE comparison, and an infinity is not a JSON number and
+    reintroduces NaN through `inf - inf` and `0 * inf`; the largest subset
+    of binary64 closed under these requirements is the finite values. δ is
+    total as a function into values and traps, so an operation whose IEEE
+    result is not finite (the standard's overflow, divideByZero and
+    invalid exceptions) is `trap("non-finite float")`. The alternatives
+    fail a law: admitting NaN under the standard's totalOrder makes `==`
+    disagree with IEEE comparison and needs a canonical NaN for hashing;
+    saturating to the largest finite value is not an IEEE result and
+    breaks `x * 2.0 / 2.0 == x` without a signal. With the trap every
+    value is finite and every result that does not trap is the IEEE result.
+    `x / 0.0` and `sqrt` of a negative number trap.
+  - **F5 NaN payloads are never observable.** By F4 no NaN becomes a
+    value, so its sign, payload and quiet bit cannot reach state, output
+    or a hash; the standard leaves payload propagation to the
+    implementation, which is why this matters. An implementation tests
+    for a non-finite result before any NaN escapes, and the trap text is
+    the same for every NaN. A fabric or target that can produce NaN (GPU,
+    NPU, WASM SIMD) canonicalizes or traps before a value reaches state
+    (HC-13; `wasm_float.rs` rewrites NaN to the canonical positive NaN).
+  - **F6 Signed zero.** `-0.0` arises by the standard's sign rules, which
+    are exact, so every target produces it in the same places (vector
+    `Mul(0.0, -1.0)`). It compares equal to `0.0`, `tostr` gives `0` for
+    both and `1.0 / -0.0` traps like `1.0 / 0.0`, but canonical JSON keeps
+    the sign, so a state holding `-0.0` has a different `state_hash` from
+    one holding `0.0`. (Open question for review: equal values with
+    different hashes; canonicalizing `-0.0` to `0.0` in canonical JSON
+    changes D for such states and must change every producer at once.)
+  - **F7 Exception flags are not state.** Inexact and underflow raise
+    nothing (F1 already fixes the result); overflow, divideByZero and
+    invalid are the trap of F4. No program reads a flag.
+  - **F8 Exact operations.** `floor`, `ceil` and `round` are the standard's
+    roundToIntegral operations toward negative, toward positive and
+    ties-away (`(2.5).round()` is `3`, `(-2.5).round()` is `-3`); `abs`
+    clears the sign. `min` and `max` follow N5. None of these rounds.
+  - **F9 Transcendentals are excluded.** IEEE 754-2019 recommends but does
+    not require correctly rounded `exp`, `log`, `sin`, `pow` and the like,
+    and platform math libraries differ in the last bit. RCE has none. One
+    may be added only with a correctly rounded implementation in the
+    CORE-MATH or CRlibm style (correct rounding proved, or checked
+    exhaustively for binary32), carried by every runtime rather than taken
+    from the platform library; until then device versions are output only
+    or verified (HC-13).
+  Canonical float text is the shortest round-trip digits; decimal notation
+  for 1e-5 ≤ |x| < 1e16, else `d.ddde±N` with `+` on positive exponents
+  (`1e+300`, `1.5e-7`).
+  In canonical JSON (6.1) a float is written as Rust's `{:?}` writes it,
+  which every producer reproduces: shortest round-trip digits, decimal with
+  at least one fractional digit for 1e-4 ≤ |x| < 1e16 (`10.0`, `0.0001`),
+  otherwise exponent form without `+` (`1e16`, `1e-5`, `5e-324`), and
+  `-0.0` keeps its sign (`tests/traces.rs` pins these forms).
   **f32 (draft 0.5).** The Form ops `f32add f32sub f32mul f32div` round both
   operands to binary32, compute in binary64, and round the result to
   binary32 (round to nearest even). Binary64 has 53 ≥ 2·24 + 2 significand
@@ -208,8 +283,20 @@ exactly.
   `for c in s` and `chars()` still go by character. Case mapping
   (`upper`, `lower`) and class tests (`isdigit`, `isalpha`, `isupper`,
   `islower`) are ASCII-only; other characters are unchanged / false.
-  `strip` and `words` split on ASCII whitespace (space, \t, \n, \r, \x0b,
-  \x0c).
+  `strip`, `words` and `toint` treat as whitespace exactly the 25 code
+  points of the White_Space property of Unicode 18.0.0: U+0009 to U+000D,
+  U+0020, U+0085, U+00A0, U+1680, U+2000 to U+200A, U+2028, U+2029,
+  U+202F, U+205F and U+3000 (`interp::WHITE_SPACE`). `isspace` is ASCII
+  (space, \t, \n, \x0c, \r).
+  **Unicode pin.** RCE pins Unicode 18.0.0
+  (https://www.unicode.org/versions/Unicode18.0.0/) and reads no Unicode
+  table at run time: scalar values and UTF-8 do not change between
+  versions, case and class operations are ASCII, and the one property used,
+  White_Space, is enumerated above rather than taken from the toolchain. A
+  newer Rust, Python, JavaScript or JVM therefore cannot change a result;
+  `tests/unicode_pin.rs` checks the set and scans the runtimes for calls
+  that would read the toolchain's tables. Moving the pin is a spec change
+  that must leave the enumerated set unchanged or bump the draft.
 - **N8 Indexing** The index `i` of `a[i]` and the ends of `a[i:j]` have
   type `usize` (W-TY-1 otherwise), so no index is negative. `a[i]` with
   i ≥ n is `trap("index i out of range")`. A slice end above n is
@@ -236,4 +323,4 @@ method and is W-NAME-1.
 
 **Read receipt.** Which JavaScript function is named for rounding to binary32?
 
-<!-- body-sha256: 4ac2cd808a0f75a796fa26b86f7bc2a7fe42fa05528f94bd5e8e24dfe571ee0a -->
+<!-- body-sha256: 8caa95f44e22a22df26601dd74e4845a9468250fb801422f7dd50199537ad996 -->

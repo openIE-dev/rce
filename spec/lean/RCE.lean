@@ -36,3 +36,9 @@ import RCE.Host
 import RCE.LVarQD
 import RCE.MergeLaws
 import RCE.Admit
+import RCE.Quorum
+import RCE.AdmitVectors
+import RCE.MergeCert
+import RCE.LVarStore
+import RCE.LVarRules
+import RCE.ParFuel

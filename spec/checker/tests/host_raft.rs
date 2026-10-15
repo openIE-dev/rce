@@ -270,3 +270,118 @@ fn host_fails_over_through_raft() {
     let (_, rh, _) = replay(&m, &d).unwrap();
     assert_eq!(rh, hash, "the restarted old leader holds the same D");
 }
+
+/// Joint consensus: grow 3 -> 5 nodes, then remove the leader. Commits keep
+/// going, every node agrees, and the removed leader steps down.
+#[test]
+fn joint_consensus_adds_and_removes_members() {
+    let mut c = Cluster::new(3);
+    let l = c.elect(100).unwrap();
+    propose_all(&mut c, 0, 4);
+    c.run(20);
+    let a = c.add_node();
+    let b = c.add_node();
+    assert!(c.node_mut(l).change_membership(vec![0, 1, 2, a, b]).is_some());
+    assert!(c.node_mut(l).change_membership(vec![0]).is_none(), "one change at a time");
+    c.peers[l].as_mut().unwrap().flush();
+    c.run(60);
+    assert_eq!(c.node(l).cfg(), Cfg { old: vec![0, 1, 2, a, b], new: None });
+    assert_eq!(c.node(a).committed().len(), 4, "new member caught up");
+    let keep: Vec<usize> = (0..5).filter(|&i| i != l).collect();
+    assert!(c.node_mut(l).change_membership(keep.clone()).is_some());
+    c.peers[l].as_mut().unwrap().flush();
+    c.run(150);
+    assert_ne!(c.node(l).role, Role::Leader, "a leader outside C_new steps down");
+    let l2 = c.leader().expect("a leader among the remaining members");
+    assert!(keep.contains(&l2));
+    propose_all(&mut c, 4, 7);
+    c.run(30);
+    for &i in &keep {
+        assert_eq!(c.node(i).committed().len(), 7, "node {i}");
+    }
+    agree(&c);
+}
+
+/// While C_old,new is the latest configuration, commitment needs both
+/// majorities: with the new members unreachable nothing commits.
+#[test]
+fn joint_configuration_needs_both_majorities() {
+    let mut c = Cluster::new(3);
+    let l = c.elect(100).unwrap();
+    let a = c.add_node();
+    let b = c.add_node();
+    let d = c.add_node();
+    c.sw.borrow_mut().partition(&[0, 1, 2], &[a, b, d]);
+    let i = c.node_mut(l).change_membership(vec![a, b, d]).unwrap();
+    c.peers[l].as_mut().unwrap().flush();
+    c.run(40);
+    assert!(c.node(l).commit < i, "joint entry committed without a majority of C_new");
+    c.sw.borrow_mut().heal();
+    c.run(150);
+    let l2 = c.leader().unwrap();
+    assert!([a, b, d].contains(&l2));
+}
+
+#[test]
+fn chunked_snapshot_installs_under_reordering() {
+    let mut c = Cluster::new(3);
+    let l = c.elect(100).unwrap();
+    let f = (l + 1) % 3;
+    c.crash(f);
+    propose_all(&mut c, 0, 12);
+    c.run(10);
+    let big: String = (0..500).map(|i| format!("{i},")).collect();
+    assert!(c.node_mut(l).compact(10, big.clone()));
+    c.node_mut(l).snap_chunk = 37;
+    c.sw.borrow_mut().reorder = true;
+    c.restart(f);
+    c.run(400);
+    let n = c.node(f);
+    assert_eq!(n.p.snap_idx, 10);
+    assert_eq!(n.p.snap, big);
+    assert_eq!(n.committed(), c.node(l).committed());
+}
+
+#[test]
+fn tls_cluster_elects_commits_and_ignores_unpinned_senders() {
+    use rce_spec_check::tls::Identity;
+    use std::net::TcpListener;
+    let ids: Vec<Identity> = (0..3).map(|i| Identity::from_seed([i as u8 + 1; 32]).unwrap()).collect();
+    let ls: Vec<TcpListener> = (0..3).map(|_| TcpListener::bind("127.0.0.1:0").unwrap()).collect();
+    let addrs: Vec<_> = ls.iter().map(|l| l.local_addr().unwrap()).collect();
+    let pins: Vec<_> = addrs.iter().zip(&ids).map(|(a, i)| (*a, i.public)).collect();
+    let mut peers: Vec<Peer> = ls
+        .into_iter()
+        .enumerate()
+        .map(|(i, l)| Peer { node: Node::new(i, 3, Box::new(MemDurable::default())).unwrap(), t: Box::new(TlsTransport::new(i, l, pins.clone(), &ids[i]).unwrap()) })
+        .collect();
+    // An intruder with an unpinned key claims to be node 0 and asks for votes.
+    let rogue = Identity::from_seed([99; 32]).unwrap();
+    let mut rogue_pins = pins.clone();
+    rogue_pins[0].1 = rogue.public;
+    let mut rt = TlsTransport::new(0, TcpListener::bind("127.0.0.1:0").unwrap(), rogue_pins, &rogue).unwrap();
+    for to in 1..3 {
+        rt.send(to, &Msg::Vote { term: 1000, cand: 0, last_idx: 99, last_term: 99 });
+    }
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(30);
+    let mut proposed = 0;
+    loop {
+        for p in peers.iter_mut() {
+            p.step();
+        }
+        if let Some(p) = peers.iter_mut().find(|p| p.node.role == Role::Leader) {
+            if proposed < 5 && p.node.propose(&format!("t{proposed}")).is_some() {
+                proposed += 1;
+                p.flush();
+            }
+        }
+        if proposed == 5 && peers.iter().all(|p| p.node.commit >= 5) {
+            break;
+        }
+        assert!(std::time::Instant::now() < deadline, "tls cluster did not commit in time");
+        std::thread::sleep(std::time::Duration::from_millis(2));
+    }
+    assert!(peers.iter().all(|p| p.node.term() < 1000), "a frame from an unpinned key was accepted");
+    let a = peers[0].node.committed();
+    assert!(peers.iter().all(|p| p.node.committed() == a));
+}

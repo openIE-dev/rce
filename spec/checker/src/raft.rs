@@ -18,6 +18,15 @@
 //!   compacted sends its snapshot (opaque bytes; the host uses an HS-5
 //!   snapshot), and the follower keeps any suffix that matches.
 //!
+//! - membership changes by joint consensus (Raft section 6): a leader
+//!   appends C_old,new; while it is the latest configuration in a log,
+//!   elections and commitment need separate majorities of C_old and C_new;
+//!   once C_old,new is committed the leader appends C_new, and a leader not
+//!   in C_new steps down once C_new is committed. A node uses the latest
+//!   configuration in its log, committed or not;
+//! - snapshots are sent in chunks (offset, done) and installed when the
+//!   last chunk arrives.
+//!
 //! Timing enters only through `tick()` (logical election and heartbeat
 //! timeouts), so a loopback run is a deterministic function of the seed.
 use serde::{Deserialize, Serialize};
@@ -34,13 +43,42 @@ pub enum Msg {
     VoteResp { term: u64, granted: bool },
     Append { term: u64, leader: usize, prev_idx: u64, prev_term: u64, entries: Vec<(u64, String)>, commit: u64 },
     AppendResp { term: u64, ok: bool, match_idx: u64 },
-    Snap { term: u64, leader: usize, last_idx: u64, last_term: u64, data: String },
+    Snap { term: u64, leader: usize, last_idx: u64, last_term: u64, offset: usize, data: String, done: bool, cfg: Cfg },
+    SnapAck { term: u64, next_off: usize },
+}
+
+/// A cluster configuration: `old` alone, or joint `old` + `new`.
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct Cfg {
+    pub old: Vec<usize>,
+    pub new: Option<Vec<usize>>,
+}
+
+impl Cfg {
+    pub fn members(&self) -> BTreeSet<usize> {
+        self.old.iter().chain(self.new.iter().flatten()).copied().collect()
+    }
+    fn maj(set: &[usize], have: &BTreeSet<usize>) -> bool {
+        set.iter().filter(|i| have.contains(i)).count() > set.len() / 2
+    }
+    /// A quorum of this configuration: a majority of `old`, and of `new` when joint.
+    pub fn quorum(&self, have: &BTreeSet<usize>) -> bool {
+        Cfg::maj(&self.old, have) && self.new.as_ref().is_none_or(|n| Cfg::maj(n, have))
+    }
+}
+
+/// Configuration entries share the log with D lines; this prefix cannot
+/// begin a D line, which is JSON starting with `{`.
+pub const CFG_PREFIX: &str = "#cfg ";
+
+fn cfg_of(line: &str) -> Option<Cfg> {
+    line.strip_prefix(CFG_PREFIX).and_then(|j| serde_json::from_str(j).ok())
 }
 
 impl Msg {
     pub fn term(&self) -> u64 {
         match self {
-            Msg::Vote { term, .. } | Msg::VoteResp { term, .. } | Msg::Append { term, .. } | Msg::AppendResp { term, .. } | Msg::Snap { term, .. } => *term,
+            Msg::Vote { term, .. } | Msg::VoteResp { term, .. } | Msg::Append { term, .. } | Msg::AppendResp { term, .. } | Msg::Snap { term, .. } | Msg::SnapAck { term, .. } => *term,
         }
     }
 }
@@ -53,7 +91,9 @@ pub struct Persisted {
     pub snap_idx: u64,
     pub snap_term: u64,
     pub snap: String,
-    /// Entries after `snap_idx`: (term, D line).
+    /// The configuration in force at `snap_idx`.
+    pub snap_cfg: Cfg,
+    /// Entries after `snap_idx`: (term, D line or configuration entry).
     pub log: Vec<(u64, String)>,
 }
 
@@ -115,14 +155,19 @@ pub enum Role {
 
 pub struct Node {
     pub id: usize,
-    n: usize,
+    init: Cfg,
     d: Box<dyn Durable>,
     pub p: Persisted,
     pub commit: u64,
     pub role: Role,
     votes: BTreeSet<usize>,
-    next: Vec<u64>,
-    matched: Vec<u64>,
+    next: BTreeMap<usize, u64>,
+    matched: BTreeMap<usize, u64>,
+    snap_off: BTreeMap<usize, usize>,
+    /// Chunks of a snapshot being received: (last_idx, bytes so far).
+    snap_buf: Option<(u64, String)>,
+    /// Bytes per snapshot chunk.
+    pub snap_chunk: usize,
     elapsed: u64,
     pub timeout: u64,
     pub heartbeat: u64,
@@ -135,14 +180,25 @@ pub struct Node {
 const MAX_BATCH: usize = 64;
 
 impl Node {
-    /// Start or restart node `id` of `n` from its stable storage.
-    pub fn new(id: usize, n: usize, mut d: Box<dyn Durable>) -> io::Result<Node> {
+    /// Start or restart node `id` of the cluster `0..n` from its stable storage.
+    pub fn new(id: usize, n: usize, d: Box<dyn Durable>) -> io::Result<Node> {
+        Node::with_members(id, (0..n).collect(), d)
+    }
+    /// Start or restart with an initial configuration (empty for a node that
+    /// joins later and learns its configuration from the leader's log).
+    pub fn with_members(id: usize, members: Vec<usize>, mut d: Box<dyn Durable>) -> io::Result<Node> {
         let p = d.load()?;
         let commit = p.snap_idx;
-        Ok(Node { id, n, d, p, commit, role: Role::Follower, votes: BTreeSet::new(), next: vec![1; n], matched: vec![0; n], elapsed: 0, timeout: 10 + 4 * id as u64, heartbeat: 2, out: vec![], failed: false })
+        let init = Cfg { old: members, new: None };
+        Ok(Node { id, init, d, p, commit, role: Role::Follower, votes: BTreeSet::new(), next: BTreeMap::new(), matched: BTreeMap::new(), snap_off: BTreeMap::new(), snap_buf: None, snap_chunk: 1 << 16, elapsed: 0, timeout: 10 + 4 * id as u64, heartbeat: 2, out: vec![], failed: false })
     }
-    pub fn quorum(&self) -> usize {
-        self.n / 2 + 1
+    /// The latest configuration in this node's log (committed or not).
+    pub fn cfg(&self) -> Cfg {
+        self.p.log.iter().rev().find_map(|(_, l)| cfg_of(l)).unwrap_or_else(|| if self.p.snap_cfg.old.is_empty() { self.init.clone() } else { self.p.snap_cfg.clone() })
+    }
+    fn cfg_upto(&self, idx: u64) -> Cfg {
+        let k = (idx.saturating_sub(self.p.snap_idx) as usize).min(self.p.log.len());
+        self.p.log[..k].iter().rev().find_map(|(_, l)| cfg_of(l)).unwrap_or_else(|| if self.p.snap_cfg.old.is_empty() { self.init.clone() } else { self.p.snap_cfg.clone() })
     }
     pub fn term(&self) -> u64 {
         self.p.term
@@ -178,7 +234,7 @@ impl Node {
         }
     }
     fn others(&self) -> Vec<usize> {
-        (0..self.n).filter(|&i| i != self.id).collect()
+        self.cfg().members().into_iter().filter(|&i| i != self.id).collect()
     }
 
     /// One logical tick: heartbeats for a leader, election timeout otherwise.
@@ -197,7 +253,7 @@ impl Node {
                 }
             }
             _ => {
-                if self.elapsed >= self.timeout {
+                if self.elapsed >= self.timeout && self.cfg().members().contains(&self.id) {
                     self.start_election();
                 }
             }
@@ -213,7 +269,7 @@ impl Node {
             return; // durable term and vote before asking
         }
         self.votes = [self.id].into();
-        if self.votes.len() >= self.quorum() {
+        if self.cfg().quorum(&self.votes) {
             self.become_leader();
             return;
         }
@@ -226,9 +282,10 @@ impl Node {
     fn become_leader(&mut self) {
         self.role = Role::Leader;
         self.elapsed = 0;
-        self.next = vec![self.last_idx() + 1; self.n];
-        self.matched = vec![0; self.n];
-        self.matched[self.id] = self.last_idx();
+        let last = self.last_idx();
+        self.next = self.others().into_iter().map(|o| (o, last + 1)).collect();
+        self.matched = [(self.id, last)].into();
+        self.snap_off.clear();
         for o in self.others() {
             self.send_append(o);
         }
@@ -236,12 +293,19 @@ impl Node {
 
     fn send_append(&mut self, to: usize) {
         let term = self.p.term;
-        if self.next[to] <= self.p.snap_idx {
-            let m = Msg::Snap { term, leader: self.id, last_idx: self.p.snap_idx, last_term: self.p.snap_term, data: self.p.snap.clone() };
+        let li = self.last_idx(); let next = *self.next.entry(to).or_insert(li + 1);
+        if next <= self.p.snap_idx {
+            let off = *self.snap_off.get(&to).unwrap_or(&0);
+            let b = self.p.snap.as_bytes();
+            let mut end = (off + self.snap_chunk).min(b.len());
+            while !self.p.snap.is_char_boundary(end) {
+                end += 1;
+            }
+            let m = Msg::Snap { term, leader: self.id, last_idx: self.p.snap_idx, last_term: self.p.snap_term, offset: off, data: self.p.snap[off..end].to_string(), done: end == b.len(), cfg: self.p.snap_cfg.clone() };
             self.send(to, m);
             return;
         }
-        let prev_idx = self.next[to] - 1;
+        let prev_idx = next - 1;
         let prev_term = self.term_at(prev_idx).unwrap_or(0);
         let from = (prev_idx - self.p.snap_idx) as usize;
         let entries: Vec<(u64, String)> = self.p.log[from..].iter().take(MAX_BATCH).cloned().collect();
@@ -257,7 +321,7 @@ impl Node {
         if !self.persist() {
             return None;
         }
-        self.matched[self.id] = self.last_idx();
+        self.matched.insert(self.id, self.last_idx());
         self.advance_commit();
         for o in self.others() {
             self.send_append(o);
@@ -266,14 +330,60 @@ impl Node {
     }
 
     fn advance_commit(&mut self) {
+        let cfg = self.cfg();
         let mut n = self.last_idx();
         while n > self.commit {
-            if self.term_at(n) == Some(self.p.term) && self.matched.iter().filter(|&&m| m >= n).count() >= self.quorum() {
+            let have: BTreeSet<usize> = self.matched.iter().filter(|(_, m)| **m >= n).map(|(i, _)| *i).collect();
+            if self.term_at(n) == Some(self.p.term) && cfg.quorum(&have) {
                 self.commit = n;
                 break;
             }
             n -= 1;
         }
+        self.after_commit();
+    }
+
+    /// Joint consensus, leader side: C_old,new committed -> append C_new;
+    /// C_new committed and this node not in it -> step down.
+    fn after_commit(&mut self) {
+        if self.role != Role::Leader {
+            return;
+        }
+        let latest = self.cfg();
+        let committed = self.cfg_upto(self.commit);
+        if let Some(new) = latest.new.clone()
+            && committed == latest
+        {
+            let c = Cfg { old: new, new: None };
+            self.p.log.push((self.p.term, format!("{CFG_PREFIX}{}", serde_json::to_string(&c).unwrap())));
+            if self.persist() {
+                self.matched.insert(self.id, self.last_idx());
+                for o in self.others() {
+                    let li = self.last_idx(); self.next.entry(o).or_insert(li);
+                    self.send_append(o);
+                }
+            }
+        } else if latest.new.is_none() && committed == latest && !latest.old.contains(&self.id) {
+            self.role = Role::Follower;
+        }
+    }
+
+    /// Leader only: start a membership change to `new` (joint consensus).
+    /// Refused while another change is in progress.
+    pub fn change_membership(&mut self, new: Vec<usize>) -> Option<u64> {
+        let cur = self.cfg();
+        if self.role != Role::Leader || cur.new.is_some() || self.cfg_upto(self.commit) != cur {
+            return None;
+        }
+        let c = Cfg { old: cur.old, new: Some(new) };
+        let i = self.propose(&format!("{CFG_PREFIX}{}", serde_json::to_string(&c).unwrap()))?;
+        for o in self.others() {
+            if !self.next.contains_key(&o) {
+                self.next.insert(o, 1);
+                self.send_append(o);
+            }
+        }
+        Some(i)
     }
 
     /// Compact the log through `upto` (at most the commit index) into a
@@ -283,6 +393,7 @@ impl Node {
             return false;
         }
         let t = self.term_at(upto).unwrap();
+        self.p.snap_cfg = self.cfg_upto(upto);
         let k = (upto - self.p.snap_idx) as usize;
         self.p.log.drain(..k);
         self.p.snap_idx = upto;
@@ -294,7 +405,7 @@ impl Node {
     /// The committed D lines this node holds after its snapshot.
     pub fn committed(&self) -> Vec<String> {
         let k = (self.commit - self.p.snap_idx) as usize;
-        self.p.log[..k].iter().map(|(_, l)| l.clone()).collect()
+        self.p.log[..k].iter().filter(|(_, l)| !l.starts_with(CFG_PREFIX)).map(|(_, l)| l.clone()).collect()
     }
 
     pub fn handle(&mut self, from: usize, m: Msg) {
@@ -327,7 +438,7 @@ impl Node {
             Msg::VoteResp { term: t, granted } => {
                 if self.role == Role::Candidate && t == term && granted {
                     self.votes.insert(from);
-                    if self.votes.len() >= self.quorum() {
+                    if self.cfg().quorum(&self.votes) {
                         self.become_leader();
                     }
                 }
@@ -383,25 +494,62 @@ impl Node {
                     return;
                 }
                 if ok {
-                    self.matched[from] = self.matched[from].max(match_idx);
-                    self.next[from] = self.matched[from] + 1;
+                    let m = self.matched.get(&from).copied().unwrap_or(0).max(match_idx);
+                    self.matched.insert(from, m);
+                    self.next.insert(from, m + 1);
+                    self.snap_off.remove(&from);
                     self.advance_commit();
-                    if self.next[from] <= self.last_idx() {
+                    if m < self.last_idx() {
                         self.send_append(from);
                     }
                 } else {
-                    self.next[from] = (match_idx + 1).min(self.next[from].saturating_sub(1)).max(1);
+                    let cur = self.next.get(&from).copied().unwrap_or(1);
+                    self.next.insert(from, (match_idx + 1).min(cur.saturating_sub(1)).max(1));
                     self.send_append(from);
                 }
             }
-            Msg::Snap { term: t, last_idx, last_term, data, .. } => {
+            Msg::SnapAck { term: t, next_off } => {
+                if self.role == Role::Leader && t == term {
+                    self.snap_off.insert(from, next_off);
+                    self.send_append(from);
+                }
+            }
+            Msg::Snap { term: t, last_idx, last_term, offset, data, done, cfg, .. } => {
                 if t < term {
                     self.send(from, Msg::AppendResp { term, ok: false, match_idx: 0 });
                     return;
                 }
                 self.role = Role::Follower;
                 self.elapsed = 0;
+                // Chunks: accumulate in order; an out-of-order chunk is
+                // answered with the offset we need.
+                let buf = match self.snap_buf.take() {
+                    Some((i, b)) if i == last_idx && offset > 0 => b,
+                    _ if offset == 0 => String::new(),
+                    other => {
+                        let have = other.as_ref().filter(|(i, _)| *i == last_idx).map_or(0, |(_, b)| b.len());
+                        self.snap_buf = other;
+                        self.send(from, Msg::SnapAck { term, next_off: have });
+                        return;
+                    }
+                };
+                if offset != buf.len() {
+                    let n = buf.len();
+                    self.snap_buf = Some((last_idx, buf));
+                    self.send(from, Msg::SnapAck { term, next_off: n });
+                    return;
+                }
+                let mut buf = buf;
+                buf.push_str(&data);
+                if !done {
+                    let n = buf.len();
+                    self.snap_buf = Some((last_idx, buf));
+                    self.send(from, Msg::SnapAck { term, next_off: n });
+                    return;
+                }
+                let data = buf;
                 if last_idx > self.p.snap_idx {
+                    self.p.snap_cfg = cfg;
                     if self.term_at(last_idx) == Some(last_term) {
                         let k = (last_idx - self.p.snap_idx) as usize;
                         self.p.log.drain(..k);
@@ -515,26 +663,7 @@ impl Tcp {
             for s in listener.incoming() {
                 let Ok(mut s) = s else { continue };
                 let tx = tx.clone();
-                std::thread::spawn(move || {
-                    loop {
-                        let mut len = [0u8; 4];
-                        if s.read_exact(&mut len).is_err() {
-                            return;
-                        }
-                        let n = u32::from_be_bytes(len) as usize;
-                        if n > 64 << 20 {
-                            return;
-                        }
-                        let mut b = vec![0; n];
-                        if s.read_exact(&mut b).is_err() {
-                            return;
-                        }
-                        let Ok(x) = serde_json::from_slice::<(usize, Msg)>(&b) else { return };
-                        if tx.send(x).is_err() {
-                            return;
-                        }
-                    }
-                });
+                std::thread::spawn(move || read_frames(&mut s, &tx, None));
             }
         });
         Tcp { me, peers, conns: BTreeMap::new(), rx }
@@ -543,7 +672,6 @@ impl Tcp {
 
 impl Transport for Tcp {
     fn send(&mut self, to: usize, m: &Msg) {
-        let b = serde_json::to_vec(&(self.me, m)).unwrap();
         if !self.conns.contains_key(&to) {
             match TcpStream::connect_timeout(&self.peers[to], std::time::Duration::from_millis(200)) {
                 Ok(s) => {
@@ -554,9 +682,102 @@ impl Transport for Tcp {
             }
         }
         let s = self.conns.get_mut(&to).unwrap();
-        let mut f = (b.len() as u32).to_be_bytes().to_vec();
-        f.extend_from_slice(&b);
-        if s.write_all(&f).is_err() {
+        if s.write_all(&frame(self.me, m)).is_err() {
+            self.conns.remove(&to);
+        }
+    }
+    fn poll(&mut self) -> Vec<(usize, Msg)> {
+        self.rx.try_iter().collect()
+    }
+}
+
+/// Read length-prefixed `(from, Msg)` frames from `s` into `tx`; when
+/// `only` is set, a frame whose `from` differs is dropped (the TLS peer key
+/// fixes who may speak for which node).
+fn read_frames<R: Read>(s: &mut R, tx: &mpsc::Sender<(usize, Msg)>, only: Option<usize>) {
+    loop {
+        let mut len = [0u8; 4];
+        if s.read_exact(&mut len).is_err() {
+            return;
+        }
+        let n = u32::from_be_bytes(len) as usize;
+        if n > 64 << 20 {
+            return;
+        }
+        let mut b = vec![0; n];
+        if s.read_exact(&mut b).is_err() {
+            return;
+        }
+        let Ok(x) = serde_json::from_slice::<(usize, Msg)>(&b) else { return };
+        if only.is_some_and(|o| o != x.0) {
+            continue;
+        }
+        if tx.send(x).is_err() {
+            return;
+        }
+    }
+}
+
+fn frame(me: usize, m: &Msg) -> Vec<u8> {
+    let b = serde_json::to_vec(&(me, m)).unwrap();
+    let mut f = (b.len() as u32).to_be_bytes().to_vec();
+    f.extend_from_slice(&b);
+    f
+}
+
+/// Mutual TLS 1.3 with pinned Ed25519 keys (`crate::tls`, the P4 channel
+/// identity): a node accepts a connection only from a key in its peer
+/// list, and accepts a frame only when the frame's sender id is the id
+/// pinned to that key. A node dials a peer only if the peer presents the
+/// key pinned for it.
+pub struct TlsTransport {
+    me: usize,
+    peers: Vec<(SocketAddr, [u8; 32])>,
+    client: Vec<Option<std::sync::Arc<rustls::ClientConfig>>>,
+    conns: BTreeMap<usize, rustls::StreamOwned<rustls::ClientConnection, TcpStream>>,
+    rx: mpsc::Receiver<(usize, Msg)>,
+}
+
+impl TlsTransport {
+    pub fn new(me: usize, listener: TcpListener, peers: Vec<(SocketAddr, [u8; 32])>, id: &crate::tls::Identity) -> Result<TlsTransport, String> {
+        let keys: Vec<[u8; 32]> = peers.iter().map(|p| p.1).collect();
+        let server = crate::tls::server_config(id, keys.clone())?;
+        let client = peers.iter().map(|p| crate::tls::client_config(id, p.1).ok()).collect();
+        let (tx, rx) = mpsc::channel();
+        std::thread::spawn(move || {
+            for s in listener.incoming() {
+                let Ok(s) = s else { continue };
+                let (tx, server, keys) = (tx.clone(), server.clone(), keys.clone());
+                std::thread::spawn(move || {
+                    let Ok(conn) = rustls::ServerConnection::new(server) else { return };
+                    let mut t = rustls::StreamOwned::new(conn, s);
+                    while t.conn.is_handshaking() {
+                        if t.conn.complete_io(&mut t.sock).is_err() {
+                            return;
+                        }
+                    }
+                    let key = t.conn.peer_certificates().and_then(|c| c.first()).and_then(|c| crate::tls::ed25519_key_of(c.as_ref()));
+                    let Some(who) = key.and_then(|k| keys.iter().position(|p| *p == k)) else { return };
+                    read_frames(&mut t, &tx, Some(who));
+                });
+            }
+        });
+        Ok(TlsTransport { me, peers, client, conns: BTreeMap::new(), rx })
+    }
+}
+
+impl Transport for TlsTransport {
+    fn send(&mut self, to: usize, m: &Msg) {
+        if !self.conns.contains_key(&to) {
+            let Some(Some(cfg)) = self.client.get(to).cloned() else { return };
+            let Ok(sock) = TcpStream::connect_timeout(&self.peers[to].0, std::time::Duration::from_millis(200)) else { return };
+            let _ = sock.set_nodelay(true);
+            let Ok(name) = rustls::pki_types::ServerName::try_from(crate::tls::SERVER_NAME) else { return };
+            let Ok(conn) = rustls::ClientConnection::new(cfg, name) else { return };
+            self.conns.insert(to, rustls::StreamOwned::new(conn, sock));
+        }
+        let s = self.conns.get_mut(&to).unwrap();
+        if s.write_all(&frame(self.me, m)).and_then(|_| s.flush()).is_err() {
             self.conns.remove(&to);
         }
     }
@@ -592,6 +813,7 @@ pub struct Cluster {
     pub sw: Rc<RefCell<Switch>>,
     pub peers: Vec<Option<Peer>>,
     pub disks: Vec<MemDurable>,
+    initial: usize,
 }
 
 impl Cluster {
@@ -599,7 +821,7 @@ impl Cluster {
         let sw = Switch::shared();
         let disks: Vec<MemDurable> = (0..n).map(|_| MemDurable::default()).collect();
         let peers = (0..n).map(|i| Some(Peer { node: Node::new(i, n, Box::new(disks[i].clone())).unwrap(), t: Box::new(Loopback { me: i, sw: sw.clone() }) })).collect();
-        Cluster { sw, peers, disks }
+        Cluster { sw, peers, disks, initial: n }
     }
     pub fn step(&mut self) {
         for p in self.peers.iter_mut().flatten() {
@@ -617,8 +839,19 @@ impl Cluster {
         self.sw.borrow_mut().q.retain(|x| x.1 != i);
     }
     pub fn restart(&mut self, i: usize) {
-        let n = self.peers.len();
-        self.peers[i] = Some(Peer { node: Node::new(i, n, Box::new(self.disks[i].clone())).unwrap(), t: Box::new(Loopback { me: i, sw: self.sw.clone() }) });
+        // messages sent while it was down were lost with it
+        self.sw.borrow_mut().q.retain(|x| x.1 != i);
+        let members = if i < self.initial { (0..self.initial).collect() } else { vec![] };
+        self.peers[i] = Some(Peer { node: Node::with_members(i, members, Box::new(self.disks[i].clone())).unwrap(), t: Box::new(Loopback { me: i, sw: self.sw.clone() }) });
+    }
+    /// A new node that joins with no configuration; it learns one from the
+    /// leader's log (or snapshot) and votes only once it is a member.
+    pub fn add_node(&mut self) -> usize {
+        let i = self.peers.len();
+        let d = MemDurable::default();
+        self.disks.push(d.clone());
+        self.peers.push(Some(Peer { node: Node::with_members(i, vec![], Box::new(d)).unwrap(), t: Box::new(Loopback { me: i, sw: self.sw.clone() }) }));
+        i
     }
     pub fn node(&self, i: usize) -> &Node {
         &self.peers[i].as_ref().unwrap().node

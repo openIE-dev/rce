@@ -4,7 +4,7 @@ import RCE.ParSem
     integers handled explicitly.
 
     The evaluator model `evalB` follows `interp`/`conc::run_main` on this
-    fragment: statements in order, `par` in source order (C.4.2), and every
+    fragment: statements in order, `par` in source order (C.4, T16), and every
     `+`/`*` result checked against the i64 range, an overflow being a trap
     (`none`). The bounded small-step semantics `StepB` interleaves `par`
     branches like `Step`, but an assignment or test whose expression

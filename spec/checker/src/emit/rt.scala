@@ -121,6 +121,19 @@ def digits_of(s0: String): (String, Int) = {
   d = if (j == 0) "0" else d.substring(0, j)
   (d, p)
 }
+// Java prints at least two significant digits ("4.9E-324" for the least
+// subnormal), so a two-digit result is checked for a one-digit round-trip
+// form, choosing the nearer one as Rust does ("5e-324").
+def sdigits(a: Double): (String, Int) = {
+  val (d, p) = digits_of(java.lang.Double.toString(a))
+  if (d.length != 2) return (d, p)
+  val exact = new java.math.BigDecimal(a)
+  val c0 = d(0) - '0'
+  val cands = Seq((c0.toString, p), (if (c0 == 9) ("1", p + 1) else ((c0 + 1).toString, p)))
+    .filter { case (c, q) => java.lang.Double.parseDouble("0." + c + "e" + q) == a }
+  if (cands.isEmpty) (d, p)
+  else cands.minBy { case (c, q) => new java.math.BigDecimal("0." + c + "e" + q).subtract(exact).abs }
+}
 def plain(neg: Boolean, d: String, p: Int): String = {
   val r =
     if (d == "0") "0"
@@ -132,7 +145,7 @@ def plain(neg: Boolean, d: String, p: Int): String = {
 def negz(x: Double): Boolean = x < 0 || (x == 0 && 1.0 / x < 0)
 def fdisplay(x: Double): String = {
   if (x == 0) return "0"
-  val a = math.abs(x); val (d, p) = digits_of(java.lang.Double.toString(a))
+  val a = math.abs(x); val (d, p) = sdigits(a)
   if (a >= 1e-5 && a < 1e16) return plain(x < 0, d, p)
   val e = p - 1
   (if (x < 0) "-" else "") + d(0) + (if (d.length > 1) "." + d.substring(1) else "") + "e" + (if (e >= 0) "+" else "") + e
@@ -140,7 +153,7 @@ def fdisplay(x: Double): String = {
 def fdebug(x: Double): String = {
   if (x == 0) return if (negz(x)) "-0.0" else "0.0"
   val a = math.abs(x)
-  val (d, p) = digits_of(java.lang.Double.toString(a))
+  val (d, p) = sdigits(a)
   if (a >= 1e-4 && a < 1e16) { val s = plain(x < 0, d, p); return if (s.contains(".")) s else s + ".0" }
   (if (x < 0) "-" else "") + d(0) + (if (d.length > 1) "." + d.substring(1) else "") + "e" + (p - 1)
 }
@@ -1002,7 +1015,9 @@ def charge(u0: BigInt): Unit = {
 }
 def charge(u: Int): Unit = if (BUD.nonEmpty) charge(BigInt(u))
 def budget_enter(n: Any): Unit = BUD += Array(BigInt(0), marker_int(n))
-def budget_exit(): Unit = BUD.remove(BUD.length - 1)
+var BUD_LAST: BigInt = BigInt(0)
+def budget_exit(): Unit = { BUD_LAST = BUD.remove(BUD.length - 1)(0) }
+def budget_last(): Any = new I(BUD_LAST, "u64")
 def op_cost(op: String, x: Any): BigInt = x match {
   case _: F | _: F32 => if (op == "+" || op == "-" || op == "*") 2 else if (op == "/" || op == "%") 8 else 1
   case _ => 1
@@ -1122,7 +1137,7 @@ def bud_restore(s: Any): Unit = { BUD.clear(); for (b <- s.asInstanceOf[Vector[A
 // a restarted par attempt (C.14) restores the budgets and the fuel
 def par_snap(): (Any, Long) = (bud_snap(), FUEL)
 def par_restore(s: (Any, Long)): Unit = { bud_restore(s._1); FUEL = s._2 }
-// ---- workgroups (C.11.1)
+// ---- workgroups (C.11.2)
 def lanes_of(v: Any): (Int, BigInt) = { val n = marker_int(v); (if (n > 0) n.toInt else 0, n) }
 def group_rec(lane: Int, n: BigInt): Rec = new Rec("$group", Vector(("lane", I(BigInt(lane), "usize")), ("lanes", I(n, "usize"))))
 
