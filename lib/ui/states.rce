@@ -1,0 +1,984 @@
+module ui.states
+
+# Statecharts (survey M53 `ui.state`; `state` is an rce keyword), pure: the SCXML 1.0 execution algorithm (W3C
+# Recommendation 2015-09-01, Appendix D) over a chart read from a compact
+# text form, with a small integer datamodel, and a cache of derived
+# values keyed by digest.
+# - States are numbered in document order across all machines of a
+#   chart (a machine is a <scxml> document; inline <invoke> content is a
+#   further machine). Kinds: ROOT, ATOMIC, COMPOUND, PARALLEL, FINAL,
+#   HIST_SHALLOW, HIST_DEEP.
+# - Executable content: raise, send (delay in ms; target self, parent or
+#   invalid), assign, log, if/elseif/else. A failed action (assignment
+#   to an undeclared location, an invalid send target) raises
+#   error.execution and ends its block, as SCXML 4.9 requires.
+# - Values are integers, or unbound. Expressions: n:<int>, v:<var>,
+#   add:<atom>:<atom>. Conditions: t, f, cmp:<op>:<atom>:<atom> (op one of
+#   eq ne lt le gt ge; false when a side is unbound, as ECMAScript's
+#   undefined compares), in:<state id>, ev:<event name>, bound:<var>.
+# - Time is virtual: delayed sends wait in the external queue ordered by
+#   (due time, send order); `run` processes the given external events
+#   (at time 0, in order) and then the delayed ones.
+# Chart text, one directive per line, tokens separated by single spaces:
+#   machine
+#   state <id> <kind> <parent id|-> <initial ids,|->
+#   data <var> <expr|->
+#   onentry <state> | onexit <state> | initial <state> | transition
+#     <source> <events,|-> <cond|-> <int|ext> <targets,|->
+#     then action lines, then "end"
+#   invoke <state> <machine number>
+#   actions: raise <e> | send <e> <ms> <self|parent|bad> |
+#     assign <var> <expr> | log <label> | if <cond> | elif <cond> |
+#     else | fi
+
+pub const ROOT: i64 = 0
+pub const ATOMIC: i64 = 1
+pub const COMPOUND: i64 = 2
+pub const PARALLEL: i64 = 3
+pub const FINAL: i64 = 4
+pub const HIST_SHALLOW: i64 = 5
+pub const HIST_DEEP: i64 = 6
+
+pub const A_RAISE: i64 = 1
+pub const A_SEND: i64 = 2
+pub const A_ASSIGN: i64 = 3
+pub const A_LOG: i64 = 4
+pub const A_IF: i64 = 5
+pub const A_ELIF: i64 = 6
+pub const A_ELSE: i64 = 7
+pub const A_FI: i64 = 8
+
+pub struct Chart
+    sid: List[text]
+    skind: List[i64]
+    spar: List[i64]
+    smach: List[i64]
+    sinit: List[List[i64]]
+    sinitblk: List[i64]
+    sentry: List[List[i64]]
+    sexit: List[List[i64]]
+    sinv: List[List[i64]]
+    skids: List[List[i64]]
+    strans: List[List[i64]]
+    mroot: List[i64]
+    mvars: List[List[text]]
+    mexpr: List[List[text]]
+    tsrc: List[i64]
+    tev: List[List[text]]
+    tcond: List[text]
+    tint: List[bool]
+    ttgt: List[List[i64]]
+    tblk: List[i64]
+    blocks: List[List[i64]]
+    aop: List[i64]
+    aa: List[text]
+    ab: List[text]
+    an: List[i64]
+    ok: bool
+    why: text
+
+fn no_ints() -> List[i64] = []
+fn no_texts() -> List[text] = []
+
+fn chart0() -> Chart = Chart(sid: [], skind: [], spar: [], smach: [], sinit: [], sinitblk: [], sentry: [], sexit: [], sinv: [], skids: [], strans: [], mroot: [], mvars: [], mexpr: [], tsrc: [], tev: [], tcond: [], tint: [], ttgt: [], tblk: [], blocks: [], aop: [], aa: [], ab: [], an: [], ok: true, why: "")
+
+fn kind_of(t: &text) -> i64
+    if t == "root"
+        return ROOT
+    if t == "atomic"
+        return ATOMIC
+    if t == "compound"
+        return COMPOUND
+    if t == "parallel"
+        return PARALLEL
+    if t == "final"
+        return FINAL
+    if t == "shallow"
+        return HIST_SHALLOW
+    if t == "deep"
+        return HIST_DEEP
+    return -1
+
+# index of state id within machine m, or -1
+pub fn find_state(c: &Chart, m: i64, id: &text) -> i64
+    for i in 0..c.sid.len()
+        if c.smach[i] == m and c.sid[i] == id
+            return i as i64
+    return -1
+
+fn bad(c: &mut Chart, why: text)
+    if c.ok
+        c.ok = false
+        c.why = why
+
+fn ids(c: &mut Chart, m: i64, t: &text) -> List[i64]
+    var o: List[i64] = []
+    if t == "-"
+        return o
+    for x in t.split(",")
+        let k = find_state(c, m, &x)
+        if k < 0
+            bad(c, "unknown state " + x)
+        else
+            o.push(k)
+    return o
+
+fn new_block(c: &mut Chart) -> i64
+    c.blocks.push(no_ints())
+    return (c.blocks.len() - 1) as i64
+
+# Parse the chart text. Targets and initial ids may name states declared
+# later, so states are read in a first pass.
+pub fn parse_chart(src: &text) -> Chart
+    var c = chart0()
+    let lines = src.split("\n")
+    var m: i64 = -1
+    for l in lines
+        let w = l.split(" ")
+        if w[0] == "machine"
+            m += 1
+            c.mroot.push(-1)
+            c.mvars.push(no_texts())
+            c.mexpr.push(no_texts())
+        elif w[0] == "state"
+            if w.len() != 5 or m < 0
+                bad(&mut c, "bad state line")
+                return c
+            let k = kind_of(&w[2])
+            if k < 0
+                bad(&mut c, "bad kind " + w[2])
+                return c
+            c.sid.push(copy(w[1]))
+            c.skind.push(k)
+            c.spar.push(-1)
+            c.smach.push(m)
+            c.sinit.push(no_ints())
+            c.sinitblk.push(-1)
+            c.sentry.push(no_ints())
+            c.sexit.push(no_ints())
+            c.sinv.push(no_ints())
+            c.skids.push(no_ints())
+            c.strans.push(no_ints())
+            if k == ROOT
+                c.mroot[m as usize] = (c.sid.len() - 1) as i64
+    m = -1
+    var si: usize = 0
+    var cur: i64 = -1
+    for l in lines
+        let w = l.split(" ")
+        if w[0] == "machine"
+            m += 1
+        elif w[0] == "state"
+            if w[3] != "-"
+                let p = find_state(&c, m, &w[3])
+                if p < 0
+                    bad(&mut c, "unknown parent " + w[3])
+                    return c
+                c.spar[si] = p
+                c.skids[p as usize].push(si as i64)
+            si += 1
+        elif w[0] == "data"
+            c.mvars[m as usize].push(copy(w[1]))
+            c.mexpr[m as usize].push(copy(w[2]))
+        elif w[0] == "invoke"
+            let s = find_state(&c, m, &w[1])
+            c.sinv[s as usize].push(w[2].toint())
+        elif w[0] == "onentry" or w[0] == "onexit" or w[0] == "initial"
+            let s = find_state(&c, m, &w[1])
+            if s < 0
+                bad(&mut c, "unknown state " + w[1])
+                return c
+            cur = new_block(&mut c)
+            if w[0] == "onentry"
+                c.sentry[s as usize].push(cur)
+            elif w[0] == "onexit"
+                c.sexit[s as usize].push(cur)
+            else
+                c.sinitblk[s as usize] = cur
+        elif w[0] == "transition"
+            if w.len() != 6
+                bad(&mut c, "bad transition line")
+                return c
+            let s = find_state(&c, m, &w[1])
+            if s < 0
+                bad(&mut c, "unknown state " + w[1])
+                return c
+            cur = new_block(&mut c)
+            c.tsrc.push(s)
+            var evs = no_texts()
+            if w[2] != "-"
+                for e in w[2].split(",")
+                    evs.push(copy(e))
+            c.tev.push(evs)
+            c.tcond.push(copy(w[3]))
+            c.tint.push(w[4] == "int")
+            let tg = ids(&mut c, m, &w[5])
+            c.ttgt.push(tg)
+            c.tblk.push(cur)
+            c.strans[s as usize].push((c.tsrc.len() - 1) as i64)
+        elif w[0] == "end"
+            cur = -1
+        elif w[0] != ""
+            var op: i64 = 0
+            if w[0] == "raise"
+                op = A_RAISE
+            elif w[0] == "send"
+                op = A_SEND
+            elif w[0] == "assign"
+                op = A_ASSIGN
+            elif w[0] == "log"
+                op = A_LOG
+            elif w[0] == "if"
+                op = A_IF
+            elif w[0] == "elif"
+                op = A_ELIF
+            elif w[0] == "else"
+                op = A_ELSE
+            elif w[0] == "fi"
+                op = A_FI
+            if op == 0 or cur < 0
+                bad(&mut c, "bad line " + l)
+                return c
+            c.aop.push(op)
+            c.aa.push(if w.len() > 1 then copy(w[1]) else "")
+            c.ab.push(if w.len() > 2 then copy(w[2]) else "")
+            var n: i64 = 0
+            if op == A_SEND
+                n = w[2].toint()
+                c.ab[c.ab.len() - 1] = copy(w[3])
+            c.an.push(n)
+            c.blocks[cur as usize].push((c.aop.len() - 1) as i64)
+    # initial targets of compound states (state line field 4, or the
+    # first child state in document order) and kinds of states with kids
+    m = -1
+    si = 0
+    for l in lines
+        let w = l.split(" ")
+        if w[0] == "machine"
+            m += 1
+        elif w[0] == "state"
+            c.sinit[si] = ids(&mut c, m, &w[4])
+            si += 1
+    for i in 0..c.sid.len()
+        if c.skind[i] == ATOMIC and c.skids[i].len() > 0
+            var any = false
+            for k in c.skids[i]
+                if c.skind[k as usize] < HIST_SHALLOW
+                    any = true
+            if any
+                c.skind[i] = COMPOUND
+        if (c.skind[i] == COMPOUND or c.skind[i] == ROOT) and c.sinit[i].len() == 0
+            let ks = copy(c.skids[i])
+            for k in ks
+                if c.sinit[i].len() == 0 and c.skind[k as usize] < HIST_SHALLOW
+                    c.sinit[i].push(k)
+    return c
+
+# ---------------- runtime ----------------
+pub struct Run
+    conf: List[List[i64]]
+    hist: List[List[List[i64]]]
+    hset: List[List[i64]]
+    vbound: List[List[i64]]
+    vval: List[List[i64]]
+    smachine: List[i64]
+    sparent: List[i64]
+    srunning: List[bool]
+    sinvstate: List[i64]
+    sinvid: List[text]
+    iq: List[List[text]]
+    qtime: List[i64]
+    qseq: List[i64]
+    qsess: List[i64]
+    qev: List[text]
+    now: i64
+    seq: i64
+    toinv: List[List[i64]]
+    trace: List[text]
+    logs: List[text]
+    outcome: text
+    ev: text
+    fuel: i64
+
+fn is_desc(c: &Chart, a: i64, b: i64) -> bool
+    var p = c.spar[a as usize]
+    while p >= 0 bound 1048576
+        if p == b
+            return true
+        p = c.spar[p as usize]
+    return false
+
+fn is_compound(c: &Chart, s: i64) -> bool = c.skind[s as usize] == COMPOUND
+fn is_hist(c: &Chart, s: i64) -> bool = c.skind[s as usize] >= HIST_SHALLOW
+fn is_atomic(c: &Chart, s: i64) -> bool = c.skind[s as usize] == ATOMIC or c.skind[s as usize] == FINAL
+
+fn var_ix(c: &Chart, m: i64, v: &text) -> i64
+    for i in 0..c.mvars[m as usize].len()
+        if c.mvars[m as usize][i] == v
+            return i as i64
+    return -1
+
+# value of an atom ("n:<int>" or "v:<var>" at parts[i], parts[i+1]);
+# [bound, value, ok]
+fn atom(c: &Chart, r: &Run, s: i64, p: &[text], i: usize) -> List[i64]
+    if p.len() < i + 2
+        return [0, 0, 0]
+    if p[i] == "n"
+        return [1, p[i + 1].toint(), 1]
+    if p[i] == "v"
+        let k = var_ix(c, r.smachine[s as usize], &p[i + 1])
+        if k < 0
+            return [0, 0, 0]
+        return [r.vbound[s as usize][k as usize], r.vval[s as usize][k as usize], 1]
+    return [0, 0, 0]
+
+fn eval_expr(c: &Chart, r: &Run, s: i64, e: &text) -> List[i64]
+    let p = e.split(":")
+    if p[0] == "add"
+        let x = atom(c, r, s, &p, 1)
+        let y = atom(c, r, s, &p, 3)
+        if x[2] == 0 or y[2] == 0
+            return [0, 0, 0]
+        if x[0] == 0 or y[0] == 0
+            return [0, 0, 0]
+        return [1, x[1] + y[1], 1]
+    return atom(c, r, s, &p, 0)
+
+# [value, ok]
+fn eval_cond(c: &Chart, r: &Run, s: i64, e: &text) -> List[i64]
+    if e == "-" or e == "t"
+        return [1, 1]
+    if e == "f"
+        return [0, 1]
+    let p = e.split(":")
+    if p[0] == "in"
+        let k = find_state(c, r.smachine[s as usize], &p[1])
+        if k < 0
+            return [0, 1]
+        return [r.conf[s as usize][k as usize], 1]
+    if p[0] == "ev"
+        return [if r.ev == p[1] then 1 else 0, 1]
+    if p[0] == "bound"
+        let k = var_ix(c, r.smachine[s as usize], &p[1])
+        if k < 0
+            return [0, 0]
+        return [if r.vbound[s as usize][k as usize] == 1 and r.vval[s as usize][k as usize] != 0 then 1 else 0, 1]
+    if p[0] == "cmp"
+        let x = atom(c, r, s, &p, 2)
+        let y = atom(c, r, s, &p, 4)
+        if x[2] == 0 or y[2] == 0
+            return [0, 0]
+        if x[0] == 0 or y[0] == 0
+            return [if p[1] == "ne" then 1 else 0, 1]
+        let a = x[1]
+        let b = y[1]
+        var v = false
+        if p[1] == "eq"
+            v = a == b
+        elif p[1] == "ne"
+            v = a != b
+        elif p[1] == "lt"
+            v = a < b
+        elif p[1] == "le"
+            v = a <= b
+        elif p[1] == "gt"
+            v = a > b
+        elif p[1] == "ge"
+            v = a >= b
+        else
+            return [0, 0]
+        return [if v then 1 else 0, 1]
+    return [0, 0]
+
+fn raise_int(r: &mut Run, s: i64, e: text)
+    r.iq[s as usize].push(e)
+
+fn push_ext(r: &mut Run, sess: i64, e: text, delay: i64)
+    r.qtime.push(r.now + delay)
+    r.qseq.push(r.seq)
+    r.seq += 1
+    r.qsess.push(sess)
+    r.qev.push(e)
+
+# condition with error.execution on failure (SCXML 5.9)
+fn cond_ok(c: &Chart, r: &mut Run, s: i64, e: &text) -> bool
+    let v = eval_cond(c, r, s, e)
+    if v[1] == 0
+        raise_int(r, s, "error.execution")
+        return false
+    return v[0] == 1
+
+fn exec_block(c: &Chart, r: &mut Run, s: i64, b: i64)
+    if b < 0
+        return
+    # if-frames: 0 running a branch, 1 looking for a branch, 2 branch done,
+    # 3 inside a skipped region
+    var fr: List[i64] = []
+    let acts = copy(c.blocks[b as usize])
+    for a in acts
+        let u = a as usize
+        let op = c.aop[u]
+        var live = true
+        for f in fr
+            if f != 0
+                live = false
+        if op == A_IF
+            if not live
+                fr.push(3)
+            elif cond_ok(c, r, s, &c.aa[u])
+                fr.push(0)
+            else
+                fr.push(1)
+        elif op == A_ELIF or op == A_ELSE
+            let t = fr[fr.len() - 1]
+            fr.pop()
+            var outer = true
+            for f in fr
+                if f != 0
+                    outer = false
+            if t == 3
+                fr.push(3)
+            elif t == 0 or t == 2
+                fr.push(2)
+            elif op == A_ELSE or cond_ok(c, r, s, &c.aa[u])
+                fr.push(if outer then 0 else 3)
+            else
+                fr.push(1)
+        elif op == A_FI
+            fr.pop()
+        elif live
+            if op == A_RAISE
+                raise_int(r, s, copy(c.aa[u]))
+            elif op == A_LOG
+                r.logs.push(copy(c.aa[u]))
+            elif op == A_ASSIGN
+                let m = r.smachine[s as usize]
+                let k = var_ix(c, m, &c.aa[u])
+                let v = eval_expr(c, r, s, &c.ab[u])
+                if k < 0 or v[2] == 0
+                    raise_int(r, s, "error.execution")
+                    return
+                r.vbound[s as usize][k as usize] = v[0]
+                r.vval[s as usize][k as usize] = v[1]
+            elif op == A_SEND
+                if c.ab[u] == "self"
+                    push_ext(r, s, copy(c.aa[u]), c.an[u])
+                elif c.ab[u] == "parent" and r.sparent[s as usize] >= 0
+                    push_ext(r, r.sparent[s as usize], copy(c.aa[u]), c.an[u])
+                else
+                    raise_int(r, s, "error.execution")
+                    return
+
+fn name_match(descs: &[text], e: &text) -> bool
+    for d0 in descs
+        var d = copy(d0)
+        if d.endswith(".*")
+            let p = d.split(".*")
+            d = copy(p[0])
+        elif d.endswith(".")
+            let p = d.split(".")
+            d = ".".join(p)
+        if d == "*" or d == e
+            return true
+        let pre = d + "."
+        if e.startswith(pre)
+            return true
+    return false
+
+# ---------------- algorithm (SCXML Appendix D) ----------------
+fn proper_ancestors(c: &Chart, s: i64, upto: i64) -> List[i64]
+    var o: List[i64] = []
+    var p = c.spar[s as usize]
+    while p >= 0 and p != upto bound 1048576
+        o.push(p)
+        p = c.spar[p as usize]
+    return o
+
+fn effective_targets(c: &Chart, r: &Run, ses: i64, t: i64) -> List[i64]
+    var o: List[i64] = []
+    var st: List[i64] = []
+    var k = c.ttgt[t as usize].len()
+    while k > 0 bound 1048576
+        k -= 1
+        st.push(c.ttgt[t as usize][k])
+    while st.len() > 0 bound 1048576
+        let s = st[st.len() - 1]
+        st.pop()
+        if is_hist(c, s)
+            if r.hset[ses as usize][s as usize] == 1
+                for x in r.hist[ses as usize][s as usize]
+                    if not o.contains(x)
+                        o.push(x)
+            else
+                # the history's default transition
+                let dt = copy(c.strans[s as usize])
+                if dt.len() > 0
+                    var j = c.ttgt[dt[0] as usize].len()
+                    while j > 0 bound 1048576
+                        j -= 1
+                        st.push(c.ttgt[dt[0] as usize][j])
+        elif not o.contains(s)
+            o.push(s)
+    return o
+
+fn lcca(c: &Chart, ss: &[i64]) -> i64
+    for a in proper_ancestors(c, ss[0], -1)
+        if c.skind[a as usize] == COMPOUND or c.skind[a as usize] == ROOT
+            var all = true
+            for i in 1..ss.len()
+                if not is_desc(c, ss[i], a)
+                    all = false
+            if all
+                return a
+    return -1
+
+fn domain(c: &Chart, r: &Run, ses: i64, t: i64) -> i64
+    let ts = effective_targets(c, r, ses, t)
+    if ts.len() == 0
+        return -1
+    let src = c.tsrc[t as usize]
+    if c.tint[t as usize] and (is_compound(c, src) or c.skind[src as usize] == ROOT)
+        var all = true
+        for s in ts
+            if not is_desc(c, s, src)
+                all = false
+        if all
+            return src
+    var l: List[i64] = [src]
+    for s in ts
+        l.push(s)
+    return lcca(c, &l)
+
+fn exit_set(c: &Chart, r: &Run, ses: i64, ts: &[i64]) -> List[i64]
+    var o: List[i64] = []
+    for t in ts
+        if c.ttgt[t as usize].len() > 0
+            let d = domain(c, r, ses, t)
+            for s in 0..c.sid.len()
+                if r.conf[ses as usize][s] == 1 and is_desc(c, s as i64, d) and not o.contains(s as i64)
+                    o.push(s as i64)
+    return o
+
+fn remove_conflicts(c: &Chart, r: &Run, ses: i64, en: &[i64]) -> List[i64]
+    var f: List[i64] = []
+    for t1 in en
+        var pre = false
+        var rm: List[i64] = []
+        let one: List[i64] = [t1]
+        let x1 = exit_set(c, r, ses, &one)
+        for t2 in f
+            if not pre
+                let two: List[i64] = [t2]
+                let x2 = exit_set(c, r, ses, &two)
+                var meet = false
+                for s in x1
+                    if x2.contains(s)
+                        meet = true
+                if meet
+                    if is_desc(c, c.tsrc[t1 as usize], c.tsrc[t2 as usize])
+                        rm.push(t2)
+                    else
+                        pre = true
+        if not pre
+            var g: List[i64] = []
+            for t2 in f
+                if not rm.contains(t2)
+                    g.push(t2)
+            g.push(t1)
+            f = g
+    return f
+
+# enabled transitions for event e (eventless when e is "")
+fn select_tr(c: &Chart, r: &mut Run, ses: i64, e: &text) -> List[i64]
+    var en: List[i64] = []
+    let m = r.smachine[ses as usize]
+    for s in 0..c.sid.len()
+        if r.conf[ses as usize][s] == 1 and c.smach[s] == m and is_atomic(c, s as i64)
+            var chain: List[i64] = [s as i64]
+            for a in proper_ancestors(c, s as i64, -1)
+                chain.push(a)
+            var done = false
+            for a in chain
+                if not done
+                    for t in c.strans[a as usize]
+                        if not done and not is_hist(c, a)
+                            let evs = copy(c.tev[t as usize])
+                            var hit = false
+                            if e == ""
+                                hit = evs.len() == 0
+                            else
+                                hit = evs.len() > 0 and name_match(&evs, e)
+                            if hit and cond_ok(c, r, ses, &c.tcond[t as usize])
+                                if not en.contains(t)
+                                    en.push(t)
+                                done = true
+    return remove_conflicts(c, r, ses, &en)
+
+fn in_final(c: &Chart, r: &Run, ses: i64, s: i64) -> bool
+    var st: List[i64] = [s]
+    while st.len() > 0 bound 1048576
+        let x = st[st.len() - 1]
+        st.pop()
+        if is_compound(c, x) or c.skind[x as usize] == ROOT
+            var f = false
+            for k in c.skids[x as usize]
+                if c.skind[k as usize] == FINAL and r.conf[ses as usize][k as usize] == 1
+                    f = true
+            if not f
+                return false
+        elif c.skind[x as usize] == PARALLEL
+            for k in c.skids[x as usize]
+                st.push(k)
+        else
+            return false
+    return true
+
+fn exit_states(c: &Chart, r: &mut Run, ses: i64, ts: &[i64])
+    let xs = exit_set(c, r, ses, ts)
+    var order: List[i64] = []
+    var s = c.sid.len()
+    while s > 0 bound 16777216
+        s -= 1
+        if xs.contains(s as i64)
+            order.push(s as i64)
+    for x in order
+        var keep: List[i64] = []
+        for y in r.toinv[ses as usize]
+            if y != x
+                keep.push(y)
+        r.toinv[ses as usize] = keep
+        for h in c.skids[x as usize]
+            if is_hist(c, h)
+                var hv: List[i64] = []
+                for q in 0..c.sid.len()
+                    if r.conf[ses as usize][q] == 1
+                        if c.skind[h as usize] == HIST_DEEP
+                            if is_atomic(c, q as i64) and is_desc(c, q as i64, x)
+                                hv.push(q as i64)
+                        elif c.spar[q] == x
+                            hv.push(q as i64)
+                r.hist[ses as usize][h as usize] = hv
+                r.hset[ses as usize][h as usize] = 1
+    for x in order
+        if ses == 0
+            r.trace.push("-" + c.sid[x as usize])
+        for b in c.sexit[x as usize]
+            exec_block(c, r, ses, b)
+        # cancel invocations started by x
+        for k in 0..r.smachine.len()
+            if r.sparent[k] == ses and r.sinvstate[k] == x
+                r.srunning[k] = false
+        r.conf[ses as usize][x as usize] = 0
+
+# entry set: statesToEnter, statesForDefaultEntry and
+# defaultHistoryContent (block per parent state), via an explicit task
+# stack that follows the recursion of addDescendantStatesToEnter and
+# addAncestorStatesToEnter. Tasks: [1, s, -] descend, [2, s, anc]
+# ancestors, [3, child, -] parallel child check.
+fn entry_set(c: &Chart, r: &Run, ses: i64, ts: &[i64], enter: &mut List[i64], dflt: &mut List[i64], hc: &mut List[i64])
+    var tk: List[List[i64]] = []
+    var i = ts.len()
+    # transitions are processed in order: push in reverse
+    while i > 0 bound 1048576
+        i -= 1
+        let t = ts[i]
+        let d = domain(c, r, ses, t)
+        let eff = effective_targets(c, r, ses, t)
+        var j = eff.len()
+        while j > 0 bound 1048576
+            j -= 1
+            tk.push([2, eff[j], d])
+        j = c.ttgt[t as usize].len()
+        while j > 0 bound 1048576
+            j -= 1
+            tk.push([1, c.ttgt[t as usize][j], -1])
+    while tk.len() > 0 bound 16777216
+        let w = copy(tk[tk.len() - 1])
+        tk.pop()
+        let s = w[1]
+        if w[0] == 1
+            if is_hist(c, s)
+                let p = c.spar[s as usize]
+                var tg: List[i64] = []
+                if r.hset[ses as usize][s as usize] == 1
+                    tg = copy(r.hist[ses as usize][s as usize])
+                else
+                    let dt = copy(c.strans[s as usize])
+                    if dt.len() > 0
+                        hc[p as usize] = c.tblk[dt[0] as usize]
+                        tg = copy(c.ttgt[dt[0] as usize])
+                var k = tg.len()
+                while k > 0 bound 1048576
+                    k -= 1
+                    tk.push([2, tg[k], p])
+                k = tg.len()
+                while k > 0 bound 1048576
+                    k -= 1
+                    tk.push([1, tg[k], -1])
+            else
+                if not enter.contains(s)
+                    enter.push(s)
+                if is_compound(c, s)
+                    if not dflt.contains(s)
+                        dflt.push(s)
+                    let tg = copy(c.sinit[s as usize])
+                    var k = tg.len()
+                    while k > 0 bound 1048576
+                        k -= 1
+                        tk.push([2, tg[k], s])
+                        tk.push([1, tg[k], -1])
+                elif c.skind[s as usize] == PARALLEL
+                    var k = c.skids[s as usize].len()
+                    while k > 0 bound 1048576
+                        k -= 1
+                        let ch = c.skids[s as usize][k]
+                        if not is_hist(c, ch)
+                            tk.push([3, ch, -1])
+        elif w[0] == 2
+            let ancs = proper_ancestors(c, s, w[2])
+            # each ancestor: add, then parallel child checks (in order)
+            var later: List[List[i64]] = []
+            for a in ancs
+                if not enter.contains(a)
+                    enter.push(a)
+                if c.skind[a as usize] == PARALLEL
+                    for ch in c.skids[a as usize]
+                        if not is_hist(c, ch)
+                            later.push([3, ch, -1])
+            var k = later.len()
+            while k > 0 bound 1048576
+                k -= 1
+                tk.push(copy(later[k]))
+        else
+            var has = false
+            for x in enter
+                if is_desc(c, x, s) or x == s
+                    has = true
+            if not has
+                tk.push([1, s, -1])
+
+fn enter_states(c: &Chart, r: &mut Run, ses: i64, ts: &[i64])
+    var enter: List[i64] = []
+    var dflt: List[i64] = []
+    var hc: List[i64] = []
+    for s in 0..c.sid.len()
+        hc.push(-1)
+    entry_set(c, r, ses, ts, &mut enter, &mut dflt, &mut hc)
+    for s in 0..c.sid.len()
+        let x = s as i64
+        if enter.contains(x)
+            r.conf[ses as usize][s] = 1
+            r.toinv[ses as usize].push(x)
+            if ses == 0
+                r.trace.push("+" + c.sid[s])
+            for b in c.sentry[s]
+                exec_block(c, r, ses, b)
+            if dflt.contains(x)
+                exec_block(c, r, ses, c.sinitblk[s])
+            if hc[s] >= 0
+                exec_block(c, r, ses, hc[s])
+            if c.skind[s] == FINAL
+                let p = c.spar[s]
+                if c.skind[p as usize] == ROOT
+                    r.srunning[ses as usize] = false
+                    if ses == 0 and r.outcome == ""
+                        r.outcome = copy(c.sid[s])
+                else
+                    raise_int(r, ses, "done.state." + c.sid[p as usize])
+                    let g = c.spar[p as usize]
+                    if g >= 0 and c.skind[g as usize] == PARALLEL
+                        var all = true
+                        for k in c.skids[g as usize]
+                            if not is_hist(c, k) and not in_final(c, r, ses, k)
+                                all = false
+                        if all
+                            raise_int(r, ses, "done.state." + c.sid[g as usize])
+
+fn microstep(c: &Chart, r: &mut Run, ses: i64, ts: &[i64])
+    exit_states(c, r, ses, ts)
+    for t in ts
+        exec_block(c, r, ses, c.tblk[t as usize])
+    enter_states(c, r, ses, ts)
+
+fn macrostep(c: &Chart, r: &mut Run, ses: i64)
+    var go = true
+    while go and r.srunning[ses as usize] and r.fuel > 0 bound 1048576
+        r.fuel -= 1
+        r.ev = ""
+        let none_ev = ""
+        var en = select_tr(c, r, ses, &none_ev)
+        if en.len() == 0
+            if r.iq[ses as usize].len() == 0
+                go = false
+            else
+                let e = copy(r.iq[ses as usize][0])
+                var rest: List[text] = []
+                for i in 1..r.iq[ses as usize].len()
+                    rest.push(copy(r.iq[ses as usize][i]))
+                r.iq[ses as usize] = rest
+                r.ev = copy(e)
+                en = select_tr(c, r, ses, &e)
+        if en.len() > 0
+            microstep(c, r, ses, &en)
+    if not r.srunning[ses as usize]
+        finish(c, r, ses)
+        return
+    # start invocations of states entered and still active (doc order)
+    let ti = copy(r.toinv[ses as usize])
+    r.toinv[ses as usize] = []
+    for s in 0..c.sid.len()
+        if ti.contains(s as i64) and r.conf[ses as usize][s] == 1
+            for mi in c.sinv[s]
+                start_session(c, r, mi, ses, s as i64)
+
+# exitInterpreter: onexit handlers of the whole configuration, deepest
+# and latest first; the configuration itself is kept as the final one
+fn finish(c: &Chart, r: &mut Run, ses: i64)
+    var s = c.sid.len()
+    while s > 0 bound 16777216
+        s -= 1
+        if r.conf[ses as usize][s] == 1
+            for b in c.sexit[s]
+                exec_block(c, r, ses, b)
+            for k in 0..r.smachine.len()
+                if r.sparent[k] == ses and r.sinvstate[k] == s as i64
+                    r.srunning[k] = false
+    let p = r.sparent[ses as usize]
+    if p >= 0 and r.srunning[p as usize]
+        push_ext(r, p, "done.invoke." + r.sinvid[ses as usize], 0)
+
+fn new_session(c: &Chart, r: &mut Run, m: i64, parent: i64, st: i64) -> i64
+    var z: List[i64] = []
+    var hz: List[List[i64]] = []
+    for s in 0..c.sid.len()
+        z.push(0)
+        hz.push(no_ints())
+    r.conf.push(copy(z))
+    r.hset.push(copy(z))
+    r.hist.push(hz)
+    var b: List[i64] = []
+    var v: List[i64] = []
+    for i in 0..c.mvars[m as usize].len()
+        b.push(0)
+        v.push(0)
+    r.vbound.push(b)
+    r.vval.push(v)
+    r.smachine.push(m)
+    r.sparent.push(parent)
+    r.srunning.push(true)
+    r.sinvstate.push(st)
+    let k = r.smachine.len() as i64
+    r.sinvid.push(if st >= 0 then c.sid[st as usize] + "." + k.tostr() else "")
+    r.iq.push(no_texts())
+    r.toinv.push(no_ints())
+    let ses = k - 1
+    # early binding: every <data> at start
+    for i in 0..c.mvars[m as usize].len()
+        let e = copy(c.mexpr[m as usize][i])
+        if e != "-"
+            let x = eval_expr(c, r, ses, &e)
+            if x[2] == 0
+                raise_int(r, ses, "error.execution")
+            else
+                r.vbound[ses as usize][i] = x[0]
+                r.vval[ses as usize][i] = x[1]
+    return ses
+
+fn start_session(c: &Chart, r: &mut Run, m: i64, parent: i64, st: i64) bound 64
+    let ses = new_session(c, r, m, parent, st)
+    let root = c.mroot[m as usize]
+    # the initial transition: source the root, internal
+    let t = init_transition(c, root)
+    let ts: List[i64] = [t]
+    enter_states(c, r, ses, &ts)
+    macrostep(c, r, ses)
+
+fn init_transition(c: &Chart, root: i64) -> i64
+    for k in 0..c.tsrc.len()
+        if c.tsrc[k] == root and c.tcond[k] == "init"
+            return k as i64
+    return -1
+
+# Add the root's initial pseudo-transitions (cond "init") once.
+fn with_inits(c0: &Chart) -> Chart
+    var c = copy(c0)
+    for m in 0..c.mroot.len()
+        let root = c.mroot[m]
+        if root >= 0
+            let b = new_block(&mut c)
+            c.tsrc.push(root)
+            c.tev.push(no_texts())
+            c.tcond.push("init")
+            c.tint.push(true)
+            c.ttgt.push(copy(c.sinit[root as usize]))
+            c.tblk.push(b)
+            # not in strans: never selected, found by init_transition
+    return c
+
+fn run0() -> Run = Run(conf: [], hist: [], hset: [], vbound: [], vval: [], smachine: [], sparent: [], srunning: [], sinvstate: [], sinvid: [], iq: [], qtime: [], qseq: [], qsess: [], qev: [], now: 0, seq: 0, toinv: [], trace: [], logs: [], outcome: "", ev: "", fuel: 100000)
+
+pub struct Result
+    outcome: text
+    conf: List[text]
+    leaves: List[text]
+    trace: List[text]
+    logs: List[text]
+    vals: List[i64]
+    isset: List[i64]
+    err: text
+
+# Run machine 0 of chart text src: external events evs at time 0 in
+# order, then delayed events in due order, until machine 0 stops or the
+# queue is empty.
+pub fn run(src: &text, evs: &[text]) -> Result
+    let c0 = parse_chart(src)
+    if not c0.ok
+        return Result(outcome: "", conf: [], leaves: [], trace: [], logs: [], vals: [], isset: [], err: copy(c0.why))
+    let c = with_inits(&c0)
+    var r = run0()
+    for e in evs
+        push_ext(&mut r, 0, copy(e), 0)
+    let root = c.mroot[0]
+    let ses = new_session(&c, &mut r, 0, -1, -1)
+    let ts: List[i64] = [init_transition(&c, root)]
+    enter_states(&c, &mut r, ses, &ts)
+    macrostep(&c, &mut r, ses)
+    while r.srunning[0] and r.qev.len() > 0 and r.fuel > 0 bound 1048576
+        r.fuel -= 1
+        # earliest (time, seq)
+        var b: usize = 0
+        for i in 1..r.qev.len()
+            if r.qtime[i] < r.qtime[b] or (r.qtime[i] == r.qtime[b] and r.qseq[i] < r.qseq[b])
+                b = i
+        let e = copy(r.qev[b])
+        let s = r.qsess[b]
+        if r.qtime[b] > r.now
+            r.now = r.qtime[b]
+        var qt: List[i64] = []
+        var qs: List[i64] = []
+        var qx: List[i64] = []
+        var qe: List[text] = []
+        for i in 0..r.qev.len()
+            if i != b
+                qt.push(r.qtime[i])
+                qs.push(r.qseq[i])
+                qx.push(r.qsess[i])
+                qe.push(copy(r.qev[i]))
+        r.qtime = qt
+        r.qseq = qs
+        r.qsess = qx
+        r.qev = qe
+        if r.srunning[s as usize]
+            r.ev = copy(e)
+            let en = select_tr(&c, &mut r, s, &e)
+            if en.len() > 0
+                microstep(&c, &mut r, s, &en)
+            macrostep(&c, &mut r, s)
+    var conf: List[text] = []
+    var leaves: List[text] = []
+    for i in 0..c.sid.len()
+        if r.conf[0][i] == 1 and c.smach[i] == 0 and c.skind[i] != ROOT
+            conf.push(copy(c.sid[i]))
+            if is_atomic(&c, i as i64)
+                leaves.push(copy(c.sid[i]))
+    return Result(outcome: copy(r.outcome), conf: conf, leaves: leaves, trace: copy(r.trace), logs: copy(r.logs), vals: copy(r.vval[0]), isset: copy(r.vbound[0]), err: if r.fuel <= 0 then "fuel" else "")
