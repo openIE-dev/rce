@@ -1,0 +1,1340 @@
+module num.stats
+# uses: num.linalg, num.special, rand.det
+use num.linalg
+use num.special
+use rand.det
+
+# Statistics over IEEE binary64, deterministic on every target (spec 6.3
+# N3; fixed evaluation order throughout). Contents: exact summation,
+# descriptive statistics, distributions (pdf/pmf, cdf, sf, quantile),
+# uniform/normal/exponential variates from the seeded ChaCha20 streams of
+# rand.det, linear least squares regression, and hypothesis tests.
+#
+# Accuracy principles. Sums are correctly rounded (st_fsum, Shewchuk's
+# nonoverlapping partials with Python math.fsum's final rounding), and
+# sums of products add the exact Dekker products, so a mean is within one
+# rounding of the true mean and the corrected two-pass variance
+# (Chan, Golub and LeVeque 1983) of the rounded deviations is nearly
+# exact. Densities use Loader's saddle-point form (C. Loader, "Fast and
+# accurate computation of binomial probabilities", 2000): stirlerr and
+# bd0 replace lgamma differences, so they keep full relative accuracy for
+# large counts; the incomplete gamma and beta prefactors use the same
+# form. Checked against NIST StRD (univariate, linear regression, ANOVA)
+# certified values and SciPy 1.18.1 reference values (tests/num).
+
+error StatsError(why: text)
+
+# ---------------------------------------------------------------- sums
+
+fn st_abs(x: f64) -> f64 = if x < 0.0 then 0.0 - x else x
+
+# Correctly rounded sum of xs (math.fsum: Shewchuk's msum; the partials
+# are summed from the top, with the half-way correction).
+pub fn st_fsum(xs: &[f64]) -> f64
+    var p: List[f64] = []
+    for x0 in xs
+        var x = x0
+        var i: usize = 0
+        var j: usize = 0
+        while j < p.len() bound 1048576
+            var y = p[j]
+            if st_abs(x) < st_abs(y)
+                let t = x
+                x = y
+                y = t
+            let hi = x + y
+            let lo = y - (hi - x)
+            if lo != 0.0
+                p[i] = lo
+                i += 1
+            x = hi
+            j += 1
+        while p.len() > i bound 1048576
+            p.pop()
+        p.push(x)
+    var n = p.len()
+    if n == 0
+        return 0.0
+    n -= 1
+    var hi = p[n]
+    var lo = 0.0
+    while n > 0 bound 1048576
+        let x = hi
+        n -= 1
+        let y = p[n]
+        hi = x + y
+        let yr = hi - x
+        lo = y - yr
+        if lo != 0.0
+            break
+    if n > 0 and ((lo < 0.0 and p[n - 1] < 0.0) or (lo > 0.0 and p[n - 1] > 0.0))
+        let y = lo * 2.0
+        let x = hi + y
+        let yr = x - hi
+        if y == yr
+            hi = x
+    return hi
+
+# Dekker's exact product without FMA: [p, e], p = fl(a b), p + e = a b
+# exactly (Veltkamp split by 2^27 + 1; |a|, |b| < 2^995).
+pub fn st_two_prod(a: f64, b: f64) -> List[f64]
+    let p = a * b
+    let ca = 134217729.0 * a
+    let ah = ca - (ca - a)
+    let al = a - ah
+    let cb = 134217729.0 * b
+    let bh = cb - (cb - b)
+    let bl = b - bh
+    let e = ((ah * bh - p) + ah * bl + al * bh) + al * bl
+    return [p, e]
+
+# Correctly rounded sum of the exact products x[i] * y[i].
+pub fn st_dot(x: &[f64], y: &[f64]) -> f64
+    var t: List[f64] = []
+    for i in 0..x.len()
+        let pe = st_two_prod(x[i], y[i])
+        t.push(pe[0])
+        t.push(pe[1])
+    return st_fsum(&t)
+
+# ---------------------------------------------------------------- descriptive
+
+pub fn sum(xs: &[f64]) -> f64 = st_fsum(xs)
+
+pub fn mean(xs: &[f64]) -> f64 ! StatsError
+    if xs.len() == 0
+        fail StatsError(why: "mean of no values")
+    return st_fsum(xs) / (xs.len() as f64)
+
+# The mean as an unevaluated pair [h, l], h + l within about 2^-104 of
+# the exact mean: the exact sum (fsum and its remainder) divided by n in
+# double-double.
+pub fn st_mean_dd(xs: &[f64]) -> List[f64]
+    if xs.len() == 0
+        return [0.0, 0.0]
+    let n = xs.len() as f64
+    let hi = st_fsum(xs)
+    var t: List[f64] = []
+    for x in xs
+        t.push(x)
+    t.push(0.0 - hi)
+    let lo = st_fsum(&t)
+    let q1 = hi / n
+    let e = st_two_prod(q1, n)
+    let r: List[f64] = [hi, lo, 0.0 - e[0], 0.0 - e[1]]
+    return [q1, st_fsum(&r) / n]
+
+# Deviations from the mean, each the correctly rounded x - (h + l), so
+# the rounding of the mean itself does not enter (it matters when the
+# spread is small against the level, e.g. NIST NumAcc4, SmLs07-09).
+fn st_dev(xs: &[f64]) -> List[f64]
+    if xs.len() == 0
+        return []
+    let mm = st_mean_dd(xs)
+    var d: List[f64] = []
+    for x in xs
+        let t: List[f64] = [x, 0.0 - mm[0], 0.0 - mm[1]]
+        d.push(st_fsum(&t))
+    return d
+
+# Corrected two-pass sum of squared deviations: sum d^2 - (sum d)^2 / n
+# with d = x - mean, both sums correctly rounded (exact products).
+pub fn sum_sq_dev(xs: &[f64]) -> f64 ! StatsError
+    let m = try mean(xs)
+    let d = st_dev(xs)
+    let s2 = st_dot(&d, &d)
+    let s1 = st_fsum(&d)
+    let c = s1 * s1 / (xs.len() as f64)
+    return if s2 > c then s2 - c else 0.0
+
+# Variance with ddof degrees of freedom removed (ddof 1: sample, the
+# NIST and R default; ddof 0: population).
+pub fn variance(xs: &[f64], ddof: i64) -> f64 ! StatsError
+    let n = xs.len() as i64
+    if n - ddof <= 0
+        fail StatsError(why: "variance needs more values than ddof")
+    return (try sum_sq_dev(xs)) / ((n - ddof) as f64)
+
+pub fn stdev(xs: &[f64], ddof: i64) -> f64 ! StatsError = (try variance(xs, ddof)).sqrt()
+
+# Lag-1 autocorrelation as NIST StRD defines it: sum over i of
+# d[i] d[i+1] divided by sum of d[i]^2, d = x - mean.
+pub fn autocorr1(xs: &[f64]) -> f64 ! StatsError
+    if xs.len() < 2
+        fail StatsError(why: "autocorrelation needs two values")
+    let m = try mean(xs)
+    let d = st_dev(xs)
+    var a: List[f64] = []
+    var b: List[f64] = []
+    for i in 0..(d.len() - 1)
+        a.push(d[i])
+        b.push(d[i + 1])
+    let den = st_dot(&d, &d)
+    if den == 0.0
+        fail StatsError(why: "autocorrelation of constant data")
+    return st_dot(&a, &b) / den
+
+pub fn covariance(x: &[f64], y: &[f64], ddof: i64) -> f64 ! StatsError
+    let n = x.len() as i64
+    if y.len() != x.len() or n - ddof <= 0
+        fail StatsError(why: "covariance needs equal lengths above ddof")
+    let dx = st_dev(x)
+    let dy = st_dev(y)
+    let c = st_dot(&dx, &dy) - st_fsum(&dx) * st_fsum(&dy) / (n as f64)
+    return c / ((n - ddof) as f64)
+
+# Pearson's r.
+pub fn correlation(x: &[f64], y: &[f64]) -> f64 ! StatsError
+    if y.len() != x.len() or x.len() < 2
+        fail StatsError(why: "correlation needs two equal-length samples")
+    let dx = st_dev(x)
+    let dy = st_dev(y)
+    let n = x.len() as f64
+    let sxy = st_dot(&dx, &dy) - st_fsum(&dx) * st_fsum(&dy) / n
+    let sxx = st_dot(&dx, &dx) - st_fsum(&dx) * st_fsum(&dx) / n
+    let syy = st_dot(&dy, &dy) - st_fsum(&dy) * st_fsum(&dy) / n
+    if sxx <= 0.0 or syy <= 0.0
+        fail StatsError(why: "correlation of constant data")
+    let r = sxy / (sxx.sqrt() * syy.sqrt())
+    return r.max(-1.0).min(1.0)
+
+# Central moment m_k = sum (x - mean)^k / n, k = 2, 3, 4.
+fn st_moment(xs: &[f64], k: i64) -> f64 ! StatsError
+    let d = st_dev(xs)
+    var t: List[f64] = []
+    for v in &d
+        var p = v * v
+        if k >= 3
+            p = p * v
+        if k == 4
+            p = p * v
+        t.push(p)
+    return st_fsum(&t) / (xs.len() as f64)
+
+# Skewness g1 = m3 / m2^1.5 and excess kurtosis g2 = m4 / m2^2 - 3 (the
+# biased moment estimators; scipy.stats.skew/kurtosis defaults).
+pub fn skewness(xs: &[f64]) -> f64 ! StatsError
+    let m2 = try st_moment(xs, 2)
+    if m2 == 0.0
+        fail StatsError(why: "skewness of constant data")
+    return (try st_moment(xs, 3)) / (m2 * m2.sqrt())
+
+pub fn kurtosis(xs: &[f64]) -> f64 ! StatsError
+    let m2 = try st_moment(xs, 2)
+    if m2 == 0.0
+        fail StatsError(why: "kurtosis of constant data")
+    return (try st_moment(xs, 4)) / (m2 * m2) - 3.0
+
+# Stable merge sort (ascending).
+pub fn sorted(xs: &[f64]) -> List[f64]
+    var a: List[f64] = []
+    for x in xs
+        a.push(x)
+    let n = a.len()
+    var b = copy(a)
+    var width: usize = 1
+    while width < n bound 64
+        var lo: usize = 0
+        while lo < n bound 1048576
+            let mid = if lo + width < n then lo + width else n
+            let hi = if lo + 2 * width < n then lo + 2 * width else n
+            var i = lo
+            var j = mid
+            var k = lo
+            while k < hi bound 1048576
+                if i < mid and (j >= hi or a[i] <= a[j])
+                    b[k] = a[i]
+                    i += 1
+                else
+                    b[k] = a[j]
+                    j += 1
+                k += 1
+            lo = hi
+        let t = copy(a)
+        a = copy(b)
+        b = t
+        width = width * 2
+    return a
+
+pub fn minimum(xs: &[f64]) -> f64 ! StatsError
+    if xs.len() == 0
+        fail StatsError(why: "minimum of no values")
+    var m = xs[0]
+    for x in xs
+        m = m.min(x)
+    return m
+
+pub fn maximum(xs: &[f64]) -> f64 ! StatsError
+    if xs.len() == 0
+        fail StatsError(why: "maximum of no values")
+    var m = xs[0]
+    for x in xs
+        m = m.max(x)
+    return m
+
+# Sample quantile of Hyndman and Fan (1996) type 1..9 (R quantile(type=)
+# numbering), computed exactly as NumPy 2.5 numpy.quantile does for the
+# matching method (inverted_cdf, averaged_inverted_cdf,
+# closest_observation, interpolated_inverted_cdf, hazen, weibull, linear
+# = type 7, the R and NumPy default, median_unbiased, normal_unbiased):
+# the same virtual index expression, bounds rule and two-sided lerp
+# (a + (b - a) g under g = 1/2, b - (b - a)(1 - g) from 1/2 on), so the
+# results agree bit for bit. p in [0, 1].
+pub fn quantile(xs: &[f64], p: f64, qtype: i64) -> f64 ! StatsError
+    let n = xs.len()
+    if n == 0 or p < 0.0 or p > 1.0 or qtype < 1 or qtype > 9
+        fail StatsError(why: "quantile arguments")
+    let s = sorted(xs)
+    let nf = n as f64
+    if qtype == 1 or qtype == 3
+        let v = if qtype == 1 then nf * p - 1.0 else nf * p - 1.0 - 0.5
+        let prev = v.floor()
+        let g = v - prev
+        var pi = prev as i64
+        let odd = pi % 2 == 1 or pi % 2 == -1
+        let keep = if qtype == 1 then g == 0.0 else (g == 0.0 and odd)
+        var idx = if keep then pi else pi + 1
+        if idx < 0
+            idx = 0
+        return s[idx as usize]
+    var v = 0.0
+    if qtype == 2
+        v = nf * p - 1.0
+    elif qtype == 7
+        v = (nf - 1.0) * p
+    else
+        var al = 0.0
+        var be = 0.0
+        if qtype == 4
+            al = 0.0
+            be = 1.0
+        elif qtype == 5
+            al = 0.5
+            be = 0.5
+        elif qtype == 8
+            al = 1.0 / 3.0
+            be = 1.0 / 3.0
+        elif qtype == 9
+            al = 3.0 / 8.0
+            be = 3.0 / 8.0
+        v = nf * p + (al + p * (1.0 - al - be)) - 1.0
+    if v >= nf - 1.0
+        return s[n - 1]
+    if v < 0.0
+        return s[0]
+    let prev = v.floor()
+    var g = v - prev
+    if qtype == 2
+        g = if g == 0.0 then 0.5 else 1.0
+    let a = s[prev as usize]
+    let b = s[(prev as usize) + 1]
+    let d = b - a
+    if g >= 0.5
+        return b - d * (1.0 - g)
+    return a + d * g
+
+pub fn median(xs: &[f64]) -> f64 ! StatsError = try quantile(xs, 0.5, 7)
+
+# ---------------------------------------------------------------- Loader
+# stirlerr(n) = special.log(n!) - special.log(sqrt(2 pi n) (n/e)^n). Exact table at the
+# half integers 0.5 .. 15 (computed with mpmath at 200 bits, rounded once),
+# Stirling's series above 15, and the lgamma form between table points.
+const ST_LN_SQRT_2PI: f64 = 0.9189385332046728
+const ST_LN_2PI: f64 = 1.8378770664093456
+const ST_INV_SQRT_2PI: f64 = 0.3989422804014327
+const ST_INV_SQRT2: f64 = 0.7071067811865476
+const ST_INV_SQRT2_LO: f64 = -4.833646656726457e-17
+const ST_TWO_OVER_SQRT_PI: f64 = 1.1283791670955126
+
+fn st_sferr(k: i64) -> f64
+    let t: List[f64] = [0.0, 0.15342640972002736, 0.08106146679532726, 0.05481412105191765, 0.0413406959554093, 0.03316287351993629, 0.02767792568499834, 0.023746163656297496, 0.020790672103765093, 0.018488450532673187, 0.016644691189821193, 0.015134973221917378, 0.013876128823070748, 0.012810465242920227, 0.01189670994589177, 0.011104559758206917, 0.010411265261972096, 0.009799416126158804, 0.009255462182712733, 0.008768700134139386, 0.00833056343336287, 0.00793411456431402, 0.007573675487951841, 0.007244554301320383, 0.00694284010720953, 0.006665247032707682, 0.006408994188004207, 0.006171712263039458, 0.0059513701127588475, 0.0057462165130101155, 0.005554733551962801]
+    return t[k as usize]
+
+pub fn stirlerr(n: f64) -> f64
+    if n <= 15.0
+        let nn = n + n
+        if nn == nn.floor()
+            return st_sferr(nn as i64)
+        return special.lgamma(n + 1.0) - (n + 0.5) * special.log(n) + n - ST_LN_SQRT_2PI
+    let s0 = 1.0 / 12.0
+    let s1 = 1.0 / 360.0
+    let s2 = 1.0 / 1260.0
+    let s3 = 1.0 / 1680.0
+    let s4 = 1.0 / 1188.0
+    let nn = n * n
+    if n > 500.0
+        return (s0 - s1 / nn) / n
+    if n > 80.0
+        return (s0 - (s1 - s2 / nn) / nn) / n
+    if n > 35.0
+        return (s0 - (s1 - (s2 - s3 / nn) / nn) / nn) / n
+    return (s0 - (s1 - (s2 - (s3 - s4 / nn) / nn) / nn) / nn) / n
+
+# bd0(x, m) = x special.log(x / m) + m - x, by its series when x is near m.
+pub fn bd0(x: f64, m: f64) -> f64
+    if st_abs(x - m) < 0.1 * (x + m)
+        var v = (x - m) / (x + m)
+        var s = (x - m) * v
+        var ej = 2.0 * x * v
+        v = v * v
+        var j: i64 = 1
+        while j < 1000 bound 1001
+            ej = ej * v
+            let s1 = s + ej / ((2 * j + 1) as f64)
+            if s1 == s
+                return s1
+            s = s1
+            j += 1
+        return s
+    return x * special.log(x / m) + m - x
+
+# Binomial density at real x for n trials, success p (q = 1 - p given so
+# callers can pass it exactly).
+pub fn dbinom_raw(x: f64, n: f64, p: f64, q: f64) -> f64
+    if p == 0.0
+        return if x == 0.0 then 1.0 else 0.0
+    if q == 0.0
+        return if x == n then 1.0 else 0.0
+    if x == 0.0
+        if n == 0.0
+            return 1.0
+        let lc = if p < 0.1 then 0.0 - bd0(n, n * q) - n * p else n * special.log(q)
+        return special.exp(lc)
+    if x == n
+        let lc = if q < 0.1 then 0.0 - bd0(n, n * p) - n * q else n * special.log(p)
+        return special.exp(lc)
+    if x < 0.0 or x > n
+        return 0.0
+    let lc = stirlerr(n) - stirlerr(x) - stirlerr(n - x) - bd0(x, n * p) - bd0(n - x, n * q)
+    let lf = ST_LN_2PI + special.log(x) + special.log1p(0.0 - x / n)
+    return special.exp(lc - 0.5 * lf)
+
+# Poisson density at real x >= 0 with mean m.
+pub fn dpois_raw(x: f64, m: f64) -> f64
+    if m == 0.0
+        return if x == 0.0 then 1.0 else 0.0
+    if x == 0.0
+        return special.exp(0.0 - m)
+    if x < 0.0
+        return 0.0
+    return special.exp(0.0 - stirlerr(x) - bd0(x, m)) / (6.283185307179586 * x).sqrt()
+
+# ---------------------------------------------------------------- incomplete gamma, beta
+
+# Regularized incomplete gamma: [P(a, x), Q(a, x)], a > 0, x >= 0. The
+# series (x < a + 1) or Legendre's continued fraction (modified Lentz),
+# each scaled by x^a e^-x / Gamma(a + 1) = dpois_raw(a, x); the side not
+# computed directly is 1 minus the other.
+pub fn gammainc(a: f64, x: f64) -> List[f64] ! StatsError
+    if not (a > 0.0) or x < 0.0
+        fail StatsError(why: "gammainc needs a > 0 and x >= 0")
+    if x == 0.0
+        return [0.0, 1.0]
+    let pre = dpois_raw(a, x)
+    if x < a + 1.0
+        var ap = a
+        var del = 1.0
+        var s = 1.0
+        var k = 0
+        while k < 100000 bound 100001
+            ap = ap + 1.0
+            del = del * x / ap
+            let s1 = s + del
+            if s1 == s
+                break
+            s = s1
+            k += 1
+        let p = pre * s
+        let pp = if p > 1.0 then 1.0 else p
+        return [pp, 1.0 - pp]
+    let tiny = 1.0e-300
+    var b = x + 1.0 - a
+    var c = 1.0 / tiny
+    var d = 1.0 / b
+    var h = d
+    var i = 1
+    while i < 100000 bound 100001
+        let an = (0.0 - (i as f64)) * ((i as f64) - a)
+        b = b + 2.0
+        d = an * d + b
+        if st_abs(d) < tiny
+            d = tiny
+        c = b + an / c
+        if st_abs(c) < tiny
+            c = tiny
+        d = 1.0 / d
+        let del = d * c
+        h = h * del
+        if st_abs(del - 1.0) <= 1.1102230246251565e-16
+            break
+        i += 1
+    let q = a * pre * h
+    let qq = if q > 1.0 then 1.0 else q
+    return [1.0 - qq, qq]
+
+fn st_betacf(a: f64, b: f64, x: f64) -> f64
+    let tiny = 1.0e-300
+    let qab = a + b
+    let qap = a + 1.0
+    let qam = a - 1.0
+    var c = 1.0
+    var d = 1.0 - qab * x / qap
+    if st_abs(d) < tiny
+        d = tiny
+    d = 1.0 / d
+    var h = d
+    var m = 1
+    while m < 100000 bound 100001
+        let mf = m as f64
+        let m2 = 2.0 * mf
+        var aa = mf * (b - mf) * x / ((qam + m2) * (a + m2))
+        d = 1.0 + aa * d
+        if st_abs(d) < tiny
+            d = tiny
+        c = 1.0 + aa / c
+        if st_abs(c) < tiny
+            c = tiny
+        d = 1.0 / d
+        h = h * d * c
+        aa = 0.0 - (a + mf) * (qab + mf) * x / ((a + m2) * (qap + m2))
+        d = 1.0 + aa * d
+        if st_abs(d) < tiny
+            d = tiny
+        c = 1.0 + aa / c
+        if st_abs(c) < tiny
+            c = tiny
+        d = 1.0 / d
+        let del = d * c
+        h = h * del
+        if st_abs(del - 1.0) <= 1.1102230246251565e-16
+            break
+        m += 1
+    return h
+
+# Regularized incomplete beta: [I_x(a, b), 1 - I_x(a, b)] with y = 1 - x
+# given exactly by the caller. Continued fraction (modified Lentz) on the
+# side where it converges fast (x < (a + 1) / (a + b + 2)), with the
+# prefactor x^a y^b / (a B(a, b)) taken as dbinom_raw(a, a + b, x, y)
+# b / (a + b), which is Loader's form of the same quantity.
+pub fn betainc(a: f64, b: f64, x: f64, y: f64) -> List[f64] ! StatsError
+    if not (a > 0.0) or not (b > 0.0) or x < 0.0 or y < 0.0
+        fail StatsError(why: "betainc needs a, b > 0 and x, y >= 0")
+    if x == 0.0
+        return [0.0, 1.0]
+    if y == 0.0
+        return [1.0, 0.0]
+    if x < (a + 1.0) / (a + b + 2.0)
+        let i = dbinom_raw(a, a + b, x, y) * (b / (a + b)) * st_betacf(a, b, x)
+        let ii = if i > 1.0 then 1.0 else i
+        return [ii, 1.0 - ii]
+    let j = dbinom_raw(b, a + b, y, x) * (a / (a + b)) * st_betacf(b, a, y)
+    let jj = if j > 1.0 then 1.0 else j
+    return [1.0 - jj, jj]
+
+# ---------------------------------------------------------------- normal
+
+# A density pole: the value is not finite, so using it traps (6.3 N3).
+fn st_pole() -> f64 = 1.7976931348623157e308 * 2.0
+
+fn st_check(ok: bool, what: text) -> bool ! StatsError
+    if not ok
+        fail StatsError(why: what)
+    return true
+
+# Density of N(mu, sigma^2). z^2 is formed exactly (Dekker) and its low
+# part enters as exp(-lo/2) ~ 1 - lo/2, so the density keeps full relative
+# accuracy far into the tails.
+pub fn norm_pdf(x: f64, mu: f64, sigma: f64) -> f64 ! StatsError
+    let ok = try st_check(sigma > 0.0, "norm: sigma must be > 0")
+    let z = (x - mu) / sigma
+    let zz = st_two_prod(z, z)
+    return special.exp(-0.5 * zz[0]) * (1.0 - 0.5 * zz[1]) * ST_INV_SQRT_2PI / sigma
+
+# Phi(z) for the standard normal: 0.5 erfc(-z / sqrt 2), with z / sqrt 2
+# carried as a double-double t = th + tl and erfc(-(th + tl)) =
+# erfc(-th) + tl (2 / sqrt pi) exp(-th^2) to first order.
+fn st_phi(z: f64, upper: bool) -> f64
+    let pe = st_two_prod(z, ST_INV_SQRT2)
+    let th = pe[0]
+    let tl = pe[1] + z * ST_INV_SQRT2_LO
+    let s = if upper then th else 0.0 - th
+    let sl = if upper then tl else 0.0 - tl
+    let corr = 0.0 - sl * ST_TWO_OVER_SQRT_PI * special.exp(0.0 - s * s)
+    return 0.5 * (special.erfc(s) + corr)
+
+pub fn norm_cdf(x: f64, mu: f64, sigma: f64) -> f64 ! StatsError
+    let ok = try st_check(sigma > 0.0, "norm: sigma must be > 0")
+    return st_phi((x - mu) / sigma, false)
+
+pub fn norm_sf(x: f64, mu: f64, sigma: f64) -> f64 ! StatsError
+    let ok = try st_check(sigma > 0.0, "norm: sigma must be > 0")
+    return st_phi((x - mu) / sigma, true)
+
+# Wichura's AS 241 PPND16 (Applied Statistics 37, 1988; coefficients as
+# published), about 1e-16 relative. For p >= 1/2 the tail 1 - p is exact
+# (Sterbenz), and upper tails use the symmetry x(q) = -x(1 - q) directly.
+fn st_ppnd16(p: f64) -> f64
+    let q = p - 0.5
+    if st_abs(q) <= 0.425
+        let r = 0.180625 - q * q
+        let num = ((((((2509.0809287301226727 * r + 33430.575583588128105) * r + 67265.770927008700853) * r + 45921.953931549871457) * r + 13731.693765509461125) * r + 1971.5909503065514427) * r + 133.14166789178437745) * r + 3.3871328727963666080
+        let den = ((((((5226.4952788528545610 * r + 28729.085735721942674) * r + 39307.895800092710610) * r + 21213.794301586595867) * r + 5394.1960214247511077) * r + 687.18700749205790830) * r + 42.313330701600911252) * r + 1.0
+        return q * num / den
+    var r = (0.0 - special.log(if q < 0.0 then p else 1.0 - p)).sqrt()
+    var v = 0.0
+    if r <= 5.0
+        r = r - 1.6
+        let num = ((((((7.74545014278341407640e-4 * r + 2.27238449892691845833e-2) * r + 2.41780725177450611770e-1) * r + 1.27045825245236838258) * r + 3.64784832476320460504) * r + 5.76949722146069140550) * r + 4.63033784615654529590) * r + 1.42343711074968357734
+        let den = ((((((1.05075007164441684324e-9 * r + 5.47593808499534494600e-4) * r + 1.51986665636164571966e-2) * r + 1.48103976427480074590e-1) * r + 6.89767334985100004550e-1) * r + 1.67638483018380384940) * r + 2.05319162663775882187) * r + 1.0
+        v = num / den
+    else
+        r = r - 5.0
+        let num = ((((((2.01033439929228813265e-7 * r + 2.71155556874348757815e-5) * r + 1.24266094738807843860e-3) * r + 2.65321895265761230930e-2) * r + 2.96560571828504891230e-1) * r + 1.78482653991729133580) * r + 5.46378491116411436990) * r + 6.65790464350110377720
+        let den = ((((((2.04426310338993978564e-15 * r + 1.42151175831644588870e-7) * r + 1.84631831751005468180e-5) * r + 7.86869131145613259100e-4) * r + 1.48753612908506148525e-2) * r + 1.36929880922735805310e-1) * r + 5.99832206555887937690e-1) * r + 1.0
+        v = num / den
+    return if q < 0.0 then 0.0 - v else v
+
+# Quantile of N(mu, sigma^2) at lower tail probability p in (0, 1).
+pub fn norm_ppf(p: f64, mu: f64, sigma: f64) -> f64 ! StatsError
+    let ok = try st_check(sigma > 0.0 and p > 0.0 and p < 1.0, "norm_ppf: sigma > 0, 0 < p < 1")
+    return mu + sigma * st_ppnd16(p)
+
+# Inverse survival function: x with P(X > x) = q, q in (0, 1).
+pub fn norm_isf(q: f64, mu: f64, sigma: f64) -> f64 ! StatsError
+    let ok = try st_check(sigma > 0.0 and q > 0.0 and q < 1.0, "norm_isf: sigma > 0, 0 < q < 1")
+    return mu - sigma * st_ppnd16(q)
+
+# ---------------------------------------------------------------- continuous families
+# Each family has _pdf, _cdf, _sf and _ppf (and the t, chi2 and F families
+# used by the tests). Parameters are checked; a bad one fails with
+# StatsError. cdf and sf are computed separately, never as 1 - the other
+# in the tail that matters.
+
+const ST_T: i64 = 1
+const ST_CHI2: i64 = 2
+const ST_F: i64 = 3
+const ST_GAMMA: i64 = 4
+const ST_BETA: i64 = 5
+
+# [cdf, sf] of family d with parameters a, b at x (parameters valid).
+fn st_cs(d: i64, a: f64, b: f64, x: f64) -> List[f64] ! StatsError
+    if d == ST_T
+        let df = a
+        if x == 0.0
+            return [0.5, 0.5]
+        let ax = st_abs(x)
+        var xx = 0.0
+        var yy = 0.0
+        if ax > 1.0e150
+            xx = (df / ax) / ax
+            yy = 1.0 - xx
+        else
+            let tt = ax * ax
+            xx = df / (df + tt)
+            yy = tt / (df + tt)
+        # two-sided tail P(|T| > |x|) = I_xx(df/2, 1/2)
+        let r = try betainc(0.5 * df, 0.5, xx, yy)
+        let tail = 0.5 * r[0]
+        let body = 0.5 + 0.5 * r[1]
+        return if x > 0.0 then [body, tail] else [tail, body]
+    if d == ST_CHI2
+        if x <= 0.0
+            return [0.0, 1.0]
+        return try gammainc(0.5 * a, 0.5 * x)
+    if d == ST_GAMMA
+        if x <= 0.0
+            return [0.0, 1.0]
+        return try gammainc(a, x / b)
+    if d == ST_F
+        if x <= 0.0
+            return [0.0, 1.0]
+        let ax = a * x
+        let r = try betainc(0.5 * a, 0.5 * b, ax / (b + ax), b / (b + ax))
+        return r
+    if x <= 0.0
+        return [0.0, 1.0]
+    if x >= 1.0
+        return [1.0, 0.0]
+    return try betainc(a, b, x, 1.0 - x)
+
+# Smallest representable-step solution of cdf(x) = p by bracketing and
+# bisection (geometric while the bracket spans more than a factor 2):
+# the result is the upper end of the final bracket [lo, hi] with
+# cdf(lo) < p <= cdf(hi), adjacent doubles. For p > 1/2 the comparison is
+# made on sf against 1 - p (exact), so upper quantiles are as accurate as
+# lower ones. lo0 is the left end of the support.
+fn st_invert(d: i64, a: f64, b: f64, p: f64, lo0: f64, guess: f64) -> f64 ! StatsError
+    let up = p > 0.5
+    let q = 1.0 - p
+    var lo = lo0
+    var hi = guess
+    var k = 0
+    while k < 2100 bound 2101
+        let c = try st_cs(d, a, b, hi)
+        let under = if up then c[1] > q else c[0] < p
+        if not under
+            break
+        lo = hi
+        hi = hi * 2.0
+        k += 1
+    if lo == lo0
+        var t = hi
+        k = 0
+        while k < 2100 bound 2101
+            let m = t * 0.5
+            if m <= lo0 or m == 0.0
+                break
+            let c = try st_cs(d, a, b, m)
+            let under = if up then c[1] > q else c[0] < p
+            if under
+                lo = m
+                break
+            hi = m
+            t = m
+            k += 1
+    k = 0
+    while k < 4400 bound 4401
+        var mid = lo + (hi - lo) * 0.5
+        if lo > 0.0 and hi > 2.0 * lo
+            mid = lo.sqrt() * hi.sqrt()
+        if mid <= lo or mid >= hi
+            break
+        let c = try st_cs(d, a, b, mid)
+        let under = if up then c[1] > q else c[0] < p
+        if under
+            lo = mid
+        else
+            hi = mid
+        k += 1
+    return hi
+
+fn st_p01(p: f64) -> bool ! StatsError = try st_check(p > 0.0 and p < 1.0, "quantile needs 0 < p < 1")
+
+# Student t with df > 0 degrees of freedom. Density in Loader's form.
+pub fn t_pdf(x: f64, df: f64) -> f64 ! StatsError
+    let ok = try st_check(df > 0.0, "t: df must be > 0")
+    let t = 0.0 - bd0(0.5 * df, 0.5 * (df + 1.0)) + stirlerr(0.5 * (df + 1.0)) - stirlerr(0.5 * df)
+    let ax = st_abs(x)
+    var x2n = 0.0
+    var u = 0.0
+    var lx = 0.0
+    if ax > 1.0e150 or (ax / df) * ax > 4503599627370496.0
+        lx = special.log(ax) - 0.5 * special.log(df)
+        u = df * lx
+        x2n = 0.0
+        return special.exp(t - u) * ST_INV_SQRT_2PI * df.sqrt() / ax
+    x2n = (x * x) / df
+    if x2n > 0.2
+        lx = 0.5 * special.log(1.0 + x2n)
+        u = df * lx
+    else
+        lx = 0.5 * special.log1p(x2n)
+        u = 0.0 - bd0(0.5 * df, 0.5 * (df + x * x)) + 0.5 * x * x
+    return special.exp(t - u) * ST_INV_SQRT_2PI / (1.0 + x2n).sqrt()
+
+pub fn t_cdf(x: f64, df: f64) -> f64 ! StatsError
+    let ok = try st_check(df > 0.0, "t: df must be > 0")
+    return (try st_cs(ST_T, df, 0.0, x))[0]
+
+pub fn t_sf(x: f64, df: f64) -> f64 ! StatsError
+    let ok = try st_check(df > 0.0, "t: df must be > 0")
+    return (try st_cs(ST_T, df, 0.0, x))[1]
+
+# t quantile by symmetry: the positive solution of sf(x) = min(p, 1 - p).
+pub fn t_ppf(p: f64, df: f64) -> f64 ! StatsError
+    let ok = try st_check(df > 0.0, "t: df must be > 0")
+    let ok2 = try st_p01(p)
+    if p == 0.5
+        return 0.0
+    let tail = if p < 0.5 then p else 1.0 - p
+    let x = try st_invert(ST_T, df, 0.0, 1.0 - tail, 0.0, 1.0)
+    return if p < 0.5 then 0.0 - x else x
+
+# Gamma(shape, scale); chi-square(k) = Gamma(k/2, 2).
+pub fn gamma_pdf(x: f64, shape: f64, scale: f64) -> f64 ! StatsError
+    let ok = try st_check(shape > 0.0 and scale > 0.0, "gamma: shape, scale must be > 0")
+    if x < 0.0
+        return 0.0
+    if x == 0.0
+        if shape < 1.0
+            return st_pole()
+        return if shape > 1.0 then 0.0 else 1.0 / scale
+    if shape < 1.0
+        return dpois_raw(shape, x / scale) * shape / x
+    return dpois_raw(shape - 1.0, x / scale) / scale
+
+pub fn gamma_cdf(x: f64, shape: f64, scale: f64) -> f64 ! StatsError
+    let ok = try st_check(shape > 0.0 and scale > 0.0, "gamma: shape, scale must be > 0")
+    return (try st_cs(ST_GAMMA, shape, scale, x))[0]
+
+pub fn gamma_sf(x: f64, shape: f64, scale: f64) -> f64 ! StatsError
+    let ok = try st_check(shape > 0.0 and scale > 0.0, "gamma: shape, scale must be > 0")
+    return (try st_cs(ST_GAMMA, shape, scale, x))[1]
+
+pub fn gamma_ppf(p: f64, shape: f64, scale: f64) -> f64 ! StatsError
+    let ok = try st_check(shape > 0.0 and scale > 0.0, "gamma: shape, scale must be > 0")
+    let ok2 = try st_p01(p)
+    return try st_invert(ST_GAMMA, shape, scale, p, 0.0, shape * scale)
+
+pub fn chi2_pdf(x: f64, k: f64) -> f64 ! StatsError = try gamma_pdf(x, 0.5 * k, 2.0)
+pub fn chi2_cdf(x: f64, k: f64) -> f64 ! StatsError = try gamma_cdf(x, 0.5 * k, 2.0)
+pub fn chi2_sf(x: f64, k: f64) -> f64 ! StatsError = try gamma_sf(x, 0.5 * k, 2.0)
+pub fn chi2_ppf(p: f64, k: f64) -> f64 ! StatsError = try gamma_ppf(p, 0.5 * k, 2.0)
+
+# F(d1, d2). Density in Loader's form.
+pub fn f_pdf(x: f64, d1: f64, d2: f64) -> f64 ! StatsError
+    let ok = try st_check(d1 > 0.0 and d2 > 0.0, "f: d1, d2 must be > 0")
+    if x < 0.0
+        return 0.0
+    if x == 0.0
+        return if d1 > 2.0 then 0.0 else (if d1 == 2.0 then 1.0 else st_pole())
+    let m = d1
+    let n = d2
+    var f = 1.0 / (n + x * m)
+    let q = n * f
+    let p = x * m * f
+    if m >= 2.0
+        f = m * q / 2.0
+        return f * dbinom_raw((m - 2.0) / 2.0, (m + n - 2.0) / 2.0, p, q)
+    f = m * m * q / (2.0 * p * (m + n))
+    return f * dbinom_raw(m / 2.0, (m + n) / 2.0, p, q)
+
+pub fn f_cdf(x: f64, d1: f64, d2: f64) -> f64 ! StatsError
+    let ok = try st_check(d1 > 0.0 and d2 > 0.0, "f: d1, d2 must be > 0")
+    return (try st_cs(ST_F, d1, d2, x))[0]
+
+pub fn f_sf(x: f64, d1: f64, d2: f64) -> f64 ! StatsError
+    let ok = try st_check(d1 > 0.0 and d2 > 0.0, "f: d1, d2 must be > 0")
+    return (try st_cs(ST_F, d1, d2, x))[1]
+
+pub fn f_ppf(p: f64, d1: f64, d2: f64) -> f64 ! StatsError
+    let ok = try st_check(d1 > 0.0 and d2 > 0.0, "f: d1, d2 must be > 0")
+    let ok2 = try st_p01(p)
+    return try st_invert(ST_F, d1, d2, p, 0.0, 1.0)
+
+# Beta(a, b) on [0, 1].
+pub fn beta_pdf(x: f64, a: f64, b: f64) -> f64 ! StatsError
+    let ok = try st_check(a > 0.0 and b > 0.0, "beta: a, b must be > 0")
+    if x < 0.0 or x > 1.0
+        return 0.0
+    if x == 0.0 or x == 1.0
+        let e = if x == 0.0 then a else b
+        if e < 1.0
+            return st_pole()
+        if e > 1.0
+            return 0.0
+        return if x == 0.0 then b else a
+    if a > 1.0 and b > 1.0
+        return (a + b - 1.0) * dbinom_raw(a - 1.0, a + b - 2.0, x, 1.0 - x)
+    let lb = special.lgamma(a) + special.lgamma(b) - special.lgamma(a + b)
+    return special.exp((a - 1.0) * special.log(x) + (b - 1.0) * special.log1p(0.0 - x) - lb)
+
+pub fn beta_cdf(x: f64, a: f64, b: f64) -> f64 ! StatsError
+    let ok = try st_check(a > 0.0 and b > 0.0, "beta: a, b must be > 0")
+    return (try st_cs(ST_BETA, a, b, x))[0]
+
+pub fn beta_sf(x: f64, a: f64, b: f64) -> f64 ! StatsError
+    let ok = try st_check(a > 0.0 and b > 0.0, "beta: a, b must be > 0")
+    return (try st_cs(ST_BETA, a, b, x))[1]
+
+pub fn beta_ppf(p: f64, a: f64, b: f64) -> f64 ! StatsError
+    let ok = try st_check(a > 0.0 and b > 0.0, "beta: a, b must be > 0")
+    let ok2 = try st_p01(p)
+    let r = try st_invert(ST_BETA, a, b, p, 0.0, a / (a + b))
+    return r.min(1.0)
+
+# Exponential with scale s (rate 1 / s).
+pub fn expon_pdf(x: f64, s: f64) -> f64 ! StatsError
+    let ok = try st_check(s > 0.0, "expon: scale must be > 0")
+    return if x < 0.0 then 0.0 else special.exp(0.0 - x / s) / s
+
+pub fn expon_cdf(x: f64, s: f64) -> f64 ! StatsError
+    let ok = try st_check(s > 0.0, "expon: scale must be > 0")
+    return if x <= 0.0 then 0.0 else 0.0 - special.expm1(0.0 - x / s)
+
+pub fn expon_sf(x: f64, s: f64) -> f64 ! StatsError
+    let ok = try st_check(s > 0.0, "expon: scale must be > 0")
+    return if x <= 0.0 then 1.0 else special.exp(0.0 - x / s)
+
+pub fn expon_ppf(p: f64, s: f64) -> f64 ! StatsError
+    let ok = try st_check(s > 0.0, "expon: scale must be > 0")
+    let ok2 = try st_p01(p)
+    return 0.0 - s * special.log1p(0.0 - p)
+
+# ---------------------------------------------------------------- discrete families
+
+pub fn binom_pmf(k: i64, n: i64, p: f64) -> f64 ! StatsError
+    let ok = try st_check(n >= 0 and p >= 0.0 and p <= 1.0, "binom: n >= 0, 0 <= p <= 1")
+    if k < 0 or k > n
+        return 0.0
+    return dbinom_raw(k as f64, n as f64, p, 1.0 - p)
+
+# [cdf, sf] at k: P(X <= k) = I_(1-p)(n - k, k + 1).
+fn st_binom_cs(k: i64, n: i64, p: f64) -> List[f64] ! StatsError
+    if k < 0
+        return [0.0, 1.0]
+    if k >= n
+        return [1.0, 0.0]
+    if p == 0.0
+        return [1.0, 0.0]
+    if p == 1.0
+        return [0.0, 1.0]
+    return try betainc((n - k) as f64, (k + 1) as f64, 1.0 - p, p)
+
+pub fn binom_cdf(k: i64, n: i64, p: f64) -> f64 ! StatsError
+    let ok = try st_check(n >= 0 and p >= 0.0 and p <= 1.0, "binom: n >= 0, 0 <= p <= 1")
+    return (try st_binom_cs(k, n, p))[0]
+
+pub fn binom_sf(k: i64, n: i64, p: f64) -> f64 ! StatsError
+    let ok = try st_check(n >= 0 and p >= 0.0 and p <= 1.0, "binom: n >= 0, 0 <= p <= 1")
+    return (try st_binom_cs(k, n, p))[1]
+
+# Smallest k with cdf(k) >= p (integer bisection).
+pub fn binom_ppf(p: f64, n: i64, pr: f64) -> i64 ! StatsError
+    let ok = try st_check(n >= 0 and pr >= 0.0 and pr <= 1.0 and p >= 0.0 and p <= 1.0, "binom_ppf arguments")
+    var lo: i64 = -1
+    var hi: i64 = n
+    while hi - lo > 1 bound 128
+        let mid = lo + (hi - lo) / 2
+        let c = try st_binom_cs(mid, n, pr)
+        if c[0] >= p
+            hi = mid
+        else
+            lo = mid
+    return hi
+
+pub fn poisson_pmf(k: i64, mu: f64) -> f64 ! StatsError
+    let ok = try st_check(mu >= 0.0, "poisson: mu >= 0")
+    if k < 0
+        return 0.0
+    return dpois_raw(k as f64, mu)
+
+fn st_pois_cs(k: i64, mu: f64) -> List[f64] ! StatsError
+    if k < 0
+        return [0.0, 1.0]
+    if mu == 0.0
+        return [1.0, 0.0]
+    let r = try gammainc((k + 1) as f64, mu)
+    return [r[1], r[0]]
+
+pub fn poisson_cdf(k: i64, mu: f64) -> f64 ! StatsError
+    let ok = try st_check(mu >= 0.0, "poisson: mu >= 0")
+    return (try st_pois_cs(k, mu))[0]
+
+pub fn poisson_sf(k: i64, mu: f64) -> f64 ! StatsError
+    let ok = try st_check(mu >= 0.0, "poisson: mu >= 0")
+    return (try st_pois_cs(k, mu))[1]
+
+pub fn poisson_ppf(p: f64, mu: f64) -> i64 ! StatsError
+    let ok = try st_check(mu >= 0.0 and p >= 0.0 and p < 1.0, "poisson_ppf arguments")
+    var hi: i64 = 1
+    var k = 0
+    while k < 62 bound 63
+        let c = try st_pois_cs(hi, mu)
+        if c[0] >= p
+            break
+        hi = hi * 2
+        k += 1
+    var lo: i64 = -1
+    while hi - lo > 1 bound 128
+        let mid = lo + (hi - lo) / 2
+        let c = try st_pois_cs(mid, mu)
+        if c[0] >= p
+            hi = mid
+        else
+            lo = mid
+    return hi
+
+# ---------------------------------------------------------------- variates
+# Seeded variates from a rand.det generator (ChaCha20, RFC 8439): a run
+# replays bit for bit from its seed. One variate uses a fixed number of
+# draws: uniform takes 53 bits, uniform_open 52 bits, normal and
+# exponential one uniform_open each (inversion, so a variate is a
+# monotone function of its draw).
+
+# Uniform on [0, 1): k / 2^53 for k = 53 uniform bits.
+pub fn uniform(r: &mut det.Rng) -> f64 = (det.bits(r, 53) as f64) * 1.1102230246251565e-16
+
+# Uniform on (0, 1): (k + 1/2) / 2^52 for k = 52 uniform bits.
+pub fn uniform_open(r: &mut det.Rng) -> f64 = ((det.bits(r, 52) as f64) + 0.5) * 2.220446049250313e-16
+
+pub fn normal(r: &mut det.Rng, mu: f64, sigma: f64) -> f64 = mu + sigma * st_ppnd16(uniform_open(r))
+
+pub fn exponential(r: &mut det.Rng, scale: f64) -> f64 = 0.0 - scale * special.log(uniform_open(r))
+
+# ---------------------------------------------------------------- regression
+
+pub struct Ols
+    coef: List[f64]
+    se: List[f64]
+    resid_sd: f64
+    r2: f64
+    ss_reg: f64
+    ss_res: f64
+    df_reg: i64
+    df_res: i64
+    f: f64
+    exact: bool
+
+fn st_resid(a: &linalg.Mat, x: &[f64], b: &[f64]) -> List[f64]
+    var r: List[f64] = []
+    for i in 0..a.m
+        var t: List[f64] = [b[i]]
+        for j in 0..a.n
+            let pe = st_two_prod(0.0 - a.a[i + j * a.m], x[j])
+            t.push(pe[0])
+            t.push(pe[1])
+        r.push(st_fsum(&t))
+    return r
+
+# The QR factors of a design matrix, checked for full column rank.
+pub struct OlsQr
+    q: linalg.Mat
+    r: linalg.Mat
+
+pub fn ols_qr(x: &linalg.Mat) -> OlsQr ! StatsError
+    let n = x.n
+    if x.m <= n or n == 0
+        fail StatsError(why: "ols needs more observations than parameters")
+    let f = linalg.qr(x)
+    let q = linalg.qr_q(&f)
+    let rr = linalg.qr_r(&f)
+    for i in 0..n
+        if rr.a[i + i * n] == 0.0
+            fail StatsError(why: "ols: design matrix is rank deficient")
+    return OlsQr(q: q, r: rr)
+
+# Least squares coefficients of y ~ X b (refined, see st_refine).
+pub fn ols_coef(x: &linalg.Mat, f: &OlsQr, y: &[f64]) -> List[f64] ! StatsError
+    if y.len() != x.m
+        fail StatsError(why: "ols: y needs one value per row of X")
+    var zero: List[f64] = []
+    for _ in 0..x.n
+        zero.push(0.0)
+    return st_refine(x, &f.q, &f.r, y, &zero)
+
+# Diagonal entry j of (X^T X)^-1: -z[j] for the refined solution of
+# r + X z = 0, X^T r = e_j (the same augmented system as the
+# coefficients, so it is as accurate as they are).
+pub fn ols_inv_diag(x: &linalg.Mat, f: &OlsQr, j: usize) -> f64
+    var ym: List[f64] = []
+    for _ in 0..x.m
+        ym.push(0.0)
+    var e: List[f64] = []
+    for i in 0..x.n
+        e.push(if i == j then 1.0 else 0.0)
+    let z = st_refine(x, &f.q, &f.r, &ym, &e)
+    return 0.0 - z[j]
+
+# Assemble the fit from coefficients and the diagonal of (X^T X)^-1
+# (se_j = s sqrt(d[j]); pass an empty d to leave se empty).
+pub fn ols_from(x: &linalg.Mat, y: &[f64], intercept: bool, b: List[f64], d: &[f64]) -> Ols ! StatsError
+    let m = x.m
+    let n = x.n
+    let res = st_resid(x, &b, y)
+    let ss_res = st_dot(&res, &res)
+    let df_res = (m - n) as i64
+    let s = (ss_res / (df_res as f64)).sqrt()
+    var se: List[f64] = []
+    for v in d
+        se.push(s * v.sqrt())
+    var ss_tot = 0.0
+    var df_reg = n as i64
+    if intercept
+        ss_tot = try sum_sq_dev(y)
+        df_reg = (n as i64) - 1
+    else
+        ss_tot = st_dot(y, y)
+    let ss_reg = ss_tot - ss_res
+    let r2 = 1.0 - ss_res / ss_tot
+    # an exact fit (ss_res = 0) has an infinite F; it is reported as 0
+    # with exact = true
+    let exact = ss_res == 0.0
+    let fstat = if df_reg > 0 and not exact then (ss_reg / (df_reg as f64)) / (ss_res / (df_res as f64)) else 0.0
+    return Ols(coef: b, se: se, resid_sd: s, r2: r2, ss_reg: ss_reg, ss_res: ss_res, df_reg: df_reg, df_res: df_res, f: fstat, exact: exact)
+
+# Least squares fit y ~ X b. X is the n x p design matrix (include a
+# column of ones for an intercept; intercept = true says so and selects
+# the centered R^2 and ANOVA, as NIST StRD does). Householder QR (DGEQR2
+# order, num.linalg) with iterative refinement (st_refine) for the
+# coefficients and for each diagonal entry of (X^T X)^-1 behind the
+# standard errors.
+pub fn ols(x: &linalg.Mat, y: &[f64], intercept: bool) -> Ols ! StatsError
+    let f = try ols_qr(x)
+    let b = try ols_coef(x, &f, y)
+    var d: List[f64] = []
+    for j in 0..x.n
+        d.push(ols_inv_diag(x, &f, j))
+    return try ols_from(x, y, intercept, b, &d)
+
+# Solve the augmented system r + X z = y, X^T r = c (c = 0: least
+# squares) by Householder QR and four steps of Bjorck's iterative
+# refinement (A. Bjorck, BIT 7, 1967). Start: u = R^-T c, z = R^-1 (Q^T y
+# - u), r = y - X z. Each step forms f = y - r - X z and g = c - X^T r
+# with exact products and correctly rounded sums, then corrects by u =
+# R^-T g, dz = R^-1 (Q^T f - u), dr = f + Q (u - Q^T f).
+fn st_refine(x: &linalg.Mat, q: &linalg.Mat, rr: &linalg.Mat, y: &[f64], c: &[f64]) -> List[f64]
+    let m = x.m
+    let n = x.n
+    let u0 = st_forwardsolve_t(rr, c)
+    var c0: List[f64] = []
+    for j in 0..n
+        c0.push(st_fsum_dot_col(q, j, y) - u0[j])
+    var b = st_backsolve(rr, &c0)
+    var rh = st_resid(x, &b, y)
+    for _ in 0..4
+        var fv: List[f64] = []
+        for i in 0..m
+            var t: List[f64] = [y[i], 0.0 - rh[i]]
+            for j in 0..n
+                let pe = st_two_prod(0.0 - x.a[i + j * m], b[j])
+                t.push(pe[0])
+                t.push(pe[1])
+            fv.push(st_fsum(&t))
+        var g: List[f64] = []
+        for j in 0..n
+            var t: List[f64] = [c[j]]
+            for i in 0..m
+                let p1 = st_two_prod(0.0 - x.a[i + j * m], rh[i])
+                t.push(p1[0])
+                t.push(p1[1])
+            g.push(st_fsum(&t))
+        let u = st_forwardsolve_t(rr, &g)
+        var qtf: List[f64] = []
+        for j in 0..n
+            qtf.push(st_fsum_dot_col(q, j, &fv))
+        var rhs: List[f64] = []
+        for j in 0..n
+            rhs.push(qtf[j] - u[j])
+        let dx = st_backsolve(rr, &rhs)
+        for i in 0..m
+            var t: List[f64] = [fv[i]]
+            for j in 0..n
+                let pe = st_two_prod(q.a[i + j * m], u[j] - qtf[j])
+                t.push(pe[0])
+                t.push(pe[1])
+            rh[i] = rh[i] + st_fsum(&t)
+        for j in 0..n
+            b[j] = b[j] + dx[j]
+    return b
+
+fn st_fsum_dot_col(q: &linalg.Mat, j: usize, v: &[f64]) -> f64
+    var t: List[f64] = []
+    for i in 0..q.m
+        let pe = st_two_prod(q.a[i + j * q.m], v[i])
+        t.push(pe[0])
+        t.push(pe[1])
+    return st_fsum(&t)
+
+# R z = c for upper triangular n x n R, z[n-1] first; each z[i] is
+# (c[i] - correctly rounded sum of R[i, k] z[k], k > i) / R[i, i].
+fn st_backsolve(r: &linalg.Mat, c: &[f64]) -> List[f64]
+    let n = r.n
+    var z: List[f64] = []
+    for _ in 0..n
+        z.push(0.0)
+    var i = n
+    while i > 0 bound 1048576
+        i -= 1
+        var t: List[f64] = [c[i]]
+        for k in (i + 1)..n
+            let pe = st_two_prod(0.0 - r.a[i + k * r.m], z[k])
+            t.push(pe[0])
+            t.push(pe[1])
+        z[i] = st_fsum(&t) / r.a[i + i * r.m]
+    return z
+
+# R^T u = g (R upper, so R^T lower), u[0] first.
+fn st_forwardsolve_t(r: &linalg.Mat, g: &[f64]) -> List[f64]
+    let n = r.n
+    var u: List[f64] = []
+    for i in 0..n
+        var t: List[f64] = [g[i]]
+        for k in 0..i
+            let pe = st_two_prod(0.0 - r.a[k + i * r.m], u[k])
+            t.push(pe[0])
+            t.push(pe[1])
+        u.push(st_fsum(&t) / r.a[i + i * r.m])
+    return u
+
+# ---------------------------------------------------------------- ANOVA
+
+pub struct Anova
+    ss_between: f64
+    ss_within: f64
+    df_between: i64
+    df_within: i64
+    ms_between: f64
+    ms_within: f64
+    f: f64
+    p: f64
+    r2: f64
+    resid_sd: f64
+
+# One-way ANOVA (scipy.stats.f_oneway). Group means are correctly
+# rounded (fsum / n); SS_between = sum n_i (m_i - m)^2 and SS_within =
+# sum of the groups' corrected two-pass SS, both summed exactly.
+pub fn f_oneway(groups: &[List[f64]]) -> Anova ! StatsError
+    let k = groups.len()
+    if k < 2
+        fail StatsError(why: "f_oneway needs at least two groups")
+    var all: List[f64] = []
+    for g in groups
+        if g.len() < 1
+            fail StatsError(why: "f_oneway: empty group")
+        for v in g
+            all.push(v)
+    let n = all.len()
+    if n <= k
+        fail StatsError(why: "f_oneway needs more values than groups")
+    let gm = st_mean_dd(&all)
+    var tb: List[f64] = []
+    var tw: List[f64] = []
+    for g in groups
+        let mi = st_mean_dd(g)
+        let dt: List[f64] = [mi[0], mi[1], 0.0 - gm[0], 0.0 - gm[1]]
+        let d = st_fsum(&dt)
+        let pe = st_two_prod(d, d)
+        let c = g.len() as f64
+        tb.push(pe[0] * c)
+        tb.push(pe[1] * c)
+        tw.push(try sum_sq_dev(g))
+    let ssb = st_fsum(&tb)
+    let ssw = st_fsum(&tw)
+    let dfb = (k as i64) - 1
+    let dfw = (n as i64) - (k as i64)
+    let msb = ssb / (dfb as f64)
+    let msw = ssw / (dfw as f64)
+    if msw == 0.0
+        fail StatsError(why: "f_oneway: zero within-group variance")
+    let f = msb / msw
+    let p = try f_sf(f, dfb as f64, dfw as f64)
+    let tt: List[f64] = [ssb, ssw]
+    let r2 = ssb / st_fsum(&tt)
+    return Anova(ss_between: ssb, ss_within: ssw, df_between: dfb, df_within: dfw, ms_between: msb, ms_within: msw, f: f, p: p, r2: r2, resid_sd: msw.sqrt())
+
+# ---------------------------------------------------------------- tests
+
+# stat, degrees of freedom and two-sided p-value (scipy.stats defaults).
+pub struct Test
+    stat: f64
+    df: f64
+    p: f64
+
+fn st_t2(t: f64, df: f64) -> Test ! StatsError
+    let p = 2.0 * (try t_sf(st_abs(t), df))
+    return Test(stat: t, df: df, p: p.min(1.0))
+
+# scipy.stats.ttest_1samp
+pub fn ttest_1samp(x: &[f64], mu0: f64) -> Test ! StatsError
+    let n = x.len()
+    if n < 2
+        fail StatsError(why: "ttest_1samp needs n >= 2")
+    let s = try stdev(x, 1)
+    if s == 0.0
+        fail StatsError(why: "ttest_1samp: zero variance")
+    let t = ((try mean(x)) - mu0) / (s / (n as f64).sqrt())
+    return try st_t2(t, (n - 1) as f64)
+
+# scipy.stats.ttest_ind: pooled (equal_var) or Welch with the
+# Welch-Satterthwaite degrees of freedom.
+pub fn ttest_ind(x: &[f64], y: &[f64], equal_var: bool) -> Test ! StatsError
+    let n1 = x.len() as f64
+    let n2 = y.len() as f64
+    if x.len() < 2 or y.len() < 2
+        fail StatsError(why: "ttest_ind needs two samples of n >= 2")
+    let v1 = try variance(x, 1)
+    let v2 = try variance(y, 1)
+    let d = (try mean(x)) - (try mean(y))
+    if equal_var
+        let df = n1 + n2 - 2.0
+        let sp = ((n1 - 1.0) * v1 + (n2 - 1.0) * v2) / df
+        let den = (sp * (1.0 / n1 + 1.0 / n2)).sqrt()
+        if den == 0.0
+            fail StatsError(why: "ttest_ind: zero variance")
+        return try st_t2(d / den, df)
+    let a = v1 / n1
+    let b = v2 / n2
+    let den = (a + b).sqrt()
+    if den == 0.0
+        fail StatsError(why: "ttest_ind: zero variance")
+    let df = (a + b) * (a + b) / (a * a / (n1 - 1.0) + b * b / (n2 - 1.0))
+    return try st_t2(d / den, df)
+
+# scipy.stats.ttest_rel: one-sample test on the differences.
+pub fn ttest_rel(x: &[f64], y: &[f64]) -> Test ! StatsError
+    if x.len() != y.len()
+        fail StatsError(why: "ttest_rel needs paired samples")
+    var d: List[f64] = []
+    for i in 0..x.len()
+        d.push(x[i] - y[i])
+    return try ttest_1samp(&d, 0.0)
+
+# scipy.stats.chisquare(f_obs, f_exp), df = k - 1 - ddof.
+pub fn chisquare(obs: &[f64], expd: &[f64], ddof: i64) -> Test ! StatsError
+    let k = obs.len()
+    if k != expd.len() or k < 2
+        fail StatsError(why: "chisquare needs matching observed and expected")
+    var t: List[f64] = []
+    for i in 0..k
+        if expd[i] <= 0.0
+            fail StatsError(why: "chisquare: expected counts must be > 0")
+        let d = obs[i] - expd[i]
+        t.push(d * d / expd[i])
+    let x2 = st_fsum(&t)
+    let df = ((k as i64) - 1 - ddof) as f64
+    if df <= 0.0
+        fail StatsError(why: "chisquare: no degrees of freedom left")
+    return Test(stat: x2, df: df, p: try chi2_sf(x2, df))
+
+# scipy.stats.chi2_contingency(table, correction): r x c counts given as
+# rows; Yates' correction applies only when df = 1, as in SciPy.
+pub fn chi2_contingency(rows: &[List[f64]], correction: bool) -> Test ! StatsError
+    let r = rows.len()
+    if r < 2
+        fail StatsError(why: "chi2_contingency needs at least a 2 x 2 table")
+    let c = rows[0].len()
+    if c < 2
+        fail StatsError(why: "chi2_contingency needs at least a 2 x 2 table")
+    var rs: List[f64] = []
+    var cs: List[f64] = []
+    for j in 0..c
+        var t: List[f64] = []
+        for i in 0..r
+            if rows[i].len() != c
+                fail StatsError(why: "chi2_contingency: ragged table")
+            t.push(rows[i][j])
+        cs.push(st_fsum(&t))
+    for i in 0..r
+        rs.push(st_fsum(&rows[i]))
+    let tot = st_fsum(&rs)
+    let df = ((r - 1) * (c - 1)) as f64
+    var t: List[f64] = []
+    for i in 0..r
+        for j in 0..c
+            let e = rs[i] * cs[j] / tot
+            if e <= 0.0
+                fail StatsError(why: "chi2_contingency: a zero expected count")
+            var d = rows[i][j] - e
+            if correction and df == 1.0
+                let ad = st_abs(d)
+                let sh = ad.min(0.5)
+                d = if d < 0.0 then 0.0 - (ad - sh) else ad - sh
+            t.push(d * d / e)
+    let x2 = st_fsum(&t)
+    return Test(stat: x2, df: df, p: try chi2_sf(x2, df))
+
+# scipy.stats.pearsonr: r and the exact two-sided p under normality,
+# p = 2 * t_sf(|r| sqrt((n - 2) / (1 - r^2)), n - 2).
+pub fn pearsonr(x: &[f64], y: &[f64]) -> Test ! StatsError
+    let n = x.len()
+    if n < 3
+        fail StatsError(why: "pearsonr needs n >= 3")
+    let r = try correlation(x, y)
+    let df = (n - 2) as f64
+    let ar = st_abs(r)
+    if ar >= 1.0
+        return Test(stat: r, df: df, p: 0.0)
+    let t = ar * (df / ((1.0 - ar) * (1.0 + ar))).sqrt()
+    let p = 2.0 * (try t_sf(t, df))
+    return Test(stat: r, df: df, p: p.min(1.0))
