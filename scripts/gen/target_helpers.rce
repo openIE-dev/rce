@@ -1,0 +1,28 @@
+fn opshow(o: &Op) -> text
+    if o.opk == "run"
+        return "run:" + ",".join(o.args) + "|" + ",".join(o.env) + "|" + o.root
+    if o.opk == "wait"
+        return "wait:" + o.exit_code.tostr()
+    if o.opk == "read" or o.opk == "write"
+        return o.opk + ":" + o.id + ":" + o.payload
+    if o.opk == "kill"
+        return "kill:" + o.signal
+    return copy(o.opk)
+fn pp(t: text) -> text
+    let p = plan_parse(&t) catch |e| Plan(ops: [], proposals: [], world: "!" + e.why, legacy: false)
+    if p.world.startswith("!")
+        return copy(p.world)
+    var o: List[text] = []
+    for x in p.ops
+        o.push(opshow(&x))
+    return ";".join(o) + "#" + p.world + "#" + ",".join(p.proposals)
+fn vd(t: text, so: text, se: text, ec: i64, tmo: bool) -> text
+    let p = plan_parse(&t) catch Plan(ops: [], proposals: [], world: "!", legacy: false)
+    let ob = Observed(stdout: so, stderr: se, exit_code: ec, timed_out: tmo)
+    return verdict(&p, &ob)
+fn oc(ex: bool, ef: bool, fl: bool) -> text = outcome(ex, ef, fl)
+fn of(ex: bool, ef: bool, fl: bool) -> bool
+    let o = outcome(ex, ef, fl)
+    return is_failure(&o)
+fn bk(c: text, t: text) -> text = binding(&c, &t)
+fn bc(t: text) -> text = ",".join(bound_caps(&t))

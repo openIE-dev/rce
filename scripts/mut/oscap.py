@@ -272,6 +272,30 @@ M['svc'] = [
     ('    if manual_stop\n', '    if false\n'),
 ]
 
+M['target'] = [
+    ('    if has_any(&keys, &V1_KEYS) and has_any(&keys, &LEGACY_KEYS)', '    if has_any(&keys, &V1_KEYS)'),
+    ('        if has_any(&keys, &LEGACY_KEYS)\n            fail BadTarget(why: "Cannot mix', '        if false\n            fail BadTarget(why: "Cannot mix'),
+    ('    if present(&j, "operations") or present(&j, "proposals") or present(&j, "servers")', '    if present(&j, "operations") or present(&j, "proposals")'),
+    ('                if p != "http" and p != "sockets"', '                if p != "http"'),
+    ('        if world != "wasi:cli/command" and world != "wasi:http/service"', '        if world != "wasi:cli/command"'),
+    ('    if present(&j, "stderr")\n', '    if false\n'),
+    ('        return try rw_op("read", j, "stdout")', '        return try rw_op("read", j, "stderr")'),
+    ('    if index_of(&OPS, &ty) < 0', '    if ty == ""'),
+    ('    if name == "SIGIOT"\n        name = "SIGABRT"', '    if false\n        name = "SIGABRT"'),
+    ('        none -> name = "SIGTERM"', '        none -> name = "SIGKILL"'),
+    ('        none -> o.exit_code = 0', '        none -> o.exit_code = 1'),
+    ('            closed = true', '            closed = false'),
+    ('        if op.opk == "run"\n            closed = false', '        if false\n            closed = false'),
+    ('            at_o = 0\n', '            at_o = at_o\n'),
+    ('            if ob.timed_out or ob.exit_code != op.exit_code', '            if ob.exit_code != op.exit_code'),
+    ('            while k < want.len() and at + k < cs.len() bound 16777216', '            while at + k < cs.len() bound 16777216'),
+    ('                at_o = at + k', '                at_o = at'),
+    ('            let isout = op.id == "stdout"', '            let isout = op.id != "stderr" and false'),
+    ('        return if failed then "xfail" else "xpass"', '        return if failed then "xfail" else "pass"'),
+    ('pub fn is_failure(o: &text) -> bool = o == "fail" or o == "xpass"', 'pub fn is_failure(o: &text) -> bool = o == "fail"'),
+    ('    if not executed\n        return "skip"', '    if false\n        return "skip"'),
+]
+
 def one(job):
     name, a, b = job
     src = open(os.path.join(root, 'lib/os/%s.rce' % name)).read()
