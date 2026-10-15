@@ -1,0 +1,23 @@
+# rce-version: 0.6
+fn par_total(xs: [f64; 4]) -> f64
+    var total: f64 = 0.0
+    for i in 0..4 par
+        total += xs[i]
+    total
+fn main()
+    let xs: [f64; 4] = [1e16, 1.0, 1.0, -1e16]
+    emit xs.fold(0.0, fn(a: f64, x: f64) => a + x)
+    emit xs.sum()
+    emit par_total(xs)
+#--- rce-test
+# id: proposed/tu-4-reduction-is-left-fold
+# area: proposed
+# clauses: [TU-4]
+# expect: run
+# outcome: done
+# outputs:
+#   - emit 0
+#   - emit 0
+#   - emit 0
+# provenance: targeted (round 3): TU-4 (proposed) over a one-axis value is N-9: a left fold in index order (1e16 + 1 rounds back to 1e16, so the result is 0; any other order gives 2). The par loop over 4 contributions has tree ((a+b)+(c+d)) here, which also gives 0; holds under the adopted rules today
+#---

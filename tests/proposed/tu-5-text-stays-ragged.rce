@@ -1,0 +1,16 @@
+fn main()
+    let ws: List[text] = ["a", "bcd", ""]
+    emit ws.map(fn(w: text) => w.len())
+    let m: Map[text, i64] = {"x": 1}
+    emit m.keys().len()
+#--- rce-test
+# id: proposed/tu-5-text-stays-ragged
+# area: proposed
+# clauses: [TU-5]
+# expect: run
+# outcome: done
+# outputs:
+#   - emit [1, 3, 0]
+#   - emit 1
+# provenance: targeted (round 3): TU-5 (proposed): text and maps stay ragged canonical values, never padded to a common length
+#---

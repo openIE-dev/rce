@@ -98,9 +98,9 @@ none
 | W-MOD-3 | rule | 09-wellformedness.md:25 | 1 | {'not-run': 1} |
 | W-SAFE-1 | rule | 09-wellformedness.md:28 | 13 | {'not-run': 13} |
 | W-FFI-1 | rule | 09-wellformedness.md:31 | 3 | {'not-run': 3} |
-| W-TY-1 | rule | 09-wellformedness.md:36 | 14 | {'not-run': 14} |
+| W-TY-1 | rule | 09-wellformedness.md:36 | 13 | {'not-run': 13} |
 | W-TY-2 | rule | 09-wellformedness.md:37 | 2 | {'not-run': 2} |
-| W-TY-3 | rule | 09-wellformedness.md:39 | 3 | {'not-run': 3} |
+| W-TY-3 | rule | 09-wellformedness.md:39 | 4 | {'not-run': 4} |
 | W-PAT-1 | rule | 09-wellformedness.md:40 | 2 | {'not-run': 2} |
 | W-MATCH-1 | rule | 09-wellformedness.md:41 | 1 | {'not-run': 1} |
 | W-MATCH-2 | rule | 09-wellformedness.md:41 | 1 | {'not-run': 1} |
@@ -166,7 +166,7 @@ none
 | W-DL-1 | rule | 14-draft06-concurrency.md:196 | 1 | {'not-run': 1} |
 | W-ND-1 | rule | 14-draft06-concurrency.md:200 | 1 | {'not-run': 1} |
 | CH14-M-6d53e2af | modal | 14-draft06-concurrency.md:246 | 1 | {'not-run': 1} |
-| W-PAR-3 | rule | 14-draft06-concurrency.md:288 | 93 | {'not-run': 93} |
+| W-PAR-3 | rule | 14-draft06-concurrency.md:288 | 94 | {'not-run': 94} |
 | W-PAR-4 | rule | 14-draft06-concurrency.md:291 | 2 | {'not-run': 2} |
 | CH14-M-ca5a98d7 | modal | 14-draft06-concurrency.md:293 | 90 | {'not-run': 90} |
 | W-GRP-1 | rule | 14-draft06-concurrency.md:323 | 1 | {'not-run': 1} |

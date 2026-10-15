@@ -2,7 +2,7 @@
 """rce-adapter/1 for the program emitters of spec 10.5 (rust, python, js, scala).
 
 An emitter is a back end: it translates an admitted module. So this adapter
-answers `run` only. Entry (parse, check, admission) is the reference
+answers `run` and `trace`. Entry (parse, check, admission) is the reference
 front end's job and is certified through the reference adapter.
 
   run, no events   emit TARGET, run the program with `--run [--fuel=N]`
@@ -35,11 +35,15 @@ def emit(src):
         return None, err.strip() or out.strip()
     prog = os.path.join(TMP, f"m{h}.{EXT}"); open(prog, "w").write(out)
     if LANG == "rust":
-        exe = os.path.join(TMP, f"m{h}")
+        # keyed by the emitted program, so a changed runtime is never served from a stale binary
+        exe = os.path.join(TMP, "x" + hashlib.sha256(out.encode()).hexdigest()[:20])
         if not os.path.exists(exe):
-            rc, o, e = sh([os.environ.get("RCE_RUSTC", "rustc"), "-O", "--edition", "2024", "-o", exe, prog], timeout=600)
+            # a private output name, then an atomic rename: parallel jobs may build the same program
+            tmp_exe = f"{exe}_{os.getpid()}"
+            rc, o, e = sh([os.environ.get("RCE_RUSTC", "rustc"), "-O", "--edition", "2024", "-o", tmp_exe, prog], timeout=600)
             if rc != 0:
                 return None, "rustc: " + e[-800:]
+            os.replace(tmp_exe, exe)
         return [exe], None
     if LANG == "python":
         return [os.environ.get("RCE_PYTHON", "python3"), prog], None
@@ -71,7 +75,7 @@ def run_main(src, fuel):
         return {"error": f"exit {rc}: {e[-500:]}"}
     return {"verdict": "accept", "outputs": lines, "outcome": outcome}
 
-def run_events(src, events):
+def run_events(src, events, extra=()):
     base = src if src.endswith("\n") else src + "\n"
     n = base.count("\n") + 1
     cand = [base + f"example {events} -> true\n"]
@@ -84,13 +88,15 @@ def run_events(src, events):
             if cmd is None:
                 return {"error": f"emit: {err2}"}
         elif trap:
-            # An `example` can name only a declared error after `refused:`, so an
-            # event list whose last event traps has no observation in an
-            # emitted program (finding EXAMPLE-TRAP). Say so rather than guess.
-            return {"unsupported": "the last event traps; no `example` form observes a trap"}
+            # `refused: trap("K")` (book 3.2/6.9): the checker's verdict only
+            # makes the example well formed; the outcome compared is the one
+            # the emitted program prints for it
+            cmd, err2 = emit(base + f"example {events} -> refused: trap({json.dumps(trap.group(1))})\n")
+            if cmd is None:
+                return {"error": f"emit: {err2}"}
         else:
             return {"error": f"emit: {err}"}
-    rc, out, e = sh(cmd)
+    rc, out, e = sh(cmd + list(extra))
     blocks, cur = {}, None
     for l in out.splitlines():
         mm = re.match(r"example (\d+)$", l)
@@ -101,10 +107,32 @@ def run_events(src, events):
     if n not in blocks:
         return {"error": f"no observation block for line {n}; exit {rc}; {e[-300:]}"}
     lines = blocks[n]
+    if extra:
+        return {"block": lines}
     outcome = "done"
     if lines and " refused: " in lines[-1]:
         outcome = outcome_of(lines.pop().split(" refused: ", 1)[1])
     return {"verdict": "accept", "outputs": lines, "outcome": outcome}
+
+GENESIS = "0" * 64
+
+def trace(src, events):
+    """6.1 D: the emitted program logs each example's D chain with `--trace`
+    (canonical JSON, N3 floats, SHA-256 entries, as the reference writes it)
+    and prints `trace HEAD`; the head of the last log is the trace head."""
+    if events:
+        r = run_events(src, events, ("--trace",))
+        if "error" in r: return r
+        heads = [l[6:] for l in r["block"] if l.startswith("trace ")]
+    else:
+        cmd, err = emit(src)
+        if cmd is None:
+            return {"error": f"emit: {err}"}
+        rc, out, e = sh(cmd + ["--trace"])
+        if rc != 0 and "trace " not in out:
+            return {"error": f"exit {rc}: {e[-300:]}"}
+        heads = [l[6:] for l in out.splitlines() if l.startswith("trace ")]
+    return {"verdict": "accept", "trace": {"head": heads[-1] if heads else GENESIS, "steps": []}}
 
 for line in sys.stdin:
     if not line.strip():
@@ -113,9 +141,11 @@ for line in sys.stdin:
     try:
         op = req.get("op")
         if op == "hello":
-            r = {"protocol": "rce-adapter/1", "implementation": f"rce emit {LANG}", "ops": ["run"], "features": ["fuel"]}
+            r = {"protocol": "rce-adapter/1", "implementation": f"rce emit {LANG}", "ops": ["run", "trace"], "features": ["fuel", "trace"]}
         elif op == "run":
             r = run_events(req["source"], req["events"]) if req.get("events") else run_main(req["source"], req.get("fuel"))
+        elif op == "trace":
+            r = trace(req["source"], req.get("events"))
         else:
             r = {"error": f"op `{op}` is not served by an emitter"}
     except Exception as ex:

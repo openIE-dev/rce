@@ -1,0 +1,22 @@
+# rce-version: 0.6
+error Boom
+fn bad(c: chan i64) -> i64 ! Boom
+    c <- 1
+    fail Boom
+fn slow(c: chan i64)
+    loop bound 50
+        c <- 2
+fn main()
+    let c = chan[i64](4)
+    scope
+        spawn bad(c)
+        spawn slow(c)
+    emit 7
+#--- rce-test
+# id: concurrency/targeted/scope-waits-for-blocked-child
+# area: concurrency
+# clauses: [T1, T26, T4, T9]
+# expect: run
+# outcome: deadlock
+# provenance: targeted (mutation survivors, round 3): a scope waits for every child (T26): a sibling blocked on a full channel leaves the run Deadlock (T4); outputs read off the reference and checked by the four emitters
+#---

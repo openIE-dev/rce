@@ -1,0 +1,29 @@
+# rce-version: 0.6
+fn tot(xs: [f64; 8]) -> f64
+    var s: f64 = 0.0
+    for i in 0..8 par
+        s += xs[i]
+    s
+fn main()
+    let xs: [f64; 8] = [0.1, 0.2, 0.3, 1e16, -1e16, 0.4, 0.5, 0.6]
+    var a: f64 = 0.0
+    var b: f64 = 0.0
+    par
+        branch one
+            a = tot(xs)
+        branch two
+            b = xs.fold(0.0, fn(p: f64, x: f64) => p + x)
+    emit a
+    emit b
+#--- rce-test
+# id: proposed/tu-6-schedule-never-changes-bits
+# area: proposed
+# clauses: [TU-6]
+# expect: run
+# schedule_seeds: [1, 2, 3, 4, 5, 6, 7, 8]
+# outcome: done
+# outputs:
+#   - emit 2
+#   - emit 1.5
+# provenance: targeted (round 3): TU-6 (proposed) says a placement choice changes cost only; the schedule-seed half of that is testable now: the par reduction is evaluated on the normative split tree of C.4 (left subtree takes the largest power of two below m), giving 2, and the fold gives 1.5, the same bits under every schedule (HC-7, N-9)
+#---

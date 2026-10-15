@@ -661,9 +661,9 @@
    "kind": "rule",
    "chapter": "09-wellformedness.md",
    "line": 36,
-   "tests": 14,
+   "tests": 13,
    "reference": {
-    "not-run": 14
+    "not-run": 13
    }
   },
   {
@@ -681,9 +681,9 @@
    "kind": "rule",
    "chapter": "09-wellformedness.md",
    "line": 39,
-   "tests": 3,
+   "tests": 4,
    "reference": {
-    "not-run": 3
+    "not-run": 4
    }
   },
   {
@@ -1341,9 +1341,9 @@
    "kind": "rule",
    "chapter": "14-draft06-concurrency.md",
    "line": 288,
-   "tests": 93,
+   "tests": 94,
    "reference": {
-    "not-run": 93
+    "not-run": 94
    }
   },
   {

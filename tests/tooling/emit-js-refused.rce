@@ -1,0 +1,14 @@
+fn main()
+    emit 1 +
+#--- rce-test
+# id: tooling/emit-js-refused
+# area: tooling
+# clauses: [CH12-M-bafe6c22]
+# expect: cli
+# argv: ["emit", "js", "main.rce"]
+# status: 1
+# lines: 0
+# output_has:
+#   - W-SYN-1
+# provenance: targeted (round 3): 10.5, the file must pass rce check on its own; nothing is emitted
+#---

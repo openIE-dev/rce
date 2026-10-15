@@ -9,7 +9,7 @@ fn main()
 # expect: run
 # outcome: done
 # outputs:
-#   - emit 0
+#   - emit -0
 # flags: [generated]
-# provenance: gen_numbers.py seed 3; oracle-derived
+# provenance: gen_numbers.py seed 3; oracle-derived; -0 per F9 (finding 2)
 #---

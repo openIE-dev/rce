@@ -53,6 +53,6 @@ step Lab on F32Mul(a: a, b: b) -> ((a as f32) * (b as f32)) as f64
 # outcome: done
 # outputs:
 #   - 0 (initial) Lab { x = 0 }
-#   - 1 Mul(a: 0, b: -1) Lab { x = 0 }
+#   - 1 Mul(a: 0, b: -1) Lab { x = -0 }
 # provenance: harvested examples/57_float_vectors.rce example@13
 #---
