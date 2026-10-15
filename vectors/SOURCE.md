@@ -42,7 +42,9 @@ ML-KEM-768 results are checked against the RustCrypto `ml-kem` crate
   (commit f55849f89cd85083c1c9daa2c5de20766f309c00, fetched 2026-10-15),
   copied unchanged. All 35 input lengths (0 to 102400) are checked in all
   three modes (hash, keyed_hash, derive_key) at the full 131-byte extended
-  output: 105 checks, sharded over `tests/hash/blake3_checks*.rce`.
+  output: 105 checks, sharded over `tests/hash/blake3_checks*.rce`; the three
+  102400-byte cases run nightly (`tests/hash/blake3_nightly_*.rce`,
+  `scripts/nightly.sh`, `.github/workflows/nightly.yml`).
 
 ## core.bytes (`lib/core/bytes.rce`)
 
@@ -52,3 +54,4 @@ to build `text` from UTF-8 bytes (none in 5.15), and a native byte type
 (bytes stay `List[i64]` until one exists). Option and result types are
 the language's own `T?` and error unions (`T ! E`), so no core.option or
 core.result library is added.
+
