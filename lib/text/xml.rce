@@ -150,11 +150,11 @@ fn all_ws(t: &text) -> bool
     return true
 
 # the part of t before the first occurrence of sep, and whether found
-fn upto(t: &text, sep: &text) -> text
+fn x_upto(t: &text, sep: &text) -> text
     let p = t.split(sep)
     return copy(p[0])
 
-fn past(t: &text, sep: &text) -> text
+fn x_past(t: &text, sep: &text) -> text
     let p = t.split(sep)
     var o = ""
     for k in 1..p.len()
@@ -258,7 +258,7 @@ pub fn parse(src: &text) -> Xml
             if not sg.contains("-->")
                 xbad(&mut x, "unterminated comment")
             let e = "-->"
-            tail = past(&sg, &e)
+            tail = x_past(&sg, &e)
         elif sg.startswith("![CDATA[")
             while not sg.contains("]]>") and i < segs.len() bound 16777216
                 sg = sg + "<" + segs[i]
@@ -267,26 +267,26 @@ pub fn parse(src: &text) -> Xml
             if not sg.contains("]]>") or cur == d
                 xbad(&mut x, "bad CDATA section")
             else
-                let inner = upto(&sg, &e)
+                let inner = x_upto(&sg, &e)
                 let ps = inner.split("![CDATA[")
                 add_text(&mut x, cur, copy(ps[1]))
-            tail = past(&sg, &e)
+            tail = x_past(&sg, &e)
         elif sg.startswith("?")
             let e = "?>"
             if not sg.contains("?>")
                 xbad(&mut x, "unterminated processing instruction")
-            tail = past(&sg, &e)
+            tail = x_past(&sg, &e)
         elif sg.startswith("!DOCTYPE")
             if not sg.contains(">")
                 xbad(&mut x, "unterminated DOCTYPE")
-            tail = past(&sg, &gt)
+            tail = x_past(&sg, &gt)
         else
             # a tag: rejoin while ">" is missing or inside quotes
-            var head = upto(&sg, &gt)
+            var head = x_upto(&sg, &gt)
             while (not sg.contains(">") or not quotes_closed(&head)) and i < segs.len() bound 4096
                 sg = sg + "<" + segs[i]
                 i += 1
-                head = upto(&sg, &gt)
+                head = x_upto(&sg, &gt)
             if not sg.contains(">")
                 xbad(&mut x, "unterminated tag")
                 return x
@@ -302,7 +302,7 @@ pub fn parse(src: &text) -> Xml
                 tail = tail + (if m > k + 1 then ">" else "") + gs[m]
             if head.startswith("/")
                 let sl = "/"
-                let nm = past(&head, &sl)
+                let nm = x_past(&head, &sl)
                 let nm2 = nm.strip()
                 if cur == d or x.txt[cur as usize] != nm2
                     xbad(&mut x, "mismatched end tag " + nm2)
@@ -361,7 +361,7 @@ pub fn elems(x: &Xml, n: i64) -> List[i64]
     return o
 
 # the root element (the document's element child), or -1
-pub fn root(x: &Xml) -> i64
+pub fn doc_root(x: &Xml) -> i64
     let es = elems(x, 0)
     if es.len() == 0
         return -1

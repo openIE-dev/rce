@@ -1616,7 +1616,7 @@ pub fn dom_of(js: &mut Js, x: &xml.Xml, n: i64) -> i64 bound 256
 pub fn dom_doc(js: &mut Js, x: &xml.Xml) -> i64
     let d = cell(js, C_DOM)
     js.fsrc[d as usize] = "#document"
-    let rt = xml.root(x)
+    let rt = xml.doc_root(x)
     if rt >= 0
         let e = dom_of(js, x, rt)
         js.kids[d as usize].push(e)
@@ -1689,3 +1689,5 @@ pub fn assign_in(js: &mut Js, env: i64, src: &text, v: V) -> Res
 
 # is the name bound in scope env (or an outer scope)
 pub fn is_bound(js: &Js, env: i64, nm: &text) -> bool = find_binding(js, env, nm) >= 0
+
+pub fn has_own(js: &Js, o: i64, k: &text) -> bool = e_own(js, o, k) >= 0

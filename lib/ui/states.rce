@@ -1,25 +1,34 @@
 module ui.states
+# uses: enc.enc, data.events, text.xml, ui.ecma
+use text.xml
+use ui.ecma
 
-# Statecharts (survey M53 `ui.state`; `state` is an rce keyword), pure: the SCXML 1.0 execution algorithm (W3C
-# Recommendation 2015-09-01, Appendix D) over a chart read from a compact
-# text form, with a small integer datamodel, and a cache of derived
-# values keyed by digest.
+# Statecharts (survey M53 `ui.state`; `state` is an rce keyword), pure: the
+# SCXML 1.0 execution algorithm (W3C Recommendation 2015-09-01,
+# Appendix D) over charts read from SCXML documents (with the ECMAScript
+# datamodel of B.2, via ui.ecma) or from a compact text form (with a small
+# integer datamodel), and a cache of derived values keyed by digest.
 # - States are numbered in document order across all machines of a
-#   chart (a machine is a <scxml> document; inline <invoke> content is a
-#   further machine). Kinds: ROOT, ATOMIC, COMPOUND, PARALLEL, FINAL,
-#   HIST_SHALLOW, HIST_DEEP.
-# - Executable content: raise, send (delay in ms; target self, parent or
-#   invalid), assign, log, if/elseif/else. A failed action (assignment
-#   to an undeclared location, an invalid send target) raises
-#   error.execution and ends its block, as SCXML 4.9 requires.
-# - Values are integers, or unbound. Expressions: n:<int>, v:<var>,
-#   add:<atom>:<atom>. Conditions: t, f, cmp:<op>:<atom>:<atom> (op one of
-#   eq ne lt le gt ge; false when a side is unbound, as ECMAScript's
-#   undefined compares), in:<state id>, ev:<event name>, bound:<var>.
+#   chart (a machine is an <scxml> document; inline <invoke> content and
+#   documents named by src are further machines). Kinds: ROOT, ATOMIC,
+#   COMPOUND, PARALLEL, FINAL, HIST_SHALLOW, HIST_DEEP.
+# - SCXML documents: <scxml>, <state>, <parallel>, <final>, <history>,
+#   <initial>, <transition>, <onentry>, <onexit>, <datamodel>/<data>
+#   (expr, src, content; early or late binding), <invoke> (type scxml,
+#   src, srcexpr, content, id, idlocation, namelist, param, autoforward,
+#   finalize), <donedata>; executable content <raise>, <send> (event,
+#   eventexpr, target, targetexpr, type, typeexpr, id, idlocation, delay,
+#   delayexpr, namelist, param, content), <log>, <assign>, <if>/<elseif>/
+#   <else>, <foreach>, <script>, <cancel>. Event I/O processors: the
+#   SCXML processor (#_internal, #_parent, #_scxml_<session>,
+#   #_<invokeid>) and a loopback Basic HTTP processor (C.2) that delivers
+#   to this interpreter's own sessions (the message formed as an HTTP
+#   POST, form-encoded).
 # - Time is virtual: delayed sends wait in the external queue ordered by
 #   (due time, send order); `run` processes the given external events
 #   (at time 0, in order) and then the delayed ones.
-# Chart text, one directive per line, tokens separated by single spaces:
+# Compact chart text, one directive per line, tokens separated by single
+# spaces (integer datamodel):
 #   machine
 #   state <id> <kind> <parent id|-> <initial ids,|->
 #   data <var> <expr|->
@@ -30,6 +39,10 @@ module ui.states
 #   actions: raise <e> | send <e> <ms> <self|parent|bad> |
 #     assign <var> <expr> | log <label> | if <cond> | elif <cond> |
 #     else | fi
+#   Values are integers, or unbound. Expressions: n:<int>, v:<var>,
+#   add:<atom>:<atom>. Conditions: t, f, cmp:<op>:<atom>:<atom> (op one of
+#   eq ne lt le gt ge; false when a side is unbound, as ECMAScript's
+#   undefined compares), in:<state id>, ev:<event name>, bound:<var>.
 
 pub const ROOT: i64 = 0
 pub const ATOMIC: i64 = 1
@@ -39,6 +52,7 @@ pub const FINAL: i64 = 4
 pub const HIST_SHALLOW: i64 = 5
 pub const HIST_DEEP: i64 = 6
 
+# compact actions
 pub const A_RAISE: i64 = 1
 pub const A_SEND: i64 = 2
 pub const A_ASSIGN: i64 = 3
@@ -47,6 +61,21 @@ pub const A_IF: i64 = 5
 pub const A_ELIF: i64 = 6
 pub const A_ELSE: i64 = 7
 pub const A_FI: i64 = 8
+# SCXML actions (attributes in ak/av)
+pub const X_RAISE: i64 = 11
+pub const X_SEND: i64 = 12
+pub const X_ASSIGN: i64 = 13
+pub const X_LOG: i64 = 14
+pub const X_SCRIPT: i64 = 15
+pub const X_FOREACH: i64 = 16
+pub const X_CANCEL: i64 = 17
+pub const X_PARAM: i64 = 18
+pub const X_DONE: i64 = 19
+pub const X_BAD: i64 = 20
+
+pub const DM_MINI: i64 = 0
+pub const DM_ECMA: i64 = 1
+pub const DM_NULL: i64 = 2
 
 pub struct Chart
     sid: List[text]
@@ -60,9 +89,20 @@ pub struct Chart
     sinv: List[List[i64]]
     skids: List[List[i64]]
     strans: List[List[i64]]
+    sdone: List[i64]
     mroot: List[i64]
     mvars: List[List[text]]
     mexpr: List[List[text]]
+    mdst: List[List[i64]]
+    mdsrc: List[List[text]]
+    mdcont: List[List[text]]
+    mdxml: List[List[bool]]
+    mdhas: List[List[bool]]
+    mdm: List[i64]
+    mname: List[text]
+    mlate: List[bool]
+    mscript: List[i64]
+    mdoc: List[text]
     tsrc: List[i64]
     tev: List[List[text]]
     tcond: List[text]
@@ -74,14 +114,134 @@ pub struct Chart
     aa: List[text]
     ab: List[text]
     an: List[i64]
+    ak: List[List[text]]
+    av: List[List[text]]
+    asub: List[i64]
+    apar: List[List[i64]]
+    acont: List[text]
+    acx: List[bool]
+    ahas: List[bool]
+    vk: List[List[text]]
+    vv: List[List[text]]
+    vpar: List[List[i64]]
+    vmach: List[i64]
+    vcont: List[text]
+    vhas: List[bool]
+    vfin: List[i64]
+    vstate: List[i64]
+    fname: List[text]
+    fbody: List[text]
+    fmach: List[i64]
     ok: bool
     why: text
     xs: bool
 
 fn no_ints() -> List[i64] = []
 fn no_texts() -> List[text] = []
+fn no_bools() -> List[bool] = []
 
-fn chart0() -> Chart = Chart(sid: [], skind: [], spar: [], smach: [], sinit: [], sinitblk: [], sentry: [], sexit: [], sinv: [], skids: [], strans: [], mroot: [], mvars: [], mexpr: [], tsrc: [], tev: [], tcond: [], tint: [], ttgt: [], tblk: [], blocks: [], aop: [], aa: [], ab: [], an: [], ok: true, why: "", xs: false)
+fn chart0() -> Chart = Chart(sid: [], skind: [], spar: [], smach: [], sinit: [], sinitblk: [], sentry: [], sexit: [], sinv: [], skids: [], strans: [], sdone: [], mroot: [], mvars: [], mexpr: [], mdst: [], mdsrc: [], mdcont: [], mdxml: [], mdhas: [], mdm: [], mname: [], mlate: [], mscript: [], mdoc: [], tsrc: [], tev: [], tcond: [], tint: [], ttgt: [], tblk: [], blocks: [], aop: [], aa: [], ab: [], an: [], ak: [], av: [], asub: [], apar: [], acont: [], acx: [], ahas: [], vk: [], vv: [], vpar: [], vmach: [], vcont: [], vhas: [], vfin: [], vstate: [], fname: [], fbody: [], fmach: [], ok: true, why: "", xs: false)
+
+fn new_machine(c: &mut Chart, dm: i64)
+    c.mroot.push(-1)
+    c.mvars.push(no_texts())
+    c.mexpr.push(no_texts())
+    c.mdst.push(no_ints())
+    c.mdsrc.push(no_texts())
+    c.mdcont.push(no_texts())
+    c.mdxml.push(no_bools())
+    c.mdhas.push(no_bools())
+    c.mdm.push(dm)
+    c.mname.push("")
+    c.mlate.push(false)
+    c.mscript.push(-1)
+    c.mdoc.push("")
+
+fn new_state(c: &mut Chart, id: text, k: i64, m: i64) -> i64
+    c.sid.push(id)
+    c.skind.push(k)
+    c.spar.push(-1)
+    c.smach.push(m)
+    c.sinit.push(no_ints())
+    c.sinitblk.push(-1)
+    c.sentry.push(no_ints())
+    c.sexit.push(no_ints())
+    c.sinv.push(no_ints())
+    c.skids.push(no_ints())
+    c.strans.push(no_ints())
+    c.sdone.push(-1)
+    let s = (c.sid.len() - 1) as i64
+    if k == ROOT
+        c.mroot[m as usize] = s
+    return s
+
+fn new_action(c: &mut Chart, op: i64) -> i64
+    c.aop.push(op)
+    c.aa.push("")
+    c.ab.push("")
+    c.an.push(0)
+    c.ak.push(no_texts())
+    c.av.push(no_texts())
+    c.asub.push(-1)
+    c.apar.push(no_ints())
+    c.acont.push("")
+    c.acx.push(false)
+    c.ahas.push(false)
+    return (c.aop.len() - 1) as i64
+
+fn new_invoke(c: &mut Chart, s: i64) -> i64
+    c.vk.push(no_texts())
+    c.vv.push(no_texts())
+    c.vpar.push(no_ints())
+    c.vmach.push(-1)
+    c.vcont.push("")
+    c.vhas.push(false)
+    c.vfin.push(-1)
+    c.vstate.push(s)
+    let v = (c.vk.len() - 1) as i64
+    c.sinv[s as usize].push(v)
+    return v
+
+fn new_transition(c: &mut Chart, s: i64, evs: List[text], cond: text, isint: bool, tg: List[i64], blk: i64, listed: bool) -> i64
+    c.tsrc.push(s)
+    c.tev.push(evs)
+    c.tcond.push(cond)
+    c.tint.push(isint)
+    c.ttgt.push(tg)
+    c.tblk.push(blk)
+    let t = (c.tsrc.len() - 1) as i64
+    if listed
+        c.strans[s as usize].push(t)
+    return t
+
+# attribute a of action u ("" when absent)
+fn aattr(c: &Chart, u: i64, a: &text) -> text
+    let ks = copy(c.ak[u as usize])
+    for i in 0..ks.len()
+        if ks[i] == a
+            return copy(c.av[u as usize][i])
+    return ""
+
+fn ahas_attr(c: &Chart, u: i64, a: &text) -> bool = c.ak[u as usize].contains(copy(a))
+
+fn vattr(c: &Chart, v: i64, a: &text) -> text
+    let ks = copy(c.vk[v as usize])
+    for i in 0..ks.len()
+        if ks[i] == a
+            return copy(c.vv[v as usize][i])
+    return ""
+
+fn vhas_attr(c: &Chart, v: i64, a: &text) -> bool = c.vk[v as usize].contains(copy(a))
+
+fn at(c: &Chart, u: i64, a: text) -> text = aattr(c, u, &a)
+fn ah(c: &Chart, u: i64, a: text) -> bool = ahas_attr(c, u, &a)
+fn vt(c: &Chart, v: i64, a: text) -> text = vattr(c, v, &a)
+fn vh(c: &Chart, v: i64, a: text) -> bool = vhas_attr(c, v, &a)
+fn sprop(js: &mut ecma.Js, o: i64, k: text, v: ecma.V)
+    ecma.set_prop(js, o, &k, v)
+fn sro(js: &mut ecma.Js, o: i64, k: text, v: ecma.V)
+    ecma.set_ro(js, o, &k, v)
+
 
 fn kind_of(t: &text) -> i64
     if t == "root"
@@ -138,9 +298,7 @@ pub fn parse_chart(src: &text) -> Chart
         let w = l.split(" ")
         if w[0] == "machine"
             m += 1
-            c.mroot.push(-1)
-            c.mvars.push(no_texts())
-            c.mexpr.push(no_texts())
+            new_machine(&mut c, DM_MINI)
         elif w[0] == "state"
             if w.len() != 5 or m < 0
                 bad(&mut c, "bad state line")
@@ -149,19 +307,7 @@ pub fn parse_chart(src: &text) -> Chart
             if k < 0
                 bad(&mut c, "bad kind " + w[2])
                 return c
-            c.sid.push(copy(w[1]))
-            c.skind.push(k)
-            c.spar.push(-1)
-            c.smach.push(m)
-            c.sinit.push(no_ints())
-            c.sinitblk.push(-1)
-            c.sentry.push(no_ints())
-            c.sexit.push(no_ints())
-            c.sinv.push(no_ints())
-            c.skids.push(no_ints())
-            c.strans.push(no_ints())
-            if k == ROOT
-                c.mroot[m as usize] = (c.sid.len() - 1) as i64
+            let s = new_state(&mut c, copy(w[1]), k, m)
     m = -1
     var si: usize = 0
     var cur: i64 = -1
@@ -181,9 +327,15 @@ pub fn parse_chart(src: &text) -> Chart
         elif w[0] == "data"
             c.mvars[m as usize].push(copy(w[1]))
             c.mexpr[m as usize].push(copy(w[2]))
+            c.mdst[m as usize].push(-1)
+            c.mdsrc[m as usize].push("")
+            c.mdcont[m as usize].push("")
+            c.mdxml[m as usize].push(false)
+            c.mdhas[m as usize].push(false)
         elif w[0] == "invoke"
             let s = find_state(&c, m, &w[1])
-            c.sinv[s as usize].push(w[2].toint())
+            let v = new_invoke(&mut c, s)
+            c.vmach[v as usize] = w[2].toint()
         elif w[0] == "onentry" or w[0] == "onexit" or w[0] == "initial"
             let s = find_state(&c, m, &w[1])
             if s < 0
@@ -205,18 +357,12 @@ pub fn parse_chart(src: &text) -> Chart
                 bad(&mut c, "unknown state " + w[1])
                 return c
             cur = new_block(&mut c)
-            c.tsrc.push(s)
             var evs = no_texts()
             if w[2] != "-"
                 for e in w[2].split(",")
                     evs.push(copy(e))
-            c.tev.push(evs)
-            c.tcond.push(copy(w[3]))
-            c.tint.push(w[4] == "int")
             let tg = ids(&mut c, m, &w[5])
-            c.ttgt.push(tg)
-            c.tblk.push(cur)
-            c.strans[s as usize].push((c.tsrc.len() - 1) as i64)
+            let t = new_transition(&mut c, s, evs, copy(w[3]), w[4] == "int", tg, cur, true)
         elif w[0] == "end"
             cur = -1
         elif w[0] != ""
@@ -240,15 +386,13 @@ pub fn parse_chart(src: &text) -> Chart
             if op == 0 or cur < 0
                 bad(&mut c, "bad line " + l)
                 return c
-            c.aop.push(op)
-            c.aa.push(if w.len() > 1 then copy(w[1]) else "")
-            c.ab.push(if w.len() > 2 then copy(w[2]) else "")
-            var n: i64 = 0
+            let u = new_action(&mut c, op) as usize
+            c.aa[u] = if w.len() > 1 then copy(w[1]) else ""
+            c.ab[u] = if w.len() > 2 then copy(w[2]) else ""
             if op == A_SEND
-                n = w[2].toint()
-                c.ab[c.ab.len() - 1] = copy(w[3])
-            c.an.push(n)
-            c.blocks[cur as usize].push((c.aop.len() - 1) as i64)
+                c.an[u] = w[2].toint()
+                c.ab[u] = copy(w[3])
+            c.blocks[cur as usize].push(u as i64)
     # initial targets of compound states (state line field 4, or the
     # first child state in document order) and kinds of states with kids
     m = -1
@@ -275,7 +419,377 @@ pub fn parse_chart(src: &text) -> Chart
                     c.sinit[i].push(k)
     return c
 
+
+
+# ---------------- SCXML documents ----------------
+
+pub const SCXML_NS: text = "http://www.w3.org/2005/07/scxml"
+
+# loader context: XML element -> state, for one machine
+pub struct Ld
+    nodes: List[i64]
+    sts: List[i64]
+    gen: i64
+
+fn xa(x: &xml.Xml, n: i64, a: text) -> text = xml.xattr(x, n, &a)
+fn xh(x: &xml.Xml, n: i64, a: text) -> bool = xml.xhas_attr(x, n, &a)
+fn xn(x: &xml.Xml, n: i64) -> text = if x.ns[n as usize] == SCXML_NS then copy(x.name[n as usize]) else ""
+
+fn words(t: &text) -> List[text]
+    var o: List[text] = []
+    var cur = ""
+    for ch in t.chars()
+        if ch == " " or ch == "\n" or ch == "\t" or ch == "\r"
+            if cur != ""
+                o.push(cur)
+                cur = ""
+        else
+            cur = cur + ch
+    if cur != ""
+        o.push(cur)
+    return o
+
+fn state_of(ld: &Ld, n: i64) -> i64
+    for i in 0..ld.nodes.len()
+        if ld.nodes[i] == n
+            return ld.sts[i]
+    return -1
+
+fn is_state_el(nm: &text) -> bool = nm == "state" or nm == "parallel" or nm == "final" or nm == "history"
+
+# pass 1: states of element el (under state p), in document order
+fn mk_states(c: &mut Chart, ld: &mut Ld, x: &xml.Xml, el: i64, p: i64, m: i64) bound 256
+    for e in xml.elems(x, el)
+        let nm = xn(x, e)
+        if is_state_el(&nm)
+            var id = xa(x, e, "id")
+            if id == ""
+                ld.gen += 1
+                id = "_gen" + ld.gen.tostr()
+            var k = ATOMIC
+            if nm == "parallel"
+                k = PARALLEL
+            elif nm == "final"
+                k = FINAL
+            elif nm == "history"
+                k = if xa(x, e, "type") == "deep" then HIST_DEEP else HIST_SHALLOW
+            if find_state(c, m, &id) >= 0
+                bad(c, "duplicate state id " + id)
+            let s = new_state(c, id, k, m)
+            c.spar[s as usize] = p
+            c.skids[p as usize].push(s)
+            ld.nodes.push(e)
+            ld.sts.push(s)
+            mk_states(c, ld, x, e, s, m)
+            if k == ATOMIC
+                let kids = copy(c.skids[s as usize])
+                for ch in kids
+                    if c.skind[ch as usize] < HIST_SHALLOW
+                        c.skind[s as usize] = COMPOUND
+
+fn tgt_ids(c: &mut Chart, m: i64, t: &text) -> List[i64]
+    var o: List[i64] = []
+    for w in words(t)
+        let k = find_state(c, m, &w)
+        if k < 0
+            bad(c, "unknown target " + w)
+        else
+            o.push(k)
+    return o
+
+# content of a <content>/<data>/<assign> element: [has, text, is-xml]
+fn content_of(x: &xml.Xml, e: i64) -> List[text]
+    let es = xml.elems(x, e)
+    if es.len() > 0
+        return ["1", xml.serialize(x, es[0]), "1"]
+    var any = false
+    for k in x.kids[e as usize]
+        any = true
+    return [if any then "1" else "0", xml.text_content(x, e), "0"]
+
+fn set_attrs(c: &mut Chart, u: i64, x: &xml.Xml, e: i64)
+    for k in 0..x.an[e as usize].len()
+        c.ak[u as usize].push(copy(x.an[e as usize][k]))
+        c.av[u as usize].push(copy(x.av[e as usize][k]))
+
+fn add_attr(c: &mut Chart, u: i64, k: text, v: text)
+    c.ak[u as usize].push(k)
+    c.av[u as usize].push(v)
+
+# <param> children and <content> of e into action u
+fn params_into(c: &mut Chart, u: i64, x: &xml.Xml, e: i64)
+    for ch in xml.elems(x, e)
+        let nm = xn(x, ch)
+        if nm == "param"
+            let p = new_action(c, X_PARAM)
+            set_attrs(c, p, x, ch)
+            c.apar[u as usize].push(p)
+        elif nm == "content"
+            c.ahas[u as usize] = true
+            if xh(x, ch, "expr")
+                add_attr(c, u, "#contentexpr", xa(x, ch, "expr"))
+            else
+                let ct = content_of(x, ch)
+                c.acont[u as usize] = copy(ct[1])
+                c.acx[u as usize] = ct[2] == "1"
+
+fn file_body(c: &Chart, src: &text) -> i64
+    var nm = copy(src)
+    if nm.startswith("file:")
+        let ps = nm.split("file:")
+        nm = copy(ps[1])
+    for i in 0..c.fname.len()
+        if c.fname[i] == nm
+            return i as i64
+    return -1
+
+# executable content of el into block b
+fn compile(c: &mut Chart, x: &xml.Xml, el: i64, b: i64, m: i64) bound 256
+    for e in xml.elems(x, el)
+        compile_one(c, x, e, b, m)
+
+fn compile_one(c: &mut Chart, x: &xml.Xml, e: i64, b: i64, m: i64) bound 256
+    let nm = xn(x, e)
+    if nm == "if"
+        compile_if(c, x, e, b, m)
+        return
+    var op: i64 = 0
+    if nm == "raise"
+        op = X_RAISE
+    elif nm == "send"
+        op = X_SEND
+    elif nm == "log"
+        op = X_LOG
+    elif nm == "assign"
+        op = X_ASSIGN
+    elif nm == "script"
+        op = X_SCRIPT
+    elif nm == "foreach"
+        op = X_FOREACH
+    elif nm == "cancel"
+        op = X_CANCEL
+    if op == 0
+        return
+    let u = new_action(c, op)
+    set_attrs(c, u, x, e)
+    if op == X_SEND
+        params_into(c, u, x, e)
+    elif op == X_ASSIGN
+        if not xh(x, e, "expr")
+            let ct = content_of(x, e)
+            c.ahas[u as usize] = ct[0] == "1"
+            c.acont[u as usize] = copy(ct[1])
+            c.acx[u as usize] = ct[2] == "1"
+    elif op == X_SCRIPT
+        if xh(x, e, "src")
+            let tv1 = xa(x, e, "src")
+            let f = file_body(c, &tv1)
+            if f < 0
+                bad(c, "script src not found")
+            else
+                c.acont[u as usize] = copy(c.fbody[f as usize])
+        else
+            c.acont[u as usize] = xml.text_content(x, e)
+    elif op == X_FOREACH
+        let sb = new_block(c)
+        c.asub[u as usize] = sb
+        compile(c, x, e, sb, m)
+    c.blocks[b as usize].push(u)
+
+fn compile_if(c: &mut Chart, x: &xml.Xml, e: i64, b: i64, m: i64) bound 256
+    let u = new_action(c, A_IF)
+    c.aa[u as usize] = xa(x, e, "cond")
+    c.blocks[b as usize].push(u)
+    for ch in xml.elems(x, e)
+        let cn = xn(x, ch)
+        if cn == "elseif"
+            let w = new_action(c, A_ELIF)
+            c.aa[w as usize] = xa(x, ch, "cond")
+            c.blocks[b as usize].push(w)
+        elif cn == "else"
+            let w = new_action(c, A_ELSE)
+            c.blocks[b as usize].push(w)
+        else
+            compile_one(c, x, ch, b, m)
+    let f = new_action(c, A_FI)
+    c.blocks[b as usize].push(f)
+
+fn add_data(c: &mut Chart, x: &xml.Xml, d: i64, m: i64, owner: i64)
+    let mu = m as usize
+    c.mvars[mu].push(xa(x, d, "id"))
+    c.mexpr[mu].push(if xh(x, d, "expr") then xa(x, d, "expr") else "")
+    c.mdst[mu].push(owner)
+    var srcbody = ""
+    var hassrc = false
+    if xh(x, d, "src")
+        let tv2 = xa(x, d, "src")
+        let f = file_body(c, &tv2)
+        if f >= 0
+            srcbody = copy(c.fbody[f as usize])
+            hassrc = true
+        else
+            # an unreachable src: error.execution at binding time
+            c.mexpr[mu][c.mexpr[mu].len() - 1] = "#badsrc"
+    let ct = content_of(x, d)
+    if hassrc
+        c.mdxml[mu].push(srcbody.strip().startswith("<"))
+        c.mdsrc[mu].push(srcbody)
+        c.mdcont[mu].push("")
+        c.mdhas[mu].push(true)
+    else
+        c.mdsrc[mu].push("")
+        c.mdcont[mu].push(copy(ct[1]))
+        c.mdxml[mu].push(ct[2] == "1")
+        c.mdhas[mu].push(ct[0] == "1" and not xh(x, d, "expr"))
+
+# pass 2: everything else of state element el (state s)
+fn fill(c: &mut Chart, ld: &mut Ld, x: &xml.Xml, el: i64, s: i64, m: i64) bound 256
+    var gotinit = false
+    for e in xml.elems(x, el)
+        let nm = xn(x, e)
+        if is_state_el(&nm)
+            fill(c, ld, x, e, state_of(ld, e), m)
+        elif nm == "onentry"
+            let b = new_block(c)
+            compile(c, x, e, b, m)
+            c.sentry[s as usize].push(b)
+        elif nm == "onexit"
+            let b = new_block(c)
+            compile(c, x, e, b, m)
+            c.sexit[s as usize].push(b)
+        elif nm == "transition"
+            let b = new_block(c)
+            compile(c, x, e, b, m)
+            let tv3 = xa(x, e, "event")
+            let evs = words(&tv3)
+            let tv4 = xa(x, e, "target")
+            let tgs = tgt_ids(c, m, &tv4)
+            var cond = "-"
+            if xh(x, e, "cond")
+                cond = xa(x, e, "cond")
+            let t = new_transition(c, s, evs, cond, xa(x, e, "type") == "internal", tgs, b, true)
+        elif nm == "initial"
+            for tr in xml.elems(x, e)
+                if xn(x, tr) == "transition"
+                    let b = new_block(c)
+                    compile(c, x, tr, b, m)
+                    c.sinitblk[s as usize] = b
+                    let tv5 = xa(x, tr, "target")
+                    c.sinit[s as usize] = tgt_ids(c, m, &tv5)
+                    gotinit = true
+        elif nm == "datamodel"
+            for d in xml.elems(x, e)
+                if xn(x, d) == "data"
+                    add_data(c, x, d, m, s)
+        elif nm == "invoke"
+            let v = new_invoke(c, s)
+            for k in 0..x.an[e as usize].len()
+                c.vk[v as usize].push(copy(x.an[e as usize][k]))
+                c.vv[v as usize].push(copy(x.av[e as usize][k]))
+            for ch in xml.elems(x, e)
+                let cn = xn(x, ch)
+                if cn == "param"
+                    let p = new_action(c, X_PARAM)
+                    set_attrs(c, p, x, ch)
+                    c.vpar[v as usize].push(p)
+                elif cn == "content"
+                    c.vhas[v as usize] = true
+                    if xh(x, ch, "expr")
+                        c.vk[v as usize].push("#contentexpr")
+                        c.vv[v as usize].push(xa(x, ch, "expr"))
+                    else
+                        let es = xml.elems(x, ch)
+                        if es.len() > 0 and xn(x, es[0]) == "scxml"
+                            c.vmach[v as usize] = load_machine(c, x, es[0])
+                        else
+                            c.vcont[v as usize] = xml.text_content(x, ch)
+                elif cn == "finalize"
+                    let b = new_block(c)
+                    compile(c, x, ch, b, m)
+                    c.vfin[v as usize] = b
+        elif nm == "donedata"
+            let u = new_action(c, X_DONE)
+            params_into(c, u, x, e)
+            c.sdone[s as usize] = u
+        elif nm == "script" and c.skind[s as usize] == ROOT
+            let b = new_block(c)
+            compile_one(c, x, e, b, m)
+            c.mscript[m as usize] = b
+    if not gotinit and xh(x, el, "initial") and c.skind[s as usize] != ROOT
+        let tv6 = xa(x, el, "initial")
+        c.sinit[s as usize] = tgt_ids(c, m, &tv6)
+    if (c.skind[s as usize] == COMPOUND or c.skind[s as usize] == ROOT) and c.sinit[s as usize].len() == 0
+        let kids = copy(c.skids[s as usize])
+        for k in kids
+            if c.sinit[s as usize].len() == 0 and c.skind[k as usize] < HIST_SHALLOW
+                c.sinit[s as usize].push(k)
+
+# an <scxml> element as a new machine; returns its number
+pub fn load_machine(c: &mut Chart, x: &xml.Xml, el: i64) -> i64 bound 64
+    if xn(x, el) != "scxml"
+        bad(c, "not an scxml element")
+        return -1
+    let dm = xa(x, el, "datamodel")
+    var k = DM_ECMA
+    if dm == "null"
+        k = DM_NULL
+    elif dm != "" and dm != "ecmascript"
+        bad(c, "unsupported datamodel " + dm)
+    new_machine(c, k)
+    let m = (c.mroot.len() - 1) as i64
+    c.mname[m as usize] = xa(x, el, "name")
+    c.mlate[m as usize] = xa(x, el, "binding") == "late"
+    c.mdoc[m as usize] = xml.serialize(x, el)
+    let r = new_state(c, "_scxml", ROOT, m)
+    var ld = Ld(nodes: [], sts: [], gen: 0)
+    mk_states(c, &mut ld, x, el, r, m)
+    fill(c, &mut ld, x, el, r, m)
+    if xh(x, el, "initial")
+        let tv7 = xa(x, el, "initial")
+        c.sinit[r as usize] = tgt_ids(c, m, &tv7)
+    return m
+
+# Load an SCXML document; names/bodies are the files it may reference
+# (src of <data>, <script>, <invoke>), named as after "file:".
+pub fn load_scxml(doc: &text, names: &[text], bodies: &[text]) -> Chart
+    var c = chart0()
+    for i in 0..names.len()
+        c.fname.push(copy(names[i]))
+        c.fbody.push(copy(bodies[i]))
+        c.fmach.push(-1)
+    let x = xml.parse(doc)
+    if not x.ok
+        bad(&mut c, "XML: " + x.why)
+        return c
+    let m0 = load_machine(&mut c, &x, xml.doc_root(&x))
+    # documents among the files are further machines (for src and srcexpr)
+    for i in 0..names.len()
+        if bodies[i].contains("<scxml")
+            let fx = xml.parse(&bodies[i])
+            if fx.ok
+                c.fmach[i] = load_machine(&mut c, &fx, xml.doc_root(&fx))
+    # second chance for invoke src naming a file loaded after
+    for v in 0..c.vk.len()
+        if c.vmach[v] < 0
+            let sk = "src"
+            let src = vattr(&c, v as i64, &sk)
+            if src != ""
+                let f = file_body(&c, &src)
+                if f >= 0
+                    c.vmach[v] = c.fmach[f as usize]
+    return c
+
+
 # ---------------- runtime ----------------
+pub const T_SCXML: text = "http://www.w3.org/TR/scxml/#SCXMLEventProcessor"
+pub const T_HTTP: text = "http://www.w3.org/TR/scxml/#BasicHTTPEventProcessor"
+# event fields present (bits of eflags)
+pub const F_SENDID: i64 = 1
+pub const F_ORIGIN: i64 = 2
+pub const F_INVOKEID: i64 = 4
+pub const F_DATA: i64 = 8
+pub const F_RAW: i64 = 16
+
 pub struct Run
     conf: List[List[i64]]
     hist: List[List[List[i64]]]
@@ -287,19 +801,231 @@ pub struct Run
     srunning: List[bool]
     sinvstate: List[i64]
     sinvid: List[text]
-    iq: List[List[text]]
+    sinvdef: List[i64]
+    sglob: List[i64]
+    sdinit: List[List[i64]]
+    sdone: List[ecma.V]
+    sfinal: List[bool]
+    iq: List[List[i64]]
     qtime: List[i64]
     qseq: List[i64]
     qsess: List[i64]
-    qev: List[text]
+    qev: List[i64]
+    qsid: List[text]
+    qfrom: List[i64]
+    en: List[text]
+    etype: List[text]
+    esend: List[text]
+    eorig: List[text]
+    eotype: List[text]
+    einv: List[text]
+    edata: List[ecma.V]
+    eraw: List[text]
+    eflags: List[i64]
+    efrom: List[i64]
+    js: ecma.Js
     now: i64
     seq: i64
+    nsend: i64
     toinv: List[List[i64]]
     trace: List[text]
     logs: List[text]
     outcome: text
     ev: text
+    evid: i64
     fuel: i64
+
+fn new_event(r: &mut Run, name: text, ty: text) -> i64
+    r.en.push(name)
+    r.etype.push(ty)
+    r.esend.push("")
+    r.eorig.push("")
+    r.eotype.push("")
+    r.einv.push("")
+    r.edata.push(ecma.Und)
+    r.eraw.push("")
+    r.eflags.push(0)
+    r.efrom.push(-1)
+    return (r.en.len() - 1) as i64
+
+fn raise_ev(r: &mut Run, s: i64, e: i64)
+    r.iq[s as usize].push(e)
+
+# an internal event (raise); errors and done events are platform events
+fn raise_int(r: &mut Run, s: i64, e: text)
+    let ty = if e.startswith("error.") or e.startswith("done.") then "platform" else "internal"
+    let k = new_event(r, e, ty)
+    raise_ev(r, s, k)
+
+fn raise_err(r: &mut Run, s: i64, e: text, sendid: text)
+    let k = new_event(r, e, "platform")
+    if sendid != ""
+        r.esend[k as usize] = sendid
+        r.eflags[k as usize] = F_SENDID
+    raise_ev(r, s, k)
+
+fn push_ev(r: &mut Run, sess: i64, e: i64, delay: i64, sendid: text, frm: i64)
+    r.qtime.push(r.now + delay)
+    r.qseq.push(r.seq)
+    r.seq += 1
+    r.qsess.push(sess)
+    r.qev.push(e)
+    r.qsid.push(sendid)
+    r.qfrom.push(frm)
+
+fn push_ext(r: &mut Run, sess: i64, e: text, delay: i64)
+    let k = new_event(r, e, "external")
+    push_ev(r, sess, k, delay, "", -1)
+
+fn is_ecma(c: &Chart, r: &Run, s: i64) -> bool = c.mdm[r.smachine[s as usize] as usize] == DM_ECMA
+
+# active state ids of session s, for In()
+fn active_ids(c: &Chart, r: &Run, s: i64) -> List[text]
+    var o: List[text] = []
+    for i in 0..c.sid.len()
+        if r.conf[s as usize][i] == 1
+            o.push(copy(c.sid[i]))
+    return o
+
+fn jeval(c: &Chart, r: &mut Run, s: i64, src: &text) -> ecma.Res
+    r.js.states = active_ids(c, r, s)
+    return ecma.eval_in(&mut r.js, r.sglob[s as usize], src)
+
+fn jexec(c: &Chart, r: &mut Run, s: i64, src: &text) -> ecma.Res
+    r.js.states = active_ids(c, r, s)
+    return ecma.exec_in(&mut r.js, r.sglob[s as usize], src)
+
+fn jassign(c: &Chart, r: &mut Run, s: i64, loc: &text, v: ecma.V) -> bool
+    if not ecma.is_location(loc)
+        return false
+    let base = ecma.location_base(loc)
+    if base == "" or not ecma.is_bound(&r.js, r.sglob[s as usize], &base)
+        return false
+    r.js.states = active_ids(c, r, s)
+    let res = ecma.assign_in(&mut r.js, r.sglob[s as usize], loc, v)
+    return res.ok
+
+# null datamodel conditions: In('id') only
+fn null_cond(c: &Chart, r: &Run, s: i64, e: &text) -> List[i64]
+    let t = e.strip()
+    if t.startswith("In(") and t.endswith(")")
+        let q = t.split("'")
+        if q.len() == 3
+            let k = find_state(c, r.smachine[s as usize], &q[1])
+            if k < 0
+                return [0, 1]
+            return [r.conf[s as usize][k as usize], 1]
+    return [0, 0]
+
+# condition with error.execution on failure (SCXML 5.9)
+fn cond_ok(c: &Chart, r: &mut Run, s: i64, e: &text) -> bool
+    let dm = c.mdm[r.smachine[s as usize] as usize]
+    if dm == DM_ECMA
+        if e == "-" or e == ""
+            return true
+        let v = jeval(c, r, s, e)
+        if not v.ok
+            raise_int(r, s, "error.execution")
+            return false
+        return ecma.truthy(&v.v)
+    var v: List[i64] = []
+    if dm == DM_NULL
+        if e == "-" or e == ""
+            return true
+        v = null_cond(c, r, s, e)
+    else
+        v = eval_cond(c, r, s, e)
+    if v[1] == 0
+        raise_int(r, s, "error.execution")
+        return false
+    return v[0] == 1
+
+fn json_like(t: &text) -> bool
+    let s = t.strip()
+    if s == ""
+        return false
+    if s == "true" or s == "false" or s == "null"
+        return true
+    let cs = s.chars()
+    let h = copy(cs[0])
+    return h == "{" or h == "[" or h == "\"" or h == "-" or h.isdigit()
+
+fn space_norm(t: &text) -> text = " ".join(words(t))
+
+# the value of <content>/<data> text (B.2: XML as a DOM, JSON as its
+# value, else a space-normalized string)
+fn content_value(c: &Chart, r: &mut Run, s: i64, t: &text, isxml: bool) -> ecma.V
+    if isxml or t.strip().startswith("<")
+        let x = xml.parse(t)
+        if x.ok
+            return ecma.Rf(r: ecma.dom_doc(&mut r.js, &x))
+    if json_like(t)
+        let v = jeval(c, r, s, t)
+        if v.ok
+            return v.v
+    return ecma.St(s: space_norm(t))
+
+# the delay of "Ns", "Nms", ".5s", "1.5s" in ms; -1 if malformed
+fn delay_ms(t: &text) -> i64
+    var s = t.strip()
+    var unit: i64 = 0
+    var num = ""
+    if s.endswith("ms")
+        unit = 1
+        let p = s.split("ms")
+        num = copy(p[0])
+    elif s.endswith("s")
+        unit = 1000
+        let p = s.split("s")
+        num = copy(p[0])
+    else
+        return -1
+    let parts = num.split(".")
+    if parts.len() > 2
+        return -1
+    var whole: i64 = 0
+    if parts[0] != ""
+        for ch in parts[0].chars()
+            if not ch.isdigit()
+                return -1
+        whole = parts[0].toint()
+    var ms = whole * unit
+    if parts.len() == 2
+        var scale = unit
+        for ch in parts[1].chars()
+            if not ch.isdigit()
+                return -1
+            scale = scale / 10
+            ms += ch.toint() * scale
+    return ms
+
+fn session_name(s: i64) -> text = "s" + s.tostr()
+
+fn find_session(r: &Run, name: &text) -> i64
+    for i in 0..r.smachine.len()
+        if session_name(i as i64) == name
+            return i as i64
+    return -1
+
+fn http_loc(s: i64) -> text = "http://scxml.local/" + session_name(s) + "/basichttp"
+
+# form encoding (application/x-www-form-urlencoded) of a text
+fn form_enc(t: &text) -> text
+    var o = ""
+    let hx = "0123456789ABCDEF".chars()
+    for b in t.chars()
+        let n = b[0] as i64
+        if b.len() == 1 and (b.isalpha() or b.isdigit() or b == "-" or b == "_" or b == "." or b == "*")
+            o = o + b
+        elif b == " "
+            o = o + "+"
+        else
+            var i: usize = 0
+            while i < b.len() bound 8
+                let v = b[i] as i64
+                o = o + "%" + hx[(v / 16) as usize] + hx[(v % 16) as usize]
+                i += 1
+    return o
 
 fn is_desc(c: &Chart, a: i64, b: i64) -> bool
     var p = c.spar[a as usize]
@@ -312,6 +1038,7 @@ fn is_desc(c: &Chart, a: i64, b: i64) -> bool
 fn is_compound(c: &Chart, s: i64) -> bool = c.skind[s as usize] == COMPOUND
 fn is_hist(c: &Chart, s: i64) -> bool = c.skind[s as usize] >= HIST_SHALLOW
 fn is_atomic(c: &Chart, s: i64) -> bool = c.skind[s as usize] == ATOMIC or c.skind[s as usize] == FINAL
+
 
 fn var_ix(c: &Chart, m: i64, v: &text) -> i64
     for i in 0..c.mvars[m as usize].len()
@@ -391,27 +1118,356 @@ fn eval_cond(c: &Chart, r: &Run, s: i64, e: &text) -> List[i64]
         return [if v then 1 else 0, 1]
     return [0, 0]
 
-fn raise_int(r: &mut Run, s: i64, e: text)
-    r.iq[s as usize].push(e)
 
-fn push_ext(r: &mut Run, sess: i64, e: text, delay: i64)
-    r.qtime.push(r.now + delay)
-    r.qseq.push(r.seq)
-    r.seq += 1
-    r.qsess.push(sess)
-    r.qev.push(e)
 
-# condition with error.execution on failure (SCXML 5.9)
-fn cond_ok(c: &Chart, r: &mut Run, s: i64, e: &text) -> bool
-    let v = eval_cond(c, r, s, e)
-    if v[1] == 0
+fn str_v(t: text) -> ecma.V = ecma.St(s: t)
+
+# _event for session s: a fresh object with the SCXML 5.10.1 fields
+fn bind_event(c: &Chart, r: &mut Run, s: i64, e: i64)
+    if not is_ecma(c, r, s)
+        return
+    let u = e as usize
+    let o = ecma.new_obj(&mut r.js)
+    let f = r.eflags[u]
+    sprop(&mut r.js, o, "name", str_v(copy(r.en[u])))
+    sprop(&mut r.js, o, "type", str_v(copy(r.etype[u])))
+    sprop(&mut r.js, o, "sendid", if f % 2 == 1 then str_v(copy(r.esend[u])) else ecma.Und)
+    sprop(&mut r.js, o, "origin", if (f / 2) % 2 == 1 then str_v(copy(r.eorig[u])) else ecma.Und)
+    sprop(&mut r.js, o, "origintype", if (f / 2) % 2 == 1 then str_v(copy(r.eotype[u])) else ecma.Und)
+    sprop(&mut r.js, o, "invokeid", if (f / 4) % 2 == 1 then str_v(copy(r.einv[u])) else ecma.Und)
+    sprop(&mut r.js, o, "data", copy(r.edata[u]))
+    if (f / 16) % 2 == 1
+        sprop(&mut r.js, o, "raw", str_v(copy(r.eraw[u])))
+    let g = r.sglob[s as usize]
+    sro(&mut r.js, g, "_event", ecma.Rf(r: o))
+
+# evaluate an attribute pair: literal attribute a, or expression ax
+# (["ok"/"err", value text])
+fn attr_or_expr(c: &Chart, r: &mut Run, s: i64, u: i64, a: text, ax: text) -> List[text]
+    if ahas_attr(c, u, &ax)
+        let src = aattr(c, u, &ax)
+        let v = jeval(c, r, s, &src)
+        if not v.ok
+            return ["err", ""]
+        return ["ok", ecma.to_str(&mut r.js, &v.v)]
+    return ["ok", aattr(c, u, &a)]
+
+# the data of params/namelist/content of action u: [ok, value]
+fn send_data(c: &Chart, r: &mut Run, s: i64, u: i64, names: &[text]) -> List[ecma.V]
+    let nodata: List[ecma.V] = [ecma.Bo(b: false), ecma.Und]
+    if c.ahas[u as usize]
+        let cx = "#contentexpr"
+        if ahas_attr(c, u, &cx)
+            let src = aattr(c, u, &cx)
+            let v = jeval(c, r, s, &src)
+            if not v.ok
+                return nodata
+            return [ecma.Bo(b: true), v.v]
+        let t = copy(c.acont[u as usize])
+        return [ecma.Bo(b: true), content_value(c, r, s, &t, c.acx[u as usize])]
+    if names.len() == 0 and c.apar[u as usize].len() == 0
+        return [ecma.Bo(b: true), ecma.Und]
+    let o = ecma.new_obj(&mut r.js)
+    for nm in names
+        let v = jeval(c, r, s, &nm)
+        if not v.ok
+            return nodata
+        ecma.set_prop(&mut r.js, o, &nm, v.v)
+    for p in c.apar[u as usize]
+        let pn = at(c, p, "name")
+        let ex = "expr"
+        let lo = "location"
+        var v = ecma.Und
+        if ahas_attr(c, p, &ex)
+            let src = aattr(c, p, &ex)
+            let w = jeval(c, r, s, &src)
+            if not w.ok
+                return nodata
+            v = w.v
+        elif ahas_attr(c, p, &lo)
+            let src = aattr(c, p, &lo)
+            if not ecma.is_location(&src)
+                return nodata
+            let w = jeval(c, r, s, &src)
+            if not w.ok
+                return nodata
+            v = w.v
+        ecma.set_prop(&mut r.js, o, &pn, v)
+    return [ecma.Bo(b: true), ecma.Rf(r: o)]
+
+# the sending session's origin (the SCXML processor location)
+fn origin_of(s: i64) -> text = "#_scxml_" + session_name(s)
+
+fn child_by_invokeid(r: &Run, s: i64, id: &text) -> i64
+    for k in 0..r.smachine.len()
+        if r.sparent[k] == s and r.sinvid[k] == id and r.srunning[k]
+            return k as i64
+    return -1
+
+fn form_body(r: &mut Run, d: &ecma.V) -> text
+    let o = ecma.vr(d)
+    if o < 0
+        if ecma.vtag(d) == 0
+            return ""
+        return ecma.to_str(&mut r.js, d)
+    if r.js.cls[o as usize] != ecma.C_OBJ
+        return ecma.to_str(&mut r.js, d)
+    var parts: List[text] = []
+    let ks = copy(r.js.keys[o as usize])
+    for i in 0..ks.len()
+        let v = copy(r.js.vals[o as usize][i])
+        let h1 = ecma.to_str(&mut r.js, &v)
+        parts.push(form_enc(&ks[i]) + "=" + form_enc(&h1))
+    return "&".join(parts)
+
+# <send> (SCXML 6.2); false when the block must stop
+fn do_send(c: &Chart, r: &mut Run, s: i64, u: i64) -> bool
+    let evn = attr_or_expr(c, r, s, u, "event", "eventexpr")
+    let tgt = attr_or_expr(c, r, s, u, "target", "targetexpr")
+    let typ = attr_or_expr(c, r, s, u, "type", "typeexpr")
+    let dly = attr_or_expr(c, r, s, u, "delay", "delayexpr")
+    if evn[0] == "err" or tgt[0] == "err" or typ[0] == "err" or dly[0] == "err"
         raise_int(r, s, "error.execution")
         return false
-    return v[0] == 1
+    var sendid = at(c, u, "id")
+    let il = "idlocation"
+    if ahas_attr(c, u, &il)
+        r.nsend += 1
+        sendid = "send." + r.nsend.tostr()
+        let loc = aattr(c, u, &il)
+        if not jassign(c, r, s, &loc, str_v(copy(sendid)))
+            raise_int(r, s, "error.execution")
+            return false
+    let nl = at(c, u, "namelist")
+    let names = words(&nl)
+    let dat = send_data(c, r, s, u, &names)
+    if not ecma.truthy(&dat[0])
+        raise_err(r, s, "error.execution", copy(sendid))
+        return false
+    var delay: i64 = 0
+    if dly[1] != ""
+        delay = delay_ms(&dly[1])
+        if delay < 0
+            raise_err(r, s, "error.execution", copy(sendid))
+            return false
+    let ty = copy(typ[1])
+    let t = copy(tgt[1])
+    let isx = ty == "" or ty == T_SCXML or ty == "scxml" or ty == "http://www.w3.org/TR/scxml/"
+    let ish = ty == T_HTTP or ty == "basichttp"
+    if not isx and not ish
+        raise_err(r, s, "error.execution", copy(sendid))
+        return false
+    let k = new_event(r, copy(evn[1]), "external")
+    let ku = k as usize
+    r.edata[ku] = copy(dat[1])
+    r.eflags[ku] = F_ORIGIN + F_DATA + (if sendid != "" then F_SENDID else 0)
+    r.esend[ku] = copy(sendid)
+    r.efrom[ku] = s
+    if ish
+        # loopback Basic HTTP: the target is one of our sessions' locations
+        var dest: i64 = -1
+        for q in 0..r.smachine.len()
+            if http_loc(q as i64) == t
+                dest = q as i64
+        if dest < 0 or not r.srunning[dest as usize]
+            raise_err(r, s, "error.communication", copy(sendid))
+            return true
+        r.eorig[ku] = http_loc(s)
+        r.eotype[ku] = T_HTTP
+        if r.en[ku] == ""
+            r.en[ku] = "HTTP.POST"
+        let body = form_body(r, &dat[1])
+        r.eraw[ku] = "POST /" + session_name(dest) + "/basichttp HTTP/1.1\r\nHost: scxml.local\r\nContent-Type: application/x-www-form-urlencoded\r\n_scxmleventname: " + r.en[ku] + "\r\nContent-Length: " + body.len().tostr() + "\r\n\r\n" + body
+        r.eflags[ku] = r.eflags[ku] + F_RAW
+        # parameters arrive as form fields (strings); content as the body
+        if not c.ahas[u as usize]
+            r.edata[ku] = copy(dat[1])
+        else
+            r.edata[ku] = str_v(body)
+        push_ev(r, dest, k, delay, copy(sendid), s)
+        return true
+    r.eorig[ku] = origin_of(s)
+    r.eotype[ku] = T_SCXML
+    if t == "#_internal"
+        r.etype[ku] = "internal"
+        raise_ev(r, s, k)
+        return true
+    var dest: i64 = -1
+    if t == ""
+        dest = s
+    elif t == "#_parent"
+        dest = r.sparent[s as usize]
+        if dest < 0
+            raise_err(r, s, "error.communication", copy(sendid))
+            return true
+    elif t.startswith("#_scxml_")
+        let ps = t.split("#_scxml_")
+        dest = find_session(r, &ps[1])
+        if dest < 0 or not r.srunning[dest as usize]
+            raise_err(r, s, "error.communication", copy(sendid))
+            return true
+    elif t.startswith("#_")
+        let ps = t.split("#_")
+        dest = child_by_invokeid(r, s, &ps[1])
+        if dest < 0
+            raise_err(r, s, "error.communication", copy(sendid))
+            return true
+    else
+        raise_err(r, s, "error.execution", copy(sendid))
+        return false
+    # an event from an invoked child carries its invokeid
+    if r.sparent[s as usize] == dest and dest >= 0
+        r.einv[ku] = copy(r.sinvid[s as usize])
+        r.eflags[ku] = r.eflags[ku] + F_INVOKEID
+    push_ev(r, dest, k, delay, copy(sendid), s)
+    return true
 
-fn exec_block(c: &Chart, r: &mut Run, s: i64, b: i64)
+fn do_cancel(c: &Chart, r: &mut Run, s: i64, u: i64) -> bool
+    let id = attr_or_expr(c, r, s, u, "sendid", "sendidexpr")
+    if id[0] == "err"
+        raise_int(r, s, "error.execution")
+        return false
+    var qt: List[i64] = []
+    var qs: List[i64] = []
+    var qx: List[i64] = []
+    var qe: List[i64] = []
+    var qi: List[text] = []
+    var qf: List[i64] = []
+    for i in 0..r.qev.len()
+        if not (r.qfrom[i] == s and r.qsid[i] == id[1] and r.qtime[i] > r.now)
+            qt.push(r.qtime[i])
+            qs.push(r.qseq[i])
+            qx.push(r.qsess[i])
+            qe.push(r.qev[i])
+            qi.push(copy(r.qsid[i]))
+            qf.push(r.qfrom[i])
+    r.qtime = qt
+    r.qseq = qs
+    r.qsess = qx
+    r.qev = qe
+    r.qsid = qi
+    r.qfrom = qf
+    return true
+
+fn do_foreach(c: &Chart, r: &mut Run, s: i64, u: i64) -> bool bound 64
+    let arr = at(c, u, "array")
+    let item = at(c, u, "item")
+    let idx = at(c, u, "index")
+    let v = jeval(c, r, s, &arr)
+    let a = ecma.vr(&v.v)
+    if not v.ok or a < 0 or r.js.cls[a as usize] != ecma.C_ARR
+        raise_int(r, s, "error.execution")
+        return false
+    let g = r.sglob[s as usize]
+    # item and index must be valid variable names; new ones are declared
+    var chk: List[text] = [copy(item)]
+    if idx != ""
+        chk.push(copy(idx))
+    for nm in chk
+        let p = ecma.parse_expr(&nm)
+        if not p.ok or p.k[p.a[0] as usize] != ecma.N_ID or nm.contains(".")
+            raise_int(r, s, "error.execution")
+            return false
+        if not ecma.is_bound(&r.js, g, &nm)
+            ecma.set_prop(&mut r.js, g, &nm, ecma.Und)
+    # a shallow copy: the iteration is over the array as it was
+    let xs = copy(r.js.vals[a as usize])
+    for i in 0..xs.len()
+        if not jassign(c, r, s, &item, copy(xs[i]))
+            raise_int(r, s, "error.execution")
+            return false
+        if idx != ""
+            if not jassign(c, r, s, &idx, ecma.Nm(n: i as i64))
+                raise_int(r, s, "error.execution")
+                return false
+        if not exec_block(c, r, s, c.asub[u as usize])
+            return false
+    return true
+
+# one SCXML action; false when the block must stop (an error)
+fn exec_x(c: &Chart, r: &mut Run, s: i64, u: i64) -> bool bound 64
+    let op = c.aop[u as usize]
+    let ecm = is_ecma(c, r, s)
+    if op == X_RAISE
+        raise_int(r, s, at(c, u, "event"))
+        return true
+    if op == X_LOG
+        let lb = at(c, u, "label")
+        let ex = "expr"
+        if ahas_attr(c, u, &ex) and ecm
+            let src = aattr(c, u, &ex)
+            let v = jeval(c, r, s, &src)
+            if not v.ok
+                raise_int(r, s, "error.execution")
+                return false
+            r.logs.push(lb + ":" + ecma.to_str(&mut r.js, &v.v))
+        else
+            r.logs.push(lb)
+        return true
+    if not ecm
+        # the null datamodel has no assignment, scripts or values
+        if op == X_SEND
+            return do_send_null(c, r, s, u)
+        raise_int(r, s, "error.execution")
+        return false
+    if op == X_ASSIGN
+        let loc = at(c, u, "location")
+        var v = ecma.Und
+        let ex = "expr"
+        if ahas_attr(c, u, &ex)
+            let src = aattr(c, u, &ex)
+            let w = jeval(c, r, s, &src)
+            if not w.ok
+                raise_int(r, s, "error.execution")
+                return false
+            v = w.v
+        elif c.ahas[u as usize]
+            let t = copy(c.acont[u as usize])
+            v = content_value(c, r, s, &t, c.acx[u as usize])
+        if not jassign(c, r, s, &loc, v)
+            raise_int(r, s, "error.execution")
+            return false
+        return true
+    if op == X_SCRIPT
+        let src = copy(c.acont[u as usize])
+        let v = jexec(c, r, s, &src)
+        if not v.ok
+            raise_int(r, s, "error.execution")
+            return false
+        return true
+    if op == X_SEND
+        return do_send(c, r, s, u)
+    if op == X_CANCEL
+        return do_cancel(c, r, s, u)
+    if op == X_FOREACH
+        return do_foreach(c, r, s, u)
+    return true
+
+# <send> under the null datamodel: literal attributes only
+fn do_send_null(c: &Chart, r: &mut Run, s: i64, u: i64) -> bool
+    let t = at(c, u, "target")
+    let k = new_event(r, at(c, u, "event"), "external")
+    r.eorig[k as usize] = origin_of(s)
+    r.eotype[k as usize] = T_SCXML
+    r.eflags[k as usize] = F_ORIGIN
+    let h2 = at(c, u, "delay")
+    let d = delay_ms(&h2)
+    if t == "#_internal"
+        raise_ev(r, s, k)
+    elif t == "" or t == "#_parent"
+        let dest = if t == "" then s else r.sparent[s as usize]
+        if dest < 0
+            raise_int(r, s, "error.communication")
+            return true
+        push_ev(r, dest, k, if d < 0 then 0 else d, "", s)
+    else
+        raise_int(r, s, "error.execution")
+        return false
+    return true
+
+fn exec_block(c: &Chart, r: &mut Run, s: i64, b: i64) -> bool bound 64
     if b < 0
-        return
+        return true
     # if-frames: 0 running a branch, 1 looking for a branch, 2 branch done,
     # 3 inside a skipped region
     var fr: List[i64] = []
@@ -448,7 +1504,10 @@ fn exec_block(c: &Chart, r: &mut Run, s: i64, b: i64)
         elif op == A_FI
             fr.pop()
         elif live
-            if op == A_RAISE
+            if op >= X_RAISE
+                if not exec_x(c, r, s, a)
+                    return false
+            elif op == A_RAISE
                 raise_int(r, s, copy(c.aa[u]))
             elif op == A_LOG
                 r.logs.push(copy(c.aa[u]))
@@ -458,7 +1517,7 @@ fn exec_block(c: &Chart, r: &mut Run, s: i64, b: i64)
                 let v = eval_expr(c, r, s, &c.ab[u])
                 if k < 0 or v[2] == 0
                     raise_int(r, s, "error.execution")
-                    return
+                    return false
                 r.vbound[s as usize][k as usize] = v[0]
                 r.vval[s as usize][k as usize] = v[1]
             elif op == A_SEND
@@ -468,7 +1527,8 @@ fn exec_block(c: &Chart, r: &mut Run, s: i64, b: i64)
                     push_ext(r, r.sparent[s as usize], copy(c.aa[u]), c.an[u])
                 else
                     raise_int(r, s, "error.execution")
-                    return
+                    return false
+    return true
 
 fn name_match(descs: &[text], e: &text) -> bool
     for d0 in descs
@@ -500,6 +1560,7 @@ fn match_rank(descs: &[text], e: &text) -> i64
             if k < best
                 best = k
     return best
+
 
 # ---------------- algorithm (SCXML Appendix D) ----------------
 fn proper_ancestors(c: &Chart, s: i64, upto: i64) -> List[i64]
@@ -694,42 +1755,6 @@ fn in_final(c: &Chart, r: &Run, ses: i64, s: i64) -> bool
             return false
     return true
 
-fn exit_states(c: &Chart, r: &mut Run, ses: i64, ts: &[i64])
-    let xs = exit_set(c, r, ses, ts)
-    var order: List[i64] = []
-    var s = c.sid.len()
-    while s > 0 bound 16777216
-        s -= 1
-        if xs.contains(s as i64)
-            order.push(s as i64)
-    for x in order
-        var keep: List[i64] = []
-        for y in r.toinv[ses as usize]
-            if y != x
-                keep.push(y)
-        r.toinv[ses as usize] = keep
-        for h in c.skids[x as usize]
-            if is_hist(c, h)
-                var hv: List[i64] = []
-                for q in 0..c.sid.len()
-                    if r.conf[ses as usize][q] == 1
-                        if c.skind[h as usize] == HIST_DEEP
-                            if is_atomic(c, q as i64) and is_desc(c, q as i64, x)
-                                hv.push(q as i64)
-                        elif c.spar[q] == x
-                            hv.push(q as i64)
-                r.hist[ses as usize][h as usize] = hv
-                r.hset[ses as usize][h as usize] = 1
-    for x in order
-        if ses == 0
-            r.trace.push("-" + c.sid[x as usize])
-        for b in c.sexit[x as usize]
-            exec_block(c, r, ses, b)
-        # cancel invocations started by x
-        for k in 0..r.smachine.len()
-            if r.sparent[k] == ses and r.sinvstate[k] == x
-                r.srunning[k] = false
-        r.conf[ses as usize][x as usize] = 0
 
 # entry set: statesToEnter, statesForDefaultEntry and
 # defaultHistoryContent (block per parent state), via an explicit task
@@ -830,6 +1855,97 @@ fn entry_set(c: &Chart, r: &Run, ses: i64, ts: &[i64], enter: &mut List[i64], df
             if not has
                 tk.push([1, s, -1])
 
+
+
+fn exit_states(c: &Chart, r: &mut Run, ses: i64, ts: &[i64])
+    let xs = exit_set(c, r, ses, ts)
+    var order: List[i64] = []
+    var s = c.sid.len()
+    while s > 0 bound 16777216
+        s -= 1
+        if xs.contains(s as i64)
+            order.push(s as i64)
+    for x in order
+        var keep: List[i64] = []
+        for y in r.toinv[ses as usize]
+            if y != x
+                keep.push(y)
+        r.toinv[ses as usize] = keep
+        for h in c.skids[x as usize]
+            if is_hist(c, h)
+                var hv: List[i64] = []
+                for q in 0..c.sid.len()
+                    if r.conf[ses as usize][q] == 1
+                        if c.skind[h as usize] == HIST_DEEP
+                            if is_atomic(c, q as i64) and is_desc(c, q as i64, x)
+                                hv.push(q as i64)
+                        elif c.spar[q] == x
+                            hv.push(q as i64)
+                r.hist[ses as usize][h as usize] = hv
+                r.hset[ses as usize][h as usize] = 1
+    for x in order
+        if ses == 0
+            r.trace.push("-" + c.sid[x as usize])
+        for b in c.sexit[x as usize]
+            let ok = exec_block(c, r, ses, b)
+        cancel_invokes(c, r, ses, x)
+        r.conf[ses as usize][x as usize] = 0
+
+# cancel the invocations started by state x of session ses
+fn cancel_invokes(c: &Chart, r: &mut Run, ses: i64, x: i64)
+    for k in 0..r.smachine.len()
+        if r.sparent[k] == ses and r.sinvstate[k] == x and r.srunning[k]
+            r.srunning[k] = false
+
+# late binding: the data of state s, the first time s is entered
+fn bind_state_data(c: &Chart, r: &mut Run, ses: i64, s: i64)
+    let m = r.smachine[ses as usize]
+    if not c.mlate[m as usize] or not is_ecma(c, r, ses)
+        return
+    for i in 0..c.mvars[m as usize].len()
+        if c.mdst[m as usize][i] == s and r.sdinit[ses as usize][i] == 0
+            init_data(c, r, ses, i)
+
+# the value of data item i of session ses's machine
+fn init_data(c: &Chart, r: &mut Run, ses: i64, i: usize)
+    let m = r.smachine[ses as usize] as usize
+    r.sdinit[ses as usize][i] = 1
+    let id = copy(c.mvars[m][i])
+    let g = r.sglob[ses as usize]
+    # a value passed by the invoking session wins (6.4.4)
+    if ecma.has_own(&r.js, g, &id) and r.sdinit[ses as usize][i] == 2
+        return
+    let ex = copy(c.mexpr[m][i])
+    if ex == "#badsrc"
+        raise_int(r, ses, "error.execution")
+        return
+    if ex != ""
+        let v = jeval(c, r, ses, &ex)
+        if not v.ok
+            raise_int(r, ses, "error.execution")
+            return
+        ecma.set_prop(&mut r.js, g, &id, v.v)
+    elif c.mdsrc[m][i] != ""
+        let t = copy(c.mdsrc[m][i])
+        let v = content_value(c, r, ses, &t, c.mdxml[m][i])
+        ecma.set_prop(&mut r.js, g, &id, v)
+    elif c.mdhas[m][i]
+        let t = copy(c.mdcont[m][i])
+        let v = content_value(c, r, ses, &t, c.mdxml[m][i])
+        ecma.set_prop(&mut r.js, g, &id, v)
+
+# donedata of final state f: [ok, value]
+fn done_data(c: &Chart, r: &mut Run, ses: i64, f: i64) -> ecma.V
+    let u = c.sdone[f as usize]
+    if u < 0 or not is_ecma(c, r, ses)
+        return ecma.Und
+    let nolist: List[text] = []
+    let d = send_data(c, r, ses, u, &nolist)
+    if not ecma.truthy(&d[0])
+        raise_int(r, ses, "error.execution")
+        return ecma.Und
+    return copy(d[1])
+
 fn enter_states(c: &Chart, r: &mut Run, ses: i64, ts: &[i64])
     var enter: List[i64] = []
     var dflt: List[i64] = []
@@ -844,25 +1960,31 @@ fn enter_states(c: &Chart, r: &mut Run, ses: i64, ts: &[i64])
             r.toinv[ses as usize].push(x)
             if ses == 0
                 r.trace.push("+" + c.sid[s])
+            bind_state_data(c, r, ses, x)
             for b in c.sentry[s]
-                exec_block(c, r, ses, b)
+                let ok = exec_block(c, r, ses, b)
             if dflt.contains(x)
-                exec_block(c, r, ses, c.sinitblk[s])
+                let ok = exec_block(c, r, ses, c.sinitblk[s])
             if hc[s] >= 0
-                exec_block(c, r, ses, hc[s])
+                let ok = exec_block(c, r, ses, hc[s])
             if c.skind[s] == FINAL
                 let p = c.spar[s]
                 if c.skind[p as usize] == ROOT
                     r.srunning[ses as usize] = false
+                    r.sfinal[ses as usize] = true
+                    r.sdone[ses as usize] = done_data(c, r, ses, x)
                     if ses == 0 and r.outcome == ""
                         r.outcome = copy(c.sid[s])
                 else
-                    raise_int(r, ses, "done.state." + c.sid[p as usize])
+                    let dd = done_data(c, r, ses, x)
+                    let k = new_event(r, "done.state." + c.sid[p as usize], "platform")
+                    r.edata[k as usize] = dd
+                    raise_ev(r, ses, k)
                     let g = c.spar[p as usize]
                     if g >= 0 and c.skind[g as usize] == PARALLEL
                         var all = true
-                        for k in c.skids[g as usize]
-                            if not is_hist(c, k) and not in_final(c, r, ses, k)
+                        for k2 in c.skids[g as usize]
+                            if not is_hist(c, k2) and not in_final(c, r, ses, k2)
                                 all = false
                         if all
                             raise_int(r, ses, "done.state." + c.sid[g as usize])
@@ -870,27 +1992,34 @@ fn enter_states(c: &Chart, r: &mut Run, ses: i64, ts: &[i64])
 fn microstep(c: &Chart, r: &mut Run, ses: i64, ts: &[i64])
     exit_states(c, r, ses, ts)
     for t in ts
-        exec_block(c, r, ses, c.tblk[t as usize])
+        let ok = exec_block(c, r, ses, c.tblk[t as usize])
     enter_states(c, r, ses, ts)
 
-fn macrostep(c: &Chart, r: &mut Run, ses: i64)
+fn take_internal(c: &Chart, r: &mut Run, ses: i64) -> i64
+    let e = r.iq[ses as usize][0]
+    var rest: List[i64] = []
+    for i in 1..r.iq[ses as usize].len()
+        rest.push(r.iq[ses as usize][i])
+    r.iq[ses as usize] = rest
+    return e
+
+fn macrostep(c: &Chart, r: &mut Run, ses: i64) bound 64
     var go = true
     while go and r.srunning[ses as usize] and r.fuel > 0 bound 1048576
         r.fuel -= 1
-        r.ev = ""
         let none_ev = ""
+        r.ev = ""
         var en = select_tr(c, r, ses, &none_ev)
         if en.len() == 0
             if r.iq[ses as usize].len() == 0
                 go = false
             else
-                let e = copy(r.iq[ses as usize][0])
-                var rest: List[text] = []
-                for i in 1..r.iq[ses as usize].len()
-                    rest.push(copy(r.iq[ses as usize][i]))
-                r.iq[ses as usize] = rest
-                r.ev = copy(e)
-                en = select_tr(c, r, ses, &e)
+                let e = take_internal(c, r, ses)
+                r.ev = copy(r.en[e as usize])
+                r.evid = e
+                bind_event(c, r, ses, e)
+                let nm = copy(r.ev)
+                en = select_tr(c, r, ses, &nm)
         if en.len() > 0
             microstep(c, r, ses, &en)
     if not r.srunning[ses as usize]
@@ -901,12 +2030,12 @@ fn macrostep(c: &Chart, r: &mut Run, ses: i64)
     r.toinv[ses as usize] = []
     for s in 0..c.sid.len()
         if ti.contains(s as i64) and r.conf[ses as usize][s] == 1
-            for mi in c.sinv[s]
-                start_session(c, r, mi, ses, s as i64)
+            for v in c.sinv[s]
+                start_invoke(c, r, ses, v)
 
 # exitInterpreter: onexit handlers of the whole configuration, deepest
 # and latest first; the configuration itself is kept as the final one
-fn finish(c: &Chart, r: &mut Run, ses: i64)
+fn finish(c: &Chart, r: &mut Run, ses: i64) bound 64
     var s = c.sid.len()
     while s > 0 bound 16777216
         s -= 1
@@ -914,15 +2043,18 @@ fn finish(c: &Chart, r: &mut Run, ses: i64)
             if ses == 0 and c.skind[s] != ROOT
                 r.trace.push("-" + c.sid[s])
             for b in c.sexit[s]
-                exec_block(c, r, ses, b)
-            for k in 0..r.smachine.len()
-                if r.sparent[k] == ses and r.sinvstate[k] == s as i64
-                    r.srunning[k] = false
+                let ok = exec_block(c, r, ses, b)
+            cancel_invokes(c, r, ses, s as i64)
     let p = r.sparent[ses as usize]
-    if p >= 0 and r.srunning[p as usize]
-        push_ext(r, p, "done.invoke." + r.sinvid[ses as usize], 0)
+    if p >= 0 and r.srunning[p as usize] and r.sfinal[ses as usize]
+        let k = new_event(r, "done.invoke." + r.sinvid[ses as usize], "external")
+        r.edata[k as usize] = copy(r.sdone[ses as usize])
+        r.einv[k as usize] = copy(r.sinvid[ses as usize])
+        r.eflags[k as usize] = F_INVOKEID + F_DATA
+        r.efrom[k as usize] = ses
+        push_ev(r, p, k, 0, "", ses)
 
-fn new_session(c: &Chart, r: &mut Run, m: i64, parent: i64, st: i64) -> i64
+fn new_session(c: &Chart, r: &mut Run, m: i64, parent: i64, st: i64, invid: text, vdef: i64) -> i64
     var z: List[i64] = []
     var hz: List[List[i64]] = []
     for s in 0..c.sid.len()
@@ -936,37 +2068,151 @@ fn new_session(c: &Chart, r: &mut Run, m: i64, parent: i64, st: i64) -> i64
     for i in 0..c.mvars[m as usize].len()
         b.push(0)
         v.push(0)
-    r.vbound.push(b)
+    r.vbound.push(copy(b))
     r.vval.push(v)
+    r.sdinit.push(b)
     r.smachine.push(m)
     r.sparent.push(parent)
     r.srunning.push(true)
     r.sinvstate.push(st)
-    let k = r.smachine.len() as i64
-    r.sinvid.push(if st >= 0 then c.sid[st as usize] + "." + k.tostr() else "")
-    r.iq.push(no_texts())
+    r.sinvdef.push(vdef)
+    r.sinvid.push(invid)
+    r.sdone.push(ecma.Und)
+    r.sfinal.push(false)
+    r.iq.push(no_ints())
     r.toinv.push(no_ints())
-    let ses = k - 1
-    # early binding: every <data> at start
-    for i in 0..c.mvars[m as usize].len()
-        let e = copy(c.mexpr[m as usize][i])
-        if e != "-"
-            let x = eval_expr(c, r, ses, &e)
-            if x[2] == 0
-                raise_int(r, ses, "error.execution")
-            else
-                r.vbound[ses as usize][i] = x[0]
-                r.vval[ses as usize][i] = x[1]
+    let ses = (r.smachine.len() - 1) as i64
+    let g = ecma.new_scope(&mut r.js, -1)
+    r.sglob.push(g)
+    if c.mdm[m as usize] == DM_ECMA
+        sro(&mut r.js, g, "_sessionid", str_v(session_name(ses)))
+        sro(&mut r.js, g, "_name", str_v(copy(c.mname[m as usize])))
+        let io = ecma.new_obj(&mut r.js)
+        let sx = ecma.new_obj(&mut r.js)
+        sprop(&mut r.js, sx, "location", str_v(origin_of(ses)))
+        let hx = ecma.new_obj(&mut r.js)
+        sprop(&mut r.js, hx, "location", str_v(http_loc(ses)))
+        ecma.set_prop(&mut r.js, io, &T_SCXML, ecma.Rf(r: sx))
+        sprop(&mut r.js, io, "scxml", ecma.Rf(r: sx))
+        ecma.set_prop(&mut r.js, io, &T_HTTP, ecma.Rf(r: hx))
+        sprop(&mut r.js, io, "basichttp", ecma.Rf(r: hx))
+        sro(&mut r.js, g, "_ioprocessors", ecma.Rf(r: io))
+        sro(&mut r.js, g, "_event", ecma.Und)
+        sro(&mut r.js, g, "_x", ecma.Rf(r: ecma.new_obj(&mut r.js)))
+        # every <data> is declared up front (undefined until bound)
+        for i in 0..c.mvars[m as usize].len()
+            ecma.set_prop(&mut r.js, g, &c.mvars[m as usize][i], ecma.Und)
     return ses
 
-fn start_session(c: &Chart, r: &mut Run, m: i64, parent: i64, st: i64) bound 64
-    let ses = new_session(c, r, m, parent, st)
+# bind the session's data: early binding all of it, late binding the
+# data of the root (the rest on first entry); vals from the invoker
+fn bind_data(c: &Chart, r: &mut Run, ses: i64, names: &[text], vals: &[ecma.V])
+    let m = r.smachine[ses as usize]
+    let mu = m as usize
+    if c.mdm[mu] == DM_MINI
+        for i in 0..c.mvars[mu].len()
+            let e = copy(c.mexpr[mu][i])
+            if e != "-"
+                let x = eval_expr(c, r, ses, &e)
+                if x[2] == 0
+                    raise_int(r, ses, "error.execution")
+                else
+                    r.vbound[ses as usize][i] = x[0]
+                    r.vval[ses as usize][i] = x[1]
+        return
+    if c.mdm[mu] != DM_ECMA
+        return
+    let g = r.sglob[ses as usize]
+    for i in 0..c.mvars[mu].len()
+        var passed = false
+        for k in 0..names.len()
+            if names[k] == c.mvars[mu][i]
+                ecma.set_prop(&mut r.js, g, &c.mvars[mu][i], copy(vals[k]))
+                r.sdinit[ses as usize][i] = 1
+                passed = true
+        if not passed and (not c.mlate[mu] or c.mdst[mu][i] == c.mroot[mu])
+            init_data(c, r, ses, i)
+
+fn start_session(c: &Chart, r: &mut Run, ses: i64) bound 64
+    let m = r.smachine[ses as usize]
     let root = c.mroot[m as usize]
-    # the initial transition: source the root, internal
+    if c.mscript[m as usize] >= 0
+        let ok = exec_block(c, r, ses, c.mscript[m as usize])
     let t = init_transition(c, root)
     let ts: List[i64] = [t]
     enter_states(c, r, ses, &ts)
     macrostep(c, r, ses)
+
+# <invoke> v of session ses (SCXML 6.4)
+fn start_invoke(c: &Chart, r: &mut Run, ses: i64, v: i64) bound 64
+    let st = c.vstate[v as usize]
+    let ecm = is_ecma(c, r, ses)
+    var ty = vt(c, v, "type")
+    if vh(c, v, "typeexpr") and ecm
+        let h1 = vt(c, v, "typeexpr")
+        let w = jeval(c, r, ses, &h1)
+        if not w.ok
+            raise_int(r, ses, "error.execution")
+            return
+        ty = ecma.to_str(&mut r.js, &w.v)
+    if not (ty == "" or ty == "scxml" or ty == "http://www.w3.org/TR/scxml/" or ty == "http://www.w3.org/TR/scxml")
+        raise_int(r, ses, "error.execution")
+        return
+    var m = c.vmach[v as usize]
+    if vh(c, v, "srcexpr") and ecm
+        let h2 = vt(c, v, "srcexpr")
+        let w = jeval(c, r, ses, &h2)
+        if not w.ok
+            raise_int(r, ses, "error.execution")
+            return
+        let h3 = ecma.to_str(&mut r.js, &w.v)
+        let f = file_body(c, &h3)
+        m = if f >= 0 then c.fmach[f as usize] else -1
+    if m < 0 and vh(c, v, "#contentexpr") and ecm
+        let h4 = vt(c, v, "#contentexpr")
+        let w = jeval(c, r, ses, &h4)
+        if not w.ok
+            raise_int(r, ses, "error.execution")
+            return
+        m = -1
+    var id = vt(c, v, "id")
+    if id == ""
+        r.nsend += 1
+        id = c.sid[st as usize] + "." + r.nsend.tostr()
+    if vh(c, v, "idlocation")
+        let h5 = vt(c, v, "idlocation")
+        if not jassign(c, r, ses, &h5, str_v(copy(id)))
+            raise_int(r, ses, "error.execution")
+            return
+    # values for the child's data: namelist and params
+    var names: List[text] = []
+    var vals: List[ecma.V] = []
+    if ecm
+        let h6 = vt(c, v, "namelist")
+        for nm in words(&h6)
+            let w = jeval(c, r, ses, &nm)
+            if not w.ok
+                raise_int(r, ses, "error.execution")
+                return
+            names.push(copy(nm))
+            vals.push(w.v)
+        for p in c.vpar[v as usize]
+            let pn = at(c, p, "name")
+            var src = at(c, p, "expr")
+            if not ah(c, p, "expr")
+                src = at(c, p, "location")
+            let w = jeval(c, r, ses, &src)
+            if not w.ok
+                raise_int(r, ses, "error.execution")
+                return
+            names.push(pn)
+            vals.push(w.v)
+    if m < 0
+        raise_int(r, ses, "error.execution")
+        return
+    let k = new_session(c, r, m, ses, st, id, v)
+    bind_data(c, r, k, &names, &vals)
+    start_session(c, r, k)
 
 fn init_transition(c: &Chart, root: i64) -> i64
     for k in 0..c.tsrc.len()
@@ -981,16 +2227,11 @@ fn with_inits(c0: &Chart) -> Chart
         let root = c.mroot[m]
         if root >= 0
             let b = new_block(&mut c)
-            c.tsrc.push(root)
-            c.tev.push(no_texts())
-            c.tcond.push("init")
-            c.tint.push(true)
-            c.ttgt.push(copy(c.sinit[root as usize]))
-            c.tblk.push(b)
             # not in strans: never selected, found by init_transition
+            let t = new_transition(&mut c, root, no_texts(), "init", true, copy(c.sinit[root as usize]), b, false)
     return c
 
-fn run0() -> Run = Run(conf: [], hist: [], hset: [], vbound: [], vval: [], smachine: [], sparent: [], srunning: [], sinvstate: [], sinvid: [], iq: [], qtime: [], qseq: [], qsess: [], qev: [], now: 0, seq: 0, toinv: [], trace: [], logs: [], outcome: "", ev: "", fuel: 100000)
+fn run0() -> Run = Run(conf: [], hist: [], hset: [], vbound: [], vval: [], smachine: [], sparent: [], srunning: [], sinvstate: [], sinvid: [], sinvdef: [], sglob: [], sdinit: [], sdone: [], sfinal: [], iq: [], qtime: [], qseq: [], qsess: [], qev: [], qsid: [], qfrom: [], en: [], etype: [], esend: [], eorig: [], eotype: [], einv: [], edata: [], eraw: [], eflags: [], efrom: [], js: ecma.js_new(), now: 0, seq: 0, nsend: 0, toinv: [], trace: [], logs: [], outcome: "", ev: "", evid: -1, fuel: 100000)
 
 pub struct Result
     outcome: text
@@ -1013,48 +2254,99 @@ pub fn run(src: &text, evs: &[text]) -> Result = run_mode(src, evs, false)
 pub fn run_mode(src: &text, evs: &[text], xstate: bool) -> Result
     var c0 = parse_chart(src)
     c0.xs = xstate
+    return run_chart(&c0, evs)
+
+# Run an SCXML document (names/bodies: the files it may reference).
+pub fn run_scxml(doc: &text, names: &[text], bodies: &[text], evs: &[text]) -> Result
+    let c0 = load_scxml(doc, names, bodies)
+    return run_chart(&c0, evs)
+
+fn take_external(r: &mut Run) -> usize
+    var b: usize = 0
+    for i in 1..r.qev.len()
+        if r.qtime[i] < r.qtime[b] or (r.qtime[i] == r.qtime[b] and r.qseq[i] < r.qseq[b])
+            b = i
+    return b
+
+fn drop_external(r: &mut Run, b: usize)
+    var qt: List[i64] = []
+    var qs: List[i64] = []
+    var qx: List[i64] = []
+    var qe: List[i64] = []
+    var qi: List[text] = []
+    var qf: List[i64] = []
+    for i in 0..r.qev.len()
+        if i != b
+            qt.push(r.qtime[i])
+            qs.push(r.qseq[i])
+            qx.push(r.qsess[i])
+            qe.push(r.qev[i])
+            qi.push(copy(r.qsid[i]))
+            qf.push(r.qfrom[i])
+    r.qtime = qt
+    r.qseq = qs
+    r.qsess = qx
+    r.qev = qe
+    r.qsid = qi
+    r.qfrom = qf
+
+# one external event e for session s (the mainEventLoop's external part)
+fn external(c: &Chart, r: &mut Run, s: i64, e: i64) bound 64
+    let eu = e as usize
+    # events from a cancelled invocation are dropped
+    let frm = r.efrom[eu]
+    if frm >= 0 and frm != s and r.sparent[frm as usize] == s and not r.srunning[frm as usize] and not r.en[eu].startswith("done.invoke.")
+        return
+    r.ev = copy(r.en[eu])
+    r.evid = e
+    bind_event(c, r, s, e)
+    # finalize of the invocation the event comes from, then autoforward
+    if frm >= 0 and r.sparent[frm as usize] == s
+        let v = r.sinvdef[frm as usize]
+        if v >= 0 and c.vfin[v as usize] >= 0
+            let ok = exec_block(c, r, s, c.vfin[v as usize])
+    for k in 0..r.smachine.len()
+        if r.sparent[k] == s and r.srunning[k] and k as i64 != frm
+            let v = r.sinvdef[k]
+            if v >= 0 and vt(c, v, "autoforward") == "true"
+                let f = new_event(r, copy(r.en[eu]), "external")
+                let fu = f as usize
+                r.edata[fu] = copy(r.edata[eu])
+                r.esend[fu] = copy(r.esend[eu])
+                r.eorig[fu] = copy(r.eorig[eu])
+                r.eotype[fu] = copy(r.eotype[eu])
+                r.einv[fu] = copy(r.einv[eu])
+                r.eflags[fu] = r.eflags[eu]
+                r.eraw[fu] = copy(r.eraw[eu])
+                push_ev(r, k as i64, f, 0, "", s)
+    let nm = copy(r.ev)
+    let en = select_tr(c, r, s, &nm)
+    if en.len() > 0
+        microstep(c, r, s, &en)
+    macrostep(c, r, s)
+
+fn run_chart(c0: &Chart, evs: &[text]) -> Result
     if not c0.ok
         return Result(outcome: "", conf: [], leaves: [], trace: [], logs: [], vals: [], isset: [], err: copy(c0.why))
-    let c = with_inits(&c0)
+    let c = with_inits(c0)
     var r = run0()
     for e in evs
         push_ext(&mut r, 0, copy(e), 0)
-    let root = c.mroot[0]
-    let ses = new_session(&c, &mut r, 0, -1, -1)
-    let ts: List[i64] = [init_transition(&c, root)]
-    enter_states(&c, &mut r, ses, &ts)
-    macrostep(&c, &mut r, ses)
+    let nolist: List[text] = []
+    let novals: List[ecma.V] = []
+    let ses = new_session(&c, &mut r, 0, -1, -1, "", -1)
+    bind_data(&c, &mut r, ses, &nolist, &novals)
+    start_session(&c, &mut r, ses)
     while r.srunning[0] and r.qev.len() > 0 and r.fuel > 0 bound 1048576
         r.fuel -= 1
-        # earliest (time, seq)
-        var b: usize = 0
-        for i in 1..r.qev.len()
-            if r.qtime[i] < r.qtime[b] or (r.qtime[i] == r.qtime[b] and r.qseq[i] < r.qseq[b])
-                b = i
-        let e = copy(r.qev[b])
+        let b = take_external(&mut r)
+        let e = r.qev[b]
         let s = r.qsess[b]
         if r.qtime[b] > r.now
             r.now = r.qtime[b]
-        var qt: List[i64] = []
-        var qs: List[i64] = []
-        var qx: List[i64] = []
-        var qe: List[text] = []
-        for i in 0..r.qev.len()
-            if i != b
-                qt.push(r.qtime[i])
-                qs.push(r.qseq[i])
-                qx.push(r.qsess[i])
-                qe.push(copy(r.qev[i]))
-        r.qtime = qt
-        r.qseq = qs
-        r.qsess = qx
-        r.qev = qe
+        drop_external(&mut r, b)
         if r.srunning[s as usize]
-            r.ev = copy(e)
-            let en = select_tr(&c, &mut r, s, &e)
-            if en.len() > 0
-                microstep(&c, &mut r, s, &en)
-            macrostep(&c, &mut r, s)
+            external(&c, &mut r, s, e)
     var conf: List[text] = []
     var leaves: List[text] = []
     for i in 0..c.sid.len()

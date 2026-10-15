@@ -16,4 +16,4 @@ fn xcanon(s: text) -> text
     let x = parse(&s)
     if not x.ok
         return "err " + x.why
-    return xc(&x, root(&x))
+    return xc(&x, doc_root(&x))
