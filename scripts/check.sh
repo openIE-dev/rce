@@ -14,13 +14,16 @@ for n in pq hpke mls; do
 done
 # Foundation modules under lib/<area>/: each is tested alone (it must admit
 # as a standalone module) and then with its checks file appended (vectors
-# and property sweeps live in tests/<area>/<name>_checks.rce so a library's
+# and property sweeps live in tests/<area>/<name>_checks[_N].rce so a library's
 # own comptime fuel stays small for programs that use it).
 for f in lib/*/*.rce; do
   "$RCE" check "$f"
-  t="tests/${f#lib/}"; t="${t%.rce}_checks.rce"
-  if [ -f "$t" ]; then
-    { cat "$f"; echo; cat "$t"; } > "$tmp/$(basename "$f")"
-    "$RCE" test "$tmp/$(basename "$f")"
-  fi
+  t="tests/${f#lib/}"; t="${t%.rce}_checks"
+  # one comptime fuel budget per file: heavy vector sets are sharded
+  for c in "$t".rce "$t"_*.rce; do
+    [ -f "$c" ] || continue
+    o="$tmp/$(basename "$c")"
+    { cat "$f"; echo; cat "$c"; } > "$o"
+    "$RCE" test "$o"
+  done
 done

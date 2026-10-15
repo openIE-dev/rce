@@ -34,3 +34,12 @@ ML-KEM-768 results are checked against the RustCrypto `ml-kem` crate
   division, `gcd`, `isqrt`, rational add/div) were computed with CPython
   3 `int`, `math` and `fractions` from seed 20261015; they are derived
   vectors, not official ones.
+
+## hash.blake3 (`lib/hash/blake3.rce`)
+
+- `hash/blake3/test_vectors.json`: the official BLAKE3 test vectors,
+  `test_vectors/test_vectors.json` from https://github.com/BLAKE3-team/BLAKE3
+  (commit f55849f89cd85083c1c9daa2c5de20766f309c00, fetched 2026-10-15),
+  copied unchanged. All 35 input lengths (0 to 102400) are checked in all
+  three modes (hash, keyed_hash, derive_key) at the full 131-byte extended
+  output: 105 checks, sharded over `tests/hash/blake3_checks*.rce`.
