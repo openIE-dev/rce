@@ -142,6 +142,13 @@ pub const FUEL: u64 = 50_000_000;
 /// tests/fuel.rs set it to find the trap step of small programs, and an
 /// emitted program takes the same number from its `--fuel=N` argument (10.5).
 pub static FUEL_LIMIT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(FUEL);
+/// The nesting limit of expression evaluation (6.7 addendum, host
+/// independence): the evaluation that would be the (EVAL_DEPTH + 1)-th
+/// nested one traps with `evaluation depth`, on every host. The interpreter
+/// grows its stack on the heap where it can (`stacker`), and the wasm32
+/// build reserves a stack sized for this limit (`.cargo/config.toml`), so a
+/// deep program meets this defined trap, never the host's stack size.
+pub const EVAL_DEPTH: u32 = 20_000;
 pub fn fuel_limit() -> u64 {
     FUEL_LIMIT.load(std::sync::atomic::Ordering::Relaxed)
 }
@@ -164,6 +171,8 @@ pub struct Interp<'a> {
     /// active calls of each function declared with `bound n` (6.7), keyed
     /// by the declaration
     pub(crate) depth: HashMap<usize, u64>,
+    /// nested `eval` calls in progress (bounded by EVAL_DEPTH)
+    pub(crate) eval_depth: u32,
 }
 
 fn int_name(t: &Ty) -> Option<&'static str> {
@@ -193,6 +202,7 @@ impl<'a> Interp<'a> {
             yields: vec![],
             cx: Default::default(),
             depth: HashMap::new(),
+            eval_depth: 0,
         };
         for i in &m.items {
             match i {
@@ -570,7 +580,13 @@ impl<'a> Interp<'a> {
     /// stack on the heap when fewer than 256 KiB remain, so evaluation never
     /// depends on the caller's thread stack or on a setting (HC-14).
     pub fn eval(&mut self, e: &Expr) -> R<V> {
-        stacker::maybe_grow(256 * 1024, 8 * 1024 * 1024, || self.eval_inner(e))
+        if self.eval_depth >= EVAL_DEPTH {
+            return trap("evaluation depth");
+        }
+        self.eval_depth += 1;
+        let r = stacker::maybe_grow(256 * 1024, 8 * 1024 * 1024, || self.eval_inner(e));
+        self.eval_depth -= 1;
+        r
     }
 
     fn eval_inner(&mut self, e: &Expr) -> R<V> {

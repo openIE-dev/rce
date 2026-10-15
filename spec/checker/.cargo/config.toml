@@ -1,0 +1,7 @@
+# The interpreter's evaluation depth is a defined limit (interp::EVAL_DEPTH),
+# not the host's stack. Native builds grow the stack on the heap (stacker);
+# wasm32 cannot, so its shadow stack is reserved for the limit here
+# (measured: 20,000 nested evaluations fit in 64 MiB with room to spare).
+# The engine's own stack must be raised too, e.g. wasmtime -W max-wasm-stack.
+[target.wasm32-wasip1]
+rustflags = ["-C", "link-arg=-zstack-size=67108864"]
