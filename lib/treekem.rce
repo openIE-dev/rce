@@ -1,0 +1,218 @@
+module treekem
+
+# TreeKEM ratchet trees for MLS (RFC 9420 section 7), pure RCE on top of
+# lib/crypto.rce and lib/mls.rce. This slice decodes a serialized
+# ratchet_tree (optional<Node> nodes<V>, TLS presentation language), pads
+# it to a full tree (the leaf count is a power of two, 7.1), and computes
+# tree hashes (7.8), resolutions (4.1.1) and parent-hash validity (7.9.2).
+# Path secrets and copath encryption build on these in the next slice.
+# Checked against the official tree-validation.json vectors in
+# tests/treekem_rce.rs.
+
+# a QUIC-style varint length at p: [value, next position]
+fn rd_v(b: List[i64], p: usize) -> List[i64]
+    let t = b[p] >> 6
+    if t == 0
+        return [b[p] & 63, (p + 1) as i64]
+    if t == 1
+        return [((b[p] & 63) << 8) | b[p + 1], (p + 2) as i64]
+    return [((b[p] & 63) << 24) | (b[p + 1] << 16) | (b[p + 2] << 8) | b[p + 3], (p + 4) as i64]
+
+fn skip_v(b: List[i64], p: usize) -> usize
+    let r = rd_v(copy(b), p)
+    return (r[0] + r[1]) as usize
+
+fn get_v(b: List[i64], p: usize) -> List[i64]
+    let r = rd_v(copy(b), p)
+    return slice(b, r[1] as usize, (r[0] + r[1]) as usize)
+
+# end of a LeafNode starting at p (7.2)
+fn leaf_end(b: List[i64], p0: usize) -> usize
+    var p = skip_v(copy(b), p0)
+    p = skip_v(copy(b), p)
+    p += 2
+    p = skip_v(copy(b), p)
+    for _ in 0..5
+        p = skip_v(copy(b), p)
+    let src = b[p]
+    p += 1
+    if src == 1
+        p += 16
+    if src == 3
+        p = skip_v(copy(b), p)
+    p = skip_v(copy(b), p)
+    return skip_v(b, p)
+
+fn parent_end(b: List[i64], p0: usize) -> usize
+    var p = skip_v(copy(b), p0)
+    p = skip_v(copy(b), p)
+    return skip_v(b, p)
+
+# the nodes of a ratchet_tree, padded to 2^k leaves: "" for a blank node,
+# else the hex of the node type byte (1 leaf, 2 parent) and the node's encoding
+fn rt_decode(tree: text) -> List[text]
+    let b = unhex(tree)
+    let r = rd_v(copy(b), 0)
+    let end = (r[0] + r[1]) as usize
+    var p = r[1] as usize
+    var nodes: List[text] = []
+    while p < end bound 65536
+        if b[p] == 0
+            nodes.push("")
+            p += 1
+        else
+            let typ = b[p + 1]
+            let s = p + 2
+            let e = if typ == 1 then leaf_end(copy(b), s) else parent_end(copy(b), s)
+            nodes.push(tohex(slice(copy(b), s - 1, e)))
+            p = e
+    var leaves: usize = 1
+    while 2 * leaves - 1 < nodes.len() bound 32
+        leaves = leaves * 2
+    while nodes.len() < 2 * leaves - 1 bound 65536
+        nodes.push("")
+    return nodes
+
+fn nbody(n: text) -> List[i64]
+    let b = unhex(n)
+    return slice(copy(b), 1, b.len())
+
+fn ntype(n: text) -> i64
+    if n == ""
+        return 0
+    return unhex(n)[0]
+
+# encryption key, parent hash ("" for none) and unmerged leaves (parents
+# only) of a node: [enc_key_hex, parent_hash_hex, "l1,l2,..."]
+fn nfields(n: text) -> List[text]
+    let typ = ntype(copy(n))
+    let b = nbody(n)
+    let ek = tohex(get_v(copy(b), 0))
+    var p = skip_v(copy(b), 0)
+    if typ == 2
+        let ph = tohex(get_v(copy(b), p))
+        p = skip_v(copy(b), p)
+        let um = get_v(copy(b), p)
+        var us = ""
+        var i: usize = 0
+        while i + 4 <= um.len() bound 16384
+            let u = (um[i] << 24) | (um[i + 1] << 16) | (um[i + 2] << 8) | um[i + 3]
+            us = if us == "" then u.tostr() else us + "," + u.tostr()
+            i += 4
+        return [ek, ph, us]
+    p = skip_v(copy(b), p)
+    p += 2
+    p = skip_v(copy(b), p)
+    for _ in 0..5
+        p = skip_v(copy(b), p)
+    if b[p] == 3
+        return [ek, tohex(get_v(copy(b), p + 1)), ""]
+    return [ek, "", ""]
+
+fn unmerged(n: text) -> List[i64]
+    var out: List[i64] = []
+    if ntype(copy(n)) != 2
+        return out
+    let f = nfields(n)
+    if f[2] == ""
+        return out
+    for x in copy(f[2]).split(",")
+        out.push(x.toint())
+    return out
+
+fn ser_v(b: List[i64]) -> List[i64]
+    let n = b.len() as i64
+    if n < 64
+        return cat([n], b)
+    if n < 16384
+        return cat([64 | (n >> 8), n & 255], b)
+    return cat([128 | (n >> 24), (n >> 16) & 255, (n >> 8) & 255, n & 255], b)
+
+fn u32b(x: i64) -> List[i64] = [(x >> 24) & 255, (x >> 16) & 255, (x >> 8) & 255, x & 255]
+
+# tree hashes (7.8) of every node of a full tree, bottom up
+fn tree_hashes(nodes: List[text]) -> List[text]
+    let w = nodes.len()
+    var h: List[text] = []
+    for _ in 0..w
+        h.push("")
+    var x: usize = 0
+    while x < w bound 65536
+        let present: List[i64] = if nodes[x] == "" then [0] else cat([1], nbody(copy(nodes[x])))
+        h[x] = tohex(sha256(cat(cat([1], u32b((x / 2) as i64)), present)))
+        x += 2
+    var k: i64 = 1
+    while (1 << k) <= w as i64 bound 32
+        var y = ((1 << k) - 1) as usize
+        while y < w bound 65536
+            let l = tm_left(y as i64) as usize
+            let r = (y as i64 ^ (3 << (k - 1))) as usize
+            let present: List[i64] = if nodes[y] == "" then [0] else cat([1], nbody(copy(nodes[y])))
+            h[y] = tohex(sha256(cat(cat([2], present), cat(ser_v(unhex(copy(h[l]))), ser_v(unhex(copy(h[r])))))))
+            y += (1 << (k + 1)) as usize
+        k += 1
+    return h
+
+# resolution (4.1.1) of node x of a full tree
+fn resolution(nodes: List[text], x: i64) -> List[i64]
+    var out: List[i64] = []
+    var todo: List[i64] = [x]
+    while todo.len() > 0 bound 65536
+        let y = todo[0]
+        todo = slice_i(copy(todo), 1)
+        if nodes[y as usize] != ""
+            out.push(y)
+            for u in unmerged(copy(nodes[y as usize]))
+                out.push(2 * u)
+        else
+            if y % 2 == 1
+                todo = cat([tm_left(y), y ^ (3 << (tm_level(y) - 1))], todo)
+    return out
+
+fn slice_i(b: List[i64], lo: usize) -> List[i64] = slice(copy(b), lo, b.len())
+
+# the tree with the leaves in ex blanked and removed from every unmerged list
+fn strip_leaves(nodes: List[text], ex: List[i64]) -> List[text]
+    var out: List[text] = []
+    var x: usize = 0
+    for n in nodes
+        var m = copy(n)
+        if x % 2 == 0 and ex.contains((x / 2) as i64)
+            m = ""
+        if x % 2 == 1 and m != ""
+            let um = unmerged(copy(m))
+            var keep: List[i64] = []
+            for u in copy(um)
+                if not ex.contains(u)
+                    keep.push(u)
+            if keep.len() != um.len()
+                let f = nfields(copy(m))
+                var ub: List[i64] = []
+                for u in keep
+                    ub = cat(ub, u32b(u))
+                m = tohex(cat([2], cat(cat(ser_v(unhex(copy(f[0]))), ser_v(unhex(copy(f[1])))), ser_v(ub))))
+        out.push(m)
+        x += 1
+    return out
+
+# ParentHash(P) as seen from the child whose sibling is s (7.9)
+fn parent_hash_of(nodes: List[text], p: i64, s: i64) -> text
+    let f = nfields(copy(nodes[p as usize]))
+    let sib = tree_hashes(strip_leaves(copy(nodes), unmerged(copy(nodes[p as usize]))))
+    return tohex(sha256(cat(cat(ser_v(unhex(copy(f[0]))), ser_v(unhex(copy(f[1])))), ser_v(unhex(copy(sib[s as usize]))))))
+
+# parent node p is parent-hash valid (7.9.2): a node in the resolution of
+# one child, not an unmerged leaf of p, carries ParentHash(p) for that side
+fn parent_hash_valid(nodes: List[text], p: i64) -> bool
+    if nodes[p as usize] == ""
+        return true
+    let um = unmerged(copy(nodes[p as usize]))
+    let l = tm_left(p)
+    let r = p ^ (3 << (tm_level(p) - 1))
+    for side in [[l, r], [r, l]]
+        let h = parent_hash_of(copy(nodes), p, side[1])
+        for d in resolution(copy(nodes), side[0])
+            if not um.contains(d / 2) or d % 2 == 1
+                if nfields(copy(nodes[d as usize]))[1] == h
+                    return true
+    return false
