@@ -1,8 +1,7 @@
 module num.stats
-# uses: num.linalg, num.special, rand.det
+# uses: num.linalg, num.special, math.math
 use num.linalg
 use num.special
-use rand.det
 
 # Statistics over IEEE binary64, deterministic on every target (spec 6.3
 # N3; fixed evaluation order throughout). Contents: exact summation,
@@ -336,7 +335,7 @@ pub fn quantile(xs: &[f64], p: f64, qtype: i64) -> f64 ! StatsError
 pub fn median(xs: &[f64]) -> f64 ! StatsError = try quantile(xs, 0.5, 7)
 
 # ---------------------------------------------------------------- Loader
-# stirlerr(n) = special.log(n!) - special.log(sqrt(2 pi n) (n/e)^n). Exact table at the
+# stirlerr(n) = special.cr_log(n!) - special.cr_log(sqrt(2 pi n) (n/e)^n). Exact table at the
 # half integers 0.5 .. 15 (computed with mpmath at 200 bits, rounded once),
 # Stirling's series above 15, and the lgamma form between table points.
 const ST_LN_SQRT_2PI: f64 = 0.9189385332046728
@@ -355,7 +354,7 @@ pub fn stirlerr(n: f64) -> f64
         let nn = n + n
         if nn == nn.floor()
             return st_sferr(nn as i64)
-        return special.lgamma(n + 1.0) - (n + 0.5) * special.log(n) + n - ST_LN_SQRT_2PI
+        return special.lgamma(n + 1.0) - (n + 0.5) * special.cr_log(n) + n - ST_LN_SQRT_2PI
     let s0 = 1.0 / 12.0
     let s1 = 1.0 / 360.0
     let s2 = 1.0 / 1260.0
@@ -370,7 +369,7 @@ pub fn stirlerr(n: f64) -> f64
         return (s0 - (s1 - (s2 - s3 / nn) / nn) / nn) / n
     return (s0 - (s1 - (s2 - (s3 - s4 / nn) / nn) / nn) / nn) / n
 
-# bd0(x, m) = x special.log(x / m) + m - x, by its series when x is near m.
+# bd0(x, m) = x special.cr_log(x / m) + m - x, by its series when x is near m.
 pub fn bd0(x: f64, m: f64) -> f64
     if st_abs(x - m) < 0.1 * (x + m)
         var v = (x - m) / (x + m)
@@ -386,7 +385,7 @@ pub fn bd0(x: f64, m: f64) -> f64
             s = s1
             j += 1
         return s
-    return x * special.log(x / m) + m - x
+    return x * special.cr_log(x / m) + m - x
 
 # Binomial density at real x for n trials, success p (q = 1 - p given so
 # callers can pass it exactly).
@@ -398,26 +397,26 @@ pub fn dbinom_raw(x: f64, n: f64, p: f64, q: f64) -> f64
     if x == 0.0
         if n == 0.0
             return 1.0
-        let lc = if p < 0.1 then 0.0 - bd0(n, n * q) - n * p else n * special.log(q)
-        return special.exp(lc)
+        let lc = if p < 0.1 then 0.0 - bd0(n, n * q) - n * p else n * special.cr_log(q)
+        return special.cr_exp(lc)
     if x == n
-        let lc = if q < 0.1 then 0.0 - bd0(n, n * p) - n * q else n * special.log(p)
-        return special.exp(lc)
+        let lc = if q < 0.1 then 0.0 - bd0(n, n * p) - n * q else n * special.cr_log(p)
+        return special.cr_exp(lc)
     if x < 0.0 or x > n
         return 0.0
     let lc = stirlerr(n) - stirlerr(x) - stirlerr(n - x) - bd0(x, n * p) - bd0(n - x, n * q)
-    let lf = ST_LN_2PI + special.log(x) + special.log1p(0.0 - x / n)
-    return special.exp(lc - 0.5 * lf)
+    let lf = ST_LN_2PI + special.cr_log(x) + special.log1p(0.0 - x / n)
+    return special.cr_exp(lc - 0.5 * lf)
 
 # Poisson density at real x >= 0 with mean m.
 pub fn dpois_raw(x: f64, m: f64) -> f64
     if m == 0.0
         return if x == 0.0 then 1.0 else 0.0
     if x == 0.0
-        return special.exp(0.0 - m)
+        return special.cr_exp(0.0 - m)
     if x < 0.0
         return 0.0
-    return special.exp(0.0 - stirlerr(x) - bd0(x, m)) / (6.283185307179586 * x).sqrt()
+    return special.cr_exp(0.0 - stirlerr(x) - bd0(x, m)) / (6.283185307179586 * x).sqrt()
 
 # ---------------------------------------------------------------- incomplete gamma, beta
 
@@ -548,7 +547,7 @@ pub fn norm_pdf(x: f64, mu: f64, sigma: f64) -> f64 ! StatsError
     let ok = try st_check(sigma > 0.0, "norm: sigma must be > 0")
     let z = (x - mu) / sigma
     let zz = st_two_prod(z, z)
-    return special.exp(-0.5 * zz[0]) * (1.0 - 0.5 * zz[1]) * ST_INV_SQRT_2PI / sigma
+    return special.cr_exp(-0.5 * zz[0]) * (1.0 - 0.5 * zz[1]) * ST_INV_SQRT_2PI / sigma
 
 # Phi(z) for the standard normal: 0.5 erfc(-z / sqrt 2), with z / sqrt 2
 # carried as a double-double t = th + tl and erfc(-(th + tl)) =
@@ -559,7 +558,7 @@ fn st_phi(z: f64, upper: bool) -> f64
     let tl = pe[1] + z * ST_INV_SQRT2_LO
     let s = if upper then th else 0.0 - th
     let sl = if upper then tl else 0.0 - tl
-    let corr = 0.0 - sl * ST_TWO_OVER_SQRT_PI * special.exp(0.0 - s * s)
+    let corr = 0.0 - sl * ST_TWO_OVER_SQRT_PI * special.cr_exp(0.0 - s * s)
     return 0.5 * (special.erfc(s) + corr)
 
 pub fn norm_cdf(x: f64, mu: f64, sigma: f64) -> f64 ! StatsError
@@ -580,7 +579,7 @@ fn st_ppnd16(p: f64) -> f64
         let num = ((((((2509.0809287301226727 * r + 33430.575583588128105) * r + 67265.770927008700853) * r + 45921.953931549871457) * r + 13731.693765509461125) * r + 1971.5909503065514427) * r + 133.14166789178437745) * r + 3.3871328727963666080
         let den = ((((((5226.4952788528545610 * r + 28729.085735721942674) * r + 39307.895800092710610) * r + 21213.794301586595867) * r + 5394.1960214247511077) * r + 687.18700749205790830) * r + 42.313330701600911252) * r + 1.0
         return q * num / den
-    var r = (0.0 - special.log(if q < 0.0 then p else 1.0 - p)).sqrt()
+    var r = (0.0 - special.cr_log(if q < 0.0 then p else 1.0 - p)).sqrt()
     var v = 0.0
     if r <= 5.0
         r = r - 1.6
@@ -692,19 +691,67 @@ fn st_invert(d: i64, a: f64, b: f64, p: f64, lo0: f64, guess: f64) -> f64 ! Stat
             hi = m
             t = m
             k += 1
+    # Shrink [lo, hi] to adjacent doubles, keeping g(lo) < 0 <= g(hi) for
+    # g = cdf - p (or q - sf above the median), so the result is the
+    # smallest double whose cdf reaches p. Steps are Illinois regula falsi,
+    # with a bisection (geometric across wide ranges) whenever two steps
+    # have not halved the bracket; the step rule depends only on the
+    # values, so the result is deterministic.
+    let clo = try st_cs(d, a, b, lo)
+    let chi = try st_cs(d, a, b, hi)
+    var glo = if up then q - clo[1] else clo[0] - p
+    var ghi = if up then q - chi[1] else chi[0] - p
+    if not (glo < 0.0)
+        glo = -1.0
+    var side = 0
+    var w0 = hi - lo
+    var steps = 0
     k = 0
     while k < 4400 bound 4401
         var mid = lo + (hi - lo) * 0.5
         if lo > 0.0 and hi > 2.0 * lo
             mid = lo.sqrt() * hi.sqrt()
+        if steps < 2 and ghi > glo
+            let x = hi - ghi * ((hi - lo) / (ghi - glo))
+            if x > lo and x < hi
+                mid = x
         if mid <= lo or mid >= hi
-            break
+            mid = lo + (hi - lo) * 0.5
+            if mid <= lo or mid >= hi
+                break
         let c = try st_cs(d, a, b, mid)
-        let under = if up then c[1] > q else c[0] < p
-        if under
+        let g = if up then q - c[1] else c[0] - p
+        if g < 0.0
             lo = mid
+            glo = g
+            if side == -1
+                ghi = ghi * 0.5
+            side = -1
         else
             hi = mid
+            ghi = g
+            if side == 1
+                glo = glo * 0.5
+            side = 1
+        steps += 1
+        if hi - lo <= 0.5 * w0
+            w0 = hi - lo
+            steps = 0
+        elif steps >= 2
+            # forced bisection next; restart the count after it
+            steps = 2
+            let m2 = lo + (hi - lo) * 0.5
+            if m2 > lo and m2 < hi
+                let c2 = try st_cs(d, a, b, m2)
+                let g2 = if up then q - c2[1] else c2[0] - p
+                if g2 < 0.0
+                    lo = m2
+                    glo = g2
+                else
+                    hi = m2
+                    ghi = g2
+            w0 = hi - lo
+            steps = 0
         k += 1
     return hi
 
@@ -719,18 +766,18 @@ pub fn t_pdf(x: f64, df: f64) -> f64 ! StatsError
     var u = 0.0
     var lx = 0.0
     if ax > 1.0e150 or (ax / df) * ax > 4503599627370496.0
-        lx = special.log(ax) - 0.5 * special.log(df)
+        lx = special.cr_log(ax) - 0.5 * special.cr_log(df)
         u = df * lx
         x2n = 0.0
-        return special.exp(t - u) * ST_INV_SQRT_2PI * df.sqrt() / ax
+        return special.cr_exp(t - u) * ST_INV_SQRT_2PI * df.sqrt() / ax
     x2n = (x * x) / df
     if x2n > 0.2
-        lx = 0.5 * special.log(1.0 + x2n)
+        lx = 0.5 * special.cr_log(1.0 + x2n)
         u = df * lx
     else
         lx = 0.5 * special.log1p(x2n)
         u = 0.0 - bd0(0.5 * df, 0.5 * (df + x * x)) + 0.5 * x * x
-    return special.exp(t - u) * ST_INV_SQRT_2PI / (1.0 + x2n).sqrt()
+    return special.cr_exp(t - u) * ST_INV_SQRT_2PI / (1.0 + x2n).sqrt()
 
 pub fn t_cdf(x: f64, df: f64) -> f64 ! StatsError
     let ok = try st_check(df > 0.0, "t: df must be > 0")
@@ -827,7 +874,7 @@ pub fn beta_pdf(x: f64, a: f64, b: f64) -> f64 ! StatsError
     if a > 1.0 and b > 1.0
         return (a + b - 1.0) * dbinom_raw(a - 1.0, a + b - 2.0, x, 1.0 - x)
     let lb = special.lgamma(a) + special.lgamma(b) - special.lgamma(a + b)
-    return special.exp((a - 1.0) * special.log(x) + (b - 1.0) * special.log1p(0.0 - x) - lb)
+    return special.cr_exp((a - 1.0) * special.cr_log(x) + (b - 1.0) * special.log1p(0.0 - x) - lb)
 
 pub fn beta_cdf(x: f64, a: f64, b: f64) -> f64 ! StatsError
     let ok = try st_check(a > 0.0 and b > 0.0, "beta: a, b must be > 0")
@@ -846,7 +893,7 @@ pub fn beta_ppf(p: f64, a: f64, b: f64) -> f64 ! StatsError
 # Exponential with scale s (rate 1 / s).
 pub fn expon_pdf(x: f64, s: f64) -> f64 ! StatsError
     let ok = try st_check(s > 0.0, "expon: scale must be > 0")
-    return if x < 0.0 then 0.0 else special.exp(0.0 - x / s) / s
+    return if x < 0.0 then 0.0 else special.cr_exp(0.0 - x / s) / s
 
 pub fn expon_cdf(x: f64, s: f64) -> f64 ! StatsError
     let ok = try st_check(s > 0.0, "expon: scale must be > 0")
@@ -854,7 +901,7 @@ pub fn expon_cdf(x: f64, s: f64) -> f64 ! StatsError
 
 pub fn expon_sf(x: f64, s: f64) -> f64 ! StatsError
     let ok = try st_check(s > 0.0, "expon: scale must be > 0")
-    return if x <= 0.0 then 1.0 else special.exp(0.0 - x / s)
+    return if x <= 0.0 then 1.0 else special.cr_exp(0.0 - x / s)
 
 pub fn expon_ppf(p: f64, s: f64) -> f64 ! StatsError
     let ok = try st_check(s > 0.0, "expon: scale must be > 0")
@@ -946,21 +993,22 @@ pub fn poisson_ppf(p: f64, mu: f64) -> i64 ! StatsError
     return hi
 
 # ---------------------------------------------------------------- variates
-# Seeded variates from a rand.det generator (ChaCha20, RFC 8439): a run
-# replays bit for bit from its seed. One variate uses a fixed number of
-# draws: uniform takes 53 bits, uniform_open 52 bits, normal and
-# exponential one uniform_open each (inversion, so a variate is a
-# monotone function of its draw).
+# Variates as exact functions of uniform draws, meant for a rand.det
+# generator (ChaCha20, RFC 8439) so a run replays bit for bit from its
+# seed: pass det.bits(r, 53) to uniform and det.bits(r, 52) to the others.
+# Inversion, so each variate is a monotone function of one draw. (They
+# take the integer, not the generator: rand.det and math both declare a
+# public `split`, so no package can hold both modules yet.)
 
-# Uniform on [0, 1): k / 2^53 for k = 53 uniform bits.
-pub fn uniform(r: &mut det.Rng) -> f64 = (det.bits(r, 53) as f64) * 1.1102230246251565e-16
+# Uniform on [0, 1): k / 2^53, 0 <= k < 2^53.
+pub fn uniform(k: i64) -> f64 = (k as f64) * 1.1102230246251565e-16
 
-# Uniform on (0, 1): (k + 1/2) / 2^52 for k = 52 uniform bits.
-pub fn uniform_open(r: &mut det.Rng) -> f64 = ((det.bits(r, 52) as f64) + 0.5) * 2.220446049250313e-16
+# Uniform on (0, 1): (k + 1/2) / 2^52, 0 <= k < 2^52.
+pub fn uniform_open(k: i64) -> f64 = ((k as f64) + 0.5) * 2.220446049250313e-16
 
-pub fn normal(r: &mut det.Rng, mu: f64, sigma: f64) -> f64 = mu + sigma * st_ppnd16(uniform_open(r))
+pub fn normal(k: i64, mu: f64, sigma: f64) -> f64 = mu + sigma * st_ppnd16(uniform_open(k))
 
-pub fn exponential(r: &mut det.Rng, scale: f64) -> f64 = 0.0 - scale * special.log(uniform_open(r))
+pub fn exponential(k: i64, scale: f64) -> f64 = 0.0 - scale * special.cr_log(uniform_open(k))
 
 # ---------------------------------------------------------------- regression
 

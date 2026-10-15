@@ -202,24 +202,29 @@ def variate_lines():
     for _ in range(40): uo.append((g.bits(52) + 0.5) * 2.0 ** -52)
     for _ in range(40): ns.append(1.5 + 2.0 * float(SP.ndtri((g.bits(52) + 0.5) * 2.0 ** -52)))
     for _ in range(40): es.append(-3.0 * float(np.log((g.bits(52) + 0.5) * 2.0 ** -52)))
-    out = ['''fn stx_draws() -> List[f64]
-    let sd: List[i64] = %s
-    var r = det.from_seed(&sd, 5) catch det.Rng(key: [], stream: 0, block: 0, buf: [], pos: 16)
+    g = Gen(seed, 5)
+    ks = [g.bits(53) for _ in range(40)] + [g.bits(52) for _ in range(120)]
+    out = ['''# the draws of a rand.det generator seeded with %s, stream 5
+# (det.bits(r, 53) x 40 then det.bits(r, 52) x 120), from an independent
+# Python ChaCha20
+const STK: List[i64] = %s
+
+fn stx_draws() -> List[f64]
     var v: List[f64] = []
-    for _ in 0..40
-        v.push(uniform(&mut r))
-    for _ in 0..40
-        v.push(uniform_open(&mut r))
-    for _ in 0..40
-        v.push(normal(&mut r, 1.5, 2.0))
-    for _ in 0..40
-        v.push(exponential(&mut r, 3.0))
+    for i in 0..40
+        v.push(uniform(STK[i]))
+    for i in 40..80
+        v.push(uniform_open(STK[i]))
+    for i in 80..120
+        v.push(normal(STK[i], 1.5, 2.0))
+    for i in 120..160
+        v.push(exponential(STK[i], 3.0))
     return v
 
 const STV: List[f64] = stx_draws()
-''' % ('[' + ', '.join(str(b) for b in seed) + ']')]
+''' % (seed, '[' + ', '.join(str(k) for k in ks) + ']')]
     for i, u in enumerate(us + uo):
-        out.append('check STV[%d] == %s  # RFC 8439 ChaCha20 keystream (independent Python)' % (i, f(u)))
+        out.append('check STV[%d] == %s  # k / 2^53 of the RFC 8439 keystream draw' % (i, f(u)))
     for i, v in enumerate(ns):
         out.append('check stx_rel(STV[%d], %s) <= 1.0e-14  # 1.5 + 2 scipy.special.ndtri(u)' % (80 + i, f(v)))
     for i, v in enumerate(es):
@@ -231,8 +236,21 @@ def main():
     outdir = sys.argv[sys.argv.index('--out') + 1] if '--out' in sys.argv else 'tests/num'
     shards = []
     dc = dist_cases()
-    for i in range(0, len(dc), 120):
-        part = dc[i:i + 120]
+    # comptime fuel is per file: a quantile (bracketing and bisection over
+    # the cdf) costs about as much as W direct evaluations, a beta or F
+    # quantile (continued fractions near 1) about 3 W
+    W, BUDGET = 8, 48
+    groups, cur, cost = [], [], 0
+    for t in dc:
+        w = 1
+        if '_ppf(' in t[0] or '_isf(' in t[0]:
+            w = 3 * W if t[2] == 'betaq' else W
+        if cur and cost + w > BUDGET:
+            groups.append(cur); cur, cost = [], 0
+        cur.append(t); cost += w
+    groups.append(cur)
+    for part in groups:
+        i = dc.index(part[0])
         sh = [HEAD % 'scipy.stats 1.18.1 distributions (pdf/cdf/sf/ppf), relative error per family']
         if measure:
             sh.append('const M_%d: List[f64] = [%s]' % (i, ', '.join(

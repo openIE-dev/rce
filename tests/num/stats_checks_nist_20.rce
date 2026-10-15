@@ -5,7 +5,7 @@ fn stx_lre(q: f64, c: f64) -> f64
     if q == c
         return 16.0
     let e = if c == 0.0 then st_abs(q) else st_abs(q - c) / st_abs(c)
-    return 0.0 - special.log(e) / 2.302585092994046
+    return 0.0 - special.cr_log(e) / 2.302585092994046
 
 const STX_Y: List[f64] = [60323.0, 61122.0, 60171.0, 61187.0, 63221.0, 63639.0, 64989.0, 63761.0, 66019.0, 67857.0, 68169.0, 66513.0, 68655.0, 69564.0, 69331.0, 70551.0]
 
