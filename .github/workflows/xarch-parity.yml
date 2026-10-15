@@ -1,0 +1,149 @@
+name: RCE replay-hash parity
+
+# Every target runs scripts/xarch-parity.sh: the reference traces of every
+# example, the RCEdb host run, the chat app trace and the crypto vectors are
+# hashed and compared line by line with the committed golden set
+# scripts/xarch-hashes.x86_64-linux.txt. Any difference fails the
+# job. A target that cannot run a line declares it in XARCH_SKIP; the job
+# prints what it did not compare.
+
+"on":
+  push:
+    paths:
+      - 'spec/**'
+      - 'apps/**'
+      - 'lib/**'
+      - 'scripts/xarch-*'
+      - '.github/workflows/xarch-parity.yml'
+  pull_request:
+    paths:
+      - 'spec/**'
+      - 'apps/**'
+      - 'lib/**'
+      - 'scripts/xarch-*'
+      - '.github/workflows/xarch-parity.yml'
+  workflow_dispatch:
+
+jobs:
+  native:
+    name: parity ${{ matrix.name }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: linux-x86_64,   os: ubuntu-latest }
+          - { name: linux-aarch64,  os: ubuntu-24.04-arm }
+          - { name: macos-aarch64,  os: macos-latest }
+          - { name: windows-x86_64, os: windows-latest }
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+        working-directory: .
+    steps:
+      - uses: actions/checkout@v4
+      - name: Toolchain (spec/checker/rust-toolchain.toml)
+        working-directory: spec/checker
+        run: rustup show
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: spec/checker
+          key: ${{ matrix.name }}
+      - name: Build rce
+        working-directory: spec/checker
+        run: cargo build --release --bin rce
+      - name: Parity against the golden set
+        env:
+          XARCH_TARGET: ${{ matrix.name }}
+          XARCH_OUT: xarch-${{ matrix.name }}.txt
+          RCE_BIN: ${{ github.workspace }}/spec/checker/target/release/rce${{ runner.os == 'Windows' && '.exe' || '' }}
+        run: bash scripts/xarch-parity.sh
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: xarch-${{ matrix.name }}
+          path: xarch-${{ matrix.name }}.txt
+          if-no-files-found: ignore
+
+  wasm32-wasip1:
+    name: parity wasm32-wasip1 (wasmtime)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+        working-directory: .
+    steps:
+      - uses: actions/checkout@v4
+      - working-directory: spec/checker
+        run: rustup show && rustup target add wasm32-wasip1
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: spec/checker
+          key: wasm32-wasip1
+      - name: Install wasmtime
+        uses: bytecodealliance/actions/wasmtime/setup@v1
+      - run: wasmtime --version
+      - name: Build rce for wasm32-wasip1
+        working-directory: spec/checker
+        run: cargo build --release --bin rce --target wasm32-wasip1
+      - name: Parity against the golden set
+        env:
+          XARCH_TARGET: wasm32-wasip1
+          XARCH_OUT: xarch-wasm32-wasip1.txt
+          RCE_BIN: ${{ github.workspace }}/spec/checker/target/wasm32-wasip1/release/rce.wasm
+          # the engine stack sized for interp::EVAL_DEPTH (.cargo/config.toml)
+          RCE_RUNNER: wasmtime run -W max-wasm-stack=67108864 --dir /
+        run: bash scripts/xarch-parity.sh
+      - name: Evaluation depth is the defined trap, not the host stack
+        run: |
+          w=spec/checker/target/wasm32-wasip1/release/rce.wasm
+          wasmtime run -W max-wasm-stack=67108864 --dir / "$w" test "$PWD/spec/checker/tests/depth/ok_7000.rce" | grep '^ok '
+          out=$(wasmtime run -W max-wasm-stack=67108864 --dir / "$w" test "$PWD/spec/checker/tests/depth/trap_10000.rce" 2>&1 || true)
+          echo "$out"; grep -q 'trap: evaluation depth' <<< "$out"
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: xarch-wasm32-wasip1
+          path: xarch-wasm32-wasip1.txt
+          if-no-files-found: ignore
+
+  s390x-qemu:
+    name: parity s390x (big-endian, QEMU user mode)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+        working-directory: .
+    env:
+      CARGO_TARGET_S390X_UNKNOWN_LINUX_GNU_LINKER: s390x-linux-gnu-gcc
+      CC_s390x_unknown_linux_gnu: s390x-linux-gnu-gcc
+      CARGO_TARGET_S390X_UNKNOWN_LINUX_GNU_RUNNER: qemu-s390x-static -L /usr/s390x-linux-gnu
+    steps:
+      - uses: actions/checkout@v4
+      - name: Cross toolchain and QEMU
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq gcc-s390x-linux-gnu libc6-dev-s390x-cross qemu-user-static
+      - working-directory: spec/checker
+        run: rustup show && rustup target add s390x-unknown-linux-gnu
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: spec/checker
+          key: s390x
+      - name: Build rce for s390x
+        working-directory: spec/checker
+        run: cargo build --release --bin rce --target s390x-unknown-linux-gnu
+      - name: Sandbox table tests on s390x (audit arch, big-endian argument offsets)
+        working-directory: spec/checker
+        run: cargo test --release --lib --target s390x-unknown-linux-gnu sandbox
+      - name: Parity against the golden set
+        env:
+          XARCH_TARGET: s390x-unknown-linux-gnu (qemu)
+          XARCH_OUT: xarch-s390x.txt
+          RCE_BIN: ${{ github.workspace }}/spec/checker/target/s390x-unknown-linux-gnu/release/rce
+          RCE_RUNNER: qemu-s390x-static -L /usr/s390x-linux-gnu
+        run: bash scripts/xarch-parity.sh
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: xarch-s390x
+          path: xarch-s390x.txt
+          if-no-files-found: ignore

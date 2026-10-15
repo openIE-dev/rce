@@ -432,6 +432,46 @@ field, both values); exit 0 on full match. `spec/checker/tests/traces.rs`
 checks that the fixtures are current, that every step is on the 6.1
 chain, and that the runner finds a planted divergence.
 
+### 10.10 `rce index [--vectors N] FILE|DIR...` and `rce search CATALOG QUERY`: the brick catalog (informative)
+
+`rce index` checks the files as one program (10.2) and prints one JSON
+object (format `rce-catalog/1`, compact, sorted keys) with one entry per
+top-level function of each module (the `pub` ones when the module marks
+any `pub`, else all; methods are not bricks), sorted by module and name.
+Library dependencies are resolved first: a `# uses: a/b` line adds
+`a/b.rce` from the nearest ancestor directory that has it; a `#!lib NAME`
+line checks the module with the items of module NAME in front (its checks
+dropped, its own items winning), as the rce binary does; and a module
+refused only for unknown names that exactly one single-segment module of
+the program declares is checked again with that module as its `#!lib`.
+`resolved` records each resolution and whether it was a directive or
+inferred.
+An entry holds `module`, `name`, `file`, `line`, `generics`, `params`
+(name and type), `ret`, `key` (the type with generic parameters renamed
+`t0`, `t1`, ... in order of first occurrence), `hash` (SHA-256 of the
+module path and the canonical text of the function alone, so layout and
+position do not change it), `checked` (the verdict of its file) and
+`lowering` (`{"term": T}`, the D.7 lowering, or `{"refused": reason}`).
+The catalog's `hash` is the SHA-256 of the canonical JSON of its entries;
+`refused_files` maps each refused file to its diagnostics. With
+`--vectors N`, `vectors` maps a lowered brick's hash to up to N
+`{"args", "out"}` or `{"args", "trap"}` records of the reference
+evaluator on inputs generated from the parameter types by a fixed rule
+(an input that needs more than 200000 interpreter steps gives none, as the
+store-passing terms do more work than the interpreter); they are outside the catalog
+hash. `rce-brick-verify CATALOG` (`src/form/brick.rs`) evaluates each
+lowered term on its vectors and reports, per brick, agreement or the
+first disagreement: a result must be equal, a trap must be an error.
+
+`rce search` reads a catalog and a query `A -> R` or `(A, B) -> R`, where
+one-letter lowercase names are type variables, and prints `RANK
+module.name : key` per match, best first. A brick matches when its
+arguments and result unify with the query's, in some order of the
+arguments. RANK is 0 for a type equal up to renaming of variables, 1 for
+an instance, plus 2 when the arguments match only in another order. Ties
+break by module and name. Both commands are deterministic: equal inputs
+give equal output bytes.
+
 **Read receipt.** Which JSON-RPC error code does the language server return for a request it does not know? (a number)
 
-<!-- body-sha256: 6b5bed95bc556853446c5211bac6697c3795faf850f184a2d552eabbc7294e94 -->
+<!-- body-sha256: c2639c1cdf4890c67abf706c388af5d62050b62e187629828bc83efe09a65a11 -->

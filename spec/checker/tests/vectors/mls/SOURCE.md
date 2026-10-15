@@ -12,3 +12,22 @@ for mode 0 (base), KEM 0x0020, KDF 0x0001, AEAD 0x0001, unchanged.
 
 tree-validation-suite1.json is the cipher suite 1 entries of
 test-vectors/tree-validation.json from the same repository, unchanged.
+
+treekem-suite1.json is the cipher suite 1 entries of test-vectors/treekem.json
+from the same repository, unchanged.
+
+welcome-suite1.json and passive-client-welcome-suite1.json are the cipher
+suite 1 entries of test-vectors/welcome.json and
+test-vectors/passive-client-welcome.json from the same repository, unchanged
+(the suite 1 passive-client-welcome entries have no later epochs).
+
+messages.json is test-vectors/messages.json from the same repository,
+unchanged (it has no cipher suite field).
+
+secret-tree-suite1.json and message-protection-suite1.json are the cipher
+suite 1 entries of test-vectors/secret-tree.json and
+test-vectors/message-protection.json from the same repository, unchanged.
+
+passive-client-handling-commit-suite1.json is the cipher suite 1 entries of
+test-vectors/passive-client-handling-commit.json from the same repository,
+unchanged.

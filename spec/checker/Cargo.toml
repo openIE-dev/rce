@@ -15,7 +15,7 @@ path = "src/lib.rs"
 # link tree-sitter 0.26 (Cargo allows one `links` per dependency graph).
 tree-sitter = { version = ">=0.26, <0.28", optional = true }
 regex = "1"
-serde_json = { version = "1", features = ["float_roundtrip"] }
+serde_json = { version = "1", features = ["float_roundtrip", "unbounded_depth"] }
 # AST terms of the Form (W2b): derive only
 serde = { version = "1", features = ["derive"] }
 sha2 = "0.11"

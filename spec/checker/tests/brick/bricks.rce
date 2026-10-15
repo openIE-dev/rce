@@ -1,0 +1,102 @@
+module demo.bricks
+
+# Fixture for `rce index`, `rce search` and the D.7 lowering (tests/brick.rs,
+# ../../tests/brick_lowering.rs). Every function here is total on its domain.
+
+const LIMIT: i64 = 100
+
+pub fn clamp(x: i64, lo: i64, hi: i64) -> i64 = if x < lo then lo else (if x > hi then hi else x)
+
+pub fn sign(x: i64) -> i64 = if x > 0 then 1 else (if x < 0 then -1 else 0)
+
+pub fn between(x: i64, lo: i64, hi: i64) -> bool = lo <= x and x <= hi
+
+pub fn safe_div(a: i64, b: i64) -> i64 = if b != 0 and a / b > 0 then a / b else 0
+
+pub fn capped_sum(a: i64, b: i64) -> i64
+    let s = a + b
+    return clamp(s, 0, LIMIT)
+
+pub fn mean2(a: i64, b: i64) -> i64 = (a + b) / 2
+
+pub fn is_short(s: text) -> bool = s.len() < 4 or s == "long"
+
+pub fn fact(n: i64) -> i64 bound 64 = if n <= 1 then 1 else n * fact(n - 1)
+
+pub fn mix(a: i64, b: i64) -> i64 = (a ^ b) & 255
+
+pub fn first[T](xs: List[T], d: T) -> T = if xs.len() > 0 then copy(xs[0]) else d
+
+fn helper(x: i64) -> i64 = x
+
+pub fn popcount(x: i64) -> i64
+    var n = 0
+    for i in 0..64
+        n += (x >> i) & 1
+    return n
+
+pub fn sum_list(xs: List[i64]) -> i64
+    var t = 0
+    for x in xs
+        t += x
+    return t
+
+pub fn rev(xs: List[i64]) -> List[i64]
+    var o: List[i64] = []
+    var i = xs.len() as i64
+    while i > 0 bound 1000000
+        i -= 1
+        o.push(xs[i as usize])
+    return o
+
+pub fn find_first(xs: List[i64], v: i64) -> i64
+    var i = 0
+    for x in xs
+        if x == v
+            return i
+        i += 1
+    return -1
+
+pub fn swap_at(xs: List[i64], i: i64, j: i64) -> List[i64]
+    var o = copy(xs)
+    let t = o[i as usize]
+    o[i as usize] = o[j as usize]
+    o[j as usize] = t
+    return o
+
+pub fn count_down(n: i64) -> i64
+    var k = n
+    var steps = 0
+    while k > 0 bound 8
+        k -= 1
+        steps += 1
+        if steps == 5
+            break
+    return steps
+
+pub struct Pt
+    x: i64
+    y: i64
+
+pub fn shift(p: Pt, d: i64) -> Pt = Pt(x: p.x + d, y: p.y - d)
+
+pub fn greet(n: text) -> text = "hi " + n
+
+pub fn put2(b: &mut List[i64], v: i64)
+    b.push(v & 255)
+    b.push((v >> 8) & 255)
+
+pub fn take_last(b: &mut List[i64]) -> i64
+    let n = b.len()
+    if n == 0
+        return -1
+    let x = b[n - 1]
+    b.pop()
+    return x
+
+pub fn le16(v: i64) -> List[i64]
+    var o: List[i64] = []
+    put2(&mut o, v)
+    let t = take_last(&mut o)
+    put2(&mut o, t)
+    return o

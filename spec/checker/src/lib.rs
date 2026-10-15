@@ -2,32 +2,35 @@
 //! RCE reference parser, type and well-formedness checker (RCE-SPEC.md),
 //! plus the tree-sitter port of the grammar for cross-checks.
 pub mod adapters;
-pub mod tls;
 pub mod anf;
 pub mod ast;
 pub mod book;
+pub mod brick;
+pub mod brick_lower;
+pub mod brick_vec;
 pub mod check;
-pub mod link;
 pub mod check06b;
-pub mod conc;
 pub mod cli;
+pub mod conc;
 pub mod emit;
 pub mod host;
 pub mod index08;
 pub mod interp;
 pub mod lalr;
+pub mod link;
 pub mod lsp;
 pub mod parse;
 pub mod rcedb;
 pub mod refine;
+pub mod sandbox;
 pub mod specdata;
 pub mod specread;
-pub mod sandbox;
-pub mod wasm_float;
+pub mod tls;
 #[cfg(feature = "tree-sitter")]
 pub mod ts;
 pub mod types;
 pub mod unparse;
+pub mod wasm_float;
 use std::collections::HashSet;
 
 /// Check `files` (name, source) as one program, as `rce-check` does: every

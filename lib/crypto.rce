@@ -228,16 +228,57 @@ const M26: i64 = 67108863
 fn fe(v: i64) -> List[i64] = [v, 0, 0, 0, 0, 0, 0, 0, 0, 0]
 
 fn carry(a: List[i64]) -> List[i64]
-    var o = copy(a)
-    for _ in 0..2
-        for i in 0..9
-            let c = o[i] >> 26
-            o[i] = o[i] - (c << 26)
-            o[i + 1] = o[i + 1] + c
-        let c9 = o[9] >> 26
-        o[9] = o[9] - (c9 << 26)
-        o[0] = o[0] + 608 * c9
-    return o
+    var o0 = a[0]
+    var o1 = a[1]
+    var o2 = a[2]
+    var o3 = a[3]
+    var o4 = a[4]
+    var o5 = a[5]
+    var o6 = a[6]
+    var o7 = a[7]
+    var o8 = a[8]
+    var o9 = a[9]
+    o1 = o1 + (o0 >> 26)
+    o0 = o0 & 67108863
+    o2 = o2 + (o1 >> 26)
+    o1 = o1 & 67108863
+    o3 = o3 + (o2 >> 26)
+    o2 = o2 & 67108863
+    o4 = o4 + (o3 >> 26)
+    o3 = o3 & 67108863
+    o5 = o5 + (o4 >> 26)
+    o4 = o4 & 67108863
+    o6 = o6 + (o5 >> 26)
+    o5 = o5 & 67108863
+    o7 = o7 + (o6 >> 26)
+    o6 = o6 & 67108863
+    o8 = o8 + (o7 >> 26)
+    o7 = o7 & 67108863
+    o9 = o9 + (o8 >> 26)
+    o8 = o8 & 67108863
+    o0 = o0 + 608 * (o9 >> 26)
+    o9 = o9 & 67108863
+    o1 = o1 + (o0 >> 26)
+    o0 = o0 & 67108863
+    o2 = o2 + (o1 >> 26)
+    o1 = o1 & 67108863
+    o3 = o3 + (o2 >> 26)
+    o2 = o2 & 67108863
+    o4 = o4 + (o3 >> 26)
+    o3 = o3 & 67108863
+    o5 = o5 + (o4 >> 26)
+    o4 = o4 & 67108863
+    o6 = o6 + (o5 >> 26)
+    o5 = o5 & 67108863
+    o7 = o7 + (o6 >> 26)
+    o6 = o6 & 67108863
+    o8 = o8 + (o7 >> 26)
+    o7 = o7 & 67108863
+    o9 = o9 + (o8 >> 26)
+    o8 = o8 & 67108863
+    o0 = o0 + 608 * (o9 >> 26)
+    o9 = o9 & 67108863
+    return [o0, o1, o2, o3, o4, o5, o6, o7, o8, o9]
 
 fn fadd(a: List[i64], b: List[i64]) -> List[i64]
     var o = copy(a)
@@ -251,29 +292,109 @@ fn fsub(a: List[i64], b: List[i64]) -> List[i64]
         o[i] = o[i] - b[i]
     return carry(o)
 
+# schoolbook 10x10 limb product, unrolled (same arithmetic as the loop form,
+# about 3x fewer interpreter steps)
 fn fmul(a: List[i64], b: List[i64]) -> List[i64]
-    var t: List[i64] = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-    for i in 0..10
-        let ai = a[i]
-        for j in 0..10
-            t[i + j] = t[i + j] + ai * b[j]
-    for i in 0..19
-        let c = t[i] >> 26
-        t[i] = t[i] - (c << 26)
-        t[i + 1] = t[i + 1] + c
-    var o = fe(0)
-    for i in 0..10
-        o[i] = t[i] + 608 * t[i + 10]
-    return carry(o)
+    let a0 = a[0]
+    let a1 = a[1]
+    let a2 = a[2]
+    let a3 = a[3]
+    let a4 = a[4]
+    let a5 = a[5]
+    let a6 = a[6]
+    let a7 = a[7]
+    let a8 = a[8]
+    let a9 = a[9]
+    let b0 = b[0]
+    let b1 = b[1]
+    let b2 = b[2]
+    let b3 = b[3]
+    let b4 = b[4]
+    let b5 = b[5]
+    let b6 = b[6]
+    let b7 = b[7]
+    let b8 = b[8]
+    let b9 = b[9]
+    var t0 = a0 * b0
+    var t1 = a0 * b1 + a1 * b0
+    var t2 = a0 * b2 + a1 * b1 + a2 * b0
+    var t3 = a0 * b3 + a1 * b2 + a2 * b1 + a3 * b0
+    var t4 = a0 * b4 + a1 * b3 + a2 * b2 + a3 * b1 + a4 * b0
+    var t5 = a0 * b5 + a1 * b4 + a2 * b3 + a3 * b2 + a4 * b1 + a5 * b0
+    var t6 = a0 * b6 + a1 * b5 + a2 * b4 + a3 * b3 + a4 * b2 + a5 * b1 + a6 * b0
+    var t7 = a0 * b7 + a1 * b6 + a2 * b5 + a3 * b4 + a4 * b3 + a5 * b2 + a6 * b1 + a7 * b0
+    var t8 = a0 * b8 + a1 * b7 + a2 * b6 + a3 * b5 + a4 * b4 + a5 * b3 + a6 * b2 + a7 * b1 + a8 * b0
+    var t9 = a0 * b9 + a1 * b8 + a2 * b7 + a3 * b6 + a4 * b5 + a5 * b4 + a6 * b3 + a7 * b2 + a8 * b1 + a9 * b0
+    var t10 = a1 * b9 + a2 * b8 + a3 * b7 + a4 * b6 + a5 * b5 + a6 * b4 + a7 * b3 + a8 * b2 + a9 * b1
+    var t11 = a2 * b9 + a3 * b8 + a4 * b7 + a5 * b6 + a6 * b5 + a7 * b4 + a8 * b3 + a9 * b2
+    var t12 = a3 * b9 + a4 * b8 + a5 * b7 + a6 * b6 + a7 * b5 + a8 * b4 + a9 * b3
+    var t13 = a4 * b9 + a5 * b8 + a6 * b7 + a7 * b6 + a8 * b5 + a9 * b4
+    var t14 = a5 * b9 + a6 * b8 + a7 * b7 + a8 * b6 + a9 * b5
+    var t15 = a6 * b9 + a7 * b8 + a8 * b7 + a9 * b6
+    var t16 = a7 * b9 + a8 * b8 + a9 * b7
+    var t17 = a8 * b9 + a9 * b8
+    var t18 = a9 * b9
+    var t19: i64 = 0
+    t1 = t1 + (t0 >> 26)
+    t0 = t0 & 67108863
+    t2 = t2 + (t1 >> 26)
+    t1 = t1 & 67108863
+    t3 = t3 + (t2 >> 26)
+    t2 = t2 & 67108863
+    t4 = t4 + (t3 >> 26)
+    t3 = t3 & 67108863
+    t5 = t5 + (t4 >> 26)
+    t4 = t4 & 67108863
+    t6 = t6 + (t5 >> 26)
+    t5 = t5 & 67108863
+    t7 = t7 + (t6 >> 26)
+    t6 = t6 & 67108863
+    t8 = t8 + (t7 >> 26)
+    t7 = t7 & 67108863
+    t9 = t9 + (t8 >> 26)
+    t8 = t8 & 67108863
+    t10 = t10 + (t9 >> 26)
+    t9 = t9 & 67108863
+    t11 = t11 + (t10 >> 26)
+    t10 = t10 & 67108863
+    t12 = t12 + (t11 >> 26)
+    t11 = t11 & 67108863
+    t13 = t13 + (t12 >> 26)
+    t12 = t12 & 67108863
+    t14 = t14 + (t13 >> 26)
+    t13 = t13 & 67108863
+    t15 = t15 + (t14 >> 26)
+    t14 = t14 & 67108863
+    t16 = t16 + (t15 >> 26)
+    t15 = t15 & 67108863
+    t17 = t17 + (t16 >> 26)
+    t16 = t16 & 67108863
+    t18 = t18 + (t17 >> 26)
+    t17 = t17 & 67108863
+    t19 = t19 + (t18 >> 26)
+    t18 = t18 & 67108863
+    return carry([t0 + 608 * t10, t1 + 608 * t11, t2 + 608 * t12, t3 + 608 * t13, t4 + 608 * t14, t5 + 608 * t15, t6 + 608 * t16, t7 + 608 * t17, t8 + 608 * t18, t9 + 608 * t19])
 
-fn finv(i: List[i64]) -> List[i64]
-    var c = copy(i)
-    for k in 0..254
-        let a = 253 - k
+fn fsqn(a: List[i64], n: i64) -> List[i64]
+    var c = a
+    for _ in 0..n
         c = fmul(copy(c), copy(c))
-        if a != 2 and a != 4
-            c = fmul(copy(c), copy(i))
     return c
+
+# z^(p-2) by the standard chain: 254 squarings, 11 multiplications
+fn finv(z: List[i64]) -> List[i64]
+    let z2 = fmul(copy(z), copy(z))
+    let z9 = fmul(fsqn(copy(z2), 2), copy(z))
+    let z11 = fmul(copy(z9), z2)
+    let z5 = fmul(fmul(copy(z11), copy(z11)), z9)
+    let z10 = fmul(fsqn(copy(z5), 5), copy(z5))
+    let z20 = fmul(fsqn(copy(z10), 10), copy(z10))
+    let z40 = fmul(fsqn(copy(z20), 20), z20)
+    let z50 = fmul(fsqn(z40, 10), z10)
+    let z100 = fmul(fsqn(copy(z50), 50), copy(z50))
+    let z200 = fmul(fsqn(copy(z100), 100), z100)
+    let z250 = fmul(fsqn(z200, 50), z50)
+    return fmul(fsqn(z250, 5), z11)
 
 fn fold255(a: List[i64]) -> List[i64]
     var o = copy(a)

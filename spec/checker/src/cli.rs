@@ -532,6 +532,8 @@ pub const USAGE_TEXT: &str = "usage:
   rce emit TARGET FILE           TARGET: form (Form JSON), rust, python, js or scala (a program printing its observations)
   rce fmt [--check] FILE...      rewrite files in canonical layout (--check: only report)
   rce lsp                        language server on stdin/stdout
+  rce index [--vectors N] FILE|DIR...  brick catalog (rce-catalog/1 JSON): every exported fn, type key, SHA-256, verdict, D.7 Form IR term
+  rce search CATALOG QUERY       bricks of type QUERY (e.g. (A, B) -> R; a, b, ... are variables), best first
   rce unform FORM.json           the canonical source of a Form's terms (inverse of `rce emit form`)
   rce host run FILE --log D [--fs DIR] [--blob DIR] [--media DIR] [--wasm DIR] [--net HOST:PORT]... [--chan HOST:PORT [--tls] [--peer HOST:PORT[=KEY]]...] [--pty] [EVENTS]  run on the host runtime (Appendix E): admit EVENTS, or one batch per stdin line, into the durable log D
   rce host serve FILE --log D [--fs DIR] [--blob DIR] [--media DIR] [--wasm DIR] [--net HOST:PORT]... [--chan HOST:PORT [--tls] [--peer HOST:PORT[=KEY]]...] [--pty]  the host loop (W1d): stdin lines are inputs (event syntax, else Input(data) when declared), Tick(n) every frame when declared, Display(data) is written to stdout, Exit ends the loop
@@ -726,6 +728,30 @@ fn run_main(a: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &mu
                 }
             }
             code
+        }
+        Some("index") if !rest.is_empty() => {
+            let mut o = crate::brick::Opts::default();
+            let mut paths = vec![];
+            let mut k = 0;
+            while k < rest.len() {
+                if rest[k] == "--vectors" && k + 1 < rest.len() {
+                    o.vectors = rest[k + 1].parse().map_err(|_| format!("--vectors {}: not a count", rest[k + 1]))?;
+                    k += 2;
+                } else {
+                    paths.push(rest[k].clone());
+                    k += 1;
+                }
+            }
+            let c = crate::brick::index_with(&load(&paths)?, &o);
+            writeln!(out, "{}", crate::brick::canon(&c)).map_err(w)?;
+            OK
+        }
+        Some("search") if rest.len() == 2 => {
+            let c = crate::brick::read_catalog(&read_file(&rest[0])?).map_err(|e| format!("{}: {e}", rest[0]))?;
+            for (r, m, n, k) in crate::brick::search(&c, &rest[1])? {
+                writeln!(out, "{r} {m}.{n} : {k}").map_err(w)?;
+            }
+            OK
         }
         Some("lsp") if rest.is_empty() => serve_dyn(input, out),
         Some("help") | Some("--help") | Some("-h") => {

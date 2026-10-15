@@ -1,0 +1,1043 @@
+//! Spec D.7: lowering a module function to a Form IR term.
+//!
+//! A function f(p1, ..., pn) lowers to a term t with
+//! t({"p1": v1, ..., "pn": vn}) = f(v1, ..., vn), values in the Form's JSON
+//! embedding (interp::form_value: lists and tuples as arrays, structs as
+//! objects with sorted keys). Statements are lowered store-passing: a
+//! statement is a term from an environment record to the next one. The
+//! environment holds the variables in scope and four control fields
+//! (`$done`, `$ret`, `$brk`, `$cnt`); every statement is guarded so it is
+//! skipped once the function has returned or the loop iteration has been
+//! left by `break` or `continue`. Which variables are in scope is known
+//! statically, so an update is an `obj` that rebuilds exactly those fields.
+//!
+//! Loops become `while` terms whose accumulator is the environment;
+//! `while c bound n` counts its iterations and traps as the interpreter
+//! does (the check comes after the condition holds, 6.7). `for x in e`
+//! walks the items of e by index. Integers must be i64 (other widths have
+//! other overflow rules); floats are refused. Generic functions lower to
+//! one term for every instance: the IR is untyped over JSON, so the term is
+//! the monomorphization at every type at once, and vectors check it at i64.
+//!
+//! Anything else is refused with the line and the construct. A lowering is
+//! a claim, not a proof: `rce index --vectors N` records the interpreter's
+//! results on generated inputs, and the engine evaluates the term on them
+//! (`rce::form::brick::verify`).
+use crate::ast::*;
+use serde_json::{Value, json};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
+
+type L = Result<Value, String>;
+
+const CTRL: [&str; 4] = ["$brk", "$cnt", "$done", "$ret"];
+
+pub struct Lowerer<'a> {
+    pub fns: HashMap<String, &'a FnDecl>,
+    structs: HashMap<String, Vec<String>>,
+    consts: HashMap<String, Value>,
+    module: String,
+    node: String,
+    depth: usize,
+    /// variables of type usize in the function being lowered: an update
+    /// that would make one negative traps, as the interpreter's does
+    unsigned: HashSet<String>,
+    /// lowered functions, by name: a term does not depend on its call site
+    memo: HashMap<String, L>,
+    /// format 2 definitions: digest of a callee's term → the term
+    defs: BTreeMap<String, Value>,
+}
+
+/// Largest term (bytes of its JSON) a function lowers to, not counting
+/// the definitions it calls (format 2: a call is a `ref` to the digest of
+/// the callee's term); past this size the function is refused.
+pub const MAX_TERM_BYTES: usize = 1 << 20;
+
+fn non_i64_int(t: &Ty) -> Option<String> {
+    let bad = ["i8", "i16", "i32", "u8", "u16", "u32", "u64", "f32", "f64"];
+    match t {
+        Ty::Path(p, a) => {
+            if p.len() == 1 && bad.contains(&p[0].as_str()) {
+                return Some(p[0].clone());
+            }
+            a.iter().find_map(non_i64_int)
+        }
+        Ty::Tuple(v) => v.iter().find_map(non_i64_int),
+        Ty::Ref(false, x) => non_i64_int(x),
+        Ty::Fn(..) | Ty::Chan(_) | Ty::Iter(_) | Ty::Ref(..) | Ty::Region(..) | Ty::Union(..) => {
+            Some(crate::unparse::ty(t))
+        }
+        Ty::Slice(x) | Ty::Array(x, _) | Ty::Opt(x) => non_i64_int(x),
+        Ty::Unit => None,
+    }
+}
+
+/// The `&mut` parameters of a function, in parameter order (state-passing:
+/// its term returns `[result, their final values...]`).
+pub fn mut_params(d: &FnDecl) -> Vec<String> {
+    d.sig
+        .params
+        .iter()
+        .filter_map(|p| match p {
+            Param::Named {
+                name,
+                ty: Ty::Ref(true, _),
+                ..
+            } => Some(name.clone()),
+            _ => None,
+        })
+        .collect()
+}
+
+/// A parameter's type with a top-level `&mut` removed.
+fn unmut(t: &Ty) -> &Ty {
+    match t {
+        Ty::Ref(true, x) => x,
+        t => t,
+    }
+}
+
+fn is_usize(t: &Ty) -> bool {
+    matches!(t, Ty::Path(p, a) if a.is_empty() && p.len() == 1 && p[0] == "usize")
+}
+
+fn c(v: Value) -> Value {
+    json!({"t": "const", "value": v})
+}
+
+impl<'a> Lowerer<'a> {
+    /// `m` is the linked module the function lives in (imports and `#!lib`
+    /// items included); `module` names it in node ids; `consts` are the
+    /// literal values of its constants (evaluated by the interpreter).
+    pub fn new(m: &'a Module, module: &str, consts: HashMap<String, Value>) -> Self {
+        let mut fns = HashMap::new();
+        let mut structs = HashMap::new();
+        for it in &m.items {
+            match it {
+                Item::Fn(d) => {
+                    fns.insert(d.sig.name.clone(), d);
+                }
+                Item::Struct { name, fields, .. } => {
+                    structs.insert(
+                        name.clone(),
+                        fields.iter().map(|f| f.name.clone()).collect(),
+                    );
+                }
+                _ => {}
+            }
+        }
+        Lowerer {
+            fns,
+            structs,
+            consts,
+            module: module.to_string(),
+            node: String::new(),
+            depth: 0,
+            unsigned: HashSet::new(),
+            memo: HashMap::new(),
+            defs: BTreeMap::new(),
+        }
+    }
+
+    fn n(&self) -> String {
+        self.node.clone()
+    }
+    fn proj(&self, f: &str) -> Value {
+        json!({"t": "proj", "node": self.n(), "field": f})
+    }
+    fn prim(&self, op: &str, args: Vec<Value>) -> Value {
+        json!({"t": "prim", "node": self.n(), "op": op, "args": args})
+    }
+    fn cond(&self, c: Value, t: Value, e: Value) -> Value {
+        json!({"t": "cond", "node": self.n(), "cond": c, "then": t, "otherwise": e})
+    }
+    fn err(&self, m: &str) -> Value {
+        json!({"t": "err", "node": self.n(), "message": m})
+    }
+    fn pipe(a: Value, b: Value) -> Value {
+        if a == json!({"t": "pass"}) {
+            return b;
+        }
+        if b == json!({"t": "pass"}) {
+            return a;
+        }
+        json!({"t": "pipe", "first": a, "then": b})
+    }
+    /// Sequential composition as a balanced tree of pipes, so the depth of
+    /// a block's term grows with the log of its length.
+    fn seq(mut ts: Vec<Value>) -> Value {
+        match ts.len() {
+            0 => json!({"t": "pass"}),
+            1 => ts.pop().unwrap(),
+            n => {
+                let b = ts.split_off(n / 2);
+                Self::pipe(Self::seq(ts), Self::seq(b))
+            }
+        }
+    }
+    fn arith(&self, op: &str, a: Value, b: Value) -> Value {
+        json!({"t": "arith", "node": self.n(), "op": op, "a": a, "b": b})
+    }
+    /// The environment with the fields `upd` replaced; scope `s`.
+    fn set(&self, s: &[String], upd: &[(&str, Value)]) -> Value {
+        let mut fields = vec![];
+        for v in s {
+            match upd.iter().find(|(k, _)| k == v) {
+                Some((_, e)) => fields.push(json!([v, e])),
+                None => fields.push(json!([v, self.proj(v)])),
+            }
+        }
+        json!({"t": "obj", "fields": fields})
+    }
+    fn skipping(&self) -> Value {
+        self.prim(
+            "or",
+            vec![
+                self.prim("or", vec![self.proj("$done"), self.proj("$brk")]),
+                self.proj("$cnt"),
+            ],
+        )
+    }
+
+    /// The function as a Form IR program: its term alone (format 1) when
+    /// it calls nothing, else format 2 with the definitions it reaches.
+    pub fn lower_fn(&mut self, name: &str) -> L {
+        let main = self.lower_fn_in(name, &mut vec![])?;
+        let mut need = BTreeSet::new();
+        let mut todo = vec![main.clone()];
+        while let Some(t) = todo.pop() {
+            for k in refs(&t) {
+                if need.insert(k.clone()) {
+                    todo.push(self.defs[&k].clone());
+                }
+            }
+        }
+        if need.is_empty() {
+            return Ok(main);
+        }
+        let defs: serde_json::Map<String, Value> = need
+            .into_iter()
+            .map(|k| (k.clone(), self.defs[&k].clone()))
+            .collect();
+        Ok(json!({"format": 2, "defs": defs, "main": main}))
+    }
+
+    fn lower_fn_in(&mut self, name: &str, stack: &mut Vec<String>) -> L {
+        if let Some(r) = self.memo.get(name) {
+            return r.clone();
+        }
+        if stack.iter().any(|s| s == name) {
+            let l = self.fns.get(name).map(|d| d.sig.line).unwrap_or(0);
+            return Err(format!("line {l}: recursive call of {name}"));
+        }
+        let r = self.lower_fn_uncached(name, stack).and_then(|t| {
+            let n = serde_json::to_string(&t)
+                .map(|x| x.len())
+                .unwrap_or(usize::MAX);
+            if n > MAX_TERM_BYTES {
+                Err(format!("its term is {n} bytes, over {MAX_TERM_BYTES}"))
+            } else {
+                Ok(t)
+            }
+        });
+        // a refusal that names a function on the stack depends on the stack
+        if !matches!(&r, Err(e) if e.contains("recursive call")) {
+            self.memo.insert(name.to_string(), r.clone());
+        }
+        r
+    }
+
+    fn lower_fn_uncached(&mut self, name: &str, stack: &mut Vec<String>) -> L {
+        let d = *self
+            .fns
+            .get(name)
+            .ok_or_else(|| format!("no function {name}"))?;
+        let l = d.sig.line;
+        if stack.iter().any(|s| s == name) {
+            return Err(format!("line {l}: recursive call of {name}"));
+        }
+        if d.sig.comptime {
+            return Err(format!("line {l}: comptime function"));
+        }
+        let mut params = vec![];
+        for p in &d.sig.params {
+            match p {
+                Param::Named {
+                    name: n,
+                    ty,
+                    comptime,
+                    ..
+                } => {
+                    if *comptime {
+                        return Err(format!("line {l}: comptime parameter {n}"));
+                    }
+                    if let Some(t) = non_i64_int(unmut(ty)) {
+                        return Err(format!(
+                            "line {l}: parameter {n}: type {t} is outside the lowered fragment (integers are i64 or usize, no floats)"
+                        ));
+                    }
+                    params.push(n.clone());
+                }
+                _ => return Err(format!("line {l}: method")),
+            }
+        }
+        let muts = mut_params(d);
+        match &d.sig.ret {
+            None | Some(Ty::Unit) if muts.is_empty() => {
+                return Err(format!("line {l}: no result value"));
+            }
+            None | Some(Ty::Unit) => {}
+            Some(t) => {
+                if let Some(t) = non_i64_int(t) {
+                    return Err(format!(
+                        "line {l}: result type {t} is outside the lowered fragment"
+                    ));
+                }
+            }
+        }
+        let nn = self.node_of(name);
+        let saved = (std::mem::replace(&mut self.node, nn), self.depth);
+        let saved_u = std::mem::take(&mut self.unsigned);
+        for p in &d.sig.params {
+            if let Param::Named { name: n, ty, .. } = p
+                && is_usize(unmut(ty))
+            {
+                self.unsigned.insert(n.clone());
+            }
+        }
+        self.depth = 0;
+        stack.push(name.to_string());
+        let r = (|| {
+            let mut s: Vec<String> = params.clone();
+            s.extend(CTRL.iter().map(|x| x.to_string()));
+            let init_fields: Vec<Value> = params
+                .iter()
+                .map(|p| json!([p, self.proj(p)]))
+                .chain([
+                    json!(["$brk", c(json!(false))]),
+                    json!(["$cnt", c(json!(false))]),
+                    json!(["$done", c(json!(false))]),
+                    json!(["$ret", c(Value::Null)]),
+                ])
+                .collect();
+            let init = json!({"t": "obj", "fields": init_fields});
+            // state-passing: with &mut parameters the result is
+            // [result, final values of the &mut parameters in order]
+            let out = |me: &Self, r: Value| {
+                if muts.is_empty() {
+                    r
+                } else {
+                    let mut t = me.prim("append", vec![c(json!([])), r]);
+                    for m in &muts {
+                        t = me.prim("append", vec![t, me.proj(m)]);
+                    }
+                    t
+                }
+            };
+            match &d.body {
+                Body::Arrow(e) => {
+                    let r = self.expr(e, &s, stack)?;
+                    Ok(Self::pipe(init, out(self, r)))
+                }
+                Body::Block(ss) => {
+                    let b = self.block(ss, &mut s, true, stack)?;
+                    let r = out(self, self.proj("$ret"));
+                    Ok(Self::pipe(init, Self::pipe(b, r)))
+                }
+            }
+        })();
+        stack.pop();
+        self.node = saved.0;
+        self.depth = saved.1;
+        self.unsigned = saved_u;
+        r
+    }
+
+    fn node_of(&self, f: &str) -> String {
+        if self.module.is_empty() {
+            f.to_string()
+        } else {
+            format!("{}.{f}", self.module)
+        }
+    }
+
+    /// A block; `s` is the scope on entry and is restored on exit.
+    fn block(
+        &mut self,
+        ss: &[Stmt],
+        s: &mut Vec<String>,
+        tail: bool,
+        stack: &mut Vec<String>,
+    ) -> L {
+        let outer = s.clone();
+        let mut ts = vec![];
+        for (i, st) in ss.iter().enumerate() {
+            let last = tail && i + 1 == ss.len();
+            let t = self.stmt(st, s, last, stack)?;
+            ts.push(self.cond(self.skipping(), json!({"t": "pass"}), t));
+        }
+        *s = outer;
+        Ok(Self::seq(ts))
+    }
+
+    fn bind(&self, s: &mut Vec<String>, x: &str, l: usize) -> Result<(), String> {
+        if s.iter().any(|v| v == x) {
+            return Err(format!(
+                "line {l}: `{x}` is declared again in an inner scope"
+            ));
+        }
+        s.push(x.to_string());
+        Ok(())
+    }
+
+    fn decl(
+        &mut self,
+        x: &str,
+        ty: &Option<Ty>,
+        e: &Expr,
+        l: usize,
+        s: &mut Vec<String>,
+        stack: &mut Vec<String>,
+    ) -> L {
+        if let Some(t) = ty.as_ref().and_then(non_i64_int) {
+            return Err(format!("line {l}: local of type {t}"));
+        }
+        let mut v = self.expr(e, s, stack)?;
+        if ty.as_ref().is_some_and(is_usize) {
+            self.unsigned.insert(x.to_string());
+        }
+        if self.unsigned.contains(x) {
+            v = self.unsigned_guard(v);
+        }
+        self.bind(s, x, l)?;
+        Ok(self.set(s, &[(x, v)]))
+    }
+
+    /// A call of a function with `&mut` parameters, as a statement, a
+    /// `let`/`var` initializer or the right side of `=` to a name: the call
+    /// is evaluated once into `$call`, then every borrowed place is assigned
+    /// its returned value and the result (index 0) is bound or assigned.
+    fn mut_call_stmt(
+        &mut self,
+        st: &Stmt,
+        s: &mut Vec<String>,
+        stack: &mut Vec<String>,
+    ) -> Result<Option<Value>, String> {
+        let (call, bind): (&Expr, Option<Stmt>) = match st {
+            Stmt::Expr(e) => (e, None),
+            Stmt::Let(p, ty, e, l) => (e, Some(Stmt::Let(p.clone(), ty.clone(), r0(*l), *l))),
+            Stmt::Var(x, ty, e, l) => (e, Some(Stmt::Var(x.clone(), ty.clone(), r0(*l), *l))),
+            Stmt::Assign(op, place, e) if op == "=" => (
+                e,
+                Some(Stmt::Assign(op.clone(), place.clone(), r0(e.line()))),
+            ),
+            _ => return Ok(None),
+        };
+        let Expr::Call(f, args, l, _) = call else {
+            return Ok(None);
+        };
+        let Expr::Name(g, _) = &**f else {
+            return Ok(None);
+        };
+        let Some(d) = self.fns.get(g).copied() else {
+            return Ok(None);
+        };
+        let muts = mut_params(d);
+        if muts.is_empty() {
+            return Ok(None);
+        }
+        let l = *l;
+        let names: Vec<String> = d
+            .sig
+            .params
+            .iter()
+            .filter_map(|p| match p {
+                Param::Named { name, .. } => Some(name.clone()),
+                _ => None,
+            })
+            .collect();
+        if names.len() != args.len() {
+            return Err(format!("line {l}: call of {g} with these arguments"));
+        }
+        let mut fields = vec![];
+        let mut places: Vec<(String, Expr)> = vec![];
+        for (i, a) in args.iter().enumerate() {
+            let n = a.label.clone().unwrap_or_else(|| names[i].clone());
+            let e = match (&a.e, muts.contains(&n)) {
+                (Expr::Borrow(true, place, _), true) => {
+                    places.push((n.clone(), (**place).clone()));
+                    (**place).clone()
+                }
+                (_, true) => return Err(format!("line {l}: &mut argument {n} is not a place")),
+                (e, false) => e.clone(),
+            };
+            fields.push(json!([n, self.expr(&e, s, stack)?]));
+        }
+        let callee = self.lower_fn_in(g, stack)?;
+        let k = crate::brick::digest(&callee);
+        self.defs.entry(k.clone()).or_insert(callee);
+        let t = Self::pipe(
+            json!({"t": "obj", "fields": fields}),
+            json!({"t": "ref", "node": self.n(), "def": k}),
+        );
+        // env + $call
+        let mut s2 = s.clone();
+        let mut ext: Vec<Value> = s.iter().map(|v| json!([v, self.proj(v)])).collect();
+        ext.push(json!(["$call", t]));
+        s2.push("$call".into());
+        let mut ts = vec![json!({"t": "obj", "fields": ext})];
+        for (n, place) in &places {
+            let j = 1 + muts.iter().position(|m| m == n).unwrap();
+            let back = Stmt::Assign("=".into(), place.clone(), at_call(j, l));
+            ts.push(self.stmt(&back, &mut s2, false, stack)?);
+        }
+        if let Some(b) = bind {
+            ts.push(self.stmt(&b, &mut s2, false, stack)?);
+        }
+        s2.retain(|v| v != "$call");
+        ts.push(self.set(&s2, &[]));
+        *s = s2;
+        Ok(Some(Self::seq(ts)))
+    }
+
+    fn unsigned_guard(&self, v: Value) -> Value {
+        let neg = self.prim("lt", vec![v.clone(), c(json!(0))]);
+        self.cond(neg, self.err("trap: overflow: negative usize"), v)
+    }
+
+    fn stmt(&mut self, st: &Stmt, s: &mut Vec<String>, tail: bool, stack: &mut Vec<String>) -> L {
+        if let Some(t) = self.mut_call_stmt(st, s, stack)? {
+            return Ok(t);
+        }
+        match st {
+            Stmt::Var(x, ty, e, l) => self.decl(x, ty, e, *l, s, stack),
+            Stmt::Let(Pat::Path(q), ty, e, l) if q.len() == 1 => {
+                self.decl(&q[0], ty, e, *l, s, stack)
+            }
+            Stmt::Let(Pat::Tuple(ps), ty, e, l) => {
+                if ty.as_ref().and_then(non_i64_int).is_some() {
+                    return Err(format!("line {l}: local of a narrow integer type"));
+                }
+                let tmp = format!("$t{}", self.depth);
+                let v = self.expr(e, s, stack)?;
+                let mut s2 = s.clone();
+                s2.push(tmp.clone());
+                let mut t = self.set(&s2, &[(&tmp, v)]);
+                for (k, p) in ps.iter().enumerate() {
+                    match p {
+                        Pat::Path(q) if q.len() == 1 => {
+                            let g = self.prim("get", vec![self.proj(&tmp), c(json!(k))]);
+                            self.bind(&mut s2, &q[0], *l)?;
+                            self.bind(s, &q[0], *l)?;
+                            t = Self::pipe(t, self.set(&s2, &[(&q[0], g)]));
+                        }
+                        Pat::Wild => {}
+                        _ => return Err(format!("line {l}: tuple pattern")),
+                    }
+                }
+                Ok(Self::pipe(t, self.set(s, &[])))
+            }
+            Stmt::Let(_, _, _, l) => Err(format!("line {l}: let pattern")),
+            Stmt::Assign(op, place, rhs) => {
+                let r = self.expr(rhs, s, stack)?;
+                let v = if op == "=" {
+                    r
+                } else {
+                    let cur = self.expr(place, s, stack)?;
+                    self.binop(&op[..op.len() - 1], cur, r, place.line())?
+                };
+                match place {
+                    Expr::Name(x, l) => {
+                        if !s.contains(x) {
+                            return Err(format!("line {l}: assignment to `{x}`"));
+                        }
+                        let v = if self.unsigned.contains(x) {
+                            self.unsigned_guard(v)
+                        } else {
+                            v
+                        };
+                        Ok(self.set(s, &[(x, v)]))
+                    }
+                    Expr::Index(b, ix, l) if ix.len() == 1 => match &**b {
+                        Expr::Name(x, _) if s.contains(x) => {
+                            let i = self.expr(&ix[0], s, stack)?;
+                            let nv = self.prim("set", vec![self.proj(x), i, v]);
+                            Ok(self.set(s, &[(x, nv)]))
+                        }
+                        _ => Err(format!("line {l}: assignment to this place")),
+                    },
+                    e => Err(format!("line {}: assignment to this place", e.line())),
+                }
+            }
+            Stmt::Expr(e) => {
+                if let Expr::Call(f, args, l, _) = e
+                    && let Expr::Member(r, m, _) = &**f
+                    && let Expr::Name(x, _) = &**r
+                    && s.contains(x)
+                {
+                    match (m.as_str(), args.len()) {
+                        ("push", 1) => {
+                            let v = self.expr(&args[0].e, s, stack)?;
+                            return Ok(
+                                self.set(s, &[(x, self.prim("append", vec![self.proj(x), v]))])
+                            );
+                        }
+                        ("pop", 0) if !tail => {
+                            let len = self.prim("len", vec![self.proj(x)]);
+                            let short = self.prim(
+                                "slice",
+                                vec![
+                                    self.proj(x),
+                                    c(json!(0)),
+                                    self.arith("sub", len.clone(), c(json!(1))),
+                                ],
+                            );
+                            let gt = self.prim("gt", vec![len, c(json!(0))]);
+                            let t = self.cond(gt, short, self.err("pop of an empty list"));
+                            return Ok(self.set(s, &[(x, t)]));
+                        }
+                        _ => return Err(format!("line {l}: method {m}")),
+                    }
+                }
+                let v = self.expr(e, s, stack)?;
+                if tail {
+                    Ok(self.set(s, &[("$ret", v), ("$done", c(json!(true)))]))
+                } else {
+                    let mut s2 = s.clone();
+                    s2.push("$_".into());
+                    Ok(Self::pipe(self.set(&s2, &[("$_", v)]), self.set(s, &[])))
+                }
+            }
+            Stmt::Return(Some(e), _) => {
+                let v = self.expr(e, s, stack)?;
+                Ok(self.set(s, &[("$ret", v), ("$done", c(json!(true)))]))
+            }
+            Stmt::Return(None, l) => Err(format!("line {l}: return without a value")),
+            Stmt::If(arms, els) => {
+                let mut t = match els {
+                    Some(b) => self.block(b, s, tail, stack)?,
+                    None => json!({"t": "pass"}),
+                };
+                for (cnd, b) in arms.iter().rev() {
+                    let cv = self.expr(cnd, s, stack)?;
+                    let bt = self.block(b, s, tail, stack)?;
+                    t = self.cond(cv, bt, t);
+                }
+                Ok(t)
+            }
+            Stmt::While(cnd, bound, body) => {
+                let cv = self.expr(cnd, s, stack)?;
+                self.lp(Some(cv), bound.as_ref(), None, body, s, stack)
+            }
+            Stmt::Loop(bound, body) => self.lp(None, bound.as_ref(), None, body, s, stack),
+            Stmt::For(p, it, body, l) => {
+                let x = match p {
+                    Pat::Path(q) if q.len() == 1 => q[0].clone(),
+                    Pat::Wild => format!("$w{}", self.depth + 1),
+                    p => return Err(format!("line {l}: for pattern {}", crate::unparse::pat(p))),
+                };
+                let items = match it {
+                    Expr::Bin(op, a, b, _) if op == ".." || op == "..=" => {
+                        let (a, b) = (self.expr(a, s, stack)?, self.expr(b, s, stack)?);
+                        let b = if op == "..=" {
+                            self.arith("add", b, c(json!(1)))
+                        } else {
+                            b
+                        };
+                        self.prim("range", vec![a, b])
+                    }
+                    e => self.expr(e, s, stack)?,
+                };
+                self.lp(None, None, Some((x, items, *l)), body, s, stack)
+            }
+            Stmt::Break(_) => Ok(self.set(s, &[("$brk", c(json!(true)))])),
+            Stmt::Continue(_) => Ok(self.set(s, &[("$cnt", c(json!(true)))])),
+            Stmt::Check(e) => {
+                let v = self.expr(e, s, stack)?;
+                Ok(self.cond(v, json!({"t": "pass"}), self.err("check is false")))
+            }
+            Stmt::Pass => Ok(json!({"t": "pass"})),
+            Stmt::Comptime(b) => self.block(b, s, false, stack),
+            other => Err(format!(
+                "statement {} has no Form IR term",
+                stmt_name(other)
+            )),
+        }
+    }
+
+    /// A loop. `cv`: while condition (on the environment); `each`: a for
+    /// loop's variable, item list and line.
+    fn lp(
+        &mut self,
+        cv: Option<Value>,
+        bound: Option<&Expr>,
+        each: Option<(String, Value, usize)>,
+        body: &[Stmt],
+        s: &mut Vec<String>,
+        stack: &mut Vec<String>,
+    ) -> L {
+        self.depth += 1;
+        let d = self.depth;
+        let (nv, xs, iv) = (format!("$n{d}"), format!("$xs{d}"), format!("$i{d}"));
+        let mut sl = s.clone();
+        let mut pre = vec![];
+        sl.push(nv.clone());
+        pre.push((nv.clone(), c(json!(0))));
+        if let Some((_, items, _)) = &each {
+            sl.push(xs.clone());
+            sl.push(iv.clone());
+            pre.push((xs.clone(), items.clone()));
+            pre.push((iv.clone(), c(json!(0))));
+        }
+        let pre_ref: Vec<(&str, Value)> =
+            pre.iter().map(|(k, v)| (k.as_str(), v.clone())).collect();
+        let init = self.set(&sl, &pre_ref);
+        let bound_v = match bound {
+            Some(b) => Some(self.expr(b, s, stack)?),
+            None => None,
+        };
+        let stop = self.prim("or", vec![self.proj("$done"), self.proj("$brk")]);
+        let go = match (&cv, &each) {
+            (Some(cv), _) => self.cond(stop, c(json!(false)), cv.clone()),
+            (None, Some(_)) => self.cond(
+                stop,
+                c(json!(false)),
+                self.prim(
+                    "lt",
+                    vec![self.proj(&iv), self.prim("size", vec![self.proj(&xs)])],
+                ),
+            ),
+            (None, None) => self.prim("not", vec![stop]),
+        };
+        let n1 = self.arith("add", self.proj(&nv), c(json!(1)));
+        let mut sb = sl.clone();
+        let mut head = self.set(&sl, &[("$cnt", c(json!(false))), (&nv, n1)]);
+        if let Some(b) = &bound_v {
+            let over = self.prim("gt", vec![self.proj(&nv), b.clone()]);
+            head = Self::pipe(
+                head,
+                self.cond(over, self.err("trap: loop bound"), json!({"t": "pass"})),
+            );
+        }
+        if let Some((x, _, l)) = &each {
+            let item = self.prim("at", vec![self.proj(&xs), self.proj(&iv)]);
+            self.bind(&mut sb, x, *l)?;
+            let i1 = self.arith("add", self.proj(&iv), c(json!(1)));
+            head = Self::pipe(head, self.set(&sb, &[(x, item), (&iv, i1)]));
+        }
+        let b = self.block(body, &mut sb, false, stack)?;
+        // the body's own scope ends here: rebuild to the loop scope
+        let iter = Self::pipe(Self::pipe(head, b), self.set(&sl, &[]));
+        let acc = self.proj("acc");
+        let w = json!({"t": "while", "node": self.n(), "init": {"t": "pass"},
+            "cond": Self::pipe(acc.clone(), go), "f": Self::pipe(acc, iter)});
+        self.depth -= 1;
+        let after = self.set(s, &[("$brk", c(json!(false))), ("$cnt", c(json!(false)))]);
+        Ok(Self::pipe(Self::pipe(init, w), after))
+    }
+
+    fn binop(&self, op: &str, x: Value, y: Value, l: usize) -> L {
+        Ok(match op {
+            "+" | "-" | "*" | "/" | "%" => {
+                if op == "+" {
+                    // integers add, texts and lists concatenate (`plus`)
+                    return Ok(self.prim("plus", vec![x, y]));
+                }
+                let o = match op {
+                    "-" => "sub",
+                    "*" => "mul",
+                    "/" => "div",
+                    _ => "rem",
+                };
+                self.arith(o, x, y)
+            }
+            "&" | "|" | "^" | "<<" | ">>" => {
+                let o = match op {
+                    "&" => "band",
+                    "|" => "bor",
+                    "^" => "bxor",
+                    "<<" => "shl",
+                    _ => "shr",
+                };
+                self.prim(o, vec![x, y])
+            }
+            "==" | "!=" | "<" | "<=" | ">" | ">=" => {
+                let o = match op {
+                    "==" => "eq",
+                    "!=" => "ne",
+                    "<" => "lt",
+                    "<=" => "le",
+                    ">" => "gt",
+                    _ => "ge",
+                };
+                self.prim(o, vec![x, y])
+            }
+            "and" => self.cond(x, y, c(json!(false))),
+            "or" => self.cond(x, c(json!(true)), y),
+            ".." => self.prim("range", vec![x, y]),
+            "..=" => self.prim("range", vec![x, self.arith("add", y, c(json!(1)))]),
+            _ => return Err(format!("line {l}: operator {op} has no Form IR term")),
+        })
+    }
+
+    fn expr(&mut self, e: &Expr, s: &[String], stack: &mut Vec<String>) -> L {
+        let l = e.line();
+        let no = |what: &str| Err(format!("line {l}: {what} has no Form IR term"));
+        match e {
+            Expr::Int(n, _) => i64::try_from(*n)
+                .map(|v| c(json!(v)))
+                .map_err(|_| format!("line {l}: integer literal out of i64")),
+            Expr::Bool(b, _) => Ok(c(json!(b))),
+            Expr::Str(x, _) => Ok(c(json!(x))),
+            Expr::None(_) | Expr::Unit(_) => Ok(c(Value::Null)),
+            Expr::Name(n, _) => {
+                if s.contains(n) {
+                    Ok(self.proj(n))
+                } else if let Some(v) = self.consts.get(n) {
+                    Ok(c(v.clone()))
+                } else {
+                    no(&format!("name {n}"))
+                }
+            }
+            Expr::Bin(op, a, b, _) => {
+                let (x, y) = (self.expr(a, s, stack)?, self.expr(b, s, stack)?);
+                self.binop(op, x, y, l)
+            }
+            Expr::Not(x, _) => {
+                let v = self.expr(x, s, stack)?;
+                Ok(self.prim("not", vec![v]))
+            }
+            Expr::Neg(x, _) => {
+                if let Expr::Int(n, _) = &**x {
+                    return i64::try_from(-*n)
+                        .map(|v| c(json!(v)))
+                        .map_err(|_| format!("line {l}: integer literal out of i64"));
+                }
+                let v = self.expr(x, s, stack)?;
+                Ok(self.prim("neg", vec![v]))
+            }
+            Expr::BitNot(x, _) => {
+                let v = self.expr(x, s, stack)?;
+                Ok(self.prim("bnot", vec![v]))
+            }
+            Expr::If(cnd, a, b, _) => {
+                let (cv, av, bv) = (
+                    self.expr(cnd, s, stack)?,
+                    self.expr(a, s, stack)?,
+                    self.expr(b, s, stack)?,
+                );
+                Ok(self.cond(cv, av, bv))
+            }
+            Expr::Comptime(x, _) => self.expr(x, s, stack),
+            Expr::List(xs, _) | Expr::Tuple(xs, _) => {
+                let mut t = c(json!([]));
+                for x in xs {
+                    let v = self.expr(x, s, stack)?;
+                    t = self.prim("append", vec![t, v]);
+                }
+                Ok(t)
+            }
+            Expr::ListRepeat(v, n, _) => {
+                let (v, n) = (self.expr(v, s, stack)?, self.expr(n, s, stack)?);
+                let f = self.prim(
+                    "append",
+                    vec![self.proj("acc"), Self::pipe(self.proj("env"), v)],
+                );
+                Ok(
+                    json!({"t": "fold", "node": self.n(), "over": self.prim("range", vec![c(json!(0)), n]), "init": c(json!([])), "f": f}),
+                )
+            }
+            Expr::Index(b, ix, _) if ix.len() == 1 => {
+                let (bv, iv) = (self.expr(b, s, stack)?, self.expr(&ix[0], s, stack)?);
+                let neg = self.prim("lt", vec![iv.clone(), c(json!(0))]);
+                Ok(self.cond(
+                    neg,
+                    self.err("trap: index out of range"),
+                    self.prim("at", vec![bv, iv]),
+                ))
+            }
+            Expr::Member(b, f, _) => {
+                let bv = self.expr(b, s, stack)?;
+                Ok(Self::pipe(
+                    bv,
+                    json!({"t": "proj", "node": self.n(), "field": f}),
+                ))
+            }
+            Expr::TupleMember(b, k, _) => {
+                let bv = self.expr(b, s, stack)?;
+                Ok(self.prim("get", vec![bv, c(json!(k))]))
+            }
+            Expr::Cast(x, t, _) => match t {
+                Ty::Path(p, a) if a.is_empty() && p.len() == 1 && p[0] == "i64" => {
+                    self.expr(x, s, stack)
+                }
+                // an index: a negative value does not fit (6.3)
+                Ty::Path(p, a) if a.is_empty() && p.len() == 1 && p[0] == "usize" => {
+                    let v = self.expr(x, s, stack)?;
+                    let neg = self.prim("lt", vec![v.clone(), c(json!(0))]);
+                    Ok(self.cond(neg, self.err("trap: value does not fit usize"), v))
+                }
+                _ => no("this cast"),
+            },
+            Expr::Call(f, args, _, _) => self.call(f, args, s, stack, l),
+            Expr::Borrow(false, x, _) => self.expr(x, s, stack),
+            other => no(expr_name(other)),
+        }
+    }
+
+    fn call(
+        &mut self,
+        f: &Expr,
+        args: &[Arg],
+        s: &[String],
+        stack: &mut Vec<String>,
+        l: usize,
+    ) -> L {
+        let no = |what: &str| Err(format!("line {l}: {what} has no Form IR term"));
+        match f {
+            Expr::Member(r, m, _) => {
+                let rv = self.expr(r, s, stack)?;
+                match (m.as_str(), args.len()) {
+                    ("len", 0) => Ok(self.prim("size", vec![rv])),
+                    ("chars" | "tostr" | "toint" | "upper" | "lower", 0) => {
+                        Ok(self.prim(m, vec![rv]))
+                    }
+                    ("contains" | "startswith" | "endswith" | "split" | "join", 1) => {
+                        let a = self.expr(&args[0].e, s, stack)?;
+                        Ok(self.prim(m, vec![rv, a]))
+                    }
+                    _ => no(&format!("method {m}")),
+                }
+            }
+            Expr::Name(g, _) if g == "copy" && args.len() == 1 => self.expr(&args[0].e, s, stack),
+            Expr::Name(g, _) if self.structs.contains_key(g) => {
+                let fields = self.structs[g].clone();
+                if args.len() != fields.len()
+                    || args
+                        .iter()
+                        .any(|a| a.label.as_ref().is_none_or(|x| !fields.contains(x)))
+                {
+                    return no(&format!("constructor {g} with these arguments"));
+                }
+                let mut out = vec![];
+                for a in args {
+                    out.push(json!([
+                        a.label.clone().unwrap(),
+                        self.expr(&a.e, s, stack)?
+                    ]));
+                }
+                Ok(json!({"t": "obj", "fields": out}))
+            }
+            Expr::Name(g, _) if self.fns.contains_key(g) => {
+                let d = self.fns[g];
+                if !mut_params(d).is_empty() {
+                    return no(&format!(
+                        "a call of {g} (it takes &mut) inside an expression"
+                    ));
+                }
+                let names: Vec<String> = d
+                    .sig
+                    .params
+                    .iter()
+                    .filter_map(|p| {
+                        if let Param::Named { name, .. } = p {
+                            Some(name.clone())
+                        } else {
+                            None
+                        }
+                    })
+                    .collect();
+                if names.len() != args.len()
+                    || args
+                        .iter()
+                        .any(|a| a.label.as_ref().is_some_and(|x| !names.contains(x)))
+                {
+                    return no(&format!("call of {g} with these arguments"));
+                }
+                let mut fields = vec![];
+                let mut used = HashSet::new();
+                for (i, a) in args.iter().enumerate() {
+                    let n = a.label.clone().unwrap_or_else(|| names[i].clone());
+                    used.insert(n.clone());
+                    fields.push(json!([n, self.expr(&a.e, s, stack)?]));
+                }
+                let callee = self.lower_fn_in(g, stack)?;
+                // format 2: the callee once in the table, a ref at the call
+                let k = crate::brick::digest(&callee);
+                self.defs.entry(k.clone()).or_insert(callee);
+                Ok(Self::pipe(
+                    json!({"t": "obj", "fields": fields}),
+                    json!({"t": "ref", "node": self.n(), "def": k}),
+                ))
+            }
+            _ => no("this call"),
+        }
+    }
+}
+
+fn stmt_name(s: &Stmt) -> &'static str {
+    match s {
+        Stmt::Match(..) => "match",
+        Stmt::Send(..) => "send",
+        Stmt::Emit(_) => "emit",
+        Stmt::Fail(_) => "fail",
+        Stmt::Spawn(_) => "spawn",
+        Stmt::Select(..) => "select",
+        Stmt::Arena(..) => "arena",
+        Stmt::Device(..) => "device",
+        Stmt::Yield(..) => "yield",
+        _ => "this statement",
+    }
+}
+
+fn expr_name(e: &Expr) -> &'static str {
+    match e {
+        Expr::Float(..) => "a float",
+        Expr::SelfRef(_) => "self",
+        Expr::ListComp(..) => "a list comprehension",
+        Expr::Map(..) => "a map literal",
+        Expr::ChanNew(..) => "a channel",
+        Expr::Slice(..) => "a slice",
+        Expr::Borrow(..) => "a mutable borrow",
+        Expr::Recv(..) => "a receive",
+        Expr::Catch(..) => "catch",
+        Expr::Try(..) => "try",
+        Expr::Lambda(..) => "a lambda",
+        Expr::Index(..) => "a multi-index",
+        _ => "this expression",
+    }
+}
+
+/// The definition keys a term refers to.
+fn refs(t: &Value) -> Vec<String> {
+    let mut out = vec![];
+    fn walk(v: &Value, out: &mut Vec<String>) {
+        match v {
+            Value::Object(m) => {
+                if m.get("t").and_then(|x| x.as_str()) == Some("ref") {
+                    if let Some(k) = m.get("def").and_then(|x| x.as_str()) {
+                        out.push(k.to_string());
+                    }
+                    return;
+                }
+                m.values().for_each(|x| walk(x, out));
+            }
+            Value::Array(a) => a.iter().for_each(|x| walk(x, out)),
+            _ => {}
+        }
+    }
+    walk(t, &mut out);
+    out
+}
+
+/// `$call[j]`: item j of a state-passing call's result.
+fn at_call(j: usize, l: usize) -> Expr {
+    Expr::Index(
+        Box::new(Expr::Name("$call".into(), l)),
+        vec![Expr::Int(j as i128, l)],
+        l,
+    )
+}
+
+fn r0(l: usize) -> Expr {
+    at_call(0, l)
+}

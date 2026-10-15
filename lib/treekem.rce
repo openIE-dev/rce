@@ -4,9 +4,9 @@ module treekem
 # lib/crypto.rce and lib/mls.rce. This slice decodes a serialized
 # ratchet_tree (optional<Node> nodes<V>, TLS presentation language), pads
 # it to a full tree (the leaf count is a power of two, 7.1), and computes
-# tree hashes (7.8), resolutions (4.1.1) and parent-hash validity (7.9.2).
-# Path secrets and copath encryption build on these in the next slice.
-# Checked against the official tree-validation.json vectors in
+# tree hashes (7.8), resolutions (4.1.1) and parent-hash validity (7.9.2),
+# and processes and generates update paths (7.4 to 7.6). Checked against the
+# official tree-validation.json and treekem.json vectors in
 # tests/treekem_rce.rs.
 
 # a QUIC-style varint length at p: [value, next position]
@@ -50,6 +50,24 @@ fn parent_end(b: List[i64], p0: usize) -> usize
 
 # the nodes of a ratchet_tree, padded to 2^k leaves: "" for a blank node,
 # else the hex of the node type byte (1 leaf, 2 parent) and the node's encoding
+fn rt_node_end(b: List[i64], p: usize) -> usize
+    if b[p] == 0
+        return p + 1
+    if b[p + 1] == 1
+        return leaf_end(b, p + 2)
+    return parent_end(b, p + 2)
+
+fn rt_node(b: List[i64], p: usize, e: usize) -> text = if b[p] == 0 then "" else tohex(slice(b, p + 1, e))
+
+fn rt_pad(nodes: List[text]) -> List[text]
+    var out = nodes
+    var leaves: usize = 1
+    while 2 * leaves - 1 < out.len() bound 32
+        leaves = leaves * 2
+    while out.len() < 2 * leaves - 1 bound 65536
+        out.push("")
+    return out
+
 fn rt_decode(tree: text) -> List[text]
     let b = unhex(tree)
     let r = rd_v(copy(b), 0)
@@ -57,21 +75,10 @@ fn rt_decode(tree: text) -> List[text]
     var p = r[1] as usize
     var nodes: List[text] = []
     while p < end bound 65536
-        if b[p] == 0
-            nodes.push("")
-            p += 1
-        else
-            let typ = b[p + 1]
-            let s = p + 2
-            let e = if typ == 1 then leaf_end(copy(b), s) else parent_end(copy(b), s)
-            nodes.push(tohex(slice(copy(b), s - 1, e)))
-            p = e
-    var leaves: usize = 1
-    while 2 * leaves - 1 < nodes.len() bound 32
-        leaves = leaves * 2
-    while nodes.len() < 2 * leaves - 1 bound 65536
-        nodes.push("")
-    return nodes
+        let e = rt_node_end(copy(b), p)
+        nodes.push(rt_node(copy(b), p, e))
+        p = e
+    return rt_pad(nodes)
 
 fn nbody(n: text) -> List[i64]
     let b = unhex(n)
@@ -131,26 +138,38 @@ fn ser_v(b: List[i64]) -> List[i64]
 fn u32b(x: i64) -> List[i64] = [(x >> 24) & 255, (x >> 16) & 255, (x >> 8) & 255, x & 255]
 
 # tree hashes (7.8) of every node of a full tree, bottom up
-fn tree_hashes(nodes: List[text]) -> List[text]
-    let w = nodes.len()
-    var h: List[text] = []
-    for _ in 0..w
-        h.push("")
+fn hash_order(w: usize) -> List[i64]
+    var o: List[i64] = []
     var x: usize = 0
     while x < w bound 65536
-        let present: List[i64] = if nodes[x] == "" then [0] else cat([1], nbody(copy(nodes[x])))
-        h[x] = tohex(sha256(cat(cat([1], u32b((x / 2) as i64)), present)))
+        o.push(x as i64)
         x += 2
     var k: i64 = 1
     while (1 << k) <= w as i64 bound 32
         var y = ((1 << k) - 1) as usize
         while y < w bound 65536
-            let l = tm_left(y as i64) as usize
-            let r = (y as i64 ^ (3 << (k - 1))) as usize
-            let present: List[i64] = if nodes[y] == "" then [0] else cat([1], nbody(copy(nodes[y])))
-            h[y] = tohex(sha256(cat(cat([2], present), cat(ser_v(unhex(copy(h[l]))), ser_v(unhex(copy(h[r])))))))
+            o.push(y as i64)
             y += (1 << (k + 1)) as usize
         k += 1
+    return o
+
+fn node_hash(node: text, x: i64, hl: text, hr: text) -> text
+    let present: List[i64] = if node == "" then [0] else cat([1], nbody(copy(node)))
+    if x % 2 == 0
+        return tohex(sha256(cat(cat([1], u32b(x / 2)), present)))
+    return tohex(sha256(cat(cat([2], present), cat(ser_v(unhex(hl)), ser_v(unhex(hr))))))
+
+fn tree_hashes(nodes: List[text]) -> List[text]
+    var h: List[text] = []
+    for _ in 0..nodes.len()
+        h.push("")
+    for x in hash_order(nodes.len())
+        if x % 2 == 0
+            h[x as usize] = node_hash(copy(nodes[x as usize]), x, "", "")
+        else
+            let l = tm_left(x) as usize
+            let r = (x ^ (3 << (tm_level(x) - 1))) as usize
+            h[x as usize] = node_hash(copy(nodes[x as usize]), x, copy(h[l]), copy(h[r]))
     return h
 
 # resolution (4.1.1) of node x of a full tree
@@ -216,3 +235,194 @@ fn parent_hash_valid(nodes: List[text], p: i64) -> bool
                 if nfields(copy(nodes[d as usize]))[1] == h
                     return true
     return false
+
+# ---- UpdatePath (RFC 9420 7.6, 7.9): decode, filtered direct path, merge,
+# and decrypting the path secret a receiver is sent.
+
+fn rt_parent(x: i64) -> i64
+    let k = tm_level(x)
+    return (x - (x & (1 << (k + 1)))) | (1 << k)
+
+fn rt_sibling(x: i64, p: i64) -> i64 = if x < p then p ^ (3 << (tm_level(p) - 1)) else tm_left(p)
+
+# [leaf as "01" + LeafNode hex, then one "ek|kem_output,ct|kem_output,ct" per node]
+fn up_parse(uh: text) -> List[text]
+    let b = unhex(uh)
+    let e = leaf_end(copy(b), 0)
+    var out: List[text] = ["01" + tohex(slice(copy(b), 0, e))]
+    let r = rd_v(copy(b), e)
+    let end = (r[0] + r[1]) as usize
+    var p = r[1] as usize
+    while p < end bound 4096
+        var s = tohex(get_v(copy(b), p)) + "|"
+        p = skip_v(copy(b), p)
+        let c = rd_v(copy(b), p)
+        let ce = (c[0] + c[1]) as usize
+        p = c[1] as usize
+        while p < ce bound 4096
+            s = s + tohex(get_v(copy(b), p)) + ","
+            p = skip_v(copy(b), p)
+            s = s + tohex(get_v(copy(b), p)) + "|"
+            p = skip_v(copy(b), p)
+        out.push(s)
+    return out
+
+# filtered direct path of leaf s as [node, copath child, node, copath child, ...]
+fn filtered_path(nodes: List[text], s: i64) -> List[i64]
+    let root = ((nodes.len() + 1) / 2 - 1) as i64
+    var out: List[i64] = []
+    var x = 2 * s
+    while x != root bound 64
+        let q = rt_parent(x)
+        let sb = rt_sibling(x, q)
+        if resolution(copy(nodes), sb).len() > 0
+            out.push(q)
+            out.push(sb)
+        x = q
+    return out
+
+# tree hash of the subtree at x alone
+fn subtree_hash(nodes: List[text], x: i64) -> text
+    let k = tm_level(x)
+    let lo = x - ((1 << k) - 1)
+    let hi = x + ((1 << k) - 1)
+    var h: List[text] = []
+    for _ in 0..nodes.len()
+        h.push("")
+    for y in hash_order(nodes.len())
+        if y >= lo and y <= hi
+            if y % 2 == 0
+                h[y as usize] = node_hash(copy(nodes[y as usize]), y, "", "")
+            else
+                let l = tm_left(y) as usize
+                let r = (y ^ (3 << (tm_level(y) - 1))) as usize
+                h[y as usize] = node_hash(copy(nodes[y as usize]), y, copy(h[l]), copy(h[r]))
+    return copy(h[x as usize])
+
+# the tree after sender s applies its update path; the last element is the
+# parent hash the new leaf must carry
+fn up_merge(nodes: List[text], s: i64, up: List[text], fp: List[i64]) -> List[text]
+    var t = nodes
+    let root = ((t.len() + 1) / 2 - 1) as i64
+    var x = 2 * s
+    while x != root bound 64
+        x = rt_parent(x)
+        t[x as usize] = ""
+    t[(2 * s) as usize] = copy(up[0])
+    var ph: List[i64] = []
+    var j = fp.len() / 2
+    while j > 0 bound 64
+        j -= 1
+        let ek = unhex(copy(up[j + 1].split("|")[0]))
+        let body = cat(cat(ser_v(copy(ek)), ser_v(copy(ph))), [0])
+        t[fp[2 * j] as usize] = "02" + tohex(body)
+        let sh = unhex(subtree_hash(copy(t), fp[2 * j + 1]))
+        ph = sha256(cat(cat(ser_v(ek), ser_v(ph)), ser_v(sh)))
+    t.push(tohex(ph))
+    return t
+
+fn group_context(gid: text, epoch: i64, th: text, cth: text) -> text
+    var ep: List[i64] = []
+    for i in 0..8
+        ep.push((epoch >> (8 * (7 - i))) & 255)
+    return tohex(cat(cat(cat([0, 1, 0, 1], ser_v(unhex(gid))), cat(ep, ser_v(unhex(th)))), cat(ser_v(unhex(cth)), [0])))
+
+fn node_sk(path_secret: text) -> text = hp_derive_sk(tohex(derive_secret(unhex(path_secret), "node")))
+
+# receiver at leaf i holding private keys held ("nn:sk,..." with the node index nn as one hex byte)
+# opens its path secret; returns path_secret + "/" + commit_secret
+fn up_receive(nodes: List[text], up: List[text], fp: List[i64], gc: text, i: i64, held: text) -> text
+    var keys: List[i64] = []
+    var sks: List[text] = []
+    for kv in held.split(",")
+        if kv != ""
+            let parts = kv.split(":")
+            keys.push(unhex(copy(parts[0]))[0])
+            sks.push(copy(parts[1]))
+    let m = fp.len() / 2
+    for j in 0..m
+        let sb = fp[2 * j + 1]
+        let k = tm_level(sb)
+        if 2 * i >= sb - ((1 << k) - 1) and 2 * i <= sb + ((1 << k) - 1)
+            let cts = up[j + 1].split("|")
+            var pos: usize = 0
+            for d in resolution(copy(nodes), sb)
+                for q in 0..keys.len()
+                    if keys[q] == d
+                        if pos < 1000
+                            let kc = cts[pos + 1].split(",")
+                            var ps = decrypt_with_label(copy(sks[q]), "UpdatePathNode", copy(gc), copy(kc[0]), copy(kc[1]))
+                            let got = copy(ps)
+                            for _ in j + 1..m
+                                ps = tohex(derive_secret(unhex(ps), "path"))
+                            return got + "/" + tohex(derive_secret(unhex(ps), "path"))
+                pos += 1
+    return "none"
+
+# ---- generating an update path (RFC 9420 7.4, 7.5, 7.6) ----
+# All randomness is an input: the caller passes bytes it got from a logged
+# host entropy effect (HC-10), so the same log replays to the same path.
+
+# [leaf_node_secret_sk, path_secret per filtered node..., commit_secret]
+fn up_secrets(leaf_secret: text, m: i64) -> List[text]
+    var out: List[text] = [node_sk(copy(leaf_secret))]
+    var ps = tohex(derive_secret(unhex(leaf_secret), "path"))
+    for _ in 0..m
+        out.push(copy(ps))
+        ps = tohex(derive_secret(unhex(ps), "path"))
+    out.push(ps)
+    return out
+
+# offsets in a LeafNode body: [signature_key start, source byte, extensions start, signature start]
+fn leaf_offsets(b: List[i64]) -> List[i64]
+    let k = skip_v(copy(b), 0)
+    var p = skip_v(copy(b), k) + 2
+    p = skip_v(copy(b), p)
+    for _ in 0..5
+        p = skip_v(copy(b), p)
+    let src = p
+    p += 1
+    if b[src] == 1
+        p += 16
+    if b[src] == 3
+        p = skip_v(copy(b), p)
+    let ext = p
+    let sig = skip_v(b, p)
+    return [k as i64, src as i64, ext as i64, sig as i64]
+
+# the sender's new LeafNode (source commit): old leaf with a new encryption
+# key and the parent hash, signed over LeafNodeTBS with group_id and index
+fn up_leaf(old: text, ek: text, ph: text, sig_priv: text, gid: text, s: i64) -> text
+    let b = slice_i(unhex(old), 1)
+    let o = leaf_offsets(copy(b))
+    let body = cat(cat(cat(ser_v(unhex(ek)), slice(copy(b), o[0] as usize, o[1] as usize)), cat([3], ser_v(unhex(ph)))), slice(b, o[2] as usize, o[3] as usize))
+    let tbs = cat(cat(copy(body), ser_v(unhex(gid))), u32b(s))
+    let sig = sign_with_label(sig_priv, "LeafNodeTBS", tohex(tbs))
+    return "01" + tohex(cat(body, ser_v(unhex(sig))))
+
+fn leaf_signature_ok(leaf: text, gid: text, s: i64) -> bool
+    let b = slice_i(unhex(leaf), 1)
+    let o = leaf_offsets(copy(b))
+    let sk = tohex(get_v(copy(b), o[0] as usize))
+    let tbs = cat(cat(slice(copy(b), 0, o[3] as usize), ser_v(unhex(gid))), u32b(s))
+    return verify_with_label(sk, "LeafNodeTBS", tohex(tbs), tohex(get_v(b, o[3] as usize)))
+
+# one UpdatePathNode: encryption key and the path secret sealed to every
+# node of the copath child's resolution, ephemeral keys from rnd in order
+fn up_node(nodes: List[text], ek: text, sb: i64, gc: text, ps: text, rnd: text) -> text
+    var cts: List[i64] = []
+    var k: usize = 0
+    for d in resolution(copy(nodes), sb)
+        let pk = copy(nfields(copy(nodes[d as usize]))[0])
+        let ske = tohex(slice(unhex(copy(rnd)), 32 * k, 32 * (k + 1)))
+        let sealed = encrypt_with_label(pk, ske, "UpdatePathNode", copy(gc), copy(ps))
+        let parts = sealed.split(".")
+        cts = cat(cts, cat(ser_v(unhex(copy(parts[0]))), ser_v(unhex(copy(parts[1])))))
+        k += 1
+    return tohex(cat(ser_v(unhex(ek)), ser_v(cts)))
+
+fn up_serialize(leaf: text, nodes_hex: List[text]) -> text
+    var all: List[i64] = []
+    for n in nodes_hex
+        all = cat(all, unhex(copy(n)))
+    return tohex(cat(slice_i(unhex(leaf), 1), ser_v(all)))

@@ -187,8 +187,53 @@ integer above i64::MAX is "integer out of range" (D.10).
 A handler spec and a module of sections 2 to 10 both denote a Form, but
 the profile has no expressions of its own: node behaviour comes only
 from fits. A fit `term` is a term of the Form IR (`form/ir.rs`), not an
-RCE expression. How an RCE module is used as a fit is not yet defined
-(9, open questions).
+RCE expression. A function of a module is used as a fit through its
+lowering (`rce index`, `spec/checker/src/brick_lower.rs`): a function
+f(p1: T1, ..., pn: Tn) -> R lowers to the term t with
+t({"p1": v1, ..., "pn": vn}) = f(v1, ..., vn), values in the Form's JSON
+embedding (lists and tuples as arrays, structs as objects). A trap of f is
+an error of t at the node `module.f`. A function that calls others lowers
+to a Form IR format 2 program (`spec/proposals/form-ir-2.md`): each callee
+is a definition keyed by the SHA-256 of its term's canonical JSON, and a
+call is a `ref` to that key; a function that calls nothing lowers to a bare
+format 1 term.
+
+Statements lower store-passing: each is a term from an environment record
+(the variables in scope and the control fields `$done`, `$ret`, `$brk`,
+`$cnt`) to the next one, skipped once the function has returned or the
+iteration has been left. `let`, `var`, assignment (also compound and to a
+list item), `push` and `pop` statements, `if`, `while c bound n` (the
+iteration count traps past n, after the condition holds, as in 6.7),
+`loop`, `for x in e` (a range or a list), `break`, `continue`, `return`
+anywhere and `check` lower. Expressions: literals, constants (their
+values, by the reference evaluator), arithmetic (`+` as `plus`: integers
+add, texts and lists concatenate), bit operations (`band`, `bor`, `bxor`,
+`shl`, `shr`, `bnot`; a shift amount outside 0..64 is an error, as it
+traps), comparisons, `and` and `or` (as `cond`), `if`, list and tuple
+literals, `[v; n]`, indexing (`at`: a text is read as its UTF-8 bytes, as
+in 6.3; a negative index traps), fields, struct construction, the methods
+`len` (`size`, bytes of a text), `chars`, `tostr`, `toint`, `upper`,
+`lower`, `contains`, `startswith`, `endswith`, `split`, `join`, casts to
+i64 and usize, shared borrows, `copy`, and calls of other lowerable
+functions (by `ref`). A function with `&mut` parameters lowers by
+state-passing: its term returns `[result, final values of the &mut
+parameters in parameter order]` (the result is null for a function
+without one), and a call of it, as a statement, a `let` or `var`
+initializer or the right side of `=`, writes those values back to the
+borrowed places; such a call inside a larger expression is refused. Integers are i64 or usize (a usize variable that
+would become negative traps); floats, narrower integers,
+`match`, `catch`, closures and recursion are refused. A generic function
+lowers to one term for every instance, since the IR is untyped over JSON.
+A term over 1 MiB of JSON, not counting its definitions, or a program
+nested over 1000 levels is refused (catalog readers parse past JSON
+libraries' usual 128 levels, with a stated bound). Every refusal is recorded in the
+catalog with its line and construct, never approximated.
+
+`rce index --vectors N` records the reference evaluator's results on N
+generated inputs per brick; `rce-brick-verify` (`src/form/brick.rs`)
+evaluates each term on them and reports agreement. Agreement is tested on
+vectors (`spec/checker/tests/brick.rs`, `tests/brick_lowering.rs`), not
+proved.
 
 ### D.8 Lift guarantees (normative)
 
@@ -334,4 +379,4 @@ receipts are version-independent).
 
 **Read receipt.** Which compiled node id does `deliverable D1` become? (for example role_R1)
 
-<!-- body-sha256: 78c5611767eb59366d670b4d9b81c357f6347df0f30663d46d98643491e9ea8a -->
+<!-- body-sha256: 24c5bed573317d35a073aac5ed9418a622bab356787c089febeae0a4a3cdf02a -->

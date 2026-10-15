@@ -1,0 +1,5 @@
+module duser
+
+# builds on dlib with no directive: `rce index` infers it
+
+fn nine(x: i64) -> i64 = triple(triple(x))

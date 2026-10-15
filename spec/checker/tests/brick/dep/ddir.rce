@@ -1,0 +1,4 @@
+module ddir
+#!lib dlib
+
+fn six(x: i64) -> i64 = triple(x) * 2

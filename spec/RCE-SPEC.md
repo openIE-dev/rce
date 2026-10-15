@@ -2742,6 +2742,46 @@ field, both values); exit 0 on full match. `spec/checker/tests/traces.rs`
 checks that the fixtures are current, that every step is on the 6.1
 chain, and that the runner finds a planted divergence.
 
+### 10.10 `rce index [--vectors N] FILE|DIR...` and `rce search CATALOG QUERY`: the brick catalog (informative)
+
+`rce index` checks the files as one program (10.2) and prints one JSON
+object (format `rce-catalog/1`, compact, sorted keys) with one entry per
+top-level function of each module (the `pub` ones when the module marks
+any `pub`, else all; methods are not bricks), sorted by module and name.
+Library dependencies are resolved first: a `# uses: a/b` line adds
+`a/b.rce` from the nearest ancestor directory that has it; a `#!lib NAME`
+line checks the module with the items of module NAME in front (its checks
+dropped, its own items winning), as the rce binary does; and a module
+refused only for unknown names that exactly one single-segment module of
+the program declares is checked again with that module as its `#!lib`.
+`resolved` records each resolution and whether it was a directive or
+inferred.
+An entry holds `module`, `name`, `file`, `line`, `generics`, `params`
+(name and type), `ret`, `key` (the type with generic parameters renamed
+`t0`, `t1`, ... in order of first occurrence), `hash` (SHA-256 of the
+module path and the canonical text of the function alone, so layout and
+position do not change it), `checked` (the verdict of its file) and
+`lowering` (`{"term": T}`, the D.7 lowering, or `{"refused": reason}`).
+The catalog's `hash` is the SHA-256 of the canonical JSON of its entries;
+`refused_files` maps each refused file to its diagnostics. With
+`--vectors N`, `vectors` maps a lowered brick's hash to up to N
+`{"args", "out"}` or `{"args", "trap"}` records of the reference
+evaluator on inputs generated from the parameter types by a fixed rule
+(an input that needs more than 200000 interpreter steps gives none, as the
+store-passing terms do more work than the interpreter); they are outside the catalog
+hash. `rce-brick-verify CATALOG` (`src/form/brick.rs`) evaluates each
+lowered term on its vectors and reports, per brick, agreement or the
+first disagreement: a result must be equal, a trap must be an error.
+
+`rce search` reads a catalog and a query `A -> R` or `(A, B) -> R`, where
+one-letter lowercase names are type variables, and prints `RANK
+module.name : key` per match, best first. A brick matches when its
+arguments and result unify with the query's, in some order of the
+arguments. RANK is 0 for a type equal up to renaming of variables, 1 for
+an instance, plus 2 when the arguments match only in another order. Ties
+break by module and name. Both commands are deterministic: equal inputs
+give equal output bytes.
+
 **Read receipt.** Which JSON-RPC error code does the language server return for a request it does not know? (a number)
 
 ---
@@ -3357,8 +3397,53 @@ integer above i64::MAX is "integer out of range" (D.10).
 A handler spec and a module of sections 2 to 10 both denote a Form, but
 the profile has no expressions of its own: node behaviour comes only
 from fits. A fit `term` is a term of the Form IR (`form/ir.rs`), not an
-RCE expression. How an RCE module is used as a fit is not yet defined
-(9, open questions).
+RCE expression. A function of a module is used as a fit through its
+lowering (`rce index`, `spec/checker/src/brick_lower.rs`): a function
+f(p1: T1, ..., pn: Tn) -> R lowers to the term t with
+t({"p1": v1, ..., "pn": vn}) = f(v1, ..., vn), values in the Form's JSON
+embedding (lists and tuples as arrays, structs as objects). A trap of f is
+an error of t at the node `module.f`. A function that calls others lowers
+to a Form IR format 2 program (`spec/proposals/form-ir-2.md`): each callee
+is a definition keyed by the SHA-256 of its term's canonical JSON, and a
+call is a `ref` to that key; a function that calls nothing lowers to a bare
+format 1 term.
+
+Statements lower store-passing: each is a term from an environment record
+(the variables in scope and the control fields `$done`, `$ret`, `$brk`,
+`$cnt`) to the next one, skipped once the function has returned or the
+iteration has been left. `let`, `var`, assignment (also compound and to a
+list item), `push` and `pop` statements, `if`, `while c bound n` (the
+iteration count traps past n, after the condition holds, as in 6.7),
+`loop`, `for x in e` (a range or a list), `break`, `continue`, `return`
+anywhere and `check` lower. Expressions: literals, constants (their
+values, by the reference evaluator), arithmetic (`+` as `plus`: integers
+add, texts and lists concatenate), bit operations (`band`, `bor`, `bxor`,
+`shl`, `shr`, `bnot`; a shift amount outside 0..64 is an error, as it
+traps), comparisons, `and` and `or` (as `cond`), `if`, list and tuple
+literals, `[v; n]`, indexing (`at`: a text is read as its UTF-8 bytes, as
+in 6.3; a negative index traps), fields, struct construction, the methods
+`len` (`size`, bytes of a text), `chars`, `tostr`, `toint`, `upper`,
+`lower`, `contains`, `startswith`, `endswith`, `split`, `join`, casts to
+i64 and usize, shared borrows, `copy`, and calls of other lowerable
+functions (by `ref`). A function with `&mut` parameters lowers by
+state-passing: its term returns `[result, final values of the &mut
+parameters in parameter order]` (the result is null for a function
+without one), and a call of it, as a statement, a `let` or `var`
+initializer or the right side of `=`, writes those values back to the
+borrowed places; such a call inside a larger expression is refused. Integers are i64 or usize (a usize variable that
+would become negative traps); floats, narrower integers,
+`match`, `catch`, closures and recursion are refused. A generic function
+lowers to one term for every instance, since the IR is untyped over JSON.
+A term over 1 MiB of JSON, not counting its definitions, or a program
+nested over 1000 levels is refused (catalog readers parse past JSON
+libraries' usual 128 levels, with a stated bound). Every refusal is recorded in the
+catalog with its line and construct, never approximated.
+
+`rce index --vectors N` records the reference evaluator's results on N
+generated inputs per brick; `rce-brick-verify` (`src/form/brick.rs`)
+evaluates each term on them and reports agreement. Agreement is tested on
+vectors (`spec/checker/tests/brick.rs`, `tests/brick_lowering.rs`), not
+proved.
 
 ### D.8 Lift guarantees (normative)
 
