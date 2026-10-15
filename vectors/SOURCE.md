@@ -106,3 +106,23 @@ grapheme break and case-folding properties) as part of the content
 address. Normalization (NFC/NFD over code-point lists) is feasible in pure
 RCE once UCD tables are generated into the library, but its result could
 not be turned back into text without that built-in.
+
+## time (`lib/time/time.rce`)
+
+- Howard Hinnant, "chrono-Compatible Low-Level Date Algorithms"
+  (https://howardhinnant.github.io/date_algorithms.html): the algorithms
+  days_from_civil, civil_from_days and weekday_from_days, his round-trip
+  and consecutive-day test (run over windows at the 1970, 2000, -400 and
+  2100 boundaries plus a 2001-point stride over about +-10^8 days), and
+  his fixed points (1970-01-01 = 0 and Thursday; 0000-03-01 = -719468).
+- RFC 3339 section 5.8: the four examples (the leap-second one is
+  refused: instants are POSIX time), plus rejections of malformed text.
+- ISO 8601 week dates: the year-boundary cases 2008-12-29 (2009-W01-1)
+  and 2010-01-03 (2009-W53-7).
+- 60 random dates in years 1..9999 and 20 random instants with offsets,
+  checked against CPython `datetime` (seed 20261015,
+  `scripts/gen/time_gen.py`); derived vectors, not official ones.
+
+Needs spec or data: named time zones need the IANA tz database as a
+pinned, content-addressed input (or a logged host result); only fixed UTC
+offsets are supported. Leap seconds would need a pinned leap-second table.
