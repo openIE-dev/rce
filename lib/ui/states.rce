@@ -604,8 +604,47 @@ fn remove_conflicts(c: &Chart, r: &Run, ses: i64, en: &[i64]) -> List[i64]
             f = g
     return f
 
+# XState mode, events: a state's own first candidate (exact names, then
+# partial descriptors, then "*"; guards in order)
+fn next_xs(c: &Chart, r: &mut Run, ses: i64, a: i64, e: &text) -> List[i64]
+    var o: List[i64] = []
+    for pz in 0..3
+        for t in c.strans[a as usize]
+            if o.len() == 0
+                let evs = copy(c.tev[t as usize])
+                if evs.len() > 0 and name_match(&evs, e) and match_rank(&evs, e) == pz as i64 and cond_ok(c, r, ses, &c.tcond[t as usize])
+                    o.push(t)
+    return o
+
+# XState 5 transitionNode: a leaf's transition, else its parent's; a
+# compound state defers to its active child; a parallel state takes the
+# transitions of all its regions and is consulted only when none has one.
+fn select_xs(c: &Chart, r: &mut Run, ses: i64, e: &text) -> List[i64]
+    let n = c.sid.len()
+    var res: List[List[i64]] = []
+    for s in 0..n
+        res.push(no_ints())
+    let m = r.smachine[ses as usize]
+    var s = n
+    while s > 0 bound 16777216
+        s -= 1
+        if (r.conf[ses as usize][s] == 1 or c.skind[s] == ROOT) and c.smach[s] == m
+            var picked: List[i64] = []
+            for k in c.skids[s]
+                if r.conf[ses as usize][k as usize] == 1
+                    for t in res[k as usize]
+                        picked.push(t)
+            if picked.len() == 0 and c.skind[s] != ROOT and not is_hist(c, s as i64)
+                picked = next_xs(c, r, ses, s as i64, e)
+            res[s] = picked
+    let root = c.mroot[m as usize]
+    let all = copy(res[root as usize])
+    return remove_conflicts(c, r, ses, &all)
+
 # enabled transitions for event e (eventless when e is "")
 fn select_tr(c: &Chart, r: &mut Run, ses: i64, e: &text) -> List[i64]
+    if c.xs and e != ""
+        return select_xs(c, r, ses, e)
     var en: List[i64] = []
     let m = r.smachine[ses as usize]
     for s in 0..c.sid.len()
