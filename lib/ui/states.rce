@@ -2118,6 +2118,13 @@ fn finish(c: &Chart, r: &mut Run, ses: i64) bound 64
         r.eflags[k as usize] = F_INVOKEID + F_DATA
         r.efrom[k as usize] = ses
         push_ev(r, p, k, 0, "", ses)
+    # its delayed sends still pending die with it
+    var i: usize = 0
+    while i < r.qev.len() bound 16777216
+        if r.qfrom[i] == ses and r.qtime[i] > r.now
+            drop_external(r, i)
+        else
+            i += 1
 
 fn new_session(c: &Chart, r: &mut Run, m: i64, parent: i64, st: i64, invid: text, vdef: i64) -> i64
     var z: List[i64] = []
