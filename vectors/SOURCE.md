@@ -864,6 +864,9 @@ sign combinations.
 | sin (push CI sample) | 4,005 of 1,971,056 | 3,000 | 126 | 7,131 |
 | cos (push CI sample) | 4,008 of 1,090,196 | 3,000 | 126 | 7,134 |
 | tan (push CI sample) | 4,006 of 1,077,395 | 3,000 | 140 | 7,146 |
+| atan2 (push CI sample) | 3,991 of 28,151 | 3,000 | 603 | 7,594 |
+| cos (full, off-repo run) | 1,088,192 | 2,999 | 107 | 1,091,298 |
+| sin (full, off-repo run) | 1,971,056 | 2,999 | 105 | 1,974,160 |
 
 The large CORE-MATH files (exp 25 MB, log 3 MB, sin 43 MB, cos 24 MB) are
 not copied: push CI runs an evenly spaced sample (`--sample 4000`), and the

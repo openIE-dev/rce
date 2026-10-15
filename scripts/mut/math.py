@@ -18,7 +18,9 @@
 # bracket around a representable value rounds to it at once (only a midpoint
 # could stall Ziv's loop). Error-bound margins (EB, tan's (1 + Q^2) term)
 # are soundness slack, not observable on vectors, so not mutated; n_div's
-# remainder == divisor step (never hit: the dividends are transcendental).
+# remainder == divisor step (never hit: the dividends are transcendental);
+# n_div's start window lb - 52 instead of lb - 53 (the same Y0, one bit
+# fewer read from b).
 import glob, os, subprocess, sys, tempfile
 from concurrent.futures import ThreadPoolExecutor
 RCE = os.environ.get('RCE', 'rce')
@@ -99,6 +101,17 @@ M = [('core',) + m for m in [
     ('                s = not s\n                return if s', '                s = s\n                return if s'),
     ('    let qa = n_mul(&num, &y)\n    var q = n_shr(&qa, k)', '    let qa = n_mul(&num, &y)\n    var q = n_shr(&qa, k + 1)'),
     ('            let tq = if even then n_div(&s0, &s1, f) else n_div(&s1, &s0, f)', '            let tq = n_div(&s0, &s1, f)'),
+]] + [('atan2',) + m for m in [
+    ('        let dd = if f == 200 then d else 3 * d', '        let dd = d'),
+    ('    if y == 0.0\n        if xneg', '    if y == 0.0\n        if false'),
+    ('    let swap = ay > ax', '    let swap = false'),
+    ('            a = n_sub(&pc, &a)\n        if xneg', '            a = n_add(&pc, &a)\n        if xneg'),
+    ('            let pi = n_muls(&pc, 2)', '            let pi = n_muls(&pc, 3)'),
+    ('        u = n_div(&num, &den, fe)', '        u = copy(num)'),
+    ('        uneg = n_cmp(t, &c) < 0', '        uneg = n_cmp(t, &c) > 0'),
+    ('        let d = n_divs(&p, k)', '        let d = n_divs(&p, k + 2)'),
+    ('(x as f32).tostr() == "-0"', '(x as f32).tostr() == "0"'),
+    ('        return [(x * pow2(600) * pow2(474)) as i64, -1074]\n    return mant(x)', '        return [(x * pow2(600) * pow2(475)) as i64, -1074]\n    return mant(x)'),
 ]] + [('cos',) + m for m in [
     ('            neg = q == 1 or q == 2', '            neg = q == 2'),
     ('            useS = q % 2 == 1', '            useS = q % 2 == 0'),
@@ -129,7 +142,7 @@ assert not fails(SRC, SH[0]), 'unmutated source fails'
 k = n = 0
 for g, a, b in M:
     if want and g not in want: continue
-    if g in ('exp', 'log', 'log2', 'log10', 'sin', 'cos', 'tan') and 'pub fn %s(' % g not in SRC: continue
+    if g in ('exp', 'log', 'log2', 'log10', 'sin', 'cos', 'tan', 'atan2') and 'pub fn %s(' % g not in SRC: continue
     assert SRC.count(a) >= 1, a
     n += 1
     if killed(SRC.replace(a, b, 1)): k += 1

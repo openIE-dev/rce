@@ -23,6 +23,7 @@ FNS = {
  'sin': (1, lambda x: gmpy2.sin(x)),
  'cos': (1, lambda x: gmpy2.cos(x)),
  'tan': (1, lambda x: gmpy2.tan(x)),
+ 'atan2': (2, lambda y, x: gmpy2.atan2(y, x)),
 }
 
 def fin(x): return x == x and abs(x) != float('inf')
@@ -32,6 +33,7 @@ def rnd_double(r):
     return x if fin(x) else 1.0
 
 def lit(x):
+    if x == 0 and str(x).startswith('-'): return '(0.0 * (0.0 - 1.0))'
     s = repr(x)
     return s if not s.startswith('-') else '(0.0 - %s)' % s[1:]
 
