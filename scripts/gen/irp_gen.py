@@ -30,6 +30,16 @@ cases = []
 for (tid, conf, manual, uri) in tests:
     dd = os.path.join(d, os.path.dirname(uri))
     main = os.path.join(d, uri[:-5] + '.scxml')
+    if tid == '513':
+        # fully manual (test513.txt): POST a well-formed event, as its wget
+        # does, to the processor's location and expect 200; the receiving
+        # document (ours) passes when it gets that event with its fields
+        doc = ('<scxml xmlns="http://www.w3.org/2005/07/scxml" version="1.0" datamodel="ecmascript" initial="s0">'
+               '<state id="s0"><transition event="test" cond="_event.data.key1 == \'value1\' &amp;&amp; _event.data.key2 == \'value2\'" target="pass"/>'
+               '<transition event="*" target="fail"/></state><final id="pass"/><final id="fail"/></scxml>')
+        req = ('POST /s0/basichttp HTTP/1.1\r\nHost: scxml.local\r\n_scxmleventname: test\r\n'
+               'Content-Type: application/x-www-form-urlencoded\r\nContent-Length: 23\r\n\r\nkey1=value1&key2=value2')
+        cases.append((tid, conf, uri, 'irp_http', doc, ['request'], [req], '200 OK|pass')); continue
     if not os.path.exists(main):
         print('skip (no document)', uri); continue
     names, bodies = [], []

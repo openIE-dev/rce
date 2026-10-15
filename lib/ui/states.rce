@@ -2325,6 +2325,8 @@ pub struct Result
     vals: List[i64]
     isset: List[i64]
     err: text
+    # the response status of each Basic HTTP request given (run_scxml_http)
+    http: List[text]
 
 # Run machine 0 of chart text src: external events evs at time 0 in
 # order, then delayed events in due order, until machine 0 stops or the
@@ -2409,8 +2411,20 @@ fn external(c: &Chart, r: &mut Run, s: i64, e: i64) bound 64
     macrostep(c, r, s)
 
 fn run_chart(c0: &Chart, evs: &[text]) -> Result
+    let noreq: List[text] = []
+    return run_chart_http(c0, evs, &noreq)
+
+# Run an SCXML document that also receives the raw HTTP requests reqs
+# (C.2 Basic HTTP Event I/O Processor), each addressed to a session's
+# location path /<session>/basichttp, at time 0 after the external
+# events evs; Result.http has each request's response status.
+pub fn run_scxml_http(doc: &text, names: &[text], bodies: &[text], evs: &[text], reqs: &[text]) -> Result
+    let c0 = load_scxml(doc, names, bodies)
+    return run_chart_http(&c0, evs, reqs)
+
+fn run_chart_http(c0: &Chart, evs: &[text], reqs: &[text]) -> Result
     if not c0.ok
-        return Result(outcome: "", conf: [], leaves: [], trace: [], logs: [], vals: [], isset: [], err: copy(c0.why))
+        return Result(outcome: "", conf: [], leaves: [], trace: [], logs: [], vals: [], isset: [], err: copy(c0.why), http: [])
     let c = with_inits(c0)
     var r = run0()
     for e in evs
@@ -2420,6 +2434,9 @@ fn run_chart(c0: &Chart, evs: &[text]) -> Result
     let ses = new_session(&c, &mut r, 0, -1, -1, "", -1)
     bind_data(&c, &mut r, ses, &nolist, &novals)
     start_session(&c, &mut r, ses)
+    var http: List[text] = []
+    for q in reqs
+        http.push(http_receive(&mut r, q))
     while r.srunning[0] and r.qev.len() > 0 and r.fuel > 0 bound 1048576
         r.fuel -= 1
         let b = take_external(&mut r)
@@ -2437,4 +2454,117 @@ fn run_chart(c0: &Chart, evs: &[text]) -> Result
             conf.push(copy(c.sid[i]))
             if is_atomic(&c, i as i64)
                 leaves.push(copy(c.sid[i]))
-    return Result(outcome: copy(r.outcome), conf: conf, leaves: leaves, trace: copy(r.trace), logs: copy(r.logs), vals: copy(r.vval[0]), isset: copy(r.vbound[0]), err: if r.fuel <= 0 then "fuel" else "")
+    return Result(outcome: copy(r.outcome), conf: conf, leaves: leaves, trace: copy(r.trace), logs: copy(r.logs), vals: copy(r.vval[0]), isset: copy(r.vbound[0]), err: if r.fuel <= 0 then "fuel" else "", http: http)
+
+# one raw HTTP request into the queue of the session it names: the
+# event is the _scxmleventname header, else that form field, else
+# HTTP.<method>; the data is the form fields (C.2). Returns the status.
+fn http_receive(r: &mut Run, req: &text) -> text
+    let hb = req.split("\r\n\r\n")
+    var head = copy(hb[0])
+    var body = ""
+    if hb.len() > 1
+        var rest: List[text] = []
+        for i in 1..hb.len()
+            rest.push(copy(hb[i]))
+        body = "\r\n\r\n".join(rest)
+    else
+        let hb2 = req.split("\n\n")
+        head = copy(hb2[0])
+        if hb2.len() > 1
+            body = copy(hb2[1])
+    let ls = head.lines()
+    if ls.len() == 0
+        return "400 Bad Request"
+    let rl = words(&ls[0])
+    if rl.len() < 2
+        return "400 Bad Request"
+    let meth = rl[0].upper()
+    let ps = rl[1].split("/")
+    # "/s0/basichttp": ["", "s0", "basichttp"]
+    if ps.len() != 3 or ps[2] != "basichttp"
+        return "404 Not Found"
+    let dest = find_session(r, &ps[1])
+    if dest < 0 or not r.srunning[dest as usize]
+        return "404 Not Found"
+    if meth != "POST"
+        return "405 Method Not Allowed"
+    var name = ""
+    for i in 1..ls.len()
+        let kv = ls[i].split(":")
+        if kv.len() >= 2 and kv[0].strip().lower() == "_scxmleventname"
+            var vs: List[text] = []
+            for j in 1..kv.len()
+                vs.push(copy(kv[j]))
+            name = ":".join(vs).strip()
+    let o = ecma.new_obj(&mut r.js)
+    let b = body.strip()
+    if b != ""
+        for f in b.split("&")
+            let kv = f.split("=")
+            let k = form_dec(&kv[0])
+            var v = ""
+            if kv.len() > 1
+                var vs: List[text] = []
+                for j in 1..kv.len()
+                    vs.push(copy(kv[j]))
+                let vj = "=".join(vs)
+                v = form_dec(&vj)
+            if k == "_scxmleventname" and name == ""
+                name = copy(v)
+            ecma.set_prop(&mut r.js, o, &k, str_v(v))
+    if name == ""
+        name = "HTTP." + meth
+    let e = new_event(r, name, "external")
+    let eu = e as usize
+    r.edata[eu] = ecma.Rf(r: o)
+    r.eraw[eu] = copy(req)
+    r.eorig[eu] = ""
+    r.eotype[eu] = T_HTTP
+    r.eflags[eu] = F_DATA + F_RAW
+    push_ev(r, dest, e, 0, "", -1)
+    return "200 OK"
+
+# form decoding: "+" is a space, %XX a byte (UTF-8 sequences joined)
+fn form_dec(t: &text) -> text
+    let ps = t.split("+")
+    let sp = " ".join(ps)
+    let qs = sp.split("%")
+    var o = copy(qs[0])
+    var cp: i64 = 0
+    var need: i64 = 0
+    for i in 1..qs.len()
+        let cs = qs[i].chars()
+        if cs.len() < 2 or hexv(&cs[0]) < 0 or hexv(&cs[1]) < 0
+            o = o + "%" + qs[i]
+        else
+            let v = hexv(&cs[0]) * 16 + hexv(&cs[1])
+            if v < 128
+                o = o + (events.cp_text(v) catch "")
+            elif v >= 192
+                need = 1
+                cp = v % 32
+                if v >= 224
+                    need = 2
+                    cp = v % 16
+                if v >= 240
+                    need = 3
+                    cp = v % 8
+            else
+                cp = cp * 64 + v % 64
+                need -= 1
+                if need == 0
+                    o = o + (events.cp_text(cp) catch "")
+            var j: usize = 2
+            while j < cs.len() bound 1048576
+                o = o + cs[j]
+                j += 1
+    return o
+
+fn hexv(h: &text) -> i64
+    let d = "0123456789abcdef".chars()
+    let l = h.lower()
+    for i in 0..d.len()
+        if d[i] == l
+            return i as i64
+    return -1
