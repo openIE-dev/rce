@@ -354,7 +354,7 @@ pub fn stirlerr(n: f64) -> f64
         let nn = n + n
         if nn == nn.floor()
             return st_sferr(nn as i64)
-        return special.lgamma(n + 1.0) - (n + 0.5) * special.cr_log(n) + n - ST_LN_SQRT_2PI
+        return special.lgamma_fdlibm(n + 1.0) - (n + 0.5) * special.cr_log(n) + n - ST_LN_SQRT_2PI
     let s0 = 1.0 / 12.0
     let s1 = 1.0 / 360.0
     let s2 = 1.0 / 1260.0
@@ -405,7 +405,7 @@ pub fn dbinom_raw(x: f64, n: f64, p: f64, q: f64) -> f64
     if x < 0.0 or x > n
         return 0.0
     let lc = stirlerr(n) - stirlerr(x) - stirlerr(n - x) - bd0(x, n * p) - bd0(n - x, n * q)
-    let lf = ST_LN_2PI + special.cr_log(x) + special.log1p(0.0 - x / n)
+    let lf = ST_LN_2PI + special.cr_log(x) + special.log1p_fdlibm(0.0 - x / n)
     return special.cr_exp(lc - 0.5 * lf)
 
 # Poisson density at real x >= 0 with mean m.
@@ -549,9 +549,9 @@ pub fn norm_pdf(x: f64, mu: f64, sigma: f64) -> f64 ! StatsError
     let zz = st_two_prod(z, z)
     return special.cr_exp(-0.5 * zz[0]) * (1.0 - 0.5 * zz[1]) * ST_INV_SQRT_2PI / sigma
 
-# Phi(z) for the standard normal: 0.5 erfc(-z / sqrt 2), with z / sqrt 2
-# carried as a double-double t = th + tl and erfc(-(th + tl)) =
-# erfc(-th) + tl (2 / sqrt pi) exp(-th^2) to first order.
+# Phi(z) for the standard normal: 0.5 erfc_fdlibm(-z / sqrt 2), with z / sqrt 2
+# carried as a double-double t = th + tl and erfc_fdlibm(-(th + tl)) =
+# erfc_fdlibm(-th) + tl (2 / sqrt pi) exp(-th^2) to first order.
 fn st_phi(z: f64, upper: bool) -> f64
     let pe = st_two_prod(z, ST_INV_SQRT2)
     let th = pe[0]
@@ -559,7 +559,7 @@ fn st_phi(z: f64, upper: bool) -> f64
     let s = if upper then th else 0.0 - th
     let sl = if upper then tl else 0.0 - tl
     let corr = 0.0 - sl * ST_TWO_OVER_SQRT_PI * special.cr_exp(0.0 - s * s)
-    return 0.5 * (special.erfc(s) + corr)
+    return 0.5 * (special.erfc_fdlibm(s) + corr)
 
 pub fn norm_cdf(x: f64, mu: f64, sigma: f64) -> f64 ! StatsError
     let ok = try st_check(sigma > 0.0, "norm: sigma must be > 0")
@@ -775,7 +775,7 @@ pub fn t_pdf(x: f64, df: f64) -> f64 ! StatsError
         lx = 0.5 * special.cr_log(1.0 + x2n)
         u = df * lx
     else
-        lx = 0.5 * special.log1p(x2n)
+        lx = 0.5 * special.log1p_fdlibm(x2n)
         u = 0.0 - bd0(0.5 * df, 0.5 * (df + x * x)) + 0.5 * x * x
     return special.cr_exp(t - u) * ST_INV_SQRT_2PI / (1.0 + x2n).sqrt()
 
@@ -873,8 +873,8 @@ pub fn beta_pdf(x: f64, a: f64, b: f64) -> f64 ! StatsError
         return if x == 0.0 then b else a
     if a > 1.0 and b > 1.0
         return (a + b - 1.0) * dbinom_raw(a - 1.0, a + b - 2.0, x, 1.0 - x)
-    let lb = special.lgamma(a) + special.lgamma(b) - special.lgamma(a + b)
-    return special.cr_exp((a - 1.0) * special.cr_log(x) + (b - 1.0) * special.log1p(0.0 - x) - lb)
+    let lb = special.lgamma_fdlibm(a) + special.lgamma_fdlibm(b) - special.lgamma_fdlibm(a + b)
+    return special.cr_exp((a - 1.0) * special.cr_log(x) + (b - 1.0) * special.log1p_fdlibm(0.0 - x) - lb)
 
 pub fn beta_cdf(x: f64, a: f64, b: f64) -> f64 ! StatsError
     let ok = try st_check(a > 0.0 and b > 0.0, "beta: a, b must be > 0")
@@ -897,7 +897,7 @@ pub fn expon_pdf(x: f64, s: f64) -> f64 ! StatsError
 
 pub fn expon_cdf(x: f64, s: f64) -> f64 ! StatsError
     let ok = try st_check(s > 0.0, "expon: scale must be > 0")
-    return if x <= 0.0 then 0.0 else 0.0 - special.expm1(0.0 - x / s)
+    return if x <= 0.0 then 0.0 else 0.0 - special.expm1_fdlibm(0.0 - x / s)
 
 pub fn expon_sf(x: f64, s: f64) -> f64 ! StatsError
     let ok = try st_check(s > 0.0, "expon: scale must be > 0")
@@ -906,7 +906,7 @@ pub fn expon_sf(x: f64, s: f64) -> f64 ! StatsError
 pub fn expon_ppf(p: f64, s: f64) -> f64 ! StatsError
     let ok = try st_check(s > 0.0, "expon: scale must be > 0")
     let ok2 = try st_p01(p)
-    return 0.0 - s * special.log1p(0.0 - p)
+    return 0.0 - s * special.log1p_fdlibm(0.0 - p)
 
 # ---------------------------------------------------------------- discrete families
 

@@ -9,152 +9,152 @@ fn ulps(a: f64, b: f64) -> i64
     return if x > y then x - y else y - x
 
 check lgamma_r(2.4533567053336523e-07).sign == 1
-check f64_bits(lgamma_r(0.305843301356497).value) == f64_bits(1.0755382767390125)  # FDLIBM lgamma(3fd392efc841b789)
+check f64_bits(lgamma_r(0.305843301356497).value) == f64_bits(1.0755382767390125)  # FDLIBM lgamma_fdlibm(3fd392efc841b789)
 check lgamma_r(0.305843301356497).sign == 1
-check f64_bits(lgamma_r(0.30584330135649707).value) == f64_bits(1.0755382767390125)  # FDLIBM lgamma(3fd392efc841b78a)
+check f64_bits(lgamma_r(0.30584330135649707).value) == f64_bits(1.0755382767390125)  # FDLIBM lgamma_fdlibm(3fd392efc841b78a)
 check lgamma_r(0.30584330135649707).sign == 1
-check f64_bits(lgamma_r(0.3058433013564971).value) == f64_bits(1.075538276739012)  # FDLIBM lgamma(3fd392efc841b78b)
+check f64_bits(lgamma_r(0.3058433013564971).value) == f64_bits(1.075538276739012)  # FDLIBM lgamma_fdlibm(3fd392efc841b78b)
 check lgamma_r(0.3058433013564971).sign == 1
-check f64_bits(lgamma_r(2.1135271260941617e+24).value) == f64_bits(1.162659734785071e+26)  # FDLIBM lgamma(44fbf8e88fb6400f)
+check f64_bits(lgamma_r(2.1135271260941617e+24).value) == f64_bits(1.162659734785071e+26)  # FDLIBM lgamma_fdlibm(44fbf8e88fb6400f)
 check lgamma_r(2.1135271260941617e+24).sign == 1
-check f64_bits(lgamma_r(2.113527126094162e+24).value) == f64_bits(1.1626597347850712e+26)  # FDLIBM lgamma(44fbf8e88fb64010)
+check f64_bits(lgamma_r(2.113527126094162e+24).value) == f64_bits(1.1626597347850712e+26)  # FDLIBM lgamma_fdlibm(44fbf8e88fb64010)
 check lgamma_r(2.113527126094162e+24).sign == 1
-check f64_bits(lgamma_r(2.1135271260941622e+24).value) == f64_bits(1.1626597347850714e+26)  # FDLIBM lgamma(44fbf8e88fb64011)
+check f64_bits(lgamma_r(2.1135271260941622e+24).value) == f64_bits(1.1626597347850714e+26)  # FDLIBM lgamma_fdlibm(44fbf8e88fb64011)
 check lgamma_r(2.1135271260941622e+24).sign == 1
-check f64_bits(lgamma_r(312420774488.7176).value) == f64_bits(7956612550137.062)  # FDLIBM lgamma(42522f6eac962ded)
+check f64_bits(lgamma_r(312420774488.7176).value) == f64_bits(7956612550137.062)  # FDLIBM lgamma_fdlibm(42522f6eac962ded)
 check lgamma_r(312420774488.7176).sign == 1
-check f64_bits(lgamma_r(312420774488.71765).value) == f64_bits(7956612550137.063)  # FDLIBM lgamma(42522f6eac962dee)
+check f64_bits(lgamma_r(312420774488.71765).value) == f64_bits(7956612550137.063)  # FDLIBM lgamma_fdlibm(42522f6eac962dee)
 check lgamma_r(312420774488.71765).sign == 1
-check f64_bits(lgamma_r(312420774488.7177).value) == f64_bits(7956612550137.064)  # FDLIBM lgamma(42522f6eac962def)
+check f64_bits(lgamma_r(312420774488.7177).value) == f64_bits(7956612550137.064)  # FDLIBM lgamma_fdlibm(42522f6eac962def)
 check lgamma_r(312420774488.7177).sign == 1
-check f64_bits(lgamma_r(4.205989037353298e-05).value) == f64_bits(10.076391717950976)  # FDLIBM lgamma(3f060d2ed43abe57)
+check f64_bits(lgamma_r(4.205989037353298e-05).value) == f64_bits(10.076391717950976)  # FDLIBM lgamma_fdlibm(3f060d2ed43abe57)
 check lgamma_r(4.205989037353298e-05).sign == 1
-check f64_bits(lgamma_r(4.2059890373532984e-05).value) == f64_bits(10.076391717950976)  # FDLIBM lgamma(3f060d2ed43abe58)
+check f64_bits(lgamma_r(4.2059890373532984e-05).value) == f64_bits(10.076391717950976)  # FDLIBM lgamma_fdlibm(3f060d2ed43abe58)
 check lgamma_r(4.2059890373532984e-05).sign == 1
-check f64_bits(lgamma_r(4.205989037353299e-05).value) == f64_bits(10.076391717950976)  # FDLIBM lgamma(3f060d2ed43abe59)
+check f64_bits(lgamma_r(4.205989037353299e-05).value) == f64_bits(10.076391717950976)  # FDLIBM lgamma_fdlibm(3f060d2ed43abe59)
 check lgamma_r(4.205989037353299e-05).sign == 1
-check f64_bits(lgamma_r(8211738902929439.0).value) == f64_bits(2.927020224718168e+17)  # FDLIBM lgamma(433d2c88744c201f)
+check f64_bits(lgamma_r(8211738902929439.0).value) == f64_bits(2.927020224718168e+17)  # FDLIBM lgamma_fdlibm(433d2c88744c201f)
 check lgamma_r(8211738902929439.0).sign == 1
-check f64_bits(lgamma_r(8211738902929440.0).value) == f64_bits(2.927020224718169e+17)  # FDLIBM lgamma(433d2c88744c2020)
+check f64_bits(lgamma_r(8211738902929440.0).value) == f64_bits(2.927020224718169e+17)  # FDLIBM lgamma_fdlibm(433d2c88744c2020)
 check lgamma_r(8211738902929440.0).sign == 1
-check f64_bits(lgamma_r(8211738902929441.0).value) == f64_bits(2.927020224718169e+17)  # FDLIBM lgamma(433d2c88744c2021)
+check f64_bits(lgamma_r(8211738902929441.0).value) == f64_bits(2.927020224718169e+17)  # FDLIBM lgamma_fdlibm(433d2c88744c2021)
 check lgamma_r(8211738902929441.0).sign == 1
-check f64_bits(lgamma_r(8.567424754225554e+27).value) == f64_bits(5.424701846975821e+29)  # FDLIBM lgamma(45bbaecec28e8f25)
+check f64_bits(lgamma_r(8.567424754225554e+27).value) == f64_bits(5.424701846975821e+29)  # FDLIBM lgamma_fdlibm(45bbaecec28e8f25)
 check lgamma_r(8.567424754225554e+27).sign == 1
-check f64_bits(lgamma_r(8.567424754225555e+27).value) == f64_bits(5.4247018469758214e+29)  # FDLIBM lgamma(45bbaecec28e8f26)
+check f64_bits(lgamma_r(8.567424754225555e+27).value) == f64_bits(5.4247018469758214e+29)  # FDLIBM lgamma_fdlibm(45bbaecec28e8f26)
 check lgamma_r(8.567424754225555e+27).sign == 1
-check f64_bits(lgamma_r(8.567424754225556e+27).value) == f64_bits(5.424701846975822e+29)  # FDLIBM lgamma(45bbaecec28e8f27)
+check f64_bits(lgamma_r(8.567424754225556e+27).value) == f64_bits(5.424701846975822e+29)  # FDLIBM lgamma_fdlibm(45bbaecec28e8f27)
 check lgamma_r(8.567424754225556e+27).sign == 1
-check f64_bits(lgamma_r(9763.953244380422).value) == f64_bits(79928.46656364102)  # FDLIBM lgamma(40c311fa03e96f81)
+check f64_bits(lgamma_r(9763.953244380422).value) == f64_bits(79928.46656364102)  # FDLIBM lgamma_fdlibm(40c311fa03e96f81)
 check lgamma_r(9763.953244380422).sign == 1
-check f64_bits(lgamma_r(9763.953244380424).value) == f64_bits(79928.46656364104)  # FDLIBM lgamma(40c311fa03e96f82)
+check f64_bits(lgamma_r(9763.953244380424).value) == f64_bits(79928.46656364104)  # FDLIBM lgamma_fdlibm(40c311fa03e96f82)
 check lgamma_r(9763.953244380424).sign == 1
-check f64_bits(lgamma_r(9763.953244380426).value) == f64_bits(79928.46656364105)  # FDLIBM lgamma(40c311fa03e96f83)
+check f64_bits(lgamma_r(9763.953244380426).value) == f64_bits(79928.46656364105)  # FDLIBM lgamma_fdlibm(40c311fa03e96f83)
 check lgamma_r(9763.953244380426).sign == 1
-check f64_bits(lgamma_r(3.635112184173456e+27).value) == f64_bits(2.27050697325328e+29)  # FDLIBM lgamma(45a77dc9e4bb1ece)
+check f64_bits(lgamma_r(3.635112184173456e+27).value) == f64_bits(2.27050697325328e+29)  # FDLIBM lgamma_fdlibm(45a77dc9e4bb1ece)
 check lgamma_r(3.635112184173456e+27).sign == 1
-check f64_bits(lgamma_r(3.6351121841734564e+27).value) == f64_bits(2.2705069732532804e+29)  # FDLIBM lgamma(45a77dc9e4bb1ecf)
+check f64_bits(lgamma_r(3.6351121841734564e+27).value) == f64_bits(2.2705069732532804e+29)  # FDLIBM lgamma_fdlibm(45a77dc9e4bb1ecf)
 check lgamma_r(3.6351121841734564e+27).sign == 1
-check f64_bits(lgamma_r(3.635112184173457e+27).value) == f64_bits(2.2705069732532808e+29)  # FDLIBM lgamma(45a77dc9e4bb1ed0)
+check f64_bits(lgamma_r(3.635112184173457e+27).value) == f64_bits(2.2705069732532808e+29)  # FDLIBM lgamma_fdlibm(45a77dc9e4bb1ed0)
 check lgamma_r(3.635112184173457e+27).sign == 1
-check f64_bits(lgamma_r(0.02680774157496836).value) == f64_bits(3.604174207635704)  # FDLIBM lgamma(3f9b737d15605e04)
+check f64_bits(lgamma_r(0.02680774157496836).value) == f64_bits(3.604174207635704)  # FDLIBM lgamma_fdlibm(3f9b737d15605e04)
 check lgamma_r(0.02680774157496836).sign == 1
-check f64_bits(lgamma_r(0.026807741574968364).value) == f64_bits(3.604174207635704)  # FDLIBM lgamma(3f9b737d15605e05)
+check f64_bits(lgamma_r(0.026807741574968364).value) == f64_bits(3.604174207635704)  # FDLIBM lgamma_fdlibm(3f9b737d15605e05)
 check lgamma_r(0.026807741574968364).sign == 1
-check f64_bits(lgamma_r(0.026807741574968368).value) == f64_bits(3.604174207635704)  # FDLIBM lgamma(3f9b737d15605e06)
+check f64_bits(lgamma_r(0.026807741574968368).value) == f64_bits(3.604174207635704)  # FDLIBM lgamma_fdlibm(3f9b737d15605e06)
 check lgamma_r(0.026807741574968368).sign == 1
-check f64_bits(lgamma_r(8.007714255657451e+16).value) == f64_bits(3.036666729798039e+18)  # FDLIBM lgamma(4371c7dbca4b6833)
+check f64_bits(lgamma_r(8.007714255657451e+16).value) == f64_bits(3.036666729798039e+18)  # FDLIBM lgamma_fdlibm(4371c7dbca4b6833)
 check lgamma_r(8.007714255657451e+16).sign == 1
-check f64_bits(lgamma_r(8.007714255657453e+16).value) == f64_bits(3.0366667297980396e+18)  # FDLIBM lgamma(4371c7dbca4b6834)
+check f64_bits(lgamma_r(8.007714255657453e+16).value) == f64_bits(3.0366667297980396e+18)  # FDLIBM lgamma_fdlibm(4371c7dbca4b6834)
 check lgamma_r(8.007714255657453e+16).sign == 1
-check f64_bits(lgamma_r(8.007714255657454e+16).value) == f64_bits(3.03666672979804e+18)  # FDLIBM lgamma(4371c7dbca4b6835)
+check f64_bits(lgamma_r(8.007714255657454e+16).value) == f64_bits(3.03666672979804e+18)  # FDLIBM lgamma_fdlibm(4371c7dbca4b6835)
 check lgamma_r(8.007714255657454e+16).sign == 1
-check f64_bits(lgamma_r(1860062.7797372446).value) == f64_bits(24992021.90067148)  # FDLIBM lgamma(413c61dec79cdc2d)
+check f64_bits(lgamma_r(1860062.7797372446).value) == f64_bits(24992021.90067148)  # FDLIBM lgamma_fdlibm(413c61dec79cdc2d)
 check lgamma_r(1860062.7797372446).sign == 1
-check f64_bits(lgamma_r(1860062.7797372448).value) == f64_bits(24992021.900671482)  # FDLIBM lgamma(413c61dec79cdc2e)
+check f64_bits(lgamma_r(1860062.7797372448).value) == f64_bits(24992021.900671482)  # FDLIBM lgamma_fdlibm(413c61dec79cdc2e)
 check lgamma_r(1860062.7797372448).sign == 1
-check f64_bits(lgamma_r(1860062.779737245).value) == f64_bits(24992021.900671482)  # FDLIBM lgamma(413c61dec79cdc2f)
+check f64_bits(lgamma_r(1860062.779737245).value) == f64_bits(24992021.900671482)  # FDLIBM lgamma_fdlibm(413c61dec79cdc2f)
 check lgamma_r(1860062.779737245).sign == 1
-check f64_bits(lgamma_r(90230.0689087266).value) == f64_bits(939300.879152445)  # FDLIBM lgamma(40f607611a400972)
+check f64_bits(lgamma_r(90230.0689087266).value) == f64_bits(939300.879152445)  # FDLIBM lgamma_fdlibm(40f607611a400972)
 check lgamma_r(90230.0689087266).sign == 1
-check f64_bits(lgamma_r(90230.06890872661).value) == f64_bits(939300.8791524451)  # FDLIBM lgamma(40f607611a400973)
+check f64_bits(lgamma_r(90230.06890872661).value) == f64_bits(939300.8791524451)  # FDLIBM lgamma_fdlibm(40f607611a400973)
 check lgamma_r(90230.06890872661).sign == 1
-check f64_bits(lgamma_r(90230.06890872662).value) == f64_bits(939300.8791524452)  # FDLIBM lgamma(40f607611a400974)
+check f64_bits(lgamma_r(90230.06890872662).value) == f64_bits(939300.8791524452)  # FDLIBM lgamma_fdlibm(40f607611a400974)
 check lgamma_r(90230.06890872662).sign == 1
-check f64_bits(lgamma_r(3.010536237265517e+19).value) == f64_bits(1.320157319612409e+21)  # FDLIBM lgamma(43fa1cbbb92a885c)
+check f64_bits(lgamma_r(3.010536237265517e+19).value) == f64_bits(1.320157319612409e+21)  # FDLIBM lgamma_fdlibm(43fa1cbbb92a885c)
 check lgamma_r(3.010536237265517e+19).sign == 1
-check f64_bits(lgamma_r(3.0105362372655174e+19).value) == f64_bits(1.3201573196124093e+21)  # FDLIBM lgamma(43fa1cbbb92a885d)
+check f64_bits(lgamma_r(3.0105362372655174e+19).value) == f64_bits(1.3201573196124093e+21)  # FDLIBM lgamma_fdlibm(43fa1cbbb92a885d)
 check lgamma_r(3.0105362372655174e+19).sign == 1
-check f64_bits(lgamma_r(3.0105362372655178e+19).value) == f64_bits(1.3201573196124093e+21)  # FDLIBM lgamma(43fa1cbbb92a885e)
+check f64_bits(lgamma_r(3.0105362372655178e+19).value) == f64_bits(1.3201573196124093e+21)  # FDLIBM lgamma_fdlibm(43fa1cbbb92a885e)
 check lgamma_r(3.0105362372655178e+19).sign == 1
-check f64_bits(lgamma_r(2.0974635775774657).value) == f64_bits(0.04420867456303679)  # FDLIBM lgamma(4000c79afbf1f893)
+check f64_bits(lgamma_r(2.0974635775774657).value) == f64_bits(0.04420867456303679)  # FDLIBM lgamma_fdlibm(4000c79afbf1f893)
 check lgamma_r(2.0974635775774657).sign == 1
-check f64_bits(lgamma_r(2.097463577577466).value) == f64_bits(0.044208674563036995)  # FDLIBM lgamma(4000c79afbf1f894)
+check f64_bits(lgamma_r(2.097463577577466).value) == f64_bits(0.044208674563036995)  # FDLIBM lgamma_fdlibm(4000c79afbf1f894)
 check lgamma_r(2.097463577577466).sign == 1
-check f64_bits(lgamma_r(2.0974635775774666).value) == f64_bits(0.04420867456303721)  # FDLIBM lgamma(4000c79afbf1f895)
+check f64_bits(lgamma_r(2.0974635775774666).value) == f64_bits(0.04420867456303721)  # FDLIBM lgamma_fdlibm(4000c79afbf1f895)
 check lgamma_r(2.0974635775774666).sign == 1
-check f64_bits(lgamma_r(1765374358460.8586).value) == f64_bits(48017094876383.71)  # FDLIBM lgamma(4279b0882f3bcdbd)
+check f64_bits(lgamma_r(1765374358460.8586).value) == f64_bits(48017094876383.71)  # FDLIBM lgamma_fdlibm(4279b0882f3bcdbd)
 check lgamma_r(1765374358460.8586).sign == 1
-check f64_bits(lgamma_r(1765374358460.859).value) == f64_bits(48017094876383.72)  # FDLIBM lgamma(4279b0882f3bcdbe)
+check f64_bits(lgamma_r(1765374358460.859).value) == f64_bits(48017094876383.72)  # FDLIBM lgamma_fdlibm(4279b0882f3bcdbe)
 check lgamma_r(1765374358460.859).sign == 1
-check f64_bits(lgamma_r(1765374358460.8591).value) == f64_bits(48017094876383.73)  # FDLIBM lgamma(4279b0882f3bcdbf)
+check f64_bits(lgamma_r(1765374358460.8591).value) == f64_bits(48017094876383.73)  # FDLIBM lgamma_fdlibm(4279b0882f3bcdbf)
 check lgamma_r(1765374358460.8591).sign == 1
-check f64_bits(lgamma_r(5.231309266429614e-09).value) == f64_bits(19.068604249429804)  # FDLIBM lgamma(3e3677e2a768409a)
+check f64_bits(lgamma_r(5.231309266429614e-09).value) == f64_bits(19.068604249429804)  # FDLIBM lgamma_fdlibm(3e3677e2a768409a)
 check lgamma_r(5.231309266429614e-09).sign == 1
-check f64_bits(lgamma_r(5.231309266429615e-09).value) == f64_bits(19.068604249429804)  # FDLIBM lgamma(3e3677e2a768409b)
+check f64_bits(lgamma_r(5.231309266429615e-09).value) == f64_bits(19.068604249429804)  # FDLIBM lgamma_fdlibm(3e3677e2a768409b)
 check lgamma_r(5.231309266429615e-09).sign == 1
-check f64_bits(lgamma_r(5.231309266429616e-09).value) == f64_bits(19.068604249429804)  # FDLIBM lgamma(3e3677e2a768409c)
+check f64_bits(lgamma_r(5.231309266429616e-09).value) == f64_bits(19.068604249429804)  # FDLIBM lgamma_fdlibm(3e3677e2a768409c)
 check lgamma_r(5.231309266429616e-09).sign == 1
-check f64_bits(lgamma_r(446022553108076.8).value) == f64_bits(1.459893841743341e+16)  # FDLIBM lgamma(42f95a7b7d6fe6cd)
+check f64_bits(lgamma_r(446022553108076.8).value) == f64_bits(1.459893841743341e+16)  # FDLIBM lgamma_fdlibm(42f95a7b7d6fe6cd)
 check lgamma_r(446022553108076.8).sign == 1
-check f64_bits(lgamma_r(446022553108076.9).value) == f64_bits(1.4598938417433412e+16)  # FDLIBM lgamma(42f95a7b7d6fe6ce)
+check f64_bits(lgamma_r(446022553108076.9).value) == f64_bits(1.4598938417433412e+16)  # FDLIBM lgamma_fdlibm(42f95a7b7d6fe6ce)
 check lgamma_r(446022553108076.9).sign == 1
-check f64_bits(lgamma_r(446022553108076.94).value) == f64_bits(1.4598938417433414e+16)  # FDLIBM lgamma(42f95a7b7d6fe6cf)
+check f64_bits(lgamma_r(446022553108076.94).value) == f64_bits(1.4598938417433414e+16)  # FDLIBM lgamma_fdlibm(42f95a7b7d6fe6cf)
 check lgamma_r(446022553108076.94).sign == 1
-check f64_bits(lgamma_r(7.025779358303976e+27).value) == f64_bits(4.434628628314384e+29)  # FDLIBM lgamma(45b6b396a62f10be)
+check f64_bits(lgamma_r(7.025779358303976e+27).value) == f64_bits(4.434628628314384e+29)  # FDLIBM lgamma_fdlibm(45b6b396a62f10be)
 check lgamma_r(7.025779358303976e+27).sign == 1
-check f64_bits(lgamma_r(7.025779358303977e+27).value) == f64_bits(4.434628628314385e+29)  # FDLIBM lgamma(45b6b396a62f10bf)
+check f64_bits(lgamma_r(7.025779358303977e+27).value) == f64_bits(4.434628628314385e+29)  # FDLIBM lgamma_fdlibm(45b6b396a62f10bf)
 check lgamma_r(7.025779358303977e+27).sign == 1
-check f64_bits(lgamma_r(7.025779358303978e+27).value) == f64_bits(4.4346286283143856e+29)  # FDLIBM lgamma(45b6b396a62f10c0)
+check f64_bits(lgamma_r(7.025779358303978e+27).value) == f64_bits(4.4346286283143856e+29)  # FDLIBM lgamma_fdlibm(45b6b396a62f10c0)
 check lgamma_r(7.025779358303978e+27).sign == 1
-check f64_bits(lgamma_r(7.654030926902805e+27).value) == f64_bits(4.837732538847464e+29)  # FDLIBM lgamma(45b8bb4417f601ac)
+check f64_bits(lgamma_r(7.654030926902805e+27).value) == f64_bits(4.837732538847464e+29)  # FDLIBM lgamma_fdlibm(45b8bb4417f601ac)
 check lgamma_r(7.654030926902805e+27).sign == 1
-check f64_bits(lgamma_r(7.654030926902806e+27).value) == f64_bits(4.8377325388474644e+29)  # FDLIBM lgamma(45b8bb4417f601ad)
+check f64_bits(lgamma_r(7.654030926902806e+27).value) == f64_bits(4.8377325388474644e+29)  # FDLIBM lgamma_fdlibm(45b8bb4417f601ad)
 check lgamma_r(7.654030926902806e+27).sign == 1
-check f64_bits(lgamma_r(7.654030926902807e+27).value) == f64_bits(4.837732538847465e+29)  # FDLIBM lgamma(45b8bb4417f601ae)
+check f64_bits(lgamma_r(7.654030926902807e+27).value) == f64_bits(4.837732538847465e+29)  # FDLIBM lgamma_fdlibm(45b8bb4417f601ae)
 check lgamma_r(7.654030926902807e+27).sign == 1
-check f64_bits(lgamma_r(14360025127400.352).value) == f64_bits(420683677124671.25)  # FDLIBM lgamma(42aa1ee864b3d0b4)
+check f64_bits(lgamma_r(14360025127400.352).value) == f64_bits(420683677124671.25)  # FDLIBM lgamma_fdlibm(42aa1ee864b3d0b4)
 check lgamma_r(14360025127400.352).sign == 1
-check f64_bits(lgamma_r(14360025127400.354).value) == f64_bits(420683677124671.3)  # FDLIBM lgamma(42aa1ee864b3d0b5)
+check f64_bits(lgamma_r(14360025127400.354).value) == f64_bits(420683677124671.3)  # FDLIBM lgamma_fdlibm(42aa1ee864b3d0b5)
 check lgamma_r(14360025127400.354).sign == 1
-check f64_bits(lgamma_r(14360025127400.355).value) == f64_bits(420683677124671.4)  # FDLIBM lgamma(42aa1ee864b3d0b6)
+check f64_bits(lgamma_r(14360025127400.355).value) == f64_bits(420683677124671.4)  # FDLIBM lgamma_fdlibm(42aa1ee864b3d0b6)
 check lgamma_r(14360025127400.355).sign == 1
-check f64_bits(lgamma_r(2.3507013441587348e+16).value) == f64_bits(8.626151333526747e+17)  # FDLIBM lgamma(4354e0e0447aa225)
+check f64_bits(lgamma_r(2.3507013441587348e+16).value) == f64_bits(8.626151333526747e+17)  # FDLIBM lgamma_fdlibm(4354e0e0447aa225)
 check lgamma_r(2.3507013441587348e+16).sign == 1
-check f64_bits(lgamma_r(2.350701344158735e+16).value) == f64_bits(8.626151333526748e+17)  # FDLIBM lgamma(4354e0e0447aa226)
+check f64_bits(lgamma_r(2.350701344158735e+16).value) == f64_bits(8.626151333526748e+17)  # FDLIBM lgamma_fdlibm(4354e0e0447aa226)
 check lgamma_r(2.350701344158735e+16).sign == 1
-check f64_bits(lgamma_r(2.3507013441587356e+16).value) == f64_bits(8.626151333526751e+17)  # FDLIBM lgamma(4354e0e0447aa227)
+check f64_bits(lgamma_r(2.3507013441587356e+16).value) == f64_bits(8.626151333526751e+17)  # FDLIBM lgamma_fdlibm(4354e0e0447aa227)
 check lgamma_r(2.3507013441587356e+16).sign == 1
-check f64_bits(lgamma_r(-3.75541743693129e-05).value) == f64_bits(10.18974769565993)  # FDLIBM lgamma(bf03b06f9b1fec0f)
+check f64_bits(lgamma_r(-3.75541743693129e-05).value) == f64_bits(10.18974769565993)  # FDLIBM lgamma_fdlibm(bf03b06f9b1fec0f)
 check lgamma_r(-3.75541743693129e-05).sign == -1
-check f64_bits(lgamma_r(-3.755417436931291e-05).value) == f64_bits(10.18974769565993)  # FDLIBM lgamma(bf03b06f9b1fec10)
+check f64_bits(lgamma_r(-3.755417436931291e-05).value) == f64_bits(10.18974769565993)  # FDLIBM lgamma_fdlibm(bf03b06f9b1fec10)
 check lgamma_r(-3.755417436931291e-05).sign == -1
-check f64_bits(lgamma_r(-3.7554174369312913e-05).value) == f64_bits(10.18974769565993)  # FDLIBM lgamma(bf03b06f9b1fec11)
+check f64_bits(lgamma_r(-3.7554174369312913e-05).value) == f64_bits(10.18974769565993)  # FDLIBM lgamma_fdlibm(bf03b06f9b1fec11)
 check lgamma_r(-3.7554174369312913e-05).sign == -1
-check f64_bits(lgamma_r(-0.0006711563265158255).value) == f64_bits(7.306896245241133)  # FDLIBM lgamma(bf45fe113c87a02e)
+check f64_bits(lgamma_r(-0.0006711563265158255).value) == f64_bits(7.306896245241133)  # FDLIBM lgamma_fdlibm(bf45fe113c87a02e)
 check lgamma_r(-0.0006711563265158255).sign == -1
-check f64_bits(lgamma_r(-0.0006711563265158256).value) == f64_bits(7.3068962452411315)  # FDLIBM lgamma(bf45fe113c87a02f)
+check f64_bits(lgamma_r(-0.0006711563265158256).value) == f64_bits(7.3068962452411315)  # FDLIBM lgamma_fdlibm(bf45fe113c87a02f)
 check lgamma_r(-0.0006711563265158256).sign == -1
-check f64_bits(lgamma_r(-0.0006711563265158257).value) == f64_bits(7.3068962452411315)  # FDLIBM lgamma(bf45fe113c87a030)
+check f64_bits(lgamma_r(-0.0006711563265158257).value) == f64_bits(7.3068962452411315)  # FDLIBM lgamma_fdlibm(bf45fe113c87a030)
 check lgamma_r(-0.0006711563265158257).sign == -1
-check f64_bits(lgamma_r(-0.0003588445839320195).value) == f64_bits(7.932828413690877)  # FDLIBM lgamma(bf378469c099029f)
+check f64_bits(lgamma_r(-0.0003588445839320195).value) == f64_bits(7.932828413690877)  # FDLIBM lgamma_fdlibm(bf378469c099029f)
 check lgamma_r(-0.0003588445839320195).sign == -1
-check f64_bits(lgamma_r(-0.0003588445839320196).value) == f64_bits(7.932828413690875)  # FDLIBM lgamma(bf378469c09902a0)
+check f64_bits(lgamma_r(-0.0003588445839320196).value) == f64_bits(7.932828413690875)  # FDLIBM lgamma_fdlibm(bf378469c09902a0)
 check lgamma_r(-0.0003588445839320196).sign == -1
-check f64_bits(lgamma_r(-0.00035884458393201964).value) == f64_bits(7.932828413690875)  # FDLIBM lgamma(bf378469c09902a1)
+check f64_bits(lgamma_r(-0.00035884458393201964).value) == f64_bits(7.932828413690875)  # FDLIBM lgamma_fdlibm(bf378469c09902a1)
 check lgamma_r(-0.00035884458393201964).sign == -1
-check f64_bits(lgamma_r(-0.0001458060472709174).value) == f64_bits(8.833317441789848)  # FDLIBM lgamma(bf231c7068bfb565)
+check f64_bits(lgamma_r(-0.0001458060472709174).value) == f64_bits(8.833317441789848)  # FDLIBM lgamma_fdlibm(bf231c7068bfb565)
 check lgamma_r(-0.0001458060472709174).sign == -1
-check f64_bits(lgamma_r(-0.00014580604727091744).value) == f64_bits(8.833317441789848)  # FDLIBM lgamma(bf231c7068bfb566)
+check f64_bits(lgamma_r(-0.00014580604727091744).value) == f64_bits(8.833317441789848)  # FDLIBM lgamma_fdlibm(bf231c7068bfb566)
 check lgamma_r(-0.00014580604727091744).sign == -1
-check f64_bits(lgamma_r(-0.00014580604727091747).value) == f64_bits(8.833317441789848)  # FDLIBM lgamma(bf231c7068bfb567)
+check f64_bits(lgamma_r(-0.00014580604727091747).value) == f64_bits(8.833317441789848)  # FDLIBM lgamma_fdlibm(bf231c7068bfb567)

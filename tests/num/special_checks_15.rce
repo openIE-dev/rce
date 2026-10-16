@@ -153,8 +153,8 @@ check f64_bits(math.log(1.0000004603698505)) == f64_bits(4.6036974449332635e-07)
 check f64_bits(math.log(0.9999994920391206)) == f64_bits(-5.079610083711752e-07)  # mpmath log, correctly rounded
 check f64_bits(math.log(0.9999994920391208)) == f64_bits(-5.079610082601528e-07)  # mpmath log, correctly rounded
 check f64_bits(math.log(0.9999994920391209)) == f64_bits(-5.079610081491305e-07)  # mpmath log, correctly rounded
-check ulps(log1p(9.999999999999999e-301), 9.999999999999999e-301) <= 1  # mpmath log1p
-check ulps(log1p(1e-300), 1e-300) <= 1  # mpmath log1p
-check ulps(log1p(1.0000000000000002e-300), 1.0000000000000002e-300) <= 1  # mpmath log1p
-check ulps(log1p(-0.49999999999999994), -0.6931471805599452) <= 1  # mpmath log1p
-check ulps(log1p(-0.5), -0.6931471805599453) <= 1  # mpmath log1p
+check ulps(log1p_fdlibm(9.999999999999999e-301), 9.999999999999999e-301) <= 1  # mpmath log1p
+check ulps(log1p_fdlibm(1e-300), 1e-300) <= 1  # mpmath log1p
+check ulps(log1p_fdlibm(1.0000000000000002e-300), 1.0000000000000002e-300) <= 1  # mpmath log1p
+check ulps(log1p_fdlibm(-0.49999999999999994), -0.6931471805599452) <= 1  # mpmath log1p
+check ulps(log1p_fdlibm(-0.5), -0.6931471805599453) <= 1  # mpmath log1p

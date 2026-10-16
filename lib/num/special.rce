@@ -438,7 +438,7 @@ pub fn log_fdlibm(x0: f64) -> f64
     return dk * LG_LN2_HI - ((s * (f - r) - dk * LG_LN2_LO) - f)
 
 # FDLIBM s_log1p.c (including its normalization of u near sqrt(2)).
-pub fn log1p(x: f64) -> f64
+pub fn log1p_fdlibm(x: f64) -> f64
     let hx = hi_word(x)
     let ax = hx & 2147483647
     var k: i64 = 1
@@ -496,7 +496,7 @@ pub fn log1p(x: f64) -> f64
     return (k as f64) * LG_LN2_HI - ((hfsq - (s * (hfsq + r) + ((k as f64) * LG_LN2_LO + c))) - f)
 
 # FDLIBM s_expm1.c.
-pub fn expm1(x0: f64) -> f64
+pub fn expm1_fdlibm(x0: f64) -> f64
     var x = x0
     let hx0 = hi_word(x)
     let neg = hx0 < 0
@@ -584,7 +584,7 @@ fn sp_erf_tail(x: f64, rs: &[f64]) -> f64
     return exp_fdlibm((0.0 - z) * z - 0.5625) * exp_fdlibm((z - x) * (z + x) + rs[0] / rs[1])
 
 # FDLIBM s_erf.c.
-pub fn erf(x: f64) -> f64
+pub fn erf_fdlibm(x: f64) -> f64
     let hx = hi_word(x)
     let ix = hx & 2147483647
     if ix < 1072365568
@@ -611,7 +611,7 @@ pub fn erf(x: f64) -> f64
         return 1.0 - r / ax
     return r / ax - 1.0
 
-pub fn erfc(x: f64) -> f64
+pub fn erfc_fdlibm(x: f64) -> f64
     let hx = hi_word(x)
     let ix = hx & 2147483647
     if ix < 1072365568
@@ -809,7 +809,7 @@ pub fn lgamma_r(x0: f64) -> Lgamma
         r = nadj - r
     return Lgamma(value: r, sign: sgn)
 
-pub fn lgamma(x: f64) -> f64 = lgamma_r(x).value
+pub fn lgamma_fdlibm(x: f64) -> f64 = lgamma_r(x).value
 
 pub fn cr_exp(x: f64) -> f64 = math.exp(x)
 
