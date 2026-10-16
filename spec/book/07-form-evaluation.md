@@ -70,6 +70,105 @@ Canonical order of values (used by Set, Map and select): null < bool < number <
 text < list < record; numbers by value; text by code point; lists and records
 lexicographically. This is a total order because NaN does not exist.
 
+#### 6.1.1 Canonical JSON bytes (normative)
+
+Every hash of 6.1 (`state_hash`, `hash`), the value limit of N9 and every
+trace written as JSON are taken over the same byte sequence, the canonical
+JSON of a Form value. This subsection defines it byte for byte. It is
+derived from one requirement: two implementations must produce the same
+bytes for the same value, and the bytes must decode to that value and to no
+other (6.3 N1), because replay rebuilds state from D.
+
+The output is a UTF-8 byte sequence with no byte order mark, no whitespace
+outside text and no trailing line end. By the kind of value:
+
+1. **null, bool.** `null`, `true`, `false`.
+2. **int.** The exact value in decimal: an optional `-`, then digits with no
+   leading zero (`0` is `0`), no `+`, no exponent, no fraction. The range is
+   -2^63 to 2^64 - 1 (6.3 N2). An integer is never written as a float and a
+   float is never written as an integer.
+3. **float.** Finite binary64 only (NaN and infinities are not Form values,
+   6.3 N3). Let x be the value.
+   - x = 0: `0.0`, or `-0.0` when the sign bit is set.
+   - Otherwise take the shortest decimal digit string d1 d2 … dn that reads
+     back as x (round to nearest, ties to even). When two digit strings of
+     that length both read back as x, take the one closer in value to x; when
+     they are equally close, take the one whose last digit is even. Let e be
+     the decimal exponent of d1 (x = ±d1.d2…dn × 10^e).
+   - If 10^-4 ≤ |x| < 10^16: decimal notation with no exponent. A sign `-`
+     when x < 0, then the digits with the point placed after e + 1 digits;
+     zeros are added to fill the integer part, and `0.` followed by
+     -e - 1 zeros starts a value below 1. The result always has at least one
+     digit after the point (`10.0`, not `10`).
+   - Otherwise: a sign `-` when x < 0, d1, then `.d2…dn` only if n > 1, then
+     `e`, then e as a decimal integer with `-` when negative and no `+` and
+     no leading zero (`1e16`, `1.5e-7`, `5e-324`).
+4. **text.** `"`, then each Unicode scalar value in order, then `"`. `"` is
+   written `\"`, `\` is `\\`, U+000A `\n`, U+000D `\r`, U+0009 `\t`. Any
+   other value below U+0020 is written `\u` and four lowercase hexadecimal
+   digits, so U+0008 is `\u0008` and U+000C is `\u000c`. Every other scalar
+   value, including U+007F, U+2028, U+2029 and `/`, is written as itself in
+   UTF-8. Text is not normalised: `é` (U+00E9) and `é` (U+0065 U+0301) give
+   different bytes.
+5. **list.** `[`, the canonical JSON of each element in order separated by
+   `,`, `]`.
+6. **record.** `{`, then each field as the canonical JSON of its key (as
+   text) `:` the canonical JSON of its value, separated by `,`, then `}`.
+   Fields are in ascending order of key by Unicode code point (equivalently,
+   by the bytes of the UTF-8 encoding). Keys are distinct.
+7. **Set and Map.** As their list embeddings of 6.1, in the canonical order
+   of 6.1, then rule 5.
+
+**Relation to RFC 8785.** The JSON Canonicalization Scheme (RFC 8785,
+sections 3.2.2 and 3.2.3) fixes whitespace, literals, the escaping of
+control characters and the sorting of object members, and takes number
+serialisation from ECMAScript. Rules 1, 5 and the absence of whitespace
+agree with it. Rules 2, 3, 4 and 6 differ, each for a stated reason, so an
+RFC 8785 library does not produce these bytes and must not be used to hash
+a Form value:
+
+| Case | RFC 8785 | This section | Reason |
+|---|---|---|---|
+| float with no fractional part | `10` | `10.0` | an int and a float must decode differently (N1) |
+| negative zero | `0` | `-0.0` | the sign is observable state (N3 F6) |
+| 10^-6 and 10^21 | `0.000001`, `1e+21` | `1e-6`, `1e21` | one fixed rule with no `+`; the thresholds are 10^-4 and 10^16 |
+| integers above 2^53 | not exact in an ECMAScript number; RFC 8785 section 3.1 says to use text | decimal digits, exact to 2^64 - 1 | the language has u64 and i64 (N2) |
+| U+0008, U+000C | `\b`, `\f` | `\u0008`, `\u000c` | one escape form for every control character not named in rule 4 |
+| member order | UTF-16 code units | code points | the same unless two keys first differ at a supplementary-plane character against one in U+E000 to U+FFFF (the RFC's own sort data differs) |
+
+**Golden vectors.** `spec/data/canonical-json-vectors.json` holds 73
+vectors: a value, the exact canonical text, and the SHA-256 of its UTF-8
+bytes. It covers every rule above, the boundaries 10^-4 and 10^16, the
+extremes of i64, u64 and binary64, the sort data of RFC 8785 section 3.2.3,
+five of the number rows of RFC 8785 Appendix B, and the
+bytes behind one `state_hash` and one `hash`. Two programs check it:
+`spec/checker/tests/canonical_json.rs` against the reference implementation,
+and `scripts/canonical-json-vectors.py --check`, an encoder written from
+this subsection alone. A third implementation is conformant when it
+reproduces every canonical text and digest.
+
+**Open items.** The reference implementation and this subsection differ in
+two places, both pinned by tests rather than hidden.
+- *Tie rule.* The reference formats floats with Rust's shortest-digit
+  routine. For the value 1424953923781206.25 (binary64 `0x43143ff3c1cb0959`)
+  two digit strings of the same length read back to x and are equally close:
+  the rule of rule 3 gives `1424953923781206.2` (as ECMAScript's
+  `String(x)` and Python's `repr` do), the reference gives
+  `1424953923781206.3`. The Python and JavaScript runtimes format with Python's `repr` and
+  JavaScript's `String` (`emit/rt.py`, `emit/rt.js`), so a state holding this
+  value would hash differently in the Rust reference than in those two
+  runtimes; this was checked by formatting the value, not by running an
+  emitted program. The vector is
+  `float-1424953923781206.2`; the test pins the reference's current output
+  and an ignored test states the intended one.
+- *Second writer.* `rce trace --json` writes through a second serialiser
+  that prints U+0008 and U+000C as `\b` and `\f`, so a trace of an event
+  containing those characters does not show the bytes that were hashed. The
+  vectors `text-u0008` and `text-u000c` pin this.
+A decision between this text-based form and a length-prefixed binary form is
+deferred until measured (the form defined here is the one all existing
+hashes use).
+
 ### 6.2 Evaluation
 
 Expressions are evaluated by a big-step judgment
@@ -331,4 +430,4 @@ method and is W-NAME-1.
 
 **Read receipt.** Which JavaScript function is named for rounding to binary32?
 
-<!-- body-sha256: 356ea55e4d885c7c7f3c184cdb52c751e400d14e85b42780cef5634e9961f5bf -->
+<!-- body-sha256: 458a69e6b9cfe6466261037e2a50b78728390f7174dc4968fd1ebbf94784f69a -->

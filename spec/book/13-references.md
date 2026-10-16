@@ -21,8 +21,9 @@ the f32 rule in 6.3 cites Figueroa, "When is double rounding innocuous?".
 - The CORE-MATH project, correctly rounded mathematical functions, https://core-math.gitlabpages.inria.fr/ (6.3 N3 F9).
 - The Unicode Standard, Version 18.0.0, https://www.unicode.org/versions/Unicode18.0.0/ (6.3 N7).
 - Go 1.23 release notes, range-over-func iterators (push iterators, 5.14).
+- A. Rundgren, B. Jordan, S. Erdtman, JSON Canonicalization Scheme (JCS), RFC 8785, June 2020, https://www.rfc-editor.org/rfc/rfc8785 (6.1.1).
 - G. Plotkin, A Structural Approach to Operational Semantics, 1981; A. Wright, M. Felleisen, A Syntactic Approach to Type Soundness, 1994 (progress and preservation).
 
 **Read receipt.** Who wrote "Communicating Sequential Processes"? (surname)
 
-<!-- body-sha256: e9c4b051453346ea2d579b1d749789977198d7484a8ba65350d7517c136e6321 -->
+<!-- body-sha256: 93c398eee22b1538960aca4057d67e98d642d4cbd5e999a47bffe93af21b0529 -->
