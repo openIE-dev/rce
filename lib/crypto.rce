@@ -206,15 +206,15 @@ fn open(key: List[i64], nonce: List[i64], ad: List[i64], sealed: text) -> List[i
         return [-1]
     return chacha20(slice(copy(ks), 0, 32), nonce, ct)
 
+# Value of one lowercase hex digit (0 for any other character, as before),
+# by arithmetic only: no digit table scan and no branch on the digit. The
+# range tests use the sign of a difference: ((c - lo) | (hi - c)) >> 63 is
+# all ones exactly when c is outside lo..hi.
 fn hexval(c: text) -> i64
-    let ds = "0123456789abcdef".chars()
-    var v: i64 = 0
-    var k: i64 = 0
-    for d in ds
-        if d == c
-            v = k
-        k += 1
-    return v
+    let b = c[0] as i64
+    let dm = (((b - 48) | (57 - b)) >> 63) ^ (0 - 1)
+    let am = (((b - 97) | (102 - b)) >> 63) ^ (0 - 1)
+    return (dm & (b - 48)) | (am & (b - 87))
 
 fn unhex(h: text) -> List[i64]
     let cs = h.chars()
@@ -225,12 +225,24 @@ fn unhex(h: text) -> List[i64]
         i += 2
     return out
 
+# ASCII code of the lowercase hex digit of n in 0..15: 48 + n, plus 39 when
+# n > 9 (mask from the sign of 9 - n). No table index.
+fn hexdig(n: i64) -> i64 = 48 + n + (39 & ((9 - n) >> 63))
+
+# Hex text of a byte list. Elements must be bytes: anything outside 0..255
+# traps, as an out-of-range table index did before. The trap comes from
+# utf8() of a guard element that is 256 exactly when the OR of all elements
+# has a bit outside 0..255, so there is no branch on the data.
 fn tohex(b: List[i64]) -> text
-    let ds = "0123456789abcdef".chars()
-    var s = ""
+    var codes: List[i64] = []
+    var acc: i64 = 0
     for x in b
-        s = s + copy(ds[(x >> 4) as usize]) + copy(ds[(x & 15) as usize])
-    return s
+        acc = acc | x
+        codes.push(hexdig(x >> 4))
+        codes.push(hexdig(x & 15))
+    let t = acc >> 8
+    let g = [((t | (0 - t)) >> 63 & 1) << 8].utf8()
+    return codes.utf8()
 
 # GF(2^255 - 19) in ten 26-bit limbs (radix 2^26, 2^260 = 608 mod p) in
 # i64: limb products stay below 2^58 before carrying.

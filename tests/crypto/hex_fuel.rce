@@ -1,0 +1,11 @@
+# needs: crypto
+# unhex and tohex use the same fuel for different digits and bytes of one
+# length (including the digit class boundaries 9/a, f/g).
+fn probe_unhex_1() -> List[i64] = unhex("00000000000000000000000000000000")
+fn probe_unhex_2() -> List[i64] = unhex("ffffffffffffffffffffffffffffffff")
+fn probe_unhex_3() -> List[i64] = unhex("09afaf90090faf9009afaf90090faf90")
+fn probe_unhex_4() -> List[i64] = unhex("a5c3d2e1f0b4960123456789abcdef01")
+fn probe_tohex_1() -> text = tohex([0, 0, 0, 0, 0, 0, 0, 0])
+fn probe_tohex_2() -> text = tohex([255, 255, 255, 255, 255, 255, 255, 255])
+fn probe_tohex_3() -> text = tohex([9, 10, 15, 16, 159, 160, 175, 176])
+fn probe_tohex_4() -> text = tohex([1, 35, 69, 103, 137, 171, 205, 239])
