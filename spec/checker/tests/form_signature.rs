@@ -27,12 +27,12 @@ fn every_example_log_is_a_canonical_chain() {
                 }
                 assert_eq!(e["seq"], i);
                 assert_eq!(e["prev_hash"], prev.as_str());
-                assert_eq!(e["state_hash"], d_sha(&e["state"].to_string()).as_str(), "{}", p.display());
+                assert_eq!(e["state_hash"], d_sha(&rce_spec_check::interp::canon_json(&e["state"])).as_str(), "{}", p.display());
                 let body = serde_json::json!({
                     "event": e["event"], "prev_hash": e["prev_hash"],
                     "seq": e["seq"], "state_hash": e["state_hash"],
                 });
-                assert_eq!(e["hash"], d_sha(&body.to_string()).as_str());
+                assert_eq!(e["hash"], d_sha(&rce_spec_check::interp::canon_json(&body)).as_str());
                 assert!(e["event"]["type"].is_string());
                 prev = e["hash"].as_str().unwrap().to_string();
                 entries += 1;
