@@ -1,0 +1,3 @@
+# needs: crypto
+# X25519 vectors (shard 6; one comptime fuel budget of 50M holds about three ladders). RFC 7748 5.2, iterated test round 1, 6.1; then differential vectors from the Python `cryptography` package (OpenSSL).
+check x25519("6897ab3e7bed435cf094a10477f16bf68af03a04d99b2833d43902ce2b40f0a9", "325a90f389d8331f6ccd8da8b14844423eeff4ba736c5c03d2d034e64ad63a3d") == "b0c04f936de7d6542c766304c7b8fbaaebb4eae8c1cd0232607a0c358d15fc4e"

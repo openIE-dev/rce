@@ -120,6 +120,22 @@ fn shake256(m: List[i64], n: usize) -> List[i64] = keccak(136, 31, m, n)
 const Q: i64 = 3329
 const KK: usize = 3
 
+# Division by Q = 3329 without a division instruction (the KyberSlash lesson:
+# a variable-latency divide of secret-derived values leaks). For
+# QM = ceil(2^40 / Q) = 330282857 the error term is e = QM * Q - 2^40 = 3177,
+# so (n * QM) >> 40 = floor(n / Q) exactly for every 0 <= n < 2^40 / e
+# = 346,084,868. Every use here has n below 2^25 (largest: the sum of two
+# products of values below Q in ntt_mul, about 22.2M; compress input
+# (x << d) + 1664 at d = 11 is below 6.9M). n * QM stays below 2^54.
+# `check`s in tests/crypto/mlkem_arith_checks.rce confirm it exhaustively
+# over the compress domain and on boundary values.
+const QM: i64 = 330282857
+
+fn qdiv(n: i64) -> i64 = (n * QM) >> 40
+
+# n mod Q for 0 <= n < 346,084,868
+fn qmod(n: i64) -> i64 = n - qdiv(n) * Q
+
 fn mk_zetas() -> List[i64] = [1, 1729, 2580, 3289, 2642, 630, 1897, 848, 1062, 1919, 193, 797, 2786, 3260, 569, 1746, 296, 2447, 1339, 1476, 3046, 56, 2240, 1333, 1426, 2094, 535, 2882, 2393, 2879, 1974, 821, 289, 331, 3253, 1756, 1197, 2304, 2277, 2055, 650, 1977, 2513, 632, 2865, 33, 1320, 1915, 2319, 1435, 807, 452, 1438, 2868, 1534, 2402, 2647, 2617, 1481, 648, 2474, 3110, 1227, 910, 17, 2761, 583, 2649, 1637, 723, 2288, 1100, 1409, 2662, 3281, 233, 756, 2156, 3015, 3050, 1703, 1651, 2789, 1789, 1847, 952, 1461, 2687, 939, 2308, 2437, 2388, 733, 2337, 268, 641, 1584, 2298, 2037, 3220, 375, 2549, 2090, 1645, 1063, 319, 2773, 757, 2099, 561, 2466, 2594, 2804, 1092, 403, 1026, 1143, 2150, 2775, 886, 1722, 1212, 1874, 1029, 2110, 2935, 885, 2154]
 
 fn mk_gammas() -> List[i64] = [17, 3312, 2761, 568, 583, 2746, 2649, 680, 1637, 1692, 723, 2606, 2288, 1041, 1100, 2229, 1409, 1920, 2662, 667, 3281, 48, 233, 3096, 756, 2573, 2156, 1173, 3015, 314, 3050, 279, 1703, 1626, 1651, 1678, 2789, 540, 1789, 1540, 1847, 1482, 952, 2377, 1461, 1868, 2687, 642, 939, 2390, 2308, 1021, 2437, 892, 2388, 941, 733, 2596, 2337, 992, 268, 3061, 641, 2688, 1584, 1745, 2298, 1031, 2037, 1292, 3220, 109, 375, 2954, 2549, 780, 2090, 1239, 1645, 1684, 1063, 2266, 319, 3010, 2773, 556, 757, 2572, 2099, 1230, 561, 2768, 2466, 863, 2594, 735, 2804, 525, 1092, 2237, 403, 2926, 1026, 2303, 1143, 2186, 2150, 1179, 2775, 554, 886, 2443, 1722, 1607, 1212, 2117, 1874, 1455, 1029, 2300, 2110, 1219, 2935, 394, 885, 2444, 2154, 1175]
@@ -141,9 +157,9 @@ fn ntt(p: List[i64]) -> List[i64]
             let z = zs[k]
             k += 1
             for j in start..(start + len)
-                let t = (z * f[j + len]) % Q
-                f[j + len] = (f[j] - t + Q) % Q
-                f[j] = (f[j] + t) % Q
+                let t = qmod(z * f[j + len])
+                f[j + len] = qmod(f[j] - t + Q)
+                f[j] = qmod(f[j] + t)
             start += 2 * len
         len = len / 2
     return f
@@ -160,12 +176,12 @@ fn intt(p: List[i64]) -> List[i64]
             k -= 1
             for j in start..(start + len)
                 let t = f[j]
-                f[j] = (t + f[j + len]) % Q
-                f[j + len] = (z * ((f[j + len] - t + Q) % Q)) % Q
+                f[j] = qmod(t + f[j + len])
+                f[j + len] = qmod(z * qmod(f[j + len] - t + Q))
             start += 2 * len
         len = len * 2
     for j in 0..256
-        f[j] = (f[j] * 3303) % Q
+        f[j] = qmod(f[j] * 3303)
     return f
 
 # multiply two NTT-domain polynomials (FIPS 203 Alg. 11 and 12)
@@ -177,20 +193,20 @@ fn ntt_mul(f: List[i64], g: List[i64]) -> List[i64]
         let a1 = f[2 * i + 1]
         let b0 = g[2 * i]
         let b1 = g[2 * i + 1]
-        h.push((a0 * b0 + ((a1 * b1) % Q) * gs[i]) % Q)
-        h.push((a0 * b1 + a1 * b0) % Q)
+        h.push(qmod(a0 * b0 + qmod(a1 * b1) * gs[i]))
+        h.push(qmod(a0 * b1 + a1 * b0))
     return h
 
 fn padd(a: List[i64], b: List[i64]) -> List[i64]
     var c: List[i64] = []
     for i in 0..a.len()
-        c.push((a[i] + b[i]) % Q)
+        c.push(qmod(a[i] + b[i]))
     return c
 
 fn psub(a: List[i64], b: List[i64]) -> List[i64]
     var c: List[i64] = []
     for i in 0..a.len()
-        c.push((a[i] - b[i] + Q) % Q)
+        c.push(qmod(a[i] - b[i] + Q))
     return c
 
 fn poly(v: List[i64], i: usize) -> List[i64] = slice(v, 256 * i, 256 * (i + 1))
@@ -228,7 +244,7 @@ fn cbd2(s: List[i64], b: i64) -> List[i64]
         let bits = (byte >> (4 * (i % 2) as i64)) & 15
         let a = (bits & 1) + ((bits >> 1) & 1)
         let c = ((bits >> 2) & 1) + ((bits >> 3) & 1)
-        f.push((a - c + Q) % Q)
+        f.push(qmod(a - c + Q))
     return f
 
 fn byte_encode(f: List[i64], d: i64) -> List[i64]
@@ -256,7 +272,7 @@ fn byte_decode(b: List[i64], d: i64, cnt: usize) -> List[i64]
             p += 1
             nb += 8
         let v = acc & m
-        out.push(if d == 12 then v % Q else v)
+        out.push(if d == 12 then qmod(v) else v)
         acc = acc >> d
         nb -= d
     return out
@@ -264,7 +280,7 @@ fn byte_decode(b: List[i64], d: i64, cnt: usize) -> List[i64]
 fn compress(f: List[i64], d: i64) -> List[i64]
     var out: List[i64] = []
     for x in f
-        out.push((((x << d) + 1664) / Q) & ((1 << d) - 1))
+        out.push(qdiv((x << d) + 1664) & ((1 << d) - 1))
     return out
 
 fn decompress(f: List[i64], d: i64) -> List[i64]
@@ -349,28 +365,74 @@ fn mlkem_keygen(d: text, z: text) -> text
     let dkp = slice(copy(kp), 384 * KK + 32, kp.len())
     return tohex(copy(ek)) + "." + tohex(cat(cat3(dkp, copy(ek), sha3_256(copy(ek))), unhex(z)))
 
-# ML-KEM.Encaps_internal (Alg. 17): "ciphertext.shared" in hex
+# byte-list equality with no early exit (OR of the XORs, tested once); a copy
+# of crypto.ct_eq so this file also checks against an embedded crypto that
+# predates it. Only the lengths are public.
+fn kem_ct_eq(a: List[i64], b: List[i64]) -> bool
+    if a.len() != b.len()
+        return false
+    var acc: i64 = 0
+    for i in 0..a.len()
+        acc = acc | (a[i] ^ b[i])
+    return acc == 0
+
+# OR of the XORs of two equal-length byte lists: 0 exactly when they are
+# equal. No branch, no early exit; the caller has checked the lengths.
+fn kem_ct_diff(a: List[i64], b: List[i64]) -> i64
+    var acc: i64 = 0
+    for i in 0..a.len()
+        acc = acc | (a[i] ^ b[i])
+    return acc
+
+# ML-KEM.Encaps_internal (Alg. 17): "ciphertext.shared" in hex, or "" when an
+# input check of FIPS 203 7.2 fails: ek must have 384k + 32 bytes (type check)
+# and ByteEncode12(ByteDecode12(t)) must reproduce its first 384k bytes
+# (modulus check: every 12-bit coefficient below Q); m must have 32 bytes.
+# Both ek and m are public here, so the checks may branch.
 fn mlkem_encaps(ek: text, m: text) -> text
     let e = unhex(ek)
-    let g = sha3_512(cat(unhex(copy(m)), sha3_256(copy(e))))
+    let mb = unhex(copy(m))
+    if e.len() != 384 * KK + 32 or mb.len() != 32
+        return ""
+    let t = slice(copy(e), 0, 384 * KK)
+    if not kem_ct_eq(byte_encode(byte_decode(copy(t), 12, 256 * KK), 12), t)
+        return ""
+    let g = sha3_512(cat(mb, sha3_256(copy(e))))
     let c = pke_encrypt(e, unhex(m), slice(copy(g), 32, 64))
     return tohex(c) + "." + tohex(slice(g, 0, 32))
 
-# ML-KEM.Decaps_internal (Alg. 18): the shared secret, implicit rejection
+# ML-KEM.Decaps_internal (Alg. 18): the shared secret with implicit
+# rejection, or "" when an input check of FIPS 203 7.3 fails: the ciphertext
+# must have 32(du k + dv) = 1088 bytes, dk must have 768k + 96 bytes, and
+# H(ek inside dk) must equal the stored hash. Those checks depend on the
+# lengths and on the stored key, not on the ciphertext's validity, so they
+# may branch. A failed check is a refusal, never a key: a caller must not
+# feed "" onward as a secret.
+# The re-encryption comparison and the choice between the real key and the
+# rejection key are branch-free: the key is kbar ^ (mask & (K ^ kbar)) with
+# mask all ones exactly when the ciphertexts are equal.
 fn mlkem_decaps(dk: text, c: text) -> text
     let d = unhex(dk)
     let ct = unhex(c)
+    if d.len() != 768 * KK + 96 or ct.len() != 32 * (10 * KK + 4)
+        return ""
     let dkp = slice(copy(d), 0, 384 * KK)
     let ek = slice(copy(d), 384 * KK, 768 * KK + 32)
     let h = slice(copy(d), 768 * KK + 32, 768 * KK + 64)
     let z = slice(copy(d), 768 * KK + 64, 768 * KK + 96)
+    if not kem_ct_eq(sha3_256(copy(ek)), copy(h))
+        return ""
     let m = pke_decrypt(dkp, copy(ct))
     let g = sha3_512(cat(copy(m), h))
     let kbar = shake256(cat(z, copy(ct)), 32)
     let c2 = pke_encrypt(ek, m, slice(copy(g), 32, 64))
-    if tohex(c2) == tohex(ct)
-        return tohex(slice(g, 0, 32))
-    return tohex(kbar)
+    let acc = kem_ct_diff(c2, ct)
+    let differ = ((acc | (0 - acc)) >> 63) & 1
+    let eq = differ - 1
+    var key: List[i64] = []
+    for i in 0..32
+        key.push(kbar[i] ^ (eq & (g[i] ^ kbar[i])))
+    return tohex(key)
 
 # ---- PQXDH ----
 # Signal's PQXDH over X25519, SHA-256 and ML-KEM-768. The initiator holds
@@ -396,7 +458,12 @@ fn pqxdh_dh_resp(ikb: text, spkb: text, ika_pub: text, eka_pub: text) -> text
     let dh3 = x25519(spkb, eka_pub)
     return dh1 + dh2 + dh3
 
-fn pqxdh_sk(dh: text, ss: text) -> text = tohex(hkdf([], cat(cat(ff32(), unhex(dh)), unhex(ss)), tobytes(PQXDH_INFO), 32))
+# "" when ss or dh is empty: mlkem_decaps answers "" for an input it refuses
+# (FIPS 203 7.3), and an empty secret must never reach the key derivation.
+fn pqxdh_sk(dh: text, ss: text) -> text
+    if ss.len() == 0 or dh.len() == 0
+        return ""
+    return tohex(hkdf([], cat(cat(ff32(), unhex(dh)), unhex(ss)), tobytes(PQXDH_INFO), 32))
 
 const PQXDH_INFO: text = "rce-pqxdh-v1 X25519 SHA-256 ML-KEM-768"
 

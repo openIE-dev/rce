@@ -182,6 +182,17 @@ fn seal(key: List[i64], nonce: List[i64], ad: List[i64], pt: List[i64]) -> text
     let tag = slice(hmac(slice(copy(ks), 32, 64), cat(cat(copy(nonce), ad), copy(ct))), 0, 16)
     return tohex(cat(ct, tag))
 
+# Equality of two byte lists with no early exit: the OR of all byte XORs is
+# tested once at the end. Only the lengths are public (a length mismatch
+# answers at once). Constant fuel for any contents of equal length.
+fn ct_eq(a: List[i64], b: List[i64]) -> bool
+    if a.len() != b.len()
+        return false
+    var acc: i64 = 0
+    for i in 0..a.len()
+        acc = acc | (a[i] ^ b[i])
+    return acc == 0
+
 # The plaintext bytes, or [-1] when the tag does not verify.
 fn open(key: List[i64], nonce: List[i64], ad: List[i64], sealed: text) -> List[i64]
     let b = unhex(sealed)
@@ -191,19 +202,19 @@ fn open(key: List[i64], nonce: List[i64], ad: List[i64], sealed: text) -> List[i
     let tag = slice(copy(b), b.len() - 16, b.len())
     let ks = hkdf([], copy(key), tobytes("rce-aead-v0"), 64)
     let want = slice(hmac(slice(copy(ks), 32, 64), cat(cat(copy(nonce), ad), copy(ct))), 0, 16)
-    if tohex(want) != tohex(tag)
+    if not ct_eq(want, tag)
         return [-1]
     return chacha20(slice(copy(ks), 0, 32), nonce, ct)
 
+# Value of one lowercase hex digit (0 for any other character, as before),
+# by arithmetic only: no digit table scan and no branch on the digit. The
+# range tests use the sign of a difference: ((c - lo) | (hi - c)) >> 63 is
+# all ones exactly when c is outside lo..hi.
 fn hexval(c: text) -> i64
-    let ds = "0123456789abcdef".chars()
-    var v: i64 = 0
-    var k: i64 = 0
-    for d in ds
-        if d == c
-            v = k
-        k += 1
-    return v
+    let b = c[0] as i64
+    let dm = (((b - 48) | (57 - b)) >> 63) ^ (0 - 1)
+    let am = (((b - 97) | (102 - b)) >> 63) ^ (0 - 1)
+    return (dm & (b - 48)) | (am & (b - 87))
 
 fn unhex(h: text) -> List[i64]
     let cs = h.chars()
@@ -214,12 +225,24 @@ fn unhex(h: text) -> List[i64]
         i += 2
     return out
 
+# ASCII code of the lowercase hex digit of n in 0..15: 48 + n, plus 39 when
+# n > 9 (mask from the sign of 9 - n). No table index.
+fn hexdig(n: i64) -> i64 = 48 + n + (39 & ((9 - n) >> 63))
+
+# Hex text of a byte list. Elements must be bytes: anything outside 0..255
+# traps, as an out-of-range table index did before. The trap comes from
+# utf8() of a guard element that is 256 exactly when the OR of all elements
+# has a bit outside 0..255, so there is no branch on the data.
 fn tohex(b: List[i64]) -> text
-    let ds = "0123456789abcdef".chars()
-    var s = ""
+    var codes: List[i64] = []
+    var acc: i64 = 0
     for x in b
-        s = s + copy(ds[(x >> 4) as usize]) + copy(ds[(x & 15) as usize])
-    return s
+        acc = acc | x
+        codes.push(hexdig(x >> 4))
+        codes.push(hexdig(x & 15))
+    let t = acc >> 8
+    let g = [((t | (0 - t)) >> 63 & 1) << 8].utf8()
+    return codes.utf8()
 
 # GF(2^255 - 19) in ten 26-bit limbs (radix 2^26, 2^260 = 608 mod p) in
 # i64: limb products stay below 2^58 before carrying.
@@ -313,6 +336,21 @@ fn unpack(b: List[i64]) -> List[i64]
         o[li] = o[li] | (bit << (k % 26))
     return o
 
+# Conditional swap of RFC 7748 5.1 (cswap) without a branch: for the mask m
+# (0 or all ones, m = 0 - bit) the swap of a and b is a ^= d, b ^= d with
+# d = m & (a ^ b). Every limb is processed whatever the bit.
+fn cdiff(m: i64, a: List[i64], b: List[i64]) -> List[i64]
+    var d: List[i64] = []
+    for i in 0..10
+        d.push(m & (a[i] ^ b[i]))
+    return d
+
+fn fxor(a: List[i64], d: List[i64]) -> List[i64]
+    var o: List[i64] = []
+    for i in 0..10
+        o.push(a[i] ^ d[i])
+    return o
+
 # X25519(k, u) of RFC 7748 over 32-byte hex strings.
 fn x25519(kh: text, uh: text) -> text
     var z = unhex(kh)
@@ -327,13 +365,13 @@ fn x25519(kh: text, uh: text) -> text
     for s in 0..255
         let i = 254 - s
         let r = (z[(i >> 3) as usize] >> (i & 7)) & 1
-        if r == 1
-            let t1 = copy(a)
-            a = copy(b)
-            b = t1
-            let t2 = copy(c)
-            c = copy(d)
-            d = t2
+        let m = 0 - r
+        let sab = cdiff(m, copy(a), copy(b))
+        let scd = cdiff(m, copy(c), copy(d))
+        a = fxor(a, copy(sab))
+        b = fxor(b, sab)
+        c = fxor(c, copy(scd))
+        d = fxor(d, scd)
         var e = fadd(copy(a), copy(c))
         a = fsub(copy(a), copy(c))
         c = fadd(copy(b), copy(d))
@@ -352,13 +390,13 @@ fn x25519(kh: text, uh: text) -> text
         a = fmul(copy(d), copy(f))
         d = fmul(copy(b), copy(x))
         b = fmul(copy(e), copy(e))
-        if r == 1
-            let t1 = copy(a)
-            a = copy(b)
-            b = t1
-            let t2 = copy(c)
-            c = copy(d)
-            d = t2
+        let m2 = 0 - r
+        let sab2 = cdiff(m2, copy(a), copy(b))
+        let scd2 = cdiff(m2, copy(c), copy(d))
+        a = fxor(a, copy(sab2))
+        b = fxor(b, sab2)
+        c = fxor(c, copy(scd2))
+        d = fxor(d, scd2)
     let ci = finv(copy(c))
     return tohex(pack(fmul(copy(a), ci)))
 
@@ -731,7 +769,27 @@ fn pt_table(p: Pt) -> List[Pt]
 
 fn nib(s: List[i64], i: i64) -> usize = ((s[(i >> 1) as usize] >> (4 * (i & 1))) & 15) as usize
 
-# s * p, s a 32-byte little-endian scalar, 4-bit fixed window
+# tb[n] for n in 0..15 by a full scan: every entry is read and masked, the
+# entry whose index equals n (mask all ones: (j ^ n) - 1 is negative only
+# when j ^ n = 0) is the one kept. No index depends on n.
+fn pt_select(tb: List[Pt], n: i64) -> Pt
+    var x = fe(0)
+    var y = fe(0)
+    var z = fe(0)
+    var t = fe(0)
+    for j in 0..16
+        let m = ((j as i64 ^ n) - 1) >> 63
+        for l in 0..10
+            x[l] = x[l] | (m & tb[j].x[l])
+            y[l] = y[l] | (m & tb[j].y[l])
+            z[l] = z[l] | (m & tb[j].z[l])
+            t[l] = t[l] | (m & tb[j].t[l])
+    return Pt(x: x, y: y, z: z, t: t)
+
+# s * p, s a 32-byte little-endian scalar, 4-bit fixed window. The window
+# entry is chosen by pt_select (full scan), so no table index depends on s;
+# s is secret in key generation and signing. (pt_mul2 below is verification
+# only: both scalars are public there, and it keeps the direct index.)
 fn pt_mul(s: List[i64], p: Pt) -> Pt
     let tb = pt_table(p)
     var r = pt_zero()
@@ -740,7 +798,7 @@ fn pt_mul(s: List[i64], p: Pt) -> Pt
         if k > 0
             for _ in 0..4
                 r = pt_dbl(copy(r))
-        r = pt_add(copy(r), copy(tb[nib(copy(s), i)]))
+        r = pt_add(copy(r), pt_select(copy(tb), nib(copy(s), i) as i64))
     return r
 
 # s * p + t * q (Straus, shared doublings)
@@ -799,15 +857,28 @@ fn pt_dec(b: List[i64]) -> Dec
 
 fn ed_l() -> List[i64] = [237, 211, 245, 92, 26, 99, 18, 88, 214, 156, 247, 162, 222, 249, 222, 20, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 16, 0]
 
-# a >= b on equal-length little-endian byte lists
-fn bge(a: List[i64], b: List[i64]) -> bool
-    for k in 0..a.len()
-        let i = a.len() - 1 - k
-        if a[i] != b[i]
-            return a[i] > b[i]
-    return true
+# a - b on equal-length little-endian byte lists, as the difference modulo
+# 256^n and the final borrow (1 when a < b). The borrow is the sign bit of
+# each limb difference: no branch, same work for all values.
+fn sub_borrow(a: List[i64], b: List[i64]) -> List[i64]
+    var o: List[i64] = []
+    var br: i64 = 0
+    for j in 0..a.len()
+        let v = a[j] - b[j] - br
+        br = (v >> 63) & 1
+        o.push(v & 255)
+    o.push(br)
+    return o
 
-# x mod L for a little-endian byte list x of any length, 32 bytes out
+# a >= b on equal-length little-endian byte lists, with no early exit
+fn bge(a: List[i64], b: List[i64]) -> bool
+    let d = sub_borrow(a, b)
+    return d[d.len() - 1] == 0
+
+# x mod L for a little-endian byte list x of any length, 32 bytes out.
+# Shift-and-subtract over the bits of x (a public count); each step
+# computes r - L with its borrow and keeps r or r - L by a mask, so the
+# work is the same whether or not the subtraction applies.
 fn sc_reduce(x: List[i64]) -> List[i64]
     let l = ed_l()
     var r: List[i64] = []
@@ -822,16 +893,10 @@ fn sc_reduce(x: List[i64]) -> List[i64]
             let v = r[j] * 2 + c
             r[j] = v & 255
             c = v >> 8
-        if bge(copy(r), copy(l))
-            var br: i64 = 0
-            for j in 0..33
-                let v = r[j] - l[j] - br
-                if v < 0
-                    r[j] = v + 256
-                    br = 1
-                else
-                    r[j] = v
-                    br = 0
+        let d = sub_borrow(copy(r), copy(l))
+        let keep = 0 - d[33]
+        for j in 0..33
+            r[j] = d[j] ^ (keep & (r[j] ^ d[j]))
         k += 1
     return slice(r, 0, 32)
 
