@@ -1,0 +1,10 @@
+# needs: crypto
+# Fuel of X25519 does not depend on the scalar: all-zero, all-one-bits,
+# alternating and random scalars, same u. (Before the cswap fix the fuel
+# differed with every set bit.) Source-level evidence only.
+fn u0() -> text = "e6db6867583030db3594c1a424b15f7c726624ec26b3353b10a903a6d0ab1c4c"
+fn probe_x25519k_1() -> text = x25519("0000000000000000000000000000000000000000000000000000000000000000", u0())
+fn probe_x25519k_2() -> text = x25519("ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff", u0())
+fn probe_x25519k_3() -> text = x25519("5555555555555555555555555555555555555555555555555555555555555555", u0())
+fn probe_x25519k_4() -> text = x25519("a546e36bf0527c9d3b16154b82465edd62144c0ac1fc5a18506a2244ba449ac4", u0())
+fn probe_x25519k_5() -> text = x25519("4b66e9d4d1b4673c5ad22691957d6af5c11b6421e0ea01d42ca4169e7918ba0d", u0())

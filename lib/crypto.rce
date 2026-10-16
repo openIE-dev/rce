@@ -324,6 +324,21 @@ fn unpack(b: List[i64]) -> List[i64]
         o[li] = o[li] | (bit << (k % 26))
     return o
 
+# Conditional swap of RFC 7748 5.1 (cswap) without a branch: for the mask m
+# (0 or all ones, m = 0 - bit) the swap of a and b is a ^= d, b ^= d with
+# d = m & (a ^ b). Every limb is processed whatever the bit.
+fn cdiff(m: i64, a: List[i64], b: List[i64]) -> List[i64]
+    var d: List[i64] = []
+    for i in 0..10
+        d.push(m & (a[i] ^ b[i]))
+    return d
+
+fn fxor(a: List[i64], d: List[i64]) -> List[i64]
+    var o: List[i64] = []
+    for i in 0..10
+        o.push(a[i] ^ d[i])
+    return o
+
 # X25519(k, u) of RFC 7748 over 32-byte hex strings.
 fn x25519(kh: text, uh: text) -> text
     var z = unhex(kh)
@@ -338,13 +353,13 @@ fn x25519(kh: text, uh: text) -> text
     for s in 0..255
         let i = 254 - s
         let r = (z[(i >> 3) as usize] >> (i & 7)) & 1
-        if r == 1
-            let t1 = copy(a)
-            a = copy(b)
-            b = t1
-            let t2 = copy(c)
-            c = copy(d)
-            d = t2
+        let m = 0 - r
+        let sab = cdiff(m, copy(a), copy(b))
+        let scd = cdiff(m, copy(c), copy(d))
+        a = fxor(a, copy(sab))
+        b = fxor(b, sab)
+        c = fxor(c, copy(scd))
+        d = fxor(d, scd)
         var e = fadd(copy(a), copy(c))
         a = fsub(copy(a), copy(c))
         c = fadd(copy(b), copy(d))
@@ -363,13 +378,13 @@ fn x25519(kh: text, uh: text) -> text
         a = fmul(copy(d), copy(f))
         d = fmul(copy(b), copy(x))
         b = fmul(copy(e), copy(e))
-        if r == 1
-            let t1 = copy(a)
-            a = copy(b)
-            b = t1
-            let t2 = copy(c)
-            c = copy(d)
-            d = t2
+        let m2 = 0 - r
+        let sab2 = cdiff(m2, copy(a), copy(b))
+        let scd2 = cdiff(m2, copy(c), copy(d))
+        a = fxor(a, copy(sab2))
+        b = fxor(b, sab2)
+        c = fxor(c, copy(scd2))
+        d = fxor(d, scd2)
     let ci = finv(copy(c))
     return tohex(pack(fmul(copy(a), ci)))
 
