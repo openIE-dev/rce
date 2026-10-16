@@ -356,6 +356,17 @@ fn mlkem_encaps(ek: text, m: text) -> text
     let c = pke_encrypt(e, unhex(m), slice(copy(g), 32, 64))
     return tohex(c) + "." + tohex(slice(g, 0, 32))
 
+# byte-list equality with no early exit (OR of the XORs, tested once); a copy
+# of crypto.ct_eq so this file also checks against an embedded crypto that
+# predates it. Only the lengths are public.
+fn kem_ct_eq(a: List[i64], b: List[i64]) -> bool
+    if a.len() != b.len()
+        return false
+    var acc: i64 = 0
+    for i in 0..a.len()
+        acc = acc | (a[i] ^ b[i])
+    return acc == 0
+
 # ML-KEM.Decaps_internal (Alg. 18): the shared secret, implicit rejection
 fn mlkem_decaps(dk: text, c: text) -> text
     let d = unhex(dk)
@@ -368,7 +379,7 @@ fn mlkem_decaps(dk: text, c: text) -> text
     let g = sha3_512(cat(copy(m), h))
     let kbar = shake256(cat(z, copy(ct)), 32)
     let c2 = pke_encrypt(ek, m, slice(copy(g), 32, 64))
-    if tohex(c2) == tohex(ct)
+    if kem_ct_eq(c2, ct)
         return tohex(slice(g, 0, 32))
     return tohex(kbar)
 

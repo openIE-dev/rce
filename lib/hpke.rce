@@ -133,12 +133,23 @@ fn gcm_seal(key: List[i64], iv: List[i64], aad: List[i64], pt: List[i64]) -> Lis
         tag.push(s[j] ^ ek[j])
     return cat(ct, tag)
 
+# byte-list equality with no early exit (OR of the XORs, tested once); a
+# copy of crypto.ct_eq so this file also checks against an embedded crypto
+# that predates it. Only the lengths are public.
+fn hp_ct_eq(a: List[i64], b: List[i64]) -> bool
+    if a.len() != b.len()
+        return false
+    var acc: i64 = 0
+    for i in 0..a.len()
+        acc = acc | (a[i] ^ b[i])
+    return acc == 0
+
 # the plaintext, or [-1] when the tag does not verify
 fn gcm_open(key: List[i64], iv: List[i64], aad: List[i64], sealed: List[i64]) -> List[i64]
     if sealed.len() < 16
         return [-1]
     let pt = gcm_ctr(aes_expand(copy(key)), copy(iv), slice(copy(sealed), 0, sealed.len() - 16))
-    if tohex(gcm_seal(key, iv, aad, copy(pt))) == tohex(sealed)
+    if hp_ct_eq(gcm_seal(key, iv, aad, copy(pt)), sealed)
         return pt
     return [-1]
 

@@ -182,6 +182,17 @@ fn seal(key: List[i64], nonce: List[i64], ad: List[i64], pt: List[i64]) -> text
     let tag = slice(hmac(slice(copy(ks), 32, 64), cat(cat(copy(nonce), ad), copy(ct))), 0, 16)
     return tohex(cat(ct, tag))
 
+# Equality of two byte lists with no early exit: the OR of all byte XORs is
+# tested once at the end. Only the lengths are public (a length mismatch
+# answers at once). Constant fuel for any contents of equal length.
+fn ct_eq(a: List[i64], b: List[i64]) -> bool
+    if a.len() != b.len()
+        return false
+    var acc: i64 = 0
+    for i in 0..a.len()
+        acc = acc | (a[i] ^ b[i])
+    return acc == 0
+
 # The plaintext bytes, or [-1] when the tag does not verify.
 fn open(key: List[i64], nonce: List[i64], ad: List[i64], sealed: text) -> List[i64]
     let b = unhex(sealed)
@@ -191,7 +202,7 @@ fn open(key: List[i64], nonce: List[i64], ad: List[i64], sealed: text) -> List[i
     let tag = slice(copy(b), b.len() - 16, b.len())
     let ks = hkdf([], copy(key), tobytes("rce-aead-v0"), 64)
     let want = slice(hmac(slice(copy(ks), 32, 64), cat(cat(copy(nonce), ad), copy(ct))), 0, 16)
-    if tohex(want) != tohex(tag)
+    if not ct_eq(want, tag)
         return [-1]
     return chacha20(slice(copy(ks), 0, 32), nonce, ct)
 

@@ -1,0 +1,30 @@
+# needs: crypto pq hpke
+# Constant fuel of the tag comparisons: the same fuel whether the first,
+# the middle or the last byte differs, or none does.
+fn k0() -> List[i64] = unhex("0101")
+fn n0() -> List[i64] = unhex("000000000000000000000001")
+# literal operands (unhex would add digit-dependent fuel of its own)
+fn r16() -> List[i64] = [0, 17, 34, 51, 68, 85, 102, 119, 136, 153, 170, 187, 204, 221, 238, 255]
+fn same() -> List[i64] = [0, 17, 34, 51, 68, 85, 102, 119, 136, 153, 170, 187, 204, 221, 238, 255]
+fn d0() -> List[i64] = [1, 17, 34, 51, 68, 85, 102, 119, 136, 153, 170, 187, 204, 221, 238, 255]
+fn d8() -> List[i64] = [0, 17, 34, 51, 68, 85, 102, 119, 137, 153, 170, 187, 204, 221, 238, 255]
+fn d15() -> List[i64] = [0, 17, 34, 51, 68, 85, 102, 119, 136, 153, 170, 187, 204, 221, 238, 254]
+fn probe_cteq_1() -> bool = ct_eq(same(), r16())
+fn probe_cteq_2() -> bool = ct_eq(d0(), r16())
+fn probe_cteq_3() -> bool = ct_eq(d8(), r16())
+fn probe_cteq_4() -> bool = ct_eq(d15(), r16())
+fn probe_hpcteq_1() -> bool = hp_ct_eq(same(), r16())
+fn probe_hpcteq_2() -> bool = hp_ct_eq(d0(), r16())
+fn probe_hpcteq_3() -> bool = hp_ct_eq(d15(), r16())
+fn probe_kemcteq_1() -> bool = kem_ct_eq(same(), r16())
+fn probe_kemcteq_2() -> bool = kem_ct_eq(d0(), r16())
+fn probe_kemcteq_3() -> bool = kem_ct_eq(d15(), r16())
+fn sealed0() -> text = seal(k0(), n0(), [], tobytes("hello"))
+fn flip(s: text, i: usize) -> text
+    var b = unhex(s)
+    b[i] = b[i] ^ 1
+    return tohex(b)
+# open with a bad tag: same fuel whichever tag byte is wrong
+fn probe_openbad_1() -> List[i64] = open(k0(), n0(), [], flip(sealed0(), 5))
+fn probe_openbad_2() -> List[i64] = open(k0(), n0(), [], flip(sealed0(), 12))
+fn probe_openbad_3() -> List[i64] = open(k0(), n0(), [], flip(sealed0(), 20))

@@ -1,0 +1,27 @@
+# needs: crypto pq hpke
+# Tag and ciphertext comparisons (ct_eq, hp_ct_eq, kem_ct_eq) and the AEAD
+# and GCM open paths that use them.
+fn k0() -> List[i64] = unhex("0101")
+fn n0() -> List[i64] = unhex("000000000000000000000001")
+fn sealed0() -> text = seal(k0(), n0(), [], tobytes("hello"))
+# flip one bit of the hex text at character position p
+fn flip(s: text, i: usize) -> text
+    var b = unhex(s)
+    b[i] = b[i] ^ 1
+    return tohex(b)
+check ct_eq([], [])
+check ct_eq([1, 2, 3], [1, 2, 3])
+check not ct_eq([1, 2, 3], [1, 2, 4])
+check not ct_eq([0, 2, 3], [1, 2, 3])
+check not ct_eq([1, 2], [1, 2, 3])
+check not ct_eq([1, 2, 3], [1, 2])
+check not ct_eq([255, 0], [0, 255])
+check hp_ct_eq([7, 8], [7, 8]) and not hp_ct_eq([7, 8], [7, 9]) and not hp_ct_eq([7], [7, 8])
+check kem_ct_eq([7, 8], [7, 8]) and not kem_ct_eq([7, 8], [7, 9]) and not kem_ct_eq([7], [7, 8])
+check open(k0(), n0(), [], sealed0()) == tobytes("hello")
+# a flipped bit in the ciphertext (bytes 0, 4) or the tag (bytes 5, 12, 20) is refused
+check open(k0(), n0(), [], flip(sealed0(), 0)) == [-1]
+check open(k0(), n0(), [], flip(sealed0(), 4)) == [-1]
+check open(k0(), n0(), [], flip(sealed0(), 5)) == [-1]
+check open(k0(), n0(), [], flip(sealed0(), 12)) == [-1]
+check open(k0(), n0(), [], flip(sealed0(), 20)) == [-1]
