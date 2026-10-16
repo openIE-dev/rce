@@ -1,4 +1,4 @@
-"""RCE infographics: overview, host contract, RCEdb, status. matplotlib only.
+"""RCE infographics: overview, host contract, RCEdb. matplotlib only.
 Run: python3 make_infographics.py  (writes SVG + PNG next to this file)."""
 import matplotlib; matplotlib.use("Agg")
 import matplotlib.pyplot as plt
@@ -33,7 +33,7 @@ box(ax, 3.3, 4.0, 3.2, 1.9, "rce checker\nparse, types, ownership,\ntermination,
 box(ax, 7.1, 3.6, 3.2, 2.7, "Form\nP = (S, E, \u03b4, D, \u03bb)\n\nS states   E events\n\u03b4 step: (s, e) \u2192 (s', out)\nD durable log\n\u03bb outputs \u2192 effects", C["form"], fs=11)
 arrow(ax, (2.7, 4.95), (3.3, 4.95)); arrow(ax, (6.5, 4.95), (7.1, 4.95), "accepted")
 ax.text(4.9, 3.6, "refused: names the rule", ha="center", fontsize=9, color="#b91c1c")
-targets = ["Rust", "Scala", "Haskell", "Julia", "wasm"]
+targets = ["Rust", "Python", "JS", "Scala"]  # the targets of `rce emit` in spec/checker/src/cli.rs
 for i, t in enumerate(targets):
     y = 6.0 - i * 0.62
     box(ax, 11.4, y, 2.2, 0.5, t, C["emit"], fs=10)
@@ -87,17 +87,6 @@ arrow(ax, (12.1, 2.7), (12.4, 2.7))
 ax.text(0.3, 0.6, "Snapshots are caches: (seq, state_hash, bytes); a mismatch with D at seq discards the snapshot. Source: rce-host-survey RCEDB.md R1 to R6; spec 6.1, D.5, D.6.", fontsize=9, color="#475569")
 save(fig, "rcedb")
 
-# (d) status
-rows = [("Scala emit tests", 55, 55, "tests passed"), ("Haskell emit, checked by GHC", 451037, 451037, "cases agreeing"),
-        ("Julia probe", 200000, 200000, "cases, 0 mismatches"), ("IDE test suite", 811, 811, "tests passed")]
-fig, ax = plt.subplots(figsize=(11, 4.2))
-for i, (n, ok, tot, unit) in enumerate(rows):
-    y = len(rows) - 1 - i
-    ax.barh(y, 1.0, color="#e5e7eb", height=0.55); ax.barh(y, ok / tot, color="#16a34a", height=0.55)
-    ax.text(0.02, y, f"{ok:,} / {tot:,} {unit}" if "Julia" not in n else f"0 / {tot:,} mismatches", va="center", color="white", weight="bold", fontsize=11)
-ax.set_yticks(range(len(rows))); ax.set_yticklabels([r[0] for r in rows][::-1], fontsize=11)
-ax.set_xlim(0, 1); ax.set_xticks([0, .25, .5, .75, 1]); ax.set_xticklabels(["0%", "25%", "50%", "75%", "100%"])
-for s in ("top", "right"): ax.spines[s].set_visible(False)
-ax.set_title("RCE status: test and differential results (October 2026)", loc="left", fontsize=14, weight="bold")
-fig.text(0.01, 0.01, "Bar = share passing / agreeing. Counts as reported by each run; see the repository for the commands.", fontsize=9, color="#475569")
-fig.tight_layout(rect=(0, 0.04, 1, 1)); save(fig, "status")
+# (d) the former status figure (Scala, Haskell, Julia and IDE counts) was removed: its Haskell and Julia
+# figures cannot be reproduced from this repository; see scripts/claim-counts.py for counts taken from source.
+

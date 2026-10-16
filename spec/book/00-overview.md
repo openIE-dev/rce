@@ -101,10 +101,14 @@ refused, by the LALR(1) tables, the Rust parser and the tree-sitter port
 alike, then runs `rce-check` over the same files (all examples together
 form one program and must be accepted; the 12 syntax rejects, the 48
 programs in `spec/examples/ill_typed/` and the 16 in
-`spec/examples/inadmissible/` must be refused). Current result (draft 0.5): 0 conflicts
-(100 rules, 472 productions, 932 states); grammar 51/51 accepted, 12/12
-refused; checker 51/51 accepted, 12/12 and 64/64 refused (16 of them only by
-W-INT-1, W-CT-1 or W-LEX-3). Until 2026-10-12 the same grammar was kept as
+`spec/examples/inadmissible/` must be refused). Current result (draft 0.7,
+the printed output of `rce-spec-check`, compared with this text by
+`scripts/claim-counts.py --check`): the section-3 grammar has 0 conflicts
+(100 rules, 490 productions, 970 states); with the additions of C.2 for
+versions 0.6 and 0.7, 0 conflicts (114 rules, 559 productions, 1148 states);
+the tool prints no separate table for version 0.8; grammar 58/58 accepted,
+12/12 refused; checker 58/58 accepted, 12/12 and 64/64 refused (16 of them
+inadmissible). Until 2026-10-12 the same grammar was kept as
 `spec/rce.lark` and checked with Lark (0 conflicts, 533 rules in Lark's
 expansion); that file is retired.
 `rce-fuzz N SEED` generates random type-directed programs from the
@@ -123,4 +127,4 @@ and LALR(1) agree on all 4,977 syntax mutants.
 
 **Read receipt.** In the overview's tiny example, what is the name of the event?
 
-<!-- body-sha256: 7c7905698ac336da05bd41b7544bf2a580c65806f22dac65639c5640cbe63d82 -->
+<!-- body-sha256: a206308d0719d6a8f643f7d815fb54a2f010ac99ff3cf5338fed09303aece2e7 -->

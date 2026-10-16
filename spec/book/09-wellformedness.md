@@ -13,7 +13,7 @@ Lexical and syntax
 - W-LEX-3 A literal outside every possible type range, or an invalid `\u{}`.
 - W-SYN-1 Not in the language of section 3.
 - W-VER-1 A first-line `# rce-version:` declaration naming a version other
-  than 0.5, 0.6 or 0.7 (2.7).
+  than 0.5, 0.6, 0.7 or 0.8 (2.7).
 
 Names and modules
 - W-NAME-1 Unresolved name, or a name resolved in the wrong namespace.
@@ -112,4 +112,4 @@ W-LVAR-1, W-LVAR-2, W-NODE-1, W-SUP-1, W-SUP-2, W-INTR-1 and W-RT-1.
 
 **Read receipt.** Which rule refuses two unguarded steps in one region whose patterns overlap?
 
-<!-- body-sha256: 2e6c0e0ff7bbee51116558a003506f9d6976ce57eb922edfd73a5e021b1ec50d -->
+<!-- body-sha256: 7ff6ba12fd3a4ee1bcae602f3d561bf0c5c851611f563b9d233f6ad8e1f227fb -->

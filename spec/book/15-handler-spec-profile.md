@@ -17,6 +17,15 @@ reason "Demo for the Form compiler" by "david"
 currency max_age=24h
 ```
 
+**Implementation status.** This appendix describes the engine profile. The
+code it names (`src/spec/`, `src/form/`) belongs to the engine crate, which
+is not in this repository. The reference checker in `spec/checker` has no
+`src/spec` or `src/form`, `rce-spec-check` does not read handler specs, and
+no file under `spec/checker/src`, `spec/checker/tests`,
+`spec/checker/examples` or `spec/examples` mentions a W-HS rule. So nothing
+in this appendix is checked by the tools published here; the rules below are
+a specification of the engine, tested there.
+
 ### D.1 Lexical rules
 
 - The file is UTF-8 text read line by line. A line that is blank after
@@ -273,8 +282,9 @@ other is claimed:
 
 ### D.9 Rules (normative)
 
-These are checked by `crate::spec::rules` (`src/spec/rules.rs`), run by `rce
-check`, and each diagnostic names its rule.
+These are checked by `crate::spec::rules` (`src/spec/rules.rs`) in the engine
+crate (see the implementation status above), run by the engine's `rce check`,
+and each diagnostic names its rule.
 
 - W-HS-VER-1: the `spec` version is not `MAJOR.MINOR.PATCH` of decimal
   integers (an optional leading `v` is allowed).
@@ -290,7 +300,9 @@ check`, and each diagnostic names its rule.
   stale when it was never checked or `now - last_checked` exceeds
   `max_age` hours. A stale spec is refused by `rce check --strict` and by
   the promotion gate when the engine's `enforce_currency` policy is on;
-  otherwise it is reported as a warning naming W-HS-CUR-2.
+  otherwise it is reported as a warning naming W-HS-CUR-2. This is the one
+  rule of the appendix whose verdict depends on a time given as an input
+  (see D.10).
 - W-HS-REASON-1: the spec, or a declaration that compiles to a node or an
   edge (deliverable, role, dependency, flow, escalation), has no `reason`
   line, or a reason whose text is empty or `unspecified`.
@@ -308,6 +320,10 @@ check`, and each diagnostic names its rule.
   signed value is never at or above 2^63. A JSON integer beyond u64 is
   read as a float (`form::num`); no integer type of the language holds
   one.
+- W-HS-CUR-2 takes `now`. 10.1 item 1 says the subcommands of section 10
+  read no clock; the staleness check is outside them, but a verdict that
+  depends on `now` is a function of its recorded inputs only if `now` is
+  recorded with the verdict. Whether it must be is not decided.
 - The cost model of extraction (est_j) and the gate's certificate are
   outside this appendix, except the break-even receipt of D.11.
 
@@ -394,4 +410,4 @@ receipts are version-independent).
 
 **Read receipt.** Which compiled node id does `deliverable D1` become? (for example role_R1)
 
-<!-- body-sha256: 77247f238663dcfbf3dd4ce08bc2e54ed7ea6131ae4284439540c6592ab305e7 -->
+<!-- body-sha256: c437da9b8325fb3713c7d007b61d6b06a8797a785f1b7217adab8e122b81993b -->

@@ -24,16 +24,12 @@ In plain words:
 
 ![RCE overview: source, checker, Form, log, emit targets, host, fabrics](docs/figures/rce-overview.svg)
 
-*The pipeline. The checker accepts a program or names the rule it breaks; an accepted program is a Form P = (S, E, δ, D, λ); every step is appended to the hash-chained log D; `rce emit` projects the program to Rust, Scala, Haskell, Julia or wasm; a host runs it on a compute fabric.*
+*The pipeline. The checker accepts a program or names the rule it breaks; an accepted program is a Form P = (S, E, δ, D, λ); every step is appended to the hash-chained log D; `rce emit` projects the program to Rust, Python, JavaScript or Scala; a host runs it on a compute fabric.*
 
 | Host contract (Appendix E) | RCEdb: the log is the database |
 |---|---|
 | ![Host contract: five primitives, adapters, one admitter, log, replay](docs/figures/host-contract.svg) | ![RCEdb: log D, indexes written in RCE, queries](docs/figures/rcedb.svg) |
 | Five primitives every surveyed target supplies; everything else is an adapter whose result is logged by the single admitter, and replay runs with every adapter disconnected. | D is the one primary artefact. Indexes are deterministic folds written in RCE (example 55); queries read them in a defined order. |
-
-![Test and differential results](docs/figures/status.svg)
-
-*Status, October 2026: Scala emit 55/55 tests; Haskell emit checked by GHC, 451,037 of 451,037 cases agree; Julia probe, 0 mismatches in 200,000 cases; IDE, 811 tests pass.*
 
 More figures (host survey, no-code survey, emit target selection, failure-class matrix), with captions, scripts and data: [docs/figures](docs/figures/). Figures marked [opinion] there encode the author's judgement.
 
@@ -105,7 +101,7 @@ step, read [The RCE Book](https://github.com/openIE-dev/rce-book).
 | `rce test FILE...` | the same, and count each file's examples and checks |
 | `rce run FILE [EVENTS]` | apply events, or run `fn main()` |
 | `rce trace --json FILE [EVENTS]` | reference trace of each example, or of EVENTS, for checking another implementation step by step |
-| `rce emit TARGET FILE` | `form` (the Form as JSON), `rust`, `python` or `js` |
+| `rce emit TARGET FILE` | `form` (the Form as JSON), `rust`, `python`, `js` or `scala` |
 | `rce fmt [--check] FILE...` | rewrite files in the canonical layout |
 | `rce lsp` | language server on standard input and output |
 | `rce --version` | the checker version, the specification draft and the language versions it accepts |
@@ -144,7 +140,9 @@ Section 10 of the specification defines each command exactly.
 The specification is **draft 0.7, published for review**. It can still
 change. The reference interpreter defines what programs mean and is not
 built for speed. There is no production compiler yet. Section 10.8 lists
-what the tools do not do yet.
+what the tools do not do yet. Counts quoted about the specification and the
+checker are taken from the source by `scripts/claim-counts.py --check`; a
+count is not a test result, and test results come from running the tests.
 
 ## Language versions 0.5, 0.6, 0.7 and 0.8
 

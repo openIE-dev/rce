@@ -104,10 +104,14 @@ refused, by the LALR(1) tables, the Rust parser and the tree-sitter port
 alike, then runs `rce-check` over the same files (all examples together
 form one program and must be accepted; the 12 syntax rejects, the 48
 programs in `spec/examples/ill_typed/` and the 16 in
-`spec/examples/inadmissible/` must be refused). Current result (draft 0.5): 0 conflicts
-(100 rules, 472 productions, 932 states); grammar 51/51 accepted, 12/12
-refused; checker 51/51 accepted, 12/12 and 64/64 refused (16 of them only by
-W-INT-1, W-CT-1 or W-LEX-3). Until 2026-10-12 the same grammar was kept as
+`spec/examples/inadmissible/` must be refused). Current result (draft 0.7,
+the printed output of `rce-spec-check`, compared with this text by
+`scripts/claim-counts.py --check`): the section-3 grammar has 0 conflicts
+(100 rules, 490 productions, 970 states); with the additions of C.2 for
+versions 0.6 and 0.7, 0 conflicts (114 rules, 559 productions, 1148 states);
+the tool prints no separate table for version 0.8; grammar 58/58 accepted,
+12/12 refused; checker 58/58 accepted, 12/12 and 64/64 refused (16 of them
+inadmissible). Until 2026-10-12 the same grammar was kept as
 `spec/rce.lark` and checked with Lark (0 conflicts, 533 rules in Lark's
 expansion); that file is retired.
 `rce-fuzz N SEED` generates random type-directed programs from the
@@ -600,8 +604,11 @@ declaration and no conflict to resolve at parse time.
    left-recursive helper rule), builds the LALR(1) tables and fails on any
    shift/reduce or reduce/reduce conflict (verified: adding
    `| AddExpr "+" AddExpr` to `AddExpr` makes it fail with 3 conflicts);
-   current result: 100 rules, 472 productions, 932 states, 0 conflicts;
-2. parses the 51 programs in `examples/`, with and without their final
+   current result (draft 0.7): 100 rules, 490 productions, 970 states, 0
+   conflicts (`scripts/claim-counts.py --check` compares these numbers with
+   the output of `rce-spec-check`);
+2. parses the 58 programs in `examples/` (the 56 files there and the 2 of
+   `examples/26_use_module/`), with and without their final
    newline; all must parse;
 3. parses the 12 programs in `examples/reject/` (tab indent, chained
    comparison, `if` expression without `else`, `try` in a `then` branch,
@@ -1862,7 +1869,7 @@ Lexical and syntax
 - W-LEX-3 A literal outside every possible type range, or an invalid `\u{}`.
 - W-SYN-1 Not in the language of section 3.
 - W-VER-1 A first-line `# rce-version:` declaration naming a version other
-  than 0.5, 0.6 or 0.7 (2.7).
+  than 0.5, 0.6, 0.7 or 0.8 (2.7).
 
 Names and modules
 - W-NAME-1 Unresolved name, or a name resolved in the wrong namespace.
@@ -2192,7 +2199,9 @@ each can be reversed independently.
    are Form errors, not part of declared error sets**; `catch` cannot hide
    them.
 8. **Only structural recursion** (revised in 0.4: a self-call must pass a
-   constructor field of a matched parameter; mutual recursion refused) and
+   constructor field of a matched parameter; mutual recursion refused. Since
+   replaced by the measure of 6.7, which admits a self-call or a cycle whose
+   calls shrink a measure, in layers where needed) and
    **every loop bounded** (default 1,000,000, `bound n` to change), so δ is
    total by construction. Recursion on integers (`f(n - 1)`) is still
    refused; write it as a bounded loop.
@@ -2205,7 +2214,8 @@ each can be reversed independently.
 11. **Integer types checked against their own range**, all lowered to the
     Form's i64; u64 arithmetic results ≥ 2^63 trap. No implicit widening; no
     literal suffixes.
-12. **f64 only** (no f32), because the Form has one float.
+12. **f64 only** (no f32), because the Form has one float. Superseded in
+    draft 0.5 by decision 42: f32 is a type, with the Form ops of 9.4.
 13. **Bitwise operators bind tighter than comparisons** (unlike C/Python's `&`
     vs `==` in C), so `x & 1 == 1` means what it reads as.
 14. **`if … then … else …` as the expression conditional**; no Python
@@ -2242,9 +2252,12 @@ each can be reversed independently.
 28. **No macros, no exceptions, no null, no inheritance, no operator
     overloading beyond traits `Eq`/`Ord`/`Show`**: kept out to keep one
     meaning per text.
-29. **Grammar artifact is Lark LALR(1)** rather than tree-sitter: it is a
+29. **Grammar artifact is a checked LALR(1) table** rather than tree-sitter: it is a
     deterministic LR table with mechanical conflict detection; a tree-sitter
-    port is mechanical once the grammar is approved.
+    port is mechanical once the grammar is approved. Revised on 2026-10-12:
+    this decision named Lark (`rce.lark`), which is retired. The normative
+    grammar is the EBNF of section 3, and `rce-spec-check` builds the LALR(1)
+    tables from it (3.12); the tree-sitter port is checked against it.
 
 30. **Tail values** in block-bodied functions (S5).
 31. **A trapping guard refuses the event** (S1).
@@ -2437,10 +2450,16 @@ and stops at the refused third event with exit status 1.
 
 ### 10.1 Principles
 
-1. **Determinism.** Every subcommand is a function of its arguments and the
-   bytes of the files it reads. Two runs on the same input give the same
-   output bytes and the same exit status. No subcommand reads the clock,
-   the network, environment variables or random numbers.
+1. **Determinism.** Every subcommand of 10.2 to 10.10 is a function of its
+   arguments and the bytes of the files it reads. Two runs on the same input
+   give the same output bytes and the same exit status. None of them reads
+   the clock, the network, environment variables or random numbers. The same
+   binary also carries the host commands (`rce host ...`) and `rce db`,
+   defined by Appendix E; the host loop reads the clock (the frame period
+   of `Tick`) and the network by design, and logs what it reads as inputs
+   (HC-2, HC-14), so this item does not describe them. The handler-spec
+   staleness rule W-HS-CUR-2 takes a time as an input and is part of the
+   engine profile (D.9, D.10), not of these subcommands.
 2. **No model in the loop.** No subcommand and no language server request
    calls a language model, a remote service or any learned component. A
    diagnostic, a run, a test verdict, an emitted file and a formatted file
@@ -2558,10 +2577,6 @@ program (section 7).
 
 TARGET names an output. The file must pass `rce check` on its own.
 
-![Emit and IDE test results](https://raw.githubusercontent.com/openIE-dev/rce/main/docs/figures/status.svg)
-
-*Figure (informative). Test and differential results, October 2026, for the Scala and Haskell emitters, the Julia probe and the IDE. Source: [docs/figures](https://github.com/openIE-dev/rce/tree/main/docs/figures).*
-
 | TARGET | Output |
 |---|---|
 | `form` | the Form P = (S, E, δ, D, λ) as one line of JSON (6.1), then a line end |
@@ -2610,14 +2625,17 @@ it, its outputs, or the refusal), and finally the outputs and result of
 evaluator, so that a target and the reference can be compared line for
 line.
 
-**How the emitters are tested.** `spec/checker/tests/emit.rs` emits all 51
-programs of `spec/examples/` in all three targets. To exercise function
+**How the emitters are tested.** `spec/checker/tests/emit.rs` emits all 58
+programs of `spec/examples/` (the 56 files and the 2 of `26_use_module`) in
+all three targets. To exercise function
 bodies, it first adds *probes*: for each function and method, up to three
 calls on small sample arguments built from the parameter types, plus one
 example that sends every event. It then runs each output (`rustc`,
 `python3`, `node`) and requires its output to equal the reference
-evaluator's, line for line. All 51 agree on all three targets, with 299
-observation lines per target. Four programs (14, 15, 34, 47) contain only
+evaluator's, line for line. On 2026-10-16, with rustc 1.98.1, Python 3.13.5
+and Node 20.19.2, all 58 agree on all three targets, with 474 observation
+lines per target. (The dated runs below were made when the corpus was 51
+programs, and 55 for Scala, with 299 and 361 observation lines.) Four programs (14, 15, 34, 47) contain only
 concurrency and give no observation. A separate program
 (`tests/emit_edge.rce`) covers range traps, loop bounds, `&mut` write-back,
 closures and float display. The Scala target has its own test in the same
@@ -3574,6 +3592,15 @@ reason "Demo for the Form compiler" by "david"
 currency max_age=24h
 ```
 
+**Implementation status.** This appendix describes the engine profile. The
+code it names (`src/spec/`, `src/form/`) belongs to the engine crate, which
+is not in this repository. The reference checker in `spec/checker` has no
+`src/spec` or `src/form`, `rce-spec-check` does not read handler specs, and
+no file under `spec/checker/src`, `spec/checker/tests`,
+`spec/checker/examples` or `spec/examples` mentions a W-HS rule. So nothing
+in this appendix is checked by the tools published here; the rules below are
+a specification of the engine, tested there.
+
 ### D.1 Lexical rules
 
 - The file is UTF-8 text read line by line. A line that is blank after
@@ -3830,8 +3857,9 @@ other is claimed:
 
 ### D.9 Rules (normative)
 
-These are checked by `crate::spec::rules` (`src/spec/rules.rs`), run by `rce
-check`, and each diagnostic names its rule.
+These are checked by `crate::spec::rules` (`src/spec/rules.rs`) in the engine
+crate (see the implementation status above), run by the engine's `rce check`,
+and each diagnostic names its rule.
 
 - W-HS-VER-1: the `spec` version is not `MAJOR.MINOR.PATCH` of decimal
   integers (an optional leading `v` is allowed).
@@ -3847,7 +3875,9 @@ check`, and each diagnostic names its rule.
   stale when it was never checked or `now - last_checked` exceeds
   `max_age` hours. A stale spec is refused by `rce check --strict` and by
   the promotion gate when the engine's `enforce_currency` policy is on;
-  otherwise it is reported as a warning naming W-HS-CUR-2.
+  otherwise it is reported as a warning naming W-HS-CUR-2. This is the one
+  rule of the appendix whose verdict depends on a time given as an input
+  (see D.10).
 - W-HS-REASON-1: the spec, or a declaration that compiles to a node or an
   edge (deliverable, role, dependency, flow, escalation), has no `reason`
   line, or a reason whose text is empty or `unspecified`.
@@ -3865,6 +3895,10 @@ check`, and each diagnostic names its rule.
   signed value is never at or above 2^63. A JSON integer beyond u64 is
   read as a float (`form::num`); no integer type of the language holds
   one.
+- W-HS-CUR-2 takes `now`. 10.1 item 1 says the subcommands of section 10
+  read no clock; the staleness check is outside them, but a verdict that
+  depends on `now` is a function of its recorded inputs only if `now` is
+  recorded with the verdict. Whether it must be is not decided.
 - The cost model of extraction (est_j) and the gate's certificate are
   outside this appendix, except the break-even receipt of D.11.
 

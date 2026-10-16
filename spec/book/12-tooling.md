@@ -8,10 +8,16 @@ and stops at the refused third event with exit status 1.
 
 ### 10.1 Principles
 
-1. **Determinism.** Every subcommand is a function of its arguments and the
-   bytes of the files it reads. Two runs on the same input give the same
-   output bytes and the same exit status. No subcommand reads the clock,
-   the network, environment variables or random numbers.
+1. **Determinism.** Every subcommand of 10.2 to 10.10 is a function of its
+   arguments and the bytes of the files it reads. Two runs on the same input
+   give the same output bytes and the same exit status. None of them reads
+   the clock, the network, environment variables or random numbers. The same
+   binary also carries the host commands (`rce host ...`) and `rce db`,
+   defined by Appendix E; the host loop reads the clock (the frame period
+   of `Tick`) and the network by design, and logs what it reads as inputs
+   (HC-2, HC-14), so this item does not describe them. The handler-spec
+   staleness rule W-HS-CUR-2 takes a time as an input and is part of the
+   engine profile (D.9, D.10), not of these subcommands.
 2. **No model in the loop.** No subcommand and no language server request
    calls a language model, a remote service or any learned component. A
    diagnostic, a run, a test verdict, an emitted file and a formatted file
@@ -129,10 +135,6 @@ program (section 7).
 
 TARGET names an output. The file must pass `rce check` on its own.
 
-![Emit and IDE test results](https://raw.githubusercontent.com/openIE-dev/rce/main/docs/figures/status.svg)
-
-*Figure (informative). Test and differential results, October 2026, for the Scala and Haskell emitters, the Julia probe and the IDE. Source: [docs/figures](https://github.com/openIE-dev/rce/tree/main/docs/figures).*
-
 | TARGET | Output |
 |---|---|
 | `form` | the Form P = (S, E, δ, D, λ) as one line of JSON (6.1), then a line end |
@@ -181,14 +183,17 @@ it, its outputs, or the refusal), and finally the outputs and result of
 evaluator, so that a target and the reference can be compared line for
 line.
 
-**How the emitters are tested.** `spec/checker/tests/emit.rs` emits all 51
-programs of `spec/examples/` in all three targets. To exercise function
+**How the emitters are tested.** `spec/checker/tests/emit.rs` emits all 58
+programs of `spec/examples/` (the 56 files and the 2 of `26_use_module`) in
+all three targets. To exercise function
 bodies, it first adds *probes*: for each function and method, up to three
 calls on small sample arguments built from the parameter types, plus one
 example that sends every event. It then runs each output (`rustc`,
 `python3`, `node`) and requires its output to equal the reference
-evaluator's, line for line. All 51 agree on all three targets, with 299
-observation lines per target. Four programs (14, 15, 34, 47) contain only
+evaluator's, line for line. On 2026-10-16, with rustc 1.98.1, Python 3.13.5
+and Node 20.19.2, all 58 agree on all three targets, with 474 observation
+lines per target. (The dated runs below were made when the corpus was 51
+programs, and 55 for Scala, with 299 and 361 observation lines.) Four programs (14, 15, 34, 47) contain only
 concurrency and give no observation. A separate program
 (`tests/emit_edge.rce`) covers range traps, loop bounds, `&mut` write-back,
 closures and float display. The Scala target has its own test in the same
@@ -492,4 +497,4 @@ give equal output bytes.
 
 **Read receipt.** Which JSON-RPC error code does the language server return for a request it does not know? (a number)
 
-<!-- body-sha256: 9e9a299d131246b173c6baf45c989a4e9c3506009466e1cebd8ea227167ed695 -->
+<!-- body-sha256: 6a7d92983921bdecb6756261dca555940188ca00ad53bbeb987279c32ef0283b -->

@@ -277,8 +277,11 @@ declaration and no conflict to resolve at parse time.
    left-recursive helper rule), builds the LALR(1) tables and fails on any
    shift/reduce or reduce/reduce conflict (verified: adding
    `| AddExpr "+" AddExpr` to `AddExpr` makes it fail with 3 conflicts);
-   current result: 100 rules, 472 productions, 932 states, 0 conflicts;
-2. parses the 51 programs in `examples/`, with and without their final
+   current result (draft 0.7): 100 rules, 490 productions, 970 states, 0
+   conflicts (`scripts/claim-counts.py --check` compares these numbers with
+   the output of `rce-spec-check`);
+2. parses the 58 programs in `examples/` (the 56 files there and the 2 of
+   `examples/26_use_module/`), with and without their final
    newline; all must parse;
 3. parses the 12 programs in `examples/reject/` (tab indent, chained
    comparison, `if` expression without `else`, `try` in a `then` branch,
@@ -311,4 +314,4 @@ SOUP=2): 16,092 inputs, 3,185 identical trees, 12,907 refused by both,
 
 **Read receipt.** Which numbered resolution rule in 3.11 covers `send`? (for example R1)
 
-<!-- body-sha256: 86baf828c7f79a62c2158222a7559b8ba950fa8f9e9be5d0facd6d65019d3e2a -->
+<!-- body-sha256: 4f9772b399f34c966fc5da1df89d62269093dd926a1c33c5349447c5b52df47c -->

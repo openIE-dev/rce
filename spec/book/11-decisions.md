@@ -27,7 +27,9 @@ each can be reversed independently.
    are Form errors, not part of declared error sets**; `catch` cannot hide
    them.
 8. **Only structural recursion** (revised in 0.4: a self-call must pass a
-   constructor field of a matched parameter; mutual recursion refused) and
+   constructor field of a matched parameter; mutual recursion refused. Since
+   replaced by the measure of 6.7, which admits a self-call or a cycle whose
+   calls shrink a measure, in layers where needed) and
    **every loop bounded** (default 1,000,000, `bound n` to change), so δ is
    total by construction. Recursion on integers (`f(n - 1)`) is still
    refused; write it as a bounded loop.
@@ -40,7 +42,8 @@ each can be reversed independently.
 11. **Integer types checked against their own range**, all lowered to the
     Form's i64; u64 arithmetic results ≥ 2^63 trap. No implicit widening; no
     literal suffixes.
-12. **f64 only** (no f32), because the Form has one float.
+12. **f64 only** (no f32), because the Form has one float. Superseded in
+    draft 0.5 by decision 42: f32 is a type, with the Form ops of 9.4.
 13. **Bitwise operators bind tighter than comparisons** (unlike C/Python's `&`
     vs `==` in C), so `x & 1 == 1` means what it reads as.
 14. **`if … then … else …` as the expression conditional**; no Python
@@ -77,9 +80,12 @@ each can be reversed independently.
 28. **No macros, no exceptions, no null, no inheritance, no operator
     overloading beyond traits `Eq`/`Ord`/`Show`**: kept out to keep one
     meaning per text.
-29. **Grammar artifact is Lark LALR(1)** rather than tree-sitter: it is a
+29. **Grammar artifact is a checked LALR(1) table** rather than tree-sitter: it is a
     deterministic LR table with mechanical conflict detection; a tree-sitter
-    port is mechanical once the grammar is approved.
+    port is mechanical once the grammar is approved. Revised on 2026-10-12:
+    this decision named Lark (`rce.lark`), which is retired. The normative
+    grammar is the EBNF of section 3, and `rce-spec-check` builds the LALR(1)
+    tables from it (3.12); the tree-sitter port is checked against it.
 
 30. **Tail values** in block-bodied functions (S5).
 31. **A trapping guard refuses the event** (S1).
@@ -260,4 +266,4 @@ they run them on the CPU, which 5.13 allows).
 
 **Read receipt.** The decisions list says it decides gaps in which file?
 
-<!-- body-sha256: 1855f984ba5ac9080eafaf9ef3173df0cc97c536d2029815c9fb0197fa925276 -->
+<!-- body-sha256: b0d7cb2e7884f1c40bfc7c0f68e4458e4e5803de07bdfe849fb109f6f19f2fc7 -->
