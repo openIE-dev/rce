@@ -163,20 +163,20 @@ fn class_table_in_the_book_is_method_work() {
     let book = std::fs::read_to_string(p).unwrap();
     let five = |kind: &str| match kind {
         "text" => V::Text("abcde".into()),
-        "list" => list(5),
+        "list" | "set" => list(5), // a Set[τ] value is a list (conc.rs method_work)
         _ => V::Map((0..5).map(|i| (V::Int(i, "i64"), V::Int(i, "i64"))).collect()),
     };
     let mut rows = 0;
     for l in book.lines().filter(|l| l.starts_with("| linear, ") || l.starts_with("| n log n, ")) {
         let cols: Vec<&str> = l.split('|').map(str::trim).collect();
-        let kind = ["text", "list", "map"].into_iter().find(|k| cols[1].contains(&format!("{k} receiver"))).unwrap();
+        let kind = ["text", "list", "map", "set"].into_iter().find(|k| cols[1].contains(&format!("{k} receiver"))).unwrap();
         for m in cols[2].split(", ").map(|m| m.trim_matches('`')) {
             let want = if cols[1].starts_with("n log n") { 5 * 3 } else { 5 };
             assert_eq!(method_work(&five(kind), m, &[]), want, "{kind}.{m}");
         }
         rows += 1;
     }
-    assert_eq!(rows, 4);
+    assert_eq!(rows, 5); // text, list, map, set linear rows and the n log n list row
     // Constant class: a few methods outside the table cost nothing extra.
     for (k, m) in [("list", "len"), ("list", "pop"), ("text", "len"), ("map", "len"), ("list", "get")] {
         assert_eq!(method_work(&five(k), m, &[]), 0, "{k}.{m}");
