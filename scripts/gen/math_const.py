@@ -2,7 +2,8 @@
 """Constants of lib/math/math.rce: floor(c * 2^b) as base-2^30 limbs,
 little-endian, computed with MPFR at 9000 bits (gmpy2). Prints the RCE
 functions c_two_opi (2/pi, b = 4200), c_pio2 (pi/2, 2100), c_ln2 (ln 2,
-2100), c_log2e, c_log10e, c_log10_2, c_ln10 (2100), c_pi, c_ln2x, c_2osqrtpi, c_hl2pi (4200), c_stir
+2100), c_log2e, c_log10e, c_log10_2, c_ln10 (2100), c_pi, c_ln2x, c_2osqrtpi, c_hl2pi (4200), c_euler (Euler's gamma, 2100), c_g2
+(gamma^2/2 + pi^2/12, 2100), c_stir
 (|B_2k| / (2k (2k-1)), k = 1..20, 4200); math.rce must contain those it defines verbatim (--check FILE)."""
 import sys, gmpy2
 gmpy2.get_context().precision = 9000
@@ -12,7 +13,9 @@ C = [('c_two_opi', 2 / pi, 4200), ('c_pio2', pi / 2, 2100), ('c_ln2', ln2, 2100)
      ('c_log2e', 1 / ln2, 2100), ('c_log10e', 1 / ln10, 2100), ('c_log10_2', ln2 / ln10, 2100),
      ('c_ln10', ln10, 2100), ('c_pi', pi, 4200),
      ('c_ln2x', ln2, 4200), ('c_2osqrtpi', 2 / gmpy2.sqrt(pi), 4200),
-     ('c_hl2pi', gmpy2.log(2 * pi) / 2, 4200)]
+     ('c_hl2pi', gmpy2.log(2 * pi) / 2, 4200),
+     ('c_euler', gmpy2.const_euler(), 2100),
+     ('c_g2', gmpy2.const_euler()**2 / 2 + pi**2 / 12, 2100)]
 def limbs(n):
     o = []
     while n: o.append(n & (2**30 - 1)); n >>= 30

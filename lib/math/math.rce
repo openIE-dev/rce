@@ -612,10 +612,14 @@ fn log_fix(num: i64, den: i64, f: i64) -> List[i64]
             p = 0
     z.push(w)
     z = n_shr(&z, got - f)
-    let zz = n_mul(&z, &z)
+    return atanh2_fix(&z, f)
+
+# 2 atanh(z) = 2 (z + z^3/3 + ...) for 0 <= z / 2^f < 1/4: f fraction bits
+fn atanh2_fix(z: &[i64], f: i64) -> List[i64]
+    let zz = n_mul(z, z)
     let z2 = n_shr(&zz, f)
-    var s = copy(z)
-    var t = copy(z)
+    var s = n_shr(z, 0)
+    var t = n_shr(z, 0)
     var k: i64 = 1
     while t.len() > 0 bound 4096
         let p = n_mul(&t, &z2)
@@ -920,6 +924,993 @@ fn atan_core(a: &[i64], b: &[i64], sh: i64, d: i64, swap: bool, xneg: bool, f: i
         r = n_sub(&pi, &r)
     return [[fe], r]
 
+# ---- atan, asin, acos -----------------------------------------------------
+
+pub fn atan(x: f64) -> f64
+    return atan2(x, 1.0)
+
+# floor(sqrt(n)): Newton from a power of two above it, decreasing until fixed
+fn n_isqrt(n: &[i64]) -> List[i64]
+    let l = n_bits(n)
+    if l == 0
+        return []
+    # start just above sqrt from the top 52..53 bits (an even shift)
+    let sh = if l > 53 then (l - 52) / 2 * 2 else 0
+    let tn = n_shr(n, sh)
+    let st = (n_to_i64(&tn) as f64).sqrt() * 1.000000001 + 2.0
+    let s0 = n_of(st as i64)
+    var s = n_shl(&s0, sh / 2)
+    var go = true
+    while go bound 4096
+        let q = n_div(n, &s, 0)
+        let t = n_add(&s, &q)
+        let s2 = n_shr(&t, 1)
+        if n_cmp(&s2, &s) < 0
+            s = s2
+        else
+            go = false
+    return s
+
+# asin / acos: x = M 2^E, |x| < 1, so 1 - x^2 = D 2^(2E) with D = 2^(-2E) - M^2
+# exact, and with S = floor(sqrt(D 2^(2g))) both are atan of a ratio of
+# integers: asin x = atan(M 2^g / S), acos x = atan2(S, M 2^g). S is off by
+# under one part in 2^g, which moves atan by under 2^-g: g = f + 160 is far
+# below the Ziv bound at fe <= f + 3d (d <= 81 here).
+fn asin_acos(x: f64, ac: bool) -> f64
+    let ax = fabs(x)
+    let m = mant_any(ax)
+    let mm = n_of(m[0])
+    let m2 = n_mul(&mm, &mm)
+    let p = n_pow2(0 - 2 * m[1])
+    let dn = n_sub(&p, &m2)
+    for f in ZIV_F
+        let g = f + 160
+        let dg = n_shl(&dn, 2 * g)
+        let sq = n_isqrt(&dg)
+        let mg = n_shl(&mm, g)
+        let c = if ac then n_cmp(&sq, &mg) else n_cmp(&mg, &sq)
+        let swap = c > 0
+        let d = if swap == ac then n_bits(&sq) - n_bits(&mg) else n_bits(&mg) - n_bits(&sq)
+        let xn = ac and x < 0.0
+        let r = if swap == ac then atan_core(&mg, &sq, 0, d, swap, xn, f) else atan_core(&sq, &mg, 0, d, swap, xn, f)
+        let z = ziv(&r[1], 0 - r[0][0])
+        if z[0] == z[1]
+            return if not ac and x < 0.0 then chs(z[0]) else z[0]
+    return 0.0 / 0.0
+
+# asin x ~ x + x^3/6 rounds to x for |x| < 2^-28; |x| > 1 traps
+pub fn asin(x: f64) -> f64
+    let ax = fabs(x)
+    if ax > 1.0
+        return 0.0 / 0.0
+    if ax == 1.0
+        return if x < 0.0 then 0.0 - 1.5707963267948966 else 1.5707963267948966
+    if ax < 3.725290298461914e-09
+        return x
+    return asin_acos(x, false)
+
+pub fn acos(x: f64) -> f64
+    let ax = fabs(x)
+    if ax > 1.0
+        return 0.0 / 0.0
+    if x == 1.0
+        return 0.0
+    if x == -1.0
+        return 3.141592653589793
+    # pi/2 - x: the double nearest pi/2 is 6.1e-17 below it, so for
+    # |x| < 2^-55 the result stays within 8.9e-17 < ulp/2 of it
+    if ax < 2.7755575615628914e-17
+        return 1.5707963267948966
+    if ax < 0.0009765625
+        return acos_small(x)
+    return asin_acos(x, true)
+
+# acos x = pi/2 -+ asin |x| for |x| < 2^-10, asin by its series
+# sum (2k)!/(4^k k!^2 (2k+1)) x^(2k+1) in G-bit fixed point (term ratio
+# under 2^-20, each term off by under 2 units, about G/20 terms): no
+# square root, so tiny |x| costs O(G^2 / 20) instead of a 2G-bit isqrt
+fn acos_small(x: f64) -> f64
+    let ax = fabs(x)
+    for f in ZIV_F
+        let gg = f + 64
+        let xf = fix(ax, gg)
+        let xx = n_mul(&xf, &xf)
+        let x2 = n_shr(&xx, gg)
+        var t = n_shr(&xf, 0)
+        var s = n_shr(&xf, 0)
+        var k: i64 = 0
+        while t.len() > 0 bound 4096
+            k += 1
+            let tx = n_mul(&t, &x2)
+            let tp = n_shr(&tx, gg)
+            let tq = n_muls(&tp, (2 * k - 1) * (2 * k - 1))
+            t = n_divs(&tq, 2 * k * (2 * k + 1))
+            s = n_add(&s, &t)
+        let c = c_pio2()
+        let pc = cst(&c, 2100, gg)
+        let v = if x < 0.0 then n_add(&pc, &s) else n_sub(&pc, &s)
+        let z = ziv(&v, 0 - gg)
+        if z[0] == z[1]
+            return z[0]
+    return 0.0 / 0.0
+
+
+# ---- sinh, cosh, tanh -------------------------------------------------------
+# e^|x| = N1 2^(k1 - g), e^-|x| = N2 2^(k2 - g) (exp_big), so with
+# N2' = N2 / 2^(k1 - k2): sinh, cosh = (N1 -+ N2') 2^(k1 - 1 - g) and
+# tanh = (N1 - N2') / (N1 + N2'). g = f + ex + 64 keeps f bits relative to
+# the result through the cancellation (ex ~ log2(1 / |x|) <= 27).
+fn hyp_parts(ax: f64, g: i64) -> List[List[i64]]
+    let xf = fix(ax, g)
+    let p = exp_big(false, &xf, g)
+    let q = exp_big(true, &xf, g)
+    let k1 = p[0][0]
+    let n2 = n_shr(&q[1], k1 - q[0][0])
+    return [[k1], n_sub(&p[1], &n2), n_add(&p[1], &n2)]
+
+fn hyp_ex(ax: f64) -> i64
+    let fr = frexp1(ax)
+    let e = fr[1] as i64
+    return if e < 0 then 0 - e else 0
+
+# which: 0 sinh, 1 cosh
+fn sinh_cosh(x: f64, which: i64) -> f64
+    let ax = fabs(x)
+    if ax > 711.0
+        return 1.7976931348623157e308 * 2.0
+    let ex = hyp_ex(ax)
+    for f in ZIV_F
+        let g = f + ex + 64
+        let h = hyp_parts(ax, g)
+        let z = if which == 0 then ziv(&h[1], h[0][0] - 1 - g) else ziv(&h[2], h[0][0] - 1 - g)
+        if z[0] == z[1]
+            return if which == 0 and x < 0.0 then chs(z[0]) else z[0]
+    return 0.0 / 0.0
+
+# sinh x = x (1 + x^2/6 + ...) rounds to x for |x| < 2^-27
+pub fn sinh(x: f64) -> f64
+    if fabs(x) < 7.450580596923828e-09
+        return x
+    return sinh_cosh(x, 0)
+
+# cosh x = 1 + x^2/2 + ... rounds to 1 for |x| < 2^-27
+pub fn cosh(x: f64) -> f64
+    if fabs(x) < 7.450580596923828e-09
+        return 1.0
+    return sinh_cosh(x, 1)
+
+# tanh x = x (1 - x^2/3 + ...) rounds to x for |x| < 2^-27, and
+# 1 - tanh x < 2 e^(-2|x|) < 2^-60 for |x| > 22 rounds to 1
+pub fn tanh(x: f64) -> f64
+    let ax = fabs(x)
+    if ax < 7.450580596923828e-09
+        return x
+    if ax > 22.0
+        return if x < 0.0 then -1.0 else 1.0
+    let ex = hyp_ex(ax)
+    for f in ZIV_F
+        let fe = f + ex
+        let h = hyp_parts(ax, fe + 64)
+        let t = n_div(&h[1], &h[2], fe)
+        let z = ziv(&t, 0 - fe)
+        if z[0] == z[1]
+            return if x < 0.0 then chs(z[0]) else z[0]
+    return 0.0 / 0.0
+
+
+# ---- asinh, acosh, atanh ----------------------------------------------------
+# All three are logs of a value U / 2^G >= 1 known to about one unit:
+# log = e ln2 + 2 atanh((u - 1)/(u + 1)) with u = U 2^-(G + e) in [0.75, 1.5).
+
+# log(U 2^-G) = (neg ? -1 : 1) N 2^-fo for U > 0 (fo <= 4200): [[neg], N]
+fn log_fixed(u: &[i64], gg: i64, fo: i64) -> List[List[i64]]
+    let b = n_bits(u)
+    var e = b - 1 - gg
+    # top bits: u / 2^(b-1) >= 1.5 means the next power of two
+    # (u = 1, b = 1: the top bits are 10)
+    let t2 = if b >= 2 then n_shr(u, b - 2) else n_shl(u, 1)
+    if n_to_i64(&t2) == 3
+        e += 1
+    let p = n_pow2(gg + e)
+    let neg = n_cmp(u, &p) < 0
+    let num = if neg then n_sub(&p, u) else n_sub(u, &p)
+    let den = n_add(u, &p)
+    let z = n_div(&num, &den, fo)
+    let lm = atanh2_fix(&z, fo)
+    let c = c_ln2x()
+    let l = cst(&c, 4200, fo)
+    let el = n_muls(&l, if e < 0 then 0 - e else e)
+    # e ln2 + (neg ? -lm : lm)
+    let a_neg = e < 0
+    if a_neg == neg
+        return [[if neg then 1 else 0], n_add(&el, &lm)]
+    if n_cmp(&el, &lm) >= 0
+        return [[if a_neg then 1 else 0], n_sub(&el, &lm)]
+    return [[if neg then 1 else 0], n_sub(&lm, &el)]
+
+# x + sqrt(x^2 +- 1) = 2^t (x' + sqrt(x'^2 +- 2^-2t)) with x' = x 2^-t <= 1
+# (t = max(0, E + 53) for x = M 2^E), as U / 2^(G - t): [U, G - t]; the
+# 2^-2t term is truncated at 2^-2G (one unit of the square root at most)
+fn hyp_u(x: f64, gg: i64, sgn: i64) -> List[List[i64]]
+    let m = mant_any(x)
+    let t = if m[1] + 53 > 0 then m[1] + 53 else 0
+    let mm = n_of(m[0])
+    let sx = m[1] - t + gg
+    let xg = if sx >= 0 then n_shl(&mm, sx) else n_shr(&mm, 0 - sx)
+    let m2 = n_mul(&mm, &mm)
+    let a = if sx >= 0 then n_shl(&m2, 2 * sx) else n_shr(&m2, 0 - 2 * sx)
+    let one = if 2 * gg - 2 * t >= 0 then n_pow2(2 * gg - 2 * t) else []
+    let s2 = if sgn > 0 then n_add(&a, &one) else n_sub(&a, &one)
+    let s = n_isqrt(&s2)
+    return [n_add(&xg, &s), [gg - t]]
+
+# asinh x = x (1 - x^2/6 + ...) rounds to x for |x| < 2^-27
+pub fn asinh(x: f64) -> f64
+    let ax = fabs(x)
+    if ax < 7.450580596923828e-09
+        return x
+    let ex = hyp_ex(ax)
+    for f in ZIV_F
+        let gg = f + ex + 64
+        let u = hyp_u(ax, gg, 1)
+        let r = log_fixed(&u[0], u[1][0], gg)
+        let z = ziv(&r[1], 0 - gg)
+        if z[0] == z[1]
+            return if x < 0.0 then chs(z[0]) else z[0]
+    return 0.0 / 0.0
+
+# acosh x = log(x + sqrt(x^2 - 1)) for x >= 1 (x < 1 traps); the result is
+# at least acosh(1 + 2^-52) > 2^-26, so G = f + 96 covers the cancellation
+pub fn acosh(x: f64) -> f64
+    if x < 1.0
+        return 0.0 / 0.0
+    if x == 1.0
+        return 0.0
+    for f in ZIV_F
+        let gg = f + 96
+        let u = hyp_u(x, gg, -1)
+        let r = log_fixed(&u[0], u[1][0], gg)
+        let z = ziv(&r[1], 0 - gg)
+        if z[0] == z[1]
+            return z[0]
+    return 0.0 / 0.0
+
+# atanh x = log((1 + |x|) / (1 - |x|)) / 2, |x| = M 2^E: the ratio is
+# (2^-E + M) / (2^-E - M); rounds to x for |x| < 2^-27; |x| >= 1 traps
+pub fn atanh(x: f64) -> f64
+    let ax = fabs(x)
+    if ax >= 1.0
+        return 0.0 / 0.0
+    if ax < 7.450580596923828e-09
+        return x
+    let ex = hyp_ex(ax)
+    let m = mant(ax)
+    let mm = n_of(m[0])
+    let p = n_pow2(0 - m[1])
+    let a = n_add(&p, &mm)
+    let b = n_sub(&p, &mm)
+    for f in ZIV_F
+        let gg = f + ex + 64
+        let u = n_div(&a, &b, gg)
+        let r = log_fixed(&u, gg, gg)
+        let z = ziv(&r[1], 0 - gg - 1)
+        if z[0] == z[1]
+            return if x < 0.0 then chs(z[0]) else z[0]
+    return 0.0 / 0.0
+
+
+# ---- expm1, log1p ---------------------------------------------------------
+# expm1 x = N 2^(k - g) - 1 from exp_big, at g = f + ex + 64 fraction bits
+# (ex ~ log2(1 / |x|) bits cancel); x + x^2/2 rounds to x for |x| < 2^-54,
+# and e^x < 2^-54 rounds -1 + e^x to -1 for x < -38
+pub fn expm1(x: f64) -> f64
+    let ax = fabs(x)
+    if ax < 5.551115123125783e-17
+        return x
+    if x > 709.7827128933841
+        return 1.7976931348623157e308 * 2.0
+    if x < -38.0
+        return -1.0
+    let ex = hyp_ex(ax)
+    for f in ZIV_F
+        let g = f + ex + 64
+        let xf = fix(ax, g)
+        let p = exp_big(x < 0.0, &xf, g)
+        let k = p[0][0]
+        let one = n_pow2(g)
+        let v = if k >= 0 then n_shl(&p[1], k) else n_shr(&p[1], 0 - k)
+        let neg = n_cmp(&v, &one) < 0
+        let d = if neg then n_sub(&one, &v) else n_sub(&v, &one)
+        let z = ziv(&d, 0 - g)
+        if z[0] == z[1]
+            return if neg then chs(z[0]) else z[0]
+    return 0.0 / 0.0
+
+# log1p x = log(U 2^-(G - t)) with U = 2^(G - t) + M 2^(E + G - t) exact
+# (x = M 2^E, t = max(0, E + 53) keeps U near G bits; for t > G the 1 is
+# below a unit and dropped); x - x^2/2 rounds to x for |x| < 2^-54;
+# x <= -1 traps
+pub fn log1p(x: f64) -> f64
+    let ax = fabs(x)
+    if x <= -1.0
+        return 1.7976931348623157e308 * 2.0
+    if ax < 5.551115123125783e-17
+        return x
+    let ex = hyp_ex(ax)
+    let m = mant_any(ax)
+    let t = if m[1] + 53 > 0 then m[1] + 53 else 0
+    let mm = n_of(m[0])
+    for f in ZIV_F
+        let g = f + ex + 64
+        let gt = g - t
+        let one = if gt >= 0 then n_pow2(gt) else []
+        let xg = n_shl(&mm, m[1] + gt)
+        let u = if x < 0.0 then n_sub(&one, &xg) else n_add(&one, &xg)
+        let r = log_fixed(&u, gt, g)
+        let z = ziv(&r[1], 0 - g)
+        if z[0] == z[1]
+            return if r[0][0] == 1 then chs(z[0]) else z[0]
+    return 0.0 / 0.0
+
+# ---- exp2, exp10 ----------------------------------------------------------
+# exp2: x = k + r, 0 <= r < 1, 2^x = exp(r ln2) 2^k; an integer x is exact
+# (2^-1075 is a midpoint, n_round ties it to even). For other rational x,
+# 2^x is irrational, so Ziv terminates. 1 + x ln2 rounds to 1 for
+# |x| < 2^-55.
+pub fn exp2(x: f64) -> f64
+    if x >= 1024.0
+        return 1.7976931348623157e308 * 2.0
+    if x < -1080.0
+        return 0.0
+    if fabs(x) < 2.7755575615628914e-17
+        return 1.0
+    let k = x.floor()
+    let ki = k as i64
+    let one = [1]
+    if k == x
+        return n_round(&one, ki)
+    for f in ZIV_F
+        # r = x - k exactly (x - k in binary64 is inexact for tiny x < 0)
+        let xf = fix(x, f)
+        let kf = n_pow2(f)
+        let kk = n_muls(&kf, if ki < 0 then 0 - ki else ki)
+        let rf = if x < 0.0 then n_sub(&kk, &xf) else n_sub(&xf, &kk)
+        let c = c_ln2()
+        let l = cst(&c, 2100, f)
+        let rl = n_mul(&rf, &l)
+        let r = n_shr(&rl, f)
+        let e = exp_fix(&r, f)
+        let z = ziv(&e, ki - f)
+        if z[0] == z[1]
+            return z[0]
+    return 0.0 / 0.0
+
+# exp10 x = exp(x ln10); integer 0 <= x <= 308 exact as 5^x 2^x (10^23 is a
+# midpoint), other x give irrational (or, for negative integers,
+# non-dyadic) results, so no midpoints; 1 + x ln10 rounds to 1 for
+# |x| < 2^-57
+pub fn exp10(x: f64) -> f64
+    if x > 308.3
+        return 1.7976931348623157e308 * 2.0
+    if x < -330.0
+        return 0.0
+    if fabs(x) < 6.938893903907228e-18
+        return 1.0
+    if x == x.floor() and x > 0.0
+        let n = x as i64
+        let five = [5]
+        let p = n_pow(&five, n)
+        return n_round(&p, n)
+    let ax = fabs(x)
+    for f in ZIV_F
+        let xf = fix(ax, f + 16)
+        let c = c_ln10()
+        let l = cst(&c, 2100, f + 16)
+        let zl = n_mul(&xf, &l)
+        let z0 = n_shr(&zl, f + 16)
+        let p = exp_big(x < 0.0, &z0, f + 16)
+        let z = ziv(&p[1], p[0][0] - f - 16)
+        if z[0] == z[1]
+            return z[0]
+    return 0.0 / 0.0
+
+
+# ---- sinpi, cospi, tanpi ----------------------------------------------------
+# |x| = M 2^E with E < 0: 2|x| = k + 2r exactly (k = M >> (-E - 1), r =
+# R 2^E in [0, 1/2)); r > 1/4 folds to 1/2 - r with sin and cos swapped.
+# theta = pi r at F = f + ex + 8 fraction bits (2^-ex ~ r, so F <= 3200 and
+# the 4200-bit pi suffices), off by under one unit. The results are
+# irrational except 0, +-1/2, +-1 (Niven), all representable, so no midpoint
+# stalls Ziv. which: 0 sinpi, 1 cospi, 2 tanpi.
+fn trigpi(x: f64, which: i64) -> f64
+    let ax = fabs(x)
+    let sg = x < 0.0 and which != 1
+    if ax >= 4503599627370496.0
+        # an integer: sin, tan = 0, cos = (-1)^x
+        if which == 1
+            let h = ax * 0.5
+            return if h == h.floor() then 1.0 else -1.0
+        return if sg then 0.0 * (0.0 - 1.0) else 0.0
+    let m = mant_any(ax)
+    let mm = n_of(m[0])
+    if m[1] >= 0
+        if which == 1
+            let h = ax * 0.5
+            return if h == h.floor() then 1.0 else -1.0
+        return if sg then 0.0 * (0.0 - 1.0) else 0.0
+    let fx = 0 - m[1]
+    let kn = n_shr(&mm, fx - 1)
+    let q = n_to_i64(&kn) % 4
+    # fx = 1: x is a half-integer, r = 0
+    var rn = if fx >= 2 then n_low(&mm, fx - 1) else []
+    let quarter = if fx >= 2 then n_pow2(fx - 2) else []
+    var sw = false
+    if fx >= 2 and n_cmp(&rn, &quarter) > 0
+        let half = n_pow2(fx - 1)
+        rn = n_sub(&half, &rn)
+        sw = true
+    # sin(pi(q/2 + r)) = [S, C, -S, -C][q], cos = [C, -S, -C, S][q]
+    let s_is_s = q % 2 == 0
+    let s_neg = q >= 2
+    let c_neg = q == 1 or q == 2
+    if rn.len() == 0
+        # r = 0: S = 0, C = 1 (swap makes it r = 1/2, but then rn was > 1/4)
+        let sv = if s_is_s then 0.0 else (if s_neg then -1.0 else 1.0)
+        let cv = if s_is_s then (if c_neg then -1.0 else 1.0) else 0.0
+        var v = if which == 0 then sv else cv
+        if which == 2
+            v = sv / cv
+        if which == 2 and sv == 0.0
+            v = if s_neg != c_neg then 0.0 * (0.0 - 1.0) else 0.0
+        return if sg then chs(v) else v
+    let ex = fx - n_bits(&rn)
+    for f in ZIV_F
+        let ff = f + ex + 8
+        let c = c_pi()
+        let pf = cst(&c, 4200, ff)
+        let tp = n_mul(&rn, &pf)
+        let th = n_shr(&tp, fx)
+        let sc = sincos_fix(&th, ff)
+        # S, C of r from sin, cos of theta (swapped when folded)
+        let cfirst = s_is_s == sw
+        let sv = if cfirst then n_shr(&sc[1], 0) else n_shr(&sc[0], 0)
+        let cv = if cfirst then n_shr(&sc[0], 0) else n_shr(&sc[1], 0)
+        var v: List[i64] = []
+        var neg = false
+        if which == 0
+            v = sv
+            neg = s_neg
+        elif which == 1
+            v = cv
+            neg = c_neg
+        else
+            v = n_div(&sv, &cv, ff)
+            neg = s_neg != c_neg
+        let z = ziv(&v, 0 - ff)
+        if z[0] == z[1]
+            let r = if neg != sg then chs(z[0]) else z[0]
+            return r
+    return 0.0 / 0.0
+
+pub fn sinpi(x: f64) -> f64
+    return trigpi(x, 0)
+
+pub fn cospi(x: f64) -> f64
+    return trigpi(x, 1)
+
+# tanpi of a half-integer is a pole and traps
+pub fn tanpi(x: f64) -> f64
+    return trigpi(x, 2)
+
+
+# ---- erf, erfc ------------------------------------------------------------
+# erf x = (2/sqrt(pi)) e^(-x^2) sum_n 2^n x^(2n+1) / (1 3 ... (2n+1)), all
+# terms positive. erf_fix gives erf |x| 2^G (G <= 4200; each of the n
+# terms is off by under a unit, n < 4 x^2 + G, and e^(-x^2) shrinks the
+# sum's error: well inside Ziv's 2^16 units for x <= 27.3).
+fn erf_fix(ax: f64, gg: i64) -> List[i64]
+    let m = mant_any(ax)
+    let mm = n_of(m[0])
+    let m2 = n_mul(&mm, &mm)
+    let sx = 2 * m[1] + gg
+    let x2 = if sx >= 0 then n_shl(&m2, sx) else n_shr(&m2, 0 - sx)
+    let xs = m[1] + gg
+    var t = if xs >= 0 then n_shl(&mm, xs) else n_shr(&mm, 0 - xs)
+    var s = n_shr(&t, 0)
+    var n: i64 = 0
+    # t 2x^2 = (t 2 M^2) 2^(2E): a short multiplier, not the G-bit x^2
+    let m22 = n_muls(&m2, 2)
+    while t.len() > 0 bound 1048576
+        n += 1
+        let p = n_mul(&t, &m22)
+        let ps = if 2 * m[1] <= 0 then n_shr(&p, 0 - 2 * m[1]) else n_shl(&p, 2 * m[1])
+        t = n_divs(&ps, 2 * n + 1)
+        s = n_add(&s, &t)
+    let e = exp_big(true, &x2, gg)
+    let c = c_2osqrtpi()
+    let cg = cst(&c, 4200, gg)
+    let es = n_mul(&e[1], &s)
+    let p = n_mul(&es, &cg)
+    # erf = p 2^(k - 3G) (e is 2^(k - G) N), so erf 2^G = p >> (2G - k)
+    return n_shr(&p, 2 * gg - e[0][0])
+
+# erf x = 2x/sqrt(pi) (1 - x^2/3 + ...): G = f + ex + 64 keeps relative
+# precision for tiny x (ex ~ log2(1/|x|)); 1 - erf x = erfc x < 2^-54 rounds
+# to 1 for |x| >= 6
+pub fn erf(x: f64) -> f64
+    let ax = fabs(x)
+    if ax == 0.0
+        return x
+    if ax >= 6.0
+        return if x < 0.0 then -1.0 else 1.0
+    let ex = hyp_ex(ax)
+    for f in ZIV_F
+        let gg = f + ex + 64
+        let v = erf_fix(ax, gg)
+        let z = ziv(&v, 0 - gg)
+        if z[0] == z[1]
+            return if x < 0.0 then chs(z[0]) else z[0]
+    return 0.0 / 0.0
+
+# erfc x = e^(-x^2) / (x sqrt(pi)) sum_n (-1)^n (2n-1)!! / (2x^2)^n for large
+# x: the series is asymptotic but alternating with the remainder below the
+# first omitted term, and its terms fall below 2^-G (G bits) well before
+# they turn around once 1.44 x^2 > G; when they turn first the sum stops
+# at the smallest term (the remainder is below it: about 2^-(1.44 x^2)
+# relative, so for x > 9 still far below a double's worst cases).
+# [[sh], W, B]: erfc x = W 2^sh with W of G bits, off by under B units.
+fn erfc_asym(x: f64, gg: i64) -> List[List[i64]]
+    let m = mant(x)
+    let mm = n_of(m[0])
+    let m2 = n_mul(&mm, &mm)
+    # 1 / (2 x^2) = 2^(-2E - 1) / M^2 at 2G fraction bits
+    let one = n_pow2(2 * gg - 2 * m[1] - 1)
+    let inv = n_div(&one, &m2, 0)
+    var t = n_pow2(gg)
+    var pos = n_pow2(gg)
+    var neg: List[i64] = []
+    var n: i64 = 0
+    var ok = false
+    var err: List[i64] = []
+    while not ok bound 100000
+        n += 1
+        let tm = n_muls(&t, 2 * n - 1)
+        let p = n_mul(&tm, &inv)
+        let t2 = n_shr(&p, 2 * gg)
+        if t2.len() == 0
+            ok = true
+        elif n_cmp(&t2, &t) >= 0
+            # the terms turn: stop, the remainder is below t
+            ok = true
+            err = n_shr(&t, 0)
+        else
+            if n % 2 == 1
+                neg = n_add(&neg, &t2)
+            else
+                pos = n_add(&pos, &t2)
+            t = t2
+    let a = n_sub(&pos, &neg)
+    let xf = fix(x, gg)
+    let x2f = n_mul(&xf, &xf)
+    let x2 = n_shr(&x2f, gg)
+    let e = exp_big(true, &x2, gg)
+    let c = c_2osqrtpi()
+    let cg = cst(&c, 4200, gg)
+    let ec = n_mul(&e[1], &cg)
+    let eca = n_mul(&ec, &a)
+    # erfc = eca 2^(k - 3G - 1) / x, x = M 2^E
+    let w = n_div(&eca, &mm, 0)
+    let drop = n_bits(&w) - gg
+    let wd = n_shr(&w, drop)
+    # the remainder (t units of 2^-G, the sum A is about 2^G) is under
+    # 2 t + 2 units of W's G bits: the Ziv bound EB + 2 t + 2
+    let ebn = n_of(EB + 2)
+    let e2 = n_muls(&err, 2)
+    return [[e[0][0] - 3 * gg - 1 - m[1] + drop], wd, n_add(&ebn, &e2)]
+
+# erfc x = 1 - erf x: for x > 0 about 1.45 x^2 bits cancel (erfc x ~
+# e^(-x^2) / (x sqrt(pi))), so G = f + 72 + 1.45 x^2 (<= 3200); erfc x
+# underflows to 0 past 27.3, and is 2 - erfc|x| (rounds to 2) for x <= -6
+pub fn erfc(x: f64) -> f64
+    if x == 0.0
+        return 1.0
+    if x > 27.3
+        return 0.0
+    if x <= -6.0
+        return 2.0
+    let ax = fabs(x)
+    let ex = hyp_ex(ax)
+    let lose = (1.45 * x * x) as i64
+    for f in ZIV_F
+        if x > 0.0 and lose > 120
+            let r = erfc_asym(x, f + 64)
+            let z = ziv_eb(&r[1], r[0][0], &r[2])
+            if z[0] == z[1]
+                return z[0]
+        let gg = f + 72 + ex + (if x > 0.0 then lose else 0)
+        let v = erf_fix(ax, gg)
+        let one = n_pow2(gg)
+        let d = if x > 0.0 then n_sub(&one, &v) else n_add(&one, &v)
+        let z = ziv(&d, 0 - gg)
+        if z[0] == z[1]
+            return z[0]
+    return 0.0 / 0.0
+
+
+# ---- tgamma, lgamma ---------------------------------------------------------
+# Kummer: for x = X / 2^s >= 1 and an integer N > x - 1,
+# Gamma(x) = e^(x log N - N) S + Gamma(x, N), S = sum_k N^k / (x (x+1) ... (x+k))
+# (all terms positive), and Gamma(x, N) <= N^(x-1) e^-N / (1 - (x-1)/N).
+# N is chosen (in binary64, with the Stirling lower bound
+# lgamma x > (x - 1/2) log x - x + 0.9189) so that the omitted tail is
+# below 2^-(G+8) of Gamma(x). Each term is off by under a unit at G + 16
+# fraction bits and S >= 1/x, so S keeps G bits.
+# [[vneg, g2], v, S]: v / 2^g2 = x log N - N (vneg: negative), S / 2^(G+16).
+fn kummer(xn: &[i64], s: i64, gg: i64) -> List[List[i64]]
+    let xd = n_round(xn, 0 - s)
+    let lgl = (xd - 0.5) * log_d(xd) - xd + 0.9189
+    var nn = ((xd + 0.7 * (gg as f64)) as i64) + 16
+    var go = true
+    while go bound 100000
+        let nd = nn as f64
+        let tl = (xd - 1.0) * log_d(nd) - nd - log_d(1.0 - (xd - 1.0) / nd) - lgl
+        if tl < 0.0 - ((gg + 8) as f64) * 0.6931471805599453
+            go = false
+        else
+            nn += 8
+    let g1 = gg + 16
+    let one = n_pow2(g1)
+    var t = n_div(&one, xn, s)
+    var sum = n_shr(&t, 0)
+    var k: i64 = 0
+    let ks = n_pow2(s)
+    var den = n_shr(xn, 0)
+    var fin = false
+    while not fin bound 1048576
+        k += 1
+        den = n_add(&den, &ks)
+        let tn = n_muls(&t, nn)
+        t = n_div(&tn, &den, s)
+        sum = n_add(&sum, &t)
+        # x + k > 2N: the rest is below t (1 + 1/2 + ...) = 2t < 2 units
+        if t.len() == 0 and xd + (k as f64) > 2.0 * (nn as f64)
+            fin = true
+    let g2 = gg + 32
+    let nb = n_of(nn)
+    let ln = log_fixed(&nb, 0, g2)
+    let xl = n_mul(xn, &ln[1])
+    let xls = n_shr(&xl, s)
+    let nf = n_shl(&nb, g2)
+    let vneg = n_cmp(&xls, &nf) < 0
+    let v = if vneg then n_sub(&nf, &xls) else n_sub(&xls, &nf)
+    return [[if vneg then 1 else 0, g2], v, sum]
+
+# natural log of a binary64 > 0, to binary64 accuracy (for choosing N only)
+fn log_d(x: f64) -> f64
+    let fr = frexp1(x)
+    let m = fr[0]
+    # log m for m in [0.5, 1): 2 atanh((m-1)/(m+1)), enough terms
+    let z = (m - 1.0) / (m + 1.0)
+    let z2 = z * z
+    var s = 0.0
+    var t = z
+    for i in 0..40
+        s = s + t / ((2 * i + 1) as f64)
+        t = t * z2
+    return 2.0 * s + fr[1] * 0.6931471805599453
+
+# Gamma(x) for x = X / 2^s >= 1: [[sh], P], Gamma = P 2^sh to G bits
+# (exp of lgamma_pos, which is good to 2^-G absolute; lgamma < 2^10 here)
+fn gamma_big(xn: &[i64], s: i64, x: f64, gg: i64) -> List[List[i64]]
+    let l = lgamma_pos(xn, s, x, gg + 12)
+    let e = exp_big(l[0][0] == 1, &l[1], gg + 12)
+    return [[e[0][0] - gg - 12], n_shr(&e[1], 0)]
+
+# log Gamma(x) for x = X / 2^s >= 1 at G fraction bits: [[neg], L]
+fn lgamma_kummer(xn: &[i64], s: i64, gg: i64) -> List[List[i64]]
+    let kp = kummer(xn, s, gg)
+    let ls = log_fixed(&kp[2], gg + 16, gg + 16)
+    let v = n_shr(&kp[1], kp[0][1] - gg - 16)
+    let r = sadd(kp[0][0] == 1, &v, ls[0][0] == 1, &ls[1])
+    return [[r[0][0]], n_shr(&r[1], 16)]
+
+# signed add: (an ? -a : a) + (bn ? -b : b) as [[neg], |sum|]
+fn sadd(an: bool, a: &[i64], bn: bool, b: &[i64]) -> List[List[i64]]
+    if an == bn
+        return [[if an then 1 else 0], n_add(a, b)]
+    if n_cmp(a, b) >= 0
+        return [[if an then 1 else 0], n_sub(a, b)]
+    return [[if bn then 1 else 0], n_sub(b, a)]
+
+# Stirling for x = X / 2^s: lgamma x = (x - 1/2) log x - x + log(2 pi)/2
+# + sum_{k=1..20} B_2k / (2k (2k-1) x^(2k-1)), the remainder below the next
+# term (alternating) and below 2^-(G+8) once x >= 2^((G + 54) / 42).
+# G fraction bits (G <= 4100): L > 0.
+fn lgamma_stirling(xn: &[i64], s: i64, gg: i64) -> List[i64]
+    let g = gg + 16
+    let lx = log_fixed(xn, s, g)
+    let xf = if g >= s then n_shl(xn, g - s) else n_shr(xn, s - g)
+    let hf = n_pow2(g - 1)
+    let xh = n_sub(&xf, &hf)
+    let a = n_mul(&xh, &lx[1])
+    let a1 = n_shr(&a, g)
+    let c = c_hl2pi()
+    let hc = cst(&c, 4200, g)
+    let b = n_add(&a1, &hc)
+    var r = n_sub(&b, &xf)
+    # 1/x and 1/x^2 at g fraction bits
+    let num = n_pow2(g)
+    let inv = n_div(&num, xn, s)
+    let i2p = n_mul(&inv, &inv)
+    let inv2 = n_shr(&i2p, g)
+    var p = n_shr(&inv, 0)
+    var pos: List[i64] = []
+    var neg: List[i64] = []
+    for k in 0..20
+        let csk = c_stir(k)
+        let ck = cst(&csk, 4200, g)
+        let tp = n_mul(&ck, &p)
+        let t = n_shr(&tp, g)
+        if k % 2 == 0
+            pos = n_add(&pos, &t)
+        else
+            neg = n_add(&neg, &t)
+        let pp = n_mul(&p, &inv2)
+        p = n_shr(&pp, g)
+    r = n_add(&r, &pos)
+    r = n_sub(&r, &neg)
+    return n_shr(&r, 16)
+
+# Stirling's threshold 2^((G + 54) / 42), rounded up
+fn stir_min(gg: i64) -> f64
+    return pow2((gg + 54) / 42 + 1)
+
+# log Gamma(x) for x = X / 2^s >= 1 at G fraction bits, [[neg], L]:
+# lgamma(x + n) - log(x (x+1) ... (x+n-1)) with x + n past Stirling's
+# threshold (the product kept to G + 64 bits: n roundings of 2^-(G+64)),
+# else (n > 4096, only for G > 300) Kummer
+fn lgamma_pos(xn: &[i64], s: i64, x: f64, gg: i64) -> List[List[i64]]
+    let ym = stir_min(gg)
+    if x >= ym
+        return [[0], lgamma_stirling(xn, s, gg)]
+    let n = (ym - x).floor() as i64 + 1
+    if n > 4096
+        return lgamma_kummer(xn, s, gg)
+    let ks = n_pow2(s)
+    var d = n_shr(xn, 0)
+    var pr = [1]
+    var pe: i64 = 0
+    for j in 0..n
+        pr = n_mul(&pr, &d)
+        d = n_add(&d, &ks)
+        let ex = n_bits(&pr) - gg - 64
+        if ex > 0
+            pr = n_shr(&pr, ex)
+            pe += ex
+    let ls = lgamma_stirling(&d, s, gg)
+    let lp = log_fixed(&pr, s * n - pe, gg)
+    return sadd(false, &ls, lp[0][0] == 0, &lp[1])
+
+# W 2^sh to f + 40 significant bits for Ziv (P is good to G = f + 64 bits)
+fn ziv_rel(p: &[i64], sh: i64, f: i64) -> List[f64]
+    let drop = n_bits(p) - f - 40
+    let w = if drop >= 0 then n_shr(p, drop) else n_shl(p, 0 - drop)
+    return ziv(&w, sh + drop)
+
+# |sin(pi x)| for x = M 2^E > 0 not an integer: [[ff], V], V 2^-ff, with
+# G significant bits: d = distance to the nearest integer, sin(pi d) or
+# cos(pi (1/2 - d)) when d > 1/4
+fn sinpi_abs(x: f64, gg: i64) -> List[List[i64]]
+    let m = mant_any(x)
+    let mm = n_of(m[0])
+    let fx = 0 - m[1]
+    if fx == 1
+        return [[gg], n_pow2(gg)]
+    let r1 = n_low(&mm, fx)
+    let one = n_pow2(fx)
+    let r2 = n_sub(&one, &r1)
+    let d = if n_cmp(&r1, &r2) <= 0 then r1 else r2
+    let quarter = n_pow2(fx - 2)
+    let half = n_pow2(fx - 1)
+    let sw = n_cmp(&d, &quarter) > 0
+    let rn = if sw then n_sub(&half, &d) else d
+    let ex = if rn.len() == 0 then 0 else fx - n_bits(&rn)
+    let ff = gg + ex + 8
+    let c = c_pi()
+    let pf = cst(&c, 4200, ff)
+    let tp = n_mul(&rn, &pf)
+    let th = n_shr(&tp, fx)
+    let sc = sincos_fix(&th, ff)
+    return [[ff], if sw then n_shr(&sc[1], 0) else n_shr(&sc[0], 0)]
+
+# x as X / 2^s exactly (x > 0): [X, [s]]
+fn as_frac(x: f64) -> List[List[i64]]
+    let m = mant_any(x)
+    let mm = n_of(m[0])
+    if m[1] >= 0
+        return [n_shl(&mm, m[1]), [0]]
+    return [mm, [0 - m[1]]]
+
+# Gamma and lgamma for tiny x = M 2^E (|x| < 2^-ex): Gamma(x) =
+# (1 - g x + c2 x^2 + O(x^3)) / x with g Euler's constant and c2 = g^2/2 +
+# pi^2/12 (|c3| < 0.91), lgamma x = -log |x| - g x + c2 x^2 + O(x^3). When
+# 3 ex >= G + 2 the dropped terms are under a unit of 2^-G, so this replaces
+# the product loop, Stirling and exp for |x| < 2^-((G + 2) / 3).
+fn tiny_ok(x: f64, gg: i64) -> bool
+    return 3 * hyp_ex(fabs(x)) >= gg + 2
+
+# 1 - g x + c2 x^2 at G fraction bits (|x| < 2^-30, so W > 0)
+fn tiny_w(x: f64, gg: i64) -> List[i64]
+    let m = mant_any(fabs(x))
+    let mm = n_of(m[0])
+    let cg = c_euler()
+    let g1 = cst(&cg, 2100, gg)
+    let gm = n_mul(&g1, &mm)
+    let gx = n_shr(&gm, 0 - m[1])
+    let cc = c_g2()
+    let c1 = cst(&cc, 2100, gg)
+    let m2 = n_mul(&mm, &mm)
+    let cm = n_mul(&c1, &m2)
+    let cx = n_shr(&cm, 0 - 2 * m[1])
+    let one = n_pow2(gg)
+    let w = n_add(&one, &cx)
+    return if x > 0.0 then n_sub(&w, &gx) else n_add(&w, &gx)
+
+fn tgamma_tiny(x: f64, f: i64, gg: i64) -> List[f64]
+    let m = mant_any(fabs(x))
+    let mm = n_of(m[0])
+    let w = tiny_w(x, gg)
+    let q = n_div(&w, &mm, 64)
+    let z = ziv_rel(&q, 0 - 64 - gg - m[1], f)
+    return if x < 0.0 then [chs(z[1]), chs(z[0])] else z
+
+# -log |x| - g x + c2 x^2 = -log |x| + (W - 1)
+fn lgamma_tiny(x: f64, gg: i64) -> List[f64]
+    let m = mant_any(fabs(x))
+    let mm = n_of(m[0])
+    let lx = log_fixed(&mm, 0 - m[1], gg)
+    let w = tiny_w(x, gg)
+    let one = n_pow2(gg)
+    let wneg = n_cmp(&w, &one) < 0
+    let d = if wneg then n_sub(&one, &w) else n_sub(&w, &one)
+    let r = sadd(lx[0][0] == 0, &lx[1], wneg, &d)
+    let z = ziv(&r[1], 0 - gg)
+    return if r[0][0] == 1 then [chs(z[1]), chs(z[0])] else z
+
+# 1 + |x| as X / 2^s, cut to t fraction bits when s > t: Gamma and lgamma
+# have slope under 1 on [1, 2], so for tiny |x| the cut moves Gamma(1 + |x|)
+# by under 2^-t, and the product loop and Stirling then work on t-bit
+# numbers instead of s-bit ones (s reaches 1126 for subnormal x)
+fn one_plus(xn: &[i64], s: i64, t: i64) -> List[List[i64]]
+    let ones = n_pow2(s)
+    let x1 = n_add(xn, &ones)
+    if s > t
+        return [n_shr(&x1, s - t), [t]]
+    return [x1, [s]]
+
+# tgamma: positive integers n <= 171 are exact ((n-1)!, rounded once);
+# 0 and negative integers are poles (trap); x >= 1 by Kummer; 0 < x < 1 as
+# Gamma(1 + x) / x; x < 0 by reflection pi / (sin(pi x) Gamma(1 - x)),
+# and |Gamma(x)| < 2^45 / Gamma(191) < 2^-1075 for x < -190. Overflow past
+# 171.62 traps.
+pub fn tgamma(x: f64) -> f64
+    if x > 171.7
+        return 1.7976931348623157e308 * 2.0
+    if x == x.floor()
+        if x <= 0.0
+            return 0.0 / 0.0
+        var p = [1]
+        let n = x as i64
+        for i in 1..n
+            p = n_muls(&p, i)
+        return n_round(&p, 0)
+    if x < -190.0
+        # sign of Gamma(x) for x < 0: (-1)^ceil(-x)
+        let c = (0.0 - x).floor() + 1.0
+        let h = c * 0.5
+        return if h == h.floor() then 0.0 else 0.0 * (0.0 - 1.0)
+    let ax = fabs(x)
+    let fr = as_frac(ax)
+    let s = fr[1][0]
+    let ones = n_pow2(s)
+    for f in ZIV_F
+        let gg = f + 64
+        if tiny_ok(x, gg)
+            let zt = tgamma_tiny(x, f, gg)
+            if zt[0] == zt[1]
+                return zt[0]
+        elif x >= 1.0
+            let g = gamma_big(&fr[0], s, x, gg)
+            let z = ziv_rel(&g[1], g[0][0], f)
+            if z[0] == z[1]
+                return z[0]
+        elif x > 0.0
+            let o = one_plus(&fr[0], s, gg + 16)
+            let g = gamma_big(&o[0], o[1][0], 1.0 + ax, gg)
+            let q = n_div(&g[1], &fr[0], s + 64)
+            let z = ziv_rel(&q, g[0][0] - 64, f)
+            if z[0] == z[1]
+                return z[0]
+        else
+            let o = one_plus(&fr[0], s, gg + 16)
+            let g = gamma_big(&o[0], o[1][0], 1.0 + ax, gg)
+            let sp = sinpi_abs(ax, gg)
+            let den = n_mul(&sp[1], &g[1])
+            let c = c_pi()
+            let pg = cst(&c, 4200, gg)
+            # pi 2^-G / (V 2^-ff P 2^sh)
+            let dbits = n_bits(&den)
+            let q = n_div(&pg, &den, dbits + 64)
+            let z = ziv_rel(&q, 0 - gg + sp[0][0] - g[0][0] - dbits - 64, f)
+            if z[0] == z[1]
+                # Gamma(x) < 0 when ceil(-x) is odd
+                let c1 = ax.floor() + 1.0
+                let h = c1 * 0.5
+                return if h == h.floor() then z[0] else chs(z[0])
+    return 0.0 / 0.0
+
+# lgamma x = log |Gamma(x)|: 0 at 1 and 2 (exact); poles (0, negative
+# integers) trap; 0 < x < 1 as lgamma(1 + x) - log x; x < 0 as
+# log pi - log |sin(pi x)| - lgamma(1 - x). Near the zeros of lgamma bits
+# cancel: G grows by the shortfall and the step repeats (G <= 4200).
+# log |Gamma(x)| at G fraction bits for non-tiny x = X / 2^s, [[neg], L]
+fn lgamma_at(x: f64, xn: &[i64], s: i64, gg: i64) -> List[List[i64]]
+    let ax = fabs(x)
+    if x >= 1.0
+        return lgamma_pos(xn, s, x, gg)
+    let o = one_plus(xn, s, gg + 16)
+    if x > 0.0
+        let a = lgamma_pos(&o[0], o[1][0], x + 1.0, gg)
+        let lx = log_fixed(xn, s, gg)
+        return sadd(a[0][0] == 1, &a[1], lx[0][0] == 0, &lx[1])
+    let a = lgamma_pos(&o[0], o[1][0], 1.0 - x, gg)
+    let sp = sinpi_abs(ax, gg)
+    # log(pi / |sin|) = log(pi 2^ff / V)
+    let c = c_pi()
+    let pg = cst(&c, 4200, gg + 8)
+    let q = n_div(&pg, &sp[1], sp[0][0] - 8)
+    let lq = log_fixed(&q, gg, gg)
+    return sadd(lq[0][0] == 1, &lq[1], a[0][0] == 0, &a[1])
+
+pub fn lgamma(x: f64) -> f64
+    if x == 1.0 or x == 2.0
+        return 0.0
+    if x <= 0.0 and x == x.floor()
+        return 0.0 / 0.0
+    if x > 2.5599833278516383e305
+        return 1.7976931348623157e308 * 2.0
+    let fr = as_frac(fabs(x))
+    let s = fr[1][0]
+    # below 3 lgamma has its zeros (1, 2 and one in each (-n-1, -n)): a
+    # 96-bit probe (cheap: Stirling from 16 on) gives log2(1 / |lgamma x|),
+    # so the first full step already carries the bits that cancel
+    var lost: i64 = 0
+    if x < 3.0 and not tiny_ok(x, 96)
+        let r0 = lgamma_at(x, &fr[0], s, 96)
+        lost = 96 - n_bits(&r0[1]) - 24
+        if lost < 0 or lost > 1000
+            lost = 0
+    for f in ZIV_F
+        var gg = f + 64 + (if lost > 0 then lost + 8 else 0)
+        if tiny_ok(x, f + 64)
+            let zt = lgamma_tiny(x, f + 64)
+            if zt[0] == zt[1]
+                return zt[0]
+        var tries: i64 = 0
+        while tries < 4 bound 4
+            tries += 1
+            let r = lgamma_at(x, &fr[0], s, gg)
+            let short = f + 40 - n_bits(&r[1])
+            if short > 0 and gg + short <= 4100 and tries < 4
+                gg = gg + short + 8
+            else
+                let z = ziv(&r[1], 0 - gg)
+                if z[0] == z[1]
+                    return if r[0][0] == 1 then chs(z[0]) else z[0]
+                tries = 4
+    return 0.0 / 0.0
+
+
 # ---- pow ---------------------------------------------------------------
 # Exact and midpoint results happen only for integer y (odd part of x to
 # the y-th power at most 54 bits) and for y = n / 2^k, k <= 5, with x's odd
@@ -955,12 +1946,13 @@ fn log_big(x: f64, fe: i64) -> List[List[i64]]
     return [[if neg then 1 else 0], n_sub(&lm, &el)]
 
 # [[k], N]: exp(v) = N 2^(k - f) for v = (zneg ? -1 : 1) z / 2^f, |v| < 2048
+# (f <= 4200)
 fn exp_big(zneg: bool, z: &[i64], f: i64) -> List[List[i64]]
     let zd = n_round(z, 0 - f)
     let v = if zneg then 0.0 - zd else zd
     var k = (v / 0.6931471805599453).floor() as i64
-    let c = c_ln2()
-    let l = cst(&c, 2100, f)
+    let c = c_ln2x()
+    let l = cst(&c, 4200, f)
     var r: List[i64] = []
     var ok = false
     var tries: i64 = 0
@@ -1629,3 +2621,168 @@ fn c_atan_tab() -> List[i64]
         853266458, 380682229, 979996155, 116673602, 428440059, 508058455, 458518673, 266417517, 159142109, 45131487,
         244369100, 354005965, 269711294, 545757411, 650679378, 1051081491, 835717166, 545826428, 877281427, 192994332,
         320018826, 571903011, 843314856, 0]
+
+# floor(ln10 * 2^2100), base 2^30 limbs, little-endian
+fn c_ln10() -> List[i64]
+    return [964535763, 250583496, 898034066, 617284710, 906522242, 762051583, 1064875718, 950366223,
+        621697080, 1043816526, 664967133, 514502134, 651438674, 133266189, 791388673, 220592881,
+        462295602, 292851309, 955774193, 714830849, 736236059, 723980384, 301901239, 674471359,
+        496449417, 336751173, 802107512, 266079808, 171611637, 491772701, 748314161, 563759084,
+        194677189, 412931508, 716499898, 505706748, 616659552, 111060366, 397903933, 814417277,
+        505877462, 322342212, 21108282, 993374774, 837743257, 994693657, 468272518, 721726268,
+        1056692659, 61921329, 970549915, 682150161, 504053288, 48568022, 775807504, 280898991,
+        411633168, 520972332, 53412017, 17157319, 11922538, 762484271, 973604800, 283655265,
+        1047959422, 685936620, 772492328, 782593378, 715795205, 324898269, 2]
+
+# floor(pi * 2^4200), base 2^30 limbs, little-endian
+fn c_pi() -> List[i64]
+    return [1045437110, 595320719, 127766382, 115263861, 852066457, 40639821, 758423324, 305579002,
+        617613842, 887047004, 606711843, 117422044, 910128902, 995010952, 739682916, 110176213,
+        18903872, 1037525527, 904654342, 695258850, 531922308, 409277886, 680054504, 262181059,
+        912706137, 887536645, 169809489, 532597414, 977006672, 233369490, 787527361, 340584667,
+        262613163, 280863320, 437071237, 574364308, 476163027, 845782066, 70217366, 394817946,
+        178134939, 296166337, 709378560, 193122592, 66339385, 1035321294, 963300432, 575643764,
+        622561315, 411831213, 391847362, 391608929, 3338116, 830568370, 420775882, 859752554,
+        325179401, 764977286, 1011613313, 450031211, 999245976, 576068060, 589641746, 154392350,
+        381301612, 508328639, 65104312, 209564567, 90010648, 816361127, 18233083, 619510661,
+        796685033, 981815834, 18095756, 758322957, 715854006, 388556200, 1048658949, 304486552,
+        363566167, 345493161, 96865893, 200709464, 187136175, 520549573, 602763607, 585893794,
+        241999374, 25225312, 954703307, 775343675, 172063000, 562173891, 488309298, 1016595697,
+        819280170, 694605424, 172088357, 314285781, 223904277, 425838127, 150415595, 528704861,
+        603231037, 647062522, 118846694, 416958518, 93256726, 537381770, 957796208, 677794284,
+        746559780, 843126724, 669608871, 737893001, 532134113, 191840363, 448987095, 698759149,
+        466694411, 640018412, 958491997, 760332869, 1065670069, 636568436, 180525948, 977476400,
+        342282036, 5103353, 35545997, 455233866, 983100494, 121643195, 35822067, 287900238,
+        771977331, 206333480, 140128397, 152033954, 3]
+
+# floor(ln2x * 2^4200), base 2^30 limbs, little-endian
+fn c_ln2x() -> List[i64]
+    return [833822090, 653539074, 917177252, 729162102, 883935450, 490233210, 1060800803, 129769151,
+        621669001, 910008472, 432243513, 867359932, 748635566, 1035858862, 907107333, 298329529,
+        1033716332, 860237806, 1014122866, 74379097, 951650993, 469140232, 735343490, 460624555,
+        593609065, 613437271, 827777218, 924032289, 353911904, 7967146, 908223881, 231626293,
+        789373655, 612496316, 459394126, 524372657, 463650490, 674323662, 160465809, 8394809,
+        426439939, 629689740, 332447023, 24136245, 250119865, 461417603, 1033150243, 784711356,
+        337709323, 101693222, 758928418, 145629977, 600792722, 890350706, 405150463, 132468270,
+        354847324, 535772189, 416740631, 144872382, 561157073, 208892474, 167925063, 736241361,
+        350671664, 442552923, 191654137, 486249820, 563419874, 351655522, 456865368, 584271243,
+        407921857, 763183828, 296934193, 31710423, 744516785, 952431469, 504871386, 391405164,
+        890055829, 539578460, 665465028, 763385663, 243402573, 1042905170, 863414727, 214784296,
+        488990363, 793204773, 79798752, 618976339, 214716005, 300365007, 339637035, 576993650,
+        101152219, 47077469, 574480704, 1048928075, 493747230, 109820250, 260636245, 605569868,
+        301685755, 404738856, 284425564, 915105265, 790684578, 360613404, 50537606, 938061646,
+        625527541, 975095413, 1064613676, 674962837, 540747119, 789497049, 132882089, 72113934,
+        85642202, 411642787, 334064801, 73035273, 660028201, 81822992, 317383516, 1049019451,
+        357759818, 783442262, 123864798, 1049295342, 391875498, 414591028, 845621643, 735067344,
+        402911990, 791121614, 1025308570, 744261117]
+
+# floor(2osqrtpi * 2^4200), base 2^30 limbs, little-endian
+fn c_2osqrtpi() -> List[i64]
+    return [163640510, 314293573, 191314093, 288730699, 75178472, 773276107, 494138180, 508376260,
+        18494492, 102105735, 752599057, 636077987, 188941025, 856376553, 636548680, 955353145,
+        880422649, 740650481, 112931952, 485530811, 170357378, 111684393, 434809424, 44338361,
+        576727479, 997297190, 167710836, 648561979, 637531437, 422270771, 72726428, 348759475,
+        873113164, 436745345, 986190935, 471262418, 1001422755, 1044438276, 629485820, 1006046736,
+        238459223, 244125663, 947483823, 724993100, 488185421, 344704593, 715978059, 689013319,
+        751319802, 615083649, 414175578, 1053257112, 958650655, 68570142, 680214653, 155352495,
+        634207738, 70066958, 850512832, 595544208, 115054140, 855780997, 345795235, 516074375,
+        937780381, 103084031, 716583115, 915986425, 193642914, 976974781, 1040159587, 27246839,
+        992280769, 394409450, 154178068, 550258653, 658287646, 1072132360, 511770148, 494558949,
+        510767805, 401725365, 1044800240, 811996856, 420534317, 889751144, 700428087, 120580164,
+        1021717237, 894162944, 175220931, 981015433, 897884941, 166562409, 1020752542, 52325390,
+        398209961, 259790827, 413479124, 1052021865, 438003266, 153345460, 50920683, 826698036,
+        818788882, 483826919, 463465856, 208270477, 1026139738, 61495812, 271988970, 373579229,
+        635757912, 1062805943, 241360243, 423718253, 625452276, 399110325, 798139486, 1069400026,
+        1027098088, 555904562, 709542841, 1073701160, 703520526, 118379459, 602529225, 600667614,
+        7082713, 947423750, 866061092, 274227258, 811702732, 683265290, 494241742, 571081936,
+        1054342534, 730768467, 43740433, 137846081, 1]
+
+# floor(euler * 2^2100), base 2^30 limbs, little-endian
+fn c_euler() -> List[i64]
+    return [196542101, 808167537, 141570553, 649896513, 121953127, 829722164, 253454018, 74959113,
+        574150862, 357875892, 771097724, 909196367, 200475844, 316610320, 80514672, 350328768,
+        25326622, 310088888, 92123867, 487734440, 53455660, 888903239, 8647210, 650929511,
+        1017822412, 772694619, 626608484, 996182029, 1028035356, 964040350, 638510913, 512881655,
+        630095958, 669249697, 241428176, 919945116, 1021558437, 629493928, 1029818182, 967510978,
+        664236581, 837852256, 804807742, 128481176, 998702378, 892480941, 716049417, 89776742,
+        754493805, 235229901, 870049727, 590486364, 630057863, 903015418, 607864435, 139290659,
+        90892563, 68547652, 614255458, 667138881, 899653690, 1072653202, 523530394, 6565903,
+        61826508, 363361203, 16863947, 323418366, 937102458, 619780600]
+
+# floor(g2 * 2^2100), base 2^30 limbs, little-endian
+fn c_g2() -> List[i64]
+    return [17922496, 859890880, 43315374, 452871362, 974373652, 1045378659, 259996369, 903494943,
+        328843827, 709705102, 740924293, 590862488, 241571146, 1067741556, 237826432, 922255044,
+        134686784, 529415517, 669150855, 824867930, 1052131113, 873330816, 823160533, 15515232,
+        449116805, 1012774908, 478531311, 260688676, 142215708, 426996559, 423864425, 622273830,
+        27694175, 623962870, 34714940, 836686009, 989147178, 329226, 453660611, 762951239,
+        42400961, 143811907, 653148130, 643691125, 490863684, 857806968, 551535816, 18544980,
+        927906186, 251454271, 415170114, 634575445, 805561456, 1005194356, 928550354, 1021295161,
+        624836232, 397491753, 852641630, 44758227, 970964192, 808611459, 736655294, 451470523,
+        431167946, 372715567, 272897151, 748004141, 495631419, 1061990788]
+
+# floor(hl2pi * 2^4200), base 2^30 limbs, little-endian
+fn c_hl2pi() -> List[i64]
+    return [245338128, 1037899971, 807064105, 111505510, 487631732, 528099049, 531388436, 312925761,
+        1009504331, 52428708, 885181133, 481731646, 329731020, 387488802, 99219150, 998460304,
+        729518400, 453557201, 807982034, 704731292, 100386841, 324653632, 216705229, 333116900,
+        195284010, 692464844, 289157994, 212237320, 222183337, 632018271, 429245020, 924495167,
+        884154925, 535279109, 273645844, 942773300, 760077194, 884667650, 659532899, 403729029,
+        471142663, 642380884, 251543898, 933329903, 1023815, 266662371, 337668456, 279766501,
+        918001107, 556169789, 109575120, 814026481, 454689841, 985795072, 262898385, 596482951,
+        71135683, 445097762, 93770121, 500171847, 76064948, 498631850, 763706296, 773853413,
+        833850182, 1072605542, 194742421, 378142984, 752376339, 507720148, 1010513821, 278084132,
+        561053510, 436014673, 253064553, 2422046, 784845251, 624856029, 897847764, 790574878,
+        893899280, 1069245732, 686652022, 1025742971, 996586821, 696122201, 522749854, 876177293,
+        730521704, 55744414, 382814802, 1017714157, 1069854237, 738068221, 268570654, 501680596,
+        921958292, 816927888, 365724089, 325047934, 590201337, 120401149, 714148826, 215387872,
+        59830391, 284735001, 977840665, 250984894, 778297418, 316362159, 196158949, 156768220,
+        346075077, 503249701, 236449261, 453876318, 998123272, 79767911, 694756685, 495808581,
+        657489286, 848630302, 690386702, 499837820, 258403553, 758344047, 97170801, 358248172,
+        717197404, 974847567, 970456576, 89606219, 588463530, 758610714, 953234520, 150203427,
+        21240096, 307425856, 845109843, 986702736]
+
+# |B_2k| / (2k (2k-1)) * 2^4200 floored, for k + 1 = 1..20 (Stirling)
+fn c_stir(k: i64) -> List[i64]
+    if k == 0
+        return [357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 89478485]
+    if k == 1
+        return [190887435, 405635800, 190887435, 405635800, 190887435, 405635800, 190887435, 405635800, 190887435, 405635800, 190887435, 405635800, 190887435, 405635800, 190887435, 405635800, 190887435, 405635800, 190887435, 405635800, 190887435, 405635800, 190887435, 405635800, 190887435, 405635800, 190887435, 405635800, 190887435, 405635800, 190887435, 405635800, 190887435, 405635800, 190887435, 405635800, 190887435, 405635800, 190887435, 405635800, 190887435, 405635800, 190887435, 405635800, 190887435, 405635800, 190887435, 405635800, 190887435, 405635800, 190887435, 405635800, 190887435, 405635800, 190887435, 405635800, 190887435, 405635800, 190887435, 405635800, 190887435, 405635800, 190887435, 405635800, 190887435, 405635800, 190887435, 405635800, 190887435, 405635800, 190887435, 405635800, 190887435, 405635800, 190887435, 405635800, 190887435, 405635800, 190887435, 405635800, 190887435, 405635800, 190887435, 405635800, 190887435, 405635800, 190887435, 405635800, 190887435, 405635800, 190887435, 405635800, 190887435, 405635800, 190887435, 405635800, 190887435, 405635800, 190887435, 405635800, 190887435, 405635800, 190887435, 405635800, 190887435, 405635800, 190887435, 405635800, 190887435, 405635800, 190887435, 405635800, 190887435, 405635800, 190887435, 405635800, 190887435, 405635800, 190887435, 405635800, 190887435, 405635800, 190887435, 405635800, 190887435, 405635800, 190887435, 405635800, 190887435, 405635800, 190887435, 405635800, 190887435, 405635800, 190887435, 405635800, 190887435, 405635800, 190887435, 2982616]
+    if k == 2
+        return [54539267, 269287632, 54539267, 269287632, 54539267, 269287632, 54539267, 269287632, 54539267, 269287632, 54539267, 269287632, 54539267, 269287632, 54539267, 269287632, 54539267, 269287632, 54539267, 269287632, 54539267, 269287632, 54539267, 269287632, 54539267, 269287632, 54539267, 269287632, 54539267, 269287632, 54539267, 269287632, 54539267, 269287632, 54539267, 269287632, 54539267, 269287632, 54539267, 269287632, 54539267, 269287632, 54539267, 269287632, 54539267, 269287632, 54539267, 269287632, 54539267, 269287632, 54539267, 269287632, 54539267, 269287632, 54539267, 269287632, 54539267, 269287632, 54539267, 269287632, 54539267, 269287632, 54539267, 269287632, 54539267, 269287632, 54539267, 269287632, 54539267, 269287632, 54539267, 269287632, 54539267, 269287632, 54539267, 269287632, 54539267, 269287632, 54539267, 269287632, 54539267, 269287632, 54539267, 269287632, 54539267, 269287632, 54539267, 269287632, 54539267, 269287632, 54539267, 269287632, 54539267, 269287632, 54539267, 269287632, 54539267, 269287632, 54539267, 269287632, 54539267, 269287632, 54539267, 269287632, 54539267, 269287632, 54539267, 269287632, 54539267, 269287632, 54539267, 269287632, 54539267, 269287632, 54539267, 269287632, 54539267, 269287632, 54539267, 269287632, 54539267, 269287632, 54539267, 269287632, 54539267, 269287632, 54539267, 269287632, 54539267, 269287632, 54539267, 269287632, 54539267, 269287632, 54539267, 269287632, 54539267, 269287632, 54539267, 852176]
+    if k == 3
+        return [40904450, 470401180, 40904450, 470401180, 40904450, 470401180, 40904450, 470401180, 40904450, 470401180, 40904450, 470401180, 40904450, 470401180, 40904450, 470401180, 40904450, 470401180, 40904450, 470401180, 40904450, 470401180, 40904450, 470401180, 40904450, 470401180, 40904450, 470401180, 40904450, 470401180, 40904450, 470401180, 40904450, 470401180, 40904450, 470401180, 40904450, 470401180, 40904450, 470401180, 40904450, 470401180, 40904450, 470401180, 40904450, 470401180, 40904450, 470401180, 40904450, 470401180, 40904450, 470401180, 40904450, 470401180, 40904450, 470401180, 40904450, 470401180, 40904450, 470401180, 40904450, 470401180, 40904450, 470401180, 40904450, 470401180, 40904450, 470401180, 40904450, 470401180, 40904450, 470401180, 40904450, 470401180, 40904450, 470401180, 40904450, 470401180, 40904450, 470401180, 40904450, 470401180, 40904450, 470401180, 40904450, 470401180, 40904450, 470401180, 40904450, 470401180, 40904450, 470401180, 40904450, 470401180, 40904450, 470401180, 40904450, 470401180, 40904450, 470401180, 40904450, 470401180, 40904450, 470401180, 40904450, 470401180, 40904450, 470401180, 40904450, 470401180, 40904450, 470401180, 40904450, 470401180, 40904450, 470401180, 40904450, 470401180, 40904450, 470401180, 40904450, 470401180, 40904450, 470401180, 40904450, 470401180, 40904450, 470401180, 40904450, 470401180, 40904450, 470401180, 40904450, 470401180, 40904450, 470401180, 40904450, 470401180, 40904450, 639132]
+    if k == 4
+        return [90382308, 806210191, 448296249, 90382308, 806210191, 448296249, 90382308, 806210191, 448296249, 90382308, 806210191, 448296249, 90382308, 806210191, 448296249, 90382308, 806210191, 448296249, 90382308, 806210191, 448296249, 90382308, 806210191, 448296249, 90382308, 806210191, 448296249, 90382308, 806210191, 448296249, 90382308, 806210191, 448296249, 90382308, 806210191, 448296249, 90382308, 806210191, 448296249, 90382308, 806210191, 448296249, 90382308, 806210191, 448296249, 90382308, 806210191, 448296249, 90382308, 806210191, 448296249, 90382308, 806210191, 448296249, 90382308, 806210191, 448296249, 90382308, 806210191, 448296249, 90382308, 806210191, 448296249, 90382308, 806210191, 448296249, 90382308, 806210191, 448296249, 90382308, 806210191, 448296249, 90382308, 806210191, 448296249, 90382308, 806210191, 448296249, 90382308, 806210191, 448296249, 90382308, 806210191, 448296249, 90382308, 806210191, 448296249, 90382308, 806210191, 448296249, 90382308, 806210191, 448296249, 90382308, 806210191, 448296249, 90382308, 806210191, 448296249, 90382308, 806210191, 448296249, 90382308, 806210191, 448296249, 90382308, 806210191, 448296249, 90382308, 806210191, 448296249, 90382308, 806210191, 448296249, 90382308, 806210191, 448296249, 90382308, 806210191, 448296249, 90382308, 806210191, 448296249, 90382308, 806210191, 448296249, 90382308, 806210191, 448296249, 90382308, 806210191, 448296249, 90382308, 806210191, 448296249, 90382308, 806210191, 448296249, 90382308, 903823]
+    if k == 5
+        return [912674591, 136276656, 912674591, 136276656, 912674591, 136276656, 912674591, 136276656, 912674591, 136276656, 912674591, 136276656, 912674591, 136276656, 912674591, 136276656, 912674591, 136276656, 912674591, 136276656, 912674591, 136276656, 912674591, 136276656, 912674591, 136276656, 912674591, 136276656, 912674591, 136276656, 912674591, 136276656, 912674591, 136276656, 912674591, 136276656, 912674591, 136276656, 912674591, 136276656, 912674591, 136276656, 912674591, 136276656, 912674591, 136276656, 912674591, 136276656, 912674591, 136276656, 912674591, 136276656, 912674591, 136276656, 912674591, 136276656, 912674591, 136276656, 912674591, 136276656, 912674591, 136276656, 912674591, 136276656, 912674591, 136276656, 912674591, 136276656, 912674591, 136276656, 912674591, 136276656, 912674591, 136276656, 912674591, 136276656, 912674591, 136276656, 912674591, 136276656, 912674591, 136276656, 912674591, 136276656, 912674591, 136276656, 912674591, 136276656, 912674591, 136276656, 912674591, 136276656, 912674591, 136276656, 912674591, 136276656, 912674591, 136276656, 912674591, 136276656, 912674591, 136276656, 912674591, 136276656, 912674591, 136276656, 912674591, 136276656, 912674591, 136276656, 912674591, 136276656, 912674591, 136276656, 912674591, 136276656, 912674591, 136276656, 912674591, 136276656, 912674591, 136276656, 912674591, 136276656, 912674591, 136276656, 912674591, 136276656, 912674591, 136276656, 912674591, 136276656, 912674591, 136276656, 912674591, 136276656, 912674591, 136276656, 912674591, 2058928]
+    if k == 6
+        return [440509466, 275318416, 440509466, 275318416, 440509466, 275318416, 440509466, 275318416, 440509466, 275318416, 440509466, 275318416, 440509466, 275318416, 440509466, 275318416, 440509466, 275318416, 440509466, 275318416, 440509466, 275318416, 440509466, 275318416, 440509466, 275318416, 440509466, 275318416, 440509466, 275318416, 440509466, 275318416, 440509466, 275318416, 440509466, 275318416, 440509466, 275318416, 440509466, 275318416, 440509466, 275318416, 440509466, 275318416, 440509466, 275318416, 440509466, 275318416, 440509466, 275318416, 440509466, 275318416, 440509466, 275318416, 440509466, 275318416, 440509466, 275318416, 440509466, 275318416, 440509466, 275318416, 440509466, 275318416, 440509466, 275318416, 440509466, 275318416, 440509466, 275318416, 440509466, 275318416, 440509466, 275318416, 440509466, 275318416, 440509466, 275318416, 440509466, 275318416, 440509466, 275318416, 440509466, 275318416, 440509466, 275318416, 440509466, 275318416, 440509466, 275318416, 440509466, 275318416, 440509466, 275318416, 440509466, 275318416, 440509466, 275318416, 440509466, 275318416, 440509466, 275318416, 440509466, 275318416, 440509466, 275318416, 440509466, 275318416, 440509466, 275318416, 440509466, 275318416, 440509466, 275318416, 440509466, 275318416, 440509466, 275318416, 440509466, 275318416, 440509466, 275318416, 440509466, 275318416, 440509466, 275318416, 440509466, 275318416, 440509466, 275318416, 440509466, 275318416, 440509466, 275318416, 440509466, 275318416, 440509466, 275318416, 440509466, 6882960]
+    if k == 7
+        return [994860398, 471884968, 742215263, 535046252, 994860398, 471884968, 742215263, 535046252, 994860398, 471884968, 742215263, 535046252, 994860398, 471884968, 742215263, 535046252, 994860398, 471884968, 742215263, 535046252, 994860398, 471884968, 742215263, 535046252, 994860398, 471884968, 742215263, 535046252, 994860398, 471884968, 742215263, 535046252, 994860398, 471884968, 742215263, 535046252, 994860398, 471884968, 742215263, 535046252, 994860398, 471884968, 742215263, 535046252, 994860398, 471884968, 742215263, 535046252, 994860398, 471884968, 742215263, 535046252, 994860398, 471884968, 742215263, 535046252, 994860398, 471884968, 742215263, 535046252, 994860398, 471884968, 742215263, 535046252, 994860398, 471884968, 742215263, 535046252, 994860398, 471884968, 742215263, 535046252, 994860398, 471884968, 742215263, 535046252, 994860398, 471884968, 742215263, 535046252, 994860398, 471884968, 742215263, 535046252, 994860398, 471884968, 742215263, 535046252, 994860398, 471884968, 742215263, 535046252, 994860398, 471884968, 742215263, 535046252, 994860398, 471884968, 742215263, 535046252, 994860398, 471884968, 742215263, 535046252, 994860398, 471884968, 742215263, 535046252, 994860398, 471884968, 742215263, 535046252, 994860398, 471884968, 742215263, 535046252, 994860398, 471884968, 742215263, 535046252, 994860398, 471884968, 742215263, 535046252, 994860398, 471884968, 742215263, 535046252, 994860398, 471884968, 742215263, 535046252, 994860398, 471884968, 742215263, 535046252, 994860398, 471884968, 742215263, 31729772]
+    if k == 8
+        return [820903212, 808714192, 533907203, 1073548347, 745552908, 281262068, 62967807, 998198044, 218100784, 884064496, 1061359327, 470745919, 820903212, 808714192, 533907203, 1073548347, 745552908, 281262068, 62967807, 998198044, 218100784, 884064496, 1061359327, 470745919, 820903212, 808714192, 533907203, 1073548347, 745552908, 281262068, 62967807, 998198044, 218100784, 884064496, 1061359327, 470745919, 820903212, 808714192, 533907203, 1073548347, 745552908, 281262068, 62967807, 998198044, 218100784, 884064496, 1061359327, 470745919, 820903212, 808714192, 533907203, 1073548347, 745552908, 281262068, 62967807, 998198044, 218100784, 884064496, 1061359327, 470745919, 820903212, 808714192, 533907203, 1073548347, 745552908, 281262068, 62967807, 998198044, 218100784, 884064496, 1061359327, 470745919, 820903212, 808714192, 533907203, 1073548347, 745552908, 281262068, 62967807, 998198044, 218100784, 884064496, 1061359327, 470745919, 820903212, 808714192, 533907203, 1073548347, 745552908, 281262068, 62967807, 998198044, 218100784, 884064496, 1061359327, 470745919, 820903212, 808714192, 533907203, 1073548347, 745552908, 281262068, 62967807, 998198044, 218100784, 884064496, 1061359327, 470745919, 820903212, 808714192, 533907203, 1073548347, 745552908, 281262068, 62967807, 998198044, 218100784, 884064496, 1061359327, 470745919, 820903212, 808714192, 533907203, 1073548347, 745552908, 281262068, 62967807, 998198044, 218100784, 884064496, 1061359327, 470745919, 820903212, 808714192, 533907203, 1073548347, 745552908, 281262068, 62967807, 192891676]
+    if k == 9
+        return [404699629, 287153156, 65623264, 61102246, 630750540, 795767704, 404699629, 287153156, 65623264, 61102246, 630750540, 795767704, 404699629, 287153156, 65623264, 61102246, 630750540, 795767704, 404699629, 287153156, 65623264, 61102246, 630750540, 795767704, 404699629, 287153156, 65623264, 61102246, 630750540, 795767704, 404699629, 287153156, 65623264, 61102246, 630750540, 795767704, 404699629, 287153156, 65623264, 61102246, 630750540, 795767704, 404699629, 287153156, 65623264, 61102246, 630750540, 795767704, 404699629, 287153156, 65623264, 61102246, 630750540, 795767704, 404699629, 287153156, 65623264, 61102246, 630750540, 795767704, 404699629, 287153156, 65623264, 61102246, 630750540, 795767704, 404699629, 287153156, 65623264, 61102246, 630750540, 795767704, 404699629, 287153156, 65623264, 61102246, 630750540, 795767704, 404699629, 287153156, 65623264, 61102246, 630750540, 795767704, 404699629, 287153156, 65623264, 61102246, 630750540, 795767704, 404699629, 287153156, 65623264, 61102246, 630750540, 795767704, 404699629, 287153156, 65623264, 61102246, 630750540, 795767704, 404699629, 287153156, 65623264, 61102246, 630750540, 795767704, 404699629, 287153156, 65623264, 61102246, 630750540, 795767704, 404699629, 287153156, 65623264, 61102246, 630750540, 795767704, 404699629, 287153156, 65623264, 61102246, 630750540, 795767704, 404699629, 287153156, 65623264, 61102246, 630750540, 795767704, 404699629, 287153156, 65623264, 61102246, 630750540, 795767704, 404699629, 421370884, 1]
+    if k == 10
+        return [140794304, 887745138, 420900866, 981113992, 94109876, 514269721, 654323002, 701007429, 741022, 841060711, 47425449, 140794304, 887745138, 420900866, 981113992, 94109876, 514269721, 654323002, 701007429, 741022, 841060711, 47425449, 140794304, 887745138, 420900866, 981113992, 94109876, 514269721, 654323002, 701007429, 741022, 841060711, 47425449, 140794304, 887745138, 420900866, 981113992, 94109876, 514269721, 654323002, 701007429, 741022, 841060711, 47425449, 140794304, 887745138, 420900866, 981113992, 94109876, 514269721, 654323002, 701007429, 741022, 841060711, 47425449, 140794304, 887745138, 420900866, 981113992, 94109876, 514269721, 654323002, 701007429, 741022, 841060711, 47425449, 140794304, 887745138, 420900866, 981113992, 94109876, 514269721, 654323002, 701007429, 741022, 841060711, 47425449, 140794304, 887745138, 420900866, 981113992, 94109876, 514269721, 654323002, 701007429, 741022, 841060711, 47425449, 140794304, 887745138, 420900866, 981113992, 94109876, 514269721, 654323002, 701007429, 741022, 841060711, 47425449, 140794304, 887745138, 420900866, 981113992, 94109876, 514269721, 654323002, 701007429, 741022, 841060711, 47425449, 140794304, 887745138, 420900866, 981113992, 94109876, 514269721, 654323002, 701007429, 741022, 841060711, 47425449, 140794304, 887745138, 420900866, 981113992, 94109876, 514269721, 654323002, 701007429, 741022, 841060711, 47425449, 140794304, 887745138, 420900866, 981113992, 94109876, 514269721, 654323002, 432571973, 13]
+    if k == 11
+        return [731776970, 382721099, 778461397, 756196516, 545039261, 1036303079, 638408115, 709512089, 171563844, 195983391, 358301553, 616143235, 498354834, 662827662, 871830251, 429405526, 78194990, 522774381, 825145824, 55930109, 311617126, 242667818, 731776970, 382721099, 778461397, 756196516, 545039261, 1036303079, 638408115, 709512089, 171563844, 195983391, 358301553, 616143235, 498354834, 662827662, 871830251, 429405526, 78194990, 522774381, 825145824, 55930109, 311617126, 242667818, 731776970, 382721099, 778461397, 756196516, 545039261, 1036303079, 638408115, 709512089, 171563844, 195983391, 358301553, 616143235, 498354834, 662827662, 871830251, 429405526, 78194990, 522774381, 825145824, 55930109, 311617126, 242667818, 731776970, 382721099, 778461397, 756196516, 545039261, 1036303079, 638408115, 709512089, 171563844, 195983391, 358301553, 616143235, 498354834, 662827662, 871830251, 429405526, 78194990, 522774381, 825145824, 55930109, 311617126, 242667818, 731776970, 382721099, 778461397, 756196516, 545039261, 1036303079, 638408115, 709512089, 171563844, 195983391, 358301553, 616143235, 498354834, 662827662, 871830251, 429405526, 78194990, 522774381, 825145824, 55930109, 311617126, 242667818, 731776970, 382721099, 778461397, 756196516, 545039261, 1036303079, 638408115, 709512089, 171563844, 195983391, 358301553, 616143235, 498354834, 662827662, 871830251, 429405526, 78194990, 522774381, 825145824, 55930109, 311617126, 242667818, 731776970, 382721099, 778461397, 756196516, 545039261, 1036303079, 638408115, 910838681, 156]
+    if k == 12
+        return [873310016, 916259689, 873310016, 916259689, 873310016, 916259689, 873310016, 916259689, 873310016, 916259689, 873310016, 916259689, 873310016, 916259689, 873310016, 916259689, 873310016, 916259689, 873310016, 916259689, 873310016, 916259689, 873310016, 916259689, 873310016, 916259689, 873310016, 916259689, 873310016, 916259689, 873310016, 916259689, 873310016, 916259689, 873310016, 916259689, 873310016, 916259689, 873310016, 916259689, 873310016, 916259689, 873310016, 916259689, 873310016, 916259689, 873310016, 916259689, 873310016, 916259689, 873310016, 916259689, 873310016, 916259689, 873310016, 916259689, 873310016, 916259689, 873310016, 916259689, 873310016, 916259689, 873310016, 916259689, 873310016, 916259689, 873310016, 916259689, 873310016, 916259689, 873310016, 916259689, 873310016, 916259689, 873310016, 916259689, 873310016, 916259689, 873310016, 916259689, 873310016, 916259689, 873310016, 916259689, 873310016, 916259689, 873310016, 916259689, 873310016, 916259689, 873310016, 916259689, 873310016, 916259689, 873310016, 916259689, 873310016, 916259689, 873310016, 916259689, 873310016, 916259689, 873310016, 916259689, 873310016, 916259689, 873310016, 916259689, 873310016, 916259689, 873310016, 916259689, 873310016, 916259689, 873310016, 916259689, 873310016, 916259689, 873310016, 916259689, 873310016, 916259689, 873310016, 916259689, 873310016, 916259689, 873310016, 916259689, 873310016, 916259689, 873310016, 916259689, 873310016, 916259689, 873310016, 916259689, 873310016, 916259689, 873310016, 110953321, 2193]
+    if k == 13
+        return [444398382, 956174179, 905161157, 713450931, 218130948, 989085806, 197561181, 894464879, 621298376, 910920692, 267498388, 1001427666, 469082102, 425474197, 1040921618, 478955590, 427942569, 236232343, 814654184, 511867217, 794084417, 417246290, 144079788, 433702104, 864021624, 524209077, 1065605338, 1021997432, 563703029, 1737002, 1024465805, 832755578, 337435595, 34648629, 316865829, 1013769526, 740603023, 1030225339, 386803035, 46990489, 588386750, 544778844, 86484441, 598260238, 547247216, 355536990, 933958831, 631171864, 913389064, 536550937, 263384435, 553006751, 983326271, 643513724, 111168161, 67560256, 683007677, 121041649, 70028628, 952060226, 456740242, 153953276, 436170476, 59332349, 859907671, 75788162, 506107683, 166295136, 707691397, 664083491, 205789088, 717564885, 666551863, 474841637, 1053263478, 750476511, 1032693711, 655855584, 382689082, 672311398, 28889094, 762818372, 230472808, 186864903, 802312324, 240346296, 189333275, 1071364873, 576044889, 273257923, 555475123, 178636996, 979212318, 195092809, 625412330, 285599783, 826996044, 783388138, 325093735, 836869532, 785856510, 594146284, 98826301, 869781159, 78256534, 775160232, 501993729, 791616045, 148193741, 882123019, 349777455, 306169550, 921616971, 359650943, 308637922, 116927696, 695349537, 392562570, 674779770, 297941643, 24775141, 314397457, 744716977, 404904430, 946300691, 902692785, 444398382, 956174179, 905161157, 713450931, 218130948, 989085806, 197561181, 894464879, 621298376, 910920692, 267498388, 1001427666, 469082102, 828127381, 36108]
+    if k == 14
+        return [890342576, 705214675, 927368156, 446035614, 594137935, 631163515, 371984454, 38754233, 223882134, 1728653, 483061195, 334958874, 297933294, 557112355, 890342576, 705214675, 927368156, 446035614, 594137935, 631163515, 371984454, 38754233, 223882134, 1728653, 483061195, 334958874, 297933294, 557112355, 890342576, 705214675, 927368156, 446035614, 594137935, 631163515, 371984454, 38754233, 223882134, 1728653, 483061195, 334958874, 297933294, 557112355, 890342576, 705214675, 927368156, 446035614, 594137935, 631163515, 371984454, 38754233, 223882134, 1728653, 483061195, 334958874, 297933294, 557112355, 890342576, 705214675, 927368156, 446035614, 594137935, 631163515, 371984454, 38754233, 223882134, 1728653, 483061195, 334958874, 297933294, 557112355, 890342576, 705214675, 927368156, 446035614, 594137935, 631163515, 371984454, 38754233, 223882134, 1728653, 483061195, 334958874, 297933294, 557112355, 890342576, 705214675, 927368156, 446035614, 594137935, 631163515, 371984454, 38754233, 223882134, 1728653, 483061195, 334958874, 297933294, 557112355, 890342576, 705214675, 927368156, 446035614, 594137935, 631163515, 371984454, 38754233, 223882134, 1728653, 483061195, 334958874, 297933294, 557112355, 890342576, 705214675, 927368156, 446035614, 594137935, 631163515, 371984454, 38754233, 223882134, 1728653, 483061195, 334958874, 297933294, 557112355, 890342576, 705214675, 927368156, 446035614, 594137935, 631163515, 371984454, 38754233, 223882134, 1728653, 483061195, 334958874, 297933294, 288676899, 691472]
+    if k == 15
+        return [379239364, 720310296, 1010852201, 25536174, 379239364, 720310296, 1010852201, 25536174, 379239364, 720310296, 1010852201, 25536174, 379239364, 720310296, 1010852201, 25536174, 379239364, 720310296, 1010852201, 25536174, 379239364, 720310296, 1010852201, 25536174, 379239364, 720310296, 1010852201, 25536174, 379239364, 720310296, 1010852201, 25536174, 379239364, 720310296, 1010852201, 25536174, 379239364, 720310296, 1010852201, 25536174, 379239364, 720310296, 1010852201, 25536174, 379239364, 720310296, 1010852201, 25536174, 379239364, 720310296, 1010852201, 25536174, 379239364, 720310296, 1010852201, 25536174, 379239364, 720310296, 1010852201, 25536174, 379239364, 720310296, 1010852201, 25536174, 379239364, 720310296, 1010852201, 25536174, 379239364, 720310296, 1010852201, 25536174, 379239364, 720310296, 1010852201, 25536174, 379239364, 720310296, 1010852201, 25536174, 379239364, 720310296, 1010852201, 25536174, 379239364, 720310296, 1010852201, 25536174, 379239364, 720310296, 1010852201, 25536174, 379239364, 720310296, 1010852201, 25536174, 379239364, 720310296, 1010852201, 25536174, 379239364, 720310296, 1010852201, 25536174, 379239364, 720310296, 1010852201, 25536174, 379239364, 720310296, 1010852201, 25536174, 379239364, 720310296, 1010852201, 25536174, 379239364, 720310296, 1010852201, 25536174, 379239364, 720310296, 1010852201, 25536174, 379239364, 720310296, 1010852201, 25536174, 379239364, 720310296, 1010852201, 25536174, 379239364, 720310296, 1010852201, 25536174, 379239364, 720310296, 1010852201, 579184302, 15238221]
+    if k == 16
+        return [151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 420277734, 382900751]
+    if k == 17
+        return [82725426, 631319946, 737385736, 653648655, 18939503, 843988177, 389508804, 938103324, 1044169114, 960432033, 325722881, 77029731, 696292183, 171144878, 277210669, 193473588, 632506260, 383813109, 1003075561, 477928256, 583994047, 500256966, 939289638, 690596487, 236117115, 784711635, 890777425, 807040344, 172331192, 997379866, 542900493, 17753189, 123818980, 40081899, 479114571, 230421420, 849683872, 324536567, 430602358, 346865277, 785897949, 537204798, 82725426, 631319946, 737385736, 653648655, 18939503, 843988177, 389508804, 938103324, 1044169114, 960432033, 325722881, 77029731, 696292183, 171144878, 277210669, 193473588, 632506260, 383813109, 1003075561, 477928256, 583994047, 500256966, 939289638, 690596487, 236117115, 784711635, 890777425, 807040344, 172331192, 997379866, 542900493, 17753189, 123818980, 40081899, 479114571, 230421420, 849683872, 324536567, 430602358, 346865277, 785897949, 537204798, 82725426, 631319946, 737385736, 653648655, 18939503, 843988177, 389508804, 938103324, 1044169114, 960432033, 325722881, 77029731, 696292183, 171144878, 277210669, 193473588, 632506260, 383813109, 1003075561, 477928256, 583994047, 500256966, 939289638, 690596487, 236117115, 784711635, 890777425, 807040344, 172331192, 997379866, 542900493, 17753189, 123818980, 40081899, 479114571, 230421420, 849683872, 324536567, 430602358, 346865277, 785897949, 537204798, 82725426, 631319946, 737385736, 653648655, 18939503, 843988177, 389508804, 938103324, 1044169114, 960432033, 325722881, 77029731, 696292183, 842233518, 144847795, 10]
+    if k == 18
+        return [473994138, 270853793, 154773596, 241833744, 444974089, 561054286, 473994138, 270853793, 154773596, 241833744, 444974089, 561054286, 473994138, 270853793, 154773596, 241833744, 444974089, 561054286, 473994138, 270853793, 154773596, 241833744, 444974089, 561054286, 473994138, 270853793, 154773596, 241833744, 444974089, 561054286, 473994138, 270853793, 154773596, 241833744, 444974089, 561054286, 473994138, 270853793, 154773596, 241833744, 444974089, 561054286, 473994138, 270853793, 154773596, 241833744, 444974089, 561054286, 473994138, 270853793, 154773596, 241833744, 444974089, 561054286, 473994138, 270853793, 154773596, 241833744, 444974089, 561054286, 473994138, 270853793, 154773596, 241833744, 444974089, 561054286, 473994138, 270853793, 154773596, 241833744, 444974089, 561054286, 473994138, 270853793, 154773596, 241833744, 444974089, 561054286, 473994138, 270853793, 154773596, 241833744, 444974089, 561054286, 473994138, 270853793, 154773596, 241833744, 444974089, 561054286, 473994138, 270853793, 154773596, 241833744, 444974089, 561054286, 473994138, 270853793, 154773596, 241833744, 444974089, 561054286, 473994138, 270853793, 154773596, 241833744, 444974089, 561054286, 473994138, 270853793, 154773596, 241833744, 444974089, 561054286, 473994138, 270853793, 154773596, 241833744, 444974089, 561054286, 473994138, 270853793, 154773596, 241833744, 444974089, 561054286, 473994138, 270853793, 154773596, 241833744, 444974089, 561054286, 473994138, 270853793, 154773596, 241833744, 444974089, 561054286, 473994138, 2418337, 501674613, 323]
+    if k == 19
+        return [897675594, 1032890512, 897675594, 1032890512, 897675594, 1032890512, 897675594, 1032890512, 897675594, 1032890512, 897675594, 1032890512, 897675594, 1032890512, 897675594, 1032890512, 897675594, 1032890512, 897675594, 1032890512, 897675594, 1032890512, 897675594, 1032890512, 897675594, 1032890512, 897675594, 1032890512, 897675594, 1032890512, 897675594, 1032890512, 897675594, 1032890512, 897675594, 1032890512, 897675594, 1032890512, 897675594, 1032890512, 897675594, 1032890512, 897675594, 1032890512, 897675594, 1032890512, 897675594, 1032890512, 897675594, 1032890512, 897675594, 1032890512, 897675594, 1032890512, 897675594, 1032890512, 897675594, 1032890512, 897675594, 1032890512, 897675594, 1032890512, 897675594, 1032890512, 897675594, 1032890512, 897675594, 1032890512, 897675594, 1032890512, 897675594, 1032890512, 897675594, 1032890512, 897675594, 1032890512, 897675594, 1032890512, 897675594, 1032890512, 897675594, 1032890512, 897675594, 1032890512, 897675594, 1032890512, 897675594, 1032890512, 897675594, 1032890512, 897675594, 1032890512, 897675594, 1032890512, 897675594, 1032890512, 897675594, 1032890512, 897675594, 1032890512, 897675594, 1032890512, 897675594, 1032890512, 897675594, 1032890512, 897675594, 1032890512, 897675594, 1032890512, 897675594, 1032890512, 897675594, 1032890512, 897675594, 1032890512, 897675594, 1032890512, 897675594, 1032890512, 897675594, 1032890512, 897675594, 1032890512, 897675594, 1032890512, 897675594, 1032890512, 897675594, 1032890512, 897675594, 1032890512, 897675594, 1032890512, 897675594, 1032890512, 897675594, 1032890512, 897675594, 294693008, 96329789, 11520]
+    return []
+

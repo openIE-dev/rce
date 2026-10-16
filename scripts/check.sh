@@ -31,13 +31,26 @@ for f in lib/*/*.rce; do
   for u in $uses; do cp "lib/$u.rce" "$pk/"; done
   if [ -n "$uses" ]; then cp "$f" "$pk/"; "$RCE" check "$pk"; else "$RCE" check "$f"; fi
   t="tests/${f#lib/}"; t="${t%.rce}_checks"
-  # one comptime fuel budget per file: heavy vector sets are sharded
+  # one comptime fuel budget per file: heavy vector sets are sharded; a
+  # module without dependencies runs its shards in parallel (JOBS, default
+  # the number of CPUs), each in its own file, and any failing shard fails
   for c in "$t".rce "$t"_*.rce; do
     [ -f "$c" ] || continue
-    o="$pk/$(basename "$f")"
-    { cat "$f"; echo; cat "$c"; } > "$o"
-    if [ -n "$uses" ]; then "$RCE" test "$pk"; else "$RCE" test "$o"; fi
-  done
+    if [ -n "$uses" ]; then
+      o="$pk/$(basename "$f")"
+      { cat "$f"; echo; cat "$c"; } > "$o"
+      "$RCE" test "$pk"
+    else
+      echo "$c"
+    fi
+  done > "$tmp/shards"
+  if [ -z "$uses" ] && [ -s "$tmp/shards" ]; then
+    mkdir -p "$tmp/sh"
+    F="$f" T="$tmp/sh" xargs -P "${JOBS:-$(nproc)}" -I{} sh -c 'o="$T/$(basename "{}")"; { cat "$F"; echo; cat "{}"; } > "$o"; "$0" test "$o" > "$o.out" 2>&1 || { cat "$o.out"; exit 255; }; rm -f "$o" "$o.out"' "$RCE" < "$tmp/shards"
+    echo "ok $f: $(wc -l < "$tmp/shards") check files"
+  else
+    cat "$tmp/shards"
+  fi
   h="${t%_checks}_host.rce"
   if [ -f "$h" ]; then
     python3 scripts/flatten.py "$f" "$t.rce" "$h" > "$tmp/host.rce"

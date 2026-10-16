@@ -102,11 +102,11 @@ M = [('core',) + m for m in [
     ('    let qa = n_mul(&num, &y)\n    var q = n_shr(&qa, k)', '    let qa = n_mul(&num, &y)\n    var q = n_shr(&qa, k + 1)'),
     ('            let tq = if even then n_div(&s0, &s1, f) else n_div(&s1, &s0, f)', '            let tq = n_div(&s0, &s1, f)'),
 ]] + [('atan2',) + m for m in [
-    ('        let dd = if f == 200 then d else 3 * d', '        let dd = d'),
+    ('    let dd = if f == 200 then d else 3 * d', '    let dd = d'),
     ('    if y == 0.0\n        if xneg', '    if y == 0.0\n        if false'),
     ('    let swap = ay > ax', '    let swap = false'),
-    ('            a = n_sub(&pc, &a)\n        if xneg', '            a = n_add(&pc, &a)\n        if xneg'),
-    ('            let pi = n_muls(&pc, 2)', '            let pi = n_muls(&pc, 3)'),
+    ('        r = n_sub(&pc, &r)\n    if xneg', '        r = n_add(&pc, &r)\n    if xneg'),
+    ('        let pi = n_muls(&pc, 2)', '        let pi = n_muls(&pc, 3)'),
     ('        u = n_div(&num, &den, fe)', '        u = copy(num)'),
     ('        uneg = n_cmp(t, &c) < 0', '        uneg = n_cmp(t, &c) > 0'),
     ('        let d = n_divs(&p, k)', '        let d = n_divs(&p, k + 2)'),
@@ -132,6 +132,86 @@ M = [('core',) + m for m in [
     ('    var cp = n_pow2(f)', '    var cp = n_pow2(f + 1)'),
     ('    k = 0\n    plus = false', '    k = 1\n    plus = false'),
     ('        return 1.0\n    let me = mant(ax)', '        return 0.0\n    let me = mant(ax)'),
+]] + [('asin',) + m for m in [
+    ('    if ax < 3.725290298461914e-09\n        return x\n    return asin_acos(x, false)', '    if ax < 3.725290298461914e-07\n        return x\n    return asin_acos(x, false)'),
+    ('        let g = f + 160', '        let g = f + 2'),
+    ('    let st = (n_to_i64(&tn) as f64).sqrt() * 1.000000001 + 2.0', '    let st = (n_to_i64(&tn) as f64).sqrt() * 0.999999 + 2.0'),
+    ('            return if not ac and x < 0.0 then chs(z[0]) else z[0]', '            return z[0]'),
+]] + [('acos',) + m for m in [
+    ('        let xn = ac and x < 0.0', '        let xn = false'),
+    ('    if ax < 2.7755575615628914e-17\n        return 1.5707963267948966', '    if ax < 2.7755575615628914e-15\n        return 1.5707963267948966'),
+    ('    if x == -1.0\n        return 3.141592653589793', '    if x == -1.0\n        return 3.1415926535897927'),
+    ('            let tq = n_muls(&tp, (2 * k - 1) * (2 * k - 1))', '            let tq = n_muls(&tp, (2 * k - 1) * (2 * k + 1))'),
+    ('        let v = if x < 0.0 then n_add(&pc, &s) else n_sub(&pc, &s)', '        let v = n_sub(&pc, &s)'),
+    ('    if ax < 0.0009765625\n        return acos_small(x)', '    if ax < 0.0625\n        return acos_small(x)'),
+]] + [('atan',) + m for m in [
+    ('    return atan2(x, 1.0)', '    return atan2(x, 1.0000000000000002)'),
+]] + [('sinh',) + m for m in [
+    ('        let g = f + ex + 64\n        let h = hyp_parts(ax, g)', '        let g = f + 64\n        let h = hyp_parts(ax, g)'),
+    ('    return [[k1], n_sub(&p[1], &n2), n_add(&p[1], &n2)]', '    return [[k1], n_sub(&p[1], &n2), n_add(&p[1], &p[1])]'),
+    ('            return if which == 0 and x < 0.0 then chs(z[0]) else z[0]', '            return z[0]'),
+]] + [('cosh',) + m for m in [
+    ('    if fabs(x) < 7.450580596923828e-09\n        return 1.0', '    if fabs(x) < 7.450580596923828e-07\n        return 1.0'),
+]] + [('tanh',) + m for m in [
+    ('    if ax > 22.0\n', '    if ax > 18.0\n'),
+    ('        let t = n_div(&h[1], &h[2], fe)', '        let t = n_div(&h[1], &h[2], fe + 1)'),
+]] + [('asinh',) + m for m in [
+    ('    let one = if 2 * gg - 2 * t >= 0 then n_pow2(2 * gg - 2 * t) else []', '    let one = if 2 * gg - 2 * t >= 0 then n_pow2(2 * gg - 2 * t + 1) else []'),
+    ('    return [n_add(&xg, &s), [gg - t]]', '    return [n_add(&xg, &s), [gg]]'),
+    ('    if n_to_i64(&t2) == 3\n        e += 1', '    if false\n        e += 1'),
+]] + [('acosh',) + m for m in [
+    ('        let gg = f + 96', '        let gg = f + 20'),
+]] + [('atanh',) + m for m in [
+    ('        let z = ziv(&r[1], 0 - gg - 1)', '        let z = ziv(&r[1], 0 - gg)'),
+    ('    let b = n_sub(&p, &mm)', '    let b = n_add(&p, &mm)'),
+]] + [('expm1',) + m for m in [
+    ('    if x < -38.0\n        return -1.0', '    if x < -30.0\n        return -1.0'),
+    ('        let g = f + ex + 64\n        let xf = fix(ax, g)', '        let g = f + 64\n        let xf = fix(ax, g)'),
+]] + [('log1p',) + m for m in [
+    ('        let u = if x < 0.0 then n_sub(&one, &xg) else n_add(&one, &xg)', '        let u = n_add(&one, &xg)'),
+    ('    let t = if m[1] + 53 > 0 then m[1] + 53 else 0\n    let mm = n_of(m[0])\n    for f in ZIV_F\n        let g = f + ex + 64', '    let t = if m[1] + 53 > 0 then m[1] + 54 else 0\n    let mm = n_of(m[0])\n    for f in ZIV_F\n        let g = f + ex + 64'),
+]] + [('exp2',) + m for m in [
+    ('    if k == x\n        return n_round(&one, ki)', '    if k == x\n        return pow2(ki)'),
+    ('        let rf = if x < 0.0 then n_sub(&kk, &xf) else n_sub(&xf, &kk)', '        let rf = n_sub(&xf, &kk)'),
+]] + [('exp10',) + m for m in [
+    ('        return n_round(&p, n)', '        return n_round(&p, n) * 1.0000000000000002'),
+    ('    if x == x.floor() and x > 0.0', '    if false'),
+]] + [('sinpi',) + m for m in [
+    ('    if n_cmp(&rn, &quarter) > 0\n        let half = n_pow2(fx - 1)', '    if n_cmp(&rn, &quarter) > 1\n        let half = n_pow2(fx - 1)'),
+    ('    let s_neg = q >= 2', '    let s_neg = q >= 3'),
+    ('        let ff = f + ex + 8\n        let c = c_pi()', '        let ff = f + 8\n        let c = c_pi()'),
+]] + [('cospi',) + m for m in [
+    ('    let c_neg = q == 1 or q == 2', '    let c_neg = q == 2'),
+]] + [('tanpi',) + m for m in [
+    ('            neg = s_neg != c_neg', '            neg = s_neg'),
+]] + [('erf',) + m for m in [
+    ('    if ax >= 6.0\n', '    if ax >= 5.0\n'),
+    ('        t = n_divs(&ps, 2 * n + 1)', '        t = n_divs(&ps, 2 * n + 3)'),
+    ('    return n_shr(&p, 2 * gg - e[0][0])', '    return n_shr(&p, 2 * gg - e[0][0] + 1)'),
+]] + [('erfc',) + m for m in [
+    ('        if x > 0.0 and lose > 120', '        if x > 0.0 and lose > 4000'),
+    ('            err = n_shr(&t, 0)', '            err = []'),
+    ('            if n % 2 == 1\n                neg = n_add(&neg, &t2)\n            else\n                pos = n_add(&pos, &t2)', '            if n % 2 == 1\n                neg = n_add(&neg, &t2)\n            else\n                pos = n_add(&pos, &t)'),
+    ('            if n % 2 == 1\n                neg = n_add(&neg, &t2)', '            if n % 2 == 0\n                neg = n_add(&neg, &t2)'),
+    ('        let gg = f + 72 + ex + (if x > 0.0 then lose else 0)', '        let gg = f + 72 + ex'),
+]] + [('tgamma',) + m for m in [
+    ('        for i in 1..n\n            p = n_muls(&p, i)', '        for i in 2..n\n            p = n_muls(&p, i)'),
+    ('                return if h == h.floor() then z[0] else chs(z[0])', '                return z[0]'),
+    ('            let q = n_div(&g[1], &fr[0], s + 64)', '            let q = n_div(&g[1], &fr[0], s + 63)'),
+    ('    return 3 * hyp_ex(fabs(x)) >= gg + 2', '    return 2 * hyp_ex(fabs(x)) >= gg + 2'),
+    ('    let w = n_add(&one, &cx)', '    let w = one'),
+    ('    return if x > 0.0 then n_sub(&w, &gx) else n_add(&w, &gx)', '    return n_sub(&w, &gx)'),
+    ('    return if x < 0.0 then [chs(z[1]), chs(z[0])] else z', '    return z'),
+    ('            let o = one_plus(&fr[0], s, gg + 16)\n            let g = gamma_big(&o[0], o[1][0], 1.0 + ax, gg)\n            let q', '            let o = one_plus(&fr[0], s, 40)\n            let g = gamma_big(&o[0], o[1][0], 1.0 + ax, gg)\n            let q'),
+]] + [('lgamma',) + m for m in [
+    ('    let hf = n_pow2(g - 1)\n    let xh = n_sub(&xf, &hf)', '    let hf = n_pow2(g - 2)\n    let xh = n_sub(&xf, &hf)'),
+    ('        if k % 2 == 0\n            pos = n_add(&pos, &t)', '        if k % 2 == 1\n            pos = n_add(&pos, &t)'),
+    ('    if x > 2.5599833278516383e305', '    if x > 2.5e305'),
+    ('    return pow2((gg + 54) / 42 + 1)', '    return pow2((gg + 54) / 42 - 4)'),
+    ('                r = sadd(a[0][0] == 1, &a[1], lx[0][0] == 0, &lx[1])', '                r = sadd(a[0][0] == 1, &a[1], lx[0][0] == 1, &lx[1])'),
+    ('            if short > 0 and gg + short <= 4100 and tries < 4', '            if false'),
+    ('    let wneg = n_cmp(&w, &one) < 0', '    let wneg = false'),
+    ('    let r = sadd(lx[0][0] == 0, &lx[1], wneg, &d)', '    let r = sadd(lx[0][0] == 1, &lx[1], wneg, &d)'),
 ]]
 SH = sorted(glob.glob(os.path.join(root, 'tests/math/math_checks*.rce')))
 
@@ -144,9 +224,11 @@ def fails(src, sh):
     finally:
         os.remove(n)
 
-def killed(src):
+def killed(src, g='core'):
+    own = [s for s in SH if os.path.basename(s).startswith('math_checks_%s_' % g)]
+    order = own + [s for s in SH if s not in own]
     with ThreadPoolExecutor(os.cpu_count()) as ex:
-        for k in ex.map(lambda s: fails(src, s), SH):
+        for k in ex.map(lambda s: fails(src, s), order):
             if k:
                 ex.shutdown(cancel_futures=True); return True
     return False
@@ -156,10 +238,10 @@ assert not fails(SRC, SH[0]), 'unmutated source fails'
 k = n = 0
 for g, a, b in M:
     if want and g not in want: continue
-    if g in ('exp', 'log', 'log2', 'log10', 'sin', 'cos', 'tan', 'atan2', 'pow') and 'pub fn %s(' % g not in SRC: continue
+    if g != 'core' and 'pub fn %s(' % g not in SRC: continue
     assert SRC.count(a) >= 1, a
     n += 1
-    if killed(SRC.replace(a, b, 1)): k += 1
+    if killed(SRC.replace(a, b, 1), g): k += 1
     else: print('SURVIVED', g, repr(a), '->', repr(b))
 print('%d/%d killed' % (k, n))
 sys.exit(0 if k == n else 1)
