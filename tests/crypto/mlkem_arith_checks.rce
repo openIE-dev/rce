@@ -1,0 +1,25 @@
+# needs: crypto pq
+# qdiv/qmod (multiply-shift division by 3329) against the exact definitions,
+# and compress against the exact rounded division of FIPS 203 (4.7), over
+# the whole domain x in 0..3328 for d in {1, 4, 10, 11, 5}.
+fn all_q(d: i64) -> bool
+    var ok = true
+    for x in 0..3329
+        let num = (x as i64 << d) + 1664
+        let exact = ((x as i64 << d) * 2 + 3329) / 6658
+        ok = ok and compress([x as i64], d) == [exact & ((1 << d) - 1)]
+    return ok
+fn all_div() -> bool
+    var ok = true
+    for n in 0..70000
+        ok = ok and qdiv(n * 331) == (n * 331) / 3329 and qmod(n * 331) == (n * 331) % 3329
+    return ok
+check all_div()
+check qdiv(0) == 0 and qdiv(3328) == 0 and qdiv(3329) == 1 and qdiv(6657) == 1 and qdiv(6658) == 2
+check qdiv(22200000) == 22200000 / 3329 and qmod(22200000) == 22200000 % 3329
+check qmod(346000000) == 346000000 % 3329
+check all_q(1)
+check all_q(4)
+check all_q(10)
+check all_q(11)
+check all_q(5)
