@@ -4,22 +4,22 @@
 # (scripts/ref/canon); the rest is derived (scripts/gen/effect_gen.py).
 
 fn ok2(f: fn(&text, &text) -> bool, a: text, b: text) -> bool = f(&a, &b)
-fn cj(j: enc.Json) -> text = canon(&j)
-fn hj(j: enc.Json) -> text = vhash(&j)
+fn cj(j: enc.JsonDoc) -> text = canon(&j)
+fn hj(j: enc.JsonDoc) -> text = vhash(&j)
 fn bc(a: text, b: text) -> i64 = byte_cmp(&a, &b)
 fn dl(b: Backoff, n: u64) -> u64 = delay(&b, n)
 
 struct OrOut
-    got: List[enc.Json]
+    got: List[enc.JsonDoc]
     hits: u64
     misses: u64
     last: text
 
-fn oracle_run(ins: List[enc.Json], outs: List[enc.Json], asks: List[enc.Json]) -> OrOut
+fn oracle_run(ins: List[enc.JsonDoc], outs: List[enc.JsonDoc], asks: List[enc.JsonDoc]) -> OrOut
     var o = oracle_new()
     for i in 0..ins.len()
         oracle_record(&mut o, &ins[i], &outs[i])
-    var got: List[enc.Json] = []
+    var got: List[enc.JsonDoc] = []
     for a in asks
         let r = oracle_ask(&mut o, &a)
         got.push(r.or(enc.JStr(t: "<miss>")))

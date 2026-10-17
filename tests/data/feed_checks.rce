@@ -132,7 +132,7 @@ fn adm(window: i64, bud: i64, script: List[text]) -> List[text]
             out.push("ack=" + ack(&mut ib, p[1].toint()))
         else
             let p = s.split("/")
-            out.push(offer(&mut ib, &p[0], &p[1], p[2].toint()))
+            out.push(offr(&mut ib, &p[0], &p[1], p[2].toint()))
     out.push("dups=" + ib.dups.tostr() + " overflow=" + ib.overflow.tostr() + " acked=" + ib.acked + " pending=" + ib.pending.len().tostr())
     return out
 fn sim_after_doc_ra() -> text

@@ -115,31 +115,31 @@ fn sorted_index(keys: &[text]) -> List[usize]
 # serde_json prints them. It differs from RFC 8785 (enc.jcs) in key
 # order, which RFC 8785 takes in UTF-16 units, and in integers: the whole
 # i64 range is printed, where enc.jcs keeps to I-JSON (|v| <= 2^53).
-pub fn canon(j: &enc.Json) -> text bound 64
+pub fn canon(j: &enc.JsonDoc) -> text bound 64
     match j
         enc.JArr(items: items) -> return canon_arr(items)
         enc.JObj(keys: keys, vals: vals) -> return canon_obj(keys, vals)
         enc.JInt(v: v) -> return v.tostr()
         _ -> return enc.jcs(j)
 
-fn canon_arr(items: &[enc.Json]) -> text bound 64
+fn canon_arr(items: &[enc.JsonDoc]) -> text bound 64
     var parts: List[text] = []
     for x in items
         parts.push(canon(&x))
     return "[" + ",".join(parts) + "]"
 
-fn canon_obj(keys: &[text], vals: &[enc.Json]) -> text bound 64
+fn canon_obj(keys: &[text], vals: &[enc.JsonDoc]) -> text bound 64
     var parts: List[text] = []
     for i in sorted_index(keys)
         parts.push(enc.jcs_string(&keys[i]) + ":" + canon(&vals[i]))
     return "{" + ",".join(parts) + "}"
 
 # The oracle key of an input: SHA-256 of its canonical JSON, lowercase hex.
-pub fn vhash(j: &enc.Json) -> text = canon(j).sha256()
+pub fn vhash(j: &enc.JsonDoc) -> text = canon(j).sha256()
 
 pub struct Oracle
     keys: List[text]
-    vals: List[enc.Json]
+    vals: List[enc.JsonDoc]
     hits: u64
     misses: u64
     last_miss: text
@@ -156,7 +156,7 @@ fn oracle_find(o: &Oracle, h: &text) -> i64
 
 # Record the result of an input; a second record of the same input
 # replaces the first (the table is a map).
-pub fn oracle_record(o: &mut Oracle, input: &enc.Json, result: &enc.Json)
+pub fn oracle_record(o: &mut Oracle, input: &enc.JsonDoc, result: &enc.JsonDoc)
     let h = vhash(input)
     let i = oracle_find(o, &h)
     if i >= 0
@@ -167,7 +167,7 @@ pub fn oracle_record(o: &mut Oracle, input: &enc.Json, result: &enc.Json)
 
 # The recorded result of an input, or none: a miss, counted, with the
 # engine's escalation reason in last_miss.
-pub fn oracle_ask(o: &mut Oracle, input: &enc.Json) -> enc.Json?
+pub fn oracle_ask(o: &mut Oracle, input: &enc.JsonDoc) -> enc.JsonDoc?
     let h = vhash(input)
     let i = oracle_find(o, &h)
     if i < 0

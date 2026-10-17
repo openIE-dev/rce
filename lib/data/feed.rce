@@ -284,7 +284,7 @@ pub const OVERFLOW: text = "overflow"
 # at-least-once delivery has exactly-once effect); past the per-tick
 # budget the event is not admitted and the overflow is counted (the
 # caller logs it; the upstream redelivers since it was not acked).
-pub fn offer(ib: &mut Inbox, k: &text, c: &text, h: i64) -> text
+pub fn offr(ib: &mut Inbox, k: &text, c: &text, h: i64) -> text
     var ks: List[text] = []
     var kh: List[i64] = []
     for i in 0..ib.keys.len()

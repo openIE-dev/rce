@@ -33,16 +33,16 @@ fn wpt(i: text, b: text, hb: bool) -> text
     let r = parse(&i) catch url_empty()
     return show(&i, &r, &e, false)
 
-fn why(i: &text, b: &Url, hb: bool) -> text
+fn why(i: &text, b: &UrlParts, hb: bool) -> text
     let r = (if hb then parse_with(i, b) else parse(i)) catch |e| url_with_why(e)
     return r.scheme
 
-fn url_with_why(e: BadUrl) -> Url
+fn url_with_why(e: BadUrl) -> UrlParts
     var x = url_empty()
     x.scheme = "FAIL"
     return x
 
-fn show(i: &text, r: &Url, b: &Url, hb: bool) -> text
+fn show(i: &text, r: &UrlParts, b: &UrlParts, hb: bool) -> text
     if r.scheme == ""
         return why(i, b, hb)
     return href(r) + "|" + protocol(r) + "|" + r.username + "|" + r.password + "|" + host_text(r) + "|" + hostname(r) + "|" + port_text(r) + "|" + pathname(r) + "|" + search(r) + "|" + hash(r)

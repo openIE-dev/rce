@@ -24,7 +24,7 @@ M = [
     ('    return "[" + ",".join(parts) + "]"', '    return "[" + ", ".join(parts) + "]"'),
     ('parts.push(enc.jcs_string(&keys[i]) + ":" + canon(&vals[i]))', 'parts.push(enc.jcs_string(&keys[i]) + ": " + canon(&vals[i]))'),
     ('        enc.JInt(v: v) -> return v.tostr()\n', ''),
-    ('pub fn vhash(j: &enc.Json) -> text = canon(j).sha256()', 'pub fn vhash(j: &enc.Json) -> text = enc.jcs(j).sha256()'),
+    ('pub fn vhash(j: &enc.JsonDoc) -> text = canon(j).sha256()', 'pub fn vhash(j: &enc.JsonDoc) -> text = enc.jcs(j).sha256()'),
     ('        o.vals[i as usize] = copy(result)', '        o.keys.push(copy(h))\n        o.vals.push(copy(result))'),
     ('        o.misses += 1', '        o.misses += 0'),
     ('    o.hits += 1', '    o.hits += 0'),

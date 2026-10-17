@@ -102,7 +102,7 @@ check rejects("1817") and rejects("9f01ff") and rejects("a203040102") and reject
 check rejects("0001") and rejects("f818") and rejects("f93c00") and rejects("1b8000000000000000") and rejects("1903") and rejects("62c3bc")
 
 # RFC 8785 3.2.2.2 string example and 3.2.3 sorting example
-fn jc(j: Json) -> text = jcs(&j)
+fn jc(j: JsonDoc) -> text = jcs(&j)
 
 check jc(JStr(t: "\u{20ac}$\u{f}\nA'B\"\\\\\"/")) == "\"\u{20ac}$\\u000f\\nA'B\\\"\\\\\\\\\\\"/\""
 check jc(JObj(keys: ["\u{20ac}", "\r", "\u{fb33}", "1", "\u{1f600}", "\u{80}", "\u{f6}"], vals: [JStr(t: "Euro Sign"), JStr(t: "Carriage Return"), JStr(t: "Hebrew Letter Dalet With Dagesh"), JStr(t: "One"), JStr(t: "Emoji: Grinning Face"), JStr(t: "Control"), JStr(t: "Latin Small Letter O With Diaeresis")])) == "{\"\\r\":\"Carriage Return\",\"1\":\"One\",\"\u{80}\":\"Control\",\"\u{f6}\":\"Latin Small Letter O With Diaeresis\",\"\u{20ac}\":\"Euro Sign\",\"\u{1f600}\":\"Emoji: Grinning Face\",\"\u{fb33}\":\"Hebrew Letter Dalet With Dagesh\"}"

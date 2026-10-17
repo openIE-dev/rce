@@ -355,13 +355,13 @@ pub fn cbor_decode(b: &[i64]) -> Cbor ! BadCbor
 # form; larger magnitudes trap (I-JSON range). Non-integer numbers need
 # spec (no f64 bit access for the shortest round-trip form).
 
-pub kind Json
+pub kind JsonDoc
     JNull
     JBool(v: bool)
     JInt(v: i64)
     JStr(t: text)
-    JArr(items: List[Json])
-    JObj(keys: List[text], vals: List[Json])
+    JArr(items: List[JsonDoc])
+    JObj(keys: List[text], vals: List[JsonDoc])
 
 fn hex4(v: i64) -> text
     let ds = "0123456789abcdef".chars()
@@ -445,11 +445,11 @@ fn jcs_obj(keys: &[text], vals: List[text]) -> text
         parts.push(jcs_string(&keys[i]) + ":" + copy(vals[i]))
     return "{" + ",".join(parts) + "}"
 
-pub fn jcs(j: &Json) -> text bound 64
+pub fn jcs(j: &JsonDoc) -> text bound 64
     match j
         JNull -> return "null"
         JBool(v: v) -> return if v then "true" else "false"
         JInt(v: v) -> return jcs_int(v)
         JStr(t: t) -> return jcs_string(t)
-        JArr(items: items) -> return jcs_arr(items.map(fn(x: Json) => jcs(&x)))
-        JObj(keys: keys, vals: vals) -> return jcs_obj(keys, vals.map(fn(x: Json) => jcs(&x)))
+        JArr(items: items) -> return jcs_arr(items.map(fn(x: JsonDoc) => jcs(&x)))
+        JObj(keys: keys, vals: vals) -> return jcs_obj(keys, vals.map(fn(x: JsonDoc) => jcs(&x)))

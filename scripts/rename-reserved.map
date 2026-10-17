@@ -10,3 +10,7 @@ ct ctext
 session sess
 protocol proto
 par parl
+Json JsonDoc
+Url UrlParts
+offer offr
+choose chse

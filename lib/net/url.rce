@@ -16,7 +16,7 @@ use text.utf8
 
 error BadUrl(why: text)
 
-pub struct Url
+pub struct UrlParts
     scheme: text
     username: text
     password: text
@@ -31,7 +31,7 @@ pub struct Url
     has_frag: bool
     frag: text
 
-pub fn url_empty() -> Url = Url(scheme: "", username: "", password: "", has_host: false, host: "", port: -1, opaque: false, opath: "", path: [], has_query: false, query: "", has_frag: false, frag: "")
+pub fn url_empty() -> UrlParts = UrlParts(scheme: "", username: "", password: "", has_host: false, host: "", port: -1, opaque: false, opath: "", path: [], has_query: false, query: "", has_frag: false, frag: "")
 
 # ---------------- code points ----------------
 
@@ -445,7 +445,7 @@ fn double_dot(b: &text) -> bool
     let l = lower_text(b)
     return l == ".." or l == ".%2e" or l == "%2e." or l == "%2e%2e"
 
-fn shorten(u: &mut Url)
+fn shorten(u: &mut UrlParts)
     if u.scheme == "file" and u.path.len() == 1 and is_wdl(&u.path[0], true)
         return
     if u.path.len() > 0
@@ -477,20 +477,20 @@ const S_FRAGMENT: i64 = 19
 
 fn is_c0_or_space(c: i64) -> bool = c >= 0 and c <= 32
 
-pub fn parse(input: &text) -> Url ! BadUrl
+pub fn parse(input: &text) -> UrlParts ! BadUrl
     let e = url_empty()
     return parse_url(input, &e, false)
 
-pub fn parse_with(input: &text, base: &Url) -> Url ! BadUrl = parse_url(input, base, true)
+pub fn parse_with(input: &text, base: &UrlParts) -> UrlParts ! BadUrl = parse_url(input, base, true)
 
-fn copy_base_auth(u: &mut Url, b: &Url)
+fn copy_base_auth(u: &mut UrlParts, b: &UrlParts)
     u.username = copy(b.username)
     u.password = copy(b.password)
     u.has_host = b.has_host
     u.host = copy(b.host)
     u.port = b.port
 
-fn parse_url(input: &text, base: &Url, has_base: bool) -> Url ! BadUrl
+fn parse_url(input: &text, base: &UrlParts, has_base: bool) -> UrlParts ! BadUrl
     # strip leading and trailing C0 control or space, remove tab and newline
     let all = input.chars()
     var lo: usize = 0
@@ -824,7 +824,7 @@ fn parse_url(input: &text, base: &Url, has_base: bool) -> Url ! BadUrl
 
 # ---------------- serialization and the URL API (4.5, 6) ----------------
 
-pub fn pathname(u: &Url) -> text
+pub fn pathname(u: &UrlParts) -> text
     if u.opaque
         return copy(u.opath)
     var o = ""
@@ -832,7 +832,7 @@ pub fn pathname(u: &Url) -> text
         o = o + "/" + s
     return o
 
-pub fn href(u: &Url) -> text
+pub fn href(u: &UrlParts) -> text
     var o = u.scheme + ":"
     if u.has_host
         o = o + "//"
@@ -853,9 +853,9 @@ pub fn href(u: &Url) -> text
         o = o + "#" + u.frag
     return o
 
-pub fn proto(u: &Url) -> text = u.scheme + ":"
-pub fn hostname(u: &Url) -> text = copy(u.host)
-pub fn port_text(u: &Url) -> text = if u.port >= 0 then u.port.tostr() else ""
-pub fn host_text(u: &Url) -> text = if u.port >= 0 then u.host + ":" + u.port.tostr() else copy(u.host)
-pub fn search(u: &Url) -> text = if u.has_query and u.query != "" then "?" + u.query else ""
-pub fn hash(u: &Url) -> text = if u.has_frag and u.frag != "" then "#" + u.frag else ""
+pub fn proto(u: &UrlParts) -> text = u.scheme + ":"
+pub fn hostname(u: &UrlParts) -> text = copy(u.host)
+pub fn port_text(u: &UrlParts) -> text = if u.port >= 0 then u.port.tostr() else ""
+pub fn host_text(u: &UrlParts) -> text = if u.port >= 0 then u.host + ":" + u.port.tostr() else copy(u.host)
+pub fn search(u: &UrlParts) -> text = if u.has_query and u.query != "" then "?" + u.query else ""
+pub fn hash(u: &UrlParts) -> text = if u.has_frag and u.frag != "" then "#" + u.frag else ""
