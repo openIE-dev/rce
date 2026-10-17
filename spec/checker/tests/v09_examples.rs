@@ -46,18 +46,6 @@ fn refused_examples_are_refused_for_the_named_rule() {
     }
 }
 
-/// The same refused text is accepted by the 0.8 reading where the rule is
-/// new in 0.9 (a version is never applied silently to an older module).
-#[test]
-fn hygiene_rules_do_not_apply_to_08() {
-    for name in ["unused_let", "unused_param", "unused_use", "constant_condition", "drop_value", "dead_store", "shadow_local"] {
-        let src = std::fs::read_to_string(format!("../examples-0.9/refused/{name}.rce")).unwrap();
-        let src08 = src.replacen("0.9", "0.8", 1);
-        let r = rce_spec_check::check_one(&src08);
-        assert!(r.as_ref().map_or(true, |_| true) && !r.clone().err().unwrap_or_default().contains("W-UNUSED") , "{name}: {r:?}");
-    }
-}
-
 /// The version line is a release label: tolerated and ignored, never a gate.
 #[test]
 fn version_line_is_a_label_not_a_gate() {
@@ -68,8 +56,10 @@ fn version_line_is_a_label_not_a_gate() {
 }
 
 #[test]
-fn reserved_words_are_names_after_a_dot_and_in_older_versions() {
-    let src = "# rce-version: 0.8\nfn main()\n    let law = 1\n    emit law.tostr()\n";
+fn reserved_words_are_names_after_a_dot_only() {
+    let src = "fn main()\n    let law = 1\n    emit law.tostr()\n";
+    assert!(rce_spec_check::check_one(src).unwrap_err().contains("W-RES-1"));
+    let src = "struct S\n    a: i64\n\nfn main()\n    let s = S(a: 1)\n    emit s.a.tostr()\n";
     assert_eq!(rce_spec_check::check_one(src), Ok(()));
 }
 
@@ -94,25 +84,19 @@ fn run(src: &str) -> String {
     String::from_utf8(out).unwrap() + &String::from_utf8(err).unwrap()
 }
 
-/// F.4.4: a failed call restores its `&mut` arguments in 0.9; in 0.8 they are
-/// written back on every outcome (T33), so the same text means two things by
-/// version and a 0.8 module never changes meaning.
+/// F.4.4: a failed call restores its `&mut` arguments, in every module.
 #[test]
-fn failed_call_restores_mut_arguments_in_09_only() {
-    let src09 = std::fs::read_to_string("../examples-0.9/ok/04_transactional_restore.rce").unwrap();
-    let src08 = src09.replacen("0.9", "0.8", 1);
-    assert!(run(&src09).contains("emit \"10\""), "{}", run(&src09));
-    assert!(run(&src08).contains("emit \"11\""), "{}", run(&src08));
+fn failed_call_restores_mut_arguments() {
+    let src = std::fs::read_to_string("../examples-0.9/ok/04_transactional_restore.rce").unwrap();
+    assert!(run(&src).contains("emit \"10\""), "{}", run(&src));
 }
 
-/// The emitters do not implement the restore, so they refuse a 0.9 module
-/// that needs it (reserved, not implemented, never silently different).
+/// The emitters translate the restore: a failing function records no copy-out.
 #[test]
-fn emitters_refuse_what_needs_the_restore() {
+fn emitters_translate_the_restore() {
     let src = std::fs::read_to_string("../examples-0.9/ok/04_transactional_restore.rce").unwrap();
     for t in ["python", "js", "rust"] {
-        let e = rce_spec_check::cli::emit(t, &src).unwrap_err();
-        assert!(e.contains("W-RES-1"), "{t}: {e}");
+        rce_spec_check::cli::emit(t, &src).unwrap_or_else(|e| panic!("{t}: {e}"));
     }
 }
 

@@ -65,8 +65,3 @@ fn every_emitter_refuses_ct_fn_with_the_fixed_message() {
     }
 }
 
-#[test]
-fn ct_is_an_ordinary_word_before_0_9() {
-    let src = "# rce-version: 0.8\nfn main()\n    let ct = 1\n    emit ct\n";
-    assert!(run(src).contains("emit 1"), "{}", run(src));
-}

@@ -27,13 +27,14 @@ fn hash_ignores_item_names_when_renamed_everywhere() {
 }
 
 #[test]
-fn hash_changes_with_body_callee_and_version() {
+fn hash_changes_with_body_and_callee() {
     let body = BASE.replace("a + 1", "a + 2");
     assert_ne!(h(BASE, "helper"), h(&body, "helper"));
     // the caller's text is unchanged, but its callee's hash changed
     assert_ne!(h(BASE, "top"), h(&body, "top"));
-    let v08 = BASE.replace("0.9", "0.8");
-    assert_ne!(h(BASE, "helper"), h(&v08, "helper"));
+    // the release label is not hashed
+    let relabelled = BASE.replace("0.9", "0.8");
+    assert_eq!(h(BASE, "helper"), h(&relabelled, "helper"));
 }
 
 #[test]

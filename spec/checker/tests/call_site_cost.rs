@@ -84,15 +84,12 @@ fn run_target(m: &rce_spec_check::ast::Module, target: &str, stem: &str) -> Opti
 }
 
 #[test]
-fn callee_module_version_governs_method_cost() {
-    let b66 = boundary("0.6", "0.6");
-    let b67 = boundary("0.6", "0.7");
-    let b77 = boundary("0.7", "0.7");
-    let b76 = boundary("0.7", "0.6");
-    // sort of 8 elements: work 8 * 3 = 24, charged only where the sort is written in 0.7
-    assert_eq!(b67 - b66, 24, "0.6 caller, 0.7 callee");
-    assert_eq!(b77, b67, "the caller's version does not change the callee's cost");
-    assert_eq!(b76, b66, "a 0.7 caller does not scale a sort written in 0.6");
+fn every_module_charges_the_size_scaled_method_cost() {
+    // one language: the label of the caller or the callee changes nothing
+    let b = boundary("0.6", "0.6");
+    for (mv, lv) in [("0.6", "0.7"), ("0.7", "0.7"), ("0.7", "0.6")] {
+        assert_eq!(boundary(mv, lv), b, "main {mv}, lib {lv}");
+    }
 }
 
 #[test]

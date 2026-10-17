@@ -69,12 +69,6 @@ fn emitters_refuse_a_contract() {
 }
 
 #[test]
-fn contracts_are_not_read_in_an_older_version() {
-    let src = std::fs::read_to_string("../examples-0.9/ok/11_contracts_ghost.rce").unwrap().replacen("0.9", "0.8", 1);
-    assert!(rce_spec_check::check_one(&src).is_err());
-}
-
-#[test]
 fn the_formatter_keeps_contracts_and_ghost() {
     let src = std::fs::read_to_string("../examples-0.9/ok/11_contracts_ghost.rce").unwrap();
     let m = rce_spec_check::parse::parse_surface(&src).unwrap();
@@ -124,12 +118,11 @@ fn an_irrefutable_if_let_is_refused() {
 }
 
 #[test]
-fn the_formatter_writes_if_let_back_and_an_old_version_does_not_read_it() {
+fn the_formatter_writes_if_let_back() {
     let src = std::fs::read_to_string("../examples-0.9/ok/13_if_let.rce").unwrap();
     let m = rce_spec_check::parse::parse_surface(&src).unwrap();
     let out = rce_spec_check::unparse::unparse(&m);
     assert!(out.contains("if let some(v) = first_even(xs) and v >"), "{out}");
-    assert!(rce_spec_check::check_one(&src.replacen("0.9", "0.8", 1)).is_err());
 }
 
 #[test]
@@ -150,8 +143,3 @@ fn a_template_is_the_same_as_its_spelled_out_concatenation() {
     assert_eq!(run(t), run(s));
 }
 
-#[test]
-fn a_template_is_not_read_before_0_9() {
-    let src = "# rce-version: 0.8\nfn main()\n    let w = \"a\"\n    emit text.t\"x {w}\"\n";
-    assert!(rce_spec_check::check_one(src).is_err());
-}

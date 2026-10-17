@@ -127,15 +127,14 @@ fn guarded_reads_and_capability_writes_are_accepted() {
 }
 
 #[test]
-fn the_gate_keeps_older_versions_unchanged() {
-    // a 0.7 module may declare its own `Text` and `Html`; 5.16 is not there
-    let f = dir().join("old.rce");
-    std::fs::write(&f, "# rce-version: 0.7\nstruct Text\n    a: u32\nstruct Html\n    b: u32\nfn main()\n    let t = Text(a: 1)\n    emit t.a\n").unwrap();
-    let (c, o, e) = run(&["run", f.to_str().unwrap()]);
-    assert_eq!((c, o.trim()), (0, "emit 1"), "{e}");
+fn html_is_one_reserved_type_in_every_module() {
+    // 5.16 is in the language: `Html` cannot be declared, and `Html.lit` is read, whatever the label
     for v in ["", "# rce-version: 0.6\n", "# rce-version: 0.7\n"] {
-        let f = dir().join("old2.rce");
-        std::fs::write(&f, format!("{v}fn main()\n    emit Html.lit(\"x\")\n")).unwrap();
+        let f = dir().join("old.rce");
+        std::fs::write(&f, format!("{v}struct Html\n    b: u32\nfn main()\n    emit 1\n")).unwrap();
         assert_ne!(run(&["check", f.to_str().unwrap()]).0, 0, "{v}");
+        std::fs::write(&f, format!("{v}fn main()\n    emit Html.lit(\"x\").raw()\n")).unwrap();
+        let (c, _, e) = run(&["check", f.to_str().unwrap()]);
+        assert_eq!(c, 0, "{v}: {e}");
     }
 }
