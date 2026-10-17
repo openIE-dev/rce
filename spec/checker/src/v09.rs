@@ -1760,7 +1760,7 @@ pub const UNIMPLEMENTED: &[(&str, &str)] = &[
     ("F.6.1 Template values", "`Template[t]` and a template that is not rendered at once are refused by version; `text.t\"..\"` and `C.t\"..\"` are implemented"),
     ("F.6.2 contracts (P2)", "R.check, opaque invariant types, static use of callee contracts and contracts on function values are not implemented; emitters refuse a contract (W-VER-2)"),
     ("F.6.3 ghost (P3)", "`ghost` parameters, `mathint` and quantifiers are refused by version"),
-    ("F.6.4 decreases (P4)", "loop measures, structural and mathint measures are not implemented (a loop `decreases` is refused by version)"),
+    ("F.6.4 decreases (P4)", "measures on `for` and `loop`, structural and mathint measures are not implemented (a `decreases` there is refused by version); a `while` measure is decided over a straight-line body"),
     ("F.6.5 if let chains", "`and let P = e` is refused by version; the single `if let P = e [and c]... else` is implemented"),
     ("F.6.6 trait laws (P9)", "`law` is refused by version"),
     ("F.7 broker contract (S7)", "tooling contract only, nothing in the checker"),

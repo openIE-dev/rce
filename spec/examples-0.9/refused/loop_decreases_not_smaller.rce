@@ -1,0 +1,8 @@
+# rce-version: 0.9
+# expect: W-DEC-1
+fn main()
+    var i: u64 = 0
+    while i < 3 bound 5
+        decreases 3 - i
+        i -= 0
+    emit i.tostr()

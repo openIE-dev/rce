@@ -113,3 +113,13 @@ fn emitters_refuse_what_needs_the_restore() {
         assert!(e.contains("W-VER-2"), "{t}: {e}");
     }
 }
+
+/// F.6.4: a loop measure is erased before evaluation, so the program runs as
+/// the one without the `decreases` line.
+#[test]
+fn loop_measure_is_erased_before_evaluation() {
+    let with = std::fs::read_to_string("../examples-0.9/ok/16_loop_decreases.rce").unwrap();
+    let without: String = with.lines().filter(|l| !l.trim_start().starts_with("decreases")).collect::<Vec<_>>().join("\n") + "\n";
+    assert_ne!(with, without);
+    assert_eq!(run(&with), run(&without));
+}

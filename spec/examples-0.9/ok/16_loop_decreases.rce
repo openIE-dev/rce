@@ -1,0 +1,32 @@
+# rce-version: 0.9
+fn count_up(n: u64) -> u64 bound 10
+    var i: u64 = 0
+    while i < n bound 10
+        decreases n - i
+        i += 1
+    return i
+
+fn countdown(start: u64) -> u64 bound 10
+    var k: u64 = start
+    var steps: u64 = 0
+    while k > 0 bound 10
+        decreases k
+        k -= 1
+        steps += 1
+    return steps
+
+fn two_part(a: u64, b: u64) -> u64 bound 10
+    var x: u64 = a
+    var y: u64 = b
+    var n: u64 = 0
+    while x > 0 bound 10
+        decreases x, y
+        x -= 1
+        y = y + 5
+        n += 1
+    return n + y
+
+fn main()
+    emit count_up(4).tostr()
+    emit countdown(3).tostr()
+    emit two_part(2, 1).tostr()

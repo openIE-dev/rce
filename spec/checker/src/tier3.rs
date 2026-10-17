@@ -180,14 +180,23 @@ pub fn check(m: &Module) -> Vec<String> {
     for (f, _) in crate::v09::fn_decls(m) {
         let Body::Block(b) = &f.body else { continue };
         let lead = prelude_len(b);
+        // a loop measure is the first statement of the body of a `while` (F.6.4)
+        let mut allowed: BTreeSet<*const Stmt> = BTreeSet::new();
+        all_stmts(b, &mut |s| {
+            if let Stmt::While(_, _, body) = s
+                && body.first().is_some_and(|x| measure(x).is_some())
+            {
+                allowed.insert(&body[0] as *const Stmt);
+            }
+        });
         // a clause is written only at the start of a fn body
         for s in &b[lead..] {
             let mut stray = |s: &Stmt| {
-                if measure(s).is_some() {
+                if measure(s).is_some() && !allowed.contains(&(s as *const Stmt)) {
                     errs.push(err(
                         stmt_line(s),
                         "W-VER-2",
-                        "`decreases` is written only before the first statement of a fn body in this checker; a loop measure is specified (F.6.4) but not implemented, so it is refused by version".into(),
+                        "`decreases` is written only before the first statement of a fn body or as the first statement of the body of a `while` in this checker; a measure on another loop (`for`, `loop`) or elsewhere is specified (F.6.4) but not implemented, so it is refused by version".into(),
                     ));
                 }
                 if clause(s).is_some() {
@@ -199,7 +208,9 @@ pub fn check(m: &Module) -> Vec<String> {
                 }
             };
             stray(s);
-            all_stmts(crate::v09::stmt_blocks(s).concat().as_slice(), &mut |x| stray(x));
+            for blk in crate::v09::stmt_blocks(s) {
+                all_stmts(blk, &mut |x| stray(x));
+            }
         }
         let mut reqs: Vec<&Expr> = vec![];
         let mut has_ens = false;
@@ -260,6 +271,7 @@ pub fn check(m: &Module) -> Vec<String> {
         scan(b);
     }
     errs.extend(decreases(m));
+    errs.extend(loop_measures(m));
     // W-IFLET-1: every `and` operand of an `if let` is a comparison
     for (f, _) in crate::v09::fn_decls(m) {
         let Body::Block(b) = &f.body else { continue };
@@ -457,6 +469,230 @@ fn decreases(m: &Module) -> Vec<String> {
     errs
 }
 
+fn has_loop_measure(b: &[Stmt]) -> bool {
+    let mut any = false;
+    all_stmts(b, &mut |s| {
+        if let Stmt::While(_, _, body) = s
+            && body.first().is_some_and(|x| measure(x).is_some())
+        {
+            any = true;
+        }
+    });
+    any
+}
+
+/// A loop measure has no run-time meaning (F.6.4): it is erased with the
+/// other ghost code before evaluation and emission.
+fn strip_loop_measures(b: &mut Vec<Stmt>) {
+    for s in b.iter_mut() {
+        if let Stmt::While(_, _, body) = s
+            && body.first().is_some_and(|x| measure(x).is_some())
+        {
+            body.remove(0);
+            if body.is_empty() {
+                body.push(Stmt::Pass);
+            }
+        }
+        for blk in blocks_mut(s) {
+            strip_loop_measures(blk);
+        }
+    }
+}
+
+/// W-DEC-1 for a `while` (F.6.4), the fragment this checker decides. The
+/// loop body starts with `decreases m1, m2, ...`, each `mi` linear in the
+/// unsigned integer names (parameters, and `var` with a written unsigned
+/// type, each bound once in the fn). The body's own assignments at its top
+/// level (`x = e`, `x += e`, `x -= e` with `e` linear) give the measure at the
+/// end of the body in terms of the entry values, and that tuple must be
+/// strictly smaller in the lexicographic order, shown by a constant difference
+/// at the first position where the two differ. A measure name that is assigned
+/// anywhere else in the body, borrowed mutably, or a `continue` in the body,
+/// is outside the fragment, because the end of the body then is not the
+/// straight line this rule computes.
+fn loop_measures(m: &Module) -> Vec<String> {
+    let mut errs = vec![];
+    for (f, _) in crate::v09::fn_decls(m) {
+        let Body::Block(b) = &f.body else { continue };
+        if !has_loop_measure(b) {
+            continue;
+        }
+        let mut kinds: HashMap<String, (usize, bool)> = HashMap::new();
+        fn bind(k: &mut HashMap<String, (usize, bool)>, n: &str, u: bool) {
+            let e = k.entry(n.to_string()).or_insert((0, true));
+            e.0 += 1;
+            e.1 &= u;
+        }
+        for p in &f.sig.params {
+            if let Param::Named { name, ty, .. } = p {
+                bind(&mut kinds, name, unsigned(ty));
+            }
+        }
+        let mut pats: Vec<&Pat> = vec![];
+        all_stmts(b, &mut |s| match s {
+            Stmt::Var(n, t, _, _) => bind(&mut kinds, n, t.as_ref().is_some_and(unsigned)),
+            Stmt::Let(p, ..) | Stmt::For(p, ..) => pats.push(p),
+            Stmt::Match(_, arms, _) => pats.extend(arms.iter().map(|a| &a.pat)),
+            Stmt::Select(arms, _) => {
+                for a in arms {
+                    if let SelArm::Recv(p, ..) = a {
+                        pats.push(p);
+                    }
+                }
+            }
+            _ => {}
+        });
+        for p in pats {
+            let mut n = BTreeSet::new();
+            crate::check::pat_names_pub(p, &mut n);
+            for x in n {
+                bind(&mut kinds, &x, false);
+            }
+        }
+        crate::v09::each_stmt_expr(b, &mut |e| {
+            crate::v09::each_expr(e, true, &mut |x, _| {
+                if let Expr::Lambda(ps, ..) = x {
+                    for p in ps {
+                        if let Param::Named { name, .. } = p {
+                            bind(&mut kinds, name, false);
+                        }
+                    }
+                }
+            });
+        });
+        let env: HashMap<String, Lin> = kinds
+            .iter()
+            .filter(|(_, (c, u))| *c == 1 && *u)
+            .map(|(n, _)| (n.clone(), ([(n.clone(), 1)].into_iter().collect(), 0)))
+            .collect();
+        let mut loops: Vec<&Stmt> = vec![];
+        all_stmts(b, &mut |s| {
+            if let Stmt::While(_, _, body) = s
+                && body.first().is_some_and(|x| measure(x).is_some())
+            {
+                loops.push(s);
+            }
+        });
+        for s in loops {
+            let Stmt::While(_, _, body) = s else { continue };
+            let ms = measure(&body[0]).unwrap();
+            let line = ms[0].line();
+            let bad = |msg: String| err(line, "W-DEC-1", msg);
+            let mut mine: Vec<Lin> = vec![];
+            for e in &ms {
+                match lin(e, &env) {
+                    Some(l) => mine.push(l),
+                    None => errs.push(bad("a measure is a natural number: an expression linear in unsigned integer parameters and in `var` names with a written unsigned type, each bound once in the fn".into())),
+                }
+            }
+            if mine.len() != ms.len() {
+                continue;
+            }
+            let mvars: BTreeSet<String> = mine.iter().flat_map(|(c, _)| c.keys().cloned()).collect();
+            let rest = &body[1..];
+            // anything that could change a measure name other than the top-level straight line
+            let mut other = false;
+            let mut cont = false;
+            for (i, st) in rest.iter().enumerate() {
+                let top_assign = matches!(st, Stmt::Assign(_, Expr::Name(x, _), _) if mvars.contains(x));
+                let mut check_one = |t: &Stmt| {
+                    if let Stmt::Assign(_, Expr::Name(x, _), _) = t
+                        && mvars.contains(x)
+                        && !(top_assign && std::ptr::eq(t, st))
+                    {
+                        other = true;
+                    }
+                    if matches!(t, Stmt::Continue(_)) {
+                        cont = true;
+                    }
+                    for e in crate::v09::stmt_exprs(t) {
+                        crate::v09::each_expr(e, true, &mut |x, _| {
+                            if let Expr::Borrow(true, inner, _) = x {
+                                let mut n = BTreeSet::new();
+                                names_in(inner, &mut n);
+                                if n.iter().any(|y| mvars.contains(y)) {
+                                    other = true;
+                                }
+                            }
+                        });
+                    }
+                };
+                check_one(st);
+                all_stmts(crate::v09::stmt_blocks(st).concat().as_slice(), &mut |t| check_one(t));
+                let _ = i;
+            }
+            if other || cont {
+                errs.push(bad("the body assigns a measure name other than in a top-level `x = e`, `x += e` or `x -= e`, borrows one mutably, or has a `continue`; this checker decides only the straight line (F.6.4)".into()));
+                continue;
+            }
+            // the measure names after the straight line, in terms of the entry values
+            let mut cur = env.clone();
+            for st in rest {
+                if let Stmt::Assign(op, Expr::Name(x, _), rhs) = st
+                    && mvars.contains(x)
+                {
+                    let r = lin(rhs, &cur);
+                    let old = cur.get(x).cloned();
+                    let new = match (op.as_str(), r, old) {
+                        ("=", Some(r), _) => Some(r),
+                        ("+=", Some((cr, kr)), Some((mut co, ko))) => {
+                            for (n, v) in cr {
+                                *co.entry(n).or_insert(0) += v;
+                            }
+                            co.retain(|_, v| *v != 0);
+                            Some((co, ko + kr))
+                        }
+                        ("-=", Some((cr, kr)), Some((mut co, ko))) => {
+                            for (n, v) in cr {
+                                *co.entry(n).or_insert(0) -= v;
+                            }
+                            co.retain(|_, v| *v != 0);
+                            Some((co, ko - kr))
+                        }
+                        _ => None,
+                    };
+                    match new {
+                        Some(n) => {
+                            cur.insert(x.clone(), n);
+                        }
+                        None => {
+                            cur.remove(x);
+                        }
+                    }
+                }
+            }
+            let mut ok = false;
+            let mut decided = true;
+            for (k, e) in ms.iter().enumerate() {
+                let Some((cn, ck)) = lin(e, &cur) else {
+                    decided = false;
+                    break;
+                };
+                let (cm, km) = &mine[k];
+                let mut d: std::collections::BTreeMap<String, i128> = cm.clone();
+                for (n, v) in cn {
+                    *d.entry(n).or_insert(0) -= v;
+                }
+                d.retain(|_, v| *v != 0);
+                let dk = km - ck;
+                if d.is_empty() && dk == 0 {
+                    continue;
+                }
+                if d.is_empty() && dk > 0 {
+                    ok = true;
+                }
+                break;
+            }
+            if !decided {
+                errs.push(bad("an assignment of the body is outside the fragment (linear in the unsigned names), so the measure at the end of the body cannot be computed".into()));
+            } else if !ok {
+                errs.push(bad("the measure at the end of the loop body is not strictly smaller than at its start (lexicographic, shown by a constant difference)".into()));
+            }
+        }
+    }
+    errs
+}
+
 fn stmt_line(s: &Stmt) -> usize {
     crate::v09::stmt_exprs(s).first().map(|e| e.line()).unwrap_or(0)
 }
@@ -558,7 +794,7 @@ pub fn lower(m: Module) -> Result<Module, String> {
                 a = true;
             }
             if let Body::Block(b) = &f.body
-                && prelude_len(b) > 0
+                && (prelude_len(b) > 0 || has_loop_measure(b))
             {
                 a = true;
             }
@@ -648,6 +884,7 @@ fn guard(kind: &str, hash: &str, index: usize, cond: Expr) -> Stmt {
 
 fn lower_fn(f: &mut FnDecl, hash: &str, mentioned: &BTreeSet<String>) {
     let Body::Block(b) = &mut f.body else { return };
+    strip_loop_measures(b);
     let lead = prelude_len(b);
     if lead == 0 {
         return;

@@ -912,8 +912,21 @@ Implemented and tested (`spec/checker/src/v09.rs`, `apidiff.rs`; examples in
   without a `decreases`, a different arity, a signed or non-linear measure
   and an argument outside the fragment are refused. A measure has no run-time
   meaning (the recursion bound of 6.7 and the loop limit still hold) and is in
-  the definition hash. Not implemented: a measure on a loop (refused by
-  version), structural measures over data, `mathint` measures, calls of
+  the definition hash. A `while` may carry a measure as the first statement of
+  its body (the loop form of W-DEC-1): each part is linear in the unsigned
+  integer parameters and in the `var` names with a written unsigned type, each
+  bound once in the fn; the top-level assignments of the body (`x = e`,
+  `x += e`, `x -= e`, `e` linear) give the measure at the end of the body in
+  terms of the entry values, and that tuple must be strictly smaller in the
+  lexicographic order (a constant difference at the first position where the
+  two differ). A measure name assigned anywhere else in the body, borrowed
+  mutably, or a `continue` in the body, is outside the fragment and is
+  refused with W-DEC-1; a `decreases` on a `for` or `loop`, or anywhere else
+  than the start of a fn body or of a `while` body, is refused by version
+  (W-VER-2). The loop measure is erased before evaluation and emission, and
+  `bound` and `LOOP_LIMIT` still hold. The checker does not prove that a
+  measure stays a natural number (the function form does not either).
+  Not implemented: structural measures over data, `mathint` measures, calls of
   methods or through function values (not followed). A call is judged on its
   own, not on the branch it is in. T48 stays unproved.
 
@@ -947,8 +960,8 @@ Not implemented (each is refused by version, or the closed list in
 - `declassify` (F.4.2): always refused; `release` with a held capability is the
   one way a labeled value leaves its label;
 - `ghost` parameters, `mathint` and quantifiers; `R.check` and opaque types
-  with invariants; `Template[t]` as a value; loop measures and structural
-  measures; a chain `and let` in `if let`;
+  with invariants; `Template[t]` as a value; structural measures over data
+  and loop measures on `for` and `loop`; a chain `and let` in `if let`;
 - the qualified spelling of variants (F.3.3) is not enforced; S7 (F.7) belongs
   to the IDE broker and not to this checker; the allocation bound of S6 has no
   statement in F.5.5 to implement; provenance records, the build cache and the
@@ -1002,4 +1015,4 @@ UnaryExpr    = ( "-" | "~" | "&" [ "mut" ] | "<-" | "comptime" | "release" | "en
              | Postfix .
 ```
 
-<!-- body-sha256: 71ebf70733ae8a588014ddeb5e6c3a234707001685afd9675faf8ce912b05abb -->
+<!-- body-sha256: 56e6f134cbb5fa33512a5e189e42d3fca4a6d7b250d25b0ada08032b0d7a3b37 -->
