@@ -62,9 +62,18 @@ book says. Chapter 15 also runs the emitted Python and JavaScript, so
 | `listings/**/NAME.cmd` and `NAME.out` | a command shown in the book and the exact output it must produce |
 | `scripts/check-listings.sh` | runs all of the above against a real `rce` |
 
-The book teaches language version 0.5 (sections 2 to 10 of specification
-draft 0.7). Every listing is a version 0.5 module; the version 0.6 and
-0.7 extensions of Appendix C are not covered yet.
+Two numbers are kept apart here: the specification draft (a document) and
+the language version (what a module declares). The book teaches language
+version 0.5, which is sections 2 to 10 of the specification. Every listing
+is a version 0.5 module. The listings were last checked on 17 October 2026
+against public `openIE-dev/rce` main (`4304048`, specification draft 0.7),
+whose checker accepts language versions 0.5 to 0.8. The version 0.6 to 0.8
+extensions (Appendix C of the specification) are not covered by the book yet.
+
+| Chapters | Language version | Checked against |
+|---|---|---|
+| 1 to 15 (`listings/ch01` to `listings/ch15`) | 0.5 | `rce` main `4304048`, `scripts/check-listings.sh`: 54 of 54 pass |
+| 16 (host tools), 17 (media calls and end-to-end encryption) | no declared version | not checked: `src/ch16-host-tools.md` and `src/ch17-media-calls-e2ee.md` have no `listings/` directory, so the script does not run them |
 
 ## Contributing
 
