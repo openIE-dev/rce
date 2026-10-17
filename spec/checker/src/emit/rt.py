@@ -627,7 +627,8 @@ def builtin_raw(r, m, a):
         if m == "round": return F(fround(x)), None
         if m == "tostr": return fdisplay(x), None
     if (r is True or r is False) and m == "tostr": return ("true" if r else "false"), None
-    if t is str and m == "len": return Int(len(u8s(r)), "usize"), None
+    if t is str and m in ("len", "len_bytes"): return Int(len(u8s(r)), "usize"), None
+    if t is str and m == "len_chars": return Int(len(r), "usize"), None
     if t is F32:
         if m == "abs": return F32(abs(r.v)), None
         if m == "tostr": return f32display(r.v), None

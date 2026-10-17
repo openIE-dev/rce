@@ -516,7 +516,8 @@ function builtinRaw(r, m, a) {
     if (m === "tostr") return [fdisplay(x), null];
   }
   if (isBool(r) && m === "tostr") return [r ? "true" : "false", null];
-  if (isStr(r) && m === "len") return [new Int(BigInt(u8s(r).length), "usize"), null];
+  if (isStr(r) && (m === "len" || m === "len_bytes")) return [new Int(BigInt(u8s(r).length), "usize"), null];
+  if (isStr(r) && m === "len_chars") return [new Int(BigInt([...r].length), "usize"), null];
   if (r instanceof F32) {
     if (m === "abs") return [new F32(Math.abs(r.v)), null];
     if (m === "tostr") return [f32display(r.v), null];

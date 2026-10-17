@@ -489,7 +489,8 @@ fn builtin_raw(r: V, m: &str, a: Vec<V>) -> R<(V, Option<V>)> {
         (F(x), "round") => F(x.round()),
         (F(x), "tostr") => Text(float_text(x)),
         (Bool(b), "tostr") => Text(b.to_string()),
-        (Text(s), "len") => Int(s.len() as i128, "usize"),
+        (Text(s), "len") | (Text(s), "len_bytes") => Int(s.len() as i128, "usize"),
+        (Text(s), "len_chars") => Int(s.chars().count() as i128, "usize"),
         (F32(x), "abs") => F32(x.abs()),
         (F32(x), "tostr") => Text((x as f32).to_string()),
         (Gen(g), "collect") => { let (items, _, err) = g(usize::MAX); if let Some(f) = err { return Result::Err(f); } List(items) }

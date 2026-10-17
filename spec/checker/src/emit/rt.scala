@@ -586,7 +586,8 @@ def builtin_raw(r: Any, m: String, a: Vector[Any]): (Any, Any) = {
         case _ =>
       }
     case b: Boolean if m == "tostr" => return (if (b) "true" else "false", null)
-    case s: String if m == "len" => return (I(BigInt(u8s(s).length), "usize"), null)
+    case s: String if m == "len" || m == "len_bytes" => return (I(BigInt(u8s(s).length), "usize"), null)
+    case s: String if m == "len_chars" => return (I(BigInt(s.codePointCount(0, s.length)), "usize"), null)
     case f: F32 =>
       if (m == "abs") return (new F32(math.abs(f.v)), null)
       if (m == "tostr") return (f32display(f.v), null)

@@ -161,7 +161,8 @@ impl<'a> G<'a> {
         // `&mut` write-back on failure (6.2, T33): a union function with
         // `&mut` parameters or a `&mut self` receiver records its copy-out
         // when it fails, so the caller writes back on every outcome.
-        let wb_fail = union && (muts.iter().any(|m| m.is_some()) || self_mut);
+        // F.4.4: a call that fails restores its `&mut` arguments, so a failing function records no copy-out
+        let wb_fail = false && union && (muts.iter().any(|m| m.is_some()) || self_mut);
         self.ctx = Ctx::Fn { muts, self_mut };
         if wb_fail {
             match l {

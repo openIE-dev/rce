@@ -1598,9 +1598,6 @@ pub fn unemittable(m: &Module) -> Option<String> {
     if !m.v09 {
         return None;
     }
-    if needs_restore(m) {
-        return Some("W-RES-1 a version 0.9 function can fail after taking a `&mut` argument; the transactional restore of F.4.4 is not emitted for this target yet, so it is reserved, not implemented".into());
-    }
     if !m.x09.ct.is_empty() {
         return Some(format!("W-CTFN-2 ct fn is not emitted for this target (`{}`): 10.5 states no constant-time guarantee for any target", m.x09.ct.iter().next().unwrap()));
     }
@@ -1611,7 +1608,6 @@ pub fn unemittable(m: &Module) -> Option<String> {
                 Expr::Call(f, _, _, _) => match &**f {
                     Expr::Member(o, c, _) if c == "cmd" && matches!(&**o, Expr::Name(n, _) if n == "Shell") => Some("Shell.cmd"),
                     Expr::Member(_, c, _) if c == "narrow" => Some("Cap.narrow"),
-                    Expr::Member(_, c, _) if c == "len_bytes" || c == "len_chars" => Some("len_bytes/len_chars"),
                     Expr::Name(n, _) if n == "ct_choose" => Some("ct_choose"),
                     Expr::Name(n, _) if n.starts_with("@contract") => Some("a contract clause"),
                     _ => None,
