@@ -12,12 +12,12 @@
   "host-contract": 79,
   "lexing-parsing": 133,
   "numbers": 1168,
-  "proposed": 3,
+  "proposed": 4,
   "text-unicode": 12,
   "tooling": 8,
   "types-checking": 101
  },
- "tests_total": 1990,
+ "tests_total": 1991,
  "per_clause": [
   {
    "id": "CH00-M-61b6ac06",
@@ -26,7 +26,7 @@
    "line": 3,
    "tests": 1344,
    "reference": {
-    "not-run": 1344
+    "pass": 1344
    }
   },
   {
@@ -36,7 +36,7 @@
    "line": 99,
    "tests": 53,
    "reference": {
-    "not-run": 53
+    "pass": 53
    }
   },
   {
@@ -46,7 +46,7 @@
    "line": 120,
    "tests": 19,
    "reference": {
-    "not-run": 19
+    "pass": 19
    }
   },
   {
@@ -56,7 +56,7 @@
    "line": 242,
    "tests": 1,
    "reference": {
-    "not-run": 1
+    "pass": 1
    }
   },
   {
@@ -66,7 +66,7 @@
    "line": 245,
    "tests": 1,
    "reference": {
-    "not-run": 1
+    "pass": 1
    }
   },
   {
@@ -76,7 +76,7 @@
    "line": 249,
    "tests": 2,
    "reference": {
-    "not-run": 2
+    "pass": 2
    }
   },
   {
@@ -86,7 +86,7 @@
    "line": 251,
    "tests": 1,
    "reference": {
-    "not-run": 1
+    "pass": 1
    }
   },
   {
@@ -96,7 +96,7 @@
    "line": 253,
    "tests": 1,
    "reference": {
-    "not-run": 1
+    "pass": 1
    }
   },
   {
@@ -106,7 +106,7 @@
    "line": 256,
    "tests": 1,
    "reference": {
-    "not-run": 1
+    "pass": 1
    }
   },
   {
@@ -116,7 +116,7 @@
    "line": 259,
    "tests": 1,
    "reference": {
-    "not-run": 1
+    "pass": 1
    }
   },
   {
@@ -126,7 +126,7 @@
    "line": 262,
    "tests": 1,
    "reference": {
-    "not-run": 1
+    "pass": 1
    }
   },
   {
@@ -136,7 +136,7 @@
    "line": 266,
    "tests": 1,
    "reference": {
-    "not-run": 1
+    "pass": 1
    }
   },
   {
@@ -146,7 +146,7 @@
    "line": 289,
    "tests": 136,
    "reference": {
-    "not-run": 136
+    "pass": 136
    }
   },
   {
@@ -156,7 +156,7 @@
    "line": 10,
    "tests": 1,
    "reference": {
-    "not-run": 1
+    "pass": 1
    }
   },
   {
@@ -166,7 +166,7 @@
    "line": 45,
    "tests": 18,
    "reference": {
-    "not-run": 18
+    "pass": 18
    }
   },
   {
@@ -176,7 +176,7 @@
    "line": 167,
    "tests": 1136,
    "reference": {
-    "not-run": 1136
+    "pass": 1136
    }
   },
   {
@@ -186,7 +186,7 @@
    "line": 229,
    "tests": 15,
    "reference": {
-    "not-run": 15
+    "pass": 15
    }
   },
   {
@@ -196,7 +196,7 @@
    "line": 268,
    "tests": 1,
    "reference": {
-    "not-run": 1
+    "pass": 1
    }
   },
   {
@@ -206,7 +206,7 @@
    "line": 36,
    "tests": 17,
    "reference": {
-    "not-run": 17
+    "pass": 17
    }
   },
   {
@@ -216,7 +216,7 @@
    "line": 51,
    "tests": 4,
    "reference": {
-    "not-run": 4
+    "pass": 4
    }
   },
   {
@@ -226,7 +226,7 @@
    "line": 51,
    "tests": 3,
    "reference": {
-    "not-run": 3
+    "pass": 3
    }
   },
   {
@@ -236,7 +236,7 @@
    "line": 106,
    "tests": 2,
    "reference": {
-    "not-run": 2
+    "pass": 2
    }
   },
   {
@@ -246,7 +246,7 @@
    "line": 106,
    "tests": 2,
    "reference": {
-    "not-run": 2
+    "pass": 2
    }
   },
   {
@@ -256,7 +256,7 @@
    "line": 285,
    "tests": 1,
    "reference": {
-    "not-run": 1
+    "pass": 1
    }
   },
   {
@@ -266,7 +266,7 @@
    "line": 3,
    "tests": 1344,
    "reference": {
-    "not-run": 1344
+    "pass": 1344
    }
   },
   {
@@ -276,7 +276,7 @@
    "line": 34,
    "tests": 102,
    "reference": {
-    "not-run": 102
+    "pass": 102
    }
   },
   {
@@ -286,7 +286,7 @@
    "line": 121,
    "tests": 6,
    "reference": {
-    "not-run": 6
+    "pass": 6
    }
   },
   {
@@ -296,7 +296,7 @@
    "line": 166,
    "tests": 1136,
    "reference": {
-    "not-run": 1136
+    "pass": 1136
    }
   },
   {
@@ -306,7 +306,7 @@
    "line": 177,
    "tests": 555,
    "reference": {
-    "not-run": 555
+    "pass": 555
    }
   },
   {
@@ -316,7 +316,7 @@
    "line": 196,
    "tests": 1135,
    "reference": {
-    "not-run": 1135
+    "pass": 1135
    }
   },
   {
@@ -326,7 +326,7 @@
    "line": 201,
    "tests": 204,
    "reference": {
-    "not-run": 204
+    "pass": 204
    }
   },
   {
@@ -336,7 +336,7 @@
    "line": 208,
    "tests": 81,
    "reference": {
-    "not-run": 81
+    "pass": 81
    }
   },
   {
@@ -346,7 +346,7 @@
    "line": 219,
    "tests": 30,
    "reference": {
-    "not-run": 30
+    "pass": 30
    }
   },
   {
@@ -356,7 +356,7 @@
    "line": 224,
    "tests": 86,
    "reference": {
-    "not-run": 86
+    "pass": 86
    }
   },
   {
@@ -366,7 +366,7 @@
    "line": 239,
    "tests": 2,
    "reference": {
-    "not-run": 2
+    "pass": 2
    }
   },
   {
@@ -376,7 +376,7 @@
    "line": 247,
    "tests": 4,
    "reference": {
-    "not-run": 4
+    "pass": 4
    }
   },
   {
@@ -386,7 +386,7 @@
    "line": 257,
    "tests": 1135,
    "reference": {
-    "not-run": 1135
+    "pass": 1135
    }
   },
   {
@@ -396,7 +396,7 @@
    "line": 260,
    "tests": 170,
    "reference": {
-    "not-run": 170
+    "pass": 170
    }
   },
   {
@@ -406,7 +406,7 @@
    "line": 264,
    "tests": 1135,
    "reference": {
-    "not-run": 1135
+    "pass": 1135
    }
   },
   {
@@ -416,7 +416,7 @@
    "line": 304,
    "tests": 44,
    "reference": {
-    "not-run": 44
+    "pass": 44
    }
   },
   {
@@ -426,7 +426,7 @@
    "line": 308,
    "tests": 191,
    "reference": {
-    "not-run": 191
+    "pass": 191
    }
   },
   {
@@ -436,7 +436,7 @@
    "line": 310,
    "tests": 2,
    "reference": {
-    "not-run": 2
+    "pass": 2
    }
   },
   {
@@ -446,7 +446,7 @@
    "line": 314,
    "tests": 20,
    "reference": {
-    "not-run": 20
+    "pass": 20
    }
   },
   {
@@ -456,7 +456,7 @@
    "line": 335,
    "tests": 88,
    "reference": {
-    "not-run": 88
+    "pass": 88
    }
   },
   {
@@ -466,7 +466,7 @@
    "line": 342,
    "tests": 1,
    "reference": {
-    "not-run": 1
+    "pass": 1
    }
   },
   {
@@ -476,7 +476,7 @@
    "line": 346,
    "tests": 12,
    "reference": {
-    "not-run": 12
+    "pass": 12
    }
   },
   {
@@ -486,7 +486,7 @@
    "line": 348,
    "tests": 5,
    "reference": {
-    "not-run": 5
+    "pass": 5
    }
   },
   {
@@ -496,7 +496,7 @@
    "line": 97,
    "tests": 10,
    "reference": {
-    "not-run": 10
+    "pass": 10
    }
   },
   {
@@ -506,7 +506,7 @@
    "line": 97,
    "tests": 10,
    "reference": {
-    "not-run": 10
+    "pass": 10
    }
   },
   {
@@ -516,7 +516,7 @@
    "line": 211,
    "tests": 4,
    "reference": {
-    "not-run": 4
+    "pass": 4
    }
   },
   {
@@ -526,7 +526,7 @@
    "line": 218,
    "tests": 21,
    "reference": {
-    "not-run": 21
+    "pass": 21
    }
   },
   {
@@ -536,7 +536,7 @@
    "line": 3,
    "tests": 351,
    "reference": {
-    "not-run": 351
+    "pass": 351
    }
   },
   {
@@ -546,7 +546,7 @@
    "line": 11,
    "tests": 36,
    "reference": {
-    "not-run": 36
+    "pass": 36
    }
   },
   {
@@ -556,7 +556,7 @@
    "line": 12,
    "tests": 7,
    "reference": {
-    "not-run": 7
+    "pass": 7
    }
   },
   {
@@ -566,7 +566,7 @@
    "line": 13,
    "tests": 25,
    "reference": {
-    "not-run": 25
+    "pass": 25
    }
   },
   {
@@ -576,7 +576,7 @@
    "line": 14,
    "tests": 41,
    "reference": {
-    "not-run": 41
+    "pass": 41
    }
   },
   {
@@ -586,7 +586,7 @@
    "line": 15,
    "tests": 12,
    "reference": {
-    "not-run": 12
+    "pass": 12
    }
   },
   {
@@ -596,7 +596,7 @@
    "line": 19,
    "tests": 27,
    "reference": {
-    "not-run": 27
+    "pass": 27
    }
   },
   {
@@ -606,7 +606,7 @@
    "line": 20,
    "tests": 13,
    "reference": {
-    "not-run": 13
+    "pass": 13
    }
   },
   {
@@ -616,7 +616,7 @@
    "line": 22,
    "tests": 1,
    "reference": {
-    "not-run": 1
+    "pass": 1
    }
   },
   {
@@ -626,7 +626,7 @@
    "line": 22,
    "tests": 1,
    "reference": {
-    "not-run": 1
+    "pass": 1
    }
   },
   {
@@ -636,7 +636,7 @@
    "line": 25,
    "tests": 1,
    "reference": {
-    "not-run": 1
+    "pass": 1
    }
   },
   {
@@ -646,7 +646,7 @@
    "line": 28,
    "tests": 13,
    "reference": {
-    "not-run": 13
+    "pass": 13
    }
   },
   {
@@ -656,7 +656,7 @@
    "line": 31,
    "tests": 3,
    "reference": {
-    "not-run": 3
+    "pass": 3
    }
   },
   {
@@ -666,7 +666,7 @@
    "line": 36,
    "tests": 13,
    "reference": {
-    "not-run": 13
+    "pass": 13
    }
   },
   {
@@ -676,7 +676,7 @@
    "line": 37,
    "tests": 2,
    "reference": {
-    "not-run": 2
+    "pass": 2
    }
   },
   {
@@ -686,7 +686,7 @@
    "line": 39,
    "tests": 4,
    "reference": {
-    "not-run": 4
+    "pass": 4
    }
   },
   {
@@ -696,7 +696,7 @@
    "line": 40,
    "tests": 2,
    "reference": {
-    "not-run": 2
+    "pass": 2
    }
   },
   {
@@ -706,7 +706,7 @@
    "line": 41,
    "tests": 1,
    "reference": {
-    "not-run": 1
+    "pass": 1
    }
   },
   {
@@ -716,7 +716,7 @@
    "line": 41,
    "tests": 1,
    "reference": {
-    "not-run": 1
+    "pass": 1
    }
   },
   {
@@ -726,7 +726,7 @@
    "line": 46,
    "tests": 1,
    "reference": {
-    "not-run": 1
+    "pass": 1
    }
   },
   {
@@ -736,7 +736,7 @@
    "line": 49,
    "tests": 2,
    "reference": {
-    "not-run": 2
+    "pass": 2
    }
   },
   {
@@ -746,7 +746,7 @@
    "line": 52,
    "tests": 1,
    "reference": {
-    "not-run": 1
+    "pass": 1
    }
   },
   {
@@ -756,7 +756,7 @@
    "line": 52,
    "tests": 1,
    "reference": {
-    "not-run": 1
+    "pass": 1
    }
   },
   {
@@ -766,7 +766,7 @@
    "line": 52,
    "tests": 1,
    "reference": {
-    "not-run": 1
+    "pass": 1
    }
   },
   {
@@ -776,7 +776,7 @@
    "line": 54,
    "tests": 1,
    "reference": {
-    "not-run": 1
+    "pass": 1
    }
   },
   {
@@ -786,7 +786,7 @@
    "line": 59,
    "tests": 2,
    "reference": {
-    "not-run": 2
+    "pass": 2
    }
   },
   {
@@ -796,7 +796,7 @@
    "line": 62,
    "tests": 9,
    "reference": {
-    "not-run": 9
+    "pass": 9
    }
   },
   {
@@ -806,7 +806,7 @@
    "line": 69,
    "tests": 3,
    "reference": {
-    "not-run": 3
+    "pass": 3
    }
   },
   {
@@ -816,7 +816,7 @@
    "line": 71,
    "tests": 13,
    "reference": {
-    "not-run": 13
+    "pass": 13
    }
   },
   {
@@ -826,7 +826,7 @@
    "line": 72,
    "tests": 2,
    "reference": {
-    "not-run": 2
+    "pass": 2
    }
   },
   {
@@ -836,7 +836,7 @@
    "line": 74,
    "tests": 6,
    "reference": {
-    "not-run": 6
+    "pass": 6
    }
   },
   {
@@ -846,7 +846,7 @@
    "line": 77,
    "tests": 3,
    "reference": {
-    "not-run": 3
+    "pass": 3
    }
   },
   {
@@ -856,7 +856,7 @@
    "line": 80,
    "tests": 3,
    "reference": {
-    "not-run": 3
+    "pass": 3
    }
   },
   {
@@ -866,7 +866,7 @@
    "line": 83,
    "tests": 1,
    "reference": {
-    "not-run": 1
+    "pass": 1
    }
   },
   {
@@ -876,7 +876,7 @@
    "line": 88,
    "tests": 1,
    "reference": {
-    "not-run": 1
+    "pass": 1
    }
   },
   {
@@ -886,7 +886,7 @@
    "line": 90,
    "tests": 1,
    "reference": {
-    "not-run": 1
+    "pass": 1
    }
   },
   {
@@ -896,7 +896,7 @@
    "line": 90,
    "tests": 1,
    "reference": {
-    "not-run": 1
+    "pass": 1
    }
   },
   {
@@ -906,7 +906,7 @@
    "line": 90,
    "tests": 1,
    "reference": {
-    "not-run": 1
+    "pass": 1
    }
   },
   {
@@ -916,7 +916,7 @@
    "line": 95,
    "tests": 1,
    "reference": {
-    "not-run": 1
+    "pass": 1
    }
   },
   {
@@ -926,7 +926,7 @@
    "line": 98,
    "tests": 2,
    "reference": {
-    "not-run": 2
+    "pass": 2
    }
   },
   {
@@ -936,7 +936,7 @@
    "line": 101,
    "tests": 1,
    "reference": {
-    "not-run": 1
+    "pass": 1
    }
   },
   {
@@ -946,7 +946,7 @@
    "line": 104,
    "tests": 1,
    "reference": {
-    "not-run": 1
+    "pass": 1
    }
   },
   {
@@ -954,9 +954,9 @@
    "kind": "theorem",
    "chapter": "10-theorems.md",
    "line": 29,
-   "tests": 1356,
+   "tests": 1357,
    "reference": {
-    "not-run": 1356
+    "pass": 1357
    }
   },
   {
@@ -966,7 +966,7 @@
    "line": 30,
    "tests": 15,
    "reference": {
-    "not-run": 15
+    "pass": 15
    }
   },
   {
@@ -976,7 +976,7 @@
    "line": 31,
    "tests": 103,
    "reference": {
-    "not-run": 103
+    "pass": 103
    }
   },
   {
@@ -984,9 +984,9 @@
    "kind": "theorem",
    "chapter": "10-theorems.md",
    "line": 32,
-   "tests": 1253,
+   "tests": 1254,
    "reference": {
-    "not-run": 1253
+    "pass": 1254
    }
   },
   {
@@ -996,7 +996,7 @@
    "line": 33,
    "tests": 1345,
    "reference": {
-    "not-run": 1345
+    "pass": 1345
    }
   },
   {
@@ -1006,7 +1006,7 @@
    "line": 34,
    "tests": 29,
    "reference": {
-    "not-run": 29
+    "pass": 29
    }
   },
   {
@@ -1016,7 +1016,7 @@
    "line": 35,
    "tests": 8,
    "reference": {
-    "not-run": 8
+    "pass": 8
    }
   },
   {
@@ -1026,7 +1026,7 @@
    "line": 36,
    "tests": 45,
    "reference": {
-    "not-run": 45
+    "pass": 45
    }
   },
   {
@@ -1034,9 +1034,9 @@
    "kind": "theorem",
    "chapter": "10-theorems.md",
    "line": 37,
-   "tests": 1254,
+   "tests": 1255,
    "reference": {
-    "not-run": 1254
+    "pass": 1255
    }
   },
   {
@@ -1046,7 +1046,7 @@
    "line": 38,
    "tests": 143,
    "reference": {
-    "not-run": 143
+    "pass": 143
    }
   },
   {
@@ -1056,7 +1056,7 @@
    "line": 39,
    "tests": 3,
    "reference": {
-    "not-run": 3
+    "pass": 3
    }
   },
   {
@@ -1066,7 +1066,7 @@
    "line": 40,
    "tests": 2,
    "reference": {
-    "not-run": 2
+    "pass": 2
    }
   },
   {
@@ -1076,7 +1076,7 @@
    "line": 41,
    "tests": 2,
    "reference": {
-    "not-run": 2
+    "pass": 2
    }
   },
   {
@@ -1086,7 +1086,7 @@
    "line": 42,
    "tests": 2,
    "reference": {
-    "not-run": 2
+    "pass": 2
    }
   },
   {
@@ -1096,7 +1096,7 @@
    "line": 43,
    "tests": 1,
    "reference": {
-    "not-run": 1
+    "pass": 1
    }
   },
   {
@@ -1106,7 +1106,7 @@
    "line": 44,
    "tests": 3,
    "reference": {
-    "not-run": 3
+    "pass": 3
    }
   },
   {
@@ -1116,7 +1116,7 @@
    "line": 45,
    "tests": 4,
    "reference": {
-    "not-run": 4
+    "pass": 4
    }
   },
   {
@@ -1126,7 +1126,7 @@
    "line": 46,
    "tests": 2,
    "reference": {
-    "not-run": 2
+    "pass": 2
    }
   },
   {
@@ -1136,7 +1136,7 @@
    "line": 47,
    "tests": 1,
    "reference": {
-    "not-run": 1
+    "pass": 1
    }
   },
   {
@@ -1146,7 +1146,7 @@
    "line": 48,
    "tests": 1,
    "reference": {
-    "not-run": 1
+    "pass": 1
    }
   },
   {
@@ -1156,7 +1156,7 @@
    "line": 49,
    "tests": 1,
    "reference": {
-    "not-run": 1
+    "pass": 1
    }
   },
   {
@@ -1166,7 +1166,7 @@
    "line": 50,
    "tests": 22,
    "reference": {
-    "not-run": 22
+    "pass": 22
    }
   },
   {
@@ -1176,7 +1176,7 @@
    "line": 51,
    "tests": 25,
    "reference": {
-    "not-run": 25
+    "pass": 25
    }
   },
   {
@@ -1186,7 +1186,7 @@
    "line": 52,
    "tests": 30,
    "reference": {
-    "not-run": 30
+    "pass": 30
    }
   },
   {
@@ -1196,7 +1196,7 @@
    "line": 53,
    "tests": 2,
    "reference": {
-    "not-run": 2
+    "pass": 2
    }
   },
   {
@@ -1206,7 +1206,7 @@
    "line": 29,
    "tests": 11,
    "reference": {
-    "not-run": 11
+    "pass": 11
    }
   },
   {
@@ -1216,7 +1216,7 @@
    "line": 133,
    "tests": 1,
    "reference": {
-    "not-run": 1
+    "pass": 1
    }
   },
   {
@@ -1226,7 +1226,7 @@
    "line": 135,
    "tests": 1,
    "reference": {
-    "not-run": 1
+    "pass": 1
    }
   },
   {
@@ -1236,7 +1236,7 @@
    "line": 138,
    "tests": 2,
    "reference": {
-    "not-run": 2
+    "pass": 2
    }
   },
   {
@@ -1246,7 +1246,7 @@
    "line": 141,
    "tests": 1,
    "reference": {
-    "not-run": 1
+    "pass": 1
    }
   },
   {
@@ -1256,7 +1256,7 @@
    "line": 142,
    "tests": 1,
    "reference": {
-    "not-run": 1
+    "pass": 1
    }
   },
   {
@@ -1266,7 +1266,7 @@
    "line": 243,
    "tests": 1,
    "reference": {
-    "not-run": 1
+    "pass": 1
    }
   },
   {
@@ -1276,7 +1276,7 @@
    "line": 103,
    "tests": 83,
    "reference": {
-    "not-run": 83
+    "pass": 83
    }
   },
   {
@@ -1286,7 +1286,7 @@
    "line": 105,
    "tests": 2,
    "reference": {
-    "not-run": 2
+    "pass": 2
    }
   },
   {
@@ -1296,7 +1296,7 @@
    "line": 144,
    "tests": 42,
    "reference": {
-    "not-run": 42
+    "pass": 42
    }
   },
   {
@@ -1306,7 +1306,7 @@
    "line": 174,
    "tests": 2,
    "reference": {
-    "not-run": 2
+    "pass": 2
    }
   },
   {
@@ -1316,7 +1316,7 @@
    "line": 196,
    "tests": 2,
    "reference": {
-    "not-run": 2
+    "pass": 2
    }
   },
   {
@@ -1326,7 +1326,7 @@
    "line": 200,
    "tests": 1,
    "reference": {
-    "not-run": 1
+    "pass": 1
    }
   },
   {
@@ -1336,7 +1336,7 @@
    "line": 246,
    "tests": 1,
    "reference": {
-    "not-run": 1
+    "pass": 1
    }
   },
   {
@@ -1346,7 +1346,7 @@
    "line": 288,
    "tests": 94,
    "reference": {
-    "not-run": 94
+    "pass": 94
    }
   },
   {
@@ -1356,7 +1356,7 @@
    "line": 291,
    "tests": 2,
    "reference": {
-    "not-run": 2
+    "pass": 2
    }
   },
   {
@@ -1366,7 +1366,7 @@
    "line": 293,
    "tests": 90,
    "reference": {
-    "not-run": 90
+    "pass": 90
    }
   },
   {
@@ -1376,7 +1376,7 @@
    "line": 323,
    "tests": 2,
    "reference": {
-    "not-run": 2
+    "pass": 2
    }
   },
   {
@@ -1386,7 +1386,7 @@
    "line": 323,
    "tests": 1,
    "reference": {
-    "not-run": 1
+    "pass": 1
    }
   },
   {
@@ -1396,7 +1396,7 @@
    "line": 323,
    "tests": 2,
    "reference": {
-    "not-run": 2
+    "pass": 2
    }
   },
   {
@@ -1406,7 +1406,7 @@
    "line": 328,
    "tests": 4,
    "reference": {
-    "not-run": 4
+    "pass": 4
    }
   },
   {
@@ -1416,7 +1416,7 @@
    "line": 328,
    "tests": 1,
    "reference": {
-    "not-run": 1
+    "pass": 1
    }
   },
   {
@@ -1426,7 +1426,7 @@
    "line": 328,
    "tests": 1,
    "reference": {
-    "not-run": 1
+    "pass": 1
    }
   },
   {
@@ -1436,7 +1436,7 @@
    "line": 352,
    "tests": 2,
    "reference": {
-    "not-run": 2
+    "pass": 2
    }
   },
   {
@@ -1446,7 +1446,7 @@
    "line": 409,
    "tests": 1,
    "reference": {
-    "not-run": 1
+    "pass": 1
    }
   },
   {
@@ -1456,7 +1456,7 @@
    "line": 409,
    "tests": 1,
    "reference": {
-    "not-run": 1
+    "pass": 1
    }
   },
   {
@@ -1466,7 +1466,7 @@
    "line": 474,
    "tests": 1,
    "reference": {
-    "not-run": 1
+    "pass": 1
    }
   },
   {
@@ -1476,7 +1476,7 @@
    "line": 474,
    "tests": 1,
    "reference": {
-    "not-run": 1
+    "pass": 1
    }
   },
   {
@@ -1486,7 +1486,7 @@
    "line": 477,
    "tests": 1,
    "reference": {
-    "not-run": 1
+    "pass": 1
    }
   },
   {
@@ -1496,7 +1496,7 @@
    "line": 602,
    "tests": 43,
    "reference": {
-    "not-run": 43
+    "pass": 43
    }
   },
   {
@@ -1506,7 +1506,7 @@
    "line": 603,
    "tests": 42,
    "reference": {
-    "not-run": 42
+    "pass": 42
    }
   },
   {
@@ -1516,7 +1516,7 @@
    "line": 604,
    "tests": 92,
    "reference": {
-    "not-run": 92
+    "pass": 92
    }
   },
   {
@@ -1526,7 +1526,7 @@
    "line": 605,
    "tests": 44,
    "reference": {
-    "not-run": 44
+    "pass": 44
    }
   },
   {
@@ -1536,7 +1536,7 @@
    "line": 606,
    "tests": 10,
    "reference": {
-    "not-run": 10
+    "pass": 10
    }
   },
   {
@@ -1546,7 +1546,7 @@
    "line": 607,
    "tests": 1,
    "reference": {
-    "not-run": 1
+    "pass": 1
    }
   },
   {
@@ -1556,7 +1556,7 @@
    "line": 608,
    "tests": 1,
    "reference": {
-    "not-run": 1
+    "pass": 1
    }
   },
   {
@@ -1566,7 +1566,7 @@
    "line": 609,
    "tests": 4,
    "reference": {
-    "not-run": 4
+    "pass": 4
    }
   },
   {
@@ -1576,7 +1576,7 @@
    "line": 610,
    "tests": 2,
    "reference": {
-    "not-run": 2
+    "pass": 2
    }
   },
   {
@@ -1586,7 +1586,7 @@
    "line": 611,
    "tests": 10,
    "reference": {
-    "not-run": 10
+    "pass": 10
    }
   },
   {
@@ -1596,7 +1596,7 @@
    "line": 612,
    "tests": 25,
    "reference": {
-    "not-run": 25
+    "pass": 25
    }
   },
   {
@@ -1606,7 +1606,7 @@
    "line": 613,
    "tests": 6,
    "reference": {
-    "not-run": 6
+    "pass": 6
    }
   },
   {
@@ -1616,7 +1616,7 @@
    "line": 614,
    "tests": 3,
    "reference": {
-    "not-run": 3
+    "pass": 3
    }
   },
   {
@@ -1626,7 +1626,7 @@
    "line": 615,
    "tests": 3,
    "reference": {
-    "not-run": 3
+    "pass": 3
    }
   },
   {
@@ -1636,7 +1636,7 @@
    "line": 616,
    "tests": 1,
    "reference": {
-    "not-run": 1
+    "pass": 1
    }
   },
   {
@@ -1646,7 +1646,7 @@
    "line": 617,
    "tests": 1,
    "reference": {
-    "not-run": 1
+    "pass": 1
    }
   },
   {
@@ -1656,7 +1656,7 @@
    "line": 618,
    "tests": 2,
    "reference": {
-    "not-run": 2
+    "pass": 2
    }
   },
   {
@@ -1666,7 +1666,7 @@
    "line": 619,
    "tests": 1,
    "reference": {
-    "not-run": 1
+    "pass": 1
    }
   },
   {
@@ -1676,7 +1676,7 @@
    "line": 620,
    "tests": 5,
    "reference": {
-    "not-run": 5
+    "pass": 5
    }
   },
   {
@@ -1686,7 +1686,7 @@
    "line": 621,
    "tests": 31,
    "reference": {
-    "not-run": 31
+    "pass": 31
    }
   },
   {
@@ -1696,7 +1696,7 @@
    "line": 644,
    "tests": 14,
    "reference": {
-    "not-run": 14
+    "pass": 14
    }
   },
   {
@@ -1706,7 +1706,7 @@
    "line": 3,
    "tests": 30,
    "reference": {
-    "not-run": 30
+    "pass": 30
    }
   },
   {
@@ -1716,7 +1716,7 @@
    "line": 45,
    "tests": 30,
    "reference": {
-    "not-run": 30
+    "pass": 30
    }
   },
   {
@@ -1726,7 +1726,7 @@
    "line": 52,
    "tests": 3,
    "reference": {
-    "not-run": 3
+    "pass": 3
    }
   },
   {
@@ -1736,7 +1736,7 @@
    "line": 55,
    "tests": 2,
    "reference": {
-    "not-run": 2
+    "pass": 2
    }
   },
   {
@@ -1746,7 +1746,7 @@
    "line": 60,
    "tests": 16,
    "reference": {
-    "not-run": 16
+    "pass": 16
    }
   },
   {
@@ -1756,7 +1756,7 @@
    "line": 65,
    "tests": 3,
    "reference": {
-    "not-run": 3
+    "pass": 3
    }
   },
   {
@@ -1766,7 +1766,7 @@
    "line": 83,
    "tests": 1,
    "reference": {
-    "not-run": 1
+    "pass": 1
    }
   },
   {
@@ -1776,7 +1776,7 @@
    "line": 128,
    "tests": 20,
    "reference": {
-    "not-run": 20
+    "pass": 20
    }
   },
   {
@@ -1786,7 +1786,7 @@
    "line": 131,
    "tests": 1,
    "reference": {
-    "not-run": 1
+    "pass": 1
    }
   },
   {
@@ -1796,7 +1796,7 @@
    "line": 138,
    "tests": 27,
    "reference": {
-    "not-run": 27
+    "pass": 27
    }
   },
   {
@@ -1806,7 +1806,7 @@
    "line": 141,
    "tests": 26,
    "reference": {
-    "not-run": 26
+    "pass": 26
    }
   },
   {
@@ -1816,7 +1816,7 @@
    "line": 153,
    "tests": 30,
    "reference": {
-    "not-run": 30
+    "pass": 30
    }
   },
   {
@@ -1826,7 +1826,7 @@
    "line": 157,
    "tests": 25,
    "reference": {
-    "not-run": 25
+    "pass": 25
    }
   },
   {
@@ -1836,7 +1836,7 @@
    "line": 173,
    "tests": 25,
    "reference": {
-    "not-run": 25
+    "pass": 25
    }
   },
   {
@@ -1846,7 +1846,7 @@
    "line": 183,
    "tests": 25,
    "reference": {
-    "not-run": 25
+    "pass": 25
    }
   },
   {
@@ -1856,7 +1856,7 @@
    "line": 201,
    "tests": 30,
    "reference": {
-    "not-run": 30
+    "pass": 30
    }
   },
   {
@@ -1866,7 +1866,7 @@
    "line": 209,
    "tests": 30,
    "reference": {
-    "not-run": 30
+    "pass": 30
    }
   },
   {
@@ -1876,7 +1876,7 @@
    "line": 217,
    "tests": 30,
    "reference": {
-    "not-run": 30
+    "pass": 30
    }
   },
   {
@@ -1886,7 +1886,7 @@
    "line": 249,
    "tests": 21,
    "reference": {
-    "not-run": 21
+    "pass": 21
    }
   },
   {
@@ -1896,7 +1896,7 @@
    "line": 384,
    "tests": 30,
    "reference": {
-    "not-run": 30
+    "pass": 30
    }
   },
   {
@@ -1906,7 +1906,7 @@
    "line": 425,
    "tests": 1,
    "reference": {
-    "not-run": 1
+    "pass": 1
    }
   },
   {
@@ -1916,7 +1916,7 @@
    "line": 431,
    "tests": 91,
    "reference": {
-    "not-run": 91
+    "pass": 91
    }
   },
   {
@@ -1926,7 +1926,7 @@
    "line": 475,
    "tests": 1,
    "reference": {
-    "not-run": 1
+    "pass": 1
    }
   },
   {
@@ -1936,7 +1936,7 @@
    "line": 485,
    "tests": 1,
    "reference": {
-    "not-run": 1
+    "pass": 1
    }
   },
   {
@@ -1946,7 +1946,7 @@
    "line": 644,
    "tests": 2,
    "reference": {
-    "not-run": 2
+    "pass": 2
    }
   },
   {
@@ -1956,7 +1956,7 @@
    "line": 231,
    "tests": 1,
    "reference": {
-    "not-run": 1
+    "pass": 1
    }
   },
   {
@@ -1966,7 +1966,7 @@
    "line": 23,
    "tests": 1,
    "reference": {
-    "not-run": 1
+    "pass": 1
    }
   },
   {
@@ -1976,7 +1976,7 @@
    "line": 46,
    "tests": 2,
    "reference": {
-    "not-run": 2
+    "pass": 2
    }
   },
   {
@@ -1986,7 +1986,7 @@
    "line": 47,
    "tests": 1,
    "reference": {
-    "not-run": 1
+    "pass": 1
    }
   },
   {
@@ -1996,7 +1996,7 @@
    "line": 48,
    "tests": 1,
    "reference": {
-    "not-run": 1
+    "pass": 1
    }
   },
   {
@@ -2006,7 +2006,7 @@
    "line": 55,
    "tests": 2,
    "reference": {
-    "not-run": 2
+    "pass": 2
    }
   },
   {
@@ -2016,7 +2016,7 @@
    "line": 57,
    "tests": 1,
    "reference": {
-    "not-run": 1
+    "pass": 1
    }
   },
   {
@@ -2026,7 +2026,7 @@
    "line": 110,
    "tests": 5,
    "reference": {
-    "not-run": 5
+    "pass": 5
    }
   },
   {
@@ -2036,7 +2036,7 @@
    "line": 110,
    "tests": 1,
    "reference": {
-    "not-run": 1
+    "pass": 1
    }
   },
   {
@@ -2046,7 +2046,7 @@
    "line": 110,
    "tests": 6,
    "reference": {
-    "not-run": 6
+    "pass": 6
    }
   },
   {
@@ -2056,7 +2056,7 @@
    "line": 111,
    "tests": 1,
    "reference": {
-    "not-run": 1
+    "pass": 1
    }
   },
   {
@@ -2066,7 +2066,7 @@
    "line": 111,
    "tests": 1,
    "reference": {
-    "not-run": 1
+    "pass": 1
    }
   },
   {
@@ -2076,7 +2076,7 @@
    "line": 111,
    "tests": 2,
    "reference": {
-    "not-run": 2
+    "pass": 2
    }
   },
   {
@@ -2086,7 +2086,7 @@
    "line": 111,
    "tests": 1,
    "reference": {
-    "not-run": 1
+    "pass": 1
    }
   }
  ],
@@ -2099,7 +2099,7 @@
   },
   "tooling": {
    "clauses": 7,
-   "covered": 3
+   "covered": 5
   },
   "handler-spec": {
    "clauses": 14,
@@ -2116,8 +2116,6 @@
  },
  "untested_other_profiles": [
   "CH00-M-1742ac42",
-  "CH12-M-1279943c",
-  "CH12-M-f71aaadc",
   "CH12-M-d81e64a6",
   "CH15-M-a4388ad4",
   "CH15-M-af6429fd",
@@ -2142,6 +2140,7 @@
   "CH16-M-9e91473d",
   "CH16-M-f557368c",
   "CH16-M-5d267804",
-  "CH16-M-8dc47a03"
+  "CH16-M-8dc47a03",
+  "ACT-1"
  ]
 }

@@ -37,14 +37,16 @@ def block():
             sys.exit(f"reports/results-{a}.json: stored tally {d['tally']} != recount {t}")
         tally[a] = t
     cov, mut, par, ts = load("coverage.json"), load("mutation.json"), load("parity.json"), load("tree-sitter.json")
-    files = sum(1 for _ in (ROOT / "tests").rglob("*.rce"))
+    allfiles = sum(1 for _ in (ROOT / "tests").rglob("*.rce"))
+    fixtures = sum(1 for p in (ROOT / "tests").rglob("*.rce") if "_FIXTURE" in p.name)
+    files = allfiles - fixtures
     ref = tally["reference"]
     nref = len(res["reference"]["results"])
     L = []
     L.append(f"Generated from `reports/` by `tools/readme_status.py` (`--check` verifies it). Every figure below is counted from the report files.")
     L.append("")
     lang = cov["profiles"]["language"]
-    L.append(f"- Tests: {files} `.rce` files under `tests/`; the reference run has {nref} results; the coverage report counts {cov['tests_total']}.")
+    L.append(f"- Tests: {files} test files under `tests/` ({allfiles} `.rce` files, of which {fixtures} named `_FIXTURE` are support files, not tests); the reference run has {nref} results; the coverage report counts {cov['tests_total']}.")
     L.append(f"  These three counts disagree; the cause is not recorded in the reports (regenerate them together to find out)." if len({files, nref, cov["tests_total"]}) > 1 else "  The three counts agree.")
     L.append(f"- Coverage: language profile {lang['covered']} of {lang['clauses']} normative clauses covered ({pct(lang['covered'], lang['clauses'])}).")
     other = ", ".join(f"{p} {v['covered']} of {v['clauses']}" for p, v in cov["profiles"].items() if p != "language")
