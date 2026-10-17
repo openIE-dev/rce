@@ -66,13 +66,13 @@ Two numbers are kept apart here: the specification draft (a document) and
 the language version (what a module declares). The book teaches language
 version 0.5, which is sections 2 to 10 of the specification. Every listing
 is a version 0.5 module. The listings were last checked on 17 October 2026
-against public `openIE-dev/rce` main (`4304048`, specification draft 0.7),
-whose checker accepts language versions 0.5 to 0.8. The version 0.6 to 0.8
-extensions (Appendix C of the specification) are not covered by the book yet.
+against public `openIE-dev/rce` main (`e416fd0`, specification draft 0.9),
+whose checker accepts language versions 0.5 to 0.9. The version 0.6 to 0.9
+extensions (Appendix C and Appendix F of the specification) are not covered by the book yet.
 
 | Chapters | Language version | Checked against |
 |---|---|---|
-| 1 to 15 (`listings/ch01` to `listings/ch15`) | 0.5 | `rce` main `4304048`, `scripts/check-listings.sh`: 54 of 54 pass |
+| 1 to 15 (`listings/ch01` to `listings/ch15`) | 0.5 | `rce` main `e416fd0`, `scripts/check-listings.sh`: 54 of 54 pass (the expected output of `listings/ch15/form.out` was re-blessed: `rce emit form` now also prints a `v09` flag) |
 | 16 (host tools), 17 (media calls and end-to-end encryption) | no declared version | not checked: `src/ch16-host-tools.md` and `src/ch17-media-calls-e2ee.md` have no `listings/` directory, so the script does not run them |
 
 ## Contributing
