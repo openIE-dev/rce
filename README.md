@@ -31,7 +31,7 @@ See `INTERPRETING.md` for the file format and `ADAPTERS.md` for the protocol.
 
 ## Running
 
-**Current limit.** The harness needs an adapter binary named `rce-conform`, built with `cargo build -p rce-spec-check --bin rce-conform`. That binary is not in the public `rce` repository (its `spec/checker` has `rce`, `rce-check`, `rce-spec-check`, `rce-fuzz` and `rce-spec-data`), so this suite cannot be run end to end against public `rce` today. The results under `reports/` were produced against the engine repository, whose history is not public. The clause paths below use the public layout (`spec/book`).
+**Current limit.** The adapter binary `rce-conform` is built from public `rce` (`cd spec/checker && cargo build --release --bin rce-conform`, source `src/bin/conform.rs`, present since `openIE-dev/rce` `cdae5cf`). Tests that use `$RCE_ENGINE` (the handler-spec profile, appendix D) need the engine's `rce`, which is not public, so those cannot run against public `rce`. The `lexing-parsing` area was run against public `rce` main on 17 October 2026: 133 of 133 pass. The full run in `reports/` was produced against the engine repository, whose history is not public. The clause paths below use the public layout (`spec/book`).
 
     export RCE_CONFORM=/path/to/rce-conform   # cargo build -p rce-spec-check --bin rce-conform
     python3 harness/run.py --adapter adapters/reference.json --jobs 8

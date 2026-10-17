@@ -1,4 +1,4 @@
-# rce-version: 0.9
+# rce-version: 0.4
 fn push_all(dst: &mut List[i64], src: &[i64])
     for x in src
         dst.append(x)
@@ -15,5 +15,5 @@ fn demo() -> usize
 # expect: reject
 # diagnostic: W-VER-1
 # flags: [generated]
-# provenance: gen_props.py seed 7: mutation `version` of 12-borrow-accept
+# provenance: gen_props.py seed 7: mutation `version` of 12-borrow-accept; version value changed from 0.9 to 0.4 on 2026-10-17 because 0.9 became a language version (spec F.12)
 #---

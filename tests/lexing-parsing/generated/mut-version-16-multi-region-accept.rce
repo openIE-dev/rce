@@ -1,4 +1,4 @@
-# rce-version: 0.9
+# rce-version: 0.4
 state Cart
     items: List[text] = []
 
@@ -25,5 +25,5 @@ step Cart on Reset -> []
 # expect: reject
 # diagnostic: W-VER-1
 # flags: [generated]
-# provenance: gen_props.py seed 7: mutation `version` of 16-multi-region-accept
+# provenance: gen_props.py seed 7: mutation `version` of 16-multi-region-accept; version value changed from 0.9 to 0.4 on 2026-10-17 because 0.9 became a language version (spec F.12)
 #---
