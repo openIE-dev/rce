@@ -101,3 +101,17 @@ see `vectors/SOURCE.md`.
 
 MIT OR Apache-2.0; see `LICENSE-MIT`, `LICENSE-APACHE` and `COPYRIGHT`.
 The vectors keep their upstream terms.
+
+## Renamed names (one language)
+
+rce has one language and one globally reserved word list, so names that the list reserves cannot be declared. `scripts/rename-reserved.py` with `scripts/rename-reserved.map` renamed them in this repository, in one deterministic pass over word tokens outside strings and comments:
+
+| Was | Is | Where |
+|---|---|---|
+| `Json` (kind) | `JsonDoc` | `enc` |
+| `Url` (struct) | `UrlParts` | `net.url` |
+| `label`, `node`, `group`, `child`, `budget`, `restart`, `replicated` | `lbl`, `nd`, `grp`, `chd`, `bud`, `rst`, `repl` | parameters, fields and locals |
+| `session`, `protocol`, `par`, `offer`, `choose` | `sess`, `proto`, `parl`, `offr`, `chse` | names |
+| `ct` | `ctext` | names |
+
+Field names and keyword arguments were renamed together with their uses. Programs that import `enc.Json` or `net.url.Url` must use the new names.
