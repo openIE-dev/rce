@@ -132,6 +132,7 @@ fn tokens_kw(l: &Lalr, src: &str, extra: &[&str]) -> Option<Vec<usize>> {
             Tok::Int(_) => "INT".into(),
             Tok::Float(_) => "FLOAT".into(),
             Tok::Str(_) => "STRING".into(),
+            Tok::Tpl(_) => "TEMPLATE".into(),
             Tok::P(p) => p.to_string(),
             Tok::Nl => "NEWLINE".into(),
             Tok::Indent => "INDENT".into(),
