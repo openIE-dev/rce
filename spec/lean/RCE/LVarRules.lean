@@ -5,6 +5,8 @@ edit: regenerate with RCE_BLESS=1 cargo test --features conc06 --test lvar_rules
 -/
 import RCE.LVarStore
 import RCE.LVarAlloc
+import RCE.Canon
+import RCE.ValOrder
 import RCE.MergeCert
 import RCE.MergeLaws
 
@@ -52,6 +54,20 @@ namespace RCE.LVarRules
 #check @RCE.LVarAlloc.stepAt_sound
 -- executable semantics: each run is a run
 #check @RCE.LVarAlloc.exec_sound
+-- executable semantics: every enabled step is taken
+#check @RCE.LVarAlloc.stepAt_complete
+-- Set[τ]: the sorted representation is unique
+#check @RCE.Canon.set_canon
+-- Map[k, v]: the key-sorted representation is unique
+#check @RCE.Canon.map_canon
+-- cmp_canon: a strict total order (rank, IEEE totalOrder floats, lexicographic), Equal iff equal
+#check @RCE.ValOrder.lt_total
+-- canonical order of values: transitive
+#check @RCE.ValOrder.lt_trans
+-- Set[τ] of values: one sorted representation
+#check @RCE.ValOrder.set_canon_val
+-- Map with value keys: one key-sorted representation
+#check @RCE.ValOrder.map_canon_val
 -- W-CRDT-1 Set.union, Set.inter, Map.merge
 #check @RCE.MergeCert.mapS
 

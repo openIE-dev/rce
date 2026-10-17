@@ -4,12 +4,15 @@ JSON line per vector: a run of `stepAt` (LVarAlloc.lean, proved sound
 against `Step` by `stepAt_sound`) over the lattice `L7` (0..6 under max,
 top 6), with the operations in the order the schedule ran them and their
 results, and the outcome. checker/tests/lean_lvar.rs regenerates this
-output with `lake env lean --run`, compares it with the checked-in
+output with `lake env lean --run LVarVectorsMain.lean` (the `main` lives
+there so this module imports into RCE.lean beside AdmitVectors), compares it with the checked-in
 checker/tests/vectors/lvar-lean.jsonl, and replays every vector on the
 evaluator (and the emitters), requiring the same results and the same
 error. Locations come from the counter: thread i's k-th `new` is `(i, k)`.
 -/
 import RCE.LVarAlloc
+
+namespace RCE.LVarVectors
 open RCE.LVarQD RCE.LVarAlloc
 
 /-- 0..6 under max, top 6 (the RCE cell `lvar_new(0, 6)` over integers) -/
@@ -104,10 +107,12 @@ def vector (seed : Nat) : Option String :=
   else some ("{\"seed\":" ++ toString seed ++ ",\"threads\":" ++ toString P.length ++
     ",\"steps\":" ++ jlist steps ++ ",\"out\":\"" ++ out ++ "\"}")
 
-def main : IO Unit := do
+def run : IO Unit := do
   let mut n := 0
   for s in List.range 400 do
     if n < 60 then
       match vector (s + 1) with
       | some v => IO.println v; n := n + 1
       | none => pure ()
+
+end RCE.LVarVectors

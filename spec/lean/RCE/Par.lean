@@ -3,7 +3,8 @@
     * T16 core: branches with disjoint write sets give the source-order
       result under every interleaving of their writes (`interleave_eq_seq`).
     * T18 core: the fixed reduction tree equals the sequential left fold for
-      any associative operation with a two-sided identity (`tree_eq_foldl`).
+      any associative operation with a two-sided identity (`tree_eq_foldl`),
+      with the tree split at the power of two of C.8 (`split`).
     * C.11.2 core: a block scan (scan both halves, offset the right half by
       the left total) equals the sequential exclusive scan (`scan_append`).
     * T24 one direction: with the standard vector clock update rules,
@@ -80,13 +81,26 @@ theorem interleave_eq_seq :
 section Tree
 variable {α : Type} (f : α → α → α) (e : α)
 
-/-- Reduction tree over a list: split at half, combine with `f`.
+/-- The normative split (book/14 C.8, `host::tree_split`): for a list of
+    length m ≥ 2 the left part has the largest power of two below m. -/
+def split (m : Nat) : Nat := 2 ^ Nat.log2 (m - 1)
+
+-- agrees with `host::tree_split` (`1 << (m-1).ilog2()`) on samples
+#guard [2, 3, 5, 8, 9, 40].map split == [1, 2, 4, 4, 8, 32]
+
+theorem split_pos (m : Nat) : 0 < split m := Nat.pos_pow_of_pos _ (by decide)
+
+theorem split_lt (m : Nat) (h : 2 ≤ m) : split m < m := by
+  have := Nat.log2_self_le (n := m - 1) (by omega)
+  unfold split; omega
+
+/-- Reduction tree over a list, split at `split`, combine with `f`.
     `fuel` bounds the depth; `tree` passes the length. -/
 def treeN : Nat → List α → α
   | 0, _ => e
   | _ + 1, [] => e
   | _ + 1, [x] => x
-  | n + 1, xs => f (treeN n (xs.take (xs.length / 2))) (treeN n (xs.drop (xs.length / 2)))
+  | n + 1, xs => f (treeN n (xs.take (split xs.length))) (treeN n (xs.drop (split xs.length)))
 
 def tree (xs : List α) : α := treeN f e xs.length xs
 
@@ -121,6 +135,9 @@ theorem treeN_eq (n : Nat) : ∀ xs : List α, xs.length ≤ n →
     | x :: y :: zs, h =>
       have hl : (x :: y :: zs).length = zs.length + 2 := rfl
       simp only [treeN]
+      have hs := split_lt (zs.length + 2) (by omega)
+      have hp := split_pos (zs.length + 2)
+      simp only [hl] at h
       rw [ih _ (by simp only [List.length_take, hl]; omega),
           ih _ (by simp only [List.length_drop, hl]; omega),
           ← foldl_append2 f e assoc idl idr, List.take_append_drop]

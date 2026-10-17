@@ -626,6 +626,67 @@ where
     | refl => exact h1
     | tail _ hs ih => exact Reach.tail ih hs
 
+theorem pick_mid : ∀ (pre : List (Th ι α)) (t : Th ι α) (post : List (Th ι α)),
+    pick (pre ++ t :: post) pre.length = some (pre, t, post)
+  | [], _, _ => rfl
+  | x :: xs, t, post => by
+      show (pick (xs ++ t :: post) xs.length).map _ = _
+      rw [pick_mid xs t post]; rfl
+
+/-- **Completeness of the executable semantics**: at a state where no
+location is at top (every reachable state, `Inv.ntop`), every step of the
+relation is taken by `stepAt` for some thread. With `stepAt_sound`,
+`stepAt` and `Step` have the same steps. -/
+theorem stepAt_complete {c : Cfg ι α} {s : St ι α} (hv : ∀ k, c.val k ≠ top) (h : Step c s) :
+    ∃ i, stepAt c i = some s := by
+  cases h with
+  | @put v f a pre post dn l d tl ha hnt hfz =>
+    refine ⟨pre.length, ?_⟩
+    simp only [stepAt, pick_mid, stepOp]
+    have hf : ¬ (f l = true ∧ join (v l) d ≠ v l) := fun ⟨h1, h2⟩ => h2 (hfz h1)
+    rw [if_pos ha, if_neg hnt, if_neg hf]
+  | @put_top v f a pre post dn l d tl ha ht =>
+    refine ⟨pre.length, ?_⟩
+    simp only [stepAt, pick_mid, stepOp]
+    rw [if_pos ha, if_pos ht]
+  | @put_frozen v f a pre post dn l d tl ha hf hne =>
+    refine ⟨pre.length, ?_⟩
+    simp only [stepAt, pick_mid, stepOp]
+    rw [if_pos ha]
+    by_cases ht : join (v l) d = top
+    · rw [if_pos ht]
+    · rw [if_neg ht, if_pos ⟨hf, hne⟩]
+  | @get v f a pre post dn l q o tl ha hq hm hl =>
+    refine ⟨pre.length, ?_⟩
+    simp only [stepAt, pick_mid, stepOp]
+    have hb : incompB q = true := by
+      simp only [incompB, List.all_eq_true, Bool.or_eq_true, decide_eq_true_eq]
+      intro x hx y hy
+      by_cases e : x = y
+      · exact Or.inl e
+      · exact Or.inr (hq x hx y hy e)
+    rw [if_pos ⟨ha, hb⟩]
+    have hfind : q.find? (fun o => decide (join o (v l) = v l)) = some o := by
+      cases hfo : q.find? (fun o => decide (join o (v l) = v l)) with
+      | none =>
+        have := List.find?_eq_none.1 hfo o hm
+        simp only [decide_eq_true_eq] at this
+        exact absurd hl this
+      | some o' =>
+        have hm' := List.mem_of_find?_eq_some hfo
+        have hp := List.find?_some hfo
+        simp only [decide_eq_true_eq] at hp
+        rw [incomp_unique hq (hv l) hm' hm hp hl]
+    rw [hfind]
+  | @freeze v f a pre post dn l tl ha =>
+    refine ⟨pre.length, ?_⟩
+    simp only [stepAt, pick_mid, stepOp]
+    rw [if_pos ha]
+  | @new v f a pre post dn l tl ha =>
+    refine ⟨pre.length, ?_⟩
+    simp only [stepAt, pick_mid, stepOp]
+    rw [if_pos ha]
+
 end exec
 
 end RCE.LVarAlloc
