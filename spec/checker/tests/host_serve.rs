@@ -96,7 +96,13 @@ fn terminal_resize_and_interrupt() {
     writeln!(i, "Resize(rows: 40, cols: 100)").unwrap();
     writeln!(i, "echo size=$(stty size)").unwrap();
     wait_for("size=40 100");
-    writeln!(i, "echo go-$((1+1)); sleep 30 && echo not-interrupted").unwrap();
+    // `Interrupt` is ^C to the *foreground* job. The shell hands the terminal to a
+    // job a moment after forking it, so a ^C sent before that goes to the shell
+    // itself, which ignores it, and the job then runs on (seen: the job still
+    // sleeping, in the foreground, 20 s later, under CPU load). The job therefore
+    // prints its marker only once its process group is the terminal's foreground
+    // group (`ps -o tpgid` equals `ps -o pgid`).
+    writeln!(i, "sh -c 'until [ \"$(ps -o tpgid= -p $$)\" -eq \"$(ps -o pgid= -p $$)\" ]; do :; done; echo go-$((1+1)); exec sleep 30' && echo not-interrupted").unwrap();
     wait_for("go-2");
     writeln!(i, "Interrupt").unwrap();
     writeln!(i, "echo after-$((6*7))").unwrap();
