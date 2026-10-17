@@ -13,7 +13,7 @@ derived fix. No test encodes a known bug.
 
 ## Layout
 
-- `clauses.json`: every clause extracted from `crates/rce/spec/book/*.md`
+- `clauses.json`: every clause extracted from `spec/book/*.md`
   (rule ids such as `W-PAR-1` and `HC-15`, theorem rows, MUST/SHALL sentences
   as `CHnn-M-<hash>`), each with a stable id and a profile (`language`,
   `handler-spec`, `tooling`, `proposed`, `editorial`).
@@ -30,6 +30,8 @@ derived fix. No test encodes a known bug.
 See `INTERPRETING.md` for the file format and `ADAPTERS.md` for the protocol.
 
 ## Running
+
+**Current limit.** The harness needs an adapter binary named `rce-conform`, built with `cargo build -p rce-spec-check --bin rce-conform`. That binary is not in the public `rce` repository (its `spec/checker` has `rce`, `rce-check`, `rce-spec-check`, `rce-fuzz` and `rce-spec-data`), so this suite cannot be run end to end against public `rce` today. The results under `reports/` were produced against the engine repository, whose history is not public. The clause paths below use the public layout (`spec/book`).
 
     export RCE_CONFORM=/path/to/rce-conform   # cargo build -p rce-spec-check --bin rce-conform
     python3 harness/run.py --adapter adapters/reference.json --jobs 8

@@ -169,7 +169,7 @@ def gen_float(rnd):
         return src, [], f"trap:{e}", cl
     if isinstance(v, float) and v == 0.0 and math.copysign(1, v) < 0 and op not in ("floor", "ceil"):
         # kept so the seeded stream (and every test id) stays as first generated; F6-TOSTR is closed
-        # (f64 tostr prints -0, joulesperbit 04d8e7939) and floor/ceil/round results now carry the sign
+        # (f64 tostr prints -0) and floor/ceil/round results now carry the sign
         return None
     return src, [f"emit {v if isinstance(v, int) else ftext(v)}"], "done", cl
 

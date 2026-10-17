@@ -16,7 +16,7 @@ Machine-readable records are in `findings/*.json`; the tests the reference fails
    The fix exposed that `gen_numbers.py` computed floor/ceil as +0 for a
    negative operand (IEEE 754 keeps the sign), so 11 generated expectations read
    `emit -0`, and the harvested `57-float-vectors` tests carry the corpus's `-0.0`
-   for `Mul(0.0, -1.0)` (joulesperbit 04d8e7939/982eb3e63, d7aeecd65).
+   for `Mul(0.0, -1.0)` (the engine repository (commit omitted)).
 3. **T7 renames and D.** T7 says renaming keeps log hashes, but event and
    error names are part of D's input and D is injective, so renaming them
    must change the hash. Fix: restrict T7 to names that do not appear in D
@@ -56,7 +56,7 @@ Machine-readable records are in `findings/*.json`; the tests the reference fails
 15. **Conservative, not a bug.** The lex Merge certificate accepts only the
     expression form and integer keys. Sound but incomplete.
 16. **CLOSED. FUEL-1 not in the book.** Landed as E1 in chapter 7
-    (joulesperbit c613c07bf, derived from fuel monotonicity). Tests
+    (the engine repository (commit omitted), derived from fuel monotonicity). Tests
     `evaluation-fuel/targeted/fuel-1-*` now cite E1; the pending entry is
     retired in `clauses-pending.json`.
 17. **T38 on Windows.** Reopening a torn D failed on windows-x86_64 with

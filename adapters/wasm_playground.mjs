@@ -1,4 +1,4 @@
-// rce-adapter/1 for the wasm playground (crates/rce/spec/checker-wasm, the
+// rce-adapter/1 for the wasm playground (spec/checker-wasm, the
 // checker compiled to wasm32 and loaded the way the browser playground loads
 // it). It serves `check` only: the playground parses, checks and admits.
 // RCE_WASM_PKG names the wasm-pack output directory (--target web).

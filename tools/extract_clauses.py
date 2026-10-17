@@ -112,7 +112,7 @@ def main(book):
         else: c["profile"] = "language"
         if re.search(r"Datalog and Souffl|GQL selectors", t): c["normative"] = False
     digest = hashlib.sha256(json.dumps([c["id"] for c in out]).encode()).hexdigest()
-    json.dump({"format": "rce-clauses/1", "book": ("crates/rce/spec/book" if str(book).rstrip("/").endswith("crates/rce/spec/book") else book.name), "id_set_sha256": digest,
+    json.dump({"format": "rce-clauses/1", "book": ("spec/book" if str(book).rstrip("/").endswith("spec/book") else book.name), "id_set_sha256": digest,
                "clauses": out}, sys.stdout, indent=1, ensure_ascii=False)
     print()
 

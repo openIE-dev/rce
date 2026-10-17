@@ -1,6 +1,6 @@
 {
  "format": "rce-clauses/1",
- "book": "crates/rce/spec/book",
+ "book": "spec/book",
  "id_set_sha256": "310e56176dd84e5107bbe38392f1277fa46036acfec6746154903296aa8a90da",
  "clauses": [
   {
