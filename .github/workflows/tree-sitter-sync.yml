@@ -9,21 +9,34 @@ on:
   push:
   pull_request:
 
+# The whole suite runs in ci.yml; this workflow runs what needs the CLI:
+# tree_sitter_sync for each feature set, and the fast tests with the
+# tree-sitter feature on (the slow vector suites do not use it).
+
 jobs:
   checker:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        features: ["", "conc06", "tree-sitter"]
     env:
       CI: "true"
-    defaults:
-      run:
-        working-directory: spec/checker
     steps:
       - uses: actions/checkout@v4
       - name: Install the pinned Rust toolchain
         run: rustup show
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: spec/checker
       - name: Install the tree-sitter CLI
         run: cargo install --locked tree-sitter-cli --version 0.27.1
-      - run: cargo test --release
-      - run: cargo test --release --features conc06
-      - run: cargo test --release --features tree-sitter
+      - name: tree_sitter_sync
+        working-directory: spec/checker
+        run: cargo test --release ${{ matrix.features != '' && format('--features {0}', matrix.features) || '' }} --test tree_sitter_sync
+      - name: Fast tests with the feature set
+        if: ${{ matrix.features == 'tree-sitter' }}
+        env:
+          RCE_FEATURES: ${{ matrix.features }}
+        run: bash scripts/ci-tests.sh fast
