@@ -18,6 +18,7 @@ typedef struct {
   uint8_t eof_nl;       // the end-of-file NEWLINE of spec 2.6 rule 4 was emitted
   uint8_t started;      // a token other than the first line's comment was seen
   uint8_t v06;          // the module declares `# rce-version: 0.6` or `0.7` (spec 2.7)
+  uint8_t v09;          // the module declares `# rce-version: 0.9`: `label`, `release`, `endorse` are reserved
   uint8_t cont;         // the last line end stopped before a comment line; the layout
                         // decision for the following code line was already made
 } S;
@@ -63,7 +64,8 @@ static void comment(TSLexer *lx, S *s) {
   while (b[i] == ' ') i++;
   int e = n;
   while (e > i && b[e - 1] == ' ') e--;
-  if (e - i == 3 && (strncmp(b + i, "0.6", 3) == 0 || strncmp(b + i, "0.7", 3) == 0 || strncmp(b + i, "0.8", 3) == 0)) s->v06 = 1;
+  if (e - i == 3 && (strncmp(b + i, "0.6", 3) == 0 || strncmp(b + i, "0.7", 3) == 0 || strncmp(b + i, "0.8", 3) == 0 || strncmp(b + i, "0.9", 3) == 0)) s->v06 = 1;
+  if (e - i == 3 && strncmp(b + i, "0.9", 3) == 0) s->v09 = 1;
 }
 
 static int is_id0(int32_t c) { return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_'; }
@@ -199,7 +201,12 @@ bool tree_sitter_rce_external_scanner_scan(void *p, TSLexer *lx, const bool *val
       // contextual word (5.1 refined types): `where` is the keyword only
       // where a NAME cannot stand, i.e. after the type of a type declaration
       if (strcmp(w, "where") == 0 && !valid[NAME]) return false;
+      // F.6.1: `t` directly before a quote is the template prefix, not a name
+      if (s->v09 && n == 1 && w[0] == 't' && lx->lookahead == '"') return false;
       for (int i = 0; KW[i]; i++) if (strcmp(w, KW[i]) == 0) return false;
+      // contextual word (F.13): `by` is the keyword only where a NAME cannot stand
+      if (strcmp(w, "by") == 0 && !valid[NAME]) return false;
+      if (s->v09 && (strcmp(w, "label") == 0 || strcmp(w, "release") == 0 || strcmp(w, "endorse") == 0 || strcmp(w, "ct") == 0 || strcmp(w, "requires") == 0 || strcmp(w, "ensures") == 0 || strcmp(w, "ghost") == 0 || strcmp(w, "decreases") == 0)) return false;
       if (s->v06)
         for (int i = kw06_start(); KW[i]; i++) if (strcmp(w, KW[i]) == 0) return false;
     }

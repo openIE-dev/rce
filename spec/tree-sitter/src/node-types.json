@@ -103,6 +103,10 @@
           "named": true
         },
         {
+          "type": "endorse_expr",
+          "named": true
+        },
+        {
           "type": "false",
           "named": true
         },
@@ -179,6 +183,10 @@
           "named": true
         },
         {
+          "type": "release_expr",
+          "named": true
+        },
+        {
           "type": "self_ref",
           "named": true
         },
@@ -188,6 +196,10 @@
         },
         {
           "type": "slice",
+          "named": true
+        },
+        {
+          "type": "template_render",
           "named": true
         },
         {
@@ -346,6 +358,10 @@
           "named": true
         },
         {
+          "type": "endorse_expr",
+          "named": true
+        },
+        {
           "type": "false",
           "named": true
         },
@@ -422,6 +438,10 @@
           "named": true
         },
         {
+          "type": "release_expr",
+          "named": true
+        },
+        {
           "type": "self_ref",
           "named": true
         },
@@ -431,6 +451,10 @@
         },
         {
           "type": "slice",
+          "named": true
+        },
+        {
+          "type": "template_render",
           "named": true
         },
         {
@@ -556,6 +580,10 @@
           "named": true
         },
         {
+          "type": "endorse_expr",
+          "named": true
+        },
+        {
           "type": "false",
           "named": true
         },
@@ -632,6 +660,10 @@
           "named": true
         },
         {
+          "type": "release_expr",
+          "named": true
+        },
+        {
           "type": "self_ref",
           "named": true
         },
@@ -641,6 +673,10 @@
         },
         {
           "type": "slice",
+          "named": true
+        },
+        {
+          "type": "template_render",
           "named": true
         },
         {
@@ -778,6 +814,10 @@
           "named": true
         },
         {
+          "type": "endorse_expr",
+          "named": true
+        },
+        {
           "type": "fail_stmt",
           "named": true
         },
@@ -886,6 +926,10 @@
           "named": true
         },
         {
+          "type": "release_expr",
+          "named": true
+        },
+        {
           "type": "return_stmt",
           "named": true
         },
@@ -903,6 +947,10 @@
         },
         {
           "type": "slice",
+          "named": true
+        },
+        {
+          "type": "template_render",
           "named": true
         },
         {
@@ -1025,6 +1073,10 @@
           "named": true
         },
         {
+          "type": "endorse_expr",
+          "named": true
+        },
+        {
           "type": "false",
           "named": true
         },
@@ -1125,6 +1177,10 @@
           "named": true
         },
         {
+          "type": "release_expr",
+          "named": true
+        },
+        {
           "type": "self_ref",
           "named": true
         },
@@ -1142,6 +1198,10 @@
         },
         {
           "type": "slice_type",
+          "named": true
+        },
+        {
+          "type": "template_render",
           "named": true
         },
         {
@@ -1295,6 +1355,10 @@
           "named": true
         },
         {
+          "type": "endorse_expr",
+          "named": true
+        },
+        {
           "type": "false",
           "named": true
         },
@@ -1371,6 +1435,10 @@
           "named": true
         },
         {
+          "type": "release_expr",
+          "named": true
+        },
+        {
           "type": "self_ref",
           "named": true
         },
@@ -1380,6 +1448,10 @@
         },
         {
           "type": "slice",
+          "named": true
+        },
+        {
+          "type": "template_render",
           "named": true
         },
         {
@@ -1483,6 +1555,10 @@
           "named": true
         },
         {
+          "type": "endorse_expr",
+          "named": true
+        },
+        {
           "type": "false",
           "named": true
         },
@@ -1559,6 +1635,10 @@
           "named": true
         },
         {
+          "type": "release_expr",
+          "named": true
+        },
+        {
           "type": "self_ref",
           "named": true
         },
@@ -1568,6 +1648,10 @@
         },
         {
           "type": "slice",
+          "named": true
+        },
+        {
+          "type": "template_render",
           "named": true
         },
         {
@@ -1634,6 +1718,10 @@
           "named": true
         },
         {
+          "type": "contract_stmt",
+          "named": true
+        },
+        {
           "type": "deadline_stmt",
           "named": true
         },
@@ -1654,7 +1742,15 @@
           "named": true
         },
         {
+          "type": "ghost_let",
+          "named": true
+        },
+        {
           "type": "group_stmt",
+          "named": true
+        },
+        {
+          "type": "if_let_stmt",
           "named": true
         },
         {
@@ -1789,6 +1885,10 @@
           "named": true
         },
         {
+          "type": "endorse_expr",
+          "named": true
+        },
+        {
           "type": "false",
           "named": true
         },
@@ -1865,6 +1965,10 @@
           "named": true
         },
         {
+          "type": "release_expr",
+          "named": true
+        },
+        {
           "type": "self_ref",
           "named": true
         },
@@ -1874,6 +1978,10 @@
         },
         {
           "type": "slice",
+          "named": true
+        },
+        {
+          "type": "template_render",
           "named": true
         },
         {
@@ -1976,6 +2084,10 @@
           "named": true
         },
         {
+          "type": "endorse_expr",
+          "named": true
+        },
+        {
           "type": "false",
           "named": true
         },
@@ -2052,6 +2164,10 @@
           "named": true
         },
         {
+          "type": "release_expr",
+          "named": true
+        },
+        {
           "type": "self_ref",
           "named": true
         },
@@ -2061,6 +2177,10 @@
         },
         {
           "type": "slice",
+          "named": true
+        },
+        {
+          "type": "template_render",
           "named": true
         },
         {
@@ -2159,6 +2279,10 @@
           "named": true
         },
         {
+          "type": "endorse_expr",
+          "named": true
+        },
+        {
           "type": "false",
           "named": true
         },
@@ -2235,6 +2359,10 @@
           "named": true
         },
         {
+          "type": "release_expr",
+          "named": true
+        },
+        {
           "type": "self_ref",
           "named": true
         },
@@ -2244,6 +2372,10 @@
         },
         {
           "type": "slice",
+          "named": true
+        },
+        {
+          "type": "template_render",
           "named": true
         },
         {
@@ -2393,6 +2525,10 @@
           "named": true
         },
         {
+          "type": "endorse_expr",
+          "named": true
+        },
+        {
           "type": "false",
           "named": true
         },
@@ -2493,6 +2629,10 @@
           "named": true
         },
         {
+          "type": "release_expr",
+          "named": true
+        },
+        {
           "type": "self_ref",
           "named": true
         },
@@ -2502,6 +2642,10 @@
         },
         {
           "type": "slice",
+          "named": true
+        },
+        {
+          "type": "template_render",
           "named": true
         },
         {
@@ -2612,6 +2756,10 @@
           "named": true
         },
         {
+          "type": "endorse_expr",
+          "named": true
+        },
+        {
           "type": "false",
           "named": true
         },
@@ -2688,6 +2836,10 @@
           "named": true
         },
         {
+          "type": "release_expr",
+          "named": true
+        },
+        {
           "type": "self_ref",
           "named": true
         },
@@ -2697,6 +2849,10 @@
         },
         {
           "type": "slice",
+          "named": true
+        },
+        {
+          "type": "template_render",
           "named": true
         },
         {
@@ -2799,6 +2955,10 @@
           "named": true
         },
         {
+          "type": "endorse_expr",
+          "named": true
+        },
+        {
           "type": "false",
           "named": true
         },
@@ -2875,6 +3035,10 @@
           "named": true
         },
         {
+          "type": "release_expr",
+          "named": true
+        },
+        {
           "type": "self_ref",
           "named": true
         },
@@ -2884,6 +3048,10 @@
         },
         {
           "type": "slice",
+          "named": true
+        },
+        {
+          "type": "template_render",
           "named": true
         },
         {
@@ -2990,6 +3158,10 @@
           "named": true
         },
         {
+          "type": "endorse_expr",
+          "named": true
+        },
+        {
           "type": "false",
           "named": true
         },
@@ -3090,6 +3262,10 @@
           "named": true
         },
         {
+          "type": "release_expr",
+          "named": true
+        },
+        {
           "type": "self_ref",
           "named": true
         },
@@ -3107,6 +3283,10 @@
         },
         {
           "type": "slice_type",
+          "named": true
+        },
+        {
+          "type": "template_render",
           "named": true
         },
         {
@@ -3225,6 +3405,10 @@
           "named": true
         },
         {
+          "type": "endorse_expr",
+          "named": true
+        },
+        {
           "type": "false",
           "named": true
         },
@@ -3301,6 +3485,10 @@
           "named": true
         },
         {
+          "type": "release_expr",
+          "named": true
+        },
+        {
           "type": "self_ref",
           "named": true
         },
@@ -3310,6 +3498,10 @@
         },
         {
           "type": "slice",
+          "named": true
+        },
+        {
+          "type": "template_render",
           "named": true
         },
         {
@@ -3416,6 +3608,10 @@
           "named": true
         },
         {
+          "type": "endorse_expr",
+          "named": true
+        },
+        {
           "type": "false",
           "named": true
         },
@@ -3516,6 +3712,10 @@
           "named": true
         },
         {
+          "type": "release_expr",
+          "named": true
+        },
+        {
           "type": "self_ref",
           "named": true
         },
@@ -3533,6 +3733,10 @@
         },
         {
           "type": "slice_type",
+          "named": true
+        },
+        {
+          "type": "template_render",
           "named": true
         },
         {
@@ -3714,6 +3918,10 @@
           "named": true
         },
         {
+          "type": "endorse_expr",
+          "named": true
+        },
+        {
           "type": "false",
           "named": true
         },
@@ -3790,6 +3998,10 @@
           "named": true
         },
         {
+          "type": "release_expr",
+          "named": true
+        },
+        {
           "type": "self_ref",
           "named": true
         },
@@ -3799,6 +4011,10 @@
         },
         {
           "type": "slice",
+          "named": true
+        },
+        {
+          "type": "template_render",
           "named": true
         },
         {
@@ -3901,6 +4117,10 @@
           "named": true
         },
         {
+          "type": "endorse_expr",
+          "named": true
+        },
+        {
           "type": "false",
           "named": true
         },
@@ -3977,6 +4197,10 @@
           "named": true
         },
         {
+          "type": "release_expr",
+          "named": true
+        },
+        {
           "type": "self_ref",
           "named": true
         },
@@ -3986,6 +4210,10 @@
         },
         {
           "type": "slice",
+          "named": true
+        },
+        {
+          "type": "template_render",
           "named": true
         },
         {
@@ -4089,6 +4317,10 @@
           "named": true
         },
         {
+          "type": "endorse_expr",
+          "named": true
+        },
+        {
           "type": "false",
           "named": true
         },
@@ -4165,6 +4397,10 @@
           "named": true
         },
         {
+          "type": "release_expr",
+          "named": true
+        },
+        {
           "type": "self_ref",
           "named": true
         },
@@ -4174,6 +4410,10 @@
         },
         {
           "type": "slice",
+          "named": true
+        },
+        {
+          "type": "template_render",
           "named": true
         },
         {
@@ -4299,6 +4539,10 @@
           "named": true
         },
         {
+          "type": "endorse_expr",
+          "named": true
+        },
+        {
           "type": "false",
           "named": true
         },
@@ -4399,6 +4643,10 @@
           "named": true
         },
         {
+          "type": "release_expr",
+          "named": true
+        },
+        {
           "type": "self_ref",
           "named": true
         },
@@ -4416,6 +4664,10 @@
         },
         {
           "type": "slice_type",
+          "named": true
+        },
+        {
+          "type": "template_render",
           "named": true
         },
         {
@@ -4461,6 +4713,201 @@
     "type": "continue_stmt",
     "named": true,
     "fields": {}
+  },
+  {
+    "type": "contract_stmt",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "FLOAT",
+          "named": true
+        },
+        {
+          "type": "INT",
+          "named": true
+        },
+        {
+          "type": "STRING",
+          "named": true
+        },
+        {
+          "type": "add_expr",
+          "named": true
+        },
+        {
+          "type": "and_expr",
+          "named": true
+        },
+        {
+          "type": "band_expr",
+          "named": true
+        },
+        {
+          "type": "bitnot",
+          "named": true
+        },
+        {
+          "type": "bor_expr",
+          "named": true
+        },
+        {
+          "type": "borrow",
+          "named": true
+        },
+        {
+          "type": "bxor_expr",
+          "named": true
+        },
+        {
+          "type": "call",
+          "named": true
+        },
+        {
+          "type": "cast_expr",
+          "named": true
+        },
+        {
+          "type": "catch_expr",
+          "named": true
+        },
+        {
+          "type": "chan_new",
+          "named": true
+        },
+        {
+          "type": "cmp_expr",
+          "named": true
+        },
+        {
+          "type": "comptime_expr",
+          "named": true
+        },
+        {
+          "type": "endorse_expr",
+          "named": true
+        },
+        {
+          "type": "false",
+          "named": true
+        },
+        {
+          "type": "if_expr",
+          "named": true
+        },
+        {
+          "type": "index",
+          "named": true
+        },
+        {
+          "type": "lambda",
+          "named": true
+        },
+        {
+          "type": "list",
+          "named": true
+        },
+        {
+          "type": "list_comp",
+          "named": true
+        },
+        {
+          "type": "list_empty",
+          "named": true
+        },
+        {
+          "type": "list_repeat",
+          "named": true
+        },
+        {
+          "type": "map",
+          "named": true
+        },
+        {
+          "type": "map_empty",
+          "named": true
+        },
+        {
+          "type": "member",
+          "named": true
+        },
+        {
+          "type": "mul_expr",
+          "named": true
+        },
+        {
+          "type": "name",
+          "named": true
+        },
+        {
+          "type": "neg",
+          "named": true
+        },
+        {
+          "type": "none",
+          "named": true
+        },
+        {
+          "type": "not_op",
+          "named": true
+        },
+        {
+          "type": "or_expr",
+          "named": true
+        },
+        {
+          "type": "range_expr",
+          "named": true
+        },
+        {
+          "type": "recv",
+          "named": true
+        },
+        {
+          "type": "release_expr",
+          "named": true
+        },
+        {
+          "type": "self_ref",
+          "named": true
+        },
+        {
+          "type": "shift_expr",
+          "named": true
+        },
+        {
+          "type": "slice",
+          "named": true
+        },
+        {
+          "type": "template_render",
+          "named": true
+        },
+        {
+          "type": "true",
+          "named": true
+        },
+        {
+          "type": "try_expr",
+          "named": true
+        },
+        {
+          "type": "tuple",
+          "named": true
+        },
+        {
+          "type": "tuple_member",
+          "named": true
+        },
+        {
+          "type": "unit",
+          "named": true
+        }
+      ]
+    }
   },
   {
     "type": "ctor_pat",
@@ -4554,6 +5001,10 @@
           "named": true
         },
         {
+          "type": "endorse_expr",
+          "named": true
+        },
+        {
           "type": "false",
           "named": true
         },
@@ -4630,6 +5081,10 @@
           "named": true
         },
         {
+          "type": "release_expr",
+          "named": true
+        },
+        {
           "type": "self_ref",
           "named": true
         },
@@ -4639,6 +5094,10 @@
         },
         {
           "type": "slice",
+          "named": true
+        },
+        {
+          "type": "template_render",
           "named": true
         },
         {
@@ -4745,6 +5204,10 @@
           "named": true
         },
         {
+          "type": "endorse_expr",
+          "named": true
+        },
+        {
           "type": "false",
           "named": true
         },
@@ -4821,6 +5284,10 @@
           "named": true
         },
         {
+          "type": "release_expr",
+          "named": true
+        },
+        {
           "type": "self_ref",
           "named": true
         },
@@ -4830,6 +5297,10 @@
         },
         {
           "type": "slice",
+          "named": true
+        },
+        {
+          "type": "template_render",
           "named": true
         },
         {
@@ -4970,6 +5441,10 @@
           "named": true
         },
         {
+          "type": "endorse_expr",
+          "named": true
+        },
+        {
           "type": "false",
           "named": true
         },
@@ -5046,6 +5521,10 @@
           "named": true
         },
         {
+          "type": "release_expr",
+          "named": true
+        },
+        {
           "type": "self_ref",
           "named": true
         },
@@ -5055,6 +5534,10 @@
         },
         {
           "type": "slice",
+          "named": true
+        },
+        {
+          "type": "template_render",
           "named": true
         },
         {
@@ -5168,6 +5651,10 @@
           "named": true
         },
         {
+          "type": "endorse_expr",
+          "named": true
+        },
+        {
           "type": "false",
           "named": true
         },
@@ -5244,6 +5731,10 @@
           "named": true
         },
         {
+          "type": "release_expr",
+          "named": true
+        },
+        {
           "type": "self_ref",
           "named": true
         },
@@ -5253,6 +5744,205 @@
         },
         {
           "type": "slice",
+          "named": true
+        },
+        {
+          "type": "template_render",
+          "named": true
+        },
+        {
+          "type": "true",
+          "named": true
+        },
+        {
+          "type": "try_expr",
+          "named": true
+        },
+        {
+          "type": "tuple",
+          "named": true
+        },
+        {
+          "type": "tuple_member",
+          "named": true
+        },
+        {
+          "type": "unit",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "endorse_expr",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": false,
+      "required": true,
+      "types": [
+        {
+          "type": "FLOAT",
+          "named": true
+        },
+        {
+          "type": "INT",
+          "named": true
+        },
+        {
+          "type": "STRING",
+          "named": true
+        },
+        {
+          "type": "add_expr",
+          "named": true
+        },
+        {
+          "type": "and_expr",
+          "named": true
+        },
+        {
+          "type": "band_expr",
+          "named": true
+        },
+        {
+          "type": "bitnot",
+          "named": true
+        },
+        {
+          "type": "bor_expr",
+          "named": true
+        },
+        {
+          "type": "borrow",
+          "named": true
+        },
+        {
+          "type": "bxor_expr",
+          "named": true
+        },
+        {
+          "type": "call",
+          "named": true
+        },
+        {
+          "type": "cast_expr",
+          "named": true
+        },
+        {
+          "type": "catch_expr",
+          "named": true
+        },
+        {
+          "type": "chan_new",
+          "named": true
+        },
+        {
+          "type": "cmp_expr",
+          "named": true
+        },
+        {
+          "type": "comptime_expr",
+          "named": true
+        },
+        {
+          "type": "endorse_expr",
+          "named": true
+        },
+        {
+          "type": "false",
+          "named": true
+        },
+        {
+          "type": "if_expr",
+          "named": true
+        },
+        {
+          "type": "index",
+          "named": true
+        },
+        {
+          "type": "lambda",
+          "named": true
+        },
+        {
+          "type": "list",
+          "named": true
+        },
+        {
+          "type": "list_comp",
+          "named": true
+        },
+        {
+          "type": "list_empty",
+          "named": true
+        },
+        {
+          "type": "list_repeat",
+          "named": true
+        },
+        {
+          "type": "map",
+          "named": true
+        },
+        {
+          "type": "map_empty",
+          "named": true
+        },
+        {
+          "type": "member",
+          "named": true
+        },
+        {
+          "type": "mul_expr",
+          "named": true
+        },
+        {
+          "type": "name",
+          "named": true
+        },
+        {
+          "type": "neg",
+          "named": true
+        },
+        {
+          "type": "none",
+          "named": true
+        },
+        {
+          "type": "not_op",
+          "named": true
+        },
+        {
+          "type": "or_expr",
+          "named": true
+        },
+        {
+          "type": "range_expr",
+          "named": true
+        },
+        {
+          "type": "recv",
+          "named": true
+        },
+        {
+          "type": "release_expr",
+          "named": true
+        },
+        {
+          "type": "self_ref",
+          "named": true
+        },
+        {
+          "type": "shift_expr",
+          "named": true
+        },
+        {
+          "type": "slice",
+          "named": true
+        },
+        {
+          "type": "template_render",
           "named": true
         },
         {
@@ -5492,6 +6182,10 @@
           "named": true
         },
         {
+          "type": "endorse_expr",
+          "named": true
+        },
+        {
           "type": "false",
           "named": true
         },
@@ -5568,6 +6262,10 @@
           "named": true
         },
         {
+          "type": "release_expr",
+          "named": true
+        },
+        {
           "type": "self_ref",
           "named": true
         },
@@ -5577,6 +6275,10 @@
         },
         {
           "type": "slice",
+          "named": true
+        },
+        {
+          "type": "template_render",
           "named": true
         },
         {
@@ -5697,6 +6399,10 @@
           "named": true
         },
         {
+          "type": "endorse_expr",
+          "named": true
+        },
+        {
           "type": "false",
           "named": true
         },
@@ -5797,6 +6503,10 @@
           "named": true
         },
         {
+          "type": "release_expr",
+          "named": true
+        },
+        {
           "type": "self_ref",
           "named": true
         },
@@ -5814,6 +6524,10 @@
         },
         {
           "type": "slice_type",
+          "named": true
+        },
+        {
+          "type": "template_render",
           "named": true
         },
         {
@@ -5950,7 +6664,15 @@
       "required": true,
       "types": [
         {
+          "type": "CT",
+          "named": true
+        },
+        {
           "type": "FLOAT",
+          "named": true
+        },
+        {
+          "type": "GHOST",
           "named": true
         },
         {
@@ -6015,6 +6737,10 @@
         },
         {
           "type": "comptime_expr",
+          "named": true
+        },
+        {
+          "type": "endorse_expr",
           "named": true
         },
         {
@@ -6098,6 +6824,10 @@
           "named": true
         },
         {
+          "type": "release_expr",
+          "named": true
+        },
+        {
           "type": "self_ref",
           "named": true
         },
@@ -6107,6 +6837,10 @@
         },
         {
           "type": "slice",
+          "named": true
+        },
+        {
+          "type": "template_render",
           "named": true
         },
         {
@@ -6379,6 +7113,10 @@
           "named": true
         },
         {
+          "type": "endorse_expr",
+          "named": true
+        },
+        {
           "type": "false",
           "named": true
         },
@@ -6479,6 +7217,10 @@
           "named": true
         },
         {
+          "type": "release_expr",
+          "named": true
+        },
+        {
           "type": "self_ref",
           "named": true
         },
@@ -6488,6 +7230,10 @@
         },
         {
           "type": "slice",
+          "named": true
+        },
+        {
+          "type": "template_render",
           "named": true
         },
         {
@@ -6535,6 +7281,21 @@
       "types": [
         {
           "type": "gparam",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "ghost_let",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": false,
+      "required": true,
+      "types": [
+        {
+          "type": "let_stmt",
           "named": true
         }
       ]
@@ -6644,6 +7405,10 @@
           "named": true
         },
         {
+          "type": "endorse_expr",
+          "named": true
+        },
+        {
           "type": "false",
           "named": true
         },
@@ -6720,6 +7485,10 @@
           "named": true
         },
         {
+          "type": "release_expr",
+          "named": true
+        },
+        {
           "type": "self_ref",
           "named": true
         },
@@ -6729,6 +7498,10 @@
         },
         {
           "type": "slice",
+          "named": true
+        },
+        {
+          "type": "template_render",
           "named": true
         },
         {
@@ -6839,6 +7612,10 @@
           "named": true
         },
         {
+          "type": "endorse_expr",
+          "named": true
+        },
+        {
           "type": "false",
           "named": true
         },
@@ -6939,6 +7716,10 @@
           "named": true
         },
         {
+          "type": "release_expr",
+          "named": true
+        },
+        {
           "type": "self_ref",
           "named": true
         },
@@ -6952,6 +7733,10 @@
         },
         {
           "type": "step_arrow",
+          "named": true
+        },
+        {
+          "type": "template_render",
           "named": true
         },
         {
@@ -7062,6 +7847,10 @@
           "named": true
         },
         {
+          "type": "endorse_expr",
+          "named": true
+        },
+        {
           "type": "false",
           "named": true
         },
@@ -7138,6 +7927,10 @@
           "named": true
         },
         {
+          "type": "release_expr",
+          "named": true
+        },
+        {
           "type": "self_ref",
           "named": true
         },
@@ -7147,6 +7940,10 @@
         },
         {
           "type": "slice",
+          "named": true
+        },
+        {
+          "type": "template_render",
           "named": true
         },
         {
@@ -7167,6 +7964,253 @@
         },
         {
           "type": "unit",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "if_let_stmt",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "FLOAT",
+          "named": true
+        },
+        {
+          "type": "INT",
+          "named": true
+        },
+        {
+          "type": "STRING",
+          "named": true
+        },
+        {
+          "type": "add_expr",
+          "named": true
+        },
+        {
+          "type": "alt_pattern",
+          "named": true
+        },
+        {
+          "type": "and_expr",
+          "named": true
+        },
+        {
+          "type": "band_expr",
+          "named": true
+        },
+        {
+          "type": "bitnot",
+          "named": true
+        },
+        {
+          "type": "block",
+          "named": true
+        },
+        {
+          "type": "bor_expr",
+          "named": true
+        },
+        {
+          "type": "borrow",
+          "named": true
+        },
+        {
+          "type": "bxor_expr",
+          "named": true
+        },
+        {
+          "type": "call",
+          "named": true
+        },
+        {
+          "type": "cast_expr",
+          "named": true
+        },
+        {
+          "type": "catch_expr",
+          "named": true
+        },
+        {
+          "type": "chan_new",
+          "named": true
+        },
+        {
+          "type": "cmp_expr",
+          "named": true
+        },
+        {
+          "type": "comptime_expr",
+          "named": true
+        },
+        {
+          "type": "ctor_pat",
+          "named": true
+        },
+        {
+          "type": "else_clause",
+          "named": true
+        },
+        {
+          "type": "endorse_expr",
+          "named": true
+        },
+        {
+          "type": "false",
+          "named": true
+        },
+        {
+          "type": "false_pat",
+          "named": true
+        },
+        {
+          "type": "if_expr",
+          "named": true
+        },
+        {
+          "type": "index",
+          "named": true
+        },
+        {
+          "type": "lambda",
+          "named": true
+        },
+        {
+          "type": "list",
+          "named": true
+        },
+        {
+          "type": "list_comp",
+          "named": true
+        },
+        {
+          "type": "list_empty",
+          "named": true
+        },
+        {
+          "type": "list_repeat",
+          "named": true
+        },
+        {
+          "type": "literal_pat",
+          "named": true
+        },
+        {
+          "type": "map",
+          "named": true
+        },
+        {
+          "type": "map_empty",
+          "named": true
+        },
+        {
+          "type": "member",
+          "named": true
+        },
+        {
+          "type": "mul_expr",
+          "named": true
+        },
+        {
+          "type": "name",
+          "named": true
+        },
+        {
+          "type": "name_pat",
+          "named": true
+        },
+        {
+          "type": "neg",
+          "named": true
+        },
+        {
+          "type": "neg_literal_pat",
+          "named": true
+        },
+        {
+          "type": "none",
+          "named": true
+        },
+        {
+          "type": "none_pat",
+          "named": true
+        },
+        {
+          "type": "not_op",
+          "named": true
+        },
+        {
+          "type": "or_expr",
+          "named": true
+        },
+        {
+          "type": "range_expr",
+          "named": true
+        },
+        {
+          "type": "range_pat",
+          "named": true
+        },
+        {
+          "type": "recv",
+          "named": true
+        },
+        {
+          "type": "release_expr",
+          "named": true
+        },
+        {
+          "type": "self_ref",
+          "named": true
+        },
+        {
+          "type": "shift_expr",
+          "named": true
+        },
+        {
+          "type": "slice",
+          "named": true
+        },
+        {
+          "type": "template_render",
+          "named": true
+        },
+        {
+          "type": "true",
+          "named": true
+        },
+        {
+          "type": "true_pat",
+          "named": true
+        },
+        {
+          "type": "try_expr",
+          "named": true
+        },
+        {
+          "type": "tuple",
+          "named": true
+        },
+        {
+          "type": "tuple_member",
+          "named": true
+        },
+        {
+          "type": "tuple_pat",
+          "named": true
+        },
+        {
+          "type": "unit",
+          "named": true
+        },
+        {
+          "type": "wildcard",
           "named": true
         }
       ]
@@ -7257,6 +8301,10 @@
           "named": true
         },
         {
+          "type": "endorse_expr",
+          "named": true
+        },
+        {
           "type": "false",
           "named": true
         },
@@ -7333,6 +8381,10 @@
           "named": true
         },
         {
+          "type": "release_expr",
+          "named": true
+        },
+        {
           "type": "self_ref",
           "named": true
         },
@@ -7342,6 +8394,10 @@
         },
         {
           "type": "slice",
+          "named": true
+        },
+        {
+          "type": "template_render",
           "named": true
         },
         {
@@ -7519,6 +8575,10 @@
           "named": true
         },
         {
+          "type": "endorse_expr",
+          "named": true
+        },
+        {
           "type": "false",
           "named": true
         },
@@ -7595,6 +8655,10 @@
           "named": true
         },
         {
+          "type": "release_expr",
+          "named": true
+        },
+        {
           "type": "self_ref",
           "named": true
         },
@@ -7604,6 +8668,10 @@
         },
         {
           "type": "slice",
+          "named": true
+        },
+        {
+          "type": "template_render",
           "named": true
         },
         {
@@ -7762,6 +8830,36 @@
     }
   },
   {
+    "type": "label_decl",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "NAME",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "label_set",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": false,
+      "types": [
+        {
+          "type": "NAME",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
     "type": "lambda",
     "named": true,
     "fields": {},
@@ -7831,6 +8929,10 @@
         },
         {
           "type": "comptime_expr",
+          "named": true
+        },
+        {
+          "type": "endorse_expr",
           "named": true
         },
         {
@@ -7914,6 +9016,10 @@
           "named": true
         },
         {
+          "type": "release_expr",
+          "named": true
+        },
+        {
           "type": "self_ref",
           "named": true
         },
@@ -7923,6 +9029,10 @@
         },
         {
           "type": "slice",
+          "named": true
+        },
+        {
+          "type": "template_render",
           "named": true
         },
         {
@@ -8034,6 +9144,10 @@
         },
         {
           "type": "ctor_pat",
+          "named": true
+        },
+        {
+          "type": "endorse_expr",
           "named": true
         },
         {
@@ -8161,6 +9275,10 @@
           "named": true
         },
         {
+          "type": "release_expr",
+          "named": true
+        },
+        {
           "type": "self_ref",
           "named": true
         },
@@ -8178,6 +9296,10 @@
         },
         {
           "type": "slice_type",
+          "named": true
+        },
+        {
+          "type": "template_render",
           "named": true
         },
         {
@@ -8304,6 +9426,10 @@
           "named": true
         },
         {
+          "type": "endorse_expr",
+          "named": true
+        },
+        {
           "type": "false",
           "named": true
         },
@@ -8380,6 +9506,10 @@
           "named": true
         },
         {
+          "type": "release_expr",
+          "named": true
+        },
+        {
           "type": "self_ref",
           "named": true
         },
@@ -8389,6 +9519,10 @@
         },
         {
           "type": "slice",
+          "named": true
+        },
+        {
+          "type": "template_render",
           "named": true
         },
         {
@@ -8495,6 +9629,10 @@
           "named": true
         },
         {
+          "type": "endorse_expr",
+          "named": true
+        },
+        {
           "type": "false",
           "named": true
         },
@@ -8595,6 +9733,10 @@
           "named": true
         },
         {
+          "type": "release_expr",
+          "named": true
+        },
+        {
           "type": "self_ref",
           "named": true
         },
@@ -8604,6 +9746,10 @@
         },
         {
           "type": "slice",
+          "named": true
+        },
+        {
+          "type": "template_render",
           "named": true
         },
         {
@@ -8719,6 +9865,10 @@
           "named": true
         },
         {
+          "type": "endorse_expr",
+          "named": true
+        },
+        {
           "type": "false",
           "named": true
         },
@@ -8795,6 +9945,10 @@
           "named": true
         },
         {
+          "type": "release_expr",
+          "named": true
+        },
+        {
           "type": "self_ref",
           "named": true
         },
@@ -8804,6 +9958,10 @@
         },
         {
           "type": "slice",
+          "named": true
+        },
+        {
+          "type": "template_render",
           "named": true
         },
         {
@@ -9031,6 +10189,10 @@
           "named": true
         },
         {
+          "type": "endorse_expr",
+          "named": true
+        },
+        {
           "type": "false",
           "named": true
         },
@@ -9107,6 +10269,10 @@
           "named": true
         },
         {
+          "type": "release_expr",
+          "named": true
+        },
+        {
           "type": "self_ref",
           "named": true
         },
@@ -9116,6 +10282,10 @@
         },
         {
           "type": "slice",
+          "named": true
+        },
+        {
+          "type": "template_render",
           "named": true
         },
         {
@@ -9218,6 +10388,10 @@
           "named": true
         },
         {
+          "type": "endorse_expr",
+          "named": true
+        },
+        {
           "type": "false",
           "named": true
         },
@@ -9294,6 +10468,10 @@
           "named": true
         },
         {
+          "type": "release_expr",
+          "named": true
+        },
+        {
           "type": "self_ref",
           "named": true
         },
@@ -9303,6 +10481,10 @@
         },
         {
           "type": "slice",
+          "named": true
+        },
+        {
+          "type": "template_render",
           "named": true
         },
         {
@@ -9401,6 +10583,10 @@
           "named": true
         },
         {
+          "type": "endorse_expr",
+          "named": true
+        },
+        {
           "type": "false",
           "named": true
         },
@@ -9481,6 +10667,10 @@
           "named": true
         },
         {
+          "type": "release_expr",
+          "named": true
+        },
+        {
           "type": "self_ref",
           "named": true
         },
@@ -9490,6 +10680,10 @@
         },
         {
           "type": "slice",
+          "named": true
+        },
+        {
+          "type": "template_render",
           "named": true
         },
         {
@@ -9618,6 +10812,10 @@
           "named": true
         },
         {
+          "type": "endorse_expr",
+          "named": true
+        },
+        {
           "type": "false",
           "named": true
         },
@@ -9698,6 +10896,10 @@
           "named": true
         },
         {
+          "type": "release_expr",
+          "named": true
+        },
+        {
           "type": "self_ref",
           "named": true
         },
@@ -9707,6 +10909,10 @@
         },
         {
           "type": "slice",
+          "named": true
+        },
+        {
+          "type": "template_render",
           "named": true
         },
         {
@@ -9845,6 +11051,10 @@
           "named": true
         },
         {
+          "type": "endorse_expr",
+          "named": true
+        },
+        {
           "type": "false",
           "named": true
         },
@@ -9921,6 +11131,10 @@
           "named": true
         },
         {
+          "type": "release_expr",
+          "named": true
+        },
+        {
           "type": "self_ref",
           "named": true
         },
@@ -9930,6 +11144,10 @@
         },
         {
           "type": "slice",
+          "named": true
+        },
+        {
+          "type": "template_render",
           "named": true
         },
         {
@@ -10068,6 +11286,10 @@
           "named": true
         },
         {
+          "type": "endorse_expr",
+          "named": true
+        },
+        {
           "type": "false",
           "named": true
         },
@@ -10144,6 +11366,10 @@
           "named": true
         },
         {
+          "type": "release_expr",
+          "named": true
+        },
+        {
           "type": "self_ref",
           "named": true
         },
@@ -10153,6 +11379,10 @@
         },
         {
           "type": "slice",
+          "named": true
+        },
+        {
+          "type": "template_render",
           "named": true
         },
         {
@@ -10318,6 +11548,10 @@
           "named": true
         },
         {
+          "type": "endorse_expr",
+          "named": true
+        },
+        {
           "type": "false",
           "named": true
         },
@@ -10394,6 +11628,10 @@
           "named": true
         },
         {
+          "type": "release_expr",
+          "named": true
+        },
+        {
           "type": "self_ref",
           "named": true
         },
@@ -10403,6 +11641,10 @@
         },
         {
           "type": "slice",
+          "named": true
+        },
+        {
+          "type": "template_render",
           "named": true
         },
         {
@@ -10516,6 +11758,10 @@
           "named": true
         },
         {
+          "type": "endorse_expr",
+          "named": true
+        },
+        {
           "type": "false",
           "named": true
         },
@@ -10592,6 +11838,10 @@
           "named": true
         },
         {
+          "type": "release_expr",
+          "named": true
+        },
+        {
           "type": "self_ref",
           "named": true
         },
@@ -10601,6 +11851,10 @@
         },
         {
           "type": "slice",
+          "named": true
+        },
+        {
+          "type": "template_render",
           "named": true
         },
         {
@@ -10925,6 +12179,10 @@
           "named": true
         },
         {
+          "type": "endorse_expr",
+          "named": true
+        },
+        {
           "type": "false",
           "named": true
         },
@@ -11001,6 +12259,10 @@
           "named": true
         },
         {
+          "type": "release_expr",
+          "named": true
+        },
+        {
           "type": "self_ref",
           "named": true
         },
@@ -11010,6 +12272,10 @@
         },
         {
           "type": "slice",
+          "named": true
+        },
+        {
+          "type": "template_render",
           "named": true
         },
         {
@@ -11437,6 +12703,10 @@
           "named": true
         },
         {
+          "type": "endorse_expr",
+          "named": true
+        },
+        {
           "type": "false",
           "named": true
         },
@@ -11517,6 +12787,10 @@
           "named": true
         },
         {
+          "type": "release_expr",
+          "named": true
+        },
+        {
           "type": "self_ref",
           "named": true
         },
@@ -11526,6 +12800,10 @@
         },
         {
           "type": "slice",
+          "named": true
+        },
+        {
+          "type": "template_render",
           "named": true
         },
         {
@@ -11668,6 +12946,10 @@
           "named": true
         },
         {
+          "type": "endorse_expr",
+          "named": true
+        },
+        {
           "type": "false",
           "named": true
         },
@@ -11744,6 +13026,10 @@
           "named": true
         },
         {
+          "type": "release_expr",
+          "named": true
+        },
+        {
           "type": "self_ref",
           "named": true
         },
@@ -11753,6 +13039,10 @@
         },
         {
           "type": "slice",
+          "named": true
+        },
+        {
+          "type": "template_render",
           "named": true
         },
         {
@@ -11883,6 +13173,10 @@
           "named": true
         },
         {
+          "type": "label_set",
+          "named": true
+        },
+        {
           "type": "lvar_type",
           "named": true
         },
@@ -11926,12 +13220,12 @@
     }
   },
   {
-    "type": "return_stmt",
+    "type": "release_expr",
     "named": true,
     "fields": {},
     "children": {
       "multiple": false,
-      "required": false,
+      "required": true,
       "types": [
         {
           "type": "FLOAT",
@@ -11995,6 +13289,10 @@
         },
         {
           "type": "comptime_expr",
+          "named": true
+        },
+        {
+          "type": "endorse_expr",
           "named": true
         },
         {
@@ -12074,6 +13372,10 @@
           "named": true
         },
         {
+          "type": "release_expr",
+          "named": true
+        },
+        {
           "type": "self_ref",
           "named": true
         },
@@ -12083,6 +13385,205 @@
         },
         {
           "type": "slice",
+          "named": true
+        },
+        {
+          "type": "template_render",
+          "named": true
+        },
+        {
+          "type": "true",
+          "named": true
+        },
+        {
+          "type": "try_expr",
+          "named": true
+        },
+        {
+          "type": "tuple",
+          "named": true
+        },
+        {
+          "type": "tuple_member",
+          "named": true
+        },
+        {
+          "type": "unit",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "return_stmt",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": false,
+      "required": false,
+      "types": [
+        {
+          "type": "FLOAT",
+          "named": true
+        },
+        {
+          "type": "INT",
+          "named": true
+        },
+        {
+          "type": "STRING",
+          "named": true
+        },
+        {
+          "type": "add_expr",
+          "named": true
+        },
+        {
+          "type": "and_expr",
+          "named": true
+        },
+        {
+          "type": "band_expr",
+          "named": true
+        },
+        {
+          "type": "bitnot",
+          "named": true
+        },
+        {
+          "type": "bor_expr",
+          "named": true
+        },
+        {
+          "type": "borrow",
+          "named": true
+        },
+        {
+          "type": "bxor_expr",
+          "named": true
+        },
+        {
+          "type": "call",
+          "named": true
+        },
+        {
+          "type": "cast_expr",
+          "named": true
+        },
+        {
+          "type": "catch_expr",
+          "named": true
+        },
+        {
+          "type": "chan_new",
+          "named": true
+        },
+        {
+          "type": "cmp_expr",
+          "named": true
+        },
+        {
+          "type": "comptime_expr",
+          "named": true
+        },
+        {
+          "type": "endorse_expr",
+          "named": true
+        },
+        {
+          "type": "false",
+          "named": true
+        },
+        {
+          "type": "if_expr",
+          "named": true
+        },
+        {
+          "type": "index",
+          "named": true
+        },
+        {
+          "type": "lambda",
+          "named": true
+        },
+        {
+          "type": "list",
+          "named": true
+        },
+        {
+          "type": "list_comp",
+          "named": true
+        },
+        {
+          "type": "list_empty",
+          "named": true
+        },
+        {
+          "type": "list_repeat",
+          "named": true
+        },
+        {
+          "type": "map",
+          "named": true
+        },
+        {
+          "type": "map_empty",
+          "named": true
+        },
+        {
+          "type": "member",
+          "named": true
+        },
+        {
+          "type": "mul_expr",
+          "named": true
+        },
+        {
+          "type": "name",
+          "named": true
+        },
+        {
+          "type": "neg",
+          "named": true
+        },
+        {
+          "type": "none",
+          "named": true
+        },
+        {
+          "type": "not_op",
+          "named": true
+        },
+        {
+          "type": "or_expr",
+          "named": true
+        },
+        {
+          "type": "range_expr",
+          "named": true
+        },
+        {
+          "type": "recv",
+          "named": true
+        },
+        {
+          "type": "release_expr",
+          "named": true
+        },
+        {
+          "type": "self_ref",
+          "named": true
+        },
+        {
+          "type": "shift_expr",
+          "named": true
+        },
+        {
+          "type": "slice",
+          "named": true
+        },
+        {
+          "type": "template_render",
           "named": true
         },
         {
@@ -12212,6 +13713,10 @@
           "named": true
         },
         {
+          "type": "endorse_expr",
+          "named": true
+        },
+        {
           "type": "fail_stmt",
           "named": true
         },
@@ -12296,6 +13801,10 @@
           "named": true
         },
         {
+          "type": "release_expr",
+          "named": true
+        },
+        {
           "type": "return_stmt",
           "named": true
         },
@@ -12313,6 +13822,10 @@
         },
         {
           "type": "slice",
+          "named": true
+        },
+        {
+          "type": "template_render",
           "named": true
         },
         {
@@ -12486,6 +13999,10 @@
           "named": true
         },
         {
+          "type": "endorse_expr",
+          "named": true
+        },
+        {
           "type": "fail_stmt",
           "named": true
         },
@@ -12594,6 +14111,10 @@
           "named": true
         },
         {
+          "type": "release_expr",
+          "named": true
+        },
+        {
           "type": "return_stmt",
           "named": true
         },
@@ -12611,6 +14132,10 @@
         },
         {
           "type": "slice",
+          "named": true
+        },
+        {
+          "type": "template_render",
           "named": true
         },
         {
@@ -12741,6 +14266,10 @@
           "named": true
         },
         {
+          "type": "endorse_expr",
+          "named": true
+        },
+        {
           "type": "fail_stmt",
           "named": true
         },
@@ -12825,6 +14354,10 @@
           "named": true
         },
         {
+          "type": "release_expr",
+          "named": true
+        },
+        {
           "type": "return_stmt",
           "named": true
         },
@@ -12842,6 +14375,10 @@
         },
         {
           "type": "slice",
+          "named": true
+        },
+        {
+          "type": "template_render",
           "named": true
         },
         {
@@ -13000,6 +14537,10 @@
           "named": true
         },
         {
+          "type": "endorse_expr",
+          "named": true
+        },
+        {
           "type": "false",
           "named": true
         },
@@ -13076,6 +14617,10 @@
           "named": true
         },
         {
+          "type": "release_expr",
+          "named": true
+        },
+        {
           "type": "self_ref",
           "named": true
         },
@@ -13089,6 +14634,10 @@
         },
         {
           "type": "slice",
+          "named": true
+        },
+        {
+          "type": "template_render",
           "named": true
         },
         {
@@ -13200,6 +14749,10 @@
           "named": true
         },
         {
+          "type": "endorse_expr",
+          "named": true
+        },
+        {
           "type": "false",
           "named": true
         },
@@ -13276,6 +14829,10 @@
           "named": true
         },
         {
+          "type": "release_expr",
+          "named": true
+        },
+        {
           "type": "self_ref",
           "named": true
         },
@@ -13285,6 +14842,10 @@
         },
         {
           "type": "slice",
+          "named": true
+        },
+        {
+          "type": "template_render",
           "named": true
         },
         {
@@ -13383,6 +14944,10 @@
           "named": true
         },
         {
+          "type": "endorse_expr",
+          "named": true
+        },
+        {
           "type": "false",
           "named": true
         },
@@ -13459,6 +15024,10 @@
           "named": true
         },
         {
+          "type": "release_expr",
+          "named": true
+        },
+        {
           "type": "self_ref",
           "named": true
         },
@@ -13476,6 +15045,10 @@
         },
         {
           "type": "slice_lo",
+          "named": true
+        },
+        {
+          "type": "template_render",
           "named": true
         },
         {
@@ -13574,6 +15147,10 @@
           "named": true
         },
         {
+          "type": "endorse_expr",
+          "named": true
+        },
+        {
           "type": "false",
           "named": true
         },
@@ -13650,6 +15227,10 @@
           "named": true
         },
         {
+          "type": "release_expr",
+          "named": true
+        },
+        {
           "type": "self_ref",
           "named": true
         },
@@ -13659,6 +15240,10 @@
         },
         {
           "type": "slice",
+          "named": true
+        },
+        {
+          "type": "template_render",
           "named": true
         },
         {
@@ -13757,6 +15342,10 @@
           "named": true
         },
         {
+          "type": "endorse_expr",
+          "named": true
+        },
+        {
           "type": "false",
           "named": true
         },
@@ -13833,6 +15422,10 @@
           "named": true
         },
         {
+          "type": "release_expr",
+          "named": true
+        },
+        {
           "type": "self_ref",
           "named": true
         },
@@ -13842,6 +15435,10 @@
         },
         {
           "type": "slice",
+          "named": true
+        },
+        {
+          "type": "template_render",
           "named": true
         },
         {
@@ -14007,6 +15604,10 @@
           "named": true
         },
         {
+          "type": "endorse_expr",
+          "named": true
+        },
+        {
           "type": "false",
           "named": true
         },
@@ -14091,6 +15692,10 @@
           "named": true
         },
         {
+          "type": "release_expr",
+          "named": true
+        },
+        {
           "type": "self_ref",
           "named": true
         },
@@ -14100,6 +15705,10 @@
         },
         {
           "type": "slice",
+          "named": true
+        },
+        {
+          "type": "template_render",
           "named": true
         },
         {
@@ -14160,6 +15769,10 @@
         },
         {
           "type": "intent_decl",
+          "named": true
+        },
+        {
+          "type": "label_decl",
           "named": true
         },
         {
@@ -14289,6 +15902,10 @@
           "named": true
         },
         {
+          "type": "endorse_expr",
+          "named": true
+        },
+        {
           "type": "false",
           "named": true
         },
@@ -14365,6 +15982,10 @@
           "named": true
         },
         {
+          "type": "release_expr",
+          "named": true
+        },
+        {
           "type": "self_ref",
           "named": true
         },
@@ -14374,6 +15995,10 @@
         },
         {
           "type": "slice",
+          "named": true
+        },
+        {
+          "type": "template_render",
           "named": true
         },
         {
@@ -14492,6 +16117,10 @@
           "named": true
         },
         {
+          "type": "endorse_expr",
+          "named": true
+        },
+        {
           "type": "false",
           "named": true
         },
@@ -14592,6 +16221,10 @@
           "named": true
         },
         {
+          "type": "release_expr",
+          "named": true
+        },
+        {
           "type": "self_ref",
           "named": true
         },
@@ -14605,6 +16238,10 @@
         },
         {
           "type": "step_arrow",
+          "named": true
+        },
+        {
+          "type": "template_render",
           "named": true
         },
         {
@@ -14706,6 +16343,205 @@
         },
         {
           "type": "sup_child",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "template_render",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "FLOAT",
+          "named": true
+        },
+        {
+          "type": "INT",
+          "named": true
+        },
+        {
+          "type": "STRING",
+          "named": true
+        },
+        {
+          "type": "TEMPLATE",
+          "named": true
+        },
+        {
+          "type": "add_expr",
+          "named": true
+        },
+        {
+          "type": "and_expr",
+          "named": true
+        },
+        {
+          "type": "band_expr",
+          "named": true
+        },
+        {
+          "type": "bitnot",
+          "named": true
+        },
+        {
+          "type": "bor_expr",
+          "named": true
+        },
+        {
+          "type": "borrow",
+          "named": true
+        },
+        {
+          "type": "bxor_expr",
+          "named": true
+        },
+        {
+          "type": "call",
+          "named": true
+        },
+        {
+          "type": "cast_expr",
+          "named": true
+        },
+        {
+          "type": "catch_expr",
+          "named": true
+        },
+        {
+          "type": "chan_new",
+          "named": true
+        },
+        {
+          "type": "cmp_expr",
+          "named": true
+        },
+        {
+          "type": "comptime_expr",
+          "named": true
+        },
+        {
+          "type": "endorse_expr",
+          "named": true
+        },
+        {
+          "type": "false",
+          "named": true
+        },
+        {
+          "type": "if_expr",
+          "named": true
+        },
+        {
+          "type": "index",
+          "named": true
+        },
+        {
+          "type": "lambda",
+          "named": true
+        },
+        {
+          "type": "list",
+          "named": true
+        },
+        {
+          "type": "list_comp",
+          "named": true
+        },
+        {
+          "type": "list_empty",
+          "named": true
+        },
+        {
+          "type": "list_repeat",
+          "named": true
+        },
+        {
+          "type": "map",
+          "named": true
+        },
+        {
+          "type": "map_empty",
+          "named": true
+        },
+        {
+          "type": "member",
+          "named": true
+        },
+        {
+          "type": "mul_expr",
+          "named": true
+        },
+        {
+          "type": "name",
+          "named": true
+        },
+        {
+          "type": "neg",
+          "named": true
+        },
+        {
+          "type": "none",
+          "named": true
+        },
+        {
+          "type": "not_op",
+          "named": true
+        },
+        {
+          "type": "or_expr",
+          "named": true
+        },
+        {
+          "type": "range_expr",
+          "named": true
+        },
+        {
+          "type": "recv",
+          "named": true
+        },
+        {
+          "type": "release_expr",
+          "named": true
+        },
+        {
+          "type": "self_ref",
+          "named": true
+        },
+        {
+          "type": "shift_expr",
+          "named": true
+        },
+        {
+          "type": "slice",
+          "named": true
+        },
+        {
+          "type": "template_render",
+          "named": true
+        },
+        {
+          "type": "true",
+          "named": true
+        },
+        {
+          "type": "try_expr",
+          "named": true
+        },
+        {
+          "type": "tuple",
+          "named": true
+        },
+        {
+          "type": "tuple_member",
+          "named": true
+        },
+        {
+          "type": "unit",
           "named": true
         }
       ]
@@ -14825,6 +16661,10 @@
           "named": true
         },
         {
+          "type": "endorse_expr",
+          "named": true
+        },
+        {
           "type": "false",
           "named": true
         },
@@ -14901,6 +16741,10 @@
           "named": true
         },
         {
+          "type": "release_expr",
+          "named": true
+        },
+        {
           "type": "self_ref",
           "named": true
         },
@@ -14910,6 +16754,10 @@
         },
         {
           "type": "slice",
+          "named": true
+        },
+        {
+          "type": "template_render",
           "named": true
         },
         {
@@ -15008,6 +16856,10 @@
           "named": true
         },
         {
+          "type": "endorse_expr",
+          "named": true
+        },
+        {
           "type": "false",
           "named": true
         },
@@ -15084,6 +16936,10 @@
           "named": true
         },
         {
+          "type": "release_expr",
+          "named": true
+        },
+        {
           "type": "self_ref",
           "named": true
         },
@@ -15093,6 +16949,10 @@
         },
         {
           "type": "slice",
+          "named": true
+        },
+        {
+          "type": "template_render",
           "named": true
         },
         {
@@ -15191,6 +17051,10 @@
           "named": true
         },
         {
+          "type": "endorse_expr",
+          "named": true
+        },
+        {
           "type": "false",
           "named": true
         },
@@ -15267,6 +17131,10 @@
           "named": true
         },
         {
+          "type": "release_expr",
+          "named": true
+        },
+        {
           "type": "self_ref",
           "named": true
         },
@@ -15276,6 +17144,10 @@
         },
         {
           "type": "slice",
+          "named": true
+        },
+        {
+          "type": "template_render",
           "named": true
         },
         {
@@ -15508,6 +17380,10 @@
           "named": true
         },
         {
+          "type": "endorse_expr",
+          "named": true
+        },
+        {
           "type": "false",
           "named": true
         },
@@ -15612,6 +17488,10 @@
           "named": true
         },
         {
+          "type": "release_expr",
+          "named": true
+        },
+        {
           "type": "self_ref",
           "named": true
         },
@@ -15629,6 +17509,10 @@
         },
         {
           "type": "slice_type",
+          "named": true
+        },
+        {
+          "type": "template_render",
           "named": true
         },
         {
@@ -15937,6 +17821,10 @@
           "named": true
         },
         {
+          "type": "endorse_expr",
+          "named": true
+        },
+        {
           "type": "false",
           "named": true
         },
@@ -16037,6 +17925,10 @@
           "named": true
         },
         {
+          "type": "release_expr",
+          "named": true
+        },
+        {
           "type": "self_ref",
           "named": true
         },
@@ -16054,6 +17946,10 @@
         },
         {
           "type": "slice_type",
+          "named": true
+        },
+        {
+          "type": "template_render",
           "named": true
         },
         {
@@ -16195,6 +18091,10 @@
           "named": true
         },
         {
+          "type": "endorse_expr",
+          "named": true
+        },
+        {
           "type": "false",
           "named": true
         },
@@ -16271,6 +18171,10 @@
           "named": true
         },
         {
+          "type": "release_expr",
+          "named": true
+        },
+        {
           "type": "self_ref",
           "named": true
         },
@@ -16280,6 +18184,10 @@
         },
         {
           "type": "slice",
+          "named": true
+        },
+        {
+          "type": "template_render",
           "named": true
         },
         {
@@ -16378,6 +18286,10 @@
           "named": true
         },
         {
+          "type": "endorse_expr",
+          "named": true
+        },
+        {
           "type": "false",
           "named": true
         },
@@ -16454,6 +18366,10 @@
           "named": true
         },
         {
+          "type": "release_expr",
+          "named": true
+        },
+        {
           "type": "self_ref",
           "named": true
         },
@@ -16463,6 +18379,10 @@
         },
         {
           "type": "slice",
+          "named": true
+        },
+        {
+          "type": "template_render",
           "named": true
         },
         {
@@ -16637,7 +18557,15 @@
     "named": true
   },
   {
+    "type": "CT",
+    "named": true
+  },
+  {
     "type": "FLOAT",
+    "named": true
+  },
+  {
+    "type": "GHOST",
     "named": true
   },
   {
@@ -16682,6 +18610,10 @@
   },
   {
     "type": "STRING",
+    "named": true
+  },
+  {
+    "type": "TEMPLATE",
     "named": true
   },
   {
@@ -16745,6 +18677,10 @@
     "named": false
   },
   {
+    "type": "by",
+    "named": false
+  },
+  {
     "type": "catch",
     "named": false
   },
@@ -16786,6 +18722,10 @@
     "named": false
   },
   {
+    "type": "decreases",
+    "named": false
+  },
+  {
     "type": "default",
     "named": false
   },
@@ -16803,6 +18743,14 @@
   },
   {
     "type": "emit",
+    "named": false
+  },
+  {
+    "type": "endorse",
+    "named": false
+  },
+  {
+    "type": "ensures",
     "named": false
   },
   {
@@ -16846,6 +18794,10 @@
     "named": false
   },
   {
+    "type": "ghost",
+    "named": false
+  },
+  {
     "type": "group",
     "named": false
   },
@@ -16875,6 +18827,10 @@
   },
   {
     "type": "kind",
+    "named": false
+  },
+  {
+    "type": "label",
     "named": false
   },
   {
@@ -16966,7 +18922,15 @@
     "named": false
   },
   {
+    "type": "release",
+    "named": false
+  },
+  {
     "type": "replicated",
+    "named": false
+  },
+  {
+    "type": "requires",
     "named": false
   },
   {
