@@ -1,6 +1,6 @@
 # rce-ide: the RCE IDE agent layer (steps 1 to 3)
 
-Rust only, toolchain 1.98.1. No model and no network in any crate here.
+Rust only, toolchain 1.98.1. The checker, language server and receipt and energy crates make no model call and no network call. Three crates can: `mei-agent` has HTTP clients for System-One and OpenAI-compatible chat endpoints, `rce-mcp` has a loopback HTTP transport, and `ide-sandbox` has a network proxy behind permission prompts. `acp-client` runs outside coding agents under a jail. Whether any model is called depends on what the user configures, and every proposal still goes through `rce check` before it is accepted.
 
 ## At a glance
 
@@ -40,6 +40,7 @@ are built from the private RCE engine (host runtime, `rce db`, `--media`,
 whose source is public in [openIE-dev/rce-stdlib](https://github.com/openIE-dev/rce-stdlib).
 The source in this repository, including `vendor/rce-spec`, is the 0.1.2
 snapshot and is not what the 0.1.3+ binaries are built from.
+`vendor/rce-spec` is pinned to `openIE-dev/rce` commit `f7ecf02` (recorded in `vendor/rce-spec/SOURCE`) and has not been regenerated from public `rce` main, so it is behind the current specification draft; read the specification in `openIE-dev/rce` for the current text.
 
 ## Install (prebuilt binaries)
 
