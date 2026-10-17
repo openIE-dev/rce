@@ -40,7 +40,7 @@ are built from the private RCE engine (host runtime, `rce db`, `--media`,
 whose source is public in [openIE-dev/rce-stdlib](https://github.com/openIE-dev/rce-stdlib).
 The source in this repository, including `vendor/rce-spec`, is the 0.1.2
 snapshot and is not what the 0.1.3+ binaries are built from.
-`vendor/rce-spec` is pinned to `openIE-dev/rce` commit `f7ecf02` (recorded in `vendor/rce-spec/SOURCE`) and has not been regenerated from public `rce` main, so it is behind the current specification draft; read the specification in `openIE-dev/rce` for the current text.
+`vendor/rce-spec` is pinned to `openIE-dev/rce` commit `f7ecf02` (recorded in `vendor/rce-spec/SOURCE`) and has not been regenerated from public `rce` main, so it is behind the current specification draft; read the specification in `openIE-dev/rce` for the current text. It was not refreshed on 17 October 2026: the current public checker compiles here after adding `vendor/rcedb`, but its test suite reads `apps/`, `lib/` and other directories of the full `rce` repository, so a refreshed vendor copy fails this repository's `cargo test --workspace` unless those directories are vendored too.
 
 ## Install (prebuilt binaries)
 
