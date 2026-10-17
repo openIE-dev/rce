@@ -201,7 +201,7 @@ file: on 2026-10-14, on the Apple M5 Max below, with Scala 3.10.0 run by
 scala-cli 1.18.0 on OpenJDK 27, all 55 programs of the current corpus
 (with the package files of example 26) agree with the reference, 0
 refused, 361 observation lines, and the edge program agrees on all four
-targets. Its oracle is `RCE_SCALA` (default `scala-cli`).
+targets. Its oracle is `RCE_SCALA` (default `scala-cli`). That agreement is for this examples corpus only. On the larger `rce-conformance` suite the Scala emitter passes 52 of 1,845 results (its README gives 1,189 failures and 604 unsupported), so the Scala target does not yet agree with the reference on that suite.
 When `rustc`, `python3` or `node` is missing,
 its test prints `SKIPPED` and the reason; a skipped target is never
 counted as a pass. The oracles used were Python 3.13.5 and Node 20.19.2.
@@ -497,4 +497,4 @@ give equal output bytes.
 
 **Read receipt.** Which JSON-RPC error code does the language server return for a request it does not know? (a number)
 
-<!-- body-sha256: 6a7d92983921bdecb6756261dca555940188ca00ad53bbeb987279c32ef0283b -->
+<!-- body-sha256: 8788bdc65ab982bcce09aab56bed504fcbee2ef245f727cf86837b09db2a3fc3 -->
