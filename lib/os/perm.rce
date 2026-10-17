@@ -96,7 +96,7 @@ fn octal_run(cs: &[text], i: usize) -> i64
         k += 1
     return v
 
-fn is_oct(c: &text) -> bool = c.len() == 1 and c[0] as i64 >= 48 and c[0] as i64 <= 55
+fn is_oct(c: &text) -> bool = c.len_bytes() == 1 and c[0] as i64 >= 48 and c[0] as i64 <= 55
 
 # The mode string compiled as gnulib's mode_compile does: an octal mode,
 # or [ugoa]*([-+=]([rwxXst]*|[ugo]|[0-7]+))+ clauses joined by ",".
@@ -270,7 +270,7 @@ fn digits(cs: &[text], lo: usize, hi: usize) -> i64
     var i = lo
     while i < hi bound 16
         let x = cs[i][0] as i64
-        if cs[i].len() != 1 or x < 48 or x > 57
+        if cs[i].len_bytes() != 1 or x < 48 or x > 57
             return -1
         v = v * 10 + (x - 48)
         i += 1
@@ -290,7 +290,7 @@ fn hexval(cs: &[text], lo: usize, hi: usize) -> i64
             d = x - 55
         elif x >= 97 and x <= 102
             d = x - 87
-        if cs[i].len() != 1 or d < 0
+        if cs[i].len_bytes() != 1 or d < 0
             return -1
         v = v * 16 + d
         i += 1

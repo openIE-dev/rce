@@ -389,7 +389,7 @@ pub fn shlex_split(s: &text) -> List[text] ! BadProc
     return out
 
 fn safe_char(c: &text) -> bool
-    if c.len() != 1
+    if c.len_bytes() != 1
         return false
     let v = c[0] as i64
     return (v >= 48 and v <= 57) or (v >= 65 and v <= 90) or (v >= 97 and v <= 122) or "@%_-+=:,./".contains(c)

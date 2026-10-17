@@ -57,7 +57,7 @@ pub fn dq_pop_front[T](d: &mut Deque[T]) -> T?
     if d.front.len() == 0
         return none
     let x = copy(d.front[d.front.len() - 1])
-    d.front.pop()
+    let _ = d.front.pop()
     return some(x)
 
 pub fn dq_pop_back[T](d: &mut Deque[T]) -> T?
@@ -66,7 +66,7 @@ pub fn dq_pop_back[T](d: &mut Deque[T]) -> T?
     if d.back.len() == 0
         return none
     let x = copy(d.back[d.back.len() - 1])
-    d.back.pop()
+    let _ = d.back.pop()
     return some(x)
 
 # Element i from the front (0-based); traps when out of range.
@@ -109,7 +109,7 @@ pub fn heap_pop[T: Ord](h: &mut List[T]) -> T?
         return none
     let top = copy(h[0])
     let last = copy(h[h.len() - 1])
-    h.pop()
+    let _ = h.pop()
     let n = h.len()
     if n == 0
         return some(top)
@@ -167,7 +167,7 @@ fn remove_at[T](xs: &mut List[T], i: usize)
     while j + 1 < xs.len() bound 16777216
         xs[j] = copy(xs[j + 1])
         j += 1
-    xs.pop()
+    let _ = xs.pop()
 
 pub fn om_len[K, V](m: &OrdMap[K, V]) -> usize = m.keys.len()
 
@@ -270,7 +270,7 @@ pub fn set_inter[K: Ord + Eq](a: &[K], b: &[K]) -> List[K]
 pub fn fnv1a32(s: &text) -> i64
     var h: i64 = 2166136261
     var i: usize = 0
-    while i < s.len() bound 16777216
+    while i < s.len_bytes() bound 16777216
         h = ((h ^ (s[i] as i64)) * 16777619) & 4294967295
         i += 1
     return h
@@ -282,7 +282,7 @@ pub struct HMap[V]
 
 fn hm_rebuild[V](m: &mut HMap[V], cap: usize)
     var sl: List[i64] = []
-    for i in 0..cap
+    for _i in 0..cap
         sl.push(0)
     var e: usize = 0
     while e < m.keys.len() bound 16777216

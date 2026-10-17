@@ -102,7 +102,7 @@ pub fn floor_to(t: i64, unit: i64) -> i64 = fdiv(t, unit) * unit
 
 fn pad(v: i64, w: i64) -> text
     var s = v.tostr()
-    while (s.len() as i64) < w bound 20
+    while (s.len_bytes() as i64) < w bound 20
         s = "0" + s
     return s
 
@@ -136,7 +136,7 @@ pub fn format_rfc3339(t: i64, offset_min: i64, frac: i64) -> text
 error BadTime(at: i64)
 
 fn digits(s: &text, at: usize, n: usize) -> i64 ! BadTime
-    if at + n > s.len()
+    if at + n > s.len_bytes()
         fail BadTime(at: at as i64)
     var v: i64 = 0
     for k in 0..n
@@ -147,7 +147,7 @@ fn digits(s: &text, at: usize, n: usize) -> i64 ! BadTime
     return v
 
 fn expect(s: &text, at: usize, c: i64) -> bool ! BadTime
-    if at >= s.len() or (s[at] as i64) != c
+    if at >= s.len_bytes() or (s[at] as i64) != c
         fail BadTime(at: at as i64)
     return true
 
@@ -156,27 +156,27 @@ fn expect(s: &text, at: usize, c: i64) -> bool ! BadTime
 # (leap second) is refused because instants are POSIX time.
 pub fn parse_rfc3339(s: &text) -> i64 ! BadTime
     let y = try digits(s, 0, 4)
-    try expect(s, 4, 45)
+    let _ = try expect(s, 4, 45)
     let mo = try digits(s, 5, 2)
-    try expect(s, 7, 45)
+    let _ = try expect(s, 7, 45)
     let d = try digits(s, 8, 2)
     if not valid_civil(y, mo, d)
         fail BadTime(at: 5)
-    if s.len() < 11 or ((s[10] as i64) != 84 and (s[10] as i64) != 116)
+    if s.len_bytes() < 11 or ((s[10] as i64) != 84 and (s[10] as i64) != 116)
         fail BadTime(at: 10)
     let h = try digits(s, 11, 2)
-    try expect(s, 13, 58)
+    let _ = try expect(s, 13, 58)
     let mi = try digits(s, 14, 2)
-    try expect(s, 16, 58)
+    let _ = try expect(s, 16, 58)
     let sec = try digits(s, 17, 2)
     if h > 23 or mi > 59 or sec > 59
         fail BadTime(at: 11)
     var i: usize = 19
     var ns: i64 = 0
-    if i < s.len() and (s[i] as i64) == 46
+    if i < s.len_bytes() and (s[i] as i64) == 46
         i += 1
         var k: i64 = 0
-        while i < s.len() and (s[i] as i64) >= 48 and (s[i] as i64) <= 57 bound 32
+        while i < s.len_bytes() and (s[i] as i64) >= 48 and (s[i] as i64) <= 57 bound 32
             if k >= 9
                 fail BadTime(at: i as i64)
             ns = ns * 10 + (s[i] as i64) - 48
@@ -187,7 +187,7 @@ pub fn parse_rfc3339(s: &text) -> i64 ! BadTime
         while k < 9 bound 9
             ns = ns * 10
             k += 1
-    if i >= s.len()
+    if i >= s.len_bytes()
         fail BadTime(at: i as i64)
     let z = s[i] as i64
     var off: i64 = 0
@@ -195,7 +195,7 @@ pub fn parse_rfc3339(s: &text) -> i64 ! BadTime
         i += 1
     elif z == 43 or z == 45
         let oh = try digits(s, i + 1, 2)
-        try expect(s, i + 3, 58)
+        let _ = try expect(s, i + 3, 58)
         let om = try digits(s, i + 4, 2)
         if oh > 23 or om > 59
             fail BadTime(at: i as i64)
@@ -205,6 +205,6 @@ pub fn parse_rfc3339(s: &text) -> i64 ! BadTime
         i += 6
     else
         fail BadTime(at: i as i64)
-    if i != s.len()
+    if i != s.len_bytes()
         fail BadTime(at: i as i64)
     return instant_of(y, mo, d, h, mi, sec, ns) - off * MINUTE

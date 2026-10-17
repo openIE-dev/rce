@@ -40,7 +40,7 @@ fn ws(c: &text) -> bool = c == " " or c == "\t" or c == "\n" or c == "\r"
 fn cspace(c: &text) -> bool = ws(c) or c == "\u{b}" or c == "\u{c}"
 
 fn digit_val(c: &text) -> i64
-    if c.len() != 1
+    if c.len_bytes() != 1
         return 99
     let b = c[0] as i64
     if b >= 48 and b <= 57

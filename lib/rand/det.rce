@@ -119,7 +119,7 @@ fn make(seed: &[i64], stream: i64) -> Rng ! BadSeed
 
 # A generator from fresh entropy: 32 logged Random bytes, admitted only
 # with the capability that came with them.
-pub fn from_entropy(c: Cap[Entropy], seed: &[i64], stream: i64) -> Rng ! BadSeed = make(seed, stream)
+pub fn from_entropy(_c: Cap[Entropy], seed: &[i64], stream: i64) -> Rng ! BadSeed = make(seed, stream)
 
 # A generator from a seed already in the program or its log.
 pub fn from_seed(seed: &[i64], stream: i64) -> Rng ! BadSeed = make(seed, stream)

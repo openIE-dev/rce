@@ -239,7 +239,7 @@ pub fn write(fs: &mut Fs, h: i64, s: &text) -> bool ! FsErr
     return true
 
 pub fn seek(fs: &mut Fs, h: i64, pos: i64) -> bool ! FsErr
-    let d = try desc(fs, h)
+    let _d = try desc(fs, h)
     if pos < 0
         fail bad("invalid")
     fs.descs[h as usize].pos = pos
@@ -259,7 +259,7 @@ pub fn truncate(fs: &mut Fs, h: i64, len: i64) -> bool ! FsErr
     return true
 
 pub fn close(fs: &mut Fs, h: i64) -> bool ! FsErr
-    let d = try desc(fs, h)
+    let _d = try desc(fs, h)
     fs.descs[h as usize].live = false
     return true
 
@@ -390,7 +390,7 @@ fn num(s: &text) -> i64
 fn op1(fs: &mut Fs, a: &List[text]) -> text ! FsErr
     let k = copy(a[0])
     if k == "mkdir"
-        try mkdir_at(fs, &a[1])
+        let _ = try mkdir_at(fs, &a[1])
         return "ok"
     if k == "open"
         let h = try open_at(fs, &a[1], &a[2])
@@ -399,25 +399,25 @@ fn op1(fs: &mut Fs, a: &List[text]) -> text ! FsErr
         let s = try read(fs, num(&a[1]), num(&a[2]))
         return "=" + s
     if k == "write"
-        try write(fs, num(&a[1]), &a[2])
+        let _ = try write(fs, num(&a[1]), &a[2])
         return "ok"
     if k == "seek"
-        try seek(fs, num(&a[1]), num(&a[2]))
+        let _ = try seek(fs, num(&a[1]), num(&a[2]))
         return "ok"
     if k == "trunc"
-        try truncate(fs, num(&a[1]), num(&a[2]))
+        let _ = try truncate(fs, num(&a[1]), num(&a[2]))
         return "ok"
     if k == "close"
-        try close(fs, num(&a[1]))
+        let _ = try close(fs, num(&a[1]))
         return "ok"
     if k == "unlink"
-        try unlink_at(fs, &a[1])
+        let _ = try unlink_at(fs, &a[1])
         return "ok"
     if k == "rmdir"
-        try rmdir_at(fs, &a[1])
+        let _ = try rmdir_at(fs, &a[1])
         return "ok"
     if k == "rename"
-        try rename_at(fs, &a[1], &a[2])
+        let _ = try rename_at(fs, &a[1], &a[2])
         return "ok"
     if k == "stat"
         return try stat_at(fs, &a[1])

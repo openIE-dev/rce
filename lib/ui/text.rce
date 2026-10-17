@@ -764,8 +764,8 @@ pub fn bidi_levels(types: &[i64], cs: &[i64], dir: i64) -> Bidi
             elif valid_iso > 0
                 over_emb = 0
                 while not st[st.len() - 1].iso
-                    st.pop()
-                st.pop()
+                    let _ = st.pop()
+                let _ = st.pop()
                 valid_iso -= 1
             let t2 = copy(st[st.len() - 1])
             lv.push(t2.level)
@@ -777,7 +777,7 @@ pub fn bidi_levels(types: &[i64], cs: &[i64], dir: i64) -> Bidi
             elif over_emb > 0
                 over_emb -= 1
             elif not top.iso and st.len() >= 2
-                st.pop()
+                let _ = st.pop()
             lv.push(top.level)
         elif k == B_B
             lv.push(para)
@@ -811,7 +811,7 @@ pub fn bidi_levels(types: &[i64], cs: &[i64], dir: i64) -> Bidi
         re.push(q as i64 + 1)
         q += 1
     var used: List[bool] = []
-    for x in rs
+    for _x in rs
         used.push(false)
     var r: usize = 0
     while r < rs.len()
@@ -1035,8 +1035,8 @@ fn n0(ty: &mut List[i64], orig: &[i64], cs: &[i64], seq: &[i64], sos: i64, e_dir
                         po.push(copy(sc[d as usize]))
                         pc.push(k as i64)
                         while so.len() as i64 > d
-                            so.pop()
-                            sc.pop()
+                            let _ = so.pop()
+                            let _ = sc.pop()
                         break
                     d -= 1
         k += 1

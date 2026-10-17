@@ -25,7 +25,7 @@ pub fn netstring(payload: &List[u8]) -> List[u8]
     let h = payload.len().tostr() + ":"
     var o: List[u8] = []
     var i: usize = 0
-    while i < h.len() bound 32
+    while i < h.len_bytes() bound 32
         o.push(h[i])
         i += 1
     for b in payload
@@ -234,7 +234,7 @@ pub fn win_pipe_name(path: &text) -> text
         i += 1
     if i == 2 or i >= cs.len()
         return ""
-    let rest = cs.len() - i - 1
+    let _rest = cs.len() - i - 1
     var head = ""
     var j = i + 1
     while j < cs.len() and j < i + 6 bound 8

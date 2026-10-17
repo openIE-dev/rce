@@ -125,7 +125,7 @@ pub fn truthy(v: &V) -> bool
         Nm(n: n) -> return n != 0
         NaN -> return false
         St(s: s) -> return s != ""
-        Rf(r: r) -> return true
+        Rf(r: _r) -> return true
 
 fn e_digits(t: &text) -> bool
     if t == ""
@@ -147,7 +147,7 @@ pub fn str_num(s: &text) -> V
         body = ""
         for i in 1..cs.len()
             body = body + cs[i]
-    if e_digits(&body) and body.len() <= 18
+    if e_digits(&body) and body.len_bytes() <= 18
         let n = body.toint()
         return Nm(n: if neg then 0 - n else n)
     return NaN
@@ -199,10 +199,10 @@ pub fn type_of(js: &Js, v: &V) -> text
     match v
         Und -> return "undefined"
         Nul -> return "object"
-        Bo(b: b) -> return "boolean"
-        Nm(n: n) -> return "number"
+        Bo(b: _b) -> return "boolean"
+        Nm(n: _n) -> return "number"
         NaN -> return "number"
-        St(s: s) -> return "string"
+        St(s: _s) -> return "string"
         Rf(r: r) -> return if js.cls[r as usize] == C_FUN or js.cls[r as usize] == C_NAT then "function" else "object"
 
 # 0 undefined, 1 null, 2 boolean, 3 number, 4 NaN, 5 string, 6 reference
@@ -210,11 +210,11 @@ pub fn vtag(v: &V) -> i64
     match v
         Und -> return 0
         Nul -> return 1
-        Bo(b: b) -> return 2
-        Nm(n: n) -> return 3
+        Bo(b: _b) -> return 2
+        Nm(n: _n) -> return 3
         NaN -> return 4
-        St(s: s) -> return 5
-        Rf(r: r) -> return 6
+        St(s: _s) -> return 5
+        Rf(r: _r) -> return 6
 
 fn vb(v: &V) -> bool
     match v
@@ -253,17 +253,17 @@ fn e_nullish(v: &V) -> bool
 
 fn e_is_ref(v: &V) -> bool
     match v
-        Rf(r: r) -> return true
+        Rf(r: _r) -> return true
         _ -> return false
 
 fn e_is_str(v: &V) -> bool
     match v
-        St(s: s) -> return true
+        St(s: _s) -> return true
         _ -> return false
 
 fn e_is_bool(v: &V) -> bool
     match v
-        Bo(b: b) -> return true
+        Bo(b: _b) -> return true
         _ -> return false
 
 # abstract equality (ECMA-262 11.9.3)
@@ -394,13 +394,13 @@ pub fn lex(src: &text) -> Toks
                 let s3 = c + cs[i + 1] + cs[i + 2]
                 if p3.contains(s3)
                     t = s3
-            if t.len() == 1 and i + 1 < n
+            if t.len_bytes() == 1 and i + 1 < n
                 let s2 = c + cs[i + 1]
                 if p2.contains(s2)
                     t = s2
             if not "(){}[];,.:?!=<>+-*/%&|^~".contains(c)
                 tk.ok = false
-            i += t.len()
+            i += t.len_bytes()
             tk.k.push(T_P)
             tk.t.push(t)
     tk.k.push(T_END)
@@ -1000,7 +1000,7 @@ fn bitop(op: &text, a: &V, b: &V) -> V
     var w = to_u32(b)
     var r: i64 = 0
     var bit: i64 = 1
-    for i in 0..32
+    for _i in 0..32
         let p = u % 2
         let q = w % 2
         var hit = false
@@ -1305,7 +1305,7 @@ pub fn ev(js: &mut Js, p: &Ast, n: i64, env: i64, this: &V) -> V bound 512
             return ev(js, p, p.b[u], env, this)
         return ev(js, p, p.c[u], env, this)
     if k == N_SEQ
-        let a = ev(js, p, p.a[u], env, this)
+        let _a = ev(js, p, p.a[u], env, this)
         return ev(js, p, p.b[u], env, this)
     if k == N_EXP
         return ev(js, p, p.a[u], env, this)
@@ -1377,7 +1377,7 @@ pub fn call_fun(js: &mut Js, f: i64, args: &[V], this: &V) -> V bound 64
         let nm = copy(p.s[ps[i] as usize])
         set_prop(js, sc, &nm, if i < args.len() then copy(args[i]) else Und)
     js.rflag = false
-    let r = ev(js, &p, p.a[fnode as usize], sc, this)
+    let _r = ev(js, &p, p.a[fnode as usize], sc, this)
     if js.rflag
         js.rflag = false
         let rv = copy(js.rval)
@@ -1420,7 +1420,7 @@ fn call_node(js: &mut Js, p: &Ast, n: i64, env: i64, this: &V) -> V bound 512
     e_fail(js, "TypeError: not a function")
     return Und
 
-fn call_native(js: &mut Js, nm: &text, rcv: &V, args: &[V]) -> V
+fn call_native(js: &mut Js, nm: &text, _rcv: &V, args: &[V]) -> V
     if nm == "In"
         if args.len() == 0
             return Bo(b: false)
@@ -1625,7 +1625,7 @@ fn e_method(js: &mut Js, rcv: &V, m: &text, args: &[V]) -> V
                     st.push(js.kids[r as usize][q])
                 while st.len() > 0 bound 1048576
                     let e = st[st.len() - 1]
-                    st.pop()
+                    let _ = st.pop()
                     if x == "*" or js.fsrc[e as usize] == x
                         xs.push(Rf(r: e))
                     var j = js.kids[e as usize].len()

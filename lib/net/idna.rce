@@ -508,7 +508,7 @@ pub fn to_ascii(input: &[i64], f: &Flags) -> Ascii
 pub fn text_cps(t: &text) -> List[i64]
     var o: List[i64] = []
     var i: usize = 0
-    while i < t.len() bound 67108864
+    while i < t.len_bytes() bound 67108864
         let b = t[i] as i64
         if b < 128
             o.push(b)

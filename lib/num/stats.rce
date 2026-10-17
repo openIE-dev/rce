@@ -49,7 +49,7 @@ pub fn st_fsum(xs: &[f64]) -> f64
             x = hi
             j += 1
         while p.len() > i bound 1048576
-            p.pop()
+            let _ = p.pop()
         p.push(x)
     var n = p.len()
     if n == 0
@@ -139,7 +139,7 @@ fn st_dev(xs: &[f64]) -> List[f64]
 # Corrected two-pass sum of squared deviations: sum d^2 - (sum d)^2 / n
 # with d = x - mean, both sums correctly rounded (exact products).
 pub fn sum_sq_dev(xs: &[f64]) -> f64 ! StatsError
-    let m = try mean(xs)
+    let _m = try mean(xs)
     let d = st_dev(xs)
     let s2 = st_dot(&d, &d)
     let s1 = st_fsum(&d)
@@ -161,7 +161,7 @@ pub fn stdev(xs: &[f64], ddof: i64) -> f64 ! StatsError = (try variance(xs, ddof
 pub fn autocorr1(xs: &[f64]) -> f64 ! StatsError
     if xs.len() < 2
         fail StatsError(why: "autocorrelation needs two values")
-    let m = try mean(xs)
+    let _m = try mean(xs)
     let d = st_dev(xs)
     var a: List[f64] = []
     var b: List[f64] = []
@@ -544,7 +544,7 @@ fn st_check(ok: bool, what: text) -> bool ! StatsError
 # part enters as exp(-lo/2) ~ 1 - lo/2, so the density keeps full relative
 # accuracy far into the tails.
 pub fn norm_pdf(x: f64, mu: f64, sigma: f64) -> f64 ! StatsError
-    let ok = try st_check(sigma > 0.0, "norm: sigma must be > 0")
+    let _ok = try st_check(sigma > 0.0, "norm: sigma must be > 0")
     let z = (x - mu) / sigma
     let zz = st_two_prod(z, z)
     return special.cr_exp(-0.5 * zz[0]) * (1.0 - 0.5 * zz[1]) * ST_INV_SQRT_2PI / sigma
@@ -562,11 +562,11 @@ fn st_phi(z: f64, upper: bool) -> f64
     return 0.5 * (special.erfc_fdlibm(s) + corr)
 
 pub fn norm_cdf(x: f64, mu: f64, sigma: f64) -> f64 ! StatsError
-    let ok = try st_check(sigma > 0.0, "norm: sigma must be > 0")
+    let _ok = try st_check(sigma > 0.0, "norm: sigma must be > 0")
     return st_phi((x - mu) / sigma, false)
 
 pub fn norm_sf(x: f64, mu: f64, sigma: f64) -> f64 ! StatsError
-    let ok = try st_check(sigma > 0.0, "norm: sigma must be > 0")
+    let _ok = try st_check(sigma > 0.0, "norm: sigma must be > 0")
     return st_phi((x - mu) / sigma, true)
 
 # Wichura's AS 241 PPND16 (Applied Statistics 37, 1988; coefficients as
@@ -595,12 +595,12 @@ fn st_ppnd16(p: f64) -> f64
 
 # Quantile of N(mu, sigma^2) at lower tail probability p in (0, 1).
 pub fn norm_ppf(p: f64, mu: f64, sigma: f64) -> f64 ! StatsError
-    let ok = try st_check(sigma > 0.0 and p > 0.0 and p < 1.0, "norm_ppf: sigma > 0, 0 < p < 1")
+    let _ok = try st_check(sigma > 0.0 and p > 0.0 and p < 1.0, "norm_ppf: sigma > 0, 0 < p < 1")
     return mu + sigma * st_ppnd16(p)
 
 # Inverse survival function: x with P(X > x) = q, q in (0, 1).
 pub fn norm_isf(q: f64, mu: f64, sigma: f64) -> f64 ! StatsError
-    let ok = try st_check(sigma > 0.0 and q > 0.0 and q < 1.0, "norm_isf: sigma > 0, 0 < q < 1")
+    let _ok = try st_check(sigma > 0.0 and q > 0.0 and q < 1.0, "norm_isf: sigma > 0, 0 < q < 1")
     return mu - sigma * st_ppnd16(q)
 
 # ---------------------------------------------------------------- continuous families
@@ -759,7 +759,7 @@ fn st_p01(p: f64) -> bool ! StatsError = try st_check(p > 0.0 and p < 1.0, "quan
 
 # Student t with df > 0 degrees of freedom. Density in Loader's form.
 pub fn t_pdf(x: f64, df: f64) -> f64 ! StatsError
-    let ok = try st_check(df > 0.0, "t: df must be > 0")
+    let _ok = try st_check(df > 0.0, "t: df must be > 0")
     let t = 0.0 - bd0(0.5 * df, 0.5 * (df + 1.0)) + stirlerr(0.5 * (df + 1.0)) - stirlerr(0.5 * df)
     let ax = st_abs(x)
     var x2n = 0.0
@@ -780,17 +780,17 @@ pub fn t_pdf(x: f64, df: f64) -> f64 ! StatsError
     return special.cr_exp(t - u) * ST_INV_SQRT_2PI / (1.0 + x2n).sqrt()
 
 pub fn t_cdf(x: f64, df: f64) -> f64 ! StatsError
-    let ok = try st_check(df > 0.0, "t: df must be > 0")
+    let _ok = try st_check(df > 0.0, "t: df must be > 0")
     return (try st_cs(ST_T, df, 0.0, x))[0]
 
 pub fn t_sf(x: f64, df: f64) -> f64 ! StatsError
-    let ok = try st_check(df > 0.0, "t: df must be > 0")
+    let _ok = try st_check(df > 0.0, "t: df must be > 0")
     return (try st_cs(ST_T, df, 0.0, x))[1]
 
 # t quantile by symmetry: the positive solution of sf(x) = min(p, 1 - p).
 pub fn t_ppf(p: f64, df: f64) -> f64 ! StatsError
-    let ok = try st_check(df > 0.0, "t: df must be > 0")
-    let ok2 = try st_p01(p)
+    let _ok = try st_check(df > 0.0, "t: df must be > 0")
+    let _ok2 = try st_p01(p)
     if p == 0.5
         return 0.0
     let tail = if p < 0.5 then p else 1.0 - p
@@ -799,7 +799,7 @@ pub fn t_ppf(p: f64, df: f64) -> f64 ! StatsError
 
 # Gamma(shape, scale); chi-square(k) = Gamma(k/2, 2).
 pub fn gamma_pdf(x: f64, shape: f64, scale: f64) -> f64 ! StatsError
-    let ok = try st_check(shape > 0.0 and scale > 0.0, "gamma: shape, scale must be > 0")
+    let _ok = try st_check(shape > 0.0 and scale > 0.0, "gamma: shape, scale must be > 0")
     if x < 0.0
         return 0.0
     if x == 0.0
@@ -811,16 +811,16 @@ pub fn gamma_pdf(x: f64, shape: f64, scale: f64) -> f64 ! StatsError
     return dpois_raw(shape - 1.0, x / scale) / scale
 
 pub fn gamma_cdf(x: f64, shape: f64, scale: f64) -> f64 ! StatsError
-    let ok = try st_check(shape > 0.0 and scale > 0.0, "gamma: shape, scale must be > 0")
+    let _ok = try st_check(shape > 0.0 and scale > 0.0, "gamma: shape, scale must be > 0")
     return (try st_cs(ST_GAMMA, shape, scale, x))[0]
 
 pub fn gamma_sf(x: f64, shape: f64, scale: f64) -> f64 ! StatsError
-    let ok = try st_check(shape > 0.0 and scale > 0.0, "gamma: shape, scale must be > 0")
+    let _ok = try st_check(shape > 0.0 and scale > 0.0, "gamma: shape, scale must be > 0")
     return (try st_cs(ST_GAMMA, shape, scale, x))[1]
 
 pub fn gamma_ppf(p: f64, shape: f64, scale: f64) -> f64 ! StatsError
-    let ok = try st_check(shape > 0.0 and scale > 0.0, "gamma: shape, scale must be > 0")
-    let ok2 = try st_p01(p)
+    let _ok = try st_check(shape > 0.0 and scale > 0.0, "gamma: shape, scale must be > 0")
+    let _ok2 = try st_p01(p)
     return try st_invert(ST_GAMMA, shape, scale, p, 0.0, shape * scale)
 
 pub fn chi2_pdf(x: f64, k: f64) -> f64 ! StatsError = try gamma_pdf(x, 0.5 * k, 2.0)
@@ -830,7 +830,7 @@ pub fn chi2_ppf(p: f64, k: f64) -> f64 ! StatsError = try gamma_ppf(p, 0.5 * k, 
 
 # F(d1, d2). Density in Loader's form.
 pub fn f_pdf(x: f64, d1: f64, d2: f64) -> f64 ! StatsError
-    let ok = try st_check(d1 > 0.0 and d2 > 0.0, "f: d1, d2 must be > 0")
+    let _ok = try st_check(d1 > 0.0 and d2 > 0.0, "f: d1, d2 must be > 0")
     if x < 0.0
         return 0.0
     if x == 0.0
@@ -847,21 +847,21 @@ pub fn f_pdf(x: f64, d1: f64, d2: f64) -> f64 ! StatsError
     return f * dbinom_raw(m / 2.0, (m + n) / 2.0, p, q)
 
 pub fn f_cdf(x: f64, d1: f64, d2: f64) -> f64 ! StatsError
-    let ok = try st_check(d1 > 0.0 and d2 > 0.0, "f: d1, d2 must be > 0")
+    let _ok = try st_check(d1 > 0.0 and d2 > 0.0, "f: d1, d2 must be > 0")
     return (try st_cs(ST_F, d1, d2, x))[0]
 
 pub fn f_sf(x: f64, d1: f64, d2: f64) -> f64 ! StatsError
-    let ok = try st_check(d1 > 0.0 and d2 > 0.0, "f: d1, d2 must be > 0")
+    let _ok = try st_check(d1 > 0.0 and d2 > 0.0, "f: d1, d2 must be > 0")
     return (try st_cs(ST_F, d1, d2, x))[1]
 
 pub fn f_ppf(p: f64, d1: f64, d2: f64) -> f64 ! StatsError
-    let ok = try st_check(d1 > 0.0 and d2 > 0.0, "f: d1, d2 must be > 0")
-    let ok2 = try st_p01(p)
+    let _ok = try st_check(d1 > 0.0 and d2 > 0.0, "f: d1, d2 must be > 0")
+    let _ok2 = try st_p01(p)
     return try st_invert(ST_F, d1, d2, p, 0.0, 1.0)
 
 # Beta(a, b) on [0, 1].
 pub fn beta_pdf(x: f64, a: f64, b: f64) -> f64 ! StatsError
-    let ok = try st_check(a > 0.0 and b > 0.0, "beta: a, b must be > 0")
+    let _ok = try st_check(a > 0.0 and b > 0.0, "beta: a, b must be > 0")
     if x < 0.0 or x > 1.0
         return 0.0
     if x == 0.0 or x == 1.0
@@ -877,41 +877,41 @@ pub fn beta_pdf(x: f64, a: f64, b: f64) -> f64 ! StatsError
     return special.cr_exp((a - 1.0) * special.cr_log(x) + (b - 1.0) * special.log1p_fdlibm(0.0 - x) - lb)
 
 pub fn beta_cdf(x: f64, a: f64, b: f64) -> f64 ! StatsError
-    let ok = try st_check(a > 0.0 and b > 0.0, "beta: a, b must be > 0")
+    let _ok = try st_check(a > 0.0 and b > 0.0, "beta: a, b must be > 0")
     return (try st_cs(ST_BETA, a, b, x))[0]
 
 pub fn beta_sf(x: f64, a: f64, b: f64) -> f64 ! StatsError
-    let ok = try st_check(a > 0.0 and b > 0.0, "beta: a, b must be > 0")
+    let _ok = try st_check(a > 0.0 and b > 0.0, "beta: a, b must be > 0")
     return (try st_cs(ST_BETA, a, b, x))[1]
 
 pub fn beta_ppf(p: f64, a: f64, b: f64) -> f64 ! StatsError
-    let ok = try st_check(a > 0.0 and b > 0.0, "beta: a, b must be > 0")
-    let ok2 = try st_p01(p)
+    let _ok = try st_check(a > 0.0 and b > 0.0, "beta: a, b must be > 0")
+    let _ok2 = try st_p01(p)
     let r = try st_invert(ST_BETA, a, b, p, 0.0, a / (a + b))
     return r.min(1.0)
 
 # Exponential with scale s (rate 1 / s).
 pub fn expon_pdf(x: f64, s: f64) -> f64 ! StatsError
-    let ok = try st_check(s > 0.0, "expon: scale must be > 0")
+    let _ok = try st_check(s > 0.0, "expon: scale must be > 0")
     return if x < 0.0 then 0.0 else special.cr_exp(0.0 - x / s) / s
 
 pub fn expon_cdf(x: f64, s: f64) -> f64 ! StatsError
-    let ok = try st_check(s > 0.0, "expon: scale must be > 0")
+    let _ok = try st_check(s > 0.0, "expon: scale must be > 0")
     return if x <= 0.0 then 0.0 else 0.0 - special.expm1_fdlibm(0.0 - x / s)
 
 pub fn expon_sf(x: f64, s: f64) -> f64 ! StatsError
-    let ok = try st_check(s > 0.0, "expon: scale must be > 0")
+    let _ok = try st_check(s > 0.0, "expon: scale must be > 0")
     return if x <= 0.0 then 1.0 else special.cr_exp(0.0 - x / s)
 
 pub fn expon_ppf(p: f64, s: f64) -> f64 ! StatsError
-    let ok = try st_check(s > 0.0, "expon: scale must be > 0")
-    let ok2 = try st_p01(p)
+    let _ok = try st_check(s > 0.0, "expon: scale must be > 0")
+    let _ok2 = try st_p01(p)
     return 0.0 - s * special.log1p_fdlibm(0.0 - p)
 
 # ---------------------------------------------------------------- discrete families
 
 pub fn binom_pmf(k: i64, n: i64, p: f64) -> f64 ! StatsError
-    let ok = try st_check(n >= 0 and p >= 0.0 and p <= 1.0, "binom: n >= 0, 0 <= p <= 1")
+    let _ok = try st_check(n >= 0 and p >= 0.0 and p <= 1.0, "binom: n >= 0, 0 <= p <= 1")
     if k < 0 or k > n
         return 0.0
     return dbinom_raw(k as f64, n as f64, p, 1.0 - p)
@@ -929,16 +929,16 @@ fn st_binom_cs(k: i64, n: i64, p: f64) -> List[f64] ! StatsError
     return try betainc((n - k) as f64, (k + 1) as f64, 1.0 - p, p)
 
 pub fn binom_cdf(k: i64, n: i64, p: f64) -> f64 ! StatsError
-    let ok = try st_check(n >= 0 and p >= 0.0 and p <= 1.0, "binom: n >= 0, 0 <= p <= 1")
+    let _ok = try st_check(n >= 0 and p >= 0.0 and p <= 1.0, "binom: n >= 0, 0 <= p <= 1")
     return (try st_binom_cs(k, n, p))[0]
 
 pub fn binom_sf(k: i64, n: i64, p: f64) -> f64 ! StatsError
-    let ok = try st_check(n >= 0 and p >= 0.0 and p <= 1.0, "binom: n >= 0, 0 <= p <= 1")
+    let _ok = try st_check(n >= 0 and p >= 0.0 and p <= 1.0, "binom: n >= 0, 0 <= p <= 1")
     return (try st_binom_cs(k, n, p))[1]
 
 # Smallest k with cdf(k) >= p (integer bisection).
 pub fn binom_ppf(p: f64, n: i64, pr: f64) -> i64 ! StatsError
-    let ok = try st_check(n >= 0 and pr >= 0.0 and pr <= 1.0 and p >= 0.0 and p <= 1.0, "binom_ppf arguments")
+    let _ok = try st_check(n >= 0 and pr >= 0.0 and pr <= 1.0 and p >= 0.0 and p <= 1.0, "binom_ppf arguments")
     var lo: i64 = -1
     var hi: i64 = n
     while hi - lo > 1 bound 128
@@ -951,7 +951,7 @@ pub fn binom_ppf(p: f64, n: i64, pr: f64) -> i64 ! StatsError
     return hi
 
 pub fn poisson_pmf(k: i64, mu: f64) -> f64 ! StatsError
-    let ok = try st_check(mu >= 0.0, "poisson: mu >= 0")
+    let _ok = try st_check(mu >= 0.0, "poisson: mu >= 0")
     if k < 0
         return 0.0
     return dpois_raw(k as f64, mu)
@@ -965,15 +965,15 @@ fn st_pois_cs(k: i64, mu: f64) -> List[f64] ! StatsError
     return [r[1], r[0]]
 
 pub fn poisson_cdf(k: i64, mu: f64) -> f64 ! StatsError
-    let ok = try st_check(mu >= 0.0, "poisson: mu >= 0")
+    let _ok = try st_check(mu >= 0.0, "poisson: mu >= 0")
     return (try st_pois_cs(k, mu))[0]
 
 pub fn poisson_sf(k: i64, mu: f64) -> f64 ! StatsError
-    let ok = try st_check(mu >= 0.0, "poisson: mu >= 0")
+    let _ok = try st_check(mu >= 0.0, "poisson: mu >= 0")
     return (try st_pois_cs(k, mu))[1]
 
 pub fn poisson_ppf(p: f64, mu: f64) -> i64 ! StatsError
-    let ok = try st_check(mu >= 0.0 and p >= 0.0 and p < 1.0, "poisson_ppf arguments")
+    let _ok = try st_check(mu >= 0.0 and p >= 0.0 and p < 1.0, "poisson_ppf arguments")
     var hi: i64 = 1
     var k = 0
     while k < 62 bound 63

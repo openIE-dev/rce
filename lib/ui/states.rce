@@ -308,7 +308,7 @@ pub fn parse_chart(src: &text) -> Chart
             if k < 0
                 bad(&mut c, "bad kind " + w[2])
                 return c
-            let s = new_state(&mut c, copy(w[1]), k, m)
+            let _s = new_state(&mut c, copy(w[1]), k, m)
     m = -1
     var si: usize = 0
     var cur: i64 = -1
@@ -363,7 +363,7 @@ pub fn parse_chart(src: &text) -> Chart
                 for e in w[2].split(",")
                     evs.push(copy(e))
             let tg = ids(&mut c, m, &w[5])
-            let t = new_transition(&mut c, s, evs, copy(w[3]), w[4] == "int", tg, cur, true)
+            let _t = new_transition(&mut c, s, evs, copy(w[3]), w[4] == "int", tg, cur, true)
         elif w[0] == "end"
             cur = -1
         elif w[0] != ""
@@ -504,7 +504,7 @@ fn content_of(x: &xml.Xml, e: i64) -> List[text]
     if es.len() > 0
         return ["1", xml.serialize_ns(x, es[0]), "1"]
     var any = false
-    for k in x.kids[e as usize]
+    for _k in x.kids[e as usize]
         any = true
     return [if any then "1" else "0", xml.text_content(x, e), "0"]
 
@@ -668,7 +668,7 @@ fn fill(c: &mut Chart, ld: &mut Ld, x: &xml.Xml, el: i64, s: i64, m: i64) bound 
             var cond = "-"
             if xh(x, e, "cond")
                 cond = xa(x, e, "cond")
-            let t = new_transition(c, s, evs, cond, xa(x, e, "type") == "internal", tgs, b, true)
+            let _t = new_transition(c, s, evs, cond, xa(x, e, "type") == "internal", tgs, b, true)
         elif nm == "initial"
             for tr in xml.elems(x, e)
                 if xn(x, tr) == "transition"
@@ -762,7 +762,7 @@ pub fn load_scxml(doc: &text, names: &[text], bodies: &[text]) -> Chart
     if not x.ok
         bad(&mut c, "XML: " + x.why)
         return c
-    let m0 = load_machine(&mut c, &x, xml.doc_root(&x))
+    let _m0 = load_machine(&mut c, &x, xml.doc_root(&x))
     # documents among the files are further machines (for src and srcexpr)
     for i in 0..names.len()
         if bodies[i].contains("<scxml")
@@ -1041,14 +1041,14 @@ fn form_enc(t: &text) -> text
     var o = ""
     let hx = "0123456789ABCDEF".chars()
     for b in t.chars()
-        let n = b[0] as i64
-        if b.len() == 1 and (b.isalpha() or b.isdigit() or b == "-" or b == "_" or b == "." or b == "*")
+        let _n = b[0] as i64
+        if b.len_bytes() == 1 and (b.isalpha() or b.isdigit() or b == "-" or b == "_" or b == "." or b == "*")
             o = o + b
         elif b == " "
             o = o + "+"
         else
             var i: usize = 0
-            while i < b.len() bound 8
+            while i < b.len_bytes() bound 8
                 let v = b[i] as i64
                 o = o + "%" + hx[(v / 16) as usize] + hx[(v % 16) as usize]
                 i += 1
@@ -1330,7 +1330,7 @@ fn do_send(c: &Chart, r: &mut Run, s: i64, u: i64) -> bool
                 r.en[ku] = ecma.to_str(&mut r.js, &w7)
             else
                 r.en[ku] = "HTTP.POST"
-        r.eraw[ku] = "POST /" + session_name(dest) + "/basichttp HTTP/1.1\r\nHost: scxml.local\r\nContent-Type: application/x-www-form-urlencoded\r\n_scxmleventname: " + r.en[ku] + "\r\nContent-Length: " + body.len().tostr() + "\r\n\r\n" + body
+        r.eraw[ku] = "POST /" + session_name(dest) + "/basichttp HTTP/1.1\r\nHost: scxml.local\r\nContent-Type: application/x-www-form-urlencoded\r\n_scxmleventname: " + r.en[ku] + "\r\nContent-Length: " + body.len_bytes().tostr() + "\r\n\r\n" + body
         r.eflags[ku] = r.eflags[ku] + F_RAW
         # parameters arrive as form fields (strings); content as the body
         if not c.ahas[u as usize]
@@ -1551,7 +1551,7 @@ fn exec_block(c: &Chart, r: &mut Run, s: i64, b: i64) -> bool bound 64
                 fr.push(1)
         elif op == A_ELIF or op == A_ELSE
             let t = fr[fr.len() - 1]
-            fr.pop()
+            let _ = fr.pop()
             var outer = true
             for f in fr
                 if f != 0
@@ -1565,7 +1565,7 @@ fn exec_block(c: &Chart, r: &mut Run, s: i64, b: i64) -> bool bound 64
             else
                 fr.push(1)
         elif op == A_FI
-            fr.pop()
+            let _ = fr.pop()
         elif live
             if op >= X_RAISE
                 if not exec_x(c, r, s, a)
@@ -1643,7 +1643,7 @@ fn effective_targets(c: &Chart, r: &Run, ses: i64, t: i64) -> List[i64]
         st.push(c.ttgt[t as usize][k])
     while st.len() > 0 bound 1048576
         let s = st[st.len() - 1]
-        st.pop()
+        let _ = st.pop()
         if is_hist(c, s)
             if r.hset[ses as usize][s as usize] == 1
                 for x in r.hist[ses as usize][s as usize]
@@ -1746,7 +1746,7 @@ fn next_xs(c: &Chart, r: &mut Run, ses: i64, a: i64, e: &text) -> List[i64]
 fn select_xs(c: &Chart, r: &mut Run, ses: i64, e: &text) -> List[i64]
     let n = c.sid.len()
     var res: List[List[i64]] = []
-    for s in 0..n
+    for _s in 0..n
         res.push(no_ints())
     let m = r.smachine[ses as usize]
     var s = n
@@ -1803,7 +1803,7 @@ fn in_final(c: &Chart, r: &Run, ses: i64, s: i64) -> bool
     var st: List[i64] = [s]
     while st.len() > 0 bound 1048576
         let x = st[st.len() - 1]
-        st.pop()
+        let _ = st.pop()
         if is_compound(c, x) or c.skind[x as usize] == ROOT
             var f = false
             for k in c.skids[x as usize]
@@ -1855,7 +1855,7 @@ fn entry_set(c: &Chart, r: &Run, ses: i64, ts: &[i64], enter: &mut List[i64], df
                 tk.push([1, c.ttgt[t as usize][j], -1])
     while tk.len() > 0 bound 16777216
         let w = copy(tk[tk.len() - 1])
-        tk.pop()
+        let _ = tk.pop()
         let s = w[1]
         if w[0] == 1
             if is_hist(c, s)
@@ -1950,7 +1950,7 @@ fn exit_states(c: &Chart, r: &mut Run, ses: i64, ts: &[i64])
         if ses == 0
             r.trace.push("-" + c.sid[x as usize])
         for b in c.sexit[x as usize]
-            let ok = exec_block(c, r, ses, b)
+            let _ok = exec_block(c, r, ses, b)
         cancel_invokes(c, r, ses, x)
         r.conf[ses as usize][x as usize] = 0
 
@@ -2016,7 +2016,7 @@ fn enter_states(c: &Chart, r: &mut Run, ses: i64, ts: &[i64])
     var enter: List[i64] = []
     var dflt: List[i64] = []
     var hc: List[i64] = []
-    for s in 0..c.sid.len()
+    for _s in 0..c.sid.len()
         hc.push(-1)
     entry_set(c, r, ses, ts, &mut enter, &mut dflt, &mut hc)
     for s in 0..c.sid.len()
@@ -2028,11 +2028,11 @@ fn enter_states(c: &Chart, r: &mut Run, ses: i64, ts: &[i64])
                 r.trace.push("+" + c.sid[s])
             bind_state_data(c, r, ses, x)
             for b in c.sentry[s]
-                let ok = exec_block(c, r, ses, b)
+                let _ok = exec_block(c, r, ses, b)
             if dflt.contains(x)
-                let ok = exec_block(c, r, ses, c.sinitblk[s])
+                let _ok = exec_block(c, r, ses, c.sinitblk[s])
             if hc[s] >= 0
-                let ok = exec_block(c, r, ses, hc[s])
+                let _ok = exec_block(c, r, ses, hc[s])
             if c.skind[s] == FINAL
                 let p = c.spar[s]
                 if c.skind[p as usize] == ROOT
@@ -2058,10 +2058,10 @@ fn enter_states(c: &Chart, r: &mut Run, ses: i64, ts: &[i64])
 fn microstep(c: &Chart, r: &mut Run, ses: i64, ts: &[i64])
     exit_states(c, r, ses, ts)
     for t in ts
-        let ok = exec_block(c, r, ses, c.tblk[t as usize])
+        let _ok = exec_block(c, r, ses, c.tblk[t as usize])
     enter_states(c, r, ses, ts)
 
-fn take_internal(c: &Chart, r: &mut Run, ses: i64) -> i64
+fn take_internal(_c: &Chart, r: &mut Run, ses: i64) -> i64
     let e = r.iq[ses as usize][0]
     var rest: List[i64] = []
     for i in 1..r.iq[ses as usize].len()
@@ -2109,7 +2109,7 @@ fn finish(c: &Chart, r: &mut Run, ses: i64) bound 64
             if ses == 0 and c.skind[s] != ROOT
                 r.trace.push("-" + c.sid[s])
             for b in c.sexit[s]
-                let ok = exec_block(c, r, ses, b)
+                let _ok = exec_block(c, r, ses, b)
             cancel_invokes(c, r, ses, s as i64)
     let p = r.sparent[ses as usize]
     if p >= 0 and r.srunning[p as usize] and r.sfinal[ses as usize]
@@ -2130,7 +2130,7 @@ fn finish(c: &Chart, r: &mut Run, ses: i64) bound 64
 fn new_session(c: &Chart, r: &mut Run, m: i64, parent: i64, st: i64, invid: text, vdef: i64) -> i64
     var z: List[i64] = []
     var hz: List[List[i64]] = []
-    for s in 0..c.sid.len()
+    for _s in 0..c.sid.len()
         z.push(0)
         hz.push(no_ints())
     r.conf.push(copy(z))
@@ -2138,7 +2138,7 @@ fn new_session(c: &Chart, r: &mut Run, m: i64, parent: i64, st: i64, invid: text
     r.hist.push(hz)
     var b: List[i64] = []
     var v: List[i64] = []
-    for i in 0..c.mvars[m as usize].len()
+    for _i in 0..c.mvars[m as usize].len()
         b.push(0)
         v.push(0)
     r.vbound.push(copy(b))
@@ -2210,7 +2210,7 @@ fn start_session(c: &Chart, r: &mut Run, ses: i64) bound 64
     let m = r.smachine[ses as usize]
     let root = c.mroot[m as usize]
     if c.mscript[m as usize] >= 0
-        let ok = exec_block(c, r, ses, c.mscript[m as usize])
+        let _ok = exec_block(c, r, ses, c.mscript[m as usize])
     let t = init_transition(c, root)
     let ts: List[i64] = [t]
     enter_states(c, r, ses, &ts)
@@ -2312,7 +2312,7 @@ fn with_inits(c0: &Chart) -> Chart
         if root >= 0
             let b = new_block(&mut c)
             # not in strans: never selected, found by init_transition
-            let t = new_transition(&mut c, root, no_texts(), "init", true, copy(c.sinit[root as usize]), b, false)
+            let _t = new_transition(&mut c, root, no_texts(), "init", true, copy(c.sinit[root as usize]), b, false)
     return c
 
 fn run0() -> Run = Run(conf: [], hist: [], hset: [], vbound: [], vval: [], smachine: [], sparent: [], srunning: [], sinvstate: [], sinvid: [], sinvdef: [], sglob: [], sdinit: [], sdone: [], sfinal: [], xcell: [], xtext: [], iq: [], qtime: [], qseq: [], qsess: [], qev: [], qsid: [], qfrom: [], en: [], etype: [], esend: [], eorig: [], eotype: [], einv: [], edata: [], eraw: [], eflags: [], efrom: [], js: ecma.js_new(), now: 0, seq: 0, nsend: 0, toinv: [], trace: [], logs: [], outcome: "", ev: "", evid: -1, fuel: 100000)
@@ -2390,7 +2390,7 @@ fn external(c: &Chart, r: &mut Run, s: i64, e: i64) bound 64
     if frm >= 0 and r.sparent[frm as usize] == s
         let v = r.sinvdef[frm as usize]
         if v >= 0 and c.vfin[v as usize] >= 0
-            let ok = exec_block(c, r, s, c.vfin[v as usize])
+            let _ok = exec_block(c, r, s, c.vfin[v as usize])
     for k in 0..r.smachine.len()
         if r.sparent[k] == s and r.srunning[k]
             let v = r.sinvdef[k]

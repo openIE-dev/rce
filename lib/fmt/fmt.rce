@@ -58,7 +58,7 @@ fn digit_val(c: i64) -> i64
 # Strict parse in radix r: optional "+" or "-", then one or more digits,
 # nothing else. Overflow of i64 is refused (BadInt at the digit).
 pub fn int_parse(s: &text, r: i64) -> i64 ! BadInt
-    let n = s.len()
+    let n = s.len_bytes()
     if n == 0
         fail BadInt(at: 0)
     var i: usize = 0
@@ -378,7 +378,7 @@ fn parse_seq(p: &mut Parser) -> List[i64] bound 1000
         if c < 0 or c == 124 or c == 41
             break
         var a = parse_atom(p)
-        var reps: i64 = 0
+        var _reps: i64 = 0
         while p.err < 0 bound 100
             let q = peek(p)
             if q == 42
@@ -419,7 +419,7 @@ fn parse_alt(p: &mut Parser) -> List[i64] bound 1000
 fn bytes_of(s: &text) -> List[i64]
     var o: List[i64] = []
     var i: usize = 0
-    while i < s.len() bound 16777216
+    while i < s.len_bytes() bound 16777216
         o.push(s[i] as i64)
         i += 1
     return o

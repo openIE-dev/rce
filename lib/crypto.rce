@@ -87,7 +87,7 @@ fn cat(a: List[i64], b: List[i64]) -> List[i64]
 fn tobytes(s: text) -> List[i64]
     var o: List[i64] = []
     var i: usize = 0
-    while i < s.len() bound 1048576
+    while i < s.len_bytes() bound 1048576
         o.push(s[i] as i64)
         i += 1
     return o
@@ -241,7 +241,7 @@ fn tohex(b: List[i64]) -> text
         codes.push(hexdig(x >> 4))
         codes.push(hexdig(x & 15))
     let t = acc >> 8
-    let g = [((t | (0 - t)) >> 63 & 1) << 8].utf8()
+    let _g = [((t | (0 - t)) >> 63 & 1) << 8].utf8()
     return codes.utf8()
 
 # GF(2^255 - 19) in ten 26-bit limbs (radix 2^26, 2^260 = 608 mod p) in
@@ -499,7 +499,7 @@ fn ratchet_decrypt(r: Ratchet, header: text, body: text, fresh: text) -> Opened
     let sk_id = copy(dh) + "|" + n.tostr()
     if s.skipped.contains(copy(sk_id))
         let mk0 = s.skipped.get(copy(sk_id)) catch ""
-        s.skipped.remove(sk_id)
+        let _ = s.skipped.remove(sk_id)
         let p0 = open(unhex(mk0), nonce12(n), tobytes(copy(header)), body)
         return Opened(st: s, ok: p0.len() == 0 or p0[0] != -1, plain: p0)
     if dh != s.dhr

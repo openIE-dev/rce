@@ -91,7 +91,7 @@ struct Out
 fn out_cv(o: &Out) -> List[i64]
     var r = b3_compress(&o.cv, &o.w, o.ctr, o.blen, o.flags)
     while r.len() > 8 bound 8
-        r.pop()
+        let _ = r.pop()
     return r
 
 # Output of chunk ci (bytes [1024 ci, min(len, 1024 ci + 1024))).
@@ -110,7 +110,7 @@ fn chunk_out(key: &[i64], input: &[i64], ci: i64, flags: i64) -> Out
         let bw = block_words(input, lo + 64 * b)
         var r = b3_compress(&cv, &bw, ci, 64, flags | st)
         while r.len() > 8 bound 8
-            r.pop()
+            let _ = r.pop()
         cv = r
         b += 1
     let off = lo + 64 * b
@@ -138,7 +138,7 @@ pub fn b3_core(key: &[i64], flags: i64, input: &[i64], outlen: i64) -> List[i64]
         var total = ci + 1
         while total & 1 == 0 bound 64
             let left = copy(stack[stack.len() - 1])
-            stack.pop()
+            let _ = stack.pop()
             let po = parent_out(key, &left, &cv, flags)
             cv = out_cv(&po)
             total = total >> 1
@@ -147,7 +147,7 @@ pub fn b3_core(key: &[i64], flags: i64, input: &[i64], outlen: i64) -> List[i64]
     var o = chunk_out(key, input, n - 1, flags)
     while stack.len() > 0 bound 64
         let left = copy(stack[stack.len() - 1])
-        stack.pop()
+        let _ = stack.pop()
         let rcv = out_cv(&o)
         o = parent_out(key, &left, &rcv, flags)
     var out: List[i64] = []
@@ -171,7 +171,7 @@ pub fn blake3_xof(input: &[i64], outlen: i64) -> List[i64]
 
 # key: exactly 32 bytes.
 pub fn blake3_keyed(key: &[i64], input: &[i64], outlen: i64) -> List[i64]
-    let n = 1 / (if key.len() == 32 then 1 else 0)
+    let _n = 1 / (if key.len() == 32 then 1 else 0)
     let kw = words_le(key)
     return b3_core(&kw, KEYED_HASH, input, outlen)
 

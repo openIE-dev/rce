@@ -73,9 +73,9 @@ pub fn ptr_escape(t: &text) -> text
 
 # An array index: "0" or digits without a leading zero.
 fn sy_index(t: &text) -> i64
-    if t == "" or not t.isdigit() or t.len() > 18
+    if t == "" or not t.isdigit() or t.len_bytes() > 18
         return -1
-    if t.len() > 1 and t.startswith("0")
+    if t.len_bytes() > 1 and t.startswith("0")
         return -1
     return t.toint()
 
@@ -217,7 +217,7 @@ fn sy_members_eq(ks: &[text], vs: &[events.Jv], k2: &[text], v2: &[events.Jv]) -
 fn jp_add(doc: &events.Jv, toks: &[text], i: usize, v: &events.Jv) -> events.Jv ! BadSync bound 64
     if i == toks.len()
         return copy(v)
-    let last = i + 1 == toks.len()
+    let _last = i + 1 == toks.len()
     match doc
         events.JsObj(keys: ks, vals: vs) -> return try jp_add_obj(ks, vs, toks, i, v)
         events.JsArr(items: xs) -> return try jp_add_arr(xs, toks, i, v)
@@ -312,7 +312,7 @@ fn jp_ptr(op: &events.Jv, k: text) -> List[text] ! BadSync
 
 fn sy_dup_members(j: &events.Jv) -> bool
     match j
-        events.JsObj(keys: ks, vals: vs) -> return sy_has_dup(ks)
+        events.JsObj(keys: ks, vals: _vs) -> return sy_has_dup(ks)
         _ -> return false
 
 fn sy_has_dup(ks: &[text]) -> bool
@@ -368,7 +368,7 @@ pub fn patch_op(doc: &events.Jv, op: &events.Jv) -> events.Jv ! BadSync
 
 # Apply a patch document; all or nothing.
 pub fn patch_apply(doc: &events.Jv, patch: &events.Jv) -> events.Jv ! BadSync
-    var cur = copy(doc)
+    var _cur = copy(doc)
     match patch
         events.JsArr(items: ops) -> return try patch_ops(doc, ops)
         _ -> fail BadSync(why: "patch: not an array")
@@ -808,7 +808,7 @@ fn sy_int_text(r: &text) -> i64?
     let neg = r.startswith("-")
     let parts = r.split("-")
     let d = if neg then copy(parts[parts.len() - 1]) else copy(r)
-    if d == "" or not d.isdigit() or d.len() > 17
+    if d == "" or not d.isdigit() or d.len_bytes() > 17
         return none
     return some(if neg then -d.toint() else d.toint())
 
@@ -897,7 +897,7 @@ fn pl_op(op: text, k: &text, v: events.Jv?) -> events.Jv
 pub fn pull(s: &Server, base: &events.Jv, client: &text) -> Pull
     var ops: List[events.Jv] = []
     match base
-        events.JsObj(keys: bk, vals: bv) -> pl_dels(bk, &s.db, &mut ops)
+        events.JsObj(keys: bk, vals: _bv) -> pl_dels(bk, &s.db, &mut ops)
         _ -> mp_none()
     match s.db
         events.JsObj(keys: sk, vals: sv) -> pl_puts(sk, sv, base, &mut ops)

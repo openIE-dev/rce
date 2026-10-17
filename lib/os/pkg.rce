@@ -53,8 +53,8 @@ fn pos_name(p: i64) -> text
         return "pre-release identifier"
     return "build metadata"
 
-fn is_digit(c: &text) -> bool = c.len() == 1 and c[0] >= 48 and c[0] <= 57
-fn is_ident(c: &text) -> bool = c.len() == 1 and ((c[0] >= 65 and c[0] <= 90) or (c[0] >= 97 and c[0] <= 122) or c[0] == 45)
+fn is_digit(c: &text) -> bool = c.len_bytes() == 1 and c[0] >= 48 and c[0] <= 57
+fn is_ident(c: &text) -> bool = c.len_bytes() == 1 and ((c[0] >= 65 and c[0] <= 90) or (c[0] >= 97 and c[0] <= 122) or c[0] == 45)
 
 const HEXD: text = "0123456789abcdef"
 
@@ -71,7 +71,7 @@ fn hex_of(v: i64) -> text
 
 # Rust's Debug of a char, as QuotedChar prints it.
 fn quoted(c: &text) -> text
-    if c.len() == 1
+    if c.len_bytes() == 1
         let b = c[0] as i64
         if b == 0
             return "'\\0'"
@@ -215,7 +215,7 @@ fn plain_ids(t: &text, pre: bool) -> bool
     for seg in t.split(".")
         if not (seg.isalpha() or seg.isdigit())
             return false
-        if pre and seg.len() > 1 and seg.isdigit() and seg.startswith("0")
+        if pre and seg.len_bytes() > 1 and seg.isdigit() and seg.startswith("0")
             return false
     return true
 
@@ -632,7 +632,7 @@ pub struct Dep
     source: text
 
 fn unquote_toml(v: &text) -> text ! BadPkg
-    if v.len() < 2 or not v.startswith("\"") or not v.endswith("\"")
+    if v.len_bytes() < 2 or not v.startswith("\"") or not v.endswith("\"")
         fail BadPkg(why: "Cargo.lock: expected a string")
     let parts = v.split("\"")
     if parts.len() != 3 or parts[1].split("\\").len() != 1
@@ -827,7 +827,7 @@ fn jtrue(e: &events.Jv, n: text) -> bool
 # order. The name is the `name` field, else the last node_modules/ part
 # of the path ("" for the root).
 pub fn npm_lock_parse(t: &text) -> List[NpmPkg] ! BadPkg
-    let j = events.json_parse(t) catch |e| events.JsNull
+    let j = events.json_parse(t) catch |_e| events.JsNull
     let lkey = "lockfileVersion"
     let v = jnum(&j, lkey)
     if v != 2 and v != 3
@@ -864,7 +864,7 @@ fn js_int(v: &events.Jv) -> i64
         events.JsNum(raw: r) -> return int_or(r)
         _ -> return -1
 
-fn int_or(t: &text) -> i64 = if t.isdigit() and t.len() < 18 then t.toint() else -1
+fn int_or(t: &text) -> i64 = if t.isdigit() and t.len_bytes() < 18 then t.toint() else -1
 
 fn npm_name(path: &text) -> text
     let parts = path.split("node_modules/")
@@ -965,7 +965,7 @@ fn hex_bytes(h: &text) -> List[i64]
 
 # Cargo.lock `checksum`: the SHA-256 of the .crate, 64 lower-case hex digits.
 pub fn checksum_valid(c: &text) -> bool
-    if c.len() != 64
+    if c.len_bytes() != 64
         return false
     for ch in c.chars()
         if not (is_digit(&ch) or (ch[0] >= 97 and ch[0] <= 102))

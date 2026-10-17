@@ -67,11 +67,11 @@ fn hnib(c: i64) -> i64
     return -1
 
 fn is_hex(t: &text) -> bool
-    if t.len() % 2 == 1
+    if t.len_bytes() % 2 == 1
         return false
     var ok = true
     var i: usize = 0
-    while i < t.len() bound 16777216
+    while i < t.len_bytes() bound 16777216
         ok = ok and hnib(t[i] as i64) >= 0
         i += 1
     return ok
@@ -79,7 +79,7 @@ fn is_hex(t: &text) -> bool
 fn utf8_of(t: &text) -> List[i64]
     var o: List[i64] = []
     var i: usize = 0
-    while i < t.len() bound 16777216
+    while i < t.len_bytes() bound 16777216
         o.push(t[i] as i64)
         i += 1
     return o
@@ -122,11 +122,11 @@ fn b58_val(c: i64) -> i64
 
 pub fn base58_decode(s: &text) -> List[i64] ! BadDid
     var zeros: usize = 0
-    while zeros < s.len() and (s[zeros] as i64) == 49 bound 16777216
+    while zeros < s.len_bytes() and (s[zeros] as i64) == 49 bound 16777216
         zeros += 1
     var bs: List[i64] = []
     var i: usize = 0
-    while i < s.len() bound 16777216
+    while i < s.len_bytes() bound 16777216
         let d = b58_val(s[i] as i64)
         if d < 0
             fail BadDid(at: i as i64)
@@ -182,11 +182,11 @@ fn jt(t: text) -> enc.Cbor = enc.CText(t: t)
 fn jn(v: i64) -> enc.Cbor = enc.CInt(v: v)
 
 fn check_fields(r: &Receipt, need_payload: bool) -> text
-    if not is_hex(&r.grant_id) or r.grant_id.len() == 0
+    if not is_hex(&r.grant_id) or r.grant_id.len_bytes() == 0
         return "grant_id"
     if not is_hex(&r.resource)
         return "resource"
-    if need_payload and (not is_hex(&r.payload_hash) or r.payload_hash.len() == 0)
+    if need_payload and (not is_hex(&r.payload_hash) or r.payload_hash.len_bytes() == 0)
         return "payload_hash"
     if r.trust != "control" and r.trust != "data"
         return "trust"
@@ -203,7 +203,7 @@ fn check_fields(r: &Receipt, need_payload: bool) -> text
     if r.budget_remaining_uj > r.budget_uj
         return "budget_remaining_uj"
     for g in r.chain_ids
-        if not is_hex(&g) or g.len() == 0
+        if not is_hex(&g) or g.len_bytes() == 0
             return "chain_ids"
     return ""
 
@@ -308,12 +308,12 @@ fn uint_of(c: &enc.Cbor) -> i64 ! BadReceipt
 
 fn map_keys(c: &enc.Cbor, why: text) -> List[enc.Cbor] ! BadReceipt
     match c
-        CMap(keys: ks, vals: vs) -> return copy(ks)
+        CMap(keys: ks, vals: _vs) -> return copy(ks)
         _ -> fail BadReceipt(why: why)
 
 fn map_vals(c: &enc.Cbor, why: text) -> List[enc.Cbor] ! BadReceipt
     match c
-        CMap(keys: ks, vals: vs) -> return copy(vs)
+        CMap(keys: _ks, vals: vs) -> return copy(vs)
         _ -> fail BadReceipt(why: why)
 
 fn arr_of(c: &enc.Cbor, why: text) -> List[enc.Cbor] ! BadReceipt
@@ -323,14 +323,14 @@ fn arr_of(c: &enc.Cbor, why: text) -> List[enc.Cbor] ! BadReceipt
 
 fn tag_num(c: &enc.Cbor) -> i64
     match c
-        CTag(tag: tag, item: item) -> return tag
+        CTag(tag: tag, item: _item) -> return tag
         _ -> return -1
 
 fn cbor_copy(c: &enc.Cbor) -> enc.Cbor = copy(c)
 
 fn tag_item(c: &enc.Cbor) -> enc.Cbor
     match c
-        CTag(tag: tag, item: item) -> return cbor_copy(item)
+        CTag(tag: _tag, item: item) -> return cbor_copy(item)
         _ -> return enc.CInt(v: -1)
 
 fn kid_text(b: &[i64]) -> text
@@ -470,7 +470,7 @@ pub fn seal_receipt(r: &Receipt, seed_hex: text) -> List[i64] ! BadReceipt
 fn hex_bytes(h: &text) -> List[i64]
     var o: List[i64] = []
     var i: usize = 0
-    while i + 1 < h.len() bound 16777216
+    while i + 1 < h.len_bytes() bound 16777216
         o.push(hnib(h[i] as i64) * 16 + hnib(h[i + 1] as i64))
         i += 2
     return o

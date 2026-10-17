@@ -19,7 +19,7 @@ pub struct Big
 pub fn mag_trim(m: List[i64]) -> List[i64]
     var o = m
     while o.len() > 0 and o[o.len() - 1] == 0 bound 1048576
-        o.pop()
+        let _ = o.pop()
     return o
 
 fn mk(neg: bool, m: List[i64]) -> Big
@@ -112,7 +112,7 @@ pub fn mag_mul(a: &[i64], b: &[i64]) -> List[i64]
     if a.len() == 0 or b.len() == 0
         return []
     var o: List[i64] = []
-    for k in 0..(a.len() + b.len())
+    for _k in 0..(a.len() + b.len())
         o.push(0)
     var i: usize = 0
     while i < a.len() bound 1048576
@@ -136,7 +136,7 @@ pub fn mag_mul(a: &[i64], b: &[i64]) -> List[i64]
 # remainder appended as the last element.
 pub fn mag_divsmall(a: &[i64], d: i64) -> List[i64]
     var q: List[i64] = []
-    for k in 0..a.len()
+    for _k in 0..a.len()
         q.push(0)
     var r: i64 = 0
     var i = a.len()
@@ -155,7 +155,7 @@ pub fn mag_shl(a: &[i64], n: i64) -> List[i64]
     var o: List[i64] = []
     let w = n / LBITS
     let b = n % LBITS
-    for k in 0..(w as usize)
+    for _k in 0..(w as usize)
         o.push(0)
     var c: i64 = 0
     for x in a
@@ -203,16 +203,16 @@ pub struct QR
 
 pub fn mag_divmod(a: &[i64], b: &[i64]) -> QR
     # division by zero traps here (6.3: a trap refuses the step)
-    let nz = 1 / (b.len() as i64)
+    let _nz = 1 / (b.len() as i64)
     if mag_cmp(a, b) < 0
         return QR(q: [], r: mag_trim(copy(a)))
     if b.len() == 1
         var qs = mag_divsmall(a, b[0])
         let r = qs[qs.len() - 1]
-        qs.pop()
+        let _ = qs.pop()
         return QR(q: qs, r: mag_trim([r]))
     var q: List[i64] = []
-    for k in 0..a.len()
+    for _k in 0..a.len()
         q.push(0)
     var r: List[i64] = []
     var i = mag_bitlen(a)
@@ -320,7 +320,7 @@ pub fn big_tostr(a: Big) -> text
     while m.len() > 0 bound 1048576
         var qs = mag_divsmall(&m, 10000000)
         parts.push(qs[qs.len() - 1])
-        qs.pop()
+        let _ = qs.pop()
         m = qs
     var s = if a.neg then "-" else ""
     var i = parts.len()
@@ -330,7 +330,7 @@ pub fn big_tostr(a: Big) -> text
         i -= 1
         let d = parts[i].tostr()
         var pad = ""
-        for k in 0..(7 - d.len())
+        for _k in 0..(7 - d.len_bytes())
             pad = pad + "0"
         s = s + pad + d
     return s
@@ -342,14 +342,14 @@ error BadNumber(at: i64)
 pub fn big_parse(s: text) -> Big ! BadNumber
     var neg = false
     var i: usize = 0
-    if s.len() > 0 and s[0] == 45
+    if s.len_bytes() > 0 and s[0] == 45
         neg = true
         i = 1
-    if i >= s.len()
+    if i >= s.len_bytes()
         fail BadNumber(at: i as i64)
     var m: List[i64] = []
     let ten: List[i64] = [10]
-    while i < s.len() bound 1048576
+    while i < s.len_bytes() bound 1048576
         let d = (s[i] as i64) - 48
         if d < 0 or d > 9
             fail BadNumber(at: i as i64)
@@ -382,7 +382,7 @@ pub struct Rat
     den: Big
 
 pub fn rat_make(n: Big, d: Big) -> Rat
-    let nz = 1 / (d.mag.len() as i64)
+    let _nz = 1 / (d.mag.len() as i64)
     let g = big_gcd(copy(n), copy(d))
     var nn = big_quot(n, copy(g))
     var dd = big_quot(d, g)
@@ -503,11 +503,11 @@ pub fn dec_tostr(a: Dec) -> text
     let neg = a.coef.neg
     let k = (0 - a.exp) as usize
     var digits = big_tostr(big_abs(copy(a.coef)))
-    while digits.len() <= k bound 1048576
+    while digits.len_bytes() <= k bound 1048576
         digits = "0" + digits
-    let p = digits.len() - k
+    let p = digits.len_bytes() - k
     let sign = if neg then "-" else ""
-    return sign + digits[0:p] + "." + digits[p:digits.len()]
+    return sign + digits[0:p] + "." + digits[p:digits.len_bytes()]
 
 # Parse plain notation: optional '-', digits, optional '.' and digits. The
 # exponent is minus the number of fraction digits (trailing zeros are kept,
@@ -535,7 +535,7 @@ pub fn dec_parse(s: text) -> Dec ! BadNumber
 pub fn fx_from_int(n: i64, f: i64) -> i64 = n << f
 
 fn checked_int(a: Big) -> i64
-    let ok = 1 / (if big_fits_int(copy(a)) then 1 else 0)
+    let _ok = 1 / (if big_fits_int(copy(a)) then 1 else 0)
     return big_to_int(a)
 
 pub fn fx_mul(a: i64, b: i64, f: i64, mode: i64) -> i64 = checked_int(big_round_div(big_mul(big_from_int(a), big_from_int(b)), big_shl(big_from_int(1), f), mode))

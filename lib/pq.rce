@@ -43,7 +43,7 @@ fn keccak_f(st: List[i64]) -> List[i64]
                 a[2 * (x + 5 * y) + 1] = a[2 * (x + 5 * y) + 1] ^ dh
         # rho and pi: B[y, 2x+3y] = rot(A[x, y])
         var b: List[i64] = []
-        for i in 0..50
+        for _i in 0..50
             b.push(0)
         for x in 0..5
             for y in 0..5
@@ -80,7 +80,7 @@ fn keccak_f(st: List[i64]) -> List[i64]
 # sponge: rate in bytes, domain byte (0x06 SHA3, 0x1f SHAKE), out bytes
 fn keccak(rate: usize, dom: i64, msg: List[i64], outn: usize) -> List[i64]
     var st: List[i64] = []
-    for i in 0..50
+    for _i in 0..50
         st.push(0)
     var m = copy(msg)
     m.push(dom)
@@ -142,7 +142,7 @@ fn mk_gammas() -> List[i64] = [17, 3312, 2761, 568, 583, 2746, 2649, 680, 1637, 
 
 fn zeros(n: usize) -> List[i64]
     var z: List[i64] = []
-    for i in 0..n
+    for _i in 0..n
         z.push(0)
     return z
 

@@ -135,7 +135,7 @@ fn int_of(x: &events.Jv) -> i64 ! BadTarget
 fn int_text(r: &text) -> i64 ! BadTarget
     let neg = r.startswith("-")
     let d = if neg then copy(r.split("-")[1]) else copy(r)
-    if not d.isdigit() or d.len() > 15
+    if not d.isdigit() or d.len_bytes() > 15
         fail BadTarget(why: "expected an integer")
     return if neg then 0 - d.toint() else d.toint()
 
@@ -285,7 +285,7 @@ fn ops_of(items: &List[events.Jv]) -> List[Op] ! BadTarget
 
 # A test configuration (Config.from_file).
 pub fn plan_parse(t: &text) -> Plan ! BadTarget
-    let j = events.json_parse(t) catch |e| events.JsNull
+    let j = events.json_parse(t) catch |_e| events.JsNull
     if is_null(&j)
         fail BadTarget(why: "configuration is not JSON")
     let keys = try obj_keys(&j)

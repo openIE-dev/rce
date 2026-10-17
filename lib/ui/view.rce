@@ -46,7 +46,7 @@ fn empty_ints() -> List[i64] = []
 
 pub fn view_new(tag: text, key: text) -> View
     var v = View(tag: [], key: [], text: [], names: [], values: [], parent: [], kids: [])
-    push_node(&mut v, -1, tag, key, "")
+    let _ = push_node(&mut v, -1, tag, key, "")
     return v
 
 fn push_node(v: &mut View, p: i64, tag: text, key: text, t: text) -> i64
@@ -71,7 +71,7 @@ pub fn name_lt(a: &text, b: &text) -> bool
     if a.len() != b.len()
         return a.len() < b.len()
     var i: usize = 0
-    while i < a.len()
+    while i < a.len_bytes()
         if a[i] != b[i]
             return a[i] < b[i]
         i += 1
@@ -129,7 +129,7 @@ pub fn view_ok(v: &View) -> bool
     if n == 0 or v.parent[0] != -1
         return false
     var seen: List[i64] = []
-    for i in 0..n
+    for _i in 0..n
         seen.push(0)
     seen[0] = 1
     for i in 0..n
@@ -230,7 +230,7 @@ fn same(a: &View, x: i64, b: &View, y: i64) -> bool = a.tag[x as usize] == b.tag
 # m[j]: index into ak matched to bk[j], or -1.
 pub fn match_kids(a: &View, ak: &[i64], b: &View, bk: &[i64]) -> List[i64]
     var m: List[i64] = []
-    for j in 0..bk.len()
+    for _j in 0..bk.len()
         m.push(-1)
     var i: i64 = 0
     let na = ak.len() as i64
@@ -267,7 +267,7 @@ pub fn match_kids(a: &View, ak: &[i64], b: &View, bk: &[i64]) -> List[i64]
 # the least possible (vectors/SOURCE.md; checked by breadth-first search).
 pub fn match_opt(a: &View, ak: &[i64], b: &View, bk: &[i64]) -> List[i64]
     var m: List[i64] = []
-    for j in 0..bk.len()
+    for _j in 0..bk.len()
         m.push(-1)
     var i: i64 = 0
     let na = ak.len() as i64
@@ -287,7 +287,7 @@ pub fn match_opt(a: &View, ak: &[i64], b: &View, bk: &[i64]) -> List[i64]
         return m
     # t[(p * (c + 1)) + q]: LCS of old[i + p ..] and new[i + q ..]
     var t: List[i64] = []
-    for z in 0..((r + 1) * (c + 1)) as usize
+    for _z in 0..((r + 1) * (c + 1)) as usize
         t.push(0)
     var p = r
     while p > 0 bound 16777216
@@ -303,7 +303,7 @@ pub fn match_opt(a: &View, ak: &[i64], b: &View, bk: &[i64]) -> List[i64]
                 let e = t[(p * (c + 1) + q + 1) as usize]
                 t[at] = if d >= e then d else e
     var used: List[i64] = []
-    for o in 0..ak.len()
+    for _o in 0..ak.len()
         used.push(0)
     p = 0
     var q: i64 = 0
@@ -365,7 +365,7 @@ fn kid_ops(a: &View, b: &View, x: i64, y: i64, px: i64, as_vue: bool, ops: &mut 
             j += 1
     else
         var used: List[i64] = []
-        for o in 0..ak.len()
+        for _o in 0..ak.len()
             used.push(0)
         for t in m
             if t >= 0
@@ -380,7 +380,7 @@ fn kid_ops(a: &View, b: &View, x: i64, y: i64, px: i64, as_vue: bool, ops: &mut 
                 cj.push(j as i64)
                 pos.push(m[j])
         var keep: List[i64] = []
-        for j in 0..bk.len()
+        for _j in 0..bk.len()
             keep.push(0)
         for t in lis(&pos)
             keep[cj[t as usize] as usize] = 1
@@ -478,8 +478,8 @@ fn attach(v: &mut View, n: i64, p: i64, before: i64)
 pub fn apply(a: &View, b: &View, ops: &[Op]) -> View
     let off = a.tag.len() as i64
     var v = copy(a)
-    for j in 0..b.tag.len()
-        push_node(&mut v, -1, "", "", "")
+    for _j in 0..b.tag.len()
+        let _ = push_node(&mut v, -1, "", "", "")
     var root: i64 = 0
     for o in ops
         let n = o.nd
@@ -548,8 +548,8 @@ fn compact_pre(v: &View) -> View
     while src.len() > 0 bound 16777216
         let s = src[src.len() - 1] as usize
         let d = dst[dst.len() - 1]
-        src.pop()
-        dst.pop()
+        let _ = src.pop()
+        let _ = dst.pop()
         out.text[d as usize] = copy(v.text[s])
         out.names[d as usize] = copy(v.names[s])
         out.values[d as usize] = copy(v.values[s])
@@ -582,7 +582,7 @@ pub fn view_cbor(v: &View) -> List[i64]
     var st: List[i64] = [0]
     while st.len() > 0 bound 16777216
         let u = st[st.len() - 1] as usize
-        st.pop()
+        let _ = st.pop()
         put_head(&mut o, 4, 5)
         put_text(&mut o, &v.tag[u])
         put_text(&mut o, &v.key[u])

@@ -52,7 +52,7 @@ fn lower(t: &text) -> text
 pub fn bytes_of(t: &text) -> List[i64]
     var o: List[i64] = []
     var i: usize = 0
-    while i < t.len() bound 16777216
+    while i < t.len_bytes() bound 16777216
         o.push(t[i] as i64)
         i += 1
     return o
@@ -221,7 +221,7 @@ fn list_items(v: &text) -> List[text]
     return out
 
 fn dec(t: &text) -> i64
-    if t == "" or t.len() > 15
+    if t == "" or t.len_bytes() > 15
         return -1
     var v: i64 = 0
     for c in t.chars()
@@ -232,7 +232,7 @@ fn dec(t: &text) -> i64
     return v
 
 fn hexnum(t: &text) -> i64
-    if t == "" or t.len() > 15
+    if t == "" or t.len_bytes() > 15
         return -1
     var v: i64 = 0
     for c in t.chars()
@@ -260,7 +260,7 @@ fn head(b: &[i64], m: &mut Message, req: bool) -> i64 ! BadHttp
     if e < 0
         return -1
     let sl = try ascii_text(b, i, e as usize)
-    let x = try start_line(&sl, m, req)
+    let _x = try start_line(&sl, m, req)
     i = (e + 2) as usize
     while true bound 16777216
         let f = try line_end(b, i)
@@ -271,7 +271,7 @@ fn head(b: &[i64], m: &mut Message, req: bool) -> i64 ! BadHttp
         let t = try ascii_text(b, i, f as usize)
         var ns = copy(m.names)
         var vs = copy(m.values)
-        let y = try field(&t, &mut ns, &mut vs)
+        let _y = try field(&t, &mut ns, &mut vs)
         m.names = ns
         m.values = vs
         i = (f + 2) as usize
@@ -305,7 +305,7 @@ fn chunked(b: &[i64], start: usize, m: &mut Message) -> i64 ! BadHttp
                 let t = try ascii_text(b, i, f as usize)
                 var ns = copy(m.trailer_names)
                 var vs = copy(m.trailer_values)
-                let y = try field(&t, &mut ns, &mut vs)
+                let _y = try field(&t, &mut ns, &mut vs)
                 m.trailer_names = ns
                 m.trailer_values = vs
                 i = (f + 2) as usize
@@ -403,7 +403,7 @@ fn rest(b: &[i64], i: usize) -> List[i64]
 
 fn put(o: &mut List[i64], t: &text)
     var i: usize = 0
-    while i < t.len() bound 16777216
+    while i < t.len_bytes() bound 16777216
         o.push(t[i] as i64)
         i += 1
 
@@ -431,7 +431,7 @@ pub fn serialize(m: &Message) -> List[i64] ! BadHttp
                 fail BadHttp(why: "field name")
         for c in m.values[i].chars()
             let x = c[0] as i64
-            if c.len() != 1 or (x < 32 and x != 9) or x == 127
+            if c.len_bytes() != 1 or (x < 32 and x != 9) or x == 127
                 fail BadHttp(why: "field value")
         let l = lower(&m.names[i])
         if l == "content-length" or l == "transfer-encoding"

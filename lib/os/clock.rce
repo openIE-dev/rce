@@ -91,7 +91,7 @@ pub fn is_zero(d: &Dur) -> bool = d.secs == 0 and d.nanos == 0
 # Total as decimal text (Rust's u128 as_nanos, as_micros, as_millis), exact.
 fn pad9(v: i64, w: i64) -> text
     var o = v.tostr()
-    while (o.len() as i64) < w bound 9
+    while (o.len_bytes() as i64) < w bound 9
         o = "0" + o
     return o
 fn in_units(d: &Dur, digits: i64, unit: i64) -> text

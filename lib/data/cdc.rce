@@ -76,11 +76,11 @@ fn cd_hv(c: i64) -> i64
     return -1
 
 pub fn hex_bytes(t: &text) -> List[i64] ! BadCdc
-    if t.len() % 2 != 0
+    if t.len_bytes() % 2 != 0
         fail BadCdc(why: "odd hex")
     var o: List[i64] = []
     var i: usize = 0
-    while i < t.len() bound 16777216
+    while i < t.len_bytes() bound 16777216
         let h = cd_hv(t[i] as i64)
         let l = cd_hv(t[i + 1] as i64)
         if h < 0 or l < 0
@@ -314,31 +314,31 @@ fn pg_one(p: &mut Pg, m: &PgMsg) -> bool ! BadCdc
     let t = try rd_u8(&mut r)
     if t == 66
         let fl = try rd_lsn(&mut r)
-        let ts = try rd_i64(&mut r)
+        let _ts = try rd_i64(&mut r)
         let xid = try rd_un(&mut r, 4)
         p.xid = xid.tostr()
         p.txs.push("B " + p.xid + " " + fl)
     elif t == 67
-        let fl = try rd_u8(&mut r)
+        let _fl = try rd_u8(&mut r)
         let cl = try rd_lsn(&mut r)
         let el = try rd_lsn(&mut r)
-        let cts = try rd_i64(&mut r)
+        let _cts = try rd_i64(&mut r)
         p.txs.push("C " + p.xid + " " + cl + " " + el)
         p.xid = ""
     elif t == 82
         let id = try rd_un(&mut r, 4)
         let nsp = try rd_cstr(&mut r)
         let name = try rd_cstr(&mut r)
-        let ident = try rd_u8(&mut r)
+        let _ident = try rd_u8(&mut r)
         let nc = try rd_un(&mut r, 2)
         var names: List[text] = []
         var types: List[i64] = []
         var key: List[bool] = []
-        for i in 0..(nc as usize)
+        for _i in 0..(nc as usize)
             let f = try rd_u8(&mut r)
             names.push(try rd_cstr(&mut r))
             types.push(try rd_un(&mut r, 4))
-            let tm = try rd_un(&mut r, 4)
+            let _tm = try rd_un(&mut r, 4)
             key.push((f & 1) == 1)
         let rel = PgRel(id: id, ns: nsp + "." + name, names: names, types: types, key: key)
         var kept: List[PgRel] = []
@@ -385,15 +385,15 @@ fn pg_one(p: &mut Pg, m: &PgMsg) -> bool ! BadCdc
         p.out.push(mk("pgoutput", "d", pg_ns(&rel), key, events.JsNull, events.JsNull, events.JsNull, copy(m.lsn), copy(p.xid)))
     elif t == 84
         let n = try rd_un(&mut r, 4)
-        let opts = try rd_u8(&mut r)
-        for i in 0..(n as usize)
+        let _opts = try rd_u8(&mut r)
+        for _i in 0..(n as usize)
             let id = try rd_un(&mut r, 4)
             let ri = try pg_rel_at(p, id)
             let ns = pg_ns(&p.rels[ri])
             p.out.push(mk("pgoutput", "t", ns, events.JsNull, events.JsNull, events.JsNull, events.JsNull, copy(m.lsn), copy(p.xid)))
     elif t == 77
         let fl = try rd_u8(&mut r)
-        let ml = try rd_lsn(&mut r)
+        let _ml = try rd_lsn(&mut r)
         let prefix = try rd_cstr(&mut r)
         let n = try rd_un(&mut r, 4)
         let bs = try rd_bytes(&mut r, n as usize)
@@ -410,7 +410,7 @@ fn pg_one(p: &mut Pg, m: &PgMsg) -> bool ! BadCdc
 fn pg_run(ms: &[PgMsg]) -> Pg ! BadCdc
     var p = Pg(rels: [], xid: "", out: [], txs: [])
     for m in ms
-        let ok = try pg_one(&mut p, &m)
+        let _ok = try pg_one(&mut p, &m)
     return p
 
 # Changes of a sequence of pgoutput messages (one decoding session: a
@@ -542,7 +542,7 @@ pub fn wal2json_v1(docs: &[text]) -> List[Change] ! BadCdc
 
 fn dz_doc(j: &events.Jv) -> events.Jv ! BadCdc
     match j
-        events.JsStr(t: t) -> return events.json_parse(t) catch |e| events.JsStr(t: "\u{0}bad")
+        events.JsStr(t: t) -> return events.json_parse(t) catch |_e| events.JsStr(t: "\u{0}bad")
         _ -> return copy(j)
 
 fn dz_bad(j: &events.Jv) -> bool = j == events.JsStr(t: "\u{0}bad")
@@ -919,7 +919,7 @@ pub fn sqlite_changes(hex: &text) -> List[Change] ! BadCdc
             patch = op == 80
             let n = try sq_varint(&mut r)
             var p: List[bool] = []
-            for i in 0..(n as usize)
+            for _i in 0..(n as usize)
                 p.push((try rd_u8(&mut r)) != 0)
             pk = p
             tbl = try rd_cstr(&mut r)
@@ -1023,7 +1023,7 @@ pub fn resp_value(r: &mut Rd) -> events.Jv ! BadCdc bound 64
             return events.JsNull
         let m = if t == 37 then n * 2 else n
         var xs: List[events.Jv] = []
-        for i in 0..(m as usize)
+        for _i in 0..(m as usize)
             xs.push(try resp_value(r))
         if t == 126
             return rs_tag("set", events.JsArr(items: xs))
@@ -1066,7 +1066,7 @@ fn rd_entries(v: &events.Jv, stream: &text) -> List[Change] ! BadCdc
 
 fn cd_is_arr(j: &events.Jv) -> bool
     match j
-        events.JsArr(items: xs) -> return true
+        events.JsArr(items: _xs) -> return true
         _ -> return false
 
 # [stream, [[id, fields], ...]] (XREAD) rather than [id, [f, v, ...]].
@@ -1212,7 +1212,7 @@ pub fn frame(hex: &text) -> Frame ! BadCdc
     if r.at + 2 != r.b.len() or r.b[r.at] != 13 or r.b[r.at + 1] != 10
         fail BadCdc(why: "jetstream: frame terminator")
     if h
-        let ok = try js_headers(&hb, &mut f)
+        let _ok = try js_headers(&hb, &mut f)
     return f
 
 fn js_hdr(f: &Frame, name: text) -> text

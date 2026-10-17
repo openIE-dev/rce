@@ -90,7 +90,7 @@ pub fn name_wire(n: &text) -> List[i64] ! BadDns
     var labels: List[List[i64]] = []
     while i < cs.len() bound 16777216
         let c = copy(cs[i])
-        if c.len() != 1
+        if c.len_bytes() != 1
             fail BadDns(why: "non-ASCII name")
         if c == "\\"
             if i + 1 >= cs.len()
@@ -329,9 +329,9 @@ pub fn encode(m: &Dns) -> List[i64] ! BadDns
         cat(&mut o, &w)
         push16(&mut o, q.qtype)
         push16(&mut o, q.qclass)
-    let x = try put_records(&mut o, &m.answers)
-    let y = try put_records(&mut o, &m.authority)
-    let z = try put_records(&mut o, &m.additional)
+    let _x = try put_records(&mut o, &m.answers)
+    let _y = try put_records(&mut o, &m.authority)
+    let _z = try put_records(&mut o, &m.additional)
     return o
 
 # A recursive query for name and type (RD set, class IN).
@@ -355,11 +355,11 @@ pub fn mx_rdata(pref: i64, host: &text) -> List[i64] ! BadDns
 pub fn txt_rdata(parts: &[text]) -> List[i64] ! BadDns
     var o: List[i64] = []
     for t in parts
-        if t.len() > 255
+        if t.len_bytes() > 255
             fail BadDns(why: "character-string over 255")
-        o.push(t.len() as i64)
+        o.push(t.len_bytes() as i64)
         var i: usize = 0
-        while i < t.len() bound 255
+        while i < t.len_bytes() bound 255
             o.push(t[i] as i64)
             i += 1
     return o

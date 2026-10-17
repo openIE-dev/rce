@@ -161,7 +161,7 @@ pub fn posix_normpath(p: &text) -> text
         if c != ".." or (init == "" and out.len() == 0) or (out.len() > 0 and out[out.len() - 1] == "..")
             out.push(copy(c))
         elif out.len() > 0
-            out.pop()
+            let _ = out.pop()
     let o = init + join_with(&out, "/")
     return if o == "" then "." else o
 
@@ -232,7 +232,7 @@ fn text_lt(a: &text, b: &text) -> bool
 fn cps(t: &text) -> List[i64]
     var o: List[i64] = []
     var i: usize = 0
-    while i < t.len() bound 67108864
+    while i < t.len_bytes() bound 67108864
         let b = t[i] as i64
         if b < 128
             o.push(b)
@@ -470,7 +470,7 @@ fn reserved_name(n: &text) -> bool
     if cs.len() > 0 and (cs[cs.len() - 1] == "." or cs[cs.len() - 1] == " ")
         return n != "." and n != ".."
     for c in cs
-        if c.len() == 1 and (c[0] < 32 or c == "\"" or c == "*" or c == ":" or c == "<" or c == ">" or c == "?" or c == "|" or c == "/" or c == "\\")
+        if c.len_bytes() == 1 and (c[0] < 32 or c == "\"" or c == "*" or c == ":" or c == "<" or c == ">" or c == "?" or c == "|" or c == "/" or c == "\\")
             return true
     var stem = ""
     for c in cs
@@ -513,7 +513,7 @@ pub fn wasi_resolve(p: &text) -> List[text] ! BadPath
         if c == ".."
             if out.len() == 0
                 fail BadPath(why: "escapes the directory")
-            out.pop()
+            let _ = out.pop()
         else
             out.push(copy(c))
     return out

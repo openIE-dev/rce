@@ -19,7 +19,7 @@ fn enc_cat(a: List[i64], b: &[i64]) -> List[i64]
 fn bytes_of(s: &text) -> List[i64]
     var o: List[i64] = []
     var i: usize = 0
-    while i < s.len() bound 16777216
+    while i < s.len_bytes() bound 16777216
         o.push(s[i] as i64)
         i += 1
     return o
@@ -69,7 +69,7 @@ fn b64_val(c: i64, url: bool) -> i64
 # Strict decode: padding exactly as b64_encode(pad) would emit it, no
 # whitespace, zero trailing bits (RFC 4648 section 3.5 canonical form).
 pub fn b64_decode(s: &text, url: bool, pad: bool) -> List[i64] ! BadBase64
-    var n = s.len()
+    var n = s.len_bytes()
     if pad
         if n % 4 != 0
             fail BadBase64(at: n as i64)
@@ -100,7 +100,7 @@ pub fn b64_decode(s: &text, url: bool, pad: bool) -> List[i64] ! BadBase64
 # ---------------- LEB128 varints ----------------
 
 pub fn uvarint(v: i64) -> List[i64]
-    let ok = 1 / (if v >= 0 then 1 else 0)
+    let _ok = 1 / (if v >= 0 then 1 else 0)
     var o: List[i64] = []
     var x = v
     while x >= 128 bound 10
@@ -201,7 +201,7 @@ fn enc_map(ks: List[List[i64]], vs: List[List[i64]]) -> List[i64]
             j -= 1
         idx[j] = i
     for j in 1..idx.len()
-        let ok = 1 / (if lex_cmp(&ks[idx[j - 1]], &ks[idx[j]]) < 0 then 1 else 0)
+        let _ok = 1 / (if lex_cmp(&ks[idx[j - 1]], &ks[idx[j]]) < 0 then 1 else 0)
     var o = cbor_head(5, ks.len() as i64)
     for i in idx
         o = enc_cat(o, &ks[i])
@@ -309,7 +309,7 @@ pub fn cbor_decode_at(b: &[i64], off: i64) -> CborOut ! BadCbor bound 64
         return CborOut(v: CText(t: t), next: p + n)
     if m == 4
         var items: List[Cbor] = []
-        for k in 0..n
+        for _k in 0..n
             let r = try cbor_decode_at(b, p)
             p = r.next
             items.push(r.v)
@@ -328,7 +328,7 @@ pub fn cbor_decode_at(b: &[i64], off: i64) -> CborOut ! BadCbor bound 64
                 fail BadCbor(at: ks0)
             prev = kb
             let rv = try cbor_decode_at(b, rk.next)
-            let kn = rk.next
+            let _kn = rk.next
             p = rv.next
             ks.push(rk.v)
             vs.push(rv.v)
@@ -397,7 +397,7 @@ pub fn jcs_string(t: &text) -> text
 pub fn utf16_units(t: &text) -> List[i64]
     var o: List[i64] = []
     var i: usize = 0
-    while i < t.len() bound 16777216
+    while i < t.len_bytes() bound 16777216
         let x = t[i] as i64
         var cp = x
         var n: usize = 1
@@ -420,7 +420,7 @@ pub fn utf16_units(t: &text) -> List[i64]
     return o
 
 fn jcs_int(v: i64) -> text
-    let ok = 1 / (if v <= 9007199254740992 and v >= -9007199254740992 then 1 else 0)
+    let _ok = 1 / (if v <= 9007199254740992 and v >= -9007199254740992 then 1 else 0)
     return v.tostr()
 
 fn jcs_arr(parts: List[text]) -> text = "[" + ",".join(parts) + "]"
@@ -439,7 +439,7 @@ fn jcs_obj(keys: &[text], vals: List[text]) -> text
             j -= 1
         idx[j] = i
     for j in 1..idx.len()
-        let ok = 1 / (if lex_cmp(&us[idx[j - 1]], &us[idx[j]]) < 0 then 1 else 0)
+        let _ok = 1 / (if lex_cmp(&us[idx[j - 1]], &us[idx[j]]) < 0 then 1 else 0)
     var parts: List[text] = []
     for i in idx
         parts.push(jcs_string(&keys[i]) + ":" + copy(vals[i]))

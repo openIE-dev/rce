@@ -105,7 +105,7 @@ pub fn utf8_decode_lossy(b: &[i64]) -> List[i64]
 pub fn is_scalar(cp: i64) -> bool = cp >= 0 and cp <= 1114111 and (cp < 55296 or cp > 57343)
 
 pub fn utf8_encode_cp(o: &mut List[i64], cp: i64)
-    let ok = 1 / (if is_scalar(cp) then 1 else 0)
+    let _ok = 1 / (if is_scalar(cp) then 1 else 0)
     if cp < 128
         o.push(cp)
     elif cp < 2048
@@ -131,7 +131,7 @@ pub fn utf8_encode(cps: &[i64]) -> List[i64]
 pub fn text_bytes(t: &text) -> List[i64]
     var o: List[i64] = []
     var i: usize = 0
-    while i < t.len() bound 67108864
+    while i < t.len_bytes() bound 67108864
         o.push(t[i] as i64)
         i += 1
     return o
@@ -144,7 +144,7 @@ pub fn codepoints(t: &text) -> List[i64]
 pub fn cp_count(t: &text) -> i64
     var n: i64 = 0
     var i: usize = 0
-    while i < t.len() bound 67108864
+    while i < t.len_bytes() bound 67108864
         let x = t[i] as i64
         if x < 128 or x >= 192
             n += 1
