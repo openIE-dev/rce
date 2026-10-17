@@ -62,7 +62,7 @@ event RandomDone(req: u64, status: text, data: text?, err: text)
 fn pad(n: u64) -> text
     var s = n.tostr()
     for _ in 0..12
-        if s.len() < 12
+        if s.len_bytes() < 12
             s = "0" + s
     s
 
@@ -171,7 +171,7 @@ step Chat on Do(op: k, conv: c, topic: t, body: b)
     elif k == "react"
         let rk = copy(c) + "\u{1f}" + copy(t) + "\u{1f}" + copy(who)
         if reactions.contains(rk)
-            reactions.remove(rk)
+            let _ = reactions.remove(rk)
         else
             reactions[rk] = 1
     elif k == "presence"
@@ -181,7 +181,7 @@ step Chat on Do(op: k, conv: c, topic: t, body: b)
     elif k == "leave"
         let ck = copy(c) + "\u{1f}" + copy(who)
         if calls.contains(ck)
-            calls.remove(ck)
+            let _ = calls.remove(ck)
     elif k == "track"
         tracks[copy(c) + "\u{1f}" + copy(who) + "\u{1f}" + copy(t)] = copy(b)
     elif k == "edit" or k == "delete"
@@ -224,19 +224,19 @@ step Chat on Poll
     due.sort()
     for r0 in due
         if (retry.get(r0) catch 0) <= polls
-            retry.remove(r0)
+            let _ = retry.remove(r0)
             next += 1
             ipeer[next] = ipeer.get(r0) catch ""
             iwire[next] = iwire.get(r0) catch ""
             tries[next] = tries.get(r0) catch 0
-            ipeer.remove(r0)
-            iwire.remove(r0)
+            let _ = ipeer.remove(r0)
+            let _ = iwire.remove(r0)
             if tries.contains(r0)
-                tries.remove(r0)
+                let _ = tries.remove(r0)
             emit ChanSend(req: next, peer: ipeer.get(next) catch "", id: next, body: iwire.get(next) catch "", reliable: true)
     if jhead < jtail
         let j = jobs.get(jhead) catch ""
-        jobs.remove(jhead)
+        let _ = jobs.remove(jhead)
         jhead += 1
         let f = j.split("\u{1f}")
         let jk = copy(f[0])
@@ -359,24 +359,24 @@ step Chat on Poll
     next += 1
     emit ChanRecv(req: next, max: 256)
 
-step Chat on RandomDone(req: r, status: s, data: d, err: e)
+step Chat on RandomDone(req: r, status: s, data: d, err: _e)
     let why = wants.get(r) catch ""
     if wants.contains(r)
-        wants.remove(r)
+        let _ = wants.remove(r)
     let bytes = d.or("")
-    if s == "delivered" and bytes.len() == 192
+    if s == "delivered" and bytes.len_bytes() == 192
         if why == "keys"
             keys["ik"] = hexslice(copy(bytes), 0, 32)
             keys["ed"] = hexslice(copy(bytes), 32, 64)
             keys["spk"] = hexslice(bytes, 64, 96)
             jobs[jtail] = "k1"
             jtail += 1
-    elif s == "delivered" and bytes.len() == 128
+    elif s == "delivered" and bytes.len_bytes() == 128
         let f = why.split("\u{1f}")
         if f.len() == 2 and copy(f[0]) == "eph"
             jobs[jtail] = "xa\u{1f}" + copy(f[1]) + "\u{1f}" + bytes
             jtail += 1
-    elif s == "delivered" and bytes.len() == 64
+    elif s == "delivered" and bytes.len_bytes() == 64
         let f = why.split("\u{1f}")
         if f.len() == 5 and copy(f[0]) == "dm"
             jobs[jtail] = "dec\u{1f}" + copy(f[1]) + "\u{1f}" + copy(f[2]) + "\u{1f}" + copy(f[3]) + "\u{1f}" + copy(f[4]) + "\u{1f}" + bytes
@@ -386,7 +386,7 @@ step Chat on RandomDone(req: r, status: s, data: d, err: e)
 # interrupted by a restart) is resent after 2, 4, ... 64 polls, until a send
 # of it is Delivered. Receivers apply each (author, clock) once (`got`), so
 # a resend of an op that did arrive changes nothing.
-step Chat on ChanSendDone(req: r, status: s, data: d, err: e)
+step Chat on ChanSendDone(req: r, status: s, data: _d, err: _e)
     if s != "delivered"
         unsent += 1
         if iwire.contains(r)
@@ -398,12 +398,12 @@ step Chat on ChanSendDone(req: r, status: s, data: d, err: e)
                     wait = wait * 2
             retry[r] = polls + wait
     elif iwire.contains(r)
-        ipeer.remove(r)
-        iwire.remove(r)
+        let _ = ipeer.remove(r)
+        let _ = iwire.remove(r)
         if tries.contains(r)
-            tries.remove(r)
+            let _ = tries.remove(r)
 
-step Chat on ChanRecvDone(req: r, status: s, data: d, err: e)
+step Chat on ChanRecvDone(req: _r, status: _s, data: d, err: _e)
     for line in d.or([])
         let f = line.split("\t")
         if f.len() == 3
@@ -434,7 +434,7 @@ step Chat on ChanRecvDone(req: r, status: s, data: d, err: e)
                     for h0 in hk
                         let w0 = (held.get(copy(h0)) catch "").split("\u{1e}")
                         if w0.len() == 6 and copy(w0[3]) == copy(mk)
-                            held.remove(copy(h0))
+                            let _ = held.remove(copy(h0))
                             let hrc = copy(w0[2]).toint() as u64
                             if deleted.contains(copy(mk))
                                 if copy(w0[0]) == "delete" and hrc < (deleted.get(copy(mk)) catch 0)
@@ -450,7 +450,7 @@ step Chat on ChanRecvDone(req: r, status: s, data: d, err: e)
                 elif k == "react"
                     let rk = copy(c) + "\u{1f}" + copy(t) + "\u{1f}" + copy(who)
                     if reactions.contains(rk)
-                        reactions.remove(rk)
+                        let _ = reactions.remove(rk)
                     else
                         reactions[rk] = 1
                 elif k == "presence"
@@ -460,7 +460,7 @@ step Chat on ChanRecvDone(req: r, status: s, data: d, err: e)
                 elif k == "leave"
                     let ck = copy(c) + "\u{1f}" + copy(who)
                     if calls.contains(ck)
-                        calls.remove(ck)
+                        let _ = calls.remove(ck)
                 elif k == "track"
                     tracks[copy(c) + "\u{1f}" + copy(who) + "\u{1f}" + copy(t)] = copy(b)
                 elif k == "edit" or k == "delete"
@@ -677,7 +677,7 @@ fn cat(a: List[i64], b: List[i64]) -> List[i64]
 fn tobytes(s: text) -> List[i64]
     var o: List[i64] = []
     var i: usize = 0
-    while i < s.len() bound 1048576
+    while i < s.len_bytes() bound 1048576
         o.push(s[i] as i64)
         i += 1
     return o
@@ -1172,7 +1172,7 @@ fn ratchet_decrypt(r: Ratchet, header: text, body: text, fresh: text) -> Opened
     let sk_id = copy(dh) + "|" + n.tostr()
     if s.skipped.contains(copy(sk_id))
         let mk0 = s.skipped.get(copy(sk_id)) catch ""
-        s.skipped.remove(sk_id)
+        let _ = s.skipped.remove(sk_id)
         let p0 = open(unhex(mk0), nonce12(n), tobytes(copy(header)), body)
         return Opened(st: s, ok: p0.len() == 0 or p0[0] != -1, plain: p0)
     if dh != s.dhr
