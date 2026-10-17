@@ -69,4 +69,4 @@ fn rep(s: text, n: i64) -> text
         b = b + b
         k = k / 2
     return o
-check pp(rep(ones(280), 20000)) == "ok " + rep(ones(280), 20000)
+check pp(rep(ones(280), 2000)) == "ok " + rep(ones(280), 2000)

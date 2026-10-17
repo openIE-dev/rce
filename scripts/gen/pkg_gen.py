@@ -129,7 +129,12 @@ for (args, exp) in off:
         got = ask([('P', '1' * args[1])])[0]; assert got == 'ok ' + '1' * args[1]
         rows.append('check pp(ones(%d)) == "ok " + ones(%d)' % (args[1], args[1]))
     elif k == 'PBIG':
-        big_row = 'check pp(rep(ones(280), 20000)) == "ok " + rep(ones(280), 20000)'
+        # The crate's test repeats 280 ones 20000 times (5.6M characters). A text is at most
+        # SIZE_LIMIT = 1,000,000 elements (spec 6.3 N9) and rep doubles its base once more
+        # than it needs, so the largest repeat that stays inside the limit is 2000
+        # (560,000 characters, base at most 573,440): the same property, a very long
+        # identifier is accepted unchanged, at the size the language allows.
+        big_row = 'check pp(rep(ones(280), 2000)) == "ok " + rep(ones(280), 2000)'
     elif k in ('IDEQ', 'IDNE'):
         f = 'pp' if args[1] == 'prerelease' else 'bp'
         rows.append('check %s(%s) %s %s(%s)' % (f, q(args[2]), '==' if k == 'IDEQ' else '!=', f, q(args[3])))

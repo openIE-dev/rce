@@ -55,14 +55,19 @@ with `use core.exact`).
 
 ## What public `rce` can run today
 
-Read against public `openIE-dev/rce` main (`4304048`), checked on 17 October 2026:
+Read against public `openIE-dev/rce` main (`e416fd0`, draft 0.9, `rce 0.1.0`), checked on 17 October 2026 with a full `sh scripts/check.sh` run (it completes, exit 0, about 15 minutes):
+
+| Check | Needs | On public rce main |
+|---|---|---|
+| `lib/crypto.rce`, `enc`, `hash`, num, math, text, xml, utf8 and the other foundation modules | nothing beyond public `rce` | pass |
+| `pq` (6 checks), `hpke` (3), `mls` (2) | the `#!lib crypto` directive, or `crypto` appended to the module | pass, with `crypto` inlined by `scripts/libexpand.py` |
+| `energy` library (`lib/energy/energy.rce`, 55 checks) | `crypto` inlined, as above | pass |
+| `tests/energy/energy_host.rce` (14 events) | native Ed25519 (`ed_*` builtins of rce-ide 0.1.3 or later) | skipped: event `Seal0` signs in `rce` source and exhausts the per-event fuel (spec limit), 13 of 14 events succeed |
+| `tests/os/pkg_checks_10.rce` | nothing | pass; the long-identifier row uses 560,000 characters because a text is limited to 1,000,000 elements (spec N9) |
 
 - `rce host run` and `rce host serve` exist there, so the host-run steps below work on public `rce`.
-- The `#!lib NAME` directive is not provided: the line is treated as a comment. The libraries that need `crypto` (`pq`, `hpke`, `mls`) are refused with unknown-name errors (`cat`, `hmac`, `slice` and others), because nothing appends `crypto` to them.
-- The Ed25519 builtins `ed_pubkey`, `ed_sign` and `ed_verify` are not in public `rce`, so `lib/energy/energy.rce` is refused at those names, and `lib/mls.rce` is refused as well.
-- `lib/crypto.rce` and the foundation modules that need no library directive (for example `lib/enc/enc.rce`) pass `rce check` on public `rce`.
-
-So `scripts/check.sh` does not complete against public `rce`. It does complete against the `rce` binary of rce-ide 0.1.3 and later, which is built from an engine whose source is not public. Treat `pq`, `hpke`, `mls` and `energy` as engine-only until public `rce` has `#!lib` and the Ed25519 builtins.
+- The `#!lib NAME` directive is not provided by public `rce`: the line is treated as a comment. `scripts/check.sh` probes for it and, when it is absent, prints a message and appends `lib/crypto.rce` (without its `module` and `check` lines) to the modules that name it. Set `RCE_NO_LIB=1` or `0` to force either path.
+- `ed_pubkey`, `ed_sign` and `ed_verify` are ordinary functions in `lib/crypto.rce`, so they are available once `crypto` is inlined. Only the signing in `energy_host.rce` is too expensive for the per-event fuel without native builtins, so `check.sh` prints `SKIPPED ... requires an rce with native Ed25519 (rce-ide 0.1.3 or later)` for that one file instead of failing.
 
 `pq`, `hpke` and `mls` build on `crypto`. The libraries are reference
 code for correctness and replay. They are **not constant time**.
