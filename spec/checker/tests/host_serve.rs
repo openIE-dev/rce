@@ -65,26 +65,51 @@ fn terminal_resize_and_interrupt() {
         .spawn()
         .unwrap();
     let mut i = c.stdin.take().unwrap();
-    let pause = |ms| std::thread::sleep(std::time::Duration::from_millis(ms));
-    pause(500);
+    // Each step waits for the output of the previous one instead of sleeping a
+    // fixed time: a fixed pause lets `Interrupt` arrive before the shell has
+    // started the job it is meant to interrupt, and the later lines then queue
+    // behind `sleep 30`. The markers are computed by the shell (`$((1+1))`), so
+    // the echo of the command line itself never matches them.
+    let seen = std::sync::Arc::new(std::sync::Mutex::new(Vec::<u8>::new()));
+    let reader = {
+        let (seen, mut out) = (seen.clone(), c.stdout.take().unwrap());
+        std::thread::spawn(move || {
+            use std::io::Read;
+            let mut b = [0u8; 4096];
+            while let Ok(n) = out.read(&mut b) {
+                if n == 0 {
+                    break;
+                }
+                seen.lock().unwrap().extend_from_slice(&b[..n]);
+            }
+        })
+    };
+    let wait_for = |marker: &str| {
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(20);
+        while !String::from_utf8_lossy(&seen.lock().unwrap()).contains(marker) {
+            assert!(std::time::Instant::now() < deadline, "no `{marker}` in the output: {}", String::from_utf8_lossy(&seen.lock().unwrap()));
+            std::thread::sleep(std::time::Duration::from_millis(20));
+        }
+    };
+    writeln!(i, "echo ready-$((1+1))").unwrap();
+    wait_for("ready-2");
     writeln!(i, "Resize(rows: 40, cols: 100)").unwrap();
-    pause(200);
     writeln!(i, "echo size=$(stty size)").unwrap();
-    pause(300);
-    writeln!(i, "sleep 30 && echo not-interrupted").unwrap();
-    pause(300);
+    wait_for("size=40 100");
+    writeln!(i, "echo go-$((1+1)); sleep 30 && echo not-interrupted").unwrap();
+    wait_for("go-2");
     writeln!(i, "Interrupt").unwrap();
-    pause(300);
     writeln!(i, "echo after-$((6*7))").unwrap();
-    pause(300);
+    wait_for("after-42");
     writeln!(i, "exit").unwrap();
     let deadline = std::time::Instant::now() + std::time::Duration::from_secs(20);
     while c.try_wait().unwrap().is_none() {
         assert!(std::time::Instant::now() < deadline, "the terminal app did not exit");
-        pause(50);
+        std::thread::sleep(std::time::Duration::from_millis(50));
     }
     drop(i);
-    let out = String::from_utf8_lossy(&c.wait_with_output().unwrap().stdout).into_owned();
+    reader.join().unwrap();
+    let out = String::from_utf8_lossy(&seen.lock().unwrap()).into_owned();
     assert!(out.contains("size=40 100"), "{out}");
     assert!(out.contains("after-42") && !out.contains("\nnot-interrupted"), "{out}");
     let r = Command::new(env!("CARGO_BIN_EXE_rce")).args(["host", "replay"]).arg(&app).arg("--log").arg(&log).output().unwrap();

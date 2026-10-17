@@ -14,7 +14,7 @@ use serde_json::Value;
 use std::path::Path;
 
 fn combined(checks: bool) -> String {
-    let mut s = String::from("module mls_steps\n");
+    let mut s = String::from("# rce-version: 0.5\nmodule mls_steps\n");
     for f in ["lib/crypto.rce", "lib/mls.rce"] {
         for l in std::fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join("../..").join(f)).unwrap().lines() {
             if l.starts_with("module ") || (!checks && l.starts_with("check ")) {

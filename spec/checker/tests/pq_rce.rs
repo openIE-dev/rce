@@ -65,7 +65,7 @@ fn root() -> std::path::PathBuf {
 
 /// lib/crypto.rce and lib/pq.rce as one module (checks kept or dropped)
 fn combined(checks: bool) -> String {
-    let mut s = String::from("module pq_steps\n");
+    let mut s = String::from("# rce-version: 0.5\nmodule pq_steps\n");
     for f in ["lib/crypto.rce", "lib/pq.rce"] {
         for l in std::fs::read_to_string(root().join(f)).unwrap().lines() {
             if l.starts_with("module ") || (!checks && l.starts_with("check ")) {
