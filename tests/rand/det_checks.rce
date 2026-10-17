@@ -26,11 +26,11 @@ fn block_ok(k: text, c: i64, n: text, want: text) -> bool
     let nb = unhex(n)
     return chacha20_block(&kb, c, &nb) == unhex(want)
 
-fn enc_ok(k: text, c: i64, n: text, pt: text, ct: text) -> bool
+fn enc_ok(k: text, c: i64, n: text, pt: text, ctext: text) -> bool
     let kb = unhex(k)
     let nb = unhex(n)
     let p = unhex(pt)
-    let e = unhex(ct)
+    let e = unhex(ctext)
     return chacha20(&kb, c, &nb, &p) == e and chacha20(&kb, c, &nb, &e) == p
 
 fn gen(s: text, st: i64) -> Rng

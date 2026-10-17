@@ -11,6 +11,7 @@
 import json, os, random, subprocess, sys, tempfile
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from rcelit import lit, lits
+from _rn import rn
 ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), '../..')
 RCE = os.environ.get('RCE', 'rce')
 VM = os.path.join(ROOT, 'vectors/data/mongodb')
@@ -381,5 +382,5 @@ for f in os.listdir(os.path.join(ROOT, 'tests/data')):
 shards = [allc[i:i + SH] for i in range(0, len(allc), SH)]
 for k, sh in enumerate(shards):
     name = 'feed_checks.rce' if k == 0 else 'feed_checks_%d.rce' % (k + 1)
-    open(os.path.join(ROOT, 'tests/data', name), 'w').write(HEAD + '\n'.join(sh) + '\n')
+    open(os.path.join(ROOT, 'tests/data', name), 'w').write(rn(HEAD + '\n'.join(sh) + '\n'))
 print('official', sum(1 for c, _ in out if c == 'official'), 'derived', sum(1 for c, _ in out if c == 'derived'), 'shards', len(shards))

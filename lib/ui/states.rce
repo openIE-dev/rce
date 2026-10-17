@@ -530,9 +530,9 @@ fn params_into(c: &mut Chart, u: i64, x: &xml.Xml, e: i64)
             if xh(x, ch, "expr")
                 add_attr(c, u, "#contentexpr", xa(x, ch, "expr"))
             else
-                let ct = content_of(x, ch)
-                c.acont[u as usize] = copy(ct[1])
-                c.acx[u as usize] = ct[2] == "1"
+                let ctext = content_of(x, ch)
+                c.acont[u as usize] = copy(ctext[1])
+                c.acx[u as usize] = ctext[2] == "1"
 
 fn file_body(c: &Chart, src: &text) -> i64
     var nm = copy(src)
@@ -577,10 +577,10 @@ fn compile_one(c: &mut Chart, x: &xml.Xml, e: i64, b: i64, m: i64) bound 256
         params_into(c, u, x, e)
     elif op == X_ASSIGN
         if not xh(x, e, "expr")
-            let ct = content_of(x, e)
-            c.ahas[u as usize] = ct[0] == "1"
-            c.acont[u as usize] = copy(ct[1])
-            c.acx[u as usize] = ct[2] == "1"
+            let ctext = content_of(x, e)
+            c.ahas[u as usize] = ctext[0] == "1"
+            c.acont[u as usize] = copy(ctext[1])
+            c.acx[u as usize] = ctext[2] == "1"
     elif op == X_SCRIPT
         if xh(x, e, "src")
             let tv1 = xa(x, e, "src")
@@ -631,7 +631,7 @@ fn add_data(c: &mut Chart, x: &xml.Xml, d: i64, m: i64, owner: i64)
         else
             # an unreachable src: error.execution at binding time
             c.mexpr[mu][c.mexpr[mu].len() - 1] = "#badsrc"
-    let ct = content_of(x, d)
+    let ctext = content_of(x, d)
     if hassrc
         c.mdxml[mu].push(srcbody.strip().startswith("<"))
         c.mdsrc[mu].push(srcbody)
@@ -639,9 +639,9 @@ fn add_data(c: &mut Chart, x: &xml.Xml, d: i64, m: i64, owner: i64)
         c.mdhas[mu].push(true)
     else
         c.mdsrc[mu].push("")
-        c.mdcont[mu].push(copy(ct[1]))
-        c.mdxml[mu].push(ct[2] == "1")
-        c.mdhas[mu].push(ct[0] == "1" and not xh(x, d, "expr"))
+        c.mdcont[mu].push(copy(ctext[1]))
+        c.mdxml[mu].push(ctext[2] == "1")
+        c.mdhas[mu].push(ctext[0] == "1" and not xh(x, d, "expr"))
 
 # pass 2: everything else of state element el (state s)
 fn fill(c: &mut Chart, ld: &mut Ld, x: &xml.Xml, el: i64, s: i64, m: i64) bound 256

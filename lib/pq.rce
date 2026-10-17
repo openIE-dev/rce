@@ -413,8 +413,8 @@ fn mlkem_encaps(ek: text, m: text) -> text
 # mask all ones exactly when the ciphertexts are equal.
 fn mlkem_decaps(dk: text, c: text) -> text
     let d = unhex(dk)
-    let ct = unhex(c)
-    if d.len() != 768 * KK + 96 or ct.len() != 32 * (10 * KK + 4)
+    let ctext = unhex(c)
+    if d.len() != 768 * KK + 96 or ctext.len() != 32 * (10 * KK + 4)
         return ""
     let dkp = slice(copy(d), 0, 384 * KK)
     let ek = slice(copy(d), 384 * KK, 768 * KK + 32)
@@ -422,11 +422,11 @@ fn mlkem_decaps(dk: text, c: text) -> text
     let z = slice(copy(d), 768 * KK + 64, 768 * KK + 96)
     if not kem_ct_eq(sha3_256(copy(ek)), copy(h))
         return ""
-    let m = pke_decrypt(dkp, copy(ct))
+    let m = pke_decrypt(dkp, copy(ctext))
     let g = sha3_512(cat(copy(m), h))
-    let kbar = shake256(cat(z, copy(ct)), 32)
+    let kbar = shake256(cat(z, copy(ctext)), 32)
     let c2 = pke_encrypt(ek, m, slice(copy(g), 32, 64))
-    let acc = kem_ct_diff(c2, ct)
+    let acc = kem_ct_diff(c2, ctext)
     let differ = ((acc | (0 - acc)) >> 63) & 1
     let eq = differ - 1
     var key: List[i64] = []

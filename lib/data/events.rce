@@ -456,21 +456,21 @@ pub fn make(attrs: &[Attr], data: Data) -> Event ! BadEvent
 pub fn sattr(n: text, v: text) -> Attr = Attr(name: n, val: VStr(t: v))
 
 # Media type without parameters, lower-case and trimmed.
-pub fn media_type(ct: &text) -> text
-    let parts = ct.split(";")
+pub fn media_type(ctext: &text) -> text
+    let parts = ctext.split(";")
     return parts[0].strip().lower()
 
 # */json or */*+json (json-format.md 3.1.1).
-pub fn is_json_type(ct: &text) -> bool
-    let m = media_type(ct)
+pub fn is_json_type(ctext: &text) -> bool
+    let m = media_type(ctext)
     let p = m.split("/")
     if p.len() != 2
         return false
     return p[1] == "json" or p[1].endswith("+json")
 
 fn ev_json_ct(e: &Event) -> bool
-    let ct = attr_text(e, "datacontenttype")
-    return if has_attr(e, "datacontenttype") then is_json_type(&ct) else true
+    let ctext = attr_text(e, "datacontenttype")
+    return if has_attr(e, "datacontenttype") then is_json_type(&ctext) else true
 
 # ---------------- JSON event format (json-format.md) ----------------
 
@@ -775,17 +775,17 @@ fn ev_hget(hs: &[Hdr], name: text, fold: bool) -> text?
             return some(copy(h.value))
     return none
 
-fn ev_body_data(b: &Body, ct: &text, has_ct: bool) -> Data ! BadEvent
+fn ev_body_data(b: &Body, ctext: &text, has_ct: bool) -> Data ! BadEvent
     match b
         BEmpty -> return DNone
         BBytes(b: x) -> return if x.len() == 0 then DNone else DBin(b: copy(x))
-        BText(t: t) -> return try ev_text_data(t, ct, has_ct)
+        BText(t: t) -> return try ev_text_data(t, ctext, has_ct)
 
 # An empty body carries no data (binary mode).
-fn ev_text_data(t: &text, ct: &text, has_ct: bool) -> Data ! BadEvent
+fn ev_text_data(t: &text, ctext: &text, has_ct: bool) -> Data ! BadEvent
     if t == ""
         return DNone
-    if not has_ct or is_json_type(ct)
+    if not has_ct or is_json_type(ctext)
         return DJson(v: try json_parse(t))
     return DText(t: copy(t))
 
@@ -797,8 +797,8 @@ fn ev_body_text(b: &Body) -> text ! BadEvent
 
 # Content mode by Content-Type: structured for application/cloudevents
 # (+json), batch for application/cloudevents-batch, binary otherwise.
-pub fn mode_of(ct: &text) -> text
-    let m = media_type(ct)
+pub fn mode_of(ctext: &text) -> text
+    let m = media_type(ctext)
     if m.startswith("application/cloudevents-batch")
         return "batch"
     if m.startswith("application/cloudevents")
@@ -825,29 +825,29 @@ fn ev_binary(hs: &[Hdr], prefix: text, fold: bool, http: bool, body: &Body) -> E
             ev_insert(&mut attrs, Attr(name: a, val: VStr(t: v)))
     let ctn = if http then "content-type" else "content-type"
     let cto = ev_hget(hs, copy(ctn), fold)
-    var ct = ""
+    var ctext = ""
     match cto
-        some(c) -> ct = copy(c)
-        none -> ct = ""
+        some(c) -> ctext = copy(c)
+        none -> ctext = ""
     if cto.issome()
         for x in attrs
             if x.name == "datacontenttype"
                 fail BadEvent(why: "datacontenttype given as a ce header")
-        ev_insert(&mut attrs, Attr(name: "datacontenttype", val: VStr(t: copy(ct))))
+        ev_insert(&mut attrs, Attr(name: "datacontenttype", val: VStr(t: copy(ctext))))
     let e0 = Event(attrs: attrs, data: DNone)
     match validate(&e0)
         some(w) -> fail BadEvent(why: w)
-        none -> ct = ct
-    let d = try ev_body_data(body, &ct, cto.issome())
+        none -> ctext = ctext
+    let d = try ev_body_data(body, &ctext, cto.issome())
     return Event(attrs: e0.attrs, data: d)
 
 # HTTP request or response to an event (structured or binary mode).
 # Header names compare without case. A batch fails here (from_http_batch).
 pub fn from_http(m: &Msg) -> Event ! BadEvent
-    let ct = ev_hget(&m.headers, "content-type", true).or("")
-    let md = mode_of(&ct)
+    let ctext = ev_hget(&m.headers, "content-type", true).or("")
+    let md = mode_of(&ctext)
     if md == "structured"
-        if not is_json_type(&ct) and media_type(&ct) != "application/cloudevents"
+        if not is_json_type(&ctext) and media_type(&ctext) != "application/cloudevents"
             fail BadEvent(why: "unsupported event format")
         let bt = try ev_body_text(&m.body)
         return try from_json(&bt)
@@ -856,8 +856,8 @@ pub fn from_http(m: &Msg) -> Event ! BadEvent
     return try ev_binary(&m.headers, "ce-", true, true, &m.body)
 
 pub fn from_http_batch(m: &Msg) -> List[Event] ! BadEvent
-    let ct = ev_hget(&m.headers, "content-type", true).or("")
-    if mode_of(&ct) != "batch"
+    let ctext = ev_hget(&m.headers, "content-type", true).or("")
+    if mode_of(&ctext) != "batch"
         fail BadEvent(why: "not a batch")
     let bt = try ev_body_text(&m.body)
     return try from_batch(&bt)
@@ -901,8 +901,8 @@ pub fn to_http_batch(es: &[Event]) -> Msg = Msg(headers: [Hdr(name: "content-typ
 # key_mapper "partitionkey": a record key with no partitionkey attribute
 # becomes that attribute (the inverse of the opt-in key mapper).
 pub fn from_kafka(r: &Record, key_mapper: &text) -> Event ! BadEvent
-    let ct = ev_hget(&r.headers, "content-type", false).or("")
-    let md = mode_of(&ct)
+    let ctext = ev_hget(&r.headers, "content-type", false).or("")
+    let md = mode_of(&ctext)
     var e = Event(attrs: [], data: DNone)
     if md == "structured"
         let bt = try ev_body_text(&r.body)

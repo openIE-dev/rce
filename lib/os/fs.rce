@@ -58,10 +58,10 @@ pub struct Node
 pub struct Ent
     dir: i64
     name: text
-    node: i64
+    nd: i64
 
 pub struct Desc
-    node: i64
+    nd: i64
     pos: i64
     rd: bool
     wr: bool
@@ -81,7 +81,7 @@ fn bad(c: text) -> FsErr = FsErr(code: c)
 fn lookup(fs: &Fs, d: i64, name: &text) -> i64
     for e in fs.ents
         if e.dir == d and e.name == name
-            return e.node
+            return e.nd
     return -1
 
 fn is_empty(fs: &Fs, d: i64) -> bool
@@ -96,7 +96,7 @@ fn is_empty(fs: &Fs, d: i64) -> bool
 pub struct Where
     dir: i64
     last: text
-    node: i64
+    nd: i64
     slash: bool
 
 fn comps(path: &text) -> List[text]
@@ -138,13 +138,13 @@ pub fn resolve(fs: &Fs, path: &text, follow: bool) -> Where ! FsErr
     if not fs.nodes[cur as usize].dir
         fail bad("not-directory")
     let last = copy(cs[cs.len() - 1])
-    var node: i64 = -1
+    var nd: i64 = -1
     if last == "." or last == ".."
         if follow
-            node = try walk1(fs, cur, &last)
+            nd = try walk1(fs, cur, &last)
     else
-        node = lookup(fs, cur, &last)
-    return Where(dir: cur, last: last, node: node, slash: path.endswith("/"))
+        nd = lookup(fs, cur, &last)
+    return Where(dir: cur, last: last, nd: nd, slash: path.endswith("/"))
 
 fn named(w: &Where) -> bool = w.last != "." and w.last != ".."
 
@@ -161,10 +161,10 @@ fn drop_ent(fs: &mut Fs, d: i64, name: &text)
 
 pub fn mkdir_at(fs: &mut Fs, path: &text) -> bool ! FsErr
     let w = try resolve(fs, path, false)
-    if not named(&w) or w.node >= 0
+    if not named(&w) or w.nd >= 0
         fail bad("exist")
     let n = add_node(fs, true, w.dir)
-    fs.ents.push(Ent(dir: w.dir, name: copy(w.last), node: n))
+    fs.ents.push(Ent(dir: w.dir, name: copy(w.last), nd: n))
     return true
 
 # Open flags as text: r (read), w (write), c (create), x (exclusive),
@@ -181,12 +181,12 @@ pub fn open_at(fs: &mut Fs, path: &text, flags: &text) -> i64 ! FsErr
     let w = try resolve(fs, path, true)
     if cr and w.slash and named(&w)
         fail bad("is-directory")
-    var n = w.node
+    var n = w.nd
     if n < 0
         if not cr
             fail bad("no-entry")
         n = add_node(fs, false, w.dir)
-        fs.ents.push(Ent(dir: w.dir, name: copy(w.last), node: n))
+        fs.ents.push(Ent(dir: w.dir, name: copy(w.last), nd: n))
     elif cr and ex
         fail bad("exist")
     elif fs.nodes[n as usize].dir
@@ -197,7 +197,7 @@ pub fn open_at(fs: &mut Fs, path: &text, flags: &text) -> i64 ! FsErr
             fail bad("not-directory")
         if tr
             fs.nodes[n as usize].data = []
-    fs.descs.push(Desc(node: n, pos: 0, rd: rd, wr: wr, app: flags.contains("a"), live: true))
+    fs.descs.push(Desc(nd: n, pos: 0, rd: rd, wr: wr, app: flags.contains("a"), live: true))
     return fs.descs.len() as i64 - 1
 
 fn desc(fs: &Fs, h: i64) -> Desc ! FsErr
@@ -209,9 +209,9 @@ pub fn read(fs: &mut Fs, h: i64, n: i64) -> text ! FsErr
     let d = try desc(fs, h)
     if not d.rd
         fail bad("bad-descriptor")
-    if fs.nodes[d.node as usize].dir
+    if fs.nodes[d.nd as usize].dir
         fail bad("is-directory")
-    let data = copy(fs.nodes[d.node as usize].data)
+    let data = copy(fs.nodes[d.nd as usize].data)
     var o = ""
     var p = d.pos
     while p < data.len() as i64 and p < d.pos + n bound 16777216
@@ -224,7 +224,7 @@ pub fn write(fs: &mut Fs, h: i64, s: &text) -> bool ! FsErr
     let d = try desc(fs, h)
     if not d.wr
         fail bad("bad-descriptor")
-    var data = copy(fs.nodes[d.node as usize].data)
+    var data = copy(fs.nodes[d.nd as usize].data)
     var p = if d.app then data.len() as i64 else d.pos
     while data.len() as i64 < p bound 16777216
         data.push("\u{0}")
@@ -234,7 +234,7 @@ pub fn write(fs: &mut Fs, h: i64, s: &text) -> bool ! FsErr
         else
             data.push(c)
         p += 1
-    fs.nodes[d.node as usize].data = data
+    fs.nodes[d.nd as usize].data = data
     fs.descs[h as usize].pos = p
     return true
 
@@ -249,13 +249,13 @@ pub fn truncate(fs: &mut Fs, h: i64, len: i64) -> bool ! FsErr
     let d = try desc(fs, h)
     if not d.wr or len < 0
         fail bad("invalid")
-    var data = copy(fs.nodes[d.node as usize].data)
+    var data = copy(fs.nodes[d.nd as usize].data)
     var o: List[text] = []
     var i: i64 = 0
     while i < len bound 16777216
         o.push(if i < data.len() as i64 then copy(data[i as usize]) else "\u{0}")
         i += 1
-    fs.nodes[d.node as usize].data = o
+    fs.nodes[d.nd as usize].data = o
     return true
 
 pub fn close(fs: &mut Fs, h: i64) -> bool ! FsErr
@@ -267,9 +267,9 @@ pub fn unlink_at(fs: &mut Fs, path: &text) -> bool ! FsErr
     let w = try resolve(fs, path, false)
     if not named(&w)
         fail bad("is-directory")
-    if w.node < 0
+    if w.nd < 0
         fail bad("no-entry")
-    if fs.nodes[w.node as usize].dir
+    if fs.nodes[w.nd as usize].dir
         fail bad("is-directory")
     if w.slash
         fail bad("not-directory")
@@ -282,11 +282,11 @@ pub fn rmdir_at(fs: &mut Fs, path: &text) -> bool ! FsErr
         fail bad("invalid")
     if w.last == ".."
         fail bad("not-empty")
-    if w.node < 0
+    if w.nd < 0
         fail bad("no-entry")
-    if not fs.nodes[w.node as usize].dir
+    if not fs.nodes[w.nd as usize].dir
         fail bad("not-directory")
-    if not is_empty(fs, w.node)
+    if not is_empty(fs, w.nd)
         fail bad("not-empty")
     drop_ent(fs, w.dir, &w.last)
     return true
@@ -312,44 +312,44 @@ pub fn rename_at(fs: &mut Fs, src: &text, dst: &text) -> bool ! FsErr
     let n = try resolve(fs, dst, false)
     if not named(&o) or not named(&n)
         fail bad("busy")
-    if o.node < 0
+    if o.nd < 0
         fail bad("no-entry")
-    let isdir = fs.nodes[o.node as usize].dir
+    let isdir = fs.nodes[o.nd as usize].dir
     if not isdir and (o.slash or n.slash)
         fail bad("not-directory")
     # lock_rename's trap: the entry under the common ancestor
     if o.dir != n.dir
-        if above(fs, o.dir, n.dir) and child_towards(fs, o.dir, n.dir) == o.node
+        if above(fs, o.dir, n.dir) and child_towards(fs, o.dir, n.dir) == o.nd
             fail bad("invalid")
-        if above(fs, n.dir, o.dir) and child_towards(fs, n.dir, o.dir) == n.node
+        if above(fs, n.dir, o.dir) and child_towards(fs, n.dir, o.dir) == n.nd
             fail bad("not-empty")
-    if o.node == n.node
+    if o.nd == n.nd
         return true
-    if n.node >= 0
-        let tdir = fs.nodes[n.node as usize].dir
+    if n.nd >= 0
+        let tdir = fs.nodes[n.nd as usize].dir
         if isdir and not tdir
             fail bad("not-directory")
         if not isdir and tdir
             fail bad("is-directory")
-        if tdir and not is_empty(fs, n.node)
+        if tdir and not is_empty(fs, n.nd)
             fail bad("not-empty")
         drop_ent(fs, n.dir, &n.last)
     drop_ent(fs, o.dir, &o.last)
-    fs.ents.push(Ent(dir: n.dir, name: copy(n.last), node: o.node))
+    fs.ents.push(Ent(dir: n.dir, name: copy(n.last), nd: o.nd))
     if isdir
-        fs.nodes[o.node as usize].parent = n.dir
+        fs.nodes[o.nd as usize].parent = n.dir
     return true
 
 # stat: "d" for a directory, else "f" and the size.
 pub fn stat_at(fs: &Fs, path: &text) -> text ! FsErr
     let w = try resolve(fs, path, true)
-    if w.node < 0
+    if w.nd < 0
         fail bad("no-entry")
-    if fs.nodes[w.node as usize].dir
+    if fs.nodes[w.nd as usize].dir
         return "d"
     if w.slash
         fail bad("not-directory")
-    return "f" + fs.nodes[w.node as usize].data.len().tostr()
+    return "f" + fs.nodes[w.nd as usize].data.len().tostr()
 
 # UTF-8 byte order (Linux sorts names as bytes).
 fn text_lt(a: &text, b: &text) -> bool
@@ -363,13 +363,13 @@ fn text_lt(a: &text, b: &text) -> bool
 # The entry names of a directory, sorted (without "." and "..").
 pub fn list_at(fs: &Fs, path: &text) -> List[text] ! FsErr
     let w = try resolve(fs, path, true)
-    if w.node < 0
+    if w.nd < 0
         fail bad("no-entry")
-    if not fs.nodes[w.node as usize].dir
+    if not fs.nodes[w.nd as usize].dir
         fail bad("not-directory")
     var o: List[text] = []
     for e in fs.ents
-        if e.dir == w.node
+        if e.dir == w.nd
             var k = o.len()
             o.push(copy(e.name))
             while k > 0 and text_lt(&o[k], &o[k - 1]) bound 4096

@@ -74,12 +74,12 @@ fn vue(s: text, t: text) -> text
     let off = size(&a)
     var o: List[text] = []
     for x in ops
-        if x.op == OP_REMOVE and x.node < off and a.parent[x.node as usize] == 0
-            o.push("r " + lab_or_text(&a, &b, x.node))
+        if x.op == OP_REMOVE and x.nd < off and a.parent[x.nd as usize] == 0
+            o.push("r " + lab_or_text(&a, &b, x.nd))
         elif x.op == OP_CREATE and x.parent == 0
-            o.push("c " + lab_or_text(&a, &b, x.node) + " " + lab_or_text(&a, &b, x.before))
+            o.push("c " + lab_or_text(&a, &b, x.nd) + " " + lab_or_text(&a, &b, x.before))
         elif x.op == OP_MOVE and x.parent == 0
-            o.push("m " + lab_or_text(&a, &b, x.node) + " " + lab_or_text(&a, &b, x.before))
+            o.push("m " + lab_or_text(&a, &b, x.nd) + " " + lab_or_text(&a, &b, x.before))
     return ";".join(o)
 # container operations of the optimal diff; -1 if the replay differs
 fn cost(s: text, t: text) -> i64
@@ -92,7 +92,7 @@ fn cost(s: text, t: text) -> i64
     var n: i64 = 0
     for x in ops
         if x.op == OP_REMOVE or x.op == OP_CREATE or x.op == OP_MOVE
-            if x.op != OP_REMOVE or a.parent[x.node as usize] == 0
+            if x.op != OP_REMOVE or a.parent[x.nd as usize] == 0
                 n += 1
     return n
 fn moves(s: text, t: text) -> i64

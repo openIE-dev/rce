@@ -1,0 +1,9 @@
+# reserved words (one globally reserved list) used as names -> replacement
+label lbl
+node nd
+group grp
+child chd
+budget bud
+restart rst
+replicated repl
+ct ctext

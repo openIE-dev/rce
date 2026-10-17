@@ -178,9 +178,9 @@ fn slice(b: List[i64], lo: usize, hi: usize) -> List[i64]
 # tag = HMAC(mac, nonce || ad || ct)[0..16]. Output: hex(ct || tag).
 fn seal(key: List[i64], nonce: List[i64], ad: List[i64], pt: List[i64]) -> text
     let ks = hkdf([], copy(key), tobytes("rce-aead-v0"), 64)
-    let ct = chacha20(slice(copy(ks), 0, 32), copy(nonce), pt)
-    let tag = slice(hmac(slice(copy(ks), 32, 64), cat(cat(copy(nonce), ad), copy(ct))), 0, 16)
-    return tohex(cat(ct, tag))
+    let ctext = chacha20(slice(copy(ks), 0, 32), copy(nonce), pt)
+    let tag = slice(hmac(slice(copy(ks), 32, 64), cat(cat(copy(nonce), ad), copy(ctext))), 0, 16)
+    return tohex(cat(ctext, tag))
 
 # Equality of two byte lists with no early exit: the OR of all byte XORs is
 # tested once at the end. Only the lengths are public (a length mismatch
@@ -198,13 +198,13 @@ fn open(key: List[i64], nonce: List[i64], ad: List[i64], sealed: text) -> List[i
     let b = unhex(sealed)
     if b.len() < 16
         return [-1]
-    let ct = slice(copy(b), 0, b.len() - 16)
+    let ctext = slice(copy(b), 0, b.len() - 16)
     let tag = slice(copy(b), b.len() - 16, b.len())
     let ks = hkdf([], copy(key), tobytes("rce-aead-v0"), 64)
-    let want = slice(hmac(slice(copy(ks), 32, 64), cat(cat(copy(nonce), ad), copy(ct))), 0, 16)
+    let want = slice(hmac(slice(copy(ks), 32, 64), cat(cat(copy(nonce), ad), copy(ctext))), 0, 16)
     if not ct_eq(want, tag)
         return [-1]
-    return chacha20(slice(copy(ks), 0, 32), nonce, ct)
+    return chacha20(slice(copy(ks), 0, 32), nonce, ctext)
 
 # Value of one lowercase hex digit (0 for any other character, as before),
 # by arithmetic only: no digit table scan and no branch on the digit. The
@@ -542,19 +542,19 @@ struct SenderSealed
     n: i64
     body: text
 
-fn sender_seal(chain: text, n: i64, group: text, pt: List[i64]) -> SenderSealed
+fn sender_seal(chain: text, n: i64, grp: text, pt: List[i64]) -> SenderSealed
     let mk = ck_msg(copy(chain))
-    let body = seal(unhex(mk), nonce12(n), tobytes(group), pt)
+    let body = seal(unhex(mk), nonce12(n), tobytes(grp), pt)
     return SenderSealed(chain: ck_next(chain), n: n + 1, body: body)
 
 # Decrypt message n of a sender chain whose key at index `at` is `chain`.
-fn sender_open(chain: text, at: i64, n: i64, group: text, body: text) -> List[i64]
+fn sender_open(chain: text, at: i64, n: i64, grp: text, body: text) -> List[i64]
     var ck = chain
     var i = at
     while i < n bound 1024
         ck = ck_next(copy(ck))
         i += 1
-    return open(unhex(ck_msg(ck)), nonce12(n), tobytes(group), body)
+    return open(unhex(ck_msg(ck)), nonce12(n), tobytes(grp), body)
 
 fn dr_roundtrip() -> bool
     let ika = "1111111111111111111111111111111111111111111111111111111111111111"

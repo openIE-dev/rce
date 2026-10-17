@@ -244,14 +244,14 @@ pub const X_OK: i64 = 1
 # class if the effective uid owns the file, else the group class if the
 # effective gid or a supplementary gid is the file's group, else other;
 # the requested bits (R_OK|W_OK|X_OK) must all be set in that class.
-pub fn may(c: &Cred, mode: i64, owner: i64, group: i64, want: i64) -> bool
+pub fn may(c: &Cred, mode: i64, owner: i64, grp: i64, want: i64) -> bool
     var cls = mode & 7
     if c.uid == owner
         cls = (mode >> 6) & 7
     else
-        var in_group = c.gid == group
+        var in_group = c.gid == grp
         for g in c.groups
-            if g == group
+            if g == grp
                 in_group = true
         if in_group
             cls = (mode >> 3) & 7

@@ -301,7 +301,7 @@ pub struct Restart
     reason: text
 
 pub struct Policy
-    restart: text
+    rst: text
     stype: text
     prevent: StatusSet
     force: StatusSet
@@ -320,7 +320,7 @@ pub fn shall_restart(p: &Policy, result: &text, code: &text, status: i64, manual
         if p.stype == "oneshot" and result == "success"
             return Restart(yes: false, reason: "service type and exit status")
         return Restart(yes: true, reason: "forced by exit status")
-    let r = p.restart
+    let r = p.rst
     let ok = result == "success"
     let skip = result == "condition"
     var y = false

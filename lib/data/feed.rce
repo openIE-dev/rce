@@ -263,7 +263,7 @@ pub fn record(c: &Ckpt, session: &text, seq: &text) -> Ckpt
 # the per-tick budget and the overflow count.
 pub struct Inbox
     window: i64
-    budget: i64
+    bud: i64
     used: i64
     keys: List[text]
     key_height: List[i64]
@@ -273,7 +273,7 @@ pub struct Inbox
     overflow: i64
     dups: i64
 
-pub fn inbox(window: i64, budget: i64) -> Inbox = Inbox(window: window, budget: budget, used: 0, keys: [], key_height: [], pending: [], pending_height: [], acked: "", overflow: 0, dups: 0)
+pub fn inbox(window: i64, bud: i64) -> Inbox = Inbox(window: window, bud: bud, used: 0, keys: [], key_height: [], pending: [], pending_height: [], acked: "", overflow: 0, dups: 0)
 
 pub const ADMITTED: text = "admitted"
 pub const DUPLICATE: text = "duplicate"
@@ -296,7 +296,7 @@ pub fn offer(ib: &mut Inbox, k: &text, c: &text, h: i64) -> text
     if ib.keys.contains(copy(k))
         ib.dups += 1
         return copy(DUPLICATE)
-    if ib.used >= ib.budget
+    if ib.used >= ib.bud
         ib.overflow += 1
         return copy(OVERFLOW)
     ib.used += 1

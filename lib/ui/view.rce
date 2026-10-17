@@ -203,27 +203,27 @@ pub const OP_TEXT: i64 = 6
 # insert under parent before `before` (-1: at the end; parent -1: root).
 pub struct Op
     op: i64
-    node: i64
+    nd: i64
     parent: i64
     before: i64
     name: text
     value: text
 
-fn mk(o: i64, n: i64, p: i64, b: i64, name: text, value: text) -> Op = Op(op: o, node: n, parent: p, before: b, name: name, value: value)
+fn mk(o: i64, n: i64, p: i64, b: i64, name: text, value: text) -> Op = Op(op: o, nd: n, parent: p, before: b, name: name, value: value)
 
 pub fn op_text(o: &Op) -> text
     let at = " in " + o.parent.tostr() + " before " + o.before.tostr()
     if o.op == OP_REMOVE
-        return "remove " + o.node.tostr()
+        return "remove " + o.nd.tostr()
     if o.op == OP_CREATE
-        return "create " + o.node.tostr() + at
+        return "create " + o.nd.tostr() + at
     if o.op == OP_MOVE
-        return "move " + o.node.tostr() + at
+        return "move " + o.nd.tostr() + at
     if o.op == OP_SET
-        return "set " + o.node.tostr() + " " + o.name + "=" + o.value
+        return "set " + o.nd.tostr() + " " + o.name + "=" + o.value
     if o.op == OP_UNSET
-        return "unset " + o.node.tostr() + " " + o.name
-    return "text " + o.node.tostr() + " " + o.value
+        return "unset " + o.nd.tostr() + " " + o.name
+    return "text " + o.nd.tostr() + " " + o.value
 
 fn same(a: &View, x: i64, b: &View, y: i64) -> bool = a.tag[x as usize] == b.tag[y as usize] and a.key[x as usize] == b.key[y as usize]
 
@@ -482,7 +482,7 @@ pub fn apply(a: &View, b: &View, ops: &[Op]) -> View
         push_node(&mut v, -1, "", "", "")
     var root: i64 = 0
     for o in ops
-        let n = o.node
+        let n = o.nd
         if o.op == OP_REMOVE
             if n == root
                 root = -1

@@ -120,8 +120,8 @@ fn rec(ss: text, sq: text, shs: List[text], shq: List[text], session: text, seq:
     return ckshow(&r)
 # admission: a script of offers "key/cursor/height", "tick" and
 # "ack:<durable>"; result: the outcome of each step.
-fn adm(window: i64, budget: i64, script: List[text]) -> List[text]
-    var ib = inbox(window, budget)
+fn adm(window: i64, bud: i64, script: List[text]) -> List[text]
+    var ib = inbox(window, bud)
     var out: List[text] = []
     for s in script
         if s == "tick"

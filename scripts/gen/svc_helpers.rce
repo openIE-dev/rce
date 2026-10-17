@@ -14,7 +14,7 @@ fn xres(ty: text, c: text, st: i64, set: text) -> text
     let s = ss(set)
     return exit_result(&ty, &c, st, &s)
 fn rs(r: text, ty: text, res: text, c: text, st: i64, pv: text, fc: text, manual: bool) -> text
-    let p = Policy(restart: r, stype: ty, prevent: ss(pv), force: ss(fc))
+    let p = Policy(rst: r, stype: ty, prevent: ss(pv), force: ss(fc))
     let d = shall_restart(&p, &res, &c, st, manual)
     return (if d.yes then "1 " else "0 ") + d.reason
 fn esf(t: text) -> i64 = exit_status_from_string(&t)
