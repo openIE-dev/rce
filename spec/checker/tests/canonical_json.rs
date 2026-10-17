@@ -6,17 +6,6 @@ use rce_spec_check::interp::{FV, V, canon_json, d_sha, float_json, form_value};
 use rce_spec_check::parse::parse;
 use serde_json::Value;
 
-/// Vectors on which the Rust reference formatter disagrees with the rule of
-/// 6.1.1 (shortest digits; on a tie between two shortest candidates, the even
-/// last digit, as ECMAScript Number::toString and Python repr do). Rust's
-/// `{:e}` picks the odd candidate. Pinned here so the list shrinks when the
-/// formatter is fixed; see 6.1.1 "Open items".
-const RUST_FLOAT_TIE_DIVERGENCES: [(&str, &str); 1] = [("float-1424953923781206.2", "1424953923781206.3")];
-
-fn rust_tie(id: &str) -> Option<&'static str> {
-    RUST_FLOAT_TIE_DIVERGENCES.iter().find(|(i, _)| *i == id).map(|(_, r)| *r)
-}
-
 fn vectors() -> Vec<Value> {
     let p = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../data/canonical-json-vectors.json");
     let v: Value = serde_json::from_str(&std::fs::read_to_string(p).unwrap()).unwrap();
@@ -53,20 +42,14 @@ fn golden_vectors_are_reproduced_byte_for_byte() {
     for v in &vs {
         let id = v["id"].as_str().unwrap();
         let got = form_value(&to_v(&v["value"]), &m).json();
-        if let Some(rust) = rust_tie(id) {
-            assert_eq!(got, rust, "pinned divergence of vector {id} changed: remove it from the list if fixed");
-            assert_ne!(d_sha(&got), v["sha256"].as_str().unwrap(), "{id}");
-            continue;
-        }
         assert_eq!(got, v["canonical"].as_str().unwrap(), "vector {id}");
         assert_eq!(d_sha(&got), v["sha256"].as_str().unwrap(), "digest of vector {id}");
     }
 }
 
-/// The rule of 6.1.1 on every vector, with no pinned exceptions. Fails today
-/// on the tie vector; enable by removing `#[ignore]` when the formatter is fixed.
+/// The rule of 6.1.1 on every vector, with no pinned exceptions (including
+/// the exact ties: the even last digit wins, as in ECMAScript and Python).
 #[test]
-#[ignore = "known divergence: Rust shortest-digit tie rule, spec 6.1.1 'Open items'"]
 fn the_reference_follows_the_tie_rule() {
     for v in vectors() {
         let a = v["value"].as_array().unwrap();
@@ -83,10 +66,6 @@ fn float_forms_agree_with_the_float_vectors() {
         let a = v["value"].as_array().unwrap();
         if a[0] == "float" {
             let x = f64::from_bits(u64::from_str_radix(a[1].as_str().unwrap().trim_start_matches("0x"), 16).unwrap());
-            if let Some(rust) = rust_tie(v["id"].as_str().unwrap()) {
-                assert_eq!(float_json(x), rust);
-                continue;
-            }
             assert_eq!(float_json(x), v["canonical"].as_str().unwrap(), "{}", v["id"]);
             assert_eq!(FV::Float(x).json(), v["canonical"].as_str().unwrap());
         }
@@ -95,9 +74,8 @@ fn float_forms_agree_with_the_float_vectors() {
 
 /// Section 6.1.1 says one writer defines the bytes. `canon_json` (serde based;
 /// writes `rce trace --json`) must give the same bytes as `FV::json` (which
-/// is hashed) on every vector. It does not for U+0008 and U+000C.
+/// is hashed) on every vector, U+0008 and U+000C included.
 #[test]
-#[ignore = "known divergence, spec 6.1.1 'Open items': canon_json writes \\b and \\f, FV::json writes \\u0008 and \\u000c"]
 fn the_trace_writer_agrees_with_the_hashed_writer() {
     for v in vectors() {
         let canonical = v["canonical"].as_str().unwrap();
@@ -106,20 +84,16 @@ fn the_trace_writer_agrees_with_the_hashed_writer() {
     }
 }
 
-/// Documents the divergence the ignored test above exposes, so it cannot
-/// silently change: exactly the vectors with U+0008 or U+000C differ.
+/// `shortest_e` on exact ties, both directions, and on values where the
+/// closest digits are not a tie.
 #[test]
-fn the_known_divergence_is_exactly_u0008_and_u000c() {
-    let mut differ = vec![];
-    for v in vectors() {
-        let canonical = v["canonical"].as_str().unwrap();
-        let parsed: Value = serde_json::from_str(canonical).unwrap();
-        if rust_tie(v["id"].as_str().unwrap()).is_some() {
-            continue; // the parsed float is re-printed by the Rust formatter, a different divergence
-        }
-        if canon_json(&parsed) != canonical {
-            differ.push(v["id"].as_str().unwrap().to_string());
-        }
-    }
-    assert_eq!(differ, vec!["text-u0008", "text-u000c"]);
+fn shortest_e_breaks_exact_ties_to_even() {
+    use rce_spec_check::interp::shortest_e;
+    let t = |x: f64| shortest_e(x);
+    assert_eq!(t(1424953923781206.25), ("14249539237812062".to_string(), 15)); // tie, even 2: down
+    assert_eq!(t(1424953923781206.75), ("14249539237812068".to_string(), 15)); // tie, odd 7: up
+    assert_eq!(t(-1424953923781207.25), ("14249539237812072".to_string(), 15));
+    assert_eq!(t(0.1), ("1".to_string(), -1));
+    assert_eq!(t(5e-324), ("5".to_string(), -324));
+    assert_eq!(t(1e23), ("1".to_string(), 23)); // 1e23 is not exact in binary64; the shortest reading is still "1"
 }

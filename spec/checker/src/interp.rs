@@ -402,6 +402,55 @@ pub fn is_ws(c: char) -> bool {
     WHITE_SPACE.contains(&c)
 }
 
+/// 6.1.1 rule 3: the digits of a float. The shortest round-trip digit count n
+/// comes from `{:e}`; the digits are then the n-digit decimal closest to x,
+/// and on an exact tie between two such decimals the one with the even last
+/// digit (as ECMAScript `Number::toString` and Python `repr` do). Rust's `{:e}`
+/// breaks that tie to the odd candidate. Returns (digits, exponent of the
+/// first digit); x must be finite and nonzero, and only |x| is used.
+pub fn shortest_e(x: f64) -> (String, i32) {
+    fn split(e: &str) -> (String, i32) {
+        let (m, ex) = e.split_once('e').unwrap();
+        (m.chars().filter(|c| *c != '.').collect(), ex.parse().unwrap())
+    }
+    let a = x.abs();
+    let (sd, sex) = split(&format!("{a:e}"));
+    let n = sd.len();
+    // The tie can only arise when the digit after the n-th is a 5; then test
+    // exactness against the full expansion (a binary64 has at most 767 digits).
+    let (d1, _) = split(&format!("{:.*e}", n, a));
+    if d1.len() == n + 1 && d1.ends_with('5') {
+        let (full, fex) = split(&format!("{:.*e}", 780, a));
+        if full[n + 1..].bytes().all(|b| b == b'0') {
+            // exact tie: keep the first n digits when the n-th is even, else add one
+            let mut head: Vec<u8> = full.as_bytes()[..n].to_vec();
+            if (head[n - 1] - b'0') % 2 == 1 {
+                let mut i = n;
+                loop {
+                    if i == 0 {
+                        head.insert(0, b'1');
+                        head.truncate(n);
+                        return (String::from_utf8(head).unwrap(), fex + 1);
+                    }
+                    i -= 1;
+                    if head[i] == b'9' {
+                        head[i] = b'0';
+                    } else {
+                        head[i] += 1;
+                        break;
+                    }
+                }
+            }
+            return (String::from_utf8(head).unwrap(), fex);
+        }
+    }
+    // Otherwise the closest n digits; it reads back to x unless it fell outside the
+    // narrower side of the rounding interval, then the shortest string is used.
+    let (cd, cex) = split(&format!("{:.*e}", n - 1, a));
+    let back: f64 = format!("{}e{}", cd, cex - (n as i32 - 1)).parse().unwrap();
+    if back == a { (cd, cex) } else { (sd, sex) }
+}
+
 /// 6.3 N3: the one canonical JSON form of a float, used for hashes and for
 /// every trace or log written as JSON. Shortest round-trip digits (from
 /// `{:e}`, which is shortest-digit, Ryu-style); decimal with at least one
@@ -412,10 +461,7 @@ pub fn float_json(x: f64) -> String {
     if x == 0.0 {
         return if x.is_sign_negative() { "-0.0".into() } else { "0.0".into() };
     }
-    let e = format!("{:e}", x.abs());
-    let (m, ex) = e.split_once('e').unwrap();
-    let ex: i32 = ex.parse().unwrap();
-    let digits: String = m.chars().filter(|c| *c != '.').collect();
+    let (digits, ex) = shortest_e(x);
     let sign = if x < 0.0 { "-" } else { "" };
     let a = x.abs();
     if (1e-4..1e16).contains(&a) {
@@ -429,20 +475,23 @@ pub fn float_json(x: f64) -> String {
         };
         format!("{sign}{body}")
     } else {
+        let m = if digits.len() > 1 { format!("{}.{}", &digits[..1], &digits[1..]) } else { digits.clone() };
         format!("{sign}{m}e{ex}")
     }
 }
 
 /// Canonical JSON of a serde value with floats in the [`float_json`] form
-/// (keys are already sorted: serde_json's map is ordered by key).
+/// and text through `jstr`, the writer of `FV::json` (keys are already sorted:
+/// serde_json's map is ordered by key).
 pub fn canon_json(v: &serde_json::Value) -> String {
     use serde_json::Value as J;
     match v {
         J::Number(n) if n.is_f64() => float_json(n.as_f64().unwrap()),
+        J::String(t) => jstr(t),
         J::Array(xs) => format!("[{}]", xs.iter().map(canon_json).collect::<Vec<_>>().join(",")),
         J::Object(m) => format!(
             "{{{}}}",
-            m.iter().map(|(k, x)| format!("{}:{}", J::String(k.clone()), canon_json(x))).collect::<Vec<_>>().join(",")
+            m.iter().map(|(k, x)| format!("{}:{}", jstr(k), canon_json(x))).collect::<Vec<_>>().join(",")
         ),
         other => other.to_string(),
     }
@@ -452,15 +501,21 @@ pub fn float_text(x: f64) -> String {
     if x == 0.0 {
         return "0".into();
     }
-    let a = x.abs();
-    if (1e-5..1e16).contains(&a) {
-        return x.to_string();
+    let (digits, ex) = shortest_e(x);
+    let sign = if x < 0.0 { "-" } else { "" };
+    if (1e-5..1e16).contains(&x.abs()) {
+        let p = ex + 1;
+        let body = if p <= 0 {
+            format!("0.{}{}", "0".repeat((-p) as usize), digits)
+        } else if p as usize >= digits.len() {
+            format!("{}{}", digits, "0".repeat(p as usize - digits.len()))
+        } else {
+            format!("{}.{}", &digits[..p as usize], &digits[p as usize..])
+        };
+        return format!("{sign}{body}");
     }
-    let e = format!("{x:e}");
-    match e.split_once('e') {
-        Some((m, ex)) if !ex.starts_with('-') => format!("{m}e+{ex}"),
-        _ => e,
-    }
+    let m = if digits.len() > 1 { format!("{}.{}", &digits[..1], &digits[1..]) } else { digits.clone() };
+    if ex >= 0 { format!("{sign}{m}e+{ex}") } else { format!("{sign}{m}e{ex}") }
 }
 
 pub(crate) fn chk(x: i128, t: &'static str) -> R<V> {

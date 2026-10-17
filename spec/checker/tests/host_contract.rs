@@ -18,9 +18,9 @@ fn sha(s: &str) -> String {
     Sha256::digest(s.as_bytes()).iter().map(|b| format!("{b:02x}")).collect()
 }
 /// 6.1: the hash of an entry is the SHA-256 of the canonical JSON of
-/// {event, prev_hash, seq, state_hash} (serde_json sorts keys).
+/// {event, prev_hash, seq, state_hash} (serde_json sorts keys; floats and text in the canonical writer of 6.1.1).
 fn entry_hash(e: &Value) -> String {
-    sha(&json!({"event": e["event"], "prev_hash": e["prev_hash"], "seq": e["seq"], "state_hash": e["state_hash"]}).to_string())
+    sha(&rce_spec_check::interp::canon_json(&json!({"event": e["event"], "prev_hash": e["prev_hash"], "seq": e["seq"], "state_hash": e["state_hash"]})))
 }
 fn entry(seq: usize, event: Value, prev: &str, state_hash: &str) -> Value {
     let mut e = json!({"seq": seq, "event": event, "prev_hash": prev, "state_hash": state_hash});
@@ -362,8 +362,12 @@ fn every_appendix_e_rule_is_cited_by_a_test() {
 fn proposed_rules_are_marked_proposed() {
     let book = std::fs::read_to_string(spec().join("book/16-host-contract.md")).unwrap();
     let e11 = &book[book.find("### E.11").expect("E.11 present")..];
-    for r in ["N-1", "N-8", "N-9", "K-1", "K-2", "K-3", "K-4", "K-5", "K-6", "K-7", "K-8", "K-9", "E-x", "S-1", "S-2", "S-3", "S-4", "C-3", "V-6", "TU-1", "TU-2", "TU-3", "TU-4", "TU-5", "TU-6", "G-1", "G-2", "G-3", "G-4", "G-5", "G-6"] {
+    for r in ["N-9", "K-1", "K-2", "K-3", "K-4", "K-5", "K-6", "K-7", "K-8", "K-9", "E-x", "S-1", "S-2", "S-3", "S-4", "C-3", "V-6", "TU-1", "TU-2", "TU-3", "TU-4", "TU-5", "TU-6", "G-1", "G-2", "G-3", "G-4", "G-5", "G-6"] {
         assert!(e11.contains(&format!("**{r} (proposed).**")), "{r} is not stated as proposed in E.11");
+    }
+    // N-1 and N-8 were proposed once and are adopted in 6.3 N3: they must say so.
+    for r in ["N-1", "N-8"] {
+        assert!(e11.contains(&format!("**{r} (adopted as 6.3 N3")), "{r} is not stated as adopted in E.11");
     }
     let normative = &book[..book.find("### E.11").unwrap()];
     assert!(!normative.contains("(proposed)"), "a proposed rule leaked into the normative sections");

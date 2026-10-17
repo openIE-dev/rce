@@ -158,3 +158,29 @@ fn differential_runner_reports_match_and_first_divergence() {
     let o = Command::new("python3").arg(&script).arg(a.join(n)).arg(b.join(n)).output().unwrap();
     assert!(String::from_utf8_lossy(&o.stdout).contains("seq 1: step missing"), "{}", String::from_utf8_lossy(&o.stdout));
 }
+
+/// `rce trace --json` is written by the same string writer as the hashed
+/// form (6.1.1): U+0008 and U+000C print as \u0008 and \u000c (never \b, \f),
+/// and each step's hash is the SHA-256 of the printed bytes of its body.
+#[test]
+fn trace_text_escapes_match_the_hashed_writer() {
+    let c = spec().join("examples/16_multi_region.rce");
+    let src = std::fs::read_to_string(&c).unwrap();
+    let evs = "AddItem(name: \"a\u{8}b\u{c}c\")";
+    let t = trace(&c.to_string_lossy(), &src, Some(evs)).unwrap();
+    assert!(t.contains("a\\u0008b\\u000cc"), "{t}");
+    assert!(!t.contains("\\b") && !t.contains("\\f"), "{t}");
+    let v: serde_json::Value = serde_json::from_str(&t).unwrap();
+    for tr in v["traces"].as_array().unwrap() {
+        for s in tr["steps"].as_array().unwrap() {
+            // the printed body: event text exactly as printed, so re-print it with the same writer
+            let body = rce_spec_check::interp::canon_json(&serde_json::json!({
+                "event": s["event"], "prev_hash": s["prev_hash"], "seq": s["seq"], "state_hash": s["state_hash"]
+            }));
+            assert_eq!(s["hash"], sha(&body).as_str());
+            if let Some(st) = s.get("state") {
+                assert_eq!(s["state_hash"], sha(&rce_spec_check::interp::canon_json(st)).as_str());
+            }
+        }
+    }
+}

@@ -12,7 +12,7 @@ an agent proves it read them by following `READ-PROTOCOL.md`.
 | `04-programs.md` | `36aa75c5ccf91fc1e58278eac48086a4b441d0175ea55753e3ad5b3e3788f878` | What is the outermost scope called? (one word) |
 | `05-types-ownership.md` | `d74545f9b1aab9a1393a8d026a43591cbb186b12df7c8e7e43038c66238119bb` | What is the name of the example kind used to illustrate error sets? |
 | `06-regions-effects-extensions.md` | `350558d934b1128b283bfd3348c032658783e93b9d4242165fbfcd2dd77041ae` | What kind of channel does a capacity of 0 give? (one word) |
-| `07-form-evaluation.md` | `458a69e6b9cfe6466261037e2a50b78728390f7174dc4968fd1ebbf94784f69a` | Which JavaScript function is named for rounding to binary32? |
+| `07-form-evaluation.md` | `ee87ffe62ac9f08ed53358a73eb30374b1730a6aedcb02300f9d38bc71bbe374` | Which JavaScript function is named for rounding to binary32? |
 | `08-steps-loops-concurrency.md` | `829fc50b7504db98a35c3a0382beda7c371537723726a18f8538afb7720f1f64` | Name-free hashing uses indices named after which logician? (two words) |
 | `09-wellformedness.md` | `7ff6ba12fd3a4ee1bcae602f3d561bf0c5c851611f563b9d233f6ad8e1f227fb` | Which rule refuses two unguarded steps in one region whose patterns overlap? |
 | `10-theorems.md` | `925406c4a664c8898fe2833acc52c72402a8bfa3aeb2567f2037dbd85f7396c3` | What is the deep embedding of the emitted Rust subset called? |
@@ -25,4 +25,4 @@ an agent proves it read them by following `READ-PROTOCOL.md`.
 
 The single-file spec `spec/RCE-SPEC.md` is generated from these files.
 
-<!-- body-sha256: 30b562ad44e2d47af609ae8a3f3e2cc546093eeedb69955c46e7f285a92a610e -->
+<!-- body-sha256: 16a83cca4cef3a07ce5a06f0b780c60273e22693342553bf7f0f8168f344ce0d -->

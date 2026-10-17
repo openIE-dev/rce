@@ -136,7 +136,7 @@ a Form value:
 | U+0008, U+000C | `\b`, `\f` | `\u0008`, `\u000c` | one escape form for every control character not named in rule 4 |
 | member order | UTF-16 code units | code points | the same unless two keys first differ at a supplementary-plane character against one in U+E000 to U+FFFF (the RFC's own sort data differs) |
 
-**Golden vectors.** `spec/data/canonical-json-vectors.json` holds 73
+**Golden vectors.** `spec/data/canonical-json-vectors.json` holds 77
 vectors: a value, the exact canonical text, and the SHA-256 of its UTF-8
 bytes. It covers every rule above, the boundaries 10^-4 and 10^16, the
 extremes of i64, u64 and binary64, the sort data of RFC 8785 section 3.2.3,
@@ -147,24 +147,21 @@ and `scripts/canonical-json-vectors.py --check`, an encoder written from
 this subsection alone. A third implementation is conformant when it
 reproduces every canonical text and digest.
 
-**Open items.** The reference implementation and this subsection differ in
-two places, both pinned by tests rather than hidden.
-- *Tie rule.* The reference formats floats with Rust's shortest-digit
-  routine. For the value 1424953923781206.25 (binary64 `0x43143ff3c1cb0959`)
-  two digit strings of the same length read back to x and are equally close:
-  the rule of rule 3 gives `1424953923781206.2` (as ECMAScript's
-  `String(x)` and Python's `repr` do), the reference gives
-  `1424953923781206.3`. The Python and JavaScript runtimes format with Python's `repr` and
-  JavaScript's `String` (`emit/rt.py`, `emit/rt.js`), so a state holding this
-  value would hash differently in the Rust reference than in those two
-  runtimes; this was checked by formatting the value, not by running an
-  emitted program. The vector is
-  `float-1424953923781206.2`; the test pins the reference's current output
-  and an ignored test states the intended one.
-- *Second writer.* `rce trace --json` writes through a second serialiser
-  that prints U+0008 and U+000C as `\b` and `\f`, so a trace of an event
-  containing those characters does not show the bytes that were hashed. The
-  vectors `text-u0008` and `text-u000c` pin this.
+**Resolved items.** Two differences between the reference implementation
+and this subsection were found by the vectors and are fixed.
+- *Tie rule.* Rust's shortest-digit routine (`{:e}`) breaks an exact tie
+  between two shortest candidates to the odd digit: for 1424953923781206.25
+  (binary64 `0x43143ff3c1cb0959`) it gave `1424953923781206.3`, where the rule
+  of rule 3 (as ECMAScript's `String(x)` and Python's `repr`) gives
+  `1424953923781206.2`. The reference now takes the shortest digit count n
+  from `{:e}` and then the n-digit decimal closest to x, ties to even
+  (`interp::shortest_e`, used by `float_json`, `float_text` and
+  `emit/rt.rs`). The vectors `float-1424953923781206.2` and the four
+  `float-tie-*` vectors (round down, round up, and their negatives) pass.
+- *Second writer.* `rce trace --json` now writes text through the same
+  `jstr` as the hashed writer, so U+0008 and U+000C print as `\u0008` and
+  `\u000c` and a trace shows the bytes that were hashed. The test
+  `the_trace_writer_agrees_with_the_hashed_writer` covers every vector.
 A decision between this text-based form and a length-prefixed binary form is
 deferred until measured (the form defined here is the one all existing
 hashes use).
@@ -430,4 +427,4 @@ method and is W-NAME-1.
 
 **Read receipt.** Which JavaScript function is named for rounding to binary32?
 
-<!-- body-sha256: 458a69e6b9cfe6466261037e2a50b78728390f7174dc4968fd1ebbf94784f69a -->
+<!-- body-sha256: ee87ffe62ac9f08ed53358a73eb30374b1730a6aedcb02300f9d38bc71bbe374 -->
