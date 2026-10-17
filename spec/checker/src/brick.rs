@@ -353,6 +353,14 @@ pub fn index_with(given: &[(String, String)], o: &Opts) -> Value {
             );
         }
         let module = m.path.as_ref().map(|p| p.join(".")).unwrap_or_default();
+        // A file with no `# rce-version` line has no declared version. With the
+        // `conc06` feature the parser reads it as 0.6 and `unparse` would write a
+        // 0.6 header, so a brick hash would depend on the build. The hash uses the
+        // declared version only.
+        let undeclared = files
+            .iter()
+            .find(|(f, _)| f == file)
+            .is_some_and(|(_, src)| matches!(crate::parse::declared_version(src), Ok(None)));
         let linked = &checked[i].linked;
         let fns: Vec<&FnDecl> = m
             .items
@@ -403,7 +411,7 @@ pub fn index_with(given: &[(String, String)], o: &Opts) -> Value {
                 path: None,
                 items: vec![Item::Fn(d.clone())],
                 pubs: BTreeSet::new(),
-                draft06: m.draft06,
+                draft06: m.draft06 && !undeclared,
                 v07: m.v07,
                 v08: m.v08,
             };
