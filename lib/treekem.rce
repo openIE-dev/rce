@@ -153,8 +153,8 @@ fn hash_order(w: usize) -> List[i64]
         k += 1
     return o
 
-fn node_hash(node: text, x: i64, hl: text, hr: text) -> text
-    let present: List[i64] = if node == "" then [0] else cat([1], nbody(copy(node)))
+fn node_hash(nd: text, x: i64, hl: text, hr: text) -> text
+    let present: List[i64] = if nd == "" then [0] else cat([1], nbody(copy(nd)))
     if x % 2 == 0
         return tohex(sha256(cat(cat([1], u32b(x / 2)), present)))
     return tohex(sha256(cat(cat([2], present), cat(ser_v(unhex(hl)), ser_v(unhex(hr))))))

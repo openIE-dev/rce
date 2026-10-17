@@ -23,8 +23,8 @@ fn st_leaf_secret(es: text, n: i64, i: i64) -> text
     return tohex(s)
 
 # key + "." + nonce of the label ("application" or "handshake") ratchet at generation g
-fn st_key_nonce(leaf_secret: text, label: text, g: i64) -> text
-    var s = tohex(expand_label(unhex(leaf_secret), label, [], 32))
+fn st_key_nonce(leaf_secret: text, lbl: text, g: i64) -> text
+    var s = tohex(expand_label(unhex(leaf_secret), lbl, [], 32))
     for j in 0..g
         s = derive_tree_secret(s, "secret", j, 32)
     return derive_tree_secret(copy(s), "key", g, 16) + "." + derive_tree_secret(s, "nonce", g, 12)
@@ -50,8 +50,8 @@ fn priv_open(msg: text, es: text, sds: text, n: i64) -> List[text]
         return []
     let leaf = (sd[0] << 24) | (sd[1] << 16) | (sd[2] << 8) | sd[3]
     let g = (sd[4] << 24) | (sd[5] << 16) | (sd[6] << 8) | sd[7]
-    let label = if ctext == 1 then "application" else "handshake"
-    let ckn = st_key_nonce(st_leaf_secret(es, n, leaf), label, g).split(".")
+    let lbl = if ctext == 1 then "application" else "handshake"
+    let ckn = st_key_nonce(st_leaf_secret(es, n, leaf), lbl, g).split(".")
     var nonce = unhex(copy(ckn[1]))
     for j in 0..4
         nonce[j] = nonce[j] ^ sd[8 + j]

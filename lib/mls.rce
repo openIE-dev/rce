@@ -99,13 +99,13 @@ fn expand(prk: List[i64], info: List[i64], n: usize) -> List[i64]
 fn extract(salt: List[i64], ikm: List[i64]) -> List[i64] = hmac(salt, ikm)
 
 # ExpandWithLabel(Secret, Label, Context, Length); the label as bytes
-fn expand_label_b(secret: List[i64], label: List[i64], context: List[i64], n: usize) -> List[i64]
-    let info = cat(cat([(n as i64) >> 8, (n as i64) & 255], mls_vec(cat(tobytes("MLS 1.0 "), label))), mls_vec(context))
+fn expand_label_b(secret: List[i64], lbl: List[i64], context: List[i64], n: usize) -> List[i64]
+    let info = cat(cat([(n as i64) >> 8, (n as i64) & 255], mls_vec(cat(tobytes("MLS 1.0 "), lbl))), mls_vec(context))
     return expand(secret, info, n)
 
-fn expand_label(secret: List[i64], label: text, context: List[i64], n: usize) -> List[i64] = expand_label_b(secret, tobytes(label), context, n)
+fn expand_label(secret: List[i64], lbl: text, context: List[i64], n: usize) -> List[i64] = expand_label_b(secret, tobytes(lbl), context, n)
 
-fn derive_secret(secret: List[i64], label: text) -> List[i64] = expand_label(secret, label, [], 32)
+fn derive_secret(secret: List[i64], lbl: text) -> List[i64] = expand_label(secret, lbl, [], 32)
 
 fn zero32() -> List[i64]
     var z: List[i64] = []
@@ -131,29 +131,29 @@ fn mls_epoch(init: text, commit: text, psk: text, ctx: text) -> text
 
 # MLS-Exporter(label, context, length) from an epoch's exporter_secret
 # (8.5); the label is text, the context hex bytes
-fn mls_export(exporter: text, label: text, context: text, n: usize) -> text = tohex(expand_label(derive_secret(unhex(exporter), label), "exported", sha256(unhex(context)), n))
+fn mls_export(exporter: text, lbl: text, context: text, n: usize) -> text = tohex(expand_label(derive_secret(unhex(exporter), lbl), "exported", sha256(unhex(context)), n))
 
 # DeriveTreeSecret(Secret, Label, Generation, Length) (9.1): hex in and out
-fn derive_tree_secret(secret: text, label: text, generation: i64, n: usize) -> text = tohex(expand_label(unhex(secret), label, [(generation >> 24) & 255, (generation >> 16) & 255, (generation >> 8) & 255, generation & 255], n))
+fn derive_tree_secret(secret: text, lbl: text, generation: i64, n: usize) -> text = tohex(expand_label(unhex(secret), lbl, [(generation >> 24) & 255, (generation >> 16) & 255, (generation >> 8) & 255, generation & 255], n))
 
 # RefHash(label, value) = Hash(RefHashInput { label<V>; value<V> }) (5.2)
-fn ref_hash(label: text, value: text) -> text = tohex(sha256(cat(mls_vec(tobytes(label)), mls_vec(unhex(value)))))
+fn ref_hash(lbl: text, value: text) -> text = tohex(sha256(cat(mls_vec(tobytes(lbl)), mls_vec(unhex(value)))))
 
 # SignContent { label<V> = "MLS 1.0 " + Label; content<V> } (5.1.2)
-fn sign_content(label: text, content: text) -> List[i64] = cat(mls_vec(tobytes("MLS 1.0 " + label)), mls_vec(unhex(content)))
+fn sign_content(lbl: text, content: text) -> List[i64] = cat(mls_vec(tobytes("MLS 1.0 " + lbl)), mls_vec(unhex(content)))
 
 # SignWithLabel / VerifyWithLabel with Ed25519 (suite 1); seed and keys hex
-fn sign_with_label(seed: text, label: text, content: text) -> text = ed_sign(seed, sign_content(label, content))
+fn sign_with_label(seed: text, lbl: text, content: text) -> text = ed_sign(seed, sign_content(lbl, content))
 
-fn verify_with_label(pk: text, label: text, content: text, sig: text) -> bool = ed_verify(pk, sign_content(label, content), sig)
+fn verify_with_label(pk: text, lbl: text, content: text, sig: text) -> bool = ed_verify(pk, sign_content(lbl, content), sig)
 
 # ---- HPKE DHKEM(X25519, HKDF-SHA256) key derivation (RFC 9180 7.1.3) ----
 
 fn kem_suite() -> List[i64] = cat(tobytes("KEM"), [0, 32])
 
-fn labeled_extract(salt: List[i64], label: text, ikm: List[i64]) -> List[i64] = extract(salt, cat(cat(tobytes("HPKE-v1"), kem_suite()), cat(tobytes(label), ikm)))
+fn labeled_extract(salt: List[i64], lbl: text, ikm: List[i64]) -> List[i64] = extract(salt, cat(cat(tobytes("HPKE-v1"), kem_suite()), cat(tobytes(lbl), ikm)))
 
-fn labeled_expand(prk: List[i64], label: text, info: List[i64], n: usize) -> List[i64] = expand(prk, cat(cat([(n as i64) >> 8, (n as i64) & 255], cat(tobytes("HPKE-v1"), kem_suite())), cat(tobytes(label), info)), n)
+fn labeled_expand(prk: List[i64], lbl: text, info: List[i64], n: usize) -> List[i64] = expand(prk, cat(cat([(n as i64) >> 8, (n as i64) & 255], cat(tobytes("HPKE-v1"), kem_suite())), cat(tobytes(lbl), info)), n)
 
 # DeriveKeyPair(ikm): "sk.pk" in hex
 fn hpke_derive(ikm: text) -> text

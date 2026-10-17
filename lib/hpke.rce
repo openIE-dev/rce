@@ -213,10 +213,10 @@ fn suite_kem() -> List[i64] = cat(tobytes("KEM"), i2osp2(32))
 # HPKE suite: DHKEM(X25519, HKDF-SHA256), HKDF-SHA256, AES-128-GCM
 fn suite_hpke() -> List[i64] = cat(cat(tobytes("HPKE"), i2osp2(32)), cat(i2osp2(1), i2osp2(1)))
 
-fn hp_extract(suite: List[i64], salt: List[i64], label: text, ikm: List[i64]) -> List[i64] = hmac(salt, cat(cat(tobytes("HPKE-v1"), suite), cat(tobytes(label), ikm)))
+fn hp_extract(suite: List[i64], salt: List[i64], lbl: text, ikm: List[i64]) -> List[i64] = hmac(salt, cat(cat(tobytes("HPKE-v1"), suite), cat(tobytes(lbl), ikm)))
 
-fn hp_expand(suite: List[i64], prk: List[i64], label: text, info: List[i64], n: usize) -> List[i64]
-    let li = cat(cat(i2osp2(n as i64), cat(tobytes("HPKE-v1"), suite)), cat(tobytes(label), info))
+fn hp_expand(suite: List[i64], prk: List[i64], lbl: text, info: List[i64], n: usize) -> List[i64]
+    let li = cat(cat(i2osp2(n as i64), cat(tobytes("HPKE-v1"), suite)), cat(tobytes(lbl), info))
     var out: List[i64] = []
     var t: List[i64] = []
     var c: i64 = 1
@@ -274,11 +274,11 @@ fn mls_vec2(b: List[i64]) -> List[i64]
         return cat([n], b)
     return cat([64 | (n >> 8), n & 255], b)
 
-fn enc_context(label: text, context: text) -> text = tohex(cat(mls_vec2(tobytes("MLS 1.0 " + label)), mls_vec2(unhex(context))))
+fn enc_context(lbl: text, context: text) -> text = tohex(cat(mls_vec2(tobytes("MLS 1.0 " + lbl)), mls_vec2(unhex(context))))
 
-fn encrypt_with_label(pk: text, ske: text, label: text, context: text, pt: text) -> text = hpke_seal(pk, ske, enc_context(label, context), "", pt, 0)
+fn encrypt_with_label(pk: text, ske: text, lbl: text, context: text, pt: text) -> text = hpke_seal(pk, ske, enc_context(lbl, context), "", pt, 0)
 
-fn decrypt_with_label(sk: text, label: text, context: text, kem_output: text, ctext: text) -> text = hpke_open(sk, kem_output, enc_context(label, context), "", ctext, 0)
+fn decrypt_with_label(sk: text, lbl: text, context: text, kem_output: text, ctext: text) -> text = hpke_open(sk, kem_output, enc_context(lbl, context), "", ctext, 0)
 
 check tohex(aes_block(aes_expand(unhex("000102030405060708090a0b0c0d0e0f")), unhex("00112233445566778899aabbccddeeff"))) == "69c4e0d86a7b0430d8cdb78070b4c55a"
 check tohex(gcm_seal(unhex("feffe9928665731c6d6a8f9467308308"), unhex("cafebabefacedbaddecaf888"), unhex("feedfacedeadbeeffeedfacedeadbeefabaddad2"), unhex("d9313225f88406e5a55909c5aff5269a86a7a9531534f7da2e4c303d8a318a721c3c0c95956809532fcf0e2449a6b525b16aedf5aa0de657ba637b39"))) == "42831ec2217774244b7221b784d0d49ce3aa212f2c02a4e035c17e2329aca12e21d514b25466931c7d8f6a5aac84aa051ba30b396a0aac973d58e0915bc94fbc3221a5db94fae95ae7121a47"

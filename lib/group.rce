@@ -1,4 +1,4 @@
-module group
+module grp
 
 # MLS group state across epochs for a passive member (RFC 9420 8, 12.2 to
 # 12.4), pure RCE on lib/crypto.rce, lib/hpke.rce, lib/mls.rce,
