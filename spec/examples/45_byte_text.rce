@@ -2,7 +2,7 @@
 fn first_byte(s: &text) -> u8
     return s[0]
 
-check "héllo".len() == 6
+check "héllo".len_bytes() == 6
 const A: text = "A"
 check first_byte(&A) == 65
 check "héllo"[1] == 195

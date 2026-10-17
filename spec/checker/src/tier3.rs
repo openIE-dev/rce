@@ -195,8 +195,8 @@ pub fn check(m: &Module) -> Vec<String> {
                 if measure(s).is_some() && !allowed.contains(&(s as *const Stmt)) {
                     errs.push(err(
                         stmt_line(s),
-                        "W-VER-2",
-                        "`decreases` is written only before the first statement of a fn body or as the first statement of the body of a `while` in this checker; a measure on another loop (`for`, `loop`) or elsewhere is specified (F.6.4) but not implemented, so it is refused by version".into(),
+                        "W-RES-1",
+                        "`decreases` is written only before the first statement of a fn body or as the first statement of the body of a `while` in this checker; a measure on another loop (`for`, `loop`) or elsewhere is specified (F.6.4) but not implemented, so it is reserved, not implemented".into(),
                     ));
                 }
                 if clause(s).is_some() {

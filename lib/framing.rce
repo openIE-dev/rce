@@ -89,7 +89,7 @@ fn mls_decode(h: text) -> List[text]
     let ep = hx(copy(b), p, p + 8)
     p += 8
     if wf == 2
-        let ct = b[p]
+        let ctext = b[p]
         let aad = tohex(get_v(copy(b), p + 1))
         p = skip_v(copy(b), p + 1)
         let esd = tohex(get_v(copy(b), p))
@@ -98,7 +98,7 @@ fn mls_decode(h: text) -> List[text]
         p = skip_v(copy(b), p)
         if p != n
             return []
-        return ["02", gid, ep, tohex([ct]), aad, esd, c]
+        return ["02", gid, ep, tohex([ctext]), aad, esd, c]
     if wf != 1
         return []
     let st = b[p]
@@ -107,14 +107,14 @@ fn mls_decode(h: text) -> List[text]
     p = se
     let aad = tohex(get_v(copy(b), p))
     p = skip_v(copy(b), p)
-    let ct = b[p]
+    let ctext = b[p]
     p += 1
     var ce: usize = 0
-    if ct == 1
+    if ctext == 1
         ce = skip_v(copy(b), p)
-    if ct == 2
+    if ctext == 2
         ce = proposal_end(copy(b), p)
-    if ct == 3
+    if ctext == 3
         ce = commit_end(copy(b), p)
     if ce == 0
         return []
@@ -123,7 +123,7 @@ fn mls_decode(h: text) -> List[text]
     let sig = tohex(get_v(copy(b), p))
     p = skip_v(copy(b), p)
     var tag = ""
-    if ct == 3
+    if ctext == 3
         tag = tohex(get_v(copy(b), p))
         p = skip_v(copy(b), p)
     var mt = ""
@@ -132,7 +132,7 @@ fn mls_decode(h: text) -> List[text]
         p = skip_v(copy(b), p)
     if p != n
         return []
-    return ["01", gid, ep, sender, aad, tohex([ct]), content, sig, tag, mt]
+    return ["01", gid, ep, sender, aad, tohex([ctext]), content, sig, tag, mt]
 
 fn mls_encode(f: List[text]) -> text
     let wf = unhex(copy(f[0]))[0]
@@ -141,10 +141,10 @@ fn mls_encode(f: List[text]) -> text
     if wf == 2
         let body = cat(cat(unhex(copy(f[3])), ser_v(unhex(copy(f[4])))), cat(ser_v(unhex(copy(f[5]))), ser_v(unhex(copy(f[6])))))
         return tohex(cat(cat(head, gide), body))
-    let ct = unhex(copy(f[5]))[0]
+    let ctext = unhex(copy(f[5]))[0]
     var o = cat(cat(head, gide), cat(unhex(copy(f[3])), ser_v(unhex(copy(f[4])))))
-    o = cat(cat(o, [ct]), cat(unhex(copy(f[6])), ser_v(unhex(copy(f[7])))))
-    if ct == 3
+    o = cat(cat(o, [ctext]), cat(unhex(copy(f[6])), ser_v(unhex(copy(f[7])))))
+    if ctext == 3
         o = cat(o, ser_v(unhex(copy(f[8]))))
     if unhex(copy(f[3]))[0] == 1
         o = cat(o, ser_v(unhex(copy(f[9]))))

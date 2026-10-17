@@ -3,7 +3,7 @@ event Tick(n: i64)
 
 actor Counter
     n: i64 = 0
-    on Tick(n: k)
+    on Tick(n: _k)
         n += k
 
 actor Logger
@@ -15,5 +15,5 @@ supervisor Root strategy one_for_one
     child counter: Counter restart bound 3
     child logger: Logger
 
-fn seen(s: lvar Set[i64]) -> bool
+fn seen(_s: lvar Set[i64]) -> bool
     true

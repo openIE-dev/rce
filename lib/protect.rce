@@ -29,10 +29,10 @@ fn st_key_nonce(leaf_secret: text, label: text, g: i64) -> text
         s = derive_tree_secret(s, "secret", j, 32)
     return derive_tree_secret(copy(s), "key", g, 16) + "." + derive_tree_secret(s, "nonce", g, 12)
 
-fn sd_sample(ct: List[i64]) -> List[i64] = if ct.len() > 32 then slice(ct, 0, 32) else ct
+fn sd_sample(ctext: List[i64]) -> List[i64] = if ctext.len() > 32 then slice(ctext, 0, 32) else ctext
 
-fn sd_key_nonce(sds: text, ct: text) -> text
-    let smp = sd_sample(unhex(ct))
+fn sd_key_nonce(sds: text, ctext: text) -> text
+    let smp = sd_sample(unhex(ctext))
     return tohex(expand_label(unhex(copy(sds)), "key", copy(smp), 16)) + "." + tohex(expand_label(unhex(sds), "nonce", smp, 12))
 
 # open a PrivateMessage: [leaf, content_type, authenticated_data, content,
@@ -42,47 +42,47 @@ fn priv_open(msg: text, es: text, sds: text, n: i64) -> List[text]
     let f = mls_decode(msg)
     if f.len() != 7
         return []
-    let ct = unhex(copy(f[3]))[0]
+    let ctext = unhex(copy(f[3]))[0]
     let kn = sd_key_nonce(sds, copy(f[6])).split(".")
-    let sdaad = cat(cat(ser_v(unhex(copy(f[1]))), unhex(copy(f[2]))), [ct])
+    let sdaad = cat(cat(ser_v(unhex(copy(f[1]))), unhex(copy(f[2]))), [ctext])
     let sd = gcm_open(unhex(copy(kn[0])), unhex(copy(kn[1])), sdaad, unhex(copy(f[5])))
     if sd.len() != 12
         return []
     let leaf = (sd[0] << 24) | (sd[1] << 16) | (sd[2] << 8) | sd[3]
     let g = (sd[4] << 24) | (sd[5] << 16) | (sd[6] << 8) | sd[7]
-    let label = if ct == 1 then "application" else "handshake"
+    let label = if ctext == 1 then "application" else "handshake"
     let ckn = st_key_nonce(st_leaf_secret(es, n, leaf), label, g).split(".")
     var nonce = unhex(copy(ckn[1]))
     for j in 0..4
         nonce[j] = nonce[j] ^ sd[8 + j]
-    let aad = cat(cat(ser_v(unhex(copy(f[1]))), unhex(copy(f[2]))), cat([ct], ser_v(unhex(copy(f[4])))))
+    let aad = cat(cat(ser_v(unhex(copy(f[1]))), unhex(copy(f[2]))), cat([ctext], ser_v(unhex(copy(f[4])))))
     let pt = gcm_open(unhex(copy(ckn[0])), nonce, aad, unhex(copy(f[6])))
     if pt.len() == 1 and pt[0] == -1
         return []
     var e: usize = 0
-    if ct == 1
+    if ctext == 1
         e = skip_v(copy(pt), 0)
-    if ct == 2
+    if ctext == 2
         e = proposal_end(copy(pt), 0)
-    if ct == 3
+    if ctext == 3
         e = commit_end(copy(pt), 0)
     if e == 0
         return []
     let sig = tohex(get_v(copy(pt), e))
     var p = skip_v(copy(pt), e)
     var tag = ""
-    if ct == 3
+    if ctext == 3
         tag = tohex(get_v(copy(pt), p))
         p = skip_v(copy(pt), p)
     while p < pt.len() bound 65536
         if pt[p] != 0
             return []
         p += 1
-    return [tohex(u32b(leaf)), tohex([ct]), copy(f[4]), tohex(slice(pt, 0, e)), sig, tag]
+    return [tohex(u32b(leaf)), tohex([ctext]), copy(f[4]), tohex(slice(pt, 0, e)), sig, tag]
 
 # FramedContentTBS for a member sender
-fn framed_tbs(wf: i64, gid: text, ep: text, sender: text, aad: text, ct: text, content: text, gc: text) -> List[i64]
-    let fc = cat(cat(cat(ser_v(unhex(gid)), unhex(ep)), cat(unhex(sender), ser_v(unhex(aad)))), cat(unhex(ct), unhex(content)))
+fn framed_tbs(wf: i64, gid: text, ep: text, sender: text, aad: text, ctext: text, content: text, gc: text) -> List[i64]
+    let fc = cat(cat(cat(ser_v(unhex(gid)), unhex(ep)), cat(unhex(sender), ser_v(unhex(aad)))), cat(unhex(ctext), unhex(content)))
     return cat(cat([0, 1, 0, wf], fc), unhex(gc))
 
 fn priv_signature_ok(msg: text, opened: List[text], gc: text, pk: text) -> bool

@@ -44,7 +44,7 @@ fn emitters_refuse_what_only_the_evaluator_runs() {
         let src = std::fs::read_to_string(format!("../examples-0.9/{f}")).unwrap();
         for t in ["python", "js", "rust"] {
             let e = rce_spec_check::cli::emit(t, &src).unwrap_err();
-            assert!(e.contains("W-VER-2"), "{f} {t}: {e}");
+            assert!(e.contains("W-RES-1"), "{f} {t}: {e}");
         }
     }
 }

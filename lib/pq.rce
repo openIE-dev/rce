@@ -359,16 +359,16 @@ fn mlkem_encaps(ek: text, m: text) -> text
 # ML-KEM.Decaps_internal (Alg. 18): the shared secret, implicit rejection
 fn mlkem_decaps(dk: text, c: text) -> text
     let d = unhex(dk)
-    let ct = unhex(c)
+    let ctext = unhex(c)
     let dkp = slice(copy(d), 0, 384 * KK)
     let ek = slice(copy(d), 384 * KK, 768 * KK + 32)
     let h = slice(copy(d), 768 * KK + 32, 768 * KK + 64)
     let z = slice(copy(d), 768 * KK + 64, 768 * KK + 96)
-    let m = pke_decrypt(dkp, copy(ct))
+    let m = pke_decrypt(dkp, copy(ctext))
     let g = sha3_512(cat(copy(m), h))
-    let kbar = shake256(cat(z, copy(ct)), 32)
+    let kbar = shake256(cat(z, copy(ctext)), 32)
     let c2 = pke_encrypt(ek, m, slice(copy(g), 32, 64))
-    if tohex(c2) == tohex(ct)
+    if tohex(c2) == tohex(ctext)
         return tohex(slice(g, 0, 32))
     return tohex(kbar)
 
@@ -378,8 +378,8 @@ fn mlkem_decaps(dk: text, c: text) -> text
 # IKb, signed prekey SPKb and an ML-KEM-768 prekey PQPKb signed with its
 # Ed25519 identity (the caller checks it with ed_verify). The work is split
 # into one-operation steps so each input stays inside the fuel of HC-7a:
-#   initiator: dh = pqxdh_dh_init(...); "ct.ss" = mlkem_encaps(PQPKb, m)
-#   responder: dh = pqxdh_dh_resp(...); ss = mlkem_decaps(PQSKb, ct)
+#   initiator: dh = pqxdh_dh_init(...); "ctext.ss" = mlkem_encaps(PQPKb, m)
+#   responder: dh = pqxdh_dh_resp(...); ss = mlkem_decaps(PQSKb, ctext)
 #   both:      SK = pqxdh_sk(dh, ss)
 # with SK = HKDF(F || DH1 || DH2 || DH3 || SS), F = 32 bytes of 0xFF. A forged
 # ciphertext gives another SS by ML-KEM's implicit rejection, so the first

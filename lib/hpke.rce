@@ -139,13 +139,13 @@ fn gf_mul4(x: List[i64], t: List[List[i64]], red: List[i64]) -> List[i64]
                 z[k] = z[k] ^ row[k]
     return z
 
-fn ghash(h: List[i64], aad: List[i64], ct: List[i64]) -> List[i64]
+fn ghash(h: List[i64], aad: List[i64], ctext: List[i64]) -> List[i64]
     let t = gf_table(h)
     let red = gf_red4()
     var y: List[i64] = []
     for _ in 0..16
         y.push(0)
-    for part in [copy(aad), copy(ct)]
+    for part in [copy(aad), copy(ctext)]
         var off: usize = 0
         while off < part.len() bound 65536
             for j in 0..16
@@ -154,7 +154,7 @@ fn ghash(h: List[i64], aad: List[i64], ct: List[i64]) -> List[i64]
             y = gf_mul4(y, copy(t), copy(red))
             off += 16
     var lens: List[i64] = []
-    for n in [aad.len() as i64 * 8, ct.len() as i64 * 8]
+    for n in [aad.len() as i64 * 8, ctext.len() as i64 * 8]
         for k in 0..8
             lens.push((n >> (56 - 8 * k)) & 255)
     for j in 0..16
@@ -187,13 +187,13 @@ fn zero16() -> List[i64]
 fn gcm_seal(key: List[i64], iv: List[i64], aad: List[i64], pt: List[i64]) -> List[i64]
     let rk = aes_expand(key)
     let h = aes_block(copy(rk), zero16())
-    let ct = gcm_ctr(copy(rk), copy(iv), pt)
-    let s = ghash(h, aad, copy(ct))
+    let ctext = gcm_ctr(copy(rk), copy(iv), pt)
+    let s = ghash(h, aad, copy(ctext))
     let ek = aes_block(rk, ctr_block(iv, 1))
     var tag: List[i64] = []
     for j in 0..16
         tag.push(s[j] ^ ek[j])
-    return cat(ct, tag)
+    return cat(ctext, tag)
 
 # the plaintext, or [-1] when the tag does not verify
 fn gcm_open(key: List[i64], iv: List[i64], aad: List[i64], sealed: List[i64]) -> List[i64]
@@ -253,15 +253,15 @@ fn hpke_seal(pkr: text, ske: text, info: text, aad: text, pt: text, seq: i64) ->
     let enc = pubkey(copy(ske))
     let dh = unhex(x25519(ske, copy(pkr)))
     let kn = hp_key_nonce(hp_shared(dh, cat(unhex(copy(enc)), unhex(pkr))), unhex(info))
-    let ct = gcm_seal(slice(copy(kn), 0, 16), hp_nonce(slice(kn, 16, 28), seq), unhex(aad), unhex(pt))
-    return enc + "." + tohex(ct)
+    let ctext = gcm_seal(slice(copy(kn), 0, 16), hp_nonce(slice(kn, 16, 28), seq), unhex(aad), unhex(pt))
+    return enc + "." + tohex(ctext)
 
 # SetupBaseR + Open: the plaintext (hex), or "" when it does not open
-fn hpke_open(skr: text, enc: text, info: text, aad: text, ct: text, seq: i64) -> text
+fn hpke_open(skr: text, enc: text, info: text, aad: text, ctext: text, seq: i64) -> text
     let pkr = pubkey(copy(skr))
     let dh = unhex(x25519(skr, copy(enc)))
     let kn = hp_key_nonce(hp_shared(dh, cat(unhex(enc), unhex(pkr))), unhex(info))
-    let pt = gcm_open(slice(copy(kn), 0, 16), hp_nonce(slice(kn, 16, 28), seq), unhex(aad), unhex(ct))
+    let pt = gcm_open(slice(copy(kn), 0, 16), hp_nonce(slice(kn, 16, 28), seq), unhex(aad), unhex(ctext))
     if pt.len() == 1 and pt[0] == -1
         return ""
     return tohex(pt)
@@ -278,7 +278,7 @@ fn enc_context(label: text, context: text) -> text = tohex(cat(mls_vec2(tobytes(
 
 fn encrypt_with_label(pk: text, ske: text, label: text, context: text, pt: text) -> text = hpke_seal(pk, ske, enc_context(label, context), "", pt, 0)
 
-fn decrypt_with_label(sk: text, label: text, context: text, kem_output: text, ct: text) -> text = hpke_open(sk, kem_output, enc_context(label, context), "", ct, 0)
+fn decrypt_with_label(sk: text, label: text, context: text, kem_output: text, ctext: text) -> text = hpke_open(sk, kem_output, enc_context(label, context), "", ctext, 0)
 
 check tohex(aes_block(aes_expand(unhex("000102030405060708090a0b0c0d0e0f")), unhex("00112233445566778899aabbccddeeff"))) == "69c4e0d86a7b0430d8cdb78070b4c55a"
 check tohex(gcm_seal(unhex("feffe9928665731c6d6a8f9467308308"), unhex("cafebabefacedbaddecaf888"), unhex("feedfacedeadbeeffeedfacedeadbeefabaddad2"), unhex("d9313225f88406e5a55909c5aff5269a86a7a9531534f7da2e4c303d8a318a721c3c0c95956809532fcf0e2449a6b525b16aedf5aa0de657ba637b39"))) == "42831ec2217774244b7221b784d0d49ce3aa212f2c02a4e035c17e2329aca12e21d514b25466931c7d8f6a5aac84aa051ba30b396a0aac973d58e0915bc94fbc3221a5db94fae95ae7121a47"

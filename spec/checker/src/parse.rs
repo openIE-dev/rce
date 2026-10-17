@@ -1230,7 +1230,7 @@ impl Parser {
                 v.push(Param::SelfRef(m));
             } else {
                 if self.v09 && self.is_kw("ghost") {
-                    return self.err("W-VER-2 `ghost` parameters (F.6.3) are specified but not implemented by this checker, so they are refused by version");
+                    return self.err("W-RES-1 `ghost` parameters (F.6.3) are specified but not implemented by this checker, so they are reserved, not implemented");
                 }
                 let comptime = self.eat_kw("comptime");
                 let a = self.name()?;
@@ -1495,7 +1495,7 @@ impl Parser {
                 let mut guard: Option<Expr> = None;
                 while self.eat_kw("and") {
                     if self.is_kw("let") {
-                        return self.err("W-VER-2 a chain `and let P = e` (F.6.5) is specified but not implemented by this checker, so it is refused by version");
+                        return self.err("W-RES-1 a chain `and let P = e` (F.6.5) is specified but not implemented by this checker, so it is reserved, not implemented");
                     }
                     let l = self.line();
                     let c = self.cmp_expr()?;
@@ -2154,7 +2154,7 @@ impl Parser {
     fn primary(&mut self) -> R<Expr> {
         let l = self.line();
         if self.v09 && matches!(self.peek(), Tok::Tpl(_)) {
-            return self.err("W-VER-2 a template literal that is not rendered at once (`text.t\"...\"` or `C.t\"...\"`) is a `Template` value, which is specified (F.6.1) but not implemented by this checker, so it is refused by version");
+            return self.err("W-RES-1 a template literal that is not rendered at once (`text.t\"...\"` or `C.t\"...\"`) is a `Template` value, which is specified (F.6.1) but not implemented by this checker, so it is reserved, not implemented");
         }
         match self.peek().clone() {
             Tok::Int(n) => {
@@ -2382,38 +2382,21 @@ pub const DRAFT06_KEYWORDS: &[&str] = &[
     "choose", "node", "supervisor", "strategy", "child", "restart",
 ];
 
-/// Language versions a module may declare (spec 2.7).
-pub const VERSIONS: &[&str] = &["0.5", "0.6", "0.7", "0.8", "0.9"];
-
-/// The language version of a module (spec 2.7). The first line may be the
-/// comment `# rce-version: V`; V must be one of `VERSIONS` (W-VER-1).
-/// Without a declaration the version is 0.5. A checker built with the
-/// non-normative `conc06` development feature reads an undeclared module
-/// as 0.6; a declared version always wins, so `# rce-version: 0.5` gives
-/// the 0.5 language in every build.
-pub fn declared_version(src: &str) -> Result<Option<&'static str>, String> {
-    let first = src.strip_prefix('\u{feff}').unwrap_or(src).lines().next().unwrap_or("");
-    let t = first.trim_end();
-    let Some(rest) = t.strip_prefix('#') else { return Ok(None) };
-    let rest = rest.trim_start();
-    let Some(v) = rest.strip_prefix("rce-version:") else { return Ok(None) };
-    let v = v.trim();
-    match VERSIONS.iter().find(|x| **x == v) {
-        Some(x) => Ok(Some(*x)),
-        None => Err(format!(
-            "line 1: W-VER-1 unknown language version `{v}` (known: {})",
-            VERSIONS.join(", ")
-        )),
-    }
+/// The release label of a module (spec 2.7). The first line may be the
+/// comment `# rce-version: V`. It is a label only: it is tolerated, ignored,
+/// not hashed and gates nothing. There is one language, the current one, so
+/// every module is read as it (the result is always `Some("0.9")`, the
+/// release this checker implements).
+pub fn declared_version(_src: &str) -> Result<Option<&'static str>, String> {
+    Ok(Some(LANGUAGE_RELEASE))
 }
 
-/// Whether a module has the Appendix C syntax and rules: version 0.6 or
-/// 0.7 (spec 2.7).
-pub fn is_draft06(src: &str) -> Result<bool, String> {
-    Ok(match declared_version(src)? {
-        Some(v) => v == "0.6" || v == "0.7" || v == "0.8" || v == "0.9",
-        None => cfg!(feature = "conc06"),
-    })
+/// The release of the one language this checker implements.
+pub const LANGUAGE_RELEASE: &str = "0.9";
+
+/// Whether a module has the Appendix C syntax and rules: always (one language).
+pub fn is_draft06(_src: &str) -> Result<bool, String> {
+    Ok(true)
 }
 
 pub fn parse(src: &str) -> Result<Module, String> {

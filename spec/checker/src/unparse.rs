@@ -10,15 +10,6 @@ const IND: &str = "    ";
 
 pub fn unparse(m: &Module) -> String {
     let mut o = String::new();
-    if m.v09 {
-        o.push_str("# rce-version: 0.9\n");
-    } else if m.v08 {
-        o.push_str("# rce-version: 0.8\n");
-    } else if m.v07 {
-        o.push_str("# rce-version: 0.7\n");
-    } else if m.draft06 {
-        o.push_str("# rce-version: 0.6\n");
-    }
     if let Some(p) = &m.path {
         o.push_str(&format!("module {}\n", p.join(".")));
     }

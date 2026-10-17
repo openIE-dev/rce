@@ -30,10 +30,10 @@ fn welcome_secrets(welcome: text, kp: text, init_priv: text) -> text
         p = skip_v(copy(w), p)
         let ko = tohex(get_v(copy(w), p))
         p = skip_v(copy(w), p)
-        let ct = tohex(get_v(copy(w), p))
+        let ctext = tohex(get_v(copy(w), p))
         p = skip_v(copy(w), p)
         if nm == r
-            return decrypt_with_label(init_priv, "Welcome", tohex(copy(egi)), ko, ct) + "." + tohex(egi)
+            return decrypt_with_label(init_priv, "Welcome", tohex(copy(egi)), ko, ctext) + "." + tohex(egi)
     return ""
 
 # PSK secret (8.4) from the GroupSecrets psks and external PSKs "id:psk,..."

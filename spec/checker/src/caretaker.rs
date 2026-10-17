@@ -4,7 +4,7 @@
 //!
 //! This is the semantic model the reference checker implements. The language
 //! surface that would write `host.revoke(id)` needs the host log, which the
-//! reference checker does not have, so that call is refused by version
+//! reference checker does not have, so that call is reserved, not implemented
 //! (`v09::gate`). Nothing here proves T51; it is stated and unproved.
 use std::collections::BTreeSet;
 

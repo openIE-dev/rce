@@ -2,7 +2,7 @@
 //!
 //! Status is kept in `IMPLEMENTED` and `UNIMPLEMENTED` at the end of this
 //! file and is printed by `rce api-diff --status`. A construct of Appendix F
-//! that this checker does not implement is *refused by version* (W-VER-2); it
+//! that this checker does not implement is *reserved, not implemented* (W-RES-1); it
 //! is never read as an ordinary name and never silently ignored.
 //!
 //! Nothing here proves a theorem. T42 to T56 stay stated and unproved.
@@ -27,7 +27,7 @@ pub fn stray_words(toks: &[(crate::parse::Tok, usize)], used: &[usize]) -> Resul
             && !used.contains(&i)
             && !(i > 0 && matches!(toks[i - 1].0, Tok::P(".")))
         {
-            errs.push(format!("line {line}: W-NAME-2 `{w}` is reserved in a version 0.9 module and is not used as its construct here"));
+            errs.push(format!("line {line}: W-NAME-2 `{w}` is reserved and is not used as its construct here"));
         }
     }
     if errs.is_empty() { Ok(()) } else { Err(errs.join("; ")) }
@@ -38,14 +38,14 @@ pub const TYPES_GATED: &[&str] = &["Template", "mathint"];
 
 fn gate_msg(line: usize, w: &str) -> String {
     if w == "declassify" {
-        return format!("line {line}: W-VER-2 `declassify` is reserved in a version 0.9 module and is always refused: a labeled value leaves its label only by `release` with a held capability (F.4.2)");
+        return format!("line {line}: W-RES-1 `declassify` is reserved and is always refused: a labeled value leaves its label only by `release` with a held capability (F.4.2)");
     }
     format!(
-        "line {line}: W-VER-2 `{w}` is reserved in a version 0.9 module and its construct (Appendix F) is specified but not implemented by this checker, so it is refused by version"
+        "line {line}: W-RES-1 `{w}` is reserved and its construct (Appendix F) is specified but not implemented by this checker, so it is reserved, not implemented"
     )
 }
 
-/// W-VER-2: reserved words and type names whose construct is not implemented.
+/// W-RES-1: reserved words and type names whose construct is not implemented.
 pub fn gate(toks: &[(crate::parse::Tok, usize)]) -> Result<(), String> {
     use crate::parse::Tok;
     let mut errs = vec![];
@@ -64,7 +64,7 @@ pub fn gate(toks: &[(crate::parse::Tok, usize)]) -> Result<(), String> {
                 && matches!(toks.get(i + 1), Some((Tok::P("."), _)))
                 && matches!(toks.get(i + 2), Some((Tok::Id(r), _)) if r == "revoke")
             {
-                errs.push(format!("line {line}: W-VER-2 `host.revoke` (F.5.1, W-CAP-4) needs the host log, which the reference checker does not implement, so it is refused by version"));
+                errs.push(format!("line {line}: W-RES-1 `host.revoke` (F.5.1, W-CAP-4) needs the host log, which the reference checker does not implement, so it is reserved, not implemented"));
             }
         }
     }
@@ -750,6 +750,24 @@ pub fn hygiene(m: &Module) -> Vec<String> {
             }
             Item::Event { name, .. } | Item::Error { name, .. } => {
                 variants.insert(name.clone());
+            }
+            Item::Protocol { steps, .. } => {
+                // the branch labels of `offer` and `choose` are constants of the session, not bindings
+                fn labels(ps: &[ProtoStep], out: &mut HashSet<String>) {
+                    for p in ps {
+                        match p {
+                            ProtoStep::Offer(bs) | ProtoStep::Choose(bs) => {
+                                for (n, inner) in bs {
+                                    out.insert(n.clone());
+                                    labels(inner, out);
+                                }
+                            }
+                            ProtoStep::Loop(inner) => labels(inner, out),
+                            _ => {}
+                        }
+                    }
+                }
+                labels(steps, &mut variants);
             }
             Item::Fn(f) => {
                 modnames.insert(f.sig.name.clone(), f.sig.line);
@@ -1581,7 +1599,7 @@ pub fn unemittable(m: &Module) -> Option<String> {
         return None;
     }
     if needs_restore(m) {
-        return Some("W-VER-2 a version 0.9 function can fail after taking a `&mut` argument; the transactional restore of F.4.4 is not emitted for this target yet, so it is refused by version".into());
+        return Some("W-RES-1 a version 0.9 function can fail after taking a `&mut` argument; the transactional restore of F.4.4 is not emitted for this target yet, so it is reserved, not implemented".into());
     }
     if !m.x09.ct.is_empty() {
         return Some(format!("W-CTFN-2 ct fn is not emitted for this target (`{}`): 10.5 states no constant-time guarantee for any target", m.x09.ct.iter().next().unwrap()));
@@ -1620,7 +1638,7 @@ pub fn unemittable(m: &Module) -> Option<String> {
             }
         }
     }
-    found.map(|w| format!("W-VER-2 `{w}` (version 0.9, Appendix F) is run by the reference evaluator only; this target does not translate it, so it is refused by version"))
+    found.map(|w| format!("W-RES-1 `{w}` (version 0.9, Appendix F) is run by the reference evaluator only; this target does not translate it, so it is reserved, not implemented"))
 }
 
 /// Whether a module has a function that can fail after taking a `&mut`
@@ -1704,10 +1722,10 @@ pub fn transactional(m: &Module) -> Vec<String> {
 }
 
 /// F.1 status. `IMPLEMENTED` rules are enforced by this checker; every
-/// `UNIMPLEMENTED` rule is refused by version when a program uses its
+/// `UNIMPLEMENTED` rule is reserved, not implemented when a program uses its
 /// construct, or is not enforced at all (stated in the second field).
 pub const IMPLEMENTED: &[(&str, &str)] = &[
-    ("W-VER-2", "reserved words and type names of unimplemented constructs are refused by version"),
+    ("W-RES-1", "reserved words and type names of unimplemented constructs are reserved, not implemented"),
     ("W-LEX-4", "bidirectional, invisible, control, noncharacter, tag and unassigned-plane characters in strings and comments"),
     ("W-UNUSED-1", "unused let, var, parameter, pattern binding and use; `_` prefix is the one spelling"),
     ("W-UNUSED-2", "a constant boolean condition (literal or `not` of a literal)"),
@@ -1722,7 +1740,7 @@ pub const IMPLEMENTED: &[(&str, &str)] = &[
     ("W-NAME-2", "label, release, endorse, ct, requires, ensures, ghost and decreases used as ordinary names in a 0.9 module"),
     ("W-CAP-3", "path-taking foreign functions need Cap[DirRead|DirWrite]; DirRead and DirWrite are structs with `root: text`; narrow only extends a relative path"),
     ("W-CAP-1 (closures)", "a closure capturing &World or a capability, by declared type (labeled data is W-IFC-1)"),
-    ("W-CAP-4 and W-CAP-5 (model)", "caretaker log fold: refusal record, idempotent revoke, no un-revoke (caretaker.rs); `host.revoke` itself is refused by version"),
+    ("W-CAP-4 and W-CAP-5 (model)", "caretaker log fold: refusal record, idempotent revoke, no un-revoke (caretaker.rs); `host.revoke` itself is reserved, not implemented"),
     ("W-LEN-1", "`len` on text in a 0.9 module; `len_bytes` and `len_chars` name the unit"),
     ("S3 contexts", "ShellArg, Prompt and Shell.cmd as typed output"),
     ("W-BUD-1 (model)", "a call to an `extern \"model\"` function outside `with budget`"),
@@ -1747,22 +1765,22 @@ pub const UNIMPLEMENTED: &[(&str, &str)] = &[
     ("F.3.2 W-UNUSED-2 beyond literals", "only literal boolean conditions are refused, not named comptime constants"),
     ("F.3.2 W-ASSIGN-1 beyond one block", "only an overwrite later in the same block with no mention between is refused"),
     ("F.4.1 World in event payloads", "a &World is a parameter of main, task functions and externs only"),
-    ("F.4.2 declassify and label polymorphism (S1)", "`declassify` is refused by version; labels are not generic parameters; Secret[T] keeps its 0.8 rules (W-SEC-1); labels are not yet part of the definition hash"),
+    ("F.4.2 declassify and label polymorphism (S1)", "`declassify` is reserved, not implemented; labels are not generic parameters; Secret[T] keeps its 0.8 rules (W-SEC-1); labels are not yet part of the definition hash"),
     ("F.4.3 contracts, measures, ghost and labels in the hash", "those constructs do not exist yet; module hash and manifest (F.5.3) are not implemented"),
     ("F.4.3 api-diff rows for requires/ensures and escaping closures", "no contracts or escaping-closure marker exist yet"),
     ("F.4.4 linear consumption", "W-TX-1 does not track a consumed linear value (the value is consumed on failure either way)"),
-    ("F.4.4 emitters and Lean elaboration", "refuse a 0.9 module with a function that can fail after taking a &mut argument (W-VER-2)"),
-    ("F.5.1 host.revoke, closures capturing labeled or capability values found by inference", "host.revoke is refused by version; capture is checked by declared type"),
+    ("F.4.4 emitters and Lean elaboration", "refuse a 0.9 module with a function that can fail after taking a &mut argument (W-RES-1)"),
+    ("F.5.1 host.revoke, closures capturing labeled or capability values found by inference", "host.revoke is reserved, not implemented; capture is checked by declared type"),
     ("F.5.2 strict parsing, migrations, R.check", "not implemented"),
     ("F.5.5 manifest-declared `model`, decreases-based counter elision, allocation bound", "`extern \"model\"` stands for the manifest declaration; no counter elision; Appendix F states no allocation bound"),
     ("F.5.3 provenance, cache rule, advisory key distribution", "no SLSA provenance record, no artifact cache and no way to publish advisory keys; the manifest is checked by `rce manifest-check`, not by `rce check`"),
     ("F.5.4 ct fn beyond declared labels", "W-CTFN-1 is a label analysis: a value that is secret but not labeled `secret` is not seen; no processor-level claim (T45 unproved)"),
-    ("F.6.1 Template values", "`Template[t]` and a template that is not rendered at once are refused by version; `text.t\"..\"` and `C.t\"..\"` are implemented"),
-    ("F.6.2 contracts (P2)", "R.check, opaque invariant types, static use of callee contracts and contracts on function values are not implemented; emitters refuse a contract (W-VER-2)"),
-    ("F.6.3 ghost (P3)", "`ghost` parameters, `mathint` and quantifiers are refused by version"),
-    ("F.6.4 decreases (P4)", "measures on `for` and `loop`, structural and mathint measures are not implemented (a `decreases` there is refused by version); a `while` measure is decided over a straight-line body"),
-    ("F.6.5 if let chains", "`and let P = e` is refused by version; the single `if let P = e [and c]... else` is implemented"),
-    ("F.6.6 trait laws (P9)", "`law` is refused by version"),
+    ("F.6.1 Template values", "`Template[t]` and a template that is not rendered at once are reserved, not implemented; `text.t\"..\"` and `C.t\"..\"` are implemented"),
+    ("F.6.2 contracts (P2)", "R.check, opaque invariant types, static use of callee contracts and contracts on function values are not implemented; emitters refuse a contract (W-RES-1)"),
+    ("F.6.3 ghost (P3)", "`ghost` parameters, `mathint` and quantifiers are reserved, not implemented"),
+    ("F.6.4 decreases (P4)", "measures on `for` and `loop`, structural and mathint measures are not implemented (a `decreases` there is reserved, not implemented); a `while` measure is decided over a straight-line body"),
+    ("F.6.5 if let chains", "`and let P = e` is reserved, not implemented; the single `if let P = e [and c]... else` is implemented"),
+    ("F.6.6 trait laws (P9)", "`law` is reserved, not implemented"),
     ("F.7 broker contract (S7)", "tooling contract only, nothing in the checker"),
     ("T42 to T56", "stated, unproved; nothing here proves any of them"),
 ];

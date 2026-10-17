@@ -8,7 +8,7 @@ event Deposit(amount: i64)
 step Ledger on Deposit(amount: a) deadline 100
     total += a
 
-step Ledger on Alarm(code: c)
+step Ledger on Alarm(code: _c)
     pass
 
 actor Counter

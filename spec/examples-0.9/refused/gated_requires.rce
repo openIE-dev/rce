@@ -1,5 +1,5 @@
 # rce-version: 0.9
-# expect: W-VER-2
+# expect: W-RES-1
 fn main()
     let x = declassify 3
     emit x.tostr()

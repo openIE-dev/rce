@@ -64,7 +64,7 @@ fn emitters_refuse_a_contract() {
     let src = std::fs::read_to_string("../examples-0.9/ok/11_contracts_ghost.rce").unwrap();
     for t in ["python", "js", "rust"] {
         let e = rce_spec_check::cli::emit(t, &src).unwrap_err();
-        assert!(e.contains("W-VER-2"), "{t}: {e}");
+        assert!(e.contains("W-RES-1"), "{t}: {e}");
     }
 }
 

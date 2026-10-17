@@ -14,9 +14,9 @@ fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
     if matches!(args.first().map(String::as_str), Some("--version" | "-V")) && args.len() == 1 {
         println!(
-            "rce {} (RCE specification draft {SPEC_DRAFT}; language versions {})",
+            "rce {} (RCE specification draft {SPEC_DRAFT}; one language, release label {})",
             env!("CARGO_PKG_VERSION"),
-            rce_spec_check::parse::VERSIONS.join(", ")
+            rce_spec_check::parse::LANGUAGE_RELEASE
         );
         return;
     }

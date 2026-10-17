@@ -58,11 +58,13 @@ fn hygiene_rules_do_not_apply_to_08() {
     }
 }
 
+/// The version line is a release label: tolerated and ignored, never a gate.
 #[test]
-fn w_ver_1_accepts_09_and_refuses_the_next() {
-    assert!(rce_spec_check::parse::VERSIONS.contains(&"0.9"));
-    let e = rce_spec_check::parse::parse("# rce-version: 0.10\nfn main()\n    pass\n").unwrap_err();
-    assert!(e.contains("W-VER-1"), "{e}");
+fn version_line_is_a_label_not_a_gate() {
+    for l in ["0.5", "0.9", "0.10", "banana"] {
+        let src = format!("# rce-version: {l}\nfn main()\n    emit \"x\"\n");
+        assert_eq!(rce_spec_check::check_one(&src), Ok(()), "{l}");
+    }
 }
 
 #[test]
@@ -104,13 +106,13 @@ fn failed_call_restores_mut_arguments_in_09_only() {
 }
 
 /// The emitters do not implement the restore, so they refuse a 0.9 module
-/// that needs it (refused by version, never silently different).
+/// that needs it (reserved, not implemented, never silently different).
 #[test]
 fn emitters_refuse_what_needs_the_restore() {
     let src = std::fs::read_to_string("../examples-0.9/ok/04_transactional_restore.rce").unwrap();
     for t in ["python", "js", "rust"] {
         let e = rce_spec_check::cli::emit(t, &src).unwrap_err();
-        assert!(e.contains("W-VER-2"), "{t}: {e}");
+        assert!(e.contains("W-RES-1"), "{t}: {e}");
     }
 }
 

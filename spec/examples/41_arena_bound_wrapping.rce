@@ -4,7 +4,7 @@ fn fnv1a(s: &text) -> u32
     with arena scratch bound 4096
         let cs: List[text] @scratch = s.chars()
         for c in cs
-            h = (h ^ (c.len() as u32)).wrapping_mul(16777619)
+            h = (h ^ (c.len_bytes() as u32)).wrapping_mul(16777619)
     return h
 
 check (250 as u8).wrapping_add(10) == 4

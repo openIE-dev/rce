@@ -174,26 +174,26 @@ fn slice(b: List[i64], lo: usize, hi: usize) -> List[i64]
         i += 1
     return o
 
-# AEAD, encrypt-then-MAC: (enc, mac) = HKDF(key); ct = ChaCha20(enc, nonce, pt);
-# tag = HMAC(mac, nonce || ad || ct)[0..16]. Output: hex(ct || tag).
+# AEAD, encrypt-then-MAC: (enc, mac) = HKDF(key); ctext = ChaCha20(enc, nonce, pt);
+# tag = HMAC(mac, nonce || ad || ctext)[0..16]. Output: hex(ctext || tag).
 fn seal(key: List[i64], nonce: List[i64], ad: List[i64], pt: List[i64]) -> text
     let ks = hkdf([], copy(key), tobytes("rce-aead-v0"), 64)
-    let ct = chacha20(slice(copy(ks), 0, 32), copy(nonce), pt)
-    let tag = slice(hmac(slice(copy(ks), 32, 64), cat(cat(copy(nonce), ad), copy(ct))), 0, 16)
-    return tohex(cat(ct, tag))
+    let ctext = chacha20(slice(copy(ks), 0, 32), copy(nonce), pt)
+    let tag = slice(hmac(slice(copy(ks), 32, 64), cat(cat(copy(nonce), ad), copy(ctext))), 0, 16)
+    return tohex(cat(ctext, tag))
 
 # The plaintext bytes, or [-1] when the tag does not verify.
 fn open(key: List[i64], nonce: List[i64], ad: List[i64], sealed: text) -> List[i64]
     let b = unhex(sealed)
     if b.len() < 16
         return [-1]
-    let ct = slice(copy(b), 0, b.len() - 16)
+    let ctext = slice(copy(b), 0, b.len() - 16)
     let tag = slice(copy(b), b.len() - 16, b.len())
     let ks = hkdf([], copy(key), tobytes("rce-aead-v0"), 64)
-    let want = slice(hmac(slice(copy(ks), 32, 64), cat(cat(copy(nonce), ad), copy(ct))), 0, 16)
+    let want = slice(hmac(slice(copy(ks), 32, 64), cat(cat(copy(nonce), ad), copy(ctext))), 0, 16)
     if tohex(want) != tohex(tag)
         return [-1]
-    return chacha20(slice(copy(ks), 0, 32), nonce, ct)
+    return chacha20(slice(copy(ks), 0, 32), nonce, ctext)
 
 fn hexval(c: text) -> i64
     let ds = "0123456789abcdef".chars()

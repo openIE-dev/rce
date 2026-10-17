@@ -1,5 +1,5 @@
 # rce-version: 0.9
-# expect: W-VER-2
+# expect: W-RES-1
 fn main()
     host.revoke(1)
     emit 0

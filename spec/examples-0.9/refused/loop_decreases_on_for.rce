@@ -1,5 +1,5 @@
 # rce-version: 0.9
-# expect: W-VER-2
+# expect: W-RES-1
 fn main()
     var t: u64 = 0
     for _k in 0..3

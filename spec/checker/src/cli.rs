@@ -751,7 +751,7 @@ fn run_main(a: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &mu
             for (r, d) in crate::v09::IMPLEMENTED {
                 writeln!(out, "  {r}: {d}").map_err(w)?;
             }
-            writeln!(out, "not implemented (refused by version, or not enforced where stated):").map_err(w)?;
+            writeln!(out, "not implemented (reserved, not implemented, or not enforced where stated):").map_err(w)?;
             for (r, d) in crate::v09::UNIMPLEMENTED {
                 writeln!(out, "  {r}: {d}").map_err(w)?;
             }

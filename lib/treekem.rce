@@ -245,7 +245,7 @@ fn rt_parent(x: i64) -> i64
 
 fn rt_sibling(x: i64, p: i64) -> i64 = if x < p then p ^ (3 << (tm_level(p) - 1)) else tm_left(p)
 
-# [leaf as "01" + LeafNode hex, then one "ek|kem_output,ct|kem_output,ct" per node]
+# [leaf as "01" + LeafNode hex, then one "ek|kem_output,ctext|kem_output,ctext" per node]
 fn up_parse(uh: text) -> List[text]
     let b = unhex(uh)
     let e = leaf_end(copy(b), 0)
