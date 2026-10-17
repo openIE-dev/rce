@@ -53,6 +53,17 @@ appends to the module. `rce` 0.1.3 embeds only `crypto`, `pq`, `hpke` and
 file to `rce` together with the program (`rce check lib/core/exact.rce app.rce`
 with `use core.exact`).
 
+## What public `rce` can run today
+
+Read against public `openIE-dev/rce` main (`4304048`), checked on 17 October 2026:
+
+- `rce host run` and `rce host serve` exist there, so the host-run steps below work on public `rce`.
+- The `#!lib NAME` directive is not provided: the line is treated as a comment. The libraries that need `crypto` (`pq`, `hpke`, `mls`) are refused with unknown-name errors (`cat`, `hmac`, `slice` and others), because nothing appends `crypto` to them.
+- The Ed25519 builtins `ed_pubkey`, `ed_sign` and `ed_verify` are not in public `rce`, so `lib/energy/energy.rce` is refused at those names, and `lib/mls.rce` is refused as well.
+- `lib/crypto.rce` and the foundation modules that need no library directive (for example `lib/enc/enc.rce`) pass `rce check` on public `rce`.
+
+So `scripts/check.sh` does not complete against public `rce`. It does complete against the `rce` binary of rce-ide 0.1.3 and later, which is built from an engine whose source is not public. Treat `pq`, `hpke`, `mls` and `energy` as engine-only until public `rce` has `#!lib` and the Ed25519 builtins.
+
 `pq`, `hpke` and `mls` build on `crypto`. The libraries are reference
 code for correctness and replay. They are **not constant time**.
 
