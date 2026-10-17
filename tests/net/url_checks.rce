@@ -26,7 +26,7 @@ fn url_with_why(e: BadUrl) -> Url
 fn show(i: &text, r: &Url, b: &Url, hb: bool) -> text
     if r.scheme == ""
         return why(i, b, hb)
-    return href(r) + "|" + protocol(r) + "|" + r.username + "|" + r.password + "|" + host_text(r) + "|" + hostname(r) + "|" + port_text(r) + "|" + pathname(r) + "|" + search(r) + "|" + hash(r)
+    return href(r) + "|" + proto(r) + "|" + r.username + "|" + r.password + "|" + host_text(r) + "|" + hostname(r) + "|" + port_text(r) + "|" + pathname(r) + "|" + search(r) + "|" + hash(r)
 
 check wpt("http://example\t.\norg", "http://example.org/foo/bar", true) == "http://example.org/|http:|||example.org|example.org||/||"
 check wpt("http://user:pass@foo:21/bar;par?b#c", "http://example.org/foo/bar", true) == "http://user:pass@foo:21/bar;par?b#c|http:|user|pass|foo:21|foo|21|/bar;par|?b|#c"

@@ -56,7 +56,7 @@ pub fn ns_feed(d: &mut NsDec, chunk: &List[u8])
         return
     for b in chunk
         d.buf.push(b)
-    while true bound 16777216
+    loop bound 16777216
         var i: usize = 0
         var n: i64 = 0
         while i < d.buf.len() and d.buf[i] >= 48 and d.buf[i] <= 57 bound 16

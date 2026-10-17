@@ -22,7 +22,7 @@ pub struct Xml
     an: List[List[text]]
     av: List[List[text]]
     kids: List[List[i64]]
-    par: List[i64]
+    parl: List[i64]
     txt: List[text]
     ok: bool
     why: text
@@ -42,7 +42,7 @@ fn new_node(x: &mut Xml, k: i64, p: i64) -> i64
     x.an.push(xnone())
     x.av.push(xnone())
     x.kids.push(inone())
-    x.par.push(p)
+    x.parl.push(p)
     x.txt.push("")
     let n = (x.nk.len() - 1) as i64
     if p >= 0
@@ -127,7 +127,7 @@ fn ns_lookup(x: &Xml, n: i64, pre: &text) -> text
         for k in 0..names.len()
             if names[k] == key
                 return copy(x.av[p as usize][k])
-        p = x.par[p as usize]
+        p = x.parl[p as usize]
     if pre == "xml"
         return "http://www.w3.org/XML/1998/namespace"
     return ""
@@ -238,7 +238,7 @@ fn quotes_closed(t: &text) -> bool
     return q == ""
 
 pub fn parse(src: &text) -> Xml
-    var x = Xml(nk: [], name: [], ns: [], an: [], av: [], kids: [], par: [], txt: [], ok: true, why: "")
+    var x = Xml(nk: [], name: [], ns: [], an: [], av: [], kids: [], parl: [], txt: [], ok: true, why: "")
     let d = new_node(&mut x, DOC, -1)
     let segs = src.split("<")
     var cur = d
@@ -307,7 +307,7 @@ pub fn parse(src: &text) -> Xml
                 if cur == d or x.txt[cur as usize] != nm2
                     xbad(&mut x, "mismatched end tag " + nm2)
                 else
-                    cur = x.par[cur as usize]
+                    cur = x.parl[cur as usize]
             else
                 let empty = head.endswith("/")
                 var body = copy(head)
@@ -373,10 +373,10 @@ pub fn text_content(x: &Xml, n: i64) -> text
         return copy(x.txt[n as usize])
     var o = ""
     var st: List[i64] = [n]
-    var out: List[i64] = []
+    var _out: List[i64] = []
     while st.len() > 0 bound 16777216
         let k = st[st.len() - 1]
-        st.pop()
+        let _ = st.pop()
         if x.nk[k as usize] == TEXT
             o = o + x.txt[k as usize]
         else
@@ -395,11 +395,11 @@ pub fn by_tag(x: &Xml, n: i64, nm: &text) -> List[i64]
     return o
 
 pub fn is_under(x: &Xml, k: i64, n: i64) -> bool
-    var p = x.par[k as usize]
+    var p = x.parl[k as usize]
     while p >= 0 bound 1048576
         if p == n
             return true
-        p = x.par[p as usize]
+        p = x.parl[p as usize]
     return false
 
 fn esc(t: &text, isattr: bool) -> text

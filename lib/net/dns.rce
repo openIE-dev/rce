@@ -160,7 +160,7 @@ pub fn read_name(b: &[i64], off: i64) -> NameAt ! BadDns
     var limit = off
     var o = ""
     var wire: i64 = 1
-    while true bound 16777216
+    loop bound 16777216
         if p < 0 or p >= b.len() as i64
             fail BadDns(why: "name out of bounds")
         let l = b[p as usize]

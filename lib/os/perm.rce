@@ -114,9 +114,9 @@ pub fn mode_compile(spec: &text) -> List[Change] ! BadPerm
         out.push(Change(op: "=", flag: ORDINARY, affected: 4095, value: v, mentioned: men))
         return out
     var i: usize = 0
-    while true bound 16777216
+    loop bound 16777216
         var affected: i64 = 0
-        while true bound 16777216
+        loop bound 16777216
             if i >= cs.len()
                 fail BadPerm(why: "invalid mode")
             let c = copy(cs[i])

@@ -276,7 +276,7 @@ pub fn drain(p: &mut Pending) -> List[Queued]
         all.push(k)
         k += 1
     var o: List[Queued] = []
-    while true bound 1048576
+    loop bound 1048576
         match dequeue(p, &all)
             some(q) -> o.push(q)
             none -> break

@@ -62,7 +62,7 @@ fn hex_of(v: i64) -> text
     let d = HEXD.chars()
     var x = v
     var s = ""
-    while true bound 8
+    loop bound 8
         s = d[(x % 16) as usize] + s
         x = x / 16
         if x == 0
@@ -122,7 +122,7 @@ fn ident(cs: &List[text], i0: i64, p: i64) -> Out
     var seg: i64 = 0
     var nondigit = false
     let n = cs.len() as i64
-    while true bound 16777216
+    loop bound 16777216
         let j = i0 + acc + seg
         let c = if j < n then copy(cs[j as usize]) else ""
         if is_ident(&c)
@@ -479,7 +479,7 @@ pub fn req_parse(t: &text) -> VersionReq ! BadPkg
         fail BadPkg(why: E_AFTER_WILDCARD)
     var out: List[Comparator] = []
     var depth: i64 = 0
-    while true bound 64
+    loop bound 64
         let r = comparator_at(&cs, i)
         if r.err != ""
             if is_wild(&cs, i)

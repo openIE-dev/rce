@@ -37,11 +37,11 @@ pub fn url_empty() -> Url = Url(scheme: "", username: "", password: "", has_host
 
 pub fn cp_of(c: &text) -> i64
     let b0 = c[0] as i64
-    if c.len() == 1
+    if c.len_bytes() == 1
         return b0
-    if c.len() == 2
+    if c.len_bytes() == 2
         return ((b0 & 31) << 6) | ((c[1] as i64) & 63)
-    if c.len() == 3
+    if c.len_bytes() == 3
         return ((b0 & 15) << 12) | (((c[1] as i64) & 63) << 6) | ((c[2] as i64) & 63)
     return ((b0 & 7) << 18) | (((c[1] as i64) & 63) << 12) | (((c[2] as i64) & 63) << 6) | ((c[3] as i64) & 63)
 
@@ -99,7 +99,7 @@ pub fn pct_encode(ch: &text, set: i64) -> text
         return copy(ch)
     var o = ""
     var i: usize = 0
-    while i < ch.len() bound 4
+    while i < ch.len_bytes() bound 4
         o = o + pct_byte(ch[i] as i64)
         i += 1
     return o
@@ -108,7 +108,7 @@ pub fn pct_encode(ch: &text, set: i64) -> text
 pub fn pct_decode(t: &text) -> List[i64]
     var b: List[i64] = []
     var i: usize = 0
-    while i < t.len() bound 16777216
+    while i < t.len_bytes() bound 16777216
         b.push(t[i] as i64)
         i += 1
     var o: List[i64] = []
@@ -173,7 +173,7 @@ fn ends_in_number(t: &text) -> bool
     if parts[parts.len() - 1] == ""
         if parts.len() == 1
             return false
-        let x = parts.pop()
+        let _x = parts.pop()
     let last = copy(parts[parts.len() - 1])
     if last == ""
         return false
@@ -188,7 +188,7 @@ fn ends_in_number(t: &text) -> bool
 fn ipv4_parse(t: &text) -> i64 ! BadUrl
     var parts = split_dots(t)
     if parts[parts.len() - 1] == "" and parts.len() > 1
-        let x = parts.pop()
+        let _x = parts.pop()
     if parts.len() > 4
         fail BadUrl(why: "ipv4 parts")
     var ns: List[i64] = []
@@ -449,7 +449,7 @@ fn shorten(u: &mut Url)
     if u.scheme == "file" and u.path.len() == 1 and is_wdl(&u.path[0], true)
         return
     if u.path.len() > 0
-        let x = u.path.pop()
+        let _x = u.path.pop()
 
 # ---------------- the basic URL parser (4.4) ----------------
 
@@ -853,7 +853,7 @@ pub fn href(u: &Url) -> text
         o = o + "#" + u.frag
     return o
 
-pub fn protocol(u: &Url) -> text = u.scheme + ":"
+pub fn proto(u: &Url) -> text = u.scheme + ":"
 pub fn hostname(u: &Url) -> text = copy(u.host)
 pub fn port_text(u: &Url) -> text = if u.port >= 0 then u.port.tostr() else ""
 pub fn host_text(u: &Url) -> text = if u.port >= 0 then u.host + ":" + u.port.tostr() else copy(u.host)

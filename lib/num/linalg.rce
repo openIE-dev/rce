@@ -1209,7 +1209,7 @@ pub fn lanv2(a0: f64, b0: f64, c0: f64, d0: f64) -> List[f64]
         else
             var count = 0
             var sigma = b + c
-            while true bound 64
+            loop bound 64
                 count += 1
                 scale = la_abs(temp).max(la_abs(sigma))
                 if scale >= safmx2

@@ -182,7 +182,7 @@ pub fn cbrt(x: f64) -> f64
     if y >= 2.0
         y = 2.0 - 1.0 / P52
     let u = 1.0 / P52
-    while true bound 64
+    loop bound 64
         let hi = [y, u * 0.5]
         if cube_cmp(m, &hi) > 0
             y = y + u
@@ -245,7 +245,7 @@ pub fn hypot(x: f64, y: f64) -> f64
     var r = (aa * aa + bb * bb).sqrt()
     let g0 = grid(r, us)
     r = (r / g0).round() * g0
-    while true bound 64
+    loop bound 64
         let g = grid(r, us)
         let hi = [r, g * 0.5]
         let c = sq_cmp(&s, &hi)
@@ -253,7 +253,7 @@ pub fn hypot(x: f64, y: f64) -> f64
             r = r + g
         else
             break
-    while true bound 64
+    loop bound 64
         var d = grid(r, us)
         if (r == 2.0 or r == 1.0) and d * 0.5 >= us
             d = d * 0.5

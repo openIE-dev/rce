@@ -114,9 +114,9 @@ fn ckshow(c: &Ckpt) -> text
     for h in c.history
         o = o + h.session_id + "=" + h.last_seq + ","
     return o
-fn rec(ss: text, sq: text, shs: List[text], shq: List[text], session: text, seq: text) -> text
+fn rec(ss: text, sq: text, shs: List[text], shq: List[text], sess: text, seq: text) -> text
     let a = Ckpt(session_id: ss, last_seq: sq, history: hl(shs, shq))
-    let r = record(&a, &session, &seq)
+    let r = record(&a, &sess, &seq)
     return ckshow(&r)
 # admission: a script of offers "key/cursor/height", "tick" and
 # "ack:<durable>"; result: the outcome of each step.

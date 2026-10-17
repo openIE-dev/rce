@@ -7,3 +7,6 @@ budget bud
 restart rst
 replicated repl
 ct ctext
+session sess
+protocol proto
+par parl

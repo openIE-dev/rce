@@ -246,14 +246,14 @@ pub fn compare_logs(src: &Ckpt, tgt: &Ckpt) -> Hist
 # Recording a checkpoint (written to both sides): the session's entry
 # moves to the front of the history, which keeps HISTORY_SIZE entries;
 # an unchanged last_seq is not rewritten.
-pub fn record(c: &Ckpt, session: &text, seq: &text) -> Ckpt
+pub fn record(c: &Ckpt, sess: &text, seq: &text) -> Ckpt
     if c.last_seq == seq
         return copy(c)
-    var h: List[Hist] = [Hist(session_id: copy(session), last_seq: copy(seq))]
+    var h: List[Hist] = [Hist(session_id: copy(sess), last_seq: copy(seq))]
     for x in c.history
-        if x.session_id != session and (h.len() as i64) < HISTORY_SIZE
+        if x.session_id != sess and (h.len() as i64) < HISTORY_SIZE
             h.push(copy(x))
-    return Ckpt(session_id: copy(session), last_seq: copy(seq), history: h)
+    return Ckpt(session_id: copy(sess), last_seq: copy(seq), history: h)
 
 # ---------------- admission (ack after admit, dedupe inside δ) ----------------
 

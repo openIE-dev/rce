@@ -177,7 +177,7 @@ pub fn puny_decode(input: &[i64]) -> Cps
         let oldi = i
         var w: i64 = 1
         var kk: i64 = P_BASE
-        while true bound 64
+        loop bound 64
             if p >= input.len()
                 return Cps(cps: o, err: true)
             let d = digit_value(input[p])
@@ -243,7 +243,7 @@ pub fn puny_encode(input: &[i64]) -> Cps
             if c == n
                 var q = delta
                 var k: i64 = P_BASE
-                while true bound 64
+                loop bound 64
                     let t = thresh(k, bias)
                     if q < t
                         break

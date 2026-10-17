@@ -495,7 +495,7 @@ fn run(re: &Regex, b: &[i64], full: bool) -> bool
     # threads waiting for a multi-byte "." to finish: [pc, resume position]
     var pend: List[i64] = []
     var i: usize = 0
-    while true bound 16777216
+    loop bound 16777216
         for pc in cur
             if re.code[3 * pc as usize] == OP_MATCH and (not full or i == n)
                 return true

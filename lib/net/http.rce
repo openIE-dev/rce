@@ -262,7 +262,7 @@ fn head(b: &[i64], m: &mut Message, req: bool) -> i64 ! BadHttp
     let sl = try ascii_text(b, i, e as usize)
     let _x = try start_line(&sl, m, req)
     i = (e + 2) as usize
-    while true bound 16777216
+    loop bound 16777216
         let f = try line_end(b, i)
         if f < 0
             return -1
@@ -280,7 +280,7 @@ fn head(b: &[i64], m: &mut Message, req: bool) -> i64 ! BadHttp
 fn chunked(b: &[i64], start: usize, m: &mut Message) -> i64 ! BadHttp
     var i = start
     var body: List[i64] = []
-    while true bound 16777216
+    loop bound 16777216
         let e = try line_end(b, i)
         if e < 0
             return -1
@@ -295,7 +295,7 @@ fn chunked(b: &[i64], start: usize, m: &mut Message) -> i64 ! BadHttp
             fail BadHttp(why: "chunk size")
         i = (e + 2) as usize
         if n == 0
-            while true bound 16777216
+            loop bound 16777216
                 let f = try line_end(b, i)
                 if f < 0
                     return -1

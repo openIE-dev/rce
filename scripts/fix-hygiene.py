@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Mechanical fixes for the one-language hygiene findings of a .rce file, driven by the checker:
-W-UNUSED-1 `x`  -> the binding is named `_x`; W-DROP-1 -> `let _ = EXPR`; W-LEN-1 -> `.len()` becomes `.len_bytes()`
+W-UNUSED-1 `x`  -> the binding is named `_x`; W-DROP-1 -> `let _ = EXPR`; W-UNUSED-2 on `while true bound N` -> `loop bound N`; W-LEN-1 -> `.len()` becomes `.len_bytes()`
 (the unqualified text length was the byte count). Lines with more than one candidate are reported, not edited.
 usage: fix-hygiene.py RCE_BIN FILE"""
 import re, subprocess, sys
@@ -33,6 +33,10 @@ for _ in range(6):
             ind = re.match(r'\s*', L).group(0)
             if not L.strip().startswith('let _ ='):
                 lines[i] = ind + 'let _ = ' + L.strip(); changed = True
+        elif rule == 'W-UNUSED-2':
+            mm = re.match(r'(\s*)while true( bound .*)$', L)
+            if mm:
+                lines[i] = mm.group(1) + 'loop' + mm.group(2); changed = True
         elif rule == 'W-LEN-1':
             if L.count('.len()') == 1:
                 lines[i] = L.replace('.len()', '.len_bytes()'); changed = True

@@ -121,7 +121,7 @@ pub fn uvarint_decode(b: &[i64], off: i64) -> VarOut ! BadVarint
     var v: i64 = 0
     var sh: i64 = 0
     var i = off
-    while true bound 10
+    loop bound 10
         if i >= (b.len() as i64)
             fail BadVarint(at: i)
         let x = b[i as usize]

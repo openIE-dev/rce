@@ -204,7 +204,7 @@ fn rd_bytes(r: &mut Rd, n: usize) -> List[i64] ! BadCdc
 # NUL-terminated string.
 fn rd_cstr(r: &mut Rd) -> text ! BadCdc
     var o: List[i64] = []
-    while true bound 16777216
+    loop bound 16777216
         let c = try rd_u8(r)
         if c == 0
             return try cd_text(&o)
