@@ -48,12 +48,19 @@ trap or unhandled failure ends the command with the refusal as its output.
 
 ### 6.6 Determinism of identity: name-free hashing
 
-Channel ids, actor ids and task ids are not counters. Each is the SHA-256 of
-the canonical JSON of (creating construct's name-free key, creating task id,
-per-task creation index), where the name-free key replaces identifiers by
-their De Bruijn position (Form law 2). Renaming every identifier in a program
-therefore leaves every id, every log hash and every select decision
-unchanged (T7).
+Channel ids, actor ids and task ids are not counters. A channel id is the
+SHA-256 of the canonical JSON of (creating construct's name-free key,
+creating task id, per-task creation index), where the name-free key replaces
+identifiers by their De Bruijn position (Form law 2). An actor id and a task
+id are stable paths (C.11.11): an actor is keyed by its supervision position
+`i.j` (supervisor i in declaration order, its child j) or `-` when no
+supervisor declares its type, the creating task id, and its ordinal among
+that task's creations at that position; a task by its parent's id and its
+ordinal among the parent's spawns; `fn main` is the root. No key contains an
+identifier, so renaming every identifier in a program leaves every id, every
+log hash and every select decision unchanged (T7); no actor or task key
+contains a source position, so an edit that keeps the supervision tree and
+the order of creations keeps every actor and task id.
 
 ### 6.7 Loops and fuel
 
@@ -203,8 +210,9 @@ run with outcome `Deadlock` in λ (a defined outcome, not a hang).
 
 `example ē -> o` denotes the proposition: folding the events ē from s₀ gives
 a final step whose outcome is o, where for `-> refused: X` the last event is
-refused with X (earlier events must be applied), and for `-> e` the event list
-is fully applied and then
+refused with the error X, for `-> refused: trap("K")` the last event is
+refused by the trap K (earlier events must be applied in both cases), and for
+`-> e` the event list is fully applied and then
 
 - if the program has exactly one region with exactly one field f, the
   value of f equals ⟦e⟧;
@@ -214,7 +222,11 @@ is fully applied and then
 `check e` (in an intent or at comptime) is the proposition ⟦e⟧ = true,
 evaluated at comptime. A program is admitted only if every example and check
 holds (W-INT-1): the gate is part of the language, not of a test harness.
+Derivation of the trap form: a step ends in a value, a named error or a trap
+(T2), so a proposition about one final step needs all three outcomes, or a
+program whose specified behavior is a trap has no example that states it and
+no emitted program can be held to it.
 
 **Read receipt.** Name-free hashing uses indices named after which logician? (two words)
 
-<!-- body-sha256: 829fc50b7504db98a35c3a0382beda7c371537723726a18f8538afb7720f1f64 -->
+<!-- body-sha256: 22b852f3d01aa50cf11433f9c5206c856ceb0205e9991b8c4f276b6ceb772fbe -->

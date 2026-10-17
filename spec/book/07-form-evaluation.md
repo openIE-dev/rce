@@ -66,9 +66,15 @@ of RCE types into them is fixed:
 | τ? | null for none, the value for some (and `some(none)` is refused: τ may not itself be an option, W-TY-2) |
 | chan τ, actor handle | record {"$chan": id} / {"$actor": id}, id the content hash of 6.6 |
 
-Canonical order of values (used by Set, Map and select): null < bool < number <
-text < list < record; numbers by value; text by code point; lists and records
-lexicographically. This is a total order because NaN does not exist.
+Canonical order of values (used by Set, Map and select): null < bool < int <
+float < text < list < record; ints by value; floats by IEEE 754 totalOrder
+(`-0.0 < 0.0`); text by code point; lists and records lexicographically. It
+is a total order (NaN does not exist, N3 F4) and it agrees with state
+identity: two values are equal in it exactly when their canonical JSON is
+equal. Derivation: Set and Map keys are compared by this order, so an order
+that called two observable values equal (`-0.0` and `0.0` under IEEE `==`,
+or `1` and `1.0` by numeric value) would silently merge distinct keys; the
+type tag and totalOrder keep every distinct state a distinct key.
 
 #### 6.1.1 Canonical JSON bytes (normative)
 
@@ -214,6 +220,18 @@ Selected rules (the rest are the standard ones for a strict language):
 caught by `catch`: `catch` handles only declared errors and none; a trap
 always refuses the event).
 
+- **E1 Fuel exhaustion is uncatchable.** Running out of fuel is not a
+  declared error and not a trap a program can observe: no `catch`, `try`
+  or `try e else X` handles it, it propagates outward through every
+  construct, and it refuses the event exactly as a trap does (T8). The
+  derivation: if a handler could observe exhaustion, a program could
+  return a different value on a larger budget, and a completed result
+  would depend on fuel. The fuel laws require that it does not: more fuel
+  never changes a completed result (`RCE.Core.eval_mono`,
+  `eval_fuel_indep` in `lean/RCE/Core/Fuel.lean`). A conforming run of
+  `(e catch |x| h)` where `e` exhausts its fuel ends in exhaustion, never
+  in `h`.
+
 **`&mut` write-back (normative).** A call writes back each `&mut`
 argument and a `&mut self` receiver on every outcome, including `fail`:
 the callee's writes made before it failed stay in the caller's store,
@@ -223,7 +241,10 @@ in place, and copy-in/copy-out agrees with in-place update only when it
 also copies out on failure (T33, `WriteBack.t33`; `copyOk_differs` shows
 that copying out only on success disagrees). Atomicity is per event, not
 per call: a `trap`, or a `fail` that leaves the step, refuses the event
-and the state is the pre-state (T8). The program emitters implement the
+and the state is the pre-state (T8). In a version 0.9 module this write-back rule is replaced by the
+transactional rule of F.4.4 (a call that fails leaves its `&mut` arguments as
+they were at the call); T33 and this paragraph stay as written for versions
+0.5 to 0.8. The program emitters implement the
 rule for a write-back call that is a whole statement or expression of a
 `let`, `var`, assignment, `emit` or `return`, and for such a call under
 `catch` or `try` (`f(&mut x) catch h`, `try f(&mut x)`): the call is the
@@ -330,14 +351,13 @@ exactly.
     (HC-13; `wasm_float.rs` rewrites NaN to the canonical positive NaN).
   - **F6 Signed zero is a distinct state.** `-0.0` arises by the
     standard's sign rules, which are exact, so every target produces it in
-    the same places (vector `Mul(0.0, -1.0)`). It is observable: `as f32`
-    keeps the sign and f32 `tostr` prints `-0`, and the sign decides later
-    results through the same exact rules. The state hash must be injective
-    on observable state (otherwise two states a program can tell apart
-    share a log entry), so canonical JSON keeps the sign and a state
-    holding `-0.0` hashes differently from one holding `0.0`; this is
-    correct, not a defect. `-0.0 == 0.0` is true (IEEE comparison), and
-    f64 `tostr` prints `0` for both.
+    the same places (vector `Mul(0.0, -1.0)`). It is observable: `tostr`
+    prints `-0` (f64 and f32 alike, so text round-trips), and the sign
+    decides later results through the same exact rules. The state hash
+    must be injective on observable state, so canonical JSON keeps the
+    sign and a state holding `-0.0` hashes differently from one holding
+    `0.0`; the canonical order (6.1) is totalOrder, so they are distinct
+    map keys. `-0.0 == 0.0` is still true: `==` is IEEE comparison.
   - **F7 Exception flags are not state.** Inexact and underflow raise
     nothing (F1 already fixes the result); overflow, divideByZero and
     invalid are the trap of F4. No program reads a flag.
@@ -345,14 +365,29 @@ exactly.
     roundToIntegral operations toward negative, toward positive and
     ties-away (`(2.5).round()` is `3`, `(-2.5).round()` is `-3`); `abs`
     clears the sign. `min` and `max` follow N5. None of these rounds.
-  - **F9 Transcendentals are excluded.** IEEE 754-2019 recommends but does
-    not require correctly rounded `exp`, `log`, `sin`, `pow` and the like,
-    and platform math libraries differ in the last bit. RCE has none. One
-    may be added only with a correctly rounded implementation in the
-    CORE-MATH or CRlibm style (correct rounding proved, or checked
-    exhaustively for binary32), carried by every runtime rather than taken
-    from the platform library; until then device versions are output only
-    or verified (HC-13).
+  - **F9 Transcendentals are correctly rounded RCE code, or absent.**
+    IEEE 754-2019 recommends but does not require correctly rounded `exp`,
+    `log`, `sin`, `pow` and the like, and platform math libraries differ
+    in the last bit, so no runtime takes one from its platform library and
+    no Form op names one. A transcendental exists only as RCE source in
+    the standard library module `math` (rce-stdlib `lib/math/math.rce`),
+    built from the operations of F1 to F8 and integers, so every runtime
+    carries the same algorithm and the result is the same bits on every
+    target (vector parity: Rust, Python, JavaScript, Scala). Each function
+    must be correctly rounded by construction: algebraic ones (`cbrt`,
+    `hypot`) compare the exact value with the rounding midpoints in exact
+    arithmetic (TwoSum, Veltkamp/Dekker TwoProduct, Shewchuk expansions;
+    exact ties round to even); transcendental ones use Ziv's strategy over
+    exact integers (the value is bracketed with an explicit error bound and
+    the precision grows until both ends round alike; a transcendental
+    value of a double is never a midpoint), `sin` and `cos` with
+    Payne-Hanek reduction exact for every finite argument. Each is checked
+    bit for bit against MPFR on the CORE-MATH worst cases. Present:
+    `sqrt` (F1), `cbrt`, `hypot`, `exp`, `log`, `log2`, `log10`, `sin`,
+    `cos`; any other (`pow`, `tan`, `atan2`, ...) is absent until it meets
+    the same rule. A result that overflows traps (F4); `log` of x ≤ 0
+    traps (also `log2`, `log10`). Device versions stay output only or
+    verified (HC-13).
   Canonical float text is the shortest round-trip digits; decimal notation
   for 1e-5 ≤ |x| < 1e16, else `d.ddde±N` with `+` on positive exponents
   (`1e+300`, `1.5e-7`).
@@ -427,4 +462,4 @@ method and is W-NAME-1.
 
 **Read receipt.** Which JavaScript function is named for rounding to binary32?
 
-<!-- body-sha256: ee87ffe62ac9f08ed53358a73eb30374b1730a6aedcb02300f9d38bc71bbe374 -->
+<!-- body-sha256: e3fd75261cf645a472c609e85dee7d5c6f309cd89eb732cb2973025eb4fe1760 -->

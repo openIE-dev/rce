@@ -177,19 +177,23 @@ against the reference evaluator (`spec/checker/tests/stdlib_costs.rs`).
 | `Int` | integers (iN, uN, usize) | `abs`, `checked_add`, `checked_div`, `checked_mul`, `checked_sub`, `max`, `min`, `saturating_add`, `saturating_mul`, `saturating_sub`, `tostr`, `wrapping_add`, `wrapping_mul`, `wrapping_sub` |
 | `F` | f64 | `abs`, `ceil`, `floor`, `max`, `min`, `round`, `sqrt`, `tostr` |
 | `Bool` | bool | `tostr` |
-| `Text` | text | `chars`, `contains`, `endswith`, `isalpha`, `isdigit`, `isempty`, `isspace`, `join`, `len`, `lines`, `lower`, `raw`, `reverse`, `sha256`, `split`, `startswith`, `strip`, `toint`, `tostr`, `upper`, `words` |
+| `Text` | text | `chars`, `contains`, `endswith`, `isalpha`, `isdigit`, `isempty`, `isspace`, `join`, `len`, `len_bytes`, `len_chars`, `lines`, `lower`, `raw`, `reverse`, `sha256`, `split`, `startswith`, `strip`, `toint`, `tostr`, `upper`, `words` |
 | `F32` | f32 | `abs`, `tostr` |
 | `Gen` | iter τ | `collect` |
 | `List` | List[τ], [τ; n] | `append`, `clear`, `contains`, `filter`, `fold`, `get`, `isempty`, `len`, `map`, `pop`, `push`, `reverse`, `sort`, `sum`, `utf8`, `with` |
 | `Map` | Map[k, v] | `contains`, `get`, `insert`, `keys`, `len`, `merge`, `remove`, `values` |
-| `Set` | Set[τ] | `insert`, `inter`, `tolist`, `union` |
+| `Set` | Set[τ] | `contains`, `insert`, `inter`, `len`, `tolist`, `union` |
 | `Opt` | τ? | `isnone`, `issome`, `or` |
 
-`raw` exists only in a version 0.8 module and only on `Text[C]` (5.16).
+`raw` exists only in a version 0.8 module and only on `Text[C]` (5.16). `len_bytes` and `len_chars` exist only in a version 0.9 module, where `len` on text is refused (W-LEN-1, F.5.2).
 
-**Sets and map merge (normative).** A `Set[τ]` is a list in canonical
-order without duplicates (7.1). `set_of(xs)` makes one from a
-`List[τ]`. `s.union(t)` is the set of the elements of either,
+**Sets and map merge (normative).** A `Set[τ]` is its own value, not a
+`List[τ]`: it holds its elements in canonical order without duplicates
+(7.1), so two sets with the same elements have the same representation
+(`RCE.Canon.set_canon`), and list methods do not apply to it. It is
+shown and embedded in the Form (7.1) as that list. `set_of(xs)` makes
+one from a `List[τ]`. `s.len()` is the number of elements and
+`s.contains(x)` whether x is one of them. `s.union(t)` is the set of the elements of either,
 `s.inter(t)` of the elements of both, `s.insert(x)` sets `s` to
 `s.union(set_of([x]))` (a `var` receiver), and `s.tolist()` is the
 elements as a list in that order. `m.merge(n)` on two `Map[k, v]` has
@@ -295,4 +299,4 @@ capability never changes the guarded field (T36).
 
 **Read receipt.** What kind of channel does a capacity of 0 give? (one word)
 
-<!-- body-sha256: 350558d934b1128b283bfd3348c032658783e93b9d4242165fbfcd2dd77041ae -->
+<!-- body-sha256: f76dd473cd84a9d2911ba3b1fb03f61e89abfbbb9d63c964b876a7de38ae7dca -->

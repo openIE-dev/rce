@@ -13,7 +13,12 @@ Lexical and syntax
 - W-LEX-3 A literal outside every possible type range, or an invalid `\u{}`.
 - W-SYN-1 Not in the language of section 3.
 - W-VER-1 A first-line `# rce-version:` declaration naming a version other
-  than 0.5, 0.6, 0.7 or 0.8 (2.7).
+  than 0.5, 0.6, 0.7, 0.8 or 0.9 (2.7). Version 0.9 is specified in Appendix F;
+  an implementation without it refuses `0.9` with this rule. The reference
+  checker accepts it and refuses the parts it does not implement with W-VER-2
+  (F.12).
+- W-VER-2 A word or type name of Appendix F whose construct this checker does
+  not implement, in a version 0.9 module (F.12).
 
 Names and modules
 - W-NAME-1 Unresolved name, or a name resolved in the wrong namespace.
@@ -105,11 +110,20 @@ Version 0.8 only (5.16)
   a `Cap[A]` field. (W-NAME-2 refuses a declaration named after a 5.16
   type or context.)
 
+Version 0.9 only (Appendix F, specified and not yet implemented): the
+refusals of F.3 to F.8, among them unused values, dropped results and
+shadowing (F.3), `World` and information-flow labels (F.4), transactional
+calls (F.4), capabilities, typed output, pinned builds, constant-time functions
+and budgets (F.5), and templates, contracts, ghost code, written measures,
+`if let` and trait laws (F.6). Their names and rules are listed where each is
+defined and are not repeated here, so that this list names only rules the
+reference checker implements.
+
 Version 0.6 only (Appendix C, applies only to a module declaring
 `# rce-version: 0.6`): W-PAR-1 to W-PAR-4, W-DL-1, W-ND-1, W-GRP-1 to
-W-GRP-3, W-SES-1 to W-SES-3, W-SCOPE-1, W-ATOM-1, W-ATOM-2, W-CRDT-1,
+W-GRP-3, W-SES-1 to W-SES-5, W-SCOPE-1, W-ATOM-1, W-ATOM-2, W-CRDT-1,
 W-LVAR-1, W-LVAR-2, W-NODE-1, W-SUP-1, W-SUP-2, W-INTR-1 and W-RT-1.
 
 **Read receipt.** Which rule refuses two unguarded steps in one region whose patterns overlap?
 
-<!-- body-sha256: 7ff6ba12fd3a4ee1bcae602f3d561bf0c5c851611f563b9d233f6ad8e1f227fb -->
+<!-- body-sha256: f97d0e776a90e124af05ca02979bb6b84c81409ee381abd5351bae86dcb87118 -->

@@ -83,5 +83,10 @@
   "question": "Which fcntl command is the append barrier on macOS? (for example F_SETFL)",
   "salt": "e02e174904c24fc208af13ca94beb488",
   "answer_sha256": "b22573f1f9bbe60b88ff8f9c4aca01d026d9754698b5e5e07001f6fe932e5f62"
+ },
+ "17-draft09.md": {
+  "question": "How many words does a version 0.9 module reserve in addition to the 0.8 keywords? (a number)",
+  "salt": "92575925eb994b2872e29e7847eb55f8",
+  "answer_sha256": "e8f354d39831acf637365adfc2e61739c6e175d9352849b4ba8e0e21ba8eaa57"
  }
 }

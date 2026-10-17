@@ -26,24 +26,24 @@ each can be reversed independently.
 7. **Traps (overflow, division by zero, non-finite, index, size, loop bound)
    are Form errors, not part of declared error sets**; `catch` cannot hide
    them.
-8. **Only structural recursion** (revised in 0.4: a self-call must pass a
-   constructor field of a matched parameter; mutual recursion refused. Since
-   replaced by the measure of 6.7, which admits a self-call or a cycle whose
-   calls shrink a measure, in layers where needed) and
-   **every loop bounded** (default 1,000,000, `bound n` to change), so δ is
-   total by construction. Recursion on integers (`f(n - 1)`) is still
-   refused; write it as a bounded loop.
+8. **Recursion only where it provably ends** (revised in 0.4 and later: a
+   self-call passes a constructor field of a matched parameter, or a measure
+   falls in layers, including mutual recursion, or the cycle carries a
+   declared `bound`; 6.7 says exactly which) and **every loop bounded**
+   (default 1,000,000, `bound n` to change), so δ is total by construction.
+   (Originally structural recursion only, with mutual recursion refused.)
 9. **Second-class borrows, no lifetime syntax.** Borrows only in parameters,
    receivers, loop/match operands and short `let`s, plus borrow returns tied to
    a parameter. Simpler than Rust, still no GC and no aliasing of mutable
    state.
 10. **`struct` only, no `class`**; value semantics, explicit `copy()` for deep
     duplication of non-Copy values.
-11. **Integer types checked against their own range**, all lowered to the
-    Form's i64; u64 arithmetic results ≥ 2^63 trap. No implicit widening; no
-    literal suffixes.
-12. **f64 only** (no f32), because the Form has one float. Superseded in
-    draft 0.5 by decision 42: f32 is a type, with the Form ops of 9.4.
+11. **Integer types checked against their own range**, lowered to the
+    Form's i64, except u64, which uses the Form's unsigned operations and is
+    exact over [0, 2^64) (6.3 N2, T14; draft 0.5). No implicit widening; no
+    literal suffixes. (Originally u64 results at or above 2^63 trapped.)
+12. **f64 is the Form's float.** f32 was added in draft 0.5 (decision 42): it
+    is computed in f64 and rounded once. (Originally f64 only.)
 13. **Bitwise operators bind tighter than comparisons** (unlike C/Python's `&`
     vs `==` in C), so `x & 1 == 1` means what it reads as.
 14. **`if … then … else …` as the expression conditional**; no Python
@@ -61,9 +61,11 @@ each can be reversed independently.
 20. **Arenas are lexical** (`with arena r`), region-typed values cannot escape;
     each step has an implicit per-step arena.
 21. **Concurrency is deterministic by construction:** ticks, staged delivery,
-    content-hash ids, select chooses the least ready arm in canonical order,
+    content-hash ids, select takes the first ready arm from a rotating start (decision 48),
     bounded channels with held sends and Backpressure logs (no silent drop),
-    `after n` in logical ticks, Deadlock is a defined outcome.
+    `after n` in logical ticks, Deadlock is a defined outcome. (Originally
+    select chose the least ready arm; it rotates its starting arm since draft
+    0.5, decision 48 and T11. `par` and the rest of C.4 are in version 0.6.)
 22. **Pure functions cannot emit, spawn or use channels**; only steps,
     handlers, `main` and task functions (those with a `chan` parameter) have
     effects (revised by S2).
@@ -80,12 +82,10 @@ each can be reversed independently.
 28. **No macros, no exceptions, no null, no inheritance, no operator
     overloading beyond traits `Eq`/`Ord`/`Show`**: kept out to keep one
     meaning per text.
-29. **Grammar artifact is a checked LALR(1) table** rather than tree-sitter: it is a
-    deterministic LR table with mechanical conflict detection; a tree-sitter
-    port is mechanical once the grammar is approved. Revised on 2026-10-12:
-    this decision named Lark (`rce.lark`), which is retired. The normative
-    grammar is the EBNF of section 3, and `rce-spec-check` builds the LALR(1)
-    tables from it (3.12); the tree-sitter port is checked against it.
+29. **The grammar artifact is the EBNF of section 3, checked LALR(1)** by
+    `rce-spec-check`: a deterministic LR table with mechanical conflict
+    detection, with a tree-sitter port checked against it. (Originally a
+    Lark file, `rce.lark`, now retired.)
 
 30. **Tail values** in block-bodied functions (S5).
 31. **A trapping guard refuses the event** (S1).
@@ -127,11 +127,37 @@ each can be reversed independently.
 51. **Floats derived from IEEE 754-2019 and totality** (6.3 N3, F1 to F9):
     correctly rounded basic operations only, one rounding per operator,
     subnormals kept, non-finite results trap because NaN and infinities
-    break equality, order and JSON encoding, no transcendentals until a
-    correctly rounded one runs on every target.
+    break equality, order and JSON encoding, and transcendentals only as
+    correctly rounded RCE code in the `math` module (F9), so every target
+    runs the same algorithm instead of its platform library.
 52. **Unicode 18.0.0 pinned, no tables read at run time** (6.3 N7): the
     whitespace set is enumerated, so a toolchain upgrade cannot change a
     result.
+
+53. **Draft 0.9 is a new version** (number 0.9, never reuse 0.6), because it
+    refuses programs 0.8 accepts and changes `&mut` after a failed call
+    (C.15 rule).
+54. **A failed call restores its `&mut` arguments** when every effect since
+    entry is undoable; a function that could fail after a non-undoable effect
+    is refused (F.4.4).
+55. **Contracts are always enforced** and a violation is one defined refusal
+    with fixed fields; no switchable contracts (F.2, F.6.2).
+56. **Information flow is checked by labels with a refusal channel and robust
+    declassification**; labels are erased at run time (F.4.2).
+57. **`World` is a borrowed capability**, not a threaded value (F.4.1).
+58. **The definition hash covers everything that affects meaning and nothing
+    else** (F.4.3).
+59. **`decreases` is required only where 6.7 does not already admit the
+    recursion, and never replaces the loop bound** (F.6.4).
+60. **Unused values, dropped results and shadowing are refused** in 0.9 (F.3).
+61. **The four constructs that would break a theorem are written as
+    non-goals**: effect handlers, switchable contracts, mutable aliasing
+    across `par`, runtime reflection (F.2).
+62. **The relaxed sequential borrow rule is not adopted** until its T6 lemma
+    (T56) is proved (5.6).
+63. **New theorems T42 to T56 are numbered after T41 and are stated,
+    unproved**; the survey's "T17" for noninterference became T42 because
+    T17 is the `par` diamond lemma (F.9).
 
 ### 9.1 Changes made while mechanizing (draft 0.1 → 0.2)
 
@@ -264,6 +290,99 @@ they run them on the CPU, which 5.13 allows).
   rows SQL injection and XSS (excluded), missing authorization
   (excluded), hard-coded credentials and information exposure (excluded).
 
+### 9.7 Changes in draft 0.9
+
+Version 0.9 (2.7, Appendix F) is specified and not yet implemented. Each item
+below is applied in the tier order of its dependencies; the derivation is in
+Appendix F next to the rule, and every theorem is stated and unproved (F.9).
+
+- **Tier 0.** Stale text corrected (errata for every version): decisions 8, 11,
+  12, 21 and 29, the Copy list of 5.5 (f32 added), W-VER-1 and 2.7 (0.8 and
+  0.9 named), the overview status and its checker figures. Version 0.9 refuses
+  unused values, dropped non-unit results and unused stores (F.3.2), and
+  adds lexical hygiene: hidden and bidirectional characters, shadowing of any
+  enclosing local, qualified variants, longest-token lexing (F.3.3).
+- **Tier 1.** `World` capability for foreign calls (F.4.1); information-flow
+  labels with the refusal channel and robust declassification (F.4.2, T42,
+  T43); definition hashes and `rce api-diff` (F.4.3, T50); transactional
+  calls (F.4.4, T47).
+- **Tier 2.** File-system capabilities and caretaker revocation (F.5.1, T51);
+  typed shell and prompt output and strict input (F.5.2, T44); the hash-pinned
+  manifest (F.5.3, T54); `ct fn` (F.5.4, T45); declared budgets (F.5.5, T52).
+- **Tier 3.** Templates `t"..."` (F.6.1); `requires` and `ensures` (F.6.2,
+  T46); `ghost` (F.6.3, T49); `decreases` (F.6.4, T48); `if let` (F.6.5);
+  trait laws, tested not proved (F.6.6).
+- **Tier 4.** The broker contract for the lethal trifecta (F.7, T55).
+- **Rules derived from the sources' later items** (F.8): closures, types,
+  calls, operators, containers, indexing, classes, errors, reflection and
+  derive, compile-time code, linear values, tooling, release gate.
+- **Non-goals** (F.2): effect handlers, switchable contracts, mutable
+  aliasing across `par`, runtime reflection, and the other constructs listed
+  there, each with its reason.
+- **Not adopted until proved:** relaxed sequential borrows (5.6, T56).
+- **Version number.** The proposal list was drafted under the name "draft
+  0.6"; 0.6, 0.7 and 0.8 are taken, so this is 0.9 (C.15: a version number
+  is never reused).
+
+### 9.8 Decision log for draft 0.9 (open questions, decided by derivation)
+
+Each row decides one question left open by the survey and security study. The
+principle named is one of the five in Appendix F: least privilege (a),
+soundness (b), determinism (c), totality (d), one meaning per construct (e).
+No row rests on taste: where no principle decides, the existing text stays.
+
+| Q | Question | Decision | Derivation |
+|---|---|---|---|
+| 1 | Which effects are undoable for a transactional call | Writes to owned values and `emit` into the pending output are undoable; send, receive, `spawn`, foreign calls, `World` operations, host entries and consuming a linear handle are not; a path from a non-undoable effect to a `fail` is refused (W-TX-1) | (c): a restore must be total and need no handler; (b) T8 |
+| 2 | Measure for mutual recursion | One lexicographic tuple for the whole group (F.6.4) | (d): one well-founded order for the group, as 6.7 already uses |
+| 3 | Is tool metadata hashed | No. Comments, formatting, declaration order and attributes are not hashed; the version, signature, contracts, measure, ghost clauses, labels and referenced hashes are | (c) and T7: a hash is the meaning, nothing else |
+| 4 | `?` in `par` arms | Refused | T16: `?` leaves the arm early, so an arm is not an expression with one result |
+| 5 | Advisory format | Canonical JSON object signed with Ed25519 over its SHA-256 | (c): reuse the canonical JSON of 6.1; Ed25519 signatures are deterministic |
+| 6 | Map iteration order | Ascending canonical key order of 7.1 | already 6.7 and the C.15 erratum; (c) |
+| 7 | Half-open slices and inclusive ranges | Unchanged: slices as in 6.3 N8, ranges keep `..` and `..=` | (e): both already have one meaning; no principle favors removing one |
+| 8 | Comparison-chain sugar | Not adopted; a chain is refused (W-OP-1) | (e): one meaning, and a chain would need a second reading of the operator |
+| 9 | NaN payload and libm strategy | Neither exists: non-finite results trap, transcendentals are RCE code in `math` (F9) | already decision 51; (c) |
+| 10 | Value-indexed types | Not adopted beyond comptime array lengths and the type indices of 5.16 | (d): a value in a type needs a decidable fragment, and none is specified |
+| 11 | Linear types in the spec | They are (5.12, W-LIN-1, T12); a linear handle is not undoable | already in the spec; (b) |
+| 12 | Inductive predicates | Not adopted; a predicate is a `ghost` pure total `bool` function | (d): inductive definitions need positivity and continuity checks no theorem needs |
+| 13 | Are doc comments hashed | No doc comments exist (decision 2, `#` comments only), so nothing is hashed | decision 2; (e) |
+| 14 | Maximal-munch token rule | Adopted as a requirement on the lexer, checked in F.11 | (c): the same text must tokenize the same everywhere |
+| 15 | First-class type invariants | A refined type has `R.check(v) -> R?`; no witness clause; no implicit conversion; opaque outside its module | (b) T35: a value of R is only made by a checked path |
+| 16 | Argument labels | Kept (decision 18) and checked: a wrong label is refused | (e): a label that is not checked has two meanings, the written and the real one |
+| 17 | Constant conditions | An `if`, `elif`, `while` or guard on a comptime constant is refused (W-UNUSED-2) | (e): one branch is dead code; P8 |
+| 18 | Display trait | `Show` of 5.9; a template field of a non-text type must implement it | (e): one display conversion, explicit; no new trait |
+| 19 | Map equality independent of order | Yes, because the representation is canonical | (c): equality and iteration agree by construction |
+| 20 | User-definable `derive` | Not offered; `derive` is the built-in closed set of 5.9 | T7: a user derive needs reflection |
+| 21 | Literal default type when unconstrained | Unchanged: integer literals default to i64, float literals are f64 (5.3, 5.1) | (c): the default is a fixed rule; refusing adds no safety |
+| 22 | Expression fields and nested quotes in `t"..."` | Not allowed: a field is an identifier or a field path, no quotes inside a field | (e) and S8: a field needing a nested lex has two readings |
+| 23 | Inductive type syntax and its `decreases` rule | No new syntax: a recursive `kind` with `Box`, strictly positive because `fn` types cannot occur in data (W-TY-2) | (d): positivity follows from W-TY-2 |
+| 24 | Is `refuse` the empty enum | No: `refuse` is not a value and has no type | (e): a bottom type brings subtyping, which RCE does not have |
+| 25 | Fixed-size arrays as value parameter or ghost length | Array length stays a comptime constant `[τ; n]`; contracts may use `len` | (d): no value-indexed types (Q10) |
+| 26 | Spelling of the `Copy` and `Discard` bounds | No new spelling; `Copy` is the built-in of 5.5 and generics stay affine (decision 41); a type parameter is not instantiated by a linear type | (b) T12 |
+| 27 | Canonical form of propositions | A contract is hashed as the canonical parsed tree of its expression; no rewriting or solver normalization | (c): a hash must not depend on a solver |
+| 28 | Source span in the refusal record | No; the record has the rule or clause, the definition hash and the clause index | (c) and T7: a span depends on whitespace |
+| 29 | Layout-sensitive vector types | Not adopted; lane-wise fixed arrays only (decision 43) | no principle decides; the existing text stays |
+| 30 | Any foreign boundary in 0.9 | Yes, the C ABI of 5.11 as a `World` operation, declared in the manifest | (a): authority is a value; (c) T32 |
+| 31 | Big integer or ghost mathematical integer | `mathint`, ghost and contract code only; no runtime big integer | (d): an unbounded integer has size-dependent cost, which budgets cannot bound |
+| 32 | Wording for reactive programs | A total step function driven by the host (6.1, Appendix E); no `while true` | (d) |
+| 33 | Unsatisfiable contracts: static or first call | Static in the decidable fragment (W-CON-1); otherwise enforcement refuses every call | (b), (d): decide what is decidable, never succeed vacuously |
+| 34 | Comment forms | Only `#` line comments | decision 2; (e) |
+| 35 | Implication spelling in contracts | None; write `not a or b` | (e): `or` short-circuits, so the form is already guarded |
+| 36 | Digit separators in literals | One `_` between digits, as 2.5 already says | (e): one canonical form, already specified |
+
+### 9.9 Reconciliation of the published text with draft 0.9
+
+The published text and the engine development tree were joined at draft 0.9.
+No version number was reused or redefined: versions 0.7 and 0.8 keep the
+meaning they had in the published text, and 0.9 is the version of Appendix F.
+Where both trees had reworded the same stale sentence (decisions 8, 11, 12 and
+29 above), the wording that states the original rule and then its revision was
+kept, because it says what the rule was and what it is now. The canonical JSON
+text of 6.1.1 and its vectors, and the claim counts of the published text, are
+kept as published. The figures quoted in the overview, the syntax chapter and
+the tooling chapter are the printed output of `rce-spec-check` on this tree,
+checked by `scripts/claim-counts.py --check`.
+
 **Read receipt.** The decisions list says it decides gaps in which file?
 
-<!-- body-sha256: b0d7cb2e7884f1c40bfc7c0f68e4458e4e5803de07bdfe849fb109f6f19f2fc7 -->
+<!-- body-sha256: ff45ae94e1c1a3b84f3306b673307ff11857d3b8bb97053640d2e415c947e50c -->

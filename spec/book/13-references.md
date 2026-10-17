@@ -24,6 +24,8 @@ the f32 rule in 6.3 cites Figueroa, "When is double rounding innocuous?".
 - A. Rundgren, B. Jordan, S. Erdtman, JSON Canonicalization Scheme (JCS), RFC 8785, June 2020, https://www.rfc-editor.org/rfc/rfc8785 (6.1.1).
 - G. Plotkin, A Structural Approach to Operational Semantics, 1981; A. Wright, M. Felleisen, A Syntactic Approach to Type Soundness, 1994 (progress and preservation).
 
+- Sources for draft 0.9 (Appendix F), by name; the survey read 97.6 percent of the fetched words of the language sources (the unread parts hold no language rules), and its notes are kept with the survey: ISO C++26 contracts (P2900) and static reflection (P2996); the Koka language book; the Austral specification; the Dafny reference manual; the Lean 4 release notes (4.35); the Rust 2024 edition guide and 1.88 release notes; the Verse language reference; the Mojo manual; Swift ownership proposals; the Hylo tour; the Odin overview and FAQ; the Roc language tour; PEP 750 (template strings); the Valen language repository (group borrowing); S. Willison, "The lethal trifecta for AI agents" (F.7); FaCT, a language for constant-time code (F.5.4); the SLSA specification, level 1 (F.5.3); RFC 8032, Ed25519 (F.5.3).
+
 **Read receipt.** Who wrote "Communicating Sequential Processes"? (surname)
 
-<!-- body-sha256: 93c398eee22b1538960aca4057d67e98d642d4cbd5e999a47bffe93af21b0529 -->
+<!-- body-sha256: ac72852386a36ef0d84e868bf2f2c771b662a7699b29363418f1f659ad730068 -->

@@ -241,7 +241,7 @@ Every value has exactly one owner: a variable, a field, a collection slot, a
 channel buffer, or the state. Types fall in three ownership kinds:
 
 ```
-Copy   : bool, integers, f64, (), chan τ, actor handles, fn values,
+Copy   : bool, integers, f32, f64, (), chan τ, actor handles, fn values,
          and tuples/arrays/structs/kinds all of whose components are Copy
          and whose size is fixed.
 Move   : text, List, Map, Set, Box, options/tuples/structs/kinds containing a Move component.
@@ -301,6 +301,14 @@ an R-RET region, which makes the check a local, linear pass.
 for every path p, either Δ holds no mut borrow overlapping p, or it holds
 exactly one and no shared borrow overlapping p.
 
+**Not relaxed in draft 0.9.** A limited relaxation, in which a reference is
+invalidated only below steps that are not independent of it (the group
+borrowing of the Valen language), is sound in the form studied, but its
+preservation of T6 is not proved. The rules above are unchanged; the
+obligation is T56 (Appendix F, F.9, stated and unproved), and the rule is
+adopted only after that lemma is proved in Lean. Relaxing W-PAR-1 is not
+sound and is excluded (F.2).
+
 **Read receipt.** What is the name of the example kind used to illustrate error sets?
 
-<!-- body-sha256: d74545f9b1aab9a1393a8d026a43591cbb186b12df7c8e7e43038c66238119bb -->
+<!-- body-sha256: b2fc1cbff2e0fc74726cbfe875bd8ac2e642c27db75dc5399d11898d6a3e6706 -->

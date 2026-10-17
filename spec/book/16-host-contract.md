@@ -85,7 +85,22 @@ adapter.
   with its scheduler as a live task whose every transition is an entry
   of D. `host.MainStart` {links, max_ticks, seed} starts the task;
   `host.MainInput` {a, b, partition, tick} logs an input to it (a link
-  change); `host.Step` {cause, i, node, tick, what} logs one scheduler
+  change), and `host.MainInput` {event, tick} feeds it a program event
+  (canonical event JSON): at that tick the scheduler logs `Input(..)`
+  and delivers the event to every live actor whose type has an `on`
+  handler for it, in actor-id order, or logs `Unhandled(..)` when there
+  is none (an input event has no addressee, so its receivers are the
+  program's handlers of it, as for the steps `on E` of a Form;
+  `Host::main_event`, `conc::RunCfg.events`,
+  `tests/host_sched.rs` `program_events_feed_the_live_task_and_replay`,
+  `tests/conc06b_run.rs` `program_events_feed_the_running_task`; the
+  emitted runtimes take the same inputs as `--event=TICK|Name|f=v,...`,
+  a field's value given by its declared type as a decimal integer,
+  `true`/`false` or text, and log `Input(..)` and `Unhandled(..)` with
+  `--actor-log`; a malformed event is an input error, exit status 2,
+  not a program trap; `tests/emit_run.rs`
+  `program_events_agree_on_every_target` on the Rust, Python,
+  JavaScript and Scala runtimes); `host.Step` {cause, i, node, tick, what} logs one scheduler
   step, including the arm the environment chose at each `select nondet`;
   `host.MainEnd` {choices, outcome, ticks} ends it. Program inputs to δ
   may be admitted between any two of these entries. While the task is
@@ -101,15 +116,15 @@ adapter.
   would change a step already in D, so an input never rewrites the past.
   No snapshot is taken while a task is live. A host may execute tasks in
   parallel only when the result equals the tick semantics (T1, T21).
-  Reference: `Host::main_begin`, `main_input`, `main_step`, `main_end`,
-  and `run_main` for a run whose inputs are all known at the start.
-  Derivation: law 1 of E.2c makes each nondeterministic choice of the
-  run an entry of D, and the requirement that state be the fold of D at
-  every entry, not only between runs, makes the task's progress part of
-  that state. The task's inputs today are link changes and the
-  environment's choices; a channel from δ's outputs into a running task
-  belongs to the scheduler of 6.8 (`conc.rs`), and would enter D as
-  `host.MainInput` entries of a new kind under the same causality rule.
+  Reference: `Host::main_begin`, `main_input`, `main_event`,
+  `main_step`, `main_end`, and `run_main` for a run whose inputs are all
+  known at the start. Derivation: law 1 of E.2c makes each
+  nondeterministic choice of the run an entry of D, and the requirement
+  that state be the fold of D at every entry, not only between runs,
+  makes the task's progress part of that state. The task's inputs are
+  link changes, program events and the environment's choices, each an
+  entry of D under the same causality rule. The emitted runtimes do not
+  take program events (G14).
 - **HC-7 Numerics and limits.** The host reproduces 6.3 bit for bit and
   enforces fuel, SIZE_LIMIT and VALUE_LIMIT (6.7, N9) as the reference
   does, on every run.
@@ -396,7 +411,7 @@ JSON. The host entries are:
 | `host.Input` | late (when true), seq, source, window | before each input of a window (HC-17) |
 | `host.Term` | leader, term | when a host takes the admitter role (HC-19) |
 | `host.MainStart` | links, max_ticks, seed | when a `fn main` run starts (HC-6) |
-| `host.MainInput` | a, b, partition, tick | an input to the live task, after its last logged step (HC-6) |
+| `host.MainInput` | a, b, partition, tick; or event, tick | a link change or a program event for the live task, after its last logged step (HC-6) |
 | `host.Step` | cause, i, node, tick, what | one per scheduler step of the run (HC-6) |
 | `host.MainEnd` | choices, outcome, ticks | when the run ends (HC-6) |
 
@@ -430,8 +445,9 @@ entry.
   operation. On `cpu` and `cpu.threads` lanes are split into contiguous
   chunks across threads, which cannot change a lane's result because
   lanes do not read each other, and every combination, sums included, is
-  evaluated as the fixed tree of T18, whose shape is a function of the
-  length alone, so the bits are the same for any thread count and any
+  evaluated as the fixed tree of C.8 (`host::tree_split`: the left
+  subtree takes the largest power of two below the length), whose shape
+  is a function of the length alone, so the bits are the same for any thread count and any
   combine, associative or not. `Host::probe_fabric` runs the probe
   vector (signed zeros, subnormal results, infinities, NaN, and sums of
   every length up to 64 with cancellation) on the fabric and on the CPU
@@ -445,15 +461,17 @@ entry.
   and `Host::register_fabric`. The contract: each lane is the correctly
   rounded binary64 result of the named operation, with no contraction
   into fused multiply-add and no flushing of subnormals, and `sum`
-  evaluates exactly the fixed tree. A device without binary64, or one
+  evaluates exactly the fixed tree of C.8. A device without binary64, or one
   that cannot meet the contract, fails its probe and is never placed. A
   run-time error from a placed fabric falls back to the CPU reference,
   which has the same bits. `for … par` bodies are host closures and run
   only on `cpu` or `cpu.threads`; placing them on a device needs the body
   compiled to a kernel, which belongs to the platform worker together with
-  the wgpu implementation of this interface. The tick scheduler's own
-  parallel execution of `for … par` (`conc.rs`) is separate and keeps its
-  own equality with the tick semantics (T1, T21).
+  the wgpu implementation of this interface. The tick scheduler's
+  `for … par` (`conc.rs`) and the four runtimes combine with the same
+  `host::tree_split`, so a reduction gives the same bits whether the
+  scheduler or the placement executor runs it (`host_place.rs`
+  `forpar_reference_and_placement_share_the_tree`).
 - **HC-13 Bit-exactness gate.** A fabric computes a value that reaches
   state only for an operation on its logged exact list: integer
   operations; IEEE add, sub, mul, div and sqrt with round-to-nearest-even,
@@ -621,7 +639,7 @@ The rules in this section are **proposed**. They come from a survey of other lan
 
 **Numerics.**
 
-- **N-1 (adopted as 6.3 N3, F1 to F9).** Float operations are IEEE 754 binary64 or binary32, round to nearest even. No fused multiply-add unless the program writes one. No NaN reaches a value (F4, F5). Transcendental functions are correctly rounded or absent (F9).
+- **N-1 (adopted as 6.3 N3, F1 to F9).** Float operations are IEEE 754 binary64 or binary32, round to nearest even. No fused multiply-add unless the program writes one. No NaN reaches a value (F4, F5). Transcendental functions are correctly rounded RCE code in the `math` module or absent (F9).
 - **N-8 (adopted as 6.3 N3 F2).** A float expression has exactly one evaluation: one rounding per operator, in source order. Contraction, reassociation and algebraic rewrites are not valid compilations, and a float rewrite is never admitted by the rewrite prover.
 - **N-9 (proposed).** Every reduction is a left fold unless the program names a different fixed tree. A parallel schedule chosen by placement (HC-12) must reproduce the bits of the named tree. Thread count, fabric and batch size are never inputs to a numeric result.
 
@@ -696,4 +714,4 @@ Where RCE differs from these sources: GQL and Cypher queries are strings and the
 
 **Read receipt.** Which fcntl command is the append barrier on macOS? (for example F_SETFL)
 
-<!-- body-sha256: 41797bb8bddf6eae3f21b767ba1af2abc894dfc7967df7434ea8c0c00deaa862 -->
+<!-- body-sha256: 52ca914e4ad21dce546e4215776e6d6f4f990d48a7d28911b3fea83b3ae9ca14 -->

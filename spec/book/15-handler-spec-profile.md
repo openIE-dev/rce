@@ -94,8 +94,9 @@ its default (24 h, 30 000 ms).
   stale spec, and blocks on it when the engine's `enforce_currency`
   policy is on (off by default).
 - `objective`, `constraint`, `acceptance`: requirements. Acceptance
-  properties and their error budget feed the promotion gate; they do not
-  change δ.
+  properties and their error budget are not inputs of δ: no step reads
+  them. They decide whether a candidate passes the promotion gate, and
+  so which δ is installed next (see the versioning of δ below).
 - `deliverable D` compiles to the node `del_D` (an executor and a sink),
   `role R` to `role_R` (kind executor, decision, escalation or source),
   `dependency P` to `dep_P` (a source). `flow F from A to B` compiles to
@@ -105,8 +106,27 @@ its default (24 h, 30 000 ms).
   a diagnostic.
 - `change_control`: who may approve changes to the spec, the minimum
   review period, and whether the spec is frozen. These bind the engine's
-  promotion path (spec mutations are logged and need an approver); they
-  do not change δ.
+  promotion path (spec mutations are logged and need an approver). They
+  are not inputs of δ; they govern which δ may be installed, and by
+  whom.
+
+δ is versioned. A promotion that passes the gate is committed as a
+RESOLVE entry of D (`PromoteEscalation` with a `resolve` stamp) that
+records the log height h of the entry, the version of δ at its node
+(raised by one at each RESOLVE for that node), and the sha256 digests of
+the installed HandlerSpec and of the fit evidence the gate accepted. The
+new handler governs every entry after h, and every entry before h was
+computed under the previous one. A tick is one step and no input can be
+committed inside it, so a step in flight when a RESOLVE is requested
+finishes under the δ it started with. The state after n entries is the
+fold of D under the δ in force at each height: s(i+1) = δ_v(i)(s(i),
+D(i)), where v(i) is the version set by the last RESOLVE before i. A
+fold applies each RESOLVE at the height it records and refuses one whose
+height, version or spec digest differs from the fold's; the fit digest
+is recorded and not refolded, since the fit evidence is not in D. The
+handler installed is the one the entry carries; only an opaque handler
+(no spec) runs as the live object, and every result it returns is in D
+(`ExternalResult`).
 
 ### D.4 Fits
 
@@ -326,6 +346,14 @@ and each diagnostic names its rule.
   recorded with the verdict. Whether it must be is not decided.
 - The cost model of extraction (est_j) and the gate's certificate are
   outside this appendix, except the break-even receipt of D.11.
+- `InstallHandler` and `RetireHandler` also change δ at the height of
+  their entry and carry the same RESOLVE stamp as a promotion: height,
+  the next δ version at the node (versions count every install,
+  promotion and retirement there), the digest of the installed spec
+  (for a retirement, the digest of the stub, distinct from an opaque
+  install) and a fit digest. A fold refuses one whose stamp does not
+  match. Entries written before the stamp existed carry none and fold
+  as before.
 
 ### D.11 Promotion break-even (receipt)
 
@@ -410,4 +438,4 @@ receipts are version-independent).
 
 **Read receipt.** Which compiled node id does `deliverable D1` become? (for example role_R1)
 
-<!-- body-sha256: c437da9b8325fb3713c7d007b61d6b06a8797a785f1b7217adab8e122b81993b -->
+<!-- body-sha256: 1874e9e31a2d9052aa44b11e865e0a8bb2977c7c3bd072bdb8a9dd40b79d205a -->

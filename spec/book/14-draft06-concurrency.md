@@ -176,6 +176,13 @@ not on a proof.
     lvar `put` or `freeze`), or returns, breaks or continues out of it.
   - A budget without `else` behaves as before: the trap refuses the
     event.
+  - The charge rule itself is in the proved kernel
+    (`crates/rce/src/kernel.rs`, `budget_charge`), verified with Kani for
+    stacks of up to three frames: a charge is all or nothing, leaves no
+    frame past its limit, and is additive (`budget_all_or_nothing_within_limits`,
+    `budget_charge_is_additive`). Every runtime's `charge` implements the
+    same rule; the link from the kernel to those copies is the
+    differential tests, not a proof.
   The trap falls on the same operation on every target, so whether Else
   runs, and the value of `e`, are functions of the program and its
   inputs, and replay re-derives them. The emitters save every local the
@@ -241,8 +248,8 @@ standard library method costs `c_call` whatever its sizes, as draft 0.6
 defined it; a budget there bounds the number of operations. In a 0.7
 module it costs `c_call` plus work(m, n, k). A budget is a proxy for energy, and energy
 scales with the operations performed, so a method's cost must track its
-work. Sizes: text is its UTF-8 byte length, a list its length, a map its
-number of entries, any other value 0. n is the receiver's size and k the
+work. Sizes: text is its UTF-8 byte length, a list its length, a set its number of
+elements, a map its number of entries, any other value 0. n is the receiver's size and k the
 first argument's (0 when there is none). work(m, n, k) is fixed by the
 method's complexity class in the reference evaluator:
 
@@ -251,7 +258,7 @@ method's complexity class in the reference evaluator:
 | linear, text receiver | `strip`, `upper`, `lower`, `reverse`, `tostr`, `chars`, `words`, `lines`, `split`, `isdigit`, `isalpha`, `isspace`, `contains`, `startswith`, `endswith`, `toint`, `join`, `sha256` | n + k |
 | linear, list receiver | `reverse`, `contains`, `sum`, `map`, `filter`, `fold`, `utf8` | n + k |
 | linear, map receiver (maps are ordered association lists) | `get`, `contains`, `insert`, `remove`, `keys`, `values`, `merge` | n + k |
-| linear, set receiver (sets are sorted lists without duplicates) | `union`, `inter`, `insert` | n + k |
+| linear, set receiver (a set is held as its elements in canonical order) | `union`, `inter`, `insert`, `contains`, `tolist` | n + k |
 | n log n, list receiver | `sort` | n · ⌈log₂ n⌉, with ⌈log₂ n⌉ = 0 for n ≤ 1 |
 | constant | every other method of 5.15 | 0 |
 
@@ -284,7 +291,32 @@ variant). Rules:
 - W-PAR-4: the body has an effect, or returns, breaks or continues.
 
 A reduction is evaluated on a fixed tree, which equals the left fold for
-an associative operation with an identity (T18).
+an associative operation with an identity (T18). The tree is normative,
+since a float operation is not associative and the bits depend on it:
+for m >= 2 contributions, the left subtree takes the first h, where h is
+the largest power of two below m, and the right subtree the rest; one
+contribution is itself; none is the identity. Derivation: placement must
+give the same bits on every fabric (HC-12), and the reductions that
+vector units and GPUs execute are complete binary trees over
+power-of-two blocks. With this split every left subtree is complete, so
+the tree decomposes into such blocks and a fabric can evaluate it
+natively. `pscan` uses the same split for its up-sweep and down-sweep.
+One definition, `host::tree_split`, serves the reference evaluator and
+the placement executor (`place_par`, `place_sum`), and every runtime
+computes the same h. Checked by `spec/checker/tests/host_place.rs`
+(`forpar_reference_and_placement_share_the_tree`: a non-associative
+float sum gives the same bits from `run_main` and from the placement
+executor for every length up to 40) and by the emitter parity tests.
+Before 2026-10-15 the reference and runtimes split at ceil(m/2) while
+the placement executor split at the power of two; the two disagreed in
+the last bits of float reductions from five contributions on.
+The Lean model defines the same split, `RCE.Par.split m = 2 ^ log2 (m -
+1)` (checked against `host::tree_split` on sample lengths), and proves
+`tree_eq_foldl` for the tree built with it, so T18 is proved for the tree
+the code runs. `RCE.ParFuel` reduces branch uses in that tree:
+`tree_use_eq_sum` (the tree total is the source-order sum) and
+`tree_work_eq` (the threaded work reduced in the tree is the work of
+`overrun_bound`, at most k·F).
 
 ### C.11 Draft 0.6b
 
@@ -301,6 +333,127 @@ an associative operation with an identity (T18).
   its protocol when it goes out of scope or is closed. W-SES-3: a label
   that appears twice, a protocol loop with no message before it repeats,
   or `break` outside a protocol loop. W-TY-1: a payload of the wrong type.
+  The two endpoints of `chan[session P]` have the types P and dual(P),
+  where dual swaps send with receive and choose with offer (duality).
+  W-SES-4 (linearity): an endpoint is a capability that exactly one
+  name holds. A protocol operation consumes the endpoint at one state
+  and yields it at the next. A bare use of the name (an argument, a
+  spawn argument, a payload sent on another endpoint, a rebinding) moves
+  the endpoint, and `close` consumes it; after either the name holds
+  nothing, and a further use is refused (no use after move, send or
+  close). Paths that join must agree on whether an endpoint was
+  consumed, so a branch that moves it while another keeps it in use is
+  refused, as is a loop body that moves an endpoint the loop does not
+  create. With W-SES-2 this makes endpoints linear (affine plus
+  must-close): on every path to the end of its scope each endpoint is at
+  the end of its protocol, closed, or moved to a holder that takes the
+  obligation over. `let m = x` moves the endpoint to `m`, which owes the
+  rest of x's protocol; a name bound inside a block goes out of scope at
+  the end of that block, so its endpoint must be finished or passed on
+  there. The checker's protocol automaton (`check06b`, `ProtoCursor`) is
+  linked to T28 by vectors (C.13). Linearity is a typing judgment
+  (`SessionLin.Ty`): the checker's W-SES-1, W-SES-2 and W-SES-4 for
+  bodies of send, receive, close, move and branch are proved sound
+  against it, and a typed body never uses a gone endpoint, never closes
+  an unfinished one and ends with every endpoint gone or done, on every
+  path (T28l).
+  W-SES-5 (session graph a tree): a `spawn` passes at most one session
+  endpoint, and a body that holds both ends of one channel acts on
+  neither until it has passed one on. The session graph has processes
+  as nodes and channels as edges. A spawn with one endpoint adds one
+  edge to a new node, and sending an endpoint to the holder of the
+  other end of the carrying channel moves an edge along a path, so the
+  graph stays a tree. On a tree, if every channel's two ends are
+  compatible, either every process has finished or some channel has
+  both ends waiting on it and they can step (T28d). Two channels
+  between the same two processes break this: each can wait on a
+  different channel.
+  W-SES-5 by priorities: a program the tree rule refuses is accepted when
+  its session graph has a priority order. Each exchange on a channel is
+  an action (channel, step), shared by both ends, and a spawn is a
+  one-step action between spawner and spawned. Each process's actions in
+  program order must strictly increase in priority, and each channel's
+  ends must make the same number of exchanges; the checker finds such
+  priorities exactly when the order the processes impose on actions is
+  acyclic. Then every reachable state is finished or can step, on any
+  session graph, cycles included (T28p): the waiting action of least
+  priority has its partner waiting on that same action. A cycle of
+  waits, as in two channels between two processes used in opposite
+  orders, is a cycle in the order and is refused. The checker reads
+  priorities from programs whose endpoints are created, sent on,
+  received on and passed to spawns at the top level of bodies, over
+  protocols of messages; outside that fragment the tree rule decides.
+  Multiparty global types (T28g): a global type says which role sends
+  to which and in what order, with binary choices; its projection on
+  each role uses plain merge (roles not told of a choice must have the
+  same local type in both branches). Every configuration reachable from
+  the projections of a global type is finished or steps, and a step
+  lands on the projections of a global type again. A global type of
+  messages only gives priorities by event order, so its projections pass
+  the priority rule and compose with the other channels of a program.
+  The checker's projection equals the Lean projection on 200 generated
+  global types (C.13).
+  Full merge and asynchrony (T28a): a role not told of a choice may
+  receive differently in the two branches; its projection merges them
+  into one branching that accepts the labels of both (sends must still
+  agree). Sends never block: each ordered pair of roles has one FIFO
+  queue, so two messages from one sender to one receiver arrive in
+  sending order, and the global type records which labels are in
+  flight. Each role's local type need only accept at least what the
+  projection of the current global type accepts (association). Every
+  asynchronous step of an associated configuration is a step of the
+  global type and stays associated; every receiver accepts the label at
+  the head of its queue; and every configuration reachable from the
+  projections with empty queues is final (all roles done, all queues
+  empty) or steps. The checker's full-merge projection equals the Lean
+  projection on 300 generated global types, and its exploration of the
+  asynchronous runs from each fully projecting one finds no stuck or
+  refusing configuration (C.13).
+  Convergence notes. Honda, Vasconcelos and Kubo (ESOP 1998) keep
+  channels in a linear realm and pass them by delegation; their type
+  soundness theorem gives subject reduction and the absence of run-time
+  communication errors, and does not claim deadlock freedom. Gay and
+  Hole (Acta Informatica 2005) give each end to exactly one process by
+  environment addition, end a derivation only at a completed
+  environment (as W-SES-2 does), prove their typechecking algorithm
+  sound for the declarative rules (the shape of `chkBody_sound`), and
+  for polarity inference forbid using one end of a channel while the
+  same thread holds the other (as W-SES-5 does); they show a typable
+  process over two channels between two processes that deadlocks.
+  Wadler (Propositions as Sessions, ICFP 2012) composes processes by a
+  cut on exactly one channel, which gives deadlock freedom; a cut on two
+  channels admits loops that may deadlock, and he notes that a primitive
+  that creates a channel and returns both ends in a pair may suffer from
+  deadlock. RCE's `chan[session P]` is such a primitive; W-SES-5 keeps
+  its uses to the one-channel shape at spawns. Kobayashi (CONCUR 2006)
+  annotates each channel use with an obligation and a capability level
+  and proves that a well-typed process is deadlock free (and with time
+  tags, lock free); Padovani (CSL-LICS 2014) gives the linear pi-calculus
+  one priority per channel type, requires each process to use its
+  channels in increasing priority, and proves deadlock freedom, encoding
+  multiparty sessions so that a global type's events give the
+  priorities (his App. C). T28p is this rule on RCE's networks, with one
+  priority per exchange. Honda, Yoshida and Carbone (POPL 2008) introduce
+  global types, projection and the progress of a single well-formed
+  session; T28g is the synchronous, plain-merge form of their result,
+  and T28a keeps their order-preserving queues (their Sec. 2) with the
+  full merge and association of Hou, Yoshida and Kuhn (arXiv:2402.16741,
+  Def. 3.1 and 3.7).
+  The reading ledger is spec/proposals/session-reading-ledger.md.
+  Open: an endpoint and its dual sent separately to the same third
+  process close a loop that W-SES-5 does not see; T28d assumes the tree
+  and the preservation of the tree under delegation is argued above,
+  not mechanized (the priority rule closes this loop when the program is
+  in the fragment it reads); T28p and T28g model rendezvous, and T28a
+  models buffered delivery for global types without recursion or
+  payloads; the checker reads priorities only for straight-line
+  bodies over message protocols, and priorities for global types with
+  choice or recursion are not derived; `SessionPrio.decideP` is proved
+  sound, not complete (the checker's acyclicity test is the complete
+  decision, linked by vectors); there is no surface syntax for global
+  types; T28l covers message steps and local branching, not
+  choose/offer, loops or recursion (those are covered by the automaton
+  vectors of T28).
 - C.11.5 Merge. `impl Merge for T` declares a join. Its laws
   (associative, commutative, idempotent) are an admission obligation
   (W-CRDT-1, `conc::crdt_gate`), discharged by a certificate and never by
@@ -329,9 +482,44 @@ an associative operation with an identity (T18).
   a counterexample, the refusal names it. The built-in
   instances (integers under `max`, `bool` under `or`, sets and lists
   under union, maps pointwise, tuples and records componentwise, `none` as
-  bottom) have the laws by `MergeLaws.lean`, up to the point left open
-  there: that sorted lists without duplicates represent sets and maps
-  canonically.
+  bottom) have the laws by `MergeLaws.lean`; that sorted lists without
+  duplicates represent sets and maps canonically is `Canon.set_canon` and
+  `Canon.map_canon`, and that the canonical order they are sorted by is a
+  strict total order is `ValOrder.lt_total`. A componentwise instance
+  exists only when every component has one: a map needs a `Merge` on its
+  value type, an option on its payload, and a struct without its own
+  `impl Merge` on every field, recursively through nested structs and the
+  struct's type arguments (a struct reached again through itself adds no
+  condition). Otherwise `lvar_new`, `lvar T` and `Map.merge` are refused
+  (W-CRDT-1) with the path to the first field that has none. Sets and
+  lists merge by union, which needs only equality, so their element type
+  needs no `Merge`.
+- C.11.6 Prefix scan. `xs.pscan(f, e)` and `xs.pscan_incl(f, e)` take a
+  list of T, `f: (T, T) -> T` and `e: T` (W-TY-1 otherwise) and return a
+  list of the same length. Element i of `pscan` combines xs[0..i] and
+  element i of `pscan_incl` combines xs[0..=i]; `pscan` gives `e` at
+  index 0, the empty prefix, and the empty list scans to the empty list.
+  Evaluation is on a fixed tree (the up-sweep and down-sweep of
+  Blelloch) of C.8: the range [lo, hi) splits at lo + p, with p the
+  largest power of two below hi - lo (`host::tree_split`). The
+  up-sweep stores the combination of each node's range, left operand
+  before right. The down-sweep gives each node an offset: none at the
+  root; the parent's offset to the left child; to the right child the
+  left child's sum, combined after the parent's offset when there is
+  one. Element i of `pscan` is the offset of leaf i, or `e` when it has
+  none; element i of `pscan_incl` is xs[i] combined after that offset.
+  The tree depends on n alone, so every run and every target applies f
+  to the same operands in the same bracketing and order, and the result
+  is bit-identical for an f that is itself deterministic on each target,
+  floats included. Law: if f is associative, every bracketing of a
+  prefix has the same value, so element i equals the left fold of its
+  prefix. No identity law is needed: `e` is never combined, it only
+  stands for the empty prefix. If f is not associative (float addition)
+  the result is still fixed, but can differ from the left fold, as for a
+  reduction on the fixed tree (C.8, T18). Work: fewer than 2n applications
+  of f for `pscan` and fewer than 3n for `pscan_incl`; depth O(log n).
+  The reference (`conc.rs`) and the runtimes of every emitter (rt.rs,
+  rt.py, rt.js, rt.scala) use the same split.
 - C.11.8 LVars. `lvar T` requires `T: Merge` (W-CRDT-1). An LVar holds a
   value, the optional top of `lvar_new(bottom, top)`, and a frozen bit.
   `put(d)` sets the value `v` to `v ⊔ d` with the program's `Merge`; it
@@ -443,8 +631,57 @@ an associative operation with an identity (T18).
   logged decisions govern under a changed bound, an edited decision is
   applied as logged, a mismatched one diverges) and `emit_run.rs`
   `actor_refusals_match` (the Rust, Python and JavaScript runtimes take
-  the same decisions as the reference, with and without a window; they
-  record, but do not yet replay, restart inputs). The run log of `fn
+  the same decisions as the reference, with and without a window) and
+  `restart_inputs_replay_on_every_target` (each runtime prints its
+  decisions with `--restart-log`, replays a logged list given as
+  `--restart=TICK|SUP|CHILD|ID|STOP|RESET,...` under a changed bound
+  exactly as the reference does, and diverges on a mismatched decision).
+  Stable ids and upgrades. Derivation. A logged decision names actors
+  by id, and replay applies it to the actor with that id, so a log
+  replays on an upgraded program exactly when the upgrade maps each
+  logged id to the same instance. An id built from source text (a line,
+  a count of unrelated creations) changes under edits that do not touch
+  supervision, and T7 forbids identifiers in ids. What both an upgrade
+  that keeps supervision and a renaming preserve is the position of an
+  instance: its place in the supervisor tree and its order among its
+  creating task's creations at that place. Ids are therefore those paths
+  (6.6): `i.j`, creating task, ordinal for a supervised actor; `-`, task,
+  ordinal for an unsupervised one; parent and ordinal for a task. Since
+  ids are positional, a log is meaningful only against the tree it was
+  recorded under, so the tree is the log's schema: version 1 of the
+  restart log is a header `restartlog v1 tree=S/c,...` (every position
+  by its declared supervisor and child names, in declaration order;
+  `RunResult.tree`, `conc::sup_tree`) followed by the `restartin`
+  lines. Migration rule (normative): a version 1 log replays on a
+  program in which every recorded position still holds the same
+  declared supervisor and child, that is the recorded supervisors are
+  the program's first ones in order and each keeps its recorded children
+  as its first ones in order; new children may follow a supervisor's
+  recorded ones and new supervisors may follow the recorded ones, since
+  neither moves a recorded position. Any other change (a position
+  removed or renamed, a supervisor or child inserted before a recorded
+  one, a reorder) is detected before the first step: the run refuses
+  with `trap: upgrade removed supervisor position S/c` or `trap: upgrade
+  reordered supervisor position S/c` for the first recorded position
+  that fails, and nothing is replayed (`conc::tree_migrates`,
+  `RunCfg.restart_tree`). A log without a header is version 0: its
+  decisions replay with each decision's position checked when it is
+  taken, so a decision whose position is gone refuses with the removed
+  trap at that crash, and a decision for another actor is `replay
+  diverged`; neither is ever applied to a different instance. A log
+  whose tree does not migrate is converted by recording it again under
+  the new program; no rule rewrites positional ids across a moved
+  position, because the instance a moved position denotes is not
+  determined by the log. Checked by `conc06b_run.rs`
+  (`restart_log_schema_migration_rule`,
+  `actor_and_task_ids_survive_structure_preserving_edits`) and
+  `emit_run.rs` `restart_replay_survives_upgrades_and_traps_on_tree_changes`
+  (a log recorded on one program replays on an upgrade that shifts every
+  line and adds a function, an actor type and a supervisor; removal and
+  reorder traps; the version 0 per-decision check; on the reference and
+  on the Rust, Python, JavaScript and Scala runtimes, which print the
+  header with `--restart-log` and take it as `--restart-tree=S/c,...`).
+  The run log of `fn
   main` is not D: actors run by `rce run`, not by the host of Appendix E
   (HC-6).
 - C.11.12 Real time. `interrupt event E priority p` with p an integer
@@ -489,11 +726,16 @@ is a correspondence on samples, not a proof about the evaluator.
 | T25 | priority admission takes a maximal pending priority | model | `t25` |
 | T26 | a scope ends after every child | model | `t26` |
 | T27 | an actor answers as its sequential specification | model; vectors | `t27`, `ModelVectors` |
-| T28 | session duality, subject reduction and progress, with recursion | proved on a session calculus; encoding of surface protocols mechanized | `t28r_preserve`, `t28r_progress`, `enc_comp` |
+| T28 | session duality, subject reduction and progress, with recursion | proved on a session calculus; encoding of surface protocols mechanized; the checker's dual and protocol automaton equal the model's on 60 generated protocols along a joint run (enabled actions at each point, and the end); linearity is T28l | `t28r_preserve`, `t28r_progress`, `enc_comp`, `SessionVectors.lean`, `checker/tests/lean_session.rs` |
+| T28l | linear endpoints: the checker's W-SES-1, W-SES-2 and W-SES-4 are sound for a linear typing judgment, and a typed body runs every path without using a gone endpoint or closing an unfinished one, and ends with every endpoint gone or done | proved on a calculus of bodies (send, receive, close, move, branch over message protocols); the checker agrees with the model's `chkBody` (accept, or the rule refused) on 120 generated bodies, which found that the checker did not track an endpoint moved by `let m = x` (fixed) | `SessionLin.chkBody_sound`, `ty_safe`, `chkBody_safe`, `SessionLinVectors.lean`, `checker/tests/lean_session_lin.rs` |
+| T28d | deadlock freedom: on a tree-shaped session graph with compatible ends, every process has finished or some channel has both ends waiting and they step | proved on a model of networks (processes blocked on one endpoint or finished); the tree is enforced by W-SES-5 at spawns and argued for delegation | `SessionDead.deadlock_free` |
+| T28p | deadlock freedom by priorities: if each process's actions strictly increase in priority and both ends of a channel share each action, every reachable state is finished or steps, on any session graph (cycles included); the checker's W-SES-5 accepts a program the tree rule refuses when the order on its actions is acyclic | proved on a model of networks (rendezvous, spawns as one-step channels); priorities computed by relaxation are proved to satisfy the rule, and a cycle in the order refutes every priority assignment; the checker agrees with the model (tree rule or priorities, else W-SES-5) on 150 generated programs, 9 of them cyclic and accepted only by priorities | `SessionPrio.deadlock_free`, `decideP_sound`, `cycle_chk_false`, `SessionPrioVectors.lean`, `checker/tests/lean_session_prio.rs` |
+| T28g | multiparty global types: the projections of a well-formed global type (plain merge) step only to projections of a global type, and every reachable configuration is finished or steps; a global type of messages only satisfies the priority rule with priority = event index | proved on a synchronous calculus of global and local types with messages and binary choice; the checker's projection equals the model's on 200 generated global types, and its priority decision accepts every message-only one | `SessionGlobal.sr`, `progress`, `deadlock_free`, `global_prio`, `SessionGlobalVectors.lean`, `checker/tests/lean_session_global.rs` |
+| T28a | multiparty global types with full merge and asynchronous, order-preserving delivery: every step of a configuration associated with a global type is a step of that global type and stays associated; a receiver accepts the label heading its queue; every configuration reachable from the projections with empty queues is final or steps | proved on an asynchronous calculus of global and local types with binary choice and one FIFO queue per ordered pair of roles; the checker's full-merge projection equals the model's on 300 generated global types, and its exploration of their asynchronous runs finds no stuck or refusing configuration | `SessionAsync.sr`, `safe`, `progress`, `deadlock_free`, `SessionAsyncVectors.lean`, `checker/tests/lean_session_async.rs` |
 | T29 | LVar puts commute; one-threshold reads are order independent | model; vectors | `lvar_interleave`, `t29_perm` |
 | T29q | LVars over any join-semilattice with an absorbing top, threshold reads in the same order, and a frozen bit: two runs that complete every thread without error end in the same configuration (value, frozen bit, every result); without `freeze`, a program with a completing run has no erroring run; with `freeze`, whether a run errs can depend on the schedule | proved on a calculus (put, get with incompatible sets, freeze, on one LVar shared by any number of threads); runs that block forever are not covered; the built-in Merge instances are semilattices | `LVarQD.quasi_det`, `det_no_err`, `quasi_not_det`, `MergeLaws` |
 | T29s | A store of many LVars shared by any number of threads (the product lattice over locations, a frozen bit per location): two runs that complete every thread without error end in the same store, frozen bits and results; without `freeze`, no run errs if one completes. W-CRDT-1 certificates are lawful by construction. Each row of `conc::LVAR_RULES` (rule, trap, Lean declaration) and the certificate of each certified test program is generated into `LVarRules.lean`, which `lake build` elaborates, and the same test checks each trap string in the evaluator and every emitter runtime | locations allocated before the threads start (T29a adds allocation); the generated table checks that the named declarations exist and the certificates elaborate, not that the evaluator refines the calculus | `LVarStore.store_quasi_det`, `store_det_no_err`, `MergeCert.cert_laws`, `LVarRules`, `checker/tests/lvar_rules.rs` |
-| T29a | The store of T29s with dynamic allocation: `new l` allocates `l` (only once; operations on `l` wait for it), locations from a deterministic counter (`counter_owner`). Two runs that complete every thread without error reach the same store, frozen bits, allocation map and results; without `freeze`, no run errs if one completes. An executable semantics `stepAt` / `exec` is proved sound against the relation (`stepAt_sound`, `exec_sound`); 60 runs extracted from it over the lattice 0..6 under max are replayed on the evaluator and the Rust, Python and JavaScript emitters, which must give the same `wait` and `freeze` results and the same error | the vectors cover `put`, single-threshold `get`, `freeze` and allocation on integer cells, in the order the schedule ran them (each run is replayed sequentially, so evaluator scheduling is not exercised); `stepAt` is sound, not complete (it does not show every `Step` is reachable by some schedule) | `LVarAlloc.alloc_quasi_det`, `alloc_det_no_err`, `stepAt_sound`, `exec_sound`, `LVarVectors`, `checker/tests/lean_lvar.rs` |
+| T29a | The store of T29s with dynamic allocation: `new l` allocates `l` (only once; operations on `l` wait for it), locations from a deterministic counter (`counter_owner`). Two runs that complete every thread without error reach the same store, frozen bits, allocation map and results; without `freeze`, no run errs if one completes. An executable semantics `stepAt` / `exec` is proved sound and complete against the relation: every step `stepAt` takes is a `Step` (`stepAt_sound`, `exec_sound`), and from a configuration with no value at top every `Step` is `stepAt c i` for some thread index i (`stepAt_complete`), so the schedules of `exec` are exactly the runs of the relation. The sorted representation of a `Set[τ]` and the key-sorted one of a `Map[k, v]` are unique: equal membership (equal lookup) implies equal lists (`Canon.set_canon`, `Canon.map_canon`), so the Merge laws stated on membership and lookup (`MergeCert.unionS`, `mapS`) hold of the runtime values. 60 runs extracted from `stepAt` over the lattice 0..6 under max are replayed sequentially on the evaluator and the Rust, Python and JavaScript emitters, which must give the same `wait` and `freeze` results and the same error; every schedule of every vector (each interleaving of the threads' operations in program order in which each wait is enabled, 221 in all) is run on the evaluator's deterministic sequential execution, explored depth first with the evaluator deciding enabledness: without `freeze` every schedule gives Lean's results, or every one errs when Lean's run does; with `freeze` all complete schedules agree and Lean's outcome is among them. All 60 are also run as a threaded `par` on OS threads, one branch per Lean thread, with each `freeze` sequenced after the join, where W-LVAR-1 accepts it; the frozen value is then the join of all puts to the cell, and Lean's mid-run frozen value is at most that | the vectors cover `put`, single-threshold `get`, `freeze` and allocation on integer cells, with at most 9 operations each; the explorer enumerates every interleaving with no partial-order reduction, and allocation is placed before the other operations; `ValOrder` proves the order of `cmp_canon` on Form values (rank null < bool < int < float < text < list < record, IEEE 754 totalOrder on floats, lexicographic text, lists and record entries), and its `cmp` is written from that definition, not extracted from the code | `LVarAlloc.alloc_quasi_det`, `alloc_det_no_err`, `stepAt_sound`, `stepAt_complete`, `exec_sound`, `Canon.set_canon`, `Canon.map_canon`, `ValOrder.lt_total`, `ValOrder.set_canon_val`, `ValOrder.map_canon_val`, `LVarVectors`, `checker/tests/lean_lvar.rs` |
 | T30 | an atomic batch applies all or none | model; vectors | `t30` |
 | T31 | replicas agree on equal prefixes | model (the statement is close to trivial) | `t31` |
 
@@ -597,6 +839,16 @@ every runtime; the indices are erased, so nothing else in C.6 changes. A 0.5, 0.
 sees 5.16 (`spec/checker/tests/indexed.rs`, gate test), and modules of
 different versions may `use` each other (2.7).
 
+### C.17 Version 0.9
+
+`# rce-version: 0.9` declares version 0.9: the syntax, rules, evaluation and
+costs of 0.8, plus Appendix F. It is a version by the C.15 rule because it
+refuses programs that 0.8 accepts (unused values, shadowing, dropped
+results, flows to lower labels) and changes the value of a `&mut` argument
+after a failed call. It is specified and not yet implemented: until it is, a
+conforming implementation refuses the declaration (W-VER-1), and no cost of
+C.6 is defined for it beyond the costs F.10 names.
+
 **Read receipt.** How many words does a version 0.6 module reserve in addition to the 0.5 keywords? (a number)
 
-<!-- body-sha256: f31927494ae82d1f36aa8d69d4e8a40800913fdc0591783876bd2faf8753c0f4 -->
+<!-- body-sha256: 71be1c1d289be03ce5bf0bb48c8cbba73fb238c6f59d6759578a4a21c615b54a -->

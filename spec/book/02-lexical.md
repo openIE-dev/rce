@@ -57,6 +57,8 @@ to        trait     true      try       type      use       var
 while     with      yield
 ```
 
+A version 0.9 module reserves ten more words (Appendix F: `requires`, `ensures`, `decreases`, `ghost`, `ct`, `declassify`, `endorse`, `release`, `label` and `law`); in every other version they are names.
+
 `device`, `iter`, `linear` and `yield` are new in draft 0.5. `lalr` is not a
 keyword: drafts up to 0.4 reserved it in `rce.lark` and the tree-sitter
 scanner by mistake, without listing it here; draft 0.5 removes it from both.
@@ -119,8 +121,12 @@ comment
 
 The line must start with `#` in column 0 and hold, after optional spaces,
 `rce-version:` and a version; trailing spaces are allowed. The known
-versions are `0.5`, `0.6`, `0.7` and `0.8`; any other is refused (W-VER-1).
-Version 0.8 is version 0.7 plus the indexed values of 5.16 (C.16). A module
+versions are `0.5`, `0.6`, `0.7`, `0.8` and `0.9`; any other is refused (W-VER-1).
+Version 0.8 is version 0.7 plus the indexed values of 5.16 (C.16). Version 0.9 is
+version 0.8 plus Appendix F. The reference checker implements part of it (F.12)
+and refuses the rest by version (W-VER-2); an implementation that has not
+implemented Appendix F at all refuses a `0.9` declaration with W-VER-1, and one
+that has implemented it applies F.1 to F.10 to that module only. A module
 without the declaration is version 0.5. Version 0.5 is the language of
 sections 2 to 10. Version 0.6 adds Appendix C: its 23 words become
 keywords (C.1) and its constructs and rules apply. Version 0.7 has the
@@ -141,4 +147,4 @@ for the draft's own test corpora; a declared version always wins.)
 
 **Read receipt.** Which code point is the horizontal tab, as written in this section?
 
-<!-- body-sha256: 19f3c9be912b1b572c040f42ade9fa62fe20f75a6a571aae9219ac6a89090316 -->
+<!-- body-sha256: 1ddd28e32ada7648b2261ba0addc0899841eb277b307fec08f826bdd32153041 -->

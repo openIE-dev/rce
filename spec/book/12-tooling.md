@@ -183,8 +183,8 @@ it, its outputs, or the refusal), and finally the outputs and result of
 evaluator, so that a target and the reference can be compared line for
 line.
 
-**How the emitters are tested.** `spec/checker/tests/emit.rs` emits all 58
-programs of `spec/examples/` (the 56 files and the 2 of `26_use_module`) in
+**How the emitters are tested.** `spec/checker/tests/emit.rs` emits all 59
+programs of `spec/examples/` (the 57 files and the 2 of `26_use_module`) in
 all three targets. To exercise function
 bodies, it first adds *probes*: for each function and method, up to three
 calls on small sample arguments built from the parameter types, plus one
@@ -407,6 +407,15 @@ as clean exactly when `rce check` accepts it (10.1, principle 3).
   rename, references or semantic tokens.
 - `rce run` uses the reference interpreter; there is no compiled runtime.
 - Idempotence of `fmt` is tested, not proved.
+- Version 0.9 (Appendix F) is implemented in part (F.12). `rce hash`,
+  `rce api-diff OLD NEW` (F.4.3) and `rce v09-status` exist: `rce hash FILE|DIR...`
+  prints the definition hash, kind and name of every named item (`pub` marks an
+  export), `rce api-diff OLD NEW` prints one row per change of the exports
+  (`compatible` or `breaking`, then kind and name, then the change; status 1 when
+  any row is breaking) and `rce v09-status` prints the implemented and the
+  unimplemented rules. The broker contract (F.7), the manifest and pin check
+  (F.5.3) and the emitter refusals of F.5.4 do not exist yet. Results are
+  reproducible from the inputs alone (10.1).
 
 ### 10.9 `rce trace --json FILE [EVENTS]`: reference traces (informative)
 
@@ -497,4 +506,4 @@ give equal output bytes.
 
 **Read receipt.** Which JSON-RPC error code does the language server return for a request it does not know? (a number)
 
-<!-- body-sha256: 8788bdc65ab982bcce09aab56bed504fcbee2ef245f727cf86837b09db2a3fc3 -->
+<!-- body-sha256: 5c2b8f2dfd9dea59d60dce9af7edd5aeb9b5eed1aa745d3c4ccdec4cd5941263 -->
