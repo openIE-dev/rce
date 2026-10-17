@@ -545,6 +545,14 @@ impl<'a> G<'a> {
         stmt: bool,
         sized: bool,
     ) -> Result<Option<(String, Option<WriteBack>)>, String> {
+        // R5: `f[T](x)` instantiates generic `f`; types are erased at run time
+        if let Expr::Index(g, _, _) = f
+            && let Expr::Name(n, _) = &**g
+            && self.fns.contains_key(n)
+            && !self.local(n)
+        {
+            return self.call_expr(g, args, stmt, sized);
+        }
         let l = self.lang;
         // 5.16 context text
         if let Expr::Member(o, m, _) = f
@@ -583,7 +591,7 @@ impl<'a> G<'a> {
                     return Ok(Some((c, None)));
                 }
                 if self.tasks_on() && self.m.items.iter().find(|i| matches!(i, Item::Actor { name, .. } if name == n)).is_some() && !self.local(n) {
-                    return Ok(Some((self.h("actor_new", &[q(n), f.line().to_string()]), None)));
+                    return Ok(Some((self.h("actor_new", &[q(n), q(&crate::conc::actor_pos(self.m, n))]), None)));
                 }
                 if n == "set_of" {
                     let a = self.args(args)?;

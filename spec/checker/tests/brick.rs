@@ -118,21 +118,27 @@ fn index_records() {
         names,
         [
             "area",
+            "bag_add",
             "between",
             "capped_sum",
             "clamp",
             "count_down",
             "digit",
+            "digit_pt",
             "digits_or",
+            "doubled",
             "fact",
             "find_first",
             "first",
+            "first_or",
             "greet",
             "is_even",
             "is_odd",
             "is_short",
+            "last_index",
             "le16",
             "mean2",
+            "mid_len",
             "mix",
             "popcount",
             "put2",
@@ -143,8 +149,13 @@ fn index_records() {
             "sign",
             "sum_list",
             "swap_at",
+            "tail2",
+            "take2",
             "take_last",
-            "two_digits"
+            "trimmed",
+            "two_digits",
+            "u64_mix",
+            "u8_mix"
         ]
     );
     let f = entry(&c, "first");
@@ -153,9 +164,11 @@ fn index_records() {
     assert_eq!(entry(&c, "clamp")["key"], "(i64, i64, i64) -> i64");
     // recursion lowers to a fix (with `bound 64` counted in the term)
     assert_eq!(entry(&c, "fact")["lowering"]["term"]["t"], "fix");
-    assert_eq!(entry(&c, "is_even")["lowering"]["term"]["t"], "fix");
+    // (a term with shared subterms is format 2: `main` and its `defs`)
+    let ie = &entry(&c, "is_even")["lowering"]["term"];
+    assert_eq!(if ie["main"].is_object() { &ie["main"]["t"] } else { &ie["t"] }, "fix");
     // loops, lists, structs, text `+`, bit operations, generics and usize lower
-    assert_eq!(c["lowered"], 28);
+    assert_eq!(c["lowered"], 39);
 }
 
 #[test]
@@ -175,10 +188,10 @@ fn search_by_type() {
     assert_eq!(s("(i64, i64, i64) -> bool"), ["0 between"]);
     assert_eq!(s("(Pt, i64) -> Pt"), ["0 shift"]);
     // a variable query is an instance of nothing here, a concrete query is an instance of `first`
-    assert_eq!(s("(List[i64], i64) -> i64"), ["0 find_first", "1 first"]);
-    assert_eq!(s("(List[a], a) -> a"), ["0 first", "1 find_first"]);
+    assert_eq!(s("(List[i64], i64) -> i64"), ["0 find_first", "0 first_or", "1 first"]);
+    assert_eq!(s("(List[a], a) -> a"), ["0 first", "1 find_first", "1 first_or"]);
     // argument order is found, at a cost
-    assert_eq!(s("(i64, List[i64]) -> i64"), ["2 find_first", "3 first"]);
+    assert_eq!(s("(i64, List[i64]) -> i64"), ["2 find_first", "2 first_or", "3 first"]);
     assert_eq!(s("text -> bool"), ["0 is_short"]);
     assert!(s("text -> i64").is_empty());
     assert!(brick::search(&c, "i64").is_err());

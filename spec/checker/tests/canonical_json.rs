@@ -22,7 +22,7 @@ fn to_v(t: &Value) -> V {
         "bool" => V::Bool(a[1].as_bool().unwrap()),
         "int" => V::Int(a[1].as_str().unwrap().parse::<i128>().unwrap(), "i64"),
         "float" => V::F(f64::from_bits(u64::from_str_radix(a[1].as_str().unwrap().trim_start_matches("0x"), 16).unwrap())),
-        "text" => V::Text(a[1].as_str().unwrap().to_string()),
+        "text" => V::Text(a[1].as_str().unwrap().to_string().into()),
         "list" => V::List(a[1].as_array().unwrap().iter().map(to_v).collect()),
         "rec" => V::Rec(
             "R".into(),

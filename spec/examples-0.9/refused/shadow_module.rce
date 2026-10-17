@@ -1,0 +1,7 @@
+# rce-version: 0.9
+# expect: W-NAME-3
+const limit = 3
+
+fn main()
+    let limit = 4
+    emit limit.tostr()

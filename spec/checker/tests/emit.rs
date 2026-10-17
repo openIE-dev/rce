@@ -9,7 +9,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 /// Programs in spec/examples (51 through draft 0.7; 51_refined_input adds 5.1 refined types, 52-54 the 0.8 indexed values of 5.16).
-const CORPUS: usize = 58;
+const CORPUS: usize = 59;
 
 fn examples() -> Vec<PathBuf> {
     let mut v: Vec<PathBuf> = std::fs::read_dir("../examples")
@@ -252,6 +252,8 @@ fn edge_program_agrees_on_every_available_target() {
         == "fn wide trap: overflow: 340282366920938463426481119284349108225 is outside u64"));
     assert!(want.iter().any(|l| l == "fn wide_sat = 18446744073709551615"));
     assert!(want.iter().any(|l| l == "fn wide_wrap = 1"));
+    assert!(want.iter().any(|l| l == "fn zindex = 12"), "{want:?}");
+    assert!(want.iter().any(|l| l == "fn zkeys = [\"2\", \"-0\", \"1\", \"-0\"]"), "{want:?}");
     assert!(want.iter().any(|l| l.starts_with("fn f32texts = [\"0.000000000000000000000000000000000000000000001\"")), "{want:?}");
     let mut ran = 0;
     for lang in [Lang::Rust, Lang::Python, Lang::Js, Lang::Scala] {

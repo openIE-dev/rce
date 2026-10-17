@@ -1,0 +1,9 @@
+# rce-version: 0.9
+# expect: W-WORLD-1
+extern "C" fn tick(w: &World) -> u32
+
+fn other(w: &World)
+    pass
+
+fn main(w: &World)
+    emit tick(other_world()).tostr()

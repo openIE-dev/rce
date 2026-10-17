@@ -10,7 +10,9 @@ const IND: &str = "    ";
 
 pub fn unparse(m: &Module) -> String {
     let mut o = String::new();
-    if m.v08 {
+    if m.v09 {
+        o.push_str("# rce-version: 0.9\n");
+    } else if m.v08 {
         o.push_str("# rce-version: 0.8\n");
     } else if m.v07 {
         o.push_str("# rce-version: 0.7\n");
@@ -136,7 +138,7 @@ fn params(ps: &[Param]) -> String {
 }
 
 fn sig(s: &FnSig) -> String {
-    let mut o = format!("{}fn {}{}({})", if s.comptime { "comptime " } else { "" }, s.name, gparams(&s.generics), params(&s.params));
+    let mut o = format!("{}{}fn {}{}({})", if s.x09 & 1 != 0 { "ct " } else if s.x09 & 2 != 0 { "ghost " } else { "" }, if s.comptime { "comptime " } else { "" }, s.name, gparams(&s.generics), params(&s.params));
     if let Some(r) = &s.ret {
         o.push_str(&format!(" -> {}", ty(r)));
     }
@@ -309,6 +311,15 @@ fn stmt(o: &mut String, d: usize, s: &Stmt) {
         Stmt::Expr(e) => line(o, d, &stmt_expr(e)),
         Stmt::Assign(op, l, r) => line(o, d, &format!("{} {op} {}", stmt_expr(l), expr(r))),
         Stmt::Send(c, v) => line(o, d, &format!("{} <- {}", stmt_expr(c), expr(v))),
+        Stmt::Let(p, None, Expr::Call(c, a, _, _), _) if matches!(&**c, Expr::Name(n, _) if n == "@ghost") && a.len() == 1 => line(o, d, &format!("ghost let {} = {}", pat(p), expr(&a[0].e))),
+        Stmt::Let(p, t, Expr::Call(c, a, _, _), _) if matches!(&**c, Expr::Name(n, _) if n == "@ghost") && a.len() == 1 => line(o, d, &format!("ghost let {}: {} = {}", pat(p), ty(t.as_ref().unwrap()), expr(&a[0].e))),
+        Stmt::Check(Expr::Call(c, a, _, _)) if matches!(&**c, Expr::Name(n, _) if n == "@decreases") && !a.is_empty() => {
+            line(o, d, &format!("decreases {}", a.iter().map(|x| expr(&x.e)).collect::<Vec<_>>().join(", ")))
+        }
+        Stmt::Check(Expr::Call(c, a, _, _)) if matches!(&**c, Expr::Name(n, _) if n == "@requires" || n == "@ensures") && a.len() == 1 => {
+            let k = if let Expr::Name(n, _) = &**c { &n[1..] } else { "" };
+            line(o, d, &format!("{k} {}", expr(&a[0].e)))
+        }
         Stmt::Let(p, t, e, _) => line(o, d, &format!("let {}{} = {}", pat(p), t.as_ref().map(|t| format!(": {}", ty(t))).unwrap_or_default(), expr(e))),
         Stmt::Var(n, t, e, _) => line(o, d, &format!("var {n}{} = {}", t.as_ref().map(|t| format!(": {}", ty(t))).unwrap_or_default(), expr(e))),
         Stmt::If(arms, els) => {
@@ -332,6 +343,30 @@ fn stmt(o: &mut String, d: usize, s: &Stmt) {
         Stmt::For(p, e, body, _) => {
             line(o, d, &format!("for {} in {}", pat(p), expr(e)));
             block(o, d + 1, body);
+        }
+        Stmt::Match(Expr::Call(c, sa, _, _), arms, _)
+            if matches!(&**c, Expr::Name(n, _) if n == "@iflet") && sa.len() == 1 && arms.len() == 2 && matches!(arms[1].pat, Pat::Wild) =>
+        {
+            fn atoms<'a>(e: &'a Expr, out: &mut Vec<&'a Expr>) {
+                match e {
+                    Expr::Bin(op, a, b, _) if op == "and" => {
+                        atoms(a, out);
+                        atoms(b, out);
+                    }
+                    x => out.push(x),
+                }
+            }
+            let mut conds = vec![];
+            if let Some(g) = &arms[0].guard {
+                atoms(g, &mut conds);
+            }
+            let tail: String = conds.iter().map(|c| format!(" and {}", expr(c))).collect();
+            line(o, d, &format!("if let {} = {}{tail}", pat(&arms[0].pat), expr(&sa[0].e)));
+            block(o, d + 1, &arms[0].body);
+            if arms[1].body != [Stmt::Pass] {
+                line(o, d, "else");
+                block(o, d + 1, &arms[1].body);
+            }
         }
         Stmt::Match(e, arms, _) => {
             line(o, d, &format!("match {}", expr(e)));
@@ -506,7 +541,10 @@ fn field(o: &mut String, d: usize, f: &Field) {
 fn example(x: &Example) -> String {
     let evs: Vec<String> = x.events.iter().map(|(n, a)| if a.is_empty() { n.clone() } else { format!("{n}({})", args(a)) }).collect();
     let rhs = match (&x.refused, &x.value) {
-        (Some(r), _) => format!("refused: {r}"),
+        (Some(r), _) => match r.strip_prefix("trap(").and_then(|k| k.strip_suffix(')')) {
+            Some(k) => format!("refused: trap({})", serde_json::Value::String(k.into())),
+            None => format!("refused: {r}"),
+        },
         (None, Some(v)) => expr(v),
         (None, None) => "()".into(),
     };

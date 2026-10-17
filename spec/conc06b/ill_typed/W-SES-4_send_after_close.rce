@@ -1,0 +1,9 @@
+# rce-version: 0.6
+# expect: W-SES-4
+protocol P
+    send i64
+
+fn client(c: session P)
+    c <- 1
+    c.close()
+    c <- 2

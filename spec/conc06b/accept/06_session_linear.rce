@@ -1,0 +1,21 @@
+# rce-version: 0.6
+# Linear endpoints (W-SES-4): each endpoint is used until it is moved,
+# sent or closed, on every path, and never after.
+protocol Ask
+    send i64
+    recv i64
+
+protocol Carry
+    send session Ask
+
+fn finish(c: session Ask)
+    c <- 1
+    let r = <- c
+    emit r
+
+fn hand_off(d: session Carry, c: session Ask, k: i64)
+    if k > 0
+        d <- c
+    else
+        let c2 = c
+        d <- c2

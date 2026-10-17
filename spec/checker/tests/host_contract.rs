@@ -362,6 +362,12 @@ fn every_appendix_e_rule_is_cited_by_a_test() {
 fn proposed_rules_are_marked_proposed() {
     let book = std::fs::read_to_string(spec().join("book/16-host-contract.md")).unwrap();
     let e11 = &book[book.find("### E.11").expect("E.11 present")..];
+    // Rules adopted into the normative text (N-1 and N-8 became 6.3 N3)
+    // stay in E.11 as a record, marked with where they were adopted.
+    for r in ["N-1", "N-8"] {
+        assert!(e11.contains(&format!("**{r} (adopted as ")), "{r} is not recorded as adopted in E.11");
+        assert!(!e11.contains(&format!("**{r} (proposed).**")), "{r} is adopted but E.11 still calls it proposed");
+    }
     for r in ["N-9", "K-1", "K-2", "K-3", "K-4", "K-5", "K-6", "K-7", "K-8", "K-9", "E-x", "S-1", "S-2", "S-3", "S-4", "C-3", "V-6", "TU-1", "TU-2", "TU-3", "TU-4", "TU-5", "TU-6", "G-1", "G-2", "G-3", "G-4", "G-5", "G-6"] {
         assert!(e11.contains(&format!("**{r} (proposed).**")), "{r} is not stated as proposed in E.11");
     }

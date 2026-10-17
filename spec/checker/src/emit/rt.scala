@@ -49,8 +49,12 @@ var FUEL_LIMIT: BigInt = BigInt(50000000)
 var FUEL_TRACE = false
 var FUEL: Long = 50000000L
 val KC = mutable.HashMap[String, Any]()
+var ARGS: Seq[String] = Seq()
+var FUEL_BATCH: Option[String] = None
 def init_args(args: Seq[String]): Unit = {
+  ARGS = args
   for (a <- args) if (a.startsWith("--fuel=")) FUEL_LIMIT = BigInt(a.substring(7))
+  for (a <- args) if (a.startsWith("--fuel-batch=")) FUEL_BATCH = Some(a.substring(13))
   FUEL_TRACE = args.contains("--fuel-trace")
   FUEL = FUEL_LIMIT.toLong
 }
@@ -61,6 +65,12 @@ def depth_enter(k: String, n: Long): Unit = { val d = DEPTH.get.getOrElse(k, 0L)
 def depth_exit(k: String): Unit = { val d = DEPTH.get.getOrElse(k, 0L); if (d > 0) DEPTH.get(k) = d - 1 }
 def fuel_reset(): Unit = { FUEL = FUEL_LIMIT.toLong; KC.clear(); DEPTH.get.clear() }
 def fuel_report(): Unit = if (FUEL_TRACE) say("fuel " + (FUEL_LIMIT - BigInt(FUEL)))
+// `--fuel-batch=n1,n2,..`: every observation once per limit in this JVM,
+// each pass headed by `#fuel-batch n`
+def observe_all(f: () => Unit): Unit = FUEL_BATCH match {
+  case None => f()
+  case Some(b) => for (n <- b.split(",")) { FUEL_LIMIT = BigInt(n); say("#fuel-batch " + n); f() }
+}
 def is_flow(e: Throwable): Boolean = e.isInstanceOf[Flow]
 
 def P2(n: Int): BigInt = BigInt(1) << n
@@ -79,6 +89,8 @@ object UnitT
 val UNIT = UnitT
 final case class Tup(xs: Vector[Any])
 final case class Lst(xs: Vector[Any])
+// a Set[τ]: elements in canonical order without duplicates (7.1)
+final case class St(xs: Vector[Any])
 final case class Mp(ps: Vector[(Any, Any)])
 final class Opt(val x: Any)
 val NONE = new Opt(null)
@@ -147,7 +159,7 @@ def plain(neg: Boolean, d: String, p: Int): String = {
 }
 def negz(x: Double): Boolean = x < 0 || (x == 0 && 1.0 / x < 0)
 def fdisplay(x: Double): String = {
-  if (x == 0) return "0"
+  if (x == 0) return (if (negz(x)) "-0" else "0")
   val a = math.abs(x); val (d, p) = sdigits(a)
   if (a >= 1e-5 && a < 1e16) return plain(x < 0, d, p)
   val e = p - 1
@@ -195,6 +207,7 @@ def show(v: Any): String = v match {
   case UnitT => "()"
   case x: Tup => "(" + x.xs.map(show).mkString(", ") + ")"
   case x: Lst => "[" + x.xs.map(show).mkString(", ") + "]"
+  case x: St => "[" + x.xs.map(show).mkString(", ") + "]"
   case x: Mp => "{" + x.ps.map(p => show(p._1) + ": " + show(p._2)).mkString(", ") + "}"
   case x: Opt => if (x.x == null) "none" else "some(" + show(x.x) + ")"
   case x: Rec => if (x.fs.isEmpty) x.n else x.n + "(" + x.fs.map(p => p._1 + ": " + show(p._2)).mkString(", ") + ")"
@@ -221,7 +234,8 @@ def veq(a: Any, b: Any): Boolean = (a, b) match {
   case (UnitT, UnitT) => true
   case (x: Tup, y: Tup) => x.xs.length == y.xs.length && x.xs.indices.forall(i => veq(x.xs(i), y.xs(i)))
   case (x: Lst, y: Lst) => x.xs.length == y.xs.length && x.xs.indices.forall(i => veq(x.xs(i), y.xs(i)))
-  case (x: Mp, y: Mp) => x.ps.length == y.ps.length && x.ps.forall(p => y.ps.exists(q => veq(p._1, q._1) && veq(p._2, q._2)))
+  case (x: St, y: St) => x.xs.length == y.xs.length && x.xs.indices.forall(i => keq(x.xs(i), y.xs(i)))
+  case (x: Mp, y: Mp) => x.ps.length == y.ps.length && x.ps.forall(p => y.ps.exists(q => keq(p._1, q._1) && veq(p._2, q._2)))
   case (x: Opt, y: Opt) => if (x.x == null || y.x == null) x.x == null && y.x == null else veq(x.x, y.x)
   case (x: Rec, y: Rec) => x.n == y.n && x.fs.length == y.fs.length && x.fs.indices.forall(i => x.fs(i)._1 == y.fs(i)._1 && veq(x.fs(i)._2, y.fs(i)._2))
   case (x: Err, y: Err) => veq(x.e, y.e)
@@ -247,6 +261,7 @@ def cmp(a: Any, b: Any): Int = (a, b) match {
   case (x: Boolean, y: Boolean) => c3(if (x) 1 else 0, if (y) 1 else 0)
   case (x: Tup, y: Tup) => seqcmp(x.xs, y.xs)
   case (x: Lst, y: Lst) => seqcmp(x.xs, y.xs)
+  case (x: St, y: St) => seqcmp(x.xs, y.xs)
   case _ => trap("values are not ordered")
 }
 def seqcmp(a: Vector[Any], b: Vector[Any]): Int = {
@@ -264,7 +279,8 @@ def chk(x: BigInt, t: String): I = {
 def fin(r: Double): F = if (r.isFinite) F(r) else trap("non-finite float")
 def fin32(r: Double): F32 = if (r.isFinite) new F32(r) else trap("non-finite float")
 def jsdiv(x: BigInt, y: BigInt): BigInt = x / y // BigInt `/` truncates toward zero, `%` has the dividend's sign
-def arith(op: String, a: Any, b: Any): Any = (a, b) match {
+def arith(op: String, a: Any, b: Any): Any = size_ok(arith_raw(op, a, b))
+def arith_raw(op: String, a: Any, b: Any): Any = (a, b) match {
   case (ai: I, bi: I) =>
     val x = ai.v; val y = bi.v; val ty = if (ai.t == "lit") bi.t else ai.t
     val bits = ty match { case "i8" | "u8" => 8; case "i16" | "u16" => 16; case "i32" | "u32" => 32; case _ => 64 }
@@ -300,8 +316,9 @@ def fop(op: String, x: Double, y: Double, f3: Boolean): Any = {
 }
 def contains(c: Any, x: Any): Boolean = c match {
   case l: Lst => l.xs.exists(y => veq(y, x))
+  case l: St => l.xs.exists(y => keq(y, x))
   case t: Tup => t.xs.exists(y => veq(y, x))
-  case m: Mp => m.ps.exists(p => veq(p._1, x))
+  case m: Mp => m.ps.exists(p => keq(p._1, x))
   case s: String => x match { case y: String => s.contains(y); case _ => false }
   case r: Rng => x match { case i: I => r.a <= i.v && i.v < r.b; case _ => false }
   case _ => trap("`in` needs a collection")
@@ -322,7 +339,7 @@ def binop(op: String, x: Any, y: Any): Any = op match {
   case _ => arith(op, x, y)
 }
 def map_set(ps: Vector[(Any, Any)], k: Any, v: Any): Vector[(Any, Any)] = {
-  val i = ps.indexWhere(p => veq(p._1, k))
+  val i = ps.indexWhere(p => keq(p._1, k))
   if (i >= 0) ps.updated(i, (ps(i)._1, v)) else { val j = ps.indexWhere(p => canon_cmp(p._1, k) > 0); if (j < 0) ps :+ ((k, v)) else ps.patch(j, Seq((k, v)), 0) }
 }
 def mk_map(pairs: Vector[Any]): Mp = { var ps = Vector[(Any, Any)](); for (p <- pairs) ps = map_set(ps, at(p, 0), at(p, 1)); Mp(ps) }
@@ -338,7 +355,7 @@ def index(c: Any, i: Any): Any = (c, i) match {
   case (s: String, k: I) =>
     val b = u8s(s)
     if (k.v >= 0 && k.v < b.length) I(BigInt(b(k.v.toInt) & 0xff), "u8") else trap("index " + k.v + " out of range")
-  case (m: Mp, _) => m.ps.find(p => veq(p._1, i)) match { case Some(p) => p._2; case None => trap("missing key " + show(i)) }
+  case (m: Mp, _) => m.ps.find(p => keq(p._1, i)) match { case Some(p) => p._2; case None => trap("missing key " + show(i)) }
   case _ => trap("cannot index " + show(c))
 }
 def slice(c: Any, ta: () => Any, tb: () => Any): Any = {
@@ -379,7 +396,7 @@ def bitnot(v: Any): Any = v match {
 }
 def not_(v: Any): Boolean = !truthy(v)
 def sat128(x: BigInt): BigInt = if (x < I128._1) I128._1 else if (x > I128._2) I128._2 else x
-def trunc_big(f: Double): BigInt = sat128(BigDecimal(f).setScale(0, BigDecimal.RoundingMode.DOWN).toBigInt)
+def trunc_big(f: Double): BigInt = BigDecimal(f).setScale(0, BigDecimal.RoundingMode.DOWN).toBigInt // exact (N4)
 def cast(v: Any, T: Vector[Any]): Any = {
   val toF32 = T(0) == "f32"; val n: String = if (T(0) == "int") T(1).asInstanceOf[String] else null
   v match {
@@ -413,7 +430,7 @@ def asBig(x: Any): BigInt = x match { case b: BigInt => b; case i: Int => BigInt
 def ptm(t: Vector[Any], v: Any): BigInt = {
   if (t(0) == "lit") return asBig(t(1))
   if (t(0) == "self") return v match { case i: I => i.v; case _ => null }
-  v match { case s: String => BigInt(u8s(s).length); case l: Lst => BigInt(l.xs.length); case m: Mp => BigInt(m.ps.length); case _ => null }
+  v match { case s: String => BigInt(u8s(s).length); case l: Lst => BigInt(l.xs.length); case l: St => BigInt(l.xs.length); case m: Mp => BigInt(m.ps.length); case _ => null }
 }
 def pholds(p: Vector[Any], v: Any): Boolean = {
   val k = p(0)
@@ -519,7 +536,8 @@ def call_value(f: Any, vals: Vector[Any]): Any = f match {
   case _ => trap(show(f) + " is not callable")
 }
 def a0(a: Vector[Any]): Any = if (a.nonEmpty) a(0) else UNIT
-def builtin(r: Any, m: String, a: Vector[Any]): (Any, Any) = {
+def builtin(r: Any, m: String, a: Vector[Any]): (Any, Any) = { val (v, w) = builtin_raw(r, m, a); (size_ok(v), if (w == null) w else size_ok(w)) }
+def builtin_raw(r: Any, m: String, a: Vector[Any]): (Any, Any) = {
   r match {
     case c: Chan if m == "close" => comm(V("close", c)); return (UNIT, null)
     case t: Task if m == "join" => val rp = comm(V("join", t.id)); return (if (rp(0) == "val") rp(1) else UNIT, null)
@@ -632,11 +650,17 @@ def builtin(r: Any, m: String, a: Vector[Any]): (Any, Any) = {
         case "pscan" => return (pscan(xs, a(0), a(1), false), null)
         case "pscan_incl" => return (pscan(xs, a(0), a(1), true), null)
         case "fold" => var acc = a(0); for (x <- xs) { fuel(); acc = apply_(a(1), Vector(acc, x)) }; return (acc, null)
-        // a Set[τ] is a list in canonical order without duplicates
+        case _ =>
+      }
+    case st: St =>
+      val xs = st.xs
+      m match {
         case "union" => return (merge_builtin(r, a(0)), null)
-        case "inter" => val ys = a(0).asInstanceOf[Lst].xs; return (Lst(xs.filter(x => ys.exists(y => veq(x, y)))), null)
-        case "insert" => return (UNIT, merge_builtin(r, Lst(Vector(a(0)))))
-        case "tolist" => return (r, null)
+        case "inter" => val ys = a(0).asInstanceOf[St].xs; return (St(xs.filter(x => ys.exists(y => keq(x, y)))), null)
+        case "insert" => return (UNIT, merge_builtin(r, St(Vector(a(0)))))
+        case "tolist" => return (Lst(xs), null)
+        case "len" => return (I(BigInt(xs.length), "usize"), null)
+        case "contains" => return (xs.exists(x => keq(x, a(0))), null)
         case _ =>
       }
     case mp: Mp =>
@@ -644,11 +668,11 @@ def builtin(r: Any, m: String, a: Vector[Any]): (Any, Any) = {
       m match {
         case "merge" => return (map_merge(ps, a(0).asInstanceOf[Mp].ps), null)
         case "len" => return (I(BigInt(ps.length), "usize"), null)
-        case "get" => ps.find(p => veq(p._1, a(0))) match { case Some(p) => return (p._2, null); case None => return (new Err(new Rec("Missing", Vector())), null) }
-        case "contains" => return (ps.exists(p => veq(p._1, a(0))), null)
+        case "get" => ps.find(p => keq(p._1, a(0))) match { case Some(p) => return (p._2, null); case None => return (new Err(new Rec("Missing", Vector())), null) }
+        case "contains" => return (ps.exists(p => keq(p._1, a(0))), null)
         case "insert" => return (UNIT, Mp(map_set(ps, a(0), a(1))))
         case "remove" =>
-          val i = ps.indexWhere(p => veq(p._1, a(0)))
+          val i = ps.indexWhere(p => keq(p._1, a(0)))
           if (i < 0) return (NONE, Mp(ps))
           return (new Opt(ps(i)._2), Mp(ps.take(i) ++ ps.drop(i + 1)))
         case "keys" => return (Lst(ps.map(_._1)), null)
@@ -665,17 +689,18 @@ def builtin(r: Any, m: String, a: Vector[Any]): (Any, Any) = {
 }
 // C.6.4 method work, as conc::method_work in the reference evaluator.
 val LIN_TEXT = Set("strip", "upper", "lower", "reverse", "tostr", "chars", "words", "lines", "split", "isdigit", "isalpha", "isspace", "contains", "startswith", "endswith", "toint", "join", "sha256")
-val LIN_LIST = Set("reverse", "contains", "sum", "map", "filter", "fold", "utf8", "union", "inter", "insert")
+val LIN_LIST = Set("reverse", "contains", "sum", "map", "filter", "fold", "utf8")
+val LIN_SET = Set("union", "inter", "insert", "contains", "tolist")
 val LIN_MAP = Set("get", "contains", "insert", "remove", "keys", "values", "merge")
-def size_of(v: Any): BigInt = v match { case s: String => BigInt(u8s(s).length); case l: Lst => BigInt(l.xs.length); case m: Mp => BigInt(m.ps.length); case _ => BigInt(0) }
+def size_of(v: Any): BigInt = v match { case s: String => BigInt(u8s(s).length); case l: Lst => BigInt(l.xs.length); case l: St => BigInt(l.xs.length); case m: Mp => BigInt(m.ps.length); case _ => BigInt(0) }
 def ceil_log2(n: BigInt): BigInt = if (n <= 1) 0 else BigInt((n - 1).bitLength)
 def method_work(recv: Any, m: String, args: Vector[Any]): BigInt = {
   val n = size_of(recv); val k = if (args.nonEmpty) size_of(args(0)) else BigInt(0)
-  if ((isStr(recv) && LIN_TEXT(m)) || (recv.isInstanceOf[Lst] && LIN_LIST(m)) || (recv.isInstanceOf[Mp] && LIN_MAP(m))) return n + k
+  if ((isStr(recv) && LIN_TEXT(m)) || (recv.isInstanceOf[Lst] && LIN_LIST(m)) || (recv.isInstanceOf[St] && LIN_SET(m)) || (recv.isInstanceOf[Mp] && LIN_MAP(m))) return n + k
   if (recv.isInstanceOf[Lst] && m == "sort") return n * ceil_log2(n)
   0
 }
-def head_of(recv: Any): String = recv match { case r: Rec => KIND_OF.getOrElse(r.n, r.n); case _: Lst => "List"; case _ => null }
+def head_of(recv: Any): String = recv match { case r: Rec => KIND_OF.getOrElse(r.n, r.n); case _: Lst => "List"; case _: St => "Set"; case _ => null }
 def call_method(recv: Any, m: String, args: Vector[Any], sized: Boolean): Vector[Any] = {
   val head = head_of(recv)
   if (head != null && METHODS.contains(head + "." + m)) { fuel(); return METHODS(head + "." + m)(recv, args) }
@@ -766,6 +791,7 @@ def gen_run(body: () => Unit, cap: Int): (Vector[Any], Boolean, Throwable) = {
 }
 def iter_items(v: Any): Vector[Any] = v match {
   case l: Lst => l.xs
+  case l: St => l.xs
   case r: Rng =>
     if (r.b - r.a > LOOP_LIMIT * 10) trap("loop bound")
     val out = ArrayBuffer[Any](); var i = r.a
@@ -808,6 +834,7 @@ def listcomp(itv: Any, P: Any, names: Vector[Any], body: Vector[Any] => Any, con
 def catch_(x: Any, h: Any => Any): Any = x match { case e: Err => h(e.e); case _ => x }
 def try_(x: Any, els: () => Any): Any = x match {
   case e: Err => throw new Fail(if (els != null) els() else e.e)
+  case o: Opt if els == null => o // ok value of `T? ! E` [E-Try-V]
   case o: Opt => if (o.x == null) { if (els != null) throw new Fail(els()); trap("try on none") }; o.x
   case _ => x
 }
@@ -844,6 +871,7 @@ def json_size(v: Any): Int = v match {
   case e: Err => json_size(e.e)
   case t: Tup => seqsz(t.xs.map(json_size), t.xs.length)
   case l: Lst => seqsz(l.xs.map(json_size), l.xs.length)
+  case l: St => seqsz(l.xs.map(json_size), l.xs.length)
   case m: Mp => seqsz(m.ps.map(p => 3 + json_size(p._1) + json_size(p._2)), m.ps.length)
   case r: Rec => 2 + jesc(r.n) + 1 + seqsz(r.fs.map(p => jesc(p._1) + 1 + json_size(p._2)), r.fs.length)
   case r: Rng => 3 + r.a.toString.length + r.b.toString.length
@@ -867,6 +895,7 @@ def dbgV(v: Any): String = v match {
   case UnitT => "Unit"
   case t: Tup => "Tuple([" + t.xs.map(dbgV).mkString(", ") + "])"
   case l: Lst => "List([" + l.xs.map(dbgV).mkString(", ") + "])"
+  case l: St => "Set([" + l.xs.map(dbgV).mkString(", ") + "])"
   case m: Mp => "Map([" + m.ps.map(p => "(" + dbgV(p._1) + ", " + dbgV(p._2) + ")").mkString(", ") + "])"
   case o: Opt => if (o.x == null) "Opt(None)" else "Opt(Some(" + dbgV(o.x) + "))"
   case r: Rec => "Rec(" + rdebug(r.n) + ", [" + r.fs.map(p => "(" + rdebug(p._1) + ", " + dbgV(p._2) + ")").mkString(", ") + "])"
@@ -931,16 +960,130 @@ def run_example1(line: Int, events: Vector[Any]): Unit = {
   var s: Vector[Any] = null
   try s = initial_state() catch { case e: Flow => say("initial " + why(e)); return }
   say("0 (initial) " + show_state(s))
+  val d = new DLog
+  try run_events(s, events, d) finally if (ARGS.contains("--trace")) say("trace " + d.prev)
+}
+def run_events(s0: Vector[Any], events: Vector[Any], d: DLog): Unit = {
+  var s = s0
+  val tr = ARGS.contains("--trace")
   for (k <- 1 to events.length) {
     val name = at(events(k - 1), 0).toString; val th = at(events(k - 1), 1).asInstanceOf[() => Any]
     var ev: Any = null
     try ev = th() catch { case e: Flow => say(s"$k $name " + why(e)); return }
     if (ev == null) { say(s"$k $name not an event"); return }
     var r: (Vector[Any], Vector[Any]) = null
-    try r = delta(s, ev) catch { case e: Refuse => say(s"$k " + show(ev) + " refused: " + e.r); return }
+    try r = delta(s, ev) catch { case e: Refuse => if (tr) d.add(name, ev, s); say(s"$k " + show(ev) + " refused: " + e.r); return }
     s = r._1
+    if (tr) d.add(name, ev, s)
     say(s"$k " + show(ev) + " " + show_state(s))
     for (o <- r._2) say("  emit " + show(o))
+  }
+}
+// ---- 6.1 the log D: canonical JSON (N3) and the SHA-256 entry chain, as interp.rs writes it
+val D_GENESIS = "0" * 64
+def cp_cmp(a: String, b: String): Int = {
+  val x = a.codePoints.toArray; val y = b.codePoints.toArray
+  var i = 0
+  while (i < x.length && i < y.length) { if (x(i) != y(i)) return if (x(i) < y(i)) -1 else 1; i += 1 }
+  Integer.compare(x.length, y.length)
+}
+final class FRec(fs0: Vector[(String, Any)]) { val fs: Vector[(String, Any)] = fs0.sortWith((p, q) => cp_cmp(p._1, q._1) < 0) }
+final class FFl(val x: Double)
+def form_value(v: Any): Any = v match {
+  case b: Boolean => b
+  case s: String => s
+  case x: I => x.v
+  case x: F => new FFl(x.v)
+  case x: F32 => new FFl(x.v)
+  case UnitT => null
+  case x: Opt => if (x.x == null) null else form_value(x.x)
+  case x: Tup => x.xs.map(form_value)
+  case x: Lst => x.xs.map(form_value)
+  case x: St => x.xs.map(form_value)
+  case x: Mp => x.ps.map(p => (form_value(p._1), form_value(p._2))).sortWith((p, q) => fv_cmp(p._1, q._1) < 0).map(p => Vector(p._1, p._2))
+  case x: Rec =>
+    val f = x.fs.map(p => (p._1, form_value(p._2)))
+    new FRec(if (VARIANTS.contains(x.n)) f :+ (("$v", x.n)) else f)
+  case x: Err => new FRec(Vector(("$err", form_value(x.e))))
+  case x: Rng => (x.a until x.b).toVector
+  case x: FnV => new FRec(Vector(("$fn", x.n)))
+  case _ => null
+}
+def fv_rank(x: Any): Int = x match {
+  case null => 0
+  case _: Boolean => 1
+  case _: BigInt | _: FFl => 2
+  case _: String => 3
+  case _: Vector[_] => 4
+  case _ => 5
+}
+def fv_num(x: Any): Double = x match { case b: BigInt => b.toDouble; case f: FFl => f.x; case _ => 0.0 }
+def fv_cmp(a: Any, b: Any): Int = {
+  val (ra, rb) = (fv_rank(a), fv_rank(b))
+  if (ra != rb) return Integer.compare(ra, rb)
+  (a, b) match {
+    case (x: Boolean, y: Boolean) => java.lang.Boolean.compare(x, y)
+    case (x: BigInt, y: BigInt) => x.compare(y)
+    case (x: String, y: String) => cp_cmp(x, y)
+    case (x: Vector[_], y: Vector[_]) =>
+      for ((p, q) <- x.zip(y)) { val c = fv_cmp(p, q); if (c != 0) return c }
+      Integer.compare(x.length, y.length)
+    case (x: FRec, y: FRec) =>
+      for ((p, q) <- x.fs.zip(y.fs)) { val c = { val k = cp_cmp(p._1, q._1); if (k != 0) k else fv_cmp(p._2, q._2) }; if (c != 0) return c }
+      Integer.compare(x.fs.length, y.fs.length)
+    case _ if ra == 2 => val (p, q) = (fv_num(a), fv_num(b)); if (p < q) -1 else if (p > q) 1 else 0
+    case _ => 0
+  }
+}
+def float_json(x: Double): String = {
+  if (x == 0.0) return if (1.0 / x < 0) "-0.0" else "0.0"
+  val bd = new java.math.BigDecimal(java.lang.Double.toString(Math.abs(x))).stripTrailingZeros
+  val digits = bd.unscaledValue.toString
+  val ex = digits.length - 1 - bd.scale
+  val sign = if (x < 0) "-" else ""
+  val a = Math.abs(x)
+  if (a >= 1e-4 && a < 1e16) {
+    val p = ex + 1
+    val body = if (p <= 0) "0." + "0" * (-p) + digits
+      else if (p >= digits.length) digits + "0" * (p - digits.length) + ".0"
+      else digits.substring(0, p) + "." + digits.substring(p)
+    sign + body
+  } else sign + digits.substring(0, 1) + (if (digits.length > 1) "." + digits.substring(1) else "") + "e" + ex
+}
+def jstr(s: String): String = {
+  val o = new StringBuilder("\"")
+  s.codePoints.forEach { c =>
+    c match {
+      case 34 => o ++= "\\\""
+      case 92 => o ++= "\\\\"
+      case 10 => o ++= "\\n"
+      case 13 => o ++= "\\r"
+      case 9 => o ++= "\\t"
+      case c if c < 0x20 => o ++= f"\\u$c%04x"
+      case c => o.appendAll(Character.toChars(c))
+    }
+  }
+  o += '"'
+  o.toString
+}
+def fv_json(x: Any): String = x match {
+  case null => "null"
+  case b: Boolean => if (b) "true" else "false"
+  case i: BigInt => i.toString
+  case f: FFl => float_json(f.x)
+  case s: String => jstr(s)
+  case v: Vector[_] => v.map(fv_json).mkString("[", ",", "]")
+  case r: FRec => r.fs.map(p => jstr(p._1) + ":" + fv_json(p._2)).mkString("{", ",", "}")
+  case _ => "null"
+}
+def d_sha(s: String): String = sha256hex(s.getBytes("UTF-8"))
+final class DLog {
+  var prev: String = D_GENESIS; var seq: Int = 0
+  def add(name: String, ev: Any, st: Vector[Any]): Unit = {
+    val evj = "{\"payload\":" + fv_json(form_value(ev)) + ",\"type\":" + jstr(name) + "}"
+    val sj = fv_json(new FRec(st.map(r => (at(r, 0).toString, new FRec(vec(at(r, 1)).map(f => (at(f, 0).toString, form_value(at(f, 1)))))))))
+    val body = "{\"event\":" + evj + ",\"prev_hash\":\"" + prev + "\",\"seq\":" + seq + ",\"state_hash\":\"" + d_sha(sj) + "\"}"
+    prev = d_sha(body); seq += 1
   }
 }
 def run_main(f: (Any, Vector[Any]) => Vector[Any]): Unit = {
@@ -988,7 +1131,7 @@ def par_tree(op: String, c0: Any, i: Any): Any = {
   val c = vec(c0)
   if (c.isEmpty) return i
   if (c.length == 1) return c(0)
-  val h = (c.length + 1) / 2
+  val h = Integer.highestOneBit(c.length - 1)
   val l = par_tree(op, c.take(h), i)
   val r = par_tree(op, c.drop(h), i)
   par_combine(op, l, r)
@@ -998,14 +1141,14 @@ def pscan(xs: Vector[Any], f: Any, e: Any, inclusive: Boolean): Lst = {
   if (n == 0) return Lst(Vector())
   val sums = mutable.HashMap[(Int, Int), Any]()
   def up(lo: Int, hi: Int): Any = {
-    val v = if (hi - lo == 1) xs(lo) else { val h = lo + (hi - lo + 1) / 2; val l = up(lo, h); val r = up(h, hi); apply_(f, Vector(l, r)) }
+    val v = if (hi - lo == 1) xs(lo) else { val h = lo + Integer.highestOneBit(hi - lo - 1); val l = up(lo, h); val r = up(h, hi); apply_(f, Vector(l, r)) }
     sums((lo, hi)) = v
     v
   }
   val out = Array.fill[Any](n)(null)
   def down(lo: Int, hi: Int, off: Any): Unit = {
     if (hi - lo == 1) { out(lo) = off; return }
-    val h = lo + (hi - lo + 1) / 2
+    val h = lo + Integer.highestOneBit(hi - lo - 1)
     val ls = sums((lo, h))
     val roff = if (off == null) ls else apply_(f, Vector(off, ls))
     down(lo, h, off)
@@ -1050,7 +1193,7 @@ def crank(v: Any): Int = v match {
   case _: Boolean => 1
   case _: I | _: F | _: F32 => 2
   case _: String => 3
-  case _: Lst | _: Tup => 4
+  case _: Lst | _: St | _: Tup => 4
   case _ => 5
 }
 def bcmp(a: String, b: String): Int = {
@@ -1059,6 +1202,7 @@ def bcmp(a: String, b: String): Int = {
   c3(x.length, y.length)
 }
 def numv(v: Any): Double = v match { case f: F => f.v; case f: F32 => f.v; case i: I => i.v.toDouble; case _ => 0.0 }
+def keq(a: Any, b: Any): Boolean = canon_cmp(a, b) == 0 // map/set key identity (6.1)
 def canon_cmp(a: Any, b: Any): Int = {
   val ra = crank(a); val rb = crank(b)
   if (ra != rb) return c3(ra, rb)
@@ -1067,11 +1211,16 @@ def canon_cmp(a: Any, b: Any): Int = {
     case (x: I, y: I) => return c3(x.v, y.v)
     case _ =>
   }
-  if (ra == 2) return c3(numv(a), numv(b))
+  if (ra == 2) {
+    // int before float (never equal keys); floats by IEEE 754 totalOrder (6.1)
+    if (a.isInstanceOf[I]) return -1
+    if (b.isInstanceOf[I]) return 1
+    return Integer.signum(java.lang.Double.compare(numv(a), numv(b)))
+  }
   if (ra == 3) return bcmp(a.asInstanceOf[String], b.asInstanceOf[String])
   if (ra == 4) {
-    val xs = a match { case l: Lst => l.xs; case t: Tup => t.xs; case _ => Vector() }
-    val ys = b match { case l: Lst => l.xs; case t: Tup => t.xs; case _ => Vector() }
+    val xs = a match { case l: Lst => l.xs; case l: St => l.xs; case t: Tup => t.xs; case _ => Vector() }
+    val ys = b match { case l: Lst => l.xs; case l: St => l.xs; case t: Tup => t.xs; case _ => Vector() }
     var i = 0
     while (i < math.min(xs.length, ys.length)) { val c = canon_cmp(xs(i), ys(i)); if (c != 0) return c; i += 1 }
     return c3(xs.length, ys.length)
@@ -1095,9 +1244,13 @@ def merge_builtin(a: Any, b: Any): Any = (a, b) match {
     val v = (x.xs ++ y.xs).sorted(canonOrd); val out = ArrayBuffer[Any]()
     for (e <- v) if (out.isEmpty || canon_cmp(out.last, e) != 0) out += e
     Lst(out.toVector)
+  case (x: St, y: St) =>
+    val v = (x.xs ++ y.xs).sorted(canonOrd); val out = ArrayBuffer[Any]()
+    for (e <- v) if (out.isEmpty || canon_cmp(out.last, e) != 0) out += e
+    St(out.toVector)
   case (x: Mp, y: Mp) =>
     val out = ArrayBuffer[(Any, Any)](x.ps*)
-    for ((k, v) <- y.ps) { val i = out.indexWhere(p => veq(p._1, k)); if (i >= 0) out(i) = (out(i)._1, merge_builtin(out(i)._2, v)) else out += ((k, v)) }
+    for ((k, v) <- y.ps) { val i = out.indexWhere(p => keq(p._1, k)); if (i >= 0) out(i) = (out(i)._1, merge_builtin(out(i)._2, v)) else out += ((k, v)) }
     Mp(out.toVector.sortWith((p, q) => canon_cmp(p._1, q._1) < 0))
   case (x: Tup, y: Tup) if x.xs.length == y.xs.length => Tup(x.xs.indices.map(i => merge_builtin(x.xs(i), y.xs(i))).toVector)
   case (x: Rec, y: Rec) if x.n == y.n && x.fs.length == y.fs.length => new Rec(x.n, x.fs.indices.map(i => (x.fs(i)._1, merge_builtin(x.fs(i)._2, y.fs(i)._2))).toVector)
@@ -1109,12 +1262,12 @@ def merge_builtin(a: Any, b: Any): Any = (a, b) match {
 def map_merge(xs: Vector[(Any, Any)], ys: Vector[(Any, Any)]): Mp = {
   var out = xs
   for ((k, v) <- ys) {
-    val i = out.indexWhere(p => veq(p._1, k))
+    val i = out.indexWhere(p => keq(p._1, k))
     if (i >= 0) out = out.updated(i, (out(i)._1, merge_values(out(i)._2, v))) else out = out :+ ((k, v))
   }
   Mp(out.sortWith((p, q) => canon_cmp(p._1, q._1) < 0))
 }
-def set_of(v: Any): Any = merge_builtin(v, Lst(Vector()))
+def set_of(v: Any): Any = St(merge_builtin(v, Lst(Vector())).asInstanceOf[Lst].xs)
 def merge_values(a: Any, b: Any): Any = {
   a match {
     case r: Rec => val h = KIND_OF.getOrElse(r.n, r.n); METHODS.get(h + ".merge") match { case Some(f) => charge(4); return f(a, Vector(b))(0); case None => }
@@ -1162,7 +1315,11 @@ def group_rec(lane: Int, n: BigInt): Rec = new Rec("$group", Vector(("lane", I(B
 // ---- task statements (6.8, chapter C). Outside `--run` there is no task
 // context, so every communication step traps exactly as in the reference
 // evaluator's comptime mode.
-var TASK: TaskCtx = null
+// the task of the running thread: the tick runtime runs one thread at a
+// time and hands control over at each communication, so each thread keeps
+// its own task, fuel and budgets and installs them when it resumes
+val TASK_TL = new ThreadLocal[TaskCtx]()
+def TASK: TaskCtx = TASK_TL.get()
 var ATOMIC: ArrayBuffer[Any] = null
 var HSENDS: ArrayBuffer[Any] = null
 def comm(op: Vector[Any]): Vector[Any] = {
@@ -1181,9 +1338,12 @@ def session_new(cap: () => Any, line: Int): Any = {
   val a = fresh_("chan", line); val b = fresh_("chan", line)
   Tup(Vector(new Session(a, b, n), new Session(b, a, n)))
 }
-def actor_new(ty: String, line: Int): Any = {
+// stable path of C.11.11: supervisor position (or type), creating task, ordinal
+def ord_(key: String): Int = { val k = TASK.ords.getOrElse(key, 0); TASK.ords(key) = k + 1; k }
+def actor_new(ty: String, pos: String): Any = {
   if (TASK == null) trap("cannot call " + ty + " at comptime")
-  new Actor(fresh_("actor", line), ty)
+  TASK.created += 1
+  new Actor(hid("actor|" + pos + "|" + TASK.id + "|" + ord_("actor|" + pos)), ty)
 }
 def send(t0: Any, v: Any): Unit = {
   charge(8)
@@ -1209,7 +1369,7 @@ def session_choose(r: Any, label: String): Any = r match {
 def spawn_(f: String, args: Vector[Any], prio: Any, site: Int): Any = {
   charge(32)
   if (TASK == null) trap("concurrency is not available at comptime")
-  val idx = TASK.created; TASK.created += 1
+  TASK.created += 1; val idx = ord_("spawn")
   var p = asBig(prio); if (p == null) p = BigInt(0)
   p = if (p < 0) 0 else if (p > 255) 255 else p
   val rp = comm(V("spawn", f, args, p.toInt, site, idx, if (TASK.scopes.nonEmpty) TASK.scopes.last else 0))
@@ -1249,6 +1409,7 @@ def atomic_commit(buf: ArrayBuffer[Any]): Unit = {
 }
 final class TaskCtx(val id: String) {
   var created = 0
+  val ords = mutable.HashMap[String, Int]()
   var now = 0L
   val dl = ArrayBuffer[Any]()
   var nextFrame = 1
@@ -1256,7 +1417,9 @@ final class TaskCtx(val id: String) {
   val selK = mutable.HashMap[Int, Int]()
   var link: Vector[Any] => Vector[Any] = null
   def comm(op: Vector[Any]): Vector[Any] = {
+    val myFuel = FUEL; val myBud = bud_snap(); val myLast = BUD_LAST
     val rp0 = link(V(op, dl.toVector))
+    FUEL = myFuel; bud_restore(myBud); BUD_LAST = myLast
     now = rp0(0).asInstanceOf[Long]
     val rep = vec(rp0(1))
     if (rep(0) == "cancel") throw new Cancel(rep(1))
@@ -1271,9 +1434,456 @@ def big_stack(f: () => Unit): Unit = {
   t.start(); t.join()
   if (err != null) throw err
 }
-// The tick scheduler of `--run` (rt.rs `run_tasks`) is not ported to this target yet.
-def run_tasks(entry: String): Unit = { System.err.println("--run is not available on the scala target"); sys.exit(2) }
+// ---- the tick scheduler of `--run` (rt.rs `run_tasks`, rt.py `Sched`):
+// one task thread runs at a time, between two of its communications; the
+// scheduler thread runs the actor handlers
+val CANCEL_TASK: Any = -1
+def toL(x: Any): Long = x match { case i: Int => i.toLong; case l: Long => l; case b: BigInt => b.toLong; case n: I => n.v.toLong; case _ => -1L }
+final class ChanSt(val cap: BigInt) { val buf = ArrayBuffer[Any](); val held = ArrayBuffer[(Any, Any)](); var closed = false }
+final class Slot(val id: String, val prio: Int, val parent: Any, val scope: Int) {
+  val req = new java.util.concurrent.LinkedBlockingQueue[Vector[Any]]()
+  val rep = new java.util.concurrent.LinkedBlockingQueue[Vector[Any]]()
+  var st: Vector[Any] = V("ready", V("go"))
+  var result: Vector[Any] = null
+  var joined = false; var cancel = false; var holding: String = null; var released = false; var since = 0L
+}
+final class ActorSt(val ty: String, var fields: Any, val node: Int) { val mailbox = ArrayBuffer[Any]() }
+def actor_init(ty: String): Any = ACTOR_INIT.get(ty) match { case Some(f) => f(); case None => Vector() }
+def task_body(slot: Slot, f: String, args: Vector[Any]): Unit = {
+  val first = slot.rep.take()
+  val cx = new TaskCtx(slot.id)
+  cx.link = (r: Vector[Any]) => { slot.req.put(r); slot.rep.take() }
+  TASK_TL.set(cx)
+  FUEL = FUEL_LIMIT.toLong; BUD.clear()
+  var r: Vector[Any] = null
+  if (vec(first(1))(0) == "go") {
+    cx.now = toL(first(0))
+    try {
+      for (_ <- 0 to args.length) fuel()
+      val v = FNS(f)(null, args)(0)
+      await_scope(0)
+      r = V("ok", v)
+    } catch { case e: Flow => r = V("err", e.isInstanceOf[Cancel], e) }
+  } else r = V("err", true, new Cancel(CANCEL_TASK))
+  slot.req.put(V(V("done", r), V()))
+}
+final class Sched(val links: Vector[Vector[Any]]) {
+  val slots = ArrayBuffer[Slot]()
+  val chans = mutable.HashMap[String, ChanSt]()
+  var staged = ArrayBuffer[(String, Any)]()
+  val outputs = ArrayBuffer[Any]()
+  var rng: BigInt = BigInt(0x5eed | 1)
+  var tick = 0L
+  var stop: Vector[Any] = null
+  val maxTicks = 100000L
+  val actors = mutable.TreeMap[String, ActorSt]()
+  var mailStaged = ArrayBuffer[(String, String, Any)]()
+  var txns = ArrayBuffer[Vector[(String, String, Any)]]()
+  var txnStaged = ArrayBuffer[Vector[(String, String, Any)]]()
+  var heldLinks = ArrayBuffer[(Int, Int, Any, Any)]()
+  var parted = ArrayBuffer[(Int, Int)]()
+  val restarts = mutable.HashMap[(String, String), Vector[Long]]()
+  val alog = ArrayBuffer[String]()
+  val rlog = ArrayBuffer[(Long, String, String, String, Boolean, Vector[String])]()
+  var rrep: ArrayBuffer[(Long, String, String, String, Boolean, Vector[String])] = restart_inputs()
+  val events: Vector[(Long, Any)] = event_inputs()
+  var fuelS: Long = FUEL_LIMIT.toLong
+  def spawnTask(f: String, args: Vector[Any], tid: String, prio: Int, parent: Any, scope: Int): Unit = {
+    val sl = new Slot(tid, prio, parent, scope)
+    val t = new Thread(null, () => task_body(sl, f, args), "rce-task", 1L << 28)
+    t.setDaemon(true); t.start()
+    slots += sl
+  }
+  def post(sl: Slot, rep: Vector[Any]): Unit = sl.rep.put(V(tick, rep))
+  def take(sl: Slot): Vector[Any] = { val fs = FUEL; val r = sl.req.take(); FUEL = fs; BUD.clear(); r }
+  def order(): Vector[Int] = slots.indices.filter(i => slots(i).st(0) != "done").sortWith { (i, j) =>
+    val (a, b) = (slots(i), slots(j)); if (a.prio != b.prio) a.prio > b.prio else a.id < b.id }.toVector
+  def chan(v: Any): String = v match {
+    case c: Chan => if (!chans.contains(c.id)) chans(c.id) = new ChanSt(c.cap); c.id
+    case _ => null
+  }
+  def space(c: String): Boolean = BigInt(chans(c).buf.length + staged.count(_._1 == c)) < chans(c).cap
+  def takeMsg(c: String): Option[Any] = {
+    val st = chans.getOrElse(c, null)
+    if (st == null) return None
+    if (st.buf.nonEmpty) {
+      val m = st.buf.remove(0)
+      if (st.held.nonEmpty) { val (h, o) = st.held.remove(0); st.buf += h; if (o != null) slots(o.asInstanceOf[Int]).released = true }
+      return Some(m)
+    }
+    if (st.held.nonEmpty) { val (h, o) = st.held.remove(0); if (o != null) slots(o.asInstanceOf[Int]).released = true; return Some(h) }
+    None
+  }
+  def readable(c: String): (Boolean, Boolean) = { val st = chans(c); val has = st.buf.nonEmpty || st.held.nonEmpty; (has, !has && st.closed) }
+  def route(from: Int, target: Any, m: Any): Unit = {
+    val to = target match { case a: Actor => NODE_OF.getOrElse(a.ty, 0); case _ => 0 }
+    val key = (math.min(from, to), math.max(from, to))
+    if (from != to && parted.contains(key)) { heldLinks += ((from, to, target, m)); return }
+    target match {
+      case a: Actor => mailStaged += ((a.id, a.ty, m))
+      case ch: Chan => val c = chan(ch); if (space(c)) staged += ((c, m)) else chans(c).held += ((m, null))
+      case _ =>
+    }
+  }
+  def ensureActor(id: String, ty: String): Unit = if (!actors.contains(id)) actors(id) = new ActorSt(ty, actor_init(ty), NODE_OF.getOrElse(ty, 0))
+  def handler(id: String, msg: Any): (Boolean, Any) = {
+    val st = actors(id)
+    for (h <- ACTOR_HANDLERS.getOrElse(st.ty, Vector())) {
+      OUT.clear(); HSENDS = ArrayBuffer[Any]()
+      var r: Any = null
+      try r = h(vec(st.fields), msg) catch { case e: Flow => HSENDS = null; OUT.clear(); return (false, actor_refusal(e)) }
+      val sends = HSENDS.toVector; HSENDS = null
+      if (r != null) { val outs = OUT.toVector; OUT.clear(); return (true, V(r, outs, sends)) }
+    }
+    (true, null)
+  }
+  def onCrash(id: String, reason: String): Unit = {
+    // restart as input (C.11.11)
+    alog += "Refused(" + reason + ")"
+    val ty = actors(id).ty
+    val sv = SUPERVISORS.getOrElse(ty, null)
+    if (sv == null) return
+    val sup = sv(0).toString; val strat = sv(1).toString; val tys = vec(sv(2)).map(_.toString); val child = sv(3).toString
+    val bound = sv(4) match { case b: BigInt => b.toInt; case i: Int => i; case x => x.toString.toInt }
+    var dec: (Long, String, String, String, Boolean, Vector[String]) = null
+    if (rrep != null) {
+      if (rrep.nonEmpty && !SUP_TREE.contains(rrep(0)._2 + "/" + rrep(0)._3)) { stop = V("refused", "trap: upgrade removed supervisor position " + rrep(0)._2 + "/" + rrep(0)._3); return }
+      if (rrep.isEmpty || rrep(0)._4 != id || rrep(0)._2 != sup) { stop = V("refused", "replay diverged"); return }
+      dec = rrep.remove(0)
+    } else {
+      val h = restarts.getOrElse((sup, child), Vector()).filter(t => RESTART_WINDOW == 0 || tick - t < RESTART_WINDOW) :+ tick
+      restarts((sup, child)) = h
+      val stp = h.length > bound
+      val pos = math.max(tys.indexOf(ty), 0)
+      val reset = if (stp) Vector() else actors.toVector.filter { case (aid, a) =>
+        if (strat == "one_for_all") tys.contains(a.ty) else if (strat == "rest_for_one") tys.contains(a.ty) && tys.indexOf(a.ty) >= pos else aid == id
+      }.map(_._1)
+      dec = (tick, sup, child, id, stp, reset)
+    }
+    rlog += dec
+    val c = rlog.count(r => r._2 == sup && r._3 == child && (RESTART_WINDOW == 0 || tick - r._1 < RESTART_WINDOW))
+    if (dec._5) { alog += "Stopped(supervisor " + sup + ")"; stop = V("refused", "supervisor " + sup + " stopped: child " + child + " restarted more than " + bound + " times"); return }
+    alog += "Restart(" + child + ", " + id + ", " + reason + ", tick " + tick + ", " + c + ")"
+    for (aid <- dec._6) actors.get(aid).foreach(a => a.fields = actor_init(a.ty))
+  }
+  def commitHandler(id: String, r: Any): Unit = {
+    if (r == null) return
+    val v = vec(r)
+    val a = actors(id)
+    a.fields = v(0)
+    outputs ++= vec(v(1))
+    for (p <- vec(v(2))) { val q = vec(p); route(a.node, q(0), q(1)) }
+  }
+  def actorsPhase(): Boolean = {
+    var progress = false
+    val busy = mutable.HashSet[String]()
+    val ts = txns; txns = ArrayBuffer()
+    var brk = false
+    for (txn <- ts if !brk) {
+      progress = true
+      val results = ArrayBuffer[(String, Any)](); var refused: String = null
+      var k = 0
+      while (k < txn.length && refused == null) {
+        val (id, ty, m) = txn(k)
+        ensureActor(id, ty); busy += id
+        val r = handler(id, m)
+        if (!r._1) refused = r._2.toString else results += ((id, r._2))
+        k += 1
+      }
+      if (refused != null) {
+        val failed = results.length
+        for ((t, j) <- txn.zipWithIndex) { if (j == failed) onCrash(t._1, refused) else alog += "Refused(" + refused + ")" }
+        if (stop != null) brk = true
+      } else for ((id, r) <- results) commitHandler(id, r)
+    }
+    if (brk) return progress
+    for (id <- actors.keys.toVector if stop == null) {
+      val a = actors(id)
+      if (!busy.contains(id) && a.mailbox.nonEmpty) {
+        val m = a.mailbox.remove(0); progress = true
+        val r = handler(id, m)
+        if (r._1) commitHandler(id, r._2) else onCrash(id, r._2.toString)
+      }
+    }
+    progress
+  }
+  // HC-6: an event at this tick is logged as Input and staged to every live
+  // actor that handles it, in actor id order; else Unhandled
+  def eventsPhase(): Boolean = {
+    val evs = events.filter(_._1 == tick).map(_._2)
+    for (v <- evs) {
+      val n = v.asInstanceOf[Rec].n
+      alog += "Input(" + show(v) + ")"
+      val to = actors.toVector.filter { case (_, a) => ACTOR_EVENTS.getOrElse(a.ty, Vector()).contains(n) }
+      if (to.isEmpty) alog += "Unhandled(" + show(v) + ")"
+      for ((id, a) <- to) mailStaged += ((id, a.ty, v))
+    }
+    evs.nonEmpty
+  }
+  def linksPhase(): Boolean = {
+    var any = false
+    for (e <- links if toL(e(0)) == tick) {
+      val x = NODE_NAMES.indexOf(e(2)); val y = NODE_NAMES.indexOf(e(3))
+      if (x >= 0 && y >= 0) {
+        any = true
+        val key = (math.min(x, y), math.max(x, y))
+        if (e(1) == true) { if (!parted.contains(key)) parted += key }
+        else {
+          parted = parted.filter(_ != key)
+          val held = heldLinks; heldLinks = ArrayBuffer()
+          for (h <- held) { if ((math.min(h._1, h._2), math.max(h._1, h._2)) == key) route(h._1, h._3, h._4) else heldLinks += h }
+        }
+      }
+    }
+    any
+  }
+  def failedValue(i: Int): Any = {
+    val r = slots(i).result
+    new Rec("TaskFailed", Vector(("task", slots(i).id), ("reason", if (r != null && r(0) == "err") r(1) else "")))
+  }
+  def pickSelect(arms: Vector[Any], key: Vector[Any], nondet: Boolean): Int = {
+    val ready = ArrayBuffer[Int]()
+    for ((a0, k) <- arms.zipWithIndex) {
+      val a = vec(a0)
+      var ok = false
+      if (a(0) == "recv") { val c = chan(a(1)); if (c != null) { val (has, closed) = readable(c); val md = toL(a(2)); ok = (has && md != 2L) || (closed && md != 1L) } }
+      else if (a(0) == "send") { val c = chan(a(1)); if (c != null) ok = space(c) && !chans(c).closed }
+      if (ok) ready += k
+    }
+    if (ready.isEmpty) return -1
+    if (!nondet) {
+      val n = arms.length; val st = (toL(key(1)) % n).toInt
+      for (j <- 0 until n) if (ready.contains((st + j) % n)) return (st + j) % n
+    }
+    val M = (BigInt(1) << 64) - 1
+    rng ^= (rng << 13) & M; rng ^= rng >> 7; rng ^= (rng << 17) & M
+    ready((rng % ready.length).toInt)
+  }
+  def handle(i: Int, req: Vector[Any]): Vector[Any] = {
+    val op = vec(req(0)); val dl = vec(req(1))
+    val sl = slots(i)
+    for (d0 <- dl) {
+      val d = vec(d0)
+      if (tick > toL(d(1))) {
+        if (sl.holding != null) { val c = sl.holding; sl.holding = null; chans.get(c).foreach(st => st.held.filterInPlace(_._2 != i)) }
+        sl.released = false; sl.since = 0
+        return V("cancel", d(0))
+      }
+    }
+    if (sl.cancel) return V("cancel", CANCEL_TASK)
+    op(0) match {
+      case "emit" => outputs += op(1); V("val", UNIT)
+      case "send" =>
+        val target = op(1); val v = op(2)
+        if (target.isInstanceOf[Actor]) { route(0, target, v); return V("val", UNIT) }
+        val c = chan(target)
+        if (c == null) return null
+        if (sl.holding != null) { if (sl.released) { sl.released = false; sl.holding = null; return V("val", UNIT) }; return null }
+        if (chans(c).closed) { stop = V("refused", "trap: send on a closed channel"); return V("cancel", CANCEL_TASK) }
+        if (space(c)) { staged += ((c, v)); return V("val", UNIT) }
+        chans(c).held += ((v, i)); sl.holding = c
+        null
+      case "recv" =>
+        val c = chan(op(1))
+        if (c == null) return null
+        val (has, closed) = readable(c)
+        if (has) V("val", new Opt(takeMsg(c).get)) else if (closed) V("val", NONE) else null
+      case "close" => val c = chan(op(1)); if (c == null) null else { chans(c).closed = true; V("val", UNIT) }
+      case "select" =>
+        val arms = vec(op(1)); val key = vec(op(2)); val nondet = op(3) == true
+        val a = pickSelect(arms, key, nondet)
+        if (a >= 0) {
+          sl.since = 0
+          val arm = vec(arms(a))
+          if (arm(0) == "recv") { val m = takeMsg(chan(arm(1))); return V("arm", a, m.map(x => new Opt(x)).getOrElse(NONE)) }
+          if (arm(0) == "send") { staged += ((chan(arm(1)), arm(2))); return V("arm", a, null) }
+          return V("arm", a, null)
+        }
+        val d = arms.indexWhere(x => vec(x)(0) == "default")
+        if (d >= 0) return V("arm", d, null)
+        val j = arms.indexWhere(x => vec(x)(0) == "after")
+        if (j >= 0) {
+          if (sl.since == 0) sl.since = tick
+          if (tick - sl.since >= toL(vec(arms(j))(1))) { sl.since = 0; return V("arm", j, null) }
+        }
+        null
+      case "spawn" => V("spawned", hid("spawn|" + sl.id + "|" + op(5)))
+      case "join" =>
+        val j = slots.indexWhere(_.id == op(1))
+        if (j < 0 || slots(j).st(0) != "done") return null
+        slots(j).joined = true
+        val r = slots(j).result
+        V("val", if (r(0) == "ok") r(1) else new Err(failedValue(j)))
+      case "await" =>
+        val kids = slots.indices.filter(x => slots(x).parent == i && slots(x).scope == op(1))
+        if (kids.exists(x => slots(x).st(0) != "done")) return null
+        for (x <- kids) if (slots(x).result(0) == "err" && !slots(x).joined) { slots(x).joined = true; return V("failed", failedValue(x)) }
+        V("val", UNIT)
+      case "atomic" =>
+        val sends = vec(op(1)).map(vec)
+        val cs = sends.map(p => chan(p(0))).filter(_ != null)
+        for (c <- cs) {
+          val need = cs.count(_ == c); val st = chans(c); val stg = staged.count(_._1 == c)
+          if (st.closed || BigInt(st.buf.length + stg + need) > st.cap) return null
+        }
+        val txn = ArrayBuffer[(String, String, Any)]()
+        for (p <- sends) p(0) match { case a: Actor => txn += ((a.id, a.ty, p(1))); case t => staged += ((chan(t), p(1))) }
+        if (txn.nonEmpty) txnStaged += txn.toVector
+        V("val", UNIT)
+      case _ => null
+    }
+  }
+  def finishTask(i: Int, r: Vector[Any]): Vector[Any] = {
+    val res = if (r(0) == "ok") r else if (r(1) == true) V("err", "cancelled") else V("err", why(r(2).asInstanceOf[Throwable]))
+    val failed = r(0) == "err" && r(1) != true
+    val sl = slots(i); sl.result = res
+    if (i == 0) { if (res(0) == "err") return V("refused", res(1)) }
+    else if (failed) for ((t, k) <- slots.zipWithIndex) if (k != i && t.parent == sl.parent && t.scope == sl.scope) t.cancel = true
+    for (t <- slots) if (t.parent == i) t.cancel = true
+    null
+  }
+  def run(): Vector[Any] = {
+    if (stop != null) return stop
+    while (true) {
+      tick += 1
+      if (tick > maxTicks) return V("refused", "trap: tick limit")
+      var progress = linksPhase()
+      progress = eventsPhase() || progress
+      val ord = order()
+      val moved = ArrayBuffer[Int]()
+      for (i <- ord) { val sl = slots(i); if (sl.st(0) == "ready") { val rp = vec(sl.st(1)); sl.st = V("done"); post(sl, rp); moved += i; slots(i).st = V("pending", take(sl)) } }
+      if (moved.nonEmpty) progress = true
+      progress = actorsPhase() || progress
+      if (stop != null) return stop
+      for (i <- ord) {
+        val sl = slots(i)
+        if (sl.st(0) == "pending") {
+          val req = vec(sl.st(1)); sl.st = V("done")
+          val op = vec(req(0))
+          if (op(0) == "done") { progress = true; val o = finishTask(i, vec(op(1))); if (o != null) return o }
+          else {
+            val rp = handle(i, req)
+            if (stop != null) return stop
+            if (rp == null) sl.st = V("pending", req)
+            else {
+              progress = true
+              if (op(0) == "spawn" && rp(0) == "spawned") {
+                val f = op(1).toString
+                if (!FNS.contains(f)) return V("refused", "trap: no task function " + f)
+                spawnTask(f, vec(op(2)), rp(1).toString, toL(op(3)).toInt, i, toL(op(6)).toInt)
+              }
+              sl.st = V("ready", rp)
+            }
+          }
+        }
+      }
+      for ((c, m) <- staged) chans(c).buf += m
+      staged = ArrayBuffer()
+      for ((id, ty, m) <- mailStaged) { ensureActor(id, ty); actors(id).mailbox += m }
+      mailStaged = ArrayBuffer()
+      txns ++= txnStaged; txnStaged = ArrayBuffer()
+      val allDone = slots.forall(_.st(0) == "done")
+      val idle = actors.values.forall(_.mailbox.isEmpty) && txns.isEmpty && mailStaged.isEmpty
+      val fev = events.exists(_._1 > tick)
+      val future = links.exists(e => toL(e(0)) > tick) || fev
+      if (allDone && idle && !fev && (heldLinks.isEmpty || !future)) return V("done")
+      if (!progress && idle && !future) {
+        val timers = slots.exists { s => s.st(0) == "pending" && { val rq = vec(s.st(1)); val o = vec(rq(0)); vec(rq(1)).nonEmpty || (o(0) == "select" && vec(o(1)).exists(a => vec(a)(0) == "after")) } }
+        if (!timers) return V("deadlock")
+      }
+    }
+    null
+  }
+}
+def restart_inputs(): ArrayBuffer[(Long, String, String, String, Boolean, Vector[String])] = {
+  // logged restart inputs (C.11.11): --restart=TICK|SUP|CHILD|ID|STOP|RESET,...
+  val v = ArrayBuffer[(Long, String, String, String, Boolean, Vector[String])]()
+  for (a <- ARGS if a.startsWith("--restart=")) {
+    val p = a.substring(10).split("\\|", -1)
+    v += ((p(0).toLong, p(1), p(2), p(3), p(4) == "1", (if (p.length > 5) p(5) else "").split(",").filter(_.nonEmpty).toVector))
+  }
+  if (v.isEmpty && !ARGS.contains("--restart-replay")) null else v
+}
+def restart_tree_arg(): Vector[String] = ARGS.find(_.startsWith("--restart-tree=")).map(_.substring(15).split(",").filter(_.nonEmpty).toVector).orNull
+def group_(v: Vector[String]): Vector[(String, Vector[String])] = {
+  val g = ArrayBuffer[(String, Vector[String])]()
+  for (p <- v) {
+    val i = p.indexOf('/'); val sup = if (i < 0) p else p.substring(0, i); val c = if (i < 0) "" else p.substring(i + 1)
+    if (g.nonEmpty && g.last._1 == sup) g(g.length - 1) = (sup, g.last._2 :+ c) else g += ((sup, Vector(c)))
+  }
+  g.toVector
+}
+// migration rule (C.11.11): every recorded position keeps its supervisor
+// and child; new ones only after the recorded ones (conc::tree_migrates)
+def tree_migrates(rec: Vector[String], cur: Vector[String]): String = {
+  val r = group_(rec); val c = group_(cur)
+  for ((g, k) <- r.zipWithIndex; (kid, j) <- g._2.zipWithIndex) {
+    if (!(k < c.length && c(k)._1 == g._1 && j < c(k)._2.length && c(k)._2(j) == kid)) {
+      val p = g._1 + "/" + kid
+      return (if (cur.contains(p)) "trap: upgrade reordered supervisor position " else "trap: upgrade removed supervisor position ") + p
+    }
+  }
+  null
+}
+val INT_TYS = Set("i8", "i16", "i32", "i64", "i128", "u8", "u16", "u32", "u64", "usize")
+// program events (HC-6): --event=TICK|Name|field=value,...
+def event_inputs(): Vector[(Long, Any)] = {
+  val v = ArrayBuffer[(Long, Any)]()
+  for (a <- ARGS if a.startsWith("--event=")) {
+    val r = a.substring(8)
+    def bad(m: String): Nothing = { System.err.println("bad --event " + r + ": " + m); System.err.flush(); sys.exit(2) }
+    val p = r.split("\\|", 3)
+    val tick = p(0).toLongOption.getOrElse(bad("tick"))
+    if (p.length < 2) bad("name")
+    val name = p(1)
+    val decl = EVENT_FIELDS.getOrElse(name, bad("no event " + name))
+    val gv = (if (p.length > 2) p(2) else "").split(",").filter(_.contains("=")).map { y => val e = y.indexOf('='); (y.substring(0, e), y.substring(e + 1)) }.toMap
+    val fs = decl.map { case (f, t) =>
+      val x: String = gv.getOrElse(f, bad("missing field " + f))
+      val value: Any = if (t == "bool") x == "true" else if (t == "text") x
+        else if (INT_TYS.contains(t)) I(scala.util.Try(BigInt(x)).getOrElse(bad("field " + f)), t)
+        else bad("field " + f + " has type " + t + ", not an integer, bool or text")
+      (f, value)
+    }
+    v += ((tick, new Rec(name, fs)))
+  }
+  v.toVector
+}
+def run_tasks(entry: String): Unit = {
+  val links = ARGS.filter(_.startsWith("--link=")).map { a => val p = a.substring(7).split(","); V(p(0).toLong, p(1) == "partition", p(2), p(3)) }.toVector
+  val s = new Sched(links)
+  val rec = restart_tree_arg()
+  if (s.rrep != null && rec != null) { val e = tree_migrates(rec, SUP_TREE); if (e != null) s.stop = V("refused", e) }
+  s.spawnTask(entry, Vector(), hid("main"), 0, null, 0)
+  val o = s.run()
+  for (sl <- s.slots) {
+    while (sl.st(0) != "done") {
+      if (sl.st(0) == "pending" && vec(vec(sl.st(1))(0))(0) == "done") sl.st = V("done")
+      else {
+        sl.rep.put(V(s.tick, V("cancel", CANCEL_TASK)))
+        val r = sl.req.take()
+        sl.st = if (vec(r(0))(0) == "done") V("done") else V("pending", r)
+      }
+    }
+  }
+  val out = new java.io.PrintStream(new java.io.FileOutputStream(java.io.FileDescriptor.out), false, "UTF-8")
+  for (v <- s.outputs) { out.print("emit " + show(v)); out.print("\n") }
+  if (ARGS.contains("--actor-log")) for (e <- s.alog) { out.print("actorlog " + e); out.print("\n") }
+  if (ARGS.contains("--restart-log")) {
+    out.print("restartlog v1 tree=" + SUP_TREE.mkString(",") + "\n")
+    for (r <- s.rlog) out.print("restartin " + r._1 + "|" + r._2 + "|" + r._3 + "|" + r._4 + "|" + (if (r._5) 1 else 0) + "|" + r._6.mkString(",") + "\n")
+  }
+  out.print(if (o(0) == "done") "outcome Done\n" else if (o(0) == "deadlock") "outcome Deadlock\n" else "outcome Refused: " + o(1) + "\n")
+  out.flush()
+}
 def atOr(x: Any, i: Int, d: Any): Any = x match {
   case v: Vector[?] => if (i < v.length) v(i) else d
   case _ => d
+}
+
+// N9: a list or text built by any operation has at most 1,000,000 elements (code points)
+def size_ok(v: Any): Any = v match {
+  case l: Lst if l.xs.length > 1000000 => trap("size limit")
+  case s: String if s.length > 1000000 && s.codePointCount(0, s.length) > 1000000 => trap("size limit")
+  case _ => v
 }

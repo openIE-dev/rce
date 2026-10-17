@@ -6,7 +6,7 @@
 //!   also run the branches in a permuted order or on threads, which by T16
 //!   gives the same result, and is used to test T16);
 //! * `for ... par` with the fixed reduction tree T(n) of C.5.2;
-//! * workgroups and barriers (C.11.2), `pscan` (not yet in Appendix C), LVars (C.11.8)
+//! * workgroups and barriers (C.11.2), `pscan` (C.11.6), LVars (C.11.8)
 //!   and the built-in `Merge` instances (C.11.5);
 //! * the tick runtime of 6.8 for `fn main`: tasks on threads that move one
 //!   communication step per tick, channels with held sends, `select` with
@@ -20,6 +20,16 @@ use crate::ast::*;
 use crate::interp::{Flow, Interp, R, V, chk, trap};
 use std::collections::{BTreeMap, HashMap, VecDeque};
 use std::sync::{Arc, Condvar, Mutex, mpsc};
+
+/// The split of the fixed reduction tree (C.8) for m >= 2 leaves: the left
+/// part is the largest power of two below m, so every left subtree is a
+/// complete binary tree. One definition for the reference evaluator, the
+/// placement executor (`host` re-exports it) and, by the same formula,
+/// every runtime. It lives here so the wasm checker needs no host module.
+pub fn tree_split(m: usize) -> usize {
+    debug_assert!(m >= 2);
+    1usize << (m - 1).ilog2()
+}
 
 // ---------------------------------------------------------------- costs (C.6.4)
 
@@ -51,7 +61,7 @@ pub fn op_cost(op: &str, x: &V) -> i128 {
 pub fn size_of(v: &V) -> i128 {
     match v {
         V::Text(s) => s.len() as i128,
-        V::List(xs) => xs.len() as i128,
+        V::List(xs) | V::Set(xs) => xs.len() as i128,
         V::Map(m) => m.len() as i128,
         _ => 0,
     }
@@ -73,14 +83,11 @@ pub fn method_work(recv: &V, m: &str, args: &[V]) -> i128 {
     let kind = match recv {
         V::Text(_) => "text",
         V::List(_) => "list",
+        V::Set(_) => "set",
         V::Map(_) => "map",
         _ => "",
     };
-    // a Set[τ] value is a list; its methods are the set row of C.6.4
-    let class = match crate::specread::work(kind, m) {
-        crate::specread::Work::Constant if kind == "list" => crate::specread::work("set", m),
-        c => c,
-    };
+    let class = crate::specread::work(kind, m);
     let lin = class == crate::specread::Work::Linear;
     if lin {
         n.saturating_add(k)
@@ -122,6 +129,9 @@ pub struct TaskCx {
     pub next_frame: u64,
     pub sel_k: HashMap<usize, u64>,
     pub created: u64,
+    /// per-key ordinals of named creations (actors by supervisor position,
+    /// spawns by callee): the stable path of C.11.11
+    pub ords: HashMap<String, u64>,
     pub scopes: Vec<u64>,
     pub atomic: Option<Vec<(V, V)>>,
     pub handler_sends: Option<Vec<(V, V)>>,
@@ -209,6 +219,94 @@ impl LCell {
 }
 
 /// SHA-256 based id of 6.6 (first 16 hex digits), from a name-free key.
+/// Stable paths (C.11.11). An id names where an instance sits in the
+/// program's structure, never a source line or a count of unrelated
+/// creations, so an edit that keeps the structure keeps the ids and a
+/// restart log replays across it. The key is name-free (6.6, T7): a
+/// supervised actor by its tree position `i.j` (supervisor i in
+/// declaration order, its child j), the creating task and its ordinal
+/// there; an unsupervised actor by `-`, the task and its ordinal among
+/// that task's unsupervised creations; a task by its parent and its
+/// ordinal among the parent's spawns. Declared names enter only the
+/// schema of a restart log (`sup_tree`).
+pub fn actor_pos(m: &Module, ty: &str) -> String {
+    let mut i = 0;
+    for it in &m.items {
+        if let Item::Supervisor { children, .. } = it {
+            if let Some(j) = children.iter().position(|c| c.ty == ty) {
+                return format!("{i}.{j}");
+            }
+            i += 1;
+        }
+    }
+    "-".to_string()
+}
+
+pub fn ord_next(ords: &mut HashMap<String, u64>, key: &str) -> u64 {
+    let k = ords.entry(key.to_string()).or_insert(0);
+    *k += 1;
+    *k - 1
+}
+
+pub fn stable_actor_id(pos: &str, task: &str, idx: u64) -> String {
+    hid(&format!("actor|{pos}|{task}|{idx}"))
+}
+
+pub fn stable_spawn_id(parent: &str, idx: u64) -> String {
+    hid(&format!("spawn|{parent}|{idx}"))
+}
+
+/// The schema of a restart log (C.11.11): every supervisor position by its
+/// declared names, `Sup/child`, in declaration order.
+pub fn sup_tree(m: &Module) -> Vec<String> {
+    let mut v = vec![];
+    for i in &m.items {
+        if let Item::Supervisor { name, children, .. } = i {
+            for c in children {
+                v.push(format!("{name}/{}", c.name));
+            }
+        }
+    }
+    v
+}
+
+/// Migration rule of a restart log (C.11.11). Ids are keyed by tree
+/// position, so a log replays on a program in which every recorded
+/// position still holds the same declared supervisor and child: the
+/// recorded supervisors are the first ones, in order, and each keeps its
+/// recorded children as the first ones, in order. New children may follow
+/// a supervisor's recorded ones and new supervisors may follow the
+/// recorded ones. Otherwise the first recorded position that is gone
+/// (`removed`) or now sits elsewhere (`reordered`).
+pub fn tree_migrates(recorded: &[String], current: &[String]) -> Result<(), String> {
+    let group = |v: &[String]| {
+        let mut g: Vec<(String, Vec<String>)> = vec![];
+        for p in v {
+            let (s, c) = p.split_once('/').unwrap_or((p.as_str(), ""));
+            match g.last_mut() {
+                Some((x, cs)) if x == s => cs.push(c.to_string()),
+                _ => g.push((s.to_string(), vec![c.to_string()])),
+            }
+        }
+        g
+    };
+    let (r, c) = (group(recorded), group(current));
+    for (k, (sup, kids)) in r.iter().enumerate() {
+        for (j, kid) in kids.iter().enumerate() {
+            let same = c.get(k).is_some_and(|(s, cs)| s == sup && cs.get(j) == Some(kid));
+            if !same {
+                let p = format!("{sup}/{kid}");
+                return Err(if current.contains(&p) {
+                    format!("trap: upgrade reordered supervisor position {p}")
+                } else {
+                    format!("trap: upgrade removed supervisor position {p}")
+                });
+            }
+        }
+    }
+    Ok(())
+}
+
 pub fn hid(key: &str) -> String {
     use sha2::{Digest, Sha256};
     let h = Sha256::digest(key.as_bytes());
@@ -221,10 +319,11 @@ fn rank(v: &V) -> u8 {
     match v {
         V::Unit | V::Opt(None) => 0,
         V::Bool(_) => 1,
-        V::Int(..) | V::F(_) | V::F32(_) => 2,
-        V::Text(_) => 3,
-        V::List(_) | V::Tuple(_) => 4,
-        _ => 5,
+        V::Int(..) => 2,
+        V::F(_) | V::F32(_) => 3,
+        V::Text(_) => 4,
+        V::List(_) | V::Set(_) | V::Tuple(_) => 5,
+        _ => 6,
     }
 }
 fn num(v: &V) -> f64 {
@@ -244,9 +343,11 @@ pub fn canon_cmp(a: &V, b: &V) -> std::cmp::Ordering {
     match (a, b) {
         (V::Bool(x), V::Bool(y)) => x.cmp(y),
         (V::Int(x, _), V::Int(y, _)) => x.cmp(y),
-        (x, y) if ra == 2 => num(x).partial_cmp(&num(y)).unwrap_or(Equal),
+        // IEEE 754 totalOrder (-0.0 < 0.0), ints and floats never equal:
+        // the order agrees with state identity (6.1)
+        (x, y) if ra == 3 => num(x).total_cmp(&num(y)),
         (V::Text(x), V::Text(y)) => x.cmp(y),
-        (V::List(x) | V::Tuple(x), V::List(y) | V::Tuple(y)) => {
+        (V::List(x) | V::Set(x) | V::Tuple(x), V::List(y) | V::Set(y) | V::Tuple(y)) => {
             for (p, q) in x.iter().zip(y) {
                 let c = canon_cmp(p, q);
                 if c != Equal {
@@ -272,6 +373,13 @@ pub fn canon_cmp(a: &V, b: &V) -> std::cmp::Ordering {
 /// The built-in `Merge` instances of C.11.5: integers under `max`, `bool`
 /// under `or`, lists and sets under union (kept sorted, no duplicates),
 /// maps pointwise, tuples and records componentwise, `none` as bottom.
+/// `set_of(xs)`: the elements in canonical order without duplicates.
+pub fn set_of(mut xs: Vec<V>) -> V {
+    xs.sort_by(canon_cmp);
+    xs.dedup_by(|p, q| canon_cmp(p, q).is_eq());
+    V::Set(xs.into())
+}
+
 pub fn merge_builtin(a: &V, b: &V) -> R<V> {
     Ok(match (a, b) {
         (V::Int(x, t), V::Int(y, u)) => V::Int(*x.max(y), if *t == "lit" { u } else { t }),
@@ -280,12 +388,18 @@ pub fn merge_builtin(a: &V, b: &V) -> R<V> {
             let mut v: Vec<V> = xs.iter().chain(ys).cloned().collect();
             v.sort_by(canon_cmp);
             v.dedup_by(|p, q| canon_cmp(p, q).is_eq());
-            V::List(v)
+            V::List(v.into())
+        }
+        (V::Set(xs), V::Set(ys)) => {
+            let mut v: Vec<V> = xs.iter().chain(ys).cloned().collect();
+            v.sort_by(canon_cmp);
+            v.dedup_by(|p, q| canon_cmp(p, q).is_eq());
+            V::Set(v.into())
         }
         (V::Map(xs), V::Map(ys)) => {
             let mut out = xs.clone();
             for (k, v) in ys {
-                if let Some(e) = out.iter_mut().find(|(k2, _)| k2 == k) {
+                if let Some(e) = out.iter_mut().find(|(k2, _)| canon_cmp(k2, k).is_eq()) {
                     e.1 = merge_builtin(&e.1, v)?;
                 } else {
                     out.push((k.clone(), v.clone()));
@@ -822,13 +936,14 @@ impl<'a> Interp<'a> {
         })
     }
 
-    /// The fixed balanced tree T of C.5.2 (h = ceil(m / 2)).
+    /// The fixed tree T of C.8: the left part is the largest power of two
+    /// below m (`host::tree_split`), shared with the placement executor.
     pub fn tree(&mut self, sym: &str, c: &[V], id: &V) -> R<V> {
         match c.len() {
             0 => Ok(id.clone()),
             1 => Ok(c[0].clone()),
             m => {
-                let h = m.div_ceil(2);
+                let h = tree_split(m);
                 let l = self.tree(sym, &c[..h], id)?;
                 let r = self.tree(sym, &c[h..], id)?;
                 self.combine(sym, l, r)
@@ -929,7 +1044,7 @@ impl<'a> Interp<'a> {
         Ok(())
     }
 
-    // ---- pscan (C.11.2): Blelloch up-sweep / down-sweep over the tree of C.5.2
+    // ---- pscan (C.11.6): Blelloch up-sweep / down-sweep over the tree of C.5.2
     fn pscan(&mut self, xs: &[V], f: &V, e: &V, inclusive: bool) -> R<V> {
         fn up(
             it: &mut Interp<'_>,
@@ -942,7 +1057,7 @@ impl<'a> Interp<'a> {
             let v = if hi - lo == 1 {
                 xs[lo].clone()
             } else {
-                let h = lo + (hi - lo).div_ceil(2);
+                let h = lo + tree_split(hi - lo);
                 let l = up(it, xs, lo, h, f, sums)?;
                 let r = up(it, xs, h, hi, f, sums)?;
                 it.apply(f, vec![l, r])?
@@ -962,7 +1077,7 @@ impl<'a> Interp<'a> {
                 out[lo] = off;
                 return Ok(());
             }
-            let h = lo + (hi - lo).div_ceil(2);
+            let h = lo + tree_split(hi - lo);
             let ls = sums[&(lo, h)].clone();
             let roff = match &off {
                 None => ls,
@@ -973,7 +1088,7 @@ impl<'a> Interp<'a> {
         }
         let n = xs.len();
         if n == 0 {
-            return Ok(V::List(vec![]));
+            return Ok(V::List(vec![].into()));
         }
         let mut sums = HashMap::new();
         up(self, xs, 0, n, f, &mut sums)?;
@@ -990,7 +1105,7 @@ impl<'a> Interp<'a> {
                 o.unwrap_or_else(|| e.clone())
             });
         }
-        Ok(V::List(r))
+        Ok(V::List(r.into()))
     }
 
     /// merge through a user `impl Merge` or the built-in instances (C.11.5)
@@ -1258,8 +1373,8 @@ impl<'a> Interp<'a> {
         };
         let vals: Vec<V> = args.iter().map(|a| self.eval(&a.e)).collect::<R<_>>()?;
         self.charge(C_SPAWN)?;
-        let idx = self.cx.created;
         self.cx.created += 1;
+        let idx = ord_next(&mut self.cx.ords, "spawn");
         let scope = self.cx.scopes.last().copied().unwrap_or(0);
         match self.comm(Op::Spawn {
             f: fname.clone(),
@@ -1369,7 +1484,7 @@ impl<'a> Interp<'a> {
             return Ok(V::Tuple(vec![
                 V::Session(a.clone(), b.clone(), n),
                 V::Session(b, a, n),
-            ]));
+            ].into()));
         }
         Ok(V::Chan(fresh(self), n))
     }
@@ -1378,12 +1493,11 @@ impl<'a> Interp<'a> {
         if self.cx.link.is_none() {
             return trap(format!("cannot call {ty} at comptime"));
         }
-        let idx = self.cx.created;
+        let _ = line;
         self.cx.created += 1;
-        Ok(V::Actor(
-            hid(&format!("actor|{line}|{}|{idx}", self.cx.id)),
-            ty.to_string(),
-        ))
+        let pos = actor_pos(self.m, ty);
+        let idx = ord_next(&mut self.cx.ords, &format!("actor|{pos}"));
+        Ok(V::Actor(stable_actor_id(&pos, &self.cx.id, idx), ty.to_string()))
     }
 
     /// Call `fd` on argument values (task bodies, tests).
@@ -1422,6 +1536,18 @@ pub struct RunCfg {
     /// restarts`). A restart is an input (C.11.11): replay applies the
     /// logged decision and does not consult the supervisor's policy
     pub restarts: Option<Vec<RestartIn>>,
+    /// schema of the replayed log (C.11.11): the supervisor tree it was
+    /// recorded against (`RunResult.tree`). A log whose tree does not
+    /// migrate to this program's tree (`tree_migrates`) refuses before any
+    /// step instead of misreplaying. `None` is a log without a schema
+    /// header: each replayed decision's position is still checked.
+    pub restart_tree: Option<Vec<String>>,
+    /// program events fed to the running task (HC-6): (tick, event value).
+    /// At its tick an event is logged as `Input(..)` and delivered to every
+    /// live actor whose type has an `on` handler for it, in actor-id order;
+    /// with no such actor it is logged as `Unhandled(..)`, never dropped
+    /// silently.
+    pub events: Vec<(u64, V)>,
 }
 
 /// A supervision decision, logged as an input of the run (C.11.11): at a
@@ -1445,6 +1571,8 @@ impl Default for RunCfg {
             max_ticks: 100_000,
             par_mode: ParMode::Seq,
             restarts: None,
+            restart_tree: None,
+            events: vec![],
         }
     }
 }
@@ -1475,6 +1603,9 @@ pub struct RunResult {
     pub choices: Vec<usize>,
     /// the supervision decisions taken, in order: the run's restart inputs
     pub restarts: Vec<RestartIn>,
+    /// the supervisor tree of the program (`sup_tree`): the schema a
+    /// restart log of this run is recorded against
+    pub tree: Vec<String>,
     pub ticks: u64,
     pub nodes: Vec<String>,
 }
@@ -1594,7 +1725,10 @@ impl<'a> Sched<'a> {
             restarts: HashMap::new(),
             restart_log: vec![],
             restart_replay: cfg.restarts.clone().map(|v| v.into()),
-            stop: None,
+            stop: match (&cfg.restarts, &cfg.restart_tree) {
+                (Some(_), Some(rec)) => tree_migrates(rec, &sup_tree(m)).err().map(Outcome::Refused),
+                _ => None,
+            },
         }
     }
 
@@ -1782,8 +1916,8 @@ impl<'a> Sched<'a> {
         V::Rec(
             "TaskFailed".into(),
             vec![
-                ("task".into(), V::Text(self.slots[i].id.clone())),
-                ("reason".into(), V::Text(reason)),
+                ("task".into(), V::Text(self.slots[i].id.clone().into())),
+                ("reason".into(), V::Text(reason.into())),
             ],
         )
     }
@@ -1956,9 +2090,9 @@ impl<'a> Sched<'a> {
                 }
                 None
             }
-            Op::Spawn { site, idx, .. } => {
+            Op::Spawn { idx, .. } => {
                 // the thread itself is started by `run` (it needs the thread scope)
-                let id = hid(&format!("spawn|{site}|{}|{idx}", self.slots[i].id));
+                let id = stable_spawn_id(&self.slots[i].id, *idx);
                 Some(Rep::Spawned(id))
             }
             Op::Join(id) => {
@@ -2138,6 +2272,13 @@ impl<'a> Sched<'a> {
         let tick = self.tick;
         let dec = if let Some(q) = self.restart_replay.as_mut() {
             match q.pop_front() {
+                Some(r) if !sup_tree(self.m).contains(&format!("{}/{}", r.sup, r.child)) => {
+                    self.stop = Some(Outcome::Refused(format!(
+                        "trap: upgrade removed supervisor position {}/{}",
+                        r.sup, r.child
+                    )));
+                    return;
+                }
                 Some(r) if r.id == id && r.sup == sup => r,
                 _ => {
                     self.stop = Some(Outcome::Refused("replay diverged".into()));
@@ -2302,6 +2443,47 @@ impl<'a> Sched<'a> {
         self.txns.extend(t);
     }
 
+    /// HC-6: program events at this tick enter D as `Input(..)` and reach
+    /// the actors that handle them. An input event has no addressee, so its
+    /// receivers are the program's handlers of it, as the steps `on E` of a
+    /// Form are; the order among receivers is the actor id order (6.6).
+    fn events_phase(&mut self) -> bool {
+        let evs: Vec<V> = self.cfg.events.iter().filter(|e| e.0 == self.tick).map(|e| e.1.clone()).collect();
+        let mut any = false;
+        for v in evs {
+            any = true;
+            let name = match &v {
+                V::Rec(n, _) => n.clone(),
+                _ => String::new(),
+            };
+            let entry = self.local(0, format!("Input({})", v.show()));
+            let m = self.m;
+            let handles = |ty: &str| {
+                m.items.iter().any(|i| match i {
+                    Item::Actor { name: an, handlers, .. } if an == ty => handlers.iter().any(|h| match &h.pat {
+                        Pat::Ctor(p, _) | Pat::Path(p) => p.last().is_some_and(|x| *x == name),
+                        _ => false,
+                    }),
+                    _ => false,
+                })
+            };
+            let to: Vec<(String, String)> = self
+                .actors
+                .iter()
+                .filter(|(_, a)| handles(&a.ty))
+                .map(|(id, a)| (id.clone(), a.ty.clone()))
+                .collect();
+            if to.is_empty() {
+                self.local(0, format!("Unhandled({})", v.show()));
+            }
+            for (id, ty) in to {
+                let msg = Msg { v: v.clone(), vc: self.vcs[0].clone(), entry };
+                self.mail_staged.push((id, ty, msg));
+            }
+        }
+        any
+    }
+
     fn links_phase(&mut self) -> bool {
         let mut any = false;
         let evs: Vec<(u64, bool, String, String)> =
@@ -2371,12 +2553,16 @@ impl<'a> Sched<'a> {
     where
         'a: 's,
     {
+        if let Some(o) = self.stop.clone() {
+            return o;
+        }
         loop {
             self.tick += 1;
             if self.tick > self.cfg.max_ticks {
                 return Outcome::Refused("trap: tick limit".into());
             }
             let mut progress = self.links_phase();
+            progress |= self.events_phase();
             let order = self.order();
             // move phase: each task that may move runs, on its own thread and
             // at the same time as the others, to its next communication step
@@ -2444,8 +2630,10 @@ impl<'a> Sched<'a> {
             let actors_idle = self.actors.values().all(|a| a.mailbox.is_empty())
                 && self.txns.is_empty()
                 && self.mail_staged.is_empty();
-            let future_links = self.cfg.links.iter().any(|e| e.0 > self.tick);
-            if all_done && actors_idle && (self.held_links.is_empty() || !future_links) {
+            let future_links = self.cfg.links.iter().any(|e| e.0 > self.tick)
+                || self.cfg.events.iter().any(|e| e.0 > self.tick);
+            let future_events = self.cfg.events.iter().any(|e| e.0 > self.tick);
+            if all_done && actors_idle && !future_events && (self.held_links.is_empty() || !future_links) {
                 return Outcome::Done;
             }
             if !progress && actors_idle {
@@ -2507,6 +2695,7 @@ pub fn run_main(m: &Module, cfg: &RunCfg) -> Result<RunResult, String> {
         log: sch.log,
         choices: sch.choices,
         restarts: sch.restart_log,
+        tree: sup_tree(m),
         ticks: sch.tick,
         nodes: sch.nodes,
     })
@@ -3237,13 +3426,20 @@ pub const LVAR_RULES: &[(&str, Option<&str>, &str)] = &[
     ("store with allocation: no error without freeze", None, "RCE.LVarAlloc.alloc_det_no_err"),
     ("executable semantics: each step is a Step", None, "RCE.LVarAlloc.stepAt_sound"),
     ("executable semantics: each run is a run", None, "RCE.LVarAlloc.exec_sound"),
+    ("executable semantics: every enabled step is taken", None, "RCE.LVarAlloc.stepAt_complete"),
+    ("Set[τ]: the sorted representation is unique", None, "RCE.Canon.set_canon"),
+    ("Map[k, v]: the key-sorted representation is unique", None, "RCE.Canon.map_canon"),
+    ("cmp_canon: a strict total order (rank, IEEE totalOrder floats, lexicographic), Equal iff equal", None, "RCE.ValOrder.lt_total"),
+    ("canonical order of values: transitive", None, "RCE.ValOrder.lt_trans"),
+    ("Set[τ] of values: one sorted representation", None, "RCE.ValOrder.set_canon_val"),
+    ("Map with value keys: one key-sorted representation", None, "RCE.ValOrder.map_canon_val"),
     ("W-CRDT-1 Set.union, Set.inter, Map.merge", None, "RCE.MergeCert.mapS"),
 ];
 
 /// lean/RCE/LVarRules.lean for the table and the given certificates
 pub fn lvar_rules_lean(certs: &[(String, String)]) -> String {
     let mut s = String::from(
-        "/-\nGenerated by checker/tests/lvar_rules.rs from `conc::LVAR_RULES` and the\ncertificates the checker derives for the certified test programs. Do not\nedit: regenerate with RCE_BLESS=1 cargo test --features conc06 --test lvar_rules.\n-/\nimport RCE.LVarStore\nimport RCE.LVarAlloc\nimport RCE.MergeCert\nimport RCE.MergeLaws\n\nnamespace RCE.LVarRules\n\n",
+        "/-\nGenerated by checker/tests/lvar_rules.rs from `conc::LVAR_RULES` and the\ncertificates the checker derives for the certified test programs. Do not\nedit: regenerate with RCE_BLESS=1 cargo test --features conc06 --test lvar_rules.\n-/\nimport RCE.LVarStore\nimport RCE.LVarAlloc\nimport RCE.Canon\nimport RCE.ValOrder\nimport RCE.MergeCert\nimport RCE.MergeLaws\n\nnamespace RCE.LVarRules\n\n",
     );
     for (rule, trap, decl) in LVAR_RULES {
         let t = trap.map(|t| format!(" (trap \"{t}\")")).unwrap_or_default();

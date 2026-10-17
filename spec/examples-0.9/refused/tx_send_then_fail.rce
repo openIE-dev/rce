@@ -1,0 +1,15 @@
+# rce-version: 0.9
+# expect: W-TX-1
+error Boom
+
+fn push(c: chan i64, x: &mut i64) -> i64 ! Boom
+    c <- 1
+    x += 1
+    fail Boom
+
+fn main()
+    let c = chan[i64](1)
+    var n: i64 = 0
+    let v = push(c, &mut n) catch -1
+    emit v.tostr()
+    emit n.tostr()

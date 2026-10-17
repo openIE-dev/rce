@@ -1,0 +1,6 @@
+# rce-version: 0.9
+# expect: W-TY
+fn main()
+    let who = "x"
+    let cmd = Shell.cmd("echo", [who])
+    emit cmd.raw()

@@ -1,0 +1,7 @@
+# rce-version: 0.9
+# expect: W-NAME-3
+fn main()
+    let a = 1
+    if a > 0
+        let a = 2
+        emit a.tostr()

@@ -1,0 +1,10 @@
+# rce-version: 0.9
+fn main()
+    let who = "O'Brien; rm -rf /"
+    let arg = ShellArg.encode(who)
+    let cmd = Shell.cmd("echo", [arg, ShellArg.lit("-n")])
+    emit cmd.raw()
+    let p = Prompt.lit("Summarize: ") + Prompt.encode(who)
+    emit p.raw()
+    emit who.len_bytes()
+    emit who.len_chars()

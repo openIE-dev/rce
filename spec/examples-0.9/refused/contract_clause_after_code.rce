@@ -1,0 +1,9 @@
+# rce-version: 0.9
+# expect: W-CON-2
+fn f(x: i64) -> i64
+    let y = x + 1
+    requires y > 0
+    return y
+
+fn main()
+    emit f(1).tostr()

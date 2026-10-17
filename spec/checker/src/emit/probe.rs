@@ -255,6 +255,7 @@ pub fn with_probes(m: &Module) -> Module {
                         ret: Some(Ty::Path(vec!["__any".into()], vec![])),
                         bound: None,
                         line: 0,
+                        x09: 0,
                     },
                     body: Body::Block(b),
                 }));

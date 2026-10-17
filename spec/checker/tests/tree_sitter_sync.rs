@@ -40,12 +40,16 @@ fn tree_sitter_agrees_with_rust_parser() {
     let mut n_ok = 0;
     for f in &files {
         let src = std::fs::read_to_string(f).unwrap();
-        let d06 = rce_spec_check::parse::declared_version(&src).map(|v| v == Some("0.6"));
+        // the scanner reserves the 0.6 words in a module that declares 0.6 to 0.9
+        let d06 = rce_spec_check::parse::declared_version(&src)
+            .map(|v| matches!(v, Some("0.6" | "0.7" | "0.8" | "0.9")));
         let rust_ok = match (d06, rce_spec_check::parse::lex(&src)) {
             (Ok(d06), Ok(t)) => {
                 let mut p = rce_spec_check::parse::Parser::new(t);
                 p.allow06 = d06;
-                p.module().is_ok()
+                // 0.9 reserves `label`, `release`, `endorse` (F.13)
+                p.v09 = rce_spec_check::parse::declared_version(&src).is_ok_and(|v| v == Some("0.9"));
+                p.module().is_ok() && (!p.v09 || rce_spec_check::v09::stray_words(&p.t, &p.kw_used).is_ok())
             }
             _ => false,
         };

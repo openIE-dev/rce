@@ -1,0 +1,20 @@
+# rce-version: 0.9
+struct Declass
+struct Vouch
+
+label pii by Declass
+label untrusted by Vouch
+
+state Log
+    shown: i64 = 0
+
+event Reveal(code: i64 @ {pii}, approved: bool @ {}, cap: Cap[Declass])
+event RevealChecked(code: i64 @ {pii}, approved: bool, cap: Cap[Declass], vouch: Cap[Vouch])
+
+step Log on Reveal(code: c, approved: ok, cap: _)
+    if ok
+        emit (release c).tostr()
+
+step Log on RevealChecked(code: c, approved: ok, cap: _, vouch: _)
+    if endorse ok
+        emit (release c).tostr()

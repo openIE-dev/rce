@@ -1,0 +1,6 @@
+# rce-version: 0.9
+# expect: W-CAP-3
+extern "C" fn file_len(w: &World, path: &text) -> i64
+
+fn main()
+    emit 0

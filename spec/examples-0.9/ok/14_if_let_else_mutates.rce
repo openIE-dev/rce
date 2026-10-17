@@ -1,0 +1,14 @@
+# rce-version: 0.9
+fn first_even(xs: &[i64]) -> i64?
+    for x in xs
+        if x % 2 == 0
+            return some(x)
+    return none
+
+fn main()
+    var xs = [1, 3]
+    if let some(v) = first_even(&xs)
+        emit v.tostr()
+    else
+        xs.push(4)
+    emit xs.len().tostr()

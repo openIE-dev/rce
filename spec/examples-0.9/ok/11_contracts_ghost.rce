@@ -1,0 +1,21 @@
+# rce-version: 0.9
+ghost fn doubled(x: i64) -> i64 = x * 2
+
+fn withdraw(balance: i64, amount: i64) -> i64
+    requires amount > 0
+    requires amount <= balance
+    ghost let before = balance
+    ensures result == before - amount
+    ensures result >= 0
+    if amount == balance
+        return 0
+    return balance - amount
+
+fn scale(x: i64) -> i64
+    requires x >= 0
+    ensures result == doubled(x)
+    x * 2
+
+fn main()
+    emit withdraw(10, 3).tostr()
+    emit scale(4).tostr()

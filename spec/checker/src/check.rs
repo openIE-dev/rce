@@ -63,6 +63,8 @@ struct Local {
 }
 
 pub struct Checker {
+    /// explicit type arguments of the call being checked, `f[T](x)` (R5)
+    targs: Option<Vec<Ty>>,
     pub types: HashMap<String, TyDef>,
     pub fns: HashMap<String, FnInfo>,
     pub methods: Vec<(String, FnInfo)>,
@@ -98,6 +100,8 @@ pub struct Checker {
     pub v06: bool,
     /// version 0.8 module: indexed values of 5.16 are in scope
     pub v08: bool,
+    /// version 0.9 module (Appendix F, src/v09.rs)
+    pub v09: bool,
     /// structs and kinds that transitively hold a Secret (5.16, W-SEC-1)
     pub secret_structs: HashSet<String>,
     /// functions and impl heads linked from imported modules (src/link.rs)
@@ -156,6 +160,7 @@ impl Default for Checker {
 impl Checker {
     pub fn new() -> Self {
         Checker {
+            targs: None,
             types: HashMap::new(),
             fns: HashMap::new(),
             methods: vec![],
@@ -186,6 +191,7 @@ impl Checker {
             b6: Default::default(),
             v06: false,
             v08: false,
+            v09: false,
             secret_structs: HashSet::new(),
             imported_fns: HashSet::new(),
             imported_types: HashSet::new(),
@@ -213,6 +219,10 @@ impl Checker {
     pub fn check_module(&mut self, m: &Module, known_modules: &HashSet<String>) {
         self.v06 = m.draft06;
         self.v08 = m.v08;
+        self.v09 = m.v09;
+        for e in &m.v09_hygiene {
+            self.e(e.clone());
+        }
         if m.v08 {
             for e in crate::index08::check(m) {
                 self.e(e);
@@ -642,7 +652,9 @@ impl Checker {
             _ => None,
         };
         if let Some(b) = bad {
-            self.e(d(line, "W-TY-2", format!("{what} cannot hold {b}")));
+            // a state field is checked under its own rule (W-STATE-3, 9)
+            let code = if what.starts_with("state field") { "W-STATE-3" } else { "W-TY-2" };
+            self.e(d(line, code, format!("{what} cannot hold {b}")));
             return;
         }
         match t {
@@ -696,9 +708,7 @@ impl Checker {
                                     format!("impl is missing `{}`", sig.name),
                                 )),
                                 Some(f) => {
-                                    if f.sig.params.len() != sig.params.len()
-                                        || f.sig.params.first() != sig.params.first()
-                                    {
+                                    if !sig_matches(&f.sig, sig, ty) {
                                         self.e(d(
                                             f.sig.line,
                                             "W-TRAIT-1",
@@ -1175,7 +1185,9 @@ impl Checker {
     }
 
     fn check_extern(&mut self, sig: &FnSig, abi: &str, line: usize) {
-        if abi != "C" {
+        // F.5.5: a version 0.9 module also declares `extern "model"`, a C-ABI
+        // function whose cost is chosen by the outside
+        if abi != "C" && !(self.v09 && abi == "model") {
             self.e(d(
                 line,
                 "W-FFI-1",
@@ -1596,6 +1608,7 @@ impl Checker {
             }
         }
         if let Some(r) = &x.refused
+            && !r.starts_with("trap(")
             && !matches!(self.types.get(r), Some(TyDef::Error { .. }))
         {
             self.e(d(
@@ -1781,8 +1794,9 @@ impl Checker {
             _ => self.coerce(&a, &x),
         };
         if !ok {
+            let code = self.mix_code(&a, &x, true);
             let (a, x) = (self.sub.resolve(&a), self.sub.resolve(&x));
-            self.e(d(line, "W-TY-1", format!("expected {x}, found {a}")));
+            self.e(d(line, code, format!("expected {x}, found {a}")));
         }
     }
     fn coerce(&mut self, a: &T, x: &T) -> bool {
@@ -1915,6 +1929,17 @@ impl Checker {
                         e.line(),
                         "W-TY-1",
                         "an error union must be handled with try or catch",
+                    ));
+                } else if self.v09
+                    && !matches!(self.sub.resolve(&t), T::Unit | T::Never | T::Var(_))
+                {
+                    self.e(d(
+                        e.line(),
+                        "W-DROP-1",
+                        format!(
+                            "an expression statement whose value is {} is refused; bind it to `_` to drop it on purpose",
+                            self.sub.resolve(&t)
+                        ),
                     ));
                 }
                 false
@@ -2384,6 +2409,11 @@ impl Checker {
                 let div = self.block(body);
                 self.cx = cx;
                 div
+            }
+            Stmt::Check(Expr::Call(f, a, _, _)) if a.len() == 2 && matches!(&**f, Expr::Name(n, _) if n == "@contract") => {
+                let t = self.infer(&a[1].e, false);
+                self.expect(&t, &T::Bool, a[1].e.line());
+                false
             }
             Stmt::Check(e) => {
                 let t = self.infer(e, false);
@@ -3530,6 +3560,27 @@ impl Checker {
             _ => true,
         }
     }
+    /// W-TY-3 (9): integer/float mixing without `as`, or an implicit
+    /// narrowing of an integer (`found` does not fit in `expected`); any
+    /// other mismatch is W-TY-1.
+    fn mix_code(&self, found: &T, expected: &T, narrowing: bool) -> &'static str {
+        let cls = |t: &T| match self.sub.resolve(&peel(t)) {
+            T::Int(n) => Some(Some(n)),
+            T::Var(i) if self.sub.intlit[i] => Some(None),
+            T::F64 | T::F32 => Some(Some("float")),
+            _ => None,
+        };
+        match (cls(found), cls(expected)) {
+            (Some(Some("float")), Some(Some(x))) | (Some(Some(x)), Some(Some("float"))) if x != "float" => "W-TY-3",
+            (Some(None), Some(Some("float"))) | (Some(Some("float")), Some(None)) => "W-TY-3",
+            (Some(Some(f)), Some(Some(x))) if narrowing && f != x && f != "float" && x != "float" => {
+                let ((fl, fh), (xl, xh)) = (crate::types::int_range(f), crate::types::int_range(x));
+                if fl < xl || fh > xh { "W-TY-3" } else { "W-TY-1" }
+            }
+            _ => "W-TY-1",
+        }
+    }
+
     fn num(&self, t: &T) -> bool {
         matches!(self.sub.resolve(t), T::Int(_) | T::F64 | T::F32 | T::Var(_))
     }
@@ -3592,10 +3643,11 @@ impl Checker {
                     ));
                     return T::Never;
                 }
+                let code = self.mix_code(&a, &b, false);
                 if !self.sub.unify(&a, &b) {
                     self.e(d(
                         line,
-                        "W-TY-1",
+                        if code == "W-TY-3" { "W-TY-3" } else { "W-TY-1" },
                         format!("`{op}` on {a} and {b}: no implicit conversion"),
                     ));
                 }
@@ -3640,9 +3692,10 @@ impl Checker {
                 let bt = self.infer(b, false);
                 let (pa, pb) = (peel(&self.sub.shallow(&at)), peel(&self.sub.shallow(&bt)));
                 let (pa, pb) = (peel(&self.sub.shallow(&pa)), peel(&self.sub.shallow(&pb)));
+                let code = self.mix_code(&pa, &pb, false);
                 if !self.sub.unify(&pa, &pb) {
                     let (pa, pb) = (self.sub.resolve(&pa), self.sub.resolve(&pb));
-                    self.e(d(l, "W-TY-1", format!("cannot compare {pa} with {pb}")));
+                    self.e(d(l, code, format!("cannot compare {pa} with {pb}")));
                 }
                 let pa = self.sub.resolve(&pa);
                 let tr = if op == "==" || op == "!=" {
@@ -3813,6 +3866,23 @@ impl Checker {
     }
 
     fn call(&mut self, f: &Expr, args: &[Arg], l: usize) -> T {
+        // R5: `f[T](x)` is an index of a generic function by type arguments,
+        // which name resolution turns into instantiation
+        if let Expr::Index(g, ix, _) = f
+            && let Expr::Name(n, _) = &**g
+            && self.fns.get(n).is_some_and(|fi| !fi.decl.sig.generics.is_empty())
+        {
+            match ix.iter().map(expr_as_ty).collect::<Option<Vec<Ty>>>() {
+                Some(ts) => {
+                    self.targs = Some(ts);
+                    return self.call(g, args, l);
+                }
+                None => {
+                    self.e(d(l, "W-TY-1", format!("`{n}[…]`: type arguments expected")));
+                    return T::Never;
+                }
+            }
+        }
         // aliasing of borrows among the arguments (W-OWN-2)
         let mut roots: Vec<(String, bool)> = vec![];
         for a in args {
@@ -3836,10 +3906,21 @@ impl Checker {
         if self.v08
             && let Expr::Member(o, m, _) = f
             && let Expr::Name(c, _) = &**o
-            && crate::index08::CTX.contains(&c.as_str())
+            && crate::index08::is_ctx(c, self.v09)
             && self.lookup(c).is_none()
         {
             let out = T::Named("Text".into(), vec![T::Named(c.clone(), vec![])]);
+            if c == "Shell" {
+                // F.5.2: `Shell.cmd(program, args)`, a literal program and `Text[ShellArg]` arguments
+                if m == "cmd" && args.len() == 2 && matches!(args[0].e, Expr::Str(..)) {
+                    let at = self.infer(&args[1].e, false);
+                    let want = T::List(Box::new(T::Named("Text".into(), vec![T::Named("ShellArg".into(), vec![])])));
+                    self.expect(&peel(&at), &want, l);
+                } else {
+                    self.e(d(l, "W-CTX-1", "`Shell.cmd(program, args)` takes a string literal program and a `List[Text[ShellArg]]`; there is no other way to make a shell command (F.5.2)"));
+                }
+                return out;
+            }
             match (m.as_str(), args) {
                 ("lit", [a]) if matches!(a.e, Expr::Str(..)) => return out,
                 ("lit", _) => {
@@ -3862,6 +3943,19 @@ impl Checker {
                 if self.lookup(n).is_none() {
                     match n.as_str() {
                         "lvar_new" => return self.lvar_new_ty(args, l),
+                        // F.5.4: `ct_choose(c, a, b)` evaluates both `a` and `b`
+                        "ct_choose" if self.v09 => {
+                            if args.len() != 3 {
+                                self.e(d(l, "W-TY-1", "`ct_choose` takes a condition and two values"));
+                                return T::Never;
+                            }
+                            let c = self.infer(&args[0].e, false);
+                            self.expect(&peel(&c), &T::Bool, l);
+                            let a = self.infer(&args[1].e, true);
+                            let b = self.infer(&args[2].e, true);
+                            self.expect(&b, &a, l);
+                            return a;
+                        }
                         "set_of" => {
                             if args.len() != 1 {
                                 self.e(d(l, "W-TY-1", "`set_of` takes one list"));
@@ -4058,9 +4152,19 @@ impl Checker {
         }
         let mut m = HashMap::new();
         let mut bounds = vec![];
-        for g in &sig.generics {
+        let targs = self.targs.take();
+        if let Some(ts) = &targs
+            && ts.len() != sig.generics.len()
+        {
+            self.e(d(l, "W-TY-1", format!("`{}` takes {} type arguments, given {}", sig.name, sig.generics.len(), ts.len())));
+        }
+        for (gi, g) in sig.generics.iter().enumerate() {
             self.gbounds.insert(g.name.clone(), vec![]);
             let v = self.sub.fresh();
+            if let Some(t) = targs.as_ref().and_then(|ts| ts.get(gi)) {
+                let t = self.lower(t, l);
+                self.sub.unify(&v, &t);
+            }
             m.insert(g.name.clone(), v.clone());
             bounds.push((v, g.bounds.iter().map(ty_head).collect::<Vec<_>>()));
         }
@@ -4180,6 +4284,17 @@ impl Checker {
         if self.v08 && let T::Named(n, _) = &base && crate::index08::INDEXED.contains(&n.as_str()) {
             if n == "Text" && m == "raw" && args.is_empty() {
                 return T::Text;
+            }
+            // F.5.1: `c.narrow(sub)` is a `Cap[A]` with a longer root; nothing widens
+            if self.v09 && n == "Cap" && m == "narrow" && args.len() == 1 {
+                let at = self.infer(&args[0].e, false);
+                self.expect(&at, &T::Text, l);
+                if let Expr::Str(s, _) = &args[0].e
+                    && (s.is_empty() || s.starts_with('/') || s.split('/').any(|p| p == ".." || p == "."))
+                {
+                    self.e(d(l, "W-CAP-3", format!("`narrow({s:?})` is not a path extension: a narrowed root is relative, non-empty and has no `.` or `..` segment (F.5.1)")));
+                }
+                return rt.clone();
             }
             self.e(d(l, if n == "Text" { "W-CTX-1" } else if n == "Secret" { "W-SEC-1" } else { "W-CAP-1" }, format!("`.{m}` is not defined on {base} (5.16: context text has `.raw()`, secrets and capabilities are opaque)")));
             return T::Never;
@@ -4388,6 +4503,14 @@ impl Checker {
                 _ => unknown(self),
             },
             T::Text => match m {
+                "len" if self.v09 => {
+                    self.e(d(l, "W-LEN-1", "text has no unqualified `len` in a 0.9 module: use `len_bytes` or `len_chars` (F.5.2)"));
+                    usize_
+                }
+                "len_bytes" | "len_chars" if self.v09 => {
+                    self.arity(m, args, 0, l);
+                    usize_
+                }
                 "len" => {
                     self.arity(m, args, 0, l);
                     usize_
@@ -4568,7 +4691,21 @@ impl Checker {
                         }
                         T::Unit
                     }
-                    "tolist" => T::List(Box::new(e)),
+                    "tolist" => {
+                        self.arity(m, args, 0, l);
+                        T::List(Box::new(e))
+                    }
+                    "len" => {
+                        self.arity(m, args, 0, l);
+                        usize_
+                    }
+                    "contains" => {
+                        if self.arity(m, args, 1, l) {
+                            let t = self.infer(&args[0].e, false);
+                            self.expect(&peel(&t), &e, l);
+                        }
+                        T::Bool
+                    }
                     _ => unknown(self),
                 }
             }
@@ -4579,6 +4716,11 @@ impl Checker {
                         if self.arity(m, args, 1, l) {
                             let t = self.infer(&args[0].e, false);
                             self.expect(&peel(&t), base, l);
+                        }
+                        // a key in both maps merges its values: v needs a Merge (C.11.5)
+                        let vt = self.sub.resolve(&v);
+                        if let Some(g) = (!matches!(vt, T::Var(_))).then(|| self.merge_gap(&vt)).flatten() {
+                            self.e(d(l, "W-CRDT-1", format!("Map.merge needs a value type with Merge, found {vt} ({g})")));
                         }
                         base.clone()
                     }
@@ -5468,4 +5610,57 @@ fn acyclic(g: &[BTreeSet<usize>]) -> bool {
         }
     }
     seen == n
+}
+
+/// W-TRAIT-1: an impl method has the trait's signature, with `Self` read as
+/// the implementing type: the same receiver, the same parameter types in
+/// order (names may differ) and the same result type.
+fn sig_matches(imp: &FnSig, tr: &FnSig, self_ty: &Ty) -> bool {
+    fn subst(t: &Ty, s: &Ty) -> Ty {
+        match t {
+            Ty::Path(p, a) if p.len() == 1 && p[0] == "Self" && a.is_empty() => s.clone(),
+            Ty::Path(p, a) => Ty::Path(p.clone(), a.iter().map(|x| subst(x, s)).collect()),
+            Ty::Tuple(xs) => Ty::Tuple(xs.iter().map(|x| subst(x, s)).collect()),
+            Ty::Slice(x) => Ty::Slice(Box::new(subst(x, s))),
+            Ty::Chan(x) => Ty::Chan(Box::new(subst(x, s))),
+            Ty::Iter(x) => Ty::Iter(Box::new(subst(x, s))),
+            Ty::Opt(x) => Ty::Opt(Box::new(subst(x, s))),
+            Ty::Ref(m, x) => Ty::Ref(*m, Box::new(subst(x, s))),
+            Ty::Fn(xs, r) => Ty::Fn(xs.iter().map(|x| subst(x, s)).collect(), Box::new(subst(r, s))),
+            Ty::Union(a, b) => Ty::Union(Box::new(subst(a, s)), Box::new(subst(b, s))),
+            o => o.clone(),
+        }
+    }
+    let ret = |r: &Option<Ty>| match r {
+        None => Ty::Unit,
+        Some(t) => subst(t, self_ty),
+    };
+    if imp.params.len() != tr.params.len() || ret(&imp.ret) != ret(&tr.ret) {
+        return false;
+    }
+    imp.params.iter().zip(&tr.params).all(|(a, b)| match (a, b) {
+        (Param::Named { ty: x, .. }, Param::Named { ty: y, .. }) => subst(x, self_ty) == subst(y, self_ty),
+        (x, y) => x == y,
+    })
+}
+
+/// A type written in expression position, as the index of `f[T]` (R5).
+fn expr_as_ty(e: &Expr) -> Option<Ty> {
+    match e {
+        Expr::Name(n, _) => Some(Ty::Path(vec![n.clone()], vec![])),
+        Expr::Member(b, m, _) => match expr_as_ty(b)? {
+            Ty::Path(mut p, a) if a.is_empty() => {
+                p.push(m.clone());
+                Some(Ty::Path(p, vec![]))
+            }
+            _ => None,
+        },
+        Expr::Index(b, ix, _) => match expr_as_ty(b)? {
+            Ty::Path(p, a) if a.is_empty() => Some(Ty::Path(p, ix.iter().map(expr_as_ty).collect::<Option<Vec<_>>>()?)),
+            _ => None,
+        },
+        Expr::Tuple(xs, _) => Some(Ty::Tuple(xs.iter().map(expr_as_ty).collect::<Option<Vec<_>>>()?)),
+        Expr::Unit(_) => Some(Ty::Unit),
+        _ => None,
+    }
 }

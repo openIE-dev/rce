@@ -1,0 +1,10 @@
+# rce-version: 0.9
+# expect: W-IFC-5
+struct Declass
+
+label pii by Declass
+
+fn main()
+    let token: i64 @ {pii} = 7
+    let shown = release token
+    emit shown.tostr()

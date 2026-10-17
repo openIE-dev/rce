@@ -155,6 +155,7 @@ fn sync_dir(_path: &Path) -> io::Result<()> {
 /// D in a file: one entry per line, append only.
 pub struct FileStore {
     f: File,
+    path: std::path::PathBuf,
 }
 
 impl FileStore {
@@ -167,12 +168,17 @@ impl FileStore {
         }
         let mut s = String::new();
         f.read_to_string(&mut s)?;
-        Ok((FileStore { f }, s))
+        Ok((FileStore { f, path: path.to_path_buf() }, s))
     }
     /// Cut the file to `len` bytes (HS-4) and make the cut durable.
+    /// The cut goes through its own write handle: on Windows an append-mode
+    /// handle has FILE_APPEND_DATA but not FILE_WRITE_DATA, and SetEndOfFile
+    /// on it is "Access is denied" (found by rce-conformance t38 on
+    /// windows-x86_64). Appends continue on `f` at the new end.
     pub fn cut(&mut self, len: u64) -> io::Result<()> {
-        self.f.set_len(len)?;
-        self.f.sync_all()
+        let w = OpenOptions::new().write(true).open(&self.path)?;
+        w.set_len(len)?;
+        w.sync_all()
     }
 }
 
@@ -503,6 +509,8 @@ pub struct Host<'a> {
 struct MainTask {
     start: Value,
     inputs: Vec<(u64, bool, String, String)>,
+    /// program events fed to the task (HC-6): (tick, canonical event JSON)
+    events: Vec<(u64, String)>,
     steps: usize,
     digest: String,
     last_tick: u64,
@@ -512,7 +520,11 @@ struct MainTask {
 impl MainTask {
     fn json(&self) -> String {
         let ins: Vec<Value> = self.inputs.iter().map(|(t, p, a, b)| serde_json::json!([t, p, a, b])).collect();
-        serde_json::json!({"digest": self.digest, "inputs": ins, "start": self.start, "steps": self.steps}).to_string()
+        let mut j = serde_json::json!({"digest": self.digest, "inputs": ins, "start": self.start, "steps": self.steps});
+        if !self.events.is_empty() {
+            j["events"] = Value::Array(self.events.iter().map(|(t, e)| serde_json::json!([t, e])).collect());
+        }
+        j.to_string()
     }
 }
 
@@ -550,12 +562,19 @@ pub fn place_from(calib: &std::collections::BTreeMap<(String, String), (f64, f64
 /// T18's fixed reduction tree for f64 addition: split at the largest power
 /// of two below the length, add left and right. The tree is fixed by the
 /// length alone, so any executor that evaluates it gives the same bits.
+/// The split of the fixed reduction tree (C.8) for m >= 2 leaves: the
+/// left part is the largest power of two below m, so every left subtree
+/// is a complete binary tree. One definition for the reference evaluator
+/// (`conc.rs` tree and pscan), the placement executor and, by the same
+/// formula, every runtime.
+pub use crate::conc::tree_split;
+
 pub fn fixed_tree_sum(xs: &[f64]) -> f64 {
     match xs.len() {
         0 => 0.0,
         1 => xs[0],
         n => {
-            let h = (n.next_power_of_two() / 2).max(1);
+            let h = tree_split(n);
             fixed_tree_sum(&xs[..h]) + fixed_tree_sum(&xs[h..])
         }
     }
@@ -567,7 +586,7 @@ pub fn fixed_tree_sum_threads(xs: &[f64], depth: u32) -> f64 {
     if depth == 0 || xs.len() < 2 {
         return fixed_tree_sum(xs);
     }
-    let h = (xs.len().next_power_of_two() / 2).max(1);
+    let h = tree_split(xs.len());
     let (l, r) = xs.split_at(h);
     let (a, b) = std::thread::scope(|s| {
         let a = s.spawn(|| fixed_tree_sum_threads(l, depth - 1));
@@ -588,7 +607,7 @@ pub fn fixed_tree<T: Clone>(xs: &[T], zero: &T, f: &impl Fn(&T, &T) -> T) -> T {
         0 => zero.clone(),
         1 => xs[0].clone(),
         n => {
-            let h = (n.next_power_of_two() / 2).max(1);
+            let h = tree_split(n);
             f(&fixed_tree(&xs[..h], zero, f), &fixed_tree(&xs[h..], zero, f))
         }
     }
@@ -600,7 +619,7 @@ pub fn fixed_tree_threads<T: Clone + Send + Sync>(xs: &[T], zero: &T, f: &(impl 
     if depth == 0 || xs.len() < 2 {
         return fixed_tree(xs, zero, f);
     }
-    let h = (xs.len().next_power_of_two() / 2).max(1);
+    let h = tree_split(xs.len());
     let (l, r) = xs.split_at(h);
     let (a, b) = std::thread::scope(|s| {
         let a = s.spawn(|| fixed_tree_threads(l, zero, f, depth - 1));
@@ -1052,7 +1071,7 @@ impl<'a> Host<'a> {
                         match o {
                             V::Rec(n, fs) if n == "Display" => {
                                 if let Some((_, V::Text(t))) = fs.iter().find(|(f, _)| f == "data") {
-                                    display.push(t.clone());
+                                    display.push(t.to_string());
                                 }
                             }
                             V::Rec(n, _) if n == "Exit" => exit = true,
@@ -1222,12 +1241,12 @@ impl<'a> Host<'a> {
         Ok(())
     }
 
-    fn exec_main(&self, start: &Value, choices: Option<Vec<usize>>) -> Result<crate::conc::RunResult, String> {
+    fn exec_main(&self, start: &Value, choices: Option<Vec<usize>>, events: Vec<(u64, V)>) -> Result<crate::conc::RunResult, String> {
         let links = start["links"].as_array().cloned().unwrap_or_default().iter().filter_map(|l| {
             let a = l.as_array()?;
             Some((a.first()?.as_u64()?, a.get(1)?.as_bool()?, a.get(2)?.as_str()?.to_string(), a.get(3)?.as_str()?.to_string()))
         }).collect();
-        let cfg = crate::conc::RunCfg { seed: start["seed"].as_u64().unwrap_or(0), choices, links, max_ticks: start["max_ticks"].as_u64().unwrap_or(100_000), par_mode: crate::conc::ParMode::Seq, restarts: None };
+        let cfg = crate::conc::RunCfg { seed: start["seed"].as_u64().unwrap_or(0), choices, links, max_ticks: start["max_ticks"].as_u64().unwrap_or(100_000), par_mode: crate::conc::ParMode::Seq, restarts: None, restart_tree: None, events };
         crate::conc::run_main(self.m, &cfg)
     }
 
@@ -1262,7 +1281,19 @@ impl<'a> Host<'a> {
             let mut links: Vec<Value> = start["links"].as_array().cloned().unwrap_or_default();
             links.extend(t.inputs.iter().map(|(a, b, c, d)| serde_json::json!([a, b, c, d])));
             start["links"] = Value::Array(links);
-            let r = self.exec_main(&start, None)?;
+            let evj = t.events.clone();
+            let mut evs = vec![];
+            for (tick, ej) in evj {
+                let (name, args) = decode_event(&ej, self.m)?;
+                self.it.scopes = vec![HashMap::new()];
+                self.it.fuel = crate::interp::fuel_limit();
+                match self.it.construct(&name, &args) {
+                    Ok(Some(v)) => evs.push((tick, v)),
+                    Ok(None) => return Err(format!("`{name}` is not an event")),
+                    Err(f) => return Err(why(f)),
+                }
+            }
+            let r = self.exec_main(&start, None, evs)?;
             self.task.as_mut().unwrap().run = Some(r);
         }
         Ok(self.task.as_ref().unwrap().run.as_ref().unwrap())
@@ -1277,7 +1308,7 @@ impl<'a> Host<'a> {
                 if self.task.is_some() {
                     return Err("host.MainStart while a fn main task is live".into());
                 }
-                self.task = Some(MainTask { start: p.clone(), inputs: vec![], steps: 0, digest: String::new(), last_tick: 0, run: None });
+                self.task = Some(MainTask { start: p.clone(), inputs: vec![], events: vec![], steps: 0, digest: String::new(), last_tick: 0, run: None });
             }
             "host.MainInput" => {
                 let t = self.task.as_ref().ok_or("host.MainInput outside a run")?;
@@ -1285,10 +1316,18 @@ impl<'a> Host<'a> {
                 if t.steps > 0 && tick <= t.last_tick {
                     return Err(format!("late input: tick {tick} is not after the last logged step (tick {})", t.last_tick));
                 }
-                let inp = (tick, p["partition"].as_bool().ok_or("partition")?, p["a"].as_str().ok_or("a")?.to_string(), p["b"].as_str().ok_or("b")?.to_string());
                 let (old_steps, old_digest) = (t.steps, t.digest.clone());
+                let is_event = p.get("event").is_some();
+                if is_event {
+                    let ej = p["event"].as_str().ok_or("event")?.to_string();
+                    let t = self.task.as_mut().unwrap();
+                    t.events.push((tick, ej));
+                } else {
+                    let inp = (tick, p["partition"].as_bool().ok_or("partition")?, p["a"].as_str().ok_or("a")?.to_string(), p["b"].as_str().ok_or("b")?.to_string());
+                    let t = self.task.as_mut().unwrap();
+                    t.inputs.push(inp);
+                }
                 let t = self.task.as_mut().unwrap();
-                t.inputs.push(inp);
                 t.run = None;
                 // Causality: the steps already in D do not change.
                 let want = Self::step_payloads(self.task_run()?);
@@ -1298,7 +1337,11 @@ impl<'a> Host<'a> {
                 }
                 if want.len() < old_steps || d != old_digest {
                     let t = self.task.as_mut().unwrap();
-                    t.inputs.pop();
+                    if is_event {
+                        t.events.pop();
+                    } else {
+                        t.inputs.pop();
+                    }
                     t.run = None;
                     return Err("input would change steps already in D".into());
                 }
@@ -1351,6 +1394,23 @@ impl<'a> Host<'a> {
     /// cannot rewrite steps D already holds.
     pub fn main_input(&mut self, tick: u64, partition: bool, a: &str, b: &str) -> Result<(), String> {
         self.main_entry("MainInput", serde_json::json!({"a": a, "b": b, "partition": partition, "tick": tick}))
+    }
+
+    /// HC-6: feed a program event to the live task (`host.MainInput`
+    /// {event, tick}): at its tick the scheduler logs it as `Input(..)` and
+    /// delivers it to every actor that handles it (`conc::RunCfg.events`).
+    /// Refused like a link input when late or when it would change a step
+    /// already in D.
+    pub fn main_event(&mut self, tick: u64, name: &str, args: Vec<Arg>) -> Result<(), String> {
+        self.it.scopes = vec![HashMap::new()];
+        self.it.fuel = crate::interp::fuel_limit();
+        let ev = match self.it.construct(name, &args) {
+            Ok(Some(v)) => v,
+            Ok(None) => return Err(format!("`{name}` is not an event")),
+            Err(f) => return Err(why(f)),
+        };
+        let ej = event_json(name, &ev, self.m);
+        self.main_entry("MainInput", serde_json::json!({"event": ej, "tick": tick}))
     }
 
     /// HC-6: log the task's next scheduler step (`host.Step`); `None` when

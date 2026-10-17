@@ -1,0 +1,8 @@
+# rce-version: 0.9
+# expect: W-IFC-4
+label pii
+
+fn main()
+    let d: i64 @ {pii} = 2
+    let q = 10 / d
+    let _ = q

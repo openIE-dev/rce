@@ -24,7 +24,7 @@ fn checked_in_data_is_the_regenerated_data() {
 #[test]
 fn data_has_every_table() {
     let v: Value = serde_json::from_str(&export(&spec())).unwrap();
-    assert_eq!(v["chapters"].as_object().unwrap().len(), 17);
+    assert_eq!(v["chapters"].as_object().unwrap().len(), 18);
     for g in ["grammar", "grammar_06"] {
         assert_eq!(v[g]["lalr1"]["conflicts"].as_array().unwrap().len(), 0, "{g}");
         assert!(v[g]["lalr1"]["action"].as_array().unwrap().len() > 1000, "{g}");

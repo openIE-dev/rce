@@ -184,6 +184,14 @@ pub mod pty {
                     return Err(std::io::Error::last_os_error());
                 }
                 libc::ioctl(0, libc::TIOCSCTTY as _, 0);
+                // std only resets SIGPIPE. A host started from a backgrounded
+                // non-interactive shell inherits SIGINT and SIGQUIT as ignored
+                // (POSIX 2.11), and an ignored disposition survives exec, so
+                // the terminal's Interrupt (^C) would never reach the job.
+                // The pty session is a fresh login-like session: defaults.
+                libc::signal(libc::SIGINT, libc::SIG_DFL);
+                libc::signal(libc::SIGQUIT, libc::SIG_DFL);
+                libc::signal(libc::SIGTSTP, libc::SIG_DFL);
                 Ok(())
             });
         }

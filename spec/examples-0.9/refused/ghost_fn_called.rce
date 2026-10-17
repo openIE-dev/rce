@@ -1,0 +1,6 @@
+# rce-version: 0.9
+# expect: W-GHOST-1
+ghost fn sq(x: i64) -> i64 = x * x
+
+fn main()
+    emit sq(3).tostr()

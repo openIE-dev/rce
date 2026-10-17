@@ -1,0 +1,10 @@
+# rce-version: 0.9
+# expect: W-DEC-1
+fn f(n: i64) -> i64 bound 10
+    decreases n
+    if n <= 0
+        return 0
+    return f(n - 1)
+
+fn main()
+    emit f(2).tostr()

@@ -96,7 +96,7 @@ fn tv(t: &Tm, v: &V) -> Option<i128> {
         (Tm::Lit(n), _) => Some(*n),
         (Tm::SelfV, V::Int(x, _)) => Some(*x),
         (Tm::Len, V::Text(s)) => Some(s.len() as i128),
-        (Tm::Len, V::List(xs)) => Some(xs.len() as i128),
+        (Tm::Len, V::List(xs) | V::Set(xs)) => Some(xs.len() as i128),
         (Tm::Len, V::Map(xs)) => Some(xs.len() as i128),
         _ => None,
     }

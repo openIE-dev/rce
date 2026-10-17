@@ -414,9 +414,16 @@ pub fn index_with(given: &[(String, String)], o: &Opts) -> Value {
                 draft06: m.draft06 && !undeclared,
                 v07: m.v07,
                 v08: m.v08,
+                v09: m.v09,
+                v09_hygiene: vec![],
+        x09: Default::default(),
             };
             let text = crate::unparse::unparse(&one);
-            let hash = sha(&format!("{module}\n{text}"));
+            // the identity of a brick is its module and its function; the
+            // version header unparse writes depends on which drafts the
+            // build enables (`conc06` sets draft06), so it is left out
+            let body: String = text.lines().filter(|l| !l.starts_with("# rce-version:")).collect::<Vec<_>>().join("\n");
+            let hash = sha(&format!("{module}\n{body}\n"));
             let lowering = if !ok {
                 json!({"refused": "its file is refused by the checker"})
             } else {

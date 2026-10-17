@@ -78,3 +78,16 @@ fn imin_rem() -> i64
 # f32 display at the edges: least subnormal (Java prints 1.4E-45, Rust 1e-45),
 # largest finite, negative zero, a two-digit shortest form
 fn f32texts() -> List[text] = [(1e-45 as f32).tostr(), (3.4028234663852886e38 as f32).tostr(), ((0.0 * -1.0) as f32).tostr(), (0.1 as f32).tostr(), (1.5e-45 as f32).tostr(), (9.2e-44 as f32).tostr()]
+
+# 6.1 key identity: -0.0 and 0.0 are distinct keys (totalOrder), -0 prints
+fn zkeys() -> List[text]
+    var m: Map[f64, i64] = {}
+    m[0.0] = 1
+    m[0.0 * -1.0] = 2
+    return [m.len().tostr(), m.keys()[0].tostr(), (m.get(0.0) catch 9).tostr(), (0.0 * -1.0).tostr()]
+
+fn zindex() -> i64
+    var m: Map[f64, i64] = {}
+    m[0.0] = 1
+    m[0.0 * -1.0] = 2
+    return m[0.0] * 10 + m[0.0 * -1.0]

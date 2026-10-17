@@ -1,0 +1,11 @@
+# rce-version: 0.9
+# expect: W-CAP-3
+struct DirRead
+    root: text
+
+fn narrower(root: Cap[DirRead]) -> i64
+    let _up = root.narrow("/etc")
+    return 0
+
+fn main()
+    emit 0

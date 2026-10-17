@@ -1,0 +1,15 @@
+# rce-version: 0.9
+# expect: W-DEC-1
+fn even(n: u64) -> bool bound 10
+    decreases n
+    if n == 0
+        return true
+    return odd(n - 1)
+
+fn odd(n: u64) -> bool bound 10
+    if n == 0
+        return false
+    return even(n - 1)
+
+fn main()
+    emit even(2).tostr()

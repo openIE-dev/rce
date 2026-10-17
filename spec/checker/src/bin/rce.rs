@@ -6,7 +6,7 @@
 //! convenience of this program, not one of the language commands.
 
 /// The specification draft this checker implements.
-const SPEC_DRAFT: &str = "0.8";
+const SPEC_DRAFT: &str = "0.9";
 
 fn main() {
     // HC-5: `rce host run|serve` enters the sandbox's OS enforcement target after opening D.

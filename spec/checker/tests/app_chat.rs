@@ -21,7 +21,7 @@ fn show(h: &mut Host, conv: &str, topic: &str) -> Vec<String> {
 fn show_raw(h: &mut Host, conv: &str, topic: &str) -> Vec<String> {
     let a = |l: &str, v: &str| Arg { label: Some(l.into()), e: Expr::Str(v.into(), 0) };
     h.query("Show", vec![a("conv", conv), a("topic", topic)]).unwrap().into_iter().filter_map(|o| match o {
-        V::Rec(_, fs) => fs.into_iter().find_map(|(f, v)| match v { V::Text(t) if f == "data" => Some(t), _ => None }),
+        V::Rec(_, fs) => fs.into_iter().find_map(|(f, v)| match v { V::Text(t) if f == "data" => Some(t.to_string()), _ => None }),
         _ => None,
     }).collect()
 }
@@ -77,7 +77,7 @@ fn three_replicas_converge_and_replay() {
     let key_of = |h: &Host, author: &str, conv: &str| -> String {
         match &h.state()[0].1.iter().find(|(n, _, _)| n == "messages").unwrap().1 {
             V::Map(kv) => kv.iter().find_map(|(k, _)| match k {
-                V::Text(t) if t.ends_with(&format!("\u{1f}{author}")) && t.starts_with(conv) => Some(t.clone()),
+                V::Text(t) if t.ends_with(&format!("\u{1f}{author}")) && t.starts_with(conv) => Some(t.to_string()),
                 _ => None,
             }).unwrap(),
             _ => panic!(),
@@ -116,14 +116,14 @@ fn three_replicas_converge_and_replay() {
     let at = cy.iter().position(|l| l == "-- new --\n").expect("unread marker");
     assert_eq!(cy[at + 1], "ann: one more thing\n", "{cy:?}");
     let unread: Vec<String> = hosts[2].query("Unread", vec![]).unwrap().into_iter().filter_map(|o| match o {
-        V::Rec(_, fs) => fs.into_iter().find_map(|(f, v)| match v { V::Text(t) if f == "data" => Some(t), _ => None }),
+        V::Rec(_, fs) => fs.into_iter().find_map(|(f, v)| match v { V::Text(t) if f == "data" => Some(t.to_string()), _ => None }),
         _ => None,
     }).collect();
     assert!(unread.contains(&"acme/general #launch: 1 unread\n".to_string()), "{unread:?}");
     // the front end's View query: keys, author, flags; it reads only
     let before = hosts[2].state_hash().to_string();
     let view: Vec<String> = hosts[2].query("View", vec![Arg { label: Some("conv".into()), e: Expr::Str("acme/general".into(), 0) }, Arg { label: Some("topic".into()), e: Expr::Str("launch".into(), 0) }]).unwrap().into_iter().filter_map(|o| match o {
-        V::Rec(_, fs) => fs.into_iter().find_map(|(f, v)| match v { V::Text(t) if f == "data" => Some(t), _ => None }),
+        V::Rec(_, fs) => fs.into_iter().find_map(|(f, v)| match v { V::Text(t) if f == "data" => Some(t.to_string()), _ => None }),
         _ => None,
     }).collect();
     assert_eq!(hosts[2].state_hash().to_string(), before);

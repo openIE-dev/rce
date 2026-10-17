@@ -1,0 +1,5 @@
+# rce-version: 0.9
+# expect: W-WORLD-1
+fn main(w: &World)
+    let copy = w
+    emit "x"

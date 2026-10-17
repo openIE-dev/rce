@@ -265,25 +265,38 @@ pub fn book_grammar(md: &str) -> Result<Grammar, String> {
 /// (`book/14-draft06-concurrency.md`). A C.2 rule with the name of a
 /// section-3 rule replaces it; any other C.2 rule is added.
 pub fn book_grammar_06(base_md: &str, appendix_md: &str) -> Result<Grammar, String> {
+    book_grammar_layers(base_md, &[(appendix_md, "### C.2 ")])
+}
+
+/// The version 0.9 grammar: section 3, then Appendix C.2, then Appendix F.13
+/// (`book/17-draft09.md`), each layer replacing same-named rules.
+pub fn book_grammar_09(base_md: &str, c_md: &str, f_md: &str) -> Result<Grammar, String> {
+    book_grammar_layers(base_md, &[(c_md, "### C.2 "), (f_md, "### F.13 ")])
+}
+
+/// Section 3 with the `### ` sections starting with each prefix applied in order.
+pub fn book_grammar_layers(base_md: &str, layers: &[(&str, &str)]) -> Result<Grammar, String> {
     let mut rules = ebnf_rules(base_md)?;
-    let mut sec = String::new();
-    let mut on = false;
-    for line in appendix_md.lines() {
-        if line.starts_with("### ") {
-            on = line.starts_with("### C.2 ");
+    for (appendix_md, prefix) in layers {
+        let mut sec = String::new();
+        let mut on = false;
+        for line in appendix_md.lines() {
+            if line.starts_with("### ") {
+                on = line.starts_with(prefix);
+            }
+            if on {
+                sec.push_str(line);
+                sec.push('\n');
+            }
         }
-        if on {
-            sec.push_str(line);
-            sec.push('\n');
+        if sec.is_empty() {
+            return Err(format!("section {prefix:?} not found"));
         }
-    }
-    if sec.is_empty() {
-        return Err("Appendix C.2 not found".into());
-    }
-    for (n, e) in ebnf_rules(&sec)? {
-        match rules.iter_mut().find(|r| r.0 == n) {
-            Some(r) => r.1 = e,
-            None => rules.push((n, e)),
+        for (n, e) in ebnf_rules(&sec)? {
+            match rules.iter_mut().find(|r| r.0 == n) {
+                Some(r) => r.1 = e,
+                None => rules.push((n, e)),
+            }
         }
     }
     build_grammar(rules)
@@ -383,7 +396,7 @@ pub enum Act {
 
 /// Contextual words: terminals of section 3 that are not reserved (2.4);
 /// `where` follows a type in a refined type declaration (5.1).
-pub const CONTEXTUAL: &[&str] = &["where"];
+pub const CONTEXTUAL: &[&str] = &["where", "by"];
 
 pub struct Lalr {
     pub g: Grammar,
@@ -393,6 +406,8 @@ pub struct Lalr {
     pub conflicts: Vec<String>,
     /// Lex with the version 0.6 keywords (Appendix C.1) reserved.
     pub draft06: bool,
+    /// Also reserve the version 0.9 keywords `label`, `release`, `endorse`.
+    pub draft09: bool,
 }
 
 type Item = (usize, usize); // (production, dot)
@@ -616,6 +631,7 @@ impl Lalr {
             goto,
             conflicts,
             draft06: false,
+            draft09: false,
         }
     }
 
@@ -687,7 +703,11 @@ impl Lalr {
     /// A keyword is its own terminal except after `.` (a member name, 2.4).
     pub fn tokens(&self, src: &str) -> Option<Vec<usize>> {
         use crate::parse::{DRAFT06_KEYWORDS, KEYWORDS, Tok, lex};
-        let kw = |s: &str| KEYWORDS.contains(&s) || (self.draft06 && DRAFT06_KEYWORDS.contains(&s));
+        let kw = |s: &str| {
+            KEYWORDS.contains(&s)
+                || (self.draft06 && DRAFT06_KEYWORDS.contains(&s))
+                || (self.draft09 && crate::v09::RESERVED_LIVE.contains(&s))
+        };
         let toks = lex(src).ok()?;
         let mut out = Vec::new();
         let mut after_dot = false;
@@ -700,6 +720,7 @@ impl Lalr {
                 Tok::Int(_) => "INT".into(),
                 Tok::Float(_) => "FLOAT".into(),
                 Tok::Str(_) => "STRING".into(),
+                Tok::Tpl(_) => "TEMPLATE".into(),
                 Tok::P(p) => p.to_string(),
                 Tok::Nl => "NEWLINE".into(),
                 Tok::Indent => "INDENT".into(),

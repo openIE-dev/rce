@@ -188,6 +188,9 @@ pub struct FnSig {
     /// function at once; the call that would be call n + 1 traps
     pub bound: Option<u64>,
     pub line: usize,
+    /// bit 1: `ct fn` (F.5.4); bit 2: `ghost fn` (F.6.3)
+    #[serde(default)]
+    pub x09: u8,
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -368,4 +371,28 @@ pub struct Module {
     /// language version 0.8 (spec 2.7, 5.16): 0.7 plus indexed values
     /// (context-typed text, secrets, capabilities); implies `v07`
     pub v08: bool,
+    /// language version 0.9 (spec 2.7, Appendix F): 0.8 plus the implemented
+    /// subset of Appendix F (src/v09.rs); implies `v08`
+    #[serde(default)]
+    pub v09: bool,
+    /// W-UNUSED, W-NAME-3 and W-ASSIGN-1 findings of a 0.9 module, computed on
+    /// the module as parsed (before linking rewrites `r.x` to `x`) and reported
+    /// by the checker, so that `parse` still accepts every well-formed text
+    #[serde(default, skip)]
+    pub v09_hygiene: Vec<String>,
+    /// compile-time facts of a 0.9 module that carry no run-time meaning
+    #[serde(default, skip)]
+    pub x09: X09,
+}
+
+/// Facts of Appendix F constructs that are checked on the surface module and
+/// erased before evaluation (`ct fn`, `ghost`).
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct X09 {
+    /// names of the `ct fn` functions (F.5.4)
+    pub ct: std::collections::BTreeSet<String>,
+    /// lines of `ghost let` statements (F.6.3)
+    pub ghost_lines: std::collections::BTreeSet<usize>,
+    /// names of `ghost fn` functions (F.6.3)
+    pub ghost_fns: std::collections::BTreeSet<String>,
 }

@@ -23,6 +23,11 @@ pub(crate) struct State06b {
     pub atomic_depth: usize,
     pub group_depth: usize,
     pub node_of: HashMap<String, String>,
+    /// the two endpoint names bound by one `chan[session P]` (W-SES-5)
+    pub ses_dual: HashMap<String, String>,
+    /// W-SES-5 tree-rule findings, reported only when the program has no
+    /// priorities either (`session_prio`, T28p)
+    pub ses5: Vec<String>,
 }
 
 // ---------------------------------------------------------------- protocols
@@ -33,6 +38,9 @@ pub(crate) struct State06b {
 enum PS {
     S(ProtoStep),
     End(Vec<ProtoStep>),
+    /// the endpoint was consumed (moved, sent, passed or closed) at this
+    /// line: its only state is that no operation is left (W-SES-4)
+    Gone(usize, &'static str),
 }
 type St = Vec<PS>;
 
@@ -105,7 +113,65 @@ fn show_head(s: &St) -> String {
         Some(PS::S(ProtoStep::Recv(_))) => "a receive".into(),
         Some(PS::S(ProtoStep::Offer(_))) => "an offer".into(),
         Some(PS::S(ProtoStep::Choose(_))) => "a choose".into(),
+        Some(PS::Gone(l, how)) => format!("nothing: it was {how} at line {l}"),
         Some(_) => "a loop".into(),
+    }
+}
+
+fn gone(s: &St) -> Option<(usize, &'static str)> {
+    match s.first() {
+        Some(PS::Gone(l, h)) => Some((*l, h)),
+        _ => None,
+    }
+}
+
+/// One endpoint's protocol state driven by actions, the automaton the
+/// session pass runs. Actions: `send`, `recv`, `choose:L`, `offer:L`
+/// (the offer arm taken). `tests/lean_session.rs` drives it with traces
+/// computed by `RCE.SessionRec` (`lean/RCE/SessionVectors.lean`) and
+/// requires the same enabled actions at every point and the same end.
+pub struct ProtoCursor(St);
+
+impl ProtoCursor {
+    pub fn new(steps: &[ProtoStep]) -> Self {
+        ProtoCursor(st_of(steps))
+    }
+    /// the actions allowed here, sorted
+    pub fn enabled(&self) -> Vec<String> {
+        let s = head(self.0.clone());
+        let mut v: Vec<String> = match s.first() {
+            Some(PS::S(ProtoStep::Send(_))) => vec!["send".into()],
+            Some(PS::S(ProtoStep::Recv(_))) => vec!["recv".into()],
+            Some(PS::S(ProtoStep::Choose(a))) => a.iter().map(|(l, _)| format!("choose:{l}")).collect(),
+            Some(PS::S(ProtoStep::Offer(a))) => a.iter().map(|(l, _)| format!("offer:{l}")).collect(),
+            _ => vec![],
+        };
+        v.sort();
+        v
+    }
+    pub fn step(&mut self, act: &str) -> bool {
+        let s = head(self.0.clone());
+        let rest: St = s.iter().skip(1).cloned().collect();
+        let arm = |a: &Vec<(String, Vec<ProtoStep>)>, l: &str| a.iter().find(|(n, _)| n == l).map(|(_, b)| b.clone());
+        let next = match (s.first(), act.split_once(':')) {
+            (Some(PS::S(ProtoStep::Send(_))), None) if act == "send" => Some(vec![]),
+            (Some(PS::S(ProtoStep::Recv(_))), None) if act == "recv" => Some(vec![]),
+            (Some(PS::S(ProtoStep::Choose(a))), Some(("choose", l))) => arm(a, l),
+            (Some(PS::S(ProtoStep::Offer(a))), Some(("offer", l))) => arm(a, l),
+            _ => None,
+        };
+        match next {
+            Some(b) => {
+                let mut ns = st_of(&b);
+                ns.extend(rest);
+                self.0 = ns;
+                true
+            }
+            None => false,
+        }
+    }
+    pub fn at_end(&self) -> bool {
+        head(self.0.clone()).is_empty()
     }
 }
 
@@ -170,6 +236,14 @@ impl Checker {
         }
         for f in fns {
             self.session_fn(f);
+        }
+        // W-SES-5: a session graph that is not a tree is still accepted when
+        // its exchanges have priorities (T28p)
+        let pending = std::mem::take(&mut self.b6.ses5);
+        if !pending.is_empty() && !crate::session_prio::discharges(m, &self.b6.protocols) {
+            for e in pending {
+                self.e(e);
+            }
         }
     }
 
@@ -304,25 +378,60 @@ impl Checker {
             Some(t) => self.lower(t, line),
             None => T::Never,
         };
-        if !self.mergeable(&inner) {
-            self.e(d(line, "W-CRDT-1", format!("lvar needs a type with Merge, found {inner}")));
+        if let Some(g) = self.merge_gap(&inner) {
+            self.e(d(line, "W-CRDT-1", format!("lvar needs a type with Merge, found {inner} ({g})")));
         }
         T::Named("lvar".into(), vec![inner])
     }
 
     /// built-in Merge instances (C.11.5) or a user `impl Merge`
-    fn mergeable(&self, t: &T) -> bool {
+    pub(crate) fn mergeable(&mut self, t: &T) -> bool {
+        self.merge_gap(t).is_none()
+    }
+
+    /// Why `t` has no `Merge` (C.11.5), or None when it has one: the
+    /// built-in instances need a `Merge` on every component, so a struct
+    /// without its own `impl Merge` needs one on every field, recursively
+    /// (a struct reached again through itself is assumed, the greatest
+    /// fixed point, since its merge recurses on finite values).
+    pub(crate) fn merge_gap(&mut self, t: &T) -> Option<String> {
+        let mut seen = vec![];
+        self.merge_gap_in(t, &mut seen)
+    }
+    fn merge_gap_in(&mut self, t: &T, seen: &mut Vec<String>) -> Option<String> {
         match t {
-            T::Int(_) | T::Bool | T::Never | T::Var(_) => true,
-            T::Set(x) | T::Opt(x) | T::List(x) => self.mergeable(x),
-            T::Map(_, v) => self.mergeable(v),
-            T::Tuple(v) => v.iter().all(|x| self.mergeable(x)),
-            T::Named(n, _) => self
-                .impls
-                .iter()
-                .any(|(ty, tr)| ty == n && tr.as_deref() == Some("Merge"))
-                || matches!(self.types.get(n), Some(crate::check::TyDef::Struct { .. })),
-            _ => false,
+            // union is a join for any element type with equality
+            T::Int(_) | T::Bool | T::Never | T::Var(_) | T::Set(_) | T::List(_) => None,
+            T::Opt(x) => self.merge_gap_in(x, seen),
+            T::Map(_, v) => self.merge_gap_in(v, seen).map(|g| format!("its values: {g}")),
+            T::Tuple(v) => v.iter().enumerate().find_map(|(i, x)| self.merge_gap_in(x, seen).map(|g| format!("component {i}: {g}"))),
+            T::Named(n, args) => {
+                if self.impls.iter().any(|(ty, tr)| ty == n && tr.as_deref() == Some("Merge")) || seen.contains(n) {
+                    return None;
+                }
+                let Some(crate::check::TyDef::Struct { generics, fields }) = self.types.get(n).cloned() else {
+                    return Some(format!("{t} has no impl Merge"));
+                };
+                seen.push(n.clone());
+                let mut r = None;
+                for f in &fields {
+                    let ft = self.lower(&f.ty, f.line);
+                    let ft = match &ft {
+                        T::Named(g, a) if a.is_empty() => match generics.iter().position(|p| &p.name == g) {
+                            Some(i) => args.get(i).cloned().unwrap_or(T::Never),
+                            None => ft,
+                        },
+                        _ => ft,
+                    };
+                    if let Some(g) = self.merge_gap_in(&ft, seen) {
+                        r = Some(format!("field `{}` of {n}: {g}", f.name));
+                        break;
+                    }
+                }
+                seen.pop();
+                r
+            }
+            _ => Some(format!("{t} has no Merge")),
         }
     }
 
@@ -337,8 +446,8 @@ impl Checker {
             self.expect(&u, &t, l);
         }
         let t = self.sub.resolve(&t);
-        if !self.mergeable(&t) {
-            self.e(d(l, "W-CRDT-1", format!("lvar needs a type with Merge, found {t}")));
+        if let Some(g) = self.merge_gap(&t) {
+            self.e(d(l, "W-CRDT-1", format!("lvar needs a type with Merge, found {t} ({g})")));
         }
         T::Named("lvar".into(), vec![t])
     }
@@ -677,6 +786,7 @@ impl Checker {
     // ------------------------------------------------------------ session pass
 
     fn session_fn(&mut self, f: &FnDecl) {
+        self.b6.ses_dual.clear();
         let mut env = Env::new();
         for p in &f.sig.params {
             if let Param::Named { name, ty, .. } = p
@@ -702,7 +812,7 @@ impl Checker {
     fn ses_end(&mut self, env: &Env, line: usize) {
         for (c, s) in env {
             let s = canon(s.clone());
-            if !s.is_empty() {
+            if !s.is_empty() && gone(&s).is_none() {
                 self.e(d(
                     line,
                     "W-SES-2",
@@ -714,6 +824,11 @@ impl Checker {
 
     fn ses_step(&mut self, env: &mut Env, c: &str, line: usize, op: &str, label: Option<&str>) -> Option<Vec<(String, St)>> {
         let s = head(env.get(c)?.clone());
+        if let Some((l0, how)) = gone(&s) {
+            self.e(d(line, "W-SES-4", format!("`{c}`: {op} on an endpoint that was {how} at line {l0}")));
+            return None;
+        }
+        self.ses_dual_held(env, c, line, op);
         let bad = |me: &mut Checker, s: &St| {
             me.e(d(line, "W-SES-1", format!("`{c}`: {op} not allowed here, the protocol expects {}", show_head(s))));
         };
@@ -792,18 +907,25 @@ impl Checker {
             }
             _ => {}
         });
-        // a bare use of an endpoint passes it on (delegation): stop tracking it
+        // a bare use of an endpoint passes it on (delegation, a send of the
+        // endpoint, a call or spawn argument, a rebinding): the owner here
+        // keeps no capability, so the name is consumed (W-SES-4 on reuse)
         let mut moved = vec![];
         walk_expr(e, &mut |x| {
-            if let Expr::Name(n, _) = x
+            if let Expr::Name(n, l) = x
                 && env.contains_key(n)
                 && !covered.contains(&(x as *const Expr))
             {
-                moved.push(n.clone());
+                moved.push((n.clone(), *l));
             }
         });
         for (c, l, op, lab) in ops {
             if !env.contains_key(&c) {
+                continue;
+            }
+            if let Some((l0, how)) = gone(&env[&c]) {
+                let what = if op == "offer-bare" { "offer" } else { op };
+                self.e(d(l, "W-SES-4", format!("`{c}`: {what} on an endpoint that was {how} at line {l0}")));
                 continue;
             }
             match op {
@@ -812,19 +934,36 @@ impl Checker {
                     env.remove(&c);
                 }
                 "close" => {
+                    self.ses_dual_held(env, &c, l, "close");
                     let s = canon(env[&c].clone());
                     if !s.is_empty() {
                         self.e(d(l, "W-SES-2", format!("`{c}` closed before the end of its protocol")));
                     }
-                    env.remove(&c);
+                    env.insert(c.clone(), vec![PS::Gone(l, "closed")]);
                 }
                 _ => {
                     self.ses_step(env, &c, l, op, lab.as_deref());
                 }
             }
         }
-        for n in moved {
-            env.remove(&n);
+        for (n, l) in moved {
+            let Some(s) = env.get(&n) else { continue };
+            if let Some((l0, how)) = gone(s) {
+                self.e(d(l, "W-SES-4", format!("`{n}` used after it was {how} at line {l0}")));
+                continue;
+            }
+            env.insert(n, vec![PS::Gone(l, "moved")]);
+        }
+    }
+
+    /// W-SES-5: a process that still holds both ends of one channel must
+    /// not act on either (it would wait on itself; the session graph has a
+    /// loop). It passes one end on first.
+    fn ses_dual_held(&mut self, env: &Env, c: &str, line: usize, op: &str) {
+        if let Some(y) = self.b6.ses_dual.get(c)
+            && env.get(y).is_some_and(|s| gone(s).is_none())
+        {
+            self.b6.ses5.push(d(line, "W-SES-5", format!("`{c}`: {op} while this body still holds `{y}`, the other end of the same channel")));
         }
     }
 
@@ -838,8 +977,30 @@ impl Checker {
                 let a = out.get(&k).map(|s| canon(s.clone()));
                 let b = e.get(&k).map(|s| canon(s.clone()));
                 if a != b {
-                    if a.is_some() && b.is_some() {
-                        self.e(d(line, "W-SES-1", format!("branches leave `{k}` in different protocol states")));
+                    let (ga, gb) = (a.as_ref().and_then(gone), b.as_ref().and_then(gone));
+                    let live = |x: &Option<St>| x.as_ref().is_some_and(|s| gone(s).is_none() && !s.is_empty());
+                    match (ga, gb) {
+                        // consumed on every path (where it was used last does not matter)
+                        (Some(g), Some(_)) => {
+                            out.insert(k.clone(), vec![PS::Gone(g.0, g.1)]);
+                            continue;
+                        }
+                        // consumed on one path, still owed on the other
+                        (Some((l0, how)), None) | (None, Some((l0, how))) if live(&a) || live(&b) => {
+                            self.e(d(
+                                line,
+                                "W-SES-4",
+                                format!("`{k}` is {how} on one path (line {l0}) and still in use on another"),
+                            ));
+                        }
+                        (Some(g), None) | (None, Some(g)) => {
+                            out.insert(k.clone(), vec![PS::Gone(g.0, g.1)]);
+                            continue;
+                        }
+                        (None, None) if a.is_some() && b.is_some() => {
+                            self.e(d(line, "W-SES-1", format!("branches leave `{k}` in different protocol states")));
+                        }
+                        _ => {}
                     }
                     out.remove(&k);
                 }
@@ -856,6 +1017,7 @@ impl Checker {
         if env.is_empty() && !block_has_session_new(b) {
             return (env, fl);
         }
+        let outer: BTreeSet<String> = env.keys().cloned().collect();
         for s in b {
             if fl.returned {
                 break;
@@ -874,6 +1036,58 @@ impl Checker {
                     {
                         env.insert(x[0].clone(), st_of(&steps));
                         env.insert(y[0].clone(), st_of(&dual(&steps)));
+                        self.b6.ses_dual.insert(x[0].clone(), y[0].clone());
+                        self.b6.ses_dual.insert(y[0].clone(), x[0].clone());
+                    }
+                }
+                Stmt::Let(p, _, e, _) => {
+                    // `let m = x` moves the endpoint `x` to `m`: `m` owes
+                    // the rest of x's protocol (SessionLin `move`)
+                    let alias = match (p, e) {
+                        (Pat::Path(m), Expr::Name(x, _)) if m.len() == 1 => {
+                            env.get(x).filter(|s| gone(s).is_none()).cloned().map(|st| (m[0].clone(), st))
+                        }
+                        _ => None,
+                    };
+                    self.ses_expr(e, &mut env);
+                    let mut v = BTreeSet::new();
+                    crate::check::pat_names_pub(p, &mut v);
+                    for n in v {
+                        if env.get(&n).is_some_and(|s| gone(s).is_some()) {
+                            env.remove(&n);
+                        }
+                    }
+                    if let Some((m, st)) = alias {
+                        if let (Expr::Name(x, _), true) = (e, true)
+                            && let Some(y) = self.b6.ses_dual.get(x).cloned()
+                        {
+                            self.b6.ses_dual.insert(m.clone(), y.clone());
+                            self.b6.ses_dual.insert(y, m.clone());
+                        }
+                        env.insert(m, st);
+                    }
+                }
+                Stmt::Spawn(Expr::Call(_, args, l, _)) => {
+                    let ends: Vec<&String> = args
+                        .iter()
+                        .filter_map(|a| match &a.e {
+                            Expr::Name(x, _) if env.get(x).is_some_and(|s| gone(s).is_none()) => Some(x),
+                            _ => None,
+                        })
+                        .collect();
+                    if ends.len() > 1 {
+                        self.b6.ses5.push(d(
+                            *l,
+                            "W-SES-5",
+                            format!(
+                                "spawn passes {} session endpoints ({}); at most one keeps the session graph a tree",
+                                ends.len(),
+                                ends.iter().map(|x| format!("`{x}`")).collect::<Vec<_>>().join(", ")
+                            ),
+                        ));
+                    }
+                    for e in stmt_exprs(s) {
+                        self.ses_expr(e, &mut env);
                     }
                 }
                 Stmt::Send(Expr::Name(c, _), v) if env.contains_key(c) => {
@@ -1024,6 +1238,17 @@ impl Checker {
                         self.ses_expr(e, &mut env);
                     }
                 }
+            }
+        }
+        // an endpoint bound in this block goes out of scope at its end: it
+        // must be finished or passed on here (W-SES-2), and the enclosing
+        // block does not see it
+        if !fl.returned {
+            let local: Env = env.iter().filter(|(k, _)| !outer.contains(*k)).map(|(k, v)| (k.clone(), v.clone())).collect();
+            if !local.is_empty() {
+                let line = b.last().map(stmt_line).unwrap_or(0);
+                self.ses_end(&local, line);
+                env.retain(|k, _| outer.contains(k));
             }
         }
         // `break` and `continue` end the block early: hand the break states up

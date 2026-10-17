@@ -1,0 +1,4 @@
+# rce-version: 0.9
+# expect: W-TPL-2
+fn main()
+    emit text.t"a {}"

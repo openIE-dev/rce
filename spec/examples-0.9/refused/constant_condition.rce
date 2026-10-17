@@ -1,0 +1,5 @@
+# rce-version: 0.9
+# expect: W-UNUSED-2
+fn main()
+    if true
+        emit "always"

@@ -70,6 +70,72 @@ fn build(l: Lang, dir: &Path, stem: &str, code: &str) -> Result<Vec<PathBuf>, St
     }
 }
 
+/// Builds every emitted program once per target. Identical code (a corpus
+/// program that is also swept) is built once. Scala sources are collected
+/// and compiled together in one `scala-cli compile`, each in its own
+/// package, because one cold Scala compile per program dominated the run.
+struct Builds {
+    dir: PathBuf,
+    done: std::collections::HashMap<(String, String), Result<Vec<PathBuf>, String>>,
+    scala: Vec<(String, String)>,
+    scala_cp: Option<Result<String, String>>,
+}
+
+impl Builds {
+    fn new(dir: &Path) -> Builds {
+        Builds { dir: dir.to_path_buf(), done: Default::default(), scala: vec![], scala_cp: None }
+    }
+    fn pkg(stem: &str) -> String {
+        format!("p_{stem}")
+    }
+    /// Register a program; Scala is only queued here.
+    fn add(&mut self, l: Lang, stem: &str, code: &str) {
+        let key = (l.ext().to_string(), code.to_string());
+        if self.done.contains_key(&key) || (l == Lang::Scala && self.scala.iter().any(|(_, c)| c == code)) {
+            return;
+        }
+        if l == Lang::Scala {
+            self.scala.push((stem.to_string(), code.to_string()));
+        } else {
+            let r = build(l, &self.dir, stem, code);
+            self.done.insert(key, r);
+        }
+    }
+    fn compile_scala(&mut self) {
+        if self.scala.is_empty() || self.scala_cp.is_some() {
+            return;
+        }
+        let sd = self.dir.join("scala");
+        std::fs::create_dir_all(&sd).unwrap();
+        let mut files = vec![];
+        for (stem, code) in &self.scala {
+            let f = sd.join(format!("{stem}.scala"));
+            std::fs::write(&f, format!("package {}\n{code}", Builds::pkg(stem))).unwrap();
+            files.push(f);
+        }
+        let c = Command::new("scala-cli")
+            .args(["compile", "-q", "--server=false", "--scala", "3.10.0", "--scalac-option", "-nowarn", "--print-class-path"])
+            .args(&files)
+            .current_dir(&sd)
+            .output();
+        self.scala_cp = Some(match c {
+            Ok(o) if o.status.success() => Ok(String::from_utf8_lossy(&o.stdout).trim().to_string()),
+            Ok(o) => Err(format!("scala-cli: {}", String::from_utf8_lossy(&o.stderr))),
+            Err(e) => Err(e.to_string()),
+        });
+    }
+    fn cmd(&mut self, l: Lang, code: &str) -> Result<Vec<PathBuf>, String> {
+        if l != Lang::Scala {
+            return self.done.get(&(l.ext().to_string(), code.to_string())).cloned().unwrap_or(Err("not built".into()));
+        }
+        self.compile_scala();
+        let stem = self.scala.iter().find(|(_, c)| c == code).map(|(s, _)| s.clone()).ok_or("not queued")?;
+        let cp = self.scala_cp.clone().unwrap()?;
+        let java = scala_java().ok_or("no Java 19 or later for Scala")?;
+        Ok(vec![java, PathBuf::from("-cp"), PathBuf::from(cp), PathBuf::from(format!("{}.rce_main", Builds::pkg(&stem)))])
+    }
+}
+
 fn run(cmd: &[PathBuf], fuel: Option<u64>) -> Vec<String> {
     let mut c = Command::new(&cmd[0]);
     c.args(&cmd[1..]).arg("--fuel-trace");
@@ -82,6 +148,30 @@ fn run(cmd: &[PathBuf], fuel: Option<u64>) -> Vec<String> {
         v.push(format!("EXIT {:?}: {}", o.status.code(), String::from_utf8_lossy(&o.stderr)));
     }
     v
+}
+
+/// Run every limit of `ns` in one process (`--fuel-batch`): the emitted
+/// program repeats its observations per limit, each pass headed by
+/// `#fuel-batch n`. Returns one observation list per limit.
+fn run_batch(cmd: &[PathBuf], ns: &[u64]) -> Vec<Vec<String>> {
+    let list = ns.iter().map(|n| n.to_string()).collect::<Vec<_>>().join(",");
+    let o = Command::new(&cmd[0]).args(&cmd[1..]).arg("--fuel-trace").arg(format!("--fuel-batch={list}")).output().unwrap();
+    let mut out: Vec<Vec<String>> = vec![];
+    for l in String::from_utf8_lossy(&o.stdout).lines() {
+        if l.starts_with("#fuel-batch ") {
+            out.push(vec![]);
+        } else if let Some(v) = out.last_mut() {
+            v.push(l.to_string());
+        }
+    }
+    if !o.status.success() {
+        let e = format!("EXIT {:?}: {}", o.status.code(), String::from_utf8_lossy(&o.stderr));
+        match out.last_mut() {
+            Some(v) => v.push(e),
+            None => out.push(vec![e]),
+        }
+    }
+    out
 }
 
 fn first_diff(a: &[String], b: &[String]) -> Option<String> {
@@ -157,12 +247,24 @@ fn emitted_fuel_matches_the_reference() {
     if std::env::var("RCE_FUEL_ONLY").is_err() {
         assert!(corpus.len() >= 50);
     }
+    let only = std::env::var("RCE_FUEL_ONLY").unwrap_or_default();
+    let sweeps: Vec<(String, String)> = fuel_progs().into_iter().filter(|(s, _)| only.is_empty() || only.split(',').any(|o| s.starts_with(o))).collect();
+    // Build phase: every program once per target, all Scala in one compile.
+    let mut b = Builds::new(&dir);
+    let mut codes: std::collections::HashMap<(String, String), String> = Default::default();
+    for (stem, src) in corpus.iter().chain(sweeps.iter()) {
+        let m = with_probes(&parse(src).unwrap());
+        for &l in &ls {
+            let code = emit(&m, l).unwrap_or_else(|e| panic!("{stem}: {e}"));
+            b.add(l, &format!("{stem}_{}", l.ext()), &code);
+            codes.insert((stem.clone(), l.ext().to_string()), code);
+        }
+    }
     for (stem, src) in &corpus {
         let m = with_probes(&parse(src).unwrap());
         let want = observe_fuel(&m);
         for &l in &ls {
-            let code = emit(&m, l).unwrap_or_else(|e| panic!("{stem}: {e}"));
-            match build(l, &dir, &format!("{stem}_{}", l.ext()), &code) {
+            match b.cmd(l, &codes[&(stem.clone(), l.ext().to_string())]) {
                 Ok(cmd) => {
                     if let Some(d) = first_diff(&want, &run(&cmd, None)) {
                         bad.push(format!("{stem} {l:?}: {d}"));
@@ -174,28 +276,42 @@ fn emitted_fuel_matches_the_reference() {
     }
     // 2. trap step at every limit
     let mut swept = 0;
-    let only = std::env::var("RCE_FUEL_ONLY").unwrap_or_default();
-    for (stem, src) in fuel_progs().into_iter().filter(|(s, _)| only.is_empty() || only.split(',').any(|o| s.starts_with(o))) {
+    for (stem, src) in sweeps {
         let m = with_probes(&parse(&src).unwrap());
         FUEL_LIMIT.store(FUEL, Ordering::SeqCst);
         let max = observe_fuel(&m).iter().filter_map(|l| l.strip_prefix("fuel ")).map(|n| n.parse::<u64>().unwrap()).max().unwrap();
-        let cmds: Vec<(Lang, Vec<PathBuf>)> = ls
-            .iter()
-            .map(|&l| (l, build(l, &dir, &format!("sw_{stem}_{}", l.ext()), &emit(&m, l).unwrap()).unwrap()))
-            .collect();
+        let cmds: Vec<(Lang, Vec<PathBuf>)> = ls.iter().map(|&l| (l, b.cmd(l, &codes[&(stem.clone(), l.ext().to_string())]).unwrap())).collect();
         let step = (max / 400).max(1);
+        let mut ns = vec![];
         let mut n = 0;
         while n <= max + 1 {
-            FUEL_LIMIT.store(n, Ordering::SeqCst);
-            let want = observe_fuel(&m);
-            for (l, cmd) in &cmds {
-                if let Some(d) = first_diff(&want, &run(cmd, Some(n))) {
+            ns.push(n);
+            n += if n < 300 { 1 } else { step };
+        }
+        let wants: Vec<Vec<String>> = ns
+            .iter()
+            .map(|&n| {
+                FUEL_LIMIT.store(n, Ordering::SeqCst);
+                observe_fuel(&m)
+            })
+            .collect();
+        for (l, cmd) in &cmds {
+            let got = run_batch(cmd, &ns);
+            for (k, &n) in ns.iter().enumerate() {
+                let g = got.get(k).cloned().unwrap_or_else(|| vec!["(missing pass)".into()]);
+                if let Some(d) = first_diff(&wants[k], &g) {
                     bad.push(format!("sweep {stem} {l:?} fuel {n}: {d}"));
                 }
             }
-            swept += 1;
-            n += if n < 300 { 1 } else { step };
+            // The batch must agree with a fresh process; spot-check limits.
+            for &n in [ns[0], ns[ns.len() / 2], *ns.last().unwrap()].iter() {
+                let k = ns.iter().position(|x| *x == n).unwrap();
+                if got.get(k) != Some(&run(cmd, Some(n))) {
+                    bad.push(format!("sweep {stem} {l:?} fuel {n}: batched pass differs from a fresh process"));
+                }
+            }
         }
+        swept += ns.len();
     }
     FUEL_LIMIT.store(FUEL, Ordering::SeqCst);
     eprintln!("fuel: {} programs x {} targets compared; {swept} limits swept", corpus.len(), ls.len());

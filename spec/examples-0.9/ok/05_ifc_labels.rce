@@ -1,0 +1,14 @@
+# rce-version: 0.9
+label pii
+
+fn mask(x: i64 @ {pii}) -> i64
+    return x
+
+fn main()
+    let token: i64 @ {pii} = 7
+    let masked = mask(token)
+    let ok = 3
+    if ok > 2
+        emit ok.tostr()
+    let both = masked.checked_add(1)
+    let _ = both

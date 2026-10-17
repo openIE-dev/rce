@@ -1,0 +1,25 @@
+# rce-version: 0.6
+# Session graph a tree (W-SES-5): each spawn takes one endpoint, and a
+# body passes one end of a channel on before it acts on the other.
+protocol Ask
+    send i64
+    recv i64
+
+protocol Answer
+    recv i64
+    send i64
+
+fn server(s: session Answer)
+    let x = <- s
+    s <- x * 2
+
+fn main()
+    let (c1, s1) = chan[session Ask](1)
+    let (c2, s2) = chan[session Ask](1)
+    spawn server(s1)
+    spawn server(s2)
+    c1 <- 1
+    c2 <- 2
+    let r1 = <- c1
+    let r2 = <- c2
+    emit r1 + r2

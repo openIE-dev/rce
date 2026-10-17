@@ -78,6 +78,14 @@ name = "rce-spec-data"
 path = "src/bin/spec_data.rs"
 
 [[bin]]
+name = "rce-conform"
+path = "src/bin/conform.rs"
+
+[[bin]]
+name = "rce-conform-lean"
+path = "src/bin/conform_lean.rs"
+
+[[bin]]
 name = "rce-book"
 path = "src/bin/book.rs"
 
@@ -88,3 +96,9 @@ debug = false
 [[example]]
 name = "run06"
 required-features = ["conc06"]
+
+# Standalone: the repo root workspace excludes crates/rce, but its manifest
+# carries a [patch."openie"] that only parses where the openie registry is
+# configured (a user cargo config). Without this table cargo walks up, parses
+# the root and fails on CI ("failed searching for potential workspace").
+[workspace]

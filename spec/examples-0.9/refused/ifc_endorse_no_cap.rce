@@ -1,0 +1,14 @@
+# rce-version: 0.9
+# expect: W-IFC-5
+struct Declass
+
+label pii by Declass
+
+state Log
+    shown: i64 = 0
+
+event Reveal(code: i64 @ {pii}, approved: bool, cap: Cap[Declass])
+
+step Log on Reveal(code: c, approved: ok, cap: _)
+    if endorse ok
+        emit (release c).tostr()

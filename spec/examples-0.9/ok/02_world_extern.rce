@@ -1,0 +1,6 @@
+# rce-version: 0.9
+extern "C" fn crc32(w: &World, data: &[u8], seed: u32) -> u32
+
+fn main(w: &World)
+    let bytes: List[u8] = [1, 2, 3]
+    emit crc32(w, &bytes, 0)

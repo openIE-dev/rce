@@ -1,0 +1,21 @@
+# rce-version: 0.6
+# expect: W-SES-5
+# acting on one end while holding the other: the body waits on itself
+protocol Ask
+    send i64
+    recv i64
+
+protocol Answer
+    recv i64
+    send i64
+
+fn server(s: session Answer)
+    let x = <- s
+    s <- x * 2
+
+fn main()
+    let (c, s) = chan[session Ask](1)
+    c <- 21
+    spawn server(s)
+    let r = <- c
+    emit r

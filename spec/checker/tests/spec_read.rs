@@ -41,6 +41,11 @@ fn every_listed_method_is_known_and_others_are_not() {
             if recv == "Text" && m == "raw" {
                 continue;
             }
+            // `len_bytes` and `len_chars` exist only in a 0.9 module (F.5.2, W-LEN-1);
+            // `tests/v09_tier2.rs` covers them.
+            if recv == "Text" && (m == "len_bytes" || m == "len_chars") {
+                continue;
+            }
             let e = diags(&use_method(recv, m));
             assert!(!e.contains("has no method"), "{recv}.{m}: {e}");
             n += 1;
@@ -56,11 +61,12 @@ fn every_listed_method_is_known_and_others_are_not() {
 #[test]
 fn method_work_follows_the_classes() {
     let list = V::List((0..8).map(|i| V::Int(i, "i64")).collect());
+    let set = V::Set((0..8).map(|i| V::Int(i, "i64")).collect());
     let text = V::Text("abcdefgh".into());
     for ((recv, m), w) in &TABLES.work {
         let r = match recv.as_str() {
-            // a Set[τ] value is a list in canonical order
-            "list" | "set" => list.clone(),
+            "list" => list.clone(),
+            "set" => set.clone(),
             "text" => text.clone(),
             "map" => continue,
             x => panic!("{x}"),
@@ -75,4 +81,8 @@ fn method_work_follows_the_classes() {
     }
     assert_eq!(work("list", "len"), Work::Constant);
     assert_eq!(method_work(&list, "len", &[]), 0);
+    // a set is its own value: its methods are the set row, not the list row
+    assert_eq!(method_work(&set, "len", &[]), 0);
+    assert_eq!(method_work(&set, "tolist", &[]), 8);
+    assert_eq!(method_work(&list, "union", &[]), 0);
 }

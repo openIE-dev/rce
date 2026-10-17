@@ -50,7 +50,9 @@ fn runtime_sources_call_no_unicode_table() {
         ".toLowerCase()",
     ];
     // the two JavaScript helpers apply toUpperCase/toLowerCase to [a-z]/[A-Z] only
-    let allowed = ["const aupper = (s) => s.replace(/[a-z]/g", "const alower = (s) => s.replace(/[A-Z]/g", "toString(16).toUpperCase()"];
+    let allowed = ["const aupper = (s) => s.replace(/[a-z]/g", "const alower = (s) => s.replace(/[A-Z]/g", "toString(16).toUpperCase()",
+        // decimal.Decimal.normalize strips trailing zeros of a number; it is not Unicode normalization
+        "decimal.Decimal(repr(abs(x))).normalize()"];
     let mut bad = Vec::new();
     for f in ["src/interp.rs", "src/emit/rt.rs", "src/emit/rt.py", "src/emit/rt.js", "src/emit/rt.scala"] {
         let text = std::fs::read_to_string(f).unwrap();

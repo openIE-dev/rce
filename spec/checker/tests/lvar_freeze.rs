@@ -527,4 +527,60 @@ fn main()
     for want in ["emit [1, 2, 3, 5]", "emit [1]", "emit [2]", "emit [4, 7]"] {
         assert!(l.iter().any(|x| x == want), "missing {want:?} in {l:?}");
     }
+    // a value type without Merge is refused at check time
+    let e = refused(
+        "fn f() -> i64
+    let m: Map[text, text] = {\"a\": \"x\"}
+    let n = m.merge({\"a\": \"y\"})
+    return 0
+",
+        "W-CRDT-1",
+    );
+    assert!(e.contains("Map.merge needs a value type with Merge"), "{e}");
+}
+
+/// 5.15: a Set[τ] is its own runtime value with `len` and `contains`; list
+/// methods do not apply to it, and it shows as its sorted elements.
+#[test]
+fn sets_are_their_own_value() {
+    let src = "fn main()
+    var s = set_of([5, 1, 5, 3])
+    emit s.len()
+    emit s.contains(3)
+    emit s.contains(4)
+    s.insert(4)
+    emit s.contains(4)
+    emit s.len()
+    var n: i64 = 0
+    for x in s.tolist()
+        n += x
+    emit n
+    emit s.tolist().len()
+    emit s == set_of([4, 3, 1, 5, 1])
+    emit set_of([2, 1])
+";
+    let l = agree("setval", src);
+    for want in ["emit 3", "emit true", "emit false", "emit 4", "emit [1, 2]", "emit 13"] {
+        assert!(l.iter().any(|x| x == want), "missing {want:?} in {l:?}");
+    }
+    let d = rce_spec_check::check_program(&[("t.rce".into(), "fn f() -> i64\n    let s = set_of([1])\n    s.push(2)\n    return 0\n".into())], false);
+    assert!(d[0].1.is_err(), "push on a Set was admitted");
+}
+
+/// C.11.5: a struct without `impl Merge` has the componentwise instance
+/// only when every field has a Merge, recursively.
+#[test]
+fn struct_merge_needs_every_field() {
+    let e = refused("struct P\n    n: i64\n    s: text\n\nfn f() -> i64\n    let x = lvar_new(P(n: 0, s: \"\"))\n    return 0\n", "W-CRDT-1");
+    assert!(e.contains("field `s` of P"), "{e}");
+    let e = refused("struct In\n    t: text\n\nstruct Out\n    a: i64\n    b: In\n\nfn f() -> i64\n    let x = lvar_new(Out(a: 0, b: In(t: \"\")))\n    return 0\n", "W-CRDT-1");
+    assert!(e.contains("field `b` of Out: field `t` of In"), "{e}");
+    let e = refused("struct Q\n    m: Map[text, text]\n\nfn f() -> i64\n    let x = lvar_new(Q(m: {\"a\": \"b\"}))\n    return 0\n", "W-CRDT-1");
+    assert!(e.contains("field `m` of Q: its values"), "{e}");
+    // every field has one: nested structs, sets of text, maps of ints, options
+    let ok = "struct In\n    k: i64\n    up: bool\n\nstruct Out\n    a: In\n    tags: Set[text]\n    m: Map[text, i64]\n    o: i64?\n\nfn main()\n    let x = lvar_new(Out(a: In(k: 0, up: false), tags: set_of([]), m: {\"z\": 0}, o: none))\n    x.put(Out(a: In(k: 3, up: false), tags: set_of([\"b\"]), m: {\"z\": 2}, o: some(4)))\n    x.put(Out(a: In(k: 1, up: true), tags: set_of([\"a\"]), m: {\"y\": 1}, o: some(2)))\n    let v = x.freeze()\n    emit v.a.k\n    emit v.a.up\n    emit v.tags.tolist()\n    emit v.o\n    emit v.m\n";
+    let l = agree("structmerge", ok);
+    for want in ["emit 3", "emit true", "emit [\"a\", \"b\"]", "emit some(4)"] {
+        assert!(l.iter().any(|x| x == want), "missing {want:?} in {l:?}");
+    }
 }

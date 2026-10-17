@@ -226,6 +226,42 @@ fn main() {
             bad += 1;
         }
     }
+    // LALR(1) of the version 0.9 grammar: section 3, Appendix C.2, then F.13.
+    match (|| -> Result<_, String> {
+        let rd = |f: &str| std::fs::read_to_string(spec.join("book").join(f)).map_err(|e| e.to_string());
+        rce_spec_check::lalr::book_grammar_09(&rd("03-syntax.md")?, &rd("14-draft06-concurrency.md")?, &rd("17-draft09.md")?)
+    })() {
+        Ok(g) => {
+            let (rules, prods) = (g.source_rules, g.prods.len());
+            let mut l = rce_spec_check::lalr::Lalr::build(g);
+            l.draft06 = true;
+            l.draft09 = true;
+            println!(
+                "grammar: LALR(1) of version 0.9 (section 3 with C.2 and F.13): {rules} rules, {prods} productions, {} states, {} conflicts",
+                l.states,
+                l.conflicts.len()
+            );
+            for c in &l.conflicts {
+                println!("FAIL (0.9 LALR conflict): {c}");
+            }
+            bad += l.conflicts.len();
+            let (mut acc, mut nacc) = (0, 0);
+            for (p, s) in load(&rce_files(&spec.join("examples-0.9/ok"))) {
+                nacc += 1;
+                if l.accepts(&s) {
+                    acc += 1
+                } else {
+                    bad += 1;
+                    println!("FAIL (0.9 LALR should parse): examples-0.9/ok/{}", name(&p))
+                }
+            }
+            println!("grammar: 0.9 LALR(1) accepted {acc}/{nacc} 0.9 ok examples");
+        }
+        Err(e) => {
+            println!("FAIL (0.9 grammar): {e}");
+            bad += 1;
+        }
+    }
     let ex = spec.join("examples");
     // examples/*.rce plus each package directory (4.1), e.g. 26_use_module
     let mut okp = rce_files(&ex);

@@ -1,0 +1,14 @@
+# rce-version: 0.6
+# expect: W-SES-2
+# an endpoint moved into a name bound inside an arm must be finished there
+protocol P
+    send i64
+    send i64
+
+fn client(c: session P, k: i64)
+    if k > 0
+        let m = c
+        m <- 1
+    else
+        c <- 1
+        c <- 1

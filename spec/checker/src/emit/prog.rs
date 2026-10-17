@@ -806,6 +806,7 @@ impl<'a> G<'a> {
         if l == Lang::Rust {
             let r = run("run_tasks(\"main\")", false);
             self.line(format!("if std::env::args().any(|a| a == \"--run\") {{ {r}; return; }}"));
+            self.line("observe_all(&|| {".to_string());
         }
         self.scopes = vec![vec![]];
         self.ctx = Ctx::Gen;
@@ -860,17 +861,20 @@ impl<'a> G<'a> {
                 Lang::Scala => format!("run_main(u_{id} _)"),
             });
         }
+        if l == Lang::Rust {
+            self.line("});".to_string());
+        }
         self.close();
         match l {
             Lang::Rust => {}
             Lang::Python => {
                 let r = run("run_tasks(\"main\")", true);
-                self.line(format!("if \"--run\" in sys.argv: {r}\nelse: observe()"))
+                self.line(format!("if \"--run\" in sys.argv: {r}\nelse: observe_all(observe)"))
             }
             Lang::Js => {
                 let r = run("runTasks(\"main\");", false);
                 self.line(format!(
-                    "if (!WT.isMainThread) {{ if (WT.workerData && WT.workerData.par) parMain(); else taskMain(); }}\nelse if (process.argv.includes(\"--run\")) {r}\nelse {{\n  observe();\n  process.stdout.write(LINES.map((x) => x + \"\\n\").join(\"\"));\n}}"
+                    "if (!WT.isMainThread) {{ if (WT.workerData && WT.workerData.par) parMain(); else taskMain(); }}\nelse if (process.argv.includes(\"--run\")) {r}\nelse {{\n  observeAll(observe);\n  process.stdout.write(LINES.map((x) => x + \"\\n\").join(\"\"));\n}}"
                 ))
             }
             Lang::Scala => {
@@ -880,7 +884,7 @@ impl<'a> G<'a> {
                     "{ System.err.println(\"nothing to run: declare `fn main()`\"); sys.exit(1) }"
                 };
                 self.line(format!(
-                    "@main def rce_main(args: String*): Unit = big_stack {{ () =>\n  init_args(args)\n  if (args.contains(\"--run\")) {r}\n  else {{\n    observe()\n    val o = new java.io.PrintStream(new java.io.FileOutputStream(java.io.FileDescriptor.out), false, \"UTF-8\")\n    for (x <- LINES) {{ o.print(x); o.print(\"\\n\") }}\n    o.flush()\n  }}\n}}"
+                    "@main def rce_main(args: String*): Unit = big_stack {{ () =>\n  init_args(args)\n  if (args.contains(\"--run\")) {r}\n  else {{\n    observe_all(() => observe())\n    val o = new java.io.PrintStream(new java.io.FileOutputStream(java.io.FileDescriptor.out), false, \"UTF-8\")\n    for (x <- LINES) {{ o.print(x); o.print(\"\\n\") }}\n    o.flush()\n  }}\n}}"
                 ))
             }
 

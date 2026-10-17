@@ -1,0 +1,13 @@
+# rce-version: 0.9
+ct fn pick(flag: bool @ {secret}, a: i64, b: i64) -> i64
+    return ct_choose(flag, a, b)
+
+ct fn mix(key: i64 @ {secret}, x: i64) -> i64
+    return (key ^ x) | (key & 255)
+
+fn main()
+    let k: i64 @ {secret} = 7
+    let r = pick(true, 1, 2)
+    let m = mix(k, 3)
+    let _ = r
+    let _ = m

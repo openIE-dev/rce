@@ -7,15 +7,101 @@ use crate::ast::*;
 use crate::types::{INTS, int_range};
 use std::collections::HashMap;
 
+/// A shared, copy-on-write value: cloning a text or list value (reading a
+/// variable, passing an argument) is O(1); a write copies only when the
+/// buffer is shared. Evaluation and fuel are unchanged.
+#[derive(Clone, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct Shared<T>(pub std::sync::Arc<T>);
+impl<T: std::fmt::Debug> std::fmt::Debug for Shared<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        (*self.0).fmt(f)
+    }
+}
+impl<T> std::ops::Deref for Shared<T> {
+    type Target = T;
+    fn deref(&self) -> &T {
+        &self.0
+    }
+}
+impl<T: Clone> std::ops::DerefMut for Shared<T> {
+    fn deref_mut(&mut self) -> &mut T {
+        std::sync::Arc::make_mut(&mut self.0)
+    }
+}
+impl<T> From<T> for Shared<T> {
+    fn from(t: T) -> Self {
+        Shared(std::sync::Arc::new(t))
+    }
+}
+impl From<&str> for Shared<String> {
+    fn from(t: &str) -> Self {
+        Shared(std::sync::Arc::new(t.to_string()))
+    }
+}
+impl<T: Clone> Shared<T> {
+    pub fn take(self) -> T {
+        std::sync::Arc::try_unwrap(self.0).unwrap_or_else(|a| (*a).clone())
+    }
+}
+impl std::fmt::Display for Shared<String> {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        f.write_str(&self.0)
+    }
+}
+impl<T> std::iter::FromIterator<T> for Shared<Vec<T>> {
+    fn from_iter<I: IntoIterator<Item = T>>(i: I) -> Self {
+        Shared::from(i.into_iter().collect::<Vec<T>>())
+    }
+}
+impl<'a, T> IntoIterator for &'a Shared<Vec<T>> {
+    type Item = &'a T;
+    type IntoIter = std::slice::Iter<'a, T>;
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.iter()
+    }
+}
+impl<T: Clone> IntoIterator for Shared<Vec<T>> {
+    type Item = T;
+    type IntoIter = std::vec::IntoIter<T>;
+    fn into_iter(self) -> Self::IntoIter {
+        self.take().into_iter()
+    }
+}
+impl std::iter::FromIterator<char> for Shared<String> {
+    fn from_iter<I: IntoIterator<Item = char>>(i: I) -> Self {
+        Shared::from(i.into_iter().collect::<String>())
+    }
+}
+impl std::iter::FromIterator<String> for Shared<String> {
+    fn from_iter<I: IntoIterator<Item = String>>(i: I) -> Self {
+        Shared::from(i.into_iter().collect::<String>())
+    }
+}
+impl std::ops::Add<&Shared<String>> for Shared<String> {
+    type Output = Shared<String>;
+    fn add(self, o: &Shared<String>) -> Shared<String> {
+        let mut s = self.take();
+        s.push_str(o);
+        Shared::from(s)
+    }
+}
+impl std::borrow::Borrow<str> for Shared<String> {
+    fn borrow(&self) -> &str {
+        &self.0
+    }
+}
+
 #[derive(Clone, Debug)]
 pub enum V {
     Int(i128, &'static str), // "lit" = an integer literal not yet given a type
     F(f64),
     Bool(bool),
-    Text(String),
+    Text(Shared<String>),
     Unit,
-    Tuple(Vec<V>),
-    List(Vec<V>),
+    Tuple(Shared<Vec<V>>),
+    List(Shared<Vec<V>>),
+    /// a Set[τ]: canonical order, no duplicates (7.1); shown and embedded as a list
+    Set(Shared<Vec<V>>),
     Map(Vec<(V, V)>),
     Opt(Option<Box<V>>),
     Rec(String, Vec<(String, V)>), // struct, kind variant, event, error
@@ -43,10 +129,12 @@ impl PartialEq for V {
             (Text(a), Text(b)) => a == b,
             (Unit, Unit) => true,
             (Tuple(a), Tuple(b)) | (List(a), List(b)) => a == b,
+            // sets are kept in canonical order, so identity is elementwise key identity
+            (Set(a), Set(b)) => a.len() == b.len() && a.iter().zip(b).all(|(x, y)| key_eq(x, y)),
             (Map(a), Map(b)) => {
                 a.len() == b.len()
                     && a.iter()
-                        .all(|(k, v)| b.iter().any(|(k2, v2)| k == k2 && v == v2))
+                        .all(|(k, v)| b.iter().any(|(k2, v2)| key_eq(k, k2) && v == v2))
             }
             (Opt(a), Opt(b)) => a == b,
             (Rec(n, a), Rec(m, b)) => n == m && a == b,
@@ -71,7 +159,7 @@ impl V {
                 "({})",
                 v.iter().map(|x| x.show()).collect::<Vec<_>>().join(", ")
             ),
-            V::List(v) => format!(
+            V::List(v) | V::Set(v) => format!(
                 "[{}]",
                 v.iter().map(|x| x.show()).collect::<Vec<_>>().join(", ")
             ),
@@ -137,6 +225,18 @@ pub(crate) fn trap<T>(m: impl Into<String>) -> R<T> {
 }
 
 pub const LOOP_LIMIT: i128 = 1_000_000;
+/// N9: a list or text built by any operation has at most SIZE_LIMIT elements
+/// (list items, text code points).
+pub const SIZE_LIMIT: usize = 1_000_000;
+
+/// N9 at the one point every built value passes: the result of an expression.
+pub fn size_ok(v: V) -> R<V> {
+    match &v {
+        V::List(xs) if xs.len() > SIZE_LIMIT => trap("size limit"),
+        V::Text(t) if t.len() > SIZE_LIMIT && t.chars().count() > SIZE_LIMIT => trap("size limit"),
+        _ => Ok(v),
+    }
+}
 pub const FUEL: u64 = 50_000_000;
 /// The fuel each new evaluator starts with (6.7). It is FUEL; the tests of
 /// tests/fuel.rs set it to find the trap step of small programs, and an
@@ -303,6 +403,9 @@ impl<'a> Interp<'a> {
                         .collect::<R<_>>()?,
                 ))
             }
+            (V::Set(xs), Ty::Path(p, a)) if p.len() == 1 && p[0] == "Set" && a.len() == 1 => Ok(
+                crate::conc::set_of(xs.into_iter().map(|x| self.fit(x, &a[0])).collect::<R<_>>()?),
+            ),
             (V::List(xs), Ty::Array(e, _)) => Ok(V::List(
                 xs.into_iter().map(|x| self.fit(x, e)).collect::<R<_>>()?,
             )),
@@ -348,6 +451,19 @@ impl<'a> Interp<'a> {
             }
         }
         false
+    }
+    /// Before an in-place update of a value read from a plain variable,
+    /// drop the variable's own reference so the update does not copy the
+    /// buffer (the variable is assigned right after).
+    fn release(&mut self, obj: &Expr) {
+        if let Expr::Name(n, _) = obj {
+            for s in self.scopes.iter_mut().rev() {
+                if let Some(x) = s.get_mut(n.as_str()) {
+                    *x = V::Unit;
+                    return;
+                }
+            }
+        }
     }
     pub(crate) fn bind(&mut self, n: &str, v: V) {
         self.scopes.last_mut().unwrap().insert(n.to_string(), v);
@@ -498,8 +614,9 @@ pub fn canon_json(v: &serde_json::Value) -> String {
 }
 
 pub fn float_text(x: f64) -> String {
+    // F9: the text reads back to the same float, so -0.0 keeps its sign (as f32 does, F6)
     if x == 0.0 {
-        return "0".into();
+        return if x.is_sign_negative() { "-0".into() } else { "0".into() };
     }
     let (digits, ex) = shortest_e(x);
     let sign = if x < 0.0 { "-" } else { "" };
@@ -529,6 +646,44 @@ pub(crate) fn chk(x: i128, t: &'static str) -> R<V> {
         Ok(V::Int(x, t))
     }
 }
+/// `f.trunc()` checked into `n`; the trap names the exact integer value of
+/// the float (N2/N4), which can exceed i128 (up to about 1.8e308).
+pub(crate) fn trunc_chk(f: f64, n: &'static str) -> R<V> {
+    let t = f.trunc();
+    if t.abs() < 1.7014118346046923e38 {
+        return chk(t as i128, n);
+    }
+    trap(format!("overflow: {} is outside {n}", exact_int_text(t)))
+}
+
+/// Decimal text of an integral finite f64, exact.
+pub fn exact_int_text(t: f64) -> String {
+    let bits = t.to_bits();
+    let exp = ((bits >> 52) & 0x7ff) as i32;
+    let mut mant = bits & ((1u64 << 52) - 1);
+    if exp != 0 { mant |= 1u64 << 52; }
+    let e = if exp == 0 { -1074 } else { exp - 1075 };
+    // base 1e9 limbs, little-endian
+    let mut limbs: Vec<u64> = vec![mant % 1_000_000_000, mant / 1_000_000_000 % 1_000_000_000, mant / 1_000_000_000_000_000_000];
+    let mut sh = e;
+    while sh > 0 {
+        let k = sh.min(29) as u32;
+        let mut carry = 0u64;
+        for l in limbs.iter_mut() {
+            let v = (*l << k) + carry;
+            *l = v % 1_000_000_000;
+            carry = v / 1_000_000_000;
+        }
+        while carry > 0 { limbs.push(carry % 1_000_000_000); carry /= 1_000_000_000; }
+        sh -= k as i32;
+    }
+    while limbs.len() > 1 && *limbs.last().unwrap() == 0 { limbs.pop(); }
+    let mut s = if t < 0.0 { "-".to_string() } else { String::new() };
+    s += &limbs.last().unwrap().to_string();
+    for l in limbs.iter().rev().skip(1) { s += &format!("{l:09}"); }
+    s
+}
+
 fn tdiv(a: i128, b: i128) -> i128 {
     a / b
 } // truncation toward zero (6.3)
@@ -695,7 +850,7 @@ impl<'a> Interp<'a> {
         self.eval_depth += 1;
         let r = stacker::maybe_grow(256 * 1024, 8 * 1024 * 1024, || self.eval_inner(e));
         self.eval_depth -= 1;
-        r
+        r.and_then(size_ok)
     }
 
     fn eval_inner(&mut self, e: &Expr) -> R<V> {
@@ -722,7 +877,7 @@ impl<'a> Interp<'a> {
             E::SelfRef(_) => self.get("self").ok_or(Flow::Trap("self".into())),
             E::Int(v, _) => Ok(V::Int(*v, "lit")),
             E::Float(f, _) => Ok(V::F(*f)),
-            E::Str(s, _) => Ok(V::Text(s.clone())),
+            E::Str(s, _) => Ok(V::Text(s.clone().into())),
             E::Bool(b, _) => Ok(V::Bool(*b)),
             E::None(_) => Ok(V::Opt(None)),
             E::Unit(_) => Ok(V::Unit),
@@ -736,7 +891,7 @@ impl<'a> Interp<'a> {
                 match self.eval(n)? {
                     V::Int(k, _) if (0..=10_000_000).contains(&k) => {
                         self.charge(4 + k)?;
-                        Ok(V::List(vec![v; k as usize]))
+                        Ok(V::List(vec![v; k as usize].into()))
                     }
                     _ => trap("bad repeat count"),
                 }
@@ -770,7 +925,7 @@ impl<'a> Interp<'a> {
                     }
                 }
                 self.charge(4 + out.len() as i128)?;
-                Ok(V::List(out))
+                Ok(V::List(out.into()))
             }
             E::Map(v, _) => {
                 self.charge(4 + v.len() as i128)?;
@@ -833,9 +988,9 @@ impl<'a> Interp<'a> {
                     if !t.is_char_boundary(lo) || !t.is_char_boundary(hi) {
                         return trap("not a char boundary");
                     }
-                    return Ok(V::Text(t[lo..hi].to_string()));
+                    return Ok(V::Text(t[lo..hi].to_string().into()));
                 }
-                Ok(V::List(xs[lo as usize..hi as usize].to_vec()))
+                Ok(V::List((xs[lo as usize..hi as usize].to_vec()).into()))
             }
             E::Member(x, m, _) => {
                 let v = self.eval(x)?;
@@ -884,13 +1039,13 @@ impl<'a> Interp<'a> {
                         }
                     }
                     (V::F32(f), None) if !to_f32 => Ok(V::F(f)),
-                    (V::F32(f), Some(n)) => chk(f.trunc() as i128, n),
+                    (V::F32(f), Some(n)) => trunc_chk(f, n),
                     (V::Int(v, _), Some(n)) => chk(v, n),
                     (V::F(f), Some(n)) => {
                         if !f.is_finite() {
                             return trap("non-finite float");
                         }
-                        chk(f.trunc() as i128, n)
+                        trunc_chk(f, n)
                     }
                     (V::Bool(b), Some(n)) => chk(b as i128, n),
                     (V::Int(v, _), None) => Ok(V::F(v as f64)),
@@ -915,6 +1070,10 @@ impl<'a> Interp<'a> {
                     Some(e) => self.eval(e)?,
                     None => *err,
                 })),
+                // `try e` without `else` only types for `e : T ! E` (W-TY-1
+                // otherwise), so an option here is the ok value of a
+                // `T? ! E` result and is returned as it is [E-Try-V].
+                v @ V::Opt(_) if els.is_none() => Ok(v),
                 V::Opt(None) => match els {
                     Some(e) => {
                         let ev = self.eval(e)?;
@@ -999,19 +1158,24 @@ fn key_form(v: &V) -> FV {
         }
         V::Opt(Some(x)) => key_form(x),
         V::Err(x) => rec(vec![("$err".into(), key_form(x))]),
-        V::Tuple(xs) | V::List(xs) => FV::List(xs.iter().map(key_form).collect()),
+        V::Tuple(xs) | V::List(xs) | V::Set(xs) => FV::List(xs.iter().map(key_form).collect()),
         V::Map(ps) => FV::List(ps.iter().map(|(k, v)| FV::List(vec![key_form(k), key_form(v)])).collect()),
         V::Int(i, _) => FV::Int(*i),
         V::F(f) | V::F32(f) => FV::Float(*f),
         V::Bool(b) => FV::Bool(*b),
-        V::Text(t) => FV::Text(t.clone()),
+        V::Text(t) => FV::Text(t.to_string()),
         V::Range(a, b, _) => FV::List((*a..*b).map(FV::Int).collect()),
         V::Fn(n) => rec(vec![("$fn".into(), FV::Text(n.clone()))]),
         _ => FV::Null,
     }
 }
+/// Map key identity (6.1): the canonical order's equality, not IEEE `==`,
+/// so `-0.0` and `0.0` (distinct states, N3 F6) are distinct keys.
+pub fn key_eq(a: &V, b: &V) -> bool {
+    key_form(a).cmp_canon(&key_form(b)) == std::cmp::Ordering::Equal
+}
 fn map_set(m: &mut Vec<(V, V)>, k: V, v: V) {
-    if let Some(e) = m.iter_mut().find(|(a, _)| *a == k) {
+    if let Some(e) = m.iter_mut().find(|(a, _)| key_eq(a, &k)) {
         e.1 = v;
     } else {
         let kf = key_form(&k);
@@ -1022,7 +1186,8 @@ fn map_set(m: &mut Vec<(V, V)>, k: V, v: V) {
 fn contains(c: &V, x: &V) -> R<bool> {
     Ok(match c {
         V::List(v) | V::Tuple(v) => v.contains(x),
-        V::Map(m) => m.iter().any(|(k, _)| k == x),
+        V::Set(v) => v.iter().any(|k| key_eq(k, x)),
+        V::Map(m) => m.iter().any(|(k, _)| key_eq(k, x)),
         V::Text(t) => match x {
             V::Text(s) => t.contains(s.as_str()),
             _ => false,
@@ -1052,7 +1217,7 @@ fn index(c: V, i: V) -> R<V> {
         }
         (V::Map(m), k) => m
             .iter()
-            .find(|(a, _)| *a == k)
+            .find(|(a, _)| key_eq(a, &k))
             .map(|(_, v)| v.clone())
             .ok_or(Flow::Trap(format!("missing key {}", k.show()))),
         (c, _) => trap(format!("cannot index {}", c.show())),
@@ -1093,15 +1258,15 @@ impl<'a> Interp<'a> {
     }
     pub(crate) fn iter_items(&mut self, v: V) -> R<Vec<V>> {
         Ok(match v {
-            V::List(xs) => xs,
+            V::List(xs) | V::Set(xs) => xs.take(),
             V::Range(a, b, t) => {
                 if b - a > self.loop_limit * 10 {
                     return trap("loop bound");
                 }
                 (a..b.max(a)).map(|i| V::Int(i, t)).collect()
             }
-            V::Text(s) => s.chars().map(|c| V::Text(c.to_string())).collect(),
-            V::Map(m) => m.into_iter().map(|(k, v)| V::Tuple(vec![k, v])).collect(),
+            V::Text(s) => s.chars().map(|c| V::Text(c.to_string().into())).collect(),
+            V::Map(m) => m.into_iter().map(|(k, v)| V::Tuple(vec![k, v].into())).collect(),
             V::Gen(g) => {
                 let (items, _, err) = self.gen_run(g, usize::MAX)?;
                 if let Some(f) = err {
@@ -1302,10 +1467,42 @@ impl<'a> Interp<'a> {
     }
 
     fn call(&mut self, f: &Expr, args: &[Arg], sized: bool) -> R<V> {
+        // R5: `f[T](x)` instantiates generic `f`; types are erased at run time
+        if let Expr::Index(g, _, _) = f
+            && let Expr::Name(n, _) = &**g
+            && self.fns.contains_key(n)
+            && self.get(n).is_none()
+        {
+            return self.call(g, args, sized);
+        }
         // 5.16 context text: `C.lit("…")` is its literal, `C.encode(t)` escapes
         if let Expr::Member(o, m, _) = f
             && let Expr::Name(c, _) = &**o
-            && crate::index08::CTX.contains(&c.as_str())
+            && crate::index08::is_ctx(c, self.m.v09)
+            && self.get(c).is_none()
+            && !self.types.contains_key(c)
+            && c == "Shell"
+            && m == "cmd"
+            && args.len() == 2
+        {
+            let p = self.eval(&args[0].e)?;
+            let a = self.eval(&args[1].e)?;
+            self.charge(crate::conc::C_CALL.saturating_add(crate::conc::size_of(&a)))?;
+            return match (p, a) {
+                (V::Text(p), V::List(xs)) => {
+                    let mut v = vec![];
+                    for x in xs.iter() {
+                        let V::Text(t) = x else { return trap("context text") };
+                        v.push(t.to_string());
+                    }
+                    Ok(V::Text(crate::index08::shell_cmd(&p, &v).into()))
+                }
+                _ => trap("context text"),
+            };
+        }
+        if let Expr::Member(o, m, _) = f
+            && let Expr::Name(c, _) = &**o
+            && crate::index08::is_ctx(c, self.m.v09)
             && self.get(c).is_none()
             && !self.types.contains_key(c)
             && args.len() == 1
@@ -1316,7 +1513,7 @@ impl<'a> Interp<'a> {
             self.charge(crate::conc::C_CALL.saturating_add(w))?;
             return match (m.as_str(), v) {
                 ("lit", V::Text(s)) => Ok(V::Text(s)),
-                ("encode", V::Text(s)) => Ok(V::Text(crate::index08::encode(c, &s))),
+                ("encode", V::Text(s)) => Ok(V::Text((crate::index08::encode(c, &s)).into())),
                 _ => trap("context text"),
             };
         }
@@ -1328,9 +1525,17 @@ impl<'a> Interp<'a> {
                         return Ok(V::Opt(Some(Box::new(v))));
                     }
                     "copy" | "Box" => return self.eval(&args[0].e),
+                    "ct_choose" if self.m.v09 && args.len() == 3 => {
+                        // branchless: both values are evaluated, then one is chosen
+                        let c = self.eval(&args[0].e)?;
+                        let a = self.eval(&args[1].e)?;
+                        let b = self.eval(&args[2].e)?;
+                        return Ok(if self.truthy(c)? { a } else { b });
+                    }
                     "set_of" => {
                         let v = self.eval(&args[0].e)?;
-                        return crate::conc::merge_builtin(&v, &V::List(vec![]));
+                        let V::List(xs) = v else { return trap("set_of of a non-list") };
+                        return Ok(crate::conc::set_of(xs.take()));
                     }
                     "lvar_new" => {
                         let vals: Vec<V> = args.iter().map(|a| self.eval(&a.e)).collect::<R<_>>()?;
@@ -1363,6 +1568,7 @@ impl<'a> Interp<'a> {
                 let head = match &recv {
                     V::Rec(n, _) => Some(self.kind_of(n)),
                     V::List(_) => Some("List".to_string()),
+                    V::Set(_) => Some("Set".to_string()),
                     _ => None,
                 };
                 if let Some(h) = head
@@ -1482,15 +1688,19 @@ impl<'a> Interp<'a> {
             *d -= 1;
         }
         let fin = std::mem::replace(&mut self.scopes, saved);
-        // copy-out for `&mut` arguments and a `&mut self` receiver
+        // copy-out for `&mut` arguments and a `&mut self` receiver. In a
+        // version 0.9 module a call that returns by `fail` is transactional
+        // (F.4.4): the arguments keep their values from the call.
+        let restore = self.m.v09 && matches!(r, Err(Flow::Fail(_)));
         for ((n, t), a) in named.iter().zip(args) {
-            if matches!(t, Ty::Ref(true, _))
+            if !restore
+                && matches!(t, Ty::Ref(true, _))
                 && let Some(v) = fin[0].get(*n)
             {
                 self.assign(&a.e, v.clone())?;
             }
         }
-        if self_mut && let (Some((_, obj)), Some(v)) = (recv, fin[0].get("self")) {
+        if self_mut && !restore && let (Some((_, obj)), Some(v)) = (recv, fin[0].get("self")) {
             self.assign(obj, v.clone())?;
         }
         match r {
@@ -1528,25 +1738,26 @@ impl<'a> Interp<'a> {
             return Ok(v);
         }
         use V::*;
-        // a Set[τ] is a list in canonical order without duplicates (7.1)
-        use V::List as Set;
+        // a Set[τ] is kept in canonical order without duplicates (7.1)
         match (recv, m) {
             (Set(xs), "union") => crate::conc::merge_builtin(&Set(xs), &a[0]),
             (Set(xs), "inter") => match &a[0] {
-                Set(ys) => Ok(Set(xs.into_iter().filter(|x| ys.contains(x)).collect())),
+                Set(ys) => Ok(Set(xs.into_iter().filter(|x| ys.iter().any(|y| key_eq(x, y))).collect())),
                 o => trap(format!("inter with {}", o.show())),
             },
             (Set(xs), "insert") => {
-                let r = crate::conc::merge_builtin(&Set(xs), &Set(vec![a[0].clone()]))?;
+                let r = crate::conc::merge_builtin(&Set(xs), &Set(vec![a[0].clone()].into()))?;
                 self.assign(obj, r)?;
                 Ok(Unit)
             }
             (Set(xs), "tolist") => Ok(List(xs)),
+            (Set(xs), "len") => Ok(Int(xs.len() as i128, "usize")),
+            (Set(xs), "contains") => Ok(Bool(xs.iter().any(|k| key_eq(k, &a[0])))),
             (Map(xs), "merge") => {
                 let Map(ys) = &a[0] else { return trap("merge with a non-map") };
                 let mut out = xs;
                 for (k, v) in ys {
-                    if let Some(i) = out.iter().position(|(k2, _)| k2 == k) {
+                    if let Some(i) = out.iter().position(|(k2, _)| key_eq(k2, k)) {
                         let m = self.merge_values(&out[i].1, v)?;
                         out[i].1 = m;
                     } else {
@@ -1601,7 +1812,7 @@ impl<'a> Interp<'a> {
                     t,
                 ))
             }
-            (Int(x, _), "tostr") => Ok(Text(x.to_string())),
+            (Int(x, _), "tostr") => Ok(Text(x.to_string().into())),
             (Int(x, t), "abs") => chk(x.abs(), t),
             (Int(x, t), "min") => match &a[0] {
                 Int(y, _) => Ok(Int(x.min(*y), t)),
@@ -1631,20 +1842,20 @@ impl<'a> Interp<'a> {
             (F(x), "floor") => Ok(F(x.floor())),
             (F(x), "ceil") => Ok(F(x.ceil())),
             (F(x), "round") => Ok(F(x.round())),
-            (F(x), "tostr") => Ok(Text(float_text(x))),
-            (Bool(b), "tostr") => Ok(Text(b.to_string())),
+            (F(x), "tostr") => Ok(Text(float_text(x).into())),
+            (Bool(b), "tostr") => Ok(Text(b.to_string().into())),
             (Text(s), "len") => Ok(Int(s.len() as i128, "usize")),
             (F32(x), "abs") => Ok(F32(x.abs())),
-            (F32(x), "tostr") => Ok(Text((x as f32).to_string())),
+            (F32(x), "tostr") => Ok(Text(((x as f32).to_string()).into())),
             (Gen(g), "collect") => {
                 let (items, _, err) = self.gen_run(g, usize::MAX)?;
                 if let Some(f) = err {
                     return Result::Err(f);
                 }
-                Ok(List(items))
+                Ok(List(items.into()))
             }
             (Text(s), "strip") => Ok(Text(s.trim_matches(is_ws).into())),
-            (Text(s), "upper") => Ok(Text(s.to_ascii_uppercase())),
+            (Text(s), "upper") => Ok(Text(s.to_ascii_uppercase().into())),
             (Text(s), "sha256") => {
                 use sha2::{Digest, Sha256};
                 Ok(Text(
@@ -1654,11 +1865,15 @@ impl<'a> Interp<'a> {
                         .collect(),
                 ))
             }
-            (Text(s), "lower") => Ok(Text(s.to_ascii_lowercase())),
+            (Text(s), "lower") => Ok(Text(s.to_ascii_lowercase().into())),
             (Text(s), "reverse") => Ok(Text(s.chars().rev().collect())),
             (Text(s), "tostr") => Ok(Text(s)),
+            (Text(s), "len_bytes") => Ok(Int(s.len() as i128, "usize")),
+            (Text(s), "len_chars") => Ok(Int(s.chars().count() as i128, "usize")),
             (Text(s), "raw") => Ok(Text(s)),
-            (Text(s), "chars") => Ok(List(s.chars().map(|c| Text(c.to_string())).collect())),
+            // F.5.1 `Cap[A].narrow(sub)`: a capability is `()` at run time; the root is a static fact
+            (Unit, "narrow") if a.len() == 1 => Ok(Unit),
+            (Text(s), "chars") => Ok(List(s.chars().map(|c| Text(c.to_string().into())).collect())),
             (Text(s), "words") => Ok(List(s.split(is_ws).filter(|w| !w.is_empty()).map(|w| Text(w.into())).collect())),
             (Text(s), "lines") => Ok(List(s.lines().map(|w| Text(w.into())).collect())),
             (Text(s), "split") => match &a[0] {
@@ -1695,26 +1910,30 @@ impl<'a> Interp<'a> {
             (Text(s), "join") => match &a[0] {
                 List(xs) => Ok(Text(
                     xs.iter()
-                        .map(|x| if let Text(t) = x { t.clone() } else { x.show() })
+                        .map(|x| if let Text(t) = x { t.to_string() } else { x.show() })
                         .collect::<Vec<_>>()
-                        .join(&s),
+                        .join(s.as_str())
+                        .into(),
                 )),
                 _ => trap("join"),
             },
             (List(xs), "len") => Ok(Int(xs.len() as i128, "usize")),
             (List(xs), "isempty") => Ok(Bool(xs.is_empty())),
             (List(mut xs), "append" | "push") => {
+                self.release(obj);
                 xs.push(a[0].clone());
-                self.assign(obj, List(xs))?;
+                let xs = size_ok(List(xs))?;
+                self.assign(obj, xs)?;
                 Ok(Unit)
             }
             (List(mut xs), "pop") => {
+                self.release(obj);
                 let r = xs.pop();
                 self.assign(obj, List(xs))?;
                 Ok(Opt(r.map(Box::new)))
             }
             (List(_), "clear") => {
-                self.assign(obj, List(vec![]))?;
+                self.assign(obj, List(vec![].into()))?;
                 Ok(Unit)
             }
             (List(mut xs), "sort") => {
@@ -1757,7 +1976,7 @@ impl<'a> Interp<'a> {
                     }
                 }
                 match String::from_utf8(b).ok() {
-                    Some(s) => Ok(Text(s)),
+                    Some(s) => Ok(Text(s.into())),
                     None => trap("utf8: invalid UTF-8"),
                 }
             }
@@ -1775,7 +1994,7 @@ impl<'a> Interp<'a> {
                     self.tick()?;
                     out.push(self.apply(&f, vec![x])?);
                 }
-                Ok(List(out))
+                Ok(List(out.into()))
             }
             (List(xs), "filter") => {
                 let f = a[0].clone();
@@ -1786,7 +2005,7 @@ impl<'a> Interp<'a> {
                         out.push(x);
                     }
                 }
-                Ok(List(out))
+                Ok(List(out.into()))
             }
             (List(xs), "fold") => {
                 let f = a[1].clone();
@@ -1798,18 +2017,18 @@ impl<'a> Interp<'a> {
                 Ok(acc)
             }
             (Map(mm), "len") => Ok(Int(mm.len() as i128, "usize")),
-            (Map(mm), "get") => Ok(match mm.iter().find(|(k, _)| *k == a[0]) {
+            (Map(mm), "get") => Ok(match mm.iter().find(|(k, _)| key_eq(k, &a[0])) {
                 Some((_, v)) => v.clone(),
                 None => Err(Box::new(Rec("Missing".into(), vec![]))),
             }),
-            (Map(mm), "contains") => Ok(Bool(mm.iter().any(|(k, _)| *k == a[0]))),
+            (Map(mm), "contains") => Ok(Bool(mm.iter().any(|(k, _)| key_eq(k, &a[0])))),
             (Map(mut mm), "insert") => {
                 map_set(&mut mm, a[0].clone(), a[1].clone());
                 self.assign(obj, Map(mm))?;
                 Ok(Unit)
             }
             (Map(mut mm), "remove") => {
-                let i = mm.iter().position(|(k, _)| *k == a[0]);
+                let i = mm.iter().position(|(k, _)| key_eq(k, &a[0]));
                 let r = i.map(|i| mm.remove(i).1);
                 self.assign(obj, Map(mm))?;
                 Ok(Opt(r.map(Box::new)))
@@ -2122,6 +2341,14 @@ impl<'a> Interp<'a> {
                     return Err(Flow::Stop);
                 }
             }
+            Stmt::Check(Expr::Call(f, a, _, _)) if a.len() == 2 && matches!(&**f, Expr::Name(n, _) if n == "@contract") => {
+                // F.6.2: the fixed refusal record of a violated contract clause
+                let v = self.eval(&a[1].e)?;
+                if !self.truthy(v)? {
+                    let rec = if let Expr::Str(s, _) = &a[0].e { s.clone() } else { String::new() };
+                    return trap(rec);
+                }
+            }
             Stmt::Check(e) => {
                 let v = self.eval(e)?;
                 if !self.truthy(v)? {
@@ -2405,7 +2632,9 @@ pub fn admit(m: &Module) -> Vec<String> {
                             (Some(got), w)
                                 if !matches!(w, V::Bool(_)) || matches!(got, V::Bool(_)) =>
                             {
-                                got == w
+                                // state identity (6.1, N3 F6): floats by bits,
+                                // so `-0.0` and `0.0` are different results
+                                got == w && key_eq(got, w)
                             }
                             _ => want == V::Bool(true),
                         };
@@ -2460,7 +2689,7 @@ pub fn json_size(v: &V) -> usize {
         V::Text(s) => esc(s),
         V::Unit | V::Opt(None) => 4,
         V::Opt(Some(x)) | V::Err(x) => json_size(x),
-        V::Tuple(xs) | V::List(xs) => seq(&mut xs.iter().map(json_size), xs.len()),
+        V::Tuple(xs) | V::List(xs) | V::Set(xs) => seq(&mut xs.iter().map(json_size), xs.len()),
         V::Map(m) => seq(
             &mut m.iter().map(|(k, v)| 3 + json_size(k) + json_size(v)),
             m.len(),
@@ -2601,20 +2830,17 @@ impl FV {
         match self {
             FV::Null => 0,
             FV::Bool(_) => 1,
-            FV::Int(_) | FV::Float(_) => 2,
-            FV::Text(_) => 3,
-            FV::List(_) => 4,
-            FV::Rec(_) => 5,
+            FV::Int(_) => 2,
+            FV::Float(_) => 3,
+            FV::Text(_) => 4,
+            FV::List(_) => 5,
+            FV::Rec(_) => 6,
         }
     }
-    fn num(&self) -> f64 {
-        match self {
-            FV::Int(i) => *i as f64,
-            FV::Float(f) => *f,
-            _ => 0.0,
-        }
-    }
-    /// Canonical order of 6.1: null < bool < number < text < list < record.
+    /// Canonical order of 6.1: null < bool < int < float < text < list <
+    /// record; floats by IEEE 754 totalOrder. It agrees with state identity:
+    /// it returns Equal only for values with the same canonical JSON, so
+    /// distinct observable values stay distinct map keys.
     pub fn cmp_canon(&self, o: &FV) -> std::cmp::Ordering {
         use std::cmp::Ordering::*;
         let r = self.rank().cmp(&o.rank());
@@ -2624,7 +2850,8 @@ impl FV {
         match (self, o) {
             (FV::Bool(a), FV::Bool(b)) => a.cmp(b),
             (FV::Int(a), FV::Int(b)) => a.cmp(b),
-            (a @ (FV::Int(_) | FV::Float(_)), b) => a.num().partial_cmp(&b.num()).unwrap_or(Equal),
+            // IEEE 754 totalOrder (-0.0 < 0.0); NaN cannot occur (N3 F4)
+            (FV::Float(a), FV::Float(b)) => a.total_cmp(b),
             (FV::Text(a), FV::Text(b)) => a.chars().cmp(b.chars()),
             (FV::List(a), FV::List(b)) => {
                 for (x, y) in a.iter().zip(b) {
@@ -2699,10 +2926,10 @@ pub fn form_value(v: &V, m: &Module) -> FV {
         V::Int(i, _) => FV::Int(*i),
         V::F(f) | V::F32(f) => FV::Float(*f),
         V::Bool(b) => FV::Bool(*b),
-        V::Text(t) => FV::Text(t.clone()),
+        V::Text(t) => FV::Text(t.to_string()),
         V::Unit | V::Opt(None) => FV::Null,
         V::Opt(Some(x)) => form_value(x, m),
-        V::Tuple(xs) | V::List(xs) => FV::List(xs.iter().map(|x| form_value(x, m)).collect()),
+        V::Tuple(xs) | V::List(xs) | V::Set(xs) => FV::List(xs.iter().map(|x| form_value(x, m)).collect()),
         V::Map(ps) => {
             let mut l: Vec<(FV, FV)> = ps
                 .iter()

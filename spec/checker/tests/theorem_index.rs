@@ -44,14 +44,34 @@ fn theorem_rows_and_lean_names_exist() {
     }
     // Every Lean name exists.
     let mut lean = String::new();
-    for e in std::fs::read_dir(dir.join("lean/RCE")).unwrap() {
-        let p = e.unwrap().path();
-        lean.push_str(&p.file_stem().unwrap().to_string_lossy());
-        lean.push('\n');
-        lean.push_str(&std::fs::read_to_string(&p).unwrap());
+    // Walk lean/RCE recursively (it has subdirectories such as Core/);
+    // a module is named by its file stem, and only .lean files are read.
+    let mut stack = vec![dir.join("lean/RCE")];
+    while let Some(d) = stack.pop() {
+        for e in std::fs::read_dir(&d).unwrap() {
+            let p = e.unwrap().path();
+            if p.is_dir() {
+                stack.push(p);
+                continue;
+            }
+            if p.extension().and_then(|x| x.to_str()) != Some("lean") {
+                continue;
+            }
+            lean.push_str(&p.file_stem().unwrap().to_string_lossy());
+            lean.push('\n');
+            lean.push_str(&std::fs::read_to_string(&p).unwrap());
+        }
     }
     let mut missing = vec![];
     for n in &names {
+        // A cited file name (`SessionVectors.lean`) names its module.
+        if let Some(stem) = n.strip_suffix(".lean") {
+            let stem = stem.rsplit('/').next().unwrap();
+            if !lean.lines().any(|l| l == stem) {
+                missing.push(n.clone());
+            }
+            continue;
+        }
         let short = n.rsplit('.').next().unwrap();
         let decl = Regex::new(&format!(
             r"(?m)(^|\s)(theorem|lemma|def|abbrev|structure|inductive)\s+(\S*\.)?{}(\s|$)",

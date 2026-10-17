@@ -1,0 +1,10 @@
+# rce-version: 0.9
+
+fn add(a: i64, b: i64) -> i64
+    return a + b
+
+fn main()
+    let _ = add(1, 2)
+    let total = add(3, 4)
+    emit total.tostr()
+    emit "bidi written as an escape: \u{202e}"

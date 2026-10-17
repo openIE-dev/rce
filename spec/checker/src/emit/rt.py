@@ -45,6 +45,15 @@ def fuel_reset():
     TLS.kc = {}
 def fuel_report():
     if FUEL_TRACE: print("fuel %d" % (FUEL_LIMIT - TLS.fuel))
+# `--fuel-batch=n1,n2,..`: every observation once per limit in this process,
+# each pass headed by `#fuel-batch n` (an observation starts from full fuel
+# and empty caches, so a pass equals a fresh run)
+def observe_all(f):
+    global FUEL_LIMIT
+    b = next((a[13:] for a in sys.argv if a.startswith("--fuel-batch=")), None)
+    if b is None: f(); return
+    for n in b.split(","):
+        FUEL_LIMIT = int(n); print("#fuel-batch " + n); f()
 
 # per-thread runtime state: each task and par branch runs on its own thread
 class _TLS(threading.local):
@@ -76,6 +85,10 @@ class Tup:
     __slots__ = ("xs",)
     def __init__(s, xs): s.xs = xs
 class Lst:
+    __slots__ = ("xs",)
+    def __init__(s, xs): s.xs = xs
+class St:
+    # a Set[τ]: elements in canonical order without duplicates (7.1)
     __slots__ = ("xs",)
     def __init__(s, xs): s.xs = xs
 class Mp:
@@ -127,7 +140,7 @@ def _plain(neg, d, p):
     return ("-" if neg else "") + r
 def _neg(x): return math.copysign(1.0, x) < 0
 def fdisplay(x):
-    if x == 0: return "0"
+    if x == 0: return "-0" if _neg(x) else "0"
     a = abs(x); d, p = _digits(repr(a))
     if 1e-5 <= a < 1e16: return _plain(x < 0, d, p)
     m = d[0] + ("." + d[1:] if len(d) > 1 else ""); e = p - 1
@@ -187,7 +200,7 @@ def show(v):
     if c is str: return rdebug(v)
     if c is UnitT: return "()"
     if c is Tup: return "(" + ", ".join(show(x) for x in v.xs) + ")"
-    if c is Lst: return "[" + ", ".join(show(x) for x in v.xs) + "]"
+    if c is Lst or c is St: return "[" + ", ".join(show(x) for x in v.xs) + "]"
     if c is Mp: return "{" + ", ".join(show(a) + ": " + show(b) for a, b in v.ps) + "}"
     if c is Opt: return "none" if v.x is None else "some(" + show(v.x) + ")"
     if c is Rec:
@@ -213,8 +226,9 @@ def eq(a, b):
     if ca is str: return a == b
     if ca is UnitT: return True
     if ca is Tup or ca is Lst: return len(a.xs) == len(b.xs) and all(eq(x, y) for x, y in zip(a.xs, b.xs))
+    if ca is St: return len(a.xs) == len(b.xs) and all(keq(x, y) for x, y in zip(a.xs, b.xs))
     if ca is Mp:
-        return len(a.ps) == len(b.ps) and all(any(eq(k, k2) and eq(v, v2) for k2, v2 in b.ps) for k, v in a.ps)
+        return len(a.ps) == len(b.ps) and all(any(keq(k, k2) and eq(v, v2) for k2, v2 in b.ps) for k, v in a.ps)
     if ca is Opt:
         if a.x is None or b.x is None: return a.x is None and b.x is None
         return eq(a.x, b.x)
@@ -234,7 +248,7 @@ def cmp(a, b):
         return _c(a.v, b.v)
     if ca is str and cb is str: return _c(a, b)
     if ca is bool and cb is bool: return _c(a, b)
-    if (ca is Tup and cb is Tup) or (ca is Lst and cb is Lst):
+    if (ca is Tup and cb is Tup) or (ca is Lst and cb is Lst) or (ca is St and cb is St):
         for x, y in zip(a.xs, b.xs):
             r = cmp(x, y)
             if r: return r
@@ -260,7 +274,8 @@ def finite(r, k):
     if math.isinf(r) or math.isnan(r): trap("non-finite float")
     return k(r)
 
-def arith(op, a, b):
+def arith(op, a, b): return size_ok(arith_raw(op, a, b))
+def arith_raw(op, a, b):
     ca, cb = type(a), type(b)
     if ca is Int and cb is Int:
         x, y = a.v, b.v
@@ -310,7 +325,8 @@ def arith(op, a, b):
 def contains(c, x):
     t = type(c)
     if t is Lst or t is Tup: return any(eq(y, x) for y in c.xs)
-    if t is Mp: return any(eq(k, x) for k, _ in c.ps)
+    if t is St: return any(keq(y, x) for y in c.xs)
+    if t is Mp: return any(keq(k, x) for k, _ in c.ps)
     if t is str: return type(x) is str and x in c
     if t is Rng: return type(x) is Int and c.a <= x.v < c.b
     trap("`in` needs a collection")
@@ -333,7 +349,7 @@ def binop(op, x, y):
 def map_set(ps, k, v):
     out = list(ps)
     for i, (a, _) in enumerate(out):
-        if eq(a, k): out[i] = (a, v); return out
+        if keq(a, k): out[i] = (a, v); return out
     i = 0
     while i < len(out) and canon_cmp(out[i][0], k) < 0: i += 1
     out.insert(i, (k, v)); return out
@@ -360,7 +376,7 @@ def index(c, i):
         trap("index %d out of range" % k)
     if tc is Mp:
         for a, v in c.ps:
-            if eq(a, i): return v
+            if keq(a, i): return v
         trap("missing key " + show(i))
     trap("cannot index " + show(c))
 
@@ -423,11 +439,11 @@ def cast(v, T):
         if math.isinf(r) or math.isnan(r): trap("non-finite float")
         return F32(r)
     if t is F32 and n is None and not to_f32: return F(v.v)
-    if t is F32 and n is not None: return chk(sat128(int(v.v)) if math.isfinite(v.v) else 0, n)
+    if t is F32 and n is not None: return chk(int(v.v) if math.isfinite(v.v) else 0, n)
     if t is Int and n is not None: return chk(v.v, n)
     if t is F and n is not None:
         if not math.isfinite(v.v): trap("non-finite float")
-        return chk(sat128(int(v.v)), n)
+        return chk(int(v.v), n)
     if (v is True or v is False) and n is not None: return chk(int(v), n)
     if t is Int and n is None: return F(float(v.v))
     return v
@@ -456,7 +472,7 @@ def ptm(t, v):
     if t[0] == "lit": return t[1]
     if t[0] == "self": return v.v if type(v) is Int else None
     if type(v) is str: return len(v.encode("utf-8"))
-    if type(v) is Lst: return len(v.xs)
+    if type(v) is Lst or type(v) is St: return len(v.xs)
     if type(v) is Mp: return len(v.ps)
     return None
 def pholds(p, v):
@@ -534,7 +550,7 @@ def toint(s):
     if n < I128[0] or n > I128[1]: trap("not an integer: " + rdebug(s))
     return chk(n, "i64")
 def fround(x):
-    r = float(math.trunc(x))
+    r = float(math.trunc(x)) or math.copysign(0.0, x)
     if abs(x - r) >= 0.5: r += math.copysign(1.0, x)
     return r
 
@@ -561,6 +577,9 @@ def call_value(f, vals):
     trap(show(f) + " is not callable")
 
 def builtin(r, m, a):
+    v, w = builtin_raw(r, m, a)
+    return size_ok(v), (size_ok(w) if w is not None else None)
+def builtin_raw(r, m, a):
     t = type(r)
     if t is Chan and m == "close": comm(("close", r)); return UNIT, None
     if t is Task and m == "join":
@@ -602,8 +621,9 @@ def builtin(r, m, a):
             if type(a[0]) is not F: trap(m)
             y = a[0].v
             return F((x if x <= y else y) if m == "min" else (x if x >= y else y)), None
-        if m == "floor": return F(float(math.floor(x))), None
-        if m == "ceil": return F(float(math.ceil(x))), None
+        # F7: a zero result keeps the operand's sign (ceil(-0.3) is -0.0), as IEEE 754 does
+        if m == "floor": return F(float(math.floor(x)) or math.copysign(0.0, x)), None
+        if m == "ceil": return F(float(math.ceil(x)) or math.copysign(0.0, x)), None
         if m == "round": return F(fround(x)), None
         if m == "tostr": return fdisplay(x), None
     if (r is True or r is False) and m == "tostr": return ("true" if r else "false"), None
@@ -674,25 +694,26 @@ def builtin(r, m, a):
             acc = a[0]
             for x in xs: fuel(); acc = apply(a[1], [acc, x])
             return acc, None
-    if t is Lst:
-        # a Set[τ] is a list in canonical order without duplicates
+    if t is St:
         if m == "union": return merge_builtin(r, a[0]), None
-        if m == "inter": return Lst([x for x in r.xs if any(eq(x, y) for y in a[0].xs)]), None
-        if m == "insert": return UNIT, merge_builtin(r, Lst([a[0]]))
-        if m == "tolist": return r, None
+        if m == "inter": return St([x for x in r.xs if any(keq(x, y) for y in a[0].xs)]), None
+        if m == "insert": return UNIT, merge_builtin(r, St([a[0]]))
+        if m == "tolist": return Lst(list(r.xs)), None
+        if m == "len": return Int(len(r.xs), "usize"), None
+        if m == "contains": return any(keq(x, a[0]) for x in r.xs), None
     if t is Mp:
         ps = r.ps
         if m == "merge": return map_merge(ps, a[0].ps), None
         if m == "len": return Int(len(ps), "usize"), None
         if m == "get":
             for k, v in ps:
-                if eq(k, a[0]): return v, None
+                if keq(k, a[0]): return v, None
             return Err(Rec("Missing", [])), None
-        if m == "contains": return any(eq(k, a[0]) for k, _ in ps), None
+        if m == "contains": return any(keq(k, a[0]) for k, _ in ps), None
         if m == "insert": return UNIT, Mp(map_set(ps, a[0], a[1]))
         if m == "remove":
             for i, (k, v) in enumerate(ps):
-                if eq(k, a[0]): return Opt(v), Mp(ps[:i] + ps[i + 1:])
+                if keq(k, a[0]): return Opt(v), Mp(ps[:i] + ps[i + 1:])
             return NONE, Mp(list(ps))
         if m == "keys": return Lst([k for k, _ in ps]), None
         if m == "values": return Lst([v for _, v in ps]), None
@@ -704,12 +725,13 @@ def builtin(r, m, a):
 
 # C.6.4 method work, as conc::method_work in the reference evaluator.
 LIN_TEXT = frozenset(("strip", "upper", "lower", "reverse", "tostr", "chars", "words", "lines", "split", "isdigit", "isalpha", "isspace", "contains", "startswith", "endswith", "toint", "join", "sha256",))
-LIN_LIST = frozenset(("reverse", "contains", "sum", "map", "filter", "fold", "utf8", "union", "inter", "insert",))
+LIN_LIST = frozenset(("reverse", "contains", "sum", "map", "filter", "fold", "utf8",))
+LIN_SET = frozenset(("union", "inter", "insert", "contains", "tolist",))
 LIN_MAP = frozenset(("get", "contains", "insert", "remove", "keys", "values", "merge",))
 def size_of(v):
     t = type(v)
     if t is str: return len(u8s(v))
-    if t is Lst: return len(v.xs)
+    if t is Lst or t is St: return len(v.xs)
     if t is Mp: return len(v.ps)
     return 0
 def ceil_log2(n): return 0 if n <= 1 else (n - 1).bit_length()
@@ -717,14 +739,14 @@ def method_work(recv, m, args):
     n = size_of(recv)
     k = size_of(args[0]) if args else 0
     t = type(recv)
-    if (t is str and m in LIN_TEXT) or (t is Lst and m in LIN_LIST) or (t is Mp and m in LIN_MAP): return n + k
+    if (t is str and m in LIN_TEXT) or (t is Lst and m in LIN_LIST) or (t is St and m in LIN_SET) or (t is Mp and m in LIN_MAP): return n + k
     if t is Lst and m == "sort": return n * ceil_log2(n)
     return 0
 
 def call_method(recv, m, args, sized):
     """(value, per-argument copy-out list, new receiver or None)"""
     t = type(recv)
-    head = KIND_OF.get(recv.n, recv.n) if t is Rec else "List" if t is Lst else None
+    head = KIND_OF.get(recv.n, recv.n) if t is Rec else "List" if t is Lst else "Set" if t is St else None
     if head is not None and (head, m) in METHODS:
         fuel()
         v, outs, s = METHODS[(head, m)](recv, args)
@@ -807,7 +829,7 @@ def gen_run(body, cap):
 
 def iter_items(v):
     t = type(v)
-    if t is Lst: return v.xs
+    if t is Lst or t is St: return v.xs
     if t is Rng:
         if v.b - v.a > LOOP_LIMIT * 10: trap("loop bound")
         return [Int(i, v.t) for i in range(v.a, max(v.a, v.b))]
@@ -847,6 +869,7 @@ def catch_(x, h): return h(x.e) if type(x) is Err else x
 def try_(x, els):
     t = type(x)
     if t is Err: raise Fail(els() if els else x.e)
+    if t is Opt and not els: return x  # ok value of `T? ! E` [E-Try-V]
     if t is Opt:
         if x.x is None:
             if els: raise Fail(els())
@@ -910,7 +933,7 @@ def json_size(v):
     if t is Opt: return 4 if v.x is None else json_size(v.x)
     if t is Err: return json_size(v.e)
     def seq(xs, n): return 2 + sum(xs) + max(n - 1, 0)
-    if t is Tup or t is Lst: return seq([json_size(x) for x in v.xs], len(v.xs))
+    if t is Tup or t is Lst or t is St: return seq([json_size(x) for x in v.xs], len(v.xs))
     if t is Mp: return seq([3 + json_size(a) + json_size(b) for a, b in v.ps], len(v.ps))
     if t is Rec: return 2 + jesc(v.n) + 1 + seq([jesc(a) + 1 + json_size(b) for a, b in v.fs], len(v.fs))
     if t is Rng: return 3 + len(str(v.a)) + len(str(v.b))
@@ -936,6 +959,7 @@ def dbg_v(v):
     if c is UnitT: return "Unit"
     if c is Tup: return "Tuple([" + ", ".join(dbg_v(x) for x in v.xs) + "])"
     if c is Lst: return "List([" + ", ".join(dbg_v(x) for x in v.xs) + "])"
+    if c is St: return "Set([" + ", ".join(dbg_v(x) for x in v.xs) + "])"
     if c is Mp: return "Map([" + ", ".join("(%s, %s)" % (dbg_v(a), dbg_v(b)) for a, b in v.ps) + "])"
     if c is Opt: return "Opt(None)" if v.x is None else "Opt(Some(" + dbg_v(v.x) + "))"
     if c is Rec: return "Rec(%s, [%s])" % (rdebug(v.n), ", ".join("(%s, %s)" % (rdebug(a), dbg_v(b)) for a, b in v.fs))
@@ -998,6 +1022,11 @@ def run_example1(line, events):
     except (Trap, Fail, Stop, Ret) as e:
         print("initial " + why(e)); return
     print("0 (initial) " + show_state(s))
+    d = DLog()
+    try: run_events(s, events, d)
+    finally:
+        if TRACE: print("trace " + d.prev)
+def run_events(s, events, d):
     for k, (name, th) in enumerate(events, 1):
         try: ev = th()
         except (Trap, Fail, Stop, Ret) as e:
@@ -1006,10 +1035,117 @@ def run_example1(line, events):
             print("%d %s not an event" % (k, name)); return
         try: s2, outs = delta(s, ev)
         except Refuse as r:
+            if TRACE: d.add(name, ev, s)
             print("%d %s refused: %s" % (k, show(ev), r.r)); return
         s = s2
+        if TRACE: d.add(name, ev, s)
         print("%d %s %s" % (k, show(ev), show_state(s)))
         for o in outs: print("  emit " + show(o))
+
+# ---- 6.1 the log D: canonical JSON (N3) and the SHA-256 entry chain, as interp.rs writes it
+TRACE = "--trace" in sys.argv
+D_GENESIS = "0" * 64
+class FRec:
+    __slots__ = ("fs",)
+    def __init__(s, fs): s.fs = sorted(fs, key=lambda p: p[0])
+class FFl:
+    __slots__ = ("x",)
+    def __init__(s, x): s.x = x
+def form_value(v):
+    if v is True or v is False: return v
+    c = type(v)
+    if c is Int: return v.v
+    if c is F or c is F32: return FFl(v.v)
+    if c is str: return v
+    if c is UnitT: return None
+    if c is Opt: return None if v.x is None else form_value(v.x)
+    if c is Tup or c is Lst or c is St: return [form_value(x) for x in v.xs]
+    if c is Mp:
+        l = [(form_value(a), form_value(b)) for a, b in v.ps]
+        l.sort(key=functools.cmp_to_key(lambda a, b: fv_cmp(a[0], b[0])))
+        return [[a, b] for a, b in l]
+    if c is Rec:
+        f = [(k, form_value(x)) for k, x in v.fs]
+        if v.n in VARIANTS: f.append(("$v", v.n))
+        return FRec(f)
+    if c is Err: return FRec([("$err", form_value(v.e))])
+    if c is Rng: return list(range(v.a, v.b))
+    if c is FnV: return FRec([("$fn", v.n)])
+    return None
+def fv_rank(x):
+    if x is None: return 0
+    if x is True or x is False: return 1
+    c = type(x)
+    if c is int or c is FFl: return 2
+    if c is str: return 3
+    if c is list: return 4
+    return 5
+def fv_cmp(a, b):
+    ra, rb = fv_rank(a), fv_rank(b)
+    if ra != rb: return -1 if ra < rb else 1
+    if ra == 1 or (ra == 2 and type(a) is int and type(b) is int) or ra == 3:
+        return (a > b) - (a < b)
+    if ra == 2:
+        x = float(a.x if type(a) is FFl else a); y = float(b.x if type(b) is FFl else b)
+        return (x > y) - (x < y)
+    if ra == 4:
+        for x, y in zip(a, b):
+            c = fv_cmp(x, y)
+            if c: return c
+        return (len(a) > len(b)) - (len(a) < len(b))
+    if ra == 5:
+        for (ka, va), (kb, vb) in zip(a.fs, b.fs):
+            if ka != kb: return -1 if ka < kb else 1
+            c = fv_cmp(va, vb)
+            if c: return c
+        return (len(a.fs) > len(b.fs)) - (len(a.fs) < len(b.fs))
+    return 0
+def float_json(x):
+    if x == 0.0: return "-0.0" if math.copysign(1.0, x) < 0 else "0.0"
+    import decimal
+    t = decimal.Decimal(repr(abs(x))).normalize().as_tuple()
+    digits = "".join(map(str, t.digits))
+    ex = t.exponent + len(digits) - 1
+    sign = "-" if x < 0 else ""
+    a = abs(x)
+    if 1e-4 <= a < 1e16:
+        p = ex + 1
+        if p <= 0: body = "0." + "0" * (-p) + digits
+        elif p >= len(digits): body = digits + "0" * (p - len(digits)) + ".0"
+        else: body = digits[:p] + "." + digits[p:]
+        return sign + body
+    m = digits[0] + ("." + digits[1:] if len(digits) > 1 else "")
+    return "%s%se%d" % (sign, m, ex)
+def jstr(s):
+    o = ['"']
+    for ch in s:
+        if ch == '"': o.append('\\"')
+        elif ch == "\\": o.append("\\\\")
+        elif ch == "\n": o.append("\\n")
+        elif ch == "\r": o.append("\\r")
+        elif ch == "\t": o.append("\\t")
+        elif ord(ch) < 0x20: o.append("\\u%04x" % ord(ch))
+        else: o.append(ch)
+    o.append('"')
+    return "".join(o)
+def fv_json(x):
+    if x is None: return "null"
+    if x is True: return "true"
+    if x is False: return "false"
+    c = type(x)
+    if c is int: return str(x)
+    if c is FFl: return float_json(x.x)
+    if c is str: return jstr(x)
+    if c is list: return "[" + ",".join(fv_json(y) for y in x) + "]"
+    return "{" + ",".join(jstr(k) + ":" + fv_json(v) for k, v in x.fs) + "}"
+def d_sha(s): return hashlib.sha256(s.encode("utf-8")).hexdigest()
+class DLog:
+    def __init__(s): s.prev = D_GENESIS; s.seq = 0
+    def add(s, name, ev, st):
+        evj = '{"payload":' + fv_json(form_value(ev)) + ',"type":' + jstr(name) + "}"
+        sj = fv_json(FRec([(r, FRec([(n, form_value(v)) for n, v in fs])) for r, fs in st]))
+        body = '{"event":' + evj + ',"prev_hash":"' + s.prev + '","seq":' + str(s.seq) + ',"state_hash":"' + d_sha(sj) + '"}'
+        s.prev = d_sha(body); s.seq += 1
 
 class Refuse(Exception):
     def __init__(s, r): s.r = r
@@ -1073,7 +1209,7 @@ def par_combine(op, a, b):
 def par_tree(op, c, i):
     if len(c) == 0: return i
     if len(c) == 1: return c[0]
-    h = (len(c) + 1) // 2
+    h = 1 << ((len(c) - 1).bit_length() - 1)
     l = par_tree(op, c[:h], i)
     r = par_tree(op, c[h:], i)
     return par_combine(op, l, r)
@@ -1084,7 +1220,7 @@ def pscan(xs, f, e, inclusive):
     def up(lo, hi):
         if hi - lo == 1: v = xs[lo]
         else:
-            h = lo + (hi - lo + 1) // 2
+            h = lo + (1 << ((hi - lo - 1).bit_length() - 1))
             l = up(lo, h); r = up(h, hi); v = apply(f, [l, r])
         sums[(lo, hi)] = v
         return v
@@ -1092,7 +1228,7 @@ def pscan(xs, f, e, inclusive):
     def down(lo, hi, off):
         if hi - lo == 1:
             out[lo] = off; return
-        h = lo + (hi - lo + 1) // 2
+        h = lo + (1 << ((hi - lo - 1).bit_length() - 1))
         ls = sums[(lo, h)]
         roff = ls if off is None else apply(f, [off, ls])
         down(lo, h, off)
@@ -1134,7 +1270,7 @@ def cnot(v): charge(1); return not_(v)
 def cbinop(op, x, y): charge(op_cost(op, x)); return binop(op, x, y)
 def pre_method(recv, m):
     t = type(recv)
-    head = KIND_OF.get(recv.n, recv.n) if t is Rec else "List" if t is Lst else None
+    head = KIND_OF.get(recv.n, recv.n) if t is Rec else "List" if t is Lst else "Set" if t is St else None
     if head is not None and (head, m) in METHODS: charge(4)
     return recv
 def pre_value(f):
@@ -1157,9 +1293,10 @@ def _crank(v):
     if v is True or v is False: return 1
     if t is Int or t is F or t is F32: return 2
     if t is str: return 3
-    if t is Lst or t is Tup: return 4
+    if t is Lst or t is St or t is Tup: return 4
     return 5
 def _cmp(a, b): return (a > b) - (a < b)
+def keq(a, b): return canon_cmp(a, b) == 0  # map/set key identity (6.1)
 def canon_cmp(a, b):
     ra, rb = _crank(a), _crank(b)
     if ra != rb: return _cmp(ra, rb)
@@ -1167,8 +1304,12 @@ def canon_cmp(a, b):
     if ra == 1: return _cmp(a, b)
     if ta is Int and tb is Int: return _cmp(a.v, b.v)
     if ra == 2:
+        # int before float (never equal keys); floats by IEEE 754 totalOrder (6.1)
+        if ta is Int: return -1
+        if tb is Int: return 1
         x, y = float(a.v), float(b.v)
-        return 0 if x != x or y != y else _cmp(x, y)
+        if x == y == 0.0: return _cmp(math.copysign(1.0, x), math.copysign(1.0, y))
+        return _cmp(x, y)
     if ra == 3: return _cmp(a.encode("utf-8"), b.encode("utf-8"))
     if ra == 4:
         for p, q in zip(a.xs, b.xs):
@@ -1194,11 +1335,17 @@ def merge_builtin(a, b):
         for x in v:
             if not out or canon_cmp(out[-1], x) != 0: out.append(x)
         return Lst(out)
+    if ta is St and tb is St:
+        v = sorted(a.xs + b.xs, key=functools.cmp_to_key(canon_cmp))
+        out = []
+        for x in v:
+            if not out or canon_cmp(out[-1], x) != 0: out.append(x)
+        return St(out)
     if ta is Mp and tb is Mp:
         out = list(a.ps)
         for k, v in b.ps:
             for i, (k2, v2) in enumerate(out):
-                if eq(k2, k): out[i] = (k2, merge_builtin(v2, v)); break
+                if keq(k2, k): out[i] = (k2, merge_builtin(v2, v)); break
             else: out.append((k, v))
         out.sort(key=functools.cmp_to_key(lambda p, q: canon_cmp(p[0], q[0])))
         return Mp(out)
@@ -1213,11 +1360,11 @@ def map_merge(xs, ys):
     out = list(xs)
     for k, v in ys:
         for i, (k2, v2) in enumerate(out):
-            if eq(k2, k): out[i] = (k2, merge_values(v2, v)); break
+            if keq(k2, k): out[i] = (k2, merge_values(v2, v)); break
         else: out.append((k, v))
     out.sort(key=functools.cmp_to_key(lambda p, q: canon_cmp(p[0], q[0])))
     return Mp(out)
-def set_of(v): return merge_builtin(v, Lst([]))
+def set_of(v): return St(merge_builtin(v, Lst([])).xs)
 def merge_values(a, b):
     if type(a) is Rec:
         h = KIND_OF.get(a.n, a.n)
@@ -1391,7 +1538,7 @@ CANCEL_TASK = 2**64 - 1
 def hid(key): return hashlib.sha256(key.encode("utf-8")).hexdigest()[:16]
 class TaskCx:
     def __init__(s, tid, req, rep):
-        s.id = tid; s.req = req; s.rep = rep; s.created = 0; s.now = 0; s.dl = []; s.next_frame = 1; s.scopes = [0]; s.sel_k = {}
+        s.id = tid; s.req = req; s.rep = rep; s.created = 0; s.ords = {}; s.now = 0; s.dl = []; s.next_frame = 1; s.scopes = [0]; s.sel_k = {}
 def comm(op):
     cx = TLS.task
     if cx is None: trap("concurrency is not available at comptime")
@@ -1412,9 +1559,14 @@ def session_new(cap, line):
     n = marker_int(cap())
     a = _fresh("chan", line); b = _fresh("chan", line)
     return Tup([Session(a, b, n), Session(b, a, n)])
-def actor_new(ty, line):
+def _ord(cx, key):
+    k = cx.ords.get(key, 0); cx.ords[key] = k + 1
+    return k
+def actor_new(ty, pos):
+    # stable path of C.11.11: supervisor position (or type), creating task, ordinal
     if TLS.task is None: trap("cannot call %s at comptime" % ty)
-    return Actor(_fresh("actor", line), ty)
+    cx = TLS.task; cx.created += 1
+    return Actor(hid("actor|%s|%s|%d" % (pos, cx.id, _ord(cx, "actor|" + pos))), ty)
 def send(t, v):
     charge(8)
     if type(t) is Session: t = Chan(t.out, t.cap)
@@ -1441,7 +1593,7 @@ def spawn_(f, args, prio, site):
     charge(32)
     cx = TLS.task
     if cx is None: trap("concurrency is not available at comptime")
-    idx = cx.created; cx.created += 1
+    cx.created += 1; idx = _ord(cx, "spawn")
     rp = comm(("spawn", f, args, max(0, min(255, prio)), site, idx, cx.scopes[-1] if cx.scopes else 0))
     return Task(rp[1])
 def select_(arms, line, nondet):
@@ -1508,7 +1660,7 @@ def _task_body(slot, f, args):
 class Sched:
     def __init__(s, links):
         s.slots = []; s.chans = {}; s.staged = []; s.outputs = []; s.rng = 0x5eed | 1; s.tick = 0; s.stop = None; s.max_ticks = 100000
-        s.actors = {}; s.mail_staged = []; s.txns = []; s.txn_staged = []; s.held_links = []; s.parted = []; s.links = links; s.restarts = {}; s.alog = []
+        s.actors = {}; s.mail_staged = []; s.txns = []; s.txn_staged = []; s.held_links = []; s.parted = []; s.links = links; s.restarts = {}; s.alog = []; s.rlog = []; s.rrep = restart_inputs(); s.events = event_inputs()
     def spawn_task(s, f, args, tid, prio, parent, scope):
         sl = _Slot(tid, prio, parent, scope)
         th = threading.Thread(target=_task_body, args=(sl, f, args), daemon=True)
@@ -1568,25 +1720,40 @@ class Sched:
             return ("ok", (r, outs, sends))
         return ("ok", None)
     def on_crash(s, aid, reason):
+        # restart as input (C.11.11)
         s.alog.append("Refused(%s)" % reason)
         ty = s.actors[aid].ty
         sv = SUPERVISORS.get(ty)
         if sv is None: return
         sup, strat, tys, child, bound = sv
         tick = s.tick
-        h = [t for t in s.restarts.get((sup, child), []) if RESTART_WINDOW == 0 or tick - t < RESTART_WINDOW]
-        h.append(tick); s.restarts[(sup, child)] = h
-        c = len(h)
-        if c > bound:
+        if s.rrep is not None:
+            if s.rrep and (s.rrep[0][1] + "/" + s.rrep[0][2]) not in SUP_TREE:
+                s.stop = ("refused", "trap: upgrade removed supervisor position %s/%s" % (s.rrep[0][1], s.rrep[0][2])); return
+            if not s.rrep or s.rrep[0][3] != aid or s.rrep[0][1] != sup:
+                s.stop = ("refused", "replay diverged"); return
+            dec = s.rrep.pop(0)
+        else:
+            h = [t for t in s.restarts.get((sup, child), []) if RESTART_WINDOW == 0 or tick - t < RESTART_WINDOW]
+            h.append(tick); s.restarts[(sup, child)] = h
+            stop = len(h) > bound
+            pos = tys.index(ty) if ty in tys else 0
+            reset = []
+            if not stop:
+                for a2, a in sorted(s.actors.items()):
+                    if strat == "one_for_all": hit = a.ty in tys
+                    elif strat == "rest_for_one": hit = a.ty in tys and tys.index(a.ty) >= pos
+                    else: hit = a2 == aid
+                    if hit: reset.append(a2)
+            dec = (tick, sup, child, aid, stop, reset)
+        s.rlog.append(dec)
+        c = sum(1 for r in s.rlog if r[1] == sup and r[2] == child and (RESTART_WINDOW == 0 or tick - r[0] < RESTART_WINDOW))
+        if dec[4]:
             s.alog.append("Stopped(supervisor %s)" % sup)
             s.stop = ("refused", "supervisor %s stopped: child %s restarted more than %d times" % (sup, child, bound)); return
         s.alog.append("Restart(%s, %s, %s, tick %d, %d)" % (child, aid, reason, tick, c))
-        pos = tys.index(ty) if ty in tys else 0
-        for a2, a in sorted(s.actors.items()):
-            if strat == "one_for_all": hit = a.ty in tys
-            elif strat == "rest_for_one": hit = a.ty in tys and tys.index(a.ty) >= pos
-            else: hit = a2 == aid
-            if hit: a.fields = actor_init(a.ty)
+        for a2 in dec[5]:
+            if a2 in s.actors: s.actors[a2].fields = actor_init(s.actors[a2].ty)
     def commit_handler(s, aid, r):
         if r is None: return
         fs, outs, sends = r
@@ -1622,6 +1789,16 @@ class Sched:
             else: s.on_crash(aid, r[1])
             if s.stop is not None: break
         return progress
+    def events_phase(s):
+        # HC-6: an event at this tick is logged as Input and staged to every
+        # live actor that handles it, in actor id order; else Unhandled
+        evs = [e[1] for e in s.events if e[0] == s.tick]
+        for v in evs:
+            s.alog.append("Input(%s)" % show(v))
+            to = [(aid, a.ty) for aid, a in sorted(s.actors.items()) if v.n in ACTOR_EVENTS.get(a.ty, [])]
+            if not to: s.alog.append("Unhandled(%s)" % show(v))
+            for aid, ty in to: s.mail_staged.append((aid, ty, v))
+        return bool(evs)
     def links_phase(s):
         anyl = False
         for _, part, a, b in [e for e in s.links if e[0] == s.tick]:
@@ -1719,7 +1896,7 @@ class Sched:
                     if s.tick - sl.since >= arm[1]: sl.since = 0; return ("arm", j, None)
                     break
             return None
-        if k == "spawn": return ("spawned", hid("spawn|%d|%s|%d" % (op[4], sl.id, op[5])))
+        if k == "spawn": return ("spawned", hid("spawn|%s|%d" % (sl.id, op[5])))
         if k == "join":
             j = next((x for x, t in enumerate(s.slots) if t.id == op[1]), None)
             if j is None or s.slots[j].st[0] != "done": return None
@@ -1763,10 +1940,12 @@ class Sched:
             if t.parent == i: t.cancel = True
         return None
     def run(s):
+        if s.stop is not None: return s.stop
         while True:
             s.tick += 1
             if s.tick > s.max_ticks: return ("refused", "trap: tick limit")
             progress = s.links_phase()
+            progress = s.events_phase() or progress
             order = s.order()
             moved = []
             for i in order:
@@ -1805,8 +1984,9 @@ class Sched:
             s.txns.extend(s.txn_staged); s.txn_staged = []
             all_done = all(sl.st[0] == "done" for sl in s.slots)
             idle = all(not a.mailbox for a in s.actors.values()) and not s.txns and not s.mail_staged
-            future = any(e[0] > s.tick for e in s.links)
-            if all_done and idle and (not s.held_links or not future): return ("done",)
+            fev = any(e[0] > s.tick for e in s.events)
+            future = any(e[0] > s.tick for e in s.links) or fev
+            if all_done and idle and not fev and (not s.held_links or not future): return ("done",)
             if not progress and idle and not future:
                 timers = any(sl.st[0] == "pending" and (sl.st[1][1] or (sl.st[1][0][0] == "select" and any(a[0] == "after" for a in sl.st[1][0][1]))) for sl in s.slots)
                 if not timers: return ("deadlock",)
@@ -1820,6 +2000,10 @@ def run_tasks(main):
             p = a[7:].split(",")
             links.append((int(p[0]), p[1] == "partition", p[2], p[3]))
     s = Sched(links)
+    rec = restart_tree_arg()
+    if s.rrep is not None and rec is not None:
+        e = tree_migrates(rec, SUP_TREE)
+        if e is not None: s.stop = ("refused", e)
     s.spawn_task(main, [], hid("main"), 0, None, 0)
     o = s.run()
     for sl in s.slots:
@@ -1831,6 +2015,80 @@ def run_tasks(main):
     for v in s.outputs: print("emit " + show(v))
     if "--actor-log" in sys.argv:
         for e in s.alog: print("actorlog " + e)
+    if "--restart-log" in sys.argv:
+        print("restartlog v1 tree=" + ",".join(SUP_TREE))
+        for r in s.rlog: print("restartin %d|%s|%s|%s|%d|%s" % (r[0], r[1], r[2], r[3], 1 if r[4] else 0, ",".join(r[5])))
     if o[0] == "done": print("outcome Done")
     elif o[0] == "deadlock": print("outcome Deadlock")
     else: print("outcome Refused: " + o[1])
+
+
+def restart_inputs():
+    # logged restart inputs (C.11.11): --restart=TICK|SUP|CHILD|ID|STOP|RESET,...
+    v = []
+    for a in sys.argv:
+        if a.startswith("--restart="):
+            p = a[len("--restart="):].split("|")
+            v.append((int(p[0]), p[1], p[2], p[3], p[4] == "1", [x for x in (p[5] if len(p) > 5 else "").split(",") if x]))
+    if not v and "--restart-replay" not in sys.argv: return None
+    return v
+
+def restart_tree_arg():
+    # --restart-tree=Sup/child,...: the schema of the replayed restart log
+    for a in sys.argv:
+        if a.startswith("--restart-tree="): return [x for x in a[len("--restart-tree="):].split(",") if x]
+    return None
+
+def _group(v):
+    g = []
+    for p in v:
+        sup, _, c = p.partition("/")
+        if g and g[-1][0] == sup: g[-1][1].append(c)
+        else: g.append((sup, [c]))
+    return g
+def tree_migrates(rec, cur):
+    # migration rule (C.11.11): every recorded position keeps its supervisor
+    # and child; new ones only after the recorded ones (conc::tree_migrates)
+    r, c = _group(rec), _group(cur)
+    for k, (sup, kids) in enumerate(r):
+        for j, kid in enumerate(kids):
+            if not (k < len(c) and c[k][0] == sup and j < len(c[k][1]) and c[k][1][j] == kid):
+                p = sup + "/" + kid
+                return ("trap: upgrade reordered supervisor position " if p in cur else "trap: upgrade removed supervisor position ") + p
+    return None
+
+INT_TYS = ("i8", "i16", "i32", "i64", "i128", "u8", "u16", "u32", "u64", "usize")
+def event_inputs():
+    # program events (HC-6): --event=TICK|Name|field=value,...
+    v = []
+    for a in sys.argv:
+        if not a.startswith("--event="): continue
+        r = a[len("--event="):]
+        def bad(m):
+            sys.stderr.write("bad --event %s: %s\n" % (r, m)); sys.exit(2)
+        p = r.split("|", 2)
+        try: tick = int(p[0])
+        except ValueError: bad("tick")
+        if len(p) < 2: bad("name")
+        name = p[1]
+        if name not in EVENT_FIELDS: bad("no event " + name)
+        given = dict(y.split("=", 1) for y in (p[2] if len(p) > 2 else "").split(",") if "=" in y)
+        fs = []
+        for f, t in EVENT_FIELDS[name]:
+            if f not in given: bad("missing field " + f)
+            x = given[f]
+            if t == "bool": val = x == "true"
+            elif t == "text": val = x
+            elif t in INT_TYS:
+                try: val = Int(int(x), t)
+                except ValueError: bad("field " + f)
+            else: bad("field %s has type %s, not an integer, bool or text" % (f, t))
+            fs.append((f, val))
+        v.append((tick, Rec(name, fs)))
+    return v
+
+def size_ok(v):
+    """N9: a list or text built by any operation has at most 1,000,000 elements."""
+    if isinstance(v, Lst) and len(v.xs) > 1000000: trap("size limit")
+    if isinstance(v, str) and len(v) > 1000000: trap("size limit")
+    return v

@@ -1,0 +1,7 @@
+# rce-version: 0.9
+# expect: W-WORLD-1
+extern "C" fn crc32(data: &[u8], seed: u32) -> u32
+
+fn main()
+    let bytes: List[u8] = [1]
+    emit crc32(&bytes, 0)

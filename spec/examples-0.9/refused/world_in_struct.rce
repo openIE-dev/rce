@@ -1,0 +1,7 @@
+# rce-version: 0.9
+# expect: W-WORLD-1
+struct Holder
+    w: &World
+
+fn main()
+    emit "x"

@@ -9,7 +9,7 @@ use std::path::Path;
 
 fn displays(h: &mut Host, ev: &str, args: Vec<rce_spec_check::ast::Arg>) -> Vec<String> {
     h.query(ev, args).unwrap().into_iter().filter_map(|o| match o {
-        V::Rec(_, fs) => fs.into_iter().find_map(|(f, v)| match v { V::Text(t) if f == "data" => Some(t), _ => None }),
+        V::Rec(_, fs) => fs.into_iter().find_map(|(f, v)| match v { V::Text(t) if f == "data" => Some(t.to_string()), _ => None }),
         _ => None,
     }).collect()
 }

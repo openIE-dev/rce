@@ -1,0 +1,7 @@
+# rce-version: 0.9
+# expect: W-WORLD-1
+fn helper(w: &World) -> i64
+    return 1
+
+fn main(w: &World)
+    emit helper(w).tostr()

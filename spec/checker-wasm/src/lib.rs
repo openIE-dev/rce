@@ -22,6 +22,8 @@ pub mod refine;
 mod types;
 #[path = "../../checker/src/specread.rs"]
 mod specread;
+#[path = "../../checker/src/session_prio.rs"]
+mod session_prio;
 use std::collections::HashSet;
 use wasm_bindgen::prelude::*;
 

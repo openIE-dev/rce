@@ -11,7 +11,7 @@ const PRE: &str = "struct In\n    a: i64\n    b: i64\n\nstruct P\n    x: i64\n  
 
 fn prog(one: &str, two: &str) -> String {
     format!(
-        "{PRE}fn main()\n    var p: P = P(x: 1, y: 2, q: In(a: 3, b: 4), v: [5, 6])\n    var t: (i64, i64) = (7, 8)\n    var arr: [i64; 4] = [0; 4]\n    let i: usize = 2\n    par\n        branch one\n{}\n        branch two\n{}\n    emit p.x + p.y + p.q.a + p.q.b + p.v[0] + p.v[1] + t.0 + t.1 + arr[0] + arr[1] + arr[2]\n",
+        "# rce-version: 0.6\n{PRE}fn main()\n    var p: P = P(x: 1, y: 2, q: In(a: 3, b: 4), v: [5, 6])\n    var t: (i64, i64) = (7, 8)\n    var arr: [i64; 4] = [0; 4]\n    let i: usize = 2\n    par\n        branch one\n{}\n        branch two\n{}\n    emit p.x + p.y + p.q.a + p.q.b + p.v[0] + p.v[1] + t.0 + t.1 + arr[0] + arr[1] + arr[2]\n",
         ind(one),
         ind(two)
     )

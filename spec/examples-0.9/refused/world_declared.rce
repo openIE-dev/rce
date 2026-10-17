@@ -1,0 +1,7 @@
+# rce-version: 0.9
+# expect: W-NAME-2
+struct World
+    x: i64
+
+fn main()
+    emit "x"

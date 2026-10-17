@@ -591,3 +591,97 @@ fn main()
     let r = replay(&src(2), bad);
     assert!(matches!(&r.outcome, Outcome::Refused(e) if e == "replay diverged"), "{:?}", r.outcome);
 }
+
+/// HC-6: program events feed the running task. An event at tick t enters
+/// the run log as `Input(..)` and reaches every live actor that handles it
+/// in actor-id order; one nobody handles is logged `Unhandled(..)`. The log
+/// is a function of the program and the timed inputs.
+#[test]
+fn program_events_feed_the_running_task() {
+    let src = "event Hit(k: i64)
+event Show
+event Nobody
+
+actor Acc
+    n: i64 = 0
+    on Hit(k: k)
+        n += k
+    on Show
+        emit n
+
+fn main()
+    let a = Acc()
+    a <- Show
+";
+    let m = parse(src).unwrap();
+    let ev = |n: &str, k: Option<i64>| {
+        rce_spec_check::interp::V::Rec(n.into(), k.map(|k| vec![("k".to_string(), rce_spec_check::interp::V::Int(k as i128, "i64"))]).unwrap_or_default())
+    };
+    let cfg = RunCfg {
+        events: vec![(5, ev("Hit", Some(3))), (6, ev("Hit", Some(4))), (8, ev("Show", None)), (9, ev("Nobody", None))],
+        ..RunCfg::default()
+    };
+    let r = run_main(&m, &cfg).unwrap();
+    assert_eq!(outs(&r), vec!["0", "7"], "{:?}", r.log.iter().map(|e| &e.what).collect::<Vec<_>>());
+    assert_eq!(r.outcome, Outcome::Done);
+    assert!(r.log.iter().any(|e| e.what == "Input(Hit(k: 3))" && e.tick == 5), "{:?}", r.log.iter().map(|e| (&e.what, e.tick)).collect::<Vec<_>>());
+    assert!(r.log.iter().any(|e| e.what.starts_with("Unhandled(Nobody")));
+    let r2 = run_main(&m, &cfg).unwrap();
+    let show = |l: &[rce_spec_check::conc::Entry]| l.iter().map(|e| format!("{} {} {:?}", e.tick, e.what, e.vc)).collect::<Vec<_>>();
+    assert_eq!(show(&r.log), show(&r2.log));
+}
+
+/// C.11.11 migration rule of a restart log, on the schema alone: recorded
+/// positions keep their supervisor and child, new ones only after them
+#[test]
+fn restart_log_schema_migration_rule() {
+    use rce_spec_check::conc::tree_migrates;
+    let v = |xs: &[&str]| xs.iter().map(|x| x.to_string()).collect::<Vec<_>>();
+    let rec = v(&["A/x", "A/y", "B/z"]);
+    assert!(tree_migrates(&rec, &rec).is_ok());
+    assert!(tree_migrates(&rec, &v(&["A/x", "A/y", "A/new", "B/z", "B/w", "C/q"])).is_ok(), "appended children and supervisors");
+    assert!(tree_migrates(&[], &rec).is_ok());
+    assert_eq!(tree_migrates(&rec, &v(&["A/x", "B/z"])).unwrap_err(), "trap: upgrade removed supervisor position A/y");
+    assert_eq!(tree_migrates(&rec, &v(&["A/y", "A/x", "B/z"])).unwrap_err(), "trap: upgrade reordered supervisor position A/x");
+    assert_eq!(tree_migrates(&rec, &v(&["C/q", "A/x", "A/y", "B/z"])).unwrap_err(), "trap: upgrade reordered supervisor position A/x");
+    assert_eq!(tree_migrates(&rec, &v(&["A/x", "A/new", "A/y", "B/z"])).unwrap_err(), "trap: upgrade reordered supervisor position A/y");
+}
+
+/// C.11.11 stable ids: an edit that keeps the program's structure (a
+/// constant, a function and blank lines before everything, a renamed
+/// local) keeps every actor and task id, so the run log is the same
+#[test]
+fn actor_and_task_ids_survive_structure_preserving_edits() {
+    let src = "event Hit(k: i64)
+error Boom
+actor Acc
+    n: i64 = 0
+    on Hit(k: k)
+        if k == 0
+            fail Boom
+        n += k
+        emit n
+supervisor S strategy one_for_one
+    child a: Acc restart bound 2
+fn work(c: chan i64)
+    c <- 1
+fn main()
+    let a = Acc()
+    let b = Acc()
+    let c = chan[i64](1)
+    spawn work(c)
+    match <- c
+        some(v) -> a <- Hit(k: v)
+        none -> emit 0
+    b <- Hit(k: 2)
+    b <- Hit(k: 0)
+";
+    let edited = format!("const K: i64 = 3\n\nfn helper(x: i64) -> i64\n    x * K\n\n\n{}", src.replace("some(v) -> a <- Hit(k: v)", "some(got) -> a <- Hit(k: got)"));
+    let ids = |s: &str| {
+        let r = run(s);
+        r.log.iter().map(|e| format!("{} {}", e.tick, e.what)).collect::<Vec<_>>()
+    };
+    let a = ids(src);
+    assert!(a.iter().any(|l| l.contains("Restart(a, ")), "{a:?}");
+    assert_eq!(a, ids(&edited));
+}

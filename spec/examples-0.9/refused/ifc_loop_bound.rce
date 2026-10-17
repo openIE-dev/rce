@@ -1,0 +1,8 @@
+# rce-version: 0.9
+# expect: W-IFC-2
+label pii
+
+fn main()
+    let n: i64 @ {pii} = 3
+    for i in 0..n
+        emit i.tostr()

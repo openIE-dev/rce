@@ -1,0 +1,7 @@
+# rce-version: 0.9
+# expect: W-CAP-3
+struct DirRead
+    path: text
+
+fn main()
+    emit 0

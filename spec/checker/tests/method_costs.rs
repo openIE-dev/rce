@@ -138,18 +138,18 @@ fn cost_is_monotone_in_input_size() {
             for n in 0..600usize {
                 let r = match mk {
                     0 => list(n),
-                    1 => V::Text("a".repeat(n)),
+                    1 => V::Text("a".repeat(n).into()),
                     _ => V::Map((0..n as i128).map(|i| (V::Int(i, "i64"), V::Int(i, "i64"))).collect()),
                 };
                 for k in [0usize, 3] {
-                    let a = vec![V::Text("b".repeat(k))];
+                    let a = vec![V::Text("b".repeat(k).into())];
                     let w = method_work(&r, m, &a);
                     assert!(w >= 0);
                     if k == 0 {
                         assert!(w >= prev, "{m} on kind {mk}: cost fell from {prev} to {w} at n = {n}");
                         prev = w;
                     } else {
-                        assert!(w >= method_work(&r, m, &[V::Text(String::new())]), "{m}: cost fell as the argument grew");
+                        assert!(w >= method_work(&r, m, &[V::Text(String::new().into())]), "{m}: cost fell as the argument grew");
                     }
                 }
             }
@@ -163,7 +163,8 @@ fn class_table_in_the_book_is_method_work() {
     let book = std::fs::read_to_string(p).unwrap();
     let five = |kind: &str| match kind {
         "text" => V::Text("abcde".into()),
-        "list" | "set" => list(5), // a Set[τ] value is a list (conc.rs method_work)
+        "list" => list(5),
+        "set" => V::Set((0..5).map(|i| V::Int(i, "i64")).collect()), // a Set[τ] is its own value (V::Set)
         _ => V::Map((0..5).map(|i| (V::Int(i, "i64"), V::Int(i, "i64"))).collect()),
     };
     let mut rows = 0;

@@ -1,0 +1,9 @@
+# rce-version: 0.9
+# expect: W-IFC-4
+label pii
+
+fn main()
+    let xs: List[i64] = [1, 2, 3]
+    let i: i64 @ {pii} = 1
+    let v = xs[i]
+    let _ = v

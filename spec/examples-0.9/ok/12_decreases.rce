@@ -1,0 +1,25 @@
+# rce-version: 0.9
+fn sum_to(n: u64) -> u64 bound 100
+    decreases n
+    if n == 0
+        return 0
+    return n + sum_to(n - 1)
+
+fn walk(lo: u64, hi: u64) -> u64 bound 100
+    decreases hi - lo
+    if lo >= hi
+        return 0
+    return 1 + walk(lo + 1, hi)
+
+fn ack(m: u64, n: u64) -> u64 bound 1000
+    decreases m, n
+    if m == 0
+        return n + 1
+    if n == 0
+        return ack(m - 1, 1)
+    return ack(m - 1, ack(m, n - 1))
+
+fn main()
+    emit sum_to(4).tostr()
+    emit walk(2, 5).tostr()
+    emit ack(1, 2).tostr()

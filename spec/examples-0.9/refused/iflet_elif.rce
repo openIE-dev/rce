@@ -1,0 +1,7 @@
+# rce-version: 0.9
+# expect: W-SYN-1
+fn main()
+    if let some(v) = some(3)
+        emit v.tostr()
+    elif true
+        emit "y"

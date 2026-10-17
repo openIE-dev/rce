@@ -138,3 +138,25 @@ fn platform_fabric_is_used_only_after_an_exact_probe() {
     assert!(h2.place_sum("s2", &a).is_err());
     assert_eq!(h2.len(), n2);
 }
+
+/// C.8 / HC-12: the reference evaluator's `for ... par` reduction and the
+/// placement executor evaluate one fixed tree (`host::tree_split`): a float
+/// sum, which is not associative, gives the same bits from `run_main` and
+/// from `place_par` / `fixed_tree` for every length.
+#[test]
+fn forpar_reference_and_placement_share_the_tree() {
+    use rce_spec_check::conc::{RunCfg, run_main};
+    let val = |i: usize| (i as f64 + 1.0).recip() + if i % 3 == 0 { 1e16 } else { -1e16 + 3.0 };
+    for n in 1..=40usize {
+        let src = format!(
+            "# rce-version: 0.6\nmodule t\n\nfn main()\n    var s: f64 = 0.0\n    for i in 0..{n} par\n        s += 1.0 / ((i as f64) + 1.0) + (if i % 3 == 0 then 1e16 else -1e16 + 3.0)\n    emit s\n"
+        );
+        let m = parse(&src).unwrap_or_else(|e| panic!("{e}\n{src}"));
+        let r = run_main(&m, &RunCfg::default()).unwrap();
+        let xs: Vec<f64> = (0..n).map(val).collect();
+        let t = fixed_tree(&xs, &0.0, &|a: &f64, b: &f64| a + b);
+        assert_eq!(t.to_bits(), fixed_tree_sum(&xs).to_bits());
+        let want = rce_spec_check::interp::V::F(t).show();
+        assert_eq!(r.outputs.last().map(|v| v.show()), Some(want), "n = {n}");
+    }
+}

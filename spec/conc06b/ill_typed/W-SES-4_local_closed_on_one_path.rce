@@ -1,0 +1,14 @@
+# rce-version: 0.6
+# expect: W-SES-4
+# a moved-to endpoint closed on one path is gone after the join
+protocol P
+    send i64
+
+fn client(c: session P, k: i64)
+    c <- 1
+    let m = c
+    if k > 0
+        emit 0
+    else
+        m.close()
+    m.close()

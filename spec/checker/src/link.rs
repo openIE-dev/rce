@@ -77,6 +77,12 @@ fn aliases(m: &Module, all: &[&Module]) -> BTreeMap<String, String> {
 }
 
 pub fn link(m: &Module, all: &[&Module]) -> Linked {
+    link_in(m, all, &mut vec![])
+}
+
+/// `stack` holds the modules being linked on the current path; meeting one
+/// of them again is an import cycle (W-MOD-2), reported instead of followed.
+fn link_in(m: &Module, all: &[&Module], stack: &mut Vec<String>) -> Linked {
     let mut errs = vec![];
     let mut out = m.clone();
     let al = aliases(m, all);
@@ -98,12 +104,24 @@ pub fn link(m: &Module, all: &[&Module]) -> Linked {
     let mut imported_fns = HashSet::new();
     let mut imported_types = HashSet::new();
     let self_path = m.path.as_ref().map(|q| q.join("."));
+    stack.push(self_path.clone().unwrap_or_default());
     while let Some(p) = queue.pop() {
         if Some(&p) == self_path.as_ref() || !seen.insert(p.clone()) {
             continue;
         }
+        if let Some(i) = stack.iter().position(|q| q == &p) {
+            let line = m.items.iter().find_map(|it| match it {
+                Item::Use(q, _, l) if q.join(".") == p => Some(*l),
+                _ => None,
+            }).unwrap_or(0);
+            let mut cyc = stack[i..].to_vec();
+            cyc.push(p.clone());
+            errs.push(format!("line {line}: W-MOD-2 import cycle {}", cyc.join(" -> ")));
+            continue;
+        }
         let Some(dm) = by_path(all, &p) else { continue };
-        let inner = link(dm, all);
+        let inner = link_in(dm, all, stack);
+        errs.extend(inner.errs.iter().filter(|e| e.contains("W-MOD-2")).cloned());
         queue.extend(aliases(dm, all).into_values());
         for it in inner.module.items.iter().filter(|i| linkable(i)) {
             // items the inner link appended belong to other modules, handled in their turn
@@ -157,6 +175,8 @@ pub fn link(m: &Module, all: &[&Module]) -> Linked {
         });
     }
     out.items.extend(extra);
+    stack.pop();
+    errs.dedup();
     Linked { module: out, imported_fns, imported_types, errs }
 }
 

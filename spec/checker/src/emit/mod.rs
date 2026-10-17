@@ -62,6 +62,9 @@ impl Lang {
 /// Emit `m` (already admitted by the checker) as one source file. An `Err`
 /// names a construct this emitter does not translate.
 pub fn emit(m: &Module, lang: Lang) -> Result<String, String> {
+    if let Some(e) = crate::v09::unemittable(m) {
+        return Err(e);
+    }
     // one shared, order-preserving lowering for all three emitters (6.2)
     let m = crate::anf::lower(m);
     base::G::new(&m, lang).program()

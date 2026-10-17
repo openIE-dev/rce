@@ -1,0 +1,11 @@
+# rce-version: 0.6
+# expect: W-SES-4
+protocol P
+    send i64
+
+fn two(a: session P, b: session P)
+    a <- 1
+    b <- 1
+
+fn client(c: session P)
+    two(c, c)

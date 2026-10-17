@@ -1,0 +1,5 @@
+# rce-version: 0.9
+# expect: W-NAME-2
+fn main()
+    let label = 1
+    let _ = label

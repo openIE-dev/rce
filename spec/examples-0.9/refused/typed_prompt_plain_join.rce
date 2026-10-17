@@ -1,0 +1,6 @@
+# rce-version: 0.9
+# expect: W-CTX-1
+fn main()
+    let who = "x"
+    let p = Prompt.lit("Summarize: ") + who
+    emit p.raw()

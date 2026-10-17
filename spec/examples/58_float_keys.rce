@@ -1,0 +1,20 @@
+module floatkeys
+
+# 6.1 key identity: map keys follow state identity, so -0.0 and 0.0 are two
+# keys (IEEE 754 totalOrder puts -0.0 first) and every target stores the
+# same map, hence the same state hash.
+intent "a tally keyed by float that keeps -0.0 and 0.0 apart"
+    example Add(x: 0.0), Flip(x: 0.0), Add(x: 0.0) -> {-0.0: 1, 0.0: 2}
+    example Add(x: 1.5), Flip(x: 2.5), Add(x: 1.5) -> {-2.5: 1, 1.5: 2}
+
+state Tally
+    m: Map[f64, i64] = {}
+
+event Add(x: f64)
+event Flip(x: f64)
+
+step Tally on Add(x: x)
+    m[x] = (m.get(x) catch 0) + 1
+step Tally on Flip(x: x)
+    let k = x * -1.0
+    m[k] = (m.get(k) catch 0) + 1

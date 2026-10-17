@@ -1,0 +1,5 @@
+# rce-version: 0.9
+# expect: W-VER-2
+fn main()
+    if let some(v) = some(3) and let some(w) = some(4)
+        emit (v + w).tostr()

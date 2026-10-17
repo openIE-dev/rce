@@ -1,0 +1,23 @@
+# rce-version: 0.9
+fn first_even(xs: &[i64]) -> i64?
+    for x in xs
+        if x % 2 == 0
+            return some(x)
+    return none
+
+fn show(xs: &[i64]) -> text
+    if let some(v) = first_even(xs) and v > 2
+        return "big " + v.tostr()
+    else
+        return "none or small"
+
+fn main()
+    let a = [1, 3, 4]
+    let b = [1, 2]
+    let c = [1, 3]
+    let d = [6]
+    emit show(&a)
+    emit show(&b)
+    emit show(&c)
+    if let some(v) = first_even(&d)
+        emit v.tostr()

@@ -1,0 +1,5 @@
+# rce-version: 0.9
+# expect: W-NAME-2
+fn main()
+    let ensures = 1
+    emit ensures.tostr()

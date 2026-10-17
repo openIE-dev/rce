@@ -64,9 +64,10 @@ fn f4_non_finite_results_trap() {
 }
 
 #[test]
-fn f6_signed_zero_is_unobservable() {
-    let got = emits(&["-0.0 * 1.0", "0.0 * -1.0", "(-0.0).sqrt()"], "f6");
-    assert_eq!(got, ["0", "0", "0"]);
+fn f6_signed_zero_prints_and_traps_on_division() {
+    // tostr keeps the sign so text round-trips (N3 F6)
+    let got = emits(&["-0.0 * 1.0", "0.0 * -1.0", "(-0.0).sqrt()", "0.0 * 1.0"], "f6");
+    assert_eq!(got, ["-0", "-0", "-0", "0"]);
     let out = run("    emit (1.0 / (0.0 * -1.0)).tostr()\n", "f6-div");
     assert!(out.contains("trap: non-finite float"), "{out}");
 }
@@ -99,4 +100,14 @@ fn f6_negative_zero_is_observable_and_hashes_apart() {
         t["state_hash"].as_str().unwrap().to_string()
     };
     assert_ne!(h("Mul(a: 0.0, b: -1.0)"), h("Mul(a: 0.0, b: 1.0)"));
+}
+
+#[test]
+fn map_keys_follow_state_identity() {
+    // -0.0 and 0.0 are distinct states, so distinct keys (6.1, totalOrder);
+    // IEEE == would merge them
+    let out = run("    var m: Map[f64, i64] = {}\n    m[0.0] = 1\n    m[0.0 * -1.0] = 2\n    emit m.len().tostr()\n    emit (m.get(0.0) catch 9).tostr()\n    emit m.keys()[0].tostr()\n", "keys");
+    assert!(out.contains("emit \"2\""), "{out}");
+    assert!(out.contains("emit \"1\""), "{out}");
+    assert!(out.contains("emit \"-0\""), "totalOrder puts -0 first: {out}");
 }

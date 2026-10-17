@@ -11,7 +11,7 @@ const trap = (m) => { throw new Trap(m); };
 // Fuel (6.7, 10.5): one unit at each point where the reference evaluator
 // ticks; each observation starts with full fuel and empty constant caches.
 const FUEL_ARGS = (typeof process !== "undefined" && process.argv) ? process.argv : [];
-const FUEL_LIMIT = BigInt((FUEL_ARGS.find((a) => a.startsWith("--fuel=")) || "--fuel=50000000").slice(7));
+let FUEL_LIMIT = BigInt((FUEL_ARGS.find((a) => a.startsWith("--fuel=")) || "--fuel=50000000").slice(7));
 const FUEL_TRACE = FUEL_ARGS.includes("--fuel-trace");
 // per worker: every task and par branch is its own worker (own pool)
 let FUEL = FUEL_LIMIT;
@@ -22,6 +22,13 @@ function depthEnter(k, n) { const d = DEPTH.get(k) || 0; if (BigInt(d) >= n) tra
 function depthExit(k) { const d = DEPTH.get(k) || 0; if (d > 0) DEPTH.set(k, d - 1); }
 function fuelReset() { DEPTH.clear(); FUEL = FUEL_LIMIT; for (const k of Object.keys(KC)) delete KC[k]; }
 function fuelReport() { if (FUEL_TRACE) say("fuel " + (FUEL_LIMIT - FUEL)); }
+// `--fuel-batch=n1,n2,..`: every observation once per limit in this process,
+// each pass headed by `#fuel-batch n`
+function observeAll(f) {
+  const b = FUEL_ARGS.find((a) => a.startsWith("--fuel-batch="));
+  if (!b) { f(); return; }
+  for (const n of b.slice(13).split(",")) { FUEL_LIMIT = BigInt(n); say("#fuel-batch " + n); f(); }
+}
 class Cancel extends Error { constructor(f) { super("cancel"); this.f = f; } }
 const isFlow = (e) => e instanceof Trap || e instanceof Fail || e instanceof Stop || e instanceof Ret || e instanceof Cancel;
 
@@ -38,6 +45,8 @@ class UnitT {}
 const UNIT = new UnitT();
 class Tup { constructor(xs) { this.xs = xs; } }
 class Lst { constructor(xs) { this.xs = xs; } }
+// a Set[τ]: elements in canonical order without duplicates (7.1)
+class St { constructor(xs) { this.xs = xs; } }
 class Mp { constructor(ps) { this.ps = ps; } }
 class Opt { constructor(x) { this.x = x; } }
 const NONE = new Opt(null);
@@ -76,7 +85,7 @@ function plain(neg, d, p) {
 }
 const negz = (x) => x < 0 || Object.is(x, -0);
 function fdisplay(x) {
-  if (x === 0) return "0";
+  if (x === 0) return negz(x) ? "-0" : "0";
   const a = Math.abs(x), [d, p] = digitsOf(String(a));
   if (a >= 1e-5 && a < 1e16) return plain(x < 0, d, p);
   const e = p - 1;
@@ -132,7 +141,7 @@ function show(v) {
   if (v instanceof F) return fdisplay(v.v);
   if (v instanceof UnitT) return "()";
   if (v instanceof Tup) return "(" + v.xs.map(show).join(", ") + ")";
-  if (v instanceof Lst) return "[" + v.xs.map(show).join(", ") + "]";
+  if (v instanceof Lst || v instanceof St) return "[" + v.xs.map(show).join(", ") + "]";
   if (v instanceof Mp) return "{" + v.ps.map(([a, b]) => show(a) + ": " + show(b)).join(", ") + "}";
   if (v instanceof Opt) return v.x === null ? "none" : "some(" + show(v.x) + ")";
   if (v instanceof Rec) return v.fs.length === 0 ? v.n : v.n + "(" + v.fs.map(([a, b]) => a + ": " + show(b)).join(", ") + ")";
@@ -156,7 +165,8 @@ function eq(a, b) {
   if (a instanceof Int || a instanceof F || a instanceof F32) return a.v === b.v;
   if (a instanceof UnitT) return true;
   if (a instanceof Tup || a instanceof Lst) return a.xs.length === b.xs.length && a.xs.every((x, i) => eq(x, b.xs[i]));
-  if (a instanceof Mp) return a.ps.length === b.ps.length && a.ps.every(([k, v]) => b.ps.some(([k2, v2]) => eq(k, k2) && eq(v, v2)));
+  if (a instanceof St) return a.xs.length === b.xs.length && a.xs.every((x, i) => keq(x, b.xs[i]));
+  if (a instanceof Mp) return a.ps.length === b.ps.length && a.ps.every(([k, v]) => b.ps.some(([k2, v2]) => keq(k, k2) && eq(v, v2)));
   if (a instanceof Opt) return a.x === null || b.x === null ? a.x === null && b.x === null : eq(a.x, b.x);
   if (a instanceof Rec) return a.n === b.n && a.fs.length === b.fs.length && a.fs.every(([p, x], i) => p === b.fs[i][0] && eq(x, b.fs[i][1]));
   if (a instanceof Err) return eq(a.e, b.e);
@@ -176,7 +186,7 @@ function cmp(a, b) {
   if ((a instanceof F && b instanceof F) || (a instanceof F32 && b instanceof F32)) return Number.isNaN(a.v) || Number.isNaN(b.v) ? 0 : c3(a.v, b.v);
   if (isStr(a) && isStr(b)) return cpcmp(a, b);
   if (isBool(a) && isBool(b)) return c3(a ? 1 : 0, b ? 1 : 0);
-  if ((a instanceof Tup && b instanceof Tup) || (a instanceof Lst && b instanceof Lst)) {
+  if ((a instanceof Tup && b instanceof Tup) || (a instanceof Lst && b instanceof Lst) || (a instanceof St && b instanceof St)) {
     for (let i = 0; i < Math.min(a.xs.length, b.xs.length); i++) { const r = cmp(a.xs[i], b.xs[i]); if (r) return r; }
     return c3(a.xs.length, b.xs.length);
   }
@@ -190,7 +200,8 @@ function chk(x, t) {
   return new Int(x, t);
 }
 const fin = (r, K) => (Number.isFinite(r) ? new K(r) : trap("non-finite float"));
-function arith(op, a, b) {
+function arith(op, a, b) { return sizeOk(arithRaw(op, a, b)); }
+function arithRaw(op, a, b) {
   if (a instanceof Int && b instanceof Int) {
     const x = a.v, y = b.v, ty = a.t === "lit" ? b.t : a.t;
     const bits = ty === "i8" || ty === "u8" ? 8 : ty === "i16" || ty === "u16" ? 16 : ty === "i32" || ty === "u32" ? 32 : 64;
@@ -231,7 +242,8 @@ function arith(op, a, b) {
 }
 function contains(c, x) {
   if (c instanceof Lst || c instanceof Tup) return c.xs.some((y) => eq(y, x));
-  if (c instanceof Mp) return c.ps.some(([k]) => eq(k, x));
+  if (c instanceof St) return c.xs.some((y) => keq(y, x));
+  if (c instanceof Mp) return c.ps.some(([k]) => keq(k, x));
   if (isStr(c)) return isStr(x) && c.includes(x);
   if (c instanceof Rng) return x instanceof Int && c.a <= x.v && x.v < c.b;
   return trap("`in` needs a collection");
@@ -254,7 +266,7 @@ function binop(op, x, y) {
 }
 function mapSet(ps, k, v) {
   const out = ps.slice();
-  for (let i = 0; i < out.length; i++) if (eq(out[i][0], k)) { out[i] = [out[i][0], v]; return out; }
+  for (let i = 0; i < out.length; i++) if (keq(out[i][0], k)) { out[i] = [out[i][0], v]; return out; }
   let i = 0;
   while (i < out.length && canonCmp(out[i][0], k) < 0) i++;
   out.splice(i, 0, [k, v]);
@@ -302,7 +314,7 @@ function index(c, i) {
     if (i.v >= 0n && i.v < BigInt(b.length)) return new Int(BigInt(b[Number(i.v)]), "u8");
     return trap("index " + i.v + " out of range");
   }
-  if (c instanceof Mp) { for (const [a, v] of c.ps) if (eq(a, i)) return v; return trap("missing key " + show(i)); }
+  if (c instanceof Mp) { for (const [a, v] of c.ps) if (keq(a, i)) return v; return trap("missing key " + show(i)); }
   return trap("cannot index " + show(c));
 }
 function slice(c, ta, tb) {
@@ -342,7 +354,7 @@ function bitnot(v) {
 }
 const not_ = (v) => !truthy(v);
 const sat128 = (x) => (x < I128[0] ? I128[0] : x > I128[1] ? I128[1] : x);
-const truncBig = (f) => sat128(BigInt(Math.trunc(f)));
+const truncBig = (f) => BigInt(Math.trunc(f)); // exact (N4)
 function cast(v, T) {
   const toF32 = T[0] === "f32", n = T[0] === "int" ? T[1] : null;
   if (v instanceof Int && n === null && toF32) return new F32(intToF32(v.v));
@@ -374,7 +386,7 @@ function ptm(t, v) {
   if (t[0] === "lit") return t[1];
   if (t[0] === "self") return v instanceof Int ? v.v : null;
   if (isStr(v)) return BigInt(enc.encode(v).length);
-  if (v instanceof Lst) return BigInt(v.xs.length);
+  if (v instanceof Lst || v instanceof St) return BigInt(v.xs.length);
   if (v instanceof Mp) return BigInt(v.ps.length);
   return null;
 }
@@ -450,7 +462,8 @@ function callValue(f, vals) {
   if (f instanceof Clo) return f.f(vals);
   return trap(show(f) + " is not callable");
 }
-function builtin(r, m, a) {
+function builtin(r, m, a) { const [v, w] = builtinRaw(r, m, a); return [sizeOk(v), w === null || w === undefined ? w : sizeOk(w)]; }
+function builtinRaw(r, m, a) {
   if (r instanceof Chan && m === "close") { comm(["close", r]); return [UNIT, null]; }
   if (r instanceof Task && m === "join") { const rp = comm(["join", r.id]); return [rp[0] === "val" ? rp[1] : UNIT, null]; }
   if (r instanceof Session && m === "offer") {
@@ -568,13 +581,14 @@ function builtin(r, m, a) {
       case "fold": { let acc = a[0]; for (const x of xs) { fuel(); acc = apply(a[1], [acc, x]); } return [acc, null]; }
     }
   }
-  if (r instanceof Lst) {
-    // a Set[τ] is a list in canonical order without duplicates
+  if (r instanceof St) {
     switch (m) {
       case "union": return [mergeBuiltin(r, a[0]), null];
-      case "inter": return [new Lst(r.xs.filter((x) => a[0].xs.some((y) => eq(x, y)))), null];
-      case "insert": return [UNIT, mergeBuiltin(r, new Lst([a[0]]))];
-      case "tolist": return [r, null];
+      case "inter": return [new St(r.xs.filter((x) => a[0].xs.some((y) => eq(x, y)))), null];
+      case "insert": return [UNIT, mergeBuiltin(r, new St([a[0]]))];
+      case "tolist": return [new Lst([...r.xs]), null];
+      case "len": return [new Int(BigInt(r.xs.length), "usize"), null];
+      case "contains": return [r.xs.some((x) => eq(x, a[0])), null];
     }
   }
   if (r instanceof Mp) {
@@ -582,11 +596,11 @@ function builtin(r, m, a) {
     switch (m) {
       case "merge": return [mapMerge(ps, a[0].ps), null];
       case "len": return [new Int(BigInt(ps.length), "usize"), null];
-      case "get": for (const [k, v] of ps) if (eq(k, a[0])) return [v, null]; return [new Err(new Rec("Missing", [])), null];
-      case "contains": return [ps.some(([k]) => eq(k, a[0])), null];
+      case "get": for (const [k, v] of ps) if (keq(k, a[0])) return [v, null]; return [new Err(new Rec("Missing", [])), null];
+      case "contains": return [ps.some(([k]) => keq(k, a[0])), null];
       case "insert": return [UNIT, new Mp(mapSet(ps, a[0], a[1]))];
       case "remove": {
-        const i = ps.findIndex(([k]) => eq(k, a[0]));
+        const i = ps.findIndex(([k]) => keq(k, a[0]));
         if (i < 0) return [NONE, new Mp(ps.slice())];
         return [new Opt(ps[i][1]), new Mp([...ps.slice(0, i), ...ps.slice(i + 1)])];
       }
@@ -602,22 +616,22 @@ function builtin(r, m, a) {
   return trap(show(r) + " has no method " + m + " at comptime");
 }
 // C.6.4 method work, as conc::method_work in the reference evaluator.
-const LIN_TEXT = new Set(["strip", "upper", "lower", "reverse", "tostr", "chars", "words", "lines", "split", "isdigit", "isalpha", "isspace", "contains", "startswith", "endswith", "toint", "join", "sha256"]), LIN_LIST = new Set(["reverse", "contains", "sum", "map", "filter", "fold", "utf8", "union", "inter", "insert"]), LIN_MAP = new Set(["get", "contains", "insert", "remove", "keys", "values", "merge"]);
+const LIN_TEXT = new Set(["strip", "upper", "lower", "reverse", "tostr", "chars", "words", "lines", "split", "isdigit", "isalpha", "isspace", "contains", "startswith", "endswith", "toint", "join", "sha256"]), LIN_LIST = new Set(["reverse", "contains", "sum", "map", "filter", "fold", "utf8"]), LIN_SET = new Set(["union", "inter", "insert", "contains", "tolist"]), LIN_MAP = new Set(["get", "contains", "insert", "remove", "keys", "values", "merge"]);
 function sizeOf(v) {
   if (isStr(v)) return BigInt(u8s(v).length);
-  if (v instanceof Lst) return BigInt(v.xs.length);
+  if (v instanceof Lst || v instanceof St) return BigInt(v.xs.length);
   if (v instanceof Mp) return BigInt(v.ps.length);
   return 0n;
 }
 function ceilLog2(n) { return n <= 1n ? 0n : BigInt((n - 1n).toString(2).length); }
 function methodWork(recv, m, args) {
   const n = sizeOf(recv), k = args.length ? sizeOf(args[0]) : 0n;
-  if ((isStr(recv) && LIN_TEXT.has(m)) || (recv instanceof Lst && LIN_LIST.has(m)) || (recv instanceof Mp && LIN_MAP.has(m))) return n + k;
+  if ((isStr(recv) && LIN_TEXT.has(m)) || (recv instanceof Lst && LIN_LIST.has(m)) || (recv instanceof St && LIN_SET.has(m)) || (recv instanceof Mp && LIN_MAP.has(m))) return n + k;
   if (recv instanceof Lst && m === "sort") return n * ceilLog2(n);
   return 0n;
 }
 function callMethod(recv, m, args, sized) {
-  const head = recv instanceof Rec ? (KIND_OF[recv.n] ?? recv.n) : recv instanceof Lst ? "List" : null;
+  const head = recv instanceof Rec ? (KIND_OF[recv.n] ?? recv.n) : recv instanceof Lst ? "List" : recv instanceof St ? "Set" : null;
   if (head !== null && METHODS[head + "." + m]) { fuel(); const [v, outs, s] = METHODS[head + "." + m](recv, args); return [v, outs, s]; }
   charge(4n + (sized ? methodWork(recv, m, args) : 0n));
   const [v, s] = builtin(recv, m, args);
@@ -683,7 +697,7 @@ function genRun(body, cap) {
   return [items, fin, err];
 }
 function iterItems(v) {
-  if (v instanceof Lst) return v.xs;
+  if (v instanceof Lst || v instanceof St) return v.xs;
   if (v instanceof Rng) {
     if (v.b - v.a > BigInt(LOOP_LIMIT) * 10n) trap("loop bound");
     const out = [];
@@ -722,6 +736,7 @@ function listcomp(itv, P, names, body, cond) {
 const catch_ = (x, h) => (x instanceof Err ? h(x.e) : x);
 function try_(x, els) {
   if (x instanceof Err) throw new Fail(els ? els() : x.e);
+  if (x instanceof Opt && !els) return x; // ok value of `T? ! E` [E-Try-V]
   if (x instanceof Opt) { if (x.x === null) { if (els) throw new Fail(els()); trap("try on none"); } return x.x; }
   return x;
 }
@@ -759,7 +774,7 @@ function jsonSize(v) {
   if (v instanceof Opt) return v.x === null ? 4 : jsonSize(v.x);
   if (v instanceof Err) return jsonSize(v.e);
   const seq = (xs, n) => 2 + xs.reduce((a, b) => a + b, 0) + Math.max(n - 1, 0);
-  if (v instanceof Tup || v instanceof Lst) return seq(v.xs.map(jsonSize), v.xs.length);
+  if (v instanceof Tup || v instanceof Lst || v instanceof St) return seq(v.xs.map(jsonSize), v.xs.length);
   if (v instanceof Mp) return seq(v.ps.map(([a, b]) => 3 + jsonSize(a) + jsonSize(b)), v.ps.length);
   if (v instanceof Rec) return 2 + jesc(v.n) + 1 + seq(v.fs.map(([a, b]) => jesc(a) + 1 + jsonSize(b)), v.fs.length);
   if (v instanceof Rng) return 3 + v.a.toString().length + v.b.toString().length;
@@ -784,6 +799,7 @@ function dbgV(v) {
   if (v instanceof UnitT) return "Unit";
   if (v instanceof Tup) return "Tuple([" + v.xs.map(dbgV).join(", ") + "])";
   if (v instanceof Lst) return "List([" + v.xs.map(dbgV).join(", ") + "])";
+  if (v instanceof St) return "Set([" + v.xs.map(dbgV).join(", ") + "])";
   if (v instanceof Mp) return "Map([" + v.ps.map(([a, b]) => "(" + dbgV(a) + ", " + dbgV(b) + ")").join(", ") + "])";
   if (v instanceof Opt) return v.x === null ? "Opt(None)" : "Opt(Some(" + dbgV(v.x) + "))";
   if (v instanceof Rec) return "Rec(" + rdebug(v.n) + ", [" + v.fs.map(([a, b]) => "(" + rdebug(a) + ", " + dbgV(b) + ")").join(", ") + "])";
@@ -852,16 +868,108 @@ function runExample1(line, events) {
   let s;
   try { s = initialState(); } catch (e) { if (!isFlow(e)) throw e; say("initial " + why(e)); return; }
   say("0 (initial) " + showState(s));
+  const d = new DLog();
+  try { runEvents(s, events, d); } finally { if (TRACE) say("trace " + d.prev); }
+}
+function runEvents(s, events, d) {
   for (let k = 1; k <= events.length; k++) {
     const [name, th] = events[k - 1];
     let ev;
     try { ev = th(); } catch (e) { if (!isFlow(e)) throw e; say(k + " " + name + " " + why(e)); return; }
     if (ev === null) { say(k + " " + name + " not an event"); return; }
     let r;
-    try { r = delta(s, ev); } catch (e) { if (e instanceof Refuse) { say(k + " " + show(ev) + " refused: " + e.r); return; } throw e; }
+    try { r = delta(s, ev); } catch (e) { if (e instanceof Refuse) { if (TRACE) d.add(name, ev, s); say(k + " " + show(ev) + " refused: " + e.r); return; } throw e; }
     s = r[0];
+    if (TRACE) d.add(name, ev, s);
     say(k + " " + show(ev) + " " + showState(s));
     for (const o of r[1]) say("  emit " + show(o));
+  }
+}
+// ---- 6.1 the log D: canonical JSON (N3) and the SHA-256 entry chain, as interp.rs writes it
+const TRACE = FUEL_ARGS.includes("--trace");
+const D_GENESIS = "0".repeat(64);
+const cpCmp = (a, b) => { const x = Array.from(a, (c) => c.codePointAt(0)), y = Array.from(b, (c) => c.codePointAt(0)); for (let i = 0; i < Math.min(x.length, y.length); i++) if (x[i] !== y[i]) return x[i] < y[i] ? -1 : 1; return x.length === y.length ? 0 : x.length < y.length ? -1 : 1; };
+class FRec { constructor(fs) { this.fs = fs.slice().sort((a, b) => cpCmp(a[0], b[0])); } }
+class FFl { constructor(x) { this.x = x; } }
+function formValue(v) {
+  if (v === true || v === false) return v;
+  if (isStr(v)) return v;
+  if (v instanceof Int) return BigInt(v.v);
+  if (v instanceof F || v instanceof F32) return new FFl(v.v);
+  if (v instanceof UnitT) return null;
+  if (v instanceof Opt) return v.x === null ? null : formValue(v.x);
+  if (v instanceof Tup || v instanceof Lst || v instanceof St) return v.xs.map(formValue);
+  if (v instanceof Mp) { const l = v.ps.map(([a, b]) => [formValue(a), formValue(b)]); l.sort((p, q) => fvCmp(p[0], q[0])); return l; }
+  if (v instanceof Rec) { const f = v.fs.map(([k, x]) => [k, formValue(x)]); if (VARIANTS.has(v.n)) f.push(["$v", v.n]); return new FRec(f); }
+  if (v instanceof Err) return new FRec([["$err", formValue(v.e)]]);
+  if (v instanceof Rng) { const o = []; for (let i = BigInt(v.a); i < BigInt(v.b); i++) o.push(i); return o; }
+  if (v instanceof FnV) return new FRec([["$fn", v.n]]);
+  return null;
+}
+function fvRank(x) {
+  if (x === null) return 0;
+  if (x === true || x === false) return 1;
+  if (typeof x === "bigint" || x instanceof FFl) return 2;
+  if (typeof x === "string") return 3;
+  if (Array.isArray(x)) return 4;
+  return 5;
+}
+function fvCmp(a, b) {
+  const ra = fvRank(a), rb = fvRank(b);
+  if (ra !== rb) return ra < rb ? -1 : 1;
+  if (ra === 1) return a === b ? 0 : a ? 1 : -1;
+  if (ra === 2) {
+    if (typeof a === "bigint" && typeof b === "bigint") return a < b ? -1 : a > b ? 1 : 0;
+    const x = typeof a === "bigint" ? Number(a) : a.x, y = typeof b === "bigint" ? Number(b) : b.x;
+    return x < y ? -1 : x > y ? 1 : 0;
+  }
+  if (ra === 3) return cpCmp(a, b);
+  if (ra === 4) { for (let i = 0; i < Math.min(a.length, b.length); i++) { const c = fvCmp(a[i], b[i]); if (c) return c; } return a.length === b.length ? 0 : a.length < b.length ? -1 : 1; }
+  if (ra === 5) { for (let i = 0; i < Math.min(a.fs.length, b.fs.length); i++) { const c = cpCmp(a.fs[i][0], b.fs[i][0]) || fvCmp(a.fs[i][1], b.fs[i][1]); if (c) return c; } return a.fs.length === b.fs.length ? 0 : a.fs.length < b.fs.length ? -1 : 1; }
+  return 0;
+}
+function floatJson(x) {
+  if (x === 0) return Object.is(x, -0) ? "-0.0" : "0.0";
+  const [m0, e0] = Math.abs(x).toExponential().split("e");
+  const ex = Number(e0), digits = m0.replace(".", ""), sign = x < 0 ? "-" : "", a = Math.abs(x);
+  if (a >= 1e-4 && a < 1e16) {
+    const p = ex + 1;
+    let body;
+    if (p <= 0) body = "0." + "0".repeat(-p) + digits;
+    else if (p >= digits.length) body = digits + "0".repeat(p - digits.length) + ".0";
+    else body = digits.slice(0, p) + "." + digits.slice(p);
+    return sign + body;
+  }
+  return sign + m0 + "e" + ex;
+}
+function jstr(s) {
+  let o = '"';
+  for (const ch of s) {
+    const c = ch.codePointAt(0);
+    if (ch === '"') o += '\\"'; else if (ch === "\\") o += "\\\\"; else if (ch === "\n") o += "\\n";
+    else if (ch === "\r") o += "\\r"; else if (ch === "\t") o += "\\t";
+    else if (c < 0x20) o += "\\u" + c.toString(16).padStart(4, "0"); else o += ch;
+  }
+  return o + '"';
+}
+function fvJson(x) {
+  if (x === null) return "null";
+  if (x === true) return "true";
+  if (x === false) return "false";
+  if (typeof x === "bigint") return x.toString();
+  if (x instanceof FFl) return floatJson(x.x);
+  if (typeof x === "string") return jstr(x);
+  if (Array.isArray(x)) return "[" + x.map(fvJson).join(",") + "]";
+  return "{" + x.fs.map(([k, v]) => jstr(k) + ":" + fvJson(v)).join(",") + "}";
+}
+const dSha = (s) => sha256hex(enc.encode(s));
+class DLog {
+  constructor() { this.prev = D_GENESIS; this.seq = 0; }
+  add(name, ev, st) {
+    const evj = '{"payload":' + fvJson(formValue(ev)) + ',"type":' + jstr(name) + "}";
+    const sj = fvJson(new FRec(st.map(([r, fs]) => [r, new FRec(fs.map(([n, v]) => [n, formValue(v)]))])));
+    const body = '{"event":' + evj + ',"prev_hash":"' + this.prev + '","seq":' + this.seq + ',"state_hash":"' + dSha(sj) + '"}';
+    this.prev = dSha(body); this.seq++;
   }
 }
 function runMain(f) {
@@ -907,7 +1015,7 @@ function parCombine(op, a, b) {
 function parTree(op, c, i) {
   if (c.length === 0) return i;
   if (c.length === 1) return c[0];
-  const h = Math.ceil(c.length / 2);
+  const h = 1 << (31 - Math.clz32(c.length - 1));
   const l = parTree(op, c.slice(0, h), i);
   const r = parTree(op, c.slice(h), i);
   return parCombine(op, l, r);
@@ -919,14 +1027,14 @@ function pscan(xs, f, e, inclusive) {
   const up = (lo, hi) => {
     let v;
     if (hi - lo === 1) v = xs[lo];
-    else { const h = lo + Math.ceil((hi - lo) / 2); const l = up(lo, h); const r = up(h, hi); v = apply(f, [l, r]); }
+    else { const h = lo + (1 << (31 - Math.clz32(hi - lo - 1))); const l = up(lo, h); const r = up(h, hi); v = apply(f, [l, r]); }
     sums.set(lo + ":" + hi, v);
     return v;
   };
   const out = new Array(n).fill(null);
   const down = (lo, hi, off) => {
     if (hi - lo === 1) { out[lo] = off; return; }
-    const h = lo + Math.ceil((hi - lo) / 2);
+    const h = lo + (1 << (31 - Math.clz32(hi - lo - 1)));
     const ls = sums.get(lo + ":" + h);
     const roff = off === null ? ls : apply(f, [off, ls]);
     down(lo, h, off);
@@ -964,7 +1072,7 @@ function cbitnot(v) { charge(1n); return bitnot(v); }
 function cnot(v) { charge(1n); return not_(v); }
 function cbinop(op, x, y) { charge(opCost(op, x)); return binop(op, x, y); }
 function preMethod(recv, m) {
-  const head = recv instanceof Rec ? (KIND_OF[recv.n] ?? recv.n) : recv instanceof Lst ? "List" : null;
+  const head = recv instanceof Rec ? (KIND_OF[recv.n] ?? recv.n) : recv instanceof Lst ? "List" : recv instanceof St ? "Set" : null;
   if (head !== null && METHODS[head + "." + m]) charge(4n);
   return recv;
 }
@@ -980,17 +1088,25 @@ function crank(v) {
   if (isBool(v)) return 1;
   if (v instanceof Int || v instanceof F || v instanceof F32) return 2;
   if (isStr(v)) return 3;
-  if (v instanceof Lst || v instanceof Tup) return 4;
+  if (v instanceof Lst || v instanceof St || v instanceof Tup) return 4;
   return 5;
 }
 const ccmp = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
 function bcmp(a, b) { const x = u8s(a), y = u8s(b); for (let i = 0; i < Math.min(x.length, y.length); i++) if (x[i] !== y[i]) return ccmp(x[i], y[i]); return ccmp(x.length, y.length); }
+const keq = (a, b) => canonCmp(a, b) === 0; // map/set key identity (6.1)
 function canonCmp(a, b) {
   const ra = crank(a), rb = crank(b);
   if (ra !== rb) return ccmp(ra, rb);
   if (ra === 1) return ccmp(a, b);
   if (a instanceof Int && b instanceof Int) return ccmp(a.v, b.v);
-  if (ra === 2) { const x = Number(a.v), y = Number(b.v); return Number.isNaN(x) || Number.isNaN(y) ? 0 : ccmp(x, y); }
+  if (ra === 2) {
+    // int before float (never equal keys); floats by IEEE 754 totalOrder (6.1)
+    if (a instanceof Int) return -1;
+    if (b instanceof Int) return 1;
+    const x = Number(a.v), y = Number(b.v);
+    if (x === 0 && y === 0) return ccmp(Object.is(x, -0) ? 0 : 1, Object.is(y, -0) ? 0 : 1);
+    return ccmp(x, y);
+  }
   if (ra === 3) return bcmp(a, b);
   if (ra === 4) { for (let i = 0; i < Math.min(a.xs.length, b.xs.length); i++) { const c = canonCmp(a.xs[i], b.xs[i]); if (c !== 0) return c; } return ccmp(a.xs.length, b.xs.length); }
   if (a instanceof Opt && b instanceof Opt && a.x !== null && b.x !== null) return canonCmp(a.x, b.x);
@@ -1009,9 +1125,14 @@ function mergeBuiltin(a, b) {
     for (const x of v) if (out.length === 0 || canonCmp(out[out.length - 1], x) !== 0) out.push(x);
     return new Lst(out);
   }
+  if (a instanceof St && b instanceof St) {
+    const v = [...a.xs, ...b.xs].sort(canonCmp), out = [];
+    for (const x of v) if (out.length === 0 || canonCmp(out[out.length - 1], x) !== 0) out.push(x);
+    return new St(out);
+  }
   if (a instanceof Mp && b instanceof Mp) {
     const out = [...a.ps];
-    for (const [k, v] of b.ps) { const i = out.findIndex(([k2]) => eq(k2, k)); if (i >= 0) out[i] = [out[i][0], mergeBuiltin(out[i][1], v)]; else out.push([k, v]); }
+    for (const [k, v] of b.ps) { const i = out.findIndex(([k2]) => keq(k2, k)); if (i >= 0) out[i] = [out[i][0], mergeBuiltin(out[i][1], v)]; else out.push([k, v]); }
     out.sort((p, q) => canonCmp(p[0], q[0]));
     return new Mp(out);
   }
@@ -1025,13 +1146,13 @@ function mergeBuiltin(a, b) {
 function mapMerge(xs, ys) {
   const out = xs.slice();
   for (const [k, v] of ys) {
-    const i = out.findIndex(([k2]) => eq(k2, k));
+    const i = out.findIndex(([k2]) => keq(k2, k));
     if (i >= 0) out[i] = [out[i][0], mergeValues(out[i][1], v)]; else out.push([k, v]);
   }
   out.sort((p, q) => canonCmp(p[0], q[0]));
   return new Mp(out);
 }
-function setOf(v) { return mergeBuiltin(v, new Lst([])); }
+function setOf(v) { return new St(mergeBuiltin(v, new Lst([])).xs); }
 function mergeValues(a, b) {
   if (a instanceof Rec) { const h = KIND_OF[a.n] ?? a.n; const f = METHODS[h + ".merge"]; if (f) { charge(4n); return f(a, [b])[0]; } }
   return mergeBuiltin(a, b);
@@ -1125,6 +1246,7 @@ function encV(v) {
   if (v instanceof UnitT) return { k: "u" };
   if (v instanceof Tup) return { k: "tup", xs: v.xs.map(encV) };
   if (v instanceof Lst) return { k: "lst", xs: v.xs.map(encV) };
+  if (v instanceof St) return { k: "st", xs: v.xs.map(encV) };
   if (v instanceof Mp) return { k: "mp", ps: v.ps.map(([a, b]) => [encV(a), encV(b)]) };
   if (v instanceof Opt) return { k: "o", x: v.x === null ? null : encV(v.x) };
   if (v instanceof Rec) return { k: "r", n: v.n, fs: v.fs.map(([a, b]) => [a, encV(b)]) };
@@ -1149,6 +1271,7 @@ function decV(v) {
     case "u": return UNIT;
     case "tup": return new Tup(v.xs.map(decV));
     case "lst": return new Lst(v.xs.map(decV));
+    case "st": return new St(v.xs.map(decV));
     case "mp": return new Mp(v.ps.map(([a, b]) => [decV(a), decV(b)]));
     case "o": return v.x === null ? NONE : new Opt(decV(v.x));
     case "r": return new Rec(v.n, v.fs.map(([a, b]) => [a, decV(b)]));
@@ -1360,9 +1483,12 @@ function sessionNew(cap, line) {
   const a = fresh_("chan", line), b = fresh_("chan", line);
   return new Tup([new Session(a, b, n), new Session(b, a, n)]);
 }
-function actorNew(ty, line) {
+function ord_(key) { const k = TASK.ords[key] || 0; TASK.ords[key] = k + 1; return k; }
+// stable path of C.11.11: supervisor position (or type), creating task, ordinal
+function actorNew(ty, pos) {
   if (TASK === null) return trap("cannot call " + ty + " at comptime");
-  return new Actor(fresh_("actor", line), ty);
+  TASK.created++;
+  return new Actor(hid("actor|" + pos + "|" + TASK.id + "|" + ord_("actor|" + pos)), ty);
 }
 function send(t, v) {
   charge(8n);
@@ -1390,7 +1516,7 @@ function sessionChoose(r, label) {
 function spawn_(f, args, prio, site) {
   charge(32n);
   if (TASK === null) return trap("concurrency is not available at comptime");
-  const idx = TASK.created++;
+  TASK.created++; const idx = ord_("spawn");
   let p = BigInt(prio); p = p < 0n ? 0n : p > 255n ? 255n : p;
   const rp = comm(["spawn", f, args, Number(p), site, idx, TASK.scopes.length ? TASK.scopes[TASK.scopes.length - 1] : 0]);
   return new Task(rp[1]);
@@ -1425,7 +1551,7 @@ function atomicCommit(buf) {
 function taskMain() {
   const d = WT.workerData;
   const flag = new Int32Array(d.sab);
-  TASK = { id: d.id, req: d.req, rep: d.rep, flag, created: 0, now: 0, dl: [], nextFrame: 1, scopes: [0], selK: {} };
+  TASK = { id: d.id, req: d.req, rep: d.rep, flag, created: 0, ords: {}, now: 0, dl: [], nextFrame: 1, scopes: [0], selK: {} };
   const [tick, first] = decV(linkRecv(d.rep, flag, 1));
   let r;
   if (first[0] === "go") {
@@ -1443,7 +1569,7 @@ class SlotJ {
 class SchedJ {
   constructor(links) {
     Object.assign(this, { slots: [], chans: new Map(), staged: [], outputs: [], rng: BigInt(0x5eed | 1), tick: 0, stop: null, maxTicks: 100000,
-      actors: new Map(), mailStaged: [], txns: [], txnStaged: [], heldLinks: [], parted: [], links, restarts: new Map(), alog: [] });
+      actors: new Map(), mailStaged: [], txns: [], txnStaged: [], heldLinks: [], parted: [], links, restarts: new Map(), alog: [], rlog: [], rrep: restartInputs(), events: eventInputs() });
   }
   spawnTask(f, args, id, prio, parent, scope) {
     const sl = new SlotJ(id, prio, parent, scope);
@@ -1504,24 +1630,37 @@ class SchedJ {
     return ["ok", null];
   }
   onCrash(id, reason) {
+    // restart as input (C.11.11)
     this.alog.push("Refused(" + reason + ")");
     const ty = this.actors.get(id).ty;
     const sv = SUPERVISORS[ty];
     if (!sv) return;
     const [sup, strat, tys, child, bound] = sv;
-    const key = sup + "\u0000" + child;
     const tick = this.tick;
-    const h = (this.restarts.get(key) || []).filter((t) => RESTART_WINDOW === 0 || tick - t < RESTART_WINDOW);
-    h.push(tick); this.restarts.set(key, h);
-    const c = h.length;
-    if (c > bound) { this.alog.push("Stopped(supervisor " + sup + ")"); this.stop = ["refused", "supervisor " + sup + " stopped: child " + child + " restarted more than " + bound + " times"]; return; }
-    this.alog.push("Restart(" + child + ", " + id + ", " + reason + ", tick " + tick + ", " + c + ")");
-    const pos = Math.max(tys.indexOf(ty), 0);
-    for (const aid of [...this.actors.keys()].sort()) {
-      const a = this.actors.get(aid);
-      const hit = strat === "one_for_all" ? tys.includes(a.ty) : strat === "rest_for_one" ? tys.includes(a.ty) && tys.indexOf(a.ty) >= pos : aid === id;
-      if (hit) a.fields = actorInit(a.ty);
+    let dec;
+    if (this.rrep !== null) {
+      if (this.rrep.length && !SUP_TREE.includes(this.rrep[0][1] + "/" + this.rrep[0][2])) { this.stop = ["refused", "trap: upgrade removed supervisor position " + this.rrep[0][1] + "/" + this.rrep[0][2]]; return; }
+      if (this.rrep.length === 0 || this.rrep[0][3] !== id || this.rrep[0][1] !== sup) { this.stop = ["refused", "replay diverged"]; return; }
+      dec = this.rrep.shift();
+    } else {
+      const key = sup + "\u0000" + child;
+      const h = (this.restarts.get(key) || []).filter((t) => RESTART_WINDOW === 0 || tick - t < RESTART_WINDOW);
+      h.push(tick); this.restarts.set(key, h);
+      const stop = h.length > bound;
+      const pos = Math.max(tys.indexOf(ty), 0);
+      const reset = [];
+      if (!stop) for (const aid of [...this.actors.keys()].sort()) {
+        const a = this.actors.get(aid);
+        const hit = strat === "one_for_all" ? tys.includes(a.ty) : strat === "rest_for_one" ? tys.includes(a.ty) && tys.indexOf(a.ty) >= pos : aid === id;
+        if (hit) reset.push(aid);
+      }
+      dec = [tick, sup, child, id, stop, reset];
     }
+    this.rlog.push(dec);
+    const c = this.rlog.filter((r) => r[1] === sup && r[2] === child && (RESTART_WINDOW === 0 || tick - r[0] < RESTART_WINDOW)).length;
+    if (dec[4]) { this.alog.push("Stopped(supervisor " + sup + ")"); this.stop = ["refused", "supervisor " + sup + " stopped: child " + child + " restarted more than " + bound + " times"]; return; }
+    this.alog.push("Restart(" + child + ", " + id + ", " + reason + ", tick " + tick + ", " + c + ")");
+    for (const aid of dec[5]) { const a = this.actors.get(aid); if (a) a.fields = actorInit(a.ty); }
   }
   commitHandler(id, r) {
     if (r === null) return;
@@ -1562,6 +1701,18 @@ class SchedJ {
       if (this.stop !== null) break;
     }
     return progress;
+  }
+  // HC-6: an event at this tick is logged as Input and staged to every live
+  // actor that handles it, in actor id order; else Unhandled
+  eventsPhase() {
+    const evs = this.events.filter((e) => e[0] === this.tick).map((e) => e[1]);
+    for (const v of evs) {
+      this.alog.push("Input(" + show(v) + ")");
+      const to = [...this.actors.keys()].sort().filter((id) => (ACTOR_EVENTS[this.actors.get(id).ty] || []).includes(v.n));
+      if (!to.length) this.alog.push("Unhandled(" + show(v) + ")");
+      for (const id of to) this.mailStaged.push([id, this.actors.get(id).ty, v]);
+    }
+    return evs.length > 0;
   }
   linksPhase() {
     let any = false;
@@ -1654,7 +1805,7 @@ class SchedJ {
         }
         return null;
       }
-      case "spawn": return ["spawned", hid("spawn|" + op[4] + "|" + sl.id + "|" + op[5])];
+      case "spawn": return ["spawned", hid("spawn|" + sl.id + "|" + op[5])];
       case "join": {
         const j = this.slots.findIndex((t) => t.id === op[1]);
         if (j < 0 || this.slots[j].st[0] !== "done") return null;
@@ -1695,10 +1846,12 @@ class SchedJ {
     return null;
   }
   run() {
+    if (this.stop !== null) return this.stop;
     for (;;) {
       this.tick += 1;
       if (this.tick > this.maxTicks) return ["refused", "trap: tick limit"];
       let progress = this.linksPhase();
+      progress = this.eventsPhase() || progress;
       const order = this.order();
       const moved = [];
       for (const i of order) {
@@ -1731,8 +1884,9 @@ class SchedJ {
       this.txns.push(...this.txnStaged); this.txnStaged = [];
       const allDone = this.slots.every((s) => s.st[0] === "done");
       const idle = [...this.actors.values()].every((a) => !a.mailbox.length) && !this.txns.length && !this.mailStaged.length;
-      const future = this.links.some((e) => e[0] > this.tick);
-      if (allDone && idle && (!this.heldLinks.length || !future)) return ["done"];
+      const fev = this.events.some((e) => e[0] > this.tick);
+      const future = this.links.some((e) => e[0] > this.tick) || fev;
+      if (allDone && idle && !fev && (!this.heldLinks.length || !future)) return ["done"];
       if (!progress && idle && !future) {
         const timers = this.slots.some((s) => s.st[0] === "pending" && (s.st[1][1].length > 0 || (s.st[1][0][0] === "select" && s.st[1][0][1].some((a) => a[0] === "after"))));
         if (!timers) return ["deadlock"];
@@ -1745,10 +1899,87 @@ function runTasks(main) {
   const links = [];
   for (const a of process.argv) if (a.startsWith("--link=")) { const p = a.slice(7).split(","); links.push([Number(p[0]), p[1] === "partition", p[2], p[3]]); }
   const s = new SchedJ(links);
+  const rec = restartTreeArg();
+  if (s.rrep !== null && rec !== null) { const e = treeMigrates(rec, SUP_TREE); if (e !== null) s.stop = ["refused", e]; }
   s.spawnTask(main, [], hid("main"), 0, null, 0);
   const o = s.run();
   const lines = s.outputs.map((v) => "emit " + show(v));
   if (process.argv.includes("--actor-log")) for (const e of s.alog) lines.push("actorlog " + e);
+  if (process.argv.includes("--restart-log")) lines.push("restartlog v1 tree=" + SUP_TREE.join(","));
+  if (process.argv.includes("--restart-log")) for (const r of s.rlog) lines.push("restartin " + r[0] + "|" + r[1] + "|" + r[2] + "|" + r[3] + "|" + (r[4] ? 1 : 0) + "|" + r[5].join(","));
   lines.push(o[0] === "done" ? "outcome Done" : o[0] === "deadlock" ? "outcome Deadlock" : "outcome Refused: " + o[1]);
   process.stdout.write(lines.map((x) => x + "\n").join(""), () => process.exit(0));
+}
+
+// --restart-tree=Sup/child,...: the schema of the replayed restart log
+function restartTreeArg() {
+  for (const a of process.argv) if (a.startsWith("--restart-tree=")) return a.slice(15).split(",").filter((x) => x);
+  return null;
+}
+function group_(v) {
+  const g = [];
+  for (const p of v) {
+    const i = p.indexOf("/"), sup = i < 0 ? p : p.slice(0, i), c = i < 0 ? "" : p.slice(i + 1);
+    if (g.length && g[g.length - 1][0] === sup) g[g.length - 1][1].push(c); else g.push([sup, [c]]);
+  }
+  return g;
+}
+// migration rule (C.11.11): every recorded position keeps its supervisor
+// and child; new ones only after the recorded ones (conc::tree_migrates)
+function treeMigrates(rec, cur) {
+  const r = group_(rec), c = group_(cur);
+  for (let k = 0; k < r.length; k++) for (let j = 0; j < r[k][1].length; j++) {
+    if (!(k < c.length && c[k][0] === r[k][0] && c[k][1][j] === r[k][1][j])) {
+      const p = r[k][0] + "/" + r[k][1][j];
+      return (cur.includes(p) ? "trap: upgrade reordered supervisor position " : "trap: upgrade removed supervisor position ") + p;
+    }
+  }
+  return null;
+}
+const INT_TYS = ["i8", "i16", "i32", "i64", "i128", "u8", "u16", "u32", "u64", "usize"];
+// program events (HC-6): --event=TICK|Name|field=value,...
+function eventInputs() {
+  const v = [];
+  for (const a of process.argv) {
+    if (!a.startsWith("--event=")) continue;
+    const r = a.slice(8);
+    const bad = (m) => { process.stderr.write("bad --event " + r + ": " + m + "\n"); process.exit(2); };
+    const i1 = r.indexOf("|"), i2 = i1 < 0 ? -1 : r.indexOf("|", i1 + 1);
+    const tick = Number(i1 < 0 ? r : r.slice(0, i1));
+    if (!Number.isInteger(tick) || i1 < 0) bad("tick");
+    const name = i2 < 0 ? r.slice(i1 + 1) : r.slice(i1 + 1, i2);
+    if (!(name in EVENT_FIELDS)) bad("no event " + name);
+    const given = {};
+    for (const y of (i2 < 0 ? "" : r.slice(i2 + 1)).split(",")) { const e = y.indexOf("="); if (e > 0) given[y.slice(0, e)] = y.slice(e + 1); }
+    const fs = [];
+    for (const [f, t] of EVENT_FIELDS[name]) {
+      if (!(f in given)) bad("missing field " + f);
+      const x = given[f];
+      let val;
+      if (t === "bool") val = x === "true";
+      else if (t === "text") val = x;
+      else if (INT_TYS.includes(t)) { if (!/^-?[0-9]+$/.test(x)) bad("field " + f); val = new Int(BigInt(x), t); }
+      else bad("field " + f + " has type " + t + ", not an integer, bool or text");
+      fs.push([f, val]);
+    }
+    v.push([tick, new Rec(name, fs)]);
+  }
+  return v;
+}
+// logged restart inputs (C.11.11): --restart=TICK|SUP|CHILD|ID|STOP|RESET,...
+function restartInputs() {
+  const v = [];
+  for (const a of process.argv) if (a.startsWith("--restart=")) {
+    const p = a.slice(10).split("|");
+    v.push([Number(p[0]), p[1], p[2], p[3], p[4] === "1", (p[5] || "").split(",").filter((x) => x)]);
+  }
+  if (v.length === 0 && !process.argv.includes("--restart-replay")) return null;
+  return v;
+}
+
+// N9: a list or text built by any operation has at most 1,000,000 elements (code points)
+function sizeOk(v) {
+  if (v instanceof Lst && v.xs.length > 1000000) trap("size limit");
+  if (typeof v === "string" && v.length > 1000000 && [...v].length > 1000000) trap("size limit");
+  return v;
 }

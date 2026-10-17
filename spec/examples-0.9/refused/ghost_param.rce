@@ -1,0 +1,7 @@
+# rce-version: 0.9
+# expect: W-VER-2
+fn f(ghost x: i64) -> i64
+    return 1
+
+fn main()
+    emit f(1).tostr()

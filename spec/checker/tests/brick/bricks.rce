@@ -148,3 +148,46 @@ pub fn is_odd(n: i64) -> bool
     if n <= 0
         return false
     return is_even(n - 1)
+
+pub struct Bag
+    n: i64
+    items: List[Pt]
+
+pub fn bag_add(p: Pt, k: i64) -> Bag
+    var b = Bag(n: 0, items: [])
+    b.items.push(p)
+    b.items.push(p)
+    b.n += 2
+    b.items[1].x = k
+    b.items[0].y += k
+    return b
+
+pub fn last_index(xs: List[i64]) -> i64
+    let n = xs.len() - 1
+    return n as i64
+
+pub fn u8_mix(a: u8, b: u8) -> u8
+    let s = a + b
+    return (s << 1) ^ ~a
+
+pub fn u64_mix(a: u64, b: u64) -> u64 = ((a ^ b) >> 3) + a / 2
+
+pub fn tail2(t: text) -> text = t[1:]
+
+pub fn mid_len(xs: List[i64]) -> i64 = xs[1:-1].len() as i64
+
+pub fn doubled(xs: List[i64]) -> List[i64] = xs.map(fn(x: i64) => x * 2)
+
+fn opt_first(xs: List[i64]) -> i64? = if xs.len() == 0 then none else some(xs[0])
+
+pub fn first_or(xs: List[i64], d: i64) -> i64 = opt_first(xs).or(d)
+
+pub fn take2(xs: List[i64]) -> i64
+    var b = xs
+    let a = b.pop()
+    return a.or(0) + take_last(&mut b)
+
+pub fn digit_pt(b: &List[i64]) -> Pt ! BadDigit
+    return Pt(x: try digit(b, 0), y: 1)
+
+pub fn trimmed(t: text) -> text = t.strip()

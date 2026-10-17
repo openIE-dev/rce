@@ -1,0 +1,6 @@
+# rce-version: 0.9
+# expect: W-CTX-1
+fn main()
+    let prog = "echo"
+    let cmd = Shell.cmd(prog, [ShellArg.lit("a")])
+    emit cmd.raw()

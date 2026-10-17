@@ -1,0 +1,14 @@
+# rce-version: 0.9
+# expect: W-TX-1
+error Boom
+
+fn ping(c: chan i64)
+    c <- 1
+
+fn work(c: chan i64) -> i64 ! Boom
+    ping(c)
+    fail Boom
+
+fn main()
+    let c = chan[i64](1)
+    emit (work(c) catch 0).tostr()

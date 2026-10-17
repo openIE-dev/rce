@@ -436,7 +436,94 @@ impl<'a> G<'a> {
     /// initial fields, node placement and supervisor table read by the
     /// runtime's actors phase (interp `Sched::handler`, `actor_init`,
     /// `on_crash`, `route`).
+    /// Tables the tick runtimes need for restart-log schemas and program
+    /// events (C.11.11, HC-6): the supervisor tree, each event's payload
+    /// fields with their type names, and the events each actor handles.
+    fn conc_meta_tables(&mut self) {
+        let m = self.m;
+        let tree = crate::conc::sup_tree(m);
+        let mut evs: Vec<(String, Vec<(String, String)>)> = vec![];
+        let mut hand: Vec<(String, Vec<String>)> = vec![];
+        for it in &m.items {
+            match it {
+                Item::Event { name, payload, .. } => {
+                    let fs = payload
+                        .iter()
+                        .map(|(f, t)| (f.clone(), match t { Ty::Path(p, a) if p.len() == 1 && a.is_empty() => p[0].clone(), _ => "?".into() }))
+                        .collect();
+                    evs.push((name.clone(), fs));
+                }
+                Item::Actor { name, handlers, .. } => {
+                    let mut ns = vec![];
+                    for h in handlers {
+                        if let Pat::Ctor(p, _) | Pat::Path(p) = &h.pat
+                            && let Some(x) = p.last()
+                            && !ns.contains(x)
+                        {
+                            ns.push(x.clone());
+                        }
+                    }
+                    hand.push((name.clone(), ns));
+                }
+                _ => {}
+            }
+        }
+        let qs = |v: &[String]| v.iter().map(|x| q(x)).collect::<Vec<_>>().join(", ");
+        // 6.1: a variant record carries "$v" in the Form, so D needs the variant names
+        let mut vars: Vec<String> = vec![];
+        for it in &m.items {
+            if let Item::Kind { variants, .. } = it {
+                vars.extend(variants.iter().map(|(v, _)| v.clone()));
+            }
+        }
+        match self.lang {
+            Lang::Rust if vars.is_empty() => self.line("fn is_variant(_n: &str) -> bool { false }".to_string()),
+            Lang::Rust => self.line(format!("fn is_variant(n: &str) -> bool {{ matches!(n, {}) }}", vars.iter().map(|x| q(x)).collect::<Vec<_>>().join(" | "))),
+            Lang::Scala => self.line(format!("lazy val VARIANTS: Set[String] = Set({})", qs(&vars))),
+            Lang::Js => self.line(format!("const VARIANTS = new Set([{}]);", qs(&vars))),
+            _ => self.line(format!("VARIANTS = frozenset([{}])", qs(&vars))),
+        }
+        match self.lang {
+            Lang::Rust => {
+                let mut o = format!("fn sup_tree() -> Vec<&'static str> {{ vec![{}] }}\n", qs(&tree));
+                o += "#[allow(unreachable_patterns)]\nfn event_fields(n: &str) -> Option<Vec<(&'static str, &'static str)>> {\n  match n {\n";
+                for (n, fs) in &evs {
+                    let f: Vec<String> = fs.iter().map(|(a, b)| format!("({}, {})", q(a), q(b))).collect();
+                    o += &format!("    {} => Some(vec![{}]),\n", q(n), f.join(", "));
+                }
+                o += "    _ => None,\n  }\n}\n#[allow(unreachable_patterns)]\nfn actor_events(t: &str) -> Vec<&'static str> {\n  match t {\n";
+                for (t, ns) in &hand {
+                    o += &format!("    {} => vec![{}],\n", q(t), qs(ns));
+                }
+                o += "    _ => vec![],\n  }\n}";
+                self.line(o);
+            }
+            Lang::Scala => {
+                self.line(format!("lazy val SUP_TREE: Vector[String] = Vector({})", qs(&tree)));
+                let e: Vec<String> = evs.iter().map(|(n, fs)| {
+                    let f: Vec<String> = fs.iter().map(|(a, b)| format!("({}, {})", q(a), q(b))).collect();
+                    format!("{} -> Vector[(String, String)]({})", q(n), f.join(", "))
+                }).collect();
+                self.line(format!("lazy val EVENT_FIELDS: Map[String, Vector[(String, String)]] = Map({})", e.join(", ")));
+                let h: Vec<String> = hand.iter().map(|(t, ns)| format!("{} -> Vector[String]({})", q(t), qs(ns))).collect();
+                self.line(format!("lazy val ACTOR_EVENTS: Map[String, Vector[String]] = Map({})", h.join(", ")));
+            }
+            _ => {
+                let (decl, end) = if self.js() { ("const ", ";") } else { ("", "") };
+                self.line(format!("{decl}SUP_TREE = [{}]{end}", qs(&tree)));
+                let e: Vec<String> = evs.iter().map(|(n, fs)| {
+                    let f: Vec<String> = fs.iter().map(|(a, b)| format!("[{}, {}]", q(a), q(b))).collect();
+                    format!("{}: [{}]", q(n), f.join(", "))
+                }).collect();
+                self.line(format!("{decl}EVENT_FIELDS = {{{}}}{end}", e.join(", ")));
+                let h: Vec<String> = hand.iter().map(|(t, ns)| format!("{}: [{}]", q(t), qs(ns))).collect();
+                self.line(format!("{decl}ACTOR_EVENTS = {{{}}}{end}", h.join(", ")));
+            }
+        }
+    }
+
     pub(super) fn actor_tables(&mut self) -> Result<(), String> {
+        self.conc_meta_tables();
         let m = self.m;
         let mut hs: Vec<(String, Vec<String>)> = vec![];
         let mut inits: Vec<(String, String)> = vec![];
@@ -695,6 +782,7 @@ impl<'a> G<'a> {
         self.line(format!("lazy val NODE_OF: Map[String, Int] = Map({})", p.join(", ")));
         let sv: Vec<String> = sups.iter().map(|(t, v)| format!("{} -> {v}", q(t))).collect();
         self.line(format!("lazy val SUPERVISORS: Map[String, Vector[Any]] = Map({})", sv.join(", ")));
+        self.line(format!("lazy val RESTART_WINDOW: Long = {}L", restart_window(m)));
         Ok(())
     }
 

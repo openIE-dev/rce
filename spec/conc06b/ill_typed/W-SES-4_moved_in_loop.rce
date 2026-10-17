@@ -1,0 +1,12 @@
+# rce-version: 0.6
+# expect: W-SES-4
+protocol P
+    loop
+        send i64
+
+fn helper(c: session P)
+    pass
+
+fn client(c: session P)
+    loop bound 2
+        helper(c)

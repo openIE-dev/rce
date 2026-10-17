@@ -1,0 +1,11 @@
+# rce-version: 0.6
+# expect: W-SES-2
+# `let m = c` moves the endpoint to `m`, which still owes the protocol
+# (found by the SessionLin vectors: the checker dropped `m`)
+protocol P
+    send i64
+    recv i64
+
+fn client(c: session P)
+    let m = c
+    m <- 1

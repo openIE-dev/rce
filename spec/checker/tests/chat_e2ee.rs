@@ -19,7 +19,7 @@ fn port() -> u16 {
 fn show(h: &mut Host, conv: &str) -> Vec<String> {
     let a = |l: &str, v: &str| Arg { label: Some(l.into()), e: Expr::Str(v.into(), 0) };
     h.query("Show", vec![a("conv", conv), a("topic", "")]).unwrap().into_iter().filter_map(|o| match o {
-        V::Rec(_, fs) => fs.into_iter().find_map(|(f, v)| match v { V::Text(t) if f == "data" => Some(t), _ => None }),
+        V::Rec(_, fs) => fs.into_iter().find_map(|(f, v)| match v { V::Text(t) if f == "data" => Some(t.to_string()), _ => None }),
         _ => None,
     }).collect()
 }

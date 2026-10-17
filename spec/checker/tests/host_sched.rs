@@ -219,3 +219,44 @@ fn main_input_after_the_last_step_only() {
     drop(h);
     replay(&m, &(st.lines.join("\n") + "\n")).expect("run with inputs replays");
 }
+
+const ACTOR_FEED: &str = "# rce-version: 0.6
+module feed
+
+event Hit(k: i64)
+event Show
+
+actor Acc
+    n: i64 = 0
+    on Hit(k: k)
+        n += k
+    on Show
+        emit n
+
+fn main()
+    let a = Acc()
+    a <- Show
+";
+
+/// HC-6: a program event fed to the live `fn main` task (`main_event`)
+/// enters D as `host.MainInput` {event, tick}, reaches the actor that
+/// handles it through the scheduler, and replays from D.
+#[test]
+fn program_events_feed_the_live_task_and_replay() {
+    use rce_spec_check::ast::{Arg, Expr};
+    let m = parse(ACTOR_FEED).unwrap();
+    let mut st = MemStore::default();
+    let mut h = Host::start(&m, Box::new(&mut st)).unwrap();
+    h.main_begin(1, vec![], 100_000).unwrap();
+    let k = |v: i128| vec![Arg { label: Some("k".into()), e: Expr::Int(v, 0) }];
+    h.main_event(5, "Hit", k(3)).unwrap();
+    h.main_event(6, "Hit", k(4)).unwrap();
+    h.main_event(8, "Show", vec![]).unwrap();
+    let r = h.main_end().unwrap();
+    assert_eq!(r.outputs, vec!["0", "7"]);
+    assert!(h.main_event(9, "Show", vec![]).is_err(), "no task is live after MainEnd");
+    drop(h);
+    assert!(st.lines.iter().any(|l| l.contains("host.MainInput") && l.contains("Hit")));
+    let text = st.lines.join("\n") + "\n";
+    replay(&m, &text).expect("the fed events re-derive from D");
+}

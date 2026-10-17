@@ -1,0 +1,10 @@
+# rce-version: 0.9
+# expect: W-CTFN-1
+fn helper(x: i64) -> i64
+    return x
+
+ct fn f(s: i64 @ {secret}) -> i64
+    return helper(s)
+
+fn main()
+    let _ = f(1)

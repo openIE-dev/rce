@@ -44,6 +44,7 @@ pub enum V {
     Unit,
     Tuple(Vec<V>),
     List(Vec<V>),
+    Set(Vec<V>),
     Map(Vec<(V, V)>),
     Opt(Option<Box<V>>),
     Rec(String, Vec<(String, V)>),
@@ -99,7 +100,7 @@ fn is_ws(c: char) -> bool {
     WHITE_SPACE.contains(&c)
 }
 
-fn ptm(t: &RTm, v: &V) -> Option<i128> { match (t, v) { (RTm::L(n), _) => Some(*n), (RTm::S, V::Int(x, _)) => Some(*x), (RTm::N, V::Text(s)) => Some(s.len() as i128), (RTm::N, V::List(x)) => Some(x.len() as i128), (RTm::N, V::Map(x)) => Some(x.len() as i128), _ => None } }
+fn ptm(t: &RTm, v: &V) -> Option<i128> { match (t, v) { (RTm::L(n), _) => Some(*n), (RTm::S, V::Int(x, _)) => Some(*x), (RTm::N, V::Text(s)) => Some(s.len() as i128), (RTm::N, V::List(x) | V::Set(x)) => Some(x.len() as i128), (RTm::N, V::Map(x)) => Some(x.len() as i128), _ => None } }
 pub fn pholds(p: &RP, v: &V) -> bool {
     match p {
         RP::C(op, a, b) => match (ptm(a, v), ptm(b, v)) { (Some(x), Some(y)) => match *op { "<" => x < y, "<=" => x <= y, ">" => x > y, ">=" => x >= y, "==" => x == y, _ => x != y }, _ => false },
@@ -179,7 +180,7 @@ pub fn shortest_e(x: f64) -> (String, i32) {
 
 /// Canonical float text (spec 6.3 N3).
 pub fn float_text(x: f64) -> String {
-    if x == 0.0 { return "0".into(); }
+    if x == 0.0 { return if x.is_sign_negative() { "-0".into() } else { "0".into() }; }
     let (digits, ex) = shortest_e(x);
     let sign = if x < 0.0 { "-" } else { "" };
     if (1e-5..1e16).contains(&x.abs()) {
@@ -202,7 +203,7 @@ pub fn show(v: &V) -> String {
         V::Text(t) => rdebug(t),
         V::Unit => "()".into(),
         V::Tuple(xs) => format!("({})", j(xs)),
-        V::List(xs) => format!("[{}]", j(xs)),
+        V::List(xs) | V::Set(xs) => format!("[{}]", j(xs)),
         V::Map(ps) => format!("{{{}}}", ps.iter().map(|(a, b)| format!("{}: {}", show(a), show(b))).collect::<Vec<_>>().join(", ")),
         V::Opt(None) => "none".into(),
         V::Opt(Some(x)) => format!("some({})", show(x)),
@@ -229,7 +230,8 @@ pub fn eq(a: &V, b: &V) -> bool {
         (Text(x), Text(y)) => x == y,
         (Unit, Unit) => true,
         (Tuple(x), Tuple(y)) | (List(x), List(y)) => x.len() == y.len() && x.iter().zip(y).all(|(p, q)| eq(p, q)),
-        (Map(x), Map(y)) => x.len() == y.len() && x.iter().all(|(k, v)| y.iter().any(|(k2, v2)| eq(k, k2) && eq(v, v2))),
+        (Set(x), Set(y)) => x.len() == y.len() && x.iter().zip(y).all(|(p, q)| keq(p, q)),
+        (Map(x), Map(y)) => x.len() == y.len() && x.iter().all(|(k, v)| y.iter().any(|(k2, v2)| keq(k, k2) && eq(v, v2))),
         (Opt(None), Opt(None)) => true,
         (Opt(Some(x)), Opt(Some(y))) => eq(x, y),
         (Rec(n, x), Rec(m, y)) => n == m && x.len() == y.len() && x.iter().zip(y).all(|((p, u), (q, w))| p == q && eq(u, w)),
@@ -247,7 +249,7 @@ pub fn cmp(a: &V, b: &V) -> R<std::cmp::Ordering> {
         (F(x), F(y)) | (F32(x), F32(y)) => x.partial_cmp(y).unwrap_or(std::cmp::Ordering::Equal),
         (Text(x), Text(y)) => x.cmp(y),
         (Bool(x), Bool(y)) => x.cmp(y),
-        (Tuple(x), Tuple(y)) | (List(x), List(y)) => {
+        (Tuple(x), Tuple(y)) | (List(x), List(y)) | (Set(x), Set(y)) => {
             for (p, q) in x.iter().zip(y) {
                 let c = cmp(p, q)?;
                 if c.is_ne() { return Ok(c); }
@@ -272,7 +274,8 @@ fn wide_mul(x: i128, y: i128) -> String {
 fn ck(r: Option<i128>, t: &'static str) -> R<V> {
     match r { Some(x) => chk(x, t), None => trap(format!("overflow: i128 is outside {}", if t == "lit" { "i64" } else { t })) }
 }
-pub fn arith(op: &str, a: V, b: V) -> R<V> {
+pub fn arith(op: &str, a: V, b: V) -> R<V> { arith_raw(op, a, b).and_then(size_ok) }
+fn arith_raw(op: &str, a: V, b: V) -> R<V> {
     use V::*;
     match (a, b) {
         (Int(x, s), Int(y, t)) => {
@@ -321,7 +324,8 @@ pub fn arith(op: &str, a: V, b: V) -> R<V> {
 pub fn contains(c: &V, x: &V) -> R<bool> {
     Ok(match c {
         V::List(v) | V::Tuple(v) => v.iter().any(|y| eq(y, x)),
-        V::Map(m) => m.iter().any(|(k, _)| eq(k, x)),
+        V::Set(v) => v.iter().any(|y| keq(y, x)),
+        V::Map(m) => m.iter().any(|(k, _)| keq(k, x)),
         V::Text(t) => match x { V::Text(s) => t.contains(s.as_str()), _ => false },
         V::Range(a, b, _) => match x { V::Int(v, _) => a <= v && v < b, _ => false },
         _ => return trap("`in` needs a collection"),
@@ -346,7 +350,7 @@ pub fn binop(op: &str, x: V, y: V) -> R<V> {
     })
 }
 pub fn map_set(m: &mut Vec<(V, V)>, k: V, v: V) {
-    if let Some(e) = m.iter_mut().find(|(a, _)| eq(a, &k)) { e.1 = v; } else { let i = m.partition_point(|(a, _)| canon_cmp(a, &k) == std::cmp::Ordering::Less); m.insert(i, (k, v)); }
+    if let Some(e) = m.iter_mut().find(|(a, _)| keq(a, &k)) { e.1 = v; } else { let i = m.partition_point(|(a, _)| canon_cmp(a, &k) == std::cmp::Ordering::Less); m.insert(i, (k, v)); }
 }
 pub fn mk_map(ps: Vec<(V, V)>) -> R<V> {
     let mut m = vec![];
@@ -360,7 +364,7 @@ pub fn index(c: V, i: V) -> R<V> {
     match (c, i) {
         (V::List(v), V::Int(k, _)) => if k >= 0 && (k as usize) < v.len() { Ok(v[k as usize].clone()) } else { trap(format!("index {k} out of range")) },
         (V::Text(t), V::Int(k, _)) => if k >= 0 && (k as usize) < t.len() { Ok(V::Int(t.as_bytes()[k as usize] as i128, "u8")) } else { trap(format!("index {k} out of range")) },
-        (V::Map(m), k) => m.iter().find(|(a, _)| eq(a, &k)).map(|(_, v)| v.clone()).ok_or(Flow::Trap(format!("missing key {}", show(&k)))),
+        (V::Map(m), k) => m.iter().find(|(a, _)| keq(a, &k)).map(|(_, v)| v.clone()).ok_or(Flow::Trap(format!("missing key {}", show(&k)))),
         (c, _) => trap(format!("cannot index {}", show(&c))),
     }
 }
@@ -416,9 +420,9 @@ pub fn cast(v: V, t: T) -> R<V> {
         (V::Int(v, _), None) if to_f32 => Ok(V::F32(v as f32 as f64)),
         (V::F(f), None) if to_f32 => { let r = f as f32; if r.is_finite() { Ok(V::F32(r as f64)) } else { trap("non-finite float") } }
         (V::F32(f), None) if !to_f32 => Ok(V::F(f)),
-        (V::F32(f), Some(n)) => chk(f.trunc() as i128, n),
+        (V::F32(f), Some(n)) => trunc_chk(f, n),
         (V::Int(v, _), Some(n)) => chk(v, n),
-        (V::F(f), Some(n)) => { if !f.is_finite() { return trap("non-finite float"); } chk(f.trunc() as i128, n) }
+        (V::F(f), Some(n)) => { if !f.is_finite() { return trap("non-finite float"); } trunc_chk(f, n) }
         (V::Bool(b), Some(n)) => chk(b as i128, n),
         (V::Int(v, _), None) => Ok(V::F(v as f64)),
         (o, _) => Ok(o),
@@ -454,6 +458,10 @@ pub fn call_value(f: V, vals: Vec<V>) -> R<V> {
     match f { V::Fn(n) => Ok({ fuel()?; user_fn(&n, None, vals)?.v }), V::Clo(c) => c(vals), o => trap(format!("{} is not callable", show(&o))) }
 }
 pub fn builtin(r: V, m: &str, a: Vec<V>) -> R<(V, Option<V>)> {
+    let (v, w) = builtin_raw(r, m, a)?;
+    Ok((size_ok(v)?, match w { Some(w) => Some(size_ok(w)?), None => None }))
+}
+fn builtin_raw(r: V, m: &str, a: Vec<V>) -> R<(V, Option<V>)> {
     use V::*;
     let a0 = || a.first().cloned().unwrap_or(Unit);
     let r_chan = r.clone();
@@ -523,18 +531,20 @@ pub fn builtin(r: V, m: &str, a: Vec<V>) -> R<(V, Option<V>)> {
         (List(xs), "pscan_incl") => { let f = a0(); let e = a.get(1).cloned().unwrap_or(Unit); pscan(&xs, &f, e, true)? }
         (List(xs), "fold") => { let f = a.get(1).cloned().unwrap_or(Unit); let mut acc = a0(); for x in xs { fuel()?; acc = apply(&f, vec![acc, x])?; } acc }
         (Map(mm), "len") => Int(mm.len() as i128, "usize"),
-        (Map(mm), "get") => { let k = a0(); match mm.iter().find(|(x, _)| eq(x, &k)) { Some((_, v)) => v.clone(), None => Err(Box::new(Rec("Missing".into(), vec![]))) } }
-        (Map(mm), "contains") => { let k = a0(); Bool(mm.iter().any(|(x, _)| eq(x, &k))) }
+        (Map(mm), "get") => { let k = a0(); match mm.iter().find(|(x, _)| keq(x, &k)) { Some((_, v)) => v.clone(), None => Err(Box::new(Rec("Missing".into(), vec![]))) } }
+        (Map(mm), "contains") => { let k = a0(); Bool(mm.iter().any(|(x, _)| keq(x, &k))) }
         (Map(mut mm), "insert") => { map_set(&mut mm, a0(), a.get(1).cloned().unwrap_or(Unit)); return Ok((Unit, Some(Map(mm)))); }
-        (Map(mut mm), "remove") => { let k = a0(); let i = mm.iter().position(|(x, _)| eq(x, &k)); let r = i.map(|i| mm.remove(i).1); return Ok((Opt(r.map(Box::new)), Some(Map(mm)))); }
+        (Map(mut mm), "remove") => { let k = a0(); let i = mm.iter().position(|(x, _)| keq(x, &k)); let r = i.map(|i| mm.remove(i).1); return Ok((Opt(r.map(Box::new)), Some(Map(mm)))); }
         (Map(mm), "keys") => List(mm.into_iter().map(|x| x.0).collect()),
         (Map(mm), "values") => List(mm.into_iter().map(|x| x.1).collect()),
         (Map(mm), "merge") => match a0() { Map(ys) => map_merge(mm, ys)?, _ => return trap("merge with a non-map") },
-        // a Set[τ] is a list in canonical order without duplicates
-        (List(xs), "union") => merge_builtin(&List(xs), &a0())?,
-        (List(xs), "inter") => match a0() { List(ys) => List(xs.into_iter().filter(|x| ys.iter().any(|y| eq(x, y))).collect()), _ => return trap("inter") },
-        (List(xs), "insert") => { let r = merge_builtin(&List(xs), &List(vec![a0()]))?; return Ok((Unit, Some(r))); }
-        (List(xs), "tolist") => List(xs),
+        // a Set[τ] holds its elements in canonical order without duplicates
+        (Set(xs), "union") => merge_builtin(&Set(xs), &a0())?,
+        (Set(xs), "inter") => match a0() { Set(ys) => Set(xs.into_iter().filter(|x| ys.iter().any(|y| keq(x, y))).collect()), _ => return trap("inter") },
+        (Set(xs), "insert") => { let r = merge_builtin(&Set(xs), &Set(vec![a0()]))?; return Ok((Unit, Some(r))); }
+        (Set(xs), "tolist") => List(xs),
+        (Set(xs), "len") => Int(xs.len() as i128, "usize"),
+        (Set(xs), "contains") => { let y = a0(); Bool(xs.iter().any(|x| keq(x, &y))) }
         (Opt(x), "isnone") => Bool(x.is_none()),
         (Opt(x), "issome") => Bool(x.is_some()),
         (Opt(x), "or") => match x { Some(v) => *v, None => a0() },
@@ -556,17 +566,17 @@ pub fn builtin(r: V, m: &str, a: Vec<V>) -> R<(V, Option<V>)> {
     Ok((v, None))
 }
 /// C.6.4 method work, as conc::method_work in the reference evaluator.
-pub fn size_of(v: &V) -> i128 { match v { V::Text(s) => s.len() as i128, V::List(xs) => xs.len() as i128, V::Map(m) => m.len() as i128, _ => 0 } }
+pub fn size_of(v: &V) -> i128 { match v { V::Text(s) => s.len() as i128, V::List(xs) | V::Set(xs) => xs.len() as i128, V::Map(m) => m.len() as i128, _ => 0 } }
 pub fn ceil_log2(n: i128) -> i128 { if n <= 1 { 0 } else { 128 - (n - 1).leading_zeros() as i128 } }
 pub fn method_work(recv: &V, m: &str, args: &[V]) -> i128 {
     let n = size_of(recv);
     let k = args.first().map(size_of).unwrap_or(0);
-    let lin = match recv { V::Text(_) => matches!(m, "strip" | "upper" | "lower" | "reverse" | "tostr" | "chars" | "words" | "lines" | "split" | "isdigit" | "isalpha" | "isspace" | "contains" | "startswith" | "endswith" | "toint" | "join" | "sha256"), V::List(_) => matches!(m, "reverse" | "contains" | "sum" | "map" | "filter" | "fold" | "utf8" | "union" | "inter" | "insert"), V::Map(_) => matches!(m, "get" | "contains" | "insert" | "remove" | "keys" | "values" | "merge"), _ => false };
+    let lin = match recv { V::Text(_) => matches!(m, "strip" | "upper" | "lower" | "reverse" | "tostr" | "chars" | "words" | "lines" | "split" | "isdigit" | "isalpha" | "isspace" | "contains" | "startswith" | "endswith" | "toint" | "join" | "sha256"), V::List(_) => matches!(m, "reverse" | "contains" | "sum" | "map" | "filter" | "fold" | "utf8"), V::Set(_) => matches!(m, "union" | "inter" | "insert" | "contains" | "tolist"), V::Map(_) => matches!(m, "get" | "contains" | "insert" | "remove" | "keys" | "values" | "merge"), _ => false };
     if lin { n.saturating_add(k) } else if matches!(recv, V::List(_)) && m == "sort" { n.saturating_mul(ceil_log2(n)) } else { 0 }
 }
 /// `sized`: the call expression is in a version 0.7 module (C.15).
 pub fn call_method(recv: V, m: &str, args: Vec<V>, sized: bool) -> R<Call> {
-    let head = match &recv { V::Rec(n, _) => Some(kind_of(n).to_string()), V::List(_) => Some("List".to_string()), _ => None };
+    let head = match &recv { V::Rec(n, _) => Some(kind_of(n).to_string()), V::List(_) => Some("List".to_string()), V::Set(_) => Some("Set".to_string()), _ => None };
     if let Some(h) = head && let Some(f) = user_method(&h, m) {
         fuel()?;
         return f(Some(recv), args);
@@ -654,7 +664,7 @@ pub fn gen_run(body: &dyn Fn() -> R<()>, cap: usize) -> (Vec<V>, bool, Option<Fl
 }
 pub fn iter_items(v: V) -> R<Vec<V>> {
     Ok(match v {
-        V::List(xs) => xs,
+        V::List(xs) | V::Set(xs) => xs,
         V::Range(a, b, t) => { if b - a > LOOP_LIMIT * 10 { return trap("loop bound"); } (a..b.max(a)).map(|i| V::Int(i, t)).collect() }
         V::Text(s) => s.chars().map(|c| V::Text(c.to_string())).collect(),
         V::Map(m) => m.into_iter().map(|(k, v)| V::Tuple(vec![k, v])).collect(),
@@ -701,6 +711,7 @@ pub fn listcomp(itv: V, p: P, body: &dyn Fn(&M) -> R<V>, cond: Option<&dyn Fn(&M
 pub fn try_(x: V, els: Option<&dyn Fn() -> R<V>>) -> R<V> {
     match x {
         V::Err(e) => Err(Flow::Fail(match els { Some(f) => f()?, None => *e })),
+        v @ V::Opt(_) if els.is_none() => Ok(v), // ok value of `T? ! E` [E-Try-V]
         V::Opt(None) => match els { Some(f) => Err(Flow::Fail(f()?)), None => trap("try on none") },
         V::Opt(Some(v)) => Ok(*v),
         v => Ok(v),
@@ -749,7 +760,7 @@ pub fn json_size(v: &V) -> usize {
         V::Text(s) => esc(s),
         V::Unit | V::Opt(None) => 4,
         V::Opt(Some(x)) | V::Err(x) => json_size(x),
-        V::Tuple(xs) | V::List(xs) => seq(&mut xs.iter().map(json_size), xs.len()),
+        V::Tuple(xs) | V::List(xs) | V::Set(xs) => seq(&mut xs.iter().map(json_size), xs.len()),
         V::Map(m) => seq(&mut m.iter().map(|(k, v)| 3 + json_size(k) + json_size(v)), m.len()),
         V::Rec(n, fs) => 2 + esc(n) + 1 + seq(&mut fs.iter().map(|(a, b)| esc(a) + 1 + json_size(b)), fs.len()),
         V::Range(a, b, _) => 3 + a.to_string().len() + b.to_string().len(),
@@ -777,6 +788,7 @@ pub fn dbg_v(v: &V) -> String {
         V::Unit => "Unit".into(),
         V::Tuple(xs) => format!("Tuple([{}])", l(xs)),
         V::List(xs) => format!("List([{}])", l(xs)),
+        V::Set(xs) => format!("Set([{}])", l(xs)),
         V::Map(kv) => format!("Map([{}])", kv.iter().map(|(k, x)| format!("({}, {})", dbg_v(k), dbg_v(x))).collect::<Vec<_>>().join(", ")),
         V::Opt(None) => "Opt(None)".into(),
         V::Opt(Some(x)) => format!("Opt(Some({}))", dbg_v(x)),
@@ -845,9 +857,25 @@ thread_local! {
 }
 static KGEN_NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
 pub fn kgen() -> u64 { KGEN.with(|g| g.get()) }
+static FUEL_LIMIT_CELL: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(u64::MAX);
 fn fuel_limit() -> u64 {
-    static L: std::sync::OnceLock<u64> = std::sync::OnceLock::new();
-    *L.get_or_init(|| std::env::args().find_map(|a| a.strip_prefix("--fuel=").and_then(|v| v.parse().ok())).unwrap_or(50_000_000))
+    use std::sync::atomic::Ordering::SeqCst;
+    let l = FUEL_LIMIT_CELL.load(SeqCst);
+    if l != u64::MAX { return l; }
+    let l = std::env::args().find_map(|a| a.strip_prefix("--fuel=").and_then(|v| v.parse().ok())).unwrap_or(50_000_000);
+    FUEL_LIMIT_CELL.store(l, SeqCst);
+    l
+}
+/// `--fuel-batch=n1,n2,..`: run every observation once per limit in this
+/// process, each pass headed by `#fuel-batch n`; observations already start
+/// from full fuel and empty caches, so a pass equals a fresh run.
+pub fn observe_all(f: &dyn Fn()) {
+    let Some(b) = std::env::args().find_map(|a| a.strip_prefix("--fuel-batch=").map(String::from)) else { f(); return };
+    for n in b.split(',') {
+        FUEL_LIMIT_CELL.store(n.parse().unwrap(), std::sync::atomic::Ordering::SeqCst);
+        println!("#fuel-batch {n}");
+        f();
+    }
 }
 pub fn fuel_left() -> u64 { FUEL.with(|f| f.get().unwrap_or_else(fuel_limit)) }
 fn fuel_set(n: u64) { FUEL.with(|f| f.set(Some(n))); }
@@ -907,17 +935,119 @@ fn run_example1(line: usize, events: Vec<Ev>) {
     println!("example {line}");
     let mut s = match initial_state() { Ok(s) => s, Err(f) => { println!("initial {}", why(&f)); return; } };
     println!("0 (initial) {}", show_state(&s));
+    let tr = std::env::args().any(|a| a == "--trace");
+    let mut d = DLog { prev: D_GENESIS.to_string(), seq: 0 };
     for (k, (name, th)) in events.iter().enumerate() {
         let k = k + 1;
-        let ev = match th() { Ok(Some(v)) => v, Ok(None) => { println!("{k} {name} not an event"); return; } Err(f) => { println!("{k} {name} {}", why(&f)); return; } };
+        let ev = match th() { Ok(Some(v)) => v, Ok(None) => { println!("{k} {name} not an event"); break; } Err(f) => { println!("{k} {name} {}", why(&f)); break; } };
         match delta(&s, &ev) {
             Ok((s2, outs)) => {
                 s = s2;
+                if tr { d.add(name, &ev, &s); }
                 println!("{k} {} {}", show(&ev), show_state(&s));
                 for o in outs { println!("  emit {}", show(&o)); }
             }
-            Err(r) => { println!("{k} {} refused: {r}", show(&ev)); return; }
+            Err(r) => { if tr { d.add(name, &ev, &s); } println!("{k} {} refused: {r}", show(&ev)); break; }
         }
+    }
+    if tr { println!("trace {}", d.prev); }
+}
+// ---- 6.1 the log D: canonical JSON (N3) and the SHA-256 entry chain, as interp.rs writes it
+const D_GENESIS: &str = "0000000000000000000000000000000000000000000000000000000000000000";
+enum FV { Null, Bool(bool), Int(i128), Float(f64), Text(String), List(Vec<FV>), Rec(Vec<(String, FV)>) }
+impl FV {
+    fn rank(&self) -> u8 { match self { FV::Null => 0, FV::Bool(_) => 1, FV::Int(_) | FV::Float(_) => 2, FV::Text(_) => 3, FV::List(_) => 4, FV::Rec(_) => 5 } }
+    fn num(&self) -> f64 { match self { FV::Int(i) => *i as f64, FV::Float(f) => *f, _ => 0.0 } }
+    fn cmp_canon(&self, o: &FV) -> std::cmp::Ordering {
+        use std::cmp::Ordering::*;
+        let r = self.rank().cmp(&o.rank());
+        if r != Equal { return r; }
+        match (self, o) {
+            (FV::Bool(a), FV::Bool(b)) => a.cmp(b),
+            (FV::Int(a), FV::Int(b)) => a.cmp(b),
+            (a @ (FV::Int(_) | FV::Float(_)), b) => a.num().partial_cmp(&b.num()).unwrap_or(Equal),
+            (FV::Text(a), FV::Text(b)) => a.chars().cmp(b.chars()),
+            (FV::List(a), FV::List(b)) => { for (x, y) in a.iter().zip(b) { let c = x.cmp_canon(y); if c != Equal { return c; } } a.len().cmp(&b.len()) }
+            (FV::Rec(a), FV::Rec(b)) => { for ((ka, va), (kb, vb)) in a.iter().zip(b) { let c = ka.cmp(kb).then_with(|| va.cmp_canon(vb)); if c != Equal { return c; } } a.len().cmp(&b.len()) }
+            _ => Equal,
+        }
+    }
+    fn json(&self) -> String {
+        match self {
+            FV::Null => "null".into(),
+            FV::Bool(b) => b.to_string(),
+            FV::Int(i) => i.to_string(),
+            FV::Float(f) => float_json(*f),
+            FV::Text(t) => jstr(t),
+            FV::List(xs) => format!("[{}]", xs.iter().map(|x| x.json()).collect::<Vec<_>>().join(",")),
+            FV::Rec(fs) => format!("{{{}}}", fs.iter().map(|(k, v)| format!("{}:{}", jstr(k), v.json())).collect::<Vec<_>>().join(",")),
+        }
+    }
+}
+fn frec(mut fs: Vec<(String, FV)>) -> FV { fs.sort_by(|a, b| a.0.cmp(&b.0)); FV::Rec(fs) }
+fn form_value(v: &V) -> FV {
+    match v {
+        V::Int(i, _) => FV::Int(*i),
+        V::F(f) | V::F32(f) => FV::Float(*f),
+        V::Bool(b) => FV::Bool(*b),
+        V::Text(t) => FV::Text(t.clone()),
+        V::Unit | V::Opt(None) => FV::Null,
+        V::Opt(Some(x)) => form_value(x),
+        V::Tuple(xs) | V::List(xs) | V::Set(xs) => FV::List(xs.iter().map(form_value).collect()),
+        V::Map(ps) => {
+            let mut l: Vec<(FV, FV)> = ps.iter().map(|(k, v)| (form_value(k), form_value(v))).collect();
+            l.sort_by(|a, b| a.0.cmp_canon(&b.0));
+            FV::List(l.into_iter().map(|(k, v)| FV::List(vec![k, v])).collect())
+        }
+        V::Rec(n, fs) => {
+            let mut f: Vec<(String, FV)> = fs.iter().map(|(k, x)| (k.clone(), form_value(x))).collect();
+            if is_variant(n) { f.push(("$v".into(), FV::Text(n.clone()))); }
+            frec(f)
+        }
+        V::Err(x) => frec(vec![("$err".into(), form_value(x))]),
+        V::Range(a, b, _) => FV::List((*a..*b).map(FV::Int).collect()),
+        V::Fn(n) => frec(vec![("$fn".into(), FV::Text(n.clone()))]),
+        _ => FV::Null,
+    }
+}
+fn float_json(x: f64) -> String {
+    if x == 0.0 { return if x.is_sign_negative() { "-0.0".into() } else { "0.0".into() }; }
+    let e = format!("{:e}", x.abs());
+    let (m, ex) = e.split_once('e').unwrap();
+    let ex: i32 = ex.parse().unwrap();
+    let digits: String = m.chars().filter(|c| *c != '.').collect();
+    let sign = if x < 0.0 { "-" } else { "" };
+    let a = x.abs();
+    if (1e-4..1e16).contains(&a) {
+        let p = ex + 1;
+        let body = if p <= 0 { format!("0.{}{}", "0".repeat((-p) as usize), digits) }
+            else if p as usize >= digits.len() { format!("{}{}.0", digits, "0".repeat(p as usize - digits.len())) }
+            else { format!("{}.{}", &digits[..p as usize], &digits[p as usize..]) };
+        format!("{sign}{body}")
+    } else { format!("{sign}{m}e{ex}") }
+}
+fn jstr(s: &str) -> String {
+    let mut o = String::from("\"");
+    for c in s.chars() {
+        match c {
+            '"' => o.push_str("\\\""), '\\' => o.push_str("\\\\"), '\n' => o.push_str("\\n"),
+            '\r' => o.push_str("\\r"), '\t' => o.push_str("\\t"),
+            c if (c as u32) < 0x20 => o.push_str(&format!("\\u{:04x}", c as u32)),
+            c => o.push(c),
+        }
+    }
+    o.push('"');
+    o
+}
+struct DLog { prev: String, seq: usize }
+impl DLog {
+    fn add(&mut self, name: &str, ev: &V, st: &State) {
+        let evj = format!("{{\"payload\":{},\"type\":{}}}", form_value(ev).json(), jstr(name));
+        let sj = frec(st.iter().map(|(r, fs)| (r.to_string(), frec(fs.iter().map(|(n, v)| (n.to_string(), form_value(v))).collect()))).collect()).json();
+        let sh = sha256_hex(sj.as_bytes());
+        let body = format!("{{\"event\":{evj},\"prev_hash\":\"{}\",\"seq\":{},\"state_hash\":\"{sh}\"}}", self.prev, self.seq);
+        self.prev = sha256_hex(body.as_bytes());
+        self.seq += 1;
     }
 }
 pub fn run_main(f: &dyn Fn(Option<V>, Vec<V>) -> R<Call>) {
@@ -959,14 +1089,14 @@ pub fn par_tree(op: &str, c: &[V], id: &V) -> R<V> {
     match c.len() {
         0 => Ok(id.clone()),
         1 => Ok(c[0].clone()),
-        m => { let h = m.div_ceil(2); let l = par_tree(op, &c[..h], id)?; let r = par_tree(op, &c[h..], id)?; par_combine(op, l, r) }
+        m => { let h = 1usize << (m - 1).ilog2(); let l = par_tree(op, &c[..h], id)?; let r = par_tree(op, &c[h..], id)?; par_combine(op, l, r) }
     }
 }
 /// Blelloch scan over the same tree (exclusive, or inclusive)
 pub fn pscan(xs: &[V], f: &V, e: V, inclusive: bool) -> R<V> {
     fn up(xs: &[V], lo: usize, hi: usize, f: &V, sums: &mut HashMap<(usize, usize), V>) -> R<V> {
         let v = if hi - lo == 1 { xs[lo].clone() } else {
-            let h = lo + (hi - lo).div_ceil(2);
+            let h = lo + (1usize << (hi - lo - 1).ilog2());
             let l = up(xs, lo, h, f, sums)?; let r = up(xs, h, hi, f, sums)?; apply(f, vec![l, r])?
         };
         sums.insert((lo, hi), v.clone());
@@ -974,7 +1104,7 @@ pub fn pscan(xs: &[V], f: &V, e: V, inclusive: bool) -> R<V> {
     }
     fn down(lo: usize, hi: usize, off: Option<V>, f: &V, sums: &HashMap<(usize, usize), V>, out: &mut Vec<Option<V>>) -> R<()> {
         if hi - lo == 1 { out[lo] = off; return Ok(()); }
-        let h = lo + (hi - lo).div_ceil(2);
+        let h = lo + (1usize << (hi - lo - 1).ilog2());
         let ls = sums[&(lo, h)].clone();
         let roff = match &off { None => ls, Some(o) => apply(f, vec![o.clone(), ls])? };
         down(lo, h, off, f, sums, out)?;
@@ -1032,7 +1162,7 @@ pub fn cnot(v: V) -> R<V> { charge(1)?; not_(v) }
 pub fn cbinop(op: &str, x: V, y: V) -> R<V> { charge(op_cost(op, &x))?; binop(op, x, y) }
 /// a value-receiver call of a user method charges before its arguments (interp `call_fn`)
 pub fn pre_method(recv: V, m: &str) -> R<V> {
-    let head = match &recv { V::Rec(n, _) => Some(kind_of(n).to_string()), V::List(_) => Some("List".to_string()), _ => None };
+    let head = match &recv { V::Rec(n, _) => Some(kind_of(n).to_string()), V::List(_) => Some("List".to_string()), V::Set(_) => Some("Set".to_string()), _ => None };
     if let Some(h) = head && user_method(&h, m).is_some() { charge(4)?; }
     Ok(recv)
 }
@@ -1050,9 +1180,11 @@ pub fn lvar_new(a: Vec<V>) -> V {
     V::LVar(Rc::new(LCell(std::sync::Mutex::new((b, it.next(), false)))))
 }
 fn crank(v: &V) -> u8 {
-    match v { V::Unit | V::Opt(None) => 0, V::Bool(_) => 1, V::Int(..) | V::F(_) | V::F32(_) => 2, V::Text(_) => 3, V::List(_) | V::Tuple(_) => 4, _ => 5 }
+    match v { V::Unit | V::Opt(None) => 0, V::Bool(_) => 1, V::Int(..) | V::F(_) | V::F32(_) => 2, V::Text(_) => 3, V::List(_) | V::Set(_) | V::Tuple(_) => 4, _ => 5 }
 }
 fn cnum(v: &V) -> f64 { match v { V::Int(x, _) => *x as f64, V::F(x) | V::F32(x) => *x, _ => 0.0 } }
+/// Map and set key identity (6.1): canonical-order equality, not IEEE ==.
+pub fn keq(a: &V, b: &V) -> bool { canon_cmp(a, b).is_eq() }
 pub fn canon_cmp(a: &V, b: &V) -> std::cmp::Ordering {
     use std::cmp::Ordering::*;
     let (ra, rb) = (crank(a), crank(b));
@@ -1060,9 +1192,11 @@ pub fn canon_cmp(a: &V, b: &V) -> std::cmp::Ordering {
     match (a, b) {
         (V::Bool(x), V::Bool(y)) => x.cmp(y),
         (V::Int(x, _), V::Int(y, _)) => x.cmp(y),
-        (x, y) if ra == 2 => cnum(x).partial_cmp(&cnum(y)).unwrap_or(Equal),
+        (V::Int(..), _) => Less, // int before float: never equal keys (6.1)
+        (_, V::Int(..)) => Greater,
+        (x, y) if ra == 2 => cnum(x).total_cmp(&cnum(y)), // IEEE 754 totalOrder
         (V::Text(x), V::Text(y)) => x.cmp(y),
-        (V::List(x) | V::Tuple(x), V::List(y) | V::Tuple(y)) => {
+        (V::List(x) | V::Set(x) | V::Tuple(x), V::List(y) | V::Set(y) | V::Tuple(y)) => {
             for (p, q) in x.iter().zip(y) { let c = canon_cmp(p, q); if c != Equal { return c; } }
             x.len().cmp(&y.len())
         }
@@ -1084,10 +1218,16 @@ pub fn merge_builtin(a: &V, b: &V) -> R<V> {
             v.dedup_by(|p, q| canon_cmp(p, q).is_eq());
             V::List(v)
         }
+        (V::Set(xs), V::Set(ys)) => {
+            let mut v: Vec<V> = xs.iter().chain(ys).cloned().collect();
+            v.sort_by(canon_cmp);
+            v.dedup_by(|p, q| canon_cmp(p, q).is_eq());
+            V::Set(v)
+        }
         (V::Map(xs), V::Map(ys)) => {
             let mut out = xs.clone();
             for (k, v) in ys {
-                if let Some(e) = out.iter_mut().find(|(k2, _)| eq(k2, k)) { e.1 = merge_builtin(&e.1, v)?; } else { out.push((k.clone(), v.clone())); }
+                if let Some(e) = out.iter_mut().find(|(k2, _)| keq(k2, k)) { e.1 = merge_builtin(&e.1, v)?; } else { out.push((k.clone(), v.clone())); }
             }
             out.sort_by(|p, q| canon_cmp(&p.0, &q.0));
             V::Map(out)
@@ -1102,12 +1242,12 @@ pub fn merge_builtin(a: &V, b: &V) -> R<V> {
 pub fn map_merge(xs: Vec<(V, V)>, ys: Vec<(V, V)>) -> R<V> {
     let mut out = xs;
     for (k, v) in ys {
-        if let Some(i) = out.iter().position(|(k2, _)| eq(k2, &k)) { let m = merge_values(&out[i].1, &v)?; out[i].1 = m; } else { out.push((k, v)); }
+        if let Some(i) = out.iter().position(|(k2, _)| keq(k2, &k)) { let m = merge_values(&out[i].1, &v)?; out[i].1 = m; } else { out.push((k, v)); }
     }
     out.sort_by(|p, q| canon_cmp(&p.0, &q.0));
     Ok(V::Map(out))
 }
-pub fn set_of(v: V) -> R<V> { merge_builtin(&v, &V::List(vec![])) }
+pub fn set_of(v: V) -> R<V> { match merge_builtin(&v, &V::List(vec![]))? { V::List(xs) => Ok(V::Set(xs)), _ => trap("set_of of a non-list") } }
 pub fn merge_values(a: &V, b: &V) -> R<V> {
     if let V::Rec(n, _) = a && let Some(f) = user_method(kind_of(n), "merge") {
         charge(4)?;
@@ -1327,7 +1467,7 @@ pub enum Op {
 pub enum Rep { Go, Val(V), Arm(usize, Option<V>), Spawned(String), Cancel(u64), Failed(V) }
 pub struct Req { op: Op, dl: Vec<(u64, u64)> }
 pub const CANCEL_TASK: u64 = u64::MAX;
-struct TaskCx { tx: mpsc::Sender<Req>, rx: mpsc::Receiver<(u64, Rep)>, id: String, created: u64, now: u64, dl: Vec<(u64, u64)>, next_frame: u64, scopes: Vec<u64>, sel_k: HashMap<usize, u64> }
+struct TaskCx { tx: mpsc::Sender<Req>, rx: mpsc::Receiver<(u64, Rep)>, id: String, created: u64, ords: HashMap<String, u64>, now: u64, dl: Vec<(u64, u64)>, next_frame: u64, scopes: Vec<u64>, sel_k: HashMap<usize, u64> }
 thread_local! { static TASK: RefCell<Option<TaskCx>> = const { RefCell::new(None) }; }
 pub fn in_task() -> bool { TASK.with(|t| t.borrow().is_some()) }
 pub fn comm(op: Op) -> R<Rep> {
@@ -1383,9 +1523,11 @@ pub fn atomic_exit(outer: Option<Vec<(V, V)>>, r: R<()>) -> R<()> {
     if in_task() { comm(Op::Atomic(buf))?; return Ok(()); }
     trap("concurrency is not available at comptime")
 }
-pub fn actor_new(ty: &str, line: usize) -> R<V> {
+/// stable path of C.11.11: supervisor position (or type), creating task, ordinal
+pub fn actor_new(ty: &str, pos: &str) -> R<V> {
     if !in_task() { return trap(format!("cannot call {ty} at comptime")); }
-    Ok(V::Actor(task_fresh("actor", line), ty.to_string()))
+    let id = TASK.with(|t| { let mut t = t.borrow_mut(); let cx = t.as_mut().unwrap(); cx.created += 1; let k = cx.ords.entry(format!("actor|{pos}")).or_insert(0); *k += 1; hid(&format!("actor|{pos}|{}|{}", cx.id, *k - 1)) });
+    Ok(V::Actor(id, ty.to_string()))
 }
 pub fn session_new(cap: &dyn Fn() -> R<V>, line: usize) -> R<V> {
     if !in_task() { return trap("channels are not available at comptime"); }
@@ -1404,7 +1546,7 @@ pub fn session_choose(r: V, label: &str) -> R<V> {
 pub fn spawn_(f: &str, args: Vec<V>, prio: i128, site: usize) -> R<V> {
     charge(32)?;
     if !in_task() { return trap("concurrency is not available at comptime"); }
-    let (idx, scope) = TASK.with(|t| { let mut t = t.borrow_mut(); let cx = t.as_mut().unwrap(); let i = cx.created; cx.created += 1; (i, cx.scopes.last().copied().unwrap_or(0)) });
+    let (idx, scope) = TASK.with(|t| { let mut t = t.borrow_mut(); let cx = t.as_mut().unwrap(); cx.created += 1; let k = cx.ords.entry("spawn".to_string()).or_insert(0); *k += 1; (*k - 1, cx.scopes.last().copied().unwrap_or(0)) });
     match comm(Op::Spawn { f: f.to_string(), args, prio: prio.clamp(0, 255) as u8, site, idx, scope })? { Rep::Spawned(id) => Ok(V::Task(id)), _ => trap("bad spawn") }
 }
 pub fn select_(arms: Vec<SArm>, line: usize, nondet: bool) -> R<(usize, V)> {
@@ -1437,9 +1579,11 @@ type HandlerOut = Option<(Vec<(&'static str, V)>, Vec<V>, Vec<(V, V)>)>;
 struct Sched {
     slots: Vec<Slot>, chans: BTreeMap<String, ChanSt>, staged: Vec<(String, V)>, outputs: Vec<V>, rng: u64, tick: u64, stop: Option<Outcome>, max_ticks: u64,
     actors: BTreeMap<String, ActorSt>, mail_staged: Vec<(String, String, V)>, txns: Vec<Vec<(String, String, V)>>, txn_staged: Vec<Vec<(String, String, V)>>,
-    held_links: Vec<(usize, usize, V, V)>, parted: Vec<(usize, usize)>, nodes: Vec<&'static str>, links: Vec<(u64, bool, String, String)>, restarts: HashMap<(String, String), Vec<u64>>,
-    /// actor log entries the interpreter also logs: Refused, Stopped, Restart
+    held_links: Vec<(usize, usize, V, V)>, parted: Vec<(usize, usize)>, nodes: Vec<&'static str>, links: Vec<(u64, bool, String, String)>, restarts: HashMap<(String, String), Vec<u64>>, rlog: Vec<(u64, String, String, String, bool, Vec<String>)>, rrep: Option<std::collections::VecDeque<(u64, String, String, String, bool, Vec<String>)>>,
+    /// actor log entries the interpreter also logs: Refused, Stopped, Restart, Input, Unhandled
     alog: Vec<String>,
+    /// program events (HC-6): (tick, event value)
+    events: Vec<(u64, V)>,
 }
 impl Sched {
     fn spawn_task(&mut self, f: String, args: Vec<V>, id: String, prio: u8, parent: Option<usize>, scope: u64) {
@@ -1449,7 +1593,7 @@ impl Sched {
         std::thread::Builder::new().stack_size(256 << 20).spawn(move || {
             let tx = req_tx.clone();
             let first = rep_rx.recv();
-            TASK.with(|t| *t.borrow_mut() = Some(TaskCx { tx: req_tx, rx: rep_rx, id: tid, created: 0, now: 0, dl: vec![], next_frame: 1, scopes: vec![0], sel_k: HashMap::new() }));
+            TASK.with(|t| *t.borrow_mut() = Some(TaskCx { tx: req_tx, rx: rep_rx, id: tid, created: 0, ords: HashMap::new(), now: 0, dl: vec![], next_frame: 1, scopes: vec![0], sel_k: HashMap::new() }));
             let r = match first {
                 Ok((tick, Rep::Go)) => {
                     TASK.with(|t| t.borrow_mut().as_mut().unwrap().now = tick);
@@ -1521,27 +1665,40 @@ impl Sched {
         Ok(None)
     }
     fn on_crash(&mut self, id: &str, reason: &str) {
+        // restart as input (C.11.11): record the decision, or on replay
+        // take it from the logged inputs (--restart=...) without the policy
         self.alog.push(format!("Refused({reason})"));
         let ty = self.actors[id].ty.clone();
         let Some((sup, strat, tys, child, bound)) = supervisor_of(&ty) else { return };
         let (tick, w) = (self.tick, restart_window());
-        let h = self.restarts.entry((sup.to_string(), child.to_string())).or_default();
-        if w > 0 { h.retain(|&t| tick.saturating_sub(t) < w); }
-        h.push(tick);
-        let count = h.len() as u32;
-        if count > bound {
+        let dec = if let Some(q) = self.rrep.as_mut() {
+            match q.pop_front() {
+                Some(r) if !sup_tree().contains(&format!("{}/{}", r.1, r.2).as_str()) => { self.stop = Some(Outcome::Refused(format!("trap: upgrade removed supervisor position {}/{}", r.1, r.2))); return; }
+                Some(r) if r.3 == id && r.1 == sup => r,
+                _ => { self.stop = Some(Outcome::Refused("replay diverged".into())); return; }
+            }
+        } else {
+            let h = self.restarts.entry((sup.to_string(), child.to_string())).or_default();
+            if w > 0 { h.retain(|&t| tick.saturating_sub(t) < w); }
+            h.push(tick);
+            let stop = h.len() as u32 > bound;
+            let pos = tys.iter().position(|t| *t == ty).unwrap_or(0);
+            let reset: Vec<String> = if stop { vec![] } else { self.actors.iter().filter(|(aid, a)| match strat {
+                "one_for_all" => tys.contains(&a.ty.as_str()),
+                "rest_for_one" => tys.iter().position(|t| *t == a.ty).is_some_and(|p| p >= pos),
+                _ => aid.as_str() == id,
+            }).map(|(aid, _)| aid.clone()).collect() };
+            (tick, sup.to_string(), child.to_string(), id.to_string(), stop, reset)
+        };
+        self.rlog.push(dec.clone());
+        let count = self.rlog.iter().filter(|r| r.1 == sup && r.2 == child && (w == 0 || tick.saturating_sub(r.0) < w)).count();
+        if dec.4 {
             self.alog.push(format!("Stopped(supervisor {sup})"));
             self.stop = Some(Outcome::Refused(format!("supervisor {sup} stopped: child {child} restarted more than {bound} times")));
             return;
         }
         self.alog.push(format!("Restart({child}, {id}, {reason}, tick {tick}, {count})"));
-        let pos = tys.iter().position(|t| *t == ty).unwrap_or(0);
-        let affected: Vec<String> = self.actors.iter().filter(|(aid, a)| match strat {
-            "one_for_all" => tys.contains(&a.ty.as_str()),
-            "rest_for_one" => tys.iter().position(|t| *t == a.ty).is_some_and(|p| p >= pos),
-            _ => aid.as_str() == id,
-        }).map(|(aid, _)| aid.clone()).collect();
-        for aid in affected { let t = self.actors[&aid].ty.clone(); self.actors.get_mut(&aid).unwrap().fields = actor_init(&t); }
+        for aid in dec.5 { if let Some(t) = self.actors.get(&aid).map(|a| a.ty.clone()) { self.actors.get_mut(&aid).unwrap().fields = actor_init(&t); } }
     }
     fn commit_handler(&mut self, id: &str, r: HandlerOut) {
         let Some((fs, outs, sends)) = r else { return };
@@ -1579,6 +1736,20 @@ impl Sched {
             if self.stop.is_some() { break; }
         }
         progress
+    }
+    /// HC-6: an event at this tick is logged as Input and staged to every
+    /// live actor that handles it, in actor id order; else Unhandled
+    fn events_phase(&mut self) -> bool {
+        let evs: Vec<V> = self.events.iter().filter(|e| e.0 == self.tick).map(|e| e.1.clone()).collect();
+        let any = !evs.is_empty();
+        for v in evs {
+            let name = match &v { V::Rec(n, _) => n.clone(), _ => String::new() };
+            self.alog.push(format!("Input({})", show(&v)));
+            let to: Vec<(String, String)> = self.actors.iter().filter(|(_, a)| actor_events(&a.ty).contains(&name.as_str())).map(|(id, a)| (id.clone(), a.ty.clone())).collect();
+            if to.is_empty() { self.alog.push(format!("Unhandled({})", show(&v))); }
+            for (id, ty) in to { self.mail_staged.push((id, ty, v.clone())); }
+        }
+        any
     }
     fn links_phase(&mut self) -> bool {
         let mut any = false;
@@ -1661,7 +1832,7 @@ impl Sched {
                 }
                 None
             }
-            Op::Spawn { site, idx, .. } => Some(Rep::Spawned(hid(&format!("spawn|{site}|{}|{idx}", self.slots[i].id)))),
+            Op::Spawn { idx, .. } => Some(Rep::Spawned(hid(&format!("spawn|{}|{idx}", self.slots[i].id)))),
             Op::Join(id) => {
                 let j = self.slots.iter().position(|s| &s.id == id)?;
                 if !matches!(self.slots[j].st, St::Done) { return None; }
@@ -1709,10 +1880,12 @@ impl Sched {
         None
     }
     fn run(&mut self) -> Outcome {
+        if let Some(o) = self.stop.take() { return o; }
         loop {
             self.tick += 1;
             if self.tick > self.max_ticks { return Outcome::Refused("trap: tick limit".into()); }
             let mut progress = self.links_phase();
+            progress |= self.events_phase();
             let order = self.order();
             let mut moved = vec![];
             for &i in &order {
@@ -1747,14 +1920,80 @@ impl Sched {
             self.txns.extend(t);
             let all_done = self.slots.iter().all(|s| matches!(s.st, St::Done));
             let actors_idle = self.actors.values().all(|a| a.mailbox.is_empty()) && self.txns.is_empty() && self.mail_staged.is_empty();
-            let future_links = self.links.iter().any(|e| e.0 > self.tick);
-            if all_done && actors_idle && (self.held_links.is_empty() || !future_links) { return Outcome::Done; }
+            let future_events = self.events.iter().any(|e| e.0 > self.tick);
+            let future_links = self.links.iter().any(|e| e.0 > self.tick) || future_events;
+            if all_done && actors_idle && !future_events && (self.held_links.is_empty() || !future_links) { return Outcome::Done; }
             if !progress && actors_idle && !future_links {
                 let timers = self.slots.iter().any(|s| match &s.st { St::Pending(r) => !r.dl.is_empty() || matches!(&r.op, Op::Select { arms, .. } if arms.iter().any(|a| matches!(a, SArm::After(_)))), _ => false });
                 if !timers { return Outcome::Deadlock; }
             }
         }
     }
+}
+/// logged restart inputs (C.11.11): `--restart=TICK|SUP|CHILD|ID|STOP|RESET,...`
+/// in order; `--restart-replay` alone replays an empty list
+fn restart_inputs() -> Option<std::collections::VecDeque<(u64, String, String, String, bool, Vec<String>)>> {
+    let v: Vec<_> = std::env::args().filter_map(|a| {
+        let r = a.strip_prefix("--restart=")?.to_string();
+        let p: Vec<&str> = r.split('|').collect();
+        Some((p.first()?.parse().ok()?, p.get(1)?.to_string(), p.get(2)?.to_string(), p.get(3)?.to_string(), *p.get(4)? == "1",
+            p.get(5).map(|x| x.split(',').filter(|y| !y.is_empty()).map(String::from).collect()).unwrap_or_default()))
+    }).collect();
+    if v.is_empty() && !std::env::args().any(|a| a == "--restart-replay") { None } else { Some(v.into()) }
+}
+/// program events (HC-6): `--event=TICK|Name|field=value,...`; a field's
+/// value is a decimal integer, `true`/`false`, or text, by its declared type
+fn event_inputs() -> Vec<(u64, V)> {
+    let mut v = vec![];
+    for a in std::env::args() {
+        let Some(r) = a.strip_prefix("--event=") else { continue };
+        let p: Vec<&str> = r.splitn(3, '|').collect();
+        fn bad_event(r: &str, m: String) -> ! { eprintln!("bad --event {r}: {m}"); std::process::exit(2) }
+        let tick: u64 = p.first().and_then(|x| x.parse().ok()).unwrap_or_else(|| bad_event(r, "tick".into()));
+        let name = p.get(1).copied().unwrap_or_else(|| bad_event(r, "name".into()));
+        let Some(decl) = event_fields(name) else { bad_event(r, format!("no event {name}")) };
+        let given: Vec<(&str, &str)> = p.get(2).map(|x| x.split(',').filter(|y| !y.is_empty()).filter_map(|y| y.split_once('=')).collect()).unwrap_or_default();
+        let mut fs = vec![];
+        for (f, t) in decl {
+            let Some((_, x)) = given.iter().find(|(g, _)| *g == f) else { bad_event(r, format!("missing field {f}")) };
+            let val = match t {
+                "bool" => V::Bool(*x == "true"),
+                "text" => V::Text(x.to_string()),
+                "i8" | "i16" | "i32" | "i64" | "i128" | "u8" | "u16" | "u32" | "u64" | "usize" => V::Int(x.parse().unwrap_or_else(|_| bad_event(r, format!("field {f}"))), t),
+                _ => bad_event(r, format!("field {f} has type {t}, not an integer, bool or text")),
+            };
+            fs.push((f.to_string(), val));
+        }
+        v.push((tick, V::Rec(name.to_string(), fs)));
+    }
+    v
+}
+/// `--restart-tree=Sup/child,...`: the schema of the replayed restart log
+fn restart_tree_arg() -> Option<Vec<String>> {
+    std::env::args().find_map(|a| a.strip_prefix("--restart-tree=").map(|r| r.split(',').filter(|x| !x.is_empty()).map(String::from).collect()))
+}
+/// migration rule (C.11.11): every recorded position keeps its supervisor
+/// and child; new ones only after the recorded ones (`conc::tree_migrates`)
+fn tree_migrates(rec: &[String], cur: &[&str]) -> Result<(), String> {
+    fn group<S: AsRef<str>>(v: &[S]) -> Vec<(String, Vec<String>)> {
+        let mut g: Vec<(String, Vec<String>)> = vec![];
+        for p in v {
+            let p = p.as_ref();
+            let (s, c) = p.split_once('/').unwrap_or((p, ""));
+            match g.last_mut() { Some((x, cs)) if x == s => cs.push(c.to_string()), _ => g.push((s.to_string(), vec![c.to_string()])) }
+        }
+        g
+    }
+    let (r, c) = (group(rec), group(cur));
+    for (k, (sup, kids)) in r.iter().enumerate() {
+        for (j, kid) in kids.iter().enumerate() {
+            if !c.get(k).is_some_and(|(s, cs)| s == sup && cs.get(j) == Some(kid)) {
+                let p = format!("{sup}/{kid}");
+                return Err(if cur.contains(&p.as_str()) { format!("trap: upgrade reordered supervisor position {p}") } else { format!("trap: upgrade removed supervisor position {p}") });
+            }
+        }
+    }
+    Ok(())
 }
 /// `--run`: `fn main` on the tick runtime; prints the outputs and the outcome
 pub fn run_tasks(main: &str) {
@@ -1765,7 +2004,8 @@ pub fn run_tasks(main: &str) {
         Some((p.first()?.parse().ok()?, *p.get(1)? == "partition", p.get(2)?.to_string(), p.get(3)?.to_string()))
     }).collect();
     let mut s = Sched { slots: vec![], chans: BTreeMap::new(), staged: vec![], outputs: vec![], rng: 0x5eed | 1, tick: 0, stop: None, max_ticks: 100_000,
-        actors: BTreeMap::new(), mail_staged: vec![], txns: vec![], txn_staged: vec![], held_links: vec![], parted: vec![], nodes: node_names(), links, restarts: HashMap::new(), alog: vec![] };
+        actors: BTreeMap::new(), mail_staged: vec![], txns: vec![], txn_staged: vec![], held_links: vec![], parted: vec![], nodes: node_names(), links, restarts: HashMap::new(), alog: vec![], rlog: vec![], rrep: restart_inputs(), events: event_inputs() };
+    if s.rrep.is_some() { if let Some(rec) = restart_tree_arg() { if let Err(e) = tree_migrates(&rec, &sup_tree()) { s.stop = Some(Outcome::Refused(e)); } } }
     s.spawn_task(main.to_string(), vec![], hid("main"), 0, None, 0);
     let o = s.run();
     let tick = s.tick;
@@ -1778,5 +2018,49 @@ pub fn run_tasks(main: &str) {
     }
     for v in &s.outputs { println!("emit {}", show(v)); }
     if std::env::args().any(|a| a == "--actor-log") { for e in &s.alog { println!("actorlog {e}"); } }
+    if std::env::args().any(|a| a == "--restart-log") { println!("restartlog v1 tree={}", sup_tree().join(",")); for r in &s.rlog { println!("restartin {}|{}|{}|{}|{}|{}", r.0, r.1, r.2, r.3, u8::from(r.4), r.5.join(",")); } }
     match o { Outcome::Done => println!("outcome Done"), Outcome::Deadlock => println!("outcome Deadlock"), Outcome::Refused(e) => println!("outcome Refused: {e}") }
+}
+
+/// Decimal text of an integral finite f64, exact.
+fn exact_int_text(t: f64) -> String {
+    let bits = t.to_bits();
+    let exp = ((bits >> 52) & 0x7ff) as i32;
+    let mut mant = bits & ((1u64 << 52) - 1);
+    if exp != 0 { mant |= 1u64 << 52; }
+    let e = if exp == 0 { -1074 } else { exp - 1075 };
+    // base 1e9 limbs, little-endian
+    let mut limbs: Vec<u64> = vec![mant % 1_000_000_000, mant / 1_000_000_000 % 1_000_000_000, mant / 1_000_000_000_000_000_000];
+    let mut sh = e;
+    while sh > 0 {
+        let k = sh.min(29) as u32;
+        let mut carry = 0u64;
+        for l in limbs.iter_mut() {
+            let v = (*l << k) + carry;
+            *l = v % 1_000_000_000;
+            carry = v / 1_000_000_000;
+        }
+        while carry > 0 { limbs.push(carry % 1_000_000_000); carry /= 1_000_000_000; }
+        sh -= k as i32;
+    }
+    while limbs.len() > 1 && *limbs.last().unwrap() == 0 { limbs.pop(); }
+    let mut s = if t < 0.0 { "-".to_string() } else { String::new() };
+    s += &limbs.last().unwrap().to_string();
+    for l in limbs.iter().rev().skip(1) { s += &format!("{l:09}"); }
+    s
+}
+
+fn trunc_chk(f: f64, n: &'static str) -> R<V> {
+    let t = f.trunc();
+    if t.abs() < 1.7014118346046923e38 { return chk(t as i128, n); }
+    trap(format!("overflow: {} is outside {n}", exact_int_text(t)))
+}
+
+/// N9: a list or text built by any operation has at most 1,000,000 elements.
+pub fn size_ok(v: V) -> R<V> {
+    match &v {
+        V::List(xs) if xs.len() > 1_000_000 => trap("size limit"),
+        V::Text(t) if t.len() > 1_000_000 && t.chars().count() > 1_000_000 => trap("size limit"),
+        _ => Ok(v),
+    }
 }

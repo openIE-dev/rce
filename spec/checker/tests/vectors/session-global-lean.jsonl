@@ -1,0 +1,200 @@
+{"g":"b 1 2 m 3 0 m 0 1 m 2 0 m 0 2 e m 3 0 m 0 1 m 2 0 m 0 2 e","proj":["r 3 s 1 r 2 s 2 e","S 2 r 0 e r 0 e","B 1 s 0 r 0 e s 0 r 0 e","s 0 e"]}
+{"g":"b 2 1 e b 3 2 m 3 2 e e","proj":["e","B 2 e e","S 1 e B 3 r 3 e e",null]}
+{"g":"m 1 3 m 0 2 m 3 1 b 3 1 m 1 3 e m 1 3 e","proj":["s 2 e","s 3 r 3 B 3 s 3 e s 3 e","r 0 e","r 1 s 1 S 1 r 1 e r 1 e"]}
+{"g":"e","proj":["e","e","e","e"]}
+{"g":"b 0 2 m 2 0 b 0 2 m 2 0 m 3 1 e m 3 2 m 1 2 e m 3 1 b 1 0 b 0 3 m 2 3 e m 3 2 e b 0 3 m 2 3 e m 3 2 e","proj":["S 2 r 2 S 2 r 2 e e B 1 S 3 e e S 3 e e",null,null,null]}
+{"g":"b 3 0 b 2 3 m 1 0 m 0 1 m 1 2 e e b 0 2 e e","proj":[null,null,null,"S 0 B 2 e e e"]}
+{"g":"b 0 2 b 2 1 m 0 1 b 3 2 b 2 0 e e b 2 0 e e m 0 1 b 3 2 b 2 0 e e b 2 0 e e b 2 1 m 0 1 b 3 2 b 2 0 e e b 2 0 e e m 0 1 b 3 2 b 2 0 e e b 2 0 e e","proj":["S 2 s 1 B 2 e e s 1 B 2 e e","B 2 r 0 e r 0 e","B 0 S 1 B 3 S 0 e e S 0 e e B 3 S 0 e e S 0 e e S 1 B 3 S 0 e e S 0 e e B 3 S 0 e e S 0 e e","S 2 e e"]}
+{"g":"m 0 3 m 2 0 e","proj":["s 3 r 2 e","e","s 0 e","r 0 e"]}
+{"g":"m 3 1 m 0 2 m 2 1 m 1 3 m 2 3 e","proj":["s 2 e","r 3 r 2 s 3 e","r 0 s 1 s 3 e","s 1 r 1 r 2 e"]}
+{"g":"b 2 1 b 0 1 m 3 1 b 1 0 e m 1 0 e b 0 1 b 0 2 b 2 0 e e b 2 0 e e b 0 2 b 2 0 e e b 2 0 e e m 2 0 e","proj":[null,"B 2 B 0 r 3 S 0 e s 0 e B 0 e e e",null,null]}
+{"g":"m 0 2 e","proj":["s 2 e","e","r 0 e","e"]}
+{"g":"b 3 2 m 1 3 b 3 0 e e m 1 3 b 3 0 e e","proj":["B 3 e e","s 3 e","B 3 e e","S 2 r 1 S 0 e e r 1 S 0 e e"]}
+{"g":"m 1 0 e","proj":["r 1 e","s 0 e","e","e"]}
+{"g":"b 3 1 b 3 1 e e m 3 1 b 0 1 m 1 0 m 0 3 e b 2 0 b 2 1 e e b 2 1 e e","proj":[null,"B 3 B 3 e e r 3 B 0 s 0 e B 2 e e",null,null]}
+{"g":"e","proj":["e","e","e","e"]}
+{"g":"m 2 3 e","proj":["e","e","s 3 e","r 2 e"]}
+{"g":"b 3 0 b 1 0 b 0 2 m 0 3 b 0 1 e e m 0 3 b 0 1 e e b 0 2 m 0 3 b 0 1 e e m 0 3 b 0 1 e e b 1 0 b 0 2 m 0 3 b 0 1 e e m 0 3 b 0 1 e e b 0 2 m 0 3 b 0 1 e e m 0 3 b 0 1 e e","proj":["B 3 B 1 S 2 s 3 S 1 e e s 3 S 1 e e S 2 s 3 S 1 e e s 3 S 1 e e B 1 S 2 s 3 S 1 e e s 3 S 1 e e S 2 s 3 S 1 e e s 3 S 1 e e","S 0 B 0 e e B 0 e e","B 0 e e","S 0 r 0 e r 0 e"]}
+{"g":"e","proj":["e","e","e","e"]}
+{"g":"m 0 1 b 1 2 m 2 0 b 1 0 b 3 1 e e b 3 1 e e m 2 0 b 1 0 b 3 1 e e b 3 1 e e","proj":["s 1 r 2 B 1 e e","r 0 S 2 S 0 B 3 e e B 3 e e S 0 B 3 e e B 3 e e","B 1 s 0 e s 0 e","S 1 e e"]}
+{"g":"b 1 3 e e","proj":["e","S 3 e e","e","B 1 e e"]}
+{"g":"m 2 3 m 2 1 e","proj":["e","r 2 e","s 3 s 1 e","r 2 e"]}
+{"g":"m 2 1 m 3 1 m 1 2 b 2 0 e m 3 1 e","proj":["B 2 e e",null,"s 1 r 1 S 0 e e",null]}
+{"g":"b 0 1 m 3 0 m 3 1 b 3 0 m 2 3 e m 2 3 e m 1 3 m 0 1 e","proj":["S 1 r 3 B 3 e e s 1 e","B 0 r 3 e s 3 r 0 e",null,null]}
+{"g":"m 3 0 m 2 1 m 0 1 m 2 1 e","proj":["r 3 s 1 e","r 2 r 0 r 2 e","s 1 s 1 e","s 0 e"]}
+{"g":"m 0 1 m 0 2 m 1 0 b 2 3 b 3 1 e e m 1 3 e","proj":["s 1 s 2 r 1 e",null,"r 0 S 3 e e","B 2 S 1 e e r 1 e"]}
+{"g":"m 0 2 m 1 3 b 0 3 b 1 0 m 2 0 e b 3 0 e e b 3 1 m 0 1 e e","proj":[null,null,null,null]}
+{"g":"m 3 2 m 2 3 b 1 2 m 3 2 m 0 2 e m 0 3 b 1 2 e e","proj":[null,"S 2 e S 2 e e","r 3 s 3 B 1 r 3 r 0 e B 1 e e",null]}
+{"g":"e","proj":["e","e","e","e"]}
+{"g":"b 1 0 b 2 3 m 1 2 e m 2 0 b 0 2 b 2 3 e e b 2 3 e e e","proj":[null,null,null,null]}
+{"g":"e","proj":["e","e","e","e"]}
+{"g":"m 3 1 m 0 1 e","proj":["s 1 e","r 3 r 0 e","e","s 1 e"]}
+{"g":"e","proj":["e","e","e","e"]}
+{"g":"b 0 3 m 3 2 m 0 2 m 3 1 m 0 2 e b 3 1 b 0 3 m 1 0 m 3 2 e b 2 1 b 2 0 e e b 0 1 e e b 2 0 b 3 0 e m 3 1 e e","proj":[null,null,null,null]}
+{"g":"m 1 2 m 1 3 m 1 2 e","proj":["e","s 2 s 3 s 2 e","r 1 r 1 e","r 1 e"]}
+{"g":"b 1 3 b 1 0 b 2 1 m 0 1 b 3 1 e e m 0 1 b 3 1 e e m 1 0 m 1 3 m 1 2 e b 2 1 b 2 3 e e b 2 3 e e","proj":[null,"S 3 S 0 B 2 r 0 B 3 e e r 0 B 3 e e s 0 s 3 s 2 e B 2 e e",null,null]}
+{"g":"m 3 2 m 3 0 b 1 3 b 2 3 b 2 0 e e b 2 0 e e b 2 3 b 2 0 e e b 2 0 e e","proj":["r 3 B 2 e e","S 3 e e","r 3 S 3 S 0 e e S 0 e e","s 2 s 0 B 1 B 2 e e B 2 e e"]}
+{"g":"m 3 2 m 0 3 m 1 2 e","proj":["s 3 e","s 2 e","r 3 r 1 e","s 2 r 0 e"]}
+{"g":"m 1 0 b 3 2 m 3 0 m 1 3 b 3 1 e e b 3 1 m 1 2 m 2 0 e b 2 0 m 2 3 e m 2 3 e","proj":[null,null,null,"S 2 s 0 r 1 S 1 e e S 1 e r 2 e"]}
+{"g":"m 1 3 e","proj":["e","s 3 e","e","r 1 e"]}
+{"g":"m 0 1 m 3 0 m 0 3 m 3 0 m 0 2 e","proj":["s 1 r 3 s 3 r 3 s 2 e","r 0 e","r 0 e","s 0 r 0 s 0 e"]}
+{"g":"b 3 1 m 2 3 m 3 0 m 1 3 m 1 2 e m 0 1 m 1 2 m 0 2 b 3 0 e e","proj":[null,"B 3 s 3 s 2 e r 0 s 2 e",null,"S 1 r 2 s 0 r 1 e S 0 e e"]}
+{"g":"m 2 0 m 1 2 m 3 1 m 2 3 b 3 2 e e","proj":["r 2 e","s 2 r 3 e","s 0 r 1 s 3 B 3 e e","s 1 r 2 S 2 e e"]}
+{"g":"b 2 1 b 3 0 m 3 2 b 1 0 b 0 3 e e b 0 3 e e m 3 2 b 1 0 b 0 3 e e b 0 3 e e m 3 2 b 2 3 m 0 3 m 0 3 e b 2 3 m 3 0 e m 3 0 e","proj":[null,"B 2 S 0 e e e","S 1 r 3 e r 3 S 3 e S 3 e e",null]}
+{"g":"b 1 0 b 3 2 m 2 0 b 2 3 m 3 0 e m 3 0 e m 2 0 b 2 3 m 3 0 e m 3 0 e b 0 1 m 2 3 m 0 1 m 2 1 e m 2 3 m 0 1 m 2 1 e","proj":["B 1 r 2 r 3 e S 1 s 1 e s 1 e","S 0 e B 0 r 0 r 2 e r 0 r 2 e",null,null]}
+{"g":"m 0 3 b 2 3 m 3 1 m 1 2 m 0 1 e b 0 1 m 2 3 e m 2 3 e","proj":[null,null,"S 3 r 1 e s 3 e","r 0 B 2 s 1 e r 2 e"]}
+{"g":"b 1 2 m 2 0 e m 2 0 e","proj":["r 2 e","S 2 e e","B 1 s 0 e s 0 e","e"]}
+{"g":"b 2 3 m 1 0 m 2 3 m 2 0 m 1 0 e m 1 0 m 2 3 m 2 0 m 1 0 e","proj":["r 1 r 2 r 1 e","s 0 s 0 e","S 3 s 3 s 0 e s 3 s 0 e","B 2 r 2 e r 2 e"]}
+{"g":"e","proj":["e","e","e","e"]}
+{"g":"m 1 3 m 1 0 m 1 0 b 2 3 m 0 2 e b 1 0 e e","proj":[null,null,"S 3 r 0 e e","r 1 B 2 e e"]}
+{"g":"e","proj":["e","e","e","e"]}
+{"g":"m 1 3 m 3 0 m 0 1 b 0 1 m 3 2 e m 3 2 e","proj":["r 3 s 1 S 1 e e","s 3 r 0 B 0 e e","r 3 e","r 1 s 0 s 2 e"]}
+{"g":"b 0 3 b 3 0 m 1 2 m 0 3 b 3 0 e e m 1 3 m 1 0 e b 2 1 b 1 3 m 2 3 b 2 3 e e m 2 3 b 2 3 e e e","proj":["S 3 B 3 s 3 B 3 e e r 1 e e",null,null,null]}
+{"g":"m 3 2 b 2 3 b 3 2 e b 0 2 b 0 3 e e b 2 1 e e b 0 2 m 0 3 m 3 0 e m 0 3 m 3 0 e","proj":[null,null,"r 3 S 3 B 3 e B 0 e S 1 e e B 0 e e",null]}
+{"g":"m 0 3 m 0 2 e","proj":["s 3 s 2 e","e","r 0 e","r 0 e"]}
+{"g":"m 1 2 m 0 2 e","proj":["s 2 e","s 2 e","r 1 r 0 e","e"]}
+{"g":"m 3 2 m 2 1 m 1 3 m 1 0 b 2 3 e e","proj":["r 1 e","r 2 s 3 s 0 e","r 3 s 1 S 3 e e","s 2 r 1 B 2 e e"]}
+{"g":"b 2 3 b 0 1 m 1 0 b 3 1 e e b 2 3 b 2 3 m 1 2 e m 3 2 e m 1 3 e e","proj":[null,null,null,null]}
+{"g":"m 1 0 e","proj":["r 1 e","s 0 e","e","e"]}
+{"g":"b 3 2 e m 1 3 m 3 2 m 0 1 m 3 0 e","proj":[null,null,"B 3 e r 3 e","S 2 e r 1 s 2 s 0 e"]}
+{"g":"m 3 2 m 3 0 m 2 1 m 3 2 m 3 1 e","proj":["r 3 e","r 2 r 3 e","r 3 s 1 r 3 e","s 2 s 0 s 2 s 1 e"]}
+{"g":"b 1 2 m 3 0 e m 3 0 e","proj":["r 3 e","S 2 e e","B 1 e e","s 0 e"]}
+{"g":"m 2 0 b 1 0 e b 3 1 m 2 0 m 3 1 e b 0 2 m 1 3 e m 1 0 e","proj":[null,null,null,null]}
+{"g":"b 2 3 m 0 2 m 2 0 e m 0 2 m 2 0 e","proj":["s 2 r 2 e","e","S 3 r 0 s 0 e r 0 s 0 e","B 2 e e"]}
+{"g":"m 1 0 b 0 3 b 3 1 m 0 3 m 0 1 e m 0 3 m 0 1 e b 2 3 e e","proj":["r 1 S 3 s 3 s 1 e e",null,null,"B 0 S 1 r 0 e r 0 e B 2 e e"]}
+{"g":"m 1 2 m 2 3 m 0 3 m 2 1 m 0 3 e","proj":["s 3 s 3 e","s 2 r 2 e","r 1 s 3 s 1 e","r 2 r 0 r 0 e"]}
+{"g":"b 2 3 m 2 1 b 0 3 e b 3 1 b 1 0 e e b 1 0 e e m 2 1 b 0 3 e b 3 1 b 1 0 e e b 1 0 e e","proj":["S 3 e B 1 e e",null,"S 3 s 1 e s 1 e","B 2 B 0 e S 1 e e B 0 e S 1 e e"]}
+{"g":"b 3 1 e e","proj":["e","B 3 e e","e","S 1 e e"]}
+{"g":"e","proj":["e","e","e","e"]}
+{"g":"m 1 2 m 3 2 m 0 2 m 1 0 e","proj":["s 2 r 1 e","s 2 s 0 e","r 1 r 3 r 0 e","s 2 e"]}
+{"g":"m 3 0 m 0 1 m 2 3 m 0 3 e","proj":["r 3 s 1 s 3 e","r 0 e","s 3 e","s 0 r 2 r 0 e"]}
+{"g":"e","proj":["e","e","e","e"]}
+{"g":"m 2 3 m 3 2 e","proj":["e","e","s 3 r 3 e","r 2 s 2 e"]}
+{"g":"b 2 0 m 1 2 b 1 2 b 3 2 b 0 3 e e b 0 3 e e m 1 0 b 2 1 e e e","proj":[null,null,"S 0 r 1 B 1 B 3 e e S 1 e e e",null]}
+{"g":"m 0 1 m 1 2 m 0 3 b 1 3 m 1 3 e b 2 0 e e","proj":[null,"r 0 s 2 S 3 s 3 e e",null,"r 0 B 1 r 1 e e"]}
+{"g":"b 2 1 m 0 2 m 3 0 m 3 1 m 3 1 e m 2 1 b 1 2 m 3 2 e m 3 2 e","proj":[null,"B 2 r 3 r 3 e r 2 S 2 e e","S 1 r 0 e s 1 B 1 r 3 e r 3 e",null]}
+{"g":"m 0 1 m 3 1 m 2 1 b 2 3 e e","proj":["s 1 e","r 0 r 3 r 2 e","s 1 S 3 e e","s 1 B 2 e e"]}
+{"g":"b 1 0 b 1 2 b 2 0 b 1 0 e e b 1 0 e e b 2 0 b 1 0 e e b 1 0 e e b 1 2 b 2 0 b 1 0 e e b 1 0 e e b 2 0 b 1 0 e e b 1 0 e e","proj":["B 1 B 2 B 1 e e B 1 e e B 2 B 1 e e B 1 e e","S 0 S 2 S 0 e e S 0 e e S 2 S 0 e e S 0 e e","B 1 S 0 e e S 0 e e","e"]}
+{"g":"m 0 3 e","proj":["s 3 e","e","e","r 0 e"]}
+{"g":"m 1 3 e","proj":["e","s 3 e","e","r 1 e"]}
+{"g":"m 1 3 m 3 0 b 3 0 b 0 3 m 0 2 e m 0 2 e m 3 2 m 1 3 e","proj":["r 3 B 3 S 3 s 2 e s 2 e e",null,null,"r 1 s 0 S 0 B 0 e e s 2 r 1 e"]}
+{"g":"b 2 1 m 3 2 m 2 1 m 0 3 e m 3 2 m 2 1 m 0 3 e","proj":["s 3 e","B 2 r 2 e r 2 e","S 1 r 3 s 1 e r 3 s 1 e","s 2 r 0 e"]}
+{"g":"m 1 3 m 3 1 m 1 3 b 0 2 m 1 3 e m 1 3 e","proj":["S 2 e e","s 3 r 3 s 3 s 3 e","B 0 e e","r 1 s 1 r 1 r 1 e"]}
+{"g":"e","proj":["e","e","e","e"]}
+{"g":"m 1 3 e","proj":["e","s 3 e","e","r 1 e"]}
+{"g":"m 2 3 b 3 0 e e","proj":["B 3 e e","e","s 3 e","r 2 S 0 e e"]}
+{"g":"m 1 2 m 2 0 m 1 3 m 1 0 m 0 3 e","proj":["r 2 r 1 s 3 e","s 2 s 3 s 0 e","r 1 s 0 e","r 1 r 0 e"]}
+{"g":"m 3 1 b 0 2 m 1 2 m 1 3 b 1 3 e e m 1 2 m 1 3 b 1 3 e e","proj":["S 2 e e","r 3 s 2 s 3 S 3 e e","B 0 r 1 e r 1 e","s 1 r 1 B 1 e e"]}
+{"g":"m 1 2 e","proj":["e","s 2 e","r 1 e","e"]}
+{"g":"m 0 3 m 2 3 e","proj":["s 3 e","e","s 3 e","r 0 r 2 e"]}
+{"g":"m 2 0 e","proj":["r 2 e","e","s 0 e","e"]}
+{"g":"m 2 1 m 2 0 b 2 1 m 3 0 m 3 0 e m 0 1 e","proj":[null,"r 2 B 2 e r 0 e","s 1 s 0 S 1 e e",null]}
+{"g":"b 0 1 m 0 2 b 2 3 m 3 2 b 0 2 e e m 3 2 b 0 2 e e m 1 3 m 3 1 e","proj":["S 1 s 2 S 2 e e e","B 0 e s 3 r 3 e",null,null]}
+{"g":"e","proj":["e","e","e","e"]}
+{"g":"b 2 3 m 1 3 m 3 2 m 0 3 m 2 1 e m 1 3 m 3 2 m 0 3 m 2 1 e","proj":["s 3 e","s 3 r 2 e","S 3 r 3 s 1 e r 3 s 1 e","B 2 r 1 s 2 r 0 e r 1 s 2 r 0 e"]}
+{"g":"b 3 1 m 3 1 m 2 3 b 2 1 e e m 1 2 m 0 3 b 3 2 m 2 3 e m 2 3 e","proj":[null,"B 3 r 3 B 2 e e s 2 e",null,"S 1 s 1 r 2 e r 0 S 2 r 2 e r 2 e"]}
+{"g":"b 3 1 m 3 0 b 1 0 m 1 2 e m 1 2 e m 3 0 b 1 0 m 1 2 e m 1 2 e","proj":["r 3 B 1 e e","B 3 S 0 s 2 e s 2 e S 0 s 2 e s 2 e","r 1 e","S 1 s 0 e s 0 e"]}
+{"g":"b 3 2 b 1 2 m 3 0 m 3 1 e m 3 0 m 3 1 e b 1 3 m 3 1 b 1 0 b 1 2 e e e m 3 1 b 1 0 b 1 2 e e e","proj":[null,null,null,"S 2 s 0 s 1 e B 1 s 1 e s 1 e"]}
+{"g":"m 0 2 m 1 0 m 1 3 e","proj":["s 2 r 1 e","s 0 s 3 e","r 0 e","r 1 e"]}
+{"g":"m 3 2 m 3 1 b 1 2 m 1 3 e m 1 3 e","proj":["e","r 3 S 2 s 3 e s 3 e","r 3 B 1 e e","s 2 s 1 r 1 e"]}
+{"g":"m 0 3 e","proj":["s 3 e","e","e","r 0 e"]}
+{"g":"m 1 2 m 0 3 e","proj":["s 3 e","s 2 e","r 1 e","r 0 e"]}
+{"g":"m 1 3 b 1 3 e e","proj":["e","s 3 S 3 e e","e","r 1 B 1 e e"]}
+{"g":"m 1 0 m 3 2 m 3 2 m 1 2 m 3 0 e","proj":["r 1 r 3 e","s 0 s 2 e","r 3 r 3 r 1 e","s 2 s 2 s 0 e"]}
+{"g":"b 1 0 m 3 2 e m 2 1 m 3 2 b 3 0 e e","proj":["B 1 e B 3 e e","S 0 e r 2 e",null,null]}
+{"g":"m 2 1 b 3 2 m 3 2 m 2 3 m 3 2 e m 3 2 m 2 3 m 3 2 e","proj":["e","r 2 e","s 1 B 3 r 3 s 3 r 3 e r 3 s 3 r 3 e","S 2 s 2 r 2 s 2 e s 2 r 2 s 2 e"]}
+{"g":"e","proj":["e","e","e","e"]}
+{"g":"b 3 1 e b 0 1 m 1 3 m 0 3 e m 1 3 m 0 3 e","proj":[null,"B 3 e B 0 s 3 e s 3 e","e","S 1 e r 1 r 0 e"]}
+{"g":"m 3 1 e","proj":["e","r 3 e","e","s 1 e"]}
+{"g":"b 0 1 b 2 1 e b 1 0 b 1 2 e b 3 2 e e b 1 2 e b 3 2 e e b 2 1 e b 1 0 b 1 2 e b 3 2 e e b 1 2 e b 3 2 e e","proj":[null,"B 0 B 2 e S 0 S 2 e e S 2 e e B 2 e S 0 S 2 e e S 2 e e","S 1 e B 1 e B 3 e e",null]}
+{"g":"m 0 2 b 3 2 b 2 0 m 2 3 b 1 0 e e m 2 3 b 1 0 e e e","proj":[null,null,"r 0 B 3 S 0 s 3 e s 3 e e","S 2 r 2 e e"]}
+{"g":"m 2 3 b 0 2 e e","proj":["S 2 e e","e","s 3 B 0 e e","r 2 e"]}
+{"g":"m 1 2 e","proj":["e","s 2 e","r 1 e","e"]}
+{"g":"b 2 1 m 1 2 e m 1 2 e","proj":["e","B 2 s 2 e s 2 e","S 1 r 1 e r 1 e","e"]}
+{"g":"m 1 3 m 0 1 m 2 1 m 0 2 b 0 3 e e","proj":["s 1 s 2 S 3 e e","s 3 r 0 r 2 e","s 1 r 0 e","r 1 B 0 e e"]}
+{"g":"e","proj":["e","e","e","e"]}
+{"g":"b 0 2 m 3 1 e m 3 1 e","proj":["S 2 e e","r 3 e","B 0 e e","s 1 e"]}
+{"g":"e","proj":["e","e","e","e"]}
+{"g":"b 1 0 m 0 2 b 3 1 m 3 1 b 2 1 e e m 3 1 b 2 1 e e m 0 2 b 3 1 m 3 1 b 2 1 e e m 3 1 b 2 1 e e","proj":["B 1 s 2 e s 2 e","S 0 B 3 r 3 B 2 e e r 3 B 2 e e B 3 r 3 B 2 e e r 3 B 2 e e","r 0 S 1 e e","S 1 s 1 e s 1 e"]}
+{"g":"m 0 3 m 2 0 m 2 0 b 3 1 m 3 1 e b 2 0 e e","proj":[null,"B 3 r 3 e e",null,"r 0 S 1 s 1 e e"]}
+{"g":"m 2 0 m 3 0 m 3 1 m 1 0 b 0 2 e e","proj":["r 2 r 3 r 1 S 2 e e","r 3 s 0 e","s 0 B 0 e e","s 0 s 1 e"]}
+{"g":"m 2 3 m 1 2 m 1 2 b 3 1 m 3 0 e m 2 3 e","proj":[null,"s 2 s 2 B 3 e e",null,"r 2 S 1 s 0 e r 2 e"]}
+{"g":"m 0 2 b 2 0 m 1 3 m 1 2 m 0 2 e m 3 2 m 0 1 m 2 3 e","proj":["s 2 B 2 s 2 e s 1 e",null,"r 0 S 0 r 1 r 0 e r 3 s 3 e",null]}
+{"g":"b 2 1 b 2 1 b 3 1 b 1 0 b 1 0 e e m 3 2 e b 1 0 b 1 0 e e m 3 2 e b 3 1 b 1 0 b 1 0 e e m 3 2 e b 1 0 b 1 0 e e m 3 2 e b 2 1 b 3 1 b 1 0 b 1 0 e e m 3 2 e b 1 0 b 1 0 e e m 3 2 e b 3 1 b 1 0 b 1 0 e e m 3 2 e b 1 0 b 1 0 e e m 3 2 e","proj":["B 1 B 1 e e e","B 2 B 2 B 3 S 0 S 0 e e e S 0 S 0 e e e B 3 S 0 S 0 e e e S 0 S 0 e e e B 2 B 3 S 0 S 0 e e e S 0 S 0 e e e B 3 S 0 S 0 e e e S 0 S 0 e e e",null,null]}
+{"g":"m 0 2 m 0 3 b 1 0 e m 0 2 m 2 3 e","proj":["s 2 s 3 B 1 e s 2 e","S 0 e e",null,null]}
+{"g":"b 3 1 b 1 0 m 0 2 m 2 0 b 0 3 e e m 3 1 e m 2 1 b 1 2 b 2 0 b 2 3 e e b 2 3 e e b 2 0 b 2 3 e e b 2 3 e e","proj":[null,"B 3 S 0 e r 3 e r 2 S 2 e e",null,null]}
+{"g":"e","proj":["e","e","e","e"]}
+{"g":"e","proj":["e","e","e","e"]}
+{"g":"m 1 0 m 1 0 m 0 3 m 1 0 m 1 2 e","proj":["r 1 r 1 s 3 r 1 e","s 0 s 0 s 0 s 2 e","r 1 e","r 0 e"]}
+{"g":"m 3 1 b 2 0 m 3 1 m 1 2 b 0 1 e e m 3 1 m 1 2 b 0 1 e e","proj":["B 2 S 1 e e S 1 e e","r 3 r 3 s 2 B 0 e e","S 0 r 1 e r 1 e","s 1 s 1 e"]}
+{"g":"m 0 1 e","proj":["s 1 e","r 0 e","e","e"]}
+{"g":"b 0 3 b 2 3 b 3 0 b 1 0 b 2 3 e e b 1 3 e e b 1 0 b 2 3 e e b 1 3 e e b 0 2 m 3 0 b 0 2 e e m 3 0 b 0 2 e e m 3 1 m 0 3 b 1 3 m 1 0 e m 3 2 e","proj":[null,null,null,null]}
+{"g":"b 0 1 m 1 0 m 2 3 b 0 2 m 2 1 e m 2 1 e b 2 0 m 0 2 m 2 0 m 3 1 e m 0 2 e","proj":["S 1 r 1 S 2 e e B 2 s 2 r 2 e s 2 e",null,null,null]}
+{"g":"b 0 1 b 1 2 e e b 1 2 e e","proj":["S 1 e e","B 0 S 2 e e S 2 e e","B 1 e e","e"]}
+{"g":"b 3 0 b 1 2 m 3 1 m 2 3 m 0 2 e m 3 1 m 2 3 m 0 2 e b 1 2 m 3 1 m 2 3 m 0 2 e m 3 1 m 2 3 m 0 2 e","proj":["B 3 s 2 e s 2 e","S 2 r 3 e r 3 e","B 1 s 3 r 0 e s 3 r 0 e","S 0 s 1 r 2 e s 1 r 2 e"]}
+{"g":"m 0 3 m 0 2 m 1 0 m 2 0 b 0 3 e e","proj":["s 3 s 2 r 1 r 2 S 3 e e","s 0 e","r 0 s 0 e","r 0 B 0 e e"]}
+{"g":"m 1 3 b 0 3 b 1 3 m 0 3 b 2 3 e e m 1 2 e b 1 3 m 0 3 b 2 3 e e m 1 2 e","proj":[null,"s 3 S 3 e s 2 e",null,"r 1 B 0 B 1 r 0 B 2 e e e B 1 r 0 B 2 e e e"]}
+{"g":"b 3 1 b 3 1 m 0 1 e m 0 1 e b 3 1 m 0 1 e m 0 1 e","proj":["s 1 e","B 3 B 3 r 0 e r 0 e B 3 r 0 e r 0 e","e","S 1 S 1 e e S 1 e e"]}
+{"g":"e","proj":["e","e","e","e"]}
+{"g":"e","proj":["e","e","e","e"]}
+{"g":"b 0 3 b 0 1 m 0 3 b 0 1 e e m 0 3 b 0 1 e e e","proj":["S 3 S 1 s 3 S 1 e e s 3 S 1 e e e",null,"e","B 0 r 0 e e"]}
+{"g":"b 0 3 e e","proj":["S 3 e e","e","e","B 0 e e"]}
+{"g":"m 3 2 m 1 0 b 0 2 b 3 0 b 0 3 e e b 2 1 e e b 3 0 b 0 3 e e b 2 1 e e","proj":["r 1 S 2 B 3 S 3 e e e B 3 S 3 e e e",null,null,"s 2 S 0 B 0 e e e"]}
+{"g":"b 2 0 b 3 1 m 3 2 m 0 3 b 1 0 e e m 3 2 m 0 3 b 1 0 e e b 2 3 b 0 3 e m 1 2 m 0 1 e b 0 3 e m 1 2 m 0 1 e","proj":["B 2 s 3 B 1 e e S 3 e s 1 e",null,null,null]}
+{"g":"m 3 2 e","proj":["e","e","r 3 e","s 2 e"]}
+{"g":"b 3 1 b 0 1 m 3 1 b 3 2 m 1 0 e b 3 0 e e m 3 1 b 3 2 m 1 0 e b 3 0 e e b 0 3 m 0 1 e m 0 2 b 0 2 m 1 2 e m 1 2 e","proj":[null,null,null,"S 1 s 1 S 2 e S 0 e e B 0 e e"]}
+{"g":"b 0 2 m 2 0 m 2 3 e m 1 0 m 3 1 b 3 1 b 0 2 e e m 3 1 e","proj":[null,null,null,null]}
+{"g":"b 1 0 b 1 3 m 2 1 m 0 3 m 3 2 e m 2 1 m 0 3 m 3 2 e b 0 3 m 2 0 m 3 1 b 1 3 e e m 0 1 m 3 2 m 0 3 e","proj":["B 1 s 3 e S 3 r 2 e s 1 s 3 e",null,null,null]}
+{"g":"m 3 2 m 1 3 e","proj":["e","s 3 e","r 3 e","s 2 r 1 e"]}
+{"g":"b 2 3 b 2 0 b 1 3 m 1 2 b 0 3 e e m 1 2 b 0 3 e e b 1 3 m 1 2 b 0 3 e e m 1 2 b 0 3 e e b 1 3 m 0 2 b 2 0 b 0 3 e e b 0 3 e e m 0 2 b 2 0 b 0 3 e e b 0 3 e e","proj":[null,null,"S 3 S 0 r 1 e r 1 e r 0 S 0 e e","B 2 B 1 B 0 e e B 0 e e B 1 B 0 e e B 0 e e"]}
+{"g":"b 2 1 m 3 2 b 3 2 b 0 2 b 0 1 e e b 2 3 e e b 0 2 b 0 1 e e b 2 3 e e m 3 2 b 3 2 b 0 2 b 0 1 e e b 2 3 e e b 0 2 b 0 1 e e b 2 3 e e","proj":["S 2 S 1 e e e",null,"S 1 r 3 B 3 B 0 e S 3 e e B 0 e S 3 e e r 3 B 3 B 0 e S 3 e e B 0 e S 3 e e",null]}
+{"g":"m 3 0 m 2 1 m 0 3 e","proj":["r 3 s 3 e","r 2 e","s 1 e","s 0 r 0 e"]}
+{"g":"m 0 1 m 2 3 m 1 2 m 2 1 b 2 3 e e","proj":["s 1 e","r 0 s 2 r 2 e","s 3 r 1 s 1 S 3 e e","r 2 B 2 e e"]}
+{"g":"m 2 1 b 2 0 b 0 2 e e b 0 2 e e","proj":["B 2 S 2 e e S 2 e e","r 2 e","s 1 S 0 B 0 e e B 0 e e","e"]}
+{"g":"m 2 0 m 2 0 m 2 0 m 3 1 m 1 0 e","proj":["r 2 r 2 r 2 r 1 e","r 3 s 0 e","s 0 s 0 s 0 e","s 1 e"]}
+{"g":"m 3 1 m 3 0 b 0 3 e m 3 0 m 1 0 e","proj":["r 3 S 3 e r 3 r 1 e",null,"e","s 1 s 0 B 0 e s 0 e"]}
+{"g":"m 0 2 m 3 0 m 1 3 e","proj":["s 2 r 3 e","s 3 e","r 0 e","s 0 r 1 e"]}
+{"g":"b 1 3 e e","proj":["e","S 3 e e","e","B 1 e e"]}
+{"g":"e","proj":["e","e","e","e"]}
+{"g":"m 0 3 b 3 2 m 3 0 m 0 2 b 2 1 e e m 3 0 m 0 2 b 2 1 e e","proj":["s 3 r 3 s 2 e","B 2 e e","B 3 r 0 S 1 e e r 0 S 1 e e","r 0 S 2 s 0 e s 0 e"]}
+{"g":"m 1 0 m 0 3 b 2 1 e e","proj":["r 1 s 3 e","s 0 B 2 e e","S 1 e e","r 0 e"]}
+{"g":"b 1 2 m 1 0 m 1 3 m 2 0 m 2 1 e e","proj":[null,"S 2 s 0 s 3 r 2 e e","B 1 s 0 s 1 e e",null]}
+{"g":"m 1 0 b 3 1 b 3 2 e b 0 1 m 1 2 e m 0 1 e b 1 3 b 3 2 m 1 0 e m 1 0 e b 3 2 m 1 0 e m 1 0 e","proj":[null,null,null,"S 1 S 2 e e B 1 S 2 e e S 2 e e"]}
+{"g":"b 1 0 m 3 1 b 3 0 m 1 2 m 3 0 e m 1 2 m 3 0 e m 3 1 b 3 0 m 1 2 m 3 0 e m 1 2 m 3 0 e","proj":["B 1 B 3 r 3 e r 3 e B 3 r 3 e r 3 e","S 0 r 3 s 2 e r 3 s 2 e","r 1 e","s 1 S 0 s 0 e s 0 e"]}
+{"g":"m 1 2 m 0 2 m 2 3 b 2 3 e e","proj":["s 2 e","s 2 e","r 1 r 0 s 3 S 3 e e","r 2 B 2 e e"]}
+{"g":"m 0 3 m 1 3 m 2 3 m 0 3 b 0 2 e e","proj":["s 3 s 3 S 2 e e","s 3 e","s 3 B 0 e e","r 0 r 1 r 2 r 0 e"]}
+{"g":"m 3 2 b 1 3 e m 3 2 b 3 2 m 2 1 e b 2 3 e e","proj":["e",null,null,"s 2 B 1 e s 2 S 2 e B 2 e e"]}
+{"g":"m 0 3 m 0 2 m 0 1 e","proj":["s 3 s 2 s 1 e","r 0 e","r 0 e","r 0 e"]}
+{"g":"b 2 3 b 0 1 b 1 2 m 2 0 e m 1 2 e b 1 2 m 2 0 e m 1 2 e b 0 1 b 1 2 m 2 0 e m 1 2 e b 1 2 m 2 0 e m 1 2 e","proj":[null,"B 0 S 2 e s 2 e S 2 e s 2 e","S 3 B 1 s 0 e r 1 e B 1 s 0 e r 1 e","B 2 e e"]}
+{"g":"m 3 2 m 3 2 b 2 0 m 3 2 b 2 1 e e m 3 2 b 2 1 e e","proj":["B 2 e e","B 2 e e","r 3 r 3 S 0 r 3 S 1 e e r 3 S 1 e e","s 2 s 2 s 2 e"]}
+{"g":"m 3 0 b 3 1 m 2 0 m 3 0 m 2 1 e m 1 0 m 1 3 m 3 2 e","proj":[null,"B 3 r 2 e s 0 s 3 e",null,"s 0 S 1 s 0 e r 1 s 2 e"]}
+{"g":"m 0 2 m 1 2 e","proj":["s 2 e","s 2 e","r 0 r 1 e","e"]}
+{"g":"b 2 0 m 0 1 m 2 3 b 1 2 m 3 2 e m 3 2 e m 0 1 m 2 3 b 1 2 m 3 2 e m 3 2 e","proj":["B 2 s 1 e s 1 e","r 0 S 2 e e","S 0 s 3 B 1 r 3 e r 3 e s 3 B 1 r 3 e r 3 e","r 2 s 2 e"]}
+{"g":"m 0 2 e","proj":["s 2 e","e","r 0 e","e"]}
+{"g":"e","proj":["e","e","e","e"]}
+{"g":"b 1 3 b 3 1 b 3 2 m 1 2 b 1 2 e e m 0 3 e m 3 1 b 3 2 m 2 3 e m 2 3 e m 3 2 b 1 2 b 3 0 m 0 3 e m 0 3 e b 2 1 m 2 0 e m 0 3 e","proj":[null,null,null,null]}
+{"g":"b 2 1 b 1 2 m 2 3 e b 1 3 m 2 3 m 1 0 e b 0 2 b 0 2 e e b 0 2 e e b 1 2 m 2 3 e b 1 3 m 2 3 m 1 0 e b 0 2 b 0 2 e e b 0 2 e e","proj":[null,"B 2 S 2 e S 3 s 0 e e S 2 e S 3 s 0 e e",null,null]}
+{"g":"e","proj":["e","e","e","e"]}
+{"g":"m 2 3 b 1 3 m 0 2 m 3 1 m 1 2 e e","proj":[null,"S 3 r 3 s 2 e e",null,"r 2 B 1 s 1 e e"]}
+{"g":"e","proj":["e","e","e","e"]}
+{"g":"m 3 0 m 0 2 m 2 1 e","proj":["r 3 s 2 e","r 2 e","r 0 s 1 e","s 0 e"]}
+{"g":"m 1 0 m 2 3 b 1 0 m 0 2 m 2 3 e m 0 2 m 2 3 e","proj":["r 1 B 1 s 2 e s 2 e","s 0 S 0 e e","s 3 r 0 s 3 e","r 2 r 2 e"]}
+{"g":"m 1 3 b 2 0 m 1 2 m 3 0 e b 3 2 m 3 0 e b 3 1 b 1 3 e e m 3 1 e","proj":[null,null,"S 0 r 1 e B 3 e e",null]}
+{"g":"m 2 3 m 0 3 m 3 1 b 0 1 m 1 2 e m 1 3 e","proj":["s 3 S 1 e e","r 3 B 0 s 2 e s 3 e",null,null]}
+{"g":"e","proj":["e","e","e","e"]}
+{"g":"b 3 2 b 0 3 b 2 3 m 1 0 e b 0 1 m 2 0 e m 2 0 e b 2 3 m 1 0 e b 0 1 m 2 0 e m 2 0 e b 0 3 b 2 3 m 1 0 e b 0 1 m 2 0 e m 2 0 e b 2 3 m 1 0 e b 0 1 m 2 0 e m 2 0 e","proj":[null,null,"B 3 S 3 e s 0 e S 3 e s 0 e","S 2 B 0 B 2 e e B 2 e e B 0 B 2 e e B 2 e e"]}
+{"g":"b 2 3 m 1 0 m 3 0 m 2 3 b 2 0 e e e","proj":[null,null,"S 3 s 3 S 0 e e e","B 2 s 0 r 2 e e"]}
+{"g":"m 1 3 m 2 0 m 1 2 b 1 3 m 0 1 e m 0 1 e","proj":["r 2 s 1 e","s 3 s 2 S 3 r 0 e r 0 e","s 0 r 1 e","r 1 B 1 e e"]}
+{"g":"m 2 1 m 3 0 m 0 2 e","proj":["r 3 s 2 e","r 2 e","s 1 r 0 e","s 0 e"]}
+{"g":"m 0 3 e","proj":["s 3 e","e","e","r 0 e"]}
+{"g":"m 2 3 m 0 2 m 3 0 b 0 3 b 3 0 e e b 3 0 e e","proj":["s 2 r 3 S 3 B 3 e e B 3 e e","e","s 3 r 0 e","r 2 s 0 B 0 S 0 e e S 0 e e"]}
+{"g":"b 3 1 b 2 0 b 1 0 m 2 1 m 2 1 e m 1 2 m 3 1 e m 0 1 b 2 0 e e e","proj":[null,null,null,null]}
+{"g":"e","proj":["e","e","e","e"]}
+{"g":"e","proj":["e","e","e","e"]}
+{"g":"m 2 3 b 2 1 m 0 3 m 3 0 b 0 3 e e m 0 3 m 3 0 b 0 3 e e","proj":["s 3 r 3 S 3 e e","B 2 e e","s 3 S 1 e e","r 2 r 0 s 0 B 0 e e"]}
+{"g":"m 0 3 b 0 3 b 1 0 b 0 3 m 0 2 e m 0 2 e b 3 2 b 1 2 e e b 1 2 e e b 1 0 b 0 3 m 0 2 e m 0 2 e b 3 2 b 1 2 e e b 1 2 e e","proj":["s 3 S 3 B 1 S 3 s 2 e s 2 e e B 1 S 3 s 2 e s 2 e e","S 0 e S 2 e e",null,null]}
+{"g":"b 3 0 e m 3 0 m 1 3 b 2 0 b 0 2 e e b 0 2 e e","proj":["B 3 e r 3 B 2 S 2 e e S 2 e e",null,null,"S 0 e s 0 r 1 e"]}
+{"g":"e","proj":["e","e","e","e"]}
+{"g":"m 3 0 b 3 1 b 3 2 b 1 0 e m 3 0 e b 1 0 e m 3 0 e b 3 2 b 1 0 e m 3 0 e b 1 0 e m 3 0 e","proj":["r 3 B 1 e r 3 e","B 3 S 0 e e S 0 e e","B 3 e e",null]}
+{"g":"b 1 2 b 1 2 m 2 0 m 0 2 m 2 1 e b 1 3 m 2 1 m 3 2 e b 0 2 m 2 1 e m 0 2 e e","proj":[null,null,null,null]}
+{"g":"b 3 1 m 0 2 b 2 0 m 3 2 b 2 1 e e m 3 2 b 2 1 e e m 0 2 b 2 0 m 3 2 b 2 1 e e m 3 2 b 2 1 e e","proj":["s 2 B 2 e e","B 3 B 2 e e B 2 e e","r 0 S 0 r 3 S 1 e e r 3 S 1 e e","S 1 s 2 e s 2 e"]}

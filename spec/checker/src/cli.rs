@@ -531,6 +531,10 @@ pub const USAGE_TEXT: &str = "usage:
   rce trace --json FILE [EVENTS] reference trace (seq, event, state_hash per step) of the examples, or of EVENTS
   rce emit TARGET FILE           TARGET: form (Form JSON), rust, python, js or scala (a program printing its observations)
   rce fmt [--check] FILE...      rewrite files in canonical layout (--check: only report)
+  rce hash FILE|DIR...           the definition hash (F.4.3) of every named item of each module: HASH, kind, name, and `pub` for an export
+  rce manifest-check MANIFEST [--advisories FILE] [--key ISSUER=HEXPUBKEY]...  verify a hash-pinned manifest (F.5.3, W-PIN-1) and list pinned hashes that carry a signed advisory
+  rce api-diff OLD NEW           compare the exports of two module sets (FILE or DIR each); one row per change, compatible or breaking; status 1 if any is breaking
+  rce v09-status                 the Appendix F rules this checker implements and the ones it refuses by version
   rce lsp                        language server on stdin/stdout
   rce index [--vectors N] FILE|DIR...  brick catalog (rce-catalog/1 JSON): every exported fn, type key, SHA-256, verdict, D.7 Form IR term
   rce search CATALOG QUERY       bricks of type QUERY (e.g. (A, B) -> R; a, b, ... are variables), best first
@@ -677,6 +681,82 @@ fn run_main(a: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &mu
                 }
             }
         }
+        Some("hash") if !rest.is_empty() => {
+            for p in expand(rest)? {
+                let m = parse(&read_file(&p)?).map_err(|e| format!("{p}: {e}"))?;
+                for d in crate::apidiff::defs(&m) {
+                    writeln!(out, "{}  {} {}{}", d.hash, d.kind, d.name, if d.exported { "  pub" } else { "" }).map_err(w)?;
+                }
+            }
+            OK
+        }
+        Some("api-diff") if rest.len() == 2 => {
+            let load = |p: &String| -> Result<Vec<Module>, String> {
+                expand(std::slice::from_ref(p))?.iter().map(|f| parse(&read_file(f)?).map_err(|e| format!("{f}: {e}"))).collect()
+            };
+            let rows = crate::apidiff::diff(&load(&rest[0])?, &load(&rest[1])?);
+            for r in &rows {
+                writeln!(out, "{}", r.show()).map_err(w)?;
+            }
+            if rows.iter().any(|r| r.breaking) { REFUSED } else { OK }
+        }
+        Some("manifest-check") if !rest.is_empty() => {
+            // rce manifest-check MANIFEST [--advisories FILE] [--key ISSUER=HEXPUBKEY]...
+            let mpath = std::path::Path::new(&rest[0]);
+            let text = read_file(&rest[0])?;
+            let root = mpath.parent().filter(|p| !p.as_os_str().is_empty()).unwrap_or(std::path::Path::new("."));
+            let (mut adv_file, mut keys) = (None, std::collections::BTreeMap::new());
+            let mut i = 1;
+            while i < rest.len() {
+                match rest[i].as_str() {
+                    "--advisories" if i + 1 < rest.len() => {
+                        adv_file = Some(rest[i + 1].clone());
+                        i += 2;
+                    }
+                    "--key" if i + 1 < rest.len() => {
+                        let (n, h) = rest[i + 1].split_once('=').ok_or("--key ISSUER=HEXPUBKEY")?;
+                        let b: Vec<u8> = (0..h.len() / 2).filter_map(|j| u8::from_str_radix(h.get(2 * j..2 * j + 2)?, 16).ok()).collect();
+                        let k: [u8; 32] = b.try_into().map_err(|_| "a public key is 32 bytes (64 hex digits)".to_string())?;
+                        keys.insert(n.to_string(), k);
+                        i += 2;
+                    }
+                    other => return Err(format!("manifest-check: unexpected argument `{other}`")),
+                }
+            }
+            match crate::manifest::check(text.trim_end_matches('\n').trim_end_matches('\r').to_string().as_str(), root)
+                .map_err(|e| e.join("; "))
+                .and_then(|pinned| {
+                    let adv = match &adv_file {
+                        Some(f) => crate::manifest::verify_advisories(&read_file(f)?, &keys).map_err(|e| e.join("; "))?,
+                        None => vec![],
+                    };
+                    Ok((pinned, adv))
+                }) {
+                Ok((pinned, adv)) => {
+                    let unsafe_ = crate::manifest::unsafe_list(text.trim_end_matches('\n'), &pinned, &adv);
+                    writeln!(out, "ok {}: {} modules pinned, {} unsafe", rest[0], pinned.len(), unsafe_.len()).map_err(w)?;
+                    for u in unsafe_ {
+                        writeln!(out, "UNSAFE {u}").map_err(w)?;
+                    }
+                    OK
+                }
+                Err(e) => {
+                    writeln!(out, "REFUSED {}: {e}", rest[0]).map_err(w)?;
+                    REFUSED
+                }
+            }
+        }
+        Some("v09-status") if rest.is_empty() => {
+            writeln!(out, "implemented (version 0.9 subset):").map_err(w)?;
+            for (r, d) in crate::v09::IMPLEMENTED {
+                writeln!(out, "  {r}: {d}").map_err(w)?;
+            }
+            writeln!(out, "not implemented (refused by version, or not enforced where stated):").map_err(w)?;
+            for (r, d) in crate::v09::UNIMPLEMENTED {
+                writeln!(out, "  {r}: {d}").map_err(w)?;
+            }
+            OK
+        }
         Some("emit") if rest.len() == 2 => match emit(&rest[0], &read_file(&rest[1])?) {
             Ok(s) => {
                 write!(out, "{s}").map_err(w)?;
@@ -686,7 +766,7 @@ fn run_main(a: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &mu
                 writeln!(err, "{e}").map_err(w)?;
                 // A program the checker refuses is status 1; an unknown target
                 // or a construct an emitter does not translate is status 2.
-                if ["form", "rust", "python", "js"].contains(&rest[0].as_str())
+                if ["form", "rust", "python", "js", "scala"].contains(&rest[0].as_str())
                     && !e.starts_with("not supported by the emitter")
                 {
                     REFUSED

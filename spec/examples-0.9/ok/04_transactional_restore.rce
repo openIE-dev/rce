@@ -1,0 +1,12 @@
+# rce-version: 0.9
+error Boom
+
+fn bump(x: &mut i64) -> i64 ! Boom
+    x += 1
+    fail Boom
+
+fn main()
+    var n: i64 = 10
+    let v = bump(&mut n) catch -1
+    emit n.tostr()
+    emit v.tostr()

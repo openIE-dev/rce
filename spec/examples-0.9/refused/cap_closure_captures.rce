@@ -1,0 +1,11 @@
+# rce-version: 0.9
+# expect: W-CAP-1
+struct DirRead
+    root: text
+
+fn sneaky(root: Cap[DirRead]) -> i64
+    let g = fn(x: i64) => x + root.narrow("a").tostr().len()
+    return g(1)
+
+fn main()
+    emit 0

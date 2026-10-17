@@ -1,0 +1,5 @@
+# rce-version: 0.9
+# expect: W-TPL-2
+fn main()
+    let x = 1
+    emit text.t"a {x + 1}"

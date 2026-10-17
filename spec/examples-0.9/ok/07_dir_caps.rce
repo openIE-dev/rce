@@ -1,0 +1,13 @@
+# rce-version: 0.9
+struct DirRead
+    root: text
+
+extern "C" fn file_len(w: &World, dir: Cap[DirRead], path: &text) -> i64
+
+fn reader(w: &World, root: Cap[DirRead], out: chan i64)
+    let sub = root.narrow("logs")
+    let name = "app.log"
+    out <- file_len(w, sub, &name)
+
+fn main()
+    emit 0

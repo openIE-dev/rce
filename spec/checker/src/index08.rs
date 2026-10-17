@@ -9,12 +9,55 @@ use std::collections::{HashMap, HashSet};
 
 /// The closed set of contexts (5.16).
 pub const CTX: &[&str] = &["Html", "Url", "Sql", "Json"];
+/// The contexts a version 0.9 module adds (F.5.2). `ShellArg` and `Prompt`
+/// have `lit` and `encode`; `Shell` is made only by `Shell.cmd`.
+pub const CTX09: &[&str] = &["ShellArg", "Prompt", "Shell"];
+
+/// Whether `c` names a context in a module of the given version.
+pub fn is_ctx(c: &str, v09: bool) -> bool {
+    CTX.contains(&c) || (v09 && CTX09.contains(&c))
+}
+
+/// The deterministic data-block wrapper of `Prompt.encode` (F.5.2): the
+/// delimiter is derived from the SHA-256 of the field and is extended by
+/// re-hashing until the field text does not contain it.
+pub fn prompt_encode(s: &str) -> String {
+    use sha2::{Digest, Sha256};
+    let mut h: Vec<u8> = Sha256::digest(s.as_bytes()).to_vec();
+    loop {
+        let hex: String = h.iter().map(|b| format!("{b:02x}")).collect();
+        let d = format!("data-{hex}");
+        if !s.contains(&d) {
+            return format!("<<{d}\n{s}\n{d}>>");
+        }
+        h = Sha256::digest(&h).to_vec();
+    }
+}
+
+/// `Shell.cmd(program, args)` as canonical JSON text: the host runs exactly
+/// this argument vector, with no shell parsing (F.5.2).
+pub fn shell_cmd(program: &str, args: &[String]) -> String {
+    let mut o = String::from("{\"args\":[");
+    for (i, a) in args.iter().enumerate() {
+        if i > 0 {
+            o.push(',');
+        }
+        o.push_str(&encode("Json", a));
+    }
+    o.push_str("],\"program\":");
+    o.push_str(&encode("Json", program));
+    o.push('}');
+    o
+}
+
 /// Type names that are indexed types in a 0.8 module.
 pub const INDEXED: &[&str] = &["Text", "Secret", "Cap", "Guarded"];
 
 /// Encode text for a context (5.16, normative; every runtime agrees).
 pub fn encode(ctx: &str, s: &str) -> String {
     match ctx {
+        "ShellArg" => s.to_string(),
+        "Prompt" => prompt_encode(s),
         "Html" => {
             let mut o = String::new();
             for c in s.chars() {
@@ -181,7 +224,7 @@ pub fn check(m: &Module) -> Vec<String> {
             Item::Fn(fd) => (&fd.sig.name, fd.sig.line),
             _ => continue,
         };
-        if INDEXED.contains(&n.as_str()) || CTX.contains(&n.as_str()) {
+        if INDEXED.contains(&n.as_str()) || is_ctx(n, m.v09) {
             err(l, "W-NAME-2", format!("`{n}` is a version 0.8 indexed type or context (5.16) and cannot be declared"));
         }
     }
@@ -228,7 +271,7 @@ pub fn check(m: &Module) -> Vec<String> {
     for (l, t, what) in &all {
         each(t, &mut |x| match head(x) {
             Some(("Text", a)) => {
-                if a.len() != 1 || !matches!(head(&a[0]), Some((c, b)) if CTX.contains(&c) && b.is_empty()) {
+                if a.len() != 1 || !matches!(head(&a[0]), Some((c, b)) if is_ctx(c, m.v09) && b.is_empty()) {
                     err(*l, "W-CTX-1", format!("`Text` takes one context, one of {}", CTX.join(", ")));
                 }
             }

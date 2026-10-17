@@ -1,0 +1,5 @@
+# rce-version: 0.9
+# expect: W-IFC-6
+fn main()
+    let token: i64 @ {nope} = 7
+    let _ = token

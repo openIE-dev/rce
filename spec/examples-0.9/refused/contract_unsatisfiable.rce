@@ -1,0 +1,9 @@
+# rce-version: 0.9
+# expect: W-CON-1
+fn f(x: i64) -> i64
+    requires x > 5
+    requires x < 3
+    return x
+
+fn main()
+    emit f(1).tostr()

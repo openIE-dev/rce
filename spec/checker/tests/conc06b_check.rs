@@ -23,7 +23,7 @@ fn files(d: &Path) -> Vec<(String, String)> {
 #[test]
 fn accept_programs_check() {
     let fs = files(&dir("accept"));
-    assert_eq!(fs.len(), 5);
+    assert_eq!(fs.len(), 8);
     for (n, s) in fs {
         let r = check_program(&[(n.clone(), s)], false);
         assert!(r[0].1.is_ok(), "{n}: {:?}", r[0].1);
@@ -45,7 +45,7 @@ fn ill_typed_programs_refused_by_rule() {
         rules.insert(want);
     }
     for r in [
-        "W-GRP-1", "W-GRP-2", "W-GRP-3", "W-SES-1", "W-SES-2", "W-SES-3", "W-SCOPE-1", "W-ATOM-1",
+        "W-GRP-1", "W-GRP-2", "W-GRP-3", "W-SES-1", "W-SES-2", "W-SES-3", "W-SES-4", "W-SES-5", "W-SCOPE-1", "W-ATOM-1",
         "W-SUP-1", "W-SUP-2", "W-NODE-1", "W-INTR-1", "W-RT-1", "W-CRDT-1", "W-LVAR-1", "W-LVAR-2",
     ] {
         assert!(rules.contains(r), "no ill-typed program for {r}");

@@ -56,7 +56,8 @@ fn b004_compound_assignment_is_charged_like_binary_op() {
 
 #[test]
 fn b006_b007_indices_are_usize_and_out_of_range_traps() {
-    assert!(diag("const xs: List[i64] = [1]\nconst k: i64 = 0\ncheck xs[k] == 1\n").contains("W-TY-1"));
+    // an i64 index where usize is expected is an implicit narrowing (negative values are lost): W-TY-3
+    assert!(diag("const xs: List[i64] = [1]\nconst k: i64 = 0\ncheck xs[k] == 1\n").contains("W-TY-3"));
     assert!(diag("const xs: List[i64] = [1, 2, 3]\ncheck xs[1:9].len() == 2\n").contains("slice index out of range"));
     assert!(diag("const xs: List[i64] = [1, 2, 3]\ncheck xs[2:1].len() == 0\n").contains("slice bounds reversed"));
     assert!(diag("const xs: List[i64] = [1, 2, 3]\ncheck xs[3] == 0\n").contains("index 3 out of range"));

@@ -1,0 +1,13 @@
+# rce-version: 0.9
+# expect: W-UNUSED-1
+kind Shape
+    Circle(r: i64)
+    Square(s: i64)
+
+fn area(sh: Shape) -> i64
+    match sh
+        Circle(r: r) -> return 3 * r
+        Square(s: side) -> return 4
+
+fn main()
+    emit area(Circle(r: 1)).tostr()

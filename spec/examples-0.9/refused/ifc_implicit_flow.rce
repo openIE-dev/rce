@@ -1,0 +1,10 @@
+# rce-version: 0.9
+# expect: W-IFC-1
+label pii
+
+fn main()
+    let token: i64 @ {pii} = 7
+    var open: i64 = 0
+    if token > 3
+        open = 1
+    emit open.tostr()

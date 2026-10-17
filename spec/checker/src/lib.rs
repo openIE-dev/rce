@@ -3,6 +3,7 @@
 //! plus the tree-sitter port of the grammar for cross-checks.
 pub mod adapters;
 pub mod anf;
+pub mod apidiff;
 pub mod ast;
 pub mod book;
 pub mod brick;
@@ -12,8 +13,15 @@ pub mod check;
 pub mod check06b;
 pub mod cli;
 pub mod conc;
+pub mod core_elab;
+pub mod core_rules;
 pub mod emit;
 pub mod host;
+pub mod ifc;
+pub mod tier2;
+pub mod tier3;
+pub mod caretaker;
+pub mod manifest;
 pub mod index08;
 pub mod interp;
 pub mod lalr;
@@ -26,12 +34,16 @@ pub mod refine;
 pub mod repl;
 pub mod sandbox;
 pub mod specdata;
+pub mod mpst;
+pub mod mpst_async;
+pub mod session_prio;
 pub mod specread;
 pub mod tls;
 #[cfg(feature = "tree-sitter")]
 pub mod ts;
 pub mod types;
 pub mod unparse;
+pub mod v09;
 pub mod wasm_float;
 use std::collections::HashSet;
 
