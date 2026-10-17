@@ -77,4 +77,4 @@ only material read while building it.
 
 ## License
 
-Apache-2.0. See `LICENSE`.
+Licensed under either of Apache License, Version 2.0 (`LICENSE-APACHE`) or the MIT license (`LICENSE-MIT`), at your option. Copyright (c) 2026 Open Interface Engineering, Inc. See `COPYRIGHT`.
