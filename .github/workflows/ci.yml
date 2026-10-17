@@ -4,9 +4,13 @@ on:
   push:
   pull_request:
 
+# The test suite is split so no single job runs for hours: the fast tests and
+# each slow vector suite (scripts/ci-tests.sh lists them) are separate jobs,
+# each with a timeout, each run with and without the version 0.6 suites.
 jobs:
   spec:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     defaults:
       run:
         working-directory: spec/checker
@@ -14,23 +18,74 @@ jobs:
       - uses: actions/checkout@v4
       - name: Install the pinned Rust toolchain
         run: rustup show
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: spec/checker
       - name: Build
         run: cargo build --release
       - name: Check the specification and examples
         run: cargo run --release --bin rce-spec-check
       - name: Check the book is in sync
         run: cargo run --release --bin rce-book -- build --check
-      # tree_sitter_sync needs the tree-sitter CLI; it runs in the
-      # tree-sitter-sync workflow
-      - name: Tests
-        run: cargo test --release -- --skip tree_sitter_agrees_with_rust_parser
-      - name: Tests with the version 0.6 suites
-        run: cargo test --release --features conc06 -- --skip tree_sitter_agrees_with_rust_parser
       - name: Clippy
         run: cargo clippy --release --all-targets
 
+  tests-fast:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        features: ["", "conc06"]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install the pinned Rust toolchain
+        run: rustup show
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: spec/checker
+      # tree_sitter_sync needs the tree-sitter CLI; it runs in the
+      # tree-sitter-sync workflow
+      - name: Fast tests
+        env:
+          RCE_FEATURES: ${{ matrix.features }}
+        run: bash scripts/ci-tests.sh fast
+
+  tests-slow:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        features: ["", "conc06"]
+        bin:
+          - dst_chat
+          - emit
+          - framing_rce
+          - fuel
+          - golden_apps
+          - group_rce
+          - hpke_rce
+          - mls_rce
+          - pq_rce
+          - protect_rce
+          - treekem_rce
+          - welcome_rce
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install the pinned Rust toolchain
+        run: rustup show
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: spec/checker
+      - name: Slow test binary ${{ matrix.bin }}
+        env:
+          RCE_FEATURES: ${{ matrix.features }}
+        run: bash scripts/ci-tests.sh bin ${{ matrix.bin }}
+
   tree-sitter:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     defaults:
       run:
         working-directory: spec/checker
