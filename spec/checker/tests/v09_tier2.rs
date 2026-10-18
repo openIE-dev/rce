@@ -65,3 +65,16 @@ fn every_emitter_refuses_ct_fn_with_the_fixed_message() {
     }
 }
 
+
+#[test]
+fn labels_are_erased_so_every_emitter_translates_them_and_the_refusal_names_no_version() {
+    for f in ["ok/05_ifc_labels.rce", "ok/06_ifc_release_endorse.rce"] {
+        let src = std::fs::read_to_string(format!("../examples-0.9/{f}")).unwrap();
+        for t in ["python", "js", "rust"] {
+            rce_spec_check::cli::emit(t, &src).unwrap_or_else(|e| panic!("{f} {t}: {e}"));
+        }
+    }
+    let src = std::fs::read_to_string("../examples-0.9/ok/11_contracts_ghost.rce").unwrap();
+    let e = rce_spec_check::cli::emit("python", &src).unwrap_err();
+    assert!(e.contains("W-RES-1") && e.contains("reserved, not implemented") && !e.contains("version 0.9"), "{e}");
+}
