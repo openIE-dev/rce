@@ -1,4 +1,3 @@
-# rce-version: 0.8
 module rand.det
 
 # Deterministic random streams (survey M12). A generator is the RFC 8439

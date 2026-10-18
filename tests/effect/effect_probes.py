@@ -6,7 +6,7 @@
 # (vectors/effect/rce-examples/): each accept program is admitted, each
 # ill_typed program is refused with the code in MANIFEST.
 # Usage: RCE=path/to/rce python3 tests/effect/effect_probes.py   (exit 1 on any mismatch)
-import os, subprocess, sys, tempfile
+import os, re, subprocess, sys, tempfile
 RCE = os.environ.get('RCE', 'rce')
 root = os.path.join(os.path.dirname(os.path.abspath(__file__)), '../..')
 
@@ -24,7 +24,7 @@ CALLS = {('fn', 'task'): 0, ('step', 'task'): 0, ('actor', 'task'): 0, ('task', 
          ('fn', 'fn'): 1, ('step', 'fn'): 1, ('actor', 'fn'): 1, ('task', 'fn'): 1, ('main', 'fn'): 1}
 
 COMMON = '''error Bad(n: i64)
-extern "C" fn c_tick() -> u32
+extern "C" fn c_tick(w: &World) -> u32
 fn worker(w: chan i64)
     w <- 1
 fn pure_helper(x: i64) -> i64 = x + 1
@@ -32,31 +32,37 @@ fn pure_helper(x: i64) -> i64 = x + 1
 BODY = {
     'emit': ['emit 1'],
     'fail': ['fail Bad(n: 1)'],
-    'spawn': ['spawn worker(c)'],
+    'spawn': ['scope', '    spawn worker(c)'],
     'send': ['c <- 1'],
-    'recv': ['let v = <- c'],
+    'recv': ['let _v = <- c'],
     'select': ['select', '    recv some(x) from c -> emit x', '    recv none from c -> emit 0'],
-    'foreign': ['let t = c_tick()'],
+    'foreign': ['let _t = c_tick(w)'],
     'state': ['n += 1'],
     'call_task': ['worker(c)'],
-    'call_fn': ['let y = pure_helper(1)'],
+    'call_fn': ['let _y = pure_helper(1)'],
 }
 def prog(ctx, body):
+    # one language: an unread name is refused (W-UNUSED-1), so a probe names `c` and the
+    # world `_c`, `_w` unless its body reads them; the world is held by main and tasks only
+    txt = ' '.join(body)
+    c = 'c' if re.search(r'\bc\b', txt) else '_c'
+    w = 'w' if 'c_tick(w)' in txt else '_w'
     b = '\n'.join('    ' + l for l in body)
+    nl = '\n'
     if ctx == 'fn':
-        return COMMON + 'fn probe() -> i64 ! Bad\n    let c = chan[i64](1)\n%s\n' % b + ('' if body == BODY['fail'] else '    return 0\n')
+        return COMMON + 'fn probe() -> i64 ! Bad\n    let %s = chan[i64](1)\n%s\n' % (c, b) + ('' if body == BODY['fail'] else '    return 0\n')
     if ctx == 'task':
-        return COMMON + 'fn probe(c: chan i64) -> i64 ! Bad\n%s\n' % b + ('' if body == BODY['fail'] else '    return 0\n')
+        return COMMON + 'fn probe(%s: &World, %s: chan i64) -> i64 ! Bad\n%s\n' % (w, c, b) + ('' if body == BODY['fail'] else '    return 0\n')
     if ctx == 'main':
-        return COMMON + 'fn main()\n    let c = chan[i64](1)\n%s\n' % b
+        return COMMON + 'fn main(%s: &World)\n    let %s = chan[i64](1)\n%s\n' % (w, c, b)
     if ctx == 'step':
         # a state step cannot take a channel in its event (W-TY-2) and
         # cannot start an actor (W-EFF-1), so it makes its own channel
-        return COMMON + 'event Go\nstate S\n    n: i64 = 0\nstep S on Go\n    let c = chan[i64](1)\n%s\n' % b
+        return COMMON + 'event Go\nstate S\n    n: i64 = 0\nstep S on Go\n    let %s = chan[i64](1)\n%s\n' % (c, b)
     if ctx == 'actor':
-        return COMMON + 'event Go(c: chan i64)\nactor A\n    n: i64 = 0\n    on Go(c: c)\n%s\n' % '\n'.join('        ' + l for l in body)
+        return COMMON + 'event Go(c: chan i64)\nactor A\n    n: i64 = 0\n    on Go(c: %s)\n%s\n' % (c, nl.join('        ' + l for l in body))
     if ctx == 'comptime':
-        return COMMON + 'const N: usize = 16\nfn probe() -> usize\n    comptime\n        let c = chan[i64](1)\n%s\n    return N\n' % '\n'.join('        ' + l for l in body)
+        return COMMON + 'const N: usize = 16\nfn probe() -> usize\n    comptime\n        let %s = chan[i64](1)\n%s\n    return N\n' % (c, nl.join('        ' + l for l in body))
 
 # Cells the checker cannot be shown to allow would be listed here and
 # reported, not failed. None: a step reaches a channel only by making one

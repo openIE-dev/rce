@@ -461,7 +461,7 @@ fn pqxdh_dh_resp(ikb: text, spkb: text, ika_pub: text, eka_pub: text) -> text
 # "" when ss or dh is empty: mlkem_decaps answers "" for an input it refuses
 # (FIPS 203 7.3), and an empty secret must never reach the key derivation.
 fn pqxdh_sk(dh: text, ss: text) -> text
-    if ss.len() == 0 or dh.len() == 0
+    if ss.len_bytes() == 0 or dh.len_bytes() == 0
         return ""
     return tohex(hkdf([], cat(cat(ff32(), unhex(dh)), unhex(ss)), tobytes(PQXDH_INFO), 32))
 

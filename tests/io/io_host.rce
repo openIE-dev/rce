@@ -78,7 +78,7 @@ step H on FileWriteDone(req: r, status: s, data: d, err: e)
     let tag = settle(&mut p, &K_WRITE, r)
     let ok = result_ok(&s, copy(d), &e) and tag != none and (s == DELIVERED) == want(&expect_ok, r)
     let n = delivered(&s, copy(d), &e)
-    let sized = s != DELIVERED or n == some(tag.or("").len() as u64)
+    let sized = s != DELIVERED or n == some(tag.or("").len_bytes() as u64)
     if ok and sized
         good += 1
     else

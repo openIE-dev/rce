@@ -9,7 +9,7 @@
 fn hexb(h: text) -> List[i64]
     var o: List[i64] = []
     var i: usize = 0
-    while i + 1 < h.len() bound 16777216
+    while i + 1 < h.len_bytes() bound 16777216
         o.push(hnib(h[i] as i64) * 16 + hnib(h[i + 1] as i64))
         i += 2
     return o
@@ -70,7 +70,7 @@ fn opens_v1(e: text) -> bool
     let o = open_envelope(&b) catch OpenedReceipt(receipt: sample(99), prot: [], payload: [], kid: "", sig: [])
     return o.receipt.profile == "jcp/1" and o.receipt.payload_hash == ""
 
-fn rejects(why: text, e: text) -> bool
+fn rejects(_why: text, e: text) -> bool
     let b = hexb(e)
     let o = open_envelope(&b) catch OpenedReceipt(receipt: sample(99), prot: [], payload: [], kid: "refused", sig: [])
     return o.kid == "refused"
