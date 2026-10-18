@@ -47,7 +47,7 @@ fn build(spec: text) -> Cmd
         elif k == "gid"
             c.gid = num(&v)
         else
-            let ok = set_stdio(&mut c, &k, &v) catch false
+            let _ok = set_stdio(&mut c, &k, &v) catch false
         i += 1
     return c
 fn num(s: &text) -> i64

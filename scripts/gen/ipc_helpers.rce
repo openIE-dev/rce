@@ -4,7 +4,7 @@ fn unhex(t: &text) -> List[u8]
     if t == "-"
         return o
     var i: usize = 0
-    while i + 1 < t.len() bound 16777216
+    while i + 1 < t.len_bytes() bound 16777216
         o.push(hv(t[i]) * 16 + hv(t[i + 1]))
         i += 2
     return o

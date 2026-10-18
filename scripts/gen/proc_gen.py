@@ -12,11 +12,13 @@
 #    random words through Python's shlex.split / quote / join.
 # Usage: python3 scripts/gen/proc_gen.py  (needs rustc; writes tests/os)
 import os, random, resource, shlex, signal, subprocess, sys, tempfile, time
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from _rn import esc  # invisible characters are written as \u{HEX} (W-LEX-4)
 here = os.path.dirname(os.path.abspath(__file__)); root = os.path.join(here, '../..')
 def lit(s):
     o = ''
     for c in s:
-        o += {'"': '\\"', '\\': '\\\\', '\n': '\\n', '\r': '\\r', '\t': '\\t'}.get(c) or (c if ord(c) >= 32 and ord(c) != 127 and not 0x80 <= ord(c) < 0xa0 else '\\u{%x}' % ord(c))
+        o += {'"': '\\"', '\\': '\\\\', '\n': '\\n', '\r': '\\r', '\t': '\\t'}.get(c) or (esc(c) if ord(c) >= 32 and ord(c) != 127 and not 0x80 <= ord(c) < 0xa0 else '\\u{%x}' % ord(c))
     return '"' + o + '"'
 US = '\x1f'
 tmp = tempfile.mkdtemp()

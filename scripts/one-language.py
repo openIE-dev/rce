@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
-"""Bring the library and its check shards to the one-language rules, mechanically and idempotently.
+"""Generators (scripts/gen/*, through _rn.esc/rn and their templates) emit one-language text themselves; this script is the
+verifier and the repair tool for hand-written files: after a generator run it must change nothing.
+Bring the library and its check shards to the one-language rules, mechanically and idempotently.
 For every lib/<area>/<name>.rce (with its dependency modules from `# uses:`) and each of its check shards the
 assembled module is checked with `rce check` and the findings are fixed in the source file that owns the line:
   W-LEX-4   invisible, bidi, control characters -> \\u{HEX}           (done on the text, before checking)

@@ -8,5 +8,11 @@ _ns = {}
 exec(compile(_src, 'rename-reserved.py', 'exec'), _ns)
 _map = _ns['load'](os.path.join(_here, '..', 'rename-reserved.map'))
 
+import re
+# W-LEX-4: invisible, bidi and control characters are never written literally into a source text
+_LEX = re.compile('[\u202a-\u202e\u2066-\u2069\u061c\u200e\u200f\u200b-\u200d\u2060-\u2064\ufeff\u00ad\u034f\u180e\u115f\u1160\u17b4\u17b5\u3164\uffa0\ufff9-\ufffb\U000e0000-\U000e007f\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f\ufdd0-\ufdef\U00040000-\U000dffff\ufffe\uffff]')
+def esc(text):
+    return _LEX.sub(lambda m: '\\u{%X}' % ord(m.group(0)), text)
+
 def rn(text):
-    return _ns['rename'](text, _map)
+    return esc(_ns['rename'](text, _map))
