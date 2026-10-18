@@ -134,9 +134,9 @@ each can be reversed independently.
     whitespace set is enumerated, so a toolchain upgrade cannot change a
     result.
 
-53. **Draft 0.9 is a new version** (number 0.9, never reuse 0.6), because it
-    refuses programs 0.8 accepts and changes `&mut` after a failed call
-    (C.15 rule).
+53. **Draft 0.9 is a new release** (label 0.9, never reuse 0.6), because it
+    refuses programs 0.8 accepted and changes `&mut` after a failed call
+    (C.15 rule). Superseded in form by decision 64: the label gates nothing.
 54. **A failed call restores its `&mut` arguments** when every effect since
     entry is undoable; a function that could fail after a non-undoable effect
     is refused (F.4.4).
@@ -158,6 +158,14 @@ each can be reversed independently.
 63. **New theorems T42 to T56 are numbered after T41 and are stated,
     unproved**; the survey's "T17" for noninterference became T42 because
     T17 is the `par` diamond lemma (F.9).
+64. **One language, one text.** The language is the text of one spec commit; `# rce-version:` is a release
+    label, tolerated, ignored and not hashed (2.7), and a label names exactly one spec commit (C.15). No module
+    selects older rules; one global reserved list (2.4); a construct that is specified and not
+    implemented is refused as reserved, not implemented (W-RES-1). Derivation: one meaning per construct
+    (F, principle e) forbids a program meaning two things depending on a comment, and the cost of a
+    version-mixed program (C.15 of the earlier text) was exactly such a dependence. The standard library
+    was migrated once (`label` to `lbl`, `Json` to `JsonDoc`, `Url` to `UrlParts` and the other renamed names);
+    the mapping is in the stdlib README.
 
 ### 9.1 Changes made while mechanizing (draft 0.1 → 0.2)
 
@@ -385,4 +393,4 @@ checked by `scripts/claim-counts.py --check`.
 
 **Read receipt.** The decisions list says it decides gaps in which file?
 
-<!-- body-sha256: ff45ae94e1c1a3b84f3306b673307ff11857d3b8bb97053640d2e415c947e50c -->
+<!-- body-sha256: de04c4ad325a113a32bdde1a093d0eaf81b9ec5b2072856072aa012efa8bf641 -->

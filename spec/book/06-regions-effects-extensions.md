@@ -185,7 +185,7 @@ against the reference evaluator (`spec/checker/tests/stdlib_costs.rs`).
 | `Set` | Set[τ] | `contains`, `insert`, `inter`, `len`, `tolist`, `union` |
 | `Opt` | τ? | `isnone`, `issome`, `or` |
 
-`raw` exists only in a version 0.8 module and only on `Text[C]` (5.16). `len_bytes` and `len_chars` exist only in a version 0.9 module, where `len` on text is refused (W-LEN-1, F.5.2).
+`raw` exists only on `Text[C]` (5.16). Text has `len_bytes` and `len_chars` and no unqualified `len`, which is refused (W-LEN-1, F.5.2).
 
 **Sets and map merge (normative).** A `Set[τ]` is its own value, not a
 `List[τ]`: it holds its elements in canonical order without duplicates
@@ -224,16 +224,15 @@ that are not events (a `select nondet` choice, a foreign result) are
 logged, so replay is deterministic (T1, T21). A capability that is not in
 this list cannot be added by a library, because the library is closed.
 
-**Cost semantics.** Each standard library call costs `c_call`; in a
-version 0.7 module it costs in addition the work of its complexity class
-on the sizes of its receiver and argument (C.6.4, C.15); see C.6 for the
-budget rules.
+**Cost semantics.** Each standard library call costs `c_call` plus the work
+of its complexity class on the sizes of its receiver and argument (C.6.4);
+see C.6 for the budget rules.
 
-### 5.16 Indexed values (version 0.8)
+### 5.16 Indexed values
 
-In a module declaring `# rce-version: 0.8` four type names and four
+In every module four type names and four
 contexts belong to the language: `Text[C]`, `Secret[τ]`, `Cap[A]`,
-`Guarded[τ, A]`, and `Html`, `Url`, `Sql`, `Json`. A 0.8 module may not
+`Guarded[τ, A]`, and `Html`, `Url`, `Sql`, `Json`. No module may
 declare an item with one of these names (W-NAME-2). Each is a type
 *index*: the value is a value of the base type (text, τ, `()`, τ), and
 the index is a static fact the checker carries. Indices are erased at
@@ -299,4 +298,4 @@ capability never changes the guarded field (T36).
 
 **Read receipt.** What kind of channel does a capacity of 0 give? (one word)
 
-<!-- body-sha256: f76dd473cd84a9d2911ba3b1fb03f61e89abfbbb9d63c964b876a7de38ae7dca -->
+<!-- body-sha256: 94ed5923623f65f5b78682ecd4a03a433fe1000598dc036f40ffc187a1892918 -->

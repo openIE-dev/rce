@@ -5,25 +5,25 @@ an agent proves it read them by following `READ-PROTOCOL.md`.
 
 | File | Body SHA-256 | Read-receipt question |
 |---|---|---|
-| `00-overview.md` | `46ea14d3ed337ef5da978600614fbe3339179e6cbf1f4e3ccf4557efa8898659` | In the overview's tiny example, what is the name of the event? |
+| `00-overview.md` | `3c2dfb5798710e0d9dd38677d2148e4131a7c70ebfe736a673b23d2450613bc5` | In the overview's tiny example, what is the name of the event? |
 | `01-notation.md` | `c76056a1984c61b4ddce8745feb78c2cff67ef2295e40b3d2082f67e4cbecef4` | In the grammar notation, what does a Repetition `{ ... }` mean, in the spec's words? |
-| `02-lexical.md` | `1ddd28e32ada7648b2261ba0addc0899841eb277b307fec08f826bdd32153041` | Which code point is the horizontal tab, as written in this section? |
+| `02-lexical.md` | `2969f1420272ac651ff7991aa16714f7ed9285441021160f137f33441c871bf3` | Which code point is the horizontal tab, as written in this section? |
 | `03-syntax.md` | `6ae5395feaedeeaca66120e545c63a5cbebfc4bc70423d7745eb524484e0925d` | Which numbered resolution rule in 3.11 covers `send`? (for example R1) |
 | `04-programs.md` | `36aa75c5ccf91fc1e58278eac48086a4b441d0175ea55753e3ad5b3e3788f878` | What is the outermost scope called? (one word) |
-| `05-types-ownership.md` | `b2fc1cbff2e0fc74726cbfe875bd8ac2e642c27db75dc5399d11898d6a3e6706` | What is the name of the example kind used to illustrate error sets? |
-| `06-regions-effects-extensions.md` | `f76dd473cd84a9d2911ba3b1fb03f61e89abfbbb9d63c964b876a7de38ae7dca` | What kind of channel does a capacity of 0 give? (one word) |
-| `07-form-evaluation.md` | `e3fd75261cf645a472c609e85dee7d5c6f309cd89eb732cb2973025eb4fe1760` | Which JavaScript function is named for rounding to binary32? |
+| `05-types-ownership.md` | `02ac9d12d4e0e96656f200f8328965028a511328a7affa24d233988588eef3b4` | What is the name of the example kind used to illustrate error sets? |
+| `06-regions-effects-extensions.md` | `94ed5923623f65f5b78682ecd4a03a433fe1000598dc036f40ffc187a1892918` | What kind of channel does a capacity of 0 give? (one word) |
+| `07-form-evaluation.md` | `e2af17e430e29c18185be20a37e52a7399287867b874f975b7888189f6c506a7` | Which JavaScript function is named for rounding to binary32? |
 | `08-steps-loops-concurrency.md` | `22b852f3d01aa50cf11433f9c5206c856ceb0205e9991b8c4f276b6ceb772fbe` | Name-free hashing uses indices named after which logician? (two words) |
-| `09-wellformedness.md` | `f97d0e776a90e124af05ca02979bb6b84c81409ee381abd5351bae86dcb87118` | Which rule refuses two unguarded steps in one region whose patterns overlap? |
-| `10-theorems.md` | `0c2359d99dc3e253e8816443f1d87cc9b5fb1318cc452de9b999c0c1a4819b7d` | What is the deep embedding of the emitted Rust subset called? |
-| `11-decisions.md` | `ff45ae94e1c1a3b84f3306b673307ff11857d3b8bb97053640d2e415c947e50c` | The decisions list says it decides gaps in which file? |
+| `09-wellformedness.md` | `46e73d53d86f66272f6a543db803efeb9538bd8737ba7c81ceaa8b4b78767bd7` | Which rule refuses two unguarded steps in one region whose patterns overlap? |
+| `10-theorems.md` | `a5ba97d135cec04efae74cec9e0966bfc3f2b14e10ac866c88c80538d9b6bbd5` | What is the deep embedding of the emitted Rust subset called? |
+| `11-decisions.md` | `de04c4ad325a113a32bdde1a093d0eaf81b9ec5b2072856072aa012efa8bf641` | The decisions list says it decides gaps in which file? |
 | `12-tooling.md` | `5c2b8f2dfd9dea59d60dce9af7edd5aeb9b5eed1aa745d3c4ccdec4cd5941263` | Which JSON-RPC error code does the language server return for a request it does not know? (a number) |
 | `13-references.md` | `ac72852386a36ef0d84e868bf2f2c771b662a7699b29363418f1f659ad730068` | Who wrote "Communicating Sequential Processes"? (surname) |
-| `14-draft06-concurrency.md` | `71be1c1d289be03ce5bf0bb48c8cbba73fb238c6f59d6759578a4a21c615b54a` | How many words does a version 0.6 module reserve in addition to the 0.5 keywords? (a number) |
+| `14-draft06-concurrency.md` | `1821fbe2bffe8a79affb84a39b893143d1bf4c6458510e32002c25334f1e0450` | How many words does a version 0.6 module reserve in addition to the 0.5 keywords? (a number) |
 | `15-handler-spec-profile.md` | `1874e9e31a2d9052aa44b11e865e0a8bb2977c7c3bd072bdb8a9dd40b79d205a` | Which compiled node id does `deliverable D1` become? (for example role_R1) |
 | `16-host-contract.md` | `52ca914e4ad21dce546e4215776e6d6f4f990d48a7d28911b3fea83b3ae9ca14` | Which fcntl command is the append barrier on macOS? (for example F_SETFL) |
-| `17-draft09.md` | `56e6f134cbb5fa33512a5e189e42d3fca4a6d7b250d25b0ada08032b0d7a3b37` | How many words does a version 0.9 module reserve in addition to the 0.8 keywords? (a number) |
+| `17-draft09.md` | `1c5019ab227d2e53454f9b692cbbaae433f62ed8e56d4e54d48983c69bdf66a6` | How many words does a version 0.9 module reserve in addition to the 0.8 keywords? (a number) |
 
 The single-file spec `spec/RCE-SPEC.md` is generated from these files.
 
-<!-- body-sha256: 710957a15f9df823c3e492676c7495f3c5afd648893e1fb3d092c396137e5c68 -->
+<!-- body-sha256: 386e4a2f6036047d33d186fb2aa7a6c3ed12cebd5bbdcb0ed614cf51efb66d50 -->

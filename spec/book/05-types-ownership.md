@@ -42,8 +42,8 @@ the Form's unsigned operations (6.3 N8, draft 0.5), so the whole range
 [0, 2^64) is available; drafts up to 0.4 trapped any u64 result at or above
 2^63 (D7).
 
-**Text is byte-indexed (draft 0.5).** `s.len()` is the number of UTF-8
-bytes, `s[i]` is the byte at offset i as a `u8`, and `s[a:b]` is the text
+**Text is byte-indexed (draft 0.5).** `s.len_bytes()` is the number of UTF-8
+bytes (`s.len_chars()` the number of characters; unqualified `len` on text is refused, W-LEN-1), `s[i]` is the byte at offset i as a `u8`, and `s[a:b]` is the text
 between byte offsets a and b, which must both be character boundaries
 (otherwise `trap("not a char boundary")`). Iterating `for c in s` still
 yields one-character texts. Go, Rust and Zig all index text by byte; the
@@ -311,4 +311,4 @@ sound and is excluded (F.2).
 
 **Read receipt.** What is the name of the example kind used to illustrate error sets?
 
-<!-- body-sha256: b2fc1cbff2e0fc74726cbfe875bd8ac2e642c27db75dc5399d11898d6a3e6706 -->
+<!-- body-sha256: 02ac9d12d4e0e96656f200f8328965028a511328a7affa24d233988588eef3b4 -->

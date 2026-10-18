@@ -8,7 +8,7 @@
 //! * `chapters`: file name to body SHA-256, for every chapter of INDEX.md;
 //! * `grammar` / `grammar_06`: the LALR(1) terminals, nonterminals,
 //!   productions, ACTION and GOTO tables built from section 3 (and with C.2
-//!   applied for versions 0.6 and 0.7);
+//!   applied);
 //! * `w_rules`: every W-rule of section 7 with its text;
 //! * `edges`: the 6.3 edge semantics N1 to N11 with their text;
 //! * `methods`: the 5.15 standard library table (receiver, RCE type, methods);

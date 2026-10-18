@@ -1,6 +1,6 @@
-## Appendix F. Draft 0.9 (normative for version 0.9 modules; implemented in part, see F.12)
+## Appendix F. Draft 0.9 (normative; implemented in part, see F.12)
 
-Appendix F specifies version 0.9. It applies the proposals of the 2025+
+Appendix F specifies the language's security, hygiene and contract rules. It applies the proposals of the 2025+
 language survey (`spec/LANGUAGE-REVIEW.md` records the earlier review) and of
 the security study, after a full read of their sources. Each rule here is
 derived from a stated principle or an existing theorem, and the derivation is
@@ -8,25 +8,19 @@ given next to the rule; none is taken from a source language for its own
 sake. The decisions are recorded in 9.7 and 9.8.
 
 **Status of this appendix.** It is a specification, implemented in part by the
-reference checker. F.12 lists, rule by rule, what the reference checker enforces
-and what it does not. A module that declares `# rce-version: 0.9` is accepted
-(W-VER-1); a construct of this appendix that the checker does not implement is
-*refused by version* (W-VER-2), never read as an ordinary name and never
-silently ignored; a rule of this appendix that is not a construct and is not
-implemented is listed in F.12 as not enforced. The Lean files, the emitters and
-the tree-sitter port do not implement Appendix F (an emitter refuses a 0.9
-module that needs a rule it does not implement, F.4.4). Every theorem it states
+reference checker, and it applies to every module: no declaration selects it (2.7). F.12 lists, rule by rule,
+what the reference checker enforces and what it does not. A construct of this appendix that the
+checker does not implement is *reserved, not implemented* (W-RES-1), refused, never read as an ordinary
+name and never silently ignored; a rule of this appendix that is not a construct and is not implemented is
+listed in F.12 as not enforced. The Lean files, the emitters and the tree-sitter port do not implement all of
+Appendix F (an emitter refuses a module that needs a rule it does not implement, F.4.4). Every theorem it states
 (T42 to T56, section 8) is an obligation marked *stated, unproved*; this
 appendix and its implementation claim no proof.
 
-**Version number.** Draft 0.9 is the next free number. Earlier working notes
-called this list "draft 0.6"; 0.6, 0.7 and 0.8 are taken (C.15, C.16), and a
-version number is never reused (C.15), so this is version 0.9. By the C.15
-rule it is a version, not an erratum or extension: it refuses programs that
-0.8 accepts (F.3, F.4) and gives `&mut` arguments a different value after a
-failed call (F.4.4), so applying it silently to a 0.8 module would change that
-module's meaning. A module of version 0.5 to 0.8 never sees Appendix F, and
-modules of different versions may `use` each other (2.7).
+**Release label.** Earlier working notes called this list "draft 0.6", then "version 0.9". It is part of the one
+language of this text. By the C.15 rule a release that carries it is a new release, not an erratum or
+extension of an earlier one: it refuses programs that earlier text accepted (F.3, F.4) and gives `&mut`
+arguments a different value after a failed call (F.4.4). A release label names exactly one spec commit (C.15).
 
 **Principles used for derivation.** (a) Least privilege: authority is a value
 that is passed, never ambient (5.15). (b) Soundness: a rule that the checker
@@ -36,8 +30,7 @@ the same program and log give the same result on every target (T1, T3).
 and no meaning that depends on position, tool, platform or flag. A proposal
 that breaks (b), (c) or (d) is excluded (F.2), whatever its benefit.
 
-**Reserved words.** A version 0.9 module reserves these ten words in addition
-to the 0.8 keywords (except directly after `.`):
+**Reserved words.** These ten words are on the reserved list of 2.4 (except directly after `.`):
 
 ```
 requires  ensures   decreases ghost     ct
@@ -45,8 +38,8 @@ declassify endorse  release   label     law
 ```
 
 and the type names `World`, `Template`, `Shell`, `Prompt` and `mathint`, which
-a 0.9 module may not declare (W-NAME-2), as in 5.16. In a 0.5 to 0.8 module
-all of these are ordinary names.
+no module may declare (W-NAME-2), as in 5.16. They are reserved in every module; a word whose construct
+this checker does not have is refused with W-RES-1 (F.12).
 
 ### F.1 How an item is applied
 
@@ -95,11 +88,10 @@ loses the word "specified, not yet implemented".
 **F.3.1 Stale text (P11).** Items of the specification that did not match the
 specification itself or the implementations are corrected in this draft and
 listed in 9.7: decisions 8, 11, 12, 21 and 29, the Copy list of 5.5 (it now
-includes f32), W-VER-1 and 2.7 (they now name 0.8 and 0.9), and the status
-paragraph of the overview. These are errata and apply to every version
-(C.15 rule).
+includes f32), 2.7 (the release label), and the status
+paragraph of the overview. These are errata (C.15 rule).
 
-**F.3.2 Unused values (P8).** In a version 0.9 module:
+**F.3.2 Unused values (P8).** In every module:
 
 - W-UNUSED-1: a `let`, `var`, parameter, pattern binding or `use` name that is
   never read is refused. The wildcard `_` and any name beginning with `_`
@@ -121,7 +113,7 @@ is dead code or a mistake, and refusing it costs no expressiveness.
 Examples and the fuzz generator must be written clean before the rules are
 enabled (F.11).
 
-**F.3.3 Lexical hygiene (S8).** In a version 0.9 module:
+**F.3.3 Lexical hygiene (S8).** In every module:
 
 - W-LEX-4: a source text containing a bidirectional control character
   (U+202A to U+202E, U+2066 to U+2069), a zero-width or invisible format
@@ -151,7 +143,7 @@ enabled (F.11).
 Derivation: T1 and principle (e): the meaning of a token or a name must not
 change with a tool, a font or a position.
 
-**F.3.4 Arithmetic and floats (restated, normative for 0.9).** These are
+**F.3.4 Arithmetic and floats (restated, normative).** These are
 already the meaning of 6.3 and are restated so that Appendix F is complete:
 `+ - *` on fixed-width integers trap on overflow; division by zero and an
 out-of-range shift trap; wrapping, saturating and checked forms are named
@@ -159,7 +151,7 @@ methods (5.15); integers have the same width on every target; one float
 operation is one IEEE 754 operation with one rounding (no contraction of
 `a*b+c`, no extended precision); a float that would be NaN or infinite traps
 (decision 51), so f64 `==` and the total order of 6.3 agree and `Eq` and
-`Ord` hold for f64. New in 0.9: a bounded integer type is distinct from its
+`Ord` hold for f64. New here: a bounded integer type is distinct from its
 base (a refined type, 5.1) and an operation whose result leaves the range
 refuses, never wraps; division and remainder name their rounding as methods
 `div_floor`, `div_trunc`, `div_euclid` and `div_exact` (the last refuses on a
@@ -291,11 +283,9 @@ from event names to items (the hash must not depend on names), and
 determinism (c): a build is a function of hashes. The tool is a pure function
 of its two inputs. Theorem: T50 (stated, unproved).
 
-**F.4.4 Transactional calls (P1).** In a version 0.9 module a call that
+**F.4.4 Transactional calls (P1).** A call that
 returns by `fail` leaves every `&mut` argument and every owned local of the
-callee's caller as they were at the call. (In 0.5 to 0.8 `&mut` arguments are
-written back on every outcome, 6.2 and T33; T33 stays true for those
-versions.) Rules:
+callee's caller as they were at the call. (The earlier rule wrote them back on every outcome, T33; it is retired, 6.2.) Rules:
 
 - The restore applies only if every effect since entry is *undoable*. The
   undoable effects are: writes to owned values (locals, `&mut` arguments, the
@@ -325,7 +315,7 @@ instead, charged as the existing copy-out. Theorem: T47 (stated, unproved).
 ### F.5 Tier 2: items that use Tier 1
 
 **F.5.1 Capability-only effects (S2).** 5.16 gives `Cap[A]` and `Guarded[τ, A]`;
-version 0.9 adds the file-system and revocation rules on top of the same
+this appendix adds the file-system and revocation rules on top of the same
 mechanism. No new ambient authority exists: the process has no current
 directory, no environment and no global default.
 
@@ -385,7 +375,7 @@ contexts of 5.16 (`Html`, `Url`, `Sql`, `Json`) gain two more, `Shell` and
   predicate; migrations between versions of a persisted record are explicit
   versioned functions, never implicit defaults.
 - Text operations name their unit: `len_bytes` and `len_chars` (code points);
-  there is no unqualified `len` in a 0.9 module on text. Equality is exact
+  there is no unqualified `len` on text. Equality is exact
   code point equality; normalization is an explicit function at input
   boundaries. Identifiers that cannot be represented in a target are refused
   by the emitter, never transliterated.
@@ -530,7 +520,7 @@ fn withdraw(acct: &mut Account, amount: u64) -> u64
   There is no witness clause and no implicit conversion from τ to R.
 - A type with an invariant is opaque outside its module: construction only by
   the validating constructor; fields are not exported.
-- A function value (a closure or `fn` value) has no contracts in 0.9, and a
+- A function value (a closure or `fn` value) has no contracts here, and a
   function with `requires` becomes a value only wrapped to return `Option` or
   `Result` (F.8).
 
@@ -610,7 +600,7 @@ and a binding unused in `A` is W-UNUSED-1. An irrefutable pattern leaves the
 wildcard arm unreachable and is refused by W-MATCH-2. The spelling of the
 first draft, `if let P = e then A else B` with a chain `and let P2 = e2`, is
 not the grammar of this language and is withdrawn: a chain with a second
-`let` is specified for a later draft and is refused by version (W-VER-2).
+`let` is specified for a later draft and is reserved, not implemented (W-RES-1).
 
 Derivation: determinism (c); one construct style (e): the other statements
 take blocks, not `then`. `if let` is sugar over `match`, so no theorem
@@ -672,8 +662,8 @@ untrusted data, never as an instruction the checker can verify.
 
 ### F.8 Further rules (derived, grouped)
 
-Each row states a rule of version 0.9 and its derivation; "already" means the
-text of the cited section already gives that meaning and 0.9 only states it
+Each row states a rule of this appendix and its derivation; "already" means the
+text of the cited section already gives that meaning and this appendix only states it
 where a reader would look.
 
 | Topic | Rule | Derivation |
@@ -733,7 +723,7 @@ Lean statement, a checker test or a counterexample search yet.
 
 **Not adopted until proved.** The relaxed sequential borrow rule studied from
 Valen's group-borrowing design is sound in a limited form, and T56 is its
-obligation. 5.6 is unchanged in 0.9. Relaxing W-PAR-1 is not sound and is
+obligation. 5.6 is unchanged here. Relaxing W-PAR-1 is not sound and is
 excluded (F.2, item 3).
 
 ### F.10 Cost, emitters and compatibility
@@ -745,27 +735,27 @@ excluded (F.2, item 3).
 - An emitter that cannot implement a rule exactly refuses the program with a
   fixed message and never approximates (10.5); the targets for `ct fn` are
   stated in F.5.4.
-- Compatibility: a 0.5 to 0.8 module is unchanged. A 0.9 module may `use` a
-  module of any version and the reverse. Moving a module to 0.9 can make it
-  refused by F.3.2, F.3.3, F.4.2, F.5.1 and F.4.4; it is never silently
-  re-read.
+- Compatibility: there is one language, so no module is read under older rules. An
+  older program can be refused by F.3.2, F.3.3, F.4.2, F.5.1 and F.4.4; it is
+  never silently re-read. The one-time migration of the standard library to these rules is
+  recorded in the ledger of the change (renamed names, `len_bytes`).
 
 ### F.11 Checks before this appendix is implemented
 
 1. Merge the grammar delta (keywords, `t"..."`, clauses, `if let`, `ct fn`,
    `ghost`, `release`) into section 3 and require 0 LALR(1) conflicts, with
    the tree-sitter port agreeing (T10).
-2. Add 0.9 to the checker's known versions (done) and implement each W-rule of
+2. Implement each W-rule of
    this appendix with accept and refuse examples (the implemented ones are in
    `spec/examples-0.9/`, one refused file per rule, checked by
-   `tests/v09_examples.rs`; the rest are listed in F.12); the fuzz generator must produce 0.9 programs
+   `tests/v09_examples.rs`; the rest are listed in F.12); the fuzz generator must produce programs
    clean of F.3.2.
 3. C-F1: show that `==` and `<` on f64 `-0` and `+0` agree with the total
    order of 6.3 (F.3.4); C-F2: check the reference lexer against the
    longest-token and context-free rules (F.3.3).
 4. State T42 to T56 in Lean models and prove them in order of use; until a row
    of section 8 names a Lean declaration, its status stays *stated, unproved*.
-5. Run the conformance suite across evaluator and emitters for the 0.9
+5. Run the conformance suite across evaluator and emitters for these
    programs, including budget sweeps across trap points (F.5.5).
 
 ### F.12 Implementation status of the reference checker
@@ -773,9 +763,9 @@ excluded (F.2, item 3).
 Implemented and tested (`spec/checker/src/v09.rs`, `apidiff.rs`; examples in
 `spec/examples-0.9/`; `rce v09-status` prints this list):
 
-- W-VER-1 accepts `0.9`; W-VER-2 refuses the ten reserved words and the type
-  names `Template`, `Shell`, `Prompt` and `mathint` (their constructs are not
-  implemented), except directly after `.`.
+- W-RES-1 refuses the reserved words `declassify` and `law` and the type
+  names `Template` and `mathint` (their constructs are not
+  implemented), except directly after `.`; the `# rce-version:` label is ignored (2.7).
 - W-LEX-4 (F.3.3) as stated there, with the extra classes listed there.
 - W-UNUSED-1 (F.3.2), including the `_` spelling and a read of a `_` name;
   W-UNUSED-2 for a literal boolean condition; W-DROP-1 (in the type checker);
@@ -790,7 +780,7 @@ Implemented and tested (`spec/checker/src/v09.rs`, `apidiff.rs`; examples in
   contracts, measures, ghost clauses or labels, which do not exist yet.
 - W-TX-1 and the restore of `&mut` arguments on `fail` (F.4.4) in the reference
   evaluator. A `catch`ed call is not a fail point of its caller. The emitters
-  and the Lean elaboration refuse a 0.9 module with a function that can fail
+  and the Lean elaboration refuse a module with a function that can fail
   after taking a `&mut` argument.
 
 - Information-flow labels (F.4.2, S1): `T @ {A, B}` label sets on declared
@@ -806,7 +796,7 @@ Implemented and tested (`spec/checker/src/v09.rs`, `apidiff.rs`; examples in
   label named in the message and a per-instantiation check of calls. W-NAME-2
   refuses `label`, `release` and `endorse` used as names. The checker erases the
   labels, `release` and `endorse` before evaluation and emission, so a labeled
-  program runs as the unlabeled one. `declassify` stays refused by version.
+  program runs as the unlabeled one. `declassify` stays reserved, not implemented.
   The grammar delta is F.13; the Rust LALR(1) tables (0 conflicts), the
   tree-sitter grammar and its scanner, `parser.c` and the wasm are regenerated
   from it.
@@ -824,7 +814,7 @@ Implemented and tested (`spec/checker/src/v09.rs`, `apidiff.rs`; examples in
   with the fixed record `{id, kind: "capability", reason: "revoked"}`, revoke
   twice is a no-op, no un-revoke), with unit tests. The call `host.revoke(id)`
   needs the host log, which the reference checker does not have, so it is
-  refused by version (W-VER-2).
+  reserved, not implemented (W-RES-1).
 - S3 typed output (F.5.2): the contexts `ShellArg` and `Prompt` (with `lit` and
   `encode`; the `Prompt` delimiter is `data-` and the SHA-256 of the field,
   re-hashed until the field does not contain it) and `Shell`, made only by
@@ -840,9 +830,9 @@ Implemented and tested (`spec/checker/src/v09.rs`, `apidiff.rs`; examples in
   none is implemented; the arena capacity of 5.7 is the existing bound.
   Neither the emitters nor the Lean elaboration translate `narrow`, `Shell`,
   `ShellArg`, `Prompt`, `len_bytes` or `len_chars`: they refuse a module that
-  uses one (W-VER-2).
+  uses one (W-RES-1).
 
-- S4 `ct fn` (F.5.4): `ct` is a keyword in a 0.9 module (a stray use is
+- S4 `ct fn` (F.5.4): `ct` is a keyword (a stray use is
   W-NAME-2). W-CTFN-1 refuses, inside a `ct fn`, a `secret`-labeled value (F.4.2)
   that decides an `if` or `match`, an `and` or `or` operand, an index, a loop
   or `for` bound, a shift amount, a divisor, or an argument of a call to a
@@ -855,7 +845,7 @@ Implemented and tested (`spec/checker/src/v09.rs`, `apidiff.rs`; examples in
 
 - S5 hash-pinned manifest (F.5.3, `rce manifest-check`, `manifest.rs`): the
   manifest is canonical JSON with the keys `dependencies` (list of `{name,
-  sha256}`), `formatter`, `language` (the string "0.9"), `modules` (list of
+  sha256}`), `formatter`, `language` (the release label "0.9", the hash domain of F.4.3), `modules` (list of
   `{module, path, sha256}`) and optional `reads` (list of `{path, sha256}`,
   the compile-time file reads); one final line feed is ignored and any other
   non-canonical spelling is refused. The hash of a module is the SHA-256 of
@@ -894,8 +884,8 @@ Implemented and tested (`spec/checker/src/v09.rs`, `apidiff.rs`; examples in
   receive in a clause. `ghost let` and `ghost fn`: W-GHOST-1 refuses a ghost
   name in code that runs; ghost code that no clause names (transitively) is
   erased, the rest is evaluated because an enforced clause needs it. The
-  emitters refuse a module with a contract (W-VER-2). Not implemented:
-  `ghost` parameters (W-VER-2), `mathint` and quantifiers, `R.check`, opaque
+  emitters refuse a module with a contract (W-RES-1). Not implemented:
+  `ghost` parameters (W-RES-1), `mathint` and quantifiers, `R.check`, opaque
   types with invariants, assuming a callee's `ensures` and proving its
   `requires` statically (a call is checked by the enforcement), contracts on
   function values. T46 and T49 stay unproved.
@@ -922,8 +912,8 @@ Implemented and tested (`spec/checker/src/v09.rs`, `apidiff.rs`; examples in
   two differ). A measure name assigned anywhere else in the body, borrowed
   mutably, or a `continue` in the body, is outside the fragment and is
   refused with W-DEC-1; a `decreases` on a `for` or `loop`, or anywhere else
-  than the start of a fn body or of a `while` body, is refused by version
-  (W-VER-2). The loop measure is erased before evaluation and emission, and
+  than the start of a fn body or of a `while` body, is reserved, not implemented
+  (W-RES-1). The loop measure is erased before evaluation and emission, and
   `bound` and `LOOP_LIMIT` still hold. The checker does not prove that a
   measure stays a natural number (the function form does not either).
   Not implemented: structural measures over data, `mathint` measures, calls of
@@ -934,7 +924,7 @@ Implemented and tested (`spec/checker/src/v09.rs`, `apidiff.rs`; examples in
   parser as `match` on `@iflet(e)` with the guard of the `and` comparisons and
   a wildcard arm (`pass` when there is no `else`); the formatter writes the
   `if let` back. W-IFLET-1 and the checks of `match` apply. A chain with a
-  second `let` is refused by version.
+  second `let` is reserved, not implemented.
 
 - P6 templates (F.6.1): `TEMPLATE` is a token (F.13). Only the two rendered
   forms are implemented: `text.t"..."` and `C.t"..."` for `Html`, `Url`,
@@ -951,10 +941,10 @@ Implemented and tested (`spec/checker/src/v09.rs`, `apidiff.rs`; examples in
   formatter writes the expansion, not the template (the meaning, and so the
   hash of the expansion, is the same). T44 stays unproved.
 
-Not implemented (each is refused by version, or the closed list in
+Not implemented (each is reserved, not implemented, or the closed list in
 `crate::v09::UNIMPLEMENTED` says that it is not enforced):
 
-- trait laws (P9, F.6.6): `law` is a reserved word that is refused by version;
+- trait laws (P9, F.6.6): `law` is a reserved word that is reserved, not implemented;
   W-LAW-1 needs a sample of impl values and an evaluator of a law over them,
   and neither exists, so no law is ever run or assumed;
 - `declassify` (F.4.2): always refused; `release` with a held capability is the
@@ -967,16 +957,16 @@ Not implemented (each is refused by version, or the closed list in
   statement in F.5.5 to implement; provenance records, the build cache and the
   advisory key distribution of S5.
 
-**Read receipt.** How many words does a version 0.9 module reserve in addition to the 0.8 keywords? (a number)
+**Read receipt.** How many words does F, "Reserved words", add to the reserved list of 2.4? (a number)
 
 
 ### F.13 Grammar
 
 These productions extend section 3 and Appendix C.2 for the constructs of
-version 0.9 that the reference checker implements (the label sets, label
+this appendix that the reference checker implements (the label sets, label
 declarations, `release` and `endorse` of F.4.2, `ct fn` of F.5.4, and the
 contract clauses, `ghost let` `ghost fn` and `decreases` of F.6.2 to F.6.4, `if let` of F.6.5, and the template renderers of F.6.1). A rule below with the name of
-an earlier rule replaces it for a 0.9 module; the others are new. The machine
+an earlier rule replaces it; the others are new. The machine
 check of 3.12 builds the LALR(1) tables of section 3 with C.2 and then this
 section applied (`lalr::book_grammar_09`), lexing with `label`, `release`,
 `endorse`, `ct`, `requires`, `ensures`, `decreases` and `ghost` reserved and `by` contextual, and fails on any conflict. It runs that
@@ -984,7 +974,7 @@ machine over `spec/examples-0.9/ok`. `TEMPLATE` is the token `t` written directl
 and `t` not the end of a longer name); the checker accepts it only after a dot.
 The tree-sitter port
 (`spec/tree-sitter/grammar.js`) carries the same productions. The constructs
-of F.5 to F.7 that are still refused by version (F.12) have no production yet.
+of F.5 to F.7 that are still reserved, not implemented (F.12) have no production yet.
 
 ```
 Item         = UseDecl | IntentDecl | ExampleDecl | CheckDecl
@@ -1015,4 +1005,6 @@ UnaryExpr    = ( "-" | "~" | "&" [ "mut" ] | "<-" | "comptime" | "release" | "en
              | Postfix .
 ```
 
-<!-- body-sha256: 56e6f134cbb5fa33512a5e189e42d3fca4a6d7b250d25b0ada08032b0d7a3b37 -->
+**Read receipt.** How many words does a version 0.9 module reserve in addition to the 0.8 keywords? (a number)
+
+<!-- body-sha256: 1c5019ab227d2e53454f9b692cbbaae433f62ed8e56d4e54d48983c69bdf66a6 -->

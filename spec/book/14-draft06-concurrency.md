@@ -1,26 +1,23 @@
-## Appendix C. Draft 0.6 and 0.6b concurrency (normative for version 0.6 and 0.7 modules)
+## Appendix C. Concurrency (draft 0.6 and 0.6b; normative)
 
-This appendix defines the draft 0.6 language: structured parallelism
+This appendix defines the concurrency part of the language: structured parallelism
 (`par`, `for ... par`), budgets, deadlines, nondeterministic select and
-priorities (0.6), and the 0.6b extensions: workgroups, session types,
+priorities (drafts 0.6), and the 0.6b extensions: workgroups, session types,
 structured spawn, cross-actor transactions, supervisors, nodes,
-interrupts, LVars and replicated state. It applies only to a module that
-declares `# rce-version: 0.6` or `# rce-version: 0.7` (2.7); everything
-said here of a 0.6 module holds for a 0.7 module, except where C.6.4 and
-C.15 say otherwise. A 0.5 module never sees any of it:
-its words are ordinary names there, and none of its rules apply. The
+interrupts, LVars and replicated state. It applies to every module; no
+declaration selects it (2.7). The
 text is written from what the reference checker (`spec/checker`,
 `check.rs`, `check06b.rs`, `conc.rs`, `link.rs`) and the Lean files
 (`spec/lean/RCE/Par*.lean`, `Models06b.lean`, `Session*.lean`,
 `TickClock.lean`, `VClock.lean`) actually enforce and prove; where the
 two differ from an intended design, the checker is what is described.
-Example: in a 0.6 module, `par` with two branches that write different
+Example: `par` with two branches that write different
 variables gives the same result as running the branches in source order.
 
-### C.1 Version and keywords
+### C.1 Keywords
 
-The 23 words below are reserved in a version 0.6 module, in addition to
-the 0.5 keywords of 2.4, except directly after `.` (so `c.offer()` and
+The 23 words below are on the reserved list of 2.4, in addition to
+the keywords of 2.4, except directly after `.` (so `c.offer()` and
 `c.choose(L)` remain method calls):
 
 ```
@@ -30,21 +27,23 @@ barrier   scope     atomic    protocol  offer     choose
 node      supervisor strategy child     restart
 ```
 
-In a 0.5 module they are names (`fn f(node: i64)` is valid 0.5). The
+They are not names in any module: `fn f(node: i64)` is refused. The
 reference checker keeps them in `parse::DRAFT06_KEYWORDS`, separate from
-`parse::KEYWORDS`, and reserves them only when the module is version 0.6 or 0.7.
+`parse::KEYWORDS` only as a source layout; the reserved list is their union
+with the words of Appendix F, one list for every module.
 
 ### C.2 Grammar
 
-These productions extend section 3 for version 0.6 modules. They are the
+These productions extend section 3. They are the
 productions of the tree-sitter port (`spec/tree-sitter/grammar.js`) and of
 the Rust parser. A rule below with the name of a section-3 rule replaces
-it for a 0.6 module; the others are new. The machine check of 3.12 also
-builds the LALR(1) tables of section 3 with these rules applied
+it; the others are new. The grammar is the productions of section 3 with
+these applied, and the same for every module. The machine check of 3.12 builds the
+LALR(1) tables of section 3 with these rules applied
 (`lalr::book_grammar_06`), lexing with the keywords of C.1 reserved, and
-fails on any conflict; it runs that machine over the 0.6 corpora
+fails on any conflict; it runs that machine over the concurrency corpora
 (`spec/conc06`, `spec/conc06b`). So T10 (one parse per program) holds for
-version 0.6 modules too.
+the whole language.
 
 ```
 Item         = UseDecl | IntentDecl | ExampleDecl | CheckDecl
@@ -230,7 +229,7 @@ Python and JavaScript runtimes charge the same costs
 | Operation | Cost |
 |---|---|
 | `c_call`: call of a user function or a closure | 4 |
-| standard library method (5.15) on receiver size n, first-argument size k | 0.7: 4 + work(m, n, k), below; 0.5 and 0.6: 4 |
+| standard library method (5.15) on receiver size n, first-argument size k | 4 + work(m, n, k), below |
 | `c_chan`: channel send or receive | 8 |
 | `c_spawn`: `spawn` | 32 |
 | `c_fork`: one `par` branch or `for ... par` chunk | 16 |
@@ -243,10 +242,9 @@ Python and JavaScript runtimes charge the same costs
 | float (f64, f32) `+`, `-`, `*` | 2 |
 | float (f64, f32) `/` | 8 |
 
-**Method work (normative for version 0.7).** In a version 0.6 module a
-standard library method costs `c_call` whatever its sizes, as draft 0.6
-defined it; a budget there bounds the number of operations. In a 0.7
-module it costs `c_call` plus work(m, n, k). A budget is a proxy for energy, and energy
+**Method work (normative).** A standard library method costs
+`c_call` plus work(m, n, k); draft 0.6 charged `c_call` alone, which is not
+the language of this text. A budget is a proxy for energy, and energy
 scales with the operations performed, so a method's cost must track its
 work. Sizes: text is its UTF-8 byte length, a list its length, a set its number of
 elements, a map its number of entries, any other value 0. n is the receiver's size and k the
@@ -275,7 +273,7 @@ also checks monotonicity).
 
 ### C.7 Device kernels
 
-Inside a device region (5.13), a version 0.6 module may use `par` and
+Inside a device region (5.13), a module may use `par` and
 `for ... par` with the same rules; the device rules of W-DEV-1 still
 apply.
 
@@ -581,10 +579,9 @@ the code runs. `RCE.ParFuel` reduces branch uses in that tree:
   with QuickCheck; the sample search here is that kind of test, and is
   used only to find counterexamples.
 - C.11.9 Structured spawn. `spawn f(...) -> h` gives a join handle. In a
-  version 0.6 module a task function may spawn only inside `scope`; `fn
+  module a task function may spawn only inside `scope`; `fn
   main` is an implicit scope (W-SCOPE-1). A join handle cannot leave its
-  scope (W-SCOPE-1). A 0.5 module keeps the rule of 5.8: any task
-  function may spawn.
+  scope (W-SCOPE-1).
 - C.11.10 Transactions. `atomic` applies all its actor sends or none
   (T30). W-ATOM-1: `spawn`, a receive, `select` or another wait inside
   `atomic`. W-ATOM-2: actors of one `atomic` on different nodes.
@@ -745,7 +742,7 @@ footprints beyond the core of `ParSem.lean` (W-PAR-1 on variables).
 
 ### C.14 Emitters and running
 
-`rce run` runs version 0.6 programs on the reference evaluator
+`rce run` runs programs on the reference evaluator
 (`conc.rs`). The program emitters (`emit/conc06.rs`) run the branches of a
 `par` with more than one branch at the same time where the target allows
 it (Rust and Python threads, JavaScript workers) and in source order in
@@ -758,97 +755,75 @@ evaluator, so `trap("budget")` falls on the same operation on every
 target. Workgroups run lane after lane per phase. The 0.6b actor, session
 and node constructs follow the limits of 10.5.
 
-### C.15 Version 0.7
+### C.15 Releases
 
-`# rce-version: 0.7` declares version 0.7. Its syntax, keywords, static
-rules and evaluation are those of version 0.6, with one difference: a
-standard library method costs `c_call + work(m, n, k)` (C.6.4) instead
-of `c_call`. The rule that decides what needs a new version: a module's
-meaning (its outputs, states and outcomes, including where a budget
-traps) must be determined by its declared version, so a change that
-gives a valid program of an existing version a different meaning that
-the old text defined is a new version; a change that makes the
-implementations meet text that already defined the meaning, or that
-only touches artifacts outside a program's meaning, is an erratum and
-applies to every version.
+`# rce-version: V` is a release label (2.7): tolerated, ignored, not hashed. **A release label names exactly
+one spec commit**: the text of this document at that commit is the language of that release, there is one
+language in it, and no label selects among alternatives inside a text. The rule that decides
+what needs a new release: the meaning of a module (its outputs, states and outcomes, including where a
+budget traps) is determined by the text of its release, so a change that gives a valid program of an existing
+release a different meaning that the old text defined is a new release with a new label, never a silent change
+to the old text; a change that makes the implementations meet text that already defined the meaning, or that
+only touches artifacts outside a program's meaning, is an erratum and goes into the text that the next release
+names. A release is never edited after it is named, and a label is never reused for a different commit.
 
-**Which version governs a cost (normative).** A program may join modules
-of different versions (2.7). The cost of a standard library method call
-is fixed by the declared version of the module that contains the call
-expression, not by the version of the module that declared the function
-being run, of its caller, or of the program's first module. A call
-written in a 0.7 module, including one inside a closure written there,
-costs `c_call + work(m, n, k)` wherever it is executed from, and a call
-written in a 0.5 or 0.6 module costs `c_call` even when a 0.7 module
-calls the function around it. The rule is lexical, so linking modules
-changes no cost. Every other cost of C.6.4 is the same in 0.6 and 0.7.
-Example: a 0.6 function that holds `with budget B` and calls an imported
-0.7 function whose body sorts an 8-element list is charged 24 more than
-the same call to an identical function declared in a 0.6 module.
+**Costs.** A standard library method call costs `c_call + work(m, n, k)` (C.6.4) wherever it is written and
+wherever it is executed from; linking modules changes no cost, since there is only one rule. Example: a function
+that holds `with budget B` and calls an imported function whose body sorts an 8-element list is charged 24 more
+than a call to a function with no body, in the reference evaluator and every runtime.
 
-| Change since draft 0.6 | Versions | Why |
+| Change since the first text of the item | Kind | Why |
 |---|---|---|
-| size-scaled method costs (C.6.4) | 0.7 only | draft 0.6 defined each method as `c_call`; where a 0.6 budget traps would change |
-| saturating budget arithmetic (C.6) | all (erratum) | changes nothing reachable: no program reaches a sum near the largest i128 |
-| closed standard library, no ambient I/O (5.15) | all (erratum) | states what the checker already enforced (W-NAME-1 on an unknown method); no valid program changes |
-| `&mut` write-back on `fail` (6.2, T33) | all (erratum) | the reference evaluator already updated in place; the emitters now agree with it (and T34 flattens nested calls without changing order) |
-| u64 values at or above 2^63 exact in order, min/max and f64 ops (6.3 N2) | all (erratum) | N2 has defined full-range u64 since draft 0.5; the runtimes now meet it |
-| literals take the success type of a fallible return (5.1) | all (erratum) | a checker bug against `τ <: τ ! ε`; it admits programs the text already admitted |
-| canonical D entry and hash-chained Form log (6.1) | all | the log format, not a program's meaning |
-| `sha256` text method (5.15) | all (extension) | admits only programs that W-NAME-1 refused before, so no valid program of any version changes meaning |
-| mutual recursion with a decreasing summed measure (6.7, W-REC-1) | all (extension) | admits only programs whose call graph has a cycle of two or more functions, which W-REC-1 refused before; the rule for a function that calls only itself is unchanged, so no valid program of any version changes meaning |
-| maps iterate in canonical key order (6.7, 7.1) | all (erratum) | 6.7 has always said a map iterates in canonical order; the reference evaluator and the four emitter runtimes kept insertion order. They now keep every map sorted by the canonical order of its keys, so `for`, `keys()`, `values()` and display follow 6.7. A program whose output depended on insertion order was relying on behavior the text never gave it; tests/map_order.rs checks all targets |
-| self-recursion needs one fixed shrinking position, or layers (6.7, W-REC-1) | all (erratum, and extension for layers) | 6.7 has said since draft 0.4 that the value at one position i shrinks along any chain of calls, and T2 that every run ends; the checker took a different position per call, which admitted functions that never return. Refusing them makes the checker meet the text. Every function the text admitted is admitted by one layer, and layers admit only programs refused before, so no program the text admitted changes meaning |
-| a parameter typed by an alias of a channel type makes a task function (5.1, 5.2) | all (erratum) | the type grammar of 5.1 has no nominal alias, so `type A = chan τ` already named the channel type; the checker tested the written type, not the type it names, and refused such functions with W-SPAWN-1 or W-EFF-1. Only programs refused before are admitted |
-| declared recursion bounds `fn … bound n` (6.7, W-REC-1) | all (extension) | `bound` after a signature was W-SYN-1, and a cycle it admits was W-REC-1, so only programs refused before are admitted; no valid program of any version changes meaning |
-| est_j receipts | all | measurement records outside the language (C.5: est_j is separate from budgets) |
-| `i64.MIN % -1` traps; `toint` traps outside i64 (6.3 N2) | all (erratum) | N2 already defined both; the reference and runtimes returned 0 and an out-of-range i64 |
-| canonical float text in `tostr` and display (6.3 N3) | all (erratum) | N3 already defined it (`1e+300`, `1.5e-7`, `-0` is `0`); the implementations printed Rust's long decimal form |
-| `x op= y` charges the cost of `op` (C.6.4) | all (erratum) | C.6.4 already charges every binary operator; compound assignment was charged 0, so a budget could be exceeded |
-| 6.3 N2, N3, N8 and 6.2 state the trap texts, `usize` indices and trapping slices the implementations have always had; float `%` removed from N3 and C.6.4 | all (erratum) | the text contradicted the checker and every runtime; no accepted program changes, since the text described behaviour no program could reach (negative usize, float `%`) or contradicted what every implementation did |
-| f64 `min`/`max` (6.3 N5, 5.15) evaluate | all (erratum) | the checker accepted them and N5 defined them, but the evaluators trapped; a program that trapped now computes what the text defined |
-| f64 `pow` refused (W-NAME-1) | all (erratum) | not in the closed library of 5.15, which already made it W-NAME-1; the checker accepted it and every evaluator trapped on it, so no accepted program computed a value with it |
-| refined types `type R = τ where p` (5.1, W-REF-1) | all (extension) | `where` after a type was W-SYN-1 and stays an ordinary identifier, so only programs refused before are admitted; no valid program of any version changes meaning |
-| a foreign function is not a value (5.11, W-FFI-1) | all (erratum) | 5.11 already forbade a pure function calling foreign code; the value route was a checker hole |
-| host contract (Appendix E: one admitter, durable append per OS, fatal barrier, verify on open, inputs as events, capabilities, fabric entries, automatic placement) | all | constrains hosts and the log, not programs: a host entry has a `host.` type that no program can declare and δ is the identity on it, so the fold of every log of every valid program is unchanged |
-| host bindings (E.8: a host result delivered as an event the program declares) | all | the bound event is an ordinary declared event, admitted and typed as any other; a program that declares no binding target sees no new input |
+| size-scaled method costs (C.6.4) | meaning change | the earlier text defined each method as `c_call`; where a budget traps changed, so it was a new release (now the one text) |
+| saturating budget arithmetic (C.6) | erratum | changes nothing reachable: no program reaches a sum near the largest i128 |
+| closed standard library, no ambient I/O (5.15) | erratum | states what the checker already enforced (W-NAME-1 on an unknown method); no valid program changes |
+| `&mut` write-back on `fail` (6.2, T33) | erratum | the reference evaluator already updated in place; the emitters now agree with it (and T34 flattens nested calls without changing order) |
+| u64 values at or above 2^63 exact in order, min/max and f64 ops (6.3 N2) | erratum | N2 has defined full-range u64 since draft 0.5; the runtimes now meet it |
+| literals take the success type of a fallible return (5.1) | erratum | a checker bug against `τ <: τ ! ε`; it admits programs the text already admitted |
+| canonical D entry and hash-chained Form log (6.1) | outside programs | the log format, not a program's meaning |
+| `sha256` text method (5.15) | extension | admits only programs that W-NAME-1 refused before, so no valid program changes meaning |
+| mutual recursion with a decreasing summed measure (6.7, W-REC-1) | extension | admits only programs whose call graph has a cycle of two or more functions, which W-REC-1 refused before; the rule for a function that calls only itself is unchanged, so no valid program changes meaning |
+| maps iterate in canonical key order (6.7, 7.1) | erratum | 6.7 has always said a map iterates in canonical order; the reference evaluator and the four emitter runtimes kept insertion order. They now keep every map sorted by the canonical order of its keys, so `for`, `keys()`, `values()` and display follow 6.7. A program whose output depended on insertion order was relying on behavior the text never gave it; tests/map_order.rs checks all targets |
+| self-recursion needs one fixed shrinking position, or layers (6.7, W-REC-1) | erratum, and extension for layers | 6.7 has said since draft 0.4 that the value at one position i shrinks along any chain of calls, and T2 that every run ends; the checker took a different position per call, which admitted functions that never return. Refusing them makes the checker meet the text. Every function the text admitted is admitted by one layer, and layers admit only programs refused before, so no program the text admitted changes meaning |
+| a parameter typed by an alias of a channel type makes a task function (5.1, 5.2) | erratum | the type grammar of 5.1 has no nominal alias, so `type A = chan τ` already named the channel type; the checker tested the written type, not the type it names, and refused such functions with W-SPAWN-1 or W-EFF-1. Only programs refused before are admitted |
+| declared recursion bounds `fn … bound n` (6.7, W-REC-1) | extension | `bound` after a signature was W-SYN-1, and a cycle it admits was W-REC-1, so only programs refused before are admitted; no valid program changes meaning |
+| est_j receipts | outside programs | measurement records outside the language (C.5: est_j is separate from budgets) |
+| `i64.MIN % -1` traps; `toint` traps outside i64 (6.3 N2) | erratum | N2 already defined both; the reference and runtimes returned 0 and an out-of-range i64 |
+| canonical float text in `tostr` and display (6.3 N3) | erratum | N3 already defined it (`1e+300`, `1.5e-7`, `-0` is `0`); the implementations printed Rust's long decimal form |
+| `x op= y` charges the cost of `op` (C.6.4) | erratum | C.6.4 already charges every binary operator; compound assignment was charged 0, so a budget could be exceeded |
+| 6.3 N2, N3, N8 and 6.2 state the trap texts, `usize` indices and trapping slices the implementations have always had; float `%` removed from N3 and C.6.4 | erratum | the text contradicted the checker and every runtime; no accepted program changes, since the text described behaviour no program could reach (negative usize, float `%`) or contradicted what every implementation did |
+| f64 `min`/`max` (6.3 N5, 5.15) evaluate | erratum | the checker accepted them and N5 defined them, but the evaluators trapped; a program that trapped now computes what the text defined |
+| f64 `pow` refused (W-NAME-1) | erratum | not in the closed library of 5.15, which already made it W-NAME-1; the checker accepted it and every evaluator trapped on it, so no accepted program computed a value with it |
+| refined types `type R = τ where p` (5.1, W-REF-1) | extension | `where` after a type was W-SYN-1 and stays an ordinary identifier, so only programs refused before are admitted; no valid program changes meaning |
+| a foreign function is not a value (5.11, W-FFI-1) | erratum | 5.11 already forbade a pure function calling foreign code; the value route was a checker hole |
+| host contract (Appendix E: one admitter, durable append per OS, fatal barrier, verify on open, inputs as events, capabilities, fabric entries, automatic placement) | outside programs | constrains hosts and the log, not programs: a host entry has a `host.` type that no program can declare and δ is the identity on it, so the fold of every log of every valid program is unchanged |
+| host bindings (E.8: a host result delivered as an event the program declares) | outside programs | the bound event is an ordinary declared event, admitted and typed as any other; a program that declares no binding target sees no new input |
 
-So a 0.6 program keeps its meaning, a 0.5 program is unaffected (it has
-no budgets), and a 0.7 program differs from the same program declared
-0.6 only in where a `with budget` block traps. Checked by
-`spec/checker/tests/method_costs.rs` (0.6 charges `c_call` alone, 0.7
-charges the table, in the reference and every runtime) and
-`spec/checker/tests/draft06_gate.rs`, and the per-call-site rule by
-`spec/checker/tests/call_site_cost.rs` (0.5, 0.6 and 0.7 modules joined
-by `use`, in the reference evaluator and the Rust, Python and JavaScript
-emitters on the linked program); the tree-sitter port and the
-LALR(1) check treat 0.7 as 0.6, since the grammar is the same.
+The first row is the one change since draft 0.6 that moved where a `with budget` block traps; it is
+what made the earlier text a different release. Every other row is an erratum, an extension or a
+change outside a program's meaning. Checked by `spec/checker/tests/method_costs.rs` (every method charges the table in
+the reference and every runtime), `spec/checker/tests/call_site_cost.rs` (the same cost in the reference
+evaluator and the Rust, Python and JavaScript emitters on a linked program) and
+`spec/checker/tests/reserved_words.rs` (the one reserved list).
 
-### C.16 Version 0.8
+### C.16 Indexed values
 
-`# rce-version: 0.8` declares version 0.8: the syntax, keywords, rules,
-evaluation and costs of 0.7, plus 5.16. It reserves no keyword, so the
-grammar, the LALR(1) check and the tree-sitter port treat it as 0.7. It
-is a version, not an extension, by the C.15 rule: the eight names of
-5.16 are ordinary names in 0.7, and a 0.7 program that declares one
-(`struct Text`, `struct Html`) would change meaning if 5.16 applied to
-it. In a 0.8 module `C.lit(s)` costs `c_call`, `C.encode(t)` costs
-`c_call` plus the size of t (the linear class of C.6.4) and `.raw()`
-costs `c_call` (the text is not copied), in the reference evaluator and
-every runtime; the indices are erased, so nothing else in C.6 changes. A 0.5, 0.6 or 0.7 module never
-sees 5.16 (`spec/checker/tests/indexed.rs`, gate test), and modules of
-different versions may `use` each other (2.7).
+The eight names of 5.16 are on the reserved list (2.4): a program may not declare `struct Text` or
+`struct Html`, which earlier drafts allowed, and that refusal is part of the release that first carried
+the list (C.15). `C.lit(s)` costs `c_call`, `C.encode(t)` costs `c_call` plus the size of t (the linear class
+of C.6.4) and `.raw()` costs `c_call` (the text is not copied), in the reference evaluator and every runtime;
+the indices are erased, so nothing else in C.6 changes (`spec/checker/tests/indexed.rs`).
 
-### C.17 Version 0.9
+### C.17 Appendix F
 
-`# rce-version: 0.9` declares version 0.9: the syntax, rules, evaluation and
-costs of 0.8, plus Appendix F. It is a version by the C.15 rule because it
-refuses programs that 0.8 accepts (unused values, shadowing, dropped
-results, flows to lower labels) and changes the value of a `&mut` argument
-after a failed call. It is specified and not yet implemented: until it is, a
-conforming implementation refuses the declaration (W-VER-1), and no cost of
-C.6 is defined for it beyond the costs F.10 names.
+Appendix F is part of the language. It refuses programs that earlier drafts accepted (unused values, shadowing,
+dropped results, flows to lower labels) and changes the value of a `&mut` argument after a failed call, so it
+is a new release by the C.15 rule. It is specified and implemented in part: a construct of it that an
+implementation does not have is refused (W-RES-1, *reserved, not implemented*, F.12), and no cost of C.6 is
+defined for it beyond the costs F.10 names.
+
+**Read receipt.** How many concurrency words does C.1 add to the keywords of 2.4? (a number)
 
 **Read receipt.** How many words does a version 0.6 module reserve in addition to the 0.5 keywords? (a number)
 
-<!-- body-sha256: 71be1c1d289be03ce5bf0bb48c8cbba73fb238c6f59d6759578a4a21c615b54a -->
+<!-- body-sha256: 1821fbe2bffe8a79affb84a39b893143d1bf4c6458510e32002c25334f1e0450 -->

@@ -232,19 +232,14 @@ always refuses the event).
   `(e catch |x| h)` where `e` exhausts its fuel ends in exhaustion, never
   in `h`.
 
-**`&mut` write-back (normative).** A call writes back each `&mut`
-argument and a `&mut self` receiver on every outcome, including `fail`:
-the callee's writes made before it failed stay in the caller's store,
-exactly as an in-place update (`fail` above leaves the store at σ′, the
-store when it was raised, not σ). The derivation: the Rust target updates
-in place, and copy-in/copy-out agrees with in-place update only when it
-also copies out on failure (T33, `WriteBack.t33`; `copyOk_differs` shows
-that copying out only on success disagrees). Atomicity is per event, not
-per call: a `trap`, or a `fail` that leaves the step, refuses the event
-and the state is the pre-state (T8). In a version 0.9 module this write-back rule is replaced by the
-transactional rule of F.4.4 (a call that fails leaves its `&mut` arguments as
-they were at the call); T33 and this paragraph stay as written for versions
-0.5 to 0.8. The program emitters implement the
+**`&mut` write-back (normative).** A call that returns writes back each `&mut`
+argument and a `&mut self` receiver. A call that ends by `fail` leaves each of them as it was at
+the call, provided every effect since entry is undoable, and is refused otherwise (F.4.4, W-TX-1); the
+callee's writes made before the failure are undone. Atomicity of the event is separate: a `trap`, or a `fail`
+that leaves the step, refuses the event and the state is the pre-state (T8). The earlier rule of this text
+wrote back on every outcome, including `fail`; it was derived from in-place update and proved as T33
+(`WriteBack.t33`, `copyOk_differs`), and it is retired because F.4.4 makes a failed call a no-op, which is
+what a caller can reason about. T33 remains a proved statement about the retired rule only. The program emitters implement the
 rule for a write-back call that is a whole statement or expression of a
 `let`, `var`, assignment, `emit` or `return`, and for such a call under
 `catch` or `try` (`f(&mut x) catch h`, `try f(&mut x)`): the call is the
@@ -462,4 +457,4 @@ method and is W-NAME-1.
 
 **Read receipt.** Which JavaScript function is named for rounding to binary32?
 
-<!-- body-sha256: e3fd75261cf645a472c609e85dee7d5c6f309cd89eb732cb2973025eb4fe1760 -->
+<!-- body-sha256: e2af17e430e29c18185be20a37e52a7399287867b874f975b7888189f6c506a7 -->

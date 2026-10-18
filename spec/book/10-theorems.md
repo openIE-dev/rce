@@ -35,7 +35,7 @@ Classical.choice). Status per theorem:
 | T7 | proved for event/error names over δ and the log; for log hashes under any hash function H; for channel, actor and task ids and select choices of the concurrency model | `name_independence`, `log_hashes_name_independent`, `conc_name_independent`, `select_name_independent` |
 | T8 | proved | `atomicity` |
 | T9 | T9-F (Form IR targets: Rust, WASM, Python, XState, SCXML) tested: every target prints the reference trace byte for byte on the edge and seeded events (`tests/form_targets.rs`, `tests/form_joins.rs`). T9-L (program emitters of 10.5: `rust`, `python`, `js`, including `&mut` write-back on failure under `catch` and `try` and nested in strict positions via the ANF pass of T34, 6.2, `spec/checker/tests/write_back.rs`): proved for the Rust emitter on the core (step bodies, expressions, guarded step selection) as a verified translation into MiniRust, a deep embedding of the emitted Rust subset with Rust-style semantics; printed to Rust and checked against rustc by differential testing. Not covered: the other targets, the full surface language, and the claim that rustc implements MiniRust (trusted, tested) | `reval_compile`, `compile_correct`, `RExec.det`, `emit_agrees`, `region_agrees` |
-| T10 | checked mechanically (LALR(1), 0 conflicts, from the EBNF of section 3, and of section 3 with C.2 for version 0.6) and sampled by `rce-fuzz`; the former `fuzz/gen.py` also found exactly one Earley parse per program | `rce-spec-check` |
+| T10 | checked mechanically (LALR(1), 0 conflicts, from the EBNF of section 3, and of section 3 with C.2) and sampled by `rce-fuzz`; the former `fuzz/gen.py` also found exactly one Earley parse per program | `rce-spec-check` |
 | T11 | proved on the rotation model of 6.8: the arm taken is ready, and an arm ready at n consecutive executions is taken by one of them | `pick_ready`, `select_bounded_wait` |
 | T12 | proved on a statement model with branches and bounded loops: if the W-LIN-1 count accepts a body, every execution path consumes the handle exactly once | `lin_sound`, `linear_exactly_once` |
 | T13 | proved for any rounding that fixes representable values: widening f32 to f64 is exact, f32 multiply via f64 is a single rounding, and every f32 op gives the same bits on targets that agree on IEEE 754 binary64 ops and binary32 rounding. For + − / the single-rounding property is Figueroa's theorem, cited, not mechanized | `widen_exact`, `f32_mul_det`, `f32_op_det` |
@@ -67,7 +67,7 @@ Classical.choice). Status per theorem:
 | T56 | stated, unproved (Appendix F.9, version 0.9, not implemented): Relaxed sequential borrows: the limited relaxation of 5.6 studied from group borrowing (a reference is invalidated only below steps that are not independent of it) preserves T6; the lemma is not proved and the relaxation is not adopted (5.6) | none |
 | T15 | proved for iterators whose step between yields is total (T2): every run ends, delivers at most LOOP_LIMIT values and traps only after exactly LOOP_LIMIT; `break` yields a prefix of the full run; a run with a smaller cap is a prefix of one with a larger cap (the evaluator's re-run strategy) | `drive_total`, `drive_break`, `gen_prefix` |
 
-T16 to T31 belong to version 0.6 and are listed with their exact status
+T16 to T31 belong to the concurrency part (Appendix C) and are listed with their exact status
 in Appendix C.13. Most are proofs about abstract models (T18, T19b, T21,
 T22, T25 to T27, T29 to T31); T16, T17, T19a, T20 and T23 are proved on a
 small-step semantics of a core with `par`; none is a proof about the Rust
@@ -137,7 +137,7 @@ under test does not produce.
 
 **T10 Grammar unambiguity.** The grammar of section 3 is LALR(1) (checked
 mechanically, 3.12), hence unambiguous: every accepted text has exactly one
-parse tree. The same holds for the version 0.6 grammar (section 3 with
+parse tree. The same holds for the grammar with the concurrency productions (section 3 with
 Appendix C.2 applied), checked by the same machine.
 
 **T11 Select fairness (bounded wait).** An arm of a `select` that is ready
@@ -163,11 +163,12 @@ reproduces its state, whatever o is; no property of the foreign code is
 assumed, and a contract every answer satisfies holds of every logged
 answer.
 
-**T33 `&mut` write-back.** A call that writes back its `&mut` arguments on
-every outcome (6.2) gives the same store and outcome as updating them in
-place.
+**T33 `&mut` write-back (retired rule).** A call that writes back its `&mut` arguments on
+every outcome gives the same store and outcome as updating them in
+place. This is proved of the rule 6.2 used to state; the language's rule is now the restore of F.4.4
+(T42 to T56 state its properties and are unproved).
 
-**T36 Indexed values.** In a version 0.8 module (5.16): untrusted text
+**T36 Indexed values.** (5.16): untrusted text
 forms no structure of a `Text[C]` value; outputs do not depend on
 secrets beyond the equality bits; a guarded field changes only on events
 that carry its capability.
@@ -217,4 +218,4 @@ tables is checked to exist (`spec/checker/tests/theorem_index.rs`).
 
 **Read receipt.** What is the deep embedding of the emitted Rust subset called?
 
-<!-- body-sha256: 0c2359d99dc3e253e8816443f1d87cc9b5fb1318cc452de9b999c0c1a4819b7d -->
+<!-- body-sha256: a5ba97d135cec04efae74cec9e0966bfc3f2b14e10ac866c88c80538d9b6bbd5 -->

@@ -57,7 +57,20 @@ to        trait     true      try       type      use       var
 while     with      yield
 ```
 
-A version 0.9 module reserves ten more words (Appendix F: `requires`, `ensures`, `decreases`, `ghost`, `ct`, `declassify`, `endorse`, `release`, `label` and `law`); in every other version they are names.
+**One reserved list.** The language has one closed list of reserved words, the same in every module,
+and nothing selects or extends it. It is: the keywords above; the 23 concurrency words of C.1 (`par`, `branch`,
+`nondet`, `budget`, `deadline`, `priority`, `replicated`, `interrupt`, `session`, `lvar`, `group`, `lanes`,
+`barrier`, `scope`, `atomic`, `protocol`, `offer`, `choose`, `node`, `supervisor`, `strategy`, `child`,
+`restart`); the ten words of Appendix F (`requires`, `ensures`, `decreases`, `ghost`, `ct`, `declassify`,
+`endorse`, `release`, `label` and `law`); and the type names `World`, `Template`, `Shell`, `Prompt`, `mathint`
+and the eight indexed names of 5.16, which no module may declare (W-NAME-2). A keyword or concurrency word is
+refused as a name by the grammar (W-SYN-1). A word of Appendix F whose construct this implementation has
+(`ct`, `endorse`, `release`, `label`, `requires`, `ensures`, `ghost`, `decreases`) is refused as a name
+(W-NAME-2) unless it is used as its construct. A reserved word or type name whose construct this
+implementation does not have (`declassify`, `law`, `Template`, `mathint`) is refused with the rule W-RES-1 and
+the words *reserved, not implemented*; it is never read as an ordinary name and never silently ignored (F.12).
+Directly after `.` a reserved word is a member name, so
+`c.offer()` and `c.choose(L)` remain method calls.
 
 `device`, `iter`, `linear` and `yield` are new in draft 0.5. `lalr` is not a
 keyword: drafts up to 0.4 reserved it in `rce.lark` and the tree-sitter
@@ -110,41 +123,27 @@ Python's tokenizer uses:
 Blank and comment-only lines produce no tokens. There is no line
 continuation character; open a bracket instead.
 
-### 2.7 Language version
+### 2.7 Release label
 
-A module may declare its language version on its first line, as the
-comment
+A module may carry a release label on its first line, as the comment
 
 ```
 # rce-version: 0.6
 ```
 
-The line must start with `#` in column 0 and hold, after optional spaces,
-`rce-version:` and a version; trailing spaces are allowed. The known
-versions are `0.5`, `0.6`, `0.7`, `0.8` and `0.9`; any other is refused (W-VER-1).
-Version 0.8 is version 0.7 plus the indexed values of 5.16 (C.16). Version 0.9 is
-version 0.8 plus Appendix F. The reference checker implements part of it (F.12)
-and refuses the rest by version (W-VER-2); an implementation that has not
-implemented Appendix F at all refuses a `0.9` declaration with W-VER-1, and one
-that has implemented it applies F.1 to F.10 to that module only. A module
-without the declaration is version 0.5. Version 0.5 is the language of
-sections 2 to 10. Version 0.6 adds Appendix C: its 23 words become
-keywords (C.1) and its constructs and rules apply. Version 0.7 has the
-syntax and rules of 0.6 and differs from it only in the cost of standard
-library methods (C.6.4, C.15). The meaning of a module is fixed by its
-declared version: a change of meaning gets a new version, never a silent
-change to an old one. A version 0.5 module
-never sees Appendix C: its words are names there, and a valid 0.5 program
-is accepted unchanged by every conforming implementation. Because the
-declaration is a comment, the grammar of section 3 and its LALR(1) check
-are unchanged for 0.5; a 0.6 or 0.7 module is parsed by section 3 with the rules
-of C.2 applied, which is checked LALR(1) the same way. Each module of a program has its own version; a 0.6 or 0.7
-module may `use` a 0.5 module and the reverse. The cost of a standard library method call (C.6.4) is fixed by the
-declared version of the module where the call is written, wherever it is
-executed from (C.15, normative); linking modules changes no cost. (The reference checker has a
-non-normative `conc06` build feature that reads undeclared modules as 0.6,
-for the draft's own test corpora; a declared version always wins.)
+The line must start with `#` in column 0 and hold, after optional spaces, `rce-version:` and a label;
+trailing spaces are allowed. The label is tolerated and ignored: it selects nothing, gates nothing, is not
+hashed, does not appear in the Form, and no value of it is refused. A module without it means exactly what the
+same module with it means. There is one language, the one this document defines, and every module of a
+program is in it; modules may `use` each other whatever labels they carry. Because the label is a comment,
+the grammar of section 3 and its LALR(1) check do not mention it.
+
+A release label names exactly one spec commit (C.15): the text of this document at that commit. An
+implementation of a release implements that text and no other, and a later commit that changes the meaning
+of a valid program of the earlier text is a new release with a new label, never a silent change to an old
+one. The cost of a standard library method call (C.6.4) is the one cost of that text, in every module and
+wherever the call is executed from.
 
 **Read receipt.** Which code point is the horizontal tab, as written in this section?
 
-<!-- body-sha256: 1ddd28e32ada7648b2261ba0addc0899841eb277b307fec08f826bdd32153041 -->
+<!-- body-sha256: 2969f1420272ac651ff7991aa16714f7ed9285441021160f137f33441c871bf3 -->

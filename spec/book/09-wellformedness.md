@@ -12,13 +12,9 @@ Lexical and syntax
 - W-LEX-2 Inconsistent dedent (2.6).
 - W-LEX-3 A literal outside every possible type range, or an invalid `\u{}`.
 - W-SYN-1 Not in the language of section 3.
-- W-VER-1 A first-line `# rce-version:` declaration naming a version other
-  than 0.5, 0.6, 0.7, 0.8 or 0.9 (2.7). Version 0.9 is specified in Appendix F;
-  an implementation without it refuses `0.9` with this rule. The reference
-  checker accepts it and refuses the parts it does not implement with W-VER-2
-  (F.12).
-- W-VER-2 A word or type name of Appendix F whose construct this checker does
-  not implement, in a version 0.9 module (F.12).
+- W-RES-1 A construct that a rule of this document specifies and this
+  implementation does not implement (a reserved word used as its construct,
+  F.12): refused with the words *reserved, not implemented*.
 
 Names and modules
 - W-NAME-1 Unresolved name, or a name resolved in the wrong namespace.
@@ -119,11 +115,10 @@ and budgets (F.5), and templates, contracts, ghost code, written measures,
 defined and are not repeated here, so that this list names only rules the
 reference checker implements.
 
-Version 0.6 only (Appendix C, applies only to a module declaring
-`# rce-version: 0.6`): W-PAR-1 to W-PAR-4, W-DL-1, W-ND-1, W-GRP-1 to
+Concurrency (Appendix C): W-PAR-1 to W-PAR-4, W-DL-1, W-ND-1, W-GRP-1 to
 W-GRP-3, W-SES-1 to W-SES-5, W-SCOPE-1, W-ATOM-1, W-ATOM-2, W-CRDT-1,
 W-LVAR-1, W-LVAR-2, W-NODE-1, W-SUP-1, W-SUP-2, W-INTR-1 and W-RT-1.
 
 **Read receipt.** Which rule refuses two unguarded steps in one region whose patterns overlap?
 
-<!-- body-sha256: f97d0e776a90e124af05ca02979bb6b84c81409ee381abd5351bae86dcb87118 -->
+<!-- body-sha256: 46e73d53d86f66272f6a543db803efeb9538bd8737ba7c81ceaa8b4b78767bd7 -->

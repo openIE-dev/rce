@@ -50,7 +50,6 @@ def counts():
     src = "".join(p.read_text(errors="ignore") for p in (spec / "checker/src").rglob("*.rs"))
     c["checker_src_mentions_haskell"] = len(re.findall(r"haskell", src, re.I))
     c["checker_src_mentions_julia"] = len(re.findall(r"julia", src, re.I))
-    c["versions"] = re.findall(r'"(0\.\d)"', re.search(r"pub const VERSIONS: &\[&str\] = &\[(.*?)\];", read("spec/checker/src/parse.rs")).group(1))
     tests = list((spec / "checker/tests").rglob("*.rs"))
     c["checker_test_files"] = len(tests)
     c["checker_test_fns"] = sum(len(re.findall(r"#\[test\]", p.read_text(errors="ignore"))) for p in tests)
@@ -63,7 +62,7 @@ def counts():
     out = spec_check_output()
     if out:
         g = re.search(r"LALR\(1\) from book/03-syntax.md: (\d+) rules, (\d+) productions, (\d+) states, (\d+) conflicts", out)
-        h = re.search(r"versions 0\.6 and 0\.7 \(section 3 with C\.2\): (\d+) rules, (\d+) productions, (\d+) states, (\d+) conflicts", out)
+        h = re.search(r"section 3 with C\.2: (\d+) rules, (\d+) productions, (\d+) states, (\d+) conflicts", out)
         a = re.search(r"grammar: accepted (\d+)/(\d+) valid examples, refused (\d+)/(\d+) invalid", out)
         k = re.search(r"checker: accepted (\d+)/(\d+) examples, refused (\d+)/(\d+) syntax rejects, refused (\d+)/(\d+) ill-typed or inadmissible \((\d+) of them inadmissible", out)
         c["spec_check"] = {
@@ -114,12 +113,11 @@ def check(c):
          "checker source now mentions Haskell or Julia: review README and 12-tooling", errs)
     for bad in ("Haskell emit", "Julia probe", "IDE, 811", "projects the program to Rust, Scala, Haskell"):
         need(bad not in readme and bad not in tool, f"unreproducible claim still present: {bad!r}", errs)
-    # versions
     w = re.sub(r"\s+", " ", read("spec/book/09-wellformedness.md"))
-    vs = c["versions"]
-    need(f"other than {', '.join(vs[:-1])} or {vs[-1]} (2.7)" in w, "09: W-VER-1 version list != parse.rs VERSIONS", errs)
+    # one language: the release label is tolerated, so no version list is claimed in 02 or 09
     lex = re.sub(r"\s+", " ", read("spec/book/02-lexical.md"))
-    need(", ".join(f"`{v}`" for v in vs[:-1]) + f" and `{vs[-1]}`; any other is refused" in lex, "02: 2.7 version list != parse.rs VERSIONS", errs)
+    need("A release label names exactly one spec commit" in lex, "02: 2.7 must state that a release label names exactly one spec commit", errs)
+    need("W-VER-1" not in w and "W-VER-2" not in w, "09: W-VER rules no longer exist", errs)
     # canonical json section
     cj = re.sub(r"\s+", " ", read("spec/book/07-form-evaluation.md"))
     if "canonical_json_vectors" in c:
