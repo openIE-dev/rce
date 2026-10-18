@@ -96,3 +96,16 @@ jobs:
         run: cargo install tree-sitter-cli --version 0.27.1 --locked
       - name: Three-parser check
         run: cargo run --release --features tree-sitter --bin rce-spec-check
+
+  wasm-checker:
+    # the playground checker (spec/checker-wasm) includes the checker's modules by path;
+    # a module added to the checker must be added there too, or this job fails
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: spec/checker-wasm
+    steps:
+      - uses: actions/checkout@v4
+      - run: rustup show && rustup target add wasm32-unknown-unknown
+      - run: cargo check --target wasm32-unknown-unknown

@@ -24,6 +24,18 @@ mod types;
 mod specread;
 #[path = "../../checker/src/session_prio.rs"]
 mod session_prio;
+#[path = "../../checker/src/v09.rs"]
+pub mod v09;
+#[path = "../../checker/src/ifc.rs"]
+pub mod ifc;
+#[path = "../../checker/src/tier2.rs"]
+pub mod tier2;
+#[path = "../../checker/src/tier3.rs"]
+pub mod tier3;
+#[path = "../../checker/src/apidiff.rs"]
+pub mod apidiff;
+#[path = "../../checker/src/unparse.rs"]
+pub mod unparse;
 use std::collections::HashSet;
 use wasm_bindgen::prelude::*;
 
