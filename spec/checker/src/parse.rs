@@ -333,15 +333,9 @@ pub fn lex(src: &str) -> Result<Vec<(Tok, usize)>, String> {
 pub struct Parser {
     pub t: Vec<(Tok, usize)>,
     p: usize,
-    /// accept draft 0.6 syntax; `parse` clears it without the `conc06` feature
-    pub allow06: bool,
     /// a `with budget ... else as e` was parsed: the builtin
     /// `struct Exhausted { limit: u64, used: u64 }` is added to the module
     pub need_exhausted: bool,
-    /// the module declares version 0.7 (spec 2.7, C.13)
-    pub v07: bool,
-    /// the module declares version 0.9 (Appendix F grammar delta)
-    pub v09: bool,
     /// token indices consumed as 0.9 keywords (the rest are refused as names)
     pub kw_used: Vec<usize>,
     /// refusals found while expanding template renderers (W-TPL-1, W-TPL-2)
@@ -357,13 +351,13 @@ fn is_kw(s: &str) -> bool {
 }
 
 /// Whether `s` is reserved in a module of the given version (2.4, 2.7).
-pub fn reserved(s: &str, draft06: bool) -> bool {
-    KEYWORDS.contains(&s) || (draft06 && DRAFT06_KEYWORDS.contains(&s))
+pub fn reserved(s: &str) -> bool {
+    KEYWORDS.contains(&s) || DRAFT06_KEYWORDS.contains(&s)
 }
 
 impl Parser {
     pub fn new(t: Vec<(Tok, usize)>) -> Self {
-        Parser { t, p: 0, allow06: true, v07: false, need_exhausted: false, v09: false, kw_used: vec![], tpl_errs: vec![], ct_names: vec![] }
+        Parser { t, p: 0, need_exhausted: false, kw_used: vec![], tpl_errs: vec![], ct_names: vec![] }
     }
     fn peek(&self) -> &Tok {
         &self.t[self.p].0
@@ -388,23 +382,14 @@ impl Parser {
         }
         t
     }
-    /// The head word used to dispatch an item or statement. In a 0.5 module
-    /// a draft 0.6 word is a name, so it never selects a 0.6 construct.
+    /// The head word used to dispatch an item or statement.
     fn head(&self, kw: String) -> String {
-        if !self.allow06 && DRAFT06_KEYWORDS.contains(&kw.as_str()) {
-            String::new()
-        } else {
-            kw
-        }
+        kw
     }
     fn is_p(&self, p: &str) -> bool {
         matches!(self.peek(), Tok::P(q) if *q == p)
     }
     fn is_kw(&self, k: &str) -> bool {
-        // A draft 0.6 word is an ordinary name in a 0.5 module (2.7).
-        if !self.allow06 && DRAFT06_KEYWORDS.contains(&k) {
-            return false;
-        }
         matches!(self.peek(), Tok::Id(q) if q == k)
     }
     fn eat_p(&mut self, p: &str) -> bool {
@@ -458,7 +443,7 @@ impl Parser {
     }
     fn name(&mut self) -> R<String> {
         match self.peek().clone() {
-            Tok::Id(s) if !reserved(&s, self.allow06) && s != "_" => {
+            Tok::Id(s) if !reserved(&s) && s != "_" => {
                 self.bump();
                 Ok(s)
             }
@@ -466,7 +451,7 @@ impl Parser {
         }
     }
     fn is_name(&self) -> bool {
-        matches!(self.peek(), Tok::Id(s) if !reserved(s, self.allow06) && s != "_")
+        matches!(self.peek(), Tok::Id(s) if !reserved(s) && s != "_")
     }
     fn path(&mut self) -> R<Vec<String>> {
         let mut v = vec![self.name()?];
@@ -485,10 +470,6 @@ impl Parser {
             path: None,
             items: vec![],
             pubs: Default::default(),
-            draft06: self.allow06,
-            v07: self.v07,
-            v08: false,
-            v09: false,
             v09_hygiene: vec![],
             x09: Default::default(),
         };
@@ -526,7 +507,7 @@ impl Parser {
             Tok::Id(s) => s.clone(),
             _ => return self.err("expected a declaration"),
         };
-        if self.v09 && kw == "label" && matches!(self.peek2(), Tok::Id(_)) {
+        if kw == "label" && matches!(self.peek2(), Tok::Id(_)) {
             // F.4.2 `label NAME [by AUTH]`; carried as a struct named `@label:NAME`
             self.kw_used.push(self.p);
             self.bump();
@@ -831,7 +812,7 @@ impl Parser {
                 })
             }
             "fn" | "comptime" => Ok(Item::Fn(self.fn_decl()?)),
-            "ct" | "ghost" if self.v09 && matches!(self.peek2(), Tok::Id(k) if k == "fn") => Ok(Item::Fn(self.fn_decl()?)),
+            "ct" | "ghost" if matches!(self.peek2(), Tok::Id(k) if k == "fn") => Ok(Item::Fn(self.fn_decl()?)),
             "extern" => {
                 self.bump();
                 let abi = match self.bump() {
@@ -1189,12 +1170,12 @@ impl Parser {
     }
     fn fn_decl(&mut self) -> R<FnDecl> {
         // F.5.4 `ct fn` (FnDecl = [ "ct" ] FnSig ...)
-        let ct = self.v09 && self.is_kw("ct") && matches!(self.peek2(), Tok::Id(k) if k == "fn");
+        let ct = self.is_kw("ct") && matches!(self.peek2(), Tok::Id(k) if k == "fn");
         if ct {
             self.kw_used.push(self.p);
             self.bump();
         }
-        let ghost = !ct && self.v09 && self.is_kw("ghost") && matches!(self.peek2(), Tok::Id(k) if k == "fn");
+        let ghost = !ct && self.is_kw("ghost") && matches!(self.peek2(), Tok::Id(k) if k == "fn");
         if ghost {
             self.kw_used.push(self.p);
             self.bump();
@@ -1229,7 +1210,7 @@ impl Parser {
                 self.want_kw("self")?;
                 v.push(Param::SelfRef(m));
             } else {
-                if self.v09 && self.is_kw("ghost") {
+                if self.is_kw("ghost") {
                     return self.err("W-RES-1 `ghost` parameters (F.6.3) are specified but not implemented by this checker, so they are reserved, not implemented");
                 }
                 let comptime = self.eat_kw("comptime");
@@ -1279,7 +1260,7 @@ impl Parser {
         }
         let b = self.base_ty()?;
         if self.eat_p("@") {
-            if self.v09 && self.is_p("{") {
+            if self.is_p("{") {
                 // F.4.2 label set `T @ {A, B}`; carried as a region named `@{A,B}`
                 // until `v09::erase` removes it (surface reading only)
                 self.bump();
@@ -1433,7 +1414,7 @@ impl Parser {
             _ => String::new(),
         };
         let kw = self.head(kw);
-        if self.v09 && (kw == "requires" || kw == "ensures") {
+        if kw == "requires" || kw == "ensures" {
             // F.6.2: a clause is carried as `check @requires(e)` until `tier3::lower`
             self.kw_used.push(self.p);
             self.bump();
@@ -1441,7 +1422,7 @@ impl Parser {
             self.nl()?;
             return Ok(Stmt::Check(Expr::Call(Box::new(Expr::Name(format!("@{kw}"), line)), vec![Arg { label: None, e }], line, false)));
         }
-        if self.v09 && kw == "decreases" {
+        if kw == "decreases" {
             // F.6.4: carried as `check @decreases(m1, m2, ...)` until `tier3::lower`
             self.kw_used.push(self.p);
             self.bump();
@@ -1449,7 +1430,7 @@ impl Parser {
             self.nl()?;
             return Ok(Stmt::Check(Expr::Call(Box::new(Expr::Name("@decreases".into(), line)), args, line, false)));
         }
-        if self.v09 && kw == "ghost" && matches!(self.peek2(), Tok::Id(k) if k == "let") {
+        if kw == "ghost" && matches!(self.peek2(), Tok::Id(k) if k == "let") {
             self.kw_used.push(self.p);
             self.bump();
             return match self.stmt()? {
@@ -1484,7 +1465,7 @@ impl Parser {
                 self.nl()?;
                 Ok(Stmt::Var(n, t, e, line))
             }
-            "if" if self.v09 && matches!(self.peek2(), Tok::Id(k) if k == "let") => {
+            "if" if matches!(self.peek2(), Tok::Id(k) if k == "let") => {
                 // F.6.5, block form: `if let P = e [and c]... Block [else Block]` is carried as
                 // a `match` on `@iflet(e)` with the guard `c and ...` and a wildcard arm
                 self.bump();
@@ -1646,11 +1627,6 @@ impl Parser {
                 }
                 // draft 0.6b `-> h` join handle (C.11.9)
                 if self.is_p("->") {
-                    if !self.allow06 {
-                        return self.err(
-                            "`spawn ... -> h` is draft 0.6 concurrency syntax (declare `# rce-version: 0.6`, spec 2.7)",
-                        );
-                    }
                     self.bump();
                     let h = self.name()?;
                     st = Stmt::Arena(format!("$spawnas:{h}"), None, vec![st], line);
@@ -1668,7 +1644,7 @@ impl Parser {
                 let body = self.block()?;
                 Ok(Stmt::Arena(format!("${kw}"), None, body, line))
             }
-            "with" if self.allow06 && matches!(self.peek2(), Tok::Id(k) if k == "group") => {
+            "with" if matches!(self.peek2(), Tok::Id(k) if k == "group") => {
                 self.bump();
                 self.bump();
                 let g = self.name()?;
@@ -1740,8 +1716,7 @@ impl Parser {
                 }
                 Ok(Stmt::Arena("$par".into(), None, branches, line))
             }
-            "with" if self.allow06
-                && matches!(self.peek2(), Tok::Id(k) if k == "budget" || k == "deadline") =>
+            "with" if matches!(self.peek2(), Tok::Id(k) if k == "budget" || k == "deadline") =>
             {
                 self.bump();
                 let budget = self.eat_kw("budget");
@@ -1984,8 +1959,7 @@ impl Parser {
         if self.eat_kw("comptime") {
             return Ok(Expr::Comptime(Box::new(self.unary()?), l));
         }
-        if self.v09
-            && let Tok::Id(w) = self.peek().clone()
+        if let Tok::Id(w) = self.peek().clone()
             && (w == "release" || w == "endorse")
         {
             // F.4.2: `release e` and `endorse e` are prefix forms; carried as a
@@ -2024,7 +1998,7 @@ impl Parser {
             if self.eat_p("(") {
                 let a = if self.is_p(")") { vec![] } else { self.args()? };
                 self.want_p(")")?;
-                e = Expr::Call(Box::new(e), a, l, self.v07);
+                e = Expr::Call(Box::new(e), a, l, true);
             } else if self.eat_p("[") {
                 if self.eat_p(":") {
                     let hi = if self.is_p("]") {
@@ -2054,7 +2028,7 @@ impl Parser {
                 self.want_p("]")?;
                 e = Expr::Index(Box::new(e), ix, l);
             } else if self.eat_p(".") {
-                if self.v09 && let Tok::Tpl(raw) = self.peek().clone() {
+                if let Tok::Tpl(raw) = self.peek().clone() {
                     self.bump();
                     e = self.template(e, &raw, l);
                     continue;
@@ -2135,14 +2109,14 @@ impl Parser {
         if !lit.is_empty() || pieces.is_empty() {
             pieces.push(Ok(lit));
         }
-        let call = |obj: Expr, m: &str, a: Expr, v07: bool| Expr::Call(Box::new(Expr::Member(Box::new(obj), m.into(), l)), vec![Arg { label: None, e: a }], l, v07);
+        let call = |obj: Expr, m: &str, a: Expr| Expr::Call(Box::new(Expr::Member(Box::new(obj), m.into(), l)), vec![Arg { label: None, e: a }], l, true);
         let mut out: Option<Expr> = None;
         for p in pieces {
             let piece = match p {
                 Ok(s) if ctx == "text" => Expr::Str(s, l),
-                Ok(s) => call(Expr::Name(ctx.clone(), l), "lit", Expr::Str(s, l), self.v07),
-                Err(f) if ctx == "text" => Expr::Call(Box::new(Expr::Member(Box::new(f), "tostr".into(), l)), vec![], l, self.v07),
-                Err(f) => call(Expr::Name(ctx.clone(), l), "encode", f, self.v07),
+                Ok(s) => call(Expr::Name(ctx.clone(), l), "lit", Expr::Str(s, l)),
+                Err(f) if ctx == "text" => Expr::Call(Box::new(Expr::Member(Box::new(f), "tostr".into(), l)), vec![], l, true),
+                Err(f) => call(Expr::Name(ctx.clone(), l), "encode", f),
             };
             out = Some(match out {
                 None => piece,
@@ -2153,7 +2127,7 @@ impl Parser {
     }
     fn primary(&mut self) -> R<Expr> {
         let l = self.line();
-        if self.v09 && matches!(self.peek(), Tok::Tpl(_)) {
+        if matches!(self.peek(), Tok::Tpl(_)) {
             return self.err("W-RES-1 a template literal that is not rendered at once (`text.t\"...\"` or `C.t\"...\"`) is a `Template` value, which is specified (F.6.1) but not implemented by this checker, so it is reserved, not implemented");
         }
         match self.peek().clone() {
@@ -2382,22 +2356,11 @@ pub const DRAFT06_KEYWORDS: &[&str] = &[
     "choose", "node", "supervisor", "strategy", "child", "restart",
 ];
 
-/// The release label of a module (spec 2.7). The first line may be the
-/// comment `# rce-version: V`. It is a label only: it is tolerated, ignored,
-/// not hashed and gates nothing. There is one language, the current one, so
-/// every module is read as it (the result is always `Some("0.9")`, the
-/// release this checker implements).
-pub fn declared_version(_src: &str) -> Result<Option<&'static str>, String> {
-    Ok(Some(LANGUAGE_RELEASE))
-}
-
+/// The release label (spec 2.7): the first line may be the comment
+/// `# rce-version: V`. It is a label only: tolerated, ignored, not hashed, and
+/// it gates nothing. There is one language.
 /// The release of the one language this checker implements.
 pub const LANGUAGE_RELEASE: &str = "0.9";
-
-/// Whether a module has the Appendix C syntax and rules: always (one language).
-pub fn is_draft06(_src: &str) -> Result<bool, String> {
-    Ok(true)
-}
 
 pub fn parse(src: &str) -> Result<Module, String> {
     parse_as(src, true)
@@ -2411,53 +2374,34 @@ pub fn parse_surface(src: &str) -> Result<Module, String> {
 }
 
 fn parse_as(src: &str, erase: bool) -> Result<Module, String> {
-    let d06 = is_draft06(src)?;
-    let v = declared_version(src)?;
-    // 0.8 (5.16) is 0.7 plus indexed values; it keeps the 0.7 costs.
-    let v07 = matches!(v, Some("0.7" | "0.8" | "0.9"));
-    let v08 = matches!(v, Some("0.8" | "0.9"));
-    let v09 = v == Some("0.9");
-    if v09 {
-        crate::v09::lexical(src)?;
-    }
+    crate::v09::lexical(src)?;
     let toks = lex(src)?;
-    if v09 {
-        crate::v09::gate(&toks)?;
-    }
+    crate::v09::gate(&toks)?;
     let mut p = Parser::new(toks);
-    p.allow06 = d06;
-    p.v07 = v07;
-    p.v09 = v09;
     let mut m = p.module()?;
     let tpl_errs = std::mem::take(&mut p.tpl_errs);
-    if v09 {
-        crate::v09::stray_words(&p.t, &p.kw_used)?;
-    }
-    m.v08 = v08;
-    m.v09 = v09;
-    if v09 {
-        let mut hy = crate::v09::hygiene(&m);
-        let (we, wf) = crate::v09::world(&m);
-        hy.extend(we);
-        hy.extend(crate::v09::transactional(&m));
-        hy.extend(crate::ifc::check(&m));
-        hy.extend(crate::tier2::s2(&m));
-        hy.extend(crate::tier2::s6(&m));
-        hy.extend(crate::tier3::check(&m));
-        hy.extend(tpl_errs);
-        hy.sort();
-        hy.dedup();
-        m.v09_hygiene = hy;
-        if erase {
-            let mut wf = wf;
-            for (k, v) in crate::v09::dir_cap_positions(&m) {
-                let e = wf.entry(k).or_default();
-                e.extend(v);
-                e.sort();
-            }
-            m = crate::tier3::lower(m)?;
-            m = crate::v09::erase_world(m, &wf)?;
+    crate::v09::stray_words(&p.t, &p.kw_used)?;
+    let mut hy = crate::v09::hygiene(&m);
+    let (we, wf) = crate::v09::world(&m);
+    hy.extend(we);
+    hy.extend(crate::v09::transactional(&m));
+    hy.extend(crate::ifc::check(&m));
+    hy.extend(crate::tier2::s2(&m));
+    hy.extend(crate::tier2::s6(&m));
+    hy.extend(crate::tier3::check(&m));
+    hy.extend(tpl_errs);
+    hy.sort();
+    hy.dedup();
+    m.v09_hygiene = hy;
+    if erase {
+        let mut wf = wf;
+        for (k, v) in crate::v09::dir_cap_positions(&m) {
+            let e = wf.entry(k).or_default();
+            e.extend(v);
+            e.sort();
         }
+        m = crate::tier3::lower(m)?;
+        m = crate::v09::erase_world(m, &wf)?;
     }
     Ok(m)
 }

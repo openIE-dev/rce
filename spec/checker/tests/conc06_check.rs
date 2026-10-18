@@ -4,7 +4,6 @@
 //! refusal names the rule in its `# expect: RULE` line (after the version line);
 //! every program in spec/conc06/reject/ is refused by the Rust parser;
 //! and `08_run_main.rce` runs with the meaning of C.4.2 and C.5.2.
-#![cfg(feature = "conc06")]
 use rce_spec_check::{check_program, cli};
 use std::path::{Path, PathBuf};
 

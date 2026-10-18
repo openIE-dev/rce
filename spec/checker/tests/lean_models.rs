@@ -13,7 +13,6 @@
 //!   handler failure, leave the state `Models.atomic` computes.
 //!
 //! These are correspondences on vectors, not proofs about the evaluator.
-#![cfg(feature = "conc06")]
 use rce_spec_check::conc::{Outcome, RunCfg, run_main};
 use rce_spec_check::parse::parse;
 

@@ -49,12 +49,6 @@ cc = { version = "1", optional = true }
 # (used by rce-spec-check and rce-fuzz in CI).
 default = []
 tree-sitter = ["dep:tree-sitter", "dep:cc"]
-# Version 0.6 (Appendix C) is selected per module by the first-line
-# declaration `# rce-version: 0.6` (spec 2.7) in every build. `conc06` is a
-# non-normative development feature: it reads undeclared modules as 0.6
-# (for the draft's test corpora) and enables the 0.6 test suites. A
-# declared version always wins.
-conc06 = []
 
 [[bin]]
 name = "rce"
@@ -95,7 +89,6 @@ debug = false
 
 [[example]]
 name = "run06"
-required-features = ["conc06"]
 
 # Standalone: the repo root workspace excludes crates/rce, but its manifest
 # carries a [patch."openie"] that only parses where the openie registry is

@@ -96,12 +96,6 @@ pub struct Checker {
     iter_ok: bool,
     /// draft 0.6b state (see check06b.rs)
     pub(crate) b6: crate::check06b::State06b,
-    /// the module under check is language version 0.6 (spec 2.7)
-    pub v06: bool,
-    /// version 0.8 module: indexed values of 5.16 are in scope
-    pub v08: bool,
-    /// version 0.9 module (Appendix F, src/v09.rs)
-    pub v09: bool,
     /// structs and kinds that transitively hold a Secret (5.16, W-SEC-1)
     pub secret_structs: HashSet<String>,
     /// functions and impl heads linked from imported modules (src/link.rs)
@@ -189,9 +183,6 @@ impl Checker {
             iter_elem: None,
             iter_ok: false,
             b6: Default::default(),
-            v06: false,
-            v08: false,
-            v09: false,
             secret_structs: HashSet::new(),
             imported_fns: HashSet::new(),
             imported_types: HashSet::new(),
@@ -217,18 +208,13 @@ impl Checker {
     }
 
     pub fn check_module(&mut self, m: &Module, known_modules: &HashSet<String>) {
-        self.v06 = m.draft06;
-        self.v08 = m.v08;
-        self.v09 = m.v09;
         for e in &m.v09_hygiene {
             self.e(e.clone());
         }
-        if m.v08 {
-            for e in crate::index08::check(m) {
-                self.e(e);
-            }
-            self.secret_structs = crate::index08::struct_secret(m);
+        for e in crate::index08::check(m) {
+            self.e(e);
         }
+        self.secret_structs = crate::index08::struct_secret(m);
         self.pre06b(m);
         // type aliases of this module and of the modules it links, for the
         // task-function test (5.1: an alias is the type it names)
@@ -753,7 +739,7 @@ impl Checker {
                 self.lower06b(&p[0], args, line)
             }
             Ty::Path(p, args)
-                if self.v08 && p.len() == 1 && crate::index08::INDEXED.contains(&p[0].as_str()) =>
+                if p.len() == 1 && crate::index08::INDEXED.contains(&p[0].as_str()) =>
             {
                 // 5.16 indexed types (well-formedness is W-CTX-1/W-SEC-1/W-CAP-1 in index08)
                 let name = |t: &Ty| match t {
@@ -1187,7 +1173,7 @@ impl Checker {
     fn check_extern(&mut self, sig: &FnSig, abi: &str, line: usize) {
         // F.5.5: a version 0.9 module also declares `extern "model"`, a C-ABI
         // function whose cost is chosen by the outside
-        if abi != "C" && !(self.v09 && abi == "model") {
+        if abi != "C" && !(abi == "model") {
             self.e(d(
                 line,
                 "W-FFI-1",
@@ -1589,8 +1575,8 @@ impl Checker {
                     // 5.16: in an example the host writes an attested capability
                     // as `()` and a secret as its plain value.
                     let host = |t: &Ty| match t {
-                        Ty::Path(p, a) if self.v08 && p.len() == 1 && p[0] == "Cap" && a.len() == 1 => Ty::Unit,
-                        Ty::Path(p, a) if self.v08 && p.len() == 1 && p[0] == "Secret" && a.len() == 1 => a[0].clone(),
+                        Ty::Path(p, a) if p.len() == 1 && p[0] == "Cap" && a.len() == 1 => Ty::Unit,
+                        Ty::Path(p, a) if p.len() == 1 && p[0] == "Secret" && a.len() == 1 => a[0].clone(),
                         t => t.clone(),
                     };
                     let fs: Vec<(String, Ty, bool)> = payload
@@ -1930,8 +1916,7 @@ impl Checker {
                         "W-TY-1",
                         "an error union must be handled with try or catch",
                     ));
-                } else if self.v09
-                    && !matches!(self.sub.resolve(&t), T::Unit | T::Never | T::Var(_))
+                } else if !matches!(self.sub.resolve(&t), T::Unit | T::Never | T::Var(_))
                 {
                     self.e(d(
                         e.line(),
@@ -2204,7 +2189,7 @@ impl Checker {
                 if contains_ref(&self.sub.resolve(&t)) {
                     self.e(d(e.line(), "W-OWN-3", "emitted values cannot hold borrows"));
                 }
-                if self.v08 && self.holds_secret(&self.sub.resolve(&t)) {
+                if self.holds_secret(&self.sub.resolve(&t)) {
                     self.e(d(e.line(), "W-SEC-1", "an emitted value cannot hold a secret (5.16)"));
                 }
                 false
@@ -2246,7 +2231,7 @@ impl Checker {
                 let line = e.line();
                 if !matches!(self.cx, Cx::Main | Cx::Task) {
                     self.e(d(line, "W-EFF-1", "spawn outside main or a task function"));
-                } else if self.v06 && self.cx == Cx::Task && self.b6.scope_depth == 0 {
+                } else if self.cx == Cx::Task && self.b6.scope_depth == 0 {
                     self.e(d(line, "W-SCOPE-1", "spawn outside a scope (only fn main is an implicit scope)"));
                 }
                 if self.b6.atomic_depth > 0 {
@@ -3746,7 +3731,7 @@ impl Checker {
             _ => {
                 let at = self.infer(a, false);
                 let bt = self.infer(b, false);
-                if self.v08 {
+                {
                     let (ra, rb) = (self.sub.resolve(&peel(&at)), self.sub.resolve(&peel(&bt)));
                     let ctx = |t: &T| matches!(t, T::Named(n, _) if n == "Text");
                     if ctx(&ra) || ctx(&rb) {
@@ -3903,10 +3888,9 @@ impl Checker {
                 }
             }
         }
-        if self.v08
-            && let Expr::Member(o, m, _) = f
+        if let Expr::Member(o, m, _) = f
             && let Expr::Name(c, _) = &**o
-            && crate::index08::is_ctx(c, self.v09)
+            && crate::index08::is_ctx(c)
             && self.lookup(c).is_none()
         {
             let out = T::Named("Text".into(), vec![T::Named(c.clone(), vec![])]);
@@ -3944,7 +3928,7 @@ impl Checker {
                     match n.as_str() {
                         "lvar_new" => return self.lvar_new_ty(args, l),
                         // F.5.4: `ct_choose(c, a, b)` evaluates both `a` and `b`
-                        "ct_choose" if self.v09 => {
+                        "ct_choose" => {
                             if args.len() != 3 {
                                 self.e(d(l, "W-TY-1", "`ct_choose` takes a condition and two values"));
                                 return T::Never;
@@ -4281,12 +4265,12 @@ impl Checker {
         }
         let rt = self.sub.resolve(&ot);
         let base = peel(&rt);
-        if self.v08 && let T::Named(n, _) = &base && crate::index08::INDEXED.contains(&n.as_str()) {
+        if let T::Named(n, _) = &base && crate::index08::INDEXED.contains(&n.as_str()) {
             if n == "Text" && m == "raw" && args.is_empty() {
                 return T::Text;
             }
             // F.5.1: `c.narrow(sub)` is a `Cap[A]` with a longer root; nothing widens
-            if self.v09 && n == "Cap" && m == "narrow" && args.len() == 1 {
+            if n == "Cap" && m == "narrow" && args.len() == 1 {
                 let at = self.infer(&args[0].e, false);
                 self.expect(&at, &T::Text, l);
                 if let Expr::Str(s, _) = &args[0].e
@@ -4503,15 +4487,11 @@ impl Checker {
                 _ => unknown(self),
             },
             T::Text => match m {
-                "len" if self.v09 => {
-                    self.e(d(l, "W-LEN-1", "text has no unqualified `len` in a 0.9 module: use `len_bytes` or `len_chars` (F.5.2)"));
-                    usize_
-                }
-                "len_bytes" | "len_chars" if self.v09 => {
-                    self.arity(m, args, 0, l);
-                    usize_
-                }
                 "len" => {
+                    self.e(d(l, "W-LEN-1", "text has no unqualified `len`: use `len_bytes` or `len_chars` (F.5.2)"));
+                    usize_
+                }
+                "len_bytes" | "len_chars" => {
                     self.arity(m, args, 0, l);
                     usize_
                 }

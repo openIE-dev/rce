@@ -3,7 +3,6 @@
 //! C.11.10): each program is emitted to Rust, Python and JavaScript, run,
 //! and compared line for line with the reference evaluator (`observe`, the
 //! comptime model the emitters follow).
-#![cfg(feature = "conc06")]
 use rce_spec_check::emit::{Lang, emit, observe, with_probes};
 use rce_spec_check::parse::parse;
 use std::process::Command;

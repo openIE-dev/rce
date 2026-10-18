@@ -8,7 +8,6 @@
 //! Lean accepts and refuse the others with W-SES-5. When `lake` is on PATH
 //! the vectors are regenerated and must equal the checked-in file
 //! (RCE_BLESS=1 rewrites it).
-#![cfg(feature = "conc06")]
 use rce_spec_check::check_program;
 use serde_json::Value;
 use std::path::Path;

@@ -3,7 +3,6 @@
 //! obligations (C.11.5, C.11.8; model RCE/LVarQD.lean, T29q). Each runnable
 //! program is emitted to Rust, Python and JavaScript and compared line for
 //! line with the reference evaluator.
-#![cfg(feature = "conc06")]
 use rce_spec_check::check_program;
 use rce_spec_check::emit::{Lang, emit, observe, with_probes};
 use rce_spec_check::parse::parse;

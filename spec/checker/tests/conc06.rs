@@ -15,7 +15,6 @@
 //!
 //! Only the grammar is tested here; the typing rules W-PAR-*, W-ND-1,
 //! W-BUD-1 and W-DL-1 are not implemented in rce-check yet.
-#![cfg(feature = "conc06")]
 use rce_spec_check::lalr::{Lalr, book_grammar};
 use rce_spec_check::parse::{KEYWORDS, Tok, lex};
 use std::path::{Path, PathBuf};

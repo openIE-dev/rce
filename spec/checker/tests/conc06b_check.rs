@@ -1,7 +1,6 @@
 //! Draft 0.6b static rules (Appendix C, book/14-draft06-concurrency.md C.11): every program in
 //! `spec/conc06b/accept/` is admitted, every one in `ill_typed/` is refused
 //! with the rule named on its `# expect:` line, and `reject/` does not parse.
-#![cfg(feature = "conc06")]
 use rce_spec_check::check_program;
 use std::path::{Path, PathBuf};
 

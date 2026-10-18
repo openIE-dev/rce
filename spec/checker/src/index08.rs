@@ -14,8 +14,8 @@ pub const CTX: &[&str] = &["Html", "Url", "Sql", "Json"];
 pub const CTX09: &[&str] = &["ShellArg", "Prompt", "Shell"];
 
 /// Whether `c` names a context in a module of the given version.
-pub fn is_ctx(c: &str, v09: bool) -> bool {
-    CTX.contains(&c) || (v09 && CTX09.contains(&c))
+pub fn is_ctx(c: &str) -> bool {
+    CTX.contains(&c) || CTX09.contains(&c)
 }
 
 /// The deterministic data-block wrapper of `Prompt.encode` (F.5.2): the
@@ -224,7 +224,7 @@ pub fn check(m: &Module) -> Vec<String> {
             Item::Fn(fd) => (&fd.sig.name, fd.sig.line),
             _ => continue,
         };
-        if INDEXED.contains(&n.as_str()) || is_ctx(n, m.v09) {
+        if INDEXED.contains(&n.as_str()) || is_ctx(n) {
             err(l, "W-NAME-2", format!("`{n}` is a version 0.8 indexed type or context (5.16) and cannot be declared"));
         }
     }
@@ -271,7 +271,7 @@ pub fn check(m: &Module) -> Vec<String> {
     for (l, t, what) in &all {
         each(t, &mut |x| match head(x) {
             Some(("Text", a)) => {
-                if a.len() != 1 || !matches!(head(&a[0]), Some((c, b)) if is_ctx(c, m.v09) && b.is_empty()) {
+                if a.len() != 1 || !matches!(head(&a[0]), Some((c, b)) if is_ctx(c) && b.is_empty()) {
                     err(*l, "W-CTX-1", format!("`Text` takes one context, one of {}", CTX.join(", ")));
                 }
             }

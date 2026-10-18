@@ -7,7 +7,6 @@
 //! interleaving of the same program ends with that value (`vector_sound`,
 //! via `par_det`). The file must match what this test generates
 //! (RCE_BLESS=1 rewrites it); `lake build` checks the theorems.
-#![cfg(feature = "conc06")]
 use rce_spec_check::conc::{Outcome, RunCfg, run_main};
 use rce_spec_check::parse::parse;
 

@@ -1,7 +1,6 @@
 //! Run-time meaning of draft 0.6b (Appendix C, book/14-draft06-concurrency.md C.11) and
 //! property tests for theorems T23 to T31. Each test names the theorem it
 //! exercises; these are tests on generated or fixed inputs, not proofs.
-#![cfg(feature = "conc06")]
 use rce_spec_check::conc::{
     admission_order, edf_schedulable, rm_schedulable, run_main, Outcome, ParMode, Replicas,
     RunCfg, RunResult,

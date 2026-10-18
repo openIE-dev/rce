@@ -48,7 +48,7 @@ fn every_module_round_trips_through_source() {
         let s1 = unparse(&m);
         match parse(&s1) {
             Ok(m2) => {
-                if shape(&m) != shape(&m2) || m.pubs != m2.pubs || m.path != m2.path || (m.draft06, m.v07, m.v08) != (m2.draft06, m2.v07, m2.v08) {
+                if shape(&m) != shape(&m2) || m.pubs != m2.pubs || m.path != m2.path {
                     bad.push(format!("{}: AST differs", f.display()));
                 } else if unparse(&m2) != s1 {
                     bad.push(format!("{}: not a fixpoint", f.display()));

@@ -784,9 +784,6 @@ fn fns_mut(m: &mut Module) -> Vec<&mut FnDecl> {
 
 /// Rewrite contracts to guards and erase the ghost code no clause needs.
 pub fn lower(m: Module) -> Result<Module, String> {
-    if !m.v09 {
-        return Ok(m);
-    }
     let any = {
         let mut a = false;
         for (f, _) in crate::v09::fn_decls(&m) {

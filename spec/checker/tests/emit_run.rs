@@ -4,7 +4,6 @@
 //! `conc::run_main` on a corpus of task programs, and a stress pass reruns
 //! each program and a many-task program repeatedly: every run must give the
 //! same result as the evaluator, whatever the OS does with the threads.
-#![cfg(feature = "conc06")]
 use rce_spec_check::conc::{Outcome, RunCfg, run_main};
 use rce_spec_check::emit::{Lang, emit};
 use rce_spec_check::parse::parse;

@@ -20,7 +20,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        features: ["", "conc06", "tree-sitter"]
+        features: ["", "tree-sitter"]
     env:
       CI: "true"
     steps:

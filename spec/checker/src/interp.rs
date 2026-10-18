@@ -1478,7 +1478,7 @@ impl<'a> Interp<'a> {
         // 5.16 context text: `C.lit("…")` is its literal, `C.encode(t)` escapes
         if let Expr::Member(o, m, _) = f
             && let Expr::Name(c, _) = &**o
-            && crate::index08::is_ctx(c, self.m.v09)
+            && crate::index08::is_ctx(c)
             && self.get(c).is_none()
             && !self.types.contains_key(c)
             && c == "Shell"
@@ -1502,7 +1502,7 @@ impl<'a> Interp<'a> {
         }
         if let Expr::Member(o, m, _) = f
             && let Expr::Name(c, _) = &**o
-            && crate::index08::is_ctx(c, self.m.v09)
+            && crate::index08::is_ctx(c)
             && self.get(c).is_none()
             && !self.types.contains_key(c)
             && args.len() == 1
@@ -1525,7 +1525,7 @@ impl<'a> Interp<'a> {
                         return Ok(V::Opt(Some(Box::new(v))));
                     }
                     "copy" | "Box" => return self.eval(&args[0].e),
-                    "ct_choose" if self.m.v09 && args.len() == 3 => {
+                    "ct_choose" if args.len() == 3 => {
                         // branchless: both values are evaluated, then one is chosen
                         let c = self.eval(&args[0].e)?;
                         let a = self.eval(&args[1].e)?;
@@ -1691,7 +1691,7 @@ impl<'a> Interp<'a> {
         // copy-out for `&mut` arguments and a `&mut self` receiver. In a
         // version 0.9 module a call that returns by `fail` is transactional
         // (F.4.4): the arguments keep their values from the call.
-        let restore = self.m.v09 && matches!(r, Err(Flow::Fail(_)));
+        let restore = matches!(r, Err(Flow::Fail(_)));
         for ((n, t), a) in named.iter().zip(args) {
             if !restore
                 && matches!(t, Ty::Ref(true, _))

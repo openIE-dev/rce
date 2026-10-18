@@ -363,18 +363,6 @@ pub struct Module {
     pub items: Vec<Item>,
     /// names of the items declared `pub` (4.1: visible to importing modules)
     pub pubs: std::collections::BTreeSet<String>,
-    /// language version 0.6 (spec 2.7); false for a 0.5 module
-    pub draft06: bool,
-    /// language version 0.7 (spec 2.7, C.13): 0.6 plus size-scaled method
-    /// costs (C.6.4); implies `draft06`
-    pub v07: bool,
-    /// language version 0.8 (spec 2.7, 5.16): 0.7 plus indexed values
-    /// (context-typed text, secrets, capabilities); implies `v07`
-    pub v08: bool,
-    /// language version 0.9 (spec 2.7, Appendix F): 0.8 plus the implemented
-    /// subset of Appendix F (src/v09.rs); implies `v08`
-    #[serde(default)]
-    pub v09: bool,
     /// W-UNUSED, W-NAME-3 and W-ASSIGN-1 findings of a 0.9 module, computed on
     /// the module as parsed (before linking rewrites `r.x` to `x`) and reported
     /// by the checker, so that `parse` still accepts every well-formed text

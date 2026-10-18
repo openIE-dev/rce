@@ -1656,11 +1656,8 @@ pub(crate) fn fn_decls(m: &Module) -> Vec<(&FnDecl, bool)> {
 
 /// A version 0.9 construct that the emitters and the Lean elaboration do not
 /// translate: the reference evaluator runs it, every other target refuses it
-/// by version (never a different meaning). `None` when the module has none.
+/// as not implemented (never a different meaning). `None` when the module has none.
 pub fn unemittable(m: &Module) -> Option<String> {
-    if !m.v09 {
-        return None;
-    }
     if !m.x09.ct.is_empty() {
         return Some(format!("W-CTFN-2 ct fn is not emitted for this target (`{}`): 10.5 states no constant-time guarantee for any target", m.x09.ct.iter().next().unwrap()));
     }

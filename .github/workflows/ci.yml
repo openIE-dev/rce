@@ -36,7 +36,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        features: ["", "conc06"]
+        features: [""]
     steps:
       - uses: actions/checkout@v4
       - name: Install the pinned Rust toolchain
@@ -57,7 +57,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        features: ["", "conc06"]
+        features: [""]
         bin:
           - dst_chat
           - emit

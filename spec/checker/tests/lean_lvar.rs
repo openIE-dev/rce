@@ -8,7 +8,6 @@
 //! `freeze` result must equal Lean's, and the run must end with Lean's
 //! error or none. When `lake` is on PATH the vectors are regenerated from
 //! Lean and must equal the checked-in file (RCE_BLESS=1 rewrites it).
-#![cfg(feature = "conc06")]
 use rce_spec_check::emit::{Lang, emit, observe, with_probes};
 use rce_spec_check::parse::parse;
 use serde_json::Value;

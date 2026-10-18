@@ -61,29 +61,17 @@ pub struct Def {
     item: Item,
 }
 
-fn module_version(m: &Module) -> &'static str {
-    if m.v09 {
-        "0.9"
-    } else if m.v08 {
-        "0.8"
-    } else if m.v07 {
-        "0.7"
-    } else if m.draft06 {
-        "0.6"
-    } else {
-        "0.5"
-    }
+/// The hash domain's version: fixed, never the module's release label
+/// (definition hashes do not depend on `# rce-version:`).
+fn module_version(_m: &Module) -> &'static str {
+    "0.9"
 }
 
-fn one(m: &Module, it: &Item) -> String {
+fn one(_m: &Module, it: &Item) -> String {
     let mm = Module {
         path: None,
         items: vec![it.clone()],
         pubs: BTreeSet::new(),
-        draft06: m.draft06,
-        v07: m.v07,
-        v08: m.v08,
-        v09: m.v09,
         v09_hygiene: vec![],
         x09: Default::default(),
     };

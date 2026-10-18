@@ -4,7 +4,7 @@
 #   scripts/ci-tests.sh fast         the library tests and every test binary not listed as slow
 #   scripts/ci-tests.sh bin NAME     one slow test binary (NAME is in SLOW below)
 #   scripts/ci-tests.sh slow-list    print the slow binaries (the CI matrix must match)
-# RCE_FEATURES, if set, is passed to cargo as --features (for example conc06).
+# RCE_FEATURES, if set, is passed to cargo as --features (for example tree-sitter).
 # A name in SLOW that has no tests/NAME.rs is an error, so the list cannot drift.
 set -euo pipefail
 cd "$(dirname "$0")/../spec/checker"

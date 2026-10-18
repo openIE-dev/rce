@@ -3,7 +3,6 @@
 //! compared line for line with the reference evaluator, including
 //! `for .. par` float reductions over the fixed tree T and `pscan`.
 //! The other 0.6 / 0.6b constructs are covered by `tests/emit06b.rs`.
-#![cfg(feature = "conc06")]
 use rce_spec_check::emit::{Lang, emit, observe, with_probes};
 use rce_spec_check::parse::parse;
 use std::process::Command;

@@ -3,7 +3,6 @@
 //! variable are admitted (the earlier root-variable rule refused each of
 //! these), while overlapping paths are still refused. Admitted programs
 //! give the source-order result under every par schedule (T16).
-#![cfg(feature = "conc06")]
 use rce_spec_check::conc::{run_main, Outcome, ParMode, RunCfg};
 use rce_spec_check::parse::parse;
 

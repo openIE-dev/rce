@@ -4,7 +4,6 @@
 //! in source order) and trap at the same point as `conc::run_main` at every
 //! limit where the reference's result changes, and at the limit before it.
 //! Its own test binary: it sets the process-wide `interp::FUEL_LIMIT`.
-#![cfg(feature = "conc06")]
 use rce_spec_check::conc::{Outcome, RunCfg, run_main};
 use rce_spec_check::emit::{Lang, emit};
 use rce_spec_check::interp::FUEL_LIMIT;

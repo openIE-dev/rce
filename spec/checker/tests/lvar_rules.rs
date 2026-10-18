@@ -4,7 +4,6 @@
 //! missing declaration, or a certificate that does not denote a lawful
 //! join, fails the build). This test keeps the committed file equal to the
 //! generated one and checks each trap string against every runtime.
-#![cfg(feature = "conc06")]
 use rce_spec_check::conc::{LVAR_RULES, merge_certs, lvar_rules_lean};
 use rce_spec_check::parse::parse;
 
