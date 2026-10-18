@@ -1,6 +1,6 @@
 fn main()
     let a: f64 = 10.0
-    let b: f64 = -1.0558832725247179e+117
+    let _b: f64 = -1.0558832725247179e+117
     emit a.ceil()
 #--- rce-test
 # id: numbers/generated/num-2-0295

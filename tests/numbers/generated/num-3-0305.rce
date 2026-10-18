@@ -1,6 +1,6 @@
 fn main()
     let a: f64 = 1.0
-    let b: f64 = -3.1046595939127148e+16
+    let _b: f64 = -3.1046595939127148e+16
     emit a.sqrt()
 #--- rce-test
 # id: numbers/generated/num-3-0305

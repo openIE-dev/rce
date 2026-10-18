@@ -1,6 +1,6 @@
 fn main()
     let a: f64 = 3.1734385748311336e+205
-    let b: f64 = 0.3
+    let _b: f64 = 0.3
     emit a as i64
 #--- rce-test
 # id: numbers/generated/num-3-0289

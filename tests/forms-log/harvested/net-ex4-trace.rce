@@ -105,41 +105,41 @@ step Net on Get(digest: d)
     next += 1
     emit BlobGet(req: next, digest: d)
 
-step Net on NetListenDone(req: r, status: s, data: d, err: e)
+step Net on NetListenDone(req: _r, status: s, data: d, err: _e)
     if s == "delivered"
         last = d.or(0)
     else
         errors += 1
 
-step Net on NetConnectDone(req: r, status: s, data: d, err: e)
+step Net on NetConnectDone(req: _r, status: s, data: d, err: _e)
     if s == "delivered"
         last = d.or(0)
     else
         errors += 1
 
-step Net on NetAcceptDone(req: r, status: s, data: d, err: e)
+step Net on NetAcceptDone(req: _r, status: s, data: d, err: _e)
     if s == "delivered"
         last = d.or(0)
 
-step Net on NetSendDone(req: r, status: s, data: d, err: e)
+step Net on NetSendDone(req: _r, status: s, data: _d, err: _e)
     if s != "delivered"
         errors += 1
 
-step Net on NetRecvDone(req: r, status: s, data: d, err: e)
+step Net on NetRecvDone(req: _r, status: s, data: d, err: _e)
     if s == "delivered"
         got = got + d.or("")
 
-step Net on NetCloseDone(req: r, status: s, data: d, err: e)
+step Net on NetCloseDone(req: _r, status: s, data: _d, err: _e)
     if s != "delivered"
         errors += 1
 
-step Net on RandomDone(req: r, status: s, data: d, err: e)
+step Net on RandomDone(req: _r, status: _s, data: d, err: _e)
     rand = d.or("")
 
-step Net on BlobPutDone(req: r, status: s, data: d, err: e)
+step Net on BlobPutDone(req: _r, status: _s, data: d, err: _e)
     digest = d.or("")
 
-step Net on BlobGetDone(req: r, status: s, data: d, err: e)
+step Net on BlobGetDone(req: _r, status: s, data: d, err: _e)
     if s == "delivered"
         blob = d.or("")
     else

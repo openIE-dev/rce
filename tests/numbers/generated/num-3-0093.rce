@@ -1,6 +1,6 @@
 fn main()
     let a: f64 = -4.1901644588459386e+275
-    let b: f64 = 0.5
+    let _b: f64 = 0.5
     emit a.round()
 #--- rce-test
 # id: numbers/generated/num-3-0093

@@ -2,7 +2,7 @@ fn main()
     var s: text = "x"
     for _ in 0..21
         s = s + s
-    emit s.len()
+    emit s.len_bytes()
 #--- rce-test
 # id: evaluation-fuel/targeted/n9-size-limit
 # area: evaluation-fuel

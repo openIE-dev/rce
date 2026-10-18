@@ -8,7 +8,7 @@ fn main()
     var r = 0
     with budget 1000000000
         r = spin(100000)
-    else as e
+    else as _e
         r = -1
     emit r
 #--- rce-test

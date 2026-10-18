@@ -3,7 +3,7 @@ kind Expr
     Add(a: Box[Expr], b: Box[Expr])
     Neg(e: Box[Expr])
 
-fn depth_shallow(e: &Box[Expr]) -> u32 = 1
+fn depth_shallow(_e: &Box[Expr]) -> u32 = 1
 
 fn depth(e: &Expr) -> u32
     match e

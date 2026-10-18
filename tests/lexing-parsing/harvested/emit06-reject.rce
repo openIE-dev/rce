@@ -51,7 +51,7 @@ fn nested() -> i64
 
 fn overflow() -> u8
     var s: u8 = 250
-    for i in 0..4 par
+    for _i in 0..4 par
         s += 2
     s
 

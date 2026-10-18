@@ -1,7 +1,7 @@
 intent "bytes become text only when they are well-formed UTF-8; anything else refuses the event, never substitutes"
     example Dec(b: [104, 105]) -> t == "hi"
     example Dec(b: [226, 130, 172]) -> t == "€"
-    example Dec(b: [240, 159, 152, 128]) -> t.len() == 4
+    example Dec(b: [240, 159, 152, 128]) -> t.len_bytes() == 4
 
 state S
     t: text = ""
@@ -19,7 +19,7 @@ fn bad_above_max() -> text = [244, 144, 128, 128].utf8()
 fn bad_truncated() -> text = [226, 130].utf8()
 fn bad_range_high() -> text = [300].utf8()
 fn bad_range_neg() -> text = [-1].utf8()
-fn ok_bom_kept() -> usize = [239, 187, 191, 97].utf8().len()
+fn ok_bom_kept() -> usize = [239, 187, 191, 97].utf8().len_bytes()
 #--- rce-test
 # id: forms-log/harvested/golden-56-utf8-example-2
 # area: forms-log

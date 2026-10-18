@@ -20,7 +20,7 @@ fn bump(x: &mut i64, y: &mut List[i64]) -> i64 ! Boom
 
 fn wrap(n: &mut i64, l: &mut List[i64]) -> i64 ! Boom
     let r = try bump(&mut n, &mut l)
-    try bump(&mut n, &mut l)
+    let _ = try bump(&mut n, &mut l)
     return r
 
 fn main()

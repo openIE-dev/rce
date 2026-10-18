@@ -1,6 +1,6 @@
 fn main()
     let s: text = "aé😀"
-    emit s.len()
+    emit s.len_bytes()
     emit s.chars().len()
 #--- rce-test
 # id: text-unicode/targeted/n7-byte-len

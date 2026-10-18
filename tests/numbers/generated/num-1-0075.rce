@@ -1,6 +1,6 @@
 fn main()
     let a: f64 = 1e+308
-    let b: f64 = 6.9766496849607e+292
+    let _b: f64 = 6.9766496849607e+292
     emit a.abs()
 #--- rce-test
 # id: numbers/generated/num-1-0075

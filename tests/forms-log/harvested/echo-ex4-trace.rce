@@ -19,7 +19,7 @@ step S on Say(msg: m)
     next += 1
     emit Echo(req: next, msg: m)
 
-step S on EchoDone(req: r, status: st, data: d, err: e)
+step S on EchoDone(req: _r, status: st, data: d, err: _e)
     if st == "delivered"
         got.push(d.or(""))
     else

@@ -3,9 +3,9 @@ intent "x"
 
 fn spin() -> u64
     var k: u64 = 0
-    while true bound 10
+    loop bound 10
         k += 1
-    return 0
+    return k - k
 #--- rce-test
 # id: evaluation-fuel/harvested/loop-bound-reject
 # area: evaluation-fuel

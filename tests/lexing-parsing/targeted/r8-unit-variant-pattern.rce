@@ -4,7 +4,7 @@ kind Light
 fn f(l: Light) -> i64
     match l
         Red -> return 1
-        other -> return 2
+        _other -> return 2
 fn main()
     emit f(Red)
     emit f(Green)

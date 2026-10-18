@@ -43,21 +43,21 @@ step Fs on Ls(path: p)
     next += 1
     emit FileList(req: next, path: p)
 
-step Fs on FileWriteDone(req: r, status: s, data: d, err: e)
+step Fs on FileWriteDone(req: _r, status: s, data: _d, err: e)
     if s == "delivered"
         written += 1
     else
         errors += 1
         last_err = e
 
-step Fs on FileReadDone(req: r, status: s, data: d, err: e)
+step Fs on FileReadDone(req: _r, status: s, data: d, err: e)
     if s == "delivered"
         content = d.or("")
     else
         errors += 1
         last_err = e
 
-step Fs on FileListDone(req: r, status: s, data: d, err: e)
+step Fs on FileListDone(req: _r, status: s, data: d, err: _e)
     if s == "delivered"
         names = d.or([])
     else

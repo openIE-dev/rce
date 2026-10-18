@@ -16,7 +16,7 @@ fn over() -> u8 = BIG + BIG
 
 fn spin() -> u64
     var n: u64 = 0
-    while true bound 10
+    loop bound 10
         n += 1
     return n
 

@@ -18,7 +18,7 @@ state Pts
 
 event Add(p: Point, tags: List[text], meta: Map[text, u64], note: text?, s: Shape)
 
-step Pts on Add(p: p, tags: t, meta: mm, note: no, s: sh)
+step Pts on Add(p: p, tags: t, meta: _mm, note: _no, s: _sh)
     n += 1
     sx = sx + p.x
     if t.len() > 0

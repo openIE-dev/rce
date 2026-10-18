@@ -36,7 +36,7 @@ step Call on Open(source: s)
     next += 1
     emit MediaOpen(req: next, source: s)
 
-step Call on MediaOpenDone(req: r, status: st, data: d, err: e)
+step Call on MediaOpenDone(req: _r, status: st, data: d, err: _e)
     if st == "delivered"
         track = d.or(0)
     else
@@ -49,7 +49,7 @@ step Call on Tick(n: n)
         emit MediaRead(req: next, id: track)
 
 # a frame: "track/seq/digest@tick"; the bytes are never in state or D
-step Call on MediaReadDone(req: r, status: st, data: d, err: e)
+step Call on MediaReadDone(req: _r, status: st, data: d, err: e)
     if st == "delivered"
         let f = d.or("").split(":")
         frames.push(track.tostr() + "/" + copy(f[0]) + "/" + copy(f[1]) + "@" + tick.tostr())
@@ -61,7 +61,7 @@ step Call on MediaReadDone(req: r, status: st, data: d, err: e)
         else
             errors += 1
 
-step Call on MediaPlayDone(req: r, status: st, data: d, err: e)
+step Call on MediaPlayDone(req: _r, status: st, data: d, err: _e)
     if st == "delivered"
         played += 1
         bytes += d.or(0)

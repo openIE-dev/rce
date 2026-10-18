@@ -27,7 +27,7 @@ step Db on Put(key: k, val: zq_v_renamed)
 step Db on Delete(key: k)
     if not rows.contains(k)
         fail Missing(key: k)
-    rows.remove(k)
+    let _ = rows.remove(k)
     writes += 1
 step Db on Synced(upto: n)
     if n > durable

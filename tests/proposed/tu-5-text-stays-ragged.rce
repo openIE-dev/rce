@@ -1,6 +1,6 @@
 fn main()
     let ws: List[text] = ["a", "bcd", ""]
-    emit ws.map(fn(w: text) => w.len())
+    emit ws.map(fn(w: text) => w.len_bytes())
     let m: Map[text, i64] = {"x": 1}
     emit m.keys().len()
 #--- rce-test

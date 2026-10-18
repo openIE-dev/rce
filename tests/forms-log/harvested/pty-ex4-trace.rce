@@ -55,23 +55,23 @@ step Term on Stop
     next += 1
     emit PtyClose(req: next, id: id)
 
-step Term on PtyOpenDone(req: r, status: s, data: d, err: e)
+step Term on PtyOpenDone(req: _r, status: s, data: d, err: _e)
     if s == "delivered"
         id = d.or(0)
     else
         errors += 1
 
-step Term on PtyWriteDone(req: r, status: s, data: d, err: e)
+step Term on PtyWriteDone(req: _r, status: s, data: _d, err: _e)
     if s != "delivered"
         errors += 1
 
-step Term on PtyReadDone(req: r, status: s, data: d, err: e)
+step Term on PtyReadDone(req: _r, status: s, data: d, err: _e)
     if s == "delivered"
         screen = screen + d.or("")
     else
         errors += 1
 
-step Term on PtyCloseDone(req: r, status: s, data: d, err: e)
+step Term on PtyCloseDone(req: _r, status: _s, data: _d, err: _e)
     closed = true
 #--- rce-test
 # id: forms-log/harvested/pty-ex4-trace
