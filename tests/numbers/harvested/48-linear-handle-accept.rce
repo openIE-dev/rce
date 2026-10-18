@@ -2,18 +2,18 @@
 linear struct File
     fd: i32
 
-extern "C" fn c_open(path: &text) -> File
-extern "C" fn c_close(f: File) -> i32
-extern "C" fn c_write(f: File, n: u32) -> File
+extern "C" fn c_open(w: &World, name: &text) -> File
+extern "C" fn c_close(w: &World, f: File) -> i32
+extern "C" fn c_write(w: &World, f: File, n: u32) -> File
 
-fn main()
+fn main(w: &World)
     let p = "log.txt"
-    let f = c_open(&p)
-    let g = c_write(f, 3)
+    let f = c_open(w, &p)
+    let g = c_write(w, f, 3)
     if g.fd < 0
-        let _ = c_close(g)
+        let _ = c_close(w, g)
     else
-        let r = c_close(g)
+        let r = c_close(w, g)
         emit r
 #--- rce-test
 # id: numbers/harvested/48-linear-handle-accept

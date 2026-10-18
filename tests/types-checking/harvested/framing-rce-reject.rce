@@ -12,8 +12,8 @@ step S on Msg(h: h)
         out = ["O:" + seq.tostr() + "#refused"]
     else
         let ok = mls_encode(copy(f)) == h
-        let ct = if f.len() == 10 then copy(f[5]) else copy(f[3])
-        out = ["O:" + seq.tostr() + "#" + ok.tostr() + "/" + copy(f[0]) + ct]
+        let ctext = if f.len() == 10 then copy(f[5]) else copy(f[3])
+        out = ["O:" + seq.tostr() + "#" + ok.tostr() + "/" + copy(f[0]) + ctext]
 
 step S on Walk(what: k, h: h)
     seq += 1

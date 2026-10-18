@@ -1,5 +1,5 @@
-event LeafKey(es: text, n: i64, i: i64, label: text, g: i64)
-event SdKey(sds: text, ct: text)
+event LeafKey(es: text, n: i64, i: i64, lbl: text, g: i64)
+event SdKey(sds: text, ctext: text)
 event Open(msg: text, es: text, sds: text, n: i64, gc: text, pk: text)
 event Pub(msg: text, gc: text, pk: text, mk: text)
 event Gc(gid: text, ep: i64, th: text, cth: text)
@@ -8,13 +8,13 @@ state S
     out: List[text] = []
     seq: i64 = 0
 
-step S on LeafKey(es: es, n: n, i: i, label: label, g: g)
+step S on LeafKey(es: es, n: n, i: i, lbl: lbl, g: g)
     seq += 1
-    out = ["O:" + seq.tostr() + "#" + st_key_nonce(st_leaf_secret(es, n, i), label, g)]
+    out = ["O:" + seq.tostr() + "#" + st_key_nonce(st_leaf_secret(es, n, i), lbl, g)]
 
-step S on SdKey(sds: sds, ct: ct)
+step S on SdKey(sds: sds, ctext: ctext)
     seq += 1
-    out = ["O:" + seq.tostr() + "#" + sd_key_nonce(sds, ct)]
+    out = ["O:" + seq.tostr() + "#" + sd_key_nonce(sds, ctext)]
 
 step S on Open(msg: msg, es: es, sds: sds, n: n, gc: gc, pk: pk)
     seq += 1

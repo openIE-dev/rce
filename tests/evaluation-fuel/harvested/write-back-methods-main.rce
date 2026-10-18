@@ -45,14 +45,14 @@ fn main()
 # expect: run
 # outcome: done
 # outputs:
+#   - emit 10
+#   - emit 0
 #   - emit 12
-#   - emit 2
-#   - emit 12
-#   - emit 13
-#   - emit -1
+#   - emit 11
+#   - emit 110
 #   - emit 3
 #   - emit 3
 #   - emit 1200
-#   - emit 12
-# provenance: harvested checker/tests/write_back_methods.rce
+#   - emit 3
+# provenance: harvested checker/tests/write_back_methods.rce; expected outputs follow F.4.4 (a failed call restores its &mut arguments; derived by hand and equal to the reference), the old write-back values are retired (T33)
 #---
