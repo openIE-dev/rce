@@ -92,7 +92,7 @@ none
 | W-LEX-1 | rule | 09-wellformedness.md:11 | 36 | {'pass': 36} |
 | W-LEX-2 | rule | 09-wellformedness.md:12 | 7 | {'pass': 7} |
 | W-LEX-3 | rule | 09-wellformedness.md:13 | 25 | {'pass': 25} |
-| W-SYN-1 | rule | 09-wellformedness.md:14 | 41 | {'pass': 41} |
+| W-SYN-1 | rule | 09-wellformedness.md:14 | 40 | {'pass': 40} |
 | W-NAME-1 | rule | 09-wellformedness.md:19 | 27 | {'pass': 27} |
 | W-NAME-2 | rule | 09-wellformedness.md:20 | 13 | {'pass': 13} |
 | W-MOD-1 | rule | 09-wellformedness.md:22 | 1 | {'pass': 1} |

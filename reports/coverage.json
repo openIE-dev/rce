@@ -564,9 +564,9 @@
    "kind": "rule",
    "chapter": "09-wellformedness.md",
    "line": 14,
-   "tests": 41,
+   "tests": 40,
    "reference": {
-    "pass": 41
+    "pass": 40
    }
   },
   {

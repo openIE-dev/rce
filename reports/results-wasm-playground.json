@@ -3,7 +3,7 @@
  "adapter": "wasm-playground",
  "tally": {
   "unsupported": 1504,
-  "pass": 420,
+  "pass": 419,
   "fail": 16
  },
  "results": [
@@ -9695,21 +9695,6 @@
    "status": "pass",
    "detail": "",
    "ms": 0
-  },
-  {
-   "path": "tests/lexing-parsing/harvested/emit06-reject.rce",
-   "id": "lexing-parsing/harvested/emit06-reject",
-   "area": "lexing-parsing",
-   "clauses": [
-    "CH02-M-69371f07",
-    "CH03-M-28cdd241",
-    "CH09-M-82e65964",
-    "T10",
-    "W-SYN-1"
-   ],
-   "status": "pass",
-   "detail": "",
-   "ms": 7
   },
   {
    "path": "tests/lexing-parsing/harvested/if-expr-no-else-reject.rce",
