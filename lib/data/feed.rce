@@ -1,6 +1,5 @@
 module data.feed
 # uses: enc.enc, data.events
-use enc
 use data.events
 
 # Change feeds (survey M59): an external feed is a log; its events are
@@ -39,7 +38,7 @@ pub fn token_text(t: &Token) -> text = t.height.tostr() + ":" + t.digest
 
 pub fn token_parse(s: &text) -> Token ! BadFeed
     let p = s.split(":")
-    if p.len() != 2 or p[1].len() != 64 or not p[0].isdigit()
+    if p.len() != 2 or p[1].len_bytes() != 64 or not p[0].isdigit()
         fail BadFeed(why: "bad token")
     for c in p[1].chars()
         if not ((c >= "0" and c <= "9") or (c >= "a" and c <= "f"))

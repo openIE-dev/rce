@@ -378,7 +378,6 @@ fn parse_seq(p: &mut Parser) -> List[i64] bound 1000
         if c < 0 or c == 124 or c == 41
             break
         var a = parse_atom(p)
-        var _reps: i64 = 0
         while p.err < 0 bound 100
             let q = peek(p)
             if q == 42
@@ -401,10 +400,8 @@ fn parse_seq(p: &mut Parser) -> List[i64] bound 1000
                     return []
                 p.pos += 1
                 a = repeat(a, m, n)
-                reps += 1
             if q != 123
                 p.pos += 1
-                reps += 1
         f = cat(f, a)
     return f
 

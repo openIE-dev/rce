@@ -1,6 +1,5 @@
 module data.sync
 # uses: enc.enc, data.events
-use enc
 use data.events
 
 # data.sync (survey M62): keeping replicas of D state in step.
@@ -509,7 +508,7 @@ pub struct OpId
 
 pub fn opid_parse(t: &text) -> OpId ! BadSync
     let parts = t.split("@")
-    if parts.len() != 2 or not parts[0].isdigit() or parts[0].len() > 18
+    if parts.len() != 2 or not parts[0].isdigit() or parts[0].len_bytes() > 18
         fail BadSync(why: "op id: counter@actor")
     return OpId(ctr: parts[0].toint(), who: copy(parts[1]))
 

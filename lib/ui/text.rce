@@ -821,7 +821,7 @@ pub fn bidi_levels(types: &[i64], cs: &[i64], dir: i64) -> Bidi
         # build the sequence of keep indices
         var seq: List[i64] = []
         var cur = r
-        while true
+        loop
             used[cur] = true
             var a = copy(rs[cur])
             while a < re[cur]

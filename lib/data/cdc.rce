@@ -1,6 +1,5 @@
 module data.cdc
 # uses: enc.enc, data.events, data.feed
-use enc
 use data.events
 use data.feed
 

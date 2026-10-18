@@ -739,7 +739,6 @@ fn st_invert(d: i64, a: f64, b: f64, p: f64, lo0: f64, guess: f64) -> f64 ! Stat
             steps = 0
         elif steps >= 2
             # forced bisection next; restart the count after it
-            steps = 2
             let m2 = lo + (hi - lo) * 0.5
             if m2 > lo and m2 < hi
                 let c2 = try st_cs(d, a, b, m2)

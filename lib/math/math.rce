@@ -1955,7 +1955,6 @@ fn exp_big(zneg: bool, z: &[i64], f: i64) -> List[List[i64]]
     let l = cst(&c, 4200, f)
     var r: List[i64] = []
     var ok = false
-    var _tries: i64 = 0
     while not ok bound 8
         # r = v - k ln2, kept as a magnitude with its sign
         let kl = n_muls(&l, if k < 0 then 0 - k else k)
@@ -1976,7 +1975,6 @@ fn exp_big(zneg: bool, z: &[i64], f: i64) -> List[List[i64]]
             k += 1
         else
             ok = true
-        tries += 1
     let e = exp_fix(&r, f)
     return [[k], e]
 

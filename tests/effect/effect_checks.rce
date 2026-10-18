@@ -224,12 +224,12 @@ check cj(enc.JObj(keys: ["x", "w"], vals: [enc.JObj(keys: ["d", "c"], vals: [enc
 check hj(enc.JObj(keys: ["x", "w"], vals: [enc.JObj(keys: ["d", "c"], vals: [enc.JArr(items: []), enc.JObj(keys: [], vals: [])]), enc.JNull])) == "b4dfc71f851dac2996ebbe8cdf94c7a9b6f4504327758ffdbac737f0a3b907ce"
 check cj(enc.JObj(keys: [], vals: [])) == "{}"
 check hj(enc.JObj(keys: [], vals: [])) == "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
-check cj(enc.JObj(keys: ["\u{7f}\\", "", "\u{1}￿😀é", "\n\u{7f}\\\u{7f}"], vals: [enc.JArr(items: [enc.JNull]), enc.JBool(v: true), enc.JStr(t: "\"\\ "), enc.JNull])) == "{\"\":true,\"\\u0001￿😀é\":\"\\\"\\\\ \",\"\\n\u{7f}\\\\\u{7f}\":null,\"\u{7f}\\\\\":[null]}"
-check hj(enc.JObj(keys: ["\u{7f}\\", "", "\u{1}￿😀é", "\n\u{7f}\\\u{7f}"], vals: [enc.JArr(items: [enc.JNull]), enc.JBool(v: true), enc.JStr(t: "\"\\ "), enc.JNull])) == "f2218a3ddd5124b532d4843fdfeb054fcee8eb3e2c64fd4ee647ddb929d04917"
+check cj(enc.JObj(keys: ["\u{7f}\\", "", "\u{1}\u{FFFF}😀é", "\n\u{7f}\\\u{7f}"], vals: [enc.JArr(items: [enc.JNull]), enc.JBool(v: true), enc.JStr(t: "\"\\ "), enc.JNull])) == "{\"\":true,\"\\u0001\u{FFFF}😀é\":\"\\\"\\\\ \",\"\\n\u{7f}\\\\\u{7f}\":null,\"\u{7f}\\\\\":[null]}"
+check hj(enc.JObj(keys: ["\u{7f}\\", "", "\u{1}\u{FFFF}😀é", "\n\u{7f}\\\u{7f}"], vals: [enc.JArr(items: [enc.JNull]), enc.JBool(v: true), enc.JStr(t: "\"\\ "), enc.JNull])) == "f2218a3ddd5124b532d4843fdfeb054fcee8eb3e2c64fd4ee647ddb929d04917"
 check cj(enc.JNull) == "null"
 check hj(enc.JNull) == "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b"
-check cj(enc.JArr(items: [enc.JObj(keys: ["\\", "￿", "é\t "], vals: [enc.JBool(v: false), enc.JNull, enc.JArr(items: [enc.JNull, enc.JStr(t: "\\  "), enc.JInt(v: -123)])]), enc.JObj(keys: [""], vals: [enc.JBool(v: true)]), enc.JStr(t: "/\\\u{7f}")])) == "[{\"\\\\\":false,\"é\\t \":[null,\"\\\\  \",-123],\"￿\":null},{\"\":true},\"/\\\\\u{7f}\"]"
-check hj(enc.JArr(items: [enc.JObj(keys: ["\\", "￿", "é\t "], vals: [enc.JBool(v: false), enc.JNull, enc.JArr(items: [enc.JNull, enc.JStr(t: "\\  "), enc.JInt(v: -123)])]), enc.JObj(keys: [""], vals: [enc.JBool(v: true)]), enc.JStr(t: "/\\\u{7f}")])) == "09487303b1425506e82a5b21211e80d3b9f225a21f76d83ba92130540e42c87e"
+check cj(enc.JArr(items: [enc.JObj(keys: ["\\", "\u{FFFF}", "é\t "], vals: [enc.JBool(v: false), enc.JNull, enc.JArr(items: [enc.JNull, enc.JStr(t: "\\  "), enc.JInt(v: -123)])]), enc.JObj(keys: [""], vals: [enc.JBool(v: true)]), enc.JStr(t: "/\\\u{7f}")])) == "[{\"\\\\\":false,\"é\\t \":[null,\"\\\\  \",-123],\"\u{FFFF}\":null},{\"\":true},\"/\\\\\u{7f}\"]"
+check hj(enc.JArr(items: [enc.JObj(keys: ["\\", "\u{FFFF}", "é\t "], vals: [enc.JBool(v: false), enc.JNull, enc.JArr(items: [enc.JNull, enc.JStr(t: "\\  "), enc.JInt(v: -123)])]), enc.JObj(keys: [""], vals: [enc.JBool(v: true)]), enc.JStr(t: "/\\\u{7f}")])) == "09487303b1425506e82a5b21211e80d3b9f225a21f76d83ba92130540e42c87e"
 check cj(enc.JBool(v: true)) == "true"
 check hj(enc.JBool(v: true)) == "b5bea41b6c623f7c09f1bf24dcae58ebab3c0cdd90ad966bc43a45b44867e12b"
 check cj(enc.JStr(t: "é\t/")) == "\"é\\t/\""
@@ -244,26 +244,26 @@ check cj(enc.JObj(keys: ["\"//", "a\t \u{7f}\"", ""], vals: [enc.JBool(v: true),
 check hj(enc.JObj(keys: ["\"//", "a\t \u{7f}\"", ""], vals: [enc.JBool(v: true), enc.JStr(t: ""), enc.JBool(v: false)])) == "a6318d187667774db2066cf02162d63d5dae6e25d5da819a01002a74a9f5afc7"
 check cj(enc.JObj(keys: [], vals: [])) == "{}"
 check hj(enc.JObj(keys: [], vals: [])) == "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
-check cj(enc.JStr(t: "\na￿éZ")) == "\"\\na￿éZ\""
-check hj(enc.JStr(t: "\na￿éZ")) == "6be6b9812203294d2357a80637ef81cac606ce1ba77899eec29f1bd793ba49b8"
+check cj(enc.JStr(t: "\na\u{FFFF}éZ")) == "\"\\na\u{FFFF}éZ\""
+check hj(enc.JStr(t: "\na\u{FFFF}éZ")) == "6be6b9812203294d2357a80637ef81cac606ce1ba77899eec29f1bd793ba49b8"
 check cj(enc.JArr(items: [enc.JInt(v: -9007199254740992), enc.JArr(items: [enc.JNull, enc.JNull])])) == "[-9007199254740992,[null,null]]"
 check hj(enc.JArr(items: [enc.JInt(v: -9007199254740992), enc.JArr(items: [enc.JNull, enc.JNull])])) == "d57197818397a58c5a5d0625bda239e742e70377ddfa072093c78c9918bcffe5"
-check cj(enc.JObj(keys: ["\u{1}\"\u{1}é/", "\n\u{7f}é"], vals: [enc.JObj(keys: ["  Z\u{1f}", "\\\\\u{7f}", "/￿😀", "Z"], vals: [enc.JObj(keys: [], vals: []), enc.JObj(keys: ["😀Zé", " Z😀", "", " 😀"], vals: [enc.JBool(v: true), enc.JBool(v: true), enc.JNull, enc.JNull]), enc.JObj(keys: [], vals: []), enc.JArr(items: [enc.JNull, enc.JBool(v: false), enc.JBool(v: false)])]), enc.JArr(items: [])])) == "{\"\\u0001\\\"\\u0001é/\":{\"  Z\\u001f\":{},\"/￿😀\":{},\"Z\":[null,false,false],\"\\\\\\\\\u{7f}\":{\"\":null,\" Z😀\":true,\" 😀\":null,\"😀Zé\":true}},\"\\n\u{7f}é\":[]}"
-check hj(enc.JObj(keys: ["\u{1}\"\u{1}é/", "\n\u{7f}é"], vals: [enc.JObj(keys: ["  Z\u{1f}", "\\\\\u{7f}", "/￿😀", "Z"], vals: [enc.JObj(keys: [], vals: []), enc.JObj(keys: ["😀Zé", " Z😀", "", " 😀"], vals: [enc.JBool(v: true), enc.JBool(v: true), enc.JNull, enc.JNull]), enc.JObj(keys: [], vals: []), enc.JArr(items: [enc.JNull, enc.JBool(v: false), enc.JBool(v: false)])]), enc.JArr(items: [])])) == "bbf096ba17ec96ae777aff556b0b26fff24037d0ad6fc844d66486b7e810ab35"
+check cj(enc.JObj(keys: ["\u{1}\"\u{1}é/", "\n\u{7f}é"], vals: [enc.JObj(keys: ["  Z\u{1f}", "\\\\\u{7f}", "/\u{FFFF}😀", "Z"], vals: [enc.JObj(keys: [], vals: []), enc.JObj(keys: ["😀Zé", " Z😀", "", " 😀"], vals: [enc.JBool(v: true), enc.JBool(v: true), enc.JNull, enc.JNull]), enc.JObj(keys: [], vals: []), enc.JArr(items: [enc.JNull, enc.JBool(v: false), enc.JBool(v: false)])]), enc.JArr(items: [])])) == "{\"\\u0001\\\"\\u0001é/\":{\"  Z\\u001f\":{},\"/\u{FFFF}😀\":{},\"Z\":[null,false,false],\"\\\\\\\\\u{7f}\":{\"\":null,\" Z😀\":true,\" 😀\":null,\"😀Zé\":true}},\"\\n\u{7f}é\":[]}"
+check hj(enc.JObj(keys: ["\u{1}\"\u{1}é/", "\n\u{7f}é"], vals: [enc.JObj(keys: ["  Z\u{1f}", "\\\\\u{7f}", "/\u{FFFF}😀", "Z"], vals: [enc.JObj(keys: [], vals: []), enc.JObj(keys: ["😀Zé", " Z😀", "", " 😀"], vals: [enc.JBool(v: true), enc.JBool(v: true), enc.JNull, enc.JNull]), enc.JObj(keys: [], vals: []), enc.JArr(items: [enc.JNull, enc.JBool(v: false), enc.JBool(v: false)])]), enc.JArr(items: [])])) == "bbf096ba17ec96ae777aff556b0b26fff24037d0ad6fc844d66486b7e810ab35"
 check cj(enc.JInt(v: 1)) == "1"
 check hj(enc.JInt(v: 1)) == "6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b"
 check cj(enc.JBool(v: true)) == "true"
 check hj(enc.JBool(v: true)) == "b5bea41b6c623f7c09f1bf24dcae58ebab3c0cdd90ad966bc43a45b44867e12b"
-check cj(enc.JArr(items: [enc.JBool(v: true), enc.JStr(t: "￿\u{1f}"), enc.JInt(v: -1)])) == "[true,\"￿\\u001f\",-1]"
-check hj(enc.JArr(items: [enc.JBool(v: true), enc.JStr(t: "￿\u{1f}"), enc.JInt(v: -1)])) == "71b332f6e5fc6238beb2b4e63581300b0ba2bf755317392eb17b61ef0b07a43e"
+check cj(enc.JArr(items: [enc.JBool(v: true), enc.JStr(t: "\u{FFFF}\u{1f}"), enc.JInt(v: -1)])) == "[true,\"\u{FFFF}\\u001f\",-1]"
+check hj(enc.JArr(items: [enc.JBool(v: true), enc.JStr(t: "\u{FFFF}\u{1f}"), enc.JInt(v: -1)])) == "71b332f6e5fc6238beb2b4e63581300b0ba2bf755317392eb17b61ef0b07a43e"
 check cj(enc.JObj(keys: ["\n😀"], vals: [enc.JStr(t: "\u{1f}/éZ")])) == "{\"\\n😀\":\"\\u001f/éZ\"}"
 check hj(enc.JObj(keys: ["\n😀"], vals: [enc.JStr(t: "\u{1f}/éZ")])) == "47eeec8658da4d67233030689bceb981b73adaab5eba78cfa132f55cac514a8f"
-check cj(enc.JArr(items: [enc.JNull, enc.JBool(v: false), enc.JStr(t: "￿")])) == "[null,false,\"￿\"]"
-check hj(enc.JArr(items: [enc.JNull, enc.JBool(v: false), enc.JStr(t: "￿")])) == "69702cb7e70abde92f74ee12242e7f8ece1fdb37729f0079b2a85d67ab9ee758"
+check cj(enc.JArr(items: [enc.JNull, enc.JBool(v: false), enc.JStr(t: "\u{FFFF}")])) == "[null,false,\"\u{FFFF}\"]"
+check hj(enc.JArr(items: [enc.JNull, enc.JBool(v: false), enc.JStr(t: "\u{FFFF}")])) == "69702cb7e70abde92f74ee12242e7f8ece1fdb37729f0079b2a85d67ab9ee758"
 check cj(enc.JArr(items: [enc.JStr(t: "/Z"), enc.JArr(items: [enc.JNull, enc.JArr(items: [enc.JInt(v: 9007199254740992)]), enc.JNull])])) == "[\"/Z\",[null,[9007199254740992],null]]"
 check hj(enc.JArr(items: [enc.JStr(t: "/Z"), enc.JArr(items: [enc.JNull, enc.JArr(items: [enc.JInt(v: 9007199254740992)]), enc.JNull])])) == "794c8f4ad54a5020837781c470b7fb7d71e53deae49111905fa2ccd7a66d74f8"
-check cj(enc.JObj(keys: ["\t \"", "\n\u{1f}\n", "￿/"], vals: [enc.JArr(items: []), enc.JObj(keys: [""], vals: [enc.JInt(v: -9223372036854775808)]), enc.JBool(v: false)])) == "{\"\\t \\\"\":[],\"\\n\\u001f\\n\":{\"\":-9223372036854775808},\"￿/\":false}"
-check hj(enc.JObj(keys: ["\t \"", "\n\u{1f}\n", "￿/"], vals: [enc.JArr(items: []), enc.JObj(keys: [""], vals: [enc.JInt(v: -9223372036854775808)]), enc.JBool(v: false)])) == "4d91c2eb182abb1f37df688269a83be4485cf6aeda197838f3d2cf48a78fc065"
+check cj(enc.JObj(keys: ["\t \"", "\n\u{1f}\n", "\u{FFFF}/"], vals: [enc.JArr(items: []), enc.JObj(keys: [""], vals: [enc.JInt(v: -9223372036854775808)]), enc.JBool(v: false)])) == "{\"\\t \\\"\":[],\"\\n\\u001f\\n\":{\"\":-9223372036854775808},\"\u{FFFF}/\":false}"
+check hj(enc.JObj(keys: ["\t \"", "\n\u{1f}\n", "\u{FFFF}/"], vals: [enc.JArr(items: []), enc.JObj(keys: [""], vals: [enc.JInt(v: -9223372036854775808)]), enc.JBool(v: false)])) == "4d91c2eb182abb1f37df688269a83be4485cf6aeda197838f3d2cf48a78fc065"
 check cj(enc.JStr(t: "/ ")) == "\"/ \""
 check hj(enc.JStr(t: "/ ")) == "bde2ae4a5645662b5bc456ee6b2f7a6d329a5de5ea10284f896c54bed58f956b"
 check cj(enc.JObj(keys: [], vals: [])) == "{}"
@@ -292,14 +292,14 @@ check cj(enc.JArr(items: [enc.JInt(v: 9223372036854775807)])) == "[9223372036854
 check hj(enc.JArr(items: [enc.JInt(v: 9223372036854775807)])) == "40a16ca546ca958148861f89265f14b5f81469c8ded5e09941ecc2e117e08bde"
 check cj(enc.JInt(v: 9007199254740992)) == "9007199254740992"
 check hj(enc.JInt(v: 9007199254740992)) == "c681da39d7273a6a24c15c9cac3a75526ff2ecf8ba4ee60346a0c70c8163bdb2"
-check cj(enc.JArr(items: [enc.JObj(keys: [], vals: []), enc.JNull, enc.JObj(keys: ["￿\t\"\u{1}\u{7f}", "\t"], vals: [enc.JBool(v: false), enc.JArr(items: [enc.JBool(v: false), enc.JStr(t: "\u{1}"), enc.JBool(v: false)])])])) == "[{},null,{\"\\t\":[false,\"\\u0001\",false],\"￿\\t\\\"\\u0001\u{7f}\":false}]"
-check hj(enc.JArr(items: [enc.JObj(keys: [], vals: []), enc.JNull, enc.JObj(keys: ["￿\t\"\u{1}\u{7f}", "\t"], vals: [enc.JBool(v: false), enc.JArr(items: [enc.JBool(v: false), enc.JStr(t: "\u{1}"), enc.JBool(v: false)])])])) == "8144a108f511b7df450c425dc7470872fdb1974e566d22097355cfd3fdd0e48d"
+check cj(enc.JArr(items: [enc.JObj(keys: [], vals: []), enc.JNull, enc.JObj(keys: ["\u{FFFF}\t\"\u{1}\u{7f}", "\t"], vals: [enc.JBool(v: false), enc.JArr(items: [enc.JBool(v: false), enc.JStr(t: "\u{1}"), enc.JBool(v: false)])])])) == "[{},null,{\"\\t\":[false,\"\\u0001\",false],\"\u{FFFF}\\t\\\"\\u0001\u{7f}\":false}]"
+check hj(enc.JArr(items: [enc.JObj(keys: [], vals: []), enc.JNull, enc.JObj(keys: ["\u{FFFF}\t\"\u{1}\u{7f}", "\t"], vals: [enc.JBool(v: false), enc.JArr(items: [enc.JBool(v: false), enc.JStr(t: "\u{1}"), enc.JBool(v: false)])])])) == "8144a108f511b7df450c425dc7470872fdb1974e566d22097355cfd3fdd0e48d"
 check cj(enc.JArr(items: [enc.JNull])) == "[null]"
 check hj(enc.JArr(items: [enc.JNull])) == "1d8fc6ceb1f94c6326d6d5483d258fcb2e179e9869325b245d105c2219bf69fd"
 check cj(enc.JObj(keys: [], vals: [])) == "{}"
 check hj(enc.JObj(keys: [], vals: [])) == "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
-check cj(enc.JObj(keys: [" /", "\""], vals: [enc.JArr(items: []), enc.JObj(keys: ["\\ ", "/\u{7f}\u{7f}/", "￿", "Z"], vals: [enc.JBool(v: false), enc.JNull, enc.JObj(keys: [], vals: []), enc.JObj(keys: ["\n ￿😀\\", " Z\na"], vals: [enc.JBool(v: true), enc.JStr(t: "\u{7f}")])])])) == "{\" /\":[],\"\\\"\":{\"/\u{7f}\u{7f}/\":null,\"Z\":{\"\\n ￿😀\\\\\":true,\" Z\\na\":\"\u{7f}\"},\"\\\\ \":false,\"￿\":{}}}"
-check hj(enc.JObj(keys: [" /", "\""], vals: [enc.JArr(items: []), enc.JObj(keys: ["\\ ", "/\u{7f}\u{7f}/", "￿", "Z"], vals: [enc.JBool(v: false), enc.JNull, enc.JObj(keys: [], vals: []), enc.JObj(keys: ["\n ￿😀\\", " Z\na"], vals: [enc.JBool(v: true), enc.JStr(t: "\u{7f}")])])])) == "01687946fb2b1c205166e5e2886658ac69917ea096d35ec4b2079586c2c3a396"
+check cj(enc.JObj(keys: [" /", "\""], vals: [enc.JArr(items: []), enc.JObj(keys: ["\\ ", "/\u{7f}\u{7f}/", "\u{FFFF}", "Z"], vals: [enc.JBool(v: false), enc.JNull, enc.JObj(keys: [], vals: []), enc.JObj(keys: ["\n \u{FFFF}😀\\", " Z\na"], vals: [enc.JBool(v: true), enc.JStr(t: "\u{7f}")])])])) == "{\" /\":[],\"\\\"\":{\"/\u{7f}\u{7f}/\":null,\"Z\":{\"\\n \u{FFFF}😀\\\\\":true,\" Z\\na\":\"\u{7f}\"},\"\\\\ \":false,\"\u{FFFF}\":{}}}"
+check hj(enc.JObj(keys: [" /", "\""], vals: [enc.JArr(items: []), enc.JObj(keys: ["\\ ", "/\u{7f}\u{7f}/", "\u{FFFF}", "Z"], vals: [enc.JBool(v: false), enc.JNull, enc.JObj(keys: [], vals: []), enc.JObj(keys: ["\n \u{FFFF}😀\\", " Z\na"], vals: [enc.JBool(v: true), enc.JStr(t: "\u{7f}")])])])) == "01687946fb2b1c205166e5e2886658ac69917ea096d35ec4b2079586c2c3a396"
 check cj(enc.JBool(v: false)) == "false"
 check hj(enc.JBool(v: false)) == "fcbcf165908dd18a9e49f7ff27810176db8e9f63b4352213741664245224f8aa"
 # recorded handler: hits, misses, the escalation text
