@@ -16,6 +16,7 @@ typedef struct {
   uint8_t pend_dedent;
   uint8_t bad;
   uint8_t eof_nl;       // the end-of-file NEWLINE of spec 2.6 rule 4 was emitted
+  uint8_t seen;         // a name, number or bracket token was scanned (the file's first word is exempt from the line-start check)
   uint8_t started;      // a token other than the first line's comment was seen
   uint8_t cont;         // the last line end stopped before a comment line; the layout
                         // decision for the following code line was already made
@@ -31,6 +32,10 @@ static const char *KW[] = {"actor","after","and","arena","as","bound","break","c
  "replicated","interrupt","session","lvar","group","lanes","barrier","scope","atomic",
  "protocol","offer","choose","node","supervisor","strategy","child","restart", 0};
 
+// Words that can only begin a declaration or a statement, never continue a line.
+static const char *LINE_START[] = {"event","step","state","kind","type","struct","impl","use","intent","example","check",
+ "extern","error","module","pub","return","emit","fail","break","continue","pass","yield","let","var","while",0};
+
 void *tree_sitter_rce_external_scanner_create(void) { S *s = calloc(1, sizeof(S)); s->n = 1; s->stack[0] = 0; return s; }
 void tree_sitter_rce_external_scanner_destroy(void *p) { free(p); }
 unsigned tree_sitter_rce_external_scanner_serialize(void *p, char *b) { memcpy(b, p, sizeof(S)); return sizeof(S); }
@@ -42,9 +47,11 @@ void tree_sitter_rce_external_scanner_deserialize(void *p, const char *b, unsign
 // Read one comment (lookahead at '#') to the end of the line. A `# rce-version:` line is a release
 // label: tolerated and ignored (spec 2.7), so there is nothing to record.
 static void comment(TSLexer *lx, S *s) {
-  (void)s;
   lx->advance(lx, false);
-  while (!lx->eof(lx) && lx->lookahead != '\n' && lx->lookahead != '\r') lx->advance(lx, false);
+  while (!lx->eof(lx) && lx->lookahead != '\n' && lx->lookahead != '\r') {
+    if (lx->lookahead == '\t') s->bad = 1;  // W-LEX-1: a tab is refused, in a comment too
+    lx->advance(lx, false);
+  }
 }
 
 static int is_id0(int32_t c) { return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_'; }
@@ -102,8 +109,11 @@ bool tree_sitter_rce_external_scanner_scan(void *p, TSLexer *lx, const bool *val
   if (s->bad) { lx->result_symbol = BAD; return true; }
   if (s->pend_indent) { s->pend_indent = 0; lx->result_symbol = INDENT; return true; }
   if (s->pend_dedent) { s->pend_dedent--; lx->result_symbol = DEDENT; return true; }
+  int first_col = !s->started && lx->get_column(lx) == 0;
   while (lx->lookahead == ' ') lx->advance(lx, true);
   int32_t c = lx->lookahead;
+  // indentation on the first line of the file (an indent with no block) is an error
+  if (first_col && c != ' ' && lx->get_column(lx) > 0 && c != '\n' && c != '\r' && c != '#' && !lx->eof(lx)) { lx->result_symbol = BAD; return true; }
   if (lx->eof(lx)) {
     // Spec 2.6 rule 4: at end of file emit NEWLINE if needed (a last line
     // without a final line end), then one DEDENT per stack entry above 0.
@@ -139,6 +149,8 @@ bool tree_sitter_rce_external_scanner_scan(void *p, TSLexer *lx, const bool *val
       }
       break;
     }
+    // a last line of spaces only is blank: it neither indents nor dedents
+    if (lx->eof(lx) && ind > 0) ind = 0;
     if (!stopped) lx->mark_end(lx);
     int was_cont = s->cont;
     s->cont = stopped;
@@ -159,13 +171,13 @@ bool tree_sitter_rce_external_scanner_scan(void *p, TSLexer *lx, const bool *val
   }
   switch (c) {
     case '(': case '[': case '{':
-      lx->advance(lx, false); s->depth++;
+      lx->advance(lx, false); s->depth++; s->seen = 1;
       lx->result_symbol = c == '(' ? LPAR : c == '[' ? LSQB : LBRACE; return true;
     case ')': case ']': case '}':
       lx->advance(lx, false); if (s->depth > 0) s->depth--;
       lx->result_symbol = c == ')' ? RPAR : c == ']' ? RSQB : RBRACE; return true;
   }
-  if (c >= '0' && c <= '9') return number(lx);
+  if (c >= '0' && c <= '9') { s->seen = 1; return number(lx); }
   if (c == '<') {
     lx->advance(lx, false);
     if (lx->lookahead == '-') { lx->advance(lx, false); lx->mark_end(lx); lx->result_symbol = SEND; return true; }
@@ -182,13 +194,20 @@ bool tree_sitter_rce_external_scanner_scan(void *p, TSLexer *lx, const bool *val
       if (strcmp(w, "where") == 0 && !valid[NAME]) return false;
       // F.6.1: `t` directly before a quote is the template prefix, not a name
       if (n == 1 && w[0] == 't' && lx->lookahead == '"') return false;
+      // A declaration or statement starts a line (spec 2.6): where a line end is
+      // required (`_NL` is valid) and none was read, such a word is an error,
+      // not a missing `_NL` the parser could insert. The first token of the file
+      // is exempt.
+      if (valid[NL] && !valid[SENTINEL] && s->seen) {
+        for (int i = 0; LINE_START[i]; i++) if (strcmp(w, LINE_START[i]) == 0) { lx->result_symbol = BAD; return true; }
+      }
       for (int i = 0; KW[i]; i++) if (strcmp(w, KW[i]) == 0) return false;
       // contextual word (F.13): `by` is the keyword only where a NAME cannot stand
       if (strcmp(w, "by") == 0 && !valid[NAME]) return false;
       if ((strcmp(w, "label") == 0 || strcmp(w, "release") == 0 || strcmp(w, "endorse") == 0 || strcmp(w, "ct") == 0 || strcmp(w, "requires") == 0 || strcmp(w, "ensures") == 0 || strcmp(w, "ghost") == 0 || strcmp(w, "decreases") == 0)) return false;
     }
     lx->mark_end(lx);
-    s->started = 1;
+    s->started = 1; s->seen = 1;
     lx->result_symbol = NAME; return true;
   }
   return false;
