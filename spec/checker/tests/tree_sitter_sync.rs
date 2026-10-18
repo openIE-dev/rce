@@ -1,9 +1,8 @@
 //! The tree-sitter grammar (spec/tree-sitter) is kept in sync with the EBNF
 //! and the Rust parser: for every `.rce` file under spec/, the tree-sitter
 //! CLI parses it without error exactly when `parse::parse` accepts it.
-//! Both sides use the normative version rule of 2.7: draft 0.6 syntax
-//! only in a module declaring `# rce-version: 0.6`, an undeclared module
-//! is 0.5 (the non-normative `conc06` default is not used here).
+//! There is one language: both sides reserve the same single word list (2.4)
+//! and ignore a `# rce-version:` line, which is only a release label (2.7).
 //! The CLI compiles the generated C parser itself; this crate stays pure
 //! Rust. When the CLI is not installed the test prints a notice and
 //! passes, except under CI (`CI` set), where a missing CLI fails it.
