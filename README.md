@@ -45,8 +45,8 @@ Generated from `reports/` by `tools/readme_status.py` (`--check` verifies it). E
 
 - Tests: 1979 test files under `tests/` (1983 `.rce` files, of which 4 named `_FIXTURE` are support files, not tests); the reference run has 1979 results; the coverage report counts 1979.
   The three counts agree.
-- Coverage: language profile 206 of 207 normative clauses covered (99.5%).
-  Other profiles: tooling 5 of 7, handler-spec 8 of 14, editorial 0 of 1, proposed 3 of 6.
+- Coverage: language profile 205 of 205 normative clauses covered (100.0%).
+  Other profiles: tooling 5 of 7, retired 1 of 2, handler-spec 8 of 14, editorial 0 of 1, proposed 3 of 6.
 - Reference: 1979 pass, 0 fail of 1979.
 - Emitters: python 1460 pass / 0 fail / 519 not applicable or unsupported; js 1460 pass / 0 fail / 519 not applicable or unsupported; rust 1460 pass / 0 fail / 519 not applicable or unsupported. Parity with the reference: python 1460 agree, 0 disagree; js 1460 agree, 0 disagree; rust 1460 agree, 0 disagree.
 - Scala emitter: 52 pass, 1189 fail, 592 unsupported of 1833 results (146 tests have no Scala result). Scala does not yet agree with the reference.

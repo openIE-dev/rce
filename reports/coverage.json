@@ -1,8 +1,8 @@
 {
  "format": "rce-coverage/1",
- "clauses": 207,
- "covered": 206,
- "percent": 99.52,
+ "clauses": 205,
+ "covered": 205,
+ "percent": 100.0,
  "tests_by_area": {
   "concurrency": 253,
   "effects-capabilities": 19,
@@ -37,16 +37,6 @@
    "tests": 53,
    "reference": {
     "pass": 53
-   }
-  },
-  {
-   "id": "CH02-M-a696f3a3",
-   "kind": "modal",
-   "chapter": "02-lexical.md",
-   "line": 120,
-   "tests": 19,
-   "reference": {
-    "pass": 19
    }
   },
   {
@@ -578,14 +568,6 @@
    "reference": {
     "pass": 41
    }
-  },
-  {
-   "id": "W-VER-1",
-   "kind": "rule",
-   "chapter": "09-wellformedness.md",
-   "line": 15,
-   "tests": 0,
-   "reference": {}
   },
   {
    "id": "W-NAME-1",
@@ -2088,18 +2070,20 @@
    }
   }
  ],
- "untested": [
-  "W-VER-1"
- ],
+ "untested": [],
  "unknown_clause_ids_in_tests": {},
  "profiles": {
   "language": {
-   "clauses": 207,
-   "covered": 206
+   "clauses": 205,
+   "covered": 205
   },
   "tooling": {
    "clauses": 7,
    "covered": 5
+  },
+  "retired": {
+   "clauses": 2,
+   "covered": 1
   },
   "handler-spec": {
    "clauses": 14,
@@ -2116,6 +2100,7 @@
  },
  "untested_other_profiles": [
   "CH00-M-1742ac42",
+  "W-VER-1",
   "CH12-M-d81e64a6",
   "CH15-M-a4388ad4",
   "CH15-M-af6429fd",

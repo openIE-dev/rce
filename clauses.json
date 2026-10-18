@@ -67,7 +67,8 @@
    "section": "2.7 Language version",
    "text": "The line must start with `#` in column 0 and hold, after optional spaces, `rce-version:` and a version; trailing spaces are allowed.",
    "restated": [],
-   "profile": "language"
+   "profile": "retired",
+   "note": "retired by the one-language change (rce main 4a3dc1f): the version line is a tolerated, ignored release label; its tests were the 12 version mutants, dropped"
   },
   {
    "id": "R1",
@@ -694,7 +695,8 @@
    "section": "7. Well-formedness: what is refused at entry",
    "text": "- W-VER-1 A first-line `# rce-version:` declaration naming a version other than 0.5, 0.6 or 0.7 (2.7).",
    "restated": [],
-   "profile": "language"
+   "profile": "retired",
+   "note": "retired by the one-language change (rce main 4a3dc1f): the version line is a tolerated, ignored release label; its tests were the 12 version mutants, dropped"
   },
   {
    "id": "W-NAME-1",

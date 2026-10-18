@@ -1,6 +1,6 @@
 # Clause coverage
 
-Language profile: 206 of 207 normative clauses have at least one test (99.52%). 1979 tests.
+Language profile: 205 of 205 normative clauses have at least one test (100.0%). 1979 tests.
 
 ## Tests by area
 
@@ -23,15 +23,16 @@ Language profile: 206 of 207 normative clauses have at least one test (99.52%). 
 
 | profile | clauses | covered |
 |---|---|---|
-| language | 207 | 206 |
+| language | 205 | 205 |
 | tooling | 7 | 5 |
+| retired | 2 | 1 |
 | handler-spec | 14 | 8 |
 | editorial | 1 | 0 |
 | proposed | 6 | 3 |
 
 ## Untested clauses (language profile)
 
-- W-VER-1 (09-wellformedness.md:15): - W-VER-1 A first-line `# rce-version:` declaration naming a version other than 0.5, 0.6 or 0.7 (2.7).
+none
 
 ## Per clause
 
@@ -39,7 +40,6 @@ Language profile: 206 of 207 normative clauses have at least one test (99.52%). 
 |---|---|---|---|---|
 | CH00-M-61b6ac06 | modal | 00-overview.md:3 | 1344 | {'pass': 1344} |
 | CH02-M-69371f07 | modal | 02-lexical.md:99 | 53 | {'pass': 53} |
-| CH02-M-a696f3a3 | modal | 02-lexical.md:120 | 19 | {'pass': 19} |
 | R1 | rule | 03-syntax.md:242 | 1 | {'pass': 1} |
 | R2 | rule | 03-syntax.md:245 | 1 | {'pass': 1} |
 | R3 | rule | 03-syntax.md:249 | 2 | {'pass': 2} |
@@ -93,7 +93,6 @@ Language profile: 206 of 207 normative clauses have at least one test (99.52%). 
 | W-LEX-2 | rule | 09-wellformedness.md:12 | 7 | {'pass': 7} |
 | W-LEX-3 | rule | 09-wellformedness.md:13 | 25 | {'pass': 25} |
 | W-SYN-1 | rule | 09-wellformedness.md:14 | 41 | {'pass': 41} |
-| W-VER-1 | rule | 09-wellformedness.md:15 | 0 | {} |
 | W-NAME-1 | rule | 09-wellformedness.md:19 | 27 | {'pass': 27} |
 | W-NAME-2 | rule | 09-wellformedness.md:20 | 13 | {'pass': 13} |
 | W-MOD-1 | rule | 09-wellformedness.md:22 | 1 | {'pass': 1} |
