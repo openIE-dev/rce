@@ -10,11 +10,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Download rce from the rce-ide release
-        env:
-          GH_TOKEN: ${{ github.token }}
+      - name: Build rce from the public rce repository (the one-language rce)
         run: |
-          gh release download v0.1.3 -R openIE-dev/rce-ide -p 'rce-ide-0.1.3-x86_64-unknown-linux-gnu.tar.gz' -p SHA256SUMS -D "$RUNNER_TEMP"
-          cd "$RUNNER_TEMP" && sha256sum -c SHA256SUMS --ignore-missing && tar xzf rce-ide-0.1.3-x86_64-unknown-linux-gnu.tar.gz
+          git clone https://github.com/openIE-dev/rce.git "$RUNNER_TEMP/rce-src"
+          git -C "$RUNNER_TEMP/rce-src" checkout 4a3dc1ffb47c811be37b14e00b08ff05d868059c
+          cd "$RUNNER_TEMP/rce-src/spec/checker" && cargo build --release --bin rce
       - name: Run the slow vector sets
-        run: RCE="$RUNNER_TEMP/rce-ide-0.1.3-x86_64-unknown-linux-gnu/rce" scripts/nightly.sh
+        run: RCE="$RUNNER_TEMP/rce-src/spec/checker/target/release/rce" scripts/nightly.sh
