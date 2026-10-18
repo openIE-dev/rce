@@ -1694,7 +1694,7 @@ pub fn unemittable(m: &Module) -> Option<String> {
             }
         }
     }
-    found.map(|w| format!("W-RES-1 `{w}` (version 0.9, Appendix F) is run by the reference evaluator only; this target does not translate it, so it is reserved, not implemented"))
+    found.map(|w| format!("W-RES-1 `{w}` (Appendix F) is run by the reference evaluator only; this target does not translate it, so it is reserved, not implemented"))
 }
 
 /// Whether a module has a function that can fail after taking a `&mut`
