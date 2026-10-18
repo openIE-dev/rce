@@ -70,7 +70,7 @@
   "answer_sha256": "d87e7e8b1a41b258812144531d998c32b1f7ed922f4e8aab77e3fff8a049390a"
  },
  "14-draft06-concurrency.md": {
-  "question": "How many words does a version 0.6 module reserve in addition to the 0.5 keywords? (a number)",
+  "question": "How many concurrency words does C.1 add to the keywords of 2.4? (a number)",
   "salt": "15d96338ed3cc533388fb1b95ccbcacc",
   "answer_sha256": "c342e3b141a3e00d9e1df1626b24215f3e457927fa48749a937d46c6d07e6257"
  },
@@ -85,7 +85,7 @@
   "answer_sha256": "b22573f1f9bbe60b88ff8f9c4aca01d026d9754698b5e5e07001f6fe932e5f62"
  },
  "17-draft09.md": {
-  "question": "How many words does a version 0.9 module reserve in addition to the 0.8 keywords? (a number)",
+  "question": "How many words does F, \"Reserved words\", add to the reserved list of 2.4? (a number)",
   "salt": "92575925eb994b2872e29e7847eb55f8",
   "answer_sha256": "e8f354d39831acf637365adfc2e61739c6e175d9352849b4ba8e0e21ba8eaa57"
  }

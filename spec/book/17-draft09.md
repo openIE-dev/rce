@@ -959,7 +959,6 @@ Not implemented (each is reserved, not implemented, or the closed list in
 
 **Read receipt.** How many words does F, "Reserved words", add to the reserved list of 2.4? (a number)
 
-
 ### F.13 Grammar
 
 These productions extend section 3 and Appendix C.2 for the constructs of
@@ -1005,6 +1004,4 @@ UnaryExpr    = ( "-" | "~" | "&" [ "mut" ] | "<-" | "comptime" | "release" | "en
              | Postfix .
 ```
 
-**Read receipt.** How many words does a version 0.9 module reserve in addition to the 0.8 keywords? (a number)
-
-<!-- body-sha256: 1c5019ab227d2e53454f9b692cbbaae433f62ed8e56d4e54d48983c69bdf66a6 -->
+<!-- body-sha256: 22d9059877279214253a7865d5bbca263dad578809bc02587a99550795176243 -->

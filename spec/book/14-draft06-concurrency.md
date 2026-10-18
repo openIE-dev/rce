@@ -824,6 +824,4 @@ defined for it beyond the costs F.10 names.
 
 **Read receipt.** How many concurrency words does C.1 add to the keywords of 2.4? (a number)
 
-**Read receipt.** How many words does a version 0.6 module reserve in addition to the 0.5 keywords? (a number)
-
-<!-- body-sha256: 1821fbe2bffe8a79affb84a39b893143d1bf4c6458510e32002c25334f1e0450 -->
+<!-- body-sha256: f3932e9234b5c563e3d751652691dd70f2d9e8ce32fc6c7cd6a36c0922bf5c4b -->

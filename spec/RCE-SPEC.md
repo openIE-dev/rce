@@ -4131,8 +4131,6 @@ defined for it beyond the costs F.10 names.
 
 **Read receipt.** How many concurrency words does C.1 add to the keywords of 2.4? (a number)
 
-**Read receipt.** How many words does a version 0.6 module reserve in addition to the 0.5 keywords? (a number)
-
 ---
 
 ## Appendix D. The engine profile: handler specs and fits (normative)
@@ -6256,7 +6254,6 @@ Not implemented (each is reserved, not implemented, or the closed list in
 
 **Read receipt.** How many words does F, "Reserved words", add to the reserved list of 2.4? (a number)
 
-
 ### F.13 Grammar
 
 These productions extend section 3 and Appendix C.2 for the constructs of
@@ -6301,5 +6298,3 @@ LabelSet     = "{" [ NAME { "," NAME } ] "}" .
 UnaryExpr    = ( "-" | "~" | "&" [ "mut" ] | "<-" | "comptime" | "release" | "endorse" ) UnaryExpr
              | Postfix .
 ```
-
-**Read receipt.** How many words does a version 0.9 module reserve in addition to the 0.8 keywords? (a number)

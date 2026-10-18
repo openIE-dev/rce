@@ -19,11 +19,11 @@ an agent proves it read them by following `READ-PROTOCOL.md`.
 | `11-decisions.md` | `de04c4ad325a113a32bdde1a093d0eaf81b9ec5b2072856072aa012efa8bf641` | The decisions list says it decides gaps in which file? |
 | `12-tooling.md` | `5c2b8f2dfd9dea59d60dce9af7edd5aeb9b5eed1aa745d3c4ccdec4cd5941263` | Which JSON-RPC error code does the language server return for a request it does not know? (a number) |
 | `13-references.md` | `ac72852386a36ef0d84e868bf2f2c771b662a7699b29363418f1f659ad730068` | Who wrote "Communicating Sequential Processes"? (surname) |
-| `14-draft06-concurrency.md` | `1821fbe2bffe8a79affb84a39b893143d1bf4c6458510e32002c25334f1e0450` | How many words does a version 0.6 module reserve in addition to the 0.5 keywords? (a number) |
+| `14-draft06-concurrency.md` | `f3932e9234b5c563e3d751652691dd70f2d9e8ce32fc6c7cd6a36c0922bf5c4b` | How many concurrency words does C.1 add to the keywords of 2.4? (a number) |
 | `15-handler-spec-profile.md` | `1874e9e31a2d9052aa44b11e865e0a8bb2977c7c3bd072bdb8a9dd40b79d205a` | Which compiled node id does `deliverable D1` become? (for example role_R1) |
 | `16-host-contract.md` | `52ca914e4ad21dce546e4215776e6d6f4f990d48a7d28911b3fea83b3ae9ca14` | Which fcntl command is the append barrier on macOS? (for example F_SETFL) |
-| `17-draft09.md` | `1c5019ab227d2e53454f9b692cbbaae433f62ed8e56d4e54d48983c69bdf66a6` | How many words does a version 0.9 module reserve in addition to the 0.8 keywords? (a number) |
+| `17-draft09.md` | `22d9059877279214253a7865d5bbca263dad578809bc02587a99550795176243` | How many words does F, "Reserved words", add to the reserved list of 2.4? (a number) |
 
 The single-file spec `spec/RCE-SPEC.md` is generated from these files.
 
-<!-- body-sha256: 386e4a2f6036047d33d186fb2aa7a6c3ed12cebd5bbdcb0ed614cf51efb66d50 -->
+<!-- body-sha256: bd9eee190fc41d3c85d2499d7c409cf41fcab788bba7c5a76199fab23db4f5e5 -->
