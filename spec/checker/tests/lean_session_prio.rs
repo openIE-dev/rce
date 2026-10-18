@@ -12,6 +12,18 @@ use rce_spec_check::check_program;
 use serde_json::Value;
 use std::path::Path;
 
+/// These vectors compare the verdict of one property (session linearity, priorities, the parallel
+/// semantics) with the Lean model. Hygiene findings (unread names, dead stores, discarded values)
+/// are a different property of the same one language, so they are set aside before comparing.
+fn property_verdict(r: &Result<(), String>) -> Result<(), String> {
+    let Err(e) = r else { return Ok(()) };
+    let kept: Vec<&str> = e
+        .split("; line ")
+        .filter(|f| !["W-UNUSED-1", "W-UNUSED-2", "W-ASSIGN-1", "W-DROP-1"].iter().any(|h| f.contains(h)))
+        .collect();
+    if kept.is_empty() { Ok(()) } else { Err(kept.join("; line ")) }
+}
+
 fn spec() -> std::path::PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("..")
 }
@@ -53,7 +65,7 @@ fn checker_priorities_equal_lean() {
         let src = format!("# rce-version: 0.6\n{}", v["src"].as_str().unwrap());
         let want = v["expect"].as_str().unwrap();
         let r = check_program(&[(format!("prio{n}.rce"), src.clone())], false);
-        match (&r[0].1, want) {
+        match (&property_verdict(&r[0].1), want) {
             (Ok(()), "ok") => {
                 ok += 1;
                 if v["tree"] == Value::Bool(false) {

@@ -29,6 +29,18 @@ impl Rng {
 /// (rce source, lean term)
 type Pair = (String, String);
 
+/// These vectors compare the verdict of one property (session linearity, priorities, the parallel
+/// semantics) with the Lean model. Hygiene findings (unread names, dead stores, discarded values)
+/// are a different property of the same one language, so they are set aside before comparing.
+fn property_verdict(r: &Result<(), String>) -> Result<(), String> {
+    let Err(e) = r else { return Ok(()) };
+    let kept: Vec<&str> = e
+        .split("; line ")
+        .filter(|f| !["W-UNUSED-1", "W-UNUSED-2", "W-ASSIGN-1", "W-DROP-1"].iter().any(|h| f.contains(h)))
+        .collect();
+    if kept.is_empty() { Ok(()) } else { Err(kept.join("; line ")) }
+}
+
 fn expr(r: &mut Rng, rd: &[usize], d: u32) -> Pair {
     let k = if d == 0 { r.below(2) } else { r.below(4) };
     match k {
@@ -129,7 +141,7 @@ fn generate() -> String {
             src += &format!("    emit v{i}\n");
         }
         let d = rce_spec_check::check_program(&[("t.rce".into(), src.clone())], false);
-        assert!(d[0].1.is_ok(), "not admitted: {:?}\n{src}", d[0].1);
+        assert!(property_verdict(&d[0].1).is_ok(), "not admitted: {:?}\n{src}", d[0].1);
         let m = parse(&src).unwrap();
         let res = run_main(&m, &RunCfg::default()).unwrap();
         // i64 overflow traps in the evaluator; ParSem has unbounded

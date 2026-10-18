@@ -16,6 +16,18 @@ fn spec() -> std::path::PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("..")
 }
 
+/// These vectors compare the verdict of one property (session linearity, priorities, the parallel
+/// semantics) with the Lean model. Hygiene findings (unread names, dead stores, discarded values)
+/// are a different property of the same one language, so they are set aside before comparing.
+fn property_verdict(r: &Result<(), String>) -> Result<(), String> {
+    let Err(e) = r else { return Ok(()) };
+    let kept: Vec<&str> = e
+        .split("; line ")
+        .filter(|f| !["W-UNUSED-1", "W-UNUSED-2", "W-ASSIGN-1", "W-DROP-1"].iter().any(|h| f.contains(h)))
+        .collect();
+    if kept.is_empty() { Ok(()) } else { Err(kept.join("; line ")) }
+}
+
 fn file() -> std::path::PathBuf {
     spec().join("checker/tests/vectors/session-lin-lean.jsonl")
 }
@@ -53,7 +65,7 @@ fn checker_linearity_equals_lean() {
         let src = format!("# rce-version: 0.6\n{}", v["src"].as_str().unwrap());
         let want = v["expect"].as_str().unwrap();
         let r = check_program(&[(format!("lin{n}.rce"), src.clone())], false);
-        match (&r[0].1, want) {
+        match (&property_verdict(&r[0].1), want) {
             (Ok(()), "ok") => ok += 1,
             (Err(e), "ok") => bad.push(format!("vector {n}: Lean accepts, checker refuses: {e}\n{src}")),
             (Ok(()), w) => bad.push(format!("vector {n}: Lean refuses with {w}, checker accepts\n{src}")),

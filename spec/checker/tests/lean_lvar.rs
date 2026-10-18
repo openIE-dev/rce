@@ -76,12 +76,14 @@ fn lean_lvar_vectors_are_current() {
 fn program(v: &Value) -> (String, Vec<String>) {
     let mut src = String::from("fn main()\n");
     let mut want = vec!["main".to_string()];
+    // a cell nothing reads or writes is named `_c`: an unread name is refused (W-UNUSED-1)
+    let used = |c: &str| v["steps"].as_array().unwrap().iter().any(|s| s[1] != "new" && format!("c_{}_{}", s[2][0], s[2][1]) == c);
     for s in v["steps"].as_array().unwrap() {
         let op = s[1].as_str().unwrap();
         let c = format!("c_{}_{}", s[2][0], s[2][1]);
         let (arg, res) = (s[3].as_u64().unwrap(), s[4].as_u64().unwrap());
         match op {
-            "new" => src.push_str(&format!("    let {c} = lvar_new(0, 6)\n")),
+            "new" => src.push_str(&format!("    let {}{c} = lvar_new(0, 6)\n", if used(&c) { "" } else { "_" })),
             "put" => src.push_str(&format!("    {c}.put({arg})\n")),
             "get" => {
                 src.push_str(&format!("    emit {c}.wait([{arg}])\n"));
@@ -146,7 +148,8 @@ fn threaded(v: &Value) -> (String, Result<Vec<String>, String>, Vec<(u64, u64)>)
     let (news, th) = thread_ops(v);
     let mut src = String::from("fn main()\n");
     for c in &news {
-        src.push_str(&format!("    let {c} = lvar_new(0, 6)\n"));
+        let used = th.iter().flatten().any(|o| &o.1 == c);
+        src.push_str(&format!("    let {}{c} = lvar_new(0, 6)\n", if used { "" } else { "_" }));
     }
     let mut join: std::collections::BTreeMap<String, u64> = news.iter().map(|c| (c.clone(), 0)).collect();
     for o in th.iter().flatten() {
@@ -158,7 +161,7 @@ fn threaded(v: &Value) -> (String, Result<Vec<String>, String>, Vec<(u64, u64)>)
     let mut body = String::new();
     let (mut want, mut frz, mut lean_frz) = (vec![], vec![], vec![]);
     for (t, ops) in th.iter().enumerate() {
-        body.push_str(&format!("        branch t{t}\n            var j: i64 = 0\n"));
+        body.push_str(&format!("        branch t{t}\n            let _j: i64 = 0\n"));
         for (i, (op, c, arg, res)) in ops.iter().enumerate() {
             match op.as_str() {
                 "put" => body.push_str(&format!("            {c}.put({arg})\n")),
@@ -174,7 +177,6 @@ fn threaded(v: &Value) -> (String, Result<Vec<String>, String>, Vec<(u64, u64)>)
                 o => panic!("op {o}"),
             }
         }
-        body.push_str("            j += 0\n");
     }
     src.push_str("    par\n");
     src.push_str(&body);
