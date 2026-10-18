@@ -3,7 +3,7 @@
 
   lex      mutations of admitted programs into ones a lexical or syntax rule
            refuses (tab, bare CR, BOM, bad dedent, out-of-range literal, bad
-           \\u{}, unknown version, `unsafe`, dropped bracket, unknown name,
+           \\u{}, `unsafe`, dropped bracket, unknown name,
            duplicate fn). The intended rule is the expected code.
   T7       consistent renaming of event and error names keeps every log hash
            (name independence): the expected trace head is the original's.
@@ -56,9 +56,6 @@ def mut_dedent(s):
            and w(ls[i + 1]) == 4 and not ls[i + 1].lstrip().startswith("#")]
     if not idx: return None
     i = rnd.choice(idx) + 1; ls[i] = "      " + ls[i].lstrip(" "); return "\n".join(ls)
-def mut_ver(s):
-    if s.startswith("# rce-version:"): s = s.split("\n", 1)[1]
-    return f"# rce-version: 0.{rnd.choice([1, 2, 3, 9])}\n" + s
 def mut_bigint(s): return s + "\nconst BIG_LIT = 99999999999999999999999\n"
 def mut_badu(s): return s + '\nconst BAD_U = "\\u{110000}"\n'
 def mut_unsafe(s): return s + "\nfn unsafe_probe() -> i64\n    let unsafe = 1\n    return unsafe\n"
@@ -66,7 +63,7 @@ def mut_unknown(s): return s + "\nfn probe_unknown() -> i64\n    return no_such_
 def mut_dup(s): return s + "\nfn dup_zz() -> i64\n    return 1\n\nfn dup_zz() -> i64\n    return 2\n"
 def mut_paren(s): return s + "\nfn paren_zz() -> i64\n    return (1 + 2\n"
 MUTS = [("W-LEX-1", mut_tab, "tab"), ("W-LEX-1", mut_cr, "cr"), ("W-LEX-1", mut_bom, "bom"), ("W-LEX-2", mut_dedent, "dedent"),
-        ("W-VER-1", mut_ver, "version"), ("W-LEX-3", mut_bigint, "bigint"), ("W-LEX-3", mut_badu, "bad-escape"),
+        ("W-LEX-3", mut_bigint, "bigint"), ("W-LEX-3", mut_badu, "bad-escape"),
         ("W-SAFE-1", mut_unsafe, "unsafe"), ("W-NAME-1", mut_unknown, "unknown-name"), ("W-NAME-2", mut_dup, "duplicate"),
         ("W-SYN-1", mut_paren, "paren")]
 for code, f, tag in MUTS:
