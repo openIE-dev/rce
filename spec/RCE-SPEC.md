@@ -6260,6 +6260,35 @@ Not implemented (each is reserved, not implemented, or the closed list in
   statement in F.5.5 to implement; provenance records, the build cache and the
   advisory key distribution of S5.
 
+**Why each stays refused (state of 18 October 2026).** A refusal is a decision, so each has its reason
+here; none of them is left refused for lack of attention.
+
+- `ct fn` in the emitters and the Lean elaboration: W-CTFN-2 prescribes the refusal for Python and
+  JavaScript, and the Rust and Scala emitters refuse for the same reason. The property is that two runs
+  that differ only in secrets take the same branch, index and loop decisions (T45); a translation that
+  keeps the decisions equal says nothing about the timing the target's compiler or runtime then
+  produces, and T45 is unproved. The reference evaluator runs the function.
+- Contracts in the emitters: a `requires` or `ensures` that fails refuses the event with the fixed
+  record (F.6.2, T46). The emitters translate the erased Form and have no outcome for a refused event
+  distinct from a trap, so an emitted program could not report the record; adding one to four emitters
+  and to the conformance adapters is a change of the emitter protocol, not a local translation.
+- `Template` values and `Prompt.t"..."` (F.6.1): the typed-output property (T44) is about the
+  structural characters of the rendered text, so an emitter's escaping would have to be proved or
+  tested per context and per target; no escaping function is specified for the four targets, and the
+  formatter and the hash use the expansion, so a template that is not expanded cannot be hashed.
+- `ghost` parameters, `mathint` and quantifiers, `R.check` and opaque types with invariants: each needs
+  an erasure that keeps δ, λ and the log (T49) and, for the proof obligations, a decision procedure
+  or an SMT back end that F.6 does not name; without one a program that uses them would be accepted
+  without the check that gives it a meaning.
+- Structural measures over data and loop measures on `for` and `loop` (F.6.4): termination (T48) is
+  proved only of the model of a strictly decreasing natural-number measure; a measure over data needs
+  the well-founded order of the data type, which F.6.4 does not define.
+- `declassify` (F.4.2): `release` with a held capability is the one way a labeled value leaves its
+  label; a second way would need its own authority rule, and T43 (robust declassification) is unproved.
+- `host.revoke` (F.5.1): the call writes to the host log, which the reference checker does not have; the
+  pure caretaker fold is implemented and tested, and T51 is proved of the log model only.
+- `law` (P9, F.6.6): W-LAW-1 needs a sample of impl values and an evaluator of a law over them.
+
 **Read receipt.** How many words does F, "Reserved words", add to the reserved list of 2.4? (a number)
 
 ### F.13 Grammar
