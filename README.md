@@ -115,3 +115,14 @@ rce has one language and one globally reserved word list, so names that the list
 | `ct` | `ctext` | names |
 
 Field names and keyword arguments were renamed together with their uses. Programs that import `enc.Json` or `net.url.Url` must use the new names.
+
+## Generators not re-run for the one-language migration (unverified)
+
+The one-language pass edited the generated files and the templates in
+`scripts/gen/` together, and `scripts/one-language.py` verifies the committed
+output. These generators were not re-run end to end after the pass, so their
+output is checked only by `scripts/check-all.sh` and by the verifier, not by
+regeneration: blake3, cdc*, clock, dns, http, energy, events, exact, feed, fmt,
+fs, idna_data, input, irp, math, pkg_lock, rand, signal (needs a gcc reference),
+svc, target, text_icu, time, url, view, xml. Regenerate each on Linux (kernel
+6.12 matches the committed headers) before relying on a template change.
