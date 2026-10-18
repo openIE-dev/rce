@@ -35,6 +35,10 @@ jobs:
       - name: tree_sitter_sync
         working-directory: spec/checker
         run: cargo test --release ${{ matrix.features != '' && format('--features {0}', matrix.features) || '' }} --test tree_sitter_sync
+      - name: Grammar fuzz, fixed seed (checker no-panic, tree-sitter differential)
+        working-directory: spec/checker
+        timeout-minutes: 15
+        run: cargo test --release ${{ matrix.features != '' && format('--features {0}', matrix.features) || '' }} --test grammar_fuzz
       - name: Fast tests with the feature set
         if: ${{ matrix.features == 'tree-sitter' }}
         env:

@@ -1,0 +1,11 @@
+# Fuzz mutants on which the Rust parser and tree-sitter disagree and that are triaged.
+# Format: FNV-1a hash of the mutant (hex), then a note. See tests/grammar_fuzz.rs.
+# Class A, tree-sitter too permissive: two declarations on one line with no line
+# end between them, for example `event A(x: u64)event B(y: u64)`. The Rust parser
+# refuses (a declaration ends with a line end); tree-sitter accepts, because the
+# scanner returns no _NL at a keyword and the parser recovers by inserting one,
+# which `tree-sitter parse -q` does not report. The same recovery accepts
+# `return emit 1` (found by a first version of the fuzzer, not listed). A fix is
+# in scanner.c or the grammar, then parser.c and the wasm are regenerated; delete
+# the line then.
+4afca8bc9eb5b4b7  checker/tests/host/pty.rce #0: class A, `event ...)event ...` on one line

@@ -3973,6 +3973,10 @@ impl Checker {
                             };
                         }
                         "Box" => {
+                            if args.len() != 1 {
+                                self.e(d(l, "W-TY-1", "`Box` takes one value"));
+                                return T::Never;
+                            }
                             let t = self.infer(&args[0].e, true);
                             return T::Named("Box".into(), vec![t]);
                         }
