@@ -1,7 +1,7 @@
 {
  "tree_sitter_rce": "00b639a",
- "programs": 1785,
- "agree": 1785,
+ "programs": 1773,
+ "agree": 1773,
  "disagreements": [],
  "rows": [
   {
@@ -3635,102 +3635,6 @@
    "law_parses": false,
    "expect": "reject",
    "diagnostic": "W-LEX-1"
-  },
-  {
-   "path": "tests/lexing-parsing/generated/mut-version-05-supervisor-lvar-accept.rce",
-   "reference_parses": false,
-   "tree_sitter_parses": false,
-   "law_parses": false,
-   "expect": "reject",
-   "diagnostic": "W-VER-1"
-  },
-  {
-   "path": "tests/lexing-parsing/generated/mut-version-06-device-kernel-accept.rce",
-   "reference_parses": false,
-   "tree_sitter_parses": false,
-   "law_parses": false,
-   "expect": "reject",
-   "diagnostic": "W-VER-1"
-  },
-  {
-   "path": "tests/lexing-parsing/generated/mut-version-12-borrow-accept.rce",
-   "reference_parses": false,
-   "tree_sitter_parses": true,
-   "law_parses": false,
-   "expect": "reject",
-   "diagnostic": "W-VER-1"
-  },
-  {
-   "path": "tests/lexing-parsing/generated/mut-version-16-multi-region-accept.rce",
-   "reference_parses": false,
-   "tree_sitter_parses": true,
-   "law_parses": false,
-   "expect": "reject",
-   "diagnostic": "W-VER-1"
-  },
-  {
-   "path": "tests/lexing-parsing/generated/mut-version-27-bitops-accept.rce",
-   "reference_parses": false,
-   "tree_sitter_parses": true,
-   "law_parses": false,
-   "expect": "reject",
-   "diagnostic": "W-VER-1"
-  },
-  {
-   "path": "tests/lexing-parsing/generated/mut-version-30-state-machine-guarded-accept.rce",
-   "reference_parses": false,
-   "tree_sitter_parses": true,
-   "law_parses": false,
-   "expect": "reject",
-   "diagnostic": "W-VER-1"
-  },
-  {
-   "path": "tests/lexing-parsing/generated/mut-version-35-nested-if-accept.rce",
-   "reference_parses": false,
-   "tree_sitter_parses": true,
-   "law_parses": false,
-   "expect": "reject",
-   "diagnostic": "W-VER-1"
-  },
-  {
-   "path": "tests/lexing-parsing/generated/mut-version-45-byte-text-accept.rce",
-   "reference_parses": false,
-   "tree_sitter_parses": true,
-   "law_parses": false,
-   "expect": "reject",
-   "diagnostic": "W-VER-1"
-  },
-  {
-   "path": "tests/lexing-parsing/generated/mut-version-50-iterators-accept.rce",
-   "reference_parses": false,
-   "tree_sitter_parses": true,
-   "law_parses": false,
-   "expect": "reject",
-   "diagnostic": "W-VER-1"
-  },
-  {
-   "path": "tests/lexing-parsing/generated/mut-version-ok-expr-accept.rce",
-   "reference_parses": false,
-   "tree_sitter_parses": true,
-   "law_parses": false,
-   "expect": "reject",
-   "diagnostic": "W-VER-1"
-  },
-  {
-   "path": "tests/lexing-parsing/generated/mut-version-ok-order-accept.rce",
-   "reference_parses": false,
-   "tree_sitter_parses": true,
-   "law_parses": false,
-   "expect": "reject",
-   "diagnostic": "W-VER-1"
-  },
-  {
-   "path": "tests/lexing-parsing/generated/mut-version-ticked-accept.rce",
-   "reference_parses": false,
-   "tree_sitter_parses": true,
-   "law_parses": false,
-   "expect": "reject",
-   "diagnostic": "W-VER-1"
   },
   {
    "path": "tests/lexing-parsing/harvested/01-barrier-arg-reject.rce",

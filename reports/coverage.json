@@ -1,8 +1,8 @@
 {
  "format": "rce-coverage/1",
  "clauses": 207,
- "covered": 207,
- "percent": 100.0,
+ "covered": 206,
+ "percent": 99.52,
  "tests_by_area": {
   "concurrency": 253,
   "effects-capabilities": 19,
@@ -10,14 +10,14 @@
   "forms-log": 124,
   "handler-spec": 15,
   "host-contract": 79,
-  "lexing-parsing": 133,
+  "lexing-parsing": 121,
   "numbers": 1168,
   "proposed": 4,
   "text-unicode": 12,
   "tooling": 8,
   "types-checking": 101
  },
- "tests_total": 1991,
+ "tests_total": 1979,
  "per_clause": [
   {
    "id": "CH00-M-61b6ac06",
@@ -534,9 +534,9 @@
    "kind": "modal",
    "chapter": "09-wellformedness.md",
    "line": 3,
-   "tests": 351,
+   "tests": 339,
    "reference": {
-    "pass": 351
+    "pass": 339
    }
   },
   {
@@ -584,10 +584,8 @@
    "kind": "rule",
    "chapter": "09-wellformedness.md",
    "line": 15,
-   "tests": 12,
-   "reference": {
-    "pass": 12
-   }
+   "tests": 0,
+   "reference": {}
   },
   {
    "id": "W-NAME-1",
@@ -2090,12 +2088,14 @@
    }
   }
  ],
- "untested": [],
+ "untested": [
+  "W-VER-1"
+ ],
  "unknown_clause_ids_in_tests": {},
  "profiles": {
   "language": {
    "clauses": 207,
-   "covered": 207
+   "covered": 206
   },
   "tooling": {
    "clauses": 7,

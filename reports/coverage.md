@@ -1,6 +1,6 @@
 # Clause coverage
 
-Language profile: 207 of 207 normative clauses have at least one test (100.0%). 1991 tests.
+Language profile: 206 of 207 normative clauses have at least one test (99.52%). 1979 tests.
 
 ## Tests by area
 
@@ -12,7 +12,7 @@ Language profile: 207 of 207 normative clauses have at least one test (100.0%). 
 | forms-log | 124 |
 | handler-spec | 15 |
 | host-contract | 79 |
-| lexing-parsing | 133 |
+| lexing-parsing | 121 |
 | numbers | 1168 |
 | proposed | 4 |
 | text-unicode | 12 |
@@ -23,7 +23,7 @@ Language profile: 207 of 207 normative clauses have at least one test (100.0%). 
 
 | profile | clauses | covered |
 |---|---|---|
-| language | 207 | 207 |
+| language | 207 | 206 |
 | tooling | 7 | 5 |
 | handler-spec | 14 | 8 |
 | editorial | 1 | 0 |
@@ -31,7 +31,7 @@ Language profile: 207 of 207 normative clauses have at least one test (100.0%). 
 
 ## Untested clauses (language profile)
 
-none
+- W-VER-1 (09-wellformedness.md:15): - W-VER-1 A first-line `# rce-version:` declaration naming a version other than 0.5, 0.6 or 0.7 (2.7).
 
 ## Per clause
 
@@ -88,12 +88,12 @@ none
 | CH08-M-cbd85cbd | modal | 08-steps-loops-concurrency.md:97 | 10 | {'pass': 10} |
 | CH08-M-51f39d7d | modal | 08-steps-loops-concurrency.md:211 | 4 | {'pass': 4} |
 | CH08-M-9a15157f | modal | 08-steps-loops-concurrency.md:218 | 21 | {'pass': 21} |
-| CH09-M-82e65964 | modal | 09-wellformedness.md:3 | 351 | {'pass': 351} |
+| CH09-M-82e65964 | modal | 09-wellformedness.md:3 | 339 | {'pass': 339} |
 | W-LEX-1 | rule | 09-wellformedness.md:11 | 36 | {'pass': 36} |
 | W-LEX-2 | rule | 09-wellformedness.md:12 | 7 | {'pass': 7} |
 | W-LEX-3 | rule | 09-wellformedness.md:13 | 25 | {'pass': 25} |
 | W-SYN-1 | rule | 09-wellformedness.md:14 | 41 | {'pass': 41} |
-| W-VER-1 | rule | 09-wellformedness.md:15 | 12 | {'pass': 12} |
+| W-VER-1 | rule | 09-wellformedness.md:15 | 0 | {} |
 | W-NAME-1 | rule | 09-wellformedness.md:19 | 27 | {'pass': 27} |
 | W-NAME-2 | rule | 09-wellformedness.md:20 | 13 | {'pass': 13} |
 | W-MOD-1 | rule | 09-wellformedness.md:22 | 1 | {'pass': 1} |
