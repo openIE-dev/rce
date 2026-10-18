@@ -75,14 +75,7 @@ structure TxModel where
 def T47 (m : TxModel) : Prop :=
   ∀ c, (m.call c).2 = CallResult.refused → (m.call c).1 = c
 
-/-- T48 (F.6.4) Termination by written measure. -/
-structure MeasureModel where
-  Config : Type
-  step : Config → Option Config
-  accepted : Config → Prop                   -- a recursive group or loop with a `decreases` tuple
-def T48 (m : MeasureModel) : Prop :=
-  ∀ c, m.accepted c → ∃ n, (Nat.repeat (fun o => o.bind m.step) n (some c)) = none
-
+-- T48 is proved of a model in RCE/Discharged.lean (in the audit); not stated here.
 /-- T49 (F.6.3) Ghost erasure. -/
 structure GhostModel where
   Program : Type
@@ -108,16 +101,7 @@ def T50 (m : HashModel) : Prop :=
   (∀ a b, m.hash a = m.hash b → m.meaning a = m.meaning b) ∧
   (∀ a b, m.compatible a b → ∀ i, m.requires b i → m.result a i = m.result b i)
 
-/-- T51 (F.5.1) Revocation. -/
-structure RevokeModel where
-  Entry : Type
-  Caretaker : Type
-  isRevoke : Entry → Caretaker → Prop
-  uses : Entry → Caretaker → Prop
-  admitted : List Entry → Entry → Prop
-def T51 (m : RevokeModel) : Prop :=
-  ∀ pre e c post, m.isRevoke e c → ∀ u, m.uses u c → ¬ m.admitted (pre ++ e :: post) u
-
+-- T51 is proved of a model in RCE/Discharged.lean (in the audit); not stated here.
 /-- T52 (F.5.5) Budgets. -/
 structure BudgetModel where
   Target : Type
@@ -129,17 +113,7 @@ structure BudgetModel where
 def T52 (m : BudgetModel) : Prop :=
   ∀ p t, m.work t p ≤ m.budget p ∧ ∀ t', m.trapsAt t p = m.trapsAt t' p
 
-/-- T53 (F.4.1) World replay: T32 for every foreign call through a `World`. -/
-structure WorldModel where
-  Log : Type
-  Input : Type
-  Program : Type
-  Run : Type
-  record : Program → List Input → Log × Run
-  replay : Program → Log → Run
-def T53 (m : WorldModel) : Prop :=
-  ∀ p is, m.replay p (m.record p is).1 = (m.record p is).2
-
+-- T53 is proved of a model in RCE/Discharged.lean (in the audit); not stated here.
 /-- T54 (F.5.3) Supply chain integrity, under collision resistance of the hash. -/
 structure SupplyModel where
   Module : Type

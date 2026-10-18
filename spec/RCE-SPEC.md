@@ -2202,12 +2202,12 @@ Classical.choice). Status per theorem:
 | T45 | stated, unproved (Appendix F.9; F.12 lists what is implemented): Constant time: two runs of a `ct fn` that differ only in secret-labelled inputs take the same sequence of branch, index and loop decisions (F.5.4) | none |
 | T46 | stated, unproved (Appendix F.9; F.12 lists what is implemented): Contract enforcement: if a call returns, its `requires` held at entry and its `ensures` held at the return; otherwise the call's event is refused with the fixed record (F.6.2) | none |
 | T47 | stated, unproved (Appendix F.9; F.12 lists what is implemented): Transactional calls: a call that returns by `fail` leaves the caller's `&mut` arguments and locals equal to their values at the call (F.4.4) | none |
-| T48 | stated, unproved (Appendix F.9; F.12 lists what is implemented): Termination by written measure: an accepted recursive group or loop with a `decreases` tuple ends (F.6.4) | none |
+| T48 | proved on a model of the measure rule: a step that strictly lowers a natural-number measure reaches the end of the run from every start (not a proof about the checker's acceptance of `decreases`): Termination by written measure: an accepted recursive group or loop with a `decreases` tuple ends (F.6.4) | `t48` (`RCE/Discharged.lean`) |
 | T49 | stated, unproved (Appendix F.9; F.12 lists what is implemented): Ghost erasure: erasing ghost code does not change δ, λ or the log (F.6.3) | none |
 | T50 | stated, unproved (Appendix F.9; F.12 lists what is implemented): Definition hash: two definitions with equal hash have equal meaning; a change that `rce api-diff` marks compatible does not change the result of any accepted caller for inputs satisfying its `requires` (F.4.3) | none |
-| T51 | stated, unproved (Appendix F.9; F.12 lists what is implemented): Revocation: no capability use after a `host.revoke` entry for its caretaker in the log is admitted (F.5.1) | none |
+| T51 | proved on a log model: a log with a revoke entry for a caretaker admits no use by it (not a proof about the host's implementation): Revocation: no capability use after a `host.revoke` entry for its caretaker in the log is admitted (F.5.1) | `t51` (`RCE/Discharged.lean`) |
 | T52 | stated, unproved (Appendix F.9; F.12 lists what is implemented): Budgets: a program with a budget does at most the budget's units of work before `trap("budget")`, at the same operation on every target (F.5.5) | none |
-| T53 | stated, unproved (Appendix F.9; F.12 lists what is implemented): World replay: T32 for every foreign call through a `World` and every logged input (F.4.1) | none |
+| T53 | proved on a model of programs that ask an oracle: replay from the log of answers returns the live run's result (not a proof about the emitted code): World replay: T32 for every foreign call through a `World` and every logged input (F.4.1) | `t53` (`RCE/Discharged.lean`) |
 | T54 | stated, unproved (Appendix F.9; F.12 lists what is implemented): Supply chain integrity: under SHA-256 collision resistance, an accepted build's modules are exactly the manifest's (F.5.3) | none |
 | T55 | stated, unproved (Appendix F.9; F.12 lists what is implemented): Broker invariant: by induction on grant events, no session holds all three trifecta properties without an explicit grant event (F.7) | none |
 | T56 | stated, unproved (Appendix F.9; F.12 lists what is implemented): Relaxed sequential borrows: the limited relaxation of 5.6 studied from group borrowing (a reference is invalidated only below steps that are not independent of it) preserves T6; the lemma is not proved and the relaxation is not adopted (5.6) | none |
@@ -2315,7 +2315,7 @@ the callee's final value back. This is proved of a model that copies in, runs on
 the copy and copies out only when the outcome is a value. The rule that wrote back
 on every outcome, which this number used to state, is retired and is no longer
 in the proved tree. That every effect since entry is undoable is W-TX-1, a check
-of the checker; T42 to T56 state the remaining properties and are unproved.
+of the checker; T42 to T56 state the remaining properties; T48, T51 and T53 are proved of models (`RCE/Discharged.lean`) and the other twelve are unproved.
 
 **T36 Indexed values.** (5.16): untrusted text
 forms no structure of a `Text[C]` value; outputs do not depend on
@@ -2346,11 +2346,13 @@ entries it was given (Appendix E, HS-3).
 gives the same value, final store, and ordered trace of budget charges
 and emits as evaluating the expression.
 
-T42 to T56 are stated in Appendix F.9 and are obligations of Appendix F; none
-is proved. Their statements as Lean `Prop`s over abstract model records are in
-`spec/lean/obligations/Obligations.lean`; that file has no theorem, is not part of
-`lake build` and is not read by `scripts/lean-audit.sh`, so the audit counts do not
-include it.
+T42 to T56 are stated in Appendix F.9 and are obligations of Appendix F. T48, T51
+and T53 are proved, each of a small model of its rule (`spec/lean/RCE/Discharged.lean`,
+in `lake build` and the audit); a model proof says the rule is coherent, not that the
+checker or an emitter implements it. The other twelve are not proved: their statements
+as Lean `Prop`s over abstract model records are in `spec/lean/obligations/Obligations.lean`;
+that file has no theorem, is not part of `lake build` and is not read by
+`scripts/lean-audit.sh`, so the audit counts do not include it.
 
 **Numbering and assurance.** Theorem numbers are stable identifiers, not
 positions: a number is never reused or changed, new theorems take the

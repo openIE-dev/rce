@@ -15,7 +15,7 @@ an agent proves it read them by following `READ-PROTOCOL.md`.
 | `07-form-evaluation.md` | `d015b1577711d452c02e5e4091568d5e098d8f611a6d74a37b92eb6d5b7d1025` | Which JavaScript function is named for rounding to binary32? |
 | `08-steps-loops-concurrency.md` | `22b852f3d01aa50cf11433f9c5206c856ceb0205e9991b8c4f276b6ceb772fbe` | Name-free hashing uses indices named after which logician? (two words) |
 | `09-wellformedness.md` | `46e73d53d86f66272f6a543db803efeb9538bd8737ba7c81ceaa8b4b78767bd7` | Which rule refuses two unguarded steps in one region whose patterns overlap? |
-| `10-theorems.md` | `8914f55a0535d2b6c729ed939096a37c0040c7e6845ec446bebfe4e5de9d3ba6` | What is the deep embedding of the emitted Rust subset called? |
+| `10-theorems.md` | `6d90ae30e5ff6e70143e3d9327b1cb9f58cc8268524f745d8f8245989ce60bb6` | What is the deep embedding of the emitted Rust subset called? |
 | `11-decisions.md` | `0d831d369c0a420d966a0f2e2fd431bc8c3f7dfee02dcbc8d96044da6f6d8d08` | The decisions list says it decides gaps in which file? |
 | `12-tooling.md` | `5c2b8f2dfd9dea59d60dce9af7edd5aeb9b5eed1aa745d3c4ccdec4cd5941263` | Which JSON-RPC error code does the language server return for a request it does not know? (a number) |
 | `13-references.md` | `ac72852386a36ef0d84e868bf2f2c771b662a7699b29363418f1f659ad730068` | Who wrote "Communicating Sequential Processes"? (surname) |
@@ -26,4 +26,4 @@ an agent proves it read them by following `READ-PROTOCOL.md`.
 
 The single-file spec `spec/RCE-SPEC.md` is generated from these files.
 
-<!-- body-sha256: f83bc086ea623da8fc0cd86e1b07838587bea64b9d6afe9a9dd866872e47cc5e -->
+<!-- body-sha256: abff95ba8069d2e76ac1170904fb90fbb080303004295869911bfb97a68b34be -->

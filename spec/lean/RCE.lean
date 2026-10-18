@@ -32,6 +32,7 @@ import RCE.SessionEnc
 import RCE.ModelVectors
 import RCE.Replay
 import RCE.WriteBack
+import RCE.Discharged
 import RCE.Compose
 import RCE.Anf
 import RCE.Mutual
