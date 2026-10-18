@@ -262,3 +262,46 @@ fn box_without_its_value_is_refused_not_a_panic() {
     let e = r.unwrap_err();
     assert!(e.contains("W-TY-1") && e.contains("`Box` takes one value"), "{e}");
 }
+
+/// Divergences the fuzzer found, fixed from the spec text (2.1, 2.3, 2.5, 2.6, C.11.12),
+/// each as a fixed program with its verdict: both parsers must give it.
+#[test]
+fn fuzz_found_cases_have_one_verdict_in_both_parsers() {
+    let cases: &[(&str, &str, bool)] = &[
+        ("two declarations on one line", "event A(x: u64)event B(y: u64)\n", false),
+        ("a statement word glued after return", "fn f() -> i64\n    return emit 1\n", false),
+        ("a name glued after a closing bracket", "kind E\n    A(x: i64)\n    B(y: i64\n    )C(z: i64)\n", false),
+        ("par after a non-for expression", "fn f() -> i64\n    let n = 3 par\n    return n\n", false),
+        ("a bare CR in a comment (2.1)", "# a\rb\nfn f() -> i64\n    return 0\n", false),
+        ("a tab in a comment (2.1)", "# a\tb\nfn f() -> i64\n    return 0\n", false),
+        ("indentation on the first line (2.6)", " fn f() -> i64\n    return 0\n", false),
+        ("a last line of spaces only (2.6)", "fn f() -> i64\n    return 0\n    ", true),
+        ("0b without a digit is `0` then a word (2.3, 2.5)", "fn f(v: i64) -> i64\n    while v != 0bound 64\n        v = v - 1\n    return v\n", true),
+        ("a contract word as a member name (2.4)", "fn f(x: i64) -> i64\n    return x.ensures\n", true),
+        ("an interrupt event without priority (C.11.12)", "interrupt event E\n", false),
+        ("priority on an ordinary event (C.11.12)", "event E priority 3\n", false),
+    ];
+    let spec = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap().to_path_buf();
+    let ts = spec.join("tree-sitter");
+    let have_ts = Command::new("tree-sitter").arg("--version").output().is_ok();
+    assert!(have_ts || std::env::var_os("CI").is_none(), "tree-sitter CLI required under CI");
+    let dir = std::env::temp_dir().join(format!("rce-fuzzreg-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let mut bad = vec![];
+    for (i, (name, src, want)) in cases.iter().enumerate() {
+        let rust = rust_accepts(src);
+        if rust != *want {
+            bad.push(format!("{name}: Rust parser {rust}, expected {want}"));
+        }
+        if have_ts {
+            let f = dir.join(format!("c{i}.rce"));
+            std::fs::write(&f, src).unwrap();
+            let t = Command::new("tree-sitter").current_dir(&ts).args(["parse", "-q"]).arg(&f).output().unwrap().status.success();
+            if t != *want {
+                bad.push(format!("{name}: tree-sitter {t}, expected {want}"));
+            }
+        }
+    }
+    let _ = std::fs::remove_dir_all(&dir);
+    assert!(bad.is_empty(), "{}", bad.join("\n"));
+}
