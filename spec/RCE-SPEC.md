@@ -1564,9 +1564,9 @@ argument and a `&mut self` receiver. A call that ends by `fail` leaves each of t
 the call, provided every effect since entry is undoable, and is refused otherwise (F.4.4, W-TX-1); the
 callee's writes made before the failure are undone. Atomicity of the event is separate: a `trap`, or a `fail`
 that leaves the step, refuses the event and the state is the pre-state (T8). The earlier rule of this text
-wrote back on every outcome, including `fail`; it was derived from in-place update and proved as T33
-(`WriteBack.t33`, `copyOk_differs`), and it is retired because F.4.4 makes a failed call a no-op, which is
-what a caller can reason about. T33 remains a proved statement about the retired rule only. The program emitters implement the
+wrote back on every outcome, including `fail`; it is retired because F.4.4 makes a failed call a no-op, which is
+what a caller can reason about. T33 now proves the restore rule (`WriteBack.t33_failure_restores`,
+`t33_return_writes_back`); nothing about the retired rule remains in the proved tree. The program emitters implement the
 rule for a write-back call that is a whole statement or expression of a
 `let`, `var`, assignment, `emit` or `return`, and for such a call under
 `catch` or `try` (`f(&mut x) catch h`, `try f(&mut x)`): the call is the
@@ -2187,7 +2187,7 @@ Classical.choice). Status per theorem:
 | T13 | proved for any rounding that fixes representable values: widening f32 to f64 is exact, f32 multiply via f64 is a single rounding, and every f32 op gives the same bits on targets that agree on IEEE 754 binary64 ops and binary32 rounding. For + − / the single-rounding property is Figueroa's theorem, cited, not mechanized | `widen_exact`, `f32_mul_det`, `f32_op_det` |
 | T14 | proved: checked u64 ops return the exact result exactly when it lies in [0, 2^64), and udiv/urem satisfy b·q + r = a, r < b | `uadd_spec`, `usub_spec`, `umul_spec`, `udiv_urem`, `udiv_range`, `urem_range` |
 | T32 | proved for every oracle: replay of the log equals the live run, the log's events are the input events, an answer contract holds of every logged answer, and runs that logged the same answers agree | `replay_live`, `live_events`, `live_answers_satisfy`, `t32` |
-| T33 | proved: copy-out on every outcome equals in-place update; copy-out only on success does not | `t33`, `copyOk_differs` |
+| T33 | proved: a call that ends by `fail` leaves the caller's `&mut` state as at the call, and a returning call writes its final value back (the restore rule of F.4.4, as a model; W-TX-1 is a check, not part of the model) | `t33_failure_restores`, `t33_return_writes_back` |
 | T36 | proved on models of 5.16: every metacharacter of rendered context text comes from a literal when the encoder emits none (and the HTML encoder emits none of `< > " '`); public outputs are equal for runs whose public inputs and secret-equality bits agree; a log of events without the capability leaves a guarded field unchanged. The checker rules are tested on accept/refuse cases and the encoders across the reference and the Rust, Python and JavaScript runtimes (`tests/indexed.rs`) | `ctx_meta_from_literals`, `html_enc_clean`, `noninterference`, `outputs_noninterfere`, `guarded_needs_cap` |
 | T35 | proved on a model of the boundary check: the predicate fragment decides (a total Bool function), a value that passes the check satisfies its predicate, admission accepts only payloads that satisfy their field predicates, and every state reached by the checked δ from an initial state that satisfies the field predicates satisfies them, with a refused event leaving the state unchanged; the reference evaluator and the Rust, Python and JavaScript runtimes are tested to accept and trap alike (`tests/refined.rs`) | `holds_total`, `fit_sound`, `admit_sound`, `refine_preserved`, `refine_refused_unchanged` |
 | T34 | proved for a core fragment (literals, reads, write-back calls, a charging operator, emit) with full ANF: the let-bound program gives the same value, store, and trace of charges and emits; the implementation (`anf.rs`, which binds fewer nodes and covers the surface language) is tested differentially on every target, including a budget sweep across the trap point | `t34`, `run_frame` |
@@ -2309,10 +2309,13 @@ reproduces its state, whatever o is; no property of the foreign code is
 assumed, and a contract every answer satisfies holds of every logged
 answer.
 
-**T33 `&mut` write-back (retired rule).** A call that writes back its `&mut` arguments on
-every outcome gives the same store and outcome as updating them in
-place. This is proved of the rule 6.2 used to state; the language's rule is now the restore of F.4.4
-(T42 to T56 state its properties and are unproved).
+**T33 `&mut` restore on failure (F.4.4).** A call that ends by `fail` leaves
+the caller's `&mut` state as it was at the call, and a call that returns writes
+the callee's final value back. This is proved of a model that copies in, runs on
+the copy and copies out only when the outcome is a value. The rule that wrote back
+on every outcome, which this number used to state, is retired and is no longer
+in the proved tree. That every effect since entry is undoable is W-TX-1, a check
+of the checker; T42 to T56 state the remaining properties and are unproved.
 
 **T36 Indexed values.** (5.16): untrusted text
 forms no structure of a `Text[C]` value; outputs do not depend on
@@ -2638,7 +2641,7 @@ they run them on the CPU, which 5.13 allows).
   method costs (C.6.4). Versions 0.5 and 0.6 keep their meaning.
 - Errata for every version, listed in C.15: closed standard library and
   no ambient I/O (5.15), `&mut` write-back on `fail` in the emitters (6.2,
-  T33) with nested calls flattened by an order-preserving ANF pass (T34),
+  the earlier T33 rule, since retired) with nested calls flattened by an order-preserving ANF pass (T34),
   exact u64 at or above 2^63 (6.3 N2), the fallible-return literal fix
   (5.1), saturating budget arithmetic (C.6), the hash-chained Form log
   (6.1).
@@ -4087,7 +4090,7 @@ than a call to a function with no body, in the reference evaluator and every run
 | size-scaled method costs (C.6.4) | meaning change | the earlier text defined each method as `c_call`; where a budget traps changed, so it was a new release (now the one text) |
 | saturating budget arithmetic (C.6) | erratum | changes nothing reachable: no program reaches a sum near the largest i128 |
 | closed standard library, no ambient I/O (5.15) | erratum | states what the checker already enforced (W-NAME-1 on an unknown method); no valid program changes |
-| `&mut` write-back on `fail` (6.2, T33) | erratum | the reference evaluator already updated in place; the emitters now agree with it (and T34 flattens nested calls without changing order) |
+| `&mut` write-back on `fail` (6.2, the earlier T33 rule, retired) | erratum | the reference evaluator already updated in place; the emitters now agree with it (and T34 flattens nested calls without changing order) |
 | u64 values at or above 2^63 exact in order, min/max and f64 ops (6.3 N2) | erratum | N2 has defined full-range u64 since draft 0.5; the runtimes now meet it |
 | literals take the success type of a fallible return (5.1) | erratum | a checker bug against `τ <: τ ! ε`; it admits programs the text already admitted |
 | canonical D entry and hash-chained Form log (6.1) | outside programs | the log format, not a program's meaning |
@@ -5583,7 +5586,7 @@ of its two inputs. Theorem: T50 (stated, unproved).
 
 **F.4.4 Transactional calls (P1).** A call that
 returns by `fail` leaves every `&mut` argument and every owned local of the
-callee's caller as they were at the call. (The earlier rule wrote them back on every outcome, T33; it is retired, 6.2.) Rules:
+callee's caller as they were at the call. (The earlier rule wrote them back on every outcome; it is retired, 6.2, and T33 now states the restore.) Rules:
 
 - The restore applies only if every effect since entry is *undoable*. The
   undoable effects are: writes to owned values (locals, `&mut` arguments, the

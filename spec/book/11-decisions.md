@@ -267,7 +267,7 @@ they run them on the CPU, which 5.13 allows).
   method costs (C.6.4). Versions 0.5 and 0.6 keep their meaning.
 - Errata for every version, listed in C.15: closed standard library and
   no ambient I/O (5.15), `&mut` write-back on `fail` in the emitters (6.2,
-  T33) with nested calls flattened by an order-preserving ANF pass (T34),
+  the earlier T33 rule, since retired) with nested calls flattened by an order-preserving ANF pass (T34),
   exact u64 at or above 2^63 (6.3 N2), the fallible-return literal fix
   (5.1), saturating budget arithmetic (C.6), the hash-chained Form log
   (6.1).
@@ -393,4 +393,4 @@ checked by `scripts/claim-counts.py --check`.
 
 **Read receipt.** The decisions list says it decides gaps in which file?
 
-<!-- body-sha256: de04c4ad325a113a32bdde1a093d0eaf81b9ec5b2072856072aa012efa8bf641 -->
+<!-- body-sha256: 0d831d369c0a420d966a0f2e2fd431bc8c3f7dfee02dcbc8d96044da6f6d8d08 -->

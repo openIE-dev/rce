@@ -41,7 +41,7 @@ Classical.choice). Status per theorem:
 | T13 | proved for any rounding that fixes representable values: widening f32 to f64 is exact, f32 multiply via f64 is a single rounding, and every f32 op gives the same bits on targets that agree on IEEE 754 binary64 ops and binary32 rounding. For + − / the single-rounding property is Figueroa's theorem, cited, not mechanized | `widen_exact`, `f32_mul_det`, `f32_op_det` |
 | T14 | proved: checked u64 ops return the exact result exactly when it lies in [0, 2^64), and udiv/urem satisfy b·q + r = a, r < b | `uadd_spec`, `usub_spec`, `umul_spec`, `udiv_urem`, `udiv_range`, `urem_range` |
 | T32 | proved for every oracle: replay of the log equals the live run, the log's events are the input events, an answer contract holds of every logged answer, and runs that logged the same answers agree | `replay_live`, `live_events`, `live_answers_satisfy`, `t32` |
-| T33 | proved: copy-out on every outcome equals in-place update; copy-out only on success does not | `t33`, `copyOk_differs` |
+| T33 | proved: a call that ends by `fail` leaves the caller's `&mut` state as at the call, and a returning call writes its final value back (the restore rule of F.4.4, as a model; W-TX-1 is a check, not part of the model) | `t33_failure_restores`, `t33_return_writes_back` |
 | T36 | proved on models of 5.16: every metacharacter of rendered context text comes from a literal when the encoder emits none (and the HTML encoder emits none of `< > " '`); public outputs are equal for runs whose public inputs and secret-equality bits agree; a log of events without the capability leaves a guarded field unchanged. The checker rules are tested on accept/refuse cases and the encoders across the reference and the Rust, Python and JavaScript runtimes (`tests/indexed.rs`) | `ctx_meta_from_literals`, `html_enc_clean`, `noninterference`, `outputs_noninterfere`, `guarded_needs_cap` |
 | T35 | proved on a model of the boundary check: the predicate fragment decides (a total Bool function), a value that passes the check satisfies its predicate, admission accepts only payloads that satisfy their field predicates, and every state reached by the checked δ from an initial state that satisfies the field predicates satisfies them, with a refused event leaving the state unchanged; the reference evaluator and the Rust, Python and JavaScript runtimes are tested to accept and trap alike (`tests/refined.rs`) | `holds_total`, `fit_sound`, `admit_sound`, `refine_preserved`, `refine_refused_unchanged` |
 | T34 | proved for a core fragment (literals, reads, write-back calls, a charging operator, emit) with full ANF: the let-bound program gives the same value, store, and trace of charges and emits; the implementation (`anf.rs`, which binds fewer nodes and covers the surface language) is tested differentially on every target, including a budget sweep across the trap point | `t34`, `run_frame` |
@@ -163,10 +163,13 @@ reproduces its state, whatever o is; no property of the foreign code is
 assumed, and a contract every answer satisfies holds of every logged
 answer.
 
-**T33 `&mut` write-back (retired rule).** A call that writes back its `&mut` arguments on
-every outcome gives the same store and outcome as updating them in
-place. This is proved of the rule 6.2 used to state; the language's rule is now the restore of F.4.4
-(T42 to T56 state its properties and are unproved).
+**T33 `&mut` restore on failure (F.4.4).** A call that ends by `fail` leaves
+the caller's `&mut` state as it was at the call, and a call that returns writes
+the callee's final value back. This is proved of a model that copies in, runs on
+the copy and copies out only when the outcome is a value. The rule that wrote back
+on every outcome, which this number used to state, is retired and is no longer
+in the proved tree. That every effect since entry is undoable is W-TX-1, a check
+of the checker; T42 to T56 state the remaining properties and are unproved.
 
 **T36 Indexed values.** (5.16): untrusted text
 forms no structure of a `Text[C]` value; outputs do not depend on
@@ -221,4 +224,4 @@ tables is checked to exist (`spec/checker/tests/theorem_index.rs`).
 
 **Read receipt.** What is the deep embedding of the emitted Rust subset called?
 
-<!-- body-sha256: d9ae93a59fa8b931bc10795c61b40d29543f8ebf826334ece944569efefe7830 -->
+<!-- body-sha256: 8914f55a0535d2b6c729ed939096a37c0040c7e6845ec446bebfe4e5de9d3ba6 -->

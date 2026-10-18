@@ -1,11 +1,12 @@
 /-
-T33 `&mut` write-back on failure. A call `f(&mut x)` runs the callee on
-the value of x and ends with an outcome (a value or a failure). The
-emitted Rust updates x in place, so writes made before a `fail` remain.
-Copy-in/copy-out that writes back on every outcome equals in-place
-update; writing back only on success does not (there is a callee where
-they differ). So the reference evaluator writes back on failure too, and
-a trap still refuses the whole event (T8), which restores the state.
+T33 `&mut` restore on failure (F.4.4). A call `f(&mut x)` runs the callee on
+the value of x and ends with an outcome (a value or a failure). A call that
+returns writes the final value of x back; a call that ends by `fail` leaves x
+as it was at the call. Both are proved of the model below (copy in, run on
+the copy, copy out only when the outcome is a value). The earlier rule, which
+wrote back on every outcome, is retired and is not stated in this tree.
+Whether every effect since entry is undoable (W-TX-1) is a check of the
+checker, not of this model. A trap still refuses the whole event (T8).
 -/
 namespace RCE.WriteBack
 
@@ -13,31 +14,22 @@ variable {L V O : Type} [DecidableEq L]
 
 def upd (σ : L → V) (l : L) (v : V) : L → V := fun k => if k = l then v else σ k
 
-/-- In place: the callee mutates the location as it runs. -/
-def inplace (σ : L → V) (l : L) (f : V → V × Option O) : (L → V) × Option O :=
-  (upd σ l (f (σ l)).1, (f (σ l)).2)
-
-/-- Copy in, run on the copy, copy out on every outcome (the rule). -/
-def copyAll (σ : L → V) (l : L) (f : V → V × Option O) : (L → V) × Option O :=
-  let r := f (σ l)
-  (upd σ l r.1, r.2)
-
-/-- Copy out only when the outcome is a value (`none` = no failure). -/
-def copyOk (σ : L → V) (l : L) (f : V → V × Option O) : (L → V) × Option O :=
+/-- Copy in, run on the copy, copy out only when the outcome is a value
+(`none` = no failure). -/
+def call (σ : L → V) (l : L) (f : V → V × Option O) : (L → V) × Option O :=
   let r := f (σ l)
   match r.2 with
   | none => (upd σ l r.1, none)
   | some e => (σ, some e)
 
-theorem t33 (σ : L → V) (l : L) (f : V → V × Option O) :
-    copyAll σ l f = inplace σ l f := rfl
+/-- A call that ends by `fail` leaves the caller's state as at the call. -/
+theorem t33_failure_restores (σ : L → V) (l : L) (f : V → V × Option O) (e : O)
+    (h : (f (σ l)).2 = some e) : (call σ l f).1 = σ := by
+  simp [call, h]
 
-/-- Writing back only on success disagrees with in place. -/
-theorem copyOk_differs : ∃ (σ : Unit → Nat) (f : Nat → Nat × Option Unit),
-    copyOk σ () f ≠ inplace σ () f := by
-  refine ⟨fun _ => 0, fun v => (v + 1, some ()), ?_⟩
-  intro h
-  have := congrArg (fun p => p.1 ()) h
-  simp [copyOk, inplace, upd] at this
+/-- A call that returns writes the callee's final value back. -/
+theorem t33_return_writes_back (σ : L → V) (l : L) (f : V → V × Option O)
+    (h : (f (σ l)).2 = none) : (call σ l f).1 = upd σ l (f (σ l)).1 := by
+  simp [call, h]
 
 end RCE.WriteBack

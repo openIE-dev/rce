@@ -237,9 +237,9 @@ argument and a `&mut self` receiver. A call that ends by `fail` leaves each of t
 the call, provided every effect since entry is undoable, and is refused otherwise (F.4.4, W-TX-1); the
 callee's writes made before the failure are undone. Atomicity of the event is separate: a `trap`, or a `fail`
 that leaves the step, refuses the event and the state is the pre-state (T8). The earlier rule of this text
-wrote back on every outcome, including `fail`; it was derived from in-place update and proved as T33
-(`WriteBack.t33`, `copyOk_differs`), and it is retired because F.4.4 makes a failed call a no-op, which is
-what a caller can reason about. T33 remains a proved statement about the retired rule only. The program emitters implement the
+wrote back on every outcome, including `fail`; it is retired because F.4.4 makes a failed call a no-op, which is
+what a caller can reason about. T33 now proves the restore rule (`WriteBack.t33_failure_restores`,
+`t33_return_writes_back`); nothing about the retired rule remains in the proved tree. The program emitters implement the
 rule for a write-back call that is a whole statement or expression of a
 `let`, `var`, assignment, `emit` or `return`, and for such a call under
 `catch` or `try` (`f(&mut x) catch h`, `try f(&mut x)`): the call is the
@@ -457,4 +457,4 @@ method and is W-NAME-1.
 
 **Read receipt.** Which JavaScript function is named for rounding to binary32?
 
-<!-- body-sha256: e2af17e430e29c18185be20a37e52a7399287867b874f975b7888189f6c506a7 -->
+<!-- body-sha256: d015b1577711d452c02e5e4091568d5e098d8f611a6d74a37b92eb6d5b7d1025 -->

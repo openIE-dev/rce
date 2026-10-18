@@ -777,7 +777,7 @@ than a call to a function with no body, in the reference evaluator and every run
 | size-scaled method costs (C.6.4) | meaning change | the earlier text defined each method as `c_call`; where a budget traps changed, so it was a new release (now the one text) |
 | saturating budget arithmetic (C.6) | erratum | changes nothing reachable: no program reaches a sum near the largest i128 |
 | closed standard library, no ambient I/O (5.15) | erratum | states what the checker already enforced (W-NAME-1 on an unknown method); no valid program changes |
-| `&mut` write-back on `fail` (6.2, T33) | erratum | the reference evaluator already updated in place; the emitters now agree with it (and T34 flattens nested calls without changing order) |
+| `&mut` write-back on `fail` (6.2, the earlier T33 rule, retired) | erratum | the reference evaluator already updated in place; the emitters now agree with it (and T34 flattens nested calls without changing order) |
 | u64 values at or above 2^63 exact in order, min/max and f64 ops (6.3 N2) | erratum | N2 has defined full-range u64 since draft 0.5; the runtimes now meet it |
 | literals take the success type of a fallible return (5.1) | erratum | a checker bug against `τ <: τ ! ε`; it admits programs the text already admitted |
 | canonical D entry and hash-chained Form log (6.1) | outside programs | the log format, not a program's meaning |
@@ -824,4 +824,4 @@ defined for it beyond the costs F.10 names.
 
 **Read receipt.** How many concurrency words does C.1 add to the keywords of 2.4? (a number)
 
-<!-- body-sha256: f3932e9234b5c563e3d751652691dd70f2d9e8ce32fc6c7cd6a36c0922bf5c4b -->
+<!-- body-sha256: c47ff1e49f4202be941f9a9e58f84cf2e92b5c7d39bdffd92b64e745790a1bf4 -->

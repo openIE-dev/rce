@@ -285,7 +285,7 @@ of its two inputs. Theorem: T50 (stated, unproved).
 
 **F.4.4 Transactional calls (P1).** A call that
 returns by `fail` leaves every `&mut` argument and every owned local of the
-callee's caller as they were at the call. (The earlier rule wrote them back on every outcome, T33; it is retired, 6.2.) Rules:
+callee's caller as they were at the call. (The earlier rule wrote them back on every outcome; it is retired, 6.2, and T33 now states the restore.) Rules:
 
 - The restore applies only if every effect since entry is *undoable*. The
   undoable effects are: writes to owned values (locals, `&mut` arguments, the
@@ -1004,4 +1004,4 @@ UnaryExpr    = ( "-" | "~" | "&" [ "mut" ] | "<-" | "comptime" | "release" | "en
              | Postfix .
 ```
 
-<!-- body-sha256: 3d98b3edaaee7de5fb9d734ec4169242854cc8a55fcfb6de6626f19daab2cf0a -->
+<!-- body-sha256: 0268b77a41137776e7632b3b0457286479e90fac5abf6d50cc28ff4cd6dc1f52 -->
