@@ -217,6 +217,11 @@ fn tree_sitter_agrees_with_rust_parser_on_fuzz() {
         let mut rng = Rng(seed ^ fnv(&rel));
         for k in 0..per_file {
             let s = mutant(&mut rng, &one);
+            // a literal outside every type range is W-LEX-3, a well-formedness rule (section 7),
+            // not syntax: the grammar cannot judge a value, so such mutants are skipped
+            if matches!(rce_spec_check::parse::lex(&s), Err(e) if e.contains("out of range")) {
+                continue;
+            }
             n += 1;
             let rust_ok = std::panic::catch_unwind(|| rust_accepts(&s)).unwrap_or(false);
             let f = dir.join("m.rce");

@@ -1,19 +1,3 @@
 # Fuzz mutants on which the Rust parser and tree-sitter disagree and that are triaged.
 # Format: FNV-1a hash of the mutant (hex), then a note. See tests/grammar_fuzz.rs.
-# Fixed in scanner.c (so no longer listed): a declaration or statement word where a
-# line end is required (`event A(..)event B(..)`, `return emit 1`), indentation on the
-# first line, a last line of spaces only, a tab inside a comment.
-# Open, found with other seeds (RCE_FUZZ_SEED=1..8, RCE_FUZZ_TS_K=2). Neither side is
-# yet known to be right in every case; each needs a decision against spec 2.6:
-# class B, tree-sitter accepts a name or number glued to a bracket or number, where the
-# Rust lexer refuses: `Box[Expr]\n    )Neg(..)`, `0bound`.
-73bc14f702fd1890  examples/29_nested_kind.rce: `)Neg` glued after a closing bracket on a continuation line
-3d91127a879d0449  examples/27_bitops.rce: `0bound` (a number glued to a word)
-# class C, a lone carriage return (not part of CRLF) inside a `# rce-version:` or other
-# comment line: the Rust parser accepts, tree-sitter refuses in the harness run
-# (the same bytes written by hand are accepted by the CLI, so this needs a closer look).
-dbb7d1e1789ab2da  conc06/reject/06_branch_no_name.rce: `# rce-version: <CR>`
-84056764af19bc8f  examples-0.9/refused/cap_dir_struct_no_root.rce: `#<CR>rce-version:  0.9`
-63d936be8a549a89  conc06b/ill_typed/W-SES-4_moved_in_loop.rce: `# rce-version:<CR>0.6`
-dfa45886fa3de520  conc06/ill_typed/W-PAR-2_emit.rce: `# expect: <CR>-PAR-2`
-3ad6aae0a20a0e9d  examples-0.9/refused/typed_len_unqualified.rce: `# rce-version: <CR>.9`
+# Empty: no known divergence.

@@ -91,6 +91,9 @@ pub fn lex(src: &str) -> Result<Vec<(Tok, usize)>, String> {
             }
             if s[j] == '#' {
                 while j < s.len() && s[j] != '\n' {
+                    if s[j] == '\r' && s.get(j + 1) != Some(&'\n') {
+                        return Err(format!("line {line}: W-LEX-1 bare CR"));
+                    }
                     j += 1;
                 }
                 i = j;
@@ -123,6 +126,9 @@ pub fn lex(src: &str) -> Result<Vec<(Tok, usize)>, String> {
         }
         if c == '#' {
             while i < s.len() && s[i] != '\n' {
+                if s[i] == '\r' && s.get(i + 1) != Some(&'\n') {
+                    return Err(format!("line {line}: W-LEX-1 bare CR"));
+                }
                 i += 1;
             }
             continue;
@@ -158,6 +164,16 @@ pub fn lex(src: &str) -> Result<Vec<(Tok, usize)>, String> {
             } else {
                 None
             };
+            // 2.5 and maximal munch (2.3): "0x", "0o" and "0b" belong to the literal
+            // only when a digit of the base follows; otherwise the token is `0` and
+            // the letter starts the next token. An "_" belongs to it only before a digit.
+            let radix = radix.filter(|r| {
+                s.get(i + 2).is_some_and(|ch| match r {
+                    'x' => ch.is_ascii_hexdigit(),
+                    'o' => ('0'..='7').contains(ch),
+                    _ => *ch == '0' || *ch == '1',
+                })
+            });
             if let Some(r) = radix {
                 i += 2;
                 let ds = i;
@@ -166,13 +182,10 @@ pub fn lex(src: &str) -> Result<Vec<(Tok, usize)>, String> {
                     'o' => ('0'..='7').contains(&ch),
                     _ => ch == '0' || ch == '1',
                 };
-                while i < s.len() && (ok(s[i]) || s[i] == '_') {
+                while i < s.len() && (ok(s[i]) || (s[i] == '_' && i + 1 < s.len() && ok(s[i + 1]))) {
                     i += 1;
                 }
                 let digits: String = s[ds..i].iter().filter(|c| **c != '_').collect();
-                if digits.is_empty() || s[ds] == '_' || s[i - 1] == '_' {
-                    return Err(format!("line {line}: W-LEX-3 bad literal"));
-                }
                 let base = match r {
                     'x' => 16,
                     'o' => 8,

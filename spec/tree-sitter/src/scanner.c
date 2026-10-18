@@ -5,7 +5,7 @@
 #include <string.h>
 #include <stdint.h>
 
-enum { NL, INDENT, DEDENT, NAME, LPAR, RPAR, LSQB, RSQB, LBRACE, RBRACE, SKIP_NL, INT, FLOAT, SEND, BAD, COMMENT, SENTINEL };
+enum { NL, INDENT, DEDENT, NAME, LPAR, RPAR, LSQB, RSQB, LBRACE, RBRACE, SKIP_NL, INT, FLOAT, SEND, BAD, COMMENT, PARFOR, SENTINEL };
 
 #define MAXD 120
 typedef struct {
@@ -34,7 +34,7 @@ static const char *KW[] = {"actor","after","and","arena","as","bound","break","c
 
 // Words that can only begin a declaration or a statement, never continue a line.
 static const char *LINE_START[] = {"event","step","state","kind","type","struct","impl","use","intent","example","check",
- "extern","error","module","pub","return","emit","fail","break","continue","pass","yield","let","var","while",0};
+ "extern","error","module","pub","return","emit","fail","break","continue","pass","yield","let","var","while","par","actor","trait","const","iter","protocol","supervisor","node","comptime","fn",0};
 
 void *tree_sitter_rce_external_scanner_create(void) { S *s = calloc(1, sizeof(S)); s->n = 1; s->stack[0] = 0; return s; }
 void tree_sitter_rce_external_scanner_destroy(void *p) { free(p); }
@@ -184,11 +184,15 @@ bool tree_sitter_rce_external_scanner_scan(void *p, TSLexer *lx, const bool *val
     return false;
   }
   if (is_id0(c)) {
+    unsigned wcol = lx->get_column(lx);  // a word at column 0 follows a line end: it is not glued to anything
     char w[64]; int n = 0;
     while (is_id(lx->lookahead)) { if (n < 63) w[n] = (char)lx->lookahead; n++; lx->advance(lx, false); }
     if (n < 64) {
       w[n] = 0;
       if (strcmp(w, "_") == 0) return false;
+      // `par` after the iterable of a `for` (valid only there): its own token, so a `par` glued after
+      // any other expression is an error and not a missing line end
+      if (valid[PARFOR] && strcmp(w, "par") == 0) { lx->mark_end(lx); lx->result_symbol = PARFOR; return true; }
       // contextual word (5.1 refined types): `where` is the keyword only
       // where a NAME cannot stand, i.e. after the type of a type declaration
       if (strcmp(w, "where") == 0 && !valid[NAME]) return false;
@@ -198,8 +202,18 @@ bool tree_sitter_rce_external_scanner_scan(void *p, TSLexer *lx, const bool *val
       // required (`_NL` is valid) and none was read, such a word is an error,
       // not a missing `_NL` the parser could insert. The first token of the file
       // is exempt.
-      if (valid[NL] && !valid[SENTINEL] && s->seen) {
+      if (valid[NL] && !valid[SENTINEL] && wcol > 0) {
         for (int i = 0; LINE_START[i]; i++) if (strcmp(w, LINE_START[i]) == 0) { lx->result_symbol = BAD; return true; }
+      }
+      // an ordinary name where a line end is required and cannot continue the line
+      // (`)Neg` after a closing bracket): an error, not a missing line end
+      if (valid[NL] && !valid[NAME] && !valid[SENTINEL] && wcol > 0) {
+        int kw = 0;
+        for (int i = 0; KW[i]; i++) if (strcmp(w, KW[i]) == 0) kw = 1;
+        if (!kw && strcmp(w, "where") && strcmp(w, "by") && strcmp(w, "label") && strcmp(w, "release") && strcmp(w, "endorse") &&
+            strcmp(w, "ct") && strcmp(w, "requires") && strcmp(w, "ensures") && strcmp(w, "ghost") && strcmp(w, "decreases")) {
+          lx->result_symbol = BAD; return true;
+        }
       }
       for (int i = 0; KW[i]; i++) if (strcmp(w, KW[i]) == 0) return false;
       // contextual word (F.13): `by` is the keyword only where a NAME cannot stand

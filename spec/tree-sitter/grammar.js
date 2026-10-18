@@ -9,7 +9,7 @@ const chain = (sub, op) => seq(sub, repeat1(seq(op, sub)));
 
 module.exports = grammar({
   name: 'rce',
-  externals: $ => [$._NL, $._INDENT, $._DEDENT, $.NAME, '(', ')', '[', ']', '{', '}', $._skip_nl, $.INT, $.FLOAT, $.SEND, $._bad, $.comment, $._error_sentinel],
+  externals: $ => [$._NL, $._INDENT, $._DEDENT, $.NAME, '(', ')', '[', ']', '{', '}', $._skip_nl, $.INT, $.FLOAT, $.SEND, $._bad, $.comment, $._par_for, $._error_sentinel],
   extras: $ => [/ +/, $._skip_nl, $.comment],
   conflicts: $ => [],
   rules: {
@@ -41,7 +41,10 @@ module.exports = grammar({
     struct_decl: $ => seq(optional(alias('linear', $.LINEAR)), 'struct', $.NAME, optional($.generics), $._NL, optional(seq($._INDENT, repeat1($.field), $._DEDENT))),
     field: $ => seq($.NAME, ':', $._type, optional(seq('=', $._expr)), $._NL),
     state_decl: $ => seq(optional(alias('replicated', $.REPLICATED)), 'state', $.NAME, $._NL, $._INDENT, repeat1($.field), $._DEDENT),
-    event_decl: $ => seq(optional(alias('interrupt', $.INTERRUPT)), 'event', $.NAME, optional($.payload), optional($.priority), $._NL),
+    // C.11.12: an interrupt event carries `priority p` and no other event does
+    event_decl: $ => choice(
+      seq(alias('interrupt', $.INTERRUPT), 'event', $.NAME, optional($.payload), $.priority, $._NL),
+      seq('event', $.NAME, optional($.payload), $._NL)),
     priority: $ => seq('priority', $._expr),
     error_decl: $ => seq('error', $.NAME, optional($.payload), $._NL),
     payload: $ => seq('(', optional($.field_list), ')'),
@@ -138,7 +141,7 @@ module.exports = grammar({
     while_stmt: $ => seq('while', $._expr, optional($.bound), $.block),
     loop_stmt: $ => seq('loop', optional($.bound), $.block),
     bound: $ => seq('bound', $._expr),
-    for_stmt: $ => seq('for', $._pattern, 'in', $._expr, optional(alias('par', $.PAR)), $.block),
+    for_stmt: $ => seq('for', $._pattern, 'in', $._expr, optional(alias($._par_for, $.PAR)), $.block),
     match_stmt: $ => seq('match', $._expr, $._NL, $._INDENT, repeat1($.arm), $._DEDENT),
     arm: $ => seq($._pattern, optional(seq('if', $._expr)), $._arm_body),
     _arm_body: $ => choice(seq('->', $._inline_stmt), $.block),
@@ -251,7 +254,8 @@ module.exports = grammar({
       'state', 'step', 'struct', 'then', 'to', 'trait', 'true', 'try', 'type', 'use', 'var', 'while', 'with', 'yield',
       'par', 'branch', 'nondet', 'budget', 'deadline', 'priority',
       'replicated', 'interrupt', 'session', 'lvar', 'group', 'lanes', 'barrier', 'scope', 'atomic',
-      'protocol', 'offer', 'choose', 'node', 'supervisor', 'strategy', 'child', 'restart'),
+      'protocol', 'offer', 'choose', 'node', 'supervisor', 'strategy', 'child', 'restart',
+      'label', 'release', 'endorse', 'ct', 'requires', 'ensures', 'ghost', 'decreases'),
 
     // ---- patterns ----
     _pattern: $ => $._alt_pattern,

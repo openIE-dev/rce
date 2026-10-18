@@ -776,10 +776,10 @@
       ]
     },
     "event_decl": {
-      "type": "SEQ",
+      "type": "CHOICE",
       "members": [
         {
-          "type": "CHOICE",
+          "type": "SEQ",
           "members": [
             {
               "type": "ALIAS",
@@ -791,45 +791,63 @@
               "value": "INTERRUPT"
             },
             {
-              "type": "BLANK"
-            }
-          ]
-        },
-        {
-          "type": "STRING",
-          "value": "event"
-        },
-        {
-          "type": "SYMBOL",
-          "name": "NAME"
-        },
-        {
-          "type": "CHOICE",
-          "members": [
-            {
-              "type": "SYMBOL",
-              "name": "payload"
+              "type": "STRING",
+              "value": "event"
             },
             {
-              "type": "BLANK"
-            }
-          ]
-        },
-        {
-          "type": "CHOICE",
-          "members": [
+              "type": "SYMBOL",
+              "name": "NAME"
+            },
+            {
+              "type": "CHOICE",
+              "members": [
+                {
+                  "type": "SYMBOL",
+                  "name": "payload"
+                },
+                {
+                  "type": "BLANK"
+                }
+              ]
+            },
             {
               "type": "SYMBOL",
               "name": "priority"
             },
             {
-              "type": "BLANK"
+              "type": "SYMBOL",
+              "name": "_NL"
             }
           ]
         },
         {
-          "type": "SYMBOL",
-          "name": "_NL"
+          "type": "SEQ",
+          "members": [
+            {
+              "type": "STRING",
+              "value": "event"
+            },
+            {
+              "type": "SYMBOL",
+              "name": "NAME"
+            },
+            {
+              "type": "CHOICE",
+              "members": [
+                {
+                  "type": "SYMBOL",
+                  "name": "payload"
+                },
+                {
+                  "type": "BLANK"
+                }
+              ]
+            },
+            {
+              "type": "SYMBOL",
+              "name": "_NL"
+            }
+          ]
         }
       ]
     },
@@ -3396,8 +3414,8 @@
             {
               "type": "ALIAS",
               "content": {
-                "type": "STRING",
-                "value": "par"
+                "type": "SYMBOL",
+                "name": "_par_for"
               },
               "named": true,
               "value": "PAR"
@@ -6077,6 +6095,38 @@
         {
           "type": "STRING",
           "value": "restart"
+        },
+        {
+          "type": "STRING",
+          "value": "label"
+        },
+        {
+          "type": "STRING",
+          "value": "release"
+        },
+        {
+          "type": "STRING",
+          "value": "endorse"
+        },
+        {
+          "type": "STRING",
+          "value": "ct"
+        },
+        {
+          "type": "STRING",
+          "value": "requires"
+        },
+        {
+          "type": "STRING",
+          "value": "ensures"
+        },
+        {
+          "type": "STRING",
+          "value": "ghost"
+        },
+        {
+          "type": "STRING",
+          "value": "decreases"
         }
       ]
     },
@@ -6517,6 +6567,10 @@
     {
       "type": "SYMBOL",
       "name": "comment"
+    },
+    {
+      "type": "SYMBOL",
+      "name": "_par_for"
     },
     {
       "type": "SYMBOL",
