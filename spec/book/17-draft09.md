@@ -705,7 +705,7 @@ Lean statement, a checker test or a counterexample search yet.
 
 | | Statement |
 |---|---|
-| T42 | Noninterference with labels: two runs whose inputs agree on every public-label field give equal public outputs, including the refusal outcome, for every accepted 0.9 program (F.4.2) |
+| T42 | Noninterference with labels: two runs whose inputs agree on every public-label field give equal public outputs, including the refusal outcome, for every accepted program (F.4.2) |
 | T43 | Robust declassification: a release is reached only on a path whose control context and deciding operands are trusted (F.4.2) |
 | T44 | Typed output: every structural metacharacter of a rendered `Text[C]` or `Template` of any context of 5.16 and F.5.2 comes from a literal segment (F.5.2, F.6.1) |
 | T45 | Constant time: two runs of a `ct fn` that differ only in secret-labelled inputs take the same sequence of branch, index and loop decisions (F.5.4) |
@@ -1004,4 +1004,4 @@ UnaryExpr    = ( "-" | "~" | "&" [ "mut" ] | "<-" | "comptime" | "release" | "en
              | Postfix .
 ```
 
-<!-- body-sha256: 22d9059877279214253a7865d5bbca263dad578809bc02587a99550795176243 -->
+<!-- body-sha256: 3d98b3edaaee7de5fb9d734ec4169242854cc8a55fcfb6de6626f19daab2cf0a -->

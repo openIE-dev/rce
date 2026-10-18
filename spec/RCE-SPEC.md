@@ -2196,21 +2196,21 @@ Classical.choice). Status per theorem:
 | T39 | proved on an admitter model: after a failed barrier nothing is appended, and a running admitter's log is exactly the entries it was given | `t39_halted`, `t39_fault_stops`, `t39_run_complete` |
 | T40 | proved on a window model (Appendix E.2a): with an injective input key, the entries of a window are equal for any permutation of its inputs, D is equal for any per-window permutation of a sequence of windows, and sorting keeps every input; two hosts with different arrival orders give byte-identical D in `tests/host_admit.rs` | `window_perm`, `log_permwise`, `window_complete`, `ins_comm` |
 | T41 | proved on a term model (Appendix E.2b): quorum intersection, Election Safety and Leader Completeness for every reachable state of the whole-log protocol model (elections with the vote rule, appends, fenced writes, commits), by strong induction on terms with no further hypotheses, a fenced append leaves a replica unchanged, and every committed prefix survives any number of term changes; partitions, reordering, crash and restart are tested in `tests/host_raft.rs` | `fenced_append_unchanged`, `committed_prefix_preserved`, `quorum_intersect`, `election_safety`, `elect_fresh`, `commit_seed`, `leader_completeness` |
-| T42 | stated, unproved (Appendix F.9, version 0.9, not implemented): Noninterference with labels: two runs whose inputs agree on every public-label field give equal public outputs, including the refusal outcome, for every accepted 0.9 program (F.4.2) | none |
-| T43 | stated, unproved (Appendix F.9, version 0.9, not implemented): Robust declassification: a release is reached only on a path whose control context and deciding operands are trusted (F.4.2) | none |
-| T44 | stated, unproved (Appendix F.9, version 0.9, not implemented): Typed output: every structural metacharacter of a rendered `Text[C]` or `Template` of any context of 5.16 and F.5.2 comes from a literal segment (F.5.2, F.6.1) | none |
-| T45 | stated, unproved (Appendix F.9, version 0.9, not implemented): Constant time: two runs of a `ct fn` that differ only in secret-labelled inputs take the same sequence of branch, index and loop decisions (F.5.4) | none |
-| T46 | stated, unproved (Appendix F.9, version 0.9, not implemented): Contract enforcement: if a call returns, its `requires` held at entry and its `ensures` held at the return; otherwise the call's event is refused with the fixed record (F.6.2) | none |
-| T47 | stated, unproved (Appendix F.9, version 0.9, not implemented): Transactional calls: a call that returns by `fail` leaves the caller's `&mut` arguments and locals equal to their values at the call (F.4.4) | none |
-| T48 | stated, unproved (Appendix F.9, version 0.9, not implemented): Termination by written measure: an accepted recursive group or loop with a `decreases` tuple ends (F.6.4) | none |
-| T49 | stated, unproved (Appendix F.9, version 0.9, not implemented): Ghost erasure: erasing ghost code does not change δ, λ or the log (F.6.3) | none |
-| T50 | stated, unproved (Appendix F.9, version 0.9, not implemented): Definition hash: two definitions with equal hash have equal meaning; a change that `rce api-diff` marks compatible does not change the result of any accepted caller for inputs satisfying its `requires` (F.4.3) | none |
-| T51 | stated, unproved (Appendix F.9, version 0.9, not implemented): Revocation: no capability use after a `host.revoke` entry for its caretaker in the log is admitted (F.5.1) | none |
-| T52 | stated, unproved (Appendix F.9, version 0.9, not implemented): Budgets: a program with a budget does at most the budget's units of work before `trap("budget")`, at the same operation on every target (F.5.5) | none |
-| T53 | stated, unproved (Appendix F.9, version 0.9, not implemented): World replay: T32 for every foreign call through a `World` and every logged input (F.4.1) | none |
-| T54 | stated, unproved (Appendix F.9, version 0.9, not implemented): Supply chain integrity: under SHA-256 collision resistance, an accepted build's modules are exactly the manifest's (F.5.3) | none |
-| T55 | stated, unproved (Appendix F.9, version 0.9, not implemented): Broker invariant: by induction on grant events, no session holds all three trifecta properties without an explicit grant event (F.7) | none |
-| T56 | stated, unproved (Appendix F.9, version 0.9, not implemented): Relaxed sequential borrows: the limited relaxation of 5.6 studied from group borrowing (a reference is invalidated only below steps that are not independent of it) preserves T6; the lemma is not proved and the relaxation is not adopted (5.6) | none |
+| T42 | stated, unproved (Appendix F.9; F.12 lists what is implemented): Noninterference with labels: two runs whose inputs agree on every public-label field give equal public outputs, including the refusal outcome, for every accepted program (F.4.2) | none |
+| T43 | stated, unproved (Appendix F.9; F.12 lists what is implemented): Robust declassification: a release is reached only on a path whose control context and deciding operands are trusted (F.4.2) | none |
+| T44 | stated, unproved (Appendix F.9; F.12 lists what is implemented): Typed output: every structural metacharacter of a rendered `Text[C]` or `Template` of any context of 5.16 and F.5.2 comes from a literal segment (F.5.2, F.6.1) | none |
+| T45 | stated, unproved (Appendix F.9; F.12 lists what is implemented): Constant time: two runs of a `ct fn` that differ only in secret-labelled inputs take the same sequence of branch, index and loop decisions (F.5.4) | none |
+| T46 | stated, unproved (Appendix F.9; F.12 lists what is implemented): Contract enforcement: if a call returns, its `requires` held at entry and its `ensures` held at the return; otherwise the call's event is refused with the fixed record (F.6.2) | none |
+| T47 | stated, unproved (Appendix F.9; F.12 lists what is implemented): Transactional calls: a call that returns by `fail` leaves the caller's `&mut` arguments and locals equal to their values at the call (F.4.4) | none |
+| T48 | stated, unproved (Appendix F.9; F.12 lists what is implemented): Termination by written measure: an accepted recursive group or loop with a `decreases` tuple ends (F.6.4) | none |
+| T49 | stated, unproved (Appendix F.9; F.12 lists what is implemented): Ghost erasure: erasing ghost code does not change δ, λ or the log (F.6.3) | none |
+| T50 | stated, unproved (Appendix F.9; F.12 lists what is implemented): Definition hash: two definitions with equal hash have equal meaning; a change that `rce api-diff` marks compatible does not change the result of any accepted caller for inputs satisfying its `requires` (F.4.3) | none |
+| T51 | stated, unproved (Appendix F.9; F.12 lists what is implemented): Revocation: no capability use after a `host.revoke` entry for its caretaker in the log is admitted (F.5.1) | none |
+| T52 | stated, unproved (Appendix F.9; F.12 lists what is implemented): Budgets: a program with a budget does at most the budget's units of work before `trap("budget")`, at the same operation on every target (F.5.5) | none |
+| T53 | stated, unproved (Appendix F.9; F.12 lists what is implemented): World replay: T32 for every foreign call through a `World` and every logged input (F.4.1) | none |
+| T54 | stated, unproved (Appendix F.9; F.12 lists what is implemented): Supply chain integrity: under SHA-256 collision resistance, an accepted build's modules are exactly the manifest's (F.5.3) | none |
+| T55 | stated, unproved (Appendix F.9; F.12 lists what is implemented): Broker invariant: by induction on grant events, no session holds all three trifecta properties without an explicit grant event (F.7) | none |
+| T56 | stated, unproved (Appendix F.9; F.12 lists what is implemented): Relaxed sequential borrows: the limited relaxation of 5.6 studied from group borrowing (a reference is invalidated only below steps that are not independent of it) preserves T6; the lemma is not proved and the relaxation is not adopted (5.6) | none |
 | T15 | proved for iterators whose step between yields is total (T2): every run ends, delivers at most LOOP_LIMIT values and traps only after exactly LOOP_LIMIT; `break` yields a prefix of the full run; a run with a smaller cap is a prefix of one with a larger cap (the evaluator's re-run strategy) | `drive_total`, `drive_break`, `gen_prefix` |
 
 T16 to T31 belong to the concurrency part (Appendix C) and are listed with their exact status
@@ -2343,8 +2343,11 @@ entries it was given (Appendix E, HS-3).
 gives the same value, final store, and ordered trace of budget charges
 and emits as evaluating the expression.
 
-T42 to T56 are stated in Appendix F.9 and are obligations of version 0.9; none
-is proved.
+T42 to T56 are stated in Appendix F.9 and are obligations of Appendix F; none
+is proved. Their statements as Lean `Prop`s over abstract model records are in
+`spec/lean/obligations/Obligations.lean`; that file has no theorem, is not part of
+`lake build` and is not read by `scripts/lean-audit.sh`, so the audit counts do not
+include it.
 
 **Numbering and assurance.** Theorem numbers are stable identifiers, not
 positions: a number is never reused or changed, new theorems take the
@@ -6000,7 +6003,7 @@ Lean statement, a checker test or a counterexample search yet.
 
 | | Statement |
 |---|---|
-| T42 | Noninterference with labels: two runs whose inputs agree on every public-label field give equal public outputs, including the refusal outcome, for every accepted 0.9 program (F.4.2) |
+| T42 | Noninterference with labels: two runs whose inputs agree on every public-label field give equal public outputs, including the refusal outcome, for every accepted program (F.4.2) |
 | T43 | Robust declassification: a release is reached only on a path whose control context and deciding operands are trusted (F.4.2) |
 | T44 | Typed output: every structural metacharacter of a rendered `Text[C]` or `Template` of any context of 5.16 and F.5.2 comes from a literal segment (F.5.2, F.6.1) |
 | T45 | Constant time: two runs of a `ct fn` that differ only in secret-labelled inputs take the same sequence of branch, index and loop decisions (F.5.4) |
