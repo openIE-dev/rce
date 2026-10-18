@@ -42,7 +42,7 @@ fn mgt(d: text) -> text = token_time(&d) catch |e| copy(e.why)
 fn cc(t: text, db: text) -> List[text]
     let cs = couch_changes(&t, &db) catch |e| [mk("error", copy(e.why), "", events.JsNull, events.JsNull, events.JsNull, events.JsNull, "", "")]
     return cs.map(fn(c: Change) => change_json(&c))
-fn cls(t: text) -> text = couch_last_seq(&t) catch |e| "error"
+fn cls(t: text) -> text = couch_last_seq(&t) catch |_e| "error"
 fn ccl(ls: List[text], db: text) -> List[text]
     let cs = couch_continuous(&ls, &db) catch |e| [mk("error", copy(e.why), "", events.JsNull, events.JsNull, events.JsNull, events.JsNull, "", "")]
     return cs.map(fn(c: Change) => change_json(&c))

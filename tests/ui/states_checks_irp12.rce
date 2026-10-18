@@ -27,7 +27,7 @@ fn irp_same(doc: text, names: List[text], bodies: List[text]) -> text
     return ""
 # a Basic HTTP request (bodies[0]) into a running document: the response
 # status, then the outcome
-fn irp_http(doc: text, names: List[text], bodies: List[text]) -> text
+fn irp_http(doc: text, _names: List[text], bodies: List[text]) -> text
     let no_evs: List[text] = []
     let none_: List[text] = []
     let r = run_scxml_http(&doc, &none_, &none_, &no_evs, &bodies)

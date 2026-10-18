@@ -136,7 +136,7 @@ pub fn load_option_name(prefix: &text, n: i64) -> text ! BadDevice
     return prefix + (hex2(n >> 8) + hex2(n & 255)).upper()
 
 pub fn load_option_number(name: &text, prefix: &text) -> i64
-    if not name.startswith(prefix) or name.len() != prefix.len() + 4
+    if not name.startswith(prefix) or name.len_bytes() != prefix.len_bytes() + 4
         return -1
     let cs = name.chars()
     var v: i64 = 0

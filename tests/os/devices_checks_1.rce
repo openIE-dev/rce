@@ -13,7 +13,7 @@ fn dec(x0: i64) -> text
     let d = "0123456789".chars()
     var x = if x0 < 0 then 0 - x0 else x0
     var s = ""
-    while true bound 20
+    loop bound 20
         s = d[(x % 10) as usize] + s
         x = x / 10
         if x == 0

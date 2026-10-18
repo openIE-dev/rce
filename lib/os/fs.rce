@@ -354,11 +354,11 @@ pub fn stat_at(fs: &Fs, path: &text) -> text ! FsErr
 # UTF-8 byte order (Linux sorts names as bytes).
 fn text_lt(a: &text, b: &text) -> bool
     var i: usize = 0
-    while i < a.len() and i < b.len() bound 4096
+    while i < a.len_bytes() and i < b.len_bytes() bound 4096
         if a[i] != b[i]
             return a[i] < b[i]
         i += 1
-    return a.len() < b.len()
+    return a.len_bytes() < b.len_bytes()
 
 # The entry names of a directory, sorted (without "." and "..").
 pub fn list_at(fs: &Fs, path: &text) -> List[text] ! FsErr

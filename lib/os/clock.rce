@@ -220,7 +220,7 @@ fn fmt_decimal(ip0: u64, fp0: i64, div0: i64, prec: i64, width: i64, align: &tex
                     ip += 1
     let end = if prec >= 0 then (if prec < 9 then prec else 9) else pos
     var o = copy(prefix) + (if big then "18446744073709551616" else ip.tostr())
-    var cells = prefix.chars().len() + postfix.chars().len() + (if big then 20 else ip.tostr().len())
+    var cells = prefix.chars().len() + postfix.chars().len() + (if big then 20 else ip.tostr().len_bytes())
     if end > 0
         let w = if prec >= 0 then prec else pos
         o = o + "."

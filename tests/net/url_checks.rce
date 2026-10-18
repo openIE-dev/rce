@@ -8,7 +8,7 @@ fn wpt(i: text, b: text, hb: bool) -> text
         let base = parse(&b) catch url_empty()
         if base.scheme == ""
             return "FAIL"
-        let r = parse_with(&i, &base) catch |e| url_empty()
+        let r = parse_with(&i, &base) catch |_e| url_empty()
         return show(&i, &r, &base, true)
     let e = url_empty()
     let r = parse(&i) catch url_empty()
@@ -18,7 +18,7 @@ fn why(i: &text, b: &UrlParts, hb: bool) -> text
     let r = (if hb then parse_with(i, b) else parse(i)) catch |e| url_with_why(e)
     return r.scheme
 
-fn url_with_why(e: BadUrl) -> UrlParts
+fn url_with_why(_e: BadUrl) -> UrlParts
     var x = url_empty()
     x.scheme = "FAIL"
     return x

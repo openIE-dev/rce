@@ -27,7 +27,7 @@ fn bad_at(h: &text) -> i64
 fn prop_sweep(n: i64) -> bool
     var s: i64 = 7
     var ok = true
-    for i in 0..n
+    for _i in 0..n
         s = (s * 1103515245 + 12345) & 2147483647
         let w = 1 + s % 7
         let v = (s * 33554432 + s) & ((1 << (8 * w)) - 1)

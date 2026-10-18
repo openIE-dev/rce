@@ -16,7 +16,7 @@ fn lv(s: text) -> View
             n = add_el(&mut v, 0, "!", "")
         elif t.startswith("~")
             let p = t.split("~")
-            add_text(&mut v, 0, copy(p[1]))
+            let _ = add_text(&mut v, 0, copy(p[1]))
         else
             let p = t.split(":")
             let q = t.split("#")
@@ -30,7 +30,7 @@ fn lv(s: text) -> View
                 n = add_el(&mut v, 0, "span", copy(t))
         if n >= 0 and t != "!"
             set_attr(&mut v, n, "l", copy(l))
-            add_text(&mut v, n, l)
+            let _ = add_text(&mut v, n, l)
     return v
 fn lab(a: &View, b: &View, n: i64) -> text
     if n < 0
@@ -116,7 +116,7 @@ fn tv(s: text) -> View
     for i in 1..ts.len()
         let t = copy(ts[i])
         if t == ">"
-            st.pop()
+            let _ = st.pop()
             if st.len() > 0
                 cur = st[st.len() - 1]
         elif t.startswith("<")
@@ -132,7 +132,7 @@ fn tv(s: text) -> View
             set_attr(&mut v, cur, copy(q[0]), copy(q[1]))
         elif t.startswith("~")
             let p = t.split("~")
-            add_text(&mut v, cur, copy(p[1]))
+            let _ = add_text(&mut v, cur, copy(p[1]))
     return v
 # hex digest of the replayed tree, "BAD" if it differs from b, "NOTOK"
 # if an input is malformed
@@ -298,7 +298,7 @@ check cbor_order() == "id,style,aria-label:j,s,a"
 fn bad_text_kids() -> bool
     var v = view_new("div", "")
     let t = add_text(&mut v, 0, "x")
-    add_el(&mut v, t, "p", "")
+    let _ = add_el(&mut v, t, "p", "")
     return view_ok(&v)
 check bad_text_kids() == false
 fn bad_parent() -> bool
@@ -314,7 +314,7 @@ fn bad_root() -> bool
 check bad_root() == false
 fn orphan() -> bool
     var v = view_new("div", "")
-    add_el(&mut v, -1, "p", "")
+    let _ = add_el(&mut v, -1, "p", "")
     return view_ok(&v)
 check orphan() == false
 fn ok_tree(s: text) -> bool

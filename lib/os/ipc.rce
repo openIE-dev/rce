@@ -268,7 +268,7 @@ pub fn ipc_granted(grants: &List[text], endpoint: &text) -> bool
             while i + 1 < gc.len() bound 4096
                 pre = pre + gc[i]
                 i += 1
-            if endpoint.startswith(&pre) and endpoint.len() > pre.len()
+            if endpoint.startswith(&pre) and endpoint.len_bytes() > pre.len_bytes()
                 let ec = endpoint.chars()
                 var ok = true
                 var k = pre.chars().len()

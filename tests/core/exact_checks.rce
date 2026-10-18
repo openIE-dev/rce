@@ -23,7 +23,7 @@ fn fact(n: i64) -> Big
 fn prop_sweep(seed: i64, n: i64) -> bool
     var s = seed
     var ok = true
-    for i in 0..n
+    for _i in 0..n
         s = (s * 1103515245 + 12345) & 2147483647
         let x = big_mul(big_from_int(s * 4294967296 + s), big_from_int((s >> 7) - 8000000))
         s = (s * 1103515245 + 12345) & 2147483647

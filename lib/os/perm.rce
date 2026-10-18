@@ -89,7 +89,7 @@ const X_IF_X: i64 = 2
 fn octal_run(cs: &[text], i: usize) -> i64
     var v: i64 = 0
     var k = i
-    while k < cs.len() and cs[k].len() == 1 and cs[k][0] as i64 >= 48 and cs[k][0] as i64 <= 55 bound 16777216
+    while k < cs.len() and cs[k].len_bytes() == 1 and cs[k][0] as i64 >= 48 and cs[k][0] as i64 <= 55 bound 16777216
         v = v * 8 + (cs[k][0] as i64 - 48)
         if v > 4095
             return -1

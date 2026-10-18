@@ -42,7 +42,7 @@ fn deque_sweep(n: i64) -> bool
                 ok = ok and got == none
             else
                 ok = ok and got == some(model[model.len() - 1])
-                model.pop()
+                let _ = model.pop()
         ok = ok and dq_to_list(&d) == model and dq_len(&d) == model.len()
     if model.len() > 0
         ok = ok and dq_get(&d, model.len() - 1) == model[model.len() - 1]
@@ -53,14 +53,14 @@ fn heap_sweep(n: i64) -> bool
     var h: List[i64] = []
     var s: i64 = 5
     var counts: Map[i64, i64] = {}
-    for i in 0..n
+    for _i in 0..n
         s = rnd(s)
         let v = s % 50
         heap_push(&mut h, v)
         counts[v] = (counts.get(v) catch 0) + 1
     var ok = heap_peek(&h) != none
     var prev: i64 = -1
-    for i in 0..n
+    for _i in 0..n
         let v = h[0]
         ok = ok and heap_pop(&mut h) == some(v) and v >= prev
         prev = v
@@ -87,7 +87,7 @@ fn map_sweep(n: i64) -> bool
             let had = model.contains(k)
             ok = ok and om_remove(&mut om, &k) == had and hm_remove(&mut hm, &kt) == had
             if had
-                model.remove(k)
+                let _ = model.remove(k)
                 var o2: List[text] = []
                 for x in order
                     if x != kt
@@ -115,11 +115,11 @@ fn set_sweep(n: i64) -> bool
     var a: List[i64] = []
     var b: List[i64] = []
     var s: i64 = 9
-    for i in 0..n
+    for _i in 0..n
         s = rnd(s)
-        set_add(&mut a, s % 30)
+        let _ = set_add(&mut a, s % 30)
         s = rnd(s)
-        set_add(&mut b, s % 30)
+        let _ = set_add(&mut b, s % 30)
     let u = set_union(&a, &b)
     let x = set_inter(&a, &b)
     var ok = true

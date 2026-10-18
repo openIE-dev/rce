@@ -580,7 +580,7 @@ fn dr(s: text) -> text
     var p = pending_new()
     for op in s.split(";")
         let a = op.split(" ")
-        let ok = sig_send(&mut p, inum(&a[0]), inum(&a[1])) catch false
+        let _ok = sig_send(&mut p, inum(&a[0]), inum(&a[1])) catch false
     var o: List[text] = []
     for q in drain(&mut p)
         o.push(q.sig.tostr() + ":" + q.val.tostr())

@@ -99,10 +99,10 @@ fn wr(data: text, max: usize, acks: List[i64]) -> WrOut
 
 fn refused_ack(data: text, max: usize, n: u64, first: u64) -> bool
     var w = writer_new(&data, max)
-    let c = next_chunk(&mut w)
+    let _c = next_chunk(&mut w)
     if first > 0
-        let a = ack(&mut w, first) catch 999999
-        let c2 = next_chunk(&mut w)
+        let _a = ack(&mut w, first) catch 999999
+        let _c2 = next_chunk(&mut w)
     let r = ack(&mut w, n) catch 999999
     return r == 999999
 

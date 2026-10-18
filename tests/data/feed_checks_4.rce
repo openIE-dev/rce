@@ -47,7 +47,7 @@ fn sim(e: Err, times: i64, ae: Err, ainit: bool, nev: i64, start: Pos, noid: boo
     var docs: List[text] = []
     var aggs: List[text] = []
     if ainit and ae.cmd == "aggregate"
-        let x = cs_error(&mut cs, &ae)
+        let _x = cs_error(&mut cs, &ae)
         return "|" + "|err" + cs.err_code.tostr()
     let z = ""
     let op1 = "op1"
@@ -83,14 +83,14 @@ const NOPOS: Pos = Pos(start_after: "", resume_after: "", start_at_op_time: "")
 fn pos(sa: text, ra: text, op: text) -> Pos = Pos(start_after: sa, resume_after: ra, start_at_op_time: op)
 fn tok_after(start: Pos, docs: i64, last: bool, pbrt: text, empty: bool) -> text
     var cs = cs_start(&start)
-    let z = ""
+    let _z = ""
     if empty
         cs_batch(&mut cs, 0, &pbrt)
     var i: i64 = 0
     while i < docs bound 64
         i += 1
         let id = "d" + i.tostr()
-        let b = cs_doc(&mut cs, &id, last and i == docs, &pbrt)
+        let _b = cs_doc(&mut cs, &id, last and i == docs, &pbrt)
     return get_resume_token(&cs)
 fn tp(t: text) -> text
     let k = token_parse(&t) catch Token(height: -1, digest: "ERR")
@@ -140,7 +140,7 @@ fn sim_after_doc_ra() -> text
     var cs = cs_start(&st)
     let id = "t1"
     let z = ""
-    let b = cs_doc(&mut cs, &id, false, &z)
+    let _b = cs_doc(&mut cs, &id, false, &z)
     let p = resume_pos(&cs)
     return ptext(&p)
 check rs(true, 43, [], "getMore", 8) == true

@@ -11,7 +11,7 @@ fn hexv(c: i64) -> i64 = if c >= 97 then c - 87 else c - 48
 fn unhex(h: text) -> List[i64]
     var o: List[i64] = []
     var i: usize = 0
-    while i < h.len() bound 16777216
+    while i < h.len_bytes() bound 16777216
         o.push(hexv(h[i] as i64) * 16 + hexv(h[i + 1] as i64))
         i += 2
     return o

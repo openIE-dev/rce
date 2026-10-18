@@ -91,13 +91,13 @@ pub fn plan_then[C](p: &mut Plan[C], q: &Plan[C])
 # key order of the engine's canonical JSON. Negative, zero or positive.
 pub fn byte_cmp(a: &text, b: &text) -> i64
     var i: usize = 0
-    while i < a.len() and i < b.len() bound 16777216
+    while i < a.len_bytes() and i < b.len_bytes() bound 16777216
         let x = a[i] as i64
         let y = b[i] as i64
         if x != y
             return x - y
         i += 1
-    return (a.len() as i64) - (b.len() as i64)
+    return (a.len_bytes() as i64) - (b.len_bytes() as i64)
 
 fn sorted_index(keys: &[text]) -> List[usize]
     var idx: List[usize] = []

@@ -10,7 +10,7 @@ fn nib(c: i64) -> i64 = if c >= 97 then c - 87 else c - 48
 fn unhex(h: &text) -> List[i64]
     var o: List[i64] = []
     var i: usize = 0
-    while i + 1 < h.len() bound 4096
+    while i + 1 < h.len_bytes() bound 4096
         o.push(nib(h[i] as i64) * 16 + nib(h[i + 1] as i64))
         i += 2
     return o
@@ -61,7 +61,7 @@ fn sweep(n: i64) -> bool
     var ok = true
     for i in 0..n
         var b: List[i64] = []
-        for k in 0..(i % 13)
+        for _k in 0..(i % 13)
             s = rnd(s)
             b.push(s & 255)
         for m in 0..4

@@ -10,7 +10,7 @@ fn jpt(d: text, p: text, want: text) -> text
 fn jpe(d: text, p: text) -> text
     let doc = jv(d)
     let pa = jv(p)
-    let r = patch_apply(&doc, &pa) catch |e| events.JsStr(t: "error")
+    let r = patch_apply(&doc, &pa) catch |_e| events.JsStr(t: "error")
     return events.json_canon(&r)
 fn dfl(a: text, b: text) -> text
     let x = jv(a)
@@ -20,7 +20,7 @@ fn dfl(a: text, b: text) -> text
     let r = patch_apply(&x, &pa) catch |e| events.JsStr(t: "error: " + e.why)
     return if json_eq(&r, &y) then "ok" else events.json_canon(&r)
 fn pp(p: text) -> text
-    let ts = ptr_parse(&p) catch |e| ["\u{0}"]
+    let ts = ptr_parse(&p) catch |_e| ["\u{0}"]
     if ts.len() == 1 and ts[0] == "\u{0}"
         return "error"
     var o: List[text] = []
@@ -124,7 +124,7 @@ fn rc(script: List[text]) -> text
     var cs: List[Client] = []
     for n in ["c1", "c2", "c3"]
         cs.push(client_new(&n))
-    var sent: List[Mut] = []
+    var _sent: List[Mut] = []
     for line in script
         let f = line.split("|")
         let i = rcfind(&cs, &f[1])
@@ -133,16 +133,16 @@ fn rc(script: List[text]) -> text
             cs[i] = client_mutate(&cs[i], &f[2], &f[3], &a)
         elif f[0] == "push"
             let ms = copy(cs[i].pending)
-            srv = push(&srv, &ms) catch |e| copy(srv)
+            srv = push(&srv, &ms) catch |_e| copy(srv)
         elif f[0] == "pull"
             let pl = pull(&srv, &cs[i].base, &cs[i].name)
-            cs[i] = client_pull(&cs[i], &pl) catch |e| copy(cs[i])
+            cs[i] = client_pull(&cs[i], &pl) catch |_e| copy(cs[i])
         elif f[0] == "gap"
             let ms = copy(cs[i].pending)
             var late: List[Mut] = []
             for k in 1..ms.len()
                 late.push(copy(ms[k]))
-            let r = push(&srv, &late) catch |e| Server(db: events.JsNull, lmids: [], log: [], version: -1)
+            let r = push(&srv, &late) catch |_e| Server(db: events.JsNull, lmids: [], log: [], version: -1)
             if r.version != -1 or ms.len() < 2
                 return "gap accepted"
     let st = replay(&srv.log)

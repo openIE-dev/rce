@@ -108,7 +108,7 @@ fn numeric(cs: &List[text], i0: i64, p: i64) -> Out
         if v == "0"
             return Out(val: "", i: i, err: "invalid leading zero in " + pos_name(p))
         v = v + cs[i as usize]
-        if v.len() > 20 or (v.len() == 20 and v > U64_MAX)
+        if v.len_bytes() > 20 or (v.len_bytes() == 20 and v > U64_MAX)
             return Out(val: "", i: i, err: "value of " + pos_name(p) + " exceeds u64::MAX")
         i += 1
     if v != ""
@@ -279,8 +279,8 @@ fn sign(a: bool, b: bool) -> i64
     return if b then 1 else 0
 
 fn num_cmp(a: &text, b: &text) -> i64
-    if a.len() != b.len()
-        return sign(a.len() < b.len(), true)
+    if a.len_bytes() != b.len_bytes()
+        return sign(a.len_bytes() < b.len_bytes(), true)
     return sign(a < b, a > b)
 
 fn all_digits(s: &text) -> bool
@@ -324,7 +324,7 @@ fn ids_cmp(a: &text, b: &text, build: bool) -> i64
                 let sy = strip_zeros(&y)
                 o = num_cmp(&sx, &sy)
                 if o == 0
-                    o = sign(x.len() < y.len(), x.len() > y.len())
+                    o = sign(x.len_bytes() < y.len_bytes(), x.len_bytes() > y.len_bytes())
             else
                 o = num_cmp(&x, &y)
         else

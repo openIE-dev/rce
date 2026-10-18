@@ -41,7 +41,9 @@ def run_unit(f, shard, todo):
             m = re.match(r'(?:REFUSED|FAIL) (\S+): (.*)', ln)
             if m and os.path.basename(m.group(1)) == os.path.basename(f):
                 errs += re.findall(r'line (\d+): (W-[A-Z]+-\d+) ([^;]*)', m.group(2))
-        if not errs: return True
+        if not errs:
+            for k in names: open(os.path.join(ROOT, k), 'w').write('\n'.join(lines[k]))
+            return True
         changed = False
         byline = {}
         for ln, rule, msg in errs: byline.setdefault(int(ln) - 1, []).append((rule, msg))

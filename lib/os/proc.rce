@@ -196,11 +196,11 @@ pub fn arg0(c: &mut Cmd, a: &text)
 
 fn bytes_lt(a: &text, b: &text) -> bool
     var i: usize = 0
-    while i < a.len() and i < b.len() bound 16777216
+    while i < a.len_bytes() and i < b.len_bytes() bound 16777216
         if a[i] != b[i]
             return a[i] < b[i]
         i += 1
-    return a.len() < b.len()
+    return a.len_bytes() < b.len_bytes()
 
 # CommandEnv keeps a BTreeMap from key to Option<value>.
 fn put(c: &mut Cmd, v: EnvVar)

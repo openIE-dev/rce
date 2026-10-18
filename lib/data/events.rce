@@ -42,7 +42,7 @@ fn ev_skip(cs: &[text], i: usize) -> usize
 
 fn ev_hexval(c: &text) -> i64
     let x = c[0] as i64
-    if c.len() != 1
+    if c.len_bytes() != 1
         return -1
     if x >= 48 and x <= 57
         return x - 48
@@ -52,7 +52,7 @@ fn ev_hexval(c: &text) -> i64
         return x - 55
     return -1
 
-fn ev_digit(c: &text) -> bool = c.len() == 1 and c[0] >= 48 and c[0] <= 57
+fn ev_digit(c: &text) -> bool = c.len_bytes() == 1 and c[0] >= 48 and c[0] <= 57
 
 # Text of one Unicode scalar value (ASCII, the BMP and U+1F000..U+1FFFF).
 pub fn cp_text(cp: i64) -> text ! BadEvent
@@ -119,7 +119,7 @@ fn ev_str(cs: &[text], i: usize) -> JOut ! BadEvent
                 o = o + (try cp_text(u))
             else
                 fail BadEvent(why: "JSON: bad escape")
-        elif c.len() == 1 and c[0] < 32
+        elif c.len_bytes() == 1 and c[0] < 32
             fail BadEvent(why: "JSON: control character in string")
         else
             o = o + c
@@ -179,7 +179,7 @@ fn ev_value(cs: &[text], i0: usize) -> JOut ! BadEvent bound 64
         var k = ev_skip(cs, i + 1)
         if k < cs.len() and cs[k] == "}"
             return JOut(v: JsObj(keys: keys, vals: vals), at: k + 1)
-        while true bound 16777216
+        loop bound 16777216
             k = ev_skip(cs, k)
             if k >= cs.len() or cs[k] != "\""
                 fail BadEvent(why: "JSON: expected a member name")
@@ -205,7 +205,7 @@ fn ev_value(cs: &[text], i0: usize) -> JOut ! BadEvent bound 64
         var k = ev_skip(cs, i + 1)
         if k < cs.len() and cs[k] == "]"
             return JOut(v: JsArr(items: items), at: k + 1)
-        while true bound 16777216
+        loop bound 16777216
             let vo = try ev_value(cs, k)
             k = ev_skip(cs, vo.at)
             items.push(vo.v)
@@ -237,11 +237,11 @@ pub fn json_parse(t: &text) -> Jv ! BadEvent
 
 fn ev_key_lt(a: &text, b: &text) -> bool
     var i: usize = 0
-    while i < a.len() and i < b.len() bound 16777216
+    while i < a.len_bytes() and i < b.len_bytes() bound 16777216
         if a[i] != b[i]
             return a[i] < b[i]
         i += 1
-    return a.len() < b.len()
+    return a.len_bytes() < b.len_bytes()
 
 # Compact JSON; `sorted` orders object members by UTF-8 bytes of the
 # name (the canonical form used to compare values); otherwise members
@@ -310,7 +310,7 @@ pub const REQUIRED: List[text] = ["id", "source", "specversion", "type"]
 
 pub fn is_str(v: &Val) -> bool
     match v
-        VStr(t: t) -> return true
+        VStr(t: _t) -> return true
         _ -> return false
 
 pub fn val_text(v: &Val) -> text
@@ -338,10 +338,10 @@ pub fn has_attr(e: &Event, name: text) -> bool = attr(e, name).issome()
 # Attribute names: [a-z0-9]+ (spec.md 3.1.1; the 20-character limit is
 # a SHOULD and is not enforced).
 pub fn valid_name(n: &text) -> bool
-    if n.len() == 0
+    if n.len_bytes() == 0
         return false
     var i: usize = 0
-    while i < n.len() bound 16777216
+    while i < n.len_bytes() bound 16777216
         let x = n[i]
         if not ((x >= 97 and x <= 122) or (x >= 48 and x <= 57))
             return false
@@ -351,9 +351,9 @@ pub fn valid_name(n: &text) -> bool
 fn ev_is_ctl(t: &text) -> bool
     for c in t.chars()
         let x = c[0] as i64
-        if c.len() == 1 and (x < 32 or x == 127)
+        if c.len_bytes() == 1 and (x < 32 or x == 127)
             return true
-        if c.len() == 2 and x == 194 and c[1] < 160
+        if c.len_bytes() == 2 and x == 194 and c[1] < 160
             return true
     return false
 
@@ -642,11 +642,11 @@ pub fn pct_encode(t: &text) -> text
     var o = ""
     for c in t.chars()
         let x = c[0] as i64
-        if c.len() == 1 and x > 32 and x < 127 and x != 34 and x != 37
+        if c.len_bytes() == 1 and x > 32 and x < 127 and x != 34 and x != 37
             o = o + c
         else
             var i: usize = 0
-            while i < c.len() bound 4
+            while i < c.len_bytes() bound 4
                 ev_pct(&mut o, c[i] as i64)
                 i += 1
     return o
@@ -889,7 +889,7 @@ fn ev_implied_json(e: &Event) -> bool
     if has_attr(e, "datacontenttype")
         return false
     match e.data
-        DJson(v: v) -> return true
+        DJson(v: _v) -> return true
         _ -> return false
 
 pub fn to_http_structured(e: &Event) -> Msg = Msg(headers: [Hdr(name: "content-type", value: "application/cloudevents+json; charset=UTF-8")], body: BText(t: to_json(e)))

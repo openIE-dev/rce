@@ -24,7 +24,7 @@ fn t_lus(n: usize, a: List[f64], trans: bool, nrhs: usize, b: List[f64]) -> List
 
 fn t_chol(n: usize, a: List[f64]) -> List[f64]
     let x = tm(n, n, a)
-    let l = chol(&x) catch |e| zeros(1, 1)
+    let l = chol(&x) catch |_e| zeros(1, 1)
     return l.a
 
 fn t_chol_info(n: usize, a: List[f64]) -> i64

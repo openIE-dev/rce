@@ -68,8 +68,8 @@ pub fn size(v: &View) -> i64 = v.tag.len() as i64
 
 # CBOR map key order: shorter encoding first, then bytewise.
 pub fn name_lt(a: &text, b: &text) -> bool
-    if a.len() != b.len()
-        return a.len() < b.len()
+    if a.len_bytes() != b.len_bytes()
+        return a.len_bytes() < b.len_bytes()
     var i: usize = 0
     while i < a.len_bytes()
         if a[i] != b[i]
