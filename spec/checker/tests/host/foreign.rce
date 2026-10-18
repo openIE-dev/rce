@@ -21,7 +21,7 @@ step F on Call(code: m, func: f, args: a)
     next += 1
     emit WasmCall(req: next, code: m, func: f, args: a)
 
-step F on WasmCallDone(req: r, status: s, data: d, err: e)
+step F on WasmCallDone(req: _r, status: s, data: d, err: _e)
     if s == "delivered"
         for x in d.or([])
             results.push(x)

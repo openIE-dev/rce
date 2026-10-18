@@ -234,7 +234,7 @@ fn stuck() -> i64
         branch one
             a = x.wait([1])
         branch two
-            let z = y.wait([1])
+            let _z = y.wait([1])
     a
 
 fn par_conflict() -> i64

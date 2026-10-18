@@ -70,7 +70,7 @@ step Sfu on Poll
     next += 1
     emit ChanRecv(req: next, max: 256)
 
-step Sfu on ChanRecvDone(req: r, status: s, data: d, err: e)
+step Sfu on ChanRecvDone(req: _r, status: _s, data: d, err: _e)
     for m in d.or([])
         let mf = m.split("\t")
         var w = ""
@@ -85,7 +85,7 @@ step Sfu on ChanRecvDone(req: r, status: s, data: d, err: e)
         if op == "unsub" and f.len() == 3
             let k = copy(f[1]) + "\u{1f}" + copy(f[2]) + "\u{1f}" + copy(w)
             if subs.contains(copy(k))
-                subs.remove(k)
+                let _ = subs.remove(k)
         if op == "frame" and f.len() == 6
             let tk = copy(f[1]) + "\u{1f}" + copy(f[2])
             let pk = copy(tk) + "\u{1f}" + copy(w)
@@ -107,6 +107,6 @@ step Sfu on ChanRecvDone(req: r, status: s, data: d, err: e)
         if not ((op == "sub" or op == "unsub") and f.len() == 3) and not (op == "frame" and f.len() == 6)
             malformed += 1
 
-step Sfu on ChanSendDone(req: r, status: s, data: d, err: e)
+step Sfu on ChanSendDone(req: _r, status: s, data: _d, err: _e)
     if s != "delivered"
         dropped += 1

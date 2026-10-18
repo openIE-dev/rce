@@ -38,12 +38,12 @@ step C on Poll
     next += 1
     emit ChanRecv(req: next, max: 64)
 
-step C on ChanSendDone(req: r, status: s, data: d, err: e)
+step C on ChanSendDone(req: _r, status: s, data: _d, err: _e)
     if s == "delivered"
         sent += 1
     else
         lost += 1
 
-step C on ChanRecvDone(req: r, status: s, data: d, err: e)
+step C on ChanRecvDone(req: _r, status: _s, data: d, err: _e)
     for m in d.or([])
         inbox.push(m)

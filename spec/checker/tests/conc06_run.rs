@@ -160,7 +160,7 @@ fn main()
     let b = chan[i64](8)
     spawn feed(a, 100)
     spawn feed(b, 200)
-    var got: i64 = 0
+    var _got: i64 = 0
     loop bound 20
         select nondet
             recv v from a -> emit v

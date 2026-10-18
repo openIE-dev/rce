@@ -224,7 +224,7 @@ const SCOPE: &str = "fn worker(c: chan i64, k: i64) -> i64
     c <- k
     k * 10
 
-fn bad(c: chan i64) -> i64
+fn bad(_c: chan i64) -> i64
     let xs = [1, 2]
     xs[5]
 

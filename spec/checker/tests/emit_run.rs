@@ -268,7 +268,7 @@ const SCOPE: &str = "fn worker(c: chan i64, k: i64) -> i64
     c <- k
     k * 10
 
-fn bad(c: chan i64) -> i64
+fn bad(_c: chan i64) -> i64
     let xs = [1, 2]
     xs[5]
 
@@ -317,7 +317,7 @@ fn first(c: chan i64) -> i64
         if k0(c)
             return 40
     0
-fn k0(c: chan i64) -> bool
+fn k0(_c: chan i64) -> bool
     true
 fn timed(c: chan i64) -> i64
     with deadline 50
@@ -524,7 +524,7 @@ fn run() -> i64 ! Bad
     s
 
 fn main()
-    emit run() catch |e| -1
+    emit run() catch |_e| -1
     emit run() catch |e| e.i
 ";
 
@@ -1144,7 +1144,7 @@ actor Ghost
 
 fn main()
     let a = Acc()
-    let e = Echo()
+    let _e = Echo()
     a <- Show
 ";
 

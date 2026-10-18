@@ -10,7 +10,7 @@ fn main()
     spawn feed(p, 6)
     spawn worker(p, o)
     var s: u64 = 0
-    for k in 0..6
+    for _k in 0..6
         match <- o
             some(v) -> s += v
             none -> s += 1000

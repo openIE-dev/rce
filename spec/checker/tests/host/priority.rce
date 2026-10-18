@@ -13,5 +13,5 @@ state S
 step S on Key(c: c)
     seen = seen + c
 
-step S on Alarm(n: n)
+step S on Alarm(n: _n)
     seen = seen + "!"

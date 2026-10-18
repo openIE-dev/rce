@@ -3,12 +3,12 @@ event Tick(n: i64)
 
 actor Counter
     n: i64 = 0
-    on Tick(n: _k)
+    on Tick(n: k)
         n += k
 
 actor Logger
     seen: i64 = 0
-    on Tick(n: k)
+    on Tick(n: _k)
         seen += 1
 
 supervisor Root strategy one_for_one
