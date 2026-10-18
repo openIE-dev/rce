@@ -134,7 +134,7 @@ fn t18_float_tree_fixed() {
 fn t20_budget_composition() {
     let prog = |b: i64, n: i64| {
         format!(
-            "fn main()\n    var n: i64 = 0\n    with budget {b}\n        for i in 0..{n}\n            n += 1\n    emit n\n"
+            "fn main()\n    var n: i64 = 0\n    with budget {b}\n        for _i in 0..{n}\n            n += 1\n    emit n\n"
         )
     };
     // find the least budget that suffices for n iterations; it is additive
@@ -244,7 +244,7 @@ fn run_main_corpus() {
 fn budget_else_catches() {
     let prog = |b: i64| {
         format!(
-            "fn main()\n    var a: i64 = 0\n    var r: i64 = 0\n    var lim: u64 = 0\n    with budget {b}\n        with budget 40\n            for i in 0..100\n                a += 1\n        else as e\n            r = 1\n            lim = e.limit\n        for i in 0..20\n            a += 1\n    else\n        r += 10\n    emit a\n    emit r\n    emit lim\n"
+            "fn main()\n    var a: i64 = 0\n    var r: i64 = 0\n    var lim: u64 = 0\n    with budget {b}\n        with budget 40\n            for _i in 0..100\n                a += 1\n        else as e\n            r = 1\n            lim = e.limit\n        for _i in 0..20\n            a += 1\n    else\n        r += 10\n    emit a\n    emit r\n    emit lim\n"
         )
     };
     let big = run(&prog(100000));
@@ -255,7 +255,7 @@ fn budget_else_catches() {
     assert_eq!(small.outcome, Outcome::Done);
     let o = outs(&small);
     assert_eq!(o, vec!["0", "10", "0"], "outer trap undoes every write of the outer block");
-    let bare = run("fn main()\n    var a: i64 = 0\n    with budget 5\n        for i in 0..10\n            a += 1\n    emit a\n");
+    let bare = run("fn main()\n    var a: i64 = 0\n    with budget 5\n        for _i in 0..10\n            a += 1\n    emit a\n");
     assert!(matches!(bare.outcome, Outcome::Refused(_)), "{:?}", bare.outcome);
 }
 

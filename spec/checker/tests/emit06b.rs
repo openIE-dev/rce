@@ -102,7 +102,7 @@ fn work() -> i64
     let zs = xs.map(fn(a: i64) => a - 1)
     t += zs[4]
     var f: f64 = 1.0
-    for i in 0..4
+    for _i in 0..4
         f = f * 1.25 + q.f / 2.0
     if not (t < 0) and (f > 1.0 or t > 1000)
         t += -(t % 7)
@@ -384,7 +384,7 @@ fn budget_else_is_atomic_on_every_target() {
             "fn b{n}() -> List[u64]\n    var p = P(x: 1, f: 0.5)\n    var xs = [1, 2]\n    var lim: u64 = 0\n    var used: u64 = 0\n    with budget {n}\n        for i in 0..8\n            p.x += i\n            xs[0] = p.x\n            xs.push(i)\n    else as e\n        lim = e.limit\n        used = e.used\n    [lim, used, p.x as u64, xs.len() as u64]\n\n"
         );
     }
-    fns += "fn nested() -> List[i64]\n    var a: i64 = 0\n    var r: i64 = 0\n    with budget 30\n        with budget 1000\n            for i in 0..50\n                a += 1\n        else\n            r = 1\n        a += 100\n    else\n        r += 10\n    [a, r]\n";
+    fns += "fn nested() -> List[i64]\n    var a: i64 = 0\n    var r: i64 = 0\n    with budget 30\n        with budget 1000\n            for _i in 0..50\n                a += 1\n        else\n            r = 1\n        a += 100\n    else\n        r += 10\n    [a, r]\n";
     let src = format!("{WORK}\n{fns}");
     let lines = agree_on("budget-else", &src, &[Lang::Rust, Lang::Python, Lang::Js, Lang::Scala]);
     assert!(lines.iter().any(|l| l.starts_with("fn b400 = [0, 0, 29, 10]")), "{lines:?}");

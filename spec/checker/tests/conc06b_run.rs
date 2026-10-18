@@ -52,7 +52,6 @@ fn t23_workgroup() {
             "fn main()
     let x: [i64; {n}] = {lit}
     var total: i64 = 0
-    var out: [i64; {n}] = [0; {n}]
     with device d bound 4096
         with group g lanes {n}
             var tile: [i64; {n}] = [0; {n}]
@@ -325,7 +324,7 @@ fn server(s: session Serve)
     loop
         match s.offer()
             More
-                let q = <- s
+                let _q = <- s
                 s <- 1
             Done -> break
 
@@ -338,7 +337,7 @@ fn main()
             let v = <- c
             emit v
         Missing -> emit 0
-    for i in 0..3
+    for _i in 0..3
         c.choose(More)
         c <- \"q\"
         let w = <- c

@@ -250,8 +250,7 @@ fn main()
 ";
 
 const SCOPE_FAIL: &str = "error Boom
-fn bad(c: chan i64) -> i64 ! Boom
-    c <- 1
+fn bad(_c: chan i64) -> i64 ! Boom
     fail Boom
 fn slow(c: chan i64)
     loop bound 50
@@ -325,7 +324,7 @@ fn timed(c: chan i64) -> i64
             some(v) -> return v + 1
             none -> return 0
     else
-        if true
+        if k0(c)
             return 99
     7
 fn main()
@@ -421,14 +420,14 @@ fn budget_else(b: i64) -> String {
     var k = Exhausted(limit: 0, used: 0)
     with budget {b}
         with budget 40
-            for i in 0..100
+            for _i in 0..100
                 a += 1
                 xs[0] = a
         else as e
             r = 1
             u = e.used
             k = e
-        for i in 0..20
+        for _i in 0..20
             a += 1
             xs[1] = a
     else as e2
@@ -440,7 +439,7 @@ fn budget_else(b: i64) -> String {
     emit u
     emit k
     with budget 5
-        for i in 0..10
+        for _i in 0..10
             a += 1
     else
         emit 7
@@ -467,7 +466,7 @@ fn par_budget(b: i64) -> String {
                 for i in 0..6
                     c += i * 2
             branch three
-                for i in 0..6
+                for _i in 0..6
                     d += 1
     emit a + c + d
 "
@@ -686,7 +685,7 @@ fn server(s: session Serve)
     loop
         match s.offer()
             More
-                let q = <- s
+                let _q = <- s
                 s <- 1
             Done -> break
 
@@ -699,7 +698,7 @@ fn main()
             let v = <- c
             emit v
         Missing -> emit 0
-    for i in 0..3
+    for _i in 0..3
         c.choose(More)
         c <- \"q\"
         let w = <- c
