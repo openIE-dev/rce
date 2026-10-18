@@ -38,7 +38,7 @@ fn find(x: i64) -> i64? ! Bad
 fn kindof(j: J) -> i64 ! Bad
     let r = try opt(&j)
     match r
-        some(v) -> return 1
+        some(_v) -> return 1
         none -> return 0
 
 fn twice(x: i64) -> i64 ! Bad

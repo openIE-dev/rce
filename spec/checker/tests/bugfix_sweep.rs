@@ -48,9 +48,9 @@ fn run(src: &str) -> String {
 
 #[test]
 fn b004_compound_assignment_is_charged_like_binary_op() {
-    let o = run("# rce-version: 0.7\nfn main()\n    with budget 5\n        var x = 0\n        for i in 0..10\n            x += 1\n        emit x\n");
+    let o = run("# rce-version: 0.7\nfn main()\n    with budget 5\n        var x = 0\n        for _i in 0..10\n            x += 1\n        emit x\n");
     assert!(o.contains("trap: budget"), "{o}");
-    let o = run("# rce-version: 0.7\nfn main()\n    with budget 11\n        var x = 0\n        for i in 0..10\n            x += 1\n        emit x\n");
+    let o = run("# rce-version: 0.7\nfn main()\n    with budget 11\n        var x = 0\n        for _i in 0..10\n            x += 1\n        emit x\n");
     assert!(o.contains("emit 10"), "{o}");
 }
 
@@ -76,12 +76,12 @@ fn b009_f64_min_max_evaluate_and_pow_is_refused() {
 
 #[test]
 fn b010_foreign_function_is_not_a_value() {
-    let x = "extern \"C\" fn ext(x: u32) -> u32\n";
-    let d = diag(&format!("{x}fn ap(f: fn(u32) -> u32, v: u32) -> u32\n    return f(v)\nfn main()\n    emit ap(ext, 1)\n"));
+    let x = "extern \"C\" fn ext(w: &World, x: u32) -> u32\n";
+    let d = diag(&format!("{x}fn ap(f: fn(u32) -> u32, v: u32) -> u32\n    return f(v)\nfn main(w: &World)\n    emit ap(ext, 1)\n"));
     assert!(d.contains("W-FFI-1"), "{d}");
-    let d = diag(&format!("{x}fn main()\n    let g = ext\n    emit g(1)\n"));
+    let d = diag(&format!("{x}fn main(w: &World)\n    let g = ext\n    emit g(1)\n"));
     assert!(d.contains("W-FFI-1"), "{d}");
-    assert!(diag(&format!("{x}fn main()\n    emit ext(1)\n")).is_empty(), "a direct call from main stays valid");
+    assert!(diag(&format!("{x}fn main(w: &World)\n    emit ext(w, 1)\n")).is_empty(), "a direct call from main stays valid");
 }
 
 #[test]
@@ -106,9 +106,9 @@ fn b015_help_after_a_subcommand() {
 
 #[test]
 fn b014_no_diagnostic_on_line_0() {
-    let d = diag("fn f() -> i64\n    return 1\n    let x = 2\n");
+    let d = diag("fn f() -> i64\n    return 1\n    let _x = 2\n");
     assert!(d.starts_with("line 3: W-MATCH-2"), "{d}");
-    let d = diag("use shop.pricing\nfn f() -> i64\n    return 1\n");
+    let d = diag("use shop.pricing\nfn f() -> i64\n    return pricing.p()\n");
     assert!(d.starts_with("line 1: W-NAME-1 unknown module"), "{d}");
     let d = diag("state S\n    n: i64 = 0\n\nevent Inc\nevent Dec\n\nstep S on Inc -> n + 1\n");
     assert!(d.contains("line 5: W-STEP-2"), "{d}");

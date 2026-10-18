@@ -68,7 +68,7 @@ fn vectors_hold_in_the_reference_interpreter() {
                 }
             }
             None if fails => src.push_str(&format!(
-                "\ncheck ({call} catch |e| {} + 1) == {}\n",
+                "\ncheck ({call} catch |_e| {} + 1) == {}\n",
                 lit(&v[2]),
                 lit(&v[2])
             )),

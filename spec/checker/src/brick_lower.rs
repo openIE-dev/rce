@@ -1215,7 +1215,7 @@ impl<'a> Lowerer<'a> {
             Expr::Name(x, _) => self.unsigned.contains(x),
             Expr::Cast(_, t, _) => is_usize(t),
             Expr::Call(f, args, _, _) => match &**f {
-                Expr::Member(_, m, _) => m == "len" && args.is_empty(),
+                Expr::Member(_, m, _) => (m == "len" || m == "len_bytes") && args.is_empty(),
                 Expr::Name(g, _) => self
                     .fns
                     .get(g)
@@ -1236,6 +1236,10 @@ impl<'a> Lowerer<'a> {
     }
 
     fn stmt(&mut self, st: &Stmt, s: &mut Vec<String>, tail: bool, stack: &mut Vec<String>) -> L {
+        // `let _ = e` evaluates `e` and drops it: the same term as the statement `e`
+        if let Stmt::Let(Pat::Wild, None, e, _) = st {
+            return self.stmt(&Stmt::Expr(e.clone()), s, tail, stack);
+        }
         // `let x = p.pop()`: x takes the last item (or none), then p pops
         if let Some((peek, pop)) = pop_split(st) {
             let a = self.stmt(&peek, s, false, stack)?;
@@ -1780,7 +1784,7 @@ impl<'a> Lowerer<'a> {
             Expr::Member(r, m, _) => {
                 let rv = self.expr(r, s, stack)?;
                 match (m.as_str(), args.len()) {
-                    ("len", 0) => Ok(self.prim("size", vec![rv])),
+                    ("len" | "len_bytes", 0) => Ok(self.prim("size", vec![rv])),
                     // options embed as the value or null
                     ("issome", 0) => Ok(self.prim("ne", vec![rv, c(Value::Null)])),
                     ("isnone", 0) => Ok(self.prim("eq", vec![rv, c(Value::Null)])),
@@ -2164,7 +2168,7 @@ impl<'a> Lowerer<'a> {
                 _ => None,
             },
             Expr::Call(f, args, _, _) => match &**f {
-                Expr::Member(_, m, _) if m == "len" && args.is_empty() => {
+                Expr::Member(_, m, _) if (m == "len" || m == "len_bytes") && args.is_empty() => {
                     Some(Ty::Path(vec!["usize".into()], vec![]))
                 }
                 Expr::Name(g, _) if self.sfields.contains_key(g) && self.structs.contains_key(g) => {

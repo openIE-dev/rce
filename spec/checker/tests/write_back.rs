@@ -1,5 +1,6 @@
-//! Spec 6.2 `&mut` write-back (T33): writes a callee made before `fail`
-//! stay in the caller's store. The program emitters implement it for a
+//! Spec 6.2 `&mut` write-back with the F.4.4 restore: a callee that fails
+//! leaves the caller's `&mut` arguments as they were before the call, and a
+//! callee that returns writes them back. The program emitters implement it for a
 //! write-back call alone, under `catch` and under `try` (T9-L); deeper nesting is
 //! first flattened by the shared order-preserving ANF pass (T34). All
 //! agree with the reference evaluator on every target.
@@ -19,7 +20,7 @@ fn bump(x: &mut i64) -> i64 ! Boom
     fail Boom
 
 fn wrap(n: &mut i64) -> i64 ! Boom
-    try bump(&mut n)
+    let _ = try bump(&mut n)
     let k: i64 = 0
     return k
 
@@ -83,8 +84,8 @@ fn agree(stem: &str, src: &str, want: &str) {
 }
 
 #[test]
-fn writes_before_fail_are_kept_on_every_target() {
-    agree("wb", PROG, "emit 11\nemit -1\n");
+fn a_failed_call_restores_its_mut_arguments_on_every_target() {
+    agree("wb", PROG, "emit 10\nemit -1\n");
 }
 
 #[test]
@@ -93,12 +94,11 @@ fn receivers_several_args_try_and_catch_agree() {
     agree(
         "wbm",
         &src,
-        "emit 12\nemit 2\nemit 12\nemit 13\nemit -1\nemit 3\nemit 3\nemit 1200\nemit 12\n",
+        "emit 10\nemit 0\nemit 12\nemit 11\nemit 110\nemit 3\nemit 3\nemit 1200\nemit 3\n",
     );
 }
 
-const NESTED: &str = "# rce-version: 0.6
-error Boom
+const NESTED: &str = "error Boom
 
 fn bump(x: &mut i64) -> i64 ! Boom
     x += 1
@@ -145,7 +145,7 @@ fn nested_write_back_calls_keep_left_to_right_order_on_every_target() {
     agree(
         "wbnest",
         &NESTED.replace("BUDGET", "1000"),
-        "emit 12\nemit 35\nemit [12, -5, 13]\nemit -2774\nemit 13\nemit [2, 1, 1]\nemit 14\nemit 65\nemit 15\n",
+        "emit 12\nemit 35\nemit [12, -5, 12]\nemit -2376\nemit 13\nemit [2, 1, 1]\nemit 12\nemit 55\nemit 12\n",
     );
 }
 

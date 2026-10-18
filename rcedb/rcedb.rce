@@ -4,7 +4,7 @@ intent "RCEdb v1: tables of keyed rows and a labelled edge set, written in RCE o
     example Insert(table: "t", key: "b", row: "{}"), Insert(table: "t", key: "a", row: "{}"), Synced(upto: 3) -> durable == 3
     example Insert(table: "t", key: "k", row: "{}"), Delete(table: "t", key: "k") -> rows.len() == 0
     example Delete(table: "t", key: "x") -> refused: Missing
-    example Link(src: "a", label: "knows", dst: "b"), Unlink(src: "a", label: "knows", dst: "b") -> edges.len() == 0
+    example Link(src: "a", lbl: "knows", dst: "b"), Unlink(src: "a", lbl: "knows", dst: "b") -> edges.len() == 0
     example Schema(table: "u", cols: "name:text,age:i64,admin:bool"), Insert(table: "u", key: "a", row: "Ann\t41\tfalse") -> rows.len() == 1
     example Schema(table: "u", cols: "name:text,age:i64"), Insert(table: "u", key: "a", row: "Ann\tforty") -> refused: BadRow
     example Schema(table: "u", cols: "name:text,age:i64"), Insert(table: "u", key: "a", row: "Ann") -> refused: BadRow
@@ -26,8 +26,8 @@ state Db
 
 event Insert(table: text, key: text, row: text)
 event Delete(table: text, key: text)
-event Link(src: text, label: text, dst: text)
-event Unlink(src: text, label: text, dst: text)
+event Link(src: text, lbl: text, dst: text)
+event Unlink(src: text, lbl: text, dst: text)
 event Synced(upto: u64)
 event Schema(table: text, cols: text)
 event Index(table: text, col: text)
@@ -50,7 +50,7 @@ struct Row
 
 struct Edge
     src: text
-    label: text
+    lbl: text
     dst: text
 
 struct Table
@@ -106,13 +106,13 @@ fn is_i64(v: text) -> bool
         d = ""
         for i in 1..cs.len()
             d = d + copy(cs[i])
-    if d == "" or not d.isdigit() or d.len() > 19
+    if d == "" or not d.isdigit() or d.len_bytes() > 19
         return false
-    if d.len() > 1 and d.startswith("0")
+    if d.len_bytes() > 1 and d.startswith("0")
         return false
     if v == "-0"
         return false
-    if d.len() == 19 and d > "9223372036854775807"
+    if d.len_bytes() == 19 and d > "9223372036854775807"
         return v == "-9223372036854775808"
     return true
 
@@ -172,7 +172,7 @@ step Db on Insert(table: t, key: k, row: r)
         if copy(ip[0]) == copy(t)
             let pos = indexes.get(i) catch 0
             if rows.contains(id)
-                idx.remove(copy(i) + SEP + cell(rows.get(id) catch "", pos) + SEP + copy(k))
+                let _ = idx.remove(copy(i) + SEP + cell(rows.get(id) catch "", pos) + SEP + copy(k))
             idx[copy(i) + SEP + cell(copy(r), pos) + SEP + copy(k)] = copy(k)
     rows[id] = r
     writes += 1
@@ -187,20 +187,20 @@ step Db on Delete(table: t, key: k)
         let ip = i.split(SEP)
         if copy(ip[0]) == copy(t)
             let pos = indexes.get(i) catch 0
-            idx.remove(copy(i) + SEP + cell(rows.get(id) catch "", pos) + SEP + copy(k))
-    rows.remove(id)
+            let _ = idx.remove(copy(i) + SEP + cell(rows.get(id) catch "", pos) + SEP + copy(k))
+    let _ = rows.remove(id)
     tables[t] = (tables.get(t) catch 1) - 1
     writes += 1
 
-step Db on Link(src: s, label: l, dst: d)
+step Db on Link(src: s, lbl: l, dst: d)
     edges[s + SEP + l + SEP + d] = l
     writes += 1
 
-step Db on Unlink(src: s, label: l, dst: d)
+step Db on Unlink(src: s, lbl: l, dst: d)
     let id = s + SEP + l + SEP + d
     if not edges.contains(id)
         fail Missing(key: id)
-    edges.remove(id)
+    let _ = edges.remove(id)
     writes += 1
 
 step Db on Synced(upto: n)
@@ -247,7 +247,7 @@ step Db on Edges(src: s)
     for id in ks
         let parts = id.split(SEP)
         if copy(parts[0]) == copy(s)
-            emit Edge(src: copy(s), label: copy(parts[1]), dst: copy(parts[2]))
+            emit Edge(src: copy(s), lbl: copy(parts[1]), dst: copy(parts[2]))
 
 step Db on Describe
     var names: Map[text, u64] = {}
@@ -278,4 +278,4 @@ step Db on Dump
     es.sort()
     for id in es
         let parts = id.split(SEP)
-        emit Edge(src: copy(parts[0]), label: copy(parts[1]), dst: copy(parts[2]))
+        emit Edge(src: copy(parts[0]), lbl: copy(parts[1]), dst: copy(parts[2]))

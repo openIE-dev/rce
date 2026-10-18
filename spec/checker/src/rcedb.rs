@@ -98,10 +98,10 @@ impl Db {
         self.write("Delete", &[("table", table), ("key", key)])
     }
     pub fn link(&mut self, src: &str, label: &str, dst: &str) -> Result<(), String> {
-        self.write("Link", &[("src", src), ("label", label), ("dst", dst)])
+        self.write("Link", &[("src", src), ("lbl", label), ("dst", dst)])
     }
     pub fn unlink(&mut self, src: &str, label: &str, dst: &str) -> Result<(), String> {
-        self.write("Unlink", &[("src", src), ("label", label), ("dst", dst)])
+        self.write("Unlink", &[("src", src), ("lbl", label), ("dst", dst)])
     }
 
     /// Give `table` a typed schema, "name:type,..." with type text, i64 or
@@ -143,7 +143,7 @@ impl Db {
         for o in outs {
             match o {
                 V::Rec(n, fs) if n == "Row" => rows.push((field(&fs, "table").into(), field(&fs, "key").into(), field(&fs, "row").into())),
-                V::Rec(n, fs) if n == "Edge" => edges.push((field(&fs, "src").into(), field(&fs, "label").into(), field(&fs, "dst").into())),
+                V::Rec(n, fs) if n == "Edge" => edges.push((field(&fs, "src").into(), field(&fs, "lbl").into(), field(&fs, "dst").into())),
                 _ => {}
             }
         }

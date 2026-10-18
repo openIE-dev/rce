@@ -2,9 +2,8 @@
 //! sizes of its receiver and first argument, by complexity class. The
 //! budget boundary is the same operation in the reference evaluator and
 //! in every emitted runtime (Rust, Python, JavaScript), and the cost is
-//! monotone in input size. Size-scaled work is the 0.7 semantics (C.13);
-//! a version 0.6 module charges `c_call` alone for every method, in every
-//! runtime, so a declared 0.6 program keeps its meaning.
+//! monotone in input size. The size-scaled work is the one rule of the one
+//! language (C.15): a `# rce-version:` label never changes a cost.
 use rce_spec_check::conc::{C_CALL, ceil_log2, method_work, size_of};
 use rce_spec_check::interp::V;
 use rce_spec_check::cli;
@@ -21,20 +20,20 @@ fn cases() -> Vec<(String, String, i128)> {
     let c = |r: V, m: &str, a: Vec<V>| C_CALL + method_work(&r, m, &a);
     vec![
         (xs.clone(), "xs.sort()".into(), c(list(8), "sort", vec![])),
-        (xs.clone(), "let k = xs.len()".into(), c(list(8), "len", vec![])),
-        (xs.clone(), "let b = xs.contains(3)".into(), c(list(8), "contains", vec![V::Int(3, "i64")])),
-        (xs.clone(), "let s = xs.sum()".into(), c(list(8), "sum", vec![])),
+        (xs.clone(), "let _k = xs.len()".into(), c(list(8), "len", vec![])),
+        (xs.clone(), "let _b = xs.contains(3)".into(), c(list(8), "contains", vec![V::Int(3, "i64")])),
+        (xs.clone(), "let _s = xs.sum()".into(), c(list(8), "sum", vec![])),
         ("    var ys: List[i64] = [1]\n".into(), "ys.sort()".into(), c(list(1), "sort", vec![])),
         ("    var ys: List[i64] = [3, 1, 2]\n".into(), "ys.sort()".into(), c(list(3), "sort", vec![])),
-        (t.clone(), "let u = t.upper()".into(), c(V::Text("hello".into()), "upper", vec![])),
-        (t.clone(), "let b = t.contains(\"ll\")".into(), c(V::Text("hello".into()), "contains", vec![V::Text("ll".into())])),
-        (t.clone(), "let k = t.len()".into(), c(V::Text("hello".into()), "len", vec![])),
-        (t.clone(), "let h = t.sha256()".into(), c(V::Text("hello".into()), "sha256", vec![])),
+        (t.clone(), "let _u = t.upper()".into(), c(V::Text("hello".into()), "upper", vec![])),
+        (t.clone(), "let _b = t.contains(\"ll\")".into(), c(V::Text("hello".into()), "contains", vec![V::Text("ll".into())])),
+        (t.clone(), "let _k = t.len_bytes()".into(), c(V::Text("hello".into()), "len_bytes", vec![])),
+        (t.clone(), "let _h = t.sha256()".into(), c(V::Text("hello".into()), "sha256", vec![])),
     ]
 }
 
 fn prog(setup: &str, call: &str, b: i128) -> String {
-    format!("# rce-version: 0.7\nfn main()\n{setup}    with budget {b}\n        {call}\n    emit 1\n")
+    format!("fn main()\n{setup}    with budget {b}\n        {call}\n    emit 1\n")
 }
 
 fn trapped(out: &str) -> bool {
@@ -92,22 +91,6 @@ fn budget_boundary_is_the_table_cost_in_every_runtime() {
                 if let Some(out) = emitted(&src, &stem, t) {
                     assert_eq!(trapped(&out), trap, "{t}: `{call}` with budget {b} (cost {cost}): {out}");
                 }
-            }
-        }
-    }
-}
-
-/// Version 0.6 (C.13): every method costs `c_call`, whatever the size.
-#[test]
-fn version_06_charges_c_call_alone_in_every_runtime() {
-    let xs = "    var xs: List[i64] = [5, 3, 9, 1, 7, 2, 8, 4]\n";
-    for (b, trap) in [(C_CALL - 1, true), (C_CALL, false)] {
-        let src = prog(xs, "xs.sort()", b).replace("# rce-version: 0.7", "# rce-version: 0.6");
-        let stem = format!("v06_{b}");
-        assert_eq!(trapped(&rce_run(&src, &stem)), trap, "reference: 0.6 sort with budget {b}");
-        for t in ["rust", "python", "js"] {
-            if let Some(out) = emitted(&src, &stem, t) {
-                assert_eq!(trapped(&out), trap, "{t}: 0.6 sort with budget {b}: {out}");
             }
         }
     }
@@ -191,12 +174,12 @@ fn class_table_in_the_book_is_method_work() {
 fn compound_assignment_charges_the_operator_in_every_runtime() {
     // int `+=` costs 1 (ten of them plus the range: 11); float `/=` costs 8
     let cases = [
-        ("    var x = 0\n", "for i in 0..10\n            x += 1", 11),
-        ("    var y = 1.0\n", "y /= 3.0", 8),
+        ("    var x = 0\n", "for _i in 0..10\n            x += 1", 11, "x"),
+        ("    var y = 1.0\n", "y /= 3.0", 8, "y"),
     ];
-    for (i, (setup, call, cost)) in cases.into_iter().enumerate() {
+    for (i, (setup, call, cost, var)) in cases.into_iter().enumerate() {
         for (b, trap) in [(cost - 1, true), (cost, false)] {
-            let src = prog(setup, call, b);
+            let src = prog(setup, call, b) + &format!("    emit {var}\n");
             let stem = format!("ca{i}_{b}");
             assert_eq!(trapped(&rce_run(&src, &stem)), trap, "reference: `{call}` budget {b}");
             for t in ["rust", "python", "js"] {

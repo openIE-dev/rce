@@ -27,8 +27,8 @@ fn combined() -> String {
 }
 
 const APP: &str = r##"
-event LeafKey(es: text, n: i64, i: i64, label: text, g: i64)
-event SdKey(sds: text, ct: text)
+event LeafKey(es: text, n: i64, i: i64, lbl: text, g: i64)
+event SdKey(sds: text, ctext: text)
 event Open(msg: text, es: text, sds: text, n: i64, gc: text, pk: text)
 event Pub(msg: text, gc: text, pk: text, mk: text)
 event Gc(gid: text, ep: i64, th: text, cth: text)
@@ -37,13 +37,13 @@ state S
     out: List[text] = []
     seq: i64 = 0
 
-step S on LeafKey(es: es, n: n, i: i, label: label, g: g)
+step S on LeafKey(es: es, n: n, i: i, lbl: lbl, g: g)
     seq += 1
-    out = ["O:" + seq.tostr() + "#" + st_key_nonce(st_leaf_secret(es, n, i), label, g)]
+    out = ["O:" + seq.tostr() + "#" + st_key_nonce(st_leaf_secret(es, n, i), lbl, g)]
 
-step S on SdKey(sds: sds, ct: ct)
+step S on SdKey(sds: sds, ctext: ctext)
     seq += 1
-    out = ["O:" + seq.tostr() + "#" + sd_key_nonce(sds, ct)]
+    out = ["O:" + seq.tostr() + "#" + sd_key_nonce(sds, ctext)]
 
 step S on Open(msg: msg, es: es, sds: sds, n: n, gc: gc, pk: pk)
     seq += 1
@@ -86,14 +86,14 @@ fn official_secret_tree_and_message_protection_vectors() {
     let mut keys = 0;
     for (e, t) in vectors("secret-tree-suite1.json").as_array().unwrap().iter().enumerate() {
         let sd = &t["sender_data"];
-        assert_eq!(step(format!(r#"SdKey(sds: "{}", ct: "{}")"#, sd["sender_data_secret"].as_str().unwrap(), sd["ciphertext"].as_str().unwrap())), format!("{}.{}", sd["key"].as_str().unwrap(), sd["nonce"].as_str().unwrap()), "secret-tree {e}: sender data");
+        assert_eq!(step(format!(r#"SdKey(sds: "{}", ctext: "{}")"#, sd["sender_data_secret"].as_str().unwrap(), sd["ciphertext"].as_str().unwrap())), format!("{}.{}", sd["key"].as_str().unwrap(), sd["nonce"].as_str().unwrap()), "secret-tree {e}: sender data");
         let leaves = t["leaves"].as_array().unwrap();
         let es = t["encryption_secret"].as_str().unwrap();
         for (i, gens) in leaves.iter().enumerate() {
             for g in gens.as_array().unwrap() {
                 for label in ["application", "handshake"] {
                     let want = format!("{}.{}", g[format!("{label}_key")].as_str().unwrap(), g[format!("{label}_nonce")].as_str().unwrap());
-                    assert_eq!(step(format!(r#"LeafKey(es: "{es}", n: {}, i: {i}, label: "{label}", g: {})"#, leaves.len(), g["generation"])), want, "secret-tree {e}: leaf {i} {label}");
+                    assert_eq!(step(format!(r#"LeafKey(es: "{es}", n: {}, i: {i}, lbl: "{label}", g: {})"#, leaves.len(), g["generation"])), want, "secret-tree {e}: leaf {i} {label}");
                     keys += 1;
                 }
             }

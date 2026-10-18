@@ -1,6 +1,4 @@
 module shop.orders
-use std.text
-use std.collections as col
 use shop.pricing
 
 pub struct Order
@@ -8,3 +6,5 @@ pub struct Order
     total: i64 = 0
 
 pub fn new_order(id: u64) -> Order = Order(id: id)
+
+pub fn discounted(o: &Order, percent: i64) -> i64 = pricing.discount(o.total, percent)

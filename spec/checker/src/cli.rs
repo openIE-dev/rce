@@ -1104,6 +1104,7 @@ pub fn unform(json: &str) -> Result<String, String> {
     let v: Value = serde_json::from_str(json).map_err(|e| format!("form json: {e}"))?;
     let t = v.get("terms").ok_or("the Form has no `terms` (emit it with `rce emit form`)")?;
     let m: Module = serde_json::from_value(t.clone()).map_err(|e| format!("terms: {e}"))?;
+    let m = crate::v09::restore_world(m)?;
     Ok(crate::unparse::unparse(&m))
 }
 

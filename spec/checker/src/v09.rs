@@ -1393,6 +1393,69 @@ pub fn erase_world(m: Module, wf: &HashMap<String, Vec<usize>>) -> Result<Module
     Ok(m2)
 }
 
+/// The inverse of `erase_world` for foreign functions: the module as the Form
+/// carries it (F.4.1: `&World` erased) is written back as source that P7
+/// admits. Every `extern` gets `w: &World` as its first parameter, every
+/// function that calls one holds `w: &World` as its first parameter, and
+/// every such call passes `w`. (Only `fn main` and task functions may call a
+/// foreign function, so no other function is touched.)
+pub fn restore_world(m: Module) -> Result<Module, String> {
+    use serde_json::{Value, json};
+    let mut v = serde_json::to_value(&m).map_err(|e| e.to_string())?;
+    let mut ext: HashSet<String> = HashSet::new();
+    if let Some(Value::Array(items)) = v.get("items") {
+        for it in items {
+            if let Some(n) = it.get("Extern").and_then(|e| e.get("sig")).and_then(|s| s.get("name")).and_then(|n| n.as_str()) {
+                ext.insert(n.to_string());
+            }
+        }
+    }
+    if ext.is_empty() {
+        return Ok(m);
+    }
+    let world_param = json!({"Named": {"comptime": false, "label": null, "name": "w", "ty": {"Ref": [false, {"Path": [["World"], []]}]}}});
+    fn calls(v: &mut Value, ext: &HashSet<String>, found: &mut bool) {
+        match v {
+            Value::Object(o) => {
+                if let Some(Value::Array(a)) = o.get_mut("Call")
+                    && a.len() == 4
+                    && let Some(n) = a[0].get("Name").and_then(|n| n.get(0)).and_then(|s| s.as_str())
+                    && ext.contains(n)
+                {
+                    let line = a[0]["Name"][1].clone();
+                    if let Value::Array(args) = &mut a[1] {
+                        args.insert(0, json!({"label": null, "e": {"Name": ["w", line]}}));
+                    }
+                    *found = true;
+                }
+                for x in o.values_mut() {
+                    calls(x, ext, found);
+                }
+            }
+            Value::Array(a) => a.iter_mut().for_each(|x| calls(x, ext, found)),
+            _ => {}
+        }
+    }
+    if let Some(Value::Array(items)) = v.get_mut("items") {
+        for it in items {
+            if let Some(e) = it.get_mut("Extern") {
+                if let Some(Value::Array(ps)) = e.get_mut("sig").and_then(|s| s.get_mut("params")) {
+                    ps.insert(0, world_param.clone());
+                }
+            } else if let Some(f) = it.get_mut("Fn") {
+                let mut found = false;
+                if let Some(b) = f.get_mut("body") {
+                    calls(b, &ext, &mut found);
+                }
+                if found && let Some(Value::Array(ps)) = f.get_mut("sig").and_then(|s| s.get_mut("params")) {
+                    ps.insert(0, world_param.clone());
+                }
+            }
+        }
+    }
+    serde_json::from_value(v).map_err(|e| e.to_string())
+}
+
 // ------------------------------------------------------ P1 transactional calls
 
 /// Whether an expression, in evaluation order, performs a non-undoable

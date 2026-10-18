@@ -32,9 +32,9 @@ fn vectors(name: &str) -> Value {
 const APP: &str = r#"
 event Derive(ikm: text)
 event Seal(pkr: text, ske: text, info: text, aad: text, pt: text, seq: i64)
-event Open(skr: text, enc: text, info: text, aad: text, ct: text, seq: i64)
-event Dwl(sk: text, label: text, context: text, kem: text, ct: text)
-event Ewl(pk: text, ske: text, label: text, context: text, pt: text)
+event Open(skr: text, enc: text, info: text, aad: text, ctext: text, seq: i64)
+event Dwl(sk: text, lbl: text, context: text, kem: text, ctext: text)
+event Ewl(pk: text, ske: text, lbl: text, context: text, pt: text)
 
 state S
     out: List[text] = []
@@ -45,13 +45,13 @@ step S on Derive(ikm: i)
 step S on Seal(pkr: p, ske: e, info: i, aad: a, pt: t, seq: n)
     out.push(hpke_seal(p, e, i, a, t, n))
 
-step S on Open(skr: k, enc: e, info: i, aad: a, ct: c, seq: n)
+step S on Open(skr: k, enc: e, info: i, aad: a, ctext: c, seq: n)
     out.push(hpke_open(k, e, i, a, c, n))
 
-step S on Dwl(sk: k, label: l, context: c, kem: e, ct: t)
+step S on Dwl(sk: k, lbl: l, context: c, kem: e, ctext: t)
     out.push(decrypt_with_label(k, l, c, e, t))
 
-step S on Ewl(pk: p, ske: e, label: l, context: c, pt: t)
+step S on Ewl(pk: p, ske: e, lbl: l, context: c, pt: t)
     out.push(encrypt_with_label(p, e, l, c, t))
 "#;
 
@@ -90,21 +90,21 @@ fn official_rfc9180_and_mls_encrypt_with_label_vectors() {
         let g = |k: &str| e[k].as_str().unwrap().to_string();
         let got = step(format!(r#"Seal(pkr: "{}", ske: "{}", info: "{}", aad: "{}", pt: "{}", seq: {i})"#, s("pkRm"), s("skEm"), s("info"), g("aad"), g("pt")));
         assert_eq!(got, format!("{}.{}", s("enc"), g("ct")), "RFC 9180 seal, sequence {i}");
-        let pt = step(format!(r#"Open(skr: "{}", enc: "{}", info: "{}", aad: "{}", ct: "{}", seq: {i})"#, s("skRm"), s("enc"), s("info"), g("aad"), g("ct")));
+        let pt = step(format!(r#"Open(skr: "{}", enc: "{}", info: "{}", aad: "{}", ctext: "{}", seq: {i})"#, s("skRm"), s("enc"), s("info"), g("aad"), g("ct")));
         assert_eq!(pt, g("pt"), "RFC 9180 open, sequence {i}");
     }
     let ct0 = encs[0]["ct"].as_str().unwrap();
     let bad = format!("{}{:02x}", &ct0[..ct0.len() - 2], u8::from_str_radix(&ct0[ct0.len() - 2..], 16).unwrap() ^ 1);
-    let pt = step(format!(r#"Open(skr: "{}", enc: "{}", info: "{}", aad: "{}", ct: "{bad}", seq: 0)"#, s("skRm"), s("enc"), s("info"), encs[0]["aad"].as_str().unwrap()));
+    let pt = step(format!(r#"Open(skr: "{}", enc: "{}", info: "{}", aad: "{}", ctext: "{bad}", seq: 0)"#, s("skRm"), s("enc"), s("info"), encs[0]["aad"].as_str().unwrap()));
     assert_eq!(pt, "", "a tampered tag does not open");
     // RFC 9420 crypto-basics.json, suite 1, EncryptWithLabel
     let c = &vectors("mls/crypto-basics-suite1.json")[0]["encrypt_with_label"];
     let g = |k: &str| c[k].as_str().unwrap().to_string();
-    let pt = step(format!(r#"Dwl(sk: "{}", label: "{}", context: "{}", kem: "{}", ct: "{}")"#, g("priv"), g("label"), g("context"), g("kem_output"), g("ciphertext")));
+    let pt = step(format!(r#"Dwl(sk: "{}", lbl: "{}", context: "{}", kem: "{}", ctext: "{}")"#, g("priv"), g("label"), g("context"), g("kem_output"), g("ciphertext")));
     assert_eq!(pt, g("plaintext"), "crypto-basics DecryptWithLabel");
-    let sealed = step(format!(r#"Ewl(pk: "{}", ske: "{}", label: "{}", context: "{}", pt: "{}")"#, g("pub"), "77".repeat(32), g("label"), g("context"), g("plaintext")));
+    let sealed = step(format!(r#"Ewl(pk: "{}", ske: "{}", lbl: "{}", context: "{}", pt: "{}")"#, g("pub"), "77".repeat(32), g("label"), g("context"), g("plaintext")));
     let (kem, ct) = sealed.split_once('.').unwrap();
-    let pt = step(format!(r#"Dwl(sk: "{}", label: "{}", context: "{}", kem: "{kem}", ct: "{ct}")"#, g("priv"), g("label"), g("context")));
+    let pt = step(format!(r#"Dwl(sk: "{}", lbl: "{}", context: "{}", kem: "{kem}", ctext: "{ct}")"#, g("priv"), g("label"), g("context")));
     assert_eq!(pt, g("plaintext"), "EncryptWithLabel then DecryptWithLabel");
     let live = h.state_hash().to_string();
     drop(h);
@@ -131,7 +131,7 @@ fn all_257_rfc9180_encryptions() {
     for (i, e) in encs.iter().enumerate() {
         let g = |k: &str| e[k].as_str().unwrap().to_string();
         h.admit(&src, &format!(r#"Seal(pkr: "{}", ske: "{}", info: "{}", aad: "{}", pt: "{}", seq: {i})"#, s("pkRm"), s("skEm"), s("info"), g("aad"), g("pt"))).unwrap();
-        h.admit(&src, &format!(r#"Open(skr: "{}", enc: "{}", info: "{}", aad: "{}", ct: "{}", seq: {i})"#, s("skRm"), s("enc"), s("info"), g("aad"), g("ct"))).unwrap();
+        h.admit(&src, &format!(r#"Open(skr: "{}", enc: "{}", info: "{}", aad: "{}", ctext: "{}", seq: {i})"#, s("skRm"), s("enc"), s("info"), g("aad"), g("ct"))).unwrap();
         let st = format!("{:?}", h.state());
         let o: Vec<&str> = st.split("Text(\"").skip(1).map(|x| x.split('"').next().unwrap()).collect();
         assert_eq!(o[2 * i], format!("{}.{}", s("enc"), g("ct")), "seal, sequence {i}");

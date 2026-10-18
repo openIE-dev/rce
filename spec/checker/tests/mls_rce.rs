@@ -34,14 +34,14 @@ fn vectors(name: &str) -> Value {
 const APP: &str = r#"
 event Tree(n: i64, what: text)
 event Epoch(init: text, commit: text, psk: text, ctx: text)
-event Export(secret: text, label: text, context: text, n: u64)
+event Export(secret: text, lbl: text, context: text, n: u64)
 event ExtPub(secret: text)
-event Ewl(secret: text, label: text, context: text, n: u64)
-event Ds(secret: text, label: text)
-event Dts(secret: text, label: text, generation: i64, n: u64)
-event Ref(label: text, value: text)
-event Swl(seed: text, label: text, content: text)
-event Vwl(pk: text, label: text, content: text, sig: text)
+event Ewl(secret: text, lbl: text, context: text, n: u64)
+event Ds(secret: text, lbl: text)
+event Dts(secret: text, lbl: text, generation: i64, n: u64)
+event Ref(lbl: text, value: text)
+event Swl(seed: text, lbl: text, content: text)
+event Vwl(pk: text, lbl: text, content: text, sig: text)
 
 state G
     out: List[text] = []
@@ -66,28 +66,28 @@ step G on Tree(n: n, what: w)
 step G on Epoch(init: i, commit: c, psk: p, ctx: x)
     out.push(mls_epoch(i, c, p, x))
 
-step G on Export(secret: s, label: l, context: c, n: n)
+step G on Export(secret: s, lbl: l, context: c, n: n)
     out.push(mls_export(s, l, c, n as usize))
 
 step G on ExtPub(secret: s)
     out.push(mls_external_pub(s))
 
-step G on Ewl(secret: s, label: l, context: c, n: n)
+step G on Ewl(secret: s, lbl: l, context: c, n: n)
     out.push(tohex(expand_label(unhex(s), l, unhex(c), n as usize)))
 
-step G on Ds(secret: s, label: l)
+step G on Ds(secret: s, lbl: l)
     out.push(tohex(derive_secret(unhex(s), l)))
 
-step G on Dts(secret: s, label: l, generation: g, n: n)
+step G on Dts(secret: s, lbl: l, generation: g, n: n)
     out.push(derive_tree_secret(s, l, g, n as usize))
 
-step G on Ref(label: l, value: v)
+step G on Ref(lbl: l, value: v)
     out.push(ref_hash(l, v))
 
-step G on Swl(seed: k, label: l, content: c)
+step G on Swl(seed: k, lbl: l, content: c)
     out.push(sign_with_label(k, l, c))
 
-step G on Vwl(pk: p, label: l, content: c, sig: g)
+step G on Vwl(pk: p, lbl: l, content: c, sig: g)
     out.push(verify_with_label(p, l, c, g).tostr())
 "#;
 
@@ -156,7 +156,7 @@ fn official_tree_math_and_key_schedule_vectors() {
             }
         }
         let x = &e["exporter"];
-        let got = r.step(format!(r#"Export(secret: "{}", label: "{}", context: "{}", n: {})"#, s("exporter_secret"), x["label"].as_str().unwrap(), x["context"].as_str().unwrap(), x["length"]));
+        let got = r.step(format!(r#"Export(secret: "{}", lbl: "{}", context: "{}", n: {})"#, s("exporter_secret"), x["label"].as_str().unwrap(), x["context"].as_str().unwrap(), x["length"]));
         assert_eq!(got, x["secret"].as_str().unwrap(), "key-schedule epoch {epochs} exporter");
         assert_eq!(r.step(format!(r#"ExtPub(secret: "{}")"#, s("external_secret"))), s("external_pub"), "key-schedule epoch {epochs} external_pub");
         init = s("init_secret");
@@ -166,12 +166,12 @@ fn official_tree_math_and_key_schedule_vectors() {
     // crypto-basics.json, suite 1 (EncryptWithLabel is in tests/hpke_rce.rs)
     let cb = &vectors("crypto-basics-suite1.json")[0];
     let g = |a: &str, k: &str| cb[a][k].as_str().map(String::from).unwrap_or_else(|| cb[a][k].to_string());
-    assert_eq!(r.step(format!(r#"Ewl(secret: "{}", label: "{}", context: "{}", n: {})"#, g("expand_with_label", "secret"), g("expand_with_label", "label"), g("expand_with_label", "context"), g("expand_with_label", "length"))), g("expand_with_label", "out"), "crypto-basics expand_with_label");
-    assert_eq!(r.step(format!(r#"Ds(secret: "{}", label: "{}")"#, g("derive_secret", "secret"), g("derive_secret", "label"))), g("derive_secret", "out"), "crypto-basics derive_secret");
-    assert_eq!(r.step(format!(r#"Dts(secret: "{}", label: "{}", generation: {}, n: {})"#, g("derive_tree_secret", "secret"), g("derive_tree_secret", "label"), g("derive_tree_secret", "generation"), g("derive_tree_secret", "length"))), g("derive_tree_secret", "out"), "crypto-basics derive_tree_secret");
-    assert_eq!(r.step(format!(r#"Ref(label: "{}", value: "{}")"#, g("ref_hash", "label"), g("ref_hash", "value"))), g("ref_hash", "out"), "crypto-basics ref_hash");
-    assert_eq!(r.step(format!(r#"Swl(seed: "{}", label: "{}", content: "{}")"#, g("sign_with_label", "priv"), g("sign_with_label", "label"), g("sign_with_label", "content"))), g("sign_with_label", "signature"), "crypto-basics sign_with_label");
-    assert_eq!(r.step(format!(r#"Vwl(pk: "{}", label: "{}", content: "{}", sig: "{}")"#, g("sign_with_label", "pub"), g("sign_with_label", "label"), g("sign_with_label", "content"), g("sign_with_label", "signature"))), "true", "crypto-basics verify_with_label");
+    assert_eq!(r.step(format!(r#"Ewl(secret: "{}", lbl: "{}", context: "{}", n: {})"#, g("expand_with_label", "secret"), g("expand_with_label", "label"), g("expand_with_label", "context"), g("expand_with_label", "length"))), g("expand_with_label", "out"), "crypto-basics expand_with_label");
+    assert_eq!(r.step(format!(r#"Ds(secret: "{}", lbl: "{}")"#, g("derive_secret", "secret"), g("derive_secret", "label"))), g("derive_secret", "out"), "crypto-basics derive_secret");
+    assert_eq!(r.step(format!(r#"Dts(secret: "{}", lbl: "{}", generation: {}, n: {})"#, g("derive_tree_secret", "secret"), g("derive_tree_secret", "label"), g("derive_tree_secret", "generation"), g("derive_tree_secret", "length"))), g("derive_tree_secret", "out"), "crypto-basics derive_tree_secret");
+    assert_eq!(r.step(format!(r#"Ref(lbl: "{}", value: "{}")"#, g("ref_hash", "label"), g("ref_hash", "value"))), g("ref_hash", "out"), "crypto-basics ref_hash");
+    assert_eq!(r.step(format!(r#"Swl(seed: "{}", lbl: "{}", content: "{}")"#, g("sign_with_label", "priv"), g("sign_with_label", "label"), g("sign_with_label", "content"))), g("sign_with_label", "signature"), "crypto-basics sign_with_label");
+    assert_eq!(r.step(format!(r#"Vwl(pk: "{}", lbl: "{}", content: "{}", sig: "{}")"#, g("sign_with_label", "pub"), g("sign_with_label", "label"), g("sign_with_label", "content"), g("sign_with_label", "signature"))), "true", "crypto-basics verify_with_label");
     let live = r.h.state_hash().to_string();
     drop(r);
     let text: String = st.lines.iter().map(|l| format!("{l}\n")).collect();

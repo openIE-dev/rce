@@ -166,7 +166,7 @@ fn differential_runner_reports_match_and_first_divergence() {
 fn trace_text_escapes_match_the_hashed_writer() {
     let c = spec().join("examples/16_multi_region.rce");
     let src = std::fs::read_to_string(&c).unwrap();
-    let evs = "AddItem(name: \"a\u{8}b\u{c}c\")";
+    let evs = "AddItem(name: \"a\\u{8}b\\u{c}c\")";
     let t = trace(&c.to_string_lossy(), &src, Some(evs)).unwrap();
     assert!(t.contains("a\\u0008b\\u000cc"), "{t}");
     assert!(!t.contains("\\b") && !t.contains("\\f"), "{t}");

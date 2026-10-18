@@ -19,7 +19,7 @@ pub fn capped_sum(a: i64, b: i64) -> i64
 
 pub fn mean2(a: i64, b: i64) -> i64 = (a + b) / 2
 
-pub fn is_short(s: text) -> bool = s.len() < 4 or s == "long"
+pub fn is_short(s: text) -> bool = s.len_bytes() < 4 or s == "long"
 
 pub fn fact(n: i64) -> i64 bound 64 = if n <= 1 then 1 else n * fact(n - 1)
 
@@ -91,7 +91,7 @@ pub fn take_last(b: &mut List[i64]) -> i64
     if n == 0
         return -1
     let x = b[n - 1]
-    b.pop()
+    let _ = b.pop()
     return x
 
 pub fn le16(v: i64) -> List[i64]

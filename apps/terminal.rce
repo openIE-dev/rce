@@ -91,7 +91,7 @@ fn fit(row: text, n: u64) -> text
     return o
 
 fn num(p: text, dflt: u64) -> u64
-    if p == "" or not p.isdigit() or p.len() > 6
+    if p == "" or not p.isdigit() or p.len_bytes() > 6
         return dflt
     let v = p.toint() as u64
     if v == 0
@@ -177,10 +177,10 @@ step Term on Interrupt
         next += 1
         emit PtyWrite(req: next, id: id, data: "\u{3}")
 
-step Term on PtyResizeDone(req: r, status: s, data: d, err: e)
+step Term on PtyResizeDone(req: _r, status: _s, data: _d, err: _e)
     pass
 
-step Term on PtyOpenDone(req: r, status: s, data: d, err: e)
+step Term on PtyOpenDone(req: _r, status: s, data: d, err: e)
     if s == "delivered"
         id = d.or(0)
         opened = true
@@ -197,14 +197,14 @@ step Term on PtyOpenDone(req: r, status: s, data: d, err: e)
         emit Display(data: "terminal: " + e + "\n")
         emit Exit(code: 1)
 
-step Term on PtyWriteDone(req: r, status: s, data: d, err: e)
+step Term on PtyWriteDone(req: _r, status: _s, data: _d, err: _e)
     pass
 
-step Term on PtyReadDone(req: r, status: s, data: d, err: e)
+step Term on PtyReadDone(req: _r, status: s, data: d, err: _e)
     if s == "delivered"
         let out = d.or("")
-        if out.len() > 0
-            shown += out.len() as u64
+        if out.len_bytes() > 0
+            shown += out.len_bytes() as u64
             for c in copy(out).chars()
                 if c == "\n"
                     lines += 1
@@ -271,7 +271,7 @@ step Term on PtyReadDone(req: r, status: s, data: d, err: e)
                         sb[sb_tail] = rtrim(copy(screen[0]))
                         sb_tail += 1
                         if sb_tail - sb_head > SCROLLBACK
-                            sb.remove(sb_head)
+                            let _ = sb.remove(sb_head)
                             sb_head += 1
                         var ns: List[text] = []
                         for y in 1..rows
@@ -290,7 +290,7 @@ step Term on PtyReadDone(req: r, status: s, data: d, err: e)
         next += 1
         emit PtyClose(req: next, id: id)
 
-step Term on PtyCloseDone(req: r, status: s, data: d, err: e)
+step Term on PtyCloseDone(req: _r, status: _s, data: d, err: _e)
     emit Exit(code: d.or(0))
 
 # The visible screen, one Display per row (trailing blanks trimmed), then
