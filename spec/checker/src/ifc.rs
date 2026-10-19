@@ -37,6 +37,10 @@ struct L {
     conf: BTreeMap<String, String>,
     /// integrity: `Some(origin)` when the value is `untrusted`
     untrusted: Option<String>,
+    /// W-CTX-3: the untrusted part of the value is all inside `Prompt.encode`
+    /// blocks (sealed); an untrusted value that steered the text otherwise
+    /// (a branch, a join with plain data) is not sealed
+    sealed: bool,
 }
 
 impl L {
@@ -48,6 +52,8 @@ impl L {
         if r.untrusted.is_none() {
             r.untrusted = o.untrusted.clone();
         }
+        let su = |l: &L| l.untrusted.is_none() || l.sealed;
+        r.sealed = r.untrusted.is_some() && su(self) && su(o);
         r
     }
     fn public(&self) -> bool {
@@ -64,7 +70,7 @@ impl L {
         if v.is_empty() { "public".into() } else { format!("{{{}}}", v.join(", ")) }
     }
     fn key(&self) -> String {
-        format!("{:?}/{}", self.conf.keys().collect::<Vec<_>>(), self.untrusted.is_some())
+        format!("{:?}/{}/{}", self.conf.keys().collect::<Vec<_>>(), self.untrusted.is_some(), self.sealed)
     }
 }
 
@@ -155,6 +161,9 @@ struct A<'a> {
     /// the `extern "model"` functions (W-CTX-2: untrusted data reaches them only
     /// through a `&Text[Prompt]` parameter, that is through `Prompt.encode`)
     models: HashSet<String>,
+    /// W-CTX-3: set when the rest of the current function is control dependent
+    /// on untrusted data (an early exit taken under an untrusted condition)
+    exit_dep: Option<String>,
     /// constructor (struct, event, error, variant) -> (field name, declared label)
     ctors: HashMap<String, Vec<(String, Option<L>)>>,
     member: HashMap<String, L>,
@@ -312,6 +321,16 @@ impl<'a> A<'a> {
                 L::default()
             }
             Call(f, args, l, _) => self.call(f, args, *l),
+            Try(x, d, _) => {
+                let lx = self.expr(x);
+                if d.is_none() && self.exit_dep.is_none() {
+                    if let Some(o) = lx.untrusted.clone().or_else(|| self.ctx.untrusted.clone()) {
+                        self.exit_dep = Some(o);
+                    }
+                }
+                let ld = d.as_ref().map(|y| self.expr(y)).unwrap_or_default();
+                lx.join(&ld)
+            }
             other => {
                 let mut r = L::default();
                 for c in crate::v09::children(other) {
@@ -346,6 +365,9 @@ impl<'a> A<'a> {
                     self.err(line, "W-IFC-2", format!("the foreign call `{n}` is made in a control context labeled {c}: the call is observable"));
                 }
                 if self.models.contains(n) {
+                    if let Some(o) = self.ctx.untrusted.clone().or_else(|| self.exit_dep.clone()) {
+                        self.err(line, "W-CTX-3", format!("the model call `{n}` is control dependent on untrusted data (from {o}): whether and which request is made would be steered; `endorse` the deciding value first"));
+                    }
                     let ps: Vec<&Ty> = sig.params.iter().filter_map(|p| if let Param::Named { ty, .. } = p { Some(ty) } else { None }).collect();
                     for (i, l) in als.iter().enumerate() {
                         if let Some(o) = &l.untrusted
@@ -353,13 +375,18 @@ impl<'a> A<'a> {
                         {
                             let o = o.clone();
                             self.err(line, "W-CTX-2", format!("argument {} of the model call `{n}` is untrusted (from {o}): untrusted data reaches a model only inside a `Text[Prompt]`, through `Prompt.encode`", i + 1));
+                        } else if let Some(o) = &l.untrusted
+                            && !l.sealed
+                        {
+                            let o = o.clone();
+                            self.err(line, "W-CTX-3", format!("argument {} of the model call `{n}` was steered by untrusted data (from {o}) outside a `Prompt.encode` block", i + 1));
                         }
                     }
                 }
                 let origin = format!("foreign result of `{n}`");
                 return match sig.ret.as_ref().and_then(|t| label_of(t, &origin)) {
                     Some(Ok(l)) => l,
-                    _ => L { conf: BTreeMap::new(), untrusted: Some(origin) },
+                    _ => L { conf: BTreeMap::new(), untrusted: Some(origin), sealed: false },
                 };
             }
             if let Some(fd) = self.fns.get(n).copied() {
@@ -388,7 +415,22 @@ impl<'a> A<'a> {
         }
         let lf = self.expr(f);
         let als: Vec<L> = args.iter().map(|a| self.expr(&a.e)).collect();
-        let all = als.iter().fold(lf, |a, b| a.join(b));
+        let mut all = als.iter().fold(lf, |a, b| a.join(b));
+        // W-CTX-3: the data of `Prompt.encode(x)` sits in a delimited block
+        if let Expr::Member(o, m, _) = f
+            && m == "encode"
+            && matches!(&**o, Expr::Name(c, _) if c == "Prompt")
+        {
+            all.sealed = all.untrusted.is_some();
+        }
+        // F.5.7: `Header.encode` refuses CR and LF at run time (a trap)
+        if let Expr::Member(o, m, _) = f
+            && m == "encode"
+            && matches!(&**o, Expr::Name(c, _) if c == "Header")
+        {
+            let a = all.clone();
+            self.trap_site(line, "`Header.encode`", &[&a]);
+        }
         if let Expr::Member(obj, m, _) = f
             && MUTATORS.contains(&m.as_str())
             && let Expr::Name(v, _) = &**obj
@@ -401,6 +443,14 @@ impl<'a> A<'a> {
         all.join(&self.ctx.clone())
     }
     fn user_call(&mut self, fd: &'a FnDecl, als: &[L], line: usize) -> L {
+        // W-CTX-3: a call made after an untrusted early exit runs in that dependence
+        if let Some(o) = self.exit_dep.clone() {
+            let d = L { conf: BTreeMap::new(), untrusted: Some(o), sealed: false };
+            return self.with_ctx(&d, |s| s.user_call1(fd, als, line));
+        }
+        self.user_call1(fd, als, line)
+    }
+    fn user_call1(&mut self, fd: &'a FnDecl, als: &[L], line: usize) -> L {
         let named: Vec<(&String, &Ty)> = fd.sig.params.iter().filter_map(|p| if let Param::Named { name, ty, .. } = p { Some((name, ty)) } else { None }).collect();
         let mut arg_labels = vec![];
         for (i, (pn, pty)) in named.iter().enumerate() {
@@ -440,6 +490,7 @@ impl<'a> A<'a> {
         let saved = (std::mem::take(&mut self.scopes), self.caps.clone(), std::mem::take(&mut self.rets), self.fname.clone(), self.inst.clone());
         let public_roots = arg_labels.iter().all(|l| l.public() && l.untrusted.is_none()) && self.ctx.public() && self.ctx.untrusted.is_none();
         let saved_ct = self.in_ct;
+        let saved_dep = self.exit_dep.take();
         self.in_ct = self.ct.contains(&fd.sig.name);
         self.fname = fd.sig.name.clone();
         self.inst = if public_roots { String::new() } else { format!(" called with {}", if arg_labels.is_empty() { "a labeled context".into() } else { arg_labels.iter().map(L::show).collect::<Vec<_>>().join(", ") }) };
@@ -474,6 +525,7 @@ impl<'a> A<'a> {
         self.fname = saved.3;
         self.inst = saved.4;
         self.in_ct = saved_ct;
+        self.exit_dep = saved_dep;
         self.active.remove(&key);
         self.memo.insert(key, r.clone());
         r
@@ -547,6 +599,28 @@ impl<'a> A<'a> {
         }
     }
     fn stmt(&mut self, s: &Stmt) {
+        let looped = matches!(s, Stmt::While(..) | Stmt::Loop(..) | Stmt::For(..));
+        let before = self.exit_dep.is_none();
+        let n = self.errs.len();
+        self.stmt1(s);
+        // W-CTX-3: an exit under an untrusted condition inside a loop also
+        // decides the iterations before it; check the body again with the
+        // dependence known, keeping only the new W-CTX-3 findings
+        if looped && before && self.exit_dep.is_some() {
+            let first: HashSet<String> = self.errs[n..].iter().cloned().collect();
+            let m = self.errs.len();
+            self.stmt1(s);
+            let second = self.errs.split_off(m);
+            let mut add: Vec<String> = vec![];
+            for e in second {
+                if e.contains(" W-CTX-3 ") && !first.contains(&e) && !add.contains(&e) {
+                    add.push(e);
+                }
+            }
+            self.errs.extend(add);
+        }
+    }
+    fn stmt1(&mut self, s: &Stmt) {
         use Stmt::*;
         match s {
             Expr(e) | Check(e) | Spawn(e) | Yield(e, _) => {
@@ -570,6 +644,7 @@ impl<'a> A<'a> {
             Fail(e) => {
                 let l = self.expr(e);
                 let line = e.line();
+                self.note_exit();
                 if !self.ctx.public() {
                     let c = self.ctx.show();
                     self.err(line, "W-IFC-4", format!("`fail` in a control context labeled {c}: the refusal is observable"));
@@ -580,6 +655,7 @@ impl<'a> A<'a> {
                 }
             }
             Return(e, _) => {
+                self.note_exit();
                 let l = e.as_ref().map(|x| self.expr(x)).unwrap_or_default().join(&self.ctx.clone());
                 self.rets = self.rets.join(&l);
             }
@@ -603,7 +679,7 @@ impl<'a> A<'a> {
             Var(n, t, e, line) => {
                 let mut l = self.expr(e).join(&self.ctx.clone());
                 let mut annotated = false;
-                let mut place = L { conf: l.conf.clone(), untrusted: None };
+                let mut place = L { conf: l.conf.clone(), untrusted: None, sealed: false };
                 if let Some(Ok(d)) = t.as_ref().and_then(|t| label_of(t, n)) {
                     if !l.flows(&d) {
                         let (v, ds) = (l.show(), d.show());
@@ -729,7 +805,18 @@ impl<'a> A<'a> {
                 self.block(b);
             }
             Comptime(b) => self.block(b),
-            Break(_) | Continue(_) | Pass => {}
+            Break(_) | Continue(_) => self.note_exit(),
+            Pass => {}
+        }
+    }
+    /// W-CTX-3: an exit taken under an untrusted condition makes everything
+    /// after it in this function (and the rest of an enclosing loop) control
+    /// dependent on that data; recorded for the rest of the function run.
+    fn note_exit(&mut self) {
+        if self.exit_dep.is_none()
+            && let Some(o) = self.ctx.untrusted.clone()
+        {
+            self.exit_dep = Some(o);
         }
     }
     /// A step or handler body: the pattern binds payload fields with their labels.
@@ -750,7 +837,7 @@ impl<'a> A<'a> {
                     let origin = format!("event {}.{fname}", path.last().unwrap());
                     let l = match label_of(fty, &origin) {
                         Some(Ok(l)) => l,
-                        _ => L { conf: BTreeMap::new(), untrusted: Some(origin) },
+                        _ => L { conf: BTreeMap::new(), untrusted: Some(origin), sealed: false },
                     };
                     if let Some(c) = cap_of(fty) {
                         self.caps.insert(c);
@@ -941,6 +1028,7 @@ pub fn check(m: &Module) -> Vec<String> {
         variants,
         errs: vec![],
         memo: HashMap::new(),
+        exit_dep: None,
         active: HashSet::new(),
         scopes: vec![],
         ctx: L::default(),
