@@ -1,0 +1,10 @@
+# rce-version: 0.9
+# expect: W-CTX-2
+extern "model" fn infer(w: &World, prompt: &text) -> i64
+
+fn main(w: &World)
+    let p = "hello"
+    var r = 0
+    with budget 1000
+        r = infer(w, &p)
+    emit r

@@ -1,0 +1,13 @@
+# rce-version: 0.9
+# expect: W-CTX-2
+struct Vouch
+label untrusted by Vouch
+extern "model" fn infer(w: &World, prompt: &Text[Prompt], seed: i64) -> i64
+
+fn main(w: &World)
+    let n: i64 @ {untrusted} = 7
+    let p = Prompt.lit("hello")
+    var r = 0
+    with budget 1000
+        r = infer(w, &p, n)
+    emit r

@@ -1,0 +1,10 @@
+# rce-version: 0.9
+# expect: W-IFC-7
+struct Root
+
+state Policy
+    limit: Guarded[u32, Root] = 100
+
+extern "model" event ModelSetLimit(admin: Cap[Root], limit: u32)
+
+step Policy on ModelSetLimit(admin: _, limit: n) -> n

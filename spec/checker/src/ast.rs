@@ -271,6 +271,9 @@ pub enum Item {
         line: usize,
         /// `interrupt event ... priority p` (C.11.7)
         interrupt: Option<Expr>,
+        /// `extern "ABI" event ...` (F.5.6): the ABI of the foreign runtime
+        /// whose answers the host delivers on this event (W-IFC-7)
+        foreign: Option<String>,
     },
     Error {
         name: String,

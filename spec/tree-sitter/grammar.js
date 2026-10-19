@@ -62,7 +62,8 @@ module.exports = grammar({
 
     fn_sig: $ => seq(optional(alias('comptime', $.COMPTIME)), 'fn', $.NAME, optional($.generics), '(', optional($.params), ')', optional(seq('->', $._type)), optional(seq('bound', $.INT))),
     fn_decl: $ => seq(optional(choice(alias('ct', $.CT), alias('ghost', $.GHOST))), $.fn_sig, choice($.block, seq('=', $._expr, $._NL))),
-    extern_decl: $ => seq('extern', $.STRING, $.fn_sig, $._NL),
+    // F.5.6: `extern "model" event` declares the event that carries a model runtime's answers
+    extern_decl: $ => seq('extern', $.STRING, choice($.fn_sig, seq('event', $.NAME, optional($.payload))), $._NL),
     params: $ => list1($.param),
     param: $ => choice(seq(optional(alias('comptime', $.COMPTIME)), optional($.NAME), $.NAME, ':', $._type), $.self_param, $.ref_self_param, $.mut_self_param),
     self_param: $ => 'self',

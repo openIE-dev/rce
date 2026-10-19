@@ -56,7 +56,10 @@ adapter.
   send, a draw, a foreign call) has exactly one result event: delivered,
   failed, timed out or unreachable. A race inside the adapter (for
   example a file checked and then opened) is resolved by the adapter;
-  the program sees one atomic outcome.
+  the program sees one atomic outcome. The answer of a model runtime
+  (F.5.6) is delivered only on an event the program declares
+  `extern "model" event`, and the host fills no capability for it (HC-5);
+  a program that declares none receives no model text.
 - **HC-4 Foreign code.** Foreign code runs only through 5.11, with its
   arguments copied or borrowed for the call only, under fuel, and its
   result or trap logged as `Foreign(f, arguments, result)`. An isolated
@@ -714,4 +717,4 @@ Where RCE differs from these sources: GQL and Cypher queries are strings and the
 
 **Read receipt.** Which fcntl command is the append barrier on macOS? (for example F_SETFL)
 
-<!-- body-sha256: 52ca914e4ad21dce546e4215776e6d6f4f990d48a7d28911b3fea83b3ae9ca14 -->
+<!-- body-sha256: af42acba4808eee58f23829fc4016b031c93bd74808c6341bcd0aae014eac337 -->

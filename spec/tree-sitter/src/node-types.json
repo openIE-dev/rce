@@ -6099,11 +6099,19 @@
       "required": true,
       "types": [
         {
+          "type": "NAME",
+          "named": true
+        },
+        {
           "type": "STRING",
           "named": true
         },
         {
           "type": "fn_sig",
+          "named": true
+        },
+        {
+          "type": "payload",
           "named": true
         }
       ]

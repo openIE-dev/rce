@@ -1,5 +1,6 @@
 //! Version 0.9 Tier 2 static rules (Appendix F.5): S2 file-system capabilities
-//! (W-CAP-3, closures), S6 `model` foreign functions (W-BUD-1). Like `ifc`,
+//! (W-CAP-3, closures), S6 `model` foreign functions (W-BUD-1) and the model
+//! result boundary (W-IFC-7, `extern "model" event`, F.5.6). Like `ifc`,
 //! they run on the module as written and report findings that the checker
 //! emits; nothing here changes what a program means.
 use crate::ast::*;
@@ -192,6 +193,64 @@ pub fn s6(m: &Module) -> Vec<String> {
                 Body::Arrow(e) => calls(e, &models, false, &mut errs),
                 Body::Block(b) => walk(b, &models, false, &mut errs),
             }
+        }
+    }
+    errs
+}
+
+/// The labels written on the top of a type, when any: `T @ {A, B}`.
+fn written_labels(t: &Ty) -> Option<Vec<&str>> {
+    match t {
+        Ty::Region(_, s) => s.strip_prefix("@{").and_then(|x| x.strip_suffix('}')).map(|x| x.split(',').filter(|n| !n.is_empty()).collect()),
+        _ => None,
+    }
+}
+
+fn mentions_cap(t: &Ty) -> bool {
+    match t {
+        Ty::Path(p, a) => (p.len() == 1 && (p[0] == "Cap" || p[0] == "Guarded")) || a.iter().any(mentions_cap),
+        Ty::Tuple(a) => a.iter().any(mentions_cap),
+        Ty::Region(x, _) | Ty::Slice(x) | Ty::Chan(x) | Ty::Iter(x) | Ty::Ref(_, x) | Ty::Opt(x) | Ty::Array(x, _) => mentions_cap(x),
+        Ty::Union(a, b) => mentions_cap(a) || mentions_cap(b),
+        Ty::Fn(a, r) => a.iter().any(mentions_cap) || mentions_cap(r),
+        Ty::Unit => false,
+    }
+}
+
+/// F.5.6 W-IFC-7: what a model runtime answers is an input of no authority.
+/// A field of an `extern "model" event` and the result of an `extern "model"`
+/// function are `untrusted` (a label written on them names `untrusted`, so
+/// `@ {}` cannot endorse them by declaration), and such an event carries no
+/// `Cap` or `Guarded` value (authority is minted only by events the host
+/// delivers from a grant, HC-5). Only the `model` ABI declares an event.
+pub fn s8(m: &Module) -> Vec<String> {
+    let mut errs = vec![];
+    for it in &m.items {
+        match it {
+            Item::Event { name, payload, line, foreign: Some(abi), .. } => {
+                if abi != "model" {
+                    errs.push(err(*line, "W-FFI-1", format!("`extern \"{abi}\" event`: only a `model` runtime answers on a declared event (F.5.6)")));
+                    continue;
+                }
+                for (f, t) in payload {
+                    if mentions_cap(t) {
+                        errs.push(err(*line, "W-IFC-7", format!("field `{f}` of the model result event `{name}` holds a capability: a model answer carries no authority (HC-5)")));
+                    }
+                    if let Some(ls) = written_labels(t)
+                        && !ls.contains(&"untrusted")
+                    {
+                        errs.push(err(*line, "W-IFC-7", format!("field `{f}` of the model result event `{name}` is declared trusted: a model answer is `untrusted`; `endorse` it under a held capability")));
+                    }
+                }
+            }
+            Item::Extern { abi, sig, line } if abi == "model" => {
+                if let Some(ls) = sig.ret.as_ref().and_then(written_labels)
+                    && !ls.contains(&"untrusted")
+                {
+                    errs.push(err(*line, "W-IFC-7", format!("the result of the `model` foreign function `{}` is declared trusted: a model answer is `untrusted`; `endorse` it under a held capability", sig.name)));
+                }
+            }
+            _ => {}
         }
     }
     errs

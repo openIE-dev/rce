@@ -1,0 +1,11 @@
+# rce-version: 0.9
+# expect: W-IFC-7
+struct Vouch
+label untrusted by Vouch
+
+state Log
+    ok: bool @ {} = false
+
+extern "model" event Verdict(approve: bool @ {})
+
+step Log on Verdict(approve: a) -> a

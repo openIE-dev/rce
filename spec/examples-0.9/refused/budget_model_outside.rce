@@ -1,7 +1,7 @@
 # rce-version: 0.9
 # expect: W-BUD-1
-extern "model" fn infer(w: &World, prompt: &text) -> i64
+extern "model" fn infer(w: &World, prompt: &Text[Prompt]) -> i64
 
 fn main(w: &World)
-    let p = "hello"
+    let p = Prompt.lit("hello")
     emit infer(w, &p)

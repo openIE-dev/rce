@@ -1,4 +1,5 @@
-//! Information-flow labels (spec F.4.2, S1): W-IFC-1 to W-IFC-5.
+//! Information-flow labels (spec F.4.2, S1): W-IFC-1 to W-IFC-5, and the
+//! label half of W-CTX-2 (an untrusted argument of a model call, F.5.6).
 //!
 //! The analysis runs on the module as written (`parse_surface`), before the
 //! label syntax is erased, and needs no type information: a value carries the
@@ -97,6 +98,14 @@ fn label_of(t: &Ty, origin: &str) -> Option<Result<L, String>> {
     None
 }
 
+/// `&Text[Prompt]`, the one text parameter of a model function (W-CTX-2)
+fn is_prompt_ref(t: &Ty) -> bool {
+    match strip(t) {
+        Ty::Ref(false, x) => matches!(strip(x), Ty::Path(p, a) if p.len() == 1 && p[0] == "Text" && matches!(a.as_slice(), [Ty::Path(c, b)] if c.len() == 1 && c[0] == "Prompt" && b.is_empty())),
+        _ => false,
+    }
+}
+
 fn strip(t: &Ty) -> &Ty {
     match t {
         Ty::Region(x, s) if s.starts_with("@{") => x,
@@ -143,6 +152,9 @@ struct A<'a> {
     auth: HashMap<String, String>,
     fns: HashMap<String, &'a FnDecl>,
     externs: HashMap<String, &'a FnSig>,
+    /// the `extern "model"` functions (W-CTX-2: untrusted data reaches them only
+    /// through a `&Text[Prompt]` parameter, that is through `Prompt.encode`)
+    models: HashSet<String>,
     /// constructor (struct, event, error, variant) -> (field name, declared label)
     ctors: HashMap<String, Vec<(String, Option<L>)>>,
     member: HashMap<String, L>,
@@ -332,6 +344,17 @@ impl<'a> A<'a> {
                 if !self.ctx.public() {
                     let c = self.ctx.show();
                     self.err(line, "W-IFC-2", format!("the foreign call `{n}` is made in a control context labeled {c}: the call is observable"));
+                }
+                if self.models.contains(n) {
+                    let ps: Vec<&Ty> = sig.params.iter().filter_map(|p| if let Param::Named { ty, .. } = p { Some(ty) } else { None }).collect();
+                    for (i, l) in als.iter().enumerate() {
+                        if let Some(o) = &l.untrusted
+                            && !ps.get(i).is_some_and(|t| is_prompt_ref(t))
+                        {
+                            let o = o.clone();
+                            self.err(line, "W-CTX-2", format!("argument {} of the model call `{n}` is untrusted (from {o}): untrusted data reaches a model only inside a `Text[Prompt]`, through `Prompt.encode`", i + 1));
+                        }
+                    }
                 }
                 let origin = format!("foreign result of `{n}`");
                 return match sig.ret.as_ref().and_then(|t| label_of(t, &origin)) {
@@ -911,6 +934,7 @@ pub fn check(m: &Module) -> Vec<String> {
         auth,
         fns: fns.clone(),
         externs,
+        models: m.items.iter().filter_map(|i| if let Item::Extern { abi, sig, .. } = i && abi == "model" { Some(sig.name.clone()) } else { None }).collect(),
         ctors,
         member,
         state,

@@ -1435,8 +1435,38 @@
           "name": "STRING"
         },
         {
-          "type": "SYMBOL",
-          "name": "fn_sig"
+          "type": "CHOICE",
+          "members": [
+            {
+              "type": "SYMBOL",
+              "name": "fn_sig"
+            },
+            {
+              "type": "SEQ",
+              "members": [
+                {
+                  "type": "STRING",
+                  "value": "event"
+                },
+                {
+                  "type": "SYMBOL",
+                  "name": "NAME"
+                },
+                {
+                  "type": "CHOICE",
+                  "members": [
+                    {
+                      "type": "SYMBOL",
+                      "name": "payload"
+                    },
+                    {
+                      "type": "BLANK"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
         },
         {
           "type": "SYMBOL",

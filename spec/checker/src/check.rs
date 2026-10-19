@@ -1199,6 +1199,16 @@ impl Checker {
                         self.e(d(line, "W-FFI-1", "a foreign parameter cannot be comptime"));
                     }
                     let t = self.lower(ty, line);
+                    // F.5.2, E.9: a model runtime is a foreign sink whose context
+                    // is Prompt, so its text parameters are `&Text[Prompt]` and
+                    // only `&Text[Prompt]` (W-CTX-2)
+                    let prompt = matches!(&t, T::Ref(false, x) if matches!(&**x, T::Named(n, a) if n == "Text" && matches!(a.as_slice(), [T::Named(c, b)] if c == "Prompt" && b.is_empty())));
+                    if abi == "model" {
+                        if !(prompt || (scalar(&t) && !matches!(t, T::Unit))) {
+                            self.e(d(line, "W-CTX-2", format!("parameter type {t} of a `model` foreign function: text sent to a model runtime is `&Text[Prompt]`, built only by `Prompt.lit` and `Prompt.encode` (F.5.2); other parameters are bool, an integer or f64")));
+                        }
+                        continue;
+                    }
                     let ok = match &t {
                         t if scalar(t) && !matches!(t, T::Unit) => true,
                         T::Ref(false, x) => {

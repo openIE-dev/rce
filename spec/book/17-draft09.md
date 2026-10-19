@@ -367,7 +367,9 @@ contexts of 5.16 (`Html`, `Url`, `Sql`, `Json`) gain two more, `Shell` and
   delimiter chosen so that the field text cannot contain it (the delimiter is
   derived from the SHA-256 of the field, so it is deterministic). The type
   records that the data inside the block is untrusted; W-IFC-5 then refuses
-  to let a model's output decide a release.
+  to let a model's output decide a release. A model runtime is a foreign
+  sink of context `Prompt` (E.9), so its text parameters are
+  `&Text[Prompt]` (W-CTX-2, F.5.6).
 - Parsing input is strict and has one meaning: duplicate keys, trailing bytes
   and rebinding are refused (Json input); a missing field has no default; a
   value of a refined type is made only by its validating constructor
@@ -458,6 +460,57 @@ Derivation: totality (d): a call whose cost the program cannot bound must be
 bounded by the program's own budget. Theorem: T52 (stated, unproved).
 Implementation cost is the largest of the tier: every emitter must count at
 one granularity (10.5).
+
+**F.5.6 The model boundary (S3, S6).** A model runtime is foreign code (5.11,
+HC-4) whose input is a prompt and whose output is text an attacker may have
+steered. Both directions use mechanisms that already exist: the context
+`Prompt` of F.5.2 on the way in, the `untrusted` integrity tag of F.4.2 and
+the capabilities of 5.16 on the way out.
+
+- W-CTX-2: every text parameter of an `extern "model" fn` has the type
+  `&Text[Prompt]`; `&text`, `&[scalar]` and `&mut [scalar]` are refused there,
+  and the other parameters are `bool`, an integer or `f64` (5.11). A
+  `Text[Prompt]` is made only by `Prompt.lit` of a literal, `Prompt.encode`
+  and `+` of two of them (W-CTX-1), so the instruction text of every request
+  comes from the program and all data sits in encoded blocks. An argument
+  labeled `untrusted` (F.4.2) is refused unless it is passed as the
+  `&Text[Prompt]` parameter, so untrusted text reaches a model only inside a
+  block made by `Prompt.encode`. An untrusted value can still decide which of
+  the program's own literals is sent, or whether a call is made (an implicit
+  flow); W-CTX-2 does not refuse that, as W-IFC-1 does not refuse a branch on
+  an untrusted value. At run time a `Text[Prompt]` is its text, so the call
+  convention of 5.11 is unchanged.
+- `extern "model" event Name(fields)` declares the event on which the host
+  delivers a model runtime's answers (HC-3). It is an event in every other
+  respect (5.1, δ, examples, the Form); the declaration adds no keyword.
+- W-IFC-7: a field of an `extern "model" event` and the result of an
+  `extern "model" fn` are `untrusted`: a label set written on one must name
+  `untrusted`, so `T @ {}` cannot endorse a model answer by declaration. An
+  `extern "model" event` has no field whose type contains `Cap` or `Guarded`.
+  Only the ABI `model` declares an event (W-FFI-1).
+
+Consequences, with no further rule: a step on a model event holds no
+capability, so it cannot write `Guarded` state (W-CAP-2), cannot `endorse`
+(W-IFC-5) and cannot `release`; a release decided by a model answer, directly
+or after the answer was stored, is refused (W-IFC-5); the answer reaches a
+privileged decision only after a step on another event, which carries the
+capability, endorses it. Writes and outputs that the program did not declare
+privileged (unguarded state, unlabeled output) stay open to a model answer, as
+they are to every other event: privilege is what the program declares.
+
+Derivation: E.9 sends text to every foreign sink as `Text[C]`, and a model is
+the foreign sink whose context is `Prompt` (W-CTX-2). HC-10 makes a foreign
+result an input, and F.4.2 makes an input `untrusted`; W-IFC-7 removes the one
+declaration (`@ {}`) that would let a model answer skip that. HC-5 mints
+authority only from logged events of a grant, and a model is not a grant, so
+its event carries no `Cap`. Which event a host adapter fills is a host fact
+(E.1), and the checker sees only the program, so the mark is in the program
+and the host is bound to it by HC-3; neither half alone suffices, as for HC-5.
+Residual risk, stated: encoding delimits data, it cannot make a model ignore
+it, so prompt injection is defined (the program states which text is
+instruction and which is data) and the model's reaction stays untrusted. A
+host passes the scalar arguments of a model call as typed values, never
+spliced into the prompt text. Theorem: T44 for the request; no new theorem.
 
 ### F.6 Tier 3: independent language features
 
@@ -649,7 +702,12 @@ processes. The *lethal trifecta* is the combination, in one session, of
 - W-TRI-1 (static): a program that has `private` and `untrusted` inputs and an
   external sink with no `release` path that satisfies W-IFC-5 is refused; the
   rule is a consequence of W-IFC-1 and is stated so the broker and the
-  checker agree.
+  checker agree. The checker enforces it by W-IFC-1 (a labeled value reaching
+  an `emit`, a send, a foreign argument or a public store) and W-IFC-5 (a
+  `release` needs a held capability and a trusted deciding context), with no
+  separate check: a separate check would also refuse programs in which the
+  private value never reaches the sink, which W-IFC-1 admits. A model answer
+  is an `untrusted` input by W-IFC-7 (F.5.6).
 - No program observes timing or hidden tool state: `rce` tools never expose a
   clock or an address to a program, proof automation reports its cost and
   keeps budgets, and an automation that uses a solver records a certificate or
@@ -825,7 +883,12 @@ Implemented and tested (`spec/checker/src/v09.rs`, `apidiff.rs`; examples in
   the refined-type constructor `R.check` are not implemented. The templates
   `Prompt.t"..."` of F.6.1 are not implemented either (see below).
 - S6 `model` foreign functions (F.5.5): `extern "model" fn` declares one, and
-  W-BUD-1 refuses a call outside `with budget`. The budget counting is the
+  W-BUD-1 refuses a call outside `with budget`. The model boundary (F.5.6):
+  W-CTX-2 (the parameter types, in the checker; an untrusted argument outside
+  the `&Text[Prompt]` parameter, in the label analysis, so only in a module
+  that writes a label), `extern "model" event` and W-IFC-7 (`tier2.rs`).
+  W-TRI-1 is enforced by W-IFC-1 and W-IFC-5 (F.7.1). The host clause of
+  HC-3 for model answers has no adapter in the reference host yet. The budget counting is the
   one of C.5 and C.6, unchanged. No rule of Appendix F bounds allocation, so
   none is implemented; the arena capacity of 5.7 is the existing bound.
   Neither the emitters nor the Lean elaboration translate `narrow`, `Shell`,
@@ -992,7 +1055,7 @@ here; none of them is left refused for lack of attention.
 
 These productions extend section 3 and Appendix C.2 for the constructs of
 this appendix that the reference checker implements (the label sets, label
-declarations, `release` and `endorse` of F.4.2, `ct fn` of F.5.4, and the
+declarations, `release` and `endorse` of F.4.2, `ct fn` of F.5.4, `extern "model" event` of F.5.6, and the
 contract clauses, `ghost let` `ghost fn` and `decreases` of F.6.2 to F.6.4, `if let` of F.6.5, and the template renderers of F.6.1). A rule below with the name of
 an earlier rule replaces it; the others are new. The machine
 check of 3.12 builds the LALR(1) tables of section 3 with C.2 and then this
@@ -1011,6 +1074,7 @@ Item         = UseDecl | IntentDecl | ExampleDecl | CheckDecl
              | StateDecl | EventDecl | ErrorDecl | StepDecl | ImplDecl
              | ExternDecl | NodeDecl | SupervisorDecl | LabelDecl .
 LabelDecl    = "label" NAME [ "by" NAME ] NEWLINE .
+ExternDecl   = "extern" STRING ( FnSig | "event" NAME [ Payload ] ) NEWLINE .
 FnDecl       = [ "ct" | "ghost" ] FnSig ( Block | "=" Expr NEWLINE ) .
 Stmt         = SimpleStmt | LetStmt | VarStmt | IfStmt | WhileStmt | LoopStmt
              | ForStmt | MatchStmt | ReturnStmt | BreakStmt | ContinueStmt
@@ -1033,4 +1097,4 @@ UnaryExpr    = ( "-" | "~" | "&" [ "mut" ] | "<-" | "comptime" | "release" | "en
              | Postfix .
 ```
 
-<!-- body-sha256: 37bdec9ac86e931677b942295b5ade4aae71b9b53cf7660e947ccfedbcd73b58 -->
+<!-- body-sha256: 7f514db2b7f9cd555be7976217de0893673b4fe9df7830dbc9aaf0da35807800 -->

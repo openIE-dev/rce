@@ -595,9 +595,10 @@ fn item(o: &mut String, it: &Item) {
                 field(o, 1, f);
             }
         }
-        Item::Event { name, payload: p, interrupt, .. } => match interrupt {
-            Some(pr) => line(o, 0, &format!("interrupt event {name}{} priority {}", payload(p), expr(pr))),
-            None => line(o, 0, &format!("event {name}{}", payload(p))),
+        Item::Event { name, payload: p, interrupt, foreign, .. } => match (interrupt, foreign) {
+            (Some(pr), _) => line(o, 0, &format!("interrupt event {name}{} priority {}", payload(p), expr(pr))),
+            (None, Some(abi)) => line(o, 0, &format!("extern {} event {name}{}", text(abi), payload(p))),
+            (None, None) => line(o, 0, &format!("event {name}{}", payload(p))),
         },
         Item::Error { name, payload: p, .. } => line(o, 0, &format!("error {name}{}", payload(p))),
         Item::Kind { name, generics, variants, .. } => {

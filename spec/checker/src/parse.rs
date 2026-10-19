@@ -721,6 +721,7 @@ impl Parser {
                         payload,
                         line,
                         interrupt,
+                        foreign: None,
                     }
                 } else {
                     Item::Error {
@@ -832,6 +833,20 @@ impl Parser {
                     Tok::Str(s) => s,
                     _ => return self.err("extern needs an ABI string"),
                 };
+                // F.5.6: `extern "model" event Name(fields)` declares the event
+                // on which the host delivers that runtime's answers
+                if self.eat_kw("event") {
+                    let name = self.name()?;
+                    let payload = if self.is_p("(") { self.payload()? } else { vec![] };
+                    self.nl()?;
+                    return Ok(Item::Event {
+                        name,
+                        payload,
+                        line,
+                        interrupt: None,
+                        foreign: Some(abi),
+                    });
+                }
                 let sig = self.fn_sig()?;
                 self.nl()?;
                 Ok(Item::Extern { abi, sig, line })
@@ -2401,6 +2416,7 @@ fn parse_as(src: &str, erase: bool) -> Result<Module, String> {
     hy.extend(crate::ifc::check(&m));
     hy.extend(crate::tier2::s2(&m));
     hy.extend(crate::tier2::s6(&m));
+    hy.extend(crate::tier2::s8(&m));
     hy.extend(crate::tier3::check(&m));
     hy.extend(tpl_errs);
     hy.sort();
