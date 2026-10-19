@@ -3916,6 +3916,10 @@ impl Checker {
                 return out;
             }
             match (m.as_str(), args) {
+                ("lit", [a]) if c == "Header" && matches!(&a.e, Expr::Str(s, _) if s.contains('\r') || s.contains('\n')) => {
+                    self.e(d(l, "W-CTX-1", "`Header.lit` of a literal that contains CR or LF: a header value is one line (F.5.7)"));
+                    return out;
+                }
                 ("lit", [a]) if matches!(a.e, Expr::Str(..)) => return out,
                 ("lit", _) => {
                     self.e(d(l, "W-CTX-1", format!("`{c}.lit` takes one string literal: only program text is trusted (5.16)")));

@@ -172,10 +172,55 @@ fn ctx2_model_function_is_not_a_value_and_branches_keep_the_label() {
 }
 
 #[test]
-fn ctx2_implicit_flow_into_the_prompt_is_not_refused() {
-    // stated residual (F.5.6): an untrusted value may choose which program
-    // literal is sent, or whether the call is made; W-CTX-2 does not refuse it
+fn ctx3_model_call_control_dependent_on_untrusted_data_refused() {
     let decl = format!("{VOUCH}extern \"model\" fn infer(w: &World, prompt: &Text[Prompt]) -> i64\n");
-    admitted(&main_with(&decl, "    let c: bool @ {untrusted} = true\n    var p = Prompt.lit(\"A\")\n    if c\n        p = Prompt.lit(\"B\")\n    var r = 0\n    with budget 1000\n        r = infer(w, &p)\n    emit r\n"));
-    admitted(&main_with(&decl, "    let c: bool @ {untrusted} = true\n    let p = Prompt.lit(\"A\")\n    var r = 0\n    if c\n        with budget 1000\n            r = infer(w, &p)\n    emit r\n"));
+    let cases = [
+        // an untrusted branch chooses which literal is sent
+        "    let c: bool @ {untrusted} = true\n    var p = Prompt.lit(\"A\")\n    if c\n        p = Prompt.lit(\"B\")\n    var r = 0\n    with budget 1000\n        r = infer(w, &p)\n    emit r\n",
+        // an untrusted branch chooses which encoded block is sent
+        "    let c: bool @ {untrusted} = true\n    let a: text @ {untrusted} = \"x\"\n    var p = Prompt.encode(\"y\")\n    if c\n        p = Prompt.encode(a)\n    var r = 0\n    with budget 1000\n        r = infer(w, &p)\n    emit r\n",
+        // an untrusted branch decides whether the call is made
+        "    let c: bool @ {untrusted} = true\n    let p = Prompt.lit(\"A\")\n    var r = 0\n    if c\n        with budget 1000\n            r = infer(w, &p)\n    emit r\n",
+        // an early return under an untrusted condition
+        "    let c: bool @ {untrusted} = true\n    let p = Prompt.lit(\"A\")\n    var r = 0\n    if c\n        return\n    with budget 1000\n        r = infer(w, &p)\n    emit r\n",
+        // a break under an untrusted condition decides the earlier iterations too
+        "    let c: bool @ {untrusted} = true\n    let p = Prompt.lit(\"A\")\n    var r = 0\n    loop bound 3\n        with budget 1000\n            r = infer(w, &p)\n        if c\n            break\n    emit r\n",
+        // an untrusted `while` condition
+        "    let c: bool @ {untrusted} = true\n    let p = Prompt.lit(\"A\")\n    var r = 0\n    while c bound 3\n        with budget 1000\n            r = infer(w, &p)\n    emit r\n",
+    ];
+    for b in cases {
+        refused(&main_with(&decl, b), "W-CTX-3");
+    }
+}
+
+#[test]
+fn ctx3_encoded_untrusted_data_and_trusted_branches_admitted() {
+    let decl = format!("{VOUCH}extern \"model\" fn infer(w: &World, prompt: &Text[Prompt]) -> i64\n");
+    admitted(&main_with(&decl, "    let d: text @ {untrusted} = \"x\"\n    let p = Prompt.lit(\"S: \") + Prompt.encode(d) + Prompt.lit(\" end\")\n    var r = 0\n    with budget 1000\n        r = infer(w, &p)\n    emit r\n"));
+    admitted(&main_with(&decl, "    let c = true\n    var p = Prompt.lit(\"A\")\n    if c\n        p = Prompt.lit(\"B\")\n    var r = 0\n    with budget 1000\n        r = infer(w, &p)\n    emit r\n"));
+}
+
+#[test]
+fn header_context_refuses_cr_and_lf() {
+    for lit in ["a\\r\\nBcc: x", "a\\nb", "a\\rb"] {
+        refused(&format!("fn h() -> text = Header.lit(\"{lit}\").raw()\n"), "W-CTX-1");
+    }
+    admitted("fn h() -> text = Header.lit(\"X-Tag: one\").raw()\n");
+    // an event payload cannot carry header text (W-CTX-1), and plain text does not join it
+    refused("event E(h: Text[Header])\nstate S\n    n: u64 = 0\nstep S on E(h: _) -> n\n", "W-CTX-1");
+    refused("fn h(s: text) -> text = (Header.lit(\"Subject: \") + s).raw()\n", "W-");
+    // encode traps on CR or LF in the reference evaluator (and every emitter, tests/emit.rs)
+    let m = rce_spec_check::parse::parse("fn h() -> text = Header.encode(\"x\\r\\nBcc: y\").raw()\n").unwrap();
+    let o = rce_spec_check::emit::observe(&rce_spec_check::emit::with_probes(&m));
+    assert!(o.iter().any(|l| l.starts_with("fn h trap: Header.encode")), "{o:?}");
+}
+
+#[test]
+fn model_programs_are_emitted_on_every_target() {
+    for f in ["ok/09_model_budget.rce", "ok/17_model_boundary.rce"] {
+        let src = std::fs::read_to_string(format!("../examples-0.9/{f}")).unwrap();
+        for t in ["python", "js", "rust", "scala"] {
+            rce_spec_check::cli::emit(t, &src).unwrap_or_else(|e| panic!("{f} {t}: {e}"));
+        }
+    }
 }

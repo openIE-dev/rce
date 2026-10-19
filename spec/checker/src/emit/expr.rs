@@ -557,7 +557,7 @@ impl<'a> G<'a> {
         // 5.16 context text
         if let Expr::Member(o, m, _) = f
             && let Expr::Name(c, _) = &**o
-            && crate::index08::CTX.contains(&c.as_str())
+            && (crate::index08::CTX.contains(&c.as_str()) || c == "Prompt" || c == "Header")
             && !self.local(c)
             && !self.types.contains_key(c)
             && args.len() == 1

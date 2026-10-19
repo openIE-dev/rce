@@ -411,6 +411,16 @@ def cast(v: Any, T: Vector[Any]): Any = {
     case _ => v
   }
 }
+// F.5.2: SHA-256 derived delimiter, rehashed until the text does not contain it
+def prompt_encode(s: String): String = {
+  var h = java.security.MessageDigest.getInstance("SHA-256").digest(s.getBytes("UTF-8"))
+  while (true) {
+    val d = "data-" + h.map(b => f"${b & 0xff}%02x").mkString
+    if (!s.contains(d)) return "<<" + d + "\n" + s + "\n" + d + ">>"
+    h = java.security.MessageDigest.getInstance("SHA-256").digest(h)
+  }
+  ""
+}
 def ctx_lit(s: Any): Any = { charge(4); s }
 def ctx_encode(c: String, s0: Any): Any = {
   charge(BigInt(4) + size_of(s0))
@@ -419,6 +429,9 @@ def ctx_encode(c: String, s0: Any): Any = {
   if (c == "Url") return u8s(s).map { b0 => val b = b0 & 0xff
     if ((b >= 48 && b <= 57) || (b >= 65 && b <= 90) || (b >= 97 && b <= 122) || b == 45 || b == 46 || b == 95 || b == 126) b.toChar.toString else "%" + f"$b%02X" }.mkString
   if (c == "Sql") return "'" + s.replace("'", "''") + "'"
+  if (c == "ShellArg") return s
+  if (c == "Prompt") return prompt_encode(s)
+  if (c == "Header") { if (s.contains("\r") || s.contains("\n")) trap("Header.encode: a header value contains CR or LF (F.5.7)"); return s }
   val o = new StringBuilder("\"")
   s.codePoints().forEach { u =>
     if (u == '"') o ++= "\\\"" else if (u == '\\') o ++= "\\\\" else if (u == '\n') o ++= "\\n" else if (u == '\r') o ++= "\\r" else if (u == '\t') o ++= "\\t"

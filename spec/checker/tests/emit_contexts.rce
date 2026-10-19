@@ -1,0 +1,13 @@
+fn penc() -> text = Prompt.encode("hi").raw()
+
+fn pjoin() -> text = (Prompt.lit("Q: ") + Prompt.encode("a\nb")).raw()
+
+fn pempty() -> text = Prompt.encode("").raw()
+
+fn hok() -> text = Header.encode("Re: hi").raw()
+
+fn hlit() -> text = Header.lit("X-Tag: one").raw()
+
+fn hcr() -> text = Header.encode("x\r\nBcc: y").raw()
+
+fn hlf() -> text = Header.encode("x\nBcc: y").raw()

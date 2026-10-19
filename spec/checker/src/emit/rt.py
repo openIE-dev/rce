@@ -448,6 +448,13 @@ def cast(v, T):
     if t is Int and n is None: return F(float(v.v))
     return v
 
+def prompt_encode(s):
+    # F.5.2: SHA-256 derived delimiter, rehashed until the text does not contain it
+    h = hashlib.sha256(s.encode("utf-8")).digest()
+    while True:
+        d = "data-" + h.hex()
+        if d not in s: return "<<" + d + "\n" + s + "\n" + d + ">>"
+        h = hashlib.sha256(h).digest()
 def ctx_lit(s):
     charge(4)
     return s
@@ -457,6 +464,11 @@ def ctx_encode(c, s):
     if c == "Html": return "".join({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"}.get(ch, ch) for ch in s)
     if c == "Url": return "".join(chr(b) if (48 <= b <= 57 or 65 <= b <= 90 or 97 <= b <= 122 or b in (45, 46, 95, 126)) else "%%%02X" % b for b in s.encode("utf-8"))
     if c == "Sql": return "'" + s.replace("'", "''") + "'"
+    if c == "ShellArg": return s
+    if c == "Prompt": return prompt_encode(s)
+    if c == "Header":
+        if "\r" in s or "\n" in s: trap("Header.encode: a header value contains CR or LF (F.5.7)")
+        return s
     o = ['"']
     for ch in s:
         if ch == '"': o.append('\\"')

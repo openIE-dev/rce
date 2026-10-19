@@ -5343,7 +5343,7 @@ requires  ensures   decreases ghost     ct
 declassify endorse  release   label     law
 ```
 
-and the type names `World`, `Template`, `Shell`, `Prompt` and `mathint`, which
+and the type names `World`, `Template`, `Shell`, `Prompt`, `Header` and `mathint`, which
 no module may declare (W-NAME-2), as in 5.16. They are reserved in every module; a word whose construct
 this checker does not have is refused with W-RES-1 (F.12).
 
@@ -5780,12 +5780,22 @@ the capabilities of 5.16 on the way out.
   and `+` of two of them (W-CTX-1), so the instruction text of every request
   comes from the program and all data sits in encoded blocks. An argument
   labeled `untrusted` (F.4.2) is refused unless it is passed as the
-  `&Text[Prompt]` parameter, so untrusted text reaches a model only inside a
-  block made by `Prompt.encode`. An untrusted value can still decide which of
-  the program's own literals is sent, or whether a call is made (an implicit
-  flow); W-CTX-2 does not refuse that, as W-IFC-1 does not refuse a branch on
-  an untrusted value. At run time a `Text[Prompt]` is its text, so the call
-  convention of 5.11 is unchanged.
+  `&Text[Prompt]` parameter. At run time a `Text[Prompt]` is its text, so the
+  call convention of 5.11 is unchanged.
+- W-CTX-3: a model call is not control dependent on `untrusted` data, and no
+  argument was steered by it outside a `Prompt.encode` block. Refused: a call
+  in a control context labeled `untrusted` (an `if`, `match`, `while`, `for`
+  or `and`/`or` decided by such a value); a call after a `return`, `break`,
+  `continue`, `fail` or `?` taken under such a condition in the same function,
+  and, for a loop, every call in its body; a `Text[Prompt]` argument whose
+  `untrusted` part did not come only from `Prompt.encode` (for example one
+  chosen by an untrusted branch). With W-CTX-2, untrusted data reaches a model
+  only inside a block made by `Prompt.encode`: it decides neither which
+  instructions are sent nor whether a request is made, unless a step that holds
+  the capability of `label untrusted by A` endorses it first (W-IFC-5). Like
+  W-IFC-2 the rule is termination insensitive: a trap or exhausted fuel ends
+  the run, and the end is logged (C.5). It runs in the label analysis, so only
+  in a module that writes a label (F.12).
 - `extern "model" event Name(fields)` declares the event on which the host
   delivers a model runtime's answers (HC-3). It is an event in every other
   respect (5.1, δ, examples, the Form); the declaration adds no keyword.
@@ -5817,6 +5827,24 @@ it, so prompt injection is defined (the program states which text is
 instruction and which is data) and the model's reaction stays untrusted. A
 host passes the scalar arguments of a model call as typed values, never
 spliced into the prompt text. Theorem: T44 for the request; no new theorem.
+
+**F.5.7 Header text (S3).** A mail or HTTP header is a line protocol: a CR
+or LF inside a header value ends the header and starts another (CWE-93,
+CWE-113). The context `Header` gives header text the mechanism of F.5.2
+(`Text[Header]`, W-CTX-1, made only by `Header.lit` and `Header.encode` and
+`+` of two of them, never carried by an event payload).
+
+- `Header.lit` takes one string literal with no CR and no LF (W-CTX-1).
+- `Header.encode(t)` is `t` when it contains no CR and no LF, and traps
+  otherwise; a trap is the defined outcome (C.5), so a header value is always
+  one line. In a labeled control context the trap is observable and W-IFC-4
+  applies, as for every operation that can trap.
+
+Derivation: E.9 sends text to every foreign sink as `Text[C]`; a header is
+such a sink, and its one metacharacter is the line end. An encoding that
+rewrites CR or LF would change the value a reader sees, so the context refuses
+them instead. Folding, encoded words (RFC 2047) and header names are outside
+the context: the program writes the name as a literal.
 
 ### F.6 Tier 3: independent language features
 
@@ -6179,9 +6207,9 @@ Implemented and tested (`spec/checker/src/v09.rs`, `apidiff.rs`; examples in
   twice is a no-op, no un-revoke), with unit tests. The call `host.revoke(id)`
   needs the host log, which the reference checker does not have, so it is
   reserved, not implemented (W-RES-1).
-- S3 typed output (F.5.2): the contexts `ShellArg` and `Prompt` (with `lit` and
+- S3 typed output (F.5.2, F.5.7): the contexts `ShellArg`, `Prompt` and `Header` (with `lit` and
   `encode`; the `Prompt` delimiter is `data-` and the SHA-256 of the field,
-  re-hashed until the field does not contain it) and `Shell`, made only by
+  re-hashed until the field does not contain it; `Header` refuses CR and LF) and `Shell`, made only by
   `Shell.cmd(program, args)` with a literal program and `List[Text[ShellArg]]`
   arguments, whose value is the canonical JSON `{"args": [...], "program":
   ...}` (an argument vector, never a command line). `len_bytes` and `len_chars`
@@ -6192,14 +6220,19 @@ Implemented and tested (`spec/checker/src/v09.rs`, `apidiff.rs`; examples in
   W-BUD-1 refuses a call outside `with budget`. The model boundary (F.5.6):
   W-CTX-2 (the parameter types, in the checker; an untrusted argument outside
   the `&Text[Prompt]` parameter, in the label analysis, so only in a module
-  that writes a label), `extern "model" event` and W-IFC-7 (`tier2.rs`).
+  that writes a label), W-CTX-3 (label analysis, `ifc.rs`), `extern "model"
+  event` and W-IFC-7 (`tier2.rs`).
   W-TRI-1 is enforced by W-IFC-1 and W-IFC-5 (F.7.1). The host clause of
   HC-3 for model answers has no adapter in the reference host yet. The budget counting is the
   one of C.5 and C.6, unchanged. No rule of Appendix F bounds allocation, so
   none is implemented; the arena capacity of 5.7 is the existing bound.
-  Neither the emitters nor the Lean elaboration translate `narrow`, `Shell`,
-  `ShellArg`, `Prompt`, `len_bytes` or `len_chars`: they refuse a module that
-  uses one (W-RES-1).
+  The emitters translate `Prompt` and `Header` (`lit` is the literal, `encode`
+  the function above, `+` concatenation; every target agrees with the
+  reference evaluator, `tests/emit.rs`), so a program that calls a model is
+  emitted. Neither the emitters nor the Lean elaboration translate `narrow`,
+  `Shell`, `ShellArg`, `len_bytes` or `len_chars`, and the Lean elaboration
+  does not translate `Prompt` or `Header`: they refuse a module that uses one
+  (W-RES-1).
 
 - S4 `ct fn` (F.5.4): `ct` is a keyword (a stray use is
   W-NAME-2). W-CTFN-1 refuses, inside a `ct fn`, a `secret`-labeled value (F.4.2)

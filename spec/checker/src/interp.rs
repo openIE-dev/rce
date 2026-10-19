@@ -1513,6 +1513,7 @@ impl<'a> Interp<'a> {
             self.charge(crate::conc::C_CALL.saturating_add(w))?;
             return match (m.as_str(), v) {
                 ("lit", V::Text(s)) => Ok(V::Text(s)),
+                ("encode", V::Text(s)) if c == "Header" && (s.contains('\r') || s.contains('\n')) => trap("Header.encode: a header value contains CR or LF (F.5.7)"),
                 ("encode", V::Text(s)) => Ok(V::Text((crate::index08::encode(c, &s)).into())),
                 _ => trap("context text"),
             };

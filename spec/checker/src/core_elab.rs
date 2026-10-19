@@ -583,7 +583,7 @@ pub fn elaborate_events(m: &Module, src: &str, events: &str, fuel: u64)
 
 /// Elaborate `m` with run budget `fuel`.
 pub fn elaborate(m: &Module, fuel: u64) -> Result<Value, String> {
-    if let Some(e) = crate::v09::unemittable(m) {
+    if let Some(e) = crate::v09::unemittable_for(m, true) {
         return Err(e);
     }
     let mut sigs = vec![];

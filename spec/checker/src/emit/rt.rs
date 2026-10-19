@@ -76,6 +76,20 @@ pub enum T { Int(&'static str), F64, F32, Opt(Box<T>), List(Box<T>), Map(Box<T>,
 pub enum RTm { S, N, L(i128) }
 #[derive(Clone)]
 pub enum RP { C(&'static str, RTm, RTm), K(&'static str), A(Box<RP>, Box<RP>), O(Box<RP>, Box<RP>), Z(Box<RP>) }
+/// F.5.2 `Prompt.encode`: the data in a block whose delimiter is derived from
+/// the SHA-256 of the text (rehashed until the text does not contain it), as
+/// `index08::prompt_encode`.
+pub fn prompt_encode(s: &str) -> String {
+    let mut h = sha256_hex(s.as_bytes());
+    loop {
+        let d = format!("data-{h}");
+        if !s.contains(&d) {
+            return format!("<<{d}\n{s}\n{d}>>");
+        }
+        let raw: Vec<u8> = (0..32).map(|i| u8::from_str_radix(&h[2 * i..2 * i + 2], 16).unwrap()).collect();
+        h = sha256_hex(&raw);
+    }
+}
 /// Context encoders (spec 5.16).
 pub fn ctx_lit(v: V) -> R<V> { charge(4)?; Ok(v) }
 pub fn ctx_encode(c: &str, v: V) -> R<V> {
@@ -86,6 +100,9 @@ pub fn ctx_encode(c: &str, v: V) -> R<V> {
         "Html" => for ch in s.chars() { match ch { '&' => o.push_str("&amp;"), '<' => o.push_str("&lt;"), '>' => o.push_str("&gt;"), '"' => o.push_str("&quot;"), '\'' => o.push_str("&#39;"), ch => o.push(ch) } },
         "Url" => for b in s.bytes() { if b.is_ascii_alphanumeric() || matches!(b, b'-' | b'.' | b'_' | b'~') { o.push(b as char) } else { o.push_str(&format!("%{b:02X}")) } },
         "Sql" => { o.push('\''); o.push_str(&s.replace('\'', "''")); o.push('\''); }
+        "ShellArg" => o.push_str(&s),
+        "Prompt" => o.push_str(&prompt_encode(&s)),
+        "Header" => { if s.contains('\r') || s.contains('\n') { return trap("Header.encode: a header value contains CR or LF (F.5.7)") } o.push_str(&s) }
         _ => { o.push('"'); for ch in s.chars() { match ch { '"' => o.push_str("\\\""), '\\' => o.push_str("\\\\"), '\n' => o.push_str("\\n"), '\r' => o.push_str("\\r"), '\t' => o.push_str("\\t"), ch if (ch as u32) < 0x20 => o.push_str(&format!("\\u{:04x}", ch as u32)), ch => o.push(ch) } } o.push('"'); }
     }
     Ok(V::Text(o))

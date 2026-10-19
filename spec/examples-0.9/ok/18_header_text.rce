@@ -1,0 +1,5 @@
+# rce-version: 0.9
+# F.5.7: a header value is one line; Header.encode traps on CR or LF
+fn subject(s: text) -> text = (Header.lit("Subject: ") + Header.encode(s)).raw()
+
+check subject("hi") == "Subject: hi"

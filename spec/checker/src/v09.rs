@@ -1658,6 +1658,12 @@ pub(crate) fn fn_decls(m: &Module) -> Vec<(&FnDecl, bool)> {
 /// translate: the reference evaluator runs it, every other target refuses it
 /// as not implemented (never a different meaning). `None` when the module has none.
 pub fn unemittable(m: &Module) -> Option<String> {
+    unemittable_for(m, false)
+}
+
+/// As `unemittable`; with `lean`, also the contexts the Lean elaboration does
+/// not translate (`Prompt`, `Header`; the emitters translate them, F.12).
+pub fn unemittable_for(m: &Module, lean: bool) -> Option<String> {
     if !m.x09.ct.is_empty() {
         return Some(format!("W-CTFN-2 ct fn is not emitted for this target (`{}`): 10.5 states no constant-time guarantee for any target", m.x09.ct.iter().next().unwrap()));
     }
@@ -1672,7 +1678,8 @@ pub fn unemittable(m: &Module) -> Option<String> {
                     Expr::Name(n, _) if n.starts_with("@contract") => Some("a contract clause"),
                     _ => None,
                 },
-                Expr::Member(o, c, _) if (c == "encode" || c == "lit") && matches!(&**o, Expr::Name(n, _) if n == "ShellArg" || n == "Prompt") => Some("ShellArg/Prompt text"),
+                Expr::Member(o, c, _) if (c == "encode" || c == "lit") && matches!(&**o, Expr::Name(n, _) if n == "ShellArg") => Some("ShellArg text"),
+                Expr::Member(o, c, _) if lean && (c == "encode" || c == "lit") && matches!(&**o, Expr::Name(n, _) if n == "Prompt" || n == "Header") => Some("Prompt/Header text"),
                 _ => None,
             };
             if let Some(w) = what && found.is_none() {
@@ -1798,10 +1805,11 @@ pub const IMPLEMENTED: &[(&str, &str)] = &[
     ("W-CAP-1 (closures)", "a closure capturing &World or a capability, by declared type (labeled data is W-IFC-1)"),
     ("W-CAP-4 and W-CAP-5 (model)", "caretaker log fold: refusal record, idempotent revoke, no un-revoke (caretaker.rs); `host.revoke` itself is reserved, not implemented"),
     ("W-LEN-1", "`len` on text in a 0.9 module; `len_bytes` and `len_chars` name the unit"),
-    ("S3 contexts", "ShellArg, Prompt and Shell.cmd as typed output"),
+    ("S3 contexts", "ShellArg, Prompt, Header (CR and LF refused, F.5.7) and Shell.cmd as typed output"),
     ("W-BUD-1 (model)", "a call to an `extern \"model\"` function outside `with budget`"),
     ("W-CTX-2", "a text parameter of an `extern \"model\"` function that is not `&Text[Prompt]`; an untrusted argument of a model call outside that parameter (label analysis, F.5.6)"),
     ("W-IFC-7", "a field of an `extern \"model\" event`, or a model function result, declared without `untrusted`; a `Cap` or `Guarded` field on such an event; `extern` events of another ABI (F.5.6)"),
+    ("W-CTX-3", "a model call control dependent on untrusted data (branch, loop, early exit) or with a Text[Prompt] argument steered outside Prompt.encode (label analysis, F.5.6)"),
     ("W-TRI-1", "by W-IFC-1 and W-IFC-5, with no separate check (F.7.1)"),
     ("W-CTFN-1", "a secret-labeled value deciding control flow, an index, a shift amount, a divisor or a non-ct call argument inside a ct fn"),
     ("W-CTFN-2", "emitters and the Lean elaboration refuse a module with a ct fn"),

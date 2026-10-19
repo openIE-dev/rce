@@ -367,6 +367,17 @@ function cast(v, T) {
   if (v instanceof Int && n === null) return new F(Number(v.v));
   return v;
 }
+// F.5.2: SHA-256 derived delimiter, rehashed until the text does not contain it
+function promptEncode(s) {
+  let h = sha256hex(enc.encode(s));
+  for (;;) {
+    const d = "data-" + h;
+    if (!s.includes(d)) return "<<" + d + "\n" + s + "\n" + d + ">>";
+    const raw = new Uint8Array(32);
+    for (let i = 0; i < 32; i++) raw[i] = parseInt(h.slice(2 * i, 2 * i + 2), 16);
+    h = sha256hex(raw);
+  }
+}
 function ctxLit(s) { charge(4n); return s; }
 function ctxEncode(c, s) {
   charge(4n + sizeOf(s));
@@ -374,6 +385,9 @@ function ctxEncode(c, s) {
   if (c === "Html") return Array.from(s).map((ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[ch] ?? ch).join("");
   if (c === "Url") return Array.from(enc.encode(s)).map((b) => ((b >= 48 && b <= 57) || (b >= 65 && b <= 90) || (b >= 97 && b <= 122) || b === 45 || b === 46 || b === 95 || b === 126) ? String.fromCharCode(b) : "%" + b.toString(16).toUpperCase().padStart(2, "0")).join("");
   if (c === "Sql") return "'" + s.split("'").join("''") + "'";
+  if (c === "ShellArg") return s;
+  if (c === "Prompt") return promptEncode(s);
+  if (c === "Header") { if (s.includes("\r") || s.includes("\n")) trap("Header.encode: a header value contains CR or LF (F.5.7)"); return s; }
   let o = '"';
   for (const ch of s) {
     const u = ch.codePointAt(0);

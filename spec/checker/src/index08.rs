@@ -11,7 +11,7 @@ use std::collections::{HashMap, HashSet};
 pub const CTX: &[&str] = &["Html", "Url", "Sql", "Json"];
 /// The contexts a version 0.9 module adds (F.5.2). `ShellArg` and `Prompt`
 /// have `lit` and `encode`; `Shell` is made only by `Shell.cmd`.
-pub const CTX09: &[&str] = &["ShellArg", "Prompt", "Shell"];
+pub const CTX09: &[&str] = &["ShellArg", "Prompt", "Shell", "Header"];
 
 /// Whether `c` names a context in a module of the given version.
 pub fn is_ctx(c: &str) -> bool {
@@ -58,6 +58,8 @@ pub fn encode(ctx: &str, s: &str) -> String {
     match ctx {
         "ShellArg" => s.to_string(),
         "Prompt" => prompt_encode(s),
+        // F.5.7: a header value is its text; CR and LF are refused (a trap) by the caller
+        "Header" => s.to_string(),
         "Html" => {
             let mut o = String::new();
             for c in s.chars() {

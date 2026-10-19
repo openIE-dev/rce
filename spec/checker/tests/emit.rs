@@ -271,3 +271,33 @@ fn edge_program_agrees_on_every_available_target() {
     eprintln!("edge program: {ran} of 4 targets ran and agreed");
 
 }
+
+/// F.5.2 and F.5.7 context text on every target: `Prompt.encode` is the
+/// SHA-256 delimiter block of `index08::prompt_encode`, `+` concatenates, and
+/// `Header.encode` traps on CR or LF; each emitted program agrees with the
+/// reference evaluator line for line.
+#[test]
+fn prompt_and_header_contexts_agree_on_every_available_target() {
+    let src = std::fs::read_to_string("tests/emit_contexts.rce").unwrap();
+    assert_eq!(rce_spec_check::check_one(&src), Ok(()));
+    let m = with_probes(&parse(&src).unwrap());
+    let want = observe(&m);
+    let enc = rce_spec_check::index08::prompt_encode("hi");
+    assert!(want.iter().any(|l| *l == format!("fn penc = {:?}", enc)) || want.iter().any(|l| l.starts_with("fn penc = ") && l.contains("data-")), "{want:?}");
+    assert!(want.iter().any(|l| l.starts_with("fn hcr trap")), "{want:?}");
+    assert!(want.iter().any(|l| l.starts_with("fn hlf trap")), "{want:?}");
+    let mut ran = 0;
+    for lang in [Lang::Rust, Lang::Python, Lang::Js, Lang::Scala] {
+        let t = tool(lang);
+        if have(&t, "--version").is_none() {
+            eprintln!("SKIPPED {lang:?} on the context program: {t} not found (not a pass)");
+            continue;
+        }
+        let dir = scratch(lang);
+        let got = run(lang, &dir, "contexts", &emit(&m, lang).unwrap()).unwrap();
+        let _ = std::fs::remove_dir_all(&dir);
+        assert_eq!(got.lines().collect::<Vec<_>>(), want, "{lang:?}");
+        ran += 1;
+    }
+    eprintln!("context program: {ran} of 4 targets ran and agreed");
+}
