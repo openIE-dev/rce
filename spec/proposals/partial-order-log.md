@@ -37,7 +37,7 @@ An entry of D (6.1) becomes
 
 `prev_hash` and `state_hash` leave the entry. A **cut entry**
 `{cut, upto, state_hash, hash}` is appended at every point where the
-total order is fixed by the semantics: the close of a window (HC-15
+total order is fixed by the semantics: the close of a window (HC-17
 `host.Window`), a `Tick`, the end of an example, a `RESOLVE` (D.3), a
 `Restart` (C.11.11), and before any entry whose event is not monotone
 (below). Its `deps` is the whole frontier; its `state_hash` is the SHA-256

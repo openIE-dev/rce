@@ -66,11 +66,11 @@ Classical.choice). Status per theorem:
 | T55 | stated, unproved (Appendix F.9; F.12 lists what is implemented): Broker invariant: by induction on grant events, no session holds all three trifecta properties without an explicit grant event (F.7) | none |
 | T56 | stated, unproved (Appendix F.9; F.12 lists what is implemented): Relaxed sequential borrows: the limited relaxation of 5.6 studied from group borrowing (a reference is invalidated only below steps that are not independent of it) preserves T6; the lemma is not proved and the relaxation is not adopted (5.6) | none |
 | T15 | proved for iterators whose step between yields is total (T2): every run ends, delivers at most LOOP_LIMIT values and traps only after exactly LOOP_LIMIT; `break` yields a prefix of the full run; a run with a smaller cap is a prefix of one with a larger cap (the evaluator's re-run strategy) | `drive_total`, `drive_break`, `gen_prefix` |
-| T57 | proved on the Form core (`RCE/Behaviour.lean`, not yet in `lake build`): one-step unfolding of the behaviour of 6.10; uniqueness of the morphism (Rutten 2000) stated, unproved | `beh_cons` |
-| T58 | proved on the Form core (`RCE/Behaviour.lean`, not yet in `lake build`): a bisimulation forces equal behaviours, and behavioural equality is a bisimulation | `bisim_beh`, `beh_bisim` |
+| T57 | stated, unproved: a Lean script (`RCE/Behaviour.lean`, `beh_cons`) is written for the one-step unfolding of the behaviour of 6.10 but is not in `lake build` and has not been checked; uniqueness of the morphism (Rutten 2000) has no script | none |
+| T58 | stated, unproved: a Lean script (`RCE/Behaviour.lean`, `bisim_beh`, `beh_bisim`, `behEq_iff_bisim`) is written for one program but is not in `lake build` and has not been checked; the two-program form has no script | none |
 | T59 | drafted in Lean over an explicit finite alphabet (`RCE/Behaviour.lean`: `words`, `AgreeAt`, `firstDiff`, `trace_ball`), the declared events over the boundary sets that `rce dim` explores; the proof script has not been checked by the toolchain yet, so the status is *stated* until `lake build` passes with the file in the library | `trace_ball` (unchecked) |
 | T60 | stated, unproved (a model proof by partition refinement is the next step): for finite S the quotient of reach(P) by the largest bisimulation is the minimal machine, with dim(P) states, unique up to isomorphism, and the canonical numbering of 6.10 makes its isomorphism class one string | none |
-| T61 | tested against the admitted e-graph rewrites until the symbolic quotient is in the checker: `shape_ctl` is invariant under renaming, under predicate-equivalent rewrites of guards and under every rewrite admitted into the e-graph | none |
+| T61 | tested for renaming only (`tests/dim.rs`, `shape_ctl_is_name_free`, against `rce fmt --nameless`); invariance under predicate-equivalent rewrites of guards is stated, unproved; the symbolic quotient of 6.10 is not implemented | none |
 
 T16 to T31 belong to the concurrency part (Appendix C) and are listed with their exact status
 in Appendix C.13. Most are proofs about abstract models (T18, T19b, T21,
@@ -167,11 +167,12 @@ beh_P(s)(e · w) = λ(s, e) · beh_P(δ₁(s, e))(w), and it is the unique such
 map S → Beh.
 
 **T58 Equivalence is bisimilarity.** beh_P(s) = beh_P(t) if and only if
-there is a bisimulation R with s R t; for two programs, likewise on
-S_F × S_G.
+there is a bisimulation R with s R t. The two-program form, on S_F × S_G,
+is stated, unproved.
 
 **T59 Trace evidence is a ball.** If beh_F(s₀)(w) = beh_G(s₀)(w) for every
-w with |w| ≤ k, then d(beh_F, beh_G) ≤ 2^-(k+1), and conversely.
+w with |w| ≤ k, then d(beh_F, beh_G) ≤ 2^-(k+1). The converse is stated,
+unproved.
 
 **T60 Minimal machine.** For finite S, the quotient of reach(P) by the
 largest bisimulation is a Mealy machine with the behaviour beh_P(s₀) and
@@ -180,10 +181,9 @@ states, with equality only up to isomorphism; the canonical numbering of
 6.10 makes the isomorphism class one string.
 
 **T61 Control canonicity.** `shape_ctl` (6.10) is invariant under renaming
-(T7), under any rewrite of a guard to a predicate-equivalent guard, and
-under every rewrite admitted into the e-graph (so `shape_eq` refines
-`shape_ctl`); it is not invariant under a change of a data update that
-changes a later guard outcome.
+(T7) and under any rewrite of a guard to a predicate-equivalent guard; it
+is not invariant under a change of a data update that changes a later
+guard outcome.
 
 **T32 Foreign replay.** For every oracle o answering foreign calls and
 `select nondet` choices (5.11, C.5), replaying the log of a live run
@@ -246,7 +246,7 @@ or the named core), model (Lean, on an abstract model), checked (a
 machine check that is exhaustive for its input, such as LALR(1)),
 tested (sampled differential or property tests), in that order, with *stated, unproved* below them for a theorem whose
 statement is written but which has no Lean statement, no test and no checker
-rule yet (T42 to T56, Appendix F.9); such a row is an obligation and never a
+rule yet (T42 to T56, Appendix F.9; T57 to T61, 6.10); such a row is an obligation and never a
 claim. A
 counterexample is a failure, never a lower level, and a claim about
 several parts has the lowest level among them. Every Lean name in the
@@ -254,4 +254,4 @@ tables is checked to exist (`spec/checker/tests/theorem_index.rs`).
 
 **Read receipt.** What is the deep embedding of the emitted Rust subset called?
 
-<!-- body-sha256: 08fc8ebf5487f63ece4137f7a469b0005b07aa5ad308e652d9a404ffbd5b5258 -->
+<!-- body-sha256: 77ee489c21e7db8424779aae332d48621733018f84200d669ee193ca31ff78de -->

@@ -26,6 +26,11 @@ const BUILTIN_TYPES: &[&str] = &[
     "bool", "text", "i8", "i16", "i32", "i64", "u8", "u16", "u32", "u64", "usize", "f32", "f64",
     "List", "Map", "Set", "Box", "Option", "Secret", "Cap", "Guarded", "Text", "World", "Template",
     "Shell", "Prompt", "Header", "mathint", "Tick", "self", "some", "none", "true", "false",
+    // semantic names: the entry point, the built-in traits and their methods
+    "main", "Eq", "Ord", "Hash", "Show", "Copy", "Data", "Merge", "eq", "cmp", "hash", "show", "merge",
+    "Start", "Input", "Display", "Exit", "Synced", "Backpressure", "Deadlock",
+    // per-program constants the checker reads by name (6.7, C.11.11)
+    "LOOP_LIMIT", "RESTART_WINDOW", "TICK_NS",
 ];
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -58,6 +63,11 @@ fn renames(src: &str) -> Result<BTreeMap<String, String>, String> {
     let mut declared: Vec<(String, Kind)> = vec![];
     let mut seen: HashSet<String> = HashSet::new();
     let mut declare = |n: &str, k: Kind| {
+        // `_` is the wildcard and a `_` prefix means "deliberately unused"
+        // (F.3.2, W-UNUSED-1): both carry meaning and are kept as written.
+        if n == "_" {
+            return;
+        }
         if !reserved.contains(n) && !seen.contains(n) {
             seen.insert(n.to_string());
             declared.push((n.to_string(), k));
@@ -107,8 +117,8 @@ fn renames(src: &str) -> Result<BTreeMap<String, String>, String> {
                 } else if matches!(prev, Some(Tok::P(":"))) && matches!(next, Some(Tok::P(")")) | Some(Tok::P(","))) && !reserved.contains(n.as_str()) {
                     // the binding side of a payload pattern: `Deposit(amount: a)`
                     // (a type in this position would be a declared type or built-in)
-                    if !seen.contains(n) && !declared.iter().any(|(d, _)| d == n) && n.chars().next().is_some_and(|c| c.is_ascii_lowercase()) {
-                        declare(n, Kind::Value);
+                    if n.chars().next().is_some_and(|c| c.is_ascii_lowercase()) {
+                        declare(n, Kind::Value); // idempotent: `declare` skips names already seen
                     }
                 }
             }
@@ -117,14 +127,22 @@ fn renames(src: &str) -> Result<BTreeMap<String, String>, String> {
     }
     let mut counters: BTreeMap<Kind, usize> = BTreeMap::new();
     let mut map = BTreeMap::new();
-    let all_ids: HashSet<String> = toks.iter().filter_map(|t| if let Tok::Id(s) = t { Some(s.clone()) } else { None }).collect();
-    for (n, k) in declared {
+    // Identifiers the source uses and this projection does not rename (keywords,
+    // built-ins, library names): a positional name must not collide with one.
+    // A declared name is never a collision, which is what makes the projection
+    // idempotent: `e0` in the input is renamed to `e0` again.
+    let declared_set: HashSet<&str> = declared.iter().map(|(n, _)| n.as_str()).collect();
+    let fixed_ids: HashSet<String> = toks
+        .iter()
+        .filter_map(|t| if let Tok::Id(s) = t { Some(s.clone()) } else { None })
+        .filter(|s| !declared_set.contains(s.as_str()))
+        .collect();
+    for (n, k) in &declared {
         loop {
-            let c = counters.entry(k).or_insert(0);
-            let cand = format!("{}{}", prefix(k), *c);
+            let c = counters.entry(*k).or_insert(0);
+            let cand = if n.starts_with('_') { format!("_{}{}", prefix(*k), *c) } else { format!("{}{}", prefix(*k), *c) };
             *c += 1;
-            // never collide with a name the source already uses and does not rename
-            if !all_ids.contains(&cand) || map.contains_key(&cand) {
+            if !fixed_ids.contains(&cand) {
                 map.insert(n.clone(), cand);
                 break;
             }

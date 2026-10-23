@@ -9,7 +9,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 /// Programs in spec/examples (51 through draft 0.7; 51_refined_input adds 5.1 refined types, 52-54 the 0.8 indexed values of 5.16).
-const CORPUS: usize = 59;
+const CORPUS: usize = 62;
 
 fn examples() -> Vec<PathBuf> {
     let mut v: Vec<PathBuf> = std::fs::read_dir("../examples")

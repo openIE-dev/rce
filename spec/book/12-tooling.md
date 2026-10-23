@@ -183,8 +183,8 @@ it, its outputs, or the refusal), and finally the outputs and result of
 evaluator, so that a target and the reference can be compared line for
 line.
 
-**How the emitters are tested.** `spec/checker/tests/emit.rs` emits all 59
-programs of `spec/examples/` (the 57 files and the 2 of `26_use_module`) in
+**How the emitters are tested.** `spec/checker/tests/emit.rs` emits all 62
+programs of `spec/examples/` (the 60 files and the 2 of `26_use_module`) in
 all three targets. To exercise function
 bodies, it first adds *probes*: for each function and method, up to three
 calls on small sample arguments built from the parameter types, plus one
@@ -346,12 +346,15 @@ is replaced by a positional name in order of first declaration, by kind:
 regions `r0, r1, …`, events `e0, …`, errors `x0, …`, functions `f0, …`,
 types `t0, …`, kind variants `k0, …`, fields, parameters and locals
 `v0, …`. Keywords, built-in types, standard library names, string contents
-and `intent` text are unchanged. The projection is deterministic and
-idempotent, and because names carry no meaning (T7) it has the same Form,
-log and ids as the source; a name the projection does not recognise as
-declared is left as written, so the output is accepted whenever the input
-is. It is the text of the concept record's complement (6.6) and the input
-of the nameless-Form experiment.
+and `intent` text are unchanged; the wildcard `_` and a `_` prefix are
+kept, as are `main`, the built-in traits and their methods, the host
+events and the named constants of 6.7. The projection is deterministic and
+idempotent, and it has the same outcomes, outputs and ids as the source;
+`rce trace --json` of the two differs in `state_hash`, because 6.1 hashes
+region and field names (the T7 finding of chapter 8). A name the
+projection does not recognise as declared is left as written, so the
+output is accepted whenever the input is (`tests/nameless.rs`, every
+example). It is the text of the concept record's complement (6.6).
 
 ### 10.7 The language server: `rce lsp`
 
@@ -564,4 +567,4 @@ and payloads. It is informative: no admission depends on it.
 
 **Read receipt.** Which JSON-RPC error code does the language server return for a request it does not know? (a number)
 
-<!-- body-sha256: 62ff3b5c942eb549c68c0fb359f1e1254f6c583dfa045420b07c3b5d89c0af29 -->
+<!-- body-sha256: d4c71504ebee65c793e5a3b3544923f58a1384dd3af8d5671f699ab3e325887b -->

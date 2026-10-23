@@ -103,7 +103,7 @@ step, read [The RCE Book](https://github.com/openIE-dev/rce-book).
 | `rce trace --json FILE [EVENTS]` | reference trace of each example, or of EVENTS, for checking another implementation step by step |
 | `rce emit TARGET FILE` | `form` (the Form as JSON), `rust`, `python`, `js` or `scala` |
 | `rce fmt [--check] FILE...` | rewrite files in the canonical layout |
-| `rce dim [--fuel N] [--control] FILE` | count the behaviours a program can be in and the redundancy of its state (spec 6.10, 10.11) |
+| `rce dim [--fuel N] [--control] [--json] FILE` | count the behaviours a program can be in and the redundancy of its state (spec 6.10, 10.11) |
 | `rce lsp` | language server on standard input and output |
 | `rce --version` | the checker version, the specification draft and the language versions it accepts |
 

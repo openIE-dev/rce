@@ -17,6 +17,10 @@ the f32 rule in 6.3 cites Figueroa, "When is double rounding innocuous?".
 - C. P. Pfleeger, State reduction in incompletely specified finite-state machines, IEEE Trans. Computers C-22, 1973 (6.10: why totality gives a unique minimum).
 - L. D'Antoni and M. Veanes, Minimization of symbolic automata, POPL 2014 (6.10: the control dimension).
 - R. Reis, N. Moreira and R. Almeida, On the representation of finite automata, DCFS 2005 (6.10: the canonical string of `shape_ctl`).
+- When Names Disappear, arXiv 2510.03178, 2025 (6.6: identifier obfuscation and model accuracy).
+- The Hidden Cost of Readability, arXiv 2508.13666, 2025, ICSE 2026 (6.6: formatting tokens and accuracy).
+- N. Nagappan, B. Murphy and V. Basili, The influence of organizational structure on software quality, ICSE 2008 (CONTRIBUTING rule 4).
+- L. Meyerovich and A. Rabkin, Empirical analysis of programming language adoption, OOPSLA 2013 (CONTRIBUTING rule 6).
 - C. A. R. Hoare, Communicating Sequential Processes, CACM 1978.
 - J.-P. Bernardy et al., Linear Haskell, POPL 2018. N. Mitchell, Leaking Space, CACM 56(11), 2013.
 - Rust RFC 2945 ("C-unwind" ABI); The Rust Edition Guide, Rust 2024 (`unsafe extern`).
@@ -34,4 +38,4 @@ the f32 rule in 6.3 cites Figueroa, "When is double rounding innocuous?".
 
 **Read receipt.** Who wrote "Communicating Sequential Processes"? (surname)
 
-<!-- body-sha256: 56d394f5aa9e1e2c5d58210375755691b91b6c000cc3ec27cfc7ca5315ac493a -->
+<!-- body-sha256: ed1215a6287919d452ba2ff9b15b321bde445a7a3cd139470c48db7d43fbe913 -->

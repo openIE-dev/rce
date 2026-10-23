@@ -59,8 +59,9 @@ fn lit_int(i: i128) -> Expr {
 /// The boundary set of 6.3 for a payload field type: the values an
 /// exploration tries. A type this table does not know yields `None` and the
 /// event is skipped and reported.
-fn boundary(t: &Ty) -> Option<Vec<Expr>> {
+fn boundary(t: &Ty, aliases: &HashMap<String, Ty>) -> Option<Vec<Expr>> {
     match t {
+        Ty::Path(p, args) if args.is_empty() && p.len() == 1 && aliases.contains_key(&p[0]) => boundary(&aliases[&p[0]], aliases),
         Ty::Path(p, args) if args.is_empty() && p.len() == 1 => match p[0].as_str() {
             "bool" => Some(vec![Expr::Bool(false, 0), Expr::Bool(true, 0)]),
             "text" => Some(vec![Expr::Str(String::new(), 0), Expr::Str("a".into(), 0)]),
@@ -78,14 +79,14 @@ fn boundary(t: &Ty) -> Option<Vec<Expr>> {
         Ty::Unit => Some(vec![Expr::Unit(0)]),
         Ty::Opt(inner) => {
             let mut v = vec![Expr::None(0)];
-            for e in boundary(inner)? {
+            for e in boundary(inner, aliases)? {
                 v.push(Expr::Call(Box::new(Expr::Name("some".into(), 0)), vec![Arg { label: None, e }], 0, false));
             }
             Some(v)
         }
         Ty::Path(p, args) if p.len() == 1 && p[0] == "List" && args.len() == 1 => {
             let mut v = vec![Expr::List(vec![], 0)];
-            if let Some(first) = boundary(&args[0]).and_then(|b| b.into_iter().nth(1)) {
+            if let Some(first) = boundary(&args[0], aliases).and_then(|b| b.into_iter().nth(1)) {
                 v.push(Expr::List(vec![first], 0));
             }
             Some(v)
@@ -94,12 +95,24 @@ fn boundary(t: &Ty) -> Option<Vec<Expr>> {
     }
 }
 
-/// Every concrete instance of the declared events, in the canonical order of
-/// 6.1 (events by name, payloads by the order of their boundary sets).
+/// Every concrete instance of the declared events, in declaration order
+/// (the name-free key of 6.6), payloads in the order of their boundary sets.
 fn instances(m: &Module) -> (Vec<EvInst>, Vec<String>) {
     let mut out = vec![];
     let mut skipped = vec![];
-    let mut decls: Vec<(&String, &Vec<(String, Ty)>)> = m
+    // type aliases, refined or not (5.1): a refined field gets its base type's
+    // boundary set, and the refusal of an out-of-range value is an observed step
+    let aliases: HashMap<String, Ty> = m
+        .items
+        .iter()
+        .filter_map(|i| match i {
+            Item::TypeAlias { name, generics, ty, .. } if generics.is_empty() => Some((name.clone(), ty.clone())),
+            _ => None,
+        })
+        .collect();
+    // Declaration order, never name order: the exploration order is part of
+    // the canonical control string and must not change under renaming (T61).
+    let decls: Vec<(&String, &Vec<(String, Ty)>)> = m
         .items
         .iter()
         .filter_map(|i| match i {
@@ -107,11 +120,10 @@ fn instances(m: &Module) -> (Vec<EvInst>, Vec<String>) {
             _ => None,
         })
         .collect();
-    decls.sort_by(|a, b| a.0.cmp(b.0));
     'ev: for (name, payload) in decls {
         let mut columns: Vec<Vec<Expr>> = vec![];
         for (_, t) in payload {
-            match boundary(t) {
+            match boundary(t, &aliases) {
                 Some(b) => columns.push(b),
                 None => {
                     skipped.push(format!("{name}: no boundary set for a field of type {t:?}"));
@@ -306,18 +318,28 @@ pub fn dim_with(m: &Module, fuel: usize, control: bool) -> Result<Dim, String> {
     let mut it = Interp::new(m);
     let s0 = it.initial_state().map_err(why)?;
     let (evs, skipped) = instances(m);
+    let has_state = m.items.iter().any(|i| matches!(i, Item::State { .. } | Item::Actor { .. }));
+    if !has_state {
+        return Err("a command (no state region) is one behaviour; nothing to explore".into());
+    }
     if evs.is_empty() {
-        return Err("no event has a boundary set; nothing to explore".into());
+        return Err(format!("no event has a boundary set; nothing to explore ({})", skipped.join("; ")));
     }
     // Build the event values once; `construct` reads the scopes of a fresh frame.
     let mut evals: Vec<(EvInst, V)> = vec![];
+    let mut skipped = skipped;
     for e in &evs {
         it.scopes = vec![HashMap::new()];
         match it.construct(&e.name, &e.args) {
             Ok(Some(v)) => evals.push((e.clone(), v)),
             Ok(None) => return Err(format!("`{}` is not an event", e.name)),
-            Err(f) => return Err(format!("{}: {}", e.show, why(f))),
+            // a boundary value outside a refined type traps at construction
+            // (T35): that instance cannot be an event, so it is not explored
+            Err(f) => skipped.push(format!("{}: {}", e.show, why(f))),
         }
+    }
+    if evals.is_empty() {
+        return Err(format!("no event instance can be constructed ({})", skipped.join("; ")));
     }
     let k = evals.len();
     let idx = decl_index(m);
@@ -403,7 +425,7 @@ pub fn dim_with(m: &Module, fuel: usize, control: bool) -> Result<Dim, String> {
         let cs = canonical_string(n, &cclass, &succ, &clabel);
         use sha2::{Digest, Sha256};
         let h = Sha256::digest(crate::interp::canon_json(&serde_json::Value::String(cs)).as_bytes());
-        Some((dim_c, format!("{:x}", h)))
+        Some((dim_c, h.iter().map(|b| format!("{b:02x}")).collect::<String>()))
     } else {
         None
     };

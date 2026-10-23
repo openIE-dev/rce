@@ -56,7 +56,7 @@ the `tree-sitter` feature.
 
 RCE is defined by one text, and the rules below exist so that the text
 stays small. They are derived from what kept other languages small (Go's
-proposal process, which declines about 41% of its proposals; Lua's
+proposal process, which declined 40.9% of 1,095 proposals in one study (arXiv 2510.06984, 2025); Lua's
 "mechanisms, not policies") and from what did not (a standards committee
 with hundreds of papers a year and nothing ever removed). Each rule names
 the artefact that enforces it.

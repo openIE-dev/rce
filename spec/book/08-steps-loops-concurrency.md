@@ -63,20 +63,22 @@ contains a source position, so an edit that keeps the supervision tree and
 the order of creations keeps every actor and task id.
 
 **The concept record (informative).** Names carry no meaning in the Form
-(T7) and carry most of the meaning for a reader: obscuring identifiers
-costs a reader, human or model, between a tenth and a quarter of their
-accuracy on what a program does, while formatting costs nothing. So names
-have a defined home outside the hash. The *concept record* of a module is
-the table from each name-free key of 6.6 to: the name as written, the
-`intent` strings of the item, and its doc comments. It is derived from the
-source by `rce emit form` (under `names`, after the hashed fields), it is
-never hashed and never read by δ, and two modules that differ only in it
-have the same Form, the same log and the same ids. A projection (10.5)
-renders the concept record's names by default; `rce fmt --nameless` (10.6)
-is the projection that renders positional names instead, which is the
-text whose hash is the Form's. The record is a lens complement in the
-sense of 3.6 (paper): lift and emit are inverse on the Form, and the
-complement is what makes them inverse on the text as well.
+(T7) and most of the meaning for a reader: obscuring identifiers costs a
+model between a tenth and a quarter of its accuracy on what a program does
+(arXiv 2510.03178, 2025), while removing formatting costs nothing
+measurable (arXiv 2508.13666, 2025; both in section 11). So names have a
+defined home outside the hash. The *concept record* of a module is the
+table from each name-free key of 6.6 to: the name as written, the `intent`
+strings of the item, and its doc comments. It is to be printed by
+`rce emit form` under a `names` field after the hashed fields (proposal:
+`interp::form_json` has no such field today, and the Form JSON of 10.5
+carries names in its `name` and `region` fields). It is never read by δ.
+Two modules that differ only in it have the same outcomes, outputs and
+ids; their `state_hash` values differ until the T7 finding of chapter 8 is
+resolved. A projection (10.5) renders the concept record's names by
+default; `rce fmt --nameless` (10.6) is the projection that renders
+positional names instead, which is the text the name-free keys of 6.6 are
+computed from.
 
 ### 6.7 Loops and fuel
 
@@ -254,8 +256,8 @@ In plain words: (1) the behaviour of a program is the answer it gives to
 every sequence of events; two programs are the same when their answers are
 the same, and that is the only sense of "same" the Form needs; (2) two
 different behaviours disagree at some first step, and a test that checks
-the first k steps shows the programs are within 2^-k of each other, not
-that they are equal; (3) the dimension of a program is the number of
+the first k steps shows the programs are within 2^-(k+1) of each other,
+not that they are equal; (3) the dimension of a program is the number of
 different behaviours it can be in, and state that cannot change any future
 answer is redundancy the checker can count.
 
@@ -293,32 +295,29 @@ the bits of state that change no future answer. dim(P) is the number of
 states of the minimal Mealy machine with behaviour beh_P(s₀) (the Nerode
 index; Nerode 1958, Moore 1956, Hopcroft 1971), unique up to isomorphism
 because δ is total and deterministic (T1, T2); an incompletely specified
-machine has no unique minimum (Pfleeger 1973), which is one more reason
-totality is load-bearing.
+machine has no unique minimum (Pfleeger 1973).
 
-**Control dimension.** Let Σ = Σc ∪ Σd (6.1). The *control projection*
+**Control dimension.** Let S = Σc × Σd (6.1). The *control projection*
 P_c replaces every guard over Σd by its predicate symbol and every data
 update by a symbolic update, giving a symbolic finite automaton over the
 guard predicates of 6.4 (D'Antoni and Veanes 2014). dim_c(P) is the Nerode
-index of P_c modulo predicate equivalence; dim_c(P) ≤ dim(P), and dim_c is
-computable in O(n² log n) predicate-equivalence queries on the fragment of
-T35.
+index of P_c modulo predicate equivalence; dim_c(P) ≤ dim(P). The symbolic
+quotient is not implemented; `rce dim --control` (10.11) computes the
+control quotient of the explored concrete machine instead.
 
 **Canonical control form.** Let M_c be the minimal machine of P_c, its
 states numbered by first visit in a breadth-first traversal from s₀ taking
-events in the canonical order of 6.1 (Reis, Moreira and Almeida 2005: the
+events in declaration order (the name-free key of 6.6) and payloads in the
+order of their boundary sets (Reis, Moreira and Almeida 2005: the
 canonical string of an initially connected DFA is unique and name-free by
 construction). `shape_ctl(P)` is the SHA-256 over the canonical JSON (6.1.1)
-of that string. It is a third key beside the name-free term hash of 6.6
-(`shape_syn`) and the e-class key of the engine profile (`shape_eq`,
-Appendix D): `shape_syn` equal means the same term up to renaming (T7);
-`shape_eq` equal means the same e-class under the admitted, proved
-rewrites; `shape_ctl` equal means the same control behaviour up to
-predicate equivalence; and ≡ means the same behaviour, decidable for finite
-S by partition refinement on reach(P) and in practice bounded by the
-exploration fuel of `rce dim` (10.11). `shape_eq` refines `shape_ctl`
-(T61).
+of that string. `shape_ctl` equal means the same control behaviour up to
+predicate equivalence; ≡ means the same behaviour, decidable for finite S
+by partition refinement on reach(P) and in practice bounded by the
+exploration fuel of `rce dim` (10.11). The proposal `form-ir-2.md` names
+two further keys, a name-free term hash and an e-class key, that this text
+does not define.
 
 **Read receipt.** Name-free hashing uses indices named after which logician? (two words)
 
-<!-- body-sha256: 14b70257b5684a57435f55cbbf21f2e7b1d13efe9288a5f5d686f1268935effa -->
+<!-- body-sha256: b85dfd6dd4966b43ad43e88191213903771b75a09114073a6677cd8dc876cd07 -->

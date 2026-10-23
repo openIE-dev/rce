@@ -35,13 +35,13 @@ every rule of this proposal is vacuous for it.
 
 ## 2. Rules
 
-- **W-INT-1 (non-vacuity).** An intent is refused when its obligations and
+- **W-HOLE-1 (non-vacuity).** An intent is refused when its obligations and
   examples together reject no behaviour: when every obligation is
   satisfiable by the constant program that leaves the state unchanged and
   emits nothing, and no example constrains an output. The check is the
   T35 decision procedure on the obligations plus a run of the examples
   against the identity fill.
-- **W-INT-2 (completeness is measured, not assumed).** Each intent carries
+- **W-HOLE-2 (completeness is measured, not assumed).** Each intent carries
   a completeness score: the share of *spectests* it rejects. A spectest is
   a mutant output: for each example and each generated input, the
   reference output with one field changed, one output dropped, or one
@@ -51,7 +51,7 @@ every rule of this proposal is vacuous for it.
   information the author needs, not an error. (Spectests follow SpecRL's
   executed-mutant construction, 2026; they cost a run each, not a solver
   call.)
-- **W-INT-3 (no `assume`).** An obligation is never assumed; there is no
+- **W-HOLE-3 (no `assume`).** An obligation is never assumed; there is no
   construct that admits a predicate without a check. An obligation the
   fragment cannot decide is refused as outside T35, not admitted as
   trusted.
@@ -96,4 +96,4 @@ If, on the ladder corpora, the completeness score does not predict the
 plausible-versus-correct gap (Qi et al. 2015) — that is, if intents with
 high scores admit as many wrong-but-passing fills as intents with low
 scores — the spectest construction is not measuring what it claims and
-W-INT-2 is replaced by whatever does.
+W-HOLE-2 is replaced by whatever does.
