@@ -36,12 +36,13 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: spec/checker
-      - name: Build rce-conform
+      - name: Build rce and rce-conform
         working-directory: spec/checker
-        run: cargo build --release --bin rce-conform
+        run: cargo build --release --bin rce --bin rce-conform
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
       - name: Run the suite against the reference checker
         working-directory: conformance
-        run: RCE_CONFORM="$GITHUB_WORKSPACE/spec/checker/target/release/rce-conform" python harness/run.py --adapter adapters/reference.json
+        # RCE_ENGINE (the handler-spec profile, appendix D) is not set: the engine is not public, so those tests report unsupported.
+        run: RCE="$GITHUB_WORKSPACE/spec/checker/target/release/rce" RCE_CONFORM="$GITHUB_WORKSPACE/spec/checker/target/release/rce-conform" python harness/run.py --adapter adapters/reference.json --jobs 4

@@ -8,9 +8,9 @@ fn min3(a: u32, b: u32, c: u32) -> u32
     return m
 
 fn distance(a: &text, b: &text) -> u32
-    let n = b.len()
+    let n = b.len_chars()
     var prev: List[u32] = [j as u32 for j in 0..=n]
-    for i in 1..=a.len()
+    for i in 1..=a.len_chars()
         var cur: List[u32] = [i as u32]
         for j in 1..=n
             let cost: u32 = if a[i - 1] == b[j - 1] then 0 else 1

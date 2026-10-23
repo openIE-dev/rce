@@ -47,7 +47,7 @@ Generated from `reports/` by `tools/readme_status.py` (`--check` verifies it). E
   The three counts agree.
 - Coverage: language profile 205 of 205 normative clauses covered (100.0%).
   Other profiles: tooling 5 of 7, retired 1 of 2, handler-spec 8 of 14, editorial 0 of 1, proposed 3 of 6.
-- Reference: 1979 pass, 0 fail of 1979.
+- Reference: 1964 pass, 0 fail, 15 unsupported of 1979 (23 October 2026, in-repository run; see below).
 - Emitters: python 1459 pass / 0 fail / 520 not applicable or unsupported; js 1459 pass / 0 fail / 520 not applicable or unsupported; rust 1459 pass / 0 fail / 520 not applicable or unsupported. Parity with the reference: python 1460 agree, 0 disagree; js 1460 agree, 0 disagree; rust 1460 agree, 0 disagree.
 - Scala emitter: 52 pass, 1189 fail, 591 unsupported of 1832 results (146 tests have no Scala result). Scala does not yet agree with the reference.
 - Wasm playground: 419 pass, 16 fail, 1504 unsupported of 1939 results.
@@ -56,6 +56,10 @@ Generated from `reports/` by `tools/readme_status.py` (`--check` verifies it). E
 - Mutation: 200 of 712 schema sites sampled (seed 1); 185 killed (92.5%) on the first run. After survivor-targeted tests: 94.5%; after round 3: 99.0%; round 4 reports 99.5% counting mutant 133 as equivalent. Survivors are in `reports/mutation.json`.
   The mutation baseline (the unmutated mutation build) fails 20 tests; that is not the reference run, which has 0 failures.
 <!-- status:end -->
+
+## Run in the rce repository (23 October 2026)
+
+Since 23 October 2026 this suite lives in `conformance/` of `openIE-dev/rce` and `conformance.yml` runs the reference adapter against `rce` and `rce-conform` built from the same commit, so there is no commit to pin: `reports/results-reference.json` is the run at the current head. The run of 23 October (`rce` at the monorepo merge, with `$RCE` set and `$RCE_ENGINE` unset): 1,964 pass, 0 fail, 15 unsupported. The 15 unsupported are the `handler-spec` tests (appendix D), which need the engine's `rce`; without `$RCE_ENGINE` the adapter reports them as unsupported, never as passes.
 
 ## Run against public `rce` 4a3dc1f (one language, 18 October 2026)
 
