@@ -1,0 +1,17 @@
+# rce-version: 0.6
+fn block_sum(x: [f64; 8]) -> f64
+    var total: f64 = 0.0
+    with device d bound 1024
+        with group g lanes 8
+            var tile: [f64; 8] = [0.0; 8]
+            tile[g.lane] = x[g.lane]
+            barrier
+            total += tile[g.lane]
+    total
+#--- rce-test
+# id: concurrency/harvested/01-workgroup-accept
+# area: concurrency
+# clauses: [CH02-M-a696f3a3, CH03-M-28cdd241, T10, T23]
+# expect: accept
+# provenance: harvested conc06b/accept/01_workgroup.rce
+#---

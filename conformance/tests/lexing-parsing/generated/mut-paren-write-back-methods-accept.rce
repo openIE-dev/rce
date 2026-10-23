@@ -1,0 +1,52 @@
+error Boom(at: i64)
+
+struct Acc
+    n: i64
+
+impl Acc
+    fn add(&mut self, k: i64) -> i64 ! Boom
+        self.n += k
+        if self.n > 5
+            fail Boom(at: self.n)
+        return self.n
+
+fn bump(x: &mut i64, y: &mut List[i64]) -> i64 ! Boom
+    x += 1
+    let c: i64 = x + 0
+    y.push(c)
+    if x > 11
+        fail Boom(at: x + 0)
+    return (x + 0) * 10
+
+fn wrap(n: &mut i64, l: &mut List[i64]) -> i64 ! Boom
+    let r = try bump(&mut n, &mut l)
+    try bump(&mut n, &mut l)
+    return r
+
+fn main()
+    var n: i64 = 10
+    var l: List[i64] = []
+    let v = wrap(&mut n, &mut l) catch |e| e.at
+    emit n
+    emit l.len()
+    emit v
+    let w = bump(&mut n, &mut l) catch -1
+    emit n
+    emit w
+    var a = Acc(n: 1)
+    emit a.add(2) catch -1
+    emit a.n
+    emit a.add(9) catch |e| e.at * 100
+    emit a.n
+
+fn paren_zz() -> i64
+    return (1 + 2
+#--- rce-test
+# id: lexing-parsing/generated/mut-paren-write-back-methods-accept
+# area: lexing-parsing
+# clauses: [CH02-M-69371f07, CH03-M-28cdd241, CH09-M-82e65964, T10, W-SYN-1]
+# expect: reject
+# diagnostic: W-SYN-1
+# flags: [generated]
+# provenance: gen_props.py seed 7: mutation `paren` of write-back-methods-accept
+#---

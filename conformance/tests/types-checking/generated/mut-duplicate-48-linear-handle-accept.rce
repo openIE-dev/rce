@@ -1,0 +1,32 @@
+# A linear handle must be consumed exactly once on every path.
+linear struct File
+    fd: i32
+
+extern "C" fn c_open(path: &text) -> File
+extern "C" fn c_close(f: File) -> i32
+extern "C" fn c_write(f: File, n: u32) -> File
+
+fn main()
+    let p = "log.txt"
+    let f = c_open(&p)
+    let g = c_write(f, 3)
+    if g.fd < 0
+        let _ = c_close(g)
+    else
+        let r = c_close(g)
+        emit r
+
+fn dup_zz() -> i64
+    return 1
+
+fn dup_zz() -> i64
+    return 2
+#--- rce-test
+# id: types-checking/generated/mut-duplicate-48-linear-handle-accept
+# area: types-checking
+# clauses: [CH09-M-82e65964, HC-4, W-NAME-2]
+# expect: reject
+# diagnostic: W-NAME-2
+# flags: [generated]
+# provenance: gen_props.py seed 7: mutation `duplicate` of 48-linear-handle-accept
+#---

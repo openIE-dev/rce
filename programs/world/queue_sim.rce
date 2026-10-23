@@ -1,0 +1,28 @@
+# A checkout queue simulated one event at a time: customers arrive, the
+# till serves one per Serve event, and the queue has a fixed capacity.
+intent "a bounded queue with arrivals and service"
+    example Arrive, Arrive, Serve -> waiting == 1 and served == 1
+    example Serve -> refused: Empty
+    example Arrive, Arrive, Arrive, Arrive -> refused: Full
+
+const CAPACITY: u32 = 3
+
+state Till
+    waiting: u32 = 0
+    served: u32 = 0
+
+event Arrive
+event Serve
+
+error Empty
+error Full
+
+step Till on Arrive if waiting >= CAPACITY
+    fail Full
+step Till on Arrive
+    waiting += 1
+step Till on Serve if waiting == 0
+    fail Empty
+step Till on Serve
+    waiting -= 1
+    served += 1

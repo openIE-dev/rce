@@ -1,0 +1,23 @@
+# Structural recursion: each self-call takes a field of a constructor the
+# function matched, so the depth is bounded by the size of the value.
+kind Tree
+    Leaf(v: i64)
+    Node(l: Box[Tree], r: Box[Tree])
+
+fn tree_sum(t: &Tree) -> i64
+    match t
+        Leaf(v: v) -> return v
+        Node(l: l, r: r) -> return tree_sum(l) + tree_sum(r)
+
+fn sample_sum() -> i64
+    let t = Node(l: Box(Leaf(v: 2)), r: Box(Node(l: Box(Leaf(v: 3)), r: Box(Leaf(v: 4)))))
+    return tree_sum(&t)
+
+check sample_sum() == 9
+#--- rce-test
+# id: evaluation-fuel/harvested/39-structural-recursion-accept
+# area: evaluation-fuel
+# clauses: [CH03-M-28cdd241, CH11-M-7fed7576, T10, T6]
+# expect: accept
+# provenance: harvested examples/39_structural_recursion.rce
+#---

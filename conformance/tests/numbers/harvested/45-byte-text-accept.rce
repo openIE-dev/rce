@@ -1,0 +1,17 @@
+# Text is indexed and measured in UTF-8 bytes.
+fn first_byte(s: &text) -> u8
+    return s[0]
+
+check "héllo".len_bytes() == 6
+const A: text = "A"
+check first_byte(&A) == 65
+check "héllo"[1] == 195
+check "héllo"[0:1] == "h"
+check "héllo"[1:3] == "é"
+#--- rce-test
+# id: numbers/harvested/45-byte-text-accept
+# area: numbers
+# clauses: [CH03-M-28cdd241, T10, T6]
+# expect: accept
+# provenance: harvested examples/45_byte_text.rce
+#---

@@ -1,0 +1,475 @@
+module pq
+
+# Post-quantum key agreement for chat E2EE (W4), pure RCE: Keccak (SHA3-256,
+# SHA3-512, SHAKE128, SHAKE256 of FIPS 202), ML-KEM-768 (FIPS 203) and
+# PQXDH (Signal's post-quantum extension of X3DH). Builds on lib/crypto.rce
+# (X25519, HKDF, byte helpers): a program uses both files together, as
+# apps/chat.rce does with lib/crypto.rce. Randomness never comes from here:
+# the ML-KEM seeds d, z and m are logged Random results (HC-10). Not
+# constant time (see lib/crypto.rce).
+# Vectors: FIPS 202 digests below as checks; ML-KEM-768 key generation,
+# encapsulation, decapsulation and implicit rejection against the RustCrypto
+# ml-kem crate, and PQXDH, as host steps in tests/pq_rce.rs (one operation
+# per input, inside the per-input fuel of HC-7a).
+
+# ---- Keccak-f[1600], SHA3 and SHAKE (FIPS 202) ----
+# A lane is two 32-bit words; the state is 50 words, lane i at [2i] (low)
+# and [2i+1] (high).
+
+fn kc_lo() -> List[i64] = [1, 32898, 32906, 2147516416, 32907, 2147483649, 2147516545, 32777, 138, 136, 2147516425, 2147483658, 2147516555, 139, 32905, 32771, 32770, 128, 32778, 2147483658, 2147516545, 32896, 2147483649, 2147516424]
+
+fn kc_hi() -> List[i64] = [0, 0, 2147483648, 2147483648, 0, 0, 2147483648, 2147483648, 0, 0, 0, 0, 0, 2147483648, 2147483648, 2147483648, 2147483648, 2147483648, 0, 2147483648, 2147483648, 2147483648, 0, 2147483648]
+
+fn kc_rot() -> List[i64] = [0, 1, 62, 28, 27, 36, 44, 6, 55, 20, 3, 10, 43, 25, 39, 41, 45, 15, 21, 8, 18, 2, 61, 56, 14]
+
+fn keccak_f(st: List[i64]) -> List[i64]
+    let rl = kc_lo()
+    let rh = kc_hi()
+    let ro = kc_rot()
+    var a = copy(st)
+    for r in 0..24
+        # theta
+        var c: List[i64] = []
+        for x in 0..5
+            c.push(a[2 * x] ^ a[2 * (x + 5)] ^ a[2 * (x + 10)] ^ a[2 * (x + 15)] ^ a[2 * (x + 20)])
+            c.push(a[2 * x + 1] ^ a[2 * (x + 5) + 1] ^ a[2 * (x + 10) + 1] ^ a[2 * (x + 15) + 1] ^ a[2 * (x + 20) + 1])
+        for x in 0..5
+            let p = (x + 4) % 5
+            let q = (x + 1) % 5
+            let dl = c[2 * p] ^ (((c[2 * q] << 1) | (c[2 * q + 1] >> 31)) & MASK)
+            let dh = c[2 * p + 1] ^ (((c[2 * q + 1] << 1) | (c[2 * q] >> 31)) & MASK)
+            for y in 0..5
+                a[2 * (x + 5 * y)] = a[2 * (x + 5 * y)] ^ dl
+                a[2 * (x + 5 * y) + 1] = a[2 * (x + 5 * y) + 1] ^ dh
+        # rho and pi: B[y, 2x+3y] = rot(A[x, y])
+        var b: List[i64] = []
+        for _i in 0..50
+            b.push(0)
+        for x in 0..5
+            for y in 0..5
+                let i = x + 5 * y
+                var lo = a[2 * i]
+                var hi = a[2 * i + 1]
+                var n = ro[i]
+                if n >= 32
+                    let t = lo
+                    lo = hi
+                    hi = t
+                    n -= 32
+                if n > 0
+                    let nl = ((lo << n) | (hi >> (32 - n))) & MASK
+                    let nh = ((hi << n) | (lo >> (32 - n))) & MASK
+                    lo = nl
+                    hi = nh
+                let j = y + 5 * ((2 * x + 3 * y) % 5)
+                b[2 * j] = lo
+                b[2 * j + 1] = hi
+        # chi
+        for y in 0..5
+            for x in 0..5
+                let i = x + 5 * y
+                let i1 = (x + 1) % 5 + 5 * y
+                let i2 = (x + 2) % 5 + 5 * y
+                a[2 * i] = b[2 * i] ^ ((MASK ^ b[2 * i1]) & b[2 * i2])
+                a[2 * i + 1] = b[2 * i + 1] ^ ((MASK ^ b[2 * i1 + 1]) & b[2 * i2 + 1])
+        # iota
+        a[0] = a[0] ^ rl[r]
+        a[1] = a[1] ^ rh[r]
+    return a
+
+# sponge: rate in bytes, domain byte (0x06 SHA3, 0x1f SHAKE), out bytes
+fn keccak(rate: usize, dom: i64, msg: List[i64], outn: usize) -> List[i64]
+    var st: List[i64] = []
+    for _i in 0..50
+        st.push(0)
+    var m = copy(msg)
+    m.push(dom)
+    while m.len() % rate != 0 bound 1048576
+        m.push(0)
+    m[m.len() - 1] = m[m.len() - 1] | 128
+    var off: usize = 0
+    while off < m.len() bound 1048576
+        for k in 0..(rate / 4)
+            let j = off + 4 * k
+            st[k] = st[k] ^ (m[j] | (m[j + 1] << 8) | (m[j + 2] << 16) | (m[j + 3] << 24))
+        st = keccak_f(st)
+        off += rate
+    var out: List[i64] = []
+    while out.len() < outn bound 1048576
+        for k in 0..(rate / 4)
+            for z in 0..4
+                if out.len() < outn
+                    out.push((st[k] >> (8 * z)) & 255)
+        if out.len() < outn
+            st = keccak_f(st)
+    return out
+
+fn sha3_256(m: List[i64]) -> List[i64] = keccak(136, 6, m, 32)
+
+fn sha3_512(m: List[i64]) -> List[i64] = keccak(72, 6, m, 64)
+
+fn shake128(m: List[i64], n: usize) -> List[i64] = keccak(168, 31, m, n)
+
+fn shake256(m: List[i64], n: usize) -> List[i64] = keccak(136, 31, m, n)
+
+# ---- ML-KEM-768 (FIPS 203) ----
+# Polynomials are List[i64] of 256 coefficients mod Q; vectors are flat
+# lists of K polynomials (K * 256). Randomness (d, z, m) is passed in by the
+# caller from logged Random results (HC-10). Not constant time (see top).
+
+const Q: i64 = 3329
+const KK: usize = 3
+
+# Division by Q = 3329 without a division instruction (the KyberSlash lesson:
+# a variable-latency divide of secret-derived values leaks). For
+# QM = ceil(2^40 / Q) = 330282857 the error term is e = QM * Q - 2^40 = 3177,
+# so (n * QM) >> 40 = floor(n / Q) exactly for every 0 <= n < 2^40 / e
+# = 346,084,868. Every use here has n below 2^25 (largest: the sum of two
+# products of values below Q in ntt_mul, about 22.2M; compress input
+# (x << d) + 1664 at d = 11 is below 6.9M). n * QM stays below 2^54.
+# `check`s in tests/crypto/mlkem_arith_checks.rce confirm it exhaustively
+# over the compress domain and on boundary values.
+const QM: i64 = 330282857
+
+fn qdiv(n: i64) -> i64 = (n * QM) >> 40
+
+# n mod Q for 0 <= n < 346,084,868
+fn qmod(n: i64) -> i64 = n - qdiv(n) * Q
+
+fn mk_zetas() -> List[i64] = [1, 1729, 2580, 3289, 2642, 630, 1897, 848, 1062, 1919, 193, 797, 2786, 3260, 569, 1746, 296, 2447, 1339, 1476, 3046, 56, 2240, 1333, 1426, 2094, 535, 2882, 2393, 2879, 1974, 821, 289, 331, 3253, 1756, 1197, 2304, 2277, 2055, 650, 1977, 2513, 632, 2865, 33, 1320, 1915, 2319, 1435, 807, 452, 1438, 2868, 1534, 2402, 2647, 2617, 1481, 648, 2474, 3110, 1227, 910, 17, 2761, 583, 2649, 1637, 723, 2288, 1100, 1409, 2662, 3281, 233, 756, 2156, 3015, 3050, 1703, 1651, 2789, 1789, 1847, 952, 1461, 2687, 939, 2308, 2437, 2388, 733, 2337, 268, 641, 1584, 2298, 2037, 3220, 375, 2549, 2090, 1645, 1063, 319, 2773, 757, 2099, 561, 2466, 2594, 2804, 1092, 403, 1026, 1143, 2150, 2775, 886, 1722, 1212, 1874, 1029, 2110, 2935, 885, 2154]
+
+fn mk_gammas() -> List[i64] = [17, 3312, 2761, 568, 583, 2746, 2649, 680, 1637, 1692, 723, 2606, 2288, 1041, 1100, 2229, 1409, 1920, 2662, 667, 3281, 48, 233, 3096, 756, 2573, 2156, 1173, 3015, 314, 3050, 279, 1703, 1626, 1651, 1678, 2789, 540, 1789, 1540, 1847, 1482, 952, 2377, 1461, 1868, 2687, 642, 939, 2390, 2308, 1021, 2437, 892, 2388, 941, 733, 2596, 2337, 992, 268, 3061, 641, 2688, 1584, 1745, 2298, 1031, 2037, 1292, 3220, 109, 375, 2954, 2549, 780, 2090, 1239, 1645, 1684, 1063, 2266, 319, 3010, 2773, 556, 757, 2572, 2099, 1230, 561, 2768, 2466, 863, 2594, 735, 2804, 525, 1092, 2237, 403, 2926, 1026, 2303, 1143, 2186, 2150, 1179, 2775, 554, 886, 2443, 1722, 1607, 1212, 2117, 1874, 1455, 1029, 2300, 2110, 1219, 2935, 394, 885, 2444, 2154, 1175]
+
+fn zeros(n: usize) -> List[i64]
+    var z: List[i64] = []
+    for _i in 0..n
+        z.push(0)
+    return z
+
+fn ntt(p: List[i64]) -> List[i64]
+    let zs = mk_zetas()
+    var f = copy(p)
+    var k: usize = 1
+    var len: usize = 128
+    while len >= 2 bound 8
+        var start: usize = 0
+        while start < 256 bound 128
+            let z = zs[k]
+            k += 1
+            for j in start..(start + len)
+                let t = qmod(z * f[j + len])
+                f[j + len] = qmod(f[j] - t + Q)
+                f[j] = qmod(f[j] + t)
+            start += 2 * len
+        len = len / 2
+    return f
+
+fn intt(p: List[i64]) -> List[i64]
+    let zs = mk_zetas()
+    var f = copy(p)
+    var k: usize = 127
+    var len: usize = 2
+    while len <= 128 bound 8
+        var start: usize = 0
+        while start < 256 bound 128
+            let z = zs[k]
+            k -= 1
+            for j in start..(start + len)
+                let t = f[j]
+                f[j] = qmod(t + f[j + len])
+                f[j + len] = qmod(z * qmod(f[j + len] - t + Q))
+            start += 2 * len
+        len = len * 2
+    for j in 0..256
+        f[j] = qmod(f[j] * 3303)
+    return f
+
+# multiply two NTT-domain polynomials (FIPS 203 Alg. 11 and 12)
+fn ntt_mul(f: List[i64], g: List[i64]) -> List[i64]
+    let gs = mk_gammas()
+    var h: List[i64] = []
+    for i in 0..128
+        let a0 = f[2 * i]
+        let a1 = f[2 * i + 1]
+        let b0 = g[2 * i]
+        let b1 = g[2 * i + 1]
+        h.push(qmod(a0 * b0 + qmod(a1 * b1) * gs[i]))
+        h.push(qmod(a0 * b1 + a1 * b0))
+    return h
+
+fn padd(a: List[i64], b: List[i64]) -> List[i64]
+    var c: List[i64] = []
+    for i in 0..a.len()
+        c.push(qmod(a[i] + b[i]))
+    return c
+
+fn psub(a: List[i64], b: List[i64]) -> List[i64]
+    var c: List[i64] = []
+    for i in 0..a.len()
+        c.push(qmod(a[i] - b[i] + Q))
+    return c
+
+fn poly(v: List[i64], i: usize) -> List[i64] = slice(v, 256 * i, 256 * (i + 1))
+
+# SampleNTT (Alg. 7): rejection sampling from SHAKE128(rho || j || i)
+fn sample_ntt(rho: List[i64], j: i64, i: i64) -> List[i64]
+    var seed = copy(rho)
+    seed.push(j)
+    seed.push(i)
+    var n: usize = 840
+    var a: List[i64] = []
+    while a.len() < 256 bound 6
+        let b = shake128(copy(seed), n)
+        a = []
+        var p: usize = 0
+        while a.len() < 256 and p + 3 <= b.len() bound 65536
+            let d1 = b[p] + 256 * (b[p + 1] % 16)
+            let d2 = (b[p + 1] >> 4) + 16 * b[p + 2]
+            if d1 < Q
+                a.push(d1)
+            if d2 < Q and a.len() < 256
+                a.push(d2)
+            p += 3
+        n = n * 2
+    return a
+
+# SamplePolyCBD for eta = 2 (Alg. 8) over PRF(s, b) = SHAKE256(s || b, 128)
+fn cbd2(s: List[i64], b: i64) -> List[i64]
+    var x = copy(s)
+    x.push(b)
+    let r = shake256(x, 128)
+    var f: List[i64] = []
+    for i in 0..256
+        let byte = r[i / 2]
+        let bits = (byte >> (4 * (i % 2) as i64)) & 15
+        let a = (bits & 1) + ((bits >> 1) & 1)
+        let c = ((bits >> 2) & 1) + ((bits >> 3) & 1)
+        f.push(qmod(a - c + Q))
+    return f
+
+fn byte_encode(f: List[i64], d: i64) -> List[i64]
+    var out: List[i64] = []
+    var acc: i64 = 0
+    var nb: i64 = 0
+    for c in f
+        acc = acc | (c << nb)
+        nb += d
+        while nb >= 8 bound 16
+            out.push(acc & 255)
+            acc = acc >> 8
+            nb -= 8
+    return out
+
+fn byte_decode(b: List[i64], d: i64, cnt: usize) -> List[i64]
+    var out: List[i64] = []
+    var acc: i64 = 0
+    var nb: i64 = 0
+    let m = (1 << d) - 1
+    var p: usize = 0
+    while out.len() < cnt bound 1048576
+        while nb < d bound 4
+            acc = acc | (b[p] << nb)
+            p += 1
+            nb += 8
+        let v = acc & m
+        out.push(if d == 12 then qmod(v) else v)
+        acc = acc >> d
+        nb -= d
+    return out
+
+fn compress(f: List[i64], d: i64) -> List[i64]
+    var out: List[i64] = []
+    for x in f
+        out.push(qdiv((x << d) + 1664) & ((1 << d) - 1))
+    return out
+
+fn decompress(f: List[i64], d: i64) -> List[i64]
+    var out: List[i64] = []
+    for y in f
+        out.push((y * Q + (1 << (d - 1))) >> d)
+    return out
+
+# A_hat[i][j] = SampleNTT(rho || j || i), flat at (i * K + j)
+fn gen_a(rho: List[i64]) -> List[List[i64]]
+    var a: List[List[i64]] = []
+    for i in 0..KK
+        for j in 0..KK
+            a.push(sample_ntt(copy(rho), j as i64, i as i64))
+    return a
+
+fn cat3(a: List[i64], b: List[i64], c: List[i64]) -> List[i64] = cat(cat(a, b), c)
+
+# K-PKE.KeyGen (Alg. 13): returns ek_pke || dk_pke
+fn pke_keygen(d: List[i64]) -> List[i64]
+    var dd = copy(d)
+    dd.push(3)
+    let g = sha3_512(dd)
+    let rho = slice(copy(g), 0, 32)
+    let sigma = slice(copy(g), 32, 64)
+    let a = gen_a(copy(rho))
+    var s: List[i64] = []
+    var e: List[i64] = []
+    for i in 0..KK
+        s = cat(s, ntt(cbd2(copy(sigma), i as i64)))
+    for i in 0..KK
+        e = cat(e, ntt(cbd2(copy(sigma), (KK + i) as i64)))
+    var ek: List[i64] = []
+    for i in 0..KK
+        var t = poly(copy(e), i)
+        for j in 0..KK
+            t = padd(t, ntt_mul(copy(a[i * KK + j]), poly(copy(s), j)))
+        ek = cat(ek, byte_encode(t, 12))
+    ek = cat(ek, rho)
+    var dk: List[i64] = []
+    for i in 0..KK
+        dk = cat(dk, byte_encode(poly(copy(s), i), 12))
+    return cat(ek, dk)
+
+# K-PKE.Encrypt (Alg. 14)
+fn pke_encrypt(ek: List[i64], m: List[i64], r: List[i64]) -> List[i64]
+    let t = byte_decode(slice(copy(ek), 0, 384 * KK), 12, 256 * KK)
+    let rho = slice(copy(ek), 384 * KK, 384 * KK + 32)
+    let a = gen_a(rho)
+    var y: List[i64] = []
+    for i in 0..KK
+        y = cat(y, ntt(cbd2(copy(r), i as i64)))
+    var c1: List[i64] = []
+    for i in 0..KK
+        var acc = zeros(256)
+        for j in 0..KK
+            acc = padd(acc, ntt_mul(copy(a[j * KK + i]), poly(copy(y), j)))
+        let u = padd(intt(acc), cbd2(copy(r), (KK + i) as i64))
+        c1 = cat(c1, byte_encode(compress(u, 10), 10))
+    var acc = zeros(256)
+    for j in 0..KK
+        acc = padd(acc, ntt_mul(poly(copy(t), j), poly(copy(y), j)))
+    let mu = decompress(byte_decode(copy(m), 1, 256), 1)
+    let v = padd(padd(intt(acc), cbd2(copy(r), (2 * KK) as i64)), mu)
+    return cat(c1, byte_encode(compress(v, 4), 4))
+
+# K-PKE.Decrypt (Alg. 15)
+fn pke_decrypt(dk: List[i64], c: List[i64]) -> List[i64]
+    let u = decompress(byte_decode(slice(copy(c), 0, 320 * KK), 10, 256 * KK), 10)
+    let v = decompress(byte_decode(slice(copy(c), 320 * KK, 320 * KK + 128), 4, 256), 4)
+    let s = byte_decode(copy(dk), 12, 256 * KK)
+    var acc = zeros(256)
+    for i in 0..KK
+        acc = padd(acc, ntt_mul(poly(copy(s), i), ntt(poly(copy(u), i))))
+    let w = psub(v, intt(acc))
+    return byte_encode(compress(w, 1), 1)
+
+# ML-KEM.KeyGen_internal (Alg. 16): ek (1184 bytes) || dk (2400 bytes), hex
+fn mlkem_keygen(d: text, z: text) -> text
+    let kp = pke_keygen(unhex(d))
+    let ek = slice(copy(kp), 0, 384 * KK + 32)
+    let dkp = slice(copy(kp), 384 * KK + 32, kp.len())
+    return tohex(copy(ek)) + "." + tohex(cat(cat3(dkp, copy(ek), sha3_256(copy(ek))), unhex(z)))
+
+# byte-list equality with no early exit (OR of the XORs, tested once); a copy
+# of crypto.ct_eq so this file also checks against an embedded crypto that
+# predates it. Only the lengths are public.
+fn kem_ct_eq(a: List[i64], b: List[i64]) -> bool
+    if a.len() != b.len()
+        return false
+    var acc: i64 = 0
+    for i in 0..a.len()
+        acc = acc | (a[i] ^ b[i])
+    return acc == 0
+
+# OR of the XORs of two equal-length byte lists: 0 exactly when they are
+# equal. No branch, no early exit; the caller has checked the lengths.
+fn kem_ct_diff(a: List[i64], b: List[i64]) -> i64
+    var acc: i64 = 0
+    for i in 0..a.len()
+        acc = acc | (a[i] ^ b[i])
+    return acc
+
+# ML-KEM.Encaps_internal (Alg. 17): "ciphertext.shared" in hex, or "" when an
+# input check of FIPS 203 7.2 fails: ek must have 384k + 32 bytes (type check)
+# and ByteEncode12(ByteDecode12(t)) must reproduce its first 384k bytes
+# (modulus check: every 12-bit coefficient below Q); m must have 32 bytes.
+# Both ek and m are public here, so the checks may branch.
+fn mlkem_encaps(ek: text, m: text) -> text
+    let e = unhex(ek)
+    let mb = unhex(copy(m))
+    if e.len() != 384 * KK + 32 or mb.len() != 32
+        return ""
+    let t = slice(copy(e), 0, 384 * KK)
+    if not kem_ct_eq(byte_encode(byte_decode(copy(t), 12, 256 * KK), 12), t)
+        return ""
+    let g = sha3_512(cat(mb, sha3_256(copy(e))))
+    let c = pke_encrypt(e, unhex(m), slice(copy(g), 32, 64))
+    return tohex(c) + "." + tohex(slice(g, 0, 32))
+
+# ML-KEM.Decaps_internal (Alg. 18): the shared secret with implicit
+# rejection, or "" when an input check of FIPS 203 7.3 fails: the ciphertext
+# must have 32(du k + dv) = 1088 bytes, dk must have 768k + 96 bytes, and
+# H(ek inside dk) must equal the stored hash. Those checks depend on the
+# lengths and on the stored key, not on the ciphertext's validity, so they
+# may branch. A failed check is a refusal, never a key: a caller must not
+# feed "" onward as a secret.
+# The re-encryption comparison and the choice between the real key and the
+# rejection key are branch-free: the key is kbar ^ (mask & (K ^ kbar)) with
+# mask all ones exactly when the ciphertexts are equal.
+fn mlkem_decaps(dk: text, c: text) -> text
+    let d = unhex(dk)
+    let ctext = unhex(c)
+    if d.len() != 768 * KK + 96 or ctext.len() != 32 * (10 * KK + 4)
+        return ""
+    let dkp = slice(copy(d), 0, 384 * KK)
+    let ek = slice(copy(d), 384 * KK, 768 * KK + 32)
+    let h = slice(copy(d), 768 * KK + 32, 768 * KK + 64)
+    let z = slice(copy(d), 768 * KK + 64, 768 * KK + 96)
+    if not kem_ct_eq(sha3_256(copy(ek)), copy(h))
+        return ""
+    let m = pke_decrypt(dkp, copy(ctext))
+    let g = sha3_512(cat(copy(m), h))
+    let kbar = shake256(cat(z, copy(ctext)), 32)
+    let c2 = pke_encrypt(ek, m, slice(copy(g), 32, 64))
+    let acc = kem_ct_diff(c2, ctext)
+    let differ = ((acc | (0 - acc)) >> 63) & 1
+    let eq = differ - 1
+    var key: List[i64] = []
+    for i in 0..32
+        key.push(kbar[i] ^ (eq & (g[i] ^ kbar[i])))
+    return tohex(key)
+
+# ---- PQXDH ----
+# Signal's PQXDH over X25519, SHA-256 and ML-KEM-768. The initiator holds
+# identity key ika and ephemeral key eka; the responder publishes identity
+# IKb, signed prekey SPKb and an ML-KEM-768 prekey PQPKb signed with its
+# Ed25519 identity (the caller checks it with ed_verify). The work is split
+# into one-operation steps so each input stays inside the fuel of HC-7a:
+#   initiator: dh = pqxdh_dh_init(...); "ct.ss" = mlkem_encaps(PQPKb, m)
+#   responder: dh = pqxdh_dh_resp(...); ss = mlkem_decaps(PQSKb, ct)
+#   both:      SK = pqxdh_sk(dh, ss)
+# with SK = HKDF(F || DH1 || DH2 || DH3 || SS), F = 32 bytes of 0xFF. A forged
+# ciphertext gives another SS by ML-KEM's implicit rejection, so the first
+# message fails to open. m is 32 logged random bytes (HC-10).
+fn pqxdh_dh_init(ika: text, eka: text, ikb_pub: text, spkb_pub: text) -> text
+    let dh1 = x25519(ika, copy(spkb_pub))
+    let dh2 = x25519(copy(eka), ikb_pub)
+    let dh3 = x25519(eka, spkb_pub)
+    return dh1 + dh2 + dh3
+
+fn pqxdh_dh_resp(ikb: text, spkb: text, ika_pub: text, eka_pub: text) -> text
+    let dh1 = x25519(copy(spkb), ika_pub)
+    let dh2 = x25519(ikb, copy(eka_pub))
+    let dh3 = x25519(spkb, eka_pub)
+    return dh1 + dh2 + dh3
+
+# "" when ss or dh is empty: mlkem_decaps answers "" for an input it refuses
+# (FIPS 203 7.3), and an empty secret must never reach the key derivation.
+fn pqxdh_sk(dh: text, ss: text) -> text
+    if ss.len_bytes() == 0 or dh.len_bytes() == 0
+        return ""
+    return tohex(hkdf([], cat(cat(ff32(), unhex(dh)), unhex(ss)), tobytes(PQXDH_INFO), 32))
+
+const PQXDH_INFO: text = "rce-pqxdh-v1 X25519 SHA-256 ML-KEM-768"
+
+check tohex(sha3_256(tobytes("abc"))) == "3a985da74fe225b2045c172d6bd390bd855f086e3e9d525b46bfe24511431532"
+check tohex(sha3_512(tobytes("abc"))) == "b751850b1a57168a5693cd924b6b096e08f621827444f70d884f5d0240d2712e10e116e9192af3c91a7ec57647e3934057340b4cf408d5a56592f8274eec53f0"
+check tohex(shake128([], 32)) == "7f9c2ba4e88f827d616045507605853ed73b8093f6efbc88eb1a6eacfa66ef26"
+check tohex(shake256(tobytes("abc"), 200)) == "483366601360a8771c6863080cc4114d8db44530f8f1e1ee4f94ea37e78b5739d5a15bef186a5386c75744c0527e1faa9f8726e462a12a4feb06bd8801e751e41385141204f329979fd3047a13c5657724ada64d2470157b3cdc288620944d78dbcddbd912993f0913f164fb2ce95131a2d09a3e6d51cbfc622720d7a75c6334e8a2d7ec71a7cc29cf0ea610eeff1a588290a53000faa79932becec0bd3cd0b33a7e5d397fed1ada9442b99903f4dcfd8559ed3950faf40fe6f3b5d710ed3b677513771af6bfe119"
+check ntt(intt(ntt(cbd2(tobytes("s"), 0)))) == ntt(cbd2(tobytes("s"), 0))
+check byte_decode(byte_encode(compress(cbd2(tobytes("u"), 2), 10), 10), 10, 256) == compress(cbd2(tobytes("u"), 2), 10)

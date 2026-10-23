@@ -1,0 +1,18 @@
+fn word_lengths(s: &text) -> List[u32]
+    var out: List[u32] = []
+    with arena scratch
+        let ws: List[text] @scratch = s.words()
+        for w in ws
+            out.append(w.len() as u32)
+    return out
+
+const BIG_LIT = 99999999999999999999999
+#--- rce-test
+# id: lexing-parsing/generated/mut-bigint-11-arena-accept
+# area: lexing-parsing
+# clauses: [CH09-M-82e65964, W-LEX-3]
+# expect: reject
+# diagnostic: W-LEX-3
+# flags: [generated]
+# provenance: gen_props.py seed 7: mutation `bigint` of 11-arena-accept
+#---

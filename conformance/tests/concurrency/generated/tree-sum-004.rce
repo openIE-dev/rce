@@ -1,0 +1,17 @@
+# rce-version: 0.6
+fn main()
+    var s: f64 = 0.0
+    for i in 0..4 par
+        s += 1.0 / ((i as f64) + 1.0) + (if i % 3 == 0 then 1e16 else -1e16 + 3.0)
+    emit s
+#--- rce-test
+# id: concurrency/generated/tree-sum-004
+# area: concurrency
+# clauses: [CH14-M-ca5a98d7, T18, HC-12, W-PAR-3]
+# expect: run
+# outcome: done
+# outputs:
+#   - emit 8
+# flags: [generated]
+# provenance: gen_tree.py; oracle is the C.8 tree definition in binary64
+#---

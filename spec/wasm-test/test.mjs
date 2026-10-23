@@ -16,7 +16,7 @@ const read = (f, pre = "") => { const s = readFileSync(f, "utf8"); return pre ? 
 
 await Parser.init();
 const parser = new Parser();
-parser.setLanguage(await Language.load(join(spec, "tree-sitter/tree-sitter-rce.wasm")));
+parser.setLanguage(await Language.load(join(spec, "../tree-sitter/tree-sitter-rce.wasm")));
 await init({ module_or_path: readFileSync(join(spec, "checker-wasm/pkg/rce_spec_check_wasm_bg.wasm")) });
 
 let fails = 0, runs = 0;

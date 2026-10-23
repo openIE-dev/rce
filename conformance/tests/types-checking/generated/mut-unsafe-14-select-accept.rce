@@ -1,0 +1,20 @@
+fn merge(a: chan text, b: chan text, out: chan text)
+    loop bound 1000
+        select
+            recv some(x) from a -> out <- x
+            recv some(y) from b -> out <- y
+            recv none from a -> break
+            after 10 -> emit "idle"
+
+fn unsafe_probe() -> i64
+    let unsafe = 1
+    return unsafe
+#--- rce-test
+# id: types-checking/generated/mut-unsafe-14-select-accept
+# area: types-checking
+# clauses: [CH09-M-82e65964, W-SAFE-1]
+# expect: reject
+# diagnostic: W-SAFE-1
+# flags: [generated]
+# provenance: gen_props.py seed 7: mutation `unsafe` of 14-select-accept
+#---

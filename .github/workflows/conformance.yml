@@ -1,0 +1,48 @@
+name: conformance
+
+# conformance/: static validation of the suite (format, ids, clause
+# references, coverage) on three platforms, then the reference run against
+# rce-conform built from this same commit. Emitter and engine-profile runs
+# are recorded in conformance/README.md.
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  validate:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - working-directory: conformance
+        run: python tools/validate.py
+
+  reference:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install the pinned Rust toolchain
+        run: rustup show
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: spec/checker
+      - name: Build rce and rce-conform
+        working-directory: spec/checker
+        run: cargo build --release --bin rce --bin rce-conform
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Run the suite against the reference checker
+        working-directory: conformance
+        # RCE_ENGINE (the handler-spec profile, appendix D) is not set: the engine is not public, so those tests report unsupported.
+        run: RCE="$GITHUB_WORKSPACE/spec/checker/target/release/rce" RCE_CONFORM="$GITHUB_WORKSPACE/spec/checker/target/release/rce-conform" python harness/run.py --adapter adapters/reference.json --jobs 4

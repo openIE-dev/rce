@@ -1,0 +1,8 @@
+[book]
+title = "The RCE Book"
+authors = ["The RCE contributors"]
+language = "en"
+src = "src"
+
+[output.html]
+git-repository-url = "https://github.com/openIE-dev/rce/tree/main/book"

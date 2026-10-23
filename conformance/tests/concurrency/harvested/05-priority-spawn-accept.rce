@@ -1,0 +1,16 @@
+# rce-version: 0.6
+fn worker(c: chan i64)
+    c <- 1
+
+fn main()
+    let c = chan[i64](4)
+    spawn worker(c) priority 2
+    spawn worker(c)
+    emit <- c
+#--- rce-test
+# id: concurrency/harvested/05-priority-spawn-accept
+# area: concurrency
+# clauses: [CH02-M-a696f3a3, CH03-M-28cdd241, CH06-M-5912c594, T10]
+# expect: accept
+# provenance: harvested conc06/accept/05_priority_spawn.rce
+#---

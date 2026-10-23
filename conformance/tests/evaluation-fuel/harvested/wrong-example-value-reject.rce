@@ -1,0 +1,17 @@
+intent "counter"
+    example Inc, Inc -> 3
+
+state Counter
+    n: u64 = 0
+
+event Inc
+
+step Counter on Inc -> n + 1
+#--- rce-test
+# id: evaluation-fuel/harvested/wrong-example-value-reject
+# area: evaluation-fuel
+# clauses: [CH09-M-82e65964, W-INT-1]
+# expect: reject
+# diagnostic: W-INT-1
+# provenance: harvested examples/inadmissible/wrong_example_value.rce
+#---

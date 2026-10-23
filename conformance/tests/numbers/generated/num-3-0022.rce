@@ -1,0 +1,15 @@
+fn main()
+    let a: u64 = 3122743027080090
+    let b: u64 = 4991686743686868695
+    emit a + b
+#--- rce-test
+# id: numbers/generated/num-3-0022
+# area: numbers
+# clauses: [CH00-M-61b6ac06, CH05-M-2405dfe8, CH07-M-0a0bd71f, F7, F9, N1, N2, N3, T1, T4, T5, T9]
+# expect: run
+# outcome: done
+# outputs:
+#   - emit 4994809486713948785
+# flags: [generated]
+# provenance: gen_numbers.py seed 3; oracle-derived
+#---

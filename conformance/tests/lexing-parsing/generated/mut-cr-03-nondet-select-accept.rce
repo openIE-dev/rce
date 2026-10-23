@@ -1,0 +1,16 @@
+# rce-version: 0.6
+fn relay(a: chan i64, b: chan i64)
+    loop bound 10 
+        select nondet
+            recv v from a -> emit v
+            recv w from b -> emit w
+            after 3 -> break
+#--- rce-test
+# id: lexing-parsing/generated/mut-cr-03-nondet-select-accept
+# area: lexing-parsing
+# clauses: [CH09-M-82e65964, W-LEX-1]
+# expect: reject
+# diagnostic: W-LEX-1
+# flags: [generated]
+# provenance: gen_props.py seed 7: mutation `cr` of 03-nondet-select-accept
+#---

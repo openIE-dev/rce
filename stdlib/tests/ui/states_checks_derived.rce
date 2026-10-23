@@ -1,0 +1,14 @@
+# derived checks (SCXML App. D, written from the spec text): the LCCA of a
+# transition across parallel regions is the nearest compound ancestor, so
+# the parallel state is exited and re-entered; exit order is reverse
+# document order (children before parents)
+fn dv(src: text, evs: text) -> text
+    var es: List[text] = []
+    if evs != ""
+        es = evs.split(",")
+    let r = run(&src, &es)
+    if r.err != ""
+        return "error " + r.err
+    return ",".join(copy(r.leaves)) + " | " + " ".join(copy(r.trace))
+check dv("machine\nstate _scxml root - -\nstate S atomic _scxml -\nstate P parallel S -\nstate A atomic P -\nstate a1 atomic A -\nstate a2 atomic A -\nstate B atomic P -\nstate b1 atomic B -\nstate b2 atomic B -\ntransition a1 go - ext b2\nend", "go") == "a1,b2 | +S +P +A +a1 +B +b1 -b1 -B -a1 -A -P +P +A +a1 +B +b2"
+check dv("machine\nstate _scxml root - -\nstate s0 atomic _scxml -\nstate s01 atomic s0 -\nstate t atomic _scxml -\ntransition s01 go - ext t\nend", "go") == "t | +s0 +s01 -s01 -s0 +t"

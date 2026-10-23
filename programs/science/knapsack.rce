@@ -1,0 +1,23 @@
+# 0/1 knapsack by dynamic programming: the best total value that fits in a
+# given capacity.
+struct Item
+    weight: usize
+    value: i64
+
+fn best(items: &[Item], cap: usize) -> i64
+    var table: List[i64] = [0 for _ in 0..=cap]
+    for it in items
+        var w = cap
+        while w >= it.weight bound 100_000
+            let with_it = table[w - it.weight] + it.value
+            if with_it > table[w]
+                table[w] = with_it
+            if w == 0
+                break
+            w -= 1
+    return table[cap]
+
+const ITEMS: List[Item] = [Item(weight: 1, value: 1), Item(weight: 3, value: 4), Item(weight: 4, value: 5), Item(weight: 5, value: 7)]
+
+check best(&ITEMS, 7) == 9
+check best(&ITEMS, 0) == 0

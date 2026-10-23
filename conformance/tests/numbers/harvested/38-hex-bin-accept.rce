@@ -1,0 +1,12 @@
+const MASK: u32 = 0xFF_FF
+const FLAGS: u8 = 0b1010_0101
+const PERMS: u16 = 0o755
+const BIG: f64 = 1.5e+300
+const SMALL: f64 = 2.5e-7
+#--- rce-test
+# id: numbers/harvested/38-hex-bin-accept
+# area: numbers
+# clauses: [CH03-M-28cdd241, T10]
+# expect: accept
+# provenance: harvested examples/38_hex_bin.rce
+#---

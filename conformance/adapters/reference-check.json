@@ -1,0 +1,2 @@
+{"name": "reference-check", "cmd": ["$RCE_CONFORM"], "ops": ["check"], "features": [],
+ "note": "rce-conform on a target without threads (wasm32-wasip1): the evaluator runs fn main as a task on its own thread, so only the static checker is exercised there"}

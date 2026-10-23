@@ -1,0 +1,42 @@
+name	old	new	vue	ours
+should patch previously empty children		~hello	c hello -	c hello -
+should patch previously null children		~hello	c hello -	c hello -
+array children -> text children	div:x	~hello	r x;c hello -	r x;c hello -
+plain object child		~[object Object]	c [object Object] -	c [object Object] -
+keyed append	1	1,2,3	c 2 -;c 3 -	c 2 -;c 3 -
+keyed prepend	4,5	1,2,3,4,5	c 1 4;c 2 4;c 3 4	c 1 4;c 2 4;c 3 4
+keyed insert in middle	1,2,4,5	1,2,3,4,5	c 3 4	c 3 4
+keyed insert at beginning and end	2,3,4	1,2,3,4,5	c 5 -;c 1 2	c 5 -;c 1 2
+keyed insert to empty parent		1,2,3,4,5	c 1 -;c 2 -;c 3 -;c 4 -;c 5 -	c 1 -;c 2 -;c 3 -;c 4 -;c 5 -
+keyed remove all children from parent	1,2,3,4,5		r 1;r 2;r 3;r 4;r 5	r 1;r 2;r 3;r 4;r 5
+keyed remove from beginning	1,2,3,4,5	3,4,5	r 1;r 2	r 1;r 2
+keyed remove from end	1,2,3,4,5	1,2,3	r 4;r 5	r 4;r 5
+keyed remove from middle	1,2,3,4,5	1,2,4,5	r 3	r 3
+keyed moving single child forward	1,2,3,4	2,3,1,4	m 1 4	m 1 4
+keyed moving single child backwards	1,2,3,4	1,4,2,3	m 4 2	m 4 2
+keyed moving single child to end	1,2,3	2,3,1	m 1 -	m 1 -
+keyed swap first and last	1,2,3,4	4,2,3,1	m 1 -;m 4 2	m 1 -;m 4 2
+keyed move to left & replace	1,2,3,4,5	4,1,2,3,6	r 5;c 6 -;m 4 1	r 5;c 6 -;m 4 1
+keyed move to left and leaves hold	1,4,5	4,6	r 1;r 5;c 6 -	r 1;r 5;c 6 -
+keyed moved and set to undefined element ending at the end	2,4,5	4,5,3	r 2;c 3 -	r 2;c 3 -
+keyed reverse element	1,2,3,4,5,6,7,8	8,7,6,5,4,3,2,1	m 2 1;m 3 2;m 4 3;m 5 4;m 6 5;m 7 6;m 8 7	m 2 1;m 3 2;m 4 3;m 5 4;m 6 5;m 7 6;m 8 7
+keyed something	0,1,2,3,4,5	4,3,2,1,5,0	m 0 -;m 2 1;m 3 2;m 4 3	m 0 -;m 2 1;m 3 2;m 4 3
+children with the same key but with different tag	div#1,div#2,div#3,div#4	div#4,span#3,span#2,div#1	r 2;c 2 3;r 3;c 3 4;m 2 1;m 3 2;m 4 3	r 2;r 3;c 2 1;c 3 2;m 4 3
+children with the same tag, same key, but one with data and one without data	div:one	div:four		
+move a key in non-keyed nodes with a size up	1,span:a,span:b,span:c	span:d,span:a,span:b,span:c,1,span:e	m 1 c;c c 1;c b c	m 1 c;c c 1;c b c
+append elements with updating children without keys	span:hello	span:hello,span:world	c world -	c world -
+unmoved text nodes with updating children without keys	~text,span:hello	~text,span:hello		
+changing text children with updating children without keys	~text,span:hello	~text2,span:hello		
+prepend element with updating children without keys	span:world	span:hello,span:world	c world -	c world -
+prepend element of different tag type with updating children without keys	span:world	div:hello,span:world	c hello world	c hello world
+remove elements with updating children without keys	span:one,span:two,span:three	span:one,span:three	r three	r three
+remove a single text node with updating children without keys	~one		r one	r one
+remove a single text node when children are updated	~one	div:two,span:three	r one;c three -;c two three	r one;c three -;c two three
+remove a text node among other elements	~one,span:two	div:three	r one;r two;c three -	r one;r two;c three -
+reorder elements	span:one,div:two,b:three	b:three,div:two,span:one	m two one;m three two	m two one;m three two
+should not de-opt when both head and tail change	!,div:x,!	p:a,div:x,p:b	r !;r !;c b -;c a x	r !;r !;c b -;c a x
+keyed random shuffle 0	0,1,2,3,4,5,6,7,8,9,10,11,12,13	12,13,7,0,6,2,5,4,3,8,10,11,9,1	m 1 -;m 9 1;m 4 3;m 5 4;m 6 2;m 7 0;m 13 7;m 12 13	m 1 -;m 9 1;m 4 3;m 5 4;m 6 2;m 7 0;m 13 7;m 12 13
+keyed random shuffle 1	0,1,2,3,4,5,6,7,8,9,10,11,12,13	3,0,9,12,5,2,8,13,1,11,6,10,7,4	m 4 -;m 10 7;m 11 6;m 13 1;m 8 13;m 2 8;m 5 2;m 12 5;m 9 12;m 3 0	m 4 -;m 10 7;m 11 6;m 13 1;m 8 13;m 2 8;m 5 2;m 12 5;m 9 12;m 3 0
+keyed random shuffle 2	0,1,2,3,4,5,6,7,8,9,10,11,12,13	1,3,9,12,6,7,5,0,13,4,11,10,8,2	m 2 -;m 10 8;m 11 10;m 4 11;m 13 4;m 0 13;m 5 0;m 12 6;m 9 12	m 2 -;m 10 8;m 11 10;m 4 11;m 13 4;m 0 13;m 5 0;m 12 6;m 9 12
+keyed random shuffle 3	0,1,2,3,4,5,6,7,8,9,10,11,12,13	8,12,13,2,0,5,10,1,7,9,11,6,3,4	m 4 -;m 3 4;m 6 3;m 10 1;m 5 10;m 2 0;m 13 2;m 12 13;m 8 12	m 4 -;m 3 4;m 6 3;m 10 1;m 5 10;m 2 0;m 13 2;m 12 13;m 8 12
+keyed random shuffle 4	0,1,2,3,4,5,6,7,8,9,10,11,12,13	0,5,6,2,9,1,13,12,4,3,10,8,7,11	m 7 11;m 8 7;m 3 10;m 4 3;m 12 4;m 13 12;m 1 13;m 2 9	m 7 11;m 8 7;m 3 10;m 4 3;m 12 4;m 13 12;m 1 13;m 2 9

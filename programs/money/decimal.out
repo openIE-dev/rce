@@ -1,0 +1,2 @@
+REFUSED refused/decimal.rce: line 1: W-NAME-1 unknown type `decimal`; line 1: W-TY-1 expected never, found ?0
+exit status: 1

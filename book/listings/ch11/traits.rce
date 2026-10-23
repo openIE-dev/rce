@@ -1,0 +1,28 @@
+trait Describe
+    fn describe(&self) -> text
+
+struct Point
+    x: i64
+    y: i64
+
+impl Describe for Point
+    fn describe(&self) -> text = "(" + self.x.tostr() + ", " + self.y.tostr() + ")"
+
+impl forall[T: Describe] Describe for List[T]
+    fn describe(&self) -> text = ", ".join([x.describe() for x in self])
+
+fn largest[T: Ord](xs: &[T]) -> T?
+    var best: T? = none
+    for x in xs
+        match best
+            none -> best = some(copy(x))
+            some(b) if x > b -> best = some(copy(x))
+            _ -> pass
+    return best
+
+const PTS: List[Point] = [Point(x: 1, y: 2), Point(x: 3, y: 4)]
+const NUMS: List[i64] = [4, 9, 2]
+
+check Point(x: 1, y: 2).describe() == "(1, 2)"
+check PTS.describe() == "(1, 2), (3, 4)"
+check largest(&NUMS) == some(9)

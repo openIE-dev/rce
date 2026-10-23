@@ -1,0 +1,16 @@
+# rce-version: 0.6
+fn main()
+    let a = chan[i64](1)
+    let b = chan[i64](1)
+    b <- 4
+    a <- <- b
+    emit 0
+#--- rce-test
+# id: lexing-parsing/targeted/r9-send-receive
+# area: lexing-parsing
+# clauses: [CH09-M-82e65964, R9]
+# expect: reject
+# diagnostic: W-TY-1
+# provenance: targeted.py: expected result read off the clause
+# note: R9: `a <- <- b` parses as send(a, receive(b)); a receive gives i64? so sending it on chan i64 is a type error, which shows the parse
+#---

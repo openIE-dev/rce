@@ -1,0 +1,22 @@
+# Records and simple aggregation: a total and a group-by.
+struct Row
+    region: text
+    amount: i64
+
+fn total(rows: &[Row]) -> i64
+    var s: i64 = 0
+    for r in rows
+        s += r.amount
+    return s
+
+fn by_region(rows: &[Row]) -> Map[text, i64]
+    var m: Map[text, i64] = {}
+    for r in rows
+        m[copy(r.region)] = (m.get(r.region) catch 0) + r.amount
+    return m
+
+const ROWS: List[Row] = [Row(region: "north", amount: 10), Row(region: "south", amount: 5), Row(region: "north", amount: 7)]
+
+check total(&ROWS) == 22
+check by_region(&ROWS)["north"] == 17
+check by_region(&ROWS)["south"] == 5

@@ -1,0 +1,14 @@
+fn shout(s: &text) -> text = s.strip().upper() + "!"
+
+fn is_palindrome(s: &text) -> bool
+    let t = [c for c in s.lower().chars() if c.isalpha()]
+    return t == t.reverse()
+
+const GREETING: text = "  hi "
+const PHRASE: text = "Never odd or even"
+
+check shout(&GREETING) == "HI!"
+check is_palindrome(&PHRASE)
+check "héllo".len_chars() == 5
+check "héllo".len_bytes() == 6
+check "héllo"[1:3] == "é"

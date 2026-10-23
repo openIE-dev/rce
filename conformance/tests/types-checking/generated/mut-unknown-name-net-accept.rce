@@ -1,0 +1,158 @@
+module netecho
+
+intent "TCP, random bytes and blobs as effects: each request has one logged result"
+    example Listen(addr: "127.0.0.1:1"), NetListenDone(req: 1, status: "failed", data: none, err: "x") -> errors == 1
+
+struct NetListen
+    req: u64
+    addr: text
+
+struct NetConnect
+    req: u64
+    addr: text
+
+struct NetAccept
+    req: u64
+    id: u64
+
+struct NetSend
+    req: u64
+    id: u64
+    data: text
+
+struct NetRecv
+    req: u64
+    id: u64
+    max: u64
+
+struct NetClose
+    req: u64
+    id: u64
+
+struct Random
+    req: u64
+    n: u64
+
+struct BlobPut
+    req: u64
+    data: text
+
+struct BlobGet
+    req: u64
+    digest: text
+
+event Listen(addr: text)
+event Connect(addr: text)
+event Accept(id: u64)
+event Send(id: u64, data: text)
+event Recv(id: u64)
+event Close(id: u64)
+event Roll(n: u64)
+event Put(data: text)
+event Get(digest: text)
+event NetListenDone(req: u64, status: text, data: u64?, err: text)
+event NetConnectDone(req: u64, status: text, data: u64?, err: text)
+event NetAcceptDone(req: u64, status: text, data: u64?, err: text)
+event NetSendDone(req: u64, status: text, data: u64?, err: text)
+event NetRecvDone(req: u64, status: text, data: text?, err: text)
+event NetCloseDone(req: u64, status: text, data: u64?, err: text)
+event RandomDone(req: u64, status: text, data: text?, err: text)
+event BlobPutDone(req: u64, status: text, data: text?, err: text)
+event BlobGetDone(req: u64, status: text, data: text?, err: text)
+
+state Net
+    next: u64 = 0
+    last: u64 = 0
+    got: text = ""
+    rand: text = ""
+    digest: text = ""
+    blob: text = ""
+    errors: u64 = 0
+
+step Net on Listen(addr: a)
+    next += 1
+    emit NetListen(req: next, addr: a)
+
+step Net on Connect(addr: a)
+    next += 1
+    emit NetConnect(req: next, addr: a)
+
+step Net on Accept(id: i)
+    next += 1
+    emit NetAccept(req: next, id: i)
+
+step Net on Send(id: i, data: d)
+    next += 1
+    emit NetSend(req: next, id: i, data: d)
+
+step Net on Recv(id: i)
+    next += 1
+    emit NetRecv(req: next, id: i, max: 4096)
+
+step Net on Close(id: i)
+    next += 1
+    emit NetClose(req: next, id: i)
+
+step Net on Roll(n: n)
+    next += 1
+    emit Random(req: next, n: n)
+
+step Net on Put(data: d)
+    next += 1
+    emit BlobPut(req: next, data: d)
+
+step Net on Get(digest: d)
+    next += 1
+    emit BlobGet(req: next, digest: d)
+
+step Net on NetListenDone(req: r, status: s, data: d, err: e)
+    if s == "delivered"
+        last = d.or(0)
+    else
+        errors += 1
+
+step Net on NetConnectDone(req: r, status: s, data: d, err: e)
+    if s == "delivered"
+        last = d.or(0)
+    else
+        errors += 1
+
+step Net on NetAcceptDone(req: r, status: s, data: d, err: e)
+    if s == "delivered"
+        last = d.or(0)
+
+step Net on NetSendDone(req: r, status: s, data: d, err: e)
+    if s != "delivered"
+        errors += 1
+
+step Net on NetRecvDone(req: r, status: s, data: d, err: e)
+    if s == "delivered"
+        got = got + d.or("")
+
+step Net on NetCloseDone(req: r, status: s, data: d, err: e)
+    if s != "delivered"
+        errors += 1
+
+step Net on RandomDone(req: r, status: s, data: d, err: e)
+    rand = d.or("")
+
+step Net on BlobPutDone(req: r, status: s, data: d, err: e)
+    digest = d.or("")
+
+step Net on BlobGetDone(req: r, status: s, data: d, err: e)
+    if s == "delivered"
+        blob = d.or("")
+    else
+        errors += 1
+
+fn probe_unknown() -> i64
+    return no_such_name_zz
+#--- rce-test
+# id: types-checking/generated/mut-unknown-name-net-accept
+# area: types-checking
+# clauses: [CH09-M-82e65964, W-NAME-1]
+# expect: reject
+# diagnostic: W-NAME-1
+# flags: [generated]
+# provenance: gen_props.py seed 7: mutation `unknown-name` of net-accept
+#---

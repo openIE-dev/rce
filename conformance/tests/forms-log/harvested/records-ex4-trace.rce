@@ -1,0 +1,34 @@
+module records
+
+intent "event payloads with records, variants, maps, lists, options and floats replay from D"
+    example Add(p: Point(x: 1.5, y: -2.0), tags: ["a", "b"], meta: {"k": 3}, note: none, s: Circle(r: 2.0)) -> n == 1
+
+struct Point
+    x: f64
+    y: f64
+
+kind Shape
+    Circle(r: f64)
+    Square(side: f64)
+
+state Pts
+    n: u64 = 0
+    sx: f64 = 0.0
+    last: text = ""
+
+event Add(p: Point, tags: List[text], meta: Map[text, u64], note: text?, s: Shape)
+
+step Pts on Add(p: p, tags: t, meta: _mm, note: _no, s: _sh)
+    n += 1
+    sx = sx + p.x
+    if t.len() > 0
+        last = copy(t[0])
+#--- rce-test
+# id: forms-log/harvested/records-ex4-trace
+# area: forms-log
+# clauses: [CH00-M-61b6ac06, CH07-M-0a0bd71f, CH07-M-265230fb, CH12-M-f71aaadc, T1, T3, T5]
+# expect: trace
+# events: Add(p: Point(x: 1.5, y: -2.0), tags: ["a", "b"], meta: {"k": 3}, note: none, s: Circle(r: 2.0))
+# trace_head: b091398d1e5a7003515a57b16fe19359e274535b21b5d16bb901ba9a059ce412
+# provenance: harvested checker/tests/host/records.rce example@4
+#---

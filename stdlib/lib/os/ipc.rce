@@ -1,0 +1,281 @@
+module os.ipc
+
+# Pipes and IPC (survey M41), pure. Channels are opened by name through
+# the host (cap Channel, grant ipc per endpoint name); shared memory is
+# not offered (it cannot be logged). This module holds:
+#  - framing over byte streams: netstrings (D. J. Bernstein) and u32
+#    big-endian length prefixes, with streaming decoders that accept
+#    chunks split anywhere (as M18 io delivers them);
+#  - the Linux pipe buffer: 16 page slots of 4096 bytes, writes of at most
+#    PIPE_BUF (4096) bytes are atomic, a short final fragment merges into
+#    the last page when it fits, non-blocking writes return a short count
+#    or EAGAIN and reads EAGAIN when empty (fs/pipe.c pipe_write and
+#    pipe_read);
+#  - Unix domain socket addresses (unix(7)): pathname, abstract and
+#    unnamed, the 108-byte sun_path limit and the address length the
+#    kernel reports;
+#  - Windows named pipe names (\\.\pipe\name, \\server\pipe\name);
+#  - the grant ipc check by endpoint name.
+
+error BadFrame(why: text)
+
+# ---------------- netstrings ----------------
+
+pub fn netstring(payload: &List[u8]) -> List[u8]
+    let h = payload.len().tostr() + ":"
+    var o: List[u8] = []
+    var i: usize = 0
+    while i < h.len_bytes() bound 32
+        o.push(h[i])
+        i += 1
+    for b in payload
+        o.push(b)
+    o.push(44)
+    return o
+
+pub struct NsDec
+    buf: List[u8]
+    out: List[List[u8]]
+    bad: text
+
+pub fn ns_new() -> NsDec = NsDec(buf: [], out: [], bad: "")
+
+fn slice(b: &List[u8], i: usize, j: usize) -> List[u8]
+    var o: List[u8] = []
+    var k = i
+    while k < j bound 16777216
+        o.push(b[k])
+        k += 1
+    return o
+
+# Feed bytes; complete frames are appended to out. A malformed stream
+# (a length with a leading zero or no digits, a missing ":" or ",", or a
+# length over 999999999) stops the decoder with bad set.
+pub fn ns_feed(d: &mut NsDec, chunk: &List[u8])
+    if d.bad != ""
+        return
+    for b in chunk
+        d.buf.push(b)
+    loop bound 16777216
+        var i: usize = 0
+        var n: i64 = 0
+        while i < d.buf.len() and d.buf[i] >= 48 and d.buf[i] <= 57 bound 16
+            if i == 1 and d.buf[0] == 48
+                d.bad = "leading zero"
+                return
+            n = n * 10 + (d.buf[i] as i64 - 48)
+            i += 1
+            if i > 9
+                d.bad = "length too long"
+                return
+        if i == d.buf.len()
+            return
+        if i == 0 or d.buf[i] != 58
+            d.bad = "expected digits and ':'"
+            return
+        let end = i + 1 + n as usize
+        if d.buf.len() <= end
+            return
+        if d.buf[end] != 44
+            d.bad = "expected ','"
+            return
+        d.out.push(slice(&d.buf, i + 1, end))
+        var rest: List[u8] = []
+        var k = end + 1
+        while k < d.buf.len() bound 16777216
+            rest.push(d.buf[k])
+            k += 1
+        d.buf = rest
+
+# ---------------- u32 length prefix ----------------
+
+pub fn be32_frame(payload: &List[u8]) -> List[u8]
+    let n = payload.len() as i64
+    var o: List[u8] = [((n >> 24) & 255) as u8, ((n >> 16) & 255) as u8, ((n >> 8) & 255) as u8, (n & 255) as u8]
+    for b in payload
+        o.push(b)
+    return o
+
+pub struct LpDec
+    buf: List[u8]
+    frames: List[List[u8]]
+    max: i64
+    bad: text
+
+pub fn lp_new(max: i64) -> LpDec = LpDec(buf: [], frames: [], max: max, bad: "")
+
+pub fn lp_feed(d: &mut LpDec, chunk: &List[u8])
+    if d.bad != ""
+        return
+    for b in chunk
+        d.buf.push(b)
+    while d.buf.len() >= 4 bound 16777216
+        let n = (d.buf[0] as i64) << 24 | (d.buf[1] as i64) << 16 | (d.buf[2] as i64) << 8 | d.buf[3] as i64
+        if n > d.max
+            d.bad = "frame too large"
+            return
+        if (d.buf.len() as i64) < 4 + n
+            return
+        var f: List[u8] = []
+        var rest: List[u8] = []
+        var k: usize = 4
+        while k < d.buf.len() bound 16777216
+            if (k as i64) < 4 + n
+                f.push(d.buf[k])
+            else
+                rest.push(d.buf[k])
+            k += 1
+        d.frames.push(f)
+        d.buf = rest
+
+# ---------------- Linux pipe buffer ----------------
+
+pub const PAGE: i64 = 4096
+pub const PIPE_BUF: i64 = 4096
+pub const PIPE_SLOTS: i64 = 16
+
+pub struct PBuf
+    offset: i64
+    len: i64
+
+pub struct Pipe
+    bufs: List[PBuf]
+    slots: i64
+
+pub fn pipe_new() -> Pipe = Pipe(bufs: [], slots: PIPE_SLOTS)
+
+pub fn pipe_bytes(p: &Pipe) -> i64
+    var n: i64 = 0
+    for b in p.bufs
+        n += b.len
+    return n
+
+# A non-blocking write of n bytes: the count written, or -1 for EAGAIN.
+pub fn pipe_write(p: &mut Pipe, n: i64) -> i64
+    if n == 0
+        return 0
+    var ret: i64 = 0
+    let chars = n % PAGE
+    if chars > 0 and p.bufs.len() > 0
+        let k = p.bufs.len() - 1
+        if p.bufs[k].offset + p.bufs[k].len + chars <= PAGE
+            p.bufs[k].len += chars
+            ret = chars
+            if ret == n
+                return ret
+    while (p.bufs.len() as i64) < p.slots bound 1024
+        let c = if n - ret < PAGE then n - ret else PAGE
+        p.bufs.push(PBuf(offset: 0, len: c))
+        ret += c
+        if ret == n
+            return ret
+    return if ret == 0 then -1 else ret
+
+# A non-blocking read of up to n bytes: the count read, or -1 for EAGAIN.
+pub fn pipe_read(p: &mut Pipe, n: i64) -> i64
+    if p.bufs.len() == 0
+        return if n == 0 then 0 else -1
+    var got: i64 = 0
+    while got < n and p.bufs.len() > 0 bound 1024
+        let take = if p.bufs[0].len < n - got then p.bufs[0].len else n - got
+        p.bufs[0].offset += take
+        p.bufs[0].len -= take
+        got += take
+        if p.bufs[0].len == 0
+            var rest: List[PBuf] = []
+            var k: usize = 1
+            while k < p.bufs.len() bound 1024
+                rest.push(copy(p.bufs[k]))
+                k += 1
+            p.bufs = rest
+    return got
+
+# F_SETPIPE_SZ: the capacity rounds up to a power of two pages; it cannot
+# drop below the bytes held. Returns the new capacity or -1 (EBUSY).
+pub fn pipe_set_size(p: &mut Pipe, bytes: i64) -> i64
+    var pages: i64 = 1
+    while pages * PAGE < bytes bound 64
+        pages = pages * 2
+    if (p.bufs.len() as i64) > pages
+        return -1
+    p.slots = pages
+    return pages * PAGE
+
+# ---------------- Unix domain socket addresses ----------------
+
+pub const SUN_PATH: i64 = 108
+
+# The address length getsockname reports after bind(2) with a name of
+# name_len bytes: a pathname counts its terminating NUL, an abstract name
+# (first byte NUL, counted in name_len) does not; an empty name autobinds
+# to an abstract name of a NUL and five hex digits. -1 when the name does
+# not fit sun_path (EINVAL). An unbound socket reports UNNAMED_LEN.
+pub const UNNAMED_LEN: i64 = 2
+
+pub fn unix_addrlen(name_len: i64, abstract: bool) -> i64
+    if name_len == 0
+        return 8
+    if name_len > SUN_PATH
+        return -1
+    if abstract
+        return 2 + name_len
+    return 2 + name_len + 1
+
+# ---------------- Windows named pipes ----------------
+
+# \\.\pipe\name or \\server\pipe\name; the name part is 1 to 256
+# characters, any character but the backslash. Returns the name or "".
+pub fn win_pipe_name(path: &text) -> text
+    let cs = path.chars()
+    if cs.len() < 3 or cs[0] != "\\" or cs[1] != "\\"
+        return ""
+    var i: usize = 2
+    while i < cs.len() and cs[i] != "\\" bound 4096
+        i += 1
+    if i == 2 or i >= cs.len()
+        return ""
+    let _rest = cs.len() - i - 1
+    var head = ""
+    var j = i + 1
+    while j < cs.len() and j < i + 6 bound 8
+        head = head + cs[j]
+        j += 1
+    if head.lower() != "pipe\\"
+        return ""
+    var name = ""
+    var k = i + 6
+    while k < cs.len() bound 4096
+        name = name + cs[k]
+        k += 1
+    let nl = name.chars().len()
+    if nl == 0 or nl > 256 or name.contains("\\")
+        return ""
+    return name
+
+# ---------------- the ipc grant ----------------
+
+# grant ipc: an endpoint is reachable only when the sandbox grant names
+# it exactly (deny by default); a grant ending in "/*" covers the names
+# directly below that prefix.
+pub fn ipc_granted(grants: &List[text], endpoint: &text) -> bool
+    for g in grants
+        if g == endpoint
+            return true
+        if g.endswith("/*")
+            let gc = g.chars()
+            var pre = ""
+            var i: usize = 0
+            while i + 1 < gc.len() bound 4096
+                pre = pre + gc[i]
+                i += 1
+            if endpoint.startswith(&pre) and endpoint.len_bytes() > pre.len_bytes()
+                let ec = endpoint.chars()
+                var ok = true
+                var k = pre.chars().len()
+                while k < ec.len() bound 4096
+                    if ec[k] == "/"
+                        ok = false
+                    k += 1
+                if ok
+                    return true
+    return false

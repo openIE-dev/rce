@@ -531,6 +531,8 @@ pub const USAGE_TEXT: &str = "usage:
   rce trace --json FILE [EVENTS] reference trace (seq, event, state_hash per step) of the examples, or of EVENTS
   rce emit TARGET FILE           TARGET: form (Form JSON), rust, python, js or scala (a program printing its observations)
   rce fmt [--check] FILE...      rewrite files in canonical layout (--check: only report)
+  rce fmt --nameless FILE        print the name-free projection: every declared identifier replaced by its positional name (10.6)
+  rce dim [--fuel N] [--control] [--json] FILE  behaviours a program can be in and the redundancy of its state (6.10, 10.11); --control adds dim_c and shape_ctl
   rce hash FILE|DIR...           the definition hash (F.4.3) of every named item of each module: HASH, kind, name, and `pub` for an export
   rce manifest-check MANIFEST [--advisories FILE] [--key ISSUER=HEXPUBKEY]...  verify a hash-pinned manifest (F.5.3, W-PIN-1) and list pinned hashes that carry a signed advisory
   rce api-diff OLD NEW           compare the exports of two module sets (FILE or DIR each); one row per change, compatible or breaking; status 1 if any is breaking
@@ -681,6 +683,54 @@ fn run_main(a: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &mu
                 }
             }
         }
+        Some("dim") if !rest.is_empty() => {
+            // rce dim [--fuel N] [--control] [--json] FILE   (10.11)
+            let (mut fuel, mut control, mut json, mut file) = (100_000usize, false, false, None);
+            let mut i = 0;
+            while i < rest.len() {
+                match rest[i].as_str() {
+                    "--fuel" if i + 1 < rest.len() => {
+                        fuel = rest[i + 1].parse().map_err(|_| "--fuel N: N is a count of states".to_string())?;
+                        i += 2;
+                    }
+                    "--control" => {
+                        control = true;
+                        i += 1;
+                    }
+                    "--json" => {
+                        json = true;
+                        i += 1;
+                    }
+                    f if file.is_none() && !f.starts_with("--") => {
+                        file = Some(f.to_string());
+                        i += 1;
+                    }
+                    other => return Err(format!("dim: unexpected argument `{other}`")),
+                }
+            }
+            let file = file.ok_or("dim: a FILE is required")?;
+            let src = read_file(&file)?;
+            let d = diagnostics(&src, &HashSet::new());
+            if !d.is_empty() {
+                writeln!(out, "REFUSED {file}: {}", d.into_iter().map(|x| x.1).collect::<Vec<_>>().join("; ")).map_err(w)?;
+                return Ok(REFUSED);
+            }
+            let m = parse(&src)?;
+            match crate::dim::dim_with(&m, fuel, control) {
+                Ok(r) => {
+                    if json {
+                        writeln!(out, "{}", crate::dim::report_json(&r)).map_err(w)?;
+                    } else {
+                        write!(out, "{}", crate::dim::report(&r)).map_err(w)?;
+                    }
+                    OK
+                }
+                Err(e) => {
+                    writeln!(out, "REFUSED {file}: {e}").map_err(w)?;
+                    REFUSED
+                }
+            }
+        }
         Some("hash") if !rest.is_empty() => {
             for p in expand(rest)? {
                 let m = parse(&read_file(&p)?).map_err(|e| format!("{p}: {e}"))?;
@@ -783,6 +833,20 @@ fn run_main(a: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &mu
             )
             .map_err(w)?;
             USAGE
+        }
+        Some("fmt") if rest.len() == 2 && rest[0] == "--nameless" => {
+            // rce fmt --nameless FILE: the name-free projection (10.6), to stdout
+            let src = read_file(&rest[1])?;
+            match crate::nameless::nameless(&src).and_then(|t| fmt_text(&t)) {
+                Ok(t) => {
+                    write!(out, "{t}").map_err(w)?;
+                    OK
+                }
+                Err(e) => {
+                    writeln!(out, "REFUSED {}: {e}", rest[1]).map_err(w)?;
+                    REFUSED
+                }
+            }
         }
         Some("fmt") if !rest.is_empty() => {
             let check = rest[0] == "--check";
@@ -1096,7 +1160,40 @@ pub fn form_full(m: &Module) -> Result<String, String> {
         "null".into()
     };
     let body = base.strip_suffix('}').ok_or("form json")?;
-    Ok(format!("{body},\"main\":{main},\"source\":{source},\"terms\":{terms}}}"))
+    let names = concept_record(m);
+    Ok(format!("{body},\"main\":{main},\"source\":{source},\"terms\":{terms},\"names\":{names}}}"))
+}
+
+/// The concept record (6.6): from each name-free key (the declaration
+/// index of 6.6, as `#i`) to the name as written and, for an `intent`, its
+/// text. Printed after the hashed fields; never hashed, never read by δ.
+/// Two modules that differ only here have the same outcomes, outputs and
+/// ids (`tests/nameless.rs`).
+pub fn concept_record(m: &Module) -> String {
+    let mut rows: Vec<String> = vec![];
+    let mut intents: Vec<String> = vec![];
+    for (i, it) in m.items.iter().enumerate() {
+        if let Item::Intent(text, _, _) = it {
+            intents.push(serde_json::to_string(text).unwrap_or_default());
+        }
+        if let Some(n) = crate::link::item_name(it) {
+            let kind = match it {
+                Item::State { .. } => "state",
+                Item::Actor { .. } => "actor",
+                Item::Event { .. } => "event",
+                Item::Error { .. } => "error",
+                Item::Fn(_) => "fn",
+                Item::Struct { .. } => "struct",
+                Item::Kind { .. } => "kind",
+                Item::Trait { .. } => "trait",
+                Item::TypeAlias { .. } => "type",
+                Item::Const { .. } => "const",
+                _ => "item",
+            };
+            rows.push(format!("{{\"key\":\"#{i}\",\"kind\":\"{kind}\",\"name\":{}}}", serde_json::to_string(&n).unwrap_or_default()));
+        }
+    }
+    format!("{{\"intent\":[{}],\"items\":[{}]}}", intents.join(","), rows.join(","))
 }
 
 /// `rce unform FORM.json`: the canonical source of a Form's `terms`.

@@ -1,0 +1,14 @@
+# Two producers on one select: the rotation guarantees neither is starved.
+fn fan_in(a: chan u64, b: chan u64, out: chan u64)
+    loop bound 1000
+        select
+            recv some(x) from a -> out <- x
+            recv some(y) from b -> out <- y
+            recv none from a -> break
+#--- rce-test
+# id: concurrency/harvested/47-select-fair-accept
+# area: concurrency
+# clauses: [CH03-M-28cdd241, T10, T11]
+# expect: accept
+# provenance: harvested examples/47_select_fair.rce
+#---

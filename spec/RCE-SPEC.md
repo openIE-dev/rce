@@ -78,11 +78,11 @@ labels of past commits of it, not alternatives; `# rce-version:` is a release la
 tolerated, ignored and not hashed (2.7), and a label names exactly one spec commit (C.15). The
 language of this text is what the reference checker and the Lean files enforce and prove for concurrency
 (Appendix C), and a program that an earlier commit accepted may be refused by this one when a rule was
-added; an implementation of a release implements that release's text. accepted. The core is mechanized in Lean 4
+added; an implementation of a release implements that release's text. The core is mechanized in Lean 4
 (`spec/lean/`, section 8), a reference type and well-formedness checker
 (`spec/checker/`, `rce-check`) implements sections 4, 5 and 7 including the
 admission gate of 6.9 (examples, checks, comptime and constants are evaluated),
-`spec/tree-sitter/` is a tree-sitter port of the grammar checked against
+`tree-sitter/` is a tree-sitter port of the grammar checked against
 the LALR(1) tables of section 3, and grammar-level random programs are checked by
 `rce-fuzz` (`spec/checker/`). The production compiler has
 not been built from this document yet. Changes made while mechanizing are
@@ -120,8 +120,8 @@ the printed output of `rce-spec-check`, compared with this text by
 (100 rules, 491 productions, 974 states); with the additions of C.2,
 0 conflicts (114 rules, 560 productions, 1152 states);
 with C.2 and F.13, 0 conflicts (119 rules, 588 productions,
-1214 states), accepting the 15 Appendix F examples; grammar 59/59 accepted,
-12/12 refused; checker 59/59 accepted, 12/12 and 64/64 refused (16 of them
+1214 states), accepting the 15 Appendix F examples; grammar 62/62 accepted,
+12/12 refused; checker 62/62 accepted, 12/12 and 64/64 refused (16 of them
 inadmissible). Until 2026-10-12 the same grammar was kept as
 `spec/rce.lark` and checked with Lark (0 conflicts, 533 rules in Lark's
 expansion); that file is retired.
@@ -255,7 +255,7 @@ and nothing selects or extends it. It is: the keywords above; the 23 concurrency
 `nondet`, `budget`, `deadline`, `priority`, `replicated`, `interrupt`, `session`, `lvar`, `group`, `lanes`,
 `barrier`, `scope`, `atomic`, `protocol`, `offer`, `choose`, `node`, `supervisor`, `strategy`, `child`,
 `restart`); the ten words of Appendix F (`requires`, `ensures`, `decreases`, `ghost`, `ct`, `declassify`,
-`endorse`, `release`, `label` and `law`); and the type names `World`, `Template`, `Shell`, `Prompt`, `mathint`
+`endorse`, `release`, `label` and `law`); and the type names `World`, `Template`, `Shell`, `Prompt`, `Header`, `mathint`
 and the eight indexed names of 5.16, which no module may declare (W-NAME-2). A keyword or concurrency word is
 refused as a name by the grammar (W-SYN-1). A word of Appendix F whose construct this implementation has
 (`ct`, `endorse`, `release`, `label`, `requires`, `ensures`, `ghost`, `decreases`) is refused as a name
@@ -623,7 +623,7 @@ declaration and no conflict to resolve at parse time.
    current result (draft 0.9): 100 rules, 491 productions, 974 states, 0
    conflicts (`scripts/claim-counts.py --check` compares these numbers with
    the output of `rce-spec-check`);
-2. parses the 59 programs in `examples/` (the 57 files there and the 2 of
+2. parses the 62 programs in `examples/` (the 60 files there and the 2 of
    `examples/26_use_module/`), with and without their final
    newline; all must parse;
 3. parses the 12 programs in `examples/reject/` (tab indent, chained
@@ -637,7 +637,7 @@ lexer's tokens, the Rust parser, and the tree-sitter port) and all three must
 agree. Until 2026-10-12 this check was `spec/check.py` on `spec/rce.lark`
 with Lark in strict mode; both are retired.
 
-`spec/tree-sitter/` is the same grammar for tree-sitter (`grammar.js`, with
+`tree-sitter/` is the same grammar for tree-sitter (`grammar.js`, with
 layout, bracket depth, reserved-keyword NAME and longest-match numbers and
 `<-` in `src/scanner.c`). The former `tree-sitter/compare.py N SEED` parsed every
 example and N fuzz programs, each program's syntax mutants and SOUP
@@ -1710,10 +1710,12 @@ exactly.
     the same rule. A result that overflows traps (F4); `log` of x ≤ 0
     traps (also `log2`, `log10`). Device versions stay output only or
     verified (HC-13).
-  Canonical float text is the shortest round-trip digits; decimal notation
+  Float *text* (the result of `tostr` and of `Show` on a float,
+  `interp::float_text`) is the shortest round-trip digits; decimal notation
   for 1e-5 ≤ |x| < 1e16, else `d.ddde±N` with `+` on positive exponents
-  (`1e+300`, `1.5e-7`).
-  Canonical JSON (6.1) has one float form, `interp::float_json`, used for
+  (`1e+300`, `1.5e-7`). It is a program-visible value and is never hashed.
+  Canonical JSON (6.1.1) is a different, separately specified byte form:
+  it has one float form, `interp::float_json`, used for
   hashes and for every trace and log written as JSON, so a trace shows the
   bytes that were hashed: shortest round-trip digits, decimal with at
   least one fractional digit for 1e-4 ≤ |x| < 1e16 (`10.0`, `0.0001`),
@@ -1849,6 +1851,25 @@ identifier, so renaming every identifier in a program leaves every id, every
 log hash and every select decision unchanged (T7); no actor or task key
 contains a source position, so an edit that keeps the supervision tree and
 the order of creations keeps every actor and task id.
+
+**The concept record (informative).** Names carry no meaning in the Form
+(T7) and most of the meaning for a reader: obscuring identifiers costs a
+model between a tenth and a quarter of its accuracy on what a program does
+(arXiv 2510.03178, 2025), while removing formatting costs nothing
+measurable (arXiv 2508.13666, 2025; both in section 11). So names have a
+defined home outside the hash. The *concept record* of a module is the
+table from each name-free key of 6.6 to: the name as written, the `intent`
+strings of the item, and its doc comments. `rce emit form` prints it
+under a `names` field after the hashed fields, keyed `#i` by declaration
+index (the same index `shape_ctl` of 6.10 uses), with the `intent` strings;
+doc comments are not yet collected. The Form JSON of 10.5 still carries
+names in its `name` and `region` fields. It is never read by δ.
+Two modules that differ only in it have the same outcomes, outputs and
+ids; their `state_hash` values differ until the T7 finding of chapter 8 is
+resolved. A projection (10.5) renders the concept record's names by
+default; `rce fmt --nameless` (10.6) is the projection that renders
+positional names instead, which is the text the name-free keys of 6.6 are
+computed from.
 
 ### 6.7 Loops and fuel
 
@@ -2014,6 +2035,79 @@ Derivation of the trap form: a step ends in a value, a named error or a trap
 (T2), so a proposition about one final step needs all three outcomes, or a
 program whose specified behavior is a trap has no example that states it and
 no emitted program can be held to it.
+
+### 6.10 Behaviour, equivalence and dimension
+
+This section defines what "the same behaviour" means for two programs, and
+the dimension of a program: the number of behaviours it can be in. Example:
+a counter with a field that no step reads has the dimension of the counter
+without it.
+
+In plain words: (1) the behaviour of a program is the answer it gives to
+every sequence of events; two programs are the same when their answers are
+the same, and that is the only sense of "same" the Form needs; (2) two
+different behaviours disagree at some first step, and a test that checks
+the first k steps shows the programs are within 2^-(k+1) of each other,
+not that they are equal; (3) the dimension of a program is the number of
+different behaviours it can be in, and state that cannot change any future
+answer is redundancy the checker can count.
+
+**Behaviour.** Fix a program P with state space S, event alphabet E and
+δ : S × E → S × O\* (6.1), δ₁ = π₁ ∘ δ, λ = π₂ ∘ δ. The *behaviour* of a
+state s is the function beh_P(s) : E\* → (O\*)\* with beh_P(s)(ε) = ε and
+beh_P(s)(e · w) = λ(s, e) · beh_P(δ₁(s, e))(w): the sequence of per-step
+outputs along any event sequence. The behaviour of P is beh_P(s₀).
+Derivation: (S, ⟨λ, δ₁⟩) is a coalgebra of the functor F(X) = (O\* × X)^E;
+F has a final coalgebra Beh whose carrier is the set of such functions, and
+beh_P is the unique coalgebra morphism S → Beh (Rutten 2000, Theorem 2.3).
+Every Form, in every fit language, maps into the same Beh by the same
+construction, so Beh is the one object every projection targets.
+
+**Equivalence.** Two fits F and G are *equivalent*, F ≡ G, when
+beh_F(s₀^F) = beh_G(s₀^G). A relation R ⊆ S_F × S_G is a *bisimulation*
+when s R t implies, for every e ∈ E, λ_F(s, e) = λ_G(t, e) and
+δ₁^F(s, e) R δ₁^G(t, e). T58 says ≡ is bisimilarity, so a proof of ≡
+exhibits a bisimulation, and a proof of ≢ exhibits a distinguishing event
+sequence.
+
+**Distance.** For behaviours b₁, b₂ let n(b₁, b₂) be the length of the
+shortest event sequence on which they differ (∞ when equal) and
+d(b₁, b₂) = 2^-n. This is the prefix ultrametric (de Bakker and Zucker 1982):
+complete and totally disconnected. Trace agreement on every sequence of
+length ≤ k (the evidence of T9) certifies d ≤ 2^-(k+1), a ball around the
+behaviour and not the behaviour; trace evidence therefore never enters a
+hash or a key.
+
+**Dimension.** reach(P) = {s : ∃ w ∈ E\*, s = foldl(δ₁, s₀, w)} is finite
+(6.3 N9). dim(P) = |{beh_P(s) : s ∈ reach(P)}| is the number of distinct
+behaviours P can be in; log₂ dim(P) is the bits of state the behaviour
+needs, and log₂ |reach(P)| − log₂ dim(P) is the *redundancy* of the fit,
+the bits of state that change no future answer. dim(P) is the number of
+states of the minimal Mealy machine with behaviour beh_P(s₀) (the Nerode
+index; Nerode 1958, Moore 1956, Hopcroft 1971), unique up to isomorphism
+because δ is total and deterministic (T1, T2); an incompletely specified
+machine has no unique minimum (Pfleeger 1973).
+
+**Control dimension.** Let S = Σc × Σd (6.1). The *control projection*
+P_c replaces every guard over Σd by its predicate symbol and every data
+update by a symbolic update, giving a symbolic finite automaton over the
+guard predicates of 6.4 (D'Antoni and Veanes 2014). dim_c(P) is the Nerode
+index of P_c modulo predicate equivalence; dim_c(P) ≤ dim(P). The symbolic
+quotient is not implemented; `rce dim --control` (10.11) computes the
+control quotient of the explored concrete machine instead.
+
+**Canonical control form.** Let M_c be the minimal machine of P_c, its
+states numbered by first visit in a breadth-first traversal from s₀ taking
+events in declaration order (the name-free key of 6.6) and payloads in the
+order of their boundary sets (Reis, Moreira and Almeida 2005: the
+canonical string of an initially connected DFA is unique and name-free by
+construction). `shape_ctl(P)` is the SHA-256 over the canonical JSON (6.1.1)
+of that string. `shape_ctl` equal means the same control behaviour up to
+predicate equivalence; ≡ means the same behaviour, decidable for finite S
+by partition refinement on reach(P) and in practice bounded by the
+exploration fuel of `rce dim` (10.11). The proposal `form-ir-2.md` names
+two further keys, a name-free term hash and an e-class key, that this text
+does not define.
 
 **Read receipt.** Name-free hashing uses indices named after which logician? (two words)
 
@@ -2212,6 +2306,12 @@ Classical.choice). Status per theorem:
 | T55 | stated, unproved (Appendix F.9; F.12 lists what is implemented): Broker invariant: by induction on grant events, no session holds all three trifecta properties without an explicit grant event (F.7) | none |
 | T56 | stated, unproved (Appendix F.9; F.12 lists what is implemented): Relaxed sequential borrows: the limited relaxation of 5.6 studied from group borrowing (a reference is invalidated only below steps that are not independent of it) preserves T6; the lemma is not proved and the relaxation is not adopted (5.6) | none |
 | T15 | proved for iterators whose step between yields is total (T2): every run ends, delivers at most LOOP_LIMIT values and traps only after exactly LOOP_LIMIT; `break` yields a prefix of the full run; a run with a smaller cap is a prefix of one with a larger cap (the evaluator's re-run strategy) | `drive_total`, `drive_break`, `gen_prefix` |
+| T57 | proved for the morphism equation (one-step unfolding of the behaviour of 6.10) on the Form of `RCE/Form.lean`; uniqueness of the morphism (Rutten 2000) is stated, unproved | `beh_cons` (`RCE/Behaviour.lean`) |
+| T58 | proved on the Form of `RCE/Form.lean`, for one program and for two: a bisimulation forces equal behaviours and behavioural equality is a bisimulation | `bisim_beh`, `beh_bisim`, `behEq_iff_bisim`, `bisim2_beh`, `beh_bisim2` |
+| T59 | proved over an explicit finite alphabet (the declared events over the boundary sets that `rce dim` explores), in both directions: agreement on every word of every length ≤ k puts the first difference beyond k, and a first difference beyond k (or none) gives agreement on every word of length ≤ k; the statement over all of E is stated, unproved | `words`, `AgreeAt`, `firstDiff`, `firstDiff_disagrees`, `firstDiff_le`, `firstDiff_none`, `trace_ball`, `ball_trace` |
+| T60 | stated, unproved (a model proof by partition refinement is the next step): for finite S the quotient of reach(P) by the largest bisimulation is the minimal machine, with dim(P) states, unique up to isomorphism, and the canonical numbering of 6.10 makes its isomorphism class one string | none |
+| T61 | tested for renaming only (`tests/dim.rs`, `shape_ctl_is_name_free`, against `rce fmt --nameless`); invariance under predicate-equivalent rewrites of guards is stated, unproved; the symbolic quotient of 6.10 is not implemented | none |
+| T62 | proved on a model (`RCE/LogPO.lean`, spec/proposals/partial-order-log.md): entries with read and write footprints over an abstract store, independent when neither writes what the other reads or writes; independent entries commute, and any sequence of adjacent independent swaps of a layer folds to the same store. A model in the sense of this chapter: the link to the admitter is the HC-15 permutation tests of T40 | `commute`, `fold_swap`, `fold_perm_eq` |
 
 T16 to T31 belong to the concurrency part (Appendix C) and are listed with their exact status
 in Appendix C.13. Most are proofs about abstract models (T18, T19b, T21,
@@ -2303,6 +2403,33 @@ result when it lies in [0, 2^64) and traps otherwise.
 `.collect()`, terminate after at most LOOP_LIMIT yields, and `break`
 observes a prefix of the values the iterator would produce.
 
+**T57 Finality.** beh_P of 6.10 is a coalgebra morphism:
+beh_P(s)(e · w) = λ(s, e) · beh_P(δ₁(s, e))(w), and it is the unique such
+map S → Beh.
+
+**T58 Equivalence is bisimilarity.** beh_P(s) = beh_P(t) if and only if
+there is a bisimulation R with s R t; likewise for two programs on
+S_F × S_G.
+
+**T59 Trace evidence is a ball.** If beh_F(s₀)(w) = beh_G(s₀)(w) for every
+w with |w| ≤ k, then d(beh_F, beh_G) ≤ 2^-(k+1), and conversely.
+
+**T60 Minimal machine.** For finite S, the quotient of reach(P) by the
+largest bisimulation is a Mealy machine with the behaviour beh_P(s₀) and
+dim(P) states; every Mealy machine with that behaviour has at least dim(P)
+states, with equality only up to isomorphism; the canonical numbering of
+6.10 makes the isomorphism class one string.
+
+**T61 Control canonicity.** `shape_ctl` (6.10) is invariant under renaming
+(T7) and under any rewrite of a guard to a predicate-equivalent guard; it
+is not invariant under a change of a data update that changes a later
+guard outcome.
+
+**T62 Linearization invariance (proposal).** For a layer of D between
+two cuts, any two orders that agree with every chain's `seq` order and
+every `deps` edge fold δ₁ to the same state at the upper cut
+(spec/proposals/partial-order-log.md).
+
 **T32 Foreign replay.** For every oracle o answering foreign calls and
 `select nondet` choices (5.11, C.5), replaying the log of a live run
 reproduces its state, whatever o is; no property of the foreign code is
@@ -2364,7 +2491,7 @@ or the named core), model (Lean, on an abstract model), checked (a
 machine check that is exhaustive for its input, such as LALR(1)),
 tested (sampled differential or property tests), in that order, with *stated, unproved* below them for a theorem whose
 statement is written but which has no Lean statement, no test and no checker
-rule yet (T42 to T56, Appendix F.9); such a row is an obligation and never a
+rule yet (T42 to T56, Appendix F.9; T59 over all of E, T60 and T61, 6.10); such a row is an obligation and never a
 claim. A
 counterexample is a failure, never a lower level, and a claim about
 several parts has the lowest level among them. Every Lean name in the
@@ -2681,8 +2808,9 @@ below is applied in the tier order of its dependencies; the derivation is in
 Appendix F next to the rule, and every theorem is stated and unproved (F.9).
 
 - **Tier 0.** Stale text corrected (errata for every version): decisions 8, 11,
-  12, 21 and 29, the Copy list of 5.5 (f32 added), W-VER-1 and 2.7 (0.8 and
-  0.9 named), the overview status and its checker figures. Version 0.9 refuses
+  12, 21 and 29, the Copy list of 5.5 (f32 added), the former W-VER-1
+  (removed: the release label is tolerated and ignored, 2.7, decision 64) and
+  2.7 (0.8 and 0.9 named), the overview status and its checker figures. Version 0.9 refuses
   unused values, dropped non-unit results and unused stores (F.3.2), and
   adds lexical hygiene: hidden and bidirectional characters, shadowing of any
   enclosing local, qualified variants, longest-token lexing (F.3.3).
@@ -2724,7 +2852,7 @@ No row rests on taste: where no principle decides, the existing text stays.
 | 5 | Advisory format | Canonical JSON object signed with Ed25519 over its SHA-256 | (c): reuse the canonical JSON of 6.1; Ed25519 signatures are deterministic |
 | 6 | Map iteration order | Ascending canonical key order of 7.1 | already 6.7 and the C.15 erratum; (c) |
 | 7 | Half-open slices and inclusive ranges | Unchanged: slices as in 6.3 N8, ranges keep `..` and `..=` | (e): both already have one meaning; no principle favors removing one |
-| 8 | Comparison-chain sugar | Not adopted; a chain is refused (W-OP-1) | (e): one meaning, and a chain would need a second reading of the operator |
+| 8 | Comparison-chain sugar | Not adopted; a chain is a syntax error (R3, section 3) | (e): one meaning, and a chain would need a second reading of the operator |
 | 9 | NaN payload and libm strategy | Neither exists: non-finite results trap, transcendentals are RCE code in `math` (F9) | already decision 51; (c) |
 | 10 | Value-indexed types | Not adopted beyond comptime array lengths and the type indices of 5.16 | (d): a value in a type needs a decidable fragment, and none is specified |
 | 11 | Linear types in the spec | They are (5.12, W-LIN-1, T12); a linear handle is not undoable | already in the spec; (b) |
@@ -2956,8 +3084,8 @@ it, its outputs, or the refusal), and finally the outputs and result of
 evaluator, so that a target and the reference can be compared line for
 line.
 
-**How the emitters are tested.** `spec/checker/tests/emit.rs` emits all 59
-programs of `spec/examples/` (the 57 files and the 2 of `26_use_module`) in
+**How the emitters are tested.** `spec/checker/tests/emit.rs` emits all 62
+programs of `spec/examples/` (the 60 files and the 2 of `26_use_module`) in
 all three targets. To exercise function
 bodies, it first adds *probes*: for each function and method, up to three
 calls on small sample arguments built from the parameter types, plus one
@@ -3112,6 +3240,22 @@ the same reason. `fmt` does not type check: a file that is refused by
 each file that would change is printed as `would reformat FILE` and the
 status is 1. Without it, each changed file is written and printed as
 `formatted FILE`.
+
+**`rce fmt --nameless FILE`** prints the name-free projection of one file
+to standard output and writes nothing. Every identifier the module declares
+is replaced by a positional name in order of first declaration, by kind:
+regions `r0, r1, …`, events `e0, …`, errors `x0, …`, functions `f0, …`,
+types `t0, …`, kind variants `k0, …`, fields, parameters and locals
+`v0, …`. Keywords, built-in types, standard library names, string contents
+and `intent` text are unchanged; the wildcard `_` and a `_` prefix are
+kept, as are `main`, the built-in traits and their methods, the host
+events and the named constants of 6.7. The projection is deterministic and
+idempotent, and it has the same outcomes, outputs and ids as the source;
+`rce trace --json` of the two differs in `state_hash`, because 6.1 hashes
+region and field names (the T7 finding of chapter 8). A name the
+projection does not recognise as declared is left as written, so the
+output is accepted whenever the input is (`tests/nameless.rs`, every
+example). It is the text of the concept record's complement (6.6).
 
 ### 10.7 The language server: `rce lsp`
 
@@ -3277,6 +3421,51 @@ an instance, plus 2 when the arguments match only in another order. Ties
 break by module and name. Both commands are deterministic: equal inputs
 give equal output bytes.
 
+### 10.11 `rce dim [--fuel N] [--control] [--json] FILE`: behaviours and redundancy (informative)
+
+`rce dim` checks the file (10.2) and measures the quantities of 6.10 on its
+Form. It explores reach(P) breadth-first from s₀: at each state it applies
+every declared event with payloads drawn from each field's refinement type
+(T35 fragment: the bounds and the values next to them) or, for a field
+without one, from the boundary set of 6.3 (the type's minimum, −1, 0, 1,
+maximum; the empty text, list or map and one of one element). Exploration
+stops at `--fuel` states (default 100,000) and reports whether the bound
+was reached. On the explored graph it runs partition refinement (Hopcroft)
+with the per-step output of λ as the initial partition, giving the number
+of distinct behaviours among explored states, which is dim(P) exactly when
+the bound was not reached and a lower bound otherwise. It prints, per
+program and per region:
+
+```
+states explored     12480    bound reached: no
+behaviours          1206     dim(P) (exact)
+redundancy          3.37     bits: log2(states) - log2(behaviours)
+  region Counter    0.00
+  region Audit      3.37
+control states      17       dim_c(P)          [--control]
+shape_ctl           sha256:…                   [--control]
+```
+
+A region's redundancy is computed from the projection of the explored
+graph onto that region's fields. `--control` computes the control quotient
+of 6.10 on the same explored graph: each step is labelled by its control
+outcome only (the refusal's error, by declaration index; else the
+constructors of what was emitted, by declaration index or type class) and
+never by a value, a name or a state change, so the quotient is a coarser
+output function on the same deterministic machine and dim_c ≤ dim holds by
+construction. Predicate equivalence is decided by concrete
+evaluation on reach(P): exact on the explored set, a lower bound when the
+bound is reached. The canonical control string numbers the quotient's
+states by first visit in breadth-first order from s₀ with events in
+canonical order, one line per (state, event) with the successor's number
+and the label; `shape_ctl` is the SHA-256 of its canonical JSON text. It
+is invariant under renaming (T61, tested by `tests/dim.rs` against
+`rce fmt --nameless`).
+`--json` prints the same as one JSON object (format `rce-dim/1`, compact,
+sorted keys). The command is deterministic: equal inputs give equal output
+bytes, and the exploration order is the canonical order of 6.1 on events
+and payloads. It is informative: no admission depends on it.
+
 **Read receipt.** Which JSON-RPC error code does the language server return for a request it does not know? (a number)
 
 ---
@@ -3294,6 +3483,16 @@ the f32 rule in 6.3 cites Figueroa, "When is double rounding innocuous?".
 - Python Language Reference §2.1.8, Indentation (layout algorithm).
 - L. Maranget, Warnings for pattern matching, JFP 17(3), 2007 (exhaustiveness).
 - Y. Gurevich, Sequential Abstract State Machines Capture Sequential Algorithms, ACM TOCL 2000 (pre-state update semantics).
+- J. J. M. M. Rutten, Universal coalgebra: a theory of systems, TCS 249, 2000 (6.10: the final coalgebra of (O\* × X)^E, T57).
+- J. W. de Bakker and J. I. Zucker, Processes and the denotational semantics of concurrency, Information and Control 54, 1982 (6.10: the prefix ultrametric, T59).
+- A. Nerode, Linear automaton transformations, Proc. AMS 9, 1958; E. F. Moore, Gedanken-experiments on sequential machines, Automata Studies, 1956; J. Hopcroft, An n log n algorithm for minimizing states in a finite automaton, 1971 (6.10: dim(P), T60).
+- C. P. Pfleeger, State reduction in incompletely specified finite-state machines, IEEE Trans. Computers C-22, 1973 (6.10: why totality gives a unique minimum).
+- L. D'Antoni and M. Veanes, Minimization of symbolic automata, POPL 2014 (6.10: the control dimension).
+- R. Reis, N. Moreira and R. Almeida, On the representation of finite automata, DCFS 2005 (6.10: the canonical string of `shape_ctl`).
+- When Names Disappear, arXiv 2510.03178, 2025 (6.6: identifier obfuscation and model accuracy).
+- The Hidden Cost of Readability, arXiv 2508.13666, 2025, ICSE 2026 (6.6: formatting tokens and accuracy).
+- N. Nagappan, B. Murphy and V. Basili, The influence of organizational structure on software quality, ICSE 2008 (CONTRIBUTING rule 4).
+- L. Meyerovich and A. Rabkin, Empirical analysis of programming language adoption, OOPSLA 2013 (CONTRIBUTING rule 6).
 - C. A. R. Hoare, Communicating Sequential Processes, CACM 1978.
 - J.-P. Bernardy et al., Linear Haskell, POPL 2018. N. Mitchell, Leaking Space, CACM 56(11), 2013.
 - Rust RFC 2945 ("C-unwind" ABI); The Rust Edition Guide, Rust 2024 (`unsafe extern`).
@@ -3350,7 +3549,7 @@ with the words of Appendix F, one list for every module.
 ### C.2 Grammar
 
 These productions extend section 3. They are the
-productions of the tree-sitter port (`spec/tree-sitter/grammar.js`) and of
+productions of the tree-sitter port (`tree-sitter/grammar.js`) and of
 the Rust parser. A rule below with the name of a section-3 rule replaces
 it; the others are new. The grammar is the productions of section 3 with
 these applied, and the same for every module. The machine check of 3.12 builds the
@@ -5382,7 +5581,9 @@ loses the word "specified, not yet implemented".
    `alloc`, `bitcast`, uninitialized memory, shared mutable pointers, `unsafe`,
    operator overloading of order operators, inheritance and runtime casts,
    `defer` and other implicit scope-end code, `await`, live variables, coroutine
-   iterators, loop-else, comprehensions, glob imports, conditional
+   iterators, loop-else, generator expressions and set or map comprehensions
+   (the list comprehension of section 3 stays: it is the one spelling of
+   `map` and `filter` over a bounded source, and C.6 costs it), glob imports, conditional
    compilation, build features, Python interop and any foreign call outside
    the `World` rule (F.4.1). Each either lets a value depend on something other
    than the program and its log (T1, T3, T7), lets two names alias mutable
@@ -6069,7 +6270,7 @@ where a reader would look.
 | Imports | Acyclic; no glob; unordered set; explicit exports, nothing public by default | T1 |
 | Comments | Only `#` line comments exist (Q34); they never nest and nothing inside a string starts one | T1 |
 | Literals | One spelling per literal: a single `_` between digits is the only separator (2.5) (Q36); no `1.` or `.5`; one string form; `char` is a Unicode scalar value | T1 |
-| Operators | Comparison operators are non-associative: a chain is refused (W-OP-1), no chain sugar (Q8); mixing bitwise, shift, arithmetic or `and`/`or` in one expression needs parentheses (W-OP-1); `and` and `or` short-circuit, apply to `bool` and return `bool` | T1, contracts need the left operand as a hypothesis for the right |
+| Operators | Comparison operators are non-associative: a chain is a syntax error (R3 of section 3), no chain sugar (Q8); mixing bitwise, shift, arithmetic and `and`/`or` in one expression is defined by the precedence of section 3 (decision 13), so no parenthesization rule exists; `and` and `or` short-circuit, apply to `bool` and return `bool` | T1, contracts need the left operand as a hypothesis for the right |
 | Order operators | `<` is a total order on ordered types only; subset, prefix and merge are named methods | T1 |
 | Containers | `Some`/`None` are explicit, never `false`; no tuple coercion; duplicate map-literal keys refused; map and set iteration in canonical `Ord` order, and equality is order independent because the representation is canonical (Q6, Q19); no weak references | T1, T6 |
 | Indexing | `xs[i]` is refused unless the checker proves `i < len(xs)`; `get(xs, i)` returns `Option`; slices are as in 6.3 N8; ranges keep their two spellings, `..` and `..=` (Q7) | totality |
@@ -6403,7 +6604,7 @@ section applied (`lalr::book_grammar_09`), lexing with `label`, `release`,
 machine over `spec/examples-0.9/ok`. `TEMPLATE` is the token `t` written directly before a STRING (no space,
 and `t` not the end of a longer name); the checker accepts it only after a dot.
 The tree-sitter port
-(`spec/tree-sitter/grammar.js`) carries the same productions. The constructs
+(`tree-sitter/grammar.js`) carries the same productions. The constructs
 of F.5 to F.7 that are still reserved, not implemented (F.12) have no production yet.
 
 ```

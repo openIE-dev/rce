@@ -1,0 +1,10 @@
+fn move_piece(source src: u8, target dst: u8) -> u8 = dst - src
+
+fn call_it() -> u8 = move_piece(source: 2, target: 9)
+#--- rce-test
+# id: numbers/harvested/25-labels-accept
+# area: numbers
+# clauses: [CH03-M-28cdd241, T10]
+# expect: accept
+# provenance: harvested examples/25_labels.rce
+#---

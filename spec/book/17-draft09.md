@@ -76,7 +76,9 @@ loses the word "specified, not yet implemented".
    `alloc`, `bitcast`, uninitialized memory, shared mutable pointers, `unsafe`,
    operator overloading of order operators, inheritance and runtime casts,
    `defer` and other implicit scope-end code, `await`, live variables, coroutine
-   iterators, loop-else, comprehensions, glob imports, conditional
+   iterators, loop-else, generator expressions and set or map comprehensions
+   (the list comprehension of section 3 stays: it is the one spelling of
+   `map` and `filter` over a bounded source, and C.6 costs it), glob imports, conditional
    compilation, build features, Python interop and any foreign call outside
    the `World` rule (F.4.1). Each either lets a value depend on something other
    than the program and its log (T1, T3, T7), lets two names alias mutable
@@ -763,7 +765,7 @@ where a reader would look.
 | Imports | Acyclic; no glob; unordered set; explicit exports, nothing public by default | T1 |
 | Comments | Only `#` line comments exist (Q34); they never nest and nothing inside a string starts one | T1 |
 | Literals | One spelling per literal: a single `_` between digits is the only separator (2.5) (Q36); no `1.` or `.5`; one string form; `char` is a Unicode scalar value | T1 |
-| Operators | Comparison operators are non-associative: a chain is refused (W-OP-1), no chain sugar (Q8); mixing bitwise, shift, arithmetic or `and`/`or` in one expression needs parentheses (W-OP-1); `and` and `or` short-circuit, apply to `bool` and return `bool` | T1, contracts need the left operand as a hypothesis for the right |
+| Operators | Comparison operators are non-associative: a chain is a syntax error (R3 of section 3), no chain sugar (Q8); mixing bitwise, shift, arithmetic and `and`/`or` in one expression is defined by the precedence of section 3 (decision 13), so no parenthesization rule exists; `and` and `or` short-circuit, apply to `bool` and return `bool` | T1, contracts need the left operand as a hypothesis for the right |
 | Order operators | `<` is a total order on ordered types only; subset, prefix and merge are named methods | T1 |
 | Containers | `Some`/`None` are explicit, never `false`; no tuple coercion; duplicate map-literal keys refused; map and set iteration in canonical `Ord` order, and equality is order independent because the representation is canonical (Q6, Q19); no weak references | T1, T6 |
 | Indexing | `xs[i]` is refused unless the checker proves `i < len(xs)`; `get(xs, i)` returns `Option`; slices are as in 6.3 N8; ranges keep their two spellings, `..` and `..=` (Q7) | totality |
@@ -1097,7 +1099,7 @@ section applied (`lalr::book_grammar_09`), lexing with `label`, `release`,
 machine over `spec/examples-0.9/ok`. `TEMPLATE` is the token `t` written directly before a STRING (no space,
 and `t` not the end of a longer name); the checker accepts it only after a dot.
 The tree-sitter port
-(`spec/tree-sitter/grammar.js`) carries the same productions. The constructs
+(`tree-sitter/grammar.js`) carries the same productions. The constructs
 of F.5 to F.7 that are still reserved, not implemented (F.12) have no production yet.
 
 ```
@@ -1130,4 +1132,4 @@ UnaryExpr    = ( "-" | "~" | "&" [ "mut" ] | "<-" | "comptime" | "release" | "en
              | Postfix .
 ```
 
-<!-- body-sha256: a1fcd58d07f40abb7e3acadd5290c09155161601cffb11ecccc8b90816f0dfa8 -->
+<!-- body-sha256: 33ad5d7a99ee6b49f0d4150ebee3c41a7bef17a49d35377e6cdc9c25a68ee293 -->

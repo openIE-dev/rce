@@ -1,0 +1,10 @@
+# Every integer type has a fixed range. Mixing types needs an explicit `as`.
+fn small_sum(a: u8, b: u8) -> u8 = a + b
+
+fn widen(a: u8, b: i64) -> i64 = (a as i64) + b
+
+check small_sum(100, 27) == 127
+check widen(200, 1000) == 1200
+check (250 as u8).wrapping_add(10) == 4
+check (250 as u8).saturating_add(10) == 255
+check (250 as u8).checked_add(10).isnone()

@@ -1,0 +1,13 @@
+# rce-version: 0.6
+interrupt event A priority 300
+state S
+    n: i64 = 0
+step S on A -> n + 1
+#--- rce-test
+# id: concurrency/targeted/w-intr-1-priority-range
+# area: concurrency
+# clauses: [CH09-M-82e65964, HC-9, W-INTR-1]
+# expect: reject
+# diagnostic: W-INTR-1
+# provenance: targeted.py: expected result read off the clause
+#---

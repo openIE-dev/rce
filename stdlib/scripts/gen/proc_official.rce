@@ -1,0 +1,38 @@
+# Rust std, library/std/src/sys/process/unix/unix/tests.rs, exitstatus_display_tests (Linux, not mips or sparc, glibc)
+check status_text(15) == "signal: 15 (SIGTERM)"
+check status_text(139) == "signal: 11 (SIGSEGV) (core dumped)"
+check status_text(0) == "exit status: 0"
+check status_text(65280) == "exit status: 255"
+check status_text(4991) == "stopped (not terminated) by signal: 19 (SIGSTOP)"
+check status_text(65535) == "continued (WIFCONTINUED)"
+check status_text(255) == "unrecognised wait status: 255 0xff"
+# Rust std, library/std/src/process/tests.rs, debug_print (Linux: create_pidfd shown)
+check dbg("prog:some-boring-name") == "\"some-boring-name\""
+check dbgp("prog:some-boring-name") == "Command {\n    program: \"some-boring-name\",\n    args: [\n        \"some-boring-name\",\n    ],\n    create_pidfd: false,\n}"
+check dbg("prog:some-boring-name\u{1f}arg:1\u{1f}arg:2\u{1f}arg:3") == "\"some-boring-name\" \"1\" \"2\" \"3\""
+check dbgp("prog:some-boring-name\u{1f}arg:1\u{1f}arg:2\u{1f}arg:3") == "Command {\n    program: \"some-boring-name\",\n    args: [\n        \"some-boring-name\",\n        \"1\",\n        \"2\",\n        \"3\",\n    ],\n    create_pidfd: false,\n}"
+check dbg("prog:some-boring-name\u{1f}arg:1\u{1f}arg:2\u{1f}arg:3\u{1f}arg0:exciting-name") == "[\"some-boring-name\"] \"exciting-name\" \"1\" \"2\" \"3\""
+check dbgp("prog:some-boring-name\u{1f}arg:1\u{1f}arg:2\u{1f}arg:3\u{1f}arg0:exciting-name") == "Command {\n    program: \"some-boring-name\",\n    args: [\n        \"exciting-name\",\n        \"1\",\n        \"2\",\n        \"3\",\n    ],\n    create_pidfd: false,\n}"
+check dbg("prog:boring-name\u{1f}cwd:/some/path\u{1f}env:FOO=bar") == "cd \"/some/path\" && FOO=\"bar\" \"boring-name\""
+check dbgp("prog:boring-name\u{1f}cwd:/some/path\u{1f}env:FOO=bar") == "Command {\n    program: \"boring-name\",\n    args: [\n        \"boring-name\",\n    ],\n    env: CommandEnv {\n        clear: false,\n        vars: {\n            \"FOO\": Some(\n                \"bar\",\n            ),\n        },\n    },\n    cwd: Some(\n        \"/some/path\",\n    ),\n    create_pidfd: false,\n}"
+check dbg("prog:boring-name\u{1f}rm:FOO\u{1f}rm:BAR") == "env -u BAR -u FOO \"boring-name\""
+check dbgp("prog:boring-name\u{1f}rm:FOO\u{1f}rm:BAR") == "Command {\n    program: \"boring-name\",\n    args: [\n        \"boring-name\",\n    ],\n    env: CommandEnv {\n        clear: false,\n        vars: {\n            \"BAR\": None,\n            \"FOO\": None,\n        },\n    },\n    create_pidfd: false,\n}"
+check dbg("prog:boring-name\u{1f}clear:\u{1f}env:BAR=val\u{1f}rm:FOO") == "env -i BAR=\"val\" \"boring-name\""
+check dbgp("prog:boring-name\u{1f}clear:\u{1f}env:BAR=val\u{1f}rm:FOO") == "Command {\n    program: \"boring-name\",\n    args: [\n        \"boring-name\",\n    ],\n    env: CommandEnv {\n        clear: true,\n        vars: {\n            \"BAR\": Some(\n                \"val\",\n            ),\n        },\n    },\n    create_pidfd: false,\n}"
+# derived: the logged Spawn request and the exec grant (deny by default)
+fn req(spec: text, d: text) -> text
+    let c = build(spec)
+    return spawn_request(&c, &d)
+check req("prog:ls\u{1f}arg:-l", "blake3:00") == "{\"argv\":[\"ls\",\"-l\"],\"clear\":false,\"cwd\":null,\"env\":[],\"image\":\"blake3:00\",\"stdio\":[\"inherit\",\"inherit\",\"inherit\"]}"
+check req("prog:sh\u{1f}arg:a\"b\\\n\u{1f}clear:\u{1f}env:B=1\u{1f}env:A=\u{1f}cwd:/w\u{1f}stdin:null\u{1f}stdout:piped", "d") == "{\"argv\":[\"sh\",\"a\\\"b\\\\\\u000a\"],\"clear\":true,\"cwd\":\"/w\",\"env\":[[\"A\",\"\"],[\"B\",\"1\"]],\"image\":\"d\",\"stdio\":[\"null\",\"piped\",\"inherit\"]}"
+check req("prog:x\u{1f}rm:P\u{1f}stderr:null", "d") == "{\"argv\":[\"x\"],\"clear\":false,\"cwd\":null,\"env\":[[\"P\",null]],\"image\":\"d\",\"stdio\":[\"inherit\",\"inherit\",\"null\"]}"
+fn granted(al: List[text], d: text) -> bool = exec_granted(&al, &d)
+check granted(["blake3:aa", "blake3:bb"], "blake3:bb")
+check not granted(["blake3:aa", "blake3:bb"], "blake3:cc")
+check not granted([], "blake3:aa")
+check shell_status(0) == 0
+check shell_status(512) == 2
+check shell_status(9) == 137
+check shell_status(139) == 139
+check shell_status(4991) == 147
+check shell_status(65535) == -1

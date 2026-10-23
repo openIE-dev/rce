@@ -1,0 +1,75 @@
+parse_event(b"\x1B\x14", false).unwrap()	key c116 6 p 0
+parse_event(b"\x1Bc", false).unwrap()	key c99 4 p 0
+parse_event(b"\x1BH", false).unwrap()	key c72 5 p 0
+parse_event(b"\x1B", false).unwrap()	key Esc 0 p 0
+parse_csi_u_encoded_key_code(b"\x1B[97u").unwrap()	key c97 0 p 0
+parse_csi_u_encoded_key_code(b"\x1B[97;2u").unwrap()	key c97 1 p 0
+parse_csi_u_encoded_key_code(b"\x1B[97;7u").unwrap()	key c97 6 p 0
+parse_csi_u_encoded_key_code(b"\x1B[13u").unwrap()	key Enter 0 p 0
+parse_csi_u_encoded_key_code(b"\x1B[27u").unwrap()	key Esc 0 p 0
+parse_csi_u_encoded_key_code(b"\x1B[57358u").unwrap()	key CapsLock 0 p 0
+parse_csi_u_encoded_key_code(b"\x1B[57376u").unwrap()	key F(13) 0 p 0
+parse_csi_u_encoded_key_code(b"\x1B[57428u").unwrap()	key Media(Play) 0 p 0
+parse_csi_u_encoded_key_code(b"\x1B[57441u").unwrap()	key Modifier(LeftShift) 1 p 0
+parse_event(b"c", false).unwrap()	key c99 0 p 0
+parse_event(b"C", false).unwrap()	key c67 1 p 0
+parse_csi(b"\x1B[D").unwrap()	key Left 0 p 0
+parse_event(b"\x1B[200~o", false).unwrap()	none
+parse_event(b"\x1B[200~o\x1B[2D", false).unwrap()	none
+parse_event(b"\x1B[200~o\x1B[2D\x1B[201~", false).unwrap()	paste 111,27,91,50,68
+parse_csi_cursor_position(b"\x1B[20;10R").unwrap()	pos 9 19
+parse_csi(b"\x1B[O").unwrap()	focus 0
+parse_csi_modifier_key_code(b"\x1B[2D").unwrap()	key Left 1 p 0
+parse_csi_normal_mouse(b"\x1B[M0\x60\x70").unwrap()	mouse Down(Left) 63 79 2
+parse_event(b"\x1B[5;1:3~", false).unwrap()	key PageUp 0 r 0
+parse_event(b"\x1B[6;5:3~", false).unwrap()	key PageDown 2 r 0
+parse_csi_rxvt_mouse(b"\x1B[32;30;40;M").unwrap()	mouse Down(Left) 29 39 0
+parse_csi_sgr_mouse(b"\x1B[<0;20;10;M").unwrap()	mouse Down(Left) 19 9 0
+parse_csi_sgr_mouse(b"\x1B[<0;20;10M").unwrap()	mouse Down(Left) 19 9 0
+parse_csi_sgr_mouse(b"\x1B[<0;20;10;m").unwrap()	mouse Up(Left) 19 9 0
+parse_csi_sgr_mouse(b"\x1B[<0;20;10m").unwrap()	mouse Up(Left) 19 9 0
+parse_csi_special_key_code(b"\x1B[3~").unwrap()	key Delete 0 p 0
+parse_csi_special_key_code(b"\x1B[3;2~").unwrap()	key Delete 1 p 0
+parse_event(b"\x1B[;1:3B", false).unwrap()	key Down 0 r 0
+parse_event(b"\x1B[1;1:3B", false).unwrap()	key Down 0 r 0
+parse_csi_u_encoded_key_code(b"\x1B[57449u").unwrap()	key Modifier(RightAlt) 4 p 0
+parse_csi_u_encoded_key_code(b"\x1B[57449;3:3u").unwrap()	key Modifier(RightAlt) 4 r 0
+parse_csi_u_encoded_key_code(b"\x1B[57450u").unwrap()	key Modifier(RightSuper) 8 p 0
+parse_csi_u_encoded_key_code(b"\x1B[57451u").unwrap()	key Modifier(RightHyper) 16 p 0
+parse_csi_u_encoded_key_code(b"\x1B[57452u").unwrap()	key Modifier(RightMeta) 32 p 0
+parse_csi_u_encoded_key_code(b"\x1B[97;9u").unwrap()	key c97 8 p 0
+parse_csi_u_encoded_key_code(b"\x1B[97;17u").unwrap()	key c97 16 p 0
+parse_csi_u_encoded_key_code(b"\x1B[97;33u").unwrap()	key c97 32 p 0
+parse_csi_u_encoded_key_code(b"\x1B[97;65u").unwrap()	key c97 0 p 2
+parse_csi_u_encoded_key_code(b"\x1B[49;129u").unwrap()	key c49 0 p 4
+parse_csi_u_encoded_key_code(b"\x1B[97;1u").unwrap()	key c97 0 p 0
+parse_csi_u_encoded_key_code(b"\x1B[97;1:1u").unwrap()	key c97 0 p 0
+parse_csi_u_encoded_key_code(b"\x1B[97;5:1u").unwrap()	key c97 2 p 0
+parse_csi_u_encoded_key_code(b"\x1B[97;1:2u").unwrap()	key c97 0 t 0
+parse_csi_u_encoded_key_code(b"\x1B[97;1:3u").unwrap()	key c97 0 r 0
+parse_csi_u_encoded_key_code(b"\x1B[57399u").unwrap()	key c48 0 p 1
+parse_csi_u_encoded_key_code(b"\x1B[57419u").unwrap()	key Up 0 p 1
+parse_event(b"\x1B[57:40;4u", false).unwrap()	key c40 4 p 0
+parse_event(b"\x1B[45:95;4u", false).unwrap()	key c95 4 p 0
+parse_event(b"\t", false).unwrap()	key Tab 0 p 0
+parse_event(b"\x1B[20;10R", false).unwrap()	pos 9 19
+parse_event(b"\x1B[D", false).unwrap()	key Left 0 p 0
+parse_event(b"\x1B[2D", false).unwrap()	key Left 1 p 0
+parse_event(b"\x1B[3~", false).unwrap()	key Delete 0 p 0
+parse_event(b"\x1B[200~on and on and on\x1B[201~", false).unwrap()	paste 111,110,32,97,110,100,32,111,110,32,97,110,100,32,111,110
+parse_event(b"\x1B[32;30;40;M", false).unwrap()	mouse Down(Left) 29 39 0
+parse_event(b"\x1B[M0\x60\x70", false).unwrap()	mouse Down(Left) 63 79 2
+parse_event(b"\x1B[<0;20;10;M", false).unwrap()	mouse Down(Left) 19 9 0
+parse_event("Ž".as_bytes(), false).unwrap()	key c381 1 p 0
+parse_event(b"\x1B", true).unwrap()	none
+parse_utf8_char(b"a").unwrap()	char 97
+parse_utf8_char(&[0xC3, 0xB1]).unwrap()	char 241
+parse_utf8_char(&[0xC3, 0x28])	err
+parse_utf8_char(&[0xA0, 0xA1])	err
+parse_utf8_char(&[0xE2, 0x81, 0xA1]).unwrap()	char 8289
+parse_utf8_char(&[0xE2, 0x28, 0xA1])	err
+parse_utf8_char(&[0xE2, 0x82, 0x28])	err
+parse_utf8_char(&[0xF0, 0x90, 0x8C, 0xBC]).unwrap()	char 66364
+parse_utf8_char(&[0xF0, 0x28, 0x8C, 0xBC])	err
+parse_utf8_char(&[0xF0, 0x90, 0x28, 0xBC])	err
+parse_utf8_char(&[0xF0, 0x28, 0x8C, 0x28])	err

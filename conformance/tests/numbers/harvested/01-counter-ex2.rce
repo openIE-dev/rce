@@ -1,0 +1,28 @@
+intent "a counter that never goes negative"
+    example Inc, Inc, Dec -> 1
+    example Dec -> refused: Underflow
+
+state Counter
+    n: u64 = 0
+
+event Inc
+event Dec
+
+error Underflow
+
+step Counter on Inc -> n + 1
+step Counter on Dec -> try n.checked_sub(1) else Underflow
+#--- rce-test
+# id: numbers/harvested/01-counter-ex2
+# area: numbers
+# clauses: [CH00-M-61b6ac06, CH05-M-2405dfe8, CH07-M-0a0bd71f, F7, F9, N1, N3, T1, T4, T5, T9]
+# expect: run
+# events: Inc, Inc, Dec
+# outcome: done
+# outputs:
+#   - 0 (initial) Counter { n = 0 }
+#   - 1 Inc Counter { n = 1 }
+#   - 2 Inc Counter { n = 2 }
+#   - 3 Dec Counter { n = 1 }
+# provenance: harvested examples/01_counter.rce example@2
+#---

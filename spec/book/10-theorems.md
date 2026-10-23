@@ -66,6 +66,12 @@ Classical.choice). Status per theorem:
 | T55 | stated, unproved (Appendix F.9; F.12 lists what is implemented): Broker invariant: by induction on grant events, no session holds all three trifecta properties without an explicit grant event (F.7) | none |
 | T56 | stated, unproved (Appendix F.9; F.12 lists what is implemented): Relaxed sequential borrows: the limited relaxation of 5.6 studied from group borrowing (a reference is invalidated only below steps that are not independent of it) preserves T6; the lemma is not proved and the relaxation is not adopted (5.6) | none |
 | T15 | proved for iterators whose step between yields is total (T2): every run ends, delivers at most LOOP_LIMIT values and traps only after exactly LOOP_LIMIT; `break` yields a prefix of the full run; a run with a smaller cap is a prefix of one with a larger cap (the evaluator's re-run strategy) | `drive_total`, `drive_break`, `gen_prefix` |
+| T57 | proved for the morphism equation (one-step unfolding of the behaviour of 6.10) on the Form of `RCE/Form.lean`; uniqueness of the morphism (Rutten 2000) is stated, unproved | `beh_cons` (`RCE/Behaviour.lean`) |
+| T58 | proved on the Form of `RCE/Form.lean`, for one program and for two: a bisimulation forces equal behaviours and behavioural equality is a bisimulation | `bisim_beh`, `beh_bisim`, `behEq_iff_bisim`, `bisim2_beh`, `beh_bisim2` |
+| T59 | proved over an explicit finite alphabet (the declared events over the boundary sets that `rce dim` explores), in both directions: agreement on every word of every length ≤ k puts the first difference beyond k, and a first difference beyond k (or none) gives agreement on every word of length ≤ k; the statement over all of E is stated, unproved | `words`, `AgreeAt`, `firstDiff`, `firstDiff_disagrees`, `firstDiff_le`, `firstDiff_none`, `trace_ball`, `ball_trace` |
+| T60 | stated, unproved (a model proof by partition refinement is the next step): for finite S the quotient of reach(P) by the largest bisimulation is the minimal machine, with dim(P) states, unique up to isomorphism, and the canonical numbering of 6.10 makes its isomorphism class one string | none |
+| T61 | tested for renaming only (`tests/dim.rs`, `shape_ctl_is_name_free`, against `rce fmt --nameless`); invariance under predicate-equivalent rewrites of guards is stated, unproved; the symbolic quotient of 6.10 is not implemented | none |
+| T62 | proved on a model (`RCE/LogPO.lean`, spec/proposals/partial-order-log.md): entries with read and write footprints over an abstract store, independent when neither writes what the other reads or writes; independent entries commute, and any sequence of adjacent independent swaps of a layer folds to the same store. A model in the sense of this chapter: the link to the admitter is the HC-15 permutation tests of T40 | `commute`, `fold_swap`, `fold_perm_eq` |
 
 T16 to T31 belong to the concurrency part (Appendix C) and are listed with their exact status
 in Appendix C.13. Most are proofs about abstract models (T18, T19b, T21,
@@ -157,6 +163,33 @@ result when it lies in [0, 2^64) and traps otherwise.
 `.collect()`, terminate after at most LOOP_LIMIT yields, and `break`
 observes a prefix of the values the iterator would produce.
 
+**T57 Finality.** beh_P of 6.10 is a coalgebra morphism:
+beh_P(s)(e · w) = λ(s, e) · beh_P(δ₁(s, e))(w), and it is the unique such
+map S → Beh.
+
+**T58 Equivalence is bisimilarity.** beh_P(s) = beh_P(t) if and only if
+there is a bisimulation R with s R t; likewise for two programs on
+S_F × S_G.
+
+**T59 Trace evidence is a ball.** If beh_F(s₀)(w) = beh_G(s₀)(w) for every
+w with |w| ≤ k, then d(beh_F, beh_G) ≤ 2^-(k+1), and conversely.
+
+**T60 Minimal machine.** For finite S, the quotient of reach(P) by the
+largest bisimulation is a Mealy machine with the behaviour beh_P(s₀) and
+dim(P) states; every Mealy machine with that behaviour has at least dim(P)
+states, with equality only up to isomorphism; the canonical numbering of
+6.10 makes the isomorphism class one string.
+
+**T61 Control canonicity.** `shape_ctl` (6.10) is invariant under renaming
+(T7) and under any rewrite of a guard to a predicate-equivalent guard; it
+is not invariant under a change of a data update that changes a later
+guard outcome.
+
+**T62 Linearization invariance (proposal).** For a layer of D between
+two cuts, any two orders that agree with every chain's `seq` order and
+every `deps` edge fold δ₁ to the same state at the upper cut
+(spec/proposals/partial-order-log.md).
+
 **T32 Foreign replay.** For every oracle o answering foreign calls and
 `select nondet` choices (5.11, C.5), replaying the log of a live run
 reproduces its state, whatever o is; no property of the foreign code is
@@ -218,7 +251,7 @@ or the named core), model (Lean, on an abstract model), checked (a
 machine check that is exhaustive for its input, such as LALR(1)),
 tested (sampled differential or property tests), in that order, with *stated, unproved* below them for a theorem whose
 statement is written but which has no Lean statement, no test and no checker
-rule yet (T42 to T56, Appendix F.9); such a row is an obligation and never a
+rule yet (T42 to T56, Appendix F.9; T59 over all of E, T60 and T61, 6.10); such a row is an obligation and never a
 claim. A
 counterexample is a failure, never a lower level, and a claim about
 several parts has the lowest level among them. Every Lean name in the
@@ -226,4 +259,4 @@ tables is checked to exist (`spec/checker/tests/theorem_index.rs`).
 
 **Read receipt.** What is the deep embedding of the emitted Rust subset called?
 
-<!-- body-sha256: 6d90ae30e5ff6e70143e3d9327b1cb9f58cc8268524f745d8f8245989ce60bb6 -->
+<!-- body-sha256: ce4aa2f16025ab52182438e8c52a4bdc3575dbcb25363f22097e11561bd6e91e -->

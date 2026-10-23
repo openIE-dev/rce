@@ -1,0 +1,523 @@
+module os.perm
+
+# Permission models (survey M36), pure, for reading and reporting: a
+# program's authority is exactly its grants (Sandbox v0.1) and it never
+# raises privilege, so nothing here changes a permission on a system.
+#  - POSIX mode bits: file type and permission bits, the ls -l string
+#    (CPython stat.filemode), octal, symbolic modes as POSIX chmod defines
+#    them (with GNU coreutils' umask and X rules), and the access check
+#    of POSIX.1 section 4.5 for an unprivileged process.
+#  - Windows: SIDs (MS-DTYP 2.4.2: string and binary forms) and the
+#    discretionary access check over an ordered ACE list (MS-DTYP 2.5.3.2,
+#    allow and deny ACEs, no inheritance or object ACEs).
+#  - Linux Landlock: the access-right bits of include/uapi/linux/landlock.h,
+#    the rights each ABI version knows, and a ruleset check (path-beneath
+#    rules, every layer must allow).
+#  - The proposed mapping of a Sandbox fs grant (r, w, x on a subtree) to
+#    POSIX bits and Landlock rights (spec item: grant names table).
+
+error BadPerm(why: text)
+
+# ---------------- POSIX mode bits ----------------
+
+pub const S_IFMT: i64 = 61440
+pub const S_IFSOCK: i64 = 49152
+pub const S_IFLNK: i64 = 40960
+pub const S_IFREG: i64 = 32768
+pub const S_IFBLK: i64 = 24576
+pub const S_IFDIR: i64 = 16384
+pub const S_IFCHR: i64 = 8192
+pub const S_IFIFO: i64 = 4096
+pub const S_ISUID: i64 = 2048
+pub const S_ISGID: i64 = 1024
+pub const S_ISVTX: i64 = 512
+
+fn type_char(m: i64) -> text
+    let t = m & S_IFMT
+    if t == S_IFREG
+        return "-"
+    if t == S_IFDIR
+        return "d"
+    if t == S_IFLNK
+        return "l"
+    if t == S_IFCHR
+        return "c"
+    if t == S_IFBLK
+        return "b"
+    if t == S_IFIFO
+        return "p"
+    if t == S_IFSOCK
+        return "s"
+    return "?"
+
+fn trio(m: i64, shift: i64, special: bool, lo: text, up: text) -> text
+    let r = if (m >> (shift + 2)) & 1 == 1 then "r" else "-"
+    let w = if (m >> (shift + 1)) & 1 == 1 then "w" else "-"
+    let x = (m >> shift) & 1 == 1
+    let e = if special then (if x then lo else up) else (if x then "x" else "-")
+    return r + w + e
+
+# The ls -l mode string, as CPython's stat.filemode writes it.
+pub fn filemode(m: i64) -> text
+    return type_char(m) + trio(m, 6, m & S_ISUID != 0, "s", "S") + trio(m, 3, m & S_ISGID != 0, "s", "S") + trio(m, 0, m & S_ISVTX != 0, "t", "T")
+
+pub fn octal(m: i64) -> text
+    var o = ""
+    var v = m & 4095
+    var k: i64 = 0
+    while k < 4 bound 4
+        o = (v % 8).tostr() + o
+        v = v / 8
+        k += 1
+    return o
+
+pub struct Chmod
+    mode: i64
+    naive: i64
+
+pub struct Change
+    op: text
+    flag: i64
+    affected: i64
+    value: i64
+    mentioned: i64
+
+const ORDINARY: i64 = 0
+const COPY: i64 = 1
+const X_IF_X: i64 = 2
+
+fn octal_run(cs: &[text], i: usize) -> i64
+    var v: i64 = 0
+    var k = i
+    while k < cs.len() and cs[k].len_bytes() == 1 and cs[k][0] as i64 >= 48 and cs[k][0] as i64 <= 55 bound 16777216
+        v = v * 8 + (cs[k][0] as i64 - 48)
+        if v > 4095
+            return -1
+        k += 1
+    return v
+
+fn is_oct(c: &text) -> bool = c.len_bytes() == 1 and c[0] as i64 >= 48 and c[0] as i64 <= 55
+
+# The mode string compiled as gnulib's mode_compile does: an octal mode,
+# or [ugoa]*([-+=]([rwxXst]*|[ugo]|[0-7]+))+ clauses joined by ",".
+pub fn mode_compile(spec: &text) -> List[Change] ! BadPerm
+    let cs = spec.chars()
+    var out: List[Change] = []
+    if cs.len() > 0 and is_oct(&cs[0])
+        var k: usize = 0
+        while k < cs.len() and is_oct(&cs[k]) bound 16777216
+            k += 1
+        let v = octal_run(&cs, 0)
+        if v < 0 or k != cs.len()
+            fail BadPerm(why: "invalid mode")
+        let men = if k < 5 then (v & (S_ISUID | S_ISGID)) | S_ISVTX | 511 else 4095
+        out.push(Change(op: "=", flag: ORDINARY, affected: 4095, value: v, mentioned: men))
+        return out
+    var i: usize = 0
+    loop bound 16777216
+        var affected: i64 = 0
+        loop bound 16777216
+            if i >= cs.len()
+                fail BadPerm(why: "invalid mode")
+            let c = copy(cs[i])
+            if c == "u"
+                affected = affected | 2496
+            elif c == "g"
+                affected = affected | 1080
+            elif c == "o"
+                affected = affected | 519
+            elif c == "a"
+                affected = affected | 4095
+            elif c == "=" or c == "+" or c == "-"
+                break
+            else
+                fail BadPerm(why: "invalid mode")
+            i += 1
+        while i < cs.len() and (cs[i] == "=" or cs[i] == "+" or cs[i] == "-") bound 16777216
+            let op = copy(cs[i])
+            i += 1
+            var value: i64 = 0
+            var mentioned: i64 = 0
+            var flag = COPY
+            let c = if i < cs.len() then copy(cs[i]) else ""
+            if is_oct(&c)
+                var k = i
+                while k < cs.len() and is_oct(&cs[k]) bound 16777216
+                    k += 1
+                let v = octal_run(&cs, i)
+                if v < 0 or affected != 0 or (k < cs.len() and cs[k] != ",")
+                    fail BadPerm(why: "invalid mode")
+                i = k
+                affected = 4095
+                mentioned = 4095
+                value = v
+                flag = ORDINARY
+            elif c == "u"
+                value = 448
+                i += 1
+            elif c == "g"
+                value = 56
+                i += 1
+            elif c == "o"
+                value = 7
+                i += 1
+            else
+                flag = ORDINARY
+                while i < cs.len() bound 16777216
+                    let d = copy(cs[i])
+                    if d == "r"
+                        value = value | 292
+                    elif d == "w"
+                        value = value | 146
+                    elif d == "x"
+                        value = value | 73
+                    elif d == "X"
+                        flag = X_IF_X
+                    elif d == "s"
+                        value = value | 3072
+                    elif d == "t"
+                        value = value | 512
+                    else
+                        break
+                    i += 1
+            let men = if mentioned != 0 then mentioned else (if affected != 0 then affected & value else value)
+            out.push(Change(op: op, flag: flag, affected: affected, value: value, mentioned: men))
+        if i >= cs.len()
+            return out
+        if cs[i] != ","
+            fail BadPerm(why: "invalid mode")
+        i += 1
+    return out
+
+# gnulib mode_adjust: the permission bits after the changes.
+pub fn mode_adjust(old: i64, dir: bool, umask: i64, ch: &[Change]) -> i64
+    var nm = old & 4095
+    for c in ch
+        let omit = (if dir then S_ISUID | S_ISGID else 0) & ~c.mentioned
+        var value = c.value
+        if c.flag == COPY
+            value = value & nm
+            var spread: i64 = 0
+            if value & 292 != 0
+                spread = spread | 292
+            if value & 146 != 0
+                spread = spread | 146
+            if value & 73 != 0
+                spread = spread | 73
+            value = value | spread
+        elif c.flag == X_IF_X
+            if nm & 73 != 0 or dir
+                value = value | 73
+        value = value & (if c.affected != 0 then c.affected else ~umask) & ~omit
+        if c.op == "="
+            let preserved = (if c.affected != 0 then ~c.affected else 0) | omit
+            nm = (nm & preserved) | value
+        elif c.op == "+"
+            nm = nm | value
+        else
+            nm = nm & ~value
+    return nm
+
+# chmod MODE on a file of mode `m` (type and permission bits) under a
+# umask, as GNU coreutils chmod applies it (symbolic modes as POSIX
+# chmod; with no who, the umask's bits are left; X means x when a
+# directory or any x bit is set; for a directory the setuid and setgid
+# bits stay unless the mode names them, and an octal mode of fewer than
+# five digits names them only when set). `naive` is the result with umask
+# 0: GNU reports "new permissions are ..." when a mode given as an option
+# ("-w") sets a bit `naive` does not.
+pub fn chmod(m: i64, spec: &text, umask: i64) -> Chmod ! BadPerm
+    let ch = try mode_compile(spec)
+    let dir = m & S_IFMT == S_IFDIR
+    return Chmod(mode: (m & S_IFMT) | mode_adjust(m, dir, umask, &ch), naive: (m & S_IFMT) | mode_adjust(m, dir, 0, &ch))
+
+pub struct Cred
+    uid: i64
+    gid: i64
+    groups: List[i64]
+
+pub const R_OK: i64 = 4
+pub const W_OK: i64 = 2
+pub const X_OK: i64 = 1
+
+# POSIX.1 4.5 for a process without appropriate privileges: the owner
+# class if the effective uid owns the file, else the group class if the
+# effective gid or a supplementary gid is the file's group, else other;
+# the requested bits (R_OK|W_OK|X_OK) must all be set in that class.
+pub fn may(c: &Cred, mode: i64, owner: i64, grp: i64, want: i64) -> bool
+    var cls = mode & 7
+    if c.uid == owner
+        cls = (mode >> 6) & 7
+    else
+        var in_group = c.gid == grp
+        for g in c.groups
+            if g == grp
+                in_group = true
+        if in_group
+            cls = (mode >> 3) & 7
+    return cls & want == want
+
+# ---------------- Windows SIDs and ACLs ----------------
+
+pub struct Sid
+    authority: i64
+    subs: List[i64]
+
+fn digits(cs: &[text], lo: usize, hi: usize) -> i64
+    if hi <= lo or hi - lo > 15
+        return -1
+    var v: i64 = 0
+    var i = lo
+    while i < hi bound 16
+        let x = cs[i][0] as i64
+        if cs[i].len_bytes() != 1 or x < 48 or x > 57
+            return -1
+        v = v * 10 + (x - 48)
+        i += 1
+    return v
+
+fn hexval(cs: &[text], lo: usize, hi: usize) -> i64
+    if hi <= lo or hi - lo > 12
+        return -1
+    var v: i64 = 0
+    var i = lo
+    while i < hi bound 16
+        let x = cs[i][0] as i64
+        var d: i64 = -1
+        if x >= 48 and x <= 57
+            d = x - 48
+        elif x >= 65 and x <= 70
+            d = x - 55
+        elif x >= 97 and x <= 102
+            d = x - 87
+        if cs[i].len_bytes() != 1 or d < 0
+            return -1
+        v = v * 16 + d
+        i += 1
+    return v
+
+# "S-1-<authority>-<sub>..." (MS-DTYP 2.4.2.1): revision 1, the authority
+# in decimal below 2^32 and as 0x followed by 12 hex digits otherwise, 0
+# to 15 sub-authorities each below 2^32.
+pub fn sid_parse(t: &text) -> Sid ! BadPerm
+    let cs = t.chars()
+    if cs.len() < 5 or not (cs[0] == "S" or cs[0] == "s") or cs[1] != "-" or cs[2] != "1" or cs[3] != "-"
+        fail BadPerm(why: "bad SID")
+    var parts: List[i64] = []
+    var i: usize = 4
+    var first = true
+    var auth: i64 = 0
+    while i <= cs.len() bound 64
+        var j = i
+        while j < cs.len() and cs[j] != "-" bound 64
+            j += 1
+        var v: i64 = -1
+        if first and j - i > 2 and cs[i] == "0" and (cs[i + 1] == "x" or cs[i + 1] == "X")
+            v = hexval(&cs, i + 2, j)
+        else
+            v = digits(&cs, i, j)
+        if v < 0 or (first and v >= 281474976710656) or (not first and v >= 4294967296)
+            fail BadPerm(why: "bad SID")
+        if first
+            auth = v
+            first = false
+        else
+            parts.push(v)
+        i = j + 1
+    if parts.len() > 15
+        fail BadPerm(why: "too many sub-authorities")
+    return Sid(authority: auth, subs: parts)
+
+fn hex12(v: i64) -> text
+    let h = "0123456789ABCDEF".chars()
+    var o = ""
+    var x = v
+    var k: i64 = 0
+    while k < 12 bound 12
+        o = copy(h[(x & 15) as usize]) + o
+        x = x >> 4
+        k += 1
+    return o
+
+pub fn sid_text(s: &Sid) -> text
+    var o = "S-1-" + (if s.authority < 4294967296 then s.authority.tostr() else "0x" + hex12(s.authority))
+    for x in s.subs
+        o = o + "-" + x.tostr()
+    return o
+
+# Binary form (MS-DTYP 2.4.2.2): revision, count, 6-byte big-endian
+# authority, little-endian 32-bit sub-authorities.
+pub fn sid_bytes(s: &Sid) -> List[i64]
+    var o: List[i64] = [1, s.subs.len() as i64]
+    var k: i64 = 5
+    while k >= 0 bound 6
+        o.push((s.authority >> (k * 8)) & 255)
+        k -= 1
+    for x in s.subs
+        o.push(x & 255)
+        o.push((x >> 8) & 255)
+        o.push((x >> 16) & 255)
+        o.push((x >> 24) & 255)
+    return o
+
+pub fn sid_from_bytes(b: &[i64]) -> Sid ! BadPerm
+    if b.len() < 8 or b[0] != 1 or b[1] > 15 or b.len() != 8 + 4 * b[1] as usize
+        fail BadPerm(why: "bad SID bytes")
+    var a: i64 = 0
+    for k in 2..8
+        a = a * 256 + b[k]
+    var subs: List[i64] = []
+    var i: usize = 8
+    while i < b.len() bound 64
+        subs.push(b[i] | b[i + 1] << 8 | b[i + 2] << 16 | b[i + 3] << 24)
+        i += 4
+    return Sid(authority: a, subs: subs)
+
+pub struct Ace
+    allow: bool
+    sid: text
+    mask: i64
+
+# Discretionary access check (MS-DTYP 2.5.3.2, simplified: no owner
+# rights, generic mapping, inheritance or object ACEs): with no DACL
+# everything is granted; otherwise ACEs are read in order, a deny ACE
+# for a token SID that names a still-wanted bit refuses, an allow ACE
+# grants its bits, and access is granted once every wanted bit is.
+pub fn access_check(has_dacl: bool, dacl: &[Ace], token: &[text], want: i64) -> bool
+    if not has_dacl
+        return true
+    var left = want
+    for a in dacl
+        var mine = false
+        for s in token
+            if s == a.sid
+                mine = true
+        if not mine
+            continue
+        if not a.allow and a.mask & left != 0
+            return false
+        if a.allow
+            left = left & ~a.mask
+        if left == 0
+            return true
+    return left == 0
+
+# ---------------- Landlock ----------------
+
+pub const LL_EXECUTE: i64 = 1
+pub const LL_WRITE_FILE: i64 = 2
+pub const LL_READ_FILE: i64 = 4
+pub const LL_READ_DIR: i64 = 8
+pub const LL_REMOVE_DIR: i64 = 16
+pub const LL_REMOVE_FILE: i64 = 32
+pub const LL_MAKE_CHAR: i64 = 64
+pub const LL_MAKE_DIR: i64 = 128
+pub const LL_MAKE_REG: i64 = 256
+pub const LL_MAKE_SOCK: i64 = 512
+pub const LL_MAKE_FIFO: i64 = 1024
+pub const LL_MAKE_BLOCK: i64 = 2048
+pub const LL_MAKE_SYM: i64 = 4096
+pub const LL_REFER: i64 = 8192
+pub const LL_TRUNCATE: i64 = 16384
+pub const LL_IOCTL_DEV: i64 = 32768
+pub const LL_NET_BIND_TCP: i64 = 1
+pub const LL_NET_CONNECT_TCP: i64 = 2
+pub const LL_SCOPE_ABSTRACT_UNIX_SOCKET: i64 = 1
+pub const LL_SCOPE_SIGNAL: i64 = 2
+
+# Filesystem rights known to a Landlock ABI version (1: EXECUTE to
+# MAKE_SYM, 2: REFER, 3: TRUNCATE, 5: IOCTL_DEV; 4 added network rights
+# only); a sandbox handles only what the running kernel knows.
+pub fn ll_fs_rights(abi: i64) -> i64
+    if abi < 1
+        return 0
+    var r: i64 = 8191
+    if abi >= 2
+        r = r | LL_REFER
+    if abi >= 3
+        r = r | LL_TRUNCATE
+    if abi >= 5
+        r = r | LL_IOCTL_DEV
+    return r
+
+pub fn ll_net_rights(abi: i64) -> i64 = if abi >= 4 then 3 else 0
+pub fn ll_scopes(abi: i64) -> i64 = if abi >= 6 then 3 else 0
+
+pub struct Rule
+    path: List[text]
+    rights: i64
+
+pub struct Layer
+    handled: i64
+    rules: List[Rule]
+
+fn beneath(rule: &[text], p: &[text]) -> bool
+    if rule.len() > p.len()
+        return false
+    var i: usize = 0
+    while i < rule.len() bound 16777216
+        if rule[i] != p[i]
+            return false
+        i += 1
+    return true
+
+# A filesystem access `want` on path p (components from the root): each
+# layer must allow it; a layer allows the rights it does not handle, and
+# a handled right only if a rule on p or an ancestor grants it.
+pub fn ll_allowed(layers: &[Layer], p: &[text], want: i64) -> bool
+    for l in layers
+        let need = want & l.handled
+        var got: i64 = 0
+        for r in l.rules
+            if beneath(&r.path, p)
+                got = got | r.rights
+        if need & ~got != 0
+            return false
+    return true
+
+# ---------------- Sandbox grant mapping (proposal) ----------------
+
+# fs grant modes as letters "r", "w", "x" (any subset). Proposed rights:
+# r: read files and list directories; w: write, truncate, create and
+# remove files, directories and symlinks, and rename within (REFER); x:
+# execute. Device nodes, sockets, FIFOs and device ioctl are never
+# granted by fs; they belong to the device and ipc grants.
+pub fn grant_ll(modes: &text) -> i64
+    var r: i64 = 0
+    for c in modes.chars()
+        if c == "r"
+            r = r | LL_READ_FILE | LL_READ_DIR
+        elif c == "w"
+            r = r | LL_WRITE_FILE | LL_TRUNCATE | LL_MAKE_REG | LL_MAKE_DIR | LL_MAKE_SYM | LL_REMOVE_FILE | LL_REMOVE_DIR | LL_REFER
+        elif c == "x"
+            r = r | LL_EXECUTE
+    return r
+
+# The POSIX bits an fs grant needs on the files it covers, for reporting
+# (owner class: the sandboxed program runs as the file's owner or not at
+# all).
+pub fn grant_mode(modes: &text) -> i64
+    var m: i64 = 0
+    for c in modes.chars()
+        if c == "r"
+            m = m | 256
+        elif c == "w"
+            m = m | 128
+        elif c == "x"
+            m = m | 64
+    return m
+
+# The fs grant modes a Landlock right set fully contains.
+pub fn ll_grant(rights: i64) -> text
+    var o = ""
+    let r = "r"
+    let w = "w"
+    let gr = grant_ll(&r)
+    let gw = grant_ll(&w)
+    if rights & gr == gr
+        o = o + "r"
+    if rights & gw == gw
+        o = o + "w"
+    if rights & LL_EXECUTE != 0
+        o = o + "x"
+    return o

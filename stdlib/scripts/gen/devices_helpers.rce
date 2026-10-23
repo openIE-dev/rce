@@ -1,0 +1,109 @@
+fn nums(t: text) -> List[i64]
+    var o: List[i64] = []
+    if t == ""
+        return o
+    for p in t.split(" ")
+        var v: i64 = 0
+        for c in p.chars()
+            v = v * 10 + (c[0] as i64 - 48)
+        o.push(v)
+    return o
+fn dec(x0: i64) -> text
+    let d = "0123456789".chars()
+    var x = if x0 < 0 then 0 - x0 else x0
+    var s = ""
+    loop bound 20
+        s = d[(x % 10) as usize] + s
+        x = x / 10
+        if x == 0
+            break
+    return if x0 < 0 then "-" + s else s
+fn show(l: &List[i64]) -> text
+    var o: List[text] = []
+    for x in l
+        o.push(dec(x))
+    return " ".join(o)
+fn gb(t: text) -> text
+    let r = guid_bytes(&t) catch [-1]
+    return show(&r)
+fn gt(t: text) -> text
+    let b = nums(t)
+    return guid_text(&b) catch "bad"
+fn sv(t: text) -> i64
+    return status_value(&t) catch 1
+fn lon(p: text, n: i64) -> text
+    return load_option_name(&p, n) catch "bad"
+fn lonum(n: text, p: text) -> i64 = load_option_number(&n, &p)
+fn pecof(t: text) -> i64
+    let b = nums(t)
+    return smbus_pec(0, &b)
+fn mpec(spec: text) -> i64
+    var ms: List[I2cMsg] = []
+    for m in spec.split(";")
+        let p = nums(m)
+        var d: List[i64] = []
+        var i: usize = 2
+        while i < p.len() bound 1024
+            d.push(p[i])
+            i += 1
+        ms.push(I2cMsg(addr: p[0], flags: p[1], data: d))
+    return smbus_msgs_pec(&ms)
+fn txns(spec: text) -> List[Txn]
+    var o: List[Txn] = []
+    if spec == ""
+        return o
+    for m in spec.split(";")
+        let p = nums(m)
+        var d: List[i64] = []
+        var i: usize = 2
+        while i < p.len() bound 1024
+            d.push(p[i])
+            i += 1
+        let op = if p[0] == 0 then "write" else "read"
+        o.push(Txn(op: op, addr: p[1], bytes: d))
+    return o
+fn tc(e: text, a: text) -> i64
+    let x = txns(e)
+    let y = txns(a)
+    return txn_check(&x, &y)
+fn swb(w: i64, b: i64, m: i64) -> text
+    let r = spi_word_bits(w, b, m)
+    return show(&r)
+fn sbw(t: text, m: i64) -> i64
+    let b = nums(t)
+    return spi_bits_word(&b, m)
+fn uf(v: i64, d: i64, p: text, s: i64) -> text
+    let c = UartCfg(data: d, parity: p, stop: s)
+    let r = uart_frame(v, &c)
+    return show(&r)
+fn ud(l: text, d: i64, p: text, s: i64) -> text
+    let c = UartCfg(data: d, parity: p, stop: s)
+    let b = nums(l)
+    var r = uart_decode(&b, &c)
+    var o: List[text] = []
+    for x in r
+        if x == -1
+            o.push("F")
+        if x == -2
+            o.push("P")
+        if x >= 0
+            o.push(dec(x))
+    return " ".join(o)
+fn fg(r: i64, l: i64, w: i64) -> i64
+    let f = Field(name: "f", lsb: l, width: w, access: "rw")
+    return field_get(r, &f)
+fn fset(r: i64, l: i64, w: i64, a: text, v: i64) -> i64
+    let f = Field(name: "f", lsb: l, width: w, access: a)
+    return field_set(r, &f, v) catch -1
+fn fok(spec: text, width: i64) -> bool
+    var o: List[Field] = []
+    for m in spec.split(";")
+        let p = nums(m)
+        o.push(Field(name: "f", lsb: p[0], width: p[1], access: "rw"))
+    return fields_ok(&o, width)
+fn mty(t: text) -> i64 = memory_type(&t)
+fn rty(t: text) -> i64 = reset_type(&t)
+fn tbb(a: i64, r: bool) -> text
+    let x = i2c_ten_bit_bytes(a, r)
+    return show(&x)
+fn gtier(c: text, pt: bool, cf: bool) -> i64 = grant_tier(&c, pt, cf)

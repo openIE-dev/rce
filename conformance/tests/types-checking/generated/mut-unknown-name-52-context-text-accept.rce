@@ -1,0 +1,32 @@
+# rce-version: 0.8
+module page
+
+intent "untrusted text reaches HTML and SQL only through the context's encoder (5.16): markup and query syntax come from program literals"
+    example Comment(body: "<script>x</script>") -> html.raw() == "<p>&lt;script&gt;x&lt;/script&gt;</p>"
+    example Comment(body: "O'Brien") -> query.raw() == "SELECT id FROM users WHERE name = 'O''Brien'"
+    example Comment(body: "a b&c") -> link.raw() == "/search?q=a%20b%26c"
+
+state Page
+    html: Text[Html] = Html.lit("<p></p>")
+    query: Text[Sql] = Sql.lit("")
+    link: Text[Url] = Url.lit("/")
+
+event Comment(body: text)
+
+step Page on Comment(body: b)
+    html = Html.lit("<p>") + Html.encode(b) + Html.lit("</p>")
+    query = Sql.lit("SELECT id FROM users WHERE name = ") + Sql.encode(b)
+    link = Url.lit("/search?q=") + Url.encode(b)
+    emit html
+
+fn probe_unknown() -> i64
+    return no_such_name_zz
+#--- rce-test
+# id: types-checking/generated/mut-unknown-name-52-context-text-accept
+# area: types-checking
+# clauses: [CH09-M-82e65964, W-NAME-1]
+# expect: reject
+# diagnostic: W-NAME-1
+# flags: [generated]
+# provenance: gen_props.py seed 7: mutation `unknown-name` of 52-context-text-accept
+#---

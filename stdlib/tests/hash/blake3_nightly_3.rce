@@ -1,0 +1,54 @@
+# Checks for lib/hash/blake3.rce: the official BLAKE3 test vectors
+# (vectors/hash/blake3/test_vectors.json), all three modes, full 131-byte
+# extended outputs, plus properties. Shard files split the vectors so each
+# stays within one comptime fuel budget (scripts/gen/blake3_gen.py).
+
+fn pat(n: i64) -> List[i64]
+    var o: List[i64] = []
+    for i in 0..n
+        o.push(i % 251)
+    return o
+
+fn hx(b: &[i64]) -> text
+    let ds = "0123456789abcdef".chars()
+    var s = ""
+    for x in b
+        s = s + copy(ds[(x >> 4) as usize]) + copy(ds[(x & 15) as usize])
+    return s
+
+fn bytes_of(s: text) -> List[i64]
+    var o: List[i64] = []
+    var i: usize = 0
+    while i < s.len() bound 4096
+        o.push(s[i] as i64)
+        i += 1
+    return o
+
+fn v_hash(n: i64) -> text
+    let p = pat(n)
+    let h = blake3_xof(&p, 131)
+    return hx(&h)
+
+fn v_keyed(n: i64) -> text
+    let p = pat(n)
+    let k = bytes_of("whats the Elvish word for friend")
+    let h = blake3_keyed(&k, &p, 131)
+    return hx(&h)
+
+fn v_derive(n: i64) -> text
+    let p = pat(n)
+    let c = bytes_of("BLAKE3 2019-12-27 16:29:52 test vectors context")
+    let h = blake3_derive_key(&c, &p, 131)
+    return hx(&h)
+
+# property: the 32-byte hash is the prefix of every longer XOF output
+fn prefix_ok(n: i64) -> bool
+    let p = pat(n)
+    let a = blake3(&p)
+    let b = blake3_xof(&p, 200)
+    var ok = true
+    for i in 0..32
+        ok = ok and a[i] == b[i]
+    return ok
+
+check v_derive(102400) == "4652cff7a3f385a6103b5c260fc1593e13c778dbe608efb092fe7ee69df6e9c6d83a3e041bc3a48df2879f4a0a3ed40e7c961c73eff740f3117a0504c2dff4786d44fb17f1549eb0ba585e40ec29bf7732f0b7e286ff8acddc4cb1e23b87ff5d824a986458dcc6a04ac83969b80637562953df51ed1a7e90a7926924d2763778be8560"

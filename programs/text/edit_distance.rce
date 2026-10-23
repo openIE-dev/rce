@@ -1,0 +1,27 @@
+# Levenshtein edit distance by dynamic programming over two rows.
+fn min3(a: u32, b: u32, c: u32) -> u32
+    var m = a
+    if b < m
+        m = b
+    if c < m
+        m = c
+    return m
+
+fn distance(a: &text, b: &text) -> u32
+    let n = b.len_chars()
+    var prev: List[u32] = [j as u32 for j in 0..=n]
+    for i in 1..=a.len_chars()
+        var cur: List[u32] = [i as u32]
+        for j in 1..=n
+            let cost: u32 = if a[i - 1] == b[j - 1] then 0 else 1
+            cur.append(min3(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + cost))
+        prev = cur
+    return prev[n]
+
+const KITTEN: text = "kitten"
+const SITTING: text = "sitting"
+const EMPTY: text = ""
+
+check distance(&KITTEN, &SITTING) == 3
+check distance(&KITTEN, &KITTEN) == 0
+check distance(&EMPTY, &SITTING) == 7

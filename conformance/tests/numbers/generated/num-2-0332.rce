@@ -1,0 +1,15 @@
+fn main()
+    let a: u64 = 18434537417253698
+    let b: u64 = 14143647863344965236
+    emit a.wrapping_sub(b)
+#--- rce-test
+# id: numbers/generated/num-2-0332
+# area: numbers
+# clauses: [CH00-M-61b6ac06, CH05-M-2405dfe8, CH07-M-0a0bd71f, F7, F9, N1, N2, N3, T1, T4, T5, T9]
+# expect: run
+# outcome: done
+# outputs:
+#   - emit 4321530747781840078
+# flags: [generated]
+# provenance: gen_numbers.py seed 2; oracle-derived
+#---

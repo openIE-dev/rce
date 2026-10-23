@@ -1,0 +1,11 @@
+fn f() -> i64
+        let x = 1
+    return x
+#--- rce-test
+# id: lexing-parsing/harvested/bad-dedent-reject
+# area: lexing-parsing
+# clauses: [CH02-M-69371f07, CH09-M-82e65964, T10, W-LEX-2]
+# expect: reject
+# diagnostic: W-LEX-2
+# provenance: harvested examples/reject/bad_dedent.rce
+#---

@@ -1,0 +1,12 @@
+fn vowel(c: &text) -> bool = c in "aeiou"
+
+fn not_member(x: i64, xs: &[i64]) -> bool = x not in xs
+
+fn same_range(a: i64) -> bool = a in 0..10 and not (a == 5)
+#--- rce-test
+# id: evaluation-fuel/harvested/33-in-operator-accept
+# area: evaluation-fuel
+# clauses: [CH03-M-28cdd241, T10, T6]
+# expect: accept
+# provenance: harvested examples/33_in_operator.rce
+#---

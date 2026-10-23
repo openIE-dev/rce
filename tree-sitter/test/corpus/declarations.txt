@@ -1,0 +1,117 @@
+========================================
+Function with an arrow body
+========================================
+
+fn half(x: u64) -> u64 = x / 2
+
+---
+
+(start
+  (pub_item
+    (fn_decl
+      (fn_sig
+        (NAME)
+        (params
+          (param
+            (NAME)
+            (type_path
+              (path
+                (NAME)))))
+        (type_path
+          (path
+            (NAME))))
+      (mul_expr
+        (name
+          (NAME))
+        (mul_op)
+        (INT)))))
+
+========================================
+State, event and step
+========================================
+
+state Counter
+    n: u64 = 0
+
+event Inc
+
+step Counter on Inc -> n + 1
+
+---
+
+(start
+  (state_decl
+    (NAME)
+    (field
+      (NAME)
+      (type_path
+        (path
+          (NAME)))
+      (INT)))
+  (event_decl
+    (NAME))
+  (step_decl
+    (NAME)
+    (name_pat
+      (path
+        (NAME)))
+    (step_arrow
+      (add_expr
+        (name
+          (NAME))
+        (add_op)
+        (INT)))))
+
+========================================
+Kind with variants
+========================================
+
+kind Shape
+    Circle(r: f64)
+    Empty
+
+---
+
+(start
+  (pub_item
+    (kind_decl
+      (NAME)
+      (variant
+        (NAME)
+        (payload
+          (field_list
+            (field_item
+              (NAME)
+              (type_path
+                (path
+                  (NAME)))))))
+      (variant
+        (NAME)))))
+
+========================================
+Intent with examples
+========================================
+
+intent "a counter"
+    example Inc, Inc -> 2
+    example Dec -> refused: Underflow
+
+---
+
+(start
+  (intent_decl
+    (STRING)
+    (example_decl
+      (event_list
+        (event_ref
+          (NAME))
+        (event_ref
+          (NAME)))
+      (outcome_value
+        (INT)))
+    (example_decl
+      (event_list
+        (event_ref
+          (NAME)))
+      (outcome_refused
+        (NAME)))))

@@ -1,0 +1,21 @@
+fn main()
+    let x: i64 = 1
+    emit x << 3
+    emit x << 62
+    let y: i64 = -8
+    emit y >> 1
+    let u: u64 = 18446744073709551615
+    emit u >> 60
+#--- rce-test
+# id: numbers/targeted/shift-in-range
+# area: numbers
+# clauses: [N2]
+# expect: run
+# outcome: done
+# outputs:
+#   - emit 8
+#   - emit 4611686018427387904
+#   - emit -4
+#   - emit 15
+# provenance: mutation survivor (reports/mutation.json); expected value read off the rule
+#---

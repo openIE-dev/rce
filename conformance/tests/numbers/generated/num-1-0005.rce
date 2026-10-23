@@ -1,0 +1,14 @@
+fn main()
+    let a: f64 = -1.6924209804193638e+222
+    let _b: f64 = -1e+16
+    emit a as i64
+#--- rce-test
+# id: numbers/generated/num-1-0005
+# area: numbers
+# clauses: [CH00-M-61b6ac06, CH05-M-2405dfe8, CH07-M-0a0bd71f, F7, F9, N1, N3, N4, T1, T4, T5, T9]
+# expect: run
+# outcome: trap:overflow: -1692420980419363832697434237787796296503908952754690552920537789582314181042195122797885347169158193885740825152664865956004369456899371696332701593673968135089608751437005921230587186455184528204945767268608321964598099968 is outside i64
+# outputs:
+# flags: [generated]
+# provenance: gen_numbers.py seed 1; oracle-derived
+#---

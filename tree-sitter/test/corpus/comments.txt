@@ -1,0 +1,108 @@
+========================================
+Comments are nodes and do not change layout
+========================================
+
+# a module comment
+fn f(x: i64) -> i64
+    # a comment before the first statement
+    let y = x + 1  # a trailing comment
+        # an over-indented comment line
+    # two comment lines in a row
+# a comment at column zero inside the block
+    return y
+# a comment between items
+
+fn g() -> i64 = 1
+
+---
+
+(start
+  (comment)
+  (pub_item
+    (fn_decl
+      (fn_sig
+        (NAME)
+        (params
+          (param
+            (NAME)
+            (type_path
+              (path
+                (NAME)))))
+        (type_path
+          (path
+            (NAME))))
+      (block
+        (comment)
+        (let_stmt
+          (name_pat
+            (path
+              (NAME)))
+          (add_expr
+            (name
+              (NAME))
+            (add_op)
+            (INT))
+          (comment))
+        (comment)
+        (comment)
+        (comment)
+        (return_stmt
+          (name
+            (NAME))))))
+  (comment)
+  (pub_item
+    (fn_decl
+      (fn_sig
+        (NAME)
+        (type_path
+          (path
+            (NAME))))
+      (INT))))
+
+========================================
+Comments inside brackets
+========================================
+
+const XS: List[i64] = [
+    1,  # one
+    # between
+    2,
+]
+
+---
+
+(start
+  (pub_item
+    (const_decl
+      (NAME)
+      (type_path
+        (path
+          (NAME))
+        (type_list
+          (type_path
+            (path
+              (NAME)))))
+      (list
+        (INT)
+        (comment)
+        (comment)
+        (INT)))))
+
+========================================
+Comment at end of file without a final line end
+========================================
+
+fn f() -> i64 = 1
+# last
+---
+
+(start
+  (pub_item
+    (fn_decl
+      (fn_sig
+        (NAME)
+        (type_path
+          (path
+            (NAME))))
+      (INT)))
+  (comment))

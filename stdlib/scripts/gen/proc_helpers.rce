@@ -1,0 +1,81 @@
+fn opt_s(v: i64?) -> text
+    match v
+        some(x) -> return x.tostr()
+        none -> return "none"
+fn tf(b: bool) -> text = if b then "true" else "false"
+fn st_row(s: i64) -> text = status_text(s) + "|" + opt_s(code(s)) + "|" + opt_s(signal(s)) + "|" + tf(core_dumped(s)) + "|" + opt_s(stopped_signal(s)) + "|" + tf(continued(s)) + "|" + tf(success(s))
+fn after_colon(o: &text) -> text
+    let cs = o.chars()
+    var r = ""
+    var seen = false
+    for c in cs
+        if seen
+            r = r + c
+        elif c == ":"
+            seen = true
+    return r
+fn build(spec: text) -> Cmd
+    let ops = spec.split("\u{1f}")
+    let p0 = after_colon(&ops[0])
+    var c = cmd_new(&p0)
+    var i: usize = 1
+    while i < ops.len() bound 4096
+        let k = copy(ops[i].split(":")[0])
+        let v = after_colon(&ops[i])
+        if k == "arg"
+            arg(&mut c, &v)
+        elif k == "arg0"
+            arg0(&mut c, &v)
+        elif k == "env"
+            let kv = v.split("=")
+            var val = ""
+            var j: usize = 1
+            while j < kv.len() bound 4096
+                val = val + (if j > 1 then "=" else "") + kv[j]
+                j += 1
+            env(&mut c, &kv[0], &val)
+        elif k == "rm"
+            env_remove(&mut c, &v)
+        elif k == "clear"
+            env_clear(&mut c)
+        elif k == "cwd"
+            current_dir(&mut c, &v)
+        elif k == "pgroup"
+            c.pgroup = num(&v)
+        elif k == "uid"
+            c.uid = num(&v)
+        elif k == "gid"
+            c.gid = num(&v)
+        else
+            let _ok = set_stdio(&mut c, &k, &v) catch false
+        i += 1
+    return c
+fn num(s: &text) -> i64
+    var v: i64 = 0
+    for ch in s.chars()
+        v = v * 10 + (ch[0] as i64 - 48)
+    return v
+fn dbg(spec: text) -> text
+    let c = build(spec)
+    return debug(&c)
+fn dbgp(spec: text) -> text
+    let c = build(spec)
+    return debug_pretty(&c)
+fn sp(s: text) -> text
+    let r = shlex_split(&s) catch |e| ["!" + e.why]
+    if r.len() == 0
+        return "!empty"
+    return "\u{1f}".join(r)
+fn words(s: text, n: i64) -> List[text]
+    if n == 0
+        return []
+    return s.split("\u{1f}")
+fn jn(s: text) -> text
+    let w = words(s, 2)
+    return shlex_join(&w)
+fn rt(s: text, n: i64) -> bool
+    let w = words(s, n)
+    let j = shlex_join(&w)
+    let back = shlex_split(&j) catch ["!"]
+    return back == w
+fn qt(s: text) -> text = shlex_quote(&s)

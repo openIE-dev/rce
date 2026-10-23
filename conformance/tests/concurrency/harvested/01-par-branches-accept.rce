@@ -1,0 +1,19 @@
+# rce-version: 0.6
+fn split(xs: &[i64]) -> (i64, i64)
+    var lo: i64 = 0
+    var hi: i64 = 0
+    par
+        branch left
+            for x in xs
+                lo += x
+        branch right
+            for x in xs
+                hi = hi.saturating_add(x)
+    (lo, hi)
+#--- rce-test
+# id: concurrency/harvested/01-par-branches-accept
+# area: concurrency
+# clauses: [CH02-M-a696f3a3, CH03-M-28cdd241, T10]
+# expect: accept
+# provenance: harvested conc06/accept/01_par_branches.rce
+#---

@@ -1,0 +1,26 @@
+# rce-version: 0.6
+replicated state Ledger
+    total: i64 = 0
+
+interrupt event Alarm(code: u8) priority 7
+event Deposit(amount: i64)
+
+step Ledger on Deposit(amount: a) deadline 100
+    total += a
+
+step Ledger on Alarm(code: _c)
+    pass
+
+actor Counter
+    n: i64 = 0
+    on Deposit(amount: a)
+        n += a
+
+node east { Counter }
+#--- rce-test
+# id: concurrency/harvested/03-distributed-accept
+# area: concurrency
+# clauses: [CH02-M-a696f3a3, CH03-M-28cdd241, T10, T22, T31]
+# expect: accept
+# provenance: harvested conc06b/accept/03_distributed.rce
+#---

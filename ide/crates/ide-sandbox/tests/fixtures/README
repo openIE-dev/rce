@@ -1,0 +1,1 @@
+Test-only TLS fixtures for tests/tls.rs: a P-256 CA (ca.pem; its private key was discarded after signing) and a leaf for DNS:localhost (leaf.pem, leaf.key). Not trusted anywhere outside these tests.

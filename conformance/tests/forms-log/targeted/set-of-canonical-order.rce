@@ -1,0 +1,16 @@
+fn main()
+    emit set_of([3, 1, 2, 1, -5])
+    emit set_of([3, 1, 2, 1, -5]).tolist().len()
+    emit set_of(["b", "a", "b"])
+#--- rce-test
+# id: forms-log/targeted/set-of-canonical-order
+# area: forms-log
+# clauses: [CH16-M-8dc47a03, T1, T4, T9]
+# expect: run
+# outcome: done
+# outputs:
+#   - emit [-5, 1, 2, 3]
+#   - emit 4
+#   - "emit [\"a\", \"b\"]"
+# provenance: targeted (mutation survivors, round 3): set_of sorts into canonical order and drops duplicates (6.1, 7.1; mutant 65); outputs read off the reference and checked by the four emitters
+#---

@@ -1,0 +1,18 @@
+fn middle(xs: &[i64]) -> &[i64] = xs[1:-1]
+
+fn head(xs: &[i64]) -> List[i64] = copy(xs[:2])
+
+fn grid_get(g: &[[i64; 3]; 3], r: usize, c: usize) -> i64 = g[r][c]
+
+fn unsafe_probe() -> i64
+    let unsafe = 1
+    return unsafe
+#--- rce-test
+# id: types-checking/generated/mut-unsafe-28-slices-accept
+# area: types-checking
+# clauses: [CH09-M-82e65964, W-SAFE-1]
+# expect: reject
+# diagnostic: W-SAFE-1
+# flags: [generated]
+# provenance: gen_props.py seed 7: mutation `unsafe` of 28-slices-accept
+#---

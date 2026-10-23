@@ -1,0 +1,8 @@
+event Get(reply: chan i64)
+event Add(k: i64)
+
+actor Tally
+    total: i64 = 0
+    on Add(k: k) -> total + k
+    on Get(reply: r)
+        r <- total

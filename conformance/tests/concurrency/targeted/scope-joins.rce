@@ -1,0 +1,37 @@
+# rce-version: 0.6
+fn worker(c: chan i64, k: i64) -> i64
+    c <- k
+    k * 10
+
+fn bad(_c: chan i64) -> i64
+    let xs = [1, 2]
+    xs[5]
+
+fn main()
+    let c = chan[i64](8)
+    scope
+        spawn worker(c, 1) -> h1
+        spawn worker(c, 2)
+        spawn worker(c, 3)
+        emit h1.join()
+    emit 99
+    scope
+        spawn worker(c, 4) -> h4
+        spawn worker(c, 5) -> h5
+        emit h5.join()
+        emit h4.join()
+    emit 100
+#--- rce-test
+# id: concurrency/targeted/scope-joins
+# area: concurrency
+# clauses: [T1, T26, T4, T9]
+# expect: run
+# outcome: done
+# outputs:
+#   - emit 10
+#   - emit 99
+#   - emit 50
+#   - emit 40
+#   - emit 100
+# provenance: targeted (round 3): join handles give each child's result and a scope ends after every child (T26); outputs read off the reference and checked by the four emitters
+#---

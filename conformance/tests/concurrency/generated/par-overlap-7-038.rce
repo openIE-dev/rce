@@ -1,0 +1,33 @@
+# rce-version: 0.6
+fn main()
+    var v0: i64 = -14
+    var v1: i64 = 31
+    var v2: i64 = -31
+    var v3: i64 = -19
+    var acc: List[i64] = [4, 6, 8, 5, 3]
+    par
+        branch b0
+            for x in acc
+                v0 = v0 - x * 4
+        branch b1
+            for x in acc
+                v0 = v0 + x * 4
+        branch b2
+            for x in acc
+                v2 = v2 + x * 1
+        branch b3
+            for x in acc
+                v3 = v3 + x * 4
+    emit v0
+    emit v1
+    emit v2
+    emit v3
+#--- rce-test
+# id: concurrency/generated/par-overlap-7-038
+# area: concurrency
+# clauses: [CH09-M-82e65964, W-PAR-1]
+# expect: reject
+# diagnostic: W-PAR-1
+# flags: [generated]
+# provenance: gen_props.py: two branches write one variable (write/write overlap)
+#---

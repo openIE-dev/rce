@@ -1,0 +1,152 @@
+# Checks for lib/time/time.rce. Howard Hinnant's round-trip test from
+# "chrono-Compatible Low-Level Date Algorithms" (every day maps back to
+# itself, consecutive days advance the date by one and the weekday by one)
+# over windows around era and century boundaries and a strided sweep of
+# +-10^8 days; his fixed points; RFC 3339 section 5.8 examples; CPython
+# datetime cross-checks (scripts/gen/time_gen.py).
+
+fn date_ok(y: i64, m: i64, d: i64, z: i64, wd: i64, iso: List[i64], yd: i64) -> bool
+    let c = civil_from_days(z)
+    return days_from_civil(y, m, d) == z and c.y == y and c.m == m and c.d == d and weekday_from_days(z) == wd and iso_week(y, m, d) == iso and ordinal_day(y, m, d) == yd
+
+fn fmt_ok(t: i64, off: i64, s: text) -> bool = format_rfc3339(t, off, 9) == s and (parse_rfc3339(&s) catch -1) == t
+
+# Hinnant: for z in [lo, lo + n) the date of z + 1 is the next calendar day
+# of the date of z, round trip holds, weekday advances mod 7.
+fn hinnant(lo: i64, n: i64) -> bool
+    var ok = true
+    var prev = civil_from_days(lo - 1)
+    var pw = weekday_from_days(lo - 1)
+    for i in 0..n
+        let z = lo + i
+        let c = civil_from_days(z)
+        let w = weekday_from_days(z)
+        ok = ok and days_from_civil(c.y, c.m, c.d) == z and valid_civil(c.y, c.m, c.d)
+        ok = ok and w == (pw + 1) % 7 and w >= 0 and w < 7
+        if prev.d == days_in_month(prev.y, prev.m)
+            if prev.m == 12
+                ok = ok and c.y == prev.y + 1 and c.m == 1 and c.d == 1
+            else
+                ok = ok and c.y == prev.y and c.m == prev.m + 1 and c.d == 1
+        else
+            ok = ok and c.y == prev.y and c.m == prev.m and c.d == prev.d + 1
+        prev = c
+        pw = w
+    return ok
+
+fn stride(n: i64) -> bool
+    var ok = true
+    for i in 0..n
+        let z = (i - n / 2) * 99991
+        let c = civil_from_days(z)
+        ok = ok and days_from_civil(c.y, c.m, c.d) == z and weekday_from_days(z) == fmod(z + 4, 7)
+    return ok
+
+fn rfc(s: text) -> i64 = parse_rfc3339(&s) catch -1
+
+fn add_m(y: i64, m: i64, d: i64, n: i64) -> List[i64]
+    let c0 = Civil(y: y, m: m, d: d)
+    let c = add_months(&c0, n)
+    return [c.y, c.m, c.d]
+
+check hinnant(-800, 1600)
+check hinnant(days_from_civil(1999, 12, 1), 800)
+check hinnant(days_from_civil(-401, 12, 1), 800)
+check hinnant(days_from_civil(2099, 12, 1), 500)
+check stride(2001)
+check days_from_civil(1970, 1, 1) == 0 and weekday_from_days(0) == 4 and days_from_civil(2000, 3, 1) == 11017 and days_from_civil(0, 3, 1) == -719468
+check days_from_civil(-1, 12, 31) == -719529 and civil_from_days(-719529).y == -1
+check is_leap(2000) and not is_leap(1900) and is_leap(2024) and is_leap(0) and is_leap(-4) and not is_leap(-100)
+check add_m(2024, 1, 31, 1) == [2024, 2, 29] and add_m(2023, 1, 31, 1) == [2023, 2, 28] and add_m(2024, 3, 15, -15) == [2022, 12, 15] and add_m(2024, 12, 31, 2) == [2025, 2, 28]
+check iso_week(2008, 12, 29) == [2009, 1, 1] and iso_week(2010, 1, 3) == [2009, 53, 7] and iso_week(2021, 1, 4) == [2021, 1, 1]
+check floor_to(-1, SEC) == -1000000000 and floor_to(1999999999, SEC) == 1000000000 and dur_of(1, 2, 3, 4) == 3723000000004
+
+# RFC 3339 section 5.8
+check rfc("1985-04-12T23:20:50.52Z") == 482196050520000000
+check rfc("1996-12-19T16:39:57-08:00") == 851042397000000000
+check rfc("1937-01-01T12:00:27.87+00:20") == -1041337172130000000
+check rfc("1990-12-31T23:59:60Z") == -1 and rfc("1990-12-31T15:59:60-08:00") == -1
+check rfc("1985-04-12t23:20:50z") == 482196050000000000 and rfc("1985-02-29T00:00:00Z") == -1 and rfc("1985-04-12T23:20:50.Z") == -1 and rfc("1985-04-12T23:20:50.1234567890Z") == -1 and rfc("1985-04-12T23:20:50") == -1 and rfc("1985-04-12T24:00:00Z") == -1
+check format_rfc3339(482196050520000000, 0, 3) == "1985-04-12T23:20:50.520Z" and format_rfc3339(851042397000000000, -480, 0) == "1996-12-19T16:39:57-08:00" and format_rfc3339(-1, 0, 9) == "1969-12-31T23:59:59.999999999Z"
+
+# CPython datetime cross-checks
+check date_ok(2426, 11, 9, 166863, 1, [2426, 46, 1], 313)
+check date_ok(2279, 10, 16, 113148, 4, [2279, 42, 4], 289)
+check date_ok(5056, 10, 22, 1127433, 3, [5056, 43, 3], 296)
+check date_ok(5524, 5, 23, 1298214, 5, [5524, 21, 5], 144)
+check date_ok(121, 4, 11, -675233, 5, [121, 15, 5], 101)
+check date_ok(9417, 2, 7, 2719998, 5, [9417, 6, 5], 38)
+check date_ok(9459, 8, 18, 2735530, 4, [9459, 33, 4], 230)
+check date_ok(463, 10, 29, -550119, 1, [463, 44, 1], 302)
+check date_ok(344, 2, 10, -593845, 4, [344, 6, 4], 41)
+check date_ok(7006, 6, 22, 1839533, 0, [7006, 25, 7], 173)
+check date_ok(2229, 12, 12, 94943, 6, [2229, 50, 6], 346)
+check date_ok(6031, 11, 12, 1483565, 3, [6031, 46, 3], 316)
+check date_ok(9506, 12, 19, 2752819, 3, [9506, 51, 3], 353)
+check date_ok(4853, 2, 16, 1053041, 0, [4853, 7, 7], 47)
+check date_ok(4545, 7, 30, 940710, 5, [4545, 30, 5], 211)
+check date_ok(6574, 10, 19, 1681868, 3, [6574, 42, 3], 292)
+check date_ok(7495, 4, 14, 2018068, 0, [7495, 15, 7], 104)
+check date_ok(7915, 3, 25, 2171449, 4, [7915, 12, 4], 84)
+check date_ok(9120, 2, 12, 2611525, 4, [9120, 7, 4], 43)
+check date_ok(7249, 7, 2, 1928298, 5, [7249, 26, 5], 183)
+check date_ok(7499, 11, 23, 2019752, 4, [7499, 47, 4], 327)
+check date_ok(7501, 3, 1, 2020215, 5, [7501, 9, 5], 60)
+check date_ok(4509, 5, 29, 927499, 3, [4509, 22, 3], 149)
+check date_ok(9539, 9, 1, 2764763, 5, [9539, 35, 5], 244)
+check date_ok(2674, 6, 20, 257301, 6, [2674, 25, 6], 171)
+check date_ok(9069, 9, 28, 2593127, 2, [9069, 39, 2], 271)
+check date_ok(5715, 12, 9, 1368175, 1, [5715, 50, 1], 343)
+check date_ok(7886, 1, 9, 2160783, 6, [7886, 1, 6], 9)
+check date_ok(9790, 12, 30, 2856560, 4, [9790, 52, 4], 364)
+check date_ok(667, 12, 28, -475550, 6, [667, 52, 6], 362)
+check date_ok(2690, 1, 18, 262992, 6, [2690, 3, 6], 18)
+check date_ok(6337, 5, 19, 1595152, 3, [6337, 20, 3], 139)
+check date_ok(2067, 9, 15, 35686, 4, [2067, 37, 4], 258)
+check date_ok(706, 1, 18, -461650, 4, [706, 3, 4], 18)
+check date_ok(7561, 8, 17, 2042299, 4, [7561, 33, 4], 229)
+check date_ok(3115, 2, 14, 418246, 0, [3115, 6, 7], 45)
+check date_ok(768, 4, 28, -438904, 0, [768, 17, 7], 119)
+check date_ok(4035, 1, 19, 754244, 5, [4035, 3, 5], 19)
+check date_ok(7779, 12, 24, 2122051, 5, [7779, 51, 5], 358)
+check date_ok(2733, 2, 15, 278725, 3, [2733, 7, 3], 46)
+check date_ok(3101, 12, 30, 413452, 1, [3102, 1, 1], 364)
+check date_ok(7105, 6, 15, 1875685, 4, [7105, 24, 4], 166)
+check date_ok(4489, 4, 27, 920163, 3, [4489, 17, 3], 117)
+check date_ok(2023, 11, 22, 19683, 3, [2023, 47, 3], 326)
+check date_ok(9735, 8, 11, 2836330, 4, [9735, 32, 4], 223)
+check date_ok(270, 5, 28, -620765, 6, [270, 21, 6], 148)
+check date_ok(523, 1, 27, -528480, 3, [523, 4, 3], 27)
+check date_ok(7897, 3, 1, 2164852, 1, [7897, 9, 1], 60)
+check date_ok(9356, 12, 17, 2698032, 5, [9356, 51, 5], 352)
+check date_ok(9204, 8, 27, 2642403, 5, [9204, 35, 5], 240)
+check date_ok(18, 11, 21, -712629, 3, [18, 47, 3], 325)
+check date_ok(6175, 2, 15, 1535890, 3, [6175, 7, 3], 46)
+check date_ok(5049, 2, 12, 1124624, 1, [5049, 7, 1], 43)
+check date_ok(4883, 11, 22, 1064277, 1, [4883, 47, 1], 326)
+check date_ok(1914, 11, 5, -20146, 4, [1914, 45, 4], 309)
+check date_ok(147, 9, 12, -665583, 2, [147, 37, 2], 255)
+check date_ok(7419, 1, 12, 1990217, 2, [7419, 2, 2], 12)
+check date_ok(7007, 2, 11, 1839767, 3, [7007, 7, 3], 42)
+check date_ok(7582, 4, 5, 2049835, 1, [7582, 14, 1], 95)
+check date_ok(5120, 3, 25, 1150597, 4, [5120, 13, 4], 85)
+check fmt_ok(-5868189016877222304, 0, "1784-01-17T03:29:43.122777696Z")
+check fmt_ok(-4311794789427148367, 0, "1833-05-13T23:13:30.572851633Z")
+check fmt_ok(407014590599501215, -300, "1982-11-24T14:36:30.599501215-05:00")
+check fmt_ok(-5966880188496802024, 60, "1780-11-30T22:16:51.503197976+01:00")
+check fmt_ok(-1204514998235732805, -300, "1931-10-31T15:30:01.764267195-05:00")
+check fmt_ok(-6368928909003874639, 60, "1768-03-05T14:04:50.996125361+01:00")
+check fmt_ok(-3285229777965362502, 0, "1865-11-23T12:10:22.034637498Z")
+check fmt_ok(2245399380378357474, -300, "2041-02-25T05:03:00.378357474-05:00")
+check fmt_ok(2364322193751769585, 840, "2044-12-03T10:09:53.751769585+14:00")
+check fmt_ok(2590931568011980647, 330, "2052-02-07T20:42:48.011980647+05:30")
+check fmt_ok(-7114374860227210449, 330, "1744-07-21T22:15:39.772789551+05:30")
+check fmt_ok(-7421355316491195282, 840, "1734-10-30T06:24:43.508804718+14:00")
+check fmt_ok(7071690803423538585, 330, "2194-02-03T12:03:23.423538585+05:30")
+check fmt_ok(1640908154886824984, 60, "2021-12-31T00:49:14.886824984+01:00")
+check fmt_ok(154448619981070372, 0, "1974-11-23T14:23:39.981070372Z")
+check fmt_ok(7931172733453017546, 0, "2221-04-30T23:32:13.453017546Z")
+check fmt_ok(286089190862004320, 840, "1979-01-25T19:13:10.862004320+14:00")
+check fmt_ok(-5610100564794445371, 0, "1792-03-22T06:43:55.205554629Z")
+check fmt_ok(6609062988379405847, 345, "2179-06-08T00:34:48.379405847+05:45")
+check fmt_ok(-5199291094963216178, 0, "1805-03-30T00:28:25.036783822Z")

@@ -1,0 +1,22 @@
+type Pipe = chan (u64, text)
+type Handler = fn(u64) -> bool
+type Result2 = i64 ! Overflow
+
+fn worker(input: chan (u64, text), output: chan u64)
+    loop bound 1_000_000
+        match <- input
+            some((id, _)) -> output <- id
+            none -> return
+
+fn unsafe_probe() -> i64
+    let unsafe = 1
+    return unsafe
+#--- rce-test
+# id: types-checking/generated/mut-unsafe-34-chan-types-accept
+# area: types-checking
+# clauses: [CH09-M-82e65964, W-SAFE-1]
+# expect: reject
+# diagnostic: W-SAFE-1
+# flags: [generated]
+# provenance: gen_props.py seed 7: mutation `unsafe` of 34-chan-types-accept
+#---

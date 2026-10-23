@@ -1,0 +1,18 @@
+# A one-joint arm moved by a proportional controller. Each sensor reading
+# moves the commanded angle halfway towards the target.
+intent "a proportional controller that refuses impossible readings"
+    example Sensor(reading: 0.0) -> angle == 0.5
+    example Sensor(reading: 0.0), Sensor(reading: 0.5) -> angle == 0.75
+    example Sensor(reading: 7.0) -> refused: OutOfRange
+
+state Arm
+    angle: f64 = 0.0
+    target: f64 = 1.0
+
+event Sensor(reading: f64)
+error OutOfRange
+
+step Arm on Sensor(reading: r) if r < -3.2 or r > 3.2
+    fail OutOfRange
+step Arm on Sensor(reading: r)
+    angle += 0.5 * (target - r)

@@ -1,0 +1,24 @@
+# rce-version: 0.6
+fn nested(xs: &[i64]) -> i64
+    var a: i64 = 0
+    var b: i64 = 0
+    par
+        branch one
+            for x in xs par
+                a += x
+        branch two
+            par
+                branch inner
+                    b = 1
+    a + b
+
+const BIG_LIT = 99999999999999999999999
+#--- rce-test
+# id: lexing-parsing/generated/mut-bigint-07-nested-accept
+# area: lexing-parsing
+# clauses: [CH09-M-82e65964, W-LEX-3]
+# expect: reject
+# diagnostic: W-LEX-3
+# flags: [generated]
+# provenance: gen_props.py seed 7: mutation `bigint` of 07-nested-accept
+#---

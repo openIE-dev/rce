@@ -1,0 +1,469 @@
+module os.clock
+
+# Clocks and timers (survey M37), pure. A program never reads a clock: the
+# host admits each monotonic or wall reading as a logged event, and it
+# admits each timer firing as an event in D order, so replay is exact.
+# This module holds what a program does with those values:
+# - Dur, Rust's core::time::Duration (secs plus nanos below one second)
+#   with its constructors, accessors, checked and saturating arithmetic and
+#   its Debug formatting ("1.5s", "7.1µs", precision, width, alignment).
+#   Secs are u64 as in Rust, so the full range holds.
+# - Timespec, the point type behind Rust's unix Instant and SystemTime
+#   (secs i64, nanos 0..1e9), with checked and saturating add/sub and
+#   duration_since in Rust's forms (saturating, checked, signed result).
+# - wasi:clocks@0.2.8 values: a monotonic instant (u64 ns) and a wall
+#   datetime (seconds, nanoseconds < 1e9) mapped to Timespec.
+# - Mono, the admission rule for monotonic readings: a reading below the
+#   last admitted one is raised to it (non-decreasing, as wasi-clocks
+#   promises and as Rust's monotonize enforces).
+# - Timers, the pure timer queue: subscribe at an instant or after a
+#   duration; a tick at `now` fires every due timer in (deadline, subscribe
+#   order) order. The host admits those firings as events in that order.
+
+error BadClock(why: text)
+
+pub const NANOS_PER_SEC: i64 = 1000000000
+pub const NPS: u64 = 1000000000
+pub const MAX_U: u64 = 18446744073709551615
+pub const MAX_SECS: i64 = 9223372036854775807
+pub const MIN_SECS: i64 = -9223372036854775808
+
+# secs is u64 as in Rust, so the full range up to u64::MAX seconds holds.
+pub struct Dur
+    secs: u64
+    nanos: i64
+
+pub fn dur_zero() -> Dur = Dur(secs: 0, nanos: 0)
+pub fn dur_max() -> Dur = Dur(secs: MAX_U, nanos: NANOS_PER_SEC - 1)
+
+# Duration::new: nanos beyond a second carry into secs; overflow fails.
+pub fn dur_new(secs: u64, nanos: i64) -> Dur ! BadClock
+    if nanos < 0
+        fail BadClock(why: "negative nanoseconds")
+    let extra = (nanos / NANOS_PER_SEC) as u64
+    if extra > MAX_U - secs
+        fail BadClock(why: "overflow in Duration::new")
+    return Dur(secs: secs + extra, nanos: nanos % NANOS_PER_SEC)
+
+pub fn from_secs(s: u64) -> Dur = Dur(secs: s, nanos: 0)
+pub fn from_millis(ms: u64) -> Dur = Dur(secs: ms / 1000, nanos: (ms % 1000) as i64 * 1000000)
+pub fn from_micros(us: u64) -> Dur = Dur(secs: us / 1000000, nanos: (us % 1000000) as i64 * 1000)
+pub fn from_nanos(ns: u64) -> Dur = Dur(secs: ns / NPS, nanos: (ns % NPS) as i64)
+
+# Duration::from_nanos_u128 for a u128 given as decimal digits: the last
+# nine digits are the nanos, the rest the secs (must fit u64).
+pub fn from_nanos_text(t: &text) -> Dur ! BadClock
+    let cs = t.chars()
+    if cs.len() == 0
+        fail BadClock(why: "empty")
+    var secs: u64 = 0
+    var nanos: i64 = 0
+    var k: usize = 0
+    let cut: usize = if cs.len() > 9 then cs.len() - 9 else 0
+    for c in cs
+        let v = c[0] as i64 - 48
+        if v < 0 or v > 9
+            fail BadClock(why: "not a decimal")
+        if k < cut
+            if secs > (MAX_U - v as u64) / 10
+                fail BadClock(why: "overflow in Duration::from_nanos_u128")
+            secs = secs * 10 + v as u64
+        else
+            nanos = nanos * 10 + v
+        k += 1
+    return Dur(secs: secs, nanos: nanos)
+
+fn from_unit(n: u64, unit: u64) -> Dur ! BadClock
+    if n > MAX_U / unit
+        fail BadClock(why: "overflow in Duration constructor")
+    return Dur(secs: n * unit, nanos: 0)
+
+pub fn from_mins(n: u64) -> Dur ! BadClock = from_unit(n, 60)
+pub fn from_hours(n: u64) -> Dur ! BadClock = from_unit(n, 3600)
+pub fn from_days(n: u64) -> Dur ! BadClock = from_unit(n, 86400)
+pub fn from_weeks(n: u64) -> Dur ! BadClock = from_unit(n, 604800)
+
+pub fn as_secs(d: &Dur) -> u64 = d.secs
+pub fn subsec_millis(d: &Dur) -> i64 = d.nanos / 1000000
+pub fn subsec_micros(d: &Dur) -> i64 = d.nanos / 1000
+pub fn subsec_nanos(d: &Dur) -> i64 = d.nanos
+pub fn is_zero(d: &Dur) -> bool = d.secs == 0 and d.nanos == 0
+# Total as decimal text (Rust's u128 as_nanos, as_micros, as_millis), exact.
+fn pad9(v: i64, w: i64) -> text
+    var o = v.tostr()
+    while (o.len_bytes() as i64) < w bound 9
+        o = "0" + o
+    return o
+fn in_units(d: &Dur, digits: i64, unit: i64) -> text
+    let part = d.nanos / unit
+    if d.secs == 0
+        return part.tostr()
+    return d.secs.tostr() + pad9(part, digits)
+pub fn as_nanos(d: &Dur) -> text = in_units(d, 9, 1)
+pub fn as_micros(d: &Dur) -> text = in_units(d, 6, 1000)
+pub fn as_millis(d: &Dur) -> text = in_units(d, 3, 1000000)
+
+pub fn dur_cmp(a: &Dur, b: &Dur) -> i64
+    if a.secs != b.secs
+        return if a.secs < b.secs then -1 else 1
+    if a.nanos != b.nanos
+        return if a.nanos < b.nanos then -1 else 1
+    return 0
+
+pub fn dur_eq(a: &Dur, b: &Dur) -> bool = dur_cmp(a, b) == 0
+
+pub fn checked_add(a: &Dur, b: &Dur) -> Dur?
+    if b.secs > MAX_U - a.secs
+        return none
+    var s = a.secs + b.secs
+    var n = a.nanos + b.nanos
+    if n >= NANOS_PER_SEC
+        n -= NANOS_PER_SEC
+        if s == MAX_U
+            return none
+        s += 1
+    return some(Dur(secs: s, nanos: n))
+
+pub fn checked_sub(a: &Dur, b: &Dur) -> Dur?
+    if a.secs < b.secs
+        return none
+    var s = a.secs - b.secs
+    var n = a.nanos - b.nanos
+    if n < 0
+        if s == 0
+            return none
+        s -= 1
+        n += NANOS_PER_SEC
+    return some(Dur(secs: s, nanos: n))
+
+pub fn saturating_add(a: &Dur, b: &Dur) -> Dur = checked_add(a, b).or(dur_max())
+pub fn saturating_sub(a: &Dur, b: &Dur) -> Dur = checked_sub(a, b).or(dur_zero())
+
+pub fn abs_diff(a: &Dur, b: &Dur) -> Dur
+    if dur_cmp(a, b) >= 0
+        return checked_sub(a, b).or(dur_zero())
+    return checked_sub(b, a).or(dur_zero())
+
+# Multiplier and divisor are u32 in Rust: 0 ..= 4294967295.
+pub fn checked_mul(a: &Dur, k: i64) -> Dur?
+    if k < 0 or k > 4294967295
+        return none
+    let ku = k as u64
+    let total = a.nanos as u64 * ku
+    let extra = total / NPS
+    if ku != 0 and a.secs > (MAX_U - extra) / ku
+        return none
+    return some(Dur(secs: a.secs * ku + extra, nanos: (total % NPS) as i64))
+
+pub fn saturating_mul(a: &Dur, k: i64) -> Dur = checked_mul(a, k).or(dur_max())
+
+pub fn checked_div(a: &Dur, k: i64) -> Dur?
+    if k <= 0 or k > 4294967295
+        return none
+    let ku = k as u64
+    let s = a.secs / ku
+    let carry = a.secs % ku
+    let extra = (carry * NPS + a.nanos as u64 % ku) / ku
+    let n = a.nanos / k + extra as i64
+    return some(Dur(secs: s + (n / NANOS_PER_SEC) as u64, nanos: n % NANOS_PER_SEC))
+
+pub fn dur_sum(ds: &[Dur]) -> Dur?
+    var acc = dur_zero()
+    for d in ds
+        match checked_add(&acc, &d)
+            some(x) -> acc = x
+            none -> return none
+    return some(acc)
+
+# ---------------- Debug formatting ----------------
+# Rust's `{:?}` for Duration. prec < 0 means no precision; width < 0 means
+# no width; align is "<", ">", "^" or "" (default left); plus is `{:+?}`.
+
+fn spaces(n: i64) -> text
+    var o = ""
+    var k: i64 = 0
+    while k < n
+        o = o + " "
+        k += 1
+    return o
+
+fn fmt_decimal(ip0: u64, fp0: i64, div0: i64, prec: i64, width: i64, align: &text, prefix: &text, postfix: &text) -> text
+    var buf: List[i64] = [0, 0, 0, 0, 0, 0, 0, 0, 0]
+    var fp = fp0
+    var dv = div0
+    var pos = 0
+    let lim = if prec < 0 then 9 else prec
+    while fp > 0 and pos < lim and pos < 9
+        buf[pos as usize] = fp / dv
+        fp = fp % dv
+        dv = dv / 10
+        pos += 1
+    var ip = ip0
+    var big = false
+    if fp > 0 and fp >= dv * 5
+        let tie = fp == dv * 5
+        let odd = if pos > 0 then copy(buf[(pos - 1) as usize]) % 2 == 1 else ip % 2 == 1
+        if not (tie and not odd)
+            var r = pos
+            var carry = true
+            while carry and r > 0
+                r -= 1
+                if buf[r as usize] < 9
+                    buf[r as usize] = copy(buf[r as usize]) + 1
+                    carry = false
+                else
+                    buf[r as usize] = 0
+            if carry
+                if ip == MAX_U
+                    big = true
+                else
+                    ip += 1
+    let end = if prec >= 0 then (if prec < 9 then prec else 9) else pos
+    var o = copy(prefix) + (if big then "18446744073709551616" else ip.tostr())
+    var cells = prefix.chars().len() + postfix.chars().len() + (if big then 20 else ip.tostr().len_bytes())
+    if end > 0
+        let w = if prec >= 0 then prec else pos
+        o = o + "."
+        var k: i64 = 0
+        while k < w
+            o = o + (if k < end then copy(buf[k as usize]).tostr() else "0")
+            k += 1
+        cells = cells + 1 + w as usize
+    o = o + postfix
+    if width < 0 or width as usize <= cells
+        return o
+    let padn = width - cells as i64
+    let pre = if align == ">" then padn else (if align == "^" then padn / 2 else 0)
+    return spaces(pre) + o + spaces(padn - pre)
+
+pub fn dur_debug_with(d: &Dur, prec: i64, width: i64, align: &text, plus: bool) -> text
+    let p = if plus then "+" else ""
+    let us = "s"
+    let ums = "ms"
+    let uus = "µs"
+    let uns = "ns"
+    if d.secs > 0
+        return fmt_decimal(d.secs, d.nanos, NANOS_PER_SEC / 10, prec, width, align, &p, &us)
+    if d.nanos >= 1000000
+        return fmt_decimal((d.nanos / 1000000) as u64, d.nanos % 1000000, 100000, prec, width, align, &p, &ums)
+    if d.nanos >= 1000
+        return fmt_decimal((d.nanos / 1000) as u64, d.nanos % 1000, 100, prec, width, align, &p, &uus)
+    return fmt_decimal(d.nanos as u64, 0, 1, prec, width, align, &p, &uns)
+
+pub fn dur_debug(d: &Dur) -> text
+    let a = ""
+    return dur_debug_with(d, -1, -1, &a, false)
+
+# ---------------- points in time ----------------
+
+pub struct Timespec
+    secs: i64
+    nanos: i64
+
+pub fn ts_new(secs: i64, nanos: i64) -> Timespec ! BadClock
+    if nanos < 0 or nanos >= NANOS_PER_SEC
+        fail BadClock(why: "nanoseconds out of range")
+    return Timespec(secs: secs, nanos: nanos)
+
+pub fn ts_min() -> Timespec = Timespec(secs: MIN_SECS, nanos: 0)
+pub fn ts_max() -> Timespec = Timespec(secs: MAX_SECS, nanos: NANOS_PER_SEC - 1)
+
+pub fn ts_cmp(a: &Timespec, b: &Timespec) -> i64
+    if a.secs != b.secs
+        return if a.secs < b.secs then -1 else 1
+    if a.nanos != b.nanos
+        return if a.nanos < b.nanos then -1 else 1
+    return 0
+
+pub fn ts_eq(a: &Timespec, b: &Timespec) -> bool = ts_cmp(a, b) == 0
+
+# i64 + u64 exactly, as Rust's checked_add_unsigned.
+fn add_unsigned(t: i64, d: u64) -> i64?
+    if t >= 0
+        if d > (MAX_SECS - t) as u64
+            return none
+        return some(t + d as i64)
+    let room = MAX_SECS as u64 + (0 - (t + 1)) as u64 + 1
+    if d > room
+        return none
+    if d <= MAX_SECS as u64
+        return some(t + d as i64)
+    return some((t + MAX_SECS + 1) + (d - MAX_SECS as u64 - 1) as i64)
+
+# i64 - u64 exactly, as Rust's checked_sub_unsigned.
+fn sub_unsigned(t: i64, d: u64) -> i64?
+    if t < 0
+        if d > (t - MIN_SECS) as u64
+            return none
+        return some(t - d as i64)
+    let room = t as u64 + MAX_SECS as u64 + 1
+    if d > room
+        return none
+    if d <= MAX_SECS as u64
+        return some(t - d as i64)
+    return some((t - MAX_SECS - 1) - (d - MAX_SECS as u64 - 1) as i64)
+
+pub fn ts_checked_add(t: &Timespec, d: &Dur) -> Timespec?
+    var s: i64 = 0
+    match add_unsigned(t.secs, d.secs)
+        some(x) -> s = x
+        none -> return none
+    var n = t.nanos + d.nanos
+    if n >= NANOS_PER_SEC
+        if s == MAX_SECS
+            return none
+        s += 1
+        n -= NANOS_PER_SEC
+    return some(Timespec(secs: s, nanos: n))
+
+pub fn ts_checked_sub(t: &Timespec, d: &Dur) -> Timespec?
+    var s: i64 = 0
+    match sub_unsigned(t.secs, d.secs)
+        some(x) -> s = x
+        none -> return none
+    var n = t.nanos - d.nanos
+    if n < 0
+        if s == MIN_SECS
+            return none
+        s -= 1
+        n += NANOS_PER_SEC
+    return some(Timespec(secs: s, nanos: n))
+
+pub fn ts_saturating_add(t: &Timespec, d: &Dur) -> Timespec = ts_checked_add(t, d).or(ts_max())
+pub fn ts_saturating_sub(t: &Timespec, d: &Dur) -> Timespec = ts_checked_sub(t, d).or(ts_min())
+
+# Rust's sub_timespec: a - b as (sign, magnitude). ok is true when a >= b
+# (SystemTime::duration_since Ok); otherwise the Dur is b - a (the Err
+# value, SystemTimeError::duration).
+pub struct Diff
+    ok: bool
+    d: Dur
+
+# a - b for a >= b; the seconds difference can reach u64::MAX.
+fn diff_u(a: i64, b: i64) -> u64
+    if b >= 0 or a < 0
+        return (a - b) as u64
+    return a as u64 + (0 - (b + 1)) as u64 + 1
+
+fn mag(a: &Timespec, b: &Timespec) -> Dur
+    if a.nanos >= b.nanos
+        return Dur(secs: diff_u(a.secs, b.secs), nanos: a.nanos - b.nanos)
+    return Dur(secs: diff_u(a.secs, b.secs) - 1, nanos: a.nanos + NANOS_PER_SEC - b.nanos)
+
+pub fn sub_timespec(a: &Timespec, b: &Timespec) -> Diff
+    if ts_cmp(a, b) >= 0
+        return Diff(ok: true, d: mag(a, b))
+    return Diff(ok: false, d: mag(b, a))
+
+pub fn checked_duration_since(a: &Timespec, earlier: &Timespec) -> Dur?
+    let r = sub_timespec(a, earlier)
+    if r.ok
+        return some(copy(r.d))
+    return none
+
+# Instant::duration_since and saturating_duration_since (zero when earlier is later).
+pub fn duration_since(a: &Timespec, earlier: &Timespec) -> Dur = checked_duration_since(a, earlier).or(dur_zero())
+
+# ---------------- wasi:clocks@0.2.8 ----------------
+
+# monotonic-clock instant and duration are u64 ns.
+pub fn mono_from_wasi(ns: u64) -> Timespec = Timespec(secs: (ns / NPS) as i64, nanos: (ns % NPS) as i64)
+
+pub fn mono_to_wasi(t: &Timespec) -> u64 ! BadClock
+    if t.secs < 0 or t.secs as u64 > (MAX_U - t.nanos as u64) / NPS
+        fail BadClock(why: "instant out of range")
+    return t.secs as u64 * NPS + t.nanos as u64
+
+# wall-clock datetime: "The nanoseconds field of the output is always less than 1000000000."
+# seconds is u64; past i64::MAX seconds it is beyond the unix point type.
+pub fn wall_from_wasi(seconds: u64, nanoseconds: i64) -> Timespec ! BadClock
+    if seconds > MAX_SECS as u64
+        fail BadClock(why: "seconds out of range")
+    return ts_new(seconds as i64, nanoseconds)
+
+# ---------------- admission of monotonic readings ----------------
+
+pub struct Mono
+    last: Timespec
+    seen: bool
+    raised: i64
+
+pub fn mono_new() -> Mono = Mono(last: Timespec(secs: 0, nanos: 0), seen: false, raised: 0)
+
+# Admit one reading; returns the value the program sees.
+pub fn mono_admit(m: &mut Mono, r: &Timespec) -> Timespec
+    if m.seen and ts_cmp(r, &m.last) < 0
+        m.raised += 1
+        return copy(m.last)
+    m.last = copy(r)
+    m.seen = true
+    return copy(r)
+
+# ---------------- timers ----------------
+
+pub struct Timer
+    id: i64
+    at: Timespec
+    seq: i64
+
+pub struct Timers
+    list: List[Timer]
+    next: i64
+
+pub fn timers_new() -> Timers = Timers(list: [], next: 0)
+
+fn before(a: &Timer, b: &Timer) -> bool
+    let c = ts_cmp(&a.at, &b.at)
+    return c < 0 or (c == 0 and a.seq < b.seq)
+
+# wasi subscribe-instant. Timers are kept in firing order.
+pub fn subscribe_instant(q: &mut Timers, when: &Timespec, id: i64)
+    let t = Timer(id: id, at: copy(when), seq: q.next)
+    q.next += 1
+    var out: List[Timer] = []
+    var placed = false
+    for x in q.list
+        if not placed and before(&t, &x)
+            out.push(copy(t))
+            placed = true
+        out.push(copy(x))
+    if not placed
+        out.push(copy(t))
+    q.list = out
+
+# wasi subscribe-duration: due at now + d (saturating at the end of time).
+pub fn subscribe_duration(q: &mut Timers, now: &Timespec, d: &Dur, id: i64)
+    let at = ts_saturating_add(now, d)
+    subscribe_instant(q, &at, id)
+
+# Cancel every pending timer with this id; true when one was pending.
+pub fn cancel(q: &mut Timers, id: i64) -> bool
+    var out: List[Timer] = []
+    var hit = false
+    for x in q.list
+        if x.id == id
+            hit = true
+        else
+            out.push(copy(x))
+    q.list = out
+    return hit
+
+pub fn pending(q: &Timers) -> usize = q.list.len()
+
+pub fn next_deadline(q: &Timers) -> Timespec?
+    if q.list.len() == 0
+        return none
+    return some(copy(q.list[0].at))
+
+# A tick at `now`: the ids of every timer due (deadline <= now), in the
+# order the host admits their events; they leave the queue.
+pub fn fire(q: &mut Timers, now: &Timespec) -> List[i64]
+    var ids: List[i64] = []
+    var rest: List[Timer] = []
+    for x in q.list
+        if ts_cmp(&x.at, now) <= 0
+            ids.push(x.id)
+        else
+            rest.push(copy(x))
+    q.list = rest
+    return ids

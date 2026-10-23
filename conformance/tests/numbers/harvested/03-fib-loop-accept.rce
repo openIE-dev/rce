@@ -1,0 +1,19 @@
+intent "the n-th Fibonacci number, computed in linear time"
+    check fib(0) == 0
+    check fib(10) == 55
+
+fn fib(n: u32) -> u64
+    var a: u64 = 0
+    var b: u64 = 1
+    for _ in 0..n
+        let t = a + b
+        a = b
+        b = t
+    return a
+#--- rce-test
+# id: numbers/harvested/03-fib-loop-accept
+# area: numbers
+# clauses: [CH03-M-28cdd241, T10]
+# expect: accept
+# provenance: harvested examples/03_fib_loop.rce
+#---

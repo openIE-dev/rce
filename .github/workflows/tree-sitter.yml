@@ -1,0 +1,32 @@
+name: tree-sitter
+
+# tree-sitter/: the grammar package. The generated parser must match
+# grammar.js, the corpus and highlight tests pass, the queries compile, and
+# the Rust binding builds. The agreement of this grammar with the Rust
+# parser over every .rce file is tree_sitter_sync in tree-sitter-sync.yml.
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: tree-sitter
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install the tree-sitter CLI
+        run: cargo install tree-sitter-cli --version 0.27.1 --locked
+      - name: Parser is up to date
+        run: |
+          tree-sitter generate --js-runtime native
+          git diff --exit-code src/
+      - name: Corpus and highlight tests
+        run: tree-sitter test
+      - name: Query checks
+        run: scripts/check-queries.sh
+      - name: Rust binding
+        run: cargo test

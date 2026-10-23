@@ -1,0 +1,15 @@
+# Structural recursion: each call works on a smaller part of the tree.
+kind Tree
+    Leaf(v: i64)
+    Node(l: Box[Tree], r: Box[Tree])
+
+fn tree_sum(t: &Tree) -> i64
+    match t
+        Leaf(v: v) -> return v
+        Node(l: l, r: r) -> return tree_sum(l) + tree_sum(r)
+
+fn sample() -> i64
+    let t = Node(l: Box(Leaf(v: 2)), r: Box(Node(l: Box(Leaf(v: 3)), r: Box(Leaf(v: 4)))))
+    return tree_sum(&t)
+
+check sample() == 9

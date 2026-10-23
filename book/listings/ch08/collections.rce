@@ -1,0 +1,20 @@
+fn squares(xs: &[i64]) -> List[i64] = xs.map(fn(x: i64) => x * x)
+
+fn evens(xs: &[i64]) -> List[i64] = [x for x in xs if x % 2 == 0]
+
+fn total(xs: &[i64]) -> i64 = xs.fold(0, fn(acc: i64, x: i64) => acc + x)
+
+fn count_words(words: &[text]) -> Map[text, u32]
+    var m: Map[text, u32] = {}
+    for w in words
+        m[w] = (m.get(w) catch 0) + 1
+    return m
+
+const XS: List[i64] = [1, 2, 3, 4]
+const WORDS: List[text] = ["a", "b", "a"]
+
+check squares(&XS) == [1, 4, 9, 16]
+check evens(&XS) == [2, 4]
+check total(&XS) == 10
+check count_words(&WORDS)["a"] == 2
+check (count_words(&WORDS).get("z") catch 0) == 0

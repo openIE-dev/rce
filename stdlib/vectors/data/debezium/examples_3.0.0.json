@@ -1,0 +1,637 @@
+[
+ {
+  "file": "postgresql.adoc",
+  "line": 442,
+  "fixes": [
+   "elided object {...} -> {}"
+  ],
+  "event": {
+   "before": null,
+   "after": {
+    "pk": "2",
+    "aa": "1"
+   },
+   "source": {},
+   "op": "c",
+   "ts_ms": "1580390884335",
+   "ts_us": "1580390884335451",
+   "ts_ns": "1580390884335451325",
+   "transaction": {
+    "id": "571:53195832",
+    "total_order": "1",
+    "data_collection_order": "1"
+   }
+  }
+ },
+ {
+  "file": "postgresql.adoc",
+  "line": 688,
+  "fixes": [
+   "{debezium-version} -> 3.0.0.Final"
+  ],
+  "event": {
+   "schema": {
+    "type": "struct",
+    "fields": [
+     {
+      "type": "struct",
+      "fields": [
+       {
+        "type": "int32",
+        "optional": false,
+        "field": "id"
+       },
+       {
+        "type": "string",
+        "optional": false,
+        "field": "first_name"
+       },
+       {
+        "type": "string",
+        "optional": false,
+        "field": "last_name"
+       },
+       {
+        "type": "string",
+        "optional": false,
+        "field": "email"
+       }
+      ],
+      "optional": true,
+      "name": "PostgreSQL_server.inventory.customers.Value",
+      "field": "before"
+     },
+     {
+      "type": "struct",
+      "fields": [
+       {
+        "type": "int32",
+        "optional": false,
+        "field": "id"
+       },
+       {
+        "type": "string",
+        "optional": false,
+        "field": "first_name"
+       },
+       {
+        "type": "string",
+        "optional": false,
+        "field": "last_name"
+       },
+       {
+        "type": "string",
+        "optional": false,
+        "field": "email"
+       }
+      ],
+      "optional": true,
+      "name": "PostgreSQL_server.inventory.customers.Value",
+      "field": "after"
+     },
+     {
+      "type": "struct",
+      "fields": [
+       {
+        "type": "string",
+        "optional": false,
+        "field": "version"
+       },
+       {
+        "type": "string",
+        "optional": false,
+        "field": "connector"
+       },
+       {
+        "type": "string",
+        "optional": false,
+        "field": "name"
+       },
+       {
+        "type": "int64",
+        "optional": false,
+        "field": "ts_ms"
+       },
+       {
+        "type": "int64",
+        "optional": false,
+        "field": "ts_us"
+       },
+       {
+        "type": "int64",
+        "optional": false,
+        "field": "ts_ns"
+       },
+       {
+        "type": "boolean",
+        "optional": true,
+        "default": false,
+        "field": "snapshot"
+       },
+       {
+        "type": "string",
+        "optional": false,
+        "field": "db"
+       },
+       {
+        "type": "string",
+        "optional": false,
+        "field": "schema"
+       },
+       {
+        "type": "string",
+        "optional": false,
+        "field": "table"
+       },
+       {
+        "type": "int64",
+        "optional": true,
+        "field": "txId"
+       },
+       {
+        "type": "int64",
+        "optional": true,
+        "field": "lsn"
+       },
+       {
+        "type": "int64",
+        "optional": true,
+        "field": "xmin"
+       }
+      ],
+      "optional": false,
+      "name": "io.debezium.connector.postgresql.Source",
+      "field": "source"
+     },
+     {
+      "type": "string",
+      "optional": false,
+      "field": "op"
+     },
+     {
+      "type": "int64",
+      "optional": true,
+      "field": "ts_ms"
+     },
+     {
+      "type": "int64",
+      "optional": true,
+      "field": "ts_us"
+     },
+     {
+      "type": "int64",
+      "optional": true,
+      "field": "ts_ns"
+     }
+    ],
+    "optional": false,
+    "name": "PostgreSQL_server.inventory.customers.Envelope"
+   },
+   "payload": {
+    "before": null,
+    "after": {
+     "id": 1,
+     "first_name": "Anne",
+     "last_name": "Kretchmar",
+     "email": "annek@noanswer.org"
+    },
+    "source": {
+     "version": "3.0.0.Final",
+     "connector": "postgresql",
+     "name": "PostgreSQL_server",
+     "ts_ms": 1559033904863,
+     "ts_us": 1559033904863123,
+     "ts_ns": 1559033904863123000,
+     "snapshot": true,
+     "db": "postgres",
+     "sequence": "[\"24023119\",\"24023128\"]",
+     "schema": "public",
+     "table": "customers",
+     "txId": 555,
+     "lsn": 24023128,
+     "xmin": null
+    },
+    "op": "c",
+    "ts_ms": 1559033904863,
+    "ts_us": 1559033904863841,
+    "ts_ns": 1559033904863841257
+   }
+  }
+ },
+ {
+  "file": "postgresql.adoc",
+  "line": 967,
+  "fixes": [
+   "elided object {...} -> {}",
+   "trailing comma removed",
+   "{debezium-version} -> 3.0.0.Final"
+  ],
+  "event": {
+   "schema": {},
+   "payload": {
+    "before": {
+     "id": 1
+    },
+    "after": {
+     "id": 1,
+     "first_name": "Anne Marie",
+     "last_name": "Kretchmar",
+     "email": "annek@noanswer.org"
+    },
+    "source": {
+     "version": "3.0.0.Final",
+     "connector": "postgresql",
+     "name": "PostgreSQL_server",
+     "ts_ms": 1559033904863,
+     "ts_us": 1559033904863769,
+     "ts_ns": 1559033904863769000,
+     "snapshot": false,
+     "db": "postgres",
+     "schema": "public",
+     "table": "customers",
+     "txId": 556,
+     "lsn": 24023128,
+     "xmin": null
+    },
+    "op": "u",
+    "ts_ms": 1465584025523,
+    "ts_us": 1465584025523514,
+    "ts_ns": 1465584025523514964
+   }
+  }
+ },
+ {
+  "file": "postgresql.adoc",
+  "line": 1067,
+  "fixes": [
+   "elided object {...} -> {}",
+   "trailing comma removed",
+   "{debezium-version} -> 3.0.0.Final"
+  ],
+  "event": {
+   "schema": {},
+   "payload": {
+    "before": {
+     "id": 1
+    },
+    "after": null,
+    "source": {
+     "version": "3.0.0.Final",
+     "connector": "postgresql",
+     "name": "PostgreSQL_server",
+     "ts_ms": 1559033904863,
+     "ts_us": 1559033904863852,
+     "ts_ns": 1559033904863852000,
+     "snapshot": false,
+     "db": "postgres",
+     "schema": "public",
+     "table": "customers",
+     "txId": 556,
+     "lsn": 46523128,
+     "xmin": null
+    },
+    "op": "d",
+    "ts_ms": 1465581902461,
+    "ts_us": 1465581902461496,
+    "ts_ns": 1465581902461496187
+   }
+  }
+ },
+ {
+  "file": "postgresql.adoc",
+  "line": 1161,
+  "fixes": [
+   "elided object {...} -> {}",
+   "{debezium-version} -> 3.0.0.Final"
+  ],
+  "event": {
+   "schema": {},
+   "payload": {
+    "source": {
+     "version": "3.0.0.Final",
+     "connector": "postgresql",
+     "name": "PostgreSQL_server",
+     "ts_ms": 1559033904863,
+     "ts_us": 1559033904863112,
+     "ts_ns": 1559033904863112000,
+     "snapshot": false,
+     "db": "postgres",
+     "schema": "public",
+     "table": "customers",
+     "txId": 556,
+     "lsn": 46523128,
+     "xmin": null
+    },
+    "op": "t",
+    "ts_ms": 1559033904961,
+    "ts_us": 1559033904961654,
+    "ts_ns": 1559033904961654789
+   }
+  }
+ },
+ {
+  "file": "postgresql.adoc",
+  "line": 1242,
+  "fixes": [
+   "elided object {...} -> {}",
+   "{debezium-version} -> 3.0.0.Final"
+  ],
+  "event": {
+   "schema": {},
+   "payload": {
+    "source": {
+     "version": "3.0.0.Final",
+     "connector": "postgresql",
+     "name": "PostgreSQL_server",
+     "ts_ms": 1559033904863,
+     "ts_us": 1559033904863879,
+     "ts_ns": 1559033904863879000,
+     "snapshot": false,
+     "db": "postgres",
+     "schema": "",
+     "table": "",
+     "txId": 556,
+     "lsn": 46523128,
+     "xmin": null
+    },
+    "op": "m",
+    "ts_ms": 1559033904961,
+    "ts_us": 1559033904961621,
+    "ts_ns": 1559033904961621379,
+    "message": {
+     "prefix": "foo",
+     "content": "Ymfy"
+    }
+   }
+  }
+ },
+ {
+  "file": "postgresql.adoc",
+  "line": 1277,
+  "fixes": [
+   "elided object {...} -> {}",
+   "{debezium-version} -> 3.0.0.Final",
+   "missing closing brace added"
+  ],
+  "event": {
+   "schema": {},
+   "payload": {
+    "source": {
+     "version": "3.0.0.Final",
+     "connector": "postgresql",
+     "name": "PostgreSQL_server",
+     "ts_ms": 1559033904863,
+     "ts_us": 1559033904863762,
+     "ts_ns": 1559033904863762000,
+     "snapshot": false,
+     "db": "postgres",
+     "schema": "",
+     "table": "",
+     "lsn": 46523128,
+     "xmin": null
+    },
+    "op": "m",
+    "ts_ms": 1559033904961,
+    "ts_us": 1559033904961741,
+    "ts_ns": 1559033904961741698,
+    "message": {
+     "prefix": "foo",
+     "content": "Ymfy"
+    }
+   }
+  }
+ },
+ {
+  "file": "mongodb.adoc",
+  "line": 554,
+  "fixes": [
+   "elided object {...} -> {}"
+  ],
+  "event": {
+   "after": "{\"_id\" : {\"$numberLong\" : \"1004\"},\"first_name\" : \"Anne\",\"last_name\" : \"Kretchmar\",\"email\" : \"annek@noanswer.org\"}",
+   "source": {},
+   "op": "c",
+   "ts_ms": "1580390884335",
+   "ts_us": "1580390884335486",
+   "ts_ns": "1580390884335486281",
+   "transaction": {
+    "id": "1462833718356672513",
+    "total_order": "1",
+    "data_collection_order": "1"
+   }
+  }
+ },
+ {
+  "file": "mongodb.adoc",
+  "line": 769,
+  "fixes": [
+   "trailing comma removed",
+   "{debezium-version} -> 3.0.0.Final"
+  ],
+  "event": {
+   "schema": {
+    "type": "struct",
+    "fields": [
+     {
+      "type": "string",
+      "optional": true,
+      "name": "io.debezium.data.Json",
+      "version": 1,
+      "field": "after"
+     },
+     {
+      "type": "string",
+      "optional": true,
+      "name": "io.debezium.data.Json",
+      "version": 1,
+      "field": "patch"
+     },
+     {
+      "type": "struct",
+      "fields": [
+       {
+        "type": "string",
+        "optional": false,
+        "field": "version"
+       },
+       {
+        "type": "string",
+        "optional": false,
+        "field": "connector"
+       },
+       {
+        "type": "string",
+        "optional": false,
+        "field": "name"
+       },
+       {
+        "type": "int64",
+        "optional": false,
+        "field": "ts_ms"
+       },
+       {
+        "type": "int64",
+        "optional": false,
+        "field": "ts_us"
+       },
+       {
+        "type": "int64",
+        "optional": false,
+        "field": "ts_ns"
+       },
+       {
+        "type": "boolean",
+        "optional": true,
+        "default": false,
+        "field": "snapshot"
+       },
+       {
+        "type": "string",
+        "optional": false,
+        "field": "db"
+       },
+       {
+        "type": "string",
+        "optional": false,
+        "field": "rs"
+       },
+       {
+        "type": "string",
+        "optional": false,
+        "field": "collection"
+       },
+       {
+        "type": "int32",
+        "optional": false,
+        "field": "ord"
+       },
+       {
+        "type": "int64",
+        "optional": true,
+        "field": "h"
+       }
+      ],
+      "optional": false,
+      "name": "io.debezium.connector.mongo.Source",
+      "field": "source"
+     },
+     {
+      "type": "string",
+      "optional": true,
+      "field": "op"
+     },
+     {
+      "type": "int64",
+      "optional": true,
+      "field": "ts_ms"
+     },
+     {
+      "type": "int64",
+      "optional": true,
+      "field": "ts_us"
+     },
+     {
+      "type": "int64",
+      "optional": true,
+      "field": "ts_ns"
+     }
+    ],
+    "optional": false,
+    "name": "dbserver1.inventory.customers.Envelope"
+   },
+   "payload": {
+    "after": "{\"_id\" : {\"$numberLong\" : \"1004\"},\"first_name\" : \"Anne\",\"last_name\" : \"Kretchmar\",\"email\" : \"annek@noanswer.org\"}",
+    "source": {
+     "version": "3.0.0.Final",
+     "connector": "mongodb",
+     "name": "fulfillment",
+     "ts_ms": 1558965508000000000,
+     "snapshot": false,
+     "db": "inventory",
+     "rs": "rs0",
+     "collection": "customers",
+     "ord": 31,
+     "h": 1546547425148721999
+    },
+    "op": "c",
+    "ts_ms": 1558965515240,
+    "ts_us": 1558965515240142,
+    "ts_ns": 1558965515240142879
+   }
+  }
+ },
+ {
+  "file": "mongodb.adoc",
+  "line": 1005,
+  "fixes": [
+   "elided object {...} -> {}",
+   "{debezium-version} -> 3.0.0.Final"
+  ],
+  "event": {
+   "schema": {},
+   "payload": {
+    "op": "u",
+    "ts_ms": 1465491461815,
+    "ts_us": 1465491461815698,
+    "ts_ns": 1465491461815698142,
+    "before": "{\"_id\": {\"$numberLong\": \"1004\"},\"first_name\": \"unknown\",\"last_name\": \"Kretchmar\",\"email\": \"annek@noanswer.org\"}",
+    "after": "{\"_id\": {\"$numberLong\": \"1004\"},\"first_name\": \"Anne Marie\",\"last_name\": \"Kretchmar\",\"email\": \"annek@noanswer.org\"}",
+    "updateDescription": {
+     "removedFields": null,
+     "updatedFields": "{\"first_name\": \"Anne Marie\"}",
+     "truncatedArrays": null
+    },
+    "source": {
+     "version": "3.0.0.Final",
+     "connector": "mongodb",
+     "name": "fulfillment",
+     "ts_ms": 1558965508000,
+     "ts_us": 1558965508000000,
+     "ts_ns": 1558965508000000000,
+     "snapshot": false,
+     "db": "inventory",
+     "rs": "rs0",
+     "collection": "customers",
+     "ord": 1,
+     "h": null,
+     "tord": null,
+     "stxnid": null,
+     "lsid": "{\"id\": {\"$binary\": \"FA7YEzXgQXSX9OxmzllH2w==\",\"$type\": \"04\"},\"uid\": {\"$binary\": \"47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=\",\"$type\": \"00\"}}",
+     "txnNumber": 1
+    }
+   }
+  }
+ },
+ {
+  "file": "mongodb.adoc",
+  "line": 1103,
+  "fixes": [
+   "elided object {...} -> {}",
+   "{debezium-version} -> 3.0.0.Final"
+  ],
+  "event": {
+   "schema": {},
+   "payload": {
+    "op": "d",
+    "ts_ms": 1465495462115,
+    "ts_us": 1465495462115748,
+    "ts_ns": 1465495462115748263,
+    "before": "{\"_id\": {\"$numberLong\": \"1004\"},\"first_name\": \"Anne Marie\",\"last_name\": \"Kretchmar\",\"email\": \"annek@noanswer.org\"}",
+    "source": {
+     "version": "3.0.0.Final",
+     "connector": "mongodb",
+     "name": "fulfillment",
+     "ts_ms": 1558965508000,
+     "ts_us": 1558965508000000,
+     "ts_ns": 1558965508000000000,
+     "snapshot": true,
+     "db": "inventory",
+     "rs": "rs0",
+     "collection": "customers",
+     "ord": 6,
+     "h": 1546547425148721999
+    }
+   }
+  }
+ }
+]

@@ -305,8 +305,9 @@ below is applied in the tier order of its dependencies; the derivation is in
 Appendix F next to the rule, and every theorem is stated and unproved (F.9).
 
 - **Tier 0.** Stale text corrected (errata for every version): decisions 8, 11,
-  12, 21 and 29, the Copy list of 5.5 (f32 added), W-VER-1 and 2.7 (0.8 and
-  0.9 named), the overview status and its checker figures. Version 0.9 refuses
+  12, 21 and 29, the Copy list of 5.5 (f32 added), the former W-VER-1
+  (removed: the release label is tolerated and ignored, 2.7, decision 64) and
+  2.7 (0.8 and 0.9 named), the overview status and its checker figures. Version 0.9 refuses
   unused values, dropped non-unit results and unused stores (F.3.2), and
   adds lexical hygiene: hidden and bidirectional characters, shadowing of any
   enclosing local, qualified variants, longest-token lexing (F.3.3).
@@ -348,7 +349,7 @@ No row rests on taste: where no principle decides, the existing text stays.
 | 5 | Advisory format | Canonical JSON object signed with Ed25519 over its SHA-256 | (c): reuse the canonical JSON of 6.1; Ed25519 signatures are deterministic |
 | 6 | Map iteration order | Ascending canonical key order of 7.1 | already 6.7 and the C.15 erratum; (c) |
 | 7 | Half-open slices and inclusive ranges | Unchanged: slices as in 6.3 N8, ranges keep `..` and `..=` | (e): both already have one meaning; no principle favors removing one |
-| 8 | Comparison-chain sugar | Not adopted; a chain is refused (W-OP-1) | (e): one meaning, and a chain would need a second reading of the operator |
+| 8 | Comparison-chain sugar | Not adopted; a chain is a syntax error (R3, section 3) | (e): one meaning, and a chain would need a second reading of the operator |
 | 9 | NaN payload and libm strategy | Neither exists: non-finite results trap, transcendentals are RCE code in `math` (F9) | already decision 51; (c) |
 | 10 | Value-indexed types | Not adopted beyond comptime array lengths and the type indices of 5.16 | (d): a value in a type needs a decidable fragment, and none is specified |
 | 11 | Linear types in the spec | They are (5.12, W-LIN-1, T12); a linear handle is not undoable | already in the spec; (b) |
@@ -393,4 +394,4 @@ checked by `scripts/claim-counts.py --check`.
 
 **Read receipt.** The decisions list says it decides gaps in which file?
 
-<!-- body-sha256: 0d831d369c0a420d966a0f2e2fd431bc8c3f7dfee02dcbc8d96044da6f6d8d08 -->
+<!-- body-sha256: 6230862e98dd205fd73e56e722ef8dc823d2f999bf7628fcbbc872b75269bbab -->

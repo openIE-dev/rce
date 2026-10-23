@@ -1,0 +1,38 @@
+kind Shape
+    Circle(r: f64)
+    Rect(w: f64, h: f64)
+    Empty
+
+fn area(s: &Shape) -> f64
+    match s
+        Circle(r: r) -> 3.0 * r * r
+        Rect(w: w, h: h) -> w * h
+        Empty -> 0.0
+
+struct Point
+    x: i64
+    y: i64
+
+impl Point
+    fn origin() -> Point = Point(x: 0, y: 0)
+    fn moved(self, dx: i64) -> Point = Point(x: self.x + dx, y: self.y)
+
+fn first_even(xs: &[i64]) -> i64?
+    for x in xs
+        if x % 2 == 0
+            return some(x)
+    return none
+
+fn or_zero(v: i64?) -> i64
+    match v
+        some(x) -> x
+        none -> 0
+
+const NUMS: List[i64] = [3, 5, 8, 9]
+const BOX: Shape = Rect(w: 2.0, h: 3.0)
+const NOTHING: Shape = Empty
+
+check area(&BOX) == 6.0
+check area(&NOTHING) == 0.0
+check Point.origin().moved(4).x == 4
+check or_zero(first_even(&NUMS)) == 8

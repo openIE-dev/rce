@@ -1,0 +1,9 @@
+check "héllo"[0:2] == "h"
+#--- rce-test
+# id: evaluation-fuel/harvested/bslice-boundary-reject
+# area: evaluation-fuel
+# clauses: [CH09-M-82e65964, W-INT-1]
+# expect: reject
+# diagnostic: W-INT-1
+# provenance: harvested examples/inadmissible/bslice_boundary.rce
+#---

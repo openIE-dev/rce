@@ -62,6 +62,25 @@ log hash and every select decision unchanged (T7); no actor or task key
 contains a source position, so an edit that keeps the supervision tree and
 the order of creations keeps every actor and task id.
 
+**The concept record (informative).** Names carry no meaning in the Form
+(T7) and most of the meaning for a reader: obscuring identifiers costs a
+model between a tenth and a quarter of its accuracy on what a program does
+(arXiv 2510.03178, 2025), while removing formatting costs nothing
+measurable (arXiv 2508.13666, 2025; both in section 11). So names have a
+defined home outside the hash. The *concept record* of a module is the
+table from each name-free key of 6.6 to: the name as written, the `intent`
+strings of the item, and its doc comments. `rce emit form` prints it
+under a `names` field after the hashed fields, keyed `#i` by declaration
+index (the same index `shape_ctl` of 6.10 uses), with the `intent` strings;
+doc comments are not yet collected. The Form JSON of 10.5 still carries
+names in its `name` and `region` fields. It is never read by δ.
+Two modules that differ only in it have the same outcomes, outputs and
+ids; their `state_hash` values differ until the T7 finding of chapter 8 is
+resolved. A projection (10.5) renders the concept record's names by
+default; `rce fmt --nameless` (10.6) is the projection that renders
+positional names instead, which is the text the name-free keys of 6.6 are
+computed from.
+
 ### 6.7 Loops and fuel
 
 `for p in e` iterates over a finite value (list, set, map in canonical order
@@ -227,6 +246,79 @@ Derivation of the trap form: a step ends in a value, a named error or a trap
 program whose specified behavior is a trap has no example that states it and
 no emitted program can be held to it.
 
+### 6.10 Behaviour, equivalence and dimension
+
+This section defines what "the same behaviour" means for two programs, and
+the dimension of a program: the number of behaviours it can be in. Example:
+a counter with a field that no step reads has the dimension of the counter
+without it.
+
+In plain words: (1) the behaviour of a program is the answer it gives to
+every sequence of events; two programs are the same when their answers are
+the same, and that is the only sense of "same" the Form needs; (2) two
+different behaviours disagree at some first step, and a test that checks
+the first k steps shows the programs are within 2^-(k+1) of each other,
+not that they are equal; (3) the dimension of a program is the number of
+different behaviours it can be in, and state that cannot change any future
+answer is redundancy the checker can count.
+
+**Behaviour.** Fix a program P with state space S, event alphabet E and
+δ : S × E → S × O\* (6.1), δ₁ = π₁ ∘ δ, λ = π₂ ∘ δ. The *behaviour* of a
+state s is the function beh_P(s) : E\* → (O\*)\* with beh_P(s)(ε) = ε and
+beh_P(s)(e · w) = λ(s, e) · beh_P(δ₁(s, e))(w): the sequence of per-step
+outputs along any event sequence. The behaviour of P is beh_P(s₀).
+Derivation: (S, ⟨λ, δ₁⟩) is a coalgebra of the functor F(X) = (O\* × X)^E;
+F has a final coalgebra Beh whose carrier is the set of such functions, and
+beh_P is the unique coalgebra morphism S → Beh (Rutten 2000, Theorem 2.3).
+Every Form, in every fit language, maps into the same Beh by the same
+construction, so Beh is the one object every projection targets.
+
+**Equivalence.** Two fits F and G are *equivalent*, F ≡ G, when
+beh_F(s₀^F) = beh_G(s₀^G). A relation R ⊆ S_F × S_G is a *bisimulation*
+when s R t implies, for every e ∈ E, λ_F(s, e) = λ_G(t, e) and
+δ₁^F(s, e) R δ₁^G(t, e). T58 says ≡ is bisimilarity, so a proof of ≡
+exhibits a bisimulation, and a proof of ≢ exhibits a distinguishing event
+sequence.
+
+**Distance.** For behaviours b₁, b₂ let n(b₁, b₂) be the length of the
+shortest event sequence on which they differ (∞ when equal) and
+d(b₁, b₂) = 2^-n. This is the prefix ultrametric (de Bakker and Zucker 1982):
+complete and totally disconnected. Trace agreement on every sequence of
+length ≤ k (the evidence of T9) certifies d ≤ 2^-(k+1), a ball around the
+behaviour and not the behaviour; trace evidence therefore never enters a
+hash or a key.
+
+**Dimension.** reach(P) = {s : ∃ w ∈ E\*, s = foldl(δ₁, s₀, w)} is finite
+(6.3 N9). dim(P) = |{beh_P(s) : s ∈ reach(P)}| is the number of distinct
+behaviours P can be in; log₂ dim(P) is the bits of state the behaviour
+needs, and log₂ |reach(P)| − log₂ dim(P) is the *redundancy* of the fit,
+the bits of state that change no future answer. dim(P) is the number of
+states of the minimal Mealy machine with behaviour beh_P(s₀) (the Nerode
+index; Nerode 1958, Moore 1956, Hopcroft 1971), unique up to isomorphism
+because δ is total and deterministic (T1, T2); an incompletely specified
+machine has no unique minimum (Pfleeger 1973).
+
+**Control dimension.** Let S = Σc × Σd (6.1). The *control projection*
+P_c replaces every guard over Σd by its predicate symbol and every data
+update by a symbolic update, giving a symbolic finite automaton over the
+guard predicates of 6.4 (D'Antoni and Veanes 2014). dim_c(P) is the Nerode
+index of P_c modulo predicate equivalence; dim_c(P) ≤ dim(P). The symbolic
+quotient is not implemented; `rce dim --control` (10.11) computes the
+control quotient of the explored concrete machine instead.
+
+**Canonical control form.** Let M_c be the minimal machine of P_c, its
+states numbered by first visit in a breadth-first traversal from s₀ taking
+events in declaration order (the name-free key of 6.6) and payloads in the
+order of their boundary sets (Reis, Moreira and Almeida 2005: the
+canonical string of an initially connected DFA is unique and name-free by
+construction). `shape_ctl(P)` is the SHA-256 over the canonical JSON (6.1.1)
+of that string. `shape_ctl` equal means the same control behaviour up to
+predicate equivalence; ≡ means the same behaviour, decidable for finite S
+by partition refinement on reach(P) and in practice bounded by the
+exploration fuel of `rce dim` (10.11). The proposal `form-ir-2.md` names
+two further keys, a name-free term hash and an e-class key, that this text
+does not define.
+
 **Read receipt.** Name-free hashing uses indices named after which logician? (two words)
 
-<!-- body-sha256: 22b852f3d01aa50cf11433f9c5206c856ceb0205e9991b8c4f276b6ceb772fbe -->
+<!-- body-sha256: ffc10ff1391aeba8d2bc8cb2bdad7e727f270df9294c09ee5da25869c4596c49 -->

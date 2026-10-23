@@ -1,0 +1,1505 @@
+{
+ "sqlite": "3.54.0",
+ "apsw": "3.54.0.0",
+ "cases": [
+  {
+   "name": "basic",
+   "setup": [
+    "create table t(id integer primary key, name text, score real, pic blob)"
+   ],
+   "work": [
+    "insert into t values (1, 'alice', 1.5, x'00ff')",
+    "insert into t values (2, 'bob', null, null)",
+    "update t set name = 'al''ice é😀', score = -0.25 where id = 1",
+    "delete from t where id = 2"
+   ],
+   "changeset": "54040100000074001200010000000000000001030d616c2769636520c3a9f09f988002bfd0000000000000040200ff",
+   "patchset": "50040100000074001200010000000000000001030d616c2769636520c3a9f09f988002bfd0000000000000040200ff",
+   "changeset_ref": [
+    {
+     "op": "INSERT",
+     "table": "t",
+     "ncol": 4,
+     "pk": [
+      true,
+      false,
+      false,
+      false
+     ],
+     "indirect": false,
+     "old": null,
+     "new": [
+      {
+       "i": "1"
+      },
+      {
+       "t": "al'ice é😀"
+      },
+      {
+       "f": "bfd0000000000000"
+      },
+      {
+       "b": "00ff"
+      }
+     ]
+    }
+   ],
+   "patchset_ref": [
+    {
+     "op": "INSERT",
+     "table": "t",
+     "ncol": 4,
+     "pk": [
+      true,
+      false,
+      false,
+      false
+     ],
+     "indirect": false,
+     "old": null,
+     "new": [
+      {
+       "i": "1"
+      },
+      {
+       "t": "al'ice é😀"
+      },
+      {
+       "f": "bfd0000000000000"
+      },
+      {
+       "b": "00ff"
+      }
+     ]
+    }
+   ],
+   "inverted": "54040100000074000900010000000000000001030d616c2769636520c3a9f09f988002bfd0000000000000040200ff",
+   "inverted_ref": [
+    {
+     "op": "DELETE",
+     "table": "t",
+     "ncol": 4,
+     "pk": [
+      true,
+      false,
+      false,
+      false
+     ],
+     "indirect": false,
+     "old": [
+      {
+       "i": "1"
+      },
+      {
+       "t": "al'ice é😀"
+      },
+      {
+       "f": "bfd0000000000000"
+      },
+      {
+       "b": "00ff"
+      }
+     ],
+     "new": null
+    }
+   ]
+  },
+  {
+   "name": "existing",
+   "setup": [
+    "create table k(a text, b integer, c, primary key (b, a))",
+    "insert into k values ('x', 1, 'old'), ('y', 2, 9223372036854775807), ('z', 3, 1e300)"
+   ],
+   "work": [
+    "update k set c = 'new' where b = 1",
+    "update k set c = -9223372036854775808 where b = 2",
+    "delete from k where b = 3",
+    "insert into k values ('w', -1, 3.0e-320)",
+    "update k set b = 10 where b = 1"
+   ],
+   "changeset": "54030201006b00090003017a010000000000000003027e37e43c8800759c120003017801000000000000000a03036e65771700030179010000000000000002017fffffffffffffff0000018000000000000000120003017701ffffffffffffffff0200000000000017b8090003017801000000000000000103036f6c64",
+   "patchset": "50030201006b00090003017a010000000000000003120003017801000000000000000a03036e65771700030179010000000000000002018000000000000000120003017701ffffffffffffffff0200000000000017b80900030178010000000000000001",
+   "changeset_ref": [
+    {
+     "op": "DELETE",
+     "table": "k",
+     "ncol": 3,
+     "pk": [
+      true,
+      true,
+      false
+     ],
+     "indirect": false,
+     "old": [
+      {
+       "t": "z"
+      },
+      {
+       "i": "3"
+      },
+      {
+       "f": "7e37e43c8800759c"
+      }
+     ],
+     "new": null
+    },
+    {
+     "op": "INSERT",
+     "table": "k",
+     "ncol": 3,
+     "pk": [
+      true,
+      true,
+      false
+     ],
+     "indirect": false,
+     "old": null,
+     "new": [
+      {
+       "t": "x"
+      },
+      {
+       "i": "10"
+      },
+      {
+       "t": "new"
+      }
+     ]
+    },
+    {
+     "op": "UPDATE",
+     "table": "k",
+     "ncol": 3,
+     "pk": [
+      true,
+      true,
+      false
+     ],
+     "indirect": false,
+     "old": [
+      {
+       "t": "y"
+      },
+      {
+       "i": "2"
+      },
+      {
+       "i": "9223372036854775807"
+      }
+     ],
+     "new": [
+      {
+       "nochange": true
+      },
+      {
+       "nochange": true
+      },
+      {
+       "i": "-9223372036854775808"
+      }
+     ]
+    },
+    {
+     "op": "INSERT",
+     "table": "k",
+     "ncol": 3,
+     "pk": [
+      true,
+      true,
+      false
+     ],
+     "indirect": false,
+     "old": null,
+     "new": [
+      {
+       "t": "w"
+      },
+      {
+       "i": "-1"
+      },
+      {
+       "f": "00000000000017b8"
+      }
+     ]
+    },
+    {
+     "op": "DELETE",
+     "table": "k",
+     "ncol": 3,
+     "pk": [
+      true,
+      true,
+      false
+     ],
+     "indirect": false,
+     "old": [
+      {
+       "t": "x"
+      },
+      {
+       "i": "1"
+      },
+      {
+       "t": "old"
+      }
+     ],
+     "new": null
+    }
+   ],
+   "patchset_ref": [
+    {
+     "op": "DELETE",
+     "table": "k",
+     "ncol": 3,
+     "pk": [
+      true,
+      true,
+      false
+     ],
+     "indirect": false,
+     "old": [
+      {
+       "t": "z"
+      },
+      {
+       "i": "3"
+      },
+      {
+       "nochange": true
+      }
+     ],
+     "new": null
+    },
+    {
+     "op": "INSERT",
+     "table": "k",
+     "ncol": 3,
+     "pk": [
+      true,
+      true,
+      false
+     ],
+     "indirect": false,
+     "old": null,
+     "new": [
+      {
+       "t": "x"
+      },
+      {
+       "i": "10"
+      },
+      {
+       "t": "new"
+      }
+     ]
+    },
+    {
+     "op": "UPDATE",
+     "table": "k",
+     "ncol": 3,
+     "pk": [
+      true,
+      true,
+      false
+     ],
+     "indirect": false,
+     "old": [
+      {
+       "t": "y"
+      },
+      {
+       "i": "2"
+      },
+      {
+       "nochange": true
+      }
+     ],
+     "new": [
+      {
+       "nochange": true
+      },
+      {
+       "nochange": true
+      },
+      {
+       "i": "-9223372036854775808"
+      }
+     ]
+    },
+    {
+     "op": "INSERT",
+     "table": "k",
+     "ncol": 3,
+     "pk": [
+      true,
+      true,
+      false
+     ],
+     "indirect": false,
+     "old": null,
+     "new": [
+      {
+       "t": "w"
+      },
+      {
+       "i": "-1"
+      },
+      {
+       "f": "00000000000017b8"
+      }
+     ]
+    },
+    {
+     "op": "DELETE",
+     "table": "k",
+     "ncol": 3,
+     "pk": [
+      true,
+      true,
+      false
+     ],
+     "indirect": false,
+     "old": [
+      {
+       "t": "x"
+      },
+      {
+       "i": "1"
+      },
+      {
+       "nochange": true
+      }
+     ],
+     "new": null
+    }
+   ],
+   "inverted": "54030201006b00120003017a010000000000000003027e37e43c8800759c090003017801000000000000000a03036e657717000301790100000000000000020180000000000000000000017fffffffffffffff090003017701ffffffffffffffff0200000000000017b8120003017801000000000000000103036f6c64",
+   "inverted_ref": [
+    {
+     "op": "INSERT",
+     "table": "k",
+     "ncol": 3,
+     "pk": [
+      true,
+      true,
+      false
+     ],
+     "indirect": false,
+     "old": null,
+     "new": [
+      {
+       "t": "z"
+      },
+      {
+       "i": "3"
+      },
+      {
+       "f": "7e37e43c8800759c"
+      }
+     ]
+    },
+    {
+     "op": "DELETE",
+     "table": "k",
+     "ncol": 3,
+     "pk": [
+      true,
+      true,
+      false
+     ],
+     "indirect": false,
+     "old": [
+      {
+       "t": "x"
+      },
+      {
+       "i": "10"
+      },
+      {
+       "t": "new"
+      }
+     ],
+     "new": null
+    },
+    {
+     "op": "UPDATE",
+     "table": "k",
+     "ncol": 3,
+     "pk": [
+      true,
+      true,
+      false
+     ],
+     "indirect": false,
+     "old": [
+      {
+       "t": "y"
+      },
+      {
+       "i": "2"
+      },
+      {
+       "i": "-9223372036854775808"
+      }
+     ],
+     "new": [
+      {
+       "nochange": true
+      },
+      {
+       "nochange": true
+      },
+      {
+       "i": "9223372036854775807"
+      }
+     ]
+    },
+    {
+     "op": "DELETE",
+     "table": "k",
+     "ncol": 3,
+     "pk": [
+      true,
+      true,
+      false
+     ],
+     "indirect": false,
+     "old": [
+      {
+       "t": "w"
+      },
+      {
+       "i": "-1"
+      },
+      {
+       "f": "00000000000017b8"
+      }
+     ],
+     "new": null
+    },
+    {
+     "op": "INSERT",
+     "table": "k",
+     "ncol": 3,
+     "pk": [
+      true,
+      true,
+      false
+     ],
+     "indirect": false,
+     "old": null,
+     "new": [
+      {
+       "t": "x"
+      },
+      {
+       "i": "1"
+      },
+      {
+       "t": "old"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "multi",
+   "setup": [
+    "create table a(id integer primary key, v)",
+    "create table b(id text primary key, v)",
+    "insert into a values (5, 'five')"
+   ],
+   "work": [
+    "insert into b values ('k', 1)",
+    "update a set v = zeroblob(3) where id = 5",
+    "insert into a values (6, 127)",
+    "insert into a values (7, 128)",
+    "insert into a values (8, 32768)",
+    "insert into a values (9, 2147483648)",
+    "insert into a values (10, 140737488355328)",
+    "insert into a values (11, -1)",
+    "delete from b"
+   ],
+   "changeset": "54020100610012000100000000000000090100000000800000001200010000000000000008010000000000008000120001000000000000000b01ffffffffffffffff120001000000000000000a0100008000000000001700010000000000000005030466697665000403000000120001000000000000000601000000000000007f1200010000000000000007010000000000000080",
+   "patchset": "50020100610012000100000000000000090100000000800000001200010000000000000008010000000000008000120001000000000000000b01ffffffffffffffff120001000000000000000a01000080000000000017000100000000000000050403000000120001000000000000000601000000000000007f1200010000000000000007010000000000000080",
+   "changeset_ref": [
+    {
+     "op": "INSERT",
+     "table": "a",
+     "ncol": 2,
+     "pk": [
+      true,
+      false
+     ],
+     "indirect": false,
+     "old": null,
+     "new": [
+      {
+       "i": "9"
+      },
+      {
+       "i": "2147483648"
+      }
+     ]
+    },
+    {
+     "op": "INSERT",
+     "table": "a",
+     "ncol": 2,
+     "pk": [
+      true,
+      false
+     ],
+     "indirect": false,
+     "old": null,
+     "new": [
+      {
+       "i": "8"
+      },
+      {
+       "i": "32768"
+      }
+     ]
+    },
+    {
+     "op": "INSERT",
+     "table": "a",
+     "ncol": 2,
+     "pk": [
+      true,
+      false
+     ],
+     "indirect": false,
+     "old": null,
+     "new": [
+      {
+       "i": "11"
+      },
+      {
+       "i": "-1"
+      }
+     ]
+    },
+    {
+     "op": "INSERT",
+     "table": "a",
+     "ncol": 2,
+     "pk": [
+      true,
+      false
+     ],
+     "indirect": false,
+     "old": null,
+     "new": [
+      {
+       "i": "10"
+      },
+      {
+       "i": "140737488355328"
+      }
+     ]
+    },
+    {
+     "op": "UPDATE",
+     "table": "a",
+     "ncol": 2,
+     "pk": [
+      true,
+      false
+     ],
+     "indirect": false,
+     "old": [
+      {
+       "i": "5"
+      },
+      {
+       "t": "five"
+      }
+     ],
+     "new": [
+      {
+       "nochange": true
+      },
+      {
+       "b": "000000"
+      }
+     ]
+    },
+    {
+     "op": "INSERT",
+     "table": "a",
+     "ncol": 2,
+     "pk": [
+      true,
+      false
+     ],
+     "indirect": false,
+     "old": null,
+     "new": [
+      {
+       "i": "6"
+      },
+      {
+       "i": "127"
+      }
+     ]
+    },
+    {
+     "op": "INSERT",
+     "table": "a",
+     "ncol": 2,
+     "pk": [
+      true,
+      false
+     ],
+     "indirect": false,
+     "old": null,
+     "new": [
+      {
+       "i": "7"
+      },
+      {
+       "i": "128"
+      }
+     ]
+    }
+   ],
+   "patchset_ref": [
+    {
+     "op": "INSERT",
+     "table": "a",
+     "ncol": 2,
+     "pk": [
+      true,
+      false
+     ],
+     "indirect": false,
+     "old": null,
+     "new": [
+      {
+       "i": "9"
+      },
+      {
+       "i": "2147483648"
+      }
+     ]
+    },
+    {
+     "op": "INSERT",
+     "table": "a",
+     "ncol": 2,
+     "pk": [
+      true,
+      false
+     ],
+     "indirect": false,
+     "old": null,
+     "new": [
+      {
+       "i": "8"
+      },
+      {
+       "i": "32768"
+      }
+     ]
+    },
+    {
+     "op": "INSERT",
+     "table": "a",
+     "ncol": 2,
+     "pk": [
+      true,
+      false
+     ],
+     "indirect": false,
+     "old": null,
+     "new": [
+      {
+       "i": "11"
+      },
+      {
+       "i": "-1"
+      }
+     ]
+    },
+    {
+     "op": "INSERT",
+     "table": "a",
+     "ncol": 2,
+     "pk": [
+      true,
+      false
+     ],
+     "indirect": false,
+     "old": null,
+     "new": [
+      {
+       "i": "10"
+      },
+      {
+       "i": "140737488355328"
+      }
+     ]
+    },
+    {
+     "op": "UPDATE",
+     "table": "a",
+     "ncol": 2,
+     "pk": [
+      true,
+      false
+     ],
+     "indirect": false,
+     "old": [
+      {
+       "i": "5"
+      },
+      {
+       "nochange": true
+      }
+     ],
+     "new": [
+      {
+       "nochange": true
+      },
+      {
+       "b": "000000"
+      }
+     ]
+    },
+    {
+     "op": "INSERT",
+     "table": "a",
+     "ncol": 2,
+     "pk": [
+      true,
+      false
+     ],
+     "indirect": false,
+     "old": null,
+     "new": [
+      {
+       "i": "6"
+      },
+      {
+       "i": "127"
+      }
+     ]
+    },
+    {
+     "op": "INSERT",
+     "table": "a",
+     "ncol": 2,
+     "pk": [
+      true,
+      false
+     ],
+     "indirect": false,
+     "old": null,
+     "new": [
+      {
+       "i": "7"
+      },
+      {
+       "i": "128"
+      }
+     ]
+    }
+   ],
+   "inverted": "54020100610009000100000000000000090100000000800000000900010000000000000008010000000000008000090001000000000000000b01ffffffffffffffff090001000000000000000a0100008000000000001700010000000000000005040300000000030466697665090001000000000000000601000000000000007f0900010000000000000007010000000000000080",
+   "inverted_ref": [
+    {
+     "op": "DELETE",
+     "table": "a",
+     "ncol": 2,
+     "pk": [
+      true,
+      false
+     ],
+     "indirect": false,
+     "old": [
+      {
+       "i": "9"
+      },
+      {
+       "i": "2147483648"
+      }
+     ],
+     "new": null
+    },
+    {
+     "op": "DELETE",
+     "table": "a",
+     "ncol": 2,
+     "pk": [
+      true,
+      false
+     ],
+     "indirect": false,
+     "old": [
+      {
+       "i": "8"
+      },
+      {
+       "i": "32768"
+      }
+     ],
+     "new": null
+    },
+    {
+     "op": "DELETE",
+     "table": "a",
+     "ncol": 2,
+     "pk": [
+      true,
+      false
+     ],
+     "indirect": false,
+     "old": [
+      {
+       "i": "11"
+      },
+      {
+       "i": "-1"
+      }
+     ],
+     "new": null
+    },
+    {
+     "op": "DELETE",
+     "table": "a",
+     "ncol": 2,
+     "pk": [
+      true,
+      false
+     ],
+     "indirect": false,
+     "old": [
+      {
+       "i": "10"
+      },
+      {
+       "i": "140737488355328"
+      }
+     ],
+     "new": null
+    },
+    {
+     "op": "UPDATE",
+     "table": "a",
+     "ncol": 2,
+     "pk": [
+      true,
+      false
+     ],
+     "indirect": false,
+     "old": [
+      {
+       "i": "5"
+      },
+      {
+       "b": "000000"
+      }
+     ],
+     "new": [
+      {
+       "nochange": true
+      },
+      {
+       "t": "five"
+      }
+     ]
+    },
+    {
+     "op": "DELETE",
+     "table": "a",
+     "ncol": 2,
+     "pk": [
+      true,
+      false
+     ],
+     "indirect": false,
+     "old": [
+      {
+       "i": "6"
+      },
+      {
+       "i": "127"
+      }
+     ],
+     "new": null
+    },
+    {
+     "op": "DELETE",
+     "table": "a",
+     "ncol": 2,
+     "pk": [
+      true,
+      false
+     ],
+     "indirect": false,
+     "old": [
+      {
+       "i": "7"
+      },
+      {
+       "i": "128"
+      }
+     ],
+     "new": null
+    }
+   ]
+  },
+  {
+   "name": "noop",
+   "setup": [
+    "create table n(id integer primary key, v)",
+    "insert into n values (1, 'same')"
+   ],
+   "work": [
+    "update n set v = 'same' where id = 1",
+    "insert into n values (2, 'tmp')",
+    "delete from n where id = 2"
+   ],
+   "changeset": "",
+   "patchset": "",
+   "changeset_ref": [],
+   "patchset_ref": [],
+   "inverted": "",
+   "inverted_ref": []
+  }
+ ],
+ "crafted": [
+  {
+   "name": "varint9",
+   "changeset": "548080808080808081000100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000077001200010000000000000007050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505",
+   "changeset_ref": [
+    {
+     "op": "INSERT",
+     "table": "w",
+     "ncol": 256,
+     "pk": [
+      true,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+     ],
+     "indirect": false,
+     "old": null,
+     "new": [
+      {
+       "i": "7"
+      },
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+     ]
+    }
+   ]
+  }
+ ]
+}

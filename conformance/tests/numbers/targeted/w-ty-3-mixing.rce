@@ -1,0 +1,9 @@
+fn f(a: i64, b: f64) -> f64 = a + b
+#--- rce-test
+# id: numbers/targeted/w-ty-3-mixing
+# area: numbers
+# clauses: [CH05-M-2405dfe8, CH09-M-82e65964, N4, W-TY-3]
+# expect: reject
+# diagnostic: W-TY-3
+# provenance: targeted.py: expected result read off the clause
+#---

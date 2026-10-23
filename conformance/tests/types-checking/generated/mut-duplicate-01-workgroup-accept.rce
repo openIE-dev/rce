@@ -1,0 +1,25 @@
+# rce-version: 0.6
+fn block_sum(x: [f64; 8]) -> f64
+    var total: f64 = 0.0
+    with device d bound 1024
+        with group g lanes 8
+            var tile: [f64; 8] = [0.0; 8]
+            tile[g.lane] = x[g.lane]
+            barrier
+            total += tile[g.lane]
+    total
+
+fn dup_zz() -> i64
+    return 1
+
+fn dup_zz() -> i64
+    return 2
+#--- rce-test
+# id: types-checking/generated/mut-duplicate-01-workgroup-accept
+# area: types-checking
+# clauses: [CH09-M-82e65964, W-NAME-2]
+# expect: reject
+# diagnostic: W-NAME-2
+# flags: [generated]
+# provenance: gen_props.py seed 7: mutation `duplicate` of 01-workgroup-accept
+#---

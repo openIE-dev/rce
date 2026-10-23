@@ -1,0 +1,36 @@
+module foreign
+
+intent "a foreign call is an effect: its result or trap is logged and replayed, never re-run"
+    example Call(code: "m", func: "f", args: [1]), WasmCallDone(req: 1, status: "failed", data: none, err: "trap") -> traps == 1
+
+struct WasmCall
+    req: u64
+    code: text
+    func: text
+    args: List[i64]
+
+event Call(code: text, func: text, args: List[i64])
+event WasmCallDone(req: u64, status: text, data: List[i64]?, err: text)
+
+state F
+    next: u64 = 0
+    results: List[i64] = []
+    traps: u64 = 0
+
+step F on Call(code: m, func: f, args: a)
+    next += 1
+    emit WasmCall(req: next, code: m, func: f, args: a)
+
+step F on WasmCallDone(req: _r, status: s, data: d, err: _e)
+    if s == "delivered"
+        for x in d.or([])
+            results.push(x)
+    else
+        traps += 1
+#--- rce-test
+# id: host-contract/harvested/foreign-accept
+# area: host-contract
+# clauses: [CH03-M-28cdd241, CH08-M-9a15157f, HC-4, T10]
+# expect: accept
+# provenance: harvested checker/tests/host/foreign.rce
+#---

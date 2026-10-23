@@ -1,4 +1,4 @@
-//! The tree-sitter grammar (spec/tree-sitter) is kept in sync with the EBNF
+//! The tree-sitter grammar (tree-sitter/ at the repository root) is kept in sync with the EBNF
 //! and the Rust parser: for every `.rce` file under spec/, the tree-sitter
 //! CLI parses it without error exactly when `parse::parse` accepts it.
 //! There is one language: both sides reserve the same single word list (2.4)
@@ -25,7 +25,7 @@ fn rce_files(d: &Path, out: &mut Vec<PathBuf>) {
 #[test]
 fn tree_sitter_agrees_with_rust_parser() {
     let spec = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap().to_path_buf();
-    let ts = spec.join("tree-sitter");
+    let ts = spec.parent().unwrap().join("tree-sitter");
     if Command::new("tree-sitter").arg("--version").output().is_err() {
         assert!(std::env::var_os("CI").is_none(), "tree-sitter CLI required under CI");
         println!("tree-sitter CLI not installed: skipped");

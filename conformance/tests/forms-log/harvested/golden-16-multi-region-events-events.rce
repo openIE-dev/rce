@@ -1,0 +1,28 @@
+state Cart
+    items: List[text] = []
+
+state Stats
+    adds: u64 = 0
+    removes: u64 = 0
+
+event AddItem(name: text)
+event RemoveItem(name: text)
+event Reset
+
+step Cart on AddItem(name: n) -> items.with(n)
+step Stats on AddItem(name: _)
+    adds += 1
+step Cart on RemoveItem(name: n)
+    items = [copy(i) for i in items if i != n]
+step Stats on RemoveItem(name: _)
+    removes += 1
+step Cart on Reset -> []
+#--- rce-test
+# id: forms-log/harvested/golden-16-multi-region-events-events
+# area: forms-log
+# clauses: [CH00-M-61b6ac06, CH07-M-0a0bd71f, CH07-M-265230fb, T1, T3, T5]
+# expect: trace
+# events: AddItem(name: "milk"), AddItem(name: "eggs"), RemoveItem(name: "milk"), AddItem(name: "tea"), Reset, AddItem(name: "jam")
+# trace_head: 849f78fab945e11a9a9977e8af75b0cd728d2c19d56452961d99a62a2c1ab24f
+# provenance: golden spec/traces/16_multi_region.events.json
+#---

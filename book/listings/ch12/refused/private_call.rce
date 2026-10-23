@@ -1,0 +1,4 @@
+module shop.rounding
+use shop.pricing
+
+fn rounded(total: i64) -> i64 = pricing.round_down(total)

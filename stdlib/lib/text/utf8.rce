@@ -1,0 +1,182 @@
+module text.utf8
+
+# UTF-8 (survey M9, first part): validation, decoding to code points,
+# lossy decoding with U+FFFD, encoding, and code-point / UTF-16 views of
+# text. Well-formedness is Unicode Table 3-7 (no overlongs, no surrogates,
+# nothing above U+10FFFF). Lossy decoding replaces each maximal subpart of
+# an ill-formed sequence with one U+FFFD (Unicode 3.9, "Best Practices for
+# U+FFFD Substitution"; the WHATWG Encoding Standard behaviour).
+# Bytes are List[i64] 0..255 (core.bytes). Normalization, grapheme
+# clusters and case folding need a pinned UCD and building text from code
+# points; see vectors/SOURCE.md (needs spec).
+
+pub const REPLACEMENT: i64 = 65533
+
+# Allowed range of the second byte after lead byte x, as [lo, hi, len];
+# len 0 marks a byte that cannot start a sequence.
+fn lead_info(x: i64) -> List[i64]
+    if x < 128
+        return [0, 0, 1]
+    if x >= 194 and x <= 223
+        return [128, 191, 2]
+    if x == 224
+        return [160, 191, 3]
+    if x == 237
+        return [128, 159, 3]
+    if x >= 225 and x <= 239
+        return [128, 191, 3]
+    if x == 240
+        return [144, 191, 4]
+    if x >= 241 and x <= 243
+        return [128, 191, 4]
+    if x == 244
+        return [128, 143, 4]
+    return [0, 0, 0]
+
+# Length of the well-formed sequence at i, or minus the length of the
+# maximal subpart to replace (at least 1) when ill-formed.
+pub fn utf8_seq_at(b: &[i64], i: usize) -> i64
+    let li = lead_info(b[i])
+    let n = li[2]
+    if n == 1
+        return 1
+    if n == 0
+        return -1
+    var k: i64 = 1
+    while k < n bound 4
+        let j = i + (k as usize)
+        if j >= b.len()
+            return 0 - k
+        let x = b[j]
+        let lo = if k == 1 then li[0] else 128
+        let hi = if k == 1 then li[1] else 191
+        if x < lo or x > hi
+            return 0 - k
+        k += 1
+    return n
+
+fn cp_at(b: &[i64], i: usize, n: i64) -> i64
+    if n == 1
+        return b[i]
+    if n == 2
+        return ((b[i] & 31) << 6) | (b[i + 1] & 63)
+    if n == 3
+        return ((b[i] & 15) << 12) | ((b[i + 1] & 63) << 6) | (b[i + 2] & 63)
+    return ((b[i] & 7) << 18) | ((b[i + 1] & 63) << 12) | ((b[i + 2] & 63) << 6) | (b[i + 3] & 63)
+
+# Byte offset of the first ill-formed sequence, or -1 when well-formed.
+pub fn utf8_first_error(b: &[i64]) -> i64
+    var i: usize = 0
+    while i < b.len() bound 67108864
+        let n = utf8_seq_at(b, i)
+        if n <= 0
+            return i as i64
+        i += n as usize
+    return -1
+
+pub fn utf8_valid(b: &[i64]) -> bool = utf8_first_error(b) < 0
+
+error BadUtf8(at: i64)
+
+pub fn utf8_decode(b: &[i64]) -> List[i64] ! BadUtf8
+    var o: List[i64] = []
+    var i: usize = 0
+    while i < b.len() bound 67108864
+        let n = utf8_seq_at(b, i)
+        if n <= 0
+            fail BadUtf8(at: i as i64)
+        o.push(cp_at(b, i, n))
+        i += n as usize
+    return o
+
+pub fn utf8_decode_lossy(b: &[i64]) -> List[i64]
+    var o: List[i64] = []
+    var i: usize = 0
+    while i < b.len() bound 67108864
+        let n = utf8_seq_at(b, i)
+        if n > 0
+            o.push(cp_at(b, i, n))
+            i += n as usize
+        else
+            o.push(REPLACEMENT)
+            i += (0 - n) as usize
+    return o
+
+pub fn is_scalar(cp: i64) -> bool = cp >= 0 and cp <= 1114111 and (cp < 55296 or cp > 57343)
+
+pub fn utf8_encode_cp(o: &mut List[i64], cp: i64)
+    let _ok = 1 / (if is_scalar(cp) then 1 else 0)
+    if cp < 128
+        o.push(cp)
+    elif cp < 2048
+        o.push(192 | (cp >> 6))
+        o.push(128 | (cp & 63))
+    elif cp < 65536
+        o.push(224 | (cp >> 12))
+        o.push(128 | ((cp >> 6) & 63))
+        o.push(128 | (cp & 63))
+    else
+        o.push(240 | (cp >> 18))
+        o.push(128 | ((cp >> 12) & 63))
+        o.push(128 | ((cp >> 6) & 63))
+        o.push(128 | (cp & 63))
+
+# Encode Unicode scalar values; a surrogate or value out of range traps.
+pub fn utf8_encode(cps: &[i64]) -> List[i64]
+    var o: List[i64] = []
+    for c in cps
+        utf8_encode_cp(&mut o, c)
+    return o
+
+pub fn text_bytes(t: &text) -> List[i64]
+    var o: List[i64] = []
+    var i: usize = 0
+    while i < t.len_bytes() bound 67108864
+        o.push(t[i] as i64)
+        i += 1
+    return o
+
+# Code points of a text (text is always well-formed UTF-8).
+pub fn codepoints(t: &text) -> List[i64]
+    let b = text_bytes(t)
+    return utf8_decode_lossy(&b)
+
+pub fn cp_count(t: &text) -> i64
+    var n: i64 = 0
+    var i: usize = 0
+    while i < t.len_bytes() bound 67108864
+        let x = t[i] as i64
+        if x < 128 or x >= 192
+            n += 1
+        i += 1
+    return n
+
+pub fn utf16_of_cps(cps: &[i64]) -> List[i64]
+    var o: List[i64] = []
+    for c in cps
+        if c >= 65536
+            o.push(55296 + ((c - 65536) >> 10))
+            o.push(56320 + ((c - 65536) & 1023))
+        else
+            o.push(c)
+    return o
+
+error BadUtf16(at: i64)
+
+# UTF-16 code units to code points; unpaired surrogates fail.
+pub fn utf16_decode(u: &[i64]) -> List[i64] ! BadUtf16
+    var o: List[i64] = []
+    var i: usize = 0
+    while i < u.len() bound 67108864
+        let x = u[i]
+        if x >= 55296 and x <= 56319
+            if i + 1 >= u.len() or u[i + 1] < 56320 or u[i + 1] > 57343
+                fail BadUtf16(at: i as i64)
+            o.push(65536 + ((x - 55296) << 10) + (u[i + 1] - 56320))
+            i += 2
+        elif x >= 56320 and x <= 57343
+            fail BadUtf16(at: i as i64)
+        else
+            o.push(x)
+            i += 1
+    return o

@@ -1,0 +1,17 @@
+# rce-version: 0.6
+fn guarded(c: chan i64)
+    var _n: i64 = 0
+    with budget 5000
+        _n += 1
+    with deadline 4
+        let v = <- c
+        emit v
+    else
+        emit 0
+#--- rce-test
+# id: concurrency/harvested/04-budget-deadline-accept
+# area: concurrency
+# clauses: [CH02-M-a696f3a3, CH03-M-28cdd241, CH14-M-6d53e2af, T10, T22, T34]
+# expect: accept
+# provenance: harvested conc06/accept/04_budget_deadline.rce
+#---

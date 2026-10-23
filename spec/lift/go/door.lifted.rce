@@ -1,0 +1,25 @@
+state Door
+    open: bool = false
+    locked: bool = false
+
+event Open
+event Close
+event Lock
+event Unlock
+
+error DoorOpen
+error Locked
+
+step Door on Open if locked
+    fail Locked
+step Door on Open
+    open = true
+step Door on Close
+    open = false
+step Door on Lock if open
+    fail DoorOpen
+step Door on Lock
+    locked = true
+step Door on Unlock
+    locked = false
+

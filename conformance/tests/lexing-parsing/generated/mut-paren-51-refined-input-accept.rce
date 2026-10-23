@@ -1,0 +1,40 @@
+module refined
+
+intent "input validation is a declared predicate: an event whose payload is outside its refined type is refused, state unchanged"
+    example SetVolume(pct: 40) -> level == 40
+    example Rename(name: "ok") -> name == "ok"
+    example Code(pin: "0042"), Code(pin: "9999") -> accepted == 2
+    example SetVolume(pct: 40), Rename(name: "ok") -> level == 40
+
+type Pct = u8 where self <= 100
+type Name = text where self.len() >= 1 and self.len() <= 2
+type Pin = text where self.isdigit() and self.len() == 4
+
+state Volume
+    level: Pct = 0
+
+state Codes
+    accepted: u32 = 0
+
+state Profile
+    name: text = "-"
+
+event SetVolume(pct: Pct)
+event Rename(name: Name)
+event Code(pin: Pin)
+
+step Volume on SetVolume(pct: p) -> p
+step Codes on Code(pin: _) -> accepted + 1
+step Profile on Rename(name: n) -> n
+
+fn paren_zz() -> i64
+    return (1 + 2
+#--- rce-test
+# id: lexing-parsing/generated/mut-paren-51-refined-input-accept
+# area: lexing-parsing
+# clauses: [CH02-M-69371f07, CH03-M-28cdd241, CH09-M-82e65964, T10, W-SYN-1]
+# expect: reject
+# diagnostic: W-SYN-1
+# flags: [generated]
+# provenance: gen_props.py seed 7: mutation `paren` of 51-refined-input-accept
+#---

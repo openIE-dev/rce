@@ -1,0 +1,243 @@
+module effect
+
+# Effect-context patterns and handler specs (survey M19). RCE has no
+# ambient effects: the checker ties emit, fail, spawn, send, receive,
+# select, state reads and foreign calls to the context a body runs in
+# (5.2), and the host turns every input into a logged event (5.15, E).
+# This module holds what a program reuses around that rule:
+# - the context table of 5.2 as data (`allows`, `may_call`), checked
+#   against the reference checker by tests/effect/effect_probes.py;
+# - effects as data: a pure function returns a Plan of commands, and the
+#   step that called it emits them, so the decision is testable without
+#   running an effect;
+# - a recorded handler (Appendix D.4 `recorded` fit): results keyed by
+#   the SHA-256 of the engine's canonical JSON of the input; a miss
+#   escalates with the engine's reason text;
+# - retry and deadline policy on logical ticks (6.3 N11), driven by the
+#   HC-3 outcome of each attempt.
+# uses: enc.enc
+
+use enc
+
+# ---------------- the context table (5.2) ----------------
+
+pub const CONTEXTS: List[text] = ["fn", "task", "main", "step", "actor", "comptime"]
+pub const EFFECTS: List[text] = ["emit", "fail", "spawn", "send", "recv", "select", "state", "foreign"]
+
+fn known(xs: &[text], x: &text) -> bool
+    for y in xs
+        if y == x
+            return true
+    return false
+
+# Whether a body in context ctx may perform eff. "fail" in a pure fn needs
+# an error-union return type; in comptime it is a compile error. Unknown
+# contexts or effects allow nothing.
+pub fn allows(ctx: &text, eff: &text) -> bool
+    if not known(&CONTEXTS, ctx) or not known(&EFFECTS, eff)
+        return false
+    if eff == "fail"
+        return true
+    if ctx == "fn" or ctx == "comptime"
+        return false
+    if ctx == "task" or ctx == "main"
+        return eff != "state"
+    # step and actor handler: emit, send (to actors and declared
+    # channels) and their own fields; no spawn, receive, select or
+    # foreign call
+    return eff == "emit" or eff == "send" or eff == "state"
+
+# Whether a body in context caller may call a function of kind callee
+# ("fn" pure, "task", "foreign"). Pure functions are callable from
+# everywhere; task and foreign functions only from main and tasks.
+pub fn may_call(caller: &text, callee: &text) -> bool
+    if not known(&CONTEXTS, caller)
+        return false
+    if callee == "fn"
+        return true
+    if callee == "task" or callee == "foreign"
+        return caller == "main" or caller == "task"
+    return false
+
+# Only task functions can be spawned (W-SPAWN-1), and only where spawn is
+# allowed.
+pub fn may_spawn(caller: &text, callee: &text) -> bool
+    let sp = "spawn"
+    return callee == "task" and allows(caller, &sp)
+
+# ---------------- effects as data ----------------
+# A pure decision returns a Plan; the step emits its commands in order.
+
+pub struct Plan[C]
+    cmds: List[C]
+
+pub fn plan_new[C]() -> Plan[C] = Plan(cmds: [])
+
+pub fn plan_add[C](p: &mut Plan[C], c: C)
+    p.cmds.push(c)
+
+pub fn plan_len[C](p: &Plan[C]) -> usize = p.cmds.len()
+
+pub fn plan_cmds[C](p: &Plan[C]) -> List[C] = copy(p.cmds)
+
+# p's commands, then q's.
+pub fn plan_then[C](p: &mut Plan[C], q: &Plan[C])
+    for c in q.cmds
+        p.cmds.push(copy(c))
+
+# ---------------- recorded handler (D.4) ----------------
+
+# Bytewise order of two texts (UTF-8 bytes, i.e. code point order): the
+# key order of the engine's canonical JSON. Negative, zero or positive.
+pub fn byte_cmp(a: &text, b: &text) -> i64
+    var i: usize = 0
+    while i < a.len_bytes() and i < b.len_bytes() bound 16777216
+        let x = a[i] as i64
+        let y = b[i] as i64
+        if x != y
+            return x - y
+        i += 1
+    return (a.len_bytes() as i64) - (b.len_bytes() as i64)
+
+fn sorted_index(keys: &[text]) -> List[usize]
+    var idx: List[usize] = []
+    for i in 0..keys.len()
+        var j = idx.len()
+        idx.push(i)
+        while j > 0 and byte_cmp(&keys[idx[j - 1]], &keys[i]) > 0 bound 16777216
+            idx[j] = idx[j - 1]
+            j -= 1
+        idx[j] = i
+    return idx
+
+# The engine's canonical JSON (rce src/canon.rs): object keys sorted
+# bytewise at every depth, no whitespace, strings and integers as
+# serde_json prints them. It differs from RFC 8785 (enc.jcs) in key
+# order, which RFC 8785 takes in UTF-16 units, and in integers: the whole
+# i64 range is printed, where enc.jcs keeps to I-JSON (|v| <= 2^53).
+pub fn canon(j: &enc.JsonDoc) -> text bound 64
+    match j
+        enc.JArr(items: items) -> return canon_arr(items)
+        enc.JObj(keys: keys, vals: vals) -> return canon_obj(keys, vals)
+        enc.JInt(v: v) -> return v.tostr()
+        _ -> return enc.jcs(j)
+
+fn canon_arr(items: &[enc.JsonDoc]) -> text bound 64
+    var parts: List[text] = []
+    for x in items
+        parts.push(canon(&x))
+    return "[" + ",".join(parts) + "]"
+
+fn canon_obj(keys: &[text], vals: &[enc.JsonDoc]) -> text bound 64
+    var parts: List[text] = []
+    for i in sorted_index(keys)
+        parts.push(enc.jcs_string(&keys[i]) + ":" + canon(&vals[i]))
+    return "{" + ",".join(parts) + "}"
+
+# The oracle key of an input: SHA-256 of its canonical JSON, lowercase hex.
+pub fn vhash(j: &enc.JsonDoc) -> text = canon(j).sha256()
+
+pub struct Oracle
+    keys: List[text]
+    vals: List[enc.JsonDoc]
+    hits: u64
+    misses: u64
+    last_miss: text
+
+pub fn oracle_new() -> Oracle = Oracle(keys: [], vals: [], hits: 0, misses: 0, last_miss: "")
+
+fn oracle_find(o: &Oracle, h: &text) -> i64
+    var i: usize = 0
+    while i < o.keys.len() bound 16777216
+        if o.keys[i] == h
+            return i as i64
+        i += 1
+    return -1
+
+# Record the result of an input; a second record of the same input
+# replaces the first (the table is a map).
+pub fn oracle_record(o: &mut Oracle, input: &enc.JsonDoc, result: &enc.JsonDoc)
+    let h = vhash(input)
+    let i = oracle_find(o, &h)
+    if i >= 0
+        o.vals[i as usize] = copy(result)
+    else
+        o.keys.push(h)
+        o.vals.push(copy(result))
+
+# The recorded result of an input, or none: a miss, counted, with the
+# engine's escalation reason in last_miss.
+pub fn oracle_ask(o: &mut Oracle, input: &enc.JsonDoc) -> enc.JsonDoc?
+    let h = vhash(input)
+    let i = oracle_find(o, &h)
+    if i < 0
+        o.misses += 1
+        o.last_miss = "oracle miss: input " + prefix12(&h) + " not recorded"
+        return none
+    o.hits += 1
+    return some(copy(o.vals[i as usize]))
+
+fn prefix12(h: &text) -> text
+    var s = ""
+    let cs = h.chars()
+    var i: usize = 0
+    while i < 12 and i < cs.len() bound 12
+        s = s + cs[i]
+        i += 1
+    return s
+
+# ---------------- retry and deadlines (logical ticks) ----------------
+
+pub struct Backoff
+    base: u64
+    cap: u64
+    attempts: u64
+    retry_failed: bool
+
+# Ticks to wait before attempt n + 1 after attempt n failed (n from 0):
+# base * 2^n, at most cap.
+pub fn delay(b: &Backoff, n: u64) -> u64
+    var d = b.base
+    var i: u64 = 0
+    while i < n and d < b.cap bound 64
+        d = d * 2
+        i += 1
+    return if d > b.cap then b.cap else d
+
+pub struct Retry
+    attempt: u64
+    wait_until: u64
+    verdict: text
+
+pub fn retry_new() -> Retry = Retry(attempt: 0, wait_until: 0, verdict: "pending")
+
+# Whether an outcome is worth another attempt: timed_out and unreachable
+# are; failed only when the policy says so; delivered ends the request.
+pub fn transient(b: &Backoff, status: &text) -> bool
+    if status == "timed_out" or status == "unreachable"
+        return true
+    return status == "failed" and b.retry_failed
+
+# Apply the HC-3 outcome of the current attempt, observed at tick now.
+# The verdict becomes "done", "retry" (send again at wait_until) or
+# "give_up" (not transient, or attempts used up). After done or give_up
+# nothing changes.
+pub fn on_outcome(r: &mut Retry, b: &Backoff, status: &text, now: u64)
+    if r.verdict == "done" or r.verdict == "give_up"
+        return
+    if status == "delivered"
+        r.verdict = "done"
+        return
+    if not transient(b, status) or r.attempt + 1 >= b.attempts
+        r.verdict = "give_up"
+        return
+    r.wait_until = now + delay(b, r.attempt)
+    r.attempt += 1
+    r.verdict = "retry"
+
+# Whether a retry is due at tick now.
+pub fn due(r: &Retry, now: u64) -> bool = r.verdict == "retry" and now >= r.wait_until
+
+# A request issued at tick t with a timeout of n ticks has expired at now
+# when now - t >= n (the program's own timeout, besides the host's).
+pub fn expired(issued: u64, timeout: u64, now: u64) -> bool = now >= issued and now - issued >= timeout

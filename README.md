@@ -4,9 +4,13 @@ RCE is a small programming language defined by a written specification.
 Every program is given one meaning, a *Form*: a state machine made of
 states, events, a step function that maps a state and an event to a new
 state and its outputs, and the log of events. This repository holds the
-specification (draft 0.7), its grammar in EBNF, and `rce`, the reference
+specification (draft 0.9), its grammar in EBNF, and `rce`, the reference
 checker and interpreter that decides which programs are accepted and what
-they do.
+they do. Since 23 October 2026 it also holds everything that must agree
+with the specification: the grammar package for editors, The RCE Book, the
+example programs, the standard library, the conformance suite and the IDE.
+They were separate repositories; they are now directories of this one,
+checked from the same commit, so none of them can lag the language.
 
 In plain words:
 
@@ -91,7 +95,7 @@ $ rce run counter.rce "Inc, Inc, Dec, Dec, Dec"
 
 The two `example` lines are part of the program: if either one did not
 hold, `rce check` would refuse the file. To learn the language step by
-step, read [The RCE Book](https://github.com/openIE-dev/rce-book).
+step, read [The RCE Book](book/) (published at [openie-dev.github.io/rce/book](https://openie-dev.github.io/rce/book/)).
 
 ## Commands
 
@@ -103,6 +107,7 @@ step, read [The RCE Book](https://github.com/openIE-dev/rce-book).
 | `rce trace --json FILE [EVENTS]` | reference trace of each example, or of EVENTS, for checking another implementation step by step |
 | `rce emit TARGET FILE` | `form` (the Form as JSON), `rust`, `python`, `js` or `scala` |
 | `rce fmt [--check] FILE...` | rewrite files in the canonical layout |
+| `rce dim [--fuel N] [--control] [--json] FILE` | count the behaviours a program can be in and the redundancy of its state (spec 6.10, 10.11) |
 | `rce lsp` | language server on standard input and output |
 | `rce --version` | the checker version, the specification draft and the language versions it accepts |
 
@@ -118,7 +123,7 @@ Section 10 of the specification defines each command exactly.
 | `spec/examples/` | programs that must be accepted, and in `reject/`, `ill_typed/` and `inadmissible/`, programs that must be refused |
 | `spec/checker/` | the reference parser, type checker, interpreter, emitters, formatter and language server (Rust) |
 | `spec/checker-wasm/` | the same checker compiled to WebAssembly for the browser |
-| `spec/tree-sitter/` | a tree-sitter port of the grammar, used as an independent second parser |
+| `tree-sitter/` | the tree-sitter grammar package (grammar, generated parser, queries, bindings), used by the checker as an independent second parser |
 | `spec/lean/` | the Lean 4 model of the core language and its proofs (section 8) |
 | `spec/fuzz/` | results of the grammar-level program fuzzer |
 | `spec/LANGUAGE-REVIEW.md` | what RCE learned from Rust, Go, Python, Mojo, Zig and Haskell; drafts 0.4 and 0.5 follow it |
@@ -134,10 +139,18 @@ Section 10 of the specification defines each command exactly.
 | `rcedb/` | RCEdb, the log-as-database indexes, written in RCE |
 | `examples/` | further example programs (Form, surface and ingest examples) |
 | `scripts/` | helper scripts: proofs, Lean audit, cross-architecture hashes, the chat demo |
+| `book/` | The RCE Book (mdBook): the language from first principles, every listing checked (`book/scripts/check-listings.sh`); published at [openie-dev.github.io/rce/book](https://openie-dev.github.io/rce/book/) |
+| `programs/` | example programs by area (body, data, money, network, science, systems, text, world, hardware, media) and the ecosystem programs; formerly rce-examples |
+| `stdlib/` | the standard library (`stdlib/lib/`), its vectors and checks; formerly rce-stdlib |
+| `conformance/` | the implementation-independent conformance suite, its harness, adapters and reports; formerly rce-conformance |
+| `ide/` | the editor, language server, MCP server and sandbox, built on `spec/checker` as a path dependency; formerly rce-ide |
+| `playground/` | the browser playground, published with the book by `pages.yml` |
 
 ## Status
 
-The specification is **draft 0.7, published for review**. It can still
+The specification is **draft 0.9, published for review** (the version
+string printed by `rce --version` and the overview of `spec/book/00-overview.md`
+are the same draft). It can still
 change. The reference interpreter defines what programs mean and is not
 built for speed. There is no production compiler yet. Section 10.8 lists
 what the tools do not do yet. Counts quoted about the specification and the
@@ -198,16 +211,33 @@ tree-sitter parser and uses it as a third parser. `cargo test --release`
 runs the checker's own tests, including the emitter tests, which need
 `rustc`, `python3` and `node` (a missing one is reported as skipped).
 
-## Related repositories
+## One repository, maintained together
 
-- [rce-book](https://github.com/openIE-dev/rce-book): a guide to the
-  language from first principles, with every example checked.
-- [rce-examples](https://github.com/openIE-dev/rce-examples): longer
-  programs grouped by area.
-- [tree-sitter-rce](https://github.com/openIE-dev/tree-sitter-rce): the
-  grammar packaged for editors.
-- [rce-ide](https://github.com/openIE-dev/rce-ide): an editor for RCE built
-  on this checker.
+Everything that must agree with the specification lives in this repository
+and is checked from the same commit, so nothing is pinned to an older
+`rce` and nothing is vendored. Each directory has one workflow in
+`.github/workflows/` that builds the checker from the current commit and
+runs that directory's checks against it:
+
+| Directory | What it is | Checked by |
+|---|---|---|
+| `spec/` | the specification, the reference checker and interpreter, the Lean core, the example corpora, the canonical vectors | `ci.yml`, `tree-sitter-sync.yml`, `xarch-parity.yml` |
+| `tree-sitter/` | the grammar package for editors: `grammar.js`, the generated parser, queries, bindings, corpus tests; the checker's independent second parser | `tree-sitter.yml` (package), `tree-sitter-sync.yml` (agreement with the Rust parser over every `.rce` file) |
+| `book/` | The RCE Book, mdBook, every listing checked | `book.yml`; published under `/book/` by `pages.yml` |
+| `programs/` | example programs by area, and the ecosystem programs | `programs.yml` |
+| `stdlib/` | the standard library and its vectors | `stdlib.yml` (nightly: the slow vector sets) |
+| `conformance/` | the implementation-independent conformance suite and its adapters | `conformance.yml` |
+| `ide/` | the editor, LSP, MCP server and sandbox, a path dependency on `spec/checker` | `ide.yml`, `ide-release.yml` (tags `ide-v*`) |
+| `playground/` | the browser playground | `pages.yml` |
+
+Until 23 October 2026 the book, programs, standard library, conformance
+suite, grammar package and IDE were separate repositories
+(`rce-book`, `rce-examples`, `rce-stdlib`, `rce-conformance`,
+`tree-sitter-rce`, `rce-ide`); their histories were merged here. The
+research site and the experiments
+([research-openie-web](https://github.com/openIE-dev/research-openie-web),
+[openie-research-experiments](https://github.com/openIE-dev/openie-research-experiments))
+stay separate: they read this repository, this repository never reads them.
 
 ## Contributing
 

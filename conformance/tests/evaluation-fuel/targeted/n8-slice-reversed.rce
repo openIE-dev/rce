@@ -1,0 +1,13 @@
+fn main()
+    let xs: List[i64] = [1, 2, 3]
+    let i: usize = 2
+    let j: usize = 1
+    emit xs[i:j].len()
+#--- rce-test
+# id: evaluation-fuel/targeted/n8-slice-reversed
+# area: evaluation-fuel
+# clauses: [CH00-M-61b6ac06, CH05-M-84afe529, CH07-M-0a0bd71f, N7, N8, T1, T4, T5, T9]
+# expect: run
+# outcome: trap:slice bounds reversed
+# provenance: targeted.py: expected result read off the clause
+#---

@@ -1,0 +1,16 @@
+spec "orders" v0.1.0
+reason "Demo spec" by "david"
+currency max_age=24h last_checked=2999-01-01T00:00:00Z
+change_control approvers [a] sometimes
+#--- rce-test
+# id: handler-spec/kw-1-unknown-change-control-word
+# area: handler-spec
+# clauses: [W-HS-KW-1]
+# expect: cli
+# tool: engine
+# argv: ["check", "main.rce"]
+# status: 1
+# output_has:
+#   - W-HS-KW-1
+# provenance: targeted (round 3): appendix D, an unknown change_control word
+#---

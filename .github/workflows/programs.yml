@@ -1,0 +1,29 @@
+name: programs
+
+# programs/: the example programs by area, each checked by the reference
+# checker built from this same commit; ecosystem/ runs the library programs.
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install the pinned Rust toolchain
+        run: rustup show
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: spec/checker
+      - name: Build rce
+        working-directory: spec/checker
+        run: cargo build --release --bin rce
+      - name: Check every program
+        working-directory: programs
+        run: RCE="$GITHUB_WORKSPACE/spec/checker/target/release/rce" scripts/check.sh
+      - name: Run the ecosystem programs
+        working-directory: programs
+        run: RCE="$GITHUB_WORKSPACE/spec/checker/target/release/rce" ecosystem/run.sh all

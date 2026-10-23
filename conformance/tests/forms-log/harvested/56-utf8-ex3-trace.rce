@@ -1,0 +1,31 @@
+intent "bytes become text only when they are well-formed UTF-8; anything else refuses the event, never substitutes"
+    example Dec(b: [104, 105]) -> t == "hi"
+    example Dec(b: [226, 130, 172]) -> t == "€"
+    example Dec(b: [240, 159, 152, 128]) -> t.len_bytes() == 4
+
+state S
+    t: text = ""
+
+event Dec(b: List[i64])
+
+step S on Dec(b: b) -> b.utf8()
+
+fn ok_ascii() -> text = [104, 105].utf8()
+fn ok_empty() -> text = [].utf8()
+fn bad_ff() -> text = [255].utf8()
+fn bad_overlong() -> text = [192, 175].utf8()
+fn bad_surrogate() -> text = [237, 160, 128].utf8()
+fn bad_above_max() -> text = [244, 144, 128, 128].utf8()
+fn bad_truncated() -> text = [226, 130].utf8()
+fn bad_range_high() -> text = [300].utf8()
+fn bad_range_neg() -> text = [-1].utf8()
+fn ok_bom_kept() -> usize = [239, 187, 191, 97].utf8().len_bytes()
+#--- rce-test
+# id: forms-log/harvested/56-utf8-ex3-trace
+# area: forms-log
+# clauses: [CH00-M-61b6ac06, CH07-M-0a0bd71f, CH07-M-265230fb, CH12-M-f71aaadc, T1, T3, T5, T8]
+# expect: trace
+# events: Dec(b: [226, 130, 172])
+# trace_head: a2d09b692778226ec8cd9e10407fb534dc006499ea20b5d80fd00c09149ffb92
+# provenance: harvested examples/56_utf8.rce example@3
+#---

@@ -1,0 +1,5 @@
+fn take(s: text) -> u64 = s.len_chars() as u64
+
+fn twice(s: text) -> u64
+    let a = take(s)
+    return a + take(s)

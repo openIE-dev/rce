@@ -1,0 +1,27 @@
+# derived: Windows named pipe names (Microsoft docs, "Pipe Names": \\ServerName\pipe\PipeName, up to 256 characters, any character but backslash)
+fn wp(s: text) -> text = win_pipe_name(&s)
+check wp("\\\\.\\pipe\\rce") == "rce"
+check wp("\\\\srv\\PIPE\\a b/c") == "a b/c"
+check wp("\\\\.\\pipe\\") == ""
+check wp("\\\\.\\pipe\\a\\b") == ""
+check wp("\\\\.\\pip\\a") == ""
+check wp("\\.\\pipe\\a") == ""
+check wp("\\\\\\pipe\\a") == ""
+check wp("\\\\.\\pipe\\xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx") == "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+check wp("\\\\.\\pipe\\xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx") == ""
+# derived: the ipc grant (deny by default; "/*" covers one level)
+fn gr(gs: List[text], e: text) -> bool = ipc_granted(&gs, &e)
+check gr(["svc/log"], "svc/log")
+check not gr(["svc/log"], "svc/logx")
+check gr(["svc/*"], "svc/db")
+check not gr(["svc/*"], "svc/")
+check not gr(["svc/*"], "svc/a/b")
+check not gr(["svc/*"], "svcx/a")
+check not gr([], "svc/log")
+# derived: the u32 big-endian frame
+fn lpf(h: text) -> text
+    let b = unhex(&h)
+    let f = be32_frame(&b)
+    return hx(&f)
+check lpf("0708") == "000000020708"
+check lpf("-") == "00000000"

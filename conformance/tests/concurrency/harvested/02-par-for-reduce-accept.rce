@@ -1,0 +1,13 @@
+# rce-version: 0.6
+fn total(xs: &[i64]) -> i64
+    var s: i64 = 0
+    for x in xs par
+        s += x * x
+    s
+#--- rce-test
+# id: concurrency/harvested/02-par-for-reduce-accept
+# area: concurrency
+# clauses: [CH02-M-a696f3a3, CH03-M-28cdd241, T10]
+# expect: accept
+# provenance: harvested conc06/accept/02_par_for_reduce.rce
+#---

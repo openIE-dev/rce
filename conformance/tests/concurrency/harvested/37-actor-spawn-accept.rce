@@ -1,0 +1,20 @@
+event Ping(n: u64, reply: chan u64)
+
+actor Echo
+    seen: u64 = 0
+    on Ping(n: n, reply: r)
+        seen += 1
+        r <- n
+
+fn main()
+    let e = Echo()
+    let r = chan[u64](1)
+    e <- Ping(n: 7, reply: r)
+    emit <- r
+#--- rce-test
+# id: concurrency/harvested/37-actor-spawn-accept
+# area: concurrency
+# clauses: [CH03-M-28cdd241, CH06-M-5912c594, T10]
+# expect: accept
+# provenance: harvested examples/37_actor_spawn.rce
+#---

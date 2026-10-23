@@ -1,0 +1,10 @@
+# needs: crypto hpke
+# RFC 9180 A.1 (DHKEM(X25519, HKDF-SHA256), HKDF-SHA256, AES-128-GCM, base mode) from vectors/hpke-base-x25519-sha256-aes128gcm.json. AES-128-GCM Seal for the first four messages and their nonces (sequence numbers 0 to 3).
+check tohex(gcm_seal(unhex("4531685d41d65f03dc48f6b8302c05b0"), hp_nonce(unhex("56d890e5accaaf011cff4b7d"), 0), unhex("436f756e742d30"), unhex("4265617574792069732074727574682c20747275746820626561757479"))) == "f938558b5d72f1a23810b4be2ab4f84331acc02fc97babc53a52ae8218a355a96d8770ac83d07bea87e13c512a"
+check tohex(hp_nonce(unhex("56d890e5accaaf011cff4b7d"), 0)) == "56d890e5accaaf011cff4b7d"
+check tohex(gcm_seal(unhex("4531685d41d65f03dc48f6b8302c05b0"), hp_nonce(unhex("56d890e5accaaf011cff4b7d"), 1), unhex("436f756e742d31"), unhex("4265617574792069732074727574682c20747275746820626561757479"))) == "af2d7e9ac9ae7e270f46ba1f975be53c09f8d875bdc8535458c2494e8a6eab251c03d0c22a56b8ca42c2063b84"
+check tohex(hp_nonce(unhex("56d890e5accaaf011cff4b7d"), 1)) == "56d890e5accaaf011cff4b7c"
+check tohex(gcm_seal(unhex("4531685d41d65f03dc48f6b8302c05b0"), hp_nonce(unhex("56d890e5accaaf011cff4b7d"), 2), unhex("436f756e742d32"), unhex("4265617574792069732074727574682c20747275746820626561757479"))) == "498dfcabd92e8acedc281e85af1cb4e3e31c7dc394a1ca20e173cb72516491588d96a19ad4a683518973dcc180"
+check tohex(hp_nonce(unhex("56d890e5accaaf011cff4b7d"), 2)) == "56d890e5accaaf011cff4b7f"
+check tohex(gcm_seal(unhex("4531685d41d65f03dc48f6b8302c05b0"), hp_nonce(unhex("56d890e5accaaf011cff4b7d"), 3), unhex("436f756e742d33"), unhex("4265617574792069732074727574682c20747275746820626561757479"))) == "6b0f4cd351730cd25993d8ad0f11bff1ef2c3a957cb4d8694bb06c60a2937385da1b47a11595dd7a9a28f76c26"
+check tohex(hp_nonce(unhex("56d890e5accaaf011cff4b7d"), 3)) == "56d890e5accaaf011cff4b7e"

@@ -1,0 +1,11 @@
+# A server as an actor: it counts requests and answers each one.
+struct Response
+    id: u64
+
+event Request(id: u64)
+
+actor Server
+    served: u64 = 0
+    on Request(id: i)
+        served += 1
+        emit Response(id: i)

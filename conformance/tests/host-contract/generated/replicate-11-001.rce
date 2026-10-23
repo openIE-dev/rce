@@ -1,0 +1,12 @@
+# This test drives the replicated log of Appendix E.2b; it has no program.
+#--- rce-test
+# id: host-contract/generated/replicate-11-001
+# area: host-contract
+# clauses: [HC-18, HC-18a, HC-19, T41, T31, HC-20, T39]
+# expect: replicate
+# nodes: 7
+# script: [{"elect":200},{"propose":["e0","e1","e2","e3"]},{"run":40},{"isolate_leader_with":1},{"propose_old":["stale0"]},{"run":120},{"snapshot":true},{"elect":300},{"propose":["f0","f1","f2","f3"]},{"run":40},{"heal":true},{"run":160}]
+# replicate_expect: {"committed_all":["e0","e1","e2","e3","f0","f1","f2","f3"],"deposed_frozen":true}
+# flags: [generated]
+# provenance: gen_replicate.py seed 11
+#---

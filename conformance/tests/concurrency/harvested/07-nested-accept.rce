@@ -1,0 +1,20 @@
+# rce-version: 0.6
+fn nested(xs: &[i64]) -> i64
+    var a: i64 = 0
+    var b: i64 = 0
+    par
+        branch one
+            for x in xs par
+                a += x
+        branch two
+            par
+                branch inner
+                    b = 1
+    a + b
+#--- rce-test
+# id: concurrency/harvested/07-nested-accept
+# area: concurrency
+# clauses: [CH02-M-a696f3a3, CH03-M-28cdd241, T10]
+# expect: accept
+# provenance: harvested conc06/accept/07_nested.rce
+#---

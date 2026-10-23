@@ -1,0 +1,5 @@
+# needs: crypto hpke
+# RFC 9180 A.1 (DHKEM(X25519, HKDF-SHA256), HKDF-SHA256, AES-128-GCM, base mode) from vectors/hpke-base-x25519-sha256-aes128gcm.json. Key derivation steps (no ladder).
+check hp_derive_sk("7268600d403fce431561aef583ee1613527cff655c1343f29812e66706df3234") == "52c4a758a802cd8b936eceea314432798d5baf2d7e9235dc084ab1b9cfa2f736"
+check hp_derive_sk("6db9df30aa07dd42ee5e8181afdb977e538f5e1fec8a06223f33f7013e525037") == "4612c550263fc8ad58375df3f557aac531d26850903e55a9f23f21d8534e8ac8"
+check tohex(hp_key_nonce(unhex("fe0e18c9f024ce43799ae393c7e8fe8fce9d218875e8227b0187c04e7d2ea1fc"), unhex("4f6465206f6e2061204772656369616e2055726e"))) == "4531685d41d65f03dc48f6b8302c05b056d890e5accaaf011cff4b7d"

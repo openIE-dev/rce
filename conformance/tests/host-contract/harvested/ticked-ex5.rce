@@ -1,0 +1,31 @@
+# rce-version: 0.6
+module admit_ticked
+
+intent "a logged Tick closes the admission window"
+    example Key(c: "a"), Tick(n: 1) -> seen == "a"
+
+event Key(c: text)
+event Tick(n: u64)
+
+state S
+    seen: text = ""
+    now: u64 = 0
+
+step S on Key(c: c)
+    seen = seen + c
+
+step S on Tick(n: n)
+    now = n
+#--- rce-test
+# id: host-contract/harvested/ticked-ex5
+# area: host-contract
+# clauses: [CH00-M-61b6ac06, CH07-M-0a0bd71f, HC-2, N11, T1, T4, T5, T9]
+# expect: run
+# events: Key(c: "a"), Tick(n: 1)
+# outcome: done
+# outputs:
+#   - 0 (initial) S { seen = "", now = 0 }
+#   - 1 Key(c: "a") S { seen = "a", now = 0 }
+#   - 2 Tick(n: 1) S { seen = "a", now = 1 }
+# provenance: harvested checker/tests/host/ticked.rce example@5
+#---

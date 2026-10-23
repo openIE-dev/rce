@@ -35,7 +35,7 @@ with the words of Appendix F, one list for every module.
 ### C.2 Grammar
 
 These productions extend section 3. They are the
-productions of the tree-sitter port (`spec/tree-sitter/grammar.js`) and of
+productions of the tree-sitter port (`tree-sitter/grammar.js`) and of
 the Rust parser. A rule below with the name of a section-3 rule replaces
 it; the others are new. The grammar is the productions of section 3 with
 these applied, and the same for every module. The machine check of 3.12 builds the
@@ -824,4 +824,4 @@ defined for it beyond the costs F.10 names.
 
 **Read receipt.** How many concurrency words does C.1 add to the keywords of 2.4? (a number)
 
-<!-- body-sha256: c47ff1e49f4202be941f9a9e58f84cf2e92b5c7d39bdffd92b64e745790a1bf4 -->
+<!-- body-sha256: 0ae532c12d9e2fc975f999cc21c1ec9aa53b9225386ff94a4697869b0c5137de -->

@@ -62,7 +62,7 @@ and nothing selects or extends it. It is: the keywords above; the 23 concurrency
 `nondet`, `budget`, `deadline`, `priority`, `replicated`, `interrupt`, `session`, `lvar`, `group`, `lanes`,
 `barrier`, `scope`, `atomic`, `protocol`, `offer`, `choose`, `node`, `supervisor`, `strategy`, `child`,
 `restart`); the ten words of Appendix F (`requires`, `ensures`, `decreases`, `ghost`, `ct`, `declassify`,
-`endorse`, `release`, `label` and `law`); and the type names `World`, `Template`, `Shell`, `Prompt`, `mathint`
+`endorse`, `release`, `label` and `law`); and the type names `World`, `Template`, `Shell`, `Prompt`, `Header`, `mathint`
 and the eight indexed names of 5.16, which no module may declare (W-NAME-2). A keyword or concurrency word is
 refused as a name by the grammar (W-SYN-1). A word of Appendix F whose construct this implementation has
 (`ct`, `endorse`, `release`, `label`, `requires`, `ensures`, `ghost`, `decreases`) is refused as a name
@@ -146,4 +146,4 @@ wherever the call is executed from.
 
 **Read receipt.** Which code point is the horizontal tab, as written in this section?
 
-<!-- body-sha256: 2969f1420272ac651ff7991aa16714f7ed9285441021160f137f33441c871bf3 -->
+<!-- body-sha256: 4eeab6a05c17dd46d9db462dc4c801fcde4ded882648bafd843fde43777a4dd4 -->

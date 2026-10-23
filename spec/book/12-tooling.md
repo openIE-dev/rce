@@ -183,8 +183,8 @@ it, its outputs, or the refusal), and finally the outputs and result of
 evaluator, so that a target and the reference can be compared line for
 line.
 
-**How the emitters are tested.** `spec/checker/tests/emit.rs` emits all 59
-programs of `spec/examples/` (the 57 files and the 2 of `26_use_module`) in
+**How the emitters are tested.** `spec/checker/tests/emit.rs` emits all 62
+programs of `spec/examples/` (the 60 files and the 2 of `26_use_module`) in
 all three targets. To exercise function
 bodies, it first adds *probes*: for each function and method, up to three
 calls on small sample arguments built from the parameter types, plus one
@@ -339,6 +339,22 @@ the same reason. `fmt` does not type check: a file that is refused by
 each file that would change is printed as `would reformat FILE` and the
 status is 1. Without it, each changed file is written and printed as
 `formatted FILE`.
+
+**`rce fmt --nameless FILE`** prints the name-free projection of one file
+to standard output and writes nothing. Every identifier the module declares
+is replaced by a positional name in order of first declaration, by kind:
+regions `r0, r1, …`, events `e0, …`, errors `x0, …`, functions `f0, …`,
+types `t0, …`, kind variants `k0, …`, fields, parameters and locals
+`v0, …`. Keywords, built-in types, standard library names, string contents
+and `intent` text are unchanged; the wildcard `_` and a `_` prefix are
+kept, as are `main`, the built-in traits and their methods, the host
+events and the named constants of 6.7. The projection is deterministic and
+idempotent, and it has the same outcomes, outputs and ids as the source;
+`rce trace --json` of the two differs in `state_hash`, because 6.1 hashes
+region and field names (the T7 finding of chapter 8). A name the
+projection does not recognise as declared is left as written, so the
+output is accepted whenever the input is (`tests/nameless.rs`, every
+example). It is the text of the concept record's complement (6.6).
 
 ### 10.7 The language server: `rce lsp`
 
@@ -504,6 +520,51 @@ an instance, plus 2 when the arguments match only in another order. Ties
 break by module and name. Both commands are deterministic: equal inputs
 give equal output bytes.
 
+### 10.11 `rce dim [--fuel N] [--control] [--json] FILE`: behaviours and redundancy (informative)
+
+`rce dim` checks the file (10.2) and measures the quantities of 6.10 on its
+Form. It explores reach(P) breadth-first from s₀: at each state it applies
+every declared event with payloads drawn from each field's refinement type
+(T35 fragment: the bounds and the values next to them) or, for a field
+without one, from the boundary set of 6.3 (the type's minimum, −1, 0, 1,
+maximum; the empty text, list or map and one of one element). Exploration
+stops at `--fuel` states (default 100,000) and reports whether the bound
+was reached. On the explored graph it runs partition refinement (Hopcroft)
+with the per-step output of λ as the initial partition, giving the number
+of distinct behaviours among explored states, which is dim(P) exactly when
+the bound was not reached and a lower bound otherwise. It prints, per
+program and per region:
+
+```
+states explored     12480    bound reached: no
+behaviours          1206     dim(P) (exact)
+redundancy          3.37     bits: log2(states) - log2(behaviours)
+  region Counter    0.00
+  region Audit      3.37
+control states      17       dim_c(P)          [--control]
+shape_ctl           sha256:…                   [--control]
+```
+
+A region's redundancy is computed from the projection of the explored
+graph onto that region's fields. `--control` computes the control quotient
+of 6.10 on the same explored graph: each step is labelled by its control
+outcome only (the refusal's error, by declaration index; else the
+constructors of what was emitted, by declaration index or type class) and
+never by a value, a name or a state change, so the quotient is a coarser
+output function on the same deterministic machine and dim_c ≤ dim holds by
+construction. Predicate equivalence is decided by concrete
+evaluation on reach(P): exact on the explored set, a lower bound when the
+bound is reached. The canonical control string numbers the quotient's
+states by first visit in breadth-first order from s₀ with events in
+canonical order, one line per (state, event) with the successor's number
+and the label; `shape_ctl` is the SHA-256 of its canonical JSON text. It
+is invariant under renaming (T61, tested by `tests/dim.rs` against
+`rce fmt --nameless`).
+`--json` prints the same as one JSON object (format `rce-dim/1`, compact,
+sorted keys). The command is deterministic: equal inputs give equal output
+bytes, and the exploration order is the canonical order of 6.1 on events
+and payloads. It is informative: no admission depends on it.
+
 **Read receipt.** Which JSON-RPC error code does the language server return for a request it does not know? (a number)
 
-<!-- body-sha256: 5c2b8f2dfd9dea59d60dce9af7edd5aeb9b5eed1aa745d3c4ccdec4cd5941263 -->
+<!-- body-sha256: adc8feee84b2083743eeb5846cb03a86c019a8f7631182c9029af1dbe98abbba -->

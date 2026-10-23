@@ -11,6 +11,16 @@ the f32 rule in 6.3 cites Figueroa, "When is double rounding innocuous?".
 - Python Language Reference §2.1.8, Indentation (layout algorithm).
 - L. Maranget, Warnings for pattern matching, JFP 17(3), 2007 (exhaustiveness).
 - Y. Gurevich, Sequential Abstract State Machines Capture Sequential Algorithms, ACM TOCL 2000 (pre-state update semantics).
+- J. J. M. M. Rutten, Universal coalgebra: a theory of systems, TCS 249, 2000 (6.10: the final coalgebra of (O\* × X)^E, T57).
+- J. W. de Bakker and J. I. Zucker, Processes and the denotational semantics of concurrency, Information and Control 54, 1982 (6.10: the prefix ultrametric, T59).
+- A. Nerode, Linear automaton transformations, Proc. AMS 9, 1958; E. F. Moore, Gedanken-experiments on sequential machines, Automata Studies, 1956; J. Hopcroft, An n log n algorithm for minimizing states in a finite automaton, 1971 (6.10: dim(P), T60).
+- C. P. Pfleeger, State reduction in incompletely specified finite-state machines, IEEE Trans. Computers C-22, 1973 (6.10: why totality gives a unique minimum).
+- L. D'Antoni and M. Veanes, Minimization of symbolic automata, POPL 2014 (6.10: the control dimension).
+- R. Reis, N. Moreira and R. Almeida, On the representation of finite automata, DCFS 2005 (6.10: the canonical string of `shape_ctl`).
+- When Names Disappear, arXiv 2510.03178, 2025 (6.6: identifier obfuscation and model accuracy).
+- The Hidden Cost of Readability, arXiv 2508.13666, 2025, ICSE 2026 (6.6: formatting tokens and accuracy).
+- N. Nagappan, B. Murphy and V. Basili, The influence of organizational structure on software quality, ICSE 2008 (CONTRIBUTING rule 4).
+- L. Meyerovich and A. Rabkin, Empirical analysis of programming language adoption, OOPSLA 2013 (CONTRIBUTING rule 6).
 - C. A. R. Hoare, Communicating Sequential Processes, CACM 1978.
 - J.-P. Bernardy et al., Linear Haskell, POPL 2018. N. Mitchell, Leaking Space, CACM 56(11), 2013.
 - Rust RFC 2945 ("C-unwind" ABI); The Rust Edition Guide, Rust 2024 (`unsafe extern`).
@@ -28,4 +38,4 @@ the f32 rule in 6.3 cites Figueroa, "When is double rounding innocuous?".
 
 **Read receipt.** Who wrote "Communicating Sequential Processes"? (surname)
 
-<!-- body-sha256: ac72852386a36ef0d84e868bf2f2c771b662a7699b29363418f1f659ad730068 -->
+<!-- body-sha256: ed1215a6287919d452ba2ff9b15b321bde445a7a3cd139470c48db7d43fbe913 -->

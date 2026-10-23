@@ -1,0 +1,210 @@
+module time
+
+# Time as a logged input (survey M10). There is no clock here: an instant
+# is a number a program received in an event (a Tick, a host.WallTime
+# result), and every function is pure arithmetic on it, so replay is exact.
+# Instant: i64 nanoseconds since 1970-01-01T00:00:00Z on the POSIX
+# timescale (no leap seconds; 23:59:60 is refused on parse). Duration: i64
+# nanoseconds. Range: about years 1678..2261 for instants; day-level civil
+# functions work on any i64 day count that fits. Overflow traps (checked
+# integers). Civil dates are proleptic Gregorian, from Howard Hinnant's
+# "chrono-Compatible Low-Level Date Algorithms" (days_from_civil,
+# civil_from_days, weekday_from_days). Time zones need tz data as a logged
+# or pinned input (see vectors/SOURCE.md); only fixed UTC offsets here.
+
+pub const NS: i64 = 1
+pub const US: i64 = 1000
+pub const MS: i64 = 1000000
+pub const SEC: i64 = 1000000000
+pub const MINUTE: i64 = 60000000000
+pub const HOUR: i64 = 3600000000000
+pub const DAY: i64 = 86400000000000
+
+pub struct Civil
+    y: i64
+    m: i64
+    d: i64
+
+# floor division and modulo for possibly negative a, b > 0
+pub fn fdiv(a: i64, b: i64) -> i64 = if a >= 0 then a / b else 0 - ((0 - a - 1) / b) - 1
+
+pub fn fmod(a: i64, b: i64) -> i64 = a - fdiv(a, b) * b
+
+# Days since 1970-01-01 of a proleptic Gregorian date (Hinnant).
+pub fn days_from_civil(y0: i64, m: i64, d: i64) -> i64
+    let y = if m <= 2 then y0 - 1 else y0
+    let era = fdiv(y, 400)
+    let yoe = y - era * 400
+    let mp = if m > 2 then m - 3 else m + 9
+    let doy = (153 * mp + 2) / 5 + d - 1
+    let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy
+    return era * 146097 + doe - 719468
+
+pub fn civil_from_days(z0: i64) -> Civil
+    let z = z0 + 719468
+    let era = fdiv(z, 146097)
+    let doe = z - era * 146097
+    let yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100)
+    let mp = (5 * doy + 2) / 153
+    let d = doy - (153 * mp + 2) / 5 + 1
+    let m = if mp < 10 then mp + 3 else mp - 9
+    let y = yoe + era * 400 + (if m <= 2 then 1 else 0)
+    return Civil(y: y, m: m, d: d)
+
+# 0 = Sunday .. 6 = Saturday
+pub fn weekday_from_days(z: i64) -> i64 = if z >= -4 then (z + 4) % 7 else (z + 5) % 7 + 6
+
+pub fn is_leap(y: i64) -> bool = fmod(y, 4) == 0 and (fmod(y, 100) != 0 or fmod(y, 400) == 0)
+
+pub fn days_in_month(y: i64, m: i64) -> i64
+    if m == 2
+        return if is_leap(y) then 29 else 28
+    if m == 4 or m == 6 or m == 9 or m == 11
+        return 30
+    return 31
+
+pub fn valid_civil(y: i64, m: i64, d: i64) -> bool = m >= 1 and m <= 12 and d >= 1 and d <= days_in_month(y, m)
+
+# Day of year, 1-based.
+pub fn ordinal_day(y: i64, m: i64, d: i64) -> i64 = days_from_civil(y, m, d) - days_from_civil(y, 1, 1) + 1
+
+# Add calendar months; the day is clamped to the end of the target month
+# (2024-01-31 + 1 month = 2024-02-29).
+pub fn add_months(c: &Civil, n: i64) -> Civil
+    let t = c.y * 12 + (c.m - 1) + n
+    let y = fdiv(t, 12)
+    let m = fmod(t, 12) + 1
+    let dim = days_in_month(y, m)
+    return Civil(y: y, m: m, d: if c.d > dim then dim else c.d)
+
+# ISO 8601 week date: [iso_year, week 1..53, weekday 1 = Monday .. 7].
+pub fn iso_week(y: i64, m: i64, d: i64) -> List[i64]
+    let z = days_from_civil(y, m, d)
+    let wd = fmod(weekday_from_days(z) + 6, 7) + 1
+    let th = z + 4 - wd
+    let ty = civil_from_days(th).y
+    let w = (th - days_from_civil(ty, 1, 1)) / 7 + 1
+    return [ty, w, wd]
+
+# ---------------- instants and durations ----------------
+
+pub fn instant_of(y: i64, mo: i64, d: i64, h: i64, mi: i64, s: i64, ns: i64) -> i64 = days_from_civil(y, mo, d) * DAY + h * HOUR + mi * MINUTE + s * SEC + ns
+
+pub fn days_of(t: i64) -> i64 = fdiv(t, DAY)
+
+pub fn ns_of_day(t: i64) -> i64 = fmod(t, DAY)
+
+pub fn dur_of(h: i64, m: i64, s: i64, ns: i64) -> i64 = h * HOUR + m * MINUTE + s * SEC + ns
+
+# Truncate an instant to a multiple of unit (floor, also before 1970).
+pub fn floor_to(t: i64, unit: i64) -> i64 = fdiv(t, unit) * unit
+
+fn pad(v: i64, w: i64) -> text
+    var s = v.tostr()
+    while (s.len_bytes() as i64) < w bound 20
+        s = "0" + s
+    return s
+
+fn year_text(y: i64) -> text
+    if y < 0
+        return "-" + pad(0 - y, 4)
+    return pad(y, 4)
+
+# RFC 3339 / ISO 8601 text with a fixed offset in minutes (0 prints "Z");
+# fraction digits: 0, 3, 6 or 9 (truncated, not rounded).
+pub fn format_rfc3339(t: i64, offset_min: i64, frac: i64) -> text
+    let lt = t + offset_min * MINUTE
+    let c = civil_from_days(days_of(lt))
+    let nd = ns_of_day(lt)
+    let h = nd / HOUR
+    let mi = (nd / MINUTE) % 60
+    let s = (nd / SEC) % 60
+    var out = year_text(c.y) + "-" + pad(c.m, 2) + "-" + pad(c.d, 2) + "T" + pad(h, 2) + ":" + pad(mi, 2) + ":" + pad(s, 2)
+    if frac > 0
+        var f = nd % SEC
+        var k: i64 = 9
+        while k > frac bound 9
+            f = f / 10
+            k -= 1
+        out = out + "." + pad(f, frac)
+    if offset_min == 0
+        return out + "Z"
+    let a = if offset_min < 0 then 0 - offset_min else offset_min
+    return out + (if offset_min < 0 then "-" else "+") + pad(a / 60, 2) + ":" + pad(a % 60, 2)
+
+error BadTime(at: i64)
+
+fn digits(s: &text, at: usize, n: usize) -> i64 ! BadTime
+    if at + n > s.len_bytes()
+        fail BadTime(at: at as i64)
+    var v: i64 = 0
+    for k in 0..n
+        let c = (s[at + k] as i64) - 48
+        if c < 0 or c > 9
+            fail BadTime(at: (at + k) as i64)
+        v = v * 10 + c
+    return v
+
+fn expect(s: &text, at: usize, c: i64) -> bool ! BadTime
+    if at >= s.len_bytes() or (s[at] as i64) != c
+        fail BadTime(at: at as i64)
+    return true
+
+# Parse RFC 3339 date-time (section 5.6): YYYY-MM-DDTHH:MM:SS[.frac](Z|+HH:MM|-HH:MM),
+# 'T'/'t' and 'Z'/'z' accepted; at most 9 fraction digits; second 60
+# (leap second) is refused because instants are POSIX time.
+pub fn parse_rfc3339(s: &text) -> i64 ! BadTime
+    let y = try digits(s, 0, 4)
+    let _ = try expect(s, 4, 45)
+    let mo = try digits(s, 5, 2)
+    let _ = try expect(s, 7, 45)
+    let d = try digits(s, 8, 2)
+    if not valid_civil(y, mo, d)
+        fail BadTime(at: 5)
+    if s.len_bytes() < 11 or ((s[10] as i64) != 84 and (s[10] as i64) != 116)
+        fail BadTime(at: 10)
+    let h = try digits(s, 11, 2)
+    let _ = try expect(s, 13, 58)
+    let mi = try digits(s, 14, 2)
+    let _ = try expect(s, 16, 58)
+    let sec = try digits(s, 17, 2)
+    if h > 23 or mi > 59 or sec > 59
+        fail BadTime(at: 11)
+    var i: usize = 19
+    var ns: i64 = 0
+    if i < s.len_bytes() and (s[i] as i64) == 46
+        i += 1
+        var k: i64 = 0
+        while i < s.len_bytes() and (s[i] as i64) >= 48 and (s[i] as i64) <= 57 bound 32
+            if k >= 9
+                fail BadTime(at: i as i64)
+            ns = ns * 10 + (s[i] as i64) - 48
+            k += 1
+            i += 1
+        if k == 0
+            fail BadTime(at: i as i64)
+        while k < 9 bound 9
+            ns = ns * 10
+            k += 1
+    if i >= s.len_bytes()
+        fail BadTime(at: i as i64)
+    let z = s[i] as i64
+    var off: i64 = 0
+    if z == 90 or z == 122
+        i += 1
+    elif z == 43 or z == 45
+        let oh = try digits(s, i + 1, 2)
+        let _ = try expect(s, i + 3, 58)
+        let om = try digits(s, i + 4, 2)
+        if oh > 23 or om > 59
+            fail BadTime(at: i as i64)
+        off = oh * 60 + om
+        if z == 45
+            off = 0 - off
+        i += 6
+    else
+        fail BadTime(at: i as i64)
+    if i != s.len_bytes()
+        fail BadTime(at: i as i64)
+    return instant_of(y, mo, d, h, mi, sec, ns) - off * MINUTE

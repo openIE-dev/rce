@@ -1,0 +1,11 @@
+extern "C" fn c_rand() -> u32
+
+fn roll() -> u32 = c_rand()
+#--- rce-test
+# id: effects-capabilities/harvested/extern-in-pure-reject
+# area: effects-capabilities
+# clauses: [CH09-M-82e65964, HC-4, W-EFF-1]
+# expect: reject
+# diagnostic: W-EFF-1
+# provenance: harvested examples/ill_typed/extern_in_pure.rce
+#---

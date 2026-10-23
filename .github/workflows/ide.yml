@@ -1,0 +1,32 @@
+name: ide
+
+# ide/: the editor, MCP server and sandbox, built against the reference
+# checker at spec/checker of this same commit (a path dependency).
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    defaults:
+      run:
+        working-directory: ide
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install the pinned Rust toolchain
+        run: rustup show
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ide
+      # crates/ide-sandbox tests build crates/rce-guest for WASI
+      - name: Add the WASI target
+        run: rustup target add wasm32-wasip1
+      - name: Build
+        run: cargo build --release --workspace
+      - name: Tests
+        run: cargo test --release --workspace --no-fail-fast
+      - name: Clippy
+        run: cargo clippy --release --workspace --all-targets -- -D warnings

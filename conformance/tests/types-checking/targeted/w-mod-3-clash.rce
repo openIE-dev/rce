@@ -1,0 +1,12 @@
+module app
+use lib.c
+fn helper() -> i64 = 2
+#--- rce-test
+# id: types-checking/targeted/w-mod-3-clash
+# area: types-checking
+# clauses: [CH09-M-82e65964, W-MOD-3]
+# expect: reject
+# diagnostic: W-MOD-3
+# provenance: targeted.py: expected result read off the clause
+# fixtures: [lib-c_FIXTURE.rce]
+#---

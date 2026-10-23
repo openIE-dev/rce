@@ -280,7 +280,7 @@ declaration and no conflict to resolve at parse time.
    current result (draft 0.9): 100 rules, 491 productions, 974 states, 0
    conflicts (`scripts/claim-counts.py --check` compares these numbers with
    the output of `rce-spec-check`);
-2. parses the 59 programs in `examples/` (the 57 files there and the 2 of
+2. parses the 62 programs in `examples/` (the 60 files there and the 2 of
    `examples/26_use_module/`), with and without their final
    newline; all must parse;
 3. parses the 12 programs in `examples/reject/` (tab indent, chained
@@ -294,7 +294,7 @@ lexer's tokens, the Rust parser, and the tree-sitter port) and all three must
 agree. Until 2026-10-12 this check was `spec/check.py` on `spec/rce.lark`
 with Lark in strict mode; both are retired.
 
-`spec/tree-sitter/` is the same grammar for tree-sitter (`grammar.js`, with
+`tree-sitter/` is the same grammar for tree-sitter (`grammar.js`, with
 layout, bracket depth, reserved-keyword NAME and longest-match numbers and
 `<-` in `src/scanner.c`). The former `tree-sitter/compare.py N SEED` parsed every
 example and N fuzz programs, each program's syntax mutants and SOUP
@@ -314,4 +314,4 @@ SOUP=2): 16,092 inputs, 3,185 identical trees, 12,907 refused by both,
 
 **Read receipt.** Which numbered resolution rule in 3.11 covers `send`? (for example R1)
 
-<!-- body-sha256: 6ae5395feaedeeaca66120e545c63a5cbebfc4bc70423d7745eb524484e0925d -->
+<!-- body-sha256: 9bff3a57294945da586ae15052a6cbce53ea166720571859eb2b9f878c8ef6f2 -->

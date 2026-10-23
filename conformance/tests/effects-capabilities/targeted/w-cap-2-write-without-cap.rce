@@ -1,0 +1,14 @@
+# rce-version: 0.8
+struct Root
+state Policy
+    limit: Guarded[u32, Root] = 100
+event Set(limit: u32)
+step Policy on Set(limit: n) -> n
+#--- rce-test
+# id: effects-capabilities/targeted/w-cap-2-write-without-cap
+# area: effects-capabilities
+# clauses: [CH09-M-82e65964, HC-5, T36, W-CAP-2]
+# expect: reject
+# diagnostic: W-CAP-2
+# provenance: targeted.py: expected result read off the clause
+#---
