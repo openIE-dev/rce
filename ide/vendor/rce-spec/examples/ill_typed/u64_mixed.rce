@@ -1,0 +1,2 @@
+fn f(a: u64, b: i64) -> u64
+    return a + b

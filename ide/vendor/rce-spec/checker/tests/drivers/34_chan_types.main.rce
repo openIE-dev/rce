@@ -1,0 +1,17 @@
+
+fn feed(p: Pipe, n: u64)
+    for i in 0..n
+        p <- (i * 3, "job")
+    p.close()
+
+fn main()
+    let p: Pipe = chan[(u64, text)](2)
+    let o = chan[u64](2)
+    spawn feed(p, 6)
+    spawn worker(p, o)
+    var s: u64 = 0
+    for k in 0..6
+        match <- o
+            some(v) -> s += v
+            none -> s += 1000
+        emit s

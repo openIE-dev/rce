@@ -1,0 +1,9 @@
+const LOOP_LIMIT: u64 = 100
+
+fn naturals() -> iter u64
+    var i: u64 = 0
+    loop
+        yield i
+        i += 1
+
+check naturals().collect().len() == 5

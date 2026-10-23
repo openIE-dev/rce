@@ -1,0 +1,11 @@
+error DivByZero
+
+fn divmod(a: i64, b: i64) -> (i64, i64) ! DivByZero
+    if b == 0
+        fail DivByZero
+    return (a / b, a % b)
+
+fn use_it() -> i64
+    let (q, r) = divmod(17, 5) catch (0, 0)
+    let pair = (q, r)
+    return pair.0 + pair.1

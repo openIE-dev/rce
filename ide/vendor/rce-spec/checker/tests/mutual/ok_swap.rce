@@ -1,0 +1,18 @@
+kind L
+    Nil
+    Cons(h: i64, t: Box[L])
+
+fn f(x: &L, y: &L) -> i64
+    match x
+        Nil -> return 0
+        Cons(h: _, t: t) -> return g(y, t)
+
+fn g(a: &L, b: &L) -> i64
+    return f(a, b)
+
+fn demo() -> i64
+    let a = Cons(h: 1, t: Box(Cons(h: 2, t: Box(Nil))))
+    let b = Cons(h: 3, t: Box(Nil))
+    return f(&a, &b)
+
+check demo() == 0

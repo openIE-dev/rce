@@ -1,0 +1,24 @@
+module bank
+
+intent "a bank account that refuses overdrafts"
+    example Deposit(amount: 50), Withdraw(amount: 20) -> 30
+    example Withdraw(amount: 1) -> refused: Insufficient
+
+state Account
+    balance: i64 = 0
+
+event Deposit(amount: i64)
+event Withdraw(amount: i64)
+
+error Insufficient(need: i64)
+
+struct Withdrawn
+    amount: i64
+
+step Account on Deposit(amount: a) if a > 0 -> balance + a
+step Account on Deposit(amount: _) -> balance
+step Account on Withdraw(amount: a)
+    if a > balance
+        fail Insufficient(need: a - balance)
+    balance -= a
+    emit Withdrawn(amount: a)

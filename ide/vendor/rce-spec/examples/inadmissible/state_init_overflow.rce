@@ -1,0 +1,6 @@
+state S
+    n: u8 = 255 + 1
+
+event E
+
+step S on E -> n

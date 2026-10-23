@@ -1,0 +1,1 @@
+fn f(a: bool) -> i64 = if a then 1

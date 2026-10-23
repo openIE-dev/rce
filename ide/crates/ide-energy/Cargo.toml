@@ -1,0 +1,20 @@
+[package]
+name = "ide-energy"
+description = "Simulated (E_sim) and measured (E_meas) energy per RCE IDE action"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[features]
+default = []
+nvml = ["dep:nvml-wrapper"]
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+nvml-wrapper = { workspace = true, optional = true }
+
+[dev-dependencies]
+tempfile.workspace = true

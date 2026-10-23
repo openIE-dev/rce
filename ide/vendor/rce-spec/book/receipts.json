@@ -1,0 +1,87 @@
+{
+ "00-overview.md": {
+  "question": "In the overview's tiny example, what is the name of the event?",
+  "salt": "7a52c963ed5c811e30b6519d20a3ac51",
+  "answer_sha256": "0d4b6a7c093e93ef39b6dd5407fcfaf69753a81d43bf7b8e7e28c0bd40cfe920"
+ },
+ "01-notation.md": {
+  "question": "In the grammar notation, what does a Repetition `{ ... }` mean, in the spec's words?",
+  "salt": "b2c1df94b5de9a8690a851b4974550f6",
+  "answer_sha256": "c09368d5a685e0e54b12f3d1711d18b5805a28d94530038dfcdc67896a95deeb"
+ },
+ "02-lexical.md": {
+  "question": "Which code point is the horizontal tab, as written in this section?",
+  "salt": "b56431e9a2c591281fd8271aadfeded3",
+  "answer_sha256": "1681519cb1a22c9dece0f4d4a72543441b14f47e2ceb74b56b60635644a81904"
+ },
+ "03-syntax.md": {
+  "question": "Which numbered resolution rule in 3.11 covers `send`? (for example R1)",
+  "salt": "25f1fae183910e6881d4ef43c0b4fe8a",
+  "answer_sha256": "2eb4f2d9f1d35ccf57fafb4dd5eba3461cfe2f53d20e6730a449a36f38c61784"
+ },
+ "04-programs.md": {
+  "question": "What is the outermost scope called? (one word)",
+  "salt": "70db4567a5d3adf86d91296ce5d935aa",
+  "answer_sha256": "4fb819238d423dd31a12df651227deb48ad389ac2463294a98bf17c876ecf79f"
+ },
+ "05-types-ownership.md": {
+  "question": "What is the name of the example kind used to illustrate error sets?",
+  "salt": "b56dd1b54bb9f34ae1ecd10ce81686cf",
+  "answer_sha256": "3b9ec06262875d2a6cac9f563b272544faca9af6a121c77636842d740f656a6f"
+ },
+ "06-regions-effects-extensions.md": {
+  "question": "What kind of channel does a capacity of 0 give? (one word)",
+  "salt": "46cc26b808c7cb7aef23c8ec96023fa1",
+  "answer_sha256": "56910822a65645dd3b59014321845cdf99e942a3fd2a6c649367144c1c1b7697"
+ },
+ "07-form-evaluation.md": {
+  "question": "Which JavaScript function is named for rounding to binary32?",
+  "salt": "c5837fb61bbc2891b8ed7438b6e52da6",
+  "answer_sha256": "9c870f5c3567e88f39e6d06f3e12978752658bb4293dee6dfa4b4b330f67bec8"
+ },
+ "08-steps-loops-concurrency.md": {
+  "question": "Name-free hashing uses indices named after which logician? (two words)",
+  "salt": "0a5e482ae6acef03def27327ed0aab8b",
+  "answer_sha256": "0252f2267a51cae080a28c2d1b98206c943cfb05fcbbf0d4e024976b6a5413b8"
+ },
+ "09-wellformedness.md": {
+  "question": "Which rule refuses two unguarded steps in one region whose patterns overlap?",
+  "salt": "2dd7dbd4f2f70c81ef7893507c07c069",
+  "answer_sha256": "b34f36dc818f7202eaed46edb40c8a8d9b5804115d36baa12c73ad8b41fd7f49"
+ },
+ "10-theorems.md": {
+  "question": "What is the deep embedding of the emitted Rust subset called?",
+  "salt": "48d0c0bb37139957b743cf75512ca182",
+  "answer_sha256": "ca685071e45fb7af706eeeb643036d211c217c8418f97503655e6ee0366dce30"
+ },
+ "11-decisions.md": {
+  "question": "The decisions list says it decides gaps in which file?",
+  "salt": "774bf02b76b3291c15673a7d44f54a41",
+  "answer_sha256": "7cce9cf18c3b05707c41a655d52ece3cacc05acb30bcbb1885ba2073819bc00c"
+ },
+ "12-tooling.md": {
+  "question": "Which JSON-RPC error code does the language server return for a request it does not know? (a number)",
+  "salt": "4ece4b5a2a746618e62c1343177fe891",
+  "answer_sha256": "08f63eb99398eef34455979a5383a6e916ba74f05d2ac7f934d3d1303e0966da"
+ },
+ "13-references.md": {
+  "question": "Who wrote \"Communicating Sequential Processes\"? (surname)",
+  "salt": "cabf6a7ef51b3058553f3a5eeb57d995",
+  "answer_sha256": "d87e7e8b1a41b258812144531d998c32b1f7ed922f4e8aab77e3fff8a049390a"
+ },
+ "14-draft06-concurrency.md": {
+  "question": "How many words does a version 0.6 module reserve in addition to the 0.5 keywords? (a number)",
+  "salt": "15d96338ed3cc533388fb1b95ccbcacc",
+  "answer_sha256": "c342e3b141a3e00d9e1df1626b24215f3e457927fa48749a937d46c6d07e6257"
+ },
+ "15-handler-spec-profile.md": {
+  "question": "Which compiled node id does `deliverable D1` become? (for example role_R1)",
+  "salt": "46b53ee81c4f538dbe339b114bbc8a2e",
+  "answer_sha256": "b3346b17831f544379753ce3e8b81bd03fa90e5377b7a4a6d39a5606439c5add"
+ },
+ "16-host-contract.md": {
+  "question": "Which fcntl command is the append barrier on macOS? (for example F_SETFL)",
+  "salt": "e02e174904c24fc208af13ca94beb488",
+  "answer_sha256": "b22573f1f9bbe60b88ff8f9c4aca01d026d9754698b5e5e07001f6fe932e5f62"
+ }
+}

@@ -1,0 +1,7 @@
+fn table_size() -> usize
+    comptime
+        check N > 0
+        check N % 8 == 0
+    return N * 2
+
+const N: usize = 16

@@ -1,0 +1,76 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>RCE IDE (web)</title>
+<style>
+  body { margin: 0; background: #1c1e24; color: #ccc; font: 12px monospace; }
+  #c { display: block; }
+  #ime { position: absolute; left: -1000px; top: 0; width: 1px; height: 1px; opacity: 0; }
+  #log { padding: 4px 8px; white-space: pre; }
+</style>
+<canvas id="c" width="1400" height="900" tabindex="0"></canvas>
+<textarea id="ime" autocomplete="off" autocapitalize="off" spellcheck="false"></textarea>
+<div id="log">loading…</div>
+<script type="module">
+import init, { WebIde } from "./pkg/rce_ide.js";
+const log = (s) => (document.getElementById("log").textContent = s);
+try {
+  await init();
+  const ide = await WebIde.attach("c");
+  const font = new Uint8Array(await (await fetch("font.ttf")).arrayBuffer());
+  ide.add_font(font);
+  const model = await (await fetch("model.json")).json();
+  ide.set_source(model.editor.path, model.editor.saved);
+  ide.set_model(JSON.stringify(model));
+  if (model.editor.buffer !== model.editor.saved) ide.set_buffer(model.editor.buffer);
+  window.ide = ide; // for tests in the console / automation
+  const c = document.getElementById("c"), ime = document.getElementById("ime");
+  const status = () => {
+    const e = JSON.parse(ide.editor_json());
+    log(`backend ${ide.backend()} · Ln ${e.view.cursor[0] + 1}, Col ${e.view.cursor[1] + 1}` +
+        ` · ${e.dirty ? "modified" : "saved"} · ${e.diagnostics.length} diagnostic(s)` +
+        (window.queued ? ` · queued for the host: ${window.queued}` : ""));
+  };
+  const focusIme = () => ime.focus({ preventScroll: true });
+  c.addEventListener("mousedown", (e) => { ide.mouse_down(e.offsetX, e.offsetY, e.shiftKey); focusIme(); e.preventDefault(); });
+  c.addEventListener("mousemove", (e) => ide.mouse_move(e.offsetX, e.offsetY));
+  window.addEventListener("mouseup", () => ide.mouse_up());
+  c.addEventListener("wheel", (e) => { ide.wheel(e.deltaY); e.preventDefault(); }, { passive: false });
+  // Named keys and shortcuts go to `key`; text arrives through the hidden
+  // textarea (`input`), and IME composition through composition events.
+  ime.addEventListener("keydown", (e) => {
+    if (e.isComposing) return;
+    if (ide.key(e.key, e.shiftKey, e.ctrlKey || e.metaKey)) e.preventDefault();
+  });
+  // System clipboard through the browser's own events (no permission prompt).
+  for (const kind of ["copy", "cut"]) {
+    ime.addEventListener(kind, (e) => {
+      const t = ide.copy(kind === "cut");
+      if (t !== undefined && t !== null) e.clipboardData.setData("text/plain", t);
+      e.preventDefault();
+    });
+  }
+  ime.addEventListener("paste", (e) => {
+    ide.paste(e.clipboardData.getData("text/plain"));
+    e.preventDefault();
+  });
+  ime.addEventListener("input", (e) => {
+    if (e.isComposing) return;
+    if (e.data) ide.text(e.data);
+    ime.value = "";
+  });
+  ime.addEventListener("compositionupdate", (e) => ide.preedit(e.data || ""));
+  ime.addEventListener("compositionend", (e) => { ide.preedit(""); if (e.data) ide.text(e.data); ime.value = ""; });
+  focusIme();
+  const tick = () => {
+    ide.frame();
+    const a = JSON.parse(ide.take_actions());
+    if (a.length) window.queued = JSON.stringify(a);
+    status();
+    requestAnimationFrame(tick);
+  };
+  tick();
+} catch (e) {
+  log("RCE IDE failed to start: " + e);
+  console.error(e);
+}
+</script>

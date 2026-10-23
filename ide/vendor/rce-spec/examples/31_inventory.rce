@@ -1,0 +1,19 @@
+state Inventory
+    stock: Map[text, u32] = {}
+
+event Receive(sku: text, qty: u32)
+event Ship(sku: text, qty: u32)
+error OutOfStock(sku: text)
+
+struct Shipped
+    sku: text
+    qty: u32
+
+step Inventory on Receive(sku: s, qty: q)
+    stock[s] = (stock.get(s) catch 0) + q
+step Inventory on Ship(sku: s, qty: q)
+    let have = stock.get(s) catch 0
+    if have < q
+        fail OutOfStock(sku: s)
+    stock[s] = have - q
+    emit Shipped(sku: s, qty: q)

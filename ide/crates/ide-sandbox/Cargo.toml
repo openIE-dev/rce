@@ -1,0 +1,33 @@
+[package]
+name = "ide-sandbox"
+description = "Run RCE programs and tests in wasmi WASI (pure Rust) (workspace preopened read-only, network only through declared, approved endpoints via a host-side proxy, fuel tied to joules); a Jail trait with a fail-closed Linux Landlock + seccomp backend"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+hex.workspace = true
+getrandom.workspace = true
+thiserror.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+wasmi.workspace = true
+wasmi_wasi.workspace = true
+wiggle.workspace = true
+ide-energy.workspace = true
+rustls = { version = "0.23.45", default-features = false, features = ["std", "tls12"] }
+rustls-graviola = "0.4.0"
+webpki-roots = "1.0.9"
+rustls-pki-types = "1.15.1"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+landlock.workspace = true
+seccompiler.workspace = true
+libc = "0.2"
+
+[dev-dependencies]
+ide-receipt.workspace = true
+wat = "1.261.0"
+tempfile.workspace = true
+rustls = { version = "0.23.45", default-features = false, features = ["std"] }

@@ -1,0 +1,25 @@
+[package]
+name = "rce-memory"
+description = "MEI memory: the RCE Form as the code graph, bitemporal facts on redb, Markdown notes, a cheap-first retrieval cascade with receipts"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[features]
+# Draft 0.6/0.6b concurrency syntax in the checker (off by default, as in openIE-dev/rce).
+conc06 = ["rce_spec_check/conc06"]
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+blake3.workspace = true
+thiserror.workspace = true
+ide-receipt.workspace = true
+ide-energy.workspace = true
+rce_spec_check.workspace = true
+redb = "4.3.0"
+serde_norway = "0.9.42"
+
+[dev-dependencies]
+tempfile.workspace = true

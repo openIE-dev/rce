@@ -1,0 +1,4 @@
+fn f()
+    var xs: List[i64] = [1, 2]
+    for x in xs
+        xs.append(x)

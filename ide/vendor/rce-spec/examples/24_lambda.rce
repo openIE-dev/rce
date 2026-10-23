@@ -1,0 +1,5 @@
+fn squares(xs: &[i64]) -> List[i64] = xs.map(fn(x: i64) => x * x)
+
+fn evens(xs: &[i64]) -> List[i64] = xs.filter(fn(x: i64) => x % 2 == 0)
+
+fn total(xs: &[i64]) -> i64 = xs.fold(0, fn(acc: i64, x: i64) => acc + x)

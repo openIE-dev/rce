@@ -1,0 +1,11 @@
+[package]
+name = "rce-guest"
+description = "The RCE reference checker and interpreter as a WASI command, for ide-sandbox. Depends on the checker library (rce-spec-check, default features: pure Rust)."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+serde_json.workspace = true
+rce_spec_check.workspace = true

@@ -1,0 +1,27 @@
+[package]
+name = "acp-client"
+description = "Agent Client Protocol (v1) client: outside agents run as stdio subprocesses with only the rce-mcp tools, capability-enforced, one signed receipt per turn; an optional G4 for mei-agent"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+blake3.workspace = true
+hex.workspace = true
+getrandom.workspace = true
+ide-receipt.workspace = true
+ide-energy.workspace = true
+mei-agent = { path = "../mei-agent" }
+ide-sandbox = { path = "../ide-sandbox" }
+
+[[bin]]
+name = "mock-acp-agent"
+path = "src/bin/mock-acp-agent.rs"
+
+[dev-dependencies]
+tempfile.workspace = true
+rce-mcp.workspace = true

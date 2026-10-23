@@ -1,0 +1,21 @@
+# rce-version: 0.8
+module admin
+
+intent "authority is a value (5.16): a Guarded field is written only by a step whose event carries the capability"
+    example SetLimit(admin: (), limit: 50) -> limit == 50
+    example SetLimit(admin: (), limit: 50), Spend(amount: 20) -> spent == 20
+    example Spend(amount: 5) -> limit == 100
+
+struct Root
+
+state Policy
+    limit: Guarded[u32, Root] = 100
+
+state Ledger
+    spent: u32 = 0
+
+event SetLimit(admin: Cap[Root], limit: u32)
+event Spend(amount: u32)
+
+step Policy on SetLimit(admin: _, limit: n) -> n
+step Ledger on Spend(amount: a) -> spent + a

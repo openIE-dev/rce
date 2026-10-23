@@ -1,0 +1,8 @@
+intent "x"
+    check spin() == 0
+
+fn spin() -> u64
+    var k: u64 = 0
+    while true bound 10
+        k += 1
+    return 0

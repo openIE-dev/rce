@@ -1,0 +1,25 @@
+# Recursion on integers, which no constructor measure covers, admitted by
+# a declared bound on the number of active calls (6.7).
+fn gcd(a: u64, b: u64) -> u64 bound 100
+    if b == 0
+        return a
+    return gcd(b, a % b)
+
+fn collatz(n: u64) -> u64 bound 1000
+    if n <= 1
+        return 0
+    if n % 2 == 0
+        return 1 + collatz(n / 2)
+    return 1 + collatz(3 * n + 1)
+
+fn down(n: i64) -> i64 bound 5
+    if n <= 0
+        return 0
+    return 1 + down(n - 1)
+
+fn deep() -> i64
+    return down(5)
+
+check gcd(1071, 462) == 21
+check collatz(27) == 111
+check down(4) == 4

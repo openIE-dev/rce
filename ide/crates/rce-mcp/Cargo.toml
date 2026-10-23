@@ -1,0 +1,24 @@
+[package]
+name = "rce-mcp"
+description = "MCP server (stdio and Streamable HTTP) over the RCE Form: every change passes rce check, every call writes a receipt"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+blake3.workspace = true
+hex.workspace = true
+thiserror.workspace = true
+getrandom.workspace = true
+ide-receipt.workspace = true
+ide-energy.workspace = true
+rce_spec_check.workspace = true
+rce-memory = { path = "../rce-memory" }
+rce-graph3d = { path = "../rce-graph3d", features = ["native"] }
+ide-sandbox = { path = "../ide-sandbox" }
+
+[dev-dependencies]
+tempfile.workspace = true

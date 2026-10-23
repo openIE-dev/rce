@@ -1,0 +1,4 @@
+state S
+    n: i64 = 0
+event E
+step S E -> n
