@@ -7,4 +7,6 @@ pub struct Order
 
 pub fn new_order(id: u64) -> Order = Order(id: id)
 
+pub fn priced(id: u64, cents: i64) -> Order = Order(id: id, total: pricing.discount(cents, 10))
+
 check new_order(7).total == 0

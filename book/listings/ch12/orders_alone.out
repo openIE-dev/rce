@@ -1,2 +1,2 @@
-REFUSED shop/orders.rce: line 2: W-NAME-1 unknown module `shop.pricing`
+REFUSED shop/orders.rce: line 2: W-NAME-1 unknown module `shop.pricing`; line 10: W-NAME-1 unknown name `pricing`
 exit status: 1

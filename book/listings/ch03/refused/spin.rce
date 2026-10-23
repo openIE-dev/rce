@@ -1,7 +1,7 @@
-fn spin() -> u64
+fn spin(limit: u64) -> u64
     var k: u64 = 0
-    while true bound 10
+    while k < limit bound 10
         k += 1
     return k
 
-check spin() == 10
+check spin(100) == 10

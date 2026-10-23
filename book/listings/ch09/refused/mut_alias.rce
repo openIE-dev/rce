@@ -1,4 +1,4 @@
-fn both(a: &mut List[i64], b: &List[i64])
+fn both(_a: &mut List[i64], _b: &List[i64])
     pass
 
 fn bad()

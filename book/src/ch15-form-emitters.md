@@ -18,8 +18,10 @@ $ rce emit form counter.rce
 You can see the state `Counter` with its starting value, the events, the
 error `Underflow`, the two steps, and a log for each `example`, with the
 state after every event. After the logs, the same line carries the program
-`source`, its parsed `terms` and the version flags (`draft06`, `v07`,
-`v08`), which are all false for this version 0.5 program. Each log entry also carries `seq`, its position,
+`source`, its parsed `terms`, and `names`, the concept record of
+specification 6.6: the names as written and the intent strings, keyed by
+declaration index, printed after the hashed fields and never read by a
+step. Each log entry also carries `seq`, its position,
 `state_hash`, the SHA-256 of the state after the event, `prev_hash`, the
 `hash` of the entry before it (64 zeros for the first), and `hash`, which
 covers the other four. The entries form a chain: changing any past entry

@@ -1,7 +1,9 @@
-//! The IDE's diagnostics cover the current language (vendored checker):
-//! refined types `where` (5.1), version 0.8 indexed values (5.16:
-//! Text[Html|Url|Sql|Json], Secret, Cap, Guarded) and the 0.8 version gate,
+//! The IDE's diagnostics cover the current language (the checker at
+//! ../spec/checker of the same commit): refined types `where` (5.1), the
+//! indexed values of 5.16 (Text[Html|Url|Sql|Json], Secret, Cap, Guarded),
 //! mutual recursion (W-REC-1) and declared bounds `fn … bound n` (6.7).
+//! There is one language (decision 64): a `# rce-version:` line is a
+//! tolerated, ignored label, never a gate.
 use rce_ide::lsp::Lsp;
 
 fn diags(src: &str) -> Vec<String> {
@@ -32,8 +34,9 @@ fn indexed_values_of_version_08() {
 }
 
 #[test]
-fn version_gate_hides_08_names_from_07() {
-    refused("# rce-version: 0.7\nevent Login(pw: Secret[text])\n", "W-NAME-1", 2);
+fn version_label_is_not_a_gate() {
+    // One language: the label is ignored and `Secret` is always a known name.
+    clean("# rce-version: 0.7\nstate A\n    n: u64 = 0\nevent Login(pw: Secret[text])\nstep A on Login(pw: _) -> n + 1\n");
 }
 
 #[test]

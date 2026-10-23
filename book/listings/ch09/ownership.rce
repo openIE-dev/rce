@@ -1,4 +1,4 @@
-fn length(s: &text) -> u64 = s.len() as u64
+fn length(s: &text) -> u64 = s.len_chars() as u64
 
 fn push_all(dst: &mut List[i64], src: &[i64])
     for x in src
