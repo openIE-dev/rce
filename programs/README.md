@@ -75,11 +75,13 @@ output must equal the `.out` file next to it; and a folder with a
 `program.txt` is tested as one program.
 
 All programs are version 0.5 modules (sections 2 to 10 of the specification).
-They were last checked on 17 October 2026 against public `openIE-dev/rce` main
-(`e416fd0`, specification draft 0.9, language versions 0.5 to 0.9): `scripts/check.sh`
-reports 22 passed, 0 failed with the public checker. The `ecosystem/` programs that
-name a `#!lib` library need the `rce` binary of rce-ide 0.1.3 or later, which embeds
-those libraries.
+They are checked by `programs.yml` against the reference checker built from
+the same commit, so there is no commit to name: `scripts/check.sh` must report
+every program passed at the current head (22 of 22 on 23 October 2026). The
+`ecosystem/` programs name a `#!lib` library, which the engine's `rce` provides
+by embedding the standard host libraries and the public reference checker does
+not; `ecosystem/run.sh` probes for the directive and reports "skipped" without
+it, so those runs are the engine's to make.
 
 ## Contributing
 
