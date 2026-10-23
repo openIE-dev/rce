@@ -13,7 +13,7 @@
 //!
 //! Status: written against the interpreter API (`Interp::new`,
 //! `initial_state`, `construct`, `delta`, `state_json`); not yet built or
-//! run in the session that wrote it.
+//! run in the session that wrote it; later built and run (2026-10-23).
 //!
 //! `--control` computes the control quotient of 6.10 on the explored
 //! graph: the same states and transitions, with each step labelled only by
@@ -230,37 +230,92 @@ fn control_label(idx: &HashMap<String, usize>, r: &Result<(Vec<Region>, Vec<V>),
     }
 }
 
-/// Moore refinement of a deterministic labelled graph: returns the class of
-/// each state. `succ[i][j]` is the successor on event j (`None` = unexplored,
-/// one shared sink), `label[i][j]` its output label.
+/// Hopcroft's partition refinement on a deterministic labelled graph
+/// (n log n in the number of transitions). Returns the class of each state.
+/// `succ[i][j]` is the successor on event j (`None` = unexplored: one shared
+/// sink, class index `n`, never split), `label[i][j]` its output label.
+/// Classes are numbered in order of first state, so the result is a
+/// deterministic function of the input.
 fn refine(n: usize, succ: &[Vec<Option<usize>>], label: &[Vec<String>]) -> Vec<usize> {
+    if n == 0 {
+        return vec![];
+    }
+    let k = succ[0].len();
+    // initial partition: by the full output label vector
     let mut class: Vec<usize> = {
-        let mut sig: BTreeMap<Vec<String>, usize> = BTreeMap::new();
-        label
-            .iter()
-            .map(|l| {
-                let next = sig.len();
-                *sig.entry(l.clone()).or_insert(next)
-            })
-            .collect()
+        let mut sig: BTreeMap<&Vec<String>, usize> = BTreeMap::new();
+        let mut order = vec![];
+        for l in label {
+            if !sig.contains_key(l) {
+                sig.insert(l, order.len());
+                order.push(l);
+            }
+        }
+        label.iter().map(|l| sig[l]).collect()
     };
-    loop {
-        let mut sig: BTreeMap<(usize, Vec<usize>), usize> = BTreeMap::new();
-        let next: Vec<usize> = (0..n)
-            .map(|i| {
-                let key = (class[i], succ[i].iter().map(|t| t.map_or(n, |j| class[j])).collect::<Vec<_>>());
-                let c = sig.len();
-                *sig.entry(key).or_insert(c)
-            })
-            .collect();
-        let before = class.iter().collect::<std::collections::BTreeSet<_>>().len();
-        let after = sig.len();
-        class = next;
-        if after == before {
-            break;
+    // blocks as index lists; the sink is block `n_blocks` conceptually and
+    // has no members, so it never needs splitting
+    let mut nblocks = class.iter().copied().max().map_or(0, |m| m + 1);
+    let mut blocks: Vec<Vec<usize>> = vec![vec![]; nblocks];
+    for (i, &c) in class.iter().enumerate() {
+        blocks[c].push(i);
+    }
+    // inverse transitions per event
+    let mut pred: Vec<Vec<Vec<usize>>> = vec![vec![vec![]; n]; k];
+    for i in 0..n {
+        for (j, t) in succ[i].iter().enumerate() {
+            if let Some(x) = t {
+                pred[j][*x].push(i);
+            }
         }
     }
+    let mut work: VecDeque<(usize, usize)> = VecDeque::new(); // (block, event)
+    for b in 0..nblocks {
+        for j in 0..k {
+            work.push_back((b, j));
+        }
+    }
+    while let Some((b, j)) = work.pop_front() {
+        // states with an event-j successor in block b
+        let splitter: std::collections::BTreeSet<usize> = blocks[b].iter().flat_map(|&x| pred[j][x].iter().copied()).collect();
+        if splitter.is_empty() {
+            continue;
+        }
+        // which blocks does the splitter cut?
+        let mut touched: BTreeMap<usize, Vec<usize>> = BTreeMap::new();
+        for &s in &splitter {
+            touched.entry(class[s]).or_default().push(s);
+        }
+        for (c, inside) in touched {
+            if inside.len() == blocks[c].len() {
+                continue; // whole block is in the splitter: no split
+            }
+            let inside_set: std::collections::BTreeSet<usize> = inside.iter().copied().collect();
+            let (yes, no): (Vec<usize>, Vec<usize>) = blocks[c].iter().partition(|x| inside_set.contains(x));
+            // the smaller part becomes a new block (Hopcroft's rule); its
+            // members keep deterministic numbering by first state
+            let (keep, new) = if yes.len() <= no.len() { (no, yes) } else { (yes, no) };
+            let nb = nblocks;
+            nblocks += 1;
+            for &x in &new {
+                class[x] = nb;
+            }
+            blocks[c] = keep;
+            blocks.push(new);
+            for e in 0..k {
+                work.push_back((nb, e));
+            }
+        }
+    }
+    // renumber classes by first occurrence so the output is canonical
+    let mut renum: BTreeMap<usize, usize> = BTreeMap::new();
     class
+        .iter()
+        .map(|&c| {
+            let next = renum.len();
+            *renum.entry(c).or_insert(next)
+        })
+        .collect()
 }
 
 /// The canonical string of a quotient machine: states renumbered by first
