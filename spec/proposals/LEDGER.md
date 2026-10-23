@@ -13,6 +13,9 @@ release and the example and theorem that admitted it.
 | 2026-10-22 | Effect handlers (F.2 non-goal 1) | declined, ground restated | breaks a theorem (T2 and T6: each extra resume clones captured state with a data-dependent count); loggability (T3) is answerable after evidence passing and defunctionalization and is not the ground | ML lineage survey, 2026-10-22 |
 | 2026-10-22 | Second concurrency vocabularies beyond `spawn`/`chan`/`select` and `par` (actors, workgroups, supervisors as syntax) | open: move to library Forms over the two primitives | duplicate spelling | Appendix C gap register G1 to G24 |
 | 2026-10-22 | Encapsulation criterion: U4 with five measurable coordinates, one PREREG per language (`encapsulation.md`) | open | | phase 4 gate of the roadmap |
+| 2026-10-22 | D as a partial order: chains, deps, cuts; T62 (`partial-order-log.md`, `RCE/LogPO.lean`) | open | | model proof `fold_perm_eq`; link by T40 permutation tests |
+| 2026-10-22 | Intent with holes, W-INT-1 non-vacuity, spectest completeness, derivation log D_I (`intent-holes.md`) | open | | nameless and ladder benches |
+| 2026-10-22 | Two-regime est_j, `host.Calibrated`, RCE-F5 (`energy-calibration.md`) | open | | first run: KV260 rung 3, VCCINT, N ≥ 30 |
 | 2026-10-22 | Sessions, LVars as normative syntax | open: proposal until T28 and T29 are proved on the checker, not a model | breaks rule 1 (theorem not linked to the checker) | 10-theorems.md status |
 
 Running totals are computed from this table by `scripts/claim-counts.py`

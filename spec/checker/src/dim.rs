@@ -13,9 +13,19 @@
 //!
 //! Status: written against the interpreter API (`Interp::new`,
 //! `initial_state`, `construct`, `delta`, `state_json`); not yet built or
-//! run in the session that wrote it. `--control` is reserved, not
-//! implemented (W-RES-1 wording): the symbolic quotient of 6.10 needs the
-//! refinement checker of T35 wired to a predicate-equivalence oracle.
+//! run in the session that wrote it.
+//!
+//! `--control` computes the control quotient of 6.10 on the explored
+//! graph: the same states and transitions, with each step labelled only by
+//! its control outcome (which regions changed, whether and how it was
+//! refused, the constructors of what it emitted) instead of the values.
+//! That is a coarser output function on the same deterministic machine, so
+//! its minimal size dim_c is at most dim, exactly as 6.10 states, and the
+//! predicate-equivalence oracle is concrete evaluation on reach(P): exact
+//! on the explored set, a lower bound when the fuel bound is reached. The
+//! canonical control string numbers the quotient's states by first visit
+//! in breadth-first order from s0 with events in canonical order
+//! (Reis, Moreira and Almeida 2005) and `shape_ctl` is its SHA-256.
 
 use crate::ast::{Arg, Expr, Item, Module, Ty};
 use crate::interp::{state_json, why, Interp, Region, V};
@@ -38,6 +48,8 @@ pub struct Dim {
     pub redundancy_bits: f64,
     pub regions: Vec<(String, usize, usize, f64)>, // name, distinct values, needed values, bits
     pub events_skipped: Vec<String>,
+    /// `--control`: dim_c and the hash of the canonical control string
+    pub control: Option<(usize, String)>,
 }
 
 fn lit_int(i: i128) -> Expr {
@@ -158,8 +170,139 @@ fn step_label(r: &Result<(Vec<Region>, Vec<V>), String>) -> String {
     }
 }
 
+/// Declaration index of every named item, in declaration order: the
+/// name-free key of 6.6 for control labels, so that `shape_ctl` does not
+/// depend on names (T61, T7).
+fn decl_index(m: &Module) -> HashMap<String, usize> {
+    let mut idx = HashMap::new();
+    for (i, it) in m.items.iter().enumerate() {
+        if let Some(n) = crate::link::item_name(it) {
+            idx.entry(n).or_insert(i);
+        }
+    }
+    idx
+}
+
+/// The control label of one step (6.10 control projection): which regions
+/// changed (by position), the refusal's error (by declaration index) if
+/// refused, and the constructors of the emitted values (by declaration
+/// index, or a type class); never a data value and never a name.
+fn control_label(m: &Module, idx: &HashMap<String, usize>, before: &[Region], r: &Result<(Vec<Region>, Vec<V>), String>) -> String {
+    match r {
+        Ok((after, outs)) => {
+            let changed: Vec<String> = before
+                .iter()
+                .zip(after)
+                .enumerate()
+                .filter(|(_, (a, b))| state_json(std::slice::from_ref(*a), m) != state_json(std::slice::from_ref(*b), m))
+                .map(|(i, _)| i.to_string())
+                .collect();
+            let emitted: Vec<String> = outs
+                .iter()
+                .map(|o| match o {
+                    V::Rec(n, _) => idx.get(n).map_or("rec".to_string(), |i| format!("#{i}")),
+                    V::Int(..) => "int".into(),
+                    V::F(_) | V::F32(_) => "float".into(),
+                    V::Bool(_) => "bool".into(),
+                    V::Text(_) => "text".into(),
+                    _ => "value".into(),
+                })
+                .collect();
+            format!("ok:{}:{}", changed.join(","), emitted.join(","))
+        }
+        Err(x) => {
+            let name = x.split('(').next().unwrap_or(x).trim();
+            match idx.get(name) {
+                Some(i) => format!("refused:#{i}"),
+                None => format!("refused:{name}"), // a trap: its text carries no declared name
+            }
+        }
+    }
+}
+
+/// Moore refinement of a deterministic labelled graph: returns the class of
+/// each state. `succ[i][j]` is the successor on event j (`None` = unexplored,
+/// one shared sink), `label[i][j]` its output label.
+fn refine(n: usize, succ: &[Vec<Option<usize>>], label: &[Vec<String>]) -> Vec<usize> {
+    let mut class: Vec<usize> = {
+        let mut sig: BTreeMap<Vec<String>, usize> = BTreeMap::new();
+        label
+            .iter()
+            .map(|l| {
+                let next = sig.len();
+                *sig.entry(l.clone()).or_insert(next)
+            })
+            .collect()
+    };
+    loop {
+        let mut sig: BTreeMap<(usize, Vec<usize>), usize> = BTreeMap::new();
+        let next: Vec<usize> = (0..n)
+            .map(|i| {
+                let key = (class[i], succ[i].iter().map(|t| t.map_or(n, |j| class[j])).collect::<Vec<_>>());
+                let c = sig.len();
+                *sig.entry(key).or_insert(c)
+            })
+            .collect();
+        let before = class.iter().collect::<std::collections::BTreeSet<_>>().len();
+        let after = sig.len();
+        class = next;
+        if after == before {
+            break;
+        }
+    }
+    class
+}
+
+/// The canonical string of a quotient machine: states renumbered by first
+/// visit in breadth-first order from the class of state 0, events in their
+/// canonical order; one line per (state, event) with the successor's
+/// canonical number and the label. Unique for the isomorphism class.
+fn canonical_string(n: usize, class: &[usize], succ: &[Vec<Option<usize>>], label: &[Vec<String>]) -> String {
+    // representative concrete state per class: the first explored (BFS order) one
+    let mut rep: BTreeMap<usize, usize> = BTreeMap::new();
+    for i in 0..n {
+        rep.entry(class[i]).or_insert(i);
+    }
+    let mut number: BTreeMap<usize, usize> = BTreeMap::new();
+    let mut order = vec![];
+    let mut queue = VecDeque::new();
+    number.insert(class[0], 0);
+    queue.push_back(class[0]);
+    while let Some(c) = queue.pop_front() {
+        order.push(c);
+        let i = rep[&c];
+        for t in &succ[i] {
+            if let Some(j) = t {
+                let cj = class[*j];
+                if !number.contains_key(&cj) {
+                    let k = number.len();
+                    number.insert(cj, k);
+                    queue.push_back(cj);
+                }
+            }
+        }
+    }
+    let mut s = String::new();
+    for c in order {
+        let i = rep[&c];
+        for (j, t) in succ[i].iter().enumerate() {
+            let target = match t {
+                Some(x) => number[&class[*x]].to_string(),
+                None => "?".into(),
+            };
+            s.push_str(&format!("{} {} {} {}\n", number[&c], j, target, label[i][j]));
+        }
+    }
+    s
+}
+
 /// Explore and refine. `fuel` bounds the number of explored states.
 pub fn dim(m: &Module, fuel: usize) -> Result<Dim, String> {
+    dim_with(m, fuel, false)
+}
+
+/// `dim`, optionally with the control quotient (`--control`).
+pub fn dim_with(m: &Module, fuel: usize, control: bool) -> Result<Dim, String> {
     let mut it = Interp::new(m);
     let s0 = it.initial_state().map_err(why)?;
     let (evs, skipped) = instances(m);
@@ -177,12 +320,14 @@ pub fn dim(m: &Module, fuel: usize) -> Result<Dim, String> {
         }
     }
     let k = evals.len();
+    let idx = decl_index(m);
 
     // Breadth-first exploration. Key = canonical JSON of the state (6.1).
     let mut index: HashMap<String, usize> = HashMap::new();
     let mut states: Vec<Vec<Region>> = vec![];
     let mut succ: Vec<Vec<Option<usize>>> = vec![]; // None = unexplored (bound reached)
     let mut label: Vec<Vec<String>> = vec![];
+    let mut clabel: Vec<Vec<String>> = vec![];
     let mut queue = VecDeque::new();
     let key0 = state_json(&s0, m);
     index.insert(key0, 0);
@@ -193,10 +338,12 @@ pub fn dim(m: &Module, fuel: usize) -> Result<Dim, String> {
         let s = states[i].clone();
         let mut row = Vec::with_capacity(k);
         let mut lab = Vec::with_capacity(k);
+        let mut clab = Vec::with_capacity(k);
         for (_, ev) in &evals {
             it.scopes = vec![HashMap::new()];
             let r = it.delta(&s, ev);
             lab.push(step_label(&r));
+            clab.push(control_label(m, &idx, &s, &r));
             match r {
                 Ok((s2, _)) => {
                     let key = state_json(&s2, m);
@@ -218,34 +365,13 @@ pub fn dim(m: &Module, fuel: usize) -> Result<Dim, String> {
         }
         succ.push(row);
         label.push(lab);
+        clabel.push(clab);
     }
     let n = states.len();
 
-    // Moore refinement: class = (output labels, successor classes); iterate to a fixpoint.
-    // The unexplored sink is class `n` and never splits.
-    let mut class: Vec<usize> = {
-        let mut sig: BTreeMap<Vec<String>, usize> = BTreeMap::new();
-        label.iter().map(|l| {
-            let next = sig.len();
-            *sig.entry(l.clone()).or_insert(next)
-        }).collect()
-    };
-    loop {
-        let mut sig: BTreeMap<(usize, Vec<usize>), usize> = BTreeMap::new();
-        let next: Vec<usize> = (0..n)
-            .map(|i| {
-                let key = (class[i], succ[i].iter().map(|t| t.map_or(n, |j| class[j])).collect::<Vec<_>>());
-                let c = sig.len();
-                *sig.entry(key).or_insert(c)
-            })
-            .collect();
-        let before = class.iter().collect::<std::collections::BTreeSet<_>>().len();
-        let after = sig.len();
-        class = next;
-        if after == before {
-            break;
-        }
-    }
+    // Moore refinement with the full output labels (dim) and, if asked, the
+    // control labels (dim_c), on the same explored graph.
+    let class = refine(n, &succ, &label);
     let behaviours = class.iter().collect::<std::collections::BTreeSet<_>>().len();
     let bits = |x: usize| if x == 0 { 0.0 } else { (x as f64).log2() };
     let redundancy_bits = bits(n) - bits(behaviours);
@@ -271,7 +397,17 @@ pub fn dim(m: &Module, fuel: usize) -> Result<Dim, String> {
         let needed: std::collections::BTreeSet<String> = rep.values().map(|&i| val(&states[i])).collect();
         regions.push((rn.clone(), all.len(), needed.len(), bits(all.len()) - bits(needed.len())));
     }
-    Ok(Dim { states: n, bound_reached, behaviours, redundancy_bits, regions, events_skipped: skipped })
+    let control = if control {
+        let cclass = refine(n, &succ, &clabel);
+        let dim_c = cclass.iter().collect::<std::collections::BTreeSet<_>>().len();
+        let cs = canonical_string(n, &cclass, &succ, &clabel);
+        use sha2::{Digest, Sha256};
+        let h = Sha256::digest(crate::interp::canon_json(&serde_json::Value::String(cs)).as_bytes());
+        Some((dim_c, format!("{:x}", h)))
+    } else {
+        None
+    };
+    Ok(Dim { states: n, bound_reached, behaviours, redundancy_bits, regions, events_skipped: skipped, control })
 }
 
 /// The text report of 10.11.
@@ -286,6 +422,10 @@ pub fn report(d: &Dim) -> String {
     s.push_str(&format!("redundancy          {:<8.2} bits: log2(states) - log2(behaviours)\n", d.redundancy_bits));
     for (n, all, needed, b) in &d.regions {
         s.push_str(&format!("  region {:<12} {:<8.2} ({all} values, {needed} distinguish behaviours)\n", n, b));
+    }
+    if let Some((c, h)) = &d.control {
+        s.push_str(&format!("control states      {:<8} dim_c(P) ({})\n", c, if d.bound_reached { "lower bound" } else { "exact" }));
+        s.push_str(&format!("shape_ctl           sha256:{h}\n"));
     }
     for e in &d.events_skipped {
         s.push_str(&format!("skipped             {e}\n"));
@@ -303,6 +443,8 @@ pub fn report_json(d: &Dim) -> String {
         "redundancy_bits": d.redundancy_bits,
         "regions": d.regions.iter().map(|(n, a, b, bits)| serde_json::json!({"name": n, "values": a, "needed": b, "bits": bits})).collect::<Vec<_>>(),
         "skipped": d.events_skipped,
+        "control_states": d.control.as_ref().map(|c| c.0),
+        "shape_ctl": d.control.as_ref().map(|c| c.1.clone()),
     });
     crate::interp::canon_json(&v)
 }

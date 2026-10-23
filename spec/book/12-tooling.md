@@ -543,9 +543,20 @@ shape_ctl           sha256:…                   [--control]
 ```
 
 A region's redundancy is computed from the projection of the explored
-graph onto that region's fields. `--control` builds the control
-projection of 6.10 and minimizes it modulo predicate equivalence using the
-refinement checker of T35, then prints the canonical string's hash.
+graph onto that region's fields. `--control` computes the control quotient
+of 6.10 on the same explored graph: each step is labelled by its control
+outcome only (which regions changed, by position; the refusal's error, by
+declaration index; the constructors of what was emitted, by declaration
+index or type class) and never by a value or a name, so the quotient is a
+coarser output function on the same deterministic machine and dim_c ≤ dim
+holds by construction. Predicate equivalence is decided by concrete
+evaluation on reach(P): exact on the explored set, a lower bound when the
+bound is reached. The canonical control string numbers the quotient's
+states by first visit in breadth-first order from s₀ with events in
+canonical order, one line per (state, event) with the successor's number
+and the label; `shape_ctl` is the SHA-256 of its canonical JSON text. It
+is invariant under renaming (T61, tested by `tests/dim.rs` against
+`rce fmt --nameless`).
 `--json` prints the same as one JSON object (format `rce-dim/1`, compact,
 sorted keys). The command is deterministic: equal inputs give equal output
 bytes, and the exploration order is the canonical order of 6.1 on events
@@ -553,4 +564,4 @@ and payloads. It is informative: no admission depends on it.
 
 **Read receipt.** Which JSON-RPC error code does the language server return for a request it does not know? (a number)
 
-<!-- body-sha256: 6e5899e22ba5d1da465215c55a8c20bc896c301ffff413989b83bc694c1145b8 -->
+<!-- body-sha256: 62ff3b5c942eb549c68c0fb359f1e1254f6c583dfa045420b07c3b5d89c0af29 -->

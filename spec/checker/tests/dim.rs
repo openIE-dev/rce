@@ -50,10 +50,38 @@ fn unbounded_counter_reports_a_lower_bound() {
 }
 
 #[test]
-fn control_is_reserved() {
-    let (code, out) = rce(&["dim", "--control", "../examples/61_dim_minimal.rce"]);
-    assert_eq!(code, 1);
-    assert!(out.contains("reserved, not implemented"), "{out}");
+fn control_quotient_is_coarser_than_behaviour() {
+    // the door: three control-distinct states (which steps fire differs)
+    let (code, out) = rce(&["dim", "--control", "--json", "../examples/61_dim_minimal.rce"]);
+    assert_eq!(code, 0, "{out}");
+    let d: serde_json::Value = serde_json::from_str(&out).unwrap();
+    assert_eq!(d["control_states"], 3);
+    assert_eq!(d["shape_ctl"].as_str().unwrap().len(), 64);
+    // the mod-4 counter and the mod-6 phase: every event fires the same step
+    // with the same control outcome, so one control state each
+    for f in ["../examples/59_dim_redundant_field.rce", "../examples/60_dim_hidden_period.rce"] {
+        let (code, out) = rce(&["dim", "--control", "--json", f]);
+        assert_eq!(code, 0, "{out}");
+        let d: serde_json::Value = serde_json::from_str(&out).unwrap();
+        assert_eq!(d["control_states"], 1, "{f}");
+        assert!(d["control_states"].as_u64() <= d["behaviours"].as_u64(), "dim_c <= dim: {f}");
+    }
+}
+
+#[test]
+fn shape_ctl_is_name_free() {
+    // T61: renaming leaves the control hash unchanged
+    let (_, a) = rce(&["dim", "--control", "--json", "../examples/61_dim_minimal.rce"]);
+    let (_, text) = rce(&["fmt", "--nameless", "../examples/61_dim_minimal.rce"]);
+    let d = std::env::temp_dir().join(format!("rce-dim-ctl-{}", std::process::id()));
+    std::fs::create_dir_all(&d).unwrap();
+    let p = d.join("door.rce");
+    std::fs::write(&p, text).unwrap();
+    let (_, b) = rce(&["dim", "--control", "--json", p.to_str().unwrap()]);
+    let a: serde_json::Value = serde_json::from_str(&a).unwrap();
+    let b: serde_json::Value = serde_json::from_str(&b).unwrap();
+    assert_eq!(a["control_states"], b["control_states"]);
+    assert_eq!(a["shape_ctl"], b["shape_ctl"], "T61: shape_ctl is name-free");
 }
 
 #[test]
