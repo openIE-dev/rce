@@ -84,7 +84,10 @@ module my_app
 ```
 
 `rce` then appends `crypto` and `hpke`, without their `module` and
-`check` lines. `scripts/check.sh` runs every library's own checks. Runnable programs that use them are in
+`check` lines. `scripts/check.sh` runs every library's own checks
+(`ONLY="col core"` restricts it to those `lib/<area>/` directories, with
+`crypto` naming the top-level crypto, pq, hpke and mls modules; CI splits
+the libraries over parallel jobs this way). Runnable programs that use them are in
 [programs/ecosystem](../programs/ecosystem),
 and the specification describes them in Appendix F of the
 [RCE book](https://openie-dev.github.io/rce-book/ch17-media-calls-e2ee.html).

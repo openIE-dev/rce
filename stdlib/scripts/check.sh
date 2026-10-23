@@ -14,8 +14,13 @@ printf 'module lib_probe\n#!lib crypto\nfn f() -> List[i64]\n    return cat([1],
 if "$RCE" check "$tmp/lib_probe.rce" > /dev/null 2>&1; then RCE_NO_LIB=0; else RCE_NO_LIB=1; echo "check.sh: this rce has no #!lib directive; crypto is inlined (scripts/libexpand.py)"; fi
 export RCE_NO_LIB
 rm -f "$tmp/lib_probe.rce"
-"$RCE" test lib/crypto.rce
+# ONLY="col core ..." restricts the run to those lib/<area>/ directories
+# ("crypto" names the top-level crypto, pq, hpke and mls modules), so CI can
+# split the libraries over parallel jobs; unset, everything runs.
+only() { [ -z "${ONLY:-}" ] || case " $ONLY " in *" $1 "*) ;; *) return 1 ;; esac; }
+only crypto && "$RCE" test lib/crypto.rce
 for n in pq hpke mls; do
+  only crypto || continue
   { echo "module ${n}_checks"; echo "#!lib crypto"; grep -v '^module ' "lib/$n.rce"; } | python3 scripts/libexpand.py > "$tmp/$n.rce"
   "$RCE" test "$tmp/$n.rce"
 done
@@ -33,6 +38,7 @@ done
 python3 scripts/uses.py --selftest
 python3 scripts/uses.py --all
 for f in lib/*/*.rce; do
+  only "$(basename "$(dirname "$f")")" || continue
   uses=$(python3 scripts/uses.py "$f") || { echo "check.sh: bad dependency marker in $f" >&2; exit 1; }
   pk="$tmp/pkg"; rm -rf "$pk"; mkdir "$pk"
   for u in $uses; do cp "lib/$u.rce" "$pk/"; done

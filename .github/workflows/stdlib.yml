@@ -12,8 +12,21 @@ on:
 
 jobs:
   checks:
+    # the libraries are split over parallel jobs (scripts/check.sh ONLY=...):
+    # one run of everything exceeded the 60-minute job limit on a runner
+    strategy:
+      fail-fast: false
+      matrix:
+        group:
+          - "crypto col core"
+          - "data effect enc energy"
+          - "fmt hash io math"
+          - "net num"
+          - "os"
+          - "rand text time ui"
+    name: checks (${{ matrix.group }})
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
       - name: Install the pinned Rust toolchain
@@ -26,8 +39,8 @@ jobs:
         run: cargo build --release --bin rce
       - name: Run each library's checks
         working-directory: stdlib
-        run: RCE="$GITHUB_WORKSPACE/spec/checker/target/release/rce" scripts/check.sh
+        run: ONLY="${{ matrix.group }}" RCE="$GITHUB_WORKSPACE/spec/checker/target/release/rce" scripts/check.sh
       - name: Run the slow vector sets (nightly and on request)
-        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+        if: (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && matrix.group == 'crypto col core'
         working-directory: stdlib
         run: RCE="$GITHUB_WORKSPACE/spec/checker/target/release/rce" scripts/nightly.sh
