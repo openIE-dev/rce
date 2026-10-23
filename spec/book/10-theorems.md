@@ -66,6 +66,11 @@ Classical.choice). Status per theorem:
 | T55 | stated, unproved (Appendix F.9; F.12 lists what is implemented): Broker invariant: by induction on grant events, no session holds all three trifecta properties without an explicit grant event (F.7) | none |
 | T56 | stated, unproved (Appendix F.9; F.12 lists what is implemented): Relaxed sequential borrows: the limited relaxation of 5.6 studied from group borrowing (a reference is invalidated only below steps that are not independent of it) preserves T6; the lemma is not proved and the relaxation is not adopted (5.6) | none |
 | T15 | proved for iterators whose step between yields is total (T2): every run ends, delivers at most LOOP_LIMIT values and traps only after exactly LOOP_LIMIT; `break` yields a prefix of the full run; a run with a smaller cap is a prefix of one with a larger cap (the evaluator's re-run strategy) | `drive_total`, `drive_break`, `gen_prefix` |
+| T57 | proved on the Form core (`RCE/Behaviour.lean`, not yet in `lake build`): one-step unfolding of the behaviour of 6.10; uniqueness of the morphism (Rutten 2000) stated, unproved | `beh_cons` |
+| T58 | proved on the Form core (`RCE/Behaviour.lean`, not yet in `lake build`): a bisimulation forces equal behaviours, and behavioural equality is a bisimulation | `bisim_beh`, `beh_bisim` |
+| T59 | stated, unproved: agreement on every trace of length ≤ k bounds the distance of 6.10 by 2^-(k+1); needs a finite event type in Lean (the declared events over the T35 payload fragment) | none |
+| T60 | stated, unproved (a model proof by partition refinement is the next step): for finite S the quotient of reach(P) by the largest bisimulation is the minimal machine, with dim(P) states, unique up to isomorphism, and the canonical numbering of 6.10 makes its isomorphism class one string | none |
+| T61 | tested against the admitted e-graph rewrites until the symbolic quotient is in the checker: `shape_ctl` is invariant under renaming, under predicate-equivalent rewrites of guards and under every rewrite admitted into the e-graph | none |
 
 T16 to T31 belong to the concurrency part (Appendix C) and are listed with their exact status
 in Appendix C.13. Most are proofs about abstract models (T18, T19b, T21,
@@ -157,6 +162,29 @@ result when it lies in [0, 2^64) and traps otherwise.
 `.collect()`, terminate after at most LOOP_LIMIT yields, and `break`
 observes a prefix of the values the iterator would produce.
 
+**T57 Finality.** beh_P of 6.10 is a coalgebra morphism:
+beh_P(s)(e · w) = λ(s, e) · beh_P(δ₁(s, e))(w), and it is the unique such
+map S → Beh.
+
+**T58 Equivalence is bisimilarity.** beh_P(s) = beh_P(t) if and only if
+there is a bisimulation R with s R t; for two programs, likewise on
+S_F × S_G.
+
+**T59 Trace evidence is a ball.** If beh_F(s₀)(w) = beh_G(s₀)(w) for every
+w with |w| ≤ k, then d(beh_F, beh_G) ≤ 2^-(k+1), and conversely.
+
+**T60 Minimal machine.** For finite S, the quotient of reach(P) by the
+largest bisimulation is a Mealy machine with the behaviour beh_P(s₀) and
+dim(P) states; every Mealy machine with that behaviour has at least dim(P)
+states, with equality only up to isomorphism; the canonical numbering of
+6.10 makes the isomorphism class one string.
+
+**T61 Control canonicity.** `shape_ctl` (6.10) is invariant under renaming
+(T7), under any rewrite of a guard to a predicate-equivalent guard, and
+under every rewrite admitted into the e-graph (so `shape_eq` refines
+`shape_ctl`); it is not invariant under a change of a data update that
+changes a later guard outcome.
+
 **T32 Foreign replay.** For every oracle o answering foreign calls and
 `select nondet` choices (5.11, C.5), replaying the log of a live run
 reproduces its state, whatever o is; no property of the foreign code is
@@ -226,4 +254,4 @@ tables is checked to exist (`spec/checker/tests/theorem_index.rs`).
 
 **Read receipt.** What is the deep embedding of the emitted Rust subset called?
 
-<!-- body-sha256: 6d90ae30e5ff6e70143e3d9327b1cb9f58cc8268524f745d8f8245989ce60bb6 -->
+<!-- body-sha256: 1b288093b74afc0052494f225d40ee9e3390b21484b4629ea1e6181889d327fc -->

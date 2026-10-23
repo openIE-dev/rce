@@ -4,7 +4,7 @@ RCE is a small programming language defined by a written specification.
 Every program is given one meaning, a *Form*: a state machine made of
 states, events, a step function that maps a state and an event to a new
 state and its outputs, and the log of events. This repository holds the
-specification (draft 0.7), its grammar in EBNF, and `rce`, the reference
+specification (draft 0.9), its grammar in EBNF, and `rce`, the reference
 checker and interpreter that decides which programs are accepted and what
 they do.
 
@@ -103,6 +103,7 @@ step, read [The RCE Book](https://github.com/openIE-dev/rce-book).
 | `rce trace --json FILE [EVENTS]` | reference trace of each example, or of EVENTS, for checking another implementation step by step |
 | `rce emit TARGET FILE` | `form` (the Form as JSON), `rust`, `python`, `js` or `scala` |
 | `rce fmt [--check] FILE...` | rewrite files in the canonical layout |
+| `rce dim [--fuel N] [--control] FILE` | count the behaviours a program can be in and the redundancy of its state (spec 6.10, 10.11) |
 | `rce lsp` | language server on standard input and output |
 | `rce --version` | the checker version, the specification draft and the language versions it accepts |
 
@@ -137,7 +138,9 @@ Section 10 of the specification defines each command exactly.
 
 ## Status
 
-The specification is **draft 0.7, published for review**. It can still
+The specification is **draft 0.9, published for review** (the version
+string printed by `rce --version` and the overview of `spec/book/00-overview.md`
+are the same draft). It can still
 change. The reference interpreter defines what programs mean and is not
 built for speed. There is no production compiler yet. Section 10.8 lists
 what the tools do not do yet. Counts quoted about the specification and the

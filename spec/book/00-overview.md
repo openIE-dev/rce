@@ -75,7 +75,7 @@ labels of past commits of it, not alternatives; `# rce-version:` is a release la
 tolerated, ignored and not hashed (2.7), and a label names exactly one spec commit (C.15). The
 language of this text is what the reference checker and the Lean files enforce and prove for concurrency
 (Appendix C), and a program that an earlier commit accepted may be refused by this one when a rule was
-added; an implementation of a release implements that release's text. accepted. The core is mechanized in Lean 4
+added; an implementation of a release implements that release's text. The core is mechanized in Lean 4
 (`spec/lean/`, section 8), a reference type and well-formedness checker
 (`spec/checker/`, `rce-check`) implements sections 4, 5 and 7 including the
 admission gate of 6.9 (examples, checks, comptime and constants are evaluated),
@@ -138,4 +138,4 @@ and LALR(1) agree on all 4,977 syntax mutants.
 
 **Read receipt.** In the overview's tiny example, what is the name of the event?
 
-<!-- body-sha256: 3c2dfb5798710e0d9dd38677d2148e4131a7c70ebfe736a673b23d2450613bc5 -->
+<!-- body-sha256: 1a826601ee0915ab0d01352de0d93459da2eadb7c95729ae795f3e9af569b9d9 -->

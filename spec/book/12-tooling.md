@@ -504,6 +504,40 @@ an instance, plus 2 when the arguments match only in another order. Ties
 break by module and name. Both commands are deterministic: equal inputs
 give equal output bytes.
 
+### 10.11 `rce dim [--fuel N] [--control] [--json] FILE`: behaviours and redundancy (informative)
+
+`rce dim` checks the file (10.2) and measures the quantities of 6.10 on its
+Form. It explores reach(P) breadth-first from s₀: at each state it applies
+every declared event with payloads drawn from each field's refinement type
+(T35 fragment: the bounds and the values next to them) or, for a field
+without one, from the boundary set of 6.3 (the type's minimum, −1, 0, 1,
+maximum; the empty text, list or map and one of one element). Exploration
+stops at `--fuel` states (default 100,000) and reports whether the bound
+was reached. On the explored graph it runs partition refinement (Hopcroft)
+with the per-step output of λ as the initial partition, giving the number
+of distinct behaviours among explored states, which is dim(P) exactly when
+the bound was not reached and a lower bound otherwise. It prints, per
+program and per region:
+
+```
+states explored     12480    bound reached: no
+behaviours          1206     dim(P) (exact)
+redundancy          3.37     bits: log2(states) - log2(behaviours)
+  region Counter    0.00
+  region Audit      3.37
+control states      17       dim_c(P)          [--control]
+shape_ctl           sha256:…                   [--control]
+```
+
+A region's redundancy is computed from the projection of the explored
+graph onto that region's fields. `--control` builds the control
+projection of 6.10 and minimizes it modulo predicate equivalence using the
+refinement checker of T35, then prints the canonical string's hash.
+`--json` prints the same as one JSON object (format `rce-dim/1`, compact,
+sorted keys). The command is deterministic: equal inputs give equal output
+bytes, and the exploration order is the canonical order of 6.1 on events
+and payloads. It is informative: no admission depends on it.
+
 **Read receipt.** Which JSON-RPC error code does the language server return for a request it does not know? (a number)
 
-<!-- body-sha256: 5c2b8f2dfd9dea59d60dce9af7edd5aeb9b5eed1aa745d3c4ccdec4cd5941263 -->
+<!-- body-sha256: bb316f6b3a545e4f41bc043b4ee534719a781786d05f79f924ccea4861600cb6 -->

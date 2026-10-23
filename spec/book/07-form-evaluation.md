@@ -383,10 +383,12 @@ exactly.
     the same rule. A result that overflows traps (F4); `log` of x ≤ 0
     traps (also `log2`, `log10`). Device versions stay output only or
     verified (HC-13).
-  Canonical float text is the shortest round-trip digits; decimal notation
+  Float *text* (the result of `tostr` and of `Show` on a float,
+  `interp::float_text`) is the shortest round-trip digits; decimal notation
   for 1e-5 ≤ |x| < 1e16, else `d.ddde±N` with `+` on positive exponents
-  (`1e+300`, `1.5e-7`).
-  Canonical JSON (6.1) has one float form, `interp::float_json`, used for
+  (`1e+300`, `1.5e-7`). It is a program-visible value and is never hashed.
+  Canonical JSON (6.1.1) is a different, separately specified byte form:
+  it has one float form, `interp::float_json`, used for
   hashes and for every trace and log written as JSON, so a trace shows the
   bytes that were hashed: shortest round-trip digits, decimal with at
   least one fractional digit for 1e-4 ≤ |x| < 1e16 (`10.0`, `0.0001`),
@@ -457,4 +459,4 @@ method and is W-NAME-1.
 
 **Read receipt.** Which JavaScript function is named for rounding to binary32?
 
-<!-- body-sha256: d015b1577711d452c02e5e4091568d5e098d8f611a6d74a37b92eb6d5b7d1025 -->
+<!-- body-sha256: c6ddcd5b3a07f34bb7e5aaaaabf42ff1310957fae62c7391855c042f8c0939c9 -->
