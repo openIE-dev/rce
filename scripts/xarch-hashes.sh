@@ -14,6 +14,10 @@ sha() { if command -v sha256sum >/dev/null; then sha256sum | cut -c1-64; else sh
 for f in "$here"/spec/examples/*.rce; do
   printf '%s trace %s\n' "$(rce trace --json "$f" 2>&1 | sed "s#$here##g" | sha)" "$(basename "$f")"
 done
+# determinism streams (T37; RCE-JEPA H8): 700 seeded event streams per example
+# program with example lines, traced in one run each; one digest per program
+py=python3; command -v python3 >/dev/null 2>&1 || py=python
+"$py" "$here/scripts/xarch-streams.py" "$rce_bin" ${RCE_RUNNER:-} 2>/dev/null
 tmp="$(mktemp -d)"
 rce host run "$here/spec/examples/55_rcedb.rce" --log "$tmp/db.log" 'Put(key: "b", val: "2"), Put(key: "a", val: "1"), Scan(start: ""), Delete(key: "a")' 2>/dev/null | grep -o 'state_hash [0-9a-f]*' | sed 's/^/host-rcedb /' || echo "host-rcedb FAILED (no state_hash)"
 # chat: the Random result is supplied as an event (a live host draws fresh
