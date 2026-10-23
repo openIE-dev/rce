@@ -3443,11 +3443,11 @@ shape_ctl           sha256:…                   [--control]
 A region's redundancy is computed from the projection of the explored
 graph onto that region's fields. `--control` computes the control quotient
 of 6.10 on the same explored graph: each step is labelled by its control
-outcome only (which regions changed, by position; the refusal's error, by
-declaration index; the constructors of what was emitted, by declaration
-index or type class) and never by a value or a name, so the quotient is a
-coarser output function on the same deterministic machine and dim_c ≤ dim
-holds by construction. Predicate equivalence is decided by concrete
+outcome only (the refusal's error, by declaration index; else the
+constructors of what was emitted, by declaration index or type class) and
+never by a value, a name or a state change, so the quotient is a coarser
+output function on the same deterministic machine and dim_c ≤ dim holds by
+construction. Predicate equivalence is decided by concrete
 evaluation on reach(P): exact on the explored set, a lower bound when the
 bound is reached. The canonical control string numbers the quotient's
 states by first visit in breadth-first order from s₀ with events in

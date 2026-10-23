@@ -195,20 +195,18 @@ fn decl_index(m: &Module) -> HashMap<String, usize> {
     idx
 }
 
-/// The control label of one step (6.10 control projection): which regions
-/// changed (by position), the refusal's error (by declaration index) if
-/// refused, and the constructors of the emitted values (by declaration
-/// index, or a type class); never a data value and never a name.
-fn control_label(m: &Module, idx: &HashMap<String, usize>, before: &[Region], r: &Result<(Vec<Region>, Vec<V>), String>) -> String {
+/// The control label of one step (6.10 control projection): the refusal's
+/// error (by declaration index) if refused, else the constructors of the
+/// emitted values (by declaration index, or a type class); never a data
+/// value and never a name. It is a function of the step's output alone, so
+/// the control quotient is a coarsening of the behaviour quotient and
+/// dim_c <= dim holds by construction. (An earlier draft also recorded
+/// which regions changed; a change with no output is invisible to λ, so
+/// that label was not a coarsening and the pilot showed dim_c > dim on
+/// example 51.)
+fn control_label(idx: &HashMap<String, usize>, r: &Result<(Vec<Region>, Vec<V>), String>) -> String {
     match r {
-        Ok((after, outs)) => {
-            let changed: Vec<String> = before
-                .iter()
-                .zip(after)
-                .enumerate()
-                .filter(|(_, (a, b))| state_json(std::slice::from_ref(*a), m) != state_json(std::slice::from_ref(*b), m))
-                .map(|(i, _)| i.to_string())
-                .collect();
+        Ok((_, outs)) => {
             let emitted: Vec<String> = outs
                 .iter()
                 .map(|o| match o {
@@ -220,7 +218,7 @@ fn control_label(m: &Module, idx: &HashMap<String, usize>, before: &[Region], r:
                     _ => "value".into(),
                 })
                 .collect();
-            format!("ok:{}:{}", changed.join(","), emitted.join(","))
+            format!("ok:{}", emitted.join(","))
         }
         Err(x) => {
             let name = x.split('(').next().unwrap_or(x).trim();
@@ -365,7 +363,7 @@ pub fn dim_with(m: &Module, fuel: usize, control: bool) -> Result<Dim, String> {
             it.scopes = vec![HashMap::new()];
             let r = it.delta(&s, ev);
             lab.push(step_label(&r));
-            clab.push(control_label(m, &idx, &s, &r));
+            clab.push(control_label(&idx, &r));
             match r {
                 Ok((s2, _)) => {
                     let key = state_json(&s2, m);
