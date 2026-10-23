@@ -92,6 +92,12 @@ fn generate(spec: &Path) -> Result<usize, String> {
     let _ = std::fs::remove_dir_all(&tmp);
     std::fs::create_dir_all(tmp.join("src")).map_err(|e| e.to_string())?;
     std::fs::copy(src.join("grammar.js"), tmp.join("grammar.js")).map_err(|e| e.to_string())?;
+    // tree-sitter.json carries the package metadata (version, ABI) that the
+    // generator writes into parser.c, so it is part of the generation input.
+    if src.join("tree-sitter.json").exists() {
+        std::fs::copy(src.join("tree-sitter.json"), tmp.join("tree-sitter.json"))
+            .map_err(|e| e.to_string())?;
+    }
     std::fs::copy(src.join("src/scanner.c"), tmp.join("src/scanner.c"))
         .map_err(|e| e.to_string())?;
     let out = Command::new(std::env::var("TREE_SITTER").unwrap_or_else(|_| "tree-sitter".into()))
