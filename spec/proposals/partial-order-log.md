@@ -123,3 +123,31 @@ rule.
 4. Runtimes: read the new shape; replay checks state at cuts.
 5. Monotone tag on reads (Proposition 6 extension) in the checker, with
    the Appendix D table updated.
+
+## Appendix: the T7 resolution A, sized
+
+Making `state_hash` name-free (LEDGER, 2026-10-22) is the same kind of
+change as the cut entry above: the bytes an entry hashes change, δ does
+not. Touch points found on 2026-10-23:
+
+- `spec/checker/src/interp.rs` `state_json` (one function) and `form_value`
+  (`"$v"` variant tags by name, two sites).
+- `spec/checker/src/host.rs`: five uses of `state_json` (admission, snapshot,
+  snapshot check, replay check).
+- The four emitted runtimes each rebuild the chain: `emit/rt.rs`,
+  `rt.py` (line 1058 onward), `rt.js`, `rt.scala`. Any change to the
+  hashed bytes is made four more times, which is the strongest argument in
+  this repository for one ANF lowering and generated runtimes (roadmap
+  phase 1).
+- Fixtures: `spec/traces/*.json` (62), `tests/form_signature.rs`,
+  `tests/host_*.rs` (eight files), `tests/canonical_json.rs` (77 vectors),
+  `spec/data/canonical-json-vectors.json`.
+
+Positional embedding: a region is its declaration index, a field its index
+within the region, a variant its index within its kind, an event its index
+among events; the named JSON stays as the derived `state` field of a trace
+(6.1 already says derived fields are not hashed). Order of work: one
+function in `interp.rs` behind a feature flag, the fixtures re-blessed
+under the flag, the four runtimes, then the flag removed and C.15's
+erratum row written. Estimated at one focused day with the suite as the
+oracle; not started.
