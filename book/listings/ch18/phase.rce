@@ -1,0 +1,13 @@
+intent "a counter mod 6 whose only output is its parity"
+    "rce dim (10.11): 6 states explored, 2 behaviours, redundancy 1.58 bits: the state carries a period of 6 but the behaviour has a period of 2"
+    example DimStep -> n == 1
+    example DimStep, DimStep, DimStep, DimStep, DimStep, DimStep -> n == 0
+
+state DimPhase
+    n: u64 = 0
+
+event DimStep
+
+step DimPhase on DimStep
+    n = (n + 1) % 6
+    emit n % 2

@@ -1,0 +1,5 @@
+module shop.pricing
+
+pub fn discount(total: i64, percent: i64) -> i64 = total - total * percent / 100
+
+fn round_down(x: i64) -> i64 = x - x % 10

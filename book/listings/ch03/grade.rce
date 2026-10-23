@@ -1,0 +1,16 @@
+fn grade(score: u32) -> text
+    if score >= 90
+        return "A"
+    elif score >= 80
+        return "B"
+    elif score >= 70
+        return "C"
+    else
+        return "F"
+
+fn sign(x: i64) -> i64 = if x < 0 then -1 else 1
+
+check grade(95) == "A"
+check grade(71) == "C"
+check grade(3) == "F"
+check sign(-7) == -1

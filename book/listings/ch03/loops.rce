@@ -1,0 +1,36 @@
+# Three kinds of loop. Each one has a limit on how often it can repeat.
+fn sum_to(n: u64) -> u64
+    var total: u64 = 0
+    for i in 0..=n
+        total += i
+    return total
+
+fn fib(n: u32) -> u64
+    var a: u64 = 0
+    var b: u64 = 1
+    for _ in 0..n
+        let t = a + b
+        a = b
+        b = t
+    return a
+
+fn collatz_steps(n: u64) -> u64
+    var x = n
+    var k: u64 = 0
+    while x != 1 bound 10_000
+        x = if x % 2 == 0 then x / 2 else 3 * x + 1
+        k += 1
+    return k
+
+fn first_square_over(limit: u64) -> u64
+    var i: u64 = 0
+    loop bound 1_000
+        if i * i > limit
+            break
+        i += 1
+    return i * i
+
+check sum_to(10) == 55
+check fib(10) == 55
+check collatz_steps(6) == 8
+check first_square_over(50) == 64

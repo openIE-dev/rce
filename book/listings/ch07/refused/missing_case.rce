@@ -1,0 +1,9 @@
+kind Light
+    Red
+    Green
+    Yellow
+
+fn next(l: Light) -> Light
+    match l
+        Red -> return Green
+        Green -> return Yellow

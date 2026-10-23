@@ -1,0 +1,5 @@
+states explored     8        bound reached: no
+behaviours          4        dim(P) (exact)
+redundancy          1.00     bits: log2(states) - log2(behaviours)
+  region DimCounter   1.00     (8 values, 4 distinguish behaviours)
+exit status: 0

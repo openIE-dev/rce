@@ -1,0 +1,22 @@
+error NotADigit(at: u32)
+
+fn digit(c: text, at: u32) -> u8 ! NotADigit
+    if c.isdigit()
+        return c.toint() as u8
+    fail NotADigit(at: at)
+
+fn sum_digits(s: text) -> u32 ! NotADigit
+    var total: u32 = 0
+    var i: u32 = 0
+    for c in s.chars()
+        total += (try digit(c, i)) as u32
+        i += 1
+    return total
+
+fn sum_or_zero(s: text) -> u32 = sum_digits(s) catch 0
+
+fn where_it_broke(s: text) -> u32 = sum_digits(s) catch |e| e.at
+
+check sum_or_zero("123") == 6
+check sum_or_zero("1x3") == 0
+check where_it_broke("12x") == 2

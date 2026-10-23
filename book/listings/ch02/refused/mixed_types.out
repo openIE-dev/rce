@@ -1,0 +1,2 @@
+REFUSED mixed_types.rce: line 1: W-TY-1 `+` on u8 and i64: no implicit conversion; line 1: W-TY-1 expected i64, found u8
+exit status: 1

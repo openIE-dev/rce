@@ -1,0 +1,20 @@
+intent "a counter mod 4 that also records the last event, which nothing reads"
+    "rce dim (10.11): 8 states explored, 4 behaviours, redundancy 1.00 bit; region DimCounter reports the 1 bit"
+    example DimInc, DimInc, DimInc, DimInc -> n == 0
+    example DimInc, DimDec -> last_inc == false
+
+state DimCounter
+    n: u64 = 0
+    last_inc: bool = false
+
+event DimInc
+event DimDec
+
+step DimCounter on DimInc
+    n = (n + 1) % 4
+    last_inc = true
+    emit n
+step DimCounter on DimDec
+    n = (n + 3) % 4
+    last_inc = false
+    emit n

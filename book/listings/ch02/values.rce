@@ -1,0 +1,11 @@
+# Constants, functions and checks.
+const SECONDS_PER_MINUTE: i64 = 60
+
+fn to_seconds(minutes: i64) -> i64 = minutes * SECONDS_PER_MINUTE
+
+fn area(width: i64, height: i64) -> i64
+    let a = width * height
+    return a
+
+check to_seconds(3) == 180
+check area(4, 5) == 20

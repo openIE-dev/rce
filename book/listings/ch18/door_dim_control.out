@@ -1,0 +1,7 @@
+states explored     3        bound reached: no
+behaviours          3        dim(P) (exact)
+redundancy          0.00     bits: log2(states) - log2(behaviours)
+  region DimDoor      0.00     (3 values, 3 distinguish behaviours)
+control states      3        dim_c(P) (exact)
+shape_ctl           sha256:2ce9158acc634003e9bf746d3be451447be70aaf85dfae103fe2025dfd73ca3c
+exit status: 0

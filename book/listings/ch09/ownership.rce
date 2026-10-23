@@ -1,0 +1,17 @@
+fn length(s: &text) -> u64 = s.len() as u64
+
+fn push_all(dst: &mut List[i64], src: &[i64])
+    for x in src
+        dst.append(x)
+
+fn demo() -> u64
+    let name = "Ada"
+    let n = length(&name)
+    let again = length(&name)
+    var a: List[i64] = [1, 2, 3]
+    let b: List[i64] = [4, 5]
+    push_all(&mut a, &b)
+    let c = copy(a)
+    return n + again + (c.len() as u64) + (a.len() as u64)
+
+check demo() == 16
