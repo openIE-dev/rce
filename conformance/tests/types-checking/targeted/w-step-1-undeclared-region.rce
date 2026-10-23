@@ -1,0 +1,13 @@
+state S
+    n: i64 = 0
+event E
+step T on E -> 1
+step S on E -> n + 1
+#--- rce-test
+# id: types-checking/targeted/w-step-1-undeclared-region
+# area: types-checking
+# clauses: [CH09-M-82e65964, W-STEP-1]
+# expect: reject
+# diagnostic: W-STEP-1
+# provenance: targeted.py: expected result read off the clause
+#---

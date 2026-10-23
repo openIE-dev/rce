@@ -1,0 +1,14 @@
+fn merge(a: chan text, b: chan text, out: chan text)
+    loop bound 1000
+        select
+            recv some(x) from a -> out <- x
+            recv some(y) from b -> out <- y
+            recv none from a -> break
+            after 10 -> emit "idle"
+#--- rce-test
+# id: concurrency/harvested/14-select-accept
+# area: concurrency
+# clauses: [CH03-M-28cdd241, T10, T11]
+# expect: accept
+# provenance: harvested examples/14_select.rce
+#---

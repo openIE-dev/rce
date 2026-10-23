@@ -1,0 +1,29 @@
+fn max_of[T: Ord](xs: &[T]) -> T?
+    var best: T? = none
+    for x in xs
+        match best
+            none -> best = some(copy(x))
+            some(b) if x > b -> best = some(copy(x))
+            _ -> pass
+    return best
+
+trait Describe
+    fn describe(&self) -> text
+
+impl forall[T: Describe] Describe for List[T]
+    fn describe(&self) -> text = ", ".join([x.describe() for x in self])
+
+fn dup_zz() -> i64
+    return 1
+
+fn dup_zz() -> i64
+    return 2
+#--- rce-test
+# id: types-checking/generated/mut-duplicate-09-generics-accept
+# area: types-checking
+# clauses: [CH09-M-82e65964, W-NAME-2]
+# expect: reject
+# diagnostic: W-NAME-2
+# flags: [generated]
+# provenance: gen_props.py seed 7: mutation `duplicate` of 09-generics-accept
+#---

@@ -1,0 +1,15 @@
+spec "orders" v0.1.0
+reason "Demo spec" by "david"
+currency max_age=24h last_checked=2999-01-01T00:00:00Z
+#--- rce-test
+# id: handler-spec/ver-1-good-version
+# area: handler-spec
+# clauses: [W-HS-VER-1]
+# expect: cli
+# tool: engine
+# argv: ["check", "main.rce"]
+# status: 0
+# output_lacks:
+#   - W-HS
+# provenance: targeted (round 3): appendix D, the control: v0.1.0 is accepted
+#---

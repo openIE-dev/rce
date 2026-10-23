@@ -1,0 +1,21 @@
+# rce-version: 0.6
+fn worker(c: chan i64)
+    c <- 1
+
+fn main()
+    let c = chan[i64](4)
+    scope
+        spawn worker(c) -> h1
+        spawn worker(c) priority 1 -> h2
+    atomic
+        c <- 2
+        c <- 3
+#--- rce-test
+# id: concurrency/harvested/04-scope-atomic-main
+# area: concurrency
+# clauses: [CH00-M-61b6ac06, CH06-M-5912c594, CH07-M-0a0bd71f, N8, T1, T19b, T24, T26, T30, T4, T5, T9]
+# expect: run
+# outcome: done
+# outputs:
+# provenance: harvested conc06b/accept/04_scope_atomic.rce
+#---

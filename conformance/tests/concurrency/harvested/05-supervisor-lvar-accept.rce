@@ -1,0 +1,26 @@
+# rce-version: 0.6
+event Tick(n: i64)
+
+actor Counter
+    n: i64 = 0
+    on Tick(n: k)
+        n += k
+
+actor Logger
+    seen: i64 = 0
+    on Tick(n: _k)
+        seen += 1
+
+supervisor Root strategy one_for_one
+    child counter: Counter restart bound 3
+    child logger: Logger
+
+fn seen(_s: lvar Set[i64]) -> bool
+    true
+#--- rce-test
+# id: concurrency/harvested/05-supervisor-lvar-accept
+# area: concurrency
+# clauses: [CH02-M-a696f3a3, CH03-M-28cdd241, T10, T29, T29a, T29q, T29s, W-CRDT-1, W-SUP-1]
+# expect: accept
+# provenance: harvested conc06b/accept/05_supervisor_lvar.rce
+#---

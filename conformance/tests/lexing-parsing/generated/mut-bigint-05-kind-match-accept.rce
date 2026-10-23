@@ -1,0 +1,21 @@
+kind Shape
+    Circle(r: f64)
+    Rect(w: f64, h: f64)
+    Empty
+
+fn area(s: &Shape) -> f64
+    match s
+        Circle(r: r) -> 3.141592653589793 * r * r
+        Rect(w: w, h: h) -> w * h
+        Empty -> 0.0
+
+const BIG_LIT = 99999999999999999999999
+#--- rce-test
+# id: lexing-parsing/generated/mut-bigint-05-kind-match-accept
+# area: lexing-parsing
+# clauses: [CH09-M-82e65964, W-LEX-3]
+# expect: reject
+# diagnostic: W-LEX-3
+# flags: [generated]
+# provenance: gen_props.py seed 7: mutation `bigint` of 05-kind-match-accept
+#---

@@ -1,0 +1,13 @@
+fn main()
+    let x: i64 = 1
+    let k = 64
+    emit x << k
+#--- rce-test
+# id: numbers/targeted/shift-at-width-traps
+# area: numbers
+# clauses: [N2]
+# expect: run
+# outcome: trap:shift amount out of range
+# outputs:
+# provenance: mutation survivor (reports/mutation.json); expected value read off the rule
+#---

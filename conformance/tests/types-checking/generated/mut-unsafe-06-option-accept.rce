@@ -1,0 +1,23 @@
+fn first_even(xs: &[i64]) -> i64?
+    for x in xs
+        if x % 2 == 0
+            return some(x)
+    return none
+
+fn or_zero(v: i64?) -> i64
+    match v
+        some(x) -> x
+        none -> 0
+
+fn unsafe_probe() -> i64
+    let unsafe = 1
+    return unsafe
+#--- rce-test
+# id: types-checking/generated/mut-unsafe-06-option-accept
+# area: types-checking
+# clauses: [CH09-M-82e65964, W-SAFE-1]
+# expect: reject
+# diagnostic: W-SAFE-1
+# flags: [generated]
+# provenance: gen_props.py seed 7: mutation `unsafe` of 06-option-accept
+#---

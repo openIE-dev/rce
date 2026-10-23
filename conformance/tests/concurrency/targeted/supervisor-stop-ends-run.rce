@@ -1,0 +1,39 @@
+# rce-version: 0.6
+event Hit(k: i64)
+event Show
+error Boom
+
+actor Worker
+    n: i64 = 0
+    on Hit(k: k)
+        n += k
+        if k == 0
+            fail Boom
+    on Show
+        emit n
+
+supervisor Root strategy one_for_one
+    child w: Worker restart bound 2
+
+fn main()
+    let w = Worker()
+    w <- Hit(k: 5)
+    w <- Show
+    w <- Hit(k: 0)
+    w <- Show
+    w <- Hit(k: 0)
+    w <- Hit(k: 0)
+    w <- Show
+    w <- Hit(k: 7)
+    w <- Show
+#--- rce-test
+# id: concurrency/targeted/supervisor-stop-ends-run
+# area: concurrency
+# clauses: [T1, T4, T9]
+# expect: run
+# outcome: "refused:supervisor Root stopped: child w restarted more than 2 times"
+# outputs:
+#   - emit 5
+#   - emit 0
+# provenance: targeted (mutation survivors, round 3): restart n + 1 stops the supervisor and the run, so no message after it is delivered (C.11.11; mutant 112); outputs read off the reference and checked by the four emitters
+#---

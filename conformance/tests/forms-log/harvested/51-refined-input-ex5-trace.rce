@@ -1,0 +1,37 @@
+module refined
+
+intent "input validation is a declared predicate: an event whose payload is outside its refined type is refused, state unchanged"
+    example SetVolume(pct: 40) -> level == 40
+    example Rename(name: "ok") -> name == "ok"
+    example Code(pin: "0042"), Code(pin: "9999") -> accepted == 2
+    example SetVolume(pct: 40), Rename(name: "ok") -> level == 40
+
+type Pct = u8 where self <= 100
+type Name = text where self.len() >= 1 and self.len() <= 2
+type Pin = text where self.isdigit() and self.len() == 4
+
+state Volume
+    level: Pct = 0
+
+state Codes
+    accepted: u32 = 0
+
+state Profile
+    name: text = "-"
+
+event SetVolume(pct: Pct)
+event Rename(name: Name)
+event Code(pin: Pin)
+
+step Volume on SetVolume(pct: p) -> p
+step Codes on Code(pin: _) -> accepted + 1
+step Profile on Rename(name: n) -> n
+#--- rce-test
+# id: forms-log/harvested/51-refined-input-ex5-trace
+# area: forms-log
+# clauses: [CH00-M-61b6ac06, CH07-M-0a0bd71f, CH07-M-265230fb, CH12-M-f71aaadc, T1, T3, T5, T8]
+# expect: trace
+# events: Rename(name: "ok")
+# trace_head: 7b405fd81530e788dd9aa9791bc54b200c589fa1798460db1f2f0d8b614987c4
+# provenance: harvested examples/51_refined_input.rce example@5
+#---

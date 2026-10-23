@@ -1,0 +1,40 @@
+# A tree of expressions and statements: eval and run call each other on
+# components; run also passes its environment on unchanged.
+kind E
+    Num(v: i64)
+    Add(a: Box[E], b: Box[E])
+    Blk(s: Box[S])
+
+kind S
+    Ret(e: Box[E])
+    Seq(x: Box[E], rest: Box[S])
+
+fn eval(e: &E, k: i64) -> i64
+    match e
+        Num(v: v) -> return v + k
+        Add(a: a, b: b) -> return eval(a, k) + eval(b, k)
+        Blk(s: s) -> return run(s, k)
+
+fn run(s: &S, k: i64) -> i64
+    match s
+        Ret(e: e) -> return eval(e, k)
+        Seq(x: x, rest: r) -> return eval(x, k) + run(r, k)
+
+fn demo() -> i64
+    let e = Add(a: Box(Num(v: 1)), b: Box(Blk(s: Box(Seq(x: Box(Num(v: 2)), rest: Box(Ret(e: Box(Num(v: 3)))))))))
+    return eval(&e, 0)
+
+check demo() == 6
+
+fn unsafe_probe() -> i64
+    let unsafe = 1
+    return unsafe
+#--- rce-test
+# id: types-checking/generated/mut-unsafe-ok-expr-accept
+# area: types-checking
+# clauses: [CH09-M-82e65964, W-SAFE-1]
+# expect: reject
+# diagnostic: W-SAFE-1
+# flags: [generated]
+# provenance: gen_props.py seed 7: mutation `unsafe` of ok-expr-accept
+#---

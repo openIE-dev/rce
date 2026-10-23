@@ -1,0 +1,20 @@
+spec "orders" v0.1.0
+reason "Demo spec" by "david"
+currency max_age=24h last_checked=2999-01-01T00:00:00Z
+objective o1 "x"
+  reason "r"
+acceptance a1 validates o1
+  error_budget 1.5
+  reason "r"
+#--- rce-test
+# id: handler-spec/d2-error-budget-out-of-range
+# area: handler-spec
+# clauses: [CH15-M-0a595561]
+# expect: cli
+# tool: engine
+# argv: ["check", "main.rce"]
+# status: 1
+# output_has:
+#   - error_budget
+# provenance: targeted (round 3): appendix D, error_budget must lie strictly between 0 and 1
+#---

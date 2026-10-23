@@ -1,0 +1,17 @@
+# rce-version: 0.6
+fn total(xs: &[i64]) -> i64
+    var s: i64 = 0
+    for x in xs par
+        s += x * x
+    s
+
+const BAD_U = "\u{110000}"
+#--- rce-test
+# id: lexing-parsing/generated/mut-bad-escape-02-par-for-reduce-accept
+# area: lexing-parsing
+# clauses: [CH09-M-82e65964, W-LEX-3]
+# expect: reject
+# diagnostic: W-LEX-3
+# flags: [generated]
+# provenance: gen_props.py seed 7: mutation `bad-escape` of 02-par-for-reduce-accept
+#---

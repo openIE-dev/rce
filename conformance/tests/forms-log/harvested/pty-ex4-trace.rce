@@ -1,0 +1,84 @@
+module ptyecho
+
+intent "a PTY session as effects: open, write, read until the echo arrives, close"
+    example Start, PtyOpenDone(req: 1, status: "failed", data: none, err: "x") -> errors == 1
+
+struct PtyOpen
+    req: u64
+    argv: List[text]
+    rows: u64
+    cols: u64
+
+struct PtyWrite
+    req: u64
+    id: u64
+    data: text
+
+struct PtyRead
+    req: u64
+    id: u64
+    max: u64
+
+struct PtyClose
+    req: u64
+    id: u64
+
+event Start
+event Send(data: text)
+event Poll
+event Stop
+event PtyOpenDone(req: u64, status: text, data: u64?, err: text)
+event PtyWriteDone(req: u64, status: text, data: u64?, err: text)
+event PtyReadDone(req: u64, status: text, data: text?, err: text)
+event PtyCloseDone(req: u64, status: text, data: u64?, err: text)
+
+state Term
+    next: u64 = 0
+    id: u64 = 0
+    screen: text = ""
+    errors: u64 = 0
+    closed: bool = false
+
+step Term on Start
+    next += 1
+    emit PtyOpen(req: next, argv: ["/bin/cat"], rows: 24, cols: 80)
+
+step Term on Send(data: d)
+    next += 1
+    emit PtyWrite(req: next, id: id, data: d)
+
+step Term on Poll
+    next += 1
+    emit PtyRead(req: next, id: id, max: 4096)
+
+step Term on Stop
+    next += 1
+    emit PtyClose(req: next, id: id)
+
+step Term on PtyOpenDone(req: _r, status: s, data: d, err: _e)
+    if s == "delivered"
+        id = d.or(0)
+    else
+        errors += 1
+
+step Term on PtyWriteDone(req: _r, status: s, data: _d, err: _e)
+    if s != "delivered"
+        errors += 1
+
+step Term on PtyReadDone(req: _r, status: s, data: d, err: _e)
+    if s == "delivered"
+        screen = screen + d.or("")
+    else
+        errors += 1
+
+step Term on PtyCloseDone(req: _r, status: _s, data: _d, err: _e)
+    closed = true
+#--- rce-test
+# id: forms-log/harvested/pty-ex4-trace
+# area: forms-log
+# clauses: [CH00-M-61b6ac06, CH07-M-0a0bd71f, CH07-M-265230fb, CH12-M-f71aaadc, T1, T3, T5]
+# expect: trace
+# events: Start, PtyOpenDone(req: 1, status: "failed", data: none, err: "x")
+# trace_head: 42b30d26c7e562f049c301555119143674977607daf211a357cc30d3b23cc991
+# provenance: harvested checker/tests/host/pty.rce example@4
+#---

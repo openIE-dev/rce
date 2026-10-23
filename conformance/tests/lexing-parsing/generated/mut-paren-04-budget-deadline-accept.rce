@@ -1,0 +1,22 @@
+# rce-version: 0.6
+fn guarded(c: chan i64)
+    var n: i64 = 0
+    with budget 5000
+        n += 1
+    with deadline 4
+        let v = <- c
+        emit v
+    else
+        emit 0
+
+fn paren_zz() -> i64
+    return (1 + 2
+#--- rce-test
+# id: lexing-parsing/generated/mut-paren-04-budget-deadline-accept
+# area: lexing-parsing
+# clauses: [CH02-M-69371f07, CH03-M-28cdd241, CH09-M-82e65964, T10, W-SYN-1]
+# expect: reject
+# diagnostic: W-SYN-1
+# flags: [generated]
+# provenance: gen_props.py seed 7: mutation `paren` of 04-budget-deadline-accept
+#---

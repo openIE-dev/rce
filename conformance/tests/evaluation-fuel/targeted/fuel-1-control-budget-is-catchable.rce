@@ -1,0 +1,24 @@
+# rce-version: 0.6
+fn spin(n: i64) -> i64
+    var s = 0
+    for i in 0..n
+        s += i
+    return s
+fn main()
+    var r = 0
+    with budget 50
+        r = spin(100000)
+    else
+        r = -1
+    emit r
+#--- rce-test
+# id: evaluation-fuel/targeted/fuel-1-control-budget-is-catchable
+# area: evaluation-fuel
+# clauses: [E1, W-BUD-1]
+# expect: run
+# fuel: 100000000
+# outcome: done
+# outputs:
+#   - emit -1
+# provenance: E1 (clauses-pending.json); expected outcome derived from the rule, controls show budget exhaustion stays catchable
+#---

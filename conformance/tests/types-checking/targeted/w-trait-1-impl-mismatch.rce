@@ -1,0 +1,14 @@
+trait D
+    fn d(&self) -> text
+struct P
+    x: i64
+impl D for P
+    fn d(&self) -> i64 = self.x
+#--- rce-test
+# id: types-checking/targeted/w-trait-1-impl-mismatch
+# area: types-checking
+# clauses: [CH06-M-8e9952a9, CH09-M-82e65964, W-TRAIT-1]
+# expect: reject
+# diagnostic: W-TRAIT-1
+# provenance: targeted.py: expected result read off the clause
+#---

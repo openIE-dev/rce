@@ -1,0 +1,2 @@
+module lib.a
+fn hidden() -> i64 = 1

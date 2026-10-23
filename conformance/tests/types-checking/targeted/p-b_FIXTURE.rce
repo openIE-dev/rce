@@ -1,0 +1,3 @@
+module p.b
+use p.a
+pub fn fb() -> i64 = 2

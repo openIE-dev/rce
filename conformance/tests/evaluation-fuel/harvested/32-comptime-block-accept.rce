@@ -1,0 +1,14 @@
+fn table_size() -> usize
+    comptime
+        check N > 0
+        check N % 8 == 0
+    return N * 2
+
+const N: usize = 16
+#--- rce-test
+# id: evaluation-fuel/harvested/32-comptime-block-accept
+# area: evaluation-fuel
+# clauses: [CH03-M-28cdd241, T10]
+# expect: accept
+# provenance: harvested examples/32_comptime_block.rce
+#---

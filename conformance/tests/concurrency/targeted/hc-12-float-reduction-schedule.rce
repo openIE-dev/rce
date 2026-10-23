@@ -1,0 +1,27 @@
+# rce-version: 0.6
+fn main()
+    let xs: List[f64] = [0.1, 0.2, 0.3, 1e16, -1e16, 0.4, 0.5, 0.6]
+    var s: f64 = 0.0
+    var t: f64 = 0.0
+    par
+        branch left
+            for x in xs
+                s += x
+        branch right
+            for x in xs
+                t += x * 2.0
+    emit s
+    emit t
+#--- rce-test
+# id: concurrency/targeted/hc-12-float-reduction-schedule
+# area: concurrency
+# clauses: [CH00-M-61b6ac06, CH07-M-0a0bd71f, CH12-M-1279943c, CH14-M-90d1ad7f, CH16-M-a84fabb6, HC-12, N8, T1, T16, T17, T18, T19a, T20, T4, T5, T9]
+# expect: run
+# schedule_seeds: [1, 2, 3, 4, 5, 6, 7, 8]
+# outcome: done
+# outputs:
+#   - emit 1.5
+#   - emit 3
+# provenance: targeted.py: expected result read off the clause
+# note: each branch is a left fold in index order (N-9 / T18); no schedule may reassociate it
+#---

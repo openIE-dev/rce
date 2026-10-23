@@ -1,0 +1,21 @@
+# Lane-wise arithmetic on fixed-length arrays.
+fn blend(a: [f64; 4], b: [f64; 4], w: [f64; 4]) -> [f64; 4]
+    return a * w + b * ([1.0, 1.0, 1.0, 1.0] - w)
+
+fn mix(a: [i32; 3], b: [i32; 3]) -> [i32; 3]
+    return (a + b) % [7, 7, 7]
+
+check mix([1, 2, 3], [10, 20, 30]) == [4, 1, 5]
+check blend([1.0, 2.0, 3.0, 4.0], [0.0, 0.0, 0.0, 0.0], [1.0, 0.5, 0.0, 1.0]) == [1.0, 1.0, 0.0, 4.0]
+
+fn paren_zz() -> i64
+    return (1 + 2
+#--- rce-test
+# id: lexing-parsing/generated/mut-paren-43-simd-lanes-accept
+# area: lexing-parsing
+# clauses: [CH02-M-69371f07, CH03-M-28cdd241, CH09-M-82e65964, T10, W-SYN-1]
+# expect: reject
+# diagnostic: W-SYN-1
+# flags: [generated]
+# provenance: gen_props.py seed 7: mutation `paren` of 43-simd-lanes-accept
+#---

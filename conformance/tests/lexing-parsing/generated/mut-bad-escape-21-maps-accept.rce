@@ -1,0 +1,18 @@
+fn freq(words: &[text]) -> Map[text, u32]
+    var m: Map[text, u32] = {}
+    for w in words
+        m[w] = (m.get(w) catch 0) + 1
+    return m
+
+fn table() -> Map[text, i64] = {"a": 1, "b": 2,}
+
+const BAD_U = "\u{110000}"
+#--- rce-test
+# id: lexing-parsing/generated/mut-bad-escape-21-maps-accept
+# area: lexing-parsing
+# clauses: [CH09-M-82e65964, W-LEX-3]
+# expect: reject
+# diagnostic: W-LEX-3
+# flags: [generated]
+# provenance: gen_props.py seed 7: mutation `bad-escape` of 21-maps-accept
+#---

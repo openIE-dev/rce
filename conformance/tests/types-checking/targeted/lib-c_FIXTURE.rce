@@ -1,0 +1,2 @@
+module lib.c
+pub fn helper() -> i64 = 1

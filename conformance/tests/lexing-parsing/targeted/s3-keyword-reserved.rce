@@ -1,0 +1,9 @@
+fn f(from: i64) -> i64 = from
+#--- rce-test
+# id: lexing-parsing/targeted/s3-keyword-reserved
+# area: lexing-parsing
+# clauses: [CH02-M-69371f07, CH03-M-28cdd241, CH09-M-82e65964, S3, T10]
+# expect: reject
+# diagnostic: W-SYN-1
+# provenance: targeted.py: expected result read off the clause
+#---

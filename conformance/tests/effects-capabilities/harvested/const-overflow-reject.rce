@@ -1,0 +1,9 @@
+const BIG: u8 = 200 + 100
+#--- rce-test
+# id: effects-capabilities/harvested/const-overflow-reject
+# area: effects-capabilities
+# clauses: [CH09-M-82e65964, W-CT-1]
+# expect: reject
+# diagnostic: W-CT-1
+# provenance: harvested examples/inadmissible/const_overflow.rce
+#---

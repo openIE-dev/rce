@@ -1,0 +1,41 @@
+event Ping(k: i64)
+event Go(a: A, b: B)
+
+actor A
+    on Ping(k: k)
+        emit k
+
+actor B
+    on Ping(k: k)
+        emit k + 100
+
+actor R
+    on Go(a: a, b: b)
+        a <- Ping(k: 1)
+        a <- Ping(k: 2)
+        b <- Ping(k: 1)
+        b <- Ping(k: 2)
+
+fn feed(c: chan i64)
+    let r = R()
+    r <- Go(a: A(), b: B())
+    c <- 7
+
+fn main()
+    let c = chan[i64](1)
+    spawn feed(c)
+    emit <- c
+#--- rce-test
+# id: proposed/act-1-every-actor-steps-each-tick
+# area: proposed
+# clauses: [ACT-1, T1, T4, T9]
+# expect: run
+# outcome: done
+# outputs:
+#   - emit 1
+#   - emit 101
+#   - emit 2
+#   - emit 102
+#   - emit some(7)
+# provenance: targeted (round 4, mutant 112): one handler stages two messages to each of A and B in one tick; under ACT-1 (proposed) A and B each take one per tick, so the outputs interleave. Mutant 112 serves one actor per tick and gives 1, 2, some(7), 101, 102, which the current 6.8 text ('at most one message per tick') does not forbid; see FINDINGS.md 22
+#---

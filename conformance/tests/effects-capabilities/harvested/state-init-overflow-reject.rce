@@ -1,0 +1,14 @@
+state S
+    n: u8 = 255 + 1
+
+event E
+
+step S on E -> n
+#--- rce-test
+# id: effects-capabilities/harvested/state-init-overflow-reject
+# area: effects-capabilities
+# clauses: [CH09-M-82e65964, W-CT-1]
+# expect: reject
+# diagnostic: W-CT-1
+# provenance: harvested examples/inadmissible/state_init_overflow.rce
+#---

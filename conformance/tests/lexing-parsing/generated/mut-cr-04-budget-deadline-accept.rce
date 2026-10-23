@@ -1,0 +1,19 @@
+# rce-version: 0.6
+fn guarded(c: chan i64)
+    var n: i64 = 0 
+    with budget 5000
+        n += 1
+    with deadline 4
+        let v = <- c
+        emit v
+    else
+        emit 0
+#--- rce-test
+# id: lexing-parsing/generated/mut-cr-04-budget-deadline-accept
+# area: lexing-parsing
+# clauses: [CH09-M-82e65964, W-LEX-1]
+# expect: reject
+# diagnostic: W-LEX-1
+# flags: [generated]
+# provenance: gen_props.py seed 7: mutation `cr` of 04-budget-deadline-accept
+#---

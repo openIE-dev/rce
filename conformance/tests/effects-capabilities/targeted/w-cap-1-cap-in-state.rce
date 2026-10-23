@@ -1,0 +1,12 @@
+# rce-version: 0.8
+struct Root
+state S
+    c: Cap[Root] = ()
+#--- rce-test
+# id: effects-capabilities/targeted/w-cap-1-cap-in-state
+# area: effects-capabilities
+# clauses: [CH09-M-82e65964, HC-5, W-CAP-1]
+# expect: reject
+# diagnostic: W-CAP-1
+# provenance: targeted.py: expected result read off the clause
+#---

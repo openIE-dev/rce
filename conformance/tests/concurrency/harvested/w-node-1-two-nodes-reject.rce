@@ -1,0 +1,18 @@
+# rce-version: 0.6
+# expect: W-NODE-1
+event E
+actor A
+    n: i64 = 0
+    on E
+        n += 1
+
+node east { A }
+node west { A }
+#--- rce-test
+# id: concurrency/harvested/w-node-1-two-nodes-reject
+# area: concurrency
+# clauses: [CH09-M-82e65964, W-NODE-1]
+# expect: reject
+# diagnostic: W-NODE-1
+# provenance: harvested conc06b/ill_typed/W-NODE-1_two_nodes.rce
+#---

@@ -1,0 +1,15 @@
+fn main()
+    let a: f64 = -3.51486565319836e+178
+    let _b: f64 = -4.7146352497752004e-79
+    emit a.ceil()
+#--- rce-test
+# id: numbers/generated/num-3-0329
+# area: numbers
+# clauses: [CH00-M-61b6ac06, CH05-M-2405dfe8, CH07-M-0a0bd71f, F7, F8, F9, N1, N3, T1, T4, T5, T9]
+# expect: run
+# outcome: done
+# outputs:
+#   - emit -3.51486565319836e+178
+# flags: [generated]
+# provenance: gen_numbers.py seed 3; oracle-derived
+#---

@@ -1,0 +1,22 @@
+event Ping(n: u64, reply: chan u64)
+
+actor Echo
+    seen: u64 = 0
+    on Ping(n: n, reply: r) 
+        seen += 1
+        r <- n
+
+fn main()
+    let e = Echo()
+    let r = chan[u64](1)
+    e <- Ping(n: 7, reply: r)
+    emit <- r
+#--- rce-test
+# id: lexing-parsing/generated/mut-cr-37-actor-spawn-accept
+# area: lexing-parsing
+# clauses: [CH09-M-82e65964, W-LEX-1]
+# expect: reject
+# diagnostic: W-LEX-1
+# flags: [generated]
+# provenance: gen_props.py seed 7: mutation `cr` of 37-actor-spawn-accept
+#---

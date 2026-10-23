@@ -1,0 +1,15 @@
+# Host-independent evaluation depth (interp::EVAL_DEPTH): 7,000 nested calls
+# fit on every host; see tests/eval_depth.rs.
+fn down(n: i64) -> i64 bound 100000000
+    if n <= 0
+        return 0
+    return 1 + down(n - 1)
+
+check down(7000) == 7000
+#--- rce-test
+# id: evaluation-fuel/harvested/ok-7000-accept
+# area: evaluation-fuel
+# clauses: [CH03-M-28cdd241, T10]
+# expect: accept
+# provenance: harvested checker/tests/depth/ok_7000.rce
+#---

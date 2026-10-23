@@ -1,0 +1,15 @@
+kind Light
+    Red
+    Green
+
+fn f(l: Light) -> u8
+    match l
+        Red -> return 1
+#--- rce-test
+# id: types-checking/harvested/non-exhaustive-reject
+# area: types-checking
+# clauses: [CH09-M-82e65964, W-MATCH-1]
+# expect: reject
+# diagnostic: W-MATCH-1
+# provenance: harvested examples/ill_typed/non_exhaustive.rce
+#---

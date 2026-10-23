@@ -1,0 +1,22 @@
+# A cycle of two functions on integers: one bounded function on the cycle
+# is enough, since every cycle of calls passes through it.
+fn ev(n: u64) -> bool bound 64
+    if n == 0
+        return true
+    return od(n - 1)
+
+fn od(n: u64) -> bool
+    if n == 0
+        return false
+    return ev(n - 1)
+
+check ev(10)
+check not od(10)
+check od(127)
+#--- rce-test
+# id: numbers/harvested/ok-mutual-accept
+# area: numbers
+# clauses: [CH03-M-28cdd241, CH08-M-286d2fd4, CH08-M-cbd85cbd, CH11-M-7fed7576, T10]
+# expect: accept
+# provenance: harvested checker/tests/bound/ok_mutual.rce
+#---

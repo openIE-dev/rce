@@ -1,0 +1,25 @@
+# rce-version: 0.6
+fn worker(c: chan i64)
+    c <- 1
+
+fn main()
+    let c = chan[i64](4)
+    scope
+        spawn worker(c) -> h1
+        spawn worker(c) priority 1 -> h2
+    atomic
+        c <- 2
+        c <- 3
+
+fn unsafe_probe() -> i64
+    let unsafe = 1
+    return unsafe
+#--- rce-test
+# id: types-checking/generated/mut-unsafe-04-scope-atomic-accept
+# area: types-checking
+# clauses: [CH09-M-82e65964, W-SAFE-1]
+# expect: reject
+# diagnostic: W-SAFE-1
+# flags: [generated]
+# provenance: gen_props.py seed 7: mutation `unsafe` of 04-scope-atomic-accept
+#---

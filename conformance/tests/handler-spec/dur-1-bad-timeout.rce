@@ -1,0 +1,17 @@
+spec "orders" v0.1.0
+reason "Demo spec" by "david"
+currency max_age=24h last_checked=2999-01-01T00:00:00Z
+escalation e1 from a to b timeout 5min
+  reason "slow"
+#--- rce-test
+# id: handler-spec/dur-1-bad-timeout
+# area: handler-spec
+# clauses: [W-HS-DUR-1]
+# expect: cli
+# tool: engine
+# argv: ["check", "main.rce"]
+# status: 1
+# output_has:
+#   - W-HS-DUR-1
+# provenance: targeted (round 3): appendix D, 5min is not N, Nms or Ns
+#---

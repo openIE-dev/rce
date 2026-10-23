@@ -1,0 +1,19 @@
+# rce-version: 0.6
+# expect: W-SES-4
+protocol P
+    send i64
+
+fn two(a: session P, b: session P)
+    a <- 1
+    b <- 1
+
+fn client(c: session P)
+    two(c, c)
+#--- rce-test
+# id: concurrency/harvested/w-ses-4-moved-twice-reject
+# area: concurrency
+# clauses: [W-SES-4]
+# expect: reject
+# diagnostic: W-SES-4
+# provenance: harvested conc06b/ill_typed/W-SES-4_moved_twice.rce
+#---

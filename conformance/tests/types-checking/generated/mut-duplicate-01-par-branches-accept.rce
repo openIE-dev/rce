@@ -1,0 +1,27 @@
+# rce-version: 0.6
+fn split(xs: &[i64]) -> (i64, i64)
+    var lo: i64 = 0
+    var hi: i64 = 0
+    par
+        branch left
+            for x in xs
+                lo += x
+        branch right
+            for x in xs
+                hi = hi.saturating_add(x)
+    (lo, hi)
+
+fn dup_zz() -> i64
+    return 1
+
+fn dup_zz() -> i64
+    return 2
+#--- rce-test
+# id: types-checking/generated/mut-duplicate-01-par-branches-accept
+# area: types-checking
+# clauses: [CH09-M-82e65964, W-NAME-2]
+# expect: reject
+# diagnostic: W-NAME-2
+# flags: [generated]
+# provenance: gen_props.py seed 7: mutation `duplicate` of 01-par-branches-accept
+#---

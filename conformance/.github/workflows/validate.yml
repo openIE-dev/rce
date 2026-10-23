@@ -1,0 +1,24 @@
+name: validate
+
+# Static checks of the suite itself (format, ids, clause references, clause
+# coverage). Running the tests against implementations happens in the engine's
+# 6-target parity matrix, which checks this repository out and runs
+# harness/run.py with the reference adapter on every target.
+"on":
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  validate:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python tools/validate.py

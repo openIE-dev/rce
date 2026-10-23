@@ -1,0 +1,21 @@
+# A program can raise or lower the default loop limit.
+const LOOP_LIMIT: u64 = 5000000
+
+fn count(n: u64) -> u64
+    var k: u64 = 0
+    while k < n
+        k += 1
+    return k
+
+check count(2000000) == 2000000
+
+const BIG_LIT = 99999999999999999999999
+#--- rce-test
+# id: lexing-parsing/generated/mut-bigint-49-loop-limit-accept
+# area: lexing-parsing
+# clauses: [CH09-M-82e65964, W-LEX-3]
+# expect: reject
+# diagnostic: W-LEX-3
+# flags: [generated]
+# provenance: gen_props.py seed 7: mutation `bigint` of 49-loop-limit-accept
+#---

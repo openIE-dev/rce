@@ -1,0 +1,24 @@
+fn grade(score: u32) -> text
+    if score >= 90
+        return "A"
+    elif score >= 80
+        return "B"
+    elif score >= 70
+        if score == 77
+            return "lucky C"
+        return "C"
+    else
+        return "F"
+
+fn unsafe_probe() -> i64
+    let unsafe = 1
+    return unsafe
+#--- rce-test
+# id: types-checking/generated/mut-unsafe-35-nested-if-accept
+# area: types-checking
+# clauses: [CH09-M-82e65964, W-SAFE-1]
+# expect: reject
+# diagnostic: W-SAFE-1
+# flags: [generated]
+# provenance: gen_props.py seed 7: mutation `unsafe` of 35-nested-if-accept
+#---

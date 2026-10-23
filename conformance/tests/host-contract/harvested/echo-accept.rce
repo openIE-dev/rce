@@ -1,0 +1,33 @@
+module echo
+
+intent "an effect request is an emitted struct with a req id; the host answers each with exactly one EchoDone"
+    example Say(msg: "hi"), EchoDone(req: 1, status: "failed", data: none, err: "x") -> failed == 1
+
+struct Echo
+    req: u64
+    msg: text
+
+event Say(msg: text)
+event EchoDone(req: u64, status: text, data: text?, err: text)
+
+state S
+    next: u64 = 0
+    got: List[text] = []
+    failed: u64 = 0
+
+step S on Say(msg: m)
+    next += 1
+    emit Echo(req: next, msg: m)
+
+step S on EchoDone(req: _r, status: st, data: d, err: _e)
+    if st == "delivered"
+        got.push(d.or(""))
+    else
+        failed += 1
+#--- rce-test
+# id: host-contract/harvested/echo-accept
+# area: host-contract
+# clauses: [CH03-M-28cdd241, CH08-M-9a15157f, T10]
+# expect: accept
+# provenance: harvested checker/tests/host/echo.rce
+#---

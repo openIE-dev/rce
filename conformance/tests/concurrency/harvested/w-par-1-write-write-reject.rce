@@ -1,0 +1,18 @@
+# rce-version: 0.6
+# expect: W-PAR-1
+fn f() -> i64
+    var a: i64 = 0
+    par
+        branch x
+            a = 1
+        branch y
+            a = 2
+    a
+#--- rce-test
+# id: concurrency/harvested/w-par-1-write-write-reject
+# area: concurrency
+# clauses: [CH09-M-82e65964, W-PAR-1]
+# expect: reject
+# diagnostic: W-PAR-1
+# provenance: harvested conc06/ill_typed/W-PAR-1_write_write.rce
+#---

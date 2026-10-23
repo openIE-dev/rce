@@ -1,0 +1,10 @@
+fn f(x: f32) -> f32
+    return x * 2.0
+#--- rce-test
+# id: types-checking/harvested/f32-literal-reject
+# area: types-checking
+# clauses: [CH09-M-82e65964, W-TY-1]
+# expect: reject
+# diagnostic: W-TY-1
+# provenance: harvested examples/ill_typed/f32_literal.rce
+#---

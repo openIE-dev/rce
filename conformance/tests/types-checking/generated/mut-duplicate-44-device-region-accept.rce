@@ -1,0 +1,25 @@
+# A device region holds fixed-size values only and performs no effects.
+fn dot4(a: [f32; 4], b: [f32; 4]) -> f32
+    var acc: f32 = 0 as f32
+    with device gpu bound 4096
+        let p: [f32; 4] = a * b
+        for x in p
+            acc = acc + x
+    return acc
+
+check dot4([1.0 as f32, 2.0 as f32, 3.0 as f32, 4.0 as f32], [1.0 as f32, 1.0 as f32, 1.0 as f32, 1.0 as f32]) == 10.0 as f32
+
+fn dup_zz() -> i64
+    return 1
+
+fn dup_zz() -> i64
+    return 2
+#--- rce-test
+# id: types-checking/generated/mut-duplicate-44-device-region-accept
+# area: types-checking
+# clauses: [CH09-M-82e65964, W-NAME-2]
+# expect: reject
+# diagnostic: W-NAME-2
+# flags: [generated]
+# provenance: gen_props.py seed 7: mutation `duplicate` of 44-device-region-accept
+#---

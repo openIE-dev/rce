@@ -1,0 +1,25 @@
+# Full-range u64 arithmetic, checked against [0, 2^64).
+const BIG: u64 = 18446744073709551615
+
+fn half(x: u64) -> u64
+    return x / 2
+
+check half(BIG) == 9223372036854775807
+check BIG - 1 == 18446744073709551614
+check (BIG / 3) * 3 == BIG
+check BIG.checked_add(1).isnone()
+
+# `lalr` is an ordinary name (it was wrongly reserved before 0.5).
+const lalr: u64 = 1
+check BIG - lalr + lalr == BIG
+
+const BIG_LIT = 99999999999999999999999
+#--- rce-test
+# id: lexing-parsing/generated/mut-bigint-46-u64-accept
+# area: lexing-parsing
+# clauses: [CH09-M-82e65964, W-LEX-3]
+# expect: reject
+# diagnostic: W-LEX-3
+# flags: [generated]
+# provenance: gen_props.py seed 7: mutation `bigint` of 46-u64-accept
+#---
