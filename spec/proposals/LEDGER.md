@@ -16,6 +16,7 @@ release and the example and theorem that admitted it.
 | 2026-10-22 | D as a partial order: chains, deps, cuts; T62 (`partial-order-log.md`, `RCE/LogPO.lean`) | open | | model proof `fold_perm_eq`; link by T40 permutation tests |
 | 2026-10-22 | Intent with holes, W-INT-1 non-vacuity, spectest completeness, derivation log D_I (`intent-holes.md`) | open | | nameless and ladder benches |
 | 2026-10-22 | Two-regime est_j, `host.Calibrated`, RCE-F5 (`energy-calibration.md`) | open | | first run: KV260 rung 3, VCCINT, N ≥ 30 |
+| 2026-10-22 | T7 finding: `state_hash` is over canonical JSON keyed by region and field names; the Lean model hashes De Bruijn keys. A: hash a positional embedding (every fixture changes; C.15 classes the D entry as outside a program's meaning, so an erratum). B: restate T7 for the implementation (6.6's 'names outside the hash' loses its ground). | open, recommendation A | | `tests/nameless.rs::state_hashes_are_not_yet_name_free` |
 | 2026-10-22 | Sessions, LVars as normative syntax | open: proposal until T28 and T29 are proved on the checker, not a model | breaks rule 1 (theorem not linked to the checker) | 10-theorems.md status |
 
 Running totals are computed from this table by `scripts/claim-counts.py`
