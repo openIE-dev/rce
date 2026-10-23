@@ -69,10 +69,11 @@ model between a tenth and a quarter of its accuracy on what a program does
 measurable (arXiv 2508.13666, 2025; both in section 11). So names have a
 defined home outside the hash. The *concept record* of a module is the
 table from each name-free key of 6.6 to: the name as written, the `intent`
-strings of the item, and its doc comments. It is to be printed by
-`rce emit form` under a `names` field after the hashed fields (proposal:
-`interp::form_json` has no such field today, and the Form JSON of 10.5
-carries names in its `name` and `region` fields). It is never read by δ.
+strings of the item, and its doc comments. `rce emit form` prints it
+under a `names` field after the hashed fields, keyed `#i` by declaration
+index (the same index `shape_ctl` of 6.10 uses), with the `intent` strings;
+doc comments are not yet collected. The Form JSON of 10.5 still carries
+names in its `name` and `region` fields. It is never read by δ.
 Two modules that differ only in it have the same outcomes, outputs and
 ids; their `state_hash` values differ until the T7 finding of chapter 8 is
 resolved. A projection (10.5) renders the concept record's names by
@@ -320,4 +321,4 @@ does not define.
 
 **Read receipt.** Name-free hashing uses indices named after which logician? (two words)
 
-<!-- body-sha256: b85dfd6dd4966b43ad43e88191213903771b75a09114073a6677cd8dc876cd07 -->
+<!-- body-sha256: ffc10ff1391aeba8d2bc8cb2bdad7e727f270df9294c09ee5da25869c4596c49 -->

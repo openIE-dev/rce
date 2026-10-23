@@ -1160,7 +1160,40 @@ pub fn form_full(m: &Module) -> Result<String, String> {
         "null".into()
     };
     let body = base.strip_suffix('}').ok_or("form json")?;
-    Ok(format!("{body},\"main\":{main},\"source\":{source},\"terms\":{terms}}}"))
+    let names = concept_record(m);
+    Ok(format!("{body},\"main\":{main},\"source\":{source},\"terms\":{terms},\"names\":{names}}}"))
+}
+
+/// The concept record (6.6): from each name-free key (the declaration
+/// index of 6.6, as `#i`) to the name as written and, for an `intent`, its
+/// text. Printed after the hashed fields; never hashed, never read by δ.
+/// Two modules that differ only here have the same outcomes, outputs and
+/// ids (`tests/nameless.rs`).
+pub fn concept_record(m: &Module) -> String {
+    let mut rows: Vec<String> = vec![];
+    let mut intents: Vec<String> = vec![];
+    for (i, it) in m.items.iter().enumerate() {
+        if let Item::Intent(text, _, _) = it {
+            intents.push(serde_json::to_string(text).unwrap_or_default());
+        }
+        if let Some(n) = crate::link::item_name(it) {
+            let kind = match it {
+                Item::State { .. } => "state",
+                Item::Actor { .. } => "actor",
+                Item::Event { .. } => "event",
+                Item::Error { .. } => "error",
+                Item::Fn(_) => "fn",
+                Item::Struct { .. } => "struct",
+                Item::Kind { .. } => "kind",
+                Item::Trait { .. } => "trait",
+                Item::TypeAlias { .. } => "type",
+                Item::Const { .. } => "const",
+                _ => "item",
+            };
+            rows.push(format!("{{\"key\":\"#{i}\",\"kind\":\"{kind}\",\"name\":{}}}", serde_json::to_string(&n).unwrap_or_default()));
+        }
+    }
+    format!("{{\"intent\":[{}],\"items\":[{}]}}", intents.join(","), rows.join(","))
 }
 
 /// `rce unform FORM.json`: the canonical source of a Form's `terms`.

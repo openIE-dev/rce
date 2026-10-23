@@ -105,3 +105,24 @@ fn state_hashes_are_not_yet_name_free() {
     };
     assert_eq!(hashes(&a), hashes(&b), "T7 as modelled: log hashes do not depend on names");
 }
+
+/// 6.6: the concept record is printed by `rce emit form` under `names`,
+/// keyed by declaration index, and is the only place the source names
+/// survive in a nameless projection's Form.
+#[test]
+fn emit_form_carries_the_concept_record() {
+    let (code, out) = rce(&["emit", "form", "../examples/01_counter.rce"]);
+    assert_eq!(code, 0, "{out}");
+    let v: serde_json::Value = serde_json::from_str(out.trim()).unwrap();
+    let items = v["names"]["items"].as_array().unwrap();
+    assert_eq!(items[0]["key"], "#1");
+    assert_eq!(items[0]["name"], "Counter");
+    assert_eq!(v["names"]["intent"][0], "a counter that never goes negative");
+    let (_, text) = rce(&["fmt", "--nameless", "../examples/01_counter.rce"]);
+    let t = tmp("counter_cr.rce", &text);
+    let (_, out2) = rce(&["emit", "form", &t]);
+    let w: serde_json::Value = serde_json::from_str(out2.trim()).unwrap();
+    assert_eq!(w["names"]["items"][0]["key"], "#1");
+    assert_eq!(w["names"]["items"][0]["name"], "r0");
+    assert_eq!(w["names"]["intent"], v["names"]["intent"], "intent text survives the projection");
+}
