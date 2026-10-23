@@ -1,5 +1,4 @@
-# scripts/xarch-hashes.sh on jetson-hub (Linux x86_64), 2026-10-14
-49941de24de057e1d9a43def9e693899e3710f12d51d3cd573b527ccfc843531 trace 01_counter.rce
+# scripts/xarch-hashes.sh on the x86_64 Linux reference (rce 2bce396e), 2026-10-23
 77a045653e61300d96ba75fbe310ed8c74f7361b011df34e4d3d60c21ab5c0c9 trace 02_hello_main.rce
 f55315eb792f48e47c298456cc746109f9b4e91ddd26afedbb0fb92eb4979872 trace 03_fib_loop.rce
 026aaee1d3fca60f689b2cb2821ee3b076ee3e8d08048e01204a37a7f92f4529 trace 04_bank_account.rce
@@ -56,6 +55,9 @@ b2e539d9f0cfb1ebcce92b5c72f6e2f124e253b70240412d115f6a815427eb9d trace 51_refine
 df79620450c5a5ade2cf5605ed0222c2efa10293d340808f35883a2516fa7077 trace 56_utf8.rce
 c5ded74c54b6304e153b0ebb20abc19c5d75eebdc6a7cbd1d25f305e9f9076fd trace 57_float_vectors.rce
 7a3f1127c11a0dc77c800e155f89d6fd5742a6101cf70e7d273fb2ee64ca43d7 trace 58_float_keys.rce
+3871acbf0ad186ce765c4fafe9ddbcd2d6e6c4b02d588185c8aea546b030e3f7 trace 59_dim_redundant_field.rce
+e3c773a90a567595e05d8d9fa72d6dabd86c1d65a1d935baf8ccfa601feec0de trace 60_dim_hidden_period.rce
+b71505fc87e279617287d994e546990a562eca92c784dc41b325b406a525784a trace 61_dim_minimal.rce
 host-rcedb state_hash 12445501a9755d7ebaf284c99dbab5d87dae22a4bb170b10832d5680e28d1cfb
 28a083f79590b0c034c370c723184801396048a5f4a646fab71136caaa715db3 trace apps/chat.rce (keygen, post, react, dm)
 crypto ok /lib/crypto.rce (0 examples, 8 checks)
