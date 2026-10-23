@@ -9,6 +9,7 @@
 | `rce trace --json FILE [EVENTS]` | the reference trace of each example, or of the events, as JSON |
 | `rce emit TARGET FILE` | `form`, `rust`, `python` or `js` |
 | `rce fmt [--check] FILE...` | rewrite files in the canonical layout |
+| `rce dim [--fuel N] FILE` | count the behaviours a program can be in and the redundancy of its state, per region (chapter 18) |
 | `rce lsp` | language server on standard input and output |
 | `rce --version` | the checker version, the specification draft and the accepted language versions |
 

@@ -19,6 +19,7 @@
 - [The Form and the emitters](ch15-form-emitters.md)
 - [Host tools: RCEdb, media, redacted replay and chat](ch16-host-tools.md)
 - [Media, calls and end-to-end encryption](ch17-media-calls-e2ee.md)
+- [Behaviour, sameness and dimension](ch18-behaviour-dimension.md)
 
 [Appendix A: commands](appendix-a-commands.md)
 [Appendix B: keywords](appendix-b-keywords.md)
