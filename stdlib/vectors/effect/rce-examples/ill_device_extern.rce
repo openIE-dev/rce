@@ -1,0 +1,5 @@
+extern "C" fn c_tick() -> u32
+
+fn main()
+    with device gpu
+        let t = c_tick()

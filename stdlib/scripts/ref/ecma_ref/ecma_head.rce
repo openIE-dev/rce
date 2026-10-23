@@ -1,0 +1,12 @@
+# a fresh global scope: run setup (a script), then evaluate expr; the
+# result as "typeof:String(value)", or "err" when either throws
+fn ejs(setup: text, ex: text) -> text
+    var js = js_new()
+    let g = new_scope(&mut js, -1)
+    let a = exec_in(&mut js, g, &setup)
+    if not a.ok
+        return "err"
+    let r = eval_in(&mut js, g, &ex)
+    if not r.ok
+        return "err"
+    return type_of(&js, &r.v) + ":" + to_str(&mut js, &r.v)

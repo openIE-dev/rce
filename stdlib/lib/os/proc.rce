@@ -1,0 +1,453 @@
+module os.proc
+
+# Processes (survey M39), pure. Spawning, waiting and killing are host
+# capability effects (cap Spawn, Wait, Kill under grant exec, scoped to an
+# allow-list of image digests); their results (pid, wait status) are
+# admitted to the log, and this module decodes and describes them.
+#  - Wait status codec as Linux and glibc define it (WIFEXITED,
+#    WEXITSTATUS, WIFSIGNALED, WTERMSIG, WCOREDUMP, WIFSTOPPED, WSTOPSIG,
+#    WIFCONTINUED) and Rust's ExitStatus on top of it: code, signal,
+#    core_dumped, stopped_signal, continued, success and its Display text.
+#  - The spawn spec: Rust's std::process::Command model (program, args
+#    with arg0, environment changes, cwd, uid, gid, process group, stdio
+#    plan) and both of its Debug forms ({:?} as a shell line, {:#?}).
+#  - POSIX shell words as Python's shlex gives them: split (posix mode,
+#    comments on), quote and join.
+#  - The Spawn request as logged (a canonical line) and the exec grant
+#    check by image digest.
+
+error BadProc(why: text)
+
+# ---------------- wait status ----------------
+
+pub fn wifexited(s: i64) -> bool = s & 127 == 0
+pub fn wexitstatus(s: i64) -> i64 = (s >> 8) & 255
+# glibc: ((signed char) ((s & 0x7f) + 1) >> 1) > 0
+pub fn wifsignaled(s: i64) -> bool
+    let v = (s & 127) + 1
+    let sc = if v >= 128 then v - 256 else v
+    return (sc >> 1) > 0
+pub fn wtermsig(s: i64) -> i64 = s & 127
+pub fn wcoredump(s: i64) -> bool = s & 128 != 0
+pub fn wifstopped(s: i64) -> bool = s & 255 == 127
+pub fn wstopsig(s: i64) -> i64 = wexitstatus(s)
+pub fn wifcontinued(s: i64) -> bool = s == 65535
+
+# The raw status a 32-bit int holds (the low 32 bits, signed).
+fn raw32(s: i64) -> i64
+    let v = s & 4294967295
+    return if v >= 2147483648 then v - 4294967296 else v
+
+pub fn code(s: i64) -> i64? = if wifexited(raw32(s)) then some(wexitstatus(raw32(s))) else none
+pub fn signal(s: i64) -> i64? = if wifsignaled(raw32(s)) then some(wtermsig(raw32(s))) else none
+pub fn core_dumped(s: i64) -> bool = wifsignaled(raw32(s)) and wcoredump(raw32(s))
+pub fn stopped_signal(s: i64) -> i64? = if wifstopped(raw32(s)) then some(wstopsig(raw32(s))) else none
+pub fn continued(s: i64) -> bool = wifcontinued(raw32(s))
+# ExitStatus::success: exit_ok, i.e. the raw status is zero.
+pub fn success(s: i64) -> bool = raw32(s) == 0
+
+# Rust's signal_string for Linux x86_64, aarch64, arm and x86.
+const RUST_SIGNALS: text = "HUP INT QUIT ILL TRAP ABRT BUS FPE KILL USR1 SEGV USR2 PIPE ALRM TERM STKFLT CHLD CONT STOP TSTP TTIN TTOU URG XCPU XFSZ VTALRM PROF WINCH IO PWR SYS"
+
+pub fn signal_string(n: i64) -> text
+    if n < 1 or n > 31
+        return ""
+    return " (SIG" + RUST_SIGNALS.split(" ")[(n - 1) as usize] + ")"
+
+fn hex(v: i64) -> text
+    let d = "0123456789abcdef".chars()
+    if v == 0
+        return "0"
+    var x = v
+    var o = ""
+    while x > 0 bound 64
+        o = d[(x % 16) as usize] + o
+        x = x / 16
+    return o
+
+# Display for ExitStatus.
+pub fn status_text(s: i64) -> text
+    let r = raw32(s)
+    if wifexited(r)
+        return "exit status: " + wexitstatus(r).tostr()
+    if wifsignaled(r)
+        let n = wtermsig(r)
+        return "signal: " + n.tostr() + signal_string(n) + (if wcoredump(r) then " (core dumped)" else "")
+    if wifstopped(r)
+        let n = wstopsig(r)
+        return "stopped (not terminated) by signal: " + n.tostr() + signal_string(n)
+    if wifcontinued(r)
+        return "continued (WIFCONTINUED)"
+    # {:#x} of an i32 prints its two's complement bits
+    let u = if r < 0 then r + 4294967296 else r
+    return "unrecognised wait status: " + r.tostr() + " 0x" + hex(u)
+
+# The status a POSIX shell reports in $? for a wait status (128 + signal).
+pub fn shell_status(s: i64) -> i64
+    let r = raw32(s)
+    if wifexited(r)
+        return wexitstatus(r)
+    if wifsignaled(r)
+        return 128 + wtermsig(r)
+    if wifstopped(r)
+        return 128 + wstopsig(r)
+    return -1
+
+# ---------------- Rust str Debug ----------------
+
+fn cp_of(c: &text) -> i64
+    let b = c[0] as i64
+    if b < 128
+        return b
+    if b < 224
+        return (b & 31) << 6 | (c[1] as i64 & 63)
+    if b < 240
+        return (b & 15) << 12 | (c[1] as i64 & 63) << 6 | (c[2] as i64 & 63)
+    return (b & 7) << 18 | (c[1] as i64 & 63) << 12 | (c[2] as i64 & 63) << 6 | (c[3] as i64 & 63)
+
+# char::escape_debug as str's Debug uses it, for the characters a spawn
+# spec carries in practice: the C0 and C1 controls, DEL and the soft
+# hyphen are not printable and print as \u{..}; other characters print as
+# themselves (NBSP is escaped as Rust does; grapheme extenders and the rest of Unicode's non-printable
+# set are outside this model).
+pub fn debug_str(s: &text) -> text
+    var o = "\""
+    for c in s.chars()
+        let v = cp_of(&c)
+        if v == 0
+            o = o + "\\0"
+        elif v == 9
+            o = o + "\\t"
+        elif v == 10
+            o = o + "\\n"
+        elif v == 13
+            o = o + "\\r"
+        elif v == 34
+            o = o + "\\\""
+        elif v == 92
+            o = o + "\\\\"
+        elif v < 32 or (v >= 127 and v <= 160) or v == 173
+            o = o + "\\u{" + hex(v) + "}"
+        else
+            o = o + c
+    return o + "\""
+
+# CStr's Debug (program, arg0 and cwd are C strings in the Command): ASCII
+# as u8::escape_ascii writes it (\t \r \n \' \" \\, \xNN for other
+# bytes outside 0x20..0x7e), other characters as debug_str.
+pub fn debug_c(s: &text) -> text
+    var o = "\""
+    for c in s.chars()
+        let v = cp_of(&c)
+        if v >= 128
+            let d = debug_str(&c)
+            let dc = d.chars()
+            var k: usize = 1
+            while k + 1 < dc.len() bound 64
+                o = o + dc[k]
+                k += 1
+        elif v == 9
+            o = o + "\\t"
+        elif v == 10
+            o = o + "\\n"
+        elif v == 13
+            o = o + "\\r"
+        elif v == 39 or v == 34 or v == 92
+            o = o + "\\" + c
+        elif v < 32 or v == 127
+            o = o + "\\x" + (if v < 16 then "0" else "") + hex(v)
+        else
+            o = o + c
+    return o + "\""
+
+# ---------------- Command ----------------
+
+# Rust's os2c: a string with an interior NUL cannot become a C string, and
+# the Command keeps this marker instead (spawning then fails).
+pub const WITH_NUL: text = "<string-with-nul>"
+fn os2c(s: &text) -> text = if s.contains("\u{0}") then WITH_NUL else copy(s)
+
+pub struct EnvVar
+    key: text
+    set: bool
+    val: text
+
+pub struct Cmd
+    program: text
+    args: List[text]
+    clear: bool
+    vars: List[EnvVar]
+    has_cwd: bool
+    cwd: text
+    uid: i64
+    gid: i64
+    pgroup: i64
+    stdin: text
+    stdout: text
+    stderr: text
+
+pub fn cmd_new(program: &text) -> Cmd = Cmd(program: os2c(program), args: [os2c(program)], clear: false, vars: [], has_cwd: false, cwd: "", uid: -1, gid: -1, pgroup: -1, stdin: "", stdout: "", stderr: "")
+
+pub fn arg(c: &mut Cmd, a: &text)
+    c.args.push(os2c(a))
+
+pub fn arg0(c: &mut Cmd, a: &text)
+    c.args[0] = os2c(a)
+
+fn bytes_lt(a: &text, b: &text) -> bool
+    var i: usize = 0
+    while i < a.len_bytes() and i < b.len_bytes() bound 16777216
+        if a[i] != b[i]
+            return a[i] < b[i]
+        i += 1
+    return a.len_bytes() < b.len_bytes()
+
+# CommandEnv keeps a BTreeMap from key to Option<value>.
+fn put(c: &mut Cmd, v: EnvVar)
+    var o: List[EnvVar] = []
+    var placed = false
+    for x in c.vars
+        if x.key == v.key
+            continue
+        if not placed and bytes_lt(&v.key, &x.key)
+            o.push(copy(v))
+            placed = true
+        o.push(copy(x))
+    if not placed
+        o.push(copy(v))
+    c.vars = o
+
+pub fn env(c: &mut Cmd, k: &text, v: &text)
+    put(c, EnvVar(key: copy(k), set: true, val: copy(v)))
+
+# With the environment cleared a removal only forgets the key.
+pub fn env_remove(c: &mut Cmd, k: &text)
+    if c.clear
+        var o: List[EnvVar] = []
+        for x in c.vars
+            if x.key != k
+                o.push(copy(x))
+        c.vars = o
+    else
+        put(c, EnvVar(key: copy(k), set: false, val: ""))
+
+pub fn env_clear(c: &mut Cmd)
+    c.clear = true
+    c.vars = []
+
+pub fn current_dir(c: &mut Cmd, d: &text)
+    c.has_cwd = true
+    c.cwd = os2c(d)
+
+# Stdio plans: "inherit", "null" or "piped".
+pub fn set_stdio(c: &mut Cmd, which: &text, plan: &text) -> bool ! BadProc
+    let v = if plan == "inherit" then "Inherit" else (if plan == "null" then "Null" else (if plan == "piped" then "MakePipe" else ""))
+    if v == ""
+        fail BadProc(why: "unknown stdio plan")
+    if which == "stdin"
+        c.stdin = v
+    elif which == "stdout"
+        c.stdout = v
+    elif which == "stderr"
+        c.stderr = v
+    else
+        fail BadProc(why: "unknown stream")
+    return true
+
+pub fn env_unchanged(c: &Cmd) -> bool = not c.clear and c.vars.len() == 0
+
+# {:?}: a shell line.
+pub fn debug(c: &Cmd) -> text
+    var o = ""
+    if c.has_cwd
+        o = o + "cd " + debug_c(&c.cwd) + " && "
+    if c.clear
+        o = o + "env -i "
+    else
+        var any = false
+        for v in c.vars
+            if not v.set
+                if not any
+                    o = o + "env "
+                    any = true
+                o = o + "-u " + v.key + " "
+    for v in c.vars
+        if v.set
+            o = o + v.key + "=" + debug_str(&v.val) + " "
+    if c.program != c.args[0]
+        o = o + "[" + debug_c(&c.program) + "] "
+    o = o + debug_c(&c.args[0])
+    var i: usize = 1
+    while i < c.args.len() bound 16777216
+        o = o + " " + debug_str(&c.args[i])
+        i += 1
+    return o
+
+fn some_block(ind: text, v: text) -> text = "Some(\n" + ind + "    " + v + ",\n" + ind + ")"
+
+# {:#?}: Rust's pretty Debug of the Command struct (Linux field set).
+pub fn debug_pretty(c: &Cmd) -> text
+    var o = "Command {\n    program: " + debug_c(&c.program) + ",\n    args: [\n"
+    for a in c.args
+        o = o + "        " + debug_c(&a) + ",\n"
+    o = o + "    ],\n"
+    if not env_unchanged(c)
+        o = o + "    env: CommandEnv {\n        clear: " + (if c.clear then "true" else "false") + ",\n        vars: {"
+        if c.vars.len() == 0
+            o = o + "},\n"
+        else
+            o = o + "\n"
+            for v in c.vars
+                o = o + "            " + debug_str(&v.key) + ": " + (if v.set then some_block("            ", debug_str(&v.val)) else "None") + ",\n"
+            o = o + "        },\n"
+        o = o + "    },\n"
+    if c.has_cwd
+        o = o + "    cwd: " + some_block("    ", debug_c(&c.cwd)) + ",\n"
+    if c.uid >= 0
+        o = o + "    uid: " + some_block("    ", c.uid.tostr()) + ",\n"
+    if c.gid >= 0
+        o = o + "    gid: " + some_block("    ", c.gid.tostr()) + ",\n"
+    if c.stdin != ""
+        o = o + "    stdin: " + some_block("    ", copy(c.stdin)) + ",\n"
+    if c.stdout != ""
+        o = o + "    stdout: " + some_block("    ", copy(c.stdout)) + ",\n"
+    if c.stderr != ""
+        o = o + "    stderr: " + some_block("    ", copy(c.stderr)) + ",\n"
+    if c.pgroup >= 0
+        o = o + "    pgroup: " + some_block("    ", c.pgroup.tostr()) + ",\n"
+    return o + "    create_pidfd: false,\n}"
+
+# ---------------- POSIX shell words (Python shlex) ----------------
+
+fn is_ws(c: &text) -> bool = c == " " or c == "\t" or c == "\r" or c == "\n"
+
+# shlex.split(s, comments=True): posix mode, whitespace_split; "#" starts
+# a comment to the end of the line; quotes ' and "; escape \ (inside
+# double quotes it escapes only " and \).
+pub fn shlex_split(s: &text) -> List[text] ! BadProc
+    let cs = s.chars()
+    var out: List[text] = []
+    var tok = ""
+    var st = " "
+    var esc_from = ""
+    var i: usize = 0
+    while i <= cs.len() bound 16777216
+        let eof = i == cs.len()
+        let c = if eof then "" else copy(cs[i])
+        i += 1
+        if st == " " or st == "a"
+            if eof
+                break
+            if is_ws(&c)
+                if st == "a"
+                    out.push(tok)
+                    tok = ""
+                    st = " "
+            elif c == "#"
+                while i < cs.len() and cs[i] != "\n" bound 16777216
+                    i += 1
+                if i < cs.len()
+                    i += 1
+                if st == "a"
+                    out.push(tok)
+                    tok = ""
+                    st = " "
+            elif c == "\\"
+                esc_from = "a"
+                st = "\\"
+            elif c == "'" or c == "\""
+                st = c
+            else
+                tok = tok + c
+                st = "a"
+        elif st == "'"
+            if eof
+                fail BadProc(why: "No closing quotation")
+            if c == "'"
+                st = "a"
+            else
+                tok = tok + c
+        elif st == "\""
+            if eof
+                fail BadProc(why: "No closing quotation")
+            if c == "\""
+                st = "a"
+            elif c == "\\"
+                esc_from = "\""
+                st = "\\"
+            else
+                tok = tok + c
+        else
+            if eof
+                fail BadProc(why: "No escaped character")
+            if esc_from == "\"" and c != "\"" and c != "\\"
+                tok = tok + "\\"
+            tok = tok + c
+            st = esc_from
+    if st == "a"
+        out.push(tok)
+    return out
+
+fn safe_char(c: &text) -> bool
+    if c.len_bytes() != 1
+        return false
+    let v = c[0] as i64
+    return (v >= 48 and v <= 57) or (v >= 65 and v <= 90) or (v >= 97 and v <= 122) or "@%_-+=:,./".contains(c)
+
+# shlex.quote
+pub fn shlex_quote(s: &text) -> text
+    if s == ""
+        return "''"
+    var safe = true
+    for c in s.chars()
+        if not safe_char(&c)
+            safe = false
+    if safe
+        return copy(s)
+    var o = "'"
+    for c in s.chars()
+        o = o + (if c == "'" then "'\"'\"'" else c)
+    return o + "'"
+
+pub fn shlex_join(ws: &List[text]) -> text
+    var o: List[text] = []
+    for w in ws
+        o.push(shlex_quote(&w))
+    return " ".join(o)
+
+# ---------------- Spawn request and the exec grant ----------------
+
+fn jstr(s: &text) -> text
+    var o = "\""
+    for c in s.chars()
+        let v = cp_of(&c)
+        if v == 34
+            o = o + "\\\""
+        elif v == 92
+            o = o + "\\\\"
+        elif v < 32
+            o = o + "\\u00" + (if v < 16 then "0" else "1") + "0123456789abcdef".chars()[(v % 16) as usize]
+        else
+            o = o + c
+    return o + "\""
+
+fn plan_json(x: &text) -> text = if x == "Null" then "\"null\"" else (if x == "MakePipe" then "\"piped\"" else "\"inherit\"")
+
+# The Spawn effect as logged: a canonical JSON line (keys sorted, as JCS
+# orders ASCII keys) naming the image digest, argv, the environment
+# changes, cwd and the stdio plan.
+pub fn spawn_request(c: &Cmd, digest: &text) -> text
+    var argv: List[text] = []
+    for a in c.args
+        argv.push(jstr(&a))
+    var ev: List[text] = []
+    for v in c.vars
+        ev.push("[" + jstr(&v.key) + "," + (if v.set then jstr(&v.val) else "null") + "]")
+    return "{\"argv\":[" + ",".join(argv) + "],\"clear\":" + (if c.clear then "true" else "false") + ",\"cwd\":" + (if c.has_cwd then jstr(&c.cwd) else "null") + ",\"env\":[" + ",".join(ev) + "],\"image\":" + jstr(digest) + ",\"stdio\":[" + plan_json(&c.stdin) + "," + plan_json(&c.stdout) + "," + plan_json(&c.stderr) + "]}"
+
+# grant exec: the image digest must be on the allow-list (deny by default).
+pub fn exec_granted(allow: &List[text], digest: &text) -> bool
+    for a in allow
+        if a == digest
+            return true
+    return false

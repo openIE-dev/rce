@@ -1,0 +1,28 @@
+fn ss(t: text) -> StatusSet = status_set_parse(&t) catch StatusSet(status: [-1], signal: [])
+fn ints(xs: &List[i64]) -> text
+    var o: List[text] = []
+    for x in xs
+        o.push(x.tostr())
+    return ",".join(o)
+fn sset(t: text) -> text
+    let s = ss(t)
+    return "s:" + ints(&s.status) + ";g:" + ints(&s.signal)
+fn clean(c: text, st: i64, daemon: bool, set: text, use_set: bool) -> bool
+    let s = ss(set)
+    return is_clean_exit(&c, st, daemon, &s, use_set)
+fn xres(ty: text, c: text, st: i64, set: text) -> text
+    let s = ss(set)
+    return exit_result(&ty, &c, st, &s)
+fn rs(r: text, ty: text, res: text, c: text, st: i64, pv: text, fc: text, manual: bool) -> text
+    let p = Policy(rst: r, stype: ty, prevent: ss(pv), force: ss(fc))
+    let d = shall_restart(&p, &res, &c, st, manual)
+    return (if d.yes then "1 " else "0 ") + d.reason
+fn esf(t: text) -> i64 = exit_status_from_string(&t)
+fn sgf(t: text) -> i64 = signal_from_string(&t)
+fn ld(form: text, v: bool, se: text, cr: text, exited: bool, st: i64) -> bool
+    let k = KeepAlive(form: form, value: v, successful: se, crashed: cr)
+    return launchd_relaunch(&k, exited, st)
+fn scr(kinds: text, flag: bool, crashed: bool, code: i64) -> i64
+    let a = if kinds == "" then [] else kinds.split(",")
+    let p = ScmPolicy(actions: a, nonzero_is_failure: flag)
+    return scm_runs(&p, crashed, code, 5)

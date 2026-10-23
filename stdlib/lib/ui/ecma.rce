@@ -1,0 +1,1757 @@
+module ui.ecma
+
+# An ECMAScript subset (ECMA-262 5.1 semantics on that subset), pure: the
+# datamodel language of SCXML's ECMAScript profile (SCXML B.2).
+# - Values: undefined, null, booleans, numbers, strings, and references
+#   to heap cells (objects, arrays, functions, DOM nodes, scopes).
+#   Numbers are integers (i64) plus NaN: the IRP suite only does integer
+#   arithmetic; a non-integer quotient is a RangeError here (needs the
+#   engine's IEEE 754 floats).
+# - Expressions: literals (number, string, array, object, function,
+#   regular expression), identifiers, this, member and index access,
+#   calls, new, unary ! - + typeof, prefix and postfix ++ --, * / % + -,
+#   relational and instanceof and in, == != === !==, & ^ |, && ||, ?:,
+#   = += -= *=, and the comma operator.
+# - Statements: var, function declarations, expression statements,
+#   return, if/else, blocks.
+# - Built-ins: Array.prototype.concat/push/join/indexOf, length,
+#   String.prototype.search (string or a regular expression of literal
+#   characters with ., +, *, ? and escapes), indexOf, and DOM nodes from
+#   text.xml documents with getElementsByTagName and getAttribute.
+# A failure (syntax error, ReferenceError, TypeError) sets Js.err and
+# yields undefined; the host maps it to error.execution.
+# uses: enc.enc, data.events, text.xml
+use text.xml
+
+pub kind V
+    Und
+    Nul
+    Bo(b: bool)
+    Nm(n: i64)
+    NaN
+    St(s: text)
+    Rf(r: i64)
+
+pub const C_OBJ: i64 = 0
+pub const C_ARR: i64 = 1
+pub const C_FUN: i64 = 2
+pub const C_NAT: i64 = 3
+pub const C_DOM: i64 = 4
+pub const C_SCOPE: i64 = 5
+pub const C_RE: i64 = 6
+
+pub struct Js
+    cls: List[i64]
+    keys: List[List[text]]
+    vals: List[List[V]]
+    kids: List[List[i64]]
+    ctor: List[i64]
+    fsrc: List[text]
+    fenv: List[i64]
+    ro: List[List[text]]
+    err: text
+    states: List[text]
+    rflag: bool
+    rval: V
+    steps: i64
+
+pub fn js_new() -> Js = Js(cls: [], keys: [], vals: [], kids: [], ctor: [], fsrc: [], fenv: [], ro: [], err: "", states: [], rflag: false, rval: Und, steps: 0)
+
+fn e_tnone() -> List[text] = []
+fn e_vnone() -> List[V] = []
+fn e_inone() -> List[i64] = []
+
+pub fn cell(js: &mut Js, c: i64) -> i64
+    js.cls.push(c)
+    js.keys.push(e_tnone())
+    js.vals.push(e_vnone())
+    js.kids.push(e_inone())
+    js.ctor.push(-1)
+    js.fsrc.push("")
+    js.fenv.push(-1)
+    js.ro.push(e_tnone())
+    return (js.cls.len() - 1) as i64
+
+fn e_fail(js: &mut Js, why: text)
+    if js.err == ""
+        js.err = why
+
+# own property k of cell o: [found, index]
+fn e_own(js: &Js, o: i64, k: &text) -> i64
+    let ks = copy(js.keys[o as usize])
+    for i in 0..ks.len()
+        if ks[i] == k
+            return i as i64
+    return -1
+
+pub fn get_prop(js: &Js, o: i64, k: &text) -> V
+    let i = e_own(js, o, k)
+    if i < 0
+        return Und
+    return copy(js.vals[o as usize][i as usize])
+
+pub fn set_prop(js: &mut Js, o: i64, k: &text, v: V)
+    let i = e_own(js, o, k)
+    if i < 0
+        js.keys[o as usize].push(copy(k))
+        js.vals[o as usize].push(v)
+    else
+        js.vals[o as usize][i as usize] = v
+
+# a read-only property of a scope (SCXML system variables)
+pub fn set_ro(js: &mut Js, o: i64, k: &text, v: V)
+    set_prop(js, o, k, v)
+    if not js.ro[o as usize].contains(copy(k))
+        js.ro[o as usize].push(copy(k))
+
+pub fn new_obj(js: &mut Js) -> i64 = cell(js, C_OBJ)
+
+pub fn new_arr(js: &mut Js, xs: &[V]) -> i64
+    let a = cell(js, C_ARR)
+    for x in xs
+        js.vals[a as usize].push(copy(x))
+        js.keys[a as usize].push("")
+    return a
+
+fn arr_len(js: &Js, a: i64) -> i64 = js.vals[a as usize].len() as i64
+
+# ---------------- conversions ----------------
+
+pub fn truthy(v: &V) -> bool
+    match v
+        Und -> return false
+        Nul -> return false
+        Bo(b: b) -> return copy(b)
+        Nm(n: n) -> return n != 0
+        NaN -> return false
+        St(s: s) -> return s != ""
+        Rf(r: _r) -> return true
+
+fn e_digits(t: &text) -> bool
+    if t == ""
+        return false
+    for c in t.chars()
+        if not c.isdigit()
+            return false
+    return true
+
+pub fn str_num(s: &text) -> V
+    let t = s.strip()
+    if t == ""
+        return Nm(n: 0)
+    var neg = false
+    var body = copy(t)
+    if t.startswith("-") or t.startswith("+")
+        neg = t.startswith("-")
+        let cs = t.chars()
+        body = ""
+        for i in 1..cs.len()
+            body = body + cs[i]
+    if e_digits(&body) and body.len_bytes() <= 18
+        let n = body.toint()
+        return Nm(n: if neg then 0 - n else n)
+    return NaN
+
+pub fn to_num(js: &mut Js, v: &V) -> V bound 8
+    match v
+        Und -> return NaN
+        Nul -> return Nm(n: 0)
+        Bo(b: b) -> return Nm(n: if b then 1 else 0)
+        Nm(n: n) -> return Nm(n: copy(n))
+        NaN -> return NaN
+        St(s: s) -> return str_num(s)
+        Rf(r: r) -> return str_of_ref(js, copy(r))
+
+fn str_of_ref(js: &mut Js, r: i64) -> V bound 8
+    let t = obj_str(js, r)
+    return str_num(&t)
+
+pub fn to_str(js: &mut Js, v: &V) -> text bound 64
+    match v
+        Und -> return "undefined"
+        Nul -> return "null"
+        Bo(b: b) -> return if b then "true" else "false"
+        Nm(n: n) -> return n.tostr()
+        NaN -> return "NaN"
+        St(s: s) -> return copy(s)
+        Rf(r: r) -> return obj_str(js, copy(r))
+
+fn obj_str(js: &mut Js, r: i64) -> text bound 64
+    let c = js.cls[r as usize]
+    if c == C_ARR
+        var o = ""
+        let vs = copy(js.vals[r as usize])
+        for i in 0..vs.len()
+            if i > 0
+                o = o + ","
+            match vs[i]
+                Und -> o = o
+                Nul -> o = o
+                _ -> o = o + to_str(js, &vs[i])
+        return o
+    if c == C_FUN
+        return copy(js.fsrc[r as usize])
+    if c == C_DOM
+        return "[object Element]"
+    return "[object Object]"
+
+pub fn type_of(js: &Js, v: &V) -> text
+    match v
+        Und -> return "undefined"
+        Nul -> return "object"
+        Bo(b: _b) -> return "boolean"
+        Nm(n: _n) -> return "number"
+        NaN -> return "number"
+        St(s: _s) -> return "string"
+        Rf(r: r) -> return if js.cls[r as usize] == C_FUN or js.cls[r as usize] == C_NAT then "function" else "object"
+
+# 0 undefined, 1 null, 2 boolean, 3 number, 4 NaN, 5 string, 6 reference
+pub fn vtag(v: &V) -> i64
+    match v
+        Und -> return 0
+        Nul -> return 1
+        Bo(b: _b) -> return 2
+        Nm(n: _n) -> return 3
+        NaN -> return 4
+        St(s: _s) -> return 5
+        Rf(r: _r) -> return 6
+
+fn vb(v: &V) -> bool
+    match v
+        Bo(b: b) -> return copy(b)
+        _ -> return false
+
+fn vstr(v: &V) -> text
+    match v
+        St(s: s) -> return copy(s)
+        _ -> return ""
+
+pub fn vr(v: &V) -> i64
+    match v
+        Rf(r: r) -> return copy(r)
+        _ -> return -1
+
+pub fn strict_eq(a: &V, b: &V) -> bool
+    let t = vtag(a)
+    if t != vtag(b) or t == 4
+        return false
+    if t == 2
+        return vb(a) == vb(b)
+    if t == 3
+        return num_of(a) == num_of(b)
+    if t == 5
+        return vstr(a) == vstr(b)
+    if t == 6
+        return vr(a) == vr(b)
+    return true
+
+fn e_nullish(v: &V) -> bool
+    match v
+        Und -> return true
+        Nul -> return true
+        _ -> return false
+
+fn e_is_ref(v: &V) -> bool
+    match v
+        Rf(r: _r) -> return true
+        _ -> return false
+
+fn e_is_str(v: &V) -> bool
+    match v
+        St(s: _s) -> return true
+        _ -> return false
+
+fn e_is_bool(v: &V) -> bool
+    match v
+        Bo(b: _b) -> return true
+        _ -> return false
+
+# abstract equality (ECMA-262 11.9.3)
+pub fn loose_eq(js: &mut Js, a: &V, b: &V) -> bool bound 8
+    if e_nullish(a) or e_nullish(b)
+        return e_nullish(a) and e_nullish(b)
+    if e_is_ref(a) and e_is_ref(b)
+        return strict_eq(a, b)
+    if e_is_ref(a)
+        let pa = St(s: to_str(js, a))
+        return loose_eq(js, &pa, b)
+    if e_is_ref(b)
+        let pb = St(s: to_str(js, b))
+        return loose_eq(js, a, &pb)
+    if e_is_str(a) and e_is_str(b)
+        return strict_eq(a, b)
+    let x = to_num(js, a)
+    let y = to_num(js, b)
+    return strict_eq(&x, &y)
+
+# ---------------- tokens ----------------
+
+pub const T_NUM: i64 = 0
+pub const T_STR: i64 = 1
+pub const T_ID: i64 = 2
+pub const T_P: i64 = 3
+pub const T_RE: i64 = 4
+pub const T_END: i64 = 5
+
+pub struct Toks
+    k: List[i64]
+    t: List[text]
+    ok: bool
+
+fn id_start(c: &text) -> bool = c.isalpha() or c == "_" or c == "$"
+fn id_ch(c: &text) -> bool = c.isalpha() or c.isdigit() or c == "_" or c == "$"
+
+fn value_end(tk: &Toks) -> bool
+    let n = tk.k.len()
+    if n == 0
+        return false
+    let k = tk.k[n - 1]
+    let t = copy(tk.t[n - 1])
+    if k == T_NUM or k == T_STR or k == T_RE
+        return true
+    if k == T_ID
+        return not (t == "return" or t == "typeof" or t == "in" or t == "instanceof" or t == "new" or t == "else")
+    return t == ")" or t == "]" or t == "}"
+
+pub fn lex(src: &text) -> Toks
+    var tk = Toks(k: [], t: [], ok: true)
+    let cs = src.chars()
+    let n = cs.len()
+    let p3 = ["===", "!==", ">>>"]
+    let p2 = ["==", "!=", "<=", ">=", "&&", "||", "++", "--", "+=", "-=", "*=", "/=", "%="]
+    var i: usize = 0
+    while i < n and tk.ok bound 1048576
+        let c = copy(cs[i])
+        if c == " " or c == "\n" or c == "\t" or c == "\r"
+            i += 1
+        elif c == "/" and i + 1 < n and cs[i + 1] == "/"
+            while i < n and cs[i] != "\n" bound 1048576
+                i += 1
+        elif c == "/" and i + 1 < n and cs[i + 1] == "*"
+            i += 2
+            while i + 1 < n and not (cs[i] == "*" and cs[i + 1] == "/") bound 1048576
+                i += 1
+            i += 2
+        elif c.isdigit()
+            var t = ""
+            while i < n and (cs[i].isdigit() or cs[i] == ".") bound 4096
+                t = t + cs[i]
+                i += 1
+            if i < n and id_start(&cs[i])
+                tk.ok = false
+            tk.k.push(T_NUM)
+            tk.t.push(t)
+        elif id_start(&c)
+            var t = ""
+            while i < n and id_ch(&cs[i]) bound 4096
+                t = t + cs[i]
+                i += 1
+            tk.k.push(T_ID)
+            tk.t.push(t)
+        elif c == "\"" or c == "'"
+            var t = ""
+            i += 1
+            var closed = false
+            while i < n and not closed bound 1048576
+                if cs[i] == c
+                    closed = true
+                elif cs[i] == "\\" and i + 1 < n
+                    let e = copy(cs[i + 1])
+                    t = t + (if e == "n" then "\n" else (if e == "t" then "\t" else e))
+                    i += 1
+                elif cs[i] == "\n"
+                    tk.ok = false
+                else
+                    t = t + cs[i]
+                i += 1
+            if not closed
+                tk.ok = false
+            tk.k.push(T_STR)
+            tk.t.push(t)
+        elif c == "/" and not value_end(&tk)
+            var t = ""
+            i += 1
+            var closed = false
+            while i < n and not closed bound 1048576
+                if cs[i] == "/"
+                    closed = true
+                elif cs[i] == "\\" and i + 1 < n
+                    t = t + cs[i] + cs[i + 1]
+                    i += 1
+                else
+                    t = t + cs[i]
+                i += 1
+            # flags
+            while i < n and id_ch(&cs[i]) bound 16
+                i += 1
+            if not closed
+                tk.ok = false
+            tk.k.push(T_RE)
+            tk.t.push(t)
+        else
+            var t = copy(c)
+            if i + 2 < n
+                let s3 = c + cs[i + 1] + cs[i + 2]
+                if p3.contains(s3)
+                    t = s3
+            if t.len_bytes() == 1 and i + 1 < n
+                let s2 = c + cs[i + 1]
+                if p2.contains(s2)
+                    t = s2
+            if not "(){}[];,.:?!=<>+-*/%&|^~".contains(c)
+                tk.ok = false
+            i += t.len_bytes()
+            tk.k.push(T_P)
+            tk.t.push(t)
+    tk.k.push(T_END)
+    tk.t.push("")
+    return tk
+
+# ---------------- syntax tree ----------------
+
+pub const N_NUM: i64 = 1
+pub const N_STR: i64 = 2
+pub const N_ID: i64 = 3
+pub const N_THIS: i64 = 4
+pub const N_ARR: i64 = 5
+pub const N_OBJ: i64 = 6
+pub const N_FUN: i64 = 7
+pub const N_RE: i64 = 8
+pub const N_MEM: i64 = 9
+pub const N_IDX: i64 = 10
+pub const N_CALL: i64 = 11
+pub const N_NEW: i64 = 12
+pub const N_UN: i64 = 13
+pub const N_PRE: i64 = 14
+pub const N_POST: i64 = 15
+pub const N_BIN: i64 = 16
+pub const N_AND: i64 = 17
+pub const N_OR: i64 = 18
+pub const N_ASG: i64 = 19
+pub const N_COND: i64 = 20
+pub const N_SEQ: i64 = 21
+pub const N_VAR: i64 = 22
+pub const N_RET: i64 = 23
+pub const N_IF: i64 = 24
+pub const N_BLK: i64 = 25
+pub const N_EXP: i64 = 26
+pub const N_EMPTY: i64 = 27
+
+pub struct Ast
+    k: List[i64]
+    s: List[text]
+    a: List[i64]
+    b: List[i64]
+    c: List[i64]
+    xs: List[List[i64]]
+    tk: Toks
+    at: usize
+    ok: bool
+    why: text
+
+fn e_node(p: &mut Ast, k: i64, s: text, a: i64, b: i64, c: i64) -> i64
+    p.k.push(k)
+    p.s.push(s)
+    p.a.push(a)
+    p.b.push(b)
+    p.c.push(c)
+    p.xs.push(e_inone())
+    return (p.k.len() - 1) as i64
+
+fn pbad(p: &mut Ast, why: text)
+    if p.ok
+        p.ok = false
+        p.why = why
+
+fn e_peek(p: &Ast) -> text = copy(p.tk.t[p.at])
+fn peek_k(p: &Ast) -> i64 = p.tk.k[p.at]
+
+# the current token is punctuation (or a keyword) t
+fn e_is_p(p: &Ast, t: &text) -> bool = (p.tk.k[p.at] == T_P or p.tk.k[p.at] == T_ID) and p.tk.t[p.at] == t
+
+fn e_adv(p: &mut Ast)
+    if p.tk.k[p.at] != T_END
+        p.at += 1
+
+fn e_expect(p: &mut Ast, t: &text)
+    if e_is_p(p, t)
+        e_adv(p)
+    else
+        pbad(p, "expected " + t + " found " + e_peek(p))
+
+pub fn parse_program(src: &text) -> Ast
+    let tk = lex(src)
+    var p = Ast(k: [], s: [], a: [], b: [], c: [], xs: [], tk: tk, at: 0, ok: true, why: "")
+    if not p.tk.ok
+        p.ok = false
+        p.why = "SyntaxError: bad token"
+        return p
+    let top = e_node(&mut p, N_BLK, "", -1, -1, -1)
+    while p.ok and peek_k(&p) != T_END bound 65536
+        let s = e_stmt(&mut p)
+        p.xs[top as usize].push(s)
+    return p
+
+pub fn parse_expr(src: &text) -> Ast
+    let tk = lex(src)
+    var p = Ast(k: [], s: [], a: [], b: [], c: [], xs: [], tk: tk, at: 0, ok: true, why: "")
+    if not p.tk.ok
+        p.ok = false
+        p.why = "SyntaxError: bad token"
+        return p
+    let top = e_node(&mut p, N_EXP, "", -1, -1, -1)
+    let e = expr(&mut p)
+    p.a[top as usize] = e
+    if p.ok and peek_k(&p) != T_END
+        pbad(&mut p, "SyntaxError: unexpected " + e_peek(&p))
+    return p
+
+fn e_semi(p: &mut Ast)
+    let sc = ";"
+    if e_is_p(p, &sc)
+        e_adv(p)
+
+fn e_stmt(p: &mut Ast) -> i64 bound 256
+    let t = e_peek(p)
+    let k = peek_k(p)
+    if k == T_P and t == ";"
+        e_adv(p)
+        return e_node(p, N_EMPTY, "", -1, -1, -1)
+    if k == T_P and t == "{"
+        e_adv(p)
+        let b = e_node(p, N_BLK, "", -1, -1, -1)
+        let rc = "}"
+        while p.ok and not e_is_p(p, &rc) and peek_k(p) != T_END bound 65536
+            let s = e_stmt(p)
+            p.xs[b as usize].push(s)
+        e_expect(p, &rc)
+        return b
+    if k == T_ID and t == "var"
+        e_adv(p)
+        let v = e_node(p, N_VAR, "", -1, -1, -1)
+        var more = true
+        while more and p.ok bound 1024
+            if peek_k(p) != T_ID
+                pbad(p, "SyntaxError: var name")
+                return v
+            let nm = e_peek(p)
+            e_adv(p)
+            let id = e_node(p, N_ID, nm, -1, -1, -1)
+            var init: i64 = -1
+            let eq = "="
+            if e_is_p(p, &eq)
+                e_adv(p)
+                init = assign_e(p)
+            p.xs[v as usize].push(id)
+            p.xs[v as usize].push(init)
+            let cm = ","
+            more = e_is_p(p, &cm)
+            if more
+                e_adv(p)
+        e_semi(p)
+        return v
+    if k == T_ID and t == "function"
+        let f = fun_e(p)
+        # a declaration: var name = function
+        let fp = p.s[f as usize].split("\u{0}")
+        let nm = copy(fp[0])
+        let v = e_node(p, N_VAR, "decl", -1, -1, -1)
+        let id = e_node(p, N_ID, nm, -1, -1, -1)
+        p.xs[v as usize].push(id)
+        p.xs[v as usize].push(f)
+        return v
+    if k == T_ID and t == "return"
+        e_adv(p)
+        var e: i64 = -1
+        let sc = ";"
+        let rc = "}"
+        if not e_is_p(p, &sc) and not e_is_p(p, &rc) and peek_k(p) != T_END
+            e = expr(p)
+        e_semi(p)
+        return e_node(p, N_RET, "", e, -1, -1)
+    if k == T_ID and t == "if"
+        e_adv(p)
+        let lp = "("
+        let rp = ")"
+        e_expect(p, &lp)
+        let c = expr(p)
+        e_expect(p, &rp)
+        let th = e_stmt(p)
+        var el: i64 = -1
+        let es = "else"
+        if e_is_p(p, &es)
+            e_adv(p)
+            el = e_stmt(p)
+        return e_node(p, N_IF, "", c, th, el)
+    let e = expr(p)
+    e_semi(p)
+    return e_node(p, N_EXP, "", e, -1, -1)
+
+fn fun_e(p: &mut Ast) -> i64 bound 256
+    let start = p.at
+    e_adv(p)
+    var nm = ""
+    if peek_k(p) == T_ID
+        nm = e_peek(p)
+        e_adv(p)
+    let f = e_node(p, N_FUN, copy(nm), -1, -1, -1)
+    let lp = "("
+    let rp = ")"
+    e_expect(p, &lp)
+    while p.ok and not e_is_p(p, &rp) bound 256
+        if peek_k(p) != T_ID
+            pbad(p, "SyntaxError: parameter")
+            return f
+        let id = e_node(p, N_ID, e_peek(p), -1, -1, -1)
+        p.xs[f as usize].push(id)
+        e_adv(p)
+        let cm = ","
+        if e_is_p(p, &cm)
+            e_adv(p)
+    e_expect(p, &rp)
+    let lb = "{"
+    if not e_is_p(p, &lb)
+        pbad(p, "SyntaxError: function body")
+        return f
+    let b = e_stmt(p)
+    p.a[f as usize] = b
+    # the source text of the function, from its tokens
+    var src = ""
+    for i in start..p.at
+        if i > start
+            src = src + " "
+        src = src + tok_src(&p.tk, i)
+    p.c[f as usize] = 0
+    p.s[f as usize] = copy(nm) + "\u{0}" + src
+    return f
+
+fn tok_src(tk: &Toks, i: usize) -> text
+    if tk.k[i] == T_STR
+        var o = "\""
+        for c in tk.t[i].chars()
+            if c == "\"" or c == "\\"
+                o = o + "\\" + c
+            elif c == "\n"
+                o = o + "\\n"
+            else
+                o = o + c
+        return o + "\""
+    if tk.k[i] == T_RE
+        return "/" + tk.t[i] + "/"
+    return copy(tk.t[i])
+
+pub fn expr(p: &mut Ast) -> i64 bound 256
+    var e = assign_e(p)
+    let cm = ","
+    while p.ok and e_is_p(p, &cm) bound 1024
+        e_adv(p)
+        let r = assign_e(p)
+        e = e_node(p, N_SEQ, "", e, r, -1)
+    return e
+
+fn assign_e(p: &mut Ast) -> i64 bound 256
+    let l = cond_e(p)
+    let t = e_peek(p)
+    if peek_k(p) == T_P and (t == "=" or t == "+=" or t == "-=" or t == "*=" or t == "/=" or t == "%=")
+        let lk = p.k[l as usize]
+        if lk != N_ID and lk != N_MEM and lk != N_IDX
+            pbad(p, "SyntaxError: invalid assignment target")
+            return l
+        e_adv(p)
+        let r = assign_e(p)
+        return e_node(p, N_ASG, t, l, r, -1)
+    return l
+
+fn cond_e(p: &mut Ast) -> i64 bound 256
+    let c = bin_e(p, 0)
+    let q = "?"
+    if e_is_p(p, &q)
+        e_adv(p)
+        let a = assign_e(p)
+        let col = ":"
+        e_expect(p, &col)
+        let b = assign_e(p)
+        return e_node(p, N_COND, "", c, a, b)
+    return c
+
+# binary operator precedence levels, loosest first
+fn level_of(t: &text, k: i64) -> i64
+    if k != T_P and k != T_ID
+        return -1
+    if t == "||"
+        return 0
+    if t == "&&"
+        return 1
+    if t == "|"
+        return 2
+    if t == "^"
+        return 3
+    if t == "&"
+        return 4
+    if t == "==" or t == "!=" or t == "===" or t == "!=="
+        return 5
+    if t == "<" or t == ">" or t == "<=" or t == ">=" or t == "instanceof" or t == "in"
+        return 6
+    if t == "+" or t == "-"
+        return 7
+    if t == "*" or t == "/" or t == "%"
+        return 8
+    return -1
+
+fn level_here(p: &Ast) -> i64
+    let t = e_peek(p)
+    return level_of(&t, peek_k(p))
+
+fn bin_e(p: &mut Ast, lv: i64) -> i64 bound 256
+    if lv > 8
+        return unary_e(p)
+    var l = bin_e(p, lv + 1)
+    while p.ok and level_here(p) == lv bound 4096
+        let op = e_peek(p)
+        e_adv(p)
+        let r = bin_e(p, lv + 1)
+        if op == "&&"
+            l = e_node(p, N_AND, op, l, r, -1)
+        elif op == "||"
+            l = e_node(p, N_OR, op, l, r, -1)
+        else
+            l = e_node(p, N_BIN, op, l, r, -1)
+    return l
+
+fn unary_e(p: &mut Ast) -> i64 bound 256
+    let t = e_peek(p)
+    let k = peek_k(p)
+    if (k == T_P and (t == "!" or t == "-" or t == "+" or t == "~")) or (k == T_ID and (t == "typeof" or t == "void" or t == "delete"))
+        e_adv(p)
+        let a = unary_e(p)
+        return e_node(p, N_UN, t, a, -1, -1)
+    if k == T_P and (t == "++" or t == "--")
+        e_adv(p)
+        let a = unary_e(p)
+        let ak = p.k[a as usize]
+        if ak != N_ID and ak != N_MEM and ak != N_IDX
+            pbad(p, "SyntaxError: invalid update target")
+        return e_node(p, N_PRE, t, a, -1, -1)
+    let e = postfix_e(p)
+    let t2 = e_peek(p)
+    if peek_k(p) == T_P and (t2 == "++" or t2 == "--")
+        e_adv(p)
+        let ak = p.k[e as usize]
+        if ak != N_ID and ak != N_MEM and ak != N_IDX
+            pbad(p, "SyntaxError: invalid update target")
+        return e_node(p, N_POST, t2, e, -1, -1)
+    return e
+
+fn args_of(p: &mut Ast, n: i64)
+    let rp = ")"
+    while p.ok and not e_is_p(p, &rp) bound 1024
+        let a = assign_e(p)
+        p.xs[n as usize].push(a)
+        let cm = ","
+        if e_is_p(p, &cm)
+            e_adv(p)
+        elif not e_is_p(p, &rp)
+            pbad(p, "SyntaxError: arguments")
+    e_expect(p, &rp)
+
+fn postfix_e(p: &mut Ast) -> i64 bound 256
+    var e: i64 = -1
+    let nw = "new"
+    if e_is_p(p, &nw)
+        e_adv(p)
+        let callee = member_only(p)
+        e = e_node(p, N_NEW, "", callee, -1, -1)
+        let lp = "("
+        if e_is_p(p, &lp)
+            e_adv(p)
+            args_of(p, e)
+    else
+        e = primary(p)
+    var go = true
+    while go and p.ok bound 4096
+        let t = e_peek(p)
+        if peek_k(p) == T_P and t == "."
+            e_adv(p)
+            if peek_k(p) != T_ID
+                pbad(p, "SyntaxError: property name")
+                return e
+            let nm = e_peek(p)
+            e_adv(p)
+            e = e_node(p, N_MEM, nm, e, -1, -1)
+        elif peek_k(p) == T_P and t == "["
+            e_adv(p)
+            let ix = expr(p)
+            let rb = "]"
+            e_expect(p, &rb)
+            e = e_node(p, N_IDX, "", e, ix, -1)
+        elif peek_k(p) == T_P and t == "("
+            e_adv(p)
+            let c = e_node(p, N_CALL, "", e, -1, -1)
+            args_of(p, c)
+            e = c
+        else
+            go = false
+    return e
+
+# the callee of new: member accesses without calls
+fn member_only(p: &mut Ast) -> i64 bound 256
+    var e = primary(p)
+    var go = true
+    while go and p.ok bound 4096
+        let t = e_peek(p)
+        if peek_k(p) == T_P and t == "."
+            e_adv(p)
+            let nm = e_peek(p)
+            e_adv(p)
+            e = e_node(p, N_MEM, nm, e, -1, -1)
+        else
+            go = false
+    return e
+
+fn primary(p: &mut Ast) -> i64 bound 256
+    let t = e_peek(p)
+    let k = peek_k(p)
+    if k == T_NUM
+        e_adv(p)
+        return e_node(p, N_NUM, t, -1, -1, -1)
+    if k == T_STR
+        e_adv(p)
+        return e_node(p, N_STR, t, -1, -1, -1)
+    if k == T_RE
+        e_adv(p)
+        return e_node(p, N_RE, t, -1, -1, -1)
+    if k == T_ID
+        if t == "function"
+            return fun_e(p)
+        if t == "this"
+            e_adv(p)
+            return e_node(p, N_THIS, "", -1, -1, -1)
+        let kw = ["var", "return", "if", "else", "new", "typeof", "in", "instanceof", "for", "while", "do", "break", "continue", "switch", "case", "default", "throw", "try", "catch", "finally", "delete", "void", "with", "class", "const", "let"]
+        if kw.contains(t)
+            pbad(p, "SyntaxError: unexpected " + t)
+            return -1
+        e_adv(p)
+        return e_node(p, N_ID, t, -1, -1, -1)
+    if k == T_P and t == "("
+        e_adv(p)
+        let e = expr(p)
+        let rp = ")"
+        e_expect(p, &rp)
+        return e
+    if k == T_P and t == "["
+        e_adv(p)
+        let a = e_node(p, N_ARR, "", -1, -1, -1)
+        let rb = "]"
+        while p.ok and not e_is_p(p, &rb) bound 65536
+            let x = assign_e(p)
+            p.xs[a as usize].push(x)
+            let cm = ","
+            if e_is_p(p, &cm)
+                e_adv(p)
+            elif not e_is_p(p, &rb)
+                pbad(p, "SyntaxError: array literal")
+        e_expect(p, &rb)
+        return a
+    if k == T_P and t == "{"
+        e_adv(p)
+        let o = e_node(p, N_OBJ, "", -1, -1, -1)
+        let rc = "}"
+        while p.ok and not e_is_p(p, &rc) bound 65536
+            let kk = peek_k(p)
+            if kk != T_ID and kk != T_STR and kk != T_NUM
+                pbad(p, "SyntaxError: property name")
+                return o
+            let key = e_node(p, N_STR, e_peek(p), -1, -1, -1)
+            e_adv(p)
+            let col = ":"
+            e_expect(p, &col)
+            let v = assign_e(p)
+            p.xs[o as usize].push(key)
+            p.xs[o as usize].push(v)
+            let cm = ","
+            if e_is_p(p, &cm)
+                e_adv(p)
+            elif not e_is_p(p, &rc)
+                pbad(p, "SyntaxError: object literal")
+        e_expect(p, &rc)
+        return o
+    pbad(p, "SyntaxError: unexpected " + (if k == T_END then "end of input" else t))
+    return -1
+
+# ---------------- evaluation ----------------
+
+# a scope cell: properties are its bindings, fenv its parent scope
+pub fn new_scope(js: &mut Js, parent: i64) -> i64
+    let s = cell(js, C_SCOPE)
+    js.fenv[s as usize] = parent
+    return s
+
+fn find_binding(js: &Js, env: i64, nm: &text) -> i64
+    var e = env
+    while e >= 0 bound 4096
+        if e_own(js, e, nm) >= 0
+            return e
+        e = js.fenv[e as usize]
+    return -1
+
+fn global_of(js: &Js, env: i64) -> i64
+    var e = env
+    while js.fenv[e as usize] >= 0 bound 4096
+        e = js.fenv[e as usize]
+    return e
+
+fn e_native(js: &mut Js, nm: text) -> V
+    let c = cell(js, C_NAT)
+    js.fsrc[c as usize] = nm
+    return Rf(r: c)
+
+fn builtin_name(nm: &text) -> bool = nm == "undefined" or nm == "NaN" or nm == "true" or nm == "false" or nm == "null" or nm == "In" or nm == "Array" or nm == "Object" or nm == "String" or nm == "Number" or nm == "JSON"
+
+fn e_lookup(js: &mut Js, env: i64, nm: &text) -> V
+    let e = find_binding(js, env, nm)
+    if e >= 0
+        return get_prop(js, e, nm)
+    if nm == "undefined"
+        return Und
+    if nm == "NaN"
+        return NaN
+    if nm == "In" or nm == "Array" or nm == "Object" or nm == "String" or nm == "Number" or nm == "JSON"
+        return e_native(js, copy(nm))
+    e_fail(js, "ReferenceError: " + nm + " is not defined")
+    return Und
+
+fn e_bind(js: &mut Js, env: i64, nm: &text, v: V)
+    var e = find_binding(js, env, nm)
+    if e < 0
+        e = global_of(js, env)
+    if js.ro[e as usize].contains(copy(nm))
+        e_fail(js, "TypeError: " + nm + " is read-only")
+        return
+    set_prop(js, e, nm, v)
+
+fn idx_key(js: &mut Js, v: &V) -> text = to_str(js, v)
+
+# property read on any value
+pub fn get_any(js: &mut Js, o: &V, k: &text) -> V
+    let t = vtag(o)
+    if t == 6
+        let r = vr(o)
+        let c = js.cls[r as usize]
+        if c == C_ARR
+            if k == "length"
+                return Nm(n: arr_len(js, r))
+            if e_digits(k)
+                let i = k.toint()
+                if i < arr_len(js, r)
+                    return copy(js.vals[r as usize][i as usize])
+                return Und
+        return get_prop(js, r, k)
+    if t == 5
+        let s = vstr(o)
+        if k == "length"
+            return Nm(n: s.chars().len() as i64)
+        if e_digits(k)
+            let cs = s.chars()
+            let i = k.toint()
+            if i < cs.len() as i64
+                return St(s: copy(cs[i as usize]))
+        return Und
+    if t == 0 or t == 1
+        e_fail(js, "TypeError: cannot read property " + k + " of " + (if t == 0 then "undefined" else "null"))
+    return Und
+
+pub fn put_any(js: &mut Js, o: &V, k: &text, v: V)
+    let t = vtag(o)
+    if t == 6
+        let r = vr(o)
+        if js.ro[r as usize].contains(copy(k))
+            e_fail(js, "TypeError: " + k + " is read-only")
+            return
+        if js.cls[r as usize] == C_ARR and e_digits(k)
+            let i = k.toint()
+            while arr_len(js, r) <= i bound 1048576
+                js.vals[r as usize].push(Und)
+                js.keys[r as usize].push("")
+            js.vals[r as usize][i as usize] = v
+            return
+        set_prop(js, r, k, v)
+    elif t == 0 or t == 1
+        e_fail(js, "TypeError: cannot set property " + k + " of " + (if t == 0 then "undefined" else "null"))
+
+fn num_of(v: &V) -> i64
+    match v
+        Nm(n: n) -> return copy(n)
+        _ -> return 0
+
+fn is_nan(v: &V) -> bool
+    match v
+        NaN -> return true
+        _ -> return false
+
+# ToUint32 (ECMA-262 9.6)
+fn to_u32(v: &V) -> i64
+    if vtag(v) != 3
+        return 0
+    let m: i64 = 4294967296
+    return ((num_of(v) % m) + m) % m
+
+fn bitop(op: &text, a: &V, b: &V) -> V
+    var u = to_u32(a)
+    var w = to_u32(b)
+    var r: i64 = 0
+    var bit: i64 = 1
+    for _i in 0..32
+        let p = u % 2
+        let q = w % 2
+        var hit = false
+        if op == "|"
+            hit = p == 1 or q == 1
+        elif op == "&"
+            hit = p == 1 and q == 1
+        else
+            hit = p != q
+        if hit
+            r += bit
+        bit = bit * 2
+        u = u / 2
+        w = w / 2
+    # ToInt32
+    if r >= 2147483648
+        r -= 4294967296
+    return Nm(n: r)
+
+fn e_arith(js: &mut Js, op: &text, a: &V, b: &V) -> V
+    if op == "+"
+        let pa = if e_is_ref(a) then St(s: to_str(js, a)) else copy(a)
+        let pb = if e_is_ref(b) then St(s: to_str(js, b)) else copy(b)
+        if e_is_str(&pa) or e_is_str(&pb)
+            return St(s: to_str(js, &pa) + to_str(js, &pb))
+        let x = to_num(js, &pa)
+        let y = to_num(js, &pb)
+        if is_nan(&x) or is_nan(&y)
+            return NaN
+        return Nm(n: num_of(&x) + num_of(&y))
+    let x = to_num(js, a)
+    let y = to_num(js, b)
+    if op == "|" or op == "&" or op == "^"
+        return bitop(op, &x, &y)
+    if is_nan(&x) or is_nan(&y)
+        return NaN
+    let m = num_of(&x)
+    let n = num_of(&y)
+    if op == "-"
+        return Nm(n: m - n)
+    if op == "*"
+        return Nm(n: m * n)
+    if op == "/" or op == "%"
+        if n == 0
+            if op == "%" or m == 0
+                return NaN
+            e_fail(js, "RangeError: Infinity (needs IEEE 754 numbers)")
+            return NaN
+        if op == "%"
+            return Nm(n: m % n)
+        if m % n != 0
+            e_fail(js, "RangeError: non-integer quotient (needs IEEE 754 numbers)")
+            return NaN
+        return Nm(n: m / n)
+    e_fail(js, "SyntaxError: operator " + op)
+    return Und
+
+fn e_compare(js: &mut Js, op: &text, a: &V, b: &V) -> V
+    let pa = if e_is_ref(a) then St(s: to_str(js, a)) else copy(a)
+    let pb = if e_is_ref(b) then St(s: to_str(js, b)) else copy(b)
+    if e_is_str(&pa) and e_is_str(&pb)
+        let x = to_str(js, &pa)
+        let y = to_str(js, &pb)
+        var lt = false
+        var gt = false
+        let xs = x.chars()
+        let ys = y.chars()
+        var i: usize = 0
+        var dec = false
+        while not dec and i < xs.len() and i < ys.len() bound 1048576
+            if xs[i] != ys[i]
+                lt = xs[i][0] < ys[i][0]
+                gt = not lt
+                dec = true
+            i += 1
+        if not dec
+            lt = xs.len() < ys.len()
+            gt = xs.len() > ys.len()
+        if op == "<"
+            return Bo(b: lt)
+        if op == ">"
+            return Bo(b: gt)
+        if op == "<="
+            return Bo(b: not gt)
+        return Bo(b: not lt)
+    let x = to_num(js, &pa)
+    let y = to_num(js, &pb)
+    if is_nan(&x) or is_nan(&y)
+        return Bo(b: false)
+    let m = num_of(&x)
+    let n = num_of(&y)
+    if op == "<"
+        return Bo(b: m < n)
+    if op == ">"
+        return Bo(b: m > n)
+    if op == "<="
+        return Bo(b: m <= n)
+    return Bo(b: m >= n)
+
+fn e_binop(js: &mut Js, op: &text, a: &V, b: &V) -> V
+    if op == "==="
+        return Bo(b: strict_eq(a, b))
+    if op == "!=="
+        return Bo(b: not strict_eq(a, b))
+    if op == "=="
+        return Bo(b: loose_eq(js, a, b))
+    if op == "!="
+        return Bo(b: not loose_eq(js, a, b))
+    if op == "<" or op == ">" or op == "<=" or op == ">="
+        return e_compare(js, op, a, b)
+    if op == "instanceof"
+        if vtag(b) != 6
+            e_fail(js, "TypeError: instanceof needs a function")
+            return Und
+        let f = vr(b)
+        let fc = js.cls[f as usize]
+        let o = vr(a)
+        if fc == C_NAT
+            let nm = copy(js.fsrc[f as usize])
+            if o < 0
+                return Bo(b: false)
+            if nm == "Array"
+                return Bo(b: js.cls[o as usize] == C_ARR)
+            return Bo(b: nm == "Object")
+        if fc != C_FUN
+            e_fail(js, "TypeError: instanceof needs a function")
+            return Und
+        if o < 0
+            return Bo(b: false)
+        return Bo(b: js.ctor[o as usize] == f)
+    if op == "in"
+        let k = to_str(js, a)
+        let o = vr(b)
+        if o < 0
+            e_fail(js, "TypeError: in needs an object")
+            return Und
+        if js.cls[o as usize] == C_ARR
+            if k == "length"
+                return Bo(b: true)
+            if e_digits(&k)
+                return Bo(b: k.toint() < arr_len(js, o))
+        return Bo(b: e_own(js, o, &k) >= 0)
+    return e_arith(js, op, a, b)
+
+fn mk_fun(js: &mut Js, p: &Ast, n: i64, env: i64) -> V
+    let f = cell(js, C_FUN)
+    let parts = p.s[n as usize].split("\u{0}")
+    js.fsrc[f as usize] = copy(parts[1])
+    js.fenv[f as usize] = env
+    return Rf(r: f)
+
+# evaluate node n of p in scope env with this
+pub fn ev(js: &mut Js, p: &Ast, n: i64, env: i64, this: &V) -> V bound 512
+    js.steps += 1
+    if js.err != "" or n < 0
+        return Und
+    if js.steps > 200000
+        e_fail(js, "RangeError: step budget")
+        return Und
+    let k = p.k[n as usize]
+    let u = n as usize
+    if k == N_NUM
+        let t = copy(p.s[u])
+        if t.contains(".")
+            let ps = t.split(".")
+            var frac_zero = true
+            for c in ps[1].chars()
+                if c != "0"
+                    frac_zero = false
+            if not frac_zero or ps.len() != 2
+                e_fail(js, "RangeError: non-integer literal (needs IEEE 754 numbers)")
+                return NaN
+            return Nm(n: if ps[0] == "" then 0 else ps[0].toint())
+        return Nm(n: t.toint())
+    if k == N_STR
+        return St(s: copy(p.s[u]))
+    if k == N_RE
+        let c = cell(js, C_RE)
+        js.fsrc[c as usize] = copy(p.s[u])
+        return Rf(r: c)
+    if k == N_ID
+        let nm = copy(p.s[u])
+        if nm == "true"
+            return Bo(b: true)
+        if nm == "false"
+            return Bo(b: false)
+        if nm == "null"
+            return Nul
+        return e_lookup(js, env, &nm)
+    if k == N_THIS
+        return copy(this)
+    if k == N_ARR
+        var xs: List[V] = []
+        for x in p.xs[u]
+            xs.push(ev(js, p, x, env, this))
+        return Rf(r: new_arr(js, &xs))
+    if k == N_OBJ
+        let o = new_obj(js)
+        var i: usize = 0
+        while i + 1 < p.xs[u].len() bound 65536
+            let key = copy(p.s[p.xs[u][i] as usize])
+            let v = ev(js, p, p.xs[u][i + 1], env, this)
+            set_prop(js, o, &key, v)
+            i += 2
+        return Rf(r: o)
+    if k == N_FUN
+        return mk_fun(js, p, n, env)
+    if k == N_MEM
+        let o = ev(js, p, p.a[u], env, this)
+        return get_any(js, &o, &p.s[u])
+    if k == N_IDX
+        let o = ev(js, p, p.a[u], env, this)
+        let ix = ev(js, p, p.b[u], env, this)
+        let key = idx_key(js, &ix)
+        return get_any(js, &o, &key)
+    if k == N_CALL
+        return call_node(js, p, n, env, this)
+    if k == N_NEW
+        let f = ev(js, p, p.a[u], env, this)
+        var args: List[V] = []
+        for x in p.xs[u]
+            args.push(ev(js, p, x, env, this))
+        let fr = vr(&f)
+        if fr < 0
+            e_fail(js, "TypeError: not a constructor")
+            return Und
+        if js.cls[fr as usize] == C_NAT and js.fsrc[fr as usize] == "Array"
+            return Rf(r: new_arr(js, &args))
+        if js.cls[fr as usize] == C_NAT and js.fsrc[fr as usize] == "Object"
+            return Rf(r: new_obj(js))
+        if js.cls[fr as usize] != C_FUN
+            e_fail(js, "TypeError: not a constructor")
+            return Und
+        let o = new_obj(js)
+        js.ctor[o as usize] = fr
+        let me = Rf(r: o)
+        let r = call_fun(js, fr, &args, &me)
+        if e_is_ref(&r)
+            return r
+        return me
+    if k == N_UN
+        let op = copy(p.s[u])
+        if op == "typeof" and p.k[p.a[u] as usize] == N_ID
+            let nm = copy(p.s[p.a[u] as usize])
+            if find_binding(js, env, &nm) < 0 and not builtin_name(&nm)
+                return St(s: "undefined")
+        let a = ev(js, p, p.a[u], env, this)
+        if op == "!"
+            return Bo(b: not truthy(&a))
+        if op == "typeof"
+            return St(s: type_of(js, &a))
+        if op == "void"
+            return Und
+        if op == "-"
+            let x = to_num(js, &a)
+            if is_nan(&x)
+                return NaN
+            return Nm(n: 0 - num_of(&x))
+        if op == "+"
+            return to_num(js, &a)
+        e_fail(js, "SyntaxError: operator " + op)
+        return Und
+    if k == N_PRE or k == N_POST
+        let old = ev(js, p, p.a[u], env, this)
+        let x = to_num(js, &old)
+        let one = Nm(n: 1)
+        let aop = if p.s[u] == "++" then "+" else "-"
+        let nv = e_arith(js, &aop, &x, &one)
+        e_store(js, p, p.a[u], env, this, copy(nv))
+        return if k == N_PRE then nv else x
+    if k == N_AND
+        let a = ev(js, p, p.a[u], env, this)
+        if not truthy(&a)
+            return a
+        return ev(js, p, p.b[u], env, this)
+    if k == N_OR
+        let a = ev(js, p, p.a[u], env, this)
+        if truthy(&a)
+            return a
+        return ev(js, p, p.b[u], env, this)
+    if k == N_BIN
+        let a = ev(js, p, p.a[u], env, this)
+        let b = ev(js, p, p.b[u], env, this)
+        if js.err != ""
+            return Und
+        return e_binop(js, &p.s[u], &a, &b)
+    if k == N_ASG
+        let op = copy(p.s[u])
+        var v = ev(js, p, p.b[u], env, this)
+        if op != "="
+            # the target is read before the right side (ECMA-262 11.13.2)
+            let old = ev(js, p, p.a[u], env, this)
+            let bop = op.split("=")
+            v = e_arith(js, &bop[0], &old, &v)
+        if js.err != ""
+            return Und
+        e_store(js, p, p.a[u], env, this, copy(v))
+        return v
+    if k == N_COND
+        let c = ev(js, p, p.a[u], env, this)
+        if truthy(&c)
+            return ev(js, p, p.b[u], env, this)
+        return ev(js, p, p.c[u], env, this)
+    if k == N_SEQ
+        let _a = ev(js, p, p.a[u], env, this)
+        return ev(js, p, p.b[u], env, this)
+    if k == N_EXP
+        return ev(js, p, p.a[u], env, this)
+    if k == N_VAR
+        var i: usize = 0
+        while i + 1 < p.xs[u].len() bound 65536
+            let nm = copy(p.s[p.xs[u][i] as usize])
+            let init = p.xs[u][i + 1]
+            # var binds in the nearest function (or global) scope
+            if e_own(js, env, &nm) < 0
+                set_prop(js, env, &nm, Und)
+            if init >= 0
+                let v = ev(js, p, init, env, this)
+                if js.ro[env as usize].contains(copy(nm))
+                    e_fail(js, "TypeError: " + nm + " is read-only")
+                else
+                    set_prop(js, env, &nm, v)
+            i += 2
+        return Und
+    if k == N_RET
+        let v = ev(js, p, p.a[u], env, this)
+        js.rflag = true
+        js.rval = v
+        return Und
+    if k == N_IF
+        let c = ev(js, p, p.a[u], env, this)
+        if truthy(&c)
+            return ev(js, p, p.b[u], env, this)
+        return ev(js, p, p.c[u], env, this)
+    if k == N_BLK
+        var last = Und
+        for x in p.xs[u]
+            if not js.rflag and js.err == ""
+                last = ev(js, p, x, env, this)
+        return last
+    return Und
+
+# assign v to the target node t
+fn e_store(js: &mut Js, p: &Ast, t: i64, env: i64, this: &V, v: V) bound 512
+    if js.err != ""
+        return
+    let u = t as usize
+    let k = p.k[u]
+    if k == N_ID
+        e_bind(js, env, &p.s[u], v)
+    elif k == N_MEM
+        let o = ev(js, p, p.a[u], env, this)
+        if js.err == ""
+            put_any(js, &o, &p.s[u], v)
+    elif k == N_IDX
+        let o = ev(js, p, p.a[u], env, this)
+        let ix = ev(js, p, p.b[u], env, this)
+        let key = idx_key(js, &ix)
+        if js.err == ""
+            put_any(js, &o, &key, v)
+    else
+        e_fail(js, "SyntaxError: invalid assignment target")
+
+pub fn call_fun(js: &mut Js, f: i64, args: &[V], this: &V) -> V bound 64
+    let src = "(" + js.fsrc[f as usize] + ")"
+    let p = parse_expr(&src)
+    if not p.ok
+        e_fail(js, copy(p.why))
+        return Und
+    let fnode = p.a[0]
+    let sc = new_scope(js, js.fenv[f as usize])
+    let ps = copy(p.xs[fnode as usize])
+    for i in 0..ps.len()
+        let nm = copy(p.s[ps[i] as usize])
+        set_prop(js, sc, &nm, if i < args.len() then copy(args[i]) else Und)
+    js.rflag = false
+    let _r = ev(js, &p, p.a[fnode as usize], sc, this)
+    if js.rflag
+        js.rflag = false
+        let rv = copy(js.rval)
+        js.rval = Und
+        return rv
+    return Und
+
+fn call_node(js: &mut Js, p: &Ast, n: i64, env: i64, this: &V) -> V bound 512
+    let u = n as usize
+    let callee = p.a[u]
+    var rcv = Und
+    var f = Und
+    var mname = ""
+    if p.k[callee as usize] == N_MEM or p.k[callee as usize] == N_IDX
+        rcv = ev(js, p, p.a[callee as usize], env, this)
+        if p.k[callee as usize] == N_MEM
+            mname = copy(p.s[callee as usize])
+        else
+            let ix = ev(js, p, p.b[callee as usize], env, this)
+            mname = idx_key(js, &ix)
+        if js.err != ""
+            return Und
+        f = get_any(js, &rcv, &mname)
+    else
+        f = ev(js, p, callee, env, this)
+    var args: List[V] = []
+    for x in p.xs[u]
+        args.push(ev(js, p, x, env, this))
+    if js.err != ""
+        return Und
+    let fr = vr(&f)
+    if fr >= 0
+        if js.cls[fr as usize] == C_FUN
+            return call_fun(js, fr, &args, &rcv)
+        if js.cls[fr as usize] == C_NAT
+            let nm = copy(js.fsrc[fr as usize])
+            return call_native(js, &nm, &rcv, &args)
+    if mname != ""
+        return e_method(js, &rcv, &mname, &args)
+    e_fail(js, "TypeError: not a function")
+    return Und
+
+fn call_native(js: &mut Js, nm: &text, _rcv: &V, args: &[V]) -> V
+    if nm == "In"
+        if args.len() == 0
+            return Bo(b: false)
+        let s = to_str(js, &args[0])
+        return Bo(b: js.states.contains(s))
+    if nm == "String"
+        if args.len() == 0
+            return St(s: "")
+        return St(s: to_str(js, &args[0]))
+    if nm == "Number"
+        if args.len() == 0
+            return Nm(n: 0)
+        return to_num(js, &args[0])
+    if nm == "Array"
+        return Rf(r: new_arr(js, args))
+    e_fail(js, "TypeError: " + nm + " is not a function")
+    return Und
+
+# ---------------- built-in methods ----------------
+
+# regular expression atoms: [kind, text]; kind 0 literal, 1 any (.)
+fn re_atoms(pat: &text) -> List[List[text]]
+    var o: List[List[text]] = []
+    let cs = pat.chars()
+    var i: usize = 0
+    while i < cs.len() bound 65536
+        var a: List[text] = []
+        if cs[i] == "\\" and i + 1 < cs.len()
+            a = ["0", copy(cs[i + 1]), ""]
+            i += 2
+        elif cs[i] == "."
+            a = ["1", ".", ""]
+            i += 1
+        else
+            a = ["0", copy(cs[i]), ""]
+            i += 1
+        if i < cs.len() and (cs[i] == "+" or cs[i] == "*" or cs[i] == "?")
+            a[2] = copy(cs[i])
+            i += 1
+        o.push(a)
+    return o
+
+fn re_one(a: &[text], c: &text) -> bool = a[0] == "1" or a[1] == c
+
+# does the pattern (atoms from k) match the text at i: backtracking
+fn re_at(at: &[List[text]], k: usize, cs: &[text], i: usize) -> bool bound 4096
+    if k >= at.len()
+        return true
+    let a = copy(at[k])
+    let q = copy(a[2])
+    if q == ""
+        return i < cs.len() and re_one(&a, &cs[i]) and re_at(at, k + 1, cs, i + 1)
+    var lo: usize = if q == "+" then 1 else 0
+    var hi: usize = 0
+    while i + hi < cs.len() and re_one(&a, &cs[i + hi]) and (q != "?" or hi < 1) bound 1048576
+        hi += 1
+    var m = hi
+    while m + 1 > lo bound 1048576
+        if re_at(at, k + 1, cs, i + m)
+            return true
+        if m == 0
+            return false
+        m -= 1
+    return false
+
+fn re_search(pat: &text, s: &text) -> i64
+    let at = re_atoms(pat)
+    let cs = s.chars()
+    for i in 0..cs.len() + 1
+        if re_at(&at, 0, &cs, i)
+            return i as i64
+    return -1
+
+fn e_index_of(s: &text, t: &text) -> i64
+    let cs = s.chars()
+    let ts = t.chars()
+    if ts.len() == 0
+        return 0
+    var i: usize = 0
+    while i + ts.len() <= cs.len() bound 1048576
+        var ok = true
+        for j in 0..ts.len()
+            if ok and cs[i + j] != ts[j]
+                ok = false
+        if ok
+            return i as i64
+        i += 1
+    return -1
+
+# String.prototype.slice / substring / charAt over code points (the
+# same as UTF-16 code units for text in the BMP)
+fn e_str_part(js: &mut Js, s: &text, m: &text, args: &[V]) -> text
+    let cs = s.chars()
+    let n = cs.len() as i64
+    var a: i64 = 0
+    var b: i64 = n
+    if args.len() > 0
+        a = e_int_arg(js, &args[0])
+    if args.len() > 1 and vtag(&args[1]) != 0
+        b = e_int_arg(js, &args[1])
+    if m == "charAt"
+        b = a + 1
+        if a < 0
+            return ""
+    elif m == "slice"
+        if a < 0
+            a = a + n
+        if b < 0
+            b = b + n
+    else
+        if a < 0
+            a = 0
+        if b < 0
+            b = 0
+        if a > b
+            let t = a
+            a = b
+            b = t
+    if a < 0
+        a = 0
+    if b > n
+        b = n
+    var o = ""
+    var i = a
+    while i < b bound 1048576
+        o = o + cs[i as usize]
+        i += 1
+    return o
+
+fn e_int_arg(js: &mut Js, v: &V) -> i64
+    let x = to_num(js, v)
+    if vtag(&x) == 3
+        return num_of(&x)
+    return 0
+
+fn e_method(js: &mut Js, rcv: &V, m: &text, args: &[V]) -> V
+    let t = vtag(rcv)
+    if t == 5
+        let s = vstr(rcv)
+        if m == "search"
+            if args.len() == 0
+                return Nm(n: 0)
+            let q = vr(&args[0])
+            if q >= 0 and js.cls[q as usize] == C_RE
+                return Nm(n: re_search(&js.fsrc[q as usize], &s))
+            let pat = to_str(js, &args[0])
+            return Nm(n: re_search(&pat, &s))
+        if m == "indexOf"
+            let x = if args.len() > 0 then to_str(js, &args[0]) else "undefined"
+            return Nm(n: e_index_of(&s, &x))
+        if m == "slice" or m == "substring" or m == "charAt"
+            return St(s: e_str_part(js, &s, m, args))
+        if m == "toString" or m == "valueOf"
+            return St(s: s)
+        if m == "toUpperCase"
+            return St(s: s.upper())
+        if m == "toLowerCase"
+            return St(s: s.lower())
+    if t == 6
+        let r = vr(rcv)
+        let c = js.cls[r as usize]
+        if c == C_ARR
+            if m == "concat"
+                var xs = copy(js.vals[r as usize])
+                for a in args
+                    let q = vr(&a)
+                    if q >= 0 and js.cls[q as usize] == C_ARR
+                        for y in js.vals[q as usize]
+                            xs.push(copy(y))
+                    else
+                        xs.push(copy(a))
+                return Rf(r: new_arr(js, &xs))
+            if m == "push"
+                for a in args
+                    js.vals[r as usize].push(copy(a))
+                    js.keys[r as usize].push("")
+                return Nm(n: arr_len(js, r))
+            if m == "join"
+                let sep = if args.len() > 0 then to_str(js, &args[0]) else ","
+                var o = ""
+                let vals = copy(js.vals[r as usize])
+                for i in 0..vals.len()
+                    if i > 0
+                        o = o + sep
+                    if not e_nullish(&vals[i])
+                        o = o + to_str(js, &vals[i])
+                return St(s: o)
+            if m == "indexOf"
+                let vals = copy(js.vals[r as usize])
+                for i in 0..vals.len()
+                    if args.len() > 0 and strict_eq(&vals[i], &args[0])
+                        return Nm(n: i as i64)
+                return Nm(n: -1)
+        if c == C_DOM
+            if m == "getElementsByTagName"
+                let x = if args.len() > 0 then to_str(js, &args[0]) else ""
+                var xs: List[V] = []
+                var st: List[i64] = []
+                var q = js.kids[r as usize].len()
+                while q > 0 bound 1048576
+                    q -= 1
+                    st.push(js.kids[r as usize][q])
+                while st.len() > 0 bound 1048576
+                    let e = st[st.len() - 1]
+                    let _ = st.pop()
+                    if x == "*" or js.fsrc[e as usize] == x
+                        xs.push(Rf(r: e))
+                    var j = js.kids[e as usize].len()
+                    while j > 0 bound 1048576
+                        j -= 1
+                        st.push(js.kids[e as usize][j])
+                return Rf(r: new_arr(js, &xs))
+            if m == "getAttribute"
+                let x = if args.len() > 0 then to_str(js, &args[0]) else ""
+                if e_own(js, r, &x) < 0
+                    return Nul
+                return get_prop(js, r, &x)
+        if m == "hasOwnProperty"
+            let x = if args.len() > 0 then to_str(js, &args[0]) else ""
+            return Bo(b: e_own(js, r, &x) >= 0)
+        if m == "toString"
+            return St(s: obj_str(js, r))
+    e_fail(js, "TypeError: " + m + " is not a function")
+    return Und
+
+# ---------------- host interface ----------------
+
+# a DOM element tree from element n of an XML document (attributes as
+# own properties; the tag name in fsrc)
+pub fn dom_of(js: &mut Js, x: &xml.Xml, n: i64) -> i64 bound 256
+    let c = cell(js, C_DOM)
+    js.fsrc[c as usize] = copy(x.name[n as usize])
+    for k in 0..x.an[n as usize].len()
+        set_prop(js, c, &x.an[n as usize][k], St(s: copy(x.av[n as usize][k])))
+    for e in xml.elems(x, n)
+        let d = dom_of(js, x, e)
+        js.kids[c as usize].push(d)
+    return c
+
+# a document node whose element child is the root of x
+pub fn dom_doc(js: &mut Js, x: &xml.Xml) -> i64
+    let d = cell(js, C_DOM)
+    js.fsrc[d as usize] = "#document"
+    let rt = xml.doc_root(x)
+    if rt >= 0
+        let e = dom_of(js, x, rt)
+        js.kids[d as usize].push(e)
+    return d
+
+pub struct Res
+    v: V
+    ok: bool
+    why: text
+
+fn finish_res(js: &mut Js, v: V) -> Res
+    let w = copy(js.err)
+    js.err = ""
+    js.rflag = false
+    js.steps = 0
+    return Res(v: if w == "" then v else Und, ok: w == "", why: w)
+
+# evaluate an expression in scope env
+# an expression attribute may end in ";" (an ECMAScript expression
+# statement, e.g. expr="new f();"): drop trailing semicolons
+fn e_drop_semi(src: &text) -> text bound 8
+    let t = src.strip()
+    if not t.endswith(";")
+        return t
+    let ps = t.split(";")
+    var keep: List[text] = []
+    var i = 0
+    while i + 1 < ps.len()
+        keep.push(copy(ps[i]))
+        i += 1
+    let r = ";".join(keep)
+    return e_drop_semi(&r)
+
+pub fn eval_in(js: &mut Js, env: i64, src: &text) -> Res
+    let s0 = e_drop_semi(src)
+    let p = parse_expr(&s0)
+    if not p.ok
+        return Res(v: Und, ok: false, why: copy(p.why))
+    let me = Und
+    let v = ev(js, &p, 0, env, &me)
+    return finish_res(js, v)
+
+# run a script (statements) in scope env
+pub fn exec_in(js: &mut Js, env: i64, src: &text) -> Res
+    let p = parse_program(src)
+    if not p.ok
+        return Res(v: Und, ok: false, why: copy(p.why))
+    let me = Und
+    let v = ev(js, &p, 0, env, &me)
+    if js.rflag and js.err == ""
+        js.err = "SyntaxError: return outside a function"
+    return finish_res(js, v)
+
+# is src a valid location expression (an identifier, member or index access)
+pub fn is_location(src: &text) -> bool
+    let p = parse_expr(src)
+    if not p.ok
+        return false
+    let k = p.k[p.a[0] as usize]
+    return k == N_ID or k == N_MEM or k == N_IDX
+
+# the location's base identifier ("" for this or another base)
+pub fn location_base(src: &text) -> text
+    let p = parse_expr(src)
+    if not p.ok
+        return ""
+    var n = p.a[0]
+    while p.k[n as usize] == N_MEM or p.k[n as usize] == N_IDX bound 4096
+        n = p.a[n as usize]
+    if p.k[n as usize] == N_ID
+        return copy(p.s[n as usize])
+    return ""
+
+# assign v to location src (in scope env)
+pub fn assign_in(js: &mut Js, env: i64, src: &text, v: V) -> Res
+    let p = parse_expr(src)
+    if not p.ok
+        return Res(v: Und, ok: false, why: copy(p.why))
+    let t = p.a[0]
+    let k = p.k[t as usize]
+    if k != N_ID and k != N_MEM and k != N_IDX
+        return Res(v: Und, ok: false, why: "SyntaxError: not a location")
+    let me = Und
+    e_store(js, &p, t, env, &me, copy(v))
+    return finish_res(js, v)
+
+# is the name bound in scope env (or an outer scope)
+pub fn is_bound(js: &Js, env: i64, nm: &text) -> bool = find_binding(js, env, nm) >= 0
+
+pub fn has_own(js: &Js, o: i64, k: &text) -> bool = e_own(js, o, k) >= 0

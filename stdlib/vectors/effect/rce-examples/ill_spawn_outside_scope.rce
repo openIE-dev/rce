@@ -1,0 +1,7 @@
+# rce-version: 0.6
+# expect: W-SCOPE-1
+fn worker(c: chan i64)
+    c <- 1
+
+fn boss(c: chan i64)
+    spawn worker(c)

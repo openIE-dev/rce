@@ -1,0 +1,397 @@
+module os.devices
+
+# Devices (survey M42, named os.devices because `device` is an rce
+# keyword), pure. Device transactions are host capability
+# effects (one cap per device class, every transaction logged); this
+# module holds the models a Form reasons with:
+#  - UEFI: EFI_GUID text and byte forms (mixed endian), EFI_STATUS
+#    values and names (EDK2 MdePkg Base.h), memory and reset types
+#    (UefiMultiPhase.h), variable names (Boot####);
+#  - I2C: Linux's address validity checks (i2c-core-base.c), the address
+#    byte of a message, 10-bit addressing, SMBus PEC (CRC-8 as
+#    i2c-core-smbus.c computes it) and embedded-hal style transactions;
+#  - SPI: the spidev mode bits (uapi spi.h), clock idle level and edges
+#    per mode, word bit order;
+#  - UART: asynchronous frames (start, 5 to 8 data bits LSB first,
+#    parity, 1 or 2 stop bits), decode with framing and parity errors,
+#    the 16550 divisor;
+#  - register maps: fields read and written by offset and width, with
+#    read-only and write-1-to-clear fields;
+#  - Sandbox v0.1 device classes and the least tier a grant needs.
+
+error BadDevice(why: text)
+
+const HEX: text = "0123456789abcdef"
+
+fn hexv(c: &text) -> i64
+    let d = HEX.chars()
+    let l = c.lower()
+    var i: i64 = 0
+    while i < 16 bound 16
+        if d[i as usize] == l
+            return i
+        i += 1
+    return -1
+
+fn hex2(b: i64) -> text
+    let d = HEX.chars()
+    return d[((b >> 4) & 15) as usize] + d[(b & 15) as usize]
+
+# ---------------- UEFI ----------------
+
+# The 16 bytes of an EFI_GUID in memory from its registry text
+# "aabbccdd-eeff-gghh-iijj-kkllmmnnoopp": Data1 (u32), Data2, Data3 (u16)
+# little endian, Data4 as written.
+pub fn guid_bytes(t: &text) -> List[i64] ! BadDevice
+    let cs = t.chars()
+    if cs.len() != 36 or cs[8] != "-" or cs[13] != "-" or cs[18] != "-" or cs[23] != "-"
+        fail BadDevice(why: "bad GUID")
+    var v: List[i64] = []
+    var i: usize = 0
+    while i < 36 bound 64
+        if i == 8 or i == 13 or i == 18 or i == 23
+            i += 1
+            continue
+        let a = hexv(&cs[i])
+        let b = hexv(&cs[i + 1])
+        if a < 0 or b < 0
+            fail BadDevice(why: "bad GUID")
+        v.push(a * 16 + b)
+        i += 2
+    return [v[3], v[2], v[1], v[0], v[5], v[4], v[7], v[6], v[8], v[9], v[10], v[11], v[12], v[13], v[14], v[15]]
+
+# Registry text (upper case, as UEFI writes GUIDs) of 16 GUID bytes.
+pub fn guid_text(b: &List[i64]) -> text ! BadDevice
+    if b.len() != 16
+        fail BadDevice(why: "bad GUID")
+    let o = [b[3], b[2], b[1], b[0], b[5], b[4], b[7], b[6], b[8], b[9], b[10], b[11], b[12], b[13], b[14], b[15]]
+    var s = ""
+    var i: usize = 0
+    while i < 16 bound 16
+        if i == 4 or i == 6 or i == 8 or i == 10
+            s = s + "-"
+        s = s + hex2(o[i])
+        i += 1
+    return s.upper()
+
+pub const EFI_GLOBAL_VARIABLE: text = "8BE4DF61-93CA-11D2-AA0D-00E098032B8C"
+
+# MAX_BIT of a 64-bit UEFI target.
+pub const MAX_BIT: i64 = -9223372036854775808
+
+const STATUS_ERRORS: text = "LOAD_ERROR INVALID_PARAMETER UNSUPPORTED BAD_BUFFER_SIZE BUFFER_TOO_SMALL NOT_READY DEVICE_ERROR WRITE_PROTECTED OUT_OF_RESOURCES VOLUME_CORRUPTED VOLUME_FULL NO_MEDIA MEDIA_CHANGED NOT_FOUND ACCESS_DENIED NO_RESPONSE NO_MAPPING TIMEOUT NOT_STARTED ALREADY_STARTED ABORTED ICMP_ERROR TFTP_ERROR PROTOCOL_ERROR INCOMPATIBLE_VERSION SECURITY_VIOLATION CRC_ERROR END_OF_MEDIA - - END_OF_FILE INVALID_LANGUAGE COMPROMISED_DATA IP_ADDRESS_CONFLICT HTTP_ERROR"
+const STATUS_WARNINGS: text = "WARN_UNKNOWN_GLYPH WARN_DELETE_FAILURE WARN_WRITE_FAILURE WARN_BUFFER_TOO_SMALL WARN_STALE_DATA WARN_FILE_SYSTEM WARN_RESET_REQUIRED"
+
+# The EFI_STATUS of a name without its prefix ("NOT_FOUND"); fails for an unknown name.
+pub fn status_value(name: &text) -> i64 ! BadDevice
+    if name == "SUCCESS"
+        return 0
+    var i: i64 = 1
+    for e in STATUS_ERRORS.split(" ")
+        if e == name and e != "-"
+            return MAX_BIT | i
+        i += 1
+    i = 1
+    for w in STATUS_WARNINGS.split(" ")
+        if w == name
+            return i
+        i += 1
+    fail BadDevice(why: "unknown status")
+
+pub fn status_name(v: i64) -> text
+    if v == 0
+        return "SUCCESS"
+    let code = v & 9223372036854775807
+    if v < 0
+        let es = STATUS_ERRORS.split(" ")
+        if code >= 1 and code <= es.len() as i64 and es[(code - 1) as usize] != "-"
+            return copy(es[(code - 1) as usize])
+        return ""
+    let ws = STATUS_WARNINGS.split(" ")
+    if code <= ws.len() as i64
+        return copy(ws[(code - 1) as usize])
+    return ""
+
+# RETURN_ERROR: the high bit is set.
+pub fn status_is_error(v: i64) -> bool = v < 0
+
+const MEMORY_TYPES: text = "EfiReservedMemoryType EfiLoaderCode EfiLoaderData EfiBootServicesCode EfiBootServicesData EfiRuntimeServicesCode EfiRuntimeServicesData EfiConventionalMemory EfiUnusableMemory EfiACPIReclaimMemory EfiACPIMemoryNVS EfiMemoryMappedIO EfiMemoryMappedIOPortSpace EfiPalCode EfiPersistentMemory EfiUnacceptedMemoryType EfiMaxMemoryType"
+const RESET_TYPES: text = "EfiResetCold EfiResetWarm EfiResetShutdown EfiResetPlatformSpecific"
+
+fn index_of(list: &text, name: &text) -> i64
+    var i: i64 = 0
+    for x in list.split(" ")
+        if x == name
+            return i
+        i += 1
+    return -1
+
+pub fn memory_type(name: &text) -> i64 = index_of(&MEMORY_TYPES, name)
+pub fn reset_type(name: &text) -> i64 = index_of(&RESET_TYPES, name)
+
+# Boot#### / Driver#### / SysPrep#### variable names: four upper-case hex digits.
+pub fn load_option_name(prefix: &text, n: i64) -> text ! BadDevice
+    if n < 0 or n > 65535
+        fail BadDevice(why: "option number out of range")
+    return prefix + (hex2(n >> 8) + hex2(n & 255)).upper()
+
+pub fn load_option_number(name: &text, prefix: &text) -> i64
+    if not name.startswith(prefix) or name.len_bytes() != prefix.len_bytes() + 4
+        return -1
+    let cs = name.chars()
+    var v: i64 = 0
+    var i = prefix.chars().len()
+    while i < cs.len() bound 8
+        let h = hexv(&cs[i])
+        if h < 0 or cs[i] != cs[i].upper()
+            return -1
+        v = v * 16 + h
+        i += 1
+    return v
+
+# ---------------- I2C ----------------
+
+pub const I2C_M_RD: i64 = 1
+pub const I2C_M_TEN: i64 = 16
+
+# i2c_check_addr_validity: 10-bit addresses up to 0x3ff; a 7-bit address
+# must not be the general call address 0 nor exceed 0x7f.
+pub fn i2c_addr_valid(addr: i64, ten: bool) -> bool
+    if ten
+        return addr >= 0 and addr <= 1023
+    return addr > 0 and addr <= 127
+
+# i2c_check_7bit_addr_validity_strict (probing): 0x08 to 0x77.
+pub fn i2c_addr_valid_strict(addr: i64) -> bool = addr >= 8 and addr <= 119
+
+# i2c_8bit_addr_from_msg: the first byte on the wire for a 7-bit address.
+pub fn i2c_addr_byte(addr: i64, flags: i64) -> i64 = ((addr << 1) | (flags & I2C_M_RD)) & 255
+
+# A 10-bit address on the wire: 11110 A9 A8 R/W, then A7..A0.
+pub fn i2c_ten_bit_bytes(addr: i64, read: bool) -> List[i64] = [240 | ((addr >> 7) & 6) | (if read then 1 else 0), addr & 255]
+
+fn crc8_step(d: i64) -> i64
+    var data = d & 65535
+    var i = 0
+    while i < 8 bound 8
+        if data & 32768 != 0
+            data = data ^ (4208 << 3)
+        data = data << 1
+        i += 1
+    return (data >> 8) & 255
+
+# i2c_smbus_pec: incremental CRC-8 (x^8 + x^2 + x + 1) over bytes.
+pub fn smbus_pec(crc: i64, bytes: &List[i64]) -> i64
+    var c = crc
+    for b in bytes
+        c = crc8_step(((c ^ b) & 255) << 8)
+    return c
+
+# The PEC of a message sequence as i2c_smbus_xfer_emulated computes it:
+# each message adds its address byte, then its data.
+pub struct I2cMsg
+    addr: i64
+    flags: i64
+    data: List[i64]
+
+pub fn smbus_msgs_pec(msgs: &List[I2cMsg]) -> i64
+    var pec: i64 = 0
+    for m in msgs
+        let ab = [i2c_addr_byte(m.addr, m.flags)]
+        pec = smbus_pec(pec, &ab)
+        pec = smbus_pec(pec, &m.data)
+    return pec
+
+# embedded-hal style expectations: each transaction is checked against
+# the next expected one (operation, address, bytes); the result is the index
+# of the first mismatch or -1 when every transaction matched and none
+# remains.
+pub struct Txn
+    op: text
+    addr: i64
+    bytes: List[i64]
+
+pub fn txn_check(expected: &List[Txn], actual: &List[Txn]) -> i64
+    var i: usize = 0
+    while i < actual.len() bound 1048576
+        if i >= expected.len()
+            return i as i64
+        let e = copy(expected[i])
+        let a = copy(actual[i])
+        if e.op != a.op or e.addr != a.addr or e.bytes != a.bytes
+            return i as i64
+        i += 1
+    if i < expected.len()
+        return i as i64
+    return -1
+
+# ---------------- SPI ----------------
+
+pub const SPI_CPHA: i64 = 1
+pub const SPI_CPOL: i64 = 2
+pub const SPI_CS_HIGH: i64 = 4
+pub const SPI_LSB_FIRST: i64 = 8
+pub const SPI_3WIRE: i64 = 16
+pub const SPI_LOOP: i64 = 32
+pub const SPI_NO_CS: i64 = 64
+pub const SPI_READY: i64 = 128
+pub const SPI_MODE_USER_MASK: i64 = 524287
+
+pub fn spi_mode_number(mode: i64) -> i64 = mode & 3
+
+# The idle clock level (CPOL) and the edge that samples data: "leading"
+# when CPHA is 0, else "trailing"; as a direction, the sampling edge rises
+# for modes 0 and 3 and falls for modes 1 and 2.
+pub fn spi_idle_high(mode: i64) -> bool = mode & SPI_CPOL != 0
+pub fn spi_sample_rising(mode: i64) -> bool = (mode & SPI_CPOL != 0) == (mode & SPI_CPHA != 0)
+
+# The bits of one word in wire order.
+pub fn spi_word_bits(word: i64, bits: i64, mode: i64) -> List[i64]
+    var o: List[i64] = []
+    var i: i64 = 0
+    while i < bits bound 64
+        let k = if mode & SPI_LSB_FIRST != 0 then i else bits - 1 - i
+        o.push((word >> k) & 1)
+        i += 1
+    return o
+
+pub fn spi_bits_word(bs: &List[i64], mode: i64) -> i64
+    var v: i64 = 0
+    let n = bs.len() as i64
+    var i: i64 = 0
+    while i < n bound 64
+        let k = if mode & SPI_LSB_FIRST != 0 then i else n - 1 - i
+        v = v | (bs[i as usize] << k)
+        i += 1
+    return v
+
+# ---------------- UART ----------------
+
+pub struct UartCfg
+    data: i64
+    parity: text
+    stop: i64
+
+fn parity_bit(v: i64, data: i64, pk: &text) -> i64
+    var ones: i64 = 0
+    var i: i64 = 0
+    while i < data bound 8
+        ones += (v >> i) & 1
+        i += 1
+    if pk == "E"
+        return ones & 1
+    if pk == "O"
+        return 1 - (ones & 1)
+    if pk == "M"
+        return 1
+    return 0
+
+# The line levels of one frame: 0 start bit, data LSB first, parity
+# ("N" none, "E" even, "O" odd, "M" mark, "S" space), stop bits at 1.
+pub fn uart_frame(v: i64, c: &UartCfg) -> List[i64]
+    var o: List[i64] = [0]
+    var i: i64 = 0
+    while i < c.data bound 8
+        o.push((v >> i) & 1)
+        i += 1
+    if c.parity != "N"
+        o.push(parity_bit(v, c.data, &c.parity))
+    var s: i64 = 0
+    while s < c.stop bound 2
+        o.push(1)
+        s += 1
+    return o
+
+# Decode frames from line levels (idle 1 between frames): each value, or
+# -1 for a framing error (a stop bit at 0) and -2 for a parity error.
+pub fn uart_decode(line: &List[i64], c: &UartCfg) -> List[i64]
+    var out: List[i64] = []
+    let flen = 1 + c.data + (if c.parity == "N" then 0 else 1) + c.stop
+    var i: usize = 0
+    while i < line.len() bound 16777216
+        if line[i] == 1
+            i += 1
+            continue
+        if i + flen as usize > line.len()
+            break
+        var v: i64 = 0
+        var k: i64 = 0
+        while k < c.data bound 8
+            v = v | (line[i + 1 + k as usize] << k)
+            k += 1
+        var res = v
+        var p = i + 1 + c.data as usize
+        if c.parity != "N"
+            if line[p] != parity_bit(v, c.data, &c.parity)
+                res = -2
+            p += 1
+        var s: i64 = 0
+        while s < c.stop bound 2
+            if line[p + s as usize] != 1
+                res = -1
+            s += 1
+        out.push(res)
+        i += flen as usize
+    return out
+
+# 16550 divisor latch for a baud rate from a 1.8432 MHz clock (115200
+# base); -1 when the rate is not an exact divisor.
+pub fn uart_divisor(baud: i64) -> i64
+    if baud <= 0 or 115200 % baud != 0
+        return -1
+    return 115200 / baud
+
+# ---------------- register maps ----------------
+
+pub struct Field
+    name: text
+    lsb: i64
+    width: i64
+    access: text
+
+fn mask(f: &Field) -> i64 = ((1 << f.width) - 1) << f.lsb
+
+pub fn field_get(reg: i64, f: &Field) -> i64 = (reg >> f.lsb) & ((1 << f.width) - 1)
+
+# The register value after a software write of v to field f, given the
+# current value: read-only fields keep their bits; for a write-1-to-clear
+# field ("w1c") the written ones clear bits and the others stay.
+pub fn field_set(reg: i64, f: &Field, v: i64) -> i64 ! BadDevice
+    if v < 0 or v >= (1 << f.width)
+        fail BadDevice(why: "value does not fit the field")
+    if f.access == "ro"
+        fail BadDevice(why: "read-only field")
+    if f.access == "w1c"
+        return reg & ~(v << f.lsb)
+    return (reg & ~mask(f)) | (v << f.lsb)
+
+# Fields must not overlap and must fit the register width.
+pub fn fields_ok(fs: &List[Field], width: i64) -> bool
+    var used: i64 = 0
+    for f in fs
+        if f.width < 1 or f.lsb < 0 or f.lsb + f.width > width
+            return false
+        if used & mask(&f) != 0
+            return false
+        used = used | mask(&f)
+    return true
+
+# ---------------- Sandbox device classes ----------------
+
+pub const DEVICE_CLASSES: text = "Cpu Simd Gpu Npu Tpu Lpu Photonic Quantum"
+
+# Sandbox v0.1 5.1: the least tier (0 for S0 .. 7) a grant of this class
+# needs: Cpu and Simd none beyond S0, any other class S2, direct
+# assignment (passthrough) S5, a confidential-compute device S6. -1 for
+# an unknown class.
+pub fn grant_tier(class: &text, passthrough: bool, confidential: bool) -> i64
+    if index_of(&DEVICE_CLASSES, class) < 0
+        return -1
+    var t: i64 = 0
+    if class != "Cpu" and class != "Simd"
+        t = 2
+    if passthrough
+        t = 5
+    if confidential
+        t = 6
+    return t

@@ -1,0 +1,19 @@
+# canonical dump: "<{ns}local a=[v]...>" children "</>", attributes as
+# written minus namespace declarations, comments dropped (as lxml's tree)
+fn xc(x: &Xml, n: i64) -> text bound 256
+    if x.nk[n as usize] == TEXT
+        return copy(x.txt[n as usize])
+    var o = "<{" + x.ns[n as usize] + "}" + x.name[n as usize]
+    for k in 0..x.an[n as usize].len()
+        let a = copy(x.an[n as usize][k])
+        if a != "xmlns" and not a.startswith("xmlns:")
+            o = o + " " + a + "=[" + x.av[n as usize][k] + "]"
+    o = o + ">"
+    for k in x.kids[n as usize]
+        o = o + xc(x, k)
+    return o + "</>"
+fn xcanon(s: text) -> text
+    let x = parse(&s)
+    if not x.ok
+        return "err " + x.why
+    return xc(&x, doc_root(&x))

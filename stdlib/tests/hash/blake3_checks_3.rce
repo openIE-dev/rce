@@ -1,0 +1,56 @@
+# Checks for lib/hash/blake3.rce: the official BLAKE3 test vectors
+# (vectors/hash/blake3/test_vectors.json), all three modes, full 131-byte
+# extended outputs, plus properties. Shard files split the vectors so each
+# stays within one comptime fuel budget (scripts/gen/blake3_gen.py).
+
+fn pat(n: i64) -> List[i64]
+    var o: List[i64] = []
+    for i in 0..n
+        o.push(i % 251)
+    return o
+
+fn hx(b: &[i64]) -> text
+    let ds = "0123456789abcdef".chars()
+    var s = ""
+    for x in b
+        s = s + copy(ds[(x >> 4) as usize]) + copy(ds[(x & 15) as usize])
+    return s
+
+fn bytes_of(s: text) -> List[i64]
+    var o: List[i64] = []
+    var i: usize = 0
+    while i < s.len_bytes() bound 4096
+        o.push(s[i] as i64)
+        i += 1
+    return o
+
+fn v_hash(n: i64) -> text
+    let p = pat(n)
+    let h = blake3_xof(&p, 131)
+    return hx(&h)
+
+fn v_keyed(n: i64) -> text
+    let p = pat(n)
+    let k = bytes_of("whats the Elvish word for friend")
+    let h = blake3_keyed(&k, &p, 131)
+    return hx(&h)
+
+fn v_derive(n: i64) -> text
+    let p = pat(n)
+    let c = bytes_of("BLAKE3 2019-12-27 16:29:52 test vectors context")
+    let h = blake3_derive_key(&c, &p, 131)
+    return hx(&h)
+
+# property: the 32-byte hash is the prefix of every longer XOF output
+fn prefix_ok(n: i64) -> bool
+    let p = pat(n)
+    let a = blake3(&p)
+    let b = blake3_xof(&p, 200)
+    var ok = true
+    for i in 0..32
+        ok = ok and a[i] == b[i]
+    return ok
+
+check v_hash(31744) == "62b6960e1a44bcc1eb1a611a8d6235b6b4b78f32e7abc4fb4c6cdcce94895c47860cc51f2b0c28a7b77304bd55fe73af663c02d3f52ea053ba43431ca5bab7bfea2f5e9d7121770d88f70ae9649ea713087d1914f7f312147e247f87eb2d4ffef0ac978bf7b6579d57d533355aa20b8b77b13fd09748728a5cc327a8ec470f4013226f"
+check v_keyed(31744) == "efa53b389ab67c593dba624d898d0f7353ab99e4ac9d42302ee64cbf9939a4193a7258db2d9cd32a7a3ecfce46144114b15c2fcb68a618a976bd74515d47be08b628be420b5e830fade7c080e351a076fbc38641ad80c736c8a18fe3c66ce12f95c61c2462a9770d60d0f77115bbcd3782b593016a4e728d4c06cee4505cb0c08a42ec"
+check v_derive(31744) == "39772aef80e0ebe60596361e45b061e8f417429d529171b6764468c22928e28e9759adeb797a3fbf771b1bcea30150a020e317982bf0d6e7d14dd9f064bc11025c25f31e81bd78a921db0174f03dd481d30e93fd8e90f8b2fee209f849f2d2a52f31719a490fb0ba7aea1e09814ee912eba111a9fde9d5c274185f7bae8ba85d300a2b"

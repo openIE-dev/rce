@@ -1,0 +1,1022 @@
+module os.pkg
+# uses: enc.enc, data.events
+use enc
+use data.events
+# Packages (survey M43), pure. Fetching a package is a host capability
+# effect under the `net` grant; this module holds what a Form resolves
+# and pins with:
+#  - Cargo's version model, a port of Cargo's semver crate (1.0.28):
+#    Version, Comparator and VersionReq parsing with the crate's error
+#    messages, display (with padding), ordering and requirement matching;
+#  - the Cargo.lock codec (as cargo writes it): [[package]] records with
+#    their dependency references, written back byte for byte;
+#  - npm package-lock.json (lockfileVersion 2 and 3): the `packages` map
+#    as records, with the JSON parser of data.events;
+#  - digest pinning: Subresource Integrity metadata (W3C SRI: parse,
+#    strongest algorithm, match) and Cargo's SHA-256 checksums, judged
+#    against digests the host computed;
+#  - the fetch plan: a registry's download URL from its config.json `dl`
+#    template and each lock entry's fetch with the digest it must match.
+
+error BadPkg(why: text)
+
+# ---------------- semver ----------------
+
+# Numbers are kept as their decimal text (u64 range, no leading zeros).
+pub struct Version
+    major: text
+    minor: text
+    patch: text
+    pre: text
+    build: text
+
+pub struct Comparator
+    op: text
+    major: text
+    minor: text
+    patch: text
+    pre: text
+
+pub struct VersionReq
+    comparators: List[Comparator]
+
+const U64_MAX: text = "18446744073709551615"
+
+fn pos_name(p: i64) -> text
+    if p == 0
+        return "major version number"
+    if p == 1
+        return "minor version number"
+    if p == 2
+        return "patch version number"
+    if p == 3
+        return "pre-release identifier"
+    return "build metadata"
+
+fn is_digit(c: &text) -> bool = c.len_bytes() == 1 and c[0] >= 48 and c[0] <= 57
+fn is_ident(c: &text) -> bool = c.len_bytes() == 1 and ((c[0] >= 65 and c[0] <= 90) or (c[0] >= 97 and c[0] <= 122) or c[0] == 45)
+
+const HEXD: text = "0123456789abcdef"
+
+fn hex_of(v: i64) -> text
+    let d = HEXD.chars()
+    var x = v
+    var s = ""
+    loop bound 8
+        s = d[(x % 16) as usize] + s
+        x = x / 16
+        if x == 0
+            break
+    return s
+
+# Rust's Debug of a char, as QuotedChar prints it.
+fn quoted(c: &text) -> text
+    if c.len_bytes() == 1
+        let b = c[0] as i64
+        if b == 0
+            return "'\\0'"
+        if b == 9
+            return "'\\t'"
+        if b == 10
+            return "'\\n'"
+        if b == 13
+            return "'\\r'"
+        if b == 39
+            return "'\\''"
+        if b == 92
+            return "'\\\\'"
+        if b < 32 or b == 127
+            return "'\\u{" + hex_of(b) + "}'"
+    return "'" + c + "'"
+
+fn e_unexpected_end(p: i64) -> text = "unexpected end of input while parsing " + pos_name(p)
+fn e_unexpected_char(p: i64, c: &text) -> text = "unexpected character " + quoted(c) + " while parsing " + pos_name(p)
+fn e_unexpected_after(p: i64, c: &text) -> text = "unexpected character " + quoted(c) + " after " + pos_name(p)
+fn e_comma(p: i64, c: &text) -> text = "expected comma after " + pos_name(p) + ", found " + quoted(c)
+fn e_empty_segment(p: i64) -> text = "empty identifier segment in " + pos_name(p)
+const E_AFTER_WILDCARD: text = "unexpected character after wildcard in version req"
+
+struct Out
+    val: text
+    i: i64
+    err: text
+
+fn numeric(cs: &List[text], i0: i64, p: i64) -> Out
+    var v = ""
+    var i = i0
+    while i < cs.len() as i64 and is_digit(&cs[i as usize]) bound 16777216
+        if v == "0"
+            return Out(val: "", i: i, err: "invalid leading zero in " + pos_name(p))
+        v = v + cs[i as usize]
+        if v.len_bytes() > 20 or (v.len_bytes() == 20 and v > U64_MAX)
+            return Out(val: "", i: i, err: "value of " + pos_name(p) + " exceeds u64::MAX")
+        i += 1
+    if v != ""
+        return Out(val: v, i: i, err: "")
+    if i < cs.len() as i64
+        return Out(val: "", i: i, err: e_unexpected_char(p, &cs[i as usize]))
+    return Out(val: "", i: i, err: e_unexpected_end(p))
+
+fn ident(cs: &List[text], i0: i64, p: i64) -> Out
+    var acc: i64 = 0
+    var seg: i64 = 0
+    var nondigit = false
+    let n = cs.len() as i64
+    loop bound 16777216
+        let j = i0 + acc + seg
+        let c = if j < n then copy(cs[j as usize]) else ""
+        if is_ident(&c)
+            seg += 1
+            nondigit = true
+        else
+            if is_digit(&c)
+                seg += 1
+            else
+                if seg == 0
+                    if acc == 0 and c != "."
+                        return Out(val: "", i: i0, err: "")
+                    return Out(val: "", i: i0, err: e_empty_segment(p))
+                if p == 3 and seg > 1 and not nondigit and cs[(i0 + acc) as usize] == "0"
+                    return Out(val: "", i: i0, err: "invalid leading zero in " + pos_name(p))
+                acc += seg
+                if c == "."
+                    acc += 1
+                    seg = 0
+                    nondigit = false
+                else
+                    var o: List[text] = []
+                    var k = i0
+                    while k < i0 + acc bound 16777216
+                        o.push(copy(cs[k as usize]))
+                        k += 1
+                    return Out(val: "".join(o), i: i0 + acc, err: "")
+    return Out(val: "", i: i0, err: "")
+
+fn at(cs: &List[text], i: i64, c: text) -> bool = i < cs.len() as i64 and cs[i as usize] == c
+
+fn dot(cs: &List[text], i: i64, p: i64) -> Out
+    if at(cs, i, ".")
+        return Out(val: "", i: i + 1, err: "")
+    if i < cs.len() as i64
+        return Out(val: "", i: i, err: e_unexpected_after(p, &cs[i as usize]))
+    return Out(val: "", i: i, err: e_unexpected_end(p))
+
+pub fn version_parse(t: &text) -> Version ! BadPkg
+    let cs = t.chars()
+    if cs.len() == 0
+        fail BadPkg(why: "empty string, expected a semver version")
+    let ma = numeric(&cs, 0, 0)
+    if ma.err != ""
+        fail BadPkg(why: ma.err)
+    let d1 = dot(&cs, ma.i, 0)
+    if d1.err != ""
+        fail BadPkg(why: d1.err)
+    let mi = numeric(&cs, d1.i, 1)
+    if mi.err != ""
+        fail BadPkg(why: mi.err)
+    let d2 = dot(&cs, mi.i, 1)
+    if d2.err != ""
+        fail BadPkg(why: d2.err)
+    let pa = numeric(&cs, d2.i, 2)
+    if pa.err != ""
+        fail BadPkg(why: pa.err)
+    var i = pa.i
+    var p: i64 = 2
+    var pre = ""
+    var build = ""
+    if at(&cs, i, "-")
+        p = 3
+        let r = ident(&cs, i + 1, 3)
+        if r.err != ""
+            fail BadPkg(why: r.err)
+        if r.val == ""
+            fail BadPkg(why: e_empty_segment(3))
+        pre = copy(r.val)
+        i = r.i
+    if at(&cs, i, "+")
+        p = 4
+        let r = ident(&cs, i + 1, 4)
+        if r.err != ""
+            fail BadPkg(why: r.err)
+        if r.val == ""
+            fail BadPkg(why: e_empty_segment(4))
+        build = copy(r.val)
+        i = r.i
+    if i < cs.len() as i64
+        fail BadPkg(why: e_unexpected_after(p, &cs[i as usize]))
+    return Version(major: ma.val, minor: mi.val, patch: pa.val, pre: pre, build: build)
+
+# Identifiers whose every dot-separated segment is all letters or all
+# digits (and, for a pre-release, a multi-digit segment does not start
+# with 0) are accepted as they are without a walk over each character.
+fn plain_ids(t: &text, pre: bool) -> bool
+    if t == ""
+        return false
+    for seg in t.split(".")
+        if not (seg.isalpha() or seg.isdigit())
+            return false
+        if pre and seg.len_bytes() > 1 and seg.isdigit() and seg.startswith("0")
+            return false
+    return true
+
+# Prerelease::new and BuildMetadata::new.
+pub fn prerelease_new(t: &text) -> text ! BadPkg
+    if plain_ids(t, true)
+        return copy(t)
+    let cs = t.chars()
+    let r = ident(&cs, 0, 3)
+    if r.err != ""
+        fail BadPkg(why: r.err)
+    if r.i < cs.len() as i64
+        fail BadPkg(why: "unexpected character in pre-release identifier")
+    return r.val
+
+pub fn build_new(t: &text) -> text ! BadPkg
+    if plain_ids(t, false)
+        return copy(t)
+    let cs = t.chars()
+    let r = ident(&cs, 0, 4)
+    if r.err != ""
+        fail BadPkg(why: r.err)
+    if r.i < cs.len() as i64
+        fail BadPkg(why: "unexpected character in build metadata")
+    return r.val
+
+pub fn version_text(v: &Version) -> text
+    var s = v.major + "." + v.minor + "." + v.patch
+    if v.pre != ""
+        s = s + "-" + v.pre
+    if v.build != ""
+        s = s + "+" + v.build
+    return s
+
+# Display with a width, fill and alignment ("<", ">" or "^"), as format!("{:*^20}").
+pub fn version_pad(v: &Version, width: i64, fill: &text, align: &text) -> text
+    let s = version_text(v)
+    let n = s.chars().len() as i64
+    if n >= width
+        return s
+    let pad = width - n
+    var before: i64 = 0
+    if align == ">"
+        before = pad
+    if align == "^"
+        before = pad / 2
+    var o = ""
+    var k: i64 = 0
+    while k < before bound 65536
+        o = o + fill
+        k += 1
+    o = o + s
+    while k < pad bound 65536
+        o = o + fill
+        k += 1
+    return o
+
+fn sign(a: bool, b: bool) -> i64
+    if a
+        return -1
+    return if b then 1 else 0
+
+fn num_cmp(a: &text, b: &text) -> i64
+    if a.len_bytes() != b.len_bytes()
+        return sign(a.len_bytes() < b.len_bytes(), true)
+    return sign(a < b, a > b)
+
+fn all_digits(s: &text) -> bool
+    for c in s.chars()
+        if not is_digit(&c)
+            return false
+    return true
+
+fn strip_zeros(s: &text) -> text
+    let cs = s.chars()
+    var i: usize = 0
+    while i < cs.len() and cs[i] == "0" bound 16777216
+        i += 1
+    var o = ""
+    while i < cs.len() bound 16777216
+        o = o + cs[i]
+        i += 1
+    return o
+
+# Dotted identifiers compared as the crate does; build metadata compares
+# numeric parts by value, then by length (0 < 00 < 1 < 01).
+fn ids_cmp(a: &text, b: &text, build: bool) -> i64
+    let l = a.split(".")
+    let r = b.split(".")
+    var i: usize = 0
+    while i < l.len() bound 16777216
+        if i >= r.len()
+            return 1
+        let x = copy(l[i])
+        let y = copy(r[i])
+        let dx = all_digits(&x)
+        let dy = all_digits(&y)
+        if dx and not dy
+            return -1
+        if dy and not dx
+            return 1
+        var o: i64 = 0
+        if dx
+            if build
+                let sx = strip_zeros(&x)
+                let sy = strip_zeros(&y)
+                o = num_cmp(&sx, &sy)
+                if o == 0
+                    o = sign(x.len_bytes() < y.len_bytes(), x.len_bytes() > y.len_bytes())
+            else
+                o = num_cmp(&x, &y)
+        else
+            o = sign(x < y, x > y)
+        if o != 0
+            return o
+        i += 1
+    return if i < r.len() then -1 else 0
+
+pub fn pre_cmp(a: &text, b: &text) -> i64
+    if a == b
+        return 0
+    if a == ""
+        return 1
+    if b == ""
+        return -1
+    return ids_cmp(a, b, false)
+
+pub fn build_cmp(a: &text, b: &text) -> i64
+    if a == b
+        return 0
+    if a == ""
+        return -1
+    if b == ""
+        return 1
+    return ids_cmp(a, b, true)
+
+# Ord of Version: major, minor, patch, pre-release, then build metadata.
+pub fn version_cmp(a: &Version, b: &Version) -> i64
+    var o = num_cmp(&a.major, &b.major)
+    if o == 0
+        o = num_cmp(&a.minor, &b.minor)
+    if o == 0
+        o = num_cmp(&a.patch, &b.patch)
+    if o == 0
+        o = pre_cmp(&a.pre, &b.pre)
+    if o == 0
+        o = build_cmp(&a.build, &b.build)
+    return o
+
+fn is_wild(cs: &List[text], i: i64) -> bool = at(cs, i, "*") or at(cs, i, "x") or at(cs, i, "X")
+
+fn skip_spaces(cs: &List[text], i0: i64) -> i64
+    var i = i0
+    while at(cs, i, " ") bound 16777216
+        i += 1
+    return i
+
+struct COut
+    c: Comparator
+    p: i64
+    i: i64
+    err: text
+
+fn cerr(e: text) -> COut = COut(c: Comparator(op: "", major: "", minor: "", patch: "", pre: ""), p: 0, i: 0, err: e)
+
+fn comparator_at(cs: &List[text], i0: i64) -> COut
+    var op = "^"
+    var i = i0
+    if at(cs, i, "=")
+        op = "="
+        i += 1
+    else
+        if at(cs, i, ">") or at(cs, i, "<")
+            op = copy(cs[i as usize])
+            i += 1
+            if at(cs, i, "=")
+                op = op + "="
+                i += 1
+        else
+            if at(cs, i, "~") or at(cs, i, "^")
+                op = copy(cs[i as usize])
+                i += 1
+    let default_op = i == i0
+    i = skip_spaces(cs, i)
+    var p: i64 = 0
+    let ma = numeric(cs, i, p)
+    if ma.err != ""
+        return cerr(ma.err)
+    i = ma.i
+    var wild = false
+    var minor = ""
+    var patch = ""
+    if at(cs, i, ".")
+        p = 1
+        if is_wild(cs, i + 1)
+            wild = true
+            if default_op
+                op = "*"
+            i += 2
+        else
+            let mi = numeric(cs, i + 1, p)
+            if mi.err != ""
+                return cerr(mi.err)
+            minor = copy(mi.val)
+            i = mi.i
+    if at(cs, i, ".")
+        p = 2
+        if is_wild(cs, i + 1)
+            if default_op
+                op = "*"
+            i += 2
+        else
+            if wild
+                return cerr(E_AFTER_WILDCARD)
+            let pa = numeric(cs, i + 1, p)
+            if pa.err != ""
+                return cerr(pa.err)
+            patch = copy(pa.val)
+            i = pa.i
+    var pre = ""
+    if patch != "" and at(cs, i, "-")
+        p = 3
+        let r = ident(cs, i + 1, 3)
+        if r.err != ""
+            return cerr(r.err)
+        if r.val == ""
+            return cerr(e_empty_segment(3))
+        pre = copy(r.val)
+        i = r.i
+    if patch != "" and at(cs, i, "+")
+        p = 4
+        let r = ident(cs, i + 1, 4)
+        if r.err != ""
+            return cerr(r.err)
+        if r.val == ""
+            return cerr(e_empty_segment(4))
+        i = r.i
+    i = skip_spaces(cs, i)
+    return COut(c: Comparator(op: op, major: ma.val, minor: minor, patch: patch, pre: pre), p: p, i: i, err: "")
+
+pub fn comparator_parse(t: &text) -> Comparator ! BadPkg
+    let cs = t.chars()
+    let r = comparator_at(&cs, skip_spaces(&cs, 0))
+    if r.err != ""
+        fail BadPkg(why: r.err)
+    if r.i < cs.len() as i64
+        fail BadPkg(why: e_unexpected_after(r.p, &cs[r.i as usize]))
+    return r.c
+
+fn e_wild_only(c: &text) -> text = "wildcard req (" + c + ") must be the only comparator in the version req"
+
+pub fn req_parse(t: &text) -> VersionReq ! BadPkg
+    let cs = t.chars()
+    var i = skip_spaces(&cs, 0)
+    if is_wild(&cs, i)
+        let rest = skip_spaces(&cs, i + 1)
+        if rest == cs.len() as i64
+            return VersionReq(comparators: [])
+        if at(&cs, rest, ",")
+            fail BadPkg(why: e_wild_only(&cs[i as usize]))
+        fail BadPkg(why: E_AFTER_WILDCARD)
+    var out: List[Comparator] = []
+    var depth: i64 = 0
+    loop bound 64
+        let r = comparator_at(&cs, i)
+        if r.err != ""
+            if is_wild(&cs, i)
+                let rest = skip_spaces(&cs, i + 1)
+                if rest == cs.len() as i64 or at(&cs, rest, ",")
+                    fail BadPkg(why: e_wild_only(&cs[i as usize]))
+            fail BadPkg(why: r.err)
+        out.push(copy(r.c))
+        if r.i == cs.len() as i64
+            break
+        if not at(&cs, r.i, ",")
+            fail BadPkg(why: e_comma(r.p, &cs[r.i as usize]))
+        i = skip_spaces(&cs, r.i + 1)
+        if depth + 1 == 32
+            fail BadPkg(why: "excessive number of version comparators")
+        depth += 1
+    return VersionReq(comparators: out)
+
+pub fn comparator_text(c: &Comparator) -> text
+    var s = (if c.op == "*" then "" else copy(c.op)) + c.major
+    if c.minor != ""
+        s = s + "." + c.minor
+        if c.patch != ""
+            s = s + "." + c.patch
+            if c.pre != ""
+                s = s + "-" + c.pre
+        else
+            if c.op == "*"
+                s = s + ".*"
+    else
+        if c.op == "*"
+            s = s + ".*"
+    return s
+
+pub fn req_text(r: &VersionReq) -> text
+    if r.comparators.len() == 0
+        return "*"
+    var o: List[text] = []
+    for c in r.comparators
+        o.push(comparator_text(&c))
+    return ", ".join(o)
+
+fn m_exact(c: &Comparator, v: &Version) -> bool
+    if v.major != c.major
+        return false
+    if c.minor != "" and v.minor != c.minor
+        return false
+    if c.patch != "" and v.patch != c.patch
+        return false
+    return v.pre == c.pre
+
+# matches_greater (dir 1) and matches_less (dir -1).
+fn m_order(c: &Comparator, v: &Version, dir: i64) -> bool
+    if v.major != c.major
+        return num_cmp(&v.major, &c.major) == dir
+    if c.minor == ""
+        return false
+    if v.minor != c.minor
+        return num_cmp(&v.minor, &c.minor) == dir
+    if c.patch == ""
+        return false
+    if v.patch != c.patch
+        return num_cmp(&v.patch, &c.patch) == dir
+    return pre_cmp(&v.pre, &c.pre) == dir
+
+fn m_tilde(c: &Comparator, v: &Version) -> bool
+    if v.major != c.major
+        return false
+    if c.minor != "" and v.minor != c.minor
+        return false
+    if c.patch != "" and v.patch != c.patch
+        return num_cmp(&v.patch, &c.patch) > 0
+    return pre_cmp(&v.pre, &c.pre) >= 0
+
+fn m_caret(c: &Comparator, v: &Version) -> bool
+    if v.major != c.major
+        return false
+    if c.minor == ""
+        return true
+    if c.patch == ""
+        if c.major != "0"
+            return num_cmp(&v.minor, &c.minor) >= 0
+        return v.minor == c.minor
+    if c.major != "0"
+        if v.minor != c.minor
+            return num_cmp(&v.minor, &c.minor) > 0
+        if v.patch != c.patch
+            return num_cmp(&v.patch, &c.patch) > 0
+    else
+        if c.minor != "0"
+            if v.minor != c.minor
+                return false
+            if v.patch != c.patch
+                return num_cmp(&v.patch, &c.patch) > 0
+        else
+            if v.minor != c.minor or v.patch != c.patch
+                return false
+    return pre_cmp(&v.pre, &c.pre) >= 0
+
+fn m_impl(c: &Comparator, v: &Version) -> bool
+    if c.op == "=" or c.op == "*"
+        return m_exact(c, v)
+    if c.op == ">"
+        return m_order(c, v, 1)
+    if c.op == ">="
+        return m_exact(c, v) or m_order(c, v, 1)
+    if c.op == "<"
+        return m_order(c, v, -1)
+    if c.op == "<="
+        return m_exact(c, v) or m_order(c, v, -1)
+    if c.op == "~"
+        return m_tilde(c, v)
+    return m_caret(c, v)
+
+fn pre_compatible(c: &Comparator, v: &Version) -> bool = c.major == v.major and c.minor == v.minor and c.patch == v.patch and c.pre != ""
+
+# VersionReq::matches: every comparator holds, and a pre-release version
+# needs a comparator naming the same major.minor.patch with a pre-release.
+pub fn req_matches(r: &VersionReq, v: &Version) -> bool
+    for c in r.comparators
+        if not m_impl(&c, v)
+            return false
+    if v.pre == ""
+        return true
+    for c in r.comparators
+        if pre_compatible(&c, v)
+            return true
+    return false
+
+pub fn comparator_matches(c: &Comparator, v: &Version) -> bool = m_impl(c, v) and (v.pre == "" or pre_compatible(c, v))
+
+# ---------------- Cargo.lock ----------------
+
+pub struct LockPkg
+    name: text
+    version: text
+    source: text
+    checksum: text
+    deps: List[text]
+
+pub struct Lock
+    header: List[text]
+    version: i64
+    packages: List[LockPkg]
+    extra: List[text]
+
+pub struct Dep
+    name: text
+    version: text
+    source: text
+
+fn unquote_toml(v: &text) -> text ! BadPkg
+    if v.len_bytes() < 2 or not v.startswith("\"") or not v.endswith("\"")
+        fail BadPkg(why: "Cargo.lock: expected a string")
+    let parts = v.split("\"")
+    if parts.len() != 3 or parts[1].split("\\").len() != 1
+        fail BadPkg(why: "Cargo.lock: escapes are not written by cargo")
+    return copy(parts[1])
+
+fn kv(line: &text) -> List[text]
+    let parts = line.split(" = ")
+    if parts.len() < 2
+        return []
+    var rest: List[text] = []
+    var i: usize = 1
+    while i < parts.len() bound 1024
+        rest.push(copy(parts[i]))
+        i += 1
+    return [copy(parts[0]), " = ".join(rest)]
+
+# Parse a Cargo.lock as cargo writes it: the comment header, `version = N`
+# (absent in format 1 and 2), [[package]] tables, then any other tables
+# (kept as they are, e.g. [metadata] of format 1).
+pub fn lock_parse(t: &text) -> Lock ! BadPkg
+    let lines = t.split("\n")
+    var header: List[text] = []
+    var version: i64 = 0
+    var pkgs: List[LockPkg] = []
+    var extra: List[text] = []
+    var i: usize = 0
+    while i < lines.len() and lines[i].startswith("#") bound 16777216
+        header.push(copy(lines[i]))
+        i += 1
+    if i < lines.len() and lines[i].startswith("version = ")
+        let v = kv(&lines[i])
+        let n = int_or(&v[1])
+        if n < 1
+            fail BadPkg(why: "Cargo.lock: bad version")
+        version = n
+        i += 1
+    while i < lines.len() bound 16777216
+        if lines[i] == ""
+            i += 1
+            continue
+        if lines[i] != "[[package]]"
+            while i < lines.len() bound 16777216
+                extra.push(copy(lines[i]))
+                i += 1
+            break
+        i += 1
+        var p = LockPkg(name: "", version: "", source: "", checksum: "", deps: [])
+        while i < lines.len() and lines[i] != "" bound 16777216
+            let f = kv(&lines[i])
+            if f.len() != 2
+                fail BadPkg(why: "Cargo.lock: expected key = value")
+            if f[0] == "dependencies"
+                if f[1] != "["
+                    fail BadPkg(why: "Cargo.lock: dependencies are written one per line")
+                i += 1
+                while i < lines.len() and lines[i] != "]" and lines[i] != "" bound 16777216
+                    let d = copy(lines[i])
+                    if not d.startswith(" \"") or not d.endswith("\",")
+                        fail BadPkg(why: "Cargo.lock: bad dependency line")
+                    let dp = d.split("\"")
+                    if dp.len() != 3
+                        fail BadPkg(why: "Cargo.lock: escapes are not written by cargo")
+                    let q = "\"" + dp[1] + "\""
+                    p.deps.push(try unquote_toml(&q))
+                    i += 1
+                if i >= lines.len() or lines[i] != "]"
+                    fail BadPkg(why: "Cargo.lock: unterminated dependencies")
+            else
+                let v = try unquote_toml(&f[1])
+                if f[0] == "name"
+                    p.name = v
+                else
+                    if f[0] == "version"
+                        p.version = v
+                    else
+                        if f[0] == "source"
+                            p.source = v
+                        else
+                            if f[0] == "checksum"
+                                p.checksum = v
+                            else
+                                fail BadPkg(why: "Cargo.lock: unknown key " + f[0])
+            i += 1
+        if p.name == "" or p.version == ""
+            fail BadPkg(why: "Cargo.lock: package without name or version")
+        pkgs.push(p)
+    return Lock(header: header, version: version, packages: pkgs, extra: extra)
+
+fn drop_ends(t: &text, a: i64, b: i64) -> text
+    let cs = t.chars()
+    var o: List[text] = []
+    var i = a as usize
+    while i + (b as usize) < cs.len() bound 16777216
+        o.push(copy(cs[i]))
+        i += 1
+    return "".join(o)
+
+# The text cargo writes for a lock.
+pub fn lock_text(l: &Lock) -> text
+    var o: List[text] = []
+    for h in l.header
+        o.push(copy(h))
+    if l.version > 0
+        o.push("version = " + l.version.tostr())
+    for p in l.packages
+        o.push("")
+        o.push("[[package]]")
+        o.push("name = \"" + p.name + "\"")
+        o.push("version = \"" + p.version + "\"")
+        if p.source != ""
+            o.push("source = \"" + p.source + "\"")
+        if p.checksum != ""
+            o.push("checksum = \"" + p.checksum + "\"")
+        if p.deps.len() > 0
+            o.push("dependencies = [")
+            for d in p.deps
+                o.push(" \"" + d + "\",")
+            o.push("]")
+    if l.extra.len() > 0
+        o.push("")
+        for x in l.extra
+            o.push(copy(x))
+    else
+        o.push("")
+    return "\n".join(o)
+
+# A dependency reference: "name", "name version" or "name version (source)".
+pub fn dep_parse(d: &text) -> Dep
+    let parts = d.split(" ")
+    let name = copy(parts[0])
+    if parts.len() == 1
+        return Dep(name: name, version: "", source: "")
+    let version = copy(parts[1])
+    if parts.len() == 2
+        return Dep(name: name, version: version, source: "")
+    var rest: List[text] = []
+    var i: usize = 2
+    while i < parts.len() bound 1024
+        rest.push(copy(parts[i]))
+        i += 1
+    let src = " ".join(rest)
+    return Dep(name: name, version: version, source: drop_ends(&src, 1, 1))
+
+# The package a dependency reference names (index into packages), -1 if
+# none. cargo leaves out the source of a path package, and of a registry
+# or git package when the name (and version) alone is unique, so a
+# reference without a source prefers a package without one.
+pub fn dep_resolve(l: &Lock, d: &text) -> i64
+    let r = dep_parse(d)
+    var i: i64 = 0
+    var loose: i64 = -1
+    for p in l.packages
+        if p.name == r.name and (r.version == "" or p.version == r.version)
+            if p.source == r.source
+                return i
+            if r.source == "" and loose < 0
+                loose = i
+        i += 1
+    return loose
+
+# ---------------- npm package-lock.json ----------------
+
+pub struct NpmPkg
+    path: text
+    name: text
+    version: text
+    resolved: text
+    integrity: text
+    dev: bool
+    optional: bool
+    link: bool
+
+fn js_str(v: &events.Jv) -> text
+    match v
+        events.JsStr(t: t) -> return copy(t)
+        _ -> return ""
+
+fn jstr(e: &events.Jv, n: text) -> text
+    let r = events.jget(e, &n)
+    match r
+        some(v) -> return js_str(&v)
+        none -> return ""
+
+fn jtrue(e: &events.Jv, n: text) -> bool
+    let r = events.jget(e, &n)
+    match r
+        some(v) -> return events.json_text(&v, false) == "true"
+        none -> return false
+
+# The `packages` map of a lockfileVersion 2 or 3 package-lock.json, in
+# order. The name is the `name` field, else the last node_modules/ part
+# of the path ("" for the root).
+pub fn npm_lock_parse(t: &text) -> List[NpmPkg] ! BadPkg
+    let j = events.json_parse(t) catch |_e| events.JsNull
+    let lkey = "lockfileVersion"
+    let v = jnum(&j, lkey)
+    if v != 2 and v != 3
+        fail BadPkg(why: "package-lock: lockfileVersion 2 or 3 expected")
+    let pk = "packages"
+    let ps = events.jget(&j, &pk)
+    match ps
+        some(o) -> return npm_entries(&o)
+        none -> fail BadPkg(why: "package-lock: no packages")
+
+fn npm_entries(o: &events.Jv) -> List[NpmPkg] ! BadPkg
+    match o
+        events.JsObj(keys: keys, vals: vals) -> return npm_list(keys, vals)
+        _ -> fail BadPkg(why: "package-lock: packages is not an object")
+
+fn npm_list(keys: &[text], vals: &[events.Jv]) -> List[NpmPkg]
+    var out: List[NpmPkg] = []
+    for i in 0..keys.len()
+        let e = copy(vals[i])
+        var name = jstr(&e, "name")
+        if name == ""
+            name = npm_name(&keys[i])
+        out.push(NpmPkg(path: copy(keys[i]), name: name, version: jstr(&e, "version"), resolved: jstr(&e, "resolved"), integrity: jstr(&e, "integrity"), dev: jtrue(&e, "dev"), optional: jtrue(&e, "optional"), link: jtrue(&e, "link")))
+    return out
+
+fn jnum(e: &events.Jv, n: text) -> i64
+    let r = events.jget(e, &n)
+    match r
+        some(v) -> return js_int(&v)
+        none -> return -1
+
+fn js_int(v: &events.Jv) -> i64
+    match v
+        events.JsNum(raw: r) -> return int_or(r)
+        _ -> return -1
+
+fn int_or(t: &text) -> i64 = if t.isdigit() and t.len_bytes() < 18 then t.toint() else -1
+
+fn npm_name(path: &text) -> text
+    let parts = path.split("node_modules/")
+    let last = copy(parts[parts.len() - 1])
+    return if last.endswith("/") then drop_ends(&last, 0, 1) else last
+
+# ---------------- digests ----------------
+
+pub struct Sri
+    alg: text
+    val: text
+
+const SRI_ALGS: text = "sha256 sha384 sha512"
+
+fn sri_rank(a: &text) -> i64
+    var i: i64 = 0
+    for x in SRI_ALGS.split(" ")
+        if x == a
+            return i
+        i += 1
+    return -1
+
+fn ascii_ws(c: &text) -> bool = c == " " or c == "\t" or c == "\n" or c == "\r" or c == "\u{c}"
+
+# SRI 3.3.2 parse metadata: items split on ASCII whitespace, options
+# after "?" dropped, unknown algorithms skipped; the algorithm is kept
+# ASCII-lowercased.
+pub fn sri_parse(m: &text) -> List[Sri]
+    var items: List[text] = []
+    var cur: List[text] = []
+    for c in m.chars()
+        if ascii_ws(&c)
+            if cur.len() > 0
+                items.push("".join(cur))
+                cur = []
+        else
+            cur.push(c)
+    if cur.len() > 0
+        items.push("".join(cur))
+    var out: List[Sri] = []
+    for it in items
+        let ex = copy(it.split("?")[0])
+        let av = ex.split("-")
+        let alg = av[0].lower()
+        if sri_rank(&alg) < 0
+            continue
+        let val = if av.len() > 1 then copy(av[1]) else ""
+        out.push(Sri(alg: alg, val: val))
+    return out
+
+# SRI 3.3.3: the items of the strongest algorithm present.
+pub fn sri_strongest(set: &List[Sri]) -> List[Sri]
+    var best: i64 = -1
+    for s in set
+        let r = sri_rank(&s.alg)
+        if r > best
+            best = r
+    var out: List[Sri] = []
+    for s in set
+        if sri_rank(&s.alg) == best
+            out.push(copy(s))
+    return out
+
+# SRI 3.3.4 for digests the host computed: `digests` holds one entry per
+# algorithm as "alg:" + hex of the digest. True when the metadata holds
+# no known algorithm, or one strongest item matches its digest.
+pub fn sri_match(metadata: &text, digests: &List[text]) -> bool
+    let parsed = sri_parse(metadata)
+    if parsed.len() == 0
+        return true
+    for s in sri_strongest(&parsed)
+        for d in digests
+            let kv2 = d.split(":")
+            if kv2.len() == 2 and kv2[0] == s.alg
+                let b = hex_bytes(&kv2[1])
+                if enc.b64_encode(&b, false, true) == s.val
+                    return true
+    return false
+
+fn hex_bytes(h: &text) -> List[i64]
+    let d = HEXD.chars()
+    let cs = h.lower().chars()
+    var o: List[i64] = []
+    var i: usize = 0
+    while i + 1 < cs.len() bound 16777216
+        var hi: i64 = 0
+        var lo: i64 = 0
+        var k: i64 = 0
+        while k < 16 bound 16
+            if d[k as usize] == cs[i]
+                hi = k
+            if d[k as usize] == cs[i + 1]
+                lo = k
+            k += 1
+        o.push(hi * 16 + lo)
+        i += 2
+    return o
+
+# Cargo.lock `checksum`: the SHA-256 of the .crate, 64 lower-case hex digits.
+pub fn checksum_valid(c: &text) -> bool
+    if c.len_bytes() != 64
+        return false
+    for ch in c.chars()
+        if not (is_digit(&ch) or (ch[0] >= 97 and ch[0] <= 102))
+            return false
+    return true
+
+pub fn checksum_match(c: &text, sha256_hex: &text) -> bool = checksum_valid(c) and c == sha256_hex.lower()
+
+# ---------------- fetch plan ----------------
+
+# The registry download URL (Cargo registry index config.json `dl`): the
+# markers {crate} {version} {prefix} {lowerprefix} {sha256-checksum} are
+# replaced; a template without any marker gets "/{crate}/{version}/download".
+pub fn crate_prefix(name: &text) -> text
+    let cs = name.chars()
+    if cs.len() == 1
+        return "1"
+    if cs.len() == 2
+        return "2"
+    if cs.len() == 3
+        return "3/" + cs[0]
+    return cs[0] + cs[1] + "/" + cs[2] + cs[3]
+
+fn replace_all(t: &text, a: text, b: &text) -> text = b.join(t.split(&a))
+
+pub fn dl_url(dl: &text, name: &text, version: &text, checksum: &text) -> text
+    let marks = ["{crate}", "{version}", "{prefix}", "{lowerprefix}", "{sha256-checksum}"]
+    var any = false
+    for m in marks
+        if dl.contains(m)
+            any = true
+    if not any
+        return dl + "/" + name + "/" + version + "/download"
+    var u = replace_all(dl, "{crate}", name)
+    u = replace_all(&u, "{version}", version)
+    let p = crate_prefix(name)
+    u = replace_all(&u, "{prefix}", &p)
+    let lp = p.lower()
+    u = replace_all(&u, "{lowerprefix}", &lp)
+    u = replace_all(&u, "{sha256-checksum}", checksum)
+    return u
+
+pub struct Fetch
+    url: text
+    sha256: text
+
+# The fetches a lock needs from one registry source: each package of that
+# source, with the checksum its download must match.
+pub fn fetch_plan(l: &Lock, source: &text, dl: &text) -> List[Fetch]
+    var o: List[Fetch] = []
+    for p in l.packages
+        if p.source == source
+            o.push(Fetch(url: dl_url(dl, &p.name, &p.version, &p.checksum), sha256: copy(p.checksum)))
+    return o

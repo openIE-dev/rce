@@ -1,0 +1,542 @@
+module fmt
+
+# Locale-free formatting, parsing and a linear-time regex (survey M17,
+# part 1). No locale, no host call: the same input gives the same text on
+# every host.
+# - Integers: any radix 2..36, sign, zero/space padding, digit grouping;
+#   strict parsing that refuses overflow, empty digits and stray bytes
+#   (like C++ from_chars: no whitespace, no "0x", lowercase or uppercase
+#   digits).
+# - Templates: "{}" takes the next argument, "{N}" argument N, "{{" and
+#   "}}" are literal braces.
+# - Regex: a Thompson NFA run as a Pike VM, so matching costs
+#   O(len(pattern) * len(input)) and never backtracks (RE2's guarantee).
+#   Syntax: literals, ".", [...] and [^...] with ranges, \d \w \s \D \W
+#   \S, \n \t \r, escapes of metacharacters, * + ? and {m}, {m,},
+#   {m,n} (m, n <= 1000), |, (...), (?:...), ^ and $ (the ends of the
+#   whole input, no multiline mode). It matches bytes of the UTF-8 text;
+#   "." takes one whole UTF-8 sequence except "\n". Class ranges are ASCII;
+#   a negated class or \D \W \S takes any whole non-ASCII sequence. No
+#   captures or backreferences (not regular).
+
+const DIGITS: text = "0123456789abcdefghijklmnopqrstuvwxyz"
+
+error BadInt(at: i64)
+error BadFormat(at: i64)
+error BadRegex(at: i64)
+
+# ---------------- integers ----------------
+
+# Digits of v in radix r (2..36), lowercase, "-" for negatives; the full
+# i64 range (the most negative value is handled without negating it).
+pub fn int_to(v: i64, r: i64) -> text
+    let ds = DIGITS.chars()
+    if v == 0
+        return "0"
+    var s = ""
+    var x = v
+    while x != 0 bound 64
+        let d = x % r
+        let a = if d < 0 then 0 - d else d
+        s = copy(ds[a as usize]) + s
+        x = x / r
+    return if v < 0 then "-" + s else s
+
+pub fn int_dec(v: i64) -> text = int_to(v, 10)
+
+pub fn int_hex(v: i64) -> text = int_to(v, 16)
+
+fn digit_val(c: i64) -> i64
+    if c >= 48 and c <= 57
+        return c - 48
+    if c >= 97 and c <= 122
+        return c - 87
+    if c >= 65 and c <= 90
+        return c - 55
+    return 99
+
+# Strict parse in radix r: optional "+" or "-", then one or more digits,
+# nothing else. Overflow of i64 is refused (BadInt at the digit).
+pub fn int_parse(s: &text, r: i64) -> i64 ! BadInt
+    let n = s.len_bytes()
+    if n == 0
+        fail BadInt(at: 0)
+    var i: usize = 0
+    var neg = false
+    let c0 = s[0] as i64
+    if c0 == 45 or c0 == 43
+        neg = c0 == 45
+        i = 1
+    if i >= n
+        fail BadInt(at: i as i64)
+    # accumulate as a negative number: -2^63 fits, 2^63 does not
+    var acc: i64 = 0
+    let lim = (0 - 9223372036854775807 - 1)
+    while i < n bound 1000000
+        let d = digit_val(s[i] as i64)
+        if d >= r
+            fail BadInt(at: i as i64)
+        if acc < (lim + d) / r
+            fail BadInt(at: i as i64)
+        let m = acc * r
+        if m < lim + d
+            fail BadInt(at: i as i64)
+        acc = m - d
+        i += 1
+    if not neg
+        if acc == lim
+            fail BadInt(at: (n - 1) as i64)
+        return 0 - acc
+    return acc
+
+pub fn int_parse_dec(s: &text) -> i64 ! BadInt = int_parse(s, 10)
+
+# Pad on the left to w code points with fill (one character).
+pub fn pad_left(s: &text, w: i64, fill: &text) -> text
+    var o = copy(s)
+    var n = s.chars().len() as i64
+    while n < w bound 1000000
+        o = copy(fill) + o
+        n += 1
+    return o
+
+pub fn pad_right(s: &text, w: i64, fill: &text) -> text
+    var o = copy(s)
+    var n = s.chars().len() as i64
+    while n < w bound 1000000
+        o = o + copy(fill)
+        n += 1
+    return o
+
+# Zero padding after the sign: zero_pad(-42, 6) = "-00042".
+pub fn zero_pad(v: i64, w: i64) -> text
+    let s = int_dec(v)
+    let z = "0"
+    if v < 0
+        let cs = s.chars()
+        var body = ""
+        for i in 1..cs.len()
+            body = body + copy(cs[i])
+        return "-" + pad_left(&body, w - 1, &z)
+    return pad_left(&s, w, &z)
+
+# Group decimal digits by three with sep: group_dec(-1234567, ",") =
+# "-1,234,567".
+pub fn group_dec(v: i64, sep: &text) -> text
+    let cs = int_dec(v).chars()
+    let start: usize = if v < 0 then 1 else 0
+    let nd = cs.len() - start
+    var o = if v < 0 then "-" else ""
+    for k in 0..nd
+        if k > 0 and (nd - k) % 3 == 0
+            o = o + copy(sep)
+        o = o + copy(cs[start + k])
+    return o
+
+# ---------------- templates ----------------
+
+pub fn format(t: &text, args: &[text]) -> text ! BadFormat
+    let cs = t.chars()
+    let n = cs.len()
+    var o = ""
+    var next: usize = 0
+    var i: usize = 0
+    while i < n bound 1000000
+        let c = copy(cs[i])
+        if c == "{"
+            if i + 1 < n and cs[i + 1] == "{"
+                o = o + "{"
+                i += 2
+            else
+                var j = i + 1
+                var idx: i64 = -1
+                while j < n and cs[j] != "}" bound 1000000
+                    let d = digit_val(cs[j][0] as i64)
+                    if d > 9
+                        fail BadFormat(at: j as i64)
+                    idx = (if idx < 0 then 0 else idx) * 10 + d
+                    if idx > 1000000
+                        fail BadFormat(at: j as i64)
+                    j += 1
+                if j >= n
+                    fail BadFormat(at: i as i64)
+                let k: usize = if idx < 0 then next else idx as usize
+                if k >= args.len()
+                    fail BadFormat(at: i as i64)
+                if idx < 0
+                    next += 1
+                o = o + copy(args[k])
+                i = j + 1
+            continue
+        if c == "}"
+            if i + 1 < n and cs[i + 1] == "}"
+                o = o + "}"
+                i += 2
+                continue
+            fail BadFormat(at: i as i64)
+        o = o + c
+        i += 1
+    return o
+
+# ---------------- regex ----------------
+# Program: instructions of 3 i64 [op, a, b]; jumps are relative to the
+# instruction, so fragments can be concatenated and wrapped freely.
+const OP_BYTE: i64 = 0
+const OP_ANY: i64 = 1
+const OP_CLASS: i64 = 2
+const OP_SPLIT: i64 = 3
+const OP_JMP: i64 = 4
+const OP_MATCH: i64 = 5
+const OP_BOL: i64 = 6
+const OP_EOL: i64 = 7
+
+pub struct Regex
+    code: List[i64]
+    classes: List[i64]
+
+struct Parser
+    pat: List[i64]
+    pos: usize
+    classes: List[i64]
+    err: i64
+
+fn ins(op: i64, a: i64, b: i64) -> List[i64] = [op, a, b]
+
+fn cat(a: List[i64], b: List[i64]) -> List[i64]
+    var o = a
+    for x in b
+        o.push(x)
+    return o
+
+fn ilen(f: &[i64]) -> i64 = (f.len() / 3) as i64
+
+fn star(f: List[i64]) -> List[i64]
+    let n = ilen(&f)
+    return cat(cat(ins(OP_SPLIT, 1, n + 2), f), ins(OP_JMP, 0 - (n + 1), 0))
+
+fn plus(f: List[i64]) -> List[i64]
+    let n = ilen(&f)
+    return cat(f, ins(OP_SPLIT, 0 - n, 1))
+
+fn opt(f: List[i64]) -> List[i64]
+    let n = ilen(&f)
+    return cat(ins(OP_SPLIT, 1, n + 1), f)
+
+fn alt(a: List[i64], b: List[i64]) -> List[i64]
+    let na = ilen(&a)
+    let nb = ilen(&b)
+    return cat(cat(cat(ins(OP_SPLIT, 1, na + 2), a), ins(OP_JMP, nb + 1, 0)), b)
+
+fn peek(p: &Parser) -> i64 = if p.pos < p.pat.len() then p.pat[p.pos] else -1
+
+# a class is stored at an offset: [negated, pairs, lo1, hi1, ...]
+fn add_class(p: &mut Parser, neg: bool, rs: &[i64]) -> i64
+    let at = p.classes.len() as i64
+    p.classes.push(if neg then 1 else 0)
+    p.classes.push((rs.len() / 2) as i64)
+    for x in rs
+        p.classes.push(x)
+    return at
+
+fn esc_ranges(c: i64) -> List[i64]
+    if c == 100 or c == 68
+        return [48, 57]
+    if c == 119 or c == 87
+        return [48, 57, 65, 90, 95, 95, 97, 122]
+    if c == 115 or c == 83
+        return [9, 13, 32, 32]
+    return []
+
+fn esc_byte(c: i64) -> i64
+    if c == 110
+        return 10
+    if c == 116
+        return 9
+    if c == 114
+        return 13
+    return c
+
+fn is_meta(c: i64) -> bool = c == 92 or c == 46 or c == 91 or c == 93 or c == 40 or c == 41 or c == 42 or c == 43 or c == 63 or c == 123 or c == 125 or c == 124 or c == 94 or c == 36 or c == 45 or c == 47
+
+fn is_esc_letter(c: i64) -> bool = c == 110 or c == 116 or c == 114
+
+fn parse_class(p: &mut Parser) -> List[i64]
+    # after "["
+    var neg = false
+    if peek(p) == 94
+        neg = true
+        p.pos += 1
+    var rs: List[i64] = []
+    var first = true
+    while p.err < 0 bound 100000
+        let c = peek(p)
+        if c < 0
+            p.err = p.pos as i64
+            return []
+        if c == 93 and not first
+            p.pos += 1
+            break
+        first = false
+        var lo = c
+        p.pos += 1
+        if c == 92
+            let e = peek(p)
+            p.pos += 1
+            let er = esc_ranges(e)
+            if er.len() > 0
+                if e == 68 or e == 87 or e == 83
+                    p.err = p.pos as i64
+                    return []
+                for x in er
+                    rs.push(x)
+                continue
+            if not is_meta(e) and not is_esc_letter(e)
+                p.err = p.pos as i64
+                return []
+            lo = esc_byte(e)
+        var hi = lo
+        if peek(p) == 45 and p.pos + 1 < p.pat.len() and p.pat[p.pos + 1] != 93
+            p.pos += 1
+            hi = peek(p)
+            p.pos += 1
+            if hi == 92
+                let e2 = peek(p)
+                p.pos += 1
+                if not is_meta(e2) and not is_esc_letter(e2)
+                    p.err = p.pos as i64
+                    return []
+                hi = esc_byte(e2)
+            if hi < lo
+                p.err = p.pos as i64
+                return []
+        rs.push(lo)
+        rs.push(hi)
+    let at = add_class(p, neg, &rs)
+    return ins(OP_CLASS, at, 0)
+
+fn parse_num(p: &mut Parser) -> i64
+    var v: i64 = -1
+    while peek(p) >= 48 and peek(p) <= 57 bound 10
+        v = (if v < 0 then 0 else v) * 10 + peek(p) - 48
+        p.pos += 1
+    return v
+
+fn repeat(f: List[i64], m: i64, n: i64) -> List[i64]
+    var o: List[i64] = []
+    for _ in 0..m
+        o = cat(o, copy(f))
+    if n < 0
+        return cat(o, star(f))
+    for _ in 0..(n - m)
+        o = cat(o, opt(copy(f)))
+    return o
+
+fn parse_atom(p: &mut Parser) -> List[i64] bound 1000
+    let c = peek(p)
+    p.pos += 1
+    if c == 40
+        if peek(p) == 63
+            p.pos += 1
+            if peek(p) != 58
+                p.err = p.pos as i64
+                return []
+            p.pos += 1
+        let f = parse_alt(p)
+        if peek(p) != 41
+            p.err = p.pos as i64
+            return []
+        p.pos += 1
+        return f
+    if c == 91
+        return parse_class(p)
+    if c == 46
+        return ins(OP_ANY, 0, 0)
+    if c == 94
+        return ins(OP_BOL, 0, 0)
+    if c == 36
+        return ins(OP_EOL, 0, 0)
+    if c == 92
+        let e = peek(p)
+        p.pos += 1
+        let er = esc_ranges(e)
+        if er.len() > 0
+            let at = add_class(p, e == 68 or e == 87 or e == 83, &er)
+            return ins(OP_CLASS, at, 0)
+        if is_meta(e) or is_esc_letter(e)
+            return ins(OP_BYTE, esc_byte(e), 0)
+        p.err = p.pos as i64
+        return []
+    if c == 42 or c == 43 or c == 63 or c == 123 or c == 41 or c == 93 or c == 125
+        p.err = (p.pos - 1) as i64
+        return []
+    return ins(OP_BYTE, c, 0)
+
+fn parse_seq(p: &mut Parser) -> List[i64] bound 1000
+    var f: List[i64] = []
+    while p.err < 0 bound 100000
+        let c = peek(p)
+        if c < 0 or c == 124 or c == 41
+            break
+        var a = parse_atom(p)
+        while p.err < 0 bound 100
+            let q = peek(p)
+            if q == 42
+                a = star(a)
+            if q == 43
+                a = plus(a)
+            if q == 63
+                a = opt(a)
+            if q != 42 and q != 43 and q != 63 and q != 123
+                break
+            if q == 123
+                p.pos += 1
+                let m = parse_num(p)
+                var n = m
+                if peek(p) == 44
+                    p.pos += 1
+                    n = parse_num(p)
+                if m < 0 or peek(p) != 125 or (n >= 0 and n < m) or m > 1000 or n > 1000
+                    p.err = p.pos as i64
+                    return []
+                p.pos += 1
+                a = repeat(a, m, n)
+            if q != 123
+                p.pos += 1
+        f = cat(f, a)
+    return f
+
+fn parse_alt(p: &mut Parser) -> List[i64] bound 1000
+    var f = parse_seq(p)
+    while peek(p) == 124 and p.err < 0 bound 100000
+        p.pos += 1
+        let g = parse_seq(p)
+        f = alt(f, g)
+    return f
+
+fn bytes_of(s: &text) -> List[i64]
+    var o: List[i64] = []
+    var i: usize = 0
+    while i < s.len_bytes() bound 16777216
+        o.push(s[i] as i64)
+        i += 1
+    return o
+
+pub fn compile(pattern: &text) -> Regex ! BadRegex
+    var p = Parser(pat: bytes_of(pattern), pos: 0, classes: [], err: -1)
+    let f = parse_alt(&mut p)
+    if p.err < 0 and p.pos < p.pat.len()
+        p.err = p.pos as i64
+    if p.err >= 0
+        fail BadRegex(at: p.err)
+    return Regex(code: cat(f, ins(OP_MATCH, 0, 0)), classes: copy(p.classes))
+
+fn in_class(cl: &[i64], at: usize, c: i64) -> bool
+    let n = cl[at + 1] as usize
+    var hit = false
+    for k in 0..n
+        hit = hit or (c >= cl[at + 2 + 2 * k] and c <= cl[at + 3 + 2 * k])
+    return hit != (cl[at] == 1)
+
+fn seq_len(c: i64) -> i64
+    if c < 128
+        return 1
+    if c >= 240
+        return 4
+    if c >= 224
+        return 3
+    if c >= 192
+        return 2
+    return 1
+
+fn spush(st: &mut List[i64], sp: usize, v: i64) -> usize
+    if sp < st.len()
+        st[sp] = v
+    else
+        st.push(v)
+    return sp + 1
+
+# Add pc and its epsilon closure at input position i to list l (marking
+# with stamp so each pc enters once per step).
+fn add(re: &Regex, l: &mut List[i64], mark: &mut List[i64], stamp: i64, pc0: i64, i: usize, n: usize)
+    var st: List[i64] = [pc0]
+    var sp: usize = 1
+    while sp > 0 bound 1000000
+        sp -= 1
+        let pc = st[sp]
+        if mark[pc as usize] == stamp
+            continue
+        mark[pc as usize] = stamp
+        let op = re.code[3 * pc as usize]
+        if op == OP_JMP
+            sp = spush(&mut st, sp, pc + re.code[3 * pc as usize + 1])
+        if op == OP_SPLIT
+            sp = spush(&mut st, sp, pc + re.code[3 * pc as usize + 2])
+            sp = spush(&mut st, sp, pc + re.code[3 * pc as usize + 1])
+        if op == OP_BOL and i == 0
+            sp = spush(&mut st, sp, pc + 1)
+        if op == OP_EOL and i == n
+            sp = spush(&mut st, sp, pc + 1)
+        if op != OP_JMP and op != OP_SPLIT and op != OP_BOL and op != OP_EOL
+            l.push(pc)
+
+# Pike VM. full: the match must span the input; else any substring.
+fn run(re: &Regex, b: &[i64], full: bool) -> bool
+    let n = b.len()
+    let np = re.code.len() / 3
+    var mark: List[i64] = []
+    for _ in 0..np
+        mark.push(-1)
+    var cur: List[i64] = []
+    var stamp: i64 = 0
+    add(re, &mut cur, &mut mark, stamp, 0, 0, n)
+    # threads waiting for a multi-byte "." to finish: [pc, resume position]
+    var pend: List[i64] = []
+    var i: usize = 0
+    loop bound 16777216
+        for pc in cur
+            if re.code[3 * pc as usize] == OP_MATCH and (not full or i == n)
+                return true
+        if i >= n
+            break
+        stamp += 1
+        var nxt: List[i64] = []
+        var keep: List[i64] = []
+        var k: usize = 0
+        while k < pend.len() bound 1000000
+            if pend[k + 1] == (i + 1) as i64
+                add(re, &mut nxt, &mut mark, stamp, pend[k], i + 1, n)
+            else
+                keep.push(pend[k])
+                keep.push(pend[k + 1])
+            k += 2
+        let c = b[i]
+        for pc in cur
+            let op = re.code[3 * pc as usize]
+            let a = re.code[3 * pc as usize + 1]
+            let sl = seq_len(c)
+            # a class tests a whole code point; non-ASCII ones lie outside
+            # every (ASCII) range
+            let cls = op == OP_CLASS and in_class(&re.classes, a as usize, if sl > 1 then -1 else c)
+            let one = (op == OP_BYTE and c == a) or (cls and sl == 1) or (op == OP_ANY and sl == 1 and c != 10)
+            if one
+                add(re, &mut nxt, &mut mark, stamp, pc + 1, i + 1, n)
+            if (op == OP_ANY or cls) and sl > 1 and i + (sl as usize) <= n
+                keep.push(pc + 1)
+                keep.push((i as i64) + seq_len(c))
+        # a search restarts only at code point boundaries
+        if not full and (i + 1 >= n or b[i + 1] < 128 or b[i + 1] > 191)
+            add(re, &mut nxt, &mut mark, stamp, 0, i + 1, n)
+        cur = nxt
+        pend = keep
+        if cur.len() == 0 and pend.len() == 0 and full
+            return false
+        i += 1
+    return false
+
+pub fn is_match(re: &Regex, s: &text) -> bool
+    let b = bytes_of(s)
+    return run(re, &b, true)
+
+pub fn search(re: &Regex, s: &text) -> bool
+    let b = bytes_of(s)
+    return run(re, &b, false)

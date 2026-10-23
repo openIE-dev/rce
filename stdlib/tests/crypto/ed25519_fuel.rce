@@ -1,0 +1,19 @@
+# needs: crypto
+# Fuel of the Ed25519 secret paths does not depend on the secret: key
+# derivation and signing for different seeds (and same-length messages), and
+# sc_reduce for different 64-byte inputs. Before the fix the scalar
+# reduction branched on its data and the window table was indexed by the
+# secret scalar. Source-level evidence only: list indexing and arithmetic
+# cost one step whatever the value, so fuel cannot see cache effects.
+fn probe_edpub_1() -> text = ed_pubkey("0000000000000000000000000000000000000000000000000000000000000000")
+fn probe_edpub_2() -> text = ed_pubkey("ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff")
+fn probe_edpub_3() -> text = ed_pubkey("9d61b19deffd5a60ba844af492ec2cc44449c5697b326919703bac031cae7f60")
+fn probe_edpub_4() -> text = ed_pubkey("c5aa8df43f9f837bedb7442f31dcb7b166d38535076f094b85ce3a2e0b4458f7")
+fn probe_edsign_1() -> text = ed_sign("0000000000000000000000000000000000000000000000000000000000000000", [1, 2, 3])
+fn probe_edsign_2() -> text = ed_sign("9d61b19deffd5a60ba844af492ec2cc44449c5697b326919703bac031cae7f60", [0, 0, 0])
+fn probe_edsign_3() -> text = ed_sign("4ccd089b28ff96da9db6c346ec114e0f5b8a319f35aba624da8cf6ed4fb8a6fb", [255, 254, 253])
+# literal 64-byte operands: zero, all ones, a pattern, and L itself
+fn probe_screduce_1() -> List[i64] = sc_reduce([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
+fn probe_screduce_2() -> List[i64] = sc_reduce([255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255])
+fn probe_screduce_3() -> List[i64] = sc_reduce([11, 48, 85, 122, 159, 196, 233, 14, 51, 88, 125, 162, 199, 236, 17, 54, 91, 128, 165, 202, 239, 20, 57, 94, 131, 168, 205, 242, 23, 60, 97, 134, 171, 208, 245, 26, 63, 100, 137, 174, 211, 248, 29, 66, 103, 140, 177, 214, 251, 32, 69, 106, 143, 180, 217, 254, 35, 72, 109, 146, 183, 220, 1, 38])
+fn probe_screduce_4() -> List[i64] = sc_reduce([237, 211, 245, 92, 26, 99, 18, 88, 214, 156, 247, 162, 222, 249, 222, 20, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 16, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])

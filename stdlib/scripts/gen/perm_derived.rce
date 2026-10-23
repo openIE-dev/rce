@@ -1,0 +1,90 @@
+# derived checks (hand-written; appended by scripts/gen/perm_gen.py)
+fn cred(u: i64, g: i64, gs: List[i64]) -> Cred = Cred(uid: u, gid: g, groups: gs)
+fn mayc(c: Cred, m: i64, o: i64, g: i64, w: i64) -> bool = may(&c, m, o, g, w)
+check mayc(cred(1, 1, []), 448, 1, 9, R_OK | W_OK | X_OK)
+check not mayc(cred(1, 1, []), 63, 1, 1, R_OK)
+check mayc(cred(2, 9, []), 32, 1, 9, R_OK)
+check not mayc(cred(2, 9, []), 36, 1, 9, W_OK)
+check mayc(cred(2, 5, [7, 9]), 56, 1, 9, R_OK | W_OK | X_OK)
+check not mayc(cred(2, 5, [7, 9]), 7, 1, 9, R_OK)
+check mayc(cred(3, 3, []), 4, 1, 9, R_OK)
+check not mayc(cred(3, 3, []), 4, 1, 9, R_OK | X_OK)
+check mayc(cred(3, 3, []), 0, 1, 9, 0)
+fn sp(t: text) -> text
+    let s = sid_parse(&t) catch Sid(authority: -1, subs: [])
+    return sid_text(&s)
+fn sb(t: text) -> List[i64]
+    let s = sid_parse(&t) catch Sid(authority: -1, subs: [])
+    return sid_bytes(&s)
+fn sfb(b: List[i64]) -> text
+    let s = sid_from_bytes(&b) catch Sid(authority: -1, subs: [])
+    return sid_text(&s)
+check sp("S-1-1-0") == "S-1-1-0"
+check sp("S-1-5-18") == "S-1-5-18"
+check sp("S-1-5-32-544") == "S-1-5-32-544"
+check sp("S-1-5-21-3623811015-3361044348-30300820-1013") == "S-1-5-21-3623811015-3361044348-30300820-1013"
+check sp("S-1-15-2-1") == "S-1-15-2-1"
+check sp("S-1-16-12288") == "S-1-16-12288"
+check sp("s-1-5-11") == "S-1-5-11"
+check sp("S-1-0x000000000005-18") == "S-1-5-18"
+check sp("S-1-0x100000000000-1") == "S-1-0x100000000000-1"
+check sp("S-1-4294967295") == "S-1-4294967295"
+check sp("S-1-4294967296") == "S-1-0x000100000000"
+check sp("S-1-5-4294967296") == "S-1--1"
+check sp("S-2-5-18") == "S-1--1"
+check sp("S-1-5-") == "S-1--1"
+check sp("S-1--5") == "S-1--1"
+check sp("S-1-5-1-2-3-4-5-6-7-8-9-10-11-12-13-14-15") == "S-1-5-1-2-3-4-5-6-7-8-9-10-11-12-13-14-15"
+check sp("S-1-5-1-2-3-4-5-6-7-8-9-10-11-12-13-14-15-16") == "S-1--1"
+check sb("S-1-5-32-544") == [1, 2, 0, 0, 0, 0, 0, 5, 32, 0, 0, 0, 32, 2, 0, 0]
+check sb("S-1-1-0") == [1, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0]
+check sb("S-1-5-21-3623811015-3361044348-30300820-1013") == [1, 5, 0, 0, 0, 0, 0, 5, 21, 0, 0, 0, 199, 247, 254, 215, 124, 119, 85, 200, 148, 90, 206, 1, 245, 3, 0, 0]
+check sfb([1, 2, 0, 0, 0, 0, 0, 5, 32, 0, 0, 0, 32, 2, 0, 0]) == "S-1-5-32-544"
+check sfb([1, 0, 0, 0, 0, 0, 0, 5]) == "S-1-5"
+check sfb([1, 2, 0, 0, 0, 0, 0, 5, 32, 0, 0, 0]) == "S-1--1"
+check sfb([2, 0, 0, 0, 0, 0, 0, 5]) == "S-1--1"
+fn ac(has: bool, d: List[Ace], t: List[text], w: i64) -> bool = access_check(has, &d, &t, w)
+const TOK: List[text] = ["S-1-1-0", "S-1-5-32-545", "S-1-5-21-1-2-3-1001"]
+check ac(false, [], TOK, 983551)
+check not ac(true, [], TOK, 1)
+check ac(true, [Ace(allow: true, sid: "S-1-1-0", mask: 3)], TOK, 3)
+check not ac(true, [Ace(allow: true, sid: "S-1-1-0", mask: 1)], TOK, 3)
+check ac(true, [Ace(allow: true, sid: "S-1-1-0", mask: 1), Ace(allow: true, sid: "S-1-5-32-545", mask: 2)], TOK, 3)
+check not ac(true, [Ace(allow: false, sid: "S-1-5-21-1-2-3-1001", mask: 2), Ace(allow: true, sid: "S-1-1-0", mask: 3)], TOK, 3)
+check ac(true, [Ace(allow: true, sid: "S-1-1-0", mask: 3), Ace(allow: false, sid: "S-1-5-21-1-2-3-1001", mask: 2)], TOK, 3)
+check ac(true, [Ace(allow: false, sid: "S-1-5-21-1-2-3-1001", mask: 4), Ace(allow: true, sid: "S-1-1-0", mask: 3)], TOK, 3)
+check not ac(true, [Ace(allow: true, sid: "S-1-5-18", mask: 3)], TOK, 1)
+check not ac(true, [Ace(allow: false, sid: "S-1-5-18", mask: 1), Ace(allow: true, sid: "S-1-5-32-545", mask: 1), Ace(allow: false, sid: "S-1-1-0", mask: 2)], TOK, 3)
+check ac(true, [Ace(allow: true, sid: "S-1-1-0", mask: 1)], TOK, 0)
+check ll_fs_rights(0) == 0 and ll_fs_rights(1) == 8191 and ll_fs_rights(2) == 16383 and ll_fs_rights(3) == 32767 and ll_fs_rights(4) == 32767 and ll_fs_rights(5) == 65535 and ll_fs_rights(6) == 65535
+check ll_net_rights(3) == 0 and ll_net_rights(4) == 3 and ll_scopes(5) == 0 and ll_scopes(6) == 3
+fn lla(ls: List[Layer], p: List[text], w: i64) -> bool = ll_allowed(&ls, &p, w)
+const L1: Layer = Layer(handled: 15, rules: [Rule(path: ["usr"], rights: 13), Rule(path: ["tmp"], rights: 15)])
+const L2: Layer = Layer(handled: 2, rules: [Rule(path: ["tmp", "a"], rights: 2)])
+check lla([L1], ["usr", "bin", "ls"], LL_READ_FILE | LL_EXECUTE)
+check not lla([L1], ["usr", "bin", "ls"], LL_WRITE_FILE)
+check lla([L1], ["usr", "bin", "ls"], LL_MAKE_REG)
+check not lla([L1], ["etc", "passwd"], LL_READ_FILE)
+check lla([L1], ["tmp", "x"], LL_WRITE_FILE)
+check not lla([L1, L2], ["tmp", "x"], LL_WRITE_FILE)
+check lla([L1, L2], ["tmp", "a", "f"], LL_WRITE_FILE)
+check not lla([L1, L2], ["tmp"], LL_WRITE_FILE)
+check lla([], ["anything"], 65535)
+check not lla([L1], ["us"], LL_READ_FILE)
+check lla([L1], ["usr"], LL_READ_DIR)
+fn gl(m: text) -> i64 = grant_ll(&m)
+fn gm(m: text) -> i64 = grant_mode(&m)
+check gl("r") == 12 and gl("x") == 1 and gl("w") == 29106 and gl("rwx") == 29119 and gl("") == 0
+check gm("rwx") == 448 and gm("r") == 256 and gm("wx") == 192
+check ll_grant(29119) == "rwx" and ll_grant(12) == "r" and ll_grant(8) == "" and ll_grant(65535) == "rwx" and ll_grant(29106) == "w"
+check octal(2541) == "4755" and octal(8) == "0010" and octal(33188) == "0644"
+# a deny ACE only blocks bits not already granted by an earlier allow (MS-DTYP 2.5.3.2)
+check ac(true, [Ace(allow: true, sid: "S-1-1-0", mask: 1), Ace(allow: false, sid: "S-1-1-0", mask: 1), Ace(allow: true, sid: "S-1-1-0", mask: 2)], TOK, 3)
+# live GNU chmod 9.7 on a directory 02755, umask 022
+check chm(17901, "u=s", 18) == 19501
+check chm(17901, "a=,u+s", 18) == 19456
+check chm(17901, "=s", 18) == 19456
+check chm(17901, "g=s", 18) == 17861
+check chm(17901, "g-s", 18) == 16877
+check chm(17901, "u7", 18) == -1
+check chm(17901, "u+7", 18) == -1

@@ -1,0 +1,1121 @@
+module data.sync
+# uses: enc.enc, data.events
+use data.events
+
+# data.sync (survey M62): keeping replicas of D state in step.
+#
+# JSON Pointer (RFC 6901), JSON Patch (RFC 6902) and JSON Merge Patch
+# (RFC 7396) applied to events.Jv values; a snapshot diff that yields a
+# patch; state-based CRDTs (G-/PN-counter, LWW register, OR-set, and the
+# Automerge map register: concurrent values kept, winner by Lamport op
+# id); a replayable mutation log with server-side dedupe by
+# (client, mutation id) and client rebase of pending mutations
+# (Replicache push/pull); subscriptions that push only the rows of a
+# filtered table that changed (SpacetimeDB TableUpdate shape).
+
+error BadSync(why: text)
+
+fn sy_ok(j: &events.Jv) -> events.Jv = copy(j)
+
+fn sy_get(j: &events.Jv, k: text) -> events.Jv?
+    let v = events.jget(j, &k)
+    match v
+        some(x) -> return some(copy(x))
+        none -> return none
+
+fn sy_text(j: &events.Jv) -> text
+    match j
+        events.JsStr(t: t) -> return copy(t)
+        _ -> return ""
+
+fn sy_str(j: &events.Jv) -> text?
+    match j
+        events.JsStr(t: t) -> return some(copy(t))
+        _ -> return none
+
+# ---------------- JSON Pointer (RFC 6901) ----------------
+
+pub fn ptr_parse(p: &text) -> List[text] ! BadSync
+    if p == ""
+        return []
+    if not p.startswith("/")
+        fail BadSync(why: "pointer: must start with /")
+    let parts = p.split("/")
+    var out: List[text] = []
+    for i in 1..parts.len()
+        out.push(try ptr_unescape(&parts[i]))
+    return out
+
+fn ptr_unescape(t: &text) -> text ! BadSync
+    let cs = t.chars()
+    var o = ""
+    var i: usize = 0
+    while i < cs.len() bound 16777216
+        if cs[i] == "~"
+            if i + 1 < cs.len() and cs[i + 1] == "0"
+                o = o + "~"
+            elif i + 1 < cs.len() and cs[i + 1] == "1"
+                o = o + "/"
+            else
+                fail BadSync(why: "pointer: bad ~ escape")
+            i += 2
+        else
+            o = o + cs[i]
+            i += 1
+    return o
+
+pub fn ptr_escape(t: &text) -> text
+    var o = ""
+    for c in t.chars()
+        o = o + (if c == "~" then "~0" else (if c == "/" then "~1" else c))
+    return o
+
+# An array index: "0" or digits without a leading zero.
+fn sy_index(t: &text) -> i64
+    if t == "" or not t.isdigit() or t.len_bytes() > 18
+        return -1
+    if t.len_bytes() > 1 and t.startswith("0")
+        return -1
+    return t.toint()
+
+pub fn ptr_get(doc: &events.Jv, toks: &[text]) -> events.Jv ! BadSync
+    var cur = copy(doc)
+    for t in toks
+        let nx = try sy_step(&cur, &t)
+        cur = nx
+    return cur
+
+fn sy_step(cur: &events.Jv, t: &text) -> events.Jv ! BadSync
+    match cur
+        events.JsObj(keys: ks, vals: vs) -> return try sy_member(ks, vs, t)
+        events.JsArr(items: xs) -> return try sy_elem(xs, t)
+        _ -> fail BadSync(why: "pointer: no such location")
+
+fn sy_member(ks: &[text], vs: &[events.Jv], t: &text) -> events.Jv ! BadSync
+    for i in 0..ks.len()
+        if ks[i] == t
+            return copy(vs[i])
+    fail BadSync(why: "pointer: no such member")
+
+fn sy_elem(xs: &[events.Jv], t: &text) -> events.Jv ! BadSync
+    let n = sy_index(t)
+    if n < 0 or n as usize >= xs.len()
+        fail BadSync(why: "pointer: bad array index")
+    return copy(xs[n as usize])
+
+# ---------------- JSON equality (RFC 6902 4.6) ----------------
+
+# A number lexeme as digits + "e" + exponent, so 1, 1.0 and 10e-1 agree.
+pub fn num_norm(raw: &text) -> text
+    let cs = raw.chars()
+    var i: usize = 0
+    var neg = false
+    if i < cs.len() and cs[i] == "-"
+        neg = true
+        i += 1
+    var ds = ""
+    var e: i64 = 0
+    while i < cs.len() and cs[i].isdigit() bound 16777216
+        ds = ds + cs[i]
+        i += 1
+    if i < cs.len() and cs[i] == "."
+        i += 1
+        while i < cs.len() and cs[i].isdigit() bound 16777216
+            ds = ds + cs[i]
+            e -= 1
+            i += 1
+    if i < cs.len() and (cs[i] == "e" or cs[i] == "E")
+        i += 1
+        var eneg = false
+        if i < cs.len() and (cs[i] == "+" or cs[i] == "-")
+            eneg = cs[i] == "-"
+            i += 1
+        var x: i64 = 0
+        while i < cs.len() and cs[i].isdigit() bound 16777216
+            if x < 100000000000
+                x = x * 10 + cs[i].toint()
+            i += 1
+        e += if eneg then -x else x
+    let dc = ds.chars()
+    var a: usize = 0
+    while a < dc.len() and dc[a] == "0" bound 16777216
+        a += 1
+    var b = dc.len()
+    while b > a and dc[b - 1] == "0" bound 16777216
+        b -= 1
+        e += 1
+    if a == b
+        return "0"
+    var m = ""
+    for k in a..b
+        m = m + dc[k]
+    return (if neg then "-" else "") + m + "e" + e.tostr()
+
+pub fn json_eq(a: &events.Jv, b: &events.Jv) -> bool bound 64
+    match a
+        events.JsNull -> return sy_is_null(b)
+        events.JsBool(v: x) -> return sy_bool_is(b, x)
+        events.JsNum(raw: r) -> return sy_num_is(b, r)
+        events.JsStr(t: t) -> return sy_str_is(b, t)
+        events.JsArr(items: xs) -> return sy_arr_eq(xs, b)
+        events.JsObj(keys: ks, vals: vs) -> return sy_obj_eq(ks, vs, b)
+
+fn sy_is_null(b: &events.Jv) -> bool
+    match b
+        events.JsNull -> return true
+        _ -> return false
+
+fn sy_bool_is(b: &events.Jv, x: bool) -> bool
+    match b
+        events.JsBool(v: y) -> return y == x
+        _ -> return false
+
+fn sy_num_is(b: &events.Jv, a: &text) -> bool
+    match b
+        events.JsNum(raw: r) -> return num_norm(r) == num_norm(a)
+        _ -> return false
+
+fn sy_str_is(b: &events.Jv, t: &text) -> bool
+    match b
+        events.JsStr(t: u) -> return u == t
+        _ -> return false
+
+fn sy_arr_eq(xs: &[events.Jv], b: &events.Jv) -> bool bound 64
+    match b
+        events.JsArr(items: ys) -> return sy_list_eq(xs, ys)
+        _ -> return false
+
+fn sy_list_eq(xs: &[events.Jv], ys: &[events.Jv]) -> bool bound 64
+    if xs.len() != ys.len()
+        return false
+    for i in 0..xs.len()
+        if not json_eq(&xs[i], &ys[i])
+            return false
+    return true
+
+fn sy_obj_eq(ks: &[text], vs: &[events.Jv], b: &events.Jv) -> bool bound 64
+    match b
+        events.JsObj(keys: k2, vals: v2) -> return sy_members_eq(ks, vs, k2, v2)
+        _ -> return false
+
+fn sy_members_eq(ks: &[text], vs: &[events.Jv], k2: &[text], v2: &[events.Jv]) -> bool bound 64
+    if ks.len() != k2.len()
+        return false
+    for i in 0..ks.len()
+        var hit = false
+        for j in 0..k2.len()
+            if k2[j] == ks[i]
+                hit = json_eq(&vs[i], &v2[j])
+        if not hit
+            return false
+    return true
+
+# ---------------- JSON Patch (RFC 6902) ----------------
+
+# Add v at toks[i..] (object member set/replace, array insert or "-").
+fn jp_add(doc: &events.Jv, toks: &[text], i: usize, v: &events.Jv) -> events.Jv ! BadSync bound 64
+    if i == toks.len()
+        return copy(v)
+    let _last = i + 1 == toks.len()
+    match doc
+        events.JsObj(keys: ks, vals: vs) -> return try jp_add_obj(ks, vs, toks, i, v)
+        events.JsArr(items: xs) -> return try jp_add_arr(xs, toks, i, v)
+        _ -> fail BadSync(why: "patch: add target parent is not a container")
+
+fn jp_add_obj(ks: &[text], vs: &[events.Jv], toks: &[text], i: usize, v: &events.Jv) -> events.Jv ! BadSync bound 64
+    var nk: List[text] = []
+    var nv: List[events.Jv] = []
+    var found = false
+    for j in 0..ks.len()
+        nk.push(copy(ks[j]))
+        if ks[j] == toks[i]
+            found = true
+            nv.push(try jp_add(&vs[j], toks, i + 1, v))
+        else
+            nv.push(copy(vs[j]))
+    if not found
+        if i + 1 != toks.len()
+            fail BadSync(why: "patch: path not found")
+        nk.push(copy(toks[i]))
+        nv.push(copy(v))
+    return events.JsObj(keys: nk, vals: nv)
+
+fn jp_add_arr(xs: &[events.Jv], toks: &[text], i: usize, v: &events.Jv) -> events.Jv ! BadSync bound 64
+    let last = i + 1 == toks.len()
+    var n: i64 = if toks[i] == "-" then xs.len() as i64 else sy_index(&toks[i])
+    if n < 0 or n as usize > xs.len() or (not last and n as usize == xs.len())
+        fail BadSync(why: "patch: bad array index")
+    var o: List[events.Jv] = []
+    for j in 0..xs.len()
+        if j as i64 == n
+            if last
+                o.push(copy(v))
+                o.push(copy(xs[j]))
+            else
+                o.push(try jp_add(&xs[j], toks, i + 1, v))
+        else
+            o.push(copy(xs[j]))
+    if last and n as usize == xs.len()
+        o.push(copy(v))
+    return events.JsArr(items: o)
+
+fn jp_remove(doc: &events.Jv, toks: &[text], i: usize) -> events.Jv ! BadSync bound 64
+    if i == toks.len()
+        fail BadSync(why: "patch: cannot remove the root")
+    match doc
+        events.JsObj(keys: ks, vals: vs) -> return try jp_rm_obj(ks, vs, toks, i)
+        events.JsArr(items: xs) -> return try jp_rm_arr(xs, toks, i)
+        _ -> fail BadSync(why: "patch: path not found")
+
+fn jp_rm_obj(ks: &[text], vs: &[events.Jv], toks: &[text], i: usize) -> events.Jv ! BadSync bound 64
+    var nk: List[text] = []
+    var nv: List[events.Jv] = []
+    var found = false
+    for j in 0..ks.len()
+        if ks[j] == toks[i]
+            found = true
+            if i + 1 < toks.len()
+                nk.push(copy(ks[j]))
+                nv.push(try jp_remove(&vs[j], toks, i + 1))
+        else
+            nk.push(copy(ks[j]))
+            nv.push(copy(vs[j]))
+    if not found
+        fail BadSync(why: "patch: path not found")
+    return events.JsObj(keys: nk, vals: nv)
+
+fn jp_rm_arr(xs: &[events.Jv], toks: &[text], i: usize) -> events.Jv ! BadSync bound 64
+    let n = sy_index(&toks[i])
+    if n < 0 or n as usize >= xs.len()
+        fail BadSync(why: "patch: bad array index")
+    var o: List[events.Jv] = []
+    for j in 0..xs.len()
+        if j as i64 != n
+            o.push(copy(xs[j]))
+        elif i + 1 < toks.len()
+            o.push(try jp_remove(&xs[j], toks, i + 1))
+    return events.JsArr(items: o)
+
+fn jp_field(op: &events.Jv, k: text) -> events.Jv ! BadSync
+    let v = sy_get(op, copy(k))
+    match v
+        some(x) -> return copy(x)
+        none -> fail BadSync(why: "patch: missing " + k)
+
+fn jp_ptr(op: &events.Jv, k: text) -> List[text] ! BadSync
+    let v = try jp_field(op, copy(k))
+    let s = sy_str(&v)
+    match s
+        some(t) -> return try ptr_parse(t)
+        none -> fail BadSync(why: "patch: " + k + " is not a string")
+
+fn sy_dup_members(j: &events.Jv) -> bool
+    match j
+        events.JsObj(keys: ks, vals: _vs) -> return sy_has_dup(ks)
+        _ -> return false
+
+fn sy_has_dup(ks: &[text]) -> bool
+    for i in 0..ks.len()
+        for j in (i + 1)..ks.len()
+            if ks[i] == ks[j]
+                return true
+    return false
+
+fn sy_prefix(a: &[text], b: &[text]) -> bool
+    if a.len() >= b.len()
+        return false
+    for i in 0..a.len()
+        if a[i] != b[i]
+            return false
+    return true
+
+pub fn patch_op(doc: &events.Jv, op: &events.Jv) -> events.Jv ! BadSync
+    if sy_dup_members(op)
+        fail BadSync(why: "patch: duplicate member in an operation")
+    let o = try jp_field(op, "op")
+    let name = sy_text(&o)
+    let path = try jp_ptr(op, "path")
+    if name == "add"
+        let v = try jp_field(op, "value")
+        return try jp_add(doc, &path, 0, &v)
+    if name == "remove"
+        return try jp_remove(doc, &path, 0)
+    if name == "replace"
+        let v = try jp_field(op, "value")
+        if path.len() == 0
+            return v
+        let d = try jp_remove(doc, &path, 0)
+        return try jp_add(&d, &path, 0, &v)
+    if name == "move" or name == "copy"
+        let src = try jp_ptr(op, "from")
+        let v = try ptr_get(doc, &src)
+        if name == "copy"
+            return try jp_add(doc, &path, 0, &v)
+        if sy_prefix(&src, &path)
+            fail BadSync(why: "patch: move into its own child")
+        if src == path
+            return copy(doc)
+        let d = try jp_remove(doc, &src, 0)
+        return try jp_add(&d, &path, 0, &v)
+    if name == "test"
+        let v = try jp_field(op, "value")
+        let have = try ptr_get(doc, &path)
+        if not json_eq(&have, &v)
+            fail BadSync(why: "patch: test failed")
+        return copy(doc)
+    fail BadSync(why: "patch: unknown op")
+
+# Apply a patch document; all or nothing.
+pub fn patch_apply(doc: &events.Jv, patch: &events.Jv) -> events.Jv ! BadSync
+    var _cur = copy(doc)
+    match patch
+        events.JsArr(items: ops) -> return try patch_ops(doc, ops)
+        _ -> fail BadSync(why: "patch: not an array")
+
+fn patch_ops(doc: &events.Jv, ops: &[events.Jv]) -> events.Jv ! BadSync
+    var cur = copy(doc)
+    for op in ops
+        let nx = try patch_op(&cur, &op)
+        cur = nx
+    return cur
+
+# ---------------- JSON Merge Patch (RFC 7396) ----------------
+
+pub fn merge_patch(target: &events.Jv, patch: &events.Jv) -> events.Jv bound 64
+    match patch
+        events.JsObj(keys: pk, vals: pv) -> return mp_obj(target, pk, pv)
+        _ -> return copy(patch)
+
+fn mp_obj(target: &events.Jv, pk: &[text], pv: &[events.Jv]) -> events.Jv bound 64
+    var ks: List[text] = []
+    var vs: List[events.Jv] = []
+    match target
+        events.JsObj(keys: tk, vals: tv) -> mp_copy(tk, tv, &mut ks, &mut vs)
+        _ -> mp_none()
+    for i in 0..pk.len()
+        var at: i64 = -1
+        for j in 0..ks.len()
+            if ks[j] == pk[i]
+                at = j as i64
+        if sy_is_null(&pv[i])
+            if at >= 0
+                var k2: List[text] = []
+                var v2: List[events.Jv] = []
+                for j in 0..ks.len()
+                    if j as i64 != at
+                        k2.push(copy(ks[j]))
+                        v2.push(copy(vs[j]))
+                ks = k2
+                vs = v2
+        elif at >= 0
+            let nv = merge_patch(&vs[at as usize], &pv[i])
+            vs[at as usize] = nv
+        else
+            let nul = events.JsNull
+            ks.push(copy(pk[i]))
+            vs.push(merge_patch(&nul, &pv[i]))
+    return events.JsObj(keys: ks, vals: vs)
+
+fn mp_none()
+    return
+
+fn mp_copy(tk: &[text], tv: &[events.Jv], ks: &mut List[text], vs: &mut List[events.Jv])
+    for i in 0..tk.len()
+        ks.push(copy(tk[i]))
+        vs.push(copy(tv[i]))
+
+# ---------------- snapshot diff ----------------
+
+fn df_op(op: text, path: &text, v: events.Jv?) -> events.Jv
+    var ks: List[text] = ["op", "path"]
+    var vs: List[events.Jv] = [events.JsStr(t: op), events.JsStr(t: copy(path))]
+    match v
+        some(x) -> df_push_value(&mut ks, &mut vs, x)
+        none -> mp_none()
+    return events.JsObj(keys: ks, vals: vs)
+
+fn df_push_value(ks: &mut List[text], vs: &mut List[events.Jv], x: &events.Jv)
+    ks.push("value")
+    vs.push(copy(x))
+
+# A JSON Patch that takes a to b: patch_apply(a, diff(a, b)) == b.
+# Objects member by member; arrays index by index over the common
+# length, then removals from the end or appends; anything else replaced.
+pub fn diff(a: &events.Jv, b: &events.Jv) -> List[events.Jv]
+    var out: List[events.Jv] = []
+    let root = ""
+    df_walk(a, b, &root, &mut out)
+    return out
+
+fn df_walk(a: &events.Jv, b: &events.Jv, at: &text, out: &mut List[events.Jv]) bound 64
+    if json_eq(a, b)
+        return
+    match a
+        events.JsObj(keys: ka, vals: va) -> df_obj(ka, va, b, at, out)
+        events.JsArr(items: xa) -> df_arr(xa, b, at, out)
+        _ -> out.push(df_op("replace", at, some(copy(b))))
+
+fn df_obj(ka: &[text], va: &[events.Jv], b: &events.Jv, at: &text, out: &mut List[events.Jv]) bound 64
+    match b
+        events.JsObj(keys: kb, vals: vb) -> df_members(ka, va, kb, vb, at, out)
+        _ -> out.push(df_op("replace", at, some(copy(b))))
+
+fn df_members(ka: &[text], va: &[events.Jv], kb: &[text], vb: &[events.Jv], at: &text, out: &mut List[events.Jv]) bound 64
+    for i in 0..ka.len()
+        let p = at + "/" + ptr_escape(&ka[i])
+        var hit: i64 = -1
+        for j in 0..kb.len()
+            if kb[j] == ka[i]
+                hit = j as i64
+        if hit < 0
+            out.push(df_op("remove", &p, none))
+        else
+            df_walk(&va[i], &vb[hit as usize], &p, out)
+    for j in 0..kb.len()
+        var seen = false
+        for i in 0..ka.len()
+            if ka[i] == kb[j]
+                seen = true
+        if not seen
+            let p = at + "/" + ptr_escape(&kb[j])
+            out.push(df_op("add", &p, some(copy(vb[j]))))
+
+fn df_arr(xa: &[events.Jv], b: &events.Jv, at: &text, out: &mut List[events.Jv]) bound 64
+    match b
+        events.JsArr(items: xb) -> df_items(xa, xb, at, out)
+        _ -> out.push(df_op("replace", at, some(copy(b))))
+
+fn df_items(xa: &[events.Jv], xb: &[events.Jv], at: &text, out: &mut List[events.Jv]) bound 64
+    let n = if xa.len() < xb.len() then xa.len() else xb.len()
+    for i in 0..n
+        let p = at + "/" + i.tostr()
+        df_walk(&xa[i], &xb[i], &p, out)
+    var k = xa.len()
+    while k > n bound 16777216
+        k -= 1
+        let p = at + "/" + k.tostr()
+        out.push(df_op("remove", &p, none))
+    for j in n..xb.len()
+        let p = at + "/" + j.tostr()
+        out.push(df_op("add", &p, some(copy(xb[j]))))
+
+# ---------------- CRDTs (state-based; merge is a join) ----------------
+
+# Lamport op id "counter@actor"; order by counter, then actor.
+pub struct OpId
+    ctr: i64
+    who: text
+
+pub fn opid_parse(t: &text) -> OpId ! BadSync
+    let parts = t.split("@")
+    if parts.len() != 2 or not parts[0].isdigit() or parts[0].len_bytes() > 18
+        fail BadSync(why: "op id: counter@actor")
+    return OpId(ctr: parts[0].toint(), who: copy(parts[1]))
+
+pub fn opid_text(o: &OpId) -> text = o.ctr.tostr() + "@" + o.who
+
+pub fn opid_lt(a: &OpId, b: &OpId) -> bool
+    if a.ctr != b.ctr
+        return a.ctr < b.ctr
+    return a.who < b.who
+
+# One map op of the Automerge model: a set or a delete of key, which
+# overwrites the ops listed in pred.
+pub struct MapOp
+    id: OpId
+    key: text
+    del: bool
+    value: events.Jv
+    pred: List[OpId]
+
+fn mo_same(a: &OpId, b: &OpId) -> bool = a.ctr == b.ctr and a.who == b.who
+
+# The sets of key that no op overwrote, highest op id last.
+pub fn map_visible(ops: &[MapOp], key: &text) -> List[MapOp]
+    var out: List[MapOp] = []
+    for o in ops
+        if o.key == key and not o.del
+            var dead = false
+            for p in ops
+                for q in p.pred
+                    if mo_same(&q, &o.id)
+                        dead = true
+            if not dead
+                out.push(copy(o))
+                var at = out.len() - 1
+                while at > 0 and opid_lt(&out[at].id, &out[at - 1].id) bound 16777216
+                    let t = copy(out[at - 1])
+                    out[at - 1] = copy(out[at])
+                    out[at] = t
+                    at -= 1
+    return out
+
+# The map an op set converges to: per key, the value of the visible set
+# with the highest op id (Automerge's default resolution).
+pub fn map_state(ops: &[MapOp]) -> events.Jv
+    var keys: List[text] = []
+    for o in ops
+        if not keys.contains(&o.key)
+            keys.push(copy(o.key))
+    var ks: List[text] = []
+    var vs: List[events.Jv] = []
+    for k in keys
+        let vis = map_visible(ops, &k)
+        if vis.len() > 0
+            ks.push(copy(k))
+            vs.push(copy(vis[vis.len() - 1].value))
+    return events.JsObj(keys: ks, vals: vs)
+
+pub fn map_conflicts(ops: &[MapOp], key: &text) -> List[text]
+    let vis = map_visible(ops, key)
+    return vis.map(fn(o: MapOp) => opid_text(&o.id))
+
+# Ops of two replicas joined (union by op id).
+pub fn map_merge(a: &[MapOp], b: &[MapOp]) -> List[MapOp]
+    var out: List[MapOp] = []
+    for o in a
+        out.push(copy(o))
+    for o in b
+        var seen = false
+        for x in a
+            if mo_same(&x.id, &o.id)
+                seen = true
+        if not seen
+            out.push(copy(o))
+    return out
+
+# G-counter / PN-counter: per-replica counts, merge by max.
+pub struct Slot
+    replica: text
+    n: i64
+
+pub fn gc_inc(c: &[Slot], replica: &text, by: i64) -> List[Slot]
+    var out: List[Slot] = []
+    var hit = false
+    for s in c
+        if s.replica == replica
+            out.push(Slot(replica: copy(s.replica), n: s.n + by))
+            hit = true
+        else
+            out.push(copy(s))
+    if not hit
+        out.push(Slot(replica: copy(replica), n: by))
+    return out
+
+pub fn gc_merge(a: &[Slot], b: &[Slot]) -> List[Slot]
+    var out: List[Slot] = []
+    for s in a
+        var n = s.n
+        for t in b
+            if t.replica == s.replica and t.n > n
+                n = t.n
+        out.push(Slot(replica: copy(s.replica), n: n))
+    for t in b
+        var seen = false
+        for s in a
+            if s.replica == t.replica
+                seen = true
+        if not seen
+            out.push(copy(t))
+    return out
+
+pub fn gc_value(c: &[Slot]) -> i64
+    var n: i64 = 0
+    for s in c
+        n += s.n
+    return n
+
+# Canonical text of a counter state (replicas sorted) for comparison.
+pub fn gc_text(c: &[Slot]) -> text
+    var rs: List[text] = []
+    for s in c
+        if s.n != 0
+            rs.push(s.replica + "=" + s.n.tostr())
+            sy_sink(&mut rs)
+    return ",".join(rs)
+
+# Move the last element of a sorted-but-last list to its place.
+fn sy_sink(xs: &mut List[text])
+    var at = xs.len() - 1
+    while at > 0 and xs[at] < xs[at - 1] bound 16777216
+        let t = copy(xs[at - 1])
+        xs[at - 1] = copy(xs[at])
+        xs[at] = t
+        at -= 1
+
+pub struct PN
+    p: List[Slot]
+    n: List[Slot]
+
+pub fn pn_add(c: &PN, replica: &text, by: i64) -> PN
+    if by >= 0
+        return PN(p: gc_inc(&c.p, replica, by), n: copy(c.n))
+    return PN(p: copy(c.p), n: gc_inc(&c.n, replica, -by))
+
+pub fn pn_merge(a: &PN, b: &PN) -> PN = PN(p: gc_merge(&a.p, &b.p), n: gc_merge(&a.n, &b.n))
+
+pub fn pn_value(c: &PN) -> i64 = gc_value(&c.p) - gc_value(&c.n)
+
+pub fn pn_text(c: &PN) -> text = gc_text(&c.p) + "|" + gc_text(&c.n)
+
+# LWW register: (timestamp, replica) orders writes.
+pub struct Lww
+    ts: i64
+    replica: text
+    value: text
+
+pub fn lww_merge(a: &Lww, b: &Lww) -> Lww
+    if b.ts > a.ts or (b.ts == a.ts and b.replica > a.replica)
+        return copy(b)
+    return copy(a)
+
+# OR-set (add wins): an add makes a unique tag; remove drops the tags it
+# observed.
+pub struct Tagged
+    elem: text
+    tag: text
+
+pub struct OrSet
+    adds: List[Tagged]
+    gone: List[text]
+
+pub fn or_add(s: &OrSet, elem: &text, tag: &text) -> OrSet
+    var a = copy(s.adds)
+    a.push(Tagged(elem: copy(elem), tag: copy(tag)))
+    return OrSet(adds: a, gone: copy(s.gone))
+
+pub fn or_remove(s: &OrSet, elem: &text) -> OrSet
+    var g = copy(s.gone)
+    for t in s.adds
+        if t.elem == elem and not g.contains(&t.tag)
+            g.push(copy(t.tag))
+    return OrSet(adds: copy(s.adds), gone: g)
+
+pub fn or_merge(a: &OrSet, b: &OrSet) -> OrSet
+    var ad = copy(a.adds)
+    for t in b.adds
+        var seen = false
+        for u in a.adds
+            if u.tag == t.tag
+                seen = true
+        if not seen
+            ad.push(copy(t))
+    var g = copy(a.gone)
+    for t in b.gone
+        if not g.contains(&t)
+            g.push(copy(t))
+    return OrSet(adds: ad, gone: g)
+
+# Members, sorted.
+pub fn or_elems(s: &OrSet) -> List[text]
+    var out: List[text] = []
+    for t in s.adds
+        if not s.gone.contains(&t.tag) and not out.contains(&t.elem)
+            out.push(copy(t.elem))
+            sy_sink(&mut out)
+    return out
+
+# ---------------- replayable mutation log (Replicache push/pull) ----------------
+
+# A client mutation; mutators: "put" (key = arg), "del" (key), "incr"
+# (key += arg, a JSON integer).
+pub struct Mut
+    client: text
+    id: i64
+    name: text
+    key: text
+    arg: events.Jv
+
+pub struct Server
+    db: events.Jv
+    lmids: List[Slot]
+    log: List[Mut]
+    version: i64
+
+pub fn server_new() -> Server
+    let ks: List[text] = []
+    let vs: List[events.Jv] = []
+    return Server(db: events.JsObj(keys: ks, vals: vs), lmids: [], log: [], version: 0)
+
+pub fn last_mutation_id(s: &Server, client: &text) -> i64
+    for x in s.lmids
+        if x.replica == client
+            return x.n
+    return 0
+
+fn kv_get(st: &events.Jv, k: &text) -> events.Jv?
+    return events.jget(st, k)
+
+fn kv_put(st: &events.Jv, k: &text, v: &events.Jv) -> events.Jv
+    let one = [copy(k)]
+    let vals = [copy(v)]
+    let p = events.JsObj(keys: one, vals: vals)
+    return mp_put(st, &p)
+
+fn mp_put(st: &events.Jv, p: &events.Jv) -> events.Jv
+    match p
+        events.JsObj(keys: pk, vals: pv) -> return mp_set_members(st, pk, pv)
+        _ -> return copy(st)
+
+# Members set verbatim (a null value stays a null value).
+fn mp_set_members(st: &events.Jv, pk: &[text], pv: &[events.Jv]) -> events.Jv
+    var ks: List[text] = []
+    var vs: List[events.Jv] = []
+    match st
+        events.JsObj(keys: tk, vals: tv) -> mp_copy(tk, tv, &mut ks, &mut vs)
+        _ -> mp_none()
+    for i in 0..pk.len()
+        var hit = false
+        for j in 0..ks.len()
+            if ks[j] == pk[i]
+                vs[j] = copy(pv[i])
+                hit = true
+        if not hit
+            ks.push(copy(pk[i]))
+            vs.push(copy(pv[i]))
+    return events.JsObj(keys: ks, vals: vs)
+
+fn kv_del(st: &events.Jv, k: &text) -> events.Jv
+    var ks: List[text] = []
+    var vs: List[events.Jv] = []
+    match st
+        events.JsObj(keys: tk, vals: tv) -> mp_copy(tk, tv, &mut ks, &mut vs)
+        _ -> mp_none()
+    var k2: List[text] = []
+    var v2: List[events.Jv] = []
+    for i in 0..ks.len()
+        if ks[i] != k
+            k2.push(copy(ks[i]))
+            v2.push(copy(vs[i]))
+    return events.JsObj(keys: k2, vals: v2)
+
+fn sy_int(j: &events.Jv) -> i64?
+    match j
+        events.JsNum(raw: r) -> return sy_int_text(r)
+        _ -> return none
+
+fn sy_int_or0(j: &events.Jv) -> i64
+    let o = sy_int(j)
+    return sy_or0(o)
+
+fn sy_or0(o: i64?) -> i64
+    match o
+        some(x) -> return x
+        none -> return 0
+
+fn sy_int_text(r: &text) -> i64?
+    let neg = r.startswith("-")
+    let parts = r.split("-")
+    let d = if neg then copy(parts[parts.len() - 1]) else copy(r)
+    if d == "" or not d.isdigit() or d.len_bytes() > 17
+        return none
+    return some(if neg then -d.toint() else d.toint())
+
+# One mutator run; a mutator that cannot run (unknown name, incr of a
+# non-integer) leaves the state as it was. Either way the mutation is
+# consumed, as Replicache's push does for a mutator error.
+pub fn mutate(st: &events.Jv, m: &Mut) -> events.Jv
+    if m.name == "put"
+        return kv_put(st, &m.key, &m.arg)
+    if m.name == "del"
+        return kv_del(st, &m.key)
+    if m.name == "incr"
+        return mu_incr(st, &m.key, &m.arg)
+    return copy(st)
+
+fn mu_incr(st: &events.Jv, k: &text, arg: &events.Jv) -> events.Jv
+    let by = sy_int(arg)
+    let cur = kv_get(st, k)
+    var have: i64 = 0
+    var ok = true
+    match cur
+        some(v) -> ok = sy_int(v).issome()
+        none -> ok = true
+    if not ok or by.isnone()
+        return copy(st)
+    match cur
+        some(v) -> have = sy_int_or0(v)
+        none -> have = 0
+    let n = sy_or0(by) + have
+    let j = events.JsNum(raw: n.tostr())
+    return kv_put(st, k, &j)
+
+fn lm_set(xs: &[Slot], client: &text, n: i64) -> List[Slot]
+    var out: List[Slot] = []
+    var hit = false
+    for x in xs
+        if x.replica == client
+            out.push(Slot(replica: copy(client), n: n))
+            hit = true
+        else
+            out.push(copy(x))
+    if not hit
+        out.push(Slot(replica: copy(client), n: n))
+    return out
+
+# Push a batch: a mutation at or below the client's last mutation id is a
+# retransmission and is skipped; the next id is applied and logged; a gap
+# stops the batch (the client must resend from the next id).
+pub fn push(s: &Server, ms: &[Mut]) -> Server ! BadSync
+    var cur = copy(s)
+    for m in ms
+        let last = last_mutation_id(&cur, &m.client)
+        if m.id > last + 1
+            fail BadSync(why: "push: mutation id gap")
+        if m.id == last + 1
+            let st = mutate(&cur.db, &m)
+            var lg = copy(cur.log)
+            lg.push(copy(m))
+            cur = Server(db: st, lmids: lm_set(&cur.lmids, &m.client, m.id), log: lg, version: cur.version + 1)
+    return cur
+
+# The log replayed from empty; replay(s.log) == s.db.
+pub fn replay(log: &[Mut]) -> events.Jv
+    let s0 = server_new()
+    var st = copy(s0.db)
+    for m in log
+        let nx = mutate(&st, &m)
+        st = nx
+    return st
+
+# A pull response: Replicache patch ops ({"op":"put","key","value"},
+# {"op":"del","key"}) from the client's base to the server state, and the
+# client's last mutation id.
+pub struct Pull
+    patch: List[events.Jv]
+    lmid: i64
+
+fn pl_op(op: text, k: &text, v: events.Jv?) -> events.Jv
+    var ks: List[text] = ["op", "key"]
+    var vs: List[events.Jv] = [events.JsStr(t: op), events.JsStr(t: copy(k))]
+    match v
+        some(x) -> df_push_value(&mut ks, &mut vs, x)
+        none -> mp_none()
+    return events.JsObj(keys: ks, vals: vs)
+
+pub fn pull(s: &Server, base: &events.Jv, client: &text) -> Pull
+    var ops: List[events.Jv] = []
+    match base
+        events.JsObj(keys: bk, vals: _bv) -> pl_dels(bk, &s.db, &mut ops)
+        _ -> mp_none()
+    match s.db
+        events.JsObj(keys: sk, vals: sv) -> pl_puts(sk, sv, base, &mut ops)
+        _ -> mp_none()
+    return Pull(patch: ops, lmid: last_mutation_id(s, client))
+
+fn pl_dels(bk: &[text], db: &events.Jv, ops: &mut List[events.Jv])
+    for k in bk
+        if kv_get(db, &k).isnone()
+            ops.push(pl_op("del", &k, none))
+
+fn pl_puts(sk: &[text], sv: &[events.Jv], base: &events.Jv, ops: &mut List[events.Jv])
+    for i in 0..sk.len()
+        let old = kv_get(base, &sk[i])
+        var same = false
+        match old
+            some(v) -> same = json_eq(v, &sv[i])
+            none -> same = false
+        if not same
+            ops.push(pl_op("put", &sk[i], some(copy(sv[i]))))
+
+pub fn apply_kv_patch(base: &events.Jv, ops: &[events.Jv]) -> events.Jv ! BadSync
+    var st = copy(base)
+    for o in ops
+        let oj = try jp_field(&o, "op")
+        let name = sy_text(&oj)
+        if name == "clear"
+            let s0 = server_new()
+            st = copy(s0.db)
+        else
+            let kj = try jp_field(&o, "key")
+            let k = sy_text(&kj)
+            if name == "put"
+                let v = try jp_field(&o, "value")
+                st = kv_put(&st, &k, &v)
+            elif name == "del"
+                st = kv_del(&st, &k)
+            else
+                fail BadSync(why: "pull: unknown patch op")
+    return st
+
+# A client: the last pulled state and its pending (unconfirmed) mutations.
+pub struct Client
+    name: text
+    base: events.Jv
+    pending: List[Mut]
+    next: i64
+
+pub fn client_new(name: &text) -> Client
+    let s0 = server_new()
+    return Client(name: copy(name), base: copy(s0.db), pending: [], next: 1)
+
+# An optimistic mutation: queued, visible in view() at once.
+pub fn client_mutate(c: &Client, name: &text, key: &text, arg: &events.Jv) -> Client
+    var p = copy(c.pending)
+    p.push(Mut(client: copy(c.name), id: c.next, name: copy(name), key: copy(key), arg: copy(arg)))
+    return Client(name: copy(c.name), base: copy(c.base), pending: p, next: c.next + 1)
+
+# What the client shows: pending mutations replayed on the base.
+pub fn view(c: &Client) -> events.Jv
+    var st = copy(c.base)
+    for m in c.pending
+        let nx = mutate(&st, &m)
+        st = nx
+    return st
+
+# Rebase on a pull: the patch moves the base; mutations the server has
+# confirmed (id <= lmid) are dropped, the rest replayed on the new base.
+pub fn client_pull(c: &Client, p: &Pull) -> Client ! BadSync
+    let nb = try apply_kv_patch(&c.base, &p.patch)
+    var keep: List[Mut] = []
+    for m in c.pending
+        if m.id > p.lmid
+            keep.push(copy(m))
+    return Client(name: copy(c.name), base: nb, pending: keep, next: c.next)
+
+# ---------------- subscriptions: push only changed rows ----------------
+
+# One condition of a subscription query; a query is their conjunction.
+# SQL semantics: a null column matches no condition; numbers compare as
+# integers, text by bytes (COLLATE "C").
+pub struct Cond
+    col: text
+    op: text
+    value: events.Jv
+
+pub struct TableUpdate
+    deletes: List[events.Jv]
+    inserts: List[events.Jv]
+
+fn cmp_res(c: i64, op: &text) -> bool
+    if op == "="
+        return c == 0
+    if op == "!="
+        return c != 0
+    if op == "<"
+        return c < 0
+    if op == "<="
+        return c <= 0
+    if op == ">"
+        return c > 0
+    if op == ">="
+        return c >= 0
+    return false
+
+fn cond_holds(row: &events.Jv, c: &Cond) -> bool
+    let v = kv_get(row, &c.col)
+    match v
+        some(x) -> return cond_value(x, c)
+        none -> return false
+
+fn cond_value(x: &events.Jv, c: &Cond) -> bool
+    match x
+        events.JsNum(raw: r) -> return cond_num(r, c)
+        events.JsStr(t: t) -> return cond_text(t, c)
+        _ -> return false
+
+fn cond_num(r: &text, c: &Cond) -> bool
+    let a = sy_int_text(r)
+    let b = sy_int(&c.value)
+    if a.isnone() or b.isnone()
+        return false
+    let x = sy_or0(a)
+    let y = sy_or0(b)
+    return cmp_res(if x < y then -1 else (if x > y then 1 else 0), &c.op)
+
+fn cond_text(t: &text, c: &Cond) -> bool
+    match c.value
+        events.JsStr(t: u) -> return cmp_res(if t < u then -1 else (if t > u then 1 else 0), &c.op)
+        _ -> return false
+
+pub fn matches(row: &events.Jv, q: &[Cond]) -> bool
+    for c in q
+        if not cond_holds(row, &c)
+            return false
+    return true
+
+fn row_id(r: &events.Jv) -> events.Jv
+    let idk = "id"
+    let v = kv_get(r, &idk)
+    match v
+        some(x) -> return copy(x)
+        none -> return events.JsNull
+
+fn row_key(r: &events.Jv) -> i64
+    let v = row_id(r)
+    return sy_int_or0(&v)
+
+fn rows_sorted(xs: &[events.Jv]) -> List[events.Jv]
+    var out: List[events.Jv] = []
+    for x in xs
+        out.push(copy(x))
+        var at = out.len() - 1
+        while at > 0 and row_key(&out[at]) < row_key(&out[at - 1]) bound 16777216
+            let t = copy(out[at - 1])
+            out[at - 1] = copy(out[at])
+            out[at] = t
+            at -= 1
+    return out
+
+fn rows_has(xs: &[events.Jv], r: &events.Jv) -> bool
+    for x in xs
+        if json_eq(&x, r)
+            return true
+    return false
+
+# What a subscriber to q receives when the table goes from old to new:
+# rows that left the result (or changed) as deletes, rows that entered
+# it (or changed) as inserts; an update is a delete and an insert, and
+# matching rows that did not change are not sent.
+pub fn sub_update(old: &[events.Jv], new: &[events.Jv], q: &[Cond]) -> TableUpdate
+    var a: List[events.Jv] = []
+    var b: List[events.Jv] = []
+    for r in old
+        if matches(&r, q)
+            a.push(copy(r))
+    for r in new
+        if matches(&r, q)
+            b.push(copy(r))
+    var dels: List[events.Jv] = []
+    var ins: List[events.Jv] = []
+    for r in a
+        if not rows_has(&b, &r)
+            dels.push(copy(r))
+    for r in b
+        if not rows_has(&a, &r)
+            ins.push(copy(r))
+    return TableUpdate(deletes: rows_sorted(&dels), inserts: rows_sorted(&ins))
+
+# A row change (wal2json action I/U/D, with old = replica identity).
+pub struct RowChange
+    action: text
+    old: events.Jv
+    new: events.Jv
+
+# The table after a transaction's changes, rows matched by id.
+pub fn table_apply(rows: &[events.Jv], cs: &[RowChange]) -> List[events.Jv] ! BadSync
+    var cur: List[events.Jv] = []
+    for r in rows
+        cur.push(copy(r))
+    for c in cs
+        let key = if c.action == "I" then row_id(&c.new) else row_id(&c.old)
+        var nx: List[events.Jv] = []
+        var hit = false
+        for r in cur
+            let rid = row_id(&r)
+            if json_eq(&rid, &key)
+                hit = true
+            else
+                nx.push(copy(r))
+        if c.action == "I"
+            if hit
+                fail BadSync(why: "table: insert of an existing id")
+            nx.push(copy(c.new))
+        elif not hit
+            fail BadSync(why: "table: no such row")
+        elif c.action == "U"
+            nx.push(copy(c.new))
+        elif c.action != "D"
+            fail BadSync(why: "table: unknown action")
+        cur = nx
+    return rows_sorted(&cur)

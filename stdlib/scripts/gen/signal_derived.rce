@@ -1,0 +1,34 @@
+# derived: Windows console control events (Microsoft docs, HandlerRoutine callback; wincon.h values)
+check console_event(0) == "CTRL_C_EVENT"
+check console_event(1) == "CTRL_BREAK_EVENT"
+check console_event(2) == "CTRL_CLOSE_EVENT"
+check console_event(5) == "CTRL_LOGOFF_EVENT"
+check console_event(6) == "CTRL_SHUTDOWN_EVENT"
+check console_event(3) == ""
+check console_signal(0) == 2
+check console_signal(1) == 21
+check console_signal(6) == 21
+check console_signal(4) == -1
+check nm("SIGNOPE", "linux") == -2
+check nm("SIGINT", "vms") == -2
+# derived: drain gives the admission order at a tick boundary
+fn dr(s: text) -> text
+    var p = pending_new()
+    for op in s.split(";")
+        let a = op.split(" ")
+        let _ok = sig_send(&mut p, inum(&a[0]), inum(&a[1])) catch false
+    var o: List[text] = []
+    for q in drain(&mut p)
+        o.push(q.sig.tostr() + ":" + q.val.tostr())
+    return ",".join(o)
+check dr("40 1;10 2;40 3;2 4;7 5;10 6;34 7") == "7:5,2:4,10:2,34:7,40:1,40:3"
+check dr("20 1;18 2;21 3") == "21:3"
+check dr("20 1;21 2;18 3") == "18:3"
+check dr("64 9;64 8;31 1;11 2") == "11:2,31:1,64:9,64:8"
+# signal(7): SIGINFO is a synonym for SIGPWR (Alpha 29); SIGLOST is SPARC's 29
+check nameof(29, "alpha") == "SIGPWR"
+check nameof(29, "sparc") == "SIGLOST"
+check nameof(18, "mips") == "SIGCHLD"
+check nameof(6, "parisc") == "SIGABRT"
+check nameof(29, "darwin") == "SIGINFO"
+check nameof(32, "linux") == ""

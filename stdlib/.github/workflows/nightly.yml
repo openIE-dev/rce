@@ -1,0 +1,19 @@
+name: nightly
+
+on:
+  schedule:
+    - cron: "17 6 * * *"
+  workflow_dispatch:
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build rce from the public rce repository (the one-language rce)
+        run: |
+          git clone https://github.com/openIE-dev/rce.git "$RUNNER_TEMP/rce-src"
+          git -C "$RUNNER_TEMP/rce-src" checkout 4a3dc1ffb47c811be37b14e00b08ff05d868059c
+          cd "$RUNNER_TEMP/rce-src/spec/checker" && cargo build --release --bin rce
+      - name: Run the slow vector sets
+        run: RCE="$RUNNER_TEMP/rce-src/spec/checker/target/release/rce" scripts/nightly.sh

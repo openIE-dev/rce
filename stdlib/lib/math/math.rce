@@ -1,0 +1,2786 @@
+module math
+
+# Correctly rounded binary64 elementary functions, written once in RCE so
+# every emit target (Rust, Python, JS, Scala, interpreter) gives the same
+# bits. Only + - * / and sqrt are used, each correctly rounded (6.3 N3); no
+# FMA, no native libm.
+#
+# Method. Each function computes a candidate on the output grid and then
+# proves it is the correctly rounded value by comparing the input with the
+# rounding midpoints next to it in exact arithmetic: products are split
+# exactly with Dekker/Veltkamp TwoProduct, sums with Knuth TwoSum, and a
+# difference is a Shewchuk nonoverlapping expansion whose sign is exact.
+# A candidate one grid step off is moved until both midpoints bracket the
+# exact value, so the answer does not depend on the candidate's accuracy
+# and no worst-case table is needed. Exact ties round to even.
+#
+# Validated against CORE-MATH's worst cases (MIT, Copyright (c) 2021-2022
+# Alexei Sibidanov, Paul Zimmermann et al., https://core-math.gitlabpages.inria.fr/)
+# and MPFR 4.2.2 vectors; see vectors/SOURCE.md.
+#
+# Non-finite results trap like every f64 op (6.3 N3): hypot and exp trap
+# when the true result overflows, log when x <= 0; cbrt, sin and cos never.
+
+const SPLITTER: f64 = 134217729.0
+const P52: f64 = 4503599627370496.0
+
+# Knuth TwoSum: [s, e] with s = fl(a + b), s + e == a + b exactly.
+pub fn two_sum(a: f64, b: f64) -> List[f64]
+    let s = a + b
+    let bb = s - a
+    let e = (a - (s - bb)) + (b - bb)
+    return [s, e]
+
+# Veltkamp split: [h, l], h + l == a, each half fits 26 bits. |a| < 2^995.
+pub fn split(a: f64) -> List[f64]
+    let c = SPLITTER * a
+    let h = c - (c - a)
+    return [h, a - h]
+
+# Dekker TwoProduct: [p, e] with p = fl(a * b), p + e == a * b exactly
+# when no intermediate under- or overflows (callers keep |a|,|b| near 1).
+pub fn two_prod(a: f64, b: f64) -> List[f64]
+    let p = a * b
+    let x = split(a)
+    let y = split(b)
+    let e = ((x[0] * y[0] - p) + x[0] * y[1] + x[1] * y[0]) + x[1] * y[1]
+    return [p, e]
+
+# Shewchuk Grow-Expansion: e + b, nonoverlapping, increasing magnitude.
+pub fn exp_grow(e: &[f64], b: f64) -> List[f64]
+    var o: List[f64] = []
+    var q = b
+    for t in e
+        let r = two_sum(q, t)
+        q = r[0]
+        if r[1] != 0.0
+            o.push(r[1])
+    o.push(q)
+    return o
+
+pub fn exp_add(e: &[f64], f: &[f64]) -> List[f64]
+    var o = copy(e)
+    for t in f
+        o = exp_grow(&o, t)
+    return o
+
+# e * b exactly (Shewchuk Scale-Expansion via TwoProduct).
+pub fn exp_scale(e: &[f64], b: f64) -> List[f64]
+    var o: List[f64] = []
+    for t in e
+        let p = two_prod(t, b)
+        o = exp_grow(&o, p[1])
+        o = exp_grow(&o, p[0])
+    return o
+
+pub fn exp_mul(e: &[f64], f: &[f64]) -> List[f64]
+    var o: List[f64] = []
+    for t in f
+        let sc = exp_scale(e, t)
+        o = exp_add(&o, &sc)
+    return o
+
+pub fn exp_neg(e: &[f64]) -> List[f64]
+    var o: List[f64] = []
+    for t in e
+        o.push(0.0 - t)
+    return o
+
+# Exact sign of an expansion: the sign of its largest nonzero term, which
+# Grow-Expansion leaves last.
+pub fn exp_sign(e: &[f64]) -> i64
+    var i = e.len()
+    while i > 0 bound 4096
+        i -= 1
+        if e[i] > 0.0
+            return 1
+        if e[i] < 0.0
+            return -1
+    return 0
+
+pub fn fabs(x: f64) -> f64
+    return if x < 0.0 then 0.0 - x else x
+
+# 2^k for -1074 <= k <= 1023, exact.
+pub fn pow2(k: i64) -> f64
+    if k < -1000
+        # the product is a power of two >= 2^-1074, so exact
+        return pow2n(k + 1000) * pow2n(-1000)
+    return pow2n(k)
+
+fn pow2n(k: i64) -> f64
+    var r: f64 = 1.0
+    var n = k
+    while n >= 64 bound 16
+        r = r * 18446744073709551616.0
+        n -= 64
+    while n <= -64 bound 16
+        r = r / 18446744073709551616.0
+        n += 64
+    while n > 0 bound 64
+        r = r * 2.0
+        n -= 1
+    while n < 0 bound 64
+        r = r * 0.5
+        n += 1
+    return r
+
+# The square root (IEEE: already correctly rounded on every target).
+pub fn sqrt(x: f64) -> f64
+    return x.sqrt()
+
+# [m, k] with x = m * 2^k exactly, 1 <= m < 2, for x > 0 (subnormals too).
+pub fn frexp1(x: f64) -> List[f64]
+    var m = x
+    var k: i64 = 0
+    while m >= 18446744073709551616.0 bound 32
+        m = m / 18446744073709551616.0
+        k += 64
+    while m < 1.0 / 18446744073709551616.0 bound 32
+        m = m * 18446744073709551616.0
+        k -= 64
+    while m >= 2.0 bound 64
+        m = m * 0.5
+        k += 1
+    while m < 1.0 bound 64
+        m = m * 2.0
+        k -= 1
+    return [m, k as f64]
+
+# ---- cbrt ---------------------------------------------------------------
+
+# sign of x - y^3 for the expansion y, exactly.
+fn cube_cmp(x: f64, y: &[f64]) -> i64
+    let y2 = exp_mul(y, y)
+    let c = exp_mul(&y2, y)
+    let n = exp_neg(&c)
+    let d = exp_grow(&n, x)
+    return exp_sign(&d)
+
+# Correctly rounded cube root. Odd: cbrt(-x) == -cbrt(x).
+pub fn cbrt(x: f64) -> f64
+    if x == 0.0
+        return x
+    let neg = x < 0.0
+    let fr = frexp1(fabs(x))
+    var k = fr[1] as i64
+    var m = fr[0]
+    var r = k % 3
+    if r < 0
+        r += 3
+    while r > 0 bound 3
+        m = m * 2.0
+        k -= 1
+        r -= 1
+    # m in [1, 8), cbrt(m) in [1, 2): grid 2^-52, no ties (a 54-bit odd
+    # midpoint cubed is never a double)
+    var y: f64 = 1.25
+    for _i in 0..7
+        y = y - (y * y * y - m) / (3.0 * y * y)
+    if y < 1.0
+        y = 1.0
+    if y >= 2.0
+        y = 2.0 - 1.0 / P52
+    let u = 1.0 / P52
+    loop bound 64
+        let hi = [y, u * 0.5]
+        if cube_cmp(m, &hi) > 0
+            y = y + u
+        else
+            break
+    while y > 1.0 bound 64
+        let lo = [y, u * -0.5]
+        if cube_cmp(m, &lo) < 0
+            y = y - u
+        else
+            break
+    let s = pow2(k / 3)
+    return if neg then 0.0 - y * s else y * s
+
+# ---- hypot --------------------------------------------------------------
+
+fn sq_cmp(s: &[f64], y: &[f64]) -> i64
+    let y2 = exp_mul(y, y)
+    let n = exp_neg(&y2)
+    let d = exp_add(s, &n)
+    return exp_sign(&d)
+
+fn grid(y: f64, us: f64) -> f64
+    var g = 1.0 / P52
+    if y >= 2.0
+        g = 2.0 / P52
+    return if us > g then us else g
+
+fn odd_on(y: f64, g: f64) -> bool
+    let q = y / g
+    let h = (q * 0.5).floor()
+    return q - 2.0 * h != 0.0
+
+# Correctly rounded sqrt(x^2 + y^2) without spurious overflow/underflow.
+pub fn hypot(x: f64, y: f64) -> f64
+    var a = fabs(x)
+    var b = fabs(y)
+    if b > a
+        let t = a
+        a = b
+        b = t
+    if b == 0.0
+        return a
+    # b < a 2^-28: a^2 + b^2 lies strictly inside a's rounding interval
+    if b < a / 268435456.0
+        return a
+    let fr = frexp1(a)
+    let k = fr[1] as i64
+    # two exact steps: 2^-k alone overflows for subnormal a
+    let s1 = pow2(0 - k / 2)
+    let s2 = pow2(k / 2 - k)
+    let aa = a * s1 * s2
+    let bb = b * s1 * s2
+    # output grid in the scaled domain: binade grid, or the subnormal grid
+    # 2^-1074 scaled when the unscaled result is subnormal
+    let us = if k < -1000 then pow2(-1074 - k) else 0.0
+    let a2 = two_prod(aa, aa)
+    let b2 = two_prod(bb, bb)
+    let s = exp_add(&a2, &b2)
+    var r = (aa * aa + bb * bb).sqrt()
+    let g0 = grid(r, us)
+    r = (r / g0).round() * g0
+    loop bound 64
+        let g = grid(r, us)
+        let hi = [r, g * 0.5]
+        let c = sq_cmp(&s, &hi)
+        if c > 0 or (c == 0 and odd_on(r, g))
+            r = r + g
+        else
+            break
+    loop bound 64
+        var d = grid(r, us)
+        if (r == 2.0 or r == 1.0) and d * 0.5 >= us
+            d = d * 0.5
+        let lo = [r, d * -0.5]
+        let c = sq_cmp(&s, &lo)
+        if c < 0 or (c == 0 and odd_on(r, grid(r, us)))
+            r = r - d
+        else
+            break
+    return r * pow2(k)
+
+# ---- transcendentals: Ziv's strategy over exact integers ----------------
+#
+# A transcendental value of a double is never a midpoint (Lindemann), so it
+# can be rounded once it is known closely enough. Each function computes N
+# with |N / 2^F - f(x)| < 2^16 / 2^F (every truncation is at most one unit
+# and far fewer than 2^16 occur), rounds N - 2^16 and N + 2^16, and
+# returns when both round to the same double; otherwise F grows (200, 500,
+# 1000, 2000 bits). CORE-MATH uses the same two-phase idea with
+# double-double fast paths; here every phase is exact integer arithmetic,
+# so its correctness does not rest on a worst-case table. Integers are
+# magnitudes in base 2^30 limbs.
+
+const LB: i64 = 30
+const LM: i64 = 1073741823
+const EB: i64 = 65536
+
+fn n_trim(a: List[i64]) -> List[i64]
+    var o = a
+    while o.len() > 0 and o[o.len() - 1] == 0 bound 1048576
+        let _ = o.pop()
+    return o
+
+fn n_of(v: i64) -> List[i64]
+    var o: List[i64] = []
+    var x = v
+    while x > 0 bound 4
+        o.push(x & LM)
+        x = x >> LB
+    return o
+
+fn n_to_i64(a: &[i64]) -> i64
+    var v: i64 = 0
+    var i = a.len()
+    while i > 0 bound 3
+        i -= 1
+        v = (v << LB) + a[i]
+    return v
+
+fn n_cmp(a: &[i64], b: &[i64]) -> i64
+    if a.len() != b.len()
+        return if a.len() < b.len() then -1 else 1
+    var i = a.len()
+    while i > 0 bound 1048576
+        i -= 1
+        if a[i] != b[i]
+            return if a[i] < b[i] then -1 else 1
+    return 0
+
+fn n_add(a: &[i64], b: &[i64]) -> List[i64]
+    var o: List[i64] = []
+    var c: i64 = 0
+    let n = if a.len() > b.len() then a.len() else b.len()
+    for i in 0..n
+        var s = c
+        if i < a.len()
+            s += a[i]
+        if i < b.len()
+            s += b[i]
+        o.push(s & LM)
+        c = s >> LB
+    if c > 0
+        o.push(c)
+    return o
+
+# a - b, a >= b
+fn n_sub(a: &[i64], b: &[i64]) -> List[i64]
+    var o: List[i64] = []
+    var br: i64 = 0
+    for i in 0..a.len()
+        var s = a[i] - br
+        if i < b.len()
+            s -= b[i]
+        if s < 0
+            s += LM + 1
+            br = 1
+        else
+            br = 0
+        o.push(s)
+    return n_trim(o)
+
+fn n_mul(a: &[i64], b: &[i64]) -> List[i64]
+    if a.len() == 0 or b.len() == 0
+        return []
+    var o: List[i64] = []
+    for _k in 0..(a.len() + b.len())
+        o.push(0)
+    for i in 0..a.len()
+        var c: i64 = 0
+        for j in 0..b.len()
+            let t = o[i + j] + a[i] * b[j] + c
+            o[i + j] = t & LM
+            c = t >> LB
+        o[i + b.len()] = c
+    return n_trim(o)
+
+# a * s, 0 <= s < 2^30
+fn n_muls(a: &[i64], s: i64) -> List[i64]
+    var o: List[i64] = []
+    var c: i64 = 0
+    for x in a
+        let t = x * s + c
+        o.push(t & LM)
+        c = t >> LB
+    while c > 0 bound 4
+        o.push(c & LM)
+        c = c >> LB
+    return n_trim(o)
+
+# floor(a / s), 0 < s < 2^30
+fn n_divs(a: &[i64], s: i64) -> List[i64]
+    var o: List[i64] = []
+    for _k in 0..a.len()
+        o.push(0)
+    var r: i64 = 0
+    var i = a.len()
+    while i > 0 bound 1048576
+        i -= 1
+        let t = (r << LB) + a[i]
+        o[i] = t / s
+        r = t % s
+    return n_trim(o)
+
+fn n_shr(a: &[i64], s: i64) -> List[i64]
+    let q = (s / LB) as usize
+    let b = s % LB
+    var o: List[i64] = []
+    var i = q
+    while i < a.len() bound 1048576
+        var v = a[i] >> b
+        if b > 0 and i + 1 < a.len()
+            v = v | ((a[i + 1] << (LB - b)) & LM)
+        o.push(v)
+        i += 1
+    return n_trim(o)
+
+fn n_shl(a: &[i64], s: i64) -> List[i64]
+    let q = s / LB
+    let b = s % LB
+    var o: List[i64] = []
+    for _k in 0..q
+        o.push(0)
+    var c: i64 = 0
+    for x in a
+        o.push(((x << b) & LM) | c)
+        c = if b > 0 then x >> (LB - b) else 0
+    o.push(c)
+    return n_trim(o)
+
+# the low s bits of a
+fn n_low(a: &[i64], s: i64) -> List[i64]
+    let q = (s / LB) as usize
+    let b = s % LB
+    var o: List[i64] = []
+    var i: usize = 0
+    while i < a.len() and i <= q bound 1048576
+        if i < q
+            o.push(a[i])
+        else
+            o.push(a[i] & ((1 << b) - 1))
+        i += 1
+    return n_trim(o)
+
+fn n_bits(a: &[i64]) -> i64
+    if a.len() == 0
+        return 0
+    var t = a[a.len() - 1]
+    var n: i64 = 0
+    while t > 0 bound 31
+        t = t >> 1
+        n += 1
+    return ((a.len() - 1) as i64) * LB + n
+
+fn n_bit(a: &[i64], i: i64) -> bool
+    let q = (i / LB) as usize
+    if q >= a.len()
+        return false
+    return ((a[q] >> (i % LB)) & 1) == 1
+
+# floor(a 2^f / b), b > 0, exactly: a Newton reciprocal Y ~ 2^K / b
+# (from a double start, doubling its bits per step) gives an estimate that
+# the remainder then corrects to the exact floor.
+fn n_div(a: &[i64], b: &[i64], f: i64) -> List[i64]
+    let num = n_shl(a, f)
+    let lb = n_bits(b)
+    let k = n_bits(&num) + 64
+    # Y0 from the top 53 bits of b
+    let sh = lb - 53
+    let bt = if sh >= 0 then n_shr(b, sh) else n_shl(b, 0 - sh)
+    let r53 = (1.0 / (n_to_i64(&bt) as f64)) * pow2(105)
+    let y0 = n_of(r53 as i64)
+    var y = if k - sh >= 105 then n_shl(&y0, k - sh - 105) else n_shr(&y0, 105 - k + sh)
+    let two = n_pow2(k + 1)
+    var prec: i64 = 48
+    while prec < k - lb + 8 bound 64
+        let t = n_mul(b, &y)
+        let d = if n_cmp(&two, &t) > 0 then n_sub(&two, &t) else []
+        let yd = n_mul(&y, &d)
+        y = n_shr(&yd, k)
+        prec = prec * 2
+    let qa = n_mul(&num, &y)
+    var q = n_shr(&qa, k)
+    var qb = n_mul(&q, b)
+    let one = [1]
+    while n_cmp(&qb, &num) > 0 bound 1048576
+        q = n_sub(&q, &one)
+        qb = n_sub(&qb, b)
+    var rem = n_sub(&num, &qb)
+    while n_cmp(&rem, b) >= 0 bound 1048576
+        q = n_add(&q, &one)
+        rem = n_sub(&rem, b)
+    return q
+
+fn n_pow2(s: i64) -> List[i64]
+    let one = [1]
+    return n_shl(&one, s)
+
+# N * 2^sh rounded to nearest even binary64 (subnormals included); an
+# overflowing value traps (non-finite result).
+fn n_round(n: &[i64], sh: i64) -> f64
+    let l = n_bits(n)
+    if l == 0
+        return 0.0
+    let e = l - 1 + sh
+    if e > 1023
+        return 1.7976931348623157e308 * 2.0
+    var drop = l - 53
+    if e < -1022
+        drop = -1074 - sh
+    if drop <= 0
+        return (n_to_i64(n) as f64) * pow2(sh)
+    let qn = n_shr(n, drop)
+    var q = n_to_i64(&qn)
+    if n_bit(n, drop - 1)
+        let rest = n_low(n, drop - 1)
+        if rest.len() > 0 or q % 2 == 1
+            q += 1
+    return (q as f64) * pow2(sh + drop)
+
+# x = M 2^E exactly, M < 2^53 an integer, for normal x > 0: [M, E]
+# (exp and sin/cos only take it for |x| > 2^-60)
+fn mant(x: f64) -> List[i64]
+    let fr = frexp1(x)
+    return [(fr[0] * P52) as i64, (fr[1] as i64) - 52]
+
+# The value of the Ziv loop: [lo, hi] doubles of N -+ EB at scale 2^sh.
+fn ziv(n: &[i64], sh: i64) -> List[f64]
+    let eb = n_of(EB)
+    return ziv_eb(n, sh, &eb)
+
+# ... with an explicit error bound eb (same units as N).
+fn ziv_eb(n: &[i64], sh: i64, eb: &[i64]) -> List[f64]
+    if n_cmp(n, eb) <= 0
+        return [0.0, 1.0]
+    let lo = n_sub(n, eb)
+    let hi = n_add(n, eb)
+    return [n_round(&lo, sh), n_round(&hi, sh)]
+
+fn cst(c: &[i64], bits: i64, f: i64) -> List[i64]
+    return n_shr(c, bits - f)
+
+# x as a fixed-point magnitude with f fraction bits (exact when f is large
+# enough for x's last bit).
+fn fix(x: f64, f: i64) -> List[i64]
+    let me = mant(fabs(x))
+    let m = n_of(me[0])
+    if me[1] + f >= 0
+        return n_shl(&m, me[1] + f)
+    return n_shr(&m, 0 - me[1] - f)
+
+const ZIV_F: List[i64] = [200, 500, 1000, 2000]
+
+# ---- exp ----------------------------------------------------------------
+# x = k ln2 + r, 0 <= r < ln2, exp(x) = exp(r) 2^k.
+
+# exp(r) for 0 <= r < 1 at f fraction bits (Taylor)
+fn exp_fix(r: &[i64], f: i64) -> List[i64]
+    var s = n_pow2(f)
+    var t = n_pow2(f)
+    var k: i64 = 1
+    while t.len() > 0 bound 4096
+        let p = n_mul(&t, r)
+        let ps = n_shr(&p, f)
+        t = n_divs(&ps, k)
+        s = n_add(&s, &t)
+        k += 1
+    return s
+
+pub fn exp(x: f64) -> f64
+    if x == 0.0
+        return 1.0
+    if fabs(x) < 5.551115123125783e-17
+        return 1.0
+    if x > 709.7827128933841
+        return 1.7976931348623157e308 * 2.0
+    if x < -745.2
+        return 0.0
+    for f in ZIV_F
+        let xf = fix(x, f)
+        let c = c_ln2()
+        let l = cst(&c, 2100, f)
+        var k = (fabs(x) / 0.6931471805599453).floor() as i64
+        if x < 0.0
+            k += 1
+        var kl = n_muls(&l, k)
+        while x >= 0.0 and n_cmp(&kl, &xf) > 0 bound 4
+            k -= 1
+            kl = n_muls(&l, k)
+        while x < 0.0 and n_cmp(&kl, &xf) < 0 bound 4
+            k += 1
+            kl = n_muls(&l, k)
+        let r = if x >= 0.0 then n_sub(&xf, &kl) else n_sub(&kl, &xf)
+        let e = exp_fix(&r, f)
+        let kk = if x >= 0.0 then k else 0 - k
+        let z = ziv(&e, kk - f)
+        if z[0] == z[1]
+            return z[0]
+    return 0.0 / 0.0
+
+# ---- log ----------------------------------------------------------------
+# x = m 2^e, m in [0.75, 1.5), log x = e ln2 + 2 atanh((m-1)/(m+1)).
+
+# 2 atanh(z) for |z| = num / den < 1/4 (num, den < 2^55): f fraction bits
+fn log_fix(num: i64, den: i64, f: i64) -> List[i64]
+    # long division, 6 bits per step (r < den < 2^55, so r 2^6 < 2^63)
+    var z: List[i64] = []
+    var r = num
+    var w: i64 = 0
+    var p: i64 = 0
+    var got: i64 = 0
+    var digits: List[i64] = []
+    while got < f bound 1048576
+        let t = r << 6
+        digits.push(t / den)
+        r = t % den
+        got += 6
+    # digits[0] holds bits 2^-1..2^-6; floor(z 2^got) little-endian
+    var i = digits.len()
+    while i > 0 bound 1048576
+        i -= 1
+        w = w | (digits[i] << p)
+        p += 6
+        if p == LB
+            z.push(w)
+            w = 0
+            p = 0
+    z.push(w)
+    z = n_shr(&z, got - f)
+    return atanh2_fix(&z, f)
+
+# 2 atanh(z) = 2 (z + z^3/3 + ...) for 0 <= z / 2^f < 1/4: f fraction bits
+fn atanh2_fix(z: &[i64], f: i64) -> List[i64]
+    let zz = n_mul(z, z)
+    let z2 = n_shr(&zz, f)
+    var s = n_shr(z, 0)
+    var t = n_shr(z, 0)
+    var k: i64 = 1
+    while t.len() > 0 bound 4096
+        let p = n_mul(&t, &z2)
+        t = n_shr(&p, f)
+        k += 2
+        let d = n_divs(&t, k)
+        s = n_add(&s, &d)
+    return n_muls(&s, 2)
+
+# which: 0 log, 1 log2, 2 log10. value = e K + log(m) S with (K, S) =
+# (ln 2, 1), (1, log2 e), (log10 2, log10 e).
+fn log_gen(x: f64, which: i64) -> f64
+    if x <= 0.0
+        return 1.7976931348623157e308 * 2.0
+    if x == 1.0
+        return 0.0
+    let fr = frexp1(x)
+    var m = fr[0]
+    var e = fr[1] as i64
+    if m >= 1.5
+        m = m * 0.5
+        e += 1
+    # m in [0.75, 1.5): M = m 2^53 exactly
+    let mm = (m * P52 * 2.0) as i64
+    let one: i64 = 9007199254740992
+    let neg = mm < one
+    let num = if neg then one - mm else mm - one
+    let den = mm + one
+    for f in ZIV_F
+        var lm = if num == 0 then [] else log_fix(num, den, f)
+        var kc = c_ln2()
+        if which == 1
+            let sc = c_log2e()
+            let s1 = cst(&sc, 2100, f)
+            let p1 = n_mul(&lm, &s1)
+            lm = n_shr(&p1, f)
+            kc = n_pow2(2100)
+        elif which == 2
+            let sc = c_log10e()
+            let s1 = cst(&sc, 2100, f)
+            let p1 = n_mul(&lm, &s1)
+            lm = n_shr(&p1, f)
+            kc = c_log10_2()
+        let l = cst(&kc, 2100, f)
+        let el = n_muls(&l, if e < 0 then 0 - e else e)
+        # value = e K + (neg ? -lm : lm)
+        let a_neg = e < 0
+        var res: List[i64] = []
+        var rneg = false
+        if a_neg == neg
+            res = n_add(&el, &lm)
+            rneg = neg
+        elif n_cmp(&el, &lm) >= 0
+            res = n_sub(&el, &lm)
+            rneg = a_neg
+        else
+            res = n_sub(&lm, &el)
+            rneg = neg
+        let z = ziv(&res, 0 - f)
+        if z[0] == z[1]
+            return if rneg then 0.0 - z[0] else z[0]
+    return 0.0 / 0.0
+
+pub fn log(x: f64) -> f64
+    return log_gen(x, 0)
+
+pub fn log2(x: f64) -> f64
+    return log_gen(x, 1)
+
+pub fn log10(x: f64) -> f64
+    return log_gen(x, 2)
+
+# ---- sin, cos -------------------------------------------------------------
+# Payne-Hanek: x = M 2^E times 2/pi (4200 bits), mod 4, exact for every
+# finite x (the error is below 2^-3000 at x = 2^1024), then q pi/2 +- r with
+# 0 <= r <= pi/4.
+
+# [sin r, cos r] at f fraction bits for 0 <= r <= pi/4 (Taylor, alternating
+# series summed as positive and negative parts)
+fn sincos_fix(r: &[i64], f: i64) -> List[List[i64]]
+    let rr = n_mul(r, r)
+    let r2 = n_shr(&rr, f)
+    var sp = copy(r)
+    var sn: List[i64] = []
+    var t = copy(r)
+    var k: i64 = 1
+    var plus = false
+    while t.len() > 0 bound 4096
+        let p = n_mul(&t, &r2)
+        let ps = n_shr(&p, f)
+        t = n_divs(&ps, (k + 1) * (k + 2))
+        k += 2
+        if plus
+            sp = n_add(&sp, &t)
+        else
+            sn = n_add(&sn, &t)
+        plus = not plus
+    var cp = n_pow2(f)
+    var cn: List[i64] = []
+    t = n_pow2(f)
+    k = 0
+    plus = false
+    while t.len() > 0 bound 4096
+        let p = n_mul(&t, &r2)
+        let ps = n_shr(&p, f)
+        t = n_divs(&ps, (k + 1) * (k + 2))
+        k += 2
+        if plus
+            cp = n_add(&cp, &t)
+        else
+            cn = n_add(&cn, &t)
+        plus = not plus
+    return [n_sub(&sp, &sn), n_sub(&cp, &cn)]
+
+# which: 0 sin, 1 cos
+fn trig(x: f64, which: i64) -> f64
+    let ax = fabs(x)
+    if ax < 7.450580596923828e-09
+        if which != 1
+            return x
+        return 1.0
+    let me = mant(ax)
+    let mn = n_of(me[0])
+    let tp = c_two_opi()
+    let t = n_mul(&mn, &tp)
+    for f in ZIV_F
+        # q + h = x 2/pi mod 4 with f fraction bits
+        let ws = n_shr(&t, 4200 - me[1] - f)
+        let w = n_low(&ws, f + 2)
+        let qn = n_shr(&w, f)
+        var q = n_to_i64(&qn)
+        var h = n_low(&w, f)
+        var minus = false
+        if n_bit(&h, f - 1)
+            let one = n_pow2(f)
+            h = n_sub(&one, &h)
+            q = (q + 1) % 4
+            minus = true
+        let c = c_pio2()
+        let pc = cst(&c, 2100, f)
+        let hp = n_mul(&h, &pc)
+        let r = n_shr(&hp, f)
+        let sc = sincos_fix(&r, f)
+        # sin(q pi/2 +- r), cos(q pi/2 +- r)
+        var useS = false
+        var neg = false
+        if which == 0
+            useS = q % 2 == 0
+            neg = q >= 2
+            if useS and minus
+                neg = not neg
+        else
+            useS = q % 2 == 1
+            neg = q == 1 or q == 2
+            if useS and minus
+                neg = not neg
+        if which == 2
+            # tan(q pi/2 +- r): tan r (q even) or -cot r (q odd), so the
+            # quotient's error grows like (1 + Q^2): bound it from Q
+            let even = q % 2 == 0
+            let s0 = copy(sc[0])
+            let s1 = copy(sc[1])
+            let tq = if even then n_div(&s0, &s1, f) else n_div(&s1, &s0, f)
+            let qi = n_shr(&tq, f)
+            let one = [1]
+            let q1 = n_add(&qi, &one)
+            let qq = n_mul(&q1, &q1)
+            let e2 = n_muls(&qq, 2 * EB)
+            let e4 = n_of(4 * EB)
+            let eb = n_add(&e2, &e4)
+            let z = ziv_eb(&tq, 0 - f, &eb)
+            if z[0] == z[1]
+                var s = if even then minus else not minus
+                if x < 0.0
+                    s = not s
+                return if s then 0.0 - z[0] else z[0]
+            continue
+        let v = if useS then copy(sc[0]) else copy(sc[1])
+        if v.len() > 0
+            let z = ziv(&v, 0 - f)
+            if z[0] == z[1]
+                let s = if x < 0.0 and which == 0 then not neg else neg
+                return if s then 0.0 - z[0] else z[0]
+    return 0.0 / 0.0
+
+pub fn sin(x: f64) -> f64
+    return trig(x, 0)
+
+pub fn cos(x: f64) -> f64
+    return trig(x, 1)
+
+pub fn tan(x: f64) -> f64
+    return trig(x, 2)
+
+# ---- atan2 -------------------------------------------------------------
+# t = min(|x|,|y|) / max(|x|,|y|) <= 1 as an exact quotient; atan(t) =
+# atan(j/64) + atan(u), j = round(64 t), u = (t - j/64) / (1 + t j/64),
+# |u| <= 1/128, Taylor. Then pi/2 - a, pi - a and the signs.
+
+fn negz(x: f64) -> bool
+    return x == 0.0 and (x as f32).tostr() == "-0"
+
+fn is_neg(x: f64) -> bool
+    return x < 0.0 or negz(x)
+
+# x = M 2^E exactly for any x > 0, subnormals included
+fn mant_any(x: f64) -> List[i64]
+    if x < 2.2250738585072014e-308
+        return [(x * pow2(600) * pow2(474)) as i64, -1074]
+    return mant(x)
+
+# atan(t) for 0 <= t <= 1 at fe fraction bits (fe <= 2100 when t >= 1/128)
+fn atan_fix(t: &[i64], fe: i64) -> List[i64]
+    let half = n_pow2(fe - 7)
+    let tj = n_add(t, &half)
+    let jn = n_shr(&tj, fe - 6)
+    let j = n_to_i64(&jn)
+    var u = copy(t)
+    var uneg = false
+    var base: List[i64] = []
+    if j > 0
+        let jj = n_of(j)
+        let c = n_shl(&jj, fe - 6)
+        let tc = n_mul(t, &c)
+        let tcs = n_shr(&tc, fe)
+        let one = n_pow2(fe)
+        let den = n_add(&one, &tcs)
+        uneg = n_cmp(t, &c) < 0
+        let num = if uneg then n_sub(&c, t) else n_sub(t, &c)
+        u = n_div(&num, &den, fe)
+        let tab = c_atan_tab()
+        var e: List[i64] = []
+        for i in 0..71
+            e.push(tab[((j - 1) * 71 + i) as usize])
+        let et = n_trim(e)
+        base = n_shr(&et, 2100 - fe)
+    # atan(u) = u - u^3/3 + u^5/5 - ...
+    let uu = n_mul(&u, &u)
+    let u2 = n_shr(&uu, fe)
+    var sp = copy(u)
+    var sn: List[i64] = []
+    var p = copy(u)
+    var k: i64 = 1
+    var plus = false
+    while p.len() > 0 bound 4096
+        let pm = n_mul(&p, &u2)
+        p = n_shr(&pm, fe)
+        k += 2
+        let d = n_divs(&p, k)
+        if plus
+            sp = n_add(&sp, &d)
+        else
+            sn = n_add(&sn, &d)
+        plus = not plus
+    let a = n_sub(&sp, &sn)
+    if uneg
+        return n_sub(&base, &a)
+    return n_add(&base, &a)
+
+pub fn atan2(y: f64, x: f64) -> f64
+    let yneg = is_neg(y)
+    let xneg = is_neg(x)
+    if y == 0.0
+        if xneg
+            return if yneg then 0.0 - 3.141592653589793 else 3.141592653589793
+        return y
+    if x == 0.0
+        return if yneg then 0.0 - 1.5707963267948966 else 1.5707963267948966
+    let ay = fabs(y)
+    let ax = fabs(x)
+    let swap = ay > ax
+    let mn = if swap then mant_any(ax) else mant_any(ay)
+    let md = if swap then mant_any(ay) else mant_any(ax)
+    let d = md[1] - mn[1]
+    let a1 = n_of(mn[0])
+    let b1 = n_of(md[0])
+    for f in ZIV_F
+        let r = atan_core(&a1, &b1, 0 - d, d, swap, xneg, f)
+        let z = ziv(&r[1], 0 - r[0][0])
+        if z[0] == z[1]
+            return if yneg then chs(z[0]) else z[0]
+    return 0.0 / 0.0
+
+# [[fe], N]: N / 2^fe = atan(t) (swap false) or pi/2 - atan(t) (swap true),
+# then pi minus that when xneg, for t = (a / b) 2^sh <= 1 known exactly;
+# 2^-d ~ t. A tiny result keeps its relative precision, and atan(t) =
+# t - t^3/3 can sit within t^3 of a rounding midpoint (t = 2^-1075 is
+# one), so 3d more fraction bits for t ~ 2^-d once the first try failed.
+fn atan_core(a: &[i64], b: &[i64], sh: i64, d: i64, swap: bool, xneg: bool, f: i64) -> List[List[i64]]
+    let dd = if f == 200 then d else 3 * d
+    let fe = if not swap and not xneg and d > 0 then f + dd else f
+    let t = if fe + sh >= 0 then n_div(a, b, fe + sh) else []
+    var r = atan_fix(&t, fe)
+    if swap
+        let c = c_pio2()
+        let pc = cst(&c, 2100, fe)
+        r = n_sub(&pc, &r)
+    if xneg
+        let c = c_pio2()
+        let pc = cst(&c, 2100, fe)
+        let pi = n_muls(&pc, 2)
+        r = n_sub(&pi, &r)
+    return [[fe], r]
+
+# ---- atan, asin, acos -----------------------------------------------------
+
+pub fn atan(x: f64) -> f64
+    return atan2(x, 1.0)
+
+# floor(sqrt(n)): Newton from a power of two above it, decreasing until fixed
+fn n_isqrt(n: &[i64]) -> List[i64]
+    let l = n_bits(n)
+    if l == 0
+        return []
+    # start just above sqrt from the top 52..53 bits (an even shift)
+    let sh = if l > 53 then (l - 52) / 2 * 2 else 0
+    let tn = n_shr(n, sh)
+    let st = (n_to_i64(&tn) as f64).sqrt() * 1.000000001 + 2.0
+    let s0 = n_of(st as i64)
+    var s = n_shl(&s0, sh / 2)
+    var go = true
+    while go bound 4096
+        let q = n_div(n, &s, 0)
+        let t = n_add(&s, &q)
+        let s2 = n_shr(&t, 1)
+        if n_cmp(&s2, &s) < 0
+            s = s2
+        else
+            go = false
+    return s
+
+# asin / acos: x = M 2^E, |x| < 1, so 1 - x^2 = D 2^(2E) with D = 2^(-2E) - M^2
+# exact, and with S = floor(sqrt(D 2^(2g))) both are atan of a ratio of
+# integers: asin x = atan(M 2^g / S), acos x = atan2(S, M 2^g). S is off by
+# under one part in 2^g, which moves atan by under 2^-g: g = f + 160 is far
+# below the Ziv bound at fe <= f + 3d (d <= 81 here).
+fn asin_acos(x: f64, ac: bool) -> f64
+    let ax = fabs(x)
+    let m = mant_any(ax)
+    let mm = n_of(m[0])
+    let m2 = n_mul(&mm, &mm)
+    let p = n_pow2(0 - 2 * m[1])
+    let dn = n_sub(&p, &m2)
+    for f in ZIV_F
+        let g = f + 160
+        let dg = n_shl(&dn, 2 * g)
+        let sq = n_isqrt(&dg)
+        let mg = n_shl(&mm, g)
+        let c = if ac then n_cmp(&sq, &mg) else n_cmp(&mg, &sq)
+        let swap = c > 0
+        let d = if swap == ac then n_bits(&sq) - n_bits(&mg) else n_bits(&mg) - n_bits(&sq)
+        let xn = ac and x < 0.0
+        let r = if swap == ac then atan_core(&mg, &sq, 0, d, swap, xn, f) else atan_core(&sq, &mg, 0, d, swap, xn, f)
+        let z = ziv(&r[1], 0 - r[0][0])
+        if z[0] == z[1]
+            return if not ac and x < 0.0 then chs(z[0]) else z[0]
+    return 0.0 / 0.0
+
+# asin x ~ x + x^3/6 rounds to x for |x| < 2^-28; |x| > 1 traps
+pub fn asin(x: f64) -> f64
+    let ax = fabs(x)
+    if ax > 1.0
+        return 0.0 / 0.0
+    if ax == 1.0
+        return if x < 0.0 then 0.0 - 1.5707963267948966 else 1.5707963267948966
+    if ax < 3.725290298461914e-09
+        return x
+    return asin_acos(x, false)
+
+pub fn acos(x: f64) -> f64
+    let ax = fabs(x)
+    if ax > 1.0
+        return 0.0 / 0.0
+    if x == 1.0
+        return 0.0
+    if x == -1.0
+        return 3.141592653589793
+    # pi/2 - x: the double nearest pi/2 is 6.1e-17 below it, so for
+    # |x| < 2^-55 the result stays within 8.9e-17 < ulp/2 of it
+    if ax < 2.7755575615628914e-17
+        return 1.5707963267948966
+    if ax < 0.0009765625
+        return acos_small(x)
+    return asin_acos(x, true)
+
+# acos x = pi/2 -+ asin |x| for |x| < 2^-10, asin by its series
+# sum (2k)!/(4^k k!^2 (2k+1)) x^(2k+1) in G-bit fixed point (term ratio
+# under 2^-20, each term off by under 2 units, about G/20 terms): no
+# square root, so tiny |x| costs O(G^2 / 20) instead of a 2G-bit isqrt
+fn acos_small(x: f64) -> f64
+    let ax = fabs(x)
+    for f in ZIV_F
+        let gg = f + 64
+        let xf = fix(ax, gg)
+        let xx = n_mul(&xf, &xf)
+        let x2 = n_shr(&xx, gg)
+        var t = n_shr(&xf, 0)
+        var s = n_shr(&xf, 0)
+        var k: i64 = 0
+        while t.len() > 0 bound 4096
+            k += 1
+            let tx = n_mul(&t, &x2)
+            let tp = n_shr(&tx, gg)
+            let tq = n_muls(&tp, (2 * k - 1) * (2 * k - 1))
+            t = n_divs(&tq, 2 * k * (2 * k + 1))
+            s = n_add(&s, &t)
+        let c = c_pio2()
+        let pc = cst(&c, 2100, gg)
+        let v = if x < 0.0 then n_add(&pc, &s) else n_sub(&pc, &s)
+        let z = ziv(&v, 0 - gg)
+        if z[0] == z[1]
+            return z[0]
+    return 0.0 / 0.0
+
+
+# ---- sinh, cosh, tanh -------------------------------------------------------
+# e^|x| = N1 2^(k1 - g), e^-|x| = N2 2^(k2 - g) (exp_big), so with
+# N2' = N2 / 2^(k1 - k2): sinh, cosh = (N1 -+ N2') 2^(k1 - 1 - g) and
+# tanh = (N1 - N2') / (N1 + N2'). g = f + ex + 64 keeps f bits relative to
+# the result through the cancellation (ex ~ log2(1 / |x|) <= 27).
+fn hyp_parts(ax: f64, g: i64) -> List[List[i64]]
+    let xf = fix(ax, g)
+    let p = exp_big(false, &xf, g)
+    let q = exp_big(true, &xf, g)
+    let k1 = p[0][0]
+    let n2 = n_shr(&q[1], k1 - q[0][0])
+    return [[k1], n_sub(&p[1], &n2), n_add(&p[1], &n2)]
+
+fn hyp_ex(ax: f64) -> i64
+    let fr = frexp1(ax)
+    let e = fr[1] as i64
+    return if e < 0 then 0 - e else 0
+
+# which: 0 sinh, 1 cosh
+fn sinh_cosh(x: f64, which: i64) -> f64
+    let ax = fabs(x)
+    if ax > 711.0
+        return 1.7976931348623157e308 * 2.0
+    let ex = hyp_ex(ax)
+    for f in ZIV_F
+        let g = f + ex + 64
+        let h = hyp_parts(ax, g)
+        let z = if which == 0 then ziv(&h[1], h[0][0] - 1 - g) else ziv(&h[2], h[0][0] - 1 - g)
+        if z[0] == z[1]
+            return if which == 0 and x < 0.0 then chs(z[0]) else z[0]
+    return 0.0 / 0.0
+
+# sinh x = x (1 + x^2/6 + ...) rounds to x for |x| < 2^-27
+pub fn sinh(x: f64) -> f64
+    if fabs(x) < 7.450580596923828e-09
+        return x
+    return sinh_cosh(x, 0)
+
+# cosh x = 1 + x^2/2 + ... rounds to 1 for |x| < 2^-27
+pub fn cosh(x: f64) -> f64
+    if fabs(x) < 7.450580596923828e-09
+        return 1.0
+    return sinh_cosh(x, 1)
+
+# tanh x = x (1 - x^2/3 + ...) rounds to x for |x| < 2^-27, and
+# 1 - tanh x < 2 e^(-2|x|) < 2^-60 for |x| > 22 rounds to 1
+pub fn tanh(x: f64) -> f64
+    let ax = fabs(x)
+    if ax < 7.450580596923828e-09
+        return x
+    if ax > 22.0
+        return if x < 0.0 then -1.0 else 1.0
+    let ex = hyp_ex(ax)
+    for f in ZIV_F
+        let fe = f + ex
+        let h = hyp_parts(ax, fe + 64)
+        let t = n_div(&h[1], &h[2], fe)
+        let z = ziv(&t, 0 - fe)
+        if z[0] == z[1]
+            return if x < 0.0 then chs(z[0]) else z[0]
+    return 0.0 / 0.0
+
+
+# ---- asinh, acosh, atanh ----------------------------------------------------
+# All three are logs of a value U / 2^G >= 1 known to about one unit:
+# log = e ln2 + 2 atanh((u - 1)/(u + 1)) with u = U 2^-(G + e) in [0.75, 1.5).
+
+# log(U 2^-G) = (neg ? -1 : 1) N 2^-fo for U > 0 (fo <= 4200): [[neg], N]
+fn log_fixed(u: &[i64], gg: i64, fo: i64) -> List[List[i64]]
+    let b = n_bits(u)
+    var e = b - 1 - gg
+    # top bits: u / 2^(b-1) >= 1.5 means the next power of two
+    # (u = 1, b = 1: the top bits are 10)
+    let t2 = if b >= 2 then n_shr(u, b - 2) else n_shl(u, 1)
+    if n_to_i64(&t2) == 3
+        e += 1
+    let p = n_pow2(gg + e)
+    let neg = n_cmp(u, &p) < 0
+    let num = if neg then n_sub(&p, u) else n_sub(u, &p)
+    let den = n_add(u, &p)
+    let z = n_div(&num, &den, fo)
+    let lm = atanh2_fix(&z, fo)
+    let c = c_ln2x()
+    let l = cst(&c, 4200, fo)
+    let el = n_muls(&l, if e < 0 then 0 - e else e)
+    # e ln2 + (neg ? -lm : lm)
+    let a_neg = e < 0
+    if a_neg == neg
+        return [[if neg then 1 else 0], n_add(&el, &lm)]
+    if n_cmp(&el, &lm) >= 0
+        return [[if a_neg then 1 else 0], n_sub(&el, &lm)]
+    return [[if neg then 1 else 0], n_sub(&lm, &el)]
+
+# x + sqrt(x^2 +- 1) = 2^t (x' + sqrt(x'^2 +- 2^-2t)) with x' = x 2^-t <= 1
+# (t = max(0, E + 53) for x = M 2^E), as U / 2^(G - t): [U, G - t]; the
+# 2^-2t term is truncated at 2^-2G (one unit of the square root at most)
+fn hyp_u(x: f64, gg: i64, sgn: i64) -> List[List[i64]]
+    let m = mant_any(x)
+    let t = if m[1] + 53 > 0 then m[1] + 53 else 0
+    let mm = n_of(m[0])
+    let sx = m[1] - t + gg
+    let xg = if sx >= 0 then n_shl(&mm, sx) else n_shr(&mm, 0 - sx)
+    let m2 = n_mul(&mm, &mm)
+    let a = if sx >= 0 then n_shl(&m2, 2 * sx) else n_shr(&m2, 0 - 2 * sx)
+    let one = if 2 * gg - 2 * t >= 0 then n_pow2(2 * gg - 2 * t) else []
+    let s2 = if sgn > 0 then n_add(&a, &one) else n_sub(&a, &one)
+    let s = n_isqrt(&s2)
+    return [n_add(&xg, &s), [gg - t]]
+
+# asinh x = x (1 - x^2/6 + ...) rounds to x for |x| < 2^-27
+pub fn asinh(x: f64) -> f64
+    let ax = fabs(x)
+    if ax < 7.450580596923828e-09
+        return x
+    let ex = hyp_ex(ax)
+    for f in ZIV_F
+        let gg = f + ex + 64
+        let u = hyp_u(ax, gg, 1)
+        let r = log_fixed(&u[0], u[1][0], gg)
+        let z = ziv(&r[1], 0 - gg)
+        if z[0] == z[1]
+            return if x < 0.0 then chs(z[0]) else z[0]
+    return 0.0 / 0.0
+
+# acosh x = log(x + sqrt(x^2 - 1)) for x >= 1 (x < 1 traps); the result is
+# at least acosh(1 + 2^-52) > 2^-26, so G = f + 96 covers the cancellation
+pub fn acosh(x: f64) -> f64
+    if x < 1.0
+        return 0.0 / 0.0
+    if x == 1.0
+        return 0.0
+    for f in ZIV_F
+        let gg = f + 96
+        let u = hyp_u(x, gg, -1)
+        let r = log_fixed(&u[0], u[1][0], gg)
+        let z = ziv(&r[1], 0 - gg)
+        if z[0] == z[1]
+            return z[0]
+    return 0.0 / 0.0
+
+# atanh x = log((1 + |x|) / (1 - |x|)) / 2, |x| = M 2^E: the ratio is
+# (2^-E + M) / (2^-E - M); rounds to x for |x| < 2^-27; |x| >= 1 traps
+pub fn atanh(x: f64) -> f64
+    let ax = fabs(x)
+    if ax >= 1.0
+        return 0.0 / 0.0
+    if ax < 7.450580596923828e-09
+        return x
+    let ex = hyp_ex(ax)
+    let m = mant(ax)
+    let mm = n_of(m[0])
+    let p = n_pow2(0 - m[1])
+    let a = n_add(&p, &mm)
+    let b = n_sub(&p, &mm)
+    for f in ZIV_F
+        let gg = f + ex + 64
+        let u = n_div(&a, &b, gg)
+        let r = log_fixed(&u, gg, gg)
+        let z = ziv(&r[1], 0 - gg - 1)
+        if z[0] == z[1]
+            return if x < 0.0 then chs(z[0]) else z[0]
+    return 0.0 / 0.0
+
+
+# ---- expm1, log1p ---------------------------------------------------------
+# expm1 x = N 2^(k - g) - 1 from exp_big, at g = f + ex + 64 fraction bits
+# (ex ~ log2(1 / |x|) bits cancel); x + x^2/2 rounds to x for |x| < 2^-54,
+# and e^x < 2^-54 rounds -1 + e^x to -1 for x < -38
+pub fn expm1(x: f64) -> f64
+    let ax = fabs(x)
+    if ax < 5.551115123125783e-17
+        return x
+    if x > 709.7827128933841
+        return 1.7976931348623157e308 * 2.0
+    if x < -38.0
+        return -1.0
+    let ex = hyp_ex(ax)
+    for f in ZIV_F
+        let g = f + ex + 64
+        let xf = fix(ax, g)
+        let p = exp_big(x < 0.0, &xf, g)
+        let k = p[0][0]
+        let one = n_pow2(g)
+        let v = if k >= 0 then n_shl(&p[1], k) else n_shr(&p[1], 0 - k)
+        let neg = n_cmp(&v, &one) < 0
+        let d = if neg then n_sub(&one, &v) else n_sub(&v, &one)
+        let z = ziv(&d, 0 - g)
+        if z[0] == z[1]
+            return if neg then chs(z[0]) else z[0]
+    return 0.0 / 0.0
+
+# log1p x = log(U 2^-(G - t)) with U = 2^(G - t) + M 2^(E + G - t) exact
+# (x = M 2^E, t = max(0, E + 53) keeps U near G bits; for t > G the 1 is
+# below a unit and dropped); x - x^2/2 rounds to x for |x| < 2^-54;
+# x <= -1 traps
+pub fn log1p(x: f64) -> f64
+    let ax = fabs(x)
+    if x <= -1.0
+        return 1.7976931348623157e308 * 2.0
+    if ax < 5.551115123125783e-17
+        return x
+    let ex = hyp_ex(ax)
+    let m = mant_any(ax)
+    let t = if m[1] + 53 > 0 then m[1] + 53 else 0
+    let mm = n_of(m[0])
+    for f in ZIV_F
+        let g = f + ex + 64
+        let gt = g - t
+        let one = if gt >= 0 then n_pow2(gt) else []
+        let xg = n_shl(&mm, m[1] + gt)
+        let u = if x < 0.0 then n_sub(&one, &xg) else n_add(&one, &xg)
+        let r = log_fixed(&u, gt, g)
+        let z = ziv(&r[1], 0 - g)
+        if z[0] == z[1]
+            return if r[0][0] == 1 then chs(z[0]) else z[0]
+    return 0.0 / 0.0
+
+# ---- exp2, exp10 ----------------------------------------------------------
+# exp2: x = k + r, 0 <= r < 1, 2^x = exp(r ln2) 2^k; an integer x is exact
+# (2^-1075 is a midpoint, n_round ties it to even). For other rational x,
+# 2^x is irrational, so Ziv terminates. 1 + x ln2 rounds to 1 for
+# |x| < 2^-55.
+pub fn exp2(x: f64) -> f64
+    if x >= 1024.0
+        return 1.7976931348623157e308 * 2.0
+    if x < -1080.0
+        return 0.0
+    if fabs(x) < 2.7755575615628914e-17
+        return 1.0
+    let k = x.floor()
+    let ki = k as i64
+    let one = [1]
+    if k == x
+        return n_round(&one, ki)
+    for f in ZIV_F
+        # r = x - k exactly (x - k in binary64 is inexact for tiny x < 0)
+        let xf = fix(x, f)
+        let kf = n_pow2(f)
+        let kk = n_muls(&kf, if ki < 0 then 0 - ki else ki)
+        let rf = if x < 0.0 then n_sub(&kk, &xf) else n_sub(&xf, &kk)
+        let c = c_ln2()
+        let l = cst(&c, 2100, f)
+        let rl = n_mul(&rf, &l)
+        let r = n_shr(&rl, f)
+        let e = exp_fix(&r, f)
+        let z = ziv(&e, ki - f)
+        if z[0] == z[1]
+            return z[0]
+    return 0.0 / 0.0
+
+# exp10 x = exp(x ln10); integer 0 <= x <= 308 exact as 5^x 2^x (10^23 is a
+# midpoint), other x give irrational (or, for negative integers,
+# non-dyadic) results, so no midpoints; 1 + x ln10 rounds to 1 for
+# |x| < 2^-57
+pub fn exp10(x: f64) -> f64
+    if x > 308.3
+        return 1.7976931348623157e308 * 2.0
+    if x < -330.0
+        return 0.0
+    if fabs(x) < 6.938893903907228e-18
+        return 1.0
+    if x == x.floor() and x > 0.0
+        let n = x as i64
+        let five = [5]
+        let p = n_pow(&five, n)
+        return n_round(&p, n)
+    let ax = fabs(x)
+    for f in ZIV_F
+        let xf = fix(ax, f + 16)
+        let c = c_ln10()
+        let l = cst(&c, 2100, f + 16)
+        let zl = n_mul(&xf, &l)
+        let z0 = n_shr(&zl, f + 16)
+        let p = exp_big(x < 0.0, &z0, f + 16)
+        let z = ziv(&p[1], p[0][0] - f - 16)
+        if z[0] == z[1]
+            return z[0]
+    return 0.0 / 0.0
+
+
+# ---- sinpi, cospi, tanpi ----------------------------------------------------
+# |x| = M 2^E with E < 0: 2|x| = k + 2r exactly (k = M >> (-E - 1), r =
+# R 2^E in [0, 1/2)); r > 1/4 folds to 1/2 - r with sin and cos swapped.
+# theta = pi r at F = f + ex + 8 fraction bits (2^-ex ~ r, so F <= 3200 and
+# the 4200-bit pi suffices), off by under one unit. The results are
+# irrational except 0, +-1/2, +-1 (Niven), all representable, so no midpoint
+# stalls Ziv. which: 0 sinpi, 1 cospi, 2 tanpi.
+fn trigpi(x: f64, which: i64) -> f64
+    let ax = fabs(x)
+    let sg = x < 0.0 and which != 1
+    if ax >= 4503599627370496.0
+        # an integer: sin, tan = 0, cos = (-1)^x
+        if which == 1
+            let h = ax * 0.5
+            return if h == h.floor() then 1.0 else -1.0
+        return if sg then 0.0 * (0.0 - 1.0) else 0.0
+    let m = mant_any(ax)
+    let mm = n_of(m[0])
+    if m[1] >= 0
+        if which == 1
+            let h = ax * 0.5
+            return if h == h.floor() then 1.0 else -1.0
+        return if sg then 0.0 * (0.0 - 1.0) else 0.0
+    let fx = 0 - m[1]
+    let kn = n_shr(&mm, fx - 1)
+    let q = n_to_i64(&kn) % 4
+    # fx = 1: x is a half-integer, r = 0
+    var rn = if fx >= 2 then n_low(&mm, fx - 1) else []
+    let quarter = if fx >= 2 then n_pow2(fx - 2) else []
+    var sw = false
+    if fx >= 2 and n_cmp(&rn, &quarter) > 0
+        let half = n_pow2(fx - 1)
+        rn = n_sub(&half, &rn)
+        sw = true
+    # sin(pi(q/2 + r)) = [S, C, -S, -C][q], cos = [C, -S, -C, S][q]
+    let s_is_s = q % 2 == 0
+    let s_neg = q >= 2
+    let c_neg = q == 1 or q == 2
+    if rn.len() == 0
+        # r = 0: S = 0, C = 1 (swap makes it r = 1/2, but then rn was > 1/4)
+        let sv = if s_is_s then 0.0 else (if s_neg then -1.0 else 1.0)
+        let cv = if s_is_s then (if c_neg then -1.0 else 1.0) else 0.0
+        var v = if which == 0 then sv else cv
+        if which == 2
+            v = sv / cv
+        if which == 2 and sv == 0.0
+            v = if s_neg != c_neg then 0.0 * (0.0 - 1.0) else 0.0
+        return if sg then chs(v) else v
+    let ex = fx - n_bits(&rn)
+    for f in ZIV_F
+        let ff = f + ex + 8
+        let c = c_pi()
+        let pf = cst(&c, 4200, ff)
+        let tp = n_mul(&rn, &pf)
+        let th = n_shr(&tp, fx)
+        let sc = sincos_fix(&th, ff)
+        # S, C of r from sin, cos of theta (swapped when folded)
+        let cfirst = s_is_s == sw
+        let sv = if cfirst then n_shr(&sc[1], 0) else n_shr(&sc[0], 0)
+        let cv = if cfirst then n_shr(&sc[0], 0) else n_shr(&sc[1], 0)
+        var v: List[i64] = []
+        var neg = false
+        if which == 0
+            v = sv
+            neg = s_neg
+        elif which == 1
+            v = cv
+            neg = c_neg
+        else
+            v = n_div(&sv, &cv, ff)
+            neg = s_neg != c_neg
+        let z = ziv(&v, 0 - ff)
+        if z[0] == z[1]
+            let r = if neg != sg then chs(z[0]) else z[0]
+            return r
+    return 0.0 / 0.0
+
+pub fn sinpi(x: f64) -> f64
+    return trigpi(x, 0)
+
+pub fn cospi(x: f64) -> f64
+    return trigpi(x, 1)
+
+# tanpi of a half-integer is a pole and traps
+pub fn tanpi(x: f64) -> f64
+    return trigpi(x, 2)
+
+
+# ---- erf, erfc ------------------------------------------------------------
+# erf x = (2/sqrt(pi)) e^(-x^2) sum_n 2^n x^(2n+1) / (1 3 ... (2n+1)), all
+# terms positive. erf_fix gives erf |x| 2^G (G <= 4200; each of the n
+# terms is off by under a unit, n < 4 x^2 + G, and e^(-x^2) shrinks the
+# sum's error: well inside Ziv's 2^16 units for x <= 27.3).
+fn erf_fix(ax: f64, gg: i64) -> List[i64]
+    let m = mant_any(ax)
+    let mm = n_of(m[0])
+    let m2 = n_mul(&mm, &mm)
+    let sx = 2 * m[1] + gg
+    let x2 = if sx >= 0 then n_shl(&m2, sx) else n_shr(&m2, 0 - sx)
+    let xs = m[1] + gg
+    var t = if xs >= 0 then n_shl(&mm, xs) else n_shr(&mm, 0 - xs)
+    var s = n_shr(&t, 0)
+    var n: i64 = 0
+    # t 2x^2 = (t 2 M^2) 2^(2E): a short multiplier, not the G-bit x^2
+    let m22 = n_muls(&m2, 2)
+    while t.len() > 0 bound 1048576
+        n += 1
+        let p = n_mul(&t, &m22)
+        let ps = if 2 * m[1] <= 0 then n_shr(&p, 0 - 2 * m[1]) else n_shl(&p, 2 * m[1])
+        t = n_divs(&ps, 2 * n + 1)
+        s = n_add(&s, &t)
+    let e = exp_big(true, &x2, gg)
+    let c = c_2osqrtpi()
+    let cg = cst(&c, 4200, gg)
+    let es = n_mul(&e[1], &s)
+    let p = n_mul(&es, &cg)
+    # erf = p 2^(k - 3G) (e is 2^(k - G) N), so erf 2^G = p >> (2G - k)
+    return n_shr(&p, 2 * gg - e[0][0])
+
+# erf x = 2x/sqrt(pi) (1 - x^2/3 + ...): G = f + ex + 64 keeps relative
+# precision for tiny x (ex ~ log2(1/|x|)); 1 - erf x = erfc x < 2^-54 rounds
+# to 1 for |x| >= 6
+pub fn erf(x: f64) -> f64
+    let ax = fabs(x)
+    if ax == 0.0
+        return x
+    if ax >= 6.0
+        return if x < 0.0 then -1.0 else 1.0
+    let ex = hyp_ex(ax)
+    for f in ZIV_F
+        let gg = f + ex + 64
+        let v = erf_fix(ax, gg)
+        let z = ziv(&v, 0 - gg)
+        if z[0] == z[1]
+            return if x < 0.0 then chs(z[0]) else z[0]
+    return 0.0 / 0.0
+
+# erfc x = e^(-x^2) / (x sqrt(pi)) sum_n (-1)^n (2n-1)!! / (2x^2)^n for large
+# x: the series is asymptotic but alternating with the remainder below the
+# first omitted term, and its terms fall below 2^-G (G bits) well before
+# they turn around once 1.44 x^2 > G; when they turn first the sum stops
+# at the smallest term (the remainder is below it: about 2^-(1.44 x^2)
+# relative, so for x > 9 still far below a double's worst cases).
+# [[sh], W, B]: erfc x = W 2^sh with W of G bits, off by under B units.
+fn erfc_asym(x: f64, gg: i64) -> List[List[i64]]
+    let m = mant(x)
+    let mm = n_of(m[0])
+    let m2 = n_mul(&mm, &mm)
+    # 1 / (2 x^2) = 2^(-2E - 1) / M^2 at 2G fraction bits
+    let one = n_pow2(2 * gg - 2 * m[1] - 1)
+    let inv = n_div(&one, &m2, 0)
+    var t = n_pow2(gg)
+    var pos = n_pow2(gg)
+    var neg: List[i64] = []
+    var n: i64 = 0
+    var ok = false
+    var err: List[i64] = []
+    while not ok bound 100000
+        n += 1
+        let tm = n_muls(&t, 2 * n - 1)
+        let p = n_mul(&tm, &inv)
+        let t2 = n_shr(&p, 2 * gg)
+        if t2.len() == 0
+            ok = true
+        elif n_cmp(&t2, &t) >= 0
+            # the terms turn: stop, the remainder is below t
+            ok = true
+            err = n_shr(&t, 0)
+        else
+            if n % 2 == 1
+                neg = n_add(&neg, &t2)
+            else
+                pos = n_add(&pos, &t2)
+            t = t2
+    let a = n_sub(&pos, &neg)
+    let xf = fix(x, gg)
+    let x2f = n_mul(&xf, &xf)
+    let x2 = n_shr(&x2f, gg)
+    let e = exp_big(true, &x2, gg)
+    let c = c_2osqrtpi()
+    let cg = cst(&c, 4200, gg)
+    let ec = n_mul(&e[1], &cg)
+    let eca = n_mul(&ec, &a)
+    # erfc = eca 2^(k - 3G - 1) / x, x = M 2^E
+    let w = n_div(&eca, &mm, 0)
+    let drop = n_bits(&w) - gg
+    let wd = n_shr(&w, drop)
+    # the remainder (t units of 2^-G, the sum A is about 2^G) is under
+    # 2 t + 2 units of W's G bits: the Ziv bound EB + 2 t + 2
+    let ebn = n_of(EB + 2)
+    let e2 = n_muls(&err, 2)
+    return [[e[0][0] - 3 * gg - 1 - m[1] + drop], wd, n_add(&ebn, &e2)]
+
+# erfc x = 1 - erf x: for x > 0 about 1.45 x^2 bits cancel (erfc x ~
+# e^(-x^2) / (x sqrt(pi))), so G = f + 72 + 1.45 x^2 (<= 3200); erfc x
+# underflows to 0 past 27.3, and is 2 - erfc|x| (rounds to 2) for x <= -6
+pub fn erfc(x: f64) -> f64
+    if x == 0.0
+        return 1.0
+    if x > 27.3
+        return 0.0
+    if x <= -6.0
+        return 2.0
+    let ax = fabs(x)
+    let ex = hyp_ex(ax)
+    let lose = (1.45 * x * x) as i64
+    for f in ZIV_F
+        if x > 0.0 and lose > 120
+            let r = erfc_asym(x, f + 64)
+            let z = ziv_eb(&r[1], r[0][0], &r[2])
+            if z[0] == z[1]
+                return z[0]
+        let gg = f + 72 + ex + (if x > 0.0 then lose else 0)
+        let v = erf_fix(ax, gg)
+        let one = n_pow2(gg)
+        let d = if x > 0.0 then n_sub(&one, &v) else n_add(&one, &v)
+        let z = ziv(&d, 0 - gg)
+        if z[0] == z[1]
+            return z[0]
+    return 0.0 / 0.0
+
+
+# ---- tgamma, lgamma ---------------------------------------------------------
+# Kummer: for x = X / 2^s >= 1 and an integer N > x - 1,
+# Gamma(x) = e^(x log N - N) S + Gamma(x, N), S = sum_k N^k / (x (x+1) ... (x+k))
+# (all terms positive), and Gamma(x, N) <= N^(x-1) e^-N / (1 - (x-1)/N).
+# N is chosen (in binary64, with the Stirling lower bound
+# lgamma x > (x - 1/2) log x - x + 0.9189) so that the omitted tail is
+# below 2^-(G+8) of Gamma(x). Each term is off by under a unit at G + 16
+# fraction bits and S >= 1/x, so S keeps G bits.
+# [[vneg, g2], v, S]: v / 2^g2 = x log N - N (vneg: negative), S / 2^(G+16).
+fn kummer(xn: &[i64], s: i64, gg: i64) -> List[List[i64]]
+    let xd = n_round(xn, 0 - s)
+    let lgl = (xd - 0.5) * log_d(xd) - xd + 0.9189
+    var nn = ((xd + 0.7 * (gg as f64)) as i64) + 16
+    var go = true
+    while go bound 100000
+        let nd = nn as f64
+        let tl = (xd - 1.0) * log_d(nd) - nd - log_d(1.0 - (xd - 1.0) / nd) - lgl
+        if tl < 0.0 - ((gg + 8) as f64) * 0.6931471805599453
+            go = false
+        else
+            nn += 8
+    let g1 = gg + 16
+    let one = n_pow2(g1)
+    var t = n_div(&one, xn, s)
+    var sum = n_shr(&t, 0)
+    var k: i64 = 0
+    let ks = n_pow2(s)
+    var den = n_shr(xn, 0)
+    var fin = false
+    while not fin bound 1048576
+        k += 1
+        den = n_add(&den, &ks)
+        let tn = n_muls(&t, nn)
+        t = n_div(&tn, &den, s)
+        sum = n_add(&sum, &t)
+        # x + k > 2N: the rest is below t (1 + 1/2 + ...) = 2t < 2 units
+        if t.len() == 0 and xd + (k as f64) > 2.0 * (nn as f64)
+            fin = true
+    let g2 = gg + 32
+    let nb = n_of(nn)
+    let ln = log_fixed(&nb, 0, g2)
+    let xl = n_mul(xn, &ln[1])
+    let xls = n_shr(&xl, s)
+    let nf = n_shl(&nb, g2)
+    let vneg = n_cmp(&xls, &nf) < 0
+    let v = if vneg then n_sub(&nf, &xls) else n_sub(&xls, &nf)
+    return [[if vneg then 1 else 0, g2], v, sum]
+
+# natural log of a binary64 > 0, to binary64 accuracy (for choosing N only)
+fn log_d(x: f64) -> f64
+    let fr = frexp1(x)
+    let m = fr[0]
+    # log m for m in [0.5, 1): 2 atanh((m-1)/(m+1)), enough terms
+    let z = (m - 1.0) / (m + 1.0)
+    let z2 = z * z
+    var s = 0.0
+    var t = z
+    for i in 0..40
+        s = s + t / ((2 * i + 1) as f64)
+        t = t * z2
+    return 2.0 * s + fr[1] * 0.6931471805599453
+
+# Gamma(x) for x = X / 2^s >= 1: [[sh], P], Gamma = P 2^sh to G bits
+# (exp of lgamma_pos, which is good to 2^-G absolute; lgamma < 2^10 here)
+fn gamma_big(xn: &[i64], s: i64, x: f64, gg: i64) -> List[List[i64]]
+    let l = lgamma_pos(xn, s, x, gg + 12)
+    let e = exp_big(l[0][0] == 1, &l[1], gg + 12)
+    return [[e[0][0] - gg - 12], n_shr(&e[1], 0)]
+
+# log Gamma(x) for x = X / 2^s >= 1 at G fraction bits: [[neg], L]
+fn lgamma_kummer(xn: &[i64], s: i64, gg: i64) -> List[List[i64]]
+    let kp = kummer(xn, s, gg)
+    let ls = log_fixed(&kp[2], gg + 16, gg + 16)
+    let v = n_shr(&kp[1], kp[0][1] - gg - 16)
+    let r = sadd(kp[0][0] == 1, &v, ls[0][0] == 1, &ls[1])
+    return [[r[0][0]], n_shr(&r[1], 16)]
+
+# signed add: (an ? -a : a) + (bn ? -b : b) as [[neg], |sum|]
+fn sadd(an: bool, a: &[i64], bn: bool, b: &[i64]) -> List[List[i64]]
+    if an == bn
+        return [[if an then 1 else 0], n_add(a, b)]
+    if n_cmp(a, b) >= 0
+        return [[if an then 1 else 0], n_sub(a, b)]
+    return [[if bn then 1 else 0], n_sub(b, a)]
+
+# Stirling for x = X / 2^s: lgamma x = (x - 1/2) log x - x + log(2 pi)/2
+# + sum_{k=1..20} B_2k / (2k (2k-1) x^(2k-1)), the remainder below the next
+# term (alternating) and below 2^-(G+8) once x >= 2^((G + 54) / 42).
+# G fraction bits (G <= 4100): L > 0.
+fn lgamma_stirling(xn: &[i64], s: i64, gg: i64) -> List[i64]
+    let g = gg + 16
+    let lx = log_fixed(xn, s, g)
+    let xf = if g >= s then n_shl(xn, g - s) else n_shr(xn, s - g)
+    let hf = n_pow2(g - 1)
+    let xh = n_sub(&xf, &hf)
+    let a = n_mul(&xh, &lx[1])
+    let a1 = n_shr(&a, g)
+    let c = c_hl2pi()
+    let hc = cst(&c, 4200, g)
+    let b = n_add(&a1, &hc)
+    var r = n_sub(&b, &xf)
+    # 1/x and 1/x^2 at g fraction bits
+    let num = n_pow2(g)
+    let inv = n_div(&num, xn, s)
+    let i2p = n_mul(&inv, &inv)
+    let inv2 = n_shr(&i2p, g)
+    var p = n_shr(&inv, 0)
+    var pos: List[i64] = []
+    var neg: List[i64] = []
+    for k in 0..20
+        let csk = c_stir(k)
+        let ck = cst(&csk, 4200, g)
+        let tp = n_mul(&ck, &p)
+        let t = n_shr(&tp, g)
+        if k % 2 == 0
+            pos = n_add(&pos, &t)
+        else
+            neg = n_add(&neg, &t)
+        let pp = n_mul(&p, &inv2)
+        p = n_shr(&pp, g)
+    r = n_add(&r, &pos)
+    r = n_sub(&r, &neg)
+    return n_shr(&r, 16)
+
+# Stirling's threshold 2^((G + 54) / 42), rounded up
+fn stir_min(gg: i64) -> f64
+    return pow2((gg + 54) / 42 + 1)
+
+# log Gamma(x) for x = X / 2^s >= 1 at G fraction bits, [[neg], L]:
+# lgamma(x + n) - log(x (x+1) ... (x+n-1)) with x + n past Stirling's
+# threshold (the product kept to G + 64 bits: n roundings of 2^-(G+64)),
+# else (n > 4096, only for G > 300) Kummer
+fn lgamma_pos(xn: &[i64], s: i64, x: f64, gg: i64) -> List[List[i64]]
+    let ym = stir_min(gg)
+    if x >= ym
+        return [[0], lgamma_stirling(xn, s, gg)]
+    let n = (ym - x).floor() as i64 + 1
+    if n > 4096
+        return lgamma_kummer(xn, s, gg)
+    let ks = n_pow2(s)
+    var d = n_shr(xn, 0)
+    var pr = [1]
+    var pe: i64 = 0
+    for _j in 0..n
+        pr = n_mul(&pr, &d)
+        d = n_add(&d, &ks)
+        let ex = n_bits(&pr) - gg - 64
+        if ex > 0
+            pr = n_shr(&pr, ex)
+            pe += ex
+    let ls = lgamma_stirling(&d, s, gg)
+    let lp = log_fixed(&pr, s * n - pe, gg)
+    return sadd(false, &ls, lp[0][0] == 0, &lp[1])
+
+# W 2^sh to f + 40 significant bits for Ziv (P is good to G = f + 64 bits)
+fn ziv_rel(p: &[i64], sh: i64, f: i64) -> List[f64]
+    let drop = n_bits(p) - f - 40
+    let w = if drop >= 0 then n_shr(p, drop) else n_shl(p, 0 - drop)
+    return ziv(&w, sh + drop)
+
+# |sin(pi x)| for x = M 2^E > 0 not an integer: [[ff], V], V 2^-ff, with
+# G significant bits: d = distance to the nearest integer, sin(pi d) or
+# cos(pi (1/2 - d)) when d > 1/4
+fn sinpi_abs(x: f64, gg: i64) -> List[List[i64]]
+    let m = mant_any(x)
+    let mm = n_of(m[0])
+    let fx = 0 - m[1]
+    if fx == 1
+        return [[gg], n_pow2(gg)]
+    let r1 = n_low(&mm, fx)
+    let one = n_pow2(fx)
+    let r2 = n_sub(&one, &r1)
+    let d = if n_cmp(&r1, &r2) <= 0 then r1 else r2
+    let quarter = n_pow2(fx - 2)
+    let half = n_pow2(fx - 1)
+    let sw = n_cmp(&d, &quarter) > 0
+    let rn = if sw then n_sub(&half, &d) else d
+    let ex = if rn.len() == 0 then 0 else fx - n_bits(&rn)
+    let ff = gg + ex + 8
+    let c = c_pi()
+    let pf = cst(&c, 4200, ff)
+    let tp = n_mul(&rn, &pf)
+    let th = n_shr(&tp, fx)
+    let sc = sincos_fix(&th, ff)
+    return [[ff], if sw then n_shr(&sc[1], 0) else n_shr(&sc[0], 0)]
+
+# x as X / 2^s exactly (x > 0): [X, [s]]
+fn as_frac(x: f64) -> List[List[i64]]
+    let m = mant_any(x)
+    let mm = n_of(m[0])
+    if m[1] >= 0
+        return [n_shl(&mm, m[1]), [0]]
+    return [mm, [0 - m[1]]]
+
+# Gamma and lgamma for tiny x = M 2^E (|x| < 2^-ex): Gamma(x) =
+# (1 - g x + c2 x^2 + O(x^3)) / x with g Euler's constant and c2 = g^2/2 +
+# pi^2/12 (|c3| < 0.91), lgamma x = -log |x| - g x + c2 x^2 + O(x^3). When
+# 3 ex >= G + 2 the dropped terms are under a unit of 2^-G, so this replaces
+# the product loop, Stirling and exp for |x| < 2^-((G + 2) / 3).
+fn tiny_ok(x: f64, gg: i64) -> bool
+    return 3 * hyp_ex(fabs(x)) >= gg + 2
+
+# 1 - g x + c2 x^2 at G fraction bits (|x| < 2^-30, so W > 0)
+fn tiny_w(x: f64, gg: i64) -> List[i64]
+    let m = mant_any(fabs(x))
+    let mm = n_of(m[0])
+    let cg = c_euler()
+    let g1 = cst(&cg, 2100, gg)
+    let gm = n_mul(&g1, &mm)
+    let gx = n_shr(&gm, 0 - m[1])
+    let cc = c_g2()
+    let c1 = cst(&cc, 2100, gg)
+    let m2 = n_mul(&mm, &mm)
+    let cm = n_mul(&c1, &m2)
+    let cx = n_shr(&cm, 0 - 2 * m[1])
+    let one = n_pow2(gg)
+    let w = n_add(&one, &cx)
+    return if x > 0.0 then n_sub(&w, &gx) else n_add(&w, &gx)
+
+fn tgamma_tiny(x: f64, f: i64, gg: i64) -> List[f64]
+    let m = mant_any(fabs(x))
+    let mm = n_of(m[0])
+    let w = tiny_w(x, gg)
+    let q = n_div(&w, &mm, 64)
+    let z = ziv_rel(&q, 0 - 64 - gg - m[1], f)
+    return if x < 0.0 then [chs(z[1]), chs(z[0])] else z
+
+# -log |x| - g x + c2 x^2 = -log |x| + (W - 1)
+fn lgamma_tiny(x: f64, gg: i64) -> List[f64]
+    let m = mant_any(fabs(x))
+    let mm = n_of(m[0])
+    let lx = log_fixed(&mm, 0 - m[1], gg)
+    let w = tiny_w(x, gg)
+    let one = n_pow2(gg)
+    let wneg = n_cmp(&w, &one) < 0
+    let d = if wneg then n_sub(&one, &w) else n_sub(&w, &one)
+    let r = sadd(lx[0][0] == 0, &lx[1], wneg, &d)
+    let z = ziv(&r[1], 0 - gg)
+    return if r[0][0] == 1 then [chs(z[1]), chs(z[0])] else z
+
+# 1 + |x| as X / 2^s, cut to t fraction bits when s > t: Gamma and lgamma
+# have slope under 1 on [1, 2], so for tiny |x| the cut moves Gamma(1 + |x|)
+# by under 2^-t, and the product loop and Stirling then work on t-bit
+# numbers instead of s-bit ones (s reaches 1126 for subnormal x)
+fn one_plus(xn: &[i64], s: i64, t: i64) -> List[List[i64]]
+    let ones = n_pow2(s)
+    let x1 = n_add(xn, &ones)
+    if s > t
+        return [n_shr(&x1, s - t), [t]]
+    return [x1, [s]]
+
+# tgamma: positive integers n <= 171 are exact ((n-1)!, rounded once);
+# 0 and negative integers are poles (trap); x >= 1 by Kummer; 0 < x < 1 as
+# Gamma(1 + x) / x; x < 0 by reflection pi / (sin(pi x) Gamma(1 - x)),
+# and |Gamma(x)| < 2^45 / Gamma(191) < 2^-1075 for x < -190. Overflow past
+# 171.62 traps.
+pub fn tgamma(x: f64) -> f64
+    if x > 171.7
+        return 1.7976931348623157e308 * 2.0
+    if x == x.floor()
+        if x <= 0.0
+            return 0.0 / 0.0
+        var p = [1]
+        let n = x as i64
+        for i in 1..n
+            p = n_muls(&p, i)
+        return n_round(&p, 0)
+    if x < -190.0
+        # sign of Gamma(x) for x < 0: (-1)^ceil(-x)
+        let c = (0.0 - x).floor() + 1.0
+        let h = c * 0.5
+        return if h == h.floor() then 0.0 else 0.0 * (0.0 - 1.0)
+    let ax = fabs(x)
+    let fr = as_frac(ax)
+    let s = fr[1][0]
+    let _ones = n_pow2(s)
+    for f in ZIV_F
+        let gg = f + 64
+        if tiny_ok(x, gg)
+            let zt = tgamma_tiny(x, f, gg)
+            if zt[0] == zt[1]
+                return zt[0]
+        elif x >= 1.0
+            let g = gamma_big(&fr[0], s, x, gg)
+            let z = ziv_rel(&g[1], g[0][0], f)
+            if z[0] == z[1]
+                return z[0]
+        elif x > 0.0
+            let o = one_plus(&fr[0], s, gg + 16)
+            let g = gamma_big(&o[0], o[1][0], 1.0 + ax, gg)
+            let q = n_div(&g[1], &fr[0], s + 64)
+            let z = ziv_rel(&q, g[0][0] - 64, f)
+            if z[0] == z[1]
+                return z[0]
+        else
+            let o = one_plus(&fr[0], s, gg + 16)
+            let g = gamma_big(&o[0], o[1][0], 1.0 + ax, gg)
+            let sp = sinpi_abs(ax, gg)
+            let den = n_mul(&sp[1], &g[1])
+            let c = c_pi()
+            let pg = cst(&c, 4200, gg)
+            # pi 2^-G / (V 2^-ff P 2^sh)
+            let dbits = n_bits(&den)
+            let q = n_div(&pg, &den, dbits + 64)
+            let z = ziv_rel(&q, 0 - gg + sp[0][0] - g[0][0] - dbits - 64, f)
+            if z[0] == z[1]
+                # Gamma(x) < 0 when ceil(-x) is odd
+                let c1 = ax.floor() + 1.0
+                let h = c1 * 0.5
+                return if h == h.floor() then z[0] else chs(z[0])
+    return 0.0 / 0.0
+
+# lgamma x = log |Gamma(x)|: 0 at 1 and 2 (exact); poles (0, negative
+# integers) trap; 0 < x < 1 as lgamma(1 + x) - log x; x < 0 as
+# log pi - log |sin(pi x)| - lgamma(1 - x). Near the zeros of lgamma bits
+# cancel: G grows by the shortfall and the step repeats (G <= 4200).
+# log |Gamma(x)| at G fraction bits for non-tiny x = X / 2^s, [[neg], L]
+fn lgamma_at(x: f64, xn: &[i64], s: i64, gg: i64) -> List[List[i64]]
+    let ax = fabs(x)
+    if x >= 1.0
+        return lgamma_pos(xn, s, x, gg)
+    let o = one_plus(xn, s, gg + 16)
+    if x > 0.0
+        let a = lgamma_pos(&o[0], o[1][0], x + 1.0, gg)
+        let lx = log_fixed(xn, s, gg)
+        return sadd(a[0][0] == 1, &a[1], lx[0][0] == 0, &lx[1])
+    let a = lgamma_pos(&o[0], o[1][0], 1.0 - x, gg)
+    let sp = sinpi_abs(ax, gg)
+    # log(pi / |sin|) = log(pi 2^ff / V)
+    let c = c_pi()
+    let pg = cst(&c, 4200, gg + 8)
+    let q = n_div(&pg, &sp[1], sp[0][0] - 8)
+    let lq = log_fixed(&q, gg, gg)
+    return sadd(lq[0][0] == 1, &lq[1], a[0][0] == 0, &a[1])
+
+pub fn lgamma(x: f64) -> f64
+    if x == 1.0 or x == 2.0
+        return 0.0
+    if x <= 0.0 and x == x.floor()
+        return 0.0 / 0.0
+    if x > 2.5599833278516383e305
+        return 1.7976931348623157e308 * 2.0
+    let fr = as_frac(fabs(x))
+    let s = fr[1][0]
+    # below 3 lgamma has its zeros (1, 2 and one in each (-n-1, -n)): a
+    # 96-bit probe (cheap: Stirling from 16 on) gives log2(1 / |lgamma x|),
+    # so the first full step already carries the bits that cancel
+    var lost: i64 = 0
+    if x < 3.0 and not tiny_ok(x, 96)
+        let r0 = lgamma_at(x, &fr[0], s, 96)
+        lost = 96 - n_bits(&r0[1]) - 24
+        if lost < 0 or lost > 1000
+            lost = 0
+    for f in ZIV_F
+        var gg = f + 64 + (if lost > 0 then lost + 8 else 0)
+        if tiny_ok(x, f + 64)
+            let zt = lgamma_tiny(x, f + 64)
+            if zt[0] == zt[1]
+                return zt[0]
+        var tries: i64 = 0
+        while tries < 4 bound 4
+            tries += 1
+            let r = lgamma_at(x, &fr[0], s, gg)
+            let short = f + 40 - n_bits(&r[1])
+            if short > 0 and gg + short <= 4100 and tries < 4
+                gg = gg + short + 8
+            else
+                let z = ziv(&r[1], 0 - gg)
+                if z[0] == z[1]
+                    return if r[0][0] == 1 then chs(z[0]) else z[0]
+                tries = 4
+    return 0.0 / 0.0
+
+
+# ---- pow ---------------------------------------------------------------
+# Exact and midpoint results happen only for integer y (odd part of x to
+# the y-th power at most 54 bits) and for y = n / 2^k, k <= 5, with x's odd
+# part a perfect 2^k-th power: those are computed exactly and rounded once
+# (ties to even). Every other x^y is neither, and is exp(y log x) with
+# Ziv's loop (log at enough extra bits that y log x is known to 2^-f).
+
+fn chs(v: f64) -> f64
+    return v * (0.0 - 1.0)
+
+# [[neg], N]: log x = (neg ? -1 : 1) N / 2^fe, x > 0
+fn log_big(x: f64, fe: i64) -> List[List[i64]]
+    let fr = frexp1(x)
+    var m = fr[0]
+    var e = fr[1] as i64
+    if m >= 1.5
+        m = m * 0.5
+        e += 1
+    let mm = (m * P52 * 2.0) as i64
+    let one: i64 = 9007199254740992
+    let neg = mm < one
+    let num = if neg then one - mm else mm - one
+    let den = mm + one
+    let lm = if num == 0 then [] else log_fix(num, den, fe)
+    let c = c_ln2()
+    let l = cst(&c, 2100, fe)
+    let el = n_muls(&l, if e < 0 then 0 - e else e)
+    let a_neg = e < 0
+    if a_neg == neg
+        return [[if neg then 1 else 0], n_add(&el, &lm)]
+    if n_cmp(&el, &lm) >= 0
+        return [[if a_neg then 1 else 0], n_sub(&el, &lm)]
+    return [[if neg then 1 else 0], n_sub(&lm, &el)]
+
+# [[k], N]: exp(v) = N 2^(k - f) for v = (zneg ? -1 : 1) z / 2^f, |v| < 2048
+# (f <= 4200)
+fn exp_big(zneg: bool, z: &[i64], f: i64) -> List[List[i64]]
+    let zd = n_round(z, 0 - f)
+    let v = if zneg then 0.0 - zd else zd
+    var k = (v / 0.6931471805599453).floor() as i64
+    let c = c_ln2x()
+    let l = cst(&c, 4200, f)
+    var r: List[i64] = []
+    var ok = false
+    while not ok bound 8
+        # r = v - k ln2, kept as a magnitude with its sign
+        let kl = n_muls(&l, if k < 0 then 0 - k else k)
+        let kneg = k < 0
+        var rneg = false
+        if zneg != kneg
+            r = n_add(z, &kl)
+            rneg = zneg
+        elif n_cmp(z, &kl) >= 0
+            r = n_sub(z, &kl)
+            rneg = zneg
+        else
+            r = n_sub(&kl, z)
+            rneg = not zneg
+        if rneg and r.len() > 0
+            k -= 1
+        elif n_cmp(&r, &l) >= 0
+            k += 1
+        else
+            ok = true
+    let e = exp_fix(&r, f)
+    return [[k], e]
+
+# odd part and its exponent: x = o 2^s, o odd (x > 0, from mant_any)
+fn odd_part(me: &[i64]) -> List[i64]
+    var o = me[0]
+    var s = me[1]
+    while o % 2 == 0 bound 64
+        o = o / 2
+        s += 1
+    return [o, s]
+
+fn n_pow(b: &[i64], n: i64) -> List[i64]
+    var r = [1]
+    for _i in 0..n
+        r = n_mul(&r, b)
+    return r
+
+pub fn pow(x: f64, y: f64) -> f64
+    if y == 0.0 or x == 1.0
+        return 1.0
+    let yint = y == y.floor()
+    let ay = fabs(y)
+    var yodd = false
+    if yint and ay < 9007199254740992.0
+        let h = (ay * 0.5).floor()
+        yodd = ay - 2.0 * h == 1.0
+    if x == 0.0
+        if y < 0.0
+            return 1.7976931348623157e308 * 2.0
+        return if yodd then x else 0.0
+    if x < 0.0 and not yint
+        return 1.7976931348623157e308 * 2.0
+    let neg = x < 0.0 and yodd
+    if y == 1.0
+        return x
+    let ax = fabs(x)
+    if ax == 1.0
+        return if neg then 0.0 - 1.0 else 1.0
+    let xo = mant_any(ax)
+    let xm = odd_part(&xo)
+    let yo = mant_any(ay)
+    let ym = odd_part(&yo)
+    # x a power of two: x^y = 2^(e y), exact when e y is an integer (it can
+    # be a midpoint, 2^-1075)
+    if xm[0] == 1 and (yint or (ym[1] < 0 and ym[1] > -64 and xm[1] % (1 << (0 - ym[1])) == 0))
+        let lim = if ay < 4096.0 then fabs(y * (xm[1] as f64)) else 1e9
+        if lim < 4096.0
+            let ex = if yint then (y as i64) * xm[1] else (xm[1] / (1 << (0 - ym[1]))) * ym[0] * (if y < 0.0 then -1 else 1)
+            let one = [1]
+            let v = n_round(&one, ex)
+            return if neg then chs(v) else v
+    # exact: integer 2 <= y <= 64
+    if yint and y >= 2.0 and y <= 64.0
+        let yi = y as i64
+        let mb = n_of(xo[0])
+        let p = n_pow(&mb, yi)
+        let v = n_round(&p, xo[1] * yi)
+        return if neg then chs(v) else v
+    # exact: y = n / 2^k, 1 <= k <= 5, 0 < n <= 34, odd part a 2^k-th power
+    if y > 0.0 and ym[1] < 0 and ym[1] >= -5 and ym[0] <= 34
+        let k = 0 - ym[1]
+        var rd = xm[0] as f64
+        for _i in 0..k
+            rd = rd.sqrt()
+        let r = (rd + 0.5).floor() as i64
+        let rb = n_of(r)
+        let rk = n_pow(&rb, 1 << k)
+        let mo = n_of(xm[0])
+        let es = xm[1] * ym[0]
+        if n_cmp(&rk, &mo) == 0 and es % (1 << k) == 0
+            let p = n_pow(&rb, ym[0])
+            let v = n_round(&p, es / (1 << k))
+            return if neg then chs(v) else v
+    # |y log x| from doubles decides overflow and underflow far away
+    let lxd = log(ax)
+    let fy = frexp1(ay)
+    let fl = frexp1(fabs(lxd))
+    let big = (y > 0.0) == (lxd > 0.0)
+    if (fy[1] as i64) + (fl[1] as i64) >= 11
+        if big
+            return 1.7976931348623157e308 * 2.0
+        return if neg then chs(0.0) else 0.0
+    let zd = y * lxd
+    if zd > 710.0
+        return 1.7976931348623157e308 * 2.0
+    if zd < -746.0
+        return if neg then chs(0.0) else 0.0
+    let ny = n_of(ym[0])
+    let nyb = n_bits(&ny)
+    let ey = ym[1]
+    for f in ZIV_F
+        let fl2 = f + nyb + (if ey > 0 then ey else 0) + 16
+        let lb = log_big(ax, fl2)
+        let lp = n_mul(&lb[1], &ny)
+        let z = n_shr(&lp, fl2 - ey - f)
+        let zneg = (lb[0][0] == 1) != (y < 0.0)
+        let eb = exp_big(zneg, &z, f)
+        let w = ziv(&eb[1], eb[0][0] - f)
+        if w[0] == w[1]
+            return if neg then chs(w[0]) else w[0]
+    return 0.0 / 0.0
+
+# ---- constants (generated by scripts/gen/math_const.py with MPFR 4.2.2) ----
+
+# floor(two_opi * 2^4200), base 2^30 limbs, little-endian
+fn c_two_opi() -> List[i64]
+    return [314857924, 403860760, 1016144194, 592998557, 181577768, 693427047, 1007838300, 1004561241,
+        768327668, 498962072, 684391389, 505209494, 596130913, 494014218, 710961143, 757495036,
+        715401226, 1052457349, 232432677, 886686774, 507726408, 45599652, 955209723, 5382358,
+        778179203, 6344780, 836711870, 338691561, 147553760, 723016588, 361636652, 975276563,
+        505946834, 761416303, 1038183907, 890230645, 789132908, 1067136787, 511911435, 769214626,
+        752385918, 509943790, 568747541, 1070360538, 836750873, 1006660651, 893758353, 501396872,
+        667624228, 418177554, 614206877, 969229781, 592949370, 499376625, 701909693, 1058902858,
+        387453091, 350214395, 981159253, 523545893, 453009971, 126774042, 668492503, 390071057,
+        759254316, 655297298, 558586321, 281986417, 360131888, 296479163, 419940290, 123862088,
+        902492799, 578611324, 917628399, 818891195, 405962171, 185301310, 937639555, 1069662543,
+        419774117, 1024673116, 566914522, 824025829, 153781081, 523727776, 1010932790, 807606993,
+        157344379, 455724707, 274751829, 324848076, 234870912, 310485250, 429413873, 965132825,
+        596730206, 282621607, 1002572207, 451607603, 809958523, 874600460, 991033557, 983236311,
+        931811986, 754195687, 1052663575, 491384497, 509602349, 1025047962, 1018207092, 228570057,
+        174923629, 1011232104, 427884274, 637532033, 674963448, 1043265508, 524929093, 241226958,
+        20550102, 449936889, 244958978, 196006177, 679622133, 78028027, 568242635, 879003455,
+        154069513, 927694873, 115581988, 827878857, 598466235, 17299781, 429114425, 808900773,
+        301282525, 670080351, 618938706, 683565275]
+
+# floor(pio2 * 2^2100), base 2^30 limbs, little-endian
+fn c_pio2() -> List[i64]
+    return [545987453, 846626242, 398342516, 490907917, 545918790, 379161478, 357927003, 731149012,
+        524329474, 689114188, 718653995, 709617492, 48432946, 637225644, 630438999, 797145698,
+        301381803, 292946897, 120999687, 549483568, 1014222565, 387671837, 622902412, 281086945,
+        781025561, 508297848, 409640085, 884173624, 622915090, 694013802, 648823050, 749789975,
+        612078709, 801223342, 301615518, 323531261, 59423347, 208479259, 46628363, 268690885,
+        478898104, 338897142, 373279890, 958434274, 871675347, 905817412, 802937968, 632791093,
+        761364459, 886250486, 233347205, 856880118, 1016116910, 917037346, 532835034, 318284218,
+        90262974, 488738200, 708011930, 539422588, 17772998, 227616933, 1028421159, 597692509,
+        17911033, 680821031, 385988665, 640037652, 70064198, 612887889, 1]
+
+# floor(ln2 * 2^2100), base 2^30 limbs, little-endian
+fn c_ln2() -> List[i64]
+    return [456865368, 584271243, 407921857, 763183828, 296934193, 31710423, 744516785, 952431469,
+        504871386, 391405164, 890055829, 539578460, 665465028, 763385663, 243402573, 1042905170,
+        863414727, 214784296, 488990363, 793204773, 79798752, 618976339, 214716005, 300365007,
+        339637035, 576993650, 101152219, 47077469, 574480704, 1048928075, 493747230, 109820250,
+        260636245, 605569868, 301685755, 404738856, 284425564, 915105265, 790684578, 360613404,
+        50537606, 938061646, 625527541, 975095413, 1064613676, 674962837, 540747119, 789497049,
+        132882089, 72113934, 85642202, 411642787, 334064801, 73035273, 660028201, 81822992,
+        317383516, 1049019451, 357759818, 783442262, 123864798, 1049295342, 391875498, 414591028,
+        845621643, 735067344, 402911990, 791121614, 1025308570, 744261117]
+
+# floor(log2e * 2^2100), base 2^30 limbs, little-endian
+fn c_log2e() -> List[i64]
+    return [142952984, 1028710070, 230674944, 734933204, 41608225, 136140674, 821819282, 443266902,
+        537184849, 48698075, 392658813, 587443848, 330309993, 772860017, 749776028, 243456035,
+        424682951, 596065467, 573492765, 123946611, 108394990, 1013492982, 490045797, 219295151,
+        852524468, 546505859, 610580626, 51495928, 971908541, 151636167, 467189058, 855247060,
+        160120896, 676011108, 571153780, 422741430, 902173742, 815236221, 430683934, 871432620,
+        255404057, 107447331, 915590735, 346299258, 614957875, 975951281, 177019449, 502912020,
+        12676055, 717023953, 727987847, 422624974, 637293202, 703569113, 159342086, 575964414,
+        303512769, 904944117, 845081474, 996585766, 142535330, 421785358, 752460610, 314857768,
+        354135339, 74820541, 550648445, 502546422, 730005015, 475340180, 1]
+
+# floor(log10e * 2^2100), base 2^30 limbs, little-endian
+fn c_log10e() -> List[i64]
+    return [52463369, 673955009, 628768733, 56469378, 231818162, 998932331, 657554250, 1067672461,
+        952038065, 153778003, 917545156, 500842086, 188330237, 796829052, 409572147, 572233610,
+        162607269, 296688301, 70497441, 67736556, 549347943, 528961443, 596880011, 653596677,
+        479352029, 931221815, 310766710, 481082455, 317688074, 951261922, 44251110, 93345319,
+        70841339, 311409368, 589849391, 430064475, 392616187, 914343960, 333755509, 791260318,
+        579848614, 299471161, 100821554, 541218253, 969845409, 767403494, 649406553, 64259472,
+        651373659, 11633592, 1017119632, 848404703, 437958120, 421115126, 936467561, 980531576,
+        108125903, 147407523, 296405347, 99083556, 309842080, 346525352, 379747271, 67400830,
+        806497869, 105372776, 399940078, 711636821, 163136396, 466320149]
+
+# floor(log10_2 * 2^2100), base 2^30 limbs, little-endian
+fn c_log10_2() -> List[i64]
+    return [591543822, 633058509, 431297213, 368148067, 712880290, 112473945, 508472941, 869187013,
+        420691203, 887733266, 14153359, 128269782, 102189791, 426097098, 52561832, 649878873,
+        637860470, 900931186, 1069510615, 676294891, 836324153, 489371577, 854933036, 255247850,
+        497439826, 734499810, 6721648, 871481748, 714017309, 691294420, 368488234, 901292594,
+        532290226, 732574881, 279800883, 360706049, 1044890725, 1004357166, 511337597, 342685442,
+        550879499, 554072242, 413789189, 452807485, 382656548, 575890098, 24802760, 241155298,
+        388928353, 840466624, 508459240, 470067897, 586947567, 615144025, 744133626, 588719164,
+        171549869, 238527058, 777927066, 1062707516, 292293772, 209282317, 932404198, 647173308,
+        103423631, 788845990, 369475144, 824119987, 668893116, 323228496]
+
+# floor(atan(k/64) * 2^2100) for k = 1..64, 71 base-2^30 limbs each,
+# little-endian, entry k at [71 (k - 1), 71 k)
+fn c_atan_tab() -> List[i64]
+    return [756865770, 109117178, 92640226, 948131195, 810799074, 925380533, 511414388, 265627255, 894791653, 528444232,
+        930707762, 396904791, 82422291, 1042399394, 289275950, 7467707, 140503379, 312739375, 895342803, 513340392,
+        552258352, 92641226, 883320024, 541277074, 469671327, 1444919, 829406447, 660684643, 901865907, 449145618,
+        436081331, 92909258, 659021981, 92994976, 542441998, 299551445, 97064341, 399836176, 448970862, 46774058,
+        988343249, 984319388, 553151889, 462965765, 641966650, 168706956, 541207719, 434027304, 445727046, 190691794,
+        947035557, 617602778, 143339930, 327053446, 94484731, 636179026, 180224359, 463923503, 278476328, 880369059,
+        568236120, 566995162, 1040239061, 793118357, 426787707, 541597935, 419452893, 465467589, 930538805, 16775850,
+        0, 656047495, 652293193, 214449702, 373257977, 893213059, 820173519, 516539449, 526412942, 818236818,
+        533129453, 100018448, 994288607, 327790879, 535163027, 839078748, 760604372, 674927829, 805079058, 870347408,
+        301440519, 300789182, 985875275, 715310726, 378560972, 338415268, 235242953, 795806635, 915032741, 605116523,
+        111813632, 373135874, 969933299, 938238894, 609927610, 885751536, 659697674, 640583471, 971498804, 898495419,
+        672640630, 854567, 461748141, 512001101, 713346273, 881937674, 841964766, 542959035, 115893746, 1029352586,
+        1031722796, 1017522402, 371678567, 446502059, 466455104, 324585820, 165330704, 1015452284, 688884548, 674231799,
+        964588604, 689920151, 34344650, 200122987, 822266080, 21651565, 69664986, 997119075, 676262830, 782620818,
+        33543515, 0, 873660532, 833105317, 1026980197, 462073171, 555970745, 381697333, 980064306, 1402211,
+        714942696, 128852504, 319076873, 307134146, 1003056432, 224854576, 190212151, 117656761, 127672920, 133282803,
+        479132469, 765052369, 625945548, 1048278770, 1064737197, 539906317, 335213326, 2202728, 572500040, 40644846,
+        104972613, 339123243, 944704043, 318544842, 684755373, 351092505, 670191406, 660830755, 94377618, 680459637,
+        560236679, 917532035, 316205043, 1069182778, 34416308, 299166153, 181898082, 425672422, 900731016, 1053627844,
+        652750020, 1056177728, 387701349, 508489129, 922724170, 93003330, 628821518, 492228024, 827250317, 96493414,
+        143964263, 788298676, 157443129, 509454694, 302127070, 136486348, 374308991, 991721335, 224517974, 868778884,
+        562483535, 50294832, 0, 577066371, 247243625, 915469835, 711996241, 616786271, 887706839, 282189804,
+        611882801, 636950938, 169562607, 101930898, 14681477, 483884608, 635591254, 392094871, 606715677, 404415271,
+        490145699, 606073789, 268083359, 908875253, 620936437, 204184010, 782738544, 666531730, 957017919, 92906686,
+        178293205, 133846548, 470550928, 603172894, 579568137, 903094793, 108647197, 948621782, 346747230, 269313951,
+        449804427, 249984766, 688773125, 1068875605, 538919757, 320906301, 457528048, 1023127327, 102863847, 224762362,
+        318158957, 415396581, 851129013, 1045334354, 695170751, 224134376, 331131414, 38936041, 157888553, 335852518,
+        835846380, 1071813226, 980284708, 151032947, 774616073, 704119748, 750194206, 315578836, 893699696, 767615712,
+        229820900, 963112782, 67021686, 0, 142404434, 769871899, 784535528, 1044574083, 842691252, 856979358,
+        668933120, 960071824, 17742221, 215749342, 232310079, 1011497408, 597233633, 32323227, 1006806966, 772178869,
+        558099238, 36986963, 321275307, 1050189371, 481162613, 565299851, 716888816, 864432243, 491499209, 24312887,
+        463600429, 249279373, 764426599, 81421409, 1052845942, 263108949, 307136617, 31606346, 750670034, 454838668,
+        710094861, 920247306, 269674344, 545691470, 3039382, 616512945, 771883953, 548067320, 820686705, 633610340,
+        89966254, 686681825, 30195736, 840197224, 740264558, 564073194, 865290910, 467256135, 631455205, 636860158,
+        761950012, 100384931, 790021102, 818860250, 185140947, 572555747, 561858945, 607351213, 263503671, 800225996,
+        937499865, 743236229, 667245014, 83716035, 0, 129134102, 160423476, 181396305, 382096580, 601636013,
+        335984769, 284351850, 112033186, 936869108, 284895232, 856175725, 162495330, 786662053, 248217214, 358807176,
+        977653209, 349393592, 976928844, 10542268, 787662162, 260593237, 199193493, 245698879, 762553325, 671512997,
+        749457489, 427072754, 458946846, 921918905, 1061385667, 203832748, 343697432, 680027781, 359111704, 596600374,
+        469407333, 374571639, 40651120, 1067694236, 783104396, 556516250, 666482898, 847960168, 654076290, 255652665,
+        60799740, 616951171, 967482507, 259512129, 481582939, 964849435, 922398132, 508235916, 981194985, 907851040,
+        301148995, 87436753, 825996332, 7105487, 214506268, 885533257, 939708753, 1040550963, 115447193, 150144348,
+        867430484, 252288774, 810134335, 539955432, 100369929, 0, 200196520, 974547490, 306961983, 894818651,
+        6089339, 839492569, 265930750, 491982808, 1058738098, 203017143, 414358967, 18361666, 238630511, 332203359,
+        748052641, 909833458, 865612651, 720307871, 75496356, 761831399, 165252243, 371013265, 492572395, 953067414,
+        746743798, 1036571591, 577387550, 115868340, 27975809, 775905575, 584277845, 389176528, 477325651, 189794588,
+        720271145, 6472698, 820177767, 338182142, 1038685975, 1044551752, 108680863, 708440477, 677309893, 518883584,
+        282639164, 242290612, 103548321, 699774437, 389445788, 286279150, 461352458, 268070499, 599202397, 40160636,
+        995506227, 1039474713, 626344096, 633408243, 738668186, 974633724, 921771536, 333259884, 549283942, 167167683,
+        169681732, 259294911, 23469243, 934867610, 653294647, 116975535, 0, 595090165, 262705210, 636596927,
+        878882255, 195475878, 759479238, 276275853, 364201633, 657191395, 288552860, 1024607849, 919862242, 258243766,
+        425891707, 306117894, 411365194, 456234358, 659678058, 539242563, 452498042, 615524743, 189254437, 386448775,
+        751581123, 539422703, 784766891, 416309192, 600209520, 499226557, 635642501, 515522102, 132788175, 252759283,
+        746147006, 190820088, 262184996, 28597375, 81118339, 574005343, 20586254, 253793078, 685717584, 830614829,
+        878598164, 44779313, 331219546, 401608862, 315786484, 392019993, 375282311, 95398664, 117350538, 465495877,
+        368845691, 625842961, 961379838, 988254995, 296138986, 1061923388, 752956063, 537920515, 549144230, 720355181,
+        747730505, 800242485, 935090634, 333959441, 426003404, 717420252, 133525158, 0, 490011817, 246079735,
+        632218641, 261811818, 350273678, 342606843, 802746610, 314287932, 514249074, 455866306, 296351741, 427153802,
+        579579017, 80502822, 363460137, 203455326, 708510777, 623527095, 201967089, 968888707, 788905649, 866265266,
+        292711564, 1006484308, 676979532, 644041466, 239835060, 1067942879, 75068004, 335322801, 350217620, 112032422,
+        3775841, 97172938, 510048347, 103718756, 683748366, 159254291, 848998175, 506036015, 839849806, 28697389,
+        635862485, 188970843, 201351670, 843058610, 1006470842, 408743415, 1035435981, 1048660019, 1021479504, 270640985,
+        465868735, 882410451, 740677232, 700488768, 38763958, 1029053343, 123885772, 1023634394, 22968705, 18495002,
+        68946921, 210657291, 722108160, 966666773, 174123051, 633157465, 545711324, 150011261, 0, 527962750,
+        1023981031, 174714093, 1033505651, 686241663, 784961571, 718575250, 283989306, 675355021, 564145703, 392801534,
+        470911962, 922421465, 146099223, 402453253, 525058229, 594867500, 737520268, 271561239, 234949965, 202168805,
+        406552265, 617380478, 610612766, 225869102, 656185153, 853931989, 480477726, 546532248, 950650046, 694901335,
+        100385463, 672039688, 384529986, 172213671, 417371861, 297980733, 90998485, 478868968, 221383912, 64819666,
+        514063214, 570764809, 787703206, 157797831, 444895237, 868601368, 999430949, 963163812, 736277177, 272901616,
+        376329865, 874819410, 797656300, 617754230, 469152202, 880845852, 728928238, 162902184, 714339193, 245611462,
+        806804312, 43176099, 685526204, 333638516, 676820271, 155244607, 55009693, 416042379, 166426484, 0,
+        184499512, 570755495, 446724168, 148068467, 713389340, 273522932, 677864333, 569283124, 829952000, 334589275,
+        177963683, 958760161, 342553143, 213117235, 908728359, 1015774848, 737404376, 352258211, 610608361, 627598744,
+        22773911, 986851772, 686453608, 148023459, 1056090304, 595345666, 238916886, 103638111, 681776959, 884891559,
+        564174478, 797470330, 666363882, 529819355, 703786909, 7966636, 108708956, 124412099, 462226912, 134832558,
+        1051424000, 158674523, 335128342, 104329921, 511330615, 996130800, 999560237, 969533921, 662839826, 1034207331,
+        1047936791, 361463955, 227265937, 470327117, 222716379, 67477036, 940432816, 657882223, 1030595779, 522416787,
+        208756406, 1028393285, 424473758, 885792611, 928279578, 423810022, 1002638202, 984960319, 131616059, 182763663,
+        0, 431659456, 129598146, 108824244, 809628655, 867424422, 727811341, 815474152, 1050038466, 940632413,
+        761560420, 29482862, 554960172, 225083924, 806828495, 335429319, 176455826, 98046718, 295967945, 59752510,
+        97863659, 763601585, 656292131, 177474116, 371020668, 873703439, 439190815, 379792589, 869923688, 103873040,
+        892456701, 1049492977, 190851780, 178310791, 1025864479, 845368909, 149395675, 958890006, 486524698, 596704366,
+        1013033734, 298971171, 167675250, 910773289, 832462224, 978337469, 1034825898, 505744266, 524108925, 740790851,
+        857273140, 985376186, 385689311, 508880798, 356397391, 713143387, 592936448, 893781008, 385924344, 551779647,
+        85787275, 18364947, 388831601, 445892511, 724234330, 56233512, 142162640, 570894109, 880479055, 969629764,
+        199015845, 0, 305895346, 796907565, 208262840, 883528796, 210860059, 515760530, 716976034, 313677335,
+        792573106, 339244623, 415693022, 109040618, 438598901, 960238637, 115891741, 569840972, 614260694, 728847735,
+        526800287, 822758049, 333675988, 72916933, 292496162, 953149868, 446546501, 33740626, 832742862, 182781859,
+        781424450, 745607504, 861102253, 256744807, 861256193, 666497454, 208084311, 783201273, 316280810, 157843812,
+        626328488, 170216108, 112840051, 361322585, 907775122, 526091136, 689220363, 506931454, 989746459, 207007861,
+        450296280, 479241566, 335421349, 842645480, 9168455, 393504621, 1063546872, 120883422, 404238139, 550874793,
+        921566747, 335991315, 100771404, 868388756, 383394340, 907800670, 422604553, 866828050, 677977018, 665849661,
+        764462275, 215176308, 0, 693635832, 63974380, 590040672, 102376086, 931219473, 425707786, 984994878,
+        603548592, 1027002371, 241041736, 616947408, 804370449, 244104043, 851990515, 942224962, 137510401, 384100047,
+        711935657, 659721930, 231216944, 656929851, 372791381, 340288363, 144730821, 406374066, 190764735, 545805971,
+        668952790, 674948959, 497113059, 253305934, 712953629, 259998828, 31571488, 272733691, 407184272, 665058461,
+        356522178, 705248058, 65593058, 724767278, 622946477, 233736948, 711046643, 606621212, 494479352, 286028415,
+        827270908, 98151308, 5917532, 317946248, 132998125, 833916331, 191188926, 368243246, 797803735, 1064864889,
+        725186054, 1029879227, 470242473, 717029687, 42910769, 465985505, 307582496, 171239724, 807953489, 812832075,
+        586555813, 306975808, 231238569, 0, 857429171, 257696756, 1035426963, 770254070, 502299436, 681246890,
+        335684144, 1071536270, 475284347, 833291876, 313809441, 787092822, 51021422, 560117702, 189097147, 952848456,
+        602250921, 470929051, 129208757, 17837956, 645318926, 163943733, 807494937, 821792854, 979281272, 311752130,
+        235370327, 179374375, 357415766, 108366003, 1055933522, 953517005, 1065641169, 223342342, 909864531, 37143520,
+        723865640, 1003219034, 227617476, 745299058, 314187071, 903622478, 671829370, 1038340839, 204660826, 52164630,
+        403947829, 137792717, 1008727442, 312373567, 724922482, 516313788, 996939131, 657011059, 963575541, 284106235,
+        175448760, 849030961, 65494999, 1032328931, 616371552, 453085075, 108956199, 805693146, 816319679, 242946766,
+        583790430, 210870950, 604694222, 247196399, 0, 282867926, 164413105, 3035631, 150563640, 38901864,
+        169362345, 884686417, 1023773086, 539217968, 304499198, 56578887, 152181916, 641526730, 625156053, 410339630,
+        964934376, 694002544, 801522086, 685825911, 938734292, 230666401, 1052854725, 690522785, 380033545, 185928822,
+        995325134, 927355419, 797473619, 283343498, 732537778, 381556033, 376764428, 390094474, 262008085, 53885092,
+        968684708, 793955344, 495297197, 388889918, 343968772, 941908979, 113416548, 705823939, 343383911, 791459566,
+        484701157, 478279752, 592948450, 843064132, 206951869, 368943730, 65270426, 645540573, 809080887, 63992042,
+        119426970, 816777372, 405906403, 799217385, 628511493, 613702051, 443963691, 496968978, 57375290, 604906190,
+        1046128634, 1031661701, 359516062, 630201260, 263043836, 0, 301401631, 812846282, 34439716, 406251702,
+        667967392, 473939822, 390298200, 587356502, 266800979, 11053845, 726472010, 9501778, 657232696, 396115577,
+        863921003, 432714017, 635694256, 46776419, 775004645, 370670512, 258001640, 613241697, 270907396, 642623278,
+        725780912, 248985539, 370834760, 617313646, 909695043, 496213937, 784752231, 966293845, 520577059, 615840884,
+        637947672, 958292920, 326485181, 967954216, 42250877, 719864443, 522983325, 374554064, 799141165, 480397793,
+        16415553, 280665985, 276612796, 237106001, 474656647, 378137531, 725509399, 925486878, 1037080165, 1053543608,
+        973864992, 267680523, 786716464, 227912463, 649478691, 926776035, 877867679, 545917826, 818545241, 190959760,
+        352696296, 878036129, 193353193, 194104899, 907597974, 278775191, 0, 13186365, 169623651, 1046225800,
+        936563502, 31224799, 574340512, 467319407, 961608807, 1071593159, 351844763, 926572221, 1021192744, 535401706,
+        955845602, 707079398, 322039304, 611750230, 79510320, 125388149, 258068883, 660815667, 998638447, 731353171,
+        103969611, 91377931, 266493134, 422421736, 158780539, 155210531, 688012855, 288131530, 574261788, 650956688,
+        471705897, 156343151, 763717974, 675799672, 769450976, 156698646, 158244849, 375790523, 954411729, 585973425,
+        231704374, 983800733, 709148335, 103871415, 996757689, 860776735, 295489662, 214731553, 455710308, 583430167,
+        250249728, 533463208, 496817106, 732705054, 170971157, 858893742, 545896375, 920214412, 10291755, 500607045,
+        933205149, 350096679, 832698972, 417317908, 563383953, 50093577, 294385059, 0, 845485039, 626655894,
+        705451510, 980860560, 83336133, 652606200, 578971289, 299820405, 709886208, 275414285, 131297095, 520953333,
+        103240586, 997813367, 79509681, 47747753, 388705494, 928257416, 844564985, 1017315024, 294379547, 280677505,
+        31285289, 679080561, 357911025, 250834762, 362541623, 636483342, 167375539, 789059751, 699196998, 45481655,
+        822846957, 286273338, 723647736, 866661388, 539062000, 853218516, 250136593, 664773414, 472462124, 510405372,
+        36017380, 745078146, 881053500, 119102945, 567106759, 287962509, 256503150, 3585046, 169383067, 510294862,
+        509948499, 1018646204, 210268196, 198982677, 445492273, 865717198, 293030292, 180203844, 285162830, 233299413,
+        859453828, 609809890, 217646769, 256413572, 540536994, 571247396, 368824687, 309868320, 0, 467926752,
+        529754509, 1030590765, 643751062, 645526485, 675131766, 656345083, 1025005581, 1003316051, 610871726, 672338737,
+        950576462, 694174859, 473160722, 1052659020, 1012486211, 652603673, 764190911, 44357638, 937591016, 1032194793,
+        199214491, 68530501, 856578923, 331967866, 142009802, 394300545, 952948446, 674316686, 102789047, 302315780,
+        294076647, 1019388190, 715431700, 58980111, 215053383, 71926035, 742653319, 426884071, 159704755, 688350822,
+        965173322, 838569452, 354693345, 904594745, 273904779, 1058958371, 47000991, 601854655, 944248904, 162076146,
+        315516277, 43542147, 636299040, 495846086, 983213495, 645155116, 420383520, 54491700, 1005571208, 110699854,
+        418765415, 134613378, 738192203, 1009277306, 620827793, 208223609, 327898985, 33223411, 325220151, 0,
+        259686430, 48502570, 277131331, 1065363533, 877286310, 776736560, 567837087, 116667475, 639328027, 320077037,
+        177185885, 715367632, 100287332, 776126624, 750191489, 446068264, 107313259, 560764779, 923906298, 298776739,
+        626548971, 491164611, 603455595, 836103043, 72245760, 796101353, 108940600, 938944769, 113741939, 838077498,
+        989244925, 922968991, 1031399065, 581049374, 874545660, 948001801, 309670209, 117427534, 966618307, 593615265,
+        1010671737, 107826266, 950186274, 687407111, 875963291, 602081927, 979510978, 251890038, 746293011, 323583106,
+        871964076, 707573158, 738027352, 681804300, 86995824, 690233237, 65495859, 248969115, 270675791, 1038787388,
+        740139628, 124549991, 161212248, 202880136, 86090476, 1013567567, 616848492, 176615658, 816562794, 340436022,
+        0, 45948237, 1045205003, 974099570, 688990501, 498227124, 743350635, 237525131, 608273958, 7440533,
+        233520052, 943888886, 323614780, 186924441, 87621164, 252936182, 579669484, 31122316, 755772200, 923369241,
+        244250615, 945073542, 949961724, 641393330, 893608318, 946550604, 153723369, 730115398, 680389357, 22918388,
+        525354623, 800793838, 617511649, 772573412, 720899450, 238508195, 483887140, 684846290, 714835355, 375355096,
+        541046911, 609283416, 681965576, 377714561, 828339302, 878325765, 80433897, 940554037, 922448631, 208691453,
+        387148125, 868242430, 272167696, 451803470, 60515986, 536011273, 106809929, 716687286, 410145334, 500472670,
+        42397256, 491519891, 1012325407, 350905592, 799491258, 244905894, 405022087, 1039920372, 892563438, 343102070,
+        355511705, 0, 176003418, 169252327, 373007868, 785895722, 875907018, 1052364095, 992543298, 610915503,
+        358637072, 989247836, 79550921, 17707926, 11270565, 804434549, 982096171, 182237124, 885322592, 177215926,
+        746350001, 343684127, 690923333, 214691668, 719449649, 182741917, 990833461, 357656801, 306846908, 638277388,
+        428631015, 511227773, 1313606, 434074463, 532163438, 193559839, 727496560, 226222493, 765266369, 1062517951,
+        617730154, 780726003, 579318550, 176328939, 792910607, 274421336, 738887625, 89904282, 932651797, 887968572,
+        914395780, 744064427, 39489456, 627896392, 753371983, 64802753, 749502176, 572675576, 457186357, 272335828,
+        629644057, 829929259, 271581623, 345650672, 955680000, 450912187, 653573483, 945193227, 772801799, 594164387,
+        41154661, 370443267, 0, 482737276, 65042752, 1004900320, 309129926, 791890624, 785364194, 84952212,
+        938581539, 576049300, 418444807, 601230195, 68379704, 856092074, 807478814, 907433996, 532710458, 941795142,
+        1054830181, 141010297, 411421443, 554608846, 371199471, 855653615, 713628512, 82471381, 162850541, 286527074,
+        361649796, 51860860, 695782435, 511609819, 909890859, 239550361, 918540079, 356161089, 943374642, 62657955,
+        714435103, 666997874, 596105702, 844058548, 303820423, 1033477104, 629044695, 129213270, 169290042, 21683061,
+        606864839, 718208948, 747693837, 15719957, 763595726, 770947686, 647132075, 608087382, 905196736, 817328187,
+        435059280, 645026816, 998354361, 583074255, 555486361, 853875108, 731418215, 196965026, 275230855, 292454178,
+        655705666, 959953955, 385227073, 0, 49613974, 161611719, 1011457540, 681097599, 500651381, 887941555,
+        809851605, 619237163, 800837466, 557755270, 1017169968, 425543579, 524858611, 747173081, 958310402, 154964773,
+        960820081, 521195438, 221242656, 401905553, 154854723, 846935874, 365850186, 1006811346, 282810278, 277913056,
+        544426741, 759932419, 138665014, 516959565, 52055251, 858388518, 625368075, 268242914, 104624383, 28002367,
+        384471171, 826805408, 741102221, 629040112, 514965345, 130677379, 948053302, 185027921, 111162864, 269015744,
+        626796313, 490079011, 1049919634, 419491026, 282532184, 1055785593, 1064310346, 299295154, 827094226, 334803749,
+        589697395, 300102382, 375258249, 136941855, 702196685, 991315988, 1056054900, 780086398, 552268527, 80001063,
+        843686024, 656545546, 418184662, 399859787, 0, 835525123, 468763331, 485989209, 839913382, 760430896,
+        715519901, 548928144, 549698359, 467369734, 1034226007, 947618684, 510852155, 132066103, 768457338, 1028100624,
+        532133861, 413297547, 747210240, 1072384115, 979590350, 263829950, 5484163, 529916202, 233376689, 701321102,
+        568770904, 523173179, 669613960, 819176009, 485905254, 148902616, 160268689, 780647587, 741531330, 340290029,
+        841087253, 447744728, 537309961, 1010858425, 666282180, 800778919, 503262174, 214247929, 56532980, 681977999,
+        262819694, 935977418, 903172216, 343944372, 215689607, 136265139, 730364613, 213809552, 754615195, 731783500,
+        762417047, 570548009, 76990319, 149900447, 601410189, 568148897, 688896224, 480630857, 65864951, 254306773,
+        465082105, 150635796, 457369821, 310823259, 414338361, 0, 1030097386, 168660852, 225857423, 247036969,
+        963782877, 296682519, 903322874, 879169489, 497523026, 789379348, 984297213, 314087915, 979141041, 635507059,
+        239776610, 856476338, 706119213, 156673582, 762893533, 197658798, 253247091, 931846343, 941570128, 911663885,
+        543342491, 209031154, 1067166832, 1034157692, 208813782, 700689506, 47952503, 903601061, 168687491, 1025395607,
+        276697646, 432842472, 263515382, 544476669, 465284903, 110085944, 648946365, 176161890, 806482721, 858705619,
+        886544059, 223466328, 134660272, 457721605, 48119988, 227958410, 530785365, 221691742, 181881214, 703200064,
+        760232733, 621083252, 548108607, 712641761, 812916157, 379177657, 908579098, 177341452, 859270634, 740828742,
+        44318988, 947015488, 279407835, 967991871, 324716057, 428660037, 0, 931432443, 677486964, 28272562,
+        272534519, 757775772, 877691841, 735853535, 551388959, 326210647, 856829527, 381634167, 631900002, 45295389,
+        34273567, 65006559, 84885434, 17286299, 969566927, 954348992, 96373868, 204587359, 601615406, 982483497,
+        815083987, 750358638, 311094320, 83911195, 391643246, 372531750, 959736072, 158430240, 74048534, 211611991,
+        861366436, 973960319, 922445050, 972087734, 934511446, 875024859, 638735807, 370902035, 132155395, 12721062,
+        567177980, 850058116, 947081280, 761895425, 692126392, 126738863, 912867090, 419615006, 449642641, 287520075,
+        901677239, 555025202, 899332499, 958711517, 804096902, 188926249, 151480815, 1061291490, 801441034, 1070041582,
+        242765006, 115936013, 651018248, 880807736, 746912043, 856227629, 442822339, 0, 323523172, 551297862,
+        131514800, 949016602, 1056031566, 802441442, 922178551, 37128171, 418590008, 963855028, 341577203, 867363599,
+        140342457, 408579024, 257927722, 558875510, 843640844, 651200237, 583809693, 741093202, 938921060, 5352248,
+        137567146, 488684206, 400022292, 364543580, 300210861, 586539348, 865046573, 122142093, 957003899, 451990363,
+        846281127, 721273242, 1007558544, 656244066, 56069904, 744544702, 32672223, 129515477, 794207156, 615920018,
+        455589564, 126472785, 866772067, 504189024, 651139932, 396027372, 520609110, 671238144, 548562801, 33721904,
+        258243791, 927413866, 41864471, 306819933, 546683738, 543422788, 217778872, 785652578, 25660945, 753581101,
+        323988641, 144282020, 147193272, 195733762, 621019930, 945941618, 697768730, 456823069, 0, 425670247,
+        715320536, 494975310, 5477172, 121467183, 61971418, 475489039, 351253780, 402250262, 533306877, 47478766,
+        572753352, 153830168, 575652903, 245465027, 828761745, 33266985, 1066593802, 677561141, 789416335, 109951327,
+        526719420, 331150888, 932712175, 87749863, 788837902, 60581785, 185568011, 437407618, 792686223, 719267897,
+        429200453, 868495477, 683627942, 434662991, 787351291, 59845436, 827407471, 97614683, 791610257, 232855089,
+        383561074, 456896712, 945799029, 128820514, 495989594, 338846308, 26636292, 661247592, 377341236, 910909729,
+        893730823, 276610739, 310079570, 295072743, 287800153, 960959589, 424099674, 825526661, 890396990, 950870436,
+        695162282, 526265394, 809970198, 964360693, 7783063, 188532316, 260858843, 330464227, 470660297, 0,
+        679632725, 81834193, 809427239, 677466444, 864023706, 87472654, 521515721, 336889093, 405960991, 548777802,
+        917467058, 373399147, 293671015, 51054155, 945722751, 7944156, 823955696, 275530172, 6974381, 278141993,
+        63593210, 35131243, 998628625, 235344257, 590345652, 1032404273, 638094283, 236592719, 447689872, 466244980,
+        165124627, 585998116, 966822284, 400648832, 85089535, 110553929, 1054499141, 263883133, 749502140, 395335491,
+        1000846478, 573317490, 799463334, 203633038, 255785161, 611108267, 300490535, 740079479, 824366448, 674586813,
+        565515092, 553201810, 108709788, 859499143, 292830628, 137195762, 65978281, 820232938, 281970514, 770766031,
+        870034952, 660945621, 545366261, 124261895, 876210068, 420255305, 820328161, 885092089, 184865829, 484332355,
+        0, 901163322, 124942137, 429983903, 873061995, 677029035, 511731515, 438564486, 264524566, 738776211,
+        945850506, 429189342, 381932118, 380372195, 925778876, 677192861, 86274323, 880310071, 449860039, 995884267,
+        523832998, 827349700, 684074849, 481030663, 59622244, 519018964, 304598168, 395518692, 737596796, 916309075,
+        929523069, 805548515, 906729615, 732875955, 197552088, 487154505, 238213615, 891148213, 505048196, 537259051,
+        946687328, 1064315497, 903288375, 736046583, 289244823, 599559691, 227245098, 983330793, 974261970, 406493622,
+        4263321, 850878453, 646145334, 734566970, 281301431, 728510235, 980942887, 923746423, 344731737, 604601443,
+        379771151, 583580745, 148979539, 192115889, 1040303518, 741945574, 544064130, 912137542, 182438027, 409916378,
+        497837829, 0, 242579939, 83668107, 586879603, 770296695, 620470458, 794852598, 703372735, 674484006,
+        333526197, 392566494, 608961853, 539776993, 957661720, 450292201, 695128171, 430904169, 291219731, 298923801,
+        8191719, 344177994, 459344031, 544503281, 442622197, 800533838, 252299640, 583332325, 462046925, 888552229,
+        848592335, 755253016, 334593635, 312788462, 398551105, 880502638, 554714928, 967085511, 246478178, 906652264,
+        633458966, 228032840, 1068757700, 661065191, 668031423, 156150558, 687699239, 1062688916, 700144356, 732572857,
+        664702482, 171808623, 628402671, 253959057, 978745291, 261838131, 732265052, 797718385, 248319628, 474826049,
+        109100179, 256910964, 550505717, 645922334, 71116776, 479179405, 96731884, 1061544980, 860051193, 961507439,
+        97946896, 511175551, 0, 108168047, 118819222, 608552009, 97580862, 728327706, 297205243, 1054462118,
+        931939016, 90909947, 421551384, 260327629, 644826580, 1072725350, 486040703, 185335453, 843898816, 860814545,
+        294874187, 687765909, 416775016, 605350298, 8934479, 131486916, 912080905, 545911134, 715411665, 1020398908,
+        585349631, 426523637, 136715120, 492317565, 704055956, 662687367, 916132575, 237679090, 394044922, 938860514,
+        219288851, 266262684, 598255, 1032236985, 942812463, 64479065, 809138545, 683482099, 554866892, 866636015,
+        583814090, 678640259, 436049515, 594192191, 255746338, 362009830, 699868736, 559644943, 717287924, 61418890,
+        394396594, 526773443, 162597963, 649991308, 80566707, 142412036, 721864256, 385637466, 406978962, 1051649142,
+        953001080, 352650738, 524344587, 0, 282101967, 41470769, 73872711, 670948894, 940744650, 625433850,
+        766364465, 1045280885, 742911491, 102350111, 101675781, 977302944, 804231990, 521956613, 580407036, 855566763,
+        260229089, 555846696, 810438092, 51843992, 309872498, 94200798, 955199788, 509253582, 254227337, 914390110,
+        736131745, 65160968, 777134222, 325729936, 302163587, 168414675, 1053345315, 787584072, 844209955, 468685622,
+        510850423, 467140087, 1017426959, 13065297, 447276299, 995508281, 288636235, 380007113, 375647421, 236858768,
+        840195498, 544994889, 992275428, 667872, 854799052, 62484421, 651973973, 331283944, 442813218, 157255120,
+        810624144, 360162352, 240955844, 91287001, 652159610, 775033043, 334468640, 120589257, 589757998, 630868257,
+        88970117, 647715611, 550634953, 537344231, 0, 740100510, 721364227, 228438886, 382380653, 275192401,
+        614067713, 45631993, 572520501, 89860113, 145750398, 264730895, 564093041, 218151237, 890031264, 1047776300,
+        823350499, 30437562, 224466902, 261557979, 756609020, 841486475, 933034521, 1045838044, 398518783, 350796305,
+        247485889, 571030084, 1024535196, 572928059, 935827530, 317155994, 148274864, 393979102, 730469218, 131503475,
+        479780003, 749028133, 197565020, 237390684, 400164895, 413624918, 625036739, 428937559, 499526249, 578847961,
+        305013445, 276471407, 289212134, 774006467, 836344948, 1018342755, 298677722, 736647824, 1024113888, 804383383,
+        268305909, 579280725, 796330275, 62741460, 83704331, 1029754191, 427036917, 1036983899, 1056003866, 226981085,
+        809256279, 190948629, 690858023, 764962786, 550173993, 0, 69665268, 782241324, 328045052, 120127268,
+        1028654629, 900491650, 809439887, 969759077, 665739093, 205869156, 19648986, 155191119, 190439539, 929883754,
+        581142660, 359804278, 159622479, 507579070, 190491801, 217126746, 735351155, 93632384, 837719303, 719963272,
+        674054932, 626792677, 833353939, 904251102, 590552803, 468248731, 795099482, 261328134, 863445083, 193766765,
+        809702322, 858761197, 28174393, 714953251, 618881331, 262890930, 144330523, 765393722, 1024839394, 386964550,
+        134823865, 454490233, 112072190, 272904692, 710434239, 23438481, 140214076, 588162139, 85355751, 777279268,
+        160675734, 783307020, 710622110, 516217597, 318053560, 434459396, 342170045, 322031997, 763993333, 172145199,
+        229197139, 526690900, 352402595, 391094587, 765586694, 562833590, 0, 539513600, 658983141, 715736397,
+        1035833590, 685933406, 574489788, 493695865, 938015327, 293639425, 481809384, 259409434, 542894588, 337085010,
+        940784988, 524689567, 87971036, 835389006, 992960114, 346941832, 924927917, 349085321, 112127371, 705626725,
+        405412349, 944712433, 890605224, 490939033, 483551088, 287330541, 344823258, 664442023, 901142399, 366101182,
+        291478600, 548027326, 239215045, 269478369, 51847913, 281903622, 472167781, 908754371, 254594469, 125522778,
+        953886812, 1065754342, 982284709, 903715417, 289201897, 426107729, 655294716, 287489023, 373633480, 944583393,
+        997016544, 428700612, 181694326, 36929163, 682333693, 277564127, 467501707, 98373177, 402885704, 573466111,
+        435987202, 972791263, 1055125406, 1011297098, 337973731, 1038701691, 575322935, 0, 920489951, 724030227,
+        897230600, 478176902, 1057541375, 680525173, 746045367, 980357250, 109357818, 432115737, 894416277, 755149358,
+        340631147, 530572325, 543519794, 729013655, 1004555264, 511857548, 117975409, 503983344, 115534304, 628199015,
+        777151149, 369294116, 1017729684, 539199014, 686635762, 120784770, 130667939, 88106650, 15661093, 818722193,
+        248500689, 799972049, 741690069, 424775169, 579501477, 749112625, 669651146, 148605795, 298021117, 784584977,
+        535409507, 840902763, 856399881, 338410914, 796588415, 125079628, 188410646, 381420893, 495036592, 34046400,
+        851599413, 150773911, 82349244, 1070045655, 1037677557, 726758961, 773102472, 617810088, 11962954, 328986125,
+        775831606, 941304392, 76558620, 138295441, 408952921, 823031296, 524159416, 587642129, 0, 271013185,
+        524461909, 672124523, 274250168, 880711461, 531391924, 1027340141, 284420605, 190859881, 243894223, 780870618,
+        192977827, 796032838, 567531308, 1020532938, 974155094, 1026953817, 652383723, 270396886, 676368826, 476922203,
+        472566741, 603792159, 655582043, 903558681, 902619838, 460095833, 759069904, 362975754, 348321265, 767097958,
+        804965317, 367780544, 641418932, 719436899, 245902232, 384990915, 182138010, 1016121314, 984834318, 228464117,
+        329190019, 206183711, 448926671, 86608580, 341457767, 994450748, 489422842, 238710404, 915070750, 827098283,
+        633529250, 458455570, 688704592, 898589760, 961080112, 474927575, 257594890, 226349831, 902081947, 499988760,
+        665619866, 611128120, 494130422, 1040601779, 300180121, 375768119, 762449272, 796875257, 599791447, 0,
+        43185747, 940595146, 391917969, 659063605, 820674900, 759915546, 439983273, 942545616, 328647072, 964162140,
+        411962810, 979268368, 1018943974, 232146808, 1060854710, 102195302, 825005111, 393260592, 881228098, 91552777,
+        206039605, 490861340, 710296119, 709541462, 26746947, 173322124, 501316225, 471527169, 643724582, 413924082,
+        1047092109, 198094159, 1021744595, 385027962, 85735732, 1040482117, 395417414, 619444644, 629727711, 599232682,
+        449128158, 336697138, 69479938, 124882714, 1045911632, 446183449, 918116533, 978993521, 1045730743, 815005604,
+        996575087, 997916537, 883539544, 996788996, 527333715, 161159746, 424521202, 742314126, 625152830, 588136691,
+        215539428, 799398419, 839780079, 282959203, 220185427, 133588346, 17985026, 138646503, 642725134, 611771333,
+        0, 913740787, 196388592, 147972644, 906539302, 569635834, 364935357, 1052487870, 612594106, 818295323,
+        936502138, 850974621, 356609214, 671120206, 119379007, 452471747, 973205858, 695168798, 866924667, 1011348723,
+        368289843, 87273258, 558696380, 816849466, 57726097, 564391416, 1045674369, 669312696, 1028857355, 142973429,
+        678730870, 685056400, 561256329, 305139679, 364840175, 871144339, 264691094, 687394654, 1007192745, 907070976,
+        595027172, 161958930, 442218514, 597524025, 92299208, 870870048, 62969694, 74115831, 113504561, 29915641,
+        470480888, 870831058, 503810845, 425380044, 63511987, 1051033568, 1059272520, 133767737, 280496588, 720091171,
+        973191716, 466492311, 836865435, 527990833, 996716974, 256354629, 1044177592, 334989874, 409146318, 407312495,
+        623582386, 0, 451944923, 885519901, 103756418, 187787962, 552855903, 150761754, 346593979, 667135215,
+        56392614, 689677203, 796516778, 742625158, 583165488, 44104443, 615916235, 6610075, 870608645, 620488818,
+        128935692, 876341592, 574900542, 499616501, 701306915, 706033711, 661880971, 783664490, 574717690, 74779272,
+        634954675, 46412641, 627755415, 1043219567, 656659337, 835058938, 812239963, 219362616, 997166478, 243055286,
+        73989985, 445217869, 231198572, 187281734, 464906833, 625072429, 79962864, 352606578, 687897424, 757391403,
+        968157851, 707962932, 301216283, 58831261, 960048550, 722446784, 368589418, 462068192, 390019883, 612664608,
+        186271436, 117276690, 604789639, 422906092, 548046668, 507018940, 846464773, 749069878, 435269302, 783241208,
+        57009464, 635225352, 0, 317559497, 697552015, 698329425, 17381084, 676086363, 768813069, 1002749325,
+        973017676, 345690560, 370951212, 146928088, 297049541, 209242384, 857728131, 616634818, 518081381, 724575445,
+        458849464, 755598753, 123719673, 1050635697, 483532260, 22979030, 318372875, 770570507, 612498242, 115726977,
+        131745836, 272754642, 320919287, 526535866, 887812516, 468957517, 914701820, 684788148, 946099946, 464040755,
+        117832733, 342204260, 178694435, 511364430, 948356899, 240078355, 1043306757, 102307426, 1060793074, 347230985,
+        706217458, 639670992, 630183416, 905313526, 398417489, 262407219, 84031595, 703008041, 823388679, 417684953,
+        452372226, 571138710, 727858245, 469658484, 1069093683, 220099898, 896654877, 811693193, 792115483, 572542963,
+        17341411, 656137634, 646701113, 0, 106648525, 45923600, 947880687, 56594846, 515022393, 302876856,
+        828387138, 148631771, 522237138, 377136460, 657784882, 216488150, 186498124, 814037031, 209124528, 932573255,
+        763888057, 344178822, 676241422, 250107081, 106541642, 765584889, 518543173, 591569173, 170579085, 449774247,
+        299440091, 763740663, 1072191023, 780122124, 52978732, 778406545, 210160188, 848089699, 445694832, 575444516,
+        704440500, 854576858, 429412801, 669670189, 934859330, 543603513, 32816389, 679341777, 1019564628, 759078121,
+        46427952, 582664730, 21772089, 908592900, 465611750, 45054664, 963189827, 155923845, 694032986, 229883002,
+        40049146, 160447164, 373075415, 862709971, 229975754, 872198507, 844980434, 620480405, 708519655, 118917809,
+        672615665, 668886803, 705400027, 658010681, 0, 151312357, 52996366, 436126816, 574829609, 532668235,
+        526347009, 506785182, 949772013, 869996140, 182815694, 828695979, 362545031, 635109521, 257594519, 558747977,
+        214089984, 633723151, 818856250, 150214549, 1017347897, 383204468, 54070133, 52272688, 601886810, 235348474,
+        280723254, 556045426, 280172145, 657116208, 193731806, 702920667, 329388581, 1042694618, 484936183, 361970332,
+        907553062, 182170578, 340697708, 867395134, 124693853, 605937768, 892139274, 256378582, 678467925, 971451045,
+        88773308, 72812835, 462128718, 525502718, 878482749, 525470041, 842936369, 238326127, 186140914, 345249513,
+        908490484, 685563838, 433234642, 933289319, 373102752, 679675768, 327087837, 465706095, 849871501, 297566234,
+        937909519, 609158913, 870502985, 256604702, 669155185, 0, 913444037, 173625187, 345489062, 198273412,
+        326677842, 254163444, 415958617, 854053766, 186387696, 924720431, 548551047, 421186311, 15167363, 402303484,
+        65269745, 413254364, 770172121, 682086448, 266672351, 607221876, 428075906, 1007106445, 88091898, 192682269,
+        842910165, 16930637, 715740837, 20181955, 2790504, 50274667, 784614255, 683630791, 1050353999, 664389207,
+        129669528, 631704319, 21770384, 88305101, 1068232765, 255473979, 463834134, 268507322, 178679718, 543840829,
+        544218168, 221706209, 581469014, 837469812, 1048910835, 766635268, 265436515, 317772130, 630845732, 641275995,
+        976219276, 340742765, 721601184, 977617509, 1009262310, 947179462, 408851151, 903925012, 523980834, 797988484,
+        114621781, 963911941, 140737264, 575404656, 1018014432, 680135862, 0, 891144457, 596741966, 612116534,
+        892267574, 265602542, 429440271, 554539854, 202099879, 120518876, 944896823, 934017133, 1019495079, 361430379,
+        933151539, 349795099, 624597051, 688245309, 466968641, 276714800, 575559394, 433264988, 93263962, 734582909,
+        161842456, 816729457, 972843335, 692344524, 482721855, 937780587, 982451310, 111467842, 10072568, 220068622,
+        406119165, 401048332, 920845854, 424610568, 272124689, 45852084, 522799876, 497750756, 679804038, 1048670370,
+        379944626, 746297789, 451327215, 983760030, 831750799, 1022119037, 877723843, 679073947, 638331272, 620724793,
+        354434483, 149556388, 503882091, 390253774, 873016548, 572550867, 853622109, 998095155, 1003399677, 644189380,
+        664569121, 681503531, 666434593, 709197228, 275161596, 323973266, 690954054, 0, 865978815, 257121580,
+        868801321, 981269645, 1020800352, 136147182, 319376473, 581888691, 831162116, 26775157, 410295006, 448259960,
+        543791682, 335957344, 849955712, 364021968, 480116491, 733216639, 783334326, 535435122, 1056433339, 617647448,
+        237198461, 1059360037, 868737321, 516569292, 736759001, 837195747, 208078475, 723651926, 443857096, 108675622,
+        4747803, 315006155, 299759353, 207996210, 685516300, 385647969, 510992822, 835234511, 480117261, 779628523,
+        207360898, 954204731, 655853496, 395069603, 860545983, 610245235, 878186930, 297227722, 464270788, 533496965,
+        860455477, 654942502, 99899715, 599491017, 945490858, 869825852, 910377106, 786469927, 8451805, 80252529,
+        637159754, 445885695, 927827875, 105410053, 791508192, 295624537, 460718633, 701611191, 0, 693098875,
+        503377403, 80369478, 429812826, 188016148, 624399346, 548390802, 1062970086, 340090441, 486290817, 317272550,
+        340980260, 571605700, 352818381, 931831679, 61852029, 1066943100, 605091951, 802681010, 757934632, 999072815,
+        529410592, 877199165, 1058176888, 920479288, 224874076, 345219336, 705211129, 464914055, 1029468104, 649819088,
+        565639219, 1058251669, 738870060, 15602838, 1850792, 435595114, 424465005, 969180599, 928713879, 713015270,
+        189719914, 682368570, 182889070, 417398270, 1048704691, 117597538, 946047240, 999160535, 897867378, 826920960,
+        83397679, 875582835, 25511622, 96894374, 554466170, 783440383, 413891356, 987339525, 120088573, 836191082,
+        387141988, 3833279, 1013982524, 626934395, 1031693765, 901675315, 574990866, 75698012, 712108791, 0,
+        791073010, 425268906, 63066387, 743364437, 377293402, 440665348, 191943364, 145356803, 2973761, 484798975,
+        431791841, 648201603, 580593339, 460412774, 505297940, 936003360, 29939246, 344529135, 74614031, 732849010,
+        978270112, 592988103, 436302854, 879419771, 570603245, 578939944, 771356238, 827567496, 99647998, 27949765,
+        605872717, 152939035, 267165675, 490641445, 782490978, 532924227, 752458040, 108413505, 684470126, 74736568,
+        250608800, 855058267, 804260355, 1061170360, 785047220, 43680634, 297359134, 304473249, 352452232, 282192065,
+        452331553, 1011643909, 27149398, 1063423325, 335394678, 251108863, 563469052, 211204306, 447467887, 148110958,
+        783503818, 1008029489, 902801389, 439542098, 335987744, 1023807341, 627767950, 109939150, 966253930, 722448446,
+        0, 445716894, 85471170, 856932175, 521818526, 241414383, 854100686, 1066184379, 579017869, 938334453,
+        513459990, 801799798, 611682320, 119217660, 152659875, 944046093, 281356094, 1066617597, 98197992, 232200799,
+        108931705, 350291175, 315294974, 271538541, 812952767, 852109105, 687613026, 937423788, 677719972, 475532828,
+        52766537, 155799174, 362952979, 1915613, 133096092, 920423918, 581484346, 988341081, 514799195, 685628184,
+        475664060, 112980192, 619418379, 766269228, 235105735, 407659816, 1043530863, 414640009, 281833667, 1043664937,
+        875316596, 259071351, 153278419, 823593368, 827263799, 319286603, 768716981, 1030715475, 283557071, 409985501,
+        131030809, 553459439, 927737211, 961004623, 949489921, 878984959, 41999626, 792613383, 5359992, 189631496,
+        732631822, 0, 748883175, 277866150, 41403779, 962368431, 116840495, 661158548, 795729139, 512962608,
+        32206818, 269468855, 784737782, 333921322, 828104698, 596039479, 176900023, 421625501, 100583164, 178371588,
+        617195247, 814221467, 11630851, 186857058, 961641146, 557492345, 901228953, 973969852, 141573640, 408001875,
+        200318803, 999028081, 336071186, 131435948, 160427726, 1014735530, 574685444, 22562714, 799661661, 671277950,
+        29799501, 442760830, 728804976, 441000048, 888884971, 322482537, 675967025, 878816513, 1038609556, 1059452482,
+        702241491, 82175457, 393786388, 419377324, 934512807, 142531474, 974044973, 107683260, 342977505, 1059655756,
+        196123325, 374600164, 285986882, 919259156, 359386342, 119371003, 685039518, 759330976, 146405031, 688871774,
+        784189174, 742660642, 0, 556242429, 157777475, 993865900, 239330538, 595532386, 616226607, 354545131,
+        886060001, 121676084, 1072367664, 752900063, 412524271, 22314292, 370059811, 867632633, 129687354, 326818085,
+        534779883, 933563758, 655435953, 962173630, 446927487, 549148737, 567396383, 909357103, 684990278, 723211464,
+        297037849, 47298838, 101124804, 140499880, 995763312, 209519319, 1042911186, 582702284, 648474080, 342329459,
+        66054892, 692483937, 911271144, 820858350, 678071002, 639209539, 811619396, 675123256, 303656259, 455761399,
+        92355686, 751661409, 784317272, 635057452, 982908243, 886681853, 873360292, 126219382, 979233773, 266103241,
+        700932867, 4565500, 640245187, 147193588, 860328171, 502022301, 469357689, 847280191, 242817663, 876897017,
+        90440965, 300958569, 752536690, 0, 998328292, 627423890, 522372852, 958029863, 680546821, 653839204,
+        455234259, 619482384, 747867528, 717160694, 882200036, 347804269, 758192119, 918802996, 966658250, 965310722,
+        77021801, 737965825, 329033816, 924796386, 277828539, 598834422, 1027323285, 744646262, 93651865, 139315120,
+        68209887, 904952365, 750300860, 938667878, 960725783, 281924432, 548004099, 2059210, 49327442, 227076841,
+        276555156, 37003881, 989449984, 422146676, 29871640, 104681726, 901283525, 719474177, 86951257, 563609739,
+        452654562, 288509390, 861860718, 897327315, 356206830, 152540012, 416513671, 163268395, 781014320, 508253994,
+        682673601, 1000029691, 748744686, 592828136, 890189562, 625834336, 717327594, 941503350, 880490641, 895305819,
+        660486407, 1071894331, 94293066, 762261796, 0, 752478369, 795742717, 821699356, 892238403, 527206009,
+        440016246, 277615944, 222941594, 556662795, 710651300, 1006260595, 381312944, 923883202, 220416796, 159394303,
+        377221404, 589734762, 926028934, 7375084, 662167838, 524998263, 25884612, 301826161, 937028392, 640054744,
+        409351701, 313160105, 422160079, 262330560, 138682212, 611116157, 674062522, 198973302, 654751544, 33816259,
+        628517281, 1028926465, 782799288, 963843390, 85245164, 565644743, 752097335, 762793613, 905545966, 545562449,
+        1070032202, 216696855, 700871853, 758081440, 747871582, 1024748754, 753047680, 995020977, 622306108, 941981249,
+        235004016, 206823956, 436849466, 77514534, 637929767, 520510700, 961286549, 358573258, 704806984, 202460281,
+        256859835, 303080516, 254588565, 1008933351, 771837834, 0, 272160742, 861920138, 13788056, 867270906,
+        896978725, 253407817, 877777029, 144005784, 384217108, 763651851, 835269198, 482184128, 1013789625, 1064658963,
+        164926801, 8559100, 329154507, 854723552, 648123862, 508559511, 947441382, 172532787, 1008369300, 739961077,
+        675289936, 387921079, 753912611, 935545848, 935099796, 993430912, 595926614, 1016681101, 160346123, 474066616,
+        76979170, 506570808, 75641330, 418303455, 656263277, 162859465, 733202107, 1048565870, 927355094, 248031966,
+        281333584, 578307488, 184632250, 689874580, 685004849, 836838416, 186941610, 1060223723, 629341879, 999627370,
+        38752647, 195642187, 1042667670, 829491570, 642315831, 222278581, 33083606, 864669801, 1023234542, 218896843,
+        88950090, 562612385, 822690531, 1033187506, 491194242, 781266719, 0, 728283742, 93712934, 35127340,
+        1059570635, 365568842, 792434773, 163993004, 574098951, 405953036, 489327065, 91714971, 47056402, 212764661,
+        156363172, 1070873827, 1050556148, 620005911, 255169958, 872546325, 521708145, 653202685, 996508194, 352946252,
+        20500176, 515619064, 886887562, 731242535, 293765151, 834233053, 401069786, 1058580691, 834121328, 541069437,
+        797735311, 806235443, 510092553, 1060465336, 42493826, 201556900, 829453167, 1001002900, 851067122, 477091675,
+        703151602, 395738962, 51538262, 920097327, 418217241, 802802367, 19206115, 747788346, 74575407, 344179478,
+        825291011, 424581511, 895707690, 549074165, 335650596, 336362448, 555208528, 140494185, 711278659, 381375764,
+        774409310, 32881226, 604307118, 115871666, 55592128, 781758248, 790550394, 0, 651714190, 267791024,
+        161663699, 137203044, 715684362, 707948116, 842319370, 652121636, 813855348, 1052831546, 979043182, 123700708,
+        14769243, 601846002, 693523574, 245263447, 753249921, 366313622, 321307748, 330842278, 565129091, 682451345,
+        651294807, 379295746, 852433763, 572545700, 717435713, 914120730, 558888876, 443735427, 94414857, 343671933,
+        776539079, 250253047, 348494034, 92391027, 476317315, 108944902, 151895651, 957319426, 958952565, 1043117531,
+        484004166, 305111314, 380648983, 1003612396, 815854732, 289725758, 977935859, 413133375, 479536791, 175035250,
+        25529828, 986627103, 40840362, 403543043, 186509105, 809212101, 859624941, 442943059, 258330644, 1020350540,
+        787572059, 820630518, 874451925, 524308704, 659892270, 809570071, 265308586, 799690833, 0, 608533947,
+        85099846, 183714243, 371150746, 12354778, 258382446, 517666447, 228324566, 225378366, 77121239, 1028520323,
+        681939325, 668828342, 1248821, 145321042, 141553915, 266448135, 195903599, 853162651, 194546949, 380398841,
+        605090019, 259635018, 891725073, 677822811, 778776694, 821848960, 83474997, 748953313, 949723279, 942723073,
+        222765653, 956864187, 928691857, 417835502, 43988866, 4065954, 807866171, 72917868, 24403391, 316508220,
+        915077413, 973206409, 277822697, 162746708, 424286810, 169678567, 173044551, 23542158, 250149538, 83829255,
+        325464503, 993535184, 641816824, 535325571, 844575451, 755196778, 384921742, 180735816, 415063693, 978568474,
+        189354303, 342335755, 467196960, 108719939, 154493882, 74355450, 36140427, 180692580, 808690030, 0,
+        765104073, 806794329, 861255945, 921363101, 743321659, 1015959034, 851808511, 727604692, 288479207, 916941025,
+        313397984, 677259698, 28195043, 765038274, 30656011, 933638868, 382323165, 642899753, 259258124, 696519418,
+        448507754, 25777780, 1056900452, 667799114, 858158392, 23355034, 565651627, 986136188, 973297497, 21286233,
+        780680048, 330908600, 197881856, 196974022, 618112218, 1051340428, 309620953, 605117538, 50025435, 1003764807,
+        229056967, 758142616, 797992619, 937190055, 671502270, 659818277, 581141149, 655506621, 343915971, 835440192,
+        617656874, 837415230, 621548535, 668665766, 479397777, 590107533, 523926638, 882687248, 807695945, 601865307,
+        299278350, 289698464, 788506994, 697995920, 14738618, 1052400699, 96869305, 382586873, 912351883, 817549998,
+        0, 825548340, 416547420, 903553377, 722466409, 465780653, 230279469, 621577891, 596563998, 1011907862,
+        1008831992, 493617053, 851410015, 590146636, 296687672, 910547445, 965338872, 750203189, 757747002, 978958748,
+        1323102, 341737550, 817963423, 764769129, 876641743, 565965522, 1034403657, 468879039, 69685986, 81828736,
+        348860402, 114035495, 705997678, 613260924, 51049713, 208108663, 169355425, 457461628, 105609429, 79523105,
+        527286158, 910854692, 760046723, 615287444, 881013650, 244685290, 853544031, 848270621, 227646983, 850392395,
+        141600516, 714559324, 289770409, 713005319, 883117014, 160132265, 1765992, 248623456, 294586505, 686492920,
+        340609665, 359220316, 880716863, 496586647, 222034330, 459277208, 139684232, 280796674, 305320180, 737737685,
+        826272766, 0, 232472106, 507119397, 912103146, 150186558, 278151928, 260972450, 230742772, 692122651,
+        952639996, 469351580, 308473896, 532061127, 504426369, 314061319, 813448741, 103695794, 246069860, 431944909,
+        788211609, 723858037, 343958645, 241255050, 121228912, 271735581, 555781053, 448322730, 13291437, 701000056,
+        573625858, 655358630, 682144425, 683043245, 517135812, 626304448, 264395566, 971583889, 66908042, 190995887,
+        190829942, 729046505, 226091718, 871014977, 480278667, 374052219, 649503229, 972394954, 621137401, 578883660,
+        494850589, 260960979, 779590536, 860040742, 366363591, 523620949, 918761415, 98020983, 617727588, 542681884,
+        479973342, 305265390, 704297816, 536260417, 690571329, 11188215, 116062647, 235120422, 1024062142, 262100286,
+        241184481, 834860371, 0, 272993726, 423313121, 736042170, 245453958, 272959395, 726451651, 178963501,
+        365574506, 262164737, 881428006, 359326997, 354808746, 24216473, 855483734, 315219499, 935443761, 687561813,
+        683344360, 60499843, 811612696, 1043982194, 193835918, 848322118, 677414384, 390512780, 791019836, 204820042,
+        442086812, 311457545, 347006901, 861282437, 911765899, 306039354, 400611671, 687678671, 698636542, 566582585,
+        641110541, 560185093, 134345442, 239449052, 169448571, 186639945, 1016088049, 435837673, 452908706, 938339896,
+        853266458, 380682229, 979996155, 116673602, 428440059, 508058455, 458518673, 266417517, 159142109, 45131487,
+        244369100, 354005965, 269711294, 545757411, 650679378, 1051081491, 835717166, 545826428, 877281427, 192994332,
+        320018826, 571903011, 843314856, 0]
+
+# floor(ln10 * 2^2100), base 2^30 limbs, little-endian
+fn c_ln10() -> List[i64]
+    return [964535763, 250583496, 898034066, 617284710, 906522242, 762051583, 1064875718, 950366223,
+        621697080, 1043816526, 664967133, 514502134, 651438674, 133266189, 791388673, 220592881,
+        462295602, 292851309, 955774193, 714830849, 736236059, 723980384, 301901239, 674471359,
+        496449417, 336751173, 802107512, 266079808, 171611637, 491772701, 748314161, 563759084,
+        194677189, 412931508, 716499898, 505706748, 616659552, 111060366, 397903933, 814417277,
+        505877462, 322342212, 21108282, 993374774, 837743257, 994693657, 468272518, 721726268,
+        1056692659, 61921329, 970549915, 682150161, 504053288, 48568022, 775807504, 280898991,
+        411633168, 520972332, 53412017, 17157319, 11922538, 762484271, 973604800, 283655265,
+        1047959422, 685936620, 772492328, 782593378, 715795205, 324898269, 2]
+
+# floor(pi * 2^4200), base 2^30 limbs, little-endian
+fn c_pi() -> List[i64]
+    return [1045437110, 595320719, 127766382, 115263861, 852066457, 40639821, 758423324, 305579002,
+        617613842, 887047004, 606711843, 117422044, 910128902, 995010952, 739682916, 110176213,
+        18903872, 1037525527, 904654342, 695258850, 531922308, 409277886, 680054504, 262181059,
+        912706137, 887536645, 169809489, 532597414, 977006672, 233369490, 787527361, 340584667,
+        262613163, 280863320, 437071237, 574364308, 476163027, 845782066, 70217366, 394817946,
+        178134939, 296166337, 709378560, 193122592, 66339385, 1035321294, 963300432, 575643764,
+        622561315, 411831213, 391847362, 391608929, 3338116, 830568370, 420775882, 859752554,
+        325179401, 764977286, 1011613313, 450031211, 999245976, 576068060, 589641746, 154392350,
+        381301612, 508328639, 65104312, 209564567, 90010648, 816361127, 18233083, 619510661,
+        796685033, 981815834, 18095756, 758322957, 715854006, 388556200, 1048658949, 304486552,
+        363566167, 345493161, 96865893, 200709464, 187136175, 520549573, 602763607, 585893794,
+        241999374, 25225312, 954703307, 775343675, 172063000, 562173891, 488309298, 1016595697,
+        819280170, 694605424, 172088357, 314285781, 223904277, 425838127, 150415595, 528704861,
+        603231037, 647062522, 118846694, 416958518, 93256726, 537381770, 957796208, 677794284,
+        746559780, 843126724, 669608871, 737893001, 532134113, 191840363, 448987095, 698759149,
+        466694411, 640018412, 958491997, 760332869, 1065670069, 636568436, 180525948, 977476400,
+        342282036, 5103353, 35545997, 455233866, 983100494, 121643195, 35822067, 287900238,
+        771977331, 206333480, 140128397, 152033954, 3]
+
+# floor(ln2x * 2^4200), base 2^30 limbs, little-endian
+fn c_ln2x() -> List[i64]
+    return [833822090, 653539074, 917177252, 729162102, 883935450, 490233210, 1060800803, 129769151,
+        621669001, 910008472, 432243513, 867359932, 748635566, 1035858862, 907107333, 298329529,
+        1033716332, 860237806, 1014122866, 74379097, 951650993, 469140232, 735343490, 460624555,
+        593609065, 613437271, 827777218, 924032289, 353911904, 7967146, 908223881, 231626293,
+        789373655, 612496316, 459394126, 524372657, 463650490, 674323662, 160465809, 8394809,
+        426439939, 629689740, 332447023, 24136245, 250119865, 461417603, 1033150243, 784711356,
+        337709323, 101693222, 758928418, 145629977, 600792722, 890350706, 405150463, 132468270,
+        354847324, 535772189, 416740631, 144872382, 561157073, 208892474, 167925063, 736241361,
+        350671664, 442552923, 191654137, 486249820, 563419874, 351655522, 456865368, 584271243,
+        407921857, 763183828, 296934193, 31710423, 744516785, 952431469, 504871386, 391405164,
+        890055829, 539578460, 665465028, 763385663, 243402573, 1042905170, 863414727, 214784296,
+        488990363, 793204773, 79798752, 618976339, 214716005, 300365007, 339637035, 576993650,
+        101152219, 47077469, 574480704, 1048928075, 493747230, 109820250, 260636245, 605569868,
+        301685755, 404738856, 284425564, 915105265, 790684578, 360613404, 50537606, 938061646,
+        625527541, 975095413, 1064613676, 674962837, 540747119, 789497049, 132882089, 72113934,
+        85642202, 411642787, 334064801, 73035273, 660028201, 81822992, 317383516, 1049019451,
+        357759818, 783442262, 123864798, 1049295342, 391875498, 414591028, 845621643, 735067344,
+        402911990, 791121614, 1025308570, 744261117]
+
+# floor(2osqrtpi * 2^4200), base 2^30 limbs, little-endian
+fn c_2osqrtpi() -> List[i64]
+    return [163640510, 314293573, 191314093, 288730699, 75178472, 773276107, 494138180, 508376260,
+        18494492, 102105735, 752599057, 636077987, 188941025, 856376553, 636548680, 955353145,
+        880422649, 740650481, 112931952, 485530811, 170357378, 111684393, 434809424, 44338361,
+        576727479, 997297190, 167710836, 648561979, 637531437, 422270771, 72726428, 348759475,
+        873113164, 436745345, 986190935, 471262418, 1001422755, 1044438276, 629485820, 1006046736,
+        238459223, 244125663, 947483823, 724993100, 488185421, 344704593, 715978059, 689013319,
+        751319802, 615083649, 414175578, 1053257112, 958650655, 68570142, 680214653, 155352495,
+        634207738, 70066958, 850512832, 595544208, 115054140, 855780997, 345795235, 516074375,
+        937780381, 103084031, 716583115, 915986425, 193642914, 976974781, 1040159587, 27246839,
+        992280769, 394409450, 154178068, 550258653, 658287646, 1072132360, 511770148, 494558949,
+        510767805, 401725365, 1044800240, 811996856, 420534317, 889751144, 700428087, 120580164,
+        1021717237, 894162944, 175220931, 981015433, 897884941, 166562409, 1020752542, 52325390,
+        398209961, 259790827, 413479124, 1052021865, 438003266, 153345460, 50920683, 826698036,
+        818788882, 483826919, 463465856, 208270477, 1026139738, 61495812, 271988970, 373579229,
+        635757912, 1062805943, 241360243, 423718253, 625452276, 399110325, 798139486, 1069400026,
+        1027098088, 555904562, 709542841, 1073701160, 703520526, 118379459, 602529225, 600667614,
+        7082713, 947423750, 866061092, 274227258, 811702732, 683265290, 494241742, 571081936,
+        1054342534, 730768467, 43740433, 137846081, 1]
+
+# floor(euler * 2^2100), base 2^30 limbs, little-endian
+fn c_euler() -> List[i64]
+    return [196542101, 808167537, 141570553, 649896513, 121953127, 829722164, 253454018, 74959113,
+        574150862, 357875892, 771097724, 909196367, 200475844, 316610320, 80514672, 350328768,
+        25326622, 310088888, 92123867, 487734440, 53455660, 888903239, 8647210, 650929511,
+        1017822412, 772694619, 626608484, 996182029, 1028035356, 964040350, 638510913, 512881655,
+        630095958, 669249697, 241428176, 919945116, 1021558437, 629493928, 1029818182, 967510978,
+        664236581, 837852256, 804807742, 128481176, 998702378, 892480941, 716049417, 89776742,
+        754493805, 235229901, 870049727, 590486364, 630057863, 903015418, 607864435, 139290659,
+        90892563, 68547652, 614255458, 667138881, 899653690, 1072653202, 523530394, 6565903,
+        61826508, 363361203, 16863947, 323418366, 937102458, 619780600]
+
+# floor(g2 * 2^2100), base 2^30 limbs, little-endian
+fn c_g2() -> List[i64]
+    return [17922496, 859890880, 43315374, 452871362, 974373652, 1045378659, 259996369, 903494943,
+        328843827, 709705102, 740924293, 590862488, 241571146, 1067741556, 237826432, 922255044,
+        134686784, 529415517, 669150855, 824867930, 1052131113, 873330816, 823160533, 15515232,
+        449116805, 1012774908, 478531311, 260688676, 142215708, 426996559, 423864425, 622273830,
+        27694175, 623962870, 34714940, 836686009, 989147178, 329226, 453660611, 762951239,
+        42400961, 143811907, 653148130, 643691125, 490863684, 857806968, 551535816, 18544980,
+        927906186, 251454271, 415170114, 634575445, 805561456, 1005194356, 928550354, 1021295161,
+        624836232, 397491753, 852641630, 44758227, 970964192, 808611459, 736655294, 451470523,
+        431167946, 372715567, 272897151, 748004141, 495631419, 1061990788]
+
+# floor(hl2pi * 2^4200), base 2^30 limbs, little-endian
+fn c_hl2pi() -> List[i64]
+    return [245338128, 1037899971, 807064105, 111505510, 487631732, 528099049, 531388436, 312925761,
+        1009504331, 52428708, 885181133, 481731646, 329731020, 387488802, 99219150, 998460304,
+        729518400, 453557201, 807982034, 704731292, 100386841, 324653632, 216705229, 333116900,
+        195284010, 692464844, 289157994, 212237320, 222183337, 632018271, 429245020, 924495167,
+        884154925, 535279109, 273645844, 942773300, 760077194, 884667650, 659532899, 403729029,
+        471142663, 642380884, 251543898, 933329903, 1023815, 266662371, 337668456, 279766501,
+        918001107, 556169789, 109575120, 814026481, 454689841, 985795072, 262898385, 596482951,
+        71135683, 445097762, 93770121, 500171847, 76064948, 498631850, 763706296, 773853413,
+        833850182, 1072605542, 194742421, 378142984, 752376339, 507720148, 1010513821, 278084132,
+        561053510, 436014673, 253064553, 2422046, 784845251, 624856029, 897847764, 790574878,
+        893899280, 1069245732, 686652022, 1025742971, 996586821, 696122201, 522749854, 876177293,
+        730521704, 55744414, 382814802, 1017714157, 1069854237, 738068221, 268570654, 501680596,
+        921958292, 816927888, 365724089, 325047934, 590201337, 120401149, 714148826, 215387872,
+        59830391, 284735001, 977840665, 250984894, 778297418, 316362159, 196158949, 156768220,
+        346075077, 503249701, 236449261, 453876318, 998123272, 79767911, 694756685, 495808581,
+        657489286, 848630302, 690386702, 499837820, 258403553, 758344047, 97170801, 358248172,
+        717197404, 974847567, 970456576, 89606219, 588463530, 758610714, 953234520, 150203427,
+        21240096, 307425856, 845109843, 986702736]
+
+# |B_2k| / (2k (2k-1)) * 2^4200 floored, for k + 1 = 1..20 (Stirling)
+fn c_stir(k: i64) -> List[i64]
+    if k == 0
+        return [357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 357913941, 89478485]
+    if k == 1
+        return [190887435, 405635800, 190887435, 405635800, 190887435, 405635800, 190887435, 405635800, 190887435, 405635800, 190887435, 405635800, 190887435, 405635800, 190887435, 405635800, 190887435, 405635800, 190887435, 405635800, 190887435, 405635800, 190887435, 405635800, 190887435, 405635800, 190887435, 405635800, 190887435, 405635800, 190887435, 405635800, 190887435, 405635800, 190887435, 405635800, 190887435, 405635800, 190887435, 405635800, 190887435, 405635800, 190887435, 405635800, 190887435, 405635800, 190887435, 405635800, 190887435, 405635800, 190887435, 405635800, 190887435, 405635800, 190887435, 405635800, 190887435, 405635800, 190887435, 405635800, 190887435, 405635800, 190887435, 405635800, 190887435, 405635800, 190887435, 405635800, 190887435, 405635800, 190887435, 405635800, 190887435, 405635800, 190887435, 405635800, 190887435, 405635800, 190887435, 405635800, 190887435, 405635800, 190887435, 405635800, 190887435, 405635800, 190887435, 405635800, 190887435, 405635800, 190887435, 405635800, 190887435, 405635800, 190887435, 405635800, 190887435, 405635800, 190887435, 405635800, 190887435, 405635800, 190887435, 405635800, 190887435, 405635800, 190887435, 405635800, 190887435, 405635800, 190887435, 405635800, 190887435, 405635800, 190887435, 405635800, 190887435, 405635800, 190887435, 405635800, 190887435, 405635800, 190887435, 405635800, 190887435, 405635800, 190887435, 405635800, 190887435, 405635800, 190887435, 405635800, 190887435, 405635800, 190887435, 405635800, 190887435, 405635800, 190887435, 2982616]
+    if k == 2
+        return [54539267, 269287632, 54539267, 269287632, 54539267, 269287632, 54539267, 269287632, 54539267, 269287632, 54539267, 269287632, 54539267, 269287632, 54539267, 269287632, 54539267, 269287632, 54539267, 269287632, 54539267, 269287632, 54539267, 269287632, 54539267, 269287632, 54539267, 269287632, 54539267, 269287632, 54539267, 269287632, 54539267, 269287632, 54539267, 269287632, 54539267, 269287632, 54539267, 269287632, 54539267, 269287632, 54539267, 269287632, 54539267, 269287632, 54539267, 269287632, 54539267, 269287632, 54539267, 269287632, 54539267, 269287632, 54539267, 269287632, 54539267, 269287632, 54539267, 269287632, 54539267, 269287632, 54539267, 269287632, 54539267, 269287632, 54539267, 269287632, 54539267, 269287632, 54539267, 269287632, 54539267, 269287632, 54539267, 269287632, 54539267, 269287632, 54539267, 269287632, 54539267, 269287632, 54539267, 269287632, 54539267, 269287632, 54539267, 269287632, 54539267, 269287632, 54539267, 269287632, 54539267, 269287632, 54539267, 269287632, 54539267, 269287632, 54539267, 269287632, 54539267, 269287632, 54539267, 269287632, 54539267, 269287632, 54539267, 269287632, 54539267, 269287632, 54539267, 269287632, 54539267, 269287632, 54539267, 269287632, 54539267, 269287632, 54539267, 269287632, 54539267, 269287632, 54539267, 269287632, 54539267, 269287632, 54539267, 269287632, 54539267, 269287632, 54539267, 269287632, 54539267, 269287632, 54539267, 269287632, 54539267, 269287632, 54539267, 852176]
+    if k == 3
+        return [40904450, 470401180, 40904450, 470401180, 40904450, 470401180, 40904450, 470401180, 40904450, 470401180, 40904450, 470401180, 40904450, 470401180, 40904450, 470401180, 40904450, 470401180, 40904450, 470401180, 40904450, 470401180, 40904450, 470401180, 40904450, 470401180, 40904450, 470401180, 40904450, 470401180, 40904450, 470401180, 40904450, 470401180, 40904450, 470401180, 40904450, 470401180, 40904450, 470401180, 40904450, 470401180, 40904450, 470401180, 40904450, 470401180, 40904450, 470401180, 40904450, 470401180, 40904450, 470401180, 40904450, 470401180, 40904450, 470401180, 40904450, 470401180, 40904450, 470401180, 40904450, 470401180, 40904450, 470401180, 40904450, 470401180, 40904450, 470401180, 40904450, 470401180, 40904450, 470401180, 40904450, 470401180, 40904450, 470401180, 40904450, 470401180, 40904450, 470401180, 40904450, 470401180, 40904450, 470401180, 40904450, 470401180, 40904450, 470401180, 40904450, 470401180, 40904450, 470401180, 40904450, 470401180, 40904450, 470401180, 40904450, 470401180, 40904450, 470401180, 40904450, 470401180, 40904450, 470401180, 40904450, 470401180, 40904450, 470401180, 40904450, 470401180, 40904450, 470401180, 40904450, 470401180, 40904450, 470401180, 40904450, 470401180, 40904450, 470401180, 40904450, 470401180, 40904450, 470401180, 40904450, 470401180, 40904450, 470401180, 40904450, 470401180, 40904450, 470401180, 40904450, 470401180, 40904450, 470401180, 40904450, 470401180, 40904450, 639132]
+    if k == 4
+        return [90382308, 806210191, 448296249, 90382308, 806210191, 448296249, 90382308, 806210191, 448296249, 90382308, 806210191, 448296249, 90382308, 806210191, 448296249, 90382308, 806210191, 448296249, 90382308, 806210191, 448296249, 90382308, 806210191, 448296249, 90382308, 806210191, 448296249, 90382308, 806210191, 448296249, 90382308, 806210191, 448296249, 90382308, 806210191, 448296249, 90382308, 806210191, 448296249, 90382308, 806210191, 448296249, 90382308, 806210191, 448296249, 90382308, 806210191, 448296249, 90382308, 806210191, 448296249, 90382308, 806210191, 448296249, 90382308, 806210191, 448296249, 90382308, 806210191, 448296249, 90382308, 806210191, 448296249, 90382308, 806210191, 448296249, 90382308, 806210191, 448296249, 90382308, 806210191, 448296249, 90382308, 806210191, 448296249, 90382308, 806210191, 448296249, 90382308, 806210191, 448296249, 90382308, 806210191, 448296249, 90382308, 806210191, 448296249, 90382308, 806210191, 448296249, 90382308, 806210191, 448296249, 90382308, 806210191, 448296249, 90382308, 806210191, 448296249, 90382308, 806210191, 448296249, 90382308, 806210191, 448296249, 90382308, 806210191, 448296249, 90382308, 806210191, 448296249, 90382308, 806210191, 448296249, 90382308, 806210191, 448296249, 90382308, 806210191, 448296249, 90382308, 806210191, 448296249, 90382308, 806210191, 448296249, 90382308, 806210191, 448296249, 90382308, 806210191, 448296249, 90382308, 806210191, 448296249, 90382308, 806210191, 448296249, 90382308, 903823]
+    if k == 5
+        return [912674591, 136276656, 912674591, 136276656, 912674591, 136276656, 912674591, 136276656, 912674591, 136276656, 912674591, 136276656, 912674591, 136276656, 912674591, 136276656, 912674591, 136276656, 912674591, 136276656, 912674591, 136276656, 912674591, 136276656, 912674591, 136276656, 912674591, 136276656, 912674591, 136276656, 912674591, 136276656, 912674591, 136276656, 912674591, 136276656, 912674591, 136276656, 912674591, 136276656, 912674591, 136276656, 912674591, 136276656, 912674591, 136276656, 912674591, 136276656, 912674591, 136276656, 912674591, 136276656, 912674591, 136276656, 912674591, 136276656, 912674591, 136276656, 912674591, 136276656, 912674591, 136276656, 912674591, 136276656, 912674591, 136276656, 912674591, 136276656, 912674591, 136276656, 912674591, 136276656, 912674591, 136276656, 912674591, 136276656, 912674591, 136276656, 912674591, 136276656, 912674591, 136276656, 912674591, 136276656, 912674591, 136276656, 912674591, 136276656, 912674591, 136276656, 912674591, 136276656, 912674591, 136276656, 912674591, 136276656, 912674591, 136276656, 912674591, 136276656, 912674591, 136276656, 912674591, 136276656, 912674591, 136276656, 912674591, 136276656, 912674591, 136276656, 912674591, 136276656, 912674591, 136276656, 912674591, 136276656, 912674591, 136276656, 912674591, 136276656, 912674591, 136276656, 912674591, 136276656, 912674591, 136276656, 912674591, 136276656, 912674591, 136276656, 912674591, 136276656, 912674591, 136276656, 912674591, 136276656, 912674591, 136276656, 912674591, 2058928]
+    if k == 6
+        return [440509466, 275318416, 440509466, 275318416, 440509466, 275318416, 440509466, 275318416, 440509466, 275318416, 440509466, 275318416, 440509466, 275318416, 440509466, 275318416, 440509466, 275318416, 440509466, 275318416, 440509466, 275318416, 440509466, 275318416, 440509466, 275318416, 440509466, 275318416, 440509466, 275318416, 440509466, 275318416, 440509466, 275318416, 440509466, 275318416, 440509466, 275318416, 440509466, 275318416, 440509466, 275318416, 440509466, 275318416, 440509466, 275318416, 440509466, 275318416, 440509466, 275318416, 440509466, 275318416, 440509466, 275318416, 440509466, 275318416, 440509466, 275318416, 440509466, 275318416, 440509466, 275318416, 440509466, 275318416, 440509466, 275318416, 440509466, 275318416, 440509466, 275318416, 440509466, 275318416, 440509466, 275318416, 440509466, 275318416, 440509466, 275318416, 440509466, 275318416, 440509466, 275318416, 440509466, 275318416, 440509466, 275318416, 440509466, 275318416, 440509466, 275318416, 440509466, 275318416, 440509466, 275318416, 440509466, 275318416, 440509466, 275318416, 440509466, 275318416, 440509466, 275318416, 440509466, 275318416, 440509466, 275318416, 440509466, 275318416, 440509466, 275318416, 440509466, 275318416, 440509466, 275318416, 440509466, 275318416, 440509466, 275318416, 440509466, 275318416, 440509466, 275318416, 440509466, 275318416, 440509466, 275318416, 440509466, 275318416, 440509466, 275318416, 440509466, 275318416, 440509466, 275318416, 440509466, 275318416, 440509466, 275318416, 440509466, 6882960]
+    if k == 7
+        return [994860398, 471884968, 742215263, 535046252, 994860398, 471884968, 742215263, 535046252, 994860398, 471884968, 742215263, 535046252, 994860398, 471884968, 742215263, 535046252, 994860398, 471884968, 742215263, 535046252, 994860398, 471884968, 742215263, 535046252, 994860398, 471884968, 742215263, 535046252, 994860398, 471884968, 742215263, 535046252, 994860398, 471884968, 742215263, 535046252, 994860398, 471884968, 742215263, 535046252, 994860398, 471884968, 742215263, 535046252, 994860398, 471884968, 742215263, 535046252, 994860398, 471884968, 742215263, 535046252, 994860398, 471884968, 742215263, 535046252, 994860398, 471884968, 742215263, 535046252, 994860398, 471884968, 742215263, 535046252, 994860398, 471884968, 742215263, 535046252, 994860398, 471884968, 742215263, 535046252, 994860398, 471884968, 742215263, 535046252, 994860398, 471884968, 742215263, 535046252, 994860398, 471884968, 742215263, 535046252, 994860398, 471884968, 742215263, 535046252, 994860398, 471884968, 742215263, 535046252, 994860398, 471884968, 742215263, 535046252, 994860398, 471884968, 742215263, 535046252, 994860398, 471884968, 742215263, 535046252, 994860398, 471884968, 742215263, 535046252, 994860398, 471884968, 742215263, 535046252, 994860398, 471884968, 742215263, 535046252, 994860398, 471884968, 742215263, 535046252, 994860398, 471884968, 742215263, 535046252, 994860398, 471884968, 742215263, 535046252, 994860398, 471884968, 742215263, 535046252, 994860398, 471884968, 742215263, 535046252, 994860398, 471884968, 742215263, 31729772]
+    if k == 8
+        return [820903212, 808714192, 533907203, 1073548347, 745552908, 281262068, 62967807, 998198044, 218100784, 884064496, 1061359327, 470745919, 820903212, 808714192, 533907203, 1073548347, 745552908, 281262068, 62967807, 998198044, 218100784, 884064496, 1061359327, 470745919, 820903212, 808714192, 533907203, 1073548347, 745552908, 281262068, 62967807, 998198044, 218100784, 884064496, 1061359327, 470745919, 820903212, 808714192, 533907203, 1073548347, 745552908, 281262068, 62967807, 998198044, 218100784, 884064496, 1061359327, 470745919, 820903212, 808714192, 533907203, 1073548347, 745552908, 281262068, 62967807, 998198044, 218100784, 884064496, 1061359327, 470745919, 820903212, 808714192, 533907203, 1073548347, 745552908, 281262068, 62967807, 998198044, 218100784, 884064496, 1061359327, 470745919, 820903212, 808714192, 533907203, 1073548347, 745552908, 281262068, 62967807, 998198044, 218100784, 884064496, 1061359327, 470745919, 820903212, 808714192, 533907203, 1073548347, 745552908, 281262068, 62967807, 998198044, 218100784, 884064496, 1061359327, 470745919, 820903212, 808714192, 533907203, 1073548347, 745552908, 281262068, 62967807, 998198044, 218100784, 884064496, 1061359327, 470745919, 820903212, 808714192, 533907203, 1073548347, 745552908, 281262068, 62967807, 998198044, 218100784, 884064496, 1061359327, 470745919, 820903212, 808714192, 533907203, 1073548347, 745552908, 281262068, 62967807, 998198044, 218100784, 884064496, 1061359327, 470745919, 820903212, 808714192, 533907203, 1073548347, 745552908, 281262068, 62967807, 192891676]
+    if k == 9
+        return [404699629, 287153156, 65623264, 61102246, 630750540, 795767704, 404699629, 287153156, 65623264, 61102246, 630750540, 795767704, 404699629, 287153156, 65623264, 61102246, 630750540, 795767704, 404699629, 287153156, 65623264, 61102246, 630750540, 795767704, 404699629, 287153156, 65623264, 61102246, 630750540, 795767704, 404699629, 287153156, 65623264, 61102246, 630750540, 795767704, 404699629, 287153156, 65623264, 61102246, 630750540, 795767704, 404699629, 287153156, 65623264, 61102246, 630750540, 795767704, 404699629, 287153156, 65623264, 61102246, 630750540, 795767704, 404699629, 287153156, 65623264, 61102246, 630750540, 795767704, 404699629, 287153156, 65623264, 61102246, 630750540, 795767704, 404699629, 287153156, 65623264, 61102246, 630750540, 795767704, 404699629, 287153156, 65623264, 61102246, 630750540, 795767704, 404699629, 287153156, 65623264, 61102246, 630750540, 795767704, 404699629, 287153156, 65623264, 61102246, 630750540, 795767704, 404699629, 287153156, 65623264, 61102246, 630750540, 795767704, 404699629, 287153156, 65623264, 61102246, 630750540, 795767704, 404699629, 287153156, 65623264, 61102246, 630750540, 795767704, 404699629, 287153156, 65623264, 61102246, 630750540, 795767704, 404699629, 287153156, 65623264, 61102246, 630750540, 795767704, 404699629, 287153156, 65623264, 61102246, 630750540, 795767704, 404699629, 287153156, 65623264, 61102246, 630750540, 795767704, 404699629, 287153156, 65623264, 61102246, 630750540, 795767704, 404699629, 421370884, 1]
+    if k == 10
+        return [140794304, 887745138, 420900866, 981113992, 94109876, 514269721, 654323002, 701007429, 741022, 841060711, 47425449, 140794304, 887745138, 420900866, 981113992, 94109876, 514269721, 654323002, 701007429, 741022, 841060711, 47425449, 140794304, 887745138, 420900866, 981113992, 94109876, 514269721, 654323002, 701007429, 741022, 841060711, 47425449, 140794304, 887745138, 420900866, 981113992, 94109876, 514269721, 654323002, 701007429, 741022, 841060711, 47425449, 140794304, 887745138, 420900866, 981113992, 94109876, 514269721, 654323002, 701007429, 741022, 841060711, 47425449, 140794304, 887745138, 420900866, 981113992, 94109876, 514269721, 654323002, 701007429, 741022, 841060711, 47425449, 140794304, 887745138, 420900866, 981113992, 94109876, 514269721, 654323002, 701007429, 741022, 841060711, 47425449, 140794304, 887745138, 420900866, 981113992, 94109876, 514269721, 654323002, 701007429, 741022, 841060711, 47425449, 140794304, 887745138, 420900866, 981113992, 94109876, 514269721, 654323002, 701007429, 741022, 841060711, 47425449, 140794304, 887745138, 420900866, 981113992, 94109876, 514269721, 654323002, 701007429, 741022, 841060711, 47425449, 140794304, 887745138, 420900866, 981113992, 94109876, 514269721, 654323002, 701007429, 741022, 841060711, 47425449, 140794304, 887745138, 420900866, 981113992, 94109876, 514269721, 654323002, 701007429, 741022, 841060711, 47425449, 140794304, 887745138, 420900866, 981113992, 94109876, 514269721, 654323002, 432571973, 13]
+    if k == 11
+        return [731776970, 382721099, 778461397, 756196516, 545039261, 1036303079, 638408115, 709512089, 171563844, 195983391, 358301553, 616143235, 498354834, 662827662, 871830251, 429405526, 78194990, 522774381, 825145824, 55930109, 311617126, 242667818, 731776970, 382721099, 778461397, 756196516, 545039261, 1036303079, 638408115, 709512089, 171563844, 195983391, 358301553, 616143235, 498354834, 662827662, 871830251, 429405526, 78194990, 522774381, 825145824, 55930109, 311617126, 242667818, 731776970, 382721099, 778461397, 756196516, 545039261, 1036303079, 638408115, 709512089, 171563844, 195983391, 358301553, 616143235, 498354834, 662827662, 871830251, 429405526, 78194990, 522774381, 825145824, 55930109, 311617126, 242667818, 731776970, 382721099, 778461397, 756196516, 545039261, 1036303079, 638408115, 709512089, 171563844, 195983391, 358301553, 616143235, 498354834, 662827662, 871830251, 429405526, 78194990, 522774381, 825145824, 55930109, 311617126, 242667818, 731776970, 382721099, 778461397, 756196516, 545039261, 1036303079, 638408115, 709512089, 171563844, 195983391, 358301553, 616143235, 498354834, 662827662, 871830251, 429405526, 78194990, 522774381, 825145824, 55930109, 311617126, 242667818, 731776970, 382721099, 778461397, 756196516, 545039261, 1036303079, 638408115, 709512089, 171563844, 195983391, 358301553, 616143235, 498354834, 662827662, 871830251, 429405526, 78194990, 522774381, 825145824, 55930109, 311617126, 242667818, 731776970, 382721099, 778461397, 756196516, 545039261, 1036303079, 638408115, 910838681, 156]
+    if k == 12
+        return [873310016, 916259689, 873310016, 916259689, 873310016, 916259689, 873310016, 916259689, 873310016, 916259689, 873310016, 916259689, 873310016, 916259689, 873310016, 916259689, 873310016, 916259689, 873310016, 916259689, 873310016, 916259689, 873310016, 916259689, 873310016, 916259689, 873310016, 916259689, 873310016, 916259689, 873310016, 916259689, 873310016, 916259689, 873310016, 916259689, 873310016, 916259689, 873310016, 916259689, 873310016, 916259689, 873310016, 916259689, 873310016, 916259689, 873310016, 916259689, 873310016, 916259689, 873310016, 916259689, 873310016, 916259689, 873310016, 916259689, 873310016, 916259689, 873310016, 916259689, 873310016, 916259689, 873310016, 916259689, 873310016, 916259689, 873310016, 916259689, 873310016, 916259689, 873310016, 916259689, 873310016, 916259689, 873310016, 916259689, 873310016, 916259689, 873310016, 916259689, 873310016, 916259689, 873310016, 916259689, 873310016, 916259689, 873310016, 916259689, 873310016, 916259689, 873310016, 916259689, 873310016, 916259689, 873310016, 916259689, 873310016, 916259689, 873310016, 916259689, 873310016, 916259689, 873310016, 916259689, 873310016, 916259689, 873310016, 916259689, 873310016, 916259689, 873310016, 916259689, 873310016, 916259689, 873310016, 916259689, 873310016, 916259689, 873310016, 916259689, 873310016, 916259689, 873310016, 916259689, 873310016, 916259689, 873310016, 916259689, 873310016, 916259689, 873310016, 916259689, 873310016, 916259689, 873310016, 916259689, 873310016, 916259689, 873310016, 110953321, 2193]
+    if k == 13
+        return [444398382, 956174179, 905161157, 713450931, 218130948, 989085806, 197561181, 894464879, 621298376, 910920692, 267498388, 1001427666, 469082102, 425474197, 1040921618, 478955590, 427942569, 236232343, 814654184, 511867217, 794084417, 417246290, 144079788, 433702104, 864021624, 524209077, 1065605338, 1021997432, 563703029, 1737002, 1024465805, 832755578, 337435595, 34648629, 316865829, 1013769526, 740603023, 1030225339, 386803035, 46990489, 588386750, 544778844, 86484441, 598260238, 547247216, 355536990, 933958831, 631171864, 913389064, 536550937, 263384435, 553006751, 983326271, 643513724, 111168161, 67560256, 683007677, 121041649, 70028628, 952060226, 456740242, 153953276, 436170476, 59332349, 859907671, 75788162, 506107683, 166295136, 707691397, 664083491, 205789088, 717564885, 666551863, 474841637, 1053263478, 750476511, 1032693711, 655855584, 382689082, 672311398, 28889094, 762818372, 230472808, 186864903, 802312324, 240346296, 189333275, 1071364873, 576044889, 273257923, 555475123, 178636996, 979212318, 195092809, 625412330, 285599783, 826996044, 783388138, 325093735, 836869532, 785856510, 594146284, 98826301, 869781159, 78256534, 775160232, 501993729, 791616045, 148193741, 882123019, 349777455, 306169550, 921616971, 359650943, 308637922, 116927696, 695349537, 392562570, 674779770, 297941643, 24775141, 314397457, 744716977, 404904430, 946300691, 902692785, 444398382, 956174179, 905161157, 713450931, 218130948, 989085806, 197561181, 894464879, 621298376, 910920692, 267498388, 1001427666, 469082102, 828127381, 36108]
+    if k == 14
+        return [890342576, 705214675, 927368156, 446035614, 594137935, 631163515, 371984454, 38754233, 223882134, 1728653, 483061195, 334958874, 297933294, 557112355, 890342576, 705214675, 927368156, 446035614, 594137935, 631163515, 371984454, 38754233, 223882134, 1728653, 483061195, 334958874, 297933294, 557112355, 890342576, 705214675, 927368156, 446035614, 594137935, 631163515, 371984454, 38754233, 223882134, 1728653, 483061195, 334958874, 297933294, 557112355, 890342576, 705214675, 927368156, 446035614, 594137935, 631163515, 371984454, 38754233, 223882134, 1728653, 483061195, 334958874, 297933294, 557112355, 890342576, 705214675, 927368156, 446035614, 594137935, 631163515, 371984454, 38754233, 223882134, 1728653, 483061195, 334958874, 297933294, 557112355, 890342576, 705214675, 927368156, 446035614, 594137935, 631163515, 371984454, 38754233, 223882134, 1728653, 483061195, 334958874, 297933294, 557112355, 890342576, 705214675, 927368156, 446035614, 594137935, 631163515, 371984454, 38754233, 223882134, 1728653, 483061195, 334958874, 297933294, 557112355, 890342576, 705214675, 927368156, 446035614, 594137935, 631163515, 371984454, 38754233, 223882134, 1728653, 483061195, 334958874, 297933294, 557112355, 890342576, 705214675, 927368156, 446035614, 594137935, 631163515, 371984454, 38754233, 223882134, 1728653, 483061195, 334958874, 297933294, 557112355, 890342576, 705214675, 927368156, 446035614, 594137935, 631163515, 371984454, 38754233, 223882134, 1728653, 483061195, 334958874, 297933294, 288676899, 691472]
+    if k == 15
+        return [379239364, 720310296, 1010852201, 25536174, 379239364, 720310296, 1010852201, 25536174, 379239364, 720310296, 1010852201, 25536174, 379239364, 720310296, 1010852201, 25536174, 379239364, 720310296, 1010852201, 25536174, 379239364, 720310296, 1010852201, 25536174, 379239364, 720310296, 1010852201, 25536174, 379239364, 720310296, 1010852201, 25536174, 379239364, 720310296, 1010852201, 25536174, 379239364, 720310296, 1010852201, 25536174, 379239364, 720310296, 1010852201, 25536174, 379239364, 720310296, 1010852201, 25536174, 379239364, 720310296, 1010852201, 25536174, 379239364, 720310296, 1010852201, 25536174, 379239364, 720310296, 1010852201, 25536174, 379239364, 720310296, 1010852201, 25536174, 379239364, 720310296, 1010852201, 25536174, 379239364, 720310296, 1010852201, 25536174, 379239364, 720310296, 1010852201, 25536174, 379239364, 720310296, 1010852201, 25536174, 379239364, 720310296, 1010852201, 25536174, 379239364, 720310296, 1010852201, 25536174, 379239364, 720310296, 1010852201, 25536174, 379239364, 720310296, 1010852201, 25536174, 379239364, 720310296, 1010852201, 25536174, 379239364, 720310296, 1010852201, 25536174, 379239364, 720310296, 1010852201, 25536174, 379239364, 720310296, 1010852201, 25536174, 379239364, 720310296, 1010852201, 25536174, 379239364, 720310296, 1010852201, 25536174, 379239364, 720310296, 1010852201, 25536174, 379239364, 720310296, 1010852201, 25536174, 379239364, 720310296, 1010852201, 25536174, 379239364, 720310296, 1010852201, 25536174, 379239364, 720310296, 1010852201, 579184302, 15238221]
+    if k == 16
+        return [151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 151842278, 420277734, 382900751]
+    if k == 17
+        return [82725426, 631319946, 737385736, 653648655, 18939503, 843988177, 389508804, 938103324, 1044169114, 960432033, 325722881, 77029731, 696292183, 171144878, 277210669, 193473588, 632506260, 383813109, 1003075561, 477928256, 583994047, 500256966, 939289638, 690596487, 236117115, 784711635, 890777425, 807040344, 172331192, 997379866, 542900493, 17753189, 123818980, 40081899, 479114571, 230421420, 849683872, 324536567, 430602358, 346865277, 785897949, 537204798, 82725426, 631319946, 737385736, 653648655, 18939503, 843988177, 389508804, 938103324, 1044169114, 960432033, 325722881, 77029731, 696292183, 171144878, 277210669, 193473588, 632506260, 383813109, 1003075561, 477928256, 583994047, 500256966, 939289638, 690596487, 236117115, 784711635, 890777425, 807040344, 172331192, 997379866, 542900493, 17753189, 123818980, 40081899, 479114571, 230421420, 849683872, 324536567, 430602358, 346865277, 785897949, 537204798, 82725426, 631319946, 737385736, 653648655, 18939503, 843988177, 389508804, 938103324, 1044169114, 960432033, 325722881, 77029731, 696292183, 171144878, 277210669, 193473588, 632506260, 383813109, 1003075561, 477928256, 583994047, 500256966, 939289638, 690596487, 236117115, 784711635, 890777425, 807040344, 172331192, 997379866, 542900493, 17753189, 123818980, 40081899, 479114571, 230421420, 849683872, 324536567, 430602358, 346865277, 785897949, 537204798, 82725426, 631319946, 737385736, 653648655, 18939503, 843988177, 389508804, 938103324, 1044169114, 960432033, 325722881, 77029731, 696292183, 842233518, 144847795, 10]
+    if k == 18
+        return [473994138, 270853793, 154773596, 241833744, 444974089, 561054286, 473994138, 270853793, 154773596, 241833744, 444974089, 561054286, 473994138, 270853793, 154773596, 241833744, 444974089, 561054286, 473994138, 270853793, 154773596, 241833744, 444974089, 561054286, 473994138, 270853793, 154773596, 241833744, 444974089, 561054286, 473994138, 270853793, 154773596, 241833744, 444974089, 561054286, 473994138, 270853793, 154773596, 241833744, 444974089, 561054286, 473994138, 270853793, 154773596, 241833744, 444974089, 561054286, 473994138, 270853793, 154773596, 241833744, 444974089, 561054286, 473994138, 270853793, 154773596, 241833744, 444974089, 561054286, 473994138, 270853793, 154773596, 241833744, 444974089, 561054286, 473994138, 270853793, 154773596, 241833744, 444974089, 561054286, 473994138, 270853793, 154773596, 241833744, 444974089, 561054286, 473994138, 270853793, 154773596, 241833744, 444974089, 561054286, 473994138, 270853793, 154773596, 241833744, 444974089, 561054286, 473994138, 270853793, 154773596, 241833744, 444974089, 561054286, 473994138, 270853793, 154773596, 241833744, 444974089, 561054286, 473994138, 270853793, 154773596, 241833744, 444974089, 561054286, 473994138, 270853793, 154773596, 241833744, 444974089, 561054286, 473994138, 270853793, 154773596, 241833744, 444974089, 561054286, 473994138, 270853793, 154773596, 241833744, 444974089, 561054286, 473994138, 270853793, 154773596, 241833744, 444974089, 561054286, 473994138, 270853793, 154773596, 241833744, 444974089, 561054286, 473994138, 2418337, 501674613, 323]
+    if k == 19
+        return [897675594, 1032890512, 897675594, 1032890512, 897675594, 1032890512, 897675594, 1032890512, 897675594, 1032890512, 897675594, 1032890512, 897675594, 1032890512, 897675594, 1032890512, 897675594, 1032890512, 897675594, 1032890512, 897675594, 1032890512, 897675594, 1032890512, 897675594, 1032890512, 897675594, 1032890512, 897675594, 1032890512, 897675594, 1032890512, 897675594, 1032890512, 897675594, 1032890512, 897675594, 1032890512, 897675594, 1032890512, 897675594, 1032890512, 897675594, 1032890512, 897675594, 1032890512, 897675594, 1032890512, 897675594, 1032890512, 897675594, 1032890512, 897675594, 1032890512, 897675594, 1032890512, 897675594, 1032890512, 897675594, 1032890512, 897675594, 1032890512, 897675594, 1032890512, 897675594, 1032890512, 897675594, 1032890512, 897675594, 1032890512, 897675594, 1032890512, 897675594, 1032890512, 897675594, 1032890512, 897675594, 1032890512, 897675594, 1032890512, 897675594, 1032890512, 897675594, 1032890512, 897675594, 1032890512, 897675594, 1032890512, 897675594, 1032890512, 897675594, 1032890512, 897675594, 1032890512, 897675594, 1032890512, 897675594, 1032890512, 897675594, 1032890512, 897675594, 1032890512, 897675594, 1032890512, 897675594, 1032890512, 897675594, 1032890512, 897675594, 1032890512, 897675594, 1032890512, 897675594, 1032890512, 897675594, 1032890512, 897675594, 1032890512, 897675594, 1032890512, 897675594, 1032890512, 897675594, 1032890512, 897675594, 1032890512, 897675594, 1032890512, 897675594, 1032890512, 897675594, 1032890512, 897675594, 1032890512, 897675594, 1032890512, 897675594, 1032890512, 897675594, 294693008, 96329789, 11520]
+    return []
+

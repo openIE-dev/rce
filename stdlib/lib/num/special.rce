@@ -1,0 +1,816 @@
+module num.special
+# uses: math.math
+
+use math
+
+# exp and log: cr_exp and cr_log are math.exp and math.log (correctly
+# rounded, CORE-MATH ports), re-exported under names that do not clash
+# where math and another module are both imported. The FDLIBM 5.3 ports stay
+# here as exp_fdlibm and log_fdlibm because erf, erfc and lgamma are
+# FDLIBM algorithms built on them and are checked bit for bit against
+# FDLIBM.
+
+# Elementary and special functions for num.stats, in pure RCE over IEEE
+# binary64. Every function is a fixed sequence of correctly rounded
+# + - * / and sqrt with no FMA (spec 6.3 N3), so it returns the same bits
+# on every target.
+#
+# exp, log, log1p, expm1, erf, erfc and lgamma are line-for-line ports of
+# FDLIBM 5.3 (Sun Microsystems; netlib.org/fdlibm, see SOURCE.md for the
+# notice), checked bit for bit against FDLIBM compiled with gcc on x86-64
+# SSE2 (-O0 -ffp-contract=off) and for error against mpmath 1.4.1 at 200
+# bits (tests/num/special_checks*.rce). FDLIBM is faithful (error below 1
+# ulp), not correctly rounded; the correctly rounded CORE-MATH ports of
+# the `math` module replace these when they land (see the progress log).
+# FDLIBM reads and writes the high and low 32-bit words of a double; the
+# word access is rebuilt here from exact scalings (f64_bits,
+# f64_from_bits), since rce has no bit casts.
+#
+# Results that are not finite (log 0, exp overflow, lgamma at a pole)
+# trap like every f64 operation; NaN and infinity never appear.
+
+const SP_I64MIN: i64 = -9223372036854775807 - 1
+const SP_M32: i64 = 4294967295
+const SP_M52: i64 = 4503599627370495
+const SP_TWO52: f64 = 4503599627370496.0
+const SP_TWO54: f64 = 18014398509481984.0
+const SP_TWOM1000: f64 = 9.332636185032189e-302
+const SP_HUGE: f64 = 1.7976931348623157e308
+
+fn sp_up(k: i64) -> f64
+    if k == 512
+        return 1.3407807929942597e154
+    if k == 256
+        return 1.157920892373162e77
+    if k == 128
+        return 3.402823669209385e38
+    if k == 64
+        return 18446744073709551616.0
+    if k == 32
+        return 4294967296.0
+    if k == 16
+        return 65536.0
+    if k == 8
+        return 256.0
+    if k == 4
+        return 16.0
+    if k == 2
+        return 4.0
+    return 2.0
+
+fn sp_down(k: i64) -> f64
+    if k == 512
+        return 7.458340731200207e-155
+    if k == 256
+        return 8.636168555094445e-78
+    if k == 128
+        return 2.938735877055719e-39
+    if k == 64
+        return 5.421010862427522e-20
+    if k == 32
+        return 2.3283064365386963e-10
+    if k == 16
+        return 0.0000152587890625
+    if k == 8
+        return 0.00390625
+    if k == 4
+        return 0.0625
+    if k == 2
+        return 0.25
+    return 0.5
+
+# 2^k for -1074 <= k <= 1023, exact (a product of exact powers).
+pub fn sp_pow2(k: i64) -> f64
+    var r = 1.0
+    var s: i64 = 512
+    if k >= 0
+        var e = k
+        while s >= 1 bound 11
+            if e >= s
+                r = r * sp_up(s)
+                e -= s
+            s = s / 2
+        return r
+    var e = 0 - k
+    if e > 1022
+        r = sp_down(512) * sp_down(512)
+        e -= 1024
+        r = r * 4.0
+        e += 2
+    while s >= 1 bound 11
+        if e >= s
+            r = r * sp_down(s)
+            e -= s
+        s = s / 2
+    return r
+
+# The IEEE 754 binary64 encoding of x as a signed 64-bit integer (sign
+# bit = bit 63), computed from exact scalings: find e with 2^e <= |x| <
+# 2^(e+1) by a binary search over power-of-two factors, then read the
+# 52-bit fraction as an exact integer.
+pub fn f64_bits(x: f64) -> i64
+    if x == 0.0
+        return 0
+    let neg = x < 0.0
+    var a = if neg then 0.0 - x else x
+    var e: i64 = 0
+    var s: i64 = 512
+    if a >= 2.0
+        while s >= 1 bound 11
+            if a >= sp_up(s)
+                a = a * sp_down(s)
+                e += s
+            s = s / 2
+    elif a < 1.0
+        var twice = true
+        while s >= 1 bound 12
+            if a * sp_up(s) < 2.0
+                a = a * sp_up(s)
+                e -= s
+            if s == 512 and twice
+                twice = false
+            else
+                s = s / 2
+    var b: i64 = 0
+    if e >= -1022
+        b = ((e + 1023) << 52) | (((a - 1.0) * SP_TWO52) as i64)
+    else
+        let ax = if neg then 0.0 - x else x
+        let p537 = sp_up(512) * sp_up(16) * sp_up(8) * 2.0
+        b = ((ax * p537) * p537) as i64
+    if neg
+        b = b + SP_I64MIN
+    return b
+
+# Inverse of f64_bits. An encoding of infinity or NaN traps (non-finite).
+pub fn f64_from_bits(b: i64) -> f64
+    let neg = b < 0
+    let u = if neg then b - SP_I64MIN else b
+    let ex = u >> 52
+    let m = u & SP_M52
+    var x = 0.0
+    if ex == 2047
+        x = SP_HUGE * 2.0
+    elif ex == 0
+        x = ((m as f64) * sp_pow2(-537)) * sp_pow2(-537)
+    else
+        x = (1.0 + (m as f64) * sp_pow2(-52)) * sp_pow2(ex - 1023)
+    return if neg then 0.0 - x else x
+
+# High word as a signed 32-bit int (C `int hx = __HI(x)`), low word
+# unsigned, and the word setters.
+pub fn hi_word(x: f64) -> i64
+    let h = (f64_bits(x) >> 32) & SP_M32
+    return if h >= 2147483648 then h - 4294967296 else h
+
+pub fn lo_word(x: f64) -> i64 = f64_bits(x) & SP_M32
+
+pub fn from_words(h: i64, l: i64) -> f64
+    let hu = h & SP_M32
+    let hs = if hu >= 2147483648 then hu - 4294967296 else hu
+    return f64_from_bits(hs * 4294967296 + (l & SP_M32))
+
+pub fn set_hi(x: f64, h: i64) -> f64 = from_words(h, lo_word(x))
+pub fn set_lo(x: f64, l: i64) -> f64 = from_words(hi_word(x), l)
+
+fn sp_abs(x: f64) -> f64 = if x < 0.0 then 0.0 - x else x
+
+# A value that traps when used: stands for FDLIBM's +-inf and NaN
+# returns (6.3 N3: a non-finite result traps).
+fn sp_nonfinite() -> f64 = SP_HUGE * 2.0
+
+# e_exp.c
+const EX_O_THRESHOLD: f64 = 709.782712893384
+const EX_U_THRESHOLD: f64 = -745.1332191019411
+const EX_INVLN2: f64 = 1.4426950408889634
+const EX_P1: f64 = 0.16666666666666602
+const EX_P2: f64 = -0.0027777777777015593
+const EX_P3: f64 = 6.613756321437934e-05
+const EX_P4: f64 = -1.6533902205465252e-06
+const EX_P5: f64 = 4.1381367970572385e-08
+# e_log.c
+const LG_LN2_HI: f64 = 0.6931471803691238
+const LG_LN2_LO: f64 = 1.9082149292705877e-10
+const LG_LG1: f64 = 0.6666666666666735
+const LG_LG2: f64 = 0.3999999999940942
+const LG_LG3: f64 = 0.2857142874366239
+const LG_LG4: f64 = 0.22222198432149784
+const LG_LG5: f64 = 0.1818357216161805
+const LG_LG6: f64 = 0.15313837699209373
+const LG_LG7: f64 = 0.14798198605116586
+# s_log1p.c
+const L1_LP1: f64 = 0.6666666666666735
+const L1_LP2: f64 = 0.3999999999940942
+const L1_LP3: f64 = 0.2857142874366239
+const L1_LP4: f64 = 0.22222198432149784
+const L1_LP5: f64 = 0.1818357216161805
+const L1_LP6: f64 = 0.15313837699209373
+const L1_LP7: f64 = 0.14798198605116586
+# s_expm1.c
+const EM_Q1: f64 = -0.03333333333333313
+const EM_Q2: f64 = 0.0015873015872548146
+const EM_Q3: f64 = -7.93650757867488e-05
+const EM_Q4: f64 = 4.008217827329362e-06
+const EM_Q5: f64 = -2.0109921818362437e-07
+# e_lgamma_r.c
+const GA_PI: f64 = 3.141592653589793
+const GA_A0: f64 = 0.07721566490153287
+const GA_A1: f64 = 0.3224670334241136
+const GA_A2: f64 = 0.06735230105312927
+const GA_A3: f64 = 0.020580808432516733
+const GA_A4: f64 = 0.007385550860814029
+const GA_A5: f64 = 0.0028905138367341563
+const GA_A6: f64 = 0.0011927076318336207
+const GA_A7: f64 = 0.0005100697921535113
+const GA_A8: f64 = 0.00022086279071390839
+const GA_A9: f64 = 0.00010801156724758394
+const GA_A10: f64 = 2.5214456545125733e-05
+const GA_A11: f64 = 4.4864094961891516e-05
+const GA_TC: f64 = 1.4616321449683622
+const GA_TF: f64 = -0.12148629053584961
+const GA_TT: f64 = -3.638676997039505e-18
+const GA_T0: f64 = 0.48383612272381005
+const GA_T1: f64 = -0.1475877229945939
+const GA_T2: f64 = 0.06462494023913339
+const GA_T3: f64 = -0.032788541075985965
+const GA_T4: f64 = 0.01797067508118204
+const GA_T5: f64 = -0.010314224129834144
+const GA_T6: f64 = 0.006100538702462913
+const GA_T7: f64 = -0.0036845201678113826
+const GA_T8: f64 = 0.0022596478090061247
+const GA_T9: f64 = -0.0014034646998923284
+const GA_T10: f64 = 0.000881081882437654
+const GA_T11: f64 = -0.0005385953053567405
+const GA_T12: f64 = 0.00031563207090362595
+const GA_T13: f64 = -0.00031275416837512086
+const GA_T14: f64 = 0.0003355291926355191
+const GA_U0: f64 = -0.07721566490153287
+const GA_U1: f64 = 0.6328270640250934
+const GA_U2: f64 = 1.4549225013723477
+const GA_U3: f64 = 0.9777175279633727
+const GA_U4: f64 = 0.22896372806469245
+const GA_U5: f64 = 0.013381091853678766
+const GA_V1: f64 = 2.4559779371304113
+const GA_V2: f64 = 2.128489763798934
+const GA_V3: f64 = 0.7692851504566728
+const GA_V4: f64 = 0.10422264559336913
+const GA_V5: f64 = 0.003217092422824239
+const GA_S0: f64 = -0.07721566490153287
+const GA_S1: f64 = 0.21498241596060885
+const GA_S2: f64 = 0.325778796408931
+const GA_S3: f64 = 0.14635047265246445
+const GA_S4: f64 = 0.02664227030336386
+const GA_S5: f64 = 0.0018402845140733772
+const GA_S6: f64 = 3.194753265841009e-05
+const GA_R1: f64 = 1.3920053346762105
+const GA_R2: f64 = 0.7219355475671381
+const GA_R3: f64 = 0.17193386563280308
+const GA_R4: f64 = 0.01864591917156529
+const GA_R5: f64 = 0.0007779424963818936
+const GA_R6: f64 = 7.326684307446256e-06
+const GA_W0: f64 = 0.4189385332046727
+const GA_W1: f64 = 0.08333333333333297
+const GA_W2: f64 = -0.0027777777772877554
+const GA_W3: f64 = 0.0007936505586430196
+const GA_W4: f64 = -0.00059518755745034
+const GA_W5: f64 = 0.0008363399189962821
+const GA_W6: f64 = -0.0016309293409657527
+# s_erf.c
+const ER_ERX: f64 = 0.8450629115104675
+const ER_EFX: f64 = 0.1283791670955126
+const ER_EFX8: f64 = 1.0270333367641007
+const ER_PP0: f64 = 0.12837916709551256
+const ER_PP1: f64 = -0.3250421072470015
+const ER_PP2: f64 = -0.02848174957559851
+const ER_PP3: f64 = -0.005770270296489442
+const ER_PP4: f64 = -2.3763016656650163e-05
+const ER_QQ1: f64 = 0.39791722395915535
+const ER_QQ2: f64 = 0.0650222499887673
+const ER_QQ3: f64 = 0.005081306281875766
+const ER_QQ4: f64 = 0.00013249473800432164
+const ER_QQ5: f64 = -3.960228278775368e-06
+const ER_PA0: f64 = -0.0023621185607526594
+const ER_PA1: f64 = 0.41485611868374833
+const ER_PA2: f64 = -0.3722078760357013
+const ER_PA3: f64 = 0.31834661990116175
+const ER_PA4: f64 = -0.11089469428239668
+const ER_PA5: f64 = 0.035478304325618236
+const ER_PA6: f64 = -0.002166375594868791
+const ER_QA1: f64 = 0.10642088040084423
+const ER_QA2: f64 = 0.540397917702171
+const ER_QA3: f64 = 0.07182865441419627
+const ER_QA4: f64 = 0.12617121980876164
+const ER_QA5: f64 = 0.01363708391202905
+const ER_QA6: f64 = 0.011984499846799107
+const ER_RA0: f64 = -0.009864944034847148
+const ER_RA1: f64 = -0.6938585727071818
+const ER_RA2: f64 = -10.558626225323291
+const ER_RA3: f64 = -62.375332450326006
+const ER_RA4: f64 = -162.39666946257347
+const ER_RA5: f64 = -184.60509290671104
+const ER_RA6: f64 = -81.2874355063066
+const ER_RA7: f64 = -9.814329344169145
+const ER_SA1: f64 = 19.651271667439257
+const ER_SA2: f64 = 137.65775414351904
+const ER_SA3: f64 = 434.56587747522923
+const ER_SA4: f64 = 645.3872717332679
+const ER_SA5: f64 = 429.00814002756783
+const ER_SA6: f64 = 108.63500554177944
+const ER_SA7: f64 = 6.570249770319282
+const ER_SA8: f64 = -0.0604244152148581
+const ER_RB0: f64 = -0.0098649429247001
+const ER_RB1: f64 = -0.799283237680523
+const ER_RB2: f64 = -17.757954917754752
+const ER_RB3: f64 = -160.63638485582192
+const ER_RB4: f64 = -637.5664433683896
+const ER_RB5: f64 = -1025.0951316110772
+const ER_RB6: f64 = -483.5191916086514
+const ER_SB1: f64 = 30.33806074348246
+const ER_SB2: f64 = 325.7925129965739
+const ER_SB3: f64 = 1536.729586084437
+const ER_SB4: f64 = 3199.8582195085955
+const ER_SB5: f64 = 2553.0504064331644
+const ER_SB6: f64 = 474.52854120695537
+const ER_SB7: f64 = -22.44095244658582
+# k_sin.c
+const KS_S1: f64 = -0.16666666666666632
+const KS_S2: f64 = 0.00833333333332249
+const KS_S3: f64 = -0.0001984126982985795
+const KS_S4: f64 = 2.7557313707070068e-06
+const KS_S5: f64 = -2.5050760253406863e-08
+const KS_S6: f64 = 1.58969099521155e-10
+# k_cos.c
+const KC_C1: f64 = 0.0416666666666666
+const KC_C2: f64 = -0.001388888888887411
+const KC_C3: f64 = 2.480158728947673e-05
+const KC_C4: f64 = -2.7557314351390663e-07
+const KC_C5: f64 = 2.087572321298175e-09
+const KC_C6: f64 = -1.1359647557788195e-11
+
+# ---------------------------------------------------------------- exp, log
+# FDLIBM e_exp.c: x = k ln2 + r, ln2 split hi/lo (hi has 32 trailing
+# zero bits so k * hi is exact), a degree-5 Remez rational in r.
+pub fn exp_fdlibm(x0: f64) -> f64
+    var x = x0
+    let hx0 = hi_word(x)
+    let xsb: i64 = if hx0 < 0 then 1 else 0
+    let hx = hx0 & 2147483647
+    if hx >= 1082535490
+        if x > EX_O_THRESHOLD
+            return sp_nonfinite()
+        if x < EX_U_THRESHOLD
+            return 0.0
+    var hi = 0.0
+    var lo = 0.0
+    var k: i64 = 0
+    if hx > 1071001154
+        if hx < 1072734898
+            if xsb == 0
+                hi = x - LG_LN2_HI
+                lo = LG_LN2_LO
+            else
+                hi = x + LG_LN2_HI
+                lo = 0.0 - LG_LN2_LO
+            k = 1 - xsb - xsb
+        else
+            k = (EX_INVLN2 * x + (if xsb == 0 then 0.5 else -0.5)) as i64
+            let t = k as f64
+            hi = x - t * LG_LN2_HI
+            lo = t * LG_LN2_LO
+        x = hi - lo
+    elif hx < 1043333120
+        return 1.0 + x
+    let t = x * x
+    let c = x - t * (EX_P1 + t * (EX_P2 + t * (EX_P3 + t * (EX_P4 + t * EX_P5))))
+    if k == 0
+        return 1.0 - ((x * c) / (c - 2.0) - x)
+    let y = 1.0 - ((lo - (x * c) / (2.0 - c)) - hi)
+    if k >= -1021
+        return f64_from_bits(f64_bits(y) + (k << 52))
+    return f64_from_bits(f64_bits(y) + ((k + 1000) << 52)) * SP_TWOM1000
+
+# FDLIBM e_log.c: x = 2^k (1 + f), f in [sqrt(2)/2 - 1, sqrt(2) - 1],
+# log(1 + f) = 2s + s R(s^2) with s = f / (2 + f).
+pub fn log_fdlibm(x0: f64) -> f64
+    var x = x0
+    var hx = hi_word(x)
+    var k: i64 = 0
+    if hx < 1048576
+        if x == 0.0 or hx < 0
+            return sp_nonfinite()
+        k -= 54
+        x = x * SP_TWO54
+        hx = hi_word(x)
+    k += (hx >> 20) - 1023
+    hx = hx & 1048575
+    var i = (hx + 614244) & 1048576
+    x = set_hi(x, hx | (i ^ 1072693248))
+    k += i >> 20
+    let f = x - 1.0
+    if (1048575 & (2 + hx)) < 3
+        if f == 0.0
+            if k == 0
+                return 0.0
+            let dk = k as f64
+            return dk * LG_LN2_HI + dk * LG_LN2_LO
+        let r = f * f * (0.5 - 0.3333333333333333 * f)
+        if k == 0
+            return f - r
+        let dk = k as f64
+        return dk * LG_LN2_HI - ((r - dk * LG_LN2_LO) - f)
+    let s = f / (2.0 + f)
+    let dk = k as f64
+    let z = s * s
+    i = hx - 398458
+    let w = z * z
+    let j = 440401 - hx
+    let t1 = w * (LG_LG2 + w * (LG_LG4 + w * LG_LG6))
+    let t2 = z * (LG_LG1 + w * (LG_LG3 + w * (LG_LG5 + w * LG_LG7)))
+    i = i | j
+    let r = t2 + t1
+    if i > 0
+        let hfsq = 0.5 * f * f
+        if k == 0
+            return f - (hfsq - s * (hfsq + r))
+        return dk * LG_LN2_HI - ((hfsq - (s * (hfsq + r) + dk * LG_LN2_LO)) - f)
+    if k == 0
+        return f - s * (f - r)
+    return dk * LG_LN2_HI - ((s * (f - r) - dk * LG_LN2_LO) - f)
+
+# FDLIBM s_log1p.c (including its normalization of u near sqrt(2)).
+pub fn log1p_fdlibm(x: f64) -> f64
+    let hx = hi_word(x)
+    let ax = hx & 2147483647
+    var k: i64 = 1
+    var f = 0.0
+    var hu: i64 = 0
+    var c = 0.0
+    if hx < 1071284858
+        if ax >= 1072693248
+            return sp_nonfinite()
+        if ax < 1042284544
+            if ax < 1016070144
+                return x
+            return x - x * x * 0.5
+        if hx > 0 or hx <= -1076707645
+            k = 0
+            f = x
+            hu = 1
+    if k != 0
+        var u = 0.0
+        if hx < 1128267776
+            u = 1.0 + x
+            hu = hi_word(u)
+            k = (hu >> 20) - 1023
+            c = if k > 0 then 1.0 - (u - x) else x - (u - 1.0)
+            c = c / u
+        else
+            u = x
+            hu = hi_word(u)
+            k = (hu >> 20) - 1023
+            c = 0.0
+        hu = hu & 1048575
+        if hu < 434334
+            u = set_hi(u, hu | 1072693248)
+        else
+            k += 1
+            u = set_hi(u, hu | 1071644672)
+            hu = (1048576 - hu) >> 2
+        f = u - 1.0
+    let hfsq = 0.5 * f * f
+    if hu == 0
+        if f == 0.0
+            if k == 0
+                return 0.0
+            c = c + (k as f64) * LG_LN2_LO
+            return (k as f64) * LG_LN2_HI + c
+        let r = hfsq * (1.0 - 0.6666666666666666 * f)
+        if k == 0
+            return f - r
+        return (k as f64) * LG_LN2_HI - ((r - ((k as f64) * LG_LN2_LO + c)) - f)
+    let s = f / (2.0 + f)
+    let z = s * s
+    let r = z * (L1_LP1 + z * (L1_LP2 + z * (L1_LP3 + z * (L1_LP4 + z * (L1_LP5 + z * (L1_LP6 + z * L1_LP7))))))
+    if k == 0
+        return f - (hfsq - s * (hfsq + r))
+    return (k as f64) * LG_LN2_HI - ((hfsq - (s * (hfsq + r) + ((k as f64) * LG_LN2_LO + c))) - f)
+
+# FDLIBM s_expm1.c.
+pub fn expm1_fdlibm(x0: f64) -> f64
+    var x = x0
+    let hx0 = hi_word(x)
+    let neg = hx0 < 0
+    let hx = hx0 & 2147483647
+    if hx >= 1078159482
+        if hx >= 1082535490
+            if x > EX_O_THRESHOLD
+                return sp_nonfinite()
+        if neg
+            return 1.0e-300 - 1.0
+    var hi = 0.0
+    var lo = 0.0
+    var k: i64 = 0
+    var c = 0.0
+    if hx > 1071001154
+        if hx < 1072734898
+            if not neg
+                hi = x - LG_LN2_HI
+                lo = LG_LN2_LO
+                k = 1
+            else
+                hi = x + LG_LN2_HI
+                lo = 0.0 - LG_LN2_LO
+                k = -1
+        else
+            k = (EX_INVLN2 * x + (if neg then -0.5 else 0.5)) as i64
+            let t = k as f64
+            hi = x - t * LG_LN2_HI
+            lo = t * LG_LN2_LO
+        x = hi - lo
+        c = (hi - x) - lo
+    elif hx < 1016070144
+        return x
+    let hfx = 0.5 * x
+    let hxs = x * hfx
+    let r1 = 1.0 + hxs * (EM_Q1 + hxs * (EM_Q2 + hxs * (EM_Q3 + hxs * (EM_Q4 + hxs * EM_Q5))))
+    let t = 3.0 - r1 * hfx
+    var e = hxs * ((r1 - t) / (6.0 - x * t))
+    if k == 0
+        return x - (x * e - hxs)
+    e = x * (e - c) - c
+    e = e - hxs
+    if k == -1
+        return 0.5 * (x - e) - 0.5
+    if k == 1
+        if x < -0.25
+            return -2.0 * (e - (x + 0.5))
+        return 1.0 + 2.0 * (x - e)
+    if k <= -2 or k > 56
+        let y = 1.0 - (e - x)
+        return f64_from_bits(f64_bits(y) + (k << 52)) - 1.0
+    if k < 20
+        let tt = from_words(1072693248 - (2097152 >> k), 0)
+        let y = tt - (e - x)
+        return f64_from_bits(f64_bits(y) + (k << 52))
+    let tt = from_words((1023 - k) << 20, 0)
+    var y = x - (e + tt)
+    y = y + 1.0
+    return f64_from_bits(f64_bits(y) + (k << 52))
+
+# ---------------------------------------------------------------- erf
+fn sp_erf_rs(s: f64, wide: bool) -> List[f64]
+    if not wide
+        let r = ER_RA0 + s * (ER_RA1 + s * (ER_RA2 + s * (ER_RA3 + s * (ER_RA4 + s * (ER_RA5 + s * (ER_RA6 + s * ER_RA7))))))
+        let q = 1.0 + s * (ER_SA1 + s * (ER_SA2 + s * (ER_SA3 + s * (ER_SA4 + s * (ER_SA5 + s * (ER_SA6 + s * (ER_SA7 + s * ER_SA8)))))))
+        return [r, q]
+    let r = ER_RB0 + s * (ER_RB1 + s * (ER_RB2 + s * (ER_RB3 + s * (ER_RB4 + s * (ER_RB5 + s * ER_RB6)))))
+    let q = 1.0 + s * (ER_SB1 + s * (ER_SB2 + s * (ER_SB3 + s * (ER_SB4 + s * (ER_SB5 + s * (ER_SB6 + s * ER_SB7))))))
+    return [r, q]
+
+fn sp_erf_pq(z: f64) -> f64
+    let r = ER_PP0 + z * (ER_PP1 + z * (ER_PP2 + z * (ER_PP3 + z * ER_PP4)))
+    let s = 1.0 + z * (ER_QQ1 + z * (ER_QQ2 + z * (ER_QQ3 + z * (ER_QQ4 + z * ER_QQ5))))
+    return r / s
+
+fn sp_erf_pa(s: f64) -> f64
+    let p = ER_PA0 + s * (ER_PA1 + s * (ER_PA2 + s * (ER_PA3 + s * (ER_PA4 + s * (ER_PA5 + s * ER_PA6)))))
+    let q = 1.0 + s * (ER_QA1 + s * (ER_QA2 + s * (ER_QA3 + s * (ER_QA4 + s * (ER_QA5 + s * ER_QA6)))))
+    return p / q
+
+# exp(-x^2) R/S part shared by erf and erfc: x > 0, z = x with its low
+# word cleared, so z * z is exact.
+fn sp_erf_tail(x: f64, rs: &[f64]) -> f64
+    let z = set_lo(x, 0)
+    return exp_fdlibm((0.0 - z) * z - 0.5625) * exp_fdlibm((z - x) * (z + x) + rs[0] / rs[1])
+
+# FDLIBM s_erf.c.
+pub fn erf_fdlibm(x: f64) -> f64
+    let hx = hi_word(x)
+    let ix = hx & 2147483647
+    if ix < 1072365568
+        if ix < 1043333120
+            if ix < 8388608
+                return 0.125 * (8.0 * x + ER_EFX8 * x)
+            return x + ER_EFX * x
+        let y = sp_erf_pq(x * x)
+        return x + x * y
+    if ix < 1072955392
+        let pq = sp_erf_pa(sp_abs(x) - 1.0)
+        if hx >= 0
+            return ER_ERX + pq
+        return (0.0 - ER_ERX) - pq
+    if ix >= 1075314688
+        if hx >= 0
+            return 1.0 - 1.0e-300
+        return 1.0e-300 - 1.0
+    let ax = sp_abs(x)
+    let s = 1.0 / (ax * ax)
+    let rs = sp_erf_rs(s, ix >= 1074191214)
+    let r = sp_erf_tail(ax, &rs)
+    if hx >= 0
+        return 1.0 - r / ax
+    return r / ax - 1.0
+
+pub fn erfc_fdlibm(x: f64) -> f64
+    let hx = hi_word(x)
+    let ix = hx & 2147483647
+    if ix < 1072365568
+        if ix < 1013972992
+            return 1.0 - x
+        let y = sp_erf_pq(x * x)
+        if hx < 1070596096
+            return 1.0 - (x + x * y)
+        var r = x * y
+        r = r + (x - 0.5)
+        return 0.5 - r
+    if ix < 1072955392
+        let pq = sp_erf_pa(sp_abs(x) - 1.0)
+        if hx >= 0
+            let z = 1.0 - ER_ERX
+            return z - pq
+        let z = ER_ERX + pq
+        return 1.0 + z
+    if ix < 1077673984
+        let ax = sp_abs(x)
+        let s = 1.0 / (ax * ax)
+        if ix >= 1074191213 and hx < 0 and ix >= 1075314688
+            return 2.0 - 1.0e-300
+        let rs = sp_erf_rs(s, ix >= 1074191213)
+        let r = sp_erf_tail(ax, &rs)
+        if hx > 0
+            return r / ax
+        return 2.0 - r / ax
+    if hx > 0
+        return 1.0e-300 * 1.0e-300
+    return 2.0 - 1.0e-300
+
+# ---------------------------------------------------------------- lgamma
+# FDLIBM k_sin.c / k_cos.c kernels on [-pi/4, pi/4] (y = 0 here).
+fn sp_ksin(x: f64) -> f64
+    let ix = hi_word(x) & 2147483647
+    if ix < 1044381696
+        return x
+    let z = x * x
+    let v = z * x
+    let r = KS_S2 + z * (KS_S3 + z * (KS_S4 + z * (KS_S5 + z * KS_S6)))
+    return x + v * (KS_S1 + z * r)
+
+fn sp_kcos(x: f64) -> f64
+    let ix = hi_word(x) & 2147483647
+    if ix < 1044381696
+        return 1.0
+    let z = x * x
+    let r = z * (KC_C1 + z * (KC_C2 + z * (KC_C3 + z * (KC_C4 + z * (KC_C5 + z * KC_C6)))))
+    if ix < 1070805811
+        return 1.0 - (0.5 * z - (z * r))
+    var qx = 0.28125
+    if ix <= 1072234496
+        qx = from_words(ix - 2097152, 0)
+    let hz = 0.5 * z - qx
+    let a = 1.0 - qx
+    return a - (hz - (z * r))
+
+# sin(pi x) for x < 0 (FDLIBM e_lgamma_r.c sin_pi).
+fn sp_sin_pi(x: f64) -> f64
+    let ix = hi_word(x) & 2147483647
+    if ix < 1070596096
+        return sp_ksin(GA_PI * x)
+    var y = 0.0 - x
+    var z = y.floor()
+    var n: i64 = 0
+    if z != y
+        y = y * 0.5
+        y = 2.0 * (y - y.floor())
+        n = (y * 4.0) as i64
+    else
+        if ix >= 1128267776
+            y = 0.0
+            n = 0
+        else
+            if ix < 1127219200
+                z = y + SP_TWO52
+            n = lo_word(z) & 1
+            y = n as f64
+            n = n << 2
+    if n == 0
+        y = sp_ksin(GA_PI * y)
+    elif n == 1 or n == 2
+        y = sp_kcos(GA_PI * (0.5 - y))
+    elif n == 3 or n == 4
+        y = sp_ksin(GA_PI * (1.0 - y))
+    elif n == 5 or n == 6
+        y = 0.0 - sp_kcos(GA_PI * (y - 1.5))
+    else
+        y = sp_ksin(GA_PI * (y - 2.0))
+    return 0.0 - y
+
+pub struct Lgamma
+    value: f64
+    sign: i64
+
+# FDLIBM e_lgamma_r.c: log|Gamma(x)| and the sign of Gamma(x). Poles
+# (x = 0, -1, -2, ..) trap.
+pub fn lgamma_r(x0: f64) -> Lgamma
+    var x = x0
+    let hx = hi_word(x)
+    let lx = lo_word(x)
+    var sgn: i64 = 1
+    let ix = hx & 2147483647
+    if (ix | lx) == 0
+        return Lgamma(value: sp_nonfinite(), sign: 1)
+    if ix < 999292928
+        if hx < 0
+            return Lgamma(value: 0.0 - log_fdlibm(0.0 - x), sign: -1)
+        return Lgamma(value: 0.0 - log_fdlibm(x), sign: 1)
+    var nadj = 0.0
+    if hx < 0
+        if ix >= 1127219200
+            return Lgamma(value: sp_nonfinite(), sign: 1)
+        let t = sp_sin_pi(x)
+        if t == 0.0
+            return Lgamma(value: sp_nonfinite(), sign: 1)
+        nadj = log_fdlibm(GA_PI / sp_abs(t * x))
+        if t < 0.0
+            sgn = -1
+        x = 0.0 - x
+    var r = 0.0
+    if ((ix - 1072693248) | lx) == 0 or ((ix - 1073741824) | lx) == 0
+        r = 0.0
+    elif ix < 1073741824
+        var y = 0.0
+        var i: i64 = 0
+        if ix <= 1072483532
+            r = 0.0 - log_fdlibm(x)
+            if ix >= 1072130372
+                y = 1.0 - x
+                i = 0
+            elif ix >= 1070442081
+                y = x - (GA_TC - 1.0)
+                i = 1
+            else
+                y = x
+                i = 2
+        else
+            r = 0.0
+            if ix >= 1073460419
+                y = 2.0 - x
+                i = 0
+            elif ix >= 1072936132
+                y = x - GA_TC
+                i = 1
+            else
+                y = x - 1.0
+                i = 2
+        if i == 0
+            let z = y * y
+            let p1 = GA_A0 + z * (GA_A2 + z * (GA_A4 + z * (GA_A6 + z * (GA_A8 + z * GA_A10))))
+            let p2 = z * (GA_A1 + z * (GA_A3 + z * (GA_A5 + z * (GA_A7 + z * (GA_A9 + z * GA_A11)))))
+            let p = y * p1 + p2
+            r = r + (p - 0.5 * y)
+        elif i == 1
+            let z = y * y
+            let w = z * y
+            let p1 = GA_T0 + w * (GA_T3 + w * (GA_T6 + w * (GA_T9 + w * GA_T12)))
+            let p2 = GA_T1 + w * (GA_T4 + w * (GA_T7 + w * (GA_T10 + w * GA_T13)))
+            let p3 = GA_T2 + w * (GA_T5 + w * (GA_T8 + w * (GA_T11 + w * GA_T14)))
+            let p = z * p1 - (GA_TT - w * (p2 + y * p3))
+            r = r + (GA_TF + p)
+        else
+            let p1 = y * (GA_U0 + y * (GA_U1 + y * (GA_U2 + y * (GA_U3 + y * (GA_U4 + y * GA_U5)))))
+            let p2 = 1.0 + y * (GA_V1 + y * (GA_V2 + y * (GA_V3 + y * (GA_V4 + y * GA_V5))))
+            r = r + ((-0.5) * y + p1 / p2)
+    elif ix < 1075838976
+        let i = x as i64
+        let y = x - (i as f64)
+        let p = y * (GA_S0 + y * (GA_S1 + y * (GA_S2 + y * (GA_S3 + y * (GA_S4 + y * (GA_S5 + y * GA_S6))))))
+        let q = 1.0 + y * (GA_R1 + y * (GA_R2 + y * (GA_R3 + y * (GA_R4 + y * (GA_R5 + y * GA_R6)))))
+        r = 0.5 * y + p / q
+        var z = 1.0
+        if i >= 7
+            z = z * (y + 6.0)
+        if i >= 6
+            z = z * (y + 5.0)
+        if i >= 5
+            z = z * (y + 4.0)
+        if i >= 4
+            z = z * (y + 3.0)
+        if i >= 3
+            z = z * (y + 2.0)
+            r = r + log_fdlibm(z)
+    elif ix < 1133510656
+        let t = log_fdlibm(x)
+        let z = 1.0 / x
+        let y = z * z
+        let w = GA_W0 + z * (GA_W1 + y * (GA_W2 + y * (GA_W3 + y * (GA_W4 + y * (GA_W5 + y * GA_W6)))))
+        r = (x - 0.5) * (t - 1.0) + w
+    else
+        r = x * (log_fdlibm(x) - 1.0)
+    if hx < 0
+        r = nadj - r
+    return Lgamma(value: r, sign: sgn)
+
+pub fn lgamma_fdlibm(x: f64) -> f64 = lgamma_r(x).value
+
+pub fn cr_exp(x: f64) -> f64 = math.exp(x)
+
+pub fn cr_log(x: f64) -> f64 = math.log(x)

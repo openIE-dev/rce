@@ -1,0 +1,283 @@
+module os.signal
+
+# Signals (survey M40), pure. A signal never runs an asynchronous handler
+# in a Form: the host takes it (blocked, then dequeued as signalfd or
+# sigtimedwait does) and admits it as an event Signal(kind) at the next
+# tick boundary. Sending one is cap Kill under grant exec.
+#  - The cross-OS table: each signal name with its number on Linux
+#    (x86, ARM and most others), Alpha/SPARC, MIPS and PA-RISC (signal(7))
+#    and on Darwin (xnu bsd/sys/signal.h), its default action and the
+#    standard that defines it.
+#  - glibc's strsignal text and bash's kill -l names on Linux.
+#  - Windows console control events and their nearest signal.
+#  - The pending-signal model the host uses to order admissions, as Linux
+#    keeps it: a standard signal is pending at most once (a second send
+#    while pending is dropped, the first value kept); a real-time signal
+#    (34 to 64) queues every send; setting a disposition that ignores a
+#    signal (SIG_IGN, or SIG_DFL for CONT, CHLD, WINCH, URG) discards its
+#    pending sends, yet a send to a blocked, ignored signal stays pending;
+#    sending SIGCONT discards pending stop signals and a stop signal
+#    discards a pending SIGCONT; dequeuing takes the synchronous signals
+#    (SEGV, BUS, ILL, TRAP, FPE, SYS) first, then the lowest number, and
+#    real-time instances in the order sent.
+
+error BadSignal(why: text)
+
+# name linux alpha/sparc mips parisc darwin action standard ("-" absent;
+# alpha/sparc "29/-" lists Alpha then SPARC).
+const TABLE: text = "SIGABRT 6 6 6 6 6 Core P1990|SIGALRM 14 14 14 14 14 Term P1990|SIGBUS 7 10 10 10 10 Core P2001|SIGCHLD 17 20 18 18 20 Ign P2001|SIGCLD - - 18 - - Ign -|SIGCONT 18 19 25 26 19 Cont P1990|SIGEMT - 7 7 - 7 Term -|SIGFPE 8 8 8 8 8 Core P1990|SIGHUP 1 1 1 1 1 Term P1990|SIGILL 4 4 4 4 4 Core P1990|SIGINFO - 29/- - - 29 - -|SIGINT 2 2 2 2 2 Term P1990|SIGIO 29 23 22 22 23 Term -|SIGIOT 6 6 6 6 6 Core -|SIGKILL 9 9 9 9 9 Term P1990|SIGLOST - -/29 - - - Term -|SIGPIPE 13 13 13 13 13 Term P1990|SIGPOLL 29 23 22 22 - Term P2001|SIGPROF 27 27 29 21 27 Term P2001|SIGPWR 30 29/- 19 19 - Term -|SIGQUIT 3 3 3 3 3 Core P1990|SIGSEGV 11 11 11 11 11 Core P1990|SIGSTKFLT 16 - - 7 - Term -|SIGSTOP 19 17 23 24 17 Stop P1990|SIGTSTP 20 18 24 25 18 Stop P1990|SIGSYS 31 12 12 31 12 Core P2001|SIGTERM 15 15 15 15 15 Term P1990|SIGTRAP 5 5 5 5 5 Core P2001|SIGTTIN 21 21 26 27 21 Stop P1990|SIGTTOU 22 22 27 28 22 Stop P1990|SIGUNUSED 31 - - 31 - Core -|SIGURG 23 16 21 29 16 Ign P2001|SIGUSR1 10 30 16 16 30 Term P1990|SIGUSR2 12 31 17 17 31 Term P1990|SIGVTALRM 26 26 28 20 26 Term P2001|SIGXCPU 24 24 30 12 24 Core P2001|SIGXFSZ 25 25 31 30 25 Core P2001|SIGWINCH 28 28 20 23 28 Ign P2024"
+
+pub struct SigRow
+    name: text
+    linux: text
+    alpha_sparc: text
+    mips: text
+    parisc: text
+    darwin: text
+    action: text
+    standard: text
+
+pub fn rows() -> List[SigRow]
+    var o: List[SigRow] = []
+    for r in TABLE.split("|")
+        let f = r.split(" ")
+        o.push(SigRow(name: copy(f[0]), linux: copy(f[1]), alpha_sparc: copy(f[2]), mips: copy(f[3]), parisc: copy(f[4]), darwin: copy(f[5]), action: copy(f[6]), standard: copy(f[7])))
+    return o
+
+fn num(s: &text) -> i64
+    if s == "" or s == "-"
+        return -1
+    var v: i64 = 0
+    for c in s.chars()
+        v = v * 10 + (c[0] as i64 - 48)
+    return v
+
+fn row(name: &text) -> SigRow ! BadSignal
+    for r in rows()
+        if r.name == name
+            return r
+    fail BadSignal(why: "unknown signal")
+
+# Numbers by target: "linux", "darwin", "alpha", "sparc", "mips", "parisc"; -1 when absent.
+pub fn number(name: &text, target: &text) -> i64 ! BadSignal
+    let r = try row(name)
+    if target == "linux"
+        return num(&r.linux)
+    if target == "darwin"
+        return num(&r.darwin)
+    if target == "mips"
+        return num(&r.mips)
+    if target == "parisc"
+        return num(&r.parisc)
+    if target == "alpha" or target == "sparc"
+        let p = r.alpha_sparc.split("/")
+        if p.len() == 1
+            return num(&p[0])
+        let k: usize = if target == "alpha" then 0 else 1
+        return num(&p[k])
+    fail BadSignal(why: "unknown target")
+
+# The default action of signal(7): Term, Core, Ign, Stop or Cont ("-" for SIGINFO, a synonym).
+pub fn action(name: &text) -> text ! BadSignal
+    let r = try row(name)
+    return copy(r.action)
+
+pub fn standard(name: &text) -> text ! BadSignal
+    let r = try row(name)
+    return copy(r.standard)
+
+# The preferred name of a number on a target (the synonyms of signal(7),
+# SIGIOT, SIGPOLL, SIGCLD, SIGUNUSED and on Linux SIGINFO, are not preferred); "" when there is none.
+const SYNONYMS: text = "SIGIOT SIGPOLL SIGCLD SIGUNUSED SIGINFO"
+
+pub fn name_of(n: i64, target: &text) -> text
+    let syn = SYNONYMS.split(" ")
+    for r in rows()
+        if syn.contains(&r.name) and not (target == "darwin" and r.name == "SIGINFO")
+            continue
+        let v = number(&r.name, target) catch -1
+        if v == n
+            return copy(r.name)
+    return ""
+
+# Linux x86-64 with glibc: SIGRTMIN is 34 (32 and 33 are taken by the C library), SIGRTMAX 64.
+pub const RTMIN: i64 = 34
+pub const RTMAX: i64 = 64
+
+# bash's kill -l name of a Linux signal number (without "SIG").
+# 0 is the shell's EXIT trap; "" for 32, 33 and numbers out of range.
+pub fn kill_l(n: i64) -> text
+    if n == 0
+        return "EXIT"
+    if n >= RTMIN and n <= RTMAX
+        if n == RTMIN
+            return "RTMIN"
+        if n == RTMAX
+            return "RTMAX"
+        if n - RTMIN <= 15
+            return "RTMIN+" + (n - RTMIN).tostr()
+        return "RTMAX-" + (RTMAX - n).tostr()
+    let lx = "linux"
+    let s = name_of(n, &lx)
+    if s == ""
+        return ""
+    let cs = s.chars()
+    var o = ""
+    var i: usize = 3
+    while i < cs.len() bound 64
+        o = o + cs[i]
+        i += 1
+    return o
+
+const GLIBC_TEXT: text = "Hangup|Interrupt|Quit|Illegal instruction|Trace/breakpoint trap|Aborted|Bus error|Floating point exception|Killed|User defined signal 1|Segmentation fault|User defined signal 2|Broken pipe|Alarm clock|Terminated|Stack fault|Child exited|Continued|Stopped (signal)|Stopped|Stopped (tty input)|Stopped (tty output)|Urgent I/O condition|CPU time limit exceeded|File size limit exceeded|Virtual timer expired|Profiling timer expired|Window changed|I/O possible|Power failure|Bad system call"
+
+# glibc strsignal on Linux.
+pub fn strsignal(n: i64) -> text
+    if n >= 1 and n <= 31
+        return copy(GLIBC_TEXT.split("|")[(n - 1) as usize])
+    if n >= RTMIN and n <= RTMAX
+        return "Real-time signal " + (n - RTMIN).tostr()
+    return "Unknown signal " + n.tostr()
+
+# Windows console control events (wincon.h) and the C runtime signal a
+# console program sees for them (SIGINT for Ctrl+C, SIGBREAK = 21 for the
+# others); "" for an unknown event.
+pub fn console_event(code: i64) -> text
+    if code == 0
+        return "CTRL_C_EVENT"
+    if code == 1
+        return "CTRL_BREAK_EVENT"
+    if code == 2
+        return "CTRL_CLOSE_EVENT"
+    if code == 5
+        return "CTRL_LOGOFF_EVENT"
+    if code == 6
+        return "CTRL_SHUTDOWN_EVENT"
+    return ""
+
+pub fn console_signal(code: i64) -> i64
+    if code == 0
+        return 2
+    if code == 1 or code == 2 or code == 5 or code == 6
+        return 21
+    return -1
+
+# ---------------- pending signals (Linux) ----------------
+
+pub struct Queued
+    sig: i64
+    val: i64
+
+pub struct Pending
+    std: List[bool]
+    stdval: List[i64]
+    rt: List[Queued]
+    ignored: List[bool]
+
+pub fn pending_new() -> Pending
+    var b: List[bool] = []
+    var v: List[i64] = []
+    var k: i64 = 0
+    while k < 65 bound 65
+        b.push(false)
+        v.push(0)
+        k += 1
+    return Pending(std: copy(b), stdval: v, rt: [], ignored: b)
+
+fn is_rt(n: i64) -> bool = n >= 32
+
+fn flush(p: &mut Pending, n: i64)
+    p.std[n as usize] = false
+    var o: List[Queued] = []
+    for q in p.rt
+        if q.sig != n
+            o.push(copy(q))
+    p.rt = o
+
+fn kernel_ignore(n: i64) -> bool = n == 18 or n == 17 or n == 28 or n == 23
+
+fn valid(n: i64) -> bool = n >= 1 and n <= 64
+
+# sigaction: "ign", "dfl" or "catch". An ignoring disposition discards
+# the pending sends of that signal.
+pub fn set_disposition(p: &mut Pending, n: i64, how: &text) -> bool ! BadSignal
+    if not valid(n) or n == 9 or n == 19
+        fail BadSignal(why: "invalid signal")
+    let ign = how == "ign" or (how == "dfl" and kernel_ignore(n))
+    p.ignored[n as usize] = ign
+    if ign
+        flush(p, n)
+    return true
+
+fn is_stop(n: i64) -> bool = n == 19 or n == 20 or n == 21 or n == 22
+
+# A send while every signal is blocked (the host's way of receiving them).
+pub fn sig_send(p: &mut Pending, n: i64, val: i64) -> bool ! BadSignal
+    if not valid(n)
+        fail BadSignal(why: "invalid signal")
+    if is_stop(n)
+        flush(p, 18)
+    elif n == 18
+        flush(p, 19)
+        flush(p, 20)
+        flush(p, 21)
+        flush(p, 22)
+    if is_rt(n)
+        p.rt.push(Queued(sig: n, val: val))
+    elif not p.std[n as usize]
+        p.std[n as usize] = true
+        p.stdval[n as usize] = val
+    return true
+
+fn sync_sig(n: i64) -> bool = n == 11 or n == 7 or n == 4 or n == 5 or n == 8 or n == 31
+
+fn has_rt(p: &Pending, n: i64) -> bool
+    for q in p.rt
+        if q.sig == n
+            return true
+    return false
+
+# Dequeue the next pending signal among `set` (sigtimedwait, signalfd);
+# none when no signal of the set is pending.
+pub fn dequeue(p: &mut Pending, set: &List[i64]) -> Queued?
+    var best: i64 = -1
+    var bsync = false
+    for n in set
+        if not valid(n)
+            continue
+        let pend = if is_rt(n) then has_rt(p, n) else p.std[n as usize]
+        if not pend
+            continue
+        let s = sync_sig(n)
+        if best < 0 or (s and not bsync) or (s == bsync and n < best)
+            best = n
+            bsync = s
+    if best < 0
+        return none
+    if not is_rt(best)
+        p.std[best as usize] = false
+        return some(Queued(sig: best, val: p.stdval[best as usize]))
+    var o: List[Queued] = []
+    var got = Queued(sig: -1, val: 0)
+    for q in p.rt
+        if got.sig < 0 and q.sig == best
+            got = copy(q)
+        else
+            o.push(copy(q))
+    p.rt = o
+    return some(got)
+
+# Every pending signal in admission order (all dequeued): the Signal
+# events the host admits at a tick boundary.
+pub fn drain(p: &mut Pending) -> List[Queued]
+    var all: List[i64] = []
+    var k: i64 = 1
+    while k <= 64 bound 64
+        all.push(k)
+        k += 1
+    var o: List[Queued] = []
+    loop bound 1048576
+        match dequeue(p, &all)
+            some(q) -> o.push(q)
+            none -> break
+    return o

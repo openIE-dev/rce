@@ -1,0 +1,11 @@
+[package]
+name = "input_ref"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+crossterm = { version = "=0.29.0", features = ["bracketed-paste"] }
+
+[features]
+default = ["bracketed-paste"]
+bracketed-paste = []

@@ -1,0 +1,57 @@
+{
+ "pouchdb": "6.0.0",
+ "cases": [
+  {
+   "opts": {},
+   "response": "{\"results\":[{\"id\":\"fresh\",\"changes\":[{\"rev\":\"1-ba7215633a26427a99f132da5a8c0d9a\"}],\"seq\":1},{\"id\":\"updated\",\"changes\":[{\"rev\":\"2-200a62bbeb8a4339a4da972105173bed\"}],\"seq\":3},{\"id\":\"deleted\",\"changes\":[{\"rev\":\"2-993da6206828457eb5f7ac427b62c218\"}],\"deleted\":true,\"seq\":5},{\"id\":\"conf\",\"changes\":[{\"rev\":\"1-bbb\"}],\"seq\":7},{\"id\":\"utf\",\"changes\":[{\"rev\":\"1-c5a546340b66453c9eb69f118eb0db09\"}],\"seq\":8}],\"last_seq\":8}"
+  },
+  {
+   "opts": {
+    "style": "all_docs"
+   },
+   "response": "{\"results\":[{\"id\":\"fresh\",\"changes\":[{\"rev\":\"1-ba7215633a26427a99f132da5a8c0d9a\"}],\"seq\":1},{\"id\":\"updated\",\"changes\":[{\"rev\":\"2-200a62bbeb8a4339a4da972105173bed\"}],\"seq\":3},{\"id\":\"deleted\",\"changes\":[{\"rev\":\"2-993da6206828457eb5f7ac427b62c218\"}],\"deleted\":true,\"seq\":5},{\"id\":\"conf\",\"changes\":[{\"rev\":\"1-aaa\"},{\"rev\":\"1-bbb\"}],\"seq\":7},{\"id\":\"utf\",\"changes\":[{\"rev\":\"1-c5a546340b66453c9eb69f118eb0db09\"}],\"seq\":8}],\"last_seq\":8}"
+  },
+  {
+   "opts": {
+    "include_docs": true
+   },
+   "response": "{\"results\":[{\"id\":\"fresh\",\"changes\":[{\"rev\":\"1-ba7215633a26427a99f132da5a8c0d9a\"}],\"doc\":{\"n\":1,\"_id\":\"fresh\",\"_rev\":\"1-ba7215633a26427a99f132da5a8c0d9a\"},\"seq\":1},{\"id\":\"updated\",\"changes\":[{\"rev\":\"2-200a62bbeb8a4339a4da972105173bed\"}],\"doc\":{\"v\":\"two\",\"nested\":{\"x\":[1,null,true]},\"_id\":\"updated\",\"_rev\":\"2-200a62bbeb8a4339a4da972105173bed\"},\"seq\":3},{\"id\":\"deleted\",\"changes\":[{\"rev\":\"2-993da6206828457eb5f7ac427b62c218\"}],\"doc\":{\"_id\":\"deleted\",\"_rev\":\"2-993da6206828457eb5f7ac427b62c218\",\"_deleted\":true},\"deleted\":true,\"seq\":5},{\"id\":\"conf\",\"changes\":[{\"rev\":\"1-bbb\"}],\"doc\":{\"v\":\"right\",\"_id\":\"conf\",\"_rev\":\"1-bbb\"},\"seq\":7},{\"id\":\"utf\",\"changes\":[{\"rev\":\"1-c5a546340b66453c9eb69f118eb0db09\"}],\"doc\":{\"s\":\"é😀 \\\"q\\\"\\n\",\"_id\":\"utf\",\"_rev\":\"1-c5a546340b66453c9eb69f118eb0db09\"},\"seq\":8}],\"last_seq\":8}"
+  },
+  {
+   "opts": {
+    "include_docs": true,
+    "conflicts": true,
+    "style": "all_docs"
+   },
+   "response": "{\"results\":[{\"id\":\"fresh\",\"changes\":[{\"rev\":\"1-ba7215633a26427a99f132da5a8c0d9a\"}],\"doc\":{\"n\":1,\"_id\":\"fresh\",\"_rev\":\"1-ba7215633a26427a99f132da5a8c0d9a\"},\"seq\":1},{\"id\":\"updated\",\"changes\":[{\"rev\":\"2-200a62bbeb8a4339a4da972105173bed\"}],\"doc\":{\"v\":\"two\",\"nested\":{\"x\":[1,null,true]},\"_id\":\"updated\",\"_rev\":\"2-200a62bbeb8a4339a4da972105173bed\"},\"seq\":3},{\"id\":\"deleted\",\"changes\":[{\"rev\":\"2-993da6206828457eb5f7ac427b62c218\"}],\"doc\":{\"_id\":\"deleted\",\"_rev\":\"2-993da6206828457eb5f7ac427b62c218\",\"_deleted\":true},\"deleted\":true,\"seq\":5},{\"id\":\"conf\",\"changes\":[{\"rev\":\"1-aaa\"},{\"rev\":\"1-bbb\"}],\"doc\":{\"v\":\"right\",\"_id\":\"conf\",\"_rev\":\"1-bbb\",\"_conflicts\":[\"1-aaa\"]},\"seq\":7},{\"id\":\"utf\",\"changes\":[{\"rev\":\"1-c5a546340b66453c9eb69f118eb0db09\"}],\"doc\":{\"s\":\"é😀 \\\"q\\\"\\n\",\"_id\":\"utf\",\"_rev\":\"1-c5a546340b66453c9eb69f118eb0db09\"},\"seq\":8}],\"last_seq\":8}"
+  },
+  {
+   "opts": {
+    "since": 3
+   },
+   "response": "{\"results\":[{\"id\":\"deleted\",\"changes\":[{\"rev\":\"2-993da6206828457eb5f7ac427b62c218\"}],\"deleted\":true,\"seq\":5},{\"id\":\"conf\",\"changes\":[{\"rev\":\"1-bbb\"}],\"seq\":7},{\"id\":\"utf\",\"changes\":[{\"rev\":\"1-c5a546340b66453c9eb69f118eb0db09\"}],\"seq\":8}],\"last_seq\":8}"
+  },
+  {
+   "opts": {
+    "since": 3,
+    "limit": 2
+   },
+   "response": "{\"results\":[{\"id\":\"deleted\",\"changes\":[{\"rev\":\"2-993da6206828457eb5f7ac427b62c218\"}],\"deleted\":true,\"seq\":5},{\"id\":\"conf\",\"changes\":[{\"rev\":\"1-bbb\"}],\"seq\":7}],\"last_seq\":7}"
+  },
+  {
+   "opts": {
+    "descending": true
+   },
+   "response": "{\"results\":[{\"id\":\"utf\",\"changes\":[{\"rev\":\"1-c5a546340b66453c9eb69f118eb0db09\"}],\"seq\":8},{\"id\":\"conf\",\"changes\":[{\"rev\":\"1-bbb\"}],\"seq\":7},{\"id\":\"deleted\",\"changes\":[{\"rev\":\"2-993da6206828457eb5f7ac427b62c218\"}],\"deleted\":true,\"seq\":5},{\"id\":\"updated\",\"changes\":[{\"rev\":\"2-200a62bbeb8a4339a4da972105173bed\"}],\"seq\":3},{\"id\":\"fresh\",\"changes\":[{\"rev\":\"1-ba7215633a26427a99f132da5a8c0d9a\"}],\"seq\":1}],\"last_seq\":1}"
+  },
+  {
+   "opts": {
+    "doc_ids": [
+     "updated",
+     "deleted"
+    ]
+   },
+   "response": "{\"results\":[{\"id\":\"updated\",\"changes\":[{\"rev\":\"2-200a62bbeb8a4339a4da972105173bed\"}],\"seq\":3},{\"id\":\"deleted\",\"changes\":[{\"rev\":\"2-993da6206828457eb5f7ac427b62c218\"}],\"deleted\":true,\"seq\":5}],\"last_seq\":5}"
+  }
+ ]
+}

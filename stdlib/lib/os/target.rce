@@ -1,0 +1,391 @@
+module os.target
+# uses: enc.enc, data.events
+use data.events
+# Targets (survey M45), pure:
+#  - the binding matrix: for each OS capability of M34 to M44 and each
+#    enforcement target (WASI preview 1 and 2, POSIX, Win32, Darwin, UEFI,
+#    bare metal) the host interface that binds it, or none;
+#  - the conformance runner of the WebAssembly WASI test suite
+#    (wasi-testsuite, test-runner/wasi_test_runner): a test's JSON
+#    configuration (the legacy keys args/env/root/exit_code/stdout/stderr,
+#    or `operations` with `proposals`, `world` and `servers`) read into
+#    its operations with the runner's error messages, the verdict of a
+#    run whose output the host observed (operations in order, stopping
+#    at the first failure), and the outcome (pass, fail, skip, xfail,
+#    xpass) against an expectation.
+
+error BadTarget(why: text)
+
+# ---------------- binding matrix ----------------
+
+pub const TARGETS: List[text] = ["wasi-p1", "wasi-p2", "posix", "win32", "darwin", "uefi", "bare"]
+pub const CAPS: List[text] = ["fs", "exec", "ipc", "signal", "clock", "device", "pkg", "svc", "net", "tty"]
+
+# Row per capability, column per target ("" = not available there).
+const MATRIX: List[List[text]] = [
+    ["path_open/fd_read/fd_write (preopens)", "wasi:filesystem/types", "open/read/write/close", "CreateFileW/ReadFile/WriteFile", "open/read/write/close", "EFI_SIMPLE_FILE_SYSTEM_PROTOCOL", ""],
+    ["", "", "posix_spawn/waitid", "CreateProcessW/WaitForSingleObject", "posix_spawn/waitid", "EFI_BOOT_SERVICES.LoadImage/StartImage", ""],
+    ["", "", "pipe/socketpair", "CreatePipe", "pipe/socketpair", "", ""],
+    ["", "", "sigaction/signalfd", "SetConsoleCtrlHandler", "sigaction/kqueue EVFILT_SIGNAL", "", ""],
+    ["clock_time_get", "wasi:clocks/monotonic-clock, wasi:clocks/wall-clock", "clock_gettime", "QueryPerformanceCounter/GetSystemTimePreciseAsFileTime", "clock_gettime", "EFI_RUNTIME_SERVICES.GetTime", "board timer"],
+    ["", "", "ioctl on /dev nodes", "DeviceIoControl", "IOKit", "EFI protocols (EFI_I2C_IO_PROTOCOL, ...)", "memory-mapped registers"],
+    ["", "", "", "", "", "", ""],
+    ["", "", "systemd service units", "service control manager", "launchd", "", ""],
+    ["sock_accept/sock_recv/sock_send", "wasi:sockets/tcp, wasi:sockets/udp", "socket/connect/accept", "Winsock (WSASocketW)", "socket/connect/accept", "EFI_TCP4_PROTOCOL/EFI_TCP6_PROTOCOL", ""],
+    ["fd_write to fd 1/2", "wasi:cli/terminal-stdout", "termios on a tty", "console API (GetConsoleMode)", "termios on a tty", "EFI_SIMPLE_TEXT_OUTPUT_PROTOCOL", "UART"],
+]
+
+fn index_of(xs: &List[text], x: &text) -> i64
+    var i: usize = 0
+    while i < xs.len() bound 1024
+        if xs[i] == x
+            return i as i64
+        i += 1
+    return -1
+
+# The interface binding a capability on a target ("" if none, or unknown).
+pub fn binding(cap: &text, target: &text) -> text
+    let r = index_of(&CAPS, cap)
+    let c = index_of(&TARGETS, target)
+    if r < 0 or c < 0
+        return ""
+    return copy(MATRIX[r as usize][c as usize])
+
+# Every row has one entry per target.
+pub fn matrix_ok() -> bool
+    if MATRIX.len() != CAPS.len()
+        return false
+    for row in MATRIX
+        if row.len() != TARGETS.len()
+            return false
+    return true
+
+# The capabilities a target binds, in CAPS order.
+pub fn bound_caps(target: &text) -> List[text]
+    var o: List[text] = []
+    for cap in CAPS
+        if binding(&cap, target) != ""
+            o.push(copy(cap))
+    return o
+
+# ---------------- wasi-testsuite configurations ----------------
+
+# One operation: kind run, wait, read, write, connect, send, recv,
+# request or kill. run: args, env ("K=V"), root; wait: exit_code; read
+# and write: id, payload; kill: signal; others keep their JSON.
+pub struct Op
+    opk: text
+    args: List[text]
+    env: List[text]
+    root: text
+    exit_code: i64
+    id: text
+    payload: text
+    signal: text
+    raw: text
+
+pub struct Plan
+    ops: List[Op]
+    proposals: List[text]
+    world: text
+    legacy: bool
+
+const LEGACY_KEYS: List[text] = ["args", "root", "env", "exit_code", "stderr", "stdout"]
+const V1_KEYS: List[text] = ["operations", "proposals", "world", "servers"]
+const OPS: List[text] = ["run", "wait", "read", "write", "connect", "send", "recv", "request", "kill"]
+# signal.Signals.__members__ of CPython on Linux (aliases included)
+const SIGNALS: List[text] = ["SIGHUP", "SIGINT", "SIGQUIT", "SIGILL", "SIGTRAP", "SIGABRT", "SIGIOT", "SIGBUS", "SIGFPE", "SIGKILL", "SIGUSR1", "SIGSEGV", "SIGUSR2", "SIGPIPE", "SIGALRM", "SIGTERM", "SIGSTKFLT", "SIGCHLD", "SIGCLD", "SIGCONT", "SIGSTOP", "SIGTSTP", "SIGTTIN", "SIGTTOU", "SIGURG", "SIGXCPU", "SIGXFSZ", "SIGVTALRM", "SIGPROF", "SIGWINCH", "SIGIO", "SIGPOLL", "SIGPWR", "SIGSYS", "SIGRTMIN", "SIGRTMAX"]
+
+fn op0(opk: text) -> Op = Op(opk: opk, args: [], env: [], root: "", exit_code: 0, id: "", payload: "", signal: "", raw: "")
+
+# Present and not JSON null (Python's `.get(k) is not None`).
+fn present(j: &events.Jv, k: text) -> bool
+    let v = events.jget(j, &k)
+    match v
+        some(x) -> return not is_null(&x)
+        none -> return false
+
+fn is_null(v: &events.Jv) -> bool
+    match v
+        events.JsNull -> return true
+        _ -> return false
+
+fn str_of(v: &events.Jv) -> text?
+    match v
+        events.JsStr(t: t) -> return some(copy(t))
+        _ -> return none
+
+fn str_or(j: &events.Jv, k: text, d: text) -> text ! BadTarget
+    let v = events.jget(j, &k)
+    match v
+        some(x) -> return try need_str(&x)
+        none -> return d
+
+fn need_str(x: &events.Jv) -> text ! BadTarget
+    let s = str_of(x)
+    match s
+        some(t) -> return copy(t)
+        none -> fail BadTarget(why: "expected a string")
+
+fn int_of(x: &events.Jv) -> i64 ! BadTarget
+    match x
+        events.JsNum(raw: r) -> return try int_text(r)
+        _ -> fail BadTarget(why: "expected an integer")
+
+fn int_text(r: &text) -> i64 ! BadTarget
+    let neg = r.startswith("-")
+    let d = if neg then copy(r.split("-")[1]) else copy(r)
+    if not d.isdigit() or d.len_bytes() > 15
+        fail BadTarget(why: "expected an integer")
+    return if neg then 0 - d.toint() else d.toint()
+
+fn strs(j: &events.Jv, k: text) -> List[text] ! BadTarget
+    let v = events.jget(j, &k)
+    match v
+        some(x) -> return try str_list(&x)
+        none -> return []
+
+fn str_list(x: &events.Jv) -> List[text] ! BadTarget
+    var o: List[text] = []
+    match x
+        events.JsArr(items: items) -> o = try each_str(items)
+        _ -> fail BadTarget(why: "expected a list of strings")
+    return o
+
+fn each_str(items: &List[events.Jv]) -> List[text] ! BadTarget
+    var o: List[text] = []
+    for it in items
+        o.push(try need_str(&it))
+    return o
+
+fn env_of(j: &events.Jv) -> List[text] ! BadTarget
+    let k = "env"
+    let v = events.jget(j, &k)
+    match v
+        some(x) -> return try env_pairs(&x)
+        none -> return []
+
+fn env_pairs(x: &events.Jv) -> List[text] ! BadTarget
+    var o: List[text] = []
+    match x
+        events.JsObj(keys: keys, vals: vals) -> o = try kv_list(keys, vals)
+        _ -> fail BadTarget(why: "expected an object of strings")
+    return o
+
+fn kv_list(keys: &List[text], vals: &List[events.Jv]) -> List[text] ! BadTarget
+    var o: List[text] = []
+    for i in 0..keys.len()
+        o.push(keys[i] + "=" + (try need_str(&vals[i])))
+    return o
+
+fn run_op(j: &events.Jv) -> Op ! BadTarget
+    var o = op0("run")
+    o.args = try strs(j, "args")
+    o.env = try env_of(j)
+    let r = try str_or(j, "root", "")
+    o.root = r
+    return o
+
+fn wait_op(j: &events.Jv) -> Op ! BadTarget
+    var o = op0("wait")
+    let k = "exit_code"
+    let v = events.jget(j, &k)
+    match v
+        some(x) -> o.exit_code = try int_of(&x)
+        none -> o.exit_code = 0
+    return o
+
+fn rw_op(opk: text, j: &events.Jv, did: text) -> Op ! BadTarget
+    var o = op0(opk)
+    o.id = try str_or(j, "id", did)
+    o.payload = try str_or(j, "payload", "")
+    return o
+
+fn kill_op(j: &events.Jv) -> Op ! BadTarget
+    var o = op0("kill")
+    let k = "signal"
+    let v = events.jget(j, &k)
+    var name = "SIGTERM"
+    match v
+        some(x) -> name = try sig_name(&x)
+        none -> name = "SIGTERM"
+    if index_of(&SIGNALS, &name) < 0
+        fail BadTarget(why: "Unknown signal name: " + name)
+    # an alias names its signal's canonical member
+    if name == "SIGIOT"
+        name = "SIGABRT"
+    if name == "SIGCLD"
+        name = "SIGCHLD"
+    if name == "SIGPOLL"
+        name = "SIGIO"
+    o.signal = name
+    return o
+
+fn sig_name(x: &events.Jv) -> text ! BadTarget
+    let s = str_of(x)
+    match s
+        some(t) -> return copy(t)
+        none -> fail BadTarget(why: "Signal name should be a str: " + events.json_text(x, false))
+
+fn one_op(j: &events.Jv) -> Op ! BadTarget
+    let tk = "type"
+    let t = events.jget(j, &tk)
+    var ty = ""
+    var shown = "None"
+    match t
+        some(x) -> ty = type_name(&x)
+        none -> ty = ""
+    if ty != ""
+        shown = copy(ty)
+    if index_of(&OPS, &ty) < 0
+        fail BadTarget(why: "Unsupported operation type " + shown)
+    if ty == "run"
+        return try run_op(j)
+    if ty == "wait"
+        return try wait_op(j)
+    if ty == "read"
+        return try rw_op("read", j, "stdout")
+    if ty == "write"
+        return try rw_op("write", j, "write")
+    if ty == "kill"
+        return try kill_op(j)
+    var o = op0(ty)
+    o.raw = events.json_text(j, false)
+    return o
+
+fn type_name(x: &events.Jv) -> text
+    let s = str_of(x)
+    match s
+        some(t) -> return copy(t)
+        none -> return ""
+
+fn has_any(keys: &List[text], set: &List[text]) -> bool
+    for k in keys
+        if index_of(set, &k) >= 0
+            return true
+    return false
+
+fn obj_keys(j: &events.Jv) -> List[text] ! BadTarget
+    match j
+        events.JsObj(keys: keys, vals: _) -> return copy(keys)
+        _ -> fail BadTarget(why: "configuration is not an object")
+
+fn op_list(j: &events.Jv) -> List[Op] ! BadTarget
+    var o: List[Op] = []
+    match j
+        events.JsArr(items: items) -> o = try ops_of(items)
+        _ -> fail BadTarget(why: "operations is not a list")
+    return o
+
+fn ops_of(items: &List[events.Jv]) -> List[Op] ! BadTarget
+    var o: List[Op] = []
+    for it in items
+        o.push(try one_op(&it))
+    return o
+
+# A test configuration (Config.from_file).
+pub fn plan_parse(t: &text) -> Plan ! BadTarget
+    let j = events.json_parse(t) catch |_e| events.JsNull
+    if is_null(&j)
+        fail BadTarget(why: "configuration is not JSON")
+    let keys = try obj_keys(&j)
+    if present(&j, "operations") or present(&j, "proposals") or present(&j, "servers")
+        if has_any(&keys, &LEGACY_KEYS)
+            fail BadTarget(why: "Cannot mix configuration styles")
+        var ops: List[Op] = []
+        if present(&j, "operations")
+            let k = "operations"
+            let v = events.jget(&j, &k)
+            match v
+                some(x) -> ops = try op_list(&x)
+                none -> ops = []
+        var props: List[text] = []
+        if present(&j, "proposals")
+            props = try strs(&j, "proposals")
+            for p in props
+                if p != "http" and p != "sockets"
+                    fail BadTarget(why: "'" + p + "' is not a valid WasiProposal")
+        let world = try str_or(&j, "world", "wasi:cli/command")
+        if world != "wasi:cli/command" and world != "wasi:http/service"
+            fail BadTarget(why: "Unknown WASI world: " + world)
+        return Plan(ops: ops, proposals: props, world: world, legacy: false)
+    if has_any(&keys, &V1_KEYS) and has_any(&keys, &LEGACY_KEYS)
+        fail BadTarget(why: "Cannot mix configuration styles")
+    var ops: List[Op] = [try run_op(&j)]
+    if present(&j, "stdout")
+        var r = op0("read")
+        r.id = "stdout"
+        r.payload = try str_or(&j, "stdout", "")
+        ops.push(r)
+    if present(&j, "stderr")
+        var r = op0("read")
+        r.id = "stderr"
+        r.payload = try str_or(&j, "stderr", "")
+        ops.push(r)
+    ops.push(try wait_op(&j))
+    return Plan(ops: ops, proposals: [], world: "wasi:cli/command", legacy: true)
+
+# ---------------- verdict and outcome ----------------
+
+# What the host observed of one run of the test program.
+pub struct Observed
+    stdout: text
+    stderr: text
+    exit_code: i64
+    timed_out: bool
+
+# The first failing operation ("" if none), i counting from 0 over all
+# operations: "read <i>" when a read's payload differs from the next
+# characters of its stream, "wait <i>" when the exit code differs or the
+# wait timed out, "error <i>" for a read, write or wait after a wait (the
+# wait collected the process and closed its pipes). Run and write otherwise
+# succeed here (the host started the program and fed its stdin); a run
+# after a wait starts the program again, with its output from the start.
+pub fn verdict(p: &Plan, ob: &Observed) -> text
+    let so = ob.stdout.chars()
+    let se = ob.stderr.chars()
+    var at_o: usize = 0
+    var at_e: usize = 0
+    var i: i64 = 0
+    var closed = false
+    for op in p.ops
+        if closed and (op.opk == "read" or op.opk == "write" or op.opk == "wait")
+            return "error " + i.tostr()
+        if op.opk == "run"
+            closed = false
+            at_o = 0
+            at_e = 0
+        if op.opk == "read"
+            let want = op.payload.chars()
+            let isout = op.id == "stdout"
+            let cs = if isout then copy(so) else copy(se)
+            let at = if isout then at_o else at_e
+            var got: List[text] = []
+            var k: usize = 0
+            while k < want.len() and at + k < cs.len() bound 16777216
+                got.push(copy(cs[at + k]))
+                k += 1
+            if isout
+                at_o = at + k
+            else
+                at_e = at + k
+            if "".join(got) != op.payload
+                return "read " + i.tostr()
+        if op.opk == "wait"
+            if ob.timed_out or ob.exit_code != op.exit_code
+                return "wait " + i.tostr()
+            closed = true
+        i += 1
+    return ""
+
+# Outcome.evaluate: skip when not executed; with an expected failure,
+# xfail if it failed and xpass if it passed; else fail or pass.
+pub fn outcome(executed: bool, expected_fail: bool, failed: bool) -> text
+    if not executed
+        return "skip"
+    if expected_fail
+        return if failed then "xfail" else "xpass"
+    return if failed then "fail" else "pass"
+
+# Outcomes that turn the suite red.
+pub fn is_failure(o: &text) -> bool = o == "fail" or o == "xpass"

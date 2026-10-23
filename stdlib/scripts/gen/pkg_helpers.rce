@@ -1,0 +1,70 @@
+fn drop1(t: &text) -> text
+    let cs = t.chars()
+    var o = ""
+    var i: usize = 1
+    while i < cs.len() bound 16777216
+        o = o + cs[i]
+        i += 1
+    return o
+fn vp(t: text) -> text
+    let v = version_parse(&t) catch |e| Version(major: "!", minor: e.why, patch: "", pre: "", build: "")
+    if v.major == "!"
+        return "err " + v.minor
+    return "ok " + version_text(&v)
+fn vf(t: text) -> text
+    let v = version_parse(&t) catch |e| Version(major: "!", minor: e.why, patch: "", pre: "", build: "")
+    return v.major + "|" + v.minor + "|" + v.patch + "|" + v.pre + "|" + v.build
+fn rp(t: text) -> text
+    let r = req_parse(&t) catch |e| VersionReq(comparators: [Comparator(op: "!", major: e.why, minor: "", patch: "", pre: "")])
+    if r.comparators.len() == 1 and r.comparators[0].op == "!"
+        return "err " + r.comparators[0].major
+    return "ok " + req_text(&r)
+fn cp(t: text) -> text
+    let c = comparator_parse(&t) catch |e| Comparator(op: "!", major: e.why, minor: "", patch: "", pre: "")
+    if c.op == "!"
+        return "err " + c.major
+    return "ok " + comparator_text(&c)
+fn pp(t: text) -> text
+    let p = prerelease_new(&t) catch |e| "!" + e.why
+    if p.startswith("!")
+        return "err " + drop1(&p)
+    return "ok " + p
+fn bp(t: text) -> text
+    let p = build_new(&t) catch |e| "!" + e.why
+    if p.startswith("!")
+        return "err " + drop1(&p)
+    return "ok " + p
+fn vv(t: text) -> Version
+    return version_parse(&t) catch Version(major: "", minor: "", patch: "", pre: "", build: "")
+fn vc(a: text, b: text) -> i64
+    let x = vv(a)
+    let y = vv(b)
+    return version_cmp(&x, &y)
+fn rm(r: text, v: text) -> bool
+    let q = req_parse(&r) catch VersionReq(comparators: [])
+    let x = vv(v)
+    return req_matches(&q, &x)
+fn km(r: text, v: text) -> bool
+    let q = comparator_parse(&r) catch Comparator(op: "", major: "", minor: "", patch: "", pre: "")
+    let x = vv(v)
+    return comparator_matches(&q, &x)
+fn vpad(v: text, w: i64, f: text, a: text) -> text
+    let x = vv(v)
+    return version_pad(&x, w, &f, &a)
+fn ones(n: i64) -> text
+    var s = ""
+    var i: i64 = 0
+    while i < n bound 16777216
+        s = s + "1"
+        i += 1
+    return s
+fn rep(s: text, n: i64) -> text
+    var o = ""
+    var b = s
+    var k = n
+    while k > 0 bound 64
+        if k % 2 == 1
+            o = o + b
+        b = b + b
+        k = k / 2
+    return o

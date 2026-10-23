@@ -1,0 +1,3 @@
+# needs: crypto
+# Ed25519, differential vector from OpenSSL (Python cryptography): public key, signature, and verification. (one operation per file: each Ed25519 scalar multiplication uses about 15M of the 50M comptime fuel)
+check ed_sign("fc84d768edabfbaff326a7528798c4679e51bf951426e73419fcc48fe3f85605", unhex("ca0df2c95aa144c1")) == "ca28454c4fc0f8c436724084d606a1a238b65bbb932e0f26d3442de6fba05ec0a14efe0293d69a130ead766cdcdc23379fc4515dce6f83acc185695ba086470e"

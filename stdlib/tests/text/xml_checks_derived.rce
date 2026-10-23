@@ -1,0 +1,8 @@
+# derived check (XML 1.0 4.1 WFC Legal Character: &#0; is not a Char)
+fn xd(s: text) -> text
+    let x = parse(&s)
+    if not x.ok
+        return "err " + x.why
+    return serialize(&x, doc_root(&x))
+check xd("<a>&#0;</a>") == "err bad character reference"
+check xd("<a>&#x41;</a>") == "<a>A</a>"

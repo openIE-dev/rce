@@ -1,0 +1,261 @@
+module io
+
+# Reader/writer and request/result patterns over host adapters (survey
+# M18). A program asks for an effect by emitting a request struct with a
+# `req: u64` field (FileRead, NetSend, PtyRead, ...); the host answers each
+# request with exactly one logged result event `<Kind>Done(req, status,
+# data: T?, err)` (Appendix E, HC-3, HC-10). Events and request structs
+# belong to the program (a library cannot declare them), so this module
+# holds the pure parts around them: result well-formedness, a table that
+# pairs each result with the one request it answers, a line reader over
+# received chunks, a writer that resends what a partial write left, and
+# the file adapter's path rule. Nothing here reads a clock, a file or a
+# socket; every value it sees came from a logged event.
+
+# ---------------- results (HC-3) ----------------
+
+pub const DELIVERED: text = "delivered"
+pub const FAILED: text = "failed"
+pub const TIMED_OUT: text = "timed_out"
+pub const UNREACHABLE: text = "unreachable"
+
+# The four outcomes of HC-3, as the host spells them.
+pub fn status_known(s: &text) -> bool
+    return s == DELIVERED or s == FAILED or s == TIMED_OUT or s == UNREACHABLE
+
+# A result is well formed when its status is known, a delivered result
+# carries data and no error, and any other result carries no data. The
+# data is taken by value (rce 0.1.3 does not infer T from a borrowed T?).
+fn has[T](d: T?) -> bool
+    match d
+        some(_x) -> return true
+        none -> return false
+
+pub fn result_ok[T](status: &text, data: T?, err: &text) -> bool
+    if not status_known(status)
+        return false
+    if status == DELIVERED
+        return has(data) and err == ""
+    return not has(data)
+
+# The data of a delivered, well-formed result; none otherwise.
+pub fn delivered[T](status: &text, data: T?, err: &text) -> T?
+    if not result_ok(status, copy(data), err)
+        return none
+    return data
+
+# ---------------- request table ----------------
+# Request ids are 1, 2, 3, ... in issue order. Each outstanding request
+# remembers its kind and a caller tag. A result settles a request only when
+# its id is outstanding and its kind matches; anything else (an unknown id,
+# a second result for the same id, a result of the wrong kind) is counted
+# as stray and changes nothing else.
+
+pub struct Pending
+    next: u64
+    reqs: List[u64]
+    kinds: List[text]
+    tags: List[text]
+    settled: u64
+    stray: u64
+
+pub fn pending_new() -> Pending = Pending(next: 0, reqs: [], kinds: [], tags: [], settled: 0, stray: 0)
+
+# Register a request of `kind` and return its id (to put in `req`).
+pub fn issue(p: &mut Pending, what: &text, tag: &text) -> u64
+    p.next += 1
+    p.reqs.push(p.next)
+    p.kinds.push(copy(what))
+    p.tags.push(copy(tag))
+    return p.next
+
+fn find_req(p: &Pending, req: u64) -> i64
+    var i: usize = 0
+    while i < p.reqs.len() bound 16777216
+        if p.reqs[i] == req
+            return i as i64
+        i += 1
+    return -1
+
+fn drop_at(p: &mut Pending, k: usize)
+    var r: List[u64] = []
+    var ks: List[text] = []
+    var ts: List[text] = []
+    var i: usize = 0
+    while i < p.reqs.len() bound 16777216
+        if i != k
+            r.push(p.reqs[i])
+            ks.push(copy(p.kinds[i]))
+            ts.push(copy(p.tags[i]))
+        i += 1
+    p.reqs = r
+    p.kinds = ks
+    p.tags = ts
+
+# Settle the request a `<kind>Done(req, ...)` result answers; its tag, or
+# none when the result is stray.
+pub fn settle(p: &mut Pending, what: &text, req: u64) -> text?
+    let i = find_req(p, req)
+    if i < 0
+        p.stray += 1
+        return none
+    let k = i as usize
+    if p.kinds[k] != what
+        p.stray += 1
+        return none
+    let t = copy(p.tags[k])
+    drop_at(p, k)
+    p.settled += 1
+    return some(t)
+
+pub fn outstanding(p: &Pending) -> usize = p.reqs.len()
+
+pub fn is_outstanding(p: &Pending, req: u64) -> bool = find_req(p, req) >= 0
+
+# ---------------- line reader ----------------
+# Chunks (FileRead data, NetRecv or PtyRead text) arrive split anywhere;
+# feed returns the lines they complete, without "\n" and without one "\r"
+# before it, and keeps the rest. finish ends the stream (eof): the rest,
+# when not empty, is the last line; later feeds return nothing.
+
+pub struct LineReader
+    rest: text
+    eof: bool
+    lines: u64
+
+pub fn reader_new() -> LineReader = LineReader(rest: "", eof: false, lines: 0)
+
+fn strip_cr(s: &text) -> text
+    let cs = s.chars()
+    let n = cs.len()
+    if n == 0 or cs[n - 1] != "\r"
+        return copy(s)
+    var o = ""
+    var i: usize = 0
+    while i + 1 < n bound 16777216
+        o = o + cs[i]
+        i += 1
+    return o
+
+pub fn feed(r: &mut LineReader, chunk: &text) -> List[text]
+    var out: List[text] = []
+    if r.eof
+        return out
+    let all = r.rest + chunk
+    let cs = all.chars()
+    var cur = ""
+    var i: usize = 0
+    while i < cs.len() bound 16777216
+        if cs[i] == "\n"
+            out.push(strip_cr(&cur))
+            cur = ""
+        else
+            cur = cur + cs[i]
+        i += 1
+    r.rest = cur
+    r.lines += out.len() as u64
+    return out
+
+pub fn finish(r: &mut LineReader) -> List[text]
+    var out: List[text] = []
+    if r.eof
+        return out
+    r.eof = true
+    if r.rest != ""
+        out.push(strip_cr(&r.rest))
+        r.rest = ""
+        r.lines += 1
+    return out
+
+# ---------------- writer ----------------
+# A writer holds text to send in chunks of at most `max` bytes, cut only
+# between characters (so every chunk is valid UTF-8; a character longer
+# than max is sent whole; max 0 acts as 1). One chunk is in flight at a
+# time; a delivered result reports how many bytes went out, which may be
+# fewer than the chunk (a partial NetSend or PtyWrite), and the rest is
+# sent again.
+
+pub struct Writer
+    data: text
+    off: usize
+    flight: usize
+    max: usize
+    sent: u64
+
+error BadWrite(why: text)
+
+pub fn writer_new(data: &text, max: usize) -> Writer = Writer(data: copy(data), off: 0, flight: 0, max: max, sent: 0)
+
+pub fn writer_done(w: &Writer) -> bool = w.off >= w.data.len_bytes()
+
+# The next chunk to send, or none while one is in flight or nothing is
+# left. Its bytes count as in flight until ack or nack.
+pub fn next_chunk(w: &mut Writer) -> text?
+    if w.flight > 0 or w.off >= w.data.len_bytes()
+        return none
+    let cs = w.data.chars()
+    var pos: usize = 0
+    var o = ""
+    var i: usize = 0
+    while i < cs.len() bound 16777216
+        let l = cs[i].len_bytes()
+        if pos >= w.off
+            if o != "" and o.len_bytes() + l > w.max
+                break
+            o = o + cs[i]
+        pos += l
+        i += 1
+    w.flight = o.len_bytes()
+    return some(o)
+
+# A delivered write of n bytes of the chunk in flight. n beyond the chunk
+# is refused. A partial count must end on a character boundary, since the
+# rest is resent as text. Returns the bytes sent so far.
+pub fn ack(w: &mut Writer, n: u64) -> u64 ! BadWrite
+    if w.flight == 0
+        fail BadWrite(why: "nothing in flight")
+    if n > (w.flight as u64)
+        fail BadWrite(why: "more than sent")
+    let k = w.off + (n as usize)
+    if not char_boundary(&w.data, k)
+        fail BadWrite(why: "inside a character")
+    w.off = k
+    w.flight = 0
+    w.sent += n
+    return w.sent
+
+# A failed, timed-out or unreachable write: nothing went out, the chunk is
+# sent again by the next next_chunk.
+pub fn nack(w: &mut Writer)
+    w.flight = 0
+
+fn char_boundary(s: &text, k: usize) -> bool
+    if k >= s.len_bytes()
+        return k == s.len_bytes()
+    let b = s[k] as i64
+    return b < 128 or b >= 192
+
+# ---------------- file paths ----------------
+# The file adapter's rule (least privilege, HC-5): a path is relative, not
+# empty (FileList alone may name the root with ""), and made of normal
+# names and "." only; ".." anywhere is refused. Empty segments ("a//b",
+# "a/") are allowed, as the host's path split skips them. Symlinks leaving
+# the root are refused by the host, which only it can see.
+
+pub fn path_ok(p: &text, list: bool) -> bool
+    if p == ""
+        return list
+    let cs = p.chars()
+    if cs[0] == "/"
+        return false
+    var seg = ""
+    var i: usize = 0
+    while i <= cs.len() bound 16777216
+        if i == cs.len() or cs[i] == "/"
+            if seg == ".."
+                return false
+            seg = ""
+        else
+            seg = seg + cs[i]
+        i += 1
+    return true

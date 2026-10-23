@@ -1,0 +1,154 @@
+module core.bytes
+
+# Byte buffers (survey M4) as List[i64] with values 0..255, the
+# representation crypto, pq, hpke, mls and hash.blake3 already use, so every
+# brick composes without conversion. Out-of-range reads trap (list index);
+# writers mask to the field width. Integers are big- or little-endian
+# unsigned of 1 to 7 bytes (a u64 does not fit i64: read 8 bytes as two u32).
+# Decoding bytes into text needs a built-in (see needs-spec in SOURCE.md).
+
+pub fn bytes_of_text(s: &text) -> List[i64]
+    var o: List[i64] = []
+    var i: usize = 0
+    while i < s.len_bytes() bound 16777216
+        o.push(s[i] as i64)
+        i += 1
+    return o
+
+pub fn bytes_zero(n: i64) -> List[i64]
+    var o: List[i64] = []
+    for _i in 0..n
+        o.push(0)
+    return o
+
+pub fn bytes_valid(b: &[i64]) -> bool
+    for x in b
+        if x < 0 or x > 255
+            return false
+    return true
+
+pub fn bytes_cat(a: &[i64], b: &[i64]) -> List[i64]
+    var o = copy(a)
+    for x in b
+        o.push(x)
+    return o
+
+# Bytes [lo, hi); traps when hi > len or lo > hi.
+pub fn bytes_slice(b: &[i64], lo: i64, hi: i64) -> List[i64]
+    let _ok = 1 / (if lo <= hi and hi <= (b.len() as i64) then 1 else 0)
+    var o: List[i64] = []
+    for i in lo..hi
+        o.push(b[i as usize])
+    return o
+
+# Lexicographic order: -1, 0, 1 (a proper prefix sorts first).
+pub fn bytes_cmp(a: &[i64], b: &[i64]) -> i64
+    var i: usize = 0
+    while i < a.len() and i < b.len() bound 16777216
+        if a[i] != b[i]
+            return if a[i] < b[i] then -1 else 1
+        i += 1
+    if a.len() == b.len()
+        return 0
+    return if a.len() < b.len() then -1 else 1
+
+pub fn bytes_xor(a: &[i64], b: &[i64]) -> List[i64]
+    let _ok = 1 / (if a.len() == b.len() then 1 else 0)
+    var o: List[i64] = []
+    var i: usize = 0
+    while i < a.len() bound 16777216
+        o.push(a[i] ^ b[i])
+        i += 1
+    return o
+
+pub fn bytes_reverse(b: &[i64]) -> List[i64]
+    var o: List[i64] = []
+    var i = b.len()
+    while i > 0 bound 16777216
+        i -= 1
+        o.push(b[i])
+    return o
+
+pub fn bytes_find(hay: &[i64], needle: &[i64]) -> i64
+    if needle.len() > hay.len()
+        return -1
+    var i: usize = 0
+    while i + needle.len() <= hay.len() bound 16777216
+        var j: usize = 0
+        while j < needle.len() and hay[i + j] == needle[j] bound 16777216
+            j += 1
+        if j == needle.len()
+            return i as i64
+        i += 1
+    return -1
+
+pub fn get_be(b: &[i64], off: i64, n: i64) -> i64
+    let _ok = 1 / (if n >= 1 and n <= 7 then 1 else 0)
+    var v: i64 = 0
+    for k in 0..n
+        v = (v << 8) | b[(off + k) as usize]
+    return v
+
+pub fn get_le(b: &[i64], off: i64, n: i64) -> i64
+    let _ok = 1 / (if n >= 1 and n <= 7 then 1 else 0)
+    var v: i64 = 0
+    var k = n
+    while k > 0 bound 8
+        k -= 1
+        v = (v << 8) | b[(off + k) as usize]
+    return v
+
+pub fn put_be(b: &mut List[i64], v: i64, n: i64)
+    var k = n
+    while k > 0 bound 8
+        k -= 1
+        b.push((v >> (8 * k)) & 255)
+
+pub fn put_le(b: &mut List[i64], v: i64, n: i64)
+    for k in 0..n
+        b.push((v >> (8 * k)) & 255)
+
+pub fn be(v: i64, n: i64) -> List[i64]
+    var o: List[i64] = []
+    put_be(&mut o, v, n)
+    return o
+
+pub fn le(v: i64, n: i64) -> List[i64]
+    var o: List[i64] = []
+    put_le(&mut o, v, n)
+    return o
+
+pub fn tohex(b: &[i64]) -> text
+    let ds = "0123456789abcdef".chars()
+    var s = ""
+    for x in b
+        s = s + copy(ds[(x >> 4) as usize]) + copy(ds[(x & 15) as usize])
+    return s
+
+error BadHex(at: i64)
+
+fn nib(c: i64) -> i64
+    if c >= 48 and c <= 57
+        return c - 48
+    if c >= 97 and c <= 102
+        return c - 87
+    if c >= 65 and c <= 70
+        return c - 55
+    return -1
+
+# Strict hex: even length, [0-9a-fA-F] only; else BadHex at the bad byte.
+pub fn unhex(h: &text) -> List[i64] ! BadHex
+    if h.len_bytes() % 2 == 1
+        fail BadHex(at: h.len_bytes() as i64)
+    var o: List[i64] = []
+    var i: usize = 0
+    while i < h.len_bytes() bound 16777216
+        let a = nib(h[i] as i64)
+        let b = nib(h[i + 1] as i64)
+        if a < 0
+            fail BadHex(at: i as i64)
+        if b < 0
+            fail BadHex(at: (i + 1) as i64)
+        o.push(a * 16 + b)
+        i += 2
+    return o

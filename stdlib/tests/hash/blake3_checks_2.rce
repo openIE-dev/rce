@@ -1,0 +1,62 @@
+# Checks for lib/hash/blake3.rce: the official BLAKE3 test vectors
+# (vectors/hash/blake3/test_vectors.json), all three modes, full 131-byte
+# extended outputs, plus properties. Shard files split the vectors so each
+# stays within one comptime fuel budget (scripts/gen/blake3_gen.py).
+
+fn pat(n: i64) -> List[i64]
+    var o: List[i64] = []
+    for i in 0..n
+        o.push(i % 251)
+    return o
+
+fn hx(b: &[i64]) -> text
+    let ds = "0123456789abcdef".chars()
+    var s = ""
+    for x in b
+        s = s + copy(ds[(x >> 4) as usize]) + copy(ds[(x & 15) as usize])
+    return s
+
+fn bytes_of(s: text) -> List[i64]
+    var o: List[i64] = []
+    var i: usize = 0
+    while i < s.len_bytes() bound 4096
+        o.push(s[i] as i64)
+        i += 1
+    return o
+
+fn v_hash(n: i64) -> text
+    let p = pat(n)
+    let h = blake3_xof(&p, 131)
+    return hx(&h)
+
+fn v_keyed(n: i64) -> text
+    let p = pat(n)
+    let k = bytes_of("whats the Elvish word for friend")
+    let h = blake3_keyed(&k, &p, 131)
+    return hx(&h)
+
+fn v_derive(n: i64) -> text
+    let p = pat(n)
+    let c = bytes_of("BLAKE3 2019-12-27 16:29:52 test vectors context")
+    let h = blake3_derive_key(&c, &p, 131)
+    return hx(&h)
+
+# property: the 32-byte hash is the prefix of every longer XOF output
+fn prefix_ok(n: i64) -> bool
+    let p = pat(n)
+    let a = blake3(&p)
+    let b = blake3_xof(&p, 200)
+    var ok = true
+    for i in 0..32
+        ok = ok and a[i] == b[i]
+    return ok
+
+check v_hash(8192) == "aae792484c8efe4f19e2ca7d371d8c467ffb10748d8a5a1ae579948f718a2a635fe51a27db045a567c1ad51be5aa34c01c6651c4d9b5b5ac5d0fd58cf18dd61a47778566b797a8c67df7b1d60b97b19288d2d877bb2df417ace009dcb0241ca1257d62712b6a4043b4ff33f690d849da91ea3bf711ed583cb7b7a7da2839ba71309bbf"
+check v_keyed(8192) == "dc9637c8845a770b4cbf76b8daec0eebf7dc2eac11498517f08d44c8fc00d58a4834464159dcbc12a0ba0c6d6eb41bac0ed6585cabfe0aca36a375e6c5480c22afdc40785c170f5a6b8a1107dbee282318d00d915ac9ed1143ad40765ec120042ee121cd2baa36250c618adaf9e27260fda2f94dea8fb6f08c04f8f10c78292aa46102"
+check v_derive(8192) == "ad01d7ae4ad059b0d33baa3c01319dcf8088094d0359e5fd45d6aeaa8b2d0c3d4c9e58958553513b67f84f8eac653aeeb02ae1d5672dcecf91cd9985a0e67f4501910ecba25555395427ccc7241d70dc21c190e2aadee875e5aae6bf1912837e53411dabf7a56cbf8e4fb780432b0d7fe6cec45024a0788cf5874616407757e9e6bef7"
+check v_hash(8193) == "bab6c09cb8ce8cf459261398d2e7aef35700bf488116ceb94a36d0f5f1b7bc3bb2282aa69be089359ea1154b9a9286c4a56af4de975a9aa4a5c497654914d279bea60bb6d2cf7225a2fa0ff5ef56bbe4b149f3ed15860f78b4e2ad04e158e375c1e0c0b551cd7dfc82f1b155c11b6b3ed51ec9edb30d133653bb5709d1dbd55f4e1ff6"
+check v_keyed(8193) == "954a2a75420c8d6547e3ba5b98d963e6fa6491addc8c023189cc519821b4a1f5f03228648fd983aef045c2fa8290934b0866b615f585149587dda2299039965328835a2b18f1d63b7e300fc76ff260b571839fe44876a4eae66cbac8c67694411ed7e09df51068a22c6e67d6d3dd2cca8ff12e3275384006c80f4db68023f24eebba57"
+check v_derive(8193) == "af1e0346e389b17c23200270a64aa4e1ead98c61695d917de7d5b00491c9b0f12f20a01d6d622edf3de026a4db4e4526225debb93c1237934d71c7340bb5916158cbdafe9ac3225476b6ab57a12357db3abbad7a26c6e66290e44034fb08a20a8d0ec264f309994d2810c49cfba6989d7abb095897459f5425adb48aba07c5fb3c83c0"
+check v_hash(16384) == "f875d6646de28985646f34ee13be9a576fd515f76b5b0a26bb324735041ddde49d764c270176e53e97bdffa58d549073f2c660be0e81293767ed4e4929f9ad34bbb39a529334c57c4a381ffd2a6d4bfdbf1482651b172aa883cc13408fa67758a3e47503f93f87720a3177325f7823251b85275f64636a8f1d599c2e49722f42e93893"
+check v_keyed(16384) == "9e9fc4eb7cf081ea7c47d1807790ed211bfec56aa25bb7037784c13c4b707b0df9e601b101e4cf63a404dfe50f2e1865bb12edc8fca166579ce0c70dba5a5c0fc960ad6f3772183416a00bd29d4c6e651ea7620bb100c9449858bf14e1ddc9ecd35725581ca5b9160de04060045993d972571c3e8f71e9d0496bfa744656861b169d65"
+check v_derive(16384) == "160e18b5878cd0df1c3af85eb25a0db5344d43a6fbd7a8ef4ed98d0714c3f7e160dc0b1f09caa35f2f417b9ef309dfe5ebd67f4c9507995a531374d099cf8ae317542e885ec6f589378864d3ea98716b3bbb65ef4ab5e0ab5bb298a501f19a41ec19af84a5e6b428ecd813b1a47ed91c9657c3fba11c406bc316768b58f6802c9e9b57"

@@ -1,0 +1,183 @@
+module hash.blake3
+
+# BLAKE3 (https://github.com/BLAKE3-team/BLAKE3, the specification paper and
+# reference_impl.rs) in pure RCE: hash, keyed_hash and derive_key, with
+# extendable output. Bytes are List[i64] with values 0..255 (as in crypto);
+# words are i64 masked to 32 bits. SHA-256 and SHA-512 are in lib/crypto.rce
+# and SHA-3/SHAKE in lib/pq.rce; this module adds no second copy of them.
+# Cost is linear: about one compression per 64 input bytes plus one per
+# 1024-byte chunk merge; the per-input fuel bounds the input size.
+
+const M32: i64 = 4294967295
+const CHUNK_START: i64 = 1
+const CHUNK_END: i64 = 2
+const PARENT: i64 = 4
+const ROOT: i64 = 8
+const KEYED_HASH: i64 = 16
+const DERIVE_KEY_CONTEXT: i64 = 32
+const DERIVE_KEY_MATERIAL: i64 = 64
+
+fn b3_iv() -> List[i64] = [1779033703, 3144134277, 1013904242, 2773480762, 1359893119, 2600822924, 528734635, 1541459225]
+
+fn b3_perm() -> List[i64] = [2, 6, 3, 10, 7, 0, 4, 13, 1, 11, 12, 5, 9, 14, 15, 8]
+
+fn rotr32(x: i64, n: i64) -> i64 = ((x >> n) | (x << (32 - n))) & M32
+
+fn b3_g(v: &mut List[i64], a: usize, b: usize, c: usize, d: usize, mx: i64, my: i64)
+    v[a] = (v[a] + v[b] + mx) & M32
+    v[d] = rotr32(v[d] ^ v[a], 16)
+    v[c] = (v[c] + v[d]) & M32
+    v[b] = rotr32(v[b] ^ v[c], 12)
+    v[a] = (v[a] + v[b] + my) & M32
+    v[d] = rotr32(v[d] ^ v[a], 8)
+    v[c] = (v[c] + v[d]) & M32
+    v[b] = rotr32(v[b] ^ v[c], 7)
+
+# The compression function: 16 output words (the first 8 are the new
+# chaining value).
+pub fn b3_compress(cv: &[i64], block: &[i64], counter: i64, blen: i64, flags: i64) -> List[i64]
+    let iv = b3_iv()
+    let perm = b3_perm()
+    var v: List[i64] = [cv[0], cv[1], cv[2], cv[3], cv[4], cv[5], cv[6], cv[7], iv[0], iv[1], iv[2], iv[3], counter & M32, (counter >> 32) & M32, blen, flags]
+    var m = copy(block)
+    for r in 0..7
+        b3_g(&mut v, 0, 4, 8, 12, m[0], m[1])
+        b3_g(&mut v, 1, 5, 9, 13, m[2], m[3])
+        b3_g(&mut v, 2, 6, 10, 14, m[4], m[5])
+        b3_g(&mut v, 3, 7, 11, 15, m[6], m[7])
+        b3_g(&mut v, 0, 5, 10, 15, m[8], m[9])
+        b3_g(&mut v, 1, 6, 11, 12, m[10], m[11])
+        b3_g(&mut v, 2, 7, 8, 13, m[12], m[13])
+        b3_g(&mut v, 3, 4, 9, 14, m[14], m[15])
+        if r < 6
+            var p: List[i64] = []
+            for i in 0..16
+                p.push(m[perm[i] as usize])
+            m = p
+    for i in 0..8
+        v[i] = v[i] ^ v[i + 8]
+        v[i + 8] = v[i + 8] ^ cv[i]
+    return v
+
+# Little-endian words of the 64-byte block at off (zero padded).
+fn block_words(input: &[i64], off: usize) -> List[i64]
+    var w: List[i64] = []
+    for i in 0..16
+        var x: i64 = 0
+        for k in 0..4
+            let j = off + 4 * i + k
+            if j < input.len()
+                x = x | (input[j] << (8 * k))
+        w.push(x)
+    return w
+
+pub fn words_le(b: &[i64]) -> List[i64]
+    var w: List[i64] = []
+    var i: usize = 0
+    while i + 3 < b.len() bound 1048576
+        w.push(b[i] | (b[i + 1] << 8) | (b[i + 2] << 16) | (b[i + 3] << 24))
+        i += 4
+    return w
+
+# A pending output: the inputs of a compression whose result is either a
+# chaining value or, with ROOT, the root output.
+struct Out
+    cv: List[i64]
+    w: List[i64]
+    ctr: i64
+    blen: i64
+    flags: i64
+
+fn out_cv(o: &Out) -> List[i64]
+    var r = b3_compress(&o.cv, &o.w, o.ctr, o.blen, o.flags)
+    while r.len() > 8 bound 8
+        let _ = r.pop()
+    return r
+
+# Output of chunk ci (bytes [1024 ci, min(len, 1024 ci + 1024))).
+fn chunk_out(key: &[i64], input: &[i64], ci: i64, flags: i64) -> Out
+    let lo = (ci as usize) * 1024
+    var hi = lo + 1024
+    if hi > input.len()
+        hi = input.len()
+    var nblocks = (hi - lo + 63) / 64
+    if nblocks == 0
+        nblocks = 1
+    var cv = copy(key)
+    var b: usize = 0
+    while b + 1 < nblocks bound 16
+        let st = if b == 0 then CHUNK_START else 0
+        let bw = block_words(input, lo + 64 * b)
+        var r = b3_compress(&cv, &bw, ci, 64, flags | st)
+        while r.len() > 8 bound 8
+            let _ = r.pop()
+        cv = r
+        b += 1
+    let off = lo + 64 * b
+    let st = if b == 0 then CHUNK_START else 0
+    let w = block_words(input, off)
+    let bl = hi - off
+    return Out(cv: cv, w: w, ctr: ci, blen: bl as i64, flags: flags | st | CHUNK_END)
+
+fn parent_out(key: &[i64], l: &[i64], r: &[i64], flags: i64) -> Out
+    var w = copy(l)
+    for x in r
+        w.push(x)
+    return Out(cv: copy(key), w: w, ctr: 0, blen: 64, flags: flags | PARENT)
+
+# Core tree hash: key words, mode flags, input bytes, output length.
+pub fn b3_core(key: &[i64], flags: i64, input: &[i64], outlen: i64) -> List[i64]
+    var n = ((input.len() + 1023) / 1024) as i64
+    if n == 0
+        n = 1
+    var stack: List[List[i64]] = []
+    var ci: i64 = 0
+    while ci + 1 < n bound 1048576
+        let co = chunk_out(key, input, ci, flags)
+        var cv = out_cv(&co)
+        var total = ci + 1
+        while total & 1 == 0 bound 64
+            let left = copy(stack[stack.len() - 1])
+            let _ = stack.pop()
+            let po = parent_out(key, &left, &cv, flags)
+            cv = out_cv(&po)
+            total = total >> 1
+        stack.push(cv)
+        ci += 1
+    var o = chunk_out(key, input, n - 1, flags)
+    while stack.len() > 0 bound 64
+        let left = copy(stack[stack.len() - 1])
+        let _ = stack.pop()
+        let rcv = out_cv(&o)
+        o = parent_out(key, &left, &rcv, flags)
+    var out: List[i64] = []
+    var ctr: i64 = 0
+    while (out.len() as i64) < outlen bound 1048576
+        let words = b3_compress(&o.cv, &o.w, ctr, o.blen, o.flags | ROOT)
+        for x in words
+            for k in 0..4
+                if (out.len() as i64) < outlen
+                    out.push((x >> (8 * k)) & 255)
+        ctr += 1
+    return out
+
+pub fn blake3(input: &[i64]) -> List[i64]
+    let iv = b3_iv()
+    return b3_core(&iv, 0, input, 32)
+
+pub fn blake3_xof(input: &[i64], outlen: i64) -> List[i64]
+    let iv = b3_iv()
+    return b3_core(&iv, 0, input, outlen)
+
+# key: exactly 32 bytes.
+pub fn blake3_keyed(key: &[i64], input: &[i64], outlen: i64) -> List[i64]
+    let _n = 1 / (if key.len() == 32 then 1 else 0)
+    let kw = words_le(key)
+    return b3_core(&kw, KEYED_HASH, input, outlen)
+
+# context: a hardcoded, globally unique application string (as bytes).
+pub fn blake3_derive_key(context: &[i64], material: &[i64], outlen: i64) -> List[i64]
+    let iv = b3_iv()
+    let ck = b3_core(&iv, DERIVE_KEY_CONTEXT, context, 32)
+    let kw = words_le(&ck)
+    return b3_core(&kw, DERIVE_KEY_MATERIAL, material, outlen)

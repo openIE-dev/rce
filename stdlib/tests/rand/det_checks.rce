@@ -1,0 +1,298 @@
+# Checks for lib/rand/det.rce. RFC 8439 ChaCha20 vectors (2.1.1 quarter
+# round, 2.3.2 block, 2.4.2 encryption, Appendix A.1 #1-#5 and A.2 #1-#3,
+# extracted from vectors/rand/rfc8439.txt by scripts/gen/rand_gen.py);
+# generator streams, bits, below, range, bytes, shuffle and split against
+# the Python model in that script; chi-square, bit-balance and range
+# sweeps over fixed seeds; refusals; seeding through Cap[Entropy] in an
+# example (a check cannot make a capability).
+
+fn hexv(c: i64) -> i64 = if c >= 97 then c - 87 else c - 48
+
+fn unhex(h: text) -> List[i64]
+    var o: List[i64] = []
+    var i: usize = 0
+    while i < h.len_bytes() bound 16777216
+        o.push(hexv(h[i] as i64) * 16 + hexv(h[i + 1] as i64))
+        i += 2
+    return o
+
+fn qr_ok(a: List[i64], want: List[i64]) -> bool
+    var v = copy(a)
+    quarter(&mut v, 0, 1, 2, 3)
+    return v == want
+
+fn block_ok(k: text, c: i64, n: text, want: text) -> bool
+    let kb = unhex(k)
+    let nb = unhex(n)
+    return chacha20_block(&kb, c, &nb) == unhex(want)
+
+fn enc_ok(k: text, c: i64, n: text, pt: text, ctext: text) -> bool
+    let kb = unhex(k)
+    let nb = unhex(n)
+    let p = unhex(pt)
+    let e = unhex(ctext)
+    return chacha20(&kb, c, &nb, &p) == e and chacha20(&kb, c, &nb, &e) == p
+
+fn gen(s: text, st: i64) -> Rng
+    let sd = unhex(s)
+    return from_seed(&sd, st) catch Rng(key: [], stream: 0, block: 0, buf: [], pos: 16)
+
+fn words_ok(s: text, st: i64, want: List[i64]) -> bool
+    var r = gen(s, st)
+    var got: List[i64] = []
+    for _ in 0..want.len()
+        got.push(next_u32(&mut r))
+    return got == want
+
+fn bits_ok(s: text, st: i64, k: i64, want: List[i64]) -> bool
+    var r = gen(s, st)
+    var got: List[i64] = []
+    for _ in 0..want.len()
+        got.push(bits(&mut r, k))
+    return got == want
+
+fn below_ok(s: text, st: i64, n: i64, want: List[i64]) -> bool
+    var r = gen(s, st)
+    var got: List[i64] = []
+    for _ in 0..want.len()
+        got.push(below(&mut r, n) catch -1)
+    return got == want
+
+fn range_ok(s: text, st: i64, lo: i64, hi: i64, want: List[i64]) -> bool
+    var r = gen(s, st)
+    var got: List[i64] = []
+    for _ in 0..want.len()
+        got.push(range(&mut r, lo, hi) catch -1)
+    return got == want
+
+fn bytes_ok(s: text, st: i64, n: i64, want: text) -> bool
+    var r = gen(s, st)
+    return bytes(&mut r, n) == unhex(want)
+
+fn shuffle_ok(s: text, st: i64, n: i64, want: List[i64]) -> bool
+    var r = gen(s, st)
+    var xs: List[i64] = []
+    for i in 0..n
+        xs.push(i)
+    shuffle(&mut r, &mut xs)
+    return xs == want
+
+fn split_ok(s: text, st: i64, cs: i64, want: List[i64], next: i64) -> bool
+    var r = gen(s, st)
+    var c = split(&mut r, cs) catch Rng(key: [], stream: 0, block: 0, buf: [], pos: 16)
+    var got: List[i64] = []
+    for _ in 0..want.len()
+        got.push(next_u32(&mut c))
+    return got == want and next_u32(&mut r) == next
+
+fn carry_ok(s: text, blk: i64, want: List[i64]) -> bool
+    var r = gen(s, 0)
+    r.block = blk
+    var got: List[i64] = []
+    for _ in 0..want.len()
+        got.push(next_u32(&mut r))
+    return got == want
+
+fn fill(b: i64) -> List[i64]
+    var o: List[i64] = []
+    for _ in 0..32
+        o.push(b)
+    return o
+
+fn seeded(b: i64, st: i64) -> Rng
+    let sd = fill(b)
+    return from_seed(&sd, st) catch Rng(key: [], stream: 0, block: 0, buf: [], pos: 16)
+
+# Pearson chi-square times the expected count: sum (c_i - e)^2.
+fn chi_below(b: i64, n: i64, draws: i64) -> i64
+    var r = seeded(b, 0)
+    var c: List[i64] = []
+    for _ in 0..n
+        c.push(0)
+    for _ in 0..draws
+        let v = below(&mut r, n) catch 0
+        c[v as usize] += 1
+    let e = draws / n
+    var s: i64 = 0
+    for x in c
+        s += (x - e) * (x - e)
+    return s
+
+fn chi_dice() -> i64
+    var r = seeded(9, 1)
+    var c = [0, 0, 0, 0, 0, 0]
+    for _ in 0..3000
+        let v = range(&mut r, 1, 6) catch 0
+        c[(v - 1) as usize] += 1
+    var s: i64 = 0
+    for x in c
+        s += (x - 500) * (x - 500)
+    return s
+
+fn popcount(x: i64) -> i64
+    var n: i64 = 0
+    var v = x
+    while v > 0 bound 64
+        n += v & 1
+        v = v >> 1
+    return n
+
+fn ones(words: i64) -> i64
+    var r = seeded(3, 2)
+    var n: i64 = 0
+    for _ in 0..words
+        n += popcount(next_u32(&mut r))
+    return n
+
+# every value of range(lo, hi) is inside; for small spans both ends occur
+fn range_sweep() -> bool
+    var r = seeded(11, 4)
+    var ok = true
+    for span in 0..40
+        let lo = span * 37 - 700
+        let hi = lo + span
+        var lo_hit = false
+        var hi_hit = false
+        for _ in 0..(10 * span + 20)
+            let v = range(&mut r, lo, hi) catch lo - 1
+            ok = ok and v >= lo and v <= hi
+            lo_hit = lo_hit or v == lo
+            hi_hit = hi_hit or v == hi
+        ok = ok and lo_hit and hi_hit
+    return ok
+
+fn big_below() -> bool
+    var r = seeded(5, 0)
+    var hi: i64 = 0
+    var ok = true
+    for _ in 0..64
+        let v = below(&mut r, 4611686018427387904) catch -1
+        ok = ok and v >= 0
+        hi = if v > hi then v else hi
+    return ok and hi > 2305843009213693952
+
+fn is_perm(n: i64) -> bool
+    var r = seeded(1, 1)
+    var xs: List[i64] = []
+    for i in 0..n
+        xs.push(i)
+    shuffle(&mut r, &mut xs)
+    var seen: List[i64] = []
+    for _ in 0..n
+        seen.push(0)
+    for x in xs
+        seen[x as usize] += 1
+    var ok = true
+    for c in seen
+        ok = ok and c == 1
+    return ok
+
+fn same_stream() -> bool
+    var a = seeded(42, 6)
+    var b = seeded(42, 6)
+    var c = seeded(42, 7)
+    var eq = true
+    var ne = false
+    for _ in 0..40
+        let x = next_u32(&mut a)
+        eq = eq and x == next_u32(&mut b)
+        ne = ne or x != next_u32(&mut c)
+    return eq and ne
+
+fn refused_seed(n: i64, bad: i64) -> bool
+    var sd: List[i64] = []
+    for _ in 0..n
+        sd.push(bad)
+    let r = from_seed(&sd, 0) catch Rng(key: [], stream: -1, block: 0, buf: [], pos: 16)
+    return r.stream == -1
+
+fn refused_range(lo: i64, hi: i64) -> bool
+    var r = seeded(0, 0)
+    return (range(&mut r, lo, hi) catch -999) == -999
+
+fn refused_below(n: i64) -> bool
+    var r = seeded(0, 0)
+    return (below(&mut r, n) catch -999) == -999
+
+# Seeding through the capability: the host delivers Random bytes with a
+# Cap[Entropy]; from_entropy cannot be called without one, and a check
+# or a step on any other event has none (W-TY-1 on a forged value).
+# The first word of the zero-seed stream is RFC 8439 A.1 #1 (ade0b876).
+intent "a generator seeded from logged entropy"
+    "only an event carrying Cap[Entropy] can seed or reseed it"
+    example Reseed(c: (), seed: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]), Draw -> last == 2917185654
+    example Reseed(c: (), seed: [1, 2, 3]) -> refused: BadSeed
+
+state Dice
+    gen: Rng = Rng(key: [0, 0, 0, 0, 0, 0, 0, 0], stream: 0, block: 0, buf: [], pos: 16)
+    last: i64 = -1
+
+event Reseed(c: Cap[Entropy], seed: List[i64])
+event Draw
+
+step Dice on Reseed(c, seed)
+    gen = try from_entropy(c, &seed, 0)
+
+step Dice on Draw
+    last = next_u32(&mut gen)
+
+check chi_below(7, 10, 5000) < 13940
+check chi_dice() < 10260
+check (ones(200) - 3200) * (ones(200) - 3200) < 25600
+check range_sweep()
+check big_below()
+check is_perm(50) and is_perm(1) and is_perm(2)
+check same_stream()
+check refused_seed(31, 0) and refused_seed(33, 0) and refused_seed(32, 256) and refused_seed(32, -1) and not refused_seed(32, 255)
+check refused_range(5, 4) and refused_range(-4611686018427387904, 0) and not refused_range(4, 4)
+check refused_below(0) and refused_below(-3) and refused_below(4611686018427387905) and not refused_below(1)
+
+# ---- generated by scripts/gen/rand_gen.py
+# RFC 8439 2.1.1 quarter round
+check qr_ok([286331153, 16909060, 2609737539, 19088743], [3928658676, 3407673550, 1166100270, 1484899515])
+# RFC 8439 2.3.2 block function
+check block_ok("000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f", 1, "000000090000004a00000000", "10f1e7e4d13b5915500fdd1fa32071c4c7d1f4c733c068030422aa9ac3d46c4ed2826446079faa0914c2d705d98b02a2b5129cd1de164eb9cbd083e8a2503c4e")
+# RFC 8439 2.4.2 encryption (sunscreen)
+check enc_ok("000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f", 1, "000000000000004a00000000", "4c616469657320616e642047656e746c656d656e206f662074686520636c617373206f66202739393a204966204920636f756c64206f6666657220796f75206f6e6c79206f6e652074697020666f7220746865206675747572652c2073756e73637265656e20776f756c642062652069742e", "6e2e359a2568f98041ba0728dd0d6981e97e7aec1d4360c20a27afccfd9fae0bf91b65c5524733ab8f593dabcd62b3571639d624e65152ab8f530c359f0861d807ca0dbf500d6a6156a38e088a22b65e52bc514d16ccf806818ce91ab77937365af90bbf74a35be6b40b8eedf2785e42874d")
+# RFC 8439 A.1 block vectors #1-#5
+check block_ok("0000000000000000000000000000000000000000000000000000000000000000", 0, "000000000000000000000000", "76b8e0ada0f13d90405d6ae55386bd28bdd219b8a08ded1aa836efcc8b770dc7da41597c5157488d7724e03fb8d84a376a43b8f41518a11cc387b669b2ee6586")
+check block_ok("0000000000000000000000000000000000000000000000000000000000000000", 1, "000000000000000000000000", "9f07e7be5551387a98ba977c732d080dcb0f29a048e3656912c6533e32ee7aed29b721769ce64e43d57133b074d839d531ed1f28510afb45ace10a1f4b794d6f")
+check block_ok("0000000000000000000000000000000000000000000000000000000000000001", 1, "000000000000000000000000", "3aeb5224ecf849929b9d828db1ced4dd832025e8018b8160b82284f3c949aa5a8eca00bbb4a73bdad192b5c42f73f2fd4e273644c8b36125a64addeb006c13a0")
+check block_ok("00ff000000000000000000000000000000000000000000000000000000000000", 2, "000000000000000000000000", "72d54dfbf12ec44b362692df94137f328fea8da73990265ec1bbbea1ae9af0ca13b25aa26cb4a648cb9b9d1be65b2c0924a66c54d545ec1b7374f4872e99f096")
+check block_ok("0000000000000000000000000000000000000000000000000000000000000000", 0, "000000000000000000000002", "c2c64d378cd536374ae204b9ef933fcd1a8b2288b3dfa49672ab765b54ee27c78a970e0e955c14f3a88e741b97c286f75f8fc299e8148362fa198a39531bed6d")
+# RFC 8439 A.2 encryption vectors #1-#3
+check enc_ok("0000000000000000000000000000000000000000000000000000000000000000", 0, "000000000000000000000000", "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000", "76b8e0ada0f13d90405d6ae55386bd28bdd219b8a08ded1aa836efcc8b770dc7da41597c5157488d7724e03fb8d84a376a43b8f41518a11cc387b669b2ee6586")
+check enc_ok("0000000000000000000000000000000000000000000000000000000000000001", 1, "000000000000000000000002", "416e79207375626d697373696f6e20746f20746865204945544620696e74656e6465642062792074686520436f6e7472696275746f7220666f72207075626c69636174696f6e20617320616c6c206f722070617274206f6620616e204945544620496e7465726e65742d4472616674206f722052464320616e6420616e792073746174656d656e74206d6164652077697468696e2074686520636f6e74657874206f6620616e204945544620616374697669747920697320636f6e7369646572656420616e20224945544620436f6e747269627574696f6e222e20537563682073746174656d656e747320696e636c756465206f72616c2073746174656d656e747320696e20494554462073657373696f6e732c2061732077656c6c206173207772697474656e20616e6420656c656374726f6e696320636f6d6d756e69636174696f6e73206d61646520617420616e792074696d65206f7220706c6163652c207768696368206172652061646472657373656420746f", "a3fbf07df3fa2fde4f376ca23e82737041605d9f4f4f57bd8cff2c1d4b7955ec2a97948bd3722915c8f3d337f7d370050e9e96d647b7c39f56e031ca5eb6250d4042e02785ececfa4b4bb5e8ead0440e20b6e8db09d881a7c6132f420e52795042bdfa7773d8a9051447b3291ce1411c680465552aa6c405b7764d5e87bea85ad00f8449ed8f72d0d662ab052691ca66424bc86d2df80ea41f43abf937d3259dc4b2d0dfb48a6c9139ddd7f76966e928e635553ba76c5c879d7b35d49eb2e62b0871cdac638939e25e8a1e0ef9d5280fa8ca328b351c3c765989cbcf3daa8b6ccc3aaf9f3979c92b3720fc88dc95ed84a1be059c6499b9fda236e7e818b04b0bc39c1e876b193bfe5569753f88128cc08aaa9b63d1a16f80ef2554d7189c411f5869ca52c5b83fa36ff216b9c1d30062bebcfd2dc5bce0911934fda79a86f6e698ced759c3ff9b6477338f3da4f9cd8514ea9982ccafb341b2384dd902f3d1ab7ac61dd29c6f21ba5b862f3730e37cfdc4fd806c22f221")
+check enc_ok("1c9240a5eb55d38af333888604f6b5f0473917c1402b80099dca5cbc207075c0", 42, "000000000000000000000002", "2754776173206272696c6c69672c20616e642074686520736c6974687920746f7665730a446964206779726520616e642067696d626c6520696e2074686520776162653a0a416c6c206d696d737920776572652074686520626f726f676f7665732c0a416e6420746865206d6f6d65207261746873206f757467726162652e", "62e6347f95ed87a45ffae7426f27a1df5fb69110044c0d73118effa95b01e5cf166d3df2d721caf9b21e5fb14c616871fd84c54f9d65b283196c7fe4f60553ebf39c6402c42234e32a356b3e764312a61a5532055716ead6962568f87d3f3f7704c6a8d1bcd1bf4d50d6154b6da731b187b58dfd728afa36757a797ac188d1")
+# derived: generator streams from the Python model (scripts/gen/rand_gen.py)
+check words_ok("0000000000000000000000000000000000000000000000000000000000000000", 0, [2917185654, 2419978656, 3848953152, 683509331, 3088700093, 451775904, 3438229160, 3339548555, 2086224346, 2370328401, 1071654007, 927652024, 4105716586, 480319509, 1773569987, 2254827186, 3202811807, 2050511189, 2090318488, 218639731, 2687045579, 1768285000, 1045677586, 3984256562, 1981921065, 1129244316, 2956161493, 3577337972, 673180977, 1174080081, 520806828, 1867348299])
+check words_ok("000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f", 1, [167459032, 976121427, 1072883728, 2792579656, 3872932511, 3984709440, 1014596835, 1680196404, 3848356860, 548849109, 671431512, 1632382745, 238744073, 3868080404, 4074536019, 2718851533, 4001054612, 714924996, 4090714999, 1541226349])
+check words_ok("ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff", 7, [2437473166, 2786317585, 2673626451, 1389818135, 1595635072, 4238968406, 183006548, 3066371929, 2303426379, 872098173, 3390544184, 1182037156, 131197114, 3210451932, 3218362024, 2115185250, 891780173, 2145543659, 3224278478, 3447779872])
+check words_ok("1c9240a5eb55d38af333888604f6b5f0473917c1402b80099dca5cbc207075c0", 4294967297, [1745759595, 1555832614, 1671991339, 2940405435, 3957842958, 2935543598, 2017656825, 2256980153, 3953126136, 2303525381, 1437579440, 3289425421, 1627471589, 3502132368, 1013234936, 3832184828, 3856793698, 3814038338, 704210608, 1038384514])
+check bits_ok("000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f", 3, 1, [0, 1, 1, 1, 1, 0, 1, 1, 0, 0, 1, 1])
+check bits_ok("000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f", 3, 7, [34, 127, 108, 82, 65, 22, 97, 96, 63, 20, 91, 124])
+check bits_ok("000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f", 3, 31, [577515505, 2132664678, 1813024528, 1379287243, 1101973960, 377757093, 1632285750, 1613577198, 1068803744, 349224972, 1531291208, 2096778924])
+check bits_ok("000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f", 3, 32, [1155031011, 4265329357, 3626049057, 2758574487, 2203947920, 755514186, 3264571501, 3227154397, 2137607489, 698449944, 3062582417, 4193557848])
+check bits_ok("000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f", 3, 33, [4265329357, 7053541783, 5050481482, 7522121693, 698449944, 8488525144, 5771951947, 6912162857, 3446493455, 1771599372, 3911795442, 6892255485])
+check bits_ok("000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f", 3, 48, [75698768954061, 237639004094871, 144436210711370, 213948433070045, 140089646743576, 200712310267224, 202066803359563, 210700827835433, 140620675764495, 48556376880652, 65918774887154, 218994389776637])
+check bits_ok("000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f", 3, 62, [1240205105571807949, 3893440530061492631, 2366471060377320266, 3505306960215570397, 2295238563859628056, 3288422833699724632, 3310674287744581451, 3452131901521738793, 2303877631330570511, 795543702949361164, 1079950490900972274, 3588021660270164221])
+check below_ok("1c9240a5eb55d38af333888604f6b5f0473917c1402b80099dca5cbc207075c0", 5, 1, [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
+check below_ok("1c9240a5eb55d38af333888604f6b5f0473917c1402b80099dca5cbc207075c0", 5, 2, [1, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 1])
+check below_ok("1c9240a5eb55d38af333888604f6b5f0473917c1402b80099dca5cbc207075c0", 5, 3, [2, 0, 0, 2, 2, 0, 0, 0, 0, 1, 0, 0])
+check below_ok("1c9240a5eb55d38af333888604f6b5f0473917c1402b80099dca5cbc207075c0", 5, 6, [5, 1, 0, 5, 5, 0, 0, 1, 1, 3, 0, 0])
+check below_ok("1c9240a5eb55d38af333888604f6b5f0473917c1402b80099dca5cbc207075c0", 5, 10, [2, 1, 1, 1, 2, 2, 7, 1, 1, 3, 5, 7])
+check below_ok("1c9240a5eb55d38af333888604f6b5f0473917c1402b80099dca5cbc207075c0", 5, 1000, [748, 183, 91, 975, 757, 786, 760, 89, 75, 171, 138, 992])
+check below_ok("1c9240a5eb55d38af333888604f6b5f0473917c1402b80099dca5cbc207075c0", 5, 2147483649, [767963974, 384476036, 374139956, 316118025, 717273196, 580571472, 2144317259, 278654742, 308996646, 857779419, 1511214482, 2109450557])
+check below_ok("1c9240a5eb55d38af333888604f6b5f0473917c1402b80099dca5cbc207075c0", 5, 4294967296, [3137492222, 767963974, 384476036, 4092757492, 3175123684, 3299783184, 3188267970, 374139956, 316118025, 717273196, 580571472, 4163139465])
+check below_ok("1c9240a5eb55d38af333888604f6b5f0473917c1402b80099dca5cbc207075c0", 5, 4294967297, [4092757492, 717273196, 4163139465, 278654742, 857779419, 3325559317, 1859045613, 3593185418, 918574866, 2720865940, 2294892371, 90525762])
+check below_ok("1c9240a5eb55d38af333888604f6b5f0473917c1402b80099dca5cbc207075c0", 5, 1000000000000037, [822474120246086, 100789795325428, 832342191944208, 835783830072372, 82867816282220, 152196329273225, 562117008420630, 80999646014683, 396158224040469, 289495539697901, 541792242739338, 952252711607006])
+check below_ok("1c9240a5eb55d38af333888604f6b5f0473917c1402b80099dca5cbc207075c0", 5, 4611686018427387904, [3368856619856573254, 412828004271687156, 3409263099183542800, 3423376663735233588, 339429144406308972, 623383875470784393, 2302443121970769686, 331782620996218075, 1622654195535970837, 4133887045048969533, 1185772362693265645, 2219174726006974602])
+check range_ok("ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff", 9, -5, 5, [-3, -2, 5, -2, 0, -3, 3, -5, -2, 0, 5, -1])
+check range_ok("ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff", 9, 1, 6, [2, 2, 6, 2, 3, 2, 5, 1, 2, 6, 3, 6])
+check range_ok("ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff", 9, -2305843009213693952, 2305843009213693951, [-1493023880167903426, -1316199253270153042, -1377684952058115331, -639807752449805609, 214932764689692312, -2252573638447408846, -1181655751840977315, -820781355716583216, 1240051514511033519, 2113849537908970020, 61915595899223761, -2202229682668357105])
+check range_ok("ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff", 9, 100, 100, [100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100])
+check bytes_ok("1c9240a5eb55d38af333888604f6b5f0473917c1402b80099dca5cbc207075c0", 2, 70, "70760aa6a21da2982de7cc4d904be24f6ac6bfb192ac243974fcb74b6b441559d86e36263e7ca6796c677810a1adb29fe5a8b7cad840f423a3daadda9382e7fce59de36f53c6")
+check shuffle_ok("000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f", 0, 20, [8, 18, 7, 17, 3, 1, 0, 5, 2, 11, 19, 10, 16, 4, 12, 6, 9, 14, 13, 15])
+check split_ok("000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f", 0, 11, [3482184186, 2346467958, 1015728437, 2146848283, 789949011, 390443377, 2976798746, 1348646207], 3888915243)
+# derived: block counter carry past 2^32 into the third nonce word
+check carry_ok("000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f", 4294967299, [3684169886, 3725388650, 354419884, 3312442651])

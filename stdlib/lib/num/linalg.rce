@@ -1,0 +1,1508 @@
+module num.linalg
+
+# Dense real linear algebra over IEEE 754 binary64 (survey workstream A).
+#
+# Determinism. Every result is a fixed sequence of correctly rounded
+# + - * / and sqrt (spec 6.3 N3: one result per operation on every
+# target, no FMA contraction), so a call gives the same bits on every
+# emit target. The order of every reduction is fixed and documented, and
+# it is the order of the Reference BLAS and LAPACK 3.12.1 routine each
+# function ports: a sum runs left to right in increasing index unless the
+# routine says otherwise. Ported routines are checked bit for bit against
+# Reference LAPACK 3.12.1 (tests/num/linalg_checks*.rce).
+#
+# Storage. A matrix is column major, element (i, j) of an m x n matrix at
+# a[i + j * m] (0-based), like LAPACK with lda = m. Functions on raw
+# storage take an offset and a leading dimension (or stride) so the
+# LAPACK index arithmetic carries over unchanged.
+#
+# Non-finite values trap like every f64 operation (6.3 N3), so NaN and
+# infinity never appear; the NaN branches of LAPACK are dead here.
+
+pub struct Mat
+    m: usize
+    n: usize
+    a: List[f64]
+
+# One error type: why is "shape", "singular" (at = 0-based column of the
+# first zero pivot) or "not positive definite" (at = failing column).
+error LaError(why: text, at: i64)
+
+# ---------------------------------------------------------------- model
+# Binary64 parameters (LAPACK DLAMCH): eps = 2^-53 ('E', round to
+# nearest), safe minimum = 2^-1022 ('S'), overflow = (1 - 2^-53) 2^1024.
+
+pub fn la_pow2(k: i64) -> f64
+    var r = 1.0
+    var i: i64 = 0
+    if k >= 0
+        while i < k bound 1100
+            r = r * 2.0
+            i += 1
+    else
+        while i > k bound 1100
+            r = r * 0.5
+            i -= 1
+    return r
+
+pub const LA_EPS: f64 = 1.1102230246251565e-16
+pub const LA_SFMIN: f64 = 2.2250738585072014e-308
+pub const LA_HUGE: f64 = 1.7976931348623157e308
+
+pub fn la_abs(x: f64) -> f64 = if x < 0.0 then 0.0 - x else x
+
+# Fortran SIGN(a, b): |a| with the sign of b (b >= 0 counts as positive;
+# there is no negative zero).
+pub fn la_sign(a: f64, b: f64) -> f64 = if b >= 0.0 then la_abs(a) else 0.0 - la_abs(a)
+
+# ---------------------------------------------------------------- BLAS 1
+# Vectors are (list, offset, stride); strides are positive.
+
+# DDOT: sum of x[i] * y[i], i = 0..n-1 in order (the unrolled reference
+# loop associates left to right, so it is the same order).
+pub fn ddot(n: usize, x: &[f64], ox: usize, ix: usize, y: &[f64], oy: usize, iy: usize) -> f64
+    var t = 0.0
+    for i in 0..n
+        t = t + x[ox + i * ix] * y[oy + i * iy]
+    return t
+
+# DAXPY: y := y + alpha * x (no-op when alpha == 0).
+pub fn daxpy(n: usize, alpha: f64, x: &[f64], ox: usize, ix: usize, y: &mut List[f64], oy: usize, iy: usize)
+    if alpha == 0.0
+        return
+    for i in 0..n
+        y[oy + i * iy] = y[oy + i * iy] + alpha * x[ox + i * ix]
+
+# DSCAL: x := alpha * x.
+pub fn dscal(n: usize, alpha: f64, x: &mut List[f64], ox: usize, ix: usize)
+    for i in 0..n
+        x[ox + i * ix] = alpha * x[ox + i * ix]
+
+# DSWAP.
+pub fn dswap(n: usize, x: &mut List[f64], ox: usize, ix: usize, oy: usize, iy: usize)
+    for i in 0..n
+        let t = x[ox + i * ix]
+        x[ox + i * ix] = x[oy + i * iy]
+        x[oy + i * iy] = t
+
+# DASUM: sum of |x[i]| in order.
+pub fn dasum(n: usize, x: &[f64], ox: usize, ix: usize) -> f64
+    var t = 0.0
+    for i in 0..n
+        t = t + la_abs(x[ox + i * ix])
+    return t
+
+# IDAMAX: first index (0-based) of the largest |x[i]|; 0 for n == 0.
+pub fn idamax(n: usize, x: &[f64], ox: usize, ix: usize) -> usize
+    var k: usize = 0
+    if n == 0
+        return 0
+    var mx = la_abs(x[ox])
+    for i in 1..n
+        let v = la_abs(x[ox + i * ix])
+        if v > mx
+            k = i
+            mx = v
+    return k
+
+# DNRM2 of Reference BLAS 3.10+ (Anderson 2017, Blue's three
+# accumulators): no overflow or harmful underflow for any finite input.
+# tsml = 2^-511, tbig = 2^486, ssml = 2^537, sbig = 2^-538.
+pub fn dnrm2(n: usize, x: &[f64], ox: usize, ix: usize) -> f64
+    if n == 0
+        return 0.0
+    let tsml = la_pow2(-511)
+    let tbig = la_pow2(486)
+    let ssml = la_pow2(537)
+    let sbig = la_pow2(-538)
+    var notbig = true
+    var asml = 0.0
+    var amed = 0.0
+    var abig = 0.0
+    for i in 0..n
+        let ax = la_abs(x[ox + i * ix])
+        if ax > tbig
+            let t = ax * sbig
+            abig = abig + t * t
+            notbig = false
+        elif ax < tsml
+            if notbig
+                let t = ax * ssml
+                asml = asml + t * t
+        else
+            amed = amed + ax * ax
+    var scl = 1.0
+    var sumsq = 0.0
+    if abig > 0.0
+        if amed > 0.0
+            abig = abig + (amed * sbig) * sbig
+        scl = 1.0 / sbig
+        sumsq = abig
+    elif asml > 0.0
+        if amed > 0.0
+            let am = amed.sqrt()
+            let asm = asml.sqrt() / ssml
+            var ymin = asm
+            var ymax = am
+            if asm > am
+                ymin = am
+                ymax = asm
+            let r = ymin / ymax
+            sumsq = ymax * ymax * (1.0 + r * r)
+        else
+            scl = 1.0 / ssml
+            sumsq = asml
+    else
+        sumsq = amed
+    return scl * sumsq.sqrt()
+
+# DLAPY2: sqrt(x^2 + y^2) without needless overflow.
+pub fn dlapy2(x: f64, y: f64) -> f64
+    let xa = la_abs(x)
+    let ya = la_abs(y)
+    let w = xa.max(ya)
+    let z = xa.min(ya)
+    if z == 0.0
+        return w
+    let r = z / w
+    return w * (1.0 + r * r).sqrt()
+
+# ---------------------------------------------------------------- kernels
+# The BLAS 2/3 and LAPACK kernels below work in place on one buffer w, so
+# the operand aliasing of the reference code (a routine updating part of
+# A from another part of A) is expressed with offsets. Arguments follow
+# the Fortran ones: o* offsets, ld* leading dimensions, inc* strides.
+
+pub fn axpy_b(w: &mut List[f64], n: usize, alpha: f64, ox: usize, ix: usize, oy: usize, iy: usize)
+    if alpha == 0.0
+        return
+    for i in 0..n
+        w[oy + i * iy] = w[oy + i * iy] + alpha * w[ox + i * ix]
+
+# DGEMV: y := alpha op(A) x + beta y, A m x n. trans false: y has m
+# entries, columns j = 0.. in order add (alpha x[j]) A[:, j]. trans true:
+# y[j] += alpha (sum over i in order of A[i, j] x[i]).
+pub fn gemv_b(w: &mut List[f64], trans: bool, m: usize, n: usize, alpha: f64, oa: usize, lda: usize, ox: usize, incx: usize, beta: f64, oy: usize, incy: usize)
+    if m == 0 or n == 0 or (alpha == 0.0 and beta == 1.0)
+        return
+    let leny = if trans then n else m
+    if beta != 1.0
+        for i in 0..leny
+            if beta == 0.0
+                w[oy + i * incy] = 0.0
+            else
+                w[oy + i * incy] = beta * w[oy + i * incy]
+    if alpha == 0.0
+        return
+    if not trans
+        for j in 0..n
+            let t = alpha * w[ox + j * incx]
+            for i in 0..m
+                w[oy + i * incy] = w[oy + i * incy] + t * w[oa + i + j * lda]
+    else
+        for j in 0..n
+            var t = 0.0
+            for i in 0..m
+                t = t + w[oa + i + j * lda] * w[ox + i * incx]
+            w[oy + j * incy] = w[oy + j * incy] + alpha * t
+
+# DGER: A := A + alpha x y^T, column by column, skipping y[j] == 0.
+pub fn ger_b(w: &mut List[f64], m: usize, n: usize, alpha: f64, ox: usize, incx: usize, oy: usize, incy: usize, oa: usize, lda: usize)
+    if m == 0 or n == 0 or alpha == 0.0
+        return
+    for j in 0..n
+        if w[oy + j * incy] != 0.0
+            let t = alpha * w[oy + j * incy]
+            for i in 0..m
+                w[oa + i + j * lda] = w[oa + i + j * lda] + w[ox + i * incx] * t
+
+# DTRSM, left side: B := alpha inv(op(A)) B, A m x m triangular, B m x n.
+pub fn trsm_b(w: &mut List[f64], upper: bool, trans: bool, unit: bool, m: usize, n: usize, alpha: f64, oa: usize, lda: usize, ob: usize, ldb: usize)
+    if m == 0 or n == 0
+        return
+    if alpha == 0.0
+        for j in 0..n
+            for i in 0..m
+                w[ob + i + j * ldb] = 0.0
+        return
+    for j in 0..n
+        let c = ob + j * ldb
+        if not trans
+            if alpha != 1.0
+                for i in 0..m
+                    w[c + i] = alpha * w[c + i]
+            if upper
+                var k = m
+                while k > 0 bound 1048576
+                    k -= 1
+                    if w[c + k] != 0.0
+                        if not unit
+                            w[c + k] = w[c + k] / w[oa + k + k * lda]
+                        let bk = w[c + k]
+                        for i in 0..k
+                            w[c + i] = w[c + i] - bk * w[oa + i + k * lda]
+            else
+                for k in 0..m
+                    if w[c + k] != 0.0
+                        if not unit
+                            w[c + k] = w[c + k] / w[oa + k + k * lda]
+                        let bk = w[c + k]
+                        for i in (k + 1)..m
+                            w[c + i] = w[c + i] - bk * w[oa + i + k * lda]
+        else
+            if upper
+                for i in 0..m
+                    var t = alpha * w[c + i]
+                    for k in 0..i
+                        t = t - w[oa + k + i * lda] * w[c + k]
+                    if not unit
+                        t = t / w[oa + i + i * lda]
+                    w[c + i] = t
+            else
+                var i = m
+                while i > 0 bound 1048576
+                    i -= 1
+                    var t = alpha * w[c + i]
+                    for k in (i + 1)..m
+                        t = t - w[oa + k + i * lda] * w[c + k]
+                    if not unit
+                        t = t / w[oa + i + i * lda]
+                    w[c + i] = t
+
+# DGEMM: C := alpha op(A) op(B) + beta C, C m x n, inner dimension k.
+# The four loop orders are those of the reference routine: for op(A) = A
+# the update is column-oriented (C[:, j] += (alpha B[l, j]) A[:, l] for
+# l = 0.. in order); for op(A) = A^T each C[i, j] is one dot product in
+# increasing l, then alpha t + beta C[i, j].
+pub fn gemm_b(w: &mut List[f64], ta: bool, tb: bool, m: usize, n: usize, k: usize, alpha: f64, oa: usize, lda: usize, ob: usize, ldb: usize, beta: f64, oc: usize, ldc: usize)
+    if m == 0 or n == 0 or ((alpha == 0.0 or k == 0) and beta == 1.0)
+        return
+    if alpha == 0.0
+        for j in 0..n
+            for i in 0..m
+                if beta == 0.0
+                    w[oc + i + j * ldc] = 0.0
+                else
+                    w[oc + i + j * ldc] = beta * w[oc + i + j * ldc]
+        return
+    for j in 0..n
+        if not ta
+            if beta == 0.0
+                for i in 0..m
+                    w[oc + i + j * ldc] = 0.0
+            elif beta != 1.0
+                for i in 0..m
+                    w[oc + i + j * ldc] = beta * w[oc + i + j * ldc]
+            for l in 0..k
+                let bl = if tb then w[ob + j + l * ldb] else w[ob + l + j * ldb]
+                let t = alpha * bl
+                for i in 0..m
+                    w[oc + i + j * ldc] = w[oc + i + j * ldc] + t * w[oa + i + l * lda]
+        else
+            for i in 0..m
+                var t = 0.0
+                for l in 0..k
+                    let bl = if tb then w[ob + j + l * ldb] else w[ob + l + j * ldb]
+                    t = t + w[oa + l + i * lda] * bl
+                if beta == 0.0
+                    w[oc + i + j * ldc] = alpha * t
+                else
+                    w[oc + i + j * ldc] = alpha * t + beta * w[oc + i + j * ldc]
+
+# DGETF2: unblocked LU with partial pivoting (first largest |a| wins),
+# multipliers scaled by the reciprocal of the pivot when |pivot| >= SFMIN
+# (as the reference does), else divided. piv[j] is the 0-based row
+# swapped with row j. Returns LAPACK INFO: 0, or j + 1 for the first exact
+# zero pivot (the factorization still completes).
+pub fn getf2_b(w: &mut List[f64], m: usize, n: usize, oa: usize, lda: usize, piv: &mut List[i64]) -> i64
+    var info: i64 = 0
+    let mn = if m < n then m else n
+    for j in 0..mn
+        let jp = j + idamax(m - j, w, oa + j + j * lda, 1)
+        piv.push(jp as i64)
+        if w[oa + jp + j * lda] != 0.0
+            if jp != j
+                dswap(n, w, oa + j, lda, oa + jp, lda)
+            if j + 1 < m
+                let p = w[oa + j + j * lda]
+                if la_abs(p) >= LA_SFMIN
+                    dscal(m - j - 1, 1.0 / p, w, oa + j + 1 + j * lda, 1)
+                else
+                    for i in 1..(m - j)
+                        w[oa + j + i + j * lda] = w[oa + j + i + j * lda] / p
+        elif info == 0
+            info = (j + 1) as i64
+        if j + 1 < mn
+            ger_b(w, m - j - 1, n - j - 1, -1.0, oa + j + 1 + j * lda, 1, oa + j + (j + 1) * lda, lda, oa + j + 1 + (j + 1) * lda, lda)
+    return info
+
+# DLASWP over columns 0..n-1 of B, rows k1..k2-1, forward or backward.
+pub fn laswp_b(w: &mut List[f64], n: usize, ob: usize, ldb: usize, k1: usize, k2: usize, piv: &[i64], forward: bool)
+    var s: usize = 0
+    while s < k2 - k1 bound 1048576
+        let i = if forward then k1 + s else k2 - 1 - s
+        let p = piv[i] as usize
+        if p != i
+            dswap(n, w, ob + i, ldb, ob + p, ldb)
+        s += 1
+
+# DPOTF2, lower: A = L L^T column by column; ajj = a[j, j] minus the dot
+# of row j of L with itself (increasing k). Returns INFO (0 or j + 1).
+pub fn potf2_b(w: &mut List[f64], n: usize, oa: usize, lda: usize) -> i64
+    for j in 0..n
+        let ajj = w[oa + j + j * lda] - ddot(j, w, oa + j, lda, w, oa + j, lda)
+        if ajj <= 0.0
+            w[oa + j + j * lda] = ajj
+            return (j + 1) as i64
+        let r = ajj.sqrt()
+        w[oa + j + j * lda] = r
+        if j + 1 < n
+            gemv_b(w, false, n - j - 1, j, -1.0, oa + j + 1, lda, oa + j, lda, 1.0, oa + j + 1 + j * lda, 1)
+            dscal(n - j - 1, 1.0 / r, w, oa + j + 1 + j * lda, 1)
+    return 0
+
+# DLARFG: elementary reflector H = I - tau v v^T with H [alpha; x] =
+# [beta; 0], v[0] = 1. Overwrites alpha (at oalpha) with beta and x with
+# v[1..]. Returns tau.
+pub fn larfg_b(w: &mut List[f64], n: usize, oalpha: usize, ox: usize, incx: usize) -> f64
+    if n <= 1
+        return 0.0
+    var xnorm = dnrm2(n - 1, w, ox, incx)
+    if xnorm == 0.0
+        return 0.0
+    var alpha = w[oalpha]
+    var beta = 0.0 - la_sign(dlapy2(alpha, xnorm), alpha)
+    let safmin = LA_SFMIN / LA_EPS
+    var knt = 0
+    if la_abs(beta) < safmin
+        let rsafmn = 1.0 / safmin
+        while knt < 20 bound 21
+            knt += 1
+            dscal(n - 1, rsafmn, w, ox, incx)
+            beta = beta * rsafmn
+            alpha = alpha * rsafmn
+            if la_abs(beta) >= safmin
+                break
+        xnorm = dnrm2(n - 1, w, ox, incx)
+        beta = 0.0 - la_sign(dlapy2(alpha, xnorm), alpha)
+    let tau = (beta - alpha) / beta
+    dscal(n - 1, 1.0 / (alpha - beta), w, ox, incx)
+    for _ in 0..knt
+        beta = beta * safmin
+    w[oalpha] = beta
+    return tau
+
+# ILADLC: 1 + last column of the m x n block with a nonzero entry (0 if
+# none). ILADLR: 1 + last such row.
+pub fn iladlc_b(w: &[f64], m: usize, n: usize, oc: usize, ldc: usize) -> usize
+    var j = n
+    while j > 0 bound 1048576
+        for i in 0..m
+            if w[oc + i + (j - 1) * ldc] != 0.0
+                return j
+        j -= 1
+    return 0
+
+pub fn iladlr_b(w: &[f64], m: usize, n: usize, oc: usize, ldc: usize) -> usize
+    var r: usize = 0
+    for j in 0..n
+        var i = m
+        while i > 0 bound 1048576
+            if w[oc + (i - 1) + j * ldc] != 0.0
+                break
+            i -= 1
+        if i > r
+            r = i
+    return r
+
+# DLARF1F: apply H = I - tau v v^T (v[0] = 1 implied, v[1..] stored at
+# ov + incv..) to the m x n block C from the left (left true) or right,
+# using the scratch area owork (n or m entries).
+pub fn larf1f_b(w: &mut List[f64], left: bool, m: usize, n: usize, ov: usize, incv: usize, tau: f64, oc: usize, ldc: usize, owork: usize)
+    var lastv: usize = 1
+    var lastc: usize = 0
+    if tau != 0.0
+        lastv = if left then m else n
+        while lastv > 1 and w[ov + (lastv - 1) * incv] == 0.0 bound 1048576
+            lastv -= 1
+        lastc = if left then iladlc_b(w, lastv, n, oc, ldc) else iladlr_b(w, m, lastv, oc, ldc)
+    if lastc == 0
+        return
+    if left
+        if lastv == 1
+            dscal(lastc, 1.0 - tau, w, oc, ldc)
+        else
+            gemv_b(w, true, lastv - 1, lastc, 1.0, oc + 1, ldc, ov + incv, incv, 0.0, owork, 1)
+            for j in 0..lastc
+                w[owork + j] = w[owork + j] + w[oc + j * ldc]
+            for j in 0..lastc
+                w[oc + j * ldc] = w[oc + j * ldc] + (0.0 - tau) * w[owork + j]
+            ger_b(w, lastv - 1, lastc, 0.0 - tau, ov + incv, incv, owork, 1, oc + 1, ldc)
+    else
+        if lastv == 1
+            dscal(lastc, 1.0 - tau, w, oc, 1)
+        else
+            gemv_b(w, false, lastc, lastv - 1, 1.0, oc + ldc, ldc, ov + incv, incv, 0.0, owork, 1)
+            for i in 0..lastc
+                w[owork + i] = w[owork + i] + w[oc + i]
+            for i in 0..lastc
+                w[oc + i] = w[oc + i] + (0.0 - tau) * w[owork + i]
+            ger_b(w, lastc, lastv - 1, 0.0 - tau, owork, 1, ov + incv, incv, oc + ldc, ldc)
+
+# DGEQR2: A = Q R by Householder reflectors, column by column. R is left
+# in the upper triangle, the reflectors below it, tau at otau.. (k =
+# min(m, n) entries). Scratch at owork (n entries).
+pub fn geqr2_b(w: &mut List[f64], m: usize, n: usize, oa: usize, lda: usize, otau: usize, owork: usize)
+    let k = if m < n then m else n
+    for i in 0..k
+        let below = if i + 1 < m then i + 1 else m - 1
+        let t = larfg_b(w, m - i, oa + i + i * lda, oa + below + i * lda, 1)
+        w[otau + i] = t
+        if i + 1 < n
+            larf1f_b(w, true, m - i, n - i - 1, oa + i + i * lda, 1, t, oa + i + (i + 1) * lda, lda, owork)
+
+# DORG2R: overwrite the m x n block (holding k reflectors from geqr2)
+# with the first n columns of Q.
+pub fn org2r_b(w: &mut List[f64], m: usize, n: usize, k: usize, oa: usize, lda: usize, otau: usize, owork: usize)
+    for j in k..n
+        for l in 0..m
+            w[oa + l + j * lda] = 0.0
+        w[oa + j + j * lda] = 1.0
+    var i = k
+    while i > 0 bound 1048576
+        i -= 1
+        let t = w[otau + i]
+        if i + 1 < n
+            larf1f_b(w, true, m - i, n - i - 1, oa + i + i * lda, 1, t, oa + i + (i + 1) * lda, lda, owork)
+        if i + 1 < m
+            dscal(m - i - 1, 0.0 - t, w, oa + i + 1 + i * lda, 1)
+        w[oa + i + i * lda] = 1.0 - t
+        for l in 0..i
+            w[oa + l + i * lda] = 0.0
+
+# DORM2R, left side: C := Q^T C (trans) or Q C, Q from k reflectors of
+# geqr2 stored at oa (m x k, lda), C m x n.
+pub fn orm2r_b(w: &mut List[f64], trans: bool, m: usize, n: usize, k: usize, oa: usize, lda: usize, otau: usize, oc: usize, ldc: usize, owork: usize)
+    for s in 0..k
+        let i = if trans then s else k - 1 - s
+        larf1f_b(w, true, m - i, n, oa + i + i * lda, 1, w[otau + i], oc + i, ldc, owork)
+
+# ---------------------------------------------------------------- matrices
+
+pub fn mat(m: usize, n: usize, a: List[f64]) -> Mat ! LaError
+    if a.len() != m * n
+        fail LaError(why: "data length is not m * n", at: -1)
+    return Mat(m: m, n: n, a: a)
+
+# From row-major data (the order matrices are usually written in).
+pub fn from_rows(m: usize, n: usize, r: &[f64]) -> Mat ! LaError
+    if r.len() != m * n
+        fail LaError(why: "data length is not m * n", at: -1)
+    var a: List[f64] = []
+    for j in 0..n
+        for i in 0..m
+            a.push(r[i * n + j])
+    return Mat(m: m, n: n, a: a)
+
+pub fn to_rows(x: &Mat) -> List[f64]
+    var r: List[f64] = []
+    for i in 0..x.m
+        for j in 0..x.n
+            r.push(x.a[i + j * x.m])
+    return r
+
+pub fn zeros(m: usize, n: usize) -> Mat
+    var a: List[f64] = []
+    for _ in 0..(m * n)
+        a.push(0.0)
+    return Mat(m: m, n: n, a: a)
+
+pub fn eye(n: usize) -> Mat
+    var z = zeros(n, n)
+    for i in 0..n
+        z.a[i + i * n] = 1.0
+    return z
+
+pub fn mat_at(x: &Mat, i: usize, j: usize) -> f64 = x.a[i + j * x.m]
+
+pub fn transpose(x: &Mat) -> Mat
+    var a: List[f64] = []
+    for i in 0..x.m
+        for j in 0..x.n
+            a.push(x.a[i + j * x.m])
+    return Mat(m: x.n, n: x.m, a: a)
+
+pub fn mat_col(x: &Mat, j: usize) -> List[f64]
+    var c: List[f64] = []
+    for i in 0..x.m
+        c.push(x.a[i + j * x.m])
+    return c
+
+fn la_cat(a: &[f64], b: &[f64]) -> List[f64]
+    var w: List[f64] = []
+    for v in a
+        w.push(v)
+    for v in b
+        w.push(v)
+    return w
+
+fn la_slice(w: &[f64], o: usize, n: usize) -> List[f64]
+    var r: List[f64] = []
+    for i in 0..n
+        r.push(w[o + i])
+    return r
+
+# C = alpha op(A) op(B) + beta C (DGEMM order).
+pub fn gemm(ta: bool, tb: bool, alpha: f64, a: &Mat, b: &Mat, beta: f64, c: &Mat) -> Mat ! LaError
+    let m = if ta then a.n else a.m
+    let k = if ta then a.m else a.n
+    let kb = if tb then b.n else b.m
+    let n = if tb then b.m else b.n
+    if k != kb or c.m != m or c.n != n
+        fail LaError(why: "gemm dimensions", at: -1)
+    let ob = a.a.len()
+    let oc = ob + b.a.len()
+    let ab = la_cat(&a.a, &b.a)
+    var w = la_cat(&ab, &c.a)
+    gemm_b(&mut w, ta, tb, m, n, k, alpha, 0, a.m, ob, b.m, beta, oc, m)
+    return Mat(m: m, n: n, a: la_slice(&w, oc, m * n))
+
+pub fn matmul(a: &Mat, b: &Mat) -> Mat ! LaError
+    let c = zeros(a.m, b.n)
+    return try gemm(false, false, 1.0, a, b, 0.0, &c)
+
+# y = alpha op(A) x + beta y (DGEMV order).
+pub fn gemv(trans: bool, alpha: f64, a: &Mat, x: &[f64], beta: f64, y: &[f64]) -> List[f64] ! LaError
+    let lx = if trans then a.m else a.n
+    let ly = if trans then a.n else a.m
+    if x.len() != lx or y.len() != ly
+        fail LaError(why: "gemv dimensions", at: -1)
+    let ox = a.a.len()
+    let oy = ox + x.len()
+    let ax = la_cat(&a.a, x)
+    var w = la_cat(&ax, y)
+    gemv_b(&mut w, trans, a.m, a.n, alpha, 0, a.m, ox, 1, beta, oy, 1)
+    return la_slice(&w, oy, ly)
+
+pub fn matvec(a: &Mat, x: &[f64]) -> List[f64] ! LaError
+    var y: List[f64] = []
+    for _ in 0..a.m
+        y.push(0.0)
+    return try gemv(false, 1.0, a, x, 0.0, &y)
+
+# A + alpha x y^T (DGER order).
+pub fn ger(alpha: f64, x: &[f64], y: &[f64], a: &Mat) -> Mat ! LaError
+    if x.len() != a.m or y.len() != a.n
+        fail LaError(why: "ger dimensions", at: -1)
+    let ox = a.a.len()
+    let oy = ox + x.len()
+    let ax = la_cat(&a.a, x)
+    var w = la_cat(&ax, y)
+    ger_b(&mut w, a.m, a.n, alpha, ox, 1, oy, 1, 0, a.m)
+    return Mat(m: a.m, n: a.n, a: la_slice(&w, 0, a.a.len()))
+
+# ---------------------------------------------------------------- LU
+
+pub struct Lu
+    lu: Mat
+    piv: List[i64]
+    info: i64
+
+# P A = L U (DGETF2). info > 0 marks an exact zero pivot (U singular).
+pub fn lu(a: &Mat) -> Lu
+    var w = copy(a.a)
+    var piv: List[i64] = []
+    let info = getf2_b(&mut w, a.m, a.n, 0, a.m, &mut piv)
+    return Lu(lu: Mat(m: a.m, n: a.n, a: w), piv: piv, info: info)
+
+# Solve A X = B (trans false) or A^T X = B from a square LU (DGETRS).
+pub fn lu_solve(f: &Lu, trans: bool, b: &Mat) -> Mat ! LaError
+    let n = f.lu.n
+    if f.lu.m != n or b.m != n
+        fail LaError(why: "lu_solve dimensions", at: -1)
+    if f.info > 0
+        fail LaError(why: "singular", at: f.info - 1)
+    let ob = n * n
+    var w = la_cat(&f.lu.a, &b.a)
+    if not trans
+        laswp_b(&mut w, b.n, ob, n, 0, n, &f.piv, true)
+        trsm_b(&mut w, false, false, true, n, b.n, 1.0, 0, n, ob, n)
+        trsm_b(&mut w, true, false, false, n, b.n, 1.0, 0, n, ob, n)
+    else
+        trsm_b(&mut w, true, true, false, n, b.n, 1.0, 0, n, ob, n)
+        trsm_b(&mut w, false, true, true, n, b.n, 1.0, 0, n, ob, n)
+        laswp_b(&mut w, b.n, ob, n, 0, n, &f.piv, false)
+    return Mat(m: n, n: b.n, a: la_slice(&w, ob, n * b.n))
+
+pub fn solve(a: &Mat, b: &Mat) -> Mat ! LaError
+    if a.m != a.n
+        fail LaError(why: "solve needs a square matrix", at: -1)
+    let f = lu(a)
+    return try lu_solve(&f, false, b)
+
+# Inverse as the solution of A X = I (DGETRS on the identity).
+pub fn inv(a: &Mat) -> Mat ! LaError
+    let i = eye(a.n)
+    return try solve(a, &i)
+
+# Determinant: product of the U diagonal in increasing index, negated
+# once per row swap.
+pub fn det(a: &Mat) -> f64 ! LaError
+    if a.m != a.n
+        fail LaError(why: "det needs a square matrix", at: -1)
+    let f = lu(a)
+    var d = 1.0
+    for i in 0..a.n
+        d = d * f.lu.a[i + i * a.n]
+        if f.piv[i] != i as i64
+            d = 0.0 - d
+    return d
+
+# ---------------------------------------------------------------- Cholesky
+
+# A = L L^T for symmetric positive definite A (DPOTF2, lower; only the
+# lower triangle of A is read). L is returned with a zero upper triangle.
+pub fn chol(a: &Mat) -> Mat ! LaError
+    if a.m != a.n
+        fail LaError(why: "chol needs a square matrix", at: -1)
+    let n = a.n
+    var w = copy(a.a)
+    let info = potf2_b(&mut w, n, 0, n)
+    if info > 0
+        fail LaError(why: "not positive definite", at: info - 1)
+    for j in 0..n
+        for i in 0..j
+            w[i + j * n] = 0.0
+    return Mat(m: n, n: n, a: w)
+
+# Solve A X = B from L (DPOTRS, lower).
+pub fn chol_solve(l: &Mat, b: &Mat) -> Mat ! LaError
+    let n = l.n
+    if l.m != n or b.m != n
+        fail LaError(why: "chol_solve dimensions", at: -1)
+    let ob = n * n
+    var w = la_cat(&l.a, &b.a)
+    trsm_b(&mut w, false, false, false, n, b.n, 1.0, 0, n, ob, n)
+    trsm_b(&mut w, false, true, false, n, b.n, 1.0, 0, n, ob, n)
+    return Mat(m: n, n: b.n, a: la_slice(&w, ob, n * b.n))
+
+# ---------------------------------------------------------------- QR
+
+pub struct Qr
+    qr: Mat
+    tau: List[f64]
+
+# A = Q R, Householder (DGEQR2): R in the upper triangle of qr, the
+# reflectors below it.
+pub fn qr(a: &Mat) -> Qr
+    let m = a.m
+    let n = a.n
+    let k = if m < n then m else n
+    let ot = m * n
+    let ow = ot + k
+    var w = copy(a.a)
+    for _ in 0..(k + n)
+        w.push(0.0)
+    geqr2_b(&mut w, m, n, 0, m, ot, ow)
+    return Qr(qr: Mat(m: m, n: n, a: la_slice(&w, 0, m * n)), tau: la_slice(&w, ot, k))
+
+# The m x k orthonormal factor (DORG2R), k = min(m, n).
+pub fn qr_q(f: &Qr) -> Mat
+    let m = f.qr.m
+    let k = f.tau.len()
+    let ot = m * k
+    var w = la_slice(&f.qr.a, 0, m * k)
+    for t in &f.tau
+        w.push(t)
+    for _ in 0..k
+        w.push(0.0)
+    org2r_b(&mut w, m, k, k, 0, m, ot, ot + k)
+    return Mat(m: m, n: k, a: la_slice(&w, 0, m * k))
+
+# The k x n upper triangular factor.
+pub fn qr_r(f: &Qr) -> Mat
+    let m = f.qr.m
+    let n = f.qr.n
+    let k = f.tau.len()
+    var r = zeros(k, n)
+    for j in 0..n
+        for i in 0..k
+            if i <= j
+                r.a[i + j * k] = f.qr.a[i + j * m]
+    return r
+
+# Least squares min ||A X - B|| for m >= n and full rank (DGELS 'N' for
+# matrices below the blocking crossover: DGEQR2, DORM2R, DTRTRS; the
+# DGELS rescaling only acts outside [SFMIN/EPS, EPS/SFMIN] and is not
+# reproduced: such inputs are refused with Shape).
+pub fn lstsq(a: &Mat, b: &Mat) -> Mat ! LaError
+    let m = a.m
+    let n = a.n
+    if m < n or b.m != m
+        fail LaError(why: "lstsq needs m >= n and b with m rows", at: -1)
+    var amax = 0.0
+    for v in &a.a
+        amax = amax.max(la_abs(v))
+    let smlnum = LA_SFMIN / (2.0 * LA_EPS)
+    if amax == 0.0 or amax < smlnum or amax > 1.0 / smlnum
+        fail LaError(why: "lstsq: A is zero or outside the unscaled range", at: -1)
+    let nrhs = b.n
+    let ot = m * n
+    let ob = ot + n
+    let ow = ob + m * nrhs
+    let z = zeros(n, 1)
+    let az = la_cat(&a.a, &z.a)
+    var w = la_cat(&az, &b.a)
+    let wl = if n > nrhs then n else nrhs
+    for _ in 0..wl
+        w.push(0.0)
+    geqr2_b(&mut w, m, n, 0, m, ot, ow)
+    orm2r_b(&mut w, true, m, nrhs, n, 0, m, ot, ob, m, ow)
+    for i in 0..n
+        if w[i + i * m] == 0.0
+            fail LaError(why: "singular", at: i as i64)
+    trsm_b(&mut w, true, false, false, n, nrhs, 1.0, 0, m, ob, m)
+    var x = zeros(n, nrhs)
+    for j in 0..nrhs
+        for i in 0..n
+            x.a[i + j * n] = w[ob + i + j * m]
+    return x
+
+# ---------------------------------------------------------------- Jacobi
+# Symmetric eigenproblem and SVD by Jacobi rotations (Jacobi 1846;
+# Rutishauser's update, Handbook for Automatic Computation II/1; one-sided
+# form of Hestenes 1958). Chosen over QR iteration because Jacobi computes
+# small eigenvalues and singular values of well-scaled matrices to high
+# relative accuracy (Demmel and Veselic, SIAM J. Matrix Anal. Appl. 13,
+# 1992) and its sweep order is a fixed, simple sequence. Order: cyclic by
+# rows, (p, q) = (0, 1), (0, 2), .., (0, n-1), (1, 2), ..; a sweep without
+# a rotation ends the iteration (at most 80 sweeps). Rotation for a pivot
+# with off-diagonal g and diagonal (or squared column norms) a, b:
+#   zeta = (b - a) / (2 g), t = sign(zeta) / (|zeta| + sqrt(1 + zeta^2)),
+#   c = 1 / sqrt(1 + t^2), s = c t   (|zeta| > 2^500: t = 1 / (2 zeta)).
+# A pivot is skipped when |g| <= EPS sqrt(|a| |b|) (the relative
+# criterion), and also when |g| is below SFMIN / EPS.
+
+fn la_rot(a: f64, b: f64, g: f64) -> List[f64]
+    let zeta = (b - a) / (2.0 * g)
+    var t = 0.0
+    if la_abs(zeta) > la_pow2(500)
+        t = 1.0 / (2.0 * zeta)
+    else
+        t = la_sign(1.0, zeta) / (la_abs(zeta) + (1.0 + zeta * zeta).sqrt())
+    let c = 1.0 / (1.0 + t * t).sqrt()
+    return [c, c * t, t]
+
+pub struct Eigh
+    values: List[f64]
+    vectors: Mat
+
+# Sort key order: ascending (asc) or descending; ties keep index order.
+fn la_order(v: &[f64], asc: bool) -> List[usize]
+    var idx: List[usize] = []
+    for i in 0..v.len()
+        idx.push(i)
+    for i in 0..v.len()
+        var best = i
+        for j in (i + 1)..v.len()
+            let better = if asc then v[idx[j]] < v[idx[best]] else v[idx[j]] > v[idx[best]]
+            if better
+                best = j
+        let t = idx[i]
+        idx[i] = idx[best]
+        idx[best] = t
+    return idx
+
+# Sign convention for a computed vector: the entry of largest magnitude
+# (first one on ties) is made positive.
+fn la_fix_sign(w: &mut List[f64], o: usize, n: usize)
+    let k = idamax(n, w, o, 1)
+    if w[o + k] < 0.0
+        for i in 0..n
+            w[o + i] = 0.0 - w[o + i]
+
+# Eigenvalues (ascending) and orthonormal eigenvectors (columns) of a
+# symmetric matrix; only the lower triangle is read.
+pub fn eigh(a: &Mat) -> Eigh ! LaError
+    if a.m != a.n
+        fail LaError(why: "eigh needs a square matrix", at: -1)
+    let n = a.n
+    var w: List[f64] = []
+    for j in 0..n
+        for i in 0..n
+            w.push(if i >= j then a.a[i + j * n] else a.a[j + i * n])
+    var v = eye(n).a
+    var sweep = 0
+    while sweep < 80 bound 81
+        sweep += 1
+        var rotated = false
+        for p in 0..n
+            for q in (p + 1)..n
+                let g = w[p + q * n]
+                let app = w[p + p * n]
+                let aqq = w[q + q * n]
+                if la_abs(g) > LA_EPS * (la_abs(app) * la_abs(aqq)).sqrt() and la_abs(g) > LA_SFMIN / LA_EPS
+                    rotated = true
+                    let r = la_rot(app, aqq, g)
+                    let c = r[0]
+                    let s = r[1]
+                    let t = r[2]
+                    w[p + p * n] = app - t * g
+                    w[q + q * n] = aqq + t * g
+                    w[p + q * n] = 0.0
+                    w[q + p * n] = 0.0
+                    for k in 0..n
+                        if k != p and k != q
+                            let akp = w[k + p * n]
+                            let akq = w[k + q * n]
+                            let np = c * akp - s * akq
+                            let nq = s * akp + c * akq
+                            w[k + p * n] = np
+                            w[p + k * n] = np
+                            w[k + q * n] = nq
+                            w[q + k * n] = nq
+                    for k in 0..n
+                        let vkp = v[k + p * n]
+                        let vkq = v[k + q * n]
+                        v[k + p * n] = c * vkp - s * vkq
+                        v[k + q * n] = s * vkp + c * vkq
+        if not rotated
+            break
+    var d: List[f64] = []
+    for i in 0..n
+        d.push(w[i + i * n])
+    let idx = la_order(&d, true)
+    var vals: List[f64] = []
+    var vs: List[f64] = []
+    for j in 0..n
+        vals.push(d[idx[j]])
+        for i in 0..n
+            vs.push(v[i + idx[j] * n])
+        la_fix_sign(&mut vs, j * n, n)
+    return Eigh(values: vals, vectors: Mat(m: n, n: n, a: vs))
+
+# One-sided rotation from the column norms np, nq and their cosine cs:
+# zeta = (nq/np - np/nq) / (2 cs); when the norms differ by more than
+# 2^500, t = cs nq/np or -cs np/nq (the first-order value, exact to
+# working precision there).
+fn la_rot2(np: f64, nq: f64, cs: f64) -> List[f64]
+    var t = 0.0
+    let big = la_pow2(500)
+    if np < nq and nq / big > np
+        t = cs * (np / nq)
+    elif nq < np and np / big > nq
+        t = 0.0 - cs * (nq / np)
+    else
+        let zeta = (nq / np - np / nq) / (2.0 * cs)
+        if la_abs(zeta) > big
+            t = 1.0 / (2.0 * zeta)
+        else
+            t = la_sign(1.0, zeta) / (la_abs(zeta) + (1.0 + zeta * zeta).sqrt())
+    let c = 1.0 / (1.0 + t * t).sqrt()
+    return [c, c * t]
+
+# Complete the columns j with zero singular value to an orthonormal set:
+# column j becomes the standard basis vector e_i (smallest i among those
+# with the largest residual) orthogonalized twice (classical Gram-Schmidt,
+# DDOT order) against the columns already set, then normalized.
+fn la_complete(u: &mut List[f64], m: usize, k: usize, s: &[f64])
+    var done: List[usize] = []
+    for j in 0..k
+        if s[j] > 0.0
+            done.push(j)
+    for j in 0..k
+        if s[j] > 0.0
+            continue
+        var best: List[f64] = []
+        var bn = -1.0
+        for i in 0..m
+            var x: List[f64] = []
+            for r in 0..m
+                x.push(if r == i then 1.0 else 0.0)
+            for _ in 0..2
+                for c in &done
+                    let d = ddot(m, u, c * m, 1, &x, 0, 1)
+                    for r in 0..m
+                        x[r] = x[r] - d * u[r + c * m]
+            let xn = dnrm2(m, &x, 0, 1)
+            if xn > bn
+                bn = xn
+                best = x
+        for r in 0..m
+            u[r + j * m] = best[r] / bn
+        done.push(j)
+
+pub struct Svd
+    u: Mat
+    s: List[f64]
+    v: Mat
+
+# Thin SVD A = U diag(s) V^T, s descending, k = min(m, n): U m x k, V n x
+# k. One-sided Jacobi on the columns (on A^T when m < n). The matrix is
+# first scaled by a power of two (exact) so its largest entry is in
+# [1, 2). At every pivot the column norms are recomputed (DNRM2) and the
+# cosine is the DDOT-order sum of the normalized entries, so neither
+# underflows for badly scaled columns; the pivot is skipped when
+# |cos| <= EPS. A U column whose (scaled) singular value is below
+# SFMIN / EPS has no reliable direction (its entries are subnormal); it
+# and the columns of zero singular values are completed to an
+# orthonormal basis (la_complete).
+pub fn svd(a: &Mat) -> Svd
+    if a.m < a.n
+        let tr = transpose(a)
+        let r = la_svd_tall(&tr)
+        return Svd(u: copy(r.v), s: copy(r.s), v: copy(r.u))
+    return la_svd_tall(a)
+
+fn la_svd_tall(a: &Mat) -> Svd
+    let m = a.m
+    let n = a.n
+    var amax = 0.0
+    for x in &a.a
+        amax = amax.max(la_abs(x))
+    var e: i64 = 0
+    var sc = 1.0
+    if amax > 0.0
+        while amax * sc >= 2.0 bound 1100
+            sc = sc * 0.5
+            e += 1
+        while amax * sc < 1.0 bound 1100
+            sc = sc * 2.0
+            e -= 1
+    var w: List[f64] = []
+    for x in &a.a
+        w.push(x * sc)
+    var v = eye(n).a
+    var sweep = 0
+    while sweep < 80 bound 81
+        sweep += 1
+        var rotated = false
+        for p in 0..n
+            for q in (p + 1)..n
+                let np = dnrm2(m, &w, p * m, 1)
+                let nq = dnrm2(m, &w, q * m, 1)
+                var cs = 0.0
+                if np > 0.0 and nq > 0.0
+                    for k in 0..m
+                        cs = cs + (w[k + p * m] / np) * (w[k + q * m] / nq)
+                if la_abs(cs) > LA_EPS
+                    rotated = true
+                    let r = la_rot2(np, nq, cs)
+                    let c = r[0]
+                    let s = r[1]
+                    for k in 0..m
+                        let x = w[k + p * m]
+                        let y = w[k + q * m]
+                        w[k + p * m] = c * x - s * y
+                        w[k + q * m] = s * x + c * y
+                    for k in 0..n
+                        let x = v[k + p * n]
+                        let y = v[k + q * n]
+                        v[k + p * n] = c * x - s * y
+                        v[k + q * n] = s * x + c * y
+        if not rotated
+            break
+    var sv: List[f64] = []
+    for j in 0..n
+        sv.push(dnrm2(m, &w, j * m, 1))
+    let idx = la_order(&sv, false)
+    let unsc = la_pow2(e)
+    let tiny = LA_SFMIN / LA_EPS
+    var s: List[f64] = []
+    var live: List[f64] = []
+    var u: List[f64] = []
+    var vv: List[f64] = []
+    for j in 0..n
+        let k = idx[j]
+        let sj = sv[k]
+        s.push(sj * unsc)
+        live.push(if sj >= tiny then sj else 0.0)
+        for i in 0..m
+            u.push(if sj >= tiny then w[i + k * m] / sj else 0.0)
+        for i in 0..n
+            vv.push(v[i + k * n])
+        let ku = idamax(m, &u, j * m, 1)
+        let kv = idamax(n, &vv, j * n, 1)
+        let neg = if sj >= tiny then u[j * m + ku] < 0.0 else vv[j * n + kv] < 0.0
+        if neg
+            for i in 0..m
+                u[j * m + i] = 0.0 - u[j * m + i]
+            for i in 0..n
+                vv[j * n + i] = 0.0 - vv[j * n + i]
+    la_complete(&mut u, m, n, &live)
+    return Svd(u: Mat(m: m, n: n, a: u), s: s, v: Mat(m: n, n: n, a: vv))
+
+# ---------------------------------------------------------------- nonsymmetric eigenvalues
+# Eigenvalues of a general real matrix as Reference LAPACK 3.12.1 DGEEV
+# computes them without vectors for n below its blocking crossovers
+# (n <= 32 here): DGEBAL ('B': permute, then scale by powers of 2),
+# DGEHD2 (Householder Hessenberg reduction), DHSEQR -> DLAHQR (double
+# shift QR, exceptional shifts every 10 iterations, the Ahues and Tisseur
+# deflation test) with DLANV2 for 2 x 2 blocks. Indices below are 1-based
+# as in the Fortran so the port reads line for line.
+
+fn fx(i: i64, j: i64, ld: i64) -> usize = ((i - 1) + (j - 1) * ld) as usize
+
+pub struct Balanced
+    ilo: i64
+    ihi: i64
+    scale: List[f64]
+
+# DGEBAL, job 'B', in place on the n x n matrix at w[0..].
+pub fn gebal_b(w: &mut List[f64], n: i64) -> Balanced
+    var scale: List[f64] = []
+    for _ in 0..n
+        scale.push(1.0)
+    if n == 0
+        return Balanced(ilo: 1, ihi: 0, scale: scale)
+    var k: i64 = 1
+    var l: i64 = n
+    var noconv = true
+    while noconv bound 1048576
+        noconv = false
+        let l0 = l
+        var i = l0
+        while i >= 1 bound 1048576
+            var canswap = true
+            var j: i64 = 1
+            while j <= l bound 1048576
+                if i != j and w[fx(i, j, n)] != 0.0
+                    canswap = false
+                    break
+                j += 1
+            if canswap
+                scale[(l - 1) as usize] = i as f64
+                if i != l
+                    dswap(l as usize, w, fx(1, i, n), 1, fx(1, l, n), 1)
+                    dswap((n - k + 1) as usize, w, fx(i, k, n), n as usize, fx(l, k, n), n as usize)
+                noconv = true
+                if l == 1
+                    return Balanced(ilo: 1, ihi: 1, scale: scale)
+                l -= 1
+            i -= 1
+    noconv = true
+    while noconv bound 1048576
+        noconv = false
+        let k0 = k
+        let l0 = l
+        var j = k0
+        while j <= l0 bound 1048576
+            var canswap = true
+            var i = k
+            while i <= l bound 1048576
+                if i != j and w[fx(i, j, n)] != 0.0
+                    canswap = false
+                    break
+                i += 1
+            if canswap
+                scale[(k - 1) as usize] = j as f64
+                if j != k
+                    dswap(l as usize, w, fx(1, j, n), 1, fx(1, k, n), 1)
+                    dswap((n - k + 1) as usize, w, fx(j, k, n), n as usize, fx(k, k, n), n as usize)
+                noconv = true
+                k += 1
+            j += 1
+    let sfmin1 = LA_SFMIN / (2.0 * LA_EPS)
+    let sfmax1 = 1.0 / sfmin1
+    let sfmin2 = sfmin1 * 2.0
+    let sfmax2 = 1.0 / sfmin2
+    noconv = true
+    while noconv bound 1048576
+        noconv = false
+        var i = k
+        while i <= l bound 1048576
+            var c = dnrm2((l - k + 1) as usize, w, fx(k, i, n), 1)
+            var r = dnrm2((l - k + 1) as usize, w, fx(i, k, n), n as usize)
+            let ica = idamax(l as usize, w, fx(1, i, n), 1)
+            var ca = la_abs(w[fx(1, i, n) + ica])
+            let ira = idamax((n - k + 1) as usize, w, fx(i, k, n), n as usize)
+            var ra = la_abs(w[fx(i, k, n) + ira * (n as usize)])
+            if c == 0.0 or r == 0.0
+                i += 1
+                continue
+            var g = r / 2.0
+            var f = 1.0
+            let s = c + r
+            while c < g and f.max(c).max(ca) < sfmax2 and r.min(g).min(ra) > sfmin2 bound 4096
+                f = f * 2.0
+                c = c * 2.0
+                ca = ca * 2.0
+                r = r / 2.0
+                g = g / 2.0
+                ra = ra / 2.0
+            g = c / 2.0
+            while g >= r and r.max(ra) < sfmax2 and f.min(c).min(g).min(ca) > sfmin2 bound 4096
+                f = f / 2.0
+                c = c / 2.0
+                g = g / 2.0
+                ca = ca / 2.0
+                r = r * 2.0
+                ra = ra * 2.0
+            let si = scale[(i - 1) as usize]
+            var skip = c + r >= 0.95 * s
+            if not skip and f < 1.0 and si < 1.0 and f * si <= sfmin1
+                skip = true
+            if not skip and f > 1.0 and si > 1.0 and si >= sfmax1 / f
+                skip = true
+            if not skip
+                scale[(i - 1) as usize] = si * f
+                noconv = true
+                dscal((n - k + 1) as usize, 1.0 / f, w, fx(i, k, n), n as usize)
+                dscal(l as usize, f, w, fx(1, i, n), 1)
+            i += 1
+    return Balanced(ilo: k, ihi: l, scale: scale)
+
+# DGEHD2 on rows/columns ilo..ihi of the n x n matrix at w[0..]; tau
+# and work areas at otau (n entries) and owork (n entries).
+pub fn gehd2_b(w: &mut List[f64], n: i64, ilo: i64, ihi: i64, otau: usize, owork: usize)
+    var i = ilo
+    while i <= ihi - 1 bound 1048576
+        let below = if i + 2 < n then i + 2 else n
+        let t = larfg_b(w, (ihi - i) as usize, fx(i + 1, i, n), fx(below, i, n), 1)
+        w[otau + (i - 1) as usize] = t
+        larf1f_b(w, false, ihi as usize, (ihi - i) as usize, fx(i + 1, i, n), 1, t, fx(1, i + 1, n), n as usize, owork)
+        larf1f_b(w, true, (ihi - i) as usize, (n - i) as usize, fx(i + 1, i, n), 1, t, fx(i + 1, i + 1, n), n as usize, owork)
+        i += 1
+
+# DLANV2: Schur factorization of a real 2 x 2 nonsymmetric matrix in
+# standardized form. Returns [a, b, c, d, rt1r, rt1i, rt2r, rt2i, cs, sn].
+pub fn lanv2(a0: f64, b0: f64, c0: f64, d0: f64) -> List[f64]
+    var a = a0
+    var b = b0
+    var c = c0
+    var d = d0
+    let eps = 2.0 * LA_EPS
+    let safmn2 = la_pow2(-485)
+    let safmx2 = 1.0 / safmn2
+    var cs = 1.0
+    var sn = 0.0
+    if c == 0.0
+        cs = 1.0
+        sn = 0.0
+    elif b == 0.0
+        cs = 0.0
+        sn = 1.0
+        let t = d
+        d = a
+        a = t
+        b = 0.0 - c
+        c = 0.0
+    elif a - d == 0.0 and la_sign(1.0, b) != la_sign(1.0, c)
+        cs = 1.0
+        sn = 0.0
+    else
+        var temp = a - d
+        var p = 0.5 * temp
+        let bcmax = la_abs(b).max(la_abs(c))
+        let bcmis = la_abs(b).min(la_abs(c)) * la_sign(1.0, b) * la_sign(1.0, c)
+        var scale = la_abs(p).max(bcmax)
+        var z = (p / scale) * p + (bcmax / scale) * bcmis
+        if z >= 4.0 * eps
+            z = p + la_sign(scale.sqrt() * z.sqrt(), p)
+            a = d + z
+            d = d - (bcmax / z) * bcmis
+            let tau = dlapy2(c, z)
+            cs = z / tau
+            sn = c / tau
+            b = b - c
+            c = 0.0
+        else
+            var count = 0
+            var sigma = b + c
+            loop bound 64
+                count += 1
+                scale = la_abs(temp).max(la_abs(sigma))
+                if scale >= safmx2
+                    sigma = sigma * safmn2
+                    temp = temp * safmn2
+                    if count <= 20
+                        continue
+                if scale <= safmn2
+                    sigma = sigma * safmx2
+                    temp = temp * safmx2
+                    if count <= 20
+                        continue
+                break
+            p = 0.5 * temp
+            var tau = dlapy2(sigma, temp)
+            cs = (0.5 * (1.0 + la_abs(sigma) / tau)).sqrt()
+            sn = 0.0 - (p / (tau * cs)) * la_sign(1.0, sigma)
+            let aa = a * cs + b * sn
+            let bb = (0.0 - a) * sn + b * cs
+            let cc = c * cs + d * sn
+            let dd = (0.0 - c) * sn + d * cs
+            a = aa * cs + cc * sn
+            b = (bb * cs) + (dd * sn)
+            c = 0.0 - (aa * sn) + (cc * cs)
+            d = (0.0 - bb) * sn + dd * cs
+            temp = 0.5 * (a + d)
+            a = temp
+            d = temp
+            if c != 0.0
+                if b != 0.0
+                    if la_sign(1.0, b) == la_sign(1.0, c)
+                        let sab = la_abs(b).sqrt()
+                        let sac = la_abs(c).sqrt()
+                        p = la_sign(sab * sac, c)
+                        tau = 1.0 / la_abs(b + c).sqrt()
+                        a = temp + p
+                        d = temp - p
+                        b = b - c
+                        c = 0.0
+                        let cs1 = sab * tau
+                        let sn1 = sac * tau
+                        let t2 = cs * cs1 - sn * sn1
+                        sn = cs * sn1 + sn * cs1
+                        cs = t2
+                else
+                    b = 0.0 - c
+                    c = 0.0
+                    let t3 = cs
+                    cs = 0.0 - sn
+                    sn = t3
+    var rt1i = 0.0
+    var rt2i = 0.0
+    if c != 0.0
+        rt1i = la_abs(b).sqrt() * la_abs(c).sqrt()
+        rt2i = 0.0 - rt1i
+    return [a, b, c, d, a, rt1i, d, rt2i, cs, sn]
+
+# DLAHQR with WANTT = WANTZ = false on the Hessenberg matrix at w[0..]
+# (n x n, active block ilo..ihi). Eigenvalues go to wr, wi (1-based i at
+# index i - 1). Returns INFO (0, or the index where 30 max(10, nh)
+# iterations did not converge).
+pub fn lahqr_b(w: &mut List[f64], n: i64, ilo: i64, ihi: i64, wr: &mut List[f64], wi: &mut List[f64]) -> i64
+    if n == 0
+        return 0
+    if ilo == ihi
+        wr[(ilo - 1) as usize] = w[fx(ilo, ilo, n)]
+        wi[(ilo - 1) as usize] = 0.0
+        return 0
+    var jj = ilo
+    while jj <= ihi - 3 bound 1048576
+        w[fx(jj + 2, jj, n)] = 0.0
+        w[fx(jj + 3, jj, n)] = 0.0
+        jj += 1
+    if ilo <= ihi - 2
+        w[fx(ihi, ihi - 2, n)] = 0.0
+    let nh = ihi - ilo + 1
+    let safmin = LA_SFMIN
+    let ulp = 2.0 * LA_EPS
+    let smlnum = safmin * ((nh as f64) / ulp)
+    let itmax = 30 * (if nh > 10 then nh else 10)
+    var kdefl: i64 = 0
+    var i = ihi
+    var v: List[f64] = [0.0, 0.0, 0.0]
+    while i >= ilo bound 1048576
+        var l = ilo
+        var converged = false
+        var its: i64 = 0
+        while its <= itmax bound 1048576
+            var k = i
+            while k >= l + 1 bound 1048576
+                let hk = la_abs(w[fx(k, k - 1, n)])
+                if hk <= smlnum
+                    break
+                var tst = la_abs(w[fx(k - 1, k - 1, n)]) + la_abs(w[fx(k, k, n)])
+                if tst == 0.0
+                    if k - 2 >= ilo
+                        tst = tst + la_abs(w[fx(k - 1, k - 2, n)])
+                    if k + 1 <= ihi
+                        tst = tst + la_abs(w[fx(k + 1, k, n)])
+                if hk <= ulp * tst
+                    let hu = la_abs(w[fx(k - 1, k, n)])
+                    let ab = hk.max(hu)
+                    let ba = hk.min(hu)
+                    let hkk = la_abs(w[fx(k, k, n)])
+                    let hdf = la_abs(w[fx(k - 1, k - 1, n)] - w[fx(k, k, n)])
+                    let aa = hkk.max(hdf)
+                    let bb = hkk.min(hdf)
+                    let s = aa + ab
+                    if ba * (ab / s) <= smlnum.max(ulp * (bb * (aa / s)))
+                        break
+                k -= 1
+            l = k
+            if l > ilo
+                w[fx(l, l - 1, n)] = 0.0
+            if l >= i - 1
+                converged = true
+                break
+            kdefl += 1
+            let i1 = l
+            let i2 = i
+            var h11 = 0.0
+            var h12 = 0.0
+            var h21 = 0.0
+            var h22 = 0.0
+            if kdefl % 20 == 0
+                let s = la_abs(w[fx(i, i - 1, n)]) + la_abs(w[fx(i - 1, i - 2, n)])
+                h11 = 0.75 * s + w[fx(i, i, n)]
+                h12 = -0.4375 * s
+                h21 = s
+                h22 = h11
+            elif kdefl % 10 == 0
+                let s = la_abs(w[fx(l + 1, l, n)]) + la_abs(w[fx(l + 2, l + 1, n)])
+                h11 = 0.75 * s + w[fx(l, l, n)]
+                h12 = -0.4375 * s
+                h21 = s
+                h22 = h11
+            else
+                h11 = w[fx(i - 1, i - 1, n)]
+                h21 = w[fx(i, i - 1, n)]
+                h12 = w[fx(i - 1, i, n)]
+                h22 = w[fx(i, i, n)]
+            let s = la_abs(h11) + la_abs(h12) + la_abs(h21) + la_abs(h22)
+            var rt1r = 0.0
+            var rt1i = 0.0
+            var rt2r = 0.0
+            var rt2i = 0.0
+            if s != 0.0
+                h11 = h11 / s
+                h21 = h21 / s
+                h12 = h12 / s
+                h22 = h22 / s
+                let tr = (h11 + h22) / 2.0
+                let dt = (h11 - tr) * (h22 - tr) - h12 * h21
+                let rtdisc = la_abs(dt).sqrt()
+                if dt >= 0.0
+                    rt1r = tr * s
+                    rt2r = rt1r
+                    rt1i = rtdisc * s
+                    rt2i = 0.0 - rt1i
+                else
+                    rt1r = tr + rtdisc
+                    rt2r = tr - rtdisc
+                    if la_abs(rt1r - h22) <= la_abs(rt2r - h22)
+                        rt1r = rt1r * s
+                        rt2r = rt1r
+                    else
+                        rt2r = rt2r * s
+                        rt1r = rt2r
+                    rt1i = 0.0
+                    rt2i = 0.0
+            var m = i - 2
+            while m >= l bound 1048576
+                let hmm = w[fx(m, m, n)]
+                var h21s = w[fx(m + 1, m, n)]
+                let s2 = la_abs(hmm - rt2r) + la_abs(rt2i) + la_abs(h21s)
+                h21s = w[fx(m + 1, m, n)] / s2
+                v[0] = h21s * w[fx(m, m + 1, n)] + (hmm - rt1r) * ((hmm - rt2r) / s2) - rt1i * (rt2i / s2)
+                v[1] = h21s * (hmm + w[fx(m + 1, m + 1, n)] - rt1r - rt2r)
+                v[2] = h21s * w[fx(m + 2, m + 1, n)]
+                let s3 = la_abs(v[0]) + la_abs(v[1]) + la_abs(v[2])
+                v[0] = v[0] / s3
+                v[1] = v[1] / s3
+                v[2] = v[2] / s3
+                if m == l
+                    break
+                let h00 = la_abs(w[fx(m - 1, m - 1, n)])
+                if la_abs(w[fx(m, m - 1, n)]) * (la_abs(v[1]) + la_abs(v[2])) <= ulp * la_abs(v[0]) * (h00 + la_abs(hmm) + la_abs(w[fx(m + 1, m + 1, n)]))
+                    break
+                m -= 1
+            var kk = m
+            while kk <= i - 1 bound 1048576
+                let nr = if i - kk + 1 < 3 then i - kk + 1 else 3
+                if kk > m
+                    for q in 0..nr
+                        v[q as usize] = w[fx(kk + q, kk - 1, n)]
+                let t1 = larfg_b(&mut v, nr as usize, 0, 1, 1)
+                if kk > m
+                    w[fx(kk, kk - 1, n)] = v[0]
+                    w[fx(kk + 1, kk - 1, n)] = 0.0
+                    if kk < i - 1
+                        w[fx(kk + 2, kk - 1, n)] = 0.0
+                elif m > l
+                    w[fx(kk, kk - 1, n)] = w[fx(kk, kk - 1, n)] * (1.0 - t1)
+                let v2 = v[1]
+                let t2 = t1 * v2
+                if nr == 3
+                    let v3 = v[2]
+                    let t3 = t1 * v3
+                    var j = kk
+                    while j <= i2 bound 1048576
+                        let sm = w[fx(kk, j, n)] + v2 * w[fx(kk + 1, j, n)] + v3 * w[fx(kk + 2, j, n)]
+                        w[fx(kk, j, n)] = w[fx(kk, j, n)] - sm * t1
+                        w[fx(kk + 1, j, n)] = w[fx(kk + 1, j, n)] - sm * t2
+                        w[fx(kk + 2, j, n)] = w[fx(kk + 2, j, n)] - sm * t3
+                        j += 1
+                    let jmax = if kk + 3 < i then kk + 3 else i
+                    j = i1
+                    while j <= jmax bound 1048576
+                        let sm = w[fx(j, kk, n)] + v2 * w[fx(j, kk + 1, n)] + v3 * w[fx(j, kk + 2, n)]
+                        w[fx(j, kk, n)] = w[fx(j, kk, n)] - sm * t1
+                        w[fx(j, kk + 1, n)] = w[fx(j, kk + 1, n)] - sm * t2
+                        w[fx(j, kk + 2, n)] = w[fx(j, kk + 2, n)] - sm * t3
+                        j += 1
+                elif nr == 2
+                    var j = kk
+                    while j <= i2 bound 1048576
+                        let sm = w[fx(kk, j, n)] + v2 * w[fx(kk + 1, j, n)]
+                        w[fx(kk, j, n)] = w[fx(kk, j, n)] - sm * t1
+                        w[fx(kk + 1, j, n)] = w[fx(kk + 1, j, n)] - sm * t2
+                        j += 1
+                    j = i1
+                    while j <= i bound 1048576
+                        let sm = w[fx(j, kk, n)] + v2 * w[fx(j, kk + 1, n)]
+                        w[fx(j, kk, n)] = w[fx(j, kk, n)] - sm * t1
+                        w[fx(j, kk + 1, n)] = w[fx(j, kk + 1, n)] - sm * t2
+                        j += 1
+                kk += 1
+            its += 1
+        if not converged
+            return i
+        if l == i
+            wr[(i - 1) as usize] = w[fx(i, i, n)]
+            wi[(i - 1) as usize] = 0.0
+        elif l == i - 1
+            let r = lanv2(w[fx(i - 1, i - 1, n)], w[fx(i - 1, i, n)], w[fx(i, i - 1, n)], w[fx(i, i, n)])
+            w[fx(i - 1, i - 1, n)] = r[0]
+            w[fx(i - 1, i, n)] = r[1]
+            w[fx(i, i - 1, n)] = r[2]
+            w[fx(i, i, n)] = r[3]
+            wr[(i - 2) as usize] = r[4]
+            wi[(i - 2) as usize] = r[5]
+            wr[(i - 1) as usize] = r[6]
+            wi[(i - 1) as usize] = r[7]
+        kdefl = 0
+        i = l - 1
+    return 0
+
+pub struct Eigvals
+    re: List[f64]
+    im: List[f64]
+
+# Eigenvalues of a general square matrix, in DGEEV order (complex pairs
+# adjacent, positive imaginary part first). Fails with why
+# "no convergence" (at = LAPACK INFO) in the rare case DLAHQR gives up.
+# Inputs whose largest entry lies outside [sqrt(SFMIN)/EPS,
+# EPS/sqrt(SFMIN)] would be rescaled by DGEEV first; they are refused.
+pub fn eigvals(a: &Mat) -> Eigvals ! LaError
+    if a.m != a.n
+        fail LaError(why: "eigvals needs a square matrix", at: -1)
+    let n = a.n as i64
+    var amax = 0.0
+    for x in &a.a
+        amax = amax.max(la_abs(x))
+    let smlnum = LA_SFMIN.sqrt() / (2.0 * LA_EPS)
+    if amax > 0.0 and (amax < smlnum or amax > 1.0 / smlnum)
+        fail LaError(why: "eigvals: entries outside the unscaled range", at: -1)
+    var w = copy(a.a)
+    let otau = w.len()
+    for _ in 0..(2 * a.n)
+        w.push(0.0)
+    let bal = gebal_b(&mut w, n)
+    gehd2_b(&mut w, n, bal.ilo, bal.ihi, otau, otau + a.n)
+    var wr: List[f64] = []
+    var wi: List[f64] = []
+    for _ in 0..a.n
+        wr.push(0.0)
+        wi.push(0.0)
+    var q: i64 = 1
+    while q <= n bound 1048576
+        if q < bal.ilo or q > bal.ihi
+            wr[(q - 1) as usize] = w[fx(q, q, n)]
+        q += 1
+    let info = lahqr_b(&mut w, n, bal.ilo, bal.ihi, &mut wr, &mut wi)
+    if info > 0
+        fail LaError(why: "no convergence", at: info)
+    return Eigvals(re: wr, im: wi)

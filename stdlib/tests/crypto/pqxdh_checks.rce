@@ -1,0 +1,5 @@
+# needs: crypto pq
+# pqxdh_sk refuses an empty shared secret or DH (a refused ML-KEM decapsulation answers "") and still derives for real inputs.
+check pqxdh_sk("00", "") == "" and pqxdh_sk("", "00") == ""
+check pqxdh_sk("0011", "22").len() == 64
+check pqxdh_sk("0011", "22") != pqxdh_sk("0011", "23")

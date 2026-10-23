@@ -1,0 +1,28 @@
+fn act(n: text) -> text = action(&n) catch "?"
+fn std(n: text) -> text = standard(&n) catch "?"
+fn nm(n: text, t: text) -> i64 = number(&n, &t) catch -2
+fn nameof(n: i64, t: text) -> text = name_of(n, &t)
+fn inum(s: &text) -> i64
+    var v: i64 = 0
+    for c in s.chars()
+        v = v * 10 + (c[0] as i64 - 48)
+    return v
+fn run(s: text) -> text
+    var p = pending_new()
+    var out: List[text] = []
+    for op in s.split(";")
+        let a = op.split(" ")
+        if a[0] == "send"
+            let ok = sig_send(&mut p, inum(&a[1]), inum(&a[2])) catch false
+            out.push(if ok then "ok" else "err")
+        elif a[0] == "wait"
+            var set: List[i64] = []
+            for x in a[1].split(",")
+                set.push(inum(&x))
+            match dequeue(&mut p, &set)
+                some(q) -> out.push(q.sig.tostr() + ":" + q.val.tostr())
+                none -> out.push("none")
+        else
+            let ok = set_disposition(&mut p, inum(&a[1]), &a[0]) catch false
+            out.push(if ok then "ok" else "err")
+    return ";".join(out)

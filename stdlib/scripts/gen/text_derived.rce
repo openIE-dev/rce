@@ -1,0 +1,77 @@
+fn tw(t: text) -> i64
+    let c = cps(&t)
+    return text_width(&c)
+fn gw(t: text) -> List[i64]
+    let c = cps(&t)
+    return grapheme_breaks(&c)
+fn lm(t: text) -> List[i64]
+    let c = cps(&t)
+    return line_mandatory(&c)
+fn lkk(t: text) -> List[i64]
+    let c = cps(&t)
+    return line_kinds(&c)
+fn wseg(t: text) -> List[i64]
+    let c = cps(&t)
+    let b = word_breaks(&c)
+    var o: List[i64] = []
+    for sg in segments(&c, &b)
+        o.push(sg.len() as i64)
+        o.push(copy(sg[0]))
+    return o
+fn vis(t: text, dir: i64) -> List[i64]
+    let c = cps(&t)
+    let ty = bidi_types(&c)
+    let r = bidi_levels(&ty, &c, dir)
+    return bidi_order(&r.levels)
+fn plevel(t: text) -> i64
+    let c = cps(&t)
+    let ty = bidi_types(&c)
+    return bidi_levels(&ty, &c, 2).para
+# empty input has no boundaries
+check gk([]) == []
+check wk([]) == []
+check sk([]) == []
+check lk([]) == []
+check gw("") == []
+# terminal cells
+check tw("abc") == 3
+check tw("日本") == 4
+check tw("e\u{301}") == 1
+check tw("\u{1F44D}\u{1F3FD}") == 2
+check tw("\u{2764}\u{FE0F}") == 2
+check tw("\u{2764}") == 1
+check tw("\u{1100}\u{1161}\u{11A8}") == 2
+check tw("a\u{200B}b") == 2
+check tw("\u{FF21}") == 2
+check tw("\u{1F468}\u{200D}\u{1F469}\u{200D}\u{1F467}") == 2
+check cp_width(9) == 0
+check cp_width(173) == 0
+check cp_width(65) == 1
+# segmentation on text
+check gw("e\u{301}x") == [2, 3]
+check gw("\u{1F1FA}\u{1F1F8}\u{1F1EB}") == [2, 3]
+check wseg("can't stop") == [5, 99, 1, 32, 4, 115]
+# mandatory breaks and kinds
+check lm("a\r\nb\nc") == [3, 5, 6]
+check lm("ab") == [2]
+check lkk("a b\nc") == [0, 1, 0, 2]
+# bidi on text
+check plevel("abc") == 0
+check plevel("\u{5D0}bc") == 1
+check plevel("123") == 0
+check vis("ab \u{5D0}\u{5D1}", 0) == [0, 1, 2, 4, 3]
+check vis("ab \u{5D0}\u{5D1}", 1) == [4, 3, 2, 0, 1]
+check vis("\u{5D0}(\u{5D1})", 2) == [3, 2, 1, 0]
+# a lone Hangul medial vowel or final consonant is zero width
+check tw("\u{1161}") == 0
+check tw("\u{11A8}") == 0
+check tw("\u{D7B0}") == 0
+fn lvl(t: text, dir: i64) -> List[i64]
+    let c = cps(&t)
+    let ty = bidi_types(&c)
+    return bidi_levels(&ty, &c, dir).levels
+# N0: an NSM after a bracket resolved to L takes L too (UAX 9 N0, BD16)
+check lvl("a(b)\u{301}", 1) == [2, 2, 2, 2, 2]
+# LB25: PR and PO hold to OP when IS NU follows (ICU 76: "$(.5" -> [4])
+check lk([36, 40, 46, 53]) == [4]
+check lk([37, 40, 44, 53]) == [4]

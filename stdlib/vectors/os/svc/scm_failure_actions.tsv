@@ -1,0 +1,30 @@
+none		0	crash	1
+none		0	stop0	1
+none		0	stop1	1
+r1	restart/500	0	crash	5
+r1	restart/500	0	stop0	1
+r1	restart/500	0	stop1	1
+r1f	restart/500	1	crash	5
+r1f	restart/500	1	stop0	1
+r1f	restart/500	1	stop1	5
+r2	restart/500/restart/500	0	crash	5
+r2	restart/500/restart/500	0	stop0	1
+r2	restart/500/restart/500	0	stop1	1
+r2f	restart/500/restart/500	1	crash	5
+r2f	restart/500/restart/500	1	stop0	1
+r2f	restart/500/restart/500	1	stop1	5
+r3	restart/500/restart/500/restart/500	0	crash	5
+r3	restart/500/restart/500/restart/500	0	stop0	1
+r3	restart/500/restart/500/restart/500	0	stop1	1
+rn	restart/500/none/0	0	crash	2
+rn	restart/500/none/0	0	stop0	1
+rn	restart/500/none/0	0	stop1	1
+nr	none/0/restart/500	0	crash	1
+nr	none/0/restart/500	0	stop0	1
+nr	none/0/restart/500	0	stop1	1
+nrf	none/0/restart/500	1	crash	1
+nrf	none/0/restart/500	1	stop0	1
+nrf	none/0/restart/500	1	stop1	1
+rnr	restart/500/none/0/restart/500	0	crash	2
+rnr	restart/500/none/0/restart/500	0	stop0	1
+rnr	restart/500/none/0/restart/500	0	stop1	1
