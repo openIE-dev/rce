@@ -62,6 +62,22 @@ log hash and every select decision unchanged (T7); no actor or task key
 contains a source position, so an edit that keeps the supervision tree and
 the order of creations keeps every actor and task id.
 
+**The concept record (informative).** Names carry no meaning in the Form
+(T7) and carry most of the meaning for a reader: obscuring identifiers
+costs a reader, human or model, between a tenth and a quarter of their
+accuracy on what a program does, while formatting costs nothing. So names
+have a defined home outside the hash. The *concept record* of a module is
+the table from each name-free key of 6.6 to: the name as written, the
+`intent` strings of the item, and its doc comments. It is derived from the
+source by `rce emit form` (under `names`, after the hashed fields), it is
+never hashed and never read by δ, and two modules that differ only in it
+have the same Form, the same log and the same ids. A projection (10.5)
+renders the concept record's names by default; `rce fmt --nameless` (10.6)
+is the projection that renders positional names instead, which is the
+text whose hash is the Form's. The record is a lens complement in the
+sense of 3.6 (paper): lift and emit are inverse on the Form, and the
+complement is what makes them inverse on the text as well.
+
 ### 6.7 Loops and fuel
 
 `for p in e` iterates over a finite value (list, set, map in canonical order
@@ -305,4 +321,4 @@ exploration fuel of `rce dim` (10.11). `shape_eq` refines `shape_ctl`
 
 **Read receipt.** Name-free hashing uses indices named after which logician? (two words)
 
-<!-- body-sha256: 0182744c00a36620c12fdc276cf24a62d7ade6f0464c1c3bc45d5cd25c66156b -->
+<!-- body-sha256: 14b70257b5684a57435f55cbbf21f2e7b1d13efe9288a5f5d686f1268935effa -->

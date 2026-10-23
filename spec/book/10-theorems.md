@@ -68,7 +68,7 @@ Classical.choice). Status per theorem:
 | T15 | proved for iterators whose step between yields is total (T2): every run ends, delivers at most LOOP_LIMIT values and traps only after exactly LOOP_LIMIT; `break` yields a prefix of the full run; a run with a smaller cap is a prefix of one with a larger cap (the evaluator's re-run strategy) | `drive_total`, `drive_break`, `gen_prefix` |
 | T57 | proved on the Form core (`RCE/Behaviour.lean`, not yet in `lake build`): one-step unfolding of the behaviour of 6.10; uniqueness of the morphism (Rutten 2000) stated, unproved | `beh_cons` |
 | T58 | proved on the Form core (`RCE/Behaviour.lean`, not yet in `lake build`): a bisimulation forces equal behaviours, and behavioural equality is a bisimulation | `bisim_beh`, `beh_bisim` |
-| T59 | stated, unproved: agreement on every trace of length ≤ k bounds the distance of 6.10 by 2^-(k+1); needs a finite event type in Lean (the declared events over the T35 payload fragment) | none |
+| T59 | drafted in Lean over an explicit finite alphabet (`RCE/Behaviour.lean`: `words`, `AgreeAt`, `firstDiff`, `trace_ball`), the declared events over the boundary sets that `rce dim` explores; the proof script has not been checked by the toolchain yet, so the status is *stated* until `lake build` passes with the file in the library | `trace_ball` (unchecked) |
 | T60 | stated, unproved (a model proof by partition refinement is the next step): for finite S the quotient of reach(P) by the largest bisimulation is the minimal machine, with dim(P) states, unique up to isomorphism, and the canonical numbering of 6.10 makes its isomorphism class one string | none |
 | T61 | tested against the admitted e-graph rewrites until the symbolic quotient is in the checker: `shape_ctl` is invariant under renaming, under predicate-equivalent rewrites of guards and under every rewrite admitted into the e-graph | none |
 
@@ -254,4 +254,4 @@ tables is checked to exist (`spec/checker/tests/theorem_index.rs`).
 
 **Read receipt.** What is the deep embedding of the emitted Rust subset called?
 
-<!-- body-sha256: 1b288093b74afc0052494f225d40ee9e3390b21484b4629ea1e6181889d327fc -->
+<!-- body-sha256: 08fc8ebf5487f63ece4137f7a469b0005b07aa5ad308e652d9a404ffbd5b5258 -->

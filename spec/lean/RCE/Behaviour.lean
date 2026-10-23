@@ -63,22 +63,77 @@ theorem behEq_iff_bisim (P : Program) (s t : State) :
   ⟨fun h => ⟨_, beh_bisim P, h⟩,
    fun ⟨R, hR, hst⟩ w => bisim_beh P R hR w s t hst⟩
 
-/-! ### Obligation for T59
+/-! ### T59 over an explored alphabet
 
-`Event := String × List Val` is not finite as a Lean type, so the shortest
-distinguishing sequence cannot be searched by enumeration here. The
-obligation is: given a finite list `evs : List Event` (the declared events
-over the T35 payload fragment, as `rce dim` enumerates them), define
+`Event := String × List Val` is not finite as a Lean type, so the
+distance of 6.10.4 is stated over an explicit finite alphabet `evs`, the
+declared events over the boundary sets that `rce dim` enumerates. This is
+exactly the claim the tool can make, and it is what T59 means in the spec
+once "every trace of length ≤ k" is read as "every trace over the
+explored alphabet". -/
 
-    firstDiff P s t evs k : Option Nat
+/-- All words of length `n` over the alphabet `evs`. -/
+def words (evs : List Event) : Nat → List (List Event)
+  | 0 => [[]]
+  | n + 1 => (words evs n).flatMap fun w => evs.map fun e => e :: w
 
-as the least `n ≤ k` such that some `w` of length `n` over `evs` has
-`beh P s w ≠ beh P t w`, and prove
+theorem mem_words_length (evs : List Event) : ∀ n w, w ∈ words evs n → w.length = n := by
+  intro n
+  induction n with
+  | zero => intro w h; simp [words] at h; subst h; rfl
+  | succ n ih =>
+    intro w h
+    simp only [words, List.mem_flatMap, List.mem_map] at h
+    obtain ⟨w', hw', e, _, rfl⟩ := h
+    simp [ih w' hw']
 
-    (∀ w, w.length ≤ k → (∀ x ∈ w, x ∈ evs) → beh P s w = beh P t w)
-      → ∀ n, firstDiff P s t evs k = some n → k < n.
+/-- Two states agree on every word of length `n` over `evs`. -/
+def AgreeAt (P Q : Program) (evs : List Event) (s t : State) (n : Nat) : Prop :=
+  ∀ w ∈ words evs n, beh P s w = beh Q t w
 
-Together with 6.10.4 this is T59 restricted to the explored alphabet, which
-is exactly the claim `rce dim` can make. -/
+instance (P Q : Program) (evs : List Event) (s t : State) (n : Nat) :
+    Decidable (AgreeAt P Q evs s t n) := by
+  unfold AgreeAt; infer_instance
+
+/-- The first length at which the two behaviours part, searched up to `k`
+    (6.10.4, n(b₁, b₂) restricted to `evs`); `none` when they agree to `k`. -/
+def firstDiff (P Q : Program) (evs : List Event) (s t : State) : Nat → Option Nat
+  | 0 => if AgreeAt P Q evs s t 0 then none else some 0
+  | k + 1 =>
+    match firstDiff P Q evs s t k with
+    | some n => some n
+    | none => if AgreeAt P Q evs s t (k + 1) then none else some (k + 1)
+
+/-- `firstDiff` only ever answers a length at which the states disagree. -/
+theorem firstDiff_disagrees (P Q : Program) (evs : List Event) (s t : State) :
+    ∀ k n, firstDiff P Q evs s t k = some n → ¬ AgreeAt P Q evs s t n := by
+  intro k
+  induction k with
+  | zero =>
+    intro n h
+    simp only [firstDiff] at h
+    split at h
+    · simp at h
+    · simp at h; subst h; assumption
+  | succ k ih =>
+    intro n h
+    simp only [firstDiff] at h
+    split at h
+    · rename_i n' heq
+      simp at h; subst h; exact ih _ heq
+    · split at h
+      · simp at h
+      · simp at h; subst h; assumption
+
+/-- **T59** (over the explored alphabet): agreement on every word of every
+    length ≤ k means the first difference, if any, lies beyond k. Hence
+    d(beh_P s, beh_Q t) ≤ 2^-(k+1) in the sense of 6.10.4. -/
+theorem trace_ball (P Q : Program) (evs : List Event) (s t : State) (k : Nat)
+    (h : ∀ n ≤ k, AgreeAt P Q evs s t n) :
+    ∀ n, firstDiff P Q evs s t k = some n → k < n := by
+  intro n hd
+  by_contra hle
+  push_neg at hle
+  exact firstDiff_disagrees P Q evs s t k n hd (h n hle)
 
 end RCE

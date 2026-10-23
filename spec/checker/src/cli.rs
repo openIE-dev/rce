@@ -531,6 +531,7 @@ pub const USAGE_TEXT: &str = "usage:
   rce trace --json FILE [EVENTS] reference trace (seq, event, state_hash per step) of the examples, or of EVENTS
   rce emit TARGET FILE           TARGET: form (Form JSON), rust, python, js or scala (a program printing its observations)
   rce fmt [--check] FILE...      rewrite files in canonical layout (--check: only report)
+  rce fmt --nameless FILE        print the name-free projection: every declared identifier replaced by its positional name (10.6)
   rce dim [--fuel N] [--control] [--json] FILE  behaviours a program can be in and the redundancy of its state (6.10, 10.11); --control is reserved, not implemented
   rce hash FILE|DIR...           the definition hash (F.4.3) of every named item of each module: HASH, kind, name, and `pub` for an export
   rce manifest-check MANIFEST [--advisories FILE] [--key ISSUER=HEXPUBKEY]...  verify a hash-pinned manifest (F.5.3, W-PIN-1) and list pinned hashes that carry a signed advisory
@@ -836,6 +837,20 @@ fn run_main(a: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &mu
             )
             .map_err(w)?;
             USAGE
+        }
+        Some("fmt") if rest.len() == 2 && rest[0] == "--nameless" => {
+            // rce fmt --nameless FILE: the name-free projection (10.6), to stdout
+            let src = read_file(&rest[1])?;
+            match crate::nameless::nameless(&src).and_then(|t| fmt_text(&t)) {
+                Ok(t) => {
+                    write!(out, "{t}").map_err(w)?;
+                    OK
+                }
+                Err(e) => {
+                    writeln!(out, "REFUSED {}: {e}", rest[1]).map_err(w)?;
+                    REFUSED
+                }
+            }
         }
         Some("fmt") if !rest.is_empty() => {
             let check = rest[0] == "--check";

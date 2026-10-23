@@ -340,6 +340,19 @@ each file that would change is printed as `would reformat FILE` and the
 status is 1. Without it, each changed file is written and printed as
 `formatted FILE`.
 
+**`rce fmt --nameless FILE`** prints the name-free projection of one file
+to standard output and writes nothing. Every identifier the module declares
+is replaced by a positional name in order of first declaration, by kind:
+regions `r0, r1, …`, events `e0, …`, errors `x0, …`, functions `f0, …`,
+types `t0, …`, kind variants `k0, …`, fields, parameters and locals
+`v0, …`. Keywords, built-in types, standard library names, string contents
+and `intent` text are unchanged. The projection is deterministic and
+idempotent, and because names carry no meaning (T7) it has the same Form,
+log and ids as the source; a name the projection does not recognise as
+declared is left as written, so the output is accepted whenever the input
+is. It is the text of the concept record's complement (6.6) and the input
+of the nameless-Form experiment.
+
 ### 10.7 The language server: `rce lsp`
 
 `rce lsp` speaks the Language Server Protocol 3.17 over standard input and
@@ -540,4 +553,4 @@ and payloads. It is informative: no admission depends on it.
 
 **Read receipt.** Which JSON-RPC error code does the language server return for a request it does not know? (a number)
 
-<!-- body-sha256: bb316f6b3a545e4f41bc043b4ee534719a781786d05f79f924ccea4861600cb6 -->
+<!-- body-sha256: 6e5899e22ba5d1da465215c55a8c20bc896c301ffff413989b83bc694c1145b8 -->
