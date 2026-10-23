@@ -96,6 +96,19 @@ Three states, not four: a door cannot be open and locked at once, because
 `Lock` is refused while open and `Open` is refused while locked. Three
 behaviours, no redundancy. This program's state is exactly its behaviour.
 
+## State nobody can see
+
+The traffic light of chapter 5 has three states and, by this measure, one
+behaviour: it never emits and never refuses, so no sequence of events gets
+a different answer from any state. Its examples check `light == Yellow`,
+but an example reads the state from inside; the Form's behaviour is what
+comes out. `rce dim` on that program reports 3 states, 1 behaviour and 1.58
+bits of redundancy, and it is right: as written, the light is a machine
+whose colour nothing can observe. Add `emit light` to its step and the
+three states become three behaviours. When the first run of `rce dim` over
+the specification's own examples was made, most of its state machines
+turned out to be of this kind.
+
 ## The control view
 
 `rce dim --control` asks a coarser question: not what the program emits,
