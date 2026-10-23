@@ -3,7 +3,7 @@ use rce_mcp::ws::Workspace;
 use std::fs;
 
 const COUNTER: &str =
-    include_str!("../../../vendor/rce-spec/examples/01_counter.rce");
+    include_str!("../../../../spec/examples/01_counter.rce");
 
 #[test]
 fn splits_top_level_items() {

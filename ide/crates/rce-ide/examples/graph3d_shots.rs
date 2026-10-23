@@ -27,7 +27,7 @@ use serde_json::json;
 fn main() -> Result<(), String> {
     let out = std::env::args().nth(1).unwrap_or_else(|| "screens".into());
     let ex = std::env::var("RCE_EXAMPLES")
-        .unwrap_or_else(|_| concat!(env!("CARGO_MANIFEST_DIR"), "/../../vendor/rce-spec/examples").into());
+        .unwrap_or_else(|_| concat!(env!("CARGO_MANIFEST_DIR"), "/../../../spec/examples").into());
     let rd =
         |f: &str| std::fs::read_to_string(format!("{ex}/{f}")).map_err(|e| format!("{f}: {e}"));
     let dir = tempfile_dir()?;

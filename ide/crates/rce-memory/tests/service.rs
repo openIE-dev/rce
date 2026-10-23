@@ -11,7 +11,7 @@ use rce_memory::service::*;
 
 const EX: &str = concat!(
     env!("CARGO_MANIFEST_DIR"),
-    "/../../vendor/rce-spec/examples/"
+    "/../../../spec/examples/"
 );
 
 fn prog() -> Vec<(String, String)> {

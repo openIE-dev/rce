@@ -27,7 +27,7 @@ You need the [tree-sitter CLI](https://tree-sitter.github.io/tree-sitter/creatin
 and a C compiler.
 
 ```sh
-git clone https://github.com/openIE-dev/tree-sitter-rce
+git clone https://github.com/openIE-dev/rce && cd rce/tree-sitter
 cd tree-sitter-rce
 tree-sitter test
 tree-sitter parse examples/counter.rce
@@ -88,17 +88,14 @@ requires. Apart from the added `comment` nodes, the trees are unchanged.
 
 ## Keeping in sync with the specification
 
-The source of truth is `spec/tree-sitter/` in the
-[rce repository](https://github.com/openIE-dev/rce). A grammar change is
-made there first, checked with the reference checker's three-parser test,
-and then copied here. `scripts/check-sync.sh /path/to/rce` reports any
-difference. `src/parser.c` differs from the rce copy only in the version
-metadata that `tree-sitter.json` adds.
-
-The `comment` token is new in this repository and has not been ported to
-`spec/tree-sitter/` in the rce repository yet, so `check-sync.sh` (and the
-`sync` CI job) report `grammar.js`, `src/scanner.c`, `src/grammar.json` and
-`src/node-types.json` as different until it is.
+This directory is the one copy of the grammar. The reference checker in
+`../spec/checker` compiles `src/parser.c` and `src/scanner.c` from here
+(feature `tree-sitter`), `rce-spec-check` regenerates the parser from
+`grammar.js` and fails when the committed `src/` is stale, and
+`tests/tree_sitter_sync.rs` parses every `.rce` file of the repository with
+this grammar and the Rust parser and fails on any disagreement. A grammar
+change is one commit: the EBNF in `../spec/book/03-syntax.md`, `grammar.js`
+and the regenerated `src/`, the corpus under `test/`, and the examples.
 
 ## Contributing
 

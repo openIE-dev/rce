@@ -1,2 +1,0 @@
-fn ticks(c: chan u64) -> iter u64
-    yield 1

@@ -17,7 +17,7 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 const COUNTER: &str =
-    include_str!("../../../vendor/rce-spec/examples/01_counter.rce");
+    include_str!("../../../../spec/examples/01_counter.rce");
 
 #[derive(Debug, Clone)]
 struct Seen {

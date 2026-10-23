@@ -29,8 +29,8 @@ In plain words:
 Build the book with [mdBook](https://rust-lang.github.io/mdBook/):
 
 ```sh
-git clone https://github.com/openIE-dev/rce-book
-cd rce-book
+git clone https://github.com/openIE-dev/rce
+cd rce/book
 mdbook serve --open
 ```
 
@@ -45,7 +45,7 @@ You need the `rce` command from the
 ```sh
 git clone https://github.com/openIE-dev/rce
 (cd rce/spec/checker && cargo build --release)
-RCE=$PWD/rce/spec/checker/target/release/rce rce-book/scripts/check-listings.sh
+RCE=$PWD/spec/checker/target/release/rce book/scripts/check-listings.sh
 ```
 
 The script prints `N passed, 0 failed` when every listing behaves as the

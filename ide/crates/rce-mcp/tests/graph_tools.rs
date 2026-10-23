@@ -5,7 +5,7 @@ use rce_mcp::{Server, ws::Workspace};
 use serde_json::{Value, json};
 
 const TREE: &str = include_str!(
-    "../../../vendor/rce-spec/examples/39_structural_recursion.rce"
+    "../../../../spec/examples/39_structural_recursion.rce"
 );
 
 fn call(s: &mut Server, name: &str, args: Value) -> Value {

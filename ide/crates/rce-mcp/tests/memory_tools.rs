@@ -9,9 +9,9 @@ use std::io::{BufRead, BufReader, Write};
 use std::process::{Command, Stdio};
 
 const BANK: &str =
-    include_str!("../../../vendor/rce-spec/examples/04_bank_account.rce");
+    include_str!("../../../../spec/examples/04_bank_account.rce");
 const TREE: &str = include_str!(
-    "../../../vendor/rce-spec/examples/39_structural_recursion.rce"
+    "../../../../spec/examples/39_structural_recursion.rce"
 );
 
 fn server(root: &std::path::Path) -> Server {

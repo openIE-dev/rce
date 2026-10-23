@@ -11,7 +11,6 @@ members = [
     "crates/rce-memory",
     "crates/acp-client",
     "vendor/photon",
-    "vendor/rce-spec/checker",
     "crates/rce-ide",
     "crates/rce-graph3d",
 ]
@@ -32,7 +31,8 @@ hex = "0.4.3"
 thiserror = "2.0.21"
 tempfile = "3.27.0"
 nvml-wrapper = "0.13.0"
-rce_spec_check = { path = "vendor/rce-spec/checker", package = "rce-spec-check" }
+# The reference checker lives in this repository at spec/checker (a path dependency, never vendored or pinned).
+rce_spec_check = { path = "../spec/checker", package = "rce-spec-check" }
 ide-receipt = { path = "crates/ide-receipt" }
 ide-energy = { path = "crates/ide-energy" }
 rce-mcp = { path = "crates/rce-mcp" }

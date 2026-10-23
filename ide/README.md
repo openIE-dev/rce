@@ -24,7 +24,7 @@ Rust only, toolchain 1.98.1. The checker, language server and receipt and energy
   backends that return `Unsupported`; time-window attribution; k-sigma anomaly test.
 - `crates/rce-mcp`: stdio MCP server (JSON-RPC 2.0, newline-delimited). Tools
   `read_form`, `propose_edit`, `rce_check`, `rce_test`, `emit`. Uses the RCE reference
-  checker (`rce-spec-check`, path dependency on `vendor/rce-spec/checker` (vendored RCE reference checker)).
+  checker (`rce-spec-check`, a path dependency on `../spec/checker`, the reference checker of this repository).
 
 Honesty rules: an uncalibrated simulator predicts `None`; without a readable meter
 `e_meas` is `None`; `delta_j` exists only for a hardware measurement and a prediction.
@@ -37,10 +37,10 @@ From 0.1.2 on, rce-ide is published as prebuilt binaries on the
 [releases page](https://github.com/openIE-dev/rce-ide/releases). 0.1.3 and later
 are built from the private RCE engine (host runtime, `rce db`, `--media`,
 `--redact`, the chat and SFU apps) and embed the standard host libraries,
-whose source is public in [openIE-dev/rce-stdlib](https://github.com/openIE-dev/rce-stdlib).
+whose source is public in `../stdlib`.
 The source in this repository, including `vendor/rce-spec`, is the 0.1.2
 snapshot and is not what the 0.1.3+ binaries are built from.
-`vendor/rce-spec` is pinned to `openIE-dev/rce` commit `f7ecf02` (recorded in `vendor/rce-spec/SOURCE`) and has not been regenerated from public `rce` main, so it is behind the current specification draft; read the specification in `openIE-dev/rce` for the current text. It was not refreshed on 17 October 2026: the current public checker compiles here after adding `vendor/rcedb`, but its test suite reads `apps/`, `lib/` and other directories of the full `rce` repository, so a refreshed vendor copy fails this repository's `cargo test --workspace` unless those directories are vendored too.
+The checker this directory builds against is `../spec/checker` of the same commit: the IDE is part of the rce repository since 23 October 2026, so the source here and the specification can no longer drift apart. The 0.1.2 snapshot sentence above describes the last separate release.
 
 ## Install (prebuilt binaries)
 
@@ -82,7 +82,7 @@ Notes:
   found on this machine. Without a readable meter, energy is reported as
   simulated or missing, never guessed.
 - Build from source: Rust 1.98.1, `cargo build --release -p rce-ide -p rce-mcp`.
-  The checker is a path dependency on `vendor/rce-spec/checker` (vendored RCE reference checker).
+  The checker is a path dependency on `../spec/checker` (the reference checker of this repository, never vendored or pinned).
 
 Graph view keys (pointer over the graph): F3 view, F4 layout, F6/F7/F8 colour,
 size and glow metric (or click the chips), Esc folds expanded files, Shift-drag

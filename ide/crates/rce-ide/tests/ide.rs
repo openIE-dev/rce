@@ -9,7 +9,7 @@ use rce_ide::vm::{Action, Ide, ProposalStatus};
 use std::path::PathBuf;
 
 const COUNTER: &str =
-    include_str!("../../../vendor/rce-spec/examples/01_counter.rce");
+    include_str!("../../../../spec/examples/01_counter.rce");
 
 fn ws(memory: bool) -> (tempfile::TempDir, Ide) {
     let t = tempfile::tempdir().unwrap();

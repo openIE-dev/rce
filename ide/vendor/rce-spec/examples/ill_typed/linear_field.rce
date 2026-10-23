@@ -1,6 +1,0 @@
-linear struct H
-    id: i32
-
-struct Pair
-    a: H
-    b: i32

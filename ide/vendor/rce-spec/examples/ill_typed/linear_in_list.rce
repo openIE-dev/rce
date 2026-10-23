@@ -1,5 +1,0 @@
-linear struct H
-    id: i32
-
-fn f(hs: List[H]) -> u64
-    return 0

@@ -1,8 +1,0 @@
-fn build(n: u64) -> u64
-    var k: u64 = 0
-    with arena a bound 16
-        let xs: List[u64] @a = [n, n, n, n, n, n, n, n, n, n]
-        k = xs.len() as u64
-    return k
-
-check build(12345) == 10

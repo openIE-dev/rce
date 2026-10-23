@@ -1,6 +1,0 @@
-fn f(s: &text) -> List[text]
-    var out: List[text] = []
-    with arena a
-        let ws: List[text] @a = s.words()
-        out = ws
-    return out

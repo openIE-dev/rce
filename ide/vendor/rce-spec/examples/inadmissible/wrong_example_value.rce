@@ -1,9 +1,0 @@
-intent "counter"
-    example Inc, Inc -> 3
-
-state Counter
-    n: u64 = 0
-
-event Inc
-
-step Counter on Inc -> n + 1

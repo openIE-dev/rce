@@ -79,7 +79,7 @@ added; an implementation of a release implements that release's text. The core i
 (`spec/lean/`, section 8), a reference type and well-formedness checker
 (`spec/checker/`, `rce-check`) implements sections 4, 5 and 7 including the
 admission gate of 6.9 (examples, checks, comptime and constants are evaluated),
-`spec/tree-sitter/` is a tree-sitter port of the grammar checked against
+`tree-sitter/` is a tree-sitter port of the grammar checked against
 the LALR(1) tables of section 3, and grammar-level random programs are checked by
 `rce-fuzz` (`spec/checker/`). The production compiler has
 not been built from this document yet. Changes made while mechanizing are

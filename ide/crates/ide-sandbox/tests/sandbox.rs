@@ -7,7 +7,7 @@ use std::process::Command;
 use std::sync::OnceLock;
 
 const COUNTER: &str =
-    include_str!("../../../vendor/rce-spec/examples/01_counter.rce");
+    include_str!("../../../../spec/examples/01_counter.rce");
 
 /// Build crates/rce-guest for wasm32-wasip1 once, in its own target dir.
 fn guest() -> &'static [u8] {

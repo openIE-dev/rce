@@ -1,7 +1,7 @@
 //! The shipped `rce` binary: plain `rce test` and the energy-budget gate.
 use std::process::Command;
 
-const COUNTER: &str = include_str!("../../../vendor/rce-spec/examples/01_counter.rce");
+const COUNTER: &str = include_str!("../../../../spec/examples/01_counter.rce");
 
 fn rce(args: &[&str], f: &std::path::Path) -> (i32, String) {
     let o = Command::new(env!("CARGO_BIN_EXE_rce")).args(args).arg(f).output().unwrap();

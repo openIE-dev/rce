@@ -17,7 +17,7 @@
     "description": "RCE grammar for tree-sitter",
     "authors": [{ "name": "The RCE contributors" }],
     "links": {
-      "repository": "https://github.com/openIE-dev/tree-sitter-rce"
+      "repository": "https://github.com/openIE-dev/rce/tree/main/tree-sitter"
     }
   },
   "bindings": {

@@ -7,7 +7,7 @@ use rce_memory::vector::VectorIndex;
 
 const EX: &str = concat!(
     env!("CARGO_MANIFEST_DIR"),
-    "/../../vendor/rce-spec/examples/"
+    "/../../../spec/examples/"
 );
 
 fn ix() -> FormIndex {

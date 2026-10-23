@@ -2,7 +2,7 @@ use rce_memory::form::{FormIndex, IndexCache, form_hash};
 
 const EX: &str = concat!(
     env!("CARGO_MANIFEST_DIR"),
-    "/../../vendor/rce-spec/examples/"
+    "/../../../spec/examples/"
 );
 
 fn ex(name: &str) -> (String, String) {

@@ -1,4 +1,0 @@
-fn f(n: u64) -> u64
-    with device gpu
-        let xs: List[u64] = [n, n]
-        return xs.len() as u64

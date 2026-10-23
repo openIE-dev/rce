@@ -5,7 +5,7 @@
 #include <string.h>
 #include <stdint.h>
 
-enum { NL, INDENT, DEDENT, NAME, LPAR, RPAR, LSQB, RSQB, LBRACE, RBRACE, SKIP_NL, INT, FLOAT, SEND, BAD, COMMENT, SENTINEL };
+enum { NL, INDENT, DEDENT, NAME, LPAR, RPAR, LSQB, RSQB, LBRACE, RBRACE, SKIP_NL, INT, FLOAT, SEND, BAD, COMMENT, PARFOR, SENTINEL };
 
 #define MAXD 120
 typedef struct {
@@ -16,8 +16,8 @@ typedef struct {
   uint8_t pend_dedent;
   uint8_t bad;
   uint8_t eof_nl;       // the end-of-file NEWLINE of spec 2.6 rule 4 was emitted
+  uint8_t seen;         // a name, number or bracket token was scanned (the file's first word is exempt from the line-start check)
   uint8_t started;      // a token other than the first line's comment was seen
-  uint8_t v06;          // the module declares `# rce-version: 0.6` or `0.7` (spec 2.7)
   uint8_t cont;         // the last line end stopped before a comment line; the layout
                         // decision for the following code line was already made
 } S;
@@ -27,11 +27,14 @@ static const char *KW[] = {"actor","after","and","arena","as","bound","break","c
  "from","if","impl","in","intent","iter","kind","let","linear","loop","match","module","mut","none","not","on","or","pass",
  "pub","recv","refused","return","select","self","send","spawn","state","step","struct","then","to","trait","true",
  "try","type","use","var","while","with","yield",
- 0,
- // draft 0.6 and 0.6b (Appendix C): reserved only in a version 0.6 module (spec 2.7)
+ // the concurrency words (Appendix C): one language, one reserved list (spec 2.4)
  "par","branch","nondet","budget","deadline","priority",
  "replicated","interrupt","session","lvar","group","lanes","barrier","scope","atomic",
  "protocol","offer","choose","node","supervisor","strategy","child","restart", 0};
+
+// Words that can only begin a declaration or a statement, never continue a line.
+static const char *LINE_START[] = {"event","step","state","kind","type","struct","impl","use","intent","example","check",
+ "extern","error","module","pub","return","emit","fail","break","continue","pass","yield","let","var","while","par","actor","trait","const","iter","protocol","supervisor","node","comptime","fn",0};
 
 void *tree_sitter_rce_external_scanner_create(void) { S *s = calloc(1, sizeof(S)); s->n = 1; s->stack[0] = 0; return s; }
 void tree_sitter_rce_external_scanner_destroy(void *p) { free(p); }
@@ -41,29 +44,14 @@ void tree_sitter_rce_external_scanner_deserialize(void *p, const char *b, unsign
   if (n == sizeof(S)) memcpy(s, b, n); else { memset(s, 0, sizeof(S)); s->n = 1; }
 }
 
-// Index of the first draft 0.6 keyword in KW (after the 0.5 terminator).
-static int kw06_start(void) { int i = 0; while (KW[i]) i++; return i + 1; }
-
-// Read one comment (lookahead at '#') to the end of the line. On the first
-// line of the module, record whether it is the version 0.6 declaration.
+// Read one comment (lookahead at '#') to the end of the line. A `# rce-version:` line is a release
+// label: tolerated and ignored (spec 2.7), so there is nothing to record.
 static void comment(TSLexer *lx, S *s) {
-  char b[48]; int n = 0;
-  int col0 = lx->get_column(lx) == 0;
   lx->advance(lx, false);
   while (!lx->eof(lx) && lx->lookahead != '\n' && lx->lookahead != '\r') {
-    if (n < 47) b[n++] = (char)lx->lookahead;
+    if (lx->lookahead == '\t') s->bad = 1;  // W-LEX-1: a tab is refused, in a comment too
     lx->advance(lx, false);
   }
-  if (s->started || !col0) return;
-  b[n] = 0;
-  int i = 0;
-  while (b[i] == ' ') i++;
-  if (strncmp(b + i, "rce-version:", 12) != 0) return;
-  i += 12;
-  while (b[i] == ' ') i++;
-  int e = n;
-  while (e > i && b[e - 1] == ' ') e--;
-  if (e - i == 3 && (strncmp(b + i, "0.6", 3) == 0 || strncmp(b + i, "0.7", 3) == 0 || strncmp(b + i, "0.8", 3) == 0)) s->v06 = 1;
 }
 
 static int is_id0(int32_t c) { return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_'; }
@@ -121,8 +109,11 @@ bool tree_sitter_rce_external_scanner_scan(void *p, TSLexer *lx, const bool *val
   if (s->bad) { lx->result_symbol = BAD; return true; }
   if (s->pend_indent) { s->pend_indent = 0; lx->result_symbol = INDENT; return true; }
   if (s->pend_dedent) { s->pend_dedent--; lx->result_symbol = DEDENT; return true; }
+  int first_col = !s->started && lx->get_column(lx) == 0;
   while (lx->lookahead == ' ') lx->advance(lx, true);
   int32_t c = lx->lookahead;
+  // indentation on the first line of the file (an indent with no block) is an error
+  if (first_col && c != ' ' && lx->get_column(lx) > 0 && c != '\n' && c != '\r' && c != '#' && !lx->eof(lx)) { lx->result_symbol = BAD; return true; }
   if (lx->eof(lx)) {
     // Spec 2.6 rule 4: at end of file emit NEWLINE if needed (a last line
     // without a final line end), then one DEDENT per stack entry above 0.
@@ -158,6 +149,8 @@ bool tree_sitter_rce_external_scanner_scan(void *p, TSLexer *lx, const bool *val
       }
       break;
     }
+    // a last line of spaces only is blank: it neither indents nor dedents
+    if (lx->eof(lx) && ind > 0) ind = 0;
     if (!stopped) lx->mark_end(lx);
     int was_cont = s->cont;
     s->cont = stopped;
@@ -178,33 +171,57 @@ bool tree_sitter_rce_external_scanner_scan(void *p, TSLexer *lx, const bool *val
   }
   switch (c) {
     case '(': case '[': case '{':
-      lx->advance(lx, false); s->depth++;
+      lx->advance(lx, false); s->depth++; s->seen = 1;
       lx->result_symbol = c == '(' ? LPAR : c == '[' ? LSQB : LBRACE; return true;
     case ')': case ']': case '}':
       lx->advance(lx, false); if (s->depth > 0) s->depth--;
       lx->result_symbol = c == ')' ? RPAR : c == ']' ? RSQB : RBRACE; return true;
   }
-  if (c >= '0' && c <= '9') return number(lx);
+  if (c >= '0' && c <= '9') { s->seen = 1; return number(lx); }
   if (c == '<') {
     lx->advance(lx, false);
     if (lx->lookahead == '-') { lx->advance(lx, false); lx->mark_end(lx); lx->result_symbol = SEND; return true; }
     return false;
   }
   if (is_id0(c)) {
+    unsigned wcol = lx->get_column(lx);  // a word at column 0 follows a line end: it is not glued to anything
     char w[64]; int n = 0;
     while (is_id(lx->lookahead)) { if (n < 63) w[n] = (char)lx->lookahead; n++; lx->advance(lx, false); }
     if (n < 64) {
       w[n] = 0;
       if (strcmp(w, "_") == 0) return false;
+      // `par` after the iterable of a `for` (valid only there): its own token, so a `par` glued after
+      // any other expression is an error and not a missing line end
+      if (valid[PARFOR] && strcmp(w, "par") == 0) { lx->mark_end(lx); lx->result_symbol = PARFOR; return true; }
       // contextual word (5.1 refined types): `where` is the keyword only
       // where a NAME cannot stand, i.e. after the type of a type declaration
       if (strcmp(w, "where") == 0 && !valid[NAME]) return false;
+      // F.6.1: `t` directly before a quote is the template prefix, not a name
+      if (n == 1 && w[0] == 't' && lx->lookahead == '"') return false;
+      // A declaration or statement starts a line (spec 2.6): where a line end is
+      // required (`_NL` is valid) and none was read, such a word is an error,
+      // not a missing `_NL` the parser could insert. The first token of the file
+      // is exempt.
+      if (valid[NL] && !valid[SENTINEL] && wcol > 0) {
+        for (int i = 0; LINE_START[i]; i++) if (strcmp(w, LINE_START[i]) == 0) { lx->result_symbol = BAD; return true; }
+      }
+      // an ordinary name where a line end is required and cannot continue the line
+      // (`)Neg` after a closing bracket): an error, not a missing line end
+      if (valid[NL] && !valid[NAME] && !valid[SENTINEL] && wcol > 0) {
+        int kw = 0;
+        for (int i = 0; KW[i]; i++) if (strcmp(w, KW[i]) == 0) kw = 1;
+        if (!kw && strcmp(w, "where") && strcmp(w, "by") && strcmp(w, "label") && strcmp(w, "release") && strcmp(w, "endorse") &&
+            strcmp(w, "ct") && strcmp(w, "requires") && strcmp(w, "ensures") && strcmp(w, "ghost") && strcmp(w, "decreases")) {
+          lx->result_symbol = BAD; return true;
+        }
+      }
       for (int i = 0; KW[i]; i++) if (strcmp(w, KW[i]) == 0) return false;
-      if (s->v06)
-        for (int i = kw06_start(); KW[i]; i++) if (strcmp(w, KW[i]) == 0) return false;
+      // contextual word (F.13): `by` is the keyword only where a NAME cannot stand
+      if (strcmp(w, "by") == 0 && !valid[NAME]) return false;
+      if ((strcmp(w, "label") == 0 || strcmp(w, "release") == 0 || strcmp(w, "endorse") == 0 || strcmp(w, "ct") == 0 || strcmp(w, "requires") == 0 || strcmp(w, "ensures") == 0 || strcmp(w, "ghost") == 0 || strcmp(w, "decreases") == 0)) return false;
     }
     lx->mark_end(lx);
-    s->started = 1;
+    s->started = 1; s->seen = 1;
     lx->result_symbol = NAME; return true;
   }
   return false;

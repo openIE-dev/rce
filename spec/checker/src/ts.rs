@@ -1,4 +1,4 @@
-//! The tree-sitter port of the grammar (spec/tree-sitter), compiled into
+//! The tree-sitter port of the grammar (tree-sitter/ at the repository root), compiled into
 //! this crate by build.rs from the generated parser.c and the layout
 //! scanner (scanner.c). Used as an independent second parser.
 use tree_sitter::{Language, Parser};

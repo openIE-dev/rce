@@ -1099,7 +1099,7 @@ section applied (`lalr::book_grammar_09`), lexing with `label`, `release`,
 machine over `spec/examples-0.9/ok`. `TEMPLATE` is the token `t` written directly before a STRING (no space,
 and `t` not the end of a longer name); the checker accepts it only after a dot.
 The tree-sitter port
-(`spec/tree-sitter/grammar.js`) carries the same productions. The constructs
+(`tree-sitter/grammar.js`) carries the same productions. The constructs
 of F.5 to F.7 that are still reserved, not implemented (F.12) have no production yet.
 
 ```

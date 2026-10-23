@@ -1,3 +1,0 @@
-fn f() -> &List[i64]
-    let xs: List[i64] = [1]
-    return &xs

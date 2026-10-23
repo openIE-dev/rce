@@ -1,7 +1,9 @@
 name: playground
 
 # Builds the browser playground (the reference checker compiled to
-# WebAssembly, spec/checker-wasm/pkg) and publishes it with GitHub Pages.
+# WebAssembly, spec/checker-wasm/pkg) and The RCE Book (book/, mdBook),
+# and publishes both with GitHub Pages: the playground at the root and the
+# book under /book/.
 
 on:
   push:
@@ -26,8 +28,16 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
-      - name: Assemble the site
+      - name: Assemble the playground
         run: playground/build.sh
+      - name: Install mdBook
+        run: |
+          mkdir -p "$HOME/.local/bin"
+          curl -sSL https://github.com/rust-lang/mdBook/releases/download/v0.4.52/mdbook-v0.4.52-x86_64-unknown-linux-gnu.tar.gz | tar -xz -C "$HOME/.local/bin"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      - name: Build the book under /book/
+        working-directory: book
+        run: mdbook build --dest-dir ../playground/_site/book
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

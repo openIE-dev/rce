@@ -32,8 +32,8 @@ the language for every tool, so a grammar change also needs:
 
 - an accepted example in `spec/examples/` or a refused one in
   `spec/examples/reject/`;
-- the matching change to `spec/tree-sitter/grammar.js`, regenerated with
-  `tree-sitter generate --js-runtime native` in `spec/tree-sitter/`;
+- the matching change to `tree-sitter/grammar.js`, regenerated with
+  `tree-sitter generate --js-runtime native` in `tree-sitter/`;
 - a passing `cargo run --release --features tree-sitter --bin rce-spec-check`.
 
 A new rule that refuses programs needs a program in

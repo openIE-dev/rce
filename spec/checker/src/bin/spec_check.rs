@@ -84,7 +84,7 @@ fn name(p: &str) -> &str {
 /// Regenerate the tree-sitter parser in a scratch copy; Err on a conflict
 /// or when the committed parser.c is stale. Ok(number of grammar rules).
 fn generate(spec: &Path) -> Result<usize, String> {
-    let src = spec.join("tree-sitter");
+    let src = spec.parent().map(|r| r.join("tree-sitter")).unwrap_or_else(|| spec.join("../tree-sitter"));
     let tmp = std::env::temp_dir().join(format!("rce-ts-gen-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&tmp);
     std::fs::create_dir_all(tmp.join("src")).map_err(|e| e.to_string())?;
@@ -109,7 +109,7 @@ fn generate(spec: &Path) -> Result<usize, String> {
     let new = std::fs::read(tmp.join("src/parser.c")).map_err(|e| e.to_string())?;
     let old = std::fs::read(src.join("src/parser.c")).map_err(|e| e.to_string())?;
     if new != old {
-        return Err("committed tree-sitter/src/parser.c is stale: run `tree-sitter generate --js-runtime native` in spec/tree-sitter".into());
+        return Err("committed tree-sitter/src/parser.c is stale: run `tree-sitter generate --js-runtime native` in tree-sitter/".into());
     }
     let g: serde_json::Value =
         serde_json::from_slice(&std::fs::read(tmp.join("src/grammar.json")).unwrap()).unwrap();

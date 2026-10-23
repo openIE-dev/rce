@@ -1,6 +1,0 @@
-state S
-    n: u64
-
-event E
-
-step S on E -> n

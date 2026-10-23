@@ -13,7 +13,7 @@ use std::sync::OnceLock;
 use std::time::Duration;
 
 const COUNTER: &str =
-    include_str!("../../../vendor/rce-spec/examples/01_counter.rce");
+    include_str!("../../../../spec/examples/01_counter.rce");
 
 /// The rce-mcp binary, built into this test's target dir once.
 fn rce_mcp() -> &'static Path {

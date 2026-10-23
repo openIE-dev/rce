@@ -1,3 +1,0 @@
-extern "C" fn c_rand() -> u32
-
-fn roll() -> u32 = c_rand()

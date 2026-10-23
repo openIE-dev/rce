@@ -1,6 +1,0 @@
-fn both(a: &mut List[i64], b: &List[i64])
-    pass
-
-fn bad()
-    var xs: List[i64] = [1]
-    both(&mut xs, &xs)

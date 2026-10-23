@@ -23,7 +23,8 @@ or download it with the desktop IDE from the
 then:
 
 ```sh
-git clone https://github.com/openIE-dev/rce-examples
+git clone https://github.com/openIE-dev/rce
+cd rce/programs
 cd rce-examples
 rce test money/account.rce
 rce run systems/ring_buffer.rce "Push(v: 7), Push(v: 8), Pop, Pop, Pop"

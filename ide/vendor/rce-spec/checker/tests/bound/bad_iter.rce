@@ -1,4 +1,0 @@
-# Refused: `bound` on an iterator.
-fn nums(n: i64) -> iter i64 bound 3
-    for i in 0..n
-        yield i

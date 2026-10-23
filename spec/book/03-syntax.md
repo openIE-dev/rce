@@ -294,7 +294,7 @@ lexer's tokens, the Rust parser, and the tree-sitter port) and all three must
 agree. Until 2026-10-12 this check was `spec/check.py` on `spec/rce.lark`
 with Lark in strict mode; both are retired.
 
-`spec/tree-sitter/` is the same grammar for tree-sitter (`grammar.js`, with
+`tree-sitter/` is the same grammar for tree-sitter (`grammar.js`, with
 layout, bracket depth, reserved-keyword NAME and longest-match numbers and
 `<-` in `src/scanner.c`). The former `tree-sitter/compare.py N SEED` parsed every
 example and N fuzz programs, each program's syntax mutants and SOUP

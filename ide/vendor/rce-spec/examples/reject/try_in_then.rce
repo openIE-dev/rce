@@ -1,1 +1,0 @@
-fn f(a: bool) -> i64 = if a then try g() else 0

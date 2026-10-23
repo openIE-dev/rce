@@ -91,7 +91,7 @@ $ rce run counter.rce "Inc, Inc, Dec, Dec, Dec"
 
 The two `example` lines are part of the program: if either one did not
 hold, `rce check` would refuse the file. To learn the language step by
-step, read [The RCE Book](https://github.com/openIE-dev/rce-book).
+step, read [The RCE Book](book/) (published at [openie-dev.github.io/rce/book](https://openie-dev.github.io/rce/book/)).
 
 ## Commands
 
@@ -119,7 +119,7 @@ Section 10 of the specification defines each command exactly.
 | `spec/examples/` | programs that must be accepted, and in `reject/`, `ill_typed/` and `inadmissible/`, programs that must be refused |
 | `spec/checker/` | the reference parser, type checker, interpreter, emitters, formatter and language server (Rust) |
 | `spec/checker-wasm/` | the same checker compiled to WebAssembly for the browser |
-| `spec/tree-sitter/` | a tree-sitter port of the grammar, used as an independent second parser |
+| `tree-sitter/` | the tree-sitter grammar package (grammar, generated parser, queries, bindings), used by the checker as an independent second parser |
 | `spec/lean/` | the Lean 4 model of the core language and its proofs (section 8) |
 | `spec/fuzz/` | results of the grammar-level program fuzzer |
 | `spec/LANGUAGE-REVIEW.md` | what RCE learned from Rust, Go, Python, Mojo, Zig and Haskell; drafts 0.4 and 0.5 follow it |
@@ -201,16 +201,33 @@ tree-sitter parser and uses it as a third parser. `cargo test --release`
 runs the checker's own tests, including the emitter tests, which need
 `rustc`, `python3` and `node` (a missing one is reported as skipped).
 
-## Related repositories
+## One repository, maintained together
 
-- [rce-book](https://github.com/openIE-dev/rce-book): a guide to the
-  language from first principles, with every example checked.
-- [rce-examples](https://github.com/openIE-dev/rce-examples): longer
-  programs grouped by area.
-- [tree-sitter-rce](https://github.com/openIE-dev/tree-sitter-rce): the
-  grammar packaged for editors.
-- [rce-ide](https://github.com/openIE-dev/rce-ide): an editor for RCE built
-  on this checker.
+Everything that must agree with the specification lives in this repository
+and is checked from the same commit, so nothing is pinned to an older
+`rce` and nothing is vendored. Each directory has one workflow in
+`.github/workflows/` that builds the checker from the current commit and
+runs that directory's checks against it:
+
+| Directory | What it is | Checked by |
+|---|---|---|
+| `spec/` | the specification, the reference checker and interpreter, the Lean core, the example corpora, the canonical vectors | `ci.yml`, `tree-sitter-sync.yml`, `xarch-parity.yml` |
+| `tree-sitter/` | the grammar package for editors: `grammar.js`, the generated parser, queries, bindings, corpus tests; the checker's independent second parser | `tree-sitter.yml` (package), `tree-sitter-sync.yml` (agreement with the Rust parser over every `.rce` file) |
+| `book/` | The RCE Book, mdBook, every listing checked | `book.yml`; published under `/book/` by `pages.yml` |
+| `programs/` | example programs by area, and the ecosystem programs | `programs.yml` |
+| `stdlib/` | the standard library and its vectors | `stdlib.yml` (nightly: the slow vector sets) |
+| `conformance/` | the implementation-independent conformance suite and its adapters | `conformance.yml` |
+| `ide/` | the editor, LSP, MCP server and sandbox, a path dependency on `spec/checker` | `ide.yml`, `ide-release.yml` (tags `ide-v*`) |
+| `playground/` | the browser playground | `pages.yml` |
+
+Until 23 October 2026 the book, programs, standard library, conformance
+suite, grammar package and IDE were separate repositories
+(`rce-book`, `rce-examples`, `rce-stdlib`, `rce-conformance`,
+`tree-sitter-rce`, `rce-ide`); their histories were merged here. The
+research site and the experiments
+([research-openie-web](https://github.com/openIE-dev/research-openie-web),
+[openie-research-experiments](https://github.com/openIE-dev/openie-research-experiments))
+stay separate: they read this repository, this repository never reads them.
 
 ## Contributing
 

@@ -10,7 +10,7 @@
   `# rce-version: 0.6` on their first line.
 - **The examples** in the specification (`spec/examples/`) are small
   programs for each feature, including programs that must be refused.
-- **[rce-examples](https://github.com/openIE-dev/rce-examples)** has
+- **[programs/](../../programs/)** (formerly rce-examples) has
   longer programs grouped by area: simulation, control, media, networks,
   text, data, money, science, systems and hardware.
 - **[rce-ide](https://github.com/openIE-dev/rce-ide)** is an editor for RCE

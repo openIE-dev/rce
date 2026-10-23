@@ -1,2 +1,0 @@
-fn f(a: [text; 2], b: [text; 2]) -> [text; 2]
-    return a * b

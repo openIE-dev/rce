@@ -1,4 +1,0 @@
-extern "C" fn c_name(n: u32) -> text
-
-fn main()
-    emit c_name(1)

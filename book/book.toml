@@ -5,4 +5,4 @@ language = "en"
 src = "src"
 
 [output.html]
-git-repository-url = "https://github.com/openIE-dev/rce-book"
+git-repository-url = "https://github.com/openIE-dev/rce/tree/main/book"

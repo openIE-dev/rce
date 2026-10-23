@@ -9,17 +9,18 @@ const chain = (sub, op) => seq(sub, repeat1(seq(op, sub)));
 
 module.exports = grammar({
   name: 'rce',
-  externals: $ => [$._NL, $._INDENT, $._DEDENT, $.NAME, '(', ')', '[', ']', '{', '}', $._skip_nl, $.INT, $.FLOAT, $.SEND, $._bad, $.comment, $._error_sentinel],
+  externals: $ => [$._NL, $._INDENT, $._DEDENT, $.NAME, '(', ')', '[', ']', '{', '}', $._skip_nl, $.INT, $.FLOAT, $.SEND, $._bad, $.comment, $._par_for, $._error_sentinel],
   extras: $ => [/ +/, $._skip_nl, $.comment],
   conflicts: $ => [],
   rules: {
     start: $ => seq(repeat($._NL), optional($.module_header), repeat($._item)),
     module_header: $ => seq('module', $.path, $._NL),
     _item: $ => choice($.use_decl, $.intent_decl, $.example_decl, $.check_decl, $.pub_item, $.state_decl,
-      $.event_decl, $.error_decl, $.step_decl, $.impl_decl, $.extern_decl, $.node_decl, $.supervisor_decl),
+      $.event_decl, $.error_decl, $.step_decl, $.impl_decl, $.extern_decl, $.node_decl, $.supervisor_decl, $.label_decl),
     pub_item: $ => seq(optional(alias('pub', $.PUB)), choice($.const_decl, $.type_decl, $.struct_decl, $.kind_decl,
       $.trait_decl, $.fn_decl, $.actor_decl, $.protocol_decl)),
 
+    label_decl: $ => seq('label', $.NAME, optional(seq('by', $.NAME)), $._NL),
     use_decl: $ => seq('use', $.path, optional(seq('as', $.NAME)), $._NL),
     path: $ => sep1($.NAME, '.'),
 
@@ -40,7 +41,10 @@ module.exports = grammar({
     struct_decl: $ => seq(optional(alias('linear', $.LINEAR)), 'struct', $.NAME, optional($.generics), $._NL, optional(seq($._INDENT, repeat1($.field), $._DEDENT))),
     field: $ => seq($.NAME, ':', $._type, optional(seq('=', $._expr)), $._NL),
     state_decl: $ => seq(optional(alias('replicated', $.REPLICATED)), 'state', $.NAME, $._NL, $._INDENT, repeat1($.field), $._DEDENT),
-    event_decl: $ => seq(optional(alias('interrupt', $.INTERRUPT)), 'event', $.NAME, optional($.payload), optional($.priority), $._NL),
+    // C.11.12: an interrupt event carries `priority p` and no other event does
+    event_decl: $ => choice(
+      seq(alias('interrupt', $.INTERRUPT), 'event', $.NAME, optional($.payload), $.priority, $._NL),
+      seq('event', $.NAME, optional($.payload), $._NL)),
     priority: $ => seq('priority', $._expr),
     error_decl: $ => seq('error', $.NAME, optional($.payload), $._NL),
     payload: $ => seq('(', optional($.field_list), ')'),
@@ -57,8 +61,9 @@ module.exports = grammar({
     _impl_member: $ => choice($.type_decl, $.fn_decl),
 
     fn_sig: $ => seq(optional(alias('comptime', $.COMPTIME)), 'fn', $.NAME, optional($.generics), '(', optional($.params), ')', optional(seq('->', $._type)), optional(seq('bound', $.INT))),
-    fn_decl: $ => seq($.fn_sig, choice($.block, seq('=', $._expr, $._NL))),
-    extern_decl: $ => seq('extern', $.STRING, $.fn_sig, $._NL),
+    fn_decl: $ => seq(optional(choice(alias('ct', $.CT), alias('ghost', $.GHOST))), $.fn_sig, choice($.block, seq('=', $._expr, $._NL))),
+    // F.5.6: `extern "model" event` declares the event that carries a model runtime's answers
+    extern_decl: $ => seq('extern', $.STRING, choice($.fn_sig, seq('event', $.NAME, optional($.payload))), $._NL),
     params: $ => list1($.param),
     param: $ => choice(seq(optional(alias('comptime', $.COMPTIME)), optional($.NAME), $.NAME, ':', $._type), $.self_param, $.ref_self_param, $.mut_self_param),
     self_param: $ => 'self',
@@ -101,7 +106,8 @@ module.exports = grammar({
     _borrow_type: $ => choice($.ref_type, $._region_type),
     ref_type: $ => seq('&', optional(alias('mut', $.MUT)), $._borrow_type),
     _region_type: $ => choice($._base_type, $.region_type),
-    region_type: $ => seq($._base_type, '@', $.NAME),
+    region_type: $ => seq($._base_type, '@', choice($.NAME, $.label_set)),
+    label_set: $ => seq('{', optional(sep1($.NAME, ',')), '}'),
     _base_type: $ => choice($.type_path, $.unit_type, $.tuple_type, seq('(', $._type, ')'), $.slice_type,
       $.array_type, $.chan_type, $.iter_type, $.session_type, $.lvar_type, $.fn_type),
     unit_type: $ => seq('(', ')'),
@@ -122,9 +128,12 @@ module.exports = grammar({
       $.match_stmt, $.return_stmt, $.break_stmt, $.continue_stmt, $.emit_stmt, $.fail_stmt,
       $.spawn_stmt, $.select_stmt, $.arena_stmt, $.device_stmt, $.yield_stmt, $.comptime_stmt, $.check_decl, $.pass_stmt,
       $.par_stmt, $.budget_stmt, $.deadline_stmt,
-      $.group_stmt, $.barrier_stmt, $.scope_stmt, $.atomic_stmt),
+      $.group_stmt, $.barrier_stmt, $.scope_stmt, $.atomic_stmt, $.contract_stmt, $.ghost_let, $.if_let_stmt),
     simple_stmt: $ => seq($._expr, optional(choice(seq($.assign_op, $._expr), seq($.SEND, $._expr))), $._NL),
     assign_op: $ => choice('=', '+=', '-=', '*=', '/=', '%=', '&=', '|=', '^=', '<<=', '>>='),
+    if_let_stmt: $ => seq('if', 'let', $._pattern, '=', $._cmp_expr, repeat(seq('and', $._cmp_expr)), $.block, optional($.else_clause)),
+    contract_stmt: $ => choice(seq(choice('requires', 'ensures'), $._expr, $._NL), seq('decreases', $._expr, repeat(seq(',', $._expr)), $._NL)),
+    ghost_let: $ => seq('ghost', $.let_stmt),
     let_stmt: $ => seq('let', $._pattern, optional(seq(':', $._type)), '=', $._expr, $._NL),
     var_stmt: $ => seq('var', $.NAME, optional(seq(':', $._type)), '=', $._expr, $._NL),
     if_stmt: $ => seq('if', $._expr, $.block, repeat($.elif_clause), optional($.else_clause)),
@@ -133,7 +142,7 @@ module.exports = grammar({
     while_stmt: $ => seq('while', $._expr, optional($.bound), $.block),
     loop_stmt: $ => seq('loop', optional($.bound), $.block),
     bound: $ => seq('bound', $._expr),
-    for_stmt: $ => seq('for', $._pattern, 'in', $._expr, optional(alias('par', $.PAR)), $.block),
+    for_stmt: $ => seq('for', $._pattern, 'in', $._expr, optional(alias($._par_for, $.PAR)), $.block),
     match_stmt: $ => seq('match', $._expr, $._NL, $._INDENT, repeat1($.arm), $._DEDENT),
     arm: $ => seq($._pattern, optional(seq('if', $._expr)), $._arm_body),
     _arm_body: $ => choice(seq('->', $._inline_stmt), $.block),
@@ -159,7 +168,7 @@ module.exports = grammar({
     // draft 0.6 (Appendix C, book/14-draft06-concurrency.md C.2)
     par_stmt: $ => seq('par', $._NL, $._INDENT, repeat1($.branch), $._DEDENT),
     branch: $ => seq('branch', $.NAME, $.block),
-    budget_stmt: $ => seq('with', 'budget', $._expr, $.block),
+    budget_stmt: $ => seq('with', 'budget', $._expr, $.block, optional(seq('else', optional(seq('as', $._pattern)), $.block))),
     deadline_stmt: $ => seq('with', 'deadline', $._expr, $.block, optional($.else_clause)),
     // draft 0.6b (C.11)
     group_stmt: $ => seq('with', 'group', $.NAME, 'lanes', $._expr, $.block),
@@ -203,19 +212,22 @@ module.exports = grammar({
     mul_op: $ => choice('*', '/', '%'),
     _cast_expr: $ => choice($._unary_expr, $.cast_expr),
     cast_expr: $ => seq($._unary_expr, 'as', $._base_type),
-    _unary_expr: $ => choice($.neg, $.bitnot, $.borrow, $.recv, $.comptime_expr, $._postfix),
+    _unary_expr: $ => choice($.neg, $.bitnot, $.borrow, $.recv, $.comptime_expr, $.release_expr, $.endorse_expr, $._postfix),
     neg: $ => seq('-', $._unary_expr),
     bitnot: $ => seq('~', $._unary_expr),
     borrow: $ => seq('&', optional(alias('mut', $.MUT)), $._unary_expr),
     recv: $ => seq($.SEND, $._unary_expr),
     comptime_expr: $ => seq('comptime', $._unary_expr),
-    _postfix: $ => choice($._primary, $.call, $.index, $.slice, $.member, $.tuple_member),
+    release_expr: $ => seq('release', $._unary_expr),
+    endorse_expr: $ => seq('endorse', $._unary_expr),
+    _postfix: $ => choice($._primary, $.call, $.index, $.slice, $.member, $.tuple_member, $.template_render),
     call: $ => seq($._postfix, '(', optional($.args), ')'),
     index: $ => seq($._postfix, '[', sep1($._expr, ','), ']'),
     slice: $ => seq($._postfix, '[', optional($.slice_lo), ':', optional($.slice_hi), ']'),
     slice_lo: $ => $._expr,
     slice_hi: $ => $._expr,
     member: $ => seq($._postfix, '.', $.member_name),
+    template_render: $ => seq($._postfix, '.', $.TEMPLATE),
     tuple_member: $ => seq($._postfix, '.', $.INT),
     args: $ => list1($.arg),
     arg: $ => seq(optional(seq($.NAME, ':')), $._expr),
@@ -243,7 +255,8 @@ module.exports = grammar({
       'state', 'step', 'struct', 'then', 'to', 'trait', 'true', 'try', 'type', 'use', 'var', 'while', 'with', 'yield',
       'par', 'branch', 'nondet', 'budget', 'deadline', 'priority',
       'replicated', 'interrupt', 'session', 'lvar', 'group', 'lanes', 'barrier', 'scope', 'atomic',
-      'protocol', 'offer', 'choose', 'node', 'supervisor', 'strategy', 'child', 'restart'),
+      'protocol', 'offer', 'choose', 'node', 'supervisor', 'strategy', 'child', 'restart',
+      'label', 'release', 'endorse', 'ct', 'requires', 'ensures', 'ghost', 'decreases'),
 
     // ---- patterns ----
     _pattern: $ => $._alt_pattern,
@@ -265,6 +278,7 @@ module.exports = grammar({
     pat_arg: $ => seq(optional(seq($.NAME, ':')), $._pattern),
 
     // ---- lexical ----
+    TEMPLATE: $ => token(/t"([^"\\\n]|\\["\\nrt0]|\\u\{[0-9A-Fa-f]{1,6}\})*"/),
     STRING: $ => token(/"([^"\\\n]|\\["\\nrt0]|\\u\{[0-9A-Fa-f]{1,6}\})*"/),
     // INT, FLOAT and SEND are lexed by the scanner, longest match as in Lark
   },

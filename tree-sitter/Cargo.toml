@@ -8,7 +8,7 @@ keywords = [ "incremental", "parsing", "tree-sitter", "rce" ]
 license = "MIT OR Apache-2.0"
 name = "tree-sitter-rce"
 readme = "README.md"
-repository = "https://github.com/openIE-dev/tree-sitter-rce"
+repository = "https://github.com/openIE-dev/rce/tree/main/tree-sitter"
 version = "0.1.0"
 
 build = "bindings/rust/build.rs"

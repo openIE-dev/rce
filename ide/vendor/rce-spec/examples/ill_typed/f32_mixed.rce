@@ -1,2 +1,0 @@
-fn f(x: f32, y: f64) -> f32
-    return x + y

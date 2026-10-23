@@ -35,7 +35,7 @@ with the words of Appendix F, one list for every module.
 ### C.2 Grammar
 
 These productions extend section 3. They are the
-productions of the tree-sitter port (`spec/tree-sitter/grammar.js`) and of
+productions of the tree-sitter port (`tree-sitter/grammar.js`) and of
 the Rust parser. A rule below with the name of a section-3 rule replaces
 it; the others are new. The grammar is the productions of section 3 with
 these applied, and the same for every module. The machine check of 3.12 builds the
