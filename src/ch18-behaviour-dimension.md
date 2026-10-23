@@ -96,6 +96,25 @@ Three states, not four: a door cannot be open and locked at once, because
 `Lock` is refused while open and `Open` is refused while locked. Three
 behaviours, no redundancy. This program's state is exactly its behaviour.
 
+## The control view
+
+`rce dim --control` asks a coarser question: not what the program emits,
+but which steps fire. Two states are control-equivalent when every event
+sequence makes the same steps fire, refuse or emit the same kinds of thing
+from both. The count is never larger than the behaviour count, and its
+canonical form is hashed as `shape_ctl`, a key that does not change when
+you rename anything:
+
+```text
+$ rce dim --control door.rce
+{{#include ../listings/ch18/door_dim_control.out}}
+```
+
+For the door the two counts agree. For the mod-4 counter they do not: every
+event fires the same step with the same kind of output, so it has one
+control state and four behaviours. The gap between the two numbers is
+how much of the behaviour lives in data rather than in control.
+
 ## When the count is a lower bound
 
 A program whose state can grow without limit, like the plain counter of
@@ -111,4 +130,5 @@ the same program and the same fuel give the same report, byte for byte.
 - A bisimulation proves sameness; one distinguishing sequence proves
   difference; a trace proves closeness to within 2^-(k+1).
 - `rce dim` counts the behaviours a program can be in and reports the
-  redundancy of its state per region, in bits.
+  redundancy of its state per region, in bits; `--control` counts the
+  control states and hashes their canonical form as `shape_ctl`.
