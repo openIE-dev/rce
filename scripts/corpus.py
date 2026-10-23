@@ -257,7 +257,9 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--rce", required=True)
     ap.add_argument("--out", required=True)
-    ap.add_argument("--mutants", type=int, default=3, help="whitespace-token mutants per accepted program (plus two of each typed operator)")
+    ap.add_argument("--mutants", type=int, default=3, help="whitespace-token mutants per accepted program")
+    ap.add_argument("--typed-depth", type=int, default=2, help="mutants per typed operator per accepted program")
+    ap.add_argument("--typed-depth-with-examples", type=int, default=2, help="the same for programs with example lines (whose mutants can be scored)")
     a = ap.parse_args()
     out = Path(a.out)
     out.mkdir(parents=True, exist_ok=True)
@@ -414,10 +416,13 @@ def main():
             m = mutate(r["source"], rng)
             if m is not None:
                 made.append(classify(r, m[1], m[0], "token"))
+        depth = a.typed_depth_with_examples if r["trace_heads"] else a.typed_depth
+        seen_mut = set()
         for op in ("rename", "operator", "literal", "guard", "type"):
-            for _ in range(2):
+            for _ in range(depth):
                 t = mutate_typed(r["source"], rng, op)
-                if t is not None and t != r["source"]:
+                if t is not None and t != r["source"] and sha(t) not in seen_mut:
+                    seen_mut.add(sha(t))
                     made.append(classify(r, t, op, op))
         negs.extend(made)
         if r["trace_heads"]:
