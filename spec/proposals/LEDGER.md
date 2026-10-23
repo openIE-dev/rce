@@ -1,0 +1,19 @@
+# Proposal ledger
+
+One row per proposal, in the order decided. Reasons are from the fixed set
+of CONTRIBUTING.md rule 5: feasibility, duplicate spelling, limited use,
+breaks a theorem, breaks a principle. A proposal is *open* until it is
+accepted into the normative text or declined; an accepted one names the
+release and the example and theorem that admitted it.
+
+| Date | Proposal | Decision | Reason | Evidence |
+|---|---|---|---|---|
+| 2026-10-22 | 6.10 behaviour, equivalence and dimension; T57 to T61; `rce dim` | open (accepted into the text as informative for `rce dim`, normative for 6.10 pending T59 and T60 proofs) | | `spec/lean/RCE/Behaviour.lean`, `spec/examples/59-61`, `spec/checker/tests/dim.rs` |
+| 2026-10-22 | Form IR format 2: content-addressed definitions (`form-ir-2.md`) | open | | 457 bricks, 269 lowered, 77 refused on size alone |
+| 2026-10-22 | Effect handlers (F.2 non-goal 1) | declined, ground restated | breaks a theorem (T2 and T6: each extra resume clones captured state with a data-dependent count); loggability (T3) is answerable after evidence passing and defunctionalization and is not the ground | ML lineage survey, 2026-10-22 |
+| 2026-10-22 | Second concurrency vocabularies beyond `spawn`/`chan`/`select` and `par` (actors, workgroups, supervisors as syntax) | open: move to library Forms over the two primitives | duplicate spelling | Appendix C gap register G1 to G24 |
+| 2026-10-22 | Sessions, LVars as normative syntax | open: proposal until T28 and T29 are proved on the checker, not a model | breaks rule 1 (theorem not linked to the checker) | 10-theorems.md status |
+
+Running totals are computed from this table by `scripts/claim-counts.py`
+once a `ledger` section is added to it: proposals, accepted, declined, open,
+and the share per reason.

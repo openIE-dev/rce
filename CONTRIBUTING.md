@@ -52,6 +52,51 @@ cargo clippy --release --all-targets
 Keep the default build pure Rust. Code that needs a C compiler goes behind
 the `tree-sitter` feature.
 
+## How the language grows, and how it shrinks
+
+RCE is defined by one text, and the rules below exist so that the text
+stays small. They are derived from what kept other languages small (Go's
+proposal process, which declines about 41% of its proposals; Lua's
+"mechanisms, not policies") and from what did not (a standards committee
+with hundreds of papers a year and nothing ever removed). Each rule names
+the artefact that enforces it.
+
+1. **Admission is a mechanical check, not a vote.** A construct enters the
+   normative grammar only with: an accepted and a refused example; a Lean
+   statement of the theorem it relies on, linked to the checker by a
+   generated rule table or by vectors; and 0 LALR(1) conflicts. A construct
+   with any of these missing is a proposal in `spec/proposals/` or a
+   reserved word refused with W-RES-1, never a production.
+2. **Composition before addition.** Before a proposal adds a construct, it
+   shows the same program written with existing constructs, or shows that
+   none exists. A second spelling of something the Form already says is
+   declined on that ground alone (principle (e) of Appendix F). The
+   incompatibility cost of composing by library instead of by syntax is
+   paid outside the gate and recorded in the proposal.
+3. **Removal is symmetric with addition.** A construct that no accepted
+   example needs for two releases, or whose theorem stays unproved for two
+   releases, is moved to a proposal and its word unreserved. A spec that
+   adds and never removes is a ratchet; the C.15 release rule already makes
+   removal a new release, so there is no reason to avoid it.
+4. **One decision locus per interface.** Every interface in Appendix E and
+   every emitter target has one owner in `SURFACE.md`'s table of owners,
+   and a change to the interface is reviewed by that owner, because an
+   organisational boundary that runs through an interface is a predicted
+   defect site (Nagappan, Murphy and Basili 2008).
+5. **The gate's metrics are published.** `spec/proposals/LEDGER.md`
+   records every proposal, its decision and its reason in a fixed set
+   (feasibility, duplicates an existing spelling, limited use, breaks a
+   theorem, breaks a principle), so the decline rate and its reasons are
+   numbers anyone can read, as Go's are.
+6. **The market does not prune.** Adoption follows installed code and
+   libraries, not language quality (Meyerovich and Rabkin 2013), so a
+   construct is never kept because people use it; it is kept because it
+   meets rule 1.
+7. **Model authorship changes the rate, not the rule.** Proposals and code
+   written by models go through the same gate with the same evidence. A
+   higher generation rate is a reason to make the gate faster, never
+   looser.
+
 ## Pull requests
 
 - Keep each pull request to one change, and explain why it is needed.
