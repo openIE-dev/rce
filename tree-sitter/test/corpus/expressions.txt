@@ -1,0 +1,90 @@
+========================================
+Bitwise binds tighter than comparison
+========================================
+
+check x & 1 == 1
+
+---
+
+(start
+  (check_decl
+    (cmp_expr
+      (band_expr
+        (name
+          (NAME))
+        (INT))
+      (cmp_op)
+      (INT))))
+
+========================================
+Try with else
+========================================
+
+step Counter on Dec -> try n.checked_sub(1) else Underflow
+
+---
+
+(start
+  (step_decl
+    (NAME)
+    (name_pat
+      (path
+        (NAME)))
+    (step_arrow
+      (try_expr
+        (call
+          (member
+            (name
+              (NAME))
+            (member_name
+              (NAME)))
+          (args
+            (arg
+              (INT))))
+        (name
+          (NAME))))))
+
+========================================
+List comprehension
+========================================
+
+fn f(xs: &[i64]) -> List[i64] = [x for x in xs if x % 2 == 0]
+
+---
+
+(start
+  (pub_item
+    (fn_decl
+      (fn_sig
+        (NAME)
+        (params
+          (param
+            (NAME)
+            (ref_type
+              (slice_type
+                (type_path
+                  (path
+                    (NAME)))))))
+        (type_path
+          (path
+            (NAME))
+          (type_list
+            (type_path
+              (path
+                (NAME))))))
+      (list_comp
+        (name
+          (NAME))
+        (name_pat
+          (path
+            (NAME)))
+        (name
+          (NAME))
+        (cmp_expr
+          (mul_expr
+            (name
+              (NAME))
+            (mul_op)
+            (INT))
+          (cmp_op)
+          (INT))))))

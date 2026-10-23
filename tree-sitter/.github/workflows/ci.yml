@@ -1,0 +1,30 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install the tree-sitter CLI
+        run: cargo install tree-sitter-cli --version 0.27.1 --locked
+      - name: Parser is up to date
+        run: |
+          tree-sitter generate --js-runtime native
+          git diff --exit-code src/
+      - name: Corpus and highlight tests
+        run: tree-sitter test
+      - name: Query checks
+        run: scripts/check-queries.sh
+      - name: Rust binding
+        run: cargo test
+
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: git clone --depth 1 https://github.com/openIE-dev/rce "$RUNNER_TEMP/rce"
+      - run: scripts/check-sync.sh "$RUNNER_TEMP/rce"

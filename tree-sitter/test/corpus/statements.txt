@@ -1,0 +1,149 @@
+========================================
+If, elif and else
+========================================
+
+fn f(x: i64) -> i64
+    if x > 0
+        return 1
+    elif x < 0
+        return -1
+    else
+        return 0
+
+---
+
+(start
+  (pub_item
+    (fn_decl
+      (fn_sig
+        (NAME)
+        (params
+          (param
+            (NAME)
+            (type_path
+              (path
+                (NAME)))))
+        (type_path
+          (path
+            (NAME))))
+      (block
+        (if_stmt
+          (cmp_expr
+            (name
+              (NAME))
+            (cmp_op)
+            (INT))
+          (block
+            (return_stmt
+              (INT)))
+          (elif_clause
+            (cmp_expr
+              (name
+                (NAME))
+              (cmp_op)
+              (INT))
+            (block
+              (return_stmt
+                (neg
+                  (INT)))))
+          (else_clause
+            (block
+              (return_stmt
+                (INT)))))))))
+
+========================================
+While with a bound
+========================================
+
+fn f() -> u64
+    var k: u64 = 0
+    while k < 10 bound 100
+        k += 1
+    return k
+
+---
+
+(start
+  (pub_item
+    (fn_decl
+      (fn_sig
+        (NAME)
+        (type_path
+          (path
+            (NAME))))
+      (block
+        (var_stmt
+          (NAME)
+          (type_path
+            (path
+              (NAME)))
+          (INT))
+        (while_stmt
+          (cmp_expr
+            (name
+              (NAME))
+            (cmp_op)
+            (INT))
+          (bound
+            (INT))
+          (block
+            (simple_stmt
+              (name
+                (NAME))
+              (assign_op)
+              (INT))))
+        (return_stmt
+          (name
+            (NAME)))))))
+
+========================================
+Match with a guard
+========================================
+
+fn f(v: i64?) -> i64
+    match v
+        some(x) if x > 0 -> x
+        _ -> 0
+
+---
+
+(start
+  (pub_item
+    (fn_decl
+      (fn_sig
+        (NAME)
+        (params
+          (param
+            (NAME)
+            (opt_type
+              (type_path
+                (path
+                  (NAME))))))
+        (type_path
+          (path
+            (NAME))))
+      (block
+        (match_stmt
+          (name
+            (NAME))
+          (arm
+            (ctor_pat
+              (path
+                (NAME))
+              (pat_args
+                (pat_arg
+                  (name_pat
+                    (path
+                      (NAME))))))
+            (cmp_expr
+              (name
+                (NAME))
+              (cmp_op)
+              (INT))
+            (simple_stmt
+              (name
+                (NAME))))
+          (arm
+            (wildcard)
+            (simple_stmt
+              (INT))))))))
