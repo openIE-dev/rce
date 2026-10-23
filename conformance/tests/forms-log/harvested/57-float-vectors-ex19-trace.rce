@@ -50,6 +50,6 @@ step Lab on F32Mul(a: a, b: b) -> ((a as f32) * (b as f32)) as f64
 # clauses: [CH00-M-61b6ac06, CH07-M-0a0bd71f, CH07-M-265230fb, CH12-M-f71aaadc, T1, T3, T5]
 # expect: trace
 # events: Round(a: 2.5)
-# trace_head: f98fa9e80654895632cf13d2411da90c920fbcd8593e7b71e59239fca6b678f3
+# trace_head: a09325d3bd2792ecb8e2be7af731e7d62aeba65a3b476a600b8098ebbb977acf
 # provenance: harvested examples/57_float_vectors.rce example@19
 #---

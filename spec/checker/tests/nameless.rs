@@ -59,10 +59,12 @@ fn projection_is_accepted_and_has_the_same_trace_hashes() {
         assert_eq!(c2, 0, "{file} nameless refused: {why}\n{text}");
         let (_, a) = rce(&["trace", "--json", &file]);
         let (_, b) = rce(&["trace", "--json", &t]);
-        // Same shape of every trace: step count and outcome per step. The state
-        // hashes are NOT compared: 6.1 hashes the canonical JSON of the state,
-        // whose keys are region and field names, so they change under renaming
-        // (see `state_hashes_are_not_yet_name_free` below).
+        // Same shape of every trace: step count and outcome per step, and the
+        // same state hashes (T7: 6.1 hashes the positional form of the state).
+        let hashes = |s: &str| -> Vec<String> {
+            s.match_indices("\"state_hash\":\"").map(|(i, _)| s[i + 14..i + 14 + 64].to_string()).collect()
+        };
+        assert_eq!(hashes(&a), hashes(&b), "{file}: state hashes differ under renaming");
         let outcomes = |s: &str| -> Vec<String> {
             s.match_indices("\"outcome\":").map(|(i, _)| s[i..s[i..].find('}').map_or(s.len(), |j| i + j)].to_string()).collect()
         };
@@ -86,16 +88,13 @@ fn projection_is_idempotent() {
     assert_eq!(once, twice);
 }
 
-/// Finding of 2026-10-22: the Lean model of T7 (`RCE/NameFree.lean`) hashes
-/// De Bruijn keys, but `spec/checker` computes `state_hash` over the
-/// canonical JSON of the state (6.1), whose keys are region and field
-/// names. So log hashes depend on names in the implementation and not in
-/// the model. Making them agree changes every trace fixture (a new release
-/// under C.15) or restates T7 for the implementation. Ignored until the
-/// LEDGER decides; run with `--ignored` to see the current difference.
+/// T7 as modelled (`RCE/NameFree.lean` hashes De Bruijn keys): since the
+/// LEDGER decision of 2026-10-23 (resolution A), `state_hash` and the entry
+/// hash are over the positional forms of 6.1, so a renamed program has the
+/// same log hashes. Before that decision this test was ignored and failing
+/// (finding of 2026-10-22: the hashes were over name-keyed JSON).
 #[test]
-#[ignore]
-fn state_hashes_are_not_yet_name_free() {
+fn state_hashes_are_name_free() {
     let (_, a) = rce(&["trace", "--json", "../examples/01_counter.rce"]);
     let (_, text) = rce(&["fmt", "--nameless", "../examples/01_counter.rce"]);
     let t = tmp("counter_nameless.rce", &text);
@@ -104,6 +103,11 @@ fn state_hashes_are_not_yet_name_free() {
         s.match_indices("\"state_hash\":\"").map(|(i, _)| s[i + 14..i + 14 + 64].to_string()).collect()
     };
     assert_eq!(hashes(&a), hashes(&b), "T7 as modelled: log hashes do not depend on names");
+    let entry_hashes = |s: &str| -> Vec<String> {
+        s.match_indices("\"hash\":\"").map(|(i, _)| s[i + 8..i + 8 + 64].to_string()).collect()
+    };
+    assert_eq!(entry_hashes(&a), entry_hashes(&b), "the entry hashes cover the positional event");
+    assert!(!entry_hashes(&a).is_empty());
 }
 
 /// 6.6: the concept record is printed by `rce emit form` under `names`,

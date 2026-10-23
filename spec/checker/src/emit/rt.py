@@ -1085,6 +1085,24 @@ def form_value(v):
     if c is Rng: return list(range(v.a, v.b))
     if c is FnV: return FRec([("$fn", v.n)])
     return None
+def form_value_pos(v):
+    # 6.1, T7: the positional embedding hashed by D (names replaced by positions)
+    c = type(v)
+    if c is Opt: return None if v.x is None else form_value_pos(v.x)
+    if c is Tup or c is Lst or c is St: return [form_value_pos(x) for x in v.xs]
+    if c is Mp:
+        l = [(form_value(a), form_value_pos(a), form_value_pos(b)) for a, b in v.ps]
+        l.sort(key=functools.cmp_to_key(lambda a, b: fv_cmp(a[0], b[0])))
+        return [[a, b] for _, a, b in l]
+    if c is Rec:
+        at = lambda f: next((form_value_pos(x) for k, x in v.fs if k == f), None)
+        if v.n in DECL_FIELDS: return [at(f) for f in DECL_FIELDS[v.n]]
+        if v.n in VARIANT_INDEX:
+            k, fs = VARIANT_INDEX[v.n]
+            return [k, [at(f) for f in fs]]
+        return form_value(v)
+    if c is Err: return FRec([("$err", form_value_pos(v.e))])
+    return form_value(v)
 def fv_rank(x):
     if x is None: return 0
     if x is True or x is False: return 1
@@ -1155,8 +1173,9 @@ def d_sha(s): return hashlib.sha256(s.encode("utf-8")).hexdigest()
 class DLog:
     def __init__(s): s.prev = D_GENESIS; s.seq = 0
     def add(s, name, ev, st):
-        evj = '{"payload":' + fv_json(form_value(ev)) + ',"type":' + jstr(name) + "}"
-        sj = fv_json(FRec([(r, FRec([(n, form_value(v)) for n, v in fs])) for r, fs in st]))
+        ty = str(EVENT_INDEX[name]) if name in EVENT_INDEX else jstr(name)
+        evj = '{"payload":' + fv_json(form_value_pos(ev)) + ',"type":' + ty + "}"
+        sj = fv_json([[form_value_pos(v) for n, v in fs] for r, fs in st])
         body = '{"event":' + evj + ',"prev_hash":"' + s.prev + '","seq":' + str(s.seq) + ',"state_hash":"' + d_sha(sj) + '"}'
         s.prev = d_sha(body); s.seq += 1
 

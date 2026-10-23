@@ -1023,6 +1023,21 @@ def form_value(v: Any): Any = v match {
   case x: FnV => new FRec(Vector(("$fn", x.n)))
   case _ => null
 }
+// 6.1, T7: the positional embedding hashed by D (names replaced by positions)
+def form_value_pos(v: Any): Any = v match {
+  case x: Opt => if (x.x == null) null else form_value_pos(x.x)
+  case x: Tup => x.xs.map(form_value_pos)
+  case x: Lst => x.xs.map(form_value_pos)
+  case x: St => x.xs.map(form_value_pos)
+  case x: Mp => x.ps.map(p => (form_value(p._1), form_value_pos(p._1), form_value_pos(p._2))).sortWith((p, q) => fv_cmp(p._1, q._1) < 0).map(p => Vector(p._2, p._3))
+  case x: Rec =>
+    def at(f: String): Any = x.fs.find(_._1 == f).map(p => form_value_pos(p._2)).getOrElse(null)
+    if (DECL_FIELDS.contains(x.n)) DECL_FIELDS(x.n).map(at)
+    else if (VARIANT_INDEX.contains(x.n)) { val (k, fs) = VARIANT_INDEX(x.n); Vector(k, fs.map(at)) }
+    else form_value(v)
+  case x: Err => new FRec(Vector(("$err", form_value_pos(x.e))))
+  case _ => form_value(v)
+}
 def fv_rank(x: Any): Int = x match {
   case null => 0
   case _: Boolean => 1
@@ -1094,8 +1109,9 @@ def d_sha(s: String): String = sha256hex(s.getBytes("UTF-8"))
 final class DLog {
   var prev: String = D_GENESIS; var seq: Int = 0
   def add(name: String, ev: Any, st: Vector[Any]): Unit = {
-    val evj = "{\"payload\":" + fv_json(form_value(ev)) + ",\"type\":" + jstr(name) + "}"
-    val sj = fv_json(new FRec(st.map(r => (at(r, 0).toString, new FRec(vec(at(r, 1)).map(f => (at(f, 0).toString, form_value(at(f, 1)))))))))
+    val ty = if (EVENT_INDEX.contains(name)) EVENT_INDEX(name).toString else jstr(name)
+    val evj = "{\"payload\":" + fv_json(form_value_pos(ev)) + ",\"type\":" + ty + "}"
+    val sj = fv_json(st.map(r => vec(at(r, 1)).map(f => form_value_pos(at(f, 1)))))
     val body = "{\"event\":" + evj + ",\"prev_hash\":\"" + prev + "\",\"seq\":" + seq + ",\"state_hash\":\"" + d_sha(sj) + "\"}"
     prev = d_sha(body); seq += 1
   }

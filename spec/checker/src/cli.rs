@@ -463,13 +463,15 @@ pub fn serve(r: &mut impl BufRead, w: &mut impl Write) -> i32 {
 }
 
 /// Version of the reference trace format (10.9, informative).
-pub const TRACE_FORMAT: &str = "rce-trace/1";
+pub const TRACE_FORMAT: &str = "rce-trace/2";
 
 /// `rce trace --json FILE [EVENTS]`: the reference trace of a Form (10.9).
 /// Without EVENTS, one trace per `example` of the module (its log D, 6.1);
 /// with EVENTS, one trace of that event list. Each step carries the
-/// canonical D fields `seq`, `event`, `state_hash`, `prev_hash`, `hash`
-/// and the derived `outcome`; a trace stops at the first refused event.
+/// canonical D fields `seq`, `event`, `state_hash`, `prev_hash`, `hash`,
+/// the derived `outcome`, and `hashed`, the positional forms of the event
+/// and the state that the two hashes are over (6.1, T7); a trace stops at
+/// the first refused event.
 /// Keys are sorted and the JSON is compact, so equal traces are equal bytes.
 pub fn trace(file: &str, src: &str, events: Option<&str>) -> Result<String, String> {
     let d = diagnostics(src, &HashSet::new());
@@ -503,6 +505,7 @@ pub fn trace(file: &str, src: &str, events: Option<&str>) -> Result<String, Stri
                 serde_json::json!({
                     "seq": e["seq"], "event": e["event"], "state_hash": e["state_hash"],
                     "prev_hash": e["prev_hash"], "hash": e["hash"], "outcome": e["outcome"],
+                    "hashed": e["hashed"],
                 })
             })
             .collect();

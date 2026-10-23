@@ -29,7 +29,7 @@
 //! `{"event":..,"prev_hash":..,"seq":..,"state_hash":..}`. Each line of the
 //! file is `{"event":E,"hash":H,"prev_hash":P,"seq":N,"state_hash":S}`.
 use crate::ast::{Arg, Expr, Item, Module, Ty};
-use crate::interp::{D_GENESIS, Interp, Region, V, d_sha, event_json, state_json, why};
+use crate::interp::{D_GENESIS, Interp, Region, V, d_sha, event_json, event_pos_json, state_pos_json, why};
 use crate::parse::parse;
 use serde_json::Value;
 use std::collections::HashMap;
@@ -42,7 +42,7 @@ use std::path::{Path, PathBuf};
 pub struct Snapshot {
     pub seq: u64,
     pub state_hash: String,
-    /// Canonical state JSON (`state_json`); its SHA-256 is `state_hash`.
+    /// The hashed state form (`state_pos_json`, T7); its SHA-256 is `state_hash`.
     pub bytes: String,
 }
 
@@ -61,9 +61,30 @@ fn body(event: &str, prev: &str, seq: u64, sh: &str) -> String {
     format!("{{\"event\":{event},\"prev_hash\":\"{prev}\",\"seq\":{seq},\"state_hash\":\"{sh}\"}}")
 }
 
+/// The hashed form of a stored event (6.1, T7): a program event is rebuilt
+/// from its stored JSON and embedded positionally (`event_pos_json`); a
+/// `host.*` entry, which names no declaration, is hashed as stored. `None`
+/// when the stored event is not an event of the module.
+pub fn hashed_event(m: &Module, event: &str) -> Option<String> {
+    let v: Value = serde_json::from_str(event).ok()?;
+    let name = v["type"].as_str()?;
+    if name.starts_with("host.") || !declares_event(m, name) {
+        return Some(event.to_string());
+    }
+    let (name, args) = decode_event(event, m).ok()?;
+    let mut it = Interp::new(m);
+    it.fuel = crate::interp::fuel_limit();
+    match it.construct(&name, &args) {
+        Ok(Some(ev)) => Some(event_pos_json(&name, &ev, m)),
+        _ => None,
+    }
+}
+
 impl Entry {
-    pub fn new(seq: u64, event: String, prev_hash: &str, state_hash: &str) -> Entry {
-        let hash = d_sha(&body(&event, prev_hash, seq, state_hash));
+    /// An entry whose `hash` covers the hashed form of `event` (T7).
+    pub fn new(m: &Module, seq: u64, event: String, prev_hash: &str, state_hash: &str) -> Entry {
+        let hashed = hashed_event(m, &event).unwrap_or_else(|| event.clone());
+        let hash = d_sha(&body(&hashed, prev_hash, seq, state_hash));
         Entry { seq, event, prev_hash: prev_hash.into(), state_hash: state_hash.into(), hash }
     }
     /// The stored line (no newline).
@@ -103,12 +124,33 @@ impl Entry {
 }
 
 /// HS-4: the number of lines in the longest prefix that links from the
-/// genesis hash. A line that does not parse (a torn write) ends the prefix.
-pub fn verify_prefix(lines: &[&str]) -> usize {
+/// genesis hash, each entry's `hash` recomputed over the hashed form of its
+/// event (T7). A line that does not parse (a torn write) ends the prefix.
+pub fn verify_prefix(lines: &[&str], m: &Module) -> usize {
     let mut prev = D_GENESIS.to_string();
     for (i, l) in lines.iter().enumerate() {
         let Some(e) = Entry::parse_line(l) else { return i };
-        if e.seq != i as u64 || e.prev_hash != prev || e.hash != d_sha(&body(&e.event, &e.prev_hash, e.seq, &e.state_hash)) {
+        if e.seq != i as u64 || e.prev_hash != prev {
+            return i;
+        }
+        let Some(hashed) = hashed_event(m, &e.event) else { return i };
+        if e.hash != d_sha(&body(&hashed, &e.prev_hash, e.seq, &e.state_hash)) {
+            return i;
+        }
+        prev = e.hash;
+    }
+    lines.len()
+}
+
+/// The number of lines in the longest prefix whose entries parse and link
+/// (`seq` and `prev_hash`) from the genesis hash, without the module: the
+/// chain's shape, checked by a store that holds no program. The hashes
+/// themselves are checked by `verify_prefix` when the log is opened.
+pub fn verify_links(lines: &[&str]) -> usize {
+    let mut prev = D_GENESIS.to_string();
+    for (i, l) in lines.iter().enumerate() {
+        let Some(e) = Entry::parse_line(l) else { return i };
+        if e.seq != i as u64 || e.prev_hash != prev {
             return i;
         }
         prev = e.hash;
@@ -788,7 +830,7 @@ impl<'a> Host<'a> {
         }
         let mut it = Interp::new(m);
         let state = it.initial_state().map_err(why)?;
-        let state_hash = d_sha(&state_json(&state, m));
+        let state_hash = d_sha(&state_pos_json(&state, m));
         Ok(Host { m, it, state, state_hash, prev: D_GENESIS.into(), seq: 0, store, stopped: false, pending: 0, durable: None, from_snapshot: None, adapters, bound, queue: Default::default(), admitted: Default::default(), window: 0, closed_tick: 0, offered: vec![], term: 0, task: None, fabrics: vec![], calib: Default::default(), exacts: Default::default() })
     }
 
@@ -831,7 +873,7 @@ impl<'a> Host<'a> {
             return Host::start_with(m, Box::new(fs), adapters);
         }
         let lines: Vec<&str> = text.split_terminator('\n').collect();
-        let keep = verify_prefix(&lines);
+        let keep = verify_prefix(&lines, m);
         let dropped = lines.len() - keep;
         if dropped > 0 || !text.ends_with('\n') {
             let len: usize = lines[..keep].iter().map(|l| l.len() + 1).sum();
@@ -865,7 +907,7 @@ impl<'a> Host<'a> {
         if !self.queue.is_empty() || self.seq == 0 || self.task.is_some() {
             return None;
         }
-        Some(Snapshot { seq: self.seq - 1, state_hash: self.state_hash.clone(), bytes: state_json(&self.state, self.m) })
+        Some(Snapshot { seq: self.seq - 1, state_hash: self.state_hash.clone(), bytes: state_pos_json(&self.state, self.m) })
     }
 
     /// Use a snapshot only when SHA-256 of its bytes is its state_hash, that
@@ -879,9 +921,9 @@ impl<'a> Host<'a> {
         }
         let Ok(v) = serde_json::from_str::<Value>(&sn.bytes) else { return false };
         let mut st = self.state.clone();
-        for (rn, fs) in st.iter_mut() {
-            for (fname, val, ty) in fs.iter_mut() {
-                let Some(j) = v.get(rn.as_str()).and_then(|r| r.get(fname.as_str())) else { return false };
+        for (ri, (_, fs)) in st.iter_mut().enumerate() {
+            for (fi, (_, val, ty)) in fs.iter_mut().enumerate() {
+                let Some(j) = v.get(ri).and_then(|r| r.get(fi)) else { return false };
                 let Ok(x) = json_expr(j, Some(ty), self.m) else { return false };
                 self.it.scopes = vec![HashMap::new()];
         self.it.fuel = crate::interp::fuel_limit(); // HC-7: each input is one run of δ
@@ -891,7 +933,7 @@ impl<'a> Host<'a> {
                 }
             }
         }
-        if state_json(&st, self.m) != sn.bytes {
+        if state_pos_json(&st, self.m) != sn.bytes {
             return false;
         }
         self.state = st;
@@ -953,7 +995,7 @@ impl<'a> Host<'a> {
         if self.stopped {
             return Err("host.StorageFault: admitter stopped after a failed barrier".into());
         }
-        let e = Entry::new(self.seq, event, &self.prev, &self.state_hash);
+        let e = Entry::new(self.m, self.seq, event, &self.prev, &self.state_hash);
         if let Err(x) = self.store.append(&e.line()) {
             self.stopped = true;
             return Err(format!("host.StorageFault: seq {}: {x}", e.seq));
@@ -1267,7 +1309,7 @@ impl<'a> Host<'a> {
     /// The state hash of δ's state and, while a `fn main` task is live,
     /// the task's state: the state after each entry is the fold of D.
     fn rehash(&mut self) {
-        let sj = state_json(&self.state, self.m);
+        let sj = state_pos_json(&self.state, self.m);
         self.state_hash = match &self.task {
             None => d_sha(&sj),
             Some(t) => d_sha(&format!("{sj}\n{}", t.json())),
@@ -1752,7 +1794,7 @@ impl<'a> Host<'a> {
     /// the host appends nothing until [`Host::take_role`].
     pub fn resume(m: &'a Module, text: &str, store: Box<dyn Store + 'a>) -> Result<Host<'a>, String> {
         let lines: Vec<&str> = text.split_terminator('\n').collect();
-        let keep = verify_prefix(&lines);
+        let keep = verify_prefix(&lines, m);
         if keep < lines.len() {
             return Err(format!("D does not verify after entry {keep} of {}", lines.len()));
         }
@@ -1774,7 +1816,7 @@ impl<'a> Host<'a> {
             Err(f) => return Err(why(f)),
         };
         let (s2, outs) = self.it.delta(&self.state, &ev)?;
-        if d_sha(&state_json(&s2, self.m)) != self.state_hash {
+        if d_sha(&state_pos_json(&s2, self.m)) != self.state_hash {
             return Err(format!("`{name}` changes state; a query only reads"));
         }
         Ok(outs)
@@ -1834,7 +1876,7 @@ impl<'a> Host<'a> {
 /// adapter disconnected. Returns (entries, final state hash, final state).
 pub fn replay(m: &Module, text: &str) -> Result<(u64, String, Vec<Region>), String> {
     let lines: Vec<&str> = text.split_terminator('\n').collect();
-    let keep = verify_prefix(&lines);
+    let keep = verify_prefix(&lines, m);
     if keep < lines.len() {
         return Err(format!("D does not verify after entry {keep} of {}", lines.len()));
     }
@@ -1848,7 +1890,7 @@ pub fn replay(m: &Module, text: &str) -> Result<(u64, String, Vec<Region>), Stri
 /// verified D, on a volatile store, with every adapter disconnected.
 pub fn as_of<'a>(m: &'a Module, text: &str, k: usize) -> Result<Host<'a>, String> {
     let lines: Vec<&str> = text.split_terminator('\n').collect();
-    let keep = verify_prefix(&lines);
+    let keep = verify_prefix(&lines, m);
     if k > keep {
         return Err(format!("D verifies only up to entry {keep}, asked for {k}"));
     }

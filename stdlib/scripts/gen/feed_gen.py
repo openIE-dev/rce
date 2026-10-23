@@ -4,7 +4,7 @@
 #   the server error on projecting out _id), replayed against a scripted
 #   server; the prose tests 1-4, 11, 13, 14, 17, 18 and the
 #   "Resumable Error" table of change-streams.md.
-# derived: rce 0.1.3 `rce trace --json` logs (the 6.1 hash chain),
+# derived: `rce trace --json` logs (the 6.1 hash chain over the positional forms, T7),
 #   PouchDB 9.0.0 pouchdb-checkpointer (CouchDB's compareReplicationLogs
 #   port and its checkpoint update; scripts/gen/feed_pouch.js), and the
 #   admission rules restated.
@@ -65,7 +65,7 @@ fn sim(e: Err, times: i64, ae: Err, ainit: bool, nev: i64, start: Pos, noid: boo
     var docs: List[text] = []
     var aggs: List[text] = []
     if ainit and ae.cmd == "aggregate"
-        let x = cs_error(&mut cs, &ae)
+        let _x = cs_error(&mut cs, &ae)
         return "|" + "|err" + cs.err_code.tostr()
     let z = ""
     let op1 = "op1"
@@ -101,14 +101,14 @@ const NOPOS: Pos = Pos(start_after: "", resume_after: "", start_at_op_time: "")
 fn pos(sa: text, ra: text, op: text) -> Pos = Pos(start_after: sa, resume_after: ra, start_at_op_time: op)
 fn tok_after(start: Pos, docs: i64, last: bool, pbrt: text, empty: bool) -> text
     var cs = cs_start(&start)
-    let z = ""
+    let _z = ""
     if empty
         cs_batch(&mut cs, 0, &pbrt)
     var i: i64 = 0
     while i < docs bound 64
         i += 1
         let id = "d" + i.tostr()
-        let b = cs_doc(&mut cs, &id, last and i == docs, &pbrt)
+        let _b = cs_doc(&mut cs, &id, last and i == docs, &pbrt)
     return get_resume_token(&cs)
 fn tp(t: text) -> text
     let k = token_parse(&t) catch Token(height: -1, digest: "ERR")
@@ -283,7 +283,7 @@ HEAD += '''fn sim_after_doc_ra() -> text
     var cs = cs_start(&st)
     let id = "t1"
     let z = ""
-    let b = cs_doc(&mut cs, &id, false, &z)
+    let _b = cs_doc(&mut cs, &id, false, &z)
     let p = resume_pos(&cs)
     return ptext(&p)
 '''
@@ -332,7 +332,8 @@ with tempfile.TemporaryDirectory() as d:
 json.dump(traces, open(os.path.join(ROOT, 'vectors/data/rce_trace_feed.json'), 'w'), ensure_ascii=False, indent=0)
 for tr in traces:
     steps = tr['traces'][0]['steps']
-    evj = [json.dumps(s['event'], ensure_ascii=False, separators=(',', ':')) for s in steps]
+    # T7: the entry hash covers the positional form of the event (`hashed.event`), not the readable `event`
+    evj = [json.dumps(s['hashed']['event'], ensure_ascii=False, separators=(',', ':')) for s in steps]
     shs = [s['state_hash'] for s in steps]
     hs = [s['hash'] for s in steps]
     assert all(steps[i]['prev_hash'] == (steps[i - 1]['hash'] if i else tr['genesis']) for i in range(len(steps)))

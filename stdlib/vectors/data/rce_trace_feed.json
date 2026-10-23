@@ -2,7 +2,7 @@
 {
 "events": "Bump, Tag(\"😀\", false), Bump, Tag(\"中é\", false), Tag(\"\", false)",
 "file": "tr.rce",
-"format": "rce-trace/1",
+"format": "rce-trace/2",
 "genesis": "0000000000000000000000000000000000000000000000000000000000000000",
 "traces": [
 {
@@ -13,11 +13,24 @@
 "payload": {},
 "type": "Bump"
 },
-"hash": "1638ce9a9edfeb2a00dce13636ac38fc7ecac67b3dc6c7d689110a5ee168dff0",
+"hash": "0a870655adb90680c2a89d1ed131d178cd3f46a13eb174223e0a4eb5b6c9fe79",
+"hashed": {
+"event": {
+"payload": [],
+"type": 2
+},
+"state": [
+[
+1,
+"",
+[]
+]
+]
+},
 "outcome": "applied",
 "prev_hash": "0000000000000000000000000000000000000000000000000000000000000000",
 "seq": 0,
-"state_hash": "06c1b78402456b22cf6ceec900873b8479d24d9db7b585abbd93dd9bd5b13ecc"
+"state_hash": "4bee8f32ebd0f89289c95686b98422aaa9819bca51c6d9eb1479fc3f315ce990"
 },
 {
 "event": {
@@ -27,22 +40,51 @@
 },
 "type": "Tag"
 },
-"hash": "bae2a7b93267a447202729a033203811b8715b1369bba699a23878e5736d072f",
+"hash": "2a9ac8a925dba68b71916a555dc37acdcc6610c93ba7e05ca9ab1fd32dd24c62",
+"hashed": {
+"event": {
+"payload": [
+"😀",
+false
+],
+"type": 1
+},
+"state": [
+[
+1,
+"",
+[]
+]
+]
+},
 "outcome": "applied",
-"prev_hash": "1638ce9a9edfeb2a00dce13636ac38fc7ecac67b3dc6c7d689110a5ee168dff0",
+"prev_hash": "0a870655adb90680c2a89d1ed131d178cd3f46a13eb174223e0a4eb5b6c9fe79",
 "seq": 1,
-"state_hash": "06c1b78402456b22cf6ceec900873b8479d24d9db7b585abbd93dd9bd5b13ecc"
+"state_hash": "4bee8f32ebd0f89289c95686b98422aaa9819bca51c6d9eb1479fc3f315ce990"
 },
 {
 "event": {
 "payload": {},
 "type": "Bump"
 },
-"hash": "f672b487c99dad42e5748e3a8ecca8113f6541e984c9bf3a87e7fa213e4b6f6b",
+"hash": "7d30f917165a3f3a9fbcee61b16f15e2d4562529b8f70dbe7203f7ba8b9f0aaa",
+"hashed": {
+"event": {
+"payload": [],
+"type": 2
+},
+"state": [
+[
+2,
+"",
+[]
+]
+]
+},
 "outcome": "applied",
-"prev_hash": "bae2a7b93267a447202729a033203811b8715b1369bba699a23878e5736d072f",
+"prev_hash": "2a9ac8a925dba68b71916a555dc37acdcc6610c93ba7e05ca9ab1fd32dd24c62",
 "seq": 2,
-"state_hash": "eedfd1dd42088184dc05f7992df64c61d1d967ffc8097de62cae42a19264fe2e"
+"state_hash": "e95d179f8ea6f34691f0f2bba42bd8a47b81b0a8ba7241c747a8dbc3f6c05354"
 },
 {
 "event": {
@@ -52,11 +94,27 @@
 },
 "type": "Tag"
 },
-"hash": "127d158893905b924a5cda1d3b115870c1063cb582f030f1d22f5310af4fe6d1",
+"hash": "2d9220a693366c5c375b0eb89e68edc8a998512603bf7f90cf8dde9565ae213e",
+"hashed": {
+"event": {
+"payload": [
+"中é",
+false
+],
+"type": 1
+},
+"state": [
+[
+2,
+"",
+[]
+]
+]
+},
 "outcome": "applied",
-"prev_hash": "f672b487c99dad42e5748e3a8ecca8113f6541e984c9bf3a87e7fa213e4b6f6b",
+"prev_hash": "7d30f917165a3f3a9fbcee61b16f15e2d4562529b8f70dbe7203f7ba8b9f0aaa",
 "seq": 3,
-"state_hash": "eedfd1dd42088184dc05f7992df64c61d1d967ffc8097de62cae42a19264fe2e"
+"state_hash": "e95d179f8ea6f34691f0f2bba42bd8a47b81b0a8ba7241c747a8dbc3f6c05354"
 },
 {
 "event": {
@@ -66,11 +124,27 @@
 },
 "type": "Tag"
 },
-"hash": "d4afff5f7d4d363e37a7c910a3debdb0317779b49a471c0ed458fc77d546324d",
+"hash": "638e324ad84cf2a510fd716b19a3aea376b191b8ec0d6e395e764b2066100d32",
+"hashed": {
+"event": {
+"payload": [
+"",
+false
+],
+"type": 1
+},
+"state": [
+[
+2,
+"",
+[]
+]
+]
+},
 "outcome": "applied",
-"prev_hash": "127d158893905b924a5cda1d3b115870c1063cb582f030f1d22f5310af4fe6d1",
+"prev_hash": "2d9220a693366c5c375b0eb89e68edc8a998512603bf7f90cf8dde9565ae213e",
 "seq": 4,
-"state_hash": "eedfd1dd42088184dc05f7992df64c61d1d967ffc8097de62cae42a19264fe2e"
+"state_hash": "e95d179f8ea6f34691f0f2bba42bd8a47b81b0a8ba7241c747a8dbc3f6c05354"
 }
 ]
 }
@@ -79,7 +153,7 @@
 {
 "events": "Bump, Bump, Put(\"\", 598727548008)",
 "file": "tr.rce",
-"format": "rce-trace/1",
+"format": "rce-trace/2",
 "genesis": "0000000000000000000000000000000000000000000000000000000000000000",
 "traces": [
 {
@@ -90,22 +164,48 @@
 "payload": {},
 "type": "Bump"
 },
-"hash": "1638ce9a9edfeb2a00dce13636ac38fc7ecac67b3dc6c7d689110a5ee168dff0",
+"hash": "0a870655adb90680c2a89d1ed131d178cd3f46a13eb174223e0a4eb5b6c9fe79",
+"hashed": {
+"event": {
+"payload": [],
+"type": 2
+},
+"state": [
+[
+1,
+"",
+[]
+]
+]
+},
 "outcome": "applied",
 "prev_hash": "0000000000000000000000000000000000000000000000000000000000000000",
 "seq": 0,
-"state_hash": "06c1b78402456b22cf6ceec900873b8479d24d9db7b585abbd93dd9bd5b13ecc"
+"state_hash": "4bee8f32ebd0f89289c95686b98422aaa9819bca51c6d9eb1479fc3f315ce990"
 },
 {
 "event": {
 "payload": {},
 "type": "Bump"
 },
-"hash": "960b6ec4fcd1fadca60c7455e4bfbe056c72d55ad3725c97520a567c5084da5c",
+"hash": "02015612f9cebe57fcd63a940edf6a406b22e7e4799de5eff0f1f164c26b94b1",
+"hashed": {
+"event": {
+"payload": [],
+"type": 2
+},
+"state": [
+[
+2,
+"",
+[]
+]
+]
+},
 "outcome": "applied",
-"prev_hash": "1638ce9a9edfeb2a00dce13636ac38fc7ecac67b3dc6c7d689110a5ee168dff0",
+"prev_hash": "0a870655adb90680c2a89d1ed131d178cd3f46a13eb174223e0a4eb5b6c9fe79",
 "seq": 1,
-"state_hash": "eedfd1dd42088184dc05f7992df64c61d1d967ffc8097de62cae42a19264fe2e"
+"state_hash": "e95d179f8ea6f34691f0f2bba42bd8a47b81b0a8ba7241c747a8dbc3f6c05354"
 },
 {
 "event": {
@@ -115,11 +215,27 @@
 },
 "type": "Put"
 },
-"hash": "1e19cf9e0def6c4e54efba443e1144aef4eb09fda8dffacbb0368048ee056760",
+"hash": "f6aabf83b9b81b1a9a48a9490c26640e92546f80ddf115f01b1fe3aa574cd518",
+"hashed": {
+"event": {
+"payload": [
+"",
+598727548008
+],
+"type": 0
+},
+"state": [
+[
+598727548010,
+"",
+[]
+]
+]
+},
 "outcome": "applied",
-"prev_hash": "960b6ec4fcd1fadca60c7455e4bfbe056c72d55ad3725c97520a567c5084da5c",
+"prev_hash": "02015612f9cebe57fcd63a940edf6a406b22e7e4799de5eff0f1f164c26b94b1",
 "seq": 2,
-"state_hash": "b66dce9078135f3ab78d46ce5ebdf0bf4db13109dc7f801f481671a8f1d62bd9"
+"state_hash": "4e6fd8cad61490d7a0f7cb28dca08c7811121adc532772451a1b5df22b87298a"
 }
 ]
 }
@@ -128,7 +244,7 @@
 {
 "events": "Bump, Bump",
 "file": "tr.rce",
-"format": "rce-trace/1",
+"format": "rce-trace/2",
 "genesis": "0000000000000000000000000000000000000000000000000000000000000000",
 "traces": [
 {
@@ -139,22 +255,48 @@
 "payload": {},
 "type": "Bump"
 },
-"hash": "1638ce9a9edfeb2a00dce13636ac38fc7ecac67b3dc6c7d689110a5ee168dff0",
+"hash": "0a870655adb90680c2a89d1ed131d178cd3f46a13eb174223e0a4eb5b6c9fe79",
+"hashed": {
+"event": {
+"payload": [],
+"type": 2
+},
+"state": [
+[
+1,
+"",
+[]
+]
+]
+},
 "outcome": "applied",
 "prev_hash": "0000000000000000000000000000000000000000000000000000000000000000",
 "seq": 0,
-"state_hash": "06c1b78402456b22cf6ceec900873b8479d24d9db7b585abbd93dd9bd5b13ecc"
+"state_hash": "4bee8f32ebd0f89289c95686b98422aaa9819bca51c6d9eb1479fc3f315ce990"
 },
 {
 "event": {
 "payload": {},
 "type": "Bump"
 },
-"hash": "960b6ec4fcd1fadca60c7455e4bfbe056c72d55ad3725c97520a567c5084da5c",
+"hash": "02015612f9cebe57fcd63a940edf6a406b22e7e4799de5eff0f1f164c26b94b1",
+"hashed": {
+"event": {
+"payload": [],
+"type": 2
+},
+"state": [
+[
+2,
+"",
+[]
+]
+]
+},
 "outcome": "applied",
-"prev_hash": "1638ce9a9edfeb2a00dce13636ac38fc7ecac67b3dc6c7d689110a5ee168dff0",
+"prev_hash": "0a870655adb90680c2a89d1ed131d178cd3f46a13eb174223e0a4eb5b6c9fe79",
 "seq": 1,
-"state_hash": "eedfd1dd42088184dc05f7992df64c61d1d967ffc8097de62cae42a19264fe2e"
+"state_hash": "e95d179f8ea6f34691f0f2bba42bd8a47b81b0a8ba7241c747a8dbc3f6c05354"
 }
 ]
 }
@@ -163,7 +305,7 @@
 {
 "events": "Put(\"😀back\\\\é\", -900245134015)",
 "file": "tr.rce",
-"format": "rce-trace/1",
+"format": "rce-trace/2",
 "genesis": "0000000000000000000000000000000000000000000000000000000000000000",
 "traces": [
 {
@@ -177,11 +319,27 @@
 },
 "type": "Put"
 },
-"hash": "90665d040cb377bb57c53aa846ddec8398dd7270d9d6599db2385e1d8bda5989",
+"hash": "d410c5ebc4a253c602a04934e984e7fa343c811af2580f7f1037fa577f88490a",
+"hashed": {
+"event": {
+"payload": [
+"😀back\\é",
+-900245134015
+],
+"type": 0
+},
+"state": [
+[
+-900245134015,
+"😀back\\é",
+[]
+]
+]
+},
 "outcome": "applied",
 "prev_hash": "0000000000000000000000000000000000000000000000000000000000000000",
 "seq": 0,
-"state_hash": "c44b04ca55c213b692c4171fc538bb66a5e894ad93944478853f0641d9a264aa"
+"state_hash": "013c8598470088251bb5740dacc118a8f4cf6783ad2eab958a2edfe295ea474c"
 }
 ]
 }
@@ -190,7 +348,7 @@
 {
 "events": "Put(\"é\\\"q\", 430314483910), Tag(\"中tab\\t\", false), Put(\"\", 697695899889), Bump, Tag(\"中x\\nya\", true), Put(\"back\\\\x\\ny\", -983130257148), Tag(\"\", true)",
 "file": "tr.rce",
-"format": "rce-trace/1",
+"format": "rce-trace/2",
 "genesis": "0000000000000000000000000000000000000000000000000000000000000000",
 "traces": [
 {
@@ -204,11 +362,27 @@
 },
 "type": "Put"
 },
-"hash": "52a9b6e8f1b93e59228ce976bc0cbd75c8683152cefda47de1374431a0b23414",
+"hash": "fa038979eddf9b143d8113702b7d272504f575bb5623bcf4752c5e3d4c231812",
+"hashed": {
+"event": {
+"payload": [
+"é\"q",
+430314483910
+],
+"type": 0
+},
+"state": [
+[
+430314483910,
+"é\"q",
+[]
+]
+]
+},
 "outcome": "applied",
 "prev_hash": "0000000000000000000000000000000000000000000000000000000000000000",
 "seq": 0,
-"state_hash": "0b185d187ce59dd1ed0afaf6ebe07e4c382fc69559c00a6ac173a4045fa0d74b"
+"state_hash": "66c5a0da474e265d744ceaf78baeb837db8156ac4f197f7fbac30e3fbb171c56"
 },
 {
 "event": {
@@ -218,11 +392,27 @@
 },
 "type": "Tag"
 },
-"hash": "e414e7ba3bb5483a273253100dc262927969d286b6e5cbc1a4c34a1e5f84f0bd",
+"hash": "4644bc7834047c80b48969ba8b1ab01f2520f8a21ee0fe843cbf1cf70e582ced",
+"hashed": {
+"event": {
+"payload": [
+"中tab\t",
+false
+],
+"type": 1
+},
+"state": [
+[
+430314483910,
+"é\"q",
+[]
+]
+]
+},
 "outcome": "applied",
-"prev_hash": "52a9b6e8f1b93e59228ce976bc0cbd75c8683152cefda47de1374431a0b23414",
+"prev_hash": "fa038979eddf9b143d8113702b7d272504f575bb5623bcf4752c5e3d4c231812",
 "seq": 1,
-"state_hash": "0b185d187ce59dd1ed0afaf6ebe07e4c382fc69559c00a6ac173a4045fa0d74b"
+"state_hash": "66c5a0da474e265d744ceaf78baeb837db8156ac4f197f7fbac30e3fbb171c56"
 },
 {
 "event": {
@@ -232,22 +422,51 @@
 },
 "type": "Put"
 },
-"hash": "7b367c4d8953dde050a97d4123986fc964789266c9b485b51a27bbd352f34102",
+"hash": "b97f4cbea94268e29714917a95a6db75aafe2817ed34b1456bf850b5603d29b0",
+"hashed": {
+"event": {
+"payload": [
+"",
+697695899889
+],
+"type": 0
+},
+"state": [
+[
+1128010383799,
+"",
+[]
+]
+]
+},
 "outcome": "applied",
-"prev_hash": "e414e7ba3bb5483a273253100dc262927969d286b6e5cbc1a4c34a1e5f84f0bd",
+"prev_hash": "4644bc7834047c80b48969ba8b1ab01f2520f8a21ee0fe843cbf1cf70e582ced",
 "seq": 2,
-"state_hash": "f2e54d4b90b53237477b061374e50d50e67f8f208b1e9b04b338cd540c9f8df4"
+"state_hash": "12d07e9e872678dd4e2b9a96fe13f9c2d9d4cad01b9002cd1bf26895d794b4c3"
 },
 {
 "event": {
 "payload": {},
 "type": "Bump"
 },
-"hash": "1dc47b1decc7fd65c25355576a885a6b1d3d209874d1ff3813082f4b7140d277",
+"hash": "3718baa118365899b0085eac1deaf7acf5309c46bdadc52354cd03fef013b6bc",
+"hashed": {
+"event": {
+"payload": [],
+"type": 2
+},
+"state": [
+[
+1128010383800,
+"",
+[]
+]
+]
+},
 "outcome": "applied",
-"prev_hash": "7b367c4d8953dde050a97d4123986fc964789266c9b485b51a27bbd352f34102",
+"prev_hash": "b97f4cbea94268e29714917a95a6db75aafe2817ed34b1456bf850b5603d29b0",
 "seq": 3,
-"state_hash": "cd091eccbcb281be7ff4da1d1edec8d607ac392065edcd3b8f50a2a92a607d5d"
+"state_hash": "f34580797cd24b29e810b65d818b3213094000829c59714124cccceb9602b4e8"
 },
 {
 "event": {
@@ -257,11 +476,29 @@
 },
 "type": "Tag"
 },
-"hash": "cba1faf5c2f3398bf84e405175c66790773c472fc33b89fd19945dffb41bd762",
+"hash": "01a95ca20beb2b110d69bc2d4a537b0723ca7d09e21627d0c14ee1eec666bcfb",
+"hashed": {
+"event": {
+"payload": [
+"中x\nya",
+true
+],
+"type": 1
+},
+"state": [
+[
+1128010383800,
+"",
+[
+"中x\nya"
+]
+]
+]
+},
 "outcome": "applied",
-"prev_hash": "1dc47b1decc7fd65c25355576a885a6b1d3d209874d1ff3813082f4b7140d277",
+"prev_hash": "3718baa118365899b0085eac1deaf7acf5309c46bdadc52354cd03fef013b6bc",
 "seq": 4,
-"state_hash": "b977e7fa5c2e3627eddcaad553d454d384774f54e668a502cd98d1107d6145c7"
+"state_hash": "aa61124e39195256012ea96ca74eda55be2179277f3f0ff0e32000e127a454c7"
 },
 {
 "event": {
@@ -271,11 +508,29 @@
 },
 "type": "Put"
 },
-"hash": "55cb8ce9596b412496751add16a2c53eca0e708daf2bcebae35f2a02aa86b3d3",
+"hash": "7aecb98e25ebffd9a10711a38015e124b0c704e30b91c1ac45d7d418f6be2af6",
+"hashed": {
+"event": {
+"payload": [
+"back\\x\ny",
+-983130257148
+],
+"type": 0
+},
+"state": [
+[
+144880126652,
+"back\\x\ny",
+[
+"中x\nya"
+]
+]
+]
+},
 "outcome": "applied",
-"prev_hash": "cba1faf5c2f3398bf84e405175c66790773c472fc33b89fd19945dffb41bd762",
+"prev_hash": "01a95ca20beb2b110d69bc2d4a537b0723ca7d09e21627d0c14ee1eec666bcfb",
 "seq": 5,
-"state_hash": "445b818a49ffa2f9018683b7dd99977c7b037ff84de4e18c53ce5f55bb4078ba"
+"state_hash": "3e26bd93d01f8fd7c383a20519400fa9ca3f69f081dbfc28398757a390f7cba0"
 },
 {
 "event": {
@@ -285,11 +540,30 @@
 },
 "type": "Tag"
 },
-"hash": "fb8ef0cb735f7d4de5a21626673c98df3a5197f81026e791f4db458b9ea4aedc",
+"hash": "05d39c108a9d3272f376ec9eb46d10d618c2f0b30118acf5cb6833de95214ce5",
+"hashed": {
+"event": {
+"payload": [
+"",
+true
+],
+"type": 1
+},
+"state": [
+[
+144880126652,
+"back\\x\ny",
+[
+"中x\nya",
+""
+]
+]
+]
+},
 "outcome": "applied",
-"prev_hash": "55cb8ce9596b412496751add16a2c53eca0e708daf2bcebae35f2a02aa86b3d3",
+"prev_hash": "7aecb98e25ebffd9a10711a38015e124b0c704e30b91c1ac45d7d418f6be2af6",
 "seq": 6,
-"state_hash": "0520935179e1b91197aa34f23cb00f060a4e511562ac9d101a25dab3208a5cd6"
+"state_hash": "57ff714e379b13e3d7347b8d115c28e0e07f3dd564650f868ca3663be3a32683"
 }
 ]
 }
@@ -298,7 +572,7 @@
 {
 "events": "Tag(\"aé\", true), Put(\"中tab\\té\", 973810988783), Tag(\"\", false), Put(\"a中\\\"q\", 734333346925), Bump, Tag(\"\", true)",
 "file": "tr.rce",
-"format": "rce-trace/1",
+"format": "rce-trace/2",
 "genesis": "0000000000000000000000000000000000000000000000000000000000000000",
 "traces": [
 {
@@ -312,11 +586,29 @@
 },
 "type": "Tag"
 },
-"hash": "1b4d90572313def20a08373b284cd078b7600a1f6056da1e0b926eba7a69e981",
+"hash": "b191c260829a28b49c653e2d1a62eea237022bc00951adca6148bd2a542668a6",
+"hashed": {
+"event": {
+"payload": [
+"aé",
+true
+],
+"type": 1
+},
+"state": [
+[
+0,
+"",
+[
+"aé"
+]
+]
+]
+},
 "outcome": "applied",
 "prev_hash": "0000000000000000000000000000000000000000000000000000000000000000",
 "seq": 0,
-"state_hash": "cb34cc739884ab02e35206729103305afccf91352127da142c70748a2783f912"
+"state_hash": "101e88a1cf084fb6f6dee28deca2ab85497d50c45196076d5ea0ef1837b5ff4d"
 },
 {
 "event": {
@@ -326,11 +618,29 @@
 },
 "type": "Put"
 },
-"hash": "78c4ca31849587ee51e3e330a57da854e325fe43a4479243cff24d01d7e2816a",
+"hash": "e3ec4f28ffa88c6bc5d8a4147c4292985019c8da3b14a1b6dc45e6413452a393",
+"hashed": {
+"event": {
+"payload": [
+"中tab\té",
+973810988783
+],
+"type": 0
+},
+"state": [
+[
+973810988783,
+"中tab\té",
+[
+"aé"
+]
+]
+]
+},
 "outcome": "applied",
-"prev_hash": "1b4d90572313def20a08373b284cd078b7600a1f6056da1e0b926eba7a69e981",
+"prev_hash": "b191c260829a28b49c653e2d1a62eea237022bc00951adca6148bd2a542668a6",
 "seq": 1,
-"state_hash": "6064b82c90c7b45dbc26750cd3eefae2e6a0063ec12a2ffb85c746e214b29642"
+"state_hash": "554a565d0653601777c58bed7908a267bad159be2ec5febd6811bf48c6b02082"
 },
 {
 "event": {
@@ -340,11 +650,29 @@
 },
 "type": "Tag"
 },
-"hash": "d5ce3dc29f3df6fa4bc5feec8362bc47a196ca2cdc651a955d7498cc0d3ba72f",
+"hash": "d724b5862dee5d686bacf057dfa265afd12ec294f725f0b86a01d5cdf58f7bc3",
+"hashed": {
+"event": {
+"payload": [
+"",
+false
+],
+"type": 1
+},
+"state": [
+[
+973810988783,
+"中tab\té",
+[
+"aé"
+]
+]
+]
+},
 "outcome": "applied",
-"prev_hash": "78c4ca31849587ee51e3e330a57da854e325fe43a4479243cff24d01d7e2816a",
+"prev_hash": "e3ec4f28ffa88c6bc5d8a4147c4292985019c8da3b14a1b6dc45e6413452a393",
 "seq": 2,
-"state_hash": "6064b82c90c7b45dbc26750cd3eefae2e6a0063ec12a2ffb85c746e214b29642"
+"state_hash": "554a565d0653601777c58bed7908a267bad159be2ec5febd6811bf48c6b02082"
 },
 {
 "event": {
@@ -354,22 +682,55 @@
 },
 "type": "Put"
 },
-"hash": "20e23ecc753cd08acb67b820838a79d1b1f60904826278ff5935cbfd06cfd8f8",
+"hash": "13d603cca4276300b6ad1ba2a3567224fd8f1cfb7eb15e8b267a5ea7b3c6a99b",
+"hashed": {
+"event": {
+"payload": [
+"a中\"q",
+734333346925
+],
+"type": 0
+},
+"state": [
+[
+1708144335708,
+"a中\"q",
+[
+"aé"
+]
+]
+]
+},
 "outcome": "applied",
-"prev_hash": "d5ce3dc29f3df6fa4bc5feec8362bc47a196ca2cdc651a955d7498cc0d3ba72f",
+"prev_hash": "d724b5862dee5d686bacf057dfa265afd12ec294f725f0b86a01d5cdf58f7bc3",
 "seq": 3,
-"state_hash": "f9d362e16532014f928d85c6d6cbd1854369795778851da1652cf857b5d928c5"
+"state_hash": "ea5e1a0fde80f501bac360134517f791462117938de35fbf85bd188f0e7b7228"
 },
 {
 "event": {
 "payload": {},
 "type": "Bump"
 },
-"hash": "449f686dc70290631ff75a60b4d4b292aaeb01ff81f10b3005abb6791c4e4cb7",
+"hash": "da9b0a0b4135229aeec6327e842aba7c22d32abb882037753fc444d05920dff3",
+"hashed": {
+"event": {
+"payload": [],
+"type": 2
+},
+"state": [
+[
+1708144335709,
+"a中\"q",
+[
+"aé"
+]
+]
+]
+},
 "outcome": "applied",
-"prev_hash": "20e23ecc753cd08acb67b820838a79d1b1f60904826278ff5935cbfd06cfd8f8",
+"prev_hash": "13d603cca4276300b6ad1ba2a3567224fd8f1cfb7eb15e8b267a5ea7b3c6a99b",
 "seq": 4,
-"state_hash": "6bac6f2410073a9b101a003abdaeb1b9e68dcc6162a5b9801449fad8a5757b5f"
+"state_hash": "5e65f8bce72cc33d1455884fa2d04c2b11b5949581309b225e1ba2220bf6059d"
 },
 {
 "event": {
@@ -379,11 +740,30 @@
 },
 "type": "Tag"
 },
-"hash": "f31c868013b9fe51e5e761ecbd0c4d696ccf6320403ae13e6f74251e641d696f",
+"hash": "a11f0728112cd1d72f7d5358b5b37aecca4629edb269c329801e7fad1a54c782",
+"hashed": {
+"event": {
+"payload": [
+"",
+true
+],
+"type": 1
+},
+"state": [
+[
+1708144335709,
+"a中\"q",
+[
+"aé",
+""
+]
+]
+]
+},
 "outcome": "applied",
-"prev_hash": "449f686dc70290631ff75a60b4d4b292aaeb01ff81f10b3005abb6791c4e4cb7",
+"prev_hash": "da9b0a0b4135229aeec6327e842aba7c22d32abb882037753fc444d05920dff3",
 "seq": 5,
-"state_hash": "fb94951a15dfd717be390191119835578cc8f14c6ded6f433b70f2f416976431"
+"state_hash": "d1f728ea9ed1fae5846b51050381e9e4ebcea4864625091c845292a63f0d7d19"
 }
 ]
 }
@@ -392,7 +772,7 @@
 {
 "events": "Put(\"\", 763187182955)",
 "file": "tr.rce",
-"format": "rce-trace/1",
+"format": "rce-trace/2",
 "genesis": "0000000000000000000000000000000000000000000000000000000000000000",
 "traces": [
 {
@@ -406,11 +786,27 @@
 },
 "type": "Put"
 },
-"hash": "4dc87146e3c13318b46341311092f0a634635e592174f4ae9af0b9746046b685",
+"hash": "19747c63ed01e73073676b044fb248f639995dc6fc7a9fc9d2cb0d73535f5b8c",
+"hashed": {
+"event": {
+"payload": [
+"",
+763187182955
+],
+"type": 0
+},
+"state": [
+[
+763187182955,
+"",
+[]
+]
+]
+},
 "outcome": "applied",
 "prev_hash": "0000000000000000000000000000000000000000000000000000000000000000",
 "seq": 0,
-"state_hash": "54beeeed3eb0e5874ea8b8ac3ac570d98b2977dae9da0e19a2cd2c877bf896d9"
+"state_hash": "b481865aab82bcc6ffb10751931353efea384a266e10f8ebaa5ce6738cf5b420"
 }
 ]
 }
@@ -419,7 +815,7 @@
 {
 "events": "Tag(\"\", false), Put(\"\", 250966836336), Put(\"\", 544094611895), Put(\"x\\ny😀\", -619435237571), Bump, Bump",
 "file": "tr.rce",
-"format": "rce-trace/1",
+"format": "rce-trace/2",
 "genesis": "0000000000000000000000000000000000000000000000000000000000000000",
 "traces": [
 {
@@ -433,11 +829,27 @@
 },
 "type": "Tag"
 },
-"hash": "5be2c4465f5912e42ef43aec3bafd44d1e0bbc8b9ebe6e41424dc511c627b9e8",
+"hash": "cf53a1b32ade0338bec660f9a65ddb2d6a2d0bfacfad31c11d99ebbfed249db8",
+"hashed": {
+"event": {
+"payload": [
+"",
+false
+],
+"type": 1
+},
+"state": [
+[
+0,
+"",
+[]
+]
+]
+},
 "outcome": "applied",
 "prev_hash": "0000000000000000000000000000000000000000000000000000000000000000",
 "seq": 0,
-"state_hash": "542ac79576fa787b06012644e890e8ffe9090e89b84d6c22c319bdfe660123c2"
+"state_hash": "2bd7634bc62832907533dc72046233ee0915de33b1eef94d96925af2635da934"
 },
 {
 "event": {
@@ -447,11 +859,27 @@
 },
 "type": "Put"
 },
-"hash": "eb8365ba2b0698d0a24ee4ed74586262905c0f1783705c483d8985ac4526f2aa",
+"hash": "4bbab7940f90b069c658b56793d5545141186d69dd3a5d300b568a79bffa84be",
+"hashed": {
+"event": {
+"payload": [
+"",
+250966836336
+],
+"type": 0
+},
+"state": [
+[
+250966836336,
+"",
+[]
+]
+]
+},
 "outcome": "applied",
-"prev_hash": "5be2c4465f5912e42ef43aec3bafd44d1e0bbc8b9ebe6e41424dc511c627b9e8",
+"prev_hash": "cf53a1b32ade0338bec660f9a65ddb2d6a2d0bfacfad31c11d99ebbfed249db8",
 "seq": 1,
-"state_hash": "55e47209b37c87480633e11a232fde390998f979580817109e1d6af6cf0dfc1b"
+"state_hash": "26dafb4c26cc4df5d7290c5031efe9f0d3e9a6faf2df054b13dd735c1d5fef6f"
 },
 {
 "event": {
@@ -461,11 +889,27 @@
 },
 "type": "Put"
 },
-"hash": "0d22f0b2ba34a08a2155e3e2558a1f28062a0313488915726377453fa1c154ca",
+"hash": "ca903dfd9c80d62a6d048310c76111ffe1a628b16c7eeb6e2ac612683f7ddc70",
+"hashed": {
+"event": {
+"payload": [
+"",
+544094611895
+],
+"type": 0
+},
+"state": [
+[
+795061448231,
+"",
+[]
+]
+]
+},
 "outcome": "applied",
-"prev_hash": "eb8365ba2b0698d0a24ee4ed74586262905c0f1783705c483d8985ac4526f2aa",
+"prev_hash": "4bbab7940f90b069c658b56793d5545141186d69dd3a5d300b568a79bffa84be",
 "seq": 2,
-"state_hash": "228e89020a1cb77e8a88211b666cccef334619ee8aa179ce33ae9a0a277448cf"
+"state_hash": "8ee66d4b4974ad8fa17a7d8c4f99117af07d7d64b818170d92a7387db06c8c2e"
 },
 {
 "event": {
@@ -475,33 +919,75 @@
 },
 "type": "Put"
 },
-"hash": "a539db98616956e019c0fc70acde1409dca460cedefd8370e01169c7e4918429",
+"hash": "21588ce2f8d26c2148ca36d56da7b8f83e58501284dc3cd9366b1ea4e5b6e1dd",
+"hashed": {
+"event": {
+"payload": [
+"x\ny😀",
+-619435237571
+],
+"type": 0
+},
+"state": [
+[
+175626210660,
+"x\ny😀",
+[]
+]
+]
+},
 "outcome": "applied",
-"prev_hash": "0d22f0b2ba34a08a2155e3e2558a1f28062a0313488915726377453fa1c154ca",
+"prev_hash": "ca903dfd9c80d62a6d048310c76111ffe1a628b16c7eeb6e2ac612683f7ddc70",
 "seq": 3,
-"state_hash": "10cac8e8baa83d6106371a46bbf75bb8f25b77347cdac05252fbaaa87cc5b828"
+"state_hash": "2f5e595ee70106caead1f03c50312fff726313b93e7a9306c97f4b295fa72aae"
 },
 {
 "event": {
 "payload": {},
 "type": "Bump"
 },
-"hash": "f15fcd162f28a1c2b6ec5e8cac6118485996ea78fdd015d3523a2b40b68fae23",
+"hash": "522172f7b14034463e44e57c8ea29bc6f99ec894bd80803dfe0785e82b3f6015",
+"hashed": {
+"event": {
+"payload": [],
+"type": 2
+},
+"state": [
+[
+175626210661,
+"x\ny😀",
+[]
+]
+]
+},
 "outcome": "applied",
-"prev_hash": "a539db98616956e019c0fc70acde1409dca460cedefd8370e01169c7e4918429",
+"prev_hash": "21588ce2f8d26c2148ca36d56da7b8f83e58501284dc3cd9366b1ea4e5b6e1dd",
 "seq": 4,
-"state_hash": "3b821a1cd649776e1b21479ec052459b9bf9b742d91f49e1fdb48b0a54a89ecf"
+"state_hash": "3259a9db11fa0d9fa218473cfdc45e57e91d76390a6486469057bf4236b636ce"
 },
 {
 "event": {
 "payload": {},
 "type": "Bump"
 },
-"hash": "19fed2b1b281afc37c546600e8fcbdfe1ca2b568e326f0e0bbe895417175be54",
+"hash": "26e6ca78155386de13325eddaf8891cf5aa66e5883c6b936db6e1e47b4254f1e",
+"hashed": {
+"event": {
+"payload": [],
+"type": 2
+},
+"state": [
+[
+175626210662,
+"x\ny😀",
+[]
+]
+]
+},
 "outcome": "applied",
-"prev_hash": "f15fcd162f28a1c2b6ec5e8cac6118485996ea78fdd015d3523a2b40b68fae23",
+"prev_hash": "522172f7b14034463e44e57c8ea29bc6f99ec894bd80803dfe0785e82b3f6015",
 "seq": 5,
-"state_hash": "1fa29d30e9122f1f2d3a0664ba8f7b9055453f4b6da83881ea48c7565c7cf506"
+"state_hash": "513a8900449131998c8c50102e669bcf1a4ceb0e1e6d9b5aaaca7a08c3843e23"
 }
 ]
 }
@@ -510,7 +996,7 @@
 {
 "events": "Put(\"😀\", -111818007061), Tag(\"\", true)",
 "file": "tr.rce",
-"format": "rce-trace/1",
+"format": "rce-trace/2",
 "genesis": "0000000000000000000000000000000000000000000000000000000000000000",
 "traces": [
 {
@@ -524,11 +1010,27 @@
 },
 "type": "Put"
 },
-"hash": "13e52ee27ce68e0e4cf9be9f2d538a9306ea9d2fc3f5d3376e1a7f058f030463",
+"hash": "cfdd767195ac23289e5e9770ae3bbe43b3b51de72803ca5eab71141ddf1ef019",
+"hashed": {
+"event": {
+"payload": [
+"😀",
+-111818007061
+],
+"type": 0
+},
+"state": [
+[
+-111818007061,
+"😀",
+[]
+]
+]
+},
 "outcome": "applied",
 "prev_hash": "0000000000000000000000000000000000000000000000000000000000000000",
 "seq": 0,
-"state_hash": "08eccad6482f7daa2f762d998fdab29842e4a9f87e5d58d2a5f450558a2894e9"
+"state_hash": "bb23aca0b7216913e281c3609717a3c10792ddb98fff7ab6b70b6e5fd09c9559"
 },
 {
 "event": {
@@ -538,11 +1040,29 @@
 },
 "type": "Tag"
 },
-"hash": "ede42a52c9135a68c79d00708d6368c75258d8ffd913780d27f4b50f4db901c7",
+"hash": "831f95572f4e6e07d336e6c5e53bea5aa6fb8a853ef5700ca74d7f2894222791",
+"hashed": {
+"event": {
+"payload": [
+"",
+true
+],
+"type": 1
+},
+"state": [
+[
+-111818007061,
+"😀",
+[
+""
+]
+]
+]
+},
 "outcome": "applied",
-"prev_hash": "13e52ee27ce68e0e4cf9be9f2d538a9306ea9d2fc3f5d3376e1a7f058f030463",
+"prev_hash": "cfdd767195ac23289e5e9770ae3bbe43b3b51de72803ca5eab71141ddf1ef019",
 "seq": 1,
-"state_hash": "158e7a928f241fa0f3e616254f160acfbc7aa3edce0e3f3e7f6049aee49812eb"
+"state_hash": "55adb350d8135d583300a2aadd2df7815003d05b56f704d4b669145b32de2e04"
 }
 ]
 }
@@ -551,7 +1071,7 @@
 {
 "events": "Bump, Put(\"éa\", -20957663467), Put(\"tab\\t\", -200120972015), Bump, Tag(\"tab\\ta\", false), Bump, Bump, Tag(\"😀\", true)",
 "file": "tr.rce",
-"format": "rce-trace/1",
+"format": "rce-trace/2",
 "genesis": "0000000000000000000000000000000000000000000000000000000000000000",
 "traces": [
 {
@@ -562,11 +1082,24 @@
 "payload": {},
 "type": "Bump"
 },
-"hash": "1638ce9a9edfeb2a00dce13636ac38fc7ecac67b3dc6c7d689110a5ee168dff0",
+"hash": "0a870655adb90680c2a89d1ed131d178cd3f46a13eb174223e0a4eb5b6c9fe79",
+"hashed": {
+"event": {
+"payload": [],
+"type": 2
+},
+"state": [
+[
+1,
+"",
+[]
+]
+]
+},
 "outcome": "applied",
 "prev_hash": "0000000000000000000000000000000000000000000000000000000000000000",
 "seq": 0,
-"state_hash": "06c1b78402456b22cf6ceec900873b8479d24d9db7b585abbd93dd9bd5b13ecc"
+"state_hash": "4bee8f32ebd0f89289c95686b98422aaa9819bca51c6d9eb1479fc3f315ce990"
 },
 {
 "event": {
@@ -576,11 +1109,27 @@
 },
 "type": "Put"
 },
-"hash": "b90d34859d124d89ab248afab0b08be67b20a1c6effaee165fe73f31eedab5aa",
+"hash": "5b6b00907132860e555da535cc433003458083a9072bbf830f363cb71fb774c7",
+"hashed": {
+"event": {
+"payload": [
+"éa",
+-20957663467
+],
+"type": 0
+},
+"state": [
+[
+-20957663466,
+"éa",
+[]
+]
+]
+},
 "outcome": "applied",
-"prev_hash": "1638ce9a9edfeb2a00dce13636ac38fc7ecac67b3dc6c7d689110a5ee168dff0",
+"prev_hash": "0a870655adb90680c2a89d1ed131d178cd3f46a13eb174223e0a4eb5b6c9fe79",
 "seq": 1,
-"state_hash": "dc5a7fe24201d46fe457b3967ffcb198ade41bd19843ed78f83b8e9f8d002261"
+"state_hash": "832e5059fecbb5b348eae5e58897a42d2d9d8cfc2dd4ef4f56671ca44df20f08"
 },
 {
 "event": {
@@ -590,22 +1139,51 @@
 },
 "type": "Put"
 },
-"hash": "c1ceaef62b0cf35aac564ba37053245f21e102fe00f30a5974333933b525b45d",
+"hash": "d9f16a41bc985ac647e278e7734c568083f94d2b3969f788512c65571d14c5b5",
+"hashed": {
+"event": {
+"payload": [
+"tab\t",
+-200120972015
+],
+"type": 0
+},
+"state": [
+[
+-221078635481,
+"tab\t",
+[]
+]
+]
+},
 "outcome": "applied",
-"prev_hash": "b90d34859d124d89ab248afab0b08be67b20a1c6effaee165fe73f31eedab5aa",
+"prev_hash": "5b6b00907132860e555da535cc433003458083a9072bbf830f363cb71fb774c7",
 "seq": 2,
-"state_hash": "d76aaae36d7bbc31f7aaa6ac657060647e869c43eb6f493323513a94b3295e58"
+"state_hash": "3e4244d27fe1a5bfe5f4c42230a337a4a27be2ee84571fd026933130054f92d6"
 },
 {
 "event": {
 "payload": {},
 "type": "Bump"
 },
-"hash": "ab5400ae771027bc6c609915e36d5b4cbbe9717955ba9322b9eba630d093e280",
+"hash": "c5fee7b1337f85e73246dab34256cf59eda97d5cbd376a1cfc79d6b2e8bff797",
+"hashed": {
+"event": {
+"payload": [],
+"type": 2
+},
+"state": [
+[
+-221078635480,
+"tab\t",
+[]
+]
+]
+},
 "outcome": "applied",
-"prev_hash": "c1ceaef62b0cf35aac564ba37053245f21e102fe00f30a5974333933b525b45d",
+"prev_hash": "d9f16a41bc985ac647e278e7734c568083f94d2b3969f788512c65571d14c5b5",
 "seq": 3,
-"state_hash": "85d0ac0a703ce43efd17b4fc91bd783feb0d3f3a3d86dca2ceca5cf43cecfd8a"
+"state_hash": "1e0bf07fba498251f751f747db3db6b3f2d9db0ef3d70b59c11e8130265ac44a"
 },
 {
 "event": {
@@ -615,33 +1193,75 @@
 },
 "type": "Tag"
 },
-"hash": "810160e7e090265171b723e5a54f0aa9ace8c5e6b0a67f2aa1329cd5cc5f5ad4",
+"hash": "29bec030d4b3e6b18ee9e1466e2d6d8dc8ea183abf8ced9714f33d11fd1ed7f4",
+"hashed": {
+"event": {
+"payload": [
+"tab\ta",
+false
+],
+"type": 1
+},
+"state": [
+[
+-221078635480,
+"tab\t",
+[]
+]
+]
+},
 "outcome": "applied",
-"prev_hash": "ab5400ae771027bc6c609915e36d5b4cbbe9717955ba9322b9eba630d093e280",
+"prev_hash": "c5fee7b1337f85e73246dab34256cf59eda97d5cbd376a1cfc79d6b2e8bff797",
 "seq": 4,
-"state_hash": "85d0ac0a703ce43efd17b4fc91bd783feb0d3f3a3d86dca2ceca5cf43cecfd8a"
+"state_hash": "1e0bf07fba498251f751f747db3db6b3f2d9db0ef3d70b59c11e8130265ac44a"
 },
 {
 "event": {
 "payload": {},
 "type": "Bump"
 },
-"hash": "209c44fe994d3d5379a4cbad8a03be8d9ecc96791282b886110c332523d34d9b",
+"hash": "9b96626ed5c2d90e0bcde316d9cfc52667860103234c461d88b621dd78f50572",
+"hashed": {
+"event": {
+"payload": [],
+"type": 2
+},
+"state": [
+[
+-221078635479,
+"tab\t",
+[]
+]
+]
+},
 "outcome": "applied",
-"prev_hash": "810160e7e090265171b723e5a54f0aa9ace8c5e6b0a67f2aa1329cd5cc5f5ad4",
+"prev_hash": "29bec030d4b3e6b18ee9e1466e2d6d8dc8ea183abf8ced9714f33d11fd1ed7f4",
 "seq": 5,
-"state_hash": "33f5a1c11dc36c479007d89106dfa5fef81cce1cb0464af782a0da501834edd5"
+"state_hash": "9b833ea9d3a4eba29ad5a89cea932c39c644bae498222d8f3ebb89322f6cf41c"
 },
 {
 "event": {
 "payload": {},
 "type": "Bump"
 },
-"hash": "70ef70bfd340353e4c60186cbfbc87822119366c028f85d40d4d43b65550f929",
+"hash": "0adec496203401177af5d6aa2a51594dea5265f5d3b036c9aff0cc484934f420",
+"hashed": {
+"event": {
+"payload": [],
+"type": 2
+},
+"state": [
+[
+-221078635478,
+"tab\t",
+[]
+]
+]
+},
 "outcome": "applied",
-"prev_hash": "209c44fe994d3d5379a4cbad8a03be8d9ecc96791282b886110c332523d34d9b",
+"prev_hash": "9b96626ed5c2d90e0bcde316d9cfc52667860103234c461d88b621dd78f50572",
 "seq": 6,
-"state_hash": "26762ae7e0d5b05cfd0b3125ff108bea49a07ee0d770375c96dcdb78076382fb"
+"state_hash": "64cda2be782d4da60cd204b2e2caf0a86983f03c505ef16d8f37ca5b7defb90c"
 },
 {
 "event": {
@@ -651,11 +1271,29 @@
 },
 "type": "Tag"
 },
-"hash": "d667f4d87375366df32b0fbb339d1e835a1ee10bb0821ff22b5f0cf20e99a353",
+"hash": "419998ddc43373a9e5edf357dfc5453e9728d38dc7806537dfd586ded792ae8f",
+"hashed": {
+"event": {
+"payload": [
+"😀",
+true
+],
+"type": 1
+},
+"state": [
+[
+-221078635478,
+"tab\t",
+[
+"😀"
+]
+]
+]
+},
 "outcome": "applied",
-"prev_hash": "70ef70bfd340353e4c60186cbfbc87822119366c028f85d40d4d43b65550f929",
+"prev_hash": "0adec496203401177af5d6aa2a51594dea5265f5d3b036c9aff0cc484934f420",
 "seq": 7,
-"state_hash": "8072c48a02edfc52b48d434133c768997d029ddfd8b066e0418981f407a6abac"
+"state_hash": "ba71ccb4be18a7a32f2a39ff1062e025bea058479074b7fe936bf792d31fe586"
 }
 ]
 }
@@ -664,7 +1302,7 @@
 {
 "events": "Tag(\"😀tab\\t\\\"q\", true), Tag(\"x\\ny\", false)",
 "file": "tr.rce",
-"format": "rce-trace/1",
+"format": "rce-trace/2",
 "genesis": "0000000000000000000000000000000000000000000000000000000000000000",
 "traces": [
 {
@@ -678,11 +1316,29 @@
 },
 "type": "Tag"
 },
-"hash": "c325ad8f772cb3556fac2082d0bf7c713a6cf291b351953238b77414a602a286",
+"hash": "88e23fe8a36de16beefbdb1a0abb0c7123be5947e0f491aeafcf3f104efc19d5",
+"hashed": {
+"event": {
+"payload": [
+"😀tab\t\"q",
+true
+],
+"type": 1
+},
+"state": [
+[
+0,
+"",
+[
+"😀tab\t\"q"
+]
+]
+]
+},
 "outcome": "applied",
 "prev_hash": "0000000000000000000000000000000000000000000000000000000000000000",
 "seq": 0,
-"state_hash": "f32e1cacca9e93ebd184900192ddaf70f68fdc24b3d3251b26c581e0625cd7b2"
+"state_hash": "70cb898a788be32a7d5e298bd64aa586e28dcfe1488fb83fb33c5a36f6b46aa2"
 },
 {
 "event": {
@@ -692,11 +1348,29 @@
 },
 "type": "Tag"
 },
-"hash": "6a5cb36b1118743875c4b1031baeaf82c0723ea74f2220aa1d8d1f226a08178b",
+"hash": "f427ba91f6950022e02d861881a69b621cd450151e624b04dc0bd1b4d5fccece",
+"hashed": {
+"event": {
+"payload": [
+"x\ny",
+false
+],
+"type": 1
+},
+"state": [
+[
+0,
+"",
+[
+"😀tab\t\"q"
+]
+]
+]
+},
 "outcome": "applied",
-"prev_hash": "c325ad8f772cb3556fac2082d0bf7c713a6cf291b351953238b77414a602a286",
+"prev_hash": "88e23fe8a36de16beefbdb1a0abb0c7123be5947e0f491aeafcf3f104efc19d5",
 "seq": 1,
-"state_hash": "f32e1cacca9e93ebd184900192ddaf70f68fdc24b3d3251b26c581e0625cd7b2"
+"state_hash": "70cb898a788be32a7d5e298bd64aa586e28dcfe1488fb83fb33c5a36f6b46aa2"
 }
 ]
 }
@@ -705,7 +1379,7 @@
 {
 "events": "Bump, Tag(\"back\\\\中\", true), Tag(\"x\\nyback\\\\tab\\t\", false), Bump, Put(\"tab\\t\", -392731403402), Bump, Bump",
 "file": "tr.rce",
-"format": "rce-trace/1",
+"format": "rce-trace/2",
 "genesis": "0000000000000000000000000000000000000000000000000000000000000000",
 "traces": [
 {
@@ -716,11 +1390,24 @@
 "payload": {},
 "type": "Bump"
 },
-"hash": "1638ce9a9edfeb2a00dce13636ac38fc7ecac67b3dc6c7d689110a5ee168dff0",
+"hash": "0a870655adb90680c2a89d1ed131d178cd3f46a13eb174223e0a4eb5b6c9fe79",
+"hashed": {
+"event": {
+"payload": [],
+"type": 2
+},
+"state": [
+[
+1,
+"",
+[]
+]
+]
+},
 "outcome": "applied",
 "prev_hash": "0000000000000000000000000000000000000000000000000000000000000000",
 "seq": 0,
-"state_hash": "06c1b78402456b22cf6ceec900873b8479d24d9db7b585abbd93dd9bd5b13ecc"
+"state_hash": "4bee8f32ebd0f89289c95686b98422aaa9819bca51c6d9eb1479fc3f315ce990"
 },
 {
 "event": {
@@ -730,11 +1417,29 @@
 },
 "type": "Tag"
 },
-"hash": "6d5169b3d7da8d91119ab159299b2a53204ee7756bb25ca1994e2c283c869b35",
+"hash": "7206f6ac101d5028f79e5e5464251fd4766191b228ddd869b9ac41d310d1dcfd",
+"hashed": {
+"event": {
+"payload": [
+"back\\中",
+true
+],
+"type": 1
+},
+"state": [
+[
+1,
+"",
+[
+"back\\中"
+]
+]
+]
+},
 "outcome": "applied",
-"prev_hash": "1638ce9a9edfeb2a00dce13636ac38fc7ecac67b3dc6c7d689110a5ee168dff0",
+"prev_hash": "0a870655adb90680c2a89d1ed131d178cd3f46a13eb174223e0a4eb5b6c9fe79",
 "seq": 1,
-"state_hash": "8b59217532d75ef4427bba3d36c39cba29af21c7e38769ee44b5a6a9a12193be"
+"state_hash": "bea7f827f06d7edfd51f58f4560bdda7373eb0381d527da41538d49da653df75"
 },
 {
 "event": {
@@ -744,22 +1449,55 @@
 },
 "type": "Tag"
 },
-"hash": "e41efbcd7dae352f094a879ab8f3358d43de77adca16027540fce912599b1d35",
+"hash": "d560326dd0125dae8b6c2e39096553924acd3073c288d85107cf1a6185ed7dfd",
+"hashed": {
+"event": {
+"payload": [
+"x\nyback\\tab\t",
+false
+],
+"type": 1
+},
+"state": [
+[
+1,
+"",
+[
+"back\\中"
+]
+]
+]
+},
 "outcome": "applied",
-"prev_hash": "6d5169b3d7da8d91119ab159299b2a53204ee7756bb25ca1994e2c283c869b35",
+"prev_hash": "7206f6ac101d5028f79e5e5464251fd4766191b228ddd869b9ac41d310d1dcfd",
 "seq": 2,
-"state_hash": "8b59217532d75ef4427bba3d36c39cba29af21c7e38769ee44b5a6a9a12193be"
+"state_hash": "bea7f827f06d7edfd51f58f4560bdda7373eb0381d527da41538d49da653df75"
 },
 {
 "event": {
 "payload": {},
 "type": "Bump"
 },
-"hash": "d2c46806a82816dadef6522016ca1002cc80c58a0ee9075d68caaaead33169b2",
+"hash": "76c4877b514643c22b3650706f9135fb0ee9f8fa75bb3377cc70075895defef4",
+"hashed": {
+"event": {
+"payload": [],
+"type": 2
+},
+"state": [
+[
+2,
+"",
+[
+"back\\中"
+]
+]
+]
+},
 "outcome": "applied",
-"prev_hash": "e41efbcd7dae352f094a879ab8f3358d43de77adca16027540fce912599b1d35",
+"prev_hash": "d560326dd0125dae8b6c2e39096553924acd3073c288d85107cf1a6185ed7dfd",
 "seq": 3,
-"state_hash": "8e17ca969be1e64bae99ae23d2036a53e19df01f8509f47796c87b67083ab3e5"
+"state_hash": "51544a06610d7f1c2c1be4ed3f8e3bbf630d12ce30a02f4c9035d4907f8ec8c3"
 },
 {
 "event": {
@@ -769,33 +1507,81 @@
 },
 "type": "Put"
 },
-"hash": "503e23d19852a4b335bbf3a5702da8894d20c09143e9e5a4f20b5f848bf932a2",
+"hash": "c63819da2b3167f2f62bda8a49c3a67f7bb643a0efc548429cc81d3ea474955c",
+"hashed": {
+"event": {
+"payload": [
+"tab\t",
+-392731403402
+],
+"type": 0
+},
+"state": [
+[
+-392731403400,
+"tab\t",
+[
+"back\\中"
+]
+]
+]
+},
 "outcome": "applied",
-"prev_hash": "d2c46806a82816dadef6522016ca1002cc80c58a0ee9075d68caaaead33169b2",
+"prev_hash": "76c4877b514643c22b3650706f9135fb0ee9f8fa75bb3377cc70075895defef4",
 "seq": 4,
-"state_hash": "c8236a0c84e9d054d75c11b4534031b99fc021dd3c5a606d6dc3855a311d8942"
+"state_hash": "674c31b4f4a3eecbd9c3ce7754aba431674e731ea4c17e2b9f44c9ec3fa20a0d"
 },
 {
 "event": {
 "payload": {},
 "type": "Bump"
 },
-"hash": "962cfdec05e4b8ac16d7256f4eb8a2a180233e9e27a99e160ade31ec8a1ff9c0",
+"hash": "e8fb4dcde5bbe97e6687ce2a648c03dc4eb7206c273258410f94a1f982704f56",
+"hashed": {
+"event": {
+"payload": [],
+"type": 2
+},
+"state": [
+[
+-392731403399,
+"tab\t",
+[
+"back\\中"
+]
+]
+]
+},
 "outcome": "applied",
-"prev_hash": "503e23d19852a4b335bbf3a5702da8894d20c09143e9e5a4f20b5f848bf932a2",
+"prev_hash": "c63819da2b3167f2f62bda8a49c3a67f7bb643a0efc548429cc81d3ea474955c",
 "seq": 5,
-"state_hash": "c91f8ac227857bf3e92dea8c1d3d18f63c3519d433769991687c2bb33fb2c87b"
+"state_hash": "6e296d32e6870472516d52e7ebd31ab3b32f7927c259783fe180726490654931"
 },
 {
 "event": {
 "payload": {},
 "type": "Bump"
 },
-"hash": "2a8b71517dbef1b5f1c093cc44b2fb798fd1b218e26bd64093fdf4bf8ddfb58f",
+"hash": "b7f42a8bcaa969dcc6d2e6b54a2a54ed3e33fcc7ff039bd6629a4489cf9873d1",
+"hashed": {
+"event": {
+"payload": [],
+"type": 2
+},
+"state": [
+[
+-392731403398,
+"tab\t",
+[
+"back\\中"
+]
+]
+]
+},
 "outcome": "applied",
-"prev_hash": "962cfdec05e4b8ac16d7256f4eb8a2a180233e9e27a99e160ade31ec8a1ff9c0",
+"prev_hash": "e8fb4dcde5bbe97e6687ce2a648c03dc4eb7206c273258410f94a1f982704f56",
 "seq": 6,
-"state_hash": "9f276319397c25e1ceb60a3468e8bceb69da7e6bf048e7ab19b3851e770c6218"
+"state_hash": "65d4b8e4509ae79067ff92c523c6447717013a00e7b85436674929488b81a26a"
 }
 ]
 }

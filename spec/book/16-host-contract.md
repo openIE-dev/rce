@@ -372,15 +372,20 @@ then the design it forces.
 - **HS-4 Verify on open.** On open, the host checks the chain of D from
   the genesis hash (64 zeros): each entry's `prev_hash` is the previous
   entry's `hash` and its `hash` is the SHA-256 of the canonical JSON of
-  {event, prev_hash, seq, state_hash} (6.1). D is cut after the longest
+  {event, prev_hash, seq, state_hash} with the event in its positional
+  form (6.1), which the host rebuilds from the stored event and the
+  module; a `host.*` entry is hashed as stored. D is cut after the longest
   prefix that verifies, and the host logs `host.Truncated` with the number
   of entries dropped. A torn tail after a crash, a corrupted entry and a
   misdirected write are detected, never folded into state (T38). Replay
   of the kept prefix then re-derives each `state_hash` (HC-8); a mismatch
   is a host fault (HS-3).
-- **HS-5 Snapshots are caches.** A snapshot is (seq, state_hash, bytes).
-  It is used only when the hash of its bytes equals the `state_hash` of D
-  at seq; otherwise it is discarded. Loading one changes no meaning.
+- **HS-5 Snapshots are caches.** A snapshot is (seq, state_hash, bytes),
+  the bytes being the positional form of the state (6.1). It is used only
+  when the hash of its bytes equals the `state_hash` of D at seq and the
+  bytes decode, guided by the declared field types in declaration order,
+  to a state that re-encodes to the same bytes; otherwise it is
+  discarded. Loading one changes no meaning.
 
 ### E.4 Inputs are events (HC-10)
 
@@ -717,4 +722,4 @@ Where RCE differs from these sources: GQL and Cypher queries are strings and the
 
 **Read receipt.** Which fcntl command is the append barrier on macOS? (for example F_SETFL)
 
-<!-- body-sha256: af42acba4808eee58f23829fc4016b031c93bd74808c6341bcd0aae014eac337 -->
+<!-- body-sha256: 63f298c4a2a6a2ae68fe4952a7291ca6967060775df100848b8ff0d487170c5e -->

@@ -101,7 +101,7 @@ fn verify_on_open_cuts_and_logs_truncated() {
         }
         std::fs::write(&p, &t).unwrap();
         let refs: Vec<&str> = t.split_terminator('\n').collect();
-        assert_eq!(verify_prefix(&refs), good, "{name}");
+        assert_eq!(verify_prefix(&refs, &m), good, "{name}");
         let h = Host::open_file(&m, &p).unwrap();
         drop(h);
         let after = std::fs::read_to_string(&p).unwrap();

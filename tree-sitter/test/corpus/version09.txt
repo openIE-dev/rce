@@ -1,0 +1,391 @@
+========================================
+Label declaration and a labelled region type (version 0.9, 5.16)
+========================================
+
+label pii
+
+fn mask(x: i64 @ {pii}) -> i64
+    return x
+
+---
+
+(start
+  (label_decl
+    (NAME))
+  (pub_item
+    (fn_decl
+      (fn_sig
+        (NAME)
+        (params
+          (param
+            (NAME)
+            (region_type
+              (type_path
+                (path
+                  (NAME)))
+              (label_set
+                (NAME)))))
+        (type_path
+          (path
+            (NAME))))
+      (block
+        (return_stmt
+          (name
+            (NAME)))))))
+
+========================================
+Contracts: requires, ensures and a ghost binding (version 0.9, 5.17)
+========================================
+
+fn withdraw(balance: i64, amount: i64) -> i64
+    requires amount > 0
+    requires amount <= balance
+    ghost let before = balance
+    ensures result == before - amount
+    return balance - amount
+
+---
+
+(start
+  (pub_item
+    (fn_decl
+      (fn_sig
+        (NAME)
+        (params
+          (param
+            (NAME)
+            (type_path
+              (path
+                (NAME))))
+          (param
+            (NAME)
+            (type_path
+              (path
+                (NAME)))))
+        (type_path
+          (path
+            (NAME))))
+      (block
+        (contract_stmt
+          (cmp_expr
+            (name
+              (NAME))
+            (cmp_op)
+            (INT)))
+        (contract_stmt
+          (cmp_expr
+            (name
+              (NAME))
+            (cmp_op)
+            (name
+              (NAME))))
+        (ghost_let
+          (let_stmt
+            (name_pat
+              (path
+                (NAME)))
+            (name
+              (NAME))))
+        (contract_stmt
+          (cmp_expr
+            (name
+              (NAME))
+            (cmp_op)
+            (add_expr
+              (name
+                (NAME))
+              (add_op)
+              (name
+                (NAME)))))
+        (return_stmt
+          (add_expr
+            (name
+              (NAME))
+            (add_op)
+            (name
+              (NAME))))))))
+
+========================================
+Ghost function with an arrow body (version 0.9, 5.17)
+========================================
+
+ghost fn doubled(x: i64) -> i64 = x * 2
+
+---
+
+(start
+  (pub_item
+    (fn_decl
+      (GHOST)
+      (fn_sig
+        (NAME)
+        (params
+          (param
+            (NAME)
+            (type_path
+              (path
+                (NAME)))))
+        (type_path
+          (path
+            (NAME))))
+      (mul_expr
+        (name
+          (NAME))
+        (mul_op)
+        (INT)))))
+
+========================================
+Decreases with one and with two measures (version 0.9, 6.7)
+========================================
+
+fn ack(m: i64, n: i64) -> i64
+    decreases m, n
+    if m == 0
+        return n + 1
+    return ack(m - 1, 1)
+
+fn down(n: i64) -> i64
+    decreases n
+    if n == 0
+        return 0
+    return down(n - 1)
+
+---
+
+(start
+  (pub_item
+    (fn_decl
+      (fn_sig
+        (NAME)
+        (params
+          (param
+            (NAME)
+            (type_path
+              (path
+                (NAME))))
+          (param
+            (NAME)
+            (type_path
+              (path
+                (NAME)))))
+        (type_path
+          (path
+            (NAME))))
+      (block
+        (contract_stmt
+          (name
+            (NAME))
+          (name
+            (NAME)))
+        (if_stmt
+          (cmp_expr
+            (name
+              (NAME))
+            (cmp_op)
+            (INT))
+          (block
+            (return_stmt
+              (add_expr
+                (name
+                  (NAME))
+                (add_op)
+                (INT)))))
+        (return_stmt
+          (call
+            (name
+              (NAME))
+            (args
+              (arg
+                (add_expr
+                  (name
+                    (NAME))
+                  (add_op)
+                  (INT)))
+              (arg
+                (INT))))))))
+  (pub_item
+    (fn_decl
+      (fn_sig
+        (NAME)
+        (params
+          (param
+            (NAME)
+            (type_path
+              (path
+                (NAME)))))
+        (type_path
+          (path
+            (NAME))))
+      (block
+        (contract_stmt
+          (name
+            (NAME)))
+        (if_stmt
+          (cmp_expr
+            (name
+              (NAME))
+            (cmp_op)
+            (INT))
+          (block
+            (return_stmt
+              (INT))))
+        (return_stmt
+          (call
+            (name
+              (NAME))
+            (args
+              (arg
+                (add_expr
+                  (name
+                    (NAME))
+                  (add_op)
+                  (INT))))))))))
+
+========================================
+If let with a guard and an else branch (version 0.9, F.6.5; a chain `and let` is reserved, W-RES-1)
+========================================
+
+fn show(xs: &[i64]) -> text
+    if let some(v) = first_even(xs) and v > 2
+        return "big " + v.tostr()
+    else
+        return "none or small"
+
+---
+
+(start
+  (pub_item
+    (fn_decl
+      (fn_sig
+        (NAME)
+        (params
+          (param
+            (NAME)
+            (ref_type
+              (slice_type
+                (type_path
+                  (path
+                    (NAME)))))))
+        (type_path
+          (path
+            (NAME))))
+      (block
+        (if_let_stmt
+          (ctor_pat
+            (path
+              (NAME))
+            (pat_args
+              (pat_arg
+                (name_pat
+                  (path
+                    (NAME))))))
+          (call
+            (name
+              (NAME))
+            (args
+              (arg
+                (name
+                  (NAME)))))
+          (cmp_expr
+            (name
+              (NAME))
+            (cmp_op)
+            (INT))
+          (block
+            (return_stmt
+              (add_expr
+                (STRING)
+                (add_op)
+                (call
+                  (member
+                    (name
+                      (NAME))
+                    (member_name
+                      (NAME)))))))
+          (else_clause
+            (block
+              (return_stmt
+                (STRING)))))))))
+
+========================================
+Atomic block (version 0.9, C.11)
+========================================
+
+fn bump(c: &mut i64)
+    atomic
+        c += 1
+
+---
+
+(start
+  (pub_item
+    (fn_decl
+      (fn_sig
+        (NAME)
+        (params
+          (param
+            (NAME)
+            (ref_type
+              (MUT)
+              (type_path
+                (path
+                  (NAME)))))))
+      (block
+        (atomic_stmt
+          (block
+            (simple_stmt
+              (name
+                (NAME))
+              (assign_op)
+              (INT))))))))
+
+========================================
+Parallel for and a function bound (version 0.9, 2.4 and 6.7)
+========================================
+
+fn total(xs: &[i64]) -> i64 bound 64
+    var s = 0
+    for x in xs par
+        s += x
+    return s
+
+---
+
+(start
+  (pub_item
+    (fn_decl
+      (fn_sig
+        (NAME)
+        (params
+          (param
+            (NAME)
+            (ref_type
+              (slice_type
+                (type_path
+                  (path
+                    (NAME)))))))
+        (type_path
+          (path
+            (NAME)))
+        (INT))
+      (block
+        (var_stmt
+          (NAME)
+          (INT))
+        (for_stmt
+          (name_pat
+            (path
+              (NAME)))
+          (name
+            (NAME))
+          (PAR)
+          (block
+            (simple_stmt
+              (name
+                (NAME))
+              (assign_op)
+              (name
+                (NAME)))))
+        (return_stmt
+          (name
+            (NAME)))))))

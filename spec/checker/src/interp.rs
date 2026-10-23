@@ -2916,6 +2916,93 @@ pub fn event_json(name: &str, ev: &V, m: &Module) -> String {
     format!("{{\"payload\":{},\"type\":{}}}", form_value(ev, m).json(), jstr(name))
 }
 
+/// The declared field names of a struct, event or error, in declaration order.
+fn decl_fields<'a>(m: &'a Module, n: &str) -> Option<Vec<&'a str>> {
+    m.items.iter().find_map(|i| match i {
+        Item::Struct { name, fields, .. } if name == n => Some(fields.iter().map(|f| f.name.as_str()).collect()),
+        Item::Event { name, payload, .. } | Item::Error { name, payload, .. } if name == n => {
+            Some(payload.iter().map(|(f, _)| f.as_str()).collect())
+        }
+        _ => None,
+    })
+}
+
+/// The index of a variant within its kind and its field names, in declaration order.
+fn variant_index<'a>(m: &'a Module, n: &str) -> Option<(usize, Vec<&'a str>)> {
+    m.items.iter().find_map(|i| match i {
+        Item::Kind { variants, .. } => variants
+            .iter()
+            .position(|(v, _)| v == n)
+            .map(|k| (k, variants[k].1.iter().map(|(f, _)| f.as_str()).collect())),
+        _ => None,
+    })
+}
+
+/// The index of an event among the module's declared events (6.1, T7).
+pub fn event_index(m: &Module, n: &str) -> Option<usize> {
+    m.items
+        .iter()
+        .filter(|i| matches!(i, Item::Event { .. }))
+        .position(|i| matches!(i, Item::Event { name, .. } if name == n))
+}
+
+/// The positional embedding (6.1, T7): the value with every declared name
+/// replaced by a position. A record of a declared struct, event or error is
+/// the list of its field values in declaration order; a variant record is
+/// `[k, [fields]]` where k is the variant's index in its kind; every other
+/// value embeds as `form_value` does. A record whose type the module does
+/// not declare (the host's `host.*` records, a label) keeps the named form.
+pub fn form_value_pos(v: &V, m: &Module) -> FV {
+    match v {
+        V::Opt(Some(x)) => form_value_pos(x, m),
+        V::Tuple(xs) | V::List(xs) | V::Set(xs) => FV::List(xs.iter().map(|x| form_value_pos(x, m)).collect()),
+        V::Map(ps) => {
+            let mut l: Vec<(FV, FV, FV)> = ps
+                .iter()
+                .map(|(k, v)| (form_value(k, m), form_value_pos(k, m), form_value_pos(v, m)))
+                .collect();
+            l.sort_by(|a, b| a.0.cmp_canon(&b.0));
+            FV::List(l.into_iter().map(|(_, k, v)| FV::List(vec![k, v])).collect())
+        }
+        V::Rec(n, fs) => {
+            let at = |f: &str| fs.iter().find(|(k, _)| k == f).map_or(FV::Null, |(_, x)| form_value_pos(x, m));
+            if let Some(decl) = decl_fields(m, n) {
+                FV::List(decl.iter().map(|f| at(f)).collect())
+            } else if let Some((k, decl)) = variant_index(m, n) {
+                FV::List(vec![FV::Int(k as i128), FV::List(decl.iter().map(|f| at(f)).collect())])
+            } else {
+                form_value(v, m)
+            }
+        }
+        V::Err(x) => rec(vec![("$err".into(), form_value_pos(x, m))]),
+        _ => form_value(v, m),
+    }
+}
+
+/// The hashed form of a state (6.1, T7): the regions in declaration order,
+/// each the list of its field values in declaration order. Its SHA-256 is
+/// an entry's `state_hash`; `state_json` is the readable form D stores.
+pub fn state_pos_json(s: &[Region], m: &Module) -> String {
+    FV::List(
+        s.iter()
+            .map(|r| FV::List(r.1.iter().map(|(_, v, _)| form_value_pos(v, m)).collect()))
+            .collect(),
+    )
+    .json()
+}
+
+/// The hashed form of an event (6.1, T7): `{"payload":P,"type":k}` with P
+/// the positional embedding of the payload and k the event's index among
+/// the module's events. The host's `host.*` events and the built-in `Tick`
+/// keep their name as `type`.
+pub fn event_pos_json(name: &str, ev: &V, m: &Module) -> String {
+    let ty = match event_index(m, name) {
+        Some(k) => k.to_string(),
+        None => jstr(name),
+    };
+    format!("{{\"payload\":{},\"type\":{ty}}}", form_value_pos(ev, m).json())
+}
+
 /// Embed an evaluated value into the Form's values (the table in 6.1).
 pub fn form_value(v: &V, m: &Module) -> FV {
     let is_variant = |n: &str| {
@@ -3152,8 +3239,8 @@ pub fn form_json(m: &Module) -> String {
                     Ok(Some(v)) => v,
                     _ => break,
                 };
-                let evj = form_value(&ev, m).json();
-                let evj = format!("{{\"payload\":{},\"type\":{}}}", evj, jstr(evn));
+                let evj = event_json(evn, &ev, m);
+                let evp = event_pos_json(evn, &ev, m);
                 let (outcome, out, refused) = match it.delta(&s, &ev) {
                     Ok((s2, outs)) => {
                         s = s2;
@@ -3176,13 +3263,17 @@ pub fn form_json(m: &Module) -> String {
                     ),
                 };
                 let st = state_fv(&s).json();
-                let (seq, sh) = (entries.len(), d_sha(&st));
+                // T7: the hashes are over the positional forms; `event` and
+                // `state` are the readable forms, and `hashed` repeats what
+                // was hashed so a reader can recompute both hashes.
+                let stp = state_pos_json(&s, m);
+                let (seq, sh) = (entries.len(), d_sha(&stp));
                 let body = format!(
-                    "{{\"event\":{evj},\"prev_hash\":\"{prev}\",\"seq\":{seq},\"state_hash\":\"{sh}\"}}"
+                    "{{\"event\":{evp},\"prev_hash\":\"{prev}\",\"seq\":{seq},\"state_hash\":\"{sh}\"}}"
                 );
                 let h = d_sha(&body);
                 entries.push(format!(
-                    "{{\"event\":{evj},\"hash\":\"{h}\",\"out\":[{out}],\"outcome\":{outcome},\"prev_hash\":\"{prev}\",\"seq\":{seq},\"state\":{st},\"state_hash\":\"{sh}\"}}"
+                    "{{\"event\":{evj},\"hash\":\"{h}\",\"hashed\":{{\"event\":{evp},\"state\":{stp}}},\"out\":[{out}],\"outcome\":{outcome},\"prev_hash\":\"{prev}\",\"seq\":{seq},\"state\":{st},\"state_hash\":\"{sh}\"}}"
                 ));
                 prev = h;
                 if refused {

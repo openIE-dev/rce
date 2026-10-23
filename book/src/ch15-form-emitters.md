@@ -24,7 +24,11 @@ declaration index, printed after the hashed fields and never read by a
 step. Each log entry also carries `seq`, its position,
 `state_hash`, the SHA-256 of the state after the event, `prev_hash`, the
 `hash` of the entry before it (64 zeros for the first), and `hash`, which
-covers the other four. The entries form a chain: changing any past entry
+covers the other four. What is hashed is not the readable `state` and
+`event` you see but their *positional forms*, repeated under `hashed`:
+the regions and fields as lists in declaration order, and the event by
+its index. So renaming everything in a program changes no hash, which is
+what theorem T7 promises. The entries form a chain: changing any past entry
 changes every later `hash`. The JSON is ordered in a fixed way, so the same
 program always gives the same bytes. The event `Tick` marked `builtin` is
 part of every Form: it is the program's logical clock. No RCE construct

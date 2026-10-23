@@ -921,6 +921,20 @@ function formValue(v) {
   if (v instanceof FnV) return new FRec([["$fn", v.n]]);
   return null;
 }
+function formValuePos(v) {
+  // 6.1, T7: the positional embedding hashed by D (names replaced by positions)
+  if (v instanceof Opt) return v.x === null ? null : formValuePos(v.x);
+  if (v instanceof Tup || v instanceof Lst || v instanceof St) return v.xs.map(formValuePos);
+  if (v instanceof Mp) { const l = v.ps.map(([a, b]) => [formValue(a), formValuePos(a), formValuePos(b)]); l.sort((p, q) => fvCmp(p[0], q[0])); return l.map(([, a, b]) => [a, b]); }
+  if (v instanceof Rec) {
+    const at = (f) => { const p = v.fs.find(([k]) => k === f); return p ? formValuePos(p[1]) : null; };
+    if (Object.hasOwn(DECL_FIELDS, v.n)) return DECL_FIELDS[v.n].map(at);
+    if (Object.hasOwn(VARIANT_INDEX, v.n)) { const [k, fs] = VARIANT_INDEX[v.n]; return [BigInt(k), fs.map(at)]; }
+    return formValue(v);
+  }
+  if (v instanceof Err) return new FRec([["$err", formValuePos(v.e)]]);
+  return formValue(v);
+}
 function fvRank(x) {
   if (x === null) return 0;
   if (x === true || x === false) return 1;
@@ -981,8 +995,9 @@ const dSha = (s) => sha256hex(enc.encode(s));
 class DLog {
   constructor() { this.prev = D_GENESIS; this.seq = 0; }
   add(name, ev, st) {
-    const evj = '{"payload":' + fvJson(formValue(ev)) + ',"type":' + jstr(name) + "}";
-    const sj = fvJson(new FRec(st.map(([r, fs]) => [r, new FRec(fs.map(([n, v]) => [n, formValue(v)]))])));
+    const ty = Object.hasOwn(EVENT_INDEX, name) ? String(EVENT_INDEX[name]) : jstr(name);
+    const evj = '{"payload":' + fvJson(formValuePos(ev)) + ',"type":' + ty + "}";
+    const sj = fvJson(st.map(([r, fs]) => fs.map(([n, v]) => formValuePos(v))));
     const body = '{"event":' + evj + ',"prev_hash":"' + this.prev + '","seq":' + this.seq + ',"state_hash":"' + dSha(sj) + '"}';
     this.prev = dSha(body); this.seq++;
   }

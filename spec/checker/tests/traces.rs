@@ -105,13 +105,15 @@ fn every_step_is_on_the_hash_chain() {
     let mut steps = 0;
     for (n, t) in &all {
         let v: serde_json::Value = serde_json::from_str(t).unwrap();
-        assert_eq!(v["format"], "rce-trace/1");
+        assert_eq!(v["format"], "rce-trace/2");
         for tr in v["traces"].as_array().unwrap() {
             let mut prev = v["genesis"].as_str().unwrap().to_string();
             for (k, s) in tr["steps"].as_array().unwrap().iter().enumerate() {
                 assert_eq!(s["seq"], k, "{n}");
                 assert_eq!(s["prev_hash"], prev.as_str(), "{n} seq {k}");
-                let body = cj(&serde_json::json!({"event": s["event"], "prev_hash": prev, "seq": k, "state_hash": s["state_hash"]}));
+                // T7: the entry hash covers the positional form of the event
+                let body = cj(&serde_json::json!({"event": s["hashed"]["event"], "prev_hash": prev, "seq": k, "state_hash": s["state_hash"]}));
+                assert_eq!(s["state_hash"], sha(&cj(&s["hashed"]["state"])).as_str(), "{n} seq {k}");
                 assert_eq!(s["hash"], sha(&body).as_str(), "{n} seq {k}");
                 prev = s["hash"].as_str().unwrap().to_string();
                 steps += 1;
@@ -175,12 +177,12 @@ fn trace_text_escapes_match_the_hashed_writer() {
         for s in tr["steps"].as_array().unwrap() {
             // the printed body: event text exactly as printed, so re-print it with the same writer
             let body = rce_spec_check::interp::canon_json(&serde_json::json!({
-                "event": s["event"], "prev_hash": s["prev_hash"], "seq": s["seq"], "state_hash": s["state_hash"]
+                "event": s["hashed"]["event"], "prev_hash": s["prev_hash"], "seq": s["seq"], "state_hash": s["state_hash"]
             }));
             assert_eq!(s["hash"], sha(&body).as_str());
-            if let Some(st) = s.get("state") {
-                assert_eq!(s["state_hash"], sha(&rce_spec_check::interp::canon_json(st)).as_str());
-            }
+            assert_eq!(s["state_hash"], sha(&rce_spec_check::interp::canon_json(&s["hashed"]["state"])).as_str());
+            // the escaped text is hashed the same way in both forms
+            assert!(rce_spec_check::interp::canon_json(&s["hashed"]["event"]).contains("a\\u0008b\\u000cc"));
         }
     }
 }

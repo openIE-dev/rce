@@ -798,6 +798,7 @@ than a call to a function with no body, in the reference evaluator and every run
 | a foreign function is not a value (5.11, W-FFI-1) | erratum | 5.11 already forbade a pure function calling foreign code; the value route was a checker hole |
 | host contract (Appendix E: one admitter, durable append per OS, fatal barrier, verify on open, inputs as events, capabilities, fabric entries, automatic placement) | outside programs | constrains hosts and the log, not programs: a host entry has a `host.` type that no program can declare and δ is the identity on it, so the fold of every log of every valid program is unchanged |
 | host bindings (E.8: a host result delivered as an event the program declares) | outside programs | the bound event is an ordinary declared event, admitted and typed as any other; a program that declares no binding target sees no new input |
+| `state_hash` and the entry `hash` over the positional forms (6.1, T7) | erratum, outside programs | the finding of 2026-10-22: the Lean model of T7 hashes declaration indices, the checker and the four runtimes hashed the canonical JSON keyed by region, field and type names, so a renamed program had different log hashes. The hashes now cover the positional forms and a renamed program has the same hashes, as T7 states. No program's outputs, states or outcomes change; every trace fixture, the conformance pins and the trace format (`rce-trace/2`) change, which is the log format and not a program's meaning |
 
 The first row is the one change since draft 0.6 that moved where a `with budget` block traps; it is
 what made the earlier text a different release. Every other row is an erratum, an extension or a
@@ -824,4 +825,4 @@ defined for it beyond the costs F.10 names.
 
 **Read receipt.** How many concurrency words does C.1 add to the keywords of 2.4? (a number)
 
-<!-- body-sha256: 0ae532c12d9e2fc975f999cc21c1ec9aa53b9225386ff94a4697869b0c5137de -->
+<!-- body-sha256: d3bca8a016b4baf5afb72e69dd707e000fe63e2782bd54e3f45acb68c10068eb -->

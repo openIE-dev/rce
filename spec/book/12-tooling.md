@@ -349,9 +349,10 @@ types `t0, …`, kind variants `k0, …`, fields, parameters and locals
 and `intent` text are unchanged; the wildcard `_` and a `_` prefix are
 kept, as are `main`, the built-in traits and their methods, the host
 events and the named constants of 6.7. The projection is deterministic and
-idempotent, and it has the same outcomes, outputs and ids as the source;
-`rce trace --json` of the two differs in `state_hash`, because 6.1 hashes
-region and field names (the T7 finding of chapter 8). A name the
+idempotent, and it has the same outcomes, outputs, ids and log hashes as
+the source: `rce trace --json` of the two is equal step for step except
+in the readable `event` field, since 6.1 hashes the positional forms
+(T7). A name the
 projection does not recognise as declared is left as written, so the
 output is accepted whenever the input is (`tests/nameless.rs`, every
 example). It is the text of the concept record's complement (6.6).
@@ -445,21 +446,23 @@ conformance to the trace.
 source order (the same logs `rce emit form` puts in `logs`); with EVENTS
 (the syntax of an `example` line, as in 10.3) it prints one trace of that
 event list. A module that is refused, or a trace of EVENTS that yields no
-step, is status 1. The output is one JSON object (format `rce-trace/1`),
-compact, with sorted keys:
+step, is status 1. The output is one JSON object (format `rce-trace/2`;
+`rce-trace/1` differed in hashing the named forms, before the T7
+resolution of C.15), compact, with sorted keys:
 
 | Field | Meaning |
 |---|---|
-| `format` | `"rce-trace/1"` |
+| `format` | `"rce-trace/2"` |
 | `file` | the file name, without directories |
 | `events` | the EVENTS argument, or null |
 | `genesis` | the first `prev_hash`: 64 zeros (6.1) |
 | `traces` | list of {`source`, `steps`}; `source` is `"example@L"` (the example's line) or `"events"` |
 | `steps[i].seq` | required: 0-based index in the trace |
 | `steps[i].event` | required: {`type`, `payload`}, payload values as in 6.1 |
-| `steps[i].state_hash` | required: SHA-256 (lower-case hex) of the canonical JSON of the state after the step |
-| `steps[i].prev_hash`, `steps[i].hash` | the 6.1 chain: `hash` is the SHA-256 of the canonical JSON of {event, prev_hash, seq, state_hash} |
+| `steps[i].state_hash` | required: SHA-256 (lower-case hex) of the canonical JSON of the positional form of the state after the step (6.1) |
+| `steps[i].prev_hash`, `steps[i].hash` | the 6.1 chain: `hash` is the SHA-256 of the canonical JSON of {event, prev_hash, seq, state_hash} with the positional form of the event |
 | `steps[i].outcome` | `"applied"` or {`refused`: error name}; derived, not hashed |
+| `steps[i].hashed` | {`event`, `state`}: the positional forms the two hashes are over (6.1), so a reader recomputes both without the module; derived |
 
 A refused event is the last step of its trace, with the unchanged state's
 hash (T8). A projector conforms on a module when, for every trace, its
@@ -560,11 +563,15 @@ canonical order, one line per (state, event) with the successor's number
 and the label; `shape_ctl` is the SHA-256 of its canonical JSON text. It
 is invariant under renaming (T61, tested by `tests/dim.rs` against
 `rce fmt --nameless`).
+The report also says whether the program is *observable*: whether some
+explored step emits or refuses. A program with no such step has one
+behaviour by definition, so its redundancy is its whole state; the
+dimension benchmark reports that stratum separately.
 `--json` prints the same as one JSON object (format `rce-dim/1`, compact,
-sorted keys). The command is deterministic: equal inputs give equal output
+sorted keys; the `observable` key is since 2026-10-23). The command is deterministic: equal inputs give equal output
 bytes, and the exploration order is the canonical order of 6.1 on events
 and payloads. It is informative: no admission depends on it.
 
 **Read receipt.** Which JSON-RPC error code does the language server return for a request it does not know? (a number)
 
-<!-- body-sha256: adc8feee84b2083743eeb5846cb03a86c019a8f7631182c9029af1dbe98abbba -->
+<!-- body-sha256: c4914119c1bc3d04b6f81b819227f7f6ddb9169f40131d99a09eab9a9c8cce62 -->

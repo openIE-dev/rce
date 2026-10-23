@@ -1044,6 +1044,30 @@ fn float_json(x: f64) -> String {
         format!("{sign}{body}")
     } else { format!("{sign}{m}e{ex}") }
 }
+/// 6.1, T7: the positional embedding hashed by D (names replaced by positions).
+fn form_value_pos(v: &V) -> FV {
+    match v {
+        V::Opt(Some(x)) => form_value_pos(x),
+        V::Tuple(xs) | V::List(xs) | V::Set(xs) => FV::List(xs.iter().map(form_value_pos).collect()),
+        V::Map(ps) => {
+            let mut l: Vec<(FV, FV, FV)> = ps.iter().map(|(k, v)| (form_value(k), form_value_pos(k), form_value_pos(v))).collect();
+            l.sort_by(|a, b| a.0.cmp_canon(&b.0));
+            FV::List(l.into_iter().map(|(_, k, v)| FV::List(vec![k, v])).collect())
+        }
+        V::Rec(n, fs) => {
+            let at = |f: &str| fs.iter().find(|(k, _)| k == f).map_or(FV::Null, |(_, x)| form_value_pos(x));
+            if let Some(d) = decl_fields(n) {
+                FV::List(d.iter().map(|f| at(f)).collect())
+            } else if let Some((k, d)) = variant_index(n) {
+                FV::List(vec![FV::Int(k), FV::List(d.iter().map(|f| at(f)).collect())])
+            } else {
+                form_value(v)
+            }
+        }
+        V::Err(x) => frec(vec![("$err".into(), form_value_pos(x))]),
+        _ => form_value(v),
+    }
+}
 fn jstr(s: &str) -> String {
     let mut o = String::from("\"");
     for c in s.chars() {
@@ -1060,8 +1084,9 @@ fn jstr(s: &str) -> String {
 struct DLog { prev: String, seq: usize }
 impl DLog {
     fn add(&mut self, name: &str, ev: &V, st: &State) {
-        let evj = format!("{{\"payload\":{},\"type\":{}}}", form_value(ev).json(), jstr(name));
-        let sj = frec(st.iter().map(|(r, fs)| (r.to_string(), frec(fs.iter().map(|(n, v)| (n.to_string(), form_value(v))).collect()))).collect()).json();
+        let ty = match event_index(name) { Some(k) => k.to_string(), None => jstr(name) };
+        let evj = format!("{{\"payload\":{},\"type\":{ty}}}", form_value_pos(ev).json());
+        let sj = FV::List(st.iter().map(|(_, fs)| FV::List(fs.iter().map(|(_, v)| form_value_pos(v)).collect())).collect()).json();
         let sh = sha256_hex(sj.as_bytes());
         let body = format!("{{\"event\":{evj},\"prev_hash\":\"{}\",\"seq\":{},\"state_hash\":\"{sh}\"}}", self.prev, self.seq);
         self.prev = sha256_hex(body.as_bytes());
