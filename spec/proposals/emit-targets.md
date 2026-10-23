@@ -20,6 +20,33 @@ In plain words:
 3. Every target passes the same gate: the reference trace of every example
    program, byte for byte (T9), plus the lens law where a lift exists.
 
+## 0. The deterministic interface: three artefacts per language
+
+A language enters the registry as data, not code. For a language L:
+
+| Artefact | From | Gives | Deterministic because |
+|---|---|---|---|
+| `lang/L/grammar` | the language's tree-sitter grammar, vendored and pinned by commit (about 150 exist) | text → concrete syntax tree | GLR with fixed conflict resolution; the same bytes give the same tree |
+| `lang/L/semantics.toml` | the language's own specification | node kind → Form construct; the edge rules of 6.3 as the language fixes them (integer width and overflow, division sign, float mode, string unit, map order, whether coroutines are stackless) | a table is looked up, never inferred |
+| `lang/L/print.toml` | the same grammar, read backwards | Form IR node → syntax-tree template → text | printing is a function of the IR |
+
+Lift λ_L = grammar + semantics table. Emit π_L = print table + grammar.
+The gate on the pair is the lens law, hash(λ_L(π_L(F))) = hash(F), checked
+on the corpus, plus T9. What tree-sitter does not give is also stated:
+name resolution and types (the Language Server Protocol gives those where
+a server exists; otherwise the semantics table carries scope rules), macro
+and comptime expansion (Rust, Zig, C: the tree is not the program until
+these run, so λ_L for them is on the expanded tree), and semantics of
+anything the language leaves undefined (the table refuses it, as W-RES-1
+refuses a reserved word).
+
+Probe (2026-10-23, `spec/lift/go`): a Go struct with one method per event,
+lifted by `tree-sitter-go` and a 12-line semantics table with no model,
+checks, runs, has 3 behaviours and 3 control states, and has the same
+`shape_ctl` as the hand-written `61_dim_minimal.rce`. The probe found one
+defect in the control label (items indexed across kinds) that the
+hand-written corpus alone would not have shown.
+
 ## 1. The mechanism before the list
 
 **One emitter.** `rce emit TARGET` lowers the module once (the ANF pass of
