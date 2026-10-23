@@ -138,4 +138,4 @@ and LALR(1) agree on all 4,977 syntax mutants.
 
 **Read receipt.** In the overview's tiny example, what is the name of the event?
 
-<!-- body-sha256: 094aa8d8115d833fd355a6d6d7e4737d3bcd8cdb13d2fd4ae2b0700243f3b463 -->
+<!-- body-sha256: ebfd49270144e26d93e86d9eca9458ce30b0f5042a8d962958144ade91f111a0 -->

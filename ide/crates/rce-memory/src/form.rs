@@ -410,6 +410,7 @@ fn item_defs(file: &str, it: &Item, out: &mut Vec<(Def, Names)>) {
             payload,
             line,
             interrupt,
+            ..
         } => {
             payload.iter().for_each(|(_, t)| n.ty(t));
             let mut x = d(name.clone(), "event", *line);

@@ -10,15 +10,18 @@
 //! the vendored checker implements and the language versions it accepts.
 
 /// The specification draft of the vendored reference checker.
-const SPEC_DRAFT: &str = "0.7";
+// The specification draft this checkout carries (spec/book/00-overview.md); one text, one language.
+const SPEC_DRAFT: &str = "0.9";
 
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
     if args.len() == 1 && matches!(args[0].as_str(), "--version" | "-V") {
+        // One language, one text (decision 64): the release label is the
+        // checker's LANGUAGE_RELEASE, not a list of accepted versions.
         println!(
-            "rce {} (rce-ide; RCE specification draft {SPEC_DRAFT}; language versions {})",
+            "rce {} (rce-ide; RCE specification draft {SPEC_DRAFT}; language release {})",
             env!("CARGO_PKG_VERSION"),
-            rce_spec_check::parse::VERSIONS.join(", ")
+            rce_spec_check::parse::LANGUAGE_RELEASE
         );
         return;
     }

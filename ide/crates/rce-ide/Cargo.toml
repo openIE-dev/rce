@@ -11,7 +11,8 @@ crate-type = ["rlib", "cdylib"]
 
 [features]
 # Draft 0.6/0.6b concurrency syntax (off by default, as in openIE-dev/rce).
-conc06 = ["rce_spec_check/conc06", "rce-memory/conc06"]
+# conc06: the draft-0.6 gate is gone (one language, decision 64); kept as a no-op so `--features conc06` still builds
+conc06 = ["rce-memory/conc06"]
 default = ["gpu"]
 gpu = ["dep:wgpu", "dep:winit", "dep:parley", "dep:fontique", "dep:swash", "dep:bytemuck", "dep:rce-graph3d"]
 

@@ -824,4 +824,4 @@ defined for it beyond the costs F.10 names.
 
 **Read receipt.** How many concurrency words does C.1 add to the keywords of 2.4? (a number)
 
-<!-- body-sha256: c47ff1e49f4202be941f9a9e58f84cf2e92b5c7d39bdffd92b64e745790a1bf4 -->
+<!-- body-sha256: 0ae532c12d9e2fc975f999cc21c1ec9aa53b9225386ff94a4697869b0c5137de -->

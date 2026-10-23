@@ -5,10 +5,10 @@ an agent proves it read them by following `READ-PROTOCOL.md`.
 
 | File | Body SHA-256 | Read-receipt question |
 |---|---|---|
-| `00-overview.md` | `094aa8d8115d833fd355a6d6d7e4737d3bcd8cdb13d2fd4ae2b0700243f3b463` | In the overview's tiny example, what is the name of the event? |
+| `00-overview.md` | `ebfd49270144e26d93e86d9eca9458ce30b0f5042a8d962958144ade91f111a0` | In the overview's tiny example, what is the name of the event? |
 | `01-notation.md` | `c76056a1984c61b4ddce8745feb78c2cff67ef2295e40b3d2082f67e4cbecef4` | In the grammar notation, what does a Repetition `{ ... }` mean, in the spec's words? |
 | `02-lexical.md` | `4eeab6a05c17dd46d9db462dc4c801fcde4ded882648bafd843fde43777a4dd4` | Which code point is the horizontal tab, as written in this section? |
-| `03-syntax.md` | `98186dd03ae4fb20812b3b9772ea0a8e54d8afbc9e6ecc930a9e847ecd2b1395` | Which numbered resolution rule in 3.11 covers `send`? (for example R1) |
+| `03-syntax.md` | `9bff3a57294945da586ae15052a6cbce53ea166720571859eb2b9f878c8ef6f2` | Which numbered resolution rule in 3.11 covers `send`? (for example R1) |
 | `04-programs.md` | `36aa75c5ccf91fc1e58278eac48086a4b441d0175ea55753e3ad5b3e3788f878` | What is the outermost scope called? (one word) |
 | `05-types-ownership.md` | `02ac9d12d4e0e96656f200f8328965028a511328a7affa24d233988588eef3b4` | What is the name of the example kind used to illustrate error sets? |
 | `06-regions-effects-extensions.md` | `94ed5923623f65f5b78682ecd4a03a433fe1000598dc036f40ffc187a1892918` | What kind of channel does a capacity of 0 give? (one word) |
@@ -19,11 +19,11 @@ an agent proves it read them by following `READ-PROTOCOL.md`.
 | `11-decisions.md` | `6230862e98dd205fd73e56e722ef8dc823d2f999bf7628fcbbc872b75269bbab` | The decisions list says it decides gaps in which file? |
 | `12-tooling.md` | `adc8feee84b2083743eeb5846cb03a86c019a8f7631182c9029af1dbe98abbba` | Which JSON-RPC error code does the language server return for a request it does not know? (a number) |
 | `13-references.md` | `ed1215a6287919d452ba2ff9b15b321bde445a7a3cd139470c48db7d43fbe913` | Who wrote "Communicating Sequential Processes"? (surname) |
-| `14-draft06-concurrency.md` | `c47ff1e49f4202be941f9a9e58f84cf2e92b5c7d39bdffd92b64e745790a1bf4` | How many concurrency words does C.1 add to the keywords of 2.4? (a number) |
+| `14-draft06-concurrency.md` | `0ae532c12d9e2fc975f999cc21c1ec9aa53b9225386ff94a4697869b0c5137de` | How many concurrency words does C.1 add to the keywords of 2.4? (a number) |
 | `15-handler-spec-profile.md` | `1874e9e31a2d9052aa44b11e865e0a8bb2977c7c3bd072bdb8a9dd40b79d205a` | Which compiled node id does `deliverable D1` become? (for example role_R1) |
 | `16-host-contract.md` | `af42acba4808eee58f23829fc4016b031c93bd74808c6341bcd0aae014eac337` | Which fcntl command is the append barrier on macOS? (for example F_SETFL) |
-| `17-draft09.md` | `076a0176f0a848259d7ba7171335109affcc607f50e781c745b6aa378f785a10` | How many words does F, "Reserved words", add to the reserved list of 2.4? (a number) |
+| `17-draft09.md` | `33ad5d7a99ee6b49f0d4150ebee3c41a7bef17a49d35377e6cdc9c25a68ee293` | How many words does F, "Reserved words", add to the reserved list of 2.4? (a number) |
 
 The single-file spec `spec/RCE-SPEC.md` is generated from these files.
 
-<!-- body-sha256: c9c373af3258ee224a4124980822ed644cba3db7a8ed4748c349b97eab896c87 -->
+<!-- body-sha256: 09930bbba73853dd77777cc521b5d9a5c6de1e1b0264bdd0b48c1620d68884b5 -->

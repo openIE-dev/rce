@@ -82,7 +82,7 @@ added; an implementation of a release implements that release's text. The core i
 (`spec/lean/`, section 8), a reference type and well-formedness checker
 (`spec/checker/`, `rce-check`) implements sections 4, 5 and 7 including the
 admission gate of 6.9 (examples, checks, comptime and constants are evaluated),
-`spec/tree-sitter/` is a tree-sitter port of the grammar checked against
+`tree-sitter/` is a tree-sitter port of the grammar checked against
 the LALR(1) tables of section 3, and grammar-level random programs are checked by
 `rce-fuzz` (`spec/checker/`). The production compiler has
 not been built from this document yet. Changes made while mechanizing are
@@ -637,7 +637,7 @@ lexer's tokens, the Rust parser, and the tree-sitter port) and all three must
 agree. Until 2026-10-12 this check was `spec/check.py` on `spec/rce.lark`
 with Lark in strict mode; both are retired.
 
-`spec/tree-sitter/` is the same grammar for tree-sitter (`grammar.js`, with
+`tree-sitter/` is the same grammar for tree-sitter (`grammar.js`, with
 layout, bracket depth, reserved-keyword NAME and longest-match numbers and
 `<-` in `src/scanner.c`). The former `tree-sitter/compare.py N SEED` parsed every
 example and N fuzz programs, each program's syntax mutants and SOUP
@@ -3549,7 +3549,7 @@ with the words of Appendix F, one list for every module.
 ### C.2 Grammar
 
 These productions extend section 3. They are the
-productions of the tree-sitter port (`spec/tree-sitter/grammar.js`) and of
+productions of the tree-sitter port (`tree-sitter/grammar.js`) and of
 the Rust parser. A rule below with the name of a section-3 rule replaces
 it; the others are new. The grammar is the productions of section 3 with
 these applied, and the same for every module. The machine check of 3.12 builds the
@@ -6604,7 +6604,7 @@ section applied (`lalr::book_grammar_09`), lexing with `label`, `release`,
 machine over `spec/examples-0.9/ok`. `TEMPLATE` is the token `t` written directly before a STRING (no space,
 and `t` not the end of a longer name); the checker accepts it only after a dot.
 The tree-sitter port
-(`spec/tree-sitter/grammar.js`) carries the same productions. The constructs
+(`tree-sitter/grammar.js`) carries the same productions. The constructs
 of F.5 to F.7 that are still reserved, not implemented (F.12) have no production yet.
 
 ```

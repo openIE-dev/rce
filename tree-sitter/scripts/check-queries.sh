@@ -14,10 +14,11 @@ for q in queries/*.scm; do
         echo "FAILED $q"; echo "$out" | head -5; status=1
     fi
 done
-# `par` is a keyword only after `# rce-version: 0.6` on the first line (spec 2.7).
+# `par` is a reserved word of the one language (spec 2.4): a name may not be `par`,
+# and `for ... in ... par` is a parallel loop.
 tmp=$(mktemp -d)
-printf '# rce-version: 0.6\nfn f()\n    par\n        branch a\n            pass\n' > "$tmp/v06.rce"
-if tree-sitter parse -l "$lib" --lang-name rce "$tmp/v06.rce" | grep -q par_stmt; then echo "ok     version 0.6 gate"; else echo "FAILED version 0.6 gate"; status=1; fi
-printf 'fn f()\n    let par = 1\n' > "$tmp/v05.rce"
-if tree-sitter parse -l "$lib" --lang-name rce "$tmp/v05.rce" | grep -q ERROR; then echo "FAILED par as a name before 0.6"; status=1; else echo "ok     par is a name without the version comment"; fi
+printf 'fn f()\n    let par = 1\n' > "$tmp/name.rce"
+if tree-sitter parse -l "$lib" --lang-name rce "$tmp/name.rce" | grep -q ERROR; then echo "ok     par is reserved"; else echo "FAILED par accepted as a name"; status=1; fi
+printf 'fn f()\n    for x in xs par\n        pass\n' > "$tmp/loop.rce"
+if tree-sitter parse -l "$lib" --lang-name rce "$tmp/loop.rce" | grep -q "PAR\|for_stmt"; then echo "ok     for ... par"; else echo "FAILED for ... par"; status=1; fi
 exit $status

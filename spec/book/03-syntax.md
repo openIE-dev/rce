@@ -314,4 +314,4 @@ SOUP=2): 16,092 inputs, 3,185 identical trees, 12,907 refused by both,
 
 **Read receipt.** Which numbered resolution rule in 3.11 covers `send`? (for example R1)
 
-<!-- body-sha256: 98186dd03ae4fb20812b3b9772ea0a8e54d8afbc9e6ecc930a9e847ecd2b1395 -->
+<!-- body-sha256: 9bff3a57294945da586ae15052a6cbce53ea166720571859eb2b9f878c8ef6f2 -->
