@@ -568,9 +568,13 @@ and the label; `shape_ctl` is the SHA-256 of its canonical JSON text. It
 is invariant under renaming (T61, tested by `tests/dim.rs` against
 `rce fmt --nameless`).
 The report also says whether the program is *observable*: whether some
-explored step emits or refuses. A program with no such step has one
-behaviour by definition, so its redundancy is its whole state; the
-dimension benchmark reports that stratum separately.
+explored step emits or refuses, and how many distinct *observations* the
+explored steps carry (an observation is the text of a step's outputs or
+its refusal; a silent step is not one; `distinct_labels` in the JSON). A
+program with no observable step has one behaviour by definition, so its
+redundancy is its whole state; a program with one distinct observation is
+observable only by a constant and has one behaviour as well. The
+dimension benchmark reports these strata separately.
 `--json` prints the same as one JSON object (format `rce-dim/1`, compact,
 sorted keys; the `observable` key is since 2026-10-23). The command is deterministic: equal inputs give equal output
 bytes, and the exploration order is the canonical order of 6.1 on events
@@ -578,4 +582,4 @@ and payloads. It is informative: no admission depends on it.
 
 **Read receipt.** Which JSON-RPC error code does the language server return for a request it does not know? (a number)
 
-<!-- body-sha256: 61b6c4f1ca21561c26812fdc251d3ecaf3afabc802708faf49d56afc17256ece -->
+<!-- body-sha256: 1d5900f63c0ba912e90222aa4e2d5bf83be424def7e5b62d928b3b0c08c4b70e -->
