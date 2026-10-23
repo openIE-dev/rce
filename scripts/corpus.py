@@ -7,7 +7,12 @@ block, nameless canonical source, shape hash, verdict, the size of the Form
 and of each emitted program, and rho = b(code) / b(P) as preregistered in
 openie-research-experiments/rce/bench/form-space/PREREG.json. Negatives are
 the conformance tests that must be rejected (with their diagnostic code) and
-checker-verified token mutants of the accepted programs under a fixed seed.
+checker-verified mutants of the accepted programs under a fixed seed: three
+whitespace-token mutants and two of each typed operator (rename, operator,
+literal, guard, type), each classified as refused (with its diagnostic),
+caught by the program's own example lines (W-INT-1), accepted with the same
+shape, accepted and equivalent (same trace heads), or accepted with a
+behaviour change the examples did not catch.
 
     scripts/corpus.py --rce PATH/TO/rce --out DIR
 
@@ -114,7 +119,7 @@ def conformance(expect_accept):
 
 
 def mutate(src, rng):
-    """One token-level mutation (delete, duplicate or swap) of a source text; returns (kind, text)."""
+    """One whitespace-token mutation (delete, duplicate or swap) of a source text; returns (kind, text)."""
     toks = [m for m in re.finditer(r"\S+|\n", src)]
     words = [i for i, m in enumerate(toks) if m.group(0) != "\n"]
     if len(words) < 2:
@@ -133,6 +138,102 @@ def mutate(src, rng):
     for m, t in zip(toks, parts):
         out.append(t if t == "\n" or not out or out[-1].endswith("\n") else " " + t)
     return kind, "".join(out)
+
+
+KEYWORDS = set("""intent example state event error step on fn let var if elif else return emit fail try catch for in
+while loop bound match with arena device struct kind trait impl pub use module type ghost requires ensures decreases
+label atomic par spawn chan select recv send after break continue check and or not true false none some self comptime
+extern actor supervisor node const refused by as mut then""".split())
+OP_CLASSES = [["+", "-", "*", "/"], ["<", "<=", ">", ">="], ["==", "!="], ["and", "or"]]
+TYPE_SWAP = {"u64": "i64", "i64": "u64", "text": "bool", "bool": "text", "f64": "i64"}
+
+
+def segments(src):
+    """(is_string, text) segments so that operators never touch string contents."""
+    out, last = [], 0
+    for m in STRING.finditer(src):
+        if m.start() > last:
+            out.append((False, src[last:m.start()]))
+        out.append((True, m.group(0)))
+        last = m.end()
+    if last < len(src):
+        out.append((False, src[last:]))
+    return out
+
+
+def occurrences(src, pattern):
+    """Matches of `pattern` outside strings, as (segment index, match)."""
+    segs = segments(src)
+    out = []
+    for k, (is_str, text) in enumerate(segs):
+        if is_str:
+            continue
+        for m in re.finditer(pattern, text):
+            out.append((k, m))
+    return segs, out
+
+
+def rebuild(segs, k, m, replacement):
+    text = segs[k][1]
+    segs = list(segs)
+    segs[k] = (False, text[:m.start()] + replacement + text[m.end():])
+    return "".join(t for _, t in segs)
+
+
+def mutate_typed(src, rng, op):
+    """One token-class mutation; returns the mutated text or None when the operator does not apply."""
+    if op == "rename":
+        segs, occ = occurrences(src, r"(?<![\w.])[A-Za-z_][A-Za-z0-9_]*(?![\w])")
+        occ = [(k, m) for k, m in occ if m.group(0) not in KEYWORDS]
+        names = sorted({m.group(0) for _, m in occ})
+        if len(names) < 2 or not occ:
+            return None
+        k, m = occ[rng.next() % len(occ)]
+        others = [n for n in names if n != m.group(0)]
+        return rebuild(segs, k, m, others[rng.next() % len(others)])
+    if op == "operator":
+        segs, occ = occurrences(src, r"(?<![<>=!+\-*/&|-])(<=|>=|==|!=|<|>|\+|-(?![>=])|\*|/|\band\b|\bor\b)(?![=<>])")
+        if not occ:
+            return None
+        k, m = occ[rng.next() % len(occ)]
+        cls = next(c for c in OP_CLASSES if m.group(0) in c)
+        others = [o for o in cls if o != m.group(0)]
+        return rebuild(segs, k, m, others[rng.next() % len(others)])
+    if op == "literal":
+        segs, ints = occurrences(src, r"(?<![\w.])\d+(?![\w.])")
+        strs = [(k, seg) for k, seg in enumerate(segs) if seg[0]]
+        choices = [("int", x) for x in ints] + [("str", x) for x in strs]
+        if not choices:
+            return None
+        kind, x = choices[rng.next() % len(choices)]
+        if kind == "int":
+            k, m = x
+            return rebuild(segs, k, m, str(int(m.group(0)) + 1))
+        k, (_, text) = x
+        segs = list(segs)
+        segs[k] = (True, text[:-1] + "x" + text[-1])
+        return "".join(t for _, t in segs)
+    if op == "guard":
+        lines = src.split("\n")
+        cands = [i for i, l in enumerate(lines) if re.match(r"\s*(if|elif|requires|ensures|fail)\b", l)]
+        if not cands:
+            return None
+        i = cands[rng.next() % len(cands)]
+        l = lines[i]
+        if re.match(r"\s*(if|elif)\b", l):
+            ind = re.match(r"\s*", l).group(0)
+            kw = l.strip().split()[0]
+            lines[i] = f"{ind}{kw} true"
+        else:
+            del lines[i]
+        return "\n".join(lines)
+    if op == "type":
+        segs, occ = occurrences(src, r"\b(u64|i64|text|bool|f64)\b")
+        if not occ:
+            return None
+        k, m = occ[rng.next() % len(occ)]
+        return rebuild(segs, k, m, TYPE_SWAP[m.group(0)])
+    return None
 
 
 class Rng:
@@ -156,7 +257,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--rce", required=True)
     ap.add_argument("--out", required=True)
-    ap.add_argument("--mutants", type=int, default=3, help="token mutants per accepted program")
+    ap.add_argument("--mutants", type=int, default=3, help="whitespace-token mutants per accepted program (plus two of each typed operator)")
     a = ap.parse_args()
     out = Path(a.out)
     out.mkdir(parents=True, exist_ok=True)
@@ -179,6 +280,7 @@ def main():
             Path(file).write_text(src, encoding="utf-8")
         t0 = time.time()
         r = rce.run("check", file)
+        check_s = round(time.time() - t0, 4)
         if r.returncode != 0:
             refused.append({"path": rel, "origin": origin, "why": (r.stdout + r.stderr).strip()[:300]})
             continue
@@ -214,6 +316,7 @@ def main():
         else:
             row["trace_heads"] = []
         row["cpu_s"] = round(time.time() - t0, 3)
+        row["check_s"] = check_s
         rows.append(row)
 
     # near-duplicates: one row per shape hash (the first in path order)
@@ -259,29 +362,69 @@ def main():
                      "licence": "MIT OR Apache-2.0", "source": src, "source_sha256": sha(src), "verdict": "reject",
                      "diagnostic": meta.get("diagnostic"), "clauses": meta.get("clauses"), "kind": "conformance"})
     rng = Rng(SEED)
-    mut_stats = {"reject": 0, "accept": 0, "accept_same_shape": 0}
+    mut_stats = {"reject": 0, "accept": 0, "accept_same_shape": 0, "accept_equivalent": 0, "accept_behaviour_change": 0, "caught_by_examples": 0}
+    scores = []
+
+    def classify(r, text, kind, op):
+        f = tmpdir / f"mut-{r['shape_hash'][:12]}-{op}-{rng.next() % 1000000}.rce"
+        f.write_text(text, encoding="utf-8")
+        c = rce.run("check", str(f))
+        row = {"format": "rce-corpus/1", "commit": commit, "path": r["path"], "origin": r["origin"], "licence": r["licence"],
+               "source": text, "source_sha256": sha(text), "kind": "mutant", "operator": op, "mutation": kind, "parent_shape_hash": r["shape_hash"]}
+        if c.returncode != 0:
+            msg = (c.stdout + c.stderr).strip()
+            code = first_code(msg)
+            row.update(verdict="reject", diagnostic=code, message=msg[:300],
+                       outcome="caught_by_examples" if code == "W-INT-1" else "refused")
+            mut_stats["reject"] += 1
+            if code == "W-INT-1":
+                mut_stats["caught_by_examples"] += 1
+        else:
+            nl = rce.run("fmt", "--nameless", str(f)).stdout
+            same = sha(nl) == r["shape_hash"]
+            row.update(verdict="accept", shape_hash=sha(nl), same_shape_as_parent=same)
+            if same:
+                row["outcome"] = "accept_same_shape"
+            else:
+                tr = rce.run("trace", "--json", str(f))
+                heads = []
+                if tr.returncode == 0:
+                    try:
+                        j = json.loads(tr.stdout)
+                        heads = [t["steps"][-1]["hash"] for t in j["traces"] if t["steps"]]
+                    except (ValueError, KeyError):
+                        heads = []
+                row["trace_heads"] = heads
+                if not r["trace_heads"]:
+                    row["outcome"] = "accept_no_examples"
+                elif heads == r["trace_heads"]:
+                    row["outcome"] = "accept_equivalent"
+                else:
+                    row["outcome"] = "accept_behaviour_change"
+            mut_stats["accept"] += 1
+            for k in ("accept_same_shape", "accept_equivalent", "accept_behaviour_change"):
+                if row["outcome"] == k:
+                    mut_stats[k] += 1
+        f.unlink()
+        return row
+
     for r in uniq:
+        made = []
         for k in range(a.mutants):
             m = mutate(r["source"], rng)
-            if m is None:
-                continue
-            kind, text = m
-            f = tmpdir / f"mut-{r['shape_hash'][:12]}-{k}.rce"
-            f.write_text(text, encoding="utf-8")
-            c = rce.run("check", str(f))
-            if c.returncode != 0:
-                msg = (c.stdout + c.stderr).strip()
-                negs.append({"format": "rce-corpus/1", "commit": commit, "path": r["path"], "origin": r["origin"], "licence": r["licence"],
-                             "source": text, "source_sha256": sha(text), "verdict": "reject", "diagnostic": first_code(msg),
-                             "message": msg[:300], "kind": "mutant", "mutation": kind, "parent_shape_hash": r["shape_hash"]})
-                mut_stats["reject"] += 1
-            else:
-                nl = rce.run("fmt", "--nameless", str(f)).stdout
-                same = sha(nl) == r["shape_hash"]
-                mut_stats["accept_same_shape" if same else "accept"] += 1
-                negs.append({"format": "rce-corpus/1", "commit": commit, "path": r["path"], "origin": r["origin"], "licence": r["licence"],
-                             "source": text, "source_sha256": sha(text), "verdict": "accept", "kind": "mutant", "mutation": kind,
-                             "parent_shape_hash": r["shape_hash"], "shape_hash": sha(nl), "same_shape_as_parent": same})
+            if m is not None:
+                made.append(classify(r, m[1], m[0], "token"))
+        for op in ("rename", "operator", "literal", "guard", "type"):
+            for _ in range(2):
+                t = mutate_typed(r["source"], rng, op)
+                if t is not None and t != r["source"]:
+                    made.append(classify(r, t, op, op))
+        negs.extend(made)
+        if r["trace_heads"]:
+            caught = sum(1 for x in made if x["outcome"] == "caught_by_examples")
+            uncaught = sum(1 for x in made if x["outcome"] == "accept_behaviour_change")
+            if caught + uncaught:
+                scores.append({"path": r["path"], "caught": caught, "uncaught": uncaught, "score": round(caught / (caught + uncaught), 3)})
     for f in tmpdir.iterdir():
         f.unlink()
     tmpdir.rmdir()
@@ -312,7 +455,12 @@ def main():
         "rho_bytes": {t: med_iqr([r["code"].get(t, {}).get("rho_bytes") for r in uniq]) for t in TARGETS},
         "rho_gz": {t: med_iqr([r["code"].get(t, {}).get("rho_gz") for r in uniq]) for t in TARGETS},
         "form_tokens": med_iqr([r["form"]["tokens"] for r in uniq]),
-        "negatives": {"conformance": sum(1 for n in negs if n["kind"] == "conformance"), **{"mutants_" + k: v for k, v in mut_stats.items()}},
+        "negatives": {"conformance": sum(1 for n in negs if n["kind"] == "conformance"), **{"mutants_" + k: v for k, v in mut_stats.items()},
+                      "mutants_by_operator": {op: {o: sum(1 for n in negs if n.get("operator") == op and n.get("outcome") == o) for o in sorted({n.get("outcome") for n in negs if n.get("operator") == op})} for op in ("token", "rename", "operator", "literal", "guard", "type")},
+                      "mutant_diagnostics": {c: sum(1 for n in negs if n["kind"] == "mutant" and n.get("diagnostic") == c) for c in sorted({n.get("diagnostic") for n in negs if n["kind"] == "mutant" and n.get("diagnostic")})}},
+        "intent_mutation_score": {"programs": len(scores), "median": (sorted(x["score"] for x in scores)[len(scores) // 2] if scores else None),
+                                  "pooled_caught": sum(x["caught"] for x in scores), "pooled_uncaught": sum(x["uncaught"] for x in scores), "rows": scores},
+        "check_s": med_iqr([r["check_s"] for r in uniq]),
         "refused_rows": refused, "rce_cpu_s": round(rce.cpu, 1),
     }
     (out / "summary.json").write_text(json.dumps(summary, indent=1, sort_keys=True) + "\n")
