@@ -186,3 +186,26 @@ fn trace_text_escapes_match_the_hashed_writer() {
         }
     }
 }
+
+/// `rce trace --json FILE --streams PATH` (10.9): one trace per event list,
+/// named `stream@k`, in one run; the single-EVENTS and plain forms are
+/// unchanged, and a stream's chain equals the chain of the same events traced alone.
+#[test]
+fn streams_trace_every_list_in_one_run() {
+    use rce_spec_check::cli::trace_streams;
+    let c = spec().join("examples/01_counter.rce");
+    let src = std::fs::read_to_string(&c).unwrap();
+    let many = trace_streams(&c.to_string_lossy(), &src, &["Inc, Dec", "Dec, Inc", "Inc, Inc, Inc"]).unwrap();
+    let v: serde_json::Value = serde_json::from_str(&many).unwrap();
+    assert_eq!(v["streams"], 3);
+    assert!(v["events"].is_null());
+    let names: Vec<&str> = v["traces"].as_array().unwrap().iter().map(|t| t["source"].as_str().unwrap()).collect();
+    assert_eq!(names, ["stream@0", "stream@1", "stream@2"]);
+    assert_eq!(v["traces"][1]["steps"].as_array().unwrap().len(), 1, "a refused first event ends the stream");
+    let one = trace(&c.to_string_lossy(), &src, Some("Inc, Inc, Inc")).unwrap();
+    let o: serde_json::Value = serde_json::from_str(&one).unwrap();
+    assert_eq!(o["events"], "Inc, Inc, Inc");
+    assert_eq!(o["traces"][0]["source"], "events");
+    assert_eq!(o["traces"][0]["steps"], v["traces"][2]["steps"], "a stream's chain is the chain of the same events traced alone");
+    assert!(o.get("streams").is_none());
+}

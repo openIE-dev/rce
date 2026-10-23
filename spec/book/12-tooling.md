@@ -443,7 +443,11 @@ log D of 6.1, so a trace is the log, and conformance to 6.1 implies
 conformance to the trace.
 
 `rce trace --json FILE` prints one trace per `example` of the module, in
-source order (the same logs `rce emit form` puts in `logs`); with EVENTS
+source order (the same logs `rce emit form` puts in `logs`); with
+`--streams PATH` it prints one trace per event list of PATH (one list per
+line, in the syntax of an `example` line; a line starting with `#` is
+skipped), named `stream@k`, in one run of the checker, with `streams`
+carrying their number; with EVENTS
 (the syntax of an `example` line, as in 10.3) it prints one trace of that
 event list. A module that is refused, or a trace of EVENTS that yields no
 step, is status 1. The output is one JSON object (format `rce-trace/2`;
@@ -574,4 +578,4 @@ and payloads. It is informative: no admission depends on it.
 
 **Read receipt.** Which JSON-RPC error code does the language server return for a request it does not know? (a number)
 
-<!-- body-sha256: c4914119c1bc3d04b6f81b819227f7f6ddb9169f40131d99a09eab9a9c8cce62 -->
+<!-- body-sha256: 61b6c4f1ca21561c26812fdc251d3ecaf3afabc802708faf49d56afc17256ece -->

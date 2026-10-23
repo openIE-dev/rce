@@ -474,27 +474,53 @@ pub const TRACE_FORMAT: &str = "rce-trace/2";
 /// the first refused event.
 /// Keys are sorted and the JSON is compact, so equal traces are equal bytes.
 pub fn trace(file: &str, src: &str, events: Option<&str>) -> Result<String, String> {
+    match events {
+        None => trace_streams(file, src, &[]),
+        Some(evs) => trace_streams(file, src, &[evs]),
+    }
+}
+
+/// `rce trace --json FILE --streams PATH`: one trace per event list of
+/// `streams` (one list per line, example syntax), traced in one run of the
+/// checker; the module's own examples are not traced. With no stream, the
+/// module's examples are traced (the plain form). A stream's expectation is
+/// never checked: these are event lists, not examples (used by
+/// `scripts/xarch-streams.py` for the determinism streams of T37).
+pub fn trace_streams(file: &str, src: &str, streams: &[&str]) -> Result<String, String> {
     let d = diagnostics(src, &HashSet::new());
     if !d.is_empty() {
         return Err(d.into_iter().map(|x| x.1).collect::<Vec<_>>().join("; "));
     }
-    let (m, only) = match events {
-        None => (parse(src)?, None),
-        Some(evs) => {
-            let probe = parse(&format!("{src}\nexample {evs} -> 0\n")).map_err(|e| format!("events: {e}"))?;
-            let Some(Item::Example(x)) = probe.items.last() else {
-                return Err("events: not an event list".into());
-            };
-            let line = x.line;
-            (probe, Some(line))
+    let events: Option<&str> = streams.first().copied();
+    let (m, only) = if streams.is_empty() {
+        (parse(src)?, None)
+    } else {
+        let mut text = src.to_string();
+        for evs in streams {
+            text.push_str(&format!("\nexample {evs} -> 0"));
         }
+        text.push('\n');
+        let probe = parse(&text).map_err(|e| format!("events: {e}"))?;
+        let n = probe.items.iter().filter(|i| matches!(i, Item::Example(_))).count();
+        if n < streams.len() {
+            return Err("events: not an event list".into());
+        }
+        // the first appended example: everything from its line on is a stream
+        let first = probe
+            .items
+            .iter()
+            .filter_map(|i| if let Item::Example(x) = i { Some(x.line) } else { None })
+            .rev()
+            .nth(streams.len() - 1)
+            .ok_or("events: not an event list")?;
+        (probe, Some(first))
     };
     let form: serde_json::Value =
         serde_json::from_str(&crate::interp::form_json(&m)).map_err(|e| format!("form json: {e}"))?;
     let mut traces = vec![];
     for l in form["logs"].as_array().into_iter().flatten() {
         let line = l["example_line"].as_u64().unwrap_or(0) as usize;
-        if only.is_some_and(|o| o != line) {
+        if only.is_some_and(|o| line < o) {
             continue;
         }
         let steps: Vec<serde_json::Value> = l["D"]
@@ -509,20 +535,27 @@ pub fn trace(file: &str, src: &str, events: Option<&str>) -> Result<String, Stri
                 })
             })
             .collect();
-        let source = if only.is_some() { "events".to_string() } else { format!("example@{line}") };
+        let source = match only {
+            Some(o) if streams.len() > 1 => format!("stream@{}", line - o),
+            Some(_) => "events".to_string(),
+            None => format!("example@{line}"),
+        };
         traces.push(serde_json::json!({ "source": source, "steps": steps }));
     }
     if let (Some(evs), true) = (events, traces.is_empty()) {
         return Err(format!("events: `{evs}` gives no trace (no state, or an unknown event)"));
     }
     let name = std::path::Path::new(file).file_name().map(|f| f.to_string_lossy().into_owned()).unwrap_or_default();
-    let v = serde_json::json!({
+    let mut v = serde_json::json!({
         "format": TRACE_FORMAT,
         "file": name,
-        "events": events,
+        "events": if streams.len() > 1 { None } else { events },
         "genesis": crate::interp::D_GENESIS,
         "traces": traces,
     });
+    if streams.len() > 1 {
+        v["streams"] = serde_json::json!(streams.len());
+    }
     Ok(crate::interp::canon_json(&v))
 }
 
@@ -532,6 +565,7 @@ pub const USAGE_TEXT: &str = "usage:
   rce run FILE [EVENTS]          apply EVENTS (example syntax, e.g. \"Inc, Inc, Dec\"), or run fn main()
   rce test FILE|DIR...           run every example and check; report per file
   rce trace --json FILE [EVENTS] reference trace (seq, event, state_hash per step) of the examples, or of EVENTS
+  rce trace --json FILE --streams PATH  one trace per event list in PATH (one per line), in one run
   rce emit TARGET FILE           TARGET: form (Form JSON), rust, python, js or scala (a program printing its observations)
   rce fmt [--check] FILE...      rewrite files in canonical layout (--check: only report)
   rce fmt --nameless FILE        print the name-free projection: every declared identifier replaced by its positional name (10.6)
@@ -673,6 +707,20 @@ fn run_main(a: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &mu
         Some("db") if rest.len() >= 2 => db_cmd(rest, out)?,
         Some("host") if rest.len() >= 4 && rest[2] == "--log" && rest[0] != "serve" || rest.len() >= 4 && rest[0] == "serve" && rest[2] == "--log" => {
             host_cmd(rest, input, out, err).map_err(|e| e.to_string())?
+        }
+        Some("trace") if rest.len() == 4 && rest[0] == "--json" && rest[2] == "--streams" => {
+            let text = read_file(&rest[3])?;
+            let lists: Vec<&str> = text.lines().map(str::trim).filter(|l| !l.is_empty() && !l.starts_with('#')).collect();
+            match trace_streams(&rest[1], &read_file(&rest[1])?, &lists) {
+                Ok(t) => {
+                    writeln!(out, "{t}").map_err(w)?;
+                    OK
+                }
+                Err(e) => {
+                    writeln!(out, "REFUSED {}: {e}", rest[1]).map_err(w)?;
+                    REFUSED
+                }
+            }
         }
         Some("trace") if (rest.len() == 2 || rest.len() == 3) && rest[0] == "--json" => {
             match trace(&rest[1], &read_file(&rest[1])?, rest.get(2).map(String::as_str)) {
