@@ -1,0 +1,28 @@
+# Double-entry bookkeeping: every transfer moves money between two
+# accounts, so the sum of all balances stays zero.
+intent "a transfer changes two balances by opposite amounts"
+    example Transfer(src: "cash", dst: "rent", cents: 500) -> balances["cash"] == -500 and balances["rent"] == 500
+    example Transfer(src: "cash", dst: "cash", cents: 5) -> refused: SameAccount
+
+state Ledger
+    balances: Map[text, i64] = {}
+
+event Transfer(src: text, dst: text, cents: i64)
+
+error SameAccount
+error NotPositive
+
+fn sum(m: &Map[text, i64]) -> i64
+    var s: i64 = 0
+    for k in m.keys()
+        s += m[k]
+    return s
+
+step Ledger on Transfer(src: f, dst: t, cents: _) if f == t
+    fail SameAccount
+step Ledger on Transfer(src: _, dst: _, cents: c) if c <= 0
+    fail NotPositive
+step Ledger on Transfer(src: f, dst: t, cents: c)
+    balances[copy(f)] = (balances.get(f) catch 0) - c
+    balances[copy(t)] = (balances.get(t) catch 0) + c
+    check sum(&balances) == 0

@@ -1,0 +1,33 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  examples:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fetch the RCE reference checker
+        run: git clone --depth 1 https://github.com/openIE-dev/rce "$RUNNER_TEMP/rce"
+      - name: Build rce
+        working-directory: ${{ runner.temp }}/rce/spec/checker
+        run: |
+          rustup show
+          cargo build --release
+      - name: Check every example
+        run: RCE="$RUNNER_TEMP/rce/spec/checker/target/release/rce" scripts/check.sh
+
+  ecosystem:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download rce from the rce-ide release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release download v0.1.3 -R openIE-dev/rce-ide -p 'rce-ide-0.1.3-x86_64-unknown-linux-gnu.tar.gz' -p SHA256SUMS -D "$RUNNER_TEMP"
+          cd "$RUNNER_TEMP" && sha256sum -c SHA256SUMS --ignore-missing && tar xzf rce-ide-0.1.3-x86_64-unknown-linux-gnu.tar.gz
+      - name: Run the ecosystem examples (libraries embedded in rce)
+        run: RCE="$RUNNER_TEMP/rce-ide-0.1.3-x86_64-unknown-linux-gnu/rce" ecosystem/run.sh all

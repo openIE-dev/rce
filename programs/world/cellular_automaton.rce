@@ -1,0 +1,22 @@
+# A ring of 8 cells. On every Step each cell is recomputed from itself and
+# its two neighbours. The rule l XOR (c OR r) is the elementary cellular
+# automaton known as rule 30.
+intent "a ring of cells that evolves by a fixed local rule"
+    example Step -> [0, 0, 0, 1, 1, 1, 0, 0]
+    example Step, Step -> [0, 0, 1, 1, 0, 0, 1, 0]
+
+state Grid
+    cells: [u8; 8] = [0, 0, 0, 0, 1, 0, 0, 0]
+
+event Step
+
+fn rule(l: u8, c: u8, r: u8) -> u8 = (l ^ (c | r)) & 1
+
+fn next(cells: [u8; 8]) -> [u8; 8]
+    var out: [u8; 8] = [0; 8]
+    for i in 0..8
+        out[i] = rule(cells[(i + 7) % 8], cells[i], cells[(i + 1) % 8])
+    return out
+
+step Grid on Step
+    cells = next(cells)

@@ -1,0 +1,32 @@
+# A fixed-size ring buffer, the kind used in drivers and logs. Pushing into
+# a full buffer is refused rather than overwriting data.
+intent "a ring buffer that never loses data silently"
+    example Push(v: 1), Push(v: 2), Pop -> head == 1 and count == 1
+    example Pop -> refused: Empty
+    example Push(v: 1), Push(v: 2), Push(v: 3), Push(v: 4), Push(v: 5) -> refused: Full
+
+state Ring
+    slots: [i64; 4] = [0; 4]
+    head: usize = 0
+    count: usize = 0
+
+event Push(v: i64)
+event Pop
+
+error Full
+error Empty
+
+struct Popped
+    v: i64
+
+step Ring on Push(v: _) if count == 4
+    fail Full
+step Ring on Push(v: v)
+    slots[(head + count) % 4] = v
+    count += 1
+step Ring on Pop if count == 0
+    fail Empty
+step Ring on Pop
+    emit Popped(v: slots[head])
+    head = (head + 1) % 4
+    count -= 1

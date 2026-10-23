@@ -1,0 +1,34 @@
+# Bit-level code with defined results: population count, a bit field, and
+# a CRC-32 table computed while the program is checked.
+const TABLE: [u32; 256] = comptime crc_table()
+
+comptime fn crc_table() -> [u32; 256]
+    var t = [0; 256]
+    for i in 0..256
+        var c: u32 = i as u32
+        for _ in 0..8
+            c = if c & 1 == 1 then 0xEDB88320 ^ (c >> 1) else c >> 1
+        t[i] = c
+    return t
+
+fn crc32(bytes: &[u8]) -> u32
+    var c: u32 = 0xFFFFFFFF
+    for b in bytes
+        c = TABLE[((c ^ (b as u32)) & 0xFF) as usize] ^ (c >> 8)
+    return c ^ 0xFFFFFFFF
+
+fn popcount(x: u64) -> u64
+    var v = x
+    var n: u64 = 0
+    while v != 0 bound 64
+        v &= v - 1
+        n += 1
+    return n
+
+fn field(word: u32, lo: u32, width: u32) -> u32 = (word >> lo) & ((1 << width) - 1)
+
+const DIGITS: List[u8] = [49, 50, 51, 52, 53, 54, 55, 56, 57]
+
+check popcount(0xFF) == 8
+check field(0xABCD, 4, 8) == 0xBC
+check crc32(&DIGITS) == 0xCBF43926

@@ -1,0 +1,28 @@
+# Small numerical kernels: a dot product, a mean, and a square root by
+# Newton's method with a fixed number of iterations.
+fn dot(a: &[f64], b: &[f64]) -> f64
+    var s: f64 = 0.0
+    for i in 0..a.len()
+        s += a[i] * b[i]
+    return s
+
+fn mean(xs: &[f64]) -> f64
+    var s: f64 = 0.0
+    for x in xs
+        s += x
+    return s / (xs.len() as f64)
+
+fn sqrt_newton(x: f64) -> f64
+    var g = x
+    for _ in 0..30
+        g = 0.5 * (g + x / g)
+    return g
+
+fn close(a: f64, b: f64) -> bool = (a - b).abs() < 0.000000001
+
+const U: List[f64] = [1.0, 2.0, 3.0]
+const V: List[f64] = [4.0, 5.0, 6.0]
+
+check dot(&U, &V) == 32.0
+check mean(&U) == 2.0
+check close(sqrt_newton(2.0), 1.4142135623730951)
