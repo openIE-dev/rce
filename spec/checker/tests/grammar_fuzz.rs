@@ -195,7 +195,7 @@ fn known() -> std::collections::HashSet<u64> {
 #[test]
 fn tree_sitter_agrees_with_rust_parser_on_fuzz() {
     let spec = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap().to_path_buf();
-    let ts = spec.join("tree-sitter");
+    let ts = spec.parent().unwrap().join("tree-sitter");
     if Command::new("tree-sitter").arg("--version").output().is_err() {
         assert!(std::env::var_os("CI").is_none(), "tree-sitter CLI required under CI");
         println!("tree-sitter CLI not installed: skipped");

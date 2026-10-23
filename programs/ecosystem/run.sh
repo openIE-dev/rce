@@ -10,6 +10,15 @@ RCE=${RCE:-rce}
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 fail=0
+# These programs use the `#!lib NAME` directive, which the engine's rce
+# (and the rce-ide release binaries built from it) provides by embedding the
+# standard host libraries; the public reference checker does not. Probe for
+# it, as stdlib/scripts/check.sh does, and say so instead of failing.
+printf 'module lib_probe\n#!lib crypto\nfn f() -> List[i64]\n    return cat([1], [2])\n' > "$tmp/lib_probe.rce"
+if ! "$RCE" check "$tmp/lib_probe.rce" > /dev/null 2>&1; then
+  echo "ecosystem/run.sh: this rce has no #!lib directive (the engine's rce or an rce-ide release is needed); skipped"
+  exit 0
+fi
 # the SFU app: next to this script in rce-examples, apps/sfu.rce in the engine tree
 SFU=${SFU:-$here/sfu.rce}
 [ -f "$SFU" ] || SFU="$here/../../apps/sfu.rce"
