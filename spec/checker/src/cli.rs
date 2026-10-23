@@ -531,6 +531,7 @@ pub const USAGE_TEXT: &str = "usage:
   rce trace --json FILE [EVENTS] reference trace (seq, event, state_hash per step) of the examples, or of EVENTS
   rce emit TARGET FILE           TARGET: form (Form JSON), rust, python, js or scala (a program printing its observations)
   rce fmt [--check] FILE...      rewrite files in canonical layout (--check: only report)
+  rce dim [--fuel N] [--control] [--json] FILE  behaviours a program can be in and the redundancy of its state (6.10, 10.11); --control is reserved, not implemented
   rce hash FILE|DIR...           the definition hash (F.4.3) of every named item of each module: HASH, kind, name, and `pub` for an export
   rce manifest-check MANIFEST [--advisories FILE] [--key ISSUER=HEXPUBKEY]...  verify a hash-pinned manifest (F.5.3, W-PIN-1) and list pinned hashes that carry a signed advisory
   rce api-diff OLD NEW           compare the exports of two module sets (FILE or DIR each); one row per change, compatible or breaking; status 1 if any is breaking
@@ -677,6 +678,58 @@ fn run_main(a: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &mu
                 }
                 Err(e) => {
                     writeln!(out, "REFUSED {}: {e}", rest[1]).map_err(w)?;
+                    REFUSED
+                }
+            }
+        }
+        Some("dim") if !rest.is_empty() => {
+            // rce dim [--fuel N] [--control] [--json] FILE   (10.11)
+            let (mut fuel, mut control, mut json, mut file) = (100_000usize, false, false, None);
+            let mut i = 0;
+            while i < rest.len() {
+                match rest[i].as_str() {
+                    "--fuel" if i + 1 < rest.len() => {
+                        fuel = rest[i + 1].parse().map_err(|_| "--fuel N: N is a count of states".to_string())?;
+                        i += 2;
+                    }
+                    "--control" => {
+                        control = true;
+                        i += 1;
+                    }
+                    "--json" => {
+                        json = true;
+                        i += 1;
+                    }
+                    f if file.is_none() && !f.starts_with("--") => {
+                        file = Some(f.to_string());
+                        i += 1;
+                    }
+                    other => return Err(format!("dim: unexpected argument `{other}`")),
+                }
+            }
+            let file = file.ok_or("dim: a FILE is required")?;
+            if control {
+                writeln!(out, "REFUSED {file}: --control is reserved, not implemented (6.10 control dimension needs the T35 predicate oracle)").map_err(w)?;
+                return Ok(REFUSED);
+            }
+            let src = read_file(&file)?;
+            let d = diagnostics(&src, &HashSet::new());
+            if !d.is_empty() {
+                writeln!(out, "REFUSED {file}: {}", d.into_iter().map(|x| x.1).collect::<Vec<_>>().join("; ")).map_err(w)?;
+                return Ok(REFUSED);
+            }
+            let m = parse(&src)?;
+            match crate::dim::dim(&m, fuel) {
+                Ok(r) => {
+                    if json {
+                        writeln!(out, "{}", crate::dim::report_json(&r)).map_err(w)?;
+                    } else {
+                        write!(out, "{}", crate::dim::report(&r)).map_err(w)?;
+                    }
+                    OK
+                }
+                Err(e) => {
+                    writeln!(out, "REFUSED {file}: {e}").map_err(w)?;
                     REFUSED
                 }
             }

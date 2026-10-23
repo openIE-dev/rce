@@ -15,6 +15,7 @@ pub mod cli;
 pub mod conc;
 pub mod core_elab;
 pub mod core_rules;
+pub mod dim;
 pub mod emit;
 pub mod host;
 pub mod ifc;
