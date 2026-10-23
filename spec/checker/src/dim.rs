@@ -50,6 +50,9 @@ pub struct Dim {
     pub events_skipped: Vec<String>,
     /// `--control`: dim_c and the hash of the canonical control string
     pub control: Option<(usize, String)>,
+    /// The observable stratum: some explored step emits or refuses. A program
+    /// with no such step has one behaviour by definition (6.10).
+    pub observable: bool,
 }
 
 fn lit_int(i: i128) -> Expr {
@@ -461,6 +464,7 @@ pub fn dim_with(m: &Module, fuel: usize, control: bool) -> Result<Dim, String> {
         clabel.push(clab);
     }
     let n = states.len();
+    let observable = label.iter().flatten().any(|l| l != "ok:");
 
     // Moore refinement with the full output labels (dim) and, if asked, the
     // control labels (dim_c), on the same explored graph.
@@ -500,7 +504,7 @@ pub fn dim_with(m: &Module, fuel: usize, control: bool) -> Result<Dim, String> {
     } else {
         None
     };
-    Ok(Dim { states: n, bound_reached, behaviours, redundancy_bits, regions, events_skipped: skipped, control })
+    Ok(Dim { states: n, bound_reached, behaviours, redundancy_bits, regions, events_skipped: skipped, control, observable })
 }
 
 /// The text report of 10.11.
@@ -513,6 +517,7 @@ pub fn report(d: &Dim) -> String {
         if d.bound_reached { "lower bound" } else { "exact" }
     ));
     s.push_str(&format!("redundancy          {:<8.2} bits: log2(states) - log2(behaviours)\n", d.redundancy_bits));
+    s.push_str(&format!("observable          {:<8} some explored step emits or refuses\n", if d.observable { "yes" } else { "no" }));
     for (n, all, needed, b) in &d.regions {
         s.push_str(&format!("  region {:<12} {:<8.2} ({all} values, {needed} distinguish behaviours)\n", n, b));
     }
@@ -534,6 +539,7 @@ pub fn report_json(d: &Dim) -> String {
         "bound_reached": d.bound_reached,
         "behaviours": d.behaviours,
         "redundancy_bits": d.redundancy_bits,
+        "observable": d.observable,
         "regions": d.regions.iter().map(|(n, a, b, bits)| serde_json::json!({"name": n, "values": a, "needed": b, "bits": bits})).collect::<Vec<_>>(),
         "skipped": d.events_skipped,
         "control_states": d.control.as_ref().map(|c| c.0),

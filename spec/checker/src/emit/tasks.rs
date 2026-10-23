@@ -476,6 +476,66 @@ impl<'a> G<'a> {
                 vars.extend(variants.iter().map(|(v, _)| v.clone()));
             }
         }
+        // 6.1, T7: the positional embedding hashed by D needs the declared
+        // field order of every struct, event and error, each variant's index
+        // in its kind, and each event's index among the events
+        let mut decls: Vec<(String, Vec<String>)> = vec![];
+        let mut vidx: Vec<(String, usize, Vec<String>)> = vec![];
+        let mut evidx: Vec<(String, usize)> = vec![];
+        for it in &m.items {
+            match it {
+                Item::Struct { name, fields, .. } => decls.push((name.clone(), fields.iter().map(|f| f.name.clone()).collect())),
+                Item::Event { name, payload, .. } => {
+                    evidx.push((name.clone(), evidx.len()));
+                    decls.push((name.clone(), payload.iter().map(|(f, _)| f.clone()).collect()));
+                }
+                Item::Error { name, payload, .. } => decls.push((name.clone(), payload.iter().map(|(f, _)| f.clone()).collect())),
+                Item::Kind { variants, .. } => {
+                    for (k, (v, fs)) in variants.iter().enumerate() {
+                        vidx.push((v.clone(), k, fs.iter().map(|(f, _)| f.clone()).collect()));
+                    }
+                }
+                _ => {}
+            }
+        }
+        match self.lang {
+            Lang::Rust => {
+                let mut o = String::from("#[allow(unreachable_patterns)]\nfn decl_fields(n: &str) -> Option<&'static [&'static str]> {\n  match n {\n");
+                for (n, fs) in &decls {
+                    o += &format!("    {} => Some(&[{}]),\n", q(n), qs(fs));
+                }
+                o += "    _ => None,\n  }\n}\n#[allow(unreachable_patterns)]\nfn variant_index(n: &str) -> Option<(i128, &'static [&'static str])> {\n  match n {\n";
+                for (v, k, fs) in &vidx {
+                    o += &format!("    {} => Some(({k}, &[{}])),\n", q(v), qs(fs));
+                }
+                o += "    _ => None,\n  }\n}\n#[allow(unreachable_patterns)]\nfn event_index(n: &str) -> Option<usize> {\n  match n {\n";
+                for (n, k) in &evidx {
+                    o += &format!("    {} => Some({k}),\n", q(n));
+                }
+                o += "    _ => None,\n  }\n}";
+                self.line(o);
+            }
+            Lang::Scala => {
+                let d: Vec<String> = decls.iter().map(|(n, fs)| format!("{} -> Vector[String]({})", q(n), qs(fs))).collect();
+                self.line(format!("lazy val DECL_FIELDS: Map[String, Vector[String]] = Map({})", d.join(", ")));
+                let v: Vec<String> = vidx.iter().map(|(v, k, fs)| format!("{} -> (BigInt({k}), Vector[String]({}))", q(v), qs(fs))).collect();
+                self.line(format!("lazy val VARIANT_INDEX: Map[String, (BigInt, Vector[String])] = Map({})", v.join(", ")));
+                let e: Vec<String> = evidx.iter().map(|(n, k)| format!("{} -> {k}", q(n))).collect();
+                self.line(format!("lazy val EVENT_INDEX: Map[String, Int] = Map({})", e.join(", ")));
+            }
+            _ => {
+                let (decl, end) = if self.js() { ("const ", ";") } else { ("", "") };
+                let d: Vec<String> = decls.iter().map(|(n, fs)| format!("{}: [{}]", q(n), qs(fs))).collect();
+                self.line(format!("{decl}DECL_FIELDS = {{{}}}{end}", d.join(", ")));
+                let v: Vec<String> = vidx
+                    .iter()
+                    .map(|(v, k, fs)| if self.js() { format!("{}: [{k}, [{}]]", q(v), qs(fs)) } else { format!("{}: ({k}, [{}])", q(v), qs(fs)) })
+                    .collect();
+                self.line(format!("{decl}VARIANT_INDEX = {{{}}}{end}", v.join(", ")));
+                let e: Vec<String> = evidx.iter().map(|(n, k)| format!("{}: {k}", q(n))).collect();
+                self.line(format!("{decl}EVENT_INDEX = {{{}}}{end}", e.join(", ")));
+            }
+        }
         match self.lang {
             Lang::Rust if vars.is_empty() => self.line("fn is_variant(_n: &str) -> bool { false }".to_string()),
             Lang::Rust => self.line(format!("fn is_variant(n: &str) -> bool {{ matches!(n, {}) }}", vars.iter().map(|x| q(x)).collect::<Vec<_>>().join(" | "))),

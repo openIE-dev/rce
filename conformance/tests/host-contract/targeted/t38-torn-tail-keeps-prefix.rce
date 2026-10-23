@@ -9,6 +9,6 @@ step S on Inc -> n + 1
 # expect: host
 # steps: [{"batch":"Inc, Inc"},{"batch":"Inc"}]
 # tear: 5
-# host_expect: {"torn_reopen_state_hash":"12277e08433fe3a11a4aa40ae1db180bcbac26074e9e2ad6013e0068d669a6ee"}
+# host_expect: {"torn_reopen_state_hash":"a9ae641b7f052c0994d31111f1bb92a40340e57b57c984bf99f03949206426a1"}
 # provenance: targeted.py: expected result read off the clause
 #---

@@ -39,13 +39,28 @@ relations); δ : S × E → S × O\* total; λ = π₂ ∘ δ; δ₁ = π₁ ∘
 D is the record {seq, event, prev_hash, state_hash, hash} where `seq` is
 the 0-based index, `event` is {type, payload}, `prev_hash` is the `hash`
 of the previous entry (64 zeros for the first), `state_hash` is the
-SHA-256 of the canonical JSON of the state after the step, and `hash` is
-the SHA-256 of the canonical JSON of {event, prev_hash, seq,
-state_hash}. A log may also carry `outcome`, `out` and `state`; these are
-derived and must equal replay (T1), so they are not hashed. A refused
-event (T8) is recorded with its unchanged state and ends the example
-log. Both producers are tested against this rule
-(`spec/checker/tests/form_signature.rs`, `tests/form_signature.rs`).
+SHA-256 of the canonical JSON of the *positional form* of the state after
+the step, and `hash` is the SHA-256 of the canonical JSON of {event,
+prev_hash, seq, state_hash} with `event` in its positional form. The
+positional form (T7) replaces every declared name by a position: the
+state is the list of its regions in declaration order, each the list of
+its field values in declaration order; a record of a declared struct,
+event or error is the list of its field values in declaration order; a
+variant record is `[k, [fields]]` with k the variant's index in its
+kind; an event is {type, payload} with `type` the event's index among
+the module's events and `payload` the positional record; every other
+value embeds as the table below says. A record of a type the module
+does not declare (a `host.*` record, a label) and the built-in `Tick`
+keep their names, since no renaming of the program touches them. The
+stored `event` and the readable `state` keep their names, so a log is
+readable without the module; a log or trace that repeats the hashed
+forms does so under `hashed` ({event, state}), which is derived. A log
+may also carry `outcome`, `out` and `state`; these are derived and must
+equal replay (T1), so they are not hashed. A refused event (T8) is
+recorded with its unchanged state and ends the example log. Both
+producers are tested against this rule
+(`spec/checker/tests/form_signature.rs`, `tests/form_signature.rs`), and
+`tests/nameless.rs` checks that a renamed program has the same hashes.
 
 Values ⟦τ⟧ are the Form's JSON-shaped values (form/types.rs): integers
 (i64), floats (finite f64), text, bool, null, lists, records. The embedding
@@ -459,4 +474,4 @@ method and is W-NAME-1.
 
 **Read receipt.** Which JavaScript function is named for rounding to binary32?
 
-<!-- body-sha256: c6ddcd5b3a07f34bb7e5aaaaabf42ff1310957fae62c7391855c042f8c0939c9 -->
+<!-- body-sha256: a8690bf5ebef41737c815bd294626929e6d8513911d41a02e7e7bbce5eabfb6f -->

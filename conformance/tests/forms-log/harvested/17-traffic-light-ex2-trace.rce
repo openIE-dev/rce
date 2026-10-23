@@ -22,6 +22,6 @@ step Signal on Tick
 # clauses: [CH00-M-61b6ac06, CH07-M-0a0bd71f, CH07-M-265230fb, CH12-M-f71aaadc, T1, T3, T5]
 # expect: trace
 # events: Tick, Tick
-# trace_head: 51a2cb43047c2f0c5a6d7e06207c8139e0bd08d0b11d2e889f2c28ca084f1f2a
+# trace_head: 1d8f58dbd0558cc747db24934edcf83cb350758f218f83b4abfbd0ebe02f35a6
 # provenance: harvested examples/17_traffic_light.rce example@2
 #---

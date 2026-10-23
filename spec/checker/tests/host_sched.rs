@@ -47,7 +47,7 @@ fn main_run_is_logged_and_replays_exactly() {
         let mut prev = rce_spec_check::interp::D_GENESIS.to_string();
         let mut lines = vec![];
         for (i, (ev, e)) in evs.into_iter().zip(&es).enumerate() {
-            let ne = Entry::new(i as u64, ev, &prev, &e.state_hash);
+            let ne = Entry::new(&m, i as u64, ev, &prev, &e.state_hash);
             prev = ne.hash.clone();
             lines.push(ne.line());
         }
@@ -95,7 +95,7 @@ fn placement_executor_follows_d_and_replays() {
     let mut lines = vec![];
     for (i, e) in es.iter().enumerate() {
         let ev = if e.event.contains("\"op\":\"s2\"") { e.event.replace("cpu.threads", "cpu") } else { e.event.clone() };
-        let ne = Entry::new(i as u64, ev, &prev, &e.state_hash);
+        let ne = Entry::new(&m, i as u64, ev, &prev, &e.state_hash);
         prev = ne.hash.clone();
         lines.push(ne.line());
     }
@@ -128,7 +128,7 @@ fn main()
             after 3 -> break
 ";
 
-fn relink(es: &[Entry], keep: impl Fn(usize) -> bool) -> String {
+fn relink(m: &rce_spec_check::ast::Module, es: &[Entry], keep: impl Fn(usize) -> bool) -> String {
     let mut prev = rce_spec_check::interp::D_GENESIS.to_string();
     let mut lines = vec![];
     let mut i = 0u64;
@@ -136,7 +136,7 @@ fn relink(es: &[Entry], keep: impl Fn(usize) -> bool) -> String {
         if !keep(k) {
             continue;
         }
-        let ne = Entry::new(i, e.event.clone(), &prev, &e.state_hash);
+        let ne = Entry::new(m, i, e.event.clone(), &prev, &e.state_hash);
         prev = ne.hash.clone();
         lines.push(ne.line());
         i += 1;
@@ -194,7 +194,7 @@ fn main_steps_interleave_with_inputs_and_state_is_the_fold_of_d() {
     let r2 = h2.main_end().unwrap();
     assert_eq!(r2.outputs, whole.outputs);
     // A dropped step is refused.
-    assert!(replay(&m, &relink(&es, |k| k != first_step + 1)).is_err());
+    assert!(replay(&m, &relink(&m, &es, |k| k != first_step + 1)).is_err());
 }
 
 /// HC-6: an input for the live task is accepted only after the last logged

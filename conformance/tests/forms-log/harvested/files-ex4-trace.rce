@@ -68,6 +68,6 @@ step Fs on FileListDone(req: _r, status: s, data: d, err: _e)
 # clauses: [CH00-M-61b6ac06, CH07-M-0a0bd71f, CH07-M-265230fb, CH12-M-f71aaadc, T1, T3, T5]
 # expect: trace
 # events: Save(path: "a.txt", body: "x"), FileWriteDone(req: 1, status: "delivered", data: none, err: "")
-# trace_head: 7c497dcf907709b66028b0654426e43d292249f2041aecd9f8c2f7ce27d472f0
+# trace_head: d3cd749b23fb2751bdb2db0d8ed151c13605f0e3b435beca2a7a928cf63b17c2
 # provenance: harvested checker/tests/host/files.rce example@4
 #---

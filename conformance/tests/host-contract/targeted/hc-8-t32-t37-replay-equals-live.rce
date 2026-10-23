@@ -11,6 +11,6 @@ step S on Dec -> if n > 0 then n - 1 else 0
 # clauses: [CH16-M-262166d9, CH16-M-bf12d963, HC-1, HC-10, HC-3, HC-6, HC-8, T32, T37]
 # expect: host
 # steps: [{"batch":"Inc, Inc"},{"batch":"Dec"},{"batch":"Dec, Dec"}]
-# host_expect: {"state_hash":"abfadfa44c54f7f97e8c7e984daca0a867d7efbb5b5d9aca74beef8223a66586"}
+# host_expect: {"state_hash":"db407f11d7ede59abaab0e98e097ff2dae10a048207b801745d7199ef19c2387"}
 # provenance: targeted.py: expected result read off the clause
 #---

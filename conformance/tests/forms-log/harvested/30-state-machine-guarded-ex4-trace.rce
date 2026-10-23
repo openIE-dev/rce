@@ -33,6 +33,6 @@ step Door on Unlock
 # clauses: [CH00-M-61b6ac06, CH05-M-d8ee78b3, CH07-M-0a0bd71f, CH07-M-265230fb, CH12-M-f71aaadc, T1, T3, T5, T8]
 # expect: trace
 # events: Open, Lock
-# trace_head: b269d597d4eeab5e34ed5ecf01945c2d223d9a846152691ad390080c7ab0941d
+# trace_head: 95e4d849071b96eec0fedb55fc5e693c4e5a5c484e49a53123c47f389085de32
 # provenance: harvested examples/30_state_machine_guarded.rce example@4
 #---

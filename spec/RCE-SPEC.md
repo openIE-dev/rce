@@ -1366,13 +1366,28 @@ relations); δ : S × E → S × O\* total; λ = π₂ ∘ δ; δ₁ = π₁ ∘
 D is the record {seq, event, prev_hash, state_hash, hash} where `seq` is
 the 0-based index, `event` is {type, payload}, `prev_hash` is the `hash`
 of the previous entry (64 zeros for the first), `state_hash` is the
-SHA-256 of the canonical JSON of the state after the step, and `hash` is
-the SHA-256 of the canonical JSON of {event, prev_hash, seq,
-state_hash}. A log may also carry `outcome`, `out` and `state`; these are
-derived and must equal replay (T1), so they are not hashed. A refused
-event (T8) is recorded with its unchanged state and ends the example
-log. Both producers are tested against this rule
-(`spec/checker/tests/form_signature.rs`, `tests/form_signature.rs`).
+SHA-256 of the canonical JSON of the *positional form* of the state after
+the step, and `hash` is the SHA-256 of the canonical JSON of {event,
+prev_hash, seq, state_hash} with `event` in its positional form. The
+positional form (T7) replaces every declared name by a position: the
+state is the list of its regions in declaration order, each the list of
+its field values in declaration order; a record of a declared struct,
+event or error is the list of its field values in declaration order; a
+variant record is `[k, [fields]]` with k the variant's index in its
+kind; an event is {type, payload} with `type` the event's index among
+the module's events and `payload` the positional record; every other
+value embeds as the table below says. A record of a type the module
+does not declare (a `host.*` record, a label) and the built-in `Tick`
+keep their names, since no renaming of the program touches them. The
+stored `event` and the readable `state` keep their names, so a log is
+readable without the module; a log or trace that repeats the hashed
+forms does so under `hashed` ({event, state}), which is derived. A log
+may also carry `outcome`, `out` and `state`; these are derived and must
+equal replay (T1), so they are not hashed. A refused event (T8) is
+recorded with its unchanged state and ends the example log. Both
+producers are tested against this rule
+(`spec/checker/tests/form_signature.rs`, `tests/form_signature.rs`), and
+`tests/nameless.rs` checks that a renamed program has the same hashes.
 
 Values ⟦τ⟧ are the Form's JSON-shaped values (form/types.rs): integers
 (i64), floats (finite f64), text, bool, null, lists, records. The embedding
@@ -1864,9 +1879,10 @@ under a `names` field after the hashed fields, keyed `#i` by declaration
 index (the same index `shape_ctl` of 6.10 uses), with the `intent` strings;
 doc comments are not yet collected. The Form JSON of 10.5 still carries
 names in its `name` and `region` fields. It is never read by δ.
-Two modules that differ only in it have the same outcomes, outputs and
-ids; their `state_hash` values differ until the T7 finding of chapter 8 is
-resolved. A projection (10.5) renders the concept record's names by
+Two modules that differ only in it have the same outcomes, outputs, ids
+and log hashes (6.1 hashes the positional forms, T7; the finding of
+2026-10-22 that the hashes covered names is resolved, see C.15). A
+projection (10.5) renders the concept record's names by
 default; `rce fmt --nameless` (10.6) is the projection that renders
 positional names instead, which is the text the name-free keys of 6.6 are
 computed from.
@@ -2272,7 +2288,7 @@ Classical.choice). Status per theorem:
 | T4 | proved for expressions, statements, δ and ticks (some task moves, or every task is done or blocked: the run ends or is `Deadlock`) | `progress`, `stmt_progress`, `delta_bound`, `run_progress`, `progress` (Conc) |
 | T5 | proved for expressions, statements, δ and the whole log; for ticks, the world invariant (typed channel contents, task-owned locations) is preserved | `preservation`, `exec_wt`, `delta_wt`, `run_wt`, `tick_inv` |
 | T6 | proved for the ownership core; for full borrow paths (field paths, prefix overlap, partial moves, loans) in an instrumented semantics: well-typed bodies never fault, writes through a `&mut` path are exclusive, and write-while-borrowed, overlapping `&mut`, dangling borrows and read-after-partial-move are refused; tasks never share mutable data in any reachable configuration | `memory_safety`, `borrow_safety`, `borrow_no_fault`, `writeVia_exclusive`, `overlapping_mut_refused`, `dangling_refused`, `tasks_never_share` |
-| T7 | proved for event/error names over δ and the log; for log hashes under any hash function H; for channel, actor and task ids and select choices of the concurrency model | `name_independence`, `log_hashes_name_independent`, `conc_name_independent`, `select_name_independent` |
+| T7 | proved for event/error names over δ and the log; for log hashes under any hash function H; for channel, actor and task ids and select choices of the concurrency model. The checker and the four emitted runtimes hash the positional forms of 6.1 since the erratum of C.15, so the implementation's log hashes are name-free as the model's are (`tests/nameless.rs`) | `name_independence`, `log_hashes_name_independent`, `conc_name_independent`, `select_name_independent` |
 | T8 | proved | `atomicity` |
 | T9 | T9-F (Form IR targets: Rust, WASM, Python, XState, SCXML) tested: every target prints the reference trace byte for byte on the edge and seeded events (`tests/form_targets.rs`, `tests/form_joins.rs`). T9-L (program emitters of 10.5: `rust`, `python`, `js`, including `&mut` write-back on failure under `catch` and `try` and nested in strict positions via the ANF pass of T34, 6.2, `spec/checker/tests/write_back.rs`): proved for the Rust emitter on the core (step bodies, expressions, guarded step selection) as a verified translation into MiniRust, a deep embedding of the emitted Rust subset with Rust-style semantics; printed to Rust and checked against rustc by differential testing. Not covered: the other targets, the full surface language, and the claim that rustc implements MiniRust (trusted, tested) | `reval_compile`, `compile_correct`, `RExec.det`, `emit_agrees`, `region_agrees` |
 | T10 | checked mechanically (LALR(1), 0 conflicts, from the EBNF of section 3, and of section 3 with C.2) and sampled by `rce-fuzz`; the former `fuzz/gen.py` also found exactly one Earley parse per program | `rce-spec-check` |
@@ -3250,9 +3266,10 @@ types `t0, …`, kind variants `k0, …`, fields, parameters and locals
 and `intent` text are unchanged; the wildcard `_` and a `_` prefix are
 kept, as are `main`, the built-in traits and their methods, the host
 events and the named constants of 6.7. The projection is deterministic and
-idempotent, and it has the same outcomes, outputs and ids as the source;
-`rce trace --json` of the two differs in `state_hash`, because 6.1 hashes
-region and field names (the T7 finding of chapter 8). A name the
+idempotent, and it has the same outcomes, outputs, ids and log hashes as
+the source: `rce trace --json` of the two is equal step for step except
+in the readable `event` field, since 6.1 hashes the positional forms
+(T7). A name the
 projection does not recognise as declared is left as written, so the
 output is accepted whenever the input is (`tests/nameless.rs`, every
 example). It is the text of the concept record's complement (6.6).
@@ -3346,21 +3363,23 @@ conformance to the trace.
 source order (the same logs `rce emit form` puts in `logs`); with EVENTS
 (the syntax of an `example` line, as in 10.3) it prints one trace of that
 event list. A module that is refused, or a trace of EVENTS that yields no
-step, is status 1. The output is one JSON object (format `rce-trace/1`),
-compact, with sorted keys:
+step, is status 1. The output is one JSON object (format `rce-trace/2`;
+`rce-trace/1` differed in hashing the named forms, before the T7
+resolution of C.15), compact, with sorted keys:
 
 | Field | Meaning |
 |---|---|
-| `format` | `"rce-trace/1"` |
+| `format` | `"rce-trace/2"` |
 | `file` | the file name, without directories |
 | `events` | the EVENTS argument, or null |
 | `genesis` | the first `prev_hash`: 64 zeros (6.1) |
 | `traces` | list of {`source`, `steps`}; `source` is `"example@L"` (the example's line) or `"events"` |
 | `steps[i].seq` | required: 0-based index in the trace |
 | `steps[i].event` | required: {`type`, `payload`}, payload values as in 6.1 |
-| `steps[i].state_hash` | required: SHA-256 (lower-case hex) of the canonical JSON of the state after the step |
-| `steps[i].prev_hash`, `steps[i].hash` | the 6.1 chain: `hash` is the SHA-256 of the canonical JSON of {event, prev_hash, seq, state_hash} |
+| `steps[i].state_hash` | required: SHA-256 (lower-case hex) of the canonical JSON of the positional form of the state after the step (6.1) |
+| `steps[i].prev_hash`, `steps[i].hash` | the 6.1 chain: `hash` is the SHA-256 of the canonical JSON of {event, prev_hash, seq, state_hash} with the positional form of the event |
 | `steps[i].outcome` | `"applied"` or {`refused`: error name}; derived, not hashed |
+| `steps[i].hashed` | {`event`, `state`}: the positional forms the two hashes are over (6.1), so a reader recomputes both without the module; derived |
 
 A refused event is the last step of its trace, with the unchanged state's
 hash (T8). A projector conforms on a module when, for every trace, its
@@ -3461,8 +3480,12 @@ canonical order, one line per (state, event) with the successor's number
 and the label; `shape_ctl` is the SHA-256 of its canonical JSON text. It
 is invariant under renaming (T61, tested by `tests/dim.rs` against
 `rce fmt --nameless`).
+The report also says whether the program is *observable*: whether some
+explored step emits or refuses. A program with no such step has one
+behaviour by definition, so its redundancy is its whole state; the
+dimension benchmark reports that stratum separately.
 `--json` prints the same as one JSON object (format `rce-dim/1`, compact,
-sorted keys). The command is deterministic: equal inputs give equal output
+sorted keys; the `observable` key is since 2026-10-23). The command is deterministic: equal inputs give equal output
 bytes, and the exploration order is the canonical order of 6.1 on events
 and payloads. It is informative: no admission depends on it.
 
@@ -4312,6 +4335,7 @@ than a call to a function with no body, in the reference evaluator and every run
 | a foreign function is not a value (5.11, W-FFI-1) | erratum | 5.11 already forbade a pure function calling foreign code; the value route was a checker hole |
 | host contract (Appendix E: one admitter, durable append per OS, fatal barrier, verify on open, inputs as events, capabilities, fabric entries, automatic placement) | outside programs | constrains hosts and the log, not programs: a host entry has a `host.` type that no program can declare and δ is the identity on it, so the fold of every log of every valid program is unchanged |
 | host bindings (E.8: a host result delivered as an event the program declares) | outside programs | the bound event is an ordinary declared event, admitted and typed as any other; a program that declares no binding target sees no new input |
+| `state_hash` and the entry `hash` over the positional forms (6.1, T7) | erratum, outside programs | the finding of 2026-10-22: the Lean model of T7 hashes declaration indices, the checker and the four runtimes hashed the canonical JSON keyed by region, field and type names, so a renamed program had different log hashes. The hashes now cover the positional forms and a renamed program has the same hashes, as T7 states. No program's outputs, states or outcomes change; every trace fixture, the conformance pins and the trace format (`rce-trace/2`) change, which is the log format and not a program's meaning |
 
 The first row is the one change since draft 0.6 that moved where a `with budget` block traps; it is
 what made the earlier text a different release. Every other row is an erratum, an extension or a
@@ -5156,15 +5180,20 @@ then the design it forces.
 - **HS-4 Verify on open.** On open, the host checks the chain of D from
   the genesis hash (64 zeros): each entry's `prev_hash` is the previous
   entry's `hash` and its `hash` is the SHA-256 of the canonical JSON of
-  {event, prev_hash, seq, state_hash} (6.1). D is cut after the longest
+  {event, prev_hash, seq, state_hash} with the event in its positional
+  form (6.1), which the host rebuilds from the stored event and the
+  module; a `host.*` entry is hashed as stored. D is cut after the longest
   prefix that verifies, and the host logs `host.Truncated` with the number
   of entries dropped. A torn tail after a crash, a corrupted entry and a
   misdirected write are detected, never folded into state (T38). Replay
   of the kept prefix then re-derives each `state_hash` (HC-8); a mismatch
   is a host fault (HS-3).
-- **HS-5 Snapshots are caches.** A snapshot is (seq, state_hash, bytes).
-  It is used only when the hash of its bytes equals the `state_hash` of D
-  at seq; otherwise it is discarded. Loading one changes no meaning.
+- **HS-5 Snapshots are caches.** A snapshot is (seq, state_hash, bytes),
+  the bytes being the positional form of the state (6.1). It is used only
+  when the hash of its bytes equals the `state_hash` of D at seq and the
+  bytes decode, guided by the declared field types in declaration order,
+  to a state that re-encodes to the same bytes; otherwise it is
+  discarded. Loading one changes no meaning.
 
 ### E.4 Inputs are events (HC-10)
 

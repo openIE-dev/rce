@@ -16,7 +16,7 @@
 //! Messages are function calls; a replica that is down neither grants nor
 //! accepts. Real transports, persistence of `promised` and log shipping by
 //! suffix are left to the host (E.2b lists what they must preserve).
-use crate::host::{Store, verify_prefix};
+use crate::host::{Store, verify_links};
 use std::cell::RefCell;
 use std::io;
 use std::rc::Rc;
@@ -87,7 +87,7 @@ impl Store for LeaderStore {
     }
     fn barrier(&mut self) -> io::Result<()> {
         let refs: Vec<&str> = self.log.iter().map(String::as_str).collect();
-        if verify_prefix(&refs) != refs.len() {
+        if verify_links(&refs) != refs.len() {
             return Err(io::Error::other("leader log does not verify"));
         }
         let mut c = self.c.borrow_mut();

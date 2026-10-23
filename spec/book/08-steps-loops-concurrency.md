@@ -74,9 +74,10 @@ under a `names` field after the hashed fields, keyed `#i` by declaration
 index (the same index `shape_ctl` of 6.10 uses), with the `intent` strings;
 doc comments are not yet collected. The Form JSON of 10.5 still carries
 names in its `name` and `region` fields. It is never read by δ.
-Two modules that differ only in it have the same outcomes, outputs and
-ids; their `state_hash` values differ until the T7 finding of chapter 8 is
-resolved. A projection (10.5) renders the concept record's names by
+Two modules that differ only in it have the same outcomes, outputs, ids
+and log hashes (6.1 hashes the positional forms, T7; the finding of
+2026-10-22 that the hashes covered names is resolved, see C.15). A
+projection (10.5) renders the concept record's names by
 default; `rce fmt --nameless` (10.6) is the projection that renders
 positional names instead, which is the text the name-free keys of 6.6 are
 computed from.
@@ -321,4 +322,4 @@ does not define.
 
 **Read receipt.** Name-free hashing uses indices named after which logician? (two words)
 
-<!-- body-sha256: ffc10ff1391aeba8d2bc8cb2bdad7e727f270df9294c09ee5da25869c4596c49 -->
+<!-- body-sha256: 075fa38adc30b3add818021a4bb6df49e95aa6a25addafc0223ea201eeccb208 -->

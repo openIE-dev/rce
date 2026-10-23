@@ -5,8 +5,10 @@ use data.events
 # Change feeds (survey M59): an external feed is a log; its events are
 # admitted one per Tick into a Form, whose log D gives the total order.
 # - D entries and resume tokens: the 6.1 hash chain (SHA-256 of the
-#   canonical JSON of {event, prev_hash, seq, state_hash}); a token is
-#   (height, digest) and verifying it against a log is an integrity check.
+#   canonical JSON of {event, prev_hash, seq, state_hash}, where `event`
+#   is the hashed, positional form of the event that a trace repeats
+#   under `hashed.event`, T7); a token is (height, digest) and verifying
+#   it against a log is an integrity check.
 # - The MongoDB change stream driver rules (change-streams.md): resumable
 #   errors, the cached resume token, the resume command, resume once.
 # - CouchDB replication checkpoints (replication protocol, "Compare

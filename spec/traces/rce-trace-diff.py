@@ -3,7 +3,7 @@
 
     rce-trace-diff.py REFERENCE OTHER
 
-REFERENCE and OTHER are both trace files (rce-trace/1 JSON) or both
+REFERENCE and OTHER are both trace files (rce-trace/2 JSON) or both
 directories of them (files matched by name; a reference file missing
 from OTHER is a divergence). For each trace, in order, each step's
 required fields `seq`, `event` and `state_hash` must be equal; the

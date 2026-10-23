@@ -18,12 +18,24 @@ fn sha(s: &str) -> String {
     Sha256::digest(s.as_bytes()).iter().map(|b| format!("{b:02x}")).collect()
 }
 /// 6.1: the hash of an entry is the SHA-256 of the canonical JSON of
-/// {event, prev_hash, seq, state_hash} (serde_json sorts keys; floats and text in the canonical writer of 6.1.1).
+/// {event, prev_hash, seq, state_hash} (serde_json sorts keys; floats and text in the canonical writer of 6.1.1),
+/// where `event` is the hashed, positional form of the event (T7). An entry
+/// of this model carries the readable event under `event` and, for a
+/// program event, the hashed form under `hashed`; a host entry is hashed
+/// as stored.
 fn entry_hash(e: &Value) -> String {
-    sha(&rce_spec_check::interp::canon_json(&json!({"event": e["event"], "prev_hash": e["prev_hash"], "seq": e["seq"], "state_hash": e["state_hash"]})))
+    let hashed = e.get("hashed").filter(|h| !h.is_null()).unwrap_or(&e["event"]);
+    sha(&rce_spec_check::interp::canon_json(&json!({"event": hashed, "prev_hash": e["prev_hash"], "seq": e["seq"], "state_hash": e["state_hash"]})))
 }
 fn entry(seq: usize, event: Value, prev: &str, state_hash: &str) -> Value {
+    entry_hashed(seq, event, None, prev, state_hash)
+}
+/// An entry of a program event: `hashed` is its positional form (T7).
+fn entry_hashed(seq: usize, event: Value, hashed: Option<Value>, prev: &str, state_hash: &str) -> Value {
     let mut e = json!({"seq": seq, "event": event, "prev_hash": prev, "state_hash": state_hash});
+    if let Some(h) = hashed {
+        e["hashed"] = h;
+    }
     let h = entry_hash(&e);
     e["hash"] = Value::String(h);
     e
@@ -62,7 +74,7 @@ fn logs() -> Vec<(String, Vec<Value>)> {
                 .as_array()
                 .unwrap()
                 .iter()
-                .map(|s| json!({"seq": s["seq"], "event": s["event"], "prev_hash": s["prev_hash"], "state_hash": s["state_hash"], "hash": s["hash"]}))
+                .map(|s| json!({"seq": s["seq"], "event": s["event"], "hashed": s["hashed"]["event"], "prev_hash": s["prev_hash"], "state_hash": s["state_hash"], "hash": s["hash"]}))
                 .collect();
             if !steps.is_empty() {
                 out.push((f.file_name().unwrap().to_string_lossy().into_owned(), steps));
@@ -140,14 +152,14 @@ fn interleave(d: &[Value]) -> Vec<Value> {
     let mut prev = GENESIS.to_string();
     for (i, e) in d.iter().enumerate() {
         let st = e["state_hash"].as_str().unwrap().to_string();
-        let mut evs = vec![e["event"].clone()];
+        let mut evs = vec![(e["event"].clone(), Some(e["hashed"].clone()))];
         if i == 0 {
-            evs.push(host("StorageCaps", json!({"barrier": "volatile"})));
-            evs.push(host("FabricCaps", json!({"counters": [], "cpu": ["sse2"], "gpus": [], "memory": [], "npus": []})));
+            evs.push((host("StorageCaps", json!({"barrier": "volatile"})), None));
+            evs.push((host("FabricCaps", json!({"counters": [], "cpu": ["sse2"], "gpus": [], "memory": [], "npus": []})), None));
         }
-        evs.push(host("Synced", json!({"upto": out.len()})));
-        for ev in evs {
-            let x = entry(out.len(), ev, &prev, &st);
+        evs.push((host("Synced", json!({"upto": out.len()})), None));
+        for (ev, hashed) in evs {
+            let x = entry_hashed(out.len(), ev, hashed, &prev, &st);
             prev = x["hash"].as_str().unwrap().to_string();
             out.push(x);
         }
