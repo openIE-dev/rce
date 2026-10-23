@@ -2307,8 +2307,8 @@ Classical.choice). Status per theorem:
 | T56 | stated, unproved (Appendix F.9; F.12 lists what is implemented): Relaxed sequential borrows: the limited relaxation of 5.6 studied from group borrowing (a reference is invalidated only below steps that are not independent of it) preserves T6; the lemma is not proved and the relaxation is not adopted (5.6) | none |
 | T15 | proved for iterators whose step between yields is total (T2): every run ends, delivers at most LOOP_LIMIT values and traps only after exactly LOOP_LIMIT; `break` yields a prefix of the full run; a run with a smaller cap is a prefix of one with a larger cap (the evaluator's re-run strategy) | `drive_total`, `drive_break`, `gen_prefix` |
 | T57 | proved for the morphism equation (one-step unfolding of the behaviour of 6.10) on the Form of `RCE/Form.lean`; uniqueness of the morphism (Rutten 2000) is stated, unproved | `beh_cons` (`RCE/Behaviour.lean`) |
-| T58 | proved for one program on the Form of `RCE/Form.lean`: a bisimulation forces equal behaviours, behavioural equality is a bisimulation, and the two are equivalent; the two-program form is stated, unproved | `bisim_beh`, `beh_bisim`, `behEq_iff_bisim` |
-| T59 | proved over an explicit finite alphabet (the declared events over the boundary sets that `rce dim` explores): agreement on every word of every length ≤ k puts the first difference beyond k; the converse and the statement over all of E are stated, unproved | `words`, `AgreeAt`, `firstDiff`, `firstDiff_disagrees`, `trace_ball` |
+| T58 | proved on the Form of `RCE/Form.lean`, for one program and for two: a bisimulation forces equal behaviours and behavioural equality is a bisimulation | `bisim_beh`, `beh_bisim`, `behEq_iff_bisim`, `bisim2_beh`, `beh_bisim2` |
+| T59 | proved over an explicit finite alphabet (the declared events over the boundary sets that `rce dim` explores), in both directions: agreement on every word of every length ≤ k puts the first difference beyond k, and a first difference beyond k (or none) gives agreement on every word of length ≤ k; the statement over all of E is stated, unproved | `words`, `AgreeAt`, `firstDiff`, `firstDiff_disagrees`, `firstDiff_le`, `firstDiff_none`, `trace_ball`, `ball_trace` |
 | T60 | stated, unproved (a model proof by partition refinement is the next step): for finite S the quotient of reach(P) by the largest bisimulation is the minimal machine, with dim(P) states, unique up to isomorphism, and the canonical numbering of 6.10 makes its isomorphism class one string | none |
 | T61 | tested for renaming only (`tests/dim.rs`, `shape_ctl_is_name_free`, against `rce fmt --nameless`); invariance under predicate-equivalent rewrites of guards is stated, unproved; the symbolic quotient of 6.10 is not implemented | none |
 | T62 | proved on a model (`RCE/LogPO.lean`, spec/proposals/partial-order-log.md): entries with read and write footprints over an abstract store, independent when neither writes what the other reads or writes; independent entries commute, and any sequence of adjacent independent swaps of a layer folds to the same store. A model in the sense of this chapter: the link to the admitter is the HC-15 permutation tests of T40 | `commute`, `fold_swap`, `fold_perm_eq` |
@@ -2408,12 +2408,11 @@ beh_P(s)(e · w) = λ(s, e) · beh_P(δ₁(s, e))(w), and it is the unique such
 map S → Beh.
 
 **T58 Equivalence is bisimilarity.** beh_P(s) = beh_P(t) if and only if
-there is a bisimulation R with s R t. The two-program form, on S_F × S_G,
-is stated, unproved.
+there is a bisimulation R with s R t; likewise for two programs on
+S_F × S_G.
 
 **T59 Trace evidence is a ball.** If beh_F(s₀)(w) = beh_G(s₀)(w) for every
-w with |w| ≤ k, then d(beh_F, beh_G) ≤ 2^-(k+1). The converse is stated,
-unproved.
+w with |w| ≤ k, then d(beh_F, beh_G) ≤ 2^-(k+1), and conversely.
 
 **T60 Minimal machine.** For finite S, the quotient of reach(P) by the
 largest bisimulation is a Mealy machine with the behaviour beh_P(s₀) and
@@ -2492,7 +2491,7 @@ or the named core), model (Lean, on an abstract model), checked (a
 machine check that is exhaustive for its input, such as LALR(1)),
 tested (sampled differential or property tests), in that order, with *stated, unproved* below them for a theorem whose
 statement is written but which has no Lean statement, no test and no checker
-rule yet (T42 to T56, Appendix F.9; the converse of T59 and the two-program form of T58, 6.10); such a row is an obligation and never a
+rule yet (T42 to T56, Appendix F.9; T59 over all of E, T60 and T61, 6.10); such a row is an obligation and never a
 claim. A
 counterexample is a failure, never a lower level, and a claim about
 several parts has the lowest level among them. Every Lean name in the
