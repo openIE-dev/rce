@@ -186,10 +186,28 @@ fn step_label(r: &Result<(Vec<Region>, Vec<V>), String>) -> String {
 /// name-free key of 6.6 for control labels, so that `shape_ctl` does not
 /// depend on names (T61, T7).
 fn decl_index(m: &Module) -> HashMap<String, usize> {
+    // index within kind: the k-th error, the k-th struct, the k-th kind
+    // variant; an `intent` or a function elsewhere in the file must not shift
+    // the key of an error (the labels must agree across projections and lifts)
     let mut idx = HashMap::new();
-    for (i, it) in m.items.iter().enumerate() {
-        if let Some(n) = crate::link::item_name(it) {
-            idx.entry(n).or_insert(i);
+    let (mut errors, mut structs, mut variants) = (0usize, 0usize, 0usize);
+    for it in &m.items {
+        match it {
+            Item::Error { name, .. } => {
+                idx.entry(name.clone()).or_insert(errors);
+                errors += 1;
+            }
+            Item::Struct { name, .. } => {
+                idx.entry(name.clone()).or_insert(structs);
+                structs += 1;
+            }
+            Item::Kind { variants: vs, .. } => {
+                for (vn, _) in vs {
+                    idx.entry(vn.clone()).or_insert(variants);
+                    variants += 1;
+                }
+            }
+            _ => {}
         }
     }
     idx
@@ -210,7 +228,7 @@ fn control_label(idx: &HashMap<String, usize>, r: &Result<(Vec<Region>, Vec<V>),
             let emitted: Vec<String> = outs
                 .iter()
                 .map(|o| match o {
-                    V::Rec(n, _) => idx.get(n).map_or("rec".to_string(), |i| format!("#{i}")),
+                    V::Rec(n, _) => idx.get(n).map_or("rec".to_string(), |i| format!("rec#{i}")),
                     V::Int(..) => "int".into(),
                     V::F(_) | V::F32(_) => "float".into(),
                     V::Bool(_) => "bool".into(),
@@ -223,7 +241,7 @@ fn control_label(idx: &HashMap<String, usize>, r: &Result<(Vec<Region>, Vec<V>),
         Err(x) => {
             let name = x.split('(').next().unwrap_or(x).trim();
             match idx.get(name) {
-                Some(i) => format!("refused:#{i}"),
+                Some(i) => format!("refused:err#{i}"),
                 None => format!("refused:{name}"), // a trap: its text carries no declared name
             }
         }
