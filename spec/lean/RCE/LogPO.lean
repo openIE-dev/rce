@@ -4,12 +4,12 @@
     that two orderings of a layer that agree on every dependency give the
     same store (T62, a model in the sense of chapter 8).
 
-    Not yet in `lake build`. Written without the toolchain at hand; the
-    proofs are by induction on the swap sequence and use only `simp`,
-    `funext` and the footprint lemmas. -/
+    In `lake build` and the standing axiom audit. The proofs are by
+    induction on the swap sequence and use only `simp`, `funext` and the
+    footprint lemmas. -/
 namespace RCE.LogPO
 
-/-- Locations and values are abstract. -/
+-- Locations and values are abstract.
 variable {Loc Val : Type} [DecidableEq Loc]
 
 abbrev Store (Loc Val : Type) := Loc → Val

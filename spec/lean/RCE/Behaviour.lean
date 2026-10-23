@@ -4,11 +4,8 @@ import RCE.Form
     bisimilarity) are proved here; T59 (trace evidence is a ball) is proved
     over an explicit finite alphabet.
 
-    Not yet in `lake build` (see `lakefile.lean`): add `RCE.Behaviour` to
-    the library. Written without the toolchain at hand; the proofs use only
-    `rfl`, induction on the event list / the search bound and `simp` on
-    the definitional unfolding, with core-only lemmas (no Batteries, no
-    Mathlib), so they should check as written on v4.12.0. -/
+    In `lake build` and the standing axiom audit (scripts/lean-audit.sh,
+    v4.12.0, no Batteries, no Mathlib). -/
 namespace RCE
 
 /-- The per-step output sequence along an event sequence (6.10). -/
