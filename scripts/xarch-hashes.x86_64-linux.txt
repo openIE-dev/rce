@@ -1,4 +1,5 @@
 # scripts/xarch-hashes.sh on the x86_64 Linux reference (rce 2bce396e), 2026-10-23
+49941de24de057e1d9a43def9e693899e3710f12d51d3cd573b527ccfc843531 trace 01_counter.rce
 77a045653e61300d96ba75fbe310ed8c74f7361b011df34e4d3d60c21ab5c0c9 trace 02_hello_main.rce
 f55315eb792f48e47c298456cc746109f9b4e91ddd26afedbb0fb92eb4979872 trace 03_fib_loop.rce
 026aaee1d3fca60f689b2cb2821ee3b076ee3e8d08048e01204a37a7f92f4529 trace 04_bank_account.rce
