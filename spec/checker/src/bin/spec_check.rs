@@ -84,11 +84,20 @@ fn name(p: &str) -> &str {
 /// Regenerate the tree-sitter parser in a scratch copy; Err on a conflict
 /// or when the committed parser.c is stale. Ok(number of grammar rules).
 fn generate(spec: &Path) -> Result<usize, String> {
-    let src = spec.parent().map(|r| r.join("tree-sitter")).unwrap_or_else(|| spec.join("../tree-sitter"));
+    // The grammar package is tree-sitter/ at the repository root, beside spec/.
+    // `spec` may be a lexical path such as <checker>/.., so go up with a
+    // component rather than Path::parent (which would strip the "..").
+    let src = spec.join("..").join("tree-sitter");
     let tmp = std::env::temp_dir().join(format!("rce-ts-gen-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&tmp);
     std::fs::create_dir_all(tmp.join("src")).map_err(|e| e.to_string())?;
     std::fs::copy(src.join("grammar.js"), tmp.join("grammar.js")).map_err(|e| e.to_string())?;
+    // tree-sitter.json carries the package metadata (version, ABI) that the
+    // generator writes into parser.c, so it is part of the generation input.
+    if src.join("tree-sitter.json").exists() {
+        std::fs::copy(src.join("tree-sitter.json"), tmp.join("tree-sitter.json"))
+            .map_err(|e| e.to_string())?;
+    }
     std::fs::copy(src.join("src/scanner.c"), tmp.join("src/scanner.c"))
         .map_err(|e| e.to_string())?;
     let out = Command::new(std::env::var("TREE_SITTER").unwrap_or_else(|_| "tree-sitter".into()))
