@@ -6,7 +6,11 @@ states, events, a step function that maps a state and an event to a new
 state and its outputs, and the log of events. This repository holds the
 specification (draft 0.9), its grammar in EBNF, and `rce`, the reference
 checker and interpreter that decides which programs are accepted and what
-they do.
+they do. Since 23 October 2026 it also holds everything that must agree
+with the specification: the grammar package for editors, The RCE Book, the
+example programs, the standard library, the conformance suite and the IDE.
+They were separate repositories; they are now directories of this one,
+checked from the same commit, so none of them can lag the language.
 
 In plain words:
 
@@ -135,6 +139,12 @@ Section 10 of the specification defines each command exactly.
 | `rcedb/` | RCEdb, the log-as-database indexes, written in RCE |
 | `examples/` | further example programs (Form, surface and ingest examples) |
 | `scripts/` | helper scripts: proofs, Lean audit, cross-architecture hashes, the chat demo |
+| `book/` | The RCE Book (mdBook): the language from first principles, every listing checked (`book/scripts/check-listings.sh`); published at [openie-dev.github.io/rce/book](https://openie-dev.github.io/rce/book/) |
+| `programs/` | example programs by area (body, data, money, network, science, systems, text, world, hardware, media) and the ecosystem programs; formerly rce-examples |
+| `stdlib/` | the standard library (`stdlib/lib/`), its vectors and checks; formerly rce-stdlib |
+| `conformance/` | the implementation-independent conformance suite, its harness, adapters and reports; formerly rce-conformance |
+| `ide/` | the editor, language server, MCP server and sandbox, built on `spec/checker` as a path dependency; formerly rce-ide |
+| `playground/` | the browser playground, published with the book by `pages.yml` |
 
 ## Status
 
