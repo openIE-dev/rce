@@ -81,12 +81,12 @@ change to it is a new hash in `lib/MANIFEST.json` in the same commit.
 | `lib/crypto.rce`, `enc`, `hash`, num, math, text, xml, utf8 and the other foundation modules | nothing | pass |
 | `pq` (6 checks), `hpke` (3), `mls` (2) | `crypto` in front of the module, by the `#!lib crypto` line | pass |
 | `energy` library (`lib/energy/energy.rce`, 55 checks) | `crypto` in front, as above | pass |
-| `tests/energy/energy_host.rce` (15 events) | one Ed25519 operation per step, each within the fuel of one input (specification 6.7) | pass; sealing is two steps, `Seal0` (`seal_begin`) and `Seal0Sign` (`seal_finish`) |
+| `tests/energy/energy_host.rce` (15 events) | nothing | pass; `Seal0` seals a receipt and `Seal0Check` compares it with the expected envelope |
 | `tests/os/pkg_checks_10.rce` | nothing | pass; the long-identifier row uses 560,000 characters because a text is limited to 1,000,000 elements (spec N9) |
 
 - `rce host run` and `rce host serve` run the host steps, and every host run is validated by replay with the adapters disconnected.
 - `scripts/check.sh` probes for the `#!lib NAME` directive. A checker without it gets `lib/crypto.rce` (without its `module` and `check` lines) appended by `scripts/libexpand.py` to the modules that name it. Set `RCE_NO_LIB=1` or `0` to force either path.
-- `ed_pubkey`, `ed_sign` and `ed_verify` are ordinary functions in `lib/crypto.rce`, and one input is one step with the fuel of 6.7. Work larger than one step is written as several steps: `pq.rce` writes PQXDH as one X25519 or ML-KEM operation per step, and `energy` seals a receipt with `seal_begin` then `seal_finish` (`seal_receipt` runs both, for code with fuel to spare). A native `ed_*` charges the fuel of its RCE source (HC-7, proposal XF-6 in `spec/proposals/one-library-every-fabric.md`), so every binary writes the same log for the same inputs.
+- `ed_pubkey`, `ed_sign` and `ed_verify` are ordinary functions in `lib/crypto.rce`. Each input has the fuel of 6.7 on every host, and HC-7 requires a host to charge fuel as the reference does; proposal XF-6 (`spec/proposals/one-library-every-fabric.md`) states the same for native library code, so that a binary with native `ed_*` and the reference write the same log for the same inputs.
 
 `pq`, `hpke` and `mls` build on `crypto`. The libraries are reference
 code for correctness and replay. They are **not constant time**.
