@@ -83,7 +83,7 @@ change to it is a new hash in `lib/MANIFEST.json` in the same commit.
 
 - `rce host run` and `rce host serve` run the host steps, and every host run is validated by replay with the adapters disconnected.
 - `scripts/check.sh` probes for the `#!lib NAME` directive. A checker without it gets `lib/crypto.rce` (without its `module` and `check` lines) appended by `scripts/libexpand.py` to the modules that name it. Set `RCE_NO_LIB=1` or `0` to force either path.
-- `ed_pubkey`, `ed_sign` and `ed_verify` are ordinary functions in `lib/crypto.rce`. Only the receipt signing in `energy_host.rce` exceeds the per-event fuel, so `check.sh` accepts exactly one outcome other than full success: `Seal0` refused with `comptime fuel exhausted` and every other event good. A binary whose `ed_*` functions are native completes `Seal0` and passes all 14.
+- `ed_pubkey`, `ed_sign` and `ed_verify` are ordinary functions in `lib/crypto.rce`. Only the receipt signing in `energy_host.rce` exceeds the per-event fuel, so `check.sh` accepts exactly one outcome other than full success: `Seal0` refused with `comptime fuel exhausted` and every other event good. A binary whose native `ed_*` functions charge less fuel completes `Seal0`, which HC-7 does not allow: a host enforces fuel as the reference does, so the refusal is the conforming outcome on every binary (proposal XF-6 in `spec/proposals/one-library-every-fabric.md`).
 
 `pq`, `hpke` and `mls` build on `crypto`. The libraries are reference
 code for correctness and replay. They are **not constant time**.
