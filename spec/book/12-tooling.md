@@ -361,7 +361,10 @@ types `t0, …`, kind variants `k0, …`, fields, parameters and locals
 `v0, …`. Keywords, built-in types, standard library names, string contents
 and `intent` text are unchanged; the wildcard `_` and a `_` prefix are
 kept, as are `main`, the built-in traits and their methods, the host
-events and the named constants of 6.7. The projection is deterministic and
+events and the named constants of 6.7. A standard library method after
+`.` keeps its name even when the module declares a field of that name
+(the method table of 5.15 is closed and is not a declaration of the
+program); a function the module declares is renamed at its call sites. The projection is deterministic and
 idempotent, and it has the same outcomes, outputs, ids and log hashes as
 the source: `rce trace --json` of the two is equal step for step except
 in the readable `event` field, since 6.1 hashes the positional forms
@@ -614,10 +617,21 @@ end, or the event instances one program explores and the other does not.
 The verdict is over the explored alphabet and, when a bound is reached, to
 that bound; T59 bounds what agreement to a depth proves. A program and its
 name-free projection (10.6) are equivalent by T7. JSON format
-`rce-equiv/1`. With `rce api-diff`, this is the check of proposal CC-2: a
-change under which every program keeps its behaviour is an erratum under
-C.15; any other is a meaning change.
+`rce-equiv/1`.
+
+`rce change [--fuel N] OLD NEW` classifies a change by the rule of C.15 and
+proposal CC-2: it prints both program hashes (equal hashes mean a renaming
+or a reformatting, the same program), the `rce api-diff` rows (F.4.3) and
+the behaviour check of `rce equiv`, and decides: *erratum* when every
+export is compatible and every behaviour is kept (status 0; "to the
+explored bound" when a bound was reached); *meaning change* when a
+behaviour changed (status 1: a new release under C.15); *interface change*
+when behaviour is kept but an export is broken (status 1: callers must
+change); *compatible* or *breaking* from the rows alone when neither
+program is a Form. The decision is the tool's, not a version number's.
+`scripts/t7-equiv.sh` runs `rce equiv` between every corpus program and
+its name-free projection (T7) and is a continuous-integration step.
 
 **Read receipt.** Which JSON-RPC error code does the language server return for a request it does not know? (a number)
 
-<!-- body-sha256: 1187e979dae4dedfc841bd18ebb74eb111007ca947cfc2e11af6305e98cd2d0c -->
+<!-- body-sha256: 3b0ee43df69ba8b03ffd972d23448003474fe2279a214fba3da33ede8f247970 -->

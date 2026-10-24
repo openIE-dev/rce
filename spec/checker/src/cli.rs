@@ -571,6 +571,7 @@ pub const USAGE_TEXT: &str = "usage:
   rce fmt --nameless FILE        print the name-free projection: every declared identifier replaced by its positional name (10.6)
   rce dim [--fuel N] [--control] [--json] FILE  behaviours a program can be in and the redundancy of its state (6.10, 10.11); --control adds dim_c and shape_ctl
   rce equiv [--fuel N] [--json] A B      whether two programs have the same behaviour on the explored alphabet (6.10, T58), with a distinguishing event sequence when not
+  rce change [--fuel N] OLD NEW          classify a change: api-diff rows (F.4.3) and the behaviour check; erratum when every behaviour is kept, meaning change otherwise (C.15, CC-2)
   rce hash FILE|DIR...           the definition hash (F.4.3) of every named item of each module: HASH, kind, name, and `pub` for an export
   rce manifest-check MANIFEST [--advisories FILE] [--key ISSUER=HEXPUBKEY]...  verify a hash-pinned manifest (F.5.3, W-PIN-1) and list pinned hashes that carry a signed advisory
   rce api-diff OLD NEW           compare the exports of two module sets (FILE or DIR each); one row per change, compatible or breaking; status 1 if any is breaking
@@ -734,6 +735,65 @@ fn run_main(a: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &mu
                     REFUSED
                 }
             }
+        }
+        Some("change") if rest.len() >= 2 => {
+            // rce change [--fuel N] OLD NEW   (10.11, CC-2): the C.15 classification of a change
+            let (mut fuel, mut files) = (100_000usize, Vec::new());
+            let mut i = 0;
+            while i < rest.len() {
+                match rest[i].as_str() {
+                    "--fuel" if i + 1 < rest.len() => {
+                        fuel = rest[i + 1].parse().map_err(|_| "--fuel N: N is a count of states".to_string())?;
+                        i += 2;
+                    }
+                    f if !f.starts_with("--") => {
+                        files.push(f.to_string());
+                        i += 1;
+                    }
+                    other => return Err(format!("change: unexpected argument `{other}`")),
+                }
+            }
+            if files.len() != 2 {
+                return Err("change: OLD and NEW are needed".into());
+            }
+            let a = parse(&read_file(&files[0])?).map_err(|e| format!("{}: {e}", files[0]))?;
+            let b = parse(&read_file(&files[1])?).map_err(|e| format!("{}: {e}", files[1]))?;
+            let ha = crate::apidiff::program_hash(std::slice::from_ref(&a));
+            let hb = crate::apidiff::program_hash(std::slice::from_ref(&b));
+            writeln!(out, "program             {ha}").map_err(w)?;
+            writeln!(out, "                    {hb}").map_err(w)?;
+            if ha == hb {
+                writeln!(out, "verdict             same program  (equal program hash: a renaming or a reformatting)").map_err(w)?;
+                return Ok(OK);
+            }
+            let rows = crate::apidiff::diff(std::slice::from_ref(&a), std::slice::from_ref(&b));
+            let breaking = rows.iter().any(|r| r.breaking);
+            for r in &rows {
+                writeln!(out, "api                 {}", r.show()).map_err(w)?;
+            }
+            if rows.is_empty() {
+                writeln!(out, "api                 no export changed").map_err(w)?;
+            }
+            let beh = match crate::dim::equiv(&a, &b, fuel) {
+                Ok(e) => {
+                    write!(out, "{}", crate::dim::equiv_report(&e).lines().map(|l| format!("behaviour {l}\n")).collect::<String>()).map_err(w)?;
+                    Some(e)
+                }
+                Err(e) => {
+                    writeln!(out, "behaviour           not compared ({e})").map_err(w)?;
+                    None
+                }
+            };
+            let (verdict, status) = match (&beh, breaking) {
+                (Some(e), _) if !e.equivalent => ("meaning change  the behaviour of a program changed: a new release under C.15", REFUSED),
+                (Some(e), false) if e.exact => ("erratum  every export compatible and every behaviour kept on the whole explored graph", OK),
+                (Some(_), false) => ("erratum to the explored bound  every export compatible and every behaviour kept as far as explored", OK),
+                (Some(_), true) => ("interface change  behaviour kept, an export broken (F.4.3): callers must change", REFUSED),
+                (None, false) => ("compatible  every export compatible; no Form to compare behaviour on", OK),
+                (None, true) => ("breaking  an export broken (F.4.3); no Form to compare behaviour on", REFUSED),
+            };
+            writeln!(out, "verdict             {verdict}").map_err(w)?;
+            status
         }
         Some("equiv") if rest.len() >= 2 => {
             // rce equiv [--fuel N] [--json] A B   (10.11)
