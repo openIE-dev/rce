@@ -73,11 +73,12 @@ the artefact that enforces it.
    declined on that ground alone (principle (e) of Appendix F). The
    incompatibility cost of composing by library instead of by syntax is
    paid outside the gate and recorded in the proposal.
-3. **Removal is symmetric with addition.** A construct that no accepted
-   example needs for two releases, or whose theorem stays unproved for two
-   releases, is moved to a proposal and its word unreserved. A spec that
-   adds and never removes is a ratchet; the C.15 release rule already makes
-   removal a new release, so there is no reason to avoid it.
+3. **The language changes as the project learns.** RCE is in development,
+   so any construct can be added, changed, generalised, replaced or removed
+   when a better form is found. The change and every program, example and
+   library module of the repository that it touches move together in one
+   commit, so nothing is left on an old form, and the ledger row says what
+   changed and why.
 4. **One decision locus per interface.** Every interface in Appendix E and
    every emitter target has one owner in `SURFACE.md`'s table of owners,
    and a change to the interface is reviewed by that owner, because an

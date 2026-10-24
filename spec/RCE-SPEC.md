@@ -3559,13 +3559,14 @@ that bound; T59 bounds what agreement to a depth proves. A program and its
 name-free projection (10.6) are equivalent by T7. JSON format
 `rce-equiv/1`.
 
-`rce change [--fuel N] OLD NEW` classifies a change by the rule of C.15 and
-proposal CC-2: it prints both program hashes (equal hashes mean a renaming
+`rce change [--fuel N] OLD NEW` classifies a change to a program by the
+classes of C.15 and proposal CC-2, comparing the two programs under one
+text: it prints both program hashes (equal hashes mean a renaming
 or a reformatting, the same program), the `rce api-diff` rows (F.4.3) and
 the behaviour check of `rce equiv`, and decides: *erratum* when every
 export is compatible and every behaviour is kept (status 0; "to the
 explored bound" when a bound was reached); *meaning change* when a
-behaviour changed (status 1: a new release under C.15); *interface change*
+behaviour changed (status 1: the program's meaning changed); *interface change*
 when behaviour is kept but an export is broken (status 1: callers must
 change); *compatible* or *breaking* from the rows alone when neither
 program is a Form. The decision is the tool's, not a version number's.
