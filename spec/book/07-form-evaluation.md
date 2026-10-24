@@ -60,7 +60,10 @@ equal replay (T1), so they are not hashed. A refused event (T8) is
 recorded with its unchanged state and ends the example log. Both
 producers are tested against this rule
 (`spec/checker/tests/form_signature.rs`, `tests/form_signature.rs`), and
-`tests/nameless.rs` checks that a renamed program has the same hashes.
+`tests/nameless.rs` checks that a renamed program has the same hashes;
+`RCE/Positional.lean` proves that the positional form, and so the state
+hash and the entry chain under any hash function, is unchanged by the
+renamings of 10.6 (T7).
 
 Values ⟦τ⟧ are the Form's JSON-shaped values (form/types.rs): integers
 (i64), floats (finite f64), text, bool, null, lists, records. The embedding
@@ -474,4 +477,4 @@ method and is W-NAME-1.
 
 **Read receipt.** Which JavaScript function is named for rounding to binary32?
 
-<!-- body-sha256: a8690bf5ebef41737c815bd294626929e6d8513911d41a02e7e7bbce5eabfb6f -->
+<!-- body-sha256: 44118c5facf9237f3d0de65dedf3eea86fc64fd352ad9c3907e642ddcffed259 -->
