@@ -430,8 +430,10 @@ as clean exactly when `rce check` accepts it (10.1, principle 3).
   export), `rce api-diff OLD NEW` prints one row per change of the exports
   (`compatible` or `breaking`, then kind and name, then the change; status 1 when
   any row is breaking) and `rce v09-status` prints the implemented and the
-  unimplemented rules. The broker contract (F.7), the manifest and pin check
-  (F.5.3) and the emitter refusals of F.5.4 do not exist yet. Results are
+  unimplemented rules. `rce manifest-check` (F.5.3) checks a manifest's
+  module and dependency hashes. The broker contract (F.7), the provenance
+  record and the build cache of F.5.3, and the emitter refusals of F.5.4 do
+  not exist yet. Results are
   reproducible from the inputs alone (10.1).
 
 ### 10.9 `rce trace --json FILE [EVENTS]`: reference traces (informative)
@@ -582,4 +584,4 @@ and payloads. It is informative: no admission depends on it.
 
 **Read receipt.** Which JSON-RPC error code does the language server return for a request it does not know? (a number)
 
-<!-- body-sha256: 1d5900f63c0ba912e90222aa4e2d5bf83be424def7e5b62d928b3b0c08c4b70e -->
+<!-- body-sha256: 408ca3e95e3b56c8d4698adb7e9849e8121a442d9a3918202f84f8528ab1b0e5 -->

@@ -92,7 +92,7 @@ The Form
   impls; W-TRAIT-3 a type used with `==`, `!=`, an ordering operator or a
   generic bound without implementing the trait it needs.
 
-Version 0.8 only (5.16)
+Indexed values (5.16)
 - W-CTX-1 Context text made other than by `C.lit` of a string literal or
   `C.encode`; joined with another context or plain text; carried by an
   event payload; an unknown context.
@@ -106,7 +106,7 @@ Version 0.8 only (5.16)
   a `Cap[A]` field. (W-NAME-2 refuses a declaration named after a 5.16
   type or context.)
 
-Version 0.9 only (Appendix F, specified and not yet implemented): the
+Appendix F (specified and implemented in part, F.12): the
 refusals of F.3 to F.8, among them unused values, dropped results and
 shadowing (F.3), `World` and information-flow labels (F.4), transactional
 calls (F.4), capabilities, typed output, pinned builds, constant-time functions
@@ -121,4 +121,4 @@ W-LVAR-1, W-LVAR-2, W-NODE-1, W-SUP-1, W-SUP-2, W-INTR-1 and W-RT-1.
 
 **Read receipt.** Which rule refuses two unguarded steps in one region whose patterns overlap?
 
-<!-- body-sha256: 46e73d53d86f66272f6a543db803efeb9538bd8737ba7c81ceaa8b4b78767bd7 -->
+<!-- body-sha256: 8bb53d8444bbf4edf7382eafe256d25442a976309d92ad5a00ec36bfe5a67a33 -->

@@ -14,10 +14,10 @@ an agent proves it read them by following `READ-PROTOCOL.md`.
 | `06-regions-effects-extensions.md` | `94ed5923623f65f5b78682ecd4a03a433fe1000598dc036f40ffc187a1892918` | What kind of channel does a capacity of 0 give? (one word) |
 | `07-form-evaluation.md` | `44118c5facf9237f3d0de65dedf3eea86fc64fd352ad9c3907e642ddcffed259` | Which JavaScript function is named for rounding to binary32? |
 | `08-steps-loops-concurrency.md` | `075fa38adc30b3add818021a4bb6df49e95aa6a25addafc0223ea201eeccb208` | Name-free hashing uses indices named after which logician? (two words) |
-| `09-wellformedness.md` | `46e73d53d86f66272f6a543db803efeb9538bd8737ba7c81ceaa8b4b78767bd7` | Which rule refuses two unguarded steps in one region whose patterns overlap? |
+| `09-wellformedness.md` | `8bb53d8444bbf4edf7382eafe256d25442a976309d92ad5a00ec36bfe5a67a33` | Which rule refuses two unguarded steps in one region whose patterns overlap? |
 | `10-theorems.md` | `b6ef7d1bb4301247e1f415b7e7135fe128ac2cd1d6dfe53188cf43760d68fbc0` | What is the deep embedding of the emitted Rust subset called? |
-| `11-decisions.md` | `6230862e98dd205fd73e56e722ef8dc823d2f999bf7628fcbbc872b75269bbab` | The decisions list says it decides gaps in which file? |
-| `12-tooling.md` | `1d5900f63c0ba912e90222aa4e2d5bf83be424def7e5b62d928b3b0c08c4b70e` | Which JSON-RPC error code does the language server return for a request it does not know? (a number) |
+| `11-decisions.md` | `bd0bb229a63243931045b661da84e5778b9b128e3e1e6476c308f52bb859a695` | The decisions list says it decides gaps in which file? |
+| `12-tooling.md` | `408ca3e95e3b56c8d4698adb7e9849e8121a442d9a3918202f84f8528ab1b0e5` | Which JSON-RPC error code does the language server return for a request it does not know? (a number) |
 | `13-references.md` | `ed1215a6287919d452ba2ff9b15b321bde445a7a3cd139470c48db7d43fbe913` | Who wrote "Communicating Sequential Processes"? (surname) |
 | `14-draft06-concurrency.md` | `d3bca8a016b4baf5afb72e69dd707e000fe63e2782bd54e3f45acb68c10068eb` | How many concurrency words does C.1 add to the keywords of 2.4? (a number) |
 | `15-handler-spec-profile.md` | `1874e9e31a2d9052aa44b11e865e0a8bb2977c7c3bd072bdb8a9dd40b79d205a` | Which compiled node id does `deliverable D1` become? (for example role_R1) |
@@ -26,4 +26,4 @@ an agent proves it read them by following `READ-PROTOCOL.md`.
 
 The single-file spec `spec/RCE-SPEC.md` is generated from these files.
 
-<!-- body-sha256: fea998a0d8b9e9d12bc32e04a7d772af4e0320374c3b63d001654d1bb1479fe1 -->
+<!-- body-sha256: 7d8a8ef900161d301a25eba881eaad665adcb1c326e60f7fa31d7cca91e5a2fa -->

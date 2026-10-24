@@ -263,8 +263,9 @@ they run them on the CPU, which 5.13 allows).
 
 ### 9.5 Changes in draft 0.7
 
-- Version 0.7 (2.7, C.15): version 0.6 with size-scaled standard library
-  method costs (C.6.4). Versions 0.5 and 0.6 keep their meaning.
+- Size-scaled standard library method costs (C.6.4), the one meaning change
+  recorded in C.15 (a new release of the whole text; the per-module version
+  selection of that draft was retired by decision 64).
 - Errata for every version, listed in C.15: closed standard library and
   no ambient I/O (5.15), `&mut` write-back on `fail` in the emitters (6.2,
   the earlier T33 rule, since retired) with nested calls flattened by an order-preserving ANF pass (T34),
@@ -394,4 +395,4 @@ checked by `scripts/claim-counts.py --check`.
 
 **Read receipt.** The decisions list says it decides gaps in which file?
 
-<!-- body-sha256: 6230862e98dd205fd73e56e722ef8dc823d2f999bf7628fcbbc872b75269bbab -->
+<!-- body-sha256: bd0bb229a63243931045b661da84e5778b9b128e3e1e6476c308f52bb859a695 -->
