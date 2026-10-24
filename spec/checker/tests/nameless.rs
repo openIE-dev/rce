@@ -130,3 +130,20 @@ fn emit_form_carries_the_concept_record() {
     assert_eq!(w["names"]["items"][0]["name"], "r0");
     assert_eq!(w["names"]["intent"], v["names"]["intent"], "intent text survives the projection");
 }
+
+#[test]
+fn a_field_named_like_a_builtin_method_does_not_rename_the_method() {
+    // T7 sweep finding (apps/chat.rce, 24 October 2026): a state field `keys`
+    // renamed the Map method `.keys()` and the projection was refused
+    let src = "intent \"keys\"\n    example Put(k: \"a\") -> n == 1\n\nstate S\n    keys: Map[text, u64] = {}\n    n: usize = 0\n\nevent Put(k: text)\n\nstep S on Put(k)\n    keys[k] = 1\n    n = keys.keys().len()\n";
+    let f = tmp("keys_src", src);
+    let (st, out) = rce(&["check", &f]);
+    assert_eq!(st, 0, "{out}");
+    let (_, projected) = rce(&["fmt", "--nameless", &f]);
+    assert!(projected.contains(".keys()"), "{projected}");
+    let g = tmp("keys_nameless", &projected);
+    let (st, out) = rce(&["check", &g]);
+    assert_eq!(st, 0, "{out}");
+    let (st, out) = rce(&["equiv", "--fuel", "200", &f, &g]);
+    assert_eq!(st, 0, "{out}");
+}

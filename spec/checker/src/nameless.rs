@@ -152,6 +152,11 @@ fn renames(src: &str) -> Result<BTreeMap<String, String>, String> {
 }
 
 /// Rewrite identifiers outside strings and comments by the map.
+fn builtin_methods() -> &'static HashSet<String> {
+    static M: std::sync::OnceLock<HashSet<String>> = std::sync::OnceLock::new();
+    M.get_or_init(|| crate::specread::all_methods().into_iter().collect())
+}
+
 pub fn nameless(src: &str) -> Result<String, String> {
     let map = renames(src)?;
     let b = src.as_bytes();
@@ -183,7 +188,13 @@ pub fn nameless(src: &str) -> Result<String, String> {
                 i += 1;
             }
             let word = &src[start..i];
+            // a standard library method after `.` keeps its name (5.15: the
+            // method table is closed and not a declaration of the program),
+            // unless the program declares a function of that name, which is
+            // then the name being called
+            let after_dot = start > 0 && b[start - 1] == b'.';
             match map.get(word) {
+                Some(r) if after_dot && !r.starts_with('f') && builtin_methods().contains(word) => out.push_str(word),
                 Some(r) => out.push_str(r),
                 None => out.push_str(word),
             }

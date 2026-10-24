@@ -123,3 +123,20 @@ fn equiv_finds_the_shortest_distinguishing_sequence() {
     assert_eq!(v["equivalent"], false);
     assert_eq!(v["witness"]["after"], serde_json::json!(["Inc()", "Dec()"]));
 }
+
+#[test]
+fn change_classifies_erratum_and_meaning_change() {
+    let a = tmp("e", COUNTER);
+    let same = tmp("f", &COUNTER.replace("Underflow", "Below").replace("Counter", "Count"));
+    let (status, out) = rce(&["change", "--fuel", "500", &a, &same]);
+    assert_eq!(status, 0, "{out}");
+    assert!(out.contains("verdict             same program"), "{out}");
+    let bad = tmp("g", &COUNTER.replace("checked_sub(1)", "checked_sub(2)"));
+    let (status, out) = rce(&["change", "--fuel", "500", &a, &bad]);
+    assert_eq!(status, 1, "{out}");
+    assert!(out.contains("verdict             meaning change"), "{out}");
+    let same_beh = tmp("h", &COUNTER.replace("-> n + 1", "-> 1 + n"));
+    let (status, out) = rce(&["change", "--fuel", "500", &a, &same_beh]);
+    assert_eq!(status, 0, "{out}");
+    assert!(out.contains("verdict             erratum"), "{out}");
+}

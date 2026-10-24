@@ -9,6 +9,8 @@
 | `rce trace --json FILE [EVENTS]` | the reference trace of each example, or of the events, as JSON |
 | `rce emit TARGET FILE` | `form`, `rust`, `python`, `js` or `scala` (the emit registry lists further targets) |
 | `rce fmt [--check] FILE...` | rewrite files in the canonical layout |
+| `rce equiv [--fuel N] [--json] A B` | whether two programs have the same behaviour on the explored events, with the shortest distinguishing sequence when not |
+| `rce change [--fuel N] OLD NEW` | classify a change: erratum (every export compatible, every behaviour kept), meaning change, interface change |
 | `rce dim [--fuel N] FILE` | count the behaviours a program can be in and the redundancy of its state, per region (chapter 18) |
 | `rce lsp` | language server on standard input and output |
 | `rce --version` | the checker version, the specification draft and the accepted language versions |

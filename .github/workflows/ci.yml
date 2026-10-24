@@ -27,6 +27,8 @@ jobs:
         run: cargo run --release --bin rce-spec-check
       - name: Check the book is in sync
         run: cargo run --release --bin rce-book -- build --check
+      - name: T7 on every corpus program (rce equiv against the name-free projection)
+        run: bash ../../scripts/t7-equiv.sh
       - name: Clippy
         run: cargo clippy --release --all-targets
 
