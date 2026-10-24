@@ -144,3 +144,20 @@ fn the_cli_checks_a_manifest() {
     assert_eq!(code, 0, "{o}");
     assert!(o.contains("2 modules pinned, 0 unsafe"), "{o}");
 }
+
+#[test]
+fn a_generated_manifest_is_accepted_and_pins_every_module() {
+    let d = tmp("gen");
+    std::fs::create_dir_all(d.join("sub")).unwrap();
+    std::fs::write(d.join("lib.rce"), LIB).unwrap();
+    std::fs::write(d.join("sub/app.rce"), APP).unwrap();
+    let text = manifest::generate(&d).unwrap();
+    assert_eq!(text, canonical(&serde_json::from_str::<serde_json::Value>(&text).unwrap()));
+    let v: serde_json::Value = serde_json::from_str(&text).unwrap();
+    assert_eq!(v["modules"][0]["module"], "app");
+    assert_eq!(v["modules"][0]["path"], "sub/app.rce");
+    assert_eq!(v["modules"][1]["module"], "lib");
+    assert_eq!(v["modules"][1]["sha256"], manifest::module_hash(LIB).unwrap());
+    let pinned = manifest::check(&text, &d).unwrap();
+    assert_eq!(pinned.len(), 2);
+}

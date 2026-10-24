@@ -18,6 +18,12 @@ rm -f "$tmp/lib_probe.rce"
 # ("crypto" names the top-level crypto, pq, hpke and mls modules), so CI can
 # split the libraries over parallel jobs; unset, everything runs.
 only() { [ -z "${ONLY:-}" ] || case " $ONLY " in *" $1 "*) ;; *) return 1 ;; esac; }
+# The library is pinned by hash (specification F.5.3): lib/MANIFEST.json lists
+# every module with the SHA-256 of its canonical text, and must be current.
+# Regenerate with `rce manifest lib > lib/MANIFEST.json` after a change.
+"$RCE" manifest lib > "$tmp/MANIFEST.json"
+if ! cmp -s "$tmp/MANIFEST.json" lib/MANIFEST.json; then echo "check.sh: lib/MANIFEST.json is not current; run: rce manifest lib > lib/MANIFEST.json" >&2; exit 1; fi
+"$RCE" manifest-check lib/MANIFEST.json
 only crypto && "$RCE" test lib/crypto.rce
 for n in pq hpke mls; do
   only crypto || continue

@@ -106,6 +106,39 @@ fn imports(src: &str) -> Vec<String> {
 
 /// W-PIN-1 over a manifest and the files it names (relative to `root`).
 /// `Err` is the list of findings; `Ok` is the pinned module hashes.
+/// Write the manifest of a directory (F.5.3): every `.rce` file under `root`,
+/// recursively, in sorted order, as a module pinned by its hash, with no
+/// dependencies; the output is canonical JSON and `check` accepts it at
+/// `root/MANIFEST.json`. Imports between the listed modules need no
+/// dependency entry; an import of a module outside the directory is reported
+/// by `check`, never guessed here (there is no resolver).
+pub fn generate(root: &Path) -> Result<String, String> {
+    let mut files = vec![];
+    fn walk(d: &Path, out: &mut Vec<std::path::PathBuf>) -> Result<(), String> {
+        let mut es: Vec<_> = std::fs::read_dir(d).map_err(|e| format!("{}: {e}", d.display()))?.filter_map(|e| e.ok()).map(|e| e.path()).collect();
+        es.sort();
+        for p in es {
+            if p.is_dir() {
+                walk(&p, out)?;
+            } else if p.extension().is_some_and(|x| x == "rce") {
+                out.push(p);
+            }
+        }
+        Ok(())
+    }
+    walk(root, &mut files)?;
+    let mut mods = vec![];
+    for f in &files {
+        let src = std::fs::read_to_string(f).map_err(|e| format!("{}: {e}", f.display()))?;
+        let m = crate::parse::parse(&src).map_err(|e| format!("{}: {e}", f.display()))?;
+        let rel = f.strip_prefix(root).map_err(|e| e.to_string())?.to_string_lossy().replace('\\', "/");
+        let name = m.path.as_ref().map(|p| p.join(".")).unwrap_or_else(|| rel.trim_end_matches(".rce").replace('/', "."));
+        mods.push(serde_json::json!({"module": name, "path": rel, "sha256": module_hash(&src)?}));
+    }
+    mods.sort_by(|a, b| a["module"].as_str().cmp(&b["module"].as_str()));
+    Ok(canonical(&serde_json::json!({"dependencies": [], "formatter": "rce-fmt 1", "language": "0.9", "modules": mods})))
+}
+
 pub fn check(text: &str, root: &Path) -> Result<BTreeMap<String, String>, Vec<String>> {
     let mut errs: Vec<String> = vec![];
     let v: Value = match serde_json::from_str(text) {
