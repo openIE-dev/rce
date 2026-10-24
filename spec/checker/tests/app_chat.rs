@@ -34,12 +34,26 @@ fn region(h: &Host, field: &str) -> String {
 fn three_replicas_converge_and_replay() {
     let src = std::fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../apps/chat.rce")).unwrap();
     let m = parse(&src).unwrap();
-    let addrs: Vec<String> = (0..3).map(|_| format!("127.0.0.1:{}", port())).collect();
+    // `port()` frees the port it found before the adapter binds it, so another
+    // process can take it in between; the three listeners are bound first,
+    // with fresh ports until all three bind
+    let (addrs, mut bound) = (0..20)
+        .find_map(|_| {
+            let addrs: Vec<String> = (0..3).map(|_| format!("127.0.0.1:{}", port())).collect();
+            let bound: Vec<_> = (0..3)
+                .map(|i| {
+                    let peers: Vec<String> = addrs.iter().enumerate().filter(|(j, _)| *j != i).map(|(_, a)| a.clone()).collect();
+                    chan_adapters(&addrs[i], &peers).ok()
+                })
+                .collect::<Option<Vec<_>>>()?;
+            Some((addrs, bound))
+        })
+        .expect("no three free local ports in 20 attempts");
     let mut stores: Vec<MemStore> = (0..3).map(|_| MemStore::default()).collect();
     let mut hosts = vec![];
     for (i, st) in stores.iter_mut().enumerate() {
         let peers: Vec<String> = addrs.iter().enumerate().filter(|(j, _)| *j != i).map(|(_, a)| a.clone()).collect();
-        let ads: Vec<Box<dyn Adapter>> = chan_adapters(&addrs[i], &peers).unwrap().into_iter().map(|x| Box::new(x) as Box<dyn Adapter>).collect();
+        let ads: Vec<Box<dyn Adapter>> = std::mem::take(&mut bound[i]).into_iter().map(|x| Box::new(x) as Box<dyn Adapter>).collect();
         let mut h = Host::start_with(&m, Box::new(st), ads).unwrap();
         let ps = peers.iter().map(|p| format!("\"{p}\"")).collect::<Vec<_>>().join(", ");
         h.admit(&src, &format!(r#"Setup(me: "{}", peers: [{ps}])"#, ["ann", "bob", "cy"][i])).unwrap();
