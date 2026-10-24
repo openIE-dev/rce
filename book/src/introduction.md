@@ -33,11 +33,13 @@ Three ideas run through the whole book:
 
 ## Status
 
-The specification is at **draft 0.7**. That draft is published for review
-and can still change. This book teaches language version 0.5, the language
-of sections 2 to 10; a module opts into version 0.6 (Appendix C of the
-specification) with the first-line comment `# rce-version: 0.6`, or into
-version 0.7 (C.15) with `# rce-version: 0.7`. What exists today:
+**Reality Code Engine, draft 0.9.** The specification is published for
+review and can still change. There is one language: the specification at
+one commit. Drafts 0.5 to 0.9 are labels of past commits of that language,
+not alternatives. A `# rce-version:` line is a release label. It is
+tolerated, ignored and not hashed, and it is not a per-module language
+selection. This book teaches sections 2 to 10 of that one text. What exists
+today:
 
 - the specification, with its grammar checked by machine;
 - a reference checker and interpreter, `rce`, which this book uses for every

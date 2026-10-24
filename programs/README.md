@@ -57,8 +57,8 @@ RCE=/path/to/rce scripts/check.sh
 
 ## Areas without examples yet
 
-Some kinds of program have no example here, because RCE language version 0.5 (sections 2 to 10 of the
-specification) has no construct for them:
+Some kinds of program have no example here, because the language (sections 2 to 10 of the
+specification; Reality Code Engine, draft 0.9, one text at this commit) has no construct for them:
 
 - **Machine learning.** There is no tensor type and no automatic
   differentiation.
@@ -75,7 +75,7 @@ the text in its `.expect` file; a `.cmd` file holds a command whose
 output must equal the `.out` file next to it; and a folder with a
 `program.txt` is tested as one program.
 
-All programs are version 0.5 modules (sections 2 to 10 of the specification).
+These programs use sections 2 to 10 of the one language. A `# rce-version:` line is a release label, not a per-module selection.
 They are checked by `programs.yml` against the reference checker built from
 the same commit, so there is no commit to name: `scripts/check.sh` must report
 every program passed at the current head (22 of 22 on 23 October 2026). The

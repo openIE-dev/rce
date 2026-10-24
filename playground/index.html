@@ -3,18 +3,18 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>RCE playground</title>
+<title>Reality Code Engine playground</title>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 <header>
-  <h1>RCE playground</h1>
-  <p>Type an RCE program. The reference checker, compiled to WebAssembly, parses, type checks and admits it in your browser and runs every <code>example</code>. Nothing is sent to a server.</p>
+  <h1>Reality Code Engine playground</h1>
+  <p>Type an RCE program. This page is <strong>draft 0.9</strong>: one language, the specification at one commit. The reference checker, compiled to WebAssembly, parses, type checks and admits it in your browser and runs every <code>example</code>. The standard library is batteries-included (<code>use enc</code> and the rest; nothing to install). Nothing is sent to a server.</p>
   <nav>
     <a href="https://github.com/openIE-dev/rce">Specification and checker</a>
-    <a href="https://github.com/openIE-dev/rce-book">The RCE Book</a>
-    <a href="https://github.com/openIE-dev/rce-examples">Examples</a>
-    <a href="https://github.com/openIE-dev/rce-ide/releases/latest">Desktop IDE and <code>rce</code> CLI</a>
+    <a href="https://openie-dev.github.io/rce/book/">The RCE Book</a>
+    <a href="https://github.com/openIE-dev/rce/tree/main/spec/examples">Examples</a>
+    <a href="https://github.com/openIE-dev/rce/tree/main/ide">IDE sources</a>
   </nav>
 </header>
 <main>
@@ -25,7 +25,7 @@
       <span id="ver"></span>
     </div>
     <textarea id="src" spellcheck="false" autocapitalize="off" autocomplete="off" aria-label="RCE source"></textarea>
-    <p class="hint">Indent with spaces; a tab is refused (W-LEX-1). Put <code># rce-version: 0.8</code> on the first line for language version 0.8 (context-typed text, <code>Secret</code>, <code>Cap</code>, <code>Guarded</code>; spec 5.16) or <code># rce-version: 0.7</code> for 0.7 (spec 2.7); without it a module is version 0.5.</p>
+    <p class="hint">Indent with spaces; a tab is refused (W-LEX-1). A first-line <code># rce-version:</code> comment is a release label only. It is tolerated and ignored, and it does not select a language for that module. Drafts 0.5 to 0.9 name past commits of this one language.</p>
   </section>
   <section class="out">
     <div id="verdict" class="verdict">loading the checker...</div>

@@ -7,7 +7,7 @@
 //! checker. Every other subcommand is passed through unchanged.
 //!
 //! `rce --version` (or `-V`) prints the release, the specification draft
-//! the vendored checker implements and the language versions it accepts.
+//! the vendored checker implements and the release label of the one language.
 
 /// The specification draft of the vendored reference checker.
 // The specification draft this checkout carries (spec/book/00-overview.md); one text, one language.

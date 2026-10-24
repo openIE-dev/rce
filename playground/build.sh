@@ -16,4 +16,4 @@ ex = [{"name": f[:-4], "src": open(os.path.join(d, f)).read()}
 json.dump(ex, open(os.path.join(out, "examples.json"), "w"))
 print(len(ex), "examples")
 PY
-echo "checker $(git rev-parse --short HEAD), specification draft 0.7" > "$OUT/version.txt"
+echo "checker $(git rev-parse --short HEAD), Reality Code Engine, specification draft 0.9" > "$OUT/version.txt"
