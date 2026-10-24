@@ -638,11 +638,9 @@ behaviour changed (status 1: the program's meaning changed); *interface change*
 when behaviour is kept but an export is broken (status 1: callers must
 change); *compatible* or *breaking* from the rows alone when neither
 program is a Form. The decision is the tool's, not a version number's.
-A change to the text of this specification is not a change `rce change` can
-compare; CONTRIBUTING rule 3 asks a proved theorem for it.
 `scripts/t7-equiv.sh` runs `rce equiv` between every corpus program and
 its name-free projection (T7) and is a continuous-integration step.
 
 **Read receipt.** Which JSON-RPC error code does the language server return for a request it does not know? (a number)
 
-<!-- body-sha256: 99921fec788365afcc497a5cb287a2038fe7c37aaad08961bfb5a40fa4d15840 -->
+<!-- body-sha256: 28c8d5a61d12bf7334a77c577728789a5c2687fa7a108568fa32e95f66e85198 -->

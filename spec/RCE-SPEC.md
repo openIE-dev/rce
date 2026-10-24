@@ -3570,8 +3570,6 @@ behaviour changed (status 1: the program's meaning changed); *interface change*
 when behaviour is kept but an export is broken (status 1: callers must
 change); *compatible* or *breaking* from the rows alone when neither
 program is a Form. The decision is the tool's, not a version number's.
-A change to the text of this specification is not a change `rce change` can
-compare; CONTRIBUTING rule 3 asks a proved theorem for it.
 `scripts/t7-equiv.sh` runs `rce equiv` between every corpus program and
 its name-free projection (T7) and is a continuous-integration step.
 
