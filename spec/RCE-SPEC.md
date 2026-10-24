@@ -3,8 +3,10 @@
 
 # RCE Language Specification, draft 0.9: Overview
 
-**Abstract.** RCE is a small programming language whose programs mean one
-thing everywhere. A program is turned into a *Form*: a state machine given
+**Abstract.** RCE, the Reality Code Engine, is a small programming language
+whose programs mean one thing everywhere. It exists so that programs can be
+written, checked, changed and run by machines, in the era of code written by
+models, with no model in the loop that decides what a program means. A program is turned into a *Form*: a state machine given
 by its states, its events, a step function that maps a state and an event to
 a new state and an outcome, and the log of events. Every runtime that runs
 the Form must produce the same results bit for bit, and the rules that make
