@@ -52,10 +52,13 @@ What the language guarantees:
    giving it away, forgetting a case, or writing an `example` that does not
    hold makes the checker refuse the program, and it names the rule that
    was broken.
-4. **There is one language.** The specification at one commit is the
-   language, every module of a program is in it, and nothing in this
-   repository depends on a released or pinned version of anything else in
-   it. A program never breaks because a library or a tool moved.
+4. **There is one language, batteries included.** The specification at one
+   commit is the language, every module of a program is in it, and the
+   whole standard library is built into the checker: a program writes
+   `use enc` and has it, with nothing to install, no directive and no flag
+   (`rce lib` lists the modules). Nothing in this repository depends on a
+   released or pinned version of anything else in it; the library is pinned
+   by hash. A program never breaks because a library or a tool moved.
 
 ## What is here
 

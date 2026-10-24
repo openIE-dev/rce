@@ -59,7 +59,12 @@ pub struct Linked {
 }
 
 fn by_path<'a>(all: &'a [&'a Module], p: &str) -> Option<&'a Module> {
-    all.iter().copied().find(|m| m.path.as_ref().map(|q| q.join(".")).as_deref() == Some(p))
+    // a module given together with the program first, then the built-in
+    // standard library (4.1): `use enc` needs no file and no directive
+    all.iter()
+        .copied()
+        .find(|m| m.path.as_ref().map(|q| q.join(".")).as_deref() == Some(p))
+        .or_else(|| crate::stdlib::module(p))
 }
 
 /// alias -> module path, for the user modules `m` imports

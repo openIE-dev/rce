@@ -20,10 +20,21 @@ pub fn diagnostics(src: &str, known: &HashSet<String>) -> Vec<(usize, String)> {
     let errs = match parse(src) {
         Err(e) => vec![e],
         Ok(m) => {
+            // the program as the tools run it: directives in front, `use`
+            // imports linked in from the built-in library (4.1)
+            let wl = crate::stdlib::with_directives(&m, src);
+            let lk = crate::link::link(&wl.module, &[]);
             let mut c = check::Checker::new();
-            c.check_module(&m, known);
+            c.imported_fns = lk.imported_fns;
+            c.imported_types = lk.imported_types;
+            c.imported_fns.extend(wl.fns);
+            c.imported_types.extend(wl.types);
+            for e in lk.errs {
+                c.e(e);
+            }
+            c.check_module(&lk.module, known);
             if c.errs.is_empty() {
-                interp::admit(&m)
+                interp::admit(&lk.module)
             } else {
                 c.errs
             }
@@ -86,7 +97,7 @@ pub fn run(src: &str, events: Option<&str>) -> Result<RunOut, String> {
     if !d.is_empty() {
         return Err(d.into_iter().map(|x| x.1).collect::<Vec<_>>().join("; "));
     }
-    let m = parse(src)?;
+    let m = crate::program(src)?;
     let mut it = Interp::new(&m);
     let mut lines = vec![];
     let Some(evs) = events else {
@@ -175,7 +186,7 @@ pub fn emit(target: &str, src: &str) -> Result<String, String> {
             if !d.is_empty() {
                 return Err(d.into_iter().map(|x| x.1).collect::<Vec<_>>().join("; "));
             }
-            Ok(form_full(&parse(src)?)? + "\n")
+            Ok(form_full(&crate::program(src)?)? + "\n")
         }
         "rust" | "python" | "js" | "scala" => {
             let d = diagnostics(src, &HashSet::new());
@@ -183,7 +194,7 @@ pub fn emit(target: &str, src: &str) -> Result<String, String> {
                 return Err(d.into_iter().map(|x| x.1).collect::<Vec<_>>().join("; "));
             }
             let lang = crate::emit::Lang::parse(target).expect("target");
-            crate::emit::emit(&parse(src)?, lang)
+            crate::emit::emit(&crate::program(src)?, lang)
         }
         t => Err(format!(
             "unknown emit target `{t}` (form, rust, python, js, scala)"
@@ -493,7 +504,7 @@ pub fn trace_streams(file: &str, src: &str, streams: &[&str]) -> Result<String, 
     }
     let events: Option<&str> = streams.first().copied();
     let (m, only) = if streams.is_empty() {
-        (parse(src)?, None)
+        (crate::program(src)?, None)
     } else {
         let mut text = src.to_string();
         for evs in streams {
@@ -572,6 +583,7 @@ pub const USAGE_TEXT: &str = "usage:
   rce dim [--fuel N] [--control] [--json] FILE  behaviours a program can be in and the redundancy of its state (6.10, 10.11); --control adds dim_c and shape_ctl
   rce equiv [--fuel N] [--json] A B      whether two programs have the same behaviour on the explored alphabet (6.10, T58), with a distinguishing event sequence when not
   rce change [--fuel N] OLD NEW          classify a change: api-diff rows (F.4.3) and the behaviour check; erratum when every behaviour is kept, meaning change otherwise (C.15, CC-2)
+  rce lib [MODULE]               the built-in standard library: every module `use` can name (4.1), or the source of one module
   rce hash FILE|DIR...           the definition hash (F.4.3) of every named item of each module: HASH, kind, name, and `pub` for an export
   rce manifest DIR               write the hash-pinned manifest of a directory (F.5.3): every .rce file as a module pinned by its hash, canonical JSON
   rce manifest-check MANIFEST [--advisories FILE] [--key ISSUER=HEXPUBKEY]...  verify a hash-pinned manifest (F.5.3, W-PIN-1) and list pinned hashes that carry a signed advisory
@@ -862,7 +874,7 @@ fn run_main(a: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &mu
                 writeln!(out, "REFUSED {file}: {}", d.into_iter().map(|x| x.1).collect::<Vec<_>>().join("; ")).map_err(w)?;
                 return Ok(REFUSED);
             }
-            let m = parse(&src)?;
+            let m = crate::program(&src)?;
             match crate::dim::dim_with(&m, fuel, control) {
                 Ok(r) => {
                     if json {
@@ -900,6 +912,21 @@ fn run_main(a: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &mu
             }
             if rows.iter().any(|r| r.breaking) { REFUSED } else { OK }
         }
+        Some("lib") if rest.is_empty() => {
+            for n in crate::stdlib::names() {
+                let src = crate::stdlib::source(n).unwrap_or("");
+                let doc = src.lines().find(|l| l.starts_with("# ") && !l.starts_with("# rce-version") && !l.starts_with("# uses:")).map(|l| l.trim_start_matches("# ").to_string()).unwrap_or_default();
+                writeln!(out, "{n:<16} {doc}").map_err(w)?;
+            }
+            OK
+        }
+        Some("lib") if rest.len() == 1 => match crate::stdlib::source(&rest[0]) {
+            Some(src) => {
+                write!(out, "{src}").map_err(w)?;
+                OK
+            }
+            None => return Err(format!("lib: no built-in module `{}` (rce lib lists them)", rest[0])),
+        },
         Some("manifest") if rest.len() == 1 => {
             // rce manifest DIR: the manifest of a directory (F.5.3), canonical JSON, to stdout
             let text = crate::manifest::generate(std::path::Path::new(&rest[0]))?;
@@ -1104,7 +1131,7 @@ fn host_cmd(a: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &mu
         writeln!(out, "REFUSED {file}: {}", d.into_iter().map(|x| x.1).collect::<Vec<_>>().join("; ")).map_err(w)?;
         return Ok(REFUSED);
     }
-    let m = parse(&src)?;
+    let m = crate::program(&src)?;
     match sub {
         "replay" => {
             let text = std::fs::read_to_string(log).map_err(|e| format!("{log}: {e}"))?;

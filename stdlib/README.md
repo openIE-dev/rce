@@ -62,6 +62,16 @@ There is no version number: a module is named by its hash, a change to a
 module changes the manifest in the same commit, and a program that pins the
 library pins these hashes.
 
+## Built into the checker
+
+Every module of `lib/` is compiled into `rce` (specification 4.1): a program
+writes `use enc` or `use data.events` and the checker has it, in `check`,
+`run`, `test`, `trace`, `emit`, `dim` and `host`; `rce lib` lists the
+modules and `rce lib NAME` prints one. The `#!lib NAME` directive line is
+honoured as well (the library's items in front, unqualified). Nothing is
+installed, inlined or selected: the library is part of the language, and a
+change to it is a new hash in `lib/MANIFEST.json` in the same commit.
+
 ## What public `rce` can run today
 
 Read against public `openIE-dev/rce` main (`e416fd0`, draft 0.9, `rce 0.1.0`), checked on 17 October 2026 with a full `sh scripts/check.sh` run (it completes, exit 0, about 15 minutes):

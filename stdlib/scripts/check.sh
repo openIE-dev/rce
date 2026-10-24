@@ -3,9 +3,10 @@
 # crypto, so each is tested with a `#!lib crypto` line in front (the rce
 # binary appends its embedded crypto, without crypto's own checks).
 # Set RCE to the rce binary (default: rce on PATH).
-# An rce that does not provide the `#!lib` directive (public rce main does
-# not) is detected by a probe, and scripts/libexpand.py then inlines
-# lib/crypto.rce in place of the directive, so the same checks run.
+# The reference checker embeds the library and honours the `#!lib` directive
+# (specification 4.1). An older rce without it is detected by a probe, and
+# scripts/libexpand.py then inlines lib/crypto.rce in place of the
+# directive, so the same checks run.
 set -e
 RCE=${RCE:-rce}
 cd "$(dirname "$0")/.."

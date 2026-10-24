@@ -12,7 +12,15 @@ by its file path relative to the package root with `/` read as `.` and the
 `.rce` extension removed. `use p.q` makes module `p.q` visible under the name
 `q`; `use p.q as r` under `r`. Items are private to their module unless marked
 `pub`. Import cycles are refused (W-MOD-2). The modules `std.text`,
-`std.collections` and `std.math` are built in and always resolvable (S4); a
+`std.collections` and `std.math` are built in and always resolvable (S4), and
+so is every module of the standard library (`stdlib/lib` of the repository,
+pinned by hash in its manifest, F.5.3): `use enc`, `use data.events` and the
+others resolve with no file given, no directive and no flag, in every tool
+(`rce lib` lists them). A library module's own `check`, `example` and
+`intent` items are not part of a program that imports it; its items are. A
+`#!lib NAME` comment line places a library's items in front of the module,
+unqualified, as the shipped binary does; it is a comment to every other
+tool, and `use` is the form of this text. A
 program is the set of modules given together, and `use` must name one of them
 or a built-in module (W-NAME-1).
 
@@ -45,4 +53,4 @@ payload typing) and as constructor functions.
 
 **Read receipt.** What is the outermost scope called? (one word)
 
-<!-- body-sha256: 36aa75c5ccf91fc1e58278eac48086a4b441d0175ea55753e3ad5b3e3788f878 -->
+<!-- body-sha256: 79670454efb8b3b8f04318c9dec5433f3e977dd60bc8467245d131b3eecd06fc -->
