@@ -570,6 +570,7 @@ pub const USAGE_TEXT: &str = "usage:
   rce fmt [--check] FILE...      rewrite files in canonical layout (--check: only report)
   rce fmt --nameless FILE        print the name-free projection: every declared identifier replaced by its positional name (10.6)
   rce dim [--fuel N] [--control] [--json] FILE  behaviours a program can be in and the redundancy of its state (6.10, 10.11); --control adds dim_c and shape_ctl
+  rce equiv [--fuel N] [--json] A B      whether two programs have the same behaviour on the explored alphabet (6.10, T58), with a distinguishing event sequence when not
   rce hash FILE|DIR...           the definition hash (F.4.3) of every named item of each module: HASH, kind, name, and `pub` for an export
   rce manifest-check MANIFEST [--advisories FILE] [--key ISSUER=HEXPUBKEY]...  verify a hash-pinned manifest (F.5.3, W-PIN-1) and list pinned hashes that carry a signed advisory
   rce api-diff OLD NEW           compare the exports of two module sets (FILE or DIR each); one row per change, compatible or breaking; status 1 if any is breaking
@@ -733,6 +734,40 @@ fn run_main(a: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &mu
                     REFUSED
                 }
             }
+        }
+        Some("equiv") if rest.len() >= 2 => {
+            // rce equiv [--fuel N] [--json] A B   (10.11)
+            let (mut fuel, mut json, mut files) = (100_000usize, false, Vec::new());
+            let mut i = 0;
+            while i < rest.len() {
+                match rest[i].as_str() {
+                    "--fuel" if i + 1 < rest.len() => {
+                        fuel = rest[i + 1].parse().map_err(|_| "--fuel N: N is a count of states".to_string())?;
+                        i += 2;
+                    }
+                    "--json" => {
+                        json = true;
+                        i += 1;
+                    }
+                    f if !f.starts_with("--") => {
+                        files.push(f.to_string());
+                        i += 1;
+                    }
+                    other => return Err(format!("equiv: unexpected argument `{other}`")),
+                }
+            }
+            if files.len() != 2 {
+                return Err("equiv: two files are needed".into());
+            }
+            let a = parse(&read_file(&files[0])?).map_err(|e| format!("{}: {e}", files[0]))?;
+            let b = parse(&read_file(&files[1])?).map_err(|e| format!("{}: {e}", files[1]))?;
+            let e = crate::dim::equiv(&a, &b, fuel)?;
+            if json {
+                writeln!(out, "{}", crate::dim::equiv_json(&e)).map_err(w)?;
+            } else {
+                write!(out, "{}", crate::dim::equiv_report(&e)).map_err(w)?;
+            }
+            if e.equivalent { OK } else { REFUSED }
         }
         Some("dim") if !rest.is_empty() => {
             // rce dim [--fuel N] [--control] [--json] FILE   (10.11)

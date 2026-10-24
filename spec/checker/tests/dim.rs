@@ -90,3 +90,36 @@ fn dim_is_deterministic() {
     let b = rce(&["dim", "--json", "../examples/59_dim_redundant_field.rce"]).1;
     assert_eq!(a, b);
 }
+
+fn tmp(name: &str, text: &str) -> String {
+    let p = std::env::temp_dir().join(format!("rce_equiv_{}_{name}.rce", std::process::id()));
+    std::fs::write(&p, text).unwrap();
+    p.to_string_lossy().into_owned()
+}
+
+const COUNTER: &str = "intent \"a counter\"\n    example Inc, Inc, Dec -> 1\n    example Dec -> refused: Underflow\n\nstate Counter\n    n: u64 = 0\n\nevent Inc\nevent Dec\n\nerror Underflow\n\nstep Counter on Inc -> n + 1\nstep Counter on Dec -> try n.checked_sub(1) else Underflow\n";
+
+#[test]
+fn equiv_is_name_free() {
+    let a = tmp("a", COUNTER);
+    let (_, nameless) = rce(&["fmt", "--nameless", &a]);
+    let b = tmp("b", &nameless);
+    let (status, out) = rce(&["equiv", "--fuel", "500", &a, &b]);
+    assert_eq!(status, 0, "{out}");
+    assert!(out.contains("verdict             equivalent"), "{out}");
+}
+
+#[test]
+fn equiv_finds_the_shortest_distinguishing_sequence() {
+    let a = tmp("c", COUNTER);
+    let b = tmp("d", &COUNTER.replace("checked_sub(1)", "checked_sub(2)"));
+    let (status, out) = rce(&["equiv", "--fuel", "500", &a, &b]);
+    assert_eq!(status, 1, "{out}");
+    assert!(out.contains("after               Inc(), Dec()"), "{out}");
+    assert!(out.contains("A                 silent") && out.contains("B                 refused: Underflow"), "{out}");
+    let (_, json) = rce(&["equiv", "--json", "--fuel", "500", &a, &b]);
+    let v: serde_json::Value = serde_json::from_str(json.trim()).unwrap();
+    assert_eq!(v["format"], "rce-equiv/1");
+    assert_eq!(v["equivalent"], false);
+    assert_eq!(v["witness"]["after"], serde_json::json!(["Inc()", "Dec()"]));
+}

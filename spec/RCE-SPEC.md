@@ -3364,8 +3364,11 @@ as clean exactly when `rce check` accepts it (10.1, principle 3).
   `rce api-diff OLD NEW` (F.4.3) and `rce v09-status` exist: `rce hash FILE|DIR...`
   prints the definition hash, kind and name of every named item (`pub` marks an
   export) and, last, the program hash (`program`: the SHA-256 of the canonical
-  JSON list of the definition hashes, sorted, under the domain `rce-program/1`;
-  name-free, layout-free and order-free), `rce api-diff OLD NEW` prints one row per change of the exports
+  JSON list, sorted, of the definition hashes of the name-free projection
+  (10.6) of the program, with every unnamed item (steps, impls, examples,
+  checks) hashed by its masked text, under the domain `rce-program/1`;
+  name-free, layout-free and order-free, so a program and its renaming have
+  one hash and a changed step body changes it), `rce api-diff OLD NEW` prints one row per change of the exports
   (`compatible` or `breaking`, then kind and name, then the change; status 1 when
   any row is breaking) and `rce v09-status` prints the implemented and the
   unimplemented rules. `rce manifest-check` (F.5.3) checks a manifest's
@@ -3521,6 +3524,22 @@ The dimension benchmark reports these strata separately.
 sorted keys; `has_output`, `emits`, `refuses` and `distinct_outputs` since 2026-10-24, replacing `observable` and `distinct_labels`). The command is deterministic: equal inputs give equal output
 bytes, and the exploration order is the canonical order of 6.1 on events
 and payloads. It is informative: no admission depends on it.
+
+`rce equiv [--fuel N] [--json] A B` asks whether two programs have the same
+behaviour (6.10): it explores both from their initial states over the same
+event instances, compares every step by its name-free output (emitted
+values in their positional form, a refusal by its error's declaration
+index, T7), refines the two graphs together by those outputs and reads
+whether the two initial states fall in one class (T58: equivalence is
+bisimilarity). Status 0 and `equivalent` when they do; otherwise status 1
+with the shortest distinguishing event sequence and the two outputs at its
+end, or the event instances one program explores and the other does not.
+The verdict is over the explored alphabet and, when a bound is reached, to
+that bound; T59 bounds what agreement to a depth proves. A program and its
+name-free projection (10.6) are equivalent by T7. JSON format
+`rce-equiv/1`. With `rce api-diff`, this is the check of proposal CC-2: a
+change under which every program keeps its behaviour is an erratum under
+C.15; any other is a meaning change.
 
 **Read receipt.** Which JSON-RPC error code does the language server return for a request it does not know? (a number)
 
