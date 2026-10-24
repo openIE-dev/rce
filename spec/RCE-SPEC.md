@@ -2228,7 +2228,7 @@ The Form
   impls; W-TRAIT-3 a type used with `==`, `!=`, an ordering operator or a
   generic bound without implementing the trait it needs.
 
-Version 0.8 only (5.16)
+Indexed values (5.16)
 - W-CTX-1 Context text made other than by `C.lit` of a string literal or
   `C.encode`; joined with another context or plain text; carried by an
   event payload; an unknown context.
@@ -2242,7 +2242,7 @@ Version 0.8 only (5.16)
   a `Cap[A]` field. (W-NAME-2 refuses a declaration named after a 5.16
   type or context.)
 
-Version 0.9 only (Appendix F, specified and not yet implemented): the
+Appendix F (specified and implemented in part, F.12): the
 refusals of F.3 to F.8, among them unused values, dropped results and
 shadowing (F.3), `World` and information-flow labels (F.4), transactional
 calls (F.4), capabilities, typed output, pinned builds, constant-time functions
@@ -2787,8 +2787,9 @@ they run them on the CPU, which 5.13 allows).
 
 ### 9.5 Changes in draft 0.7
 
-- Version 0.7 (2.7, C.15): version 0.6 with size-scaled standard library
-  method costs (C.6.4). Versions 0.5 and 0.6 keep their meaning.
+- Size-scaled standard library method costs (C.6.4), the one meaning change
+  recorded in C.15 (a new release of the whole text; the per-module version
+  selection of that draft was retired by decision 64).
 - Errata for every version, listed in C.15: closed standard library and
   no ambient I/O (5.15), `&mut` write-back on `fail` in the emitters (6.2,
   the earlier T33 rule, since retired) with nested calls flattened by an order-preserving ANF pass (T34),
@@ -3352,8 +3353,10 @@ as clean exactly when `rce check` accepts it (10.1, principle 3).
   export), `rce api-diff OLD NEW` prints one row per change of the exports
   (`compatible` or `breaking`, then kind and name, then the change; status 1 when
   any row is breaking) and `rce v09-status` prints the implemented and the
-  unimplemented rules. The broker contract (F.7), the manifest and pin check
-  (F.5.3) and the emitter refusals of F.5.4 do not exist yet. Results are
+  unimplemented rules. `rce manifest-check` (F.5.3) checks a manifest's
+  module and dependency hashes. The broker contract (F.7), the provenance
+  record and the build cache of F.5.3, and the emitter refusals of F.5.4 do
+  not exist yet. Results are
   reproducible from the inputs alone (10.1).
 
 ### 10.9 `rce trace --json FILE [EVENTS]`: reference traces (informative)
