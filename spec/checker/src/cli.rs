@@ -573,6 +573,7 @@ pub const USAGE_TEXT: &str = "usage:
   rce equiv [--fuel N] [--json] A B      whether two programs have the same behaviour on the explored alphabet (6.10, T58), with a distinguishing event sequence when not
   rce change [--fuel N] OLD NEW          classify a change: api-diff rows (F.4.3) and the behaviour check; erratum when every behaviour is kept, meaning change otherwise (C.15, CC-2)
   rce hash FILE|DIR...           the definition hash (F.4.3) of every named item of each module: HASH, kind, name, and `pub` for an export
+  rce manifest DIR               write the hash-pinned manifest of a directory (F.5.3): every .rce file as a module pinned by its hash, canonical JSON
   rce manifest-check MANIFEST [--advisories FILE] [--key ISSUER=HEXPUBKEY]...  verify a hash-pinned manifest (F.5.3, W-PIN-1) and list pinned hashes that carry a signed advisory
   rce api-diff OLD NEW           compare the exports of two module sets (FILE or DIR each); one row per change, compatible or breaking; status 1 if any is breaking
   rce v09-status                 the Appendix F rules this checker implements and the ones it refuses by version
@@ -898,6 +899,12 @@ fn run_main(a: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &mu
                 writeln!(out, "{}", r.show()).map_err(w)?;
             }
             if rows.iter().any(|r| r.breaking) { REFUSED } else { OK }
+        }
+        Some("manifest") if rest.len() == 1 => {
+            // rce manifest DIR: the manifest of a directory (F.5.3), canonical JSON, to stdout
+            let text = crate::manifest::generate(std::path::Path::new(&rest[0]))?;
+            writeln!(out, "{text}").map_err(w)?;
+            OK
         }
         Some("manifest-check") if !rest.is_empty() => {
             // rce manifest-check MANIFEST [--advisories FILE] [--key ISSUER=HEXPUBKEY]...

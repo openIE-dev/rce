@@ -53,6 +53,15 @@ appends to the module. `rce` 0.1.3 embeds only `crypto`, `pq`, `hpke` and
 file to `rce` together with the program (`rce check lib/core/exact.rce app.rce`
 with `use core.exact`).
 
+## The library is pinned by hash
+
+`lib/MANIFEST.json` is the manifest of specification F.5.3: every module of
+`lib/` with the SHA-256 of its canonical text, written by `rce manifest lib`
+and verified by `rce manifest-check lib/MANIFEST.json` in `scripts/check.sh`.
+There is no version number: a module is named by its hash, a change to a
+module changes the manifest in the same commit, and a program that pins the
+library pins these hashes.
+
 ## What public `rce` can run today
 
 Read against public `openIE-dev/rce` main (`e416fd0`, draft 0.9, `rce 0.1.0`), checked on 17 October 2026 with a full `sh scripts/check.sh` run (it completes, exit 0, about 15 minutes):

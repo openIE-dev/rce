@@ -451,8 +451,10 @@ as clean exactly when `rce check` accepts it (10.1, principle 3).
   one hash and a changed step body changes it), `rce api-diff OLD NEW` prints one row per change of the exports
   (`compatible` or `breaking`, then kind and name, then the change; status 1 when
   any row is breaking) and `rce v09-status` prints the implemented and the
-  unimplemented rules. `rce manifest-check` (F.5.3) checks a manifest's
-  module and dependency hashes. The broker contract (F.7), the provenance
+  unimplemented rules. `rce manifest DIR` writes the manifest of a directory (F.5.3: every
+  `.rce` file as a module pinned by the hash of its canonical text, canonical
+  JSON) and `rce manifest-check` verifies one; the standard library is pinned
+  this way (`stdlib/lib/MANIFEST.json`, checked by its CI). The broker contract (F.7), the provenance
   record and the build cache of F.5.3, and the emitter refusals of F.5.4 do
   not exist yet. Results are
   reproducible from the inputs alone (10.1).
@@ -634,4 +636,4 @@ its name-free projection (T7) and is a continuous-integration step.
 
 **Read receipt.** Which JSON-RPC error code does the language server return for a request it does not know? (a number)
 
-<!-- body-sha256: 3b0ee43df69ba8b03ffd972d23448003474fe2279a214fba3da33ede8f247970 -->
+<!-- body-sha256: 86acde3a6562fbf62463a5c1dc1acb2e0cb8ce4fb99db42dbe737fc87d8e6970 -->
