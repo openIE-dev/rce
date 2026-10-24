@@ -3080,7 +3080,10 @@ and the one-emitter mechanism are the proposal `spec/proposals/emit-targets.md`
 never a projection.
 
 **The program emitters.** `rust`, `python`, `js` and `scala` translate the checked
-module, not the Form. Each output is self-contained. It starts with a
+module, not the Form. Each output is self-contained. Its first line is a
+comment naming the program hash (10.8: the SHA-256 over the definition
+hashes of F.4.3, name-free and layout-free) and the checker version and
+commit that printed it, so an emitted file is tied to its source. It starts with a
 runtime that defines the values of 6.3 and their operations, following the
 reference evaluator (`spec/checker/src/interp.rs`) value by value. That
 includes the integer range checks, the trap messages, canonical map key order
@@ -3360,7 +3363,9 @@ as clean exactly when `rce check` accepts it (10.1, principle 3).
 - Version 0.9 (Appendix F) is implemented in part (F.12). `rce hash`,
   `rce api-diff OLD NEW` (F.4.3) and `rce v09-status` exist: `rce hash FILE|DIR...`
   prints the definition hash, kind and name of every named item (`pub` marks an
-  export), `rce api-diff OLD NEW` prints one row per change of the exports
+  export) and, last, the program hash (`program`: the SHA-256 of the canonical
+  JSON list of the definition hashes, sorted, under the domain `rce-program/1`;
+  name-free, layout-free and order-free), `rce api-diff OLD NEW` prints one row per change of the exports
   (`compatible` or `breaking`, then kind and name, then the change; status 1 when
   any row is breaking) and `rce v09-status` prints the implemented and the
   unimplemented rules. `rce manifest-check` (F.5.3) checks a manifest's

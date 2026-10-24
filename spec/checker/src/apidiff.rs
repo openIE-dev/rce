@@ -178,6 +178,18 @@ fn sig_of(m: &Module, it: &Item) -> String {
     }
 }
 
+/// The program hash (proposal CC-1): the SHA-256 of the canonical JSON list
+/// of the definition hashes of every named definition of the modules given
+/// together, sorted. It is name-free (T7, through the definition hashes),
+/// layout-free and order-free, and the same for one module or a package.
+pub fn program_hash(ms: &[Module]) -> String {
+    let mut hs: Vec<String> = ms.iter().flat_map(|m| defs(m).into_iter().map(|d| d.hash)).collect();
+    hs.sort();
+    hs.dedup();
+    let json = format!("[{}]", hs.iter().map(|h| format!("\"{h}\"")).collect::<Vec<_>>().join(","));
+    sha(&format!("rce-program/1\n{json}"))
+}
+
 /// Every named definition of a module with its definition hash.
 pub fn defs(m: &Module) -> Vec<Def> {
     let named: Vec<(String, &Item)> = m

@@ -1,5 +1,21 @@
-#[cfg(feature = "tree-sitter")]
+fn git_commit() -> String {
+    let out = std::process::Command::new("git").args(["rev-parse", "--short=12", "HEAD"]).output();
+    match out {
+        Ok(o) if o.status.success() => String::from_utf8_lossy(&o.stdout).trim().to_string(),
+        _ => "unknown".to_string(),
+    }
+}
+
 fn main() {
+    // CC-4: emitted code names the checker commit that printed it.
+    println!("cargo:rustc-env=RCE_GIT_COMMIT={}", git_commit());
+    println!("cargo:rerun-if-changed=../../.git/HEAD");
+    println!("cargo:rerun-if-changed=../../.git/refs/heads");
+    tree_sitter();
+}
+
+#[cfg(feature = "tree-sitter")]
+fn tree_sitter() {
     let dir = std::path::Path::new("../../tree-sitter/src");
     cc::Build::new()
         .include(dir)
@@ -14,4 +30,4 @@ fn main() {
 }
 
 #[cfg(not(feature = "tree-sitter"))]
-fn main() {}
+fn tree_sitter() {}

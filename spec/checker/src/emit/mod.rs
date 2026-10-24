@@ -65,9 +65,22 @@ pub fn emit(m: &Module, lang: Lang) -> Result<String, String> {
     if let Some(e) = crate::v09::unemittable(m) {
         return Err(e);
     }
+    // CC-4: the first line names the program (its hash, name-free) and the
+    // checker that printed it, so an emitted file is tied to its source.
+    let provenance = format!(
+        "{} rce-program {} · emitted by rce {} ({})",
+        match lang {
+            Lang::Python => "#",
+            _ => "//",
+        },
+        crate::apidiff::program_hash(std::slice::from_ref(m)),
+        env!("CARGO_PKG_VERSION"),
+        crate::GIT_COMMIT,
+    );
     // one shared, order-preserving lowering for all three emitters (6.2)
     let m = crate::anf::lower(m);
-    base::G::new(&m, lang).program()
+    let body = base::G::new(&m, lang).program()?;
+    Ok(format!("{provenance}\n{body}"))
 }
 
 fn show_state(s: &[crate::interp::Region]) -> String {

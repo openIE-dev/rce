@@ -783,12 +783,15 @@ fn run_main(a: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &mu
             }
         }
         Some("hash") if !rest.is_empty() => {
+            let mut ms = Vec::new();
             for p in expand(rest)? {
                 let m = parse(&read_file(&p)?).map_err(|e| format!("{p}: {e}"))?;
                 for d in crate::apidiff::defs(&m) {
                     writeln!(out, "{}  {} {}{}", d.hash, d.kind, d.name, if d.exported { "  pub" } else { "" }).map_err(w)?;
                 }
+                ms.push(m);
             }
+            writeln!(out, "{}  program", crate::apidiff::program_hash(&ms)).map_err(w)?;
             OK
         }
         Some("api-diff") if rest.len() == 2 => {
