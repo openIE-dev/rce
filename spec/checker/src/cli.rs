@@ -798,7 +798,7 @@ fn run_main(a: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &mu
                 }
             };
             let (verdict, status) = match (&beh, breaking) {
-                (Some(e), _) if !e.equivalent => ("meaning change  the behaviour of a program changed: a new release under C.15", REFUSED),
+                (Some(e), _) if !e.equivalent => ("meaning change  the behaviour of the program changed", REFUSED),
                 (Some(e), false) if e.exact => ("erratum  every export compatible and every behaviour kept on the whole explored graph", OK),
                 (Some(_), false) => ("erratum to the explored bound  every export compatible and every behaviour kept as far as explored", OK),
                 (Some(_), true) => ("interface change  behaviour kept, an export broken (F.4.3): callers must change", REFUSED),
