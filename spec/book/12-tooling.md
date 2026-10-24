@@ -51,7 +51,7 @@ differs from what the book gives.
 
 ### 10.2 `rce check FILE|DIR...`
 
-All FILEs form one program: `use` resolves among them (4.1). A DIR is a
+All FILEs form one program: `use` resolves among them and then in the built-in standard library (4.1). A DIR is a
 package: it stands for its `.rce` files, recursively, in sorted order,
 and reads nothing outside it (the multi-module example is the package
 `spec/examples/26_use_module/`, so `rce check spec/examples/26_use_module`
@@ -636,4 +636,4 @@ its name-free projection (T7) and is a continuous-integration step.
 
 **Read receipt.** Which JSON-RPC error code does the language server return for a request it does not know? (a number)
 
-<!-- body-sha256: 86acde3a6562fbf62463a5c1dc1acb2e0cb8ce4fb99db42dbe737fc87d8e6970 -->
+<!-- body-sha256: c6eef6e3a9b14c76aec51f8e4661aa2221dfd69c282287b8f4fa2444fd0fd236 -->

@@ -241,7 +241,7 @@ impl Checker {
             match it {
                 Item::Use(p, _, line) => {
                     let s = p.join(".");
-                    if !STD_MODULES.contains(&s.as_str()) && !known_modules.contains(&s) {
+                    if !STD_MODULES.contains(&s.as_str()) && !known_modules.contains(&s) && !crate::stdlib::has(&s) {
                         self.e(d(*line, "W-NAME-1", format!("unknown module `{s}`")));
                     }
                     if m.path.as_ref().map(|q| q.join(".")) == Some(s.clone()) {

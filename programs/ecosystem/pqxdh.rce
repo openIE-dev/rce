@@ -27,7 +27,7 @@ state Pqxdh
     pubs: Map[text, text] = {}
     ek: text = ""
     dk: text = ""
-    ct: text = ""
+    ctext: text = ""
     dh_i: text = ""
     ss_i: text = ""
     sk_i: text = ""
@@ -54,7 +54,7 @@ step Pqxdh on DhI
 
 step Pqxdh on Encaps(m: m)
     let cs = mlkem_encaps(copy(ek), m).split(".")
-    ct = copy(cs[0])
+    ctext = copy(cs[0])
     ss_i = copy(cs[1])
 
 step Pqxdh on SkI
@@ -64,14 +64,14 @@ step Pqxdh on DhR
     dh_r = pqxdh_dh_resp(priv.get("ikb") catch "", priv.get("spkb") catch "", pubs.get("ika") catch "", pubs.get("eka") catch "")
 
 step Pqxdh on Decaps
-    ss_r = mlkem_decaps(copy(dk), copy(ct))
+    ss_r = mlkem_decaps(copy(dk), copy(ctext))
 
 step Pqxdh on SkR
     sk_r = pqxdh_sk(copy(dh_r), copy(ss_r))
 
 step Pqxdh on Forge
-    let b = unhex(copy(ct))
+    let b = unhex(copy(ctext))
     var f = [b[0] ^ 1]
     for i in 1..b.len()
         f.push(b[i])
-    ct = tohex(f)
+    ctext = tohex(f)
