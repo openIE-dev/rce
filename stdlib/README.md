@@ -71,7 +71,7 @@ writes `use enc` or `use data.events` and the checker has it, in `check`,
 `run`, `test`, `trace`, `emit`, `dim` and `host`; `rce lib` lists the
 modules and `rce lib NAME` prints one. The `#!lib NAME` directive line is
 honoured as well (the library's items in front, unqualified). Nothing is
-installed, inlined or selected: the library is part of the language, and a
+installed or selected: the library is part of the language, and a
 change to it is a new hash in `lib/MANIFEST.json` in the same commit.
 
 ## What the checks need

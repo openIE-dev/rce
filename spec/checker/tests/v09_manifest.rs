@@ -212,7 +212,22 @@ fn a_lib_directive_is_a_use_of_the_library_and_is_pinned_the_same_way() {
     let mut bare = v.clone();
     bare["dependencies"] = json!([]);
     let errs = manifest::check(&canonical(&bare), &d).unwrap_err();
-    assert!(errs.iter().any(|e| e.contains("imports `crypto`, which the manifest does not pin")), "{errs:?}");
+    assert!(errs.iter().any(|e| e.contains("uses the built-in `crypto` through `#!lib crypto`, which the manifest does not pin")), "{errs:?}");
+}
+
+#[test]
+fn a_lib_directive_is_never_an_import_edge_to_a_file_of_the_directory() {
+    // a local module named crypto, unrelated to the library, and a module
+    // that names the built-in crypto by directive: the directive still needs
+    // the stdlib pin, and no import cycle is reported through the local file
+    let d = tmp("stdlib-directive-local");
+    std::fs::write(d.join("crypto.rce"), "module crypto\n#!lib crypto\n\npub fn mine() -> i64 = 1\n").unwrap();
+    std::fs::write(d.join("app.rce"), "module app\n#!lib crypto\n\nfn f() -> List[i64]\n    return sha256([104, 105])\n").unwrap();
+    let text = manifest::generate(&d).unwrap();
+    let v: serde_json::Value = serde_json::from_str(&text).unwrap();
+    assert_eq!(v["dependencies"], json!([{"name": "stdlib", "sha256": manifest::stdlib_hash()}]));
+    let r = manifest::check(&text, &d);
+    assert!(r.as_ref().map_or_else(|e| !e.iter().any(|x| x.contains("cycle")), |_| true), "{r:?}");
 }
 
 #[test]

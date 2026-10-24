@@ -141,20 +141,35 @@ fn entries<'a>(v: &'a Value, key: &str, fields: &[&str], errs: &mut Vec<String>)
 }
 
 /// The imports of a module source: `use a.b` names the module `a.b`.
-/// The modules a module uses: its `use` imports, and the built-in libraries
-/// its `#!lib NAME` lines place in front (4.1), which it uses as surely as
-/// an import and which the manifest must pin in the same way.
+/// The modules a module imports with `use`: a module of the manifest's
+/// directory first, then the built-in library (4.1).
 fn imports(src: &str) -> Vec<String> {
-    let mut out: Vec<String> = match crate::parse::parse_surface(src) {
+    match crate::parse::parse_surface(src) {
         Ok(m) => m
             .items
             .iter()
             .filter_map(|i| if let Item::Use(p, _, _) = i { Some(p.join(".")) } else { None })
             .collect(),
         Err(_) => vec![],
-    };
-    out.extend(crate::stdlib::directives(src).into_iter().map(String::from));
-    out
+    }
+}
+
+/// The built-in libraries a module's `#!lib NAME` lines place in front (4.1).
+/// A directive always means the built-in library, never a file of the
+/// directory, so these are uses of the library and never edges of the
+/// import graph.
+fn lib_lines(src: &str) -> Vec<String> {
+    crate::stdlib::directives(src).into_iter().map(String::from).collect()
+}
+
+/// Whether the directory's own module `name`, with source `own`, is the
+/// built-in module of that name (the library's own directory): then a
+/// directive naming it needs no dependency.
+fn is_the_library_module(name: &str, own: Option<&String>) -> bool {
+    match (own, crate::stdlib::source(name)) {
+        (Some(o), Some(lib)) => module_hash(o).ok().is_some() && module_hash(o).ok() == module_hash(lib).ok(),
+        _ => false,
+    }
 }
 
 /// W-PIN-1 over a manifest and the files it names (relative to `root`).
@@ -183,6 +198,8 @@ pub fn generate(root: &Path) -> Result<String, String> {
     walk(root, &mut files)?;
     let mut mods = vec![];
     let mut imps = vec![];
+    let mut libs = vec![];
+    let mut srcs: BTreeMap<String, String> = BTreeMap::new();
     for f in &files {
         let src = std::fs::read_to_string(f).map_err(|e| format!("{}: {e}", f.display()))?;
         let m = crate::parse::parse(&src).map_err(|e| format!("{}: {e}", f.display()))?;
@@ -190,12 +207,15 @@ pub fn generate(root: &Path) -> Result<String, String> {
         let name = m.path.as_ref().map(|p| p.join(".")).unwrap_or_else(|| rel.trim_end_matches(".rce").replace('/', "."));
         mods.push(serde_json::json!({"module": name, "path": rel, "sha256": module_hash(&src)?}));
         imps.extend(imports(&src));
+        libs.extend(lib_lines(&src));
+        srcs.insert(name.clone(), src);
     }
     mods.sort_by(|a, b| a["module"].as_str().cmp(&b["module"].as_str()));
     // an import of the built-in library (4.1) pins the library by the hash
     // of its manifest; an import of a module of the directory needs nothing
     let own: BTreeSet<&str> = mods.iter().filter_map(|m| m["module"].as_str()).collect();
-    let uses_lib = imps.iter().any(|i| !own.contains(i.as_str()) && crate::stdlib::has(i));
+    let uses_lib = imps.iter().any(|i| !own.contains(i.as_str()) && crate::stdlib::has(i))
+        || libs.iter().any(|l| !is_the_library_module(l, srcs.get(l)));
     if uses_lib {
         // a pin names the library this checker carries, so it is written only
         // when that library is exactly the one its manifest pins (XF-3)
@@ -261,6 +281,8 @@ pub fn check(text: &str, root: &Path) -> Result<BTreeMap<String, String>, Vec<St
     let mut names = BTreeSet::new();
     let mut pinned = BTreeMap::new();
     let mut graph: BTreeMap<String, Vec<String>> = BTreeMap::new();
+    let mut dlibs: BTreeMap<String, Vec<String>> = BTreeMap::new();
+    let mut srcs: BTreeMap<String, String> = BTreeMap::new();
     for e in &mods {
         let (name, path, want) = (
             e.get("module").and_then(|x| x.as_str()).unwrap_or(""),
@@ -288,6 +310,8 @@ pub fn check(text: &str, root: &Path) -> Result<BTreeMap<String, String>, Vec<St
                     }
                     pinned.insert(name.to_string(), h);
                     graph.insert(name.to_string(), imports(&src));
+                    dlibs.insert(name.to_string(), lib_lines(&src));
+                    srcs.insert(name.to_string(), src);
                 }
             },
         }
@@ -314,6 +338,15 @@ pub fn check(text: &str, root: &Path) -> Result<BTreeMap<String, String>, Vec<St
             let built_in = dep_names.contains("stdlib") && crate::stdlib::has(i);
             if !names.contains(i) && !built_in && !dep_names.contains(i.as_str()) && !dep_names.contains(i.split('.').next().unwrap_or("")) {
                 pin(&mut errs, format!("module `{m}` imports `{i}`, which the manifest does not pin by hash"));
+            }
+        }
+    }
+    // a `#!lib NAME` line uses the built-in library: pinned as `stdlib`, or
+    // satisfied by the directory's own copy of that very module
+    for (m, ls) in &dlibs {
+        for l in ls {
+            if !dep_names.contains("stdlib") && !is_the_library_module(l, srcs.get(l)) {
+                pin(&mut errs, format!("module `{m}` uses the built-in `{l}` through `#!lib {l}`, which the manifest does not pin by hash; the library is pinned as the dependency `stdlib`"));
             }
         }
     }

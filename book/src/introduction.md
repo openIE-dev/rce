@@ -2,23 +2,26 @@
 
 This book teaches the RCE programming language from the beginning. RCE
 stands for Reality Code Engine: a language and toolchain made for the AI
-coding era, in which every program has one fixed, checkable shape, so that
+coding era, in which every program has the one shape of the Form, so that
 programs can be written, checked, changed and run by machines with no
-language model in the loop. It
+language model in the loop. The shape is rigid at each commit of the
+specification and grows inside the same text when a program needs a form
+it lacks. It
 assumes you can use a terminal and have written a little code in some
 language. It does not assume you know any particular one.
 
 ## What RCE is
 
-RCE is a small language for programs whose meaning is fixed by a written
+RCE is a language whose programs take their meaning from a written
 specification, and there is one language: the specification at one commit,
-with no per-module version selection. A program is a text. Its meaning is a *Form*: a state machine
+extended inside the same text when a program needs a form it lacks, with
+no per-module version selection. A program is a text. Its meaning is a *Form*: a state machine
 made of states, events, a step function that takes a state and an event to
 a new state and some outputs, and a log of the events that happened.
 
 ![RCE overview: source, checker, Form, log, emit targets, host](https://raw.githubusercontent.com/openIE-dev/rce/main/docs/figures/rce-overview.svg)
 
-*RCE at a glance: the checker accepts a program or names the rule it breaks; an accepted program is a Form; every step goes into the log; emitters project it to other languages; a host runs it. More figures: [openIE-dev/rce docs/figures](https://github.com/openIE-dev/rce/tree/main/docs/figures).*
+*RCE at a glance: the checker reads a program into its Form, naming the place where a text does not yet have the Form's shape; every step goes into the log; emitters project it to other languages; a host runs it. More figures: [openIE-dev/rce docs/figures](https://github.com/openIE-dev/rce/tree/main/docs/figures).*
 
 Three ideas run through the whole book:
 
@@ -27,17 +30,21 @@ Three ideas run through the whole book:
    behaviour, so a result does not depend on the machine.
 2. **Every program finishes.** Loops have a limit, recursion has to make the
    input smaller, and iterators are counted. A step can never run forever.
-3. **Mistakes are refused before the program runs.** The checker refuses a
-   program that could use memory after giving it away, that forgets a case,
-   or whose own tests do not hold. Each refusal names the rule it broke.
+3. **A program's meaning is settled before it runs.** Ownership, every
+   case of a match and the program's own tests are part of its Form, so an
+   accepted program never uses memory after giving it away, never leaves a
+   case unhandled, and its tests hold. Where a text does not yet have that
+   shape, the checker names the place and the rule.
 
 ## Status
 
-The specification is at **draft 0.7**. That draft is published for review
-and can still change. This book teaches language version 0.5, the language
-of sections 2 to 10; a module opts into version 0.6 (Appendix C of the
-specification) with the first-line comment `# rce-version: 0.6`, or into
-version 0.7 (C.15) with `# rce-version: 0.7`. What exists today:
+**Reality Code Engine, draft 0.9.** The specification is published for
+review and can still change. There is one language: the specification at
+one commit. Drafts 0.5 to 0.9 are labels of past commits of that language,
+not alternatives. A `# rce-version:` line is a release label. It is
+tolerated, ignored and not hashed, and it is not a per-module language
+selection. This book teaches sections 2 to 10 of that one text. What exists
+today:
 
 - the specification, with its grammar checked by machine;
 - a reference checker and interpreter, `rce`, which this book uses for every
