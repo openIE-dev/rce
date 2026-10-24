@@ -52,3 +52,12 @@ fn an_unknown_module_is_still_refused() {
     assert_eq!(st, 1, "{out}");
     assert!(out.contains("W-NAME-1 unknown module `nothere`"), "{out}");
 }
+
+#[test]
+fn rce_lib_lists_the_modules_and_the_hash_that_pins_them() {
+    let (st, out) = rce(&["lib"]);
+    assert_eq!(st, 0, "{out}");
+    assert!(out.lines().any(|l| l.starts_with("enc ")), "{out}");
+    let last = out.lines().last().unwrap();
+    assert!(last.contains("pinned by stdlib/lib/MANIFEST.json") && last.ends_with(&rce_spec_check::manifest::stdlib_hash()), "{last}");
+}

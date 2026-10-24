@@ -453,8 +453,14 @@ as clean exactly when `rce check` accepts it (10.1, principle 3).
   any row is breaking) and `rce v09-status` prints the implemented and the
   unimplemented rules. `rce manifest DIR` writes the manifest of a directory (F.5.3: every
   `.rce` file as a module pinned by the hash of its canonical text, canonical
-  JSON) and `rce manifest-check` verifies one; the standard library is pinned
-  this way (`stdlib/lib/MANIFEST.json`, checked by its CI). The broker contract (F.7), the provenance
+  JSON; a directory whose modules import the built-in library gets the one
+  dependency `stdlib`, pinned by the hash of the library's manifest) and
+  `rce manifest-check` verifies one. The standard library is pinned this way
+  (`stdlib/lib/MANIFEST.json`), and the checker carries that manifest with
+  the library. `rce lib` prints the library's hash after the modules, then
+  each module whose text differs from its pin (status 1); while such a
+  difference exists, `rce manifest` writes no `stdlib` pin and
+  `rce manifest-check` accepts none. The broker contract (F.7), the provenance
   record and the build cache of F.5.3, and the emitter refusals of F.5.4 do
   not exist yet. Results are
   reproducible from the inputs alone (10.1).
@@ -636,4 +642,4 @@ its name-free projection (T7) and is a continuous-integration step.
 
 **Read receipt.** Which JSON-RPC error code does the language server return for a request it does not know? (a number)
 
-<!-- body-sha256: c6eef6e3a9b14c76aec51f8e4661aa2221dfd69c282287b8f4fa2444fd0fd236 -->
+<!-- body-sha256: f5a34bfc9a86c4e33292d06a1b95c5841f44ec4b7ba40b8d73852dbbf0d275b5 -->

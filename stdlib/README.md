@@ -58,8 +58,11 @@ state.
 `lib/` with the SHA-256 of its canonical text, written by `rce manifest lib`
 and verified by `rce manifest-check lib/MANIFEST.json` in `scripts/check.sh`.
 There is no version number: a module is named by its hash, a change to a
-module changes the manifest in the same commit, and a program that pins the
-library pins these hashes.
+module changes the manifest in the same commit. The checker carries this
+manifest with the library: `rce lib` ends with the SHA-256 of the manifest's
+canonical text and reports any module whose text differs from its pin, and a
+program's manifest pins the library as the one dependency `stdlib` by that
+hash (`rce manifest` writes it; `rce manifest-check` verifies it).
 
 ## Built into the checker
 
@@ -68,7 +71,7 @@ writes `use enc` or `use data.events` and the checker has it, in `check`,
 `run`, `test`, `trace`, `emit`, `dim` and `host`; `rce lib` lists the
 modules and `rce lib NAME` prints one. The `#!lib NAME` directive line is
 honoured as well (the library's items in front, unqualified). Nothing is
-installed, inlined or selected: the library is part of the language, and a
+installed or selected: the library is part of the language, and a
 change to it is a new hash in `lib/MANIFEST.json` in the same commit.
 
 ## What the checks need
@@ -78,12 +81,12 @@ change to it is a new hash in `lib/MANIFEST.json` in the same commit.
 | `lib/crypto.rce`, `enc`, `hash`, num, math, text, xml, utf8 and the other foundation modules | nothing | pass |
 | `pq` (6 checks), `hpke` (3), `mls` (2) | `crypto` in front of the module, by the `#!lib crypto` line | pass |
 | `energy` library (`lib/energy/energy.rce`, 55 checks) | `crypto` in front, as above | pass |
-| `tests/energy/energy_host.rce` (14 events) | Ed25519 signing within one event's fuel (specification 6.7) | 13 events pass; event `Seal0` signs a receipt with Ed25519 written in RCE, exceeds the per-event fuel and is refused, which `check.sh` reports as `SKIPPED` |
+| `tests/energy/energy_host.rce` (15 events) | nothing | pass; `Seal0` seals a receipt and `Seal0Check` compares it with the expected envelope |
 | `tests/os/pkg_checks_10.rce` | nothing | pass; the long-identifier row uses 560,000 characters because a text is limited to 1,000,000 elements (spec N9) |
 
 - `rce host run` and `rce host serve` run the host steps, and every host run is validated by replay with the adapters disconnected.
 - `scripts/check.sh` probes for the `#!lib NAME` directive. A checker without it gets `lib/crypto.rce` (without its `module` and `check` lines) appended by `scripts/libexpand.py` to the modules that name it. Set `RCE_NO_LIB=1` or `0` to force either path.
-- `ed_pubkey`, `ed_sign` and `ed_verify` are ordinary functions in `lib/crypto.rce`. Only the receipt signing in `energy_host.rce` exceeds the per-event fuel, so `check.sh` accepts exactly one outcome other than full success: `Seal0` refused with `comptime fuel exhausted` and every other event good. A binary whose `ed_*` functions are native completes `Seal0` and passes all 14.
+- `ed_pubkey`, `ed_sign` and `ed_verify` are ordinary functions in `lib/crypto.rce`. Each input has the fuel of 6.7 on every host, and HC-7 requires a host to charge fuel as the reference does; proposal XF-6 (`spec/proposals/one-library-every-fabric.md`) states the same for native library code, so that a binary with native `ed_*` and the reference write the same log for the same inputs.
 
 `pq`, `hpke` and `mls` build on `crypto`. The libraries are reference
 code for correctness and replay. They are **not constant time**.

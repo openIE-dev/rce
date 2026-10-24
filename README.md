@@ -1,9 +1,11 @@
 # RCE: the Reality Code Engine
 
 RCE stands for **Reality Code Engine**. It is a programming language and
-toolchain in which every program has one fixed, checkable shape, so that
+toolchain in which every program has the one shape of the Form, so that
 programs can be written, checked, changed and run by machines without a
-language model in the loop.
+language model in the loop. The shape is rigid at each commit of the
+specification, and it grows inside the same text when a program needs a
+form it lacks.
 
 ## Why RCE exists
 
@@ -19,13 +21,14 @@ RCE removes the ambiguity at the source. A program is a *Form*: a state
 machine P = (S, E, δ, D, λ) of declared states, declared events, a pure
 step function from a state and an event to the next state and its outputs,
 and the hash-chained log D of every event applied. Everything the program
-can do is in the Form, and the checker either admits the Form or names the
-rule it breaks. The `example` lines a program carries are part of it, and
-a program whose examples do not hold is refused before it runs.
+can do is in the Form, including the `example` lines it carries, so an
+accepted program is a Form whose examples hold. Where a text does not yet
+have the Form's shape (a parse error, a type error, an example that does
+not hold), the checker names the place and the part of the shape it lacks.
 
 This is what makes autonomous coding deterministic. A proposal, whether a
-person, a search over existing Forms or a model produced it, is accepted
-or refused by the checker alone, with the same verdict on every machine.
+person, a search over existing Forms or a model produced it, is read by
+the checker alone, with the same result on every machine.
 Once accepted, the Form replays identically everywhere, projects to any
 target language without changing meaning, and is reused as a whole. Every
 language is both an output and an input of the Form: `rce emit` prints a
@@ -48,10 +51,11 @@ What the language guarantees:
    the machine or the compiler.
 2. **Every program finishes.** Loops have limits and recursion works on
    smaller and smaller parts of its input, so a program cannot hang.
-3. **Mistakes are caught before the program runs.** Using memory after
-   giving it away, forgetting a case, or writing an `example` that does not
-   hold makes the checker refuse the program, and it names the rule that
-   was broken.
+3. **A program's meaning is settled before it runs.** Ownership, every
+   case of a match and the program's `example` lines are part of its Form,
+   so an accepted program never uses memory after giving it away, never
+   leaves a case unhandled and has no example that fails. Where a text does
+   not yet have that shape, the checker names the place and the rule.
 4. **There is one language, batteries included.** The specification at one
    commit is the language, every module of a program is in it, and the
    whole standard library is built into the checker: a program writes
@@ -71,7 +75,7 @@ same commit.
 
 ![RCE overview: source, checker, Form, log, emit targets, host, fabrics](docs/figures/rce-overview.svg)
 
-*The checker accepts a program or names the rule it breaks; an accepted program is a Form; every step is appended to the log D; `rce emit` projects the program to a target language (Rust, Python, JavaScript and Scala today; every registry language by table); a host runs it on a compute fabric.*
+*The checker reads a program into its Form, naming the place where a text does not yet have the Form's shape; every step is appended to the log D; `rce emit` projects the program to a target language (Rust, Python, JavaScript and Scala today; every registry language by table); a host runs it on a compute fabric.*
 
 ## Try it
 

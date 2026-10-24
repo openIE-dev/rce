@@ -161,3 +161,93 @@ fn a_generated_manifest_is_accepted_and_pins_every_module() {
     let pinned = manifest::check(&text, &d).unwrap();
     assert_eq!(pinned.len(), 2);
 }
+
+const USES_LIB: &str = "module app\n\nuse enc\n\nfn f() -> text\n    let b = [104, 105]\n    return enc.b64_encode(&b, false, true)\n";
+
+#[test]
+fn the_built_in_library_is_the_pinned_library() {
+    // every embedded module hashes to its entry in stdlib/lib/MANIFEST.json
+    // and the manifest lists nothing the checker does not carry (XF-3)
+    assert_eq!(manifest::stdlib_unpinned(), Vec::<String>::new());
+    assert_eq!(manifest::stdlib_hash().len(), 64);
+}
+
+#[test]
+fn a_program_that_uses_the_library_pins_it_as_the_dependency_stdlib() {
+    let d = tmp("stdlib-dep");
+    std::fs::write(d.join("app.rce"), USES_LIB).unwrap();
+    let text = manifest::generate(&d).unwrap();
+    let v: serde_json::Value = serde_json::from_str(&text).unwrap();
+    assert_eq!(v["dependencies"], json!([{"name": "stdlib", "sha256": manifest::stdlib_hash()}]));
+    assert!(manifest::check(&text, &d).is_ok(), "{:?}", manifest::check(&text, &d));
+    // without the dependency the import is unpinned
+    let mut bare = v.clone();
+    bare["dependencies"] = json!([]);
+    let errs = manifest::check(&canonical(&bare), &d).unwrap_err();
+    assert!(errs.iter().any(|e| e.contains("imports `enc`, which the manifest does not pin")), "{errs:?}");
+}
+
+#[test]
+fn a_wrong_library_hash_and_a_dependency_named_after_a_library_module_are_refused() {
+    let d = tmp("stdlib-wrong");
+    std::fs::write(d.join("app.rce"), USES_LIB).unwrap();
+    let mut v: serde_json::Value = serde_json::from_str(&manifest::generate(&d).unwrap()).unwrap();
+    v["dependencies"] = json!([{"name": "stdlib", "sha256": "0".repeat(64)}]);
+    let errs = manifest::check(&canonical(&v), &d).unwrap_err();
+    assert!(errs.iter().any(|e| e.contains("dependency `stdlib` pins") && e.contains("the built-in library of this checker is")), "{errs:?}");
+    // a hash that only has the right format no longer passes for a library module
+    v["dependencies"] = json!([{"name": "enc", "sha256": "0".repeat(64)}]);
+    let errs = manifest::check(&canonical(&v), &d).unwrap_err();
+    assert!(errs.iter().any(|e| e.contains("dependency `enc` names a module of the built-in library")), "{errs:?}");
+}
+
+#[test]
+fn a_lib_directive_is_a_use_of_the_library_and_is_pinned_the_same_way() {
+    let d = tmp("stdlib-directive");
+    std::fs::write(d.join("app.rce"), "module app\n#!lib crypto\n\nfn f() -> List[i64]\n    return sha256([104, 105])\n").unwrap();
+    let text = manifest::generate(&d).unwrap();
+    let v: serde_json::Value = serde_json::from_str(&text).unwrap();
+    assert_eq!(v["dependencies"], json!([{"name": "stdlib", "sha256": manifest::stdlib_hash()}]));
+    assert!(manifest::check(&text, &d).is_ok());
+    let mut bare = v.clone();
+    bare["dependencies"] = json!([]);
+    let errs = manifest::check(&canonical(&bare), &d).unwrap_err();
+    assert!(errs.iter().any(|e| e.contains("uses the built-in `crypto` through `#!lib crypto`, which the manifest does not pin")), "{errs:?}");
+}
+
+#[test]
+fn a_lib_directive_is_never_an_import_edge_to_a_file_of_the_directory() {
+    // a local module named crypto, unrelated to the library, and a module
+    // that names the built-in crypto by directive: the directive still needs
+    // the stdlib pin, and no import cycle is reported through the local file
+    let d = tmp("stdlib-directive-local");
+    std::fs::write(d.join("crypto.rce"), "module crypto\n#!lib crypto\n\npub fn mine() -> i64 = 1\n").unwrap();
+    std::fs::write(d.join("app.rce"), "module app\n#!lib crypto\n\nfn f() -> List[i64]\n    return sha256([104, 105])\n").unwrap();
+    let text = manifest::generate(&d).unwrap();
+    let v: serde_json::Value = serde_json::from_str(&text).unwrap();
+    assert_eq!(v["dependencies"], json!([{"name": "stdlib", "sha256": manifest::stdlib_hash()}]));
+    let r = manifest::check(&text, &d);
+    assert!(r.as_ref().map_or_else(|e| !e.iter().any(|x| x.contains("cycle")), |_| true), "{r:?}");
+}
+
+#[test]
+fn the_library_hash_is_over_the_canonical_json_of_its_manifest() {
+    let t = rce_spec_check::stdlib::manifest_text();
+    let v: serde_json::Value = serde_json::from_str(t).unwrap();
+    assert_eq!(manifest::stdlib_hash(), manifest::sha256_hex(canonical(&v).as_bytes()));
+    // the file itself is canonical, so the hash is also the hash of its text
+    assert_eq!(canonical(&v), t);
+}
+
+#[test]
+fn a_dependency_named_after_a_library_namespace_is_refused_with_its_reason() {
+    let d = tmp("stdlib-namespace");
+    std::fs::write(d.join("app.rce"), USES_LIB).unwrap();
+    let mut v: serde_json::Value = serde_json::from_str(&manifest::generate(&d).unwrap()).unwrap();
+    let deps = v["dependencies"].as_array().unwrap().clone();
+    let mut with_ns = deps.clone();
+    with_ns.push(json!({"name": "data", "sha256": "1".repeat(64)}));
+    v["dependencies"] = serde_json::Value::Array(with_ns);
+    let errs = manifest::check(&canonical(&v), &d).unwrap_err();
+    assert!(errs.iter().any(|e| e.contains("dependency `data` names a namespace of the built-in library")), "{errs:?}");
+}
