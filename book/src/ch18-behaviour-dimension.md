@@ -8,7 +8,7 @@ much of a program's state is doing work.
 
 Run any sequence of events through a program and write down what it emits
 at each step. That table, for every possible sequence, is the program's
-*behaviour*. Nothing else about the program is observable: not the names of
+*behaviour*. Nothing else about the program is part of its behaviour: not the names of
 its fields, not the order its steps are written in, not what it keeps in
 state and never reads. The specification (section 6.10) defines behaviour
 exactly this way, and defines two programs to be *equivalent* when their
@@ -77,8 +77,8 @@ $ rce dim phase.rce
 ```
 
 Six states, two behaviours: the state has a period of six, the behaviour
-has a period of two, and log2(6) − log2(2) = 1.58 bits are carrying
-nothing observable.
+has a period of two, and log2(6) − log2(2) = 1.58 bits of state change
+no future output.
 
 And here is the door from chapter 10, where every reachable state answers
 some future event differently:
@@ -103,8 +103,9 @@ behaviour: it never emits and never refuses, so no sequence of events gets
 a different answer from any state. Its examples check `light == Yellow`,
 but an example reads the state from inside; the Form's behaviour is what
 comes out. `rce dim` on that program reports 3 states, 1 behaviour and 1.58
-bits of redundancy, and it is right: as written, the light is a machine
-whose colour nothing can observe. Add `emit light` to its step and the
+bits of redundancy, and it is right: as written, the light's colour is in
+the state, and in the log, but no output depends on it. Add `emit light`
+to its step and the
 three states become three behaviours. When the first run of `rce dim` over
 the specification's own examples was made, most of its state machines
 turned out to be of this kind.

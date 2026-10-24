@@ -1,8 +1,8 @@
 states explored     3        bound reached: no
 behaviours          3        dim(P) (exact)
 redundancy          0.00     bits: log2(states) - log2(behaviours)
-observable          yes      some explored step emits or refuses
-observations        2        distinct outputs or refusals over the explored steps
+outputs             yes      some explored step has a λ output (emits: no, refuses: yes)
+distinct outputs    2        distinct output sequences over the explored steps (silent steps excluded)
   region DimDoor      0.00     (3 values, 3 distinguish behaviours)
 control states      3        dim_c(P) (exact)
 shape_ctl           sha256:7d25ba9b6f6710c31ac26e00edbbefd34d5df8c3311d803602158d02ffe4894b

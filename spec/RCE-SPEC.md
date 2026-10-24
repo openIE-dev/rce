@@ -3502,16 +3502,18 @@ canonical order, one line per (state, event) with the successor's number
 and the label; `shape_ctl` is the SHA-256 of its canonical JSON text. It
 is invariant under renaming (T61, tested by `tests/dim.rs` against
 `rce fmt --nameless`).
-The report also says whether the program is *observable*: whether some
-explored step emits or refuses, and how many distinct *observations* the
-explored steps carry (an observation is the text of a step's outputs or
-its refusal; a silent step is not one; `distinct_labels` in the JSON). A
-program with no observable step has one behaviour by definition, so its
-redundancy is its whole state; a program with one distinct observation is
-observable only by a constant and has one behaviour as well. The
-dimension benchmark reports these strata separately.
+The report also says whether some explored step has a λ output (6.1): an
+emitted value, or the record of a refusal (`has_output` in the JSON, with
+`emits` and `refuses` reported separately, since a refusal is the rejection
+of an input and an emitted value is the program's answer), and how many
+distinct output sequences the explored steps carry (`distinct_outputs`; a
+silent step is excluded). A program with no such step has one behaviour by
+definition, so its redundancy is its whole state: the state is in D and
+readable, and an `example` may check it, but no future output depends on
+it. A program whose every output is the same has one behaviour as well.
+The dimension benchmark reports these strata separately.
 `--json` prints the same as one JSON object (format `rce-dim/1`, compact,
-sorted keys; the `observable` key is since 2026-10-23). The command is deterministic: equal inputs give equal output
+sorted keys; `has_output`, `emits`, `refuses` and `distinct_outputs` since 2026-10-24, replacing `observable` and `distinct_labels`). The command is deterministic: equal inputs give equal output
 bytes, and the exploration order is the canonical order of 6.1 on events
 and payloads. It is informative: no admission depends on it.
 

@@ -50,14 +50,20 @@ pub struct Dim {
     pub events_skipped: Vec<String>,
     /// `--control`: dim_c and the hash of the canonical control string
     pub control: Option<(usize, String)>,
-    /// The observable stratum: some explored step emits or refuses. A program
-    /// with no such step has one behaviour by definition (6.10).
-    pub observable: bool,
-    /// Distinct observations over the explored graph (the text of a step's
-    /// outputs or its refusal; a silent step is not an observation): 1 means
-    /// every observation is the same, so the program is observable only by
-    /// a constant.
-    pub distinct_labels: usize,
+    /// Some explored step has a λ output (6.1): an emitted value, or the
+    /// record of a refusal. A program with no such step has one behaviour by
+    /// definition (6.10): its state is in D and readable, but no future
+    /// output depends on it.
+    pub has_output: bool,
+    /// Some explored step emits a value.
+    pub emits: bool,
+    /// Some explored step refuses its event.
+    pub refuses: bool,
+    /// Distinct output sequences over the explored steps (the text of a
+    /// step's emitted values, or its refusal; a silent step is excluded): 1
+    /// means every output is the same, so the program has one behaviour as
+    /// well.
+    pub distinct_outputs: usize,
 }
 
 fn lit_int(i: i128) -> Expr {
@@ -469,8 +475,10 @@ pub fn dim_with(m: &Module, fuel: usize, control: bool) -> Result<Dim, String> {
         clabel.push(clab);
     }
     let n = states.len();
-    let observable = label.iter().flatten().any(|l| l != "ok:");
-    let distinct_labels = label.iter().flatten().filter(|l| *l != "ok:").collect::<std::collections::BTreeSet<_>>().len();
+    let has_output = label.iter().flatten().any(|l| l != "ok:");
+    let emits = label.iter().flatten().any(|l| l.starts_with("ok:") && l != "ok:");
+    let refuses = label.iter().flatten().any(|l| l.starts_with("refused:"));
+    let distinct_outputs = label.iter().flatten().filter(|l| *l != "ok:").collect::<std::collections::BTreeSet<_>>().len();
 
     // Moore refinement with the full output labels (dim) and, if asked, the
     // control labels (dim_c), on the same explored graph.
@@ -510,7 +518,7 @@ pub fn dim_with(m: &Module, fuel: usize, control: bool) -> Result<Dim, String> {
     } else {
         None
     };
-    Ok(Dim { states: n, bound_reached, behaviours, redundancy_bits, regions, events_skipped: skipped, control, observable, distinct_labels })
+    Ok(Dim { states: n, bound_reached, behaviours, redundancy_bits, regions, events_skipped: skipped, control, has_output, emits, refuses, distinct_outputs })
 }
 
 /// The text report of 10.11.
@@ -523,8 +531,9 @@ pub fn report(d: &Dim) -> String {
         if d.bound_reached { "lower bound" } else { "exact" }
     ));
     s.push_str(&format!("redundancy          {:<8.2} bits: log2(states) - log2(behaviours)\n", d.redundancy_bits));
-    s.push_str(&format!("observable          {:<8} some explored step emits or refuses\n", if d.observable { "yes" } else { "no" }));
-    s.push_str(&format!("observations        {:<8} distinct outputs or refusals over the explored steps\n", d.distinct_labels));
+    let yn = |b: bool| if b { "yes" } else { "no" };
+    s.push_str(&format!("outputs             {:<8} some explored step has a λ output (emits: {}, refuses: {})\n", yn(d.has_output), yn(d.emits), yn(d.refuses)));
+    s.push_str(&format!("distinct outputs    {:<8} distinct output sequences over the explored steps (silent steps excluded)\n", d.distinct_outputs));
     for (n, all, needed, b) in &d.regions {
         s.push_str(&format!("  region {:<12} {:<8.2} ({all} values, {needed} distinguish behaviours)\n", n, b));
     }
@@ -546,8 +555,10 @@ pub fn report_json(d: &Dim) -> String {
         "bound_reached": d.bound_reached,
         "behaviours": d.behaviours,
         "redundancy_bits": d.redundancy_bits,
-        "observable": d.observable,
-        "distinct_labels": d.distinct_labels,
+        "has_output": d.has_output,
+        "emits": d.emits,
+        "refuses": d.refuses,
+        "distinct_outputs": d.distinct_outputs,
         "regions": d.regions.iter().map(|(n, a, b, bits)| serde_json::json!({"name": n, "values": a, "needed": b, "bits": bits})).collect::<Vec<_>>(),
         "skipped": d.events_skipped,
         "control_states": d.control.as_ref().map(|c| c.0),
