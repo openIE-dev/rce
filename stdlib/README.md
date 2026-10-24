@@ -48,10 +48,9 @@ run replays bit for bit.
 
 Foundation modules live under `lib/<area>/` (a module that needs others names them on one `# uses: a.b, c.d` line, parsed strictly by `scripts/uses.py`, and is checked as a package with them); their vectors and property
 sweeps are in `tests/<area>/<name>_checks.rce`, which `scripts/check.sh`
-appends to the module. `rce` 0.1.3 embeds only `crypto`, `pq`, `hpke` and
-`mls` for `#!lib`; until a release embeds the foundation modules, give the
-file to `rce` together with the program (`rce check lib/core/exact.rce app.rce`
-with `use core.exact`).
+appends to the module. A program uses a foundation module by name alone
+(`use core.exact`): every module is built into `rce`, as the next sections
+state.
 
 ## The library is pinned by hash
 
@@ -72,37 +71,35 @@ honoured as well (the library's items in front, unqualified). Nothing is
 installed, inlined or selected: the library is part of the language, and a
 change to it is a new hash in `lib/MANIFEST.json` in the same commit.
 
-## What public `rce` can run today
+## What the checks need
 
-Read against public `openIE-dev/rce` main (`e416fd0`, draft 0.9, `rce 0.1.0`), checked on 17 October 2026 with a full `sh scripts/check.sh` run (it completes, exit 0, about 15 minutes):
-
-| Check | Needs | On public rce main |
+| Check | Needs | On the reference checker |
 |---|---|---|
-| `lib/crypto.rce`, `enc`, `hash`, num, math, text, xml, utf8 and the other foundation modules | nothing beyond public `rce` | pass |
-| `pq` (6 checks), `hpke` (3), `mls` (2) | the `#!lib crypto` directive, or `crypto` appended to the module | pass, with `crypto` inlined by `scripts/libexpand.py` |
-| `energy` library (`lib/energy/energy.rce`, 55 checks) | `crypto` inlined, as above | pass |
-| `tests/energy/energy_host.rce` (14 events) | native Ed25519 (`ed_*` builtins of rce-ide 0.1.3 or later) | skipped: event `Seal0` signs in `rce` source and exhausts the per-event fuel (spec limit), 13 of 14 events succeed |
+| `lib/crypto.rce`, `enc`, `hash`, num, math, text, xml, utf8 and the other foundation modules | nothing | pass |
+| `pq` (6 checks), `hpke` (3), `mls` (2) | `crypto` in front of the module, by the `#!lib crypto` line | pass |
+| `energy` library (`lib/energy/energy.rce`, 55 checks) | `crypto` in front, as above | pass |
+| `tests/energy/energy_host.rce` (14 events) | Ed25519 signing within one event's fuel (specification 6.7) | 13 events pass; event `Seal0` signs a receipt with Ed25519 written in RCE, exceeds the per-event fuel and is refused, which `check.sh` reports as `SKIPPED` |
 | `tests/os/pkg_checks_10.rce` | nothing | pass; the long-identifier row uses 560,000 characters because a text is limited to 1,000,000 elements (spec N9) |
 
-- `rce host run` and `rce host serve` exist there, so the host-run steps below work on public `rce`.
-- The `#!lib NAME` directive is not provided by public `rce`: the line is treated as a comment. `scripts/check.sh` probes for it and, when it is absent, prints a message and appends `lib/crypto.rce` (without its `module` and `check` lines) to the modules that name it. Set `RCE_NO_LIB=1` or `0` to force either path.
-- `ed_pubkey`, `ed_sign` and `ed_verify` are ordinary functions in `lib/crypto.rce`, so they are available once `crypto` is inlined. Only the signing in `energy_host.rce` is too expensive for the per-event fuel without native builtins, so `check.sh` prints `SKIPPED ... requires an rce with native Ed25519 (rce-ide 0.1.3 or later)` for that one file instead of failing.
+- `rce host run` and `rce host serve` run the host steps, and every host run is validated by replay with the adapters disconnected.
+- `scripts/check.sh` probes for the `#!lib NAME` directive. A checker without it gets `lib/crypto.rce` (without its `module` and `check` lines) appended by `scripts/libexpand.py` to the modules that name it. Set `RCE_NO_LIB=1` or `0` to force either path.
+- `ed_pubkey`, `ed_sign` and `ed_verify` are ordinary functions in `lib/crypto.rce`. Only the receipt signing in `energy_host.rce` exceeds the per-event fuel, so `check.sh` accepts exactly one outcome other than full success: `Seal0` refused with `comptime fuel exhausted` and every other event good. A binary whose `ed_*` functions are native completes `Seal0` and passes all 14.
 
 `pq`, `hpke` and `mls` build on `crypto`. The libraries are reference
 code for correctness and replay. They are **not constant time**.
 
 ## Use
 
-The `rce` binary of [rce-ide](https://github.com/openIE-dev/rce-ide/releases)
-0.1.3 and later embeds these files. A program names the ones it uses in a
-directive line (a comment to every other tool):
+A foundation module is used by name (`use data.events`). `crypto`, `pq`,
+`hpke` and `mls` declare no `pub` items and are written to be read in front
+of a program, so a program names them on a directive line:
 
 ```
 module my_app
 #!lib hpke
 ```
 
-`rce` then appends `crypto` and `hpke`, without their `module` and
+`rce` then places `crypto` and `hpke` in front of the program, without their `module` and
 `check` lines. `scripts/check.sh` runs every library's own checks
 (`ONLY="col core"` restricts it to those `lib/<area>/` directories, with
 `crypto` naming the top-level crypto, pq, hpke and mls modules; CI splits
