@@ -2,9 +2,9 @@
 //! grammar of spec section 3. The first error refuses the text.
 use crate::ast::*;
 
-/// Reserved words of the 0.5 language (spec 2.4). The draft 0.6 words are in
-/// `DRAFT06_KEYWORDS` and are reserved only in a module whose language
-/// version is 0.6 (spec 2.7, `# rce-version: 0.6`).
+/// Reserved words of the language (spec 2.4). The words of Appendix C are in
+/// `DRAFT06_KEYWORDS`; both lists are reserved in every module (2.7: there is
+/// one language, and the release label selects nothing).
 pub const KEYWORDS: &[&str] = &[
     "actor", "after", "and", "arena", "as", "bound", "break", "catch", "chan", "check", "comptime",
     "const", "continue", "default", "device", "elif", "else", "emit", "error", "event", "example",
@@ -2375,9 +2375,9 @@ impl Parser {
     }
 }
 
-/// Keywords of the draft 0.6 and 0.6b concurrency extensions. Without the
-/// `conc06` cargo feature the parser refuses them (outside member names),
-/// so the default build accepts the 0.5 language only.
+/// Keywords of Appendix C (concurrency). Reserved in every module, like
+/// `KEYWORDS`; the two lists are separate only because the LALR(1) check
+/// builds the section 3 and Appendix C grammars in turn.
 pub const DRAFT06_KEYWORDS: &[&str] = &[
     "par", "branch", "nondet", "budget", "deadline", "priority", "replicated", "interrupt",
     "session", "lvar", "group", "lanes", "barrier", "scope", "atomic", "protocol", "offer",
