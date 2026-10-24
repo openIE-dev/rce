@@ -1,0 +1,44 @@
+# A washing machine: the cycle advances on each tick and the door is locked
+# while the cycle runs. Opening a locked door is refused.
+intent "a door that stays locked from start to finish"
+    example Start, Tick, Tick, Tick -> phase == Idle and locked == false
+    example Start, Open -> refused: DoorLocked
+    example Start, Start -> refused: Running
+
+kind Phase
+    Idle
+    Wash
+    Rinse
+    Spin
+
+state Cycle
+    phase: Phase = Idle
+
+state Door
+    locked: bool = false
+
+event Start
+event Tick
+event Open
+
+error DoorLocked
+error Running
+
+step Cycle on Start if phase != Idle
+    fail Running
+step Cycle on Start
+    phase = Wash
+step Door on Start
+    locked = true
+step Cycle on Tick
+    match phase
+        Idle -> phase = Idle
+        Wash -> phase = Rinse
+        Rinse -> phase = Spin
+        Spin
+            phase = Idle
+            emit "done"
+step Door on Tick if locked
+    locked = false
+step Door on Open if locked
+    fail DoorLocked

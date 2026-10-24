@@ -1,0 +1,35 @@
+# A car park with a barrier and a counted lot. The barrier opens for an
+# arrival only while there is space, and closes on the next tick.
+intent "a barrier that never admits a car to a full lot"
+    example Arrive, Arrive -> cars == 2 and open == true
+    example Arrive, Arrive, Arrive, Arrive, Arrive -> refused: Full
+    example Leave -> refused: Empty
+    example Arrive, Tick -> open == false
+
+state Barrier
+    open: bool = false
+
+state Lot
+    cars: u8 = 0
+
+event Arrive
+event Leave
+event Tick
+
+error Full
+error Empty
+
+step Lot on Arrive if cars >= 4
+    fail Full
+step Lot on Arrive
+    cars += 1
+    emit cars
+step Barrier on Arrive
+    open = true
+step Lot on Leave if cars == 0
+    fail Empty
+step Lot on Leave
+    cars -= 1
+step Barrier on Tick if open
+    open = false
+    emit "closed"

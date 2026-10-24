@@ -1,0 +1,44 @@
+# A game lobby and a match. Players join the lobby; a match starts with at
+# least two of them and nobody joins or leaves while it runs.
+intent "a match that starts with two players and holds them until it ends"
+    example Join, Join, Start -> running == true
+    example Join, Start -> refused: NotEnough
+    example Join, Join, Start, Join -> refused: InMatch
+    example Join, Join, Start, End, Leave -> players == 1
+
+state Lobby
+    players: u8 = 0
+
+state Match
+    running: bool = false
+
+event Join
+event Leave
+event Start
+event End
+
+error NotEnough
+error InMatch
+error LobbyFull
+error Nobody
+
+step Match on Join if running
+    fail InMatch
+step Lobby on Join if players >= 4
+    fail LobbyFull
+step Lobby on Join
+    players += 1
+step Match on Leave if running
+    fail InMatch
+step Lobby on Leave if players == 0
+    fail Nobody
+step Lobby on Leave
+    players -= 1
+step Lobby on Start if players < 2
+    fail NotEnough
+step Match on Start
+    running = true
+    emit "started"
+step Match on End
+    running = false
+    emit "ended"

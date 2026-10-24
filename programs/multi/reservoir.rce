@@ -1,0 +1,39 @@
+# A reservoir with a pump. Rain raises the level, draws lower it, the tank
+# drains one unit on each tick, and the pump reports each tick it runs.
+# Overflow and a dry draw are refused.
+intent "a reservoir that neither overflows nor runs dry unnoticed"
+    example Rain, Rain, Draw -> level == 3
+    example Rain, Rain, Rain -> refused: Overflow
+    example Draw, Draw, Draw -> refused: Dry
+    example Toggle, Rain, Tick -> level == 2
+
+state Tank
+    level: u8 = 2
+
+state Pump
+    running: bool = false
+
+event Rain
+event Draw
+event Toggle
+event Tick
+
+error Overflow
+error Dry
+
+step Tank on Rain if level >= 4
+    fail Overflow
+step Tank on Rain
+    level += 1
+    emit level
+step Tank on Draw if level == 0
+    fail Dry
+step Tank on Draw
+    level -= 1
+    emit level
+step Pump on Toggle
+    running = not running
+step Tank on Tick if level > 0
+    level -= 1
+step Pump on Tick if running
+    emit "pumping"

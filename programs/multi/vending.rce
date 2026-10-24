@@ -1,0 +1,37 @@
+# A vending machine: credit in coins and cans in stock are separate regions.
+# A purchase needs both a coin and a can; the machine reports what it did.
+intent "a vending machine that sells only what it has and only when paid"
+    example Coin, Buy -> credit == 0 and cans == 2
+    example Buy -> refused: NoCredit
+    example Coin, Buy, Coin, Buy, Coin, Buy, Coin, Buy -> refused: SoldOut
+    example Coin, Coin, Coin, Coin -> refused: Overpay
+
+state Credit
+    credit: u8 = 0
+
+state Stock
+    cans: u8 = 3
+
+event Coin
+event Buy
+event Restock
+
+error NoCredit
+error SoldOut
+error Overpay
+
+step Credit on Coin if credit >= 3
+    fail Overpay
+step Credit on Coin
+    credit += 1
+step Credit on Buy if credit == 0
+    fail NoCredit
+step Stock on Buy if cans == 0
+    fail SoldOut
+step Credit on Buy
+    credit -= 1
+step Stock on Buy
+    cans -= 1
+    emit cans
+step Stock on Restock
+    cans = 3

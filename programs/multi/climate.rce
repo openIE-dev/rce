@@ -1,0 +1,38 @@
+# A climate controller: a mode region decides heating or cooling from each
+# reading, and a setpoint region moves the target. The output is the action.
+intent "a controller that heats when cold, cools when hot and otherwise idles"
+    example Reading(hot: false) -> heating == true
+    example Reading(hot: true) -> cooling == true
+    example Warmer, Warmer, Warmer -> refused: Highest
+    example Cooler, Cooler -> refused: Lowest
+
+state Mode
+    heating: bool = false
+    cooling: bool = false
+
+state Setpoint
+    target: u8 = 1
+
+event Reading(hot: bool)
+event Warmer
+event Cooler
+
+error Highest
+error Lowest
+
+step Mode on Reading(hot: true)
+    heating = false
+    cooling = true
+    emit "cool"
+step Mode on Reading(hot: false)
+    heating = true
+    cooling = false
+    emit "heat"
+step Setpoint on Warmer if target >= 3
+    fail Highest
+step Setpoint on Warmer
+    target += 1
+step Setpoint on Cooler if target == 0
+    fail Lowest
+step Setpoint on Cooler
+    target -= 1

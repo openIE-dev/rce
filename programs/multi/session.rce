@@ -1,0 +1,36 @@
+# A login session with a rate limit. Failed attempts count against a limit
+# that a tick relaxes; a successful login clears it.
+intent "a login that is throttled after repeated failures and relaxed by time"
+    example Login(ok: true) -> logged == true
+    example Login(ok: false), Login(ok: false), Login(ok: false) -> refused: Throttled
+    example Login(ok: false), Login(ok: false), Tick, Login(ok: true) -> logged == true
+    example Logout -> refused: NotLoggedIn
+
+state Auth
+    logged: bool = false
+
+state Limit
+    strikes: u8 = 0
+
+event Login(ok: bool)
+event Logout
+event Tick
+
+error Throttled
+error NotLoggedIn
+
+step Limit on Login(ok: _) if strikes >= 2
+    fail Throttled
+step Limit on Login(ok: false)
+    strikes += 1
+    emit strikes
+step Limit on Login(ok: true)
+    strikes = 0
+step Auth on Login(ok: true)
+    logged = true
+step Auth on Logout if not logged
+    fail NotLoggedIn
+step Auth on Logout
+    logged = false
+step Limit on Tick if strikes > 0
+    strikes -= 1
