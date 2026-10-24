@@ -65,6 +65,12 @@ pub fn stdlib_hash() -> String {
 /// with the hash of its text, and nothing else (XF-3). Empty when the library
 /// this checker carries is exactly the pinned library.
 pub fn stdlib_unpinned() -> Vec<String> {
+    // the embedded library and manifest are fixed for the life of the process
+    static CACHE: std::sync::OnceLock<Vec<String>> = std::sync::OnceLock::new();
+    CACHE.get_or_init(stdlib_unpinned_now).clone()
+}
+
+fn stdlib_unpinned_now() -> Vec<String> {
     let mut errs = vec![];
     let v: Value = match serde_json::from_str(crate::stdlib::manifest_text()) {
         Ok(v) => v,
@@ -190,6 +196,14 @@ pub fn generate(root: &Path) -> Result<String, String> {
     // of its manifest; an import of a module of the directory needs nothing
     let own: BTreeSet<&str> = mods.iter().filter_map(|m| m["module"].as_str()).collect();
     let uses_lib = imps.iter().any(|i| !own.contains(i.as_str()) && crate::stdlib::has(i));
+    if uses_lib {
+        // a pin names the library this checker carries, so it is written only
+        // when that library is exactly the one its manifest pins (XF-3)
+        let bad = stdlib_unpinned();
+        if !bad.is_empty() {
+            return Err(format!("the built-in library of this checker differs from its manifest, so it cannot be pinned: {}", bad.join("; ")));
+        }
+    }
     let deps = if uses_lib { serde_json::json!([{"name": "stdlib", "sha256": stdlib_hash()}]) } else { serde_json::json!([]) };
     Ok(canonical(&serde_json::json!({"dependencies": deps, "formatter": "rce-fmt 1", "language": "0.9", "modules": mods})))
 }
@@ -235,8 +249,13 @@ pub fn check(text: &str, root: &Path) -> Result<BTreeMap<String, String>, Vec<St
             if h != lib {
                 pin(&mut errs, format!("dependency `stdlib` pins {h}; the built-in library of this checker is {lib} (stdlib/lib/MANIFEST.json)"));
             }
-        } else if crate::stdlib::has(n) || crate::stdlib::names().iter().any(|m| m.split('.').next() == Some(n)) {
+            for e in stdlib_unpinned() {
+                pin(&mut errs, format!("dependency `stdlib`: the built-in library of this checker differs from its manifest: {e}"));
+            }
+        } else if crate::stdlib::has(n) {
             pin(&mut errs, format!("dependency `{n}` names a module of the built-in library; the library is pinned as the one dependency `stdlib`, by the hash of its manifest"));
+        } else if let Some(m) = crate::stdlib::names().into_iter().find(|m| m.split('.').next() == Some(n)) {
+            pin(&mut errs, format!("dependency `{n}` names a namespace of the built-in library (`{m}`), so `use {n}.…` would not say which it means; the library is pinned as the one dependency `stdlib`"));
         }
     }
     let mut names = BTreeSet::new();

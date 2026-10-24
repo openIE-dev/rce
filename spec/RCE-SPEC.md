@@ -3388,9 +3388,11 @@ as clean exactly when `rce check` accepts it (10.1, principle 3).
   JSON; a directory whose modules import the built-in library gets the one
   dependency `stdlib`, pinned by the hash of the library's manifest) and
   `rce manifest-check` verifies one. The standard library is pinned this way
-  (`stdlib/lib/MANIFEST.json`), the checker carries that manifest with the
-  library, and `rce lib` ends with the library's hash and reports any module
-  whose text differs from its pin (status 1). The broker contract (F.7), the provenance
+  (`stdlib/lib/MANIFEST.json`), and the checker carries that manifest with
+  the library. `rce lib` prints the library's hash after the modules, then
+  each module whose text differs from its pin (status 1); while such a
+  difference exists, `rce manifest` writes no `stdlib` pin and
+  `rce manifest-check` accepts none. The broker contract (F.7), the provenance
   record and the build cache of F.5.3, and the emitter refusals of F.5.4 do
   not exist yet. Results are
   reproducible from the inputs alone (10.1).
@@ -6017,9 +6019,10 @@ dependency by hash. Rules:
 - The built-in standard library (4.1) is one dependency, `stdlib`, pinned by
   the SHA-256 of the canonical text of the library's own manifest, which pins
   each of its modules. A `stdlib` pin that differs from the library the tool
-  carries, and a dependency named after a module of the library, are refused
-  (W-PIN-1), so a program names by hash exactly the library it was checked
-  against.
+  carries, a `stdlib` pin while that library differs from its own manifest,
+  and a dependency named after a module or a namespace of the library (such
+  as `enc`, `data` or `text`) are refused (W-PIN-1), so a program names by
+  hash exactly the library it was checked against.
 - A published definition is immutable: a hash names one text forever. A
   correction is a new definition with a new hash. Withdrawal is a signed
   *advisory*, a canonical JSON object `{kind: "advisory", hash, reason,

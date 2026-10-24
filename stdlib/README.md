@@ -86,7 +86,7 @@ change to it is a new hash in `lib/MANIFEST.json` in the same commit.
 
 - `rce host run` and `rce host serve` run the host steps, and every host run is validated by replay with the adapters disconnected.
 - `scripts/check.sh` probes for the `#!lib NAME` directive. A checker without it gets `lib/crypto.rce` (without its `module` and `check` lines) appended by `scripts/libexpand.py` to the modules that name it. Set `RCE_NO_LIB=1` or `0` to force either path.
-- `ed_pubkey`, `ed_sign` and `ed_verify` are ordinary functions in `lib/crypto.rce`, and one input is one step with the fuel of 6.7. Work larger than one step is written as several steps: `pq.rce` does this for its Ed25519 identity, and `energy` seals a receipt with `seal_begin` then `seal_finish` (`seal_receipt` runs both, for code with fuel to spare). A native `ed_*` charges the fuel of its RCE source (HC-7, proposal XF-6 in `spec/proposals/one-library-every-fabric.md`), so every binary writes the same log for the same inputs.
+- `ed_pubkey`, `ed_sign` and `ed_verify` are ordinary functions in `lib/crypto.rce`, and one input is one step with the fuel of 6.7. Work larger than one step is written as several steps: `pq.rce` writes PQXDH as one X25519 or ML-KEM operation per step, and `energy` seals a receipt with `seal_begin` then `seal_finish` (`seal_receipt` runs both, for code with fuel to spare). A native `ed_*` charges the fuel of its RCE source (HC-7, proposal XF-6 in `spec/proposals/one-library-every-fabric.md`), so every binary writes the same log for the same inputs.
 
 `pq`, `hpke` and `mls` build on `crypto`. The libraries are reference
 code for correctness and replay. They are **not constant time**.

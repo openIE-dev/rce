@@ -402,9 +402,10 @@ dependency by hash. Rules:
 - The built-in standard library (4.1) is one dependency, `stdlib`, pinned by
   the SHA-256 of the canonical text of the library's own manifest, which pins
   each of its modules. A `stdlib` pin that differs from the library the tool
-  carries, and a dependency named after a module of the library, are refused
-  (W-PIN-1), so a program names by hash exactly the library it was checked
-  against.
+  carries, a `stdlib` pin while that library differs from its own manifest,
+  and a dependency named after a module or a namespace of the library (such
+  as `enc`, `data` or `text`) are refused (W-PIN-1), so a program names by
+  hash exactly the library it was checked against.
 - A published definition is immutable: a hash names one text forever. A
   correction is a new definition with a new hash. Withdrawal is a signed
   *advisory*, a canonical JSON object `{kind: "advisory", hash, reason,
@@ -1138,4 +1139,4 @@ UnaryExpr    = ( "-" | "~" | "&" [ "mut" ] | "<-" | "comptime" | "release" | "en
              | Postfix .
 ```
 
-<!-- body-sha256: 17f70c3a85696104d429cbc134dc85b56afbe20eef53b583afc07b51f2c5cb14 -->
+<!-- body-sha256: d11cb7d202e8202fbfe636cd5b119574c4a1c246b8e272d925857f77ff09c804 -->

@@ -17,13 +17,13 @@ an agent proves it read them by following `READ-PROTOCOL.md`.
 | `09-wellformedness.md` | `8bb53d8444bbf4edf7382eafe256d25442a976309d92ad5a00ec36bfe5a67a33` | Which rule refuses two unguarded steps in one region whose patterns overlap? |
 | `10-theorems.md` | `b6ef7d1bb4301247e1f415b7e7135fe128ac2cd1d6dfe53188cf43760d68fbc0` | What is the deep embedding of the emitted Rust subset called? |
 | `11-decisions.md` | `bd0bb229a63243931045b661da84e5778b9b128e3e1e6476c308f52bb859a695` | The decisions list says it decides gaps in which file? |
-| `12-tooling.md` | `47b605727a667a0fc6add205e4615818be6b7159f670db59e7e190fe65fd151b` | Which JSON-RPC error code does the language server return for a request it does not know? (a number) |
+| `12-tooling.md` | `f5a34bfc9a86c4e33292d06a1b95c5841f44ec4b7ba40b8d73852dbbf0d275b5` | Which JSON-RPC error code does the language server return for a request it does not know? (a number) |
 | `13-references.md` | `ed1215a6287919d452ba2ff9b15b321bde445a7a3cd139470c48db7d43fbe913` | Who wrote "Communicating Sequential Processes"? (surname) |
 | `14-draft06-concurrency.md` | `d3bca8a016b4baf5afb72e69dd707e000fe63e2782bd54e3f45acb68c10068eb` | How many concurrency words does C.1 add to the keywords of 2.4? (a number) |
 | `15-handler-spec-profile.md` | `1874e9e31a2d9052aa44b11e865e0a8bb2977c7c3bd072bdb8a9dd40b79d205a` | Which compiled node id does `deliverable D1` become? (for example role_R1) |
 | `16-host-contract.md` | `63f298c4a2a6a2ae68fe4952a7291ca6967060775df100848b8ff0d487170c5e` | Which fcntl command is the append barrier on macOS? (for example F_SETFL) |
-| `17-draft09.md` | `17f70c3a85696104d429cbc134dc85b56afbe20eef53b583afc07b51f2c5cb14` | How many words does F, "Reserved words", add to the reserved list of 2.4? (a number) |
+| `17-draft09.md` | `d11cb7d202e8202fbfe636cd5b119574c4a1c246b8e272d925857f77ff09c804` | How many words does F, "Reserved words", add to the reserved list of 2.4? (a number) |
 
 The single-file spec `spec/RCE-SPEC.md` is generated from these files.
 
-<!-- body-sha256: 74d5e4a0287928857421caf66376240f6454552a3c274d3ff21c9d8e08c9b061 -->
+<!-- body-sha256: 706afa58b41c5df85f518ed4f62d3b94a9699acb9c17718d82e8024c025edccd -->

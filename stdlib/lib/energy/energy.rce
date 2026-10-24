@@ -459,8 +459,9 @@ pub fn open_envelope(env: &[i64]) -> OpenedReceipt ! BadReceipt
 # steps of work: seal_begin derives the seed's public key, checks it against
 # the steward and returns the canonical core; seal_finish signs the core and
 # builds the envelope. A Form that seals in an event does each in its own
-# step, since one input is one step with the fuel of 6.7 (as pq.rce does for
-# its Ed25519 identity); seal_receipt is the two run together.
+# step, since one input is one step with the fuel of 6.7 (as pq.rce writes
+# PQXDH, one X25519 or ML-KEM operation per step); seal_receipt is the two
+# run together.
 pub fn seal_begin(r: &Receipt, seed_hex: text) -> List[i64] ! BadReceipt
     let core = try receipt_core(r)
     let pk = ed_pubkey(copy(seed_hex))

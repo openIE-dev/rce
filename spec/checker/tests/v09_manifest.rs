@@ -223,3 +223,16 @@ fn the_library_hash_is_over_the_canonical_json_of_its_manifest() {
     // the file itself is canonical, so the hash is also the hash of its text
     assert_eq!(canonical(&v), t);
 }
+
+#[test]
+fn a_dependency_named_after_a_library_namespace_is_refused_with_its_reason() {
+    let d = tmp("stdlib-namespace");
+    std::fs::write(d.join("app.rce"), USES_LIB).unwrap();
+    let mut v: serde_json::Value = serde_json::from_str(&manifest::generate(&d).unwrap()).unwrap();
+    let deps = v["dependencies"].as_array().unwrap().clone();
+    let mut with_ns = deps.clone();
+    with_ns.push(json!({"name": "data", "sha256": "1".repeat(64)}));
+    v["dependencies"] = serde_json::Value::Array(with_ns);
+    let errs = manifest::check(&canonical(&v), &d).unwrap_err();
+    assert!(errs.iter().any(|e| e.contains("dependency `data` names a namespace of the built-in library")), "{errs:?}");
+}
