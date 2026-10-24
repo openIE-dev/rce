@@ -99,3 +99,31 @@ fn api_diff_command_exit_status() {
     assert_eq!(run(&a, &c).0, 1);
     assert!(run(&a, &c).1.starts_with("breaking\tfn top"));
 }
+
+#[test]
+fn program_hash_is_name_layout_and_order_free() {
+    use rce_spec_check::apidiff::program_hash;
+    use rce_spec_check::parse::parse;
+    let reordered = "# rce-version: 0.9\n# a comment\npub fn top(a: i64) -> i64\n    # inner\n    return   helper( a )   *  2\n\n\npub fn helper(a: i64) -> i64\n    return a + 1\n";
+    let renamed = "# rce-version: 0.9\npub fn bump(a: i64) -> i64\n    return a + 1\n\npub fn outer(a: i64) -> i64\n    return bump(a) * 2\n";
+    let changed = "# rce-version: 0.9\npub fn helper(a: i64) -> i64\n    return a + 2\n\npub fn top(a: i64) -> i64\n    return helper(a) * 2\n";
+    let h = |src: &str| program_hash(&[parse(src).unwrap()]);
+    assert_eq!(h(BASE), h(reordered));
+    assert_eq!(h(BASE), h(renamed));
+    assert_ne!(h(BASE), h(changed));
+    assert_eq!(h(BASE).len(), 64);
+}
+
+#[test]
+fn emitted_code_starts_with_the_program_hash() {
+    use rce_spec_check::apidiff::program_hash;
+    use rce_spec_check::emit::{emit, Lang};
+    use rce_spec_check::parse::parse;
+    let m = parse(BASE).unwrap();
+    let h = program_hash(std::slice::from_ref(&m));
+    for (lang, c) in [(Lang::Rust, "//"), (Lang::Python, "#"), (Lang::Js, "//"), (Lang::Scala, "//")] {
+        let text = emit(&m, lang).unwrap();
+        let first = text.lines().next().unwrap();
+        assert!(first.starts_with(&format!("{c} rce-program {h} · emitted by rce ")), "{first}");
+    }
+}

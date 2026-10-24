@@ -1,6 +1,10 @@
 #![allow(dead_code, unused_mut, unused_assignments)]
 //! RCE reference parser, type and well-formedness checker (RCE-SPEC.md),
 //! plus the tree-sitter port of the grammar for cross-checks.
+/// The git commit the checker was built from (short hash), set by build.rs;
+/// "unknown" outside a git checkout. Named in emitted code (CC-4).
+pub const GIT_COMMIT: &str = env!("RCE_GIT_COMMIT");
+
 pub mod adapters;
 pub mod anf;
 pub mod apidiff;
