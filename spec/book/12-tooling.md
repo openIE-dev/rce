@@ -146,6 +146,16 @@ TARGET names an output. The file must pass `rce check` on its own.
 The Form JSON lists objects in canonical order (6.1), so it is a
 deterministic function of the program text.
 
+The four program targets are the ones this checker emits. The language
+places no bound on targets: every language is both an output of the Form
+(a target, printed from the Form IR through a per-language table) and an
+input (a lift, the reverse map, from the language's grammar and a
+semantics table), and every target passes the same gate, the reference
+trace of every example program byte for byte (T9). The registry of targets
+and the one-emitter mechanism are the proposal `spec/proposals/emit-targets.md`
+(informative); a target that the table cannot pin to 6.3 is observation-only,
+never a projection.
+
 **The program emitters.** `rust`, `python`, `js` and `scala` translate the checked
 module, not the Form. Each output is self-contained. It starts with a
 runtime that defines the values of 6.3 and their operations, following the
@@ -584,4 +594,4 @@ and payloads. It is informative: no admission depends on it.
 
 **Read receipt.** Which JSON-RPC error code does the language server return for a request it does not know? (a number)
 
-<!-- body-sha256: 408ca3e95e3b56c8d4698adb7e9849e8121a442d9a3918202f84f8528ab1b0e5 -->
+<!-- body-sha256: 2d698ca208440033fd8812a4241b959624221e743b481997d2f54d3bcab5d2ca -->

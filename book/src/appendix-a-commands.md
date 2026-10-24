@@ -7,7 +7,7 @@
 | `rce run FILE "E1, E2"` | apply events and print the state after each |
 | `rce run FILE` | run `fn main()` and print what it emits |
 | `rce trace --json FILE [EVENTS]` | the reference trace of each example, or of the events, as JSON |
-| `rce emit TARGET FILE` | `form`, `rust`, `python` or `js` |
+| `rce emit TARGET FILE` | `form`, `rust`, `python`, `js` or `scala` (the emit registry lists further targets) |
 | `rce fmt [--check] FILE...` | rewrite files in the canonical layout |
 | `rce dim [--fuel N] FILE` | count the behaviours a program can be in and the redundancy of its state, per region (chapter 18) |
 | `rce lsp` | language server on standard input and output |

@@ -42,7 +42,9 @@ version 0.7 (C.15) with `# rce-version: 0.7`. What exists today:
 - the specification, with its grammar checked by machine;
 - a reference checker and interpreter, `rce`, which this book uses for every
   example;
-- emitters that translate a checked program to Rust, Python or JavaScript.
+- emitters that translate a checked program to a target language (Rust,
+  Python, JavaScript and Scala today; every language of the emit registry
+  by table), and lifts that bring programs in those languages into the Form.
 
 What does not exist yet: a production compiler and a fast runtime. The
 reference interpreter defines what programs mean. It is not built for speed.

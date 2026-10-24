@@ -34,7 +34,13 @@ program always gives the same bytes. The event `Tick` marked `builtin` is
 part of every Form: it is the program's logical clock. No RCE construct
 reads a wall clock.
 
-## Emitting Rust, Python and JavaScript
+## Emitting a target language
+
+Every language is both an output and an input of the Form. A target is a
+row of the emit registry (`spec/proposals/emit-targets.md`): one emitter
+over the Form IR and one table per language, each passing the same gate,
+the reference trace of every example program byte for byte. This chapter
+uses the targets the reference checker emits today.
 
 `rce emit rust`, `rce emit python` and `rce emit js` translate a checked
 program into one self-contained file. Running that file prints the
@@ -63,5 +69,6 @@ output to equal the reference interpreter's.
 ## What you learned
 
 - `rce emit form` shows the Form behind a program.
-- The emitters produce Rust, Python and JavaScript that print the same
-  observations as the reference interpreter.
+- The emitters produce Rust, Python, JavaScript and Scala that print the
+  same observations as the reference interpreter; further targets are
+  registry rows, not new emitters.

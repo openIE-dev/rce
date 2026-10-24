@@ -26,9 +26,17 @@ a program whose examples do not hold is refused before it runs.
 This is what makes autonomous coding deterministic. A proposal, whether a
 person, a search over existing Forms or a model produced it, is accepted
 or refused by the checker alone, with the same verdict on every machine.
-Once accepted, the Form replays identically everywhere, projects to Rust,
-Python, JavaScript or Scala without changing meaning, and is reused as a
-whole. No model is needed to decide what a program means, whether a change
+Once accepted, the Form replays identically everywhere, projects to any
+target language without changing meaning, and is reused as a whole. Every
+language is both an output and an input of the Form: `rce emit` prints a
+Form as a program in a target language, and the lift, the reverse map,
+brings a program written in that language into the Form. Targets are rows
+of the emit registry (`spec/proposals/emit-targets.md`): one emitter over
+the Form IR and one table per language, with the same gate for every row
+(the reference trace of every example program, byte for byte). The
+reference checker emits Rust, Python, JavaScript and Scala today; the
+registry lists the languages that follow, including the new entrants of
+2024 to 2026. No model is needed to decide what a program means, whether a change
 is safe, or whether two programs are the same, so the costly and
 non-deterministic part of AI coding is taken out of the loop. The aim is
 the lowest cost and lowest energy per correct program.
@@ -60,7 +68,7 @@ same commit.
 
 ![RCE overview: source, checker, Form, log, emit targets, host, fabrics](docs/figures/rce-overview.svg)
 
-*The checker accepts a program or names the rule it breaks; an accepted program is a Form; every step is appended to the log D; `rce emit` projects the program to Rust, Python, JavaScript or Scala; a host runs it on a compute fabric.*
+*The checker accepts a program or names the rule it breaks; an accepted program is a Form; every step is appended to the log D; `rce emit` projects the program to a target language (Rust, Python, JavaScript and Scala today; every registry language by table); a host runs it on a compute fabric.*
 
 ## Try it
 
@@ -131,7 +139,7 @@ checker would refuse the file.
 | `rce test FILE...` | the same, and count each file's examples and checks |
 | `rce run FILE [EVENTS]` | apply events, or run `fn main()` |
 | `rce trace --json FILE [EVENTS]` | reference trace of each example, or of EVENTS, for checking another implementation step by step |
-| `rce emit TARGET FILE` | `form` (the Form as JSON), `rust`, `python`, `js` or `scala` |
+| `rce emit TARGET FILE` | `form` (the Form as JSON), or a target language: `rust`, `python`, `js`, `scala` today; the emit registry lists the rest |
 | `rce fmt [--check] FILE...` | rewrite files in the canonical layout |
 | `rce dim [--fuel N] [--control] [--json] FILE` | count the behaviours a program can be in and the redundancy of its state (spec 6.10, 10.11) |
 | `rce host ...` | run a program under the host contract (Appendix E): admitter, log, adapters, sandbox |
