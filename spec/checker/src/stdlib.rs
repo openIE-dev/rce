@@ -27,6 +27,12 @@ pub fn source(path: &str) -> Option<&'static str> {
     LIB.iter().find(|(n, _)| *n == path).map(|(_, s)| *s)
 }
 
+/// The library's manifest as embedded with it (`stdlib/lib/MANIFEST.json`,
+/// F.5.3), without the one final line feed the file may carry.
+pub fn manifest_text() -> &'static str {
+    MANIFEST.strip_suffix('\n').unwrap_or(MANIFEST)
+}
+
 /// The parsed library module, without its checks, examples and intents.
 pub fn module(path: &str) -> Option<&'static Module> {
     static PARSED: OnceLock<Mutex<HashMap<String, &'static Module>>> = OnceLock::new();

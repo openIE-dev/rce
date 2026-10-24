@@ -58,8 +58,11 @@ state.
 `lib/` with the SHA-256 of its canonical text, written by `rce manifest lib`
 and verified by `rce manifest-check lib/MANIFEST.json` in `scripts/check.sh`.
 There is no version number: a module is named by its hash, a change to a
-module changes the manifest in the same commit, and a program that pins the
-library pins these hashes.
+module changes the manifest in the same commit. The checker carries this
+manifest with the library: `rce lib` ends with the SHA-256 of the manifest's
+canonical text and reports any module whose text differs from its pin, and a
+program's manifest pins the library as the one dependency `stdlib` by that
+hash (`rce manifest` writes it; `rce manifest-check` verifies it).
 
 ## Built into the checker
 

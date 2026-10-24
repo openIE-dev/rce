@@ -677,7 +677,8 @@ by its file path relative to the package root with `/` read as `.` and the
 `pub`. Import cycles are refused (W-MOD-2). The modules `std.text`,
 `std.collections` and `std.math` are built in and always resolvable (S4), and
 so is every module of the standard library (`stdlib/lib` of the repository,
-pinned by hash in its manifest, F.5.3): `use enc`, `use data.events` and the
+pinned by hash in its manifest, and pinned by a program as the dependency
+`stdlib`, F.5.3): `use enc`, `use data.events` and the
 others resolve with no file given, no directive and no flag, in every tool
 (`rce lib` lists them). A library module's own `check`, `example` and
 `intent` items are not part of a program that imports it; its items are. A
@@ -3384,8 +3385,12 @@ as clean exactly when `rce check` accepts it (10.1, principle 3).
   any row is breaking) and `rce v09-status` prints the implemented and the
   unimplemented rules. `rce manifest DIR` writes the manifest of a directory (F.5.3: every
   `.rce` file as a module pinned by the hash of its canonical text, canonical
-  JSON) and `rce manifest-check` verifies one; the standard library is pinned
-  this way (`stdlib/lib/MANIFEST.json`, checked by its CI). The broker contract (F.7), the provenance
+  JSON; a directory whose modules import the built-in library gets the one
+  dependency `stdlib`, pinned by the hash of the library's manifest) and
+  `rce manifest-check` verifies one. The standard library is pinned this way
+  (`stdlib/lib/MANIFEST.json`), the checker carries that manifest with the
+  library, and `rce lib` ends with the library's hash and reports any module
+  whose text differs from its pin (status 1). The broker contract (F.7), the provenance
   record and the build cache of F.5.3, and the emitter refusals of F.5.4 do
   not exist yet. Results are
   reproducible from the inputs alone (10.1).
@@ -6009,6 +6014,12 @@ dependency by hash. Rules:
   import cycle (W-MOD-2) are refused. Imports are an unordered set; adding an
   export is always compatible. There is no resolver: the manifest is the whole
   answer.
+- The built-in standard library (4.1) is one dependency, `stdlib`, pinned by
+  the SHA-256 of the canonical text of the library's own manifest, which pins
+  each of its modules. A `stdlib` pin that differs from the library the tool
+  carries, and a dependency named after a module of the library, are refused
+  (W-PIN-1), so a program names by hash exactly the library it was checked
+  against.
 - A published definition is immutable: a hash names one text forever. A
   correction is a new definition with a new hash. Withdrawal is a signed
   *advisory*, a canonical JSON object `{kind: "advisory", hash, reason,

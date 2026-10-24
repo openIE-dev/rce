@@ -583,7 +583,7 @@ pub const USAGE_TEXT: &str = "usage:
   rce dim [--fuel N] [--control] [--json] FILE  behaviours a program can be in and the redundancy of its state (6.10, 10.11); --control adds dim_c and shape_ctl
   rce equiv [--fuel N] [--json] A B      whether two programs have the same behaviour on the explored alphabet (6.10, T58), with a distinguishing event sequence when not
   rce change [--fuel N] OLD NEW          classify a change: api-diff rows (F.4.3) and the behaviour check; erratum when every behaviour is kept, meaning change otherwise (C.15, CC-2)
-  rce lib [MODULE]               the built-in standard library: every module `use` can name (4.1), or the source of one module
+  rce lib [MODULE]               the built-in standard library: every module `use` can name (4.1) and the hash that pins it, or the source of one module
   rce hash FILE|DIR...           the definition hash (F.4.3) of every named item of each module: HASH, kind, name, and `pub` for an export
   rce manifest DIR               write the hash-pinned manifest of a directory (F.5.3): every .rce file as a module pinned by its hash, canonical JSON
   rce manifest-check MANIFEST [--advisories FILE] [--key ISSUER=HEXPUBKEY]...  verify a hash-pinned manifest (F.5.3, W-PIN-1) and list pinned hashes that carry a signed advisory
@@ -918,7 +918,14 @@ fn run_main(a: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &mu
                 let doc = src.lines().find(|l| l.starts_with("# ") && !l.starts_with("# rce-version") && !l.starts_with("# uses:")).map(|l| l.trim_start_matches("# ").to_string()).unwrap_or_default();
                 writeln!(out, "{n:<16} {doc}").map_err(w)?;
             }
-            OK
+            // the library is named by the hash of its manifest (F.5.3), and a
+            // module that differs from its pin is reported, never used quietly
+            let bad = crate::manifest::stdlib_unpinned();
+            writeln!(out, "\n{} modules, pinned by stdlib/lib/MANIFEST.json; a manifest names this library as the dependency stdlib with sha256 {}", crate::stdlib::names().len(), crate::manifest::stdlib_hash()).map_err(w)?;
+            for e in &bad {
+                writeln!(out, "{e}").map_err(w)?;
+            }
+            if bad.is_empty() { OK } else { REFUSED }
         }
         Some("lib") if rest.len() == 1 => match crate::stdlib::source(&rest[0]) {
             Some(src) => {

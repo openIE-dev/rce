@@ -14,7 +14,8 @@ by its file path relative to the package root with `/` read as `.` and the
 `pub`. Import cycles are refused (W-MOD-2). The modules `std.text`,
 `std.collections` and `std.math` are built in and always resolvable (S4), and
 so is every module of the standard library (`stdlib/lib` of the repository,
-pinned by hash in its manifest, F.5.3): `use enc`, `use data.events` and the
+pinned by hash in its manifest, and pinned by a program as the dependency
+`stdlib`, F.5.3): `use enc`, `use data.events` and the
 others resolve with no file given, no directive and no flag, in every tool
 (`rce lib` lists them). A library module's own `check`, `example` and
 `intent` items are not part of a program that imports it; its items are. A
@@ -53,4 +54,4 @@ payload typing) and as constructor functions.
 
 **Read receipt.** What is the outermost scope called? (one word)
 
-<!-- body-sha256: 79670454efb8b3b8f04318c9dec5433f3e977dd60bc8467245d131b3eecd06fc -->
+<!-- body-sha256: 5ca7d8a15cdf8973b8489ee52c0c6f634b5b029aaf692148c113fd02b0064a8d -->

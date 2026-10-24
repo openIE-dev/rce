@@ -161,3 +161,42 @@ fn a_generated_manifest_is_accepted_and_pins_every_module() {
     let pinned = manifest::check(&text, &d).unwrap();
     assert_eq!(pinned.len(), 2);
 }
+
+const USES_LIB: &str = "module app\n\nuse enc\n\nfn f() -> text\n    let b = [104, 105]\n    return enc.b64_encode(&b, false, true)\n";
+
+#[test]
+fn the_built_in_library_is_the_pinned_library() {
+    // every embedded module hashes to its entry in stdlib/lib/MANIFEST.json
+    // and the manifest lists nothing the checker does not carry (XF-3)
+    assert_eq!(manifest::stdlib_unpinned(), Vec::<String>::new());
+    assert_eq!(manifest::stdlib_hash().len(), 64);
+}
+
+#[test]
+fn a_program_that_uses_the_library_pins_it_as_the_dependency_stdlib() {
+    let d = tmp("stdlib-dep");
+    std::fs::write(d.join("app.rce"), USES_LIB).unwrap();
+    let text = manifest::generate(&d).unwrap();
+    let v: serde_json::Value = serde_json::from_str(&text).unwrap();
+    assert_eq!(v["dependencies"], json!([{"name": "stdlib", "sha256": manifest::stdlib_hash()}]));
+    assert!(manifest::check(&text, &d).is_ok(), "{:?}", manifest::check(&text, &d));
+    // without the dependency the import is unpinned
+    let mut bare = v.clone();
+    bare["dependencies"] = json!([]);
+    let errs = manifest::check(&canonical(&bare), &d).unwrap_err();
+    assert!(errs.iter().any(|e| e.contains("imports `enc`, which the manifest does not pin")), "{errs:?}");
+}
+
+#[test]
+fn a_wrong_library_hash_and_a_dependency_named_after_a_library_module_are_refused() {
+    let d = tmp("stdlib-wrong");
+    std::fs::write(d.join("app.rce"), USES_LIB).unwrap();
+    let mut v: serde_json::Value = serde_json::from_str(&manifest::generate(&d).unwrap()).unwrap();
+    v["dependencies"] = json!([{"name": "stdlib", "sha256": "0".repeat(64)}]);
+    let errs = manifest::check(&canonical(&v), &d).unwrap_err();
+    assert!(errs.iter().any(|e| e.contains("dependency `stdlib` pins") && e.contains("the built-in library of this checker is")), "{errs:?}");
+    // a hash that only has the right format no longer passes for a library module
+    v["dependencies"] = json!([{"name": "enc", "sha256": "0".repeat(64)}]);
+    let errs = manifest::check(&canonical(&v), &d).unwrap_err();
+    assert!(errs.iter().any(|e| e.contains("dependency `enc` names a module of the built-in library")), "{errs:?}");
+}

@@ -47,6 +47,42 @@ pub fn module_hash(src: &str) -> Result<String, String> {
     Ok(sha256_hex(crate::unparse::unparse(&m).as_bytes()))
 }
 
+/// The hash by which a program pins the built-in library (4.1, F.5.3): the
+/// SHA-256 of the canonical text of the library's own manifest, which pins
+/// every module of the library by its hash. A manifest names it as the
+/// dependency `stdlib`.
+pub fn stdlib_hash() -> String {
+    sha256_hex(crate::stdlib::manifest_text().as_bytes())
+}
+
+/// The embedded library against its embedded manifest: every module listed
+/// with the hash of its text, and nothing else (XF-3). Empty when the library
+/// this checker carries is exactly the pinned library.
+pub fn stdlib_unpinned() -> Vec<String> {
+    let mut errs = vec![];
+    let v: Value = match serde_json::from_str(crate::stdlib::manifest_text()) {
+        Ok(v) => v,
+        Err(e) => return vec![format!("W-PIN-1 the built-in library's manifest is not JSON: {e}")],
+    };
+    let mut listed = BTreeSet::new();
+    for e in v["modules"].as_array().into_iter().flatten() {
+        let (name, want) = (e["module"].as_str().unwrap_or(""), e["sha256"].as_str().unwrap_or(""));
+        listed.insert(name.to_string());
+        match crate::stdlib::source(name).map(module_hash) {
+            None => pin(&mut errs, format!("the built-in library's manifest lists `{name}`, which the library does not carry")),
+            Some(Err(x)) => pin(&mut errs, format!("built-in module `{name}` does not parse: {x}")),
+            Some(Ok(h)) if h != want => pin(&mut errs, format!("built-in module `{name}` hashes to {h}, its manifest pins {want}")),
+            Some(Ok(_)) => {}
+        }
+    }
+    for n in crate::stdlib::names() {
+        if !listed.contains(n) {
+            pin(&mut errs, format!("built-in module `{n}` is not in the library's manifest"));
+        }
+    }
+    errs
+}
+
 fn bad_path(p: &str) -> Option<&'static str> {
     if p.is_empty() {
         Some("an empty path")
@@ -107,11 +143,12 @@ fn imports(src: &str) -> Vec<String> {
 /// W-PIN-1 over a manifest and the files it names (relative to `root`).
 /// `Err` is the list of findings; `Ok` is the pinned module hashes.
 /// Write the manifest of a directory (F.5.3): every `.rce` file under `root`,
-/// recursively, in sorted order, as a module pinned by its hash, with no
-/// dependencies; the output is canonical JSON and `check` accepts it at
-/// `root/MANIFEST.json`. Imports between the listed modules need no
-/// dependency entry; an import of a module outside the directory is reported
-/// by `check`, never guessed here (there is no resolver).
+/// recursively, in sorted order, as a module pinned by its hash; the output
+/// is canonical JSON and `check` accepts it at `root/MANIFEST.json`. Imports
+/// between the listed modules need no dependency entry; an import of the
+/// built-in library (4.1) adds the one dependency `stdlib`, pinned by the
+/// hash of the library's manifest. Any other import of a module outside the
+/// directory is reported by `check`, never guessed here (there is no resolver).
 pub fn generate(root: &Path) -> Result<String, String> {
     let mut files = vec![];
     fn walk(d: &Path, out: &mut Vec<std::path::PathBuf>) -> Result<(), String> {
@@ -128,15 +165,22 @@ pub fn generate(root: &Path) -> Result<String, String> {
     }
     walk(root, &mut files)?;
     let mut mods = vec![];
+    let mut imps = vec![];
     for f in &files {
         let src = std::fs::read_to_string(f).map_err(|e| format!("{}: {e}", f.display()))?;
         let m = crate::parse::parse(&src).map_err(|e| format!("{}: {e}", f.display()))?;
         let rel = f.strip_prefix(root).map_err(|e| e.to_string())?.to_string_lossy().replace('\\', "/");
         let name = m.path.as_ref().map(|p| p.join(".")).unwrap_or_else(|| rel.trim_end_matches(".rce").replace('/', "."));
         mods.push(serde_json::json!({"module": name, "path": rel, "sha256": module_hash(&src)?}));
+        imps.extend(imports(&src));
     }
     mods.sort_by(|a, b| a["module"].as_str().cmp(&b["module"].as_str()));
-    Ok(canonical(&serde_json::json!({"dependencies": [], "formatter": "rce-fmt 1", "language": "0.9", "modules": mods})))
+    // an import of the built-in library (4.1) pins the library by the hash
+    // of its manifest; an import of a module of the directory needs nothing
+    let own: BTreeSet<&str> = mods.iter().filter_map(|m| m["module"].as_str()).collect();
+    let uses_lib = imps.iter().any(|i| !own.contains(i.as_str()) && crate::stdlib::has(i));
+    let deps = if uses_lib { serde_json::json!([{"name": "stdlib", "sha256": stdlib_hash()}]) } else { serde_json::json!([]) };
+    Ok(canonical(&serde_json::json!({"dependencies": deps, "formatter": "rce-fmt 1", "language": "0.9", "modules": mods})))
 }
 
 pub fn check(text: &str, root: &Path) -> Result<BTreeMap<String, String>, Vec<String>> {
@@ -170,8 +214,18 @@ pub fn check(text: &str, root: &Path) -> Result<BTreeMap<String, String>, Vec<St
     }
     for d in &deps {
         let h = d.get("sha256").and_then(|x| x.as_str()).unwrap_or("");
+        let n = d.get("name").and_then(|x| x.as_str()).unwrap_or("?");
         if !is_hash(h) {
-            pin(&mut errs, format!("dependency `{}` is not pinned by a SHA-256 (64 lowercase hex digits)", d.get("name").and_then(|x| x.as_str()).unwrap_or("?")));
+            pin(&mut errs, format!("dependency `{n}` is not pinned by a SHA-256 (64 lowercase hex digits)"));
+        } else if n == "stdlib" {
+            // the built-in library is pinned by its manifest's hash, and the
+            // hash is checked against the library this checker carries
+            let lib = stdlib_hash();
+            if h != lib {
+                pin(&mut errs, format!("dependency `stdlib` pins {h}; the built-in library of this checker is {lib} (stdlib/lib/MANIFEST.json)"));
+            }
+        } else if crate::stdlib::has(n) || crate::stdlib::names().iter().any(|m| m.split('.').next() == Some(n)) {
+            pin(&mut errs, format!("dependency `{n}` names a module of the built-in library; the library is pinned as the one dependency `stdlib`, by the hash of its manifest"));
         }
     }
     let mut names = BTreeSet::new();
@@ -227,7 +281,8 @@ pub fn check(text: &str, root: &Path) -> Result<BTreeMap<String, String>, Vec<St
     let dep_names: BTreeSet<&str> = deps.iter().filter_map(|d| d.get("name").and_then(|x| x.as_str())).collect();
     for (m, imps) in &graph {
         for i in imps {
-            if !names.contains(i) && !dep_names.contains(i.as_str()) && !dep_names.contains(i.split('.').next().unwrap_or("")) {
+            let built_in = dep_names.contains("stdlib") && crate::stdlib::has(i);
+            if !names.contains(i) && !built_in && !dep_names.contains(i.as_str()) && !dep_names.contains(i.split('.').next().unwrap_or("")) {
                 pin(&mut errs, format!("module `{m}` imports `{i}`, which the manifest does not pin by hash"));
             }
         }
