@@ -13,7 +13,7 @@
 | `rce change [--fuel N] OLD NEW` | classify a change: erratum (every export compatible, every behaviour kept), meaning change, interface change |
 | `rce dim [--fuel N] FILE` | count the behaviours a program can be in and the redundancy of its state, per region (chapter 18) |
 | `rce lsp` | language server on standard input and output |
-| `rce --version` | the checker version, the specification draft and the accepted language versions |
+| `rce --version` | the checker version, the specification draft and the release label of the one language |
 
 All files given to one command form one program.
 

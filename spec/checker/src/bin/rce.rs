@@ -2,7 +2,7 @@
 //! fmt, lsp), as implemented by `cli::main` in this crate.
 //! Usage: rce COMMAND ...   (run `rce` with no arguments for the list)
 //! `rce --version` (or `-V`) prints the checker version, the specification
-//! draft it implements and the language versions it accepts (2.7); it is a
+//! draft it implements and the release label of the one language (2.7); it is a
 //! convenience of this program, not one of the language commands.
 
 /// The specification draft this checker implements.
