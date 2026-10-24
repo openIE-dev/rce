@@ -19,9 +19,8 @@ if ! "$RCE" check "$tmp/lib_probe.rce" > /dev/null 2>&1; then
   echo "ecosystem/run.sh: this rce has no #!lib directive (the engine's rce or an rce-ide release is needed); skipped"
   exit 0
 fi
-# the SFU app: next to this script in rce-examples, apps/sfu.rce in the engine tree
-SFU=${SFU:-$here/sfu.rce}
-[ -f "$SFU" ] || SFU="$here/../../apps/sfu.rce"
+# the SFU app is apps/sfu.rce of this repository (one copy)
+SFU=${SFU:-$here/../../apps/sfu.rce}
 want() { # NAME OUTPUT-FILE NEEDLE...
   n=$1; f=$2; shift 2
   for s in "$@"; do

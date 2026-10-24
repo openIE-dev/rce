@@ -1,0 +1,16 @@
+{
+  "name": "rce-spec-check-wasm",
+  "type": "module",
+  "description": "rce-check compiled to wasm32 for the browser: the checker sources are included unchanged by #[path]; this crate adds only the wasm-bindgen surface.",
+  "version": "0.1.0",
+  "files": [
+    "rce_spec_check_wasm_bg.wasm",
+    "rce_spec_check_wasm.js",
+    "rce_spec_check_wasm.d.ts"
+  ],
+  "main": "rce_spec_check_wasm.js",
+  "types": "rce_spec_check_wasm.d.ts",
+  "sideEffects": [
+    "./snippets/*"
+  ]
+}
