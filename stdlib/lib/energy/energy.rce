@@ -455,17 +455,29 @@ pub fn open_envelope(env: &[i64]) -> OpenedReceipt ! BadReceipt
     return OpenedReceipt(receipt: r, prot: ph, payload: payload, kid: kt, sig: sig)
 
 # seal_receipt: sign the Sig_structure with the steward's 32-byte seed (hex).
-# The steward must be the did:key of that seed's public key.
-pub fn seal_receipt(r: &Receipt, seed_hex: text) -> List[i64] ! BadReceipt
+# The steward must be the did:key of that seed's public key. Sealing is two
+# steps of work: seal_begin derives the seed's public key, checks it against
+# the steward and returns the canonical core; seal_finish signs the core and
+# builds the envelope. A Form that seals in an event does each in its own
+# step, since one input is one step with the fuel of 6.7 (as pq.rce does for
+# its Ed25519 identity); seal_receipt is the two run together.
+pub fn seal_begin(r: &Receipt, seed_hex: text) -> List[i64] ! BadReceipt
     let core = try receipt_core(r)
     let pk = ed_pubkey(copy(seed_hex))
     let pkb = did_key_pk(&r.steward) catch []
     if hex_of(&pkb) != pk
         fail BadReceipt(why: "steward")
+    return core
+
+pub fn seal_finish(r: &Receipt, core: &[i64], seed_hex: text) -> List[i64]
     let prot = protected_header(&r.steward)
-    let sig = ed_sign(seed_hex, sig_structure(&prot, &core))
+    let sig = ed_sign(seed_hex, sig_structure(&prot, core))
     let sb = hex_bytes(&sig)
-    return envelope(&core, &r.steward, &sb)
+    return envelope(core, &r.steward, &sb)
+
+pub fn seal_receipt(r: &Receipt, seed_hex: text) -> List[i64] ! BadReceipt
+    let core = try seal_begin(r, copy(seed_hex))
+    return seal_finish(r, &core, seed_hex)
 
 fn hex_bytes(h: &text) -> List[i64]
     var o: List[i64] = []

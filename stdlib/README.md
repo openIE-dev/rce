@@ -81,12 +81,12 @@ change to it is a new hash in `lib/MANIFEST.json` in the same commit.
 | `lib/crypto.rce`, `enc`, `hash`, num, math, text, xml, utf8 and the other foundation modules | nothing | pass |
 | `pq` (6 checks), `hpke` (3), `mls` (2) | `crypto` in front of the module, by the `#!lib crypto` line | pass |
 | `energy` library (`lib/energy/energy.rce`, 55 checks) | `crypto` in front, as above | pass |
-| `tests/energy/energy_host.rce` (14 events) | Ed25519 signing within one event's fuel (specification 6.7) | 13 events pass; event `Seal0` signs a receipt with Ed25519 written in RCE, exceeds the per-event fuel and is refused, which `check.sh` reports as `SKIPPED` |
+| `tests/energy/energy_host.rce` (15 events) | one Ed25519 operation per step, each within the fuel of one input (specification 6.7) | pass; sealing is two steps, `Seal0` (`seal_begin`) and `Seal0Sign` (`seal_finish`) |
 | `tests/os/pkg_checks_10.rce` | nothing | pass; the long-identifier row uses 560,000 characters because a text is limited to 1,000,000 elements (spec N9) |
 
 - `rce host run` and `rce host serve` run the host steps, and every host run is validated by replay with the adapters disconnected.
 - `scripts/check.sh` probes for the `#!lib NAME` directive. A checker without it gets `lib/crypto.rce` (without its `module` and `check` lines) appended by `scripts/libexpand.py` to the modules that name it. Set `RCE_NO_LIB=1` or `0` to force either path.
-- `ed_pubkey`, `ed_sign` and `ed_verify` are ordinary functions in `lib/crypto.rce`. Only the receipt signing in `energy_host.rce` exceeds the per-event fuel, so `check.sh` accepts exactly one outcome other than full success: `Seal0` refused with `comptime fuel exhausted` and every other event good. A binary whose native `ed_*` functions charge less fuel completes `Seal0`, which HC-7 does not allow: a host enforces fuel as the reference does, so the refusal is the conforming outcome on every binary (proposal XF-6 in `spec/proposals/one-library-every-fabric.md`).
+- `ed_pubkey`, `ed_sign` and `ed_verify` are ordinary functions in `lib/crypto.rce`, and one input is one step with the fuel of 6.7. Work larger than one step is written as several steps: `pq.rce` does this for its Ed25519 identity, and `energy` seals a receipt with `seal_begin` then `seal_finish` (`seal_receipt` runs both, for code with fuel to spare). A native `ed_*` charges the fuel of its RCE source (HC-7, proposal XF-6 in `spec/proposals/one-library-every-fabric.md`), so every binary writes the same log for the same inputs.
 
 `pq`, `hpke` and `mls` build on `crypto`. The libraries are reference
 code for correctness and replay. They are **not constant time**.

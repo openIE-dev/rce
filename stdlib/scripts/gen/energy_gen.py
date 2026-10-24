@@ -130,7 +130,9 @@ else:
     def count(cond): return '    if %s\n        good += 1\n    else\n        bad += 1' % cond
     def vstep(name, e, want):
         return 'step H on %s\n    let e = hexb("%s")\n' % (name, e.hex()) + count(('' if want else 'not ') + 'verify(&e)')
-    print('step H on Seal0\n    let r = sample(0)\n    let e = seal_receipt(&r, "%s") catch []\n' % SEEDS[1] + count('e == hexb("%s")' % e0.hex()))
+    # sealing is two steps: one input is one step with the fuel of 6.7
+    print('step H on Seal0\n    let r = sample(0)\n    core = seal_begin(&r, "%s") catch []\n' % SEEDS[1] + count('core.len() > 0'))
+    print('step H on Seal0Sign\n    let r = sample(0)\n    let e = seal_finish(&r, &core, "%s")\n' % SEEDS[1] + count('e == hexb("%s")' % e0.hex()))
     print(vstep('Verify0', e0, True))
     print(vstep('Verify4', e4, True))
     print('# payload substitution (C23): same signature over a different payload_hash')

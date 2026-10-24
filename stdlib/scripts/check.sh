@@ -83,20 +83,7 @@ for f in lib/*/*.rce; do
     res=$(printf '%s\n' "$ev" | "$RCE" host run "$tmp/host.rce" --log "$tmp/hostlog" $hf 2> "$tmp/host.err") || true
     printf '%s\n' "$res" | tail -3
     grep "^rce host: validated " "$tmp/host.err" || { cat "$tmp/host.err"; echo "FAIL host checks $h: the run was not validated by replay"; exit 1; }
-    if printf '%s\n' "$res" | grep -q "good = $n, bad = 0 }"; then :
-    # energy_host.rce event Seal0 signs a receipt with Ed25519 written in RCE,
-    # which exceeds the per-event fuel of 6.7 (HC-7a), so the conforming
-    # outcome is its refusal; a binary whose native ed_* builtins charge less
-    # fuel completes it (spec/proposals/one-library-every-fabric.md, XF-6).
-    # The one other accepted outcome is exactly that refusal with every other
-    # event good. Reported, never silently passed.
-    elif [ "$h" = tests/energy/energy_host.rce ] \
-      && printf '%s\n' "$res" | grep -q "Seal0 refused: trap(comptime fuel exhausted)" \
-      && printf '%s\n' "$res" | grep -q "good = $((n - 1)), bad = 0 }"; then
-      echo "SKIPPED event Seal0 of $h: Ed25519 signing in RCE source exceeds the per-event fuel (6.7) on this rce; the other $((n - 1)) events pass"
-    else
-      echo "FAIL host checks $h"; exit 1
-    fi
+    printf '%s\n' "$res" | grep -q "good = $n, bad = 0 }" || { echo "FAIL host checks $h"; exit 1; }
     rm -rf "$tmp/hostlog"*
   fi
 done

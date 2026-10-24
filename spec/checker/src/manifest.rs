@@ -48,11 +48,17 @@ pub fn module_hash(src: &str) -> Result<String, String> {
 }
 
 /// The hash by which a program pins the built-in library (4.1, F.5.3): the
-/// SHA-256 of the canonical text of the library's own manifest, which pins
+/// SHA-256 of the canonical JSON text of the library's own manifest, which pins
 /// every module of the library by its hash. A manifest names it as the
 /// dependency `stdlib`.
 pub fn stdlib_hash() -> String {
-    sha256_hex(crate::stdlib::manifest_text().as_bytes())
+    // over the canonical JSON (6.1) of the manifest, so the hash does not
+    // depend on how a checkout stores line endings
+    let t = crate::stdlib::manifest_text();
+    match serde_json::from_str::<Value>(t) {
+        Ok(v) => sha256_hex(canonical(&v).as_bytes()),
+        Err(_) => sha256_hex(t.as_bytes()),
+    }
 }
 
 /// The embedded library against its embedded manifest: every module listed
@@ -129,15 +135,20 @@ fn entries<'a>(v: &'a Value, key: &str, fields: &[&str], errs: &mut Vec<String>)
 }
 
 /// The imports of a module source: `use a.b` names the module `a.b`.
+/// The modules a module uses: its `use` imports, and the built-in libraries
+/// its `#!lib NAME` lines place in front (4.1), which it uses as surely as
+/// an import and which the manifest must pin in the same way.
 fn imports(src: &str) -> Vec<String> {
-    match crate::parse::parse_surface(src) {
+    let mut out: Vec<String> = match crate::parse::parse_surface(src) {
         Ok(m) => m
             .items
             .iter()
             .filter_map(|i| if let Item::Use(p, _, _) = i { Some(p.join(".")) } else { None })
             .collect(),
         Err(_) => vec![],
-    }
+    };
+    out.extend(crate::stdlib::directives(src).into_iter().map(String::from));
+    out
 }
 
 /// W-PIN-1 over a manifest and the files it names (relative to `root`).

@@ -200,3 +200,26 @@ fn a_wrong_library_hash_and_a_dependency_named_after_a_library_module_are_refuse
     let errs = manifest::check(&canonical(&v), &d).unwrap_err();
     assert!(errs.iter().any(|e| e.contains("dependency `enc` names a module of the built-in library")), "{errs:?}");
 }
+
+#[test]
+fn a_lib_directive_is_a_use_of_the_library_and_is_pinned_the_same_way() {
+    let d = tmp("stdlib-directive");
+    std::fs::write(d.join("app.rce"), "module app\n#!lib crypto\n\nfn f() -> List[i64]\n    return sha256([104, 105])\n").unwrap();
+    let text = manifest::generate(&d).unwrap();
+    let v: serde_json::Value = serde_json::from_str(&text).unwrap();
+    assert_eq!(v["dependencies"], json!([{"name": "stdlib", "sha256": manifest::stdlib_hash()}]));
+    assert!(manifest::check(&text, &d).is_ok());
+    let mut bare = v.clone();
+    bare["dependencies"] = json!([]);
+    let errs = manifest::check(&canonical(&bare), &d).unwrap_err();
+    assert!(errs.iter().any(|e| e.contains("imports `crypto`, which the manifest does not pin")), "{errs:?}");
+}
+
+#[test]
+fn the_library_hash_is_over_the_canonical_json_of_its_manifest() {
+    let t = rce_spec_check::stdlib::manifest_text();
+    let v: serde_json::Value = serde_json::from_str(t).unwrap();
+    assert_eq!(manifest::stdlib_hash(), manifest::sha256_hex(canonical(&v).as_bytes()));
+    // the file itself is canonical, so the hash is also the hash of its text
+    assert_eq!(canonical(&v), t);
+}
