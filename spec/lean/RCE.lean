@@ -6,6 +6,7 @@ import RCE.Conc
 import RCE.Borrow
 import RCE.Bound
 import RCE.NameFree
+import RCE.Positional
 import RCE.Emit
 import RCE.EmitPrint
 import RCE.Struct
