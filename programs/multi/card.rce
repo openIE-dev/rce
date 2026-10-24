@@ -1,0 +1,43 @@
+# A bank card: a PIN region that locks after three wrong entries, and an
+# account region in whole units. A withdrawal needs an unlocked card.
+intent "a card that locks after three wrong PINs and never overdraws"
+    example Enter(ok: true), Withdraw -> balance == 2
+    example Enter(ok: false), Enter(ok: false), Enter(ok: false), Enter(ok: true) -> refused: Locked
+    example Withdraw, Withdraw, Withdraw, Withdraw -> refused: Insufficient
+    example Deposit, Deposit, Deposit -> refused: Limit
+
+state Pin
+    tries: u8 = 0
+    locked: bool = false
+
+state Account
+    balance: u8 = 3
+
+event Enter(ok: bool)
+event Withdraw
+event Deposit
+
+error Locked
+error Insufficient
+error Limit
+
+step Pin on Enter(ok: _) if locked
+    fail Locked
+step Pin on Enter(ok: true)
+    tries = 0
+step Pin on Enter(ok: false)
+    tries += 1
+    if tries >= 3
+        locked = true
+        emit "locked"
+step Pin on Withdraw if locked
+    fail Locked
+step Account on Withdraw if balance == 0
+    fail Insufficient
+step Account on Withdraw
+    balance -= 1
+    emit balance
+step Account on Deposit if balance >= 5
+    fail Limit
+step Account on Deposit
+    balance += 1

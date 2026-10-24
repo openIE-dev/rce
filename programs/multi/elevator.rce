@@ -1,0 +1,49 @@
+# An elevator car with a door. The car moves only while the door is closed;
+# the door opens only while the car is still. Two regions, one for each.
+intent "a car that never moves with its door open"
+    example Up, Up, Down -> floor == 1
+    example OpenDoor, Up -> refused: DoorOpen
+    example Up, Up, Up, Up -> refused: TopFloor
+
+state Car
+    floor: u8 = 0
+    moving: bool = false
+
+state Door
+    open: bool = false
+
+event Up
+event Down
+event OpenDoor
+event CloseDoor
+event Arrive
+
+error DoorOpen
+error TopFloor
+error GroundFloor
+error InMotion
+
+step Door on Up if open
+    fail DoorOpen
+step Car on Up if floor >= 3
+    fail TopFloor
+step Car on Up
+    floor += 1
+    moving = true
+    emit floor
+step Door on Down if open
+    fail DoorOpen
+step Car on Down if floor == 0
+    fail GroundFloor
+step Car on Down
+    floor -= 1
+    moving = true
+    emit floor
+step Car on OpenDoor if moving
+    fail InMotion
+step Door on OpenDoor
+    open = true
+step Door on CloseDoor
+    open = false
+step Car on Arrive
+    moving = false

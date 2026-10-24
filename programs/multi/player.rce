@@ -1,0 +1,40 @@
+# A media player: transport and volume are separate regions. Only the
+# transport's output depends on the track; the volume changes nothing heard.
+intent "a player whose output is the track it plays"
+    example Play, Next -> track == 1
+    example Next, Next, Next -> track == 0
+    example VolUp, VolUp, VolUp -> refused: Loudest
+
+state Transport
+    playing: bool = false
+    track: u8 = 0
+
+state Volume
+    level: u8 = 1
+
+event Play
+event Pause
+event Next
+event VolUp
+event VolDown
+
+error Loudest
+error Silent
+
+step Transport on Play
+    playing = true
+    emit track
+step Transport on Pause
+    playing = false
+step Transport on Next
+    track = (track + 1) % 3
+    if playing
+        emit track
+step Volume on VolUp if level >= 3
+    fail Loudest
+step Volume on VolUp
+    level += 1
+step Volume on VolDown if level == 0
+    fail Silent
+step Volume on VolDown
+    level -= 1

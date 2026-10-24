@@ -53,6 +53,7 @@ RCE=/path/to/rce scripts/check.sh
 | [science/](science/) | `numerics.rce`, `knapsack.rce` | dot product, mean, Newton's method; dynamic programming |
 | [systems/](systems/) | `ring_buffer.rce`, `reconcile.rce` | a ring buffer that refuses to overwrite; a reconcile loop |
 | [hardware/](hardware/) | `bits.rce` | bit counting, bit fields, a CRC-32 table built while checking |
+| [multi/](multi/) | `elevator.rce`, `vending.rce`, `crossing.rce`, `parking.rce`, `printer.rce`, `lobby.rce`, `card.rce`, `washer.rce`, `session.rce`, `player.rce`, `climate.rce`, `reservoir.rce` | twelve devices whose state is split over two regions the same events drive; every one emits or refuses, and every one is explored completely by `rce dim` |
 
 ## Areas without examples yet
 

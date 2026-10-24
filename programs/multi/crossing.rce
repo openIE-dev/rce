@@ -1,0 +1,43 @@
+# A pedestrian crossing: the vehicle signal cycles on each tick and says
+# when it turns red; a pedestrian who pressed the button gets a walk phase
+# of one tick. The two regions share the clock and nothing else.
+intent "a crossing whose walk phase lasts one tick after a press"
+    example Press, Tick -> walking == true
+    example Press, Tick, Tick -> walking == false
+    example Tick, Tick, Tick -> walking == false
+    example Press, Press -> refused: AlreadyWaiting
+
+kind Light
+    Green
+    Yellow
+    Red
+
+state Signal
+    light: Light = Green
+
+state Pedestrian
+    waiting: bool = false
+    walking: bool = false
+
+event Tick
+event Press
+
+error AlreadyWaiting
+
+step Pedestrian on Press if waiting
+    fail AlreadyWaiting
+step Pedestrian on Press
+    waiting = true
+step Signal on Tick
+    match light
+        Green -> light = Yellow
+        Yellow
+            light = Red
+            emit "red"
+        Red -> light = Green
+step Pedestrian on Tick if waiting and not walking
+    walking = true
+    waiting = false
+    emit "walk"
+step Pedestrian on Tick if walking
+    walking = false
