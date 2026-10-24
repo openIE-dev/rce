@@ -1,13 +1,37 @@
-# RCE
+# RCE: the Reality Code Engine
 
-RCE is a programming language defined by a written specification. Every
-program has one meaning, a *Form*: a state machine P = (S, E, δ, D, λ) of
-states, events, a step function that maps a state and an event to a new
-state and its outputs, and the hash-chained log of events. There is one
-language, the one the specification defines, and this repository holds
-everything that implements, teaches, exercises or must agree with it. All
-of it is built and checked from the same commit: nothing in this
-repository depends on a released or pinned version of anything else in it.
+RCE stands for **Reality Code Engine**. It is a programming language and
+toolchain in which every program has one fixed, checkable shape, so that
+programs can be written, checked, changed and run by machines without a
+language model in the loop.
+
+## Why RCE exists
+
+RCE is made for the AI coding era. Models now write most of the code that
+gets written, and they write it in languages designed for people: text
+whose meaning depends on the compiler, the platform, the library versions
+and the flags, and whose correctness is checked after the fact by tests,
+reviews and more model calls. Every one of those steps spends energy and
+tokens on resolving ambiguity that the language itself introduced, and
+none of them can promise that the result is right.
+
+RCE removes the ambiguity at the source. A program is a *Form*: a state
+machine P = (S, E, δ, D, λ) of declared states, declared events, a pure
+step function from a state and an event to the next state and its outputs,
+and the hash-chained log D of every event applied. Everything the program
+can do is in the Form, and the checker either admits the Form or names the
+rule it breaks. The `example` lines a program carries are part of it, and
+a program whose examples do not hold is refused before it runs.
+
+This is what makes autonomous coding deterministic. A proposal, whether a
+person, a search over existing Forms or a model produced it, is accepted
+or refused by the checker alone, with the same verdict on every machine.
+Once accepted, the Form replays identically everywhere, projects to Rust,
+Python, JavaScript or Scala without changing meaning, and is reused as a
+whole. No model is needed to decide what a program means, whether a change
+is safe, or whether two programs are the same, so the costly and
+non-deterministic part of AI coding is taken out of the loop. The aim is
+the lowest cost and lowest energy per correct program.
 
 What the language guarantees:
 
@@ -20,6 +44,19 @@ What the language guarantees:
    giving it away, forgetting a case, or writing an `example` that does not
    hold makes the checker refuse the program, and it names the rule that
    was broken.
+4. **There is one language.** The specification at one commit is the
+   language, every module of a program is in it, and nothing in this
+   repository depends on a released or pinned version of anything else in
+   it. A program never breaks because a library or a tool moved.
+
+## What is here
+
+This repository holds everything that defines, implements, teaches,
+exercises or must agree with the language: the specification, the
+reference checker and interpreter, the Lean proofs, the grammar package,
+the book, the standard library, the example programs, the conformance
+suite, the IDE and the playground. All of it is built and checked from the
+same commit.
 
 ![RCE overview: source, checker, Form, log, emit targets, host, fabrics](docs/figures/rce-overview.svg)
 

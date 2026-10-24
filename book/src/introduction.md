@@ -1,13 +1,18 @@
 # Introduction
 
-This book teaches the RCE programming language from the beginning. It
+This book teaches the RCE programming language from the beginning. RCE
+stands for Reality Code Engine: a language and toolchain made for the AI
+coding era, in which every program has one fixed, checkable shape, so that
+programs can be written, checked, changed and run by machines with no
+language model in the loop. It
 assumes you can use a terminal and have written a little code in some
 language. It does not assume you know any particular one.
 
 ## What RCE is
 
 RCE is a small language for programs whose meaning is fixed by a written
-specification. A program is a text. Its meaning is a *Form*: a state machine
+specification, and there is one language: the specification at one commit,
+with no per-module version selection. A program is a text. Its meaning is a *Form*: a state machine
 made of states, events, a step function that takes a state and an event to
 a new state and some outputs, and a log of the events that happened.
 
