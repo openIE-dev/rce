@@ -183,7 +183,26 @@ fn sig_of(m: &Module, it: &Item) -> String {
 /// together, sorted. It is name-free (T7, through the definition hashes),
 /// layout-free and order-free, and the same for one module or a package.
 pub fn program_hash(ms: &[Module]) -> String {
-    let mut hs: Vec<String> = ms.iter().flat_map(|m| defs(m).into_iter().map(|d| d.hash)).collect();
+    let mut hs: Vec<String> = vec![];
+    for m0 in ms {
+        // the name-free projection of 10.6: every declared identifier,
+        // fields and locals included, replaced by its positional name, so the
+        // hash is the same for a program and its renaming (T7)
+        let nameless = crate::nameless::nameless(&crate::unparse::unparse(m0)).ok().and_then(|t| crate::parse::parse(&t).ok());
+        let m = nameless.as_ref().unwrap_or(m0);
+        let ds = defs(m);
+        // unnamed items (steps, impls, examples, checks, intents, uses) are
+        // hashed by their text with every named definition masked by its hash,
+        // so a step body counts and a renaming does not
+        let map: HashMap<String, String> = ds.iter().map(|d| (d.name.clone(), format!("#{}", d.hash))).collect();
+        let ver = module_version(m);
+        for it in &m.items {
+            if crate::link::item_name(it).is_none() {
+                hs.push(sha(&format!("rce-def/0.9\n{ver}\nanon\n{}", mask(&one(m, it), &map))));
+            }
+        }
+        hs.extend(ds.into_iter().map(|d| d.hash));
+    }
     hs.sort();
     hs.dedup();
     let json = format!("[{}]", hs.iter().map(|h| format!("\"{h}\"")).collect::<Vec<_>>().join(","));
