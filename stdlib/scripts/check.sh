@@ -72,13 +72,6 @@ for f in lib/*/*.rce; do
     cat "$tmp/shards"
   fi
   h="${t%_checks}_host.rce"
-  # energy_host.rce seals receipts: Ed25519 signing in RCE source exceeds the
-  # per-event fuel of the host (spec 6.7), so it needs an rce with the native
-  # ed_* builtins (rce-ide 0.1.3 or later). Reported, never silently passed.
-  if [ -f "$h" ] && [ "$RCE_NO_LIB" = 1 ] && [ "$h" = tests/energy/energy_host.rce ]; then
-    echo "SKIPPED $h: requires an rce with native Ed25519 (rce-ide 0.1.3 or later); this rce refuses event Seal0 with 'comptime fuel exhausted'"
-    continue
-  fi
   if [ -f "$h" ]; then
     python3 scripts/flatten.py "$f" "$t.rce" "$h" | python3 scripts/libexpand.py > "$tmp/host.rce"
     # "# events: A, B" lists events without arguments; "# event: E" lines
@@ -87,9 +80,22 @@ for f in lib/*/*.rce; do
     if grep -q "^# event: " "$h"; then ev=$(sed -n "s/^# event: //p" "$h"); else ev=$(sed -n "s/^# events: //p" "$h" | tr -d ' ' | tr ',' '\n'); fi
     hf=""; if grep -q "^# host-flags: --fs" "$h"; then rm -rf "$tmp/fs"; mkdir "$tmp/fs"; hf="--fs $tmp/fs"; fi
     n=$(printf '%s\n' "$ev" | grep -c .)
-    res=$(printf '%s\n' "$ev" | "$RCE" host run "$tmp/host.rce" --log "$tmp/hostlog" $hf)
+    res=$(printf '%s\n' "$ev" | "$RCE" host run "$tmp/host.rce" --log "$tmp/hostlog" $hf 2> "$tmp/host.err") || true
     printf '%s\n' "$res" | tail -3
-    printf '%s\n' "$res" | grep -q "good = $n, bad = 0 }" || { echo "FAIL host checks $h"; exit 1; }
+    grep "^rce host: validated " "$tmp/host.err" || { cat "$tmp/host.err"; echo "FAIL host checks $h: the run was not validated by replay"; exit 1; }
+    if printf '%s\n' "$res" | grep -q "good = $n, bad = 0 }"; then :
+    # energy_host.rce event Seal0 signs a receipt with Ed25519 written in RCE,
+    # which exceeds the per-event fuel of 6.7 on the reference checker; an rce
+    # with native ed_* builtins (rce-ide 0.1.3 or later) completes it. The one
+    # other accepted outcome is exactly that refusal with every other event
+    # good. Reported, never silently passed.
+    elif [ "$h" = tests/energy/energy_host.rce ] \
+      && printf '%s\n' "$res" | grep -q "Seal0 refused: trap(comptime fuel exhausted)" \
+      && printf '%s\n' "$res" | grep -q "good = $((n - 1)), bad = 0 }"; then
+      echo "SKIPPED event Seal0 of $h: Ed25519 signing in RCE source exceeds the per-event fuel (6.7) on this rce; the other $((n - 1)) events pass"
+    else
+      echo "FAIL host checks $h"; exit 1
+    fi
     rm -rf "$tmp/hostlog"*
   fi
 done
