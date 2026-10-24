@@ -175,6 +175,166 @@ Roc, Unison, Verse, Carbon, Hylo, Vale, Austral, Cyclone, Jai, Nickel,
 CUE, Dhall, Pkl, Scratch, Logo, BASIC. Each gets a table row when someone
 needs it; none blocks the encapsulation criterion.
 
+### Tier 5: the new entrants of 2024 to 2026 (registered 24 October 2026)
+
+Every language first made public between January 2024 and October 2026
+that the survey of 24 October 2026 catalogued
+(`openie-research-experiments/rce/surveys/2026-10-24/`, working notes 5
+and 6) is a row of the registry: an output of the Form by its print table
+and an input by its lift, like every other row. A row here means
+*registered as a target and a source*; the grammar is pinned and the
+tables are written when the one-emitter change of section 4 lands, in the
+order of section 4, and a language whose semantics the table cannot pin
+to 6.3 is observation-only (section 3). A language that is a schema, a
+prompt format or a tool rather than a language is marked so in the survey
+and gets a schema row (Tier 3) instead. Mechanisms, status and the
+self-reported claims of each entrant are in the survey notes; the
+registry records only the name, the author, the first public date and the
+canonical URL.
+
+Languages for or by machine authors (72; 48 from the agentlanguages.dev
+catalogue read at its source repository, 24 beyond it):
+
+| Target | Author or organisation | First public | URL |
+|---|---|---|---|
+| AILANG | Mark Edmondson / Sunholo | 2025-09 | github.com/sunholo-data/ailang |
+| Aver | jasisz | 2026-02 | github.com/jasisz/aver |
+| Axis | Vladimir Melnic | 2026-05 | github.com/vmelnic/axis |
+| B-IR / TBIR / Loom | Jason Hall (Chainguard) | 2026-01 | articles.imjasonh.com/llm-programming-language.md |
+| BHC / hx | Raffael Schneider | 2026-04 | raskell.io |
+| Boruna | escapeboy | 2026-04 | github.com/escapeboy/boruna |
+| Canlang | Vince Liem | 2026-10 | sodaos.dev/canlang |
+| Codex (damiant3) | Damian Tedrow "with a multi-agent AI team" | 2026-03 | github.com/damiant3/NewRepository |
+| Codong | Brett (brettinhere) | 2026-03 | codong.org |
+| Cohesive | Leo Gorodinski / Cohesive Systems | 2026-10 | github.com/cohesivesystems/cohesive |
+| Faber Romanus | Ian Zepp | 2026-07 | faberlang.dev |
+| Fabro | Bryan Helmkamp (Qlty) | 2026-03 | fabro.sh |
+| Gooo | asketeddy (kimjooyoon) | 2026-08 | github.com/kimjooyoon/meta-ontology-go |
+| Hale | Riley Rook | 2026-05 | hale-lang.org |
+| ilo | Daniel Morris | 2026-02 | ilo-lang.ai |
+| Intent | lhaig | 2026-02 | github.com/lhaig/intent |
+| Koru | anonymous (korulang) | 2025-12 | korulang.org |
+| Laze | kerv | 2026-04 | github.com/kerv/laze |
+| LLMLang | Paul Williams | 2026-05 | github.com/paulprogrammer/llmlang |
+| Lom | wytyKen "with LLM co-authorship throughout" | 2026-08 | github.com/lom-lang/lom |
+| Lume | Marcelo Augusto Vilas Boas | 2026-05 | github.com/mavboas/lume |
+| Lumen | alliecatowo | 2026-02 | github.com/alliecatowo/lumen |
+| Modula-9 (M9) | Alex T. Vermeulen | 2026-08 | tutorial.modula9.net |
+| Magpie | "Magpie Language Developers" | 2026-04 | magpie-lang.com |
+| Marsha | David Ellis (Alan Technologies) | 2023-07 | github.com/alantech/marsha |
+| Mog | Voltropy | 2026-03 | moglang.org |
+| MoonBit | Hongbo Zhang / IDEA Shenzhen | 2023-01 | moonbitlang.com |
+| Muro | Ricardo Corral-Corral | 2026-09 | muro-lang.dev |
+| NanoLang | Jordan Hubbard | 2025-09 | jordanhubbard.github.io/nanolang |
+| NERD | Guru Sattanathan | 2026-01 | nerd-lang.org |
+| Pact | Viktor Kikot | 2026-04 | github.com/KikotVit/pact-lang |
+| Pel | Behnam Mohammadi (CMU) | 2025-04/05 | arxiv.org/abs/2505.13453 |
+| Plasm | Ryan Roberts | 2026-04 | plasm.tools |
+| Plumbing | William Waites / Leith Document Company | 2026-03 | johncarlosbaez.wordpress.com/2026/03/11/… |
+| Prove | Magnus Knutas | 2026-02 | prove.botwork.se |
+| Quasar | Stephen Mell et al. (Penn) | 2025-06 | arxiv.org/abs/2506.12202 |
+| reqlan | Tony Cerqui | 2026-06 | reqlan.com |
+| SEMAPRAX | Wavect GmbH | 2026-08 | wavect.io/semaprax |
+| Sever | Avital Tamir | 2026-02 per catalogue | github.com/AvitalTamir/sever |
+| Spec | M. Abdullah Onus | 2026-04 | github.com/mronus/spec |
+| Tacit | weetster | 2026-04 | github.com/weetster/tacit |
+| Thermite | dollspace-gay and maxinelevesque | 2026-06 | github.com/dollspace-gay/Thermite |
+| Valea | Hans Voetsch | 2026-03 | github.com/hvoetsch/valea |
+| Vera | Alasdair Allan (also catalogue maintainer) | 2026-02 | veralang.dev |
+| Vow | Paulo Matos | 2026-02 | vow-lang.com |
+| With | Eric Hartford | 2026-02 | withlang.org |
+| X07 | author unknown | 2026-04 | x07lang.org |
+| Zero | Chris Tate & Matt Van Horn / Vercel Labs | 2026-05 | zerolang.ai |
+| Goose | Wouter van Oortmerssen (design) + "Claude Fable" (implementation) | repo created 2026-08-30; HN threads 4974 | github.com/aardappel/goose |
+| Rue | Steve Klabnik | repo 2025-06-05; public coverage Dec 202 | github.com/rue-language/rue |
+| Claude's C Compiler (CCC) | Anthropic | repo 2026-02-04 | github.com/anthropics/claudes-c-compiler |
+| Cutlet | s3thi | repo 2026-02-16 | github.com/s3thi/cutlet |
+| Maxon | maxon-lang org (no named author) | repo 2025-11-13; releases 0.3.0–0.5.0 an | github.com/maxon-lang/maxon |
+| Heroes | heroes-lang (single anonymous learner) | repo 2026-08-03; v0.3.0/0.4.0 | github.com/heroes-lang/heroes |
+| Align | sanohiro | repo 2026-06-17 | github.com/sanohiro/align |
+| Kōdo | rfunix | repo 2026-03-09 | github.com/rfunix/kodo |
+| LMLang (LM) | rb3m | repo 2026-10-19 | github.com/rb3m/LMLang |
+| Sigil | inerte | repo 2026-02-24; Show HN ~Apr 2026 | github.com/inerte/sigil |
+| Vibe (vibec) | jvierine | repo 2026-09-10 | github.com/jvierine/vibe |
+| AiLang (AiLangCore) | Todd Henderson / Magic Voodoo LLC | repo 2026-02-11 | github.com/AiLangCore/AiLang |
+| Sui (粋) / Isu | Takato Honda | repo 2025-12-04; PyPI sui-lang 0.5.0 | github.com/TakatoHonda/sui-lang |
+| lotml | protonspy | repo 2026-10-05 | github.com/protonspy/lotml |
+| Lacon | FaulknerMassimo | repo 2026-10-06 | github.com/FaulknerMassimo/lacon |
+| Nyxel | nyxel-lang | repo 2026-10-05 | github.com/nyxel-lang/nyxel |
+| Notlob | Adam T. Burke (QUT) | repo 2026-05-19; arXiv 2608.24644 | github.com/adamburkegh/notlob |
+| VIBEE | Dmitrii Vasilev | repo 2026-01-12; archived 2026-04-04 | github.com/gHashTag/vibee-lang |
+| DriftScript | Seamus Brady | arXiv 2604.00043 | github.com/seamus-brady/DriftNARS |
+| LACUNA | Zhao, Xu, Bračevac, Pham, Wu, Odersky (EPFL) | arXiv 2605.28617 | arxiv.org/abs/2605.28617 |
+| Mirror | Austin Z. Henley | repo 2024-10-13 | github.com/AZHenley/Mirror |
+| llm-lang | wilbowma (William Bowman) | repo 2024-05-09 | github.com/wilbowma/llm-lang |
+| Microsoft POML | Microsoft | repo 2025-08-13; announced ~4 Sep 2025;  | github.com/microsoft/poml |
+| Jac / byLLM (Jaseci) | Jaseci Labs | MTP paper arXiv 2405.08965 | github.com/jaseci-labs/jac |
+
+General-purpose and systems languages first public in the window (39):
+
+| Target | Author or organisation | First public | URL |
+|---|---|---|---|
+| Bend | HigherOrderCO | 2024-05 | github.com/HigherOrderCO/Bend |
+| Goose | van Oortmerssen | 2026-10 | github.com/aardappel/goose |
+| Valen | Ovadia | 2026 | github.com/valen-lang/valen |
+| Micron | Keller | 2024-02 | github.com/rochus-keller/Micron |
+| Luon | Keller | 2024-10 | github.com/rochus-keller/Luon |
+| Par | Štrba | 2025 | github.com/par-team/par-lang |
+| Vine | tjjfvi | 2025-02 | github.com/VineLang/vine |
+| Fram | University of Wrocław | 2024-09 | github.com/fram-lang/dbl |
+| Zeta | Murphy | 2025-11 | github.com/murphsicles/zeta |
+| Cangjie | Huawei | 2024-06 | gitcode.com/Cangjie/cangjie_compiler |
+| Pkl | Apple | 2024-02 | github.com/apple/pkl |
+| Scrapscript | Troesh, Bernstein, Gregory | 2024-01 | github.com/tekknolagi/scrapscript |
+| Amber | amber-lang | 2024-05 | github.com/amber-lang/amber |
+| Kind2 | HigherOrderCO | 2024 | github.com/HigherOrderCO/Kind |
+| Cursed | Huntley | 2025-09 | github.com/ghuntley/cursed |
+| Rue | Klabnik | 2025-12 | github.com/rue-language/rue |
+| Otterlang | jonathanmagambo | 2025-12 | github.com/Ottrlang/otterlang |
+| Soppo | halcyonnouveau | 2025-12 | github.com/halcyonnouveau/soppo |
+| Coi | io-eric | 2026-01 | github.com/coi/coi |
+| Sky | anzellai | 2026-04 | github.com/anzellai/sky |
+| Lisette | ivov | 2026-04 | github.com/ivov/lisette |
+| Jolt | Sotnikov | 2026-07 | github.com/jolt-lang/jolt |
+| Fun | omdxp | 2026 | github.com/omdxp/fun |
+| Wyzer | Wyzer-Lang | 2026-08 | github.com/Wyzer-Lang/wyzer |
+| Gossamer | Pozmanter | 2026-06 | github.com/gossamer-lang/gossamer |
+| Han | xodn348 | 2026-03 | github.com/xodn348/han |
+| Rux | Muzyka | 2026 | github.com/rux-lang/Rux |
+| Kairo | Ze7111 | 2024+ | github.com/kairolang/kairo |
+| Dawn | dawnop | 2024+ | github.com/dawnop/dawn-lang |
+| Perk | Alex23087 | 2024+ | github.com/Alex23087/Perk |
+| Plush | Chevalier-Boisvert | 2024+ | github.com/maximecb/plush |
+| ClojureWasm | clojurewasm | 2024+ | github.com/clojurewasm/ClojureWasm |
+| Hexa | dancinlab | 2024+ | github.com/dancinlab/hexa-lang |
+| Gauntlet | gauntlet-lang | 2024+ | github.com/gauntlet-lang/gauntlet |
+| Vix | vixlang | 2024+ | github.com/vixlang/Vix-lang |
+| Cyrus | tahadostifam | 2024+ | github.com/cyrus-lang/Cyrus |
+| Revo | if-not-nil | 2024+ | github.com/if-not-nil/revo |
+| Aria | arialang | 2024+ | github.com/arialang/aria |
+| Rad | amterp | 2024+ | github.com/amterp/rad |
+
+Pre-2024 languages with a milestone in the window (Gleam 1.0, Koka 3,
+Unison 1.0, Rhombus 1.0, Mojo 1.0, MoonBit, jank, Zig, Roc, Carbon, Hylo,
+Inko, Austral, Flix, Verus, C3, Jakt, Onyx, Toit, Grain, Wing, Ballerina,
+Jule, V, Lean 4, Vale, Effekt, Steel, Wa, Borgo, Nature) keep their rows in
+Tiers 2 to 4; Hare, Hy, Pipefish, Odin, Rux and Nature are added to Tier 2.
+
+What the entrants converge on, from the survey's tallies: refusal of
+invalid input at the boundary (54 of 72 machine-author entrants) and
+emission to another language (57 of 72; 17 of 39 general entrants) are
+near-universal; a canonical form (25 of 72), examples inside the program
+(21 of 72; 2 of 39), a written specification (16 of 72; 14 of 39),
+deterministic evaluation as a stated gate (13 of 72; 3 of 39) and memory
+safety without a collector (8 of 72; 7 of 39) are minorities; an
+append-only log with replay (5 of 72; 0 of 39) and hash-identified
+definitions (2 of 72; 3 of 39) are rare; an intermediate form as the
+source of truth is absent from the new general-purpose languages. The
+registry takes every entrant as a target and a source on the same terms,
+and the rare mechanisms are the ones the Form adds on emission: a program
+emitted into any of these languages carries the log, the hashes and the
+determinism of the Form it was printed from.
+
 ## 3. What is refused
 
 - A target whose semantics the table cannot pin to 6.3 (an interpreter with
