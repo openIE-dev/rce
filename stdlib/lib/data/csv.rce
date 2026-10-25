@@ -1,0 +1,1887 @@
+module data.csv
+# uses: text.utf8
+use text.utf8
+
+# CSV and TSV (RFC 4180 and the dialects of CPython's csv module), pure.
+# Reading follows the state machine of CPython 3.13 Modules/_csv.c over the
+# lines that io.StringIO(data, newline="") gives (a line ends at "\n",
+# "\r\n" or a lone "\r"), under a dialect: delimiter, quote character
+# (or none), escape character (or none), doubled quotes, skipping spaces
+# after a delimiter, strict mode, the six quoting modes, and the writer's
+# line terminator. Fields are text; each row also says which fields were
+# quoted, so a caller can apply the typed reading of QUOTE_NONNUMERIC,
+# QUOTE_STRINGS and QUOTE_NOTNULL (csv_cells), and the writer takes typed
+# cells for the same modes.
+# Bad input is never a trap. A malformed record is reported as a CsvErr
+# (record number, line, column, reason) and reading resumes at the next
+# line, as csv.reader does when its caller catches csv.Error; csv_read is
+# the variant that fails on the first error. Header rows give records
+# keyed by field name, and a record whose field count differs from the
+# header's is reported with its row and the first column that differs.
+# Input larger than one text (1,000,000 characters) or than the fuel of
+# one input is read with a CsvReader: a state value fed chunks of text or
+# of UTF-8 bytes (csv_feed, csv_feed_bytes) and ended with csv_finish;
+# each call returns the records its input completed.
+# Cost: a record on one line is read whole (split at the delimiter, or at
+# the quote character and then the delimiter), well under 50 fuel ticks a
+# character, so a text of 1,000,000 characters of such records reads in
+# one input; a record that spans lines, or a line with the escape
+# character, goes through the state machine at about 150 ticks a
+# character, so such input is fed in chunks of up to about 300,000
+# characters an input.
+# csv_sniff and csv_has_header port csv.Sniffer (Lib/csv.py of CPython
+# 3.13.16): the four quoted-field patterns, the doubled-quote test, the
+# per-line character frequency table with its consistency threshold, and
+# the header vote with Python's float() and complex() syntax. The Unicode
+# word, decimal digit and white space properties those use are tables
+# generated from CPython 3.13.16 (Unicode 15.1.0) by
+# scripts/gen/csv_gen.py.
+# Not covered: CPython's field_size_limit default of 131072 characters
+# (the limit here defaults to 1,000,000, the size of a text, and is set
+# per reader); the float values themselves (a numeric cell keeps its
+# text); the value inside CPython's "could not convert string to float"
+# message (the reason here omits it).
+
+# ---------------- dialects ----------------
+
+pub const CSV_QUOTE_MINIMAL: i64 = 0
+pub const CSV_QUOTE_ALL: i64 = 1
+pub const CSV_QUOTE_NONNUMERIC: i64 = 2
+pub const CSV_QUOTE_NONE: i64 = 3
+pub const CSV_QUOTE_STRINGS: i64 = 4
+pub const CSV_QUOTE_NOTNULL: i64 = 5
+
+# The longest field a reader keeps, in characters: the size of a text.
+pub const CSV_FIELD_MAX: u64 = 1000000
+
+# delim, quote and escape are one character each; quote and escape may be
+# "" (none). quoting is one of the CSV_QUOTE_ values. eol is what the
+# writer ends a record with; the reader recognizes "\n", "\r\n" and "\r".
+pub struct CsvDialect
+    delim: text
+    quote: text
+    escape: text
+    dquote: bool
+    skipsp: bool
+    strict: bool
+    quoting: i64
+    eol: text
+
+# csv.excel: comma, double quote, doubled quotes, CRLF.
+pub fn csv_excel() -> CsvDialect = CsvDialect(delim: ",", quote: "\"", escape: "", dquote: true, skipsp: false, strict: false, quoting: CSV_QUOTE_MINIMAL, eol: "\r\n")
+
+# csv.excel_tab: excel with a tab delimiter (TSV as spreadsheets write it).
+pub fn csv_excel_tab() -> CsvDialect = CsvDialect(delim: "\t", quote: "\"", escape: "", dquote: true, skipsp: false, strict: false, quoting: CSV_QUOTE_MINIMAL, eol: "\r\n")
+
+# csv.unix_dialect: every field quoted, LF.
+pub fn csv_unix() -> CsvDialect = CsvDialect(delim: ",", quote: "\"", escape: "", dquote: true, skipsp: false, strict: false, quoting: CSV_QUOTE_ALL, eol: "\n")
+
+# RFC 4180: excel in strict mode (text after a closing quote, and a quoted
+# field open at the end of the data, are errors).
+pub fn csv_rfc4180() -> CsvDialect = CsvDialect(delim: ",", quote: "\"", escape: "", dquote: true, skipsp: false, strict: true, quoting: CSV_QUOTE_MINIMAL, eol: "\r\n")
+
+# IANA text/tab-separated-values: tab delimiter, no quoting, LF. A field
+# holding a tab or a line end cannot be written (no escape character).
+pub fn csv_tsv() -> CsvDialect = CsvDialect(delim: "\t", quote: "", escape: "", dquote: true, skipsp: false, strict: false, quoting: CSV_QUOTE_NONE, eol: "\n")
+
+fn one_char(t: &text) -> bool = t.len_chars() == 1
+
+fn opt_char(t: &text) -> bool = t.len_chars() <= 1
+
+fn has_char(s: &text, c: &text) -> bool = c != "" and s.contains(c)
+
+# "" when the dialect is valid, else CPython's reason (the checks and their
+# order of _csv.c Dialect construction).
+pub fn csv_dialect_error(d: &CsvDialect) -> text
+    if not one_char(&d.delim)
+        return "\"delimiter\" must be a 1-character string"
+    if not opt_char(&d.escape)
+        return "\"escapechar\" must be a 1-character string"
+    if not opt_char(&d.quote)
+        return "\"quotechar\" must be a 1-character string"
+    if d.quoting < 0 or d.quoting > 5
+        return "bad \"quoting\" value"
+    if d.quoting != CSV_QUOTE_NONE and d.quote == ""
+        return "quotechar must be set if quoting enabled"
+    let e1 = bad_char("delimiter", &d.delim, d, true)
+    if e1 != ""
+        return e1
+    let e2 = bad_char("escapechar", &d.escape, d, not d.skipsp)
+    if e2 != ""
+        return e2
+    let e3 = bad_char("quotechar", &d.quote, d, not d.skipsp)
+    if e3 != ""
+        return e3
+    if d.delim == d.escape
+        return "bad delimiter or escapechar value"
+    if d.delim == d.quote
+        return "bad delimiter or quotechar value"
+    if d.escape != "" and d.escape == d.quote
+        return "bad escapechar or quotechar value"
+    return ""
+
+fn bad_char(what: text, c: &text, d: &CsvDialect, space: bool) -> text
+    if c == ""
+        return ""
+    if c == "\r" or c == "\n" or (c == " " and not space)
+        return "bad " + what + " value"
+    if d.eol.contains(c)
+        return "bad " + what + " or lineterminator value"
+    return ""
+
+# ---------------- errors and rows ----------------
+
+# A reading or writing problem. row is the 1-based number of the record
+# (records and errors share one count, so row k is the k-th record csv.reader
+# would yield), line the 1-based line where it was found, col the 1-based
+# character position in that line (one past its end for a problem found at
+# the end of a line or of the data); 0 where they do not apply.
+pub struct CsvErr
+    row: u64
+    line: u64
+    col: u64
+    why: text
+
+error CsvError(row: u64, line: u64, col: u64, why: text)
+
+# A record: its number, the line it ends on (csv.reader.line_num after
+# reading it), its fields, and whether each field was quoted.
+pub struct CsvRow
+    row: u64
+    line: u64
+    fields: List[text]
+    quoted: List[bool]
+
+pub struct CsvOut
+    rows: List[CsvRow]
+    errs: List[CsvErr]
+
+# ---------------- the reader ----------------
+
+const S_REC: i64 = 0
+const S_FLD: i64 = 1
+const S_ESC: i64 = 2
+const S_IN: i64 = 3
+const S_QIN: i64 = 4
+const S_QESC: i64 = 5
+const S_QQ: i64 = 6
+const S_CRNL: i64 = 7
+const S_AESC: i64 = 8
+
+const K_OTH: i64 = 0
+const K_DEL: i64 = 1
+const K_QUO: i64 = 2
+const K_ESC: i64 = 3
+const K_LF: i64 = 4
+const K_CR: i64 = 5
+const K_EOL: i64 = 6
+const K_END: i64 = 7
+
+const A_NONE: i64 = 0
+const A_ADD: i64 = 1
+const A_ADDNL: i64 = 2
+const A_SAVE: i64 = 3
+const A_ERR: i64 = 4
+
+# Lines shorter than this wait for the next chunk when a chunk ends inside
+# them, so whole lines take the fast path; longer ones go to the state
+# machine as they arrive.
+const CARRY_MAX: u64 = 4096
+
+# Reader state. A caller makes one with csv_reader and changes it only
+# through csv_set_limit; the other fields belong to the reader.
+pub struct CsvReader
+    d: CsvDialect
+    q: text
+    univ: bool
+    limit: u64
+    st: i64
+    fields: List[text]
+    quoted: List[bool]
+    buf: List[text]
+    flen: u64
+    unq: bool
+    cr: bool
+    skip: bool
+    bol: bool
+    line: u64
+    col: u64
+    row: u64
+    ended: bool
+    carry: text
+    pend: List[i64]
+    bom: bool
+
+fn mk_reader(d: &CsvDialect, univ: bool) -> CsvReader
+    let q = if d.quoting == CSV_QUOTE_NONE then "" else copy(d.quote)
+    return CsvReader(d: copy(d), q: q, univ: univ, limit: CSV_FIELD_MAX, st: S_REC, fields: [], quoted: [], buf: [], flen: 0, unq: false, cr: false, skip: false, bol: true, line: 0, col: 0, row: 0, ended: false, carry: "", pend: [], bom: false)
+
+# A reader for the dialect; an invalid dialect is refused.
+pub fn csv_reader(d: &CsvDialect) -> CsvReader ! CsvError
+    let e = csv_dialect_error(d)
+    if e != ""
+        fail CsvError(row: 0, line: 0, col: 0, why: e)
+    return mk_reader(d, true)
+
+# Set the largest field the reader keeps (characters, at most
+# CSV_FIELD_MAX); a longer field is an error, "field larger than field
+# limit (N)", as in CPython.
+pub fn csv_set_limit(r: &mut CsvReader, n: u64)
+    r.limit = if n > CSV_FIELD_MAX then CSV_FIELD_MAX else n
+
+# Lines read so far (csv.reader.line_num).
+pub fn csv_line_num(r: &CsvReader) -> u64 = r.line
+
+fn limit_msg(r: &CsvReader) -> text = "field larger than field limit (" + r.limit.tostr() + ")"
+
+# One step of _csv.c parse_process_char: from state st, a character of
+# class k (sp: it is a space and spaces after a delimiter are skipped), or
+# k = K_EOL for the end of a line. The result packs the next state (low 4
+# bits), the change to "this field is unquoted" (U_KEEP, U_SET, U_CLEAR;
+# times 16) and what to do with the field (an A_ action; times 64): add the
+# character, add "\n", save the field, or fail (the reason depends on st).
+const U_KEEP: i64 = 0
+const U_SET: i64 = 1
+const U_CLEAR: i64 = 2
+
+fn m_pack(st: i64, u: i64, a: i64) -> i64 = st + 16 * u + 64 * a
+
+fn m_step(st0: i64, k: i64, sp: bool, dquote: bool, strict: bool) -> i64
+    var st = st0
+    if st == S_REC
+        if k == K_EOL
+            return m_pack(S_REC, U_KEEP, A_NONE)
+        if k == K_LF or k == K_CR
+            return m_pack(S_CRNL, U_KEEP, A_NONE)
+        st = S_FLD
+    if st == S_FLD
+        if k == K_LF or k == K_CR or k == K_EOL
+            return m_pack(if k == K_EOL then S_REC else S_CRNL, U_SET, A_SAVE)
+        if k == K_QUO
+            return m_pack(S_QIN, U_CLEAR, A_NONE)
+        if k == K_ESC
+            return m_pack(S_ESC, U_SET, A_NONE)
+        if sp
+            return m_pack(S_FLD, U_SET, A_NONE)
+        if k == K_DEL
+            return m_pack(S_FLD, U_SET, A_SAVE)
+        return m_pack(S_IN, U_SET, A_ADD)
+    if st == S_ESC
+        if k == K_LF or k == K_CR
+            return m_pack(S_AESC, U_KEEP, A_ADD)
+        return m_pack(S_IN, U_KEEP, if k == K_EOL then A_ADDNL else A_ADD)
+    if st == S_IN or st == S_AESC
+        if k == K_EOL and st == S_AESC
+            return m_pack(S_AESC, U_KEEP, A_NONE)
+        if k == K_LF or k == K_CR or k == K_EOL
+            return m_pack(if k == K_EOL then S_REC else S_CRNL, U_KEEP, A_SAVE)
+        if k == K_ESC
+            return m_pack(S_ESC, U_KEEP, A_NONE)
+        if k == K_DEL
+            return m_pack(S_FLD, U_KEEP, A_SAVE)
+        return m_pack(st, U_KEEP, A_ADD)
+    if st == S_QIN
+        if k == K_EOL
+            return m_pack(S_QIN, U_KEEP, A_NONE)
+        if k == K_ESC
+            return m_pack(S_QESC, U_KEEP, A_NONE)
+        if k == K_QUO
+            return m_pack(if dquote then S_QQ else S_IN, U_KEEP, A_NONE)
+        return m_pack(S_QIN, U_KEEP, A_ADD)
+    if st == S_QESC
+        return m_pack(S_QIN, U_KEEP, if k == K_EOL then A_ADDNL else A_ADD)
+    if st == S_QQ
+        if k == K_QUO
+            return m_pack(S_QIN, U_KEEP, A_ADD)
+        if k == K_DEL
+            return m_pack(S_FLD, U_KEEP, A_SAVE)
+        if k == K_LF or k == K_CR or k == K_EOL
+            return m_pack(if k == K_EOL then S_REC else S_CRNL, U_KEEP, A_SAVE)
+        if not strict
+            return m_pack(S_IN, U_KEEP, A_ADD)
+        return m_pack(S_QQ, U_KEEP, A_ERR)
+    # S_CRNL
+    if k == K_LF or k == K_CR
+        return m_pack(S_CRNL, U_KEEP, A_NONE)
+    if k == K_EOL
+        return m_pack(S_REC, U_KEEP, A_NONE)
+    return m_pack(S_CRNL, U_KEEP, A_ERR)
+
+# Feed characters to the state machine, and with fin the end of the input
+# after them. Lines end at "\n", and in universal mode at "\r" and "\r\n"
+# (a "\r" whose "\n" may come in the next chunk waits in r.cr). After an
+# error the rest of its line is skipped, as csv.reader drops the rest of a
+# line it failed on. Runs of ordinary characters inside a field are taken
+# at once. The parser state and the field and output lists are locals of
+# this function and go back to r at the end, so a character costs the
+# same however long the lists are.
+fn rd_chars(r: &mut CsvReader, cs: &[text], fin: bool) -> CsvOut
+    var rows: List[CsvRow] = []
+    var errs: List[CsvErr] = []
+    var fields = copy(r.fields)
+    var quoted = copy(r.quoted)
+    var buf = copy(r.buf)
+    r.fields = []
+    r.quoted = []
+    r.buf = []
+    let delim = copy(r.d.delim)
+    let q = copy(r.q)
+    let esc = copy(r.d.escape)
+    let skipsp = r.d.skipsp
+    let dquote = r.d.dquote
+    let strict = r.d.strict
+    let univ = r.univ
+    let limit = r.limit
+    let qm = r.d.quoting
+    let num = qm == CSV_QUOTE_NONNUMERIC or qm == CSV_QUOTE_STRINGS
+    let lmsg = limit_msg(r)
+    let qqmsg = "'" + r.d.delim + "' expected after '" + r.d.quote + "'"
+    var st = r.st
+    var flen = r.flen
+    var unq = r.unq
+    var cr = r.cr
+    var skip = r.skip
+    var bol = r.bol
+    var line = r.line
+    var col = r.col
+    var row = r.row
+    let n = cs.len()
+    var i: usize = 0
+    var eol_next = false
+    var end_next = false
+    var fin_done = false
+    loop bound 3000005
+        var k = K_OTH
+        var ci = false
+        if eol_next
+            eol_next = false
+            k = K_EOL
+        elif end_next
+            end_next = false
+            if flen == 0 and st != S_QIN
+                continue
+            k = K_END
+        elif i >= n
+            if not fin or fin_done
+                break
+            fin_done = true
+            end_next = true
+            if cr or not bol
+                cr = false
+                bol = true
+                if skip
+                    skip = false
+                else
+                    eol_next = true
+            continue
+        elif cr
+            cr = false
+            if cs[i] == "\n"
+                if skip
+                    skip = false
+                    col += 1
+                    bol = true
+                    i += 1
+                    continue
+                k = K_LF
+                ci = true
+                col += 1
+            else
+                bol = true
+                if skip
+                    skip = false
+                else
+                    eol_next = true
+                continue
+        else
+            if bol
+                bol = false
+                line += 1
+                col = 0
+            if skip
+                col += 1
+                if cs[i] == "\n"
+                    skip = false
+                    bol = true
+                elif univ and cs[i] == "\r"
+                    cr = true
+                i += 1
+                continue
+            if st == S_IN or st == S_AESC or st == S_QIN
+                var j = i
+                if st == S_QIN
+                    while j < n and cs[j] != q and cs[j] != esc and cs[j] != "\n" and cs[j] != "\r" bound 1000001
+                        j += 1
+                else
+                    while j < n and cs[j] != delim and cs[j] != esc and cs[j] != "\n" and cs[j] != "\r" bound 1000001
+                        j += 1
+                if j > i
+                    let m = (j - i) as u64
+                    if flen + m > limit
+                        let p = limit - flen
+                        col += p + 1
+                        row += 1
+                        errs.push(CsvErr(row: row, line: line, col: col, why: copy(lmsg)))
+                        st = S_REC
+                        fields = []
+                        quoted = []
+                        buf = []
+                        flen = 0
+                        unq = false
+                        skip = true
+                        i += (p + 1) as usize
+                        continue
+                    buf.push("".join(&cs[i:j]))
+                    flen += m
+                    col += m
+                    i = j
+                    continue
+            ci = true
+            col += 1
+            if cs[i] == delim
+                k = K_DEL
+            elif cs[i] == q
+                k = K_QUO
+            elif cs[i] == "\n"
+                k = K_LF
+            elif cs[i] == "\r"
+                k = K_CR
+            elif cs[i] == esc
+                k = K_ESC
+        # the event k: a character (ci), the end of a line, or the end of the input
+        var a = A_NONE
+        var err = ""
+        if k == K_END
+            if strict
+                err = "unexpected end of data"
+            else
+                a = A_SAVE
+        else
+            let x = m_step(st, k, ci and skipsp and cs[i] == " ", dquote, strict)
+            a = x / 64
+            let u = (x / 16) % 4
+            if a == A_ERR
+                err = if st == S_QQ then copy(qqmsg) else "new-line character seen in unquoted field - do you need to open the file with newline=''?"
+            st = x % 16
+            if u == U_SET
+                unq = true
+            elif u == U_CLEAR
+                unq = false
+        if a == A_ADD or a == A_ADDNL
+            if flen >= limit
+                err = copy(lmsg)
+            else
+                if a == A_ADD
+                    buf.push(copy(cs[i]))
+                else
+                    buf.push("\n")
+                flen += 1
+        elif a == A_SAVE
+            let f = "".join(&buf)
+            buf = []
+            flen = 0
+            if unq and f != "" and num and not csv_float_ok(&f)
+                err = "could not convert string to float"
+            elif fields.len() >= 1000000
+                err = "record has more than 1000000 fields"
+            else
+                fields.push(f)
+                quoted.push(not unq)
+        if err != ""
+            row += 1
+            let ec = if ci then col else col + 1
+            errs.push(CsvErr(row: row, line: line, col: ec, why: err))
+            st = S_REC
+            fields = []
+            quoted = []
+            buf = []
+            flen = 0
+            unq = false
+            if k == K_LF
+                bol = true
+            elif k == K_CR and univ
+                skip = true
+                cr = true
+            elif ci
+                skip = true
+        else
+            if (k == K_EOL and st == S_REC) or k == K_END
+                row += 1
+                rows.push(CsvRow(row: row, line: line, fields: fields, quoted: quoted))
+                fields = []
+                quoted = []
+            if k == K_END
+                st = S_REC
+                unq = false
+            if k == K_LF
+                eol_next = true
+                bol = true
+            elif k == K_CR and univ
+                cr = true
+        if ci
+            i += 1
+    r.fields = fields
+    r.quoted = quoted
+    r.buf = buf
+    r.st = st
+    r.flen = flen
+    r.unq = unq
+    r.cr = cr
+    r.skip = skip
+    r.bol = bol
+    r.line = line
+    r.col = col
+    r.row = row
+    return CsvOut(rows: rows, errs: errs)
+
+fn strip_sp(f: &text) -> text
+    var t = copy(f)
+    while t.startswith(" ") bound 1000001
+        t = t[1:t.len_bytes()]
+    return t
+
+struct FastRow
+    ok: bool
+    fields: List[text]
+    quoted: List[bool]
+
+fn fast_no() -> FastRow = FastRow(ok: false, fields: [], quoted: [])
+
+# A line that holds quote characters but no escape character, read by
+# pieces: body split at the quote character, each piece outside quotes
+# split at the delimiter, the states of the machine taken per piece. Not
+# ok (the line goes to the state machine) when a quoted field stays open
+# at the end of the line, in strict mode after a closing quote not
+# followed by a delimiter, and for a field the limit or the float syntax
+# refuses.
+fn fast_quoted(body: &text, d: &CsvDialect, q: &text, limit: u64, num: bool) -> FastRow
+    let segs = body.split(q)
+    var fs: List[text] = []
+    var qs: List[bool] = []
+    var cur: List[text] = []
+    var st = S_FLD
+    var unq = true
+    var k: usize = 0
+    while k < segs.len() bound 1000001
+        if k > 0
+            if st == S_FLD
+                unq = false
+                st = S_QIN
+            elif st == S_QIN
+                st = if d.dquote then S_QQ else S_IN
+            elif st == S_QQ
+                cur.push(copy(q))
+                st = S_QIN
+            else
+                cur.push(copy(q))
+        if st == S_QIN
+            if segs[k] != ""
+                cur.push(copy(segs[k]))
+        elif not (st == S_QQ and segs[k] == "")
+            var t = copy(segs[k])
+            if st == S_QQ
+                if t.startswith(d.delim)
+                    let f = "".join(&cur)
+                    cur = []
+                    if (f.len_chars() as u64) > limit
+                        return fast_no()
+                    fs.push(f)
+                    qs.push(not unq)
+                    st = S_FLD
+                    t = t[d.delim.len_bytes():t.len_bytes()]
+                elif d.strict
+                    return fast_no()
+                else
+                    st = S_IN
+            var j: usize = 0
+            for part in t.split(d.delim)
+                if j > 0
+                    let f = "".join(&cur)
+                    cur = []
+                    if (f.len_chars() as u64) > limit or (unq and num and f != "" and not csv_float_ok(&f))
+                        return fast_no()
+                    fs.push(f)
+                    qs.push(not unq)
+                    st = S_FLD
+                if st == S_FLD
+                    unq = true
+                    let p2 = if d.skipsp and part.startswith(" ") then strip_sp(&part) else copy(part)
+                    if p2 != ""
+                        cur.push(p2)
+                        st = S_IN
+                elif part != ""
+                    cur.push(copy(part))
+                j += 1
+        k += 1
+    if st == S_QIN
+        return fast_no()
+    let f = "".join(&cur)
+    if (f.len_chars() as u64) > limit or (unq and num and f != "" and not csv_float_ok(&f))
+        return fast_no()
+    fs.push(f)
+    qs.push(not unq)
+    return FastRow(ok: true, fields: fs, quoted: qs)
+
+# A whole line (p without its "\n") at the start of a record, with no
+# escape character and no "\r" other than one before the "\n": without
+# quote characters its fields are p split at the delimiter, with them it
+# is read by pieces (fast_quoted). none, changing nothing, when the line
+# needs the state machine.
+fn rd_fast(r: &mut CsvReader, p: &text) -> CsvRow?
+    if not r.bol or r.cr or r.skip or r.st != S_REC
+        return none
+    if r.d.skipsp and r.d.delim == " "
+        return none
+    let n = p.len_bytes()
+    let body = if n > 0 and p.endswith("\r") then p[0:n - 1] else copy(p)
+    if body.contains("\r") or has_char(&body, &r.d.escape)
+        return none
+    let nc = body.len_chars() as u64
+    if nc >= 999999
+        return none
+    let qm = r.d.quoting
+    let num = qm == CSV_QUOTE_NONNUMERIC or qm == CSV_QUOTE_STRINGS
+    var fs: List[text] = []
+    var qs: List[bool] = []
+    if has_char(&body, &r.q)
+        let fr = fast_quoted(&body, &r.d, &r.q, r.limit, num)
+        if not fr.ok
+            return none
+        fs = copy(fr.fields)
+        qs = copy(fr.quoted)
+    elif body != ""
+        if r.d.skipsp or num or nc > r.limit
+            for f0 in body.split(r.d.delim)
+                let f = if r.d.skipsp and f0.startswith(" ") then strip_sp(&f0) else copy(f0)
+                if (f.len_chars() as u64) > r.limit
+                    return none
+                if num and f != "" and not csv_float_ok(&f)
+                    return none
+                fs.push(f)
+        else
+            fs = body.split(r.d.delim)
+        qs = [false for _x in fs]
+    r.line += 1
+    r.col = (p.len_chars() + 1) as u64
+    r.row += 1
+    return some(CsvRow(row: r.row, line: r.line, fields: fs, quoted: qs))
+
+fn no_out() -> CsvOut = CsvOut(rows: [], errs: [])
+
+fn feed_text(r: &mut CsvReader, chunk: &text) -> CsvOut
+    var rows: List[CsvRow] = []
+    var errs: List[CsvErr] = []
+    var t = ""
+    if r.carry == ""
+        t = copy(chunk)
+    elif (r.carry.len_chars() + chunk.len_chars()) <= 1000000
+        t = r.carry + chunk
+    else
+        let cc = r.carry.chars()
+        r.carry = ""
+        let o = rd_chars(r, &cc, false)
+        for x in o.rows
+            rows.push(copy(x))
+        for x in o.errs
+            errs.push(copy(x))
+        t = copy(chunk)
+    r.carry = ""
+    let ps = t.split("\n")
+    let last = ps.len() - 1
+    var k: usize = 0
+    while k < last bound 1000001
+        match rd_fast(r, &ps[k])
+            some(w) -> rows.push(w)
+            none
+                let cs = (ps[k] + "\n").chars()
+                let o = rd_chars(r, &cs, false)
+                for x in o.rows
+                    rows.push(copy(x))
+                for x in o.errs
+                    errs.push(copy(x))
+        k += 1
+    if ps[last] != ""
+        if (ps[last].len_chars() as u64) <= CARRY_MAX
+            r.carry = copy(ps[last])
+        else
+            let cs = ps[last].chars()
+            let o = rd_chars(r, &cs, false)
+            for x in o.rows
+                rows.push(copy(x))
+            for x in o.errs
+                errs.push(copy(x))
+    return CsvOut(rows: rows, errs: errs)
+
+# Feed a chunk of text (split anywhere); the records and errors it
+# completes. Nothing after csv_finish.
+pub fn csv_feed(r: &mut CsvReader, chunk: &text) -> CsvOut
+    if r.ended
+        return no_out()
+    return feed_text(r, chunk)
+
+# End the input: the last line (without a line end) and a record still
+# open, as csv.reader does at the end of its input (in strict mode a
+# quoted field open at the end is "unexpected end of data").
+pub fn csv_finish(r: &mut CsvReader) -> CsvOut
+    if r.ended
+        return no_out()
+    var rows: List[CsvRow] = []
+    var errs: List[CsvErr] = []
+    if r.pend.len() > 0 or not r.bom
+        let b: List[i64] = []
+        let o = bytes_in(r, &b, true)
+        for x in o.rows
+            rows.push(copy(x))
+        for x in o.errs
+            errs.push(copy(x))
+    r.ended = true
+    let cc = r.carry.chars()
+    r.carry = ""
+    let o = rd_chars(r, &cc, true)
+    for x in o.rows
+        rows.push(copy(x))
+    for x in o.errs
+        errs.push(copy(x))
+    return CsvOut(rows: rows, errs: errs)
+
+# ---------------- bytes ----------------
+# UTF-8 bytes (List[i64], 0..255) split anywhere: a sequence cut by the
+# end of a chunk waits for the next one; a leading byte-order mark is
+# dropped (as Python's "utf-8-sig"); each maximal ill-formed subpart
+# becomes one U+FFFD, as bytes.decode("utf-8", "replace") does, and is
+# reported as an error at its position (the record is still read).
+
+fn lead_ok(x: i64) -> bool = x >= 194 and x <= 244
+
+# The records and errors of several outputs, in order.
+fn flat(outs: &[CsvOut]) -> CsvOut
+    var rows: List[CsvRow] = []
+    var errs: List[CsvErr] = []
+    for o in outs
+        for x in o.rows
+            rows.push(copy(x))
+        for x in o.errs
+            errs.push(copy(x))
+    return CsvOut(rows: rows, errs: errs)
+
+# Bytes are decoded a window at a time, so no list here outgrows a text.
+const BYTE_WINDOW: usize = 65536
+
+fn bytes_in(r: &mut CsvReader, b0: &[i64], last: bool) -> CsvOut
+    var outs: List[CsvOut] = []
+    var at: usize = 0
+    var head = copy(r.pend)
+    r.pend = []
+    if not r.bom
+        while head.len() < 3 and at < b0.len() bound 3
+            head.push(b0[at])
+            at += 1
+        let bom = [239, 187, 191]
+        var pre = true
+        var k: usize = 0
+        while k < head.len() bound 3
+            if head[k] != bom[k]
+                pre = false
+            k += 1
+        if pre and head.len() < 3 and not last
+            r.pend = head
+            return no_out()
+        r.bom = true
+        if pre and head.len() == 3
+            head = []
+    loop bound 1000001
+        var b = head
+        head = []
+        var e = at + BYTE_WINDOW
+        if e > b0.len()
+            e = b0.len()
+        while at < e bound 65536
+            b.push(b0[at])
+            at += 1
+        let tail_end = at >= b0.len()
+        var good: List[i64] = []
+        var i: usize = 0
+        while i < b.len() bound 200000
+            let n = utf8.utf8_seq_at(&b, i)
+            if n > 0
+                var m: usize = 0
+                while m < (n as usize) bound 4
+                    good.push(b[i + m])
+                    m += 1
+                i += n as usize
+            else
+                let k = (0 - n) as usize
+                if i + k == b.len() and lead_ok(b[i]) and not (tail_end and last)
+                    var rest: List[i64] = []
+                    while i < b.len() bound 4
+                        rest.push(b[i])
+                        i += 1
+                    if tail_end
+                        r.pend = rest
+                    else
+                        head = rest
+                else
+                    if good.len() > 0
+                        let gt = good.utf8()
+                        let o = feed_text(r, &gt)
+                        outs.push(o)
+                        good = []
+                    let cc = r.carry.chars()
+                    r.carry = ""
+                    let o2 = rd_chars(r, &cc, false)
+                    outs.push(o2)
+                    let ln = if r.bol or r.cr then r.line + 1 else r.line
+                    let cl = if r.bol or r.cr then 1 else r.col + 1
+                    outs.push(CsvOut(rows: [], errs: [CsvErr(row: r.row + 1, line: ln, col: cl, why: "invalid UTF-8 (replaced by U+FFFD)")]))
+                    good = [239, 191, 189]
+                    i += k
+        if good.len() > 0
+            let gt = good.utf8()
+            let o = feed_text(r, &gt)
+            outs.push(o)
+        if tail_end
+            break
+    return flat(&outs)
+
+# Feed a chunk of UTF-8 bytes.
+pub fn csv_feed_bytes(r: &mut CsvReader, b: &[i64]) -> CsvOut
+    if r.ended
+        return no_out()
+    return bytes_in(r, b, false)
+
+# ---------------- whole texts ----------------
+
+fn parse_with(t: &text, d: &CsvDialect, univ: bool) -> CsvOut
+    var r = mk_reader(d, univ)
+    let o = csv_feed(&mut r, t)
+    let f = csv_finish(&mut r)
+    var rows = copy(o.rows)
+    var errs = copy(o.errs)
+    for x in f.rows
+        rows.push(copy(x))
+    for x in f.errs
+        errs.push(copy(x))
+    return CsvOut(rows: rows, errs: errs)
+
+# Every record of t and every error, reading on after each error.
+pub fn csv_parse(t: &text, d: &CsvDialect) -> CsvOut ! CsvError
+    let e = csv_dialect_error(d)
+    if e != ""
+        fail CsvError(row: 0, line: 0, col: 0, why: e)
+    return parse_with(t, d, true)
+
+# The fields of every record of t; the first error fails.
+pub fn csv_read(t: &text, d: &CsvDialect) -> List[List[text]] ! CsvError
+    let o = try csv_parse(t, d)
+    if o.errs.len() > 0
+        let x = copy(o.errs[0])
+        fail CsvError(row: x.row, line: x.line, col: x.col, why: x.why)
+    var out: List[List[text]] = []
+    for w in o.rows
+        out.push(copy(w.fields))
+    return out
+
+# ---------------- typed cells ----------------
+
+# A field as the typed modes see it: text, a number (kept as its text, as
+# str() writes it), or no value (Python's None).
+pub kind CsvCell
+    CsvStr(t: text)
+    CsvNum(t: text)
+    CsvNull
+
+# The values csv.reader returns for a row under the dialect's quoting:
+# QUOTE_NOTNULL and QUOTE_STRINGS read an unquoted empty field as no value,
+# QUOTE_NONNUMERIC and QUOTE_STRINGS an unquoted non-empty field as a
+# number (the reader has checked its float syntax).
+pub fn csv_cells(w: &CsvRow, d: &CsvDialect) -> List[CsvCell]
+    let qm = d.quoting
+    var out: List[CsvCell] = []
+    var i: usize = 0
+    while i < w.fields.len() bound 1000001
+        let f = copy(w.fields[i])
+        let q = i < w.quoted.len() and w.quoted[i]
+        if not q and f == "" and (qm == CSV_QUOTE_NOTNULL or qm == CSV_QUOTE_STRINGS)
+            out.push(CsvNull)
+        elif not q and f != "" and (qm == CSV_QUOTE_NONNUMERIC or qm == CSV_QUOTE_STRINGS)
+            out.push(CsvNum(t: f))
+        else
+            out.push(CsvStr(t: copy(f)))
+        i += 1
+    return out
+
+# ---------------- the writer ----------------
+
+fn w_special(c: &text, d: &CsvDialect) -> bool
+    return c == d.delim or (d.escape != "" and c == d.escape) or (d.quote != "" and c == d.quote) or c == "\n" or c == "\r" or d.eol.contains(c)
+
+fn w_needs_scan(f: &text, d: &CsvDialect) -> bool
+    if f.contains(d.delim) or has_char(f, &d.escape) or has_char(f, &d.quote) or f.contains("\n") or f.contains("\r")
+        return true
+    for c in d.eol.chars()
+        if f.contains(c)
+            return true
+    return false
+
+struct WField
+    t: text
+    err: text
+
+# _csv.c join_append and join_append_data for one field: its text with
+# the quotes and escapes it needs, or the reason it cannot be written.
+fn w_field(f: &text, null: bool, quoted0: bool, d: &CsvDialect) -> WField
+    var quoted = quoted0
+    if f == "" and d.delim == " " and d.skipsp
+        if d.quoting == CSV_QUOTE_NONE or (null and (d.quoting == CSV_QUOTE_STRINGS or d.quoting == CSV_QUOTE_NOTNULL))
+            return WField(t: "", err: "empty field must be quoted if delimiter is a space and skipinitialspace is true")
+        quoted = true
+    var body = copy(f)
+    if w_needs_scan(f, d)
+        var ps: List[text] = []
+        var size: u64 = 0
+        for c in f.chars()
+            size += 2
+            if size > 1000000
+                return WField(t: "", err: "record larger than a text (1000000 characters)")
+            var esc = false
+            if w_special(&c, d)
+                if d.quoting == CSV_QUOTE_NONE
+                    esc = true
+                else
+                    if c == d.quote
+                        if d.dquote
+                            ps.push(copy(d.quote))
+                        else
+                            esc = true
+                    elif c == d.escape
+                        esc = true
+                    if not esc
+                        quoted = true
+                if esc
+                    if d.escape == ""
+                        return WField(t: "", err: "need to escape, but no escapechar set")
+                    ps.push(copy(d.escape))
+            ps.push(c)
+        body = "".join(&ps)
+    if quoted
+        return WField(t: d.quote + body + d.quote, err: "")
+    return WField(t: body, err: "")
+
+fn w_quoted(c: &CsvCell, qm: i64) -> bool
+    match c
+        CsvStr(t: _t) -> return qm == CSV_QUOTE_NONNUMERIC or qm == CSV_QUOTE_ALL or qm == CSV_QUOTE_STRINGS or qm == CSV_QUOTE_NOTNULL
+        CsvNum(t: _t) -> return qm == CSV_QUOTE_ALL or qm == CSV_QUOTE_NOTNULL
+        CsvNull -> return qm == CSV_QUOTE_NONNUMERIC or qm == CSV_QUOTE_ALL
+
+# One record (csv.writer.writerow): its text, or the reason and the
+# 1-based field it concerns.
+struct WRow
+    t: text
+    err: text
+    col: u64
+
+fn w_row(cells: &[CsvCell], d: &CsvDialect) -> WRow
+    var parts: List[text] = []
+    var size: u64 = 0
+    var nf: u64 = 0
+    var null = false
+    for c in cells
+        let q = w_quoted(&c, d.quoting)
+        var f = ""
+        match c
+            CsvStr(t: t)
+                null = false
+                f = copy(t)
+            CsvNum(t: t)
+                null = false
+                f = copy(t)
+            CsvNull
+                null = true
+        let wf = w_field(&f, null, q, d)
+        if wf.err != ""
+            return WRow(t: "", err: wf.err, col: nf + 1)
+        size += wf.t.len_chars() as u64
+        if nf > 0
+            size += 1
+        if size > 1000000
+            return WRow(t: "", err: "record larger than a text (1000000 characters)", col: nf + 1)
+        if nf > 0
+            parts.push(d.delim + wf.t)
+        elif wf.t != ""
+            parts.push(wf.t)
+        nf += 1
+    if nf == 1 and size == 0
+        if d.quoting == CSV_QUOTE_NONE or (null and (d.quoting == CSV_QUOTE_STRINGS or d.quoting == CSV_QUOTE_NOTNULL))
+            return WRow(t: "", err: "single empty field record must be quoted", col: 1)
+        let z = ""
+        let wf = w_field(&z, true, true, d)
+        if wf.err != ""
+            return WRow(t: "", err: wf.err, col: 1)
+        parts = [wf.t]
+        size = 2
+    parts.push(copy(d.eol))
+    size += d.eol.len_chars() as u64
+    if size > 1000000
+        return WRow(t: "", err: "record larger than a text (1000000 characters)", col: nf)
+    return WRow(t: "".join(&parts), err: "", col: 0)
+
+fn cells_of(fields: &[text]) -> List[CsvCell]
+    var out: List[CsvCell] = []
+    for f in fields
+        out.push(CsvStr(t: copy(f)))
+    return out
+
+# One record of typed cells, with the line terminator (csv.writer.writerow).
+pub fn csv_write_cells(cells: &[CsvCell], d: &CsvDialect) -> text ! CsvError
+    let de = csv_dialect_error(d)
+    if de != ""
+        fail CsvError(row: 0, line: 0, col: 0, why: de)
+    let w = w_row(cells, d)
+    if w.err != ""
+        fail CsvError(row: 1, line: 0, col: w.col, why: w.err)
+    return w.t
+
+# One record of text fields, with the line terminator.
+pub fn csv_write_row(fields: &[text], d: &CsvDialect) -> text ! CsvError
+    let cs = cells_of(fields)
+    return try csv_write_cells(&cs, d)
+
+# Every record, one text per record (for output larger than one text).
+# An error names the record (row) and its field (col).
+pub fn csv_write_lines(rows: &[List[text]], d: &CsvDialect) -> List[text] ! CsvError
+    let de = csv_dialect_error(d)
+    if de != ""
+        fail CsvError(row: 0, line: 0, col: 0, why: de)
+    var out: List[text] = []
+    var k: u64 = 0
+    for fs in rows
+        k += 1
+        let cs = cells_of(&fs)
+        let w = w_row(&cs, d)
+        if w.err != ""
+            fail CsvError(row: k, line: 0, col: w.col, why: w.err)
+        out.push(w.t)
+    return out
+
+# Every record as one text (csv.writer.writerows); output beyond one text
+# is an error, not a trap (csv_write_lines has no such limit).
+pub fn csv_write(rows: &[List[text]], d: &CsvDialect) -> text ! CsvError
+    let ls = try csv_write_lines(rows, d)
+    var n: u64 = 0
+    var k: u64 = 0
+    for l in &ls
+        n += l.len_chars() as u64
+        k += 1
+        if n > 1000000
+            fail CsvError(row: k, line: 0, col: 0, why: "output larger than a text (1000000 characters)")
+    return "".join(&ls)
+
+# ---------------- header rows ----------------
+
+# Records keyed by the header's names (a repeated name keeps its last
+# value, as csv.DictReader's dict does). Blank rows are skipped, as
+# DictReader skips them; the header is the first row that is not blank
+# (DictReader would take a leading blank row as an empty header).
+# A row whose field count differs from the header's is not a record: it is
+# reported with its row and line, col the first column that differs
+# (one past the shorter of the two), and the reader's own errors are kept.
+pub struct CsvTable
+    header: List[text]
+    recs: List[Map[text, text]]
+    errs: List[CsvErr]
+
+fn rec_of(h: &[text], w: &CsvRow) -> Map[text, text]
+    var m: Map[text, text] = {}
+    var i: usize = 0
+    while i < h.len() bound 1000001
+        m.insert(copy(h[i]), copy(w.fields[i]))
+        i += 1
+    return m
+
+# Records of rows under a given header.
+pub fn csv_records(h: &[text], rows: &[CsvRow]) -> CsvTable
+    var recs: List[Map[text, text]] = []
+    var errs: List[CsvErr] = []
+    for w in rows
+        let n = w.fields.len()
+        if n == 0
+            continue
+        if n != h.len()
+            let c = if n < h.len() then n + 1 else h.len() + 1
+            errs.push(CsvErr(row: w.row, line: w.line, col: c as u64, why: "expected " + h.len().tostr() + " fields, found " + n.tostr()))
+        else
+            recs.push(rec_of(h, &w))
+    var hs: List[text] = []
+    for x in h
+        hs.push(copy(x))
+    return CsvTable(header: hs, recs: recs, errs: errs)
+
+# Records of t, whose first non-blank row is the header.
+pub fn csv_table(t: &text, d: &CsvDialect) -> CsvTable ! CsvError
+    let o = try csv_parse(t, d)
+    var h: List[text] = []
+    var k: usize = 0
+    while k < o.rows.len() and o.rows[k].fields.len() == 0 bound 1000001
+        k += 1
+    var rest: List[CsvRow] = []
+    if k < o.rows.len()
+        h = copy(o.rows[k].fields)
+        var j = k + 1
+        while j < o.rows.len() bound 1000001
+            rest.push(copy(o.rows[j]))
+            j += 1
+    var tb = csv_records(&h, &rest)
+    var all: List[CsvErr] = []
+    var a: usize = 0
+    var b: usize = 0
+    while a < o.errs.len() or b < tb.errs.len() bound 2000002
+        if b >= tb.errs.len() or (a < o.errs.len() and o.errs[a].row < tb.errs[b].row)
+            all.push(copy(o.errs[a]))
+            a += 1
+        else
+            all.push(copy(tb.errs[b]))
+            b += 1
+    tb.errs = all
+    return tb
+
+# ---------------- Python number syntax ----------------
+# float() and complex() of a str in CPython 3.13 (Objects/floatobject.c,
+# complexobject.c, Python/dtoa.c): non-ASCII white space reads as a space
+# and a Unicode decimal digit as its ASCII digit; ASCII white space around
+# the number is stripped; "_" only between digits; then a decimal
+# literal, "inf", "infinity" or "nan" (any case, optional sign).
+
+fn cp_of(c: &text) -> i64
+    let n = c.len_bytes()
+    let b0 = c[0] as i64
+    if n == 1
+        return b0
+    if n == 2
+        return ((b0 & 31) << 6) | ((c[1] as i64) & 63)
+    if n == 3
+        return ((b0 & 15) << 12) | (((c[1] as i64) & 63) << 6) | ((c[2] as i64) & 63)
+    return ((b0 & 7) << 18) | (((c[1] as i64) & 63) << 12) | (((c[2] as i64) & 63) << 6) | ((c[3] as i64) & 63)
+
+# str.isspace() of a code point above U+007E (U+0085, U+00A0, U+1680,
+# U+2000..U+200A, U+2028, U+2029, U+202F, U+205F, U+3000).
+fn py_space_hi(x: i64) -> bool
+    if x == 133 or x == 160 or x == 5760 or x == 8232 or x == 8233 or x == 8239 or x == 8287 or x == 12288
+        return true
+    return x >= 8192 and x <= 8202
+
+fn dec_digit(x: i64) -> i64
+    if x >= 48 and x <= 57
+        return x - 48
+    if x < 1632
+        return -1
+    var lo: usize = 0
+    var hi: usize = DIGIT0.len()
+    while lo < hi bound 16
+        let mid = (lo + hi) / 2
+        if DIGIT0[mid] <= x
+            lo = mid + 1
+        else
+            hi = mid
+    if lo == 0
+        return -1
+    let s = DIGIT0[lo - 1]
+    if x - s < 10
+        return x - s
+    return -1
+
+# _PyUnicode_TransformDecimalAndSpaceToASCII: ASCII codes, "?" for a
+# character that is neither (and the text stops there).
+fn py_ascii(t: &text) -> List[i64]
+    var o: List[i64] = []
+    for c in t.chars()
+        let x = cp_of(&c)
+        if x < 127
+            o.push(x)
+        elif py_space_hi(x)
+            o.push(32)
+        else
+            let dv = dec_digit(x)
+            if dv < 0
+                o.push(63)
+                return o
+            o.push(48 + dv)
+    return o
+
+fn a_space(x: i64) -> bool = x == 32 or (x >= 9 and x <= 13)
+
+fn a_digit(x: i64) -> bool = x >= 48 and x <= 57
+
+# _Py_string_to_number_with_underscores: underscores only between digits;
+# the text without them, or none.
+fn py_unders(s: &[i64]) -> List[i64]?
+    var o: List[i64] = []
+    var prev: i64 = 0
+    for x in s
+        if x == 95
+            if not a_digit(prev)
+                return none
+        else
+            if prev == 95 and not a_digit(x)
+                return none
+            o.push(x)
+        prev = x
+    if prev == 95
+        return none
+    return some(o)
+
+fn ci_at(s: &[i64], i: usize, w: &[i64]) -> bool
+    if i + w.len() > s.len()
+        return false
+    var k: usize = 0
+    while k < w.len() bound 16
+        var x = s[i + k]
+        if x >= 65 and x <= 90
+            x += 32
+        if x != w[k]
+            return false
+        k += 1
+    return true
+
+# End of the longest prefix of s[i..] that PyOS_string_to_double reads
+# (_Py_dg_strtod, then _Py_parse_inf_or_nan); i when there is none.
+fn strtod_end(s: &[i64], i: usize) -> usize
+    let n = s.len()
+    var k = i
+    if k < n and (s[k] == 43 or s[k] == 45)
+        k += 1
+    var digs: usize = 0
+    while k < n and a_digit(s[k]) bound 1000001
+        k += 1
+        digs += 1
+    if k < n and s[k] == 46
+        k += 1
+        while k < n and a_digit(s[k]) bound 1000001
+            k += 1
+            digs += 1
+    if digs > 0
+        if k < n and (s[k] == 101 or s[k] == 69)
+            var e = k + 1
+            if e < n and (s[e] == 43 or s[e] == 45)
+                e += 1
+            if e < n and a_digit(s[e])
+                while e < n and a_digit(s[e]) bound 1000001
+                    e += 1
+                k = e
+        return k
+    var j = i
+    if j < n and (s[j] == 43 or s[j] == 45)
+        j += 1
+    let w_inf: List[i64] = [105, 110, 102]
+    let w_inity: List[i64] = [105, 110, 105, 116, 121]
+    let w_nan: List[i64] = [110, 97, 110]
+    if ci_at(s, j, &w_inf)
+        j += 3
+        if ci_at(s, j, &w_inity)
+            j += 5
+        return j
+    if ci_at(s, j, &w_nan)
+        return j + 3
+    return i
+
+fn py_number_text(t: &text) -> List[i64]?
+    let a = py_ascii(t)
+    return py_unders(&a)
+
+# Whether float(t) succeeds in CPython 3.13.
+pub fn csv_float_ok(t: &text) -> bool
+    match py_number_text(t)
+        none -> return false
+        some(s)
+            let n = s.len()
+            var i: usize = 0
+            while i < n and a_space(s[i]) bound 1000001
+                i += 1
+            if i == n
+                return false
+            var e = n
+            while e > i + 1 and a_space(s[e - 1]) bound 1000001
+                e -= 1
+            return strtod_end(&s, i) == e
+
+fn is_j(s: &[i64], i: usize) -> bool = i < s.len() and (s[i] == 106 or s[i] == 74)
+
+# Whether complex(t) succeeds in CPython 3.13 (complex_from_string_inner).
+pub fn csv_complex_ok(t: &text) -> bool
+    match py_number_text(t)
+        none -> return false
+        some(s)
+            let n = s.len()
+            var i: usize = 0
+            while i < n and a_space(s[i]) bound 1000001
+                i += 1
+            var br = false
+            if i < n and s[i] == 40
+                br = true
+                i += 1
+                while i < n and a_space(s[i]) bound 1000001
+                    i += 1
+            let e1 = strtod_end(&s, i)
+            if e1 != i
+                i = e1
+                if i < n and (s[i] == 43 or s[i] == 45)
+                    let e2 = strtod_end(&s, i)
+                    i = if e2 != i then e2 else i + 1
+                    if not is_j(&s, i)
+                        return false
+                    i += 1
+                elif is_j(&s, i)
+                    i += 1
+            else
+                if i < n and (s[i] == 43 or s[i] == 45)
+                    i += 1
+                if not is_j(&s, i)
+                    return false
+                i += 1
+            while i < n and a_space(s[i]) bound 1000001
+                i += 1
+            if br
+                if i >= n or s[i] != 41
+                    return false
+                i += 1
+                while i < n and a_space(s[i]) bound 1000001
+                    i += 1
+            return i == n
+
+# ---------------- dialect sniffing (csv.Sniffer) ----------------
+
+# Python's \w on one character: str.isalnum() or "_".
+fn is_word(c: &text) -> bool
+    let x = cp_of(c)
+    if x < 128
+        return (x >= 48 and x <= 57) or (x >= 65 and x <= 90) or (x >= 97 and x <= 122) or x == 95
+    var lo: usize = 0
+    var hi: usize = WORD_LO.len()
+    while lo < hi bound 16
+        let mid = (lo + hi) / 2
+        if WORD_LO[mid] <= x
+            lo = mid + 1
+        else
+            hi = mid
+    return lo > 0 and x <= WORD_HI[lo - 1]
+
+# [^\w\n"']
+fn sn_dcls(c: &text) -> bool = c != "\n" and c != "\"" and c != "'" and not is_word(c)
+
+fn sn_quote(c: &text) -> bool = c == "\"" or c == "'"
+
+# The closing quote of a quoted body that starts at at0: the first q
+# not followed by another q (a doubled q is part of the body); -1 if none.
+fn sn_close(cs: &[text], at0: usize, q: &text) -> i64
+    let n = cs.len()
+    var k = at0
+    while k < n bound 1000001
+        if cs[k] == q
+            if k + 1 < n and cs[k + 1] == q
+                k += 2
+            else
+                return k as i64
+        else
+            k += 1
+    return -1
+
+struct SnHit
+    quote: text
+    delim: text
+    space: bool
+    hasd: bool
+
+# findall of the four patterns of _guess_quote_and_delimiter, in order;
+# the hits of the first pattern that has any.
+fn sn_findall(cs: &[text], form: i64) -> List[SnHit]
+    let n = cs.len()
+    var out: List[SnHit] = []
+    var p: usize = 0
+    while p < n bound 1000001
+        var end: i64 = -1
+        if form == 1 or form == 3
+            if sn_dcls(&cs[p])
+                var qp = p + 1
+                var sp = false
+                if qp < n and cs[qp] == " "
+                    qp = p + 2
+                    sp = true
+                if qp < n and sn_quote(&cs[qp])
+                    let b = sn_close(cs, qp + 1, &cs[qp])
+                    if b >= 0
+                        let bu = b as usize
+                        if form == 1 and bu + 1 < n and cs[bu + 1] == cs[p]
+                            out.push(SnHit(quote: copy(cs[qp]), delim: copy(cs[p]), space: sp, hasd: true))
+                            end = (bu + 2) as i64
+                        if form == 3 and (bu + 1 == n or cs[bu + 1] == "\n")
+                            out.push(SnHit(quote: copy(cs[qp]), delim: copy(cs[p]), space: sp, hasd: true))
+                            end = (bu + 1) as i64
+        else
+            var qp = n
+            if p == 0 or cs[p - 1] == "\n"
+                qp = p
+            if cs[p] == "\n"
+                qp = p + 1
+            if qp < n and sn_quote(&cs[qp])
+                let b = sn_close(cs, qp + 1, &cs[qp])
+                if b >= 0
+                    let bu = b as usize
+                    if form == 2 and bu + 1 < n and sn_dcls(&cs[bu + 1])
+                        let sp = bu + 2 < n and cs[bu + 2] == " "
+                        out.push(SnHit(quote: copy(cs[qp]), delim: copy(cs[bu + 1]), space: sp, hasd: true))
+                        end = (bu + 2 + (if sp then 1 else 0)) as i64
+                    if form == 4 and (bu + 1 == n or cs[bu + 1] == "\n")
+                        out.push(SnHit(quote: copy(cs[qp]), delim: "", space: false, hasd: false))
+                        end = (bu + 1) as i64
+        if end >= 0
+            p = end as usize
+        else
+            p += 1
+    return out
+
+struct SnGuess
+    quote: text
+    dq: bool
+    delim: text
+    skip: bool
+
+fn allowed(c: &text, ds: &(text?)) -> bool
+    match ds
+        none -> return true
+        some(s) -> return s.contains(c)
+
+# The index of the first largest count (max() over a dict in insertion order).
+fn first_max(ns: &[i64]) -> usize
+    var b: usize = 0
+    var i: usize = 1
+    while i < ns.len() bound 1000001
+        if ns[i] > ns[b]
+            b = i
+        i += 1
+    return b
+
+fn bump(keys: &mut List[text], ns: &mut List[i64], k: &text)
+    var i: usize = 0
+    while i < keys.len() bound 1000001
+        if keys[i] == k
+            ns[i] += 1
+            return
+        i += 1
+    keys.push(copy(k))
+    ns.push(1)
+
+fn sn_dq(cs: &[text], d: &text, q: &text) -> bool
+    let n = cs.len()
+    var p: usize = 0
+    while p < n bound 1000001
+        var end: usize = 0
+        if p == 0 or cs[p - 1] == d or cs[p - 1] == "\n"
+            var k = p
+            if d != " "
+                while k < n and cs[k] == " " bound 1000001
+                    k += 1
+            if k < n and cs[k] == q
+                let b = sn_close(cs, k + 1, q)
+                if b >= 0
+                    let bu = b as usize
+                    if bu + 1 < n and cs[bu + 1] == d
+                        end = bu + 2
+                    elif bu + 1 == n or cs[bu + 1] == "\n"
+                        end = bu + 1
+                    if end > 0
+                        var j = k + 1
+                        while j < bu bound 1000001
+                            if cs[j] == q
+                                return true
+                            j += 1
+        if end > 0
+            p = end
+        else
+            p += 1
+    return false
+
+fn sn_quote_delim(cs: &[text], ds: &(text?)) -> SnGuess
+    var hits: List[SnHit] = []
+    var form: i64 = 1
+    while form <= 4 bound 4
+        hits = sn_findall(cs, form)
+        if hits.len() > 0
+            break
+        form += 1
+    if hits.len() == 0
+        return SnGuess(quote: "", dq: false, delim: "", skip: false)
+    var qk: List[text] = []
+    var qn: List[i64] = []
+    var dk: List[text] = []
+    var dn: List[i64] = []
+    var spaces: i64 = 0
+    for h in hits
+        bump(&mut qk, &mut qn, &h.quote)
+        if not h.hasd
+            continue
+        if h.delim != "" and allowed(&h.delim, ds)
+            bump(&mut dk, &mut dn, &h.delim)
+        if h.space
+            spaces += 1
+    let quote = copy(qk[first_max(&qn)])
+    if dk.len() == 0
+        return SnGuess(quote: quote, dq: false, delim: "", skip: false)
+    let di = first_max(&dn)
+    let delim = copy(dk[di])
+    let skip = dn[di] == spaces
+    let dq = sn_dq(cs, &delim, &quote)
+    return SnGuess(quote: quote, dq: dq, delim: delim, skip: skip)
+
+fn count_of(s: &text, w: &text) -> i64 = (s.split(w).len() as i64) - 1
+
+fn sn_skip(line: &text, d: &text) -> bool
+    let ds = d + " "
+    return count_of(line, d) == count_of(line, &ds)
+
+const SN_PREFERRED: List[text] = [",", "\t", ";", " ", ":"]
+
+# _guess_delimiter: per-line counts of the 127 ASCII characters, read ten
+# lines at a time until one character is consistent enough.
+fn sn_guess_delim(t: &text, ds: &(text?)) -> SnGuess
+    var lines: List[text] = []
+    for l in t.split("\n")
+        if l != ""
+            lines.push(l)
+    let nl = lines.len()
+    let none_g = SnGuess(quote: "", dq: false, delim: "", skip: false)
+    if nl == 0
+        return none_g
+    let chunk = if nl < 10 then nl else 10
+    var mf: List[List[i64]] = []
+    var mn: List[List[i64]] = []
+    var mode_has: List[bool] = []
+    var mode_f: List[i64] = []
+    var mode_n: List[i64] = []
+    var c: usize = 0
+    while c < 127 bound 127
+        mf.push([])
+        mn.push([])
+        mode_has.push(false)
+        mode_f.push(0)
+        mode_n.push(0)
+        c += 1
+    var dl: List[usize] = []
+    var dlf: List[i64] = []
+    var dln: List[i64] = []
+    var start: usize = 0
+    var end = chunk
+    var iteration: usize = 0
+    while start < nl bound 1000001
+        iteration += 1
+        var li = start
+        while li < end and li < nl bound 10
+            var hist: List[i64] = []
+            var h: usize = 0
+            while h < 127 bound 127
+                hist.push(0)
+                h += 1
+            for ch in lines[li].chars()
+                let x = cp_of(&ch)
+                if x < 127
+                    hist[x as usize] += 1
+            var a: usize = 0
+            while a < 127 bound 127
+                let f = hist[a]
+                var found = false
+                var j: usize = 0
+                while j < mf[a].len() bound 1000001
+                    if mf[a][j] == f
+                        mn[a][j] += 1
+                        found = true
+                        break
+                    j += 1
+                if not found
+                    mf[a].push(f)
+                    mn[a].push(1)
+                a += 1
+            li += 1
+        var a2: usize = 0
+        while a2 < 127 bound 127
+            let k = mf[a2].len()
+            if k == 1 and mf[a2][0] == 0
+                a2 += 1
+                continue
+            if k > 1
+                let b = first_max(&mn[a2])
+                var rest: i64 = 0
+                var j: usize = 0
+                while j < k bound 1000001
+                    if j != b
+                        rest += mn[a2][j]
+                    j += 1
+                mode_has[a2] = true
+                mode_f[a2] = mf[a2][b]
+                mode_n[a2] = mn[a2][b] - rest
+            else
+                mode_has[a2] = true
+                mode_f[a2] = mf[a2][0]
+                mode_n[a2] = mn[a2][0]
+            a2 += 1
+        let tot = if chunk * iteration < nl then chunk * iteration else nl
+        let total = (tot as i64) as f64
+        var consistency: f64 = 1.0
+        while dl.len() == 0 and consistency >= 0.9 bound 100
+            var a3: usize = 0
+            while a3 < 127 bound 127
+                if mode_has[a3] and mode_f[a3] > 0 and mode_n[a3] > 0
+                    if (mode_n[a3] as f64) / total >= consistency and allowed(&ASCII127[a3], ds)
+                        dl.push(a3)
+                        dlf.push(mode_f[a3])
+                        dln.push(mode_n[a3])
+                a3 += 1
+            consistency -= 0.01
+        if dl.len() == 1
+            let d = copy(ASCII127[dl[0]])
+            return SnGuess(quote: "", dq: false, delim: copy(d), skip: sn_skip(&lines[0], &d))
+        if dl.len() > 1
+            break
+        start = end
+        end += chunk
+    if dl.len() == 0
+        return none_g
+    for p in SN_PREFERRED
+        var i: usize = 0
+        while i < dl.len() bound 127
+            if ASCII127[dl[i]] == p
+                return SnGuess(quote: "", dq: false, delim: copy(p), skip: sn_skip(&lines[0], &p))
+            i += 1
+    var b: usize = 0
+    var i: usize = 1
+    while i < dl.len() bound 127
+        if dlf[i] > dlf[b] or (dlf[i] == dlf[b] and (dln[i] > dln[b] or (dln[i] == dln[b] and dl[i] > dl[b])))
+            b = i
+        i += 1
+    let d = copy(ASCII127[dl[b]])
+    return SnGuess(quote: "", dq: false, delim: copy(d), skip: sn_skip(&lines[0], &d))
+
+# The dialect csv.Sniffer().sniff(sample, delimiters) returns; delims
+# limits the delimiters considered (none: any). "Could not determine
+# delimiter" is an error. The result is not checked: a sniffed delimiter
+# equal to the quote character is refused when the dialect is used.
+pub fn csv_sniff(sample: &text, delims: text?) -> CsvDialect ! CsvError
+    let p1 = sample.split("\r\n")
+    let s1 = "\n".join(&p1)
+    let p2 = s1.split("\r")
+    let s2 = "\n".join(&p2)
+    let cs = s2.chars()
+    let g = sn_quote_delim(&cs, &delims)
+    var delim = copy(g.delim)
+    var skip = g.skip
+    if delim == ""
+        let g2 = sn_guess_delim(&s2, &delims)
+        delim = copy(g2.delim)
+        skip = g2.skip
+    if delim == ""
+        fail CsvError(row: 0, line: 0, col: 0, why: "Could not determine delimiter")
+    let q = if g.quote == "" then "\"" else copy(g.quote)
+    return CsvDialect(delim: delim, quote: q, escape: "", dquote: g.dq, skipsp: skip, strict: false, quoting: CSV_QUOTE_MINIMAL, eol: "\r\n")
+
+# csv.Sniffer().has_header(sample): sniff, read the sample (lines end only
+# at "\n", as io.StringIO(sample) gives them), take the first row as the
+# header, and vote over the next 21 rows of the same length: a column
+# whose values all parse as complex() and whose header does not, or whose
+# values all have one length the header lacks, votes for a header.
+pub fn csv_has_header(sample: &text) -> bool ! CsvError
+    let d = try csv_sniff(sample, none)
+    let de = csv_dialect_error(&d)
+    if de != ""
+        fail CsvError(row: 0, line: 0, col: 0, why: de)
+    let o = parse_with(sample, &d, false)
+    for e in o.errs
+        if e.row <= 23
+            fail CsvError(row: e.row, line: e.line, col: e.col, why: copy(e.why))
+        break
+    if o.rows.len() == 0 or o.rows[0].row != 1
+        fail CsvError(row: 1, line: 0, col: 0, why: "no rows")
+    let header = copy(o.rows[0].fields)
+    let cols = header.len()
+    # ty: 0 none, 1 complex, 2 a length; gone: no longer considered
+    var ty: List[i64] = []
+    var len_of: List[i64] = []
+    var gone: List[bool] = []
+    var c: usize = 0
+    while c < cols bound 1000001
+        ty.push(0)
+        len_of.push(0)
+        gone.push(false)
+        c += 1
+    var i: usize = 1
+    while i < o.rows.len() and o.rows[i].row <= 22 bound 1000001
+        if o.rows[i].fields.len() == cols
+            var col: usize = 0
+            while col < cols bound 1000001
+                if not gone[col]
+                    let v = copy(o.rows[i].fields[col])
+                    let isc = csv_complex_ok(&v)
+                    let ln = v.len_chars() as i64
+                    let same = if isc then ty[col] == 1 else (ty[col] == 2 and len_of[col] == ln)
+                    if not same
+                        if ty[col] == 0
+                            ty[col] = if isc then 1 else 2
+                            len_of[col] = ln
+                        else
+                            gone[col] = true
+                col += 1
+        i += 1
+    var vote: i64 = 0
+    var col2: usize = 0
+    while col2 < cols bound 1000001
+        if not gone[col2]
+            if ty[col2] == 2
+                vote += if (header[col2].len_chars() as i64) != len_of[col2] then 1 else -1
+            elif ty[col2] == 1 and csv_complex_ok(&header[col2])
+                vote -= 1
+            else
+                vote += 1
+        col2 += 1
+    return vote > 0
+
+# ---------------- generated tables (scripts/gen/csv_gen.py) ----------------
+# Python's \w outside ASCII: ranges [WORD_LO[i], WORD_HI[i]] of
+# str.isalnum() (Unicode 15.1.0, CPython 3.13.16).
+const WORD_LO: List[i64] = [
+    170, 178, 181, 185, 188, 192, 216, 248, 710, 736, 748, 750,
+    880, 886, 890, 895, 902, 904, 908, 910, 931, 1015, 1162, 1329,
+    1369, 1376, 1488, 1519, 1568, 1632, 1646, 1649, 1749, 1765, 1774, 1791,
+    1808, 1810, 1869, 1969, 1984, 2036, 2042, 2048, 2074, 2084, 2088, 2112,
+    2144, 2160, 2185, 2208, 2308, 2365, 2384, 2392, 2406, 2417, 2437, 2447,
+    2451, 2474, 2482, 2486, 2493, 2510, 2524, 2527, 2534, 2548, 2556, 2565,
+    2575, 2579, 2602, 2610, 2613, 2616, 2649, 2654, 2662, 2674, 2693, 2703,
+    2707, 2730, 2738, 2741, 2749, 2768, 2784, 2790, 2809, 2821, 2831, 2835,
+    2858, 2866, 2869, 2877, 2908, 2911, 2918, 2929, 2947, 2949, 2958, 2962,
+    2969, 2972, 2974, 2979, 2984, 2990, 3024, 3046, 3077, 3086, 3090, 3114,
+    3133, 3160, 3165, 3168, 3174, 3192, 3200, 3205, 3214, 3218, 3242, 3253,
+    3261, 3293, 3296, 3302, 3313, 3332, 3342, 3346, 3389, 3406, 3412, 3416,
+    3430, 3450, 3461, 3482, 3507, 3517, 3520, 3558, 3585, 3634, 3648, 3664,
+    3713, 3716, 3718, 3724, 3749, 3751, 3762, 3773, 3776, 3782, 3792, 3804,
+    3840, 3872, 3904, 3913, 3976, 4096, 4159, 4176, 4186, 4193, 4197, 4206,
+    4213, 4238, 4240, 4256, 4295, 4301, 4304, 4348, 4682, 4688, 4696, 4698,
+    4704, 4746, 4752, 4786, 4792, 4800, 4802, 4808, 4824, 4882, 4888, 4969,
+    4992, 5024, 5112, 5121, 5743, 5761, 5792, 5870, 5888, 5919, 5952, 5984,
+    5998, 6016, 6103, 6108, 6112, 6128, 6160, 6176, 6272, 6279, 6314, 6320,
+    6400, 6470, 6512, 6528, 6576, 6608, 6656, 6688, 6784, 6800, 6823, 6917,
+    6981, 6992, 7043, 7086, 7168, 7232, 7245, 7296, 7312, 7357, 7401, 7406,
+    7413, 7418, 7424, 7680, 7960, 7968, 8008, 8016, 8025, 8027, 8029, 8031,
+    8064, 8118, 8126, 8130, 8134, 8144, 8150, 8160, 8178, 8182, 8304, 8308,
+    8319, 8336, 8450, 8455, 8458, 8469, 8473, 8484, 8486, 8488, 8490, 8495,
+    8508, 8517, 8526, 8528, 9312, 9450, 10102, 11264, 11499, 11506, 11517, 11520,
+    11559, 11565, 11568, 11631, 11648, 11680, 11688, 11696, 11704, 11712, 11720, 11728,
+    11736, 11823, 12293, 12321, 12337, 12344, 12353, 12445, 12449, 12540, 12549, 12593,
+    12690, 12704, 12784, 12832, 12872, 12881, 12928, 12977, 13312, 19968, 42192, 42240,
+    42512, 42560, 42623, 42656, 42775, 42786, 42891, 42960, 42963, 42965, 42994, 43011,
+    43015, 43020, 43056, 43072, 43138, 43216, 43250, 43259, 43261, 43264, 43312, 43360,
+    43396, 43471, 43488, 43494, 43520, 43584, 43588, 43600, 43616, 43642, 43646, 43697,
+    43701, 43705, 43712, 43714, 43739, 43744, 43762, 43777, 43785, 43793, 43808, 43816,
+    43824, 43868, 43888, 44016, 44032, 55216, 55243, 63744, 64112, 64256, 64275, 64285,
+    64287, 64298, 64312, 64318, 64320, 64323, 64326, 64467, 64848, 64914, 65008, 65136,
+    65142, 65296, 65313, 65345, 65382, 65474, 65482, 65490, 65498, 65536, 65549, 65576,
+    65596, 65599, 65616, 65664, 65799, 65856, 65930, 66176, 66208, 66273, 66304, 66349,
+    66384, 66432, 66464, 66504, 66513, 66560, 66720, 66736, 66776, 66816, 66864, 66928,
+    66940, 66956, 66964, 66967, 66979, 66995, 67003, 67072, 67392, 67424, 67456, 67463,
+    67506, 67584, 67592, 67594, 67639, 67644, 67647, 67672, 67705, 67751, 67808, 67828,
+    67835, 67872, 67968, 68028, 68050, 68112, 68117, 68121, 68160, 68192, 68224, 68288,
+    68297, 68331, 68352, 68416, 68440, 68472, 68521, 68608, 68736, 68800, 68858, 68912,
+    69216, 69248, 69296, 69376, 69424, 69457, 69488, 69552, 69600, 69635, 69714, 69745,
+    69749, 69763, 69840, 69872, 69891, 69942, 69956, 69959, 69968, 70006, 70019, 70081,
+    70096, 70108, 70113, 70144, 70163, 70207, 70272, 70280, 70282, 70287, 70303, 70320,
+    70384, 70405, 70415, 70419, 70442, 70450, 70453, 70461, 70480, 70493, 70656, 70727,
+    70736, 70751, 70784, 70852, 70855, 70864, 71040, 71128, 71168, 71236, 71248, 71296,
+    71352, 71360, 71424, 71472, 71488, 71680, 71840, 71935, 71945, 71948, 71957, 71960,
+    71999, 72001, 72016, 72096, 72106, 72161, 72163, 72192, 72203, 72250, 72272, 72284,
+    72349, 72368, 72704, 72714, 72768, 72784, 72818, 72960, 72968, 72971, 73030, 73040,
+    73056, 73063, 73066, 73112, 73120, 73440, 73474, 73476, 73490, 73552, 73648, 73664,
+    73728, 74752, 74880, 77712, 77824, 78913, 82944, 92160, 92736, 92768, 92784, 92864,
+    92880, 92928, 92992, 93008, 93019, 93027, 93053, 93760, 93952, 94032, 94099, 94176,
+    94179, 94208, 100352, 101632, 110576, 110581, 110589, 110592, 110898, 110928, 110933, 110948,
+    110960, 113664, 113776, 113792, 113808, 119488, 119520, 119648, 119808, 119894, 119966, 119970,
+    119973, 119977, 119982, 119995, 119997, 120005, 120071, 120077, 120086, 120094, 120123, 120128,
+    120134, 120138, 120146, 120488, 120514, 120540, 120572, 120598, 120630, 120656, 120688, 120714,
+    120746, 120772, 120782, 122624, 122661, 122928, 123136, 123191, 123200, 123214, 123536, 123584,
+    123632, 124112, 124144, 124896, 124904, 124909, 124912, 124928, 125127, 125184, 125259, 125264,
+    126065, 126125, 126129, 126209, 126255, 126464, 126469, 126497, 126500, 126503, 126505, 126516,
+    126521, 126523, 126530, 126535, 126537, 126539, 126541, 126545, 126548, 126551, 126553, 126555,
+    126557, 126559, 126561, 126564, 126567, 126572, 126580, 126585, 126590, 126592, 126603, 126625,
+    126629, 126635, 127232, 130032, 131072, 173824, 177984, 178208, 183984, 191472, 194560, 196608,
+    201552,
+]
+const WORD_HI: List[i64] = [
+    170, 179, 181, 186, 190, 214, 246, 705, 721, 740, 748, 750,
+    884, 887, 893, 895, 902, 906, 908, 929, 1013, 1153, 1327, 1366,
+    1369, 1416, 1514, 1522, 1610, 1641, 1647, 1747, 1749, 1766, 1788, 1791,
+    1808, 1839, 1957, 1969, 2026, 2037, 2042, 2069, 2074, 2084, 2088, 2136,
+    2154, 2183, 2190, 2249, 2361, 2365, 2384, 2401, 2415, 2432, 2444, 2448,
+    2472, 2480, 2482, 2489, 2493, 2510, 2525, 2529, 2545, 2553, 2556, 2570,
+    2576, 2600, 2608, 2611, 2614, 2617, 2652, 2654, 2671, 2676, 2701, 2705,
+    2728, 2736, 2739, 2745, 2749, 2768, 2785, 2799, 2809, 2828, 2832, 2856,
+    2864, 2867, 2873, 2877, 2909, 2913, 2927, 2935, 2947, 2954, 2960, 2965,
+    2970, 2972, 2975, 2980, 2986, 3001, 3024, 3058, 3084, 3088, 3112, 3129,
+    3133, 3162, 3165, 3169, 3183, 3198, 3200, 3212, 3216, 3240, 3251, 3257,
+    3261, 3294, 3297, 3311, 3314, 3340, 3344, 3386, 3389, 3406, 3414, 3425,
+    3448, 3455, 3478, 3505, 3515, 3517, 3526, 3567, 3632, 3635, 3654, 3673,
+    3714, 3716, 3722, 3747, 3749, 3760, 3763, 3773, 3780, 3782, 3801, 3807,
+    3840, 3891, 3911, 3948, 3980, 4138, 4169, 4181, 4189, 4193, 4198, 4208,
+    4225, 4238, 4249, 4293, 4295, 4301, 4346, 4680, 4685, 4694, 4696, 4701,
+    4744, 4749, 4784, 4789, 4798, 4800, 4805, 4822, 4880, 4885, 4954, 4988,
+    5007, 5109, 5117, 5740, 5759, 5786, 5866, 5880, 5905, 5937, 5969, 5996,
+    6000, 6067, 6103, 6108, 6121, 6137, 6169, 6264, 6276, 6312, 6314, 6389,
+    6430, 6509, 6516, 6571, 6601, 6618, 6678, 6740, 6793, 6809, 6823, 6963,
+    6988, 7001, 7072, 7141, 7203, 7241, 7293, 7304, 7354, 7359, 7404, 7411,
+    7414, 7418, 7615, 7957, 7965, 8005, 8013, 8023, 8025, 8027, 8029, 8061,
+    8116, 8124, 8126, 8132, 8140, 8147, 8155, 8172, 8180, 8188, 8305, 8313,
+    8329, 8348, 8450, 8455, 8467, 8469, 8477, 8484, 8486, 8488, 8493, 8505,
+    8511, 8521, 8526, 8585, 9371, 9471, 10131, 11492, 11502, 11507, 11517, 11557,
+    11559, 11565, 11623, 11631, 11670, 11686, 11694, 11702, 11710, 11718, 11726, 11734,
+    11742, 11823, 12295, 12329, 12341, 12348, 12438, 12447, 12538, 12543, 12591, 12686,
+    12693, 12735, 12799, 12841, 12879, 12895, 12937, 12991, 19903, 42124, 42237, 42508,
+    42539, 42606, 42653, 42735, 42783, 42888, 42954, 42961, 42963, 42969, 43009, 43013,
+    43018, 43042, 43061, 43123, 43187, 43225, 43255, 43259, 43262, 43301, 43334, 43388,
+    43442, 43481, 43492, 43518, 43560, 43586, 43595, 43609, 43638, 43642, 43695, 43697,
+    43702, 43709, 43712, 43714, 43741, 43754, 43764, 43782, 43790, 43798, 43814, 43822,
+    43866, 43881, 44002, 44025, 55203, 55238, 55291, 64109, 64217, 64262, 64279, 64285,
+    64296, 64310, 64316, 64318, 64321, 64324, 64433, 64829, 64911, 64967, 65019, 65140,
+    65276, 65305, 65338, 65370, 65470, 65479, 65487, 65495, 65500, 65547, 65574, 65594,
+    65597, 65613, 65629, 65786, 65843, 65912, 65931, 66204, 66256, 66299, 66339, 66378,
+    66421, 66461, 66499, 66511, 66517, 66717, 66729, 66771, 66811, 66855, 66915, 66938,
+    66954, 66962, 66965, 66977, 66993, 67001, 67004, 67382, 67413, 67431, 67461, 67504,
+    67514, 67589, 67592, 67637, 67640, 67644, 67669, 67702, 67742, 67759, 67826, 67829,
+    67867, 67897, 68023, 68047, 68096, 68115, 68119, 68149, 68168, 68222, 68255, 68295,
+    68324, 68335, 68405, 68437, 68466, 68497, 68527, 68680, 68786, 68850, 68899, 68921,
+    69246, 69289, 69297, 69415, 69445, 69460, 69505, 69579, 69622, 69687, 69743, 69746,
+    69749, 69807, 69864, 69881, 69926, 69951, 69956, 69959, 70002, 70006, 70066, 70084,
+    70106, 70108, 70132, 70161, 70187, 70208, 70278, 70280, 70285, 70301, 70312, 70366,
+    70393, 70412, 70416, 70440, 70448, 70451, 70457, 70461, 70480, 70497, 70708, 70730,
+    70745, 70753, 70831, 70853, 70855, 70873, 71086, 71131, 71215, 71236, 71257, 71338,
+    71352, 71369, 71450, 71483, 71494, 71723, 71922, 71942, 71945, 71955, 71958, 71983,
+    71999, 72001, 72025, 72103, 72144, 72161, 72163, 72192, 72242, 72250, 72272, 72329,
+    72349, 72440, 72712, 72750, 72768, 72812, 72847, 72966, 72969, 73008, 73030, 73049,
+    73061, 73064, 73097, 73112, 73129, 73458, 73474, 73488, 73523, 73561, 73648, 73684,
+    74649, 74862, 75075, 77808, 78895, 78918, 83526, 92728, 92766, 92777, 92862, 92873,
+    92909, 92975, 92995, 93017, 93025, 93047, 93071, 93846, 94026, 94032, 94111, 94177,
+    94179, 100343, 101589, 101640, 110579, 110587, 110590, 110882, 110898, 110930, 110933, 110951,
+    111355, 113770, 113788, 113800, 113817, 119507, 119539, 119672, 119892, 119964, 119967, 119970,
+    119974, 119980, 119993, 119995, 120003, 120069, 120074, 120084, 120092, 120121, 120126, 120132,
+    120134, 120144, 120485, 120512, 120538, 120570, 120596, 120628, 120654, 120686, 120712, 120744,
+    120770, 120779, 120831, 122654, 122666, 122989, 123180, 123197, 123209, 123214, 123565, 123627,
+    123641, 124139, 124153, 124902, 124907, 124910, 124926, 125124, 125135, 125251, 125259, 125273,
+    126123, 126127, 126132, 126253, 126269, 126467, 126495, 126498, 126500, 126503, 126514, 126519,
+    126521, 126523, 126530, 126535, 126537, 126539, 126543, 126546, 126548, 126551, 126553, 126555,
+    126557, 126559, 126562, 126564, 126570, 126578, 126583, 126588, 126590, 126601, 126619, 126627,
+    126633, 126651, 127244, 130041, 173791, 177977, 178205, 183969, 191456, 192093, 195101, 201546,
+    205743,
+]
+# First code point (digit zero) of each run of ten Unicode decimal digits
+# outside ASCII (unicodedata.decimal).
+const DIGIT0: List[i64] = [
+    1632, 1776, 1984, 2406, 2534, 2662, 2790, 2918, 3046, 3174, 3302, 3430,
+    3558, 3664, 3792, 3872, 4160, 4240, 6112, 6160, 6470, 6608, 6784, 6800,
+    6992, 7088, 7232, 7248, 42528, 43216, 43264, 43472, 43504, 43600, 44016, 65296,
+    66720, 68912, 69734, 69872, 69942, 70096, 70384, 70736, 70864, 71248, 71360, 71472,
+    71904, 72016, 72784, 73040, 73120, 73552, 92768, 92864, 93008, 120782, 120792, 120802,
+    120812, 120822, 123200, 123632, 124144, 125264, 130032,
+]
+# The 127 ASCII characters csv.Sniffer counts (chr(0) to chr(126)).
+const ASCII127: List[text] = ["\u{0}", "\u{1}", "\u{2}", "\u{3}", "\u{4}", "\u{5}", "\u{6}", "\u{7}", "\u{8}", "\t", "\n", "\u{b}", "\u{c}", "\r", "\u{e}", "\u{f}", "\u{10}", "\u{11}", "\u{12}", "\u{13}", "\u{14}", "\u{15}", "\u{16}", "\u{17}", "\u{18}", "\u{19}", "\u{1a}", "\u{1b}", "\u{1c}", "\u{1d}", "\u{1e}", "\u{1f}", " ", "!", "\"", "#", "$", "%", "&", "'", "(", ")", "*", "+", ",", "-", ".", "/", "0", "1", "2", "3", "4", "5", "6", "7", "8", "9", ":", ";", "<", "=", ">", "?", "@", "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z", "[", "\\", "]", "^", "_", "`", "a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z", "{", "|", "}", "~"]
