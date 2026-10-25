@@ -29,7 +29,7 @@
 //! `{"event":..,"prev_hash":..,"seq":..,"state_hash":..}`. Each line of the
 //! file is `{"event":E,"hash":H,"prev_hash":P,"seq":N,"state_hash":S}`.
 use crate::ast::{Arg, Expr, Item, Module, Ty};
-use crate::interp::{D_GENESIS, Interp, Region, V, d_sha, event_json, event_pos_json, state_pos_json, why};
+use crate::interp::{Cause, D_GENESIS, Interp, Region, V, d_sha, event_json, event_pos_json, state_pos_json, why};
 use crate::parse::parse;
 use serde_json::Value;
 use std::collections::HashMap;
@@ -285,6 +285,40 @@ pub struct Admitted {
     pub display: Vec<String>,
     /// The step emitted `Exit`: the host loop ends after this input.
     pub exit: bool,
+    /// HC-21: the cause of a refusal (`fuel`, `size`, `value`, `depth`,
+    /// `fail` or `trap`), `None` when the input was applied.
+    pub cause: Option<&'static str>,
+}
+
+/// An entry D owes after the one just folded (HC-21, HC-22): replay
+/// requires it next, and a D that ends without it is completed on open.
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum Owe {
+    /// `host.Refused` {cause, seq} after the refused entry at seq; `bind`:
+    /// the bound `Refused` input follows it.
+    HostRefused { seq: u64, cause: Cause, bind: bool },
+    /// the bound input `Refused(seq, cause)`
+    BoundRefused { seq: u64, cause: Cause },
+    /// the bound input `Restarted(below)` after `host.Restarted`
+    BoundRestarted { below: u64 },
+}
+
+fn refused_payload(cause: Cause, seq: u64) -> String {
+    format!("{{\"cause\":\"{}\",\"seq\":{seq}}}", cause.as_str())
+}
+
+fn refused_args(cause: Cause, seq: u64) -> Vec<Arg> {
+    vec![Arg { label: Some("seq".into()), e: Expr::Int(seq as i128, 0) }, Arg { label: Some("cause".into()), e: Expr::Str(cause.as_str().into(), 0) }]
+}
+
+/// What replay re-derived (HC-8, HC-21).
+#[derive(Debug)]
+pub struct Replayed {
+    pub entries: u64,
+    pub state_hash: String,
+    pub state: Vec<Region>,
+    /// Every refused entry: (seq, cause, the refusal text re-derived by replay).
+    pub refusals: Vec<(u64, &'static str, String)>,
 }
 
 /// The fabric record of E.7 (HC-11) as canonical JSON (keys sorted): the CPU
@@ -566,6 +600,22 @@ pub struct Host<'a> {
     /// (fabric, class) pairs admitted by a matching probe, folded from D.
     calib: std::collections::BTreeMap<(String, String), (f64, f64)>,
     exacts: std::collections::BTreeSet<(String, String)>,
+    /// HC-21, HC-22: the entry the last folded entry requires next.
+    owe: Option<Owe>,
+    /// HC-21: the refusals replay re-derived: (seq, cause, text).
+    refusals: Vec<(u64, &'static str, String)>,
+}
+
+/// W-HOST-4: a host-delivered event the module declares must have exactly
+/// the payload the host delivers (HC-21 `Refused`, HC-22 `Restarted`).
+fn host_event_fits(m: &Module, name: &str, want: &[(&str, &str)]) -> Result<(), String> {
+    let Some(p) = event_payload(m, name) else { return Ok(()) };
+    let fits = p.len() == want.len() && p.iter().zip(want).all(|((k, t), (wk, wt))| k == wk && matches!(t, Ty::Path(x, g) if x.len() == 1 && x[0] == *wt && g.is_empty()));
+    if fits {
+        return Ok(());
+    }
+    let shape: Vec<String> = want.iter().map(|(k, t)| format!("{k}: {t}")).collect();
+    Err(format!("W-HOST-4 `event {name}` is delivered by the host and must be ({name}({}))", shape.join(", ")))
 }
 
 /// HC-6: a live `fn main` task. Its state is a function of D: the start
@@ -855,10 +905,11 @@ impl<'a> Host<'a> {
                 bound.push(a.kind());
             }
         }
+        host_event_fits(m, "Refused", &[("seq", "u64"), ("cause", "text")])?;
         let mut it = Interp::new(m);
         let state = it.initial_state().map_err(why)?;
         let state_hash = d_sha(&state_pos_json(&state, m));
-        Ok(Host { m, it, state, state_hash, prev: D_GENESIS.into(), seq: 0, store, stopped: false, pending: 0, durable: None, from_snapshot: None, adapters, bound, queue: Default::default(), admitted: Default::default(), window: 0, closed_tick: 0, offered: vec![], term: 0, task: None, fabrics: vec![], calib: Default::default(), exacts: Default::default() })
+        Ok(Host { m, it, state, state_hash, prev: D_GENESIS.into(), seq: 0, store, stopped: false, pending: 0, durable: None, from_snapshot: None, adapters, bound, queue: Default::default(), admitted: Default::default(), window: 0, closed_tick: 0, offered: vec![], term: 0, task: None, fabrics: vec![], calib: Default::default(), exacts: Default::default(), owe: None, refusals: vec![] })
     }
 
     fn start_entries(&mut self) -> Result<(), String> {
@@ -870,6 +921,9 @@ impl<'a> Host<'a> {
         }
         if declares_event(self.m, "WallTime") {
             self.append(host_event("Bind", "{\"event\":\"WallTime\",\"kind\":\"host.WallTime\"}"))?;
+        }
+        if declares_event(self.m, "Refused") {
+            self.append(host_event("Bind", "{\"event\":\"Refused\",\"kind\":\"host.Refused\"}"))?;
         }
         for k in self.bound.clone() {
             self.append(host_event("Bind", &format!("{{\"event\":\"{k}Done\",\"kind\":\"host.{k}\"}}")))?;
@@ -913,6 +967,9 @@ impl<'a> Host<'a> {
             _ => 0,
         };
         h.refold(&entries[from..])?;
+        // HC-21: a D that ends after a refused entry, or after its
+        // `host.Refused`, is completed before anything else is appended
+        h.complete_owed()?;
         let caps = h.store.caps();
         if dropped > 0 {
             h.append(host_event("Truncated", &format!("{{\"dropped\":{dropped}}}")))?;
@@ -931,7 +988,7 @@ impl<'a> Host<'a> {
     /// between batches, when no effect request is outstanding, so the
     /// entries after it rebuild every request that matters.
     pub fn snapshot(&self) -> Option<Snapshot> {
-        if !self.queue.is_empty() || self.seq == 0 || self.task.is_some() {
+        if !self.queue.is_empty() || self.seq == 0 || self.task.is_some() || self.owe.is_some() {
             return None;
         }
         Some(Snapshot { seq: self.seq - 1, state_hash: self.state_hash.clone(), bytes: state_pos_json(&self.state, self.m) })
@@ -977,6 +1034,12 @@ impl<'a> Host<'a> {
         // program entry it announces follows it (a cut between them admits nothing).
         let mut announced: Option<(String, u64)> = None;
         for e in entries {
+            // HC-21, HC-22: the entry the previous one requires
+            match self.owe.take() {
+                Some(o) => self.meet(o, e)?,
+                None if e.kind() == "host.Refused" => return Err(format!("host fault: seq {}: host.Refused follows an entry that replay applies", e.seq)),
+                None => {}
+            }
             if e.is_host() {
                 announced = None;
                 self.fold_admission(e, &mut announced);
@@ -1002,10 +1065,18 @@ impl<'a> Host<'a> {
                     let req = serde_json::from_str::<Value>(&e.event).ok().and_then(|v| v["payload"]["req"].as_u64());
                     self.queue.retain(|(qk, qr, _)| !(qk == k && Some(*qr) == req));
                 }
-                if let Ok((s2, outs)) = self.it.delta(&self.state, &ev) {
-                    self.state = s2;
-                    self.rehash();
-                    self.enqueue(&outs);
+                match self.it.delta_r(&self.state, &ev) {
+                    Ok((s2, outs)) => {
+                        self.state = s2;
+                        self.rehash();
+                        self.enqueue(&outs);
+                    }
+                    Err(r) => {
+                        // HC-21: replay re-derives the refusal and its cause
+                        let bind = name != "Refused" && declares_event(self.m, "Refused");
+                        self.owe = Some(Owe::HostRefused { seq: e.seq, cause: r.cause, bind });
+                        self.refusals.push((e.seq, r.cause.as_str(), r.text));
+                    }
                 }
             }
             if e.state_hash != self.state_hash {
@@ -1073,7 +1144,7 @@ impl<'a> Host<'a> {
     }
 
     /// Admit the result event of one request (HC-3).
-    fn answer(&mut self, kind: &str, req: u64, r: EffectResult) -> Result<Admitted, String> {
+    fn answer(&mut self, kind: &str, req: u64, r: EffectResult) -> Result<Vec<Admitted>, String> {
         let ev = format!("{kind}Done");
         let dty = self.m.items.iter().find_map(|i| match i {
             Item::Event { name, payload, .. } if *name == ev => payload.iter().find(|(k, _)| k == "data").map(|(_, t)| t.clone()),
@@ -1103,12 +1174,14 @@ impl<'a> Host<'a> {
                 Some(a) => a.perform(&j),
                 None => EffectResult { status: Status::Unreachable, data: None, error: "no adapter".into() },
             };
-            out.push(self.answer(&k, req, r)?);
+            out.extend(self.answer(&k, req, r)?);
         }
         Ok(out)
     }
 
-    fn apply_named(&mut self, name: &str, args: Vec<Arg>) -> Result<Admitted, String> {
+    /// Append one input and apply δ to it (HC-1). The first element is the
+    /// input; a refusal adds the entries of HC-21 after it.
+    fn apply_named(&mut self, name: &str, args: Vec<Arg>) -> Result<Vec<Admitted>, String> {
         if self.stopped {
             return Err("host.StorageFault: admitter stopped after a failed barrier".into());
         }
@@ -1122,7 +1195,7 @@ impl<'a> Host<'a> {
         let ej = event_json(name, &ev, self.m);
         // δ runs on the input, but the entry is appended before any output
         // is released (HC-1); a refusal leaves the state unchanged (T8).
-        let (outcome, next) = match self.it.delta(&self.state, &ev) {
+        let (outcome, next) = match self.it.delta_r(&self.state, &ev) {
             Ok((s2, outs)) => (Ok(outs), Some(s2)),
             Err(r) => (Err(r), None),
         };
@@ -1131,31 +1204,86 @@ impl<'a> Host<'a> {
             self.state = s2;
             self.rehash();
         }
-        match self.append(ej.clone()) {
-            Ok(e) => {
-                let (mut display, mut exit) = (vec![], false);
-                if let Ok(outs) = &outcome {
-                    self.enqueue(outs);
-                    for o in outs {
-                        match o {
-                            V::Rec(n, fs) if n == "Display" => {
-                                if let Some((_, V::Text(t))) = fs.iter().find(|(f, _)| f == "data") {
-                                    display.push(t.to_string());
-                                }
-                            }
-                            V::Rec(n, _) if n == "Exit" => exit = true,
-                            _ => {}
-                        }
-                    }
-                }
-                let outcome = outcome.map(|os| os.iter().map(|o| o.show()).collect());
-                Ok(Admitted { seq: e.seq, event: ev.show(), outcome, display, exit })
-            }
+        let e = match self.append(ej) {
+            Ok(e) => e,
             Err(x) => {
                 self.state = old_state;
                 self.state_hash = old_hash;
-                Err(x)
+                return Err(x);
             }
+        };
+        let (mut display, mut exit) = (vec![], false);
+        if let Ok(outs) = &outcome {
+            self.enqueue(outs);
+            for o in outs {
+                match o {
+                    V::Rec(n, fs) if n == "Display" => {
+                        if let Some((_, V::Text(t))) = fs.iter().find(|(f, _)| f == "data") {
+                            display.push(t.to_string());
+                        }
+                    }
+                    V::Rec(n, _) if n == "Exit" => exit = true,
+                    _ => {}
+                }
+            }
+        }
+        let refused = outcome.as_ref().err().map(|r| r.cause);
+        let outcome = outcome.map(|os| os.iter().map(|o| o.show()).collect()).map_err(|r| r.text);
+        let mut out = vec![Admitted { seq: e.seq, event: ev.show(), outcome, display, exit, cause: refused.map(Cause::as_str) }];
+        if let Some(cause) = refused {
+            let bind = name != "Refused" && declares_event(self.m, "Refused");
+            out.extend(self.refused(e.seq, cause, bind)?);
+        }
+        Ok(out)
+    }
+
+    /// HC-21: after the refused entry at `seq`, `host.Refused` {cause, seq},
+    /// then (`bind`) the bound input `Refused(seq, cause)`. A refused
+    /// `Refused` gets `host.Refused` only, so each refused input is
+    /// followed by at most one `Refused`.
+    fn refused(&mut self, seq: u64, cause: Cause, bind: bool) -> Result<Vec<Admitted>, String> {
+        self.append(host_event("Refused", &refused_payload(cause, seq)))?;
+        if bind { self.apply_named("Refused", refused_args(cause, seq)) } else { Ok(vec![]) }
+    }
+
+    /// The canonical event JSON of a host-delivered input, as the live path appends it.
+    fn bound_json(&mut self, name: &str, args: &[Arg]) -> Result<String, String> {
+        self.it.scopes = vec![HashMap::new()];
+        self.it.fuel = crate::interp::fuel_limit();
+        match self.it.construct(name, args) {
+            Ok(Some(v)) => Ok(event_json(name, &v, self.m)),
+            Ok(None) => Err(format!("`{name}` is not an event")),
+            Err(f) => Err(why(f)),
+        }
+    }
+
+    /// Replay (HC-21, HC-22): `e` must be the entry `o` the previous entry requires.
+    fn meet(&mut self, o: Owe, e: &Entry) -> Result<(), String> {
+        let want = match o {
+            Owe::HostRefused { seq, cause, bind } => {
+                if bind {
+                    self.owe = Some(Owe::BoundRefused { seq, cause });
+                }
+                host_event("Refused", &refused_payload(cause, seq))
+            }
+            Owe::BoundRefused { seq, cause } => self.bound_json("Refused", &refused_args(cause, seq))?,
+            Owe::BoundRestarted { below } => self.bound_json("Restarted", &[Arg { label: Some("below".into()), e: Expr::Int(below as i128, 0) }])?,
+        };
+        if e.event != want {
+            return Err(format!("host fault: seq {}: D has {} where {want} must follow", e.seq, e.event));
+        }
+        Ok(())
+    }
+
+    /// Complete an entry D owes at its end (HC-21, HC-22): a host stopped
+    /// after appending a refused entry, or a `host.Refused` or
+    /// `host.Restarted` without its bound input.
+    fn complete_owed(&mut self) -> Result<Vec<Admitted>, String> {
+        match self.owe.take() {
+            None => Ok(vec![]),
+            Some(Owe::HostRefused { seq, cause, bind }) => self.refused(seq, cause, bind),
+            Some(Owe::BoundRefused { seq, cause }) => self.apply_named("Refused", refused_args(cause, seq)),
+            Some(Owe::BoundRestarted { below }) => self.apply_named("Restarted", vec![Arg { label: Some("below".into()), e: Expr::Int(below as i128, 0) }]),
         }
     }
 
@@ -1168,7 +1296,7 @@ impl<'a> Host<'a> {
         };
         let mut out = vec![];
         for (name, args) in x.events.clone() {
-            out.push(self.apply_named(&name, args)?);
+            out.extend(self.apply_named(&name, args)?);
             out.extend(self.drain()?);
         }
         self.confirm()?;
@@ -1178,7 +1306,7 @@ impl<'a> Host<'a> {
     /// Admit one input given as an event name and arguments (adapters and
     /// the host loop), its effects, then the batch barrier.
     pub fn admit_event(&mut self, name: &str, args: Vec<Arg>) -> Result<Vec<Admitted>, String> {
-        let mut out = vec![self.apply_named(name, args)?];
+        let mut out = self.apply_named(name, args)?;
         out.extend(self.drain()?);
         self.confirm()?;
         Ok(out)
@@ -1205,7 +1333,7 @@ impl<'a> Host<'a> {
         ord.sort_by(|a, b| b.0.cmp(&a.0).then_with(|| a.1.cmp(&b.1)));
         let mut out = vec![];
         for (_, _, name, args) in ord {
-            out.push(self.apply_named(&name, args)?);
+            out.extend(self.apply_named(&name, args)?);
             out.extend(self.drain()?);
         }
         self.confirm()?;
@@ -1787,7 +1915,7 @@ impl<'a> Host<'a> {
             self.append(host_event("Input", &format!("{{{late}\"seq\":{},\"source\":{src},\"window\":{id}}}", x.seq)))?;
             let a = self.apply_named(&x.name, x.args)?;
             self.admitted.insert(x.source.clone(), x.seq);
-            ack.admitted.push(a);
+            ack.admitted.extend(a);
             ack.admitted.extend(self.drain()?);
             acks.push((x.source, x.seq));
         }
@@ -1805,6 +1933,10 @@ impl<'a> Host<'a> {
         if term <= self.term {
             return Err(format!("host.Term: term {term} is not above the current term {}", self.term));
         }
+        // HC-21: a refusal the previous admitter logged without its
+        // `host.Refused` (or bound `Refused`) is completed first; it belongs
+        // to the input of the previous term
+        self.complete_owed()?;
         self.term = term;
         self.offered.clear();
         let l = serde_json::to_string(leader).unwrap();
@@ -1902,6 +2034,12 @@ impl<'a> Host<'a> {
 /// Replay (HC-8, T37): verify D and re-derive every state hash with every
 /// adapter disconnected. Returns (entries, final state hash, final state).
 pub fn replay(m: &Module, text: &str) -> Result<(u64, String, Vec<Region>), String> {
+    replay_report(m, text).map(|r| (r.entries, r.state_hash, r.state))
+}
+
+/// [`replay`] with the refusals it re-derived (HC-21): each refused entry's
+/// seq, cause and text. The text is not in D; replay derives it.
+pub fn replay_report(m: &Module, text: &str) -> Result<Replayed, String> {
     let lines: Vec<&str> = text.split_terminator('\n').collect();
     let keep = verify_prefix(&lines, m);
     if keep < lines.len() {
@@ -1910,7 +2048,7 @@ pub fn replay(m: &Module, text: &str) -> Result<(u64, String, Vec<Region>), Stri
     let entries: Vec<Entry> = lines.iter().map(|l| Entry::parse_line(l).unwrap()).collect();
     let mut h = Host::fresh(m, Box::new(MemStore::default()), vec![])?;
     h.refold(&entries)?;
-    Ok((h.seq, h.state_hash.clone(), h.state.clone()))
+    Ok(Replayed { entries: h.seq, state_hash: h.state_hash.clone(), state: h.state.clone(), refusals: std::mem::take(&mut h.refusals) })
 }
 
 /// The host as of entry k (HS-9): the fold of the first k entries of a

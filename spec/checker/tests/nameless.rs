@@ -110,6 +110,39 @@ fn state_hashes_are_name_free() {
     assert!(!entry_hashes(&a).is_empty());
 }
 
+/// HC-21 under T7: the host's refusal entries name no declaration (the
+/// cause, not the error's name, is in D), so a renamed program run on the
+/// host gives a D with the same hashes, refusals included.
+#[test]
+fn refusal_entries_are_name_free() {
+    use rce_spec_check::ast::Item;
+    use rce_spec_check::host::{Host, MemStore};
+    let src = "state Counter\n    n: u64 = 0\n\nevent Inc\nevent Dec\n\nerror Underflow\n\nstep Counter on Inc -> n + 1\nstep Counter on Dec -> try n.checked_sub(1) else Underflow\n";
+    let f = tmp("refusal_names.rce", src);
+    let (_, projected) = rce(&["fmt", "--nameless", &f]);
+    assert!(!projected.contains("Underflow"), "{projected}");
+    let run = |text: &str| -> (Vec<String>, String) {
+        let m = rce_spec_check::parse::parse(text).unwrap();
+        let names: Vec<String> = m.items.iter().filter_map(|i| if let Item::Event { name, .. } = i { Some(name.clone()) } else { None }).collect();
+        let (inc, dec) = (names[0].clone(), names[1].clone());
+        let mut st = MemStore::default();
+        let mut h = Host::start(&m, Box::new(&mut st)).unwrap();
+        let mut causes = vec![];
+        for ev in [&dec, &inc, &dec, &dec] {
+            causes.extend(h.admit_event(ev, vec![]).unwrap().iter().filter_map(|a| a.cause));
+        }
+        assert_eq!(causes, vec!["fail", "fail"]);
+        drop(h);
+        let hashes = st.lines.iter().map(|l| rce_spec_check::host::Entry::parse_line(l).unwrap().hash).collect();
+        (hashes, st.lines.join("\n"))
+    };
+    let (a, da) = run(src);
+    let (b, db) = run(&projected);
+    assert!(da.contains(r#"{"payload":{"cause":"fail","seq":2},"type":"host.Refused"}"#), "{da}");
+    assert!(db.contains(r#"{"payload":{"cause":"fail","seq":2},"type":"host.Refused"}"#), "{db}");
+    assert_eq!(a, b, "D hashes do not depend on names, refusal entries included");
+}
+
 /// 6.6: the concept record is printed by `rce emit form` under `names`,
 /// keyed by declaration index, and is the only place the source names
 /// survive in a nameless projection's Form.

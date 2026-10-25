@@ -1129,7 +1129,7 @@ fn serve_dyn(r: &mut dyn BufRead, w: &mut dyn Write) -> i32 {
 
 /// `rce host run|replay FILE --log D [EVENTS]` (Appendix E host runtime v0).
 fn host_cmd(a: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &mut dyn Write) -> Result<i32, String> {
-    use crate::host::{Host, replay};
+    use crate::host::Host;
     let w = |e: std::io::Error| e.to_string();
     let (sub, file, log) = (a[0].as_str(), &a[1], a.get(3).ok_or("--log D")?);
     let src = read_file(file)?;
@@ -1142,9 +1142,14 @@ fn host_cmd(a: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &mu
     match sub {
         "replay" => {
             let text = std::fs::read_to_string(log).map_err(|e| format!("{log}: {e}"))?;
-            match replay(&m, &text) {
-                Ok((n, h, s)) => {
-                    writeln!(out, "replay ok: {n} entries, state_hash {h}").map_err(w)?;
+            match crate::host::replay_report(&m, &text) {
+                Ok(r) => {
+                    let (n, h, s) = (r.entries, r.state_hash, r.state);
+                    writeln!(out, "replay ok: {n} entries, {} refused, state_hash {h}", r.refusals.len()).map_err(w)?;
+                    // HC-21: the refusal texts are not in D; replay re-derives them
+                    for (q, c, t) in &r.refusals {
+                        writeln!(out, "  seq {q} refused ({c}): {t}").map_err(w)?;
+                    }
                     // `--redact f,g`: print those fields as digests (secrets stay in D)
                     let red: Vec<&str> = match a.get(4).map(|x| x.as_str()) {
                         Some("--redact") => a.get(5).map(|x| x.split(',').collect()).unwrap_or_default(),
@@ -1462,6 +1467,9 @@ fn serve_loop(h: &mut crate::host::Host, src: &str, out: &mut dyn Write) -> Resu
         };
         let mut exit = false;
         for a in adm {
+            if let Some(c) = a.cause {
+                eprintln!("rce host: seq {} refused ({c})", a.seq);
+            }
             for d in &a.display {
                 write!(out, "{d}").map_err(w)?;
             }
@@ -1482,12 +1490,12 @@ fn serve_loop(h: &mut crate::host::Host, src: &str, out: &mut dyn Write) -> Resu
 /// report goes to stderr so stdout stays the program's output.
 fn validate_run(m: &Module, log: &str, live: &str, code: i32, err: &mut dyn Write) -> Result<i32, String> {
     let text = std::fs::read_to_string(log).map_err(|e| format!("validate {log}: {e}"))?;
-    match crate::host::replay(m, &text) {
-        Ok((n, h, _)) if h == live => {
-            writeln!(err, "rce host: validated {n} entries: replay with adapters disconnected gives the live state_hash").map_err(|e| e.to_string())?;
+    match crate::host::replay_report(m, &text) {
+        Ok(r) if r.state_hash == live => {
+            writeln!(err, "rce host: validated {} entries, {} refused: replay with adapters disconnected gives the live state_hash", r.entries, r.refusals.len()).map_err(|e| e.to_string())?;
             Ok(code)
         }
-        Ok((_, h, _)) => Err(format!("host fault: replay gives {h}, the live run had {live}")),
+        Ok(r) => Err(format!("host fault: replay gives {}, the live run had {live}", r.state_hash)),
         Err(e) => Err(format!("host fault: replay failed: {e}")),
     }
 }
