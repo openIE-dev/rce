@@ -9,7 +9,7 @@ const chain = (sub, op) => seq(sub, repeat1(seq(op, sub)));
 
 module.exports = grammar({
   name: 'rce',
-  externals: $ => [$._NL, $._INDENT, $._DEDENT, $.NAME, '(', ')', '[', ']', '{', '}', $._skip_nl, $.INT, $.FLOAT, $.SEND, $._bad, $.comment, $._par_for, $._error_sentinel],
+  externals: $ => [$._NL, $._INDENT, $._DEDENT, $.NAME, '(', ')', '[', ']', '{', '}', $._skip_nl, $.INT, $.FLOAT, $.SEND, $._bad, $.comment, $._par_for, $._trap, $._error_sentinel],
   extras: $ => [/ +/, $._skip_nl, $.comment],
   conflicts: $ => [],
   rules: {
@@ -33,7 +33,9 @@ module.exports = grammar({
     event_call: $ => seq($.NAME, '(', optional($.args), ')'),
     _outcome: $ => choice($.outcome_value, $.outcome_refused),
     outcome_value: $ => $._expr,
-    outcome_refused: $ => seq('refused', ':', $.NAME),
+    // section 3 Outcome: a named error, or a trap with its text (`refused: trap("division by zero")`);
+    // `trap` before `(` is its own token there (src/scanner.c), elsewhere it is a NAME
+    outcome_refused: $ => seq('refused', ':', choice($.NAME, seq(alias($._trap, 'trap'), '(', $.STRING, ')'))),
     check_decl: $ => seq('check', $._expr, $._NL),
 
     const_decl: $ => seq('const', $.NAME, optional(seq(':', $._type)), '=', $._expr, $._NL),

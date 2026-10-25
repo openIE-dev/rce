@@ -11689,6 +11689,10 @@
         {
           "type": "NAME",
           "named": true
+        },
+        {
+          "type": "STRING",
+          "named": true
         }
       ]
     }
@@ -19007,6 +19011,10 @@
   },
   {
     "type": "trait",
+    "named": false
+  },
+  {
+    "type": "trap",
     "named": false
   },
   {
