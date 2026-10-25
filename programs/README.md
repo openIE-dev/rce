@@ -46,7 +46,7 @@ RCE=/path/to/rce scripts/check.sh
 | [world/](world/) | `cellular_automaton.rce`, `queue_sim.rce` | discrete simulation as a state that changes on each event |
 | [body/](body/) | `thermostat.rce`, `arm.rce` | control loops that react to sensor readings and refuse impossible ones |
 | [media/](media/) | `gain.rce`, `moving_average.rce` | fixed-size buffers, lane-wise arithmetic, clipping, filters |
-| [network/](network/) | `handshake.rce`, `server.rce` | a protocol as a state machine; a server as an actor |
+| [network/](network/) | `handshake.rce`, `server.rce`, `notes.rce` | a protocol as a state machine; a server as an actor; a JSON service on the HTTP event host |
 | [text/](text/) | `word_count.rce`, `edit_distance.rce` | a byte-by-byte lexer; dynamic programming over text |
 | [data/](data/) | `totals.rce` | records, totals and a group-by |
 | [money/](money/) | `account.rce`, `ledger.rce` | balances in integer cents; double-entry bookkeeping with an invariant |

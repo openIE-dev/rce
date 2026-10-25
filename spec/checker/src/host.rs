@@ -577,6 +577,11 @@ pub struct Host<'a> {
     stopped: bool,
     /// Entries appended since the last successful barrier.
     pending: usize,
+    /// Of those, the ones that are not the confirmation of a barrier
+    /// (`host.Synced` and its bound `Synced`): a barrier is taken for these.
+    pending_real: usize,
+    /// While the entries confirming a barrier are appended.
+    confirming: bool,
     /// The last seq made durable.
     pub durable: Option<u64>,
     /// The seq of the snapshot this host was opened from, if one was used (HS-5).
@@ -585,7 +590,12 @@ pub struct Host<'a> {
     /// Effect kinds bound at start (HS-6), in adapter order.
     bound: Vec<&'static str>,
     /// Requests emitted and not yet answered: (kind, req, request JSON), in emit order (E-x).
-    queue: std::collections::VecDeque<(String, u64, Value)>,
+    /// Requests emitted and not yet answered: (kind, req, request JSON,
+    /// seq of the entry that requested it), in emit order (E-x).
+    queue: std::collections::VecDeque<(String, u64, Value, u64)>,
+    /// The last seq covered by a successful barrier (on every store; on a
+    /// volatile one nothing is reported durable, E.3).
+    synced: Option<u64>,
     /// E.2a: per source, the highest seq whose input is in D (dedupe key).
     admitted: std::collections::BTreeMap<String, u64>,
     /// E.2a: the id of the next admission window, and the tick the last one closed at.
@@ -610,6 +620,51 @@ pub struct Host<'a> {
     refusals: Vec<(u64, &'static str, String)>,
     /// HC-22: the n of the last `Tick(n)` in D, so the host loop continues it.
     last_tick: u64,
+    /// When set, replay records each program entry's outputs (Form JSON).
+    outputs: Option<Vec<(u64, Vec<Value>)>>,
+}
+
+/// A declared type as written (`u64`, `List[text]`, `u64?`).
+fn ty_text(t: &Ty) -> String {
+    match t {
+        Ty::Path(p, g) if g.is_empty() => p.join("."),
+        Ty::Path(p, g) => format!("{}[{}]", p.join("."), g.iter().map(ty_text).collect::<Vec<_>>().join(", ")),
+        Ty::Opt(x) => format!("{}?", ty_text(x)),
+        other => format!("{other:?}"),
+    }
+}
+
+fn shape_is(p: &[(String, Ty)], want: &[(&str, &str)]) -> bool {
+    p.len() == want.len() && p.iter().zip(want).all(|((k, t), (wk, wt))| k == wk && ty_text(t) == *wt)
+}
+
+/// W-HOST-2 (HC-24): a module served with `--http` declares the HTTP
+/// inputs, the response effect and its result with exactly these shapes;
+/// W-HOST-3 (HC-10a): the body is the bytes received.
+pub const HTTP_SHAPES: &str = "event HttpRequest(id: u64, method: text, target: text, names: List[text], values: List[text], body: List[i64]), event HttpMalformed(id: u64, status: u64, why: text), struct HttpRespond {req: u64, status: u64, names: List[text], values: List[text], body: text or List[i64]} and event HttpRespondDone(req: u64, status: text, data: u64?, err: text)";
+
+fn http_fits(m: &Module) -> Result<(), String> {
+    let req = event_payload(m, "HttpRequest");
+    if let Some(p) = req
+        && p.iter().any(|(k, t)| k == "body" && !is_bytes(t))
+    {
+        return Err("W-HOST-3 HttpRequest delivers the bytes received: declare body: List[i64] and decode text in the program (text.utf8)".into());
+    }
+    let request = [("id", "u64"), ("method", "text"), ("target", "text"), ("names", "List[text]"), ("values", "List[text]"), ("body", "List[i64]")];
+    let malformed = [("id", "u64"), ("status", "u64"), ("why", "text")];
+    let done = [("req", "u64"), ("status", "text"), ("data", "u64?"), ("err", "text")];
+    let respond = m.items.iter().find_map(|i| match i {
+        Item::Struct { name, fields, .. } if name == "HttpRespond" => Some(fields.iter().map(|f| (f.name.clone(), ty_text(&f.ty))).collect::<Vec<_>>()),
+        _ => None,
+    });
+    let respond_ok = respond.is_some_and(|f| {
+        let want = [("req", "u64"), ("status", "u64"), ("names", "List[text]"), ("values", "List[text]")];
+        f.len() == 5 && f[..4].iter().zip(want).all(|((k, t), (wk, wt))| k == wk && t == wt) && f[4].0 == "body" && (f[4].1 == "text" || f[4].1 == "List[i64]")
+    });
+    if req.is_some_and(|p| shape_is(p, &request)) && event_payload(m, "HttpMalformed").is_some_and(|p| shape_is(p, &malformed)) && event_payload(m, "HttpRespondDone").is_some_and(|p| shape_is(p, &done)) && respond_ok {
+        return Ok(());
+    }
+    Err(format!("W-HOST-2 --http needs {HTTP_SHAPES}"))
 }
 
 /// W-HOST-4: a host-delivered event the module declares must have exactly
@@ -902,6 +957,9 @@ impl<'a> Host<'a> {
 
     fn fresh(m: &'a Module, store: Box<dyn Store + 'a>, adapters: Vec<Box<dyn Adapter + 'a>>) -> Result<Host<'a>, String> {
         let mut bound = vec![];
+        if adapters.iter().any(|a| a.kind() == "HttpRespond") {
+            http_fits(m)?;
+        }
         for a in &adapters {
             if declares_struct(m, a.kind()) {
                 result_event_fits(m, a.kind())?;
@@ -916,7 +974,7 @@ impl<'a> Host<'a> {
         let mut it = Interp::new(m);
         let state = it.initial_state().map_err(why)?;
         let state_hash = d_sha(&state_pos_json(&state, m));
-        Ok(Host { m, it, state, state_hash, prev: D_GENESIS.into(), seq: 0, store, stopped: false, pending: 0, durable: None, from_snapshot: None, adapters, bound, queue: Default::default(), admitted: Default::default(), window: 0, closed_tick: 0, offered: vec![], term: 0, task: None, fabrics: vec![], calib: Default::default(), exacts: Default::default(), owe: None, refusals: vec![], last_tick: 0 })
+        Ok(Host { m, it, state, state_hash, prev: D_GENESIS.into(), seq: 0, store, stopped: false, pending: 0, pending_real: 0, confirming: false, durable: None, from_snapshot: None, adapters, bound, queue: Default::default(), admitted: Default::default(), window: 0, closed_tick: 0, offered: vec![], term: 0, task: None, fabrics: vec![], calib: Default::default(), exacts: Default::default(), owe: None, refusals: vec![], last_tick: 0, synced: None, outputs: None })
     }
 
     fn start_entries(&mut self) -> Result<(), String> {
@@ -934,6 +992,10 @@ impl<'a> Host<'a> {
         }
         if declares_event(self.m, "Restarted") {
             self.append(host_event("Bind", "{\"event\":\"Restarted\",\"kind\":\"host.Restarted\"}"))?;
+        }
+        if self.bound.contains(&"HttpRespond") {
+            self.append(host_event("Bind", "{\"event\":\"HttpRequest\",\"kind\":\"host.HttpRequest\"}"))?;
+            self.append(host_event("Bind", "{\"event\":\"HttpMalformed\",\"kind\":\"host.HttpMalformed\"}"))?;
         }
         for k in self.bound.clone() {
             self.append(host_event("Bind", &format!("{{\"event\":\"{k}Done\",\"kind\":\"host.{k}\"}}")))?;
@@ -1008,7 +1070,7 @@ impl<'a> Host<'a> {
         if declares_event(self.m, "Restarted") {
             self.apply_named("Restarted", vec![Arg { label: Some("below".into()), e: Expr::Int(below as i128, 0) }])?;
         }
-        for (k, req, _) in lost {
+        for (k, req, _, _) in lost {
             self.answer(&k, req, EffectResult::failed("interrupted"))?;
         }
         Ok(())
@@ -1119,14 +1181,17 @@ impl<'a> Host<'a> {
                 }
                 if let Some(k) = name.strip_suffix("Done").filter(|k| self.bound.contains(k)) {
                     let req = serde_json::from_str::<Value>(&e.event).ok().and_then(|v| v["payload"]["req"].as_u64());
-                    self.queue.retain(|(qk, qr, _)| !(qk == k && Some(*qr) == req));
+                    self.queue.retain(|(qk, qr, _, _)| !(qk == k && Some(*qr) == req));
                 }
                 self.note_tick(&name, &ev);
                 match self.it.delta_r(&self.state, &ev) {
                     Ok((s2, outs)) => {
                         self.state = s2;
                         self.rehash();
-                        self.enqueue(&outs);
+                        self.enqueue(&outs, e.seq);
+                        if let Some(o) = &mut self.outputs {
+                            o.push((e.seq, outs.iter().map(|x| serde_json::from_str(&crate::interp::form_value(x, self.m).json()).unwrap_or(Value::Null)).collect()));
+                        }
                     }
                     Err(r) => {
                         // HC-21: replay re-derives the refusal and its cause
@@ -1143,6 +1208,7 @@ impl<'a> Host<'a> {
             self.seq = e.seq + 1;
         }
         self.durable = self.seq.checked_sub(1);
+        self.synced = self.durable;
         Ok(())
     }
 
@@ -1158,12 +1224,25 @@ impl<'a> Host<'a> {
         self.prev = e.hash.clone();
         self.seq += 1;
         self.pending += 1;
+        if !self.confirming {
+            self.pending_real += 1;
+        }
         Ok(e)
     }
 
-    /// The barrier for everything pending; on success log `host.Synced` and
-    /// the bound `Synced` event (HS-6). A failure stops the admitter (HS-3).
+    /// The barrier for everything pending, when something other than the
+    /// confirmation of the last barrier is pending (so a batch that admitted
+    /// nothing appends nothing); on success log `host.Synced` and the bound
+    /// `Synced` event (HS-6). A failure stops the admitter (HS-3).
     fn confirm(&mut self) -> Result<(), String> {
+        if self.pending_real == 0 {
+            return Ok(());
+        }
+        self.barrier()
+    }
+
+    /// The barrier for every pending entry (HS-2 before an effect).
+    fn barrier(&mut self) -> Result<(), String> {
         if self.pending == 0 {
             return Ok(());
         }
@@ -1172,20 +1251,27 @@ impl<'a> Host<'a> {
             return Err(format!("host.StorageFault: seq {}: {x}", self.seq - 1));
         }
         self.pending = 0;
+        self.pending_real = 0;
         let upto = self.seq - 1;
+        self.synced = Some(upto);
         if self.store.caps() == "volatile" {
             return Ok(()); // E.3: no entry of a volatile store is reported durable
         }
         self.durable = Some(upto);
-        self.append(host_event("Synced", &format!("{{\"upto\":{upto}}}")))?;
-        if declares_event(self.m, "Synced") {
-            self.apply_named("Synced", vec![Arg { label: Some("upto".into()), e: Expr::Int(upto as i128, 0) }])?;
-        }
-        Ok(())
+        self.confirming = true;
+        let r = self.append(host_event("Synced", &format!("{{\"upto\":{upto}}}"))).and_then(|_| {
+            if declares_event(self.m, "Synced") {
+                self.apply_named("Synced", vec![Arg { label: Some("upto".into()), e: Expr::Int(upto as i128, 0) }])?;
+            }
+            Ok(())
+        });
+        self.confirming = false;
+        r
     }
 
-    /// Queue the effect requests among a step's outputs, in emit order.
-    fn enqueue(&mut self, outs: &[V]) {
+    /// Queue the effect requests among a step's outputs, in emit order;
+    /// `at` is the seq of the entry that requested them.
+    fn enqueue(&mut self, outs: &[V], at: u64) {
         for o in outs {
             if let V::Rec(n, fs) = o
                 && let Some(k) = self.bound.iter().find(|k| **k == n.as_str())
@@ -1195,7 +1281,7 @@ impl<'a> Host<'a> {
                     _ => None,
                 });
                 let j: Value = serde_json::from_str(&crate::interp::form_value(o, self.m).json()).unwrap_or(Value::Null);
-                self.queue.push_back((k.to_string(), req.unwrap_or(0), j));
+                self.queue.push_back((k.to_string(), req.unwrap_or(0), j, at));
             }
         }
     }
@@ -1221,11 +1307,12 @@ impl<'a> Host<'a> {
     /// a result's step may request more effects, which are performed in turn.
     fn drain(&mut self) -> Result<Vec<Admitted>, String> {
         let mut out = vec![];
-        while let Some((k, req, j)) = self.queue.pop_front() {
+        while let Some((k, req, j, at)) = self.queue.pop_front() {
             // HS-2: an effect is an output, so the entry that requested it
-            // is made durable before the effect is performed.
-            if self.pending > 0 {
-                self.confirm()?;
+            // is made durable before the effect is performed. One barrier
+            // covers every effect requested by the entries it made durable.
+            if self.pending > 0 && self.synced.is_none_or(|s| s < at) {
+                self.barrier()?;
             }
             let r = match self.adapters.iter_mut().find(|a| a.kind() == k) {
                 Some(a) => a.perform(&j),
@@ -1272,7 +1359,7 @@ impl<'a> Host<'a> {
         self.note_tick(name, &ev);
         let (mut display, mut exit) = (vec![], false);
         if let Ok(outs) = &outcome {
-            self.enqueue(outs);
+            self.enqueue(outs, e.seq);
             for o in outs {
                 match o {
                     V::Rec(n, fs) if n == "Display" => {
@@ -1368,6 +1455,33 @@ impl<'a> Host<'a> {
         out.extend(self.drain()?);
         self.confirm()?;
         Ok(out)
+    }
+
+    /// Admit one input of a batch (group commit, D-2): append its entry, run
+    /// δ and queue its effects, without a barrier. [`Host::settle`] ends the
+    /// batch.
+    pub fn apply_input(&mut self, name: &str, args: Vec<Arg>) -> Result<Vec<Admitted>, String> {
+        self.apply_named(name, args)
+    }
+
+    /// End a batch: perform the queued effects (each after a barrier that
+    /// covers the entry that requested it, HS-2) and take the batch barrier.
+    pub fn settle(&mut self) -> Result<Vec<Admitted>, String> {
+        let out = self.drain()?;
+        self.confirm()?;
+        Ok(out)
+    }
+
+    /// HC-24: `host.HttpListen` {addr and the limits of HC-25, or addr and
+    /// the bind error}.
+    pub fn http_listen(&mut self, payload: &str) -> Result<(), String> {
+        self.append(host_event("HttpListen", payload))?;
+        self.confirm()
+    }
+
+    /// Whether the store reported its last barrier failed (HS-3).
+    pub fn is_storage_fault(e: &str) -> bool {
+        e.starts_with("host.StorageFault")
     }
 
     /// The priority of an input (HC-9, T25): `interrupt event E priority p`
@@ -2106,6 +2220,22 @@ pub fn replay_report(m: &Module, text: &str) -> Result<Replayed, String> {
     let mut h = Host::fresh(m, Box::new(MemStore::default()), vec![])?;
     h.refold(&entries)?;
     Ok(Replayed { entries: h.seq, state_hash: h.state_hash.clone(), state: h.state.clone(), refusals: std::mem::take(&mut h.refusals) })
+}
+
+/// The outputs δ gives on replay, for each program entry it applies: (seq,
+/// each output as Form JSON). Every effect request, and so every byte an
+/// adapter writes (HC-26), is a function of D: this is that function.
+pub fn replay_outputs(m: &Module, text: &str) -> Result<Vec<(u64, Vec<Value>)>, String> {
+    let lines: Vec<&str> = text.split_terminator('\n').collect();
+    let keep = verify_prefix(&lines, m);
+    if keep < lines.len() {
+        return Err(format!("D does not verify after entry {keep} of {}", lines.len()));
+    }
+    let entries: Vec<Entry> = lines.iter().map(|l| Entry::parse_line(l).unwrap()).collect();
+    let mut h = Host::fresh(m, Box::new(MemStore::default()), vec![])?;
+    h.outputs = Some(vec![]);
+    h.refold(&entries)?;
+    Ok(h.outputs.take().unwrap_or_default())
 }
 
 /// The host as of entry k (HS-9): the fold of the first k entries of a

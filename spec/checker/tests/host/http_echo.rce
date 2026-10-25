@@ -1,0 +1,72 @@
+module http_echo
+
+intent "the HTTP event host from the program's side: echo a body as bytes, refuse a step on purpose and answer the refusal, answer again after a response the host refused, and answer twice to see the second fail"
+    example HttpRequest(id: 3, method: "POST", target: "/echo", names: ["Host"], values: ["x"], body: [255, 0]) -> seen == 1 and last == 200
+    example HttpRequest(id: 3, method: "GET", target: "/trap", names: ["Host"], values: ["x"], body: []) -> refused: trap("division by zero")
+    example Refused(seq: 3, cause: "trap") -> last == 500
+    example Refused(seq: 3, cause: "fuel") -> last == 503
+    example HttpRequest(id: 3, method: "GET", target: "/twice", names: ["Host"], values: ["x"], body: []), HttpRespondDone(req: 3, status: "failed", data: none, err: "status 99 is outside 200 to 599") -> last == 200 and failures == 1
+    example HttpMalformed(id: 4, status: 408, why: "head timed out") -> last == 408
+    example Restarted(below: 9) -> restarts == 1
+
+struct HttpRespond
+    req: u64
+    status: u64
+    names: List[text]
+    values: List[text]
+    body: List[i64]
+
+event HttpRequest(id: u64, method: text, target: text, names: List[text], values: List[text], body: List[i64])
+event HttpMalformed(id: u64, status: u64, why: text)
+event HttpRespondDone(req: u64, status: text, data: u64?, err: text)
+event Refused(seq: u64, cause: text)
+event Restarted(below: u64)
+
+state S
+    seen: u64 = 0
+    last: u64 = 0
+    zero: u64 = 0
+    failures: u64 = 0
+    late: u64 = 0
+    restarts: u64 = 0
+
+fn answer(id: u64, status: u64, body: List[i64]) -> HttpRespond = HttpRespond(req: id, status: status, names: ["Content-Type"], values: ["application/octet-stream"], body: body)
+
+step S on HttpRequest(id: id, method: _m, target: t, names: _n, values: _v, body: b)
+    seen += 1
+    if t == "/echo"
+        last = 200
+        emit answer(id, 200, copy(b))
+    elif t == "/trap"
+        last = last / zero
+    elif t == "/twice"
+        last = 99
+        emit HttpRespond(req: id, status: 99, names: [], values: [], body: [])
+    elif t == "/late"
+        last = 200
+        emit answer(id, 200, [111, 110, 101])
+        emit answer(id, 200, [116, 119, 111])
+    else
+        last = 404
+        emit answer(id, 404, [])
+
+step S on HttpMalformed(id: id, status: st, why: _w)
+    last = st
+    emit answer(id, st, [])
+
+step S on HttpRespondDone(req: r, status: s, data: _d, err: e)
+    if s != "delivered"
+        failures += 1
+        if e.startswith("status")
+            last = 200
+            emit answer(r, 200, [111, 107])
+        if e.startswith("no request")
+            late += 1
+
+step S on Refused(seq: q, cause: c)
+    let st: u64 = if c == "fuel" then 503 else 500
+    last = st
+    emit answer(q, st, [])
+
+step S on Restarted(below: _b)
+    restarts += 1

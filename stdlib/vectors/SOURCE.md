@@ -312,9 +312,11 @@ binding and is not here: there is no UDP adapter in rce 0.1.3 (DNS
 resolution), the TCP adapter (`NetConnect`/`NetSend`/`NetRecv`) is used
 through the io request/result pattern by the program, with `NetRecv`
 delivering the bytes received as `List[i64]` (Appendix E HC-10a), and TLS is the
-host's (`--tls`). Connection management (keep-alive, pipelining,
-timeouts) is program state over those events and is left to a later
-module once the bindings are specified.
+host's (`--tls`). An HTTP server needs no socket code: the HTTP event
+host (`rce host serve --http`, Appendix E HC-24 to HC-26) frames requests
+with the same rules as `parse_message` (one Host field included), applies
+keep-alive, pipelining, limits and timeouts, and delivers each request as
+one logged input.
 
 - **net.url, official:** `vectors/net/urltestdata.json`, web-platform-tests/wpt
   at c48d58747e1f211527fb695fd60548a997fae617 (2026-09-19),
