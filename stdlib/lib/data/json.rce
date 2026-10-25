@@ -1,0 +1,2242 @@
+module data.json
+# uses: enc.enc, data.events, data.sync, text.utf8
+use enc
+use data.events
+use data.sync
+use text.utf8
+
+# JSON (RFC 8259) for programs that read and write it. The value type is
+# events.Jv of data.events (named JsonValue here), so values pass to
+# data.events, data.sync and os.pkg unchanged; numbers keep their source
+# lexeme exactly.
+#
+# - A strict parser: it accepts exactly the JSON text grammar of RFC 8259
+#   section 2 (no comments, no trailing commas, no byte-order mark, no NaN)
+#   and reports the first error with its byte offset, line and column. The
+#   offset is that of the first character at which the input stops being a
+#   prefix of some JSON text, or the length of the input when the input
+#   ends early: the offsets of Go 1.24 encoding/json. Two rules go beyond
+#   the grammar, because a text holds Unicode scalar values only: a string
+#   escape that can only be a lone surrogate (\uD800 not followed by
+#   \uDC00..\uDFFF, or \uDC00..\uDFFF alone) is refused at the first
+#   character that makes it so, and ill-formed UTF-8 in bytes (Unicode
+#   Table 3-7) is refused at the first byte of the ill-formed sequence.
+# - The same parser as a state value fed chunks of text or of bytes
+#   (JsonReader), for documents beyond the size and fuel of one input, with
+#   the value read so far as a partial result, and the elements of a large
+#   top-level array taken out as they complete so that the state stays
+#   small; JSON Lines (jsonlines.org) read whole or chunk by chunk, one
+#   result per line. One input's fuel reads about 400,000 characters of
+#   the densest text (arrays of one-digit numbers) and about 600,000 of
+#   typical text; a chunk is at most 1,000,000 characters (a text's limit).
+# - Serialization: compact, indented by a width or a unit text (the layout
+#   of CPython json.dumps with indent), and a writer that hands the text
+#   out in chunks of a chosen size (to_compact and to_pretty return one
+#   text, so at most 1,000,000 characters); the RFC 8785 canonical form.
+# - Numbers: the lexeme kept, and converted to i64 (exact integers only)
+#   and to f64 (correctly rounded, round half to even, exact big-integer
+#   arithmetic where the fast path does not apply), and the ECMAScript
+#   shortest form of an f64.
+# - JSON Pointer (RFC 6901) reads and edits, typed getters, and a builder.
+#
+# Nesting is limited to JSON_MAX_DEPTH (10000, as Go's encoding/json) by
+# default; a deeper text is refused with a typed error, never a trap.
+# Parse, write, canonical form and pointer edits use explicit stacks, so
+# a value of any depth the parser accepts is handled.
+# Member names: an object keeps every member in source order, duplicates
+# included; a lookup by name (pointer, member_of, getters) takes the last
+# member with that name, as CPython, Go and ECMAScript do. The canonical
+# form refuses duplicate names (RFC 8785 requires I-JSON input).
+# A function that fails changes nothing (its &mut writes are dropped), so
+# reader calls that record an error (jr_feed, jr_end) do not fail; jr_error
+# and jr_value give the outcome.
+
+error BadJson(why: text, at: i64, line: i64, col: i64)
+error BadJsonValue(why: text, ptr: text)
+
+pub type JsonValue = events.Jv
+
+# A parse error as a value: the byte offset of the offending character,
+# its line (from 1) and column (from 1, counted in characters).
+pub struct JsonErr
+    why: text
+    at: i64
+    line: i64
+    col: i64
+
+pub const JSON_MAX_DEPTH: i64 = 10000
+
+# The deepest nesting a reader accepts at all (jr_new_depth clamps to it):
+# deeper values are not handled safely by every host's value code.
+pub const JSON_DEPTH_CAP: i64 = 20000
+
+# A text and a list hold at most this many characters or elements.
+const JN_SIZE: i64 = 1000000
+
+fn jn_fail(e: &JsonErr) -> BadJson = BadJson(why: copy(e.why), at: e.at, line: e.line, col: e.col)
+
+# ---------------- characters ----------------
+
+fn jn_ws(c: &text) -> bool = c == " " or c == "\n" or c == "\r" or c == "\t"
+
+# A character that a string holds as it is: not '"', not '\' and not a
+# control character U+0000..U+001F.
+fn jn_plain(c: &text) -> bool = c != "\"" and c != "\\" and (c.len_bytes() > 1 or c[0] >= 32)
+
+fn jn_hex(c: &text) -> i64
+    if c.len_bytes() != 1
+        return -1
+    let x = c[0] as i64
+    if x >= 48 and x <= 57
+        return x - 48
+    if x >= 97 and x <= 102
+        return x - 87
+    if x >= 65 and x <= 70
+        return x - 55
+    return -1
+
+# The text of one Unicode scalar value.
+fn jn_cp(cp: i64) -> text
+    var b: List[i64] = []
+    utf8.utf8_encode_cp(&mut b, cp)
+    return b.utf8()
+
+# ---------------- positions ----------------
+
+struct JnPos
+    at: i64
+    line: i64
+    col: i64
+
+# Position just after `pre`, read from a position whose column count (0
+# based, characters since the last line feed) is col.
+fn jn_after(pre: &text, at: i64, line: i64, col: i64) -> JnPos
+    let ls = pre.split("\n")
+    let b = pre.len_bytes() as i64
+    if ls.len() > 1
+        return JnPos(at: at + b, line: line + (ls.len() - 1) as i64, col: ls[ls.len() - 1].len_chars() as i64)
+    return JnPos(at: at + b, line: line, col: col + pre.len_chars() as i64)
+
+fn jn_err_at(why: text, p: &JnPos) -> JsonErr = JsonErr(why: why, at: p.at, line: p.line, col: p.col + 1)
+
+fn jn_err_here(why: text, r: &JsonReader) -> JsonErr = JsonErr(why: why, at: r.p_at, line: r.p_line, col: r.p_col + 1)
+
+fn jn_no_err() -> JsonErr = JsonErr(why: "", at: -1, line: 0, col: 0)
+
+# ---------------- the reader ----------------
+# What the reader expects next when no token is in progress.
+const JN_VAL: i64 = 0
+const JN_VAL0: i64 = 1
+const JN_KEY0: i64 = 2
+const JN_KEY: i64 = 3
+const JN_COLON: i64 = 4
+const JN_NEXT: i64 = 5
+const JN_END: i64 = 6
+
+const JN_LONE_HI: text = "lone surrogate escape (a high surrogate without its low half)"
+
+const JN_TOO_LONG: text = "a string longer than 1,000,000 characters (the text limit)"
+
+# A JSON text read from chunks. Open containers are kept as the lists of
+# their members, innermost in vals/keys and the enclosing ones in
+# up_vals/up_keys (with the member name each nested one goes under in
+# up_key), so a container is built once, when it closes.
+pub struct JsonReader
+    max_depth: i64
+    mode: i64
+    tok: i64
+    kinds: List[i64]
+    up_vals: List[List[events.Jv]]
+    up_keys: List[List[text]]
+    up_key: List[text]
+    vals: List[events.Jv]
+    keys: List[text]
+    key: text
+    s_parts: List[text]
+    s_len: i64
+    s_key: bool
+    s_esc: i64
+    s_u: i64
+    s_hi: i64
+    n_raw: text
+    n_st: i64
+    l_word: text
+    l_got: usize
+    p_at: i64
+    p_line: i64
+    p_col: i64
+    pend: List[i64]
+    done: bool
+    value: events.Jv
+    failed: bool
+    err: JsonErr
+    ended: bool
+    stop_first: bool
+
+fn jn_reader(max_depth: i64, at: i64, line: i64, col: i64) -> JsonReader
+    return JsonReader(max_depth: max_depth, mode: JN_VAL, tok: 0, kinds: [], up_vals: [], up_keys: [], up_key: [], vals: [], keys: [], key: "", s_parts: [], s_len: 0, s_key: false, s_esc: 0, s_u: 0, s_hi: -1, n_raw: "", n_st: 0, l_word: "", l_got: 0, p_at: at, p_line: line, p_col: col, pend: [], done: false, value: events.JsNull, failed: false, err: jn_no_err(), ended: false, stop_first: false)
+
+# A reader with the default nesting limit (JSON_MAX_DEPTH).
+pub fn jr_new() -> JsonReader = jn_reader(JSON_MAX_DEPTH, 0, 1, 0)
+
+# A reader that refuses nesting deeper than max_depth (clamped to 1 ..
+# JSON_DEPTH_CAP).
+pub fn jr_new_depth(max_depth: i64) -> JsonReader = jn_reader(if max_depth < 1 then 1 else (if max_depth > JSON_DEPTH_CAP then JSON_DEPTH_CAP else max_depth), 0, 1, 0)
+
+# Next state of the number automaton on c, or -1 when c does not continue
+# the number. 0 start, 1 after '-', 2 after a leading 0, 3 integer digits,
+# 4 after '.', 5 fraction digits, 6 after 'e', 7 after the exponent sign,
+# 8 exponent digits. A number may end in states 2, 3, 5 and 8.
+fn jn_nstep(st: i64, c: &text) -> i64
+    let d = c >= "0" and c <= "9"
+    if st == 0
+        if c == "-"
+            return 1
+        if c == "0"
+            return 2
+        return if d then 3 else -1
+    if st == 1
+        if c == "0"
+            return 2
+        return if d then 3 else -1
+    if st == 2 or st == 3
+        if st == 3 and d
+            return 3
+        if c == "."
+            return 4
+        if c == "e" or c == "E"
+            return 6
+        return -1
+    if st == 4 or st == 5
+        if d
+            return 5
+        if st == 5 and (c == "e" or c == "E")
+            return 6
+        return -1
+    if st == 6
+        if c == "+" or c == "-"
+            return 7
+        return if d then 8 else -1
+    return if d then 8 else -1
+
+fn jn_nend(st: i64) -> bool = st == 2 or st == 3 or st == 5 or st == 8
+
+fn jn_expect(mode: i64, knd: i64) -> text
+    if mode == JN_VAL or mode == JN_VAL0
+        return "expected a value"
+    if mode == JN_KEY0
+        return "expected a member name or '}'"
+    if mode == JN_KEY
+        return "expected a member name"
+    if mode == JN_COLON
+        return "expected ':' after the member name"
+    if mode == JN_NEXT
+        return if knd == 0 then "expected ',' or ']'" else "expected ',' or '}'"
+    return "unexpected data after the value"
+
+# The character a short escape stands for ("" when c starts no escape).
+fn jn_short_esc(c: &text) -> text
+    if c == "\"" or c == "\\" or c == "/"
+        return copy(c)
+    if c == "n"
+        return "\n"
+    if c == "t"
+        return "\t"
+    if c == "r"
+        return "\r"
+    if c == "b"
+        return "\u{8}"
+    if c == "f"
+        return "\u{c}"
+    return ""
+
+# Read the characters cs of one chunk; returns how many were consumed (all
+# of them, unless the reader failed or stopped after its first value).
+fn jn_run(r: &mut JsonReader, cs: &[text]) -> usize
+    var mode = r.mode
+    var tok = r.tok
+    var kinds = copy(r.kinds)
+    var up_vals = copy(r.up_vals)
+    var up_keys = copy(r.up_keys)
+    var up_key = copy(r.up_key)
+    var vals = copy(r.vals)
+    var keys = copy(r.keys)
+    var key = copy(r.key)
+    var s_parts = copy(r.s_parts)
+    var s_len = r.s_len
+    r.kinds = []
+    r.up_vals = []
+    r.up_keys = []
+    r.up_key = []
+    r.vals = []
+    r.keys = []
+    r.s_parts = []
+    var s_key = r.s_key
+    var s_esc = r.s_esc
+    var s_u = r.s_u
+    var s_hi = r.s_hi
+    var n_raw = copy(r.n_raw)
+    var n_st = r.n_st
+    var l_word = copy(r.l_word)
+    var lw = l_word.chars()
+    var l_got = r.l_got
+    var done = r.done
+    var value = copy(r.value)
+    let max_depth = r.max_depth
+    let stop_first = r.stop_first
+    var failed = false
+    var fail_why = ""
+    var fail_i: i64 = -1
+    var have = false
+    var got = events.JsNull
+    var i: usize = 0
+    let n = cs.len()
+    # the kind of the innermost open container (0 array, 1 object), -1 at the top
+    var inner: i64 = if kinds.len() > 0 then kinds[kinds.len() - 1] else -1
+    while i < n and not failed bound 4000000
+        if tok == 0
+            # whitespace, punctuation, or the first character of a token
+            let c = copy(cs[i])
+            if c[0] <= 32 and (c == " " or c == "\n" or c == "\r" or c == "\t")
+                i += 1
+                while i < n and jn_ws(&cs[i]) bound 1000001
+                    i += 1
+                continue
+            if mode == JN_NEXT
+                if c == ","
+                    mode = if inner == 0 then JN_VAL else JN_KEY
+                    i += 1
+                elif (c == "]" and inner == 0) or (c == "}" and inner == 1)
+                    if inner == 0
+                        got = events.JsArr(items: vals)
+                    else
+                        got = events.JsObj(keys: keys, vals: vals)
+                    vals = up_vals.pop().or([])
+                    keys = up_keys.pop().or([])
+                    key = up_key.pop().or("")
+                    let _k = kinds.pop()
+                    inner = if kinds.len() > 0 then kinds[kinds.len() - 1] else -1
+                    have = true
+                    i += 1
+                else
+                    failed = true
+                    fail_why = jn_expect(mode, inner)
+                    fail_i = i as i64
+            elif mode == JN_VAL or mode == JN_VAL0
+                if c == "\""
+                    tok = 1
+                    s_key = false
+                    s_len = 0
+                    i += 1
+                elif c == "-" or (c >= "0" and c <= "9")
+                    # the first character of a number: it decides the state
+                    tok = 2
+                    n_st = if c == "-" then 1 else (if c == "0" then 2 else 3)
+                    n_raw = copy(c)
+                    i += 1
+                elif c == "{" or c == "["
+                    if kinds.len() as i64 >= max_depth
+                        failed = true
+                        fail_why = "nesting deeper than " + max_depth.tostr() + " levels"
+                        fail_i = i as i64
+                    else
+                        inner = if c == "[" then 0 else 1
+                        kinds.push(inner)
+                        up_vals.push(vals)
+                        vals = []
+                        up_keys.push(keys)
+                        keys = []
+                        up_key.push(key)
+                        key = ""
+                        mode = if c == "[" then JN_VAL0 else JN_KEY0
+                        i += 1
+                elif c == "]" and mode == JN_VAL0
+                    got = events.JsArr(items: vals)
+                    vals = up_vals.pop().or([])
+                    keys = up_keys.pop().or([])
+                    key = up_key.pop().or("")
+                    let _k = kinds.pop()
+                    inner = if kinds.len() > 0 then kinds[kinds.len() - 1] else -1
+                    have = true
+                    i += 1
+                elif c == "t" or c == "f" or c == "n"
+                    tok = 3
+                    l_word = if c == "t" then "true" else (if c == "f" then "false" else "null")
+                    lw = l_word.chars()
+                    l_got = 1
+                    i += 1
+                else
+                    failed = true
+                    fail_why = jn_expect(mode, inner)
+                    fail_i = i as i64
+            elif mode == JN_KEY0 or mode == JN_KEY
+                if c == "\""
+                    tok = 1
+                    s_key = true
+                    s_len = 0
+                    i += 1
+                elif c == "}" and mode == JN_KEY0
+                    got = events.JsObj(keys: keys, vals: vals)
+                    vals = up_vals.pop().or([])
+                    keys = up_keys.pop().or([])
+                    key = up_key.pop().or("")
+                    let _k = kinds.pop()
+                    inner = if kinds.len() > 0 then kinds[kinds.len() - 1] else -1
+                    have = true
+                    i += 1
+                else
+                    failed = true
+                    fail_why = jn_expect(mode, 1)
+                    fail_i = i as i64
+            elif mode == JN_COLON
+                if c == ":"
+                    mode = JN_VAL
+                    i += 1
+                else
+                    failed = true
+                    fail_why = jn_expect(mode, 1)
+                    fail_i = i as i64
+            else
+                failed = true
+                fail_why = jn_expect(mode, -1)
+                fail_i = i as i64
+        if tok == 1
+            # string: runs of plain characters, then one special character
+            # (or one character of an escape) per round
+            while tok == 1 and i < n and not failed bound 2000001
+                if s_esc == 0 and s_hi < 0
+                    var j = i
+                    while j < n and cs[j] != "\"" and cs[j] != "\\" and (cs[j].len_bytes() > 1 or cs[j][0] >= 32) bound 1000001
+                        j += 1
+                    if j > i
+                        if s_len + (j - i) as i64 > JN_SIZE
+                            failed = true
+                            fail_why = JN_TOO_LONG
+                            fail_i = i as i64 + JN_SIZE - s_len
+                            break
+                        s_len += (j - i) as i64
+                        s_parts.push("".join(cs[i:j]))
+                        i = j
+                        if i >= n
+                            break
+                    if cs[i] == "\""
+                        let st = "".join(s_parts)
+                        s_parts = []
+                        tok = 0
+                        i += 1
+                        if s_key
+                            key = st
+                            mode = JN_COLON
+                        else
+                            got = events.JsStr(t: st)
+                            have = true
+                    elif cs[i] == "\\"
+                        s_esc = 1
+                        i += 1
+                    else
+                        failed = true
+                        fail_why = "control character in a string (escape it)"
+                        fail_i = i as i64
+                elif s_esc == 0
+                    # after a high surrogate escape only its low half may follow
+                    if cs[i] == "\\"
+                        s_esc = 1
+                        i += 1
+                    else
+                        failed = true
+                        fail_why = JN_LONE_HI
+                        fail_i = i as i64
+                elif s_esc == 1
+                    let e = jn_short_esc(&cs[i])
+                    if s_hi >= 0 and cs[i] != "u"
+                        failed = true
+                        fail_why = JN_LONE_HI
+                        fail_i = i as i64
+                    elif cs[i] == "u"
+                        s_esc = 2
+                        s_u = 0
+                        i += 1
+                    elif e == ""
+                        failed = true
+                        fail_why = "bad escape in a string"
+                        fail_i = i as i64
+                    elif s_len >= JN_SIZE
+                        failed = true
+                        fail_why = JN_TOO_LONG
+                        fail_i = i as i64
+                    else
+                        s_parts.push(e)
+                        s_len += 1
+                        s_esc = 0
+                        i += 1
+                else
+                    let h = jn_hex(&cs[i])
+                    # digit k of the escape: a low half needs D then C..F, and D
+                    # then C..F without a high half before it is a lone low half
+                    let k = s_esc - 2
+                    if h < 0
+                        failed = true
+                        fail_why = "bad \\u escape (four hexadecimal digits expected)"
+                        fail_i = i as i64
+                    elif s_hi >= 0 and ((k == 0 and h != 13) or (k == 1 and h < 12))
+                        failed = true
+                        fail_why = JN_LONE_HI
+                        fail_i = i as i64
+                    elif s_hi < 0 and k == 1 and s_u == 13 and h >= 12
+                        failed = true
+                        fail_why = "lone surrogate escape (a low surrogate without its high half)"
+                        fail_i = i as i64
+                    else
+                        s_u = s_u * 16 + h
+                        i += 1
+                        if s_esc < 5
+                            s_esc += 1
+                        elif s_len >= JN_SIZE and not (s_hi < 0 and s_u >= 55296 and s_u <= 56319)
+                            failed = true
+                            fail_why = JN_TOO_LONG
+                            fail_i = (i - 1) as i64
+                        else
+                            s_esc = 0
+                            if not (s_hi < 0 and s_u >= 55296 and s_u <= 56319)
+                                s_len += 1
+                            if s_hi >= 0
+                                s_parts.push(jn_cp(65536 + ((s_hi - 55296) << 10) + (s_u - 56320)))
+                                s_hi = -1
+                            elif s_u >= 55296 and s_u <= 56319
+                                s_hi = s_u
+                            else
+                                s_parts.push(jn_cp(s_u))
+        elif tok == 2
+            var j = i
+            var st = n_st
+            var dig = st == 3 or st == 5 or st == 8
+            while j < n bound 2000001
+                # digit runs inline; a run ends the number on any character
+                # but '.', 'e' and 'E'; the rest goes by the automaton
+                if dig and cs[j] >= "0" and cs[j] <= "9"
+                    j += 1
+                    continue
+                if dig and cs[j] != "." and cs[j] != "e" and cs[j] != "E"
+                    break
+                let nx = jn_nstep(st, &cs[j])
+                if nx < 0
+                    break
+                st = nx
+                dig = st == 3 or st == 5 or st == 8
+                j += 1
+            if j > i and n_raw.len_bytes() as i64 + (j - i) as i64 > JN_SIZE
+                failed = true
+                fail_why = "a number longer than 1,000,000 characters (the text limit)"
+                fail_i = i as i64 + JN_SIZE - n_raw.len_bytes() as i64
+            elif j > i
+                n_raw = n_raw + "".join(cs[i:j])
+                n_st = st
+                i = j
+            if i < n and not failed
+                if jn_nend(n_st)
+                    got = events.JsNum(raw: n_raw)
+                    n_raw = ""
+                    have = true
+                    tok = 0
+                else
+                    failed = true
+                    fail_why = "bad number"
+                    fail_i = i as i64
+        elif tok == 3
+            while tok == 3 and i < n bound 8
+                if cs[i] == lw[l_got]
+                    l_got += 1
+                    i += 1
+                    if l_got == lw.len()
+                        tok = 0
+                        if l_word == "true"
+                            got = events.JsBool(v: true)
+                        elif l_word == "false"
+                            got = events.JsBool(v: false)
+                        else
+                            got = events.JsNull
+                        have = true
+                else
+                    failed = true
+                    fail_why = "bad literal (true, false or null expected)"
+                    fail_i = i as i64
+                    break
+        if have
+            # a whole value: it goes into the innermost open container, or
+            # it is the text's value
+            have = false
+            if inner >= 0 and vals.len() as i64 >= JN_SIZE
+                failed = true
+                fail_why = "more than 1,000,000 elements or members in one array or object (the list limit; jr_take_items takes the elements of a top-level array out as they complete)"
+                fail_i = (if i > 0 then i - 1 else 0) as i64
+            elif inner < 0
+                done = true
+                value = got
+                got = events.JsNull
+                mode = JN_END
+                if stop_first
+                    break
+            elif inner == 0
+                vals.push(got)
+                got = events.JsNull
+                mode = JN_NEXT
+            else
+                keys.push(key)
+                key = ""
+                vals.push(got)
+                got = events.JsNull
+                mode = JN_NEXT
+    # write the state back; positions pending in this chunk become absolute
+    if failed
+        let pre = "".join(cs[0:(fail_i as usize)])
+        let p = jn_after(&pre, r.p_at, r.p_line, r.p_col)
+        r.failed = true
+        r.err = jn_err_at(fail_why, &p)
+    r.mode = mode
+    r.tok = tok
+    r.kinds = kinds
+    r.up_vals = up_vals
+    r.up_keys = up_keys
+    r.up_key = up_key
+    r.vals = vals
+    r.keys = keys
+    r.key = key
+    r.s_parts = s_parts
+    r.s_len = s_len
+    r.s_key = s_key
+    r.s_esc = s_esc
+    r.s_u = s_u
+    r.s_hi = s_hi
+    r.n_raw = n_raw
+    r.n_st = n_st
+    r.l_word = l_word
+    r.l_got = l_got
+    r.done = done
+    r.value = value
+    return i
+
+# Feed one chunk of text (a chunk may end anywhere between characters).
+# Returns false once the reader has failed; the error is jr_error. A
+# chunk fed after jr_end is ignored.
+pub fn jr_feed(r: &mut JsonReader, chunk: &text) -> bool
+    if r.failed or r.ended
+        return not r.failed
+    if r.pend.len() > 0
+        r.failed = true
+        r.err = jn_err_here("invalid UTF-8 (a truncated sequence before a text chunk)", r)
+        return false
+    let cs = chunk.chars()
+    let _k = jn_run(r, &cs)
+    if not r.failed
+        let p = jn_after(chunk, r.p_at, r.p_line, r.p_col)
+        r.p_at = p.at
+        r.p_line = p.line
+        r.p_col = p.col
+    return not r.failed
+
+# The first byte of a sequence that may continue in the next chunk.
+fn jn_lead(x: i64) -> bool = x >= 194 and x <= 244
+
+# Feed one chunk of UTF-8 bytes; a sequence split between chunks is kept
+# until the next one completes it. Ill-formed UTF-8 (Unicode Table 3-7)
+# fails at the first byte of the ill-formed sequence, unless the grammar
+# failed earlier; an element outside 0..255 is ill-formed too.
+pub fn jr_feed_bytes(r: &mut JsonReader, b: &[i64]) -> bool
+    if r.failed or r.ended
+        return not r.failed
+    var all = copy(r.pend)
+    for x in b
+        all.push(x)
+    r.pend = []
+    var i: usize = 0
+    let n = all.len()
+    var bad = false
+    var keep = false
+    while i < n bound 1000001
+        if all[i] < 0 or all[i] > 255
+            bad = true
+            break
+        let s = utf8.utf8_seq_at(&all, i)
+        if s > 0
+            i += s as usize
+        else
+            keep = jn_lead(all[i]) and i + ((0 - s) as usize) >= n
+            bad = not keep
+            break
+    let good = all[0:i].utf8()
+    let ok = jr_feed(r, &good)
+    if not ok
+        return false
+    if bad
+        r.failed = true
+        r.err = jn_err_here("invalid UTF-8", r)
+        return false
+    if keep
+        var rest: List[i64] = []
+        for k in i..n
+            rest.push(all[k])
+        r.pend = rest
+    return true
+
+# End of input: completes a number at the end, and records "unexpected
+# end of input" when the value is not complete.
+fn jn_end(r: &mut JsonReader)
+    if r.ended
+        return
+    if not r.failed and r.pend.len() > 0
+        r.failed = true
+        r.err = jn_err_here("invalid UTF-8 (a truncated sequence at the end)", r)
+    if not r.failed and r.tok == 2 and jn_nend(r.n_st)
+        let p = JnPos(at: r.p_at, line: r.p_line, col: r.p_col)
+        let sp: List[text] = [" "]
+        let _k = jn_run(r, &sp)
+        r.p_at = p.at
+        r.p_line = p.line
+        r.p_col = p.col
+    if not r.failed and not r.done
+        r.failed = true
+        r.err = jn_err_here("unexpected end of input", r)
+    r.ended = true
+
+# End of input: completes a number at the end of the text and records
+# "unexpected end of input" when the value is incomplete. Returns whether
+# a whole value was read; jr_value or jr_error then give the outcome.
+pub fn jr_end(r: &mut JsonReader) -> bool
+    jn_end(r)
+    return not r.failed
+
+# The value read, or the first error (the reader is not changed).
+pub fn jr_value(r: &JsonReader) -> events.Jv ! BadJson
+    if r.failed
+        fail jn_fail(&r.err)
+    if not r.done
+        fail BadJson(why: "the value is not complete (call jr_end at the end of input)", at: r.p_at, line: r.p_line, col: r.p_col + 1)
+    return copy(r.value)
+
+# jr_end and jr_value in one call. A call that fails leaves the reader as
+# it was (a failing function changes nothing), so a caller that keeps the
+# reader uses jr_end and jr_error.
+pub fn jr_finish(r: &mut JsonReader) -> events.Jv ! BadJson
+    jn_end(r)
+    return try jr_value(r)
+
+# The error recorded so far, if any.
+pub fn jr_error(r: &JsonReader) -> JsonErr?
+    if r.failed
+        return some(copy(r.err))
+    return none
+
+# Whether a whole value has been read (only whitespace may follow).
+pub fn jr_done(r: &JsonReader) -> bool = r.done
+
+# The value read so far, with every open array and object closed: a string
+# being read holds the characters read so far, a number being read is kept
+# when what was read is a whole number, and a member whose value has not
+# started is left out. null when nothing has been read.
+pub fn jr_partial(r: &JsonReader) -> events.Jv
+    if r.done
+        return copy(r.value)
+    var cur: List[events.Jv] = []
+    if r.tok == 1 and not r.s_key
+        cur.push(events.JsStr(t: "".join(r.s_parts)))
+    elif r.tok == 2 and jn_nend(r.n_st)
+        cur.push(events.JsNum(raw: copy(r.n_raw)))
+    var vals = copy(r.vals)
+    var keys = copy(r.keys)
+    var key = copy(r.key)
+    var lvl = r.kinds.len()
+    while lvl > 0 bound 1000001
+        let knd = r.kinds[lvl - 1]
+        if cur.len() > 0
+            let v = cur.pop().or(events.JsNull)
+            if knd == 1
+                keys.push(key)
+            vals.push(v)
+        if knd == 0
+            cur.push(events.JsArr(items: vals))
+        else
+            cur.push(events.JsObj(keys: keys, vals: vals))
+        key = copy(r.up_key[lvl - 1])
+        vals = copy(r.up_vals[lvl - 1])
+        keys = copy(r.up_keys[lvl - 1])
+        lvl -= 1
+    return cur.pop().or(events.JsNull)
+
+# The elements of the outermost array completed so far, taken out of the
+# reader: they are not kept, and the array's final value holds only the
+# elements not taken. A text that is one large array (the usual form of a
+# large document) is read with bounded state this way, chunk by chunk.
+# Empty when the text is not an array.
+pub fn jr_take_items(r: &mut JsonReader) -> List[events.Jv]
+    if r.kinds.len() == 0
+        if r.done
+            match r.value
+                events.JsArr(items: xs)
+                    let out = copy(xs)
+                    r.value = events.JsArr(items: [])
+                    return out
+                _ -> return []
+        return []
+    if r.kinds[0] != 0
+        return []
+    if r.kinds.len() == 1
+        let out = copy(r.vals)
+        r.vals = []
+        return out
+    let out = copy(r.up_vals[1])
+    r.up_vals[1] = []
+    return out
+
+# ---------------- whole texts ----------------
+
+# One JSON text (RFC 8259 section 2): a value with optional whitespace.
+pub fn parse_text(t: &text) -> events.Jv ! BadJson
+    var r = jr_new()
+    let _ok = jr_feed(&mut r, t)
+    let _end = jr_end(&mut r)
+    return try jr_value(&r)
+
+# As parse_text, refusing nesting deeper than max_depth levels.
+pub fn parse_depth(t: &text, max_depth: i64) -> events.Jv ! BadJson
+    var r = jr_new_depth(max_depth)
+    let _ok = jr_feed(&mut r, t)
+    let _end = jr_end(&mut r)
+    return try jr_value(&r)
+
+# One JSON text from UTF-8 bytes; ill-formed UTF-8 is an error at its
+# first byte.
+pub fn parse_bytes(b: &[i64]) -> events.Jv ! BadJson
+    var r = jr_new()
+    let _ok = jr_feed_bytes(&mut r, b)
+    let _end = jr_end(&mut r)
+    return try jr_value(&r)
+
+# The first value of a text that may hold several (concatenated JSON,
+# RFC 7464 sequences without their separators): the value and the byte
+# offset just after it.
+pub struct JsonFirst
+    v: events.Jv
+    end: i64
+
+# The value that starts at byte offset `start` (after optional whitespace).
+pub fn parse_first(t: &text, start: i64) -> JsonFirst ! BadJson
+    let nb = t.len_bytes() as i64
+    if start < 0 or start > nb
+        fail BadJson(why: "start offset outside the text", at: start, line: 0, col: 0)
+    let f = start as usize
+    if start < nb and t[f] >= 128 and t[f] < 192
+        fail BadJson(why: "start offset inside a character", at: start, line: 0, col: 0)
+    let p = jn_after(&t[0:f], 0, 1, 0)
+    var r = jn_reader(JSON_MAX_DEPTH, p.at, p.line, p.col)
+    r.stop_first = true
+    let rest = t[f:t.len_bytes()]
+    let cs = rest.chars()
+    let k = jn_run(&mut r, &cs)
+    if r.failed
+        fail jn_fail(&r.err)
+    if r.done
+        let used = "".join(cs[0:k])
+        return JsonFirst(v: copy(r.value), end: start + used.len_bytes() as i64)
+    let q = jn_after(&rest, r.p_at, r.p_line, r.p_col)
+    r.p_at = q.at
+    r.p_line = q.line
+    r.p_col = q.col
+    let _end = jr_end(&mut r)
+    let v = try jr_value(&r)
+    return JsonFirst(v: v, end: nb)
+
+# ---------------- JSON Lines (jsonlines.org) ----------------
+# One JSON text per line, lines ended by "\n" (a "\r" before it is
+# whitespace). A line holding only whitespace is skipped. Every other line
+# gives a value or an error, so one bad line does not stop the rest.
+
+pub kind JlItem
+    JlVal(line: i64, v: events.Jv)
+    JlErr(line: i64, err: JsonErr)
+
+pub struct JsonLines
+    r: JsonReader
+    line: i64
+    line_at: i64
+    line_len: i64
+    ended: bool
+
+pub fn jl_new() -> JsonLines = JsonLines(r: jn_reader(JSON_MAX_DEPTH, 0, 1, 0), line: 1, line_at: 0, line_len: 0, ended: false)
+
+# Whether the reader has read anything but whitespace: any other character
+# starts a token, opens a container, completes a value or fails.
+fn jn_seen(r: &JsonReader) -> bool = r.failed or r.done or r.tok != 0 or r.kinds.len() > 0
+
+fn jl_close(s: &mut JsonLines) -> List[JlItem]
+    var out: List[JlItem] = []
+    let seen = jn_seen(&s.r)
+    let _ok = jr_end(&mut s.r)
+    if seen
+        if s.r.failed
+            out.push(JlErr(line: s.line, err: copy(s.r.err)))
+        else
+            out.push(JlVal(line: s.line, v: copy(s.r.value)))
+    return out
+
+# Feed a chunk; returns the results of the lines it completes.
+pub fn jl_feed(s: &mut JsonLines, chunk: &text) -> List[JlItem]
+    var out: List[JlItem] = []
+    if s.ended
+        return out
+    let parts = chunk.split("\n")
+    for k in 0..parts.len()
+        let _ok = jr_feed(&mut s.r, &parts[k])
+        s.line_len += parts[k].len_bytes() as i64
+        if k + 1 < parts.len()
+            let done_line = jl_close(s)
+            for it in done_line
+                out.push(copy(it))
+            s.line += 1
+            s.line_at = s.line_at + s.line_len + 1
+            s.line_len = 0
+            s.r = jn_reader(JSON_MAX_DEPTH, s.line_at, s.line, 0)
+    return out
+
+# End of the stream: the result of a last line without "\n".
+pub fn jl_finish(s: &mut JsonLines) -> List[JlItem]
+    var out: List[JlItem] = []
+    if s.ended
+        return out
+    s.ended = true
+    let last = jl_close(s)
+    for it in last
+        out.push(copy(it))
+    return out
+
+# Every line of a JSON Lines text.
+pub fn jl_parse(t: &text) -> List[JlItem]
+    var s = jl_new()
+    var out = jl_feed(&mut s, t)
+    let last = jl_finish(&mut s)
+    for it in last
+        out.push(copy(it))
+    return out
+
+# JSON Lines text: each value compact, each followed by "\n".
+pub fn jl_text(vs: &[events.Jv]) -> text
+    var parts: List[text] = []
+    for v in vs
+        parts.push(to_compact(&v))
+        parts.push("\n")
+    return "".join(parts)
+
+# ---------------- writing ----------------
+
+# The JSON string literal of t: '"', '\' and U+0000..U+001F escaped (\b \t
+# \n \f \r, else \u00xx), everything else as it is; the form of RFC 8785,
+# of ECMAScript JSON.stringify and of CPython json.dumps(ensure_ascii=False).
+pub fn str_lit(t: &text) -> text
+    if not jn_needs_esc(t)
+        return "\"" + t + "\""
+    let cs = t.chars()
+    return "\"" + jn_esc(&cs) + "\""
+
+# The control characters U+0000..U+001F, each a text.
+const JN_CTL: List[text] = ["\u{0}", "\u{1}", "\u{2}", "\u{3}", "\u{4}", "\u{5}", "\u{6}", "\u{7}", "\u{8}", "\t", "\n", "\u{b}", "\u{c}", "\r", "\u{e}", "\u{f}", "\u{10}", "\u{11}", "\u{12}", "\u{13}", "\u{14}", "\u{15}", "\u{16}", "\u{17}", "\u{18}", "\u{19}", "\u{1a}", "\u{1b}", "\u{1c}", "\u{1d}", "\u{1e}", "\u{1f}"]
+
+fn jn_needs_esc(t: &text) -> bool
+    if t.contains("\"") or t.contains("\\")
+        return true
+    if t.len_bytes() > 32
+        for c in JN_CTL
+            if t.contains(c)
+                return true
+        return false
+    var i: usize = 0
+    while i < t.len_bytes() bound 33
+        if t[i] < 32
+            return true
+        i += 1
+    return false
+
+fn jn_esc1(c: &text) -> text
+    if c == "\""
+        return "\\\""
+    if c == "\\"
+        return "\\\\"
+    let x = c[0] as i64
+    if x == 8
+        return "\\b"
+    if x == 9
+        return "\\t"
+    if x == 10
+        return "\\n"
+    if x == 12
+        return "\\f"
+    if x == 13
+        return "\\r"
+    let hs = "0123456789abcdef".chars()
+    return "\\u00" + hs[(x >> 4) as usize] + hs[(x & 15) as usize]
+
+# Escaped characters of cs (no quotes).
+fn jn_esc(cs: &[text]) -> text
+    var out: List[text] = []
+    var i: usize = 0
+    let n = cs.len()
+    while i < n bound 2000001
+        var j = i
+        while j < n and jn_plain(&cs[j]) bound 1000001
+            j += 1
+        if j > i
+            out.push("".join(cs[i:j]))
+            i = j
+        else
+            out.push(jn_esc1(&cs[i]))
+            i += 1
+    return "".join(out)
+
+# Strings longer than this are written in pieces of this many characters,
+# so that no piece of output outgrows the text size limit.
+const JN_SEG: usize = 16384
+
+# A writer: the text of one value, handed out in chunks. Frames are open
+# containers (kind 0), a long string value (1) or a long member name (2).
+pub struct JsonWriter
+    st_v: List[events.Jv]
+    st_i: List[i64]
+    st_k: List[i64]
+    st_c: List[List[text]]
+    root: List[events.Jv]
+    depth: usize
+    pretty: bool
+    unit: text
+    carry: text
+    done: bool
+
+fn jn_writer(v: &events.Jv, pretty: bool, unit: text) -> JsonWriter = JsonWriter(st_v: [], st_i: [], st_k: [], st_c: [], root: [copy(v)], depth: 0, pretty: pretty, unit: unit, carry: "", done: false)
+
+# Compact text: no whitespace.
+pub fn jw_compact(v: &events.Jv) -> JsonWriter = jn_writer(v, false, "")
+
+# Indented text as CPython json.dumps(v, indent=n) writes it: one member or
+# element per line, n spaces per level (n <= 0: no indentation), ", "
+# never used, ": " after names, empty arrays and objects as [] and {}.
+pub fn jw_pretty(v: &events.Jv, n: i64) -> JsonWriter
+    var u: List[text] = []
+    for _k in 0..(if n > 0 then n else 0)
+        u.push(" ")
+    return jn_writer(v, true, "".join(u))
+
+# Indented text with `unit` (for example "\t") for each level.
+pub fn jw_unit(v: &events.Jv, unit: &text) -> JsonWriter = jn_writer(v, true, copy(unit))
+
+pub fn jw_done(w: &JsonWriter) -> bool = w.done and w.carry == ""
+
+fn jn_cont_len(v: &events.Jv) -> usize
+    match v
+        events.JsArr(items: xs) -> return xs.len()
+        events.JsObj(keys: ks, vals: _vs) -> return ks.len()
+        _ -> return 0
+
+# The next chunk of the text: at most max characters (at least 1), and ""
+# once everything has been handed out.
+pub fn jw_next(w: &mut JsonWriter, max: i64) -> text
+    let lim: usize = if max < 1 then 1 else max as usize
+    var out: List[text] = []
+    var cnt: usize = 0
+    if w.carry != ""
+        out.push(copy(w.carry))
+        cnt = w.carry.len_chars()
+        w.carry = ""
+    var st_v = copy(w.st_v)
+    var st_i = copy(w.st_i)
+    var st_k = copy(w.st_k)
+    var st_c = copy(w.st_c)
+    var root = copy(w.root)
+    w.st_v = []
+    w.st_i = []
+    w.st_k = []
+    w.st_c = []
+    w.root = []
+    var done = w.done
+    let pretty = w.pretty
+    let unit = copy(w.unit)
+    let sep = if pretty then ": " else ":"
+    # depth: open containers
+    var depth = w.depth
+    # a value to start: kept in `next` (start = true)
+    var start = false
+    var next = events.JsNull
+    if root.len() > 0
+        next = root.pop().or(events.JsNull)
+        start = true
+    while not done and cnt < lim bound 4000000
+        if start
+            start = false
+            var piece = ""
+            var push_c = false
+            var long_s: List[text] = []
+            match next
+                events.JsNull -> piece = "null"
+                events.JsBool(v: b) -> piece = if b then "true" else "false"
+                events.JsNum(raw: x) -> piece = copy(x)
+                events.JsStr(t: s)
+                    if s.len_chars() <= JN_SEG
+                        piece = str_lit(s)
+                    else
+                        long_s = s.chars()
+                        piece = "\""
+                events.JsArr(items: xs)
+                    if xs.len() == 0
+                        piece = "[]"
+                    else
+                        piece = "["
+                        push_c = true
+                events.JsObj(keys: ks, vals: _vs)
+                    if ks.len() == 0
+                        piece = "{}"
+                    else
+                        piece = "{"
+                        push_c = true
+            cnt += piece.len_chars()
+            out.push(piece)
+            if push_c
+                st_v.push(next)
+                st_i.push(0)
+                st_k.push(0)
+                st_c.push([])
+                depth += 1
+            elif long_s.len() > 0
+                st_v.push(events.JsNull)
+                st_i.push(0)
+                st_k.push(1)
+                st_c.push(long_s)
+            next = events.JsNull
+            if st_k.len() == 0
+                done = true
+            continue
+        let top = st_k.len() - 1
+        let knd = st_k[top]
+        let idx = st_i[top]
+        if knd != 0
+            # a long string: the next piece, or its closing quote
+            let m = st_c[top].len()
+            if idx as usize >= m
+                out.push("\"")
+                cnt += 1
+                let _a = st_v.pop()
+                let _b = st_i.pop()
+                let _c = st_k.pop()
+                let _d = st_c.pop()
+                if knd == 2
+                    # the member name is written: its value follows
+                    out.push(copy(sep))
+                    cnt += sep.len_chars()
+                    let pt = st_v.len() - 1
+                    let ci = (st_i[pt] - 1) as usize
+                    match st_v[pt]
+                        events.JsObj(keys: _ks, vals: vs) -> next = copy(vs[ci])
+                        _ -> next = events.JsNull
+                    start = true
+                elif st_k.len() == 0
+                    done = true
+            else
+                let e = if idx as usize + JN_SEG < m then idx as usize + JN_SEG else m
+                let piece = jn_esc(&st_c[top][(idx as usize):e])
+                cnt += piece.len_chars()
+                out.push(piece)
+                st_i[top] = e as i64
+            continue
+        let len = jn_cont_len(&st_v[top])
+        if idx as usize >= len
+            var close = ""
+            match st_v[top]
+                events.JsArr(items: _xs) -> close = "]"
+                _ -> close = "}"
+            let _a = st_v.pop()
+            let _b = st_i.pop()
+            let _c = st_k.pop()
+            let _d = st_c.pop()
+            depth -= 1
+            if pretty
+                var ind: List[text] = ["\n"]
+                for _k in 0..depth
+                    ind.push(copy(unit))
+                let s = "".join(ind)
+                cnt += s.len_chars()
+                out.push(s)
+            out.push(close)
+            cnt += 1
+            if st_k.len() == 0
+                done = true
+            continue
+        if idx > 0
+            out.push(",")
+            cnt += 1
+        if pretty
+            var ind: List[text] = ["\n"]
+            for _k in 0..depth
+                ind.push(copy(unit))
+            let s = "".join(ind)
+            cnt += s.len_chars()
+            out.push(s)
+        st_i[top] = idx + 1
+        var long_k: List[text] = []
+        match st_v[top]
+            events.JsArr(items: xs)
+                next = copy(xs[idx as usize])
+                start = true
+            events.JsObj(keys: ks, vals: vs)
+                let k = copy(ks[idx as usize])
+                if k.len_chars() <= JN_SEG
+                    let s = str_lit(&k) + sep
+                    cnt += s.len_chars()
+                    out.push(s)
+                    next = copy(vs[idx as usize])
+                    start = true
+                else
+                    long_k = k.chars()
+            _ -> pass
+        if long_k.len() > 0
+            out.push("\"")
+            cnt += 1
+            st_v.push(events.JsNull)
+            st_i.push(0)
+            st_k.push(2)
+            st_c.push(long_k)
+    if start
+        root.push(next)
+    w.st_v = st_v
+    w.st_i = st_i
+    w.st_k = st_k
+    w.st_c = st_c
+    w.root = root
+    w.depth = depth
+    w.done = done
+    let all = "".join(out)
+    if cnt <= lim
+        return all
+    let cs = all.chars()
+    w.carry = "".join(cs[lim:cs.len()])
+    return "".join(cs[0:lim])
+
+fn jn_all(w: &mut JsonWriter) -> text
+    var parts: List[text] = []
+    while not jw_done(w) bound 1000000
+        let c = jw_next(w, 1000000)
+        parts.push(c)
+    return "".join(parts)
+
+# Compact JSON text of v. The result is one text, so it holds at most
+# 1,000,000 characters; jw_compact writes longer texts in chunks.
+pub fn to_compact(v: &events.Jv) -> text
+    var w = jw_compact(v)
+    let out = jn_all(&mut w)
+    return out
+
+# Indented JSON text, n spaces per level (jw_pretty).
+pub fn to_pretty(v: &events.Jv, n: i64) -> text
+    var w = jw_pretty(v, n)
+    let out = jn_all(&mut w)
+    return out
+
+# Indented JSON text with `unit` for each level (jw_unit).
+pub fn to_pretty_unit(v: &events.Jv, unit: &text) -> text
+    var w = jw_unit(v, unit)
+    let out = jn_all(&mut w)
+    return out
+
+# ---------------- numbers ----------------
+
+# Whether t is a JSON number lexeme (RFC 8259 section 6).
+pub fn num_ok(t: &text) -> bool
+    var st: i64 = 0
+    for c in t.chars()
+        st = jn_nstep(st, &c)
+        if st < 0
+            return false
+    return jn_nend(st)
+
+# A number as sign, significant digits (no leading or trailing zeros; ""
+# for zero) and a decimal exponent: value = digits * 10^e10.
+struct JnDec
+    neg: bool
+    ds: text
+    e10: i64
+
+fn jn_isd(x: u8) -> bool = x >= 48 and x <= 57
+
+fn jn_dec(raw: &text) -> JnDec
+    let n = raw.len_bytes()
+    var i: usize = 0
+    let neg = n > 0 and raw[0] == 45
+    if neg
+        i = 1
+    let a = i
+    while i < n and jn_isd(raw[i]) bound 1000001
+        i += 1
+    let ip = raw[a:i]
+    var fp = ""
+    if i < n and raw[i] == 46
+        i += 1
+        let b = i
+        while i < n and jn_isd(raw[i]) bound 1000001
+            i += 1
+        fp = raw[b:i]
+    var ex: i64 = 0
+    if i < n and (raw[i] == 101 or raw[i] == 69)
+        i += 1
+        var eneg = false
+        if i < n and (raw[i] == 45 or raw[i] == 43)
+            eneg = raw[i] == 45
+            i += 1
+        while i < n and jn_isd(raw[i]) bound 1000001
+            if ex < 100000000000000
+                ex = ex * 10 + (raw[i] as i64) - 48
+            i += 1
+        if eneg
+            ex = 0 - ex
+    let all = ip + fp
+    let m = all.len_bytes()
+    var lo: usize = 0
+    while lo < m and all[lo] == 48 bound 2000001
+        lo += 1
+    var hi = m
+    while hi > lo and all[hi - 1] == 48 bound 2000001
+        hi -= 1
+    return JnDec(neg: neg, ds: all[lo:hi], e10: ex - fp.len_bytes() as i64 + (m - hi) as i64)
+
+struct JnI
+    why: text
+    v: i64
+
+fn jn_i64(raw: &text) -> JnI
+    if not num_ok(raw)
+        return JnI(why: "not a JSON number: " + raw, v: 0)
+    let d = jn_dec(raw)
+    if d.ds == ""
+        return JnI(why: "", v: 0)
+    if d.e10 < 0
+        return JnI(why: "not an integer: " + raw, v: 0)
+    if d.ds.len_bytes() as i64 + d.e10 > 19
+        return JnI(why: "outside the i64 range: " + raw, v: 0)
+    # accumulated negatively, so that -9223372036854775808 is exact
+    var v: i64 = 0
+    var ok = true
+    var i: usize = 0
+    while i < d.ds.len_bytes() and ok bound 20
+        let m = v.checked_mul(10)
+        match m
+            some(x) -> v = x
+            none -> ok = false
+        let s = v.checked_sub((d.ds[i] as i64) - 48)
+        match s
+            some(x) -> v = x
+            none -> ok = false
+        i += 1
+    var k: i64 = 0
+    while k < d.e10 and ok bound 20
+        let m = v.checked_mul(10)
+        match m
+            some(x) -> v = x
+            none -> ok = false
+        k += 1
+    if not ok or (not d.neg and v == -9223372036854775807 - 1)
+        return JnI(why: "outside the i64 range: " + raw, v: 0)
+    return JnI(why: "", v: if d.neg then v else 0 - v)
+
+# The value of a number lexeme as i64: the number must be an integer
+# (1.0, 1e3 and -0 are) within the i64 range.
+pub fn num_i64(raw: &text) -> i64 ! BadJsonValue
+    let r = jn_i64(raw)
+    if r.why != ""
+        fail BadJsonValue(why: r.why, ptr: "")
+    return r.v
+
+# Exact powers of ten as f64 (10^0 .. 10^22 are representable).
+const JN_P10: List[f64] = [1.0, 10.0, 100.0, 1000.0, 10000.0, 100000.0, 1000000.0, 10000000.0, 100000000.0, 1000000000.0, 10000000000.0, 100000000000.0, 1000000000000.0, 10000000000000.0, 100000000000000.0, 1000000000000000.0, 10000000000000000.0, 100000000000000000.0, 1000000000000000000.0, 10000000000000000000.0, 100000000000000000000.0, 1000000000000000000000.0, 10000000000000000000000.0]
+
+# 2^e for -1074 <= e <= 1023, exact.
+fn jn_pow2(e: i64) -> f64
+    var r = 1.0
+    var b = if e >= 0 then 2.0 else 0.5
+    var k = if e >= 0 then e else 0 - e
+    while k > 0 bound 64
+        if k & 1 == 1
+            r = r * b
+        k = k >> 1
+        if k > 0
+            b = b * b
+    return r
+
+# ---------------- magnitudes ----------------
+# Unsigned big integers as little-endian base 2^24 limbs without high zero
+# limbs: the representation and algorithms of core.exact, kept here under
+# jn_ names so that data.json does not bring core.exact's names (BASE, Dec,
+# mk) into every program that uses it.
+
+const JN_LBITS: i64 = 24
+const JN_LMASK: i64 = 16777215
+
+fn jn_trim(m: List[i64]) -> List[i64]
+    var o = m
+    while o.len() > 0 and o[o.len() - 1] == 0 bound 1048576
+        let _z = o.pop()
+    return o
+
+fn jn_mag_cmp(a: &[i64], b: &[i64]) -> i64
+    if a.len() != b.len()
+        return if a.len() < b.len() then -1 else 1
+    var i = a.len()
+    while i > 0 bound 1048576
+        i -= 1
+        if a[i] != b[i]
+            return if a[i] < b[i] then -1 else 1
+    return 0
+
+fn jn_mag_add(a: &[i64], b: &[i64]) -> List[i64]
+    var o: List[i64] = []
+    var c: i64 = 0
+    var i: usize = 0
+    let n = if a.len() > b.len() then a.len() else b.len()
+    while i < n bound 1048576
+        var t = c
+        if i < a.len()
+            t += a[i]
+        if i < b.len()
+            t += b[i]
+        o.push(t & JN_LMASK)
+        c = t >> JN_LBITS
+        i += 1
+    if c > 0
+        o.push(c)
+    return o
+
+# a - b for a >= b
+fn jn_mag_sub(a: &[i64], b: &[i64]) -> List[i64]
+    var o: List[i64] = []
+    var br: i64 = 0
+    var i: usize = 0
+    while i < a.len() bound 1048576
+        var t = a[i] - br
+        if i < b.len()
+            t -= b[i]
+        if t < 0
+            t += 16777216
+            br = 1
+        else
+            br = 0
+        o.push(t)
+        i += 1
+    return jn_trim(o)
+
+fn jn_mag_mul(a: &[i64], b: &[i64]) -> List[i64]
+    if a.len() == 0 or b.len() == 0
+        return []
+    var o: List[i64] = []
+    for _k in 0..(a.len() + b.len())
+        o.push(0)
+    var i: usize = 0
+    while i < a.len() bound 1048576
+        var c: i64 = 0
+        var j: usize = 0
+        while j < b.len() bound 1048576
+            let t = o[i + j] + a[i] * b[j] + c
+            o[i + j] = t & JN_LMASK
+            c = t >> JN_LBITS
+            j += 1
+        var k = i + b.len()
+        while c > 0 bound 1048576
+            let t = o[k] + c
+            o[k] = t & JN_LMASK
+            c = t >> JN_LBITS
+            k += 1
+        i += 1
+    return jn_trim(o)
+
+fn jn_mag_shl(a: &[i64], n: i64) -> List[i64]
+    if a.len() == 0
+        return []
+    var o: List[i64] = []
+    let w = n / JN_LBITS
+    let b = n % JN_LBITS
+    for _k in 0..(w as usize)
+        o.push(0)
+    var c: i64 = 0
+    for x in a
+        let t = (x << b) | c
+        o.push(t & JN_LMASK)
+        c = t >> JN_LBITS
+    if c > 0
+        o.push(c)
+    return o
+
+fn jn_mag_shr(a: &[i64], n: i64) -> List[i64]
+    let w = (n / JN_LBITS) as usize
+    let b = n % JN_LBITS
+    var o: List[i64] = []
+    var i = w
+    while i < a.len() bound 1048576
+        var t = a[i] >> b
+        if i + 1 < a.len()
+            t = t | ((a[i + 1] << (JN_LBITS - b)) & JN_LMASK)
+        o.push(t)
+        i += 1
+    return jn_trim(o)
+
+fn jn_bitlen(a: &[i64]) -> i64
+    if a.len() == 0
+        return 0
+    var top = a[a.len() - 1]
+    var n = ((a.len() - 1) as i64) * JN_LBITS
+    while top > 0 bound 25
+        top = top >> 1
+        n += 1
+    return n
+
+# 10^n by squaring.
+fn jn_pow10(n: i64) -> List[i64]
+    var r: List[i64] = [1]
+    var b: List[i64] = [10]
+    var k = n
+    while k > 0 bound 64
+        if k & 1 == 1
+            r = jn_mag_mul(&r, &b)
+        k = k >> 1
+        if k > 0
+            b = jn_mag_mul(&b, &b)
+    return r
+
+# Magnitude of a digit text.
+fn jn_mag(ds: &text) -> List[i64]
+    var m: List[i64] = []
+    let n = ds.len_bytes()
+    var i: usize = 0
+    var k = n % 6
+    if k == 0
+        k = 6
+    let p6: List[i64] = [1000000]
+    while i < n bound 200000
+        let v = ds[i:(i + k)].toint()
+        let pk: List[i64] = if k == 6 then copy(p6) else jn_pow10(k as i64)
+        let mm = jn_mag_mul(&m, &pk)
+        let vv = jn_trim([v])
+        m = jn_mag_add(&mm, &vv)
+        i += k
+        k = 6
+    return m
+
+fn jn_mag_int(m: &[i64]) -> i64
+    var v: i64 = 0
+    var k = m.len()
+    while k > 0 bound 4
+        k -= 1
+        v = (v << 24) + m[k]
+    return v
+
+struct JnQ
+    q: i64
+    sticky: bool
+
+# floor(x / y) for a quotient below 2^62, and whether a remainder is left.
+fn jn_divq(x: &[i64], y: &[i64]) -> JnQ
+    let n = jn_bitlen(x) - jn_bitlen(y)
+    if n < 0
+        return JnQ(q: 0, sticky: x.len() > 0)
+    var r = copy(x)
+    var yk = jn_mag_shl(y, n)
+    var q: i64 = 0
+    var k = n
+    while k >= 0 bound 64
+        q = q * 2
+        if jn_mag_cmp(&r, &yk) >= 0
+            r = jn_mag_sub(&r, &yk)
+            q += 1
+        if k > 0
+            yk = jn_mag_shr(&yk, 1)
+        k -= 1
+    return JnQ(q: q, sticky: r.len() > 0)
+
+struct JnF
+    ok: bool
+    x: f64
+
+# The f64 nearest to ds * 10^e10 (ds without leading or trailing zeros,
+# not empty), ties to even; ok false on overflow.
+fn jn_to_f64(ds0: &text, e10_0: i64) -> JnF
+    var ds = copy(ds0)
+    var e10 = e10_0
+    var nd = ds.len_bytes() as i64
+    let dexp = nd + e10
+    if dexp > 310
+        return JnF(ok: false, x: 0.0)
+    if dexp < -326
+        return JnF(ok: true, x: 0.0)
+    if nd <= 15 and e10 >= -22 and e10 <= 22
+        let m = ds.toint() as f64
+        if e10 >= 0
+            return JnF(ok: true, x: m * JN_P10[e10 as usize])
+        return JnF(ok: true, x: m / JN_P10[(0 - e10) as usize])
+    # Beyond 800 significant digits only a sticky digit matters: no
+    # rounding boundary of binary64 has more than 767.
+    if nd > 800
+        ds = ds[0:800] + "1"
+        e10 = e10 + nd - 801
+        nd = 801
+    var x = jn_mag(&ds)
+    var y: List[i64] = [1]
+    if e10 >= 0
+        let p = jn_pow10(e10)
+        x = jn_mag_mul(&x, &p)
+    else
+        y = jn_pow10(0 - e10)
+    let b = jn_bitlen(&x) - jn_bitlen(&y)
+    let s = 54 - b
+    var q: i64 = 0
+    var sticky = false
+    if e10 >= 0 and s <= 0
+        let qm = jn_mag_shr(&x, 0 - s)
+        q = jn_mag_int(&qm)
+        let back = jn_mag_shl(&qm, 0 - s)
+        sticky = jn_mag_cmp(&back, &x) != 0
+    else
+        if s > 0
+            x = jn_mag_shl(&x, s)
+        else
+            y = jn_mag_shl(&y, 0 - s)
+        let d = jn_divq(&x, &y)
+        q = d.q
+        sticky = d.sticky
+    # q has 54 or 55 bits; its last bit has exponent -s
+    var l: i64 = 0
+    var t = q
+    while t > 0 bound 64
+        t = t >> 1
+        l += 1
+    let lsb = 0 - s
+    var drop = l - 53
+    if lsb + drop < -1074
+        drop = -1074 - lsb
+    if drop > 60
+        return JnF(ok: true, x: 0.0)
+    var m = q >> drop
+    let rem = q - (m << drop)
+    let half = 1 << (drop - 1)
+    if rem > half or (rem == half and (sticky or m & 1 == 1))
+        m += 1
+    var fe = lsb + drop
+    if m == 9007199254740992
+        m = 4503599627370496
+        fe += 1
+    if m == 0
+        return JnF(ok: true, x: 0.0)
+    var ml: i64 = 0
+    var u = m
+    while u > 0 bound 64
+        u = u >> 1
+        ml += 1
+    if ml + fe > 1024
+        return JnF(ok: false, x: 0.0)
+    return JnF(ok: true, x: (m as f64) * jn_pow2(fe))
+
+struct JnR
+    why: text
+    x: f64
+
+fn jn_f64(raw: &text) -> JnR
+    if not num_ok(raw)
+        return JnR(why: "not a JSON number: " + raw, x: 0.0)
+    let d = jn_dec(raw)
+    var x = 0.0
+    if d.ds != ""
+        let f = jn_to_f64(&d.ds, d.e10)
+        if not f.ok
+            return JnR(why: "outside the f64 range: " + raw, x: 0.0)
+        x = f.x
+    return JnR(why: "", x: if d.neg then x * -1.0 else x)
+
+# The f64 nearest to the number (correctly rounded, ties to even, as
+# IEEE 754 decimal to binary conversion and CPython float() do); -0 keeps
+# its sign. A magnitude that rounds beyond the largest finite f64 fails.
+pub fn num_f64(raw: &text) -> f64 ! BadJsonValue
+    let r = jn_f64(raw)
+    if r.why != ""
+        fail BadJsonValue(why: r.why, ptr: "")
+    return r.x
+
+# The ECMAScript Number::toString form of x (ECMA-262 7.1.12.1, the form
+# JSON.stringify and RFC 8785 write): shortest round-trip digits, plain
+# notation from 1e-6 to below 1e21, otherwise d.ddde+N or d.ddde-N; -0 is "0".
+pub fn f64_text(x: f64) -> text
+    if x == 0.0
+        return "0"
+    let s = x.tostr()
+    let neg = s.startswith("-")
+    let body = if neg then s[1:s.len_bytes()] else copy(s)
+    let pe = body.split("e")
+    var ex: i64 = 0
+    if pe.len() == 2
+        let es = copy(pe[1])
+        let eneg = es.startswith("-")
+        let digits = if es.startswith("-") or es.startswith("+") then es[1:es.len_bytes()] else copy(es)
+        ex = digits.toint()
+        if eneg
+            ex = 0 - ex
+    let pm = pe[0].split(".")
+    let ip = copy(pm[0])
+    let fp = if pm.len() == 2 then copy(pm[1]) else ""
+    let all = ip + fp
+    var point = ip.len_bytes() as i64 + ex
+    let m = all.len_bytes()
+    var lo: usize = 0
+    while lo < m and all[lo] == 48 bound 400
+        lo += 1
+        point -= 1
+    var hi = m
+    while hi > lo and all[hi - 1] == 48 bound 400
+        hi -= 1
+    let ds = all[lo:hi]
+    let k = ds.len_bytes() as i64
+    let sign = if neg then "-" else ""
+    if k <= point and point <= 21
+        var z: List[text] = [sign, ds]
+        for _i in 0..(point - k)
+            z.push("0")
+        return "".join(z)
+    if 0 < point and point <= 21
+        return sign + ds[0:(point as usize)] + "." + ds[(point as usize):ds.len_bytes()]
+    if -6 < point and point <= 0
+        var z: List[text] = [sign, "0."]
+        for _i in 0..(0 - point)
+            z.push("0")
+        z.push(ds)
+        return "".join(z)
+    let e = point - 1
+    let es = if e >= 0 then "+" + e.tostr() else e.tostr()
+    if k == 1
+        return sign + ds + "e" + es
+    return sign + ds[0:1] + "." + ds[1:ds.len_bytes()] + "e" + es
+
+# The RFC 8785 form of a number lexeme: the ECMAScript text of the nearest
+# f64. Fails when the number is outside the f64 range.
+pub fn num_canon(raw: &text) -> text ! BadJsonValue
+    let x = try num_f64(raw)
+    return f64_text(x)
+
+# ---------------- canonical form (RFC 8785) ----------------
+
+fn jn_order(ks: &[text]) -> List[i64]
+    var ps: List[(List[i64], i64)] = []
+    for i in 0..ks.len()
+        ps.push((enc.utf16_units(&ks[i]), i as i64))
+    ps.sort()
+    var o: List[i64] = []
+    for p in ps
+        o.push(p.1)
+    return o
+
+fn jn_dup_at(ks: &[text], o: &[i64]) -> i64
+    var j: usize = 1
+    while j < o.len() bound 1000001
+        if ks[o[j - 1] as usize] == ks[o[j] as usize]
+            return o[j]
+        j += 1
+    return -1
+
+fn jn_ptr_of(toks: &[text]) -> text
+    var o: List[text] = []
+    for t in toks
+        o.push("/")
+        o.push(sync.ptr_escape(&t))
+    return "".join(o)
+
+# The canonical text of RFC 8785: no whitespace, members sorted by the
+# UTF-16 code units of their names, numbers as num_canon, strings as
+# str_lit. Fails on a duplicate member name and on a number outside the
+# f64 range, naming the location as a JSON Pointer.
+pub fn to_canonical(v: &events.Jv) -> text ! BadJsonValue
+    var out: List[text] = []
+    var st_v: List[events.Jv] = []
+    var st_o: List[List[i64]] = []
+    var st_i: List[usize] = []
+    var toks: List[text] = []
+    var next = copy(v)
+    var start = true
+    var bad = ""
+    while bad == "" bound 4000000
+        if start
+            start = false
+            var push_c = false
+            var order: List[i64] = []
+            match next
+                events.JsNull -> out.push("null")
+                events.JsBool(v: b) -> out.push(if b then "true" else "false")
+                events.JsNum(raw: x)
+                    let c = num_canon(x) catch |_e| ""
+                    if c == ""
+                        bad = "number outside the f64 range: " + x
+                    out.push(c)
+                events.JsStr(t: s) -> out.push(str_lit(s))
+                events.JsArr(items: xs)
+                    if xs.len() == 0
+                        out.push("[]")
+                    else
+                        out.push("[")
+                        push_c = true
+                events.JsObj(keys: ks, vals: _vs)
+                    if ks.len() == 0
+                        out.push("{}")
+                    else
+                        order = jn_order(ks)
+                        let d = jn_dup_at(ks, &order)
+                        if d >= 0
+                            toks.push(copy(ks[d as usize]))
+                            bad = "duplicate member name"
+                        out.push("{")
+                        push_c = true
+            if bad != ""
+                break
+            if push_c
+                st_v.push(next)
+                st_o.push(order)
+                st_i.push(0)
+            else
+                if toks.len() > 0 and toks.len() > st_v.len()
+                    let _t = toks.pop()
+            next = events.JsNull
+            if st_v.len() == 0
+                break
+            continue
+        let top = st_v.len() - 1
+        let idx = st_i[top]
+        let len = jn_cont_len(&st_v[top])
+        if idx >= len
+            match st_v[top]
+                events.JsArr(items: _xs) -> out.push("]")
+                _ -> out.push("}")
+            let _a = st_v.pop()
+            let _b = st_o.pop()
+            let _c = st_i.pop()
+            if toks.len() > st_v.len()
+                let _t = toks.pop()
+            if st_v.len() == 0
+                break
+            continue
+        if idx > 0
+            out.push(",")
+        st_i[top] = idx + 1
+        if toks.len() > top
+            let _t = toks.pop()
+        match st_v[top]
+            events.JsArr(items: xs)
+                toks.push(idx.tostr())
+                next = copy(xs[idx])
+            events.JsObj(keys: ks, vals: vs)
+                let j = st_o[top][idx] as usize
+                toks.push(copy(ks[j]))
+                out.push(str_lit(&ks[j]) + ":")
+                next = copy(vs[j])
+            _ -> pass
+        start = true
+    if bad != ""
+        fail BadJsonValue(why: bad, ptr: jn_ptr_of(&toks))
+    return "".join(out)
+
+# ---------------- JSON Pointer (RFC 6901) ----------------
+
+fn jn_toks(ptr: &text) -> List[text] ! BadJsonValue
+    let r = sync.ptr_parse(ptr) catch |e| ["\u{0}" + e.why]
+    if r.len() == 1 and r[0].startswith("\u{0}")
+        fail BadJsonValue(why: "not a JSON Pointer (it must be empty or start with '/', and '~' must be followed by 0 or 1)", ptr: copy(ptr))
+    return r
+
+# An array index token: "0" or digits without a leading zero; -1 otherwise
+# (also for "-" and for an index too large for any list).
+fn jn_index(t: &text) -> i64
+    let n = t.len_bytes()
+    if n == 0 or n > 9
+        return if n > 9 and t.isdigit() and not t.startswith("0") then 1000000000 else -1
+    if not t.isdigit() or (n > 1 and t.startswith("0"))
+        return -1
+    return t.toint()
+
+fn jn_kind(v: &events.Jv) -> text
+    match v
+        events.JsNull -> return "null"
+        events.JsBool(v: _b) -> return "boolean"
+        events.JsNum(raw: _r) -> return "number"
+        events.JsStr(t: _t) -> return "string"
+        events.JsArr(items: _xs) -> return "array"
+        events.JsObj(keys: _ks, vals: _vs) -> return "object"
+
+# The kind of a value: "null", "boolean", "number", "string", "array" or
+# "object".
+pub fn json_kind(v: &events.Jv) -> text = jn_kind(v)
+
+fn jn_last(ks: &[text], name: &text) -> i64
+    var k = ks.len()
+    while k > 0 bound 1000001
+        k -= 1
+        if ks[k] == name
+            return k as i64
+    return -1
+
+# One step of a pointer: the child named by token t, or the reason it
+# does not exist ("" when it does).
+struct JnStep
+    why: text
+    v: events.Jv
+
+fn jn_step(cur: &events.Jv, t: &text) -> JnStep
+    match cur
+        events.JsObj(keys: ks, vals: vs)
+            let k = jn_last(ks, t)
+            if k < 0
+                return JnStep(why: "no member named \"" + t + "\"", v: events.JsNull)
+            return JnStep(why: "", v: copy(vs[k as usize]))
+        events.JsArr(items: xs)
+            if t == "-"
+                return JnStep(why: "\"-\" names the element after the last one", v: events.JsNull)
+            let i = jn_index(t)
+            if i < 0
+                return JnStep(why: "\"" + t + "\" is not an array index", v: events.JsNull)
+            if i as usize >= xs.len()
+                return JnStep(why: "index " + t + " is beyond the end of an array of " + xs.len().tostr(), v: events.JsNull)
+            return JnStep(why: "", v: copy(xs[i as usize]))
+        _ -> return JnStep(why: "a " + jn_kind(cur) + " has no members", v: events.JsNull)
+
+# The value a JSON Pointer refers to. On failure the error names the
+# pointer prefix that does not exist.
+pub fn at_ptr(doc: &events.Jv, ptr: &text) -> events.Jv ! BadJsonValue
+    let toks = try jn_toks(ptr)
+    var cur = copy(doc)
+    for k in 0..toks.len()
+        let s = jn_step(&cur, &toks[k])
+        if s.why != ""
+            fail BadJsonValue(why: s.why, ptr: jn_ptr_of(&toks[0:(k + 1)]))
+        cur = s.v
+    return cur
+
+# The value at a pointer, or none (also for a malformed pointer).
+pub fn find_ptr(doc: &events.Jv, ptr: &text) -> events.Jv?
+    let toks = jn_toks(ptr) catch |_e| ["\u{0}"]
+    if toks.len() == 1 and toks[0] == "\u{0}"
+        return none
+    var cur = copy(doc)
+    for t in toks
+        let s = jn_step(&cur, &t)
+        if s.why != ""
+            return none
+        cur = s.v
+    return some(cur)
+
+pub fn has_ptr(doc: &events.Jv, ptr: &text) -> bool = find_ptr(doc, ptr).issome()
+
+# The pointer of a list of tokens (each escaped, RFC 6901 section 3).
+pub fn ptr_of(toks: &[text]) -> text = jn_ptr_of(toks)
+
+# The pointer of a URI fragment identifier (RFC 6901 section 6): "#"
+# followed by the pointer with %XX escapes of its UTF-8 bytes.
+pub fn frag_ptr(frag: &text) -> text ! BadJsonValue
+    if not frag.startswith("#")
+        fail BadJsonValue(why: "a fragment identifier starts with '#'", ptr: copy(frag))
+    let cs = frag.chars()
+    var bs: List[i64] = []
+    var i: usize = 1
+    while i < cs.len() bound 1000001
+        if cs[i] == "%"
+            if i + 2 >= cs.len()
+                fail BadJsonValue(why: "truncated percent escape", ptr: copy(frag))
+            let h = jn_hex(&cs[i + 1])
+            let l = jn_hex(&cs[i + 2])
+            if h < 0 or l < 0
+                fail BadJsonValue(why: "bad percent escape", ptr: copy(frag))
+            bs.push(h * 16 + l)
+            i += 3
+        else
+            let c = copy(cs[i])
+            var k: usize = 0
+            while k < c.len_bytes() bound 4
+                bs.push(c[k] as i64)
+                k += 1
+            i += 1
+    if utf8.utf8_first_error(&bs) >= 0
+        fail BadJsonValue(why: "the escapes are not UTF-8", ptr: copy(frag))
+    return bs.utf8()
+
+# The containers along a pointer, outermost first, and the last token.
+struct JnPath
+    why: text
+    at: i64
+    chain: List[events.Jv]
+
+fn jn_chain(doc: &events.Jv, toks: &[text]) -> JnPath
+    var chain: List[events.Jv] = [copy(doc)]
+    var k: usize = 0
+    while k + 1 < toks.len() bound 1000001
+        let s = jn_step(&chain[k], &toks[k])
+        if s.why != ""
+            return JnPath(why: s.why, at: k as i64, chain: [])
+        chain.push(s.v)
+        k += 1
+    return JnPath(why: "", at: -1, chain: chain)
+
+# Put v at index i of container c (or under name t): set an existing
+# location, or add a member / append at "-" or at the length.
+fn jn_put(c: &events.Jv, t: &text, v: events.Jv, add: bool) -> JnStep
+    match c
+        events.JsObj(keys: ks, vals: vs)
+            let k = jn_last(ks, t)
+            var nk = copy(ks)
+            var nv = copy(vs)
+            if k >= 0
+                nv[k as usize] = v
+            elif add
+                nk.push(copy(t))
+                nv.push(v)
+            else
+                return JnStep(why: "no member named \"" + t + "\"", v: events.JsNull)
+            return JnStep(why: "", v: events.JsObj(keys: nk, vals: nv))
+        events.JsArr(items: xs)
+            var i = if t == "-" then xs.len() as i64 else jn_index(t)
+            if i < 0
+                return JnStep(why: "\"" + t + "\" is not an array index", v: events.JsNull)
+            var nx = copy(xs)
+            if (i as usize) < xs.len()
+                nx[i as usize] = v
+            elif add and i as usize == xs.len()
+                nx.push(v)
+            else
+                return JnStep(why: "index " + t + " is beyond the end of an array of " + xs.len().tostr(), v: events.JsNull)
+            return JnStep(why: "", v: events.JsArr(items: nx))
+        _ -> return JnStep(why: "a " + jn_kind(c) + " has no members", v: events.JsNull)
+
+fn jn_rebuild(chain: &[events.Jv], toks: &[text], v: events.Jv, add: bool) -> events.Jv ! BadJsonValue
+    var cur = v
+    var k = chain.len()
+    var first = true
+    while k > 0 bound 1000001
+        k -= 1
+        let s = jn_put(&chain[k], &toks[k], cur, first and add)
+        if s.why != ""
+            fail BadJsonValue(why: s.why, ptr: jn_ptr_of(&toks[0:(k + 1)]))
+        cur = s.v
+        first = false
+    return cur
+
+# doc with v at the pointer: an existing location is replaced (the last
+# member with that name), a missing last member is added, and "-" or the
+# length of an array appends. The root pointer "" gives v.
+pub fn set_ptr(doc: &events.Jv, ptr: &text, v: events.Jv) -> events.Jv ! BadJsonValue
+    let toks = try jn_toks(ptr)
+    if toks.len() == 0
+        return v
+    let p = jn_chain(doc, &toks)
+    if p.why != ""
+        let at = jn_ptr_of(&toks[0:((p.at + 1) as usize)])
+        fail BadJsonValue(why: copy(p.why), ptr: at)
+    return try jn_rebuild(&p.chain, &toks, v, true)
+
+fn jn_remove(c: &events.Jv, t: &text) -> JnStep
+    match c
+        events.JsObj(keys: ks, vals: vs)
+            let k = jn_last(ks, t)
+            if k < 0
+                return JnStep(why: "no member named \"" + t + "\"", v: events.JsNull)
+            var nk: List[text] = []
+            var nv: List[events.Jv] = []
+            for j in 0..ks.len()
+                if j as i64 != k
+                    nk.push(copy(ks[j]))
+                    nv.push(copy(vs[j]))
+            return JnStep(why: "", v: events.JsObj(keys: nk, vals: nv))
+        events.JsArr(items: xs)
+            let i = jn_index(t)
+            if i < 0 or i as usize >= xs.len()
+                return JnStep(why: "no element " + t, v: events.JsNull)
+            var nx: List[events.Jv] = []
+            for j in 0..xs.len()
+                if j as i64 != i
+                    nx.push(copy(xs[j]))
+            return JnStep(why: "", v: events.JsArr(items: nx))
+        _ -> return JnStep(why: "a " + jn_kind(c) + " has no members", v: events.JsNull)
+
+# doc without the location of the pointer (the last member with that name,
+# or the element, the ones after it moving down). The root cannot be
+# removed.
+pub fn del_ptr(doc: &events.Jv, ptr: &text) -> events.Jv ! BadJsonValue
+    let toks = try jn_toks(ptr)
+    if toks.len() == 0
+        fail BadJsonValue(why: "the root cannot be removed", ptr: "")
+    let p = jn_chain(doc, &toks)
+    if p.why != ""
+        let at = jn_ptr_of(&toks[0:((p.at + 1) as usize)])
+        fail BadJsonValue(why: copy(p.why), ptr: at)
+    let last = toks.len() - 1
+    let s = jn_remove(&p.chain[last], &toks[last])
+    if s.why != ""
+        fail BadJsonValue(why: s.why, ptr: copy(ptr))
+    if last == 0
+        return s.v
+    return try jn_rebuild(&p.chain[0:last], &toks, s.v, false)
+
+# ---------------- typed getters ----------------
+
+pub fn is_json_null(v: &events.Jv) -> bool = jn_kind(v) == "null"
+
+pub fn as_bool(v: &events.Jv) -> bool?
+    match v
+        events.JsBool(v: b) -> return some(b)
+        _ -> return none
+
+pub fn as_text(v: &events.Jv) -> text?
+    match v
+        events.JsStr(t: t) -> return some(copy(t))
+        _ -> return none
+
+# The number as i64 when it is an integer in range (num_i64).
+pub fn as_i64(v: &events.Jv) -> i64?
+    match v
+        events.JsNum(raw: r)
+            let x = jn_i64(r)
+            if x.why != ""
+                return none
+            return some(x.v)
+        _ -> return none
+
+# The number as the nearest f64 (num_f64); none outside the f64 range.
+pub fn as_f64(v: &events.Jv) -> f64?
+    match v
+        events.JsNum(raw: r)
+            let x = jn_f64(r)
+            if x.why != ""
+                return none
+            return some(x.x)
+        _ -> return none
+
+# The number lexeme as it was read.
+pub fn as_lexeme(v: &events.Jv) -> text?
+    match v
+        events.JsNum(raw: r) -> return some(copy(r))
+        _ -> return none
+
+pub fn as_items(v: &events.Jv) -> List[events.Jv]?
+    match v
+        events.JsArr(items: xs) -> return some(copy(xs))
+        _ -> return none
+
+# The member names of an object, in order (duplicates included).
+pub fn as_keys(v: &events.Jv) -> List[text]?
+    match v
+        events.JsObj(keys: ks, vals: _vs) -> return some(copy(ks))
+        _ -> return none
+
+# The last member with that name.
+pub fn member_of(v: &events.Jv, name: &text) -> events.Jv?
+    match v
+        events.JsObj(keys: ks, vals: vs)
+            let k = jn_last(ks, name)
+            if k < 0
+                return none
+            return some(copy(vs[k as usize]))
+        _ -> return none
+
+pub fn item_at(v: &events.Jv, i: i64) -> events.Jv?
+    match v
+        events.JsArr(items: xs)
+            if i < 0 or i as usize >= xs.len()
+                return none
+            return some(copy(xs[i as usize]))
+        _ -> return none
+
+# The number of elements or members; -1 for a scalar.
+pub fn len_of(v: &events.Jv) -> i64
+    match v
+        events.JsArr(items: xs) -> return xs.len() as i64
+        events.JsObj(keys: ks, vals: _vs) -> return ks.len() as i64
+        _ -> return -1
+
+fn jn_want(v: &events.Jv, want: text, ptr: &text) -> BadJsonValue = BadJsonValue(why: "expected " + want + ", found " + jn_kind(v), ptr: copy(ptr))
+
+pub fn get_text(doc: &events.Jv, ptr: &text) -> text ! BadJsonValue
+    let v = try at_ptr(doc, ptr)
+    match v
+        events.JsStr(t: t) -> return copy(t)
+        _ -> fail jn_want(&v, "a string", ptr)
+
+pub fn get_bool(doc: &events.Jv, ptr: &text) -> bool ! BadJsonValue
+    let v = try at_ptr(doc, ptr)
+    match v
+        events.JsBool(v: b) -> return b
+        _ -> fail jn_want(&v, "a boolean", ptr)
+
+pub fn get_i64(doc: &events.Jv, ptr: &text) -> i64 ! BadJsonValue
+    let v = try at_ptr(doc, ptr)
+    match v
+        events.JsNum(raw: r)
+            let x = jn_i64(r)
+            if x.why != ""
+                fail BadJsonValue(why: x.why, ptr: copy(ptr))
+            return x.v
+        _ -> fail jn_want(&v, "a number", ptr)
+
+pub fn get_f64(doc: &events.Jv, ptr: &text) -> f64 ! BadJsonValue
+    let v = try at_ptr(doc, ptr)
+    match v
+        events.JsNum(raw: r)
+            let x = jn_f64(r)
+            if x.why != ""
+                fail BadJsonValue(why: x.why, ptr: copy(ptr))
+            return x.x
+        _ -> fail jn_want(&v, "a number", ptr)
+
+pub fn get_items(doc: &events.Jv, ptr: &text) -> List[events.Jv] ! BadJsonValue
+    let v = try at_ptr(doc, ptr)
+    match v
+        events.JsArr(items: xs) -> return copy(xs)
+        _ -> fail jn_want(&v, "an array", ptr)
+
+pub fn get_keys(doc: &events.Jv, ptr: &text) -> List[text] ! BadJsonValue
+    let v = try at_ptr(doc, ptr)
+    match v
+        events.JsObj(keys: ks, vals: _vs) -> return copy(ks)
+        _ -> fail jn_want(&v, "an object", ptr)
+
+# ---------------- builder ----------------
+
+pub fn of_null() -> events.Jv = events.JsNull
+
+pub fn of_bool(b: bool) -> events.Jv = events.JsBool(v: b)
+
+pub fn of_text(t: &text) -> events.Jv = events.JsStr(t: copy(t))
+
+pub fn of_i64(n: i64) -> events.Jv = events.JsNum(raw: n.tostr())
+
+# An f64 as its ECMAScript shortest text (f64_text).
+pub fn of_f64(x: f64) -> events.Jv = events.JsNum(raw: f64_text(x))
+
+# A number from its lexeme, which must be a JSON number.
+pub fn of_num(raw: &text) -> events.Jv ! BadJsonValue
+    if not num_ok(raw)
+        fail BadJsonValue(why: "not a JSON number: " + raw, ptr: "")
+    return events.JsNum(raw: copy(raw))
+
+pub fn of_items(xs: List[events.Jv]) -> events.Jv = events.JsArr(items: xs)
+
+# An object from its member names and values, in order.
+pub fn of_members(keys: List[text], vals: List[events.Jv]) -> events.Jv ! BadJsonValue
+    if keys.len() != vals.len()
+        fail BadJsonValue(why: "member names and values differ in number", ptr: "")
+    return events.JsObj(keys: keys, vals: vals)
+
+# o with member k set to v (the last member with that name replaced, or
+# a member added at the end). Each call copies the members, so a large
+# object is better built with of_members.
+pub fn obj_with(o: &events.Jv, k: &text, v: events.Jv) -> events.Jv ! BadJsonValue
+    if jn_kind(o) != "object"
+        fail BadJsonValue(why: "expected an object, found " + jn_kind(o), ptr: "")
+    let s = jn_put(o, k, v, true)
+    return s.v
+
+# a with v appended.
+pub fn arr_with(a: &events.Jv, v: events.Jv) -> events.Jv ! BadJsonValue
+    if jn_kind(a) != "array"
+        fail BadJsonValue(why: "expected an array, found " + jn_kind(a), ptr: "")
+    let dash = "-"
+    let s = jn_put(a, &dash, v, true)
+    return s.v

@@ -16,7 +16,7 @@ import glob, os, re, shutil, subprocess, sys, tempfile
 from concurrent.futures import ThreadPoolExecutor
 RCE = os.environ.get('RCE', 'rce')
 root = os.path.join(os.path.dirname(os.path.abspath(__file__)), '../..')
-MODS = ('events', 'feed', 'cdc', 'sync')
+MODS = ('events', 'feed', 'cdc', 'sync', 'json')
 SRC = {n: open(os.path.join(root, 'lib/data/%s.rce' % n)).read() for n in MODS}
 sys.path.insert(0, os.path.join(root, 'scripts'))
 import uses
@@ -175,6 +175,49 @@ M = [('events',) + m for m in [
     ('        if not rows_has(&b, &r)\n            dels.push(copy(r))', '        if true\n            dels.push(copy(r))'),
     ('        elif c.action == "U"\n            nx.push(copy(c.new))', '        elif c.action == "U"\n            nx.push(copy(c.old))'),
     ('        let key = if c.action == "I" then row_id(&c.new) else row_id(&c.old)', '        let key = row_id(&c.new)'),
+]] + [('json',) + m for m in [
+    ('    if x >= 97 and x <= 102\n        return x - 87\n    if x >= 65', '    if x >= 97 and x <= 102\n        return x - 86\n    if x >= 65'),
+    ('    if c == "n"\n        return "\\n"', '    if c == "n"\n        return "n"'),
+    ('(s_u - 56320)', 's_u'),
+    ('(cs[j].len_bytes() > 1 or cs[j][0] >= 32)', '(cs[j].len_bytes() > 1 or cs[j][0] >= 31)'),
+    ('n_st = if c == "-" then 1 else (if c == "0" then 2 else 3)', 'n_st = if c == "-" then 1 else (if c == "0" then 3 else 3)'),
+    ('fn jn_nend(st: i64) -> bool = st == 2 or st == 3 or st == 5 or st == 8', 'fn jn_nend(st: i64) -> bool = st == 2 or st == 3 or st == 4 or st == 5 or st == 8'),
+    ('if kinds.len() as i64 >= max_depth', 'if kinds.len() as i64 > max_depth'),
+    ('                got = events.JsNull\n                mode = JN_END', '                got = events.JsNull\n                mode = JN_VAL'),
+    ('elif s_hi < 0 and k == 1 and s_u == 13 and h >= 12', 'elif s_hi < 0 and k == 1 and s_u == 13 and h >= 13'),
+    ('elif s_hi >= 0 and ((k == 0 and h != 13) or (k == 1 and h < 12))', 'elif s_hi >= 0 and (k == 0 and h != 13)'),
+    ('    return JnPos(at: at + b, line: line, col: col + pre.len_chars() as i64)', '    return JnPos(at: at + b, line: line, col: col + pre.len_bytes() as i64)'),
+    ('fn jn_err_at(why: text, p: &JnPos) -> JsonErr = JsonErr(why: why, at: p.at, line: p.line, col: p.col + 1)', 'fn jn_err_at(why: text, p: &JnPos) -> JsonErr = JsonErr(why: why, at: p.at, line: p.line, col: p.col)'),
+    ('    return "\\\\u00" + hs[(x >> 4) as usize]', '    return "\\\\u00" + hs[(x >> 3) as usize]'),
+    ('        if t[i] < 32\n            return true', '        if t[i] < 31\n            return true'),
+    ('    let sep = if pretty then ": " else ":"', '    let sep = if pretty then ":" else ":"'),
+    ('        if idx > 0\n            out.push(",")\n            cnt += 1', '        if idx > 1\n            out.push(",")\n            cnt += 1'),
+    ('    ps.sort()', '    ps.reverse()'),
+    ('        if ks[o[j - 1] as usize] == ks[o[j] as usize]', '        if false'),
+    ('    if rem > half or (rem == half and (sticky or m & 1 == 1))', '    if rem > half or (rem == half and m & 1 == 1)'),
+    ('    if lsb + drop < -1074', '    if lsb + drop < -1075'),
+    ('    if ml + fe > 1024', '    if ml + fe > 1025'),
+    ('    if nd <= 15 and e10 >= -22 and e10 <= 22', '    if nd <= 17 and e10 >= -22 and e10 <= 22'),
+    ('        ds = ds[0:800] + "1"', '        ds = ds[0:800] + "0"'),
+    ('    if not ok or (not d.neg and v == -9223372036854775807 - 1)', '    if not ok'),
+    ('    if d.e10 < 0\n        return JnI(why: "not an integer: "', '    if d.e10 < -1\n        return JnI(why: "not an integer: "'),
+    ('    if k <= point and point <= 21', '    if k <= point and point <= 20'),
+    ('    if -6 < point and point <= 0', '    if -7 < point and point <= 0'),
+    ('    if not t.isdigit() or (n > 1 and t.startswith("0"))', '    if not t.isdigit()'),
+    ('    while k > 0 bound 1000001\n        k -= 1\n        if ks[k] == name\n            return k as i64', '    while k > 0 bound 1000001\n        k -= 1\n        if ks[ks.len() - 1 - k] == name\n            return (ks.len() - 1 - k) as i64'),
+    ('    if r.tok == 1 and not r.s_key', '    if r.tok == 1'),
+    ('r.failed or r.done or r.tok != 0 or r.kinds.len() > 0', 'r.failed or r.tok != 0 or r.kinds.len() > 0'),
+    ('            s.line_at = s.line_at + s.line_len + 1', '            s.line_at = s.line_at + s.line_len'),
+    ('            keep = jn_lead(all[i]) and i + ((0 - s) as usize) >= n', '            keep = false'),
+    ('end: start + used.len_bytes() as i64', 'end: start + used.len_chars() as i64'),
+    ('    let out = copy(r.up_vals[1])\n    r.up_vals[1] = []', '    let out = copy(r.vals)\n    r.vals = []'),
+    ('            bs.push(h * 16 + l)', '            bs.push(h * 15 + l)'),
+    ('        if eneg\n            ex = 0 - ex\n    let all = ip + fp', '        if eneg\n            ex = ex\n    let all = ip + fp'),
+    ('                let e = if idx as usize + JN_SEG < m then idx as usize + JN_SEG else m', '                let e = if idx as usize + JN_SEG < m then idx as usize + JN_SEG else m - 1'),
+    ('            elif add and i as usize == xs.len()', '            elif false'),
+    ('                if j as i64 != i\n                    nx.push(copy(xs[j]))', '                if j as i64 != i + 1\n                    nx.push(copy(xs[j]))'),
+    ('                    out.push(copy(sep))\n                    cnt += sep.len_chars()', '                    cnt += sep.len_chars()'),
+    ('        if s_esc == 0 and s_hi < 0\n                    var j = i', '        if s_esc == 0\n                    var j = i'),
 ]]
 def one(ab):
     i, (name, a, b) = ab
