@@ -514,6 +514,10 @@ impl EffectResult {
 pub trait Adapter {
     fn kind(&self) -> &'static str;
     fn perform(&mut self, request: &Value) -> EffectResult;
+    /// HC-22: the host restarted at entry `floor` (the seq of its
+    /// `host.Restarted`). An adapter that issues resource ids issues them
+    /// from `floor` upward, so no id issued before is reused within D.
+    fn restart(&mut self, _floor: u64) {}
 }
 
 /// The result event's required shape; `Err` names what does not fit.
@@ -604,6 +608,8 @@ pub struct Host<'a> {
     owe: Option<Owe>,
     /// HC-21: the refusals replay re-derived: (seq, cause, text).
     refusals: Vec<(u64, &'static str, String)>,
+    /// HC-22: the n of the last `Tick(n)` in D, so the host loop continues it.
+    last_tick: u64,
 }
 
 /// W-HOST-4: a host-delivered event the module declares must have exactly
@@ -906,10 +912,11 @@ impl<'a> Host<'a> {
             }
         }
         host_event_fits(m, "Refused", &[("seq", "u64"), ("cause", "text")])?;
+        host_event_fits(m, "Restarted", &[("below", "u64")])?;
         let mut it = Interp::new(m);
         let state = it.initial_state().map_err(why)?;
         let state_hash = d_sha(&state_pos_json(&state, m));
-        Ok(Host { m, it, state, state_hash, prev: D_GENESIS.into(), seq: 0, store, stopped: false, pending: 0, durable: None, from_snapshot: None, adapters, bound, queue: Default::default(), admitted: Default::default(), window: 0, closed_tick: 0, offered: vec![], term: 0, task: None, fabrics: vec![], calib: Default::default(), exacts: Default::default(), owe: None, refusals: vec![] })
+        Ok(Host { m, it, state, state_hash, prev: D_GENESIS.into(), seq: 0, store, stopped: false, pending: 0, durable: None, from_snapshot: None, adapters, bound, queue: Default::default(), admitted: Default::default(), window: 0, closed_tick: 0, offered: vec![], term: 0, task: None, fabrics: vec![], calib: Default::default(), exacts: Default::default(), owe: None, refusals: vec![], last_tick: 0 })
     }
 
     fn start_entries(&mut self) -> Result<(), String> {
@@ -924,6 +931,9 @@ impl<'a> Host<'a> {
         }
         if declares_event(self.m, "Refused") {
             self.append(host_event("Bind", "{\"event\":\"Refused\",\"kind\":\"host.Refused\"}"))?;
+        }
+        if declares_event(self.m, "Restarted") {
+            self.append(host_event("Bind", "{\"event\":\"Restarted\",\"kind\":\"host.Restarted\"}"))?;
         }
         for k in self.bound.clone() {
             self.append(host_event("Bind", &format!("{{\"event\":\"{k}Done\",\"kind\":\"host.{k}\"}}")))?;
@@ -976,12 +986,47 @@ impl<'a> Host<'a> {
         }
         h.append(host_event("StorageCaps", &format!("{{\"barrier\":\"{caps}\"}}")))?;
         h.append(host_event("FabricCaps", &fabric_caps()))?;
-        while let Some((k, req, _)) = h.queue.pop_front() {
-            h.answer(&k, req, EffectResult::failed("interrupted"))?;
-        }
+        h.restarted()?;
         h.drain()?;
         h.confirm()?;
         Ok(h)
+    }
+
+    /// HC-22: the adapter resources of the process that wrote D are gone.
+    /// Append `host.Restarted` {below}, below being that entry's own seq;
+    /// let every adapter issue ids from below upward; admit the bound
+    /// `Restarted(below)` when declared; then give every request that was
+    /// outstanding in D one result, `failed` with `interrupted` (HC-3). The
+    /// requests the `Restarted` step makes are not among them.
+    fn restarted(&mut self) -> Result<(), String> {
+        let lost = std::mem::take(&mut self.queue);
+        let below = self.seq;
+        self.append(host_event("Restarted", &format!("{{\"below\":{below}}}")))?;
+        for a in self.adapters.iter_mut() {
+            a.restart(below);
+        }
+        if declares_event(self.m, "Restarted") {
+            self.apply_named("Restarted", vec![Arg { label: Some("below".into()), e: Expr::Int(below as i128, 0) }])?;
+        }
+        for (k, req, _) in lost {
+            self.answer(&k, req, EffectResult::failed("interrupted"))?;
+        }
+        Ok(())
+    }
+
+    /// The n of the last `Tick(n)` in D (0 when none), so a host loop
+    /// started on an existing D continues the count (HC-22).
+    pub fn last_tick(&self) -> u64 {
+        self.last_tick
+    }
+
+    fn note_tick(&mut self, name: &str, ev: &V) {
+        if name == "Tick"
+            && let V::Rec(_, fs) = ev
+            && let Some((_, V::Int(n, _))) = fs.iter().find(|(f, _)| f == "n")
+        {
+            self.last_tick = (*n).max(0) as u64;
+        }
     }
 
     /// A snapshot of the state after the last entry (HS-5). Taken only
@@ -1044,6 +1089,17 @@ impl<'a> Host<'a> {
                 announced = None;
                 self.fold_admission(e, &mut announced);
                 self.fold_sched(e).map_err(|x| format!("host fault: seq {}: {x}", e.seq))?;
+                if e.kind() == "host.Restarted" {
+                    // HC-22: below is the entry's own seq, and the bound
+                    // Restarted with the same payload follows when declared
+                    let below = serde_json::from_str::<Value>(&e.event).ok().and_then(|v| v["payload"]["below"].as_u64());
+                    if below != Some(e.seq) {
+                        return Err(format!("host fault: seq {}: host.Restarted must have below {}", e.seq, e.seq));
+                    }
+                    if declares_event(self.m, "Restarted") {
+                        self.owe = Some(Owe::BoundRestarted { below: e.seq });
+                    }
+                }
                 self.rehash();
             } else if let Some((src, q)) = announced.take() {
                 self.admitted.insert(src, q);
@@ -1065,6 +1121,7 @@ impl<'a> Host<'a> {
                     let req = serde_json::from_str::<Value>(&e.event).ok().and_then(|v| v["payload"]["req"].as_u64());
                     self.queue.retain(|(qk, qr, _)| !(qk == k && Some(*qr) == req));
                 }
+                self.note_tick(&name, &ev);
                 match self.it.delta_r(&self.state, &ev) {
                     Ok((s2, outs)) => {
                         self.state = s2;
@@ -1212,6 +1269,7 @@ impl<'a> Host<'a> {
                 return Err(x);
             }
         };
+        self.note_tick(name, &ev);
         let (mut display, mut exit) = (vec![], false);
         if let Ok(outs) = &outcome {
             self.enqueue(outs);
@@ -1941,9 +1999,8 @@ impl<'a> Host<'a> {
         self.offered.clear();
         let l = serde_json::to_string(leader).unwrap();
         self.append(host_event("Term", &format!("{{\"leader\":{l},\"term\":{term}}}")))?;
-        while let Some((k, req, _)) = self.queue.pop_front() {
-            self.answer(&k, req, EffectResult::failed("interrupted"))?;
-        }
+        // HC-22: the new admitter's adapters are fresh
+        self.restarted()?;
         self.drain()?;
         self.confirm()
     }

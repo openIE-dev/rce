@@ -1435,7 +1435,8 @@ fn serve_loop(h: &mut crate::host::Host, src: &str, out: &mut dyn Write) -> Resu
     });
     let tick = h.event_fields("Tick");
     let input = h.event_fields("Input").filter(|f| f.len() == 1 && f[0] == "data");
-    let mut n: u64 = 0;
+    // HC-22: on an existing D the count continues from the last Tick(n)
+    let mut n: u64 = h.last_tick();
     let frame = std::time::Duration::from_millis(FRAME_MS);
     let mut next_tick = std::time::Instant::now() + frame;
     loop {

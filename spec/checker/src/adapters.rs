@@ -236,6 +236,11 @@ pub mod pty {
         fn kind(&self) -> &'static str {
             self.kind
         }
+        /// HC-22: session ids continue from `floor`.
+        fn restart(&mut self, floor: u64) {
+            let mut p = self.ptys.borrow_mut();
+            p.next = p.next.max(floor.saturating_sub(1));
+        }
         fn perform(&mut self, r: &Value) -> EffectResult {
             let mut p = self.ptys.borrow_mut();
             let id = r["id"].as_u64().unwrap_or(0);
@@ -583,6 +588,11 @@ pub mod net {
     impl Adapter for NetAdapter {
         fn kind(&self) -> &'static str {
             self.kind
+        }
+        /// HC-22: ids continue from `floor`, so no id issued before a restart is reused.
+        fn restart(&mut self, floor: u64) {
+            let mut n = self.nets.borrow_mut();
+            n.next = n.next.max(floor.saturating_sub(1));
         }
         fn perform(&mut self, r: &Value) -> EffectResult {
             let mut n = self.nets.borrow_mut();
@@ -1164,6 +1174,11 @@ pub mod media {
     impl Adapter for MediaAdapter {
         fn kind(&self) -> &'static str {
             self.kind
+        }
+        /// HC-22: track ids continue from `floor`.
+        fn restart(&mut self, floor: u64) {
+            let mut m = self.m.borrow_mut();
+            m.next = m.next.max(floor.saturating_sub(1));
         }
         fn perform(&mut self, r: &Value) -> EffectResult {
             let mut m = self.m.borrow_mut();
