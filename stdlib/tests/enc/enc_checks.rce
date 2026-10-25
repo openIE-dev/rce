@@ -30,11 +30,11 @@ fn rejects(h: text) -> bool
     return d == CSimple(v: 99)
 
 fn b64(s: text) -> text
-    let b = bytes_of(&s)
+    let b = enc_bytes_of(&s)
     return b64_encode(&b, false, true)
 
 fn b64_rt(s: text, e: text) -> bool
-    let b = bytes_of(&s)
+    let b = enc_bytes_of(&s)
     let d = b64_decode(&e, false, true) catch [999]
     return b64_encode(&b, false, true) == e and d == b
 
