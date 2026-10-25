@@ -1451,11 +1451,15 @@ pub fn concept_record(m: &Module) -> String {
     format!("{{\"intent\":[{}],\"items\":[{}]}}", intents.join(","), rows.join(","))
 }
 
-/// `rce unform FORM.json`: the canonical source of a Form's `terms`.
+/// `rce unform FORM.json`: the canonical source of a Form's `terms`. The
+/// terms are the linked program (4.1): the items of every module it uses
+/// are already among them, under their own names, so the source leaves out
+/// the `use` lines, which would import those items a second time (W-MOD-3).
 pub fn unform(json: &str) -> Result<String, String> {
     let v: Value = serde_json::from_str(json).map_err(|e| format!("form json: {e}"))?;
     let t = v.get("terms").ok_or("the Form has no `terms` (emit it with `rce emit form`)")?;
-    let m: Module = serde_json::from_value(t.clone()).map_err(|e| format!("terms: {e}"))?;
+    let mut m: Module = serde_json::from_value(t.clone()).map_err(|e| format!("terms: {e}"))?;
+    m.items.retain(|i| !matches!(i, Item::Use(..)));
     let m = crate::v09::restore_world(m)?;
     Ok(crate::unparse::unparse(&m))
 }
