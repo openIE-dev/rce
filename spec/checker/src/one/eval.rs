@@ -398,7 +398,7 @@ impl<'a> Eval<'a> {
             "mem.set" => {
                 let k = v.first().ok_or_else(|| bad("mem.set: missing operand"))?.int()?;
                 let x = v.get(1).ok_or_else(|| bad("mem.set: missing operand"))?.int()?;
-                if k < 0 || k > 1 << 32 {
+                if !(0..=1 << 32).contains(&k) {
                     return Err(bad("mem.set applied outside its domain"));
                 }
                 if self.mem.len() <= k as usize {

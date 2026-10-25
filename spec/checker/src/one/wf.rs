@@ -248,7 +248,7 @@ pub fn signature(p: &str, ts: &[Ty], ops: &[Ty], args: &[Atom]) -> R<Vec<Ty>> {
                     if !standard(lo, hi) {
                         return Err(format!("{p} needs a type of the form [0, 2^k - 1] or [-2^(k-1), 2^(k-1) - 1]"));
                     }
-                    same(&[t.clone()])?;
+                    same(std::slice::from_ref(&t))?;
                     Ok(vec![t])
                 }
                 "shr" => {
@@ -267,7 +267,7 @@ pub fn signature(p: &str, ts: &[Ty], ops: &[Ty], args: &[Atom]) -> R<Vec<Ty>> {
             match &p[4..] {
                 "add" | "sub" | "mul" | "div" | "min" | "max" => { targs(0)?; same(&[f.clone(), f.clone()])?; Ok(vec![f]) }
                 "bad.add" | "bad.sub" | "bad.mul" | "bad.div" | "eq" | "lt" | "le" => { targs(0)?; same(&[f.clone(), f])?; b() }
-                "sqrt" | "neg" | "abs" | "floor" | "ceil" | "round" => { targs(0)?; same(&[f.clone()])?; Ok(vec![f]) }
+                "sqrt" | "neg" | "abs" | "floor" | "ceil" | "round" => { targs(0)?; same(std::slice::from_ref(&f))?; Ok(vec![f]) }
                 "bad.sqrt" | "bad.to_f32" => { targs(0)?; same(&[f])?; b() }
                 "to_f32" => { targs(0)?; same(&[f])?; Ok(vec![Ty::F32]) }
                 "of_int" => { let (_, _, t) = iota()?; same(&[t])?; Ok(vec![Ty::F64]) }
@@ -320,7 +320,7 @@ pub fn signature(p: &str, ts: &[Ty], ops: &[Ty], args: &[Atom]) -> R<Vec<Ty>> {
                 "get" => { arity(2)?; within(0, &c)?; idx_ok(1)?; Ok(vec![e]) }
                 "set" => { arity(3)?; within(0, &c)?; idx_ok(1)?; within(2, &e)?; Ok(vec![c]) }
                 "push" => { same(&[c.clone(), e])?; Ok(vec![c]) }
-                "pop" => { same(&[c.clone()])?; Ok(vec![c, e]) }
+                "pop" => { same(std::slice::from_ref(&c))?; Ok(vec![c, e]) }
                 _ => Err(format!("unknown primitive {p}")),
             }
         }

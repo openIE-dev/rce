@@ -290,6 +290,9 @@ impl Typed {
     }
 }
 
+/// Named fields with their declared types.
+pub type Fields = Vec<(String, Ty)>;
+
 /// The declarations of a module, as the interpreter resolves them.
 pub struct Tables<'a> {
     pub fns: HashMap<String, &'a FnDecl>,
@@ -297,8 +300,8 @@ pub struct Tables<'a> {
     /// struct, state, event, error, actor and alias items by name
     pub types: HashMap<String, &'a Item>,
     /// variant name -> (kind name, index, fields)
-    pub variants: HashMap<String, (String, usize, Vec<(String, Ty)>)>,
-    pub kinds: HashMap<String, Vec<(String, Vec<(String, Ty)>)>>,
+    pub variants: HashMap<String, (String, usize, Fields)>,
+    pub kinds: HashMap<String, Vec<(String, Fields)>>,
     pub consts: HashMap<String, (Option<Ty>, &'a Expr)>,
     /// the declared events, in declaration order
     pub events: Vec<String>,
@@ -586,7 +589,7 @@ impl<'a, 'm> Cx<'a, 'm> {
         };
         self.consts.insert(n.to_string(), None);
         let saved_scopes = std::mem::replace(&mut self.scopes, vec![HashMap::new()]);
-        let saved_env = std::mem::replace(&mut self.env, Some(HashMap::new()));
+        let saved_env = self.env.replace(HashMap::new());
         let saved_loops = std::mem::take(&mut self.loops);
         let v = self.expr(e);
         self.scopes = saved_scopes;
@@ -883,7 +886,7 @@ impl<'a, 'm> Cx<'a, 'm> {
                         for a in args {
                             self.expr(&a.e);
                         }
-                        return (RType::Unknown(format!("{n}")), None, Some(Callee::Unknown(n.clone())));
+                        return (RType::Unknown(n.clone()), None, Some(Callee::Unknown(n.clone())));
                     }
                     _ => {}
                 }

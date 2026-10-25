@@ -261,7 +261,7 @@ pub fn ty_from(v: &J) -> R<Ty> {
 }
 
 fn unhex(s: &str) -> R<Vec<u8>> {
-    if s.len() % 2 != 0 || !s.bytes().all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f')) {
+    if !s.len().is_multiple_of(2) || !s.bytes().all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f')) {
         return Err(format!("`{s}` is not lower-case hex"));
     }
     Ok((0..s.len()).step_by(2).map(|i| u8::from_str_radix(&s[i..i + 2], 16).unwrap()).collect())
@@ -400,7 +400,7 @@ pub fn module_from_text(s: &str) -> R<Module> {
 
 pub fn module_from(v: &J) -> R<Module> {
     let o = obj(v, "module", &["format", "globals", "defs", "entry", "names"])?;
-    if o["format"] != J::from(FORMAT) {
+    if o["format"] != FORMAT {
         return Err(format!("format is {}, not {FORMAT}", o["format"]));
     }
     let mut globals = vec![];
