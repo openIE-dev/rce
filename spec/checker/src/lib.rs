@@ -48,6 +48,7 @@ pub mod stdlib;
 pub mod tls;
 #[cfg(feature = "tree-sitter")]
 pub mod ts;
+pub mod typed;
 pub mod types;
 pub mod unparse;
 pub mod v09;
