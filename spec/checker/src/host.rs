@@ -503,6 +503,30 @@ fn declares_struct(m: &Module, name: &str) -> bool {
     m.items.iter().any(|i| matches!(i, Item::Struct { name: n, .. } if n == name))
 }
 
+/// The declared payload of `event name`, if the module declares it.
+fn event_payload<'m>(m: &'m Module, name: &str) -> Option<&'m [(String, Ty)]> {
+    m.items.iter().find_map(|i| match i {
+        Item::Event { name: n, payload, .. } if n == name => Some(payload.as_slice()),
+        _ => None,
+    })
+}
+
+/// `List[i64]`, the byte type of `core.bytes` (HC-10a).
+pub(crate) fn is_bytes(t: &Ty) -> bool {
+    matches!(t, Ty::Path(p, a) if p.len() == 1 && p[0] == "List" && a.len() == 1 && matches!(&a[0], Ty::Path(q, b) if q.len() == 1 && q[0] == "i64" && b.is_empty()))
+}
+
+/// W-HOST-3 (HC-10a): a result that carries bytes received from outside
+/// is declared `List[i64]`, because no `text` holds every byte sequence.
+fn bytes_result_fits(m: &Module, kind: &str) -> Result<(), String> {
+    let ev = format!("{kind}Done");
+    let data = event_payload(m, &ev).and_then(|p| p.iter().find(|(k, _)| k == "data")).map(|(_, t)| t);
+    match data {
+        Some(Ty::Opt(t)) if is_bytes(t) => Ok(()),
+        _ => Err(format!("W-HOST-3 {ev} delivers the bytes received: declare data: List[i64]? and decode text in the program (text.utf8)")),
+    }
+}
+
 /// The admitter and the program state it folds (one per program instance, HC-1).
 pub struct Host<'a> {
     m: &'a Module,
@@ -825,6 +849,9 @@ impl<'a> Host<'a> {
         for a in &adapters {
             if declares_struct(m, a.kind()) {
                 result_event_fits(m, a.kind())?;
+                if a.kind() == "NetRecv" {
+                    bytes_result_fits(m, a.kind())?;
+                }
                 bound.push(a.kind());
             }
         }

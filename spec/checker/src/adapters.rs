@@ -372,27 +372,67 @@ impl Adapter for BlobAdapter {
     }
 }
 
-/// W1i network adapter (TCP), the transport under P4 remote channels.
-/// Authority (HC-5): only the `host:port` addresses granted with `--net`.
-/// `NetConnect(req, addr)` -> u64 id; `NetListen(req, addr)` -> u64 id
-/// (the address must be granted); `NetAccept(req, id)` -> u64 id of a new
+/// The bytes a request gives as `text` (its UTF-8 encoding) or as a
+/// `List[i64]` of 0..255 (HC-10a); anything else fails the request.
+pub fn request_bytes(v: &Value) -> Result<Vec<u8>, String> {
+    match v {
+        Value::Null => Ok(vec![]),
+        Value::String(s) => Ok(s.as_bytes().to_vec()),
+        Value::Array(xs) => xs.iter().map(|x| x.as_u64().filter(|b| *b <= 255).map(|b| b as u8).ok_or_else(|| "byte outside 0..255".to_string())).collect(),
+        _ => Err("data is neither text nor bytes".into()),
+    }
+}
+
+/// W1i network adapter (TCP), the transport under P4 remote channels; its
+/// contract is HC-23 of Appendix E. Authority (HC-5): only the `host:port`
+/// addresses granted with `--net`, by their exact text.
+/// `NetConnect(req, addr)` -> u64 id (waits at most NET_CONNECT_MS);
+/// `NetListen(req, addr)` -> u64 id; `NetAccept(req, id)` -> u64 id of a new
 /// connection, or failed `none` when nothing is waiting; `NetSend(req, id,
-/// data)` -> u64 bytes; `NetRecv(req, id, max)` -> text received now (may be
-/// empty), failed `eof` when closed; `NetClose(req, id)` -> u64 0. Every
-/// byte received is an input logged in D (HC-10).
+/// data: text or List[i64])` -> u64 bytes handed to the connection, which
+/// writes them on its own thread under NET_WRITE_MS, so a send never waits
+/// for the peer; `NetRecv(req, id, max)` -> List[i64], the bytes received
+/// now (possibly none), failed `eof` when the peer closed and nothing is
+/// left; `NetClose(req, id)` -> u64 0, closing once the bytes handed over
+/// are written. Every byte received is an input logged in D exactly as it
+/// arrived (HC-10, HC-10a). Ids are never reused within D (HC-22).
 pub mod net {
     use crate::host::{Adapter, EffectResult};
     use serde_json::{Value, json};
-    use std::collections::BTreeMap;
+    use std::collections::{BTreeMap, VecDeque};
     use std::io::{ErrorKind, Read, Write};
-    use std::net::{TcpListener, TcpStream, ToSocketAddrs};
-    use std::time::Duration;
+    use std::net::{Shutdown, TcpListener, TcpStream, ToSocketAddrs};
+    use std::sync::{Arc, Condvar, Mutex};
+    use std::time::{Duration, Instant};
 
     pub const NET_KINDS: [&str; 6] = ["NetConnect", "NetListen", "NetAccept", "NetSend", "NetRecv", "NetClose"];
+    /// HC-23: the longest NetConnect waits for the peer (the one wait of the adapter).
+    pub const NET_CONNECT_MS: u64 = 5_000;
+    /// HC-23: the longest a connection waits for its peer to take bytes handed to it.
+    pub const NET_WRITE_MS: u64 = 30_000;
+    /// HC-23: the most bytes handed to one connection and not yet written.
+    pub const NET_QUEUE_MAX: usize = 1_000_000;
+    /// HC-10a: the most bytes one NetRecv delivers: N9 SIZE_LIMIT, so the
+    /// delivered `List[i64]` can always be built.
+    pub const NET_RECV_MAX: usize = crate::interp::SIZE_LIMIT;
+
+    #[derive(Default)]
+    struct Out {
+        buf: VecDeque<u8>,
+        closing: bool,
+        failed: bool,
+    }
+
+    type OutQ = Arc<(Mutex<Out>, Condvar)>;
+
+    struct Conn {
+        s: TcpStream,
+        out: OutQ,
+    }
 
     enum Sock {
         L(TcpListener),
-        S(TcpStream),
+        S(Conn),
     }
 
     #[derive(Default)]
@@ -412,6 +452,84 @@ pub mod net {
         NET_KINDS.iter().map(|k| NetAdapter { kind: k, nets: nets.clone() }).collect()
     }
 
+    /// Wait until `s` can take bytes, at most `ms` (unix: poll; elsewhere a short sleep).
+    pub(crate) fn wait_writable(s: &TcpStream, ms: u64) {
+        #[cfg(unix)]
+        {
+            use std::os::fd::AsRawFd;
+            let mut p = libc::pollfd { fd: s.as_raw_fd(), events: libc::POLLOUT, revents: 0 };
+            // SAFETY: one valid pollfd.
+            unsafe { libc::poll(&mut p, 1, ms.min(1000) as i32) };
+        }
+        #[cfg(not(unix))]
+        {
+            let _ = s;
+            std::thread::sleep(Duration::from_millis(ms.min(2)));
+        }
+    }
+
+    /// The writer of one connection: writes the queued bytes in order. A
+    /// peer that takes no byte for NET_WRITE_MS while bytes wait, or a write
+    /// error, fails the connection: it is shut down and later requests on
+    /// it fail with `closed`. After NetClose it closes once the queue is empty.
+    fn writer(mut s: TcpStream, q: OutQ) {
+        let (m, cv) = &*q;
+        loop {
+            let chunk: Vec<u8> = {
+                let mut g = m.lock().unwrap();
+                while g.buf.is_empty() && !g.closing && !g.failed {
+                    g = cv.wait(g).unwrap();
+                }
+                if g.failed || g.buf.is_empty() {
+                    break;
+                }
+                g.buf.iter().take(65536).copied().collect()
+            };
+            let mut done = 0;
+            let mut last = Instant::now();
+            let mut failed = false;
+            while done < chunk.len() {
+                match s.write(&chunk[done..]) {
+                    Ok(0) => failed = true,
+                    Ok(n) => {
+                        done += n;
+                        last = Instant::now();
+                    }
+                    Err(e) if e.kind() == ErrorKind::WouldBlock || e.kind() == ErrorKind::Interrupted => {
+                        let left = Duration::from_millis(NET_WRITE_MS).saturating_sub(last.elapsed());
+                        if left.is_zero() {
+                            failed = true;
+                        } else {
+                            wait_writable(&s, left.as_millis() as u64);
+                        }
+                    }
+                    Err(_) => failed = true,
+                }
+                if failed {
+                    break;
+                }
+            }
+            let mut g = m.lock().unwrap();
+            if failed {
+                g.failed = true;
+                g.buf.clear();
+                break;
+            }
+            g.buf.drain(..done);
+        }
+        let _ = s.shutdown(Shutdown::Both);
+    }
+
+    fn conn(s: TcpStream) -> Result<Conn, String> {
+        s.set_nodelay(true).ok();
+        s.set_nonblocking(true).map_err(|e| e.to_string())?;
+        let w = s.try_clone().map_err(|e| e.to_string())?;
+        let out: OutQ = Default::default();
+        let q = out.clone();
+        std::thread::spawn(move || writer(w, q));
+        Ok(Conn { s, out })
+    }
+
     impl Nets {
         fn add(&mut self, s: Sock) -> u64 {
             self.next += 1;
@@ -421,6 +539,45 @@ pub mod net {
         fn granted(&self, addr: &str) -> Result<(), String> {
             if self.grants.iter().any(|g| g == addr) { Ok(()) } else { Err(format!("address `{addr}` is not granted")) }
         }
+    }
+
+    fn recv(c: &mut Conn, max: usize) -> Result<Value, String> {
+        if c.out.0.lock().unwrap().failed {
+            return Err("closed".into());
+        }
+        let mut out: Vec<u8> = vec![];
+        let mut buf = vec![0u8; 65536];
+        let mut eof = false;
+        while out.len() < max {
+            let want = (max - out.len()).min(buf.len());
+            match c.s.read(&mut buf[..want]) {
+                Ok(0) => {
+                    eof = true;
+                    break;
+                }
+                Ok(k) => out.extend_from_slice(&buf[..k]),
+                Err(e) if e.kind() == ErrorKind::WouldBlock => break,
+                Err(e) if e.kind() == ErrorKind::Interrupted => continue,
+                Err(e) => return Err(e.to_string()),
+            }
+        }
+        // HC-10a: exactly the bytes received, in order, as a list of 0..255
+        if eof && out.is_empty() { Err("eof".into()) } else { Ok(json!(out)) }
+    }
+
+    fn send(c: &mut Conn, data: &Value) -> Result<Value, String> {
+        let d = super::request_bytes(data)?;
+        let (m, cv) = &*c.out;
+        let mut g = m.lock().unwrap();
+        if g.failed || g.closing {
+            return Err("closed".into());
+        }
+        if g.buf.len() + d.len() > NET_QUEUE_MAX {
+            return Err("send buffer full".into());
+        }
+        g.buf.extend(d.iter().copied());
+        cv.notify_all();
+        Ok(json!(d.len()))
     }
 
     impl Adapter for NetAdapter {
@@ -434,10 +591,9 @@ pub mod net {
             let res: Result<Value, String> = match self.kind {
                 "NetConnect" => n.granted(&addr).and_then(|_| {
                     let sa = addr.to_socket_addrs().map_err(|e| e.to_string())?.next().ok_or("no address")?;
-                    let s = TcpStream::connect_timeout(&sa, Duration::from_secs(5)).map_err(|e| e.to_string())?;
-                    s.set_nodelay(true).ok();
-                    s.set_nonblocking(true).map_err(|e| e.to_string())?;
-                    Ok(json!(n.add(Sock::S(s))))
+                    let s = TcpStream::connect_timeout(&sa, Duration::from_millis(NET_CONNECT_MS)).map_err(|e| if e.kind() == ErrorKind::TimedOut { "timed_out".to_string() } else { e.to_string() })?;
+                    let c = conn(s)?;
+                    Ok(json!(n.add(Sock::S(c))))
                 }),
                 "NetListen" => n.granted(&addr).and_then(|_| {
                     let l = TcpListener::bind(&addr).map_err(|e| e.to_string())?;
@@ -446,47 +602,30 @@ pub mod net {
                 }),
                 "NetAccept" => match n.socks.get(&id) {
                     Some(Sock::L(l)) => match l.accept() {
-                        Ok((s, _)) => {
-                            s.set_nodelay(true).ok();
-                            s.set_nonblocking(true).map_err(|e| e.to_string()).map(|_| s).map(|s| json!(n.add(Sock::S(s))))
-                        }
+                        Ok((s, _)) => conn(s).map(|c| json!(n.add(Sock::S(c)))),
                         Err(e) if e.kind() == ErrorKind::WouldBlock => Err("none".into()),
                         Err(e) => Err(e.to_string()),
                     },
                     _ => Err(format!("no listener {id}")),
                 },
                 "NetSend" => match n.socks.get_mut(&id) {
-                    Some(Sock::S(s)) => {
-                        let d = r["data"].as_str().unwrap_or("").as_bytes();
-                        s.set_nonblocking(false).ok();
-                        let w = s.write_all(d).map(|_| json!(d.len())).map_err(|e| e.to_string());
-                        s.set_nonblocking(true).ok();
-                        w
-                    }
+                    Some(Sock::S(c)) => send(c, &r["data"]),
                     _ => Err(format!("no connection {id}")),
                 },
                 "NetRecv" => match n.socks.get_mut(&id) {
-                    Some(Sock::S(s)) => {
-                        let max = r["max"].as_u64().unwrap_or(65536).min(1 << 20) as usize;
-                        let mut out = vec![];
-                        let mut buf = [0u8; 4096];
-                        let mut eof = false;
-                        while out.len() < max {
-                            match s.read(&mut buf[..(max - out.len()).min(4096)]) {
-                                Ok(0) => {
-                                    eof = true;
-                                    break;
-                                }
-                                Ok(k) => out.extend_from_slice(&buf[..k]),
-                                Err(e) if e.kind() == ErrorKind::WouldBlock => break,
-                                Err(e) => return EffectResult::failed(e.to_string()),
-                            }
-                        }
-                        if eof && out.is_empty() { Err("eof".into()) } else { Ok(json!(String::from_utf8_lossy(&out))) }
-                    }
+                    Some(Sock::S(c)) => recv(c, (r["max"].as_u64().unwrap_or(65536) as usize).min(NET_RECV_MAX)),
                     _ => Err(format!("no connection {id}")),
                 },
-                "NetClose" => n.socks.remove(&id).map(|_| json!(0)).ok_or(format!("no socket {id}")),
+                "NetClose" => match n.socks.remove(&id) {
+                    Some(Sock::S(c)) => {
+                        let (m, cv) = &*c.out;
+                        m.lock().unwrap().closing = true;
+                        cv.notify_all();
+                        Ok(json!(0))
+                    }
+                    Some(Sock::L(_)) => Ok(json!(0)),
+                    None => Err(format!("no socket {id}")),
+                },
                 k => Err(format!("unknown net request `{k}`")),
             };
             match res {

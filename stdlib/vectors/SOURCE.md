@@ -310,7 +310,8 @@ must be declared by the program (see io).
 Pure codecs only (survey M25). Anything that moves bytes needs a host
 binding and is not here: there is no UDP adapter in rce 0.1.3 (DNS
 resolution), the TCP adapter (`NetConnect`/`NetSend`/`NetRecv`) is used
-through the io request/result pattern by the program, and TLS is the
+through the io request/result pattern by the program, with `NetRecv`
+delivering the bytes received as `List[i64]` (Appendix E HC-10a), and TLS is the
 host's (`--tls`). Connection management (keep-alive, pipelining,
 timeouts) is program state over those events and is left to a later
 module once the bindings are specified.
