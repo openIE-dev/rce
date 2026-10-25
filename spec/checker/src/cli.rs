@@ -1266,18 +1266,23 @@ fn host_cmd(a: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &mu
             if tls && pins.len() != peers.len() {
                 return Err("--tls: every --peer needs a pinned key (ADDR=ED25519HEX)".into());
             }
+            // the channel listener is bound now and its threads start after
+            // the sandbox is entered, so they run under it (HC-5a)
+            let mut chan_start: Option<crate::adapters::chan::Start> = None;
             if let Some(me) = &chan_me {
-                let xs = if tls {
+                let (xs, start) = if tls {
                     let id = crate::tls::Identity::load_or_create(std::path::Path::new(log))?;
-                    let xs = crate::adapters::chan::chan_adapters_tls(me, &pins, &id).map_err(|e| format!("--chan {me}: {e}"))?;
+                    let l = std::net::TcpListener::bind(me).map_err(|e| format!("--chan {me}: {e}"))?;
+                    let xs = crate::adapters::chan::chan_adapters_tls_deferred(l, me, &pins, &id).map_err(|e| format!("--chan {me}: {e}"))?;
                     tls_id = Some(id);
                     xs
                 } else {
-                    crate::adapters::chan::chan_adapters(me, &peers).map_err(|e| format!("--chan {me}: {e}"))?
+                    crate::adapters::chan::chan_adapters_deferred(me, &peers).map_err(|e| format!("--chan {me}: {e}"))?
                 };
                 for x in xs {
                     adapters.push(Box::new(x));
                 }
+                chan_start = Some(start);
                 net.push(me.clone());
             }
             if !net.is_empty() {
@@ -1310,16 +1315,38 @@ fn host_cmd(a: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &mu
                 h.exact(x)?;
             }
             if crate::sandbox::enabled() {
+                use crate::sandbox::{GrantKind, NetGrant};
                 let lp = std::path::Path::new(log);
                 let dir = lp.parent().filter(|d| !d.as_os_str().is_empty()).unwrap_or(std::path::Path::new("."));
                 let writable: Vec<&std::path::Path> = fs_root.iter().chain(blob_root.iter()).chain(media_root.iter()).map(|p| p.as_path()).collect();
-                // a listener that could not be bound yet is bound later, inside the sandbox
-                let retry: Vec<&String> = http.iter().filter(|s| !s.bound()).map(|s| &s.addr).collect();
-                let ports: Vec<u16> = net.iter().chain(peers.iter()).chain(retry.iter().copied()).filter_map(|a| a.rsplit(':').next()?.parse().ok()).collect();
-                match crate::sandbox::enter(dir, &writable, pty, !net.is_empty() || !retry.is_empty(), &ports) {
+                // every address the adapters may use, and how (HC-5a): the net
+                // adapter connects to and binds its grants (the channel address
+                // among them), a peer is connected to, the channel listener and
+                // the HTTP listener were bound before entering; an HTTP listener
+                // that could not be bound yet is bound later, inside the sandbox
+                let mut grants: Vec<NetGrant> = vec![];
+                for a in &net {
+                    grants.extend(NetGrant::parse(a, GrantKind::Connect));
+                    grants.extend(NetGrant::parse(a, GrantKind::Listen));
+                }
+                for a in &peers {
+                    grants.extend(NetGrant::parse(a, GrantKind::Connect));
+                }
+                if let Some(me) = &chan_me {
+                    grants.extend(NetGrant::parse(me, GrantKind::Prebound));
+                }
+                for s in http.iter() {
+                    grants.extend(NetGrant::parse(&s.addr, if s.bound() { GrantKind::Prebound } else { GrantKind::Listen }));
+                }
+                grants.sort();
+                grants.dedup();
+                match crate::sandbox::enter(dir, &writable, pty, &grants) {
                     Ok(d) => eprintln!("rce host: {d}"),
                     Err(r) => eprintln!("rce host: sandbox OS target not entered: {r}"),
                 }
+            }
+            if let Some(start) = chan_start.take() {
+                start();
             }
             if sub == "serve" {
                 let code = serve_loop(&mut h, &src, out, http.as_mut())?;

@@ -916,18 +916,33 @@ pub mod chan {
     /// As `chan_adapters_tls`, on a listener the caller already bound (for example to
     /// port 0), so there is no window between choosing the address and listening on it.
     pub fn chan_adapters_tls_on(l: TcpListener, me: &str, peers: &[(String, [u8; 32])], id: &crate::tls::Identity) -> Result<Vec<ChanAdapter>, String> {
+        let (xs, start) = chan_adapters_tls_deferred(l, me, peers, id)?;
+        start();
+        Ok(xs)
+    }
+
+    /// Starts the threads of a channel listener bound earlier. The host
+    /// calls it after entering the sandbox (HC-5a): Landlock applies to
+    /// the thread that enters it and the threads it starts afterwards, so
+    /// an acceptor started before would run outside it.
+    pub type Start = Box<dyn FnOnce() + Send>;
+
+    /// `chan_adapters_tls_on` with its threads not started yet.
+    pub fn chan_adapters_tls_deferred(l: TcpListener, me: &str, peers: &[(String, [u8; 32])], id: &crate::tls::Identity) -> Result<(Vec<ChanAdapter>, Start), String> {
         let shared: Arc<(Mutex<Shared>, Condvar)> = Default::default();
         let pins: Arc<HashMap<String, [u8; 32]>> = Arc::new(peers.iter().cloned().collect());
         let scfg = crate::tls::server_config(id, peers.iter().map(|p| p.1).collect())?;
         let (sh, pn) = (shared.clone(), pins.clone());
-        std::thread::spawn(move || {
-            for s in l.incoming().flatten() {
-                s.set_nodelay(true).ok();
-                s.set_read_timeout(Some(TLS_POLL)).ok();
-                let Ok(conn) = rustls::ServerConnection::new(scfg.clone()) else { continue };
-                let (sh, pn) = (sh.clone(), pn.clone());
-                std::thread::spawn(move || tls_loop(Box::new(rustls::StreamOwned::new(conn, s)), None, sh, pn));
-            }
+        let start: Start = Box::new(move || {
+            std::thread::spawn(move || {
+                for s in l.incoming().flatten() {
+                    s.set_nodelay(true).ok();
+                    s.set_read_timeout(Some(TLS_POLL)).ok();
+                    let Ok(conn) = rustls::ServerConnection::new(scfg.clone()) else { continue };
+                    let (sh, pn) = (sh.clone(), pn.clone());
+                    std::thread::spawn(move || tls_loop(Box::new(rustls::StreamOwned::new(conn, s)), None, sh, pn));
+                }
+            });
         });
         let c = std::rc::Rc::new(std::cell::RefCell::new(Chans {
             me: me.into(),
@@ -937,22 +952,31 @@ pub mod chan {
             tls: Some((id.clone(), pins)),
             tls_out: HashMap::new(),
         }));
-        Ok(CHAN_KINDS.iter().map(|k| ChanAdapter { kind: k, c: c.clone() }).collect())
+        Ok((CHAN_KINDS.iter().map(|k| ChanAdapter { kind: k, c: c.clone() }).collect(), start))
     }
 
     /// Listen on `me` (a granted local address) and reach only `peers`.
     pub fn chan_adapters(me: &str, peers: &[String]) -> std::io::Result<Vec<ChanAdapter>> {
+        let (xs, start) = chan_adapters_deferred(me, peers)?;
+        start();
+        Ok(xs)
+    }
+
+    /// `chan_adapters` with the listener bound and its threads not started yet.
+    pub fn chan_adapters_deferred(me: &str, peers: &[String]) -> std::io::Result<(Vec<ChanAdapter>, Start)> {
         let l = TcpListener::bind(me)?;
         let shared: Arc<(Mutex<Shared>, Condvar)> = Default::default();
         let sh = shared.clone();
-        std::thread::spawn(move || {
-            for s in l.incoming().flatten() {
-                let sh = sh.clone();
-                std::thread::spawn(move || serve_conn(s, sh));
-            }
+        let start: Start = Box::new(move || {
+            std::thread::spawn(move || {
+                for s in l.incoming().flatten() {
+                    let sh = sh.clone();
+                    std::thread::spawn(move || serve_conn(s, sh));
+                }
+            });
         });
         let c = std::rc::Rc::new(std::cell::RefCell::new(Chans { me: me.into(), grants: peers.to_vec(), shared, out: HashMap::new(), tls: None, tls_out: HashMap::new() }));
-        Ok(CHAN_KINDS.iter().map(|k| ChanAdapter { kind: k, c: c.clone() }).collect())
+        Ok((CHAN_KINDS.iter().map(|k| ChanAdapter { kind: k, c: c.clone() }).collect(), start))
     }
 
     impl Chans {
