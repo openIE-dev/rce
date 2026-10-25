@@ -3,7 +3,7 @@
 //! (`HttpRequest` or `HttpMalformed`), the program answers with the
 //! `HttpRespond` effect, limits and deadlines apply before a byte enters D,
 //! and every byte written is a function of D. These tests run the `rce`
-//! binary on programs/network/notes.rce and tests/host/http_echo.rce.
+//! binary on programs/network/notes_http.rce and tests/host/http_echo.rce.
 use rce_spec_check::host::{Entry, replay_outputs};
 use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
@@ -12,7 +12,7 @@ use std::process::{Child, Command, Stdio};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
-const NOTES: &str = "../../programs/network/notes.rce";
+const NOTES: &str = "../../programs/network/notes_http.rce";
 const ECHO: &str = "tests/host/http_echo.rce";
 
 fn app(rel: &str) -> PathBuf {
@@ -494,4 +494,36 @@ fn sequential_requests_are_not_paced_by_frames() {
     let (ok, err) = s.stop();
     assert!(ok, "{err}");
     let _ = std::fs::remove_dir_all(&d);
+}
+
+/// W-HOST-2 and W-HOST-3 (HC-24, HC-10a): a module served with `--http`
+/// declares the HTTP inputs, the response and its result with exactly the
+/// shapes of HC-24, the body as bytes; otherwise the host refuses to start
+/// and appends nothing.
+#[test]
+fn http_declarations_are_checked_at_start() {
+    use rce_spec_check::host::{Host, MemStore};
+    let src = std::fs::read_to_string(app(ECHO)).unwrap();
+    // the result of starting, and the number of entries appended
+    let start = |s: &str| -> (Result<(), String>, usize) {
+        let m = rce_spec_check::parse::parse(s).unwrap();
+        let server = rce_spec_check::adapters::http::Server::bind("127.0.0.1:0");
+        let mut st = MemStore::default();
+        let r = Host::start_with(&m, Box::new(&mut st), vec![Box::new(server.responder())]).map(|_| ());
+        (r, st.lines.len())
+    };
+    let (ok, n) = start(&src);
+    assert!(ok.is_ok() && n > 0, "{ok:?}");
+    let shapes = [
+        ("event HttpMalformed(id: u64, status: u64, why: text)", "event HttpMalformed(id: u64, status: text, why: text)", "W-HOST-2"),
+        ("event HttpRespondDone(req: u64, status: text, data: u64?, err: text)", "event HttpRespondDone(req: u64, status: text, data: text?, err: text)", "W-HOST-2"),
+        ("    names: List[text]\n    values: List[text]\n    body: List[i64]\n", "    names: List[text]\n    body: List[i64]\n", "W-HOST-2"),
+        ("values: List[text], body: List[i64])", "values: List[text], body: text)", "W-HOST-3"),
+    ];
+    for (from, to, rule) in shapes {
+        assert!(src.contains(from), "{from}");
+        let (r, n) = start(&src.replace(from, to));
+        let e = r.err().unwrap_or_else(|| panic!("{to} was accepted"));
+        assert!(e.contains(rule) && n == 0, "{to}: {e}");
+    }
 }

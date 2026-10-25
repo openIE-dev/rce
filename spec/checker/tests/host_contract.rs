@@ -357,6 +357,16 @@ fn rcedb_example_runs() {
     assert_eq!(o.lines().filter(|l| l.contains("emit Row")).count(), 2, "scan starts at `start`: {o}");
 }
 
+/// Whether a rule cell of the E.10 table (`HC-10a, W-HOST-3` or `HC-24 to
+/// HC-26, W-HOST-2`) covers the rule `r`.
+fn covers(cell: &str, r: &str) -> bool {
+    let num = |x: &str| x.rsplit_once('-').and_then(|(p, n)| Some((p.to_string(), n.parse::<u32>().ok()?)));
+    cell.split(", ").any(|c| match c.split_once(" to ") {
+        None => c == r,
+        Some((a, b)) => matches!((num(a), num(b), num(r)), (Some((p, lo)), Some((_, hi)), Some((q, k))) if p == q && lo <= k && k <= hi),
+    })
+}
+
 #[test]
 fn every_appendix_e_rule_is_cited_by_a_test() {
     let book = std::fs::read_to_string(spec().join("book/16-host-contract.md")).unwrap();
@@ -367,6 +377,22 @@ fn every_appendix_e_rule_is_cited_by_a_test() {
     }
     for r in ["HC-1", "HC-2", "HC-3", "HC-4", "HC-5", "HC-6", "HC-7", "HC-8", "HC-9", "HC-10", "HC-11", "HC-12", "HC-13", "HC-14", "HS-1", "HS-2", "HS-3", "HS-4", "HS-5", "HS-6", "HS-7", "HS-8", "HS-9"] {
         assert!(book.contains(&format!("**{r}")), "rule {r} is not stated");
+    }
+    // the host rules of E.4a to E.4c and HC-5a: each is stated, has a row in
+    // the table of E.10, and every test that row names exists
+    let tests = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests");
+    let e10 = &book[book.find("### E.10").unwrap()..book.find("### E.11").unwrap()];
+    let rows: Vec<&str> = e10.lines().filter(|l| l.starts_with("| HC-") || l.starts_with("| HS-")).collect();
+    for r in ["HC-5a", "HC-10a", "HC-21", "HC-22", "HC-23", "HC-24", "HC-25", "HC-26", "W-HOST-1", "W-HOST-2", "W-HOST-3", "W-HOST-4"] {
+        assert!(book.contains(&format!("**{r} ")) || book.contains(&format!("**{r}**")), "rule {r} is not stated");
+        let row = rows.iter().find(|l| covers(l.split('|').nth(1).unwrap_or("").trim(), r)).unwrap_or_else(|| panic!("no E.10 row for {r}"));
+        for part in row.split('|').nth(3).unwrap().split("; ") {
+            let Some((file, names)) = part.trim().split_once("`: ") else { continue };
+            let src = std::fs::read_to_string(tests.join(file.trim_start_matches("`tests/"))).unwrap_or_else(|e| panic!("{file}: {e}"));
+            for name in names.split('`').skip(1).step_by(2) {
+                assert!(src.contains(&format!("fn {name}()")), "{r}: no test {name} in {file}");
+            }
+        }
     }
 }
 

@@ -226,7 +226,7 @@ fn seatbelt_refuses_an_ungranted_port() {
 #[test]
 fn serve_under_seatbelt_answers_a_request() {
     use std::io::{Read, Write};
-    let app = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../programs/network/notes.rce");
+    let app = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../programs/network/notes_http.rce");
     let dir = std::env::temp_dir().join(format!("rce-sbx-mac-serve-{}", std::process::id()));
     std::fs::create_dir_all(&dir).unwrap();
     let port = std::net::TcpListener::bind("127.0.0.1:0").unwrap().local_addr().unwrap().port();

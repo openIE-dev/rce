@@ -2264,6 +2264,10 @@ Concurrency (Appendix C): W-PAR-1 to W-PAR-4, W-DL-1, W-ND-1, W-GRP-1 to
 W-GRP-3, W-SES-1 to W-SES-5, W-SCOPE-1, W-ATOM-1, W-ATOM-2, W-CRDT-1,
 W-LVAR-1, W-LVAR-2, W-NODE-1, W-SUP-1, W-SUP-2, W-INTR-1 and W-RT-1.
 
+Host (Appendix E.4c): W-HOST-1 to W-HOST-4, refused when a host starts
+on a module, before it appends to D. `rce check` does not apply them,
+because they depend on the adapters the host is granted.
+
 **Read receipt.** Which rule refuses two unguarded steps in one region whose patterns overlap?
 
 ---
@@ -4975,6 +4979,34 @@ adapter.
   JCP v0.3 (https://jcp.transaction.science); see REMAINING-PLAN W1h-std.
   The program loses nothing,
   since 5.15 gives it no ambient authority.
+- **HC-5a The printed target is the installed target.** The line a host
+  prints when it enters an OS target is generated from the rules it
+  installed, so it names each restriction at the granularity the target
+  enforces and never one the target did not install. The reference
+  (`sandbox.rs`) lists every address an adapter may use with how it is
+  used: connected to (`--net`, `--peer`), bound after the target is
+  entered (`--net`, and a `--http` address whose bind is still being
+  retried), or bound before (`--http`, `--chan`), whose listener is then
+  only accepted on. It makes the rules and the line from that one list.
+  On macOS the Seatbelt profile denies all network use, then allows
+  binding and inbound connections on the port of each listening grant and
+  outbound connections to the port of each connecting grant, at
+  `localhost` for a loopback address and at any address otherwise,
+  because Seatbelt names no other address; it allows the system name
+  resolver only when a grant names a host by name. The line says that
+  these rules cover TCP and UDP and that the net adapter checks the exact
+  address. On Linux, with Landlock ABI 4 or later, TCP bind is allowed only
+  on the ports of listening grants and connect only on the ports of
+  connecting grants, at any address on those ports, and the line says "by
+  port"; a listener bound before entering needs no rule; below ABI 4 the
+  line says that Landlock does not restrict the network. seccomp refuses
+  new IP sockets unless some grant is connected to or bound after
+  entering, so with `--http` alone neither the host nor a PTY child can
+  open a socket; otherwise no layer restricts UDP, and the line says so.
+  The channel adapters start their threads after the target is entered, so
+  Landlock covers them as well. The Seatbelt rules follow Apple's profile
+  language and are still to be confirmed on a macOS machine; the two tests
+  that do so run only there.
 - **HC-6 Tick scheduler.** Concurrency runs under the tick semantics of
   6.8. The host runs `fn main` (tasks, actors, supervisors; C.5, C.13)
   with its scheduler as a live task whose every transition is an entry
@@ -5105,8 +5137,10 @@ logs.
   received (HS-4 verification of the whole chain, then HC-8), then appends
   `host.Term` {leader, term} and makes it durable before admitting any
   input. `t` must exceed every term already in D. Every `host.Window`
-  carries the term. A request emitted under an older term with no result
-  in D gets one result, `failed` with `interrupted` (HC-3). The term in D
+  carries the term. The new admitter's adapters are fresh, so it appends
+  `host.Restarted` after `host.Term` (HC-22), and a request emitted under
+  an older term with no result in D gets one result, `failed` with
+  `interrupted` (HC-3). The term in D
   is the fence token: an entry of D was appended by the holder of the
   most recent `host.Term` before it.
 - **HC-18a Transport.** Replication follows Raft's AppendEntries and
@@ -5279,7 +5313,7 @@ then the design it forces.
   to a state that re-encodes to the same bytes; otherwise it is
   discarded. Loading one changes no meaning.
 
-### E.4 Inputs are events (HC-10)
+### E.4 Inputs are events (HC-10, HC-10a)
 
 **HC-10.** Every value that enters a run is an event or a logged answer
 in D. This includes key, pointer, resize and focus input; `Tick` and
@@ -5288,6 +5322,224 @@ foreign results and traps; `select nondet` choices; Delivered, TimedOut
 and Unreachable; capability minting; lifecycle (suspend, resume, process
 kill); random bytes; and the host entries of E.5. An input that is not
 in D does not exist for the program.
+
+- **HC-10a Bytes are delivered exactly.** An adapter that receives bytes
+  from outside delivers exactly the bytes it received, in order, as a
+  `List[i64]` whose elements are in 0..255 (the byte type of
+  `core.bytes`), and D records them as a list of integers (6.1). No `text`
+  holds every byte sequence, and a read may end inside a UTF-8 character,
+  so a host never decodes received bytes: the program decodes them
+  (`text.utf8`), and a body that is not UTF-8 is a value the program can
+  answer rather than a trap. One delivery holds at most SIZE_LIMIT (N9)
+  bytes, so the delivered value can always be built. The data of
+  `NetRecvDone` (HC-23) and the body of `HttpRequest` (HC-24) follow this
+  rule, and W-HOST-3 refuses at start a module that declares either with
+  another type.
+
+### E.4a Refusals and restarts (HC-21, HC-22)
+
+A refused step and a restart of the host are facts of the run. A program
+that is not told of them waits for an effect the refused step would have
+requested, or for a socket that belonged to a process that is gone, so
+both enter D and reach the program as inputs.
+
+- **HC-21 A refusal is an input.** When δ refuses an input (T8), the
+  admitter appends the input with the state unchanged, then `host.Refused`
+  {cause, seq}, where seq is the refused entry's seq and cause is `fail`
+  (a declared error left the step), `fuel`, `size` (SIZE_LIMIT), `value`
+  (VALUE_LIMIT), `depth` (the evaluation depth of 6.7) or `trap` (any
+  other trap of 6.3 or 6.7). When the module declares `event Refused(seq:
+  u64, cause: text)` the admitter then admits `Refused` with the same
+  payload as an ordinary input, with the full fuel of HC-7a, and appends
+  `host.Bind` for it at start. A refused `Refused` is followed by
+  `host.Refused` only, so each refused input is followed by at most one
+  `Refused`. The cause names no declaration, so D stays name-free (T7);
+  the refusal's text, which can name a declared error, is not in D, and
+  replay re-derives it. Replay requires each refused entry to be followed
+  by the matching `host.Refused` and, when `Refused` is declared, by the
+  matching `Refused`, and treats a D in which one is missing, extra or
+  different as a host fault. A D that ends before them, because the host
+  stopped in between, is completed on open, and by a new admitter before
+  its `host.Term` (HC-19), before anything else is appended; no snapshot
+  (HS-5) is taken while D owes them. `rce host replay` and the validation
+  after every run report the number of refused entries, and replay prints
+  the cause and text of each. Reference: `Host::refused`,
+  `interp::Cause`.
+- **HC-22 A restart is an input, and ids are never reused.** Adapter
+  resources (sockets, terminals, media tracks) belong to one host process.
+  A host that opens a D holding entries appends, after the entries that
+  open it (HS-4, E.5), `host.Restarted` {below}, below being that entry's
+  own seq. Every adapter that issues resource ids then issues them from
+  below upward, so an id issued before the restart never names a
+  resource of the new process; when the module declares `event
+  Restarted(below: u64)` the admitter admits it with the same payload; and
+  only then does every request outstanding in D get its one result,
+  `failed` with `interrupted` (HC-3). The requests the `Restarted` step
+  makes are performed, not interrupted. A host that takes the admitter
+  role does the same after its `host.Term` (HC-19). Replay treats as a
+  host fault a `host.Restarted` whose below is not its own seq, or one not
+  followed by the bound `Restarted` with the same payload when `Restarted`
+  is declared. A host loop started on an existing D continues `Tick(n)`
+  from the last n in D, so tick numbers keep rising across restarts.
+  Reference: `Host::restarted`, `Adapter::restart`.
+
+### E.4b The net adapter and the HTTP event host (HC-23 to HC-26)
+
+- **HC-23 The net adapter.** `--net HOST:PORT`, given once per address,
+  grants TCP as effects. Authority is the granted addresses, compared by
+  their exact text (HC-5); a request that names an address not granted, or
+  an id the adapter did not issue, fails. Each request has one result
+  (HC-3):
+
+  | Request | Data of the result | Fails with |
+  |---|---|---|
+  | `NetConnect(req, addr)` | the id of the connection | `timed_out` after NET_CONNECT_MS, or the error |
+  | `NetListen(req, addr)` | the id of the listener | the bind error |
+  | `NetAccept(req, id)` | the id of a new connection | `none` when no connection is waiting |
+  | `NetSend(req, id, data)` | the number of bytes handed to the connection | `closed`, `send buffer full`, `byte outside 0..255` |
+  | `NetRecv(req, id, max)` | the bytes received so far, at most max, possibly none (HC-10a) | `eof` when the peer closed and nothing is left, `closed` |
+  | `NetClose(req, id)` | 0 | `no socket N` |
+
+  `data` is text, sent as its UTF-8, or a `List[i64]` of 0..255. A send
+  hands the bytes to the connection's own writer and returns at once, so
+  no request waits for a peer except `NetConnect`, which waits at most
+  NET_CONNECT_MS (5,000 ms), and `NetRecv` and `NetAccept` never wait.
+  The writer fails the connection when its peer takes no byte for
+  NET_WRITE_MS (30,000 ms) while bytes wait; later requests on it fail
+  with `closed`, and a send that would leave more than NET_QUEUE_MAX
+  (1,000,000) bytes waiting fails with `send buffer full`. `NetClose`
+  closes once the bytes handed over are written. `max` defaults to 65,536
+  and is capped at SIZE_LIMIT. These values decide only which result a
+  request gets, and the result is in D. Ids are never reused within D
+  (HC-22). A program that serves HTTP on this adapter frames bytes itself
+  and polls with `Tick`, one connection at a time
+  (`spec/checker/tests/host/notes_net.rce`); the HTTP event host below
+  serves the same program without polling.
+- **HC-24 HTTP requests are inputs.** `rce host serve FILE --log D --http
+  HOST:PORT` (one address, under `serve` only) binds the address before
+  the OS target is entered (HC-5a) and appends `host.HttpListen` {addr and
+  the limits of HC-25}, or {addr, error} when the bind failed; a failed
+  bind is retried every second, and the bind that succeeds appends
+  `host.HttpListen` with the limits. Connections are served concurrently,
+  at most CONNS_MAX (256) at once. The host frames each request (HC-25)
+  and admits it as one input `HttpRequest(id, method, target, names,
+  values, body)`: the method and the target as sent, the field names as
+  written and their values without surrounding spaces and tabs, in order,
+  and the body as the bytes left after its framing is removed (HC-10a);
+  trailer fields are checked and not delivered. A request that breaks the
+  syntax, a limit or a deadline after its first byte is one input
+  `HttpMalformed(id, status, why)`, with the status of HC-25 and the
+  reason. A connection that closes before a request is complete, or stays
+  idle for IDLE_MS before the first byte of one, adds nothing to D. The id is the seq of the input's own entry,
+  so `Refused(seq)` (HC-21) names the request. The requests of one
+  connection are admitted one at a time, each after the response to the
+  previous one, so responses keep the order of the requests (RFC 9112
+  9.3.2); `Expect: 100-continue` gets its interim response once the head
+  is accepted. At start the host appends `host.Bind` for `HttpRequest` and
+  `HttpMalformed`. Replay reads requests from D and never parses (HC-8).
+  W-HOST-2 refuses at start a module that does not declare these four, of
+  exactly these shapes, except that the `body` of `HttpRespond` may also
+  be `List[i64]`:
+
+  ```
+  event HttpRequest(id: u64, method: text, target: text, names: List[text], values: List[text], body: List[i64])
+  event HttpMalformed(id: u64, status: u64, why: text)
+  event HttpRespondDone(req: u64, status: text, data: u64?, err: text)
+
+  struct HttpRespond
+      req: u64
+      status: u64
+      names: List[text]
+      values: List[text]
+      body: text
+  ```
+
+  The host loop reads one queue (stdin lines, HTTP inputs, and SIGTERM and
+  SIGINT, which one thread waits for) and admits in rounds of up to 64
+  inputs, with one barrier per round. An effect waits for a barrier only
+  when the entry that requested it is not yet durable (HS-2), and a
+  barrier that would only confirm the previous confirmation is not taken,
+  so a host with nothing to admit appends nothing. An input refused before
+  it is logged is reported and the loop goes on; only a storage fault
+  (HS-3) stops it. With `--http` the end of stdin does not end the loop;
+  SIGTERM or SIGINT stops accepting connections, waits at most STOP_MS
+  (5,000 ms) for the open requests, takes the final barrier and validates
+  the run (HC-8). PTY children start with no signal blocked.
+- **HC-25 Framing, limits and deadlines.** The syntax is RFC 9112 with
+  the strict choices of `net.http`: lines end in CRLF (a bare CR or LF is
+  refused); the request line is a token method, a visible-ASCII target
+  and `HTTP/` with a digit, a dot and a digit, after at most 16 empty
+  lines; field names are tokens and obsolete line folding is refused; a
+  request has at most one Host field, and exactly one from HTTP/1.1 on
+  (RFC 9112 3.2); a request with both Transfer-Encoding and
+  Content-Length is refused; Transfer-Encoding ends in `chunked` and names
+  it once; the values listed in Content-Length agree. The host's parser
+  and `net.http.parse_message(b, true, false, false)` agree on every
+  vector of `stdlib/tests/net/http_checks.rce` and on 10,000 seeded
+  mutations of them. Only the host gives 505 for a version other than
+  1.x, 501 for a transfer coding before `chunked`, and applies these
+  limits and deadlines:
+
+  | Name | Value | Past it |
+  |---|---|---|
+  | LINE_MAX | 8,192 bytes of request line | 414 |
+  | HEAD_MAX | 65,536 bytes of head | 431 |
+  | FIELDS_MAX | 100 field lines | 431 |
+  | BODY_MAX | 1,000,000 bytes of body (SIZE_LIMIT); a chunked body's encoding at most BODY_MAX + HEAD_MAX | 413 |
+  | HEAD_MS | 10,000 ms from the first byte to the end of the head | 408 |
+  | BODY_MS | 30,000 ms from the end of the head to the end of the body | 408 |
+  | IDLE_MS | 5,000 ms between requests | the connection closes, nothing is appended |
+  | RESPOND_MS | 60,000 ms for the program's response | the connection closes; a later `HttpRespond` fails with `no request N` |
+  | WRITE_MS | 30,000 ms to write one response | the connection closes |
+
+  Any other error of syntax is 400. The values are engine constants
+  (HC-14) and `host.HttpListen` records them, so D says under which limits
+  its requests were admitted. A deadline decides only whether a request
+  is admitted and when a connection closes, never what an admitted request
+  holds. A connection closes once its `HttpMalformed` is answered.
+- **HC-26 Responses are a function of D.** The program answers with the
+  effect `HttpRespond(req, status, names, values, body)`; the data of its
+  result `HttpRespondDone` is the length in bytes of the response the host
+  writes. The host checks
+  a response before it writes anything: status 200 to 599, field names
+  that are tokens, values of printable ASCII (space to `~`) or tab, as
+  many values as names, no Content-Length or Transfer-Encoding (the host writes the
+  framing), Connection only as `close`, and no body for 204 and 304. A
+  response that fails a check fails the effect with the reason and leaves
+  the request open, so the program can answer it again; a req that is not
+  open fails with `no request N`. The host writes `HTTP/1.1`, the status
+  and its reason phrase (RFC 9110 15; empty for a status it does not
+  list), the program's fields in order, `Content-Length` (not for 204 and
+  304), `Connection: close` when the connection closes after this
+  response and the program did not write it, an empty line and the body
+  (none for HEAD). The connection closes after the response when the
+  request asked for it (`Connection: close`, or HTTP/1.0 without
+  `keep-alive`), when the program wrote `Connection: close`, and after an
+  `HttpMalformed`. Every byte written is therefore a function of D: replay
+  re-derives every `HttpRespond` request (`host::replay_outputs`), and the
+  bytes made from them equal the bytes the clients received.
+
+### E.4c Refused at start (W-HOST-1 to W-HOST-4)
+
+A host checks the module against the adapters it was granted before it
+appends anything to D, and refuses to start on:
+
+- **W-HOST-1** a request struct of an effect kind the host performs (for
+  example `struct NetRecv` under `--net`) without its result event
+  `event KDone(req: u64, status: text, data: T?, err: text)`, where K is
+  the kind, of exactly that shape. A result whose data does not fit T is
+  delivered as `failed` with the reason (HC-3).
+- **W-HOST-2** a module served with `--http` without the four
+  declarations of HC-24, of exactly those shapes.
+- **W-HOST-3** a declared result of received bytes with another type than
+  bytes: `NetRecvDone` whose data is not `List[i64]?`, or `HttpRequest`
+  whose body is not `List[i64]` (HC-10a).
+- **W-HOST-4** a declared host-delivered event of another shape: `Refused`
+  other than `Refused(seq: u64, cause: text)` (HC-21), or `Restarted`
+  other than `Restarted(below: u64)` (HC-22).
+
+`rce check` does not apply these rules, because they depend on what a
+host is granted.
 
 ### E.5 Host entries
 
@@ -5314,6 +5566,9 @@ JSON. The host entries are:
 | `host.MainInput` | a, b, partition, tick; or event, tick | a link change or a program event for the live task, after its last logged step (HC-6) |
 | `host.Step` | cause, i, node, tick, what | one per scheduler step of the run (HC-6) |
 | `host.MainEnd` | choices, outcome, ticks | when the run ends (HC-6) |
+| `host.Refused` | cause, seq | after a refused entry (HC-21) |
+| `host.Restarted` | below (its own seq) | when a host opens a D that holds entries, or takes the admitter role (HC-22) |
+| `host.HttpListen` | addr and the limits of HC-25, or addr and error | at start under `--http`, and when a retried bind succeeds (HC-24) |
 
 A program receives the content of a host entry only through a binding
 (E.8): the admitter then appends, after the host entry, an ordinary event
@@ -5532,6 +5787,12 @@ is cited by a test.
 | HS-1 to HS-5, T38, T39 | durable append, fatal barrier, verify on open | `verify_on_open_cuts_bad_suffix`, `fatal_barrier_stops_admission` |
 | HC-11 to HC-14 | fabrics, placement, exactness, no flags | `placement_is_a_function_of_host_entries`, `placement_executor_follows_d_and_replays`, `fixed_tree_bits_do_not_depend_on_the_fabric`; `tests/host_place.rs`: `lanes_and_trees_have_the_same_bits_for_every_thread_count`, `lane_and_par_placement_follow_d_and_replay`, `platform_fabric_is_used_only_after_an_exact_probe` |
 | HS-6 to HS-9 | RCEdb in RCE | `rcedb_example_runs` |
+| HC-5a | the printed target is the installed target | `tests/host_sandbox.rs`: `profile_restricts_network_to_granted_ports`, `description_is_generated_from_rules`, `linux_description_says_by_port_and_udp`, `http_only_has_no_new_ip_sockets`, and on macOS only `seatbelt_refuses_an_ungranted_port`, `serve_under_seatbelt_answers_a_request` |
+| HC-10a, W-HOST-3 | bytes delivered exactly | `tests/host_net.rs`: `recv_delivers_the_bytes_received`, `recv_into_a_text_field_is_refused_at_start`, `recv_is_capped_at_the_size_limit`; `tests/host_http.rs`: `invalid_body_bytes_are_exact_and_get_400` |
+| HC-21, W-HOST-4 | refusals are inputs | `tests/host_refused.rs`: `refused_step_is_followed_by_host_refused_and_the_bound_event`, `each_cause_is_classified`, `a_refused_refused_is_not_redelivered`, `refused_handler_has_full_fuel`, `replay_refuses_a_log_without_host_refused`, `replay_refuses_a_forged_host_refused`, `open_completes_a_trailing_refusal`, `a_refused_of_another_shape_is_refused_at_start`; `tests/nameless.rs`: `refusal_entries_are_name_free` |
+| HC-22 | restarts are inputs, ids never reused | `tests/host_restart.rs`: `restart_appends_restarted_then_interrupts`, `ids_are_not_reused_after_restart`, `tick_numbers_continue`, `take_role_appends_restarted`, `serve_on_an_existing_log_listens_again` |
+| HC-23, W-HOST-1 | the net adapter | `tests/host_net.rs`: `tcp_loopback_random_and_blobs_replay`, `send_takes_text_or_bytes`; `tests/host_effects.rs`: `bound_effect_without_its_result_event_is_refused` |
+| HC-24 to HC-26, W-HOST-2 | the HTTP event host | `tests/host_http.rs`: `concurrent_clients_are_served_while_one_stalls`, `idle_server_appends_nothing`, `keep_alive_and_pipelined_requests_answer_in_order`, `head_has_no_body`, `oversized_body_is_413_and_closes`, `refused_request_gets_the_programs_status`, `invalid_response_fails_and_the_id_stays_open`, `responses_are_a_function_of_d`, `parallel_load_replays_exactly`, `sigterm_drains_and_validates`, `restart_binds_again`, `sequential_requests_are_not_paced_by_frames`, `http_declarations_are_checked_at_start`; `tests/http_parse.rs`: `vectors_agree_with_net_http`, `mutations_agree_with_net_http`, `incremental_feed_equals_whole_buffer`, `limits_give_their_statuses` |
 
 ### E.11 Proposed rules (not normative)
 

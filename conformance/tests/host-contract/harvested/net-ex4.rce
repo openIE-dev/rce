@@ -1,7 +1,9 @@
 module netecho
 
-intent "TCP, random bytes and blobs as effects: each request has one logged result"
+intent "TCP, random bytes and blobs as effects: each request has one logged result; received bytes arrive exactly, a refusal and a restart are inputs"
     example Listen(addr: "127.0.0.1:1"), NetListenDone(req: 1, status: "failed", data: none, err: "x") -> errors == 1
+    example NetRecvDone(req: 1, status: "delivered", data: some([104, 255]), err: ""), NetRecvDone(req: 2, status: "delivered", data: some([226]), err: "") -> got.len() == 3 and got[1] == 255
+    example Refused(seq: 9, cause: "trap"), Restarted(below: 12) -> refusals == 1 and restarts == 1 and last == 0
 
 struct NetListen
     req: u64
@@ -54,7 +56,9 @@ event NetListenDone(req: u64, status: text, data: u64?, err: text)
 event NetConnectDone(req: u64, status: text, data: u64?, err: text)
 event NetAcceptDone(req: u64, status: text, data: u64?, err: text)
 event NetSendDone(req: u64, status: text, data: u64?, err: text)
-event NetRecvDone(req: u64, status: text, data: text?, err: text)
+event NetRecvDone(req: u64, status: text, data: List[i64]?, err: text)
+event Refused(seq: u64, cause: text)
+event Restarted(below: u64)
 event NetCloseDone(req: u64, status: text, data: u64?, err: text)
 event RandomDone(req: u64, status: text, data: text?, err: text)
 event BlobPutDone(req: u64, status: text, data: text?, err: text)
@@ -63,7 +67,9 @@ event BlobGetDone(req: u64, status: text, data: text?, err: text)
 state Net
     next: u64 = 0
     last: u64 = 0
-    got: text = ""
+    got: List[i64] = []
+    refusals: u64 = 0
+    restarts: u64 = 0
     rand: text = ""
     digest: text = ""
     blob: text = ""
@@ -127,7 +133,8 @@ step Net on NetSendDone(req: _r, status: s, data: _d, err: _e)
 
 step Net on NetRecvDone(req: _r, status: s, data: d, err: _e)
     if s == "delivered"
-        got = got + d.or("")
+        for x in d.or([])
+            got.push(x)
 
 step Net on NetCloseDone(req: _r, status: s, data: _d, err: _e)
     if s != "delivered"
@@ -144,6 +151,13 @@ step Net on BlobGetDone(req: _r, status: s, data: d, err: _e)
         blob = d.or("")
     else
         errors += 1
+
+step Net on Refused(seq: _q, cause: _c)
+    refusals += 1
+
+step Net on Restarted(below: _b)
+    restarts += 1
+    last = 0
 #--- rce-test
 # id: host-contract/harvested/net-ex4
 # area: host-contract
@@ -152,9 +166,9 @@ step Net on BlobGetDone(req: _r, status: s, data: d, err: _e)
 # events: Listen(addr: "127.0.0.1:1"), NetListenDone(req: 1, status: "failed", data: none, err: "x")
 # outcome: done
 # outputs:
-#   - 0 (initial) Net { next = 0, last = 0, got = "", rand = "", digest = "", blob = "", errors = 0 }
-#   - 1 Listen(addr: "127.0.0.1:1") Net { next = 1, last = 0, got = "", rand = "", digest = "", blob = "", errors = 0 }
+#   - 0 (initial) Net { next = 0, last = 0, got = [], refusals = 0, restarts = 0, rand = "", digest = "", blob = "", errors = 0 }
+#   - 1 Listen(addr: "127.0.0.1:1") Net { next = 1, last = 0, got = [], refusals = 0, restarts = 0, rand = "", digest = "", blob = "", errors = 0 }
 #   - "  emit NetListen(req: 1, addr: \"127.0.0.1:1\")"
-#   - 2 NetListenDone(req: 1, status: "failed", data: none, err: "x") Net { next = 1, last = 0, got = "", rand = "", digest = "", blob = "", errors = 1 }
+#   - 2 NetListenDone(req: 1, status: "failed", data: none, err: "x") Net { next = 1, last = 0, got = [], refusals = 0, restarts = 0, rand = "", digest = "", blob = "", errors = 1 }
 # provenance: harvested checker/tests/host/net.rce example@4
 #---
