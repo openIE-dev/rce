@@ -192,3 +192,830 @@ check genc([gk("\u{8}", "s", "€0a"), gk("b-\u{c}\u{c}", "n", ""), gk("191\u{8}
 check gskip([gk("\u{8}", "s", "€0a"), gk("b-\u{c}\u{c}", "n", ""), gk("191\u{8}", "s", "\\uu"), gk("\n😀日", "s", "\u{1f}9y"), gk("\tb\u{c}", "s", "c \u{c}1\u{7f}\u{1}\u{1f}\u{8}")]) == "b-=null 191=\\uu 😀日=\"\\u001f9y\" b=\"c \\u000c1\u{7f}\\u0001\\u001f\\u0008\""
 check genc([gk("z", "s", "1"), gk("€", "s", ""), gti("\n=", (0 - 9223372036854775807 - 1)), gk("日y\n", "s", "\u{7f}\u{fffd}\r€\u{2028}x")]) == "ERR"
 check gskip([gk("z", "s", "1"), gk("€", "s", ""), gti("\n=", (0 - 9223372036854775807 - 1)), gk("日y\n", "s", "\u{7f}\u{fffd}\r€\u{2028}x")]) == "z=1 €= 日y=\"\u{7f}\\ufffd\\r€\u{2028}x\""
+check genc([gk("é\u{1f}\u{1}/", "s", "zc "), gk("€=", "s", ""), gk("\r9\"\t", "s", "\u{1f}\u{fffd}\u{2028}")]) == "é/=\"zc \" €= 9=\"\\u001f\\ufffd\u{2028}\""
+check gskip([gk("é\u{1f}\u{1}/", "s", "zc "), gk("€=", "s", ""), gk("\r9\"\t", "s", "\u{1f}\u{fffd}\u{2028}")]) == "é/=\"zc \" €= 9=\"\\u001f\\ufffd\u{2028}\""
+check genc([gk(" \tb/", "s", "plain"), gk(" ", "s", "\\"), gk("é\u{2028}y😀", "b", "false"), gk("\u{c}€", "s", "")]) == "ERR"
+check gskip([gk(" \tb/", "s", "plain"), gk(" ", "s", "\\"), gk("é\u{2028}y😀", "b", "false"), gk("\u{c}€", "s", "")]) == "b/=plain é\u{2028}y😀=false €="
+check genc([gk("😀bax\u{0}", "s", "1"), gk("€cx1", "n", ""), gk(" ", "s", "x=y"), gk(" ", "s", "")]) == "ERR"
+check gskip([gk("😀bax\u{0}", "s", "1"), gk("€cx1", "n", ""), gk(" ", "s", "x=y"), gk(" ", "s", "")]) == "😀bax=1 €cx1=null"
+check genc([gk("c", "n", ""), gti("", 0), gk("\u{1f}", "s", "€c€b"), gk("日cy\u{1f}=", "b", "false"), gk("\u{c}\r\nz", "s", "00za")]) == "ERR"
+check gskip([gk("c", "n", ""), gti("", 0), gk("\u{1f}", "s", "€c€b"), gk("日cy\u{1f}=", "b", "false"), gk("\u{c}\r\nz", "s", "00za")]) == "c=null 日cy=false z=00za"
+check genc([gk("b'\u{c}é\r", "s", "\u{c}")]) == "b'é=\"\\u000c\""
+check gskip([gk("b'\u{c}é\r", "s", "\u{c}")]) == "b'é=\"\\u000c\""
+check genc([gk("\u{0}\u{fffd}'", "s", "\u{0}"), gk("\u{fffd}", "n", "")]) == "ERR"
+check gskip([gk("\u{0}\u{fffd}'", "s", "\u{0}"), gk("\u{fffd}", "n", "")]) == "'=\"\\u0000\""
+check genc([gk("\n\né0z", "s", ""), gk("\u{7f}\\", "s", "\u{8}\u{1f}\u{1f}u\u{7f}\r1"), gti("9\u{c}'", 42), gti("\t", -1)]) == "ERR"
+check gskip([gk("\n\né0z", "s", ""), gk("\u{7f}\\", "s", "\u{8}\u{1f}\u{1f}u\u{7f}\r1"), gti("9\u{c}'", 42), gti("\t", -1)]) == "é0z= \u{7f}\\=\"\\u0008\\u001f\\u001fu\u{7f}\\r1\" 9'=42"
+check genc([gk("c", "s", "é"), gk(" é\u{0}-é9", "s", "😀\u{fffd}\t\u{7f}"), gk("by9b\u{7f}", "b", "true")]) == "c=é é-é9=\"😀\\ufffd\\t\u{7f}\" by9b\u{7f}=true"
+check gskip([gk("c", "s", "é"), gk(" é\u{0}-é9", "s", "😀\u{fffd}\t\u{7f}"), gk("by9b\u{7f}", "b", "true")]) == "c=é é-é9=\"😀\\ufffd\\t\u{7f}\" by9b\u{7f}=true"
+check genc([gk("\u{7f}\r", "s", "\"1\u{1}b"), gk("\r", "n", ""), gk("\r1-\u{0}\u{0}", "s", "plain"), gk("日9écc\t", "s", "\u{7f}\u{c}\u{fffd}")]) == "ERR"
+check gskip([gk("\u{7f}\r", "s", "\"1\u{1}b"), gk("\r", "n", ""), gk("\r1-\u{0}\u{0}", "s", "plain"), gk("日9écc\t", "s", "\u{7f}\u{c}\u{fffd}")]) == "\u{7f}=\"\\\"1\\u0001b\" 1-=plain 日9écc=\"\u{7f}\\u000c\\ufffd\""
+check genc([gk("0", "s", "\u{8}\u{1f}\u{1f}€1\u{fffd}"), gk("😀😀", "s", "9a\u{7f}09"), gk("/011-", "s", "z\u{1}z\u{fffd} =\u{1}1")]) == "0=\"\\u0008\\u001f\\u001f€1\\ufffd\" 😀😀=9a\u{7f}09 /011-=\"z\\u0001z\\ufffd =\\u00011\""
+check gskip([gk("0", "s", "\u{8}\u{1f}\u{1f}€1\u{fffd}"), gk("😀😀", "s", "9a\u{7f}09"), gk("/011-", "s", "z\u{1}z\u{fffd} =\u{1}1")]) == "0=\"\\u0008\\u001f\\u001f€1\\ufffd\" 😀😀=9a\u{7f}09 /011-=\"z\\u0001z\\ufffd =\\u00011\""
+check genc([gk("9é\u{fffd}", "b", "true"), gk("\\\r1xy", "s", "u1\r€u日c\r"), gk("x\\\"\u{fffd}c-", "s", "\u{1}\t\\z0"), gk("\n\\c\u{c}日", "s", "9\rua\\\r1")]) == "9é=true \\1xy=\"u1\\r€u日c\\r\" x\\c-=\"\\u0001\\t\\\\z0\" \\c日=\"9\\rua\\\\\\r1\""
+check gskip([gk("9é\u{fffd}", "b", "true"), gk("\\\r1xy", "s", "u1\r€u日c\r"), gk("x\\\"\u{fffd}c-", "s", "\u{1}\t\\z0"), gk("\n\\c\u{c}日", "s", "9\rua\\\r1")]) == "9é=true \\1xy=\"u1\\r€u日c\\r\" x\\c-=\"\\u0001\\t\\\\z0\" \\c日=\"9\\rua\\\\\\r1\""
+check genc([gk("x\\\u{2028}yxé", "s", "/😀-\u{2028}é\"\t-"), gk("u€a\u{8}", "s", "€ =9")]) == "x\\\u{2028}yxé=\"/😀-\u{2028}é\\\"\\t-\" u€a=\"€ =9\""
+check gskip([gk("x\\\u{2028}yxé", "s", "/😀-\u{2028}é\"\t-"), gk("u€a\u{8}", "s", "€ =9")]) == "x\\\u{2028}yxé=\"/😀-\u{2028}é\\\"\\t-\" u€a=\"€ =9\""
+check genc([gk("\"\n\u{1f}", "s", "null")]) == "ERR"
+check gskip([gk("\"\n\u{1f}", "s", "null")]) == ""
+check genc([gk(" z€uaé", "s", "b"), gk("-z", "s", ""), gti("0\rb", -1)]) == "z€uaé=b -z= 0b=-1"
+check gskip([gk(" z€uaé", "s", "b"), gk("-z", "s", ""), gti("0\rb", -1)]) == "z€uaé=b -z= 0b=-1"
+check genc([gk("\t'c", "n", ""), gti("\u{8}z9a", 0), gk("=", "b", "true"), gk("é\u{7f}0😀\\😀", "s", "😀-日u "), gk("z", "b", "true")]) == "ERR"
+check gskip([gk("\t'c", "n", ""), gti("\u{8}z9a", 0), gk("=", "b", "true"), gk("é\u{7f}0😀\\😀", "s", "😀-日u "), gk("z", "b", "true")]) == "'c=null z9a=0 é\u{7f}0😀\\😀=\"😀-日u \" z=true"
+check genc([gk("zu\u{1}u", "s", ""), gk("\t9日/\u{2028}\r", "s", "z"), gk("c", "s", "'aé\\ 0\u{fffd}x"), gk("\u{0}\r'\rx", "s", "\tb\t\u{fffd}y'by")]) == "zuu= 9日/\u{2028}=z c=\"'aé\\\\ 0\\ufffdx\" 'x=\"\\tb\\t\\ufffdy'by\""
+check gskip([gk("zu\u{1}u", "s", ""), gk("\t9日/\u{2028}\r", "s", "z"), gk("c", "s", "'aé\\ 0\u{fffd}x"), gk("\u{0}\r'\rx", "s", "\tb\t\u{fffd}y'by")]) == "zuu= 9日/\u{2028}=z c=\"'aé\\\\ 0\\ufffdx\" 'x=\"\\tb\\t\\ufffdy'by\""
+check genc([gk("😀a\u{1}1日", "n", ""), gk("😀\u{8}\n/", "s", "x=y"), gk("é9y", "s", "\t\u{c}"), gti("1y", (0 - 9223372036854775807 - 1)), gk("\"/-\u{8}", "b", "true")]) == "😀a1日=null 😀/=\"x=y\" é9y=\"\\t\\u000c\" 1y=-9223372036854775808 /-=true"
+check gskip([gk("😀a\u{1}1日", "n", ""), gk("😀\u{8}\n/", "s", "x=y"), gk("é9y", "s", "\t\u{c}"), gti("1y", (0 - 9223372036854775807 - 1)), gk("\"/-\u{8}", "b", "true")]) == "😀a1日=null 😀/=\"x=y\" é9y=\"\\t\\u000c\" 1y=-9223372036854775808 /-=true"
+check genc([gk("y\u{fffd}\r\u{1}", "s", ""), gk("\u{c}9c日'\"", "s", ""), gk("ué\u{7f}9", "s", "€\u{c}="), gk("=é\\1😀", "s", "\n =9"), gk("zc\"z", "s", " \u{8}\u{8}\t\u{0}0")]) == "y= 9c日'= ué\u{7f}9=\"€\\u000c=\" é\\1😀=\"\\n =9\" zcz=\" \\u0008\\u0008\\t\\u00000\""
+check gskip([gk("y\u{fffd}\r\u{1}", "s", ""), gk("\u{c}9c日'\"", "s", ""), gk("ué\u{7f}9", "s", "€\u{c}="), gk("=é\\1😀", "s", "\n =9"), gk("zc\"z", "s", " \u{8}\u{8}\t\u{0}0")]) == "y= 9c日'= ué\u{7f}9=\"€\\u000c=\" é\\1😀=\"\\n =9\" zcz=\" \\u0008\\u0008\\t\\u00000\""
+check genc([gk("1b ", "b", "true"), gk("日", "s", "x=y"), gk(" ", "s", "\"q\""), gk("\u{1}-\r0", "n", "")]) == "ERR"
+check gskip([gk("1b ", "b", "true"), gk("日", "s", "x=y"), gk(" ", "s", "\"q\""), gk("\u{1}-\r0", "n", "")]) == "1b=true 日=\"x=y\" -0=null"
+check genc([gk("\\\"", "s", ""), gk("\u{c}cé", "s", "€z11y/\u{8}"), gk("y\u{1}😀=日", "s", "\"\r9€\u{1f}\u{8} z")]) == "\\= cé=\"€z11y/\\u0008\" y😀日=\"\\\"\\r9€\\u001f\\u0008 z\""
+check gskip([gk("\\\"", "s", ""), gk("\u{c}cé", "s", "€z11y/\u{8}"), gk("y\u{1}😀=日", "s", "\"\r9€\u{1f}\u{8} z")]) == "\\= cé=\"€z11y/\\u0008\" y😀日=\"\\\"\\r9€\\u001f\\u0008 z\""
+check genc([gk("001\u{1f}", "s", "b"), gk("é=", "b", "true"), gk("1y\u{2028}ab", "b", "false"), gk("\u{2028}9\u{1f}a\u{c}\u{1}", "s", "\u{1}")]) == "001=b é=true 1y\u{2028}ab=false \u{2028}9a=\"\\u0001\""
+check gskip([gk("001\u{1f}", "s", "b"), gk("é=", "b", "true"), gk("1y\u{2028}ab", "b", "false"), gk("\u{2028}9\u{1f}a\u{c}\u{1}", "s", "\u{1}")]) == "001=b é=true 1y\u{2028}ab=false \u{2028}9a=\"\\u0001\""
+check genc([gk("/", "s", "céyxé/\n"), gk("\u{8}1", "s", "\u{0}0€\u{1}")]) == "/=\"céyxé/\\n\" 1=\"\\u00000€\\u0001\""
+check gskip([gk("/", "s", "céyxé/\n"), gk("\u{8}1", "s", "\u{0}0€\u{1}")]) == "/=\"céyxé/\\n\" 1=\"\\u00000€\\u0001\""
+check genc([gk("\"é9\u{fffd}", "s", ""), gk("a\u{c}b\u{0}", "s", "-0zc\u{c}x"), gk(" ", "s", "a\u{8}10\n-"), gk("\u{2028}0\r😀\\\"", "s", "é\u{8}"), gk("az -'1", "b", "false")]) == "ERR"
+check gskip([gk("\"é9\u{fffd}", "s", ""), gk("a\u{c}b\u{0}", "s", "-0zc\u{c}x"), gk(" ", "s", "a\u{8}10\n-"), gk("\u{2028}0\r😀\\\"", "s", "é\u{8}"), gk("az -'1", "b", "false")]) == "é9= ab=\"-0zc\\u000cx\" \u{2028}0😀\\=\"é\\u0008\" az-'1=false"
+check genc([gk("9", "s", "=\u{1}\u{c}\u{0}0\u{fffd}\\-"), gk("\u{0}-😀0", "s", "\u{1}"), gk("//", "s", "\"/😀😀"), gk("z\u{7f} -b9", "b", "false")]) == "9=\"=\\u0001\\u000c\\u00000\\ufffd\\\\-\" -😀0=\"\\u0001\" //=\"\\\"/😀😀\" z\u{7f}-b9=false"
+check gskip([gk("9", "s", "=\u{1}\u{c}\u{0}0\u{fffd}\\-"), gk("\u{0}-😀0", "s", "\u{1}"), gk("//", "s", "\"/😀😀"), gk("z\u{7f} -b9", "b", "false")]) == "9=\"=\\u0001\\u000c\\u00000\\ufffd\\\\-\" -😀0=\"\\u0001\" //=\"\\\"/😀😀\" z\u{7f}-b9=false"
+check genc([gk("\n\"b\t\u{c}", "s", "null")]) == "b=\"null\""
+check gskip([gk("\n\"b\t\u{c}", "s", "null")]) == "b=\"null\""
+check genc([gti("z0/", 0), gk("\u{c} ", "s", " z9'\u{1}\"/")]) == "ERR"
+check gskip([gti("z0/", 0), gk("\u{c} ", "s", " z9'\u{1}\"/")]) == "z0/=0"
+check genc([gk("\"", "s", "c\u{2028}\u{0}/")]) == "ERR"
+check gskip([gk("\"", "s", "c\u{2028}\u{0}/")]) == ""
+check genc([gk("'z", "b", "false"), gk("€\n\u{1}é9\u{2028}", "s", "x=y"), gk("😀", "b", "true")]) == "'z=false €é9\u{2028}=\"x=y\" 😀=true"
+check gskip([gk("'z", "b", "false"), gk("€\n\u{1}é9\u{2028}", "s", "x=y"), gk("😀", "b", "true")]) == "'z=false €é9\u{2028}=\"x=y\" 😀=true"
+check genc([gk(" ", "s", " "), gti("\u{7f}x\u{2028}", 9223372036854775807), gk("yu", "b", "true")]) == "ERR"
+check gskip([gk(" ", "s", " "), gti("\u{7f}x\u{2028}", 9223372036854775807), gk("yu", "b", "true")]) == "\u{7f}x\u{2028}=9223372036854775807 yu=true"
+check genc([gk("\u{1f} x-é", "s", "b=\u{7f}9"), gk("\u{1f}c", "s", "\u{1f}9-x\u{1}"), gk("\u{2028}\t\u{7f}", "s", "é-\u{8}\u{c}\n")]) == "x-é=\"b=\u{7f}9\" c=\"\\u001f9-x\\u0001\" \u{2028}\u{7f}=\"é-\\u0008\\u000c\\n\""
+check gskip([gk("\u{1f} x-é", "s", "b=\u{7f}9"), gk("\u{1f}c", "s", "\u{1f}9-x\u{1}"), gk("\u{2028}\t\u{7f}", "s", "é-\u{8}\u{c}\n")]) == "x-é=\"b=\u{7f}9\" c=\"\\u001f9-x\\u0001\" \u{2028}\u{7f}=\"é-\\u0008\\u000c\\n\""
+check genc([gk("\u{1}\u{0}a9u", "s", ""), gk("yyéb😀", "s", "plain"), gk("\u{1}\u{8}=b\n", "s", "\u{1f}u"), gk("\u{7f}b", "n", ""), gk("uc\"", "s", "é\u{1}\"'€\n")]) == "a9u= yyéb😀=plain b=\"\\u001fu\" \u{7f}b=null uc=\"é\\u0001\\\"'€\\n\""
+check gskip([gk("\u{1}\u{0}a9u", "s", ""), gk("yyéb😀", "s", "plain"), gk("\u{1}\u{8}=b\n", "s", "\u{1f}u"), gk("\u{7f}b", "n", ""), gk("uc\"", "s", "é\u{1}\"'€\n")]) == "a9u= yyéb😀=plain b=\"\\u001fu\" \u{7f}b=null uc=\"é\\u0001\\\"'€\\n\""
+check genc([gk("\\", "n", ""), gk("日0\u{2028}\"\\", "s", "1x"), gk("y\u{1}", "s", "plain"), gk("\"", "s", "")]) == "ERR"
+check gskip([gk("\\", "n", ""), gk("日0\u{2028}\"\\", "s", "1x"), gk("y\u{1}", "s", "plain"), gk("\"", "s", "")]) == "\\=null 日0\u{2028}\\=1x y=plain"
+check genc([gk(" ", "n", ""), gti("\u{fffd}u\r=", (0 - 9223372036854775807 - 1)), gk("\u{fffd}11\nx", "s", ""), gk("-9-\u{c}", "s", "x=y"), gk("", "s", "")]) == "ERR"
+check gskip([gk(" ", "n", ""), gti("\u{fffd}u\r=", (0 - 9223372036854775807 - 1)), gk("\u{fffd}11\nx", "s", ""), gk("-9-\u{c}", "s", "x=y"), gk("", "s", "")]) == "u=-9223372036854775808 11x= -9-=\"x=y\""
+check genc([gk("\u{1}a", "s", "\r'9\u{2028}\\\t\t"), gk("\u{2028}\u{c} ", "s", "x😀\u{8}1")]) == "a=\"\\r'9\u{2028}\\\\\\t\\t\" \u{2028}=\"x😀\\u00081\""
+check gskip([gk("\u{1}a", "s", "\r'9\u{2028}\\\t\t"), gk("\u{2028}\u{c} ", "s", "x😀\u{8}1")]) == "a=\"\\r'9\u{2028}\\\\\\t\\t\" \u{2028}=\"x😀\\u00081\""
+check genc([gk("uy\n", "s", "€\u{fffd}"), gk("u\\\u{0}😀", "s", "\u{1}é\u{1f}\t\u{1f}\n日\u{7f}"), gk("ycz'", "n", ""), gk("\\1\\=b'", "n", "")]) == "uy=\"€\\ufffd\" u\\😀=\"\\u0001é\\u001f\\t\\u001f\\n日\u{7f}\" ycz'=null \\1\\b'=null"
+check gskip([gk("uy\n", "s", "€\u{fffd}"), gk("u\\\u{0}😀", "s", "\u{1}é\u{1f}\t\u{1f}\n日\u{7f}"), gk("ycz'", "n", ""), gk("\\1\\=b'", "n", "")]) == "uy=\"€\\ufffd\" u\\😀=\"\\u0001é\\u001f\\t\\u001f\\n日\u{7f}\" ycz'=null \\1\\b'=null"
+check genc([gk("b", "s", "日\u{1f}\n=\n"), gk("\n", "s", "\t\u{1}"), gk("\u{1}😀ya-", "s", "\u{fffd}\u{1f}\r\u{c}y\u{1}"), gk("\"", "s", "\"='\r1=\u{2028}")]) == "ERR"
+check gskip([gk("b", "s", "日\u{1f}\n=\n"), gk("\n", "s", "\t\u{1}"), gk("\u{1}😀ya-", "s", "\u{fffd}\u{1f}\r\u{c}y\u{1}"), gk("\"", "s", "\"='\r1=\u{2028}")]) == "b=\"日\\u001f\\n=\\n\" 😀ya-=\"\\ufffd\\u001f\\r\\u000cy\\u0001\""
+check genc([gk("cy\nuu\u{0}", "n", "")]) == "cyuu=null"
+check gskip([gk("cy\nuu\u{0}", "n", "")]) == "cyuu=null"
+check genc([gk("=x\"a€", "s", "/=日\u{7f}'"), gk("0\\\u{7f}😀", "s", "")]) == "xa€=\"/=日\u{7f}'\" 0\\\u{7f}😀="
+check gskip([gk("=x\"a€", "s", "/=日\u{7f}'"), gk("0\\\u{7f}😀", "s", "")]) == "xa€=\"/=日\u{7f}'\" 0\\\u{7f}😀="
+check genc([gk("\u{c}", "s", "9=x\r\u{2028}"), gk(" x0\u{8}", "s", "c9x 日\n/"), gk("\u{1f}", "s", "uu\"\tx😀xx")]) == "ERR"
+check gskip([gk("\u{c}", "s", "9=x\r\u{2028}"), gk(" x0\u{8}", "s", "c9x 日\n/"), gk("\u{1f}", "s", "uu\"\tx😀xx")]) == "x0=\"c9x 日\\n/\""
+check genc([gk("\r\u{fffd}\u{1f}=0", "b", "false"), gk("é\t", "n", ""), gk("😀\u{fffd}", "s", "\u{2028}="), gti("'z", 0)]) == "0=false é=null 😀=\"\u{2028}=\" 'z=0"
+check gskip([gk("\r\u{fffd}\u{1f}=0", "b", "false"), gk("é\t", "n", ""), gk("😀\u{fffd}", "s", "\u{2028}="), gti("'z", 0)]) == "0=false é=null 😀=\"\u{2028}=\" 'z=0"
+check genc([gk("\u{7f}\u{7f}", "s", "\nb0\u{1}"), gk("\u{c}0\u{2028} ", "n", ""), gk("\t0y日日", "s", "")]) == "\u{7f}\u{7f}=\"\\nb0\\u0001\" 0\u{2028}=null 0y日日="
+check gskip([gk("\u{7f}\u{7f}", "s", "\nb0\u{1}"), gk("\u{c}0\u{2028} ", "n", ""), gk("\t0y日日", "s", "")]) == "\u{7f}\u{7f}=\"\\nb0\\u0001\" 0\u{2028}=null 0y日日="
+check genc([gti("€\u{c}", -848575895168), gk("\\", "s", ""), gk("\u{fffd}\u{1f}z\r€", "s", "z\u{0}é\u{1f}\u{fffd}-"), gk("9\"\u{fffd}1", "s", "b"), gk("0", "s", "")]) == "€=-848575895168 \\= z€=\"z\\u0000é\\u001f\\ufffd-\" 91=b 0="
+check gskip([gti("€\u{c}", -848575895168), gk("\\", "s", ""), gk("\u{fffd}\u{1f}z\r€", "s", "z\u{0}é\u{1f}\u{fffd}-"), gk("9\"\u{fffd}1", "s", "b"), gk("0", "s", "")]) == "€=-848575895168 \\= z€=\"z\\u0000é\\u001f\\ufffd-\" 91=b 0="
+check genc([gk("\"", "s", "/c\t c\tx"), gk("=\"\u{2028}\u{8}\u{7f}\"", "b", "false"), gk("b \"", "s", "null"), gk("\u{c}'\u{fffd}\u{1f}", "s", "\\😀"), gk("日", "n", "")]) == "ERR"
+check gskip([gk("\"", "s", "/c\t c\tx"), gk("=\"\u{2028}\u{8}\u{7f}\"", "b", "false"), gk("b \"", "s", "null"), gk("\u{c}'\u{fffd}\u{1f}", "s", "\\😀"), gk("日", "n", "")]) == "\u{2028}\u{7f}=false b=\"null\" '=\\😀 日=null"
+check genc([gk("\u{fffd}\u{1f}日\u{1f}日", "s", "'"), gk("€\u{1f}/'", "s", "'"), gk("c/", "s", "😀c"), gk(" x\u{1f}", "s", "u€/\u{fffd}0 ")]) == "日日=' €/'=' c/=😀c x=\"u€/\\ufffd0 \""
+check gskip([gk("\u{fffd}\u{1f}日\u{1f}日", "s", "'"), gk("€\u{1f}/'", "s", "'"), gk("c/", "s", "😀c"), gk(" x\u{1f}", "s", "u€/\u{fffd}0 ")]) == "日日=' €/'=' c/=😀c x=\"u€/\\ufffd0 \""
+check genc([gk("\u{1f}é\"😀'", "s", "ya-\r  "), gk("é\u{1f}\\\r\"", "b", "false"), gk("\u{1f}z\u{c}z\u{7f}x", "s", "\u{fffd}-\u{c}y1\r\u{7f}"), gk("cb", "n", "")]) == "é😀'=\"ya-\\r  \" é\\=false zz\u{7f}x=\"\\ufffd-\\u000cy1\\r\u{7f}\" cb=null"
+check gskip([gk("\u{1f}é\"😀'", "s", "ya-\r  "), gk("é\u{1f}\\\r\"", "b", "false"), gk("\u{1f}z\u{c}z\u{7f}x", "s", "\u{fffd}-\u{c}y1\r\u{7f}"), gk("cb", "n", "")]) == "é😀'=\"ya-\\r  \" é\\=false zz\u{7f}x=\"\\ufffd-\\u000cy1\\r\u{7f}\" cb=null"
+check genc([gk("z€a\u{fffd}\t\u{1f}", "s", "1\u{8}'9\r\u{1f}-\t"), gk("\u{0}\u{fffd}", "s", "\""), gk("z0c\u{fffd}", "s", "1😀\\"), gk("9", "s", "")]) == "ERR"
+check gskip([gk("z€a\u{fffd}\t\u{1f}", "s", "1\u{8}'9\r\u{1f}-\t"), gk("\u{0}\u{fffd}", "s", "\""), gk("z0c\u{fffd}", "s", "1😀\\"), gk("9", "s", "")]) == "z€a=\"1\\u0008'9\\r\\u001f-\\t\" z0c=1😀\\ 9="
+check genc([gk("b\n\u{2028}", "n", "")]) == "b\u{2028}=null"
+check gskip([gk("b\n\u{2028}", "n", "")]) == "b\u{2028}=null"
+check genc([gk("\u{1f}", "n", ""), gk("€1u\u{c}\u{1f}", "s", "\ru\t/😀"), gti("", 0), gk("\u{0}é\u{fffd}", "b", "false")]) == "ERR"
+check gskip([gk("\u{1f}", "n", ""), gk("€1u\u{c}\u{1f}", "s", "\ru\t/😀"), gti("", 0), gk("\u{0}é\u{fffd}", "b", "false")]) == "€1u=\"\\ru\\t/😀\" é=false"
+check genc([gk("\r\t\u{c}azy", "n", ""), gk("x\\\"\u{fffd}", "s", " \u{1}0\""), gk("\u{fffd}\u{0}9é", "s", "plain")]) == "azy=null x\\=\" \\u00010\\\"\" 9é=plain"
+check gskip([gk("\r\t\u{c}azy", "n", ""), gk("x\\\"\u{fffd}", "s", " \u{1}0\""), gk("\u{fffd}\u{0}9é", "s", "plain")]) == "azy=null x\\=\" \\u00010\\\"\" 9é=plain"
+check genc([gk("€", "s", "y")]) == "€=y"
+check gskip([gk("€", "s", "y")]) == "€=y"
+check genc([gk("b日", "s", "\u{8}日\\\u{c}\u{7f}ax"), gk("x\u{2028}\u{fffd}", "s", "/uc\t /"), gk("\"a\\", "s", ""), gk("\u{1}\u{c}b=", "s", "ab"), gk("=", "b", "false")]) == "ERR"
+check gskip([gk("b日", "s", "\u{8}日\\\u{c}\u{7f}ax"), gk("x\u{2028}\u{fffd}", "s", "/uc\t /"), gk("\"a\\", "s", ""), gk("\u{1}\u{c}b=", "s", "ab"), gk("=", "b", "false")]) == "b日=\"\\u0008日\\\\\\u000c\u{7f}ax\" x\u{2028}=\"/uc\\t /\" a\\= b=ab"
+check genc([gk("\u{7f}y9\u{1f}\u{0}", "s", "😀日"), gti("", 0), gk("\u{1f}b€", "s", " x")]) == "ERR"
+check gskip([gk("\u{7f}y9\u{1f}\u{0}", "s", "😀日"), gti("", 0), gk("\u{1f}b€", "s", " x")]) == "\u{7f}y9=😀日 b€=\" x\""
+check genc([gk("\\\u{1}'\r日\u{c}", "s", ""), gk("\u{7f}y", "s", "é😀-\r\"日y"), gk("cacz", "s", "b\t"), gk("yz\u{8}\r", "s", "'\u{c}\\\\")]) == "\\'日= \u{7f}y=\"é😀-\\r\\\"日y\" cacz=\"b\\t\" yz=\"'\\u000c\\\\\\\\\""
+check gskip([gk("\\\u{1}'\r日\u{c}", "s", ""), gk("\u{7f}y", "s", "é😀-\r\"日y"), gk("cacz", "s", "b\t"), gk("yz\u{8}\r", "s", "'\u{c}\\\\")]) == "\\'日= \u{7f}y=\"é😀-\\r\\\"日y\" cacz=\"b\\t\" yz=\"'\\u000c\\\\\\\\\""
+check genc([gk("\"", "s", "")]) == "ERR"
+check gskip([gk("\"", "s", "")]) == ""
+check genc([gti("日c=", 42), gk("\"", "s", "😀cu")]) == "ERR"
+check gskip([gti("日c=", 42), gk("\"", "s", "😀cu")]) == "日c=42"
+check genc([gk("x0a\u{fffd}\"", "s", "- \u{8}0'\u{7f}1\u{c}")]) == "x0a=\"- \\u00080'\u{7f}1\\u000c\""
+check gskip([gk("x0a\u{fffd}\"", "s", "- \u{8}0'\u{7f}1\u{c}")]) == "x0a=\"- \\u00080'\u{7f}1\\u000c\""
+check genc([gk("éb", "s", "plain"), gk("\tx09'", "s", "€\u{2028}cb"), gti("a\t\u{2028}\u{1}", 0), gk("\u{8}\u{0}\"€\\\"", "s", "\"q\"")]) == "éb=plain x09'=€\u{2028}cb a\u{2028}=0 €\\=\"\\\"q\\\"\""
+check gskip([gk("éb", "s", "plain"), gk("\tx09'", "s", "€\u{2028}cb"), gti("a\t\u{2028}\u{1}", 0), gk("\u{8}\u{0}\"€\\\"", "s", "\"q\"")]) == "éb=plain x09'=€\u{2028}cb a\u{2028}=0 €\\=\"\\\"q\\\"\""
+check genc([gk("1 ", "s", "")]) == "1="
+check gskip([gk("1 ", "s", "")]) == "1="
+check genc([gti("=", 0), gk("\u{1}\u{1}\nx-9", "s", "0'=日yxz"), gk("\u{7f}x€z\t\u{c}", "s", "\"\\baxz="), gk("\"", "s", "9u\u{1f}é\u{8}\u{7f}\u{7f}"), gk(" =\n", "s", "\"q\"")]) == "ERR"
+check gskip([gti("=", 0), gk("\u{1}\u{1}\nx-9", "s", "0'=日yxz"), gk("\u{7f}x€z\t\u{c}", "s", "\"\\baxz="), gk("\"", "s", "9u\u{1f}é\u{8}\u{7f}\u{7f}"), gk(" =\n", "s", "\"q\"")]) == "x-9=\"0'=日yxz\" \u{7f}x€z=\"\\\"\\\\baxz=\""
+check genc([gk("b", "s", "😀9\u{7f}au\u{7f}b")]) == "b=😀9\u{7f}au\u{7f}b"
+check gskip([gk("b", "s", "😀9\u{7f}au\u{7f}b")]) == "b=😀9\u{7f}au\u{7f}b"
+check genc([gti("é-y€\u{1}", 42), gk("//", "s", "\u{fffd}\u{c}\\\u{2028}\u{fffd}"), gk("\u{fffd}", "b", "true")]) == "ERR"
+check gskip([gti("é-y€\u{1}", 42), gk("//", "s", "\u{fffd}\u{c}\\\u{2028}\u{fffd}"), gk("\u{fffd}", "b", "true")]) == "é-y€=42 //=\"\\ufffd\\u000c\\\\\u{2028}\\ufffd\""
+check genc([gk("\t0", "s", "/=z"), gk(" ", "s", "")]) == "ERR"
+check gskip([gk("\t0", "s", "/=z"), gk(" ", "s", "")]) == "0=\"/=z\""
+check genc([gk("\n", "s", ""), gk("é\u{7f}\u{7f}=\n", "s", "\ra€日\t")]) == "ERR"
+check gskip([gk("\n", "s", ""), gk("é\u{7f}\u{7f}=\n", "s", "\ra€日\t")]) == "é\u{7f}\u{7f}=\"\\ra€日\\t\""
+check genc([gk("=", "b", "true")]) == "ERR"
+check gskip([gk("=", "b", "true")]) == ""
+check genc([gti("aa\n9x", 9223372036854775807), gk("\u{fffd}", "s", "1\u{fffd}u\n/"), gk("\u{8}u\u{8}1=", "s", "\u{2028}\u{1}"), gk("bxu\u{2028}-\t", "s", "€=")]) == "ERR"
+check gskip([gti("aa\n9x", 9223372036854775807), gk("\u{fffd}", "s", "1\u{fffd}u\n/"), gk("\u{8}u\u{8}1=", "s", "\u{2028}\u{1}"), gk("bxu\u{2028}-\t", "s", "€=")]) == "aa9x=9223372036854775807 u1=\"\u{2028}\\u0001\" bxu\u{2028}-=\"€=\""
+check genc([gk("\u{8}'x", "s", "\ta\u{8} \u{8}")]) == "'x=\"\\ta\\u0008 \\u0008\""
+check gskip([gk("\u{8}'x", "s", "\ta\u{8} \u{8}")]) == "'x=\"\\ta\\u0008 \\u0008\""
+check genc([gk("é\u{7f}b0", "s", "\u{1}x"), gk("\u{7f}", "s", "/"), gti("=\n/xz", 877582418412), gk("\u{2028}\\'0z\r", "s", "a"), gk("\u{fffd}", "s", "\u{7f}\u{c}\u{1}")]) == "ERR"
+check gskip([gk("é\u{7f}b0", "s", "\u{1}x"), gk("\u{7f}", "s", "/"), gti("=\n/xz", 877582418412), gk("\u{2028}\\'0z\r", "s", "a"), gk("\u{fffd}", "s", "\u{7f}\u{c}\u{1}")]) == "é\u{7f}b0=\"\\u0001x\" \u{7f}=/ /xz=877582418412 \u{2028}\\'0z=a"
+check genc([gk("\t'\\\u{1f}0x", "n", ""), gk(" ", "n", ""), gk("a", "s", "xx\u{8}=\u{8}"), gk("a91", "s", ""), gk("\u{0}-=\u{0}y\\", "s", "'\\😀")]) == "ERR"
+check gskip([gk("\t'\\\u{1f}0x", "n", ""), gk(" ", "n", ""), gk("a", "s", "xx\u{8}=\u{8}"), gk("a91", "s", ""), gk("\u{0}-=\u{0}y\\", "s", "'\\😀")]) == "'\\0x=null a=\"xx\\u0008=\\u0008\" a91= -y\\='\\😀"
+check genc([gk("日yxy", "s", "\u{8}z=")]) == "日yxy=\"\\u0008z=\""
+check gskip([gk("日yxy", "s", "\u{8}z=")]) == "日yxy=\"\\u0008z=\""
+check genc([gk("=\tux'", "s", "cz")]) == "ux'=cz"
+check gskip([gk("=\tux'", "s", "cz")]) == "ux'=cz"
+check genc([gk("'", "s", "\"q\""), gk("/\u{c}€", "s", "\u{fffd}yb"), gk("\u{fffd}'x", "s", "ba\u{2028}11"), gk("\n0日日\u{8}日", "n", ""), gk("\"9u", "b", "false")]) == "'=\"\\\"q\\\"\" /€=\"\\ufffdyb\" 'x=ba\u{2028}11 0日日日=null 9u=false"
+check gskip([gk("'", "s", "\"q\""), gk("/\u{c}€", "s", "\u{fffd}yb"), gk("\u{fffd}'x", "s", "ba\u{2028}11"), gk("\n0日日\u{8}日", "n", ""), gk("\"9u", "b", "false")]) == "'=\"\\\"q\\\"\" /€=\"\\ufffdyb\" 'x=ba\u{2028}11 0日日日=null 9u=false"
+check genc([gk("c\n1", "n", ""), gk("€\u{c}", "n", ""), gk("\u{8}uéx", "s", "\r"), gk("日\r'=\u{fffd}", "s", "cb\t😀")]) == "c1=null €=null uéx=\"\\r\" 日'=\"cb\\t😀\""
+check gskip([gk("c\n1", "n", ""), gk("€\u{c}", "n", ""), gk("\u{8}uéx", "s", "\r"), gk("日\r'=\u{fffd}", "s", "cb\t😀")]) == "c1=null €=null uéx=\"\\r\" 日'=\"cb\\t😀\""
+check genc([gk("\u{8}", "s", "\r😀😀😀cz\""), gk("ca", "s", "1\t\u{1f}/z")]) == "ERR"
+check gskip([gk("\u{8}", "s", "\r😀😀😀cz\""), gk("ca", "s", "1\t\u{1f}/z")]) == "ca=\"1\\t\\u001f/z\""
+check genc([gk("\u{fffd}", "s", "\ny\u{1f}\u{1f}\u{2028}é日\u{c}"), gk("z\\a", "b", "false"), gti("\"", 42)]) == "ERR"
+check gskip([gk("\u{fffd}", "s", "\ny\u{1f}\u{1f}\u{2028}é日\u{c}"), gk("z\\a", "b", "false"), gti("\"", 42)]) == "z\\a=false"
+check genc([gk("\"\"\u{1f}\\\u{fffd}", "b", "true"), gk("1\téa", "s", "/\u{0}\u{2028}"), gk("\t\u{2028}", "s", ""), gk("\u{fffd}\u{fffd}a", "s", "0\t"), gk("cé", "n", "")]) == "\\=true 1éa=\"/\\u0000\u{2028}\" \u{2028}= a=\"0\\t\" cé=null"
+check gskip([gk("\"\"\u{1f}\\\u{fffd}", "b", "true"), gk("1\téa", "s", "/\u{0}\u{2028}"), gk("\t\u{2028}", "s", ""), gk("\u{fffd}\u{fffd}a", "s", "0\t"), gk("cé", "n", "")]) == "\\=true 1éa=\"/\\u0000\u{2028}\" \u{2028}= a=\"0\\t\" cé=null"
+check genc([gk("xaéx", "s", "\r\u{c}a00€\u{fffd}"), gk("-\u{fffd}z", "s", "plain"), gk("\"", "s", "z😀")]) == "ERR"
+check gskip([gk("xaéx", "s", "\r\u{c}a00€\u{fffd}"), gk("-\u{fffd}z", "s", "plain"), gk("\"", "s", "z😀")]) == "xaéx=\"\\r\\u000ca00€\\ufffd\" -z=plain"
+check genc([gk("é", "s", "\"q\""), gk("", "n", "")]) == "ERR"
+check gskip([gk("é", "s", "\"q\""), gk("", "n", "")]) == "é=\"\\\"q\\\"\""
+check genc([gti("\u{1f}\n\u{c}-z\u{1f}", (0 - 9223372036854775807 - 1))]) == "-z=-9223372036854775808"
+check gskip([gti("\u{1f}\n\u{c}-z\u{1f}", (0 - 9223372036854775807 - 1))]) == "-z=-9223372036854775808"
+check genc([gk("\"", "s", ""), gk("009\u{8}", "s", "😀é-€")]) == "ERR"
+check gskip([gk("\"", "s", ""), gk("009\u{8}", "s", "😀é-€")]) == "009=😀é-€"
+check genc([gk("\r\u{1f}0\n\\\r", "b", "true"), gk(" ", "s", "€\u{0}=\u{2028}'"), gk("x\u{1}b ", "s", "null"), gk("😀\u{fffd}9😀", "s", "\u{1}日 a\u{1f}\u{0}")]) == "ERR"
+check gskip([gk("\r\u{1f}0\n\\\r", "b", "true"), gk(" ", "s", "€\u{0}=\u{2028}'"), gk("x\u{1}b ", "s", "null"), gk("😀\u{fffd}9😀", "s", "\u{1}日 a\u{1f}\u{0}")]) == "0\\=true xb=\"null\" 😀9😀=\"\\u0001日 a\\u001f\\u0000\""
+check genc([gk(" ", "b", "false"), gk("\u{fffd}", "n", ""), gk("u\"", "s", "😀")]) == "ERR"
+check gskip([gk(" ", "b", "false"), gk("\u{fffd}", "n", ""), gk("u\"", "s", "😀")]) == "u=😀"
+check genc([gk(" =\n", "s", "x=y"), gk("'z\téé\"", "s", "null"), gk("9\r=b", "s", "日"), gk("zzay1z", "s", "'z\n/\u{2028}\r\u{2028}"), gk("\"", "s", "-y\\")]) == "ERR"
+check gskip([gk(" =\n", "s", "x=y"), gk("'z\téé\"", "s", "null"), gk("9\r=b", "s", "日"), gk("zzay1z", "s", "'z\n/\u{2028}\r\u{2028}"), gk("\"", "s", "-y\\")]) == "'zéé=\"null\" 9b=日 zzay1z=\"'z\\n/\u{2028}\\r\u{2028}\""
+check genc([gk("\n\u{7f}\u{8}€ \u{0}", "b", "false"), gk("x\u{0}-1x", "b", "true"), gk("😀90\u{7f}0", "b", "true"), gk("x😀\t\r0\\", "s", "cx")]) == "\u{7f}€=false x-1x=true 😀90\u{7f}0=true x😀0\\=cx"
+check gskip([gk("\n\u{7f}\u{8}€ \u{0}", "b", "false"), gk("x\u{0}-1x", "b", "true"), gk("😀90\u{7f}0", "b", "true"), gk("x😀\t\r0\\", "s", "cx")]) == "\u{7f}€=false x-1x=true 😀90\u{7f}0=true x😀0\\=cx"
+check genc([gk("0\t", "s", "x=y"), gk("\"xy", "s", "😀\u{7f}1"), gk("a9\n", "s", "\tb-"), gk("é\\9\r\r\u{0}", "s", "\u{8}\u{2028}\u{1f}z\u{2028}\u{2028}")]) == "0=\"x=y\" xy=😀\u{7f}1 a9=\"\\tb-\" é\\9=\"\\u0008\u{2028}\\u001fz\u{2028}\u{2028}\""
+check gskip([gk("0\t", "s", "x=y"), gk("\"xy", "s", "😀\u{7f}1"), gk("a9\n", "s", "\tb-"), gk("é\\9\r\r\u{0}", "s", "\u{8}\u{2028}\u{1f}z\u{2028}\u{2028}")]) == "0=\"x=y\" xy=😀\u{7f}1 a9=\"\\tb-\" é\\9=\"\\u0008\u{2028}\\u001fz\u{2028}\u{2028}\""
+check genc([gk("\u{fffd}", "s", "=/"), gk("'", "s", "-"), gk("c\"ab\n\"", "s", "😀\n\"/'-0\n")]) == "ERR"
+check gskip([gk("\u{fffd}", "s", "=/"), gk("'", "s", "-"), gk("c\"ab\n\"", "s", "😀\n\"/'-0\n")]) == "'=- cab=\"😀\\n\\\"/'-0\\n\""
+check genc([gk("-c", "s", "null")]) == "-c=\"null\""
+check gskip([gk("-c", "s", "null")]) == "-c=\"null\""
+check genc([gk("' \"yy", "s", "ayz0'")]) == "'yy=ayz0'"
+check gskip([gk("' \"yy", "s", "ayz0'")]) == "'yy=ayz0'"
+check genc([gti("1\r\u{7f}", 42), gk("9-€", "n", ""), gti("z\u{8}😀/za", (0 - 9223372036854775807 - 1))]) == "1\u{7f}=42 9-€=null z😀/za=-9223372036854775808"
+check gskip([gti("1\r\u{7f}", 42), gk("9-€", "n", ""), gti("z\u{8}😀/za", (0 - 9223372036854775807 - 1))]) == "1\u{7f}=42 9-€=null z😀/za=-9223372036854775808"
+check genc([gk("€\u{c}9\n", "s", "x=y"), gk("\u{8}a\u{7f}\u{1}\u{0}y", "n", ""), gk("\u{fffd}xz", "s", "\t\u{2028}\rz\\\u{2028}\r\u{0}")]) == "€9=\"x=y\" a\u{7f}y=null xz=\"\\t\u{2028}\\rz\\\\\u{2028}\\r\\u0000\""
+check gskip([gk("€\u{c}9\n", "s", "x=y"), gk("\u{8}a\u{7f}\u{1}\u{0}y", "n", ""), gk("\u{fffd}xz", "s", "\t\u{2028}\rz\\\u{2028}\r\u{0}")]) == "€9=\"x=y\" a\u{7f}y=null xz=\"\\t\u{2028}\\rz\\\\\u{2028}\\r\\u0000\""
+check genc([gk("\u{0}u\n=\u{7f}\u{c}", "s", "null"), gk("\u{fffd}", "s", "\tb€\u{0}é\n")]) == "ERR"
+check gskip([gk("\u{0}u\n=\u{7f}\u{c}", "s", "null"), gk("\u{fffd}", "s", "\tb€\u{0}é\n")]) == "u\u{7f}=\"null\""
+check genc([gk("", "s", "\"\u{8}='\u{fffd}z"), gk("é", "s", "\u{1}\r😀z\u{8}😀/"), gk("\"c€ 😀", "s", "日c€a\u{7f}"), gk(" \u{fffd}\u{2028}/\\", "s", "b\u{1}/"), gk("zau/'\u{1}", "s", "\u{0}éy\n")]) == "ERR"
+check gskip([gk("", "s", "\"\u{8}='\u{fffd}z"), gk("é", "s", "\u{1}\r😀z\u{8}😀/"), gk("\"c€ 😀", "s", "日c€a\u{7f}"), gk(" \u{fffd}\u{2028}/\\", "s", "b\u{1}/"), gk("zau/'\u{1}", "s", "\u{0}éy\n")]) == "é=\"\\u0001\\r😀z\\u0008😀/\" c€😀=日c€a\u{7f} \u{2028}/\\=\"b\\u0001/\" zau/'=\"\\u0000éy\\n\""
+check genc([gk("\u{2028}", "s", "a-c"), gk("-1\u{c}\u{c}\u{fffd}", "s", "/\r")]) == "\u{2028}=a-c -1=\"/\\r\""
+check gskip([gk("\u{2028}", "s", "a-c"), gk("-1\u{c}\u{c}\u{fffd}", "s", "/\r")]) == "\u{2028}=a-c -1=\"/\\r\""
+check genc([gk("a0日😀 ", "s", "\u{c}9\u{1f}"), gk("\u{fffd}0\"-", "s", ""), gk("\u{2028}\n1€y", "b", "true"), gti("\n", -863100398218)]) == "ERR"
+check gskip([gk("a0日😀 ", "s", "\u{c}9\u{1f}"), gk("\u{fffd}0\"-", "s", ""), gk("\u{2028}\n1€y", "b", "true"), gti("\n", -863100398218)]) == "a0日😀=\"\\u000c9\\u001f\" 0-= \u{2028}1€y=true"
+check genc([gk("\u{1}😀日\"", "s", "é1\u{8}b-"), gk("\"é", "s", "\""), gk("", "s", "x😀\u{1f}é'1\t"), gk("9x0", "s", "\\\u{8}\u{1f}\u{fffd}"), gk("c", "s", "\u{c}\u{7f}\u{2028}9")]) == "ERR"
+check gskip([gk("\u{1}😀日\"", "s", "é1\u{8}b-"), gk("\"é", "s", "\""), gk("", "s", "x😀\u{1f}é'1\t"), gk("9x0", "s", "\\\u{8}\u{1f}\u{fffd}"), gk("c", "s", "\u{c}\u{7f}\u{2028}9")]) == "😀日=\"é1\\u0008b-\" é=\"\\\"\" 9x0=\"\\\\\\u0008\\u001f\\ufffd\" c=\"\\u000c\u{7f}\u{2028}9\""
+check genc([gk("é\u{2028}€\u{fffd}y0", "s", "'\u{8}"), gk("\r\u{2028}", "s", "0\u{0}yy\n\"\\"), gk("\ra1/", "s", "\u{1}€\n/\u{0}"), gk("\u{fffd}", "s", "=\u{fffd}€b\\\r01"), gti("\u{c}/\u{1f}x", -147567543839)]) == "ERR"
+check gskip([gk("é\u{2028}€\u{fffd}y0", "s", "'\u{8}"), gk("\r\u{2028}", "s", "0\u{0}yy\n\"\\"), gk("\ra1/", "s", "\u{1}€\n/\u{0}"), gk("\u{fffd}", "s", "=\u{fffd}€b\\\r01"), gti("\u{c}/\u{1f}x", -147567543839)]) == "é\u{2028}€y0=\"'\\u0008\" \u{2028}=\"0\\u0000yy\\n\\\"\\\\\" a1/=\"\\u0001€\\n/\\u0000\" /x=-147567543839"
+check genc([gk(" /\u{1f}\u{fffd}-", "s", "\u{2028}€")]) == "/-=\u{2028}€"
+check gskip([gk(" /\u{1f}\u{fffd}-", "s", "\u{2028}€")]) == "/-=\u{2028}€"
+check genc([gk("\tb日", "s", "\u{0}\u{2028}ya9"), gk("x", "s", "\n😀x\u{0}yy\u{c}"), gk("", "s", "/€\u{8}\u{2028}\\\u{8}\u{1}€"), gk("u 0\u{2028}\rz", "n", "")]) == "ERR"
+check gskip([gk("\tb日", "s", "\u{0}\u{2028}ya9"), gk("x", "s", "\n😀x\u{0}yy\u{c}"), gk("", "s", "/€\u{8}\u{2028}\\\u{8}\u{1}€"), gk("u 0\u{2028}\rz", "n", "")]) == "b日=\"\\u0000\u{2028}ya9\" x=\"\\n😀x\\u0000yy\\u000c\" u0\u{2028}z=null"
+check genc([gk("€=\"\n\u{1f}\u{c}", "s", "\u{8}"), gk("日\"", "b", "false")]) == "€=\"\\u0008\" 日=false"
+check gskip([gk("€=\"\n\u{1f}\u{c}", "s", "\u{8}"), gk("日\"", "b", "false")]) == "€=\"\\u0008\" 日=false"
+check genc([gk("\u{0}\u{fffd}", "s", "c\u{c}bc0 "), gk("uc9日", "b", "false"), gk("\"", "s", "c日\u{1}éb")]) == "ERR"
+check gskip([gk("\u{0}\u{fffd}", "s", "c\u{c}bc0 "), gk("uc9日", "b", "false"), gk("\"", "s", "c日\u{1}éb")]) == "uc9日=false"
+check genc([gk(" ", "s", "\u{1}c"), gk("\n=/c\u{7f}\\", "n", ""), gk(" =\n", "s", "1a\" /c")]) == "ERR"
+check gskip([gk(" ", "s", "\u{1}c"), gk("\n=/c\u{7f}\\", "n", ""), gk(" =\n", "s", "1a\" /c")]) == "/c\u{7f}\\=null"
+check genc([gk("\u{fffd}", "s", "/-\nu")]) == "ERR"
+check gskip([gk("\u{fffd}", "s", "/-\nu")]) == ""
+check genc([gk("/c", "s", "null"), gk("\u{1}😀c", "b", "true"), gk("b\u{fffd}", "n", "")]) == "/c=\"null\" 😀c=true b=null"
+check gskip([gk("/c", "s", "null"), gk("\u{1}😀c", "b", "true"), gk("b\u{fffd}", "n", "")]) == "/c=\"null\" 😀c=true b=null"
+check genc([gk("", "s", "\u{1}1\u{1}'"), gk("\u{1}'\u{7f}\u{1}1-", "n", ""), gk("\r''\u{2028}", "s", "\u{fffd}\u{2028}\u{1}")]) == "ERR"
+check gskip([gk("", "s", "\u{1}1\u{1}'"), gk("\u{1}'\u{7f}\u{1}1-", "n", ""), gk("\r''\u{2028}", "s", "\u{fffd}\u{2028}\u{1}")]) == "'\u{7f}1-=null ''\u{2028}=\"\\ufffd\u{2028}\\u0001\""
+check genc([gk("😀\u{0}", "s", " "), gti("-=\u{1}", (0 - 9223372036854775807 - 1)), gk("é/x", "s", "€b\u{1f}/é\u{1}😀€")]) == "😀=\" \" -=-9223372036854775808 é/x=\"€b\\u001f/é\\u0001😀€\""
+check gskip([gk("😀\u{0}", "s", " "), gti("-=\u{1}", (0 - 9223372036854775807 - 1)), gk("é/x", "s", "€b\u{1f}/é\u{1}😀€")]) == "😀=\" \" -=-9223372036854775808 é/x=\"€b\\u001f/é\\u0001😀€\""
+check genc([gk("=", "s", "9b\u{1f}\u{2028}\t\\=9"), gk(" y", "s", "\r😀\\\u{0}y"), gk("b19/", "s", "\u{2028} \u{1f}\tc\u{1}\u{0}"), gti("\u{c}x", 42), gk("", "s", "\u{fffd}c\u{0}'0")]) == "ERR"
+check gskip([gk("=", "s", "9b\u{1f}\u{2028}\t\\=9"), gk(" y", "s", "\r😀\\\u{0}y"), gk("b19/", "s", "\u{2028} \u{1f}\tc\u{1}\u{0}"), gti("\u{c}x", 42), gk("", "s", "\u{fffd}c\u{0}'0")]) == "y=\"\\r😀\\\\\\u0000y\" b19/=\"\u{2028} \\u001f\\tc\\u0001\\u0000\" x=42"
+check genc([gk("/", "s", ""), gk("\u{2028}\u{1}", "s", "\u{0}x\u{0}/\u{7f}9\u{2028}\u{c}"), gk(" \u{1f}\u{8}", "s", "\"=0b\u{2028}\n日")]) == "ERR"
+check gskip([gk("/", "s", ""), gk("\u{2028}\u{1}", "s", "\u{0}x\u{0}/\u{7f}9\u{2028}\u{c}"), gk(" \u{1f}\u{8}", "s", "\"=0b\u{2028}\n日")]) == "/= \u{2028}=\"\\u0000x\\u0000/\u{7f}9\u{2028}\\u000c\""
+check genc([gk("😀'\"-x", "b", "true"), gk("\u{1}/yy", "s", " \\z \\ab/"), gk("\r9=éb", "s", "\"q\"")]) == "😀'-x=true /yy=\" \\\\z \\\\ab/\" 9éb=\"\\\"q\\\"\""
+check gskip([gk("😀'\"-x", "b", "true"), gk("\u{1}/yy", "s", " \\z \\ab/"), gk("\r9=éb", "s", "\"q\"")]) == "😀'-x=true /yy=\" \\\\z \\\\ab/\" 9éb=\"\\\"q\\\"\""
+check genc([gk("\u{2028}😀'\u{c}\u{fffd}", "n", ""), gk("日", "s", "\u{2028}\u{1} 日"), gk("\\z", "s", "y'\u{7f}\u{1f}=日\"€"), gk("\u{0}u日é", "s", "=c - =\""), gk("\u{0}\t\u{1f}\u{7f}", "s", "")]) == "\u{2028}😀'=null 日=\"\u{2028}\\u0001 日\" \\z=\"y'\u{7f}\\u001f=日\\\"€\" u日é=\"=c - =\\\"\" \u{7f}="
+check gskip([gk("\u{2028}😀'\u{c}\u{fffd}", "n", ""), gk("日", "s", "\u{2028}\u{1} 日"), gk("\\z", "s", "y'\u{7f}\u{1f}=日\"€"), gk("\u{0}u日é", "s", "=c - =\""), gk("\u{0}\t\u{1f}\u{7f}", "s", "")]) == "\u{2028}😀'=null 日=\"\u{2028}\\u0001 日\" \\z=\"y'\u{7f}\\u001f=日\\\"€\" u日é=\"=c - =\\\"\" \u{7f}="
+check genc([gti("c\t\t", (0 - 9223372036854775807 - 1)), gk("-\r\"0/", "s", "'\u{7f}\u{8}\u{8}"), gk("\u{8}", "n", "")]) == "ERR"
+check gskip([gti("c\t\t", (0 - 9223372036854775807 - 1)), gk("-\r\"0/", "s", "'\u{7f}\u{8}\u{8}"), gk("\u{8}", "n", "")]) == "c=-9223372036854775808 -0/=\"'\u{7f}\\u0008\\u0008\""
+check genc([gk("€\u{c}\u{fffd}\"", "n", ""), gk("\u{2028}\u{c}😀", "s", ""), gk("é", "b", "false"), gk("u'\u{8}x", "n", "")]) == "€=null \u{2028}😀= é=false u'x=null"
+check gskip([gk("€\u{c}\u{fffd}\"", "n", ""), gk("\u{2028}\u{c}😀", "s", ""), gk("é", "b", "false"), gk("u'\u{8}x", "n", "")]) == "€=null \u{2028}😀= é=false u'x=null"
+check genc([gk("😀\u{7f}-\"\u{0}0", "s", "a\u{8}"), gk("\u{c}9", "s", "\t z"), gk("\u{1f}ab\u{0}😀\u{0}", "b", "false"), gk("0\\\u{fffd}\\9u", "s", "null"), gk("", "b", "false")]) == "ERR"
+check gskip([gk("😀\u{7f}-\"\u{0}0", "s", "a\u{8}"), gk("\u{c}9", "s", "\t z"), gk("\u{1f}ab\u{0}😀\u{0}", "b", "false"), gk("0\\\u{fffd}\\9u", "s", "null"), gk("", "b", "false")]) == "😀\u{7f}-0=\"a\\u0008\" 9=\"\\t z\" ab😀=false 0\\\\9u=\"null\""
+check genc([gk("y", "s", "😀\u{c}b9"), gti(" =\n", 866812802645), gti("a\u{8}0b\u{2028}", 769537014199), gk("\u{fffd}\t\u{fffd} 9", "b", "true")]) == "ERR"
+check gskip([gk("y", "s", "😀\u{c}b9"), gti(" =\n", 866812802645), gti("a\u{8}0b\u{2028}", 769537014199), gk("\u{fffd}\t\u{fffd} 9", "b", "true")]) == "y=\"😀\\u000cb9\" a0b\u{2028}=769537014199 9=true"
+check genc([gti("\u{fffd}", (0 - 9223372036854775807 - 1)), gk("-\u{1f}\u{2028}=", "s", "=😀=\u{1f}\u{fffd}\u{2028}"), gk("\u{fffd}", "b", "true")]) == "ERR"
+check gskip([gti("\u{fffd}", (0 - 9223372036854775807 - 1)), gk("-\u{1f}\u{2028}=", "s", "=😀=\u{1f}\u{fffd}\u{2028}"), gk("\u{fffd}", "b", "true")]) == "-\u{2028}=\"=😀=\\u001f\\ufffd\u{2028}\""
+check genc([gti("€\rz\u{7f}\u{0}", 0)]) == "€z\u{7f}=0"
+check gskip([gti("€\rz\u{7f}\u{0}", 0)]) == "€z\u{7f}=0"
+check genc([gk("-\u{0}\u{c}\t ", "s", "\""), gk("0\u{8}\u{0}\u{8}=", "b", "true"), gk("日\t=\"\"", "n", ""), gk("\u{fffd}yb\u{0}😀", "n", ""), gk("9😀b\"", "b", "true")]) == "-=\"\\\"\" 0=true 日=null yb😀=null 9😀b=true"
+check gskip([gk("-\u{0}\u{c}\t ", "s", "\""), gk("0\u{8}\u{0}\u{8}=", "b", "true"), gk("日\t=\"\"", "n", ""), gk("\u{fffd}yb\u{0}😀", "n", ""), gk("9😀b\"", "b", "true")]) == "-=\"\\\"\" 0=true 日=null yb😀=null 9😀b=true"
+check genc([gk("a日\u{1}1\u{c}\u{fffd}", "s", "😀😀-"), gk("1😀'y", "s", "\u{2028} \u{0}\tb"), gk("=", "b", "true"), gk("\u{1}=\u{1f}a' ", "s", "é\u{8}uuc\u{7f}"), gk("z0😀", "s", "\u{1f}日")]) == "ERR"
+check gskip([gk("a日\u{1}1\u{c}\u{fffd}", "s", "😀😀-"), gk("1😀'y", "s", "\u{2028} \u{0}\tb"), gk("=", "b", "true"), gk("\u{1}=\u{1f}a' ", "s", "é\u{8}uuc\u{7f}"), gk("z0😀", "s", "\u{1f}日")]) == "a日1=😀😀- 1😀'y=\"\u{2028} \\u0000\\tb\" a'=\"é\\u0008uuc\u{7f}\" z0😀=\"\\u001f日\""
+check genc([gk("'\u{fffd}日\u{fffd}", "s", "\u{1}/"), gk("/\u{7f}\u{c}\u{8}\u{1f}9", "b", "true")]) == "'日=\"\\u0001/\" /\u{7f}9=true"
+check gskip([gk("'\u{fffd}日\u{fffd}", "s", "\u{1}/"), gk("/\u{7f}\u{c}\u{8}\u{1f}9", "b", "true")]) == "'日=\"\\u0001/\" /\u{7f}9=true"
+check genc([gk("\u{0}😀", "n", ""), gk("\r", "s", "\t\u{fffd}\"\u{0}'"), gk("1\u{8}c\u{1f}\t😀", "n", ""), gk("\u{8}", "s", "😀a\u{1f}'\n\n")]) == "ERR"
+check gskip([gk("\u{0}😀", "n", ""), gk("\r", "s", "\t\u{fffd}\"\u{0}'"), gk("1\u{8}c\u{1f}\t😀", "n", ""), gk("\u{8}", "s", "😀a\u{1f}'\n\n")]) == "😀=null 1c😀=null"
+check genc([gk("\u{2028}\u{8}=\u{2028}ax", "b", "false"), gk("c -\ra", "s", "")]) == "\u{2028}\u{2028}ax=false c-a="
+check gskip([gk("\u{2028}\u{8}=\u{2028}ax", "b", "false"), gk("c -\ra", "s", "")]) == "\u{2028}\u{2028}ax=false c-a="
+check genc([gk("=-", "s", "\nx=\u{8} \u{8}")]) == "-=\"\\nx=\\u0008 \\u0008\""
+check gskip([gk("=-", "s", "\nx=\u{8} \u{8}")]) == "-=\"\\nx=\\u0008 \\u0008\""
+check genc([gk("0\u{8}1\u{c}c9", "s", "/1\u{2028}\u{1}\té"), gti("u/\\0b", (0 - 9223372036854775807 - 1)), gk("\n\"-\u{7f}", "s", "\u{1}a€\u{1}\r\"c")]) == "01c9=\"/1\u{2028}\\u0001\\té\" u/\\0b=-9223372036854775808 -\u{7f}=\"\\u0001a€\\u0001\\r\\\"c\""
+check gskip([gk("0\u{8}1\u{c}c9", "s", "/1\u{2028}\u{1}\té"), gti("u/\\0b", (0 - 9223372036854775807 - 1)), gk("\n\"-\u{7f}", "s", "\u{1}a€\u{1}\r\"c")]) == "01c9=\"/1\u{2028}\\u0001\\té\" u/\\0b=-9223372036854775808 -\u{7f}=\"\\u0001a€\\u0001\\r\\\"c\""
+check genc([gk("z\u{0} u\tu", "s", "\"q\""), gk(" =\n", "s", "\""), gk("\u{1}", "s", " 日\n\u{1}9u"), gk(" 0=/", "s", "")]) == "ERR"
+check gskip([gk("z\u{0} u\tu", "s", "\"q\""), gk(" =\n", "s", "\""), gk("\u{1}", "s", " 日\n\u{1}9u"), gk(" 0=/", "s", "")]) == "zuu=\"\\\"q\\\"\" 0/="
+check genc([gk("b\u{1f}\u{fffd}", "s", "c\t1c'1\"-"), gk("é9'/\nx", "n", ""), gk("😀\" b\u{1f}", "s", "\u{7f}😀\n日1\u{8}")]) == "b=\"c\\t1c'1\\\"-\" é9'/x=null 😀b=\"\u{7f}😀\\n日1\\u0008\""
+check gskip([gk("b\u{1f}\u{fffd}", "s", "c\t1c'1\"-"), gk("é9'/\nx", "n", ""), gk("😀\" b\u{1f}", "s", "\u{7f}😀\n日1\u{8}")]) == "b=\"c\\t1c'1\\\"-\" é9'/x=null 😀b=\"\u{7f}😀\\n日1\\u0008\""
+check genc([gk("0", "s", "\u{8} \ry"), gti("0 /", (0 - 9223372036854775807 - 1)), gk("\u{7f}1😀0€", "s", "cb\n=\u{2028}\t")]) == "0=\"\\u0008 \\ry\" 0/=-9223372036854775808 \u{7f}1😀0€=\"cb\\n=\u{2028}\\t\""
+check gskip([gk("0", "s", "\u{8} \ry"), gti("0 /", (0 - 9223372036854775807 - 1)), gk("\u{7f}1😀0€", "s", "cb\n=\u{2028}\t")]) == "0=\"\\u0008 \\ry\" 0/=-9223372036854775808 \u{7f}1😀0€=\"cb\\n=\u{2028}\\t\""
+check genc([gk("\u{1}", "s", "\u{7f}-=9b"), gk("\u{2028}\u{7f}c\r\u{1f}0", "s", "'9"), gk("€\nz\\ ", "s", "b9\u{0}1€\u{0}a\u{fffd}")]) == "ERR"
+check gskip([gk("\u{1}", "s", "\u{7f}-=9b"), gk("\u{2028}\u{7f}c\r\u{1f}0", "s", "'9"), gk("€\nz\\ ", "s", "b9\u{0}1€\u{0}a\u{fffd}")]) == "\u{2028}\u{7f}c0='9 €z\\=\"b9\\u00001€\\u0000a\\ufffd\""
+check genc([gk("cé=\t'", "n", ""), gk("xb\u{c}1 /", "s", "\n 9\"/1"), gti("cyxy0", (0 - 9223372036854775807 - 1))]) == "cé'=null xb1/=\"\\n 9\\\"/1\" cyxy0=-9223372036854775808"
+check gskip([gk("cé=\t'", "n", ""), gk("xb\u{c}1 /", "s", "\n 9\"/1"), gti("cyxy0", (0 - 9223372036854775807 - 1))]) == "cé'=null xb1/=\"\\n 9\\\"/1\" cyxy0=-9223372036854775808"
+check genc([gk("😀'y", "b", "true"), gk(" =\n", "b", "true"), gk("z", "s", "\u{fffd}999\n\r"), gk("\u{fffd}0😀u\u{1}", "s", "")]) == "ERR"
+check gskip([gk("😀'y", "b", "true"), gk(" =\n", "b", "true"), gk("z", "s", "\u{fffd}999\n\r"), gk("\u{fffd}0😀u\u{1}", "s", "")]) == "😀'y=true z=\"\\ufffd999\\n\\r\" 0😀u="
+check genc([gk("\"x", "b", "true"), gk("91\n", "s", "\""), gti("cy\\u/x", -1), gk(" \u{c}", "s", "\\ a\u{1}")]) == "ERR"
+check gskip([gk("\"x", "b", "true"), gk("91\n", "s", "\""), gti("cy\\u/x", -1), gk(" \u{c}", "s", "\\ a\u{1}")]) == "x=true 91=\"\\\"\" cy\\u/x=-1"
+check genc([gk("1\u{7f}", "s", ""), gk("\"\u{0}\u{c}b日", "s", "\u{fffd}日\"\n\u{fffd}\n ")]) == "1\u{7f}= b日=\"\\ufffd日\\\"\\n\\ufffd\\n \""
+check gskip([gk("1\u{7f}", "s", ""), gk("\"\u{0}\u{c}b日", "s", "\u{fffd}日\"\n\u{fffd}\n ")]) == "1\u{7f}= b日=\"\\ufffd日\\\"\\n\\ufffd\\n \""
+check genc([gk("'/\u{8}b", "n", ""), gk("\"\u{7f}-", "s", "0\u{1f}\u{8}-0\u{1}y"), gk("=", "s", ""), gk("/ca", "s", "'é"), gk("\u{c}1 \u{1f}ay", "s", "'\ny\u{8}\u{1}0\u{7f}")]) == "ERR"
+check gskip([gk("'/\u{8}b", "n", ""), gk("\"\u{7f}-", "s", "0\u{1f}\u{8}-0\u{1}y"), gk("=", "s", ""), gk("/ca", "s", "'é"), gk("\u{c}1 \u{1f}ay", "s", "'\ny\u{8}\u{1}0\u{7f}")]) == "'/b=null \u{7f}-=\"0\\u001f\\u0008-0\\u0001y\" /ca='é 1ay=\"'\\ny\\u0008\\u00010\u{7f}\""
+check genc([gk("1\n\u{0}1", "s", "\u{1}b\u{1f}y€😀b\u{0}")]) == "11=\"\\u0001b\\u001fy€😀b\\u0000\""
+check gskip([gk("1\n\u{0}1", "s", "\u{1}b\u{1f}y€😀b\u{0}")]) == "11=\"\\u0001b\\u001fy€😀b\\u0000\""
+check genc([gk("\tcz\\", "s", "plain"), gk("\r\u{2028}", "s", "\u{c}0\\日é\u{7f}")]) == "cz\\=plain \u{2028}=\"\\u000c0\\\\日é\u{7f}\""
+check gskip([gk("\tcz\\", "s", "plain"), gk("\r\u{2028}", "s", "\u{c}0\\日é\u{7f}")]) == "cz\\=plain \u{2028}=\"\\u000c0\\\\日é\u{7f}\""
+check genc([gk(" =\n", "s", "1\u{c}0--'c"), gk("\u{1}\u{0}=", "s", "0-10\u{c}x\u{8}"), gti("=\u{2028}😀€y日", -888113087287), gk("€x", "s", ""), gk("日a\u{c}9é\u{2028}", "s", "\u{1f}=\na\u{0}x\n")]) == "ERR"
+check gskip([gk(" =\n", "s", "1\u{c}0--'c"), gk("\u{1}\u{0}=", "s", "0-10\u{c}x\u{8}"), gti("=\u{2028}😀€y日", -888113087287), gk("€x", "s", ""), gk("日a\u{c}9é\u{2028}", "s", "\u{1f}=\na\u{0}x\n")]) == "\u{2028}😀€y日=-888113087287 €x= 日a9é\u{2028}=\"\\u001f=\\na\\u0000x\\n\""
+check genc([gk("\u{fffd}", "s", "=\u{fffd}\u{1f}c\n"), gk("€\rx😀\u{c}", "s", ""), gk("\\a\u{0}=", "s", "")]) == "ERR"
+check gskip([gk("\u{fffd}", "s", "=\u{fffd}\u{1f}c\n"), gk("€\rx😀\u{c}", "s", ""), gk("\\a\u{0}=", "s", "")]) == "€x😀= \\a="
+check genc([gk("\"\\0u/x", "s", "y"), gk(" ", "s", "€u\u{c}\u{7f}/"), gk("\u{7f}u\u{2028}yu", "s", "9b\t"), gk("z", "s", "='c0-")]) == "ERR"
+check gskip([gk("\"\\0u/x", "s", "y"), gk(" ", "s", "€u\u{c}\u{7f}/"), gk("\u{7f}u\u{2028}yu", "s", "9b\t"), gk("z", "s", "='c0-")]) == "\\0u/x=y \u{7f}u\u{2028}yu=\"9b\\t\" z=\"='c0-\""
+check genc([gk("\\", "b", "true"), gk("\n\u{c}z", "s", "x=y"), gk("0", "s", "")]) == "\\=true z=\"x=y\" 0="
+check gskip([gk("\\", "b", "true"), gk("\n\u{c}z", "s", "x=y"), gk("0", "s", "")]) == "\\=true z=\"x=y\" 0="
+check genc([gk("a\u{1f}\n\\", "s", "\t9=\u{2028}xu\t"), gk("9x", "s", "\\b\u{8}c\u{fffd}\r\n"), gk("1€\r", "n", "")]) == "a\\=\"\\t9=\u{2028}xu\\t\" 9x=\"\\\\b\\u0008c\\ufffd\\r\\n\" 1€=null"
+check gskip([gk("a\u{1f}\n\\", "s", "\t9=\u{2028}xu\t"), gk("9x", "s", "\\b\u{8}c\u{fffd}\r\n"), gk("1€\r", "n", "")]) == "a\\=\"\\t9=\u{2028}xu\\t\" 9x=\"\\\\b\\u0008c\\ufffd\\r\\n\" 1€=null"
+check genc([gti("\t\u{7f}", 0), gk("\u{0}\u{fffd}\u{8}€1", "s", "\ty\n ")]) == "\u{7f}=0 €1=\"\\ty\\n \""
+check gskip([gti("\t\u{7f}", 0), gk("\u{0}\u{fffd}\u{8}€1", "s", "\ty\n ")]) == "\u{7f}=0 €1=\"\\ty\\n \""
+check genc([gk(" =\n", "s", ""), gti("日😀  \u{fffd}", 539554173331), gk("=", "n", ""), gti("-\u{2028}\u{1f}\t0", -1), gk("=", "s", "")]) == "ERR"
+check gskip([gk(" =\n", "s", ""), gti("日😀  \u{fffd}", 539554173331), gk("=", "n", ""), gti("-\u{2028}\u{1f}\t0", -1), gk("=", "s", "")]) == "日😀=539554173331 -\u{2028}0=-1"
+check genc([gti("99\u{0}€z€", -1), gk("0", "s", "1\n-\u{1}\u{0}\u{8}\t")]) == "99€z€=-1 0=\"1\\n-\\u0001\\u0000\\u0008\\t\""
+check gskip([gti("99\u{0}€z€", -1), gk("0", "s", "1\n-\u{1}\u{0}\u{8}\t")]) == "99€z€=-1 0=\"1\\n-\\u0001\\u0000\\u0008\\t\""
+check genc([gk("\\\u{0}x\u{0}=", "n", ""), gk("b", "s", ""), gk("\"", "s", "\n\u{0}\u{1f}\u{fffd}")]) == "ERR"
+check gskip([gk("\\\u{0}x\u{0}=", "n", ""), gk("b", "s", ""), gk("\"", "s", "\n\u{0}\u{1f}\u{fffd}")]) == "\\x=null b="
+check genc([gk("é-b", "s", "😀ué1\t\t"), gti("", -1), gk("\u{2028}", "s", ""), gk("\u{7f}éb😀", "s", "€/€-é\\€ ")]) == "ERR"
+check gskip([gk("é-b", "s", "😀ué1\t\t"), gti("", -1), gk("\u{2028}", "s", ""), gk("\u{7f}éb😀", "s", "€/€-é\\€ ")]) == "é-b=\"😀ué1\\t\\t\" \u{2028}= \u{7f}éb😀=\"€/€-é\\\\€ \""
+check genc([gti("9", 0), gk("x\u{2028}/a\tc", "s", "\\\r-\n\u{2028}")]) == "9=0 x\u{2028}/ac=\"\\\\\\r-\\n\u{2028}\""
+check gskip([gti("9", 0), gk("x\u{2028}/a\tc", "s", "\\\r-\n\u{2028}")]) == "9=0 x\u{2028}/ac=\"\\\\\\r-\\n\u{2028}\""
+check genc([gk("10\u{1f}1/", "b", "false")]) == "101/=false"
+check gskip([gk("10\u{1f}1/", "b", "false")]) == "101/=false"
+check genc([gk("\rbzc日u", "s", "plain"), gk("\u{1f}\n\u{2028}", "s", "plain"), gk("€zy", "n", ""), gk("c'\u{1}=", "s", "\n\u{fffd}/€\n'\u{8}日"), gk("\u{8}\n\u{7f}xy😀", "s", "x=y")]) == "bzc日u=plain \u{2028}=plain €zy=null c'=\"\\n\\ufffd/€\\n'\\u0008日\" \u{7f}xy😀=\"x=y\""
+check gskip([gk("\rbzc日u", "s", "plain"), gk("\u{1f}\n\u{2028}", "s", "plain"), gk("€zy", "n", ""), gk("c'\u{1}=", "s", "\n\u{fffd}/€\n'\u{8}日"), gk("\u{8}\n\u{7f}xy😀", "s", "x=y")]) == "bzc日u=plain \u{2028}=plain €zy=null c'=\"\\n\\ufffd/€\\n'\\u0008日\" \u{7f}xy😀=\"x=y\""
+check genc([gk("\t\\", "s", ""), gk("\t-\\", "s", ""), gk("-x", "s", "\u{0}z- \u{1f}\u{1}"), gk("-\r9x\u{1}\t", "b", "false")]) == "\\= -\\= -x=\"\\u0000z- \\u001f\\u0001\" -9x=false"
+check gskip([gk("\t\\", "s", ""), gk("\t-\\", "s", ""), gk("-x", "s", "\u{0}z- \u{1f}\u{1}"), gk("-\r9x\u{1}\t", "b", "false")]) == "\\= -\\= -x=\"\\u0000z- \\u001f\\u0001\" -9x=false"
+check genc([gk("\u{1f}z='", "s", "'\u{2028}1"), gk("c\u{1}\u{2028}\u{8}", "s", "y1😀-\u{1}u\\")]) == "z'='\u{2028}1 c\u{2028}=\"y1😀-\\u0001u\\\\\""
+check gskip([gk("\u{1f}z='", "s", "'\u{2028}1"), gk("c\u{1}\u{2028}\u{8}", "s", "y1😀-\u{1}u\\")]) == "z'='\u{2028}1 c\u{2028}=\"y1😀-\\u0001u\\\\\""
+check genc([gk("\u{c}\u{fffd}", "s", "plain"), gk("\u{fffd}", "s", "éu\tz"), gk("\r0a-\u{7f}u", "s", "=\u{0}"), gk("/", "s", "/u'\u{0}\u{7f}")]) == "ERR"
+check gskip([gk("\u{c}\u{fffd}", "s", "plain"), gk("\u{fffd}", "s", "éu\tz"), gk("\r0a-\u{7f}u", "s", "=\u{0}"), gk("/", "s", "/u'\u{0}\u{7f}")]) == "0a-\u{7f}u=\"=\\u0000\" /=\"/u'\\u0000\u{7f}\""
+check genc([gk("b\nx0", "b", "false"), gk("9\"€\" ", "s", "\"y\r/日"), gk("a=\u{2028}/", "s", "\u{c}€\u{0}\u{0}\r\n-"), gk("xx=-", "s", "/1\u{1f}cx\u{0}za")]) == "bx0=false 9€=\"\\\"y\\r/日\" a\u{2028}/=\"\\u000c€\\u0000\\u0000\\r\\n-\" xx-=\"/1\\u001fcx\\u0000za\""
+check gskip([gk("b\nx0", "b", "false"), gk("9\"€\" ", "s", "\"y\r/日"), gk("a=\u{2028}/", "s", "\u{c}€\u{0}\u{0}\r\n-"), gk("xx=-", "s", "/1\u{1f}cx\u{0}za")]) == "bx0=false 9€=\"\\\"y\\r/日\" a\u{2028}/=\"\\u000c€\\u0000\\u0000\\r\\n-\" xx-=\"/1\\u001fcx\\u0000za\""
+check genc([gti("\n'9'\u{1f}", -1)]) == "'9'=-1"
+check gskip([gti("\n'9'\u{1f}", -1)]) == "'9'=-1"
+check genc([gk("", "s", "\u{1f}\n\u{c}1\u{fffd}x")]) == "ERR"
+check gskip([gk("", "s", "\u{1f}\n\u{c}1\u{fffd}x")]) == ""
+check genc([gk("\u{0}9", "s", "9a1\u{1f}日z")]) == "9=\"9a1\\u001f日z\""
+check gskip([gk("\u{0}9", "s", "9a1\u{1f}日z")]) == "9=\"9a1\\u001f日z\""
+check genc([gk("1", "s", "1€9\nx\u{1f}"), gk("\"", "s", ""), gk("\u{0}=é", "s", ""), gk("-\u{1}\"zu", "s", "€c\\c\u{c}")]) == "ERR"
+check gskip([gk("1", "s", "1€9\nx\u{1f}"), gk("\"", "s", ""), gk("\u{0}=é", "s", ""), gk("-\u{1}\"zu", "s", "€c\\c\u{c}")]) == "1=\"1€9\\nx\\u001f\" é= -zu=\"€c\\\\c\\u000c\""
+check genc([gk("", "n", ""), gk("\u{fffd}y\u{1f}zb9", "b", "false")]) == "ERR"
+check gskip([gk("", "n", ""), gk("\u{fffd}y\u{1f}zb9", "b", "false")]) == "yzb9=false"
+check genc([gk("cé\\\"\n", "s", "-")]) == "cé\\=-"
+check gskip([gk("cé\\\"\n", "s", "-")]) == "cé\\=-"
+check genc([gk("\u{8}'é€\u{7f}\u{7f}", "s", "日b"), gk("u\r\n=", "n", ""), gk("\u{1}u1 ", "s", "/éx0\r日u/"), gk("日日-\u{2028}\u{2028}😀", "s", "b\u{1f}9"), gk("9\t-", "b", "false")]) == "'é€\u{7f}\u{7f}=日b u=null u1=\"/éx0\\r日u/\" 日日-\u{2028}\u{2028}😀=\"b\\u001f9\" 9-=false"
+check gskip([gk("\u{8}'é€\u{7f}\u{7f}", "s", "日b"), gk("u\r\n=", "n", ""), gk("\u{1}u1 ", "s", "/éx0\r日u/"), gk("日日-\u{2028}\u{2028}😀", "s", "b\u{1f}9"), gk("9\t-", "b", "false")]) == "'é€\u{7f}\u{7f}=日b u=null u1=\"/éx0\\r日u/\" 日日-\u{2028}\u{2028}😀=\"b\\u001f9\" 9-=false"
+check genc([gk("b\t'\n\u{1f}", "s", "\\\u{0}\u{0}=\n\u{1f}\u{2028}"), gk("\u{c}a\\😀/a", "s", "c")]) == "b'=\"\\\\\\u0000\\u0000=\\n\\u001f\u{2028}\" a\\😀/a=c"
+check gskip([gk("b\t'\n\u{1f}", "s", "\\\u{0}\u{0}=\n\u{1f}\u{2028}"), gk("\u{c}a\\😀/a", "s", "c")]) == "b'=\"\\\\\\u0000\\u0000=\\n\\u001f\u{2028}\" a\\😀/a=c"
+check genc([gti("0b\nay1", 42), gk("\u{7f}' \u{8}\u{0}日", "s", "€y"), gk("y\u{2028}", "s", "=/b \u{0}\t😀"), gk("\u{1}\u{c}/z", "b", "false"), gk("1yy", "s", "x1\u{1}\u{1f}x\t9")]) == "0bay1=42 \u{7f}'日=€y y\u{2028}=\"=/b \\u0000\\t😀\" /z=false 1yy=\"x1\\u0001\\u001fx\\t9\""
+check gskip([gti("0b\nay1", 42), gk("\u{7f}' \u{8}\u{0}日", "s", "€y"), gk("y\u{2028}", "s", "=/b \u{0}\t😀"), gk("\u{1}\u{c}/z", "b", "false"), gk("1yy", "s", "x1\u{1}\u{1f}x\t9")]) == "0bay1=42 \u{7f}'日=€y y\u{2028}=\"=/b \\u0000\\t😀\" /z=false 1yy=\"x1\\u0001\\u001fx\\t9\""
+check genc([gk("\u{0}\\\u{c}\u{fffd}", "s", "\"xcz日ya\u{2028}"), gk(" ", "s", "x\u{c}é日\u{8}日"), gk("\u{7f}€-\u{1f}", "s", "null"), gk("€😀", "b", "true"), gk("uc日😀zy", "s", "a\u{8}\u{0}\u{2028}a\u{7f}1")]) == "ERR"
+check gskip([gk("\u{0}\\\u{c}\u{fffd}", "s", "\"xcz日ya\u{2028}"), gk(" ", "s", "x\u{c}é日\u{8}日"), gk("\u{7f}€-\u{1f}", "s", "null"), gk("€😀", "b", "true"), gk("uc日😀zy", "s", "a\u{8}\u{0}\u{2028}a\u{7f}1")]) == "\\=\"\\\"xcz日ya\u{2028}\" \u{7f}€-=\"null\" €😀=true uc日😀zy=\"a\\u0008\\u0000\u{2028}a\u{7f}1\""
+check genc([gk("z日9", "s", "\n"), gk("z日0\\", "b", "true"), gk("\u{fffd}", "s", "€"), gk("u\t/", "s", "9\ra")]) == "ERR"
+check gskip([gk("z日9", "s", "\n"), gk("z日0\\", "b", "true"), gk("\u{fffd}", "s", "€"), gk("u\t/", "s", "9\ra")]) == "z日9=\"\\n\" z日0\\=true u/=\"9\\ra\""
+check genc([gk("😀日\u{1}\t", "s", "😀\u{2028}\u{fffd}\n"), gk("😀\u{fffd}-'", "s", "/\u{2028} \u{fffd}\""), gk("\u{2028}u\u{8}'=z", "s", "'\n9a9"), gk("acz", "n", "")]) == "😀日=\"😀\u{2028}\\ufffd\\n\" 😀-'=\"/\u{2028} \\ufffd\\\"\" \u{2028}u'z=\"'\\n9a9\" acz=null"
+check gskip([gk("😀日\u{1}\t", "s", "😀\u{2028}\u{fffd}\n"), gk("😀\u{fffd}-'", "s", "/\u{2028} \u{fffd}\""), gk("\u{2028}u\u{8}'=z", "s", "'\n9a9"), gk("acz", "n", "")]) == "😀日=\"😀\u{2028}\\ufffd\\n\" 😀-'=\"/\u{2028} \\ufffd\\\"\" \u{2028}u'z=\"'\\n9a9\" acz=null"
+check genc([gti("\r=zb", (0 - 9223372036854775807 - 1)), gk("😀", "s", "zé\u{1f}\\")]) == "zb=-9223372036854775808 😀=\"zé\\u001f\\\\\""
+check gskip([gti("\r=zb", (0 - 9223372036854775807 - 1)), gk("😀", "s", "zé\u{1f}\\")]) == "zb=-9223372036854775808 😀=\"zé\\u001f\\\\\""
+check genc([gk("-\u{1}\u{8}", "s", "null"), gk("'\"a\n\u{c}", "s", ""), gk("b", "s", "é"), gk("xy\u{8}\n\u{2028}", "s", "\\\"\u{8}ay"), gk("\n\u{0}€a", "s", "")]) == "-=\"null\" 'a= b=é xy\u{2028}=\"\\\\\\\"\\u0008ay\" €a="
+check gskip([gk("-\u{1}\u{8}", "s", "null"), gk("'\"a\n\u{c}", "s", ""), gk("b", "s", "é"), gk("xy\u{8}\n\u{2028}", "s", "\\\"\u{8}ay"), gk("\n\u{0}€a", "s", "")]) == "-=\"null\" 'a= b=é xy\u{2028}=\"\\\\\\\"\\u0008ay\" €a="
+check genc([gk("1\u{2028}a", "n", ""), gti("/😀\u{7f}x", 0), gk("😀\n\u{0}", "s", "日yz\"€-\"\u{1f}"), gk("x\t", "n", "")]) == "1\u{2028}a=null /😀\u{7f}x=0 😀=\"日yz\\\"€-\\\"\\u001f\" x=null"
+check gskip([gk("1\u{2028}a", "n", ""), gti("/😀\u{7f}x", 0), gk("😀\n\u{0}", "s", "日yz\"€-\"\u{1f}"), gk("x\t", "n", "")]) == "1\u{2028}a=null /😀\u{7f}x=0 😀=\"日yz\\\"€-\\\"\\u001f\" x=null"
+check genc([gk("\u{2028}", "b", "false"), gti("\u{7f}😀日\u{1}", (0 - 9223372036854775807 - 1)), gk("\u{0}z\\\u{2028}", "s", "\u{0}\r z"), gk("x09\u{0}\\b", "s", "x=y"), gk("\"", "s", "\u{1}é")]) == "ERR"
+check gskip([gk("\u{2028}", "b", "false"), gti("\u{7f}😀日\u{1}", (0 - 9223372036854775807 - 1)), gk("\u{0}z\\\u{2028}", "s", "\u{0}\r z"), gk("x09\u{0}\\b", "s", "x=y"), gk("\"", "s", "\u{1}é")]) == "\u{2028}=false \u{7f}😀日=-9223372036854775808 z\\\u{2028}=\"\\u0000\\r z\" x09\\b=\"x=y\""
+check gdec("") == []
+check gdec("   ") == []
+check gdec("a") == ["a", ""]
+check gdec("a b c") == ["a", "", "b", "", "c", ""]
+check gdec("a=") == ["a", ""]
+check gdec("a= b") == ["a", "", "b", ""]
+check gdec("a=\"\"") == ["a", ""]
+check gdec("a=\"\" b") == ["a", "", "b", ""]
+check gdec("=a") == ["!0:unexpected '='"]
+check gdec("a==b") == ["!2:unexpected '='"]
+check gdec("a=b=c") == ["!3:unexpected '='"]
+check gdec("a=\"x") == ["!4:unterminated quoted value"]
+check gdec("a=\"x\\\"") == ["!6:unterminated quoted value"]
+check gdec("a=\"\\q\"") == ["!6:invalid quoted value"]
+check gdec("a=\"\u{1}\\n\"") == ["!7:invalid quoted value"]
+check gdec("a=\"\u{1}\"") == ["a", "\u{1}"]
+check gdec("\u{fffd}k=1") == ["!4:invalid key"]
+check gdec("k\u{fffd}") == ["!4:invalid key"]
+check gdec("k\u{fffd}=1") == ["!4:invalid key"]
+check gdec("é=1") == ["é", "1"]
+check gdec("a\"b=1") == ["!1:unexpected '\"'"]
+check gdec("a=b\"c") == ["!3:unexpected '\"'"]
+check gdec("a=\"x\"b=2") == ["a", "x", "b", "2"]
+check gdec("a=\"x\"\"") == ["a", "x", "!5:unexpected '\"'"]
+check gdec("a=\"\\ud800\"") == ["a", "\u{fffd}"]
+check gdec("a=\"\\ud800\\u0041\"") == ["a", "\u{fffd}A"]
+check gdec("a=\"\\udc00\\ud800\"") == ["a", "\u{fffd}\u{fffd}"]
+check gdec("a=\"\\ud83d\\ude00\"") == ["a", "😀"]
+check gdec("a=\"\\u12\"") == ["!8:invalid quoted value"]
+check gdec("a=\"\\u12g4\"") == ["!10:invalid quoted value"]
+check gdec("a=\"\\/\\'\\b\\f\\t\\r\\n\"") == ["a", "/'\u{8}\u{c}\t\r\n"]
+check gdec("  a  ") == ["a", ""]
+check gdec("a=1\tb=2\u{1}c=3") == ["a", "1", "b", "2", "c", "3"]
+check gdec("a=\"\\u00E9\\u00e9\"") == ["a", "éé"]
+check gdec("a=\"\\ud83d\"") == ["a", "\u{fffd}"]
+check gdec("a=\"\\ud83dx\"") == ["a", "\u{fffd}x"]
+check gdec("a=\"\\\\\"") == ["a", "\\"]
+check gdec("a=\"\\") == ["!4:unterminated quoted value"]
+check gdec("a=\"\\\"") == ["!5:unterminated quoted value"]
+check gdec("k=v\u{7f}") == ["k", "v\u{7f}"]
+check gdec("\u{7f}=1") == ["\u{7f}", "1"]
+check gdec("a=\u{fffd}") == ["a", "\u{fffd}"]
+check gdec("a=\"\\ufffd\"") == ["a", "\u{fffd}"]
+check gdec("a=\"é\\n\"") == ["a", "é\n"]
+check gdec("a=\u{0}b") == ["a", "", "b", ""]
+check gdec(" k08") == ["k08", ""]
+check gdec("\u{fffd}xé\u{fffd}C") == ["!10:invalid key"]
+check gdec("😀\u{fffd}") == ["!7:invalid key"]
+check gdec("ua\u{7f}x  nxdn\u{fffd}ub") == ["ua\u{7f}x", "", "!15:invalid key"]
+check gdec("3  8\t0a😀ua😀nD😀") == ["3", "", "8", "", "0a😀ua😀nD😀", ""]
+check gdec("D\u{1}k'é") == ["D", "", "k'é", ""]
+check gdec("''\t C\"\"/=\\/\u{1}8u") == ["''", "", "!5:unexpected '\"'"]
+check gdec("\u{1}38ddk\u{1} /b") == ["38ddk", "", "/b", ""]
+check gdec("d\u{1}\u{7f}8u") == ["d", "", "\u{7f}8u", ""]
+check gdec("Cd \t\\ \tC3/") == ["Cd", "", "\\", "", "C3/", ""]
+check gdec(" \\én\u{fffd}D'=ua'a/\u{1}") == ["!10:invalid key"]
+check gdec("\tkD\u{7f}a\u{1}ub=b'") == ["kD\u{7f}a", "", "ub", "b'"]
+check gdec("x/xbxCa\u{fffd}8") == ["!11:invalid key"]
+check gdec("unb\u{7f}k3dC") == ["unb\u{7f}k3dC", ""]
+check gdec("8n0\tn 8\\") == ["8n0", "", "n", "", "8\\", ""]
+check gdec("") == []
+check gdec("😀") == ["😀", ""]
+check gdec("\u{1}\u{fffd}\u{7f}\u{1}b \\'aadC ") == ["!5:invalid key"]
+check gdec("bu\\8nékkdé8") == ["bu\\8nékkdé8", ""]
+check gdec(" 0\\' d") == ["0\\'", "", "d", ""]
+check gdec("8\tn\u{1}\"😀C") == ["8", "", "n", "", "!4:unexpected '\"'"]
+check gdec(" bx/3") == ["bx/3", ""]
+check gdec("3😀\t8x=\t") == ["3😀", "", "8x", ""]
+check gdec("Ck/😀\tDx") == ["Ck/😀", "", "Dx", ""]
+check gdec(" C") == ["C", ""]
+check gdec("\u{7f}\"😀C0u'bn\u{1}u\u{1}x") == ["!1:unexpected '\"'"]
+check gdec("d3") == ["d3", ""]
+check gdec("CD\u{7f}") == ["CD\u{7f}", ""]
+check gdec("a0") == ["a0", ""]
+check gdec("\"\\\u{fffd}") == ["!0:unexpected '\"'"]
+check gdec("a8\u{7f}/ub😀=") == ["a8\u{7f}/ub😀", ""]
+check gdec("\u{7f}ukC\\Dk\t3\\") == ["\u{7f}ukC\\Dk", "", "3\\", ""]
+check gdec("a\\\u{fffd}Cx😀C\t '\u{fffd}") == ["!12:invalid key"]
+check gdec("n") == ["n", ""]
+check gdec("/\u{7f}\"/é\\bu'C") == ["!2:unexpected '\"'"]
+check gdec("C \t") == ["C", ""]
+check gdec("\u{1}😀8 ") == ["😀8", ""]
+check gdec("\u{1}83' 8\u{7f}") == ["83'", "", "8\u{7f}", ""]
+check gdec("") == []
+check gdec(" \u{1}😀3k/éé\u{fffd}") == ["!16:invalid key"]
+check gdec("nC'dC") == ["nC'dC", ""]
+check gdec("\u{fffd}8\té\u{fffd}u'd") == ["!4:invalid key"]
+check gdec("30") == ["30", ""]
+check gdec("😀x😀 '=") == ["😀x😀", "", "'", ""]
+check gdec(" 😀kébdané0\u{fffd}n3\u{7f}") == ["!21:invalid key"]
+check gdec("D3\u{1}Cx'\\bC😀3 😀") == ["D3", "", "Cx'\\bC😀3", "", "😀", ""]
+check gdec("\\D\\é3\taa\\\u{1}\\ ") == ["\\D\\é3", "", "aa\\", "", "\\", ""]
+check gdec("080b\u{1}3\u{7f}\"\t'3") == ["080b", "", "!7:unexpected '\"'"]
+check gdec("") == []
+check gdec("x") == ["x", ""]
+check gdec("8\"/") == ["!1:unexpected '\"'"]
+check gdec("\u{1}D=n😀a") == ["D", "n😀a"]
+check gdec(" \u{fffd}\\3b0b\tD0\u{1}C8") == ["!9:invalid key"]
+check gdec("8\\8\t3\u{1}''😀 ") == ["8\\8", "", "3", "", "''😀", ""]
+check gdec("n éé8") == ["n", "", "éé8", ""]
+check gdec("\t\\'D3a\u{fffd}d") == ["!10:invalid key"]
+check gdec("😀=kx") == ["😀", "kx"]
+check gdec("\u{fffd}\u{7f}D3\u{1} ") == ["!6:invalid key"]
+check gdec("DDéu😀\"\\D") == ["!9:unexpected '\"'"]
+check gdec("D\u{7f}") == ["D\u{7f}", ""]
+check gdec("d'é\\8 😀") == ["d'é\\8", "", "😀", ""]
+check gdec("0'\t\"\t0\\b888a") == ["0'", "", "!3:unexpected '\"'"]
+check gdec("ab=bC") == ["ab", "bC"]
+check gdec("\u{1}dk bakd") == ["dk", "", "bakd", ""]
+check gdec("éu\"a") == ["!3:unexpected '\"'"]
+check gdec("0 b\\n3=\\") == ["0", "", "b\\n3", "\\"]
+check gdec("aé'u=\t\"b\"") == ["aé'u", "", "!7:unexpected '\"'"]
+check gdec("8=\t\u{7f}") == ["8", "", "\u{7f}", ""]
+check gdec("") == []
+check gdec("x/\u{fffd}uk\u{fffd}\u{1}0\u{fffd}'a=dD") == ["!10:invalid key"]
+check gdec(" /'x3") == ["/'x3", ""]
+check gdec("3/\u{fffd} \u{fffd}") == ["!5:invalid key"]
+check gdec("") == []
+check gdec("b\t") == ["b", ""]
+check gdec("\\") == ["\\", ""]
+check gdec("\t=") == ["!1:unexpected '='"]
+check gdec("") == []
+check gdec("d\\/\\a") == ["d\\/\\a", ""]
+check gdec("\u{1}C/kD8\u{fffd}\u{7f}") == ["!10:invalid key"]
+check gdec("/d") == ["/d", ""]
+check gdec("\\") == ["\\", ""]
+check gdec("😀\"k😀a3=u3u") == ["!4:unexpected '\"'"]
+check gdec("0a😀d\u{fffd} =\\8ék=") == ["!10:invalid key"]
+check gdec("Cxué'=  83k0k") == ["Cxué'", "", "83k0k", ""]
+check gdec("é\\ \\\u{1}C 0é dbk\t") == ["é\\", "", "\\", "", "C", "", "0é", "", "dbk", ""]
+check gdec("\u{7f}\t33=0") == ["\u{7f}", "", "33", "0"]
+check gdec("=\t") == ["!0:unexpected '='"]
+check gdec("/é\u{fffd}én/😀😀8CnDé ") == ["!24:invalid key"]
+check gdec("😀Cd\t x/ =xa") == ["😀Cd", "", "x/", "", "!11:unexpected '='"]
+check gdec(" \tC\"") == ["!3:unexpected '\"'"]
+check gdec("kD3\u{7f}\u{7f}3\"\\0=8😀x") == ["!6:unexpected '\"'"]
+check gdec(" \u{1}x\u{7f}//\\ku\\a") == ["x\u{7f}//\\ku\\a", ""]
+check gdec("kax0") == ["kax0", ""]
+check gdec("\t a😀a3=Du") == ["a😀a3", "Du"]
+check gdec("  \u{7f}") == ["\u{7f}", ""]
+check gdec("\\nu") == ["\\nu", ""]
+check gdec("\tC\u{fffd}8 😀0\\3😀3C/") == ["!6:invalid key"]
+check gdec("'\u{fffd}bnk=é0 D😀8d") == ["!7:invalid key"]
+check gdec("b\u{1}kx") == ["b", "", "kx", ""]
+check gdec(" \"\\dua\u{7f}nb ") == ["!1:unexpected '\"'"]
+check gdec("") == []
+check gdec("\u{7f}=/k") == ["\u{7f}", "/k"]
+check gdec("nD") == ["nD", ""]
+check gdec("\u{1}x\t'du") == ["x", "", "'du", ""]
+check gdec("D\"n\\'") == ["!1:unexpected '\"'"]
+check gdec("3éD3/=é=kndé") == ["!9:unexpected '='"]
+check gdec(" xD 0dkk\u{1}=aDé") == ["xD", "", "0dkk", "", "!9:unexpected '='"]
+check gdec("a") == ["a", ""]
+check gdec("b3x\u{1}\"k\u{7f}") == ["b3x", "", "!4:unexpected '\"'"]
+check gdec("\u{7f}k ") == ["\u{7f}k", ""]
+check gdec("éu\"//'=3") == ["!3:unexpected '\"'"]
+check gdec("\u{fffd}/\u{7f}") == ["!5:invalid key"]
+check gdec("b/'n😀é") == ["b/'n😀é", ""]
+check gdec("\"😀é") == ["!0:unexpected '\"'"]
+check gdec("D😀") == ["D😀", ""]
+check gdec("'adké0Cx0dudDn") == ["'adké0Cx0dudDn", ""]
+check gdec("nD\u{7f}3D n") == ["nD\u{7f}3D", "", "n", ""]
+check gdec("'Cuabk") == ["'Cuabk", ""]
+check gdec("b8an😀ék3😀bn") == ["b8an😀ék3😀bn", ""]
+check gdec("k Ck\u{1}éD😀C80") == ["k", "", "Ck", "", "éD😀C80", ""]
+check gdec(" ") == []
+check gdec("\"Cx\u{7f}\\\t08kCaD") == ["!0:unexpected '\"'"]
+check gdec("n\\\t\"CC3\\CDd ") == ["n\\", "", "!3:unexpected '\"'"]
+check gdec("\\\t\u{fffd} ") == ["\\", "", "!5:invalid key"]
+check gdec("0") == ["0", ""]
+check gdec("Dé\u{7f}") == ["Dé\u{7f}", ""]
+check gdec("u/\u{7f} 0a\"0d") == ["u/\u{7f}", "", "!6:unexpected '\"'"]
+check gdec("\u{1}0k0") == ["0k0", ""]
+check gdec("uD\tC\u{1}n8/DD0") == ["uD", "", "C", "", "n8/DD0", ""]
+check gdec("3=") == ["3", ""]
+check gdec(" '") == ["'", ""]
+check gdec("ua\t\"aC\u{1}\"3ndCb😀") == ["ua", "", "!3:unexpected '\"'"]
+check gdec("") == []
+check gdec("nxC0\"n3é") == ["!4:unexpected '\"'"]
+check gdec("n") == ["n", ""]
+check gdec("\u{fffd}\u{7f}") == ["!4:invalid key"]
+check gdec("='\u{7f}kx\u{7f}\"uééxx") == ["!0:unexpected '='"]
+check gdec("/8d/\\Dbk\"\\ék") == ["!8:unexpected '\"'"]
+check gdec("\"é\"") == ["!0:unexpected '\"'"]
+check gdec("D 0") == ["D", "", "0", ""]
+check gdec(" '80😀30é\"dC=") == ["!12:unexpected '\"'"]
+check gdec("\u{7f}kna' '") == ["\u{7f}kna'", "", "'", ""]
+check gdec("/3\"\u{fffd}é\t\u{1}") == ["!2:unexpected '\"'"]
+check gdec("'a😀'") == ["'a😀'", ""]
+check gdec("D8éb\u{7f} ") == ["D8éb\u{7f}", ""]
+check gdec("\ta\u{7f}😀\t\"'d D") == ["a\u{7f}😀", "", "!8:unexpected '\"'"]
+check gdec("nxkd") == ["nxkd", ""]
+check gdec("a/ku0\"") == ["!5:unexpected '\"'"]
+check gdec(" é b=a") == ["é", "", "b", "a"]
+check gdec("\"éé\u{1}") == ["!0:unexpected '\"'"]
+check gdec("3'8k") == ["3'8k", ""]
+check gdec("k\u{fffd}kéC \u{fffd}8=") == ["!8:invalid key"]
+check gdec("") == []
+check gdec(" 8u' nD\"\u{fffd}\u{fffd}C😀3") == ["8u'", "", "!7:unexpected '\"'"]
+check gdec("\\' 8\u{fffd}\"\u{fffd}\u{fffd}😀éDua\"") == ["\\'", "", "!7:unexpected '\"'"]
+check gdec("8b\"\u{7f}\t") == ["!2:unexpected '\"'"]
+check gdec("\u{1}") == []
+check gdec(" a=k\\0é'x") == ["a", "k\\0é'x"]
+check gdec("/Cé=\u{7f}é=n\u{fffd} C") == ["!8:unexpected '='"]
+check gdec("b😀\\\u{fffd}bx b") == ["!11:invalid key"]
+check gdec("=\"a\"") == ["!0:unexpected '='"]
+check gdec(" ax x\tDu' kD") == ["ax", "", "x", "", "Du'", "", "kD", ""]
+check gdec("CD") == ["CD", ""]
+check gdec("DC 😀\u{fffd}") == ["DC", "", "!10:invalid key"]
+check gdec("/ d8\u{7f}😀 \t") == ["/", "", "d8\u{7f}😀", ""]
+check gdec(" 8 '  8'CnCD") == ["8", "", "'", "", "8'CnCD", ""]
+check gdec("8'é d  = 3d\\n\u{7f}") == ["8'é", "", "d", "", "!8:unexpected '='"]
+check gdec("Dn\u{fffd}\u{1}dD3=x") == ["!5:invalid key"]
+check gdec("\u{fffd}\\ ") == ["!4:invalid key"]
+check gdec("\t \"\\\"3'x/") == ["!2:unexpected '\"'"]
+check gdec("a=\"null\" b= c=null d=-9223372036854775808 e=9223372036854775807 f=false") == ["a", "null", "b", "", "c", "null", "d", "-9223372036854775808", "e", "9223372036854775807", "f", "false"]
+check gdec("key=\"v\\ufffd\" xy=\"a b\"") == ["key", "v\u{fffd}", "xy", "a b"]
+check gdec("k=\"tab\\there\" q=\"say \\\"hi\\\" \\\\ back\" c=\"\\u0000\\u0001\\u001f\u{7f}\\u0008\\u000c\\r\\n\"") == ["k", "tab\there", "q", "say \"hi\" \\ back", "c", "\u{0}\u{1}\u{1f}\u{7f}\u{8}\u{c}\r\n"]
+check gdec("u=é€😀日\u{2028} eq=\"a=b\"") == ["u", "é€😀日\u{2028}", "eq", "a=b"]
+check gdec("日/=\"日\\u0001é\"") == ["日/", "日\u{1}é"]
+check gdec("za1=\"\\t\\\\\\nz\" 0=\"\\u0001\u{7f}€\\r c\"") == ["za1", "\t\\\nz", "0", "\u{1}\u{7f}€\r c"]
+check gdec("\\xx=9u '=\"\\u0001\"") == ["\\xx", "9u", "'", "\u{1}"]
+check gdec("u= 日=\"=\\\"z\\u000c😀\\t\"") == ["u", "", "日", "=\"z\u{c}😀\t"]
+check gdec("z19z= €=\"\\u0001'c/\u{7f}\\\"b\\n\"") == ["z19z", "", "€", "\u{1}'c/\u{7f}\"b\n"]
+check gdec("\u{7f}€=false") == ["\u{7f}€", "false"]
+check gdec("日1\\=false b'=\"b \u{7f}\" \u{7f}b😀bz=\"null\" x-b=-1") == ["日1\\", "false", "b'", "b \u{7f}", "\u{7f}b😀bz", "null", "x-b", "-1"]
+check gdec("é=\"x=y\" ué\\9=null") == ["é", "x=y", "ué\\9", "null"]
+check gdec("'=-1 é日=\"\\\"q\\\"\" 日ac=\"x=y\" 9\\b=\"\u{7f}\\\"a\"") == ["'", "-1", "é日", "\"q\"", "日ac", "x=y", "9\\b", "\u{7f}\"a"]
+check gdec("'\\日=\"\\\"q\\\"\" \u{7f}'x=\"\\r\\u0000日\\\"yb\\u0008\" -/zz9=\"x\\u0000éz\\t\\\\ \" x\u{2028}= y=\"a\\\\\\\"\"") == ["'\\日", "\"q\"", "\u{7f}'x", "\r\u{0}日\"yb\u{8}", "-/zz9", "x\u{0}éz\t\\ ", "x\u{2028}", "", "y", "a\\\""]
+check gdec("/c\\=\"\\u0000\\ufffdc\\u0001é\\r€0\" 日=\"\\u0008'\" z=\"\\\"\\u000c\\u000c\" x=null") == ["/c\\", "\u{0}\u{fffd}c\u{1}é\r€0", "日", "\u{8}'", "z", "\"\u{c}\u{c}", "x", "null"]
+check gdec("é-😀=\"\\\"é日\\r\"") == ["é-😀", "\"é日\r"]
+check gdec("c9=\"\\u0001uc\" \u{2028}=plain 1=\"x=y\" b=\"\\\\\\\"cb1b\\rz\"") == ["c9", "\u{1}uc", "\u{2028}", "plain", "1", "x=y", "b", "\\\"cb1b\rz"]
+check gdec("b\\\u{2028}= €=\"\\\"q\\\"\" €=\"\\u001fza u\\u00010日\"") == ["b\\\u{2028}", "", "€", "\"q\"", "€", "\u{1f}za u\u{1}0日"]
+check gdec("1= 9y=false") == ["1", "", "9y", "false"]
+check gdec("u€日=null 日=b/ a=true") == ["u€日", "null", "日", "b/", "a", "true"]
+check gdec("é9\u{7f}\u{2028}\\=\"\\ufffdz\\u001f日a0 1\" 😀9\u{2028}b=\"€yu'=x\\u00089\" 😀=-") == ["é9\u{7f}\u{2028}\\", "\u{fffd}z\u{1f}日a0 1", "😀9\u{2028}b", "€yu'=x\u{8}9", "😀", "-"]
+check gdec("0=-987214166716") == ["0", "-987214166716"]
+check gdec("'=\"z\\\"é\\\\€\\t\"") == ["'", "z\"é\\€\t"]
+check gdec("€😀z=true /-z日=\"-'\\\"c\" 9=\"z\\nzx\" ''éc=-1- /z=-446046196284") == ["€😀z", "true", "/-z日", "-'\"c", "9", "z\nzx", "''éc", "-1-", "/z", "-446046196284"]
+check gdec("-/=/a1😀u '=\"\u{7f}\\n\" c\u{7f}=\"\\t'\\u001fz\\\"b\"") == ["-/", "/a1😀u", "'", "\u{7f}\n", "c\u{7f}", "\t'\u{1f}z\"b"]
+check gdec("'\u{2028}-=\"x=y\" c=\"\\n€\"") == ["'\u{2028}-", "x=y", "c", "\n€"]
+check gdec("1aé=\"\\u001f/\\n\\\"\" €=\"\\ru\\u001f\" 9z=\"\\tb\\u0001\u{2028}u\u{7f}\" \u{2028}zz=true") == ["1aé", "\u{1f}/\n\"", "€", "\ru\u{1f}", "9z", "\tb\u{1}\u{2028}u\u{7f}", "\u{2028}zz", "true"]
+check gdec("cba=z \\\\日=") == ["cba", "z", "\\\\日", ""]
+check gdec("\\=false 日u1=true") == ["\\", "false", "日u1", "true"]
+check gdec("/=- x1=42") == ["/", "-", "x1", "42"]
+check gdec("\u{2028}a=\"\\n\\u001fu-1cy\\u000c\" \\1😀=\"-\\t\\u00081'=\\u0001\u{2028}\" z\\uu\u{7f}=true") == ["\u{2028}a", "\n\u{1f}u-1cy\u{c}", "\\1😀", "-\t\u{8}1'=\u{1}\u{2028}", "z\\uu\u{7f}", "true"]
+check gdec("x0=\"u\\tcé=c\" x€c=\"\\u000c\\\"日y1\" €=plain xy=😀\\ 1=false") == ["x0", "u\tcé=c", "x€c", "\u{c}\"日y1", "€", "plain", "xy", "😀\\", "1", "false"]
+check gdec("a= \u{2028}xu1=null \u{7f}''=true z=\"null\"") == ["a", "", "\u{2028}xu1", "null", "\u{7f}''", "true", "z", "null"]
+check gdec("'😀bb= x-'=null 99a=--") == ["'😀bb", "", "x-'", "null", "99a", "--"]
+check gdec("é/=\"zc \" €= 9=\"\\u001f\\ufffd\u{2028}\"") == ["é/", "zc ", "€", "", "9", "\u{1f}\u{fffd}\u{2028}"]
+check gdec("b'é=\"\\u000c\"") == ["b'é", "\u{c}"]
+check gdec("c=é é-é9=\"😀\\ufffd\\t\u{7f}\" by9b\u{7f}=true") == ["c", "é", "é-é9", "😀\u{fffd}\t\u{7f}", "by9b\u{7f}", "true"]
+check gdec("0=\"\\u0008\\u001f\\u001f€1\\ufffd\" 😀😀=9a\u{7f}09 /011-=\"z\\u0001z\\ufffd =\\u00011\"") == ["0", "\u{8}\u{1f}\u{1f}€1\u{fffd}", "😀😀", "9a\u{7f}09", "/011-", "z\u{1}z\u{fffd} =\u{1}1"]
+check gdec("9é=true \\1xy=\"u1\\r€u日c\\r\" x\\c-=\"\\u0001\\t\\\\z0\" \\c日=\"9\\rua\\\\\\r1\"") == ["9é", "true", "\\1xy", "u1\r€u日c\r", "x\\c-", "\u{1}\t\\z0", "\\c日", "9\rua\\\r1"]
+check gdec("x\\\u{2028}yxé=\"/😀-\u{2028}é\\\"\\t-\" u€a=\"€ =9\"") == ["x\\\u{2028}yxé", "/😀-\u{2028}é\"\t-", "u€a", "€ =9"]
+check gdec("z€uaé=b -z= 0b=-1") == ["z€uaé", "b", "-z", "", "0b", "-1"]
+check gdec("zuu= 9日/\u{2028}=z c=\"'aé\\\\ 0\\ufffdx\" 'x=\"\\tb\\t\\ufffdy'by\"") == ["zuu", "", "9日/\u{2028}", "z", "c", "'aé\\ 0\u{fffd}x", "'x", "\tb\t\u{fffd}y'by"]
+check gdec("😀a1日=null 😀/=\"x=y\" é9y=\"\\t\\u000c\" 1y=-9223372036854775808 /-=true") == ["😀a1日", "null", "😀/", "x=y", "é9y", "\t\u{c}", "1y", "-9223372036854775808", "/-", "true"]
+check gdec("y= 9c日'= ué\u{7f}9=\"€\\u000c=\" é\\1😀=\"\\n =9\" zcz=\" \\u0008\\u0008\\t\\u00000\"") == ["y", "", "9c日'", "", "ué\u{7f}9", "€\u{c}=", "é\\1😀", "\n =9", "zcz", " \u{8}\u{8}\t\u{0}0"]
+check gdec("\\= cé=\"€z11y/\\u0008\" y😀日=\"\\\"\\r9€\\u001f\\u0008 z\"") == ["\\", "", "cé", "€z11y/\u{8}", "y😀日", "\"\r9€\u{1f}\u{8} z"]
+check gdec("001=b é=true 1y\u{2028}ab=false \u{2028}9a=\"\\u0001\"") == ["001", "b", "é", "true", "1y\u{2028}ab", "false", "\u{2028}9a", "\u{1}"]
+check gdec("/=\"céyxé/\\n\" 1=\"\\u00000€\\u0001\"") == ["/", "céyxé/\n", "1", "\u{0}0€\u{1}"]
+check gdec("9=\"=\\u0001\\u000c\\u00000\\ufffd\\\\-\" -😀0=\"\\u0001\" //=\"\\\"/😀😀\" z\u{7f}-b9=false") == ["9", "=\u{1}\u{c}\u{0}0\u{fffd}\\-", "-😀0", "\u{1}", "//", "\"/😀😀", "z\u{7f}-b9", "false"]
+check gdec("b=\"null\"") == ["b", "null"]
+check gdec("'z=false €é9\u{2028}=\"x=y\" 😀=true") == ["'z", "false", "€é9\u{2028}", "x=y", "😀", "true"]
+check gdec("x-é=\"b=\u{7f}9\" c=\"\\u001f9-x\\u0001\" \u{2028}\u{7f}=\"é-\\u0008\\u000c\\n\"") == ["x-é", "b=\u{7f}9", "c", "\u{1f}9-x\u{1}", "\u{2028}\u{7f}", "é-\u{8}\u{c}\n"]
+check gdec("a9u= yyéb😀=plain b=\"\\u001fu\" \u{7f}b=null uc=\"é\\u0001\\\"'€\\n\"") == ["a9u", "", "yyéb😀", "plain", "b", "\u{1f}u", "\u{7f}b", "null", "uc", "é\u{1}\"'€\n"]
+check gdec("a=\"\\r'9\u{2028}\\\\\\t\\t\" \u{2028}=\"x😀\\u00081\"") == ["a", "\r'9\u{2028}\\\t\t", "\u{2028}", "x😀\u{8}1"]
+check gdec("uy=\"€\\ufffd\" u\\😀=\"\\u0001é\\u001f\\t\\u001f\\n日\u{7f}\" ycz'=null \\1\\b'=null") == ["uy", "€\u{fffd}", "u\\😀", "\u{1}é\u{1f}\t\u{1f}\n日\u{7f}", "ycz'", "null", "\\1\\b'", "null"]
+check gdec("cyuu=null") == ["cyuu", "null"]
+check gdec("xa€=\"/=日\u{7f}'\" 0\\\u{7f}😀=") == ["xa€", "/=日\u{7f}'", "0\\\u{7f}😀", ""]
+check gdec("0=false é=null 😀=\"\u{2028}=\" 'z=0") == ["0", "false", "é", "null", "😀", "\u{2028}=", "'z", "0"]
+check gdec("\u{7f}\u{7f}=\"\\nb0\\u0001\" 0\u{2028}=null 0y日日=") == ["\u{7f}\u{7f}", "\nb0\u{1}", "0\u{2028}", "null", "0y日日", ""]
+check gdec("€=-848575895168 \\= z€=\"z\\u0000é\\u001f\\ufffd-\" 91=b 0=") == ["€", "-848575895168", "\\", "", "z€", "z\u{0}é\u{1f}\u{fffd}-", "91", "b", "0", ""]
+check gdec("日日=' €/'=' c/=😀c x=\"u€/\\ufffd0 \"") == ["日日", "'", "€/'", "'", "c/", "😀c", "x", "u€/\u{fffd}0 "]
+check gdec("é😀'=\"ya-\\r  \" é\\=false zz\u{7f}x=\"\\ufffd-\\u000cy1\\r\u{7f}\" cb=null") == ["é😀'", "ya-\r  ", "é\\", "false", "zz\u{7f}x", "\u{fffd}-\u{c}y1\r\u{7f}", "cb", "null"]
+check gdec("b\u{2028}=null") == ["b\u{2028}", "null"]
+check gdec("azy=null x\\=\" \\u00010\\\"\" 9é=plain") == ["azy", "null", "x\\", " \u{1}0\"", "9é", "plain"]
+check gdec("€=y") == ["€", "y"]
+check gdec("\\'日= \u{7f}y=\"é😀-\\r\\\"日y\" cacz=\"b\\t\" yz=\"'\\u000c\\\\\\\\\"") == ["\\'日", "", "\u{7f}y", "é😀-\r\"日y", "cacz", "b\t", "yz", "'\u{c}\\\\"]
+check gdec("x0a=\"- \\u00080'\u{7f}1\\u000c\"") == ["x0a", "- \u{8}0'\u{7f}1\u{c}"]
+check gdec("éb=plain x09'=€\u{2028}cb a\u{2028}=0 €\\=\"\\\"q\\\"\"") == ["éb", "plain", "x09'", "€\u{2028}cb", "a\u{2028}", "0", "€\\", "\"q\""]
+check gdec("1=") == ["1", ""]
+check gdec("b=😀9\u{7f}au\u{7f}b") == ["b", "😀9\u{7f}au\u{7f}b"]
+check gdec("'x=\"\\ta\\u0008 \\u0008\"") == ["'x", "\ta\u{8} \u{8}"]
+check gdec("日yxy=\"\\u0008z=\"") == ["日yxy", "\u{8}z="]
+check gdec("ux'=cz") == ["ux'", "cz"]
+check gdec("'=\"\\\"q\\\"\" /€=\"\\ufffdyb\" 'x=ba\u{2028}11 0日日日=null 9u=false") == ["'", "\"q\"", "/€", "\u{fffd}yb", "'x", "ba\u{2028}11", "0日日日", "null", "9u", "false"]
+check gdec("c1=null €=null uéx=\"\\r\" 日'=\"cb\\t😀\"") == ["c1", "null", "€", "null", "uéx", "\r", "日'", "cb\t😀"]
+check gdec("\\=true 1éa=\"/\\u0000\u{2028}\" \u{2028}= a=\"0\\t\" cé=null") == ["\\", "true", "1éa", "/\u{0}\u{2028}", "\u{2028}", "", "a", "0\t", "cé", "null"]
+check gdec("-z=-9223372036854775808") == ["-z", "-9223372036854775808"]
+check gdec("\u{7f}€=false x-1x=true 😀90\u{7f}0=true x😀0\\=cx") == ["\u{7f}€", "false", "x-1x", "true", "😀90\u{7f}0", "true", "x😀0\\", "cx"]
+check gdec("0=\"x=y\" xy=😀\u{7f}1 a9=\"\\tb-\" é\\9=\"\\u0008\u{2028}\\u001fz\u{2028}\u{2028}\"") == ["0", "x=y", "xy", "😀\u{7f}1", "a9", "\tb-", "é\\9", "\u{8}\u{2028}\u{1f}z\u{2028}\u{2028}"]
+check gdec("-c=\"null\"") == ["-c", "null"]
+check gdec("'yy=ayz0'") == ["'yy", "ayz0'"]
+check gdec("1\u{7f}=42 9-€=null z😀/za=-9223372036854775808") == ["1\u{7f}", "42", "9-€", "null", "z😀/za", "-9223372036854775808"]
+check gdec("€9=\"x=y\" a\u{7f}y=null xz=\"\\t\u{2028}\\rz\\\\\u{2028}\\r\\u0000\"") == ["€9", "x=y", "a\u{7f}y", "null", "xz", "\t\u{2028}\rz\\\u{2028}\r\u{0}"]
+check gdec("\u{2028}=a-c -1=\"/\\r\"") == ["\u{2028}", "a-c", "-1", "/\r"]
+check gdec("/-=\u{2028}€") == ["/-", "\u{2028}€"]
+check gdec("€=\"\\u0008\" 日=false") == ["€", "\u{8}", "日", "false"]
+check gdec("/c=\"null\" 😀c=true b=null") == ["/c", "null", "😀c", "true", "b", "null"]
+check gdec("😀=\" \" -=-9223372036854775808 é/x=\"€b\\u001f/é\\u0001😀€\"") == ["😀", " ", "-", "-9223372036854775808", "é/x", "€b\u{1f}/é\u{1}😀€"]
+check gdec("😀'-x=true /yy=\" \\\\z \\\\ab/\" 9éb=\"\\\"q\\\"\"") == ["😀'-x", "true", "/yy", " \\z \\ab/", "9éb", "\"q\""]
+check gdec("\u{2028}😀'=null 日=\"\u{2028}\\u0001 日\" \\z=\"y'\u{7f}\\u001f=日\\\"€\" u日é=\"=c - =\\\"\" \u{7f}=") == ["\u{2028}😀'", "null", "日", "\u{2028}\u{1} 日", "\\z", "y'\u{7f}\u{1f}=日\"€", "u日é", "=c - =\"", "\u{7f}", ""]
+check gdec("€=null \u{2028}😀= é=false u'x=null") == ["€", "null", "\u{2028}😀", "", "é", "false", "u'x", "null"]
+check gdec("€z\u{7f}=0") == ["€z\u{7f}", "0"]
+check gdec("-=\"\\\"\" 0=true 日=null yb😀=null 9😀b=true") == ["-", "\"", "0", "true", "日", "null", "yb😀", "null", "9😀b", "true"]
+check gdec("'日=\"\\u0001/\" /\u{7f}9=true") == ["'日", "\u{1}/", "/\u{7f}9", "true"]
+check gdec("\u{2028}\u{2028}ax=false c-a=") == ["\u{2028}\u{2028}ax", "false", "c-a", ""]
+check gdec("-=\"\\nx=\\u0008 \\u0008\"") == ["-", "\nx=\u{8} \u{8}"]
+check gdec("01c9=\"/1\u{2028}\\u0001\\té\" u/\\0b=-9223372036854775808 -\u{7f}=\"\\u0001a€\\u0001\\r\\\"c\"") == ["01c9", "/1\u{2028}\u{1}\té", "u/\\0b", "-9223372036854775808", "-\u{7f}", "\u{1}a€\u{1}\r\"c"]
+check gdec("b=\"c\\t1c'1\\\"-\" é9'/x=null 😀b=\"\u{7f}😀\\n日1\\u0008\"") == ["b", "c\t1c'1\"-", "é9'/x", "null", "😀b", "\u{7f}😀\n日1\u{8}"]
+check gdec("0=\"\\u0008 \\ry\" 0/=-9223372036854775808 \u{7f}1😀0€=\"cb\\n=\u{2028}\\t\"") == ["0", "\u{8} \ry", "0/", "-9223372036854775808", "\u{7f}1😀0€", "cb\n=\u{2028}\t"]
+check gdec("cé'=null xb1/=\"\\n 9\\\"/1\" cyxy0=-9223372036854775808") == ["cé'", "null", "xb1/", "\n 9\"/1", "cyxy0", "-9223372036854775808"]
+check gdec("1\u{7f}= b日=\"\\ufffd日\\\"\\n\\ufffd\\n \"") == ["1\u{7f}", "", "b日", "\u{fffd}日\"\n\u{fffd}\n "]
+check gdec("11=\"\\u0001b\\u001fy€😀b\\u0000\"") == ["11", "\u{1}b\u{1f}y€😀b\u{0}"]
+check gdec("cz\\=plain \u{2028}=\"\\u000c0\\\\日é\u{7f}\"") == ["cz\\", "plain", "\u{2028}", "\u{c}0\\日é\u{7f}"]
+check gdec("\\=true z=\"x=y\" 0=") == ["\\", "true", "z", "x=y", "0", ""]
+check gdec("a\\=\"\\t9=\u{2028}xu\\t\" 9x=\"\\\\b\\u0008c\\ufffd\\r\\n\" 1€=null") == ["a\\", "\t9=\u{2028}xu\t", "9x", "\\b\u{8}c\u{fffd}\r\n", "1€", "null"]
+check gdec("\u{7f}=0 €1=\"\\ty\\n \"") == ["\u{7f}", "0", "€1", "\ty\n "]
+check gdec("99€z€=-1 0=\"1\\n-\\u0001\\u0000\\u0008\\t\"") == ["99€z€", "-1", "0", "1\n-\u{1}\u{0}\u{8}\t"]
+check gdec("9=0 x\u{2028}/ac=\"\\\\\\r-\\n\u{2028}\"") == ["9", "0", "x\u{2028}/ac", "\\\r-\n\u{2028}"]
+check gdec("101/=false") == ["101/", "false"]
+check gdec("bzc日u=plain \u{2028}=plain €zy=null c'=\"\\n\\ufffd/€\\n'\\u0008日\" \u{7f}xy😀=\"x=y\"") == ["bzc日u", "plain", "\u{2028}", "plain", "€zy", "null", "c'", "\n\u{fffd}/€\n'\u{8}日", "\u{7f}xy😀", "x=y"]
+check gdec("\\= -\\= -x=\"\\u0000z- \\u001f\\u0001\" -9x=false") == ["\\", "", "-\\", "", "-x", "\u{0}z- \u{1f}\u{1}", "-9x", "false"]
+check gdec("z'='\u{2028}1 c\u{2028}=\"y1😀-\\u0001u\\\\\"") == ["z'", "'\u{2028}1", "c\u{2028}", "y1😀-\u{1}u\\"]
+check gdec("bx0=false 9€=\"\\\"y\\r/日\" a\u{2028}/=\"\\u000c€\\u0000\\u0000\\r\\n-\" xx-=\"/1\\u001fcx\\u0000za\"") == ["bx0", "false", "9€", "\"y\r/日", "a\u{2028}/", "\u{c}€\u{0}\u{0}\r\n-", "xx-", "/1\u{1f}cx\u{0}za"]
+check gdec("'9'=-1") == ["'9'", "-1"]
+check gdec("9=\"9a1\\u001f日z\"") == ["9", "9a1\u{1f}日z"]
+check gdec("cé\\=-") == ["cé\\", "-"]
+check gdec("'é€\u{7f}\u{7f}=日b u=null u1=\"/éx0\\r日u/\" 日日-\u{2028}\u{2028}😀=\"b\\u001f9\" 9-=false") == ["'é€\u{7f}\u{7f}", "日b", "u", "null", "u1", "/éx0\r日u/", "日日-\u{2028}\u{2028}😀", "b\u{1f}9", "9-", "false"]
+check gdec("b'=\"\\\\\\u0000\\u0000=\\n\\u001f\u{2028}\" a\\😀/a=c") == ["b'", "\\\u{0}\u{0}=\n\u{1f}\u{2028}", "a\\😀/a", "c"]
+check gdec("0bay1=42 \u{7f}'日=€y y\u{2028}=\"=/b \\u0000\\t😀\" /z=false 1yy=\"x1\\u0001\\u001fx\\t9\"") == ["0bay1", "42", "\u{7f}'日", "€y", "y\u{2028}", "=/b \u{0}\t😀", "/z", "false", "1yy", "x1\u{1}\u{1f}x\t9"]
+check gdec("😀日=\"😀\u{2028}\\ufffd\\n\" 😀-'=\"/\u{2028} \\ufffd\\\"\" \u{2028}u'z=\"'\\n9a9\" acz=null") == ["😀日", "😀\u{2028}\u{fffd}\n", "😀-'", "/\u{2028} \u{fffd}\"", "\u{2028}u'z", "'\n9a9", "acz", "null"]
+check gdec("zb=-9223372036854775808 😀=\"zé\\u001f\\\\\"") == ["zb", "-9223372036854775808", "😀", "zé\u{1f}\\"]
+check gdec("-=\"null\" 'a= b=é xy\u{2028}=\"\\\\\\\"\\u0008ay\" €a=") == ["-", "null", "'a", "", "b", "é", "xy\u{2028}", "\\\"\u{8}ay", "€a", ""]
+check gdec("1\u{2028}a=null /😀\u{7f}x=0 😀=\"日yz\\\"€-\\\"\\u001f\" x=null") == ["1\u{2028}a", "null", "/😀\u{7f}x", "0", "😀", "日yz\"€-\"\u{1f}", "x", "null"]
+check gdec("a=\"n\\ull\" b= c=null d=-9223372036854775808 e=9223372036854775807f=false") == ["!9:invalid quoted value"]
+check gdec("key=\"v\\ufffd\" uxy=\"ab\"") == ["key", "v\u{fffd}", "uxy", "ab"]
+check gdec("k=\"tab\\there\" q=\"say \\\"hi\\\" \\\\ back\" c=\"\\u000\\u0001\\u001f\u{7f}\\u0008\\u000c\\r\\n \"") == ["k", "tab\there", "q", "say \"hi\" \\ back", "!76:invalid quoted value"]
+check gdec("u\\=é€😀日\u{2028} eq=\"a=b\"") == ["u\\", "é€😀日\u{2028}", "eq", "a=b"]
+check gdec("u日/=\"日\\ u0001é\"") == ["!20:invalid quoted value"]
+check gdec("za1=\"\\t\\\\\\nz\" 0=\"\\u01\u{7f}€\\r c\"") == ["za1", "\t\\\nz", "!30:invalid quoted value"]
+check gdec("\\xx=9uu '=\"\\u0001\"") == ["\\xx", "9uu", "'", "\u{1}"]
+check gdec("u= 日=\"=\\z\\u000c😀\\t\"") == ["u", "", "!24:invalid quoted value"]
+check gdec("z19z= €=\"\\0001'c/\u{7f}\\\"b\\n\"") == ["z19z", "", "!26:invalid quoted value"]
+check gdec("\u{7f}€=fase") == ["\u{7f}€", "fase"]
+check gdec("日1\\=false b'=\"b \u{7f}\" =\u{7f}b😀bz=\"null\" x-b=-1") == ["日1\\", "false", "b'", "b \u{7f}", "!21:unexpected '='"]
+check gdec("é=\"x=y\" ué\\9\"=unull") == ["é", "x=y", "!14:unexpected '\"'"]
+check gdec("'=-1 é日=\"\\\"q\\\"\" 日c=\"x=y\" 9\\b=\"\\\u{7f}\\\"a\"") == ["'", "-1", "é日", "\"q\"", "日c", "x=y", "!41:invalid quoted value"]
+check gdec("'\\日=\"\\\"q\\\"\" \u{7f}'x=\"\\r\\u0000日\\\"yb\\u00\"08\" -/zz9=\"\\x\\u0000éz\\t\\\\ \" x\u{2028}= y=\"a\\\\\\\"\"") == ["'\\日", "\"q\"", "!39:invalid quoted value"]
+check gdec("/c\\=\"\\u0000\\ufffdc\\u0001é\\r€0\" 日=\"\\u0008'\" z=\"\\\"\\u000c\\000c\" x=null") == ["/c\\", "\u{0}\u{fffd}c\u{1}é\r€0", "日", "\u{8}'", "!65:invalid quoted value"]
+check gdec("-😀=\"\\\"é日\\r\"") == ["-😀", "\"é日\r"]
+check gdec("c9=\"\\u0001u\"c\" \u{2028}=plain 1=\"x=y\" b=\"\\\\\\\"cb1b\\rz\"") == ["c9", "\u{1}u", "!13:unexpected '\"'"]
+check gdec("b\\\u{2028}= €=\"\\\"\\\"\" €=\"\\u001fza u\\u00010日\"") == ["b\\\u{2028}", "", "€", "\"\"", "€", "\u{1f}za u\u{1}0日"]
+check gdec("1= 9y=fls\"e") == ["1", "", "!9:unexpected '\"'"]
+check gdec("u€日=null 日=b/= a=tue") == ["u€日", "null", "!19:unexpected '='"]
+check gdec("é9\u{7f}\u{2028}\\=\"\\ufffdz\\u001f日a0 1\" 😀9\u{2028}b=\"\"€yu'=x\\u0008\\9\" 😀=-") == ["é9\u{7f}\u{2028}\\", "\u{fffd}z\u{1f}日a0 1", "😀9\u{2028}b", "", "!60:unexpected '\"'"]
+check gdec("0= -87214166716") == ["0", "", "-87214166716", ""]
+check gdec("'=\"z\\\"é\\\\€\\\"\\") == ["!16:unterminated quoted value"]
+check gdec("€😀z=true /-z日=\"-'\\\"c\" 9=\"z\\nzx\" ''éc-1- /z=-446046196284") == ["€😀z", "true", "/-z日", "-'\"c", "9", "z\nzx", "''éc-1-", "", "/z", "-446046196284"]
+check gdec("-/=/a1😀u '=\"\u{7f}\\ n\" c\u{7f}=\"\\t'\\u001fz\\\"\"") == ["-/", "/a1😀u", "!20:invalid quoted value"]
+check gdec("'\u{2028}-=\"x=y\" c=\"\\n€") == ["'\u{2028}-", "x=y", "!20:unterminated quoted value"]
+check gdec(" 1aé=\"\\u001f/\\n\\\"\" €=\"\\ru\\u001f\" 9z=\"\\tb\\u0001\u{2028}u\u{7f}\" \u{2028}zz=true") == ["1aé", "\u{1f}/\n\"", "€", "\ru\u{1f}", "9z", "\tb\u{1}\u{2028}u\u{7f}", "\u{2028}zz", "true"]
+check gdec("cb= \\\\日=") == ["cb", "", "\\\\日", ""]
+check gdec("\\=alseu 日u1=true") == ["\\", "alseu", "日u1", "true"]
+check gdec("/=x1=42") == ["!4:unexpected '='"]
+check gdec("a=\"\\n\\u001fu-1cy\\u000c\" \\1😀=\"\\t\\u00081'=\\u0001\u{2028}\" z\\uu\u{7f}=true") == ["a", "\n\u{1f}u-1cy\u{c}", "\\1😀", "\t\u{8}1'=\u{1}\u{2028}", "z\\uu\u{7f}", "true"]
+check gdec("x0=\"\\tcé=c\" x€c=\"\\u000c\\\"日y1\" €=plain xy=😀\\ 1=false") == ["x0", "\tcé=c", "x€c", "\u{c}\"日y1", "€", "plain", "xy", "😀\\", "1", "false"]
+check gdec("a= \u{2028}xu1=null \u{7f}''=tru z=\"null\"") == ["a", "", "\u{2028}xu1", "null", "\u{7f}''", "tru", "z", "null"]
+check gdec("'😀bb= x-'null 99a=--") == ["'😀bb", "", "x-'null", "", "99a", "--"]
+check gdec("é=\"z=c \" €= 9=\"\\u001f\\ufffd\u{2028}\"") == ["é", "z=c ", "€", "", "9", "\u{1f}\u{fffd}\u{2028}"]
+check gdec("b'é=\"\\u\"000c\"") == ["!9:invalid quoted value"]
+check gdec("c=é é-é9=\"😀\\ufffd\\t\u{7f} by9b\u{7f}=true") == ["c", "é", "!37:unterminated quoted value"]
+check gdec("0=\"\\u0008\\u001f\\u001f€1\\ufff\\d\" 😀😀=9a\u{7f}09 /011-=\"z\\u0001z\\ufffd =\\u00011\"") == ["!33:invalid quoted value"]
+check gdec("9é=true \\1xy=\"u1r€u日\\r\" x\\c-=\"\\u0001\\t\\\\z0\" \\c日=\"9\\rua\\\\\\r1\"") == ["9é", "true", "\\1xy", "u1r€u日\r", "x\\c-", "\u{1}\t\\z0", "\\c日", "9\rua\\\r1"]
+check gdec("x\\\u{2028}yxé=\"/😀-\u{2028}é\\\"\\t-\" u€a=€ 9\"") == ["x\\\u{2028}yxé", "/😀-\u{2028}é\"\t-", "u€a", "€", "!40:unexpected '\"'"]
+check gdec("zuaé=b -z= 0b=-1") == ["zuaé", "b", "-z", "", "0b", "-1"]
+check gdec("zuu= 9日/\u{2028}=z c=\"'aé\\\\ 0\\ufffd=x\" 'x=\"\\tb\\t\\ufffdy'by\"") == ["zuu", "", "9日/\u{2028}", "z", "c", "'aé\\ 0\u{fffd}=x", "'x", "\tb\t\u{fffd}y'by"]
+check gdec("😀a1日=null 😀/=\"x=y\" é9y=\"\\t=\\u000c\" 1y=-9223372036854775808 /-=true") == ["😀a1日", "null", "😀/", "x=y", "é9y", "\t=\u{c}", "1y", "-9223372036854775808", "/-", "true"]
+check gdec("y= 9c日'= ué\u{7f}9=\"€\\u000c=\" é\\1😀=\"\\n =9\" zcz=\" \\u0008\\u0008\\tu00000\"") == ["y", "", "9c日'", "", "ué\u{7f}9", "€\u{c}=", "é\\1😀", "\n =9", "zcz", " \u{8}\u{8}\tu00000"]
+check gdec("\\= cé=\"€z11y/\\u000=8\" y😀日=\"\\\"\\r9€\\u0\"01f\\u0008 z\"") == ["\\", "", "!24:invalid quoted value"]
+check gdec("001=ub é=true 1y\u{2028}ab=false \u{2028}9a=\"\\u0001\"") == ["001", "ub", "é", "true", "1y\u{2028}ab", "false", "\u{2028}9a", "\u{1}"]
+check gdec("/=\"céyx/\\n\" 1=\"\\u00000€\\u0001\"") == ["/", "céyx/\n", "1", "\u{0}0€\u{1}"]
+check gdec("9=\"=\\u0001\\u000c\\u00000\\ufffd\\\\-\" 😀0=\"\\u0001\" //=\"\\\"/😀😀\" z\u{7f}-b9=fals") == ["9", "=\u{1}\u{c}\u{0}0\u{fffd}\\-", "😀0", "\u{1}", "//", "\"/😀😀", "z\u{7f}-b9", "fals"]
+check gdec("b=nul\"l\"") == ["!5:unexpected '\"'"]
+check gdec("'z=\"false €é9\u{2028}=\\\"x=y\" 😀=true") == ["'z", "false €é9\u{2028}=\"x=y", "😀", "true"]
+check gdec("x-é=\"b=\u{7f}9\" c=\"\\u001f9-x\\u0001\"\u{2028}\u{7f}=\"é-\\u0008\\u000c\\n\"") == ["x-é", "b=\u{7f}9", "c", "\u{1f}9-x\u{1}", "\u{2028}\u{7f}", "é-\u{8}\u{c}\n"]
+check gdec("a9u= yyéb=😀=plain b=\"\\u001fu\" \u{7f}b=null uc=\"é\\u0001\\\"'€\\n\"") == ["a9u", "", "!15:unexpected '='"]
+check gdec("a=\"\\r'\u{2028}\\\\\\t\\t\" \u{2028}=\"x😀\\u0\\0081\"") == ["a", "\r'\u{2028}\\\t\t", "!36:invalid quoted value"]
+check gdec("uy=\" €\\ufffd\" u\\😀=\"\\u0001é\\u001f\\t\\u001f\\n日\u{7f}\" ycz'=null \\1\\b'=null") == ["uy", " €\u{fffd}", "u\\😀", "\u{1}é\u{1f}\t\u{1f}\n日\u{7f}", "ycz'", "null", "\\1\\b'", "null"]
+check gdec("cyunull") == ["cyunull", ""]
+check gdec("xa€=\"/=日\u{7f}'\"\\ 0\\\u{7f}=") == ["xa€", "/=日\u{7f}'", "\\", "", "0\\\u{7f}", ""]
+check gdec("0=false é=null \\😀=\"\u{2028}=\" '=0") == ["0", "false", "é", "null", "\\😀", "\u{2028}=", "'", "0"]
+check gdec("\u{7f}\u{7f}=\"\\nb0\\u000\" 0\u{2028}=null 0yu日日=") == ["!14:invalid quoted value"]
+check gdec("€=-48575895168 \\= z€=\"z\\u0000é\\u001f\\ufffd-\" 9=b 0=") == ["€", "-48575895168", "\\", "", "z€", "z\u{0}é\u{1f}\u{fffd}-", "9", "b", "0", ""]
+check gdec("日日=' €/'=' c/=😀c x=\"u€/\\ufffd=0 \"") == ["日日", "'", "€/'", "'", "c/", "😀c", "x", "u€/\u{fffd}=0 "]
+check gdec("é😀'=\"ya-\\r  \" é\\=false zz\u{7f}x=\"\\ufffd-\\u000cy1\\r\u{7f}\" cb=\"null") == ["é😀'", "ya-\r  ", "é\\", "false", "zz\u{7f}x", "\u{fffd}-\u{c}y1\r\u{7f}", "!62:unterminated quoted value"]
+check gdec("b\u{2028}nll") == ["b\u{2028}nll", ""]
+check gdec("azy=null x\\=\" \\00010\\\"\" 9é=plain") == ["azy", "null", "!23:invalid quoted value"]
+check gdec("€==y=") == ["!4:unexpected '='"]
+check gdec("\\'日= \u{7f}y=\"é😀-=\\r\\\"日y\" cacz==\"b\\t\" yz=\"'\\u000c\\\\\\\\\"") == ["\\'日", "", "\u{7f}y", "é😀-=\r\"日y", "!34:unexpected '='"]
+check gdec("x0a=\"\" \\u00080'\u{7f}1\\u000c\"") == ["x0a", "", "!23:unexpected '\"'"]
+check gdec("éb=plain x09'=€\u{2028}cb a\u{2028}=0 €\\\"\\\"q\\\"\"") == ["éb", "plain", "x09'", "€\u{2028}cb", "a\u{2028}", "0", "!35:unexpected '\"'"]
+check gdec("") == []
+check gdec("b=😀9au\u{7f}b") == ["b", "😀9au\u{7f}b"]
+check gdec("'x=\"\\ta\\u0008  \\u0008\"") == ["'x", "\ta\u{8}  \u{8}"]
+check gdec("日yxy=\"\\0=008z=\"") == ["!17:invalid quoted value"]
+check gdec("\\ux'=z") == ["\\ux'", "z"]
+check gdec("'=\"\\\"q\\\"\" /€=\"\\ufffdyb\" 'x=ba\u{2028}11 0日日日=null 9ufalseu") == ["'", "\"q\"", "/€", "\u{fffd}yb", "'x", "ba\u{2028}11", "0日日日", "null", "9ufalseu", ""]
+check gdec("c1=null €=null uéx=\"\\r\" 日'=\"cb\\t😀") == ["c1", "null", "€", "null", "uéx", "\r", "!41:unterminated quoted value"]
+check gdec("\\=true 1éau=\"/\\u0000\u{2028}\" \u{2028}= a=\"0\\t\" cé=null") == ["\\", "true", "1éau", "/\u{0}\u{2028}", "\u{2028}", "", "a", "0\t", "cé", "null"]
+check gdec("-z=-9223372036854775808u") == ["-z", "-9223372036854775808u"]
+check gdec("\u{7f}=false x-1x=true 😀90\u{7f}0=true 😀0\\=cx") == ["\u{7f}", "false", "x-1x", "true", "😀90\u{7f}0", "true", "😀0\\", "cx"]
+check gdec("0=\"x=y\" xy=😀\u{7f}1 a9u=\"\\tb-\"é\\9=\"\\u0008\u{2028}\\u001fz\u{2028}\u{2028}\"") == ["0", "x=y", "xy", "😀\u{7f}1", "a9u", "\tb-", "é\\9", "\u{8}\u{2028}\u{1f}z\u{2028}\u{2028}"]
+check gdec("-uc=\"null\" ") == ["-uc", "null"]
+check gdec("'uyyayz0'") == ["'uyyayz0'", ""]
+check glines("", 0) == []
+check gnlines("") == 0
+check glines("\n", 1) == ["|"]
+check gnlines("\n") == 1
+check glines("a=1", 1) == ["a", "1", "|"]
+check gnlines("a=1") == 1
+check glines("a=1\n", 1) == ["a", "1", "|"]
+check gnlines("a=1\n") == 1
+check glines("a=1\r\n", 1) == ["a", "1", "|"]
+check gnlines("a=1\r\n") == 1
+check glines("a=1\r", 1) == ["a", "1", "|"]
+check gnlines("a=1\r") == 1
+check glines("a=1\r\r\nb=2", 2) == ["a", "1", "|", "b", "2", "|"]
+check gnlines("a=1\r\r\nb=2") == 2
+check glines("\n\na=1\n\n", 4) == ["|", "|", "a", "1", "|", "|"]
+check gnlines("\n\na=1\n\n") == 4
+check glines("a=1\nb=\"x\nc=3", 2) == ["a", "1", "|", "!4:unterminated quoted value", "|"]
+check glines("x=1\r\n\r\ny=\"\\q\"\nz=1", 3) == ["x", "1", "|", "|", "!6:invalid quoted value", "|"]
+check glines("\ta\u{7f}😀\t\"'d D\r\n xD 0dkk\u{1}=aDé\n\r\n日/=\"日\\u0001é\"\ncyunull\n\t\\'D3a\u{fffd}d\n", 1) == ["a\u{7f}😀", "", "!8:unexpected '\"'", "|"]
+check glines("cz\\=plain \u{2028}=\"\\u000c0\\\\日é\u{7f}\"\nb\u{1}kx\n-=\"\\nx=\\u0008 \\u0008\"", 3) == ["cz\\", "plain", "\u{2028}", "\u{c}0\\日é\u{7f}", "|", "b", "", "kx", "", "|", "-", "\nx=\u{8} \u{8}", "|"]
+check gnlines("cz\\=plain \u{2028}=\"\\u000c0\\\\日é\u{7f}\"\nb\u{1}kx\n-=\"\\nx=\\u0008 \\u0008\"") == 3
+check glines("x\\\u{2028}yxé=\"/😀-\u{2028}é\\\"\\t-\" u€a=\"€ =9\"", 1) == ["x\\\u{2028}yxé", "/😀-\u{2028}é\"\t-", "u€a", "€ =9", "|"]
+check gnlines("x\\\u{2028}yxé=\"/😀-\u{2028}é\\\"\\t-\" u€a=\"€ =9\"") == 1
+check glines("/-=\u{2028}€\r\n€=\"\\u0008\" 日=false\r\n\\xx=9u '=\"\\u0001\"\n€z\u{7f}=0", 4) == ["/-", "\u{2028}€", "|", "€", "\u{8}", "日", "false", "|", "\\xx", "9u", "'", "\u{1}", "|", "€z\u{7f}", "0", "|"]
+check gnlines("/-=\u{2028}€\r\n€=\"\\u0008\" 日=false\r\n\\xx=9u '=\"\\u0001\"\n€z\u{7f}=0") == 4
+check glines("za1=\"\\t\\\\\\nz\" 0=\"\\u0001\u{7f}€\\r c\"\n\u{7f}€=false x-1x=true 😀90\u{7f}0=true x😀0\\=cx\nkey=\"v\\ufffd\" uxy=\"ab\"\r\n-=\"null\" 'a= b=é xy\u{2028}=\"\\\\\\\"\\u0008ay\" €a=\nb😀\\\u{fffd}bx b\r\n\\= cé=\"€z11y/\\u0008\" y😀日=\"\\\"\\r9€\\u001f\\u0008 z\"", 5) == ["za1", "\t\\\nz", "0", "\u{1}\u{7f}€\r c", "|", "\u{7f}€", "false", "x-1x", "true", "😀90\u{7f}0", "true", "x😀0\\", "cx", "|", "key", "v\u{fffd}", "uxy", "ab", "|", "-", "null", "'a", "", "b", "é", "xy\u{2028}", "\\\"\u{8}ay", "€a", "", "|", "!11:invalid key", "|"]
+check glines("-z=-9223372036854775808", 1) == ["-z", "-9223372036854775808", "|"]
+check gnlines("-z=-9223372036854775808") == 1
+check glines("Dé\u{7f}\r\n", 1) == ["Dé\u{7f}", "", "|"]
+check gnlines("Dé\u{7f}\r\n") == 1
+check glines(" a=k\\0é'x\n", 1) == ["a", "k\\0é'x", "|"]
+check gnlines(" a=k\\0é'x\n") == 1
+check glines("'é€\u{7f}\u{7f}=日b u=null u1=\"/éx0\\r日u/\" 日日-\u{2028}\u{2028}😀=\"b\\u001f9\" 9-=false\r\nCk/😀\tDx\r\na=\"x\"\"", 3) == ["'é€\u{7f}\u{7f}", "日b", "u", "null", "u1", "/éx0\r日u/", "日日-\u{2028}\u{2028}😀", "b\u{1f}9", "9-", "false", "|", "Ck/😀", "", "Dx", "", "|", "a", "x", "!5:unexpected '\"'", "|"]
+check glines("a=\r\n0=\"\\u0008 \\ry\" 0/=-9223372036854775808 \u{7f}1😀0€=\"cb\\n=\u{2028}\\t\"\r\n\u{7f}kna' '\nD 0\r\nb'é=\"\\u000c\"\r\n日1\\=false b'=\"b \u{7f}\" \u{7f}b😀bz=\"null\" x-b=-1\n", 6) == ["a", "", "|", "0", "\u{8} \ry", "0/", "-9223372036854775808", "\u{7f}1😀0€", "cb\n=\u{2028}\t", "|", "\u{7f}kna'", "", "'", "", "|", "D", "", "0", "", "|", "b'é", "\u{c}", "|", "日1\\", "false", "b'", "b \u{7f}", "\u{7f}b😀bz", "null", "x-b", "-1", "|"]
+check gnlines("a=\r\n0=\"\\u0008 \\ry\" 0/=-9223372036854775808 \u{7f}1😀0€=\"cb\\n=\u{2028}\\t\"\r\n\u{7f}kna' '\nD 0\r\nb'é=\"\\u000c\"\r\n日1\\=false b'=\"b \u{7f}\" \u{7f}b😀bz=\"null\" x-b=-1\n") == 6
+check glines("xa€=\"/=日\u{7f}'\" 0\\\u{7f}😀=\r\n=\t\r\n3éD3/=é=kndé\nzuu= 9日/\u{2028}=z c=\"'aé\\\\ 0\\ufffdx\" 'x=\"\\tb\\t\\ufffdy'by\"\r\n'z=false €é9\u{2028}=\"x=y\" 😀=true", 2) == ["xa€", "/=日\u{7f}'", "0\\\u{7f}😀", "", "|", "!0:unexpected '='", "|"]
+check glines("😀Cd\t x/ =xa", 1) == ["😀Cd", "", "x/", "", "!11:unexpected '='", "|"]
+check glines("n\\\t\"CC3\\CDd \n", 1) == ["n\\", "", "!3:unexpected '\"'", "|"]
+check glines("'\\日=\"\\\"q\\\"\" \u{7f}'x=\"\\r\\u0000日\\\"yb\\u0008\" -/zz9=\"x\\u0000éz\\t\\\\ \" x\u{2028}= y=\"a\\\\\\\"\"\r\n001=b é=true 1y\u{2028}ab=false \u{2028}9a=\"\\u0001\"\n\n\t a😀a3=Du\r\n\r\n", 5) == ["'\\日", "\"q\"", "\u{7f}'x", "\r\u{0}日\"yb\u{8}", "-/zz9", "x\u{0}éz\t\\ ", "x\u{2028}", "", "y", "a\\\"", "|", "001", "b", "é", "true", "1y\u{2028}ab", "false", "\u{2028}9a", "\u{1}", "|", "|", "a😀a3", "Du", "|", "|"]
+check gnlines("'\\日=\"\\\"q\\\"\" \u{7f}'x=\"\\r\\u0000日\\\"yb\\u0008\" -/zz9=\"x\\u0000éz\\t\\\\ \" x\u{2028}= y=\"a\\\\\\\"\"\r\n001=b é=true 1y\u{2028}ab=false \u{2028}9a=\"\\u0001\"\n\n\t a😀a3=Du\r\n\r\n") == 5
+check glines("8\tn\u{1}\"😀C\r\n", 1) == ["8", "", "n", "", "!4:unexpected '\"'", "|"]
+check glines("\n日日=' €/'=' c/=😀c x=\"u€/\\ufffd0 \"\n 8 '  8'CnCD\r\n 1aé=\"\\u001f/\\n\\\"\" €=\"\\ru\\u001f\" 9z=\"\\tb\\u0001\u{2028}u\u{7f}\" \u{2028}zz=true\n0=\"\\u0008 \\ry\" 0/=-9223372036854775808 \u{7f}1😀0€=\"cb\\n=\u{2028}\\t\"\n€😀z=true /-z日=\"-'\\\"c\" 9=\"z\\nzx\" ''éc=-1- /z=-446046196284", 6) == ["|", "日日", "'", "€/'", "'", "c/", "😀c", "x", "u€/\u{fffd}0 ", "|", "8", "", "'", "", "8'CnCD", "", "|", "1aé", "\u{1f}/\n\"", "€", "\ru\u{1f}", "9z", "\tb\u{1}\u{2028}u\u{7f}", "\u{2028}zz", "true", "|", "0", "\u{8} \ry", "0/", "-9223372036854775808", "\u{7f}1😀0€", "cb\n=\u{2028}\t", "|", "€😀z", "true", "/-z日", "-'\"c", "9", "z\nzx", "''éc", "-1-", "/z", "-446046196284", "|"]
+check gnlines("\n日日=' €/'=' c/=😀c x=\"u€/\\ufffd0 \"\n 8 '  8'CnCD\r\n 1aé=\"\\u001f/\\n\\\"\" €=\"\\ru\\u001f\" 9z=\"\\tb\\u0001\u{2028}u\u{7f}\" \u{2028}zz=true\n0=\"\\u0008 \\ry\" 0/=-9223372036854775808 \u{7f}1😀0€=\"cb\\n=\u{2028}\\t\"\n€😀z=true /-z日=\"-'\\\"c\" 9=\"z\\nzx\" ''éc=-1- /z=-446046196284") == 6
+check glines("", 0) == []
+check gnlines("") == 0
+check glines("\u{fffd}xé\u{fffd}C\n\r\na8\u{7f}/ub😀=", 1) == ["!10:invalid key", "|"]
+check glines("\u{7f}=false x-1x=true 😀90\u{7f}0=true 😀0\\=cx", 1) == ["\u{7f}", "false", "x-1x", "true", "😀90\u{7f}0", "true", "😀0\\", "cx", "|"]
+check gnlines("\u{7f}=false x-1x=true 😀90\u{7f}0=true 😀0\\=cx") == 1
+check glines("k\u{fffd}=1\r\n\u{2028}\u{2028}ax=false c-a=\n\r\na\"b=1", 1) == ["!4:invalid key", "|"]
+check glines("a/ku0\"\r\nz€uaé=b -z= 0b=-1\r\n\tkD\u{7f}a\u{1}ub=b'\r\n0=\"\\u0008 \\ry\" 0/=-9223372036854775808 \u{7f}1😀0€=\"cb\\n=\u{2028}\\t\"\r\n'adké0Cx0dudDn\n", 1) == ["!5:unexpected '\"'", "|"]
+check glines("b'é=\"\\u\"000c\"\nx-é=\"b=\u{7f}9\" c=\"\\u001f9-x\\u0001\" \u{2028}\u{7f}=\"é-\\u0008\\u000c\\n\"\r\nu=é€😀日\u{2028} eq=\"a=b\"\r\n", 1) == ["!9:invalid quoted value", "|"]
+check glines("\n-=\"\\\"\" 0=true 日=null yb😀=null 9😀b=true\r\n€=-48575895168 \\= z€=\"z\\u0000é\\u001f\\ufffd-\" 9=b 0=\r\né9\u{7f}\u{2028}\\=\"\\ufffdz\\u001f日a0 1\" 😀9\u{2028}b=\"€yu'=x\\u00089\" 😀=-\na= b\r\n", 5) == ["|", "-", "\"", "0", "true", "日", "null", "yb😀", "null", "9😀b", "true", "|", "€", "-48575895168", "\\", "", "z€", "z\u{0}é\u{1f}\u{fffd}-", "9", "b", "0", "", "|", "é9\u{7f}\u{2028}\\", "\u{fffd}z\u{1f}日a0 1", "😀9\u{2028}b", "€yu'=x\u{8}9", "😀", "-", "|", "a", "", "b", "", "|"]
+check gnlines("\n-=\"\\\"\" 0=true 日=null yb😀=null 9😀b=true\r\n€=-48575895168 \\= z€=\"z\\u0000é\\u001f\\ufffd-\" 9=b 0=\r\né9\u{7f}\u{2028}\\=\"\\ufffdz\\u001f日a0 1\" 😀9\u{2028}b=\"€yu'=x\\u00089\" 😀=-\na= b\r\n") == 5
+check glines("\n", 1) == ["|"]
+check gnlines("\n") == 1
+check glines("-/=/a1😀u '=\"\u{7f}\\ n\" c\u{7f}=\"\\t'\\u001fz\\\"\"", 1) == ["-/", "/a1😀u", "!20:invalid quoted value", "|"]
+check glines("8\"/\n 8u' nD\"\u{fffd}\u{fffd}C😀3\n", 1) == ["!1:unexpected '\"'", "|"]
+check glines("x-é=\"b=\u{7f}9\" c=\"\\u001f9-x\\u0001\" \u{2028}\u{7f}=\"é-\\u0008\\u000c\\n\"\r\nzuu= 9日/\u{2028}=z c=\"'aé\\\\ 0\\ufffdx\" 'x=\"\\tb\\t\\ufffdy'by\"", 2) == ["x-é", "b=\u{7f}9", "c", "\u{1f}9-x\u{1}", "\u{2028}\u{7f}", "é-\u{8}\u{c}\n", "|", "zuu", "", "9日/\u{2028}", "z", "c", "'aé\\ 0\u{fffd}x", "'x", "\tb\t\u{fffd}y'by", "|"]
+check gnlines("x-é=\"b=\u{7f}9\" c=\"\\u001f9-x\\u0001\" \u{2028}\u{7f}=\"é-\\u0008\\u000c\\n\"\r\nzuu= 9日/\u{2028}=z c=\"'aé\\\\ 0\\ufffdx\" 'x=\"\\tb\\t\\ufffdy'by\"") == 2
+check glines("1\u{7f}=42 9-€=null z😀/za=-9223372036854775808", 1) == ["1\u{7f}", "42", "9-€", "null", "z😀/za", "-9223372036854775808", "|"]
+check gnlines("1\u{7f}=42 9-€=null z😀/za=-9223372036854775808") == 1
+check glines("'😀bb= x-'=null 99a=--\n\r\n", 2) == ["'😀bb", "", "x-'", "null", "99a", "--", "|", "|"]
+check gnlines("'😀bb= x-'=null 99a=--\n\r\n") == 2
+check glines("'Cuabk", 1) == ["'Cuabk", "", "|"]
+check gnlines("'Cuabk") == 1
+check glines("c=é é-é9=\"😀\\ufffd\\t\u{7f} by9b\u{7f}=true\n'=-1 é日=\"\\\"q\\\"\" 日ac=\"x=y\" 9\\b=\"\u{7f}\\\"a\"", 1) == ["c", "é", "!37:unterminated quoted value", "|"]
+check glines("\\= cé=\"€z11y/\\u000=8\" y😀日=\"\\\"\\r9€\\u0\"01f\\u0008 z\"\r\n\\xx=9u '=\"\\u0001\"", 1) == ["\\", "", "!24:invalid quoted value", "|"]
+check glines("zb=-9223372036854775808 😀=\"zé\\u001f\\\\\"\n\u{fffd}8\té\u{fffd}u'd\r\n0=false é=null 😀=\"\u{2028}=\" 'z=0\r\nx0=\"\\tcé=c\" x€c=\"\\u000c\\\"日y1\" €=plain xy=😀\\ 1=false\n", 2) == ["zb", "-9223372036854775808", "😀", "zé\u{1f}\\", "|", "!4:invalid key", "|"]
+check glines("日1\\=false b'=\"b \u{7f}\" =\u{7f}b😀bz=\"null\" x-b=-1\r\n€😀z=true /-z日=\"-'\\\"c\" 9=\"z\\nzx\" ''éc-1- /z=-446046196284\n😀日=\"😀\u{2028}\\ufffd\\n\" 😀-'=\"/\u{2028} \\ufffd\\\"\" \u{2028}u'z=\"'\\n9a9\" acz=null\n\r", 1) == ["日1\\", "false", "b'", "b \u{7f}", "!21:unexpected '='", "|"]
+check glines("9=\"=\\u0001\\u000c\\u00000\\ufffd\\\\-\" -😀0=\"\\u0001\" //=\"\\\"/😀😀\" z\u{7f}-b9=false\n/=- x1=42\na=\"null\" b= c=null d=-9223372036854775808 e=9223372036854775807 f=false\n0bay1=42 \u{7f}'日=€y y\u{2028}=\"=/b \\u0000\\t😀\" /z=false 1yy=\"x1\\u0001\\u001fx\\t9\"\r\n日日=' €/'=' c/=😀c x=\"u€/\\ufffd=0 \"\r\n", 5) == ["9", "=\u{1}\u{c}\u{0}0\u{fffd}\\-", "-😀0", "\u{1}", "//", "\"/😀😀", "z\u{7f}-b9", "false", "|", "/", "-", "x1", "42", "|", "a", "null", "b", "", "c", "null", "d", "-9223372036854775808", "e", "9223372036854775807", "f", "false", "|", "0bay1", "42", "\u{7f}'日", "€y", "y\u{2028}", "=/b \u{0}\t😀", "/z", "false", "1yy", "x1\u{1}\u{1f}x\t9", "|", "日日", "'", "€/'", "'", "c/", "😀c", "x", "u€/\u{fffd}=0 ", "|"]
+check gnlines("9=\"=\\u0001\\u000c\\u00000\\ufffd\\\\-\" -😀0=\"\\u0001\" //=\"\\\"/😀😀\" z\u{7f}-b9=false\n/=- x1=42\na=\"null\" b= c=null d=-9223372036854775808 e=9223372036854775807 f=false\n0bay1=42 \u{7f}'日=€y y\u{2028}=\"=/b \\u0000\\t😀\" /z=false 1yy=\"x1\\u0001\\u001fx\\t9\"\r\n日日=' €/'=' c/=😀c x=\"u€/\\ufffd=0 \"\r\n") == 5
+check glines("D\u{7f}\nz'='\u{2028}1 c\u{2028}=\"y1😀-\\u0001u\\\\\"\nzb=-9223372036854775808 😀=\"zé\\u001f\\\\\"", 3) == ["D\u{7f}", "", "|", "z'", "'\u{2028}1", "c\u{2028}", "y1😀-\u{1}u\\", "|", "zb", "-9223372036854775808", "😀", "zé\u{1f}\\", "|"]
+check gnlines("D\u{7f}\nz'='\u{2028}1 c\u{2028}=\"y1😀-\\u0001u\\\\\"\nzb=-9223372036854775808 😀=\"zé\\u001f\\\\\"") == 3
+check glines("😀=kx", 1) == ["😀", "kx", "|"]
+check gnlines("😀=kx") == 1
+check glines("/c\\=\"\\u0000\\ufffdc\\u0001é\\r€0\" 日=\"\\u0008'\" z=\"\\\"\\u000c\\u000c\" x=null", 1) == ["/c\\", "\u{0}\u{fffd}c\u{1}é\r€0", "日", "\u{8}'", "z", "\"\u{c}\u{c}", "x", "null", "|"]
+check gnlines("/c\\=\"\\u0000\\ufffdc\\u0001é\\r€0\" 日=\"\\u0008'\" z=\"\\\"\\u000c\\u000c\" x=null") == 1
+check glines("d\\/\\a\r\n\\= cé=\"€z11y/\\u000=8\" y😀日=\"\\\"\\r9€\\u0\"01f\\u0008 z\"\nD\u{1}k'é\r\na\r", 2) == ["d\\/\\a", "", "|", "\\", "", "!24:invalid quoted value", "|"]
+check glines("a\n", 1) == ["a", "", "|"]
+check gnlines("a\n") == 1

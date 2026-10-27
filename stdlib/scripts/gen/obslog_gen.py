@@ -1,6 +1,7 @@
 # Usage (from stdlib/): python3 scripts/gen/obslog_gen.py
 # Writes vectors/obs/log_ref.json (inputs and reference outputs) and the
-# generated checks tests/obs/log_checks_2.rce .. log_checks_N.rce of
+# generated checks tests/obs/log_checks_2.rce (logfmt), _3 (sampling) and _4
+# (JSON and records) of
 # lib/obs/log.rce. Derived vectors, seed 20261027:
 # - logfmt: github.com/go-logfmt/logfmt v0.6.0 run by scripts/gen/obslog_go
 #   (Go 1.24, `go run .`): MarshalKeyvals of random pairs (with refusals),
@@ -375,6 +376,7 @@ def flat_go(pairs, err, extra):
     return o + extra
 
 checks = []
+groups = []
 for e, m, k in zip(enc_in, ref['encode'], ref['encode_skip']):
     checks.append('check genc(%s) == %s' % (kvlit(e), L(m if m is not None else 'ERR')))
     checks.append('check gskip(%s) == %s' % (kvlit(e), L(k)))
@@ -389,11 +391,15 @@ for t, s in zip(streams, ref['streams']):
     checks.append('check glines(%s, %d) == %s' % (L(t), len(recs_go), tlist(exp)))
     if s['err'] is None:
         checks.append('check gnlines(%s) == %d' % (L(t), len(recs_go)))
+groups.append(checks)
+checks = []
 for s, keep in zip(samples, ref['sample']):
     ts = '[' + ', '.join(str(e[0]) for e in s['entries']) + ']'
     sv = '[' + ', '.join(str(9 + 4 * e[1]) for e in s['entries']) + ']'
     ms = tlist([e[2] for e in s['entries']])
     checks.append('check gsample(%d, %d, %d, %s, %s, %s) == %s' % (s['tick'], s['first'], s['thereafter'], ts, sv, ms, L(''.join('1' if x else '0' for x in keep))))
+groups.append(checks)
+checks = []
 for j in json_in:
     checks.append('check gjson(%s, %s) == %s' % (kvlit(j['pairs']), 'true' if j['ascii'] else 'false', L(j['json'])))
 for r in recs:
@@ -407,15 +413,16 @@ for r in recs:
     checks.append('check glf(%s, %s) == %s' % (rl, fl, L(r['logfmt'])))
     checks.append('check gjs(%s, %s) == %s' % (rl, fl, L(r['json'])))
 
-PER = int(os.environ.get('OBSLOG_PER', '120'))
+groups.append(checks)
+# one file per part: logfmt, sampling, JSON and records
 os.makedirs(os.path.join(ROOT, 'tests', 'obs'), exist_ok=True)
 for f in os.listdir(os.path.join(ROOT, 'tests', 'obs')):
     if re.fullmatch(r'log_checks_\d+\.rce', f):
         os.remove(os.path.join(ROOT, 'tests', 'obs', f))
-n = 0
-for i in range(0, len(checks), PER):
-    n += 1
-    with open(os.path.join(ROOT, 'tests', 'obs', 'log_checks_%d.rce' % (n + 1)), 'w') as fh:
-        fh.write(HEAD + '\n' + '\n'.join(checks[i:i + PER]) + '\n')
+for n, g in enumerate(groups):
+    with open(os.path.join(ROOT, 'tests', 'obs', 'log_checks_%d.rce' % (n + 2)), 'w') as fh:
+        fh.write(HEAD + '\n' + '\n'.join(g) + '\n')
+checks = [c for g in groups for c in g]
+n = len(groups)
 print('%d checks in %d files: encode %d, decode %d, streams %d, sample %d, json %d, records %d' % (
     len(checks), n, 2 * len(enc_in), len(dec_in), len(streams), len(samples), len(json_in), 3 * len(recs)))
