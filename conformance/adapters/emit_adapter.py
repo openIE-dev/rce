@@ -35,13 +35,22 @@ def sh(cmd, inp=None, timeout=300):
     p = subprocess.run(cmd, input=inp, capture_output=True, text=True, timeout=timeout)
     return p.returncode, p.stdout, p.stderr
 
+def write(path, text):
+    """Write a whole file under its name at once: parallel jobs write the
+    same names (a run and a trace of the same events emit the same
+    program), and a reader must never see a file another job is writing."""
+    tmp = f"{path}.{os.getpid()}.tmp"
+    with open(tmp, "w") as w:
+        w.write(text)
+    os.replace(tmp, path)
+
 def emit(src):
     h = hashlib.sha256(src.encode()).hexdigest()[:16]
-    f = os.path.join(TMP, f"m{h}.rce"); open(f, "w").write(src)
+    f = os.path.join(TMP, f"m{h}.rce"); write(f, src)
     rc, out, err = sh([RCE, "emit", LANG, f])
     if rc != 0:
         return None, err.strip() or out.strip()
-    prog = os.path.join(TMP, f"m{h}.{EXT}"); open(prog, "w").write(out)
+    prog = os.path.join(TMP, f"m{h}.{EXT}"); write(prog, out)
     if LANG == "rust":
         # keyed by the emitted program, so a changed runtime is never served
         # from a stale binary, and private to this process; the process keeps
@@ -183,7 +192,7 @@ def emitted_by():
     """The checker that emits, from the provenance line of an emitted file
     (`emitted by rce VERSION (COMMIT)`)."""
     f = os.path.join(TMP, "hello.rce")
-    open(f, "w").write("const K: i64 = 1\n")
+    write(f, "const K: i64 = 1\n")
     rc, out, err = sh([RCE, "emit", LANG, f])
     m = re.search(r"emitted by (rce \S+ \([^)]*\))", out.splitlines()[0] if out else "")
     return m.group(1) if m else f"unknown: {(err or out).strip()[:200]}"
