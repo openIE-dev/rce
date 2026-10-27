@@ -373,7 +373,8 @@ pub fn uuid_node(u: &[i64]) -> i64 ! BadId
     let b = try id_u16(u)
     return id_int(&b, 10, 16)
 
-fn id_fdiv(a: i64, b: i64) -> i64 = if a >= 0 then a / b else 0 - ((0 - a - 1) / b) - 1
+# floor division for b > 0 (no intermediate overflow, also at the i64 minimum)
+fn id_fdiv(a: i64, b: i64) -> i64 = if a < 0 and a % b != 0 then a / b - 1 else a / b
 
 # 100 ns ticks since 1582-10-15 of a Unix time in nanoseconds (floor), as
 # CPython uuid1 computes them.
@@ -415,6 +416,8 @@ pub fn uuid_v8(custom: &[i64]) -> List[i64] ! BadId = try uuid_with_version(cust
 # bytes of the name (RFC 9562 6.5).
 pub fn uuid_name_input(ns: &[i64], name: &text) -> List[i64] ! BadId
     let b = try id_u16(ns)
+    if name.len_bytes() > 999984
+        fail BadId(at: 999984, why: "the name space ID and the name pass the 1000000-element list limit; hash them with a streaming hash")
     return id_cat(b, id_text_bytes(name))
 
 # A name-based UUID from the digest of uuid_name_input: version 3 with an
@@ -512,6 +515,8 @@ pub fn uuid7_gen() -> Uuid7Gen = Uuid7Gen(ms: -1, seq: 0)
 
 pub fn uuid7_next(g: &mut Uuid7Gen, unix_ms: i64, rnd: &[i64]) -> List[i64] ! BadId
     let _ok = try id_ms_ok(unix_ms)
+    if g.ms < -1 or g.ms > ID_MS_MAX or g.seq < 0 or g.seq > 4294967295
+        fail BadId(at: -1, why: "not a state uuid7_gen and uuid7_next made")
     let r = try id_take(rnd, 16)
     var ms = g.ms
     var seq = g.seq
@@ -650,8 +655,10 @@ pub fn ulid_gen() -> UlidGen = UlidGen(ms: -1, last: [])
 
 pub fn ulid_next(g: &mut UlidGen, unix_ms: i64, rnd: &[i64]) -> List[i64] ! BadId
     let _ok = try id_ms_ok(unix_ms)
+    if g.ms < -1 or g.ms > ID_MS_MAX
+        fail BadId(at: -1, why: "not a state ulid_gen and ulid_next made")
     if g.ms >= 0 and unix_ms <= g.ms
-        var b = copy(g.last)
+        var b = try id_u16(&g.last)
         var i: i64 = 15
         while i >= 6 bound 10
             if b[i as usize] == 255
@@ -708,12 +715,14 @@ pub fn nanoid_gen(alphabet: &text, size: i64) -> NanoGen ! BadId
     let n = a.len() as i64
     if n < 1 or n > 256
         fail BadId(at: -1, why: "the alphabet must have 1 to 256 symbols")
-    if size < 0
-        fail BadId(at: -1, why: "the size must be 0 or more")
+    if size < 0 or size > 1000000
+        fail BadId(at: -1, why: "the size must be 0..1000000")
     let cut = 256 - 256 % n
     var block = size
     if cut != 256
         block = (1.6 * 256.0 * (size as f64) / (cut as f64)).ceil() as i64
+    if block > 1000000
+        fail BadId(at: -1, why: "one draw would pass the 1000000-element list limit")
     return NanoGen(alpha: a, size: size, block: block, cutoff: cut, out: [], pend: [], used: 0)
 
 pub fn nanoid_done(g: &NanoGen) -> bool = (g.out.len() as i64) >= g.size
@@ -779,7 +788,7 @@ pub struct SnowParts
     seq: i64
 
 fn id_lay_ok(l: &SnowLayout) -> bool ! BadId
-    if l.epoch_ms < 0 or l.worker_bits < 0 or l.seq_bits < 0 or l.worker_bits + l.seq_bits > 62
+    if l.epoch_ms < 0 or l.worker_bits < 0 or l.seq_bits < 0 or l.worker_bits > 62 or l.seq_bits > 62 or l.worker_bits + l.seq_bits > 62
         fail BadId(at: -1, why: "a layout needs epoch_ms >= 0 and at least one time bit")
     return true
 
@@ -787,12 +796,14 @@ fn id_lay_ok(l: &SnowLayout) -> bool ! BadId
 pub fn snow_make(l: &SnowLayout, unix_ms: i64, worker: i64, seq: i64) -> i64 ! BadId
     let _ok = try id_lay_ok(l)
     let tb = 63 - l.worker_bits - l.seq_bits
-    let t = unix_ms - l.epoch_ms
-    if t < 0 or t >= (1 << tb)
+    if unix_ms < l.epoch_ms or ((unix_ms - l.epoch_ms) >> tb) != 0
         fail BadId(at: -1, why: "the time is outside the layout's range")
-    if worker < 0 or worker >= (1 << l.worker_bits)
+    let t = unix_ms - l.epoch_ms
+    if t < 0
+        fail BadId(at: -1, why: "the time is outside the layout's range")
+    if worker < 0 or (worker >> l.worker_bits) != 0
         fail BadId(at: -1, why: "the worker does not fit its bits")
-    if seq < 0 or seq >= (1 << l.seq_bits)
+    if seq < 0 or (seq >> l.seq_bits) != 0
         fail BadId(at: -1, why: "the sequence does not fit its bits")
     return (t << (l.worker_bits + l.seq_bits)) | (worker << l.seq_bits) | seq
 
@@ -803,6 +814,8 @@ pub fn snow_parts(l: &SnowLayout, sid: i64) -> SnowParts ! BadId
         fail BadId(at: -1, why: "a Snowflake ID is not negative")
     let s = l.seq_bits
     let w = l.worker_bits
+    if (sid >> (w + s)) > 9223372036854775807 - l.epoch_ms
+        fail BadId(at: -1, why: "the time does not fit i64 milliseconds")
     return SnowParts(ms: (sid >> (w + s)) + l.epoch_ms, worker: (sid >> s) & ((1 << w) - 1), seq: sid & ((1 << s) - 1))
 
 # A generator for one worker (Twitter IdWorker.nextId): the first ID of a
@@ -819,18 +832,19 @@ pub struct SnowGen
 
 pub fn snow_gen(l: &SnowLayout, worker: i64) -> SnowGen ! BadId
     let _ok = try id_lay_ok(l)
-    if worker < 0 or worker >= (1 << l.worker_bits)
+    if worker < 0 or (worker >> l.worker_bits) != 0
         fail BadId(at: -1, why: "the worker does not fit its bits")
     return SnowGen(lay: copy(l), worker: worker, last_ms: -1, seq: 0)
 
 pub fn snow_next(g: &mut SnowGen, now_ms: i64) -> i64 ! BadId
+    let _ok = try id_lay_ok(&g.lay)
     if now_ms < g.last_ms
         fail BadId(at: g.last_ms, why: "clock moved backwards")
     var seq: i64 = 0
     if now_ms == g.last_ms
-        seq = g.seq + 1
-        if seq >= (1 << g.lay.seq_bits)
+        if g.seq >= (1 << g.lay.seq_bits) - 1
             fail BadId(at: g.last_ms + 1, why: "the sequence of this millisecond is used up")
+        seq = g.seq + 1
     let sid = try snow_make(&g.lay, now_ms, g.worker, seq)
     g.last_ms = now_ms
     g.seq = seq
