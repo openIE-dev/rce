@@ -3,13 +3,18 @@
 //! (`emit::observe`) on all example programs; then it is run again with
 //! `--trace --fuel-trace` and compared line for line with
 //! `emit::observe_trace`, the whole trace of every example (each entry of D,
-//! the states, outputs, kept reasons and fuel). rustc, python3 and node serve
-//! only as oracles here. When one is missing the test prints why and skips
-//! that target; it never counts a skipped program as passed.
+//! the states, outputs, kept reasons and fuel). rustc, python3, node and
+//! scala-cli serve only as oracles here. The targets a run covers are named
+//! in tests/emit_targets.txt (tests/common/targets.rs): a covered target
+//! whose toolchain does not run fails its test, and a target the file does
+//! not name is reported as not covered, never counted as passed.
 use rce_spec_check::emit::{Lang, emit, observe, observe_trace, with_probes};
 use rce_spec_check::parse::parse;
 use std::path::{Path, PathBuf};
 use std::process::Command;
+
+#[path = "common/targets.rs"]
+mod targets;
 
 /// Programs in spec/examples (51 through draft 0.7; 51_refined_input adds 5.1 refined types, 52-54 the 0.8 indexed values of 5.16).
 const CORPUS: usize = 62;
@@ -41,12 +46,12 @@ fn tool(lang: Lang) -> String {
         .unwrap_or(def.to_string())
 }
 
-fn have(tool: &str, arg: &str) -> Option<String> {
-    let o = Command::new(tool).arg(arg).output().ok()?;
-    o.status.success().then(|| {
-        String::from_utf8_lossy(&o.stdout).trim().to_string()
-            + String::from_utf8_lossy(&o.stderr).trim()
-    })
+/// The version line of the oracle of `lang`, when this run covers it
+/// (`targets::covered` fails the test when a covered oracle does not run).
+fn covered(lang: Lang) -> Option<String> {
+    targets::covered(&[lang], tool).first()?;
+    let o = Command::new(tool(lang)).arg("--version").output().unwrap();
+    Some(String::from_utf8_lossy(&o.stdout).trim().to_string() + String::from_utf8_lossy(&o.stderr).trim())
 }
 
 fn scratch(lang: Lang) -> PathBuf {
@@ -201,11 +206,7 @@ fn check_all(lang: Lang) -> (usize, Vec<String>) {
 
 #[test]
 fn rust_emitter_agrees_with_reference() {
-    let Some(v) = have(&tool(Lang::Rust), "--version") else {
-        eprintln!(
-            "SKIPPED rust emitter test: {} not found (not a pass)",
-            tool(Lang::Rust)
-        );
+    let Some(v) = covered(Lang::Rust) else {
         return;
     };
     eprintln!("rust oracle: {v}");
@@ -215,11 +216,7 @@ fn rust_emitter_agrees_with_reference() {
 
 #[test]
 fn python_emitter_agrees_with_reference() {
-    let Some(v) = have(&tool(Lang::Python), "--version") else {
-        eprintln!(
-            "SKIPPED python emitter test: {} not found (not a pass)",
-            tool(Lang::Python)
-        );
+    let Some(v) = covered(Lang::Python) else {
         return;
     };
     eprintln!("python oracle: {v}");
@@ -229,11 +226,7 @@ fn python_emitter_agrees_with_reference() {
 
 #[test]
 fn js_emitter_agrees_with_reference() {
-    let Some(v) = have(&tool(Lang::Js), "--version") else {
-        eprintln!(
-            "SKIPPED js emitter test: {} not found (not a pass)",
-            tool(Lang::Js)
-        );
+    let Some(v) = covered(Lang::Js) else {
         return;
     };
     eprintln!("node oracle: {v}");
@@ -243,11 +236,7 @@ fn js_emitter_agrees_with_reference() {
 
 #[test]
 fn scala_emitter_agrees_with_reference() {
-    let Some(v) = have(&tool(Lang::Scala), "--version") else {
-        eprintln!(
-            "SKIPPED scala emitter test: {} not found (not a pass)",
-            tool(Lang::Scala)
-        );
+    let Some(v) = covered(Lang::Scala) else {
         return;
     };
     eprintln!("scala oracle: {v}");
@@ -278,19 +267,14 @@ fn edge_program_agrees_on_every_available_target() {
     assert!(want.iter().any(|l| l == "fn zkeys = [\"2\", \"-0\", \"1\", \"-0\"]"), "{want:?}");
     assert!(want.iter().any(|l| l.starts_with("fn f32texts = [\"0.000000000000000000000000000000000000000000001\"")), "{want:?}");
     let mut ran = 0;
-    for lang in [Lang::Rust, Lang::Python, Lang::Js, Lang::Scala] {
-        let t = tool(lang);
-        if have(&t, "--version").is_none() {
-            eprintln!("SKIPPED {lang:?} on the edge program: {t} not found (not a pass)");
-            continue;
-        }
+    for lang in targets::covered(&targets::ALL, tool) {
         let dir = scratch(lang);
         let got = run(lang, &dir, "edge", &emit(&m, lang).unwrap()).unwrap();
         let _ = std::fs::remove_dir_all(&dir);
         assert_eq!(got.lines().collect::<Vec<_>>(), want, "{lang:?}");
         ran += 1;
     }
-    eprintln!("edge program: {ran} of 4 targets ran and agreed");
+    eprintln!("edge program: {ran} covered targets ran and agreed");
 
 }
 
@@ -309,17 +293,12 @@ fn prompt_and_header_contexts_agree_on_every_available_target() {
     assert!(want.iter().any(|l| l.starts_with("fn hcr trap")), "{want:?}");
     assert!(want.iter().any(|l| l.starts_with("fn hlf trap")), "{want:?}");
     let mut ran = 0;
-    for lang in [Lang::Rust, Lang::Python, Lang::Js, Lang::Scala] {
-        let t = tool(lang);
-        if have(&t, "--version").is_none() {
-            eprintln!("SKIPPED {lang:?} on the context program: {t} not found (not a pass)");
-            continue;
-        }
+    for lang in targets::covered(&targets::ALL, tool) {
         let dir = scratch(lang);
         let got = run(lang, &dir, "contexts", &emit(&m, lang).unwrap()).unwrap();
         let _ = std::fs::remove_dir_all(&dir);
         assert_eq!(got.lines().collect::<Vec<_>>(), want, "{lang:?}");
         ran += 1;
     }
-    eprintln!("context program: {ran} of 4 targets ran and agreed");
+    eprintln!("context program: {ran} covered targets ran and agreed");
 }

@@ -10,8 +10,31 @@ use rce_spec_check::parse::parse;
 use std::path::PathBuf;
 use std::process::Command;
 
+#[path = "common/targets.rs"]
+mod targets;
+
 fn rustc() -> String {
     std::env::var("RCE_RUSTC").ok().filter(|v| !v.is_empty()).unwrap_or("rustc".into())
+}
+
+fn node() -> String {
+    std::env::var("RCE_NODE").ok().filter(|v| !v.is_empty()).unwrap_or("node".into())
+}
+
+/// the program that runs target `l` here
+fn oracle(l: Lang) -> String {
+    match l {
+        Lang::Rust => rustc(),
+        Lang::Python => python(),
+        Lang::Js => node(),
+        Lang::Scala => "scala-cli".into(),
+    }
+}
+
+/// whether this run covers target `l` (tests/emit_targets.txt); a covered
+/// target whose toolchain does not run fails the test
+fn covers(l: Lang) -> bool {
+    !targets::covered(&[l], oracle).is_empty()
 }
 
 type Links = Vec<(u64, bool, String, String)>;
@@ -91,8 +114,7 @@ fn build_lang(lang: Lang, stem: &str, src: &str) -> Exe {
         std::fs::write(&sh, format!("#!/bin/sh\nexec '{}' -jar '{}' \"$@\"\n", java.display(), jar.display())).unwrap();
         return ("sh".into(), sh);
     }
-    let tool = if lang == Lang::Python { python() } else { std::env::var("RCE_NODE").ok().filter(|v| !v.is_empty()).unwrap_or("node".into()) };
-    (tool, f)
+    (oracle(lang), f)
 }
 
 /// a JVM for the Scala assemblies: RCE_JAVA, else `java` when it runs,
@@ -128,21 +150,12 @@ fn java_bin() -> Option<PathBuf> {
     out
 }
 
-/// the targets with a tick runtime that are installed here: Rust and
-/// Python always; JavaScript with node, Scala with scala-cli and java
+/// the targets with a tick runtime that this run covers
+/// (tests/emit_targets.txt); a covered Scala also needs a JVM for its
+/// assemblies
 fn run_targets() -> Vec<Lang> {
-    let node = std::env::var("RCE_NODE").ok().filter(|v| !v.is_empty()).unwrap_or("node".into());
-    let mut v = vec![Lang::Rust, Lang::Python];
-    if Command::new(&node).arg("--version").output().is_ok() {
-        v.push(Lang::Js);
-    } else {
-        eprintln!("SKIPPED: js (not a pass)");
-    }
-    if Command::new("scala-cli").arg("--version").output().is_ok() && java_bin().is_some() {
-        v.push(Lang::Scala);
-    } else {
-        eprintln!("SKIPPED: scala (not a pass)");
-    }
+    let v = targets::covered(&targets::ALL, oracle);
+    assert!(!v.contains(&Lang::Scala) || java_bin().is_some(), "scala: no JVM for the assemblies; {} names scala", targets::FILE);
     v
 }
 
@@ -784,8 +797,7 @@ fn drivers() -> Vec<(String, String)> {
 
 #[test]
 fn emitted_runtime_agrees_with_run_main() {
-    if Command::new(rustc()).arg("--version").output().is_err() {
-        eprintln!("SKIPPED: rustc not found (not a pass)");
+    if !covers(Lang::Rust) {
         return;
     }
     let progs = corpus();
@@ -813,8 +825,7 @@ fn emitted_runtime_agrees_with_run_main() {
 /// each; every run must equal the evaluator's result
 #[test]
 fn par_waits_stress() {
-    if Command::new(rustc()).arg("--version").output().is_err() {
-        eprintln!("SKIPPED: rustc not found (not a pass)");
+    if !covers(Lang::Rust) {
         return;
     }
     for (n, src) in [("stress_chain", WAIT_CHAIN), ("stress_stuck", WAIT_STUCK)] {
@@ -830,8 +841,7 @@ fn par_waits_stress() {
 /// Heal delivers them in order, as in run_main with the same inputs
 #[test]
 fn partitions_agree() {
-    if Command::new(rustc()).arg("--version").output().is_err() {
-        eprintln!("SKIPPED: rustc not found (not a pass)");
+    if !covers(Lang::Rust) {
         return;
     }
     let exe = build("partitions", ACTORS);
@@ -888,21 +898,20 @@ fn partition_cases() -> Vec<Links> {
 #[test]
 fn python_runtime_agrees_with_run_main() {
     eprintln!("python oracle: {}", python());
-    let Ok(o) = Command::new(python()).args(["-c", "import sys; print(sys.version, getattr(sys, '_is_gil_enabled', lambda: True)())"]).output() else {
-        eprintln!("SKIPPED: {} not found (not a pass)", python());
+    if !covers(Lang::Python) {
         return;
-    };
+    }
+    let o = Command::new(python()).args(["-c", "import sys; print(sys.version, getattr(sys, '_is_gil_enabled', lambda: True)())"]).output().unwrap();
     eprintln!("python: {}", String::from_utf8_lossy(&o.stdout).trim());
     agree_lang(Lang::Python, 3);
 }
 
 #[test]
 fn js_runtime_agrees_with_run_main() {
-    let node = std::env::var("RCE_NODE").ok().filter(|v| !v.is_empty()).unwrap_or("node".into());
-    let Ok(o) = Command::new(&node).arg("--version").output() else {
-        eprintln!("SKIPPED: {node} not found (not a pass)");
+    if !covers(Lang::Js) {
         return;
-    };
+    }
+    let o = Command::new(node()).arg("--version").output().unwrap();
     eprintln!("node: {}", String::from_utf8_lossy(&o.stdout).trim());
     agree_lang(Lang::Js, 2);
 }
@@ -992,8 +1001,6 @@ fn actor_refusals_match() {
     let w = want_log(REFUSALS);
     eprintln!("{w:#?}");
     assert!(w.iter().filter(|l| l.starts_with("actorlog Refused")).count() >= 4, "{w:?}");
-    let node = std::env::var("RCE_NODE").ok().filter(|v| !v.is_empty()).unwrap_or("node".into());
-    let has_node = Command::new(&node).arg("--version").output().is_ok();
     // the same program with an intensity window (C.11.11): restarts older
     // than RESTART_WINDOW ticks no longer count toward the bound
     let windowed = format!("const RESTART_WINDOW: u64 = 2\n{REFUSALS}");
@@ -1001,11 +1008,7 @@ fn actor_refusals_match() {
     assert_ne!(ww, w, "the window must change the outcome of this program");
     // a crash inside `atomic` is supervised: the failing actor restarts
     assert!(w.iter().filter(|l| l.starts_with("actorlog Restart(")).count() >= 2, "{w:?}");
-    for lang in [Lang::Rust, Lang::Python, Lang::Js] {
-        if lang == Lang::Js && !has_node {
-            eprintln!("SKIPPED: js (not a pass)");
-            continue;
-        }
+    for lang in targets::covered(&[Lang::Rust, Lang::Python, Lang::Js], oracle) {
         let exe = build_lang(lang, &format!("refusals_{lang:?}"), REFUSALS);
         assert_eq!(run_log(&exe), w, "{lang:?}");
         let exe = build_lang(lang, &format!("refusals_win_{lang:?}"), &windowed);
@@ -1073,13 +1076,7 @@ fn restart_inputs_replay_on_every_target() {
     bad[0].id = "nobody".into();
     let want_bad = want_log_cfg(REFUSALS, &RunCfg { restarts: Some(bad.clone()), ..RunCfg::default() });
     assert!(want_bad.last().unwrap().ends_with("replay diverged"), "{want_bad:?}");
-    let node = std::env::var("RCE_NODE").ok().filter(|v| !v.is_empty()).unwrap_or("node".into());
-    let has_node = Command::new(&node).arg("--version").output().is_ok();
-    for lang in [Lang::Rust, Lang::Python, Lang::Js] {
-        if lang == Lang::Js && !has_node {
-            eprintln!("SKIPPED: js (not a pass)");
-            continue;
-        }
+    for lang in targets::covered(&[Lang::Rust, Lang::Python, Lang::Js], oracle) {
         let exe = build_lang(lang, &format!("rin_{lang:?}"), REFUSALS);
         let got: Vec<String> = run_args(&exe, &["--restart-log".into()])
             .into_iter()
@@ -1223,8 +1220,6 @@ fn restart_replay_survives_upgrades_and_traps_on_tree_changes() {
     let reord = vec!["Spare/z".to_string(), "Root/w".to_string()];
     let w_reord = replay(&upgraded, Some(reord.clone()));
     assert_eq!(w_reord, vec!["outcome Refused: trap: upgrade reordered supervisor position Spare/z".to_string()]);
-    let node = std::env::var("RCE_NODE").ok().filter(|v| !v.is_empty()).unwrap_or("node".into());
-    let has_node = Command::new(&node).arg("--version").output().is_ok();
     let rargs = |tree: Option<&[String]>| {
         let mut a: Vec<String> = logged.iter().map(|l| format!("--restart={l}")).collect();
         if let Some(t) = tree {
@@ -1232,11 +1227,7 @@ fn restart_replay_survives_upgrades_and_traps_on_tree_changes() {
         }
         a
     };
-    for lang in [Lang::Rust, Lang::Python, Lang::Js] {
-        if lang == Lang::Js && !has_node {
-            eprintln!("SKIPPED: js (not a pass)");
-            continue;
-        }
+    for lang in targets::covered(&[Lang::Rust, Lang::Python, Lang::Js], oracle) {
         let exe = build_lang(lang, &format!("rup_rec_{lang:?}"), REFUSALS);
         let log = run_args(&exe, &["--restart-log".into()]);
         assert!(log.contains(&"restartlog v1 tree=Root/w".to_string()), "{lang:?} {log:?}");

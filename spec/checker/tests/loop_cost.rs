@@ -5,6 +5,9 @@
 use rce_spec_check::cli;
 use std::process::Command;
 
+#[path = "common/targets.rs"]
+mod targets;
+
 fn prog(b: i128) -> String {
     format!("fn f() -> i64\n    var i = 0\n    loop bound 8\n        i += 1\n        if i == 5\n            break\n    return i\n\nfn main()\n    with budget {b}\n        emit f()\n")
 }
@@ -36,7 +39,7 @@ fn emitted(src: &str, stem: &str, target: &str) -> Option<String> {
         "js" => ("mjs", "node"),
         _ => ("rs", "rustc"),
     };
-    if Command::new(tool).arg("--version").output().is_err() {
+    if !targets::covers(target, tool) {
         return None;
     }
     let p = d.join(format!("{stem}.{ext}"));

@@ -7,6 +7,9 @@ use rce_spec_check::cli;
 use sha2::{Digest, Sha256};
 use std::process::Command;
 
+#[path = "common/targets.rs"]
+mod targets;
+
 const VECTORS: [(&str, &str); 3] = [
     ("", "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"),
     ("abc", "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"),
@@ -64,7 +67,7 @@ fn every_emitted_runtime_matches_the_reference() {
     let f = d.join("emit.rce");
     std::fs::write(&f, prog()).unwrap();
     for (target, ext, tool) in [("rust", "rs", "rustc"), ("python", "py", "python3"), ("js", "mjs", "node")] {
-        if Command::new(tool).arg("--version").output().is_err() {
+        if !targets::covers(target, tool) {
             continue;
         }
         let (mut out, mut err) = (vec![], vec![]);

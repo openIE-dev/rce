@@ -215,9 +215,15 @@ scala-cli 1.18.0 on OpenJDK 27, all 55 programs of the current corpus
 (with the package files of example 26) agree with the reference, 0
 refused, 361 observation lines, and the edge program agrees on all four
 targets. Its oracle is `RCE_SCALA` (default `scala-cli`). That agreement is for this examples corpus only. On the larger `rce-conformance` suite the Scala emitter passes 52 of 1,845 results (its README gives 1,189 failures and 604 unsupported), so the Scala target does not yet agree with the reference on that suite.
-When `rustc`, `python3` or `node` is missing,
-its test prints `SKIPPED` and the reason; a skipped target is never
-counted as a pass. The oracles used were Python 3.13.5 and Node 20.19.2.
+The targets a test run covers are named as data,
+one word per line, in `spec/checker/tests/emit_targets.txt` (`rust`,
+`python`, `js`, `scala`), never by an environment variable or a flag. Every
+test that runs emitted programs runs them on each covered target it uses
+and fails when a covered target's toolchain does not start; a target the
+file does not name is reported as not covered by the run, never counted as
+a pass. The file names `rust`, `python` and `js`, the toolchains of the
+continuous integration runs; Scala is covered by adding its word. The
+oracles used were Python 3.13.5 and Node 20.19.2.
 The test reads the oracle paths from `RCE_RUSTC`, `RCE_PYTHON` and
 `RCE_NODE` (default `rustc`, `python3`, `node` on the path) and prints each
 oracle's version. On 2026-10-12 the same tests were also run on an Apple
@@ -265,7 +271,7 @@ arguments before entering a call; the trap observation and the total are
 what the test fixes. The Scala target is in the same test (the emitted
 file is packaged once into a jar and run with `java -jar`); on 2026-10-14
 it agreed on all 54 programs of that corpus and at all 1,366 swept limits
-(`RCE_FUEL_LANGS=scala`).
+(a run that covered Scala alone).
 
 
 **Running `fn main`.** Run with the argument `--run`, an emitted program
@@ -658,4 +664,4 @@ its name-free projection (T7) and is a continuous-integration step.
 
 **Read receipt.** Which JSON-RPC error code does the language server return for a request it does not know? (a number)
 
-<!-- body-sha256: cbd99b863afafeb7ea4ec0eabad455e8f03398db4b0560891e12bf1470776092 -->
+<!-- body-sha256: 954267d927d23eacfafef8853262badf907c62d7054f8f5ab0960573362cc028 -->

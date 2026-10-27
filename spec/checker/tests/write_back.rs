@@ -7,6 +7,9 @@
 use rce_spec_check::cli;
 use std::process::Command;
 
+#[path = "common/targets.rs"]
+mod targets;
+
 fn rce(args: &[String]) -> (i32, String, String) {
     let (mut out, mut err) = (vec![], vec![]);
     let code = cli::main(args, &mut &b""[..], &mut out, &mut err);
@@ -39,7 +42,7 @@ fn file(stem: &str, src: &str) -> String {
     f.to_string_lossy().into_owned()
 }
 
-/// stdout of the emitted program, or None when its toolchain is missing
+/// stdout of the emitted program, or None when this run does not cover the target
 fn run_target(f: &str, t: &str) -> Option<String> {
     let (code, out, err) = rce(&["emit".into(), t.into(), f.into()]);
     assert_eq!(code, 0, "{t}: {err}");
@@ -48,7 +51,7 @@ fn run_target(f: &str, t: &str) -> Option<String> {
         "js" => ("mjs", "node"),
         _ => ("rs", "rustc"),
     };
-    if Command::new(tool).arg("--version").output().is_err() {
+    if !targets::covers(t, tool) {
         return None;
     }
     let p = format!("{}_{t}.{ext}", f.trim_end_matches(".rce"));

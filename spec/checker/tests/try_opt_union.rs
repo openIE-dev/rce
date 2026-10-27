@@ -6,6 +6,9 @@ use rce_spec_check::emit::{Lang, emit, observe};
 use rce_spec_check::parse::parse;
 use std::process::Command;
 
+#[path = "common/targets.rs"]
+mod targets;
+
 const SRC: &str = "error Bad(why: text)
 
 kind Val
@@ -75,20 +78,20 @@ fn emitted_targets_agree() {
     assert!(want.iter().any(|l| l.contains("-1000")), "{want:?}");
     let d = std::env::temp_dir().join(format!("rce-tryopt-{}", std::process::id()));
     std::fs::create_dir_all(&d).unwrap();
-    for lang in [Lang::Rust, Lang::Python, Lang::Js, Lang::Scala] {
+    for lang in targets::covered(&targets::ALL, targets::oracle) {
         let code = emit(&m, lang).unwrap();
         let f = d.join(format!("t.{}", lang.ext()));
         std::fs::write(&f, code).unwrap();
         let out = match lang {
             Lang::Rust => {
                 let exe = d.join("t");
-                let Ok(c) = Command::new(std::env::var("RCE_RUSTC").unwrap_or("rustc".into())).args(["--edition", "2024", "-O", "-o"]).arg(&exe).arg(&f).output() else { eprintln!("SKIPPED rustc"); continue };
+                let c = Command::new(targets::oracle(Lang::Rust)).args(["--edition", "2024", "-O", "-o"]).arg(&exe).arg(&f).output().unwrap_or_else(|e| panic!("rustc does not run: {e}"));
                 assert!(c.status.success(), "{}", String::from_utf8_lossy(&c.stderr));
                 Command::new(&exe).output().unwrap()
             }
-            Lang::Python => match Command::new(std::env::var("RCE_PYTHON").unwrap_or("python3".into())).arg(&f).output() { Ok(o) => o, Err(_) => { eprintln!("SKIPPED python"); continue } },
-            Lang::Js => match Command::new(std::env::var("RCE_NODE").unwrap_or("node".into())).arg(&f).output() { Ok(o) => o, Err(_) => { eprintln!("SKIPPED node"); continue } },
-            Lang::Scala => match Command::new(std::env::var("RCE_SCALA").unwrap_or("scala-cli".into())).args(["run", "-q", "--server=false", "--jvm", "21", "--scala", "3.10.0", "--scalac-option", "-nowarn"]).arg(&f).output() { Ok(o) => o, Err(_) => { eprintln!("SKIPPED scala-cli"); continue } },
+            Lang::Python => Command::new(targets::oracle(Lang::Python)).arg(&f).output().unwrap_or_else(|e| panic!("python does not run: {e}")),
+            Lang::Js => Command::new(targets::oracle(Lang::Js)).arg(&f).output().unwrap_or_else(|e| panic!("node does not run: {e}")),
+            Lang::Scala => Command::new(targets::oracle(Lang::Scala)).args(["run", "-q", "--server=false", "--jvm", "21", "--scala", "3.10.0", "--scalac-option", "-nowarn"]).arg(&f).output().unwrap_or_else(|e| panic!("scala-cli does not run: {e}")),
         };
         let got: Vec<String> = String::from_utf8(out.stdout).unwrap().lines().map(String::from).collect();
         assert_eq!(got, want, "{lang:?}");

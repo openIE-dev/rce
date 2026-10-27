@@ -7,6 +7,9 @@ use rce_spec_check::emit::{Lang, emit, observe, with_probes};
 use rce_spec_check::parse::parse;
 use std::process::Command;
 
+#[path = "common/targets.rs"]
+mod targets;
+
 fn tool(lang: Lang) -> &'static str {
     match lang {
         Lang::Rust => "rustc",
@@ -55,11 +58,7 @@ fn emitters_agree_on_0_6_constructs() {
     assert!(want.iter().any(|l| l == "fn par_two = 42"), "{want:?}");
     assert!(want.iter().any(|l| l.starts_with("fn overflow trap: overflow")), "{want:?}");
     let mut ran = 0;
-    for lang in [Lang::Rust, Lang::Python, Lang::Js] {
-        if Command::new(tool(lang)).arg("--version").output().is_err() {
-            eprintln!("SKIPPED {lang:?}: {} not found (not a pass)", tool(lang));
-            continue;
-        }
+    for lang in targets::covered(&[Lang::Rust, Lang::Python, Lang::Js], |l| tool(l).to_string()) {
         let code = emit(&m, lang).unwrap();
         let got = run(lang, &code).unwrap_or_else(|e| panic!("{lang:?} did not run: {e}"));
         assert_eq!(got.lines().collect::<Vec<_>>(), want, "{lang:?}");
