@@ -69,8 +69,9 @@ hash (`rce manifest` writes it; `rce manifest-check` verifies it).
 Every module of `lib/` is compiled into `rce` (specification 4.1): a program
 writes `use enc` or `use data.events` and the checker has it, in `check`,
 `run`, `test`, `trace`, `emit`, `dim` and `host`; `rce lib` lists the
-modules and `rce lib NAME` prints one. The `#!lib NAME` directive line is
-honoured as well (the library's items in front, unqualified). Nothing is
+modules and `rce lib NAME` prints one. `use` is the only way a program
+brings a module in; a comment line, such as the retired `#!lib NAME`,
+brings nothing in. Nothing is
 installed or selected: the library is part of the language, and a
 change to it is a new hash in `lib/MANIFEST.json` in the same commit.
 
@@ -79,13 +80,12 @@ change to it is a new hash in `lib/MANIFEST.json` in the same commit.
 | Check | Needs | On the reference checker |
 |---|---|---|
 | `lib/crypto.rce`, `enc`, `hash`, num, math, text, xml, utf8 and the other foundation modules | nothing | pass |
-| `pq` (6 checks), `hpke` (3), `mls` (2) | `crypto` in front of the module, by the `#!lib crypto` line | pass |
-| `energy` library (`lib/energy/energy.rce`, 55 checks) | `crypto` in front, as above | pass |
+| `pq` (6 checks), `hpke` (3), `mls` (2) | nothing: each imports `crypto` with `use crypto` | pass |
+| `energy` library (`lib/energy/energy.rce`, 55 checks) | nothing: it imports `enc`, `hash.blake3` and `crypto` | pass |
 | `tests/energy/energy_host.rce` (15 events) | nothing | pass; `Seal0` seals a receipt and `Seal0Check` compares it with the expected envelope |
 | `tests/os/pkg_checks_10.rce` | nothing | pass; the long-identifier row uses 560,000 characters because a text is limited to 1,000,000 elements (spec N9) |
 
 - `rce host run` and `rce host serve` run the host steps, and every host run is validated by replay with the adapters disconnected.
-- `scripts/check.sh` probes for the `#!lib NAME` directive. A checker without it gets `lib/crypto.rce` (without its `module` and `check` lines) appended by `scripts/libexpand.py` to the modules that name it. Set `RCE_NO_LIB=1` or `0` to force either path.
 - `ed_pubkey`, `ed_sign` and `ed_verify` are ordinary functions in `lib/crypto.rce`. Each input has the fuel of 6.7 on every host, and HC-7 requires a host to charge fuel as the reference does; proposal XF-6 (`spec/proposals/one-library-every-fabric.md`) states the same for native library code, so that a binary with native `ed_*` and the reference write the same log for the same inputs.
 
 `pq`, `hpke` and `mls` build on `crypto`. The libraries are reference
@@ -93,17 +93,20 @@ code for correctness and replay. They are **not constant time**.
 
 ## Use
 
-A foundation module is used by name (`use data.events`). `crypto`, `pq`,
-`hpke` and `mls` declare no `pub` items and are written to be read in front
-of a program, so a program names them on a directive line:
+A module is used by name (`use data.events`, `use hpke`), and its `pub`
+items are reached through that name (`hpke.hpke_seal`). `crypto`, `pq`,
+`hpke` and `mls` mark their interface `pub`; `pq`, `hpke` and `mls`
+import `crypto` themselves, and a program that calls `crypto` imports it
+too:
 
 ```
 module my_app
-#!lib hpke
+use hpke
+use crypto
 ```
 
-`rce` then places `crypto` and `hpke` in front of the program, without their `module` and
-`check` lines. `scripts/check.sh` runs every library's own checks
+A library module's own `check` lines are not part of a program that
+imports it. `scripts/check.sh` runs every library's own checks
 (`ONLY="col core"` restricts it to those `lib/<area>/` directories, with
 `crypto` naming the top-level crypto, pq, hpke and mls modules; CI splits
 the libraries over parallel jobs this way). Runnable programs that use them are in

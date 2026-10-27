@@ -1,11 +1,14 @@
 module pqxdh_example
 
-#!lib pq
+use pq
+use crypto
+
 intent "PQXDH (Signal's post-quantum X3DH) over X25519, SHA-256 and ML-KEM-768 (FIPS 203) with lib/crypto.rce and lib/pq.rce: the initiator runs three X25519 Diffie-Hellman exchanges and encapsulates to the responder's ML-KEM prekey; the responder runs the same exchanges and decapsulates; both derive the same 32-byte session key, and a forged KEM ciphertext gives another key by implicit rejection"
     example Keys(ika: "11", eka: "22", ikb: "33", spkb: "44") -> priv.len() == 4 and sk_i == ""
 
-# Run: ./run.sh pqxdh (or rce test for the light examples). The `#!lib pq`
-# line appends the pq and crypto libraries embedded in the rce binary. One operation per input keeps every
+# Run: ./run.sh pqxdh (or rce test for the light examples). `use pq` and
+# `use crypto` name two modules of the library built into rce, so no library
+# file is needed. One operation per input keeps every
 # input inside the per-input fuel of HC-7a. The private keys and the ML-KEM
 # seeds d, z and m are constants here; a real program takes them from logged
 # Random results (HC-10), and the initiator checks the Ed25519 signature on
@@ -42,36 +45,36 @@ step Pqxdh on Keys(ika: a, eka: e, ikb: b, spkb: s)
     priv["spkb"] = s
 
 step Pqxdh on Pub(who: w)
-    pubs[copy(w)] = pubkey(priv.get(w) catch "")
+    pubs[copy(w)] = crypto.pubkey(priv.get(w) catch "")
 
 step Pqxdh on Kem(d: d, z: z)
-    let kp = mlkem_keygen(d, z).split(".")
+    let kp = pq.mlkem_keygen(d, z).split(".")
     ek = copy(kp[0])
     dk = copy(kp[1])
 
 step Pqxdh on DhI
-    dh_i = pqxdh_dh_init(priv.get("ika") catch "", priv.get("eka") catch "", pubs.get("ikb") catch "", pubs.get("spkb") catch "")
+    dh_i = pq.pqxdh_dh_init(priv.get("ika") catch "", priv.get("eka") catch "", pubs.get("ikb") catch "", pubs.get("spkb") catch "")
 
 step Pqxdh on Encaps(m: m)
-    let cs = mlkem_encaps(copy(ek), m).split(".")
+    let cs = pq.mlkem_encaps(copy(ek), m).split(".")
     ctext = copy(cs[0])
     ss_i = copy(cs[1])
 
 step Pqxdh on SkI
-    sk_i = pqxdh_sk(copy(dh_i), copy(ss_i))
+    sk_i = pq.pqxdh_sk(copy(dh_i), copy(ss_i))
 
 step Pqxdh on DhR
-    dh_r = pqxdh_dh_resp(priv.get("ikb") catch "", priv.get("spkb") catch "", pubs.get("ika") catch "", pubs.get("eka") catch "")
+    dh_r = pq.pqxdh_dh_resp(priv.get("ikb") catch "", priv.get("spkb") catch "", pubs.get("ika") catch "", pubs.get("eka") catch "")
 
 step Pqxdh on Decaps
-    ss_r = mlkem_decaps(copy(dk), copy(ctext))
+    ss_r = pq.mlkem_decaps(copy(dk), copy(ctext))
 
 step Pqxdh on SkR
-    sk_r = pqxdh_sk(copy(dh_r), copy(ss_r))
+    sk_r = pq.pqxdh_sk(copy(dh_r), copy(ss_r))
 
 step Pqxdh on Forge
-    let b = unhex(copy(ctext))
+    let b = crypto.unhex(copy(ctext))
     var f = [b[0] ^ 1]
     for i in 1..b.len()
         f.push(b[i])
-    ctext = tohex(f)
+    ctext = crypto.tohex(f)

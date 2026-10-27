@@ -1,6 +1,6 @@
 //! The standard library is built in (4.1): `use` resolves to it with no
-//! file and no directive, in check, run, trace and emit; the `#!lib NAME`
-//! directive of the shipped binary is honoured too.
+//! file and no directive, in check, run, trace and emit. `use` is the one
+//! way to bring a library in: a `#!lib NAME` line is a comment.
 use rce_spec_check::cli;
 
 fn rce(args: &[&str]) -> (i32, String) {
@@ -18,7 +18,8 @@ fn tmp(name: &str, text: &str) -> String {
 }
 
 const USE_ENC: &str = "module demo\nuse enc\n\nfn main()\n    let b = [104, 105]\n    emit enc.b64_encode(&b, false, true)\n";
-const LIB_CRYPTO: &str = "module demo2\n#!lib crypto\n\nfn main()\n    emit sha256([97]).len()\n";
+const USE_CRYPTO: &str = "module demo2\nuse crypto\n\nfn main()\n    emit crypto.sha256([97]).len()\n";
+const LIB_LINE: &str = "module demo4\n#!lib crypto\n\nfn main()\n    emit sha256([97]).len()\n";
 
 #[test]
 fn use_resolves_to_the_built_in_library_in_check_run_and_emit() {
@@ -36,13 +37,27 @@ fn use_resolves_to_the_built_in_library_in_check_run_and_emit() {
 }
 
 #[test]
-fn the_lib_directive_places_the_library_in_front() {
-    let f = tmp("lib_crypto", LIB_CRYPTO);
+fn use_brings_in_crypto_and_its_names_are_qualified() {
+    let f = tmp("use_crypto", USE_CRYPTO);
     let (st, out) = rce(&["check", &f]);
     assert_eq!(st, 0, "{out}");
     let (st, out) = rce(&["run", &f]);
     assert_eq!(st, 0, "{out}");
     assert!(out.contains("emit 32"), "{out}");
+    // pq, hpke and mls import crypto themselves
+    for m in ["pq", "hpke", "mls", "energy"] {
+        let src = rce_spec_check::stdlib::source(m).unwrap();
+        assert!(src.lines().any(|l| l == "use crypto"), "{m}");
+    }
+}
+
+#[test]
+fn a_lib_line_is_a_comment() {
+    // the retired `#!lib crypto` places nothing in front of the module
+    let f = tmp("lib_line", LIB_LINE);
+    let (st, out) = rce(&["check", &f]);
+    assert_eq!(st, 1, "{out}");
+    assert!(out.contains("W-NAME-1") && out.contains("`sha256`"), "{out}");
 }
 
 #[test]

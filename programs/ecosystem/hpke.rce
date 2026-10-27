@@ -1,12 +1,15 @@
 module hpke_example
 
-#!lib hpke
+use hpke
+use crypto
+
 intent "HPKE base mode (RFC 9180, DHKEM-X25519, HKDF-SHA256, AES-128-GCM) with lib/hpke.rce: the receiver derives its key pair from logged input keying material, the sender seals to the receiver's public key, the receiver opens; the official RFC 9180 vector fixes every byte, and a tampered ciphertext does not open"
     example KeyR(ikm: "6db9df30aa07dd42ee5e8181afdb977e538f5e1fec8a06223f33f7013e525037") -> skr == "4612c550263fc8ad58375df3f557aac531d26850903e55a9f23f21d8534e8ac8"
     example KeyR(ikm: "6db9df30aa07dd42ee5e8181afdb977e538f5e1fec8a06223f33f7013e525037"), PubR -> pkr == "3948cfe0ad1ddb695d780e59077195da6c56506b027329794ab02bca80815c4d"
 
-# Run: ./run.sh hpke (or rce test for the light examples). The `#!lib hpke`
-# line appends the hpke and crypto libraries embedded in the rce binary. One public-key operation per input
+# Run: ./run.sh hpke (or rce test for the light examples). `use hpke` and
+# `use crypto` name two modules of the library built into rce, so no library
+# file is needed. One public-key operation per input
 # keeps each input inside the per-input fuel of HC-7a. In a real program ske
 # comes from a logged Random result (HC-10), never from a constant.
 
@@ -23,16 +26,16 @@ state Hpke
     failures: u64 = 0
 
 step Hpke on KeyR(ikm: i)
-    skr = hp_derive_sk(i)
+    skr = hpke.hp_derive_sk(i)
 
 step Hpke on PubR
-    pkr = pubkey(copy(skr))
+    pkr = crypto.pubkey(copy(skr))
 
 step Hpke on Seal(ske: e, info: i, aad: a, pt: t, seq: n)
-    sealed = hpke_seal(copy(pkr), e, i, a, t, n)
+    sealed = hpke.hpke_seal(copy(pkr), e, i, a, t, n)
 
 step Hpke on Open(info: i, aad: a, seq: n)
     let parts = copy(sealed).split(".")
-    opened = hpke_open(copy(skr), copy(parts[0]), i, a, copy(parts[1]), n)
+    opened = hpke.hpke_open(copy(skr), copy(parts[0]), i, a, copy(parts[1]), n)
     if opened == ""
         failures += 1

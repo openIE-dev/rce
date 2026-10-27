@@ -11,10 +11,10 @@
 //! (module, name); its `hash` is the SHA-256 of the canonical JSON of the
 //! entries, so equal libraries give equal catalogs byte for byte.
 //!
-//! Library dependencies (`#!lib`, and a `#!lib` inferred from unknown
-//! names) are resolved before checking; a module's `use` items resolve as
-//! in `rce check`. The D.7 lowering is in `brick_lower.rs` and the
-//! interpreter's vectors in `brick_vec.rs`.
+//! The files are checked as `rce check` checks them: a module's `use` items
+//! name a module given with it or one of the built-in library (4.1). The
+//! D.7 lowering is in `brick_lower.rs` and the interpreter's vectors in
+//! `brick_vec.rs`.
 use crate::ast::*;
 use serde_json::{Map, Value, json};
 use sha2::{Digest, Sha256};
@@ -139,37 +139,6 @@ pub struct Opts {
     pub vectors: usize,
 }
 
-fn lib_directives(src: &str) -> Vec<String> {
-    src.lines()
-        .filter_map(|l| l.strip_prefix("#!lib "))
-        .flat_map(|r| r.split_whitespace().map(String::from))
-        .collect()
-}
-
-/// `m` with the items of `libs` in front (their checks, examples, intents
-/// and module lines dropped; an item `m` declares itself wins), as the rce
-/// binary does for `#!lib NAME`.
-fn flatten(m: &Module, libs: &[&Module]) -> Module {
-    let own: HashSet<String> = m.items.iter().filter_map(crate::link::item_name).collect();
-    let mut items = vec![];
-    let mut seen = own.clone();
-    for l in libs {
-        for it in &l.items {
-            if matches!(it, Item::Check(_) | Item::Example(_) | Item::Intent(..)) {
-                continue;
-            }
-            if let Some(n) = crate::link::item_name(it) {
-                if !seen.insert(n) {
-                    continue;
-                }
-            }
-            items.push(it.clone());
-        }
-    }
-    items.extend(m.items.iter().cloned());
-    Module { items, ..m.clone() }
-}
-
 struct Checked {
     errs: Vec<String>,
     linked: Module,
@@ -202,19 +171,6 @@ fn check_all(mods: &[(String, Module)]) -> Vec<Checked> {
         .collect()
 }
 
-fn unknown_names(errs: &[String]) -> Option<BTreeSet<String>> {
-    let re = regex::Regex::new(r"W-NAME-1 unknown name `([^`]+)`").unwrap();
-    let mut v = BTreeSet::new();
-    for e in errs {
-        for part in e.split("; ") {
-            if let Some(c) = re.captures(part) {
-                v.insert(c[1].to_string());
-            }
-        }
-    }
-    if v.is_empty() { None } else { Some(v) }
-}
-
 /// Build the catalog of `files` (name, source), checked together as one program.
 pub fn index(files: &[(String, String)]) -> Value {
     index_with(files, &Opts::default())
@@ -222,82 +178,20 @@ pub fn index(files: &[(String, String)]) -> Value {
 
 pub fn index_with(files: &[(String, String)], o: &Opts) -> Value {
     let mut parse_errs = Map::new();
-    let mut orig: Vec<(String, Module, Vec<String>)> = vec![];
+    let mut mods: Vec<(String, Module)> = vec![];
     for (f, src) in files {
         match crate::parse::parse(src) {
-            Ok(m) => orig.push((f.clone(), m, lib_directives(src))),
+            Ok(m) => mods.push((f.clone(), m)),
             Err(e) => {
                 parse_errs.insert(f.clone(), json!(e));
             }
         }
     }
-    let by_path: HashMap<String, usize> = orig
-        .iter()
-        .enumerate()
-        .filter_map(|(i, (_, m, _))| m.path.as_ref().map(|p| (p.join("."), i)))
-        .collect();
-    let mut libs: Vec<Vec<String>> = orig.iter().map(|(_, _, d)| d.clone()).collect();
-    let mut how: Vec<&str> = libs
-        .iter()
-        .map(|d| if d.is_empty() { "" } else { "directive" })
-        .collect();
-    let build = |libs: &Vec<Vec<String>>| -> Vec<(String, Module)> {
-        orig.iter()
-            .zip(libs)
-            .map(|((f, m, _), ls)| {
-                let deps: Vec<&Module> = ls
-                    .iter()
-                    .filter_map(|n| by_path.get(n))
-                    .map(|&i| &orig[i].1)
-                    .collect();
-                (f.clone(), flatten(m, &deps))
-            })
-            .collect()
-    };
-    let mut mods = build(&libs);
-    let mut checked = check_all(&mods);
-    // A file refused only for want of names that one flat library module
-    // declares is checked again with that module as its `#!lib`.
-    let mut changed = false;
-    for i in 0..orig.len() {
-        let Some(unk) = unknown_names(&checked[i].errs) else {
-            continue;
-        };
-        let cands: Vec<usize> = (0..orig.len())
-            .filter(|&j| {
-                j != i
-                    && orig[j].1.path.as_ref().is_some_and(|p| p.len() == 1)
-                    && !libs[i].contains(&orig[j].1.path.as_ref().unwrap()[0])
-            })
-            .filter(|&j| {
-                // its own names: a module flattened with a library does not offer it
-                let names: HashSet<String> = orig[j]
-                    .1
-                    .items
-                    .iter()
-                    .filter_map(crate::link::item_name)
-                    .collect();
-                unk.iter().all(|n| names.contains(n))
-            })
-            .collect();
-        if cands.len() == 1 {
-            libs[i].push(orig[cands[0]].1.path.as_ref().unwrap()[0].clone());
-            how[i] = "inferred";
-            changed = true;
-        }
-    }
-    if changed {
-        mods = build(&libs);
-        checked = check_all(&mods);
-    }
+    let checked = check_all(&mods);
     let mut entries = vec![];
     let mut vectors = Map::new();
     let mut refused_files = parse_errs;
-    let mut resolved = Map::new();
-    for (i, (file, m, _)) in orig.iter().enumerate() {
-        if !libs[i].is_empty() {
-            resolved.insert(file.clone(), json!({"lib": libs[i], "how": how[i]}));
-        }
+    for (i, (file, m)) in mods.iter().enumerate() {
         let ok = checked[i].errs.is_empty();
         if !ok {
             refused_files.insert(
@@ -420,7 +314,6 @@ pub fn index_with(files: &[(String, String)], o: &Opts) -> Value {
         "count": ents.as_array().unwrap().len(),
         "lowered": lowered,
         "refused_files": Value::Object(refused_files),
-        "resolved": Value::Object(resolved),
         "entries": ents,
     });
     if o.vectors > 0 {

@@ -20,15 +20,12 @@ pub fn diagnostics(src: &str, known: &HashSet<String>) -> Vec<(usize, String)> {
     let errs = match parse(src) {
         Err(e) => vec![e],
         Ok(m) => {
-            // the program as the tools run it: directives in front, `use`
-            // imports linked in from the built-in library (4.1)
-            let wl = crate::stdlib::with_directives(&m, src);
-            let lk = crate::link::link(&wl.module, &[]);
+            // the program as the tools run it: `use` imports linked in from
+            // the built-in library (4.1)
+            let lk = crate::link::link(&m, &[]);
             let mut c = check::Checker::new();
             c.imported_fns = lk.imported_fns;
             c.imported_types = lk.imported_types;
-            c.imported_fns.extend(wl.fns);
-            c.imported_types.extend(wl.types);
             for e in lk.errs {
                 c.e(e);
             }
