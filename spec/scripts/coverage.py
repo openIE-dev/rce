@@ -9,7 +9,7 @@
 
 The ledger is the matrix of the proposal spec/proposals/the-library-covers-all-code.md.
 A row's rce_status changes in the commit that lands its module, template,
-adapter, tool or language item (the ledger rule of that proposal), so these totals are the
+adapter, tool or language item (rule LC-2 of that proposal), so these totals are the
 coverage at the commit.
 """
 import collections, json, pathlib, sys
@@ -71,6 +71,11 @@ def main():
     o = collections.Counter(r["origin"] for r in rows)
     print(f"{len(rows)} rows ({o['survey']} from the surveys, {o['critique']} added by the critique): "
           f"{s['have']} have, {s['partial']} partial, {s['missing']} missing")
+    mods = {r["target_module"] for r in rows if r["home"] == "stdlib-module" and r["target_module"]}
+    tpls = {r["target_module"] for r in rows if r["home"] == "form-template" and r["target_module"]}
+    man = PATH.parent.parent.parent / "stdlib" / "lib" / "MANIFEST.json"
+    have = {m["module"] for m in json.loads(man.read_text())["modules"]} if man.exists() else set()
+    print(f"{len(mods)} target modules ({len(mods & have)} in stdlib/lib/MANIFEST.json), {len(tpls)} templates")
     table("Status", rows, "rce_status", STATUSES)
     table("Priority", rows, "priority", [1, 2, 3])
     table("Wave", rows, "wave", list(range(1, 10)) + [None])
