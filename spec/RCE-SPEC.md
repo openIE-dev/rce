@@ -2304,7 +2304,7 @@ Classical.choice). Status per theorem:
 | T6 | proved for the ownership core; for full borrow paths (field paths, prefix overlap, partial moves, loans) in an instrumented semantics: well-typed bodies never fault, writes through a `&mut` path are exclusive, and write-while-borrowed, overlapping `&mut`, dangling borrows and read-after-partial-move are refused; tasks never share mutable data in any reachable configuration | `memory_safety`, `borrow_safety`, `borrow_no_fault`, `writeVia_exclusive`, `overlapping_mut_refused`, `dangling_refused`, `tasks_never_share` |
 | T7 | proved for event/error names over δ and the log; for log hashes under any hash function H; for channel, actor and task ids and select choices of the concurrency model. The checker and the four emitted runtimes hash the positional forms of 6.1 since the erratum of C.15, so the implementation's log hashes are name-free as the model's are (`tests/nameless.rs`); `RCE/Positional.lean` models that embedding (records of declared types as field lists in declaration order, variants as `[k, fields]`, events by index, undeclared records by name) and proves it unchanged under any renaming that is injective and fixes undeclared names, hence the state hash and the whole entry chain for every hash function, and that its event index is the `idx` the De Bruijn model hashes | `name_independence`, `log_hashes_name_independent`, `conc_name_independent`, `select_name_independent`, `Positional.pos_rename`, `Positional.chain_name_independent`, `Positional.eventIndex_eq_idx` |
 | T8 | proved | `atomicity` |
-| T9 | T9-F (Form IR targets: Rust, WASM, Python, XState, SCXML) tested: every target prints the reference trace byte for byte on the edge and seeded events (`tests/form_targets.rs`, `tests/form_joins.rs`). T9-L (program emitters of 10.5: `rust`, `python`, `js`, including `&mut` write-back on failure under `catch` and `try` and nested in strict positions via the ANF pass of T34, 6.2, `spec/checker/tests/write_back.rs`): proved for the Rust emitter on the core (step bodies, expressions, guarded step selection) as a verified translation into MiniRust, a deep embedding of the emitted Rust subset with Rust-style semantics; printed to Rust and checked against rustc by differential testing. Not covered: the other targets, the full surface language, and the claim that rustc implements MiniRust (trusted, tested) | `reval_compile`, `compile_correct`, `RExec.det`, `emit_agrees`, `region_agrees` |
+| T9 | T9-F (Form IR targets: Rust, WASM, Python, XState, SCXML) stated, not checked here: the Form IR compiler (`rce form --emit`) is in the engine crate, which is not in this repository (10.1, Appendix D), so no tool published here samples T9-F. T9-L (program emitters of 10.5: `rust`, `python`, `js`, including `&mut` write-back on failure under `catch` and `try` and nested in strict positions via the ANF pass of T34, 6.2, `spec/checker/tests/write_back.rs`): proved for the Rust emitter on the core (step bodies, expressions, guarded step selection) as a verified translation into MiniRust, a deep embedding of the emitted Rust subset with Rust-style semantics; printed to Rust and checked against rustc by differential testing. Not covered: the other targets, the full surface language, and the claim that rustc implements MiniRust (trusted, tested) | `reval_compile`, `compile_correct`, `RExec.det`, `emit_agrees`, `region_agrees` |
 | T10 | checked mechanically (LALR(1), 0 conflicts, from the EBNF of section 3, and of section 3 with C.2) and sampled by `rce-fuzz`; the former `fuzz/gen.py` also found exactly one Earley parse per program | `rce-spec-check` |
 | T11 | proved on the rotation model of 6.8: the arm taken is ready, and an arm ready at n consecutive executions is taken by one of them | `pick_ready`, `select_bounded_wait` |
 | T12 | proved on a statement model with branches and bounded loops: if the W-LIN-1 count accepts a body, every execution path consumes the handle exactly once | `lin_sound`, `linear_exactly_once` |
@@ -2782,10 +2782,10 @@ emitters.
   (canonical JSON of the values bound in the region, after every statement)
   and traps "size limit".
 - `lalr` is no longer reserved (2.4).
-- The four Form runtimes (Rust crate and WASM through `num.rs`, Python,
-  JavaScript for XState and SCXML) agree on the new ops; the
-  `tests/form_num_v05.rs` cross-runtime test compares them on about 6,600
-  cases.
+- The four Form runtimes of the engine (Rust crate and WASM through
+  `num.rs`, Python, JavaScript for XState and SCXML) must agree on the new
+  ops. They are in the engine crate, not in this repository, and no test
+  published here compares them.
 
 Known open questions (not decided here): the standard library surface beyond
 the num.rs primitives; foreign interfaces other than the C ABI (WASM
@@ -3796,12 +3796,9 @@ not on a proof.
     lvar `put` or `freeze`), or returns, breaks or continues out of it.
   - A budget without `else` behaves as before: the trap refuses the
     event.
-  - The charge rule itself is in the proved kernel
-    (`crates/rce/src/kernel.rs`, `budget_charge`), verified with Kani for
-    stacks of up to three frames: a charge is all or nothing, leaves no
-    frame past its limit, and is additive (`budget_all_or_nothing_within_limits`,
-    `budget_charge_is_additive`). Every runtime's `charge` implements the
-    same rule; the link from the kernel to those copies is the
+  - The charge rule: a charge is all or nothing, leaves no frame past
+    its limit, and is additive. Every runtime's `charge` implements the
+    same rule; in this repository the link between those copies is the
     differential tests, not a proof.
   The trap falls on the same operation on every target, so whether Else
   runs, and the value of `e`, are functions of the program and its
@@ -4474,7 +4471,7 @@ is not in this repository. The reference checker in `spec/checker` has no
 no file under `spec/checker/src`, `spec/checker/tests`,
 `spec/checker/examples` or `spec/examples` mentions a W-HS rule. So nothing
 in this appendix is checked by the tools published here; the rules below are
-a specification of the engine, tested there.
+a specification of the engine, and its tests are not published.
 
 ### D.1 Lexical rules
 
@@ -4644,7 +4641,7 @@ coordination-free (`laws::coordination_free`) iff every rule is
 monotone. Because every read, join and scan sees the entry state, the
 post-state of an input event does not depend on the order in which
 rules for different sinks run; only the output order does, and that is
-fixed by content hash (law 2). Tested in `tests/form_joins.rs`.
+fixed by content hash (law 2).
 
 ### D.6 The compiled Form
 
@@ -4726,15 +4723,13 @@ catalog with its line and construct, never approximated.
 `rce index --vectors N` records the reference evaluator's results on N
 generated inputs per brick; `rce-brick-verify` (`src/form/brick.rs`)
 evaluates each term on them and reports agreement. Agreement is tested on
-vectors (`spec/checker/tests/brick.rs`, `tests/brick_lowering.rs`), not
-proved.
+vectors (`spec/checker/tests/brick.rs`), not proved.
 
 ### D.8 Lift guarantees (normative)
 
 A brownfield lift (`rce scan DIR --form`, `brownfield/lift.rs`) reads
-existing Rust, Python, TypeScript or Go into a Form schema. Its
-guarantees are exactly these, each enforced by code and tests, and no
-other is claimed:
+existing Rust, Python, TypeScript or Go into a Form schema. A lift gives
+exactly these guarantees, and no other is claimed:
 
 - L1 Labeled: every relation, region, event and transition carries a
   label that starts with "unproven"; a lifted element is never presented
@@ -4742,11 +4737,10 @@ other is claimed:
 - L2 Fail closed: a guard the lift cannot read is opaque, and
   `Lifted::step` refuses to step through it rather than guess.
 - L3 Generated code agrees with the lift: code emitted from a lifted
-  machine (`--emit-machine`) steps as `Lifted::step` (tested,
-  `tests/lift_emit.rs`).
+  machine (`--emit-machine`) steps as `Lifted::step`.
 - L4 Evidence, not proof: agreement of the lift with the original
-  program is tested on seeded runs of the original
-  (`tests/brownfield_lift.rs`); its level is tested (8). A lift is an
+  program is tested on seeded runs of the original; its level is
+  tested (8). A lift is an
   input to a gate, never an authority: what it proposes is admitted only
   through the checker and the gate, like any other proposal.
 
@@ -6487,8 +6481,7 @@ Implemented and tested (`spec/checker/src/v09.rs`, `apidiff.rs`; examples in
 - W-WORLD-1 (F.4.1): `&World` is held only by `fn main`, task functions and
   externs, is the first parameter of every extern, is passed whole and by name,
   and is never stored, returned, sent or captured. The checker erases it before
-  evaluation, so the Form, the log and every emitter are unchanged
-  (`rce form` shows the erased module).
+  evaluation, so the Form, the log and every emitter are unchanged.
 - Definition hashes, `rce hash` and `rce api-diff OLD NEW` (F.4.3), without
   contracts, measures, ghost clauses or labels, which do not exist yet.
 - W-TX-1 and the restore of `&mut` arguments on `fail` (F.4.4) in the reference
