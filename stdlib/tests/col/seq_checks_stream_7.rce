@@ -1,0 +1,31 @@
+# A run longer than one list (hand written): 1,000,000 elements with key
+# 1 fed to SeqRuns as a chunk of 999,999 and a chunk of 2, then one with
+# key 2. The second feed would take the open run past 1,000,000 and
+# refuses, leaving the state as it was; the caller takes the open part
+# (999,999 elements) with seq_runs_take and feeds the same chunk again,
+# and the entry that closes the run holds the 2 elements after the take.
+
+fn m_iota(lo: i64, n: i64) -> List[i64] = [lo + i for i in 0..n]
+
+fn m_key(x: &i64) -> i64 = if x < 1000001 then 1 else 2
+
+fn m_runs() -> bool
+    var st: SeqRuns[i64, i64] = seq_runs_new()
+    var parts: List[List[i64]] = []
+    var closed: List[(i64, List[i64])] = []
+    let mark: List[(i64, List[i64])] = [(0 - 1, [])]
+    let chunks: List[(i64, i64)] = [(0, 999999), (999999, 2), (1000001, 1)]
+    for c in chunks
+        let xs = m_iota(c.0, c.1)
+        var got = seq_runs_feed(&mut st, &xs, m_key) catch copy(mark)
+        if got == mark
+            parts.push(seq_runs_take(&mut st))
+            got = seq_runs_feed(&mut st, &xs, m_key) catch copy(mark)
+        for g in got
+            closed.push(copy(g))
+    let last = seq_runs_end(&mut st)
+    let two: List[i64] = [999999, 1000000]
+    let one: List[i64] = [1000001]
+    return parts.len() == 1 and parts[0].len() == 999999 and parts[0][999998] == 999998 and closed.len() == 1 and closed[0].0 == 1 and closed[0].1 == two and last.len() == 1 and last[0].0 == 2 and last[0].1 == one
+
+check m_runs()

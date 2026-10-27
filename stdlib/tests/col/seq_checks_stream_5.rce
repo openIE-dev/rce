@@ -1,0 +1,33 @@
+# Streams at the size limit (hand written): SeqRuns refuses a run longer
+# than 1,000,000 with SeqTooLarge and keeps the open run; SeqBatch cuts a
+# 1,200,000-element stream fed in three chunks into 1,200 chunks of 1,000.
+
+fn r_iota2(lo: i64, n: i64) -> List[i64] = [lo + i for i in 0..n]
+
+fn r_zero(_x: &i64) -> i64 = 0
+
+fn r_runs() -> bool
+    var st: SeqRuns[i64, i64] = seq_runs_new()
+    let a = r_iota2(0, 600000)
+    let ra = seq_runs_feed(&mut st, &a, r_zero) catch []
+    let rb = seq_runs_feed(&mut st, &a, r_zero) catch |e| [(0 - 1, [e.limit as i64])]
+    let last = seq_runs_end(&mut st)
+    return ra.len() == 0 and rb.len() == 1 and rb[0].1 == [1000000] and last.len() == 1 and last[0].1.len() == 600000
+
+fn r_batch0() -> SeqBatch[i64] = SeqBatch(n: 1, buf: [])
+
+fn r_batch() -> bool
+    var b: SeqBatch[i64] = seq_batch_new(1000) catch r_batch0()
+    var cnt: i64 = 0
+    var ok = true
+    for q in 0..3
+        let xs = r_iota2(q * 400000, 400000)
+        let got = seq_batch_feed(&mut b, &xs)
+        for g in got
+            ok = ok and g.len() == 1000 and g[0] == cnt * 1000 and g[999] == cnt * 1000 + 999
+            cnt += 1
+    let last = seq_batch_end(&mut b)
+    return ok and cnt == 1200 and last.len() == 0
+
+check r_runs()
+check r_batch()

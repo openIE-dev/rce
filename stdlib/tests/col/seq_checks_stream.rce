@@ -1,0 +1,22 @@
+# Streams longer than one list (hand written): 1,200,000 elements fed to
+# SeqCounts in chunks of 400,000. Chunk q holds (q * 400000 + i) * 7919
+# mod 1000 for i in 0..400000, so each of the values 0..999 occurs 400
+# times per chunk, and the first occurrences come in the order of
+# (i * 7919) mod 1000.
+
+fn s_chunk(q: i64) -> List[i64] = [((q * 400000 + i) * 7919) % 1000 for i in 0..400000]
+
+fn s_counts() -> bool
+    var c: SeqCounts[i64] = seq_counts_new()
+    var ok = true
+    for q in 0..3
+        let xs = s_chunk(q)
+        let d = seq_counts_feed(&mut c, &xs) catch 0
+        ok = ok and d == 1000
+    let k: i64 = 417
+    let none_k: i64 = 1000
+    let mc = seq_counts_most_common(&c, 3)
+    let l = seq_counts_list(&c)
+    return ok and seq_counts_total(&c) == 1200000 and seq_counts_get(&c, &k) == 1200 and seq_counts_get(&c, &none_k) == 0 and l.len() == 1000 and l[0] == (0, 1200) and l[1] == (919, 1200) and l[2] == (838, 1200) and mc == [(0, 1200), (919, 1200), (838, 1200)]
+
+check s_counts()

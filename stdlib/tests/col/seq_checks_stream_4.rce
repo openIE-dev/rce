@@ -1,0 +1,20 @@
+# A stream at the size limit (hand written): SeqSeen holds 500,000
+# distinct elements; a feed of 500,001 new ones would take it past
+# 1,000,000 and refuses with SeqTooLarge, leaving the state as it was;
+# a feed of elements already seen returns none of them.
+
+fn r_iota(lo: i64, n: i64) -> List[i64] = [lo + i for i in 0..n]
+
+fn r_seen() -> bool
+    var s: SeqSeen[i64] = seq_seen_new()
+    let a = r_iota(0, 500000)
+    let fa = seq_seen_feed(&mut s, &a) catch []
+    let b = r_iota(500000, 500001)
+    let fb = seq_seen_feed(&mut s, &b) catch |e| r_iota(0, (e.limit / 100000) as i64)
+    let c = r_iota(1000, 2000)
+    let fc = seq_seen_feed(&mut s, &c) catch [0 - 1]
+    let k: i64 = 499999
+    let k2: i64 = 500000
+    return fa.len() == 500000 and fb == [0, 1, 2, 3, 4, 5, 6, 7, 8, 9] and fc.len() == 0 and seq_seen_len(&s) == 500000 and seq_seen_contains(&s, &k) and not seq_seen_contains(&s, &k2)
+
+check r_seen()

@@ -1,0 +1,24 @@
+# Streams longer than one list (hand written): the 5 smallest and the 5
+# largest of 1,200,000 pseudo-random values fed to SeqTop in chunks of
+# 400,000, against seq_nsmallest and seq_nlargest of the chunks' own
+# winners.
+
+fn s_chunk2(q: i64) -> List[i64] = [((q * 400000 + i) * 2654435761) % 1000000007 for i in 0..400000]
+
+fn s_top0(k: usize, largest: bool) -> SeqTop[i64] = SeqTop(k: k, largest: largest, items: [], pos: [], seen: 0)
+
+fn s_top() -> bool
+    var lo: SeqTop[i64] = seq_top_new(5, false) catch s_top0(5, false)
+    var hi: SeqTop[i64] = seq_top_new(5, true) catch s_top0(5, true)
+    var best: List[i64] = []
+    for q in 0..3
+        let xs = s_chunk2(q)
+        seq_top_feed(&mut lo, &xs)
+        seq_top_feed(&mut hi, &xs)
+        for x in seq_nsmallest(&xs, 5)
+            best.push(x)
+        for x in seq_nlargest(&xs, 5)
+            best.push(x)
+    return seq_top_list(&lo) == seq_nsmallest(&best, 5) and seq_top_list(&hi) == seq_nlargest(&best, 5)
+
+check s_top()
