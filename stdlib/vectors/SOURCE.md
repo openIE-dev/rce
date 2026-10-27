@@ -1059,3 +1059,96 @@ the blocked LAPACK drivers; log1p, expm1, erf, erfc and lgamma are FDLIBM
 with large parameters (t with df = 1e5, binomial and Poisson pmf near 1e-300)
 reach relative errors of 3e-12 and 3e-13, from the rounding of exp arguments
 near 700.
+
+## id (`lib/id/id.rce`)
+
+- `id/rfc9562-test-vectors.md`: the Test Vectors and Illustrative
+  Examples sections (RFC 9562 Appendices A and B), copied unchanged from
+  the markdown source of draft-ietf-uuidrev-rfc4122bis-14, the draft that
+  became RFC 9562 (https://github.com/ietf-wg-uuidrev/rfc4122bis,
+  `draft-ietf-uuidrev-rfc4122bis.md`, branch main, fetched 2026-10-27,
+  sha256 abc540c394b7c3faaa93d9b65d7571fb0593ce50da2df9c1cc3e63dacc15e5ec
+  for the whole file; rfc-editor.org was not reachable from the build
+  host). Every example is a check in `tests/id/id_checks.rce`: versions 1,
+  3 (from the given MD5), 4, 5 (from the given SHA-1), 6, 7, the time-based
+  version 8 and the SHA-256 name-based version 8, the shared timestamp
+  0x1EC9414C232AB00 and its Unix time, and the version 1 and 6 conversions.
+  The name space IDs of RFC 9562 6.6 and the nil and max UUIDs are checked
+  in the same file.
+- `id/IdWorkerSpec.scala`: Twitter's test suite for the Snowflake
+  IdWorker, copied unchanged from
+  https://github.com/twitter-archive/snowflake (tag snowflake-2010,
+  `src/test/scala/com/twitter/service/snowflake/IdWorkerSpec.scala`,
+  Apache License 2.0, fetched 2026-10-27, sha256
+  7f1c7ff19a9a6501c81947e5f79693c65d8e89324d41cb1df3f77375fe990c75). Its
+  cases are ported to `tests/id/id_checks.rce` with a logged time walk in
+  place of System.currentTimeMillis (1000 IDs for the worker mask, 5000
+  for uniqueness instead of 2,000,000). Where IdWorker waits for the next
+  millisecond, the generator refuses with the millisecond to wait for, so
+  "sleep if we would rollover twice" counts one refusal.
+- The ULID specification (https://github.com/ulid/spec, README.md, fetched
+  2026-10-27, sha256
+  1f6799a6c33e2f2561ab26dd98f67af966dc3953b84bb595f629089828a0e822; not
+  copied, the repository states no license): the examples
+  01ARZ3NDEKTSV4RRFFQ69G5FAV, 01AN4Z07BY79KA1307SR9X4MV3, the largest
+  ULID 7ZZZZZZZZZZZZZZZZZZZZZZZZZ (2^48 - 1 ms) and the refusal of larger
+  first symbols, and the two monotonic sequences (01BX5ZZKBKACTAV9WEVGEMMVRY
+  to S1, and ZZZZZZZZZZZZZZZX to ZZZZZZZZZZZZZZZZ followed by a refusal).
+- The Discord developer documentation (Reference, Snowflakes): the
+  example 175928847299117063 = 2016-04-30T11:18:25.796Z, internal worker
+  1, process 0, increment 7.
+- CPython 3.13 `uuid` (`scripts/gen/id_gen.py`, seed 20261027,
+  `tests/id/id_checks_cpython_1.rce` .. `_3.rce`, 1500 checks): 270
+  strict parses (canonical, 32-digit, braced and urn:uuid: text, half of
+  them mutated; accepted exactly when the grammar matches, with
+  uuid.UUID's value; the urn:uuid: prefix is matched in any case, as RFC
+  8141 has it, where CPython removes only the lowercase one); 700 lax
+  parses of fuzzed ASCII text, accepted exactly when uuid.UUID(hex) accepts
+  them, with its value; 160 field sets (str, hex, urn, the six fields,
+  variant, version, time, clock_seq, node); 150 uuid_with_version and
+  uuid_v4 against UUID(bytes=..., version=...); 100 version 1 UUIDs against
+  uuid.uuid1(node, clock_seq) with time.time_ns fixed (back to 1677); 120
+  version 3 and 5 UUIDs against uuid.uuid3 and uuid.uuid5, with the name
+  input bytes, the digest computed by hashlib.
+- npm packages under Node 22 (`scripts/gen/id_gen.mjs`, seed 20261027,
+  `tests/id/id_checks_npm_1.rce` .. `_3.rce`, 1466 checks): uuid 14.0.3
+  (80 version 1 and 80 version 6 UUIDs from msecs, nsecs, clockseq and
+  node; 60 v1ToV6 and 60 v6ToV1; 80 version 7 UUIDs from msecs, seq and
+  random; 60 runs of the monotonic version 7 state, updateV7State, one in
+  three starting near the counter's wrap); ulid 3.0.2 (120 uuidToULID, 200
+  ulidToUUID on random and mutated text, decodeTime of the 104 it
+  accepts, 60 ulid(seedTime,
+  prng), 60 monotonicFactory runs, a quarter of them reaching the overflow
+  refusal, 60 fixULIDBase32); nanoid 6.0.2 (60 nanoid() through
+  customAlphabet(urlAlphabet) with crypto.getRandomValues replaced; 130
+  customRandom(alphabet, size, getRandom) over alphabets of 1 to 256
+  symbols, each also fed in random chunks and once with one byte short).
+- snowflake-id 1.0.2 under CPython 3.13 (`scripts/gen/id_snowflake_gen.py`,
+  seed 20261027, `tests/id/id_checks_snowflake.rce`, 320 checks): 160 runs
+  of SnowflakeGenerator with time.time replaced, from states with a used-up
+  or fresh sequence, including clocks that move back (the package returns
+  None exactly where the generator refuses); 80 compositions and 80
+  splits on the 41/10/12 layout with random epochs.
+- `tests/id/id_checks_sweep.rce`: property sweeps over Park-Miller streams
+  (text forms round-trip and sort as the bytes; versions 1 and 6 round-trip
+  and convert; the monotonic ULID, UUIDv7 and Snowflake generators
+  strictly increase over time walks that repeat and go back; chunked Nano
+  ID feeding equals one call).
+
+Differences from the references, by design: the strict parser reads the
+urn:uuid: prefix in any case; uuid_parse_lax refuses non-ASCII text, where
+CPython also reads non-ASCII decimal digits and spaces; ulid_next takes
+time 0 as a time, where ulid 3.0.2 reads a seed time of 0 as "now"; the
+monotonic generators refuse a time past 2^48 - 1 ms where the npm
+packages would wrap the bytes; nanoid_custom refuses alphabets of more
+than 256 symbols, sizes above 1,000,000 and a draw above 1,000,000 bytes
+(the list limit), and indexes symbols by code point where JavaScript
+indexes UTF-16 units (equal for alphabets inside the BMP); the default
+nanoid follows nanoid 6.0.2, whose urlAlphabet order differs from 5.x.
+
+Needs spec or library: SHA-1 and MD5 are not in the library (crypto has
+SHA-2, pq SHA-3, hash BLAKE3), so name-based versions 3 and 5 take their
+digest as an argument (uuid_name_input gives the bytes to hash); a SHA-256
+name-based version 8 likewise, since crypto's SHA-256 is not public to
+foundation modules and the text built-in sha256 needs valid UTF-8, which
+name space IDs are not.
