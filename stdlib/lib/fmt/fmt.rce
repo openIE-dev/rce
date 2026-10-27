@@ -1287,45 +1287,67 @@ pub fn float_scan(s: &text, at: i64) -> FloatScan
         i = n
     let start = i
     var neg = false
-    if i < n and (s[i] == 45 or s[i] == 43)
-        neg = s[i] == 45
+    if i < n and ((s[i] as i64) == 45 or (s[i] as i64) == 43)
+        neg = (s[i] as i64) == 45
         i += 1
+    # value = (ds + t) * 10^e10, ds the first FP_KEEP significant digits,
+    # 0 <= t < 1 and t > 0 exactly when sticky; the loops past the kept
+    # digits only count, so a long input costs few steps per digit
     var ds: List[i64] = []
-    var nmant: i64 = 0
-    var frac: i64 = 0
-    var dropped: i64 = 0
     var sticky = false
-    var point = false
-    while i < n bound 1000000
+    let i0 = i
+    while i < n and (s[i] as i64) == 48 bound 1000000
+        i += 1
+    while i < n and (ds.len() as i64) < FP_KEEP bound 1000000
         let c = s[i] as i64
-        if c == 46 and not point
-            point = true
-            i += 1
-            continue
         if c < 48 or c > 57
             break
-        nmant += 1
-        if point
-            frac += 1
-        if ds.len() > 0 or c != 48
-            if (ds.len() as i64) < FP_KEEP
-                ds.push(c - 48)
-            else
-                dropped += 1
-                if c != 48
-                    sticky = true
+        ds.push(c - 48)
         i += 1
+    let r0 = i
+    while i < n bound 1000000
+        let c = s[i] as i64
+        if c < 48 or c > 57
+            break
+        if c != 48
+            sticky = true
+        i += 1
+    var e10 = (i - r0) as i64
+    var nmant = (i - i0) as i64
+    if i < n and (s[i] as i64) == 46
+        i += 1
+        let f0 = i
+        if ds.len() == 0
+            while i < n and (s[i] as i64) == 48 bound 1000000
+                i += 1
+            e10 -= (i - f0) as i64
+        let f1 = i
+        while i < n and (ds.len() as i64) < FP_KEEP bound 1000000
+            let c = s[i] as i64
+            if c < 48 or c > 57
+                break
+            ds.push(c - 48)
+            i += 1
+        e10 -= (i - f1) as i64
+        while i < n bound 1000000
+            let c = s[i] as i64
+            if c < 48 or c > 57
+                break
+            if c != 48
+                sticky = true
+            i += 1
+        nmant += (i - f0) as i64
     if nmant == 0
         return FloatScan(value: 0.0, end: start as i64, overflow: false)
     var ex: i64 = 0
-    if i < n and (s[i] == 101 or s[i] == 69)
+    if i < n and ((s[i] as i64) == 101 or (s[i] as i64) == 69)
         var j = i + 1
         var eneg = false
-        if j < n and (s[j] == 45 or s[j] == 43)
-            eneg = s[j] == 45
+        if j < n and ((s[j] as i64) == 45 or (s[j] as i64) == 43)
+            eneg = (s[j] as i64) == 45
             j += 1
-        if j < n and s[j] >= 48 and s[j] <= 57
-            while j < n and s[j] >= 48 and s[j] <= 57 bound 1000000
+        if j < n and (s[j] as i64) >= 48 and (s[j] as i64) <= 57
+            while j < n and (s[j] as i64) >= 48 and (s[j] as i64) <= 57 bound 1000000
                 if ex < 1000000000000
                     ex = ex * 10 + (s[j] as i64) - 48
                 j += 1
@@ -1335,26 +1357,23 @@ pub fn float_scan(s: &text, at: i64) -> FloatScan
     let end = i as i64
     if ds.len() == 0
         return FloatScan(value: if neg then -0.0 else 0.0, end: end, overflow: false)
-    # value = 0.d1d2... * 10^dexp
-    let dexp = (ds.len() as i64) + dropped + ex - frac
+    e10 += ex
+    # |value| lies in [10^(dexp - 1), 10^dexp)
+    let dexp = (ds.len() as i64) + e10
     if dexp > 309
         return FloatScan(value: if neg then -FL_MAX else FL_MAX, end: end, overflow: true)
     if dexp < -323
         return FloatScan(value: if neg then -0.0 else 0.0, end: end, overflow: false)
-    var e10 = ex - frac + dropped
     var z = ds.len()
-    while z > 1 and ds[z - 1] == 0 bound 1000000
-        z -= 1
-        e10 += 1
-    var sig: List[i64] = []
-    var k: usize = 0
-    while k < z bound 1000000
-        sig.push(ds[k])
-        k += 1
     if sticky
-        sig.push(1)
+        ds.push(1)
         e10 -= 1
-    let r = fp_value(&sig, e10, false)
+    else
+        while z > 1 and ds[z - 1] == 0 bound 1000000
+            let _ = ds.pop()
+            z -= 1
+            e10 += 1
+    let r = fp_value(&ds, e10, false)
     if r.inf
         return FloatScan(value: if neg then -FL_MAX else FL_MAX, end: end, overflow: true)
     return FloatScan(value: if neg then -r.v else r.v, end: end, overflow: false)

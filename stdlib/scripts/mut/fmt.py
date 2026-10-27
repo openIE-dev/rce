@@ -44,7 +44,7 @@ M = [
     ('        if v < 0 or v > 1114111 or (v >= 55296 and v <= 57343)', '        if v < 0 or v > 1114111'),
     ('        if nb_bit(n, s - 1) == 1 and (low or m % 2 == 1)', '        if nb_bit(n, s - 1) == 1 and low'),
     ('        if e10 < 0 and e10 >= -22', '        if e10 < 0 and e10 >= -23'),
-    ('                if c != 48\n                    sticky = true', '                if c > 49\n                    sticky = true'),
+    ('    if sticky\n        ds.push(1)', '    if false\n        ds.push(1)'),
     ('    if dexp > 309', '    if dexp > 308'),
     ('    let t = (nb_bitlen(&p) - nb_bitlen(&dig) + 56).max(0)', '    let t = (nb_bitlen(&p) - nb_bitlen(&dig) + 30).max(0)'),
     ('    if m == 9007199254740992\n        m = 4503599627370496\n        u += 1', '    if m == 9007199254740992\n        m = 4503599627370496'),
