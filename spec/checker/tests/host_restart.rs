@@ -279,3 +279,46 @@ fn typed_restarted_and_typed_result_are_inputs() {
     assert_eq!(replay(&m, &std::fs::read_to_string(&log).unwrap()).unwrap().1, live);
     let _ = std::fs::remove_dir_all(&d);
 }
+
+/// HF-4 (E.4c): a `Restarted` of another shape is fitted by name. With an
+/// optional field the host has no value for, it is delivered with `none`
+/// there; with a required one, it cannot be built, and after each
+/// `host.Restarted` the host records `host.Unfit` with the reason. The
+/// requests outstanding are interrupted either way, and D replays.
+#[test]
+fn a_restarted_of_another_shape_is_fitted_by_name() {
+    let base = read("tests/host/net.rce");
+    for (decl, step, delivered) in [
+        ("event Restarted(below: u64, note: text?)", "step Net on Restarted(below: _b, note: _n)", true),
+        ("event Restarted(below: u64, note: text)", "step Net on Restarted(below: _b, note: _n)", false),
+    ] {
+        let src = base.replace("event Restarted(below: u64)", decl).replace("step Net on Restarted(below: _b)", step).replace(", Restarted(below: 12) -> refusals == 1 and restarts == 1 and last == 0", " -> refusals == 1");
+        let m = parse(&src).unwrap();
+        let d = dir(if delivered { "shape-opt" } else { "shape-req" });
+        let log = d.join("d.log");
+        let addr = free_addr();
+        let (fs, _) = FileStore::open(&log).unwrap();
+        let mut h = Host::start_with(&m, Box::new(fs), boxed(net_adapters(std::slice::from_ref(&addr)))).unwrap();
+        assert!(h.fitting().iter().any(|n| n.starts_with("event Restarted:")), "{:?}", h.fitting());
+        let k = h.admit(&src, &format!(r#"Listen(addr: "{addr}")"#)).unwrap()[0].seq;
+        drop(h);
+        let t = std::fs::read_to_string(&log).unwrap();
+        let cut: String = t.lines().take(k as usize + 1).map(|l| format!("{l}\n")).collect();
+        std::fs::write(&log, &cut).unwrap();
+        let h = Host::open_file_with(&m, &log, boxed(net_adapters(std::slice::from_ref(&addr)))).unwrap();
+        assert_eq!(int(&field(&h, "restarts")), delivered as i64);
+        let live = h.state_hash().to_string();
+        drop(h);
+        let es = entries(&log);
+        let r = position(&es, k as usize + 1, |e| e.event.contains("\"type\":\"host.Restarted\""));
+        if delivered {
+            assert_eq!(es[r + 1].event, format!(r#"{{"payload":{{"below":{r},"note":null}},"type":"Restarted"}}"#));
+        } else {
+            assert_eq!(es[r + 1].event, format!(r#"{{"payload":{{"event":{{"payload":{{"below":{r}}},"type":"Restarted"}},"why":"field 2 has no value from the host"}},"type":"host.Unfit"}}"#));
+        }
+        let i = position(&es, r, |e| e.event.contains("\"type\":\"NetListenDone\""));
+        assert!(es[i].event.contains(r#""err":"interrupted""#), "{}", es[i].event);
+        assert_eq!(replay(&m, &std::fs::read_to_string(&log).unwrap()).unwrap().1, live);
+        let _ = std::fs::remove_dir_all(&d);
+    }
+}
