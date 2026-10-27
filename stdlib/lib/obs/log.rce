@@ -77,22 +77,24 @@ pub fn sev_name(sev: i64) -> text
     let base = copy(olg_sev_bases()[((sev - 1) / 4) as usize])
     return if k == 0 then base else base + (k + 1).tostr()
 
-# ASCII upper case only, so no other letter can fold onto a level name.
+# ASCII upper case only, so no other letter can fold onto a level name
+# (called on texts of at most 20 bytes).
 fn olg_upper_ascii(t: &text) -> text
     var b: List[i64] = []
     var i: usize = 0
-    while i < t.len_bytes() bound 4000000
+    while i < t.len_bytes() bound 64
         let x = t[i] as i64
         b.push(if x >= 97 and x <= 122 then x - 32 else x)
         i += 1
     return b.utf8()
 
-# A decimal i64: optional "-", then 1 to 19 digits, overflow refused
-# (accumulated as a negative number, so -2^63 fits).
+# An integer result that may be refused (ok false).
 struct OlgInt
     ok: bool
     v: i64
 
+# A decimal i64: optional "-", then 1 to 19 digits, overflow refused
+# (accumulated as a negative number, so -2^63 fits).
 fn olg_dec(t: &text) -> OlgInt
     let bad = OlgInt(ok: false, v: 0)
     let n = t.len_bytes()
@@ -274,7 +276,7 @@ pub fn lf_key(k: &text) -> text
     return "".join(ps)
 
 # writeQuotedString as parts: '"', the text with \\ \" \n \r \t, \u00xx for
-# the other bytes below 0x20 and � for U+FFFD, '"'. The parts stop
+# the other bytes below 0x20 and \ufffd for U+FFFD, '"'. The parts stop
 # once they pass the line limit (the pair is then left out), so their
 # number stays below the list limit.
 fn olg_lf_quote(s: &text) -> List[text]
@@ -364,8 +366,9 @@ pub fn lf_encode(kvs: &[LogKv]) -> text ! BadLog
         i += 1
     return "".join(ps)
 
-# Joins encoded pairs within the line limit; pairs that do not fit are left
-# out and a final marker pair is written.
+# Joins encoded pairs within the line limit. From the first pair that does
+# not fit, the pairs are left out and the marker pair is written last (even
+# when a field of the same name was written before it).
 fn olg_line(pairs: &[List[text]], open: &text, sep: &text, close: &text, marker: &text) -> text
     var ps: List[text] = [copy(open)]
     let room = OLG_LINE_MAX - open.len_bytes() as i64 - close.len_bytes() as i64 - sep.len_bytes() as i64 - marker.len_bytes() as i64
@@ -435,14 +438,15 @@ fn olg_getu4(s: &text, r: usize) -> i64
         v = v * 16 + d
     return v
 
-# unquoteBytes on the text between the quotes: \" \\ \/ \' \b \f \n \r \t
-# and \uXXXX (a surrogate pair joins; a lone surrogate gives U+FFFD and
-# the next escape is read on its own); a raw byte below 0x20 or a bare
-# quote is refused.
+# A text result that may be refused (ok false).
 struct OlgText
     ok: bool
     t: text
 
+# unquoteBytes on the text between the quotes: \" \\ \/ \' \b \f \n \r \t
+# and \uXXXX (a surrogate pair joins; a lone surrogate gives U+FFFD and
+# the next escape is read on its own); a raw byte below 0x20 or a bare
+# quote is refused.
 fn olg_lf_unquote(s: &text) -> OlgText
     let bad = OlgText(ok: false, t: "")
     var ps: List[text] = []
