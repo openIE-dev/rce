@@ -63,7 +63,7 @@ def block():
         f"{a[5:]} {par['adapters'][a]['same']} same, {par['adapters'][a]['different']} different, {par['adapters'][a]['no answer']} without an answer to compare" for a in ("emit-python", "emit-js", "emit-rust")) + ".")
     t, pa = tally["emit-scala"], par["adapters"]["emit-scala"]
     if pa["results_format"] == "rce-results/1":
-        L.append(f"- Scala emitter: not run with whole traces. `reports/results-emit-scala.json` is an earlier status-only run: {t.get('pass', 0)} pass, {t.get('fail', 0)} fail, {t.get('unsupported', 0)} unsupported of {len(res['emit-scala']['results'])} results ({pa['not run']} tests have no Scala result); none of it is byte-compared. Scala does not agree with the reference.")
+        L.append(f"- Scala emitter: not run. `reports/results-emit-scala.json` holds the statuses of an earlier run ({len(res['emit-scala']['results'])} results, {t.get('fail', 0)} of them fail), made before answers were recorded; none of them is compared with the reference or counted as a pass.")
     else:
         L.append(f"- Scala emitter ({pa['run']}): {t.get('pass', 0)} pass, {t.get('fail', 0)} fail, {t.get('unsupported', 0)} unsupported of {len(res['emit-scala']['results'])} results; byte parity {pa['same']} same, {pa['different']} different.")
     for a, label in (("wasm-playground", "Wasm playground"), ("lean-core", "Lean core model")):

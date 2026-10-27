@@ -214,7 +214,7 @@ file: on 2026-10-14, on the Apple M5 Max below, with Scala 3.10.0 run by
 scala-cli 1.18.0 on OpenJDK 27, all 55 programs of the current corpus
 (with the package files of example 26) agree with the reference, 0
 refused, 361 observation lines, and the edge program agrees on all four
-targets. Its oracle is `RCE_SCALA` (default `scala-cli`). That agreement is for this examples corpus only. On the larger `rce-conformance` suite the Scala emitter passes 52 of 1,845 results (its README gives 1,189 failures and 604 unsupported), so the Scala target does not yet agree with the reference on that suite.
+targets. Its oracle is `RCE_SCALA` (default `scala-cli`). That agreement is for this examples corpus only. On the larger `rce-conformance` suite the Scala emitter was not run in the whole-trace baseline (`conformance/README.md`); an earlier run, which recorded statuses only, fails 1,189 of its 1,832 results (`conformance/reports/results-emit-scala.json`), so the Scala target does not agree with the reference on that suite.
 The targets a test run covers are named as data,
 one word per line, in `spec/checker/tests/emit_targets.txt` (`rust`,
 `python`, `js`, `scala`), never by an environment variable or a flag. Every
@@ -664,4 +664,4 @@ its name-free projection (T7) and is a continuous-integration step.
 
 **Read receipt.** Which JSON-RPC error code does the language server return for a request it does not know? (a number)
 
-<!-- body-sha256: 954267d927d23eacfafef8853262badf907c62d7054f8f5ab0960573362cc028 -->
+<!-- body-sha256: f9b09f9a8fac64181fff7be46e0e4a0c8cb7f034e4a08d7a02700df42f5c262f -->

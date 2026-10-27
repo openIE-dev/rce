@@ -11,8 +11,10 @@ the two byte strings are compared. Statuses are not compared: a test counts
 as `same` only when the bytes are identical.
 
 A results file written before observations were recorded (format
-rce-results/1) holds statuses only; its tests are counted as `not compared`,
-never as agreeing. Writes reports/parity.json and reports/parity.md.
+rce-results/1) holds the statuses of an earlier run only: that
+implementation was not run for this comparison, so every test is counted
+as `not compared`, never as agreeing, and its row says so. Writes
+reports/parity.json and reports/parity.md.
 """
 import glob, json, os, sys
 
@@ -39,6 +41,8 @@ def first_difference(ref, got):
 
 
 def label(d):
+    if d.get("format") != "rce-results/2":
+        return "not run for this comparison: the file holds statuses of an earlier run (rce-results/1)"
     h = d.get("hello")
     if not h:
         return "not recorded"
@@ -73,14 +77,14 @@ for name, d in runs.items():
     t = {"same": 0, "different": 0, "no answer": 0, "n/a": 0, "unsupported": 0, "not run": 0, "not compared": 0}
     for tid, r in ref.items():
         o = res.get(tid)
-        if o is None:
+        if not observed:   # statuses of an earlier run: nothing here was run for this comparison
+            t["not compared"] += 1
+        elif o is None:
             t["not run"] += 1
         elif o["status"] == "unsupported":
             t["unsupported"] += 1
         elif o["status"] == "n/a":   # the op belongs to another component (adapter not_applicable)
             t["n/a"] += 1
-        elif not observed:
-            t["not compared"] += 1
         elif o.get("observed") is None or r.get("observed") is None:
             t["no answer"] += 1
             unanswered.append({"id": tid, "adapter": name, "adapter_status": o["status"],
@@ -102,8 +106,10 @@ with open(os.path.join(root, "reports", "parity.md"), "w", encoding="utf-8") as 
             "(check: verdict and diagnostic codes; run: outputs and outcome of the source-order run; trace: the head "
             "and every line of the whole trace) is written as canonical JSON and compared byte for byte with the "
             "reference's answer to the same test. Statuses are not compared. *No answer*: the adapter or the reference "
-            "gave no answer to compare (an error). *Not compared*: the results file records statuses only "
-            "(`rce-results/1`, a run made before answers were recorded), so none of its tests is counted as agreeing.\n\n")
+            "gave no answer to compare (an error). *Not compared*: the results file records the statuses of an earlier run only "
+            "(`rce-results/1`, made before answers were recorded); that implementation was not run for this comparison, "
+            "and none of its tests is counted as agreeing. *Not run*: the run has no result for a test the reference "
+            "answered.\n\n")
     w.write(f"Reference: {label(refrun)}.\n\n")
     w.write("| adapter | run | same bytes | different bytes | no answer | n/a | unsupported | not run | not compared |\n")
     w.write("|---|---|---|---|---|---|---|---|---|\n")
