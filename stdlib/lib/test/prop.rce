@@ -24,8 +24,11 @@ use rand.det
 # module-level name in a module that uses test.prop (W-MOD-3, W-NAME-2,
 # until imported names are renamed): such a module cannot declare, or
 # bind as a local, rand.det names such as bits, below, range, bytes,
-# split, shuffle or make. The names of this module all start with prop,
-# draw, Prop, PROP, tp or TP.
+# split or shuffle, and cannot also use a module that declares one of
+# them (crypto: chacha20; hash.blake3, and so energy and ui.view:
+# block_words; math, and so num.special and num.stats: split; ui.input:
+# split). The names of this module all start with prop, draw, Prop,
+# PROP, tp or TP.
 #
 # Runner (QuickCheck 2.15.0.1, Test.QuickCheck.Test, stdArgs and test /
 # runATest / computeSize / tooManyDiscards / localMin;
