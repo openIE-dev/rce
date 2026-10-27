@@ -23,7 +23,10 @@ const LIB_CRYPTO: &str = "module demo2\n#!lib crypto\n\nfn main()\n    emit sha2
 #[test]
 fn use_resolves_to_the_built_in_library_in_check_run_and_emit() {
     assert!(rce_spec_check::stdlib::has("enc") && rce_spec_check::stdlib::has("data.events"));
-    assert!(rce_spec_check::stdlib::names().len() >= 46);
+    assert!(rce_spec_check::stdlib::names().len() >= 55);
+    for m in ["col.seq", "col.cache", "data.csv", "data.json", "id", "obs.log", "test.prop", "test.fake", "text.str"] {
+        assert!(rce_spec_check::stdlib::has(m), "{m} is not built in");
+    }
     let f = tmp("use_enc", USE_ENC);
     let (st, out) = rce(&["check", &f]);
     assert_eq!(st, 0, "{out}");
