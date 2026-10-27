@@ -26,10 +26,13 @@ module col.seq
 # than the `limit` its caller gives, refuses with SeqTooLarge before it
 # builds anything; a size or index that cannot be used refuses with
 # SeqBadSize, SeqBadIndex or SeqLenMismatch. No function traps on such
-# input. Input longer than one list is fed in chunks to a state value:
-# SeqCounts (counting), SeqSeen (deduplication), SeqTop (k smallest or
-# largest), SeqWin (sliding windows), SeqBatch (chunks) and SeqRuns
-# (groupby runs, with seq_runs_take for a run longer than one list).
+# input. Windows share no storage, so seq_windows and SeqWin also bound
+# the total number of elements in the windows they return by
+# SEQ_SIZE_LIMIT. Input longer than one list is fed in chunks to a state
+# value: SeqCounts (counting), SeqSeen (deduplication), SeqTop (k
+# smallest or largest), SeqWin (sliding windows), SeqBatch (chunks) and
+# SeqRuns (groupby runs, with seq_runs_take for a run longer than one
+# list).
 # Feeding any split of a sequence gives the same results as one call on
 # the whole sequence. A result longer than one list is taken in parts:
 # seq_flatten_part and seq_interleave_part take any range of positions,
