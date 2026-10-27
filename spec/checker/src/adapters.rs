@@ -438,6 +438,9 @@ pub mod net {
     struct Conn {
         s: TcpStream,
         out: OutQ,
+        /// HF-3: the start of a UTF-8 character a read ended inside, kept
+        /// for the next read when the module takes received bytes as text
+        carry: Vec<u8>,
     }
 
     enum Sock {
@@ -450,6 +453,8 @@ pub mod net {
         next: u64,
         socks: BTreeMap<u64, Sock>,
         grants: Vec<String>,
+        /// HF-3: the module takes `NetRecvDone` data as text
+        text: bool,
     }
 
     pub struct NetAdapter {
@@ -537,7 +542,7 @@ pub mod net {
         let out: OutQ = Default::default();
         let q = out.clone();
         std::thread::spawn(move || writer(w, q));
-        Ok(Conn { s, out })
+        Ok(Conn { s, out, carry: vec![] })
     }
 
     impl Nets {
@@ -551,11 +556,11 @@ pub mod net {
         }
     }
 
-    fn recv(c: &mut Conn, max: usize) -> Result<Value, String> {
+    fn recv(c: &mut Conn, max: usize, text: bool) -> Result<Value, String> {
         if c.out.0.lock().unwrap().failed {
             return Err("closed".into());
         }
-        let mut out: Vec<u8> = vec![];
+        let mut out: Vec<u8> = std::mem::take(&mut c.carry);
         let mut buf = vec![0u8; 65536];
         let mut eof = false;
         while out.len() < max {
@@ -570,6 +575,15 @@ pub mod net {
                 Err(e) if e.kind() == ErrorKind::Interrupted => continue,
                 Err(e) => return Err(e.to_string()),
             }
+        }
+        // HF-3: taken as text, a character the read ended inside waits for
+        // the next read; at the end of the stream it is delivered as it is
+        if text
+            && !eof
+            && let Err(e) = std::str::from_utf8(&out)
+            && e.error_len().is_none()
+        {
+            c.carry = out.split_off(e.valid_up_to());
         }
         // HC-10a: exactly the bytes received, in order, as a list of 0..255
         if eof && out.is_empty() { Err("eof".into()) } else { Ok(json!(out)) }
@@ -599,8 +613,14 @@ pub mod net {
             let mut n = self.nets.borrow_mut();
             n.next = n.next.max(floor.saturating_sub(1));
         }
+        fn text(&mut self) {
+            if self.kind == "NetRecv" {
+                self.nets.borrow_mut().text = true;
+            }
+        }
         fn perform(&mut self, r: &Value) -> EffectResult {
             let mut n = self.nets.borrow_mut();
+            let text = n.text;
             let id = r["id"].as_u64().unwrap_or(0);
             let addr = r["addr"].as_str().unwrap_or("").to_string();
             let res: Result<Value, String> = match self.kind {
@@ -628,7 +648,7 @@ pub mod net {
                     _ => Err(format!("no connection {id}")),
                 },
                 "NetRecv" => match n.socks.get_mut(&id) {
-                    Some(Sock::S(c)) => recv(c, (r["max"].as_u64().unwrap_or(65536) as usize).min(NET_RECV_MAX)),
+                    Some(Sock::S(c)) => recv(c, (r["max"].as_u64().unwrap_or(65536) as usize).min(NET_RECV_MAX), text),
                     _ => Err(format!("no connection {id}")),
                 },
                 "NetClose" => match n.socks.remove(&id) {
@@ -1768,7 +1788,8 @@ pub mod http {
     /// `Content-Length` and `Connection: close`; with `head` and `close`
     /// from [`framing`], every byte of the response is a function of D.
     pub fn response_bytes(r: &Value, head: bool, close: bool) -> Result<(Vec<u8>, bool), String> {
-        let status = r["status"].as_u64().unwrap_or(0);
+        // HF-2: the request is read by field name; a missing field is empty
+        let Some(status) = r["status"].as_u64() else { return Err("status is not an integer from 200 to 599".into()) };
         if !(200..=599).contains(&status) {
             return Err(format!("status {status} is outside 200 to 599"));
         }

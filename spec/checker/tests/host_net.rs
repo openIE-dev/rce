@@ -155,14 +155,71 @@ fn recv_delivers_the_bytes_received() {
     assert_eq!(replay(&m, &text).unwrap().1, live);
 }
 
-/// W-HOST-3: a byte source bound to a `text` result is refused at start.
+/// HF-3 (E.4c): received bytes bound to a `text` result. The host starts
+/// and says how it fits them: bytes that are UTF-8 are delivered as text;
+/// a character split across two writes waits in the adapter for the next
+/// read, so it is never split or replaced; a read that is not UTF-8, and a
+/// stream that ends inside a character, are delivered as failed with the
+/// offset, while `host.Unfit` keeps the bytes in D, so nothing received is
+/// lost. Replay gives the live state.
 #[test]
-fn recv_into_a_text_field_is_refused_at_start() {
-    let src = net_src().replace("event NetRecvDone(req: u64, status: text, data: List[i64]?, err: text)", "event NetRecvDone(req: u64, status: text, data: text?, err: text)");
-    assert!(src.contains("event NetRecvDone(req: u64, status: text, data: text?, err: text)"));
+fn recv_into_a_text_field_is_text_when_utf8() {
+    let src = net_src()
+        .replace("event NetRecvDone(req: u64, status: text, data: List[i64]?, err: text)", "event NetRecvDone(req: u64, status: text, data: text?, err: text)")
+        .replace("step Net on NetRecvDone(req: _r, status: s, data: d, err: _e)\n    if s == \"delivered\"\n        for x in d.or([])\n            got.push(x)\n", "step Net on NetRecvDone(req: _r, status: s, data: d, err: e)\n    if s == \"delivered\"\n        rand = rand + d.or(\"\")\n    else\n        blob = copy(e)\n        errors += 1\n");
+    assert!(src.contains("rand = rand + d.or"));
     let m = parse(&src).unwrap();
-    let e = Host::start_with(&m, Box::new(MemStore::default()), boxed(net_adapters(&["127.0.0.1:1".to_string()]))).err().expect("refused at start");
-    assert!(e.contains("W-HOST-3") && e.contains("List[i64]?"), "{e}");
+    let addr = free_addr();
+    let mut st = MemStore::default();
+    let mut h = Host::start_with(&m, Box::new(&mut st), boxed(net_adapters(std::slice::from_ref(&addr)))).unwrap();
+    assert!(h.fitting().iter().any(|n| n.starts_with("event NetRecvDone:") && n.contains("delivered as text when they are UTF-8")), "{:?}", h.fitting());
+    h.admit(&src, &format!(r#"Listen(addr: "{addr}")"#)).unwrap();
+    let mut client = TcpStream::connect(&addr).unwrap();
+    for _ in 0..200 {
+        h.admit(&src, "Accept(id: 1)").unwrap();
+        if int(&field(&h, "last")) == 2 {
+            break;
+        }
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    let text_of = |v: V| if let V::Text(t) = v { t.to_string() } else { panic!("{v:?}") };
+    let recv_until = |h: &mut Host, done: &dyn Fn(&Host) -> bool| {
+        for _ in 0..400 {
+            h.admit(&src, "Recv(id: 2)").unwrap();
+            if done(h) {
+                return;
+            }
+            std::thread::sleep(Duration::from_millis(5));
+        }
+        panic!("received {:?}", field(h, "rand"));
+    };
+    client.write_all("h\u{e9}".as_bytes()).unwrap();
+    recv_until(&mut h, &|h| text_of(field(h, "rand")) == "h\u{e9}");
+    client.write_all(&[0xFF]).unwrap();
+    recv_until(&mut h, &|h| int(&field(h, "errors")) == 1);
+    assert_eq!(text_of(field(&h, "blob")), "result does not fit the declared type: not UTF-8 at offset 0");
+    // E2 82 AC is the euro sign, written in two parts
+    client.write_all(&[0xE2, 0x82]).unwrap();
+    std::thread::sleep(Duration::from_millis(50));
+    for _ in 0..5 {
+        h.admit(&src, "Recv(id: 2)").unwrap();
+    }
+    assert_eq!((text_of(field(&h, "rand")), int(&field(&h, "errors"))), ("h\u{e9}".to_string(), 1), "the first two bytes wait for the third");
+    client.write_all(&[0xAC]).unwrap();
+    recv_until(&mut h, &|h| text_of(field(h, "rand")) == "h\u{e9}\u{20ac}");
+    // the stream ends inside a character: delivered as it is, and failed
+    client.write_all(&[0xC3]).unwrap();
+    client.shutdown(std::net::Shutdown::Write).unwrap();
+    recv_until(&mut h, &|h| int(&field(h, "errors")) >= 2);
+    assert_eq!(text_of(field(&h, "blob")), "result does not fit the declared type: incomplete UTF-8 character at offset 0");
+    let live = h.state_hash().to_string();
+    drop(h);
+    let text = log_text(&st);
+    assert!(text.contains(r#""data":"h\u00e9""#) || text.contains("\"data\":\"h\u{e9}\""), "{text}");
+    assert!(text.contains(r#""data":[255]"#) && text.contains(r#""why":"data: not UTF-8 at offset 0""#), "D keeps the bytes: {text}");
+    assert!(text.contains(r#""data":[195]"#) && text.contains(r#""why":"data: incomplete UTF-8 character at offset 0""#), "D keeps the bytes: {text}");
+    assert!(text.contains("\"data\":\"\u{20ac}\"") || text.contains(r#""data":"\u20ac""#), "the euro sign is one delivery: {text}");
+    assert_eq!(replay(&m, &text).unwrap().1, live);
 }
 
 /// HC-23: NetSend takes text (its UTF-8) or bytes; an element outside

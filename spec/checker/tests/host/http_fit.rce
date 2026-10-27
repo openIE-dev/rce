@@ -1,0 +1,28 @@
+module http_fit
+
+intent "the HTTP event host fits each declaration by name: the body taken as text, a body that is not UTF-8 delivered as HttpMalformed 415, and the result of a response the program does not declare recorded in D"
+    example HttpRequest(id: 3, method: "POST", target: "/echo", version: "HTTP/1.1", names: [], values: [], body: "hi") -> seen == 1 and last == 200
+    example HttpMalformed(id: 4, status: 415, why: "HttpRequest: body: not UTF-8 at offset 0") -> last == 415
+
+struct HttpRespond
+    req: u64
+    status: u64
+    names: List[text]
+    values: List[text]
+    body: text
+
+event HttpRequest(id: u64, method: text, target: text, version: text, names: List[text], values: List[text], body: text)
+event HttpMalformed(id: u64, status: u64, why: text)
+
+state S
+    seen: u64 = 0
+    last: u64 = 0
+
+step S on HttpRequest(id: id, method: _m, target: _t, version: _v, names: _n, values: _vs, body: b)
+    seen += 1
+    last = 200
+    emit HttpRespond(req: id, status: 200, names: ["Content-Type"], values: ["text/plain; charset=utf-8"], body: copy(b))
+
+step S on HttpMalformed(id: id, status: st, why: w)
+    last = st
+    emit HttpRespond(req: id, status: st, names: [], values: [], body: copy(w))

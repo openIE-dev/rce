@@ -119,10 +119,6 @@ Concurrency (Appendix C): W-PAR-1 to W-PAR-4, W-DL-1, W-ND-1, W-GRP-1 to
 W-GRP-3, W-SES-1 to W-SES-5, W-SCOPE-1, W-ATOM-1, W-ATOM-2, W-CRDT-1,
 W-LVAR-1, W-LVAR-2, W-NODE-1, W-SUP-1, W-SUP-2, W-INTR-1 and W-RT-1.
 
-Host (Appendix E.4c): W-HOST-1 to W-HOST-4, refused when a host starts
-on a module, before it appends to D. `rce check` does not apply them,
-because they depend on the adapters the host is granted.
-
 **Read receipt.** Which rule refuses two unguarded steps in one region whose patterns overlap?
 
-<!-- body-sha256: 7041f47ee2a8fce5fbabdcebf3b6088c4e8d36d9cdd59d4488c8ae2e445c9b90 -->
+<!-- body-sha256: 8bb53d8444bbf4edf7382eafe256d25442a976309d92ad5a00ec36bfe5a67a33 -->

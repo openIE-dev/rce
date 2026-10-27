@@ -89,13 +89,76 @@ fn interrupted_request_is_answered_failed_on_open() {
     let _ = std::fs::remove_file(&p);
 }
 
+/// HF-1 (E.4c): a result event declared with fewer fields is fitted by
+/// name. The host starts, says so in one line, performs the effect and
+/// delivers the fields the module declares; `host.Unfit` keeps in D the
+/// fields the event does not take, and replay plans the same.
 #[test]
-fn bound_effect_without_its_result_event_is_refused() {
-    let s = src().replace("event EchoDone(req: u64, status: text, data: text?, err: text)", "event EchoDone(req: u64, status: text)").replace(", data: d, err: e)", ")").replace("        got.push(d.or(\"\"))\n", "        got.push(\"\")\n").replace(r#"EchoDone(req: 1, status: "failed", data: none, err: "x")"#, r#"EchoDone(req: 1, status: "failed")"#);
+fn result_event_of_another_shape_is_fitted_by_name() {
+    let s = src()
+        .replace("event EchoDone(req: u64, status: text, data: text?, err: text)", "event EchoDone(req: u64, status: text)")
+        .replace("step S on EchoDone(req: _r, status: st, data: d, err: _e)", "step S on EchoDone(req: _r, status: st)")
+        .replace("        got.push(d.or(\"\"))\n", "        got.push(\"\")\n")
+        .replace(r#"EchoDone(req: 1, status: "failed", data: none, err: "x")"#, r#"EchoDone(req: 1, status: "failed")"#);
     let m = parse(&s).unwrap();
+    let calls = std::rc::Rc::new(std::cell::Cell::new(0));
     let mut st = MemStore::default();
-    let e = Host::start_with(&m, Box::new(&mut st), vec![Box::new(Echo { calls: Default::default() })]).err().unwrap();
-    assert!(e.contains("W-HOST-1"), "{e}");
+    let mut h = Host::start_with(&m, Box::new(&mut st), vec![Box::new(Echo { calls: calls.clone() })]).unwrap();
+    assert!(h.fitting().iter().any(|n| n.starts_with("event EchoDone:") && n.contains("data, err are not delivered")), "{:?}", h.fitting());
+    let out = h.admit(&s, r#"Say(msg: "a"), Say(msg: "boom")"#).unwrap();
+    assert_eq!((calls.get(), out.len()), (2, 4), "{out:?}");
+    assert!(out.iter().all(|a| a.outcome.is_ok()), "{out:?}");
+    let live = h.state_hash().to_string();
+    drop(h);
+    let text: String = st.lines.iter().map(|l| format!("{l}\n")).collect();
+    assert!(text.contains(r#"{"payload":{"event":{"payload":{"data":"a","err":"","req":1,"status":"delivered"},"type":"EchoDone"},"why":"not declared: data, err"},"type":"host.Unfit"}"#), "{text}");
+    assert!(text.contains(r#"{"payload":{"req":1,"status":"delivered"},"type":"EchoDone"}"#), "{text}");
+    assert!(text.contains(r#""payload":{"data":null,"err":"refused by adapter","req":2,"status":"failed"},"type":"EchoDone"},"why":"not declared: err""#), "{text}");
+    assert_eq!(replay(&m, &text).unwrap().1, live);
+    // replay plans each delivery again: a host.Unfit with another reason is a fault
+    let es: Vec<Entry> = st.lines.iter().map(|l| Entry::parse_line(l).unwrap()).collect();
+    let mut prev = rce_spec_check::interp::D_GENESIS.to_string();
+    let mut forged = String::new();
+    for e in es {
+        let n = Entry::new(&m, e.seq, e.event.replace("not declared: data, err", "not declared: data"), &prev, &e.state_hash);
+        prev = n.hash.clone();
+        forged.push_str(&n.line());
+        forged.push('\n');
+    }
+    let e = replay(&m, &forged).unwrap_err();
+    assert!(e.contains("host fault") && e.contains("host.Unfit"), "{e}");
+}
+
+/// HF-1 (E.4c): a request struct whose result event the module does not
+/// declare is still performed (fire and forget). Its result is recorded in
+/// D as `host.Unfit` and not delivered; it answers the request, so opening
+/// D again interrupts nothing.
+#[test]
+fn bound_effect_without_its_result_event_is_performed_and_recorded() {
+    let s = src();
+    let s = s[..s.find("step S on EchoDone").unwrap()]
+        .replace("event EchoDone(req: u64, status: text, data: text?, err: text)\n", "")
+        .replace(r#"    example Say(msg: "hi"), EchoDone(req: 1, status: "failed", data: none, err: "x") -> failed == 1"#, r#"    example Say(msg: "hi") -> next == 1"#);
+    let m = parse(&s).unwrap();
+    let p = std::env::temp_dir().join(format!("rce-fx-ff-{}.log", std::process::id()));
+    let _ = std::fs::remove_file(&p);
+    let calls = std::rc::Rc::new(std::cell::Cell::new(0));
+    {
+        let mut h = Host::open_file_with(&m, &p, vec![Box::new(Echo { calls: calls.clone() })]).unwrap();
+        assert!(h.fitting().iter().any(|n| n.contains("struct Echo: event EchoDone is not declared")), "{:?}", h.fitting());
+        let out = h.admit(&s, r#"Say(msg: "a")"#).unwrap();
+        assert_eq!(out.len(), 1, "only the Say step: {out:?}");
+    }
+    assert_eq!(calls.get(), 1, "the effect is performed");
+    drop(Host::open_file_with(&m, &p, vec![Box::new(Echo { calls: calls.clone() })]).unwrap());
+    assert_eq!(calls.get(), 1);
+    let text = std::fs::read_to_string(&p).unwrap();
+    let unfit: Vec<&str> = text.lines().filter(|l| l.contains("\"type\":\"host.Unfit\"")).collect();
+    assert_eq!(unfit.len(), 1, "one record, and no interruption on open: {text}");
+    assert!(unfit[0].contains(r#"{"event":{"payload":{"data":"a","err":"","req":1,"status":"delivered"},"type":"EchoDone"},"why":"not declared"}"#), "{}", unfit[0]);
+    assert!(text.lines().all(|l| Entry::parse_line(l).unwrap().kind() != "EchoDone"), "nothing is delivered");
+    replay(&m, &text).unwrap();
+    let _ = std::fs::remove_file(&p);
     let _ = json!(null);
 }
 
