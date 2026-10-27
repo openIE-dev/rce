@@ -211,13 +211,15 @@ fn tp_off(a: i64, b: i64) -> u64
 fn tp_add(b: i64, off: u64) -> i64
     if off <= TP_M63
         return b + (off as i64)
-    return (b + TP_I64MAX) + ((off - TP_M63) as i64)
+    let r = off - TP_M63
+    return (b + TP_I64MAX) + ((r - 1) as i64) + 1
 
 # b - off, for a result inside i64.
 fn tp_sub(b: i64, off: u64) -> i64
     if off <= TP_M63
         return b - (off as i64)
-    return (b - TP_I64MAX) - ((off - TP_M63) as i64)
+    let r = off - TP_M63
+    return (b - TP_I64MAX) - ((r - 1) as i64) - 1
 
 fn tp_target(lo: i64, hi: i64) -> i64 = if lo > 0 then lo else (if hi < 0 then hi else 0)
 
@@ -228,13 +230,12 @@ pub fn prop_int_index(v: i64, lo: i64, hi: i64) -> u64
     let bel = tp_off(t, lo)
     let abv = tp_off(hi, t)
     let d = if v >= t then tp_off(v, t) else tp_off(t, v)
-    let z = if v > t then 2 * d - 1 else 2 * d
     if bel < abv
         if d <= bel
-            return z
+            return if v > t then 2 * d - 1 else 2 * d
         return tp_off(v, lo)
     if d <= abv
-        return z
+        return if v > t then 2 * d - 1 else 2 * d
     return tp_off(hi, v)
 
 # Hypothesis choice_from_index for an integer in [lo, hi]; the index must
@@ -882,12 +883,17 @@ fn tp_clamp(ok: bool, v: f64, mant: u64, lo: f64, hi: f64) -> f64
     return f
 
 # Hypothesis choice_from_index for a float: sign, lex, then the clamper.
+# Multiplying a NaN by the sign quiets it (IEEE 754 6.2), which sets
+# mantissa bit 51 before the clamper reads the mantissa.
 pub fn prop_float_value(sign: u64, lex: u64, lo: f64, hi: f64) -> f64
     let l = prop_lex_float(lex)
     var v = l.value
     if sign == 1
         v = -v
-    return tp_clamp(l.finite, v, l.mant, lo, hi)
+    var mant = l.mant
+    if not l.finite and mant != 0
+        mant = mant | 2251799813685248
+    return tp_clamp(l.finite, v, mant, lo, hi)
 
 fn tp_next_up(x: f64) -> PropLex
     if x == 0.0
