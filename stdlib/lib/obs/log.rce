@@ -35,8 +35,26 @@ use time
 
 error BadLog(at: i64, why: text)
 
+# Lines are kept within OLG_LINE_MAX bytes. A text holds at most 1,000,000
+# characters of at most 4 bytes each, so loops over the bytes of a text
+# are bounded by 4,000,000.
 const OLG_LINE_MAX: i64 = 1000000
 const OLG_HEX: text = "0123456789abcdef"
+# U+0000..U+001F as one-character texts. Membership tests use the built-in
+# text search, so a text without special characters is not walked byte by
+# byte (each byte step costs fuel).
+const OLG_CTL: List[text] = ["\u{0}", "\u{1}", "\u{2}", "\u{3}", "\u{4}", "\u{5}", "\u{6}", "\u{7}", "\u{8}", "\u{9}", "\u{a}", "\u{b}", "\u{c}", "\u{d}", "\u{e}", "\u{f}", "\u{10}", "\u{11}", "\u{12}", "\u{13}", "\u{14}", "\u{15}", "\u{16}", "\u{17}", "\u{18}", "\u{19}", "\u{1a}", "\u{1b}", "\u{1c}", "\u{1d}", "\u{1e}", "\u{1f}"]
+
+# Their escapes: go-logfmt writes \n \r \t and \u00xx, CPython json also
+# \b and \f.
+const OLG_LF_ESC: List[text] = ["\\u0000", "\\u0001", "\\u0002", "\\u0003", "\\u0004", "\\u0005", "\\u0006", "\\u0007", "\\u0008", "\\t", "\\n", "\\u000b", "\\u000c", "\\r", "\\u000e", "\\u000f", "\\u0010", "\\u0011", "\\u0012", "\\u0013", "\\u0014", "\\u0015", "\\u0016", "\\u0017", "\\u0018", "\\u0019", "\\u001a", "\\u001b", "\\u001c", "\\u001d", "\\u001e", "\\u001f"]
+const OLG_JS_ESC: List[text] = ["\\u0000", "\\u0001", "\\u0002", "\\u0003", "\\u0004", "\\u0005", "\\u0006", "\\u0007", "\\b", "\\t", "\\n", "\\u000b", "\\f", "\\r", "\\u000e", "\\u000f", "\\u0010", "\\u0011", "\\u0012", "\\u0013", "\\u0014", "\\u0015", "\\u0016", "\\u0017", "\\u0018", "\\u0019", "\\u001a", "\\u001b", "\\u001c", "\\u001d", "\\u001e", "\\u001f"]
+
+fn olg_has_ctl(s: &text) -> bool
+    for c in OLG_CTL
+        if s.contains(c)
+            return true
+    return false
 
 # ---------------- severity ----------------
 
@@ -63,38 +81,47 @@ pub fn sev_name(sev: i64) -> text
 fn olg_upper_ascii(t: &text) -> text
     var b: List[i64] = []
     var i: usize = 0
-    while i < t.len_bytes() bound 1000000
+    while i < t.len_bytes() bound 4000000
         let x = t[i] as i64
         b.push(if x >= 97 and x <= 122 then x - 32 else x)
         i += 1
     return b.utf8()
 
-# Optional "-", then 1 to 18 decimal digits; -1 marks a refusal through ok.
+# A decimal i64: optional "-", then 1 to 19 digits, overflow refused
+# (accumulated as a negative number, so -2^63 fits).
 struct OlgInt
     ok: bool
     v: i64
 
 fn olg_dec(t: &text) -> OlgInt
+    let bad = OlgInt(ok: false, v: 0)
     let n = t.len_bytes()
     var i: usize = 0
     var neg = false
     if n > 0 and t[0] == 45
         neg = true
         i = 1
-    if i >= n or n - i > 18
-        return OlgInt(ok: false, v: 0)
-    var v: i64 = 0
+    if i >= n or n - i > 19
+        return bad
+    let lim = 0 - 9223372036854775807 - 1
+    var acc: i64 = 0
     while i < n bound 20
         let d = (t[i] as i64) - 48
-        if d < 0 or d > 9
-            return OlgInt(ok: false, v: 0)
-        v = v * 10 + d
+        if d < 0 or d > 9 or acc < (lim + d) / 10
+            return bad
+        acc = acc * 10 - d
         i += 1
-    return OlgInt(ok: true, v: if neg then 0 - v else v)
+    if neg
+        return OlgInt(ok: true, v: acc)
+    if acc == lim
+        return bad
+    return OlgInt(ok: true, v: 0 - acc)
 
 # A severity from its name (any ASCII case: the 24 short names and WARNING)
-# or from a decimal number of at most 18 digits.
+# or from a decimal i64.
 pub fn sev_parse(t: &text) -> i64 ! BadLog
+    if t.len_bytes() > 20
+        fail BadLog(at: 0, why: "unknown level")
     let u = olg_upper_ascii(t)
     let bases = olg_sev_bases()
     for i in 0..6
@@ -227,18 +254,14 @@ fn olg_parts_len(ps: &[text]) -> i64
         s += p.len_bytes() as i64
     return s
 
-fn olg_has_fffd(t: &text) -> bool
-    var i: usize = 0
-    while i < t.len_bytes() bound 1000000
-        if olg_is_fffd(t, i)
-            return true
-        i += 1
-    return false
+fn olg_has_fffd(t: &text) -> bool = t.contains("\u{fffd}")
 
 # ---------------- logfmt writing (go-logfmt v0.6.0) ----------------
 
 # A key with every rune <= ' ', '=', '"' and U+FFFD removed (keyRuneFilter).
 pub fn lf_key(k: &text) -> text
+    if not olg_lf_needs_quote(k)
+        return copy(k)
     var ps: List[text] = []
     for c in k
         let x = c[0] as i64
@@ -247,57 +270,41 @@ pub fn lf_key(k: &text) -> text
     return "".join(ps)
 
 # writeQuotedString as parts: '"', the text with \\ \" \n \r \t, \u00xx for
-# the other bytes below 0x20 and � for U+FFFD, '"'.
+# the other bytes below 0x20 and � for U+FFFD, '"'. The parts stop
+# once they pass the line limit (the pair is then left out), so their
+# number stays below the list limit.
 fn olg_lf_quote(s: &text) -> List[text]
     var ps: List[text] = ["\""]
+    var len: i64 = 1
     let n = s.len_bytes()
     var start: usize = 0
     var i: usize = 0
-    while i < n bound 1000000
+    while i < n and len <= OLG_LINE_MAX bound 4000000
         let b = s[i] as i64
+        var e = ""
         if b < 128
             if b >= 32 and b != 92 and b != 34
                 i += 1
                 continue
-            if start < i
-                ps.push(s[start:i])
-            if b == 92
-                ps.push("\\\\")
-            elif b == 34
-                ps.push("\\\"")
-            elif b == 10
-                ps.push("\\n")
-            elif b == 13
-                ps.push("\\r")
-            elif b == 9
-                ps.push("\\t")
-            else
-                ps.push("\\u00" + olg_hex2(b))
-            i += 1
-            start = i
+            e = if b < 32 then copy(OLG_LF_ESC[b as usize]) else (if b == 92 then "\\\\" else "\\\"")
+        elif b == 239 and olg_is_fffd(s, i)
+            e = "\\ufffd"
+        else
+            i += olg_u8len(b)
             continue
-        if olg_is_fffd(s, i)
-            if start < i
-                ps.push(s[start:i])
-            ps.push("\\ufffd")
-            i += 3
-            start = i
-            continue
-        i += olg_u8len(b)
+        if start < i
+            ps.push(s[start:i])
+        ps.push(copy(e))
+        len += (i - start) as i64 + e.len_bytes() as i64
+        i += if b < 128 then 1 else 3
+        start = i
     if start < n
         ps.push(s[start:n])
     ps.push("\"")
     return ps
 
 # needsQuotedValueRune: a rune <= ' ', '=', '"' or U+FFFD.
-fn olg_lf_needs_quote(s: &text) -> bool
-    var i: usize = 0
-    while i < s.len_bytes() bound 1000000
-        let b = s[i] as i64
-        if b <= 32 or b == 61 or b == 34 or olg_is_fffd(s, i)
-            return true
-        i += 1
-    return false
+fn olg_lf_needs_quote(s: &text) -> bool = olg_has_ctl(s) or s.contains(" ") or s.contains("=") or s.contains("\"") or s.contains("\u{fffd}")
 
 # writeStringValue: "null" is quoted, so it reads back apart from a null.
 fn olg_lf_str(s: &text) -> List[text]
@@ -438,7 +445,7 @@ fn olg_lf_unquote(s: &text) -> OlgText
     let n = s.len_bytes()
     var start: usize = 0
     var r: usize = 0
-    while r < n bound 1000000
+    while r < n bound 4000000
         let c = s[r] as i64
         if c == 92
             if start < r
@@ -497,14 +504,14 @@ pub fn lf_scan(line: &text) -> LfLine
     var pos: usize = 0
     loop bound 1000001
         # bytes <= ' ' between pairs
-        while pos < n and (line[pos] as i64) <= 32 bound 1000000
+        while pos < n and (line[pos] as i64) <= 32 bound 4000000
             pos += 1
         if pos >= n
             return LfLine(kvs: kvs, ok: true, at: 0, why: "")
         let start = pos
         var multi = false
         var stop = false
-        while pos < n and not stop bound 1000000
+        while pos < n and not stop bound 4000000
             let c = line[pos] as i64
             if c == 61 or c <= 32
                 stop = true
@@ -532,7 +539,7 @@ pub fn lf_scan(line: &text) -> LfLine
                 var esc = false
                 var has_esc = false
                 var closed = false
-                while q < n and not closed bound 1000000
+                while q < n and not closed bound 4000000
                     let c = line[q] as i64
                     if esc
                         esc = false
@@ -559,7 +566,7 @@ pub fn lf_scan(line: &text) -> LfLine
             else
                 let v0 = pos
                 var vstop = false
-                while pos < n and not vstop bound 1000000
+                while pos < n and not vstop bound 4000000
                     let c = line[pos] as i64
                     if c == 61
                         return olg_lf_fault(kvs, pos, "unexpected '='")
@@ -593,7 +600,7 @@ pub fn lf_lines(s: &text) -> List[LfLine]
     let n = s.len_bytes()
     var a: usize = 0
     var i: usize = 0
-    while i < n bound 1000000
+    while i < n bound 4000000
         if s[i] == 10
             let ln = olg_drop_cr(&s[a:i])
             out.push(lf_scan(&ln))
@@ -627,7 +634,7 @@ pub fn lf_feed(rd: &mut LfReader, chunk: &text) -> List[LfLine]
     let n = chunk.len_bytes()
     var a: usize = 0
     var i: usize = 0
-    while i < n bound 1000000
+    while i < n bound 4000000
         if chunk[i] == 10
             if rd.skip
                 rd.skip = false
@@ -672,51 +679,41 @@ pub fn lf_finish(rd: &mut LfReader) -> List[LfLine]
 # json.dumps of a str as parts: \" \\ \b \f \n \r \t, \u00xx for the
 # other code points below 0x20; with ascii (ensure_ascii) also \u007f and
 # every non-ASCII code point as \uxxxx (a UTF-16 surrogate pair above
-# U+FFFF), lower-case hex.
+# U+FFFF), lower-case hex. The parts stop past the line limit, as in
+# olg_lf_quote.
 fn olg_json_str(s: &text, ascii: bool) -> List[text]
+    if not (olg_has_ctl(s) or s.contains("\"") or s.contains("\\") or (ascii and (s.len_chars() != s.len_bytes() or s.contains("\u{7f}"))))
+        return ["\"", copy(s), "\""]
     var ps: List[text] = ["\""]
+    var len: i64 = 1
     let n = s.len_bytes()
     var start: usize = 0
     var i: usize = 0
-    while i < n bound 1000000
+    while i < n and len <= OLG_LINE_MAX bound 4000000
         let b = s[i] as i64
+        var e = ""
+        var w: usize = 1
         if b < 128
             if b >= 32 and b != 34 and b != 92 and not (ascii and b == 127)
                 i += 1
                 continue
-            if start < i
-                ps.push(s[start:i])
-            if b == 34
-                ps.push("\\\"")
-            elif b == 92
-                ps.push("\\\\")
-            elif b == 8
-                ps.push("\\b")
-            elif b == 12
-                ps.push("\\f")
-            elif b == 10
-                ps.push("\\n")
-            elif b == 13
-                ps.push("\\r")
-            elif b == 9
-                ps.push("\\t")
+            e = if b < 32 then copy(OLG_JS_ESC[b as usize]) else (if b == 34 then "\\\"" else (if b == 92 then "\\\\" else "\\u007f"))
+        elif not ascii
+            i += 1
+            continue
+        else
+            let cp = olg_cp_at(s, i)
+            w = olg_u8len(b)
+            if cp >= 65536
+                let u = cp - 65536
+                e = "\\u" + olg_hex4(55296 + (u >> 10)) + "\\u" + olg_hex4(56320 + (u & 1023))
             else
-                ps.push("\\u00" + olg_hex2(b))
-            i += 1
-            start = i
-            continue
-        if not ascii
-            i += 1
-            continue
+                e = "\\u" + olg_hex4(cp)
         if start < i
             ps.push(s[start:i])
-        let cp = olg_cp_at(s, i)
-        if cp >= 65536
-            let u = cp - 65536
-            ps.push("\\u" + olg_hex4(55296 + (u >> 10)) + "\\u" + olg_hex4(56320 + (u & 1023)))
-        else
-            ps.push("\\u" + olg_hex4(cp))
-        i += olg_u8len(b)
+        ps.push(copy(e))
+        len += (i - start) as i64 + e.len_bytes() as i64
+        i += w
         start = i
     if start < n
         ps.push(s[start:n])
@@ -725,7 +722,7 @@ fn olg_json_str(s: &text, ascii: bool) -> List[text]
 
 fn olg_digits(s: &text, i: usize) -> usize
     var k = i
-    while k < s.len_bytes() and s[k] >= 48 and s[k] <= 57 bound 1000000
+    while k < s.len_bytes() and s[k] >= 48 and s[k] <= 57 bound 4000000
         k += 1
     return k
 
@@ -1051,7 +1048,7 @@ pub fn log_sampler(tick: i64, first: i64, thereafter: i64) -> LogSampler = LogSa
 fn olg_fnv32a(s: &text) -> i64
     var h: i64 = 2166136261
     var i: usize = 0
-    while i < s.len_bytes() bound 1000000
+    while i < s.len_bytes() bound 4000000
         h = ((h ^ (s[i] as i64)) * 16777619) & 4294967295
         i += 1
     return h

@@ -1,0 +1,310 @@
+# Checks for lib/obs/log.rce: restated cases (the OpenTelemetry severity
+# short names, level parsing, records from pairs, filters, the size limits)
+# and seeded property sweeps (the ring buffer against a list model, chunked
+# reading against whole-text reading, record round trips through logfmt).
+# The reference vectors are in log_checks_2.rce .. log_checks_4.rce.
+
+fn rnd(s: i64) -> i64 = (s * 1103515245 + 12345) & 2147483647
+
+# ---- severity: OpenTelemetry Logs Data Model, SeverityNumber 1..24 ----
+
+fn names() -> List[text]
+    var o: List[text] = []
+    for s in 0..26
+        o.push(sev_name(s))
+    return o
+
+check names() == ["0", "TRACE", "TRACE2", "TRACE3", "TRACE4", "DEBUG", "DEBUG2", "DEBUG3", "DEBUG4", "INFO", "INFO2", "INFO3", "INFO4", "WARN", "WARN2", "WARN3", "WARN4", "ERROR", "ERROR2", "ERROR3", "ERROR4", "FATAL", "FATAL2", "FATAL3", "FATAL4", "25"]
+check sev_name(-7) == "-7"
+check SEV_TRACE == 1 and SEV_DEBUG == 5 and SEV_INFO == 9 and SEV_WARN == 13 and SEV_ERROR == 17 and SEV_FATAL == 21
+
+fn spar(t: text) -> i64 = sev_parse(&t) catch -999
+
+fn sev_round(lo: i64, hi: i64) -> bool
+    var ok = true
+    for s in lo..hi
+        ok = ok and spar(sev_name(s)) == s
+    return ok
+
+check sev_round(-30, 60)
+check spar("info") == 9 and spar("Warn3") == 15 and spar("warning") == 13 and spar("WARNING") == 13 and spar("fatal4") == 24 and spar("tRaCe") == 1
+check spar("") == -999 and spar("INF") == -999 and spar("INFO5") == -999 and spar("INFO1") == -999 and spar(" INFO") == -999
+check spar("\u{131}nfo") == -999
+check spar("+5") == -999 and spar("-") == -999 and spar("12a") == -999 and spar("1234567890123456789") == 1234567890123456789 and spar("-9223372036854775808") == 0 - 9223372036854775807 - 1 and spar("9223372036854775808") == -999 and spar("99999999999999999999") == -999 and spar("-4") == -4
+
+# ---- building records ----
+
+fn rec_a() -> LogRec = log_int(log_str(log_at(log_rec(SEV_WARN, "disk low"), 0), "path", "/var"), "free", 12)
+
+fn get_t(r: LogRec, k: text) -> text
+    let v = log_get(&r, &k).or(LvStr(t: "none"))
+    return lv_text(&v)
+fn get_v(r: LogRec, k: text) -> LogVal? = log_get(&r, &k)
+check get_v(rec_a(), "path") == some(LvStr(t: "/var")) and get_v(rec_a(), "nope") == none
+check get_t(rec_a(), "free") == "12" and get_t(rec_a(), "nope") == "none"
+check get_t(log_str(rec_a(), "path", "/tmp"), "path") == "/tmp" and log_str(rec_a(), "path", "/tmp").kvs.len() == 2
+check get_t(log_bool(rec_a(), "ok", true), "ok") == "true"
+fn lvt(x: LogVal) -> text = lv_text(&x)
+check lvt(LvNull) == "null" and lvt(LvNum(raw: "1.5e3")) == "1.5e3" and lvt(LvInt(v: -12)) == "-12" and lvt(LvBool(v: false)) == "false"
+
+fn lf(r: LogRec) -> text
+    let f = log_fmt()
+    return log_logfmt(&r, &f)
+fn js(r: LogRec) -> text
+    let f = log_fmt()
+    return log_json(&r, &f)
+
+check lf(rec_a()) == "time=1970-01-01T00:00:00.000000000Z level=WARN msg=\"disk low\" path=/var free=12"
+check js(rec_a()) == "{\"time\":\"1970-01-01T00:00:00.000000000Z\",\"level\":\"WARN\",\"msg\":\"disk low\",\"path\":\"/var\",\"free\":12}"
+check lf(log_rec(SEV_INFO, "")) == "level=INFO msg="
+check js(log_rec(SEV_INFO, "")) == "{\"level\":\"INFO\",\"msg\":\"\"}"
+# a field named like a built-in key is written under fields.
+check lf(log_str(log_str(log_rec(SEV_INFO, "m"), "msg", "x"), "level", "y")) == "level=INFO msg=m fields.msg=x fields.level=y"
+# times outside +-9e18 ns are written as decimal nanoseconds
+check lf(log_at(log_rec(SEV_INFO, "m"), 0 - 9223372036854775807 - 1)) == "time=-9223372036854775808 level=INFO msg=m"
+fn lff(r: LogRec, frac: i64, off: i64) -> text
+    let f = LogFmt(frac: frac, offset_min: off, ascii: false, max_value: 100)
+    return log_logfmt(&r, &f)
+check lff(log_at(log_rec(SEV_INFO, "m"), 1700000000123456789), 3, 330) == "time=2023-11-15T03:43:20.123+05:30 level=INFO msg=m"
+check lff(log_at(log_rec(SEV_INFO, "m"), -1), 0, -60) == "time=1969-12-31T22:59:59-01:00 level=INFO msg=m"
+
+fn lines2() -> List[text]
+    let rs = [log_rec(SEV_INFO, "a"), log_rec(SEV_ERROR, "b c")]
+    let f = log_fmt()
+    var o = log_lines(&rs, &f, true)
+    for x in log_lines(&rs, &f, false)
+        o.push(x)
+    return o
+check lines2() == ["{\"level\":\"INFO\",\"msg\":\"a\"}", "{\"level\":\"ERROR\",\"msg\":\"b c\"}", "level=INFO msg=a", "level=ERROR msg=\"b c\""]
+
+# ---- records from decoded pairs ----
+
+fn back(line: text) -> LogRec
+    let kvs = lf_decode(&line) catch []
+    return log_from_kvs(&kvs)
+
+check back("time=2023-11-14T22:13:20.5Z level=warn msg=hi a=1").time == some(1700000000500000000)
+check back("time=2023-11-14T22:13:20.5Z level=warn msg=hi a=1").sev == 13
+check back("time=1970-01-01T00:00:00Z msg=x").time == some(0) and back("time=1970-01-01T00:00:00Z msg=x").sev == 0
+check back("time=-5 msg=x").time == some(-5)
+check back("time=yesterday level=loud msg=x").time == none
+check back("time=yesterday level=loud msg=x").kvs == [LogKv(key: "time", val: LvStr(t: "yesterday")), LogKv(key: "level", val: LvStr(t: "loud"))]
+check back("msg=a msg=b fields.msg=c").msg == "a"
+check back("msg=a msg=b fields.msg=c").kvs == [LogKv(key: "msg", val: LvStr(t: "b")), LogKv(key: "msg", val: LvStr(t: "c"))]
+
+# ---- round trips through logfmt and through chunked reading ----
+
+fn pick(s: i64, xs: &[text]) -> text = copy(xs[((s >> 8) % (xs.len() as i64)) as usize])
+
+fn rand_text(seed: i64, n: i64) -> text
+    let al = ["a", "b", "z", " ", "=", "\"", "\\", "\n", "\r", "\t", "\u{1}", "\u{7f}", "é", "€", "😀", "\u{fffd}", "/", "u", "0"]
+    var s = seed
+    var o: List[text] = []
+    for _i in 0..n
+        s = rnd(s)
+        o.push(pick(s, &al))
+    return "".join(o)
+
+# Records with distinct valid keys and text values come back unchanged.
+fn rt_sweep(n: i64) -> bool
+    let keys = ["user", "n", "time", "level", "msg", "path", "é", "a.b"]
+    var s: i64 = 7
+    var ok = true
+    for i in 0..n
+        s = rnd(s)
+        var r = log_rec((s >> 4) % 27 - 1, rand_text(s, (s >> 9) % 9))
+        if (s >> 3) % 3 != 0
+            s = rnd(s)
+            r = log_at(r, (s - 1073741824) * 8589934593)
+        var used: List[text] = []
+        for _j in 0..((s >> 11) % 5)
+            s = rnd(s)
+            let k = pick(s, &keys)
+            if not used.contains(copy(k))
+                used.push(copy(k))
+                r = log_str(r, k, rand_text(s + i, (s >> 6) % 7))
+        let f = log_fmt()
+        let line = log_logfmt(&r, &f)
+        let kvs = lf_decode(&line) catch []
+        ok = ok and log_from_kvs(&kvs) == r
+    return ok
+
+check rt_sweep(150)
+
+fn flat(ls: &[LfLine]) -> List[text]
+    var o: List[text] = []
+    for l in ls
+        for kv in l.kvs
+            o.push(copy(kv.key))
+            o.push(lv_text(&kv.val))
+        if not l.ok
+            o.push("!" + l.at.tostr() + ":" + l.why)
+        o.push("|")
+    return o
+
+# Feed s in chunks of about k bytes (cut at character boundaries).
+fn chunked(s: &text, k: usize, max: i64) -> List[text]
+    var rd = lf_reader(max)
+    var out: List[LfLine] = []
+    let n = s.len_bytes()
+    var a: usize = 0
+    while a < n bound 1000000
+        var b = if a + k < n then a + k else n
+        while b < n and ((s[b] as i64) & 192) == 128 bound 4
+            b += 1
+        let c = s[a:b]
+        for l in lf_feed(&mut rd, &c)
+            out.push(l)
+        a = b
+    for l in lf_finish(&mut rd)
+        out.push(l)
+    let e = "late=1\n"
+    let late = lf_feed(&mut rd, &e)
+    if late.len() != 0
+        return ["fed after finish"]
+    return flat(&out)
+
+fn whole_lines(s: &text) -> List[text]
+    let ls = lf_lines(s)
+    return flat(&ls)
+
+fn ch(s: text, k: usize, max: i64) -> List[text] = chunked(&s, k, max)
+
+fn chunk_sweep(s: text) -> bool
+    let w = whole_lines(&s)
+    var ok = true
+    for k in 1..10
+        ok = ok and chunked(&s, k, 1000) == w
+    ok = ok and chunked(&s, 1000000, 1000) == w
+    return ok
+
+check chunk_sweep("a=1\r\nb=\"x y\"\n\nc=\"é\\u00e9\"\r")
+check chunk_sweep("k=v\nbad=\"x\nok=1 =2\nlast")
+check chunk_sweep("") and chunk_sweep("\n\n") and chunk_sweep("\r\n")
+check chunk_sweep("😀=1 é=\"€\"\n\u{fffd}=2\nx=\"\\ud83d\\ude00\"")
+
+fn random_streams(n: i64) -> bool
+    var ok = true
+    var s: i64 = 99
+    for _i in 0..n
+        s = rnd(s)
+        ok = ok and chunk_sweep(rand_text(s, (s >> 7) % 40))
+    return ok
+
+check random_streams(40)
+
+# over-long lines: reported once (at = max), skipped to their newline
+check ch("abcdefgh\na=1\n", 3, 5) == ["!5:line too long", "|", "a", "1", "|"]
+check ch("abcdefgh\na=1\n", 100, 5) == ["!5:line too long", "|", "a", "1", "|"]
+check ch("abcdefgh", 2, 5) == ["!5:line too long", "|"]
+check ch("abcdefgh\nx=1", 4, 5) == ["!5:line too long", "|", "x", "1", "|"]
+check ch("abcde\nab\r\n", 1, 5) == ["abcde", "", "|", "ab", "", "|"]
+check lf_reader(0).max == 1 and lf_reader(5000000).max == 1000000
+
+# ---- filtering and projection ----
+
+fn recs() -> List[LogRec]
+    return [log_str(log_rec(SEV_DEBUG, "cache miss"), "key", "u:1"), log_int(log_str(log_rec(SEV_INFO, "served"), "path", "/a"), "status", 200), log_int(log_str(log_rec(SEV_WARN, "slow request"), "path", "/api/x"), "status", 200), log_int(log_rec(SEV_ERROR, "failed"), "status", 500), log_rec(SEV_FATAL, "panic")]
+
+fn msgs(f: LogFilter) -> List[text]
+    let rs = recs()
+    var o: List[text] = []
+    for r in log_select(&rs, &f)
+        o.push(copy(r.msg))
+    return o
+
+check msgs(log_filter(SEV_WARN)) == ["slow request", "failed", "panic"]
+check msgs(log_filter(0)) == ["cache miss", "served", "slow request", "failed", "panic"]
+check msgs(LogFilter(min_sev: SEV_INFO, max_sev: SEV_WARN, conds: [])) == ["served", "slow request"]
+check msgs(log_where(log_filter(0), LcEq(key: "status", t: "200"))) == ["served", "slow request"]
+check msgs(log_where(log_filter(0), LcNe(key: "status", t: "200"))) == ["cache miss", "failed", "panic"]
+check msgs(log_where(log_filter(0), LcHas(key: "path"))) == ["served", "slow request"]
+check msgs(log_where(log_filter(0), LcAbsent(key: "status"))) == ["cache miss", "panic"]
+check msgs(log_where(log_filter(0), LcPrefix(key: "path", t: "/api/"))) == ["slow request"]
+check msgs(log_where(log_filter(0), LcPrefix(key: "nope", t: ""))) == []
+check msgs(log_where(log_filter(0), LcMsgHas(t: "re"))) == ["slow request"]
+check msgs(log_where(log_where(log_filter(SEV_INFO), LcEq(key: "status", t: "200")), LcPrefix(key: "path", t: "/a"))) == ["served", "slow request"]
+
+fn proj() -> List[text]
+    let r = log_bool(log_int(log_str(log_rec(SEV_INFO, "m"), "user", "ann"), "n", 1), "secret", true)
+    let ks = ["user", "n"]
+    let a = log_only(&r, &ks)
+    let b = log_drop(&r, &ks)
+    return [lf(a), lf(b)]
+check proj() == ["level=INFO msg=m user=ann n=1", "level=INFO msg=m secret=true"]
+
+# ---- ring buffer against a list model ----
+
+fn ring_sweep(cap: i64, n: i64, seed: i64) -> bool
+    var g = log_ring(cap)
+    var model: List[i64] = []
+    var pushed: i64 = 0
+    var s = seed
+    var ok = true
+    for i in 0..n
+        s = rnd(s)
+        if (s >> 8) % 17 == 0
+            log_ring_clear(&mut g)
+            model = []
+        else
+            log_ring_push(&mut g, log_rec(SEV_INFO, i.tostr()))
+            model.push(i)
+            pushed += 1
+        let m = model.len() as i64
+        let keep = if cap < m then cap else m
+        var want: List[text] = []
+        var j = m - keep
+        while j < m bound 1000
+            want.push(model[j as usize].tostr())
+            j += 1
+        var got: List[text] = []
+        for r in log_ring_items(&g)
+            got.push(copy(r.msg))
+        ok = ok and got == want and log_ring_len(&g) == keep and log_ring_dropped(&g) == pushed - keep
+        let k = (s >> 4) % 4
+        var last: List[text] = []
+        for r in log_ring_last(&g, k)
+            last.push(copy(r.msg))
+        var wl: List[text] = []
+        let kk = if k > keep then keep else k
+        for q in (want.len() - kk as usize)..want.len()
+            wl.push(copy(want[q]))
+        ok = ok and last == wl
+    return ok
+
+check ring_sweep(1, 60, 3) and ring_sweep(5, 200, 4) and ring_sweep(16, 300, 5) and ring_sweep(64, 200, 6)
+check ring_sweep(0, 30, 7)
+check log_ring(-4).cap == 0 and log_ring(2000000).cap == 1000000
+
+# ---- sampling: zap's rule, restated cases (zap vectors in log_checks_3) ----
+
+fn samp(tick: i64, first: i64, there: i64, ts: List[i64], ms: List[text]) -> text
+    var s = log_sampler(tick, first, there)
+    var o: List[text] = []
+    var i: usize = 0
+    while i < ts.len() bound 1000
+        let r = log_at(log_rec(SEV_INFO, copy(ms[i])), ts[i])
+        o.push(if log_sample(&mut s, &r) then "1" else "0")
+        i += 1
+    return "".join(o) + "/" + s.kept.tostr() + "/" + s.dropped.tostr()
+
+# first 2 per tick, then every 3rd; the count restarts when the tick ends
+check samp(10, 2, 3, [1, 2, 3, 4, 5, 6, 7, 8, 11, 12, 13], ["a", "a", "a", "a", "a", "a", "a", "a", "a", "a", "a"]) == "11001001110/6/5"
+# counts are per message
+check samp(10, 1, 0, [1, 1, 1, 1], ["a", "b", "a", "b"]) == "1100/2/2"
+# first 0 and thereafter 0 drop everything; negative settings act as 0
+check samp(10, 0, 0, [1, 2], ["a", "a"]) == "00/0/2" and samp(-5, -1, -1, [1, 2], ["a", "a"]) == "00/0/2"
+# tick 0: every record starts a new count
+check samp(0, 1, 0, [5, 5, 5], ["a", "a", "a"]) == "111/3/0"
+# the reset time saturates instead of wrapping
+check samp(9223372036854775807, 1, 0, [9223372036854775000, 9223372036854775001], ["a", "a"]) == "10/1/1"
+
+fn samp_all() -> List[text]
+    var s = log_sampler(100, 1, 2)
+    let rs = [log_at(log_rec(SEV_INFO, "x"), 1), log_at(log_rec(SEV_INFO, "x"), 2), log_at(log_rec(SEV_INFO, "x"), 3), log_at(log_rec(SEV_WARN, "x"), 4), log_rec(SEV_INFO, "y")]
+    var o: List[text] = []
+    for r in log_sample_all(&mut s, &rs)
+        o.push(sev_name(r.sev) + ":" + r.msg)
+    return o
+check samp_all() == ["INFO:x", "INFO:x", "WARN:x", "INFO:y"]
+

@@ -1,0 +1,58 @@
+# Size checks for lib/obs/log.rce, in a file of their own because they
+# build texts of about a million bytes: values are cut at character
+# boundaries, lines stay within 1,000,000 bytes (the pairs past the limit
+# are replaced by one truncated pair), and lf_encode refuses a longer line.
+
+
+fn cutf(v: text, mx: i64) -> text
+    let r = log_str(log_rec(SEV_INFO, "m"), "k", v)
+    let f = LogFmt(frac: 9, offset_min: 0, ascii: false, max_value: mx)
+    return log_json(&r, &f)
+
+check cutf("ééé", 3) == "{\"level\":\"INFO\",\"msg\":\"m\",\"k\":\"é\"}"
+check cutf("ééé", 4) == "{\"level\":\"INFO\",\"msg\":\"m\",\"k\":\"éé\"}"
+check cutf("😀x", 3) == "{\"level\":\"INFO\",\"msg\":\"m\",\"k\":\"\"}"
+check cutf("abc", 0) == "{\"level\":\"INFO\",\"msg\":\"m\",\"k\":\"a\"}"
+
+fn big(n: i64) -> text
+    var s = "a"
+    while (s.len_bytes() as i64) * 2 <= n bound 40
+        s = s + s
+    while (s.len_bytes() as i64) < n bound 40
+        let need = n - (s.len_bytes() as i64)
+        var p = "a"
+        while (p.len_bytes() as i64) * 2 <= need bound 40
+            p = p + p
+        s = s + p
+    return s
+
+fn bigline(json: bool) -> text
+    let r = log_str(log_str(log_str(log_rec(SEV_INFO, "m"), "a", big(600000)), "b", big(500000)), "c", "small")
+    let f = LogFmt(frac: 9, offset_min: 0, ascii: false, max_value: 1000000)
+    return if json then log_json(&r, &f) else log_logfmt(&r, &f)
+
+fn big_ok(json: bool) -> bool
+    let l = bigline(json)
+    if json
+        return l.len_bytes() == 600050 and l.endswith("a\",\"truncated\":true}")
+    return l.len_bytes() == 600034 and l.endswith("a truncated=true")
+check big_ok(false)
+check big_ok(true)
+
+fn strict_big() -> text
+    let kvs = [LogKv(key: "a", val: LvStr(t: big(600000))), LogKv(key: "b", val: LvStr(t: big(500000)))]
+    return lf_encode(&kvs) catch "ERR"
+check strict_big() == "ERR"
+fn strict_err(k: text) -> text
+    let kvs = [LogKv(key: "a", val: LvStr(t: "1")), LogKv(key: k, val: LvStr(t: "2"))]
+    return lf_encode(&kvs) catch |e| e.at.tostr() + ":" + e.why
+check strict_err("= \"") == "1:invalid key" and strict_err("b c") == "a=1 bc=2"
+fn strict_skip(k: text) -> text
+    let kvs = [LogKv(key: k, val: LvStr(t: "1")), LogKv(key: "b", val: LvStr(t: "2"))]
+    return lf_encode_skip(&kvs)
+check strict_skip("\u{fffd}") == "b=2" and strict_skip("") == "b=2"
+fn dec_err(line: text) -> text
+    let kvs = lf_decode(&line) catch |e| [LogKv(key: e.at.tostr(), val: LvStr(t: e.why))]
+    return kvs[0].key + ":" + lv_text(&kvs[0].val)
+check dec_err("a=1 b=\"x") == "8:unterminated quoted value" and dec_err("a=1") == "a:1"
+

@@ -1,0 +1,17 @@
+# Size checks for lib/obs/log.rce, part 2 (its own fuel budget): escaping
+# that passes the line limit stops and leaves the pair out.
+fn ctl_big(n: i64) -> text
+    var s = "\u{1}"
+    while (s.len_bytes() as i64) * 2 <= n bound 40
+        s = s + s
+    return s
+
+fn ctl_line(json: bool, mx: i64) -> text
+    let r = log_str(log_str(log_rec(SEV_INFO, "m"), "a", ctl_big(262144)), "b", "x")
+    let f = LogFmt(frac: 9, offset_min: 0, ascii: false, max_value: mx)
+    return if json then log_json(&r, &f) else log_logfmt(&r, &f)
+
+check ctl_line(false, 1000000) == "level=INFO msg=m truncated=true"
+check ctl_line(true, 1000000) == "{\"level\":\"INFO\",\"msg\":\"m\",\"truncated\":true}"
+check ctl_line(false, 20000).len_bytes() == 16 + 4 + 6 * 20000 + 1 + 4
+check ctl_line(true, 20000).len_bytes() == 26 + 5 + 6 * 20000 + 1 + 8 + 1
