@@ -243,9 +243,10 @@ fn id_pyspace(c: i64) -> bool = c == 32 or (c >= 9 and c <= 13)
 # every "urn:" and then every "uuid:" is removed, braces are stripped from
 # both ends, every '-' is removed, 32 characters must remain, and they are
 # read by int(x, 16): spaces around, an optional '+', an optional 0x
-# prefix, single underscores between digits. Positions in errors are
-# offsets in the text after the removals. CPython also reads non-ASCII
-# decimal digits and spaces there; this function refuses non-ASCII text.
+# prefix, single underscores between digits. A non-ASCII byte is refused at
+# its offset in the text; other positions in errors are offsets in the 32
+# characters left after the removals. CPython also reads non-ASCII decimal
+# digits and spaces there; this function refuses non-ASCII text.
 pub fn uuid_parse_lax(s: &text) -> List[i64] ! BadId
     let raw = id_text_bytes(s)
     var i: usize = 0
@@ -695,24 +696,25 @@ pub struct TypeId
     prefix: text
     uuid: List[i64]
 
-fn id_prefix_ok(p: &[i64], base: i64) -> bool ! BadId
-    let n = p.len() as i64
-    if n > 63
-        fail BadId(at: base + 63, why: "a TypeID prefix has at most 63 characters")
+# The prefix rules; at is the offset of the offending character.
+fn id_prefix_ok(p: &[i64]) -> bool ! BadId
+    if p.len() > 63
+        fail BadId(at: 63, why: "a TypeID prefix has at most 63 characters")
     var i: usize = 0
     while i < p.len() bound 64
         let c = p[i]
         let letter = c >= 97 and c <= 122
         if not letter and c != 95
-            fail BadId(at: base + (i as i64), why: "a TypeID prefix has only a..z and '_'")
+            fail BadId(at: i as i64, why: "a TypeID prefix has only a..z and '_'")
         if not letter and (i == 0 or i + 1 == p.len())
-            fail BadId(at: base + (i as i64), why: "a TypeID prefix starts and ends with a letter")
+            fail BadId(at: i as i64, why: "a TypeID prefix starts and ends with a letter")
         i += 1
     return true
 
+# The TypeID text of a prefix and the 16 bytes of a UUID.
 pub fn typeid_format(prefix: &text, u: &[i64]) -> text ! BadId
     let p = id_text_bytes(prefix)
-    let _ok = try id_prefix_ok(&p, 0)
+    let _ok = try id_prefix_ok(&p)
     let s = try ulid_encode(u)
     let low = s.lower()
     if p.len() == 0
@@ -738,7 +740,7 @@ pub fn typeid_parse(s: &text) -> TypeId ! BadId
         k += 1
     if cut == 0
         fail BadId(at: 0, why: "a separator needs a non-empty prefix")
-    let _ok = try id_prefix_ok(&p, 0)
+    let _ok = try id_prefix_ok(&p)
     let lo = cut + 1
     let n = b.len() as i64
     if n - lo != 26
