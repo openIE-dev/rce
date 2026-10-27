@@ -22,7 +22,11 @@
 //! floats through the runtime functions of `rtf.rs`; `for … par` with the
 //! reduction tree of C.8; the methods of 5.15 on text through `rtt.rs`,
 //! slices of lists and text, `in`, and the list methods `contains`, `get`,
-//! `reverse`, `sum`, `pop`, `clear` and `utf8`.
+//! `reverse`, `sum`, `pop`, `clear`, `sort` and `utf8`; list
+//! comprehensions and repeated lists; maps, kept as lists of pairs in the
+//! canonical order of 6.1 without duplicate keys, with their literals,
+//! index, indexed assignment, iteration, display, JSON, equality and
+//! methods; and `<` on tuples and lists.
 //!
 //! Ownership (W3): an RCE variable holds its value until the end of its
 //! scope, where it is dropped; every read of an owned variable is a `copy`;
@@ -275,6 +279,9 @@ impl<'m> Lw<'m> {
                         ts.push(self.ct_d(&rt, d + 1)?);
                     }
                     Ty::Tup(ts)
+                } else if n == "Missing" {
+                    // the error a map's get gives when the module declares none
+                    Ty::unit()
                 } else {
                     return no(format!("the type {n}"));
                 };
@@ -464,6 +471,18 @@ impl<'m> Lw<'m> {
                 fx.b.push(Stmt::Loop(vec![Stmt::Block(body)]));
                 fx.b.drop(a)?;
                 Ok(fx.b.let_(Atom::V(out)))
+            }
+            (RType::Map(k1, v1), RType::Map(k2, v2)) => {
+                let Ty::List(te) = &tt else { unreachable!() };
+                let te = (**te).clone();
+                if **k1 == RType::Never {
+                    fx.b.drop(a)?;
+                    return fx.b.p("list.new", vec![te], vec![]);
+                }
+                // fitting keeps the value of each key, so the order holds
+                let from = RType::List(Box::new(RType::Tuple(vec![(**k1).clone(), (**v1).clone()])));
+                let to = RType::List(Box::new(RType::Tuple(vec![(**k2).clone(), (**v2).clone()])));
+                self.conv(fx, a, &from, &to, check)
             }
             (RType::Opt(x), RType::Opt(y)) => {
                 if **x == RType::Never {
@@ -705,7 +724,43 @@ impl<'m> Lw<'m> {
                     self.fields_show(fx, n, &fs, v, t)
                 }
             }
-            RType::Map(..) => no("the display of a map"),
+            RType::Map(k, x) => {
+                let (k, x) = ((**k).clone(), (**x).clone());
+                let pt = Ty::Tup(vec![self.ct(&k)?, self.ct(&x)?]);
+                let n = fx.b.p("list.len", vec![pt.clone()], vec![v.clone()])?;
+                let acc = fx.b.var(Ty::Bytes, Atom::bytes(b"{"));
+                let i = fx.b.var(Ty::u64(), lit(0));
+                fx.b.open();
+                let iv = fx.b.let_(Atom::V(i));
+                let more = fx.b.int_cmp("int.lt", iv.clone(), n)?;
+                fx.b.open();
+                let th = fx.b.close();
+                fx.b.open();
+                fx.b.brk(1);
+                let el = fx.b.close();
+                fx.b.push(Stmt::If(more, th, el));
+                let e = fx.b.list_at(v.clone(), iv.clone())?;
+                let ps = fx.b.prim("tup.open", vec![pt], vec![e])?;
+                let ks = self.show(fx, ps[0].clone(), &k)?;
+                let xs = self.show(fx, ps[1].clone(), &x)?;
+                let a = fx.b.let_(Atom::V(acc));
+                let first = fx.b.int_cmp("int.eq", iv.clone(), lit(0))?;
+                let sep = fx.b.var(Ty::Bytes, Atom::bytes(b", "));
+                fx.b.open();
+                fx.b.set(sep, Atom::bytes(b""));
+                let th = fx.b.close();
+                fx.b.push(Stmt::If(first, th, vec![]));
+                let sp = fx.b.let_(Atom::V(sep));
+                let a = fx.b.cats(vec![a, sp, ks, Atom::bytes(b": "), xs])?;
+                fx.b.set(acc, a);
+                let i1 = fx.b.add_in(iv, lit(1), Ty::u64())?;
+                fx.b.set(i, i1);
+                let body = fx.b.close();
+                fx.b.push(Stmt::Loop(vec![Stmt::Block(body)]));
+                fx.b.drop(v)?;
+                let a = fx.b.let_(Atom::V(acc));
+                fx.b.cat(a, Atom::bytes(b"}"))
+            }
             RType::F64 => {
                 let d = rtf::text(&mut self.f)?;
                 Ok(self.call_rt(fx, d, vec![v]))
@@ -866,7 +921,61 @@ impl<'m> Lw<'m> {
                     self.eq_body(fx, x, &T::Tuple(fs.clone()), ta, y, &T::Tuple(fs), tb)
                 }
             }
-            (T::Map(..), _) | (_, T::Map(..)) => no("equality of maps"),
+            (T::Map(k1, v1), T::Map(k2, v2)) => {
+                // both are kept in key order without duplicates: the same
+                // length, and pairwise the same key (6.1 identity) and equal values
+                if k1 != k2 {
+                    return no("equality of maps with keys of different types");
+                }
+                let (k1, v1, v2) = ((**k1).clone(), (**v1).clone(), (**v2).clone());
+                let (Ty::List(c1), Ty::List(c2)) = (ta, tb) else { unreachable!() };
+                let (c1, c2) = ((**c1).clone(), (**c2).clone());
+                let cmpf = self.cmp_fn(&k1)?;
+                let n1 = fx.b.p("list.len", vec![c1.clone()], vec![x.clone()])?;
+                let n2 = fx.b.p("list.len", vec![c2.clone()], vec![y.clone()])?;
+                let r = fx.b.var(Ty::Bool, Atom::bool(false));
+                let same = fx.b.int_cmp("int.eq", n1.clone(), n2)?;
+                fx.b.open();
+                {
+                    fx.b.set(r, Atom::bool(true));
+                    let i = fx.b.var(Ty::u64(), lit(0));
+                    fx.b.open();
+                    let iv = fx.b.let_(Atom::V(i));
+                    let more = fx.b.int_cmp("int.lt", iv.clone(), n1)?;
+                    fx.b.open();
+                    let th = fx.b.close();
+                    fx.b.open();
+                    fx.b.brk(1);
+                    let el = fx.b.close();
+                    fx.b.push(Stmt::If(more, th, el));
+                    let p = fx.b.list_at(x.clone(), iv.clone())?;
+                    let q = fx.b.list_at(y.clone(), iv.clone())?;
+                    let ps = fx.b.prim("tup.open", vec![c1.clone()], vec![p])?;
+                    let qs = fx.b.prim("tup.open", vec![c2.clone()], vec![q])?;
+                    let c = self.call_rt(fx, cmpf, vec![ps[0].clone(), qs[0].clone()]);
+                    let ke = fx.b.int_cmp("int.eq", c, lit(0))?;
+                    let ve = self.eq(fx, Val { a: ps[1].clone(), t: v1.clone() }, Val { a: qs[1].clone(), t: v2.clone() })?;
+                    let both = fx.b.p("bool.and", vec![], vec![ke, ve])?;
+                    fx.b.open();
+                    let th = fx.b.close();
+                    fx.b.open();
+                    fx.b.set(r, Atom::bool(false));
+                    fx.b.brk(1);
+                    let el = fx.b.close();
+                    fx.b.push(Stmt::If(both, th, el));
+                    let i1 = fx.b.add_in(iv, lit(1), Ty::u64())?;
+                    fx.b.set(i, i1);
+                    let body = fx.b.close();
+                    fx.b.push(Stmt::Loop(vec![Stmt::Block(body)]));
+                }
+                let th = fx.b.close();
+                fx.b.push(Stmt::If(same, th, vec![]));
+                fx.b.drop(x)?;
+                fx.b.drop(y)?;
+                let _ = k1;
+                Ok(fx.b.let_(Atom::V(r)))
+            }
+            (T::Map(..), _) | (_, T::Map(..)) => fals(self, fx, x, y),
             _ => fals(self, fx, x, y),
         }
     }
@@ -1038,13 +1147,24 @@ impl<'m> Lw<'m> {
                         Ok(())
                     })?;
                     Ok(fx.b.let_(Atom::V(r)))
+                } else if self.t.fields(n).is_none() {
+                    // a record the module does not declare (Missing) keeps its named form
+                    fx.b.drop(v)?;
+                    Ok(Atom::bytes(b"{}"))
                 } else {
                     let fts: Vec<RType> = self.t.fields(n).unwrap_or_default().iter().map(|(_, ft)| self.t.of_ty(ft)).collect();
                     let cs = fx.b.prim("tup.open", vec![t.clone()], vec![v])?;
                     self.cjp_list(fx, cs, &fts)
                 }
             }
-            RType::Map(..) => no("a map in the log"),
+            RType::Map(k, x) => {
+                // interp `form_value_pos`: [[k, v], …] in the canonical order of
+                // the keys' Form values, which for the keys a map holds here is
+                // the order it is kept in
+                self.cmp_fn(k)?;
+                let pair = RType::Tuple(vec![(**k).clone(), (**x).clone()]);
+                self.cjp_body(fx, v, &RType::List(Box::new(pair)), t)
+            }
             RType::F64 => {
                 let j = rtf::json(&mut self.f)?;
                 Ok(self.call_rt(fx, j, vec![v]))
@@ -1056,6 +1176,692 @@ impl<'m> Lw<'m> {
             }
             o => no(format!("{} in the log", o.show())),
         }
+    }
+}
+
+impl<'m> Lw<'m> {
+    // ---- the canonical order of 6.1, and maps kept in it
+
+    /// Whether values of this type have a canonical order the lowering
+    /// writes: scalars, tuples, lists, options of values that are not
+    /// null, structs and kinds of those.
+    fn cmp_supported(&self, rt: &RType, d: usize) -> R<()> {
+        if d > 16 {
+            return no("a recursive type in the canonical order");
+        }
+        match rt {
+            RType::Int(_) | RType::F64 | RType::F32 | RType::Bool | RType::Text | RType::Unit | RType::Never => Ok(()),
+            RType::Tuple(ts) => ts.iter().try_for_each(|t| self.cmp_supported(t, d + 1)),
+            RType::List(e) | RType::Set(e) => self.cmp_supported(e, d + 1),
+            RType::Opt(x) => match &**x {
+                RType::Unit | RType::Never | RType::Opt(_) => no("an option of a null value in the canonical order"),
+                x => self.cmp_supported(x, d + 1),
+            },
+            RType::Named(n) => {
+                if let Some(vs) = self.t.kinds.get(n) {
+                    for (_, fs) in vs {
+                        for (_, ft) in fs {
+                            self.cmp_supported(&self.t.of_ty(ft), d + 1)?;
+                        }
+                    }
+                    Ok(())
+                } else if let Some(fs) = self.t.fields(n) {
+                    fs.iter().try_for_each(|(_, ft)| self.cmp_supported(&self.t.of_ty(ft), d + 1))
+                } else {
+                    no(format!("the canonical order of {n}"))
+                }
+            }
+            o => no(format!("the canonical order of {}", o.show())),
+        }
+    }
+
+    /// The canonical order of 6.1 (interp `key_form` and `cmp_canon`):
+    /// `cmp:τ(a, b) -> int[-1, 1]`, consuming both. Floats are ordered by
+    /// IEEE 754 totalOrder, so -0.0 comes before 0.0; a record compares its
+    /// type's name first, then its fields in the order of their names.
+    fn cmp_fn(&mut self, rt: &RType) -> R<usize> {
+        self.cmp_supported(rt, 0)?;
+        let t = self.ct(rt)?;
+        let rt2 = rt.clone();
+        self.generated("cmp", rt, vec![t.clone(), t.clone()], Ty::Int(-1, 1), move |lw, fx| {
+            let (a, b) = (fx.b.arg(0), fx.b.arg(1));
+            let r = lw.cmp_body(fx, a, b, &rt2, &t)?;
+            fx.b.ret(r);
+            Ok(())
+        })
+    }
+
+    /// The order of `<` and of `sort` (interp `cmp`): integers, floats (where
+    /// the two zeros are equal), text, bools, and tuples and lists of those
+    /// compared item by item: `ord:τ(a, b) -> int[-1, 1]`, consuming both.
+    fn ord_fn(&mut self, rt: &RType) -> R<usize> {
+        fn ok(rt: &RType) -> bool {
+            match rt {
+                RType::Int(_) | RType::F64 | RType::F32 | RType::Text | RType::Bool | RType::Never => true,
+                RType::Tuple(ts) => ts.iter().all(ok),
+                RType::List(e) => ok(e),
+                _ => false,
+            }
+        }
+        if !ok(rt) {
+            return no(format!("the order of {}", rt.show()));
+        }
+        let t = self.ct(rt)?;
+        let rt2 = rt.clone();
+        self.generated("ord", rt, vec![t.clone(), t.clone()], Ty::Int(-1, 1), move |lw, fx| {
+            let (a, b) = (fx.b.arg(0), fx.b.arg(1));
+            let r = match &rt2 {
+                RType::F64 | RType::F32 => {
+                    let (a, b) = if rt2 == RType::F32 {
+                        (fx.b.p("f32.to_f64", vec![], vec![a])?, fx.b.p("f32.to_f64", vec![], vec![b])?)
+                    } else {
+                        (a, b)
+                    };
+                    let lt = fx.b.p("f64.lt", vec![], vec![a.clone(), b.clone()])?;
+                    let gt = fx.b.p("f64.lt", vec![], vec![b, a])?;
+                    lw.order(fx, lt, gt)?
+                }
+                RType::Tuple(ts) => {
+                    let xs = fx.b.prim("tup.open", vec![t.clone()], vec![a])?;
+                    let ys = fx.b.prim("tup.open", vec![t.clone()], vec![b])?;
+                    let r = fx.b.var(Ty::Int(-1, 1), lit(0));
+                    for ((x, y), ct) in xs.into_iter().zip(ys).zip(ts.clone()) {
+                        let f = lw.ord_fn(&ct)?;
+                        let c = lw.call_rt(fx, f, vec![x, y]);
+                        let rv = fx.b.let_(Atom::V(r));
+                        let z = fx.b.int_cmp("int.eq", rv, lit(0))?;
+                        fx.b.open();
+                        fx.b.set(r, c);
+                        let th = fx.b.close();
+                        fx.b.push(Stmt::If(z, th, vec![]));
+                    }
+                    fx.b.let_(Atom::V(r))
+                }
+                RType::List(_) => {
+                    // item by item, then the shorter first: as the canonical
+                    // order of a list, with this order on the items
+                    let RType::List(e) = &rt2 else { unreachable!() };
+                    let e = (**e).clone();
+                    let Ty::List(ec) = &t else { unreachable!() };
+                    let ec = (**ec).clone();
+                    let n1 = fx.b.p("list.len", vec![ec.clone()], vec![a.clone()])?;
+                    let n2 = fx.b.p("list.len", vec![ec.clone()], vec![b.clone()])?;
+                    let n = fx.b.p("int.min", vec![Ty::Int(0, INT_MAX)], vec![n1.clone(), n2.clone()])?;
+                    let r = fx.b.var(Ty::Int(-1, 1), lit(0));
+                    let i = fx.b.var(Ty::u64(), lit(0));
+                    let f = lw.ord_fn(&e)?;
+                    fx.b.open();
+                    let iv = fx.b.let_(Atom::V(i));
+                    let more = fx.b.int_cmp("int.lt", iv.clone(), n)?;
+                    fx.b.open();
+                    let th = fx.b.close();
+                    fx.b.open();
+                    fx.b.brk(1);
+                    let el = fx.b.close();
+                    fx.b.push(Stmt::If(more, th, el));
+                    let x = fx.b.list_at(a.clone(), iv.clone())?;
+                    let y = fx.b.list_at(b.clone(), iv.clone())?;
+                    let c = lw.call_rt(fx, f, vec![x, y]);
+                    let z = fx.b.int_cmp("int.eq", c.clone(), lit(0))?;
+                    fx.b.open();
+                    let th = fx.b.close();
+                    fx.b.open();
+                    fx.b.set(r, c);
+                    fx.b.brk(1);
+                    let el = fx.b.close();
+                    fx.b.push(Stmt::If(z, th, el));
+                    let i1 = fx.b.add_in(iv, lit(1), Ty::u64())?;
+                    fx.b.set(i, i1);
+                    let body = fx.b.close();
+                    fx.b.push(Stmt::Loop(vec![Stmt::Block(body)]));
+                    fx.b.drop(a)?;
+                    fx.b.drop(b)?;
+                    let rv = fx.b.let_(Atom::V(r));
+                    let z = fx.b.int_cmp("int.eq", rv, lit(0))?;
+                    fx.b.open();
+                    let lt = fx.b.int_cmp("int.lt", n1.clone(), n2.clone())?;
+                    let gt = fx.b.int_cmp("int.lt", n2, n1)?;
+                    let o = lw.order(fx, lt, gt)?;
+                    fx.b.set(r, o);
+                    let th = fx.b.close();
+                    fx.b.push(Stmt::If(z, th, vec![]));
+                    fx.b.let_(Atom::V(r))
+                }
+                _ => lw.cmp_body(fx, a, b, &rt2, &t)?,
+            };
+            fx.b.ret(r);
+            Ok(())
+        })
+    }
+
+    /// `sort:List[τ](xs)` (interp `sort`, Rust's stable sort): an insertion
+    /// sort by the order of `ord`, which moves an item only past greater
+    /// ones, so equal items keep their order.
+    fn sort_fn(&mut self, et: &RType) -> R<usize> {
+        let f = self.ord_fn(et)?;
+        let e = self.ct(et)?;
+        let lt = Ty::list(e.clone());
+        self.generated("sort", et, vec![lt.clone()], lt.clone(), move |lw, fx| {
+            let a = fx.b.var(lt.clone(), fx.b.arg(0));
+            let n = fx.b.p("list.len", vec![e.clone()], vec![Atom::V(a)])?;
+            let i = fx.b.var(Ty::u64(), lit(1));
+            fx.b.open();
+            {
+                let iv = fx.b.let_(Atom::V(i));
+                let more = fx.b.int_cmp("int.lt", iv.clone(), n.clone())?;
+                fx.b.open();
+                let th = fx.b.close();
+                fx.b.open();
+                fx.b.brk(1);
+                let el = fx.b.close();
+                fx.b.push(Stmt::If(more, th, el));
+                let x = fx.b.list_at(Atom::V(a), iv.clone())?;
+                let j = fx.b.var(Ty::u64(), iv.clone());
+                fx.b.open();
+                {
+                    let jv = fx.b.let_(Atom::V(j));
+                    let z = fx.b.int_cmp("int.eq", jv.clone(), lit(0))?;
+                    fx.b.open();
+                    fx.b.brk(1);
+                    let th = fx.b.close();
+                    fx.b.push(Stmt::If(z, th, vec![]));
+                    let j1 = fx.b.sub_in(jv.clone(), lit(1), Ty::u64())?;
+                    let y = fx.b.list_at(Atom::V(a), j1.clone())?;
+                    let xc = fx.b.copy(x.clone())?;
+                    let c = lw.call_rt(fx, f, vec![y, xc]);
+                    let gt = fx.b.int_cmp("int.lt", lit(0), c)?;
+                    fx.b.open();
+                    let th = fx.b.close();
+                    fx.b.open();
+                    fx.b.brk(1);
+                    let el = fx.b.close();
+                    fx.b.push(Stmt::If(gt, th, el));
+                    let y2 = fx.b.list_at(Atom::V(a), j1.clone())?;
+                    let n2 = fx.b.p("list.len", vec![e.clone()], vec![Atom::V(a)])?;
+                    let ok = fx.b.int_cmp("int.lt", jv.clone(), n2)?;
+                    fx.b.guard_halt_unless(ok, "internal: sort index")?;
+                    let av = fx.b.let_(Atom::V(a));
+                    let av = fx.b.p("list.set", vec![e.clone()], vec![av, jv, y2])?;
+                    fx.b.set(a, av);
+                    fx.b.set(j, j1);
+                }
+                let body = fx.b.close();
+                fx.b.push(Stmt::Loop(vec![Stmt::Block(body)]));
+                let jv = fx.b.let_(Atom::V(j));
+                let n2 = fx.b.p("list.len", vec![e.clone()], vec![Atom::V(a)])?;
+                let ok = fx.b.int_cmp("int.lt", jv.clone(), n2)?;
+                fx.b.guard_halt_unless(ok, "internal: sort index")?;
+                let av = fx.b.let_(Atom::V(a));
+                let av = fx.b.p("list.set", vec![e.clone()], vec![av, jv, x])?;
+                fx.b.set(a, av);
+                let i1 = fx.b.add_in(iv, lit(1), Ty::u64())?;
+                fx.b.set(i, i1);
+            }
+            let body = fx.b.close();
+            fx.b.push(Stmt::Loop(vec![Stmt::Block(body)]));
+            let av = fx.b.let_(Atom::V(a));
+            fx.b.ret(av);
+            Ok(())
+        })
+    }
+
+    fn cmp(&mut self, fx: &mut Fx, a: Atom, b: Atom, rt: &RType) -> R<Atom> {
+        let f = self.cmp_fn(rt)?;
+        Ok(self.call_rt(fx, f, vec![a, b]))
+    }
+
+    /// -1 when `lt`, 1 when `gt`, else 0.
+    fn order(&mut self, fx: &mut Fx, lt: Atom, gt: Atom) -> R<Atom> {
+        let r = fx.b.var(Ty::Int(-1, 1), lit(0));
+        fx.b.open();
+        fx.b.set(r, lit(-1));
+        let th = fx.b.close();
+        fx.b.open();
+        fx.b.open();
+        fx.b.set(r, lit(1));
+        let th2 = fx.b.close();
+        fx.b.push(Stmt::If(gt, th2, vec![]));
+        let el = fx.b.close();
+        fx.b.push(Stmt::If(lt, th, el));
+        Ok(fx.b.let_(Atom::V(r)))
+    }
+
+    /// The first of the comparisons that is not 0 (each consumes its pair).
+    fn first_nonzero(&mut self, fx: &mut Fx, pairs: Vec<(Atom, Atom, RType)>) -> R<Atom> {
+        let r = fx.b.var(Ty::Int(-1, 1), lit(0));
+        for (x, y, t) in pairs {
+            let c = self.cmp(fx, x, y, &t)?;
+            let rv = fx.b.let_(Atom::V(r));
+            let z = fx.b.int_cmp("int.eq", rv, lit(0))?;
+            fx.b.open();
+            fx.b.set(r, c);
+            let th = fx.b.close();
+            fx.b.push(Stmt::If(z, th, vec![]));
+        }
+        Ok(fx.b.let_(Atom::V(r)))
+    }
+
+    /// Fields compared in the order of their names.
+    fn fields_by_name(&mut self, fx: &mut Fx, a: Atom, b: Atom, tt: &Ty, fs: &[(String, ast::Ty)]) -> R<Atom> {
+        let xs = fx.b.prim("tup.open", vec![tt.clone()], vec![a])?;
+        let ys = fx.b.prim("tup.open", vec![tt.clone()], vec![b])?;
+        let mut order: Vec<usize> = (0..fs.len()).collect();
+        order.sort_by(|p, q| fs[*p].0.cmp(&fs[*q].0));
+        let pairs = order.into_iter().map(|k| (xs[k].clone(), ys[k].clone(), self.t.of_ty(&fs[k].1))).collect();
+        self.first_nonzero(fx, pairs)
+    }
+
+    fn cmp_body(&mut self, fx: &mut Fx, a: Atom, b: Atom, rt: &RType, t: &Ty) -> R<Atom> {
+        match rt {
+            RType::Int(_) => {
+                let lt = fx.b.int_cmp("int.lt", a.clone(), b.clone())?;
+                let gt = fx.b.int_cmp("int.lt", b, a)?;
+                self.order(fx, lt, gt)
+            }
+            RType::F64 | RType::F32 => {
+                let (a, b) = if *rt == RType::F32 {
+                    (fx.b.p("f32.to_f64", vec![], vec![a])?, fx.b.p("f32.to_f64", vec![], vec![b])?)
+                } else {
+                    (a, b)
+                };
+                let lt = fx.b.p("f64.lt", vec![], vec![a.clone(), b.clone()])?;
+                let gt = fx.b.p("f64.lt", vec![], vec![b.clone(), a.clone()])?;
+                // equal values differ only in the sign of a zero
+                let sa = fx.b.p("f64.sign", vec![], vec![a])?;
+                let sb = fx.b.p("f64.sign", vec![], vec![b])?;
+                let nsb = fx.b.not(sb.clone())?;
+                let nsa = fx.b.not(sa.clone())?;
+                let zlt = fx.b.p("bool.and", vec![], vec![sa, nsb])?;
+                let zgt = fx.b.p("bool.and", vec![], vec![nsa, sb])?;
+                let ngt = fx.b.not(gt.clone())?;
+                let lt2 = fx.b.p("bool.and", vec![], vec![ngt, zlt])?;
+                let lt = fx.b.p("bool.or", vec![], vec![lt, lt2])?;
+                let nlt = fx.b.not(lt.clone())?;
+                let gt2 = fx.b.p("bool.and", vec![], vec![nlt, zgt])?;
+                let gt = fx.b.p("bool.or", vec![], vec![gt, gt2])?;
+                self.order(fx, lt, gt)
+            }
+            RType::Bool => {
+                let na = fx.b.not(a.clone())?;
+                let nb = fx.b.not(b.clone())?;
+                let lt = fx.b.p("bool.and", vec![], vec![na, b])?;
+                let gt = fx.b.p("bool.and", vec![], vec![a, nb])?;
+                self.order(fx, lt, gt)
+            }
+            RType::Text => {
+                let lt = fx.b.p("bytes.lt", vec![], vec![a.clone(), b.clone()])?;
+                let gt = fx.b.p("bytes.lt", vec![], vec![b, a])?;
+                self.order(fx, lt, gt)
+            }
+            RType::Unit | RType::Never => {
+                fx.b.drop(a)?;
+                fx.b.drop(b)?;
+                Ok(lit(0))
+            }
+            RType::Tuple(ts) => {
+                let xs = fx.b.prim("tup.open", vec![t.clone()], vec![a])?;
+                let ys = fx.b.prim("tup.open", vec![t.clone()], vec![b])?;
+                let pairs = xs.into_iter().zip(ys).zip(ts.clone()).map(|((x, y), t)| (x, y, t)).collect();
+                self.first_nonzero(fx, pairs)
+            }
+            RType::List(e) | RType::Set(e) => {
+                let e = (**e).clone();
+                let Ty::List(ec) = t else { unreachable!() };
+                let ec = (**ec).clone();
+                let n1 = fx.b.p("list.len", vec![ec.clone()], vec![a.clone()])?;
+                let n2 = fx.b.p("list.len", vec![ec.clone()], vec![b.clone()])?;
+                let n = fx.b.p("int.min", vec![Ty::Int(0, INT_MAX)], vec![n1.clone(), n2.clone()])?;
+                let r = fx.b.var(Ty::Int(-1, 1), lit(0));
+                let i = fx.b.var(Ty::u64(), lit(0));
+                fx.b.open();
+                {
+                    let iv = fx.b.let_(Atom::V(i));
+                    let more = fx.b.int_cmp("int.lt", iv.clone(), n)?;
+                    fx.b.open();
+                    let th = fx.b.close();
+                    fx.b.open();
+                    fx.b.brk(1);
+                    let el = fx.b.close();
+                    fx.b.push(Stmt::If(more, th, el));
+                    let x = fx.b.list_at(a.clone(), iv.clone())?;
+                    let y = fx.b.list_at(b.clone(), iv.clone())?;
+                    let c = self.cmp(fx, x, y, &e)?;
+                    let z = fx.b.int_cmp("int.eq", c.clone(), lit(0))?;
+                    fx.b.open();
+                    let th = fx.b.close();
+                    fx.b.open();
+                    fx.b.set(r, c);
+                    fx.b.brk(1);
+                    let el = fx.b.close();
+                    fx.b.push(Stmt::If(z, th, el));
+                    let i1 = fx.b.add_in(iv, lit(1), Ty::u64())?;
+                    fx.b.set(i, i1);
+                }
+                let body = fx.b.close();
+                fx.b.push(Stmt::Loop(vec![Stmt::Block(body)]));
+                fx.b.drop(a)?;
+                fx.b.drop(b)?;
+                let rv = fx.b.let_(Atom::V(r));
+                let z = fx.b.int_cmp("int.eq", rv, lit(0))?;
+                fx.b.open();
+                let lt = fx.b.int_cmp("int.lt", n1.clone(), n2.clone())?;
+                let gt = fx.b.int_cmp("int.lt", n2, n1)?;
+                let o = self.order(fx, lt, gt)?;
+                fx.b.set(r, o);
+                let th = fx.b.close();
+                fx.b.push(Stmt::If(z, th, vec![]));
+                Ok(fx.b.let_(Atom::V(r)))
+            }
+            RType::Opt(x) => {
+                // none is null, which comes before every value
+                let x = (**x).clone();
+                let ta = fx.b.p("sum.tag", vec![t.clone()], vec![a.clone()])?;
+                let tb = fx.b.p("sum.tag", vec![t.clone()], vec![b.clone()])?;
+                let sa = fx.b.int_cmp("int.eq", ta.clone(), lit(1))?;
+                let sb = fx.b.int_cmp("int.eq", tb.clone(), lit(1))?;
+                let r = fx.b.var(Ty::Int(-1, 1), lit(0));
+                let both = fx.b.p("bool.and", vec![], vec![sa.clone(), sb.clone()])?;
+                fx.b.open();
+                {
+                    let one_a = fx.b.int_cmp("int.eq", ta, lit(1))?;
+                    fx.b.guard_halt_unless(one_a, "internal: tag")?;
+                    let p = fx.b.p("sum.get", vec![t.clone()], vec![a.clone(), lit(1)])?;
+                    let one_b = fx.b.int_cmp("int.eq", tb, lit(1))?;
+                    fx.b.guard_halt_unless(one_b, "internal: tag")?;
+                    let q = fx.b.p("sum.get", vec![t.clone()], vec![b.clone(), lit(1)])?;
+                    let c = self.cmp(fx, p, q, &x)?;
+                    fx.b.set(r, c);
+                }
+                let th = fx.b.close();
+                fx.b.open();
+                {
+                    let na = fx.b.not(sa.clone())?;
+                    let nb = fx.b.not(sb.clone())?;
+                    let lt = fx.b.p("bool.and", vec![], vec![na, sb])?;
+                    let gt = fx.b.p("bool.and", vec![], vec![sa, nb])?;
+                    let o = self.order(fx, lt, gt)?;
+                    fx.b.set(r, o);
+                    fx.b.drop(a)?;
+                    fx.b.drop(b)?;
+                }
+                let el = fx.b.close();
+                fx.b.push(Stmt::If(both, th, el));
+                Ok(fx.b.let_(Atom::V(r)))
+            }
+            RType::Named(n) => {
+                if let Some(vs) = self.t.kinds.get(n).cloned() {
+                    // the variant's name first, then its fields by name
+                    let mut names: Vec<(String, usize)> = vs.iter().enumerate().map(|(k, (v, _))| (v.clone(), k)).collect();
+                    names.sort();
+                    let rank: Vec<usize> = (0..vs.len()).map(|k| names.iter().position(|(_, j)| *j == k).unwrap()).collect();
+                    let Ty::Sum(cs) = t.clone() else { unreachable!() };
+                    let ta = fx.b.p("sum.tag", vec![t.clone()], vec![a.clone()])?;
+                    let tb = fx.b.p("sum.tag", vec![t.clone()], vec![b.clone()])?;
+                    let ra = fx.b.var(Ty::Int(0, vs.len() as i128), lit(0));
+                    let rb = fx.b.var(Ty::Int(0, vs.len() as i128), lit(0));
+                    for (k, rk) in rank.iter().enumerate() {
+                        for (tg, v) in [(&ta, ra), (&tb, rb)] {
+                            let is = fx.b.int_cmp("int.eq", tg.clone(), lit(k as i128))?;
+                            fx.b.open();
+                            fx.b.set(v, lit(*rk as i128));
+                            let th = fx.b.close();
+                            fx.b.push(Stmt::If(is, th, vec![]));
+                        }
+                    }
+                    let r = fx.b.var(Ty::Int(-1, 1), lit(0));
+                    let same = fx.b.int_cmp("int.eq", ta.clone(), tb.clone())?;
+                    fx.b.open();
+                    {
+                        let tb2 = tb.clone();
+                        self.switch(fx, &a, t, vs.len(), |lw, fx, k| {
+                            let p = fx.b.p("sum.get", vec![t.clone()], vec![a.clone(), lit(k as i128)])?;
+                            let isk = fx.b.int_cmp("int.eq", tb2.clone(), lit(k as i128))?;
+                            fx.b.guard_halt_unless(isk, "internal: tags")?;
+                            let q = fx.b.p("sum.get", vec![t.clone()], vec![b.clone(), lit(k as i128)])?;
+                            let c = lw.fields_by_name(fx, p, q, &cs[k], &vs[k].1)?;
+                            fx.b.set(r, c);
+                            Ok(())
+                        })?;
+                    }
+                    let th = fx.b.close();
+                    fx.b.open();
+                    {
+                        let av = fx.b.let_(Atom::V(ra));
+                        let bv = fx.b.let_(Atom::V(rb));
+                        let lt = fx.b.int_cmp("int.lt", av.clone(), bv.clone())?;
+                        let gt = fx.b.int_cmp("int.lt", bv, av)?;
+                        let o = self.order(fx, lt, gt)?;
+                        fx.b.set(r, o);
+                        fx.b.drop(a)?;
+                        fx.b.drop(b)?;
+                    }
+                    let el = fx.b.close();
+                    fx.b.push(Stmt::If(same, th, el));
+                    Ok(fx.b.let_(Atom::V(r)))
+                } else {
+                    let fs = self.t.fields(n).unwrap_or_default();
+                    self.fields_by_name(fx, a, b, t, &fs)
+                }
+            }
+            o => no(format!("the canonical order of {}", o.show())),
+        }
+    }
+
+    /// `mfind:Map(m, k)`: the index of key k in the map m, or -1; consumes both.
+    fn map_find_fn(&mut self, mt: &RType) -> R<usize> {
+        let RType::Map(k, _) = mt else { return Err("internal: map_find of a non-map".into()) };
+        let k = (**k).clone();
+        let cmpf = self.cmp_fn(&k)?;
+        let m_t = self.ct(mt)?;
+        let kt = self.ct(&k)?;
+        let Ty::List(pt) = m_t.clone() else { unreachable!() };
+        let pt = (*pt).clone();
+        self.generated("mfind", mt, vec![m_t, kt], Ty::Int(-1, INT_MAX), move |lw, fx| {
+            let (m, key) = (fx.b.arg(0), fx.b.arg(1));
+            let n = fx.b.p("list.len", vec![pt.clone()], vec![m.clone()])?;
+            let r = fx.b.var(Ty::Int(-1, INT_MAX), lit(-1));
+            let i = fx.b.var(Ty::u64(), lit(0));
+            fx.b.open();
+            {
+                let iv = fx.b.let_(Atom::V(i));
+                let more = fx.b.int_cmp("int.lt", iv.clone(), n)?;
+                fx.b.open();
+                let th = fx.b.close();
+                fx.b.open();
+                fx.b.brk(1);
+                let el = fx.b.close();
+                fx.b.push(Stmt::If(more, th, el));
+                let e = fx.b.list_at(m.clone(), iv.clone())?;
+                let ps = fx.b.prim("tup.open", vec![pt.clone()], vec![e])?;
+                fx.b.drop(ps[1].clone())?;
+                let kc = fx.b.copy(key.clone())?;
+                let c = lw.call_rt(fx, cmpf, vec![ps[0].clone(), kc]);
+                let z = fx.b.int_cmp("int.eq", c.clone(), lit(0))?;
+                fx.b.open();
+                let iv2 = fx.b.cast_in(iv.clone(), Ty::Int(-1, INT_MAX))?;
+                fx.b.set(r, iv2);
+                fx.b.brk(1);
+                let th = fx.b.close();
+                fx.b.push(Stmt::If(z, th, vec![]));
+                // the keys are in order: past k, k is not there
+                let past = fx.b.int_cmp("int.lt", lit(0), c)?;
+                fx.b.open();
+                fx.b.brk(1);
+                let th = fx.b.close();
+                fx.b.push(Stmt::If(past, th, vec![]));
+                let i1 = fx.b.add_in(iv, lit(1), Ty::u64())?;
+                fx.b.set(i, i1);
+            }
+            let body = fx.b.close();
+            fx.b.push(Stmt::Loop(vec![Stmt::Block(body)]));
+            fx.b.drop(m)?;
+            fx.b.drop(key)?;
+            let rv = fx.b.let_(Atom::V(r));
+            fx.b.ret(rv);
+            Ok(())
+        })
+    }
+
+    /// `mset:Map(m, k, v)` (interp `map_set`): a key already there keeps its
+    /// place and takes the value; a new key goes where the order puts it.
+    fn map_set_fn(&mut self, mt: &RType) -> R<usize> {
+        let RType::Map(k, x) = mt else { return Err("internal: map_set of a non-map".into()) };
+        let (k, x) = ((**k).clone(), (**x).clone());
+        let cmpf = self.cmp_fn(&k)?;
+        let m_t = self.ct(mt)?;
+        let kt = self.ct(&k)?;
+        let xt = self.ct(&x)?;
+        let Ty::List(pt) = m_t.clone() else { unreachable!() };
+        let pt = (*pt).clone();
+        self.generated("mset", mt, vec![m_t.clone(), kt, xt], m_t.clone(), move |lw, fx| {
+            let (m, key, val) = (fx.b.arg(0), fx.b.arg(1), fx.b.arg(2));
+            let n = fx.b.p("list.len", vec![pt.clone()], vec![m.clone()])?;
+            // the first index whose key is not below k, and whether it is k
+            let at = fx.b.var(Ty::Int(0, INT_MAX), n.clone());
+            let found = fx.b.var(Ty::Bool, Atom::bool(false));
+            let i = fx.b.var(Ty::u64(), lit(0));
+            fx.b.open();
+            {
+                let iv = fx.b.let_(Atom::V(i));
+                let more = fx.b.int_cmp("int.lt", iv.clone(), n.clone())?;
+                fx.b.open();
+                let th = fx.b.close();
+                fx.b.open();
+                fx.b.brk(1);
+                let el = fx.b.close();
+                fx.b.push(Stmt::If(more, th, el));
+                let e = fx.b.list_at(m.clone(), iv.clone())?;
+                let ps = fx.b.prim("tup.open", vec![pt.clone()], vec![e])?;
+                fx.b.drop(ps[1].clone())?;
+                let kc = fx.b.copy(key.clone())?;
+                let c = lw.call_rt(fx, cmpf, vec![ps[0].clone(), kc]);
+                let below = fx.b.int_cmp("int.lt", c.clone(), lit(0))?;
+                fx.b.open();
+                let th = fx.b.close();
+                fx.b.open();
+                let iv2 = fx.b.cast_in(iv.clone(), Ty::Int(0, INT_MAX))?;
+                fx.b.set(at, iv2);
+                let eq = fx.b.int_cmp("int.eq", c, lit(0))?;
+                fx.b.set(found, eq);
+                fx.b.brk(1);
+                let el = fx.b.close();
+                fx.b.push(Stmt::If(below, th, el));
+                let i1 = fx.b.add_in(iv, lit(1), Ty::u64())?;
+                fx.b.set(i, i1);
+            }
+            let body = fx.b.close();
+            fx.b.push(Stmt::Loop(vec![Stmt::Block(body)]));
+            let atv = fx.b.let_(Atom::V(at));
+            let fv = fx.b.let_(Atom::V(found));
+            fx.b.open();
+            {
+                // replace the value, keeping the key that is there
+                let e = fx.b.list_at(m.clone(), atv.clone())?;
+                let ps = fx.b.prim("tup.open", vec![pt.clone()], vec![e])?;
+                fx.b.drop(ps[1].clone())?;
+                let pair = fx.b.p("tup.mk", vec![pt.clone()], vec![ps[0].clone(), val.clone()])?;
+                fx.b.drop(key.clone())?;
+                let n2 = fx.b.p("list.len", vec![pt.clone()], vec![m.clone()])?;
+                let ok = fx.b.int_cmp("int.lt", atv.clone(), n2)?;
+                fx.b.guard_halt_unless(ok, "internal: map index")?;
+                let m2 = fx.b.p("list.set", vec![pt.clone()], vec![m.clone(), atv.clone(), pair])?;
+                fx.b.ret(m2);
+            }
+            let th = fx.b.close();
+            fx.b.push(Stmt::If(fv, th, vec![]));
+            // insert: the items before, the new pair, the items after
+            let o0 = fx.b.p("list.new", vec![pt.clone()], vec![])?;
+            let out = fx.b.var(m_t.clone(), o0);
+            let j = fx.b.var(Ty::u64(), lit(0));
+            fx.b.open();
+            {
+                let jv = fx.b.let_(Atom::V(j));
+                let more = fx.b.int_cmp("int.lt", jv.clone(), n.clone())?;
+                fx.b.open();
+                let th = fx.b.close();
+                fx.b.open();
+                fx.b.brk(1);
+                let el = fx.b.close();
+                fx.b.push(Stmt::If(more, th, el));
+                let here = fx.b.int_cmp("int.eq", jv.clone(), atv.clone())?;
+                fx.b.open();
+                let pair = fx.b.p("tup.mk", vec![pt.clone()], vec![key.clone(), val.clone()])?;
+                let o = fx.b.let_(Atom::V(out));
+                let o = fx.b.p("list.push", vec![pt.clone()], vec![o, pair])?;
+                fx.b.set(out, o);
+                let th = fx.b.close();
+                fx.b.push(Stmt::If(here, th, vec![]));
+                let e = fx.b.list_at(m.clone(), jv.clone())?;
+                let o = fx.b.let_(Atom::V(out));
+                let o = fx.b.p("list.push", vec![pt.clone()], vec![o, e])?;
+                fx.b.set(out, o);
+                let j1 = fx.b.add_in(jv, lit(1), Ty::u64())?;
+                fx.b.set(j, j1);
+            }
+            let body = fx.b.close();
+            fx.b.push(Stmt::Loop(vec![Stmt::Block(body)]));
+            let last = fx.b.int_cmp("int.eq", atv, n)?;
+            fx.b.open();
+            let pair = fx.b.p("tup.mk", vec![pt.clone()], vec![key.clone(), val.clone()])?;
+            let o = fx.b.let_(Atom::V(out));
+            let o = fx.b.p("list.push", vec![pt.clone()], vec![o, pair])?;
+            fx.b.set(out, o);
+            let th = fx.b.close();
+            fx.b.open();
+            fx.b.drop(key)?;
+            fx.b.drop(val)?;
+            let el = fx.b.close();
+            fx.b.push(Stmt::If(last, th, el));
+            fx.b.drop(m)?;
+            let o = fx.b.let_(Atom::V(out));
+            fx.b.ret(o);
+            Ok(())
+        })
+    }
+
+    /// `mdel:Map(m, i)`: the map without its item at index i, and that item.
+    fn map_del_fn(&mut self, mt: &RType) -> R<usize> {
+        let m_t = self.ct(mt)?;
+        let Ty::List(pt) = m_t.clone() else { return Err("internal: map_del of a non-map".into()) };
+        let pt = (*pt).clone();
+        let rt_ = Ty::Tup(vec![m_t.clone(), pt.clone()]);
+        self.generated("mdel", mt, vec![m_t.clone(), Ty::Int(0, INT_MAX)], rt_.clone(), move |_, fx| {
+            let (m, at) = (fx.b.arg(0), fx.b.arg(1));
+            let n = fx.b.p("list.len", vec![pt.clone()], vec![m.clone()])?;
+            let x = fx.b.list_at(m.clone(), at.clone())?;
+            let o0 = fx.b.p("list.new", vec![pt.clone()], vec![])?;
+            let out = fx.b.var(m_t.clone(), o0);
+            let j = fx.b.var(Ty::u64(), lit(0));
+            fx.b.open();
+            {
+                let jv = fx.b.let_(Atom::V(j));
+                let more = fx.b.int_cmp("int.lt", jv.clone(), n)?;
+                fx.b.open();
+                let th = fx.b.close();
+                fx.b.open();
+                fx.b.brk(1);
+                let el = fx.b.close();
+                fx.b.push(Stmt::If(more, th, el));
+                let j1 = fx.b.add_in(jv.clone(), lit(1), Ty::u64())?;
+                fx.b.set(j, j1);
+                let here = fx.b.int_cmp("int.eq", jv.clone(), at.clone())?;
+                fx.b.open();
+                fx.b.brk(0);
+                let th = fx.b.close();
+                fx.b.push(Stmt::If(here, th, vec![]));
+                let e = fx.b.list_at(m.clone(), jv)?;
+                let o = fx.b.let_(Atom::V(out));
+                let o = fx.b.p("list.push", vec![pt.clone()], vec![o, e])?;
+                fx.b.set(out, o);
+            }
+            let body = fx.b.close();
+            fx.b.push(Stmt::Loop(vec![Stmt::Block(body)]));
+            fx.b.drop(m)?;
+            let o = fx.b.let_(Atom::V(out));
+            let r = fx.b.p("tup.mk", vec![rt_.clone()], vec![o, x])?;
+            fx.b.ret(r);
+            Ok(())
+        })
     }
 }
 
@@ -1134,6 +1940,65 @@ impl<'m> Lw<'m> {
                     l = fx.b.p("list.push", vec![ect.clone()], vec![l, a])?;
                 }
                 Ok(Val { a: l, t: rt })
+            }
+            Expr::ListComp(body, p, it, cond, _) => self.list_comp(fx, body, p, it, cond.as_deref(), rt),
+            Expr::ListRepeat(x, n, _) => {
+                // interp: the value, the count (0 to 10,000,000), then N9's limit
+                let RType::List(et) = rt.clone() else { return no("a repeated list of unknown type") };
+                let v = self.expr(fx, x)?;
+                let k = self.expr(fx, n)?;
+                let RType::Int(_) = &k.t else { return no("a repeat count that is not an integer") };
+                let lo = fx.b.int_cmp("int.lt", k.a.clone(), lit(0))?;
+                let hi = fx.b.int_cmp("int.lt", lit(10_000_000), k.a.clone())?;
+                let bad = fx.b.p("bool.or", vec![], vec![lo, hi])?;
+                self.guard(fx, bad, |_, _| Ok(Atom::bytes(b"bad repeat count")))?;
+                let big = fx.b.int_cmp("int.lt", lit(crate::interp::SIZE_LIMIT as i128), k.a.clone())?;
+                self.guard(fx, big, |_, _| Ok(Atom::bytes(b"size limit")))?;
+                let ect = self.ct(&et)?;
+                let va = self.conv(fx, v.a, &v.t, &et, false)?;
+                let o0 = fx.b.p("list.new", vec![ect.clone()], vec![])?;
+                let out = fx.b.var(Ty::list(ect.clone()), o0);
+                let i = fx.b.var(Ty::u64(), lit(0));
+                fx.b.open();
+                {
+                    let iv = fx.b.let_(Atom::V(i));
+                    let more = fx.b.int_cmp("int.lt", iv.clone(), k.a.clone())?;
+                    fx.b.open();
+                    let th = fx.b.close();
+                    fx.b.open();
+                    fx.b.brk(1);
+                    let el = fx.b.close();
+                    fx.b.push(Stmt::If(more, th, el));
+                    let c = fx.b.copy(va.clone())?;
+                    let o = fx.b.let_(Atom::V(out));
+                    let o = fx.b.p("list.push", vec![ect.clone()], vec![o, c])?;
+                    fx.b.set(out, o);
+                    let i1 = fx.b.add_in(iv, lit(1), Ty::u64())?;
+                    fx.b.set(i, i1);
+                }
+                let body = fx.b.close();
+                fx.b.push(Stmt::Loop(vec![Stmt::Block(body)]));
+                fx.b.drop(va)?;
+                Ok(Val { a: fx.b.let_(Atom::V(out)), t: rt })
+            }
+            Expr::Map(ps, _) => {
+                // interp: each key, then its value, set into the map in turn
+                let RType::Map(k, v) = rt.clone() else { return no("a map of unknown type") };
+                let mt = self.ct(&rt)?;
+                let Ty::List(pt) = &mt else { unreachable!() };
+                let mut m = fx.b.p("list.new", vec![(**pt).clone()], vec![])?;
+                if ps.is_empty() {
+                    return Ok(Val { a: m, t: rt });
+                }
+                let setf = self.map_set_fn(&rt)?;
+                for (a, b) in ps {
+                    let kv = self.expr(fx, a)?;
+                    let vv = self.expr(fx, b)?;
+                    let ka = self.conv(fx, kv.a, &kv.t, &k, false)?;
+                    let va = self.conv(fx, vv.a, &vv.t, &v, false)?;
+                    m = self.call_rt(fx, setf, vec![m, ka, va]);
+                }
+                Ok(Val { a: m, t: rt })
             }
             Expr::Call(f, args, _, _) => self.call(fx, e, f, args, rt),
             Expr::Index(x, idx, _) => self.index(fx, x, idx, rt),
@@ -1440,6 +2305,68 @@ impl<'m> Lw<'m> {
             fx.b.set(v, l2);
             return Ok(Val { a: fx.b.unit()?, t: rt });
         }
+        if matches!(m, "insert" | "remove") && matches!(&ort, RType::Map(..)) {
+            let Some(v) = self.var_of(fx, obj) else { return no(format!("{m} on a receiver that is not a variable")) };
+            fx.b.tick(1); // the receiver's evaluation
+            let mut av = vec![];
+            for a in args {
+                av.push(self.expr(fx, &a.e)?);
+            }
+            let Some(mt @ RType::Map(..)) = self.var_rtype(fx, v) else { return no(format!("{m} on a map of unknown type")) };
+            let RType::Map(kt, vt) = &mt else { unreachable!() };
+            let (kt, vt) = ((**kt).clone(), (**vt).clone());
+            if m == "insert" {
+                if av.len() != 2 {
+                    return no("insert without a key and a value");
+                }
+                let x = av.pop().unwrap();
+                let k = av.pop().unwrap();
+                let setf = self.map_set_fn(&mt)?;
+                let ka = self.conv(fx, k.a, &k.t, &kt, false)?;
+                let xa = self.conv(fx, x.a, &x.t, &vt, false)?;
+                let l = self.take_var(fx, v);
+                let l2 = self.call_rt(fx, setf, vec![l, ka, xa]);
+                fx.b.set(v, l2);
+                return Ok(Val { a: fx.b.unit()?, t: rt });
+            }
+            let k = av.remove(0);
+            let RType::Opt(inner) = &rt else { return no("remove of unknown type") };
+            let inner = (**inner).clone();
+            let i = self.map_find(fx, &Val { a: Atom::V(v), t: mt.clone() }, k.clone())?;
+            fx.b.drop(k.a)?;
+            let t = self.ct(&rt)?;
+            let r = self.result_var(fx, &t)?;
+            let found = fx.b.int_cmp("int.le", lit(0), i.clone())?;
+            fx.b.open();
+            {
+                let del = self.map_del_fn(&mt)?;
+                let l = self.take_var(fx, v);
+                let ii = fx.b.cast_in(i, Ty::Int(0, INT_MAX))?;
+                let pr = self.call_rt(fx, del, vec![l, ii]);
+                let prt = fx.b.ty(&pr);
+                let ps = fx.b.prim("tup.open", vec![prt], vec![pr])?;
+                fx.b.set(v, ps[0].clone());
+                let Ty::List(pt) = self.ct(&mt)? else { unreachable!() };
+                let kv = fx.b.prim("tup.open", vec![(*pt).clone()], vec![ps[1].clone()])?;
+                fx.b.drop(kv[0].clone())?;
+                let x = self.conv(fx, kv[1].clone(), &vt, &inner, false)?;
+                let sm = fx.b.p("sum.mk", vec![t.clone()], vec![lit(1), x])?;
+                self.store_var(fx, r, sm)?;
+            }
+            let th = fx.b.close();
+            fx.b.push(Stmt::If(found, th, vec![]));
+            return Ok(Val { a: fx.b.let_(Atom::V(r)), t: rt });
+        }
+        if m == "sort" && matches!(&ort, RType::List(_)) && args.is_empty() {
+            let Some(v) = self.var_of(fx, obj) else { return no("sort on a receiver that is not a variable") };
+            fx.b.tick(1); // the receiver's evaluation
+            let Some(RType::List(et)) = self.var_rtype(fx, v) else { return no("sort of a list of unknown type") };
+            let sf = self.sort_fn(&et)?;
+            let l = self.take_var(fx, v);
+            let l2 = self.call_rt(fx, sf, vec![l]);
+            fx.b.set(v, l2);
+            return Ok(Val { a: fx.b.unit()?, t: rt });
+        }
         if matches!(m, "pop" | "clear")
             && matches!(&ort, RType::List(_))
             && args.is_empty()
@@ -1647,6 +2574,64 @@ impl<'m> Lw<'m> {
                 };
                 let g = rtt::join(&mut self.f)?;
                 Ok(Val { a: self.call_rt(fx, g, vec![recv.a, l]), t: rt })
+            }
+            (RType::Map(..), "len") => {
+                let t = fx.b.ty(&recv.a);
+                let Ty::List(e) = &t else { unreachable!() };
+                let n = fx.b.p("list.len", vec![(**e).clone()], vec![recv.a.clone()])?;
+                fx.b.drop(recv.a)?;
+                Ok(Val { a: n, t: rt })
+            }
+            (RType::Map(..), "contains") => {
+                let k = av.remove(0);
+                let i = self.map_find(fx, &recv, k.clone())?;
+                fx.b.drop(recv.a)?;
+                fx.b.drop(k.a)?;
+                Ok(Val { a: fx.b.int_cmp("int.le", lit(0), i)?, t: rt })
+            }
+            (RType::Map(_, vt), "get") => {
+                // the value as the ok side of a union, or the error Missing
+                let vt = (**vt).clone();
+                let k = av.remove(0);
+                let RType::Union(okt, _) = &rt else { return no("get of unknown type") };
+                let okt = (**okt).clone();
+                let t = self.ct(&rt)?;
+                let Ty::Sum(cs) = &t else { unreachable!() };
+                if cs[1] != Ty::unit() {
+                    return no("get of a map where the error Missing has fields");
+                }
+                let i = self.map_find(fx, &recv, k.clone())?;
+                fx.b.drop(k.a)?;
+                let r = self.result_var(fx, &t)?;
+                let found = fx.b.int_cmp("int.le", lit(0), i.clone())?;
+                fx.b.open();
+                let x = self.map_value_at(fx, recv.clone(), i)?;
+                let x = self.conv(fx, x.a, &vt, &okt, false)?;
+                let sm = fx.b.p("sum.mk", vec![t.clone()], vec![lit(0), x])?;
+                self.store_var(fx, r, sm)?;
+                let th = fx.b.close();
+                fx.b.open();
+                fx.b.drop(recv.a)?;
+                let u = fx.b.unit()?;
+                let sm = fx.b.p("sum.mk", vec![t.clone()], vec![lit(1), u])?;
+                self.store_var(fx, r, sm)?;
+                let el = fx.b.close();
+                fx.b.push(Stmt::If(found, th, el));
+                Ok(Val { a: fx.b.let_(Atom::V(r)), t: rt })
+            }
+            (RType::Map(kt, vt), "keys" | "values") => {
+                let (kt, vt) = ((**kt).clone(), (**vt).clone());
+                let pair = RType::Tuple(vec![kt.clone(), vt.clone()]);
+                let pt = self.ct(&pair)?;
+                let (et, k) = if m == "keys" { (kt, 0usize) } else { (vt, 1usize) };
+                let ect = self.ct(&et)?;
+                let l = self.map_list(fx, recv.a, &pair, ect, move |_, fx, p| {
+                    let ps = fx.b.prim("tup.open", vec![pt.clone()], vec![p])?;
+                    fx.b.drop(ps[1 - k].clone())?;
+                    Ok(ps[k].clone())
+                })?;
+                let a = self.conv(fx, l, &RType::List(Box::new(et)), &rt, false)?;
+                Ok(Val { a, t: rt })
             }
             (RType::List(et), "utf8") => {
                 match &**et {
@@ -1909,6 +2894,20 @@ impl<'m> Lw<'m> {
     /// interp `index`: a list or text indexed by an integer, with the trap
     /// "index K out of range".
     fn index(&mut self, fx: &mut Fx, x: &Expr, idx: &[Expr], rt: RType) -> R<Val> {
+        if let RType::Map(..) = self.node_ty(x) {
+            let c = self.expr(fx, x)?;
+            let kv = self.expr(fx, &idx[0])?;
+            let i = self.map_find(fx, &c, kv.clone())?;
+            let missing = fx.b.int_cmp("int.lt", i.clone(), lit(0))?;
+            let kv2 = kv.clone();
+            self.guard(fx, missing, |lw, fx| {
+                let s = lw.show(fx, kv2.a, &kv2.t)?;
+                fx.b.cat(Atom::bytes(b"missing key "), s)
+            })?;
+            let _ = kv;
+            let v = self.map_value_at(fx, c, i)?;
+            return Ok(v);
+        }
         // in place when the container is a variable and the index cannot change it
         let in_place = self.var_of(fx, x).filter(|_| simple(&idx[0]));
         let (c, owned) = match in_place {
@@ -1951,6 +2950,144 @@ impl<'m> Lw<'m> {
         Ok(Val { a: r, t: rt })
     }
 
+    /// The index of key k (a value, read) in the map m (read), or -1.
+    fn map_find(&mut self, fx: &mut Fx, m: &Val, k: Val) -> R<Atom> {
+        let RType::Map(kt, _) = &m.t else { return Err("internal: map_find of a non-map".into()) };
+        let kt = (**kt).clone();
+        let find = self.map_find_fn(&m.t)?;
+        let mc = fx.b.copy(m.a.clone())?;
+        let kc = fx.b.copy(k.a)?;
+        let want = self.ct(&kt)?;
+        if !fx.b.ty(&kc).within(&want) && fx.b.ty(&kc) != want {
+            return no(format!("a map key of type {} for keys of type {}", k.t.show(), kt.show()));
+        }
+        let kc = self.conv(fx, kc, &k.t, &kt, false)?;
+        Ok(self.call_rt(fx, find, vec![mc, kc]))
+    }
+
+    /// The value at index i (known to hold a key) of the map m (consumed).
+    fn map_value_at(&mut self, fx: &mut Fx, m: Val, i: Atom) -> R<Val> {
+        let RType::Map(_, vt) = &m.t else { return Err("internal: map_value_at of a non-map".into()) };
+        let vt = (**vt).clone();
+        let mt = fx.b.ty(&m.a);
+        let Ty::List(pt) = &mt else { unreachable!() };
+        let pt = (**pt).clone();
+        let i = fx.b.cast_in(i, Ty::Int(0, INT_MAX))?;
+        let e = fx.b.list_at(m.a.clone(), i)?;
+        let ps = fx.b.prim("tup.open", vec![pt], vec![e])?;
+        fx.b.drop(ps[0].clone())?;
+        fx.b.drop(m.a)?;
+        Ok(Val { a: ps[1].clone(), t: vt })
+    }
+
+    /// `[body for p in it if cond]` (interp `E::ListComp`): the iterable
+    /// once; for each item one step of fuel, the pattern (an item it does
+    /// not match is left out), the condition, and the body in a scope of
+    /// their own; then N9's limit on the result.
+    fn list_comp(&mut self, fx: &mut Fx, body: &Expr, p: &Pat, it: &Expr, cond: Option<&Expr>, rt: RType) -> R<Val> {
+        let RType::List(et) = rt.clone() else { return no("a list comprehension of unknown type") };
+        let et = (*et).clone();
+        let ect = self.ct(&et)?;
+        // the items: a range (with the limit of interp `iter_items`), a list or a map
+        let (items, item_rt, range) = if let Expr::Bin(op, a, bx, _) = it
+            && (op == ".." || op == "..=")
+        {
+            fx.b.tick(1);
+            let x = self.expr(fx, a)?;
+            let y = self.expr(fx, bx)?;
+            let (RType::Int(_), RType::Int(_)) = (&x.t, &y.t) else { return no("a range of non-integers") };
+            let item_t = match self.node_ty(it) {
+                RType::Range(i) => i,
+                _ => return no("a range of unknown type"),
+            };
+            let hi = if op == "..=" {
+                let yt = fx.b.ty(&y.a);
+                let (yl, yh) = yt.bounds().unwrap();
+                if yh >= INT_MAX {
+                    return no("an inclusive range up to 2^64 - 1");
+                }
+                fx.b.add_in(y.a, lit(1), Ty::Int(yl + 1, yh + 1))?
+            } else {
+                y.a
+            };
+            let le = fx.b.int_cmp("int.le", hi.clone(), x.a.clone())?;
+            fx.b.open();
+            let th = fx.b.close();
+            fx.b.open();
+            let lim = fx.b.p("int.sadd", vec![wide()], vec![x.a.clone(), lit(self.loop_limit * 10)])?;
+            let over = fx.b.int_cmp("int.lt", lim, hi.clone())?;
+            self.guard(fx, over, |_, _| Ok(Atom::bytes(b"loop bound")))?;
+            let el = fx.b.close();
+            fx.b.push(Stmt::If(le, th, el));
+            let it_t = hull(&fx.b.ty(&x.a), &fx.b.ty(&hi));
+            let (lo_b, hi_b) = it_t.bounds().unwrap();
+            (None, RType::Int(IntT { tags: item_t.tags, lo: lo_b, hi: hi_b }), Some((x.a, hi, it_t)))
+        } else {
+            let itv = self.expr(fx, it)?;
+            let item = match &itv.t {
+                RType::List(e) | RType::Set(e) => (**e).clone(),
+                RType::Map(k, v) => RType::Tuple(vec![(**k).clone(), (**v).clone()]),
+                o => return no(format!("a list comprehension over {}", o.show())),
+            };
+            let lt = fx.b.ty(&itv.a);
+            let Ty::List(e) = &lt else { unreachable!() };
+            let lv = fx.b.var(lt.clone(), itv.a);
+            fx.own(Atom::V(lv));
+            (Some((lv, (**e).clone())), item, None)
+        };
+        let o0 = fx.b.p("list.new", vec![ect.clone()], vec![])?;
+        let out = fx.b.var(Ty::list(ect.clone()), o0);
+        let i = match &range {
+            Some((x, _, it_t)) => fx.b.var(it_t.clone(), x.clone()),
+            None => fx.b.var(Ty::u64(), lit(0)),
+        };
+        let l = fx.open_nest();
+        let iv = fx.b.let_(Atom::V(i));
+        let n = match (&range, &items) {
+            (Some((_, hi, _)), _) => hi.clone(),
+            (None, Some((lv, e))) => fx.b.p("list.len", vec![e.clone()], vec![Atom::V(*lv)])?,
+            _ => unreachable!(),
+        };
+        let more = fx.b.int_cmp("int.lt", iv.clone(), n)?;
+        fx.b.open();
+        let th = fx.b.close();
+        fx.b.open();
+        fx.break_to(l)?;
+        let el = fx.b.close();
+        fx.b.push(Stmt::If(more, th, el));
+        let item = match &items {
+            Some((lv, _)) => fx.b.list_at(Atom::V(*lv), iv.clone())?,
+            None => iv.clone(),
+        };
+        fx.b.tick(1);
+        // one item: a block left when the pattern or the condition fails
+        let blk = fx.open_nest();
+        fx.push_scope();
+        let x = fx.b.let_(item);
+        fx.own(x.clone());
+        self.pat(fx, p, &x, &item_rt, blk)?;
+        if let Some(c) = cond {
+            let cv = self.expr(fx, c)?;
+            self.need(fx, cv.a, blk)?;
+        }
+        let v = self.expr(fx, body)?;
+        let va = self.conv(fx, v.a, &v.t, &et, false)?;
+        let o = fx.b.let_(Atom::V(out));
+        let o = fx.b.p("list.push", vec![ect.clone()], vec![o, va])?;
+        fx.b.set(out, o);
+        fx.pop_scope()?;
+        let inner = fx.close_nest();
+        fx.b.push(Stmt::Block(inner));
+        let it_t = fx.b.local_ty(i);
+        let i1 = fx.b.add_in(iv, lit(1), it_t)?;
+        fx.b.set(i, i1);
+        let lb = fx.close_nest();
+        fx.b.push(Stmt::Loop(lb));
+        let r = fx.b.let_(Atom::V(out));
+        self.size_check(fx, &r, &ect)?;
+        Ok(Val { a: r, t: rt })
+    }
+
     /// interp `contains(c, x)`, the operator `in`: c and x consumed.
     fn contains(&mut self, fx: &mut Fx, c: Val, x: Val) -> R<Atom> {
         match &c.t {
@@ -1981,6 +3118,12 @@ impl<'m> Lw<'m> {
                 fx.b.drop(c.a)?;
                 fx.b.drop(x.a)?;
                 Ok(acc)
+            }
+            RType::Map(..) => {
+                let i = self.map_find(fx, &c, x.clone())?;
+                fx.b.drop(c.a)?;
+                fx.b.drop(x.a)?;
+                fx.b.int_cmp("int.le", lit(0), i)
             }
             o => no(format!("`in` on {}", o.show())),
         }
@@ -2241,6 +3384,11 @@ impl<'m> Lw<'m> {
                         let np = fx.b.not(p.a)?;
                         if strict { fx.b.p("bool.and", vec![], vec![np, q.a])? } else { fx.b.p("bool.or", vec![], vec![np, q.a])? }
                     }
+                    (RType::Tuple(_), RType::Tuple(_)) | (RType::List(_), RType::List(_)) if p.t == q.t => {
+                        let f = self.ord_fn(&p.t)?;
+                        let c = self.call_rt(fx, f, vec![p.a, q.a]);
+                        fx.b.int_cmp(if strict { "int.lt" } else { "int.le" }, c, lit(0))?
+                    }
                     (s, t) => return no(format!("the order of {} and {}", s.show(), t.show())),
                 };
                 Ok(Val { a: r, t: rt })
@@ -2255,7 +3403,34 @@ impl<'m> Lw<'m> {
         match (&x.t, &y.t) {
             (RType::Int(i), RType::Int(j)) => {
                 let res = IntT::of_tags(i.tags.join_op(j.tags));
-                let (r, name) = check_of(&res)?;
+                let (r, name) = match check_of(&res) {
+                    Ok(x) => x,
+                    Err(e) => {
+                        // the names the result may carry check different
+                        // ranges; when the exact result lies in every one of
+                        // them, no name makes the operation trap
+                        let (Some((al, ah)), Some((bl, bh))) = (fx.b.ty(&x.a).bounds(), fx.b.ty(&y.a).bounds()) else { return Err(e) };
+                        let exact = match op {
+                            "+" => Some((al + bl, ah + bh)),
+                            "-" => Some((al - bh, ah - bl)),
+                            "*" => {
+                                let ps = [al.checked_mul(bl), al.checked_mul(bh), ah.checked_mul(bl), ah.checked_mul(bh)];
+                                if ps.iter().all(|p| p.is_some()) {
+                                    let ps: Vec<i128> = ps.iter().map(|p| p.unwrap()).collect();
+                                    Some((*ps.iter().min().unwrap(), *ps.iter().max().unwrap()))
+                                } else {
+                                    None
+                                }
+                            }
+                            _ => None,
+                        };
+                        let (lo, hi) = res.tags.names().into_iter().map(typed::tag_range).fold((INT_MIN, INT_MAX), |(l, h), (a, b)| (l.max(a), h.min(b)));
+                        let Some((el, eh)) = exact.filter(|(el, eh)| lo <= *el && *eh <= hi) else { return Err(e) };
+                        let p = match op { "+" => "add", "-" => "sub", _ => "mul" };
+                        let a = fx.b.arith_in(p, x.a, y.a, Ty::Int(el, eh))?;
+                        return Ok(Val { a, t: rt });
+                    }
+                };
                 let a = self.int_op(fx, op, x.a, y.a, &r, &name, &res)?;
                 Ok(Val { a, t: rt })
             }
@@ -2387,6 +3562,41 @@ impl<'m> Lw<'m> {
     }
 
     fn catch_expr(&mut self, fx: &mut Fx, e: &Expr, x: &Expr, bind: Option<&str>, h: &Expr, rt: RType) -> R<Val> {
+        // `m.get(k) catch h`: the handler runs when k is not a key, and no
+        // error value is needed when the handler does not bind it
+        if bind.is_none()
+            && let Expr::Call(f, args, _, _) = x
+            && let Expr::Member(obj, mname, _) = &**f
+            && mname == "get"
+            && args.len() == 1
+            && matches!(self.ty.node(x).and_then(|n| n.callee.clone()), Some(Callee::Builtin(_)))
+            && let RType::Map(_, vt) = self.node_ty(obj)
+        {
+            let vt = (*vt).clone();
+            fx.b.tick(1); // the call
+            let m = self.expr(fx, obj)?;
+            let k = self.expr(fx, &args[0].e)?;
+            let i = self.map_find(fx, &m, k.clone())?;
+            fx.b.drop(k.a)?;
+            let t = self.ct(&rt)?;
+            let r = self.result_var(fx, &t)?;
+            let found = fx.b.int_cmp("int.le", lit(0), i.clone())?;
+            fx.b.open();
+            let v = self.map_value_at(fx, m.clone(), i)?;
+            let a = self.conv(fx, v.a, &vt, &rt, false)?;
+            self.store_var(fx, r, a)?;
+            let th = fx.b.close();
+            fx.b.open();
+            fx.b.drop(m.a)?;
+            fx.push_scope();
+            let hv = self.expr(fx, h)?;
+            let a = self.conv(fx, hv.a, &hv.t, &rt, false)?;
+            self.store_var(fx, r, a)?;
+            fx.pop_scope()?;
+            let el = fx.b.close();
+            fx.b.push(Stmt::If(found, th, el));
+            return Ok(Val { a: fx.b.let_(Atom::V(r)), t: rt });
+        }
         let v = self.expr(fx, x)?;
         let RType::Union(ok, err) = v.t.clone() else { return Ok(v) };
         let t = self.ct(&rt)?;
@@ -2745,7 +3955,7 @@ impl<'m> Lw<'m> {
                 fx.b.tick(1);
                 self.place_ticks(fx, x)?;
             }
-            Expr::Index(x, idx, _) if matches!(&idx[0], Expr::Name(..) | Expr::Int(..)) => {
+            Expr::Index(x, idx, _) if matches!(&idx[0], Expr::Name(..) | Expr::Int(..) | Expr::Str(..) | Expr::Bool(..)) => {
                 fx.b.tick(2);
                 self.place_ticks(fx, x)?;
             }
@@ -2789,6 +3999,22 @@ impl<'m> Lw<'m> {
                 cs[k] = a;
                 let r = fx.b.p("tup.mk", vec![t], cs)?;
                 fx.b.set(var, r);
+                Ok(())
+            }
+            Expr::Index(x, idx, _) if matches!(&idx[0], Expr::Name(..) | Expr::Int(..) | Expr::Str(..) | Expr::Bool(..)) && matches!(self.node_ty(x), RType::Map(..)) => {
+                // interp `assign`: the key, then the map, then `map_set`
+                let Some(var) = self.var_of(fx, x) else { return no("an assignment to an element of a map that is not a var") };
+                let k = self.expr(fx, &idx[0])?;
+                fx.b.tick(1);
+                let Some(mt @ RType::Map(..)) = self.var_rtype(fx, var) else { return no("an indexed assignment to a map of unknown type") };
+                let RType::Map(kt, vt) = &mt else { unreachable!() };
+                let (kt, vt) = ((**kt).clone(), (**vt).clone());
+                let setf = self.map_set_fn(&mt)?;
+                let ka = self.conv(fx, k.a, &k.t, &kt, false)?;
+                let va = self.conv(fx, v.a, &v.t, &vt, false)?;
+                let m = self.take_var(fx, var);
+                let m2 = self.call_rt(fx, setf, vec![m, ka, va]);
+                fx.b.set(var, m2);
                 Ok(())
             }
             Expr::Index(x, idx, _) if matches!(&idx[0], Expr::Name(..) | Expr::Int(..)) => {
@@ -2986,6 +4212,8 @@ impl<'m> Lw<'m> {
         let itv = self.expr(fx, it)?;
         let item = match &itv.t {
             RType::List(e) | RType::Set(e) => (**e).clone(),
+            // a map's items are its (key, value) pairs in key order
+            RType::Map(k, v) => RType::Tuple(vec![(**k).clone(), (**v).clone()]),
             o => return no(format!("for over {}", o.show())),
         };
         let lt = fx.b.ty(&itv.a);

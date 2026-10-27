@@ -679,7 +679,33 @@ impl<'a, 'm> Cx<'a, 'm> {
                 self.expr(n);
                 plain(RType::List(Box::new(t)))
             }
-            E::ListComp(..) => plain(RType::Unknown("a list comprehension".into())),
+            E::ListComp(body, p, it, cond, _) => {
+                // interp: the iterable once, then for each item the pattern,
+                // the condition and the body in a scope of their own
+                let itv = self.expr(it);
+                let item = match &itv {
+                    RType::List(t) | RType::Set(t) => (**t).clone(),
+                    RType::Range(i) => RType::Int(*i),
+                    RType::Text => RType::Text,
+                    RType::Map(k, v) => RType::Tuple(vec![(**k).clone(), (**v).clone()]),
+                    o => RType::Unknown(format!("iteration over {}", o.show())),
+                };
+                let mut bt = RType::Never;
+                self.loop_fix(&mut |cx: &mut Self| {
+                    let exit = cx.env.clone();
+                    cx.scopes.push(HashMap::new());
+                    cx.pat(p, &item);
+                    if let Some(c) = cond {
+                        cx.expr(c);
+                    }
+                    let t = cx.expr(body);
+                    bt = bt.join(&t);
+                    cx.scopes.pop();
+                    let acc = cx.loops.last_mut().unwrap();
+                    acc.breaks = env_join(&acc.breaks, &exit);
+                });
+                plain(RType::List(Box::new(bt)))
+            }
             E::Map(ps, _) => {
                 let (mut k, mut v) = (RType::Never, RType::Never);
                 for (a, b) in ps {

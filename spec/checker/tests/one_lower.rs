@@ -15,10 +15,11 @@ use std::path::PathBuf;
 const COVERED: &[&str] = &[
     "01_counter", "02_hello_main", "03_fib_loop", "04_bank_account", "05_kind_match", "06_option",
     "07_error_union", "11_arena", "16_multi_region", "17_traffic_light", "18_while_bound", "19_floats",
-    "22_tuples", "23_patterns", "25_labels", "27_bitops", "28_slices", "30_state_machine_guarded",
-    "31_inventory", "32_comptime_block", "33_in_operator", "35_nested_if", "38_hex_bin", "42_f32",
-    "45_byte_text", "46_u64", "49_loop_limit", "53_capability", "54_secret", "56_utf8", "57_float_vectors",
-    "59_dim_redundant_field", "60_dim_hidden_period", "61_dim_minimal",
+    "20_strings", "22_tuples", "23_patterns", "25_labels", "27_bitops", "28_slices",
+    "30_state_machine_guarded", "31_inventory", "32_comptime_block", "33_in_operator", "35_nested_if",
+    "38_hex_bin", "42_f32", "45_byte_text", "46_u64", "49_loop_limit", "53_capability", "54_secret",
+    "55_rcedb", "56_utf8", "57_float_vectors", "58_float_keys", "59_dim_redundant_field",
+    "60_dim_hidden_period", "61_dim_minimal",
 ];
 
 /// The programs the lowering does not yet cover, and the construct it
@@ -31,8 +32,7 @@ const NOT_COVERED: &[(&str, &str)] = &[
     ("13_spawn_chan", "the type chan i64"),
     ("14_select", "the type chan text"),
     ("15_actor", "the type chan i64"),
-    ("20_strings", "a list comprehension"),
-    ("21_maps", "the expression at line"),
+    ("21_maps", "an integer operation checked against ranges that differ at r"),
     ("24_lambda", "the method map"),
     ("29_nested_kind", "a recursive type"),
     ("34_chan_types", "the type chan (u64, text)"),
@@ -48,8 +48,6 @@ const NOT_COVERED: &[(&str, &str)] = &[
     ("50_iterators", "the iterator function evens"),
     ("51_refined_input", "a refined type"),
     ("52_context_text", "the name Html"),
-    ("55_rcedb", "an indexed assignment to a list of unknown type"),
-    ("58_float_keys", "the method get"),
 ];
 
 /// The covered programs whose probes (the extra observations of the
@@ -57,11 +55,12 @@ const NOT_COVERED: &[(&str, &str)] = &[
 /// arguments) also lower with identical traces.
 const COVERED_WITH_PROBES: &[&str] = &[
     "01_counter", "02_hello_main", "03_fib_loop", "04_bank_account", "05_kind_match", "06_option",
-    "07_error_union", "11_arena", "17_traffic_light", "18_while_bound", "19_floats", "22_tuples",
-    "23_patterns", "25_labels", "27_bitops", "28_slices", "30_state_machine_guarded", "32_comptime_block",
-    "33_in_operator", "35_nested_if", "38_hex_bin", "45_byte_text", "46_u64", "49_loop_limit",
-    "53_capability", "54_secret", "56_utf8", "57_float_vectors", "59_dim_redundant_field",
-    "60_dim_hidden_period", "61_dim_minimal",
+    "07_error_union", "11_arena", "16_multi_region", "17_traffic_light", "18_while_bound", "19_floats",
+    "20_strings", "22_tuples", "23_patterns", "25_labels", "27_bitops", "28_slices",
+    "30_state_machine_guarded", "31_inventory", "32_comptime_block", "33_in_operator", "35_nested_if",
+    "38_hex_bin", "45_byte_text", "46_u64", "49_loop_limit", "53_capability", "54_secret", "55_rcedb",
+    "56_utf8", "57_float_vectors", "58_float_keys", "59_dim_redundant_field", "60_dim_hidden_period",
+    "61_dim_minimal",
 ];
 
 fn examples() -> Vec<(String, String)> {
