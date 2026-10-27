@@ -6,7 +6,11 @@ import concurrent.futures, glob, os, subprocess, sys, tempfile
 RCE = os.environ.get('RCE', 'rce')
 root = os.path.join(os.path.dirname(os.path.abspath(__file__)), '../..')
 src = open(os.path.join(root, 'lib/fmt/fmt.rce')).read()
-chks = [open(f).read() for f in sorted(glob.glob(os.path.join(root, 'tests/fmt/fmt_checks*.rce')))]
+# in part order (1, 2, ..., 19): the two near-limit parts, the slowest, last
+def part(f):
+    n = os.path.basename(f)[len('fmt_checks'):-len('.rce')]
+    return int(n[1:]) if n else 1
+chks = [open(f).read() for f in sorted(glob.glob(os.path.join(root, 'tests/fmt/fmt_checks*.rce')), key=part)]
 M = [
     ('        let a = if d < 0 then 0 - d else d', '        let a = d'),
     ('    if c >= 65 and c <= 90\n        return c - 55', '    if c >= 65 and c <= 90\n        return c - 56'),
