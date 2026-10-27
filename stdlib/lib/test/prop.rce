@@ -1,0 +1,1583 @@
+module test.prop
+# uses: rand.det
+
+use rand.det
+
+# Property-based testing in the manner of QuickCheck and Hypothesis.
+#
+# A generator is a function `fn(&mut PropSrc) -> T` built from the draw
+# functions below (draw_int, draw_float, draw_text, draw_list, draw_map
+# and the rest; a record is a struct built from draws in one function). A
+# property is a function `fn(&T) -> bool`, or `fn(&T) -> PropOutcome`
+# when it may discard a case or name its failure. prop_check runs the
+# property on generated cases, shrinks the first failure to a minimal one
+# and returns a PropRun that holds the verdict, the seed, the case number
+# and size that replay the failure, and the shrunk choice sequence.
+# Generators must be named functions: a closure that writes through its
+# `&mut PropSrc` parameter does not write back (rce evaluates such a call
+# on a copy), so `draw_list(s, my_elem, 0, 10)` takes a named `my_elem`.
+#
+# Randomness comes only from rand.det: case k of a run under seed S draws
+# from the ChaCha20 stream with key S (8 bytes little endian, 24 zero
+# bytes) and stream id k, so a case replays from (S, k, size) alone.
+#
+# Runner (QuickCheck 2.15.0.1, Test.QuickCheck.Test, stdArgs and test /
+# runATest / computeSize / tooManyDiscards / localMin;
+# https://hackage.haskell.org/package/QuickCheck-2.15.0.1):
+# - cases (maxSuccess, default 100) passing tests are required; a
+#   discarded case does not count; the run gives up when
+#   discarded / discard_ratio >= max(passed, cases) (maxDiscardRatio 10);
+# - case size follows computeSize: n mod max_size plus recent discards
+#   divided by clamp(cases * ratio / 3, 1, 10), capped at max_size
+#   (maxSize 100), with the rescaling QuickCheck applies when cases is
+#   not a multiple of max_size;
+# - shrinking is greedy: the first smaller failing candidate in a fixed
+#   order is taken; it stops when shrinks + failed tries reach
+#   max_shrinks (maxShrinks), and the report counts both, as QuickCheck
+#   reports numShrinks and numShrinkTries.
+#
+# Choices and shrinking (Hypothesis 6.170, hypothesis.internal.conjecture;
+# https://github.com/HypothesisWorks/hypothesis, files choice.py,
+# floats.py, shrinker.py, shrinking/integer.py, junkdrawer.py,
+# intervalsets.py, utils.py; D. R. MacIver and A. F. Donaldson,
+# "Test-Case Reduction via Test-Case Generation: Insights from the
+# Hypothesis Reducer", ECOOP 2020, doi:10.4230/LIPIcs.ECOOP.2020.13):
+# - every draw records one choice as its index in the choice order of
+#   choice_to_index, 0 being the simplest value: integers by zigzag
+#   distance from the shrink target (0 clamped into [lo, hi]), with the
+#   bounded-range rule of choice.py; booleans false then true; floats
+#   as sign << 64 | float_to_lex(|x|) (floats.py), kept in two choices
+#   (sign * 2 + tag, then the 63-bit payload); characters in the
+#   IntervalSet shrink order ('0'..'Z', then '/' down to U+0000, then
+#   the rest in code point order);
+# - collections are a continuation flag before each optional element
+#   and the element (Hypothesis `many`); forced flags (below min, at
+#   max) are not recorded. Hypothesis keeps a whole text as one choice,
+#   so two candidates whose total lengths differ can compare in the
+#   other order than Hypothesis would;
+# - a choice sequence a is simpler than b when it is shorter, or of the
+#   same length and lexicographically smaller (shrinker.py sort_key). A
+#   candidate replaces the current failure only when it fails with the
+#   same label and its used choices are simpler;
+# - replay reads the recorded indices; an index the draw does not permit
+#   is replaced by index 0 (misalignment), and reading past the end is
+#   an overrun, which makes the candidate invalid (data.py _pop_choice);
+# - the shrink passes, each over positions from first to last, repeated
+#   until a whole round changes nothing: zero each span
+#   (try_trivial_spans), delete each span, delete 5, 4, 3, 2 and 1
+#   adjacent choices (node_program X*k), lower equal choices together
+#   (minimize_duplicated_choices, continuation flags excluded), lower
+#   each choice with the Integer shrinker (0, 1, mask high bits, shift
+#   right, subtract multiples of 2 and 1, each by find_integer), move
+#   value between nearby integers (redistribute_numeric_pairs, integers
+#   only) and lower nearby integers together (lower_integers_together).
+#   Hypothesis reorders its passes by success and falls back to random
+#   order when stalled; this order is fixed, so shrinking is
+#   deterministic.
+#
+# Bad input never traps: a draw with bad arguments (lo > hi, an empty
+# alphabet) marks the source, and the run ends with verdict
+# TP_V_BADARG and the reason. A property that traps ends the check that
+# runs it, as any trap does; write properties that return false instead
+# (checked_add and catch). Fuel: the work is bounded by cases,
+# max_shrinks and the 8192 choices one case may draw; prop_steps runs a
+# given number of cases or shrink calls and keeps its state in the
+# PropRun, so a long run can be spread over several checks or inputs.
+
+const TP_MAXCH: i64 = 8192
+const TP_I64MAX: i64 = 9223372036854775807
+const TP_U63: u64 = 9223372036854775808
+const TP_M63: u64 = 9223372036854775807
+const TP_M52: u64 = 4503599627370495
+const TP_M56: u64 = 72057594037927935
+const TP_UMAX: u64 = 18446744073709551615
+const TP_FMAX: f64 = 1.7976931348623157e308
+
+# slot kinds
+const TP_K_BOOL: i64 = 0
+const TP_K_INT: i64 = 1
+const TP_K_FSIGN: i64 = 2
+const TP_K_FLEX: i64 = 3
+const TP_K_CHAR: i64 = 4
+const TP_K_FLAG: i64 = 5
+
+# source status
+const TP_S_OK: i64 = 0
+const TP_S_OVERRUN: i64 = 1
+const TP_S_INVALID: i64 = 2
+const TP_S_BADARG: i64 = 3
+
+# The choice source a generator draws from. In generation mode the draws
+# come from `rng`; in replay mode from `prefix`. Every draw appends its
+# choice index to `used`, with the slot kind and, for integers, its
+# bounds. `spans` holds closed spans as start, end pairs.
+pub struct PropSrc
+    replay: bool
+    rng: det.Rng
+    prefix: List[u64]
+    used: List[u64]
+    kinds: List[i64]
+    los: List[i64]
+    his: List[i64]
+    spans: List[i64]
+    opens: List[i64]
+    size: i64
+    status: i64
+    note: text
+    misaligned: i64
+
+# ---------------------------------------------------------------- sources
+
+fn tp_seed_bytes(seed: i64) -> List[i64]
+    var b: List[i64] = []
+    for i in 0..8
+        b.push((seed >> (8 * i)) & 255)
+    for _i in 0..24
+        b.push(0)
+    return b
+
+fn tp_rng(seed: i64, stream: i64) -> det.Rng
+    let b = tp_seed_bytes(seed)
+    let st = if stream < 0 then 0 else stream
+    return det.from_seed(&b, st) catch det.Rng(key: [0, 0, 0, 0, 0, 0, 0, 0], stream: 0, block: 0, buf: [], pos: 16)
+
+fn tp_src(replay: bool, seed: i64, stream: i64, size: i64, prefix: List[u64]) -> PropSrc
+    let sz = if size < 0 then 0 else size
+    return PropSrc(replay: replay, rng: tp_rng(seed, stream), prefix: prefix, used: [], kinds: [], los: [], his: [], spans: [], opens: [], size: sz, status: TP_S_OK, note: "", misaligned: -1)
+
+# A generation source: stream `stream` of seed `seed`, at QuickCheck size
+# `size` (collections are at most `size` long unless their minimum is
+# larger; integers widen with size).
+pub fn prop_src(seed: i64, stream: i64, size: i64) -> PropSrc = tp_src(false, seed, stream, size, [])
+
+# A replay source over recorded choice indices.
+pub fn prop_src_replay(choices: &[u64], size: i64) -> PropSrc = tp_src(true, 0, 0, size, copy(choices))
+
+pub fn prop_size(s: &PropSrc) -> i64 = s.size
+
+# The choice indices a source has used so far.
+pub fn prop_choices(s: &PropSrc) -> List[u64] = copy(s.used)
+
+# Whether the source is still good (no overrun, failed assumption or
+# bad argument), and why not.
+pub fn prop_src_ok(s: &PropSrc) -> bool = s.status == TP_S_OK
+pub fn prop_src_note(s: &PropSrc) -> text = copy(s.note)
+
+fn tp_bad(s: &mut PropSrc, why: text)
+    if s.status == TP_S_OK
+        s.status = TP_S_BADARG
+        s.note = why
+
+# Mark the case invalid unless `cond` holds (Hypothesis assume, QuickCheck
+# ==>): the runner discards it.
+pub fn draw_assume(s: &mut PropSrc, cond: bool)
+    if not cond and s.status == TP_S_OK
+        s.status = TP_S_INVALID
+        s.note = "assumption failed"
+
+# Spans group the choices of one structure (a list element, a record) so
+# the shrinker can zero or delete them as a unit.
+pub fn prop_span_start(s: &mut PropSrc)
+    s.opens.push(s.used.len() as i64)
+
+pub fn prop_span_stop(s: &mut PropSrc)
+    let n = s.opens.len()
+    if n == 0
+        return
+    let st = s.opens[n - 1]
+    let _ = s.opens.pop()
+    let en = s.used.len() as i64
+    if en > st
+        s.spans.push(st)
+        s.spans.push(en)
+
+# ---------------------------------------------------------------- integers in u64
+
+fn tp_bitlen(x: u64) -> i64
+    var n: i64 = 0
+    var v = x
+    while v > 0 bound 65
+        v = v >> 1
+        n += 1
+    return n
+
+# a - b for a >= b, exact over the whole i64 range.
+fn tp_off(a: i64, b: i64) -> u64
+    if b >= 0 or a < 0
+        return (a - b) as u64
+    return (a as u64) + ((0 - (b + 1)) as u64) + 1
+
+# b + off, for a result inside i64.
+fn tp_add(b: i64, off: u64) -> i64
+    if off <= TP_M63
+        return b + (off as i64)
+    return (b + TP_I64MAX) + ((off - TP_M63) as i64)
+
+# b - off, for a result inside i64.
+fn tp_sub(b: i64, off: u64) -> i64
+    if off <= TP_M63
+        return b - (off as i64)
+    return (b - TP_I64MAX) - ((off - TP_M63) as i64)
+
+fn tp_target(lo: i64, hi: i64) -> i64 = if lo > 0 then lo else (if hi < 0 then hi else 0)
+
+# Hypothesis choice_to_index for an integer in [lo, hi], shrinking
+# towards t: zigzag around t until the nearer bound, then outwards.
+pub fn prop_int_index(v: i64, lo: i64, hi: i64) -> u64
+    let t = tp_target(lo, hi)
+    let bel = tp_off(t, lo)
+    let abv = tp_off(hi, t)
+    let d = if v >= t then tp_off(v, t) else tp_off(t, v)
+    let z = if v > t then 2 * d - 1 else 2 * d
+    if bel < abv
+        if d <= bel
+            return z
+        return tp_off(v, lo)
+    if d <= abv
+        return z
+    return tp_off(hi, v)
+
+# Hypothesis choice_from_index for an integer in [lo, hi]; the index must
+# be at most hi - lo.
+pub fn prop_int_value(idx: u64, lo: i64, hi: i64) -> i64
+    let t = tp_target(lo, hi)
+    let bel = tp_off(t, lo)
+    let abv = tp_off(hi, t)
+    var zmax: u64 = 0
+    if bel < abv
+        zmax = 2 * bel
+    elif abv > 0
+        zmax = 2 * abv - 1
+    if idx <= zmax
+        let n = idx / 2 + idx % 2
+        if idx % 2 == 0
+            return tp_sub(t, n)
+        return tp_add(t, n)
+    if bel < abv
+        return tp_add(lo, idx)
+    return tp_sub(hi, idx)
+
+# ---------------------------------------------------------------- random
+
+# k uniform bits, 0 <= k <= 64 (one word for k <= 32).
+fn tp_bits(r: &mut det.Rng, k: i64) -> u64
+    if k <= 0
+        return 0
+    if k <= 32
+        return (det.next_u32(r) as u64) >> ((32 - k) as u64)
+    let hi = (det.next_u32(r) as u64) >> ((64 - k) as u64)
+    let lo = det.next_u32(r) as u64
+    return (hi << 32) | lo
+
+# Uniform in 0 ..= m by masked rejection.
+fn tp_upto(r: &mut det.Rng, m: u64) -> u64
+    if m == 0
+        return 0
+    let k = tp_bitlen(m)
+    var v = tp_bits(r, k)
+    var n: i64 = 0
+    while v > m and n < 200 bound 200
+        v = tp_bits(r, k)
+        n += 1
+    if v > m
+        return v % (m + 1)
+    return v
+
+# QuickCheck arbitrarySizedBoundedIntegral, centred on the shrink target:
+# bits = ilog2(hi - lo + 1), power = (max(bits, 40) * size) / 80, and a
+# uniform value in [t - 2^p, t + 2^p] within [lo, hi], p = min(power,
+# bits); one case in 16 takes a boundary (lo, hi, t, t + 1, t - 1).
+fn tp_gen_int(s: &mut PropSrc, lo: i64, hi: i64, t: i64) -> i64
+    if tp_bits(&mut s.rng, 4) == 0
+        var c: List[i64] = [lo, hi, t]
+        if t < hi
+            c.push(t + 1)
+        if t > lo
+            c.push(t - 1)
+        let j = tp_upto(&mut s.rng, (c.len() - 1) as u64)
+        return c[j as usize]
+    let w = tp_off(hi, lo)
+    let nb = if w == TP_UMAX then 64 else tp_bitlen(w + 1) - 1
+    let pw = ((if nb > 40 then nb else 40) * s.size) / 80
+    let p = if pw < nb then pw else nb
+    let dn = tp_off(t, lo)
+    let up = tp_off(hi, t)
+    var a = dn
+    var b = up
+    if p < 64
+        let e: u64 = (1 as u64) << (p as u64)
+        if e < a
+            a = e
+        if e < b
+            b = e
+    let v = tp_upto(&mut s.rng, a + b)
+    return tp_add(tp_sub(t, a), v)
+
+# ---------------------------------------------------------------- slots
+
+fn tp_room(s: &mut PropSrc) -> bool
+    if s.status != TP_S_OK
+        return false
+    if s.used.len() as i64 >= TP_MAXCH
+        s.status = TP_S_OVERRUN
+        s.note = "a case drew more than 8192 choices"
+        return false
+    return true
+
+# The next recorded index in replay. Past the end is an overrun; an index
+# above maxi is a misalignment and reads as 0.
+fn tp_read(s: &mut PropSrc, maxi: u64) -> u64
+    let n = s.used.len()
+    if n >= s.prefix.len()
+        s.status = TP_S_OVERRUN
+        s.note = "the choices ran out"
+        return 0
+    let v = s.prefix[n]
+    if v > maxi
+        if s.misaligned < 0
+            s.misaligned = n as i64
+        return 0
+    return v
+
+fn tp_put(s: &mut PropSrc, knd: i64, lo: i64, hi: i64, idx: u64)
+    s.used.push(idx)
+    s.kinds.push(knd)
+    s.los.push(lo)
+    s.his.push(hi)
+
+# ---------------------------------------------------------------- draws
+
+# A boolean, false first.
+pub fn draw_bool(s: &mut PropSrc) -> bool
+    if not tp_room(s)
+        return false
+    var idx: u64 = 0
+    if s.replay
+        idx = tp_read(s, 1)
+        if s.status != TP_S_OK
+            return false
+    else
+        idx = tp_bits(&mut s.rng, 1)
+    tp_put(s, TP_K_BOOL, 0, 1, idx)
+    return idx == 1
+
+# True with probability num / den. With num <= 0 or num >= den the
+# answer is fixed and still takes one choice (Hypothesis draw_boolean
+# with p at 0 or 1).
+pub fn draw_weighted(s: &mut PropSrc, num: i64, den: i64) -> bool
+    if den <= 0
+        tp_bad(s, "draw_weighted: den <= 0")
+        return false
+    if not tp_room(s)
+        return false
+    let fixed = num <= 0 or num >= den
+    var idx: u64 = 0
+    if s.replay
+        idx = tp_read(s, if fixed then 0 else 1)
+        if s.status != TP_S_OK
+            return false
+    elif not fixed
+        idx = if tp_upto(&mut s.rng, (den - 1) as u64) < (num as u64) then 1 else 0
+    tp_put(s, TP_K_BOOL, 0, if fixed then 0 else 1, idx)
+    if fixed
+        return num > 0
+    return idx == 1
+
+# An integer in [lo, hi], shrinking towards 0 (or the bound nearer 0).
+pub fn draw_int(s: &mut PropSrc, lo: i64, hi: i64) -> i64
+    if hi < lo
+        tp_bad(s, "draw_int: lo > hi")
+        return lo
+    let t = tp_target(lo, hi)
+    if not tp_room(s)
+        return t
+    var idx: u64 = 0
+    if s.replay
+        idx = tp_read(s, tp_off(hi, lo))
+        if s.status != TP_S_OK
+            return t
+    else
+        idx = prop_int_index(tp_gen_int(s, lo, hi, t), lo, hi)
+    tp_put(s, TP_K_INT, lo, hi, idx)
+    return prop_int_value(idx, lo, hi)
+
+# Any i64.
+pub fn draw_i64(s: &mut PropSrc) -> i64 = draw_int(s, 0 - TP_I64MAX - 1, TP_I64MAX)
+
+# An index in [0, n), shrinking towards 0 (Hypothesis sampled_from).
+pub fn draw_index(s: &mut PropSrc, n: i64) -> i64
+    if n < 1
+        tp_bad(s, "draw_index: n < 1")
+        return 0
+    return draw_int(s, 0, n - 1)
+
+# One element of xs, earlier elements simpler; none when xs is empty.
+pub fn draw_pick[T](s: &mut PropSrc, xs: &[T]) -> T?
+    if xs.len() == 0
+        tp_bad(s, "draw_pick: no elements")
+        return none
+    let i = draw_int(s, 0, xs.len() as i64 - 1)
+    return some(copy(xs[i as usize]))
+
+fn tp_flag(s: &mut PropSrc, want: bool) -> bool
+    if not tp_room(s)
+        return false
+    var idx: u64 = 0
+    if s.replay
+        idx = tp_read(s, 1)
+        if s.status != TP_S_OK
+            return false
+    elif want
+        idx = 1
+    tp_put(s, TP_K_FLAG, 0, 1, idx)
+    return idx == 1
+
+# Generation length of a collection: QuickCheck listOf, uniform in
+# [lo, min(hi, max(lo, size))].
+fn tp_coll_len(s: &mut PropSrc, lo: i64, hi: i64) -> i64
+    if s.replay
+        return 0
+    var up = if s.size > lo then s.size else lo
+    if up > hi
+        up = hi
+    return lo + (tp_upto(&mut s.rng, (up - lo) as u64) as i64)
+
+fn tp_coll_ok(s: &mut PropSrc, what: text, lo: i64, hi: i64) -> bool
+    if lo < 0 or hi < lo or hi > 1000000
+        tp_bad(s, what + ": need 0 <= lo <= hi <= 1000000")
+        return false
+    return true
+
+# A list of lo..=hi elements drawn by `el` (a named generator), each
+# element in its own span.
+pub fn draw_list[T](s: &mut PropSrc, el: fn(&mut PropSrc) -> T, lo: i64, hi: i64) -> List[T]
+    var out: List[T] = []
+    if not tp_coll_ok(s, "draw_list", lo, hi)
+        return out
+    let want = tp_coll_len(s, lo, hi)
+    var n: i64 = 0
+    while n < hi and s.status == TP_S_OK bound 1000000
+        prop_span_start(s)
+        var more = true
+        if n >= lo
+            more = tp_flag(s, n < want)
+        if not more or s.status != TP_S_OK
+            prop_span_stop(s)
+            break
+        let v = el(s)
+        out.push(v)
+        prop_span_stop(s)
+        n += 1
+    return out
+
+# A map with lo..=hi entries; keys from `kg`, values from `vg`. A key that
+# is already present is rejected (its choices stay); after more than
+# max(3, 2 * count) rejections the map stops, or the case is invalid
+# when it is still below lo (Hypothesis many.reject).
+pub fn draw_map[K: Ord + Eq, V](s: &mut PropSrc, kg: fn(&mut PropSrc) -> K, vg: fn(&mut PropSrc) -> V, lo: i64, hi: i64) -> Map[K, V]
+    var out: Map[K, V] = {}
+    if not tp_coll_ok(s, "draw_map", lo, hi)
+        return out
+    let want = tp_coll_len(s, lo, hi)
+    var n: i64 = 0
+    var rejected: i64 = 0
+    var steps: i64 = 0
+    while n < hi and s.status == TP_S_OK and steps < TP_MAXCH bound 1000000
+        steps += 1
+        prop_span_start(s)
+        var more = true
+        if n >= lo
+            more = tp_flag(s, n < want)
+        if not more or s.status != TP_S_OK
+            prop_span_stop(s)
+            break
+        let k = kg(s)
+        let v = vg(s)
+        prop_span_stop(s)
+        if out.contains(k)
+            rejected += 1
+            let lim = if 2 * n > 3 then 2 * n else 3
+            if rejected > lim
+                if n < lo
+                    draw_assume(s, false)
+                break
+        else
+            out[k] = v
+            n += 1
+    return out
+
+fn tp_byte(s: &mut PropSrc) -> i64 = draw_int(s, 0, 255)
+
+# Bytes (List[i64], 0..255), lo..=hi of them.
+pub fn draw_bytes(s: &mut PropSrc, lo: i64, hi: i64) -> List[i64] = draw_list(s, tp_byte, lo, hi)
+
+# ---------------------------------------------------------------- characters and text
+
+# A set of Unicode scalar values as sorted, disjoint intervals, with the
+# offsets of Hypothesis IntervalSet and the indices of '0' and 'Z' that
+# define its shrink order.
+pub struct PropChars
+    iv: List[i64]
+    offs: List[i64]
+    size: i64
+    zero: i64
+    zed: i64
+
+fn tp_ins_iv(xs: &mut List[i64], a: i64, b: i64)
+    if b < a
+        return
+    xs.push(a)
+    xs.push(b)
+
+# The character set of the code point ranges [a1, b1, a2, b2, ...]: pairs
+# with a > b are ignored, ranges are clipped to 0..0x10FFFF, surrogates
+# removed, and overlapping or adjacent ranges merged.
+pub fn prop_chars(ranges: &[i64]) -> PropChars
+    var raw: List[i64] = []
+    var i: usize = 0
+    while i + 1 < ranges.len() bound 1000000
+        var a = ranges[i]
+        var b = ranges[i + 1]
+        if a < 0
+            a = 0
+        if b > 1114111
+            b = 1114111
+        if a <= b
+            if b < 55296 or a > 57343
+                tp_ins_iv(&mut raw, a, b)
+            else
+                tp_ins_iv(&mut raw, a, 55295)
+                tp_ins_iv(&mut raw, 57344, b)
+        i += 2
+    # sort pairs by start (insertion sort; ranges lists are short)
+    let m = raw.len() / 2
+    var order: List[i64] = []
+    for k in 0..m
+        order.push(k as i64)
+    var p: usize = 1
+    while p < m bound 1000000
+        var q = p
+        while q > 0 and raw[2 * (order[q - 1] as usize)] > raw[2 * (order[q] as usize)] bound 1000000
+            let t = order[q]
+            order[q] = order[q - 1]
+            order[q - 1] = t
+            q -= 1
+        p += 1
+    var iv: List[i64] = []
+    for k in order
+        let a = raw[2 * (k as usize)]
+        let b = raw[2 * (k as usize) + 1]
+        let n = iv.len()
+        if n > 0 and a <= iv[n - 1] + 1
+            if b > iv[n - 1]
+                iv[n - 1] = b
+        else
+            iv.push(a)
+            iv.push(b)
+    var offs: List[i64] = []
+    var total: i64 = 0
+    var j: usize = 0
+    while j < iv.len() bound 1000000
+        offs.push(total)
+        total += iv[j + 1] - iv[j] + 1
+        j += 2
+    var cs = PropChars(iv: iv, offs: offs, size: total, zero: 0, zed: 0)
+    cs.zero = tp_index_above(&cs, 48)
+    let iz = tp_index_above(&cs, 90)
+    cs.zed = if iz < total - 1 then iz else total - 1
+    return cs
+
+# All Unicode scalar values (Hypothesis characters(codec="utf-8")).
+pub fn prop_chars_all() -> PropChars
+    let r: List[i64] = [0, 1114111]
+    return prop_chars(&r)
+
+# Printable ASCII, U+0020..U+007E.
+pub fn prop_chars_ascii() -> PropChars
+    let r: List[i64] = [32, 126]
+    return prop_chars(&r)
+
+pub fn prop_chars_size(cs: &PropChars) -> i64 = cs.size
+
+fn tp_index_above(cs: &PropChars, v: i64) -> i64
+    var j: usize = 0
+    while j < cs.iv.len() bound 1000000
+        let u = cs.iv[j]
+        let w = cs.iv[j + 1]
+        let off = cs.offs[j / 2]
+        if u >= v
+            return off
+        if v <= w
+            return off + (v - u)
+        j += 2
+    return cs.size
+
+fn tp_cs_at(cs: &PropChars, i: i64) -> i64
+    var j: usize = 0
+    while j < cs.iv.len() bound 1000000
+        let off = cs.offs[j / 2]
+        let n = cs.iv[j + 1] - cs.iv[j] + 1
+        if i < off + n
+            return cs.iv[j] + (i - off)
+        j += 2
+    return 0
+
+# IntervalSet.char_in_shrink_order: the i-th code point in shrink order.
+pub fn prop_char_at(cs: &PropChars, i: i64) -> i64
+    var k = i
+    if k <= cs.zed
+        let n = cs.zed - cs.zero
+        if k <= n
+            k += cs.zero
+        else
+            k = cs.zero - (k - n)
+    return tp_cs_at(cs, k)
+
+# IntervalSet.index_from_char_in_shrink_order; -1 when c is not in cs.
+pub fn prop_char_index(cs: &PropChars, c: i64) -> i64
+    var j: usize = 0
+    var i: i64 = -1
+    while j < cs.iv.len() bound 1000000
+        if c >= cs.iv[j] and c <= cs.iv[j + 1]
+            i = cs.offs[j / 2] + (c - cs.iv[j])
+        j += 2
+    if i < 0
+        return -1
+    if i <= cs.zed
+        let n = cs.zed - cs.zero
+        if i >= cs.zero
+            return i - cs.zero
+        return cs.zero - i + n
+    return i
+
+# One code point of cs. Generation follows Hypothesis draw_string: over
+# more than 256 characters, an index >= 256 with probability 1/5, else
+# one below 256.
+pub fn draw_char(s: &mut PropSrc, cs: &PropChars) -> i64
+    if cs.size < 1
+        tp_bad(s, "draw_char: empty character set")
+        return 0
+    if not tp_room(s)
+        return prop_char_at(cs, 0)
+    var idx: u64 = 0
+    if s.replay
+        idx = tp_read(s, (cs.size - 1) as u64)
+        if s.status != TP_S_OK
+            return prop_char_at(cs, 0)
+    elif cs.size > 256
+        if tp_upto(&mut s.rng, 4) == 0
+            idx = 256 + tp_upto(&mut s.rng, (cs.size - 257) as u64)
+        else
+            idx = tp_upto(&mut s.rng, 255)
+    else
+        idx = tp_upto(&mut s.rng, (cs.size - 1) as u64)
+    tp_put(s, TP_K_CHAR, 0, cs.size - 1, idx)
+    return prop_char_at(cs, idx as i64)
+
+fn tp_utf8(o: &mut List[i64], c: i64)
+    if c < 128
+        o.push(c)
+    elif c < 2048
+        o.push(192 | (c >> 6))
+        o.push(128 | (c & 63))
+    elif c < 65536
+        o.push(224 | (c >> 12))
+        o.push(128 | ((c >> 6) & 63))
+        o.push(128 | (c & 63))
+    else
+        o.push(240 | (c >> 18))
+        o.push(128 | ((c >> 12) & 63))
+        o.push(128 | ((c >> 6) & 63))
+        o.push(128 | (c & 63))
+
+# The text of a list of Unicode scalar values (others are skipped).
+pub fn prop_text_of(cps: &[i64]) -> text
+    var b: List[i64] = []
+    for c in cps
+        if c >= 0 and c <= 1114111 and (c < 55296 or c > 57343)
+            tp_utf8(&mut b, c)
+    return b.utf8()
+
+# A text of lo..=hi characters of cs.
+pub fn draw_text(s: &mut PropSrc, cs: &PropChars, lo: i64, hi: i64) -> text
+    if not tp_coll_ok(s, "draw_text", lo, hi)
+        return ""
+    if cs.size < 1
+        if lo > 0
+            tp_bad(s, "draw_text: empty character set")
+        return ""
+    let want = tp_coll_len(s, lo, hi)
+    var cps: List[i64] = []
+    var n: i64 = 0
+    while n < hi and s.status == TP_S_OK bound 1000000
+        prop_span_start(s)
+        var more = true
+        if n >= lo
+            more = tp_flag(s, n < want)
+        if not more or s.status != TP_S_OK
+            prop_span_stop(s)
+            break
+        cps.push(draw_char(s, cs))
+        prop_span_stop(s)
+        n += 1
+    return prop_text_of(&cps)
+
+# ---------------------------------------------------------------- floats
+
+fn tp_up(j: i64) -> f64
+    match j
+        0 -> return 2.0
+        1 -> return 4.0
+        2 -> return 16.0
+        3 -> return 256.0
+        4 -> return 65536.0
+        5 -> return 4294967296.0
+        6 -> return 1.8446744073709552e19
+        7 -> return 3.402823669209385e38
+        8 -> return 1.157920892373162e77
+        _ -> return 1.3407807929942597e154
+
+fn tp_dn(j: i64) -> f64
+    match j
+        0 -> return 0.5
+        1 -> return 0.25
+        2 -> return 0.0625
+        3 -> return 0.00390625
+        4 -> return 1.52587890625e-05
+        5 -> return 2.3283064365386963e-10
+        6 -> return 5.421010862427522e-20
+        7 -> return 2.938735877055719e-39
+        8 -> return 8.636168555094445e-78
+        9 -> return 7.458340731200207e-155
+        _ -> return 5.562684646268003e-309
+
+# 2^k for -1074 <= k <= 1023, exact: every partial product is a power of
+# two inside the range.
+fn tp_pow2(k: i64) -> f64
+    var r = 1.0
+    if k >= 0
+        for j in 0..10
+            if (k >> j) & 1 == 1
+                r = r * tp_up(j as i64)
+        return r
+    let a = 0 - k
+    for j in 0..11
+        if (a >> j) & 1 == 1
+            r = r * tp_dn(j as i64)
+    return r
+
+# The IEEE 754 binary64 encoding of a finite a >= 0, by exact scalings
+# (rce has no bit casts).
+fn tp_fbits(a: f64) -> u64
+    if a == 0.0
+        return 0
+    if a < 2.2250738585072014e-308
+        let m = (a * 4.4989137945431964e161) * 4.4989137945431964e161
+        return (m as i64) as u64
+    var x = a
+    var e: i64 = 0
+    if x >= 2.0
+        var j: i64 = 9
+        while j >= 0 bound 10
+            if x >= tp_up(j)
+                x = x * tp_dn(j)
+                e += (1 as i64) << j
+            j -= 1
+    elif x < 1.0
+        var j: i64 = 9
+        while j >= 0 bound 10
+            if x < tp_dn(j)
+                x = x * tp_up(j)
+                e -= (1 as i64) << j
+            j -= 1
+        x = x * 2.0
+        e -= 1
+    let m = ((x - 1.0) * 4503599627370496.0) as i64
+    return (((e + 1023) as u64) << 52) | (m as u64)
+
+# The finite non-negative float of an encoding with exponent below 2047.
+fn tp_fram(b: u64) -> f64
+    let ex = ((b >> 52) & 2047) as i64
+    let m = (b & TP_M52) as i64
+    if ex == 0
+        return (m as f64) * 5e-324
+    return ((m + 4503599627370496) as f64) * tp_pow2(ex - 1075)
+
+fn tp_dec_exp(i: u64) -> u64 = if i <= 1023 then i + 1023 else (if i <= 2046 then 2046 - i else 2047)
+
+fn tp_enc_exp(e: u64) -> u64 = if e >= 1023 and e <= 2046 then e - 1023 else (if e <= 1022 then 2046 - e else 2047)
+
+fn tp_rev(x: u64, n: i64) -> u64
+    var r: u64 = 0
+    var v = x
+    for _i in 0..n
+        r = (r << 1) | (v & 1)
+        v = v >> 1
+    return r
+
+fn tp_upd_mant(ue: i64, m: u64) -> u64
+    if ue <= 0
+        return tp_rev(m, 52)
+    if ue <= 51
+        let nf = 52 - ue
+        let frac = m & (((1 as u64) << (nf as u64)) - 1)
+        return (m ^ frac) | tp_rev(frac, nf)
+    return m
+
+# Hypothesis float_to_lex for a finite x >= 0.
+pub fn prop_float_lex(x: f64) -> u64
+    if x == x.floor() and x < 72057594037927936.0
+        return (x as i64) as u64
+    let b = tp_fbits(x)
+    let e = b >> 52
+    let m = tp_upd_mant(e as i64 - 1023, b & TP_M52)
+    return TP_U63 | (tp_enc_exp(e) << 52) | m
+
+# Hypothesis lex_to_float: whether the value is finite (rce floats are
+# always finite), the value, and the mantissa bits the clamper reads.
+pub struct PropLex
+    finite: bool
+    value: f64
+    mant: u64
+
+pub fn prop_lex_float(lex: u64) -> PropLex
+    if lex >> 63 == 1
+        let ex = tp_dec_exp((lex >> 52) & 2047)
+        let m = tp_upd_mant(ex as i64 - 1023, lex & TP_M52)
+        if ex == 2047
+            return PropLex(finite: false, value: 0.0, mant: m)
+        return PropLex(finite: true, value: tp_fram((ex << 52) | m), mant: m)
+    let v = ((lex & TP_M56) as i64) as f64
+    return PropLex(finite: true, value: v, mant: tp_fbits(v) & TP_M52)
+
+fn tp_negzero(x: f64) -> bool = x == 0.0 and x.tostr() == "-0"
+
+fn tp_fneg(x: f64) -> bool = x < 0.0 or tp_negzero(x)
+
+# x <= y with -0.0 below 0.0 (Hypothesis sign_aware_lte).
+fn tp_fle(x: f64, y: f64) -> bool
+    if x == 0.0 and y == 0.0
+        return tp_fneg(x) or not tp_fneg(y)
+    return x <= y
+
+fn tp_fperm(v: f64, lo: f64, hi: f64) -> bool = tp_fle(lo, v) and tp_fle(v, hi)
+
+# Hypothesis make_float_clamper (allow_nan false, smallest nonzero
+# magnitude the least subnormal): a value outside [lo, hi] becomes
+# lo + range * (mantissa / (2^52 - 1)), range = min(hi - lo, max float).
+fn tp_clamp(ok: bool, v: f64, mant: u64, lo: f64, hi: f64) -> f64
+    if ok and tp_fperm(v, lo, hi)
+        return v
+    var rng = TP_FMAX
+    if hi * 0.5 - lo * 0.5 < 8.98846567431158e307
+        rng = hi - lo
+    let rr = rng * (((mant & TP_M52) as i64) as f64 / 4503599627370495.0)
+    var f = hi
+    if lo * 0.5 + rr * 0.5 < 8.98846567431158e307
+        f = lo + rr
+    if not tp_fle(lo, f)
+        return lo
+    if not tp_fle(f, hi)
+        return hi
+    return f
+
+# Hypothesis choice_from_index for a float: sign, lex, then the clamper.
+pub fn prop_float_value(sign: u64, lex: u64, lo: f64, hi: f64) -> f64
+    let l = prop_lex_float(lex)
+    var v = l.value
+    if sign == 1
+        v = -v
+    return tp_clamp(l.finite, v, l.mant, lo, hi)
+
+fn tp_next_up(x: f64) -> PropLex
+    if x == 0.0
+        return PropLex(finite: true, value: 5e-324, mant: 1)
+    if x > 0.0
+        let b = tp_fbits(x) + 1
+        if b >> 52 >= 2047
+            return PropLex(finite: false, value: 0.0, mant: 0)
+        return PropLex(finite: true, value: tp_fram(b), mant: 0)
+    let b = tp_fbits(-x) - 1
+    return PropLex(finite: true, value: -tp_fram(b), mant: 0)
+
+fn tp_next_down(x: f64) -> PropLex
+    let u = tp_next_up(-x)
+    return PropLex(finite: u.finite, value: -u.value, mant: 0)
+
+# Generation, after Hypothesis draw_float: one case in 20 takes a weird
+# value (0.0, -0.0, lo, next_up(lo), lo + 1, hi - 1, next_down(hi), hi;
+# those in range); otherwise one case in 4 takes QuickCheck's
+# arbitrarySizedFractional numer / denom (denom in 1..max(1, size),
+# numer in -size*denom..size*denom), and the rest a uniform 64-bit lex
+# with a random sign; the result is clamped into range.
+fn tp_gen_float(s: &mut PropSrc, lo: f64, hi: f64) -> f64
+    if tp_upto(&mut s.rng, 19) == 0
+        var w: List[f64] = []
+        if tp_fperm(0.0, lo, hi)
+            w.push(0.0)
+        if tp_fperm(-0.0, lo, hi)
+            w.push(-0.0)
+        w.push(lo)
+        let nu = tp_next_up(lo)
+        if nu.finite and tp_fperm(nu.value, lo, hi)
+            w.push(nu.value)
+        if tp_fperm(lo + 1.0, lo, hi)
+            w.push(lo + 1.0)
+        if tp_fperm(hi - 1.0, lo, hi)
+            w.push(hi - 1.0)
+        let nd = tp_next_down(hi)
+        if nd.finite and tp_fperm(nd.value, lo, hi)
+            w.push(nd.value)
+        w.push(hi)
+        let j = tp_upto(&mut s.rng, (w.len() - 1) as u64)
+        return w[j as usize]
+    if tp_upto(&mut s.rng, 3) == 0
+        let n = if s.size > 1 then s.size else 1
+        let den = 1 + (tp_upto(&mut s.rng, (n - 1) as u64) as i64)
+        let num = tp_add(0 - s.size * den, tp_upto(&mut s.rng, (2 * s.size * den) as u64))
+        let q = (num as f64) / (den as f64)
+        return tp_clamp(true, q, tp_fbits(q.abs()) & TP_M52, lo, hi)
+    let lex = tp_bits(&mut s.rng, 64)
+    let sg = tp_bits(&mut s.rng, 1)
+    return prop_float_value(sg, lex, lo, hi)
+
+# A finite float in [lo, hi] (sign aware: -0.0 < 0.0). Two choices: sign *
+# 2 + lex tag, then the low 63 bits of the lex.
+pub fn draw_float_in(s: &mut PropSrc, lo: f64, hi: f64) -> f64
+    if not tp_fle(lo, hi)
+        tp_bad(s, "draw_float_in: lo > hi")
+        return lo
+    let simplest = tp_clamp(true, 0.0, 0, lo, hi)
+    if not tp_room(s)
+        return simplest
+    var v = simplest
+    if s.replay
+        let n = s.used.len()
+        if n + 1 >= s.prefix.len()
+            s.status = TP_S_OVERRUN
+            s.note = "the choices ran out"
+            return simplest
+        let a = s.prefix[n]
+        let b = s.prefix[n + 1]
+        var x = simplest
+        var ok = a <= 3 and b <= TP_M63
+        if ok
+            let l = prop_lex_float(((a & 1) << 63) | b)
+            x = l.value
+            if a >> 1 == 1
+                x = -x
+            ok = l.finite and tp_fperm(x, lo, hi)
+        if ok
+            v = x
+        elif s.misaligned < 0
+            s.misaligned = n as i64
+    else
+        v = tp_gen_float(s, lo, hi)
+    let sg: u64 = if tp_fneg(v) then 1 else 0
+    let lex = prop_float_lex(v.abs())
+    tp_put(s, TP_K_FSIGN, 0, 3, sg * 2 + (lex >> 63))
+    tp_put(s, TP_K_FLEX, 0, 0, lex & TP_M63)
+    return v
+
+# Any finite float.
+pub fn draw_float(s: &mut PropSrc) -> f64 = draw_float_in(s, 0.0 - TP_FMAX, TP_FMAX)
+
+# ---------------------------------------------------------------- outcomes and configuration
+
+# What a property says about one case.
+pub kind PropOutcome
+    PropPass
+    PropDiscard
+    PropFail(lbl: text)
+
+# seed: the run's seed; cases: passing cases required (QuickCheck
+# maxSuccess); max_size: QuickCheck maxSize; discard_ratio: QuickCheck
+# maxDiscardRatio; max_shrinks: shrink calls allowed (QuickCheck
+# maxShrinks, successful and failed calls together).
+pub struct PropCfg
+    seed: i64
+    cases: i64
+    max_size: i64
+    discard_ratio: i64
+    max_shrinks: i64
+
+# QuickCheck stdArgs (100 cases, size 100, discard ratio 10) with 2000
+# shrink calls.
+pub fn prop_cfg(seed: i64) -> PropCfg = PropCfg(seed: seed, cases: 100, max_size: 100, discard_ratio: 10, max_shrinks: 2000)
+
+pub fn prop_cfg_cases(seed: i64, cases: i64) -> PropCfg = PropCfg(seed: seed, cases: cases, max_size: 100, discard_ratio: 10, max_shrinks: 2000)
+
+# Phases of a run.
+pub const PROP_TESTING: i64 = 0
+pub const PROP_SHRINKING: i64 = 1
+pub const PROP_PASSED: i64 = 2
+pub const PROP_FAILED: i64 = 3
+pub const PROP_GAVE_UP: i64 = 4
+pub const PROP_BAD_GEN: i64 = 5
+
+# The state of one property run; prop_steps advances it.
+pub struct PropRun
+    cfg: PropCfg
+    phase: i64
+    passed: i64
+    discarded: i64
+    recent: i64
+    cases_run: i64
+    fail_case: i64
+    fail_size: i64
+    lbl: text
+    note: text
+    orig: List[u64]
+    best: List[u64]
+    kinds: List[i64]
+    los: List[i64]
+    his: List[i64]
+    spans: List[i64]
+    shrinks: i64
+    tries: i64
+    pass_no: i64
+    pos: i64
+    changed: bool
+    complete: bool
+    dups: List[List[i64]]
+
+pub fn prop_start(cfg: PropCfg) -> PropRun = PropRun(cfg: cfg, phase: PROP_TESTING, passed: 0, discarded: 0, recent: 0, cases_run: 0, fail_case: -1, fail_size: 0, lbl: "", note: "", orig: [], best: [], kinds: [], los: [], his: [], spans: [], shrinks: 0, tries: 0, pass_no: 0, pos: 0, changed: false, complete: false, dups: [])
+
+# QuickCheck 2.15 computeSize: ms = cases, mts = max_size, md =
+# discard_ratio, n = passed cases, d = discards since the last pass.
+pub fn prop_qc_size(ms: i64, mts: i64, md: i64, n: i64, d: i64) -> i64
+    if mts <= 0
+        return 0
+    var dd: i64 = 1
+    if md > 0
+        dd = (ms * md) / 3
+        if dd < 1
+            dd = 1
+        if dd > 10
+            dd = 10
+    var v: i64 = 0
+    if (n / mts) * mts + mts <= ms or n >= ms or ms % mts == 0
+        v = n % mts + d / dd
+    else
+        v = ((n % mts) * mts) / (ms % mts) + d / dd
+    return if v < mts then v else mts
+
+# QuickCheck tooManyDiscards.
+fn tp_too_many(run: &PropRun) -> bool
+    let md = run.cfg.discard_ratio
+    if md > 0
+        let m = if run.passed > run.cfg.cases then run.passed else run.cfg.cases
+        return run.discarded / md >= m
+    return run.discarded > 0
+
+struct TpRes
+    out: i64
+    lbl: text
+    src: PropSrc
+
+# Run one case: 0 pass, 1 discard (failed assumption, overrun or
+# PropDiscard), 2 fail, 3 bad generator argument.
+fn tp_case[T](g: fn(&mut PropSrc) -> T, p: fn(&T) -> PropOutcome, src: PropSrc) -> TpRes
+    var s = src
+    let v = g(&mut s)
+    if s.status == TP_S_BADARG
+        let why = copy(s.note)
+        return TpRes(out: 3, lbl: why, src: s)
+    if s.status != TP_S_OK
+        return TpRes(out: 1, lbl: "", src: s)
+    let o = p(&v)
+    match o
+        PropPass -> return TpRes(out: 0, lbl: "", src: s)
+        PropDiscard -> return TpRes(out: 1, lbl: "", src: s)
+        PropFail(lbl: l) -> return TpRes(out: 2, lbl: copy(l), src: s)
+
+fn tp_take(run: &mut PropRun, r: &TpRes)
+    run.best = copy(r.src.used)
+    run.kinds = copy(r.src.kinds)
+    run.los = copy(r.src.los)
+    run.his = copy(r.src.his)
+    run.spans = copy(r.src.spans)
+
+fn tp_test_one[T](run: &mut PropRun, g: fn(&mut PropSrc) -> T, p: fn(&T) -> PropOutcome)
+    if run.passed >= run.cfg.cases
+        run.phase = PROP_PASSED
+        return
+    if tp_too_many(run)
+        run.phase = PROP_GAVE_UP
+        return
+    let c = copy(run.cfg)
+    let size = prop_qc_size(c.cases, c.max_size, c.discard_ratio, run.passed, run.recent)
+    let r = tp_case(g, p, prop_src(c.seed, run.cases_run, size))
+    run.cases_run += 1
+    if r.out == 0
+        run.passed += 1
+        run.recent = 0
+    elif r.out == 1
+        run.discarded += 1
+        run.recent += 1
+    elif r.out == 3
+        run.phase = PROP_BAD_GEN
+        run.note = copy(r.lbl)
+        run.fail_case = run.cases_run - 1
+        run.fail_size = size
+    else
+        run.phase = PROP_SHRINKING
+        run.lbl = copy(r.lbl)
+        run.fail_case = run.cases_run - 1
+        run.fail_size = size
+        run.orig = copy(r.src.used)
+        tp_take(run, &r)
+
+# ---------------------------------------------------------------- shrinking
+
+# Shortlex: shorter first, then lexicographic (Hypothesis sort_key).
+pub fn prop_simpler(a: &[u64], b: &[u64]) -> bool
+    if a.len() != b.len()
+        return a.len() < b.len()
+    var i: usize = 0
+    while i < a.len() bound 1000000
+        if a[i] != b[i]
+            return a[i] < b[i]
+        i += 1
+    return false
+
+fn tp_budget_left(run: &PropRun) -> bool = run.shrinks + run.tries < run.cfg.max_shrinks
+
+# Consider a candidate: run it only if it is simpler than the current
+# failure, and keep it when it fails with the same label and its used
+# choices are simpler.
+fn tp_try[T](run: &mut PropRun, g: fn(&mut PropSrc) -> T, p: fn(&T) -> PropOutcome, cand: List[u64]) -> bool
+    if not prop_simpler(&cand, &run.best)
+        return false
+    if not tp_budget_left(run)
+        return false
+    let r = tp_case(g, p, prop_src_replay(&cand, run.fail_size))
+    if r.out == 2 and r.lbl == run.lbl and prop_simpler(&r.src.used, &run.best)
+        tp_take(run, &r)
+        run.shrinks += 1
+        run.changed = true
+        return true
+    run.tries += 1
+    return false
+
+fn tp_without(xs: &[u64], a: i64, b: i64) -> List[u64]
+    var o: List[u64] = []
+    var i: i64 = 0
+    for x in xs
+        if i < a or i >= b
+            o.push(x)
+        i += 1
+    return o
+
+fn tp_zeroed(xs: &[u64], a: i64, b: i64) -> List[u64]
+    var o: List[u64] = []
+    var i: i64 = 0
+    for x in xs
+        if i < a or i >= b
+            o.push(x)
+        else
+            o.push(0)
+        i += 1
+    return o
+
+# The state of one Integer shrinker (Hypothesis shrinking/integer.py):
+# the slots it writes, its current value and the values it has tried.
+struct TpIs
+    pos: List[i64]
+    cur: u64
+    seen: List[u64]
+
+fn tp_cons[T](run: &mut PropRun, g: fn(&mut PropSrc) -> T, p: fn(&T) -> PropOutcome, st: &mut TpIs, v: u64) -> bool
+    if v == st.cur
+        return true
+    if v > st.cur or st.seen.contains(v)
+        return false
+    st.seen.push(v)
+    var cand = copy(run.best)
+    for q in st.pos
+        if q < 0 or q >= cand.len() as i64
+            return false
+        cand[q as usize] = v
+    if tp_try(run, g, p, cand)
+        st.cur = v
+        return true
+    return false
+
+# One probe of find_integer for the Integer shrinker: op 0 masks the
+# high bits, 1 shifts right, 2 and 3 subtract multiples of 2 and 1.
+fn tp_iprobe[T](run: &mut PropRun, g: fn(&mut PropSrc) -> T, p: fn(&T) -> PropOutcome, st: &mut TpIs, op: i64, base: u64, k: u64) -> bool
+    if op == 0
+        let nb = tp_bitlen(base) as u64
+        if k >= nb
+            return false
+        return tp_cons(run, g, p, st, base & (((1 as u64) << (nb - k)) - 1))
+    if op == 1
+        if k > tp_bitlen(st.cur) as u64
+            return false
+        let v = if k >= 64 then 0 else base >> k
+        return tp_cons(run, g, p, st, v)
+    if op == 2
+        if k > base / 2
+            return false
+        return tp_cons(run, g, p, st, base - 2 * k)
+    if k > base
+        return false
+    return tp_cons(run, g, p, st, base - k)
+
+# find_integer (junkdrawer.py): a large n with f(n) true and f(n + 1)
+# false, f(0) assumed true; linear to 4, then doubling, then bisection.
+fn tp_ifind[T](run: &mut PropRun, g: fn(&mut PropSrc) -> T, p: fn(&T) -> PropOutcome, st: &mut TpIs, op: i64, base: u64) -> u64
+    var i: u64 = 1
+    while i < 5 bound 5
+        if not tp_iprobe(run, g, p, st, op, base, i)
+            return i - 1
+        i += 1
+    var lo: u64 = 4
+    var hi: u64 = 5
+    var up = true
+    while up bound 70
+        if tp_iprobe(run, g, p, st, op, base, hi)
+            lo = hi
+            if hi == TP_UMAX
+                return hi
+            hi = if hi > TP_M63 then TP_UMAX else hi * 2
+        else
+            up = false
+    while lo + 1 < hi bound 70
+        let mid = lo + (hi - lo) / 2
+        if tp_iprobe(run, g, p, st, op, base, mid)
+            lo = mid
+        else
+            hi = mid
+    return lo
+
+# Integer.shrink on the shared index of the slots pos: short_circuit
+# (0, 1, mask_high_bits, the top and low byte), then one run_step
+# (shift_right, shrink_by_multiples(2), shrink_by_multiples(1)).
+fn tp_ishrink[T](run: &mut PropRun, g: fn(&mut PropSrc) -> T, p: fn(&T) -> PropOutcome, pos: List[i64])
+    if pos.len() == 0 or pos[0] >= run.best.len() as i64
+        return
+    let c0 = run.best[pos[0] as usize]
+    var st = TpIs(pos: pos, cur: c0, seen: [])
+    if tp_cons(run, g, p, &mut st, 0)
+        return
+    if tp_cons(run, g, p, &mut st, 1)
+        return
+    let b0 = st.cur
+    let _ = tp_ifind(run, g, p, &mut st, 0, b0)
+    let sz = tp_bitlen(st.cur)
+    if sz > 8
+        let c = st.cur
+        let _ = tp_cons(run, g, p, &mut st, c >> ((sz - 8) as u64))
+        let c2 = st.cur
+        let _ = tp_cons(run, g, p, &mut st, c2 & 255)
+    if st.cur == 2
+        return
+    let b1 = st.cur
+    let _ = tp_ifind(run, g, p, &mut st, 1, b1)
+    let b2 = st.cur
+    let _ = tp_ifind(run, g, p, &mut st, 2, b2)
+    let b3 = st.cur
+    let _ = tp_ifind(run, g, p, &mut st, 3, b3)
+
+fn tp_ival(run: &PropRun, i: usize) -> i64 = prop_int_value(run.best[i], run.los[i], run.his[i])
+
+# The candidate with integer slots i and j set to values a and b, or an
+# empty list when either value is outside its slot's range.
+fn tp_pair(run: &PropRun, i: usize, a: i64, j: usize, b: i64) -> List[u64]
+    if a < run.los[i] or a > run.his[i] or b < run.los[j] or b > run.his[j]
+        return []
+    var cand = copy(run.best)
+    cand[i] = prop_int_index(a, run.los[i], run.his[i])
+    cand[j] = prop_int_index(b, run.los[j], run.his[j])
+    return cand
+
+# redistribute_numeric_pairs: move k from slot i (towards its target)
+# to slot j (away from it).
+fn tp_boost[T](run: &mut PropRun, g: fn(&mut PropSrc) -> T, p: fn(&T) -> PropOutcome, i: usize, j: usize, m: i64, n: i64, t: i64, k: u64) -> bool
+    let dist = if m >= t then tp_off(m, t) else tp_off(t, m)
+    if k > dist or k > TP_M63
+        return false
+    let kk = k as i64
+    var a: i64 = 0
+    var b: i64 = 0
+    if m < t
+        a = m + kk
+        let bb = n.checked_sub(kk)
+        if bb.isnone()
+            return false
+        b = bb.or(0)
+    else
+        a = m - kk
+        let bb = n.checked_add(kk)
+        if bb.isnone()
+            return false
+        b = bb.or(0)
+    let cand = tp_pair(run, i, a, j, b)
+    if cand.len() == 0
+        return false
+    return tp_try(run, g, p, cand)
+
+# lower_integers_together: subtract d from both slots.
+fn tp_lower2[T](run: &mut PropRun, g: fn(&mut PropSrc) -> T, p: fn(&T) -> PropOutcome, i: usize, j: usize, a: i64, b: i64, d: i64) -> bool
+    let x = a.checked_sub(d)
+    let y = b.checked_sub(d)
+    if x.isnone() or y.isnone()
+        return false
+    let cand = tp_pair(run, i, x.or(0), j, y.or(0))
+    if cand.len() == 0
+        return false
+    return tp_try(run, g, p, cand)
+
+# find_integer over the two pair passes: op 0 boosts, op 1 lowers by
+# t - n, op 2 lowers by n - t (n at most 2^62).
+fn tp_pprobe[T](run: &mut PropRun, g: fn(&mut PropSrc) -> T, p: fn(&T) -> PropOutcome, op: i64, i: usize, j: usize, m: i64, n: i64, t: i64, k: u64) -> bool
+    if op == 0
+        return tp_boost(run, g, p, i, j, m, n, t, k)
+    if k > 4611686018427387904
+        return false
+    let kk = k as i64
+    let d = if op == 1 then t.checked_sub(kk) else kk.checked_sub(t)
+    if d.isnone()
+        return false
+    return tp_lower2(run, g, p, i, j, m, n, d.or(0))
+
+fn tp_pfind[T](run: &mut PropRun, g: fn(&mut PropSrc) -> T, p: fn(&T) -> PropOutcome, op: i64, i: usize, j: usize, m: i64, n: i64, t: i64)
+    var c: u64 = 1
+    while c < 5 bound 5
+        if not tp_pprobe(run, g, p, op, i, j, m, n, t, c)
+            return
+        c += 1
+    var lo: u64 = 4
+    var hi: u64 = 5
+    var up = true
+    while up bound 70
+        if tp_pprobe(run, g, p, op, i, j, m, n, t, hi)
+            lo = hi
+            if hi > TP_M63
+                return
+            hi = hi * 2
+        else
+            up = false
+    while lo + 1 < hi bound 70
+        let mid = lo + (hi - lo) / 2
+        if tp_pprobe(run, g, p, op, i, j, m, n, t, mid)
+            lo = mid
+        else
+            hi = mid
+
+fn tp_is_int(run: &PropRun, i: i64) -> bool = i >= 0 and i < run.best.len() as i64 and run.kinds[i as usize] == TP_K_INT
+
+# Groups of two or more equal choices (same kind, bounds and index, not
+# zero, not a continuation flag), in order of first occurrence.
+fn tp_dup_groups(run: &PropRun) -> List[List[i64]]
+    var at: Map[text, i64] = {}
+    var gs: List[List[i64]] = []
+    var i: usize = 0
+    while i < run.best.len() bound 1000000
+        if run.best[i] > 0 and run.kinds[i] != TP_K_FLAG
+            let key = run.kinds[i].tostr() + ":" + run.los[i].tostr() + ":" + run.his[i].tostr() + ":" + run.best[i].tostr()
+            if at.contains(key)
+                let gi = at.get(key) catch 0
+                gs[gi as usize].push(i as i64)
+            else
+                at[key] = gs.len() as i64
+                gs.push([i as i64])
+        i += 1
+    var o: List[List[i64]] = []
+    for gr in gs
+        if gr.len() > 1
+            o.push(copy(gr))
+    return o
+
+fn tp_finish(run: &mut PropRun, complete: bool)
+    run.phase = PROP_FAILED
+    run.complete = complete
+    run.dups = []
+
+fn tp_next_pass(run: &mut PropRun)
+    run.pass_no += 1
+    run.pos = 0
+    if run.pass_no == 7
+        run.dups = tp_dup_groups(run)
+    if run.pass_no >= 11
+        if not run.changed
+            tp_finish(run, true)
+            return
+        run.pass_no = 0
+        run.changed = false
+
+# One step of the current shrink pass at the current position.
+fn tp_shrink_step[T](run: &mut PropRun, g: fn(&mut PropSrc) -> T, p: fn(&T) -> PropOutcome)
+    if not tp_budget_left(run)
+        tp_finish(run, false)
+        return
+    let n = run.best.len() as i64
+    let ns = run.spans.len() as i64 / 2
+    let k = run.pass_no
+    let i = run.pos
+    if k == 0
+        if i >= ns
+            tp_next_pass(run)
+            return
+        let a = run.spans[(2 * i) as usize]
+        let b = run.spans[(2 * i + 1) as usize]
+        let _ = tp_try(run, g, p, tp_zeroed(&run.best, a, b))
+        run.pos += 1
+    elif k == 1
+        if i >= ns
+            tp_next_pass(run)
+            return
+        let a = run.spans[(2 * i) as usize]
+        let b = run.spans[(2 * i + 1) as usize]
+        if not tp_try(run, g, p, tp_without(&run.best, a, b))
+            run.pos += 1
+    elif k <= 6
+        let w = 7 - k
+        if i + w > n
+            tp_next_pass(run)
+            return
+        if not tp_try(run, g, p, tp_without(&run.best, i, i + w))
+            run.pos += 1
+    elif k == 7
+        if i >= run.dups.len() as i64
+            tp_next_pass(run)
+            return
+        let gr = copy(run.dups[i as usize])
+        var same = true
+        for q in gr
+            if q >= n or run.best[q as usize] != run.best[gr[0] as usize]
+                same = false
+        if same
+            tp_ishrink(run, g, p, gr)
+        run.pos += 1
+    elif k == 8
+        if i >= n
+            tp_next_pass(run)
+            return
+        if run.best[i as usize] > 0
+            tp_ishrink(run, g, p, [i])
+        run.pos += 1
+    else
+        if i >= n
+            tp_next_pass(run)
+            return
+        if tp_is_int(run, i) and run.best[i as usize] > 0
+            let iu = i as usize
+            let t = tp_target(run.los[iu], run.his[iu])
+            let reach = if k == 9 then 4 else 3
+            var j = i + 1
+            while j <= i + reach and j < run.best.len() as i64 bound 5
+                if tp_is_int(run, i) and tp_is_int(run, j)
+                    let ju = j as usize
+                    let m = tp_ival(run, iu)
+                    let v = tp_ival(run, ju)
+                    if k == 9
+                        tp_pfind(run, g, p, 0, iu, ju, m, v, t)
+                    else
+                        tp_pfind(run, g, p, 1, iu, ju, m, v, t)
+                        if tp_is_int(run, i) and tp_is_int(run, j)
+                            let m2 = tp_ival(run, iu)
+                            let v2 = tp_ival(run, ju)
+                            tp_pfind(run, g, p, 2, iu, ju, m2, v2, t)
+                j += 1
+        run.pos += 1
+
+# ---------------------------------------------------------------- running
+
+fn tp_live(run: &PropRun) -> bool = run.phase == PROP_TESTING or run.phase == PROP_SHRINKING
+
+# Advance a run by up to `units` units (at most 1,000,000 per call): a
+# test case or a shrink call is one unit; a shrink step that makes no
+# call counts one.
+pub fn prop_steps_outcome[T](run: &mut PropRun, g: fn(&mut PropSrc) -> T, p: fn(&T) -> PropOutcome, units: i64)
+    var used: i64 = 0
+    while used < units and tp_live(run) bound 1000000
+        if run.phase == PROP_TESTING
+            tp_test_one(run, g, p)
+            used += 1
+        else
+            let before = run.shrinks + run.tries
+            tp_shrink_step(run, g, p)
+            let d = run.shrinks + run.tries - before
+            used += if d > 0 then d else 1
+
+fn tp_holds[T](p: fn(&T) -> bool) -> fn(&T) -> PropOutcome = fn(x: &T) => (if p(x) then PropPass else PropFail(lbl: "false"))
+
+fn tp_found[T](c: fn(&T) -> bool) -> fn(&T) -> PropOutcome = fn(x: &T) => (if c(x) then PropFail(lbl: "found") else PropPass)
+
+pub fn prop_steps[T](run: &mut PropRun, g: fn(&mut PropSrc) -> T, p: fn(&T) -> bool, units: i64)
+    prop_steps_outcome(run, g, tp_holds(p), units)
+
+# Check property p on cases from g, shrink a failure, and return the
+# finished run.
+pub fn prop_check_outcome[T](g: fn(&mut PropSrc) -> T, p: fn(&T) -> PropOutcome, cfg: PropCfg) -> PropRun
+    var run = prop_start(cfg)
+    var rounds: i64 = 0
+    while tp_live(&run) and rounds < 1000 bound 1000
+        prop_steps_outcome(&mut run, g, p, 1000000)
+        rounds += 1
+    return run
+
+pub fn prop_check[T](g: fn(&mut PropSrc) -> T, p: fn(&T) -> bool, cfg: PropCfg) -> PropRun = prop_check_outcome(g, tp_holds(p), cfg)
+
+# Hypothesis find: the simplest generated value satisfying c (the run
+# fails with label "found" when one is found).
+pub fn prop_find[T](g: fn(&mut PropSrc) -> T, c: fn(&T) -> bool, cfg: PropCfg) -> PropRun = prop_check_outcome(g, tp_found(c), cfg)
+
+# ---------------------------------------------------------------- results
+
+pub fn prop_ok(run: &PropRun) -> bool = run.phase == PROP_PASSED
+
+pub fn prop_failed(run: &PropRun) -> bool = run.phase == PROP_FAILED
+
+pub fn prop_verdict(run: &PropRun) -> text
+    match run.phase
+        0 -> return "testing"
+        1 -> return "shrinking"
+        2 -> return "passed"
+        3 -> return "failed"
+        4 -> return "gave up"
+        _ -> return "bad generator"
+
+# The shrunk failing choices, and the choices of the failure as found.
+pub fn prop_best(run: &PropRun) -> List[u64] = copy(run.best)
+pub fn prop_orig(run: &PropRun) -> List[u64] = copy(run.orig)
+
+# Rebuild a value from recorded choices (a replay at the given size).
+pub fn prop_replay[T](g: fn(&mut PropSrc) -> T, choices: &[u64], size: i64) -> T
+    var s = prop_src_replay(choices, size)
+    let v = g(&mut s)
+    return v
+
+# Rebuild case `case` of seed `seed` at `size`, as the runner drew it.
+pub fn prop_case[T](g: fn(&mut PropSrc) -> T, seed: i64, case: i64, size: i64) -> T
+    var s = prop_src(seed, case, size)
+    let v = g(&mut s)
+    return v
+
+# The shrunk counterexample and the original one.
+pub fn prop_value[T](run: &PropRun, g: fn(&mut PropSrc) -> T) -> T = prop_replay(g, &run.best, run.fail_size)
+pub fn prop_original[T](run: &PropRun, g: fn(&mut PropSrc) -> T) -> T = prop_case(g, run.cfg.seed, run.fail_case, run.fail_size)
+
+fn tp_utext(xs: &[u64]) -> text
+    var parts: List[text] = []
+    for x in xs
+        parts.push(x.tostr())
+    return "[" + ", ".join(parts) + "]"
+
+# A one-paragraph report in the manner of QuickCheck's: the verdict, the
+# counts, and what replays a failure.
+pub fn prop_report(run: &PropRun) -> text
+    let c = copy(run.cfg)
+    let counts = run.passed.tostr() + " passed, " + run.discarded.tostr() + " discarded"
+    if run.phase == PROP_PASSED
+        return "passed: " + counts + " (seed " + c.seed.tostr() + ")"
+    if run.phase == PROP_GAVE_UP
+        return "gave up: " + counts + " (seed " + c.seed.tostr() + ")"
+    if run.phase == PROP_BAD_GEN
+        return "bad generator: " + copy(run.note) + " (seed " + c.seed.tostr() + ", case " + run.fail_case.tostr() + ")"
+    if run.phase == PROP_FAILED
+        let done = if run.complete then "shrunk" else "shrinking stopped at max_shrinks"
+        return "failed (" + copy(run.lbl) + ") after " + (run.passed + 1).tostr() + " tests and " + run.shrinks.tostr() + " shrinks (" + run.tries.tostr() + " failed tries), " + done + "; " + counts + "; replay: seed " + c.seed.tostr() + ", case " + run.fail_case.tostr() + ", size " + run.fail_size.tostr() + "; shrunk choices " + tp_utext(&run.best)
+    return prop_verdict(run) + ": " + counts
