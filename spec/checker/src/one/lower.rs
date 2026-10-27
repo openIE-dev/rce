@@ -32,7 +32,11 @@
 //! their final values beside its result and the caller writes them back,
 //! except after a union function's error, F.4.4); and lambdas given to
 //! `map`, `filter` and `fold`, defunctionalised into the loop that runs
-//! them; and lane-wise arithmetic on lists. Traits, which hold signatures
+//! them; lane-wise arithmetic on lists; and generic functions and generic
+//! impls, monomorphised: a call runs the instantiation of its function at
+//! its arguments' types, which the typed tree types once per key (as it
+//! does a call whose float arguments keep a width other than the declared
+//! one). Traits, which hold signatures
 //! only, lower to nothing, and each function is lowered when the trace
 //! first reaches it.
 //!
@@ -51,8 +55,10 @@ use std::collections::HashMap;
 /// Lower an admitted module to the core.
 pub fn lower(m: &ast::Module) -> R<Module> {
     let t = Tables::new(m);
-    let ty = typed::build(m);
+    let mut ty = typed::build(m);
+    let insts = std::mem::take(&mut ty.insts);
     let mut lw = Lw::new(m, t, ty)?;
+    lw.insts = insts;
     let entry = lw.module()?;
     lw.f.finish(entry)
 }
@@ -119,11 +125,13 @@ struct Fx {
     /// the `var` locals of the `&mut` parameters (and of a `&mut self`,
     /// last), whose values the function returns beside its result
     muts: Vec<u32>,
+    /// in an instantiation: the type its result is fitted to
+    inst_ret: Option<RType>,
 }
 
 impl Fx {
     fn new(b: FB, ret: Ret, fail: FailCx) -> Fx {
-        Fx { b, scopes: vec![Scope { depth: 0, drops: vec![] }], bound: HashMap::new(), loops: vec![], depth: 0, ret, fail, union_t: None, muts: vec![] }
+        Fx { b, scopes: vec![Scope { depth: 0, drops: vec![] }], bound: HashMap::new(), loops: vec![], depth: 0, ret, fail, union_t: None, muts: vec![], inst_ret: None }
     }
     fn push_scope(&mut self) {
         self.scopes.push(Scope { depth: self.depth, drops: vec![] });
@@ -209,6 +217,14 @@ struct Lw<'m> {
     methods: HashMap<(String, String), usize>,
     /// the type of the impl of each method, by (type head, name)
     impl_tys: HashMap<(String, String), ast::Ty>,
+    /// the instantiations of the typed tree not yet lowered, by key
+    insts: HashMap<String, typed::Inst>,
+    /// the lowered instantiations: their functions, and their parameters'
+    /// and result's types
+    inst_ids: HashMap<String, usize>,
+    inst_sigs: HashMap<usize, (Vec<RType>, RType)>,
+    /// while an instantiation is lowered: its type parameters
+    gs: Vec<String>,
     /// a constant: its evaluation function, its "evaluated" flag and its value
     consts: HashMap<String, (usize, u32, u32)>,
     named: HashMap<String, Ty>,
@@ -233,7 +249,7 @@ impl<'m> Lw<'m> {
                 loop_limit = *n;
             }
         }
-        let mut lw = Lw { m, t, ty, f, tick, fuel, out_g, fns: HashMap::new(), methods: HashMap::new(), impl_tys: HashMap::new(), consts: HashMap::new(), named: HashMap::new(), gens: HashMap::new(), loop_limit, ev_t: Ty::unit() };
+        let mut lw = Lw { m, t, ty, f, tick, fuel, out_g, fns: HashMap::new(), methods: HashMap::new(), impl_tys: HashMap::new(), insts: HashMap::new(), inst_ids: HashMap::new(), inst_sigs: HashMap::new(), gs: vec![], consts: HashMap::new(), named: HashMap::new(), gens: HashMap::new(), loop_limit, ev_t: Ty::unit() };
         let mut evs = vec![];
         for e in lw.t.events.clone() {
             evs.push(lw.ct(&RType::Named(e))?);
@@ -343,7 +359,7 @@ impl<'m> Lw<'m> {
     }
 
     /// A binary64 value known to be a binary32 value, as f32.
-    fn to_f32_exact(&mut self, fx: &mut Fx, x: Atom) -> R<Atom> {
+    fn round_to_f32(&mut self, fx: &mut Fx, x: Atom) -> R<Atom> {
         let c = fx.b.p("f64.bad.to_f32", vec![], vec![x.clone()])?;
         self.guard(fx, c, |_, _| Ok(Atom::bytes(b"internal: f32")))?;
         fx.b.p("f64.to_f32", vec![], vec![x])
@@ -563,7 +579,7 @@ impl<'m> Lw<'m> {
             self.guard(fx, bad, move |_, _| Ok(Atom::bytes(msg.as_bytes())))?;
             return Ok(v);
         }
-        let target = self.t.fit(from, to);
+        let target = self.t.fit_generic(from, to, &self.gs);
         if let RType::Unknown(r) = &target {
             return no(r);
         }
@@ -2112,7 +2128,7 @@ impl<'m> Lw<'m> {
                     RType::F32 => {
                         let x = fx.b.p("f32.to_f64", vec![], vec![v.a])?;
                         let y = fx.b.p("f64.neg", vec![], vec![x])?;
-                        Ok(Val { a: self.to_f32_exact(fx, y)?, t: rt })
+                        Ok(Val { a: self.round_to_f32(fx, y)?, t: rt })
                     }
                     o => no(format!("negation of {}", o.show())),
                 }
@@ -2324,6 +2340,74 @@ impl<'m> Lw<'m> {
         Ok(res)
     }
 
+    /// The instantiation `key` of `fd` (typed::Inst), lowered on its first use.
+    fn inst_fn(&mut self, key: &str, fd: &FnDecl) -> R<usize> {
+        if let Some(id) = self.inst_ids.get(key) {
+            return Ok(*id);
+        }
+        let Some(inst) = self.insts.remove(key) else { return no(format!("the instantiation {key}")) };
+        let mut ps = vec![];
+        for p in &inst.params {
+            ps.push(self.ct(p)?);
+        }
+        let mut ret = self.ct(&inst.ret)?;
+        let muts = Self::mut_params(fd);
+        if !muts.is_empty() {
+            let mut rs = vec![ret];
+            for k in muts {
+                rs.push(ps[k].clone());
+            }
+            ret = Ty::Tup(rs);
+        }
+        let id = self.f.declare(&format!("fn {key}"), ps.clone(), ret.clone());
+        self.inst_ids.insert(key.to_string(), id);
+        self.inst_sigs.insert(id, (inst.params.clone(), inst.ret.clone()));
+        let self_t = if fd.sig.params.iter().any(|p| !matches!(p, Param::Named { .. })) { inst.params.first().cloned() } else { None };
+        let saved = std::mem::replace(&mut self.ty, inst.typed);
+        let mut gs: Vec<String> = fd.sig.generics.iter().map(|g| g.name.clone()).collect();
+        if let Some(head) = key.split_once('.').map(|x| x.0.to_string()).filter(|_| self_t.is_some()) {
+            gs.extend(self.t.impl_generics.get(&(head, fd.sig.name.clone())).cloned().unwrap_or_default());
+        }
+        let saved_gs = std::mem::replace(&mut self.gs, gs);
+        let r = self.lower_fn_sig(id, fd, self_t.as_ref(), ps, ret, Some(inst.ret.clone()));
+        self.ty = saved;
+        self.gs = saved_gs;
+        r?;
+        Ok(id)
+    }
+
+    /// A call of an instantiation: each argument fitted as the reference
+    /// fits it (a type parameter keeps the value), then the call.
+    fn call_inst(&mut self, fx: &mut Fx, key: &str, fd: &FnDecl, args: &[Arg], recv: Option<(Atom, &Expr)>) -> R<Atom> {
+        let id = self.inst_fn(key, fd)?;
+        let (params, _) = self.inst_sigs[&id].clone();
+        let named = Self::named_params(fd);
+        if named.len() != args.len() {
+            return no("a call whose arguments do not match its parameters one to one");
+        }
+        let mut a = vec![];
+        let place = recv.as_ref().map(|(_, e)| *e);
+        let skip = match recv {
+            Some((r, _)) => {
+                a.push(r);
+                1
+            }
+            None => 0,
+        };
+        for (k, (ty, arg)) in named.iter().zip(args).enumerate() {
+            let v = self.expr(fx, &arg.e)?;
+            let want = &params[k + skip];
+            let x = if self.t.of_ty(ty).is_known() && !matches!(ty, ast::Ty::Ref(..)) {
+                let v = self.fit(fx, v.a, &v.t, ty)?;
+                self.conv(fx, v.a, &v.t, want, false)?
+            } else {
+                self.conv(fx, v.a, &v.t, want, true)?
+            };
+            a.push(x);
+        }
+        self.call_user(fx, id, fd, a, args, place)
+    }
+
     /// The function named `name`, lowered on its first use.
     fn user_fn(&mut self, name: &str) -> R<usize> {
         if let Some(id) = self.fns.get(name) {
@@ -2364,6 +2448,20 @@ impl<'m> Lw<'m> {
                 Ok(Val { a: fx.b.p("sum.mk", vec![t], vec![lit(1), a])?, t: rt })
             }
             Some(Callee::Same) => self.expr(fx, &args[0].e),
+            Some(Callee::Fn(n)) if self.ty.inst_of.contains_key(&addr(e)) => {
+                let fd = self.t.fns[&n];
+                let key = self.ty.inst_of[&addr(e)].clone();
+                fx.b.tick(1);
+                Ok(Val { a: self.call_inst(fx, &key, fd, args, None)?, t: rt })
+            }
+            Some(Callee::Method(h, m)) if self.ty.inst_of.contains_key(&addr(e)) => {
+                let Expr::Member(obj, _, _) = f else { return no("a method call") };
+                let fd = self.t.methods[&(h.clone(), m.clone())];
+                let key = self.ty.inst_of[&addr(e)].clone();
+                let recv = self.expr(fx, obj)?;
+                fx.b.tick(1);
+                Ok(Val { a: self.call_inst(fx, &key, fd, args, Some((recv.a, obj)))?, t: rt })
+            }
             Some(Callee::Fn(n)) => {
                 let fd = self.t.fns[&n];
                 let id = self.user_fn(&n)?;
@@ -2712,7 +2810,7 @@ impl<'m> Lw<'m> {
             (RType::F32, "abs") => {
                 let x = fx.b.p("f32.to_f64", vec![], vec![recv.a])?;
                 let y = fx.b.p("f64.abs", vec![], vec![x])?;
-                Ok(Val { a: self.to_f32_exact(fx, y)?, t: rt })
+                Ok(Val { a: self.round_to_f32(fx, y)?, t: rt })
             }
             (RType::Bool, "tostr") => {
                 let r = fx.b.var(Ty::Bytes, Atom::bytes(b"false"));
@@ -3700,6 +3798,12 @@ impl<'m> Lw<'m> {
                         let f = self.ord_fn(&p.t)?;
                         let c = self.call_rt(fx, f, vec![p.a, q.a]);
                         fx.b.int_cmp(if strict { "int.lt" } else { "int.le" }, c, lit(0))?
+                    }
+                    // a value of no type is never made: the test is not reached
+                    (RType::Never, _) | (_, RType::Never) => {
+                        fx.b.drop(p.a)?;
+                        fx.b.drop(q.a)?;
+                        Atom::bool(false)
                     }
                     (s, t) => return no(format!("the order of {} and {}", s.show(), t.show())),
                 };
@@ -5248,6 +5352,12 @@ impl<'m> Lw<'m> {
                 let want = fx.b.ret.clone();
                 if fx.b.ty(&v.a) == want { v.a } else { return no("an unfitted result of another type") }
             }
+            Some(_) if fx.inst_ret.is_some() => {
+                // an instantiation: the result fitted where the declared type is
+                // concrete, and kept where it is a type parameter
+                let r = fx.inst_ret.clone().unwrap();
+                self.conv(fx, v.a, &v.t, &r, true)?
+            }
             Some(t) => self.fit_decl(fx, v.a, &v.t, t)?.a,
         };
         let a = self.with_muts(fx, a)?;
@@ -5354,8 +5464,18 @@ impl<'m> Lw<'m> {
 
     fn lower_fn(&mut self, id: usize, f: &FnDecl, self_t: Option<&RType>) -> R<()> {
         let (ps, ret) = self.fn_sig(f, self_t)?;
+        self.lower_fn_sig(id, f, self_t, ps, ret, None)
+    }
+
+    /// The function `f` with these core parameter and result types; an
+    /// instantiation gives the type its result is fitted to.
+    fn lower_fn_sig(&mut self, id: usize, f: &FnDecl, self_t: Option<&RType>, ps: Vec<Ty>, ret: Ty, inst_ret: Option<RType>) -> R<()> {
+        if f.sig.bound.is_some() {
+            return no(format!("the recursion bound of {}", f.sig.name));
+        }
         let union = matches!(&f.sig.ret, Some(ast::Ty::Union(..)));
         let mut fx = self.fx(ps, ret.clone(), Ret::Fn(f.sig.ret.clone()), if union { FailCx::Union } else { FailCx::Halt }, true);
+        fx.inst_ret = inst_ret;
         if union {
             // with `&mut` parameters the union is the first part of the result
             fx.union_t = Some(match &ret {

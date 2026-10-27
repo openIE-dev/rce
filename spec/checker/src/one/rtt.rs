@@ -899,7 +899,7 @@ pub fn encode(f: &mut Fns, ctx: &str) -> R<usize> {
                 let l = between(b, &c, b'a', b'z')?;
                 let mut keep = b.p("bool.or", vec![], vec![d, u])?;
                 keep = b.p("bool.or", vec![], vec![keep, l])?;
-                for ch in [b'-', b'.', b'_', b'~'] {
+                for ch in *b"-._~" {
                     let e = b.int_cmp("int.eq", c.clone(), lit(ch as i128))?;
                     keep = b.p("bool.or", vec![], vec![keep, e])?;
                 }
