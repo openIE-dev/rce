@@ -171,6 +171,7 @@ pub fn export(spec: &Path) -> String {
         "grammar_06": {"from": ["03-syntax.md", "14-draft06-concurrency.md"], "lalr1": grammar(&g06)},
         "w_rules": {"from": "09-wellformedness.md", "rules": w_rules(&read(spec, "09-wellformedness.md")), "mentioned": mentions(&read(spec, "09-wellformedness.md"))},
         "w_rules_06": {"from": "14-draft06-concurrency.md", "rules": w_rules(&app), "mentioned": mentions(&app)},
+        "w_rules_host": {"from": "16-host-contract.md", "rules": w_rules(&read(spec, "16-host-contract.md")), "mentioned": mentions(&read(spec, "16-host-contract.md"))},
         "edges": {"from": "07-form-evaluation.md", "rules": edges(&read(spec, "07-form-evaluation.md"))},
         "methods": {"from": "06-regions-effects-extensions.md", "table": methods},
         "method_work": {"from": "14-draft06-concurrency.md", "table": work},
