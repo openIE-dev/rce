@@ -256,8 +256,15 @@ line for line and byte for byte over the whole output, and, run with
 `rust`, `python`, `js`, `scala` (when `scala-cli` is present) and the
 Rust output compiled for `wasm32-wasip1`, run under `wasmtime` or Node's
 `node:wasi`. With `RCE_EMIT_EDGES_OUT=DIR` it also writes the record of
-the run: one row per example and one per target. This samples T9-L at the
-edges of 6.3; it makes no claim for a Form IR target (T9-F).
+the run: one row per example and one per target. The registered run
+(openIE-dev/openie-research-experiments `rce/bench/emit-edges`,
+preregistration `675e01b`, run from a clean fetch of `2aad87f6` on
+2026-10-27 with rustc 1.98.1, Python 3.13.16 and Node 22.22.0, `node:wasi`
+for `wasm32-wasip1`) records that `rust`, `python`, `js` and
+`wasm32-wasip1` agree on all 1,980 observation lines (181,183 bytes) and
+all 660 heads of D, and that `scala` was not run (no `scala-cli`; summary
+digest `dc717040`). This samples T9-L at the edges of 6.3; it makes no
+claim for a Form IR target (T9-F).
 
 **Fuel.** Each emitted program counts fuel (6.7) at the reference
 evaluator's charge points: one tick per evaluated expression, per
@@ -676,4 +683,4 @@ its name-free projection (T7) and is a continuous-integration step.
 
 **Read receipt.** Which JSON-RPC error code does the language server return for a request it does not know? (a number)
 
-<!-- body-sha256: 0509aad487f41a89571562926e300f6a8f33f4a1ac93fc36bcc26221e667041f -->
+<!-- body-sha256: e9f70c997342dd3c8f0af7abc177eea90f597c5166dd849028ed3e8c30b69483 -->
