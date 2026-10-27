@@ -77,7 +77,7 @@ In plain words:
 
 **flowG.**
 
-- **flowG**: the parent project of RCE, a first pass at one shared form for all code. **The kernel**: flowG's closed vocabulary, 22 primitives in 6 categories and 11 wire kinds. **The flowG view**: the view of a Form in the kernel's vocabulary, format `rce-graph-view/1`; **unview**: its inverse, from a view to a candidate Form and its concept record (§12, below).
+- **flowG**: the language project built on RCE (`SURFACE.md`), published as `openIE-dev/flow-g`. **The kernel**: flowG's closed vocabulary, 22 primitives in 6 categories and 11 wire kinds. **The flowG view**: the view of a Form in the kernel's vocabulary, format `rce-graph-view/1`; **unview**: its inverse, from a view to a candidate Form and its concept record (§12, below).
 
 **Lift and emit.**
 
@@ -170,7 +170,7 @@ A kind lists the field types of each variant in declaration order. A refined typ
 
 **File.** `spec/data/form-catalogue.json` (format `rce-catalogue/1`), generated from the book by `rce-spec-data` as `spec-data.json` is today. Every module names the key of the catalogue it was written against. A change of meaning to any entry is a release with a new catalogue key (C.15).
 
-**What the catalogue is not.** It is not the place for library operations. A language's operations, and flowG's operation vocabulary, become runtime-library definitions written down to the catalogue (as F9 has it for mathematics: transcendentals are correctly rounded RCE code, or absent), capabilities, or kept constructs. Each of flowG's operations goes to exactly one of four places: a catalogue entry at a type, a runtime definition, a capability, or kept with its reason. That table is generated from flowG's operation list, and generation fails when an operation has no place. A capability named by flowG at run time, through a registry, is resolved once at lift time to the key of one `rce-cap/1` signature and recorded in the lift report, never resolved at run time.
+**What the catalogue is not.** It is not the place for library operations. A language's operations, and flowG's operation vocabulary, become runtime-library definitions written down to the catalogue (as F9 has it for mathematics: transcendentals are correctly rounded RCE code, or absent), capabilities, or kept constructs. Each of flowG's operations goes to exactly one of four places: a catalogue entry at a type, a runtime definition, a capability, or kept with its reason. That table is generated from flowG's operation list, and generation fails when an operation has no place. A capability reference that a source resolves only at run time is kept with the reason `capability` until its signature is pinned by key (format `rce-cap/1`, §21, below).
 
 ## 5. The order value and its two runners
 
@@ -407,7 +407,7 @@ The rules of section 7 that concern RCE's surface (lexical rules, names, hygiene
 
 ## 12. flowG's 22 kinds and 11 wire kinds: the view and its inverse
 
-flowG's kernel vocabulary is the canonical vocabulary onto which every executable form maps, and a conversion between it and any other form should be generated, checked and invertible, so that saving after loading is the identity. This proposal carries all 22 kinds and all 11 wire kinds, and draws one line: the encoding holds the five kinds that carry meaning; the flowG view restores every one of the 22 names and the 11 wire kinds from the encoding, the concept record and the lift report; and the view has an inverse, so the 22-kind graph is an editing vocabulary, not only a picture.
+This proposal takes the kernel's vocabulary as the vocabulary in which every Form can be drawn and edited, and requires the conversion between it and the encoding to be generated, checked and invertible, so that saving after loading is the identity. It carries all 22 kinds and all 11 wire kinds, and draws one line: the encoding holds the five kinds that carry meaning; the flowG view restores every one of the 22 names and the 11 wire kinds from the encoding, the concept record and the lift report; and the view has an inverse, so the 22-kind graph is an editing vocabulary, not only a picture.
 
 **The 22 kinds,** numbered and grouped in the kernel's six categories: computation (0 to 9), resource (10 to 12), error and contract (13 and 14), concurrency (15 to 18), data and state (19 and 20), and temporal (21).
 
