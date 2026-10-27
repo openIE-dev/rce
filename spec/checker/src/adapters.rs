@@ -1847,7 +1847,10 @@ pub mod http {
     /// The open requests, by id (the seq of their entry).
     pub type Open = std::rc::Rc<std::cell::RefCell<HashMap<u64, Pending>>>;
 
-    /// The adapter of the `HttpRespond` effect (HC-26).
+    /// The adapter of the `HttpRespond` effect (HC-26). Its result is
+    /// `delivered` with the length of the response handed to the request's
+    /// connection thread, which writes it later; a write that fails then
+    /// is not reported to the program.
     pub struct RespondAdapter {
         open: Open,
     }

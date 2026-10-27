@@ -5511,9 +5511,13 @@ both enter D and reach the program as inputs.
   is admitted and when a connection closes, never what an admitted request
   holds. A connection closes once its `HttpMalformed` is answered.
 - **HC-26 Responses are a function of D.** The program answers with the
-  effect `HttpRespond(req, status, names, values, body)`; the data of its
-  result `HttpRespondDone` is the length in bytes of the response the host
-  writes. The host checks
+  effect `HttpRespond(req, status, names, values, body)`. Its result
+  `HttpRespondDone` is `delivered` with, as data, the length in bytes of
+  the response the host made and handed to the request's connection,
+  which writes it after the result is logged; a write that then fails
+  (the client closed, or WRITE_MS passed) closes the connection and is
+  not reported, so `delivered` means handed to the connection, not
+  received by the client. The host checks
   a response before it writes anything: status 200 to 599, field names
   that are tokens, values of printable ASCII (space to `~`) or tab, as
   many values as names, no Content-Length or Transfer-Encoding (the host writes the

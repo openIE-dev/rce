@@ -92,7 +92,9 @@ Connection field, which D records, so every response is a function of D
 host refuses a response it cannot write correctly, for example a status
 outside 200 to 599 or a `Content-Length` written by the program, and
 leaves the request open, so the step that receives the failed
-`HttpRespondDone` can answer again.
+`HttpRespondDone` can answer again. A `delivered` result means the host
+handed the response to the connection; a client that has gone by the
+time it is written is not reported.
 
 The host reads requests from many connections at once, so a client that
 sends nothing holds up no other. It applies its limits before a byte
