@@ -1,0 +1,141 @@
+# Model-based property checks of lib/col/col.rce with test.prop (100
+# cases each, fixed seeds): a generated sequence of operations is applied
+# to Deque, OrdMap and HMap and to a model built from List and the
+# built-in Map, and the results must agree after every operation; heap
+# sort equals List.sort; set_union and set_inter agree with the built-in
+# Set. A disagreement would be reported with the operation sequence
+# shrunk to a minimal one.
+
+use test.prop
+
+fn cp_ok[T](g: fn(&mut prop.PropSrc) -> T, p: fn(&T) -> bool, seed: i64) -> bool
+    let r = prop.prop_check(g, p, prop.prop_cfg(seed))
+    return prop.prop_ok(&r)
+
+struct CpOp
+    op: i64
+    k: i64
+    v: i64
+
+fn cp_op(s: &mut prop.PropSrc) -> CpOp
+    let o = prop.draw_int(s, 0, 3)
+    let k = prop.draw_int(s, 0, 12)
+    let v = prop.draw_int(s, -50, 50)
+    return CpOp(op: o, k: k, v: v)
+
+fn cp_ops(s: &mut prop.PropSrc) -> List[CpOp] = prop.draw_list(s, cp_op, 0, 30)
+
+fn cp_deque_agrees(ops: &List[CpOp]) -> bool
+    var d: Deque[i64] = Deque(front: [], back: [])
+    var model: List[i64] = []
+    for o in ops
+        if o.op == 0
+            dq_push_back(&mut d, o.v)
+            model.push(o.v)
+        elif o.op == 1
+            dq_push_front(&mut d, o.v)
+            var m2: List[i64] = [o.v]
+            for x in model
+                m2.push(x)
+            model = m2
+        elif o.op == 2
+            let got = dq_pop_front(&mut d)
+            if model.len() == 0
+                if got != none
+                    return false
+            else
+                if got != some(model[0])
+                    return false
+                var m2: List[i64] = []
+                for j in 1..model.len()
+                    m2.push(model[j])
+                model = m2
+        else
+            let got = dq_pop_back(&mut d)
+            if model.len() == 0
+                if got != none
+                    return false
+            else
+                if got != some(model[model.len() - 1])
+                    return false
+                let _ = model.pop()
+        if dq_to_list(&d) != model or dq_len(&d) != model.len()
+            return false
+    return true
+
+fn cp_maps_agree(ops: &List[CpOp]) -> bool
+    var om: OrdMap[i64, i64] = OrdMap(keys: [], vals: [])
+    var hm: HMap[i64] = HMap(keys: [], vals: [], slots: [])
+    var model: Map[i64, i64] = {}
+    var order: List[text] = []
+    for o in ops
+        let kt = "k" + o.k.tostr()
+        if o.op == 3
+            let had = model.contains(o.k)
+            if om_remove(&mut om, &o.k) != had or hm_remove(&mut hm, &kt) != had
+                return false
+            if had
+                let _ = model.remove(o.k)
+                var o2: List[text] = []
+                for x in order
+                    if x != kt
+                        o2.push(copy(x))
+                order = o2
+        else
+            if not model.contains(o.k)
+                order.push(copy(kt))
+            om_insert(&mut om, o.k, o.v)
+            hm_insert(&mut hm, copy(kt), o.v)
+            model[o.k] = o.v
+        if om_len(&om) != model.len() or hm_len(&hm) != model.len()
+            return false
+    for k in 0..13
+        let kt = "k" + k.tostr()
+        let want = if model.contains(k) then some(model.get(k) catch 0) else none
+        if om_get(&om, &k) != want or hm_get(&hm, &kt) != want
+            return false
+    return om_keys(&om) == model.keys() and hm_keys(&hm) == order
+
+fn cp_vals(s: &mut prop.PropSrc) -> List[i64]
+    let v = prop.draw_list(s, cp_val, 0, 40)
+    return v
+
+fn cp_val(s: &mut prop.PropSrc) -> i64 = prop.draw_int(s, -1000, 1000)
+
+fn cp_heap_sorts(xs: &List[i64]) -> bool
+    var h: List[i64] = []
+    for x in xs
+        heap_push(&mut h, x)
+    var out: List[i64] = []
+    for _i in 0..xs.len()
+        out.push(heap_pop(&mut h).or(0))
+    var want = copy(xs)
+    want.sort()
+    return out == want and heap_pop(&mut h) == none
+
+struct CpSets
+    a: List[i64]
+    b: List[i64]
+
+fn cp_small(s: &mut prop.PropSrc) -> i64 = prop.draw_int(s, 0, 20)
+
+fn cp_gen_sets(s: &mut prop.PropSrc) -> CpSets
+    let xa = prop.draw_list(s, cp_small, 0, 15)
+    let xb = prop.draw_list(s, cp_small, 0, 15)
+    var a: List[i64] = []
+    var b: List[i64] = []
+    for x in xa
+        let _ = set_add(&mut a, x)
+    for x in xb
+        let _ = set_add(&mut b, x)
+    return CpSets(a: a, b: b)
+
+fn cp_sets_agree(x: &CpSets) -> bool
+    let sa = set_of(copy(x.a))
+    let sb = set_of(copy(x.b))
+    return set_union(&x.a, &x.b) == sa.union(sb).tolist() and set_inter(&x.a, &x.b) == sa.inter(sb).tolist()
+
+check cp_ok(cp_ops, cp_deque_agrees, 41)
+check cp_ok(cp_ops, cp_maps_agree, 42)
+check cp_ok(cp_vals, cp_heap_sorts, 43)
+check cp_ok(cp_gen_sets, cp_sets_agree, 44)

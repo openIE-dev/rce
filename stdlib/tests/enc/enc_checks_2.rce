@@ -1,0 +1,128 @@
+# Property checks of lib/enc/enc.rce with test.prop (100 cases each,
+# fixed seeds; a failure would be reported shrunk to a minimal case):
+# base64 round trips under all four alphabet and padding choices; the
+# strict decoder accepts only canonical text (whatever it accepts
+# re-encodes to the same text); LEB128 round trips over 0..2^63-1 and
+# the decoder is canonical on arbitrary bytes; zigzag round trips on
+# [-2^62, 2^62 - 1], the range where 2v fits in i64; deterministic CBOR
+# round trips for scalars, arrays and maps with sorted keys, and the
+# decoder returns a value or BadCbor (never a trap) on arbitrary bytes,
+# and accepts only canonical encodings. CBOR text is drawn from tab, LF,
+# CR and U+0020..U+007E, the text the decoder reads (SOURCE.md); over all
+# of Unicode this property fails, shrunk to [CText("\u{1f}")]: the
+# decoder also refuses the other ASCII control characters.
+
+use test.prop
+
+fn ep_ok[T](g: fn(&mut prop.PropSrc) -> T, p: fn(&T) -> bool, seed: i64) -> bool
+    let r = prop.prop_check(g, p, prop.prop_cfg(seed))
+    return prop.prop_ok(&r)
+
+struct EpB64
+    b: List[i64]
+    url: bool
+    pad: bool
+
+fn ep_gen_b64(s: &mut prop.PropSrc) -> EpB64
+    let b = prop.draw_bytes(s, 0, 48)
+    let u = prop.draw_bool(s)
+    let p = prop.draw_bool(s)
+    return EpB64(b: b, url: u, pad: p)
+
+fn ep_b64_round(x: &EpB64) -> bool
+    let t = b64_encode(&x.b, x.url, x.pad)
+    let d = b64_decode(&t, x.url, x.pad) catch [-1]
+    return d == x.b
+
+struct EpTxt
+    t: text
+    url: bool
+    pad: bool
+
+fn ep_b64_chars() -> prop.PropChars
+    let r: List[i64] = [65, 90, 97, 122, 48, 57, 43, 43, 45, 45, 47, 47, 61, 61, 95, 95, 32, 32]
+    return prop.prop_chars(&r)
+
+fn ep_gen_txt(s: &mut prop.PropSrc) -> EpTxt
+    let cs = ep_b64_chars()
+    let t = prop.draw_text(s, &cs, 0, 12)
+    let u = prop.draw_bool(s)
+    let p = prop.draw_bool(s)
+    return EpTxt(t: t, url: u, pad: p)
+
+fn ep_b64_canonical(x: &EpTxt) -> bool
+    let d = b64_decode(&x.t, x.url, x.pad) catch [-1]
+    if d == [-1]
+        return true
+    return b64_encode(&d, x.url, x.pad) == x.t
+
+fn ep_gen_u63(s: &mut prop.PropSrc) -> i64 = prop.draw_int(s, 0, 9223372036854775807)
+
+fn ep_varint_round(v: &i64) -> bool
+    let b = uvarint(v + 0)
+    let r = uvarint_decode(&b, 0) catch VarOut(v: -1, next: -1)
+    return r.v == v and r.next == b.len() as i64
+
+fn ep_gen_raw(s: &mut prop.PropSrc) -> List[i64] = prop.draw_bytes(s, 0, 12)
+
+fn ep_varint_canonical(b: &List[i64]) -> bool
+    let r = uvarint_decode(b, 0) catch VarOut(v: -1, next: -1)
+    if r.next < 0
+        return true
+    var pre: List[i64] = []
+    for i in 0..r.next
+        pre.push(b[i as usize])
+    return r.v >= 0 and uvarint(r.v) == pre
+
+fn ep_gen_z(s: &mut prop.PropSrc) -> i64 = prop.draw_int(s, 0 - 4611686018427387904, 4611686018427387903)
+
+fn ep_zigzag_round(v: &i64) -> bool = unzigzag(zigzag(v + 0)) == v and zigzag(v + 0) >= 0
+
+fn ep_scalar(s: &mut prop.PropSrc) -> Cbor
+    let k = prop.draw_int(s, 0, 3)
+    if k == 0
+        return CInt(v: prop.draw_i64(s))
+    if k == 1
+        return CBytes(b: prop.draw_bytes(s, 0, 6))
+    if k == 2
+        let r: List[i64] = [9, 10, 13, 13, 32, 126]
+        let cs = prop.prop_chars(&r)
+        return CText(t: prop.draw_text(s, &cs, 0, 4))
+    return CSimple(v: prop.draw_int(s, 20, 23))
+
+fn ep_key(s: &mut prop.PropSrc) -> i64 = prop.draw_int(s, 0, 1000000)
+
+fn ep_gen_cbor(s: &mut prop.PropSrc) -> Cbor
+    let k = prop.draw_int(s, 0, 2)
+    if k == 0
+        return ep_scalar(s)
+    if k == 1
+        return CArr(items: prop.draw_list(s, ep_scalar, 0, 5))
+    let m = prop.draw_map(s, ep_key, ep_key, 0, 5)
+    var ks: List[Cbor] = []
+    var vs: List[Cbor] = []
+    for kk in m.keys()
+        ks.push(CInt(v: kk))
+        vs.push(CInt(v: m.get(kk) catch 0))
+    return CMap(keys: ks, vals: vs)
+
+fn ep_cbor_round(c: &Cbor) -> bool
+    let b = cbor_encode(c)
+    let d = cbor_decode(&b) catch CSimple(v: -1)
+    return d == c and cbor_encode(&d) == b
+
+fn ep_gen_junk(s: &mut prop.PropSrc) -> List[i64] = prop.draw_bytes(s, 0, 16)
+
+fn ep_cbor_total(b: &List[i64]) -> bool
+    let d = cbor_decode(b) catch CSimple(v: -1)
+    if d == CSimple(v: -1)
+        return true
+    return cbor_encode(&d) == b
+
+check ep_ok(ep_gen_b64, ep_b64_round, 31)
+check ep_ok(ep_gen_txt, ep_b64_canonical, 32)
+check ep_ok(ep_gen_u63, ep_varint_round, 33)
+check ep_ok(ep_gen_raw, ep_varint_canonical, 34)
+check ep_ok(ep_gen_z, ep_zigzag_round, 35)
+check ep_ok(ep_gen_cbor, ep_cbor_round, 36)
+check ep_ok(ep_gen_junk, ep_cbor_total, 37)

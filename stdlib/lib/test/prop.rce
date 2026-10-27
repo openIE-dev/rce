@@ -20,6 +20,12 @@ use rand.det
 # Randomness comes only from rand.det: case k of a run under seed S draws
 # from the ChaCha20 stream with key S (8 bytes little endian, 24 zero
 # bytes) and stream id k, so a case replays from (S, k, size) alone.
+# Every name declared in this module and in rand.det counts as a
+# module-level name in a module that uses test.prop (W-MOD-3, W-NAME-2,
+# until imported names are renamed): such a module cannot declare, or
+# bind as a local, rand.det names such as bits, below, range, bytes,
+# split, shuffle or make. The names of this module all start with prop,
+# draw, Prop, PROP, tp or TP.
 #
 # Runner (QuickCheck 2.15.0.1, Test.QuickCheck.Test, stdArgs and test /
 # runATest / computeSize / tooManyDiscards / localMin;
@@ -76,8 +82,8 @@ use rand.det
 #   deterministic.
 #
 # Bad input never traps: a draw with bad arguments (lo > hi, an empty
-# alphabet) marks the source, and the run ends with verdict
-# TP_V_BADARG and the reason. A property that traps ends the check that
+# alphabet) marks the source, and the run ends with phase PROP_BAD_GEN
+# and the reason. A property that traps ends the check that
 # runs it, as any trap does; write properties that return false instead
 # (checked_add and catch). Fuel: the work is bounded by cases,
 # max_shrinks and the 8192 choices one case may draw; prop_steps runs a
