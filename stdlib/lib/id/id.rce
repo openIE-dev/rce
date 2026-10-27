@@ -1,6 +1,7 @@
 module id
 
-# Identifiers, pure: UUIDs (RFC 9562), ULIDs, Nano IDs and Snowflake IDs.
+# Identifiers, pure: UUIDs (RFC 9562), ULIDs, TypeIDs, KSUIDs, Nano IDs and
+# Snowflake IDs.
 # Nothing here reads a clock or draws randomness. A time is a number the
 # program received in an event (a Tick, a logged wall-clock result) and
 # random bytes are a logged Random result or a rand.det stream; both are
@@ -9,7 +10,8 @@ module id
 # Bytes are List[i64] with values 0..255 (core.bytes). A UUID and a ULID
 # are both 16 bytes in network order, so ulid_encode of a UUID's bytes is
 # the ULID text of the same 128 bits and uuid_format of a ULID's bytes is
-# its UUID text.
+# its UUID text. A TypeID carries the same 16 bytes under a type prefix; a
+# KSUID is 20 bytes (seconds and a 128-bit payload) in base62.
 #
 # Generators that must remember the identifier they made last (monotonic
 # UUIDv7, monotonic ULID, Snowflake) keep it in a state value that the
@@ -39,8 +41,10 @@ module id
 # References: CPython 3.13 uuid (parse, format, fields, versions 1, 3, 4,
 # 5), RFC 9562 Appendix A and B, the npm uuid package 14.0.3 (versions 6,
 # 7, the monotonic version 7 state, v1ToV6 and v6ToV1), the ULID
-# specification and the npm ulid package 3.0.2, the npm nanoid package
-# 6.0.2, and Twitter's IdWorker (snowflake-2010) with its IdWorkerSpec.
+# specification and the npm ulid package 3.0.2, the TypeID specification
+# 0.3.0 with its valid and invalid suites and go.jetify.com/typeid 1.3.0,
+# github.com/segmentio/ksuid 1.0.4, the npm nanoid package 6.0.2, and
+# Twitter's IdWorker (snowflake-2010) with its IdWorkerSpec.
 
 error BadId(at: i64, why: text)
 
@@ -679,6 +683,210 @@ pub fn ulid_next(g: &mut UlidGen, unix_ms: i64, rnd: &[i64]) -> List[i64] ! BadI
     g.ms = unix_ms
     g.last = copy(b)
     return b
+
+# ---------------- TypeID ----------------
+
+# A TypeID (TypeID specification 0.3.0): a type prefix, '_', and the 26
+# lowercase base32 symbols of a UUID (the ULID encoding in lowercase); no
+# separator when the prefix is empty. The prefix has at most 63 characters
+# of a..z and '_', and starts and ends with a letter. New TypeIDs carry a
+# version 7 UUID (uuid_v7, uuid7_next); other versions are encoded too.
+pub struct TypeId
+    prefix: text
+    uuid: List[i64]
+
+fn id_prefix_ok(p: &[i64], base: i64) -> bool ! BadId
+    let n = p.len() as i64
+    if n > 63
+        fail BadId(at: base + 63, why: "a TypeID prefix has at most 63 characters")
+    var i: usize = 0
+    while i < p.len() bound 64
+        let c = p[i]
+        let letter = c >= 97 and c <= 122
+        if not letter and c != 95
+            fail BadId(at: base + (i as i64), why: "a TypeID prefix has only a..z and '_'")
+        if not letter and (i == 0 or i + 1 == p.len())
+            fail BadId(at: base + (i as i64), why: "a TypeID prefix starts and ends with a letter")
+        i += 1
+    return true
+
+pub fn typeid_format(prefix: &text, u: &[i64]) -> text ! BadId
+    let p = id_text_bytes(prefix)
+    let _ok = try id_prefix_ok(&p, 0)
+    let s = try ulid_encode(u)
+    let low = s.lower()
+    if p.len() == 0
+        return low
+    return copy(prefix) + "_" + low
+
+# Parse a TypeID: the prefix is the text before the last '_' (none: the
+# empty prefix), which must then not be empty; the suffix is exactly 26
+# symbols of 0123456789abcdefghjkmnpqrstvwxyz, the first one 0..7.
+# Uppercase, hyphens and Crockford's aliases are refused.
+pub fn typeid_parse(s: &text) -> TypeId ! BadId
+    let b = id_text_bytes(s)
+    var cut: i64 = -1
+    var i: usize = 0
+    while i < b.len() bound 16777216
+        if b[i] == 95
+            cut = i as i64
+        i += 1
+    var p: List[i64] = []
+    var k: i64 = 0
+    while k < cut bound 16777216
+        p.push(b[k as usize])
+        k += 1
+    if cut == 0
+        fail BadId(at: 0, why: "a separator needs a non-empty prefix")
+    let _ok = try id_prefix_ok(&p, 0)
+    let lo = cut + 1
+    let n = b.len() as i64
+    if n - lo != 26
+        fail BadId(at: (if n - lo < 26 then n else lo + 26), why: "a TypeID suffix has 26 characters")
+    var j = lo
+    while j < n bound 26
+        let c = b[j as usize]
+        if id_b32val(c) < 0 or (c >= 65 and c <= 90)
+            fail BadId(at: j, why: "not a lowercase base32 symbol")
+        j += 1
+    if id_b32val(b[lo as usize]) > 7
+        fail BadId(at: lo, why: "the first suffix symbol must be 0..7")
+    var sfx: List[i64] = []
+    j = lo
+    while j < n bound 26
+        sfx.push(b[j as usize])
+        j += 1
+    let st = sfx.utf8()
+    let u = try ulid_parse(&st)
+    return TypeId(prefix: p.utf8(), uuid: u)
+
+# ---------------- KSUID ----------------
+
+# A KSUID (segmentio/ksuid, the reference implementation): 4 bytes of
+# seconds since KSUID_EPOCH (2014-05-13T16:53:20Z) big-endian, then a
+# 16-byte payload; as text, 27 base62 symbols (0-9A-Za-z) of the 160-bit
+# value, padded with '0'.
+pub const KSUID_EPOCH: i64 = 1400000000
+
+fn id_b62(c: i64) -> i64
+    if c >= 48 and c <= 57
+        return c - 48
+    if c >= 65 and c <= 90
+        return c - 55
+    if c >= 97 and c <= 122
+        return c - 61
+    return -1
+
+fn id_k20(b: &[i64]) -> List[i64] ! BadId
+    if b.len() != 20
+        fail BadId(at: b.len() as i64, why: "a KSUID is 20 bytes")
+    return try id_take(b, 20)
+
+# A KSUID from a Unix time in seconds (KSUID_EPOCH .. KSUID_EPOCH + 2^32 - 1)
+# and the first 16 random bytes (ksuid.FromParts).
+pub fn ksuid_new(unix_s: i64, rnd: &[i64]) -> List[i64] ! BadId
+    if unix_s < KSUID_EPOCH or unix_s - KSUID_EPOCH > 4294967295
+        fail BadId(at: -1, why: "the time must be KSUID_EPOCH .. KSUID_EPOCH + 2^32 - 1 seconds")
+    let r = try id_take(rnd, 16)
+    return id_cat(id_be(unix_s - KSUID_EPOCH, 4), r)
+
+# Unix time in seconds of a KSUID.
+pub fn ksuid_unix_s(b: &[i64]) -> i64 ! BadId
+    let k = try id_k20(b)
+    return id_int(&k, 0, 4) + KSUID_EPOCH
+
+pub fn ksuid_encode(b: &[i64]) -> text ! BadId
+    let a = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz".chars()
+    var num = try id_k20(b)
+    var digits: List[i64] = []
+    while num.len() > 0 bound 32
+        var q: List[i64] = []
+        var rem: i64 = 0
+        for d in num
+            let v = rem * 256 + d
+            if q.len() > 0 or v / 62 > 0
+                q.push(v / 62)
+            rem = v % 62
+        digits.push(rem)
+        num = q
+    var o = ""
+    var pad = 27 - (digits.len() as i64)
+    while pad > 0 bound 27
+        o = o + "0"
+        pad -= 1
+    var i = digits.len()
+    while i > 0 bound 32
+        i -= 1
+        o = o + copy(a[digits[i] as usize])
+    return o
+
+# Parse 27 base62 symbols; the value must fit 160 bits (at most
+# aWgEPTl1tmebfsQzFP4bxwgy80V).
+pub fn ksuid_parse(s: &text) -> List[i64] ! BadId
+    let n = s.len_bytes()
+    var acc: List[i64] = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+    var i: usize = 0
+    while i < 27 bound 27
+        if i >= n
+            fail BadId(at: n as i64, why: "a KSUID has 27 characters")
+        let v = id_b62(s[i] as i64)
+        if v < 0
+            fail BadId(at: i as i64, why: "not a base62 symbol")
+        var carry = v
+        var k: i64 = 20
+        while k >= 0 bound 21
+            let x = acc[k as usize] * 62 + carry
+            acc[k as usize] = x & 255
+            carry = x >> 8
+            k -= 1
+        i += 1
+    if n != 27
+        fail BadId(at: 27, why: "unexpected text after the KSUID")
+    if acc[0] != 0
+        fail BadId(at: 0, why: "the value passes 160 bits")
+    var o: List[i64] = []
+    var j: usize = 1
+    while j < 21 bound 20
+        o.push(acc[j])
+        j += 1
+    return o
+
+# The next and the previous 160-bit value (ksuid Next and Prev, which carry
+# from the payload into the time); past the largest or below the smallest
+# KSUID the call is refused (the reference wraps around).
+pub fn ksuid_next(b: &[i64]) -> List[i64] ! BadId
+    var k = try id_k20(b)
+    var i: i64 = 19
+    while i >= 0 bound 20
+        if k[i as usize] == 255
+            k[i as usize] = 0
+            i -= 1
+        else
+            k[i as usize] = k[i as usize] + 1
+            return k
+    fail BadId(at: -1, why: "there is no KSUID after the largest one")
+
+pub fn ksuid_prev(b: &[i64]) -> List[i64] ! BadId
+    var k = try id_k20(b)
+    var i: i64 = 19
+    while i >= 0 bound 20
+        if k[i as usize] == 0
+            k[i as usize] = 255
+            i -= 1
+        else
+            k[i as usize] = k[i as usize] - 1
+            return k
+    fail BadId(at: -1, why: "there is no KSUID before the smallest one")
+
+# The KSUID of a sequence (ksuid.Sequence): the seed with its last two
+# bytes replaced by n, 0..65535. The caller keeps the count.
+pub fn ksuid_with_seq(seed: &[i64], n: i64) -> List[i64] ! BadId
+    var k = try id_k20(seed)
+    if n < 0 or n > 65535
+        fail BadId(at: -1, why: "a sequence number is 0..65535")
+    k[18] = n >> 8
+    k[19] = n & 255
+    return k
 
 # ---------------- Nano ID ----------------
 

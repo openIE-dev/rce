@@ -1094,6 +1094,32 @@ near 700.
   ULID 7ZZZZZZZZZZZZZZZZZZZZZZZZZ (2^48 - 1 ms) and the refusal of larger
   first symbols, and the two monotonic sequences (01BX5ZZKBKACTAV9WEVGEMMVRY
   to S1, and ZZZZZZZZZZZZZZZX to ZZZZZZZZZZZZZZZZ followed by a refusal).
+- `id/typeid/valid.yml`, `invalid.yml`, `valid.json`, `invalid.json`:
+  the TypeID specification 0.3.0 suites (9 valid, 21 invalid), copied
+  unchanged from https://github.com/jetify-com/typeid (`spec/`, branch
+  main, Apache License 2.0, fetched 2026-10-27; sha256 2b712a13...,
+  ab01bad4..., af5a9cf2..., b1bf19bd... in that order). Every case is a
+  check in `tests/id/id_checks_go.rce` (both directions for the valid
+  ones); the README examples (`user_01h5fskfsk4fpeqwnsyz5hj55t`, the
+  63-character prefix, the six invalid ones) are in `tests/id/id_checks.rce`.
+- segmentio/ksuid v1.0.4 (MIT), the reference implementation of KSUID:
+  its README's inspected examples 0ujtsYcgvSTl8PAuAdqWYSMnLOv
+  (0669F7EFB5A1CD34B5F99D1154FB6853345C9735, timestamp 107608047) and
+  0ujzPyRiIAffKhBux4PvQdDqMHY (timestamp 107610780), and its tests
+  TestEncoding, TestParse, TestPadding, TestIssue25 and TestPrevNext, in
+  `tests/id/id_checks.rce`. TestPrevNext also expects Max.Next() = Nil and
+  Nil.Prev() = Max; here those two calls are refused instead of wrapping.
+  Parse in v1.0.4 does not check its symbols (base62Value maps any byte),
+  so text with a symbol outside 0-9A-Za-z is refused here and only
+  compared with the reference on base62 text.
+- Go 1.24 (`scripts/gen/id_go/`, go.mod pins go.jetify.com/typeid v1.3.0
+  and github.com/segmentio/ksuid v1.0.4; seed 20261027;
+  `tests/id/id_checks_go.rce`, 819 checks): the two TypeID suites (39
+  checks); 200 typeid FromUUIDBytesWithPrefix on random prefixes (63 and
+  64 characters, uppercase, digits, '_' at either end, non-ASCII) and
+  UUIDs, 200 FromString on random and mutated text; 120 ksuid FromParts
+  and String, 160 Parse up to and past the 160-bit bound (with Timestamp),
+  80 Next and Prev, 20 Sequence runs.
 - The Discord developer documentation (Reference, Snowflakes): the
   example 175928847299117063 = 2016-04-30T11:18:25.796Z, internal worker
   1, process 0, increment 7.
@@ -1133,7 +1159,8 @@ near 700.
   (text forms round-trip and sort as the bytes; versions 1 and 6 round-trip
   and convert; the monotonic ULID, UUIDv7 and Snowflake generators
   strictly increase over time walks that repeat and go back; chunked Nano
-  ID feeding equals one call).
+  ID feeding equals one call; TypeIDs and KSUIDs round-trip and sort as
+  their bytes; KSUID next and prev are inverse).
 
 Differences from the references, by design: the strict parser reads the
 urn:uuid: prefix in any case; uuid_parse_lax refuses non-ASCII text, where
@@ -1144,7 +1171,9 @@ packages would wrap the bytes; nanoid_custom refuses alphabets of more
 than 256 symbols, sizes above 1,000,000 and a draw above 1,000,000 bytes
 (the list limit), and indexes symbols by code point where JavaScript
 indexes UTF-16 units (equal for alphabets inside the BMP); the default
-nanoid follows nanoid 6.0.2, whose urlAlphabet order differs from 5.x.
+nanoid follows nanoid 6.0.2, whose urlAlphabet order differs from 5.x;
+ksuid_new refuses a time outside the 32-bit range where FromParts wraps
+it; ksuid_next and ksuid_prev refuse to wrap past Max and Nil.
 
 Needs spec or library: SHA-1 and MD5 are not in the library (crypto has
 SHA-2, pq SHA-3, hash BLAKE3), so name-based versions 3 and 5 take their

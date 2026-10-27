@@ -3,7 +3,8 @@
 # their fields and convert into each other; the monotonic ULID and UUIDv7
 # generators and the Snowflake generator give strictly increasing values
 # over time walks that repeat and go back; a Nano ID fed in chunks equals
-# the one made in one call and uses only its alphabet.
+# the one made in one call and uses only its alphabet; TypeIDs and KSUIDs
+# round-trip and sort as their bytes.
 
 fn tw_next(s: i64) -> i64 = (s * 48271) % 2147483647
 
@@ -233,3 +234,54 @@ fn tw_url(n: i64, seed: i64) -> bool
     return ok
 
 check tw_url(100, 23)
+
+# TypeID: random prefixes and UUIDs round-trip; under one prefix the text
+# sorts as the UUID bytes do
+fn tw_typeid(n: i64, seed: i64) -> bool
+    let al = "abcdefghijklmnopqrstuvwxyz_".chars()
+    var w = TwR(s: seed)
+    var ok = true
+    var prev: List[i64] = []
+    var ptext = ""
+    for i in 0..n
+        w.s = tw_next(w.s)
+        let len = w.s % 64
+        var p = ""
+        for k in 0..len
+            w.s = tw_next(w.s)
+            let c = w.s % (if k == 0 or k == len - 1 then 26 else 27)
+            p = p + copy(al[c as usize])
+        let u = tw_bytes(&mut w, 16)
+        let t = typeid_format(&p, &u) catch "bad"
+        let back = typeid_parse(&t) catch TypeId(prefix: "bad", uuid: [])
+        ok = ok and back.prefix == p and back.uuid == u and (t.len_bytes() as i64) == (if len == 0 then 26 else len + 27)
+        let qp = "q"
+        let q = typeid_format(&qp, &u) catch "bad"
+        if i > 0
+            ok = ok and (prev < u) == (ptext < q)
+        prev = u
+        ptext = q
+    return ok
+
+check tw_typeid(200, 29)
+
+# KSUID: round trip, order, next and prev are inverse
+fn tw_ksuid(n: i64, seed: i64) -> bool
+    var w = TwR(s: seed)
+    var ok = true
+    var prev: List[i64] = []
+    var ptext = ""
+    for i in 0..n
+        let b = tw_bytes(&mut w, 20)
+        let t = ksuid_encode(&b) catch "bad"
+        ok = ok and t.len_bytes() == 27 and (ksuid_parse(&t) catch [1]) == b
+        let nx = ksuid_next(&b) catch [1]
+        let pv = ksuid_prev(&b) catch [1]
+        ok = ok and (ksuid_prev(&nx) catch [2]) == b and (ksuid_next(&pv) catch [2]) == b and pv < b and b < nx
+        if i > 0
+            ok = ok and (prev < b) == (ptext < t)
+        prev = b
+        ptext = t
+    return ok
+
+check tw_ksuid(200, 31)
