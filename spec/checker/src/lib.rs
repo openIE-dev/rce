@@ -21,6 +21,7 @@ pub mod core_elab;
 pub mod core_rules;
 pub mod dim;
 pub mod nameless;
+pub mod one;
 pub mod emit;
 pub mod host;
 pub mod ifc;
@@ -48,6 +49,7 @@ pub mod stdlib;
 pub mod tls;
 #[cfg(feature = "tree-sitter")]
 pub mod ts;
+pub mod typed;
 pub mod types;
 pub mod unparse;
 pub mod v09;
