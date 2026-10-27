@@ -1,23 +1,29 @@
 module fmt
 
-# Locale-free formatting, parsing and a linear-time regex (survey M17,
-# part 1). No locale, no host call: the same input gives the same text on
-# every host.
+# Locale-free formatting, parsing and a linear-time regex (survey M17).
+# No locale, no host call: the same input gives the same text on every
+# host.
 # - Integers: any radix 2..36, sign, zero/space padding, digit grouping;
 #   strict parsing that refuses overflow, empty digits and stray bytes
 #   (like C++ from_chars: no whitespace, no "0x", lowercase or uppercase
 #   digits).
 # - Templates: "{}" takes the next argument, "{N}" argument N, "{{" and
 #   "}}" are literal braces.
-# - Regex: a Thompson NFA run as a Pike VM, so matching costs
-#   O(len(pattern) * len(input)) and never backtracks (RE2's guarantee).
-#   Syntax: literals, ".", [...] and [^...] with ranges, \d \w \s \D \W
-#   \S, \n \t \r, escapes of metacharacters, * + ? and {m}, {m,},
-#   {m,n} (m, n <= 1000), |, (...), (?:...), ^ and $ (the ends of the
-#   whole input, no multiline mode). It matches bytes of the UTF-8 text;
-#   "." takes one whole UTF-8 sequence except "\n". Class ranges are ASCII;
-#   a negated class or \D \W \S takes any whole non-ASCII sequence. No
-#   captures or backreferences (not regular).
+# - Format specifications: the mini-language of Python's format() for
+#   integers, floats and text (fmt_int, fmt_float, fmt_text), C locale.
+# - Float text: every result is exactly rounded from the binary64 value
+#   (round half to even, computed in exact integer arithmetic): fixed and
+#   exponent forms with any precision, Python's general form, repr (the
+#   shortest digits that read back) and the exact decimal value.
+# - Float parsing: decimal text to the nearest binary64, ties to even,
+#   for any number of digits; overflow is reported, never an infinity.
+# - Regex: a Thompson NFA run as a Pike VM over code points, so a search
+#   costs O(len(pattern) * len(input)) and never backtracks (RE2's
+#   guarantee), with the leftmost-first results of a backtracking engine
+#   (CPython's re): numbered and named groups, greedy and lazy
+#   quantifiers, find_all, replace with group references, split, and a
+#   search that can be fed its input in chunks. No backreferences or
+#   lookaround (not regular). The syntax is described at re_compile.
 
 const DIGITS: text = "0123456789abcdefghijklmnopqrstuvwxyz"
 
@@ -46,7 +52,7 @@ pub fn int_dec(v: i64) -> text = int_to(v, 10)
 
 pub fn int_hex(v: i64) -> text = int_to(v, 16)
 
-fn digit_val(c: i64) -> i64
+fn dg_val(c: i64) -> i64
     if c >= 48 and c <= 57
         return c - 48
     if c >= 97 and c <= 122
@@ -73,7 +79,7 @@ pub fn int_parse(s: &text, r: i64) -> i64 ! BadInt
     var acc: i64 = 0
     let lim = (0 - 9223372036854775807 - 1)
     while i < n bound 1000000
-        let d = digit_val(s[i] as i64)
+        let d = dg_val(s[i] as i64)
         if d >= r
             fail BadInt(at: i as i64)
         if acc < (lim + d) / r
@@ -151,7 +157,7 @@ pub fn format(t: &text, args: &[text]) -> text ! BadFormat
                 var j = i + 1
                 var idx: i64 = -1
                 while j < n and cs[j] != "}" bound 1000000
-                    let d = digit_val(cs[j][0] as i64)
+                    let d = dg_val(cs[j][0] as i64)
                     if d > 9
                         fail BadFormat(at: j as i64)
                     idx = (if idx < 0 then 0 else idx) * 10 + d
@@ -838,7 +844,7 @@ pub fn spec_parse(s: &text) -> FmtSpec ! BadSpec
     if n - i > 1
         fail BadSpec(why: "invalid format specifier")
     if n - i == 1
-        f.ty = cp_at(&cs[i], 0)
+        f.ty = rx_cp_at(&cs[i], 0)
     return f
 
 # The group size grouping gives with type t, or -1 when CPython refuses
@@ -860,7 +866,7 @@ fn list_from(xs: &[i64], k: usize) -> List[i64]
         i += 1
     return o
 
-fn text_bytes(s: &text) -> List[i64]
+fn tx_bytes(s: &text) -> List[i64]
     var o: List[i64] = []
     var i: usize = 0
     while i < s.len_bytes() bound 4000000
@@ -956,7 +962,7 @@ fn nf_layout(f: &FmtSpec, neg: bool, prefix: &[i64], ds: &[i64], rest: &[i64], r
             sp = npad
         if f.align == 62
             lp = npad
-    let fb = text_bytes(&f.fill)
+    let fb = tx_bytes(&f.fill)
     let total = (lp + sp + rp) * (fb.len() as i64) + n_sign + (prefix.len() as i64) + (gdig.len() as i64) + (rest.len() as i64)
     if total > TEXT_MAX
         fail BadSpec(why: "output longer than the text limit")
@@ -1026,7 +1032,7 @@ pub fn fmt_int(v: i64, spec: &text) -> text ! BadSpec
         return try nf_layout(&f, false, &nolist, &nolist, &cb, 1, 0, false)
     let base: i64 = if ty == 98 then 2 else (if ty == 111 then 8 else (if ty == 120 or ty == 88 then 16 else 10))
     let dt = int_to(v, base)
-    var ds = text_bytes(&dt)
+    var ds = tx_bytes(&dt)
     if v < 0
         ds = list_from(&ds, 1)
     var prefix: List[i64] = []
@@ -1065,7 +1071,7 @@ pub fn fmt_text(s: &text, spec: &text) -> text ! BadSpec
     let total = n.max(f.width)
     let lp = if f.align == 62 then total - n else (if f.align == 94 then (total - n) / 2 else 0)
     let rp = total - n - lp
-    let fb = text_bytes(&fill)
+    let fb = tx_bytes(&fill)
     if (lp + rp) * (fb.len() as i64) + (nb as i64) > TEXT_MAX
         fail BadSpec(why: "output longer than the text limit")
     var o: List[i64] = []
@@ -1412,7 +1418,7 @@ struct Parser
 
 fn ins(op: i64, a: i64, b: i64) -> List[i64] = [op, a, b]
 
-fn cat(a: List[i64], b: List[i64]) -> List[i64]
+fn rx_cat(a: List[i64], b: List[i64]) -> List[i64]
     var o = a
     for x in b
         o.push(x)
@@ -1420,37 +1426,40 @@ fn cat(a: List[i64], b: List[i64]) -> List[i64]
 
 fn ilen(f: &[i64]) -> i64 = (f.len() / 3) as i64
 
-# A greedy loop whose body can match empty follows CPython's rule (the
-# zero-width match protection of MAX_UNTIL in sre): after an iteration
-# that took no character the loop stops, keeping that iteration's
-# groups. OP_HSAVE records where an iteration starts, in a slot of the
-# loop's nesting depth; OP_ECHK leaves the loop when the iteration
-# ended where it started. A lazy loop needs no such step: an empty
-# iteration only reaches its tail again, at lower priority.
+# A loop whose body can match empty follows CPython's rule (the
+# zero-width match protection of MAX_UNTIL and MIN_UNTIL in sre): an
+# iteration that took no character ends the loop, keeping that
+# iteration's groups. OP_HSAVE records where an iteration starts, in a
+# slot of the loop's nesting depth, and OP_ECHK leaves the loop when the
+# iteration ended where it started. The slot also tells the VM that a
+# new iteration began at the current offset, so the states inside it are
+# kept apart from those of the iteration before, as backtracking would
+# explore them (vm_add).
 fn star(f: List[i64], lazy: bool) -> List[i64]
-    if nullable(&f)
-        if lazy
-            return opt(plus(f, lazy), lazy)
-        let k = ilen(&f)
-        return cat(cat(cat(ins(OP_SPLIT, 1, k + 4), ins(OP_HSAVE, 0, 0)), f), cat(ins(OP_ECHK, 0, 2), ins(OP_JMP, 0 - (k + 3), 0)))
     let n = ilen(&f)
+    if nullable(&f)
+        let head = if lazy then ins(OP_SPLIT, n + 4, 1) else ins(OP_SPLIT, 1, n + 4)
+        return rx_cat(rx_cat(rx_cat(head, ins(OP_HSAVE, 0, 0)), f), rx_cat(ins(OP_ECHK, 0, 2), ins(OP_JMP, 0 - (n + 3), 0)))
     let head = if lazy then ins(OP_SPLIT, n + 2, 1) else ins(OP_SPLIT, 1, n + 2)
-    return cat(cat(head, f), ins(OP_JMP, 0 - (n + 1), 0))
+    return rx_cat(rx_cat(head, f), ins(OP_JMP, 0 - (n + 1), 0))
 
+# f+ is f f*: the first iteration is required, and only the optional
+# ones after it stop at an empty iteration (sre sets the zero-width
+# guard only for iterations beyond the minimum).
 fn plus(f: List[i64], lazy: bool) -> List[i64]
     let n = ilen(&f)
-    if not lazy and nullable(&f)
-        return cat(cat(ins(OP_HSAVE, 0, 0), f), cat(ins(OP_ECHK, 0, 2), ins(OP_SPLIT, 0 - (n + 2), 1)))
-    return cat(f, if lazy then ins(OP_SPLIT, 1, 0 - n) else ins(OP_SPLIT, 0 - n, 1))
+    if nullable(&f)
+        return rx_cat(copy(f), star(f, lazy))
+    return rx_cat(f, if lazy then ins(OP_SPLIT, 1, 0 - n) else ins(OP_SPLIT, 0 - n, 1))
 
 fn opt(f: List[i64], lazy: bool) -> List[i64]
     let n = ilen(&f)
-    return cat(if lazy then ins(OP_SPLIT, n + 1, 1) else ins(OP_SPLIT, 1, n + 1), f)
+    return rx_cat(if lazy then ins(OP_SPLIT, n + 1, 1) else ins(OP_SPLIT, 1, n + 1), f)
 
 fn alt(a: List[i64], b: List[i64]) -> List[i64]
     let na = ilen(&a)
     let nb = ilen(&b)
-    return cat(cat(cat(ins(OP_SPLIT, 1, na + 2), a), ins(OP_JMP, nb + 1, 0)), b)
+    return rx_cat(rx_cat(rx_cat(ins(OP_SPLIT, 1, na + 2), a), ins(OP_JMP, nb + 1, 0)), b)
 
 # whether fragment f can finish without taking a character
 fn nullable(f: &[i64]) -> bool
@@ -1527,7 +1536,7 @@ fn is_class_esc(c: i64) -> bool = c == 100 or c == 68 or c == 119 or c == 87 or 
 
 fn is_alnum(c: i64) -> bool = (c >= 48 and c <= 57) or (c >= 65 and c <= 90) or (c >= 97 and c <= 122)
 
-fn hex_val(c: i64) -> i64
+fn rx_hex(c: i64) -> i64
     if c >= 48 and c <= 57
         return c - 48
     if c >= 97 and c <= 102
@@ -1536,7 +1545,7 @@ fn hex_val(c: i64) -> i64
         return c - 55
     return -1
 
-fn is_oct(c: i64) -> bool = c >= 48 and c <= 55
+fn rx_oct(c: i64) -> bool = c >= 48 and c <= 55
 
 # The character of the escape "\e" (e already read), or -1 for a refused
 # escape: \n \t \r \f \v \a, \b in a class (backspace), \xhh, \uhhhh,
@@ -1562,7 +1571,7 @@ fn esc_char(p: &mut Parser, e: i64, cls: bool) -> i64
         var v: i64 = 0
         var k: i64 = 0
         while k < nd bound 8
-            let h = hex_val(peek(p))
+            let h = rx_hex(peek(p))
             if h < 0
                 return -1
             v = v * 16 + h
@@ -1572,10 +1581,10 @@ fn esc_char(p: &mut Parser, e: i64, cls: bool) -> i64
             return -1
         return v
     if e >= 48 and e <= 57
-        if e == 48 or (cls and is_oct(e))
+        if e == 48 or (cls and rx_oct(e))
             var v = e - 48
             var k: i64 = 0
-            while k < 2 and is_oct(peek(p)) bound 2
+            while k < 2 and rx_oct(peek(p)) bound 2
                 v = v * 8 + peek(p) - 48
                 p.pos += 1
                 k += 1
@@ -1583,7 +1592,7 @@ fn esc_char(p: &mut Parser, e: i64, cls: bool) -> i64
                 return -1
             return v
         # outside a class: three octal digits, else a backreference
-        if is_oct(e) and is_oct(peek(p)) and is_oct(peek2(p))
+        if rx_oct(e) and rx_oct(peek(p)) and rx_oct(peek2(p))
             let v = (e - 48) * 64 + (peek(p) - 48) * 8 + peek2(p) - 48
             p.pos += 2
             if v > 255
@@ -1663,14 +1672,21 @@ fn repeat(f: List[i64], m: i64, n: i64, lazy: bool) -> List[i64]
         if m == 0
             return star(f, lazy)
         for _ in 0..(m - 1)
-            o = cat(o, copy(f))
-        return cat(o, plus(f, lazy))
+            o = rx_cat(o, copy(f))
+        return rx_cat(o, plus(f, lazy))
     for _ in 0..m
-        o = cat(o, copy(f))
+        o = rx_cat(o, copy(f))
+    # optional copies, nested; with a nullable body each copy ends with
+    # OP_ECHK, so an empty iteration ends the repetition (as in star)
+    let nul = nullable(&f) and n - m >= 2
     var r: List[i64] = []
     for _ in 0..(n - m)
-        r = opt(cat(copy(f), r), lazy)
-    return cat(o, r)
+        if nul
+            let body = rx_cat(rx_cat(ins(OP_HSAVE, 0, 0), copy(f)), ins(OP_ECHK, 0, ilen(&r) + 1))
+            r = opt(rx_cat(body, r), lazy)
+        else
+            r = opt(rx_cat(copy(f), r), lazy)
+    return rx_cat(o, r)
 
 fn is_name_start(c: i64) -> bool = (c >= 65 and c <= 90) or (c >= 97 and c <= 122) or c == 95
 
@@ -1733,7 +1749,7 @@ fn parse_atom(p: &mut Parser) -> List[i64] bound 1000
         p.pos += 1
         p.assert = false
         if cap
-            return cat(cat(ins(OP_SAVE, 2 * k, 0), f), ins(OP_SAVE, 2 * k + 1, 0))
+            return rx_cat(rx_cat(ins(OP_SAVE, 2 * k, 0), f), ins(OP_SAVE, 2 * k + 1, 0))
         return f
     if c == 91
         p.pos += 1
@@ -1817,7 +1833,7 @@ fn parse_seq(p: &mut Parser) -> List[i64] bound 1000
                 perr(p)
                 return []
             a = repeat(a, m, n, lazy)
-        f = cat(f, a)
+        f = rx_cat(f, a)
         if ilen(&f) > RE_MAX_INS
             perr(p)
             return []
@@ -1845,7 +1861,7 @@ fn seq_len(c: i64) -> i64
     return 1
 
 # the code point whose UTF-8 sequence starts at byte i of s
-fn cp_at(s: &text, i: usize) -> i64
+fn rx_cp_at(s: &text, i: usize) -> i64
     let b0 = s[i] as i64
     if b0 < 128
         return b0
@@ -1855,11 +1871,10 @@ fn cp_at(s: &text, i: usize) -> i64
         return ((b0 & 15) << 12) | (((s[i + 1] as i64) & 63) << 6) | ((s[i + 2] as i64) & 63)
     return ((b0 & 31) << 6) | ((s[i + 1] as i64) & 63)
 
-fn bytes_of(s: &text) -> List[i64] = text_bytes(s)
-
 # Compile a pattern. Syntax (Python's re on a regular subset): literals,
 # ".", [...] and [^...] with code point ranges and the escapes below,
-# \d \w \s \D \W \S (ASCII, as re.ASCII), \b \B (ASCII word boundaries),
+# \d \w \s \D \W \S (ASCII, as re.ASCII), \b \B (ASCII word boundaries;
+# \B does not match an empty input, as in CPython 3.13),
 # \A and ^ (start of the input), \Z and $ (end of the input; no
 # multiline mode), \n \t \r \f \v \a \xhh \uhhhh \Uhhhhhhhh and octal
 # escapes, escaped punctuation; * + ? {m} {m,} {,n} {m,n} (m, n <= 1000),
@@ -1869,12 +1884,12 @@ fn bytes_of(s: &text) -> List[i64] = text_bytes(s)
 # problem): backreferences, lookaround, inline flags, possessive
 # quantifiers, comments, a quantifier on nothing or on an assertion, and
 # "{", "}" or "]" as literals (escape them).
-pub fn compile(pattern: &text) -> Regex ! BadRegex
+pub fn re_compile(pattern: &text) -> Regex ! BadRegex
     var cps: List[i64] = []
     var offs: List[i64] = []
     var i: usize = 0
     while i < pattern.len_bytes() bound 1000000
-        cps.push(cp_at(pattern, i))
+        cps.push(rx_cp_at(pattern, i))
         offs.push(i as i64)
         i += seq_len(pattern[i] as i64) as usize
     offs.push(i as i64)
@@ -1884,7 +1899,7 @@ pub fn compile(pattern: &text) -> Regex ! BadRegex
         perr(&mut p)
     if p.err >= 0
         fail BadRegex(at: p.err)
-    var code = cat(cat(cat(ins(OP_SAVE, 0, 0), f), ins(OP_SAVE, 1, 0)), ins(OP_MATCH, 0, 0))
+    var code = rx_cat(rx_cat(rx_cat(ins(OP_SAVE, 0, 0), f), ins(OP_SAVE, 1, 0)), ins(OP_MATCH, 0, 0))
     # loop slots by nesting depth: loops at one depth never run at once
     var nest: List[i64] = []
     var d: i64 = 0
@@ -2020,7 +2035,7 @@ fn vm_add(re: &Regex, out: &mut List[i64], mem: &mut VmMem, seeds: &[i64], k: us
             sp += 1
             continue
         if op == OP_BOL or op == OP_EOL or op == OP_WORD
-            let ok = (op == OP_BOL and pos == 0) or (op == OP_EOL and at_end) or (op == OP_WORD and ((is_word(prev) != is_word(next)) == (a == 1)))
+            let ok = (op == OP_BOL and pos == 0) or (op == OP_EOL and at_end) or (op == OP_WORD and ((is_word(prev) != is_word(next)) == (a == 1)) and not (a == 0 and pos == 0 and at_end))
             if ok
                 mem.stack[base] = pc + 1
                 sp += 1
@@ -2092,7 +2107,7 @@ fn prev_cp(s: &text, at: usize) -> i64
     var j = at - 1
     while j > 0 and (s[j] as i64) >= 128 and (s[j] as i64) < 192 bound 4
         j -= 1
-    return cp_at(s, j)
+    return rx_cp_at(s, j)
 
 # a byte offset moved forward to a character boundary, within 0 .. len
 fn re_start(s: &text, at: i64) -> usize
@@ -2108,7 +2123,7 @@ fn vm_search(re: &Regex, s: &text, start: usize, mode: i64, nonempty: bool, ncap
     var i = start
     while not st.done and i < n bound 1000000
         let l = seq_len(s[i] as i64)
-        vm_step(re, &mut st, cp_at(s, i), l, mem)
+        vm_step(re, &mut st, rx_cp_at(s, i), l, mem)
         i += l as usize
     vm_step(re, &mut st, -1, 0, mem)
     return st
@@ -2118,10 +2133,10 @@ fn vm_bool(re: &Regex, s: &text, mode: i64) -> bool
     return vm_search(re, s, 0, mode, false, 0, true, &mut mem).found
 
 # Whether the whole of s matches.
-pub fn is_match(re: &Regex, s: &text) -> bool = vm_bool(re, s, 2)
+pub fn re_is_match(re: &Regex, s: &text) -> bool = vm_bool(re, s, 2)
 
 # Whether some substring of s matches.
-pub fn search(re: &Regex, s: &text) -> bool = vm_bool(re, s, 0)
+pub fn re_contains(re: &Regex, s: &text) -> bool = vm_bool(re, s, 0)
 
 # ---------------- matches and captures ----------------
 
@@ -2206,7 +2221,7 @@ fn tp_parse(re: &Regex, t: &text) -> List[i64] ! BadTemplate
     var offs: List[i64] = []
     var i: usize = 0
     while i < t.len_bytes() bound 1000000
-        cs.push(cp_at(t, i))
+        cs.push(rx_cp_at(t, i))
         offs.push(i as i64)
         i += seq_len(t[i] as i64) as usize
     offs.push(i as i64)
@@ -2259,7 +2274,7 @@ fn tp_parse(re: &Regex, t: &text) -> List[i64] ! BadTemplate
             if d == 48
                 lit = 0
                 var m: i64 = 0
-                while m < 2 and j < n and is_oct(cs[j]) bound 2
+                while m < 2 and j < n and rx_oct(cs[j]) bound 2
                     lit = lit * 8 + cs[j] - 48
                     j += 1
                     m += 1
@@ -2267,7 +2282,7 @@ fn tp_parse(re: &Regex, t: &text) -> List[i64] ! BadTemplate
                 if d >= 49 and d <= 57
                     grp = d - 48
                     if j < n and cs[j] >= 48 and cs[j] <= 57
-                        if is_oct(d) and is_oct(cs[j]) and j + 1 < n and is_oct(cs[j + 1])
+                        if rx_oct(d) and rx_oct(cs[j]) and j + 1 < n and rx_oct(cs[j + 1])
                             lit = (d - 48) * 64 + (cs[j] - 48) * 8 + cs[j + 1] - 48
                             if lit > 255
                                 fail BadTemplate(at: offs[k])
@@ -2394,7 +2409,7 @@ pub fn re_scan_feed(re: &Regex, st: &mut ReScan, chunk: &text)
     var i: usize = 0
     while not st.done and i < n bound 1000000
         let l = seq_len(chunk[i] as i64)
-        vm_step(re, st, cp_at(chunk, i), l, &mut mem)
+        vm_step(re, st, rx_cp_at(chunk, i), l, &mut mem)
         i += l as usize
 
 pub fn re_scan_end(re: &Regex, st: &mut ReScan) -> ReMatch

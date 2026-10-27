@@ -54,10 +54,10 @@ fn ck_fscan_ovf(s: text, at: i64, v: f64, end: i64) -> bool
     let sc = float_scan(&s, at)
     return sc.value == v and sc.end == end and sc.overflow
 
-fn ck_rcomp(p: text) -> Regex = compile(&p) catch Regex(code: [], classes: [], ngroups: 0, names: [], nest: [], nloops: 0)
+fn ck_rcomp(p: text) -> Regex = re_compile(&p) catch Regex(code: [], classes: [], ngroups: 0, names: [], nest: [], nloops: 0)
 
 fn ck_rbad(p: text) -> bool
-    let r = compile(&p) catch Regex(code: [], classes: [-7], ngroups: 0, names: [], nest: [], nloops: 0)
+    let r = re_compile(&p) catch Regex(code: [], classes: [-7], ngroups: 0, names: [], nest: [], nloops: 0)
     return r.classes == [-7]
 
 fn ck_slots(m: &ReMatch) -> List[i64] = if m.found then copy(m.slots) else []
@@ -68,7 +68,7 @@ fn ck_rx(p: text, s: text, a: List[i64], b: List[i64], c: List[i64]) -> bool
     let ma = re_find(&r, &s)
     let mb = re_match(&r, &s)
     let mc = re_fullmatch(&r, &s)
-    return r.code.len() > 0 and ck_slots(&ma) == a and ck_slots(&mb) == b and ck_slots(&mc) == c and search(&r, &s) == ma.found and is_match(&r, &s) == mc.found and ck_rgroups(&ma, &s, &a)
+    return r.code.len() > 0 and ck_slots(&ma) == a and ck_slots(&mb) == b and ck_slots(&mc) == c and re_contains(&r, &s) == ma.found and re_is_match(&r, &s) == mc.found and ck_rgroups(&ma, &s, &a)
 
 # re_group agrees with the slots
 fn ck_rgroups(m: &ReMatch, s: &text, sl: &[i64]) -> bool
