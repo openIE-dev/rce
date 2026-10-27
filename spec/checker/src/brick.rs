@@ -11,9 +11,10 @@
 //! (module, name); its `hash` is the SHA-256 of the canonical JSON of the
 //! entries, so equal libraries give equal catalogs byte for byte.
 //!
-//! Library dependencies (`# uses:`, `#!lib`, and a `#!lib` inferred from
-//! unknown names) are resolved before checking; the D.7 lowering is in
-//! `brick_lower.rs` and the interpreter's vectors in `brick_vec.rs`.
+//! Library dependencies (`#!lib`, and a `#!lib` inferred from unknown
+//! names) are resolved before checking; a module's `use` items resolve as
+//! in `rce check`. The D.7 lowering is in `brick_lower.rs` and the
+//! interpreter's vectors in `brick_vec.rs`.
 use crate::ast::*;
 use serde_json::{Map, Value, json};
 use sha2::{Digest, Sha256};
@@ -145,41 +146,6 @@ fn lib_directives(src: &str) -> Vec<String> {
         .collect()
 }
 
-fn uses_directives(src: &str) -> Vec<String> {
-    src.lines()
-        .filter_map(|l| l.strip_prefix("# uses: "))
-        .flat_map(|r| r.split_whitespace().map(String::from))
-        .collect()
-}
-
-/// Add the files named by `# uses: a/b` that were not given: `a/b.rce`
-/// under the nearest ancestor directory of the naming file that has it.
-fn resolve_uses(files: &mut Vec<(String, String)>) {
-    let mut i = 0;
-    while i < files.len() {
-        let (f, src) = files[i].clone();
-        for u in uses_directives(&src) {
-            let rel = format!("{u}.rce");
-            if files
-                .iter()
-                .any(|(g, _)| g.ends_with(&format!("/{rel}")) || *g == rel)
-            {
-                continue;
-            }
-            let mut dir = std::path::Path::new(&f).parent().map(|p| p.to_path_buf());
-            while let Some(d) = dir {
-                let cand = d.join(&rel);
-                if let Ok(t) = std::fs::read_to_string(&cand) {
-                    files.push((cand.to_string_lossy().into_owned(), t));
-                    break;
-                }
-                dir = d.parent().map(|p| p.to_path_buf());
-            }
-        }
-        i += 1;
-    }
-}
-
 /// `m` with the items of `libs` in front (their checks, examples, intents
 /// and module lines dropped; an item `m` declares itself wins), as the rce
 /// binary does for `#!lib NAME`.
@@ -254,13 +220,10 @@ pub fn index(files: &[(String, String)]) -> Value {
     index_with(files, &Opts::default())
 }
 
-pub fn index_with(given: &[(String, String)], o: &Opts) -> Value {
-    let mut files = given.to_vec();
-    resolve_uses(&mut files);
-    let given_names: HashSet<&String> = given.iter().map(|(f, _)| f).collect();
+pub fn index_with(files: &[(String, String)], o: &Opts) -> Value {
     let mut parse_errs = Map::new();
     let mut orig: Vec<(String, Module, Vec<String>)> = vec![];
-    for (f, src) in &files {
+    for (f, src) in files {
         match crate::parse::parse(src) {
             Ok(m) => orig.push((f.clone(), m, lib_directives(src))),
             Err(e) => {
@@ -332,9 +295,6 @@ pub fn index_with(given: &[(String, String)], o: &Opts) -> Value {
     let mut refused_files = parse_errs;
     let mut resolved = Map::new();
     for (i, (file, m, _)) in orig.iter().enumerate() {
-        if !given_names.contains(file) {
-            continue;
-        }
         if !libs[i].is_empty() {
             resolved.insert(file.clone(), json!({"lib": libs[i], "how": how[i]}));
         }

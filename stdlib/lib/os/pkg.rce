@@ -1,5 +1,4 @@
 module os.pkg
-# uses: enc.enc, data.events
 use enc
 use data.events
 # Packages (survey M43), pure. Fetching a package is a host capability

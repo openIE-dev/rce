@@ -1,5 +1,5 @@
-# Flatten a foundation module and the modules it names on its
-# "# uses:" line into one file, for `rce run`, which takes a single file
+# Flatten a foundation module and the modules it imports (its `use` items
+# and theirs, scripts/uses.py) into one file, for `rce run`, which takes a single file
 # (needed where each event must get its own fuel, e.g. Ed25519 per event).
 # Dependency bodies lose their `module` lines; the main module loses its
 # `use` lines and the `alias.` qualifiers of those modules.

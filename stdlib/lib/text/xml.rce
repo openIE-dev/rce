@@ -1,5 +1,4 @@
 module text.xml
-# uses: enc.enc, data.events
 use data.events
 
 # A small XML 1.0 reader (with Namespaces in XML 1.0), pure: elements,

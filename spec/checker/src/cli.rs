@@ -915,7 +915,7 @@ fn run_main(a: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &mu
         Some("lib") if rest.is_empty() => {
             for n in crate::stdlib::names() {
                 let src = crate::stdlib::source(n).unwrap_or("");
-                let doc = src.lines().find(|l| l.starts_with("# ") && !l.starts_with("# rce-version") && !l.starts_with("# uses:")).map(|l| l.trim_start_matches("# ").to_string()).unwrap_or_default();
+                let doc = src.lines().find(|l| l.starts_with("# ") && !l.starts_with("# rce-version")).map(|l| l.trim_start_matches("# ").to_string()).unwrap_or_default();
                 writeln!(out, "{n:<16} {doc}").map_err(w)?;
             }
             // the library is named by the hash of its manifest (F.5.3), and a

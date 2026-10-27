@@ -3456,8 +3456,9 @@ chain, and that the runner finds a planted divergence.
 object (format `rce-catalog/1`, compact, sorted keys) with one entry per
 top-level function of each module (the `pub` ones when the module marks
 any `pub`, else all; methods are not bricks), sorted by module and name.
-Library dependencies are resolved first: a `# uses: a/b` line adds
-`a/b.rce` from the nearest ancestor directory that has it; a `#!lib NAME`
+Library dependencies are resolved first: a `use` item names a module
+given with the files or one of the built-in library, as in `rce check`
+(4.1); a `#!lib NAME`
 line checks the module with the items of module NAME in front (its checks
 dropped, its own items winning), as the rce binary does; and a module
 refused only for unknown names that exactly one single-segment module of

@@ -46,7 +46,7 @@ run replays bit for bit.
 | `lib/num/special.rce` | `num.special`: binary64 bit access in pure RCE, correctly rounded exp and log from `math` (`cr_exp`, `cr_log`), FDLIBM 5.3 ports of log1p, expm1, erf, erfc and lgamma |
 | `lib/num/stats.rce` | `num.stats`: exact-sum descriptive statistics, NumPy quantile methods 1-9, normal/t/chi2/F/gamma/beta/exponential/binomial/Poisson pdf, cdf, sf and quantile (Loader saddle-point densities, AS 241), uniform/normal/exponential variates from `rand.det` draws, least squares with Bjorck iterative refinement, one-way ANOVA, t-tests, chi-square tests, Pearson test |
 
-Foundation modules live under `lib/<area>/` (a module that needs others names them on one `# uses: a.b, c.d` line, parsed strictly by `scripts/uses.py`, and is checked as a package with them); their vectors and property
+Foundation modules live under `lib/<area>/` (a module that needs others imports them with `use`, and `scripts/check.sh` checks it as a package with them and the modules they import, which `scripts/uses.py` reads from the `use` items); their vectors and property
 sweeps are in `tests/<area>/<name>_checks.rce`, which `scripts/check.sh`
 appends to the module. A program uses a foundation module by name alone
 (`use core.exact`): every module is built into `rce`, as the next sections
