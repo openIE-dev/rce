@@ -14,6 +14,7 @@ run replays bit for bit.
 | `lib/core/exact.rce` | `core.exact`: big integers (base 2^24 limbs), rationals, unbounded decimals with explicit rounding modes, binary fixed-point |
 | `lib/core/bytes.rce` | `core.bytes`: byte buffers as `List[i64]`: big/little-endian integers, strict hex, slice, compare, xor, find |
 | `lib/col/col.rce` | `col`: deque, binary heap, ordered map and set (sorted, canonical order), FNV-1a fixed-hash map with insertion-order iteration |
+| `lib/col/cache.rce` | `col.cache`: LRU, LFU and TTL caches over text keys (cachetools semantics; TTL expiry by an instant the caller passes in, never a clock read), memoization keyed by the SHA-256 of the canonical JSON (6.1.1) of the arguments (functools.lru_cache counters), and `CVal`, Form values with canonical JSON, hash and canonical order |
 | `lib/enc/enc.rce` | `enc`: base64 (RFC 4648), LEB128 varints and zigzag, deterministic CBOR encode/strict decode (RFC 8949 4.2.1), JCS (RFC 8785, integer numbers) |
 | `lib/text/utf8.rce` | `text.utf8`: UTF-8 validation (Unicode Table 3-7), strict and U+FFFD-substituting decode, encode, code points and UTF-16 of text |
 | `lib/time/time.rce` | `time`: durations and instants (i64 ns, logged time only), proleptic Gregorian civil dates (Hinnant), weekdays, ISO weeks, month arithmetic, RFC 3339 format/parse with fixed offsets |
