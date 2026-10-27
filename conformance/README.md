@@ -34,9 +34,14 @@ See `INTERPRETING.md` for the file format and `ADAPTERS.md` for the protocol.
 **Current limit.** The adapter binary `rce-conform` is built from public `rce` (`cd spec/checker && cargo build --release --bin rce-conform`, source `src/bin/conform.rs`, present since `openIE-dev/rce` `cdae5cf`). Tests that use `$RCE_ENGINE` (the handler-spec profile, appendix D) need the engine's `rce`, which is not public, so those cannot run against public `rce`. The `lexing-parsing` area was run against public `rce` main on 17 October 2026: 133 of 133 pass. The reference and the three emitter reports were rerun against public `rce` `4a3dc1f` (next section); the other reports were produced against the engine repository, whose history is not public. The clause paths below use the public layout (`spec/book`).
 
     export RCE_CONFORM=/path/to/rce-conform   # cargo build -p rce-spec-check --bin rce-conform
+    export RCE=/path/to/rce                   # the emitters' `rce emit`
     python3 harness/run.py --adapter adapters/reference.json --jobs 8
+    python3 harness/run.py --adapter adapters/emit-python.json --jobs 8   # likewise emit-js, emit-rust
     python3 tools/coverage.py
-    python3 tools/parity.py
+    python3 tools/parity.py                   # byte parity of every answer with the reference's
+    python3 tools/readme_status.py            # the status block below
+
+A trace test passes only when the whole trace equals the reference's, line for line: every entry of D, the state after each event, the outputs, the reasons events were kept and the fuel (`trace_lines`), not only the head. `tools/trace_lines.py` writes `trace_lines` into the trace tests from `rce-conform`. On a machine too small for one run of an emitter, run it directory by directory (`--tests tests/AREA --out PART`) and join the parts with `tools/join_results.py OUT PART...`.
 
 ## Status
 
