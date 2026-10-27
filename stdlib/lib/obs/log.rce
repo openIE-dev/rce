@@ -1,12 +1,12 @@
 module obs.log
-# uses: time.time
-use time
 
 # Structured log records as data. A record is a value: a program builds it,
 # formats it and emits the line as an output of its step, so every log line
 # is in the log D and replays with it; nothing is written anywhere else, and
 # there is no global logger, clock or random source. Times are logged
-# instants (i64 nanoseconds, as in `time`), never read from a host.
+# instants (i64 nanoseconds since 1970 on the POSIX timescale, as in
+# `time`), never read from a host. The module uses no other module, so its
+# names meet only the names of the modules a program imports itself.
 # - Severity: the SeverityNumber of the OpenTelemetry Logs Data Model
 #   (1..24; TRACE 1, DEBUG 5, INFO 9, WARN 13, ERROR 17, FATAL 21) with its
 #   short names (INFO2, WARN3, ...). The Go log/slog levels are these
@@ -117,24 +117,28 @@ fn olg_dec(t: &text) -> OlgInt
         return bad
     return OlgInt(ok: true, v: 0 - acc)
 
-# A severity from its name (any ASCII case: the 24 short names and WARNING)
-# or from a decimal i64.
-pub fn sev_parse(t: &text) -> i64 ! BadLog
+fn olg_sev(t: &text) -> OlgInt
+    let bad = OlgInt(ok: false, v: 0)
     if t.len_bytes() > 20
-        fail BadLog(at: 0, why: "unknown level")
+        return bad
     let u = olg_upper_ascii(t)
     let bases = olg_sev_bases()
     for i in 0..6
         for k in 0..4
             let nm = if k == 0 then copy(bases[i]) else copy(bases[i]) + (k + 1).tostr()
             if u == nm
-                return (i as i64) * 4 + (k as i64) + 1
+                return OlgInt(ok: true, v: (i as i64) * 4 + (k as i64) + 1)
     if u == "WARNING"
-        return SEV_WARN
-    let d = olg_dec(t)
-    if d.ok
-        return d.v
-    fail BadLog(at: 0, why: "unknown level")
+        return OlgInt(ok: true, v: SEV_WARN)
+    return olg_dec(t)
+
+# A severity from its name (any ASCII case: the 24 short names and WARNING)
+# or from a decimal i64.
+pub fn sev_parse(t: &text) -> i64 ! BadLog
+    let s = olg_sev(t)
+    if not s.ok
+        fail BadLog(at: 0, why: "unknown level")
+    return s.v
 
 # ---------------- values, pairs and records ----------------
 
@@ -813,12 +817,132 @@ pub fn log_fmt() -> LogFmt = LogFmt(frac: 9, offset_min: 0, ascii: false, max_va
 
 fn olg_clamp(v: i64, lo: i64, hi: i64) -> i64 = if v < lo then lo else (if v > hi then hi else v)
 
-# RFC 3339 text of an instant; one outside +-9e18 ns (about 1684..2255)
-# is written as its decimal number of nanoseconds.
+# ---- RFC 3339 times (the rules of `time`, kept here so that this module
+# imports nothing): proleptic Gregorian dates by Howard Hinnant's
+# days_from_civil and civil_from_days ----
+
+const OLG_SEC: i64 = 1000000000
+const OLG_DAY: i64 = 86400000000000
+
+fn olg_fdiv(a: i64, b: i64) -> i64 = if a >= 0 then a / b else 0 - ((0 - a - 1) / b) - 1
+
+fn olg_days(y0: i64, m: i64, d: i64) -> i64
+    let y = if m <= 2 then y0 - 1 else y0
+    let era = olg_fdiv(y, 400)
+    let yoe = y - era * 400
+    let mp = if m > 2 then m - 3 else m + 9
+    let doe = yoe * 365 + yoe / 4 - yoe / 100 + (153 * mp + 2) / 5 + d - 1
+    return era * 146097 + doe - 719468
+
+# [year, month, day] of a day count since 1970-01-01.
+fn olg_civil(z0: i64) -> List[i64]
+    let z = z0 + 719468
+    let era = olg_fdiv(z, 146097)
+    let doe = z - era * 146097
+    let yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100)
+    let mp = (5 * doy + 2) / 153
+    let m = if mp < 10 then mp + 3 else mp - 9
+    return [yoe + era * 400 + (if m <= 2 then 1 else 0), m, doy - (153 * mp + 2) / 5 + 1]
+
+fn olg_pad(v: i64, w: i64) -> text
+    var s = v.tostr()
+    while (s.len_bytes() as i64) < w bound 20
+        s = "0" + s
+    return s
+
+# RFC 3339 text of an instant with the format's fraction digits (truncated)
+# and fixed offset. An instant outside +-9e18 ns (about 1684..2255) is
+# written as its decimal number of nanoseconds.
 pub fn log_time_text(t: i64, f: &LogFmt) -> text
     if t > 9000000000000000000 or t < -9000000000000000000
         return t.tostr()
-    return time.format_rfc3339(t, olg_clamp(f.offset_min, -1439, 1439), olg_clamp(f.frac, 0, 9))
+    let off = olg_clamp(f.offset_min, -1439, 1439)
+    let frac = olg_clamp(f.frac, 0, 9)
+    let lt = t + off * 60 * OLG_SEC
+    let days = olg_fdiv(lt, OLG_DAY)
+    let nd = lt - days * OLG_DAY
+    let c = olg_civil(days)
+    let sec = nd / OLG_SEC
+    var o = olg_pad(c[0], 4) + "-" + olg_pad(c[1], 2) + "-" + olg_pad(c[2], 2) + "T" + olg_pad(sec / 3600, 2) + ":" + olg_pad((sec / 60) % 60, 2) + ":" + olg_pad(sec % 60, 2)
+    if frac > 0
+        var fr = nd % OLG_SEC
+        var k: i64 = 9
+        while k > frac bound 9
+            fr = fr / 10
+            k -= 1
+        o = o + "." + olg_pad(fr, frac)
+    if off == 0
+        return o + "Z"
+    let a = if off < 0 then 0 - off else off
+    return o + (if off < 0 then "-" else "+") + olg_pad(a / 60, 2) + ":" + olg_pad(a % 60, 2)
+
+fn olg_num(s: &text, at: usize, n: usize) -> i64
+    if at + n > s.len_bytes()
+        return -1
+    var v: i64 = 0
+    for k in 0..n
+        let c = (s[at + k] as i64) - 48
+        if c < 0 or c > 9
+            return -1
+        v = v * 10 + c
+    return v
+
+fn olg_is(s: &text, at: usize, c: i64) -> bool = at < s.len_bytes() and (s[at] as i64) == c
+
+# RFC 3339 date-time (5.6): YYYY-MM-DDTHH:MM:SS[.frac](Z|+HH:MM|-HH:MM),
+# T and Z in either case, 1 to 9 fraction digits, no leap second; dates
+# whose instant would leave the i64 nanosecond range are refused.
+fn olg_rfc3339(s: &text) -> OlgInt
+    let bad = OlgInt(ok: false, v: 0)
+    let y = olg_num(s, 0, 4)
+    let mo = olg_num(s, 5, 2)
+    let d = olg_num(s, 8, 2)
+    let h = olg_num(s, 11, 2)
+    let mi = olg_num(s, 14, 2)
+    let se = olg_num(s, 17, 2)
+    if y < 0 or mo < 1 or mo > 12 or d < 1 or h < 0 or h > 23 or mi < 0 or mi > 59 or se < 0 or se > 59
+        return bad
+    if not (olg_is(s, 4, 45) and olg_is(s, 7, 45) and (olg_is(s, 10, 84) or olg_is(s, 10, 116)) and olg_is(s, 13, 58) and olg_is(s, 16, 58))
+        return bad
+    let leap = (y % 4 == 0 and y % 100 != 0) or y % 400 == 0
+    let dim = if mo == 2 then (if leap then 29 else 28) else (if mo == 4 or mo == 6 or mo == 9 or mo == 11 then 30 else 31)
+    if d > dim
+        return bad
+    var i: usize = 19
+    var ns: i64 = 0
+    if olg_is(s, i, 46)
+        i += 1
+        var k: i64 = 0
+        while i < s.len_bytes() and s[i] >= 48 and s[i] <= 57 bound 10
+            if k >= 9
+                return bad
+            ns = ns * 10 + (s[i] as i64) - 48
+            k += 1
+            i += 1
+        if k == 0
+            return bad
+        while k < 9 bound 9
+            ns = ns * 10
+            k += 1
+    var off: i64 = 0
+    if olg_is(s, i, 90) or olg_is(s, i, 122)
+        i += 1
+    elif olg_is(s, i, 43) or olg_is(s, i, 45)
+        let oh = olg_num(s, i + 1, 2)
+        let om = olg_num(s, i + 4, 2)
+        if oh < 0 or oh > 23 or om < 0 or om > 59 or not olg_is(s, i + 3, 58)
+            return bad
+        off = if olg_is(s, i, 45) then 0 - (oh * 60 + om) else oh * 60 + om
+        i += 6
+    else
+        return bad
+    if i != s.len_bytes()
+        return bad
+    let days = olg_days(y, mo, d)
+    if days > 106748 or days < -106748
+        return bad
+    return OlgInt(ok: true, v: days * OLG_DAY + ((h * 60 + mi) * 60 + se) * OLG_SEC + ns - off * 60 * OLG_SEC)
 
 fn olg_cut_val(x: &LogVal, max: i64) -> LogVal
     match x
@@ -877,23 +1001,19 @@ pub fn log_from_kvs(kvs: &[LogKv]) -> LogRec
         var used = false
         if kv.key == "time" and not st
             st = true
-            # a parse that succeeds gives the same value under both
-            # defaults; a refusal gives 0 and then 1
-            let t0 = time.parse_rfc3339(&v) catch 0
-            let t1 = time.parse_rfc3339(&v) catch 1
+            let t = olg_rfc3339(&v)
             let d = olg_dec(&v)
-            if t0 == t1
-                r.time = some(t0)
+            if t.ok
+                r.time = some(t.v)
                 used = true
             elif d.ok
                 r.time = some(d.v)
                 used = true
         elif kv.key == "level" and not sl
             sl = true
-            let s0 = sev_parse(&v) catch 0
-            let s1 = sev_parse(&v) catch 1
-            if s0 == s1
-                r.sev = s0
+            let sv = olg_sev(&v)
+            if sv.ok
+                r.sev = sv.v
                 used = true
         elif kv.key == "msg" and not sm
             sm = true

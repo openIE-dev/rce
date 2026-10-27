@@ -62,6 +62,13 @@ fn gpairs(r: LogRec, f: LogFmt) -> List[text]
     return o
 fn glf(r: LogRec, f: LogFmt) -> text = log_logfmt(&r, &f)
 fn gjs(r: LogRec, f: LogFmt) -> text = log_json(&r, &f)
+fn gtime(t: i64, frac: i64, off: i64) -> text
+    let f = LogFmt(frac: frac, offset_min: off, ascii: false, max_value: 100)
+    return log_time_text(t, &f)
+fn gparse(s: text) -> text
+    let kvs = [LogKv(key: "time", val: LvStr(t: s))]
+    let r = log_from_kvs(&kvs)
+    return if r.time.issome() then r.time.or(0).tostr() else "none"
 fn gsample(tick: i64, first: i64, there: i64, ts: List[i64], sevs: List[i64], ms: List[text]) -> text
     var s = log_sampler(tick, first, there)
     var o: List[text] = []

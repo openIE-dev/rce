@@ -1,7 +1,7 @@
 # Usage (from stdlib/): python3 scripts/gen/obslog_gen.py
 # Writes vectors/obs/log_ref.json (inputs and reference outputs) and the
-# generated checks tests/obs/log_checks_2.rce (logfmt), _3 (sampling) and _4
-# (JSON and records) of
+# generated checks tests/obs/log_checks_2.rce (logfmt), _3 (sampling and RFC
+# 3339 times) and _4 (JSON and records) of
 # lib/obs/log.rce. Derived vectors, seed 20261027:
 # - logfmt: github.com/go-logfmt/logfmt v0.6.0 run by scripts/gen/obslog_go
 #   (Go 1.24, `go run .`): MarshalKeyvals of random pairs (with refusals),
@@ -16,7 +16,10 @@
 #   ":")), a number lexeme spliced in where json.scanner.NUMBER_RE accepts
 #   it; records through the pair rule of log_kvs restated here (time text
 #   from datetime, the OpenTelemetry short names), their JSON from json.dumps
-#   and their logfmt from go-logfmt.
+#   and their logfmt from go-logfmt;
+# - RFC 3339: the text of random instants from datetime (fraction digits
+#   truncated, fixed offsets), and parsing restated as a regular expression
+#   with the date checked by datetime and the instant in integers.
 import json, os, random, re, subprocess, sys
 from datetime import datetime, timedelta, timezone
 from json.scanner import NUMBER_RE
@@ -267,6 +270,47 @@ for r, s in zip(recs, skip_rec):
 for j in json_in:
     j['json'] = json_line(j['pairs'], j['ascii'])
 
+# RFC 3339 times: text of random instants (datetime), and parsing, with
+# the date checked by datetime.date and the instant by integer arithmetic.
+RFC = re.compile(r'(\d{4})-(\d{2})-(\d{2})[Tt](\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,9}))?(?:([Zz])|([+-])(\d{2}):(\d{2}))')
+def parse_ref(s):
+    m = RFC.fullmatch(s)
+    if not m:
+        return None
+    y, mo, d, h, mi, se = (int(m.group(k)) for k in range(1, 7))
+    try:
+        day = datetime(y, mo, d).toordinal() - datetime(1970, 1, 1).toordinal()
+    except ValueError:
+        return None
+    if h > 23 or mi > 59 or se > 59 or abs(day) > 106748:
+        return None
+    off = 0
+    if m.group(9):
+        oh, om = int(m.group(10)), int(m.group(11))
+        if oh > 23 or om > 59:
+            return None
+        off = (oh * 60 + om) * (-1 if m.group(9) == '-' else 1)
+    ns = int((m.group(7) or '').ljust(9, '0'))
+    return day * 86400 * 10**9 + ((h * 60 + mi) * 60 + se) * 10**9 + ns - off * 60 * 10**9
+
+time_fmt = []
+for _ in range(60):
+    t = R.choice([R.randint(-9 * 10**18, 9 * 10**18), R.randint(-10**12, 10**12), 0, -1, 9 * 10**18, -9 * 10**18])
+    frac, off = R.choice([0, 1, 3, 6, 9, -2, 15]), R.choice([0, 1, -1, 330, -570, 1439, -1439, 5000])
+    time_fmt.append([t, frac, off, time_text(t, frac, off)])
+time_parse = ['1970-01-01T00:00:00Z', '1970-01-01t00:00:00z', '2024-02-29T12:00:00.5+01:00', '2023-02-29T00:00:00Z', '2024-13-01T00:00:00Z',
+    '2024-01-01T23:59:60Z', '2024-01-01T24:00:00Z', '2024-01-01T00:00:00.1234567891Z', '2024-01-01T00:00:00.Z', '2024-01-01T00:00:00',
+    '2024-01-01T00:00:00+24:00', '2024-01-01T00:00:00+05:60', '2024-01-01 00:00:00Z', '0001-01-01T00:00:00Z', '9999-12-31T23:59:59Z',
+    '1677-09-21T00:12:43.145224192Z', '2262-04-11T23:47:16.854775807Z', '1677-09-24T00:00:00Z', '2262-04-08T00:00:00Z', '2024-01-01T00:00:00Zx',
+    '+2024-01-01T00:00:00Z', '2024-1-01T00:00:00Z', '2024-01-01T00:00:00-00:00', '1969-12-31T23:59:59.999999999Z', '2000-02-29T00:00:00-23:59']
+for _ in range(40):
+    t = R.randint(-9 * 10**18, 9 * 10**18)
+    txt = time_text(t, R.choice([0, 3, 6, 9, 1, 2]), R.choice([0, 60, -330, 1439]))
+    if R.random() < 0.2:
+        txt = txt.replace('T', 't').replace('Z', 'z')
+    time_parse.append(txt)
+time_parse = [[x, parse_ref(x)] for x in time_parse]
+
 os.makedirs(os.path.join(ROOT, 'vectors', 'obs'), exist_ok=True)
 with open(os.path.join(ROOT, 'vectors', 'obs', 'log_ref.json'), 'w') as fh:
     json.dump({
@@ -277,6 +321,8 @@ with open(os.path.join(ROOT, 'vectors', 'obs', 'log_ref.json'), 'w') as fh:
         'sample': [dict(s, keep=k) for s, k in zip(samples, ref['sample'])],
         'json': json_in,
         'records': recs,
+        'time_text': time_fmt,
+        'time_parse': time_parse,
     }, fh, ensure_ascii=False, indent=0)
 
 # ---------------- checks ----------------
@@ -344,6 +390,13 @@ fn gpairs(r: LogRec, f: LogFmt) -> List[text]
     return o
 fn glf(r: LogRec, f: LogFmt) -> text = log_logfmt(&r, &f)
 fn gjs(r: LogRec, f: LogFmt) -> text = log_json(&r, &f)
+fn gtime(t: i64, frac: i64, off: i64) -> text
+    let f = LogFmt(frac: frac, offset_min: off, ascii: false, max_value: 100)
+    return log_time_text(t, &f)
+fn gparse(s: text) -> text
+    let kvs = [LogKv(key: "time", val: LvStr(t: s))]
+    let r = log_from_kvs(&kvs)
+    return if r.time.issome() then r.time.or(0).tostr() else "none"
 fn gsample(tick: i64, first: i64, there: i64, ts: List[i64], sevs: List[i64], ms: List[text]) -> text
     var s = log_sampler(tick, first, there)
     var o: List[text] = []
@@ -398,6 +451,10 @@ for s, keep in zip(samples, ref['sample']):
     sv = '[' + ', '.join(str(9 + 4 * e[1]) for e in s['entries']) + ']'
     ms = tlist([e[2] for e in s['entries']])
     checks.append('check gsample(%d, %d, %d, %s, %s, %s) == %s' % (s['tick'], s['first'], s['thereafter'], ts, sv, ms, L(''.join('1' if x else '0' for x in keep))))
+for t, frac, off, txt in time_fmt:
+    checks.append('check gtime(%s, %s, %s) == %s' % (ilit(t), ilit(frac), ilit(off), L(txt)))
+for txt, v in time_parse:
+    checks.append('check gparse(%s) == %s' % (L(txt), L('none' if v is None else str(v))))
 groups.append(checks)
 checks = []
 for j in json_in:
@@ -424,5 +481,5 @@ for n, g in enumerate(groups):
         fh.write(HEAD + '\n' + '\n'.join(g) + '\n')
 checks = [c for g in groups for c in g]
 n = len(groups)
-print('%d checks in %d files: encode %d, decode %d, streams %d, sample %d, json %d, records %d' % (
-    len(checks), n, 2 * len(enc_in), len(dec_in), len(streams), len(samples), len(json_in), 3 * len(recs)))
+print('%d checks in %d files: encode %d, decode %d, streams %d, sample %d, time %d, json %d, records %d' % (
+    len(checks), n, 2 * len(enc_in), len(dec_in), len(streams), len(samples), len(time_fmt) + len(time_parse), len(json_in), 3 * len(recs)))
