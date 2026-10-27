@@ -29,6 +29,7 @@ RCE = os.environ.get("RCE", "rce")
 TMP = os.path.join(tempfile.gettempdir(), f"rce-conformance-{LANG}")
 os.makedirs(TMP, exist_ok=True)
 EXT = {"rust": "rs", "python": "py", "js": "js", "scala": "scala"}[LANG]
+LAST_EXE = [None]   # rust: the one executable this process keeps
 
 def sh(cmd, inp=None, timeout=300):
     p = subprocess.run(cmd, input=inp, capture_output=True, text=True, timeout=timeout)
@@ -42,15 +43,19 @@ def emit(src):
         return None, err.strip() or out.strip()
     prog = os.path.join(TMP, f"m{h}.{EXT}"); open(prog, "w").write(out)
     if LANG == "rust":
-        # keyed by the emitted program, so a changed runtime is never served from a stale binary
-        exe = os.path.join(TMP, "x" + hashlib.sha256(out.encode()).hexdigest()[:20])
+        # keyed by the emitted program, so a changed runtime is never served
+        # from a stale binary, and private to this process; the process keeps
+        # only its last executable (a run and a trace of the same events
+        # share it), so a whole run's disk use stays bounded (an executable
+        # is a few MB, and the suite has well over a thousand programs)
+        exe = os.path.join(TMP, f"x{hashlib.sha256(out.encode()).hexdigest()[:20]}_{os.getpid()}")
         if not os.path.exists(exe):
-            # a private output name, then an atomic rename: parallel jobs may build the same program
-            tmp_exe = f"{exe}_{os.getpid()}"
-            rc, o, e = sh([os.environ.get("RCE_RUSTC", "rustc"), "-O", "--edition", "2024", "-o", tmp_exe, prog], timeout=600)
+            rc, o, e = sh([os.environ.get("RCE_RUSTC", "rustc"), "-O", "--edition", "2024", "-o", exe, prog], timeout=600)
             if rc != 0:
                 return None, "rustc: " + e[-800:]
-            os.replace(tmp_exe, exe)
+        if LAST_EXE[0] not in (None, exe) and os.path.exists(LAST_EXE[0]):
+            os.remove(LAST_EXE[0])
+        LAST_EXE[0] = exe
         return [exe], None
     if LANG == "python":
         return [os.environ.get("RCE_PYTHON", "python3"), prog], None
