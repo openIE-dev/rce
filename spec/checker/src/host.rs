@@ -835,7 +835,11 @@ fn fit_note(m: &Module, event: &str, held: bool) -> Option<String> {
     if says.is_empty() {
         return None;
     }
-    let tail = if never { "; so it is never delivered, and each value is recorded in D as host.Unfit with the reason" } else { "" };
+    let tail = match (never, event) {
+        (false, _) => "",
+        (true, "HttpRequest") => "; so no request is delivered as HttpRequest: each is recorded in D as host.Unfit and delivered as HttpMalformed with status 501, or answered 501 by the host",
+        (true, _) => "; so it is never delivered, and each value is recorded in D as host.Unfit with the reason",
+    };
     Some(format!("event {event}: {}{tail}", says.join("; ")))
 }
 
