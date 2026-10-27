@@ -641,20 +641,30 @@ fn restart_binds_again() {
     let _ = std::fs::remove_dir_all(&d);
 }
 
-/// The 16 ms Tick capped the net service at 62.5 requests a second. The
-/// HTTP host admits each request when it arrives; the bound here is far
-/// below what it does (see the ledger) and far above the old cap.
+/// The 16 ms Tick capped the net service at 62.5 requests a second: a host
+/// that admits at most one request per frame cannot exceed 1000 / 16. The
+/// HTTP host admits each request when it arrives, so one run of 100
+/// sequential requests above that rate shows it is not paced by frames.
+/// A paced host never gets there, so the best of three runs is as sound as
+/// one run, and a loaded machine has three chances.
 #[test]
 fn sequential_requests_are_not_paced_by_frames() {
     let d = dir("rate");
     let s = serve(NOTES, &d);
-    let t0 = Instant::now();
-    for _ in 0..300 {
-        assert!(get(&s.addr, "/health").starts_with("HTTP/1.1 200"));
+    let paced_max = 1000.0 / rce_spec_check::cli::FRAME_MS as f64;
+    let mut best: f64 = 0.0;
+    for _ in 0..3 {
+        let t0 = Instant::now();
+        for _ in 0..100 {
+            assert!(get(&s.addr, "/health").starts_with("HTTP/1.1 200"));
+        }
+        best = best.max(100.0 / t0.elapsed().as_secs_f64());
+        if best > paced_max {
+            break;
+        }
     }
-    let rate = 300.0 / t0.elapsed().as_secs_f64();
-    eprintln!("{rate:.0} sequential requests a second");
-    assert!(rate > 100.0, "{rate:.0} requests a second");
+    eprintln!("{best:.0} sequential requests a second");
+    assert!(best > paced_max, "{best:.0} requests a second, not above the {paced_max} of a frame-paced host");
     let (ok, err) = s.stop();
     assert!(ok, "{err}");
     let _ = std::fs::remove_dir_all(&d);
