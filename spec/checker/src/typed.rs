@@ -270,6 +270,8 @@ pub struct Typed {
     pub var_binds: HashMap<usize, u32>,
     /// the local the binder of `e catch |x| h` introduces
     pub catch_binds: HashMap<usize, u32>,
+    /// the local each parameter of a lambda introduces, keyed by the parameter
+    pub lambda_binds: HashMap<usize, u32>,
     /// the locals of a function's named parameters, and of its `self`
     pub params: HashMap<usize, (Vec<u32>, Option<u32>)>,
     /// the locals of the state fields inside a step, in declaration order
@@ -868,6 +870,25 @@ impl<'a, 'm> Cx<'a, 'm> {
         }
     }
 
+    /// After a call of `fd`: each `&mut` argument's place takes the value
+    /// the callee leaves in its parameter (interp `call_fn`'s copy out),
+    /// which a union function's error leaves out (F.4.4).
+    fn args_written_back(&mut self, fd: &FnDecl, args: &[Arg]) {
+        let union = matches!(&fd.sig.ret, Some(Ty::Union(..)));
+        for ((_, ty), a) in Self::named_params(fd).iter().zip(args) {
+            if !matches!(ty, Ty::Ref(true, _)) {
+                continue;
+            }
+            let place = match &a.e {
+                Expr::Borrow(_, x, _) => &**x,
+                e => e,
+            };
+            let pt = self.t.of_ty(ty);
+            let t = if union { self.place_type(place).join(&pt) } else { pt };
+            self.place_store(place, &t);
+        }
+    }
+
     fn fn_result(&self, f: &FnDecl) -> RType {
         if !f.sig.generics.is_empty() {
             return RType::Unknown(format!("a call of the generic function {}", f.sig.name));
@@ -955,6 +976,7 @@ impl<'a, 'm> Cx<'a, 'm> {
                 if let Some(fd) = self.t.fns.get(n).copied() {
                     let ps = Self::named_params(fd);
                     self.args_fit(args, &ps);
+                    self.args_written_back(fd, args);
                     return (self.fn_result(fd), None, Some(Callee::Fn(n.clone())));
                 }
                 if let Some(fs) = self.t.ctor_fields(n) {
@@ -975,6 +997,7 @@ impl<'a, 'm> Cx<'a, 'm> {
                         Some(fd) => {
                             let ps = Self::named_params(fd);
                             self.args_fit(args, &ps);
+                            self.args_written_back(fd, args);
                             (self.fn_result(fd), None, Some(Callee::Static(tn.clone(), m.clone())))
                         }
                         None => (RType::Unknown("no such function".into()), None, Some(Callee::Unknown("no such function".into()))),
@@ -992,6 +1015,7 @@ impl<'a, 'm> Cx<'a, 'm> {
                 {
                     let ps = Self::named_params(fd);
                     self.args_fit(args, &ps);
+                    self.args_written_back(fd, args);
                     let r = self.fn_result(fd);
                     if matches!(fd.sig.params.first(), Some(Param::SelfRef(true))) {
                         // a `&mut self` method writes its receiver back: the
@@ -999,6 +1023,12 @@ impl<'a, 'm> Cx<'a, 'm> {
                         self.place_store(obj, &rt);
                     }
                     return (r, None, Some(Callee::Method(h, m.clone())));
+                }
+                if matches!(m.as_str(), "map" | "filter" | "fold")
+                    && let RType::List(et) = &rt
+                    && let Some(r) = self.hof(et, m, args)
+                {
+                    return (r, None, Some(Callee::Builtin(m.clone())));
                 }
                 let at: Vec<RType> = args.iter().map(|a| self.expr(&a.e)).collect();
                 let r = self.builtin(obj, &rt, m, &at);
@@ -1018,6 +1048,56 @@ impl<'a, 'm> Cx<'a, 'm> {
                 }
             }
         }
+    }
+
+    /// `xs.map(f)`, `xs.filter(f)` and `xs.fold(init, f)` with a lambda f
+    /// (interp `apply_closure`): the lambda's parameters take the items,
+    /// fitted to their declared types, and its body is typed until the
+    /// types settle. Another function value is not typed here.
+    fn hof(&mut self, et: &RType, m: &str, args: &[Arg]) -> Option<RType> {
+        let (init, fa) = match (m, args) {
+            ("fold", [i, f]) => (Some(self.expr(&i.e)), f),
+            ("map" | "filter", [f]) => (None, f),
+            _ => return None,
+        };
+        let Expr::Lambda(ps, body, _) = &fa.e else { return None };
+        let named: Vec<(usize, String, Ty)> = ps
+            .iter()
+            .enumerate()
+            .filter_map(|(k, p)| if let Param::Named { name, ty, .. } = p { Some((k, name.clone(), ty.clone())) } else { None })
+            .collect();
+        let want = if m == "fold" { 2 } else { 1 };
+        if named.len() != want {
+            return None;
+        }
+        self.record(&fa.e, &RType::Unknown("a lambda".into()), None, None);
+        let mut acc = init.clone().unwrap_or(RType::Never);
+        let mut out = RType::Never;
+        for _ in 0..16 {
+            let before = (acc.clone(), out.clone());
+            let saved = self.env.clone();
+            self.scopes.push(HashMap::new());
+            let ins: Vec<RType> = if m == "fold" { vec![acc.clone(), et.clone()] } else { vec![et.clone()] };
+            for ((k, n, ty), v) in named.iter().zip(ins) {
+                let t = self.t.fit(&v, ty);
+                self.node_local(addr(&ps[*k]), |t| &mut t.lambda_binds, n, false, t);
+            }
+            let t = self.expr(body);
+            self.scopes.pop();
+            self.env = env_join(&saved, &self.env);
+            out = out.join(&t);
+            if m == "fold" {
+                acc = acc.join(&t);
+            }
+            if (acc.clone(), out.clone()) == before {
+                break;
+            }
+        }
+        Some(match m {
+            "map" => RType::List(Box::new(out)),
+            "filter" => RType::List(Box::new(et.clone())),
+            _ => acc,
+        })
     }
 
     /// The result of a built-in method (interp `builtin`), and the new type

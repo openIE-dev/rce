@@ -27,7 +27,12 @@
 //! canonical order of 6.1 without duplicate keys, with their literals,
 //! index, indexed assignment, iteration, display, JSON, equality and
 //! methods; `<` on tuples and lists; refined types (5.1), whose fit tests
-//! the predicate; and context text (5.16), `C.lit` and `C.encode`.
+//! the predicate; context text (5.16), `C.lit` and `C.encode`; `&mut`
+//! parameters and `&mut self`, by state passing (the function returns
+//! their final values beside its result and the caller writes them back,
+//! except after a union function's error, F.4.4); and lambdas given to
+//! `map`, `filter` and `fold`, defunctionalised into the loop that runs
+//! them.
 //!
 //! Ownership (W3): an RCE variable holds its value until the end of its
 //! scope, where it is dropped; every read of an owned variable is a `copy`;
@@ -109,11 +114,14 @@ struct Fx {
     fail: FailCx,
     /// the core type of the union a `fail` builds (in a union function)
     union_t: Option<Ty>,
+    /// the `var` locals of the `&mut` parameters (and of a `&mut self`,
+    /// last), whose values the function returns beside its result
+    muts: Vec<u32>,
 }
 
 impl Fx {
     fn new(b: FB, ret: Ret, fail: FailCx) -> Fx {
-        Fx { b, scopes: vec![Scope { depth: 0, drops: vec![] }], bound: HashMap::new(), loops: vec![], depth: 0, ret, fail, union_t: None }
+        Fx { b, scopes: vec![Scope { depth: 0, drops: vec![] }], bound: HashMap::new(), loops: vec![], depth: 0, ret, fail, union_t: None, muts: vec![] }
     }
     fn push_scope(&mut self) {
         self.scopes.push(Scope { depth: self.depth, drops: vec![] });
@@ -2251,6 +2259,67 @@ impl<'m> Lw<'m> {
         Ok(out)
     }
 
+    /// Call a function of the module. With `&mut` parameters its result is
+    /// unpacked, and the parameters' final values are written back to the
+    /// places the arguments name, `&mut self` last (interp `call_fn`'s copy
+    /// out), unless the call returned a union function's error (F.4.4).
+    fn call_user(&mut self, fx: &mut Fx, id: usize, fd: &FnDecl, a: Vec<Atom>, args: &[Arg], recv: Option<&Expr>) -> R<Atom> {
+        let r = self.f.ret(id);
+        let c = fx.b.call(sym(id), r.clone(), a);
+        let muts = Self::mut_params(fd);
+        if muts.is_empty() {
+            return Ok(c);
+        }
+        let ps = fx.b.prim("tup.open", vec![r], vec![c])?;
+        let res = ps[0].clone();
+        let mut places: Vec<(&Expr, RType, Atom)> = vec![];
+        for (j, k) in muts.iter().enumerate() {
+            match &fd.sig.params[*k] {
+                Param::Named { ty, .. } => {
+                    let named_k = fd.sig.params[..*k].iter().filter(|p| matches!(p, Param::Named { .. })).count();
+                    let Some(arg) = args.get(named_k) else { return no("a &mut parameter without its argument") };
+                    let place = match &arg.e {
+                        Expr::Borrow(_, x, _) => &**x,
+                        e => e,
+                    };
+                    places.push((place, self.t.of_ty(ty), ps[j + 1].clone()));
+                }
+                _ => {
+                    let Some(obj) = recv else { return no("a &mut self without its receiver") };
+                    let st = match self.ty.params.get(&addr(fd)).and_then(|(_, s)| *s) {
+                        Some(sid) => self.ty.locals[sid as usize].ty.clone(),
+                        None => return no("the type of a &mut self"),
+                    };
+                    places.push((obj, st, ps[j + 1].clone()));
+                }
+            }
+        }
+        let write = |lw: &mut Self, fx: &mut Fx, places: Vec<(&Expr, RType, Atom)>| -> R<()> {
+            for (place, t, a) in places {
+                lw.store_place(fx, place, Val { a, t })?;
+            }
+            Ok(())
+        };
+        if matches!(&fd.sig.ret, Some(ast::Ty::Union(..))) {
+            let rt_ = fx.b.ty(&res);
+            let tag = fx.b.p("sum.tag", vec![rt_], vec![res.clone()])?;
+            let ok = fx.b.int_cmp("int.eq", tag, lit(0))?;
+            fx.b.open();
+            let drops: Vec<Atom> = places.iter().map(|p| p.2.clone()).collect();
+            write(self, fx, places)?;
+            let th = fx.b.close();
+            fx.b.open();
+            for d in drops {
+                fx.b.drop(d)?;
+            }
+            let el = fx.b.close();
+            fx.b.push(Stmt::If(ok, th, el));
+        } else {
+            write(self, fx, places)?;
+        }
+        Ok(res)
+    }
+
     fn user_fn(&self, name: &str) -> R<usize> {
         self.fns.get(name).copied().ok_or_else(|| format!("not covered by the lowering: the function {name}"))
     }
@@ -2271,16 +2340,14 @@ impl<'m> Lw<'m> {
                 let id = self.user_fn(&n)?;
                 fx.b.tick(1);
                 let a = self.args(fx, fd, args)?;
-                let r = self.f.ret(id);
-                Ok(Val { a: fx.b.call(sym(id), r, a), t: rt })
+                Ok(Val { a: self.call_user(fx, id, fd, a, args, None)?, t: rt })
             }
             Some(Callee::Static(tn, m)) => {
                 let fd = self.t.methods[&(tn.clone(), m.clone())];
                 let id = self.methods.get(&(tn, m.clone())).copied().ok_or_else(|| format!("not covered by the lowering: the method {m}"))?;
                 fx.b.tick(1);
                 let a = self.args(fx, fd, args)?;
-                let r = self.f.ret(id);
-                Ok(Val { a: fx.b.call(sym(id), r, a), t: rt })
+                Ok(Val { a: self.call_user(fx, id, fd, a, args, None)?, t: rt })
             }
             Some(Callee::Method(h, m)) => {
                 let Expr::Member(obj, _, _) = f else { return no("a method call") };
@@ -2290,8 +2357,7 @@ impl<'m> Lw<'m> {
                 fx.b.tick(1);
                 let mut a = vec![recv.a];
                 a.extend(self.args(fx, fd, args)?);
-                let r = self.f.ret(id);
-                Ok(Val { a: fx.b.call(sym(id), r, a), t: rt })
+                Ok(Val { a: self.call_user(fx, id, fd, a, args, Some(obj))?, t: rt })
             }
             Some(Callee::Ctor(c)) => self.construct(fx, &c, args, rt),
             Some(Callee::Builtin(m)) => {
@@ -2393,6 +2459,13 @@ impl<'m> Lw<'m> {
             self.size_check(fx, &l2, &et)?;
             fx.b.set(v, l2);
             return Ok(Val { a: fx.b.unit()?, t: rt });
+        }
+        if matches!(m, "map" | "filter" | "fold") && matches!(&ort, RType::List(_)) {
+            let fa = if m == "fold" { args.get(1) } else { args.first() };
+            return match fa {
+                Some(Arg { e: Expr::Lambda(ps, body, _), .. }) => self.hof(fx, obj, m, args, ps, body, rt),
+                _ => no(format!("{m} with a function that is not a lambda")),
+            };
         }
         if matches!(m, "insert" | "remove") && matches!(&ort, RType::Map(..)) {
             let Some(v) = self.var_of(fx, obj) else { return no(format!("{m} on a receiver that is not a variable")) };
@@ -2963,6 +3036,127 @@ impl<'m> Lw<'m> {
             fx.b.ret(rv);
             Ok(())
         })
+    }
+
+    /// `xs.map(f)`, `xs.filter(f)` and `xs.fold(init, f)` with a lambda f,
+    /// defunctionalised (ONE-4): the lambda is not a value; its body runs
+    /// once per item in a scope of its own, its parameters bound to the
+    /// item (and the accumulator), each fitted to its declared type (interp
+    /// `apply_closure`), one step of fuel per item. The lambda sees the
+    /// variables as they are when it is made, which is where it runs, so a
+    /// body that writes a variable (a `&mut` argument, push, insert, …),
+    /// which in the reference writes the closure's own copy, is refused.
+    #[allow(clippy::too_many_arguments)]
+    fn hof(&mut self, fx: &mut Fx, obj: &Expr, m: &str, args: &[Arg], ps: &[Param], body: &Expr, rt: RType) -> R<Val> {
+        let mut writes = false;
+        crate::check::walk_expr(body, &mut |x| match x {
+            Expr::Borrow(true, ..) => writes = true,
+            Expr::Call(f, _, _, _) => {
+                if let Expr::Member(_, mm, _) = &**f
+                    && matches!(mm.as_str(), "push" | "append" | "pop" | "clear" | "sort" | "insert" | "remove")
+                {
+                    writes = true;
+                }
+                if let Some(Callee::Method(h, mm)) = self.ty.node(x).and_then(|n| n.callee.clone())
+                    && let Some(fd) = self.t.methods.get(&(h, mm))
+                    && matches!(fd.sig.params.first(), Some(Param::SelfRef(true)))
+                {
+                    writes = true;
+                }
+            }
+            _ => {}
+        });
+        if writes {
+            return no(format!("a lambda given to {m} that writes a variable"));
+        }
+        let recv = self.expr(fx, obj)?;
+        let RType::List(et) = recv.t.clone() else { return no(format!("{m} of a non-list")) };
+        let et = (*et).clone();
+        let ect = self.ct(&et)?;
+        let init = if m == "fold" { Some(self.expr(fx, &args[0].e)?) } else { None };
+        fx.b.tick(1); // the lambda
+        let named: Vec<(usize, ast::Ty)> = ps.iter().enumerate().filter_map(|(k, p)| if let Param::Named { ty, .. } = p { Some((k, ty.clone())) } else { None }).collect();
+        // the result: a list being built, or the accumulator
+        let out_t = self.ct(&rt)?;
+        let out = match (m, init) {
+            ("fold", Some(i)) => {
+                let a = self.conv(fx, i.a, &i.t, &rt, false)?;
+                fx.b.var(out_t.clone(), a)
+            }
+            _ => {
+                let Ty::List(oe) = &out_t else { return no("map of unknown type") };
+                let l = fx.b.p("list.new", vec![(**oe).clone()], vec![])?;
+                fx.b.var(out_t.clone(), l)
+            }
+        };
+        fx.own(Atom::V(out));
+        let n = fx.b.p("list.len", vec![ect.clone()], vec![recv.a.clone()])?;
+        let i = fx.b.var(Ty::u64(), lit(0));
+        let l = fx.open_nest();
+        let iv = fx.b.let_(Atom::V(i));
+        let more = fx.b.int_cmp("int.lt", iv.clone(), n)?;
+        fx.b.open();
+        let th = fx.b.close();
+        fx.b.open();
+        fx.break_to(l)?;
+        let el = fx.b.close();
+        fx.b.push(Stmt::If(more, th, el));
+        fx.b.tick(1);
+        let x = fx.b.list_at(recv.a.clone(), iv.clone())?;
+        fx.push_scope();
+        let mut ins = vec![];
+        if m == "fold" {
+            let a = self.read_var(fx, out)?;
+            ins.push(Val { a, t: rt.clone() });
+        }
+        let item = Val { a: x, t: et.clone() };
+        ins.push(item.clone());
+        for ((k, ty), v) in named.iter().zip(ins) {
+            let fv = self.fit(fx, v.a, &v.t, ty)?;
+            let Some(id) = self.ty.lambda_binds.get(&addr(&ps[*k])).copied() else { return no("a lambda parameter") };
+            let a = fx.b.let_(fv.a);
+            fx.bound.insert(id, Bound::Val(a.clone(), fv.t));
+            fx.own(a);
+        }
+        let r = self.expr(fx, body)?;
+        match m {
+            "map" => {
+                let RType::List(oe) = &rt else { unreachable!() };
+                let a = self.conv(fx, r.a, &r.t, oe, false)?;
+                let o = fx.b.let_(Atom::V(out));
+                let Ty::List(oc) = &out_t else { unreachable!() };
+                let o = fx.b.p("list.push", vec![(**oc).clone()], vec![o, a])?;
+                fx.b.set(out, o);
+            }
+            "filter" => {
+                // interp: the item is kept when the result is `true`
+                if r.t != RType::Bool {
+                    return no("a filter whose lambda does not give a bool");
+                }
+                fx.b.open();
+                let xc = fx.b.list_at(recv.a.clone(), iv.clone())?;
+                let RType::List(oe) = &rt else { unreachable!() };
+                let a = self.conv(fx, xc, &et, oe, false)?;
+                let o = fx.b.let_(Atom::V(out));
+                let Ty::List(oc) = &out_t else { unreachable!() };
+                let o = fx.b.p("list.push", vec![(**oc).clone()], vec![o, a])?;
+                fx.b.set(out, o);
+                let th = fx.b.close();
+                fx.b.push(Stmt::If(r.a, th, vec![]));
+            }
+            _ => {
+                let a = self.conv(fx, r.a, &r.t, &rt, false)?;
+                self.store_var(fx, out, a)?;
+            }
+        }
+        fx.pop_scope()?;
+        let i1 = fx.b.add_in(iv, lit(1), Ty::u64())?;
+        fx.b.set(i, i1);
+        let lb = fx.close_nest();
+        fx.b.push(Stmt::Loop(lb));
+        fx.b.drop(recv.a)?;
+        fx.disown(&Atom::V(out));
+        Ok(Val { a: fx.b.let_(Atom::V(out)), t: rt })
     }
 
     /// The current type of the values of a `var` local (its storage type).
@@ -3817,6 +4011,7 @@ impl<'m> Lw<'m> {
                 };
                 let a = if fx.b.ty(&v.a) == cs[1] { v.a } else { self.conv(fx, v.a, &v.t, &err, false)? };
                 let r = fx.b.p("sum.mk", vec![ut], vec![lit(1), a])?;
+                let r = self.with_muts(fx, r)?;
                 fx.drops_to(None)?;
                 fx.b.ret(r);
             }
@@ -4972,9 +5167,32 @@ impl<'m> Lw<'m> {
             }
             Some(t) => self.fit_decl(fx, v.a, &v.t, t)?.a,
         };
+        let a = self.with_muts(fx, a)?;
         fx.drops_to(None)?;
         fx.b.ret(a);
         Ok(())
+    }
+
+    /// The result of a function with `&mut` parameters: the result and the
+    /// parameters' current values.
+    fn with_muts(&mut self, fx: &mut Fx, a: Atom) -> R<Atom> {
+        if fx.muts.is_empty() {
+            return Ok(a);
+        }
+        let mut parts = vec![a];
+        for v in fx.muts.clone() {
+            parts.push(self.read_var(fx, v)?);
+        }
+        let t = fx.b.ret.clone();
+        fx.b.p("tup.mk", vec![t], parts)
+    }
+
+    /// The type of the values of core parameter k (self's is the impl's type).
+    fn param_rtype(&self, f: &FnDecl, k: usize, self_t: Option<&RType>) -> RType {
+        match &f.sig.params[k] {
+            Param::Named { ty, .. } => self.t.of_ty(ty),
+            _ => self_t.cloned().unwrap_or(RType::Unit),
+        }
     }
 
     fn named_params(f: &FnDecl) -> Vec<ast::Ty> {
@@ -4992,14 +5210,10 @@ impl<'m> Lw<'m> {
         for p in &f.sig.params {
             match p {
                 Param::Named { ty, .. } => {
-                    if matches!(ty, ast::Ty::Ref(true, _)) {
-                        return no(format!("the &mut parameter of {}", f.sig.name));
-                    }
                     let rt = self.t.of_ty(ty);
                     ps.push(self.ct(&rt)?);
                 }
-                Param::SelfRef(true) => return no(format!("the &mut self of {}", f.sig.name)),
-                Param::SelfVal | Param::SelfRef(false) => {
+                Param::SelfVal | Param::SelfRef(_) => {
                     let st = self_t.cloned().ok_or("not covered by the lowering: self outside an impl")?;
                     ps.push(self.ct(&st)?);
                 }
@@ -5012,7 +5226,34 @@ impl<'m> Lw<'m> {
                 self.ct(&rt)?
             }
         };
-        Ok((ps, ret))
+        // `&mut` (form-ir-2.md section 2): the parameters' final values are
+        // returned beside the result, and the caller writes them back
+        let muts = Self::mut_params(f);
+        if muts.is_empty() {
+            return Ok((ps, ret));
+        }
+        let mut rs = vec![ret];
+        for k in muts {
+            rs.push(ps[k].clone());
+        }
+        Ok((ps, Ty::Tup(rs)))
+    }
+
+    /// The positions among a function's core parameters of its `&mut`
+    /// parameters, in order, then of a `&mut self`: the order in which the
+    /// reference copies them out (interp `call_fn`).
+    fn mut_params(f: &FnDecl) -> Vec<usize> {
+        let mut named = vec![];
+        let mut this = None;
+        for (k, p) in f.sig.params.iter().enumerate() {
+            match p {
+                Param::Named { ty: ast::Ty::Ref(true, _), .. } => named.push(k),
+                Param::SelfRef(true) => this = Some(k),
+                _ => {}
+            }
+        }
+        named.extend(this);
+        named
     }
 
     /// The type of a function's result: its declared type, unit when none
@@ -5033,7 +5274,11 @@ impl<'m> Lw<'m> {
         let union = matches!(&f.sig.ret, Some(ast::Ty::Union(..)));
         let mut fx = self.fx(ps, ret.clone(), Ret::Fn(f.sig.ret.clone()), if union { FailCx::Union } else { FailCx::Halt }, true);
         if union {
-            fx.union_t = Some(ret);
+            // with `&mut` parameters the union is the first part of the result
+            fx.union_t = Some(match &ret {
+                Ty::Tup(rs) if !Self::mut_params(f).is_empty() => rs[0].clone(),
+                _ => ret,
+            });
         }
         let (ids, self_id) = self.ty.params.get(&addr(f)).cloned().unwrap_or_default();
         let mut k = 0usize;
@@ -5046,8 +5291,32 @@ impl<'m> Lw<'m> {
             };
             let Some(lid) = lid else { return no("a parameter") };
             let rt = self.ty.locals[lid as usize].ty.clone();
+            if Self::mut_params(f).contains(&(k - 1)) {
+                // a `&mut` parameter is a var of the function, written back by the caller
+                let st = self.ct(&rt)?;
+                let from = self.param_rtype(f, k - 1, self_t);
+                let a2 = self.conv(&mut fx, a, &from, &rt, false)?;
+                let v = fx.b.var(st, a2);
+                fx.bound.insert(lid, Bound::Var(v, rt));
+                fx.own(Atom::V(v));
+                continue;
+            }
             fx.bound.insert(lid, Bound::Val(a.clone(), rt));
             fx.own(a);
+        }
+        // the vars of the `&mut` parameters, in the order of `mut_params`
+        for k in Self::mut_params(f) {
+            let lid = match &f.sig.params[k] {
+                Param::Named { .. } => {
+                    let named_k = f.sig.params[..k].iter().filter(|p| matches!(p, Param::Named { .. })).count();
+                    ids.get(named_k).copied()
+                }
+                _ => self_id,
+            };
+            match lid.and_then(|l| fx.bound.get(&l).cloned()) {
+                Some(Bound::Var(v, _)) => fx.muts.push(v),
+                _ => return no("a &mut parameter"),
+            }
         }
         match &f.body {
             Body::Arrow(e) => {
