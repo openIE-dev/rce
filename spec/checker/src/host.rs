@@ -650,8 +650,9 @@ fn event_payload<'m>(m: &'m Module, name: &str) -> Option<&'m [(String, Ty)]> {
 
 /// The fields of host values that hold bytes received from outside
 /// (HC-10a): delivered exactly as `List[i64]`, or as `text` only when they
-/// are UTF-8 (HF-3).
-const BYTES_FIELDS: [(&str, &str); 2] = [("HttpRequest", "body"), ("NetRecvDone", "data")];
+/// are UTF-8 (HF-3). A line of the input stream held as `Input(data)`
+/// (HC-24) is such bytes too.
+const BYTES_FIELDS: [(&str, &str); 3] = [("HttpRequest", "body"), ("NetRecvDone", "data"), ("Input", "data")];
 
 fn bytes_field(event: &str, field: &str) -> bool {
     BYTES_FIELDS.contains(&(event, field))
@@ -732,6 +733,9 @@ fn convert(v: &Value, ty: &Ty, bytes: bool, m: &Module) -> Result<Expr, String> 
         },
         Ty::Path(p, g) if p.len() == 1 && p[0] == "List" && g.len() == 1 => match v {
             Value::Array(xs) => Ok(Expr::List(xs.iter().map(|x| convert(x, &g[0], false, m)).collect::<Result<_, _>>()?, 0)),
+            // received bytes the host holds as text (a UTF-8 line, HC-24)
+            // are exactly the bytes of that text
+            Value::String(t) if bytes => Ok(Expr::List(t.bytes().map(|b| convert(&Value::from(b), &g[0], false, m)).collect::<Result<_, _>>()?, 0)),
             _ => Err(mismatch()),
         },
         _ => json_expr(v, Some(ty), m),
@@ -1869,15 +1873,21 @@ impl<'a> Host<'a> {
     }
 
     /// HC-24: a line of the input stream that the host could not admit as
-    /// events of the module (it does not parse as events, names no event of
-    /// the module, or an event cannot be built) is held, not turned away:
-    /// it is delivered as `Input(data)`, data being the line with its line
-    /// end, fitted to the module like any delivery (E.4c), so when the
-    /// module declares no `Input`, `host.Unfit` records the line in D. Part
-    /// of the input batch; no barrier.
-    pub fn line_input(&mut self, line: &str) -> Result<Vec<Admitted>, String> {
+    /// events of the module (it is not UTF-8, does not parse as events,
+    /// names no event of the module, or an event cannot be built) is held:
+    /// it is delivered as `Input(data)`, data being the bytes of the line
+    /// with its line end, fitted to the module like any delivery (E.4c):
+    /// as `List[i64]`, or as `text` when they are UTF-8 (HF-3). When the
+    /// module declares no `Input`, or the line cannot be built into it,
+    /// `host.Unfit` records the line in D, as text when it is UTF-8 and as
+    /// its bytes otherwise. Part of the input batch; no barrier.
+    pub fn line_input(&mut self, line: &[u8]) -> Result<Vec<Admitted>, String> {
         let mut p = serde_json::Map::new();
-        p.insert("data".into(), Value::String(line.to_string()));
+        let data = match std::str::from_utf8(line) {
+            Ok(t) => Value::String(t.to_string()),
+            Err(_) => Value::from(line.to_vec()),
+        };
+        p.insert("data".into(), data);
         let plan = self.plan("Input", &p, false);
         self.deliver_plan("Input", &p, plan, How::Typed)
     }
@@ -2094,12 +2104,19 @@ impl<'a> Host<'a> {
     /// val: "1"), Scan(start: "")`), then one barrier for the batch (D-2).
     /// These are typed inputs (HC-10b): any event of the module is admitted,
     /// one the host delivers (`Refused`, a result `KDone`, ...) included,
-    /// and D marks the latter with `host.Typed`.
+    /// and D marks the latter with `host.Typed`. When one of the events
+    /// cannot be built, nothing is appended and the error is returned, so
+    /// the caller holds the whole line ([`Host::line_input`]).
     pub fn admit(&mut self, src: &str, events: &str) -> Result<Vec<Admitted>, String> {
         let probe = parse(&format!("{src}\nexample {events} -> 0\n")).map_err(|e| format!("events: {e}"))?;
         let Some(Item::Example(x)) = probe.items.last() else {
             return Err("events: not an event list".into());
         };
+        // HC-24: a line is admitted whole or held whole, so every event is
+        // built before any is appended; building reads only the module
+        for (name, args) in &x.events {
+            self.bound_json(name, args)?;
+        }
         let mut out = vec![];
         for (name, args) in x.events.clone() {
             out.extend(self.apply(&name, args, How::Typed)?);
@@ -2844,6 +2861,45 @@ impl<'a> Host<'a> {
             return Err(format!("`{name}` changes state; a query only reads"));
         }
         Ok(outs)
+    }
+
+    /// HC-2, HF-4: the host's value of frame tick `n`: {n}, fitted by name
+    /// like any delivery; a `Tick` declared with no field carries no count.
+    fn tick_value(&self, n: u64) -> serde_json::Map<String, Value> {
+        let mut p = serde_json::Map::new();
+        if self.event_fields("Tick").is_some_and(|f| !f.is_empty()) {
+            p.insert("n".into(), Value::from(n));
+        }
+        p
+    }
+
+    /// HF-4: frame tick `n` fitted to the module's `Tick`, or why it
+    /// cannot be built (the host loop checks tick 1 at start).
+    pub fn tick_args(&mut self, n: u64) -> Result<Vec<Arg>, String> {
+        let p = self.tick_value(n);
+        match self.fit("Tick", &p) {
+            Fitted::Built(args, _) => Ok(args),
+            Fitted::Unbuildable(why, _) => Err(why),
+            Fitted::Undeclared => Err("not declared".into()),
+        }
+    }
+
+    /// HC-2, HF-4: deliver frame tick `n` (the host loop's `Tick`) fitted
+    /// to the module, perform its effects and take the batch barrier.
+    /// `Ok(None)` when tick `n` cannot be built: `host.Unfit` records it
+    /// with the reason, and the host loop delivers no later tick, since a
+    /// count that no longer converts (`Tick(n: u8)` past 255) does not
+    /// convert again.
+    pub fn tick(&mut self, n: u64) -> Result<Option<Vec<Admitted>>, String> {
+        let p = self.tick_value(n);
+        let plan = self.plan("Tick", &p, false);
+        let built = plan.deliver.is_some();
+        let mut out = self.deliver_plan("Tick", &p, plan, How::Delivery)?;
+        if built {
+            out.extend(self.drain()?);
+        }
+        self.confirm()?;
+        Ok(built.then_some(out))
     }
 
     /// Whether the module declares this event, and its payload field names.

@@ -298,7 +298,7 @@ fn typed_refused_is_admitted_and_marked() {
         std::thread::sleep(std::time::Duration::from_millis(20));
     }
     let (ok, err) = s.stop();
-    assert!(ok && err.contains("validated") && !err.contains("input refused"), "{err}");
+    assert!(ok && err.contains("validated") && !err.contains("input not admitted"), "{err}");
     let t = std::fs::read_to_string(&log).unwrap();
     assert!(t.contains(r#""payload":{"cause":"fuel","seq":3},"type":"Refused""#) && t.contains("\"type\":\"host.Typed\""), "{t}");
     replay(&m, &t).unwrap();
@@ -579,7 +579,7 @@ fn a_line_that_is_not_an_event_is_held() {
     s.stdin.flush().unwrap();
     wait_for(&log, "\"type\":\"Ok\"");
     let (ok, err) = s.stop();
-    assert!(ok && err.contains("validated") && !err.contains("input refused") && err.contains("line recorded in D"), "{err}");
+    assert!(ok && err.contains("validated") && !err.contains("input not admitted") && err.contains("line recorded in D"), "{err}");
     let t = std::fs::read_to_string(&log).unwrap();
     assert!(t.contains(r#"{"payload":{"event":{"payload":{"data":"hello there\n"},"type":"Input"},"why":"not declared"},"type":"host.Unfit"}"#), "{t}");
     assert!(t.contains(r#"{"payload":{"event":{"payload":{"data":"Nope\n"},"type":"Input"},"why":"not declared"},"type":"host.Unfit"}"#), "{t}");
@@ -604,5 +604,71 @@ fn a_line_that_is_not_an_event_is_held() {
     let (so, se) = (String::from_utf8_lossy(&out.stdout), String::from_utf8_lossy(&out.stderr));
     assert!(so.contains("host.Unfit: the line is not events of the module") && se.contains("validated"), "{so}{se}");
     assert_eq!(out.status.code(), Some(1), "the line was not applied");
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// HC-24: a line is held whole. A line one of whose events cannot be built
+/// (`Ok, Nope, Ok`) appends none of them: the whole line is recorded in D,
+/// and the next line is admitted. A line that is not UTF-8 is held as its
+/// bytes, never read as the end of the input. `rce host serve` and `rce
+/// host run` hold them the same way, and `Input(data: List[i64])` takes
+/// any line as its bytes (HC-10a). Every run validates.
+#[test]
+fn a_line_is_held_whole_and_as_bytes() {
+    use std::io::Write;
+    let dir = std::env::temp_dir().join(format!("rce-held-whole-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    let program = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/host/refused.rce");
+    let m = parse(&src()).unwrap();
+    let input: &[u8] = b"Ok, Nope, Ok\n\xff\xfe\nOk\n";
+    let mixed = r#"{"payload":{"event":{"payload":{"data":"Ok, Nope, Ok\n"},"type":"Input"},"why":"not declared"},"type":"host.Unfit"}"#;
+    let bytes = r#"{"payload":{"event":{"payload":{"data":[255,254,10]},"type":"Input"},"why":"not declared"},"type":"host.Unfit"}"#;
+    let check = |t: &str| {
+        assert!(t.contains(mixed) && t.contains(bytes), "{t}");
+        assert_eq!(t.matches(r#"{"payload":{},"type":"Ok"}"#).count(), 1, "only the last line's Ok is applied: {t}");
+        assert!(t.find(bytes).unwrap() < t.find(r#""type":"Ok"}"#).unwrap(), "the line after the bytes is admitted after them");
+        replay(&m, t).unwrap();
+    };
+    // rce host serve
+    let log = dir.join("serve.log");
+    let mut s = serve(&program, &log);
+    s.stdin.write_all(input).unwrap();
+    s.stdin.flush().unwrap();
+    let t0 = std::time::Instant::now();
+    while !std::fs::read_to_string(&log).unwrap_or_default().contains(r#""type":"Ok"}"#) {
+        assert!(t0.elapsed() < std::time::Duration::from_secs(20), "the last line was not admitted");
+        std::thread::sleep(std::time::Duration::from_millis(20));
+    }
+    let (ok, err) = s.stop();
+    assert!(ok && err.contains("validated"), "{err}");
+    check(&std::fs::read_to_string(&log).unwrap());
+    // rce host run
+    let log = dir.join("run.log");
+    let mut c = std::process::Command::new(env!("CARGO_BIN_EXE_rce"))
+        .args(["host", "run"])
+        .arg(&program)
+        .arg("--log")
+        .arg(&log)
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .unwrap();
+    c.stdin.take().unwrap().write_all(input).unwrap();
+    let out = c.wait_with_output().unwrap();
+    let se = String::from_utf8_lossy(&out.stderr);
+    assert!(se.contains("validated"), "{se}");
+    assert_eq!(out.status.code(), Some(1), "two lines were not delivered");
+    check(&std::fs::read_to_string(&log).unwrap());
+    // Input(data: List[i64]): every line is delivered as its bytes
+    let with_input = format!("{}\nevent Input(data: List[i64])\n\nstep S on Input(data: _d)\n    applied += 10\n", src());
+    let p = dir.join("bytes_input.rce");
+    std::fs::write(&p, &with_input).unwrap();
+    let log = dir.join("bytes.log");
+    let out = std::process::Command::new(env!("CARGO_BIN_EXE_rce")).args(["host", "run"]).arg(&p).arg("--log").arg(&log).arg("Nope").output().unwrap();
+    assert!(String::from_utf8_lossy(&out.stderr).contains("validated") && out.status.code() == Some(0), "{out:?}");
+    let t = std::fs::read_to_string(&log).unwrap();
+    assert!(t.contains(r#"{"payload":{"data":[78,111,112,101,10]},"type":"Input"}"#) && !t.contains("host.Unfit"), "{t}");
     let _ = std::fs::remove_dir_all(&dir);
 }

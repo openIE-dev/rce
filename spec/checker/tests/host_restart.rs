@@ -322,3 +322,53 @@ fn a_restarted_of_another_shape_is_fitted_by_name() {
         let _ = std::fs::remove_dir_all(&d);
     }
 }
+
+/// HF-4 with HC-2: the frame tick is fitted like any delivery. `Tick` takes
+/// the count n by name, or no count when it declares no field. A
+/// declaration no count can be built into is not delivered (the host loop
+/// says so once at start, and appends nothing per frame); a count that no
+/// longer converts (`Tick(n: u8)` past 255) is recorded once as
+/// `host.Unfit`, and replay plans it again.
+#[test]
+fn a_tick_is_fitted_by_name() {
+    let module = |decl: &str, step: &str| format!("module t\n\nintent \"a tick\"\n    example Ping -> k == 1\n\nevent Ping\n{decl}\n\nstate S\n    k: u64 = 0\n\nstep S on Ping\n    k += 1\n\n{step}\n    k += 1\n");
+    // a count past u8 is recorded once
+    let src = module("event Tick(n: u8)", "step S on Tick(n: _n)");
+    let m = parse(&src).unwrap();
+    let mut st = MemStore::default();
+    let mut h = Host::start(&m, Box::new(&mut st)).unwrap();
+    assert!(h.tick(255).unwrap().is_some());
+    assert!(h.tick(256).unwrap().is_none(), "256 does not convert to u8");
+    drop(h);
+    let text: String = st.lines.iter().map(|l| format!("{l}\n")).collect();
+    assert!(text.contains(r#"{"payload":{"event":{"payload":{"n":256},"type":"Tick"},"why":"n: 256 is outside u8"},"type":"host.Unfit"}"#), "{text}");
+    assert_eq!(text.matches(r#""type":"Tick"}"#).count(), 2, "{text}");
+    replay(&m, &text).unwrap();
+    // a Tick with no field carries no count
+    let src = module("event Tick", "step S on Tick");
+    let m = parse(&src).unwrap();
+    let mut st = MemStore::default();
+    let mut h = Host::start(&m, Box::new(&mut st)).unwrap();
+    assert!(h.tick(1).unwrap().is_some());
+    drop(h);
+    assert!(st.lines.iter().any(|l| l.contains(r#"{"event":{"payload":{},"type":"Tick"}"#)) && !st.lines.iter().any(|l| l.contains("host.Unfit")));
+    // declarations no count can be built into: not delivered, said once
+    for (decl, step, says) in [("event Tick(a: u64, b: u64)", "step S on Tick(a: _a, b: _b)", "field 1 has no value from the host"), ("event Tick(n: text)", "step S on Tick(n: _n)", "n: a number where text is declared")] {
+        let src = module(decl, step);
+        let m = parse(&src).unwrap();
+        let mut h = Host::start(&m, Box::new(MemStore::default())).unwrap();
+        assert_eq!(h.tick_args(1).unwrap_err(), says);
+        let d = dir("tick-fit");
+        let p = d.join("t.rce");
+        std::fs::write(&p, &src).unwrap();
+        let mut c = Command::new(env!("CARGO_BIN_EXE_rce")).args(["host", "serve"]).arg(&p).arg("--log").arg(d.join("d.log")).stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped()).spawn().unwrap();
+        std::thread::sleep(Duration::from_millis(300));
+        drop(c.stdin.take());
+        let o = c.wait_with_output().unwrap();
+        let (so, se) = (String::from_utf8_lossy(&o.stdout), String::from_utf8_lossy(&o.stderr));
+        assert!(se.contains("validated") && se.matches("event Tick:").count() == 1 && se.contains(says), "{se}");
+        assert!(!so.contains("input"), "nothing is reported per frame: {so}");
+        assert!(!std::fs::read_to_string(d.join("d.log")).unwrap().contains("Tick"), "no Tick is delivered");
+        let _ = std::fs::remove_dir_all(&d);
+    }
+}

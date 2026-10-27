@@ -5491,13 +5491,16 @@ both enter D and reach the program as inputs.
   keep requesting effects. An effect waits for a barrier only
   when the entry that requested it is not yet durable (HS-2), and a
   barrier that would only confirm the previous confirmation is not taken,
-  so a host with nothing to admit appends nothing. A stdin line that is
-  not events of the module (it does not parse, names no event of the
-  module, or an event cannot be built) is held, not turned away: it is
-  delivered as `Input(data)`, data being the line with its line end,
-  fitted like any delivery (E.4c), so that with no `Input` declared
-  `host.Unfit` records the line in D; `rce host run` holds its lines the
-  same way. Only a storage fault (HS-3) stops the loop. With `--http` the end of stdin does not end the loop;
+  so a host with nothing to admit appends nothing. Lines are read as
+  bytes. A stdin line that is not events of the module (it is not UTF-8,
+  does not parse, names no event of the module, or one of its events
+  cannot be built) is held whole: none of its events is appended, and it
+  is delivered as `Input(data)`, data being the bytes of the line with its
+  line end, fitted like any delivery (E.4c): as `List[i64]`, or as `text`
+  when they are UTF-8 (HF-3). With no `Input` declared, or one the line
+  cannot be built into, `host.Unfit` records the line in D, as text when
+  it is UTF-8 and as its bytes otherwise; `rce host run` holds its lines
+  the same way. Only a storage fault (HS-3) stops the loop. With `--http` the end of stdin does not end the loop;
   SIGTERM or SIGINT stops accepting connections, waits at most STOP_MS
   (5,000 ms) for the open requests, takes the final barrier and validates
   the run (HC-8). PTY children start with no signal blocked.
@@ -5585,7 +5588,9 @@ did not, not by restricting what a module may declare.
 - **Fitting.** The host's value of a delivery is a set of named fields:
   {req, status, data, err} for a result (HC-3), the payload of
   `host.Refused`, `host.Restarted`, `host.Synced` and `host.WallTime`
-  (E.5), and the fields of HC-24 for an HTTP input. A declared field takes
+  (E.5), {n} for the frame tick `Tick` (HC-2; none when `Tick` declares no
+  field), {data} for a line held as `Input` (HC-24), and the fields of
+  HC-24 for an HTTP input. A declared field takes
   the host's field of the same name when its value converts exactly to the
   declared type: an integer within the range of the declared integer
   type, a number to `f64`, a boolean, text to `text`, a list element by
@@ -5661,13 +5666,19 @@ did not, not by restricting what a module may declare.
   delivered as a `failed` result with err naming the offset of the first
   byte that is not, or as `HttpMalformed` 415 (HF-2), and `host.Unfit`
   keeps the bytes, so nothing received is lost.
-- **HF-4 Host inputs.** `Refused` (HC-21), `Restarted` (HC-22), `Synced`
-  and `WallTime` are fitted by name like any delivery. Declared as
+- **HF-4 Host inputs.** `Refused` (HC-21), `Restarted` (HC-22), `Synced`,
+  `WallTime` and the frame tick `Tick` (HC-2) are fitted by name like any
+  delivery. Declared as
   `Refused(seq: u64)`, a refusal is delivered with its seq, and the
   `host.Refused` before it holds the cause. Declared with a field the host
   has no value for, `Refused` is never delivered, and each `host.Refused`
   is followed by `host.Unfit` with the reason. Delivery stays bounded
-  (HC-21) whatever the declaration.
+  (HC-21) whatever the declaration. `Tick` takes the count in its field
+  `n`, or no count when it declares no field; a `Tick` no count can be
+  built into is not delivered, which the host loop says once at start,
+  and a count that no longer converts (`Tick(n: u8)` past 255) is recorded
+  once as `host.Unfit`, after which no tick is delivered, since no later
+  count converts either.
 
 `rce check` does not fit, because what a host delivers depends on the
 adapters it is granted.
@@ -5924,7 +5935,7 @@ is cited by a test.
 | HC-10a, HF-3 | bytes delivered exactly, or as text when UTF-8 | `tests/host_net.rs`: `recv_delivers_the_bytes_received`, `recv_into_a_text_field_is_text_when_utf8`, `recv_is_capped_at_the_size_limit`; `tests/host_http.rs`: `invalid_body_bytes_are_exact_and_get_400`, `http_body_as_text_is_fitted` |
 | HC-10b | typed inputs are inputs | `tests/host_refused.rs`: `typed_refused_is_admitted_and_marked`, `replay_detects_a_forged_host_refused`; `tests/host_restart.rs`: `typed_restarted_and_typed_result_are_inputs`; `tests/host_http.rs`: `typed_http_request_is_an_input` |
 | HC-21, HF-4 | refusals are inputs, fitted by name | `tests/host_refused.rs`: `refused_step_is_followed_by_host_refused_and_the_bound_event`, `each_cause_is_classified`, `a_refused_refused_is_not_redelivered`, `a_refused_step_whose_effect_is_refused_is_not_redelivered`, `refused_handler_has_full_fuel`, `replay_detects_a_log_without_host_refused`, `replay_detects_a_forged_host_refused`, `open_completes_a_trailing_refusal`, `a_refused_of_another_shape_is_fitted_by_name`; `tests/nameless.rs`: `refusal_entries_are_name_free` |
-| HC-22, HF-4 | restarts are inputs, ids never reused, fitted by name | `tests/host_restart.rs`: `restart_appends_restarted_then_interrupts`, `ids_are_not_reused_after_restart`, `tick_numbers_continue`, `take_role_appends_restarted`, `serve_on_an_existing_log_listens_again`, `a_restarted_of_another_shape_is_fitted_by_name` |
+| HC-22, HF-4 | restarts are inputs, ids never reused, fitted by name | `tests/host_restart.rs`: `restart_appends_restarted_then_interrupts`, `ids_are_not_reused_after_restart`, `tick_numbers_continue`, `take_role_appends_restarted`, `serve_on_an_existing_log_listens_again`, `a_restarted_of_another_shape_is_fitted_by_name`, `a_tick_is_fitted_by_name` |
 | HC-23, HF-1 | the net adapter, results fitted by name | `tests/host_net.rs`: `tcp_loopback_random_and_blobs_replay`, `send_takes_text_or_bytes`; `tests/host_effects.rs`: `result_event_of_another_shape_is_fitted_by_name`, `bound_effect_without_its_result_event_is_performed_and_recorded`, `a_result_whose_req_is_not_an_integer_answers_its_request_once` |
 | HC-24 to HC-26, HF-2 | the HTTP event host | `tests/host_http.rs`: `concurrent_clients_are_served_while_one_stalls`, `idle_server_appends_nothing`, `keep_alive_and_pipelined_requests_answer_in_order`, `head_has_no_body`, `oversized_body_is_413_and_closes`, `refused_request_gets_the_programs_status`, `invalid_response_fails_and_the_id_stays_open`, `responses_are_a_function_of_d`, `http_1_0_and_keep_alive_are_framed_from_d`, `expect_continue_is_transport`, `parallel_load_replays_exactly`, `sigterm_drains_and_validates`, `restart_binds_again`, `sequential_requests_are_not_paced_by_frames`, `http_declarations_are_fitted_at_start`, `http_body_as_text_is_fitted`, `http_without_request_event_is_answered_501`, `http_without_respond_is_answered_by_the_host`; `tests/host_refused.rs`: `serve_stops_while_effects_keep_coming`, `a_line_that_is_not_an_event_is_held`; `tests/http_parse.rs`: `vectors_agree_with_net_http`, `mutations_agree_with_net_http`, `incremental_feed_equals_whole_buffer`, `limits_give_their_statuses` |
 

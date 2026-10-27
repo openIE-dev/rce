@@ -833,7 +833,7 @@ fn typed_http_request_is_an_input() {
     let s = Served { child, addr, log: log.clone(), err };
     let (ok, err) = s.stop();
     drop(stdin);
-    assert!(ok && err.contains("validated") && !err.contains("input refused"), "{err}");
+    assert!(ok && err.contains("validated") && !err.contains("input not admitted"), "{err}");
     let es = entries(&log);
     let k = es.iter().position(|e| e.event.contains(r#""id":77"#)).unwrap();
     assert_eq!(es[k - 1].event, format!(r#"{{"payload":{{"seq":{k}}},"type":"host.Typed"}}"#));

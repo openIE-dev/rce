@@ -1359,22 +1359,28 @@ fn host_cmd(a: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &mu
                 drop(h);
                 return validate_run(&m, log, &live, code, err);
             }
-            let batches: Vec<String> = match rest.first() {
-                Some(e) => vec![(*e).clone()],
-                None => input.lines().map_while(Result::ok).filter(|l| !l.trim().is_empty()).collect(),
+            // HC-24: the lines of the input, as bytes, so a line that is not
+            // UTF-8 is held like any line that is not events of the module
+            let batches: Vec<Vec<u8>> = match rest.first() {
+                Some(e) => vec![e.as_bytes().to_vec()],
+                None => {
+                    let mut all = vec![];
+                    std::io::Read::read_to_end(input, &mut all).map_err(|e| format!("stdin: {e}"))?;
+                    all.split(|b| *b == b'\n').map(|l| l.strip_suffix(b"\r").unwrap_or(l).to_vec()).filter(|l| !l.iter().all(u8::is_ascii_whitespace)).collect()
+                }
             };
             let mut refused = false;
             for b in batches {
                 let before = h.len();
-                let admitted = match h.admit(&src, &b) {
+                let admitted = match std::str::from_utf8(&b).map_err(|e| format!("the line is not UTF-8 at offset {}", e.valid_up_to())).and_then(|t| h.admit(&src, t)) {
                     Ok(a) => a,
                     // HC-24: a line that is not events of the module is held
                     Err(e) if !Host::is_storage_fault(&e) && h.len() == before => {
-                        let a = h.line_input(&format!("{b}\n"))?;
+                        let a = h.line_input(&[b.as_slice(), b"\n"].concat())?;
                         h.settle()?;
                         if a.is_empty() {
                             refused = true;
-                            writeln!(out, "{before} host.Unfit: the line is not events of the module ({e}); recorded in D").map_err(w)?;
+                            writeln!(out, "{before} host.Unfit: the line is not events of the module ({e}); recorded in D, not delivered").map_err(w)?;
                         }
                         a
                     }
@@ -1494,13 +1500,13 @@ pub const FRAME_MS: u64 = 16;
 /// whatever is already waiting (at most 64), applies them, then performs
 /// their effects and takes one barrier for the round (group commit, D-2).
 /// An input is a stdin line in event syntax. A line that is not events of
-/// the module (it does not parse, names no event, or an event cannot be
-/// built) is held as `Input(data: line)`, and recorded in D as `host.Unfit`
-/// when the module declares no `Input` (HC-24, E.4c); with `--http`, each
-/// request is fitted to `HttpRequest` or `HttpMalformed` (HC-24, HF-2);
-/// between inputs, `Tick` (or `Tick(n)`) every frame when declared. Only a
-/// storage fault (HS-3) stops the loop; a line whose first events were
-/// admitted and whose later ones could not be is reported. EOF on stdin ends the
+/// the module (it is not UTF-8, does not parse, names no event, or one of
+/// its events cannot be built) is held whole as `Input(data: line)`, and
+/// recorded in D as `host.Unfit` when the module declares no `Input`
+/// (HC-24, E.4c); with `--http`, each request is fitted to `HttpRequest` or
+/// `HttpMalformed` (HC-24, HF-2); between inputs, `Tick` (or `Tick(n)`)
+/// every frame when declared, fitted like any delivery (HF-4). Only a
+/// storage fault (HS-3) stops the loop. EOF on stdin ends the
 /// loop unless `--http` is granted; an emitted `Exit` ends it; SIGTERM or
 /// SIGINT stop accepting, wait up to STOP_MS for open requests, and end it.
 /// Each drain performs at most DRAIN_MAX requests and the next round
@@ -1508,7 +1514,6 @@ pub const FRAME_MS: u64 = 16;
 /// drains even when results keep requesting effects.
 fn serve_loop(h: &mut crate::host::Host, src: &str, out: &mut dyn Write, mut http: Option<&mut crate::adapters::http::Server>) -> Result<i32, String> {
     use crate::adapters::http::{HttpIn, Pending};
-    use crate::ast::{Arg, Expr};
     use crate::host::Host;
     use std::sync::mpsc;
     use std::time::{Duration, Instant};
@@ -1516,11 +1521,13 @@ fn serve_loop(h: &mut crate::host::Host, src: &str, out: &mut dyn Write, mut htt
     let (tx, rx) = mpsc::channel::<Inbound>();
     let stdin_tx = tx.clone();
     std::thread::spawn(move || {
-        let stdin = std::io::stdin();
-        let mut l = String::new();
+        // HC-24: lines are read as bytes, so a line that is not UTF-8 is
+        // held like any other, and never read as the end of the input
+        let mut stdin = std::io::stdin().lock();
+        let mut l: Vec<u8> = vec![];
         loop {
             l.clear();
-            match stdin.read_line(&mut l) {
+            match stdin.read_until(b'\n', &mut l) {
                 Ok(0) | Err(_) => {
                     let _ = stdin_tx.send(Inbound::Eof);
                     return;
@@ -1540,22 +1547,28 @@ fn serve_loop(h: &mut crate::host::Host, src: &str, out: &mut dyn Write, mut htt
         let htx = std::sync::Mutex::new(tx.clone());
         s.start(std::sync::Arc::new(move |x| htx.lock().map(|t| t.send(Inbound::Http(x)).is_ok()).unwrap_or(false)));
     }
-    let lab = |l: &str, e: Expr| Arg { label: Some(l.into()), e };
-    let tick = h.event_fields("Tick");
+    // HF-4: Tick is fitted like any delivery; a declaration that no frame
+    // count can be built into is not delivered, and the host says so once
+    let mut tick = h.event_fields("Tick");
+    if tick.is_some()
+        && let Err(why) = h.tick_args(1)
+    {
+        eprintln!("rce host: event Tick: {why}, so no frame count can be built into it and Tick is not delivered");
+        tick = None;
+    }
     // HC-22: on an existing D the count continues from the last Tick(n)
     let mut n: u64 = h.last_tick();
     let frame = Duration::from_millis(FRAME_MS);
     let mut next_tick = Instant::now() + frame;
     let mut stopping: Option<Instant> = None;
     h.bound_drains(DRAIN_MAX);
-    // what could not be admitted although nothing turned it away (the rest
-    // of a line whose first events were admitted, or an input whose
-    // admission failed): reported, and the loop goes on
+    // an input whose admission failed although it was held: reported, and
+    // the loop goes on; a storage fault (HS-3) ends the loop
     let report = |e: String, out: &mut dyn Write| -> Result<(), String> {
         if Host::is_storage_fault(&e) {
             return Err(e);
         }
-        writeln!(out, "input refused: {e}").map_err(|x| x.to_string())
+        writeln!(out, "input not admitted: {e}").map_err(|x| x.to_string())
     };
     'serve: loop {
         let wait = if h.queued() > 0 {
@@ -1585,25 +1598,30 @@ fn serve_loop(h: &mut crate::host::Host, src: &str, out: &mut dyn Write, mut htt
         if tick.is_some() && stopping.is_none() && Instant::now() >= next_tick {
             next_tick += frame;
             n += 1;
-            let args = match &tick {
-                Some(f) if f.len() == 1 => vec![lab(&f[0], Expr::Int(n as i128, 0))],
-                _ => vec![],
-            };
-            match h.admit_event("Tick", args) {
-                Ok(a) => adm.extend(a),
+            match h.tick(n) {
+                Ok(Some(a)) => adm.extend(a),
+                // HF-4: a count that no longer converts is recorded once
+                // (host.Unfit), and no later count converts either
+                Ok(None) => {
+                    eprintln!("rce host: Tick({n}) cannot be built into the declaration of Tick; recorded in D (host.Unfit), and no later Tick is delivered");
+                    tick = None;
+                }
                 Err(e) => report(e, out)?,
             }
         }
         for x in batch {
             match x {
                 Inbound::Line(line) => {
-                    let t = line.trim_end_matches(['\n', '\r']);
+                    let mut t: &[u8] = &line;
+                    while let Some(x) = t.strip_suffix(b"\n").or_else(|| t.strip_suffix(b"\r")) {
+                        t = x;
+                    }
                     let before = h.len();
-                    match h.admit(src, t) {
+                    match std::str::from_utf8(t).map_err(|e| format!("the line is not UTF-8 at offset {}", e.valid_up_to())).and_then(|x| h.admit(src, x)) {
                         Ok(a) => adm.extend(a),
                         // HC-24: a line that is not events of the module is
-                        // held, as Input(data) or as host.Unfit in D
-                        Err(e) if !Host::is_storage_fault(&e) && h.len() == before => match h.line_input(&format!("{t}\n")) {
+                        // held whole, as Input(data) or as host.Unfit in D
+                        Err(e) if !Host::is_storage_fault(&e) && h.len() == before => match h.line_input(&[t, b"\n"].concat()) {
                             Ok(a) => {
                                 if a.is_empty() {
                                     eprintln!("rce host: line recorded in D (host.Unfit), not events of the module: {e}");
@@ -1721,7 +1739,7 @@ pub const DRAIN_MAX: usize = 64;
 
 /// What the host loop receives, from any source, on one channel.
 enum Inbound {
-    Line(String),
+    Line(Vec<u8>),
     Eof,
     Http(crate::adapters::http::HttpIn),
     Stop,
