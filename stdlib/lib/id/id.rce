@@ -1,0 +1,1073 @@
+module id
+
+# Identifiers, pure: UUIDs (RFC 9562), ULIDs, TypeIDs, KSUIDs, Nano IDs and
+# Snowflake IDs.
+# Nothing here reads a clock or draws randomness. A time is a number the
+# program received in an event (a Tick, a logged wall-clock result) and
+# random bytes are a logged Random result or a rand.det stream; both are
+# arguments, so every identifier replays bit for bit.
+#
+# Bytes are List[i64] with values 0..255 (core.bytes). A UUID and a ULID
+# are both 16 bytes in network order, so ulid_encode of a UUID's bytes is
+# the ULID text of the same 128 bits and uuid_format of a ULID's bytes is
+# its UUID text. A TypeID carries the same 16 bytes under a type prefix; a
+# KSUID is 20 bytes (seconds and a 128-bit payload) in base62.
+#
+# Generators that must remember the identifier they made last (monotonic
+# UUIDv7, monotonic ULID, Snowflake) keep it in a state value that the
+# caller holds and passes back on the next call, as io and os.ipc do with
+# their decoders. A Nano ID over an alphabet whose size does not divide
+# 256 refuses some bytes, so it is built by feeding byte chunks to a state
+# value until it is complete.
+#
+# Errors are BadId(at, why). For text input, at is the byte offset of the
+# first character that cannot be read (the length when the text ends
+# early). For a byte list it is the index of the offending element, or the
+# length when the list is too short. When a generator refuses a time
+# because of the identifiers it already made, at is the earliest time, in
+# milliseconds, at which the same call is accepted. For any other argument
+# out of range it is -1.
+#
+# SHA-1 and MD5 are not in the library (crypto has SHA-256 and SHA-512, pq
+# SHA-3, hash BLAKE3), so the name-based UUIDs of versions 3 and 5 take the
+# digest as an argument: uuid_name_input gives the bytes to hash and
+# uuid_from_hash lays the digest out (RFC 9562 5.3, 5.5, and 5.8 for a
+# SHA-256 name-based version 8).
+#
+# A program that names a value `id` imports this module under another
+# name (`use id as ids`), since a local name may not shadow an import
+# (W-NAME-3).
+#
+# References: CPython 3.13 uuid (parse, format, fields, versions 1, 3, 4,
+# 5), RFC 9562 Appendix A and B, the npm uuid package 14.0.3 (versions 6,
+# 7, the monotonic version 7 state, v1ToV6 and v6ToV1), the ULID
+# specification and the npm ulid package 3.0.2, the TypeID specification
+# 0.3.0 with its valid and invalid suites and go.jetify.com/typeid 1.3.0,
+# github.com/segmentio/ksuid 1.0.4, the npm nanoid package 6.0.2, and
+# Twitter's IdWorker (snowflake-2010) with its IdWorkerSpec.
+
+error BadId(at: i64, why: text)
+
+# The variant field (RFC 9562 4.1), as the value of its leading bits.
+pub const UUID_VAR_NCS: i64 = 0
+pub const UUID_VAR_RFC: i64 = 2
+pub const UUID_VAR_MS: i64 = 6
+pub const UUID_VAR_FUTURE: i64 = 7
+
+# 100 ns ticks from 1582-10-15T00:00:00Z, the epoch of UUID versions 1 and
+# 6, to the Unix epoch.
+pub const UUID_GREG_OFFSET: i64 = 122192928000000000
+
+# The largest 48-bit Unix time in milliseconds (UUIDv7, ULID).
+pub const ID_MS_MAX: i64 = 281474976710655
+
+# The 64 symbols of nanoid 6.0.2's urlAlphabet, in its order.
+pub const NANOID_URL: text = "57X6y3wQZNzYjJB2L_10pxbackgroundhimselfUTF-8DEMOGRAPHICSVqvt4KW9"
+
+# ---------------- bytes ----------------
+
+# The first n elements of b, each 0..255.
+fn id_take(b: &[i64], n: i64) -> List[i64] ! BadId
+    if (b.len() as i64) < n
+        fail BadId(at: b.len() as i64, why: "need " + n.tostr() + " bytes")
+    var o: List[i64] = []
+    var i: i64 = 0
+    while i < n bound 1000000
+        let x = b[i as usize]
+        if x < 0 or x > 255
+            fail BadId(at: i, why: "a byte must be 0..255")
+        o.push(x)
+        i += 1
+    return o
+
+# Exactly 16 bytes.
+fn id_u16(b: &[i64]) -> List[i64] ! BadId
+    if b.len() != 16
+        fail BadId(at: b.len() as i64, why: "a UUID or ULID is 16 bytes")
+    return try id_take(b, 16)
+
+fn id_hexd() -> List[i64] = [48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 97, 98, 99, 100, 101, 102]
+
+fn id_hexval(c: i64) -> i64
+    if c >= 48 and c <= 57
+        return c - 48
+    if c >= 97 and c <= 102
+        return c - 87
+    if c >= 65 and c <= 70
+        return c - 55
+    return -1
+
+fn id_text_bytes(s: &text) -> List[i64]
+    var o: List[i64] = []
+    var i: usize = 0
+    while i < s.len_bytes() bound 16777216
+        o.push(s[i] as i64)
+        i += 1
+    return o
+
+fn id_be(v: i64, n: i64) -> List[i64]
+    var o: List[i64] = []
+    var k = n - 1
+    while k >= 0 bound 8
+        o.push((v >> (8 * k)) & 255)
+        k -= 1
+    return o
+
+fn id_cat(a: List[i64], b: List[i64]) -> List[i64]
+    var o = a
+    for x in b
+        o.push(x)
+    return o
+
+# Bytes [lo, hi) of b as a big-endian integer (at most 7 bytes).
+fn id_int(b: &[i64], lo: usize, hi: usize) -> i64
+    var v: i64 = 0
+    var i = lo
+    while i < hi bound 8
+        v = (v << 8) | b[i]
+        i += 1
+    return v
+
+# ---------------- UUID text (RFC 9562 section 4) ----------------
+
+fn id_hex_text(u: &[i64], dashes: bool) -> text
+    let d = id_hexd()
+    var o: List[i64] = []
+    var i: usize = 0
+    while i < 16 bound 16
+        if dashes and (i == 4 or i == 6 or i == 8 or i == 10)
+            o.push(45)
+        o.push(d[(u[i] >> 4) as usize])
+        o.push(d[(u[i] & 15) as usize])
+        i += 1
+    return o.utf8()
+
+# The canonical form: 8-4-4-4-12 lowercase hex digits (CPython str(UUID)).
+pub fn uuid_format(u: &[i64]) -> text ! BadId
+    let b = try id_u16(u)
+    return id_hex_text(&b, true)
+
+# 32 lowercase hex digits without hyphens (CPython UUID.hex).
+pub fn uuid_hex(u: &[i64]) -> text ! BadId
+    let b = try id_u16(u)
+    return id_hex_text(&b, false)
+
+# The URN form urn:uuid:... (RFC 9562 section 4; CPython UUID.urn).
+pub fn uuid_urn(u: &[i64]) -> text ! BadId
+    let b = try id_u16(u)
+    return "urn:uuid:" + id_hex_text(&b, true)
+
+fn id_urn_prefix(s: &text) -> bool
+    let p: List[i64] = [117, 114, 110, 58, 117, 117, 105, 100, 58]
+    if s.len_bytes() < 9
+        return false
+    var i: usize = 0
+    while i < 9 bound 9
+        var c = s[i] as i64
+        if c >= 65 and c <= 90
+            c += 32
+        if c != p[i]
+            return false
+        i += 1
+    return true
+
+# Parse a UUID in the forms real text carries: the canonical 8-4-4-4-12
+# form or 32 hex digits, either one bare, inside braces {...} or after the
+# prefix urn:uuid: (any case). Hex digits may be upper or lower case.
+# Nothing else is skipped: no spaces, no other separators.
+pub fn uuid_parse(s: &text) -> List[i64] ! BadId
+    let n = s.len_bytes()
+    var i: usize = 0
+    var brace = false
+    if n > 0 and s[0] == 123
+        brace = true
+        i = 1
+    elif id_urn_prefix(s)
+        i = 9
+    let hyph = i + 8 < n and s[i + 8] == 45
+    let blen: usize = if hyph then 36 else 32
+    var o: List[i64] = []
+    var acc: i64 = 0
+    var k: i64 = 0
+    var p: usize = 0
+    while p < blen bound 36
+        let j = i + p
+        if j >= n
+            fail BadId(at: n as i64, why: "the UUID text ends early")
+        let c = s[j] as i64
+        if hyph and (p == 8 or p == 13 or p == 18 or p == 23)
+            if c != 45
+                fail BadId(at: j as i64, why: "expected '-'")
+        else
+            let v = id_hexval(c)
+            if v < 0
+                fail BadId(at: j as i64, why: "expected a hex digit")
+            if k % 2 == 0
+                acc = v
+            else
+                o.push(acc * 16 + v)
+            k += 1
+        p += 1
+    var e = i + blen
+    if brace
+        if e >= n or s[e] != 125
+            fail BadId(at: e as i64, why: "expected '}'")
+        e += 1
+    if e != n
+        fail BadId(at: e as i64, why: "unexpected text after the UUID")
+    return o
+
+# Remove every occurrence of pat, scanning left to right without overlap
+# (Python str.replace(pat, "")).
+fn id_remove(b: &[i64], pat: &[i64]) -> List[i64]
+    var o: List[i64] = []
+    let m = pat.len()
+    var i: usize = 0
+    while i < b.len() bound 16777216
+        var hit = i + m <= b.len()
+        var k: usize = 0
+        while hit and k < m bound 16
+            if b[i + k] != pat[k]
+                hit = false
+            k += 1
+        if hit
+            i += m
+        else
+            o.push(b[i])
+            i += 1
+    return o
+
+fn id_pyspace(c: i64) -> bool = c == 32 or (c >= 9 and c <= 13)
+
+# Parse a UUID exactly as CPython 3.13 uuid.UUID(hex) does for ASCII text:
+# every "urn:" and then every "uuid:" is removed, braces are stripped from
+# both ends, every '-' is removed, 32 characters must remain, and they are
+# read by int(x, 16): spaces around, an optional '+', an optional 0x
+# prefix, single underscores between digits. A non-ASCII byte is refused at
+# its offset in the text; other positions in errors are offsets in the 32
+# characters left after the removals. CPython also reads non-ASCII decimal
+# digits and spaces there; this function refuses non-ASCII text.
+pub fn uuid_parse_lax(s: &text) -> List[i64] ! BadId
+    let raw = id_text_bytes(s)
+    var i: usize = 0
+    while i < raw.len() bound 16777216
+        if raw[i] > 127
+            fail BadId(at: i as i64, why: "not ASCII")
+        i += 1
+    let urn: List[i64] = [117, 114, 110, 58]
+    let uid: List[i64] = [117, 117, 105, 100, 58]
+    let b1 = id_remove(&raw, &urn)
+    let b2 = id_remove(&b1, &uid)
+    var lo: usize = 0
+    var hi = b2.len()
+    while lo < hi and (b2[lo] == 123 or b2[lo] == 125) bound 16777216
+        lo += 1
+    while hi > lo and (b2[hi - 1] == 123 or b2[hi - 1] == 125) bound 16777216
+        hi -= 1
+    var h: List[i64] = []
+    var j = lo
+    while j < hi bound 16777216
+        if b2[j] != 45
+            h.push(b2[j])
+        j += 1
+    if h.len() != 32
+        fail BadId(at: h.len() as i64, why: "32 characters must remain after removing urn:, uuid:, braces and hyphens")
+    var p: usize = 0
+    while p < 32 and id_pyspace(h[p]) bound 32
+        p += 1
+    if p < 32 and h[p] == 43
+        p += 1
+    if p + 1 < 32 and h[p] == 48 and (h[p + 1] == 120 or h[p + 1] == 88)
+        p += 2
+        if p < 32 and h[p] == 95
+            p += 1
+    if p < 32 and h[p] == 95
+        fail BadId(at: p as i64, why: "digits may not start with '_'")
+    var ds: List[i64] = []
+    var prev: i64 = 0
+    while p < 32 and (h[p] == 95 or id_hexval(h[p]) >= 0) bound 32
+        if h[p] == 95
+            if prev == 95
+                fail BadId(at: p as i64, why: "two '_' in a row")
+        else
+            ds.push(id_hexval(h[p]))
+        prev = h[p]
+        p += 1
+    if prev == 95
+        fail BadId(at: (p - 1) as i64, why: "a trailing '_'")
+    if ds.len() == 0
+        fail BadId(at: p as i64, why: "no hex digits")
+    while p < 32 and id_pyspace(h[p]) bound 32
+        p += 1
+    if p != 32
+        fail BadId(at: p as i64, why: "not a hex digit")
+    var nib: List[i64] = []
+    var z = ds.len()
+    while z < 32 bound 32
+        nib.push(0)
+        z += 1
+    for d in ds
+        nib.push(d)
+    var o: List[i64] = []
+    var q: usize = 0
+    while q < 16 bound 16
+        o.push(nib[2 * q] * 16 + nib[2 * q + 1])
+        q += 1
+    return o
+
+# ---------------- UUID fields ----------------
+
+pub fn uuid_nil() -> List[i64] = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+
+pub fn uuid_max() -> List[i64] = [255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255]
+
+# The name space IDs of RFC 9562 6.6.
+pub fn uuid_ns_dns() -> List[i64] = [107, 167, 184, 16, 157, 173, 17, 209, 128, 180, 0, 192, 79, 212, 48, 200]
+
+pub fn uuid_ns_url() -> List[i64] = [107, 167, 184, 17, 157, 173, 17, 209, 128, 180, 0, 192, 79, 212, 48, 200]
+
+pub fn uuid_ns_oid() -> List[i64] = [107, 167, 184, 18, 157, 173, 17, 209, 128, 180, 0, 192, 79, 212, 48, 200]
+
+pub fn uuid_ns_x500() -> List[i64] = [107, 167, 184, 20, 157, 173, 17, 209, 128, 180, 0, 192, 79, 212, 48, 200]
+
+# The six fields of RFC 4122 (CPython UUID.fields).
+pub struct UuidFields
+    time_low: i64
+    time_mid: i64
+    time_hi_version: i64
+    clock_seq_hi_variant: i64
+    clock_seq_low: i64
+    node_id: i64
+
+pub fn uuid_fields(u: &[i64]) -> UuidFields ! BadId
+    let b = try id_u16(u)
+    return UuidFields(time_low: id_int(&b, 0, 4), time_mid: id_int(&b, 4, 6), time_hi_version: id_int(&b, 6, 8), clock_seq_hi_variant: b[8], clock_seq_low: b[9], node_id: id_int(&b, 10, 16))
+
+# UUID_VAR_NCS (0), UUID_VAR_RFC (2), UUID_VAR_MS (6) or UUID_VAR_FUTURE (7).
+pub fn uuid_variant(u: &[i64]) -> i64 ! BadId
+    let b = try id_u16(u)
+    let v = b[8]
+    if v < 128
+        return UUID_VAR_NCS
+    if v < 192
+        return UUID_VAR_RFC
+    if v < 224
+        return UUID_VAR_MS
+    return UUID_VAR_FUTURE
+
+# The version field, or -1 when the variant is not the RFC 9562 one (the
+# version bits are then not defined; CPython returns None). The nil UUID
+# has the NCS variant and the max UUID the future one, so both give -1.
+pub fn uuid_version(u: &[i64]) -> i64 ! BadId
+    let b = try id_u16(u)
+    if b[8] < 128 or b[8] >= 192
+        return -1
+    return b[6] >> 4
+
+# The 60-bit timestamp in 100 ns ticks since 1582-10-15: the version 6
+# layout when the version is 6, the version 1 layout otherwise (CPython
+# UUID.time reads the version 1 layout for every UUID).
+pub fn uuid_ticks_of(u: &[i64]) -> i64 ! BadId
+    let b = try id_u16(u)
+    if b[6] >> 4 == 6 and b[8] >= 128 and b[8] < 192
+        return (id_int(&b, 0, 4) << 28) | (id_int(&b, 4, 6) << 12) | (id_int(&b, 6, 8) & 4095)
+    return ((id_int(&b, 6, 8) & 4095) << 48) | (id_int(&b, 4, 6) << 32) | id_int(&b, 0, 4)
+
+# The 14-bit clock sequence and the 48-bit node of versions 1 and 6.
+pub fn uuid_clock_seq(u: &[i64]) -> i64 ! BadId
+    let b = try id_u16(u)
+    return ((b[8] & 63) << 8) | b[9]
+
+pub fn uuid_node(u: &[i64]) -> i64 ! BadId
+    let b = try id_u16(u)
+    return id_int(&b, 10, 16)
+
+# floor division for b > 0 (no intermediate overflow, also at the i64 minimum)
+fn id_fdiv(a: i64, b: i64) -> i64 = if a < 0 and a % b != 0 then a / b - 1 else a / b
+
+# 100 ns ticks since 1582-10-15 of a Unix time in nanoseconds (floor), as
+# CPython uuid1 computes them.
+pub fn uuid_ticks(unix_ns: i64) -> i64 = id_fdiv(unix_ns, 100) + UUID_GREG_OFFSET
+
+# Unix time in milliseconds of a version 1, 6 or 7 UUID (floor for 1 and
+# 6). Other versions carry no time and are refused.
+pub fn uuid_unix_ms(u: &[i64]) -> i64 ! BadId
+    let ver = try uuid_version(u)
+    if ver == 7
+        return id_int(u, 0, 6)
+    if ver == 1 or ver == 6
+        let t = try uuid_ticks_of(u)
+        return id_fdiv(t - UUID_GREG_OFFSET, 10000)
+    fail BadId(at: -1, why: "only versions 1, 6 and 7 carry a time")
+
+# ---------------- UUID versions ----------------
+
+# Set the version and the RFC 9562 variant on 16 bytes, keeping the other
+# 122 bits (CPython UUID(bytes=b, version=v), versions 1 to 8).
+pub fn uuid_with_version(b: &[i64], version: i64) -> List[i64] ! BadId
+    var o = try id_u16(b)
+    if version < 1 or version > 8
+        fail BadId(at: -1, why: "a version is 1..8")
+    o[6] = (version << 4) | (o[6] & 15)
+    o[8] = 128 | (o[8] & 63)
+    return o
+
+# Version 4 (RFC 9562 5.4) from the first 16 of the random bytes
+# (CPython uuid4 with os.urandom(16) replaced by them).
+pub fn uuid_v4(rnd: &[i64]) -> List[i64] ! BadId
+    let r = try id_take(rnd, 16)
+    return try uuid_with_version(&r, 4)
+
+# Version 8 (RFC 9562 5.8): 122 bits of the caller's layout in 16 bytes.
+pub fn uuid_v8(custom: &[i64]) -> List[i64] ! BadId = try uuid_with_version(custom, 8)
+
+# The bytes a name-based UUID hashes: the name space ID, then the UTF-8
+# bytes of the name (RFC 9562 6.5).
+pub fn uuid_name_input(ns: &[i64], name: &text) -> List[i64] ! BadId
+    let b = try id_u16(ns)
+    if name.len_bytes() > 999984
+        fail BadId(at: 999984, why: "the name space ID and the name pass the 1000000-element list limit; hash them with a streaming hash")
+    return id_cat(b, id_text_bytes(name))
+
+# A name-based UUID from the digest of uuid_name_input: version 3 with an
+# MD5 digest, 5 with a SHA-1 digest (CPython uuid3, uuid5), 8 with another
+# hash of at least 128 bits (RFC 9562 B.2 uses SHA-256). The first 16
+# bytes of the digest are kept.
+pub fn uuid_from_hash(version: i64, digest: &[i64]) -> List[i64] ! BadId
+    if version != 3 and version != 5 and version != 8
+        fail BadId(at: -1, why: "a name-based UUID is version 3, 5 or 8")
+    let d = try id_take(digest, 16)
+    return try uuid_with_version(&d, version)
+
+fn id_time_args(ticks: i64, clock_seq: i64, node_id: i64) -> bool ! BadId
+    if ticks < 0 or ticks >= 1152921504606846976
+        fail BadId(at: -1, why: "the timestamp is 60 bits")
+    if clock_seq < 0 or clock_seq >= 16384
+        fail BadId(at: -1, why: "the clock sequence is 14 bits")
+    if node_id < 0 or node_id >= 281474976710656
+        fail BadId(at: -1, why: "the node is 48 bits")
+    return true
+
+fn id_tail(clock_seq: i64, node_id: i64) -> List[i64] = id_cat([128 | (clock_seq >> 8), clock_seq & 255], id_be(node_id, 6))
+
+# Version 1 (RFC 9562 5.1): ticks are 100 ns since 1582-10-15 (see
+# uuid_ticks), clock_seq 14 bits, node 48 bits. CPython uuid1(node,
+# clock_seq) builds the same bytes from the time it reads.
+pub fn uuid_v1(ticks: i64, clock_seq: i64, node_id: i64) -> List[i64] ! BadId
+    let _ok = try id_time_args(ticks, clock_seq, node_id)
+    var o = id_be(ticks & 4294967295, 4)
+    o = id_cat(o, id_be((ticks >> 32) & 65535, 2))
+    o = id_cat(o, [16 | ((ticks >> 56) & 15), (ticks >> 48) & 255])
+    return id_cat(o, id_tail(clock_seq, node_id))
+
+# Version 6 (RFC 9562 5.6): the version 1 fields with the timestamp
+# reordered most significant first.
+pub fn uuid_v6(ticks: i64, clock_seq: i64, node_id: i64) -> List[i64] ! BadId
+    let _ok = try id_time_args(ticks, clock_seq, node_id)
+    var o = id_be(ticks >> 28, 4)
+    o = id_cat(o, id_be((ticks >> 12) & 65535, 2))
+    o = id_cat(o, [96 | ((ticks >> 8) & 15), ticks & 255])
+    return id_cat(o, id_tail(clock_seq, node_id))
+
+# Reorder the timestamp of a version 1 UUID into the version 6 layout and
+# back; bytes 8 to 15 are kept (npm uuid v1ToV6 and v6ToV1).
+pub fn uuid_v1_to_v6(u: &[i64]) -> List[i64] ! BadId
+    let b = try id_u16(u)
+    let t = ((id_int(&b, 6, 8) & 4095) << 48) | (id_int(&b, 4, 6) << 32) | id_int(&b, 0, 4)
+    var o = id_be(t >> 28, 4)
+    o = id_cat(o, id_be((t >> 12) & 65535, 2))
+    o = id_cat(o, [96 | ((t >> 8) & 15), t & 255])
+    var i: usize = 8
+    while i < 16 bound 8
+        o.push(b[i])
+        i += 1
+    return o
+
+pub fn uuid_v6_to_v1(u: &[i64]) -> List[i64] ! BadId
+    let b = try id_u16(u)
+    let t = (id_int(&b, 0, 4) << 28) | (id_int(&b, 4, 6) << 12) | (id_int(&b, 6, 8) & 4095)
+    var o = id_be(t & 4294967295, 4)
+    o = id_cat(o, id_be((t >> 32) & 65535, 2))
+    o = id_cat(o, [16 | ((t >> 56) & 15), (t >> 48) & 255])
+    var i: usize = 8
+    while i < 16 bound 8
+        o.push(b[i])
+        i += 1
+    return o
+
+fn id_ms_ok(unix_ms: i64) -> bool ! BadId
+    if unix_ms < 0 or unix_ms > ID_MS_MAX
+        fail BadId(at: -1, why: "the time must be 0..2^48 - 1 milliseconds")
+    return true
+
+# Version 7 (RFC 9562 5.7): the 48-bit Unix time in milliseconds, then the
+# first 10 random bytes with the version and variant bits overwritten (74
+# random bits, no counter).
+pub fn uuid_v7(unix_ms: i64, rnd: &[i64]) -> List[i64] ! BadId
+    let _ok = try id_ms_ok(unix_ms)
+    let r = try id_take(rnd, 10)
+    let b = id_cat(id_be(unix_ms, 6), r)
+    return try uuid_with_version(&b, 7)
+
+# Monotonic version 7, as npm uuid 14.0.3 v7() keeps its state (RFC 9562
+# 6.2 method 1 with a 32-bit counter): a new millisecond seeds the counter
+# with 31 random bits; the same or an earlier millisecond keeps the last
+# time and adds one to the counter, and when the counter wraps to 0 the
+# time advances by one millisecond. Every call takes 16 random bytes:
+# bytes 6..9 seed the counter, byte 10 gives 2 bits and bytes 11..15 the
+# last 40 bits.
+pub struct Uuid7Gen
+    ms: i64
+    seq: i64
+
+pub fn uuid7_gen() -> Uuid7Gen = Uuid7Gen(ms: -1, seq: 0)
+
+pub fn uuid7_next(g: &mut Uuid7Gen, unix_ms: i64, rnd: &[i64]) -> List[i64] ! BadId
+    let _ok = try id_ms_ok(unix_ms)
+    if g.ms < -1 or g.ms > ID_MS_MAX or g.seq < 0 or g.seq > 4294967295
+        fail BadId(at: -1, why: "not a state uuid7_gen and uuid7_next made")
+    let r = try id_take(rnd, 16)
+    var ms = g.ms
+    var seq = g.seq
+    if unix_ms > g.ms
+        seq = ((r[6] & 127) << 24) | (r[7] << 16) | (r[8] << 8) | r[9]
+        ms = unix_ms
+    else
+        seq = (seq + 1) & 4294967295
+        if seq == 0
+            ms += 1
+            if ms > ID_MS_MAX
+                fail BadId(at: -1, why: "the counter wrapped at the last 48-bit millisecond")
+    g.ms = ms
+    g.seq = seq
+    var o = id_be(ms, 6)
+    o.push(112 | ((seq >> 28) & 15))
+    o.push((seq >> 20) & 255)
+    o.push(128 | ((seq >> 14) & 63))
+    o.push((seq >> 6) & 255)
+    o.push(((seq << 2) & 255) | (r[10] & 3))
+    var i: usize = 11
+    while i < 16 bound 5
+        o.push(r[i])
+        i += 1
+    return o
+
+# ---------------- ULID ----------------
+
+fn id_b32() -> List[i64] = [48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 65, 66, 67, 68, 69, 70, 71, 72, 74, 75, 77, 78, 80, 81, 82, 83, 84, 86, 87, 88, 89, 90]
+
+# The value of a Crockford base32 symbol in either case, or -1 (I, L, O and
+# U are not symbols).
+fn id_b32val(c0: i64) -> i64
+    let c = if c0 >= 97 and c0 <= 122 then c0 - 32 else c0
+    if c >= 48 and c <= 57
+        return c - 48
+    if c >= 65 and c <= 72
+        return c - 55
+    if c == 74 or c == 75
+        return c - 56
+    if c == 77 or c == 78
+        return c - 57
+    if c >= 80 and c <= 84
+        return c - 58
+    if c >= 86 and c <= 90
+        return c - 59
+    return -1
+
+# The 26-character Crockford base32 text of 16 bytes (uppercase): 2 zero
+# bits, then the 128 bits most significant first.
+pub fn ulid_encode(b: &[i64]) -> text ! BadId
+    let u = try id_u16(b)
+    let a = id_b32()
+    var o: List[i64] = []
+    var acc: i64 = 0
+    var nb: i64 = 2
+    for x in u
+        acc = (acc << 8) | x
+        nb += 8
+        while nb >= 5 bound 2
+            o.push(a[((acc >> (nb - 5)) & 31) as usize])
+            nb -= 5
+        acc = acc & ((1 << nb) - 1)
+    return o.utf8()
+
+# Parse a ULID: exactly 26 Crockford base32 symbols in either case, the
+# first one 0..7 (larger values would need more than 128 bits; ULID spec,
+# overflow errors). Use ulid_fix first to read I, L and O as 1, 1 and 0.
+pub fn ulid_parse(s: &text) -> List[i64] ! BadId
+    let n = s.len_bytes()
+    var o: List[i64] = []
+    var acc: i64 = 0
+    var nb: i64 = 0
+    var i: usize = 0
+    while i < 26 bound 26
+        if i >= n
+            fail BadId(at: n as i64, why: "a ULID has 26 characters")
+        let v = id_b32val(s[i] as i64)
+        if v < 0
+            fail BadId(at: i as i64, why: "not a Crockford base32 symbol")
+        if i == 0
+            if v > 7
+                fail BadId(at: 0, why: "the first symbol must be 0..7")
+            acc = v
+            nb = 3
+        else
+            acc = (acc << 5) | v
+            nb += 5
+        if nb >= 8
+            o.push((acc >> (nb - 8)) & 255)
+            nb -= 8
+            acc = acc & ((1 << nb) - 1)
+        i += 1
+    if n != 26
+        fail BadId(at: 26, why: "unexpected text after the ULID")
+    return o
+
+# Crockford's decoding aliases (npm ulid fixULIDBase32): i, I, l and L
+# become 1, o and O become 0, and hyphens are removed. Other characters are
+# kept, so ulid_parse still refuses what is not a ULID.
+pub fn ulid_fix(s: &text) -> text
+    var o: List[i64] = []
+    var i: usize = 0
+    while i < s.len_bytes() bound 16777216
+        let c = s[i] as i64
+        if c == 105 or c == 73 or c == 108 or c == 76
+            o.push(49)
+        elif c == 111 or c == 79
+            o.push(48)
+        elif c != 45
+            o.push(c)
+        i += 1
+    return o.utf8()
+
+# The 48-bit Unix time in milliseconds of a ULID (also of a UUIDv7).
+pub fn ulid_ms(b: &[i64]) -> i64 ! BadId
+    let u = try id_u16(b)
+    return id_int(&u, 0, 6)
+
+# A ULID from a Unix time in milliseconds and the first 10 random bytes.
+pub fn ulid_new(unix_ms: i64, rnd: &[i64]) -> List[i64] ! BadId
+    let _ok = try id_ms_ok(unix_ms)
+    let r = try id_take(rnd, 10)
+    return id_cat(id_be(unix_ms, 6), r)
+
+# Monotonic ULIDs (ULID spec, monotonicity; npm ulid monotonicFactory): a
+# later millisecond takes 10 fresh random bytes; the same or an earlier
+# one keeps the last time and adds one to the last 80-bit random part. When
+# that part is all ones the call is refused and the state is unchanged.
+# The random bytes are read only when the time moves forward.
+pub struct UlidGen
+    ms: i64
+    last: List[i64]
+
+pub fn ulid_gen() -> UlidGen = UlidGen(ms: -1, last: [])
+
+pub fn ulid_next(g: &mut UlidGen, unix_ms: i64, rnd: &[i64]) -> List[i64] ! BadId
+    let _ok = try id_ms_ok(unix_ms)
+    if g.ms < -1 or g.ms > ID_MS_MAX
+        fail BadId(at: -1, why: "not a state ulid_gen and ulid_next made")
+    if g.ms >= 0 and unix_ms <= g.ms
+        var b = try id_u16(&g.last)
+        var i: i64 = 15
+        while i >= 6 bound 10
+            if b[i as usize] == 255
+                b[i as usize] = 0
+                i -= 1
+            else
+                b[i as usize] = b[i as usize] + 1
+                break
+        if i < 6
+            fail BadId(at: g.ms + 1, why: "the random part overflowed in this millisecond")
+        g.last = copy(b)
+        return b
+    let b = try ulid_new(unix_ms, rnd)
+    g.ms = unix_ms
+    g.last = copy(b)
+    return b
+
+# ---------------- TypeID ----------------
+
+# A TypeID (TypeID specification 0.3.0): a type prefix, '_', and the 26
+# lowercase base32 symbols of a UUID (the ULID encoding in lowercase); no
+# separator when the prefix is empty. The prefix has at most 63 characters
+# of a..z and '_', and starts and ends with a letter. New TypeIDs carry a
+# version 7 UUID (uuid_v7, uuid7_next); other versions are encoded too.
+pub struct TypeId
+    prefix: text
+    uuid: List[i64]
+
+# The prefix rules; at is the offset of the offending character.
+fn id_prefix_ok(p: &[i64]) -> bool ! BadId
+    if p.len() > 63
+        fail BadId(at: 63, why: "a TypeID prefix has at most 63 characters")
+    var i: usize = 0
+    while i < p.len() bound 64
+        let c = p[i]
+        let letter = c >= 97 and c <= 122
+        if not letter and c != 95
+            fail BadId(at: i as i64, why: "a TypeID prefix has only a..z and '_'")
+        if not letter and (i == 0 or i + 1 == p.len())
+            fail BadId(at: i as i64, why: "a TypeID prefix starts and ends with a letter")
+        i += 1
+    return true
+
+# The TypeID text of a prefix and the 16 bytes of a UUID.
+pub fn typeid_format(prefix: &text, u: &[i64]) -> text ! BadId
+    let p = id_text_bytes(prefix)
+    let _ok = try id_prefix_ok(&p)
+    let s = try ulid_encode(u)
+    let low = s.lower()
+    if p.len() == 0
+        return low
+    return copy(prefix) + "_" + low
+
+# Parse a TypeID: the prefix is the text before the last '_' (none: the
+# empty prefix), which must then not be empty; the suffix is exactly 26
+# symbols of 0123456789abcdefghjkmnpqrstvwxyz, the first one 0..7.
+# Uppercase, hyphens and Crockford's aliases are refused.
+pub fn typeid_parse(s: &text) -> TypeId ! BadId
+    let b = id_text_bytes(s)
+    var cut: i64 = -1
+    var i: usize = 0
+    while i < b.len() bound 16777216
+        if b[i] == 95
+            cut = i as i64
+        i += 1
+    var p: List[i64] = []
+    var k: i64 = 0
+    while k < cut bound 16777216
+        p.push(b[k as usize])
+        k += 1
+    if cut == 0
+        fail BadId(at: 0, why: "a separator needs a non-empty prefix")
+    let _ok = try id_prefix_ok(&p)
+    let lo = cut + 1
+    let n = b.len() as i64
+    if n - lo != 26
+        fail BadId(at: (if n - lo < 26 then n else lo + 26), why: "a TypeID suffix has 26 characters")
+    var j = lo
+    while j < n bound 26
+        let c = b[j as usize]
+        if id_b32val(c) < 0 or (c >= 65 and c <= 90)
+            fail BadId(at: j, why: "not a lowercase base32 symbol")
+        j += 1
+    if id_b32val(b[lo as usize]) > 7
+        fail BadId(at: lo, why: "the first suffix symbol must be 0..7")
+    var sfx: List[i64] = []
+    j = lo
+    while j < n bound 26
+        sfx.push(b[j as usize])
+        j += 1
+    let st = sfx.utf8()
+    let u = try ulid_parse(&st)
+    return TypeId(prefix: p.utf8(), uuid: u)
+
+# ---------------- KSUID ----------------
+
+# A KSUID (segmentio/ksuid, the reference implementation): 4 bytes of
+# seconds since KSUID_EPOCH (2014-05-13T16:53:20Z) big-endian, then a
+# 16-byte payload; as text, 27 base62 symbols (0-9A-Za-z) of the 160-bit
+# value, padded with '0'.
+pub const KSUID_EPOCH: i64 = 1400000000
+
+fn id_b62(c: i64) -> i64
+    if c >= 48 and c <= 57
+        return c - 48
+    if c >= 65 and c <= 90
+        return c - 55
+    if c >= 97 and c <= 122
+        return c - 61
+    return -1
+
+fn id_k20(b: &[i64]) -> List[i64] ! BadId
+    if b.len() != 20
+        fail BadId(at: b.len() as i64, why: "a KSUID is 20 bytes")
+    return try id_take(b, 20)
+
+# A KSUID from a Unix time in seconds (KSUID_EPOCH .. KSUID_EPOCH + 2^32 - 1)
+# and the first 16 random bytes (ksuid.FromParts).
+pub fn ksuid_new(unix_s: i64, rnd: &[i64]) -> List[i64] ! BadId
+    if unix_s < KSUID_EPOCH or unix_s - KSUID_EPOCH > 4294967295
+        fail BadId(at: -1, why: "the time must be KSUID_EPOCH .. KSUID_EPOCH + 2^32 - 1 seconds")
+    let r = try id_take(rnd, 16)
+    return id_cat(id_be(unix_s - KSUID_EPOCH, 4), r)
+
+# Unix time in seconds of a KSUID.
+pub fn ksuid_unix_s(b: &[i64]) -> i64 ! BadId
+    let k = try id_k20(b)
+    return id_int(&k, 0, 4) + KSUID_EPOCH
+
+pub fn ksuid_encode(b: &[i64]) -> text ! BadId
+    let a = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz".chars()
+    var num = try id_k20(b)
+    var digits: List[i64] = []
+    while num.len() > 0 bound 32
+        var q: List[i64] = []
+        var rem: i64 = 0
+        for d in num
+            let v = rem * 256 + d
+            if q.len() > 0 or v / 62 > 0
+                q.push(v / 62)
+            rem = v % 62
+        digits.push(rem)
+        num = q
+    var o = ""
+    var pad = 27 - (digits.len() as i64)
+    while pad > 0 bound 27
+        o = o + "0"
+        pad -= 1
+    var i = digits.len()
+    while i > 0 bound 32
+        i -= 1
+        o = o + copy(a[digits[i] as usize])
+    return o
+
+# Parse 27 base62 symbols; the value must fit 160 bits (at most
+# aWgEPTl1tmebfsQzFP4bxwgy80V).
+pub fn ksuid_parse(s: &text) -> List[i64] ! BadId
+    let n = s.len_bytes()
+    var acc: List[i64] = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+    var i: usize = 0
+    while i < 27 bound 27
+        if i >= n
+            fail BadId(at: n as i64, why: "a KSUID has 27 characters")
+        let v = id_b62(s[i] as i64)
+        if v < 0
+            fail BadId(at: i as i64, why: "not a base62 symbol")
+        var carry = v
+        var k: i64 = 20
+        while k >= 0 bound 21
+            let x = acc[k as usize] * 62 + carry
+            acc[k as usize] = x & 255
+            carry = x >> 8
+            k -= 1
+        i += 1
+    if n != 27
+        fail BadId(at: 27, why: "unexpected text after the KSUID")
+    if acc[0] != 0
+        fail BadId(at: 0, why: "the value passes 160 bits")
+    var o: List[i64] = []
+    var j: usize = 1
+    while j < 21 bound 20
+        o.push(acc[j])
+        j += 1
+    return o
+
+# The next and the previous 160-bit value (ksuid Next and Prev, which carry
+# from the payload into the time); past the largest or below the smallest
+# KSUID the call is refused (the reference wraps around).
+pub fn ksuid_next(b: &[i64]) -> List[i64] ! BadId
+    var k = try id_k20(b)
+    var i: i64 = 19
+    while i >= 0 bound 20
+        if k[i as usize] == 255
+            k[i as usize] = 0
+            i -= 1
+        else
+            k[i as usize] = k[i as usize] + 1
+            return k
+    fail BadId(at: -1, why: "there is no KSUID after the largest one")
+
+pub fn ksuid_prev(b: &[i64]) -> List[i64] ! BadId
+    var k = try id_k20(b)
+    var i: i64 = 19
+    while i >= 0 bound 20
+        if k[i as usize] == 0
+            k[i as usize] = 255
+            i -= 1
+        else
+            k[i as usize] = k[i as usize] - 1
+            return k
+    fail BadId(at: -1, why: "there is no KSUID before the smallest one")
+
+# The KSUID of a sequence (ksuid.Sequence): the seed with its last two
+# bytes replaced by n, 0..65535. The caller keeps the count.
+pub fn ksuid_with_seq(seed: &[i64], n: i64) -> List[i64] ! BadId
+    var k = try id_k20(seed)
+    if n < 0 or n > 65535
+        fail BadId(at: -1, why: "a sequence number is 0..65535")
+    k[18] = n >> 8
+    k[19] = n & 255
+    return k
+
+# ---------------- Nano ID ----------------
+
+fn id_nano_url() -> List[i64] = [53, 55, 88, 54, 121, 51, 119, 81, 90, 78, 122, 89, 106, 74, 66, 50, 76, 95, 49, 48, 112, 120, 98, 97, 99, 107, 103, 114, 111, 117, 110, 100, 104, 105, 109, 115, 101, 108, 102, 85, 84, 70, 45, 56, 68, 69, 77, 79, 71, 82, 65, 80, 72, 73, 67, 83, 86, 113, 118, 116, 52, 75, 87, 57]
+
+# A Nano ID of size symbols of NANOID_URL from the first size random
+# bytes, in order, each byte taken mod 64 (nanoid 6.0.2 nanoid(size)).
+pub fn nanoid(rnd: &[i64], size: i64) -> text ! BadId
+    if size < 0
+        fail BadId(at: -1, why: "the size must be 0 or more")
+    let r = try id_take(rnd, size)
+    let a = id_nano_url()
+    var o: List[i64] = []
+    for x in r
+        o.push(a[(x & 63) as usize])
+    return o.utf8()
+
+# A Nano ID over a chosen alphabet, as nanoid 6.0.2 customRandom(alphabet,
+# size, getRandom) builds it with getRandom returning the caller's bytes:
+# draws of `block` bytes are read from their last byte to their first; a
+# byte below cutoff = 256 - 256 % n (n symbols) gives symbol byte % n and
+# any other byte is refused, so every symbol is equally likely. block is
+# size when n divides 256 and ceil(1.6 * 256 * size / cutoff) (in binary64,
+# as JavaScript computes it) otherwise. The bytes left in the last draw
+# are discarded. Symbols are the alphabet's characters (code points;
+# JavaScript indexes UTF-16 units, which differs only outside the BMP).
+# nanoid_gen refuses an alphabet of 0 or more than 256 symbols, a size
+# above 1,000,000 and a draw of more than 1,000,000 bytes (the list limit).
+pub struct NanoGen
+    alpha: List[text]
+    size: i64
+    block: i64
+    cutoff: i64
+    out: List[text]
+    pend: List[i64]
+    used: i64
+
+pub fn nanoid_gen(alphabet: &text, size: i64) -> NanoGen ! BadId
+    let a = alphabet.chars()
+    let n = a.len() as i64
+    if n < 1 or n > 256
+        fail BadId(at: -1, why: "the alphabet must have 1 to 256 symbols")
+    if size < 0 or size > 1000000
+        fail BadId(at: -1, why: "the size must be 0..1000000")
+    let cut = 256 - 256 % n
+    var block = size
+    if cut != 256
+        block = (1.6 * 256.0 * (size as f64) / (cut as f64)).ceil() as i64
+    if block > 1000000
+        fail BadId(at: -1, why: "one draw would pass the 1000000-element list limit")
+    return NanoGen(alpha: a, size: size, block: block, cutoff: cut, out: [], pend: [], used: 0)
+
+pub fn nanoid_done(g: &NanoGen) -> bool = (g.out.len() as i64) >= g.size
+
+# Bytes still needed to complete the current draw (0 once the ID is done).
+pub fn nanoid_need(g: &NanoGen) -> i64 = if nanoid_done(g) then 0 else g.block - (g.pend.len() as i64)
+
+# The symbols so far: the whole ID once nanoid_done holds.
+pub fn nanoid_text(g: &NanoGen) -> text = "".join(g.out)
+
+# Feed random bytes; returns whether the ID is complete. Bytes after the
+# draw that completes it are not used. A chunk holding a value outside
+# 0..255 is refused whole and the state is unchanged.
+pub fn nanoid_feed(g: &mut NanoGen, chunk: &[i64]) -> bool ! BadId
+    let n = g.alpha.len() as i64
+    if n < 1 or n > 256 or g.cutoff < 1 or g.cutoff > 256 or g.block < 0 or g.block > 1000000 or (g.block == 0 and g.size > 0)
+        fail BadId(at: -1, why: "not a state nanoid_gen made")
+    var i: usize = 0
+    while i < chunk.len() bound 16777216
+        if chunk[i] < 0 or chunk[i] > 255
+            fail BadId(at: i as i64, why: "a byte must be 0..255")
+        i += 1
+    i = 0
+    while i < chunk.len() and not nanoid_done(g) bound 16777216
+        g.pend.push(chunk[i])
+        if (g.pend.len() as i64) == g.block
+            var k = g.block - 1
+            while k >= 0 and (g.out.len() as i64) < g.size bound 16777216
+                let y = g.pend[k as usize]
+                if y < g.cutoff
+                    g.out.push(copy(g.alpha[(y % n) as usize]))
+                k -= 1
+            g.used += g.block
+            g.pend = []
+        i += 1
+    return nanoid_done(g)
+
+# One call: fails with at = the number of bytes given when they run out
+# before the ID is complete (feed a NanoGen to supply more).
+pub fn nanoid_custom(alphabet: &text, size: i64, rnd: &[i64]) -> text ! BadId
+    var g = try nanoid_gen(alphabet, size)
+    let done = try nanoid_feed(&mut g, rnd)
+    if not done
+        fail BadId(at: rnd.len() as i64, why: "need more random bytes")
+    return nanoid_text(&g)
+
+# ---------------- Snowflake ----------------
+
+# A 63-bit Snowflake ID: milliseconds since epoch_ms in the high bits, then
+# worker_bits of worker number, then seq_bits of sequence; the sign bit is
+# 0, so the time has 63 - worker_bits - seq_bits bits.
+pub struct SnowLayout
+    epoch_ms: i64
+    worker_bits: i64
+    seq_bits: i64
+
+# Twitter (IdWorker): epoch 1288834974657, worker = datacenter (5 bits)
+# then worker (5 bits), 12 sequence bits.
+pub fn snow_twitter() -> SnowLayout = SnowLayout(epoch_ms: 1288834974657, worker_bits: 10, seq_bits: 12)
+
+# Discord: epoch 2015-01-01T00:00:00Z, worker = internal worker (5 bits)
+# then process (5 bits), 12 increment bits. Discord IDs are unsigned 64-bit;
+# the 41 time bits here cover them until 2084-09-06.
+pub fn snow_discord() -> SnowLayout = SnowLayout(epoch_ms: 1420070400000, worker_bits: 10, seq_bits: 12)
+
+pub struct SnowParts
+    ms: i64
+    worker: i64
+    seq: i64
+
+fn id_lay_ok(l: &SnowLayout) -> bool ! BadId
+    if l.epoch_ms < 0 or l.worker_bits < 0 or l.seq_bits < 0 or l.worker_bits > 62 or l.seq_bits > 62 or l.worker_bits + l.seq_bits > 62
+        fail BadId(at: -1, why: "a layout needs epoch_ms >= 0 and at least one time bit")
+    return true
+
+# Compose an ID from a Unix time in milliseconds, a worker and a sequence.
+pub fn snow_make(l: &SnowLayout, unix_ms: i64, worker: i64, seq: i64) -> i64 ! BadId
+    let _ok = try id_lay_ok(l)
+    let tb = 63 - l.worker_bits - l.seq_bits
+    if unix_ms < l.epoch_ms or ((unix_ms - l.epoch_ms) >> tb) != 0
+        fail BadId(at: -1, why: "the time is outside the layout's range")
+    let t = unix_ms - l.epoch_ms
+    if t < 0
+        fail BadId(at: -1, why: "the time is outside the layout's range")
+    if worker < 0 or (worker >> l.worker_bits) != 0
+        fail BadId(at: -1, why: "the worker does not fit its bits")
+    if seq < 0 or (seq >> l.seq_bits) != 0
+        fail BadId(at: -1, why: "the sequence does not fit its bits")
+    return (t << (l.worker_bits + l.seq_bits)) | (worker << l.seq_bits) | seq
+
+# Split an ID into Unix time in milliseconds, worker and sequence.
+pub fn snow_parts(l: &SnowLayout, sid: i64) -> SnowParts ! BadId
+    let _ok = try id_lay_ok(l)
+    if sid < 0
+        fail BadId(at: -1, why: "a Snowflake ID is not negative")
+    let s = l.seq_bits
+    let w = l.worker_bits
+    if (sid >> (w + s)) > 9223372036854775807 - l.epoch_ms
+        fail BadId(at: -1, why: "the time does not fit i64 milliseconds")
+    return SnowParts(ms: (sid >> (w + s)) + l.epoch_ms, worker: (sid >> s) & ((1 << w) - 1), seq: sid & ((1 << s) - 1))
+
+# A generator for one worker (Twitter IdWorker.nextId): the first ID of a
+# millisecond has sequence 0 and each further ID in it the next sequence.
+# Where IdWorker waits for the clock, this refuses: a time before the last
+# one fails with at = the last time ("clock moved backwards"), and a
+# millisecond whose sequence is used up fails with at = the next
+# millisecond. A refused call leaves the state unchanged.
+pub struct SnowGen
+    lay: SnowLayout
+    worker: i64
+    last_ms: i64
+    seq: i64
+
+pub fn snow_gen(l: &SnowLayout, worker: i64) -> SnowGen ! BadId
+    let _ok = try id_lay_ok(l)
+    if worker < 0 or (worker >> l.worker_bits) != 0
+        fail BadId(at: -1, why: "the worker does not fit its bits")
+    return SnowGen(lay: copy(l), worker: worker, last_ms: -1, seq: 0)
+
+pub fn snow_next(g: &mut SnowGen, now_ms: i64) -> i64 ! BadId
+    let _ok = try id_lay_ok(&g.lay)
+    if now_ms < g.last_ms
+        fail BadId(at: g.last_ms, why: "clock moved backwards")
+    var seq: i64 = 0
+    if now_ms == g.last_ms
+        if g.seq >= (1 << g.lay.seq_bits) - 1
+            fail BadId(at: g.last_ms + 1, why: "the sequence of this millisecond is used up")
+        seq = g.seq + 1
+    let sid = try snow_make(&g.lay, now_ms, g.worker, seq)
+    g.last_ms = now_ms
+    g.seq = seq
+    return sid
