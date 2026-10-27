@@ -170,9 +170,14 @@ def toolchain():
     try:
         rc, out, err = sh(cmd, timeout=120)
     except (OSError, subprocess.TimeoutExpired) as ex:
-        return f"{cmd[0]} does not run: {ex}"
+        return f"{os.path.basename(cmd[0])} does not run: {ex}"
+    name = os.path.basename(cmd[0])   # never a machine-local path in a report
+    if rc != 0:
+        return f"{name} exited {rc}"
     v = (out.strip() or err.strip()).splitlines()
-    return (v[0] if v else "") if rc == 0 else f"{cmd[0]} exited {rc}"
+    line = v[0] if v else ""
+    # node prints only `vX.Y.Z`; the others name themselves
+    return line if line.lower().startswith(name.lower()[:4]) else f"{name} {line}"
 
 def emitted_by():
     """The checker that emits, from the provenance line of an emitted file
