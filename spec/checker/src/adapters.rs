@@ -441,6 +441,9 @@ pub mod net {
         /// HF-3: the start of a UTF-8 character a read ended inside, kept
         /// for the next read when the module takes received bytes as text
         carry: Vec<u8>,
+        /// a read error met after bytes were read: those bytes are
+        /// delivered first, and the error is the next read's result
+        error: Option<String>,
     }
 
     enum Sock {
@@ -542,7 +545,7 @@ pub mod net {
         let out: OutQ = Default::default();
         let q = out.clone();
         std::thread::spawn(move || writer(w, q));
-        Ok(Conn { s, out, carry: vec![] })
+        Ok(Conn { s, out, carry: vec![], error: None })
     }
 
     impl Nets {
@@ -556,37 +559,77 @@ pub mod net {
         }
     }
 
-    fn recv(c: &mut Conn, max: usize, text: bool) -> Result<Value, String> {
-        if c.out.0.lock().unwrap().failed {
-            return Err("closed".into());
+    /// The length of the UTF-8 character whose first byte is `b`.
+    fn utf8_len(b: u8) -> usize {
+        match b {
+            0xF0.. => 4,
+            0xE0.. => 3,
+            0xC0.. => 2,
+            _ => 1,
         }
-        let mut out: Vec<u8> = std::mem::take(&mut c.carry);
-        let mut buf = vec![0u8; 65536];
-        let mut eof = false;
-        while out.len() < max {
-            let want = (max - out.len()).min(buf.len());
-            match c.s.read(&mut buf[..want]) {
-                Ok(0) => {
-                    eof = true;
-                    break;
+    }
+
+    /// Read at most `want` bytes into `out` without waiting: Ok(true) at
+    /// the end of the stream.
+    fn read_some(s: &mut TcpStream, out: &mut Vec<u8>, want: usize) -> Result<bool, String> {
+        let mut buf = vec![0u8; want.min(65536)];
+        let mut got = 0;
+        while got < want {
+            let k = (want - got).min(buf.len());
+            match s.read(&mut buf[..k]) {
+                Ok(0) => return Ok(true),
+                Ok(n) => {
+                    out.extend_from_slice(&buf[..n]);
+                    got += n;
                 }
-                Ok(k) => out.extend_from_slice(&buf[..k]),
                 Err(e) if e.kind() == ErrorKind::WouldBlock => break,
                 Err(e) if e.kind() == ErrorKind::Interrupted => continue,
                 Err(e) => return Err(e.to_string()),
             }
         }
-        // HF-3: taken as text, a character the read ended inside waits for
-        // the next read; at the end of the stream it is delivered as it is
-        if text
-            && !eof
-            && let Err(e) = std::str::from_utf8(&out)
-            && e.error_len().is_none()
-        {
-            c.carry = out.split_off(e.valid_up_to());
+        Ok(false)
+    }
+
+    fn recv(c: &mut Conn, max: usize, text: bool) -> Result<Value, String> {
+        // HF-3: bytes kept for the next read are delivered before the
+        // connection's failure, so nothing received is lost
+        if c.out.0.lock().unwrap().failed {
+            return if c.carry.is_empty() { Err("closed".into()) } else { Ok(json!(std::mem::take(&mut c.carry))) };
         }
-        // HC-10a: exactly the bytes received, in order, as a list of 0..255
-        if eof && out.is_empty() { Err("eof".into()) } else { Ok(json!(out)) }
+        if let Some(e) = c.error.take() {
+            return Err(e);
+        }
+        let mut out: Vec<u8> = std::mem::take(&mut c.carry);
+        let want = max.saturating_sub(out.len());
+        let mut r = read_some(&mut c.s, &mut out, want);
+        // HF-3: taken as text, a read does not end inside a character: it
+        // reads past max, by at most 3 bytes, to complete the last one; a
+        // character whose bytes have not arrived waits for the next read,
+        // and at the end of the stream it is delivered as it is
+        let cut = match std::str::from_utf8(&out) {
+            Err(e) if e.error_len().is_none() => Some(e.valid_up_to()),
+            _ => None,
+        };
+        if text
+            && r == Ok(false)
+            && let Some(start) = cut
+        {
+            let need = utf8_len(out[start]).saturating_sub(out.len() - start);
+            r = read_some(&mut c.s, &mut out, need);
+            if r == Ok(false) && std::str::from_utf8(&out[start..]).is_err() {
+                c.carry = out.split_off(start);
+            }
+        }
+        match r {
+            // HC-10a: exactly the bytes received, in order, as a list of 0..255
+            Ok(true) if out.is_empty() => Err("eof".into()),
+            Err(e) if out.is_empty() => Err(e),
+            Err(e) => {
+                c.error = Some(e);
+                Ok(json!(out))
+            }
+            Ok(_) => Ok(json!(out)),
+        }
     }
 
     fn send(c: &mut Conn, data: &Value) -> Result<Value, String> {
@@ -656,6 +699,12 @@ pub mod net {
                         let (m, cv) = &*c.out;
                         m.lock().unwrap().closing = true;
                         cv.notify_all();
+                        // HF-3: the bytes of a character kept for a read
+                        // that never came are not delivered; err lists
+                        // them, so D keeps them
+                        if !c.carry.is_empty() {
+                            return EffectResult { status: crate::host::Status::Delivered, data: Some(json!(0)), error: format!("closed with {} received bytes of an incomplete UTF-8 character not delivered: {:?}", c.carry.len(), c.carry) };
+                        }
                         Ok(json!(0))
                     }
                     Some(Sock::L(_)) => Ok(json!(0)),

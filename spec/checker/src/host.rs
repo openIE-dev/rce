@@ -676,6 +676,20 @@ fn unalias<'m>(mut t: &'m Ty, m: &'m Module) -> &'m Ty {
     t
 }
 
+/// A declared type with its aliases followed and one `?` removed: the type
+/// of the value a field holds when it holds one.
+fn held_type<'m>(t: &'m Ty, m: &'m Module) -> &'m Ty {
+    match unalias(t, m) {
+        Ty::Opt(x) => unalias(x, m),
+        x => x,
+    }
+}
+
+/// Whether a declared type holds text (HF-3), through aliases and `?`.
+fn takes_text(t: &Ty, m: &Module) -> bool {
+    matches!(held_type(t, m), Ty::Path(p, g) if p.len() == 1 && g.is_empty() && p[0] == "text")
+}
+
 /// What a JSON value is, for a reason text.
 fn json_kind(v: &Value) -> &'static str {
     match v {
@@ -1309,7 +1323,7 @@ impl<'a> Host<'a> {
                 // HF-3: received bytes taken as text keep a character that
                 // a read ends inside for the next read
                 let ev = format!("{}Done", a.kind());
-                let text = event_payload(m, &ev).and_then(|p| p.iter().find(|(k, _)| k == "data")).is_some_and(|(_, t)| bytes_field(&ev, "data") && ty_text(unalias(t, m)).trim_end_matches('?') == "text");
+                let text = event_payload(m, &ev).and_then(|p| p.iter().find(|(k, _)| k == "data")).is_some_and(|(_, t)| bytes_field(&ev, "data") && takes_text(t, m));
                 if text {
                     a.text();
                 }

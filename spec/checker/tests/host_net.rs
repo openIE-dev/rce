@@ -222,6 +222,54 @@ fn recv_into_a_text_field_is_text_when_utf8() {
     assert_eq!(replay(&m, &text).unwrap().1, live);
 }
 
+/// HF-3: taken as text, a read does not end inside a character even when
+/// max is smaller than the character: it reads up to 3 bytes past max to
+/// complete it, so a reader of one byte at a time still gets each
+/// character and the end of the stream. A character whose bytes have not
+/// arrived waits for the next read, and a `NetClose` of a connection that
+/// keeps bytes lists them in its err, so D keeps them.
+#[test]
+fn recv_as_text_completes_a_character_past_max() {
+    let addr = free_addr();
+    let mut a = net_adapters(std::slice::from_ref(&addr));
+    for x in a.iter_mut() {
+        x.text();
+    }
+    let mut call = |k: &str, r: serde_json::Value| a.iter_mut().find(|x| x.kind() == k).unwrap().perform(&r);
+    assert_eq!(call("NetListen", json!({"req": 1, "addr": addr})).status.as_str(), "delivered");
+    let mut peer = TcpStream::connect(&addr).unwrap();
+    let mut conn = None;
+    for _ in 0..200 {
+        let r = call("NetAccept", json!({"req": 2, "id": 1}));
+        if r.status.as_str() == "delivered" {
+            conn = r.data.and_then(|d| d.as_u64());
+            break;
+        }
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    let id = conn.expect("accepted");
+    let recv = |call: &mut dyn FnMut(&str, serde_json::Value) -> rce_spec_check::host::EffectResult| -> rce_spec_check::host::EffectResult {
+        let t0 = std::time::Instant::now();
+        loop {
+            let r = call("NetRecv", json!({"req": 3, "id": id, "max": 1}));
+            if r.data.as_ref().and_then(|d| d.as_array()).is_none_or(|d| !d.is_empty()) || t0.elapsed() > Duration::from_secs(10) {
+                return r;
+            }
+            std::thread::sleep(Duration::from_millis(5));
+        }
+    };
+    peer.write_all("\u{e9}a".as_bytes()).unwrap();
+    assert_eq!(recv(&mut call).data, Some(json!([0xC3, 0xA9])), "two bytes for a max of one: the whole character");
+    assert_eq!(recv(&mut call).data, Some(json!([0x61])));
+    // the first byte of a character whose rest has not arrived waits
+    peer.write_all(&[0xE2]).unwrap();
+    std::thread::sleep(Duration::from_millis(50));
+    assert_eq!(call("NetRecv", json!({"req": 4, "id": id, "max": 1})).data, Some(json!([])));
+    let c = call("NetClose", json!({"req": 5, "id": id}));
+    assert_eq!((c.status.as_str(), c.data.clone()), ("delivered", Some(json!(0))));
+    assert!(c.error.contains("[226]"), "the kept byte is in the result: {c:?}");
+}
+
 /// HC-23: NetSend takes text (its UTF-8) or bytes; an element outside
 /// 0..255 fails the request and nothing is sent.
 #[test]

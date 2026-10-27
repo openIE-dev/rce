@@ -434,9 +434,9 @@ in D does not exist for the program.
   `List[i64]` whose elements are in 0..255 (the byte type of
   `core.bytes`), and D records them as a list of integers (6.1). No `text`
   holds every byte sequence, and a read may end inside a UTF-8 character,
-  so a host never decodes received bytes: the program decodes them
-  (`text.utf8`), and a body that is not UTF-8 is a value the program can
-  answer rather than a trap. One delivery holds at most SIZE_LIMIT (N9)
+  so a host does not decode received bytes unless the module takes them
+  as text (HF-3): the program decodes them (`text.utf8`), and a body that
+  is not UTF-8 is a value the program can answer rather than a trap. One delivery holds at most SIZE_LIMIT (N9)
   bytes, so the delivered value can always be built. The data of
   `NetRecvDone` (HC-23) and the body of `HttpRequest` (HC-24) follow this
   rule. Declared as `text`, either is fitted by HF-3: delivered as text
@@ -535,8 +535,8 @@ both enter D and reach the program as inputs.
   | `NetListen(req, addr)` | the id of the listener | the bind error |
   | `NetAccept(req, id)` | the id of a new connection | `none` when no connection is waiting |
   | `NetSend(req, id, data)` | the number of bytes handed to the connection | `closed`, `send buffer full`, `byte outside 0..255` |
-  | `NetRecv(req, id, max)` | the bytes received so far, at most max, possibly none (HC-10a) | `eof` when the peer closed and nothing is left, `closed` |
-  | `NetClose(req, id)` | 0 | `no socket N` |
+  | `NetRecv(req, id, max)` | the bytes received so far, at most max, possibly none (HC-10a); taken as text, up to 3 more to complete a character (HF-3) | `eof` when the peer closed and nothing is left, `closed`, the read error |
+  | `NetClose(req, id)` | 0; err lists the bytes of a character kept for a read that did not come (HF-3) | `no socket N` |
 
   `data` is text, sent as its UTF-8, or a `List[i64]` of 0..255. A send
   hands the bytes to the connection's own writer and returns at once, so
@@ -772,11 +772,15 @@ did not, not by restricting what a module may declare.
   byte the host writes is a function of D (HC-26).
 - **HF-3 Received bytes.** Received bytes (the data of `NetRecvDone`, the
   body of `HttpRequest`) are delivered exactly as `List[i64]` (HC-10a).
-  Declared as `text`, they are delivered as text when they are UTF-8. A
-  stream read never splits a character: when the module takes the data of
-  `NetRecvDone` as text, the adapter keeps a character that a read ends
-  inside for the next read on that connection, and at the end of the
-  stream delivers what it kept as it is. Bytes that are not UTF-8 are
+  Declared as `text` (through an alias or `?`), they are delivered as
+  text when they are UTF-8. A stream read never splits a character: when
+  the module takes the data of `NetRecvDone` as text, a read that would
+  end inside a character reads up to 3 bytes past max to complete it, a
+  character whose bytes have not arrived is kept for the next read on that
+  connection, and what was kept is delivered as it is at the end of the
+  stream, with the bytes read before an error, and before the failure of
+  the connection; a `NetClose` of a connection that still keeps bytes
+  lists them in its err. Bytes that are not UTF-8 are
   delivered as a `failed` result with err naming the offset of the first
   byte that is not, or as `HttpMalformed` 415 (HF-2), and `host.Unfit`
   keeps the bytes, so nothing received is lost.
@@ -1046,8 +1050,8 @@ is cited by a test.
 | HC-11 to HC-14 | fabrics, placement, exactness, no flags | `placement_is_a_function_of_host_entries`, `placement_executor_follows_d_and_replays`, `fixed_tree_bits_do_not_depend_on_the_fabric`; `tests/host_place.rs`: `lanes_and_trees_have_the_same_bits_for_every_thread_count`, `lane_and_par_placement_follow_d_and_replay`, `platform_fabric_is_used_only_after_an_exact_probe` |
 | HS-6 to HS-9 | RCEdb in RCE | `rcedb_example_runs` |
 | HC-5a | the printed target is the installed target | `tests/host_sandbox.rs`: `profile_restricts_network_to_granted_ports`, `description_is_generated_from_rules`, `linux_description_says_by_port_and_udp`, `http_only_has_no_new_ip_sockets`, and on macOS only `seatbelt_refuses_an_ungranted_port`, `serve_under_seatbelt_answers_a_request` |
-| HC-10a, HF-3 | bytes delivered exactly, or as text when UTF-8 | `tests/host_net.rs`: `recv_delivers_the_bytes_received`, `recv_into_a_text_field_is_text_when_utf8`, `recv_is_capped_at_the_size_limit`; `tests/host_http.rs`: `invalid_body_bytes_are_exact_and_get_400`, `http_body_as_text_is_fitted` |
-| HC-10b | typed inputs are inputs | `tests/host_refused.rs`: `typed_refused_is_admitted_and_marked`, `replay_detects_a_forged_host_refused`; `tests/host_restart.rs`: `typed_restarted_and_typed_result_are_inputs`; `tests/host_http.rs`: `typed_http_request_is_an_input` |
+| HC-10a, HF-3 | bytes delivered exactly, or as text when UTF-8 | `tests/host_net.rs`: `recv_delivers_the_bytes_received`, `recv_into_a_text_field_is_text_when_utf8`, `recv_as_text_completes_a_character_past_max`, `recv_is_capped_at_the_size_limit`; `tests/host_http.rs`: `invalid_body_bytes_are_exact_and_get_400`, `http_body_as_text_is_fitted` |
+| HC-10b | typed inputs are inputs | `tests/host_refused.rs`: `typed_refused_is_admitted_and_marked`, `replay_detects_a_forged_host_refused`; `tests/host_restart.rs`: `typed_restarted_and_typed_result_are_inputs`; `tests/host_http.rs`: `typed_http_request_is_an_input`; `tests/host_effects.rs`: `a_typed_result_is_marked_without_its_adapter` |
 | HC-21, HF-4 | refusals are inputs, fitted by name | `tests/host_refused.rs`: `refused_step_is_followed_by_host_refused_and_the_bound_event`, `each_cause_is_classified`, `a_refused_refused_is_not_redelivered`, `a_refused_step_whose_effect_is_refused_is_not_redelivered`, `refused_handler_has_full_fuel`, `replay_detects_a_log_without_host_refused`, `replay_detects_a_forged_host_refused`, `open_completes_a_trailing_refusal`, `a_refused_of_another_shape_is_fitted_by_name`; `tests/nameless.rs`: `refusal_entries_are_name_free` |
 | HC-22, HF-4 | restarts are inputs, ids never reused, fitted by name | `tests/host_restart.rs`: `restart_appends_restarted_then_interrupts`, `ids_are_not_reused_after_restart`, `tick_numbers_continue`, `take_role_appends_restarted`, `serve_on_an_existing_log_listens_again`, `a_restarted_of_another_shape_is_fitted_by_name`, `a_tick_is_fitted_by_name` |
 | HC-23, HF-1 | the net adapter, results fitted by name | `tests/host_net.rs`: `tcp_loopback_random_and_blobs_replay`, `send_takes_text_or_bytes`; `tests/host_effects.rs`: `result_event_of_another_shape_is_fitted_by_name`, `bound_effect_without_its_result_event_is_performed_and_recorded`, `a_result_whose_req_is_not_an_integer_answers_its_request_once` |
@@ -1134,4 +1138,4 @@ Where RCE differs from these sources: GQL and Cypher queries are strings and the
 
 **Read receipt.** Which fcntl command is the append barrier on macOS? (for example F_SETFL)
 
-<!-- body-sha256: 491ee2432ddc17ad74ae6666a44acb6b1f12da6884972306087e39219e74ecd7 -->
+<!-- body-sha256: 094ded0b9b9561a8e8ca69c1a6d895e3670ca664ea90bc7a7565fbabc0aeb2f7 -->
