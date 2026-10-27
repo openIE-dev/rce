@@ -11,7 +11,7 @@ In plain words:
 5. The runtime (display, canonical JSON (JavaScript Object Notation), SHA-256 hashing (the Secure Hash Standard, FIPS 180-4), the log chain, maps, float text, the scheduler) is written once in RCE and printed through the same table.
 6. A language counts when its printed programs print the reference trace of every example, byte for byte, on that language's own compilers or interpreters, pinned by hash and run in continuous integration. Historical languages run on maintained implementations or on period implementations under emulation. A public counter reports the number of such languages against the catalogue of the online History of Programming Languages.
 
-The proposal [`rce-form.md`](rce-form.md) defines `rce-form/1`, the one hashed form that lift and emit share. The core of section 3 is its schedule view: a printer reads a Form through that schedule, and the expected bytes of every gate come from the reference trace (`rce-form.md` §13, §19 and §21).
+The proposal [`rce-form.md`](rce-form.md) defines `rce-form/1`, the one hashed encoding of a program's Form (6.1), shared by emit and by lift (the map from a program in any language to that encoding, `rce-form.md` §16). The core of section 3 (below) is the schedule view of that encoding, the deterministic map from a Form to core statements: a printer reads a Form through that schedule, and the expected bytes of every gate come from the reference trace (`rce-form.md` §13, §19 and §21).
 
 ## 0. Where the goal stands at `d91a9fc8`
 
