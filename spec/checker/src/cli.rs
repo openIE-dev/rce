@@ -1300,7 +1300,7 @@ fn host_cmd(a: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &mu
                 }
                 None => None,
             };
-            let mut h = Host::open_file_with(&m, std::path::Path::new(log), adapters)?;
+            let mut h = if sub == "serve" { Host::open_file_bounded(&m, std::path::Path::new(log), adapters, DRAIN_MAX)? } else { Host::open_file_with(&m, std::path::Path::new(log), adapters)? };
             if let Some(s) = &http {
                 h.http_listen(&s.listen_payload())?;
                 match s.local_addr() {
@@ -1481,6 +1481,9 @@ pub const FRAME_MS: u64 = 16;
 /// goes on; only a storage fault (HS-3) stops it. EOF on stdin ends the
 /// loop unless `--http` is granted; an emitted `Exit` ends it; SIGTERM or
 /// SIGINT stop accepting, wait up to STOP_MS for open requests, and end it.
+/// Each drain performs at most DRAIN_MAX requests and the next round
+/// starts at once while requests are queued, so a stop is read between
+/// drains even when results keep requesting effects.
 fn serve_loop(h: &mut crate::host::Host, src: &str, out: &mut dyn Write, mut http: Option<&mut crate::adapters::http::Server>) -> Result<i32, String> {
     use crate::adapters::http::{HttpIn, Pending};
     use crate::ast::{Arg, Expr};
@@ -1524,6 +1527,7 @@ fn serve_loop(h: &mut crate::host::Host, src: &str, out: &mut dyn Write, mut htt
     let frame = Duration::from_millis(FRAME_MS);
     let mut next_tick = Instant::now() + frame;
     let mut stopping: Option<Instant> = None;
+    h.bound_drains(DRAIN_MAX);
     // an input refused before it is logged: reported, and the loop goes on
     let report = |e: String, out: &mut dyn Write| -> Result<(), String> {
         if Host::is_storage_fault(&e) {
@@ -1532,7 +1536,9 @@ fn serve_loop(h: &mut crate::host::Host, src: &str, out: &mut dyn Write, mut htt
         writeln!(out, "input refused: {e}").map_err(|x| x.to_string())
     };
     'serve: loop {
-        let wait = if stopping.is_some() {
+        let wait = if h.queued() > 0 {
+            Duration::ZERO
+        } else if stopping.is_some() {
             Duration::from_millis(50)
         } else if tick.is_some() {
             next_tick.saturating_duration_since(Instant::now())
@@ -1667,6 +1673,10 @@ fn serve_loop(h: &mut crate::host::Host, src: &str, out: &mut dyn Write, mut htt
 /// After SIGTERM or SIGINT, the longest the host loop waits for open
 /// requests before it takes its final barrier (HC-24).
 pub const STOP_MS: u64 = 5_000;
+
+/// The most queued requests the host loop performs in one drain (HC-24);
+/// the rest are performed in the next round, after a stop has been read.
+pub const DRAIN_MAX: usize = 64;
 
 /// What the host loop receives, from any source, on one channel.
 enum Inbound {

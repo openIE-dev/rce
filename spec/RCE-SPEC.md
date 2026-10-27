@@ -5351,9 +5351,16 @@ both enter D and reach the program as inputs.
   other trap of 6.3 or 6.7). When the module declares `event Refused(seq:
   u64, cause: text)` the admitter then admits `Refused` with the same
   payload as an ordinary input, with the full fuel of HC-7a, and appends
-  `host.Bind` for it at start. A refused `Refused` is followed by
-  `host.Refused` only, so each refused input is followed by at most one
-  `Refused`. The cause names no declaration, so D stays name-free (T7);
+  `host.Bind` for it at start. A step descends from a `Refused` entry
+  when it is that `Refused`, or when it is the result of a request made by
+  a step that descends from it (so the results of the `Refused` step's
+  requests, the results of the requests those steps make, and so on). A
+  refused step that descends from a `Refused` is followed by
+  `host.Refused` only: no `Refused` leads to another, each refused input
+  is followed by at most one `Refused`, and a `Refused` step whose effects
+  are refused in turn cannot loop. Replay derives the same descent from D,
+  matching each result to the first request queued with its kind and
+  req. The cause names no declaration, so D stays name-free (T7);
   the refusal's text, which can name a declared error, is not in D, and
   replay re-derives it. Replay requires each refused entry to be followed
   by the matching `host.Refused` and, when `Refused` is declared, by the
@@ -5458,7 +5465,11 @@ both enter D and reach the program as inputs.
 
   The host loop reads one queue (stdin lines, HTTP inputs, and SIGTERM and
   SIGINT, which one thread waits for) and admits in rounds of up to 64
-  inputs, with one barrier per round. An effect waits for a barrier only
+  inputs, with one barrier per round. Each time it performs queued
+  requests, on open (HC-22) too, it performs at most DRAIN_MAX (64) of
+  them; the rest are performed in the next round, which starts at once,
+  so a stop and other inputs are read between drains even while results
+  keep requesting effects. An effect waits for a barrier only
   when the entry that requested it is not yet durable (HS-2), and a
   barrier that would only confirm the previous confirmation is not taken,
   so a host with nothing to admit appends nothing. An input refused before
@@ -5800,10 +5811,10 @@ is cited by a test.
 | HS-6 to HS-9 | RCEdb in RCE | `rcedb_example_runs` |
 | HC-5a | the printed target is the installed target | `tests/host_sandbox.rs`: `profile_restricts_network_to_granted_ports`, `description_is_generated_from_rules`, `linux_description_says_by_port_and_udp`, `http_only_has_no_new_ip_sockets`, and on macOS only `seatbelt_refuses_an_ungranted_port`, `serve_under_seatbelt_answers_a_request` |
 | HC-10a, W-HOST-3 | bytes delivered exactly | `tests/host_net.rs`: `recv_delivers_the_bytes_received`, `recv_into_a_text_field_is_refused_at_start`, `recv_is_capped_at_the_size_limit`; `tests/host_http.rs`: `invalid_body_bytes_are_exact_and_get_400` |
-| HC-21, W-HOST-4 | refusals are inputs | `tests/host_refused.rs`: `refused_step_is_followed_by_host_refused_and_the_bound_event`, `each_cause_is_classified`, `a_refused_refused_is_not_redelivered`, `refused_handler_has_full_fuel`, `replay_refuses_a_log_without_host_refused`, `replay_refuses_a_forged_host_refused`, `open_completes_a_trailing_refusal`, `a_refused_of_another_shape_is_refused_at_start`; `tests/nameless.rs`: `refusal_entries_are_name_free` |
+| HC-21, W-HOST-4 | refusals are inputs | `tests/host_refused.rs`: `refused_step_is_followed_by_host_refused_and_the_bound_event`, `each_cause_is_classified`, `a_refused_refused_is_not_redelivered`, `a_refused_step_whose_effect_is_refused_is_not_redelivered`, `refused_handler_has_full_fuel`, `replay_refuses_a_log_without_host_refused`, `replay_refuses_a_forged_host_refused`, `open_completes_a_trailing_refusal`, `a_refused_of_another_shape_is_refused_at_start`; `tests/nameless.rs`: `refusal_entries_are_name_free` |
 | HC-22 | restarts are inputs, ids never reused | `tests/host_restart.rs`: `restart_appends_restarted_then_interrupts`, `ids_are_not_reused_after_restart`, `tick_numbers_continue`, `take_role_appends_restarted`, `serve_on_an_existing_log_listens_again` |
 | HC-23, W-HOST-1 | the net adapter | `tests/host_net.rs`: `tcp_loopback_random_and_blobs_replay`, `send_takes_text_or_bytes`; `tests/host_effects.rs`: `bound_effect_without_its_result_event_is_refused` |
-| HC-24 to HC-26, W-HOST-2 | the HTTP event host | `tests/host_http.rs`: `concurrent_clients_are_served_while_one_stalls`, `idle_server_appends_nothing`, `keep_alive_and_pipelined_requests_answer_in_order`, `head_has_no_body`, `oversized_body_is_413_and_closes`, `refused_request_gets_the_programs_status`, `invalid_response_fails_and_the_id_stays_open`, `responses_are_a_function_of_d`, `http_1_0_and_keep_alive_are_framed_from_d`, `expect_continue_is_transport`, `parallel_load_replays_exactly`, `sigterm_drains_and_validates`, `restart_binds_again`, `sequential_requests_are_not_paced_by_frames`, `http_declarations_are_checked_at_start`; `tests/http_parse.rs`: `vectors_agree_with_net_http`, `mutations_agree_with_net_http`, `incremental_feed_equals_whole_buffer`, `limits_give_their_statuses` |
+| HC-24 to HC-26, W-HOST-2 | the HTTP event host | `tests/host_http.rs`: `concurrent_clients_are_served_while_one_stalls`, `idle_server_appends_nothing`, `keep_alive_and_pipelined_requests_answer_in_order`, `head_has_no_body`, `oversized_body_is_413_and_closes`, `refused_request_gets_the_programs_status`, `invalid_response_fails_and_the_id_stays_open`, `responses_are_a_function_of_d`, `http_1_0_and_keep_alive_are_framed_from_d`, `expect_continue_is_transport`, `parallel_load_replays_exactly`, `sigterm_drains_and_validates`, `restart_binds_again`, `sequential_requests_are_not_paced_by_frames`, `http_declarations_are_checked_at_start`; `tests/host_refused.rs`: `serve_stops_while_effects_keep_coming`; `tests/http_parse.rs`: `vectors_agree_with_net_http`, `mutations_agree_with_net_http`, `incremental_feed_equals_whole_buffer`, `limits_give_their_statuses` |
 
 ### E.11 Proposed rules (not normative)
 

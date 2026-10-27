@@ -303,6 +303,14 @@ enum Owe {
     BoundRestarted { below: u64 },
 }
 
+/// The `req` field of a request or of a result event.
+fn req_of(fs: &[(String, V)]) -> Option<u64> {
+    fs.iter().find_map(|(f, v)| match (f.as_str(), v) {
+        ("req", V::Int(i, _)) => u64::try_from(*i).ok(),
+        _ => None,
+    })
+}
+
 fn refused_payload(cause: Cause, seq: u64) -> String {
     format!("{{\"cause\":\"{}\",\"seq\":{seq}}}", cause.as_str())
 }
@@ -589,10 +597,16 @@ pub struct Host<'a> {
     adapters: Vec<Box<dyn Adapter + 'a>>,
     /// Effect kinds bound at start (HS-6), in adapter order.
     bound: Vec<&'static str>,
-    /// Requests emitted and not yet answered: (kind, req, request JSON), in emit order (E-x).
-    /// Requests emitted and not yet answered: (kind, req, request JSON,
-    /// seq of the entry that requested it), in emit order (E-x).
-    queue: std::collections::VecDeque<(String, u64, Value, u64)>,
+    /// Requests emitted and not yet answered, in emit order (E-x).
+    queue: std::collections::VecDeque<Queued>,
+    /// HC-21: the requests (`K` with a `req`, `KDone` declared) emitted by
+    /// steps that descend from a `Refused` entry and not yet answered by a
+    /// `KDone` with their req: (K, req, the `Refused` entry's seq), in emit
+    /// order. Derived from D alone, so live and replay agree.
+    descends: std::collections::VecDeque<(String, u64, u64)>,
+    /// The most queued requests one call of [`Host::drain`] performs
+    /// (unbounded unless the host loop bounds it, HC-24).
+    drain_max: usize,
     /// The last seq covered by a successful barrier (on every store; on a
     /// volatile one nothing is reported durable, E.3).
     synced: Option<u64>,
@@ -622,6 +636,17 @@ pub struct Host<'a> {
     last_tick: u64,
     /// When set, replay records each program entry's outputs (Form JSON).
     outputs: Option<Vec<(u64, Vec<Value>)>>,
+}
+
+/// A request emitted and not yet answered.
+#[derive(Clone, Debug)]
+struct Queued {
+    kind: String,
+    req: u64,
+    /// the request as Form JSON
+    json: Value,
+    /// the seq of the entry that requested it
+    at: u64,
 }
 
 /// A declared type as written (`u64`, `List[text]`, `u64?`).
@@ -974,7 +999,7 @@ impl<'a> Host<'a> {
         let mut it = Interp::new(m);
         let state = it.initial_state().map_err(why)?;
         let state_hash = d_sha(&state_pos_json(&state, m));
-        Ok(Host { m, it, state, state_hash, prev: D_GENESIS.into(), seq: 0, store, stopped: false, pending: 0, pending_real: 0, confirming: false, durable: None, from_snapshot: None, adapters, bound, queue: Default::default(), admitted: Default::default(), window: 0, closed_tick: 0, offered: vec![], term: 0, task: None, fabrics: vec![], calib: Default::default(), exacts: Default::default(), owe: None, refusals: vec![], last_tick: 0, synced: None, outputs: None })
+        Ok(Host { m, it, state, state_hash, prev: D_GENESIS.into(), seq: 0, store, stopped: false, pending: 0, pending_real: 0, confirming: false, durable: None, from_snapshot: None, adapters, bound, queue: Default::default(), descends: Default::default(), drain_max: usize::MAX, admitted: Default::default(), window: 0, closed_tick: 0, offered: vec![], term: 0, task: None, fabrics: vec![], calib: Default::default(), exacts: Default::default(), owe: None, refusals: vec![], last_tick: 0, synced: None, outputs: None })
     }
 
     fn start_entries(&mut self) -> Result<(), String> {
@@ -1021,9 +1046,23 @@ impl<'a> Host<'a> {
     /// (see [`Host::load_snapshot`]), else it is discarded and D is refolded
     /// from genesis. Either way the meaning is the same.
     pub fn open_file_snap(m: &'a Module, path: &Path, adapters: Vec<Box<dyn Adapter + 'a>>, snap: Option<&Snapshot>) -> Result<Host<'a>, String> {
+        Host::open_inner(m, path, adapters, snap, usize::MAX)
+    }
+
+    /// `open_file_with` for the host loop: every drain, the one at open
+    /// among them, performs at most `drain_max` requests (HC-24), so the
+    /// requests the restart's results make never keep the loop from
+    /// starting and reading its stop.
+    pub fn open_file_bounded(m: &'a Module, path: &Path, adapters: Vec<Box<dyn Adapter + 'a>>, drain_max: usize) -> Result<Host<'a>, String> {
+        Host::open_inner(m, path, adapters, None, drain_max)
+    }
+
+    fn open_inner(m: &'a Module, path: &Path, adapters: Vec<Box<dyn Adapter + 'a>>, snap: Option<&Snapshot>, drain_max: usize) -> Result<Host<'a>, String> {
         let (mut fs, text) = FileStore::open(path).map_err(|e| format!("open {}: {e}", path.display()))?;
         if text.is_empty() {
-            return Host::start_with(m, Box::new(fs), adapters);
+            let mut h = Host::start_with(m, Box::new(fs), adapters)?;
+            h.bound_drains(drain_max);
+            return Ok(h);
         }
         let lines: Vec<&str> = text.split_terminator('\n').collect();
         let keep = verify_prefix(&lines, m);
@@ -1034,6 +1073,7 @@ impl<'a> Host<'a> {
         }
         let entries: Vec<Entry> = lines[..keep].iter().map(|l| Entry::parse_line(l).unwrap()).collect();
         let mut h = Host::fresh(m, Box::new(fs), adapters)?;
+        h.bound_drains(drain_max);
         let from = match snap {
             Some(sn) if h.load_snapshot(sn, &entries) => sn.seq as usize + 1,
             _ => 0,
@@ -1070,8 +1110,8 @@ impl<'a> Host<'a> {
         if declares_event(self.m, "Restarted") {
             self.apply_named("Restarted", vec![Arg { label: Some("below".into()), e: Expr::Int(below as i128, 0) }])?;
         }
-        for (k, req, _, _) in lost {
-            self.answer(&k, req, EffectResult::failed("interrupted"))?;
+        for q in lost {
+            self.answer(&q.kind, q.req, EffectResult::failed("interrupted"))?;
         }
         Ok(())
     }
@@ -1095,7 +1135,7 @@ impl<'a> Host<'a> {
     /// between batches, when no effect request is outstanding, so the
     /// entries after it rebuild every request that matters.
     pub fn snapshot(&self) -> Option<Snapshot> {
-        if !self.queue.is_empty() || self.seq == 0 || self.task.is_some() || self.owe.is_some() {
+        if !self.queue.is_empty() || !self.descends.is_empty() || self.seq == 0 || self.task.is_some() || self.owe.is_some() {
             return None;
         }
         Some(Snapshot { seq: self.seq - 1, state_hash: self.state_hash.clone(), bytes: state_pos_json(&self.state, self.m) })
@@ -1181,21 +1221,23 @@ impl<'a> Host<'a> {
                 }
                 if let Some(k) = name.strip_suffix("Done").filter(|k| self.bound.contains(k)) {
                     let req = serde_json::from_str::<Value>(&e.event).ok().and_then(|v| v["payload"]["req"].as_u64());
-                    self.queue.retain(|(qk, qr, _, _)| !(qk == k && Some(*qr) == req));
+                    self.queue.retain(|q| !(q.kind == k && Some(q.req) == req));
                 }
+                let under = self.descent(&name, e.seq, &ev);
                 self.note_tick(&name, &ev);
                 match self.it.delta_r(&self.state, &ev) {
                     Ok((s2, outs)) => {
                         self.state = s2;
                         self.rehash();
                         self.enqueue(&outs, e.seq);
+                        self.note_descent(&outs, under);
                         if let Some(o) = &mut self.outputs {
                             o.push((e.seq, outs.iter().map(|x| serde_json::from_str(&crate::interp::form_value(x, self.m).json()).unwrap_or(Value::Null)).collect()));
                         }
                     }
                     Err(r) => {
                         // HC-21: replay re-derives the refusal and its cause
-                        let bind = name != "Refused" && declares_event(self.m, "Refused");
+                        let bind = under.is_none() && declares_event(self.m, "Refused");
                         self.owe = Some(Owe::HostRefused { seq: e.seq, cause: r.cause, bind });
                         self.refusals.push((e.seq, r.cause.as_str(), r.text));
                     }
@@ -1269,6 +1311,35 @@ impl<'a> Host<'a> {
         r
     }
 
+    /// HC-21: the `Refused` entry the input `name` (value `ev`) at `seq`
+    /// descends from: itself when it is `Refused`; for a result `KDone`
+    /// with req r, the one the earliest request K with req r in
+    /// `descends` descends from, which it answers (taken off); else none.
+    fn descent(&mut self, name: &str, seq: u64, ev: &V) -> Option<u64> {
+        if name == "Refused" {
+            return Some(seq);
+        }
+        let k = name.strip_suffix("Done")?;
+        let V::Rec(_, fs) = ev else { return None };
+        let req = req_of(fs)?;
+        let i = self.descends.iter().position(|(qk, qr, _)| qk == k && *qr == req)?;
+        self.descends.remove(i).map(|x| x.2)
+    }
+
+    /// HC-21: note the requests among the outputs of a step that descends
+    /// from the `Refused` entry `under`.
+    fn note_descent(&mut self, outs: &[V], under: Option<u64>) {
+        let Some(r) = under else { return };
+        for o in outs {
+            if let V::Rec(n, fs) = o
+                && let Some(req) = req_of(fs)
+                && declares_event(self.m, &format!("{n}Done"))
+            {
+                self.descends.push_back((n.clone(), req, r));
+            }
+        }
+    }
+
     /// Queue the effect requests among a step's outputs, in emit order;
     /// `at` is the seq of the entry that requested them.
     fn enqueue(&mut self, outs: &[V], at: u64) {
@@ -1281,7 +1352,7 @@ impl<'a> Host<'a> {
                     _ => None,
                 });
                 let j: Value = serde_json::from_str(&crate::interp::form_value(o, self.m).json()).unwrap_or(Value::Null);
-                self.queue.push_back((k.to_string(), req.unwrap_or(0), j, at));
+                self.queue.push_back(Queued { kind: k.to_string(), req: req.unwrap_or(0), json: j, at });
             }
         }
     }
@@ -1303,24 +1374,41 @@ impl<'a> Host<'a> {
         self.apply_named(&ev, args)
     }
 
-    /// Perform every queued request with its adapter and admit its result;
-    /// a result's step may request more effects, which are performed in turn.
+    /// Perform queued requests with their adapters and admit their results;
+    /// a result's step may request more effects, which are performed in
+    /// turn, up to `drain_max` requests in all (HC-24: the host loop then
+    /// reads its stop and its inputs before it performs the rest).
     fn drain(&mut self) -> Result<Vec<Admitted>, String> {
         let mut out = vec![];
-        while let Some((k, req, j, at)) = self.queue.pop_front() {
+        let mut done = 0;
+        while done < self.drain_max
+            && let Some(q) = self.queue.pop_front()
+        {
+            done += 1;
             // HS-2: an effect is an output, so the entry that requested it
             // is made durable before the effect is performed. One barrier
             // covers every effect requested by the entries it made durable.
-            if self.pending > 0 && self.synced.is_none_or(|s| s < at) {
+            if self.pending > 0 && self.synced.is_none_or(|s| s < q.at) {
                 self.barrier()?;
             }
-            let r = match self.adapters.iter_mut().find(|a| a.kind() == k) {
-                Some(a) => a.perform(&j),
+            let r = match self.adapters.iter_mut().find(|a| a.kind() == q.kind) {
+                Some(a) => a.perform(&q.json),
                 None => EffectResult { status: Status::Unreachable, data: None, error: "no adapter".into() },
             };
-            out.extend(self.answer(&k, req, r)?);
+            out.extend(self.answer(&q.kind, q.req, r)?);
         }
         Ok(out)
+    }
+
+    /// Bound every later [`Host::drain`] to `n` requests (HC-24): the host
+    /// loop performs the rest in its next round, after it has read a stop.
+    pub fn bound_drains(&mut self, n: usize) {
+        self.drain_max = n.max(1);
+    }
+
+    /// The number of requests emitted and not yet performed.
+    pub fn queued(&self) -> usize {
+        self.queue.len()
     }
 
     /// Append one input and apply δ to it (HC-1). The first element is the
@@ -1357,9 +1445,11 @@ impl<'a> Host<'a> {
             }
         };
         self.note_tick(name, &ev);
+        let under = self.descent(name, e.seq, &ev);
         let (mut display, mut exit) = (vec![], false);
         if let Ok(outs) = &outcome {
             self.enqueue(outs, e.seq);
+            self.note_descent(outs, under);
             for o in outs {
                 match o {
                     V::Rec(n, fs) if n == "Display" => {
@@ -1376,16 +1466,16 @@ impl<'a> Host<'a> {
         let outcome = outcome.map(|os| os.iter().map(|o| o.show()).collect()).map_err(|r| r.text);
         let mut out = vec![Admitted { seq: e.seq, event: ev.show(), outcome, display, exit, cause: refused.map(Cause::as_str) }];
         if let Some(cause) = refused {
-            let bind = name != "Refused" && declares_event(self.m, "Refused");
+            let bind = under.is_none() && declares_event(self.m, "Refused");
             out.extend(self.refused(e.seq, cause, bind)?);
         }
         Ok(out)
     }
 
     /// HC-21: after the refused entry at `seq`, `host.Refused` {cause, seq},
-    /// then (`bind`) the bound input `Refused(seq, cause)`. A refused
-    /// `Refused` gets `host.Refused` only, so each refused input is
-    /// followed by at most one `Refused`.
+    /// then (`bind`) the bound input `Refused(seq, cause)`. A refused step
+    /// that is a `Refused` or descends from one ([`Host::descent`]) gets
+    /// `host.Refused` only, so no `Refused` leads to another.
     fn refused(&mut self, seq: u64, cause: Cause, bind: bool) -> Result<Vec<Admitted>, String> {
         self.append(host_event("Refused", &refused_payload(cause, seq)))?;
         if bind { self.apply_named("Refused", refused_args(cause, seq)) } else { Ok(vec![]) }

@@ -275,3 +275,165 @@ fn a_refused_of_another_shape_is_refused_at_start() {
     let e = Host::start(&m, Box::new(MemStore::default())).err().expect("refused at start");
     assert!(e.contains("W-HOST-4") && e.contains("Refused(seq: u64, cause: text)"), "{e}");
 }
+
+fn refloop() -> String {
+    std::fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/host/refloop.rce")).unwrap()
+}
+
+/// HC-21: a `Refused` step that requests an effect whose result step is
+/// refused in turn. The result descends from the `Refused`, so its
+/// refusal gets `host.Refused` only, and the admission ends instead of
+/// redelivering `Refused` forever (the audit's `refloop.rce`).
+#[test]
+fn a_refused_step_whose_effect_is_refused_is_not_redelivered() {
+    let s = refloop();
+    let m = parse(&s).unwrap();
+    let mut st = MemStore::default();
+    let mut h = Host::start_with(&m, Box::new(&mut st), vec![Box::new(rce_spec_check::adapters::RandomAdapter)]).unwrap();
+    let a = h.admit(&s, "Go").unwrap();
+    // Go refused; its Refused applied; the result of the Refused step's
+    // request refused, with no Refused after it
+    assert_eq!(a.iter().map(|x| (x.event.split('(').next().unwrap().to_string(), x.cause)).collect::<Vec<_>>(), vec![("Go".to_string(), Some("trap")), ("Refused".to_string(), None), ("RandomDone".to_string(), Some("trap"))], "{a:?}");
+    assert_eq!(int(&field(&h, "refusals")), 1);
+    assert_eq!(int(&field(&h, "req")), 1);
+    // the next input is admitted as before, and its refusal is delivered
+    let b = h.admit(&s, "Go").unwrap();
+    assert_eq!(b.iter().filter(|x| x.event.starts_with("Refused")).count(), 1);
+    let live = h.state_hash().to_string();
+    drop(h);
+    let t = text(&st);
+    let ev = events(&t);
+    assert_eq!(ev.iter().filter(|e| e.ends_with(r#""type":"Refused"}"#)).count(), 2, "one Refused per Go");
+    assert_eq!(ev.iter().filter(|e| e.ends_with(r#""type":"host.Refused"}"#)).count(), 4, "every refused entry has its host.Refused");
+    // replay derives the same descent from D (with no adapter bound)
+    let r = replay_report(&m, &t).unwrap();
+    assert_eq!(r.state_hash, live);
+    assert_eq!(r.refusals.len(), 4);
+    // a result that does not descend from a Refused still gets one
+    let mut h = Host::start(&m, Box::new(MemStore::default())).unwrap();
+    let a = h.admit(&s, "RandomDone(req: 7, status: \"failed\", data: none, err: \"x\")").unwrap();
+    assert_eq!(a.iter().filter(|x| x.event.starts_with("Refused")).count(), 1, "{a:?}");
+}
+
+/// The `rce host serve` child, its stdin and its stderr.
+struct Serving {
+    child: std::process::Child,
+    stdin: std::process::ChildStdin,
+    err: std::sync::Arc<std::sync::Mutex<String>>,
+}
+
+fn serve(program: &Path, log: &Path) -> Serving {
+    use std::io::Read;
+    let mut child = std::process::Command::new(env!("CARGO_BIN_EXE_rce"))
+        .args(["host", "serve"])
+        .arg(program)
+        .arg("--log")
+        .arg(log)
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .unwrap();
+    let stdin = child.stdin.take().unwrap();
+    let err = std::sync::Arc::new(std::sync::Mutex::new(String::new()));
+    let (mut e, sink) = (child.stderr.take().unwrap(), err.clone());
+    std::thread::spawn(move || {
+        let mut b = [0u8; 4096];
+        while let Ok(n) = e.read(&mut b) {
+            if n == 0 {
+                break;
+            }
+            sink.lock().unwrap().push_str(&String::from_utf8_lossy(&b[..n]));
+        }
+    });
+    Serving { child, stdin, err }
+}
+
+impl Serving {
+    /// SIGTERM, then the exit within 20 s (else the child is killed and
+    /// the test fails): (success, stderr). stdin stays open, so only the
+    /// stop can end the loop.
+    fn stop(mut self) -> (bool, String) {
+        use std::time::{Duration, Instant};
+        // SAFETY: a signal to our own child process.
+        unsafe { libc::kill(self.child.id() as i32, libc::SIGTERM) };
+        let t = Instant::now();
+        let st = loop {
+            if let Some(st) = self.child.try_wait().unwrap() {
+                break st;
+            }
+            if t.elapsed() > Duration::from_secs(20) {
+                let _ = self.child.kill();
+                panic!("the host loop did not stop within 20 s of SIGTERM: {}", self.err.lock().unwrap());
+            }
+            std::thread::sleep(Duration::from_millis(20));
+        };
+        std::thread::sleep(Duration::from_millis(50));
+        drop(self.stdin);
+        (st.success(), self.err.lock().unwrap().clone())
+    }
+}
+
+/// HC-21 and HC-24 on the host loop: the refused `Refused` chain of
+/// `refloop.rce` ends; an effect chain that never ends (each result
+/// requests the next effect) is still stopped by SIGTERM, because a drain
+/// performs at most DRAIN_MAX requests and the loop reads its stop between
+/// drains; and so is the same chain continued by the restart's
+/// `interrupted` result when the host opens that D again.
+#[test]
+fn serve_stops_while_effects_keep_coming() {
+    use std::io::Write;
+    use std::time::{Duration, Instant};
+    let program = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/host/refloop.rce");
+    let dir = std::env::temp_dir().join(format!("rce-refloop-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    let m = parse(&refloop()).unwrap();
+    // the refused Refused chain ends on its own
+    let log = dir.join("refused.log");
+    let mut s = serve(&program, &log);
+    s.stdin.write_all(b"Go\n").unwrap();
+    s.stdin.flush().unwrap();
+    let t = Instant::now();
+    while std::fs::read_to_string(&log).unwrap_or_default().matches("\"type\":\"host.Refused\"").count() < 2 {
+        assert!(t.elapsed() < Duration::from_secs(20), "the refusal of RandomDone was not logged");
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    std::thread::sleep(Duration::from_millis(300));
+    let (ok, err) = s.stop();
+    assert!(ok && err.contains("validated") && err.contains("2 refused"), "{err}");
+    let t = std::fs::read_to_string(&log).unwrap();
+    let ev = events(&t);
+    assert_eq!(ev.iter().filter(|e| e.ends_with(r#""type":"Refused"}"#)).count(), 1, "no second Refused");
+    assert_eq!(ev.iter().filter(|e| e.ends_with(r#""type":"host.Refused"}"#)).count(), 2);
+    assert_eq!(ev.iter().filter(|e| e.ends_with(r#""type":"RandomDone"}"#)).count(), 1);
+    replay(&m, &t).unwrap();
+    // an effect chain that never ends, stopped
+    let log = dir.join("endless.log");
+    let mut s = serve(&program, &log);
+    s.stdin.write_all(b"Endless\n").unwrap();
+    s.stdin.flush().unwrap();
+    let t = Instant::now();
+    while std::fs::read_to_string(&log).unwrap_or_default().matches("\"type\":\"RandomDone\"").count() < 3 {
+        assert!(t.elapsed() < Duration::from_secs(20), "the chain did not start");
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    let (ok, err) = s.stop();
+    assert!(ok && err.contains("validated"), "{err}");
+    let before = std::fs::read_to_string(&log).unwrap();
+    replay(&m, &before).unwrap();
+    // opened again: the outstanding request is interrupted, its result
+    // requests the next one, and the stop still ends the loop
+    let s = serve(&program, &log);
+    let t = Instant::now();
+    while std::fs::read_to_string(&log).unwrap().lines().count() < before.lines().count() + 8 {
+        assert!(t.elapsed() < Duration::from_secs(20), "the chain did not continue after the restart");
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    let (ok, err) = s.stop();
+    assert!(ok && err.contains("validated"), "{err}");
+    let after = std::fs::read_to_string(&log).unwrap();
+    assert!(after.contains("\"type\":\"host.Restarted\"") && after.contains(r#""err":"interrupted""#), "the restart interrupted the outstanding request");
+    replay(&m, &after).unwrap();
+    let _ = std::fs::remove_dir_all(&dir);
+}
