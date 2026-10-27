@@ -195,6 +195,13 @@ it, its outputs, or the refusal), and finally the outputs and result of
 `fn main`. These are the lines `emit::observe` computes with the reference
 evaluator, so that a target and the reference can be compared line for
 line.
+A text in an observation line, and in a trap text that quotes one, is
+displayed in double quotes: `\t`, `\r`, `\n`, `\\`, `\"` and `\0` are
+escaped, every other code point below U+0020, U+007F to U+009F and U+0300
+to U+036F is written `\u{h}` in lowercase hexadecimal, and every other
+scalar value is written as itself (`interp::show_text` and the four
+runtimes). The rule reads no Unicode table (6.3 N7), so a toolchain with
+newer Unicode tables displays every text as before.
 
 **How the emitters are tested.** `spec/checker/tests/emit.rs` emits all 62
 programs of `spec/examples/` (the 60 files and the 2 of `26_use_module`) in
@@ -225,6 +232,32 @@ M5 Max (macOS 27.0.1, arm64) with rustc 1.98.1, Python 3.14.5 and Node
 26.11.1: 51 of 51 agree on each of the three targets, 0 refused, 0
 skipped, 299 observation lines per target, and the edge program agrees on
 all three.
+
+**The edges of 6.3.** `spec/checker/tests/emit_edges.rs` runs the module
+`spec/checker/tests/emit_edges.rce`, written from 6.3 and 5.15 alone. It
+declares 76 events, one per operator (signed, unsigned and narrow integer
+arithmetic, shifts and bitwise operators, comparison, f64, f32 and text),
+and 159 examples, one per edge, each stating the outcome the text gives:
+overflow traps that name the exact result, division by zero,
+`i64.MIN / -1` and `i64.MIN % -1`, shifts at and past the width,
+signed zero, subnormals, ties, non-finite results, f32 rounding, float
+text at the notation boundaries, UTF-8 lengths and boundaries, the
+White_Space set and SIZE_LIMIT (for seven outcomes that 6.3 and 5.15
+name without a trap text, the text stated is the reference evaluator's).
+The test appends 500 examples drawn from
+edge pools by a SplitMix64 generator with the recorded seed
+`0x63ed6e20261027` (843 values; the SHA-256 of the generated lines is
+recorded in the test), each with the outcome of a model of 6.3 written in
+the test, and one text holding every 97th Unicode scalar value. `rce
+check` admits the module, so the reference evaluator gives every stated
+outcome. Each target then prints the reference observations, compared
+line for line and byte for byte over the whole output, and, run with
+`--trace`, the same head of D (6.1) after every example. The targets are
+`rust`, `python`, `js`, `scala` (when `scala-cli` is present) and the
+Rust output compiled for `wasm32-wasip1`, run under `wasmtime` or Node's
+`node:wasi`. With `RCE_EMIT_EDGES_OUT=DIR` it also writes the record of
+the run: one row per example and one per target. This samples T9-L at the
+edges of 6.3; it makes no claim for a Form IR target (T9-F).
 
 **Fuel.** Each emitted program counts fuel (6.7) at the reference
 evaluator's charge points: one tick per evaluated expression, per
@@ -643,4 +676,4 @@ its name-free projection (T7) and is a continuous-integration step.
 
 **Read receipt.** Which JSON-RPC error code does the language server return for a request it does not know? (a number)
 
-<!-- body-sha256: 28c8d5a61d12bf7334a77c577728789a5c2687fa7a108568fa32e95f66e85198 -->
+<!-- body-sha256: 0509aad487f41a89571562926e300f6a8f33f4a1ac93fc36bcc26221e667041f -->

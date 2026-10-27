@@ -274,7 +274,7 @@ function mapSet(ps, k, v) {
 }
 function mkMap(pairs) { let ps = []; for (const [k, v] of pairs) ps = mapSet(ps, k, v); return new Mp(ps); }
 function listRepeat(x, n) {
-  if (n instanceof Int && n.v >= 0n && n.v <= 10000000n) { charge(4n + n.v); return new Lst(Array(Number(n.v)).fill(x)); }
+  if (n instanceof Int && n.v >= 0n && n.v <= 10000000n) { charge(4n + n.v); if (n.v > 1000000n) trap("size limit"); return new Lst(Array(Number(n.v)).fill(x)); }
   return trap("bad repeat count");
 }
 const enc = new TextEncoder(), dec = new TextDecoder("utf-8", { fatal: true });
@@ -746,7 +746,7 @@ function listcomp(itv, P, names, body, cond) {
     out.push(body(...args));
   }
   charge(4n + BigInt(out.length));
-  return new Lst(out);
+  return sizeOk(new Lst(out));
 }
 const catch_ = (x, h) => (x instanceof Err ? h(x.e) : x);
 function try_(x, els) {

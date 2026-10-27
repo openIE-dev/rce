@@ -32,7 +32,8 @@ fn white_space_is_the_pinned_set() {
 fn strip_words_toint_use_the_pinned_set() {
     let src = "fn main()\n    emit \"\\u{3000}\\u{a0}a\\u{2009}b\\u{180e}c\\u{85}\".strip()\n    emit \"\\u{3000}a\\u{feff}b\\u{a0}c\".words().len().tostr()\n    emit \"\\u{2003}42\\u{2028}\".toint().tostr()\n";
     let out = run(src, "ws");
-    assert!(out.contains(r#"emit "a\u{2009}b\u{180e}c""#), "{out}");
+    // U+2009 and U+180E are content, displayed as themselves (10.5)
+    assert!(out.contains("emit \"a\u{2009}b\u{180e}c\""), "{out}");
     assert!(out.contains("emit \"2\""), "{out}");
     assert!(out.contains("emit \"42\""), "{out}");
 }

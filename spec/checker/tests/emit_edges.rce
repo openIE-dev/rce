@@ -1,0 +1,444 @@
+module edges
+
+# T9-L differential module (tests/emit_edges.rs). Written from the text of
+# spec 6.3 (N1 to N9) and the method table of 5.15, and from no other
+# source. One event per operator; each example below sends one edge event
+# and states the outcome that 6.3 gives for it, so `rce check` holds the
+# reference evaluator to the text (W-INT-1). The test appends 500 seeded
+# examples, each with the outcome of a model of the same text, and then
+# compares every emitted target with the reference evaluator.
+
+state Lab
+    iv: i64 = 0
+    uv: u64 = 0
+    bv: u8 = 0
+    fv: f64 = 0.0
+    gv: f32 = 0.0 as f32
+    tv: text = ""
+    cv: bool = false
+    nv: usize = 0
+
+# N2 integer arithmetic, i64
+event Add(a: i64, b: i64)
+event Sub(a: i64, b: i64)
+event Mul(a: i64, b: i64)
+event Div(a: i64, b: i64)
+event Rem(a: i64, b: i64)
+event Neg(a: i64)
+event Abs(a: i64)
+event Shl(a: i64, k: i64)
+event Shr(a: i64, k: i64)
+event And(a: i64, b: i64)
+event Or(a: i64, b: i64)
+event Xor(a: i64, b: i64)
+event Not(a: i64)
+event WAdd(a: i64, b: i64)
+event WMul(a: i64, b: i64)
+event SSub(a: i64, b: i64)
+event SMul(a: i64, b: i64)
+event CAdd(a: i64, b: i64)
+event IMin(a: i64, b: i64)
+event IText(a: i64)
+# N2 u64 (uadd usub umul udiv urem) and a narrow static type, u8
+event UAdd(a: u64, b: u64)
+event USub(a: u64, b: u64)
+event UMul(a: u64, b: u64)
+event UDiv(a: u64, b: u64)
+event URem(a: u64, b: u64)
+event UShr(a: u64, k: u64)
+event UNot(a: u64)
+event BAdd(a: u8, b: u8)
+event BSub(a: u8, b: u8)
+event BShl(a: u8, k: u8)
+event BNot(a: u8)
+# N5, N6 comparison
+event Lt(a: i64, b: i64)
+event ULt(a: u64, b: u64)
+event FLt(x: f64, y: f64)
+event FEq(x: f64, y: f64)
+event TLt(s: text, r: text)
+event TEq(s: text, r: text)
+# N3 f64 (F1 to F8), N4 conversions, N5 min and max, float text
+event FAdd(x: f64, y: f64)
+event FSub(x: f64, y: f64)
+event FMul(x: f64, y: f64)
+event FDiv(x: f64, y: f64)
+event MulSub(x: f64, y: f64, z: f64)
+event Sqrt(x: f64)
+event Floor(x: f64)
+event Ceil(x: f64)
+event Round(x: f64)
+event FAbs(x: f64)
+event FMin(x: f64, y: f64)
+event FMax(x: f64, y: f64)
+event ToI(x: f64)
+event ToF(a: i64)
+event UToF(a: u64)
+event FText(x: f64)
+# N3 f32 (f32add f32sub f32mul f32div, tof32)
+event GAdd(x: f64, y: f64)
+event GMul(x: f64, y: f64)
+event GDiv(x: f64, y: f64)
+event ToG(x: f64)
+event GText(x: f64)
+# N7, N8, N9 text
+event Cat(s: text, r: text)
+event BLen(s: text)
+event CLen(s: text)
+event Byte(s: text, k: usize)
+event Slice(s: text, p: usize, q: usize)
+event From(s: text, p: usize)
+event Up(s: text)
+event Low(s: text)
+event Strip(s: text)
+event ToInt(s: text)
+event IsDigit(s: text)
+event IsAlpha(s: text)
+event IsSpace(s: text)
+event Words(s: text)
+event Utf8(bs: List[i64])
+event Big(k: usize)
+event Comp(k: usize)
+event Wide(k: usize)
+
+step Lab on Add(a: a, b: b)
+    iv = a + b
+step Lab on Sub(a: a, b: b)
+    iv = a - b
+step Lab on Mul(a: a, b: b)
+    iv = a * b
+step Lab on Div(a: a, b: b)
+    iv = a / b
+step Lab on Rem(a: a, b: b)
+    iv = a % b
+step Lab on Neg(a: a)
+    iv = -a
+step Lab on Abs(a: a)
+    iv = a.abs()
+step Lab on Shl(a: a, k: k)
+    iv = a << k
+step Lab on Shr(a: a, k: k)
+    iv = a >> k
+step Lab on And(a: a, b: b)
+    iv = a & b
+step Lab on Or(a: a, b: b)
+    iv = a | b
+step Lab on Xor(a: a, b: b)
+    iv = a ^ b
+step Lab on Not(a: a)
+    iv = ~a
+step Lab on WAdd(a: a, b: b)
+    iv = a.wrapping_add(b)
+step Lab on WMul(a: a, b: b)
+    iv = a.wrapping_mul(b)
+step Lab on SSub(a: a, b: b)
+    iv = a.saturating_sub(b)
+step Lab on SMul(a: a, b: b)
+    iv = a.saturating_mul(b)
+step Lab on CAdd(a: a, b: b)
+    cv = a.checked_add(b).isnone()
+step Lab on IMin(a: a, b: b)
+    iv = a.min(b)
+step Lab on IText(a: a)
+    tv = a.tostr()
+step Lab on UAdd(a: a, b: b)
+    uv = a + b
+step Lab on USub(a: a, b: b)
+    uv = a - b
+step Lab on UMul(a: a, b: b)
+    uv = a * b
+step Lab on UDiv(a: a, b: b)
+    uv = a / b
+step Lab on URem(a: a, b: b)
+    uv = a % b
+step Lab on UShr(a: a, k: k)
+    uv = a >> k
+step Lab on UNot(a: a)
+    uv = ~a
+step Lab on BAdd(a: a, b: b)
+    bv = a + b
+step Lab on BSub(a: a, b: b)
+    bv = a - b
+step Lab on BShl(a: a, k: k)
+    bv = a << k
+step Lab on BNot(a: a)
+    bv = ~a
+step Lab on Lt(a: a, b: b)
+    cv = a < b
+step Lab on ULt(a: a, b: b)
+    cv = a < b
+step Lab on FLt(x: x, y: y)
+    cv = x < y
+step Lab on FEq(x: x, y: y)
+    cv = x == y
+step Lab on TLt(s: s, r: r)
+    cv = s < r
+step Lab on TEq(s: s, r: r)
+    cv = s == r
+step Lab on FAdd(x: x, y: y)
+    fv = x + y
+step Lab on FSub(x: x, y: y)
+    fv = x - y
+step Lab on FMul(x: x, y: y)
+    fv = x * y
+step Lab on FDiv(x: x, y: y)
+    fv = x / y
+step Lab on MulSub(x: x, y: y, z: z)
+    fv = x * y - z
+step Lab on Sqrt(x: x)
+    fv = x.sqrt()
+step Lab on Floor(x: x)
+    fv = x.floor()
+step Lab on Ceil(x: x)
+    fv = x.ceil()
+step Lab on Round(x: x)
+    fv = x.round()
+step Lab on FAbs(x: x)
+    fv = x.abs()
+step Lab on FMin(x: x, y: y)
+    fv = x.min(y)
+step Lab on FMax(x: x, y: y)
+    fv = x.max(y)
+step Lab on ToI(x: x)
+    iv = x as i64
+step Lab on ToF(a: a)
+    fv = a as f64
+step Lab on UToF(a: a)
+    fv = a as f64
+step Lab on FText(x: x)
+    tv = x.tostr()
+step Lab on GAdd(x: x, y: y)
+    gv = (x as f32) + (y as f32)
+step Lab on GMul(x: x, y: y)
+    gv = (x as f32) * (y as f32)
+step Lab on GDiv(x: x, y: y)
+    gv = (x as f32) / (y as f32)
+step Lab on ToG(x: x)
+    gv = x as f32
+step Lab on GText(x: x)
+    tv = (x as f32).tostr()
+step Lab on Cat(s: s, r: r)
+    tv = s + r
+step Lab on BLen(s: s)
+    nv = s.len_bytes()
+step Lab on CLen(s: s)
+    nv = s.len_chars()
+step Lab on Byte(s: s, k: k)
+    bv = s[k]
+step Lab on Slice(s: s, p: p, q: q)
+    tv = s[p:q]
+step Lab on From(s: s, p: p)
+    tv = s[p:]
+step Lab on Up(s: s)
+    tv = s.upper()
+step Lab on Low(s: s)
+    tv = s.lower()
+step Lab on Strip(s: s)
+    tv = s.strip()
+step Lab on ToInt(s: s)
+    iv = s.toint()
+step Lab on IsDigit(s: s)
+    cv = s.isdigit()
+step Lab on IsAlpha(s: s)
+    cv = s.isalpha()
+step Lab on IsSpace(s: s)
+    cv = s.isspace()
+step Lab on Words(s: s)
+    nv = s.words().len()
+step Lab on Utf8(bs: bs)
+    tv = bs.utf8()
+step Lab on Big(k: k)
+    nv = [0; k].len()
+step Lab on Comp(k: k)
+    nv = [i for i in 0..k].len()
+step Lab on Wide(k: k)
+    nv = "".join(["ab" for _i in 0..k]).len_chars()
+
+# ---- N2: checked i64 arithmetic; the trap names the exact result and the static type
+example Add(a: 9223372036854775807, b: 1) -> refused: trap("overflow: 9223372036854775808 is outside i64")
+example Sub(a: -9223372036854775807 - 1, b: 1) -> refused: trap("overflow: -9223372036854775809 is outside i64")
+example Mul(a: 9223372036854775807, b: 9223372036854775807) -> refused: trap("overflow: 85070591730234615847396907784232501249 is outside i64")
+example Mul(a: -9223372036854775807 - 1, b: -1) -> refused: trap("overflow: 9223372036854775808 is outside i64")
+example Add(a: 9223372036854775806, b: 1) -> iv == 9223372036854775807
+# `/` truncates toward zero; `%` has the sign of the dividend
+example Div(a: -7, b: 2) -> iv == -3
+example Div(a: 7, b: -2) -> iv == -3
+example Rem(a: -3, b: 2) -> iv == -1
+example Rem(a: 7, b: -3) -> iv == 1
+example Div(a: 1, b: 0) -> refused: trap("division by zero")
+example Rem(a: 1, b: 0) -> refused: trap("division by zero")
+# i64.MIN / -1 and i64.MIN % -1: the quotient is out of range
+example Div(a: -9223372036854775807 - 1, b: -1) -> refused: trap("overflow: 9223372036854775808 is outside i64")
+example Rem(a: -9223372036854775807 - 1, b: -1) -> refused: trap("overflow: 9223372036854775808 is outside i64")
+example Neg(a: -9223372036854775807 - 1) -> refused: trap("overflow: 9223372036854775808 is outside i64")
+example Abs(a: -9223372036854775807 - 1) -> refused: trap("overflow: 9223372036854775808 is outside i64")
+# shifts: n >= width or n < 0 trap; `>>` is arithmetic for signed types
+example Shl(a: 1, k: 64) -> refused: trap("shift amount out of range")
+example Shl(a: 1, k: -1) -> refused: trap("shift amount out of range")
+example Shr(a: 1, k: 64) -> refused: trap("shift amount out of range")
+example Shl(a: 1, k: 62) -> iv == 4611686018427387904
+example Shr(a: -8, k: 1) -> iv == -4
+example Shr(a: -9223372036854775807 - 1, k: 63) -> iv == -1
+# bitwise operators act on the two's-complement representation
+example Not(a: 0) -> iv == -1
+example Not(a: -9223372036854775807 - 1) -> iv == 9223372036854775807
+example And(a: -1, b: 255) -> iv == 255
+example Xor(a: -1, b: 9223372036854775807) -> iv == -9223372036854775807 - 1
+# modular and clamped arithmetic are explicit methods and never trap
+example WAdd(a: 9223372036854775807, b: 1) -> iv == -9223372036854775807 - 1
+example WMul(a: 4611686018427387904, b: 2) -> iv == -9223372036854775807 - 1
+example SSub(a: -9223372036854775807 - 1, b: 1) -> iv == -9223372036854775807 - 1
+example SMul(a: 9223372036854775807, b: -2) -> iv == -9223372036854775807 - 1
+example CAdd(a: 9223372036854775807, b: 1) -> cv
+# ---- N2: u64 is exact on [0, 2^64); a value at or above 2^63 is carried exactly
+example USub(a: 18446744073709551615, b: 1) -> uv == 18446744073709551614
+example UAdd(a: 18446744073709551615, b: 1) -> refused: trap("overflow: 18446744073709551616 is outside u64")
+example USub(a: 0, b: 1) -> refused: trap("overflow: -1 is outside u64")
+example UMul(a: 18446744073709551615, b: 18446744073709551615) -> refused: trap("overflow: 340282366920938463426481119284349108225 is outside u64")
+example UDiv(a: 18446744073709551615, b: 2) -> uv == 9223372036854775807
+example URem(a: 18446744073709551615, b: 0) -> refused: trap("division by zero")
+# `>>` is logical for unsigned types; `~` acts on the static type's width
+example UShr(a: 18446744073709551615, k: 63) -> uv == 1
+example UShr(a: 1, k: 64) -> refused: trap("shift amount out of range")
+example UNot(a: 0) -> uv == 18446744073709551615
+example ULt(a: 9223372036854775807, b: 9223372036854775808) -> cv
+# the static type's range, not i64's, bounds a narrow type
+example BAdd(a: 200, b: 100) -> refused: trap("overflow: 300 is outside u8")
+example BSub(a: 0, b: 1) -> refused: trap("overflow: -1 is outside u8")
+example BShl(a: 1, k: 8) -> refused: trap("shift amount out of range")
+example BNot(a: 0) -> bv == 255
+# ---- N5, N6: integer order is exact; float `==` is IEEE comparison; text by code point
+example Lt(a: -9223372036854775807 - 1, b: 9223372036854775807) -> cv
+example IMin(a: 3, b: -3) -> iv == -3
+example FEq(x: -0.0, y: 0.0) -> cv
+example FLt(x: -0.0, y: 0.0) -> not cv
+example FLt(x: 5e-324, y: 1e-323) -> cv
+example TLt(s: "\u{FFFF}", r: "\u{10000}") -> cv
+example TLt(s: "\u{E000}", r: "\u{1F600}") -> cv
+example TLt(s: "Z", r: "a") -> cv
+example TEq(s: "\u{E9}", r: "e\u{301}") -> not cv
+# ---- N3 F1: correctly rounded, roundTiesToEven
+example FAdd(x: 0.1, y: 0.2) -> fv == 0.30000000000000004
+example FDiv(x: 1.0, y: 3.0) -> fv == 0.3333333333333333
+example Sqrt(x: 2.0) -> fv == 1.4142135623730951
+example FAdd(x: 1e16, y: 1.0) -> fv == 10000000000000000.0
+example FAdd(x: 1e16, y: 3.0) -> fv == 10000000000000004.0
+example FAdd(x: 9007199254740993.0, y: 0.0) -> fv == 9007199254740992.0
+# F2: one rounding per operator, no contraction to a fused multiply-add
+example MulSub(x: 0.1, y: 10.0, z: 1.0) -> fv == 0.0
+# F3: subnormals are kept, never flushed
+example FMul(x: 5e-324, y: 3.0) -> fv == 1.5e-323
+example FMul(x: 5e-324, y: 0.5) -> fv == 0.0
+example FMul(x: 2.2250738585072014e-308, y: 0.5) -> fv == 1.1125369292536007e-308
+example FSub(x: 2.2250738585072014e-308, y: 2.225073858507201e-308) -> fv == 5e-324
+example FDiv(x: 2.2250738585072014e-308, y: 4503599627370496.0) -> fv == 5e-324
+# F4: a non-finite result traps
+example FMul(x: 1e308, y: 10.0) -> refused: trap("non-finite float")
+example FDiv(x: 1.0, y: 0.0) -> refused: trap("non-finite float")
+example FDiv(x: 0.0, y: 0.0) -> refused: trap("non-finite float")
+example Sqrt(x: -1.0) -> refused: trap("non-finite float")
+example FAdd(x: 1.7976931348623157e308, y: 1e291) -> fv == 1.7976931348623157e308
+example FAdd(x: 1.7976931348623157e308, y: 1e292) -> refused: trap("non-finite float")
+# F6: signed zero is a distinct state; `tostr` prints -0
+example FMul(x: 0.0, y: -1.0) -> fv.tostr() == "-0"
+example FAdd(x: -0.0, y: 0.0) -> fv.tostr() == "0"
+example FAdd(x: -0.0, y: -0.0) -> fv.tostr() == "-0"
+example Sqrt(x: -0.0) -> fv.tostr() == "-0"
+# F8: floor, ceil, round (ties away from zero), abs; none of these rounds
+example Round(x: 2.5) -> fv == 3.0
+example Round(x: -2.5) -> fv == -3.0
+example Round(x: 0.49999999999999994) -> fv == 0.0
+example Round(x: 4503599627370497.0) -> fv == 4503599627370497.0
+example Round(x: -0.4) -> fv.tostr() == "-0"
+example Floor(x: -0.5) -> fv == -1.0
+example Ceil(x: -0.5) -> fv.tostr() == "-0"
+example FAbs(x: -0.0) -> fv.tostr() == "0"
+# N5: min and max by IEEE order; on a tie the receiver is returned
+example FMin(x: -0.0, y: 0.0) -> fv.tostr() == "-0"
+example FMin(x: 0.0, y: -0.0) -> fv.tostr() == "0"
+example FMax(x: 0.0, y: -0.0) -> fv.tostr() == "0"
+example FMax(x: -0.0, y: 0.0) -> fv.tostr() == "-0"
+example FMax(x: 1e300, y: 1e-300) -> fv == 1e300
+# N4: int to f64 is exact up to 2^53, then nearest even; f64 to int truncates and traps
+example ToF(a: 9007199254740993) -> fv == 9007199254740992.0
+example ToF(a: 9007199254740995) -> fv == 9007199254740996.0
+example ToF(a: 9223372036854775807) -> fv == 9223372036854775808.0
+example UToF(a: 18446744073709551615) -> fv == 18446744073709551616.0
+example ToI(x: -2.9) -> iv == -2
+example ToI(x: -0.5) -> iv == 0
+example ToI(x: -9223372036854775808.0) -> iv == -9223372036854775807 - 1
+example ToI(x: 9223372036854775808.0) -> refused: trap("overflow: 9223372036854775808 is outside i64")
+# float text: shortest round trip; decimal for 1e-5 <= |x| < 1e16, else d.ddde+-N
+example FText(x: 1e16) -> tv == "1e+16"
+example FText(x: 9999999999999998.0) -> tv == "9999999999999998"
+example FText(x: 1e-5) -> tv == "0.00001"
+example FText(x: 9.999999999999999e-6) -> tv == "9.999999999999999e-6"
+example FText(x: 1.5e-7) -> tv == "1.5e-7"
+example FText(x: 1e21) -> tv == "1e+21"
+example FText(x: 1e300) -> tv == "1e+300"
+example FText(x: 5e-324) -> tv == "5e-324"
+example FText(x: 123456789012345680.0) -> tv == "1.2345678901234568e+17"
+example FText(x: -0.0) -> tv == "-0"
+example FText(x: 100.0) -> tv == "100"
+# ---- N3 f32: operands and result rounded to binary32; a result outside its range traps
+example GMul(x: 0.1, y: 3.0) -> gv as f64 == 0.30000001192092896
+example GAdd(x: 16777216.0, y: 1.0) -> gv as f64 == 16777216.0
+example GMul(x: 3e38, y: 2.0) -> refused: trap("non-finite float")
+example GDiv(x: 1.0, y: 0.0) -> refused: trap("non-finite float")
+example ToG(x: 1e-45) -> gv as f64 == 1.401298464324817e-45
+example ToG(x: 1e-46) -> gv as f64 == 0.0
+example ToG(x: 3.4028234663852886e38) -> gv as f64 == 3.4028234663852886e38
+example GText(x: 0.1) -> tv == "0.1"
+example GText(x: -0.0) -> tv == "-0"
+# ---- N7: text is UTF-8; len, indexing and slicing count bytes
+example BLen(s: "\u{1F600}") -> nv == 4
+example CLen(s: "\u{1F600}") -> nv == 1
+example BLen(s: "h\u{E9}llo") -> nv == 6
+example Byte(s: "h\u{E9}llo", k: 1) -> bv == 195
+example Slice(s: "h\u{E9}llo", p: 1, q: 3) -> tv == "\u{E9}"
+example Slice(s: "h\u{E9}llo", p: 0, q: 2) -> refused: trap("not a char boundary")
+example From(s: "\u{1F600}x", p: 4) -> tv == "x"
+example From(s: "\u{1F600}x", p: 2) -> refused: trap("not a char boundary")
+example Cat(s: "a\u{0}b", r: "\u{10FFFF}") -> tv == "a\u{0}b\u{10FFFF}"
+# case mapping and class tests are ASCII only
+example Up(s: "\u{DF}\u{E9}a") -> tv == "\u{DF}\u{E9}A"
+example Low(s: "\u{130}A") -> tv == "\u{130}a"
+example IsDigit(s: "\u{663}") -> not cv
+example IsDigit(s: "0123456789") -> cv
+example IsAlpha(s: "\u{E9}") -> not cv
+example IsSpace(s: " \t\n\u{C}\r") -> cv
+example IsSpace(s: "\u{B}") -> not cv
+example IsSpace(s: "\u{A0}") -> not cv
+# strip, words and toint: exactly the 25 White_Space code points of Unicode 18.0.0
+example Strip(s: "\u{85}\u{A0}\u{1680}\u{2000}\u{200A}\u{2028}\u{2029}\u{202F}\u{205F}\u{3000}a\u{9}\u{A}\u{B}\u{C}\u{D}\u{20}") -> tv == "a"
+example Strip(s: "\u{1C}a\u{1F}") -> tv == "\u{1C}a\u{1F}"
+example Strip(s: "\u{200B}a\u{FEFF}") -> tv == "\u{200B}a\u{FEFF}"
+example Strip(s: "\u{180E}a") -> tv == "\u{180E}a"
+example Words(s: "a\u{85}b\u{3000}c\u{200B}d") -> nv == 3
+example ToInt(s: "\u{3000} -42\u{85}") -> iv == -42
+example ToInt(s: "9223372036854775808") -> refused: trap("overflow: 9223372036854775808 is outside i64")
+example ToInt(s: "-9223372036854775808") -> iv == -9223372036854775807 - 1
+# ---- 5.15: bytes to text; never substitutes a character
+example Utf8(bs: [239, 187, 191, 65]) -> tv == "\u{FEFF}A"
+# ---- N8: indexing and slicing are total or trap; no position is moved
+example Byte(s: "abc", k: 3) -> refused: trap("index 3 out of range")
+example Slice(s: "abc", p: 1, q: 4) -> refused: trap("slice index out of range")
+example Slice(s: "abc", p: 2, q: 1) -> refused: trap("slice bounds reversed")
+example Slice(s: "abc", p: 3, q: 3) -> tv == ""
+# ---- N9: a list built by any operation is at most 1,000,000 elements
+example Big(k: 1000000) -> nv == 1000000
+example Big(k: 1000001) -> refused: trap("size limit")
+example Comp(k: 1000000) -> nv == 1000000
+example Comp(k: 1000001) -> refused: trap("size limit")
+# a text is measured in code points
+example Wide(k: 500000) -> nv == 1000000
+example Wide(k: 500001) -> refused: trap("size limit")
+# ---- outcomes the text names without a trap text (5.15 utf8, toint on a
+# non-integer): the trap text is the reference evaluator's
+example Utf8(bs: [237, 160, 128]) -> refused: trap("utf8: invalid UTF-8")
+example Utf8(bs: [192, 128]) -> refused: trap("utf8: invalid UTF-8")
+example Utf8(bs: [244, 144, 128, 128]) -> refused: trap("utf8: invalid UTF-8")
+example Utf8(bs: [256]) -> refused: trap("utf8: byte outside 0..255")
+example ToInt(s: "\u{663}") -> refused: trap("not an integer: \"\u{663}\"")
+example ToInt(s: "1_000") -> refused: trap("not an integer: \"1_000\"")
+example ToInt(s: "170141183460469231731687303715884105728") -> refused: trap("not an integer: \"170141183460469231731687303715884105728\"")

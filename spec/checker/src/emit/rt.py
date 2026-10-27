@@ -360,6 +360,7 @@ def mk_map(pairs):
 def list_repeat(x, n):
     if type(n) is Int and 0 <= n.v <= 10000000:
         charge(4 + n.v)
+        if n.v > 1000000: trap("size limit")
         return Lst([x] * n.v)
     trap("bad repeat count")
 
@@ -876,7 +877,7 @@ def listcomp(itv, P, names, body, cond):
         if cond is not None and not truthy(cond(*args)): continue
         out.append(body(*args))
     charge(4 + len(out))
-    return Lst(out)
+    return size_ok(Lst(out))
 
 def catch_(x, h): return h(x.e) if type(x) is Err else x
 def try_(x, els):

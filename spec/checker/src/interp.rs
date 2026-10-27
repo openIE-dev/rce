@@ -153,7 +153,7 @@ impl V {
             V::Int(v, _) => v.to_string(),
             V::F(f) => float_text(*f),
             V::Bool(b) => b.to_string(),
-            V::Text(t) => format!("{t:?}"),
+            V::Text(t) => show_text(t),
             V::Unit => "()".into(),
             V::Tuple(v) => format!(
                 "({})",
@@ -565,6 +565,35 @@ pub fn shortest_e(x: f64) -> (String, i32) {
     let (cd, cex) = split(&format!("{:.*e}", n - 1, a));
     let back: f64 = format!("{}e{}", cd, cex - (n as i32 - 1)).parse().unwrap();
     if back == a { (cd, cex) } else { (sd, sex) }
+}
+
+/// The display of a text in observations, `rce run` and trap texts (10.5):
+/// in double quotes, with `\t`, `\r`, `\n`, `\\`, `\"` and `\0` escaped,
+/// every other code point below U+0020, U+007F to U+009F and U+0300 to
+/// U+036F written `\u{h}` (lowercase hexadecimal), and every other scalar
+/// value as itself. The rule is fixed here and in the four runtimes; it
+/// reads no Unicode table, as 6.3 N7 requires (Rust's `{:?}` escapes by the
+/// toolchain's printable and grapheme-extend tables).
+pub fn show_text(t: &str) -> String {
+    let mut o = String::with_capacity(t.len() + 2);
+    o.push('"');
+    for c in t.chars() {
+        let k = c as u32;
+        match c {
+            '\t' => o.push_str("\\t"),
+            '\r' => o.push_str("\\r"),
+            '\n' => o.push_str("\\n"),
+            '\\' => o.push_str("\\\\"),
+            '"' => o.push_str("\\\""),
+            '\0' => o.push_str("\\0"),
+            _ if k < 0x20 || (0x7f..=0x9f).contains(&k) || (0x300..=0x36f).contains(&k) => {
+                o.push_str(&format!("\\u{{{k:x}}}"))
+            }
+            _ => o.push(c),
+        }
+    }
+    o.push('"');
+    o
 }
 
 /// 6.3 N3: the one canonical JSON form of a float, used for hashes and for
@@ -1906,7 +1935,7 @@ impl<'a> Interp<'a> {
             (Text(s), "toint") => s
                 .trim_matches(is_ws)
                 .parse::<i128>()
-                .map_err(|_| Flow::Trap(format!("not an integer: {s:?}")))
+                .map_err(|_| Flow::Trap(format!("not an integer: {}", show_text(&s))))
                 .and_then(|v| chk(v, "i64")),
             (Text(s), "join") => match &a[0] {
                 List(xs) => Ok(Text(

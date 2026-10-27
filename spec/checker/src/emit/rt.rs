@@ -210,7 +210,22 @@ pub fn float_text(x: f64) -> String {
     let m = if digits.len() > 1 { format!("{}.{}", &digits[..1], &digits[1..]) } else { digits.clone() };
     if ex >= 0 { format!("{sign}{m}e+{ex}") } else { format!("{sign}{m}e{ex}") }
 }
-fn rdebug(s: &str) -> String { format!("{s:?}") }
+// the display of a text (interp::show_text, 10.5): a fixed escape set, no Unicode table (N7)
+fn rdebug(s: &str) -> String {
+    let mut o = String::with_capacity(s.len() + 2);
+    o.push('"');
+    for c in s.chars() {
+        let k = c as u32;
+        match c {
+            '\t' => o.push_str("\\t"), '\r' => o.push_str("\\r"), '\n' => o.push_str("\\n"),
+            '\\' => o.push_str("\\\\"), '"' => o.push_str("\\\""), '\0' => o.push_str("\\0"),
+            _ if k < 0x20 || (0x7f..=0x9f).contains(&k) || (0x300..=0x36f).contains(&k) => o.push_str(&format!("\\u{{{k:x}}}")),
+            _ => o.push(c),
+        }
+    }
+    o.push('"');
+    o
+}
 pub fn show(v: &V) -> String {
     let j = |xs: &[V]| xs.iter().map(show).collect::<Vec<_>>().join(", ");
     match v {
@@ -375,7 +390,7 @@ pub fn mk_map(ps: Vec<(V, V)>) -> R<V> {
     Ok(V::Map(m))
 }
 pub fn list_repeat(x: V, n: V) -> R<V> {
-    match n { V::Int(k, _) if (0..=10_000_000).contains(&k) => { charge(4 + k)?; Ok(V::List(vec![x; k as usize])) } _ => trap("bad repeat count") }
+    match n { V::Int(k, _) if (0..=10_000_000).contains(&k) => { charge(4 + k)?; if k > 1_000_000 { return trap("size limit"); } Ok(V::List(vec![x; k as usize])) } _ => trap("bad repeat count") }
 }
 pub fn index(c: V, i: V) -> R<V> {
     match (c, i) {
@@ -529,7 +544,7 @@ fn builtin_raw(r: V, m: &str, a: Vec<V>) -> R<(V, Option<V>)> {
         (Text(s), "contains") => match a0() { Text(d) => Bool(s.contains(d.as_str())), _ => return trap("contains") },
         (Text(s), "startswith") => match a0() { Text(d) => Bool(s.starts_with(d.as_str())), _ => return trap("startswith") },
         (Text(s), "endswith") => match a0() { Text(d) => Bool(s.ends_with(d.as_str())), _ => return trap("endswith") },
-        (Text(s), "toint") => s.trim_matches(is_ws).parse::<i128>().map_err(|_| Flow::Trap(format!("not an integer: {s:?}"))).and_then(|v| chk(v, "i64"))?,
+        (Text(s), "toint") => s.trim_matches(is_ws).parse::<i128>().map_err(|_| Flow::Trap(format!("not an integer: {}", rdebug(&s)))).and_then(|v| chk(v, "i64"))?,
         (Text(s), "join") => match a0() { List(xs) => Text(xs.iter().map(|x| if let Text(t) = x { t.clone() } else { show(x) }).collect::<Vec<_>>().join(&s)), _ => return trap("join") },
         (List(xs), "len") => Int(xs.len() as i128, "usize"),
         (List(xs), "isempty") => Bool(xs.is_empty()),
@@ -724,7 +739,7 @@ pub fn listcomp(itv: V, p: P, body: &dyn Fn(&M) -> R<V>, cond: Option<&dyn Fn(&M
         out.push(body(&b)?);
     }
     charge(4 + out.len() as i128)?;
-    Ok(V::List(out))
+    size_ok(V::List(out))
 }
 pub fn try_(x: V, els: Option<&dyn Fn() -> R<V>>) -> R<V> {
     match x {

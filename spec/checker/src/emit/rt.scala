@@ -344,7 +344,7 @@ def map_set(ps: Vector[(Any, Any)], k: Any, v: Any): Vector[(Any, Any)] = {
 }
 def mk_map(pairs: Vector[Any]): Mp = { var ps = Vector[(Any, Any)](); for (p <- pairs) ps = map_set(ps, at(p, 0), at(p, 1)); Mp(ps) }
 def list_repeat(x: Any, n: Any): Lst = n match {
-  case i: I if i.v >= 0 && i.v <= 10000000 => charge(BigInt(4) + i.v); Lst(Vector.fill(i.v.toInt)(x))
+  case i: I if i.v >= 0 && i.v <= 10000000 => charge(BigInt(4) + i.v); if (i.v > 1000000) trap("size limit"); Lst(Vector.fill(i.v.toInt)(x))
   case _ => trap("bad repeat count")
 }
 def u8s(s: String): Array[Byte] = s.getBytes(UTF_8)
@@ -843,7 +843,7 @@ def listcomp(itv: Any, P: Any, names: Vector[Any], body: Vector[Any] => Any, con
     }
   }
   charge(BigInt(4) + out.length)
-  Lst(out.toVector)
+  size_ok(Lst(out.toVector)).asInstanceOf[Lst]
 }
 def catch_(x: Any, h: Any => Any): Any = x match { case e: Err => h(e.e); case _ => x }
 def try_(x: Any, els: () => Any): Any = x match {
