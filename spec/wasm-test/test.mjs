@@ -18,9 +18,14 @@ parser.setLanguage(await Language.load(join(spec, "../tree-sitter/tree-sitter-rc
 await init({ module_or_path: readFileSync(join(spec, "checker-wasm/pkg/rce_spec_check_wasm_bg.wasm")) });
 
 let fails = 0, runs = 0;
+// per component: a label beginning with "ts" is a grammar check (tree-sitter-rce.wasm),
+// every other label a checker check (checker-wasm/pkg)
+const by = { grammar: { runs: 0, fails: 0 }, checker: { runs: 0, fails: 0 } };
 const expect = (what, f, ok, want) => {
   runs++;
-  if (ok !== want) { fails++; console.log(`FAIL ${what}: ${f.startsWith(spec) ? f.slice(spec.length + 1) : f} (got ${ok ? "accept" : "refuse"})`); }
+  const c = by[what.startsWith("ts") ? "grammar" : "checker"];
+  c.runs++;
+  if (ok !== want) { fails++; c.fails++; console.log(`FAIL ${what}: ${f.startsWith(spec) ? f.slice(spec.length + 1) : f} (got ${ok ? "accept" : "refuse"})`); }
 };
 const parses = (src) => !parser.parse(src).rootNode.hasError;
 const checks = (src) => JSON.parse(check(src)).ok;
@@ -54,5 +59,6 @@ for (const label of ["0.5", "0.6", "0.7", "9.9"]) expect("one language", `label 
 expect("stdlib", "use enc", checks("module demo\nuse enc\n\nfn main()\n    let b = [104, 105]\n    emit enc.b64_encode(&b, false, true)\n"), true);
 expect("stdlib", "use of an unknown module is refused", checks("module demo\nuse nothere\n\nfn main()\n    emit 1\n"), false);
 
+console.log(`wasm checks by component: grammar (tree-sitter-rce.wasm) ${by.grammar.runs - by.grammar.fails}/${by.grammar.runs}, checker (checker-wasm/pkg) ${by.checker.runs - by.checker.fails}/${by.checker.runs}`);
 console.log(`${runs - fails}/${runs} wasm checks passed`);
 process.exit(fails ? 1 : 0);
