@@ -6,10 +6,10 @@
 #
 # Steps (each log and exit status goes to DIR):
 #   tests                      spec/checker: the test binaries of cargo test --release, run by
-#                              scripts/verify-tests.py from the files of one build (hard links,
-#                              and the target directory's lock while a test runs target/release/rce),
-#                              with TMPDIR private to the run
-#   spec_check                 spec/checker: rce-spec-check, built and run the same way
+#                              scripts/verify-tests.py from hard links made when the build ends
+#                              (and under the target directory's lock while a test runs
+#                              target/release/rce), with TMPDIR private to the run
+#   spec_check                 spec/checker: rce-spec-check, built and run from a hard link
 #   spec_check_three_parsers   the same with --features tree-sitter
 #   wasm                       spec/wasm-test: npm ci && node test.mjs
 #   lean                       scripts/lean-audit.sh when lake is on PATH; otherwise

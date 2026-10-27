@@ -37,7 +37,7 @@ REPO = "https://github.com/openIE-dev/rce"
 # trees whose content the checks read; a run commit off main is a run of main
 # only when every one of them equals the tree at that main commit
 TESTED_TREES = ["spec/checker", "spec/lean", "spec/examples", "spec/conc06", "spec/conc06b",
-                "spec/data", "spec/book", "spec/checker-wasm", "tree-sitter"]
+                "spec/data", "spec/book", "spec/checker-wasm", "tree-sitter", "stdlib/lib"]
 SITE_KEYS = ["spec_notebook_draft", "spec_notebook_commit"]
 EXTERNAL_TOOLS = ["rustc", "python3", "node", "tree-sitter", "scala-cli", "lake", "java", "uv",
                   "sqlite3", "timeout", "go"]
@@ -462,8 +462,8 @@ def wasm_builds():
 
 
 RUN_DEF = {
-    "tests": "the test binaries that cargo test --release builds in spec/checker (default features), run by scripts/verify-tests.py tests from hard links to the files of one build, with the target directory's lock held while a target that runs target/release/rce runs, and TMPDIR private to the run; doc tests through cargo test --release --doc. Sums over every 'test result:' line; a test that returns early because an external tool is absent is reported as passed (see toolchains.external_tools_on_path)",
-    "spec_check": "rce-spec-check built with cargo build --release and run in spec/checker by scripts/verify-tests.py bin, with the target directory's lock held",
+    "tests": "the test binaries that cargo test --release builds in spec/checker (default features), run by scripts/verify-tests.py tests from hard links made when the build ends, with the target directory's lock held (and this build's rce binary at target/release/rce) while a target that runs target/release/rce runs, and TMPDIR private to the run; doc tests through cargo test --release --doc. Sums over every 'test result:' line; a test that returns early because an external tool is absent is reported as passed (see toolchains.external_tools_on_path)",
+    "spec_check": "rce-spec-check built with cargo build --release and run in spec/checker from a hard link by scripts/verify-tests.py bin",
     "spec_check_three_parsers": "the same with --features tree-sitter",
     "wasm": "npm ci && node test.mjs in spec/wasm-test, over the committed builds named in wasm_builds; a check whose label begins with 'ts' is a grammar check, every other check a checker check",
     "lean": "lake build of spec/lean and the axiom audit spec/lean/audit/Audit.lean (scripts/lean-audit.sh, or the CI job of .github/workflows/lean.yml that runs the same two commands): every theorem constant of a module under RCE uses only propext, Quot.sound and Classical.choice; sorryAx is not among them",
@@ -483,7 +483,9 @@ def runs_summary(runs):
         b = json.loads(run_file(runs, "tests.binaries.json") or "null")
         iso = None
         if b:
-            iso = {"executables": b["executables"], "targets_run_under_lock": b["targets_run_under_lock"],
+            iso = {"executables": b["executables"], "build_attempts": b.get("build_attempts"),
+                   "targets_run_under_lock": b["targets_run_under_lock"],
+                   "rce_binary_placed_at_target_for_locked_targets": b["rce_binary"].get("placed_at_target_for_locked_targets"),
                    "rce_binary_embeds_run_commit": b["rce_binary"]["embeds_run_commit"],
                    "rce_binary_unchanged_while_locked": b["rce_binary"]["unchanged_while_locked"],
                    "hard_links_unchanged_at_end": b["hard_links_unchanged_at_end"],
@@ -500,8 +502,12 @@ def runs_summary(runs):
         if s is not None:
             p = parse_spec_check(s)
             st = run_status(runs, step)
-            ok = st == 0 and p["all_ok"] and p["grammar_conflicts_total"] == 0 and len(p["lalr_tables"]) > 0
-            res[step] = {"definition": RUN_DEF[step], "exit_status": st, "outcome": outcome(ok, True), **p}
+            bj = json.loads(run_file(runs, step + ".binary.json") or "null")
+            same = bool(bj and bj.get("unchanged_at_end"))
+            ok = (st == 0 and p["all_ok"] and p["grammar_conflicts_total"] == 0 and len(p["lalr_tables"]) > 0
+                  and same)
+            res[step] = {"definition": RUN_DEF[step], "exit_status": st, "outcome": outcome(ok, True),
+                         "binary_unchanged_at_end": same, **p}
         else:
             res[step] = {"definition": RUN_DEF[step], "outcome": "not run"}
     w = run_file(runs, "wasm.log")
