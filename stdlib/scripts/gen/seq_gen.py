@@ -177,12 +177,12 @@ for _ in range(25):
     xs = sorted(rints(rlen(), -6, 6)); x = r.randint(-7, 7)
     a = list(xs); bisect.insort_left(a, x); c = list(xs); bisect.insort_right(c, x)
     assert a == c
-    rows.append('check t_ins(%s, %d, %s)' % (il(xs), x, il(a)))
+    rows.append('check t_ins(%s, %d, %s, %d, %d)' % (il(xs), x, il(a), bisect.bisect_left(xs, x), bisect.bisect_right(xs, x)))
 for _ in range(25):
     xs = sorted([(r.randint(0, 4), r.randint(0, 99)) for _ in range(rlen())], key=kp)
     x = (r.randint(0, 5), 100 + r.randint(0, 99))
     a = list(xs); bisect.insort_left(a, x, key=kp); c = list(xs); bisect.insort_right(c, x, key=kp)
-    rows.append('check t_insk(%s, (%d, %d), %s, %s)' % (pl(xs), x[0], x[1], pl(a), pl(c)))
+    rows.append('check t_insk(%s, (%d, %d), %s, %s, %d, %d)' % (pl(xs), x[0], x[1], pl(a), pl(c), bisect.bisect_left(xs, x[0], key=kp), bisect.bisect_right(xs, x[0], key=kp)))
 rows = sec('heapq.merge (two lists: sorted and unsorted inputs; many lists and key=: sorted inputs, stable sort otherwise)')
 for i in range(30):
     a = rints(rlen(), -6, 6); c = rints(rlen(), -6, 6)
@@ -199,6 +199,21 @@ for i in range(30):
     wk = list(heapq.merge(*ls, key=k0)) if all(l == sorted(l, key=k0) for l in ls) else sorted(flat, key=k0)
     assert want == sorted(flat) and wk == sorted(flat, key=k0)
     rows.append('check t_merge_all(%s, %s, %s)' % (nest(ls), il(want), il(wk)))
+
+rows = sec('heapq.merge of two sorted streams fed in chunks (seq_merge_step)')
+# A second seeded stream, so that the vectors above stay as they were.
+r2 = random.Random(20261027)
+def cuts2(n):
+    o = []
+    while n > 0:
+        c = min(n, r2.randint(0, 4)); o.append(c); n -= c
+    if r2.random() < 0.3: o.insert(r2.randint(0, len(o)), 0)
+    return o
+for _ in range(40):
+    a = sorted(r2.randint(-6, 6) for _ in range(r2.choice([0, 1, 3, 8, 15])))
+    c = sorted(r2.randint(-6, 6) for _ in range(r2.choice([0, 1, 3, 8, 15])))
+    n = r2.randint(1, 5)
+    rows.append('check t_merge_step(%s, %s, %s, %s, %d, %s)' % (il(a), il(cuts2(len(a))), il(c), il(cuts2(len(c))), n, il(list(heapq.merge(a, c)))))
 
 # ---------------- grouping and transformation ----------------
 rows = sec('itertools.groupby, group by key')
@@ -241,7 +256,8 @@ for _ in range(15):
     n = rlen(); a = rints(n); c = rtexts(n)
     ps = list(zip(a, c)); ua, uc = (list(t) for t in zip(*ps)) if ps else ([], [])
     rows.append('check t_unzip([%s], %s, %s)' % (', '.join('(%d, %s)' % (x, lit(y)) for x, y in ps), il(ua), tl(uc)))
-    rows.append('check t_enum(%s, %s)' % (tl(c), il([i for i, _ in enumerate(c)])))
+    st = 1000 + 7 * len(c)
+    rows.append('check t_enum(%s, %s, %d, %s)' % (tl(c), il([i for i, _ in enumerate(c)]), st, il([i for i, _ in enumerate(c, st)])))
 rows = sec('itertools.chain.from_iterable')
 for _ in range(20):
     ls = [rints(r.choice([0, 0, 1, 3, 6])) for _ in range(r.randint(0, 6))]

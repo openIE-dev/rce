@@ -1,0 +1,36 @@
+# A merge longer than one list (hand written): seq_merge_step merges the
+# even numbers 0, 2, ..., 1,049,998 and the odd numbers 1, 3, ...,
+# 1,049,999 (525,000 each), both arriving in chunks of 105,000, into
+# 1,050,000 elements taken in steps of at most 300,000. A chunk is read
+# only when the last one is used up. Each step continues the previous
+# one, and the steps together are 0, 1, 2, ..., 1,049,999.
+
+fn m_chunk(odd: i64, q: i64) -> List[i64] = [2 * (q * 105000 + i) + odd for i in 0..105000]
+
+fn m_merge() -> bool
+    var qa: i64 = 0
+    var qb: i64 = 0
+    var ba: List[i64] = []
+    var bb: List[i64] = []
+    var expect: i64 = 0
+    var steps: i64 = 0
+    var ok = true
+    var go = true
+    while go bound 100
+        if ba.len() == 0 and qa < 5
+            ba = m_chunk(0, qa)
+            qa += 1
+        if bb.len() == 0 and qb < 5
+            bb = m_chunk(1, qb)
+            qb += 1
+        let st = seq_merge_step(&ba, &bb, qa == 5, qb == 5, 300000)
+        let o = st.0
+        ok = ok and o == [expect + i for i in 0..o.len() as i64]
+        expect += o.len() as i64
+        steps += 1
+        ba = copy(ba[st.1:ba.len()])
+        bb = copy(bb[st.2:bb.len()])
+        go = not (ba.len() == 0 and bb.len() == 0 and qa == 5 and qb == 5)
+    return ok and expect == 1050000 and steps > 3
+
+check m_merge()

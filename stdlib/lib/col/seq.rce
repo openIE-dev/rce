@@ -29,9 +29,13 @@ module col.seq
 # input. Input longer than one list is fed in chunks to a state value:
 # SeqCounts (counting), SeqSeen (deduplication), SeqTop (k smallest or
 # largest), SeqWin (sliding windows), SeqBatch (chunks) and SeqRuns
-# (groupby runs). Feeding any split of a sequence gives the same results
-# as one call on the whole sequence. `seq_scan` resumes from its last
-# value, and the combinatoric generators resume from a SeqCursor.
+# (groupby runs, with seq_runs_take for a run longer than one list).
+# Feeding any split of a sequence gives the same results as one call on
+# the whole sequence. A result longer than one list is taken in parts:
+# seq_flatten_part and seq_interleave_part take any range of positions,
+# seq_merge_step merges two sorted streams chunk by chunk, seq_cycle and
+# seq_enumerate_from start at any position, `seq_scan` resumes from its
+# last value, and the combinatoric generators resume from a SeqCursor.
 #
 # Cost. Sorting by key and by natural order uses the built-in stable sort
 # on (key, position) pairs, which costs one call however long the list;
@@ -297,27 +301,41 @@ fn sq_insert_at[T](xs: &mut List[T], i: usize, x: T)
         j += 1
     xs = o
 
-# bisect.insort_left(xs, x).
-pub fn seq_insort_left[T: Ord](xs: &mut List[T], x: T)
+# bisect.insort_left(xs, x); the result is the position x went to. A list
+# that already holds SEQ_SIZE_LIMIT elements is left as it was, and the
+# insertion refuses with SeqTooLarge (likewise for the three below).
+pub fn seq_insort_left[T: Ord](xs: &mut List[T], x: T) -> usize ! SeqTooLarge
+    if xs.len() >= SEQ_SIZE_LIMIT
+        fail SeqTooLarge(limit: SEQ_SIZE_LIMIT)
     let i = seq_bisect_left(xs, &x)
     sq_insert_at(xs, i, x)
+    return i
 
 # bisect.insort_right(xs, x) (bisect.insort).
-pub fn seq_insort_right[T: Ord](xs: &mut List[T], x: T)
+pub fn seq_insort_right[T: Ord](xs: &mut List[T], x: T) -> usize ! SeqTooLarge
+    if xs.len() >= SEQ_SIZE_LIMIT
+        fail SeqTooLarge(limit: SEQ_SIZE_LIMIT)
     let i = seq_bisect_right(xs, &x)
     sq_insert_at(xs, i, x)
+    return i
 
 # bisect.insort_left(xs, x, key=key): at bisect_left(xs, key(x), key=key).
-pub fn seq_insort_left_by_key[T, K: Ord](xs: &mut List[T], x: T, key: fn(&T) -> K)
+pub fn seq_insort_left_by_key[T, K: Ord](xs: &mut List[T], x: T, key: fn(&T) -> K) -> usize ! SeqTooLarge
+    if xs.len() >= SEQ_SIZE_LIMIT
+        fail SeqTooLarge(limit: SEQ_SIZE_LIMIT)
     let k = key(&x)
     let i = seq_bisect_left_by_key(xs, &k, key)
     sq_insert_at(xs, i, x)
+    return i
 
 # bisect.insort_right(xs, x, key=key).
-pub fn seq_insort_right_by_key[T, K: Ord](xs: &mut List[T], x: T, key: fn(&T) -> K)
+pub fn seq_insort_right_by_key[T, K: Ord](xs: &mut List[T], x: T, key: fn(&T) -> K) -> usize ! SeqTooLarge
+    if xs.len() >= SEQ_SIZE_LIMIT
+        fail SeqTooLarge(limit: SEQ_SIZE_LIMIT)
     let k = key(&x)
     let i = seq_bisect_right_by_key(xs, &k, key)
     sq_insert_at(xs, i, x)
+    return i
 
 # ---------------- merging ----------------
 
@@ -337,6 +355,46 @@ pub fn seq_merge[T: Ord](a: &[T], b: &[T]) -> List[T] ! SeqTooLarge
             o.push(copy(b[j]))
             j += 1
     return o
+
+# One step of heapq.merge over two sorted streams too long for one list,
+# which arrive in chunks: the first elements of the merge of a and b, at
+# most n of them (and at most SEQ_SIZE_LIMIT), with the number taken from
+# a and from b. a_end states that a holds the rest of its stream, and
+# b_end the same for b. The step stops at n elements, or where a list runs
+# out while its stream continues, since the next element may then come
+# from that stream's next chunk; the caller drops the elements taken,
+# refills, and steps again. Ties go to a, as in seq_merge, so the steps
+# together give seq_merge of the two whole streams, and a k-way merge is a
+# left-to-right sequence of two-way ones.
+# The counts come from binary searches (where each list runs out in the
+# merge, and the split of the first cnt elements between a and b), and
+# the elements from one built-in sort of the two prefixes, so a step costs
+# O(log n) loop steps and no loop over the elements. a and b must be
+# sorted; on other lists the step still returns, without a trap, but its
+# result is not a merge.
+pub fn seq_merge_step[T: Ord](a: &[T], b: &[T], a_end: bool, b_end: bool, n: usize) -> (List[T], usize, usize)
+    let la = a.len()
+    let lb = b.len()
+    var cnt = (la + lb).min(n).min(SEQ_SIZE_LIMIT)
+    # a runs out after a[la - 1], which follows every b[j] < a[la - 1];
+    # b runs out after b[lb - 1], which follows every a[i] <= b[lb - 1]
+    if not a_end
+        cnt = cnt.min(if la == 0 then 0 else la + seq_bisect_left(b, &a[la - 1]))
+    if not b_end
+        cnt = cnt.min(if lb == 0 then 0 else lb + seq_bisect_right(a, &b[lb - 1]))
+    # the least i (taken from a) such that a[i] does not go before b[cnt - i - 1]
+    var lo: usize = if cnt > lb then cnt - lb else 0
+    var hi = cnt.min(la)
+    while lo < hi bound 64
+        let i = lo + (hi - lo) / 2
+        if not (b[cnt - i - 1] < a[i])
+            lo = i + 1
+        else
+            hi = i
+    let ta = lo
+    var o: List[T] = [if k < ta then copy(a[k]) else copy(b[k - ta]) for k in 0..cnt]
+    o.sort()
+    return (o, ta, cnt - ta)
 
 # list(heapq.merge(*ls, key=key)) for sorted inputs: every element ordered
 # by (key, list number, position), the order heapq.merge gives sorted
@@ -464,6 +522,13 @@ pub fn seq_unzip[A, B](ps: &[(A, B)]) -> (List[A], List[B]) = ([copy(p.0) for p 
 # list(enumerate(xs)).
 pub fn seq_enumerate[T](xs: &[T]) -> List[(usize, T)] = [(i, copy(xs[i])) for i in 0..xs.len()]
 
+# list(enumerate(xs, start)), for a list that is one chunk of a longer
+# stream; SeqBadIndex when start + len(xs) would pass the largest usize.
+pub fn seq_enumerate_from[T](xs: &[T], start: usize) -> List[(usize, T)] ! SeqBadIndex
+    if start > SQ_MAXU - xs.len()
+        fail SeqBadIndex(index: start)
+    return [(start + i, copy(xs[i])) for i in 0..xs.len()]
+
 # list(itertools.chain.from_iterable(xss)).
 pub fn seq_flatten[T](xss: &[List[T]]) -> List[T] ! SeqTooLarge
     var total: usize = 0
@@ -475,6 +540,25 @@ pub fn seq_flatten[T](xss: &[List[T]]) -> List[T] ! SeqTooLarge
     for l in xss
         for x in l
             o.push(copy(x))
+    return o
+
+# Elements at .. at + n of itertools.chain.from_iterable(xss) (fewer at its
+# end), so a concatenation longer than one list is taken in parts;
+# SeqTooLarge when n is above SEQ_SIZE_LIMIT.
+pub fn seq_flatten_part[T](xss: &[List[T]], at: usize, n: usize) -> List[T] ! SeqTooLarge
+    if n > SEQ_SIZE_LIMIT
+        fail SeqTooLarge(limit: SEQ_SIZE_LIMIT)
+    var o: List[T] = []
+    var skip = at
+    for l in xss
+        if skip >= l.len()
+            skip -= l.len()
+        elif o.len() < n
+            var i = skip
+            skip = 0
+            while i < l.len() and o.len() < n bound 1000000
+                o.push(copy(l[i]))
+                i += 1
     return o
 
 # (the elements for which pred holds, the others), each in input order.
@@ -911,6 +995,52 @@ pub fn seq_interleave[T](ls: &[List[T]]) -> List[T] ! SeqTooLarge
         r += 1
     return o
 
+# Elements at .. at + n of the roundrobin order of ls (fewer at its end),
+# so an interleaving longer than one list is taken in parts; SeqTooLarge
+# when n is above SEQ_SIZE_LIMIT. Round r holds element r of every list
+# longer than r, so the rounds before r hold sum(min(len(l), r)) elements;
+# the round of position at is found by a binary search over that sum,
+# computed from the sorted lengths and their prefix sums.
+pub fn seq_interleave_part[T](ls: &[List[T]], at: usize, n: usize) -> List[T] ! SeqTooLarge
+    if n > SEQ_SIZE_LIMIT
+        fail SeqTooLarge(limit: SEQ_SIZE_LIMIT)
+    var sl: List[usize] = [l.len() for l in ls]
+    sl.sort()
+    let m = sl.len()
+    var pre: List[usize] = [0]
+    for v in sl
+        pre.push(pre[pre.len() - 1] + v)
+    let maxlen = if m == 0 then 0 else sl[m - 1]
+    # the last round r0 in 0..=maxlen whose earlier rounds hold <= at elements
+    var lo: usize = 0
+    var hi = maxlen
+    while lo < hi bound 64
+        let mid = lo + (hi - lo + 1) / 2
+        let k = seq_bisect_left(&sl, &mid)
+        if pre[k] + mid * (m - k) <= at
+            lo = mid
+        else
+            hi = mid - 1
+    var o: List[T] = []
+    if lo == maxlen or n == 0
+        return o
+    let k0 = seq_bisect_left(&sl, &lo)
+    var skip = at - (pre[k0] + lo * (m - k0))
+    var act: List[usize] = [q for q in 0..ls.len() if ls[q].len() > lo]
+    var r = lo
+    while act.len() > 0 and o.len() < n bound 1000000
+        var nxt: List[usize] = []
+        for a in act
+            if skip > 0
+                skip -= 1
+            elif o.len() < n
+                o.push(copy(ls[a][r]))
+            if r + 1 < ls[a].len()
+                nxt.push(a)
+        act = nxt
+        r += 1
+    return o
+
 # ---------------- chunked state ----------------
 # Each state takes a long sequence in chunks of any size. A feed that would
 # take a state past SEQ_SIZE_LIMIT refuses with SeqTooLarge and leaves the
@@ -1237,5 +1367,16 @@ pub fn seq_runs_end[K, T](st: &mut SeqRuns[K, T]) -> List[(K, List[T])]
     if st.key.len() == 1
         o.push((copy(st.key[0]), copy(st.items)))
     st.key = []
+    st.items = []
+    return o
+
+# The elements of the open run so far, which leave the state; the run
+# stays open under its key, so later elements with that key continue it,
+# and the entry that closes it holds only the elements after the last
+# take (possibly none). This makes runs of any length readable: when a
+# feed refuses with SeqTooLarge, take the open part and feed the same
+# chunk again (the refused feed left the state as it was).
+pub fn seq_runs_take[K, T](st: &mut SeqRuns[K, T]) -> List[T]
+    let o = copy(st.items)
     st.items = []
     return o

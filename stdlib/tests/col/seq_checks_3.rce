@@ -89,22 +89,48 @@ fn t_bis_t(xs: List[text], x: text, l: usize, r: usize) -> bool = seq_bisect_lef
 fn t_bis_in(xs: List[i64], x: i64, lo: usize, hi: usize, l: usize, r: usize) -> bool = seq_bisect_left_in(&xs, &x, lo, hi) == l and seq_bisect_right_in(&xs, &x, lo, hi) == r
 fn t_bisk(xs: List[i64], k: i64, l: usize, r: usize) -> bool = seq_bisect_left_by_key(&xs, &k, t_k1) == l and seq_bisect_right_by_key(&xs, &k, t_k1) == r
 fn t_bs(xs: List[i64], x: i64, want: usize?) -> bool = seq_bsearch(&xs, &x) == want
-fn t_ins(xs: List[i64], x: i64, want: List[i64]) -> bool
+fn t_ins(xs: List[i64], x: i64, want: List[i64], il: usize, ir: usize) -> bool
     var a = copy(xs)
     var b = copy(xs)
-    seq_insort_left(&mut a, x)
-    seq_insort_right(&mut b, x)
-    return a == want and b == want
-fn t_insk(xs: List[(i64, i64)], x: (i64, i64), wl: List[(i64, i64)], wr: List[(i64, i64)]) -> bool
+    let pa = seq_insort_left(&mut a, x) catch SQ_MAXU
+    let pb = seq_insort_right(&mut b, x) catch SQ_MAXU
+    return a == want and b == want and pa == il and pb == ir
+fn t_insk(xs: List[(i64, i64)], x: (i64, i64), wl: List[(i64, i64)], wr: List[(i64, i64)], il: usize, ir: usize) -> bool
     var a = copy(xs)
     var b = copy(xs)
-    seq_insort_left_by_key(&mut a, copy(x), t_kp)
-    seq_insort_right_by_key(&mut b, x, t_kp)
-    return a == wl and b == wr
+    let pa = seq_insort_left_by_key(&mut a, copy(x), t_kp) catch SQ_MAXU
+    let pb = seq_insort_right_by_key(&mut b, x, t_kp) catch SQ_MAXU
+    return a == wl and b == wr and pa == il and pb == ir
 fn t_merge(a: List[i64], b: List[i64], want: List[i64]) -> bool = (seq_merge(&a, &b) catch [0 - 999]) == want
 fn t_merge_all(flat: List[i64], lens: List[usize], want: List[i64], wk0: List[i64]) -> bool
     let ls = t_nest(flat, lens)
     return (seq_merge_all(&ls) catch [0 - 999]) == want and (seq_merge_all_by_key(&ls, t_k0) catch [0 - 999]) == wk0
+
+# Two sorted streams a and b arrive in chunks of the lengths in ac and bc;
+# each step merges what it can, the rest stays buffered for the next.
+fn t_merge_step(a: List[i64], ac: List[usize], b: List[i64], bc: List[usize], n: usize, want: List[i64]) -> bool
+    let pa = t_nest(a, ac)
+    let pb = t_nest(b, bc)
+    var qa: usize = 0
+    var qb: usize = 0
+    var ba: List[i64] = []
+    var bb: List[i64] = []
+    var o: List[i64] = []
+    var go = true
+    while go bound 10000
+        if ba.len() == 0 and qa < pa.len()
+            ba = copy(pa[qa])
+            qa += 1
+        if bb.len() == 0 and qb < pb.len()
+            bb = copy(pb[qb])
+            qb += 1
+        let st = seq_merge_step(&ba, &bb, qa == pa.len(), qb == pb.len(), n)
+        for x in st.0
+            o.push(x)
+        ba = copy(ba[st.1:ba.len()])
+        bb = copy(bb[st.2:bb.len()])
+        go = not (ba.len() == 0 and bb.len() == 0 and qa == pa.len() and qb == pb.len())
+    return o == want
 
 # ---- grouping and transformation
 fn t_runs(xs: List[i64], keys: List[i64], flat: List[i64], lens: List[usize]) -> bool = seq_group_runs(&xs, t_k0) == t_groups(keys, flat, lens)
@@ -132,10 +158,37 @@ fn t_zipx(a: List[i64], b: List[text], ok: bool) -> bool
 fn t_unzip(ps: List[(i64, text)], a: List[i64], b: List[text]) -> bool
     let u = seq_unzip(&ps)
     return u.0 == a and u.1 == b and seq_zip(&a, &b) == ps
-fn t_enum(xs: List[text], idx: List[usize]) -> bool = seq_enumerate(&xs) == t_pairs(idx, xs)
+fn t_enum(xs: List[text], idx: List[usize], start: usize, idx2: List[usize]) -> bool
+    let e = seq_enumerate_from(&xs, start) catch []
+    return seq_enumerate(&xs) == t_pairs(idx, copy(xs)) and e == t_pairs(idx2, xs)
+# The parts of size w at 0, w, 2w, ... (and one past the end) put back
+# together give the whole result.
+fn t_parts_flat(ls: &[List[i64]], w: usize) -> List[i64]
+    var o: List[i64] = []
+    var at: usize = 0
+    var go = true
+    while go bound 1000
+        let p = seq_flatten_part(ls, at, w) catch [0 - 999]
+        for x in p
+            o.push(x)
+        go = p.len() == w and w > 0
+        at += w
+    return o
+fn t_parts_rr(ls: &[List[i64]], w: usize) -> List[i64]
+    var o: List[i64] = []
+    var at: usize = 0
+    var go = true
+    while go bound 1000
+        let p = seq_interleave_part(ls, at, w) catch [0 - 999]
+        for x in p
+            o.push(x)
+        go = p.len() == w and w > 0
+        at += w
+    return o
 fn t_flatten(flat: List[i64], lens: List[usize]) -> bool
     let ls = t_nest(copy(flat), lens)
-    return (seq_flatten(&ls) catch [0 - 999]) == flat
+    let parts = t_parts_flat(&ls, 1) == flat and t_parts_flat(&ls, 2) == flat and t_parts_flat(&ls, 5) == flat and t_parts_flat(&ls, 0).len() == 0
+    return (seq_flatten(&ls) catch [0 - 999]) == flat and parts
 fn t_dedupe(xs: List[i64], want: List[i64], wk0: List[i64], runs: List[i64]) -> bool
     return seq_dedupe(&xs) == want and seq_dedupe_by_key(&xs, t_k0) == wk0 and seq_dedupe_runs(&xs) == runs
 fn t_dedupe_t(xs: List[text], want: List[text], wk2: List[text], runs: List[text]) -> bool
@@ -179,7 +232,8 @@ fn t_cursor(mode: i64, n: usize, r: usize, wf: List[usize], wl: List[usize]) -> 
 fn t_cycle(xs: List[i64], start: usize, n: usize, want: List[i64]) -> bool = (seq_cycle(&xs, start, n) catch [0 - 999]) == want
 fn t_interleave(flat: List[i64], lens: List[usize], want: List[i64]) -> bool
     let ls = t_nest(flat, lens)
-    return (seq_interleave(&ls) catch [0 - 999]) == want
+    let parts = t_parts_rr(&ls, 1) == want and t_parts_rr(&ls, 2) == want and t_parts_rr(&ls, 3) == want and t_parts_rr(&ls, 0).len() == 0
+    return (seq_interleave(&ls) catch [0 - 999]) == want and parts
 
 # ---- chunked state: xs is fed in parts of the lengths in cuts
 fn t_counts_feed(xs: List[i64], cuts: List[usize], keys: List[i64], cnts: List[usize], n: usize, mk: List[i64], mc: List[usize], probe: i64, pc: usize) -> bool
@@ -251,6 +305,47 @@ fn t_top_mk(k: usize, largest: bool) -> SeqTop[i64] = seq_top_new(k, largest) ca
 fn t_win_mk(n: usize) -> SeqWin[i64] = seq_win_new(n) catch t_win0()
 fn t_batch_mk(n: usize) -> SeqBatch[i64] = seq_batch_new(n) catch t_batch0()
 
+check t_merge_step([], [], [-5, -5, -5, -2, 1, 1, 2, 6], [3, 0, 3, 2], 5, [-5, -5, -5, -2, 1, 1, 2, 6])
+check t_merge_step([], [], [-4, -1, 2], [3], 2, [-4, -1, 2])
+check t_merge_step([], [], [-6, -5, -4, -3, -3, -2, -2, 0, 1, 1, 1, 2, 2, 3, 6], [1, 4, 4, 0, 1, 0, 2, 2, 0, 0, 1], 3, [-6, -5, -4, -3, -3, -2, -2, 0, 1, 1, 1, 2, 2, 3, 6])
+check t_merge_step([-5, -3, -2, 0, 0, 1, 2, 2, 2, 3, 4, 4, 4, 5, 5], [0, 2, 0, 1, 0, 0, 3, 0, 2, 0, 4, 3], [-4, -3, -1, 0, 1, 5, 5, 6], [4, 0, 2, 2], 1, [-5, -4, -3, -3, -2, -1, 0, 0, 0, 1, 1, 2, 2, 2, 3, 4, 4, 4, 5, 5, 5, 5, 6])
+check t_merge_step([], [], [-4, -3, -2, 0, 1, 4, 4, 6], [1, 0, 3, 1, 2, 1], 2, [-4, -3, -2, 0, 1, 4, 4, 6])
+check t_merge_step([], [], [-6, -5, -4, -4, 0, 1, 5, 6], [1, 3, 1, 0, 2, 1], 4, [-6, -5, -4, -4, 0, 1, 5, 6])
+check t_merge_step([], [0], [-5, 0, 5], [0, 3], 5, [-5, 0, 5])
+check t_merge_step([-6, -6, -4, -4, -3, -3, -3, -2, -2, 0, 1, 1, 3, 4, 6], [0, 4, 4, 1, 4, 0, 2], [-6, -4, -3, -1, -1, 2, 3, 4], [3, 4, 0, 1], 2, [-6, -6, -6, -4, -4, -4, -3, -3, -3, -3, -2, -2, -1, -1, 0, 1, 1, 2, 3, 3, 4, 4, 6])
+check t_merge_step([-6, -4, -2, -1, 1, 2, 3, 6], [1, 1, 1, 0, 4, 0, 0, 1], [-6, -6, -5, -3, -2, -1, 0, 2, 2, 2, 4, 5, 6, 6, 6], [3, 1, 1, 0, 2, 0, 4, 1, 3], 5, [-6, -6, -6, -5, -4, -3, -2, -2, -1, -1, 0, 1, 2, 2, 2, 2, 3, 4, 5, 6, 6, 6, 6])
+check t_merge_step([4], [1], [-6, -4, -3, -3, -2, 0, 0, 0, 1, 2, 4, 4, 4, 5, 6], [2, 4, 1, 0, 3, 3, 2, 0], 3, [-6, -4, -3, -3, -2, 0, 0, 0, 1, 2, 4, 4, 4, 4, 5, 6])
+check t_merge_step([-5], [1], [], [0], 3, [-5])
+check t_merge_step([-6, -5, -5, -4, -2, -2, 0, 0, 0, 1, 2, 2, 2, 3, 4], [1, 0, 0, 0, 3, 1, 1, 4, 1, 0, 4], [-6, -6, -4, -4, -3, -2, -1, 1, 1, 2, 3, 4, 4, 6, 6], [4, 4, 2, 1, 1, 2, 1], 3, [-6, -6, -6, -5, -5, -4, -4, -4, -3, -2, -2, -2, -1, 0, 0, 0, 1, 1, 1, 2, 2, 2, 2, 3, 3, 4, 4, 4, 6, 6])
+check t_merge_step([-6, -5, -5, -5, -4, -3, -3, -2, -2, -1, 0, 2, 4, 5, 5], [4, 2, 4, 0, 1, 3, 0, 1], [4], [0, 1], 4, [-6, -5, -5, -5, -4, -3, -3, -2, -2, -1, 0, 2, 4, 4, 5, 5])
+check t_merge_step([-6, -2, -1, 0, 0, 1, 5, 5], [0, 0, 3, 4, 1], [], [], 3, [-6, -2, -1, 0, 0, 1, 5, 5])
+check t_merge_step([-3, 1, 6], [1, 1, 0, 1], [-5, -4, -4, -3, -2, 0, 0, 1, 1, 2, 2, 2, 3, 3, 6], [1, 1, 4, 4, 2, 3], 4, [-5, -4, -4, -3, -3, -2, 0, 0, 1, 1, 1, 2, 2, 2, 3, 3, 6, 6])
+check t_merge_step([-6, -5, -4, -3, 1, 1, 1, 5], [2, 2, 0, 1, 0, 0, 2, 1], [-6, -5, -3, -2, -2, -1, -1, 2, 2, 2, 3, 3, 3, 4, 6], [4, 3, 1, 3, 3, 1], 2, [-6, -6, -5, -5, -4, -3, -3, -2, -2, -1, -1, 1, 1, 1, 2, 2, 2, 3, 3, 3, 4, 5, 6])
+check t_merge_step([-5, -4, 2, 3, 4, 5, 5, 6], [0, 0, 2, 3, 2, 1], [-6, -5, -5, -4, -3, -2, -1, 0, 1, 3, 4, 5, 5, 5, 5], [0, 2, 1, 3, 3, 2, 3, 1], 5, [-6, -5, -5, -5, -4, -4, -3, -2, -1, 0, 1, 2, 3, 3, 4, 4, 5, 5, 5, 5, 5, 5, 6])
+check t_merge_step([-4, -1, 0], [3], [], [], 2, [-4, -1, 0])
+check t_merge_step([-6], [0, 1], [-6, -1, 4], [0, 2, 1], 5, [-6, -6, -1, 4])
+check t_merge_step([], [0], [-6, -6, -5, -5, -4, -1, 0, 1, 1, 1, 2, 3, 3, 3, 4], [0, 0, 0, 2, 0, 2, 4, 0, 4, 1, 2], 2, [-6, -6, -5, -5, -4, -1, 0, 1, 1, 1, 2, 3, 3, 3, 4])
+# ---- itertools.groupby, group by key
+check t_runs([-2], [2], [-2], [1])
+check t_gby([-2], [2], [-2], [1])
+check t_runs([-5, 4, 4], [0, 4], [-5, 4, 4], [1, 2])
+check t_gby([-5, 4, 4], [0, 4], [-5, 4, 4], [1, 2])
+check t_runs([], [], [], [])
+check t_gby([], [], [], [])
+check t_runs([-5, -2, -2], [0, 2], [-5, -2, -2], [1, 2])
+check t_gby([-5, -2, -2], [0, 2], [-5, -2, -2], [1, 2])
+check t_runs([], [], [], [])
+check t_gby([], [], [], [])
+check t_runs([0, 7, -3, 2, 8], [0, 2, 3, 2, 3], [0, 7, -3, 2, 8], [1, 1, 1, 1, 1])
+check t_gby([0, 7, -3, 2, 8], [0, 2, 3], [0, 7, 2, -3, 8], [1, 2, 2])
+check t_runs([-2, 8, 4, -8, 7, 5, -1, -4, -3, 9, 9, 9, 5], [2, 3, 4, 3, 2, 0, 1, 4, 3, 4, 0], [-2, 8, 4, -8, 7, 5, -1, -4, -3, 9, 9, 9, 5], [1, 1, 1, 1, 1, 1, 1, 1, 1, 3, 1])
+check t_gby([-2, 8, 4, -8, 7, 5, -1, -4, -3, 9, 9, 9, 5], [0, 1, 2, 3, 4], [5, 5, -1, -2, 7, 8, -8, -3, 4, -4, 9, 9, 9], [2, 1, 2, 3, 5])
+check t_runs([], [], [], [])
+check t_gby([], [], [], [])
+check t_runs([-3, 5, -5, 9, 3, 0, 9, 3, -2, -6, 0, 4, 7, 0, 6, -9, -5, 4, 6, 4], [3, 0, 4, 3, 0, 4, 3, 2, 1, 0, 4, 2, 0, 1, 4, 0, 4, 1, 4], [-3, 5, -5, 9, 3, 0, 9, 3, -2, -6, 0, 4, 7, 0, 6, -9, -5, 4, 6, 4], [1, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1])
+check t_gby([-3, 5, -5, 9, 3, 0, 9, 3, -2, -6, 0, 4, 7, 0, 6, -9, -5, 4, 6, 4], [0, 1, 2, 3, 4], [5, -5, 0, 0, 0, -5, -6, 6, 6, -2, 7, -3, 3, 3, 9, 9, 4, -9, 4, 4], [6, 3, 2, 3, 6])
+check t_runs([9, 8, -9, -7, 5, -8, -4, -4, 9, 8, 2, -5, -8], [4, 3, 4, 2, 0, 3, 4, 3, 2, 0, 3], [9, 8, -9, -7, 5, -8, -4, -4, 9, 8, 2, -5, -8], [1, 1, 1, 1, 1, 1, 3, 1, 1, 1, 1])
+check t_gby([9, 8, -9, -7, 5, -8, -4, -4, 9, 8, 2, -5, -8], [0, 2, 3, 4], [5, -5, -7, 2, 8, -8, 8, -8, 9, -9, -4, -4, 9], [2, 2, 4, 5])
 check t_runs([-9, 0, 4], [4, 0, 4], [-9, 0, 4], [1, 1, 1])
 check t_gby([-9, 0, 4], [0, 4], [0, -9, 4], [1, 2])
 check t_runs([-4, 0, -6, -4, 9, -5, -8, 7, -2, -4, 8, 3, 8], [4, 0, 1, 4, 0, 3, 2, 4, 3], [-4, 0, -6, -4, 9, -5, -8, 7, -2, -4, 8, 3, 8], [1, 1, 1, 2, 1, 1, 2, 1, 3])
@@ -455,35 +550,35 @@ check t_zip([10, 0], ["abZ", "é", "", "日bb", "aéé", "b日", "", "", "ab", "
 check t_zipl([10, 0], ["abZ", "é", "", "日bb", "aéé", "b日", "", "", "ab", "", "", "Zbab", "aba"], [10, 0, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1], ["abZ", "é", "", "日bb", "aéé", "b日", "", "", "ab", "", "", "Zbab", "aba"])
 check t_zipx([10, 0], ["abZ", "é", "", "日bb", "aéé", "b日", "", "", "ab", "", "", "Zbab", "aba"], false)
 check t_unzip([(-12, "日"), (6, ""), (2, "ab"), (4, "abab"), (-3, "a日")], [-12, 6, 2, 4, -3], ["日", "", "ab", "abab", "a日"])
-check t_enum(["日", "", "ab", "abab", "a日"], [0, 1, 2, 3, 4])
+check t_enum(["日", "", "ab", "abab", "a日"], [0, 1, 2, 3, 4], 1035, [1035, 1036, 1037, 1038, 1039])
 check t_unzip([(7, "日日é"), (12, "Zé"), (-5, "Zab"), (5, "ZZZ"), (1, "")], [7, 12, -5, 5, 1], ["日日é", "Zé", "Zab", "ZZZ", ""])
-check t_enum(["日日é", "Zé", "Zab", "ZZZ", ""], [0, 1, 2, 3, 4])
+check t_enum(["日日é", "Zé", "Zab", "ZZZ", ""], [0, 1, 2, 3, 4], 1035, [1035, 1036, 1037, 1038, 1039])
 check t_unzip([(9, "a"), (-6, ""), (8, "bab"), (-3, ""), (2, "日aZ"), (7, "baab"), (-4, "é"), (1, "ab"), (-4, "ab日a"), (-12, ""), (4, "Zab日"), (2, "ab"), (-9, "aZb")], [9, -6, 8, -3, 2, 7, -4, 1, -4, -12, 4, 2, -9], ["a", "", "bab", "", "日aZ", "baab", "é", "ab", "ab日a", "", "Zab日", "ab", "aZb"])
-check t_enum(["a", "", "bab", "", "日aZ", "baab", "é", "ab", "ab日a", "", "Zab日", "ab", "aZb"], [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12])
+check t_enum(["a", "", "bab", "", "日aZ", "baab", "é", "ab", "ab日a", "", "Zab日", "ab", "aZb"], [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12], 1091, [1091, 1092, 1093, 1094, 1095, 1096, 1097, 1098, 1099, 1100, 1101, 1102, 1103])
 check t_unzip([(9, ""), (3, ""), (1, "Zé"), (-2, ""), (-9, "é"), (1, ""), (-12, ""), (-3, "bab")], [9, 3, 1, -2, -9, 1, -12, -3], ["", "", "Zé", "", "é", "", "", "bab"])
-check t_enum(["", "", "Zé", "", "é", "", "", "bab"], [0, 1, 2, 3, 4, 5, 6, 7])
+check t_enum(["", "", "Zé", "", "é", "", "", "bab"], [0, 1, 2, 3, 4, 5, 6, 7], 1056, [1056, 1057, 1058, 1059, 1060, 1061, 1062, 1063])
 check t_unzip([(-3, "b日"), (3, "")], [-3, 3], ["b日", ""])
-check t_enum(["b日", ""], [0, 1])
+check t_enum(["b日", ""], [0, 1], 1014, [1014, 1015])
 check t_unzip([(-9, "日日a"), (11, "b"), (2, "")], [-9, 11, 2], ["日日a", "b", ""])
-check t_enum(["日日a", "b", ""], [0, 1, 2])
+check t_enum(["日日a", "b", ""], [0, 1, 2], 1021, [1021, 1022, 1023])
 check t_unzip([(-5, ""), (-9, ""), (4, "日ab"), (-10, "ab"), (-4, "aabZ")], [-5, -9, 4, -10, -4], ["", "", "日ab", "ab", "aabZ"])
-check t_enum(["", "", "日ab", "ab", "aabZ"], [0, 1, 2, 3, 4])
+check t_enum(["", "", "日ab", "ab", "aabZ"], [0, 1, 2, 3, 4], 1035, [1035, 1036, 1037, 1038, 1039])
 check t_unzip([(5, "Zbab"), (-1, "a"), (-6, "éab"), (8, "abZ"), (-4, ""), (3, "b"), (-4, "Zé"), (-3, "a"), (8, "abbb"), (2, ""), (-6, "aéZ"), (0, "éZé"), (-2, "")], [5, -1, -6, 8, -4, 3, -4, -3, 8, 2, -6, 0, -2], ["Zbab", "a", "éab", "abZ", "", "b", "Zé", "a", "abbb", "", "aéZ", "éZé", ""])
-check t_enum(["Zbab", "a", "éab", "abZ", "", "b", "Zé", "a", "abbb", "", "aéZ", "éZé", ""], [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12])
+check t_enum(["Zbab", "a", "éab", "abZ", "", "b", "Zé", "a", "abbb", "", "aéZ", "éZé", ""], [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12], 1091, [1091, 1092, 1093, 1094, 1095, 1096, 1097, 1098, 1099, 1100, 1101, 1102, 1103])
 check t_unzip([(6, "ZZ"), (12, "ba")], [6, 12], ["ZZ", "ba"])
-check t_enum(["ZZ", "ba"], [0, 1])
+check t_enum(["ZZ", "ba"], [0, 1], 1014, [1014, 1015])
 check t_unzip([(3, "ab"), (-12, "é")], [3, -12], ["ab", "é"])
-check t_enum(["ab", "é"], [0, 1])
+check t_enum(["ab", "é"], [0, 1], 1014, [1014, 1015])
 check t_unzip([(2, "Z"), (10, ""), (-7, "abZ"), (4, "abab"), (12, "é")], [2, 10, -7, 4, 12], ["Z", "", "abZ", "abab", "é"])
-check t_enum(["Z", "", "abZ", "abab", "é"], [0, 1, 2, 3, 4])
+check t_enum(["Z", "", "abZ", "abab", "é"], [0, 1, 2, 3, 4], 1035, [1035, 1036, 1037, 1038, 1039])
 check t_unzip([(2, ""), (3, ""), (-5, ""), (11, ""), (-1, "ba")], [2, 3, -5, 11, -1], ["", "", "", "", "ba"])
-check t_enum(["", "", "", "", "ba"], [0, 1, 2, 3, 4])
+check t_enum(["", "", "", "", "ba"], [0, 1, 2, 3, 4], 1035, [1035, 1036, 1037, 1038, 1039])
 check t_unzip([], [], [])
-check t_enum([], [])
+check t_enum([], [], 1000, [])
 check t_unzip([(11, "ab日b")], [11], ["ab日b"])
-check t_enum(["ab日b"], [0])
+check t_enum(["ab日b"], [0], 1007, [1007])
 check t_unzip([(-11, ""), (7, "")], [-11, 7], ["", ""])
-check t_enum(["", ""], [0, 1])
+check t_enum(["", ""], [0, 1], 1014, [1014, 1015])
 # ---- itertools.chain.from_iterable
 check t_flatten([], [])
 check t_flatten([], [])
@@ -545,44 +640,3 @@ check t_dedupe_t(["", "aé日"], ["", "aé日"], ["", "aé日"], ["", "aé日"])
 check t_dedupe_t(["Z", "", "Z日", "", "abZ", "日éa", "b", "abab", "é", "", "abZ", "b", "", "ab", "", "é", "", "b", "Zabb", "éZ"], ["Z", "", "Z日", "abZ", "日éa", "b", "abab", "é", "ab", "Zabb", "éZ"], ["Z", "", "Z日", "abZ", "abab"], ["Z", "", "Z日", "", "abZ", "日éa", "b", "abab", "é", "", "abZ", "b", "", "ab", "", "é", "", "b", "Zabb", "éZ"])
 check t_dedupe_t(["b", "ab", "a", "日abé", "日", "abb", "é", "", "b", "", "aabab", "abbb", ""], ["b", "ab", "a", "日abé", "日", "abb", "é", "", "aabab", "abbb"], ["b", "ab", "日abé", "abb", "", "aabab"], ["b", "ab", "a", "日abé", "日", "abb", "é", "", "b", "", "aabab", "abbb", ""])
 check t_dedupe_t(["abZab", "日"], ["abZab", "日"], ["abZab", "日"], ["abZab", "日"])
-check t_dedupe_t(["ab", "ab", "abé", "", "Zab"], ["ab", "abé", "", "Zab"], ["ab", "abé", ""], ["ab", "abé", "", "Zab"])
-check t_dedupe_t(["é日", "ab", ""], ["é日", "ab", ""], ["é日", ""], ["é日", "ab", ""])
-check t_dedupe_t(["日Z", "a", "ab", "ba", "日", "日", "Z", "ab", "", "", "ababab", "Z", "", "b", "é", "a", "日Zab", "日", "éb", "aab"], ["日Z", "a", "ab", "ba", "日", "Z", "", "ababab", "b", "é", "日Zab", "éb", "aab"], ["日Z", "a", "", "ababab", "日Zab", "aab"], ["日Z", "a", "ab", "ba", "日", "Z", "ab", "", "ababab", "Z", "", "b", "é", "a", "日Zab", "日", "éb", "aab"])
-check t_dedupe_t(["a", "", "aé", "", "", "", "ab日é", "", "Zb", "ab", "abé", "b", "aba", "日", "日", "aab", "aab", "abé", "éb", "日"], ["a", "", "aé", "ab日é", "Zb", "ab", "abé", "b", "aba", "日", "aab", "éb"], ["a", "", "aé", "ab日é", "abé"], ["a", "", "aé", "", "ab日é", "", "Zb", "ab", "abé", "b", "aba", "日", "aab", "abé", "éb", "日"])
-check t_dedupe_t(["éé", "", "Z", "", "éé", "aéb", "abé", "a"], ["éé", "", "Z", "aéb", "abé", "a"], ["éé", "", "Z", "aéb"], ["éé", "", "Z", "", "éé", "aéb", "abé", "a"])
-check t_dedupe_t(["éab", "Z", "", "Zabé", "", "bab", "日Z日", "日b", "bbZ", "aZab", "b日", "abb日", ""], ["éab", "Z", "", "Zabé", "bab", "日Z日", "日b", "bbZ", "aZab", "b日", "abb日"], ["éab", "Z", "", "Zabé", "日b"], ["éab", "Z", "", "Zabé", "", "bab", "日Z日", "日b", "bbZ", "aZab", "b日", "abb日", ""])
-# ---- collections.Counter items and most_common
-check t_counter([3], [3], [1], 0, [], [])
-check t_counter([-1, 5, -1, -2, -5], [-1, 5, -2, -5], [2, 1, 1, 1], 0, [], [])
-check t_counter([-4, -2, 0, -1, 2], [-4, -2, 0, -1, 2], [1, 1, 1, 1, 1], 6, [-4, -2, 0, -1, 2], [1, 1, 1, 1, 1])
-check t_counter([1, -1, 3, 0, -2], [1, -1, 3, 0, -2], [1, 1, 1, 1, 1], 7, [1, -1, 3, 0, -2], [1, 1, 1, 1, 1])
-check t_counter([], [], [], 1, [], [])
-check t_counter([4, 1, -4, -5, -2, 2, -1, -3], [4, 1, -4, -5, -2, 2, -1, -3], [1, 1, 1, 1, 1, 1, 1, 1], 9, [4, 1, -4, -5, -2, 2, -1, -3], [1, 1, 1, 1, 1, 1, 1, 1])
-check t_counter([-3, -2, 1], [-3, -2, 1], [1, 1, 1], 0, [], [])
-check t_counter([-3, 2, -5, 0, 5, 5, -2, 2], [-3, 2, -5, 0, 5, -2], [1, 2, 1, 1, 2, 1], 2, [2, 5], [2, 2])
-check t_counter([-3, 2, 0, 5, 1, -2, 0, 5, -3, -1, 3, 2, -2, -4, 2, -3, 5, 0, 0, 1], [-3, 2, 0, 5, 1, -2, -1, 3, -4], [3, 3, 4, 3, 2, 2, 1, 1, 1], 7, [0, -3, 2, 5, 1, -2, -1], [4, 3, 3, 3, 2, 2, 1])
-check t_counter([-5, 2, 1, 1, 5, 5, 5, -4, 4, -1, -2, -2, 3], [-5, 2, 1, 5, -4, 4, -1, -2, 3], [1, 1, 2, 3, 1, 1, 1, 2, 1], 10, [5, 1, -2, -5, 2, -4, 4, -1, 3], [3, 2, 2, 1, 1, 1, 1, 1, 1])
-check t_counter([4, -2, -1, 4, 0], [4, -2, -1, 0], [2, 1, 1, 1], 5, [4, -2, -1, 0], [2, 1, 1, 1])
-check t_counter([5, -5, -3], [5, -5, -3], [1, 1, 1], 0, [], [])
-check t_counter([0], [0], [1], 3, [0], [1])
-check t_counter([], [], [], 2, [], [])
-check t_counter([], [], [], 1, [], [])
-check t_counter([4, 5, 4, 2, -3, 5, -4, 1], [4, 5, 2, -3, -4, 1], [2, 2, 1, 1, 1, 1], 5, [4, 5, 2, -3, -4], [2, 2, 1, 1, 1])
-check t_counter([4, -4, 4], [4, -4], [2, 1], 3, [4, -4], [2, 1])
-check t_counter([2, -3, 5, -1, -2], [2, -3, 5, -1, -2], [1, 1, 1, 1, 1], 3, [2, -3, 5], [1, 1, 1])
-check t_counter([-3, 2, 3, 4, 2, 2, -4, -1, 5, -2, 0, -3, 5], [-3, 2, 3, 4, -4, -1, 5, -2, 0], [2, 3, 1, 1, 1, 1, 2, 1, 1], 0, [], [])
-check t_counter([-5], [-5], [1], 3, [-5], [1])
-check t_counter([], [], [], 2, [], [])
-check t_counter([4, 2, -5, 2, -2, 1, -3, 4], [4, 2, -5, -2, 1, -3], [2, 2, 1, 1, 1, 1], 7, [4, 2, -5, -2, 1, -3], [2, 2, 1, 1, 1, 1])
-check t_counter([4, -3, 1], [4, -3, 1], [1, 1, 1], 5, [4, -3, 1], [1, 1, 1])
-check t_counter([-4, -4], [-4], [2], 0, [], [])
-check t_counter([5, -3, 2, 2, 0, -3, -1, -3, 1, 4, 4, -3, -2], [5, -3, 2, 0, -1, 1, 4, -2], [1, 4, 2, 1, 1, 1, 2, 1], 5, [-3, 2, 4, 5, 0], [4, 2, 2, 1, 1])
-check t_counter([0, -2, 2], [0, -2, 2], [1, 1, 1], 4, [0, -2, 2], [1, 1, 1])
-check t_counter([-2, 1, 4, -4, 3, -2, 4, 3, -4, 4, 3, -3, -2], [-2, 1, 4, -4, 3, -3], [3, 1, 3, 2, 3, 1], 4, [-2, 4, 3, -4], [3, 3, 3, 2])
-check t_counter([0, 4, -5], [0, 4, -5], [1, 1, 1], 5, [0, 4, -5], [1, 1, 1])
-check t_counter([0, -4, 5], [0, -4, 5], [1, 1, 1], 0, [], [])
-check t_counter([-4, -1, 0], [-4, -1, 0], [1, 1, 1], 2, [-4, -1], [1, 1])
-check t_counter_t(["é", "é日", "Z", "日Za", ""], ["é", "é日", "Z", "日Za", ""], [1, 1, 1, 1, 1], 7, ["é", "é日", "Z", "日Za", ""], [1, 1, 1, 1, 1])
-check t_counter_t(["a", "a日b", "日", "ab", "", "日", "日日", "Z"], ["a", "a日b", "日", "ab", "", "日日", "Z"], [1, 1, 2, 1, 1, 1, 1], 7, ["日", "a", "a日b", "ab", "", "日日", "Z"], [2, 1, 1, 1, 1, 1, 1])
-check t_counter_t(["Z日", "Z", "ab"], ["Z日", "Z", "ab"], [1, 1, 1], 2, ["Z日", "Z"], [1, 1])
-check t_counter_t([], [], [], 2, [], [])

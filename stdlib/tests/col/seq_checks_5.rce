@@ -89,22 +89,48 @@ fn t_bis_t(xs: List[text], x: text, l: usize, r: usize) -> bool = seq_bisect_lef
 fn t_bis_in(xs: List[i64], x: i64, lo: usize, hi: usize, l: usize, r: usize) -> bool = seq_bisect_left_in(&xs, &x, lo, hi) == l and seq_bisect_right_in(&xs, &x, lo, hi) == r
 fn t_bisk(xs: List[i64], k: i64, l: usize, r: usize) -> bool = seq_bisect_left_by_key(&xs, &k, t_k1) == l and seq_bisect_right_by_key(&xs, &k, t_k1) == r
 fn t_bs(xs: List[i64], x: i64, want: usize?) -> bool = seq_bsearch(&xs, &x) == want
-fn t_ins(xs: List[i64], x: i64, want: List[i64]) -> bool
+fn t_ins(xs: List[i64], x: i64, want: List[i64], il: usize, ir: usize) -> bool
     var a = copy(xs)
     var b = copy(xs)
-    seq_insort_left(&mut a, x)
-    seq_insort_right(&mut b, x)
-    return a == want and b == want
-fn t_insk(xs: List[(i64, i64)], x: (i64, i64), wl: List[(i64, i64)], wr: List[(i64, i64)]) -> bool
+    let pa = seq_insort_left(&mut a, x) catch SQ_MAXU
+    let pb = seq_insort_right(&mut b, x) catch SQ_MAXU
+    return a == want and b == want and pa == il and pb == ir
+fn t_insk(xs: List[(i64, i64)], x: (i64, i64), wl: List[(i64, i64)], wr: List[(i64, i64)], il: usize, ir: usize) -> bool
     var a = copy(xs)
     var b = copy(xs)
-    seq_insort_left_by_key(&mut a, copy(x), t_kp)
-    seq_insort_right_by_key(&mut b, x, t_kp)
-    return a == wl and b == wr
+    let pa = seq_insort_left_by_key(&mut a, copy(x), t_kp) catch SQ_MAXU
+    let pb = seq_insort_right_by_key(&mut b, x, t_kp) catch SQ_MAXU
+    return a == wl and b == wr and pa == il and pb == ir
 fn t_merge(a: List[i64], b: List[i64], want: List[i64]) -> bool = (seq_merge(&a, &b) catch [0 - 999]) == want
 fn t_merge_all(flat: List[i64], lens: List[usize], want: List[i64], wk0: List[i64]) -> bool
     let ls = t_nest(flat, lens)
     return (seq_merge_all(&ls) catch [0 - 999]) == want and (seq_merge_all_by_key(&ls, t_k0) catch [0 - 999]) == wk0
+
+# Two sorted streams a and b arrive in chunks of the lengths in ac and bc;
+# each step merges what it can, the rest stays buffered for the next.
+fn t_merge_step(a: List[i64], ac: List[usize], b: List[i64], bc: List[usize], n: usize, want: List[i64]) -> bool
+    let pa = t_nest(a, ac)
+    let pb = t_nest(b, bc)
+    var qa: usize = 0
+    var qb: usize = 0
+    var ba: List[i64] = []
+    var bb: List[i64] = []
+    var o: List[i64] = []
+    var go = true
+    while go bound 10000
+        if ba.len() == 0 and qa < pa.len()
+            ba = copy(pa[qa])
+            qa += 1
+        if bb.len() == 0 and qb < pb.len()
+            bb = copy(pb[qb])
+            qb += 1
+        let st = seq_merge_step(&ba, &bb, qa == pa.len(), qb == pb.len(), n)
+        for x in st.0
+            o.push(x)
+        ba = copy(ba[st.1:ba.len()])
+        bb = copy(bb[st.2:bb.len()])
+        go = not (ba.len() == 0 and bb.len() == 0 and qa == pa.len() and qb == pb.len())
+    return o == want
 
 # ---- grouping and transformation
 fn t_runs(xs: List[i64], keys: List[i64], flat: List[i64], lens: List[usize]) -> bool = seq_group_runs(&xs, t_k0) == t_groups(keys, flat, lens)
@@ -132,10 +158,37 @@ fn t_zipx(a: List[i64], b: List[text], ok: bool) -> bool
 fn t_unzip(ps: List[(i64, text)], a: List[i64], b: List[text]) -> bool
     let u = seq_unzip(&ps)
     return u.0 == a and u.1 == b and seq_zip(&a, &b) == ps
-fn t_enum(xs: List[text], idx: List[usize]) -> bool = seq_enumerate(&xs) == t_pairs(idx, xs)
+fn t_enum(xs: List[text], idx: List[usize], start: usize, idx2: List[usize]) -> bool
+    let e = seq_enumerate_from(&xs, start) catch []
+    return seq_enumerate(&xs) == t_pairs(idx, copy(xs)) and e == t_pairs(idx2, xs)
+# The parts of size w at 0, w, 2w, ... (and one past the end) put back
+# together give the whole result.
+fn t_parts_flat(ls: &[List[i64]], w: usize) -> List[i64]
+    var o: List[i64] = []
+    var at: usize = 0
+    var go = true
+    while go bound 1000
+        let p = seq_flatten_part(ls, at, w) catch [0 - 999]
+        for x in p
+            o.push(x)
+        go = p.len() == w and w > 0
+        at += w
+    return o
+fn t_parts_rr(ls: &[List[i64]], w: usize) -> List[i64]
+    var o: List[i64] = []
+    var at: usize = 0
+    var go = true
+    while go bound 1000
+        let p = seq_interleave_part(ls, at, w) catch [0 - 999]
+        for x in p
+            o.push(x)
+        go = p.len() == w and w > 0
+        at += w
+    return o
 fn t_flatten(flat: List[i64], lens: List[usize]) -> bool
     let ls = t_nest(copy(flat), lens)
-    return (seq_flatten(&ls) catch [0 - 999]) == flat
+    let parts = t_parts_flat(&ls, 1) == flat and t_parts_flat(&ls, 2) == flat and t_parts_flat(&ls, 5) == flat and t_parts_flat(&ls, 0).len() == 0
+    return (seq_flatten(&ls) catch [0 - 999]) == flat and parts
 fn t_dedupe(xs: List[i64], want: List[i64], wk0: List[i64], runs: List[i64]) -> bool
     return seq_dedupe(&xs) == want and seq_dedupe_by_key(&xs, t_k0) == wk0 and seq_dedupe_runs(&xs) == runs
 fn t_dedupe_t(xs: List[text], want: List[text], wk2: List[text], runs: List[text]) -> bool
@@ -179,7 +232,8 @@ fn t_cursor(mode: i64, n: usize, r: usize, wf: List[usize], wl: List[usize]) -> 
 fn t_cycle(xs: List[i64], start: usize, n: usize, want: List[i64]) -> bool = (seq_cycle(&xs, start, n) catch [0 - 999]) == want
 fn t_interleave(flat: List[i64], lens: List[usize], want: List[i64]) -> bool
     let ls = t_nest(flat, lens)
-    return (seq_interleave(&ls) catch [0 - 999]) == want
+    let parts = t_parts_rr(&ls, 1) == want and t_parts_rr(&ls, 2) == want and t_parts_rr(&ls, 3) == want and t_parts_rr(&ls, 0).len() == 0
+    return (seq_interleave(&ls) catch [0 - 999]) == want and parts
 
 # ---- chunked state: xs is fed in parts of the lengths in cuts
 fn t_counts_feed(xs: List[i64], cuts: List[usize], keys: List[i64], cnts: List[usize], n: usize, mk: List[i64], mc: List[usize], probe: i64, pc: usize) -> bool
@@ -251,6 +305,46 @@ fn t_top_mk(k: usize, largest: bool) -> SeqTop[i64] = seq_top_new(k, largest) ca
 fn t_win_mk(n: usize) -> SeqWin[i64] = seq_win_new(n) catch t_win0()
 fn t_batch_mk(n: usize) -> SeqBatch[i64] = seq_batch_new(n) catch t_batch0()
 
+check t_runs_feed([5, 3, -1, -2, -2, -5, -4, -2, 5, -3, 1, 4, 0, 4, -5, 2, -3, -5, -4, 2, 1, 1, -4, 5, 2, 2, -2, -2, 4, 1, 4, -4, 6, 2, 6, -3, 5, 0, 5, 2], [15, 19, 0, 4, 2], [0, 3, 1, 2, 0, 4, 2, 0, 3, 1, 4, 0, 4, 0, 2, 3, 0, 4, 2, 1, 4, 0, 2, 4, 1, 4, 1, 2, 1, 3, 0, 2], [5, 3, -1, -2, -2, -5, -4, -2, 5, -3, 1, 4, 0, 4, -5, 2, -3, -5, -4, 2, 1, 1, -4, 5, 2, 2, -2, -2, 4, 1, 4, -4, 6, 2, 6, -3, 5, 0, 5, 2], [1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 1, 1, 4, 1, 1, 2, 1, 1, 1, 1, 3, 1])
+check t_counts_feed([2, 6, 6, 6, -4, 2, 1, 2, -4, 1, -1, -1, 3, -1, -1, -4, -5, -1, 5, -3, -6, 2, 5, 3, -5, 3, 4, -1, -4, -4, 0, 3, -6, 6, 4, 5, 4, -6, 2, -6], [1, 6, 3, 1, 18, 5, 4, 2, 0], [2, 6, -4, 1, -1, 3, -5, 5, -3, -6, 4, 0], [5, 4, 5, 2, 6, 4, 2, 3, 1, 4, 3, 1], 11, [-1, 2, -4, 6, 3, -6, 5, 4, 1, -5, -3], [6, 5, 5, 4, 4, 4, 3, 3, 2, 2, 1], 6, 4)
+check t_seen_feed([2, 6, 6, 6, -4, 2, 1, 2, -4, 1, -1, -1, 3, -1, -1, -4, -5, -1, 5, -3, -6, 2, 5, 3, -5, 3, 4, -1, -4, -4, 0, 3, -6, 6, 4, 5, 4, -6, 2, -6], [1, 6, 3, 1, 18, 5, 4, 2, 0], [2, 6, -4, 1, -1, 3, -5, 5, -3, -6, 4, 0])
+check t_top_feed([2, 6, 6, 6, -4, 2, 1, 2, -4, 1, -1, -1, 3, -1, -1, -4, -5, -1, 5, -3, -6, 2, 5, 3, -5, 3, 4, -1, -4, -4, 0, 3, -6, 6, 4, 5, 4, -6, 2, -6], [1, 6, 3, 1, 18, 5, 4, 2, 0], 5, [-6, -6, -6, -6, -5], [6, 6, 6, 6, 5], [-5, 5, 5, -5, 0], [-4, -4, -4, 4, -4])
+check t_win_feed([2, 6, 6, 6, -4, 2, 1, 2, -4, 1, -1, -1, 3, -1, -1, -4, -5, -1, 5, -3, -6, 2, 5, 3, -5, 3, 4, -1, -4, -4, 0, 3, -6, 6, 4, 5, 4, -6, 2, -6], [1, 6, 3, 1, 18, 5, 4, 2, 0], 5, [2, 6, 6, 6, -4, 6, 6, 6, -4, 2, 6, 6, -4, 2, 1, 6, -4, 2, 1, 2, -4, 2, 1, 2, -4, 2, 1, 2, -4, 1, 1, 2, -4, 1, -1, 2, -4, 1, -1, -1, -4, 1, -1, -1, 3, 1, -1, -1, 3, -1, -1, -1, 3, -1, -1, -1, 3, -1, -1, -4, 3, -1, -1, -4, -5, -1, -1, -4, -5, -1, -1, -4, -5, -1, 5, -4, -5, -1, 5, -3, -5, -1, 5, -3, -6, -1, 5, -3, -6, 2, 5, -3, -6, 2, 5, -3, -6, 2, 5, 3, -6, 2, 5, 3, -5, 2, 5, 3, -5, 3, 5, 3, -5, 3, 4, 3, -5, 3, 4, -1, -5, 3, 4, -1, -4, 3, 4, -1, -4, -4, 4, -1, -4, -4, 0, -1, -4, -4, 0, 3, -4, -4, 0, 3, -6, -4, 0, 3, -6, 6, 0, 3, -6, 6, 4, 3, -6, 6, 4, 5, -6, 6, 4, 5, 4, 6, 4, 5, 4, -6, 4, 5, 4, -6, 2, 5, 4, -6, 2, -6], [5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5])
+check t_batch_feed([2, 6, 6, 6, -4, 2, 1, 2, -4, 1, -1, -1, 3, -1, -1, -4, -5, -1, 5, -3, -6, 2, 5, 3, -5, 3, 4, -1, -4, -4, 0, 3, -6, 6, 4, 5, 4, -6, 2, -6], [1, 6, 3, 1, 18, 5, 4, 2, 0], 5, [2, 6, 6, 6, -4, 2, 1, 2, -4, 1, -1, -1, 3, -1, -1, -4, -5, -1, 5, -3, -6, 2, 5, 3, -5, 3, 4, -1, -4, -4, 0, 3, -6, 6, 4, 5, 4, -6, 2, -6], [5, 5, 5, 5, 5, 5, 5, 5])
+check t_runs_feed([2, 6, 6, 6, -4, 2, 1, 2, -4, 1, -1, -1, 3, -1, -1, -4, -5, -1, 5, -3, -6, 2, 5, 3, -5, 3, 4, -1, -4, -4, 0, 3, -6, 6, 4, 5, 4, -6, 2, -6], [1, 6, 3, 1, 18, 5, 4, 2, 0], [2, 1, 4, 2, 1, 2, 4, 1, 3, 1, 4, 0, 1, 0, 3, 1, 2, 0, 3, 0, 3, 4, 1, 4, 0, 3, 1, 4, 0, 4, 1, 2, 1], [2, 6, 6, 6, -4, 2, 1, 2, -4, 1, -1, -1, 3, -1, -1, -4, -5, -1, 5, -3, -6, 2, 5, 3, -5, 3, 4, -1, -4, -4, 0, 3, -6, 6, 4, 5, 4, -6, 2, -6], [1, 3, 1, 1, 1, 1, 1, 3, 1, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 1, 1, 2, 1, 1, 1, 1, 1, 1])
+check t_counts_feed([3, 0, -4], [2, 1], [3, 0, -4], [1, 1, 1], 1, [3], [1], 0, 1)
+check t_seen_feed([3, 0, -4], [2, 1], [3, 0, -4])
+check t_top_feed([3, 0, -4], [2, 1], 5, [-4, 0, 3], [3, 0, -4], [0, 3, -4], [-4, 3, 0])
+check t_win_feed([3, 0, -4], [2, 1], 5, [], [])
+check t_batch_feed([3, 0, -4], [2, 1], 5, [3, 0, -4], [3])
+check t_runs_feed([3, 0, -4], [2, 1], [3, 0, 4], [3, 0, -4], [1, 1, 1])
+check t_counts_feed([-4, 3, -6, 3, -3, 1, -4, -5, 1, -4, -4, -6, -2, 5, -1, -6, -4, 5, -3, -2, -5, 0, -3, 6, 0, -3, -5, 2, -1, 0, 0, -1, 0, -1, 2, -4, 3, 5, 5, 6], [30, 1, 3, 3, 2, 1], [-4, 3, -6, -3, 1, -5, -2, 5, -1, 0, 6, 2], [6, 3, 3, 4, 2, 3, 2, 4, 4, 5, 2, 2], 2, [-4, 0], [6, 5], 7, 0)
+check t_seen_feed([-4, 3, -6, 3, -3, 1, -4, -5, 1, -4, -4, -6, -2, 5, -1, -6, -4, 5, -3, -2, -5, 0, -3, 6, 0, -3, -5, 2, -1, 0, 0, -1, 0, -1, 2, -4, 3, 5, 5, 6], [30, 1, 3, 3, 2, 1], [-4, 3, -6, -3, 1, -5, -2, 5, -1, 0, 6, 2])
+check t_top_feed([-4, 3, -6, 3, -3, 1, -4, -5, 1, -4, -4, -6, -2, 5, -1, -6, -4, 5, -3, -2, -5, 0, -3, 6, 0, -3, -5, 2, -1, 0, 0, -1, 0, -1, 2, -4, 3, 5, 5, 6], [30, 1, 3, 3, 2, 1], 1, [-6], [6], [-5], [-4])
+check t_win_feed([-4, 3, -6, 3, -3, 1, -4, -5, 1, -4, -4, -6, -2, 5, -1, -6, -4, 5, -3, -2, -5, 0, -3, 6, 0, -3, -5, 2, -1, 0, 0, -1, 0, -1, 2, -4, 3, 5, 5, 6], [30, 1, 3, 3, 2, 1], 3, [-4, 3, -6, 3, -6, 3, -6, 3, -3, 3, -3, 1, -3, 1, -4, 1, -4, -5, -4, -5, 1, -5, 1, -4, 1, -4, -4, -4, -4, -6, -4, -6, -2, -6, -2, 5, -2, 5, -1, 5, -1, -6, -1, -6, -4, -6, -4, 5, -4, 5, -3, 5, -3, -2, -3, -2, -5, -2, -5, 0, -5, 0, -3, 0, -3, 6, -3, 6, 0, 6, 0, -3, 0, -3, -5, -3, -5, 2, -5, 2, -1, 2, -1, 0, -1, 0, 0, 0, 0, -1, 0, -1, 0, -1, 0, -1, 0, -1, 2, -1, 2, -4, 2, -4, 3, -4, 3, 5, 3, 5, 5, 5, 5, 6], [3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3])
+check t_batch_feed([-4, 3, -6, 3, -3, 1, -4, -5, 1, -4, -4, -6, -2, 5, -1, -6, -4, 5, -3, -2, -5, 0, -3, 6, 0, -3, -5, 2, -1, 0, 0, -1, 0, -1, 2, -4, 3, 5, 5, 6], [30, 1, 3, 3, 2, 1], 3, [-4, 3, -6, 3, -3, 1, -4, -5, 1, -4, -4, -6, -2, 5, -1, -6, -4, 5, -3, -2, -5, 0, -3, 6, 0, -3, -5, 2, -1, 0, 0, -1, 0, -1, 2, -4, 3, 5, 5, 6], [3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 1])
+check t_runs_feed([-4, 3, -6, 3, -3, 1, -4, -5, 1, -4, -4, -6, -2, 5, -1, -6, -4, 5, -3, -2, -5, 0, -3, 6, 0, -3, -5, 2, -1, 0, 0, -1, 0, -1, 2, -4, 3, 5, 5, 6], [30, 1, 3, 3, 2, 1], [4, 3, 1, 3, 1, 4, 0, 1, 4, 1, 2, 0, 1, 4, 0, 3, 2, 0, 3, 1, 0, 3, 0, 2, 1, 0, 1, 0, 1, 2, 4, 3, 0, 1], [-4, 3, -6, 3, -3, 1, -4, -5, 1, -4, -4, -6, -2, 5, -1, -6, -4, 5, -3, -2, -5, 0, -3, 6, 0, -3, -5, 2, -1, 0, 0, -1, 0, -1, 2, -4, 3, 5, 5, 6], [1, 1, 1, 2, 1, 1, 1, 1, 2, 1, 1, 1, 2, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 2, 1])
+check t_counts_feed([], [], [], [], 0, [], [], -6, 0)
+check t_seen_feed([], [], [])
+check t_top_feed([], [], 4, [], [], [], [])
+check t_win_feed([], [], 1, [], [])
+check t_batch_feed([], [], 1, [], [])
+check t_runs_feed([], [], [], [], [])
+check t_counts_feed([0, -2, -3, 4, 6, 6, 5, 2, 5, 2], [3, 1, 3, 2, 1], [0, -2, -3, 4, 6, 5, 2], [1, 1, 1, 1, 2, 2, 2], 5, [6, 5, 2, 0, -2], [2, 2, 2, 1, 1], -5, 0)
+check t_seen_feed([0, -2, -3, 4, 6, 6, 5, 2, 5, 2], [3, 1, 3, 2, 1], [0, -2, -3, 4, 6, 5, 2])
+check t_top_feed([0, -2, -3, 4, 6, 6, 5, 2, 5, 2], [3, 1, 3, 2, 1], 4, [-3, -2, 0, 2], [6, 6, 5, 5], [0, 5, 5, 6], [4, -3, -2, 2])
+check t_win_feed([0, -2, -3, 4, 6, 6, 5, 2, 5, 2], [3, 1, 3, 2, 1], 5, [0, -2, -3, 4, 6, -2, -3, 4, 6, 6, -3, 4, 6, 6, 5, 4, 6, 6, 5, 2, 6, 6, 5, 2, 5, 6, 5, 2, 5, 2], [5, 5, 5, 5, 5, 5])
+check t_batch_feed([0, -2, -3, 4, 6, 6, 5, 2, 5, 2], [3, 1, 3, 2, 1], 5, [0, -2, -3, 4, 6, 6, 5, 2, 5, 2], [5, 5])
+check t_runs_feed([0, -2, -3, 4, 6, 6, 5, 2, 5, 2], [3, 1, 3, 2, 1], [0, 2, 3, 4, 1, 0, 2, 0, 2], [0, -2, -3, 4, 6, 6, 5, 2, 5, 2], [1, 1, 1, 1, 2, 1, 1, 1, 1])
+check t_counts_feed([3, -2, -3, -4, -2, 6, -4, 5, -3, 3], [10], [3, -2, -3, -4, 6, 5], [2, 2, 2, 2, 1, 1], 4, [3, -2, -3, -4], [2, 2, 2, 2], -3, 2)
+check t_seen_feed([3, -2, -3, -4, -2, 6, -4, 5, -3, 3], [10], [3, -2, -3, -4, 6, 5])
+check t_top_feed([3, -2, -3, -4, -2, 6, -4, 5, -3, 3], [10], 1, [-4], [6], [5], [-4])
+check t_win_feed([3, -2, -3, -4, -2, 6, -4, 5, -3, 3], [10], 3, [3, -2, -3, -2, -3, -4, -3, -4, -2, -4, -2, 6, -2, 6, -4, 6, -4, 5, -4, 5, -3, 5, -3, 3], [3, 3, 3, 3, 3, 3, 3, 3])
+check t_batch_feed([3, -2, -3, -4, -2, 6, -4, 5, -3, 3], [10], 3, [3, -2, -3, -4, -2, 6, -4, 5, -3, 3], [3, 3, 3, 1])
+check t_runs_feed([3, -2, -3, -4, -2, 6, -4, 5, -3, 3], [10], [3, 2, 3, 4, 2, 1, 4, 0, 3], [3, -2, -3, -4, -2, 6, -4, 5, -3, 3], [1, 1, 1, 1, 1, 1, 1, 1, 2])
+check t_counts_feed([0, 5, -6, -5, -6, -6, -6, -4, 2, 1], [9, 1], [0, 5, -6, -5, -4, 2, 1], [1, 1, 4, 1, 1, 1, 1], 4, [-6, 0, 5, -5], [4, 1, 1, 1], 1, 1)
+check t_seen_feed([0, 5, -6, -5, -6, -6, -6, -4, 2, 1], [9, 1], [0, 5, -6, -5, -4, 2, 1])
+check t_top_feed([0, 5, -6, -5, -6, -6, -6, -4, 2, 1], [9, 1], 4, [-6, -6, -6, -6], [5, 2, 1, 0], [0, 5, -5, -6], [-4, 2, -6, -6])
 check t_win_feed([0, 5, -6, -5, -6, -6, -6, -4, 2, 1], [9, 1], 3, [0, 5, -6, 5, -6, -5, -6, -5, -6, -5, -6, -6, -6, -6, -6, -6, -6, -4, -6, -4, 2, -4, 2, 1], [3, 3, 3, 3, 3, 3, 3, 3])
 check t_batch_feed([0, 5, -6, -5, -6, -6, -6, -4, 2, 1], [9, 1], 3, [0, 5, -6, -5, -6, -6, -6, -4, 2, 1], [3, 3, 3, 1])
 check t_runs_feed([0, 5, -6, -5, -6, -6, -6, -4, 2, 1], [9, 1], [0, 1, 0, 1, 4, 2, 1], [0, 5, -6, -5, -6, -6, -6, -4, 2, 1], [2, 1, 1, 3, 1, 1, 1])
