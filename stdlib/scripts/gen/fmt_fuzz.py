@@ -7,10 +7,10 @@
 # float-parse (random decimal text: long digit strings, midpoints between
 # neighbouring values and points just beside them), corpus (COUNT random
 # lines of each data file of a parse-number-fxx-test-data checkout).
-# Each run writes the module, scripts/gen/fmt_ext_helpers.rce and the
-# checks to one file in a temporary directory, runs `rce test` on it and
-# prints the failing checks. A pattern on which CPython's backtracking
-# takes more than a second is skipped.
+# The checks run appended to the module and scripts/gen/fmt_ext_helpers.rce
+# in files of 40; the failing checks are printed, and those that run out
+# of comptime fuel even alone are counted apart. A pattern on which
+# CPython's backtracking takes more than a second is skipped.
 import decimal, math, os, random, re, signal, struct, subprocess, sys, tempfile
 root = os.path.join(os.path.dirname(os.path.abspath(__file__)), '../..')
 RCE = os.environ.get('RCE', 'rce')
@@ -171,13 +171,33 @@ else:
 helpers = open(os.path.join(root, 'scripts/gen/fmt_ext_helpers.rce')).read()
 mod = open(os.path.join(root, 'lib/fmt/fmt.rce')).read()
 L = mod.count('\n') + 1 + helpers.count('\n') + 1
-with tempfile.TemporaryDirectory() as tmp:
-    f = os.path.join(tmp, 'fuzz.rce')
-    open(f, 'w').write(mod + '\n' + helpers + '\n' + '\n'.join(lines) + '\n')
-    out = subprocess.run([RCE, 'test', f], capture_output=True, text=True).stdout
-bad = re.findall(r'line (\d+): ([^;\n]*)', out)
-print(mode, 'seed', seed, len(lines), 'checks,', len(bad), 'failing')
-for ln, why in bad[:20]:
-    k = int(ln) - L - 1
-    print('  ', why, lines[k][:400] if 0 <= k < len(lines) else ln)
-sys.exit(1 if bad else 0)
+
+# Comptime fuel is per file: run the checks in files of 40, and a check
+# that runs out of fuel again alone, so a heavy pattern (a large program
+# from nested counted repeats) is reported as such and the checks after
+# it still run.
+def run(batch):
+    with tempfile.TemporaryDirectory() as tmp:
+        f = os.path.join(tmp, 'fuzz.rce')
+        open(f, 'w').write(mod + '\n' + helpers + '\n' + '\n'.join(batch) + '\n')
+        out = subprocess.run([RCE, 'test', f], capture_output=True, text=True).stdout
+    return [(int(ln) - L - 1, why) for ln, why in re.findall(r'line (\d+): ([^;\n]*)', out)]
+
+wrong, heavy = [], []
+for i in range(0, len(lines), 40):
+    batch = lines[i:i + 40]
+    res = run(batch)
+    first_fuel = min([k for k, why in res if 'fuel' in why], default=len(batch))
+    wrong += [batch[k] for k, why in res if k < first_fuel and 'fuel' not in why]
+    for c in batch[first_fuel:]:
+        one = run([c])
+        if any('fuel' in why for _, why in one):
+            heavy.append(c)
+        elif one:
+            wrong.append(c)
+print(mode, 'seed', seed, len(lines), 'checks,', len(wrong), 'wrong,', len(heavy), 'out of fuel alone')
+for c in wrong[:20]:
+    print('  wrong', c[:400])
+for c in heavy[:5]:
+    print('  heavy', c[:200])
+sys.exit(1 if wrong else 0)
