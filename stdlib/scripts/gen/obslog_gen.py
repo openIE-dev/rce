@@ -5,14 +5,14 @@
 # generated checks tests/obs/log_checks_2.rce (logfmt), _3 (sampling and
 # RFC 3339 times) and _4 (JSON and records) of lib/obs/log.rce. Derived
 # vectors, seed 20261027:
-# - logfmt: github.com/go-logfmt/logfmt v0.6.0 run by scripts/gen/obslog_go
+# - logfmt: github.com/go-logfmt/logfmt 0.6.0 run by scripts/gen/obslog_go
 #   (Go 1.24, `go run .`): MarshalKeyvals of random pairs (with refusals),
 #   EncodeKeyval pair by pair (a refused key writes nothing), the Decoder on
 #   single lines (round trips of the encoded lines, random and mutated
 #   lines, every syntax error) and on multi-line texts (LF, CRLF, empty
 #   lines, a final CR; Go stops at the first error, so only the lines up to
 #   it are compared);
-# - sampling: zapcore.NewSamplerWithOptions of go.uber.org/zap v1.27.0 with
+# - sampling: zapcore.NewSamplerWithOptions of go.uber.org/zap 1.27.0 with
 #   a SamplerHook, levels Debug..Error as severities 5, 9, 13, 17;
 # - JSON: CPython json.dumps(dict(pairs), ensure_ascii=..., separators=(",",
 #   ":")), a number lexeme spliced in where json.scanner.NUMBER_RE accepts
@@ -321,7 +321,7 @@ time_parse = [[x, parse_ref(x)] for x in time_parse]
 os.makedirs(os.path.join(ROOT, 'vectors', 'obs'), exist_ok=True)
 with open(os.path.join(ROOT, 'vectors', 'obs', 'log_ref.json'), 'w') as fh:
     json.dump({
-        'source': 'scripts/gen/obslog_gen.py (seed 20261027): go-logfmt v0.6.0 and zap v1.27.0 through scripts/gen/obslog_go, CPython json',
+        'source': 'scripts/gen/obslog_gen.py (seed 20261027): go-logfmt 0.6.0 and zap 1.27.0 through scripts/gen/obslog_go, CPython json',
         'encode': [{'pairs': e, 'marshal': m, 'keyvals': k} for e, m, k in zip(enc_in, ref['encode'], ref['encode_skip'])],
         'decode': [{'line': l, 'pairs': d['pairs'], 'err': d['err']} for l, d in zip(dec_in, ref['decode'])],
         'streams': [{'text': t, 'records': s['records'], 'err': s['err']} for t, s in zip(streams, ref['streams'])],

@@ -1,5 +1,5 @@
 {
-"source": "scripts/gen/obslog_gen.py (seed 20261027): go-logfmt v0.6.0 and zap v1.27.0 through scripts/gen/obslog_go, CPython json",
+"source": "scripts/gen/obslog_gen.py (seed 20261027): go-logfmt 0.6.0 and zap 1.27.0 through scripts/gen/obslog_go, CPython json",
 "encode": [
 {
 "pairs": [

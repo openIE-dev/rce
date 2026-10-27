@@ -13,7 +13,7 @@ module obs.log
 #   numbers minus 9.
 # - Fields: ordered key-value pairs; a value is text, an integer, a
 #   boolean, null or a JSON number lexeme.
-# - Formats: logfmt as github.com/go-logfmt/logfmt v0.6.0 writes and reads
+# - Formats: logfmt as github.com/go-logfmt/logfmt 0.6.0 writes and reads
 #   it (key filtering, quoting, escapes, error positions), and JSON Lines as
 #   CPython's json.dumps writes one object (separators "," and ":",
 #   ensure_ascii either way). A record is written as time, level and msg,
@@ -262,7 +262,7 @@ fn olg_parts_len(ps: &[text]) -> i64
 
 fn olg_has_fffd(t: &text) -> bool = t.contains("\u{fffd}")
 
-# ---------------- logfmt writing (go-logfmt v0.6.0) ----------------
+# ---------------- logfmt writing (go-logfmt 0.6.0) ----------------
 
 # A key with every rune <= ' ', '=', '"' and U+FFFD removed (keyRuneFilter).
 pub fn lf_key(k: &text) -> text
@@ -408,7 +408,7 @@ pub fn lf_encode_skip(kvs: &[LogKv]) -> text
     let mk = "truncated=true"
     return olg_line(&pairs, &e, &sp, &e, &mk)
 
-# ---------------- logfmt reading (go-logfmt v0.6.0 Decoder) ----------------
+# ---------------- logfmt reading (go-logfmt 0.6.0 Decoder) ----------------
 
 # One decoded line: the pairs read (values as LvStr; a bare key, "k=" and
 # k="" all give ""), and when ok is false the byte offset and message of

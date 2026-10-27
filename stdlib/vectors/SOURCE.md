@@ -1065,7 +1065,7 @@ near 700.
 Pure. No official vector files; every reference vector is derived by
 `scripts/gen/obslog_gen.py` (seed 20261027), and its inputs and outputs are
 kept in `vectors/obs/log_ref.json`:
-- **go-logfmt** (github.com/go-logfmt/logfmt v0.6.0, run with Go 1.24 by
+- **go-logfmt** (github.com/go-logfmt/logfmt 0.6.0, run with Go 1.24 by
   `scripts/gen/obslog_go`, `go.sum` pinned): 225 pair lists (keys with
   spaces, `=`, quotes, control characters and U+FFFD, which go-logfmt
   removes; string, integer, boolean and nil values, `"null"`, empty strings,
@@ -1080,7 +1080,7 @@ kept in `vectors/obs/log_ref.json`:
   empty lines, a final CR, a fault before a CR) through one Decoder:
   `lf_lines` gives the same records; go-logfmt stops at the first error
   (22 texts), so only the lines up to it are compared there.
-- **zap** (go.uber.org/zap v1.27.0): 36 runs of
+- **zap** (go.uber.org/zap 1.27.0): 36 runs of
   `zapcore.NewSamplerWithOptions` (tick 0..1000 ns, first 0..10, thereafter
   0..5, times from -50 to 10^18, levels Debug..Error as severities 5, 9,
   13 and 17, a pair of messages that share a counter bucket), 2,022 sampling
