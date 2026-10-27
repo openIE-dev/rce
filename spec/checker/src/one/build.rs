@@ -195,6 +195,81 @@ impl FB {
         Fn { params: self.params, ret: self.ret, body }
     }
 
+    // ---- structured statements built from closures
+
+    /// `if c { t } else { e }`.
+    pub fn if_(&mut self, c: Atom, t: impl FnOnce(&mut FB) -> R<()>, e: impl FnOnce(&mut FB) -> R<()>) -> R<()> {
+        self.open();
+        t(self)?;
+        let tt = self.close();
+        self.open();
+        e(self)?;
+        let ee = self.close();
+        self.push(Stmt::If(c, tt, ee));
+        Ok(())
+    }
+    /// `if c { t }`.
+    pub fn when(&mut self, c: Atom, t: impl FnOnce(&mut FB) -> R<()>) -> R<()> {
+        self.if_(c, t, |_| Ok(()))
+    }
+    /// `loop { body }`. Inside `body`, outside any block or loop it opens,
+    /// `break 0` leaves this loop.
+    pub fn loop_(&mut self, body: impl FnOnce(&mut FB) -> R<()>) -> R<()> {
+        self.open();
+        body(self)?;
+        let b = self.close();
+        self.push(Stmt::Loop(b));
+        Ok(())
+    }
+    /// Leave the innermost loop when `c` is false.
+    pub fn exit_unless(&mut self, c: Atom) -> R<()> {
+        self.if_(c, |_| Ok(()), |b| {
+            b.brk(0);
+            Ok(())
+        })
+    }
+    /// Leave the innermost loop when `c` is true.
+    pub fn exit_if(&mut self, c: Atom) -> R<()> {
+        self.when(c, |b| {
+            b.brk(0);
+            Ok(())
+        })
+    }
+    /// `for i in 0..n { body(i) }`, with i of type u64 and n known not to
+    /// be negative. Inside `body`, `break 0` leaves the loop.
+    pub fn for_n(&mut self, n: Atom, body: impl FnOnce(&mut FB, Atom) -> R<()>) -> R<()> {
+        let i = self.var(Ty::u64(), lit(0));
+        self.loop_(|b| {
+            let iv = b.let_(Atom::V(i));
+            let c = b.int_cmp("int.lt", iv.clone(), n)?;
+            b.exit_unless(c)?;
+            body(b, iv.clone())?;
+            if b.falls() {
+                let i1 = b.add_in(iv, lit(1), Ty::u64())?;
+                b.set(i, i1);
+            }
+            Ok(())
+        })
+    }
+    /// Move the value out of a `var` local.
+    pub fn take(&mut self, v: u32) -> Atom {
+        self.let_(Atom::V(v))
+    }
+    /// A copy of the value of a `var` local, which keeps its value.
+    pub fn peek(&mut self, v: u32) -> R<Atom> {
+        let t = self.local_ty(v);
+        if t.owned() { self.p("copy", vec![t], vec![Atom::V(v)]) } else { Ok(self.let_(Atom::V(v))) }
+    }
+    /// Replace the value of a `var` local of an owned type, dropping the old one.
+    pub fn replace(&mut self, v: u32, a: Atom) -> R<()> {
+        if self.local_ty(v).owned() {
+            let old = self.let_(Atom::V(v));
+            self.drop(old)?;
+        }
+        self.set(v, a);
+        Ok(())
+    }
+
     // ---- small helpers used everywhere
 
     pub fn int_cmp(&mut self, op: &str, a: Atom, b: Atom) -> R<Atom> {
@@ -223,6 +298,17 @@ impl FB {
         self.halt(h);
         let t = self.close();
         self.push(Stmt::If(c, t, vec![]));
+        Ok(())
+    }
+    /// `if c {} else { halt (internal trap msg) }`: after it, c holds (W4).
+    pub fn guard_halt_unless(&mut self, c: Atom, msg: &str) -> R<()> {
+        self.open();
+        let t = self.close();
+        self.open();
+        let h = self.trap_value(Atom::bytes(msg.as_bytes()))?;
+        self.halt(h);
+        let e = self.close();
+        self.push(Stmt::If(c, t, e));
         Ok(())
     }
     /// A trap: `halt sum.mk[Halt](0, msg)`.

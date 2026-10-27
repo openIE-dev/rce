@@ -2,7 +2,7 @@
 //!
 //! The core is the only input of the printer. It has nine types, three
 //! kinds of atom, thirteen statements, three declarations and one hundred
-//! primitives. Every name has one meaning at its type argument, the form is
+//! and one primitives: the one hundred of section 3.2 and `f64.sign`. Every name has one meaning at its type argument, the form is
 //! in A-normal form (every operand is an atom), and every partial primitive
 //! is preceded by its domain test.
 //!
@@ -232,7 +232,17 @@ pub fn prim_results(p: &str, targs: &[Ty]) -> usize {
     }
 }
 
-/// The names of the one hundred primitives, by family.
+/// The names of the primitives, by family: the one hundred of section 3.2
+/// and `f64.sign`.
+///
+/// `f64.sign` is IEEE 754's isSignMinus: whether the sign bit of a binary64
+/// value is set. It is the one addition the lowering needed. The core keeps
+/// -0.0 distinct from 0.0 (6.3 F4, F6) and display prints its sign, but no
+/// composition of the other primitives observes the sign of a zero: every
+/// comparison treats the two zeros as equal, every operation that maps them
+/// apart (1 / x) leaves the finite values, and a cast to an integer gives 0
+/// for both. Section 3.2 of the proposal lists one hundred primitives; this
+/// one is reported to it as a change (CONTRIBUTING rules 2 and 3).
 pub const PRIMS: &[&str] = &[
     // bool (4)
     "bool.not", "bool.and", "bool.or", "bool.eq",
@@ -243,7 +253,8 @@ pub const PRIMS: &[&str] = &[
     "int.and", "int.or", "int.xor", "int.not", "int.shl", "int.shr", "int.cast",
     "int.bad.add", "int.bad.sub", "int.bad.mul", "int.bad.neg", "int.bad.abs",
     "int.bad.quo", "int.bad.shift", "int.bad.cast",
-    // f64 (25)
+    // f64 (26)
+    "f64.sign",
     "f64.add", "f64.sub", "f64.mul", "f64.div", "f64.sqrt",
     "f64.neg", "f64.abs", "f64.floor", "f64.ceil", "f64.round",
     "f64.min", "f64.max", "f64.eq", "f64.lt", "f64.le",
@@ -275,12 +286,12 @@ pub const PRIMS: &[&str] = &[
 #[cfg(test)]
 mod tests {
     #[test]
-    fn one_hundred_primitives() {
+    fn one_hundred_and_one_primitives() {
         let mut v = super::PRIMS.to_vec();
         v.sort();
         v.dedup();
-        assert_eq!(v.len(), 100);
-        assert_eq!(super::PRIMS.len(), 100);
+        assert_eq!(v.len(), 101);
+        assert_eq!(super::PRIMS.len(), 101);
     }
     #[test]
     fn widths() {

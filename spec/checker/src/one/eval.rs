@@ -604,6 +604,7 @@ pub fn prim(p: &str, ty: &[Ty], mut v: Vec<Val>) -> Result<Vec<Val>, Flow> {
                     if x < 0.0 { dom("sqrt of a negative") } else { one(Val::F(x.sqrt())) }
                 }
                 "bad.sqrt" => one(Val::Bool(f(0, &v)? < 0.0)),
+                "sign" => one(Val::Bool(f(0, &v)?.is_sign_negative())),
                 "neg" => one(Val::F(-f(0, &v)?)),
                 "abs" => one(Val::F(f(0, &v)?.abs())),
                 "floor" => one(Val::F(f(0, &v)?.floor())),

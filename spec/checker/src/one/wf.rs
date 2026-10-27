@@ -268,7 +268,7 @@ pub fn signature(p: &str, ts: &[Ty], ops: &[Ty], args: &[Atom]) -> R<Vec<Ty>> {
                 "add" | "sub" | "mul" | "div" | "min" | "max" => { targs(0)?; same(&[f.clone(), f.clone()])?; Ok(vec![f]) }
                 "bad.add" | "bad.sub" | "bad.mul" | "bad.div" | "eq" | "lt" | "le" => { targs(0)?; same(&[f.clone(), f])?; b() }
                 "sqrt" | "neg" | "abs" | "floor" | "ceil" | "round" => { targs(0)?; same(std::slice::from_ref(&f))?; Ok(vec![f]) }
-                "bad.sqrt" | "bad.to_f32" => { targs(0)?; same(&[f])?; b() }
+                "bad.sqrt" | "bad.to_f32" | "sign" => { targs(0)?; same(&[f])?; b() }
                 "to_f32" => { targs(0)?; same(&[f])?; Ok(vec![Ty::F32]) }
                 "of_int" => { let (_, _, t) = iota()?; same(&[t])?; Ok(vec![Ty::F64]) }
                 "trunc" => { let (_, _, t) = iota()?; same(&[f])?; Ok(vec![t]) }
