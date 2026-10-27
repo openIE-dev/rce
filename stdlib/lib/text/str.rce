@@ -64,10 +64,12 @@ module text.str
 # functions on what they strip, and str_splitlines on text with line ends
 # other than \n and \r\n read character by character, at about 50 to 100
 # ticks each, so one input's fuel covers a few hundred thousand
-# characters of them. For more, apply them to consecutive chunks: a
-# chunk that starts after a space (after a line end, for
-# str_splitlines) sees the same neighbouring characters (the final sigma
-# rule, the previous cased letter, word boundaries) as in the whole text.
+# characters of them. For more, apply them to consecutive chunks that
+# str_chunk_end cuts after a space (after "\n", for str_splitlines): such
+# a chunk sees the same neighbouring characters (the final sigma rule,
+# the previous cased letter, word boundaries) as in the whole text, so
+# the results of the chunks, joined, are the result for the whole text.
+# A caller keeps the byte offset of the next chunk between inputs.
 
 pub const STR_LIMIT: i64 = 1000000
 const STR_WIN: i64 = 999000
@@ -349,6 +351,27 @@ pub fn str_count_in(s: &text, sub: &text, start: i64, end: i64) -> i64
     if b - a < m
         return 0
     return sx_count(s, sub, a, b)
+
+# The end of the chunk of s that starts at byte a (rounded up to a
+# character boundary) and holds at most max_bytes bytes: just after the
+# last match of sep in s[a:a + max_bytes]; when there is none (or sep is
+# empty), a + max_bytes rounded down to a character boundary, and at
+# least one character; the length of s when the rest fits. The chunks
+# s[0:b1], s[b1:b2], ... cover s, and each is cut after sep wherever the
+# window holds one.
+pub fn str_chunk_end(s: &text, a: i64, max_bytes: i64, sep: &text) -> i64
+    let n = s.len_bytes() as i64
+    let p = sx_up(s, a)
+    if p >= n or max_bytes >= n - p
+        return n
+    let lim = p + max_bytes.max(1)
+    let m = sep.len_bytes() as i64
+    if m > 0
+        let i = str_rfind_in(s, sep, p, lim)
+        if i >= 0
+            return i + m
+    let q = sx_down(s, lim)
+    return if q > p then q else sx_up(s, p + 1)
 
 # Python's s.removeprefix(p) and s.removesuffix(p).
 pub fn str_removeprefix(s: &text, p: &text) -> text = if p.len_bytes() > 0 and s.startswith(copy(p)) then s[p.len_bytes():] else copy(s)

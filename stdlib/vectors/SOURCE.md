@@ -184,16 +184,20 @@ Pure. Every expected value comes from an independent reference, saved in
   inside a character (rounded to a boundary), an empty separator in
   partition, split_once and rsplit, `BadStr` results (too large, fill,
   step, code point), the split cap at 999,999 splits, the chunk lists of
-  `sx_split_chunks` and the character offset conversions. 11 seeded
-  property sweeps (`tests/text/str_checks_props.rce`, 600 seeds) check the
-  search, split, replace and partition functions against StrFinder and
-  against each other, StrScan over random chunkings, slicing and offset
-  round trips, upper and casefold chunk by chunk, splitlines, strip and
-  StrBuf (including appends across its run and block boundaries and
-  content above the limit).
+  `sx_split_chunks` and the character offset conversions. 17 property
+  checks (`tests/text/str_checks_props.rce`: seeded sweeps over 600 seeds
+  and fixed inputs) check the search, split, replace and partition
+  functions against StrFinder and against each other, StrScan over random
+  chunkings, slicing and offset round trips, upper and casefold chunk by
+  chunk, the chunks of `str_chunk_end` (title, swapcase, lower, words and
+  splitlines over the chunks joined equal the whole text's, in at least
+  125 of 400 seeds whose every cut falls after the separator; the chunk
+  ends of texts of a million characters), splitlines, strip and StrBuf
+  (including appends across its run and block boundaries and content
+  above the limit).
 
-17,717 vector checks and 11 property sweeps in `tests/text/str_checks*.rce`
-(87 files). A refresh with the references above writes the vectors file
+17,717 vector checks and 17 property checks in
+`tests/text/str_checks*.rce` (87 files). A refresh with the references above writes the vectors file
 byte for byte again.
 
 Needs spec: case mapping and predicates follow Unicode 15.1.0 (CPython
