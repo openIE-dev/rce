@@ -13,17 +13,19 @@ on:
 jobs:
   checks:
     # the libraries are split over parallel jobs (scripts/check.sh ONLY=...):
-    # one run of everything exceeded the 60-minute job limit on a runner
+    # one run of everything exceeded the 60-minute job limit on a runner.
+    # Groups are balanced by measured CPU time: math alone outweighs the
+    # rest, ui is next (about 500 s), and the other groups take 150 to 270 s.
     strategy:
       fail-fast: false
       matrix:
         group:
-          - "crypto col core"
+          - "crypto col core text"
           - "data effect enc energy"
-          - "fmt hash id io math"
+          - "hash io math"
           - "net num obs"
-          - "os"
-          - "rand test text time ui"
+          - "fmt id os rand test time"
+          - "ui"
     name: checks (${{ matrix.group }})
     runs-on: ubuntu-latest
     timeout-minutes: 90
@@ -41,6 +43,6 @@ jobs:
         working-directory: stdlib
         run: ONLY="${{ matrix.group }}" RCE="$GITHUB_WORKSPACE/spec/checker/target/release/rce" scripts/check.sh
       - name: Run the slow vector sets (nightly and on request)
-        if: (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && matrix.group == 'crypto col core'
+        if: (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && matrix.group == 'crypto col core text'
         working-directory: stdlib
         run: RCE="$GITHUB_WORKSPACE/spec/checker/target/release/rce" scripts/nightly.sh
