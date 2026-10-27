@@ -14,9 +14,10 @@ use std::path::PathBuf;
 /// The programs of spec/examples whose core prints the reference's trace.
 const COVERED: &[&str] = &[
     "01_counter", "02_hello_main", "03_fib_loop", "04_bank_account", "05_kind_match", "06_option", "16_multi_region",
-    "17_traffic_light", "18_while_bound", "22_tuples", "23_patterns", "25_labels", "27_bitops", "30_state_machine_guarded",
-    "31_inventory", "32_comptime_block", "35_nested_if", "46_u64", "49_loop_limit", "53_capability", "54_secret",
-    "59_dim_redundant_field", "60_dim_hidden_period", "61_dim_minimal",
+    "17_traffic_light", "18_while_bound", "19_floats", "22_tuples", "23_patterns", "25_labels", "27_bitops",
+    "30_state_machine_guarded", "31_inventory", "32_comptime_block", "35_nested_if", "38_hex_bin", "42_f32", "46_u64",
+    "49_loop_limit", "53_capability", "54_secret", "57_float_vectors", "59_dim_redundant_field", "60_dim_hidden_period",
+    "61_dim_minimal",
 ];
 
 /// The programs the lowering does not yet cover, and the construct it
@@ -31,7 +32,6 @@ const NOT_COVERED: &[(&str, &str)] = &[
     ("13_spawn_chan", "chan"),
     ("14_select", "chan"),
     ("15_actor", "chan"),
-    ("19_floats", "the display of a float"),
     ("20_strings", "the method strip of text"),
     ("21_maps", "the expression at line"),
     ("24_lambda", "the method map"),
@@ -41,13 +41,11 @@ const NOT_COVERED: &[(&str, &str)] = &[
     ("34_chan_types", "chan"),
     ("36_multiline_brackets", "the method fold"),
     ("37_actor_spawn", "chan"),
-    ("38_hex_bin", "the display of a float"),
     ("39_structural_recursion", "a recursive type"),
     ("40_extern", "a foreign function"),
     ("41_arena_bound_wrapping", "an arena with a bound"),
-    ("42_f32", "to f32"),
     ("43_simd_lanes", "List[f64] * List[f64]"),
-    ("44_device_region", "to f32"),
+    ("44_device_region", "an arena with a bound, a device region or a marker region"),
     ("45_byte_text", "the expression at line"),
     ("47_select_fair", "chan"),
     ("48_linear_handle", "a foreign function"),
@@ -56,7 +54,6 @@ const NOT_COVERED: &[(&str, &str)] = &[
     ("52_context_text", "the name Html"),
     ("55_rcedb", "an indexed assignment"),
     ("56_utf8", "the method utf8"),
-    ("57_float_vectors", "the method sqrt of f64"),
     ("58_float_keys", "the method get of Map"),
 ];
 
@@ -64,10 +61,10 @@ const NOT_COVERED: &[(&str, &str)] = &[
 /// emitter tests, `emit::with_probes`, which call every function on sample
 /// arguments) also lower with identical traces.
 const COVERED_WITH_PROBES: &[&str] = &[
-    "01_counter", "02_hello_main", "03_fib_loop", "04_bank_account", "06_option", "17_traffic_light",
-    "18_while_bound", "22_tuples", "23_patterns", "25_labels", "27_bitops", "30_state_machine_guarded", "32_comptime_block",
-    "35_nested_if", "46_u64", "49_loop_limit", "53_capability", "54_secret", "59_dim_redundant_field", "60_dim_hidden_period",
-    "61_dim_minimal",
+    "01_counter", "02_hello_main", "03_fib_loop", "04_bank_account", "05_kind_match", "06_option", "17_traffic_light",
+    "18_while_bound", "19_floats", "22_tuples", "23_patterns", "25_labels", "27_bitops", "30_state_machine_guarded",
+    "32_comptime_block", "35_nested_if", "38_hex_bin", "46_u64", "49_loop_limit", "53_capability", "54_secret",
+    "57_float_vectors", "59_dim_redundant_field", "60_dim_hidden_period", "61_dim_minimal",
 ];
 
 fn examples() -> Vec<(String, String)> {

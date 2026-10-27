@@ -442,11 +442,7 @@ impl<'a> Tables<'a> {
     /// The type a value of type `v` has after it is fitted to `t` (interp `fit`).
     pub fn fit(&self, v: &RType, t: &Ty) -> RType {
         let want = self.of_ty(t);
-        match (v, &want) {
-            (RType::Unknown(r), _) => RType::Unknown(r.clone()),
-            // an error value keeps its type through a fit to the union
-            _ => want,
-        }
+        fit_type(v, want)
     }
     /// The type of field `f` of a value of declared type `n`.
     pub fn field_type(&self, n: &str, f: &str) -> RType {
@@ -466,6 +462,29 @@ impl<'a> Tables<'a> {
             return if r == RType::Never { RType::Unknown(format!("no field {f} in {n}")) } else { r };
         }
         RType::Unknown(format!("a field of {n}"))
+    }
+}
+
+/// The type of a value of type `v` fitted to a declared type whose values
+/// have type `want` (interp `fit`): an integer takes the declared name, an
+/// integer fitted to f64 or f32 becomes a float of that width, and a float
+/// keeps its own width, since the interpreter does not convert a float
+/// value to the other width when it fits it; lists, sets, maps, options and
+/// tuples are fitted element by element.
+pub fn fit_type(v: &RType, want: RType) -> RType {
+    use RType as T;
+    match (v, want) {
+        (T::Unknown(r), _) => T::Unknown(r.clone()),
+        (T::F64 | T::F32, T::F64 | T::F32) => v.clone(),
+        (T::Opt(x), T::Opt(w)) => T::Opt(Box::new(fit_type(x, *w))),
+        (T::List(x), T::List(w)) => T::List(Box::new(fit_type(x, *w))),
+        (T::Set(x), T::Set(w)) => T::Set(Box::new(fit_type(x, *w))),
+        (T::Map(a, b), T::Map(c, d)) => T::Map(Box::new(fit_type(a, *c)), Box::new(fit_type(b, *d))),
+        (T::Tuple(xs), T::Tuple(ws)) if xs.len() == ws.len() => T::Tuple(xs.iter().zip(ws).map(|(x, w)| fit_type(x, w)).collect()),
+        // an error value keeps its type through a fit to the union; the ok
+        // value is fitted to the ok side
+        (x, T::Union(ok, err)) if !matches!(x, T::Union(..)) => T::Union(Box::new(fit_type(x, *ok)), err),
+        (_, w) => w,
     }
 }
 

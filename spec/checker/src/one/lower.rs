@@ -16,7 +16,10 @@
 //! The constructs covered are those of the counter-style programs: checked
 //! integers, bools, text values, structs, events, errors, kinds, options and
 //! error unions, state, steps, refusals, `if`, `match`, bounded loops, `for`
-//! over ranges and lists, functions and methods, and constants.
+//! over ranges and lists, functions and methods, and constants; and floats:
+//! f64 and f32 arithmetic with its domain tests, the methods of 5.15 on
+//! floats, casts between floats and integers, and the display and JSON of
+//! floats through the runtime functions of `rtf.rs`.
 //!
 //! Ownership (W3): an RCE variable holds its value until the end of its
 //! scope, where it is dropped; every read of an owned variable is a `copy`;
@@ -24,6 +27,7 @@
 use super::build::*;
 use super::ir::*;
 use super::rt;
+use super::rtf;
 use crate::ast::{self, Arg, Body, Expr, FnDecl, Item, Param, Pat, Stmt as S};
 use crate::typed::{self, Binding, Callee, IntT, RType, Tables, Typed, addr};
 use std::collections::HashMap;
@@ -314,6 +318,13 @@ impl<'m> Lw<'m> {
         fx.b.call(sym(id), r, args)
     }
 
+    /// A binary64 value known to be a binary32 value, as f32.
+    fn to_f32_exact(&mut self, fx: &mut Fx, x: Atom) -> R<Atom> {
+        let c = fx.b.p("f64.bad.to_f32", vec![], vec![x.clone()])?;
+        self.guard(fx, c, |_, _| Ok(Atom::bytes(b"internal: f32")))?;
+        fx.b.p("f64.to_f32", vec![], vec![x])
+    }
+
     fn dec(&mut self, fx: &mut Fx, v: Atom) -> R<Atom> {
         let d = rt::dec(&mut self.f)?;
         Ok(self.call_rt(fx, d, vec![v]))
@@ -409,6 +420,10 @@ impl<'m> Lw<'m> {
                 fx.b.p("int.cast", vec![tt], vec![a])
             }
             (RType::Int(_), RType::F64) if check => fx.b.p("f64.of_int", vec![ft], vec![a]),
+            (RType::Int(_), RType::F32) if check => {
+                let g = rtf::int_to_f32(&mut self.f)?;
+                Ok(self.call_rt(fx, g, vec![a]))
+            }
             (RType::List(x), RType::List(y)) | (RType::Set(x), RType::Set(y)) => {
                 let Ty::List(te) = &tt else { unreachable!() };
                 let te = (**te).clone();
@@ -500,13 +515,27 @@ impl<'m> Lw<'m> {
         if self.t.refined(to) {
             return no("a refined type");
         }
-        let target = self.t.of_ty(to);
+        let target = self.t.fit(from, to);
         if let RType::Unknown(r) = &target {
             return no(r);
         }
         // an error value keeps its type: fit to a union keeps the error side
         let a2 = self.conv(fx, a, from, &target, true)?;
         Ok(Val { a: a2, t: target })
+    }
+
+    /// interp `fit` into a place whose core type is that of the declared
+    /// type: a parameter, a field, a result. A float the interpreter keeps
+    /// at its own width (an f64 value given to an f32 field) has no core
+    /// value of the declared type, and is refused.
+    fn fit_decl(&mut self, fx: &mut Fx, a: Atom, from: &RType, to: &ast::Ty) -> R<Val> {
+        let v = self.fit(fx, a, from, to)?;
+        let want = self.t.of_ty(to);
+        if v.t == want {
+            return Ok(v);
+        }
+        let a = self.conv(fx, v.a, &v.t, &want, false)?;
+        Ok(Val { a, t: want })
     }
 
     // ---- generated per-type code: display, equality, positional JSON
@@ -673,7 +702,15 @@ impl<'m> Lw<'m> {
                 }
             }
             RType::Map(..) => no("the display of a map"),
-            RType::F64 | RType::F32 => no("the display of a float"),
+            RType::F64 => {
+                let d = rtf::text(&mut self.f)?;
+                Ok(self.call_rt(fx, d, vec![v]))
+            }
+            RType::F32 => {
+                let x = fx.b.p("f32.to_f64", vec![], vec![v])?;
+                let d = rtf::text32(&mut self.f)?;
+                Ok(self.call_rt(fx, d, vec![x]))
+            }
             o => no(format!("the display of {}", o.show())),
         }
     }
@@ -1004,7 +1041,15 @@ impl<'m> Lw<'m> {
                 }
             }
             RType::Map(..) => no("a map in the log"),
-            RType::F64 | RType::F32 => no("a float in the log"),
+            RType::F64 => {
+                let j = rtf::json(&mut self.f)?;
+                Ok(self.call_rt(fx, j, vec![v]))
+            }
+            RType::F32 => {
+                let x = fx.b.p("f32.to_f64", vec![], vec![v])?;
+                let j = rtf::json(&mut self.f)?;
+                Ok(self.call_rt(fx, j, vec![x]))
+            }
             o => no(format!("{} in the log", o.show())),
         }
     }
@@ -1108,6 +1153,11 @@ impl<'m> Lw<'m> {
                         Ok(Val { a: fx.b.p("int.neg", vec![r], vec![v.a])?, t: rt })
                     }
                     RType::F64 => Ok(Val { a: fx.b.p("f64.neg", vec![], vec![v.a])?, t: rt }),
+                    RType::F32 => {
+                        let x = fx.b.p("f32.to_f64", vec![], vec![v.a])?;
+                        let y = fx.b.p("f64.neg", vec![], vec![x])?;
+                        Ok(Val { a: self.to_f32_exact(fx, y)?, t: rt })
+                    }
                     o => no(format!("negation of {}", o.show())),
                 }
             }
@@ -1251,7 +1301,7 @@ impl<'m> Lw<'m> {
         let mut out = vec![];
         for (p, a) in ps.iter().zip(args) {
             let v = self.expr(fx, &a.e)?;
-            let v = self.fit(fx, v.a, &v.t, p)?;
+            let v = self.fit_decl(fx, v.a, &v.t, p)?;
             out.push(v.a);
         }
         Ok(out)
@@ -1329,7 +1379,7 @@ impl<'m> Lw<'m> {
             };
             let v = self.expr(fx, &a.e)?;
             if k < fields.len() {
-                let v = self.fit(fx, v.a, &v.t, &fields[k].1)?;
+                let v = self.fit_decl(fx, v.a, &v.t, &fields[k].1)?;
                 if let Some(old) = vals[k].take() {
                     fx.b.drop(old)?;
                 }
@@ -1348,7 +1398,7 @@ impl<'m> Lw<'m> {
                         let Some(Item::Struct { fields: fs, .. }) = self.t.types.get(c) else { unreachable!() };
                         let ie = fs[k].init.as_ref().unwrap();
                         let v = self.expr(fx, ie)?;
-                        let v = self.fit(fx, v.a, &v.t, t)?;
+                        let v = self.fit_decl(fx, v.a, &v.t, t)?;
                         out.push(v.a);
                     }
                     None => {
@@ -1475,6 +1525,34 @@ impl<'m> Lw<'m> {
                 Ok(Val { a: fx.b.let_(Atom::V(out)), t: rt })
             }
             (RType::Int(_), "tostr") => Ok(Val { a: self.dec(fx, recv.a)?, t: rt }),
+            (RType::F64, "tostr") => {
+                let d = rtf::text(&mut self.f)?;
+                Ok(Val { a: self.call_rt(fx, d, vec![recv.a]), t: rt })
+            }
+            (RType::F32, "tostr") => {
+                let x = fx.b.p("f32.to_f64", vec![], vec![recv.a])?;
+                let d = rtf::text32(&mut self.f)?;
+                Ok(Val { a: self.call_rt(fx, d, vec![x]), t: rt })
+            }
+            (RType::F64, "sqrt") => {
+                // interp: a negative operand traps; sqrt(-0.0) is -0.0
+                let c = fx.b.p("f64.bad.sqrt", vec![], vec![recv.a.clone()])?;
+                self.guard(fx, c, |_, _| Ok(Atom::bytes(b"non-finite float")))?;
+                Ok(Val { a: fx.b.p("f64.sqrt", vec![], vec![recv.a])?, t: rt })
+            }
+            (RType::F64, "abs" | "floor" | "ceil" | "round") => Ok(Val { a: fx.b.p(&format!("f64.{m}"), vec![], vec![recv.a])?, t: rt }),
+            (RType::F64, "min" | "max") => {
+                let y = av.remove(0);
+                if y.t != RType::F64 {
+                    return no(format!("{m} of f64 with {}", y.t.show()));
+                }
+                Ok(Val { a: fx.b.p(&format!("f64.{m}"), vec![], vec![recv.a, y.a])?, t: rt })
+            }
+            (RType::F32, "abs") => {
+                let x = fx.b.p("f32.to_f64", vec![], vec![recv.a])?;
+                let y = fx.b.p("f64.abs", vec![], vec![x])?;
+                Ok(Val { a: self.to_f32_exact(fx, y)?, t: rt })
+            }
             (RType::Bool, "tostr") => {
                 let r = fx.b.var(Ty::Bytes, Atom::bytes(b"false"));
                 fx.b.open();
@@ -1662,6 +1740,27 @@ impl<'m> Lw<'m> {
                 let t = fx.b.ty(&v.a);
                 Ok(Val { a: fx.b.p("f64.of_int", vec![t], vec![v.a])?, t: rt })
             }
+            (RType::Int(_), RType::F32) => {
+                let g = rtf::int_to_f32(&mut self.f)?;
+                Ok(Val { a: self.call_rt(fx, g, vec![v.a]), t: rt })
+            }
+            (RType::F64 | RType::F32, RType::Int(ti)) => {
+                // interp `trunc_chk`: trunc(x) checked into the type, the trap
+                // naming its exact value
+                let x = if v.t == RType::F32 { fx.b.p("f32.to_f64", vec![], vec![v.a])? } else { v.a };
+                let Some(n) = ti.tags.single() else { return no("a cast to an integer type whose name differs at run time") };
+                let n = if n == "lit" { "i64" } else { n };
+                let (lo, hi) = typed::tag_range(n);
+                let r = Ty::Int(lo, hi);
+                let c = fx.b.p("f64.bad.trunc", vec![r.clone()], vec![x.clone()])?;
+                let x2 = x.clone();
+                self.guard(fx, c, |lw, fx| {
+                    let g = rtf::int_text(&mut lw.f)?;
+                    let d = lw.call_rt(fx, g, vec![x2]);
+                    fx.b.cats(vec![Atom::bytes(b"overflow: "), d, Atom::bytes(format!(" is outside {n}").as_bytes())])
+                })?;
+                Ok(Val { a: fx.b.p("f64.trunc", vec![r], vec![x])?, t: rt })
+            }
             (RType::F64, RType::F64) | (RType::F32, RType::F32) => Ok(Val { a: v.a, t: rt }),
             (RType::F32, RType::F64) => Ok(Val { a: fx.b.p("f32.to_f64", vec![], vec![v.a])?, t: rt }),
             (RType::F64, RType::F32) => {
@@ -1702,6 +1801,11 @@ impl<'m> Lw<'m> {
                 let r = match (&p.t, &q.t) {
                     (RType::Int(_), RType::Int(_)) => fx.b.int_cmp(if strict { "int.lt" } else { "int.le" }, p.a, q.a)?,
                     (RType::F64, RType::F64) => fx.b.p(if strict { "f64.lt" } else { "f64.le" }, vec![], vec![p.a, q.a])?,
+                    (RType::F32, RType::F32) => {
+                        let x = fx.b.p("f32.to_f64", vec![], vec![p.a])?;
+                        let y = fx.b.p("f32.to_f64", vec![], vec![q.a])?;
+                        fx.b.p(if strict { "f64.lt" } else { "f64.le" }, vec![], vec![x, y])?
+                    }
                     (RType::Text, RType::Text) => {
                         if strict {
                             fx.b.p("bytes.lt", vec![], vec![p.a, q.a])?
@@ -2793,7 +2897,7 @@ impl<'m> Lw<'m> {
                 let want = fx.b.ret.clone();
                 if fx.b.ty(&v.a) == want { v.a } else { return no("an unfitted result of another type") }
             }
-            Some(t) => self.fit(fx, v.a, &v.t, t)?.a,
+            Some(t) => self.fit_decl(fx, v.a, &v.t, t)?.a,
         };
         fx.drops_to(None)?;
         fx.b.ret(a);
@@ -3021,7 +3125,7 @@ impl<'m> Lw<'m> {
                 for (k, (x, st)) in vars.iter().enumerate() {
                     fx.disown(&Atom::V(*x));
                     let a = self.take_var(&mut fx, *x);
-                    let v = self.fit(&mut fx, a, st, &fields[k].ty)?;
+                    let v = self.fit_decl(&mut fx, a, st, &fields[k].ty)?;
                     out.push(v.a);
                 }
                 let nf = fx.b.p("tup.mk", vec![ft.clone()], out)?;
@@ -3197,7 +3301,7 @@ impl<'m> Lw<'m> {
                 match &f.init {
                     Some(e) => {
                         let v = self.expr(&mut fx, e)?;
-                        let v = self.fit(&mut fx, v.a, &v.t, &f.ty)?;
+                        let v = self.fit_decl(&mut fx, v.a, &v.t, &f.ty)?;
                         vs.push(v.a);
                     }
                     None => {
