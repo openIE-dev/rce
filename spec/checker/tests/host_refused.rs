@@ -552,3 +552,56 @@ fn serve_stops_while_effects_keep_coming() {
     replay(&m, &after).unwrap();
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+/// HC-24: a line of the input stream that is not events of the module is
+/// held, not turned away. With no `Input` declared it is recorded in D as
+/// `host.Unfit` and the loop goes on; with `Input(data: text)` declared it
+/// is delivered as that input. Every run validates, and `rce host run`
+/// holds such a line the same way.
+#[test]
+fn a_line_that_is_not_an_event_is_held() {
+    use std::io::Write;
+    let dir = std::env::temp_dir().join(format!("rce-held-line-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    let program = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/host/refused.rce");
+    let wait_for = |log: &Path, what: &str| {
+        let t0 = std::time::Instant::now();
+        while !std::fs::read_to_string(log).unwrap_or_default().contains(what) {
+            assert!(t0.elapsed() < std::time::Duration::from_secs(20), "{what} was not logged");
+            std::thread::sleep(std::time::Duration::from_millis(20));
+        }
+    };
+    let log = dir.join("held.log");
+    let mut s = serve(&program, &log);
+    s.stdin.write_all(b"hello there\nNope\nOk\n").unwrap();
+    s.stdin.flush().unwrap();
+    wait_for(&log, "\"type\":\"Ok\"");
+    let (ok, err) = s.stop();
+    assert!(ok && err.contains("validated") && !err.contains("input refused") && err.contains("line recorded in D"), "{err}");
+    let t = std::fs::read_to_string(&log).unwrap();
+    assert!(t.contains(r#"{"payload":{"event":{"payload":{"data":"hello there\n"},"type":"Input"},"why":"not declared"},"type":"host.Unfit"}"#), "{t}");
+    assert!(t.contains(r#"{"payload":{"event":{"payload":{"data":"Nope\n"},"type":"Input"},"why":"not declared"},"type":"host.Unfit"}"#), "{t}");
+    let m = parse(&src()).unwrap();
+    replay(&m, &t).unwrap();
+    // with Input declared, the line is that input
+    let with_input = format!("{}\nevent Input(data: text)\n\nstep S on Input(data: _d)\n    applied += 10\n", src());
+    let p = dir.join("with_input.rce");
+    std::fs::write(&p, &with_input).unwrap();
+    let log = dir.join("input.log");
+    let mut s = serve(&p, &log);
+    s.stdin.write_all(b"hello there\n").unwrap();
+    s.stdin.flush().unwrap();
+    wait_for(&log, "\"type\":\"Input\"");
+    let (ok, err) = s.stop();
+    assert!(ok && err.contains("validated"), "{err}");
+    let t = std::fs::read_to_string(&log).unwrap();
+    assert!(t.contains(r#"{"payload":{"data":"hello there\n"},"type":"Input"}"#) && !t.contains("host.Unfit"), "{t}");
+    // rce host run
+    let log = dir.join("run.log");
+    let out = std::process::Command::new(env!("CARGO_BIN_EXE_rce")).args(["host", "run"]).arg(&program).arg("--log").arg(&log).arg("Nope").output().unwrap();
+    let (so, se) = (String::from_utf8_lossy(&out.stdout), String::from_utf8_lossy(&out.stderr));
+    assert!(so.contains("host.Unfit: the line is not events of the module") && se.contains("validated"), "{so}{se}");
+    assert_eq!(out.status.code(), Some(1), "the line was not applied");
+    let _ = std::fs::remove_dir_all(&dir);
+}

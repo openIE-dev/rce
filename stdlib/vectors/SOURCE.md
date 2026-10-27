@@ -256,8 +256,9 @@ renamed (`enc_cat`, `b3_g`) to coexist with `crypto`.
 Needs spec: a generic function cannot take a borrowed option (`&T?`
 does not unify with `&text?` in rce 0.1.3), so `result_ok` and
 `delivered` take the data by value; a library cannot declare the
-request structs and `<Kind>Done` events (W-HOST-1 looks for them in the
-program), so each program repeats them; the file adapter reports a
+request structs and `<Kind>Done` events (the host fits each result to
+the program's own declaration, Appendix E.4c HF-1), so each program
+repeats them; the file adapter reports a
 missing file and a refused path both as `failed` with free text, so a
 program cannot tell them apart without parsing `err`; no adapter yet
 reads a file in chunks, so the line reader is exercised over one
@@ -302,8 +303,9 @@ recorded handler is a library value, not an engine fit; the engine's
 canonical JSON is not RFC 8785 (key order, integer range), and the two
 are not reconciled in the spec. Handlers in the Koka/OCaml sense
 (resumable effects) are not expressible: effects are fixed by context,
-so this module offers effects as data instead. W-HOST-1 result events
-must be declared by the program (see io).
+so this module offers effects as data instead. Result events are
+declared by the program (see io); a result the program does not declare
+is recorded in D and not delivered (Appendix E.4c HF-1).
 
 ## net (`lib/net/url.rce`, `lib/net/idna.rce`, `lib/net/http.rce`, `lib/net/dns.rce`)
 

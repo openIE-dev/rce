@@ -1834,6 +1834,20 @@ impl<'a> Host<'a> {
         Ok(())
     }
 
+    /// HC-24: a line of the input stream that the host could not admit as
+    /// events of the module (it does not parse as events, names no event of
+    /// the module, or an event cannot be built) is held, not turned away:
+    /// it is delivered as `Input(data)`, data being the line with its line
+    /// end, fitted to the module like any delivery (E.4c), so when the
+    /// module declares no `Input`, `host.Unfit` records the line in D. Part
+    /// of the input batch; no barrier.
+    pub fn line_input(&mut self, line: &str) -> Result<Vec<Admitted>, String> {
+        let mut p = serde_json::Map::new();
+        p.insert("data".into(), Value::String(line.to_string()));
+        let plan = self.plan("Input", &p, false);
+        self.deliver_plan("Input", &p, plan, How::Typed)
+    }
+
     /// E.4c: the lines that say, for each declaration that is not exactly
     /// what the host delivers, what the host will deliver and record. The
     /// host loop prints them at start.

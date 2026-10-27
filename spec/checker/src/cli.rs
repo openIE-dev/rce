@@ -1364,7 +1364,22 @@ fn host_cmd(a: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &mu
             };
             let mut refused = false;
             for b in batches {
-                for x in h.admit(&src, &b)? {
+                let before = h.len();
+                let admitted = match h.admit(&src, &b) {
+                    Ok(a) => a,
+                    // HC-24: a line that is not events of the module is held
+                    Err(e) if !Host::is_storage_fault(&e) && h.len() == before => {
+                        let a = h.line_input(&format!("{b}\n"))?;
+                        h.settle()?;
+                        if a.is_empty() {
+                            refused = true;
+                            writeln!(out, "{before} host.Unfit: the line is not events of the module ({e}); recorded in D").map_err(w)?;
+                        }
+                        a
+                    }
+                    Err(e) => return Err(e),
+                };
+                for x in admitted {
                     match x.outcome {
                         Ok(outs) => {
                             writeln!(out, "{} {}", x.seq, x.event).map_err(w)?;
@@ -1477,12 +1492,14 @@ pub const FRAME_MS: u64 = 16;
 /// receives them, are admitted in rounds: each round takes one input and
 /// whatever is already waiting (at most 64), applies them, then performs
 /// their effects and takes one barrier for the round (group commit, D-2).
-/// An input is a stdin line in event syntax, or `Input(data: line)` when the
-/// line is not an event list and the module declares `event Input(data:
-/// text)`; with `--http`, each request is `HttpRequest` or `HttpMalformed`
-/// (HC-24); between inputs, `Tick` (or `Tick(n)`) every frame when declared.
-/// An input that is refused before it is logged is reported and the loop
-/// goes on; only a storage fault (HS-3) stops it. EOF on stdin ends the
+/// An input is a stdin line in event syntax. A line that is not events of
+/// the module (it does not parse, names no event, or an event cannot be
+/// built) is held as `Input(data: line)`, and recorded in D as `host.Unfit`
+/// when the module declares no `Input` (HC-24, E.4c); with `--http`, each
+/// request is fitted to `HttpRequest` or `HttpMalformed` (HC-24, HF-2);
+/// between inputs, `Tick` (or `Tick(n)`) every frame when declared. Only a
+/// storage fault (HS-3) stops the loop; a line whose first events were
+/// admitted and whose later ones could not be is reported. EOF on stdin ends the
 /// loop unless `--http` is granted; an emitted `Exit` ends it; SIGTERM or
 /// SIGINT stop accepting, wait up to STOP_MS for open requests, and end it.
 /// Each drain performs at most DRAIN_MAX requests and the next round
@@ -1524,14 +1541,15 @@ fn serve_loop(h: &mut crate::host::Host, src: &str, out: &mut dyn Write, mut htt
     }
     let lab = |l: &str, e: Expr| Arg { label: Some(l.into()), e };
     let tick = h.event_fields("Tick");
-    let input = h.event_fields("Input").filter(|f| f.len() == 1 && f[0] == "data");
     // HC-22: on an existing D the count continues from the last Tick(n)
     let mut n: u64 = h.last_tick();
     let frame = Duration::from_millis(FRAME_MS);
     let mut next_tick = Instant::now() + frame;
     let mut stopping: Option<Instant> = None;
     h.bound_drains(DRAIN_MAX);
-    // an input refused before it is logged: reported, and the loop goes on
+    // what could not be admitted although nothing turned it away (the rest
+    // of a line whose first events were admitted, or an input whose
+    // admission failed): reported, and the loop goes on
     let report = |e: String, out: &mut dyn Write| -> Result<(), String> {
         if Host::is_storage_fault(&e) {
             return Err(e);
@@ -1579,10 +1597,18 @@ fn serve_loop(h: &mut crate::host::Host, src: &str, out: &mut dyn Write, mut htt
             match x {
                 Inbound::Line(line) => {
                     let t = line.trim_end_matches(['\n', '\r']);
+                    let before = h.len();
                     match h.admit(src, t) {
                         Ok(a) => adm.extend(a),
-                        Err(e) if input.is_some() && (e.starts_with("events:") || e.ends_with("is not an event")) => match h.admit_event("Input", vec![lab("data", Expr::Str(format!("{t}\n"), 0))]) {
-                            Ok(a) => adm.extend(a),
+                        // HC-24: a line that is not events of the module is
+                        // held, as Input(data) or as host.Unfit in D
+                        Err(e) if !Host::is_storage_fault(&e) && h.len() == before => match h.line_input(&format!("{t}\n")) {
+                            Ok(a) => {
+                                if a.is_empty() {
+                                    eprintln!("rce host: line recorded in D (host.Unfit), not events of the module: {e}");
+                                }
+                                adm.extend(a);
+                            }
                             Err(e) => report(e, out)?,
                         },
                         Err(e) => report(e, out)?,
