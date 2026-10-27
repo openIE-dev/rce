@@ -139,10 +139,10 @@ fn t_finder_find(n: text, h: text, st: i64) -> i64
 
 fn t_scan(n: text, cs: List[text], o: bool) -> List[i64]
     let f = str_finder(&n)
-    var st = str_scan(o)
+    var st = str_scan(&f, o)
     var out: List[i64] = []
     for c in cs
-        for x in str_scan_feed(&f, &mut st, &c)
+        for x in str_scan_feed(&mut st, &c)
             out.push(x)
     return out
 

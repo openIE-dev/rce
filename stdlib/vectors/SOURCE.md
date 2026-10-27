@@ -111,7 +111,7 @@ not be turned back into text without that built-in.
 
 Pure. Every expected value comes from an independent reference, saved in
 `text/str_vectors.json` (sha256
-cdf7b0cd73a042abd0aa70b81fffbe733be35b14100e9243ab860f2b7eb89cdd) by
+37fa00852170a58476180d8684955e4aca617bc975d69fc4c637c4af2506713b) by
 `scripts/gen/str_gen.py --refresh` (seed 20261025); the same script without
 `--refresh` writes the checks from that file alone.
 
@@ -143,7 +143,7 @@ cdf7b0cd73a042abd0aa70b81fffbe733be35b14100e9243ab860f2b7eb89cdd) by
   (`/[^\p{L}\d]/iu`) agrees with Node 22.22.0 (ICU 77.1, Unicode 16.0) on
   the 1,107,762 code points whose letter status is the same in both
   versions.
-- **CPython 3.13.16 `str`:** 13,098 cases of find, rfind, count (and with
+- **CPython 3.13.16 `str`:** 13,189 cases of find, rfind, count (and with
   start and end at character boundaries), replace, partition, rpartition,
   split, rsplit, splitlines, `*`, slicing with and without a step,
   indexing, center, ljust, rjust, zfill, expandtabs, removeprefix,
@@ -179,7 +179,7 @@ cdf7b0cd73a042abd0aa70b81fffbe733be35b14100e9243ab860f2b7eb89cdd) by
   UTF-16 unit of a word and so leaves such a letter as it is, where
   `str_pascal` and the others upper-case the whole code point. No input
   was left out for differences between Unicode 15.1 and 16.0.
-- **derived:** 2,070 cases whose expected value is the rule stated in
+- **derived:** 2,072 cases whose expected value is the rule stated in
   str.rce, computed by the generator: an empty needle with byte offsets
   inside a character (rounded to a boundary), an empty separator in
   partition, split_once and rsplit, `BadStr` results (too large, fill,
@@ -192,7 +192,9 @@ cdf7b0cd73a042abd0aa70b81fffbe733be35b14100e9243ab860f2b7eb89cdd) by
   StrBuf (including appends across its run and block boundaries and
   content above the limit).
 
-17,635 checks in `tests/text/str_checks*.rce` (87 files).
+17,717 vector checks and 11 property sweeps in `tests/text/str_checks*.rce`
+(87 files). A refresh with the references above writes the vectors file
+byte for byte again.
 
 Needs spec: case mapping and predicates follow Unicode 15.1.0 (CPython
 3.13) while ui.text and net.idna are on 16.0.0, and RCE pins 18.0.0 for

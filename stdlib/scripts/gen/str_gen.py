@@ -709,10 +709,10 @@ fn t_finder_find(n: text, h: text, st: i64) -> i64
 
 fn t_scan(n: text, cs: List[text], o: bool) -> List[i64]
     let f = str_finder(&n)
-    var st = str_scan(o)
+    var st = str_scan(&f, o)
     var out: List[i64] = []
     for c in cs
-        for x in str_scan_feed(&f, &mut st, &c)
+        for x in str_scan_feed(&mut st, &c)
             out.push(x)
     return out
 '''
@@ -781,18 +781,18 @@ fn t_prop_search(seed: i64) -> bool
     let nc = s.len_chars() as i64
     let c1 = t_rnd(seed) % (nc + 1)
     let c2 = c1 + t_rnd(seed + 1) % (nc - c1 + 1)
-    var st = str_scan(true)
+    var st = str_scan(&f, true)
     var got: List[i64] = []
     let a = str_slice(&s, 0, c1)
     let b = str_slice(&s, c1, c2)
     let c = str_slice(&s, c2, nc)
-    for x in str_scan_feed(&f, &mut st, &a)
+    for x in str_scan_feed(&mut st, &a)
         got.push(x)
-    for x in str_scan_feed(&f, &mut st, &b)
+    for x in str_scan_feed(&mut st, &b)
         got.push(x)
-    for x in str_scan_feed(&f, &mut st, &c)
+    for x in str_scan_feed(&mut st, &c)
         got.push(x)
-    ok = ok and got == ov and a + b + c == s
+    ok = ok and got == ov and a + b + c == s and str_scan_pos(&st) == (s.len_bytes() as i64)
     return ok
 
 fn t_prop_slice(seed: i64) -> bool
