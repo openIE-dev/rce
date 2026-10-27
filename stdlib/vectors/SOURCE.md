@@ -1493,3 +1493,73 @@ digest as an argument (uuid_name_input gives the bytes to hash); a SHA-256
 name-based version 8 likewise, since crypto's SHA-256 is not public to
 foundation modules and the text built-in sha256 needs valid UTF-8, which
 name space IDs are not.
+
+## obs.log (`lib/obs/log.rce`)
+
+Pure. No official vector files; every reference vector is derived by
+`scripts/gen/obslog_gen.py` (seed 20261027), and its inputs and outputs are
+kept in `vectors/obs/log_ref.json`:
+- **go-logfmt** (github.com/go-logfmt/logfmt 0.6.0, run with Go 1.24 by
+  `scripts/gen/obslog_go`, `go.sum` pinned): 225 pair lists (keys with
+  spaces, `=`, quotes, control characters and U+FFFD, which go-logfmt
+  removes; string, integer, boolean and nil values, `"null"`, empty strings,
+  both i64 extremes) through `MarshalKeyvals` (103 of them refused with
+  ErrInvalidKey) and through `EncodeKeyval` pair by pair (a refused key
+  writes nothing): 450 checks of `lf_encode` and `lf_encode_skip`. 421
+  single lines through the Decoder (the 122 encoded lines as round trips,
+  their mutations, random lines, surrogate pairs and lone surrogates, and
+  cases for each syntax error; 46 unexpected `"`, 18 unexpected `=`, 31
+  invalid key, 21 invalid quoted value, 9 unterminated): pairs, message and
+  byte offset (`Pos - 1`) of `lf_scan`. 55 multi-line texts (LF, CRLF,
+  empty lines, a final CR, a fault before a CR) through one Decoder:
+  `lf_lines` gives the same records; go-logfmt stops at the first error
+  (22 texts), so only the lines up to it are compared there.
+- **zap** (go.uber.org/zap 1.27.0): 36 runs of
+  `zapcore.NewSamplerWithOptions` (tick 0..1000 ns, first 0..10, thereafter
+  0..5, times from -50 to 10^18, levels Debug..Error as severities 5, 9,
+  13 and 17, a pair of messages that share a counter bucket), 2,022 sampling
+  decisions read from a SamplerHook (1,428 kept): 36 checks of `log_sample`.
+- **CPython 3.13 json**: 200 pair lists (repeated keys, every escape,
+  DEL, non-ASCII and astral text, integers, booleans, null, valid and
+  invalid number lexemes as `json.scanner.NUMBER_RE` decides) as
+  `json.dumps(dict(pairs), ensure_ascii=..., separators=(",", ":"))` with
+  the valid lexemes spliced in: 200 checks of `log_json_obj`. 110 records
+  (times in and out of the formattable range, severities in and out of
+  1..24, fields named time, level, msg and fields.time, repeated keys,
+  fraction digits and offsets out of range, value cuts of 0..65536 bytes):
+  the pairs `log_kvs` gives (the pair rule restated in Python), their JSON
+  from json.dumps and their logfmt from go-logfmt `EncodeKeyval`: 330
+  checks.
+- **RFC 3339**: 60 instant texts from `datetime` (fraction digits truncated,
+  fixed offsets) and 70 parses (40 round trips, 30 restated cases: leap
+  days of 2000, 2096, 1900 and 2100, leap second refused, hour 24, ten
+  fraction digits, offset +24:00, dates outside the i64 nanosecond range
+  refused; 21 refused in all), the grammar restated as a regular
+  expression, the date checked by `datetime`: 130 checks.
+
+1,655 generated checks in `tests/obs/log_checks_2.rce` (logfmt, 959),
+`_3` (sampling and times, 166) and `_4` (JSON and records, 530), and 79
+written checks in `log_checks.rce` and `log_checks_size*.rce`: the 24
+OpenTelemetry short names (Logs Data Model, SeverityNumber), level parsing
+(ASCII case only, so U+0131 does not fold onto INFO), records from decoded
+pairs, filters and projection, the ring buffer against a list model, the
+chunked reader against whole-text reading for chunk sizes 1..9 on fixed and
+40 random streams, over-long lines in the reader, 150 random records round
+tripped through logfmt, zap's rule on restated cases, and the size limits
+(values cut at character boundaries; lines of more than 1,000,000 bytes
+lose their last pairs to a final `truncated=true`; `lf_encode` refuses).
+`scripts/mut/obs.py`: 37 of 37 mutants of the module fail the checks.
+
+Departures, each deliberate: go-logfmt's `MarshalKeyvals` fails on a key
+that filters to nothing, and so does `lf_encode`, but record lines and
+`lf_encode_skip` drop that pair; go-logfmt stops a stream at its first
+error, `lf_lines` and `LfReader` report the fault on its line and go on;
+bufio.Scanner refuses lines over 64 KiB, `LfReader` takes its maximum from
+the caller (at most 1,000,000 bytes) and skips an over-long line; zap
+samples only Debug..Fatal and wraps `time + tick`, here every severity is
+sampled and the sum saturates. Not covered: reading JSON Lines back into
+records (`data.events.json_parse` reads the objects; this module does not
+depend on it), floats in JSON other than as number lexemes (CPython's float
+text is not reproduced), and logfmt input as bytes: a program turns
+received bytes into text first (`List.utf8`, or `text.utf8` for input that
+may be malformed).

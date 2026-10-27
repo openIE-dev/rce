@@ -21,7 +21,7 @@ jobs:
           - "crypto col core"
           - "data effect enc energy"
           - "fmt hash id io math"
-          - "net num"
+          - "net num obs"
           - "os"
           - "rand text time ui"
     name: checks (${{ matrix.group }})

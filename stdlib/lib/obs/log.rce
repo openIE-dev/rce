@@ -1,0 +1,1205 @@
+module obs.log
+
+# Structured log records as data. A record is a value: a program builds it,
+# formats it and emits the line as an output of its step, so every log line
+# is in the log D and replays with it; nothing is written anywhere else, and
+# there is no global logger, clock or random source. Times are logged
+# instants (i64 nanoseconds since 1970 on the POSIX timescale, as in
+# `time`), never read from a host. The module uses no other module, so its
+# names meet only the names of the modules a program imports itself.
+# - Severity: the SeverityNumber of the OpenTelemetry Logs Data Model
+#   (1..24; TRACE 1, DEBUG 5, INFO 9, WARN 13, ERROR 17, FATAL 21) with its
+#   short names (INFO2, WARN3, ...). The Go log/slog levels are these
+#   numbers minus 9.
+# - Fields: ordered key-value pairs; a value is text, an integer, a
+#   boolean, null or a JSON number lexeme.
+# - Formats: logfmt as github.com/go-logfmt/logfmt 0.6.0 writes and reads
+#   it (key filtering, quoting, escapes, error positions), and JSON Lines as
+#   CPython's json.dumps writes one object (separators "," and ":",
+#   ensure_ascii either way). A record is written as time, level and msg,
+#   then its fields; a field named time, level or msg is written as
+#   fields.time, fields.level or fields.msg (the logrus rule), and a key
+#   that occurs twice keeps its first position and its last value (the
+#   rule of a Python dict built from the pairs).
+# - Size: no line is longer than 1,000,000 bytes (the text limit). Keys and
+#   values are cut to LogFmt.max_value bytes at a character boundary, and
+#   pairs that would pass the line limit are left out and replaced by one
+#   final pair truncated=true. A stream of logfmt text is read in chunks by
+#   LfReader; an over-long line is reported, skipped, and reading goes on.
+# - Malformed logfmt gives the pairs read before the fault, the byte offset
+#   and go-logfmt's message, never a trap.
+# - Filtering by severity range and by field conditions on the text form of
+#   values, projection of fields, a ring buffer of the most recent records,
+#   and sampling by zap's rule (zapcore.NewSamplerWithOptions: per tick, the
+#   first N records of one severity and message, then every Mth).
+
+error BadLog(at: i64, why: text)
+
+# Lines are kept within OLG_LINE_MAX bytes. A text holds at most 1,000,000
+# characters of at most 4 bytes each, so loops over the bytes of a text
+# are bounded by 4,000,000.
+const OLG_LINE_MAX: i64 = 1000000
+const OLG_HEX: text = "0123456789abcdef"
+# U+0000..U+001F as one-character texts. Membership tests use the built-in
+# text search, so a text without special characters is not walked byte by
+# byte (each byte step costs fuel).
+const OLG_CTL: List[text] = ["\u{0}", "\u{1}", "\u{2}", "\u{3}", "\u{4}", "\u{5}", "\u{6}", "\u{7}", "\u{8}", "\u{9}", "\u{a}", "\u{b}", "\u{c}", "\u{d}", "\u{e}", "\u{f}", "\u{10}", "\u{11}", "\u{12}", "\u{13}", "\u{14}", "\u{15}", "\u{16}", "\u{17}", "\u{18}", "\u{19}", "\u{1a}", "\u{1b}", "\u{1c}", "\u{1d}", "\u{1e}", "\u{1f}"]
+
+# Their escapes: go-logfmt writes \n \r \t and \u00xx, CPython json also
+# \b and \f.
+const OLG_LF_ESC: List[text] = ["\\u0000", "\\u0001", "\\u0002", "\\u0003", "\\u0004", "\\u0005", "\\u0006", "\\u0007", "\\u0008", "\\t", "\\n", "\\u000b", "\\u000c", "\\r", "\\u000e", "\\u000f", "\\u0010", "\\u0011", "\\u0012", "\\u0013", "\\u0014", "\\u0015", "\\u0016", "\\u0017", "\\u0018", "\\u0019", "\\u001a", "\\u001b", "\\u001c", "\\u001d", "\\u001e", "\\u001f"]
+const OLG_JS_ESC: List[text] = ["\\u0000", "\\u0001", "\\u0002", "\\u0003", "\\u0004", "\\u0005", "\\u0006", "\\u0007", "\\b", "\\t", "\\n", "\\u000b", "\\f", "\\r", "\\u000e", "\\u000f", "\\u0010", "\\u0011", "\\u0012", "\\u0013", "\\u0014", "\\u0015", "\\u0016", "\\u0017", "\\u0018", "\\u0019", "\\u001a", "\\u001b", "\\u001c", "\\u001d", "\\u001e", "\\u001f"]
+
+fn olg_has_ctl(s: &text) -> bool
+    for c in OLG_CTL
+        if s.contains(c)
+            return true
+    return false
+
+# ---------------- severity ----------------
+
+pub const SEV_TRACE: i64 = 1
+pub const SEV_DEBUG: i64 = 5
+pub const SEV_INFO: i64 = 9
+pub const SEV_WARN: i64 = 13
+pub const SEV_ERROR: i64 = 17
+pub const SEV_FATAL: i64 = 21
+
+fn olg_sev_bases() -> List[text] = ["TRACE", "DEBUG", "INFO", "WARN", "ERROR", "FATAL"]
+
+# The OpenTelemetry short name of a severity number: TRACE, TRACE2 ..
+# FATAL4 for 1..24; any other number is written in decimal ("0" is
+# unspecified).
+pub fn sev_name(sev: i64) -> text
+    if sev < 1 or sev > 24
+        return sev.tostr()
+    let k = (sev - 1) % 4
+    let base = copy(olg_sev_bases()[((sev - 1) / 4) as usize])
+    return if k == 0 then base else base + (k + 1).tostr()
+
+# ASCII upper case only, so no other letter can fold onto a level name
+# (called on texts of at most 20 bytes).
+fn olg_upper_ascii(t: &text) -> text
+    var b: List[i64] = []
+    var i: usize = 0
+    while i < t.len_bytes() bound 64
+        let x = t[i] as i64
+        b.push(if x >= 97 and x <= 122 then x - 32 else x)
+        i += 1
+    return b.utf8()
+
+# An integer result that may be refused (ok false).
+struct OlgInt
+    ok: bool
+    v: i64
+
+# A decimal i64: optional "-", then 1 to 19 digits, overflow refused
+# (accumulated as a negative number, so -2^63 fits).
+fn olg_dec(t: &text) -> OlgInt
+    let bad = OlgInt(ok: false, v: 0)
+    let n = t.len_bytes()
+    var i: usize = 0
+    var neg = false
+    if n > 0 and t[0] == 45
+        neg = true
+        i = 1
+    if i >= n or n - i > 19
+        return bad
+    let lim = 0 - 9223372036854775807 - 1
+    var acc: i64 = 0
+    while i < n bound 20
+        let d = (t[i] as i64) - 48
+        if d < 0 or d > 9 or acc < (lim + d) / 10
+            return bad
+        acc = acc * 10 - d
+        i += 1
+    if neg
+        return OlgInt(ok: true, v: acc)
+    if acc == lim
+        return bad
+    return OlgInt(ok: true, v: 0 - acc)
+
+fn olg_sev(t: &text) -> OlgInt
+    let bad = OlgInt(ok: false, v: 0)
+    if t.len_bytes() > 20
+        return bad
+    let u = olg_upper_ascii(t)
+    let bases = olg_sev_bases()
+    for i in 0..6
+        for k in 0..4
+            let nm = if k == 0 then copy(bases[i]) else copy(bases[i]) + (k + 1).tostr()
+            if u == nm
+                return OlgInt(ok: true, v: (i as i64) * 4 + (k as i64) + 1)
+    if u == "WARNING"
+        return OlgInt(ok: true, v: SEV_WARN)
+    return olg_dec(t)
+
+# A severity from its name (any ASCII case: the 24 short names and WARNING)
+# or from a decimal i64.
+pub fn sev_parse(t: &text) -> i64 ! BadLog
+    let s = olg_sev(t)
+    if not s.ok
+        fail BadLog(at: 0, why: "unknown level")
+    return s.v
+
+# ---------------- values, pairs and records ----------------
+
+pub kind LogVal
+    LvStr(t: text)
+    LvInt(v: i64)
+    LvBool(v: bool)
+    LvNull
+    LvNum(raw: text)
+
+pub struct LogKv
+    key: text
+    val: LogVal
+
+# time: a logged instant (ns since 1970, as in `time`), or none.
+pub struct LogRec
+    time: i64?
+    sev: i64
+    msg: text
+    kvs: List[LogKv]
+
+# The text form of a value: the text itself, the decimal integer, true or
+# false, null, or the number lexeme. Filters compare this form.
+pub fn lv_text(x: &LogVal) -> text
+    match x
+        LvStr(t: t) -> return copy(t)
+        LvInt(v: v) -> return v.tostr()
+        LvBool(v: b) -> return if b then "true" else "false"
+        LvNull -> return "null"
+        LvNum(raw: r) -> return copy(r)
+
+pub fn log_rec(sev: i64, msg: text) -> LogRec = LogRec(time: none, sev: sev, msg: msg, kvs: [])
+
+pub fn log_at(r: LogRec, t: i64) -> LogRec
+    var o = r
+    o.time = some(t)
+    return o
+
+# Index of the last pair with this key, or -1.
+fn olg_find(kvs: &[LogKv], key: &text) -> i64
+    var i = kvs.len()
+    while i > 0 bound 1000000
+        i -= 1
+        if kvs[i].key == key
+            return i as i64
+    return -1
+
+# Set a field: the last pair with this key takes the value, or a new pair
+# is appended.
+pub fn log_with(r: LogRec, key: text, x: LogVal) -> LogRec
+    var o = r
+    let i = olg_find(&o.kvs, &key)
+    if i >= 0
+        o.kvs[i as usize].val = x
+    else
+        o.kvs.push(LogKv(key: key, val: x))
+    return o
+
+pub fn log_str(r: LogRec, key: text, t: text) -> LogRec = log_with(r, key, LvStr(t: t))
+
+pub fn log_int(r: LogRec, key: text, v: i64) -> LogRec = log_with(r, key, LvInt(v: v))
+
+pub fn log_bool(r: LogRec, key: text, b: bool) -> LogRec = log_with(r, key, LvBool(v: b))
+
+# The value of a field (the last pair with the key), or none.
+pub fn log_get(r: &LogRec, key: &text) -> LogVal?
+    let i = olg_find(&r.kvs, key)
+    if i < 0
+        return none
+    return some(copy(r.kvs[i as usize].val))
+
+# ---------------- text helpers ----------------
+
+fn olg_hex2(b: i64) -> text = OLG_HEX[((b >> 4) & 15) as usize:(((b >> 4) & 15) + 1) as usize] + OLG_HEX[(b & 15) as usize:((b & 15) + 1) as usize]
+
+fn olg_hex4(v: i64) -> text = olg_hex2((v >> 8) & 255) + olg_hex2(v & 255)
+
+fn olg_u8len(x: i64) -> usize = if x < 128 then 1 else (if x >= 240 then 4 else (if x >= 224 then 3 else 2))
+
+# Code point of the UTF-8 sequence starting at byte i (text is well formed).
+fn olg_cp_at(t: &text, i: usize) -> i64
+    let x = t[i] as i64
+    if x < 128
+        return x
+    if x >= 240
+        return ((x & 7) << 18) | (((t[i + 1] as i64) & 63) << 12) | (((t[i + 2] as i64) & 63) << 6) | ((t[i + 3] as i64) & 63)
+    if x >= 224
+        return ((x & 15) << 12) | (((t[i + 1] as i64) & 63) << 6) | ((t[i + 2] as i64) & 63)
+    return ((x & 31) << 6) | ((t[i + 1] as i64) & 63)
+
+# Text of one scalar value (never a surrogate here).
+fn olg_cp_text(cp: i64) -> text
+    if cp < 128
+        return [cp].utf8()
+    if cp < 2048
+        return [192 | (cp >> 6), 128 | (cp & 63)].utf8()
+    if cp < 65536
+        return [224 | (cp >> 12), 128 | ((cp >> 6) & 63), 128 | (cp & 63)].utf8()
+    return [240 | (cp >> 18), 128 | ((cp >> 12) & 63), 128 | ((cp >> 6) & 63), 128 | (cp & 63)].utf8()
+
+# U+FFFD (EF BF BD) at byte i.
+fn olg_is_fffd(t: &text, i: usize) -> bool = i + 2 < t.len_bytes() and t[i] == 239 and t[i + 1] == 191 and t[i + 2] == 189
+
+# The first max bytes of t, cut back to a character boundary.
+fn olg_cut(t: &text, max: i64) -> text
+    let n = t.len_bytes() as i64
+    if n <= max
+        return copy(t)
+    var k = if max < 0 then 0 else max
+    while k > 0 and ((t[k as usize] as i64) & 192) == 128 bound 4
+        k -= 1
+    return t[0:k as usize]
+
+fn olg_parts_len(ps: &[text]) -> i64
+    var s: i64 = 0
+    for p in ps
+        s += p.len_bytes() as i64
+    return s
+
+fn olg_has_fffd(t: &text) -> bool = t.contains("\u{fffd}")
+
+# ---------------- logfmt writing (go-logfmt 0.6.0) ----------------
+
+# A key with every rune <= ' ', '=', '"' and U+FFFD removed (keyRuneFilter).
+pub fn lf_key(k: &text) -> text
+    if not olg_lf_needs_quote(k)
+        return copy(k)
+    var ps: List[text] = []
+    for c in k
+        let x = c[0] as i64
+        if not ((c.len_bytes() == 1 and (x <= 32 or x == 61 or x == 34)) or c == "\u{fffd}")
+            ps.push(copy(c))
+    return "".join(ps)
+
+# writeQuotedString as parts: '"', the text with \\ \" \n \r \t, \u00xx for
+# the other bytes below 0x20 and \ufffd for U+FFFD, '"'. The parts stop
+# once they pass the line limit (the pair is then left out), so their
+# number stays below the list limit.
+fn olg_lf_quote(s: &text) -> List[text]
+    var ps: List[text] = ["\""]
+    var len: i64 = 1
+    let n = s.len_bytes()
+    var start: usize = 0
+    var i: usize = 0
+    while i < n and len <= OLG_LINE_MAX bound 4000000
+        let b = s[i] as i64
+        var e = ""
+        if b < 128
+            if b >= 32 and b != 92 and b != 34
+                i += 1
+                continue
+            e = if b < 32 then copy(OLG_LF_ESC[b as usize]) else (if b == 92 then "\\\\" else "\\\"")
+        elif b == 239 and olg_is_fffd(s, i)
+            e = "\\ufffd"
+        else
+            i += olg_u8len(b)
+            continue
+        if start < i
+            ps.push(s[start:i])
+        ps.push(copy(e))
+        len += (i - start) as i64 + e.len_bytes() as i64
+        i += if b < 128 then 1 else 3
+        start = i
+    if start < n
+        ps.push(s[start:n])
+    ps.push("\"")
+    return ps
+
+# needsQuotedValueRune: a rune <= ' ', '=', '"' or U+FFFD.
+fn olg_lf_needs_quote(s: &text) -> bool = olg_has_ctl(s) or s.contains(" ") or s.contains("=") or s.contains("\"") or s.contains("\u{fffd}")
+
+# writeStringValue: "null" is quoted, so it reads back apart from a null.
+fn olg_lf_str(s: &text) -> List[text]
+    if s == "null"
+        return ["\"null\""]
+    if olg_lf_needs_quote(s)
+        return olg_lf_quote(s)
+    return [copy(s)]
+
+fn olg_lf_value(x: &LogVal) -> List[text]
+    match x
+        LvStr(t: t) -> return olg_lf_str(t)
+        LvInt(v: v) -> return [v.tostr()]
+        LvBool(v: b) -> return [if b then "true" else "false"]
+        LvNull -> return ["null"]
+        LvNum(raw: r) -> return olg_lf_str(r)
+
+# The logfmt text of one value as go-logfmt writes it (a string value that
+# needs quoting is quoted).
+pub fn lf_value(x: &LogVal) -> text = "".join(olg_lf_value(x))
+
+# The pairs of one logfmt line, or an empty list for a key that filters to
+# nothing (go-logfmt: ErrInvalidKey).
+fn olg_lf_pair(kv: &LogKv) -> List[text]
+    let k = lf_key(&kv.key)
+    if k == ""
+        return []
+    var ps: List[text] = [k, "="]
+    for p in olg_lf_value(&kv.val)
+        ps.push(p)
+    return ps
+
+# One logfmt line (no newline) as go-logfmt MarshalKeyvals writes it. A key
+# that is empty after filtering is refused (at: the pair's index, why:
+# "invalid key"), as is a line longer than 1,000,000 bytes ("line too
+# long").
+pub fn lf_encode(kvs: &[LogKv]) -> text ! BadLog
+    var ps: List[text] = []
+    var len: i64 = 0
+    var i: usize = 0
+    while i < kvs.len() bound 1000000
+        let p = olg_lf_pair(&kvs[i])
+        if p.len() == 0
+            fail BadLog(at: i as i64, why: "invalid key")
+        let pl = olg_parts_len(&p) + (if i > 0 then 1 else 0)
+        if len + pl > OLG_LINE_MAX
+            fail BadLog(at: i as i64, why: "line too long")
+        if i > 0
+            ps.push(" ")
+        for x in p
+            ps.push(copy(x))
+        len += pl
+        i += 1
+    return "".join(ps)
+
+# Joins encoded pairs within the line limit. From the first pair that does
+# not fit, the pairs are left out and the marker pair is written last (even
+# when a field of the same name was written before it).
+fn olg_line(pairs: &[List[text]], open: &text, sep: &text, close: &text, marker: &text) -> text
+    var ps: List[text] = [copy(open)]
+    let room = OLG_LINE_MAX - open.len_bytes() as i64 - close.len_bytes() as i64 - sep.len_bytes() as i64 - marker.len_bytes() as i64
+    var len: i64 = 0
+    var n: usize = 0
+    var cut = false
+    for p in pairs
+        if not cut
+            let pl = olg_parts_len(p) + (if n > 0 then sep.len_bytes() as i64 else 0)
+            if len + pl > room
+                cut = true
+            else
+                if n > 0
+                    ps.push(copy(sep))
+                for x in p
+                    ps.push(copy(x))
+                len += pl
+                n += 1
+    if cut
+        if n > 0
+            ps.push(copy(sep))
+        ps.push(copy(marker))
+    ps.push(copy(close))
+    return "".join(ps)
+
+# One logfmt line that always succeeds: pairs whose key filters to nothing
+# are left out (go-logfmt refuses them), and pairs past the line limit are
+# replaced by truncated=true.
+pub fn lf_encode_skip(kvs: &[LogKv]) -> text
+    var pairs: List[List[text]] = []
+    for kv in kvs
+        let p = olg_lf_pair(&kv)
+        if p.len() > 0
+            pairs.push(p)
+    let e = ""
+    let sp = " "
+    let mk = "truncated=true"
+    return olg_line(&pairs, &e, &sp, &e, &mk)
+
+# ---------------- logfmt reading (go-logfmt 0.6.0 Decoder) ----------------
+
+# One decoded line: the pairs read (values as LvStr; a bare key, "k=" and
+# k="" all give ""), and when ok is false the byte offset and message of
+# the fault (go-logfmt SyntaxError: Pos - 1 and Msg), after the pairs
+# before it.
+pub struct LfLine
+    kvs: List[LogKv]
+    ok: bool
+    at: i64
+    why: text
+
+fn olg_getu4(s: &text, r: usize) -> i64
+    if r + 6 > s.len_bytes() or s[r] != 92 or s[r + 1] != 117
+        return -1
+    var v: i64 = 0
+    for k in 2..6
+        let c = s[r + k] as i64
+        var d: i64 = -1
+        if c >= 48 and c <= 57
+            d = c - 48
+        elif c >= 97 and c <= 102
+            d = c - 87
+        elif c >= 65 and c <= 70
+            d = c - 55
+        if d < 0
+            return -1
+        v = v * 16 + d
+    return v
+
+# A text result that may be refused (ok false).
+struct OlgText
+    ok: bool
+    t: text
+
+# unquoteBytes on the text between the quotes: \" \\ \/ \' \b \f \n \r \t
+# and \uXXXX (a surrogate pair joins; a lone surrogate gives U+FFFD and
+# the next escape is read on its own); a raw byte below 0x20 or a bare
+# quote is refused.
+fn olg_lf_unquote(s: &text) -> OlgText
+    let bad = OlgText(ok: false, t: "")
+    var ps: List[text] = []
+    let n = s.len_bytes()
+    var start: usize = 0
+    var r: usize = 0
+    while r < n bound 4000000
+        let c = s[r] as i64
+        if c == 92
+            if start < r
+                ps.push(s[start:r])
+            if r + 1 >= n
+                return bad
+            let e = s[r + 1] as i64
+            if e == 34 or e == 92 or e == 47 or e == 39
+                ps.push(s[r + 1:r + 2])
+                r += 2
+            elif e == 98
+                ps.push("\u{8}")
+                r += 2
+            elif e == 102
+                ps.push("\u{c}")
+                r += 2
+            elif e == 110
+                ps.push("\n")
+                r += 2
+            elif e == 114
+                ps.push("\r")
+                r += 2
+            elif e == 116
+                ps.push("\t")
+                r += 2
+            elif e == 117
+                var rr = olg_getu4(s, r)
+                if rr < 0
+                    return bad
+                r += 6
+                if rr >= 55296 and rr < 57344
+                    let r1 = olg_getu4(s, r)
+                    if rr < 56320 and r1 >= 56320 and r1 < 57344
+                        r += 6
+                        rr = 65536 + ((rr - 55296) << 10) + (r1 - 56320)
+                    else
+                        rr = 65533
+                ps.push(olg_cp_text(rr))
+            else
+                return bad
+            start = r
+        elif c == 34 or c < 32
+            return bad
+        else
+            r += 1
+    if start < n
+        ps.push(s[start:n])
+    return OlgText(ok: true, t: "".join(ps))
+
+fn olg_lf_fault(kvs: List[LogKv], at: usize, why: text) -> LfLine = LfLine(kvs: kvs, ok: false, at: at as i64, why: why)
+
+# Decode one line (without its newline) as go-logfmt's ScanKeyval does.
+pub fn lf_scan(line: &text) -> LfLine
+    var kvs: List[LogKv] = []
+    let n = line.len_bytes()
+    var pos: usize = 0
+    loop bound 1000001
+        # bytes <= ' ' between pairs
+        while pos < n and (line[pos] as i64) <= 32 bound 4000000
+            pos += 1
+        if pos >= n
+            return LfLine(kvs: kvs, ok: true, at: 0, why: "")
+        let start = pos
+        var multi = false
+        var stop = false
+        while pos < n and not stop bound 4000000
+            let c = line[pos] as i64
+            if c == 61 or c <= 32
+                stop = true
+            elif c == 34
+                return olg_lf_fault(kvs, pos, "unexpected '\"'")
+            else
+                if c >= 128
+                    multi = true
+                pos += 1
+        let key = line[start:pos]
+        let eq = pos < n and line[pos] == 61
+        if eq and pos == start
+            return olg_lf_fault(kvs, pos, "unexpected '='")
+        if multi and olg_has_fffd(&key)
+            return olg_lf_fault(kvs, pos, "invalid key")
+        if not eq
+            kvs.push(LogKv(key: key, val: LvStr(t: "")))
+        else
+            pos += 1
+            if pos >= n or (line[pos] as i64) <= 32
+                kvs.push(LogKv(key: key, val: LvStr(t: "")))
+            elif line[pos] == 34
+                let q0 = pos
+                var q = pos + 1
+                var esc = false
+                var has_esc = false
+                var closed = false
+                while q < n and not closed bound 4000000
+                    let c = line[q] as i64
+                    if esc
+                        esc = false
+                        q += 1
+                    elif c == 92
+                        esc = true
+                        has_esc = true
+                        q += 1
+                    elif c == 34
+                        closed = true
+                    else
+                        q += 1
+                if not closed
+                    return olg_lf_fault(kvs, n, "unterminated quoted value")
+                pos = q + 1
+                let body = line[q0 + 1:q]
+                if has_esc
+                    let u = olg_lf_unquote(&body)
+                    if not u.ok
+                        return olg_lf_fault(kvs, pos, "invalid quoted value")
+                    kvs.push(LogKv(key: key, val: LvStr(t: u.t)))
+                else
+                    kvs.push(LogKv(key: key, val: LvStr(t: body)))
+            else
+                let v0 = pos
+                var vstop = false
+                while pos < n and not vstop bound 4000000
+                    let c = line[pos] as i64
+                    if c == 61
+                        return olg_lf_fault(kvs, pos, "unexpected '='")
+                    if c == 34
+                        return olg_lf_fault(kvs, pos, "unexpected '\"'")
+                    if c <= 32
+                        vstop = true
+                    else
+                        pos += 1
+                kvs.push(LogKv(key: key, val: LvStr(t: line[v0:pos])))
+    return LfLine(kvs: kvs, ok: true, at: 0, why: "")
+
+# The pairs of one line, or the fault as BadLog(at, why).
+pub fn lf_decode(line: &text) -> List[LogKv] ! BadLog
+    let s = lf_scan(line)
+    if not s.ok
+        fail BadLog(at: s.at, why: copy(s.why))
+    return copy(s.kvs)
+
+fn olg_drop_cr(s: &text) -> text
+    let n = s.len_bytes()
+    if n > 0 and s[n - 1] == 13
+        return s[0:n - 1]
+    return copy(s)
+
+# Every line of a text, split as bufio.ScanLines splits it (on "\n", one
+# "\r" before it dropped, no empty line after a final "\n"), each decoded
+# on its own: a fault ends its line only.
+pub fn lf_lines(s: &text) -> List[LfLine]
+    var out: List[LfLine] = []
+    let n = s.len_bytes()
+    var a: usize = 0
+    var i: usize = 0
+    while i < n bound 4000000
+        if s[i] == 10
+            let ln = olg_drop_cr(&s[a:i])
+            out.push(lf_scan(&ln))
+            a = i + 1
+        i += 1
+    if a < n
+        let ln = olg_drop_cr(&s[a:n])
+        out.push(lf_scan(&ln))
+    return out
+
+# A logfmt stream read in chunks of any size (FileRead or NetRecv text).
+# A line longer than max bytes is reported once as a fault ("line too
+# long", at = max) and skipped up to its newline.
+pub struct LfReader
+    rest: text
+    max: i64
+    skip: bool
+    lines: i64
+    eof: bool
+
+# max is clamped to 1..1000000.
+pub fn lf_reader(max: i64) -> LfReader = LfReader(rest: "", max: if max < 1 then 1 else (if max > 1000000 then 1000000 else max), skip: false, lines: 0, eof: false)
+
+fn olg_too_long(max: i64) -> LfLine = LfLine(kvs: [], ok: false, at: max, why: "line too long")
+
+# The lines this chunk completes, decoded.
+pub fn lf_feed(rd: &mut LfReader, chunk: &text) -> List[LfLine]
+    var out: List[LfLine] = []
+    if rd.eof
+        return out
+    let n = chunk.len_bytes()
+    var a: usize = 0
+    var i: usize = 0
+    while i < n bound 4000000
+        if chunk[i] == 10
+            if rd.skip
+                rd.skip = false
+            elif (rd.rest.len_bytes() + (i - a)) as i64 > rd.max
+                out.push(olg_too_long(rd.max))
+                rd.lines += 1
+            else
+                let whole = rd.rest + chunk[a:i]
+                let ln = olg_drop_cr(&whole)
+                out.push(lf_scan(&ln))
+                rd.lines += 1
+            rd.rest = ""
+            a = i + 1
+        i += 1
+    if not rd.skip and a < n
+        if (rd.rest.len_bytes() + (n - a)) as i64 > rd.max
+            out.push(olg_too_long(rd.max))
+            rd.lines += 1
+            rd.skip = true
+            rd.rest = ""
+        else
+            rd.rest = rd.rest + chunk[a:n]
+    return out
+
+# End of the stream: the last line, when one is pending; later feeds
+# return nothing.
+pub fn lf_finish(rd: &mut LfReader) -> List[LfLine]
+    var out: List[LfLine] = []
+    if rd.eof
+        return out
+    rd.eof = true
+    if not rd.skip and rd.rest != ""
+        let ln = olg_drop_cr(&rd.rest)
+        out.push(lf_scan(&ln))
+        rd.lines += 1
+    rd.rest = ""
+    rd.skip = false
+    return out
+
+# ---------------- JSON (CPython json.dumps) ----------------
+
+# json.dumps of a str as parts: \" \\ \b \f \n \r \t, \u00xx for the
+# other code points below 0x20; with ascii (ensure_ascii) also \u007f and
+# every non-ASCII code point as \uxxxx (a UTF-16 surrogate pair above
+# U+FFFF), lower-case hex. The parts stop past the line limit, as in
+# olg_lf_quote.
+fn olg_json_str(s: &text, ascii: bool) -> List[text]
+    if not (olg_has_ctl(s) or s.contains("\"") or s.contains("\\") or (ascii and (s.len_chars() != s.len_bytes() or s.contains("\u{7f}"))))
+        return ["\"", copy(s), "\""]
+    var ps: List[text] = ["\""]
+    var len: i64 = 1
+    let n = s.len_bytes()
+    var start: usize = 0
+    var i: usize = 0
+    while i < n and len <= OLG_LINE_MAX bound 4000000
+        let b = s[i] as i64
+        var e = ""
+        var w: usize = 1
+        if b < 128
+            if b >= 32 and b != 34 and b != 92 and not (ascii and b == 127)
+                i += 1
+                continue
+            e = if b < 32 then copy(OLG_JS_ESC[b as usize]) else (if b == 34 then "\\\"" else (if b == 92 then "\\\\" else "\\u007f"))
+        elif not ascii
+            i += 1
+            continue
+        else
+            let cp = olg_cp_at(s, i)
+            w = olg_u8len(b)
+            if cp >= 65536
+                let u = cp - 65536
+                e = "\\u" + olg_hex4(55296 + (u >> 10)) + "\\u" + olg_hex4(56320 + (u & 1023))
+            else
+                e = "\\u" + olg_hex4(cp)
+        if start < i
+            ps.push(s[start:i])
+        ps.push(copy(e))
+        len += (i - start) as i64 + e.len_bytes() as i64
+        i += w
+        start = i
+    if start < n
+        ps.push(s[start:n])
+    ps.push("\"")
+    return ps
+
+fn olg_digits(s: &text, i: usize) -> usize
+    var k = i
+    while k < s.len_bytes() and s[k] >= 48 and s[k] <= 57 bound 4000000
+        k += 1
+    return k
+
+# RFC 8259 number: -? (0 | [1-9][0-9]*) (.[0-9]+)? ([eE][+-]?[0-9]+)?
+fn olg_is_json_num(s: &text) -> bool
+    let n = s.len_bytes()
+    var i: usize = 0
+    if i < n and s[i] == 45
+        i += 1
+    if i >= n
+        return false
+    if s[i] == 48
+        i += 1
+    elif s[i] >= 49 and s[i] <= 57
+        i = olg_digits(s, i)
+    else
+        return false
+    if i < n and s[i] == 46
+        let k = olg_digits(s, i + 1)
+        if k == i + 1
+            return false
+        i = k
+    if i < n and (s[i] == 101 or s[i] == 69)
+        i += 1
+        if i < n and (s[i] == 43 or s[i] == 45)
+            i += 1
+        let k = olg_digits(s, i)
+        if k == i
+            return false
+        i = k
+    return i == n
+
+fn olg_json_val(x: &LogVal, ascii: bool) -> List[text]
+    match x
+        LvStr(t: t) -> return olg_json_str(t, ascii)
+        LvInt(v: v) -> return [v.tostr()]
+        LvBool(v: b) -> return [if b then "true" else "false"]
+        LvNull -> return ["null"]
+        LvNum(raw: r) -> return if olg_is_json_num(r) then [copy(r)] else olg_json_str(r, ascii)
+
+# A key that occurs again keeps its first position and takes its last
+# value (dict(pairs) in Python).
+fn olg_dedupe(kvs: &[LogKv]) -> List[LogKv]
+    var out: List[LogKv] = []
+    var at: Map[text, i64] = {}
+    for kv in kvs
+        let j = at.get(copy(kv.key)) catch -1
+        if j >= 0
+            out[j as usize].val = copy(kv.val)
+        else
+            at[copy(kv.key)] = out.len() as i64
+            out.push(copy(kv))
+    return out
+
+# One JSON object: json.dumps(dict(pairs), ensure_ascii=ascii,
+# separators=(",", ":")), with integers in decimal and a number lexeme
+# written as is (as a string when it is not an RFC 8259 number). Pairs
+# past the line limit are replaced by "truncated":true.
+pub fn log_json_obj(kvs: &[LogKv], ascii: bool) -> text
+    let d = olg_dedupe(kvs)
+    var pairs: List[List[text]] = []
+    for kv in d
+        var p = olg_json_str(&kv.key, ascii)
+        p.push(":")
+        for x in olg_json_val(&kv.val, ascii)
+            p.push(x)
+        pairs.push(p)
+    let o = "{"
+    let c = "}"
+    let sp = ","
+    let mk = "\"truncated\":true"
+    return olg_line(&pairs, &o, &sp, &c, &mk)
+
+# ---------------- record lines ----------------
+
+# frac: digits of the second's fraction in the time (0..9, truncated);
+# offset_min: fixed UTC offset of the time text (clamped to +-23:59);
+# ascii: JSON ensure_ascii; max_value: keys and values are cut to this
+# many bytes (clamped to 1..1000000) at a character boundary.
+pub struct LogFmt
+    frac: i64
+    offset_min: i64
+    ascii: bool
+    max_value: i64
+
+# Nanosecond times in UTC, UTF-8 JSON, values up to 65536 bytes.
+pub fn log_fmt() -> LogFmt = LogFmt(frac: 9, offset_min: 0, ascii: false, max_value: 65536)
+
+fn olg_clamp(v: i64, lo: i64, hi: i64) -> i64 = if v < lo then lo else (if v > hi then hi else v)
+
+# ---- RFC 3339 times (the rules of `time`, kept here so that this module
+# imports nothing): proleptic Gregorian dates by Howard Hinnant's
+# days_from_civil and civil_from_days ----
+
+const OLG_SEC: i64 = 1000000000
+const OLG_DAY: i64 = 86400000000000
+
+fn olg_fdiv(a: i64, b: i64) -> i64 = if a >= 0 then a / b else 0 - ((0 - a - 1) / b) - 1
+
+fn olg_days(y0: i64, m: i64, d: i64) -> i64
+    let y = if m <= 2 then y0 - 1 else y0
+    let era = olg_fdiv(y, 400)
+    let yoe = y - era * 400
+    let mp = if m > 2 then m - 3 else m + 9
+    let doe = yoe * 365 + yoe / 4 - yoe / 100 + (153 * mp + 2) / 5 + d - 1
+    return era * 146097 + doe - 719468
+
+# [year, month, day] of a day count since 1970-01-01.
+fn olg_civil(z0: i64) -> List[i64]
+    let z = z0 + 719468
+    let era = olg_fdiv(z, 146097)
+    let doe = z - era * 146097
+    let yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100)
+    let mp = (5 * doy + 2) / 153
+    let m = if mp < 10 then mp + 3 else mp - 9
+    return [yoe + era * 400 + (if m <= 2 then 1 else 0), m, doy - (153 * mp + 2) / 5 + 1]
+
+fn olg_pad(v: i64, w: i64) -> text
+    var s = v.tostr()
+    while (s.len_bytes() as i64) < w bound 20
+        s = "0" + s
+    return s
+
+# RFC 3339 text of an instant with the format's fraction digits (truncated)
+# and fixed offset. An instant outside +-9e18 ns (about 1684..2255) is
+# written as its decimal number of nanoseconds.
+pub fn log_time_text(t: i64, f: &LogFmt) -> text
+    if t > 9000000000000000000 or t < -9000000000000000000
+        return t.tostr()
+    let off = olg_clamp(f.offset_min, -1439, 1439)
+    let frac = olg_clamp(f.frac, 0, 9)
+    let lt = t + off * 60 * OLG_SEC
+    let days = olg_fdiv(lt, OLG_DAY)
+    let nd = lt - days * OLG_DAY
+    let c = olg_civil(days)
+    let sec = nd / OLG_SEC
+    var o = olg_pad(c[0], 4) + "-" + olg_pad(c[1], 2) + "-" + olg_pad(c[2], 2) + "T" + olg_pad(sec / 3600, 2) + ":" + olg_pad((sec / 60) % 60, 2) + ":" + olg_pad(sec % 60, 2)
+    if frac > 0
+        var fr = nd % OLG_SEC
+        var k: i64 = 9
+        while k > frac bound 9
+            fr = fr / 10
+            k -= 1
+        o = o + "." + olg_pad(fr, frac)
+    if off == 0
+        return o + "Z"
+    let a = if off < 0 then 0 - off else off
+    return o + (if off < 0 then "-" else "+") + olg_pad(a / 60, 2) + ":" + olg_pad(a % 60, 2)
+
+fn olg_num(s: &text, at: usize, n: usize) -> i64
+    if at + n > s.len_bytes()
+        return -1
+    var v: i64 = 0
+    for k in 0..n
+        let c = (s[at + k] as i64) - 48
+        if c < 0 or c > 9
+            return -1
+        v = v * 10 + c
+    return v
+
+fn olg_is(s: &text, at: usize, c: i64) -> bool = at < s.len_bytes() and (s[at] as i64) == c
+
+# RFC 3339 date-time (5.6): YYYY-MM-DDTHH:MM:SS[.frac](Z|+HH:MM|-HH:MM),
+# T and Z in either case, 1 to 9 fraction digits, no leap second; dates
+# whose instant would leave the i64 nanosecond range are refused.
+fn olg_rfc3339(s: &text) -> OlgInt
+    let bad = OlgInt(ok: false, v: 0)
+    let y = olg_num(s, 0, 4)
+    let mo = olg_num(s, 5, 2)
+    let d = olg_num(s, 8, 2)
+    let h = olg_num(s, 11, 2)
+    let mi = olg_num(s, 14, 2)
+    let se = olg_num(s, 17, 2)
+    if y < 0 or mo < 1 or mo > 12 or d < 1 or h < 0 or h > 23 or mi < 0 or mi > 59 or se < 0 or se > 59
+        return bad
+    if not (olg_is(s, 4, 45) and olg_is(s, 7, 45) and (olg_is(s, 10, 84) or olg_is(s, 10, 116)) and olg_is(s, 13, 58) and olg_is(s, 16, 58))
+        return bad
+    let leap = (y % 4 == 0 and y % 100 != 0) or y % 400 == 0
+    let dim = if mo == 2 then (if leap then 29 else 28) else (if mo == 4 or mo == 6 or mo == 9 or mo == 11 then 30 else 31)
+    if d > dim
+        return bad
+    var i: usize = 19
+    var ns: i64 = 0
+    if olg_is(s, i, 46)
+        i += 1
+        var k: i64 = 0
+        while i < s.len_bytes() and s[i] >= 48 and s[i] <= 57 bound 10
+            if k >= 9
+                return bad
+            ns = ns * 10 + (s[i] as i64) - 48
+            k += 1
+            i += 1
+        if k == 0
+            return bad
+        while k < 9 bound 9
+            ns = ns * 10
+            k += 1
+    var off: i64 = 0
+    if olg_is(s, i, 90) or olg_is(s, i, 122)
+        i += 1
+    elif olg_is(s, i, 43) or olg_is(s, i, 45)
+        let oh = olg_num(s, i + 1, 2)
+        let om = olg_num(s, i + 4, 2)
+        if oh < 0 or oh > 23 or om < 0 or om > 59 or not olg_is(s, i + 3, 58)
+            return bad
+        off = if olg_is(s, i, 45) then 0 - (oh * 60 + om) else oh * 60 + om
+        i += 6
+    else
+        return bad
+    if i != s.len_bytes()
+        return bad
+    let days = olg_days(y, mo, d)
+    if days > 106748 or days < -106748
+        return bad
+    return OlgInt(ok: true, v: days * OLG_DAY + ((h * 60 + mi) * 60 + se) * OLG_SEC + ns - off * 60 * OLG_SEC)
+
+fn olg_cut_val(x: &LogVal, max: i64) -> LogVal
+    match x
+        LvStr(t: t) -> return LvStr(t: olg_cut(t, max))
+        LvNum(raw: r) -> return LvNum(raw: olg_cut(r, max))
+        LvInt(v: v) -> return LvInt(v: v)
+        LvBool(v: b) -> return LvBool(v: b)
+        LvNull -> return LvNull
+
+# The pairs a record is written as, in order: time (when set), level, msg,
+# then the fields, a field named time, level or msg renamed fields.time,
+# fields.level or fields.msg, keys and values cut to max_value bytes, and a
+# repeated key kept at its first position with its last value.
+pub fn log_kvs(r: &LogRec, f: &LogFmt) -> List[LogKv]
+    let mx = olg_clamp(f.max_value, 1, 1000000)
+    var all: List[LogKv] = []
+    if r.time.issome()
+        all.push(LogKv(key: "time", val: LvStr(t: log_time_text(r.time.or(0), f))))
+    all.push(LogKv(key: "level", val: LvStr(t: sev_name(r.sev))))
+    all.push(LogKv(key: "msg", val: LvStr(t: olg_cut(&r.msg, mx))))
+    for kv in r.kvs
+        let k = if kv.key == "time" or kv.key == "level" or kv.key == "msg" then "fields." + kv.key else copy(kv.key)
+        all.push(LogKv(key: olg_cut(&k, mx), val: olg_cut_val(&kv.val, mx)))
+    return olg_dedupe(&all)
+
+# One logfmt line (no newline): time=... level=INFO msg=... k=v ...
+pub fn log_logfmt(r: &LogRec, f: &LogFmt) -> text
+    let kvs = log_kvs(r, f)
+    return lf_encode_skip(&kvs)
+
+# One JSON Lines line (no newline): {"time":...,"level":"INFO","msg":...}
+pub fn log_json(r: &LogRec, f: &LogFmt) -> text
+    let kvs = log_kvs(r, f)
+    return log_json_obj(&kvs, f.ascii)
+
+# The lines of several records, JSON (json true) or logfmt; a JSON Lines
+# or logfmt stream is each line followed by "\n".
+pub fn log_lines(rs: &[LogRec], f: &LogFmt, json: bool) -> List[text]
+    var out: List[text] = []
+    for r in rs
+        out.push(if json then log_json(&r, f) else log_logfmt(&r, f))
+    return out
+
+# A record from decoded pairs (the inverse of log_kvs on logfmt): the first
+# time that parses (RFC 3339, else decimal nanoseconds), the first level
+# that parses (sev_parse; 0 when there is none) and the first msg; every
+# other pair is a field, with fields.time, fields.level and fields.msg
+# renamed back.
+pub fn log_from_kvs(kvs: &[LogKv]) -> LogRec
+    var r = LogRec(time: none, sev: 0, msg: "", kvs: [])
+    var st = false
+    var sl = false
+    var sm = false
+    for kv in kvs
+        let v = lv_text(&kv.val)
+        var used = false
+        if kv.key == "time" and not st
+            st = true
+            let t = olg_rfc3339(&v)
+            let d = olg_dec(&v)
+            if t.ok
+                r.time = some(t.v)
+                used = true
+            elif d.ok
+                r.time = some(d.v)
+                used = true
+        elif kv.key == "level" and not sl
+            sl = true
+            let sv = olg_sev(&v)
+            if sv.ok
+                r.sev = sv.v
+                used = true
+        elif kv.key == "msg" and not sm
+            sm = true
+            r.msg = v
+            used = true
+        if not used
+            var k = copy(kv.key)
+            if k == "fields.time" or k == "fields.level" or k == "fields.msg"
+                k = k[7:k.len_bytes()]
+            r.kvs.push(LogKv(key: k, val: copy(kv.val)))
+    return r
+
+# ---------------- filtering ----------------
+
+# Conditions on fields (the last pair with the key) by the text form of the
+# value, and on the message.
+pub kind LogCond
+    LcHas(key: text)
+    LcAbsent(key: text)
+    LcEq(key: text, t: text)
+    LcNe(key: text, t: text)
+    LcPrefix(key: text, t: text)
+    LcMsgHas(t: text)
+
+# A record passes when min_sev <= sev <= max_sev and every condition holds.
+pub struct LogFilter
+    min_sev: i64
+    max_sev: i64
+    conds: List[LogCond]
+
+# Every record at or above min_sev.
+pub fn log_filter(min_sev: i64) -> LogFilter = LogFilter(min_sev: min_sev, max_sev: 9223372036854775807, conds: [])
+
+pub fn log_where(f: LogFilter, c: LogCond) -> LogFilter
+    var o = f
+    o.conds.push(c)
+    return o
+
+fn olg_val_text(r: &LogRec, key: &text) -> text?
+    let i = olg_find(&r.kvs, key)
+    if i < 0
+        return none
+    return some(lv_text(&r.kvs[i as usize].val))
+
+fn olg_cond(r: &LogRec, c: &LogCond) -> bool
+    match c
+        LcHas(key: k) -> return olg_find(&r.kvs, k) >= 0
+        LcAbsent(key: k) -> return olg_find(&r.kvs, k) < 0
+        LcEq(key: k, t: t) -> return olg_val_text(r, k) == some(copy(t))
+        LcNe(key: k, t: t) -> return olg_val_text(r, k) != some(copy(t))
+        LcPrefix(key: k, t: t) -> return olg_find(&r.kvs, k) >= 0 and olg_val_text(r, k).or("").startswith(t)
+        LcMsgHas(t: t) -> return r.msg.contains(t)
+
+pub fn log_keep(r: &LogRec, f: &LogFilter) -> bool
+    if r.sev < f.min_sev or r.sev > f.max_sev
+        return false
+    for c in f.conds
+        if not olg_cond(r, &c)
+            return false
+    return true
+
+pub fn log_select(rs: &[LogRec], f: &LogFilter) -> List[LogRec]
+    var out: List[LogRec] = []
+    for r in rs
+        if log_keep(&r, f)
+            out.push(copy(r))
+    return out
+
+# Projection: only the fields whose key is listed, or all but those.
+pub fn log_only(r: &LogRec, keys: &[text]) -> LogRec
+    var o = LogRec(time: r.time, sev: r.sev, msg: copy(r.msg), kvs: [])
+    for kv in r.kvs
+        if keys.contains(copy(kv.key))
+            o.kvs.push(copy(kv))
+    return o
+
+pub fn log_drop(r: &LogRec, keys: &[text]) -> LogRec
+    var o = LogRec(time: r.time, sev: r.sev, msg: copy(r.msg), kvs: [])
+    for kv in r.kvs
+        if not keys.contains(copy(kv.key))
+            o.kvs.push(copy(kv))
+    return o
+
+# ---------------- ring buffer ----------------
+
+# The cap most recent records; total counts every record pushed.
+pub struct LogRing
+    cap: i64
+    buf: List[LogRec]
+    head: i64
+    total: i64
+
+# cap is clamped to 0..1000000 (0 keeps nothing and only counts).
+pub fn log_ring(cap: i64) -> LogRing = LogRing(cap: olg_clamp(cap, 0, 1000000), buf: [], head: 0, total: 0)
+
+pub fn log_ring_push(g: &mut LogRing, r: LogRec)
+    g.total += 1
+    if g.cap == 0
+        return
+    if (g.buf.len() as i64) < g.cap
+        g.buf.push(r)
+        return
+    g.buf[g.head as usize] = r
+    g.head = (g.head + 1) % g.cap
+
+pub fn log_ring_len(g: &LogRing) -> i64 = g.buf.len() as i64
+
+# Records pushed and no longer held.
+pub fn log_ring_dropped(g: &LogRing) -> i64 = g.total - (g.buf.len() as i64)
+
+# The newest n records held, oldest first (n < 0 or beyond the length
+# gives all).
+pub fn log_ring_last(g: &LogRing, n: i64) -> List[LogRec]
+    let m = g.buf.len() as i64
+    let k = if n < 0 or n > m then m else n
+    var out: List[LogRec] = []
+    var j = m - k
+    while j < m bound 1000000
+        out.push(copy(g.buf[((g.head + j) % m) as usize]))
+        j += 1
+    return out
+
+# Every record held, oldest first.
+pub fn log_ring_items(g: &LogRing) -> List[LogRec] = log_ring_last(g, -1)
+
+pub fn log_ring_clear(g: &mut LogRing)
+    g.buf = []
+    g.head = 0
+
+# ---------------- sampling (zap) ----------------
+
+# zapcore.NewSamplerWithOptions(core, tick, first, thereafter): records
+# are counted per severity and per bucket fnv32a(msg) % 4096 (zap's
+# counters, so two messages in one bucket share a count). A count restarts
+# at 1 when the record's time reaches the bucket's reset time, which is
+# then set to time + tick. The nth record of a count is kept when n <=
+# first, or when thereafter > 0 and (n - first) % thereafter == 0. A record
+# without a time counts as time 0; tick, first and thereafter below 0 act
+# as 0; time + tick saturates instead of wrapping.
+pub struct LogSampler
+    tick: i64
+    first: i64
+    thereafter: i64
+    counts: Map[(i64, i64), i64]
+    resets: Map[(i64, i64), i64]
+    kept: i64
+    dropped: i64
+
+pub fn log_sampler(tick: i64, first: i64, thereafter: i64) -> LogSampler = LogSampler(tick: if tick < 0 then 0 else tick, first: if first < 0 then 0 else first, thereafter: if thereafter < 0 then 0 else thereafter, counts: {}, resets: {}, kept: 0, dropped: 0)
+
+# FNV-1a 32 over the UTF-8 bytes (zap's fnv32a).
+fn olg_fnv32a(s: &text) -> i64
+    var h: i64 = 2166136261
+    var i: usize = 0
+    while i < s.len_bytes() bound 4000000
+        h = ((h ^ (s[i] as i64)) * 16777619) & 4294967295
+        i += 1
+    return h
+
+# Whether the record is kept; the sampler counts it either way.
+pub fn log_sample(s: &mut LogSampler, r: &LogRec) -> bool
+    let key = (r.sev, olg_fnv32a(&r.msg) % 4096)
+    let tn = r.time.or(0)
+    let ra = s.resets.get(key) catch 0
+    var n: i64 = 1
+    if ra > tn
+        n = (s.counts.get(key) catch 0) + 1
+        s.counts[key] = n
+    else
+        s.counts[key] = 1
+        s.resets[key] = tn.saturating_add(s.tick)
+    let drop = n > s.first and (s.thereafter == 0 or (n - s.first) % s.thereafter != 0)
+    if drop
+        s.dropped += 1
+    else
+        s.kept += 1
+    return not drop
+
+# The records the sampler keeps, in order.
+pub fn log_sample_all(s: &mut LogSampler, rs: &[LogRec]) -> List[LogRec]
+    var out: List[LogRec] = []
+    for r in rs
+        if log_sample(s, &r)
+            out.push(copy(r))
+    return out

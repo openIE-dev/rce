@@ -1,0 +1,21 @@
+# Size checks for lib/obs/log.rce, part 3 (its own fuel budget): a line
+# of 600,000 bytes decodes.
+
+fn big(n: i64) -> text
+    var s = "a"
+    while (s.len_bytes() as i64) * 2 <= n bound 40
+        s = s + s
+    while (s.len_bytes() as i64) < n bound 40
+        let need = n - (s.len_bytes() as i64)
+        var p = "a"
+        while (p.len_bytes() as i64) * 2 <= need bound 40
+            p = p + p
+        s = s + p
+    return s
+
+fn long_scan() -> bool
+    let v = big(300000)
+    let line = "k=" + v + " q=\"" + v + "\""
+    let l = lf_scan(&line)
+    return l.ok and l.kvs.len() == 2 and lv_text(&l.kvs[1].val).len_bytes() == 300000
+check long_scan()
