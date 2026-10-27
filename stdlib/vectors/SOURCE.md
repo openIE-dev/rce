@@ -49,9 +49,10 @@ ML-KEM-768 results are checked against the RustCrypto `ml-kem` crate
 ## core.bytes (`lib/core/bytes.rce`)
 
 No official vector set applies; `tests/core/bytes_checks.rce` holds hand
-vectors and a seeded property sweep (200 cases). Needs spec: a built-in
-to build `text` from UTF-8 bytes (none in 5.15), and a native byte type
-(bytes stay `List[i64]` until one exists). Option and result types are
+vectors and a seeded property sweep (200 cases). Text is built from
+UTF-8 bytes by `List.utf8` (5.15, bytes to text). Bytes stay `List[i64]`;
+a native byte type is a language-growth row of the coverage ledger
+(`spec/data/coverage-map.json`). Option and result types are
 the language's own `T?` and error unions (`T ! E`), so no core.option or
 core.result library is added.
 
@@ -82,10 +83,10 @@ Official vectors, transcribed as `check` lines in `tests/enc/enc_checks.rce`:
   (https://protobuf.dev/programming-guides/encoding/) and the LEB128
   example 624485 -> e5 8e 26.
 
-Needs spec: f64 bit access (CBOR floats and JCS/ECMAScript number
-formatting), text from UTF-8 bytes (decoding non-ASCII CBOR text, JSON
-\u escapes in a parser). CBOR integers beyond i64 need core.exact
-integration (planned, not a spec gap).
+Not done yet, all library work: CBOR floats and JCS/ECMAScript number
+formatting over the f64 bits of `num.special.f64_bits`, and decoding
+non-ASCII CBOR text and JSON \u escapes with `List.utf8` (5.15). CBOR
+integers beyond i64 need core.exact integration.
 
 ## text.utf8 (`lib/text/utf8.rce`)
 
@@ -100,12 +101,12 @@ integration (planned, not a spec gap).
 - Unicode 15.0 section 3.9, Table 3-8 (U+FFFD substitution example) and
   the Table 3-7 boundaries, as hand checks.
 
-Needs spec for the rest of M9: building text from code points or UTF-8
-bytes (no built-in in 5.15), and a pinned UCD (normalization data,
-grapheme break and case-folding properties) as part of the content
-address. Normalization (NFC/NFD over code-point lists) is feasible in pure
-RCE once UCD tables are generated into the library, but its result could
-not be turned back into text without that built-in.
+The rest of M9 is library work. Text is built from code points by
+encoding them (`utf8_encode` here) and calling `List.utf8` (5.15). The pinned
+UCD tables already generated into `net.idna` (NFC/NFD) and `ui.text`
+(grapheme, word and line breaks) are part of the content address; full
+case mapping and folding are the `text.unicode` row of the coverage ledger
+(`spec/data/coverage-map.json`).
 
 ## time (`lib/time/time.rce`)
 
@@ -383,9 +384,9 @@ module once the bindings are specified.
   mutants removed: "#" in the query set, "0X", "@" vs "%40" in userinfo,
   the port overflow guard).
 
-Needs spec or data: building text from arbitrary
-bytes, so HTTP field values with obs-text (bytes 0x80-0xFF) are refused
-and DNS label bytes are kept as \DDD; the WHATWG URL setters
+Not done yet: HTTP field values with obs-text (bytes 0x80-0xFF) are
+refused and DNS label bytes are kept as \DDD, although `List.utf8` (5.15)
+builds text from bytes that form UTF-8; the WHATWG URL setters
 (setters_tests.json) and application/x-www-form-urlencoded are not done
 yet; host bindings for UDP (DNS) and a connection/stream binding for
 HTTP over TCP and TLS.
@@ -583,12 +584,13 @@ keyword). CloudEvents 1.0 as the common envelope of change feeds.
   point table. `scripts/mut/data.py` (events part): 33 of 33 mutants
   killed (one equivalent mutant removed).
 
-Needs spec: rce 0.1.3 has no text-from-code-point or text-from-UTF-8
-built-in, so `\u` escapes and percent-decoded UTF-8 go through a table
-of the BMP and U+1F000..U+1FFFF; other supplementary code points are
-refused. JSON numbers are kept and compared as lexemes (no f64 bit
-access). A `T? ! E` result loses its `some()` wrapper in the 0.1.3
-comptime evaluator; the module avoids that shape.
+Not done yet: `\u` escapes and percent-decoded UTF-8 go through a table
+of the BMP and U+1F000..U+1FFFF, and other supplementary code points are
+refused; `List.utf8` (5.15) builds text from any well-formed UTF-8, so
+the table can be replaced. JSON numbers are kept and compared as lexemes;
+`num.special.f64_bits` gives the bits of a double. A `T? ! E` result lost
+its `some()` wrapper in an earlier comptime evaluator; the module avoids
+that shape.
 
 ## ui.text (`lib/ui/text.rce`)
 

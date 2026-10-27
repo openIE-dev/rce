@@ -1,5 +1,5 @@
-# An account kept in integer cents. RCE has no decimal type, so money is
-# stored in the smallest unit (see refused/decimal.rce).
+# An account kept in integer cents, the smallest unit of the currency.
+# Exact decimal amounts are core.exact.Dec (see price.rce).
 intent "withdrawals never overdraw the account"
     example Deposit(cents: 1000), Withdraw(cents: 250) -> 750
     example Withdraw(cents: 1) -> refused: Insufficient

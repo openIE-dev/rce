@@ -8,8 +8,8 @@ module net.idna
 # each label (4.1: hyphens, leading mark, status, STD3 ASCII, ContextJ of
 # RFC 5892 appendix A.1 and A.2, the six bidi rules of RFC 5893 section
 # 2). ToASCII (4.2) adds Punycode with the "xn--" prefix and the DNS
-# length checks; ToUnicode (4.3) returns code points, since rce 0.1.3
-# cannot build text from arbitrary code points. Every operation returns
+# length checks; ToUnicode (4.3) returns code points, which a caller turns
+# into text with text.utf8.utf8_encode and List.utf8 (5.15). Every operation returns
 # its output together with an error flag, as UTS #46 specifies ("the
 # conversion is performed as much as is possible"); the status codes are
 # not reproduced (IdnaTestV2.txt requires only the error flag).

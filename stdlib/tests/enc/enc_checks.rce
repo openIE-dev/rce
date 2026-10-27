@@ -97,7 +97,7 @@ check cmap_hex(CMap(keys: [CSimple(v: 20), CText(t: "aa"), CInt(v: -1), CArr(ite
 
 # strict decoder: non-shortest head, indefinite length, unsorted and
 # duplicate keys, trailing bytes, simple < 32 in two bytes, float, > i64,
-# truncation, non-ASCII text (needs spec)
+# truncation, non-ASCII text (not yet decoded with List.utf8)
 check rejects("1817") and rejects("9f01ff") and rejects("a203040102") and rejects("a201020103")
 check rejects("0001") and rejects("f818") and rejects("f93c00") and rejects("1b8000000000000000") and rejects("1903") and rejects("62c3bc")
 

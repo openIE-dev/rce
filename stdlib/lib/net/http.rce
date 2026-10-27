@@ -7,8 +7,9 @@ module net.http
 # LF is refused), obs-fold is refused (5.2), whitespace before a field
 # colon is refused (5.1), Transfer-Encoding together with Content-Length
 # is refused (6.1, request smuggling), differing Content-Length values
-# are refused (6.3). Field values must be ASCII (obs-text needs text built
-# from bytes, which RCE 0.1.3 cannot do). No socket here: a connection is
+# are refused (6.3). Field values must be ASCII: this module does not yet
+# carry obs-text bytes, which List.utf8 (5.15) can turn into text where
+# they form UTF-8. No socket here: a connection is
 # the io module's request/result pattern; parse fails with a why that
 # starts "incomplete" when more bytes are needed.
 

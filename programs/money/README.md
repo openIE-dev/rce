@@ -7,10 +7,15 @@ half done.
 |---|---|
 | `account.rce` | an account that refuses overdrafts and non-positive amounts |
 | `ledger.rce` | double-entry bookkeeping; each step also checks that all balances sum to zero |
-| `refused/decimal.rce` | shows that there is no `decimal` type |
+| `price.rce` | prices as exact decimals with `core.exact`: 0.10 + 0.20 is 0.30, and a third of 10.00 rounds to 3.33 |
+| `refused/decimal.rce` | shows that `decimal` is not a built-in type name |
 
-Money is kept in integer cents. Draft 0.5 has no decimal or fixed-point
-type, and the checker refuses one:
+`account.rce` and `ledger.rce` keep money in integer cents. Exact decimals
+come from the standard library: `use core.exact` gives `Dec`, an unbounded
+integer coefficient with a power-of-ten exponent, with `dec_parse`,
+`dec_tostr`, `dec_add`, `dec_sub`, `dec_mul`, `dec_div` and `dec_quantize`
+under explicit rounding modes (`price.rce` uses them). There is no built-in
+type named `decimal`, and the checker refuses that name:
 
 ```text
 $ rce check refused/decimal.rce

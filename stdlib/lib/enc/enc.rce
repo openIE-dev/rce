@@ -6,9 +6,10 @@ module enc
 # 0..255 (core.bytes). Decoders reject every non-canonical input: padding
 # or trailing bits in base64, overlong varints, non-shortest CBOR heads,
 # indefinite lengths, unsorted or duplicate map keys.
-# Not covered (needs spec, see vectors/SOURCE.md): CBOR and JCS floats (no
-# f64 bit access in 5.15), CBOR integers beyond i64, decoding non-ASCII
-# CBOR text (no text-from-UTF-8 built-in).
+# Not covered yet (see vectors/SOURCE.md): CBOR and JCS floats (the bits
+# are available from num.special.f64_bits), CBOR integers beyond i64, and
+# decoding non-ASCII CBOR text (List.utf8 of 5.15 builds the text). Each
+# is library work, listed in spec/data/coverage-map.json.
 
 fn enc_cat(a: List[i64], b: &[i64]) -> List[i64]
     var o = a
@@ -273,8 +274,8 @@ fn arg_of(b: &[i64], off: i64) -> VarOut ! BadCbor
 
 fn ascii_table() -> List[text] = " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~".chars()
 
-# Decode one deterministic data item at off. Text must be ASCII here
-# (needs spec: text from UTF-8 bytes); floats are refused.
+# Decode one deterministic data item at off. Text must be ASCII here (this
+# decoder does not yet build text with List.utf8); floats are refused.
 pub fn cbor_decode_at(b: &[i64], off: i64) -> CborOut ! BadCbor bound 64
     let h = try arg_of(b, off)
     let m = b[off as usize] >> 5
@@ -352,8 +353,9 @@ pub fn cbor_decode(b: &[i64]) -> Cbor ! BadCbor
 # ---------------- JCS (RFC 8785) ----------------
 # Json values with integer numbers only: an integer is printed the way
 # ECMAScript prints the equal double, which for |v| <= 2^53 is its decimal
-# form; larger magnitudes trap (I-JSON range). Non-integer numbers need
-# spec (no f64 bit access for the shortest round-trip form).
+# form; larger magnitudes trap (I-JSON range). Non-integer numbers are not
+# done yet: the shortest round-trip form is library work over
+# num.special.f64_bits.
 
 pub kind JsonDoc
     JNull
