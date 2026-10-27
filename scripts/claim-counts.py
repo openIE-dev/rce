@@ -462,9 +462,9 @@ def wasm_builds():
 
 
 RUN_DEF = {
-    "tests": "cargo test --release --no-fail-fast in spec/checker (default features): sums over every 'test result:' line; a test that returns early because an external tool is absent is reported by cargo as passed (see toolchains.external_tools_on_path)",
-    "spec_check": "cargo run --release --bin rce-spec-check in spec/checker",
-    "spec_check_three_parsers": "cargo run --release --features tree-sitter --bin rce-spec-check in spec/checker",
+    "tests": "the test binaries that cargo test --release builds in spec/checker (default features), run by scripts/verify-tests.py tests from hard links to the files of one build, with the target directory's lock held while a target that runs target/release/rce runs, and TMPDIR private to the run; doc tests through cargo test --release --doc. Sums over every 'test result:' line; a test that returns early because an external tool is absent is reported as passed (see toolchains.external_tools_on_path)",
+    "spec_check": "rce-spec-check built with cargo build --release and run in spec/checker by scripts/verify-tests.py bin, with the target directory's lock held",
+    "spec_check_three_parsers": "the same with --features tree-sitter",
     "wasm": "npm ci && node test.mjs in spec/wasm-test, over the committed builds named in wasm_builds; a check whose label begins with 'ts' is a grammar check, every other check a checker check",
     "lean": "lake build of spec/lean and the axiom audit spec/lean/audit/Audit.lean (scripts/lean-audit.sh, or the CI job of .github/workflows/lean.yml that runs the same two commands): every theorem constant of a module under RCE uses only propext, Quot.sound and Classical.choice; sorryAx is not among them",
 }
@@ -480,8 +480,19 @@ def runs_summary(runs):
     if t is not None:
         p = parse_cargo_test(t)
         st = run_status(runs, "tests")
-        ok = st == 0 and p["failed"] == 0 and not p["targets_without_result"] and p["targets"] > 0
-        res["tests"] = {"definition": RUN_DEF["tests"], "exit_status": st, "outcome": outcome(ok, True), **p}
+        b = json.loads(run_file(runs, "tests.binaries.json") or "null")
+        iso = None
+        if b:
+            iso = {"executables": b["executables"], "targets_run_under_lock": b["targets_run_under_lock"],
+                   "rce_binary_embeds_run_commit": b["rce_binary"]["embeds_run_commit"],
+                   "rce_binary_unchanged_while_locked": b["rce_binary"]["unchanged_while_locked"],
+                   "hard_links_unchanged_at_end": b["hard_links_unchanged_at_end"],
+                   "binary_hashes": "tests.binaries.json of the run (host-dependent, so outside the summary)"}
+        iso_ok = bool(iso and iso["rce_binary_embeds_run_commit"] and iso["rce_binary_unchanged_while_locked"]
+                      and iso["hard_links_unchanged_at_end"])
+        ok = st == 0 and p["failed"] == 0 and not p["targets_without_result"] and p["targets"] > 0 and iso_ok
+        res["tests"] = {"definition": RUN_DEF["tests"], "exit_status": st, "outcome": outcome(ok, True),
+                        "isolation": iso, **p}
     else:
         res["tests"] = {"definition": RUN_DEF["tests"], "outcome": "not run"}
     for step in ("spec_check", "spec_check_three_parsers"):

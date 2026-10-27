@@ -5,8 +5,11 @@
 #   scripts/verify-run.sh [DIR]          DIR defaults to verify-out
 #
 # Steps (each log and exit status goes to DIR):
-#   tests                      spec/checker: cargo test --release --no-fail-fast
-#   spec_check                 spec/checker: cargo run --release --bin rce-spec-check
+#   tests                      spec/checker: the test binaries of cargo test --release, run by
+#                              scripts/verify-tests.py from the files of one build (hard links,
+#                              and the target directory's lock while a test runs target/release/rce),
+#                              with TMPDIR private to the run
+#   spec_check                 spec/checker: rce-spec-check, built and run the same way
 #   spec_check_three_parsers   the same with --features tree-sitter
 #   wasm                       spec/wasm-test: npm ci && node test.mjs
 #   lean                       scripts/lean-audit.sh when lake is on PATH; otherwise
@@ -35,9 +38,14 @@ step() { # id cwd command...
   echo "verify-run: $id: exit $st" >&2
 }
 
-step tests spec/checker cargo test --release --no-fail-fast
-step spec_check spec/checker cargo run --release --bin rce-spec-check
-step spec_check_three_parsers spec/checker cargo run --release --features tree-sitter --bin rce-spec-check
+for s in "tests tests $out" "spec_check bin rce-spec-check $out/spec_check.log" \
+         "spec_check_three_parsers bin rce-spec-check tree-sitter $out/spec_check_three_parsers.log"; do
+  set -- $s
+  id="$1"; shift
+  echo "verify-run: $id: scripts/verify-tests.py $*" >&2
+  python3 "$root/scripts/verify-tests.py" "$@" 2>>"$out/verify-tests.stderr"
+  echo "verify-run: $id: exit $(cat "$out/$id.status" 2>/dev/null)" >&2
+done
 step wasm spec/wasm-test bash -c 'npm ci --no-audit --no-fund && node test.mjs'
 
 if command -v lake >/dev/null 2>&1 || [ -x "$HOME/.elan/bin/lake" ]; then
