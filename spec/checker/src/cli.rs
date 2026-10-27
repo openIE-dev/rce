@@ -1602,11 +1602,14 @@ fn serve_loop(h: &mut crate::host::Host, src: &str, out: &mut dyn Write, mut htt
                 Inbound::Http(HttpIn::Request { req, reply }) => {
                     // HC-24: the id is the seq of the request's own entry
                     let id = h.len();
+                    // HC-26: the framing is read from what the entry holds
+                    let version = req.version();
+                    let close = crate::adapters::http::closes(&version, &req.names, &req.values);
                     if let Some(o) = &open {
-                        o.borrow_mut().insert(id, Pending { reply, close: req.close, head: req.head });
+                        o.borrow_mut().insert(id, Pending { reply, close, head: req.method == "HEAD" });
                     }
                     let body = Expr::List(req.body.iter().map(|b| Expr::Int(*b as i128, 0)).collect(), 0);
-                    let args = vec![lab("id", Expr::Int(id as i128, 0)), lab("method", Expr::Str(req.method, 0)), lab("target", Expr::Str(req.target, 0)), lab("names", texts(req.names)), lab("values", texts(req.values)), lab("body", body)];
+                    let args = vec![lab("id", Expr::Int(id as i128, 0)), lab("method", Expr::Str(req.method, 0)), lab("target", Expr::Str(req.target, 0)), lab("version", Expr::Str(version, 0)), lab("names", texts(req.names)), lab("values", texts(req.values)), lab("body", body)];
                     match h.apply_input("HttpRequest", args) {
                         Ok(a) => adm.extend(a),
                         Err(e) => {

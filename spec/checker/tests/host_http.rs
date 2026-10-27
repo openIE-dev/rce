@@ -337,52 +337,190 @@ fn invalid_response_fails_and_the_id_stays_open() {
     let _ = std::fs::remove_dir_all(&d);
 }
 
-/// HC-26: the host writes only bytes that are a function of D. Every
-/// response, re-serialized from the outputs replay re-derives, equals the
-/// bytes the client received.
-#[test]
-fn responses_are_a_function_of_d() {
-    let d = dir("fn-of-d");
-    let s = serve(NOTES, &d);
-    let reqs: Vec<Vec<u8>> = vec![
-        b"GET /health HTTP/1.1\r\nHost: x\r\nConnection: close\r\n\r\n".to_vec(),
-        b"POST /notes HTTP/1.1\r\nHost: x\r\nConnection: close\r\nContent-Length: 8\r\n\r\nbuy milk".to_vec(),
-        b"HEAD /notes HTTP/1.1\r\nHost: x\r\nConnection: close\r\n\r\n".to_vec(),
-        b"DELETE /notes/1 HTTP/1.1\r\nHost: x\r\nConnection: close\r\n\r\n".to_vec(),
-        b"PUT /notes HTTP/1.1\r\nHost: x\r\nConnection: close\r\n\r\n".to_vec(),
-        b"GET /x HTTP/1.1\nHost: x\n\n".to_vec(),
-    ];
-    let mut got = vec![];
-    for r in &reqs {
+/// The raw bytes of one response read from a connection (`head`: the
+/// response to HEAD, so the body is not sent).
+fn read_raw(s: &mut TcpStream, buf: &mut Vec<u8>, head: bool) -> Vec<u8> {
+    let mut b = [0u8; 65536];
+    loop {
+        if let Some(i) = buf.windows(4).position(|w| w == b"\r\n\r\n") {
+            let h = String::from_utf8_lossy(&buf[..i]).into_owned();
+            let n: usize = if head { 0 } else { h.split("\r\n").find_map(|l| l.strip_prefix("Content-Length: ")).map_or(0, |v| v.parse().unwrap()) };
+            if buf.len() >= i + 4 + n {
+                return buf.drain(..i + 4 + n).collect();
+            }
+        }
+        let k = s.read(&mut b).unwrap();
+        assert!(k > 0, "closed before a whole response: {:?}", String::from_utf8_lossy(buf));
+        buf.extend_from_slice(&b[..k]);
+    }
+}
+
+/// Whether the host closed the connection: EOF at once, or nothing within
+/// 300 ms (a kept-alive connection waits IDLE_MS before it closes).
+fn closed(s: &mut TcpStream) -> bool {
+    s.set_read_timeout(Some(Duration::from_millis(300))).unwrap();
+    let mut b = [0u8; 16];
+    match s.read(&mut b) {
+        Ok(0) => true,
+        Ok(n) => panic!("bytes after the last response: {:?}", String::from_utf8_lossy(&b[..n])),
+        Err(e) if e.kind() == std::io::ErrorKind::WouldBlock || e.kind() == std::io::ErrorKind::TimedOut => false,
+        Err(_) => true,
+    }
+}
+
+/// One request: its head, and its body sent after the interim
+/// `100 Continue` when `expect`, else in the same write.
+struct Req {
+    head: &'static [u8],
+    body: &'static [u8],
+    expect: bool,
+}
+
+fn req(head: &'static [u8]) -> Req {
+    Req { head, body: b"", expect: false }
+}
+
+const CONTINUE: &[u8] = b"HTTP/1.1 100 Continue\r\n\r\n";
+
+/// HC-26: send each connection's requests one at a time and record, per
+/// request, the final response's bytes and whether the connection closed
+/// after it; then make every response again from D alone, with the
+/// framing read from the request's entry (`http::framing`) and the
+/// `HttpRespond` replay re-derives, and require the same bytes and the
+/// same closes. Returns D's HttpRequest and HttpMalformed payloads.
+fn check_function_of_d(program: &str, name: &str, conns: Vec<Vec<Req>>) -> Vec<serde_json::Value> {
+    let d = dir(name);
+    let s = serve(program, &d);
+    let mut got: Vec<(Vec<u8>, bool)> = vec![];
+    for conn in &conns {
         let mut c = TcpStream::connect(&s.addr).unwrap();
         c.set_read_timeout(Some(Duration::from_secs(20))).unwrap();
-        c.write_all(r).unwrap();
-        let mut out = vec![];
-        c.read_to_end(&mut out).unwrap();
-        got.push(out);
+        let mut buf = vec![];
+        for (i, r) in conn.iter().enumerate() {
+            if r.expect {
+                c.write_all(r.head).unwrap();
+                while buf.len() < CONTINUE.len() {
+                    let mut b = [0u8; 64];
+                    let k = c.read(&mut b).unwrap();
+                    assert!(k > 0, "closed before 100 Continue");
+                    buf.extend_from_slice(&b[..k]);
+                }
+                let interim: Vec<u8> = buf.drain(..CONTINUE.len()).collect();
+                assert_eq!(String::from_utf8_lossy(&interim), String::from_utf8_lossy(CONTINUE), "the interim response comes before the body is sent");
+                c.write_all(r.body).unwrap();
+            } else {
+                c.write_all(&[r.head, r.body].concat()).unwrap();
+            }
+            let bytes = read_raw(&mut c, &mut buf, r.head.starts_with(b"HEAD "));
+            assert!(buf.is_empty(), "bytes after the response: {:?}", String::from_utf8_lossy(&buf));
+            let last = i + 1 == conn.len();
+            got.push((bytes, last && closed(&mut c)));
+            c.set_read_timeout(Some(Duration::from_secs(20))).unwrap();
+        }
     }
     let log = s.log.clone();
     let (ok, err) = s.stop();
-    assert!(ok, "{err}");
+    assert!(ok && err.contains("validated"), "{err}");
     let text = std::fs::read_to_string(&log).unwrap();
-    let outs = replay_outputs(&rce_spec_check::program(&std::fs::read_to_string(app(NOTES)).unwrap()).unwrap(), &text).unwrap();
-    let es = entries(&log);
+    let outs = replay_outputs(&rce_spec_check::program(&std::fs::read_to_string(app(program)).unwrap()).unwrap(), &text).unwrap();
     let mut answers = vec![];
-    for e in &es {
+    let mut inputs = vec![];
+    for e in entries(&log) {
         let v: serde_json::Value = serde_json::from_str(&e.event).unwrap();
-        let ty = v["type"].as_str().unwrap();
-        if ty != "HttpRequest" && ty != "HttpMalformed" {
-            continue;
-        }
-        let head = v["payload"]["method"] == "HEAD";
+        let Some((head, close)) = rce_spec_check::adapters::http::framing(&v) else { continue };
         let resp = outs.iter().find(|(q, _)| *q == e.seq).map(|(_, o)| o[0].clone()).unwrap();
-        let (bytes, _) = rce_spec_check::adapters::http::response_bytes(&resp, head, true).unwrap();
-        answers.push(bytes);
+        answers.push(rce_spec_check::adapters::http::response_bytes(&resp, head, close).unwrap());
+        inputs.push(v["payload"].clone());
     }
-    assert_eq!(answers.len(), got.len());
-    for (a, g) in answers.iter().zip(&got) {
+    assert_eq!(answers.len(), got.len(), "one entry per request");
+    for ((a, closes), (g, was_closed)) in answers.iter().zip(&got) {
         assert_eq!(String::from_utf8_lossy(a), String::from_utf8_lossy(g));
+        assert_eq!(closes, was_closed, "D says close = {closes} for {:?}", String::from_utf8_lossy(g));
     }
+    replays(program, &log);
+    let _ = std::fs::remove_dir_all(&d);
+    inputs
+}
+
+/// HC-26: the host writes only bytes that are a function of D. Every
+/// response, made again from D (the `HttpRespond` replay re-derives and
+/// the framing read from the request's entry), equals the bytes the
+/// client received, and the connection closed exactly when D says so.
+#[test]
+fn responses_are_a_function_of_d() {
+    check_function_of_d(
+        NOTES,
+        "fn-of-d",
+        vec![
+            vec![req(b"GET /health HTTP/1.1\r\nHost: x\r\nConnection: close\r\n\r\n")],
+            vec![Req { head: b"POST /notes HTTP/1.1\r\nHost: x\r\nConnection: close\r\nContent-Length: 8\r\n\r\n", body: b"buy milk", expect: false }],
+            vec![req(b"HEAD /notes HTTP/1.1\r\nHost: x\r\nConnection: close\r\n\r\n")],
+            vec![req(b"DELETE /notes/1 HTTP/1.1\r\nHost: x\r\nConnection: close\r\n\r\n")],
+            vec![req(b"PUT /notes HTTP/1.1\r\nHost: x\r\nConnection: close\r\n\r\n")],
+            vec![req(b"GET /x HTTP/1.1\nHost: x\n\n")],
+        ],
+    );
+}
+
+/// HC-24, HC-26: the version is in D. The same GET over HTTP/1.0 and over
+/// HTTP/1.1 differs in its entry only by `version` and id, and gets
+/// `Connection: close` and a close for 1.0, a kept-alive connection for
+/// 1.1; HTTP/1.0 with `keep-alive` and HTTP/1.1 each answer two requests
+/// on one connection. Every byte and every close is made again from D.
+#[test]
+fn http_1_0_and_keep_alive_are_framed_from_d() {
+    let inputs = check_function_of_d(
+        NOTES,
+        "version",
+        vec![
+            vec![req(b"GET /health HTTP/1.0\r\nHost: x\r\n\r\n")],
+            vec![req(b"GET /health HTTP/1.1\r\nHost: x\r\n\r\n")],
+            vec![req(b"GET /health HTTP/1.0\r\nConnection: keep-alive\r\n\r\n"), req(b"GET /notes HTTP/1.0\r\nConnection: keep-alive\r\n\r\n")],
+            vec![Req { head: b"POST /notes HTTP/1.1\r\nHost: x\r\nContent-Length: 8\r\n\r\n", body: b"buy milk", expect: false }, req(b"GET /notes/1 HTTP/1.1\r\nHost: x\r\n\r\n")],
+            vec![req(b"GET /health HTTP/1.0\r\nConnection: keep-alive\r\n\r\n"), req(b"GET /health HTTP/1.0\r\n\r\n")],
+        ],
+    );
+    let (mut a, mut b) = (inputs[0].clone(), inputs[1].clone());
+    assert_eq!((a["version"].as_str(), b["version"].as_str()), (Some("HTTP/1.0"), Some("HTTP/1.1")));
+    for x in [&mut a, &mut b] {
+        x.as_object_mut().unwrap().remove("id");
+        x.as_object_mut().unwrap().remove("version");
+    }
+    assert_eq!(a, b, "the two entries differ only by id and version");
+}
+
+/// HC-24, HC-26: `Expect: 100-continue` gets the interim response once
+/// the head is accepted, then the body is read and the final response is
+/// made from D. A client that closes after the interim response, before
+/// its body, leaves nothing in D: the interim response is transport.
+#[test]
+fn expect_continue_is_transport() {
+    let inputs = check_function_of_d(
+        NOTES,
+        "continue",
+        vec![
+            vec![Req { head: b"POST /notes HTTP/1.1\r\nHost: x\r\nExpect: 100-continue\r\nContent-Length: 4\r\n\r\n", body: b"eggs", expect: true }, req(b"GET /notes HTTP/1.1\r\nHost: x\r\nConnection: close\r\n\r\n")],
+            vec![Req { head: b"POST /notes HTTP/1.1\r\nHost: x\r\nExpect: 100-continue\r\nConnection: close\r\nTransfer-Encoding: chunked\r\n\r\n", body: b"4\r\nmilk\r\n0\r\n\r\n", expect: true }],
+        ],
+    );
+    assert_eq!(inputs.len(), 3);
+    assert_eq!(inputs[0]["body"], serde_json::json!([101, 103, 103, 115]));
+    // the interim response for a request whose body never comes
+    let d = dir("continue-gone");
+    let s = serve(NOTES, &d);
+    let mut c = TcpStream::connect(&s.addr).unwrap();
+    c.set_read_timeout(Some(Duration::from_secs(20))).unwrap();
+    c.write_all(b"POST /notes HTTP/1.1\r\nHost: x\r\nExpect: 100-continue\r\nContent-Length: 4\r\n\r\n").unwrap();
+    let mut b = vec![0u8; CONTINUE.len()];
+    c.read_exact(&mut b).unwrap();
+    assert_eq!(b, CONTINUE);
+    drop(c);
+    std::thread::sleep(Duration::from_millis(200));
+    let log = s.log.clone();
+    let (ok, err) = s.stop();
+    assert!(ok, "{err}");
+    let t = std::fs::read_to_string(&log).unwrap();
+    assert!(!t.contains("\"type\":\"HttpRequest\"") && !t.contains("\"type\":\"HttpMalformed\""), "a request that never completed is not in D");
     let _ = std::fs::remove_dir_all(&d);
 }
 

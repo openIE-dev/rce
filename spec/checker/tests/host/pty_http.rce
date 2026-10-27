@@ -2,7 +2,7 @@ module pty_http
 
 intent "a shell beside the HTTP host: whatever the sandbox lets the host open, and nothing more, the shell can open"
     example Input(data: "true\n"), PtyOpenDone(req: 1, status: "delivered", data: some(5), err: "") -> pty == 5
-    example HttpRequest(id: 7, method: "GET", target: "/", names: ["Host"], values: ["x"], body: []) -> answered == 1
+    example HttpRequest(id: 7, method: "GET", target: "/", version: "HTTP/1.1", names: ["Host"], values: ["x"], body: []) -> answered == 1
 
 struct HttpRespond
     req: u64
@@ -25,7 +25,7 @@ struct PtyRead
 struct Display
     data: text
 
-event HttpRequest(id: u64, method: text, target: text, names: List[text], values: List[text], body: List[i64])
+event HttpRequest(id: u64, method: text, target: text, version: text, names: List[text], values: List[text], body: List[i64])
 event HttpMalformed(id: u64, status: u64, why: text)
 event HttpRespondDone(req: u64, status: text, data: u64?, err: text)
 event PtyOpenDone(req: u64, status: text, data: u64?, err: text)
@@ -57,7 +57,7 @@ step S on PtyReadDone(req: _r, status: s, data: d, err: _e)
     else
         pty = 0
 
-step S on HttpRequest(id: id, method: _m, target: _t, names: _n, values: _v, body: _b)
+step S on HttpRequest(id: id, method: _m, target: _t, version: _, names: _n, values: _v, body: _b)
     answered += 1
     emit HttpRespond(req: id, status: 200, names: [], values: [], body: "ok")
 

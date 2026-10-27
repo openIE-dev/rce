@@ -70,9 +70,9 @@ shapes:
 {{#include ../listings/ch16/hello_http.rce}}
 ```
 
-Each request arrives as `HttpRequest(id, method, target, names, values,
-body)`. The `id` is the sequence number of the request's own entry in D,
-and the step answers by emitting `HttpRespond` with the same `req`. Run
+Each request arrives as `HttpRequest(id, method, target, version, names,
+values, body)`. The `id` is the sequence number of the request's own entry
+in D, and the step answers by emitting `HttpRespond` with the same `req`. Run
 `rce host serve hello_http.rce --log D --http 127.0.0.1:8080` and, in
 another terminal, `curl -i http://127.0.0.1:8080/hello` prints:
 
@@ -85,7 +85,10 @@ hello
 ```
 
 The host wrote the status line and `Content-Length`; every other byte
-came from the program, so every response is a function of D (HC-26). The
+came from the program. Whether the host also writes `Connection: close`
+and closes the connection depends on the request's version and its
+Connection field, which D records, so every response is a function of D
+(HC-26). The
 host refuses a response it cannot write correctly, for example a status
 outside 200 to 599 or a `Content-Length` written by the program, and
 leaves the request open, so the step that receives the failed

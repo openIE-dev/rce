@@ -641,7 +641,7 @@ fn shape_is(p: &[(String, Ty)], want: &[(&str, &str)]) -> bool {
 /// W-HOST-2 (HC-24): a module served with `--http` declares the HTTP
 /// inputs, the response effect and its result with exactly these shapes;
 /// W-HOST-3 (HC-10a): the body is the bytes received.
-pub const HTTP_SHAPES: &str = "event HttpRequest(id: u64, method: text, target: text, names: List[text], values: List[text], body: List[i64]), event HttpMalformed(id: u64, status: u64, why: text), struct HttpRespond {req: u64, status: u64, names: List[text], values: List[text], body: text or List[i64]} and event HttpRespondDone(req: u64, status: text, data: u64?, err: text)";
+pub const HTTP_SHAPES: &str = "event HttpRequest(id: u64, method: text, target: text, version: text, names: List[text], values: List[text], body: List[i64]), event HttpMalformed(id: u64, status: u64, why: text), struct HttpRespond {req: u64, status: u64, names: List[text], values: List[text], body: text or List[i64]} and event HttpRespondDone(req: u64, status: text, data: u64?, err: text)";
 
 fn http_fits(m: &Module) -> Result<(), String> {
     let req = event_payload(m, "HttpRequest");
@@ -650,7 +650,7 @@ fn http_fits(m: &Module) -> Result<(), String> {
     {
         return Err("W-HOST-3 HttpRequest delivers the bytes received: declare body: List[i64] and decode text in the program (text.utf8)".into());
     }
-    let request = [("id", "u64"), ("method", "text"), ("target", "text"), ("names", "List[text]"), ("values", "List[text]"), ("body", "List[i64]")];
+    let request = [("id", "u64"), ("method", "text"), ("target", "text"), ("version", "text"), ("names", "List[text]"), ("values", "List[text]"), ("body", "List[i64]")];
     let malformed = [("id", "u64"), ("status", "u64"), ("why", "text")];
     let done = [("req", "u64"), ("status", "text"), ("data", "u64?"), ("err", "text")];
     let respond = m.items.iter().find_map(|i| match i {

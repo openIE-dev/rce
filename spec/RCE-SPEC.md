@@ -5422,11 +5422,12 @@ both enter D and reach the program as inputs.
   bind is retried every second, and the bind that succeeds appends
   `host.HttpListen` with the limits. Connections are served concurrently,
   at most CONNS_MAX (256) at once. The host frames each request (HC-25)
-  and admits it as one input `HttpRequest(id, method, target, names,
-  values, body)`: the method and the target as sent, the field names as
-  written and their values without surrounding spaces and tabs, in order,
-  and the body as the bytes left after its framing is removed (HC-10a);
-  trailer fields are checked and not delivered. A request that breaks the
+  and admits it as one input `HttpRequest(id, method, target, version,
+  names, values, body)`: the method, the target and the version (for
+  example `HTTP/1.1`) as sent, the field names as written and their values
+  without surrounding spaces and tabs, in order, and the body as the bytes
+  left after its framing is removed (HC-10a); trailer fields are checked
+  and not delivered. A request that breaks the
   syntax, a limit or a deadline after its first byte is one input
   `HttpMalformed(id, status, why)`, with the status of HC-25 and the
   reason. A connection that closes before a request is complete, or stays
@@ -5434,15 +5435,16 @@ both enter D and reach the program as inputs.
   so `Refused(seq)` (HC-21) names the request. The requests of one
   connection are admitted one at a time, each after the response to the
   previous one, so responses keep the order of the requests (RFC 9112
-  9.3.2); `Expect: 100-continue` gets its interim response once the head
-  is accepted. At start the host appends `host.Bind` for `HttpRequest` and
+  9.3.2); `Expect: 100-continue` from HTTP/1.1 on, with a body to come,
+  gets the interim response `HTTP/1.1 100 Continue` once the head is
+  accepted (HC-26). At start the host appends `host.Bind` for `HttpRequest` and
   `HttpMalformed`. Replay reads requests from D and never parses (HC-8).
   W-HOST-2 refuses at start a module that does not declare these four, of
   exactly these shapes, except that the `body` of `HttpRespond` may also
   be `List[i64]`:
 
   ```
-  event HttpRequest(id: u64, method: text, target: text, names: List[text], values: List[text], body: List[i64])
+  event HttpRequest(id: u64, method: text, target: text, version: text, names: List[text], values: List[text], body: List[i64])
   event HttpMalformed(id: u64, status: u64, why: text)
   event HttpRespondDone(req: u64, status: text, data: u64?, err: text)
 
@@ -5513,11 +5515,20 @@ both enter D and reach the program as inputs.
   304), `Connection: close` when the connection closes after this
   response and the program did not write it, an empty line and the body
   (none for HEAD). The connection closes after the response when the
-  request asked for it (`Connection: close`, or HTTP/1.0 without
-  `keep-alive`), when the program wrote `Connection: close`, and after an
-  `HttpMalformed`. Every byte written is therefore a function of D: replay
-  re-derives every `HttpRespond` request (`host::replay_outputs`), and the
-  bytes made from them equal the bytes the clients received.
+  request asked for it (from HTTP/1.1 on, `Connection: close`; for
+  HTTP/1.0, a Connection field without `keep-alive`, or none), when the
+  program wrote `Connection: close`, and after an `HttpMalformed`. The
+  method, the version and the fields that decide this are in the
+  request's entry, so every byte of a response, and whether the
+  connection closes after it, is a function of D: replay re-derives every
+  `HttpRespond` request (`host::replay_outputs`), `http::framing` reads
+  from the request's entry whether it was HEAD and whether the connection
+  closes, and `http::response_bytes` makes from these the bytes the
+  client received. The interim `HTTP/1.1 100 Continue` of HC-24 is
+  transport, not output of the program: it is written when the head is
+  accepted, before the body arrives, for a request that may never enter D
+  (its client may close, or its body time out), and it is the one thing
+  the host writes that is not a function of D.
 
 ### E.4c Refused at start (W-HOST-1 to W-HOST-4)
 
@@ -5792,7 +5803,7 @@ is cited by a test.
 | HC-21, W-HOST-4 | refusals are inputs | `tests/host_refused.rs`: `refused_step_is_followed_by_host_refused_and_the_bound_event`, `each_cause_is_classified`, `a_refused_refused_is_not_redelivered`, `refused_handler_has_full_fuel`, `replay_refuses_a_log_without_host_refused`, `replay_refuses_a_forged_host_refused`, `open_completes_a_trailing_refusal`, `a_refused_of_another_shape_is_refused_at_start`; `tests/nameless.rs`: `refusal_entries_are_name_free` |
 | HC-22 | restarts are inputs, ids never reused | `tests/host_restart.rs`: `restart_appends_restarted_then_interrupts`, `ids_are_not_reused_after_restart`, `tick_numbers_continue`, `take_role_appends_restarted`, `serve_on_an_existing_log_listens_again` |
 | HC-23, W-HOST-1 | the net adapter | `tests/host_net.rs`: `tcp_loopback_random_and_blobs_replay`, `send_takes_text_or_bytes`; `tests/host_effects.rs`: `bound_effect_without_its_result_event_is_refused` |
-| HC-24 to HC-26, W-HOST-2 | the HTTP event host | `tests/host_http.rs`: `concurrent_clients_are_served_while_one_stalls`, `idle_server_appends_nothing`, `keep_alive_and_pipelined_requests_answer_in_order`, `head_has_no_body`, `oversized_body_is_413_and_closes`, `refused_request_gets_the_programs_status`, `invalid_response_fails_and_the_id_stays_open`, `responses_are_a_function_of_d`, `parallel_load_replays_exactly`, `sigterm_drains_and_validates`, `restart_binds_again`, `sequential_requests_are_not_paced_by_frames`, `http_declarations_are_checked_at_start`; `tests/http_parse.rs`: `vectors_agree_with_net_http`, `mutations_agree_with_net_http`, `incremental_feed_equals_whole_buffer`, `limits_give_their_statuses` |
+| HC-24 to HC-26, W-HOST-2 | the HTTP event host | `tests/host_http.rs`: `concurrent_clients_are_served_while_one_stalls`, `idle_server_appends_nothing`, `keep_alive_and_pipelined_requests_answer_in_order`, `head_has_no_body`, `oversized_body_is_413_and_closes`, `refused_request_gets_the_programs_status`, `invalid_response_fails_and_the_id_stays_open`, `responses_are_a_function_of_d`, `http_1_0_and_keep_alive_are_framed_from_d`, `expect_continue_is_transport`, `parallel_load_replays_exactly`, `sigterm_drains_and_validates`, `restart_binds_again`, `sequential_requests_are_not_paced_by_frames`, `http_declarations_are_checked_at_start`; `tests/http_parse.rs`: `vectors_agree_with_net_http`, `mutations_agree_with_net_http`, `incremental_feed_equals_whole_buffer`, `limits_give_their_statuses` |
 
 ### E.11 Proposed rules (not normative)
 

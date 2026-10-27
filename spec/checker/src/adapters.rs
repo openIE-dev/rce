@@ -1229,8 +1229,8 @@ pub mod media {
 ///
 /// The host frames requests, so it can serve connections concurrently and
 /// apply limits and deadlines before any byte enters D. Each complete
-/// request is one logged input `HttpRequest(id, method, target, names,
-/// values, body)`; a request that breaks the syntax, a limit or a deadline
+/// request is one logged input `HttpRequest(id, method, target, version,
+/// names, values, body)`; a request that breaks the syntax, a limit or a deadline
 /// after its first byte is one `HttpMalformed(id, status, why)`. The id is
 /// the seq of the input's own entry. The program answers with the effect
 /// `HttpRespond(req, status, names, values, body)`. Replay reads requests
@@ -1301,6 +1301,40 @@ pub mod http {
         pub head: bool,
         /// `Expect: 100-continue` with a body to come
         pub expect_continue: bool,
+    }
+
+    impl Parsed {
+        /// The version as sent (`HTTP/1.1`): the parser admits only `HTTP/`,
+        /// a digit, a dot and a digit, so this is the text of the request line.
+        pub fn version(&self) -> String {
+            format!("HTTP/{}.{}", self.major, self.minor)
+        }
+    }
+
+    /// Whether the connection closes after the response to a request of
+    /// this version with these fields (RFC 9112 9.3): from HTTP/1.1 on when
+    /// Connection lists `close`, and for HTTP/1.0 unless it lists
+    /// `keep-alive`. The version and the fields are in the request's entry
+    /// (HC-24), so this is a function of D (HC-26).
+    pub fn closes(version: &str, names: &[String], values: &[String]) -> bool {
+        let conn: Vec<String> = header(names, values, "connection").map(|c| list_items(&c.to_ascii_lowercase())).unwrap_or_default();
+        let minor = version.strip_prefix("HTTP/1.").and_then(|m| m.parse::<u8>().ok()).unwrap_or(0);
+        if minor >= 1 { conn.iter().any(|c| c == "close") } else { !conn.iter().any(|c| c == "keep-alive") }
+    }
+
+    /// The framing of the response to one logged input, read from its
+    /// entry in D (HC-26): (a HEAD request, so no body is written; the
+    /// connection closes after the response, before the program's own
+    /// `Connection: close` is added). `event` is the entry's event JSON;
+    /// `None` when it is neither `HttpRequest` nor `HttpMalformed`.
+    pub fn framing(event: &Value) -> Option<(bool, bool)> {
+        let p = &event["payload"];
+        let texts = |k: &str| -> Vec<String> { p[k].as_array().into_iter().flatten().filter_map(|x| x.as_str().map(String::from)).collect() };
+        match event["type"].as_str()? {
+            "HttpRequest" => Some((p["method"] == "HEAD", closes(p["version"].as_str()?, &texts("names"), &texts("values")))),
+            "HttpMalformed" => Some((false, true)),
+            _ => None,
+        }
     }
 
     /// RFC 9110 5.6.2 token characters, as `net.http`'s `tchar`.
@@ -1611,8 +1645,7 @@ pub mod http {
             if hosts > 1 || (hosts == 0 && p.minor >= 1) {
                 return Some(bad("Host"));
             }
-            let conn: Vec<String> = header(&p.names, &p.values, "connection").map(|c| list_items(&c.to_ascii_lowercase())).unwrap_or_default();
-            p.close = if p.minor >= 1 { conn.iter().any(|c| c == "close") } else { !conn.iter().any(|c| c == "keep-alive") };
+            p.close = closes(&p.version(), &p.names, &p.values);
             p.head = p.method == "HEAD";
             let expect = header(&p.names, &p.values, "expect").is_some_and(|e| e.eq_ignore_ascii_case("100-continue")) && p.minor >= 1;
             let te = header(&p.names, &p.values, "transfer-encoding");
@@ -1730,9 +1763,10 @@ pub mod http {
     }
 
     /// The bytes of the response to `r` (an `HttpRespond` request as Form
-    /// JSON), or why it is refused (HC-26). The host adds only the status
-    /// line, `Content-Length` and `Connection: close`, so every byte is a
-    /// function of D.
+    /// JSON), or why it is refused (HC-26), and whether the connection
+    /// closes after it. The host adds only the status line,
+    /// `Content-Length` and `Connection: close`; with `head` and `close`
+    /// from [`framing`], every byte of the response is a function of D.
     pub fn response_bytes(r: &Value, head: bool, close: bool) -> Result<(Vec<u8>, bool), String> {
         let status = r["status"].as_u64().unwrap_or(0);
         if !(200..=599).contains(&status) {
