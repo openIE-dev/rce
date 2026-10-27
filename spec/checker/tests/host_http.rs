@@ -646,7 +646,7 @@ fn sequential_requests_are_not_paced_by_frames() {
     let _ = std::fs::remove_dir_all(&d);
 }
 
-/// W-HOST-2 and W-HOST-3 (HC-24, HC-10a): a module served with `--http`
+/// HF-2 (HC-24, HC-10a): a module served with `--http`
 /// declares the HTTP inputs, the response and its result with exactly the
 /// shapes of HC-24, the body as bytes; otherwise the host refuses to start
 /// and appends nothing.
@@ -665,10 +665,10 @@ fn http_declarations_are_checked_at_start() {
     let (ok, n) = start(&src);
     assert!(ok.is_ok() && n > 0, "{ok:?}");
     let shapes = [
-        ("event HttpMalformed(id: u64, status: u64, why: text)", "event HttpMalformed(id: u64, status: text, why: text)", "W-HOST-2"),
-        ("event HttpRespondDone(req: u64, status: text, data: u64?, err: text)", "event HttpRespondDone(req: u64, status: text, data: text?, err: text)", "W-HOST-2"),
-        ("    names: List[text]\n    values: List[text]\n    body: List[i64]\n", "    names: List[text]\n    body: List[i64]\n", "W-HOST-2"),
-        ("values: List[text], body: List[i64])", "values: List[text], body: text)", "W-HOST-3"),
+        ("event HttpMalformed(id: u64, status: u64, why: text)", "event HttpMalformed(id: u64, status: text, why: text)", "HF-2"),
+        ("event HttpRespondDone(req: u64, status: text, data: u64?, err: text)", "event HttpRespondDone(req: u64, status: text, data: text?, err: text)", "HF-2"),
+        ("    names: List[text]\n    values: List[text]\n    body: List[i64]\n", "    names: List[text]\n    body: List[i64]\n", "HF-2"),
+        ("values: List[text], body: List[i64])", "values: List[text], body: text)", "HF-2"),
     ];
     for (from, to, rule) in shapes {
         assert!(src.contains(from), "{from}");

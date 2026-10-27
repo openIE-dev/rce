@@ -340,13 +340,55 @@ fn open_completes_a_trailing_refusal() {
     let _ = std::fs::remove_dir_all(&dir);
 }
 
-/// W-HOST-4: a declared `Refused` has exactly the shape the host delivers.
+/// HF-4 (E.4c): a `Refused` of another shape is fitted by name. Declared
+/// as `Refused(seq: u64)` it is delivered with the seq, and `host.Refused`
+/// before it already holds the cause. Declared with a field the host has no
+/// value for, it cannot be built: the host starts, says so, and after each
+/// `host.Refused` records `host.Unfit` with the reason, which replay
+/// requires and a host that stopped between the two completes on open.
 #[test]
-fn a_refused_of_another_shape_is_refused_at_start() {
+fn a_refused_of_another_shape_is_fitted_by_name() {
+    let s = src().replace("event Refused(seq: u64, cause: text)", "event Refused(seq: u64)").replace("step S on Refused(seq: q, cause: c)", "step S on Refused(seq: q)").replace("    last_cause = copy(c)\n", "");
+    let m = parse(&s).unwrap();
+    let mut st = MemStore::default();
+    let mut h = Host::start(&m, Box::new(&mut st)).unwrap();
+    assert!(h.fitting().is_empty(), "the cause is in host.Refused: {:?}", h.fitting());
+    let a = h.admit(&s, "Fail").unwrap();
+    let k = a[0].seq;
+    assert_eq!((a.len(), int(&field(&h, "refusals")), int(&field(&h, "last_seq"))), (2, 1, k as i64));
+    let live = h.state_hash().to_string();
+    drop(h);
+    let t = text(&st);
+    let es = parsed(&t);
+    assert_eq!(es[k as usize + 2].event, format!(r#"{{"payload":{{"seq":{k}}},"type":"Refused"}}"#));
+    assert_eq!(replay(&m, &t).unwrap().1, live);
+    // a field the host has no value for
     let s = src().replace("event Refused(seq: u64, cause: text)", "event Refused(seq: u64, why: text)").replace("step S on Refused(seq: q, cause: c)", "step S on Refused(seq: q, why: c)");
     let m = parse(&s).unwrap();
-    let e = Host::start(&m, Box::new(MemStore::default())).err().expect("refused at start");
-    assert!(e.contains("W-HOST-4") && e.contains("Refused(seq: u64, cause: text)"), "{e}");
+    let dir = std::env::temp_dir().join(format!("rce-refused-shape-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let log = dir.join("d.log");
+    let _ = std::fs::remove_file(&log);
+    let (fs, _) = FileStore::open(&log).unwrap();
+    let mut h = Host::start(&m, Box::new(fs)).unwrap();
+    assert!(h.fitting().iter().any(|n| n.starts_with("event Refused:") && n.contains("field 2 (why) has no value from the host") && n.contains("never delivered")), "{:?}", h.fitting());
+    let a = h.admit(&s, "Fail").unwrap();
+    assert_eq!((a.len(), int(&field(&h, "refusals"))), (1, 0), "{a:?}");
+    let k = a[0].seq as usize;
+    drop(h);
+    let t = std::fs::read_to_string(&log).unwrap();
+    let es = parsed(&t);
+    let unfit = format!(r#"{{"payload":{{"event":{{"payload":{{"cause":"fail","seq":{k}}},"type":"Refused"}},"why":"field 2 has no value from the host"}},"type":"host.Unfit"}}"#);
+    assert_eq!(es[k + 2].event, unfit);
+    replay(&m, &t).unwrap();
+    // stopped after host.Refused: opening completes the host.Unfit first
+    let cut: String = t.lines().take(k + 2).map(|l| format!("{l}\n")).collect();
+    std::fs::write(&log, &cut).unwrap();
+    drop(Host::open_file(&m, &log).unwrap());
+    let t = std::fs::read_to_string(&log).unwrap();
+    assert_eq!(parsed(&t)[k + 2].event, unfit);
+    replay(&m, &t).unwrap();
+    let _ = std::fs::remove_dir_all(&dir);
 }
 
 fn refloop() -> String {

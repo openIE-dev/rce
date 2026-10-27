@@ -1301,6 +1301,10 @@ fn host_cmd(a: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &mu
                 None => None,
             };
             let mut h = if sub == "serve" { Host::open_file_bounded(&m, std::path::Path::new(log), adapters, DRAIN_MAX)? } else { Host::open_file_with(&m, std::path::Path::new(log), adapters)? };
+            // E.4c: the host refuses no declaration; it says how it fits each
+            for n in h.fitting() {
+                eprintln!("rce host: {n}");
+            }
             if let Some(s) = &http {
                 h.http_listen(&s.listen_payload())?;
                 match s.local_addr() {
