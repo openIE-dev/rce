@@ -190,3 +190,82 @@ fn request_is_durable_before_its_effect() {
     drop(h);
     assert_eq!(at.get(), 2, "start barrier, then the Say barrier, before the effect");
 }
+
+/// HF-1 with HC-3: a result whose `req` is not delivered as an integer
+/// (`req: u64?`) is recorded by `host.Unfit` before it, so replay matches
+/// it to its request by the req that record holds. Opening D again answers
+/// no request twice, and a D cut between the record and the delivery is
+/// completed on open with the one result, not interrupted as well.
+#[test]
+fn a_result_whose_req_is_not_an_integer_answers_its_request_once() {
+    let s = src()
+        .replace("event EchoDone(req: u64, status: text, data: text?, err: text)", "event EchoDone(req: u64?, status: text, data: text?, err: text)")
+        .replace(r#"EchoDone(req: 1, status: "failed", data: none, err: "x")"#, r#"EchoDone(req: some(1), status: "failed", data: none, err: "x")"#);
+    let m = parse(&s).unwrap();
+    let p = std::env::temp_dir().join(format!("rce-fx-reqopt-{}.log", std::process::id()));
+    let _ = std::fs::remove_file(&p);
+    let calls = std::rc::Rc::new(std::cell::Cell::new(0));
+    let open = |p: &Path| drop(Host::open_file_with(&m, p, vec![Box::new(Echo { calls: calls.clone() })]).unwrap());
+    {
+        let mut h = Host::open_file_with(&m, &p, vec![Box::new(Echo { calls: calls.clone() })]).unwrap();
+        h.admit(&s, r#"Say(msg: "a")"#).unwrap();
+    }
+    open(&p);
+    let text = std::fs::read_to_string(&p).unwrap();
+    let done: Vec<&str> = text.lines().filter(|l| l.contains(r#""type":"EchoDone"}"#)).collect();
+    assert_eq!(done.len(), 2, "the record and the delivery of one result: {text}");
+    assert!(done[0].contains(r#""why":"req: not delivered as an integer""#) && !text.contains("interrupted"), "{text}");
+    replay(&m, &text).unwrap();
+    // cut between host.Unfit and the delivery it records: completed on open
+    let lines: Vec<&str> = text.lines().collect();
+    let k = lines.iter().position(|l| l.contains(r#""type":"host.Unfit""#)).unwrap();
+    let q = std::env::temp_dir().join(format!("rce-fx-reqopt-cut-{}.log", std::process::id()));
+    std::fs::write(&q, lines[..=k].iter().map(|l| format!("{l}\n")).collect::<String>()).unwrap();
+    open(&q);
+    let text = std::fs::read_to_string(&q).unwrap();
+    assert_eq!(text.lines().filter(|l| l.contains(r#""type":"EchoDone"}"#) && !l.contains("host.Unfit")).count(), 1, "one delivery: {text}");
+    assert!(!text.contains("interrupted"), "the completed result is not interrupted as well: {text}");
+    replay(&m, &text).unwrap();
+    // the same for a result declared with fewer fields (no err)
+    let s2 = src()
+        .replace("event EchoDone(req: u64, status: text, data: text?, err: text)", "event EchoDone(req: u64, status: text, data: text?)")
+        .replace("step S on EchoDone(req: _r, status: st, data: d, err: _e)", "step S on EchoDone(req: _r, status: st, data: d)")
+        .replace(r#"EchoDone(req: 1, status: "failed", data: none, err: "x")"#, r#"EchoDone(req: 1, status: "failed", data: none)"#);
+    let m2 = parse(&s2).unwrap();
+    let r = std::env::temp_dir().join(format!("rce-fx-noerr-cut-{}.log", std::process::id()));
+    let _ = std::fs::remove_file(&r);
+    {
+        let mut h = Host::open_file_with(&m2, &r, vec![Box::new(Echo { calls: calls.clone() })]).unwrap();
+        h.admit(&s2, r#"Say(msg: "a")"#).unwrap();
+    }
+    let text = std::fs::read_to_string(&r).unwrap();
+    let lines: Vec<&str> = text.lines().collect();
+    let k = lines.iter().position(|l| l.contains(r#""type":"host.Unfit""#)).unwrap();
+    std::fs::write(&r, lines[..=k].iter().map(|l| format!("{l}\n")).collect::<String>()).unwrap();
+    drop(Host::open_file_with(&m2, &r, vec![Box::new(Echo { calls: calls.clone() })]).unwrap());
+    let text = std::fs::read_to_string(&r).unwrap();
+    assert!(!text.contains("interrupted"), "{text}");
+    replay(&m2, &text).unwrap();
+    for f in [&p, &q, &r] {
+        let _ = std::fs::remove_file(f);
+    }
+}
+
+/// HC-10b: whether a typed input is marked depends on the module alone,
+/// not on the adapters a run is granted. A typed `EchoDone` is marked by
+/// `host.Typed` whether or not the Echo adapter is bound.
+#[test]
+fn a_typed_result_is_marked_without_its_adapter() {
+    let s = src();
+    let m = parse(&s).unwrap();
+    for adapters in [true, false] {
+        let mut st = MemStore::default();
+        let a: Vec<Box<dyn Adapter>> = if adapters { vec![Box::new(Echo { calls: Default::default() })] } else { vec![] };
+        let mut h = Host::start_with(&m, Box::new(&mut st), a).unwrap();
+        h.admit(&s, r#"EchoDone(req: 5, status: "failed", data: none, err: "x")"#).unwrap();
+        drop(h);
+        let k = kinds(&st.lines);
+        let i = k.iter().position(|x| x == "EchoDone").unwrap();
+        assert_eq!(k[i - 1], "host.Typed", "adapters bound: {adapters}: {k:?}");
+    }
+}

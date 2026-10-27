@@ -446,8 +446,10 @@ in D does not exist for the program.
   (a line on stdin of `rce host serve`, the events of `rce host run`) is
   admitted whatever event of the module it names, an event the host
   delivers itself included: `Refused`, `Restarted`, `Synced`, `WallTime`,
-  `HttpRequest`, `HttpMalformed`, or the result `KDone` of a kind the host
-  performs, that is, every event the host binds at start (E.5). Before such
+  `HttpRequest`, `HttpMalformed`, or a result `KDone` of a struct K the
+  module declares, that is, every event of the module that some host
+  delivers, whatever adapters this run is granted, so the mark is a
+  function of the module and D. Before such
   an input the admitter appends `host.Typed` {seq}, seq being the typed
   input's own seq, so D records which of these inputs were typed and which
   the host delivered. A typed input is an ordinary input: it answers no
@@ -730,7 +732,12 @@ did not, not by restricting what a module may declare.
   the kind, is delivered fitted to the module's declaration of `KDone`. A
   result whose data has no exact conversion to the declared data type is
   delivered as `failed`, with the reason in err (HC-3), and `host.Unfit`
-  keeps the data. When the module declares no `KDone`, the effect is still
+  keeps the data. A result whose req is not delivered as an integer (for
+  example `req: u64?`) is recorded by `host.Unfit` before it: replay
+  matches a result with no such record to its request by that integer,
+  and one with the record by the req the record holds, so each request
+  has its one result however `KDone` declares req (HC-3, HC-21). When the
+  module declares no `KDone`, the effect is still
   performed and its result is recorded in D as `host.Unfit`, not
   delivered; the result answers its request, so a restart does not
   interrupt it (HC-22).
@@ -1032,7 +1039,7 @@ is cited by a test.
 | HC-10b | typed inputs are inputs | `tests/host_refused.rs`: `typed_refused_is_admitted_and_marked`, `replay_detects_a_forged_host_refused`; `tests/host_restart.rs`: `typed_restarted_and_typed_result_are_inputs`; `tests/host_http.rs`: `typed_http_request_is_an_input` |
 | HC-21, HF-4 | refusals are inputs, fitted by name | `tests/host_refused.rs`: `refused_step_is_followed_by_host_refused_and_the_bound_event`, `each_cause_is_classified`, `a_refused_refused_is_not_redelivered`, `a_refused_step_whose_effect_is_refused_is_not_redelivered`, `refused_handler_has_full_fuel`, `replay_detects_a_log_without_host_refused`, `replay_detects_a_forged_host_refused`, `open_completes_a_trailing_refusal`, `a_refused_of_another_shape_is_fitted_by_name`; `tests/nameless.rs`: `refusal_entries_are_name_free` |
 | HC-22, HF-4 | restarts are inputs, ids never reused, fitted by name | `tests/host_restart.rs`: `restart_appends_restarted_then_interrupts`, `ids_are_not_reused_after_restart`, `tick_numbers_continue`, `take_role_appends_restarted`, `serve_on_an_existing_log_listens_again`, `a_restarted_of_another_shape_is_fitted_by_name` |
-| HC-23, HF-1 | the net adapter, results fitted by name | `tests/host_net.rs`: `tcp_loopback_random_and_blobs_replay`, `send_takes_text_or_bytes`; `tests/host_effects.rs`: `result_event_of_another_shape_is_fitted_by_name`, `bound_effect_without_its_result_event_is_performed_and_recorded` |
+| HC-23, HF-1 | the net adapter, results fitted by name | `tests/host_net.rs`: `tcp_loopback_random_and_blobs_replay`, `send_takes_text_or_bytes`; `tests/host_effects.rs`: `result_event_of_another_shape_is_fitted_by_name`, `bound_effect_without_its_result_event_is_performed_and_recorded`, `a_result_whose_req_is_not_an_integer_answers_its_request_once` |
 | HC-24 to HC-26, HF-2 | the HTTP event host | `tests/host_http.rs`: `concurrent_clients_are_served_while_one_stalls`, `idle_server_appends_nothing`, `keep_alive_and_pipelined_requests_answer_in_order`, `head_has_no_body`, `oversized_body_is_413_and_closes`, `refused_request_gets_the_programs_status`, `invalid_response_fails_and_the_id_stays_open`, `responses_are_a_function_of_d`, `http_1_0_and_keep_alive_are_framed_from_d`, `expect_continue_is_transport`, `parallel_load_replays_exactly`, `sigterm_drains_and_validates`, `restart_binds_again`, `sequential_requests_are_not_paced_by_frames`, `http_declarations_are_fitted_at_start`, `http_body_as_text_is_fitted`, `http_without_request_event_is_answered_501`, `http_without_respond_is_answered_by_the_host`; `tests/host_refused.rs`: `serve_stops_while_effects_keep_coming`, `a_line_that_is_not_an_event_is_held`; `tests/http_parse.rs`: `vectors_agree_with_net_http`, `mutations_agree_with_net_http`, `incremental_feed_equals_whole_buffer`, `limits_give_their_statuses` |
 
 ### E.11 Proposed rules (not normative)
@@ -1116,4 +1123,4 @@ Where RCE differs from these sources: GQL and Cypher queries are strings and the
 
 **Read receipt.** Which fcntl command is the append barrier on macOS? (for example F_SETFL)
 
-<!-- body-sha256: 528678cd3501cd3c7d8c8dad4b5e8d627b1e627192815ba1460c0915fb0de9dc -->
+<!-- body-sha256: 0d366bddd6246e66af4ae7f109dfdd98a25cf37c28a9133b406cf48c97ea8029 -->

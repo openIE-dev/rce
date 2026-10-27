@@ -405,6 +405,23 @@ fn binds(m: &Module, bound: &[&'static str], http: bool) -> Vec<(String, String)
     v
 }
 
+/// HC-10b: the program events a typed input is marked for: every event
+/// some host delivers to this module, whatever adapters this run was
+/// granted, so the mark is a function of the module and D alone. They are
+/// the host inputs `Synced`, `WallTime`, `Refused` and `Restarted`, the
+/// HTTP inputs `HttpRequest` and `HttpMalformed`, and the result `KDone`
+/// of every struct K the module declares, each when the module declares it.
+fn host_named(m: &Module) -> Vec<String> {
+    let mut v: Vec<String> = ["Synced", "WallTime", "Refused", "Restarted", "HttpRequest", "HttpMalformed"].iter().map(|n| n.to_string()).collect();
+    for i in &m.items {
+        if let Item::Struct { name, .. } = i {
+            v.push(format!("{name}Done"));
+        }
+    }
+    v.retain(|e| declares_event(m, e));
+    v
+}
+
 /// What replay re-derived (HC-8, HC-21).
 #[derive(Debug)]
 pub struct Replayed {
@@ -904,7 +921,7 @@ pub struct Host<'a> {
     exacts: std::collections::BTreeSet<(String, String)>,
     /// HC-10b, HC-21, HC-22: the entries the last folded entry requires next.
     owe: std::collections::VecDeque<Next>,
-    /// HC-10b: the program events the host delivers (those it binds at start).
+    /// HC-10b: the program events a typed input is marked for ([`host_named`]).
     delivered: Vec<String>,
     /// E.4c: one line for each declaration that is not exactly what the
     /// host delivers, saying what the host will deliver and record.
@@ -1295,7 +1312,7 @@ impl<'a> Host<'a> {
             }
         }
         let http = adapters.iter().any(|a| a.kind() == "HttpRespond");
-        let delivered = binds(m, &bound, http).into_iter().map(|(e, _)| e).collect();
+        let delivered = host_named(m);
         let mut notes = vec![];
         for (e, held) in [("Synced", true), ("WallTime", true), ("Refused", true), ("Restarted", true)] {
             notes.extend(fit_note(m, e, held));
@@ -1734,10 +1751,23 @@ impl<'a> Host<'a> {
     /// recorded again and an event the module does not declare is not
     /// recorded at all. A result whose data has no exact conversion is
     /// delivered as `failed` with the reason (HC-3), and `host.Unfit` keeps
-    /// the data.
+    /// the data. A result whose req is not delivered as an integer is
+    /// recorded too: replay matches an unrecorded result to its request by
+    /// that integer (HC-3, HC-21), and the `host.Unfit` before it by the
+    /// req it holds.
     fn plan(&mut self, name: &str, p: &serde_json::Map<String, Value>, held: bool) -> Plan {
         match self.fit(name, p) {
-            Fitted::Built(args, lost) => Plan { unfit: (!lost.is_empty() && !held).then(|| format!("not declared: {}", lost.join(", "))), deliver: Some((name.to_string(), args)) },
+            Fitted::Built(args, lost) => {
+                let mut why: Vec<String> = vec![];
+                if !lost.is_empty() && !held {
+                    why.push(format!("not declared: {}", lost.join(", ")));
+                }
+                let plain = args.iter().any(|a| a.label.as_deref() == Some("req") && matches!(a.e, Expr::Int(r, _) if Some(r) == p.get("req").and_then(Value::as_u64).map(i128::from)));
+                if is_result(name, p) && !held && !plain && !lost.iter().any(|k| k == "req") {
+                    why.push("req: not delivered as an integer".to_string());
+                }
+                Plan { unfit: (!why.is_empty()).then(|| why.join("; ")), deliver: Some((name.to_string(), args)) }
+            }
             Fitted::Undeclared if name == "HttpRequest" => self.http_fallback(name, p, held, "not declared".to_string()),
             Fitted::Undeclared => Plan { unfit: (!held).then(|| "not declared".to_string()), deliver: None },
             Fitted::Unbuildable(why, field) => {
@@ -2043,7 +2073,17 @@ impl<'a> Host<'a> {
                 Next::Unfit(event) => {
                     self.append(event)?;
                 }
-                Next::Deliver { name, args, how } => out.extend(self.apply(&name, args, how)?),
+                Next::Deliver { name, args, how } => {
+                    // HC-3: the result completed here answers its request,
+                    // which a restart must not interrupt again (the live
+                    // path took it off the queue before performing it)
+                    if let How::Answers(k, r) = &how
+                        && let Some(i) = self.queue.iter().position(|q| q.kind == *k && q.req == *r)
+                    {
+                        self.queue.remove(i);
+                    }
+                    out.extend(self.apply(&name, args, how)?)
+                }
                 Next::Typed { .. } => {}
             }
         }
