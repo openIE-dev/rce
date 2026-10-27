@@ -324,3 +324,28 @@ fn join_and_boundary() {
     }
     assert_eq!(got, w);
 }
+
+#[test]
+fn context_encoders() {
+    let ctxs = ["Html", "Url", "Sql", "Json", "ShellArg", "Header"];
+    let got = run(|f, b| {
+        let ids: Vec<usize> = ctxs.iter().map(|c| rtt::encode(f, c).unwrap()).collect();
+        for t in TEXTS.iter().chain(["<script>x</script>", "O'Brien", "a b&c", "\"q\"\\", "\u{1}"].iter()) {
+            for id in &ids {
+                put_caught(f, b, *id, Ty::Bytes, vec![Atom::bytes(t.as_bytes())], show_text);
+            }
+        }
+    });
+    let mut w = String::new();
+    for t in TEXTS.iter().chain(["<script>x</script>", "O'Brien", "a b&c", "\"q\"\\", "\u{1}"].iter()) {
+        for c in ctxs {
+            if c == "Header" && (t.contains('\r') || t.contains('\n')) {
+                w += "trap Header.encode: a header value contains CR or LF (F.5.7)\n";
+            } else {
+                w += &want_text(&rce_spec_check::index08::encode(c, t));
+                w += "\n";
+            }
+        }
+    }
+    assert_eq!(got, w);
+}

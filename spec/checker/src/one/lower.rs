@@ -26,7 +26,8 @@
 //! comprehensions and repeated lists; maps, kept as lists of pairs in the
 //! canonical order of 6.1 without duplicate keys, with their literals,
 //! index, indexed assignment, iteration, display, JSON, equality and
-//! methods; and `<` on tuples and lists.
+//! methods; `<` on tuples and lists; refined types (5.1), whose fit tests
+//! the predicate; and context text (5.16), `C.lit` and `C.encode`.
 //!
 //! Ownership (W3): an RCE variable holds its value until the end of its
 //! scope, where it is dropped; every read of an owned variable is a `copy`;
@@ -535,8 +536,20 @@ impl<'m> Lw<'m> {
 
     /// interp `fit`: a value of type `from` given the declared type `to`.
     fn fit(&mut self, fx: &mut Fx, a: Atom, from: &RType, to: &ast::Ty) -> R<Val> {
-        if self.t.refined(to) {
-            return no("a refined type");
+        // a refined type (5.1): the base type's fit, then the predicate
+        if let ast::Ty::Path(p, _) = to
+            && p.len() == 1
+            && let Some(Item::TypeAlias { ty, pred: Some(e), .. }) = self.t.types.get(&p[0]).copied()
+        {
+            let name = p[0].clone();
+            let v = self.fit(fx, a, from, ty)?;
+            let Some(base) = crate::refine::base_of(&self.t.alias(ty)) else { return no(format!("the refined type {name}")) };
+            let Ok(pr) = crate::refine::compile(e, base) else { return no(format!("the predicate of {name}")) };
+            let ok = self.holds(fx, &pr, &v)?;
+            let bad = fx.b.not(ok)?;
+            let msg = crate::refine::trap_text(&name);
+            self.guard(fx, bad, move |_, _| Ok(Atom::bytes(msg.as_bytes())))?;
+            return Ok(v);
         }
         let target = self.t.fit(from, to);
         if let RType::Unknown(r) = &target {
@@ -545,6 +558,67 @@ impl<'m> Lw<'m> {
         // an error value keeps its type: fit to a union keeps the error side
         let a2 = self.conv(fx, a, from, &target, true)?;
         Ok(Val { a: a2, t: target })
+    }
+
+    /// Whether the value v (read) satisfies the predicate p (refine `holds`).
+    fn holds(&mut self, fx: &mut Fx, p: &crate::refine::P, v: &Val) -> R<Atom> {
+        use crate::refine::{P, Tm};
+        let term = |lw: &mut Self, fx: &mut Fx, t: &Tm| -> R<Option<Atom>> {
+            Ok(match (t, &v.t) {
+                (Tm::Lit(n), _) => Some(lit(*n)),
+                (Tm::SelfV, RType::Int(_)) => Some(v.a.clone()),
+                (Tm::Len, RType::Text) => Some(fx.b.p("bytes.len", vec![], vec![v.a.clone()])?),
+                (Tm::Len, RType::List(_) | RType::Set(_) | RType::Map(..)) => {
+                    let ct = fx.b.ty(&v.a);
+                    let Ty::List(e) = &ct else { return Err("internal: len of a non-list".into()) };
+                    Some(fx.b.p("list.len", vec![(**e).clone()], vec![v.a.clone()])?)
+                }
+                _ => {
+                    let _ = lw;
+                    None
+                }
+            })
+        };
+        match p {
+            P::Cmp(op, a, b) => {
+                let (Some(x), Some(y)) = (term(self, fx, a)?, term(self, fx, b)?) else { return Ok(Atom::bool(false)) };
+                let (p, q, neg) = match *op {
+                    "<" => (x, y, ("int.lt", false)),
+                    "<=" => (x, y, ("int.le", false)),
+                    ">" => (y, x, ("int.lt", false)),
+                    ">=" => (y, x, ("int.le", false)),
+                    "==" => (x, y, ("int.eq", false)),
+                    _ => (x, y, ("int.eq", true)),
+                };
+                let r = fx.b.int_cmp(neg.0, p, q)?;
+                if neg.1 { fx.b.not(r) } else { Ok(r) }
+            }
+            P::Cls(c) => {
+                if v.t != RType::Text {
+                    return Ok(Atom::bool(false));
+                }
+                if *c == "isempty" {
+                    let n = fx.b.p("bytes.len", vec![], vec![v.a.clone()])?;
+                    return fx.b.int_cmp("int.eq", n, lit(0));
+                }
+                let g = rtt::is_class(&mut self.f, c)?;
+                Ok(self.call_rt(fx, g, vec![v.a.clone()]))
+            }
+            P::And(a, b) => {
+                let x = self.holds(fx, a, v)?;
+                let y = self.holds(fx, b, v)?;
+                fx.b.p("bool.and", vec![], vec![x, y])
+            }
+            P::Or(a, b) => {
+                let x = self.holds(fx, a, v)?;
+                let y = self.holds(fx, b, v)?;
+                fx.b.p("bool.or", vec![], vec![x, y])
+            }
+            P::Not(a) => {
+                let x = self.holds(fx, a, v)?;
+                fx.b.not(x)
+            }
+        }
     }
 
     /// interp `fit` into a place whose core type is that of the declared
@@ -2223,6 +2297,21 @@ impl<'m> Lw<'m> {
             Some(Callee::Builtin(m)) => {
                 let Expr::Member(obj, _, _) = f else { return no("a method call") };
                 self.builtin(fx, obj, &m, args, rt)
+            }
+            Some(Callee::Ctx(c, m)) => {
+                // 5.16: `C.lit(t)` is t; `C.encode(t)` escapes t for C
+                let v = self.expr(fx, &args[0].e)?;
+                if v.t != RType::Text {
+                    return no(format!("{c}.{m} of {}", v.t.show()));
+                }
+                match (m.as_str(), c.as_str()) {
+                    ("lit", "Html" | "Url" | "Sql" | "Json" | "ShellArg" | "Prompt" | "Header") => Ok(Val { a: v.a, t: rt }),
+                    ("encode", "Html" | "Url" | "Sql" | "Json" | "ShellArg" | "Header") => {
+                        let g = rtt::encode(&mut self.f, &c)?;
+                        Ok(Val { a: self.call_rt(fx, g, vec![v.a]), t: rt })
+                    }
+                    _ => no(format!("{c}.{m}")),
+                }
             }
             Some(Callee::Unknown(r)) => no(r),
             None => no(format!("the call at line {}", e.line())),
@@ -5004,7 +5093,6 @@ impl<'m> Lw<'m> {
                 Item::Trait { .. } => return no("a trait"),
                 Item::Extern { .. } => return no("a foreign function"),
                 Item::Actor { .. } | Item::Protocol { .. } | Item::Node { .. } | Item::Supervisor { .. } => return no("an actor, protocol, node or supervisor"),
-                Item::TypeAlias { pred: Some(_), .. } => return no("a refined type"),
                 Item::Event { foreign: Some(_), .. } | Item::Event { interrupt: Some(_), .. } => return no("a foreign or interrupt event"),
                 Item::State { replicated: true, .. } => return no("a replicated state"),
                 Item::Step { deadline: Some(_), .. } => return no("a step deadline"),

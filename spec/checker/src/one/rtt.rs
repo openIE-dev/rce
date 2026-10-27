@@ -826,3 +826,113 @@ pub fn boundary(f: &mut Fns) -> R<usize> {
         Ok(b.finish())
     })
 }
+
+/// `C.encode(t)` for a context C (5.16, interp `index08::encode`): HTML
+/// escapes `& < > " '`; a URL keeps the unreserved bytes and writes every
+/// other byte as `%XX`; SQL quotes the text and doubles its quotes;
+/// `ShellArg` and `Header` keep the text (a header with CR or LF traps,
+/// F.5.7); `Json` writes a JSON string.
+pub fn encode(f: &mut Fns, ctx: &str) -> R<usize> {
+    let js = rt::jstr(f)?;
+    let ctx = ctx.to_string();
+    f.get(&format!("rt.ctx.{ctx}.encode"), vec![Ty::Bytes], Ty::Bytes, move |f, mut b| {
+        let t = b.arg(0);
+        match ctx.as_str() {
+            "ShellArg" => {
+                b.ret(t);
+                return Ok(b.finish());
+            }
+            "Json" => {
+                let r = call(&mut b, f, js, vec![t]);
+                b.ret(r);
+                return Ok(b.finish());
+            }
+            "Header" => {
+                let n = b.p("bytes.len", vec![], vec![t.clone()])?;
+                b.for_n(n, |b, i| {
+                    let c = b.byte_at(t.clone(), i)?;
+                    let cr = b.int_cmp("int.eq", c.clone(), lit(13))?;
+                    let lf = b.int_cmp("int.eq", c, lit(10))?;
+                    let bad = b.p("bool.or", vec![], vec![cr, lf])?;
+                    b.when(bad, |b| trap(b, Atom::bytes(b"Header.encode: a header value contains CR or LF (F.5.7)")))
+                })?;
+                b.ret(t);
+                return Ok(b.finish());
+            }
+            _ => {}
+        }
+        let n = b.p("bytes.len", vec![], vec![t.clone()])?;
+        let o0 = b.p("list.new", vec![Ty::u8()], vec![])?;
+        let out = b.var(u8list(), o0);
+        let push = |b: &mut FB, s: &[u8]| -> R<()> {
+            for c in s {
+                let o = b.take(out);
+                let o = b.p("list.push", vec![Ty::u8()], vec![o, lit(*c as i128)])?;
+                b.set(out, o);
+            }
+            Ok(())
+        };
+        if ctx == "Sql" {
+            push(&mut b, b"'")?;
+        }
+        let ctx2 = ctx.clone();
+        b.for_n(n, |b, i| {
+            let c = b.byte_at(t.clone(), i)?;
+            // a chain of tests, each leaving the iteration's block when it applies
+            b.open();
+            let table: Vec<(u8, &[u8])> = match ctx2.as_str() {
+                "Html" => vec![(b'&', b"&amp;"), (b'<', b"&lt;"), (b'>', b"&gt;"), (b'"', b"&quot;"), (b'\'', b"&#39;")],
+                "Sql" => vec![(b'\'', b"''")],
+                _ => vec![],
+            };
+            for (ch, esc) in table {
+                let is = b.int_cmp("int.eq", c.clone(), lit(ch as i128))?;
+                b.open();
+                push(b, esc)?;
+                b.brk(0);
+                let th = b.close();
+                b.push(Stmt::If(is, th, vec![]));
+            }
+            if ctx2 == "Url" {
+                let d = between(b, &c, b'0', b'9')?;
+                let u = between(b, &c, b'A', b'Z')?;
+                let l = between(b, &c, b'a', b'z')?;
+                let mut keep = b.p("bool.or", vec![], vec![d, u])?;
+                keep = b.p("bool.or", vec![], vec![keep, l])?;
+                for ch in [b'-', b'.', b'_', b'~'] {
+                    let e = b.int_cmp("int.eq", c.clone(), lit(ch as i128))?;
+                    keep = b.p("bool.or", vec![], vec![keep, e])?;
+                }
+                let nk = b.not(keep)?;
+                b.open();
+                push(b, b"%")?;
+                let hex = Atom::bytes(b"0123456789ABCDEF");
+                let (q, r) = b.divmod_lit(c.clone(), 16, Ty::u8())?;
+                let q = b.cast_in(q, Ty::Int(0, 15))?;
+                let r = b.cast_in(r, Ty::Int(0, 15))?;
+                for k in [q, r] {
+                    let h = b.byte_at(hex.clone(), k)?;
+                    let o = b.take(out);
+                    let o = b.p("list.push", vec![Ty::u8()], vec![o, h])?;
+                    b.set(out, o);
+                }
+                b.brk(0);
+                let th = b.close();
+                b.push(Stmt::If(nk, th, vec![]));
+            }
+            let o = b.take(out);
+            let o = b.p("list.push", vec![Ty::u8()], vec![o, c])?;
+            b.set(out, o);
+            let chain = b.close();
+            b.push(Stmt::Block(chain));
+            Ok(())
+        })?;
+        if ctx == "Sql" {
+            push(&mut b, b"'")?;
+        }
+        let o = b.take(out);
+        let r = b.p("bytes.of_list", vec![], vec![o])?;
+        b.ret(r);
+        Ok(b.finish())
+    })
+}

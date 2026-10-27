@@ -236,6 +236,8 @@ pub enum Callee {
     Same,
     /// a built-in method on the receiver's type (5.15)
     Builtin(String),
+    /// `C.lit(t)` or `C.encode(t)` of a context C (5.16): (context, method)
+    Ctx(String, String),
     /// a call this pass does not resolve, and why
     Unknown(String),
 }
@@ -405,11 +407,9 @@ impl<'a> Tables<'a> {
     pub fn refined(&self, t: &Ty) -> bool {
         matches!(t, Ty::Path(p, _) if p.len() == 1 && matches!(self.types.get(&p[0]), Some(Item::TypeAlias { pred: Some(_), .. })))
     }
-    /// The type of a value after the interpreter fits it to the declared type `t`.
+    /// The type of a value after the interpreter fits it to the declared type
+    /// `t`; a refined type's values are those of its base type.
     pub fn of_ty(&self, t: &Ty) -> RType {
-        if self.refined(t) {
-            return RType::Unknown("a refined type".into());
-        }
         let t = self.alias(t);
         match &t {
             Ty::Path(p, a) if p.len() == 1 => {
@@ -904,6 +904,23 @@ impl<'a, 'm> Cx<'a, 'm> {
         }
         if let Expr::Member(_, m, _) = f {
             self.record(f, &RType::Fn(m.clone()), None, None);
+        }
+        // 5.16 context text: `C.lit(t)` and `C.encode(t)` (interp `call`)
+        if let Expr::Member(o, m, _) = f
+            && let Expr::Name(c, _) = &**o
+            && crate::index08::is_ctx(c)
+            && self.lookup(c).is_none()
+            && !self.t.types.contains_key(c)
+            && args.len() == 1
+            && c != "Shell"
+        {
+            let at = self.expr(&args[0].e);
+            let r = match at {
+                RType::Text => RType::Text,
+                RType::Unknown(r) => RType::Unknown(r),
+                o => RType::Unknown(format!("{c}.{m} of {}", o.show())),
+            };
+            return (r, None, Some(Callee::Ctx(c.clone(), m.clone())));
         }
         // `f[T](x)`: a generic call; types are erased at run time
         if let Expr::Index(g, _, _) = f
