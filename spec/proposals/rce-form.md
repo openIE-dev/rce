@@ -707,7 +707,7 @@ The lift of RCE itself has no rows: its stage 5 and stage 6 are the checker and 
  "counts":{"by_construct":{NODE_KIND:{"mapped":n, "trivia":n, "kept":n}…}, "by_rule":{RULE:n…}}}
 ```
 
-`config` is the key of the `rce-build-config/1` file the source was lifted under, or null. `STAGE` is a stage of §16 or a transform B1 to B7. `RULE` is a gate rule (FG1 to FG15), an RCE check code, or a named construct reason: `encoding`, `syntax`, `row-kept`, `macro`, `resolve`, `foreign`, `capability`, `dynamic-code`, `concurrency`, `shared-memory`, `text`, `number`, `semantics` (the source's meaning is a set of results and RCE's is not shown to be one of them, such as a function defined only within an error bound), `choice`, `tensor`, `limit` or `loop-shape`. `properties` lists, per construct, facts a reader may want (a trap for UB, a choice event, a declared bound); they inform readers and never decide a result. Every count is per construct and per rule. Nothing is approximated, so there is no counter of approximations. Nothing in the report depends on a clock, a host or the order of a file system: two lifts of the same inputs with the same lifter give the same bytes.
+`config` is the key of the `rce-build-config/1` file the source was lifted under, or null. `STAGE` is a stage of §16 or a transform B1 to B7. `RULE` is a gate rule (FG1 to FG15), an RCE check code, or a named construct reason: `encoding`, `syntax`, `row-kept`, `macro`, `resolve`, `foreign`, `capability`, `dynamic-code`, `concurrency`, `shared-memory`, `text`, `number`, `semantics` (the source's meaning is a set of results and RCE's is not shown to be one of them, such as a function defined only within an error bound), `choice` (the construct's result depends on a choice the defining reference leaves open, such as the order of a set or the interleaving of threads, and the table carries neither the oracle's rule for that choice, computed from the case's inputs, nor a choice event for it; §20, below), `tensor`, `limit` or `loop-shape`. `properties` lists, per construct, facts a reader may want (a trap for UB, a choice event, a declared bound); they inform readers and never decide a result. Every count is per construct and per rule. Nothing is approximated, so there is no counter of approximations. Nothing in the report depends on a clock, a host or the order of a file system: two lifts of the same inputs with the same lifter give the same bytes.
 
 **The build configuration, `rce-build-config/1`,** is canonical JSON: `{"format":"rce-build-config/1", "lang":L, "defines":[[name, value]…], "include":[path…], "compile_commands":KEY|null, "features":[name…], "markers":[[name, value]…]}`, every list in sorted order. Its key is recorded in the concept record's origin and in the report, and it is read only by stage 3.
 
@@ -763,7 +763,7 @@ Its oracle records are the files of `oracle/` (§20, below), shared with the lif
 
 ## 20. Acceptance by definition and exact comparison
 
-**The principle.** A lift or an emit is accepted by definition and exact comparison, against the language's defining reference and against its own implementation. The defining reference enters through every row, which cites the clause it implements and states its derivation (K4, below), and through the case classes below where the reference leaves behaviour undefined. The implementation enters as the oracle: pinned, it runs the source; RCE's reference runs the Form; and a case holds when the two observations are equal byte for byte. For the language `rce`, the defining reference and its implementation are both the reference interpreter. Every admitted case is compared. No case is a deliberately wrong program or row, and no case is set aside from the comparison. Where the defining reference leaves behaviour undefined or open, acceptance follows from that definition (the case classes below), and where a construct cannot be compared exactly, it is kept with its reason and counted as kept, never as holding.
+**The principle.** A lift or an emit is accepted by definition and exact comparison, against the language's defining reference and against its own implementation. The defining reference enters through every row, which cites the clause it implements and states its derivation (K4, below), and through the case classes below where the reference leaves behaviour undefined. The implementation enters as the oracle: pinned, it runs the source; RCE's reference runs the Form; and a case holds when the two observations are equal byte for byte. For the language `rce`, the defining reference and its implementation are both the reference interpreter. Every admitted case is compared. No case is a deliberately wrong program or row, and no case is set aside from the comparison. Where the defining reference leaves behaviour undefined, acceptance follows from that definition (the case classes below); where it leaves a choice open, the case is compared under the oracle's pins, and a construct whose choice the table does not carry is kept with the reason `choice` (§18); and where a construct cannot be compared exactly, it is kept with its reason and counted as kept, never as holding.
 
 **Observations, `rce-obs/1`.**
 
@@ -795,10 +795,12 @@ Two observations are equal when every compared field of the profile is equal byt
 **Case classes**, decided once, when a case enters a corpus, from the oracle's behaviour and never from anything the lift says:
 
 - **`oracle-nondet`**: the oracle runs the case twice under its pins and the two observations differ. The oracle is then not a function of the case's inputs, so the case is not admitted.
-- **`nondet:<source>`**: the case's observation changes under one of the perturbations the oracle record lists (a clock offset, another order of the environment, another order of directory entries, another thread count). The case reads something its inputs do not name. It is reported in its own column, with the source named, and is compared only once that source is an input of the case: a seed the source's own mechanism uses (a hash seed in `env`, a scheduler seed) is an input, and the Form receives it in its `Start` payload or as a choice event, so each value is compared exactly.
+- **`nondet:<source>`**: the case's observation changes under one of the perturbations the oracle record lists (a clock offset, another order of the environment, another order of directory entries, another thread count). The case reads something its inputs do not name, so its observation is not a function of its inputs either, and it is not admitted, as with `oracle-nondet`; the admission report names the source. The program may enter the corpus again as a new case once that source is one of its inputs: a seed the source's own mechanism uses (a hash seed in the case's `env`, a scheduler seed) or a value the case's inputs carry, which the oracle receives under its pins and the Form receives in its `Start` payload or as a choice event, so that no perturbation changes the observation.
 - **`ub`**: for a language with UB, the case runs under the sanitizers the record names, and it reaches UB. The defining reference allows every behaviour there, so by definition the case holds when the Form keeps the event with the row's UB reason at the point the sanitizer reports, with equal observations before it.
 - **`resource`**: the oracle's observation is one of the resource-limit classes of `observe.toml`. The point where an implementation exhausts its own resources is not fixed by the defining reference, so by definition the case holds when the Form keeps the event with a resource reason, or gives the oracle's observation.
-- **`deterministic`**: every other case. It is compared byte for byte.
+- **`deterministic`**: every other case. It is compared byte for byte. Where the defining reference leaves a choice open (the order of a set, the interleaving of threads) and the oracle's pins fix it, the Form must give the oracle's observation; a lift whose table carries neither the oracle's rule for that choice nor a choice event for it keeps the construct with the reason `choice` (§18), and the case is kept.
+
+Only the last three classes are admitted.
 
 **Results**, exactly one per case and stage:
 
@@ -882,7 +884,7 @@ A case's own `env` adds to `pins.env`, and the Form's `Start` payload receives t
 
 1. **No option that changes meaning.** No oracle command carries an option that changes what the program text means: no contraction, overflow, fast-mathematics or optimisation option (ONE-20).
 2. **The image is the toolchain.** The image digest and the output of `version` go into every evidence record, so "the oracle" never means whatever happens to be installed.
-3. **The oracle is a function of the case.** A case whose two runs differ is `oracle-nondet` and is not admitted.
+3. **The oracle is a function of the case.** A case whose two runs differ is `oracle-nondet`, and a case whose observation changes under a perturbation is `nondet:<source>`; neither is admitted.
 4. **Sanitizers classify at admission**, as the case classes state.
 5. **The reference oracle.** The kind `reference` is the `rce` binary built from a pinned commit, with its version and commit recorded as the emitted provenance line records them.
 6. **Live services** run in a fresh container per case, loaded by the record's `load` command and discarded after the case.
@@ -904,7 +906,7 @@ tier       = "T2"                   # T1 basics | T2 algorithms | T3 boundaries 
 profile    = "command"
 inputs     = [{ argv = [], stdin_hex = "", env = {} }]
 expected   = "expected/2f9c….obs.json"   # recorded from the oracle; never typed
-class      = "deterministic"        # deterministic | nondet:<source> | ub | resource
+class      = "deterministic"        # deterministic | ub | resource: the admitted classes
 provenance = { source = "…", item = "sieve", commit = "…", licence = "…" }
 ```
 
@@ -931,7 +933,7 @@ Record = {"format":"rce-accept/1", "lang":L, "direction":"lift"|"emit"|"lens",
              "obs":{"oracle":OBS_KEY, "form":OBS_KEY}, "rows":[ROW_ID…], "diff":D|null,
              "work":{"fuel":n, "cost":n, "nodes":n, "source_bytes":n}|null}…],
   "counts": {"holds":n, "differs":n, "kept_stage":n, "kept_resource":n, "internal":n,
-             "not_run":n, "oracle_fail":n, "nondet":n, "ub":n, "resource":n},
+             "not_run":n, "oracle_fail":n, "ub":n, "resource":n},
   "coverage": {"programs_applied":r, "node_kinds_mapped":r, "rows_derived":r},
   "kept_reasons": [[REASON, n]…],
   "level": 0 | 1 | 2 | 3 | 4 | 5 | 6}
