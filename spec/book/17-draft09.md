@@ -869,8 +869,7 @@ Implemented and tested (`spec/checker/src/v09.rs`, `apidiff.rs`; examples in
 - W-WORLD-1 (F.4.1): `&World` is held only by `fn main`, task functions and
   externs, is the first parameter of every extern, is passed whole and by name,
   and is never stored, returned, sent or captured. The checker erases it before
-  evaluation, so the Form, the log and every emitter are unchanged
-  (`rce form` shows the erased module).
+  evaluation, so the Form, the log and every emitter are unchanged.
 - Definition hashes, `rce hash` and `rce api-diff OLD NEW` (F.4.3), without
   contracts, measures, ghost clauses or labels, which do not exist yet.
 - W-TX-1 and the restore of `&mut` arguments on `fail` (F.4.4) in the reference
@@ -1139,4 +1138,4 @@ UnaryExpr    = ( "-" | "~" | "&" [ "mut" ] | "<-" | "comptime" | "release" | "en
              | Postfix .
 ```
 
-<!-- body-sha256: d11cb7d202e8202fbfe636cd5b119574c4a1c246b8e272d925857f77ff09c804 -->
+<!-- body-sha256: 8b35e0fcce44bf4929bfc6736dc04859fe42b50516a69a6e14ca308c87a53fa5 -->

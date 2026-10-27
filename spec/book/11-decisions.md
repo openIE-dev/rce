@@ -249,10 +249,10 @@ emitters.
   (canonical JSON of the values bound in the region, after every statement)
   and traps "size limit".
 - `lalr` is no longer reserved (2.4).
-- The four Form runtimes (Rust crate and WASM through `num.rs`, Python,
-  JavaScript for XState and SCXML) agree on the new ops; the
-  `tests/form_num_v05.rs` cross-runtime test compares them on about 6,600
-  cases.
+- The four Form runtimes of the engine (Rust crate and WASM through
+  `num.rs`, Python, JavaScript for XState and SCXML) must agree on the new
+  ops. They are in the engine crate, not in this repository, and no test
+  published here compares them.
 
 Known open questions (not decided here): the standard library surface beyond
 the num.rs primitives; foreign interfaces other than the C ABI (WASM
@@ -395,4 +395,4 @@ checked by `scripts/claim-counts.py --check`.
 
 **Read receipt.** The decisions list says it decides gaps in which file?
 
-<!-- body-sha256: bd0bb229a63243931045b661da84e5778b9b128e3e1e6476c308f52bb859a695 -->
+<!-- body-sha256: 2346d053d92fe62068dcec8afd8e1b3608ddfbbe6249ad2cc3ea79da9634ee90 -->
