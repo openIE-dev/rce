@@ -32,6 +32,10 @@ module id
 # uuid_from_hash lays the digest out (RFC 9562 5.3, 5.5, and 5.8 for a
 # SHA-256 name-based version 8).
 #
+# A program that names a value `id` imports this module under another
+# name (`use id as ids`), since a local name may not shadow an import
+# (W-NAME-3).
+#
 # References: CPython 3.13 uuid (parse, format, fields, versions 1, 3, 4,
 # 5), RFC 9562 Appendix A and B, the npm uuid package 14.0.3 (versions 6,
 # 7, the monotonic version 7 state, v1ToV6 and v6ToV1), the ULID
