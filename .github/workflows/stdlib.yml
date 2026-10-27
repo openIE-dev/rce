@@ -23,7 +23,7 @@ jobs:
           - "fmt hash io math"
           - "net num"
           - "os"
-          - "rand text time ui"
+          - "rand test text time ui"
     name: checks (${{ matrix.group }})
     runs-on: ubuntu-latest
     timeout-minutes: 90
