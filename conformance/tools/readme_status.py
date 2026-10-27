@@ -52,13 +52,20 @@ def block():
     other = ", ".join(f"{p} {v['covered']} of {v['clauses']}" for p, v in cov["profiles"].items() if p != "language")
     L.append(f"  Other profiles: {other}.")
     L.append(f"- Reference: {ref.get('pass', 0)} pass, {ref.get('fail', 0)} fail of {nref}.")
+    L.append(f"  Run: {par['reference']}.")
     em = []
     for a in ("emit-python", "emit-js", "emit-rust"):
-        t = tally[a]
-        em.append(f"{a[5:]} {t.get('pass', 0)} pass / {t.get('fail', 0)} fail / {t.get('n/a', 0) + t.get('unsupported', 0)} not applicable or unsupported")
-    L.append("- Emitters: " + "; ".join(em) + ". Parity with the reference: " + "; ".join(f"{a[5:]} {par['adapters'][a]['agree']} agree, {par['adapters'][a]['disagree']} disagree" for a in ("emit-python", "emit-js", "emit-rust")) + ".")
-    t = tally["emit-scala"]
-    L.append(f"- Scala emitter: {t.get('pass', 0)} pass, {t.get('fail', 0)} fail, {t.get('unsupported', 0)} unsupported of {len(res['emit-scala']['results'])} results ({par['adapters']['emit-scala']['missing']} tests have no Scala result). Scala does not yet agree with the reference.")
+        t, pa = tally[a], par["adapters"][a]
+        em.append(f"{a[5:]} ({pa['run']}): {t.get('pass', 0)} pass / {t.get('fail', 0)} fail / {t.get('error', 0)} error / {t.get('n/a', 0) + t.get('unsupported', 0)} not applicable or unsupported"
+                  + (f" / {pa['not run']} not run" if pa["not run"] else ""))
+    L.append("- Emitters, traces compared whole and line for line: " + "; ".join(em) + ".")
+    L.append("  Byte parity with the reference (`reports/parity.md`): " + "; ".join(
+        f"{a[5:]} {par['adapters'][a]['same']} same, {par['adapters'][a]['different']} different, {par['adapters'][a]['no answer']} without an answer to compare" for a in ("emit-python", "emit-js", "emit-rust")) + ".")
+    t, pa = tally["emit-scala"], par["adapters"]["emit-scala"]
+    if pa["results_format"] == "rce-results/1":
+        L.append(f"- Scala emitter: not run with whole traces. `reports/results-emit-scala.json` is an earlier status-only run: {t.get('pass', 0)} pass, {t.get('fail', 0)} fail, {t.get('unsupported', 0)} unsupported of {len(res['emit-scala']['results'])} results ({pa['not run']} tests have no Scala result); none of it is byte-compared. Scala does not agree with the reference.")
+    else:
+        L.append(f"- Scala emitter ({pa['run']}): {t.get('pass', 0)} pass, {t.get('fail', 0)} fail, {t.get('unsupported', 0)} unsupported of {len(res['emit-scala']['results'])} results; byte parity {pa['same']} same, {pa['different']} different.")
     for a, label in (("wasm-playground", "Wasm playground"), ("lean-core", "Lean core model")):
         t = tally[a]
         L.append(f"- {label}: {t.get('pass', 0)} pass, {t.get('fail', 0)} fail, {t.get('unsupported', 0)} unsupported of {len(res[a]['results'])} results.")
