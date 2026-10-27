@@ -1,6 +1,6 @@
 module notes_http
 
-intent "a notes service over HTTP/1.1: list, create, read and delete notes as JSON; a malformed request gets the status the host names, a body that is not UTF-8 400, a note over 4096 bytes 413, an unknown path 404, a wrong method 405, and a refused step 503 when it ran out of fuel, 507 when the notes would exceed the value limit and 500 otherwise"
+intent "a notes service over HTTP/1.1: list, create, read and delete notes as JSON; a malformed request gets the status the host names, a body that is not UTF-8 400, a note over 4096 bytes 413, an unknown path 404, a wrong method 405, and a refused step 503 when it ran out of fuel and 500 otherwise, as when the notes would exceed SIZE_LIMIT (cause size)"
     example HttpRequest(id: 1, method: "POST", target: "/notes", version: "HTTP/1.1", names: ["Host"], values: ["x"], body: [109, 105, 108, 107]) -> last_status == 201 and notes.len() == 1
     example HttpRequest(id: 1, method: "GET", target: "/notes/9", version: "HTTP/1.1", names: ["Host"], values: ["x"], body: []) -> last_status == 404
     example HttpRequest(id: 1, method: "PUT", target: "/notes", version: "HTTP/1.1", names: ["Host"], values: ["x"], body: []) -> last_status == 405
@@ -12,7 +12,7 @@ intent "a notes service over HTTP/1.1: list, create, read and delete notes as JS
     example HttpRequest(id: 1, method: "POST", target: "/notes", version: "HTTP/1.1", names: [], values: [], body: [226, 130, 172]) -> last_status == 201 and notes[1] == "€"
     example HttpMalformed(id: 1, status: 413, why: "body over 1000000 bytes") -> last_status == 413
     example HttpRequest(id: 1, method: "POST", target: "/notes", version: "HTTP/1.1", names: [], values: [], body: [97 for _i in 0..4097]) -> last_status == 413 and notes.len() == 0
-    example HttpRequest(id: 1, method: "POST", target: "/notes", version: "HTTP/1.1", names: [], values: [], body: [97]), Refused(seq: 3, cause: "value") -> last_status == 507 and notes.len() == 1
+    example HttpRequest(id: 1, method: "POST", target: "/notes", version: "HTTP/1.1", names: [], values: [], body: [97]), Refused(seq: 3, cause: "size") -> last_status == 500 and notes.len() == 1
     example Refused(seq: 1, cause: "fuel") -> last_status == 503
 
 check note(1, "a\u{7}\"") == "{\"id\":1,\"text\":\"a\\u0007\\\"\"}"
@@ -99,7 +99,7 @@ step Server on HttpMalformed(id: id, status: st, why: w)
     emit respond(id, err(st, w))
 
 step Server on Refused(seq: q, cause: c)
-    let st: u64 = if c == "fuel" then 503 else (if c == "value" then 507 else 500)
+    let st: u64 = if c == "fuel" then 503 else 500
     last_status = st
     emit respond(q, err(st, "step refused: " + c))
 
