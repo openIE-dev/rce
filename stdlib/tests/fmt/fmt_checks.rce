@@ -21,10 +21,10 @@ fn fmt_bad(t: text, a: List[text]) -> bool = (format(&t, &a) catch "ERR") == "ER
 fn gd(v: i64, c: text) -> text = group_dec(v, &c)
 
 fn re_bad(p: text) -> bool
-    let r = compile(&p) catch Regex(code: [], classes: [-7], ngroups: 0, names: [])
+    let r = compile(&p) catch Regex(code: [], classes: [-7], ngroups: 0, names: [], nest: [], nloops: 0)
     return r.classes == [-7]
 
-fn rx(p: text) -> Regex = compile(&p) catch Regex(code: [5, 0, 0], classes: [], ngroups: 0, names: [])
+fn rx(p: text) -> Regex = compile(&p) catch Regex(code: [5, 0, 0], classes: [], ngroups: 0, names: [], nest: [0], nloops: 0)
 
 fn rep(s: text, n: i64) -> text
     var o = ""

@@ -1328,13 +1328,13 @@ pub fn float_scan(s: &text, at: i64) -> FloatScan
             i = j
     let end = i as i64
     if ds.len() == 0
-        return FloatScan(value: if neg then 0.0 - 0.0 else 0.0, end: end, overflow: false)
+        return FloatScan(value: if neg then -0.0 else 0.0, end: end, overflow: false)
     # value = 0.d1d2... * 10^dexp
     let dexp = (ds.len() as i64) + dropped + ex - frac
     if dexp > 309
-        return FloatScan(value: if neg then 0.0 - FL_MAX else FL_MAX, end: end, overflow: true)
+        return FloatScan(value: if neg then -FL_MAX else FL_MAX, end: end, overflow: true)
     if dexp < -323
-        return FloatScan(value: if neg then 0.0 - 0.0 else 0.0, end: end, overflow: false)
+        return FloatScan(value: if neg then -0.0 else 0.0, end: end, overflow: false)
     var e10 = ex - frac + dropped
     var z = ds.len()
     while z > 1 and ds[z - 1] == 0 bound 1000000
@@ -1350,8 +1350,8 @@ pub fn float_scan(s: &text, at: i64) -> FloatScan
         e10 -= 1
     let r = fp_value(&sig, e10, false)
     if r.inf
-        return FloatScan(value: if neg then 0.0 - FL_MAX else FL_MAX, end: end, overflow: true)
-    return FloatScan(value: if neg then 0.0 - r.v else r.v, end: end, overflow: false)
+        return FloatScan(value: if neg then -FL_MAX else FL_MAX, end: end, overflow: true)
+    return FloatScan(value: if neg then -r.v else r.v, end: end, overflow: false)
 
 # The whole of s as a decimal number (float_scan's syntax), correctly
 # rounded. BadFloat gives the first byte that is not part of the number,
@@ -1381,18 +1381,24 @@ const OP_BOL: i64 = 6
 const OP_EOL: i64 = 7
 const OP_SAVE: i64 = 8
 const OP_WORD: i64 = 9
+const OP_HSAVE: i64 = 10
+const OP_ECHK: i64 = 11
 const RE_MAX_INS: i64 = 100000
 const RE_MAX_GROUPS: i64 = 1000
 const CP_MAX: i64 = 1114111
 
 # code: the program; classes: [negated, pairs, lo1, hi1, ...] at each
 # class offset (code point ranges); ngroups: capturing groups; names:
-# the name of group k at k - 1 ("" for an unnamed group).
+# the name of group k at k - 1 ("" for an unnamed group); nest: for each
+# instruction, how many greedy loops with a nullable body enclose it;
+# nloops: the deepest such nesting.
 pub struct Regex
     code: List[i64]
     classes: List[i64]
     ngroups: i64
     names: List[text]
+    nest: List[i64]
+    nloops: i64
 
 struct Parser
     pat: List[i64]
@@ -1414,17 +1420,27 @@ fn cat(a: List[i64], b: List[i64]) -> List[i64]
 
 fn ilen(f: &[i64]) -> i64 = (f.len() / 3) as i64
 
+# A greedy loop whose body can match empty follows CPython's rule (the
+# zero-width match protection of MAX_UNTIL in sre): after an iteration
+# that took no character the loop stops, keeping that iteration's
+# groups. OP_HSAVE records where an iteration starts, in a slot of the
+# loop's nesting depth; OP_ECHK leaves the loop when the iteration
+# ended where it started. A lazy loop needs no such step: an empty
+# iteration only reaches its tail again, at lower priority.
 fn star(f: List[i64], lazy: bool) -> List[i64]
     if nullable(&f)
-        # (f+)? keeps the priority of an empty iteration right (Go issue
-        # 46123): f* on a nullable f would drop the empty pass
-        return opt(plus(f, lazy), lazy)
+        if lazy
+            return opt(plus(f, lazy), lazy)
+        let k = ilen(&f)
+        return cat(cat(cat(ins(OP_SPLIT, 1, k + 4), ins(OP_HSAVE, 0, 0)), f), cat(ins(OP_ECHK, 0, 2), ins(OP_JMP, 0 - (k + 3), 0)))
     let n = ilen(&f)
     let head = if lazy then ins(OP_SPLIT, n + 2, 1) else ins(OP_SPLIT, 1, n + 2)
     return cat(cat(head, f), ins(OP_JMP, 0 - (n + 1), 0))
 
 fn plus(f: List[i64], lazy: bool) -> List[i64]
     let n = ilen(&f)
+    if not lazy and nullable(&f)
+        return cat(cat(ins(OP_HSAVE, 0, 0), f), cat(ins(OP_ECHK, 0, 2), ins(OP_SPLIT, 0 - (n + 2), 1)))
     return cat(f, if lazy then ins(OP_SPLIT, 1, 0 - n) else ins(OP_SPLIT, 0 - n, 1))
 
 fn opt(f: List[i64], lazy: bool) -> List[i64]
@@ -1458,8 +1474,11 @@ fn nullable(f: &[i64]) -> bool
             if op == OP_SPLIT
                 st.push(pc + f[3 * pc as usize + 1])
                 st.push(pc + f[3 * pc as usize + 2])
-            if op == OP_SAVE or op == OP_BOL or op == OP_EOL or op == OP_WORD
+            if op == OP_SAVE or op == OP_BOL or op == OP_EOL or op == OP_WORD or op == OP_HSAVE
                 st.push(pc + 1)
+            if op == OP_ECHK
+                st.push(pc + 1)
+                st.push(pc + f[3 * pc as usize + 2])
     return false
 
 fn peek(p: &Parser) -> i64 = if p.pos < p.pat.len() then p.pat[p.pos] else -1
@@ -1865,8 +1884,30 @@ pub fn compile(pattern: &text) -> Regex ! BadRegex
         perr(&mut p)
     if p.err >= 0
         fail BadRegex(at: p.err)
-    let code = cat(cat(cat(ins(OP_SAVE, 0, 0), f), ins(OP_SAVE, 1, 0)), ins(OP_MATCH, 0, 0))
-    return Regex(code: code, classes: copy(p.classes), ngroups: p.ngroups, names: copy(p.names))
+    var code = cat(cat(cat(ins(OP_SAVE, 0, 0), f), ins(OP_SAVE, 1, 0)), ins(OP_MATCH, 0, 0))
+    # loop slots by nesting depth: loops at one depth never run at once
+    var nest: List[i64] = []
+    var d: i64 = 0
+    var maxd: i64 = 0
+    var pc: usize = 0
+    while pc < code.len() / 3 bound 1000000
+        let op = code[3 * pc]
+        if op == OP_HSAVE
+            nest.push(d)
+            code[3 * pc + 1] = d
+            d += 1
+        else
+            if op == OP_ECHK
+                nest.push(d)
+                d -= 1
+                code[3 * pc + 1] = d
+            else
+                nest.push(d)
+        maxd = maxd.max(d)
+        pc += 1
+    if (nest.len() as i64) * (maxd + 1) > RE_MAX_INS * 10
+        fail BadRegex(at: 0)
+    return Regex(code: code, classes: copy(p.classes), ngroups: p.ngroups, names: copy(p.names), nest: nest, nloops: maxd)
 
 fn in_class(cl: &[i64], at: usize, c: i64) -> bool
     let n = cl[at + 1] as usize
@@ -1897,7 +1938,7 @@ pub struct ReScan
     prev: i64
     mode: i64
     origin: i64
-    nslots: i64
+    ncap: i64
     nonempty: bool
     first: bool
     seeds: List[i64]
@@ -1912,15 +1953,19 @@ struct VmMem
 
 fn vm_mem(re: &Regex) -> VmMem
     var m: List[i64] = []
-    for _ in 0..ilen(&re.code)
+    for _ in 0..(ilen(&re.code) * (re.nloops + 1))
         m.push(-1)
     return VmMem(mark: m, stamp: 0, stack: [])
 
 # Add the thread at seeds[k..k + stride] and its epsilon closure at byte
-# offset pos to out, in priority order (each pc once per step).
-fn vm_add(re: &Regex, out: &mut List[i64], mem: &mut VmMem, seeds: &[i64], k: usize, stride: usize, pos: i64, at_end: bool, prev: i64, next: i64)
+# offset pos to out, in priority order. A thread is [pc, groups..., loop
+# starts...]; each pc is taken once per step for each count of the
+# innermost enclosing loops whose iteration began at pos (those decide
+# what OP_ECHK does), so a step visits at most len(program) * (nloops +
+# 1) states.
+fn vm_add(re: &Regex, out: &mut List[i64], mem: &mut VmMem, seeds: &[i64], k: usize, stride: usize, ncap: usize, pos: i64, at_end: bool, prev: i64, next: i64)
     var j: usize = 0
-    while j < stride bound 2002
+    while j < stride bound 1000000
         if j < mem.stack.len()
             mem.stack[j] = seeds[k + j]
         else
@@ -1931,11 +1976,26 @@ fn vm_add(re: &Regex, out: &mut List[i64], mem: &mut VmMem, seeds: &[i64], k: us
         sp -= 1
         let base = sp * stride
         let pc = mem.stack[base]
-        if mem.mark[pc as usize] == mem.stamp
+        var lk: i64 = 0
+        var lv = re.nest[pc as usize]
+        while lv > 0 and mem.stack[base + ncap + lv as usize] == pos bound 1000000
+            lk += 1
+            lv -= 1
+        let mi = (pc * (re.nloops + 1) + lk) as usize
+        if mem.mark[mi] == mem.stamp
             continue
-        mem.mark[pc as usize] = mem.stamp
+        mem.mark[mi] = mem.stamp
         let op = re.code[3 * pc as usize]
         let a = re.code[3 * pc as usize + 1]
+        if op == OP_HSAVE
+            mem.stack[base + ncap + 1 + a as usize] = pos
+            mem.stack[base] = pc + 1
+            sp += 1
+            continue
+        if op == OP_ECHK
+            mem.stack[base] = if mem.stack[base + ncap + 1 + a as usize] == pos then pc + re.code[3 * pc as usize + 2] else pc + 1
+            sp += 1
+            continue
         if op == OP_JMP
             mem.stack[base] = pc + a
             sp += 1
@@ -1944,7 +2004,7 @@ fn vm_add(re: &Regex, out: &mut List[i64], mem: &mut VmMem, seeds: &[i64], k: us
             mem.stack[base] = pc + re.code[3 * pc as usize + 2]
             let top = base + stride
             var t: usize = 0
-            while t < stride bound 2002
+            while t < stride bound 1000000
                 let v = if t == 0 then pc + a else mem.stack[base + t]
                 if top + t < mem.stack.len()
                     mem.stack[top + t] = v
@@ -1954,7 +2014,7 @@ fn vm_add(re: &Regex, out: &mut List[i64], mem: &mut VmMem, seeds: &[i64], k: us
             sp += 2
             continue
         if op == OP_SAVE
-            if (a as usize) + 1 < stride
+            if (a as usize) < ncap
                 mem.stack[base + 1 + a as usize] = pos
             mem.stack[base] = pc + 1
             sp += 1
@@ -1966,7 +2026,7 @@ fn vm_add(re: &Regex, out: &mut List[i64], mem: &mut VmMem, seeds: &[i64], k: us
                 sp += 1
             continue
         var t2: usize = 0
-        while t2 < stride bound 2002
+        while t2 < stride bound 1000000
             out.push(mem.stack[base + t2])
             t2 += 1
 
@@ -1975,19 +2035,22 @@ fn vm_add(re: &Regex, out: &mut List[i64], mem: &mut VmMem, seeds: &[i64], k: us
 fn vm_step(re: &Regex, st: &mut ReScan, c: i64, clen: i64, mem: &mut VmMem)
     if st.done
         return
-    let stride = (st.nslots + 1) as usize
+    let ncap = st.ncap as usize
+    let stride = 1 + ncap + re.nloops as usize
     let at_end = c < 0
     mem.stamp += 1
     var cur: List[i64] = []
     var k: usize = 0
     while k < st.seeds.len() bound 1000000
-        vm_add(re, &mut cur, mem, &st.seeds, k, stride, st.pos, at_end, st.prev, c)
+        vm_add(re, &mut cur, mem, &st.seeds, k, stride, ncap, st.pos, at_end, st.prev, c)
         k += stride
     if not st.found and (st.mode == 0 or st.pos == st.origin)
         var s0: List[i64] = [0]
-        for _ in 0..st.nslots
+        var z: usize = 1
+        while z < stride bound 1000000
             s0.push(-1)
-        vm_add(re, &mut cur, mem, &s0, 0, stride, st.pos, at_end, st.prev, c)
+            z += 1
+        vm_add(re, &mut cur, mem, &s0, 0, stride, ncap, st.pos, at_end, st.prev, c)
     var nxt: List[i64] = []
     var t: usize = 0
     while t < cur.len() bound 1000000
@@ -1998,7 +2061,7 @@ fn vm_step(re: &Regex, st: &mut ReScan, c: i64, clen: i64, mem: &mut VmMem)
                 st.found = true
                 var b: List[i64] = []
                 var j: usize = 1
-                while j < stride bound 2002
+                while j <= ncap bound 1000000
                     b.push(cur[t + j])
                     j += 1
                 st.best = b
@@ -2012,7 +2075,7 @@ fn vm_step(re: &Regex, st: &mut ReScan, c: i64, clen: i64, mem: &mut VmMem)
                 if (op == OP_CHAR and c == a) or (op == OP_ANY and c != 10) or (op == OP_CLASS and in_class(&re.classes, a as usize, c))
                     nxt.push(pc + 1)
                     var j: usize = 1
-                    while j < stride bound 2002
+                    while j < stride bound 1000000
                         nxt.push(cur[t + j])
                         j += 1
         t += stride
@@ -2039,9 +2102,9 @@ fn re_start(s: &text, at: i64) -> usize
         i += 1
     return i
 
-fn vm_search(re: &Regex, s: &text, start: usize, mode: i64, nonempty: bool, nslots: i64, first: bool, mem: &mut VmMem) -> ReScan
+fn vm_search(re: &Regex, s: &text, start: usize, mode: i64, nonempty: bool, ncap: i64, first: bool, mem: &mut VmMem) -> ReScan
     let n = s.len_bytes()
-    var st = ReScan(pos: start as i64, prev: prev_cp(s, start), mode: mode, origin: start as i64, nslots: nslots, nonempty: nonempty, first: first, seeds: [], found: false, best: [], done: false)
+    var st = ReScan(pos: start as i64, prev: prev_cp(s, start), mode: mode, origin: start as i64, ncap: ncap, nonempty: nonempty, first: first, seeds: [], found: false, best: [], done: false)
     var i = start
     while not st.done and i < n bound 1000000
         let l = seq_len(s[i] as i64)
@@ -2323,7 +2386,7 @@ pub fn re_split(re: &Regex, s: &text, maxsplit: i64) -> List[text]
 # Offsets in the result count from the start of the first chunk. st.done
 # turns true once the result is known, and later chunks are ignored.
 
-pub fn re_scan_new(re: &Regex) -> ReScan = ReScan(pos: 0, prev: -1, mode: 0, origin: 0, nslots: 2 * (re.ngroups + 1), nonempty: false, first: false, seeds: [], found: false, best: [], done: false)
+pub fn re_scan_new(re: &Regex) -> ReScan = ReScan(pos: 0, prev: -1, mode: 0, origin: 0, ncap: 2 * (re.ngroups + 1), nonempty: false, first: false, seeds: [], found: false, best: [], done: false)
 
 pub fn re_scan_feed(re: &Regex, st: &mut ReScan, chunk: &text)
     var mem = vm_mem(re)
