@@ -16,7 +16,7 @@ fn enc_cat(a: List[i64], b: &[i64]) -> List[i64]
         o.push(x)
     return o
 
-fn bytes_of(s: &text) -> List[i64]
+fn enc_bytes_of(s: &text) -> List[i64]
     var o: List[i64] = []
     var i: usize = 0
     while i < s.len_bytes() bound 16777216
@@ -209,7 +209,7 @@ fn enc_map(ks: List[List[i64]], vs: List[List[i64]]) -> List[i64]
     return o
 
 fn enc_text(t: &text) -> List[i64]
-    let b = bytes_of(t)
+    let b = enc_bytes_of(t)
     return enc_cat(cbor_head(3, b.len() as i64), &b)
 
 fn enc_int(v: i64) -> List[i64] = if v >= 0 then cbor_head(0, v) else cbor_head(1, -1 - v)

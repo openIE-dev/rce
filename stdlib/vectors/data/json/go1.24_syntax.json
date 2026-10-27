@@ -1,0 +1,8439 @@
+{
+ "go": "go1.24.7",
+ "lone": [
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 7,
+   "msg": "unexpected end of JSON input"
+  },
+  {
+   "valid": false,
+   "offset": 8,
+   "msg": "invalid character ' ' in string escape code"
+  },
+  {
+   "valid": false,
+   "offset": 9,
+   "msg": "invalid character ' ' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": false,
+   "offset": 10,
+   "msg": "invalid character ' ' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": false,
+   "offset": 11,
+   "msg": "invalid character ' ' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 12,
+   "msg": "invalid character '\"' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": false,
+   "offset": 6,
+   "msg": "invalid character '\"' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": false,
+   "offset": 13,
+   "msg": "invalid character 'g' in \\u hexadecimal character escape"
+  }
+ ],
+ "mutations": [
+  {
+   "valid": false,
+   "offset": 0,
+   "msg": "unexpected end of JSON input"
+  },
+  {
+   "valid": false,
+   "offset": 1,
+   "msg": "unexpected end of JSON input"
+  },
+  {
+   "valid": false,
+   "offset": 1,
+   "msg": "unexpected end of JSON input"
+  },
+  {
+   "valid": false,
+   "offset": 1,
+   "msg": "invalid character ']' looking for beginning of value"
+  },
+  {
+   "valid": false,
+   "offset": 1,
+   "msg": "unexpected end of JSON input"
+  },
+  {
+   "valid": false,
+   "offset": 1,
+   "msg": "invalid character '}' looking for beginning of value"
+  },
+  {
+   "valid": false,
+   "offset": 4,
+   "msg": "invalid character ']' looking for beginning of value"
+  },
+  {
+   "valid": false,
+   "offset": 8,
+   "msg": "invalid character '}' looking for beginning of object key string"
+  },
+  {
+   "valid": false,
+   "offset": 3,
+   "msg": "invalid character '1' after array element"
+  },
+  {
+   "valid": false,
+   "offset": 3,
+   "msg": "invalid character ']' in numeric literal"
+  },
+  {
+   "valid": false,
+   "offset": 4,
+   "msg": "invalid character ']' after decimal point in numeric literal"
+  },
+  {
+   "valid": false,
+   "offset": 4,
+   "msg": "invalid character ']' in exponent of numeric literal"
+  },
+  {
+   "valid": false,
+   "offset": 5,
+   "msg": "invalid character ']' in exponent of numeric literal"
+  },
+  {
+   "valid": false,
+   "offset": 2,
+   "msg": "invalid character '.' looking for beginning of value"
+  },
+  {
+   "valid": false,
+   "offset": 2,
+   "msg": "invalid character '+' looking for beginning of value"
+  },
+  {
+   "valid": false,
+   "offset": 3,
+   "msg": "invalid character 'x' after array element"
+  },
+  {
+   "valid": false,
+   "offset": 3,
+   "msg": "invalid character 'x' in string escape code"
+  },
+  {
+   "valid": false,
+   "offset": 6,
+   "msg": "invalid character '\"' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": false,
+   "offset": 6,
+   "msg": "invalid character 'G' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": false,
+   "offset": 3,
+   "msg": "invalid character '\\t' in string literal"
+  },
+  {
+   "valid": false,
+   "offset": 3,
+   "msg": "invalid character ' ' in literal null (expecting 'l')"
+  },
+  {
+   "valid": false,
+   "offset": 5,
+   "msg": "invalid character 'l' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 1,
+   "msg": "invalid character 'T' looking for beginning of value"
+  },
+  {
+   "valid": false,
+   "offset": 4,
+   "msg": "invalid character '2' after array element"
+  },
+  {
+   "valid": false,
+   "offset": 6,
+   "msg": "invalid character '\"' after object key"
+  },
+  {
+   "valid": false,
+   "offset": 6,
+   "msg": "invalid character '}' looking for beginning of value"
+  },
+  {
+   "valid": false,
+   "offset": 2,
+   "msg": "invalid character '1' looking for beginning of object key string"
+  },
+  {
+   "valid": false,
+   "offset": 4,
+   "msg": "invalid character '[' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 5,
+   "msg": "invalid character '\"' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 3,
+   "msg": "invalid character '2' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 3,
+   "msg": "invalid character '1' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 2,
+   "msg": "invalid character '0' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 3,
+   "msg": "invalid character 'e' after decimal point in numeric literal"
+  },
+  {
+   "valid": false,
+   "offset": 4,
+   "msg": "invalid character '.' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 4,
+   "msg": "unexpected end of JSON input"
+  },
+  {
+   "valid": false,
+   "offset": 11,
+   "msg": "unexpected end of JSON input"
+  },
+  {
+   "valid": false,
+   "offset": 2,
+   "msg": "invalid character ' ' in string escape code"
+  },
+  {
+   "valid": false,
+   "offset": 3,
+   "msg": "invalid character ' ' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": false,
+   "offset": 1,
+   "msg": "invalid character 'ï' looking for beginning of value"
+  },
+  {
+   "valid": false,
+   "offset": 1,
+   "msg": "invalid character '/' looking for beginning of value"
+  },
+  {
+   "valid": false,
+   "offset": 3,
+   "msg": "invalid character '/' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 2,
+   "msg": "invalid character '\\'' looking for beginning of value"
+  },
+  {
+   "valid": false,
+   "offset": 2,
+   "msg": "invalid character 'N' looking for beginning of value"
+  },
+  {
+   "valid": false,
+   "offset": 2,
+   "msg": "invalid character 'I' looking for beginning of value"
+  },
+  {
+   "valid": false,
+   "offset": 3,
+   "msg": "invalid character 'I' in numeric literal"
+  },
+  {
+   "valid": false,
+   "offset": 8,
+   "msg": "invalid character '\"' after object key:value pair"
+  },
+  {
+   "valid": false,
+   "offset": 2,
+   "msg": "invalid character ',' looking for beginning of value"
+  },
+  {
+   "valid": false,
+   "offset": 4,
+   "msg": "invalid character ',' looking for beginning of value"
+  },
+  {
+   "valid": false,
+   "offset": 2,
+   "msg": "invalid character ',' looking for beginning of object key string"
+  },
+  {
+   "valid": false,
+   "offset": 8,
+   "msg": "invalid character ',' looking for beginning of object key string"
+  },
+  {
+   "valid": false,
+   "offset": 1,
+   "msg": "invalid character 'Â' looking for beginning of value"
+  },
+  {
+   "valid": false,
+   "offset": 2,
+   "msg": "invalid character 'Â' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 2,
+   "msg": "invalid character 'â' looking for beginning of value"
+  },
+  {
+   "valid": false,
+   "offset": 2,
+   "msg": "invalid character '\\x00' in string literal"
+  },
+  {
+   "valid": false,
+   "offset": 2,
+   "msg": "invalid character '\\x1f' in string literal"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 81,
+   "msg": "invalid character 'ï' in string escape code"
+  },
+  {
+   "valid": false,
+   "offset": 2,
+   "msg": "invalid character ' ' in literal null (expecting 'l')"
+  },
+  {
+   "valid": false,
+   "offset": 22,
+   "msg": "invalid character 'f' after array element"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 13,
+   "msg": "invalid character '\\x00' after array element"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 5,
+   "msg": "unexpected end of JSON input"
+  },
+  {
+   "valid": false,
+   "offset": 5,
+   "msg": "invalid character '}' in literal true (expecting 'u')"
+  },
+  {
+   "valid": false,
+   "offset": 3,
+   "msg": "invalid character '[' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 3,
+   "msg": "invalid character 't' in literal null (expecting 'l')"
+  },
+  {
+   "valid": false,
+   "offset": 5,
+   "msg": "invalid character 'e' in literal true (expecting 'u')"
+  },
+  {
+   "valid": false,
+   "offset": 9,
+   "msg": "unexpected end of JSON input"
+  },
+  {
+   "valid": false,
+   "offset": 1,
+   "msg": "unexpected end of JSON input"
+  },
+  {
+   "valid": false,
+   "offset": 33,
+   "msg": "invalid character 'ï' in string escape code"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 51,
+   "msg": "invalid character 'u' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": false,
+   "offset": 2,
+   "msg": "invalid character 'f' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 8,
+   "msg": "invalid character '{' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 21,
+   "msg": "unexpected end of JSON input"
+  },
+  {
+   "valid": false,
+   "offset": 2,
+   "msg": "invalid character '+' in literal false (expecting 'a')"
+  },
+  {
+   "valid": false,
+   "offset": 6,
+   "msg": "invalid character 'Â' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 3,
+   "msg": "invalid character 'r' looking for beginning of value"
+  },
+  {
+   "valid": false,
+   "offset": 33,
+   "msg": "invalid character '1' in string escape code"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 3,
+   "msg": "invalid character 'n' in literal null (expecting 'l')"
+  },
+  {
+   "valid": false,
+   "offset": 40,
+   "msg": "invalid character '\\n' in string literal"
+  },
+  {
+   "valid": false,
+   "offset": 7,
+   "msg": "unexpected end of JSON input"
+  },
+  {
+   "valid": false,
+   "offset": 1,
+   "msg": "invalid character 'u' looking for beginning of value"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 16,
+   "msg": "invalid character ' ' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": false,
+   "offset": 5,
+   "msg": "invalid character 's' in literal false (expecting 'e')"
+  },
+  {
+   "valid": false,
+   "offset": 19,
+   "msg": "invalid character 'ï' after array element"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 57,
+   "msg": "invalid character 'x' after array element"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 6,
+   "msg": "invalid character '}' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": false,
+   "offset": 11,
+   "msg": "invalid character 'l' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 77,
+   "msg": "invalid character ',' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": false,
+   "offset": 46,
+   "msg": "invalid character '}' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 15,
+   "msg": "invalid character '}' looking for beginning of value"
+  },
+  {
+   "valid": false,
+   "offset": 9,
+   "msg": "invalid character ' ' in exponent of numeric literal"
+  },
+  {
+   "valid": false,
+   "offset": 12,
+   "msg": "invalid character '\\\\' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 4,
+   "msg": "invalid character '\"' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": false,
+   "offset": 9,
+   "msg": "invalid character ' ' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": false,
+   "offset": 326,
+   "msg": "invalid character 'e' looking for beginning of value"
+  },
+  {
+   "valid": false,
+   "offset": 5,
+   "msg": "invalid character '\\r' in literal null (expecting 'l')"
+  },
+  {
+   "valid": false,
+   "offset": 4,
+   "msg": "invalid character ' ' in literal false (expecting 'l')"
+  },
+  {
+   "valid": false,
+   "offset": 2,
+   "msg": "invalid character '\\x1f' in string literal"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 0,
+   "msg": "unexpected end of JSON input"
+  },
+  {
+   "valid": false,
+   "offset": 5,
+   "msg": "invalid character 'u' after top-level value"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 8,
+   "msg": "invalid character '\"' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": false,
+   "offset": 81,
+   "msg": "invalid character '\"' after object key"
+  },
+  {
+   "valid": false,
+   "offset": 2,
+   "msg": "invalid character 'r' looking for beginning of value"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 2,
+   "msg": "invalid character '1' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 2,
+   "msg": "unexpected end of JSON input"
+  },
+  {
+   "valid": false,
+   "offset": 177,
+   "msg": "invalid character ']' after top-level value"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 369,
+   "msg": "invalid character ' ' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": false,
+   "offset": 9,
+   "msg": "invalid character 'e' in literal false (expecting 's')"
+  },
+  {
+   "valid": false,
+   "offset": 2,
+   "msg": "invalid character '\\x00' in literal true (expecting 'r')"
+  },
+  {
+   "valid": false,
+   "offset": 15,
+   "msg": "invalid character '\\\\' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": false,
+   "offset": 4,
+   "msg": "invalid character ' ' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 10,
+   "msg": "invalid character ',' in string escape code"
+  },
+  {
+   "valid": false,
+   "offset": 48,
+   "msg": "invalid character '~' in string escape code"
+  },
+  {
+   "valid": false,
+   "offset": 7,
+   "msg": "invalid character '\\\\' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 6,
+   "msg": "invalid character '9' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 7,
+   "msg": "invalid character '\"' after top-level value"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 23,
+   "msg": "invalid character '}' after array element"
+  },
+  {
+   "valid": false,
+   "offset": 1,
+   "msg": "invalid character ']' looking for beginning of value"
+  },
+  {
+   "valid": false,
+   "offset": 5,
+   "msg": "invalid character 't' in literal false (expecting 'e')"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 3,
+   "msg": "invalid character ' ' in literal true (expecting 'e')"
+  },
+  {
+   "valid": false,
+   "offset": 6,
+   "msg": "invalid character ' ' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": false,
+   "offset": 4,
+   "msg": "invalid character 't' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 12,
+   "msg": "invalid character '9' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 6,
+   "msg": "unexpected end of JSON input"
+  },
+  {
+   "valid": false,
+   "offset": 4,
+   "msg": "invalid character 'e' looking for beginning of value"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 18,
+   "msg": "invalid character ' ' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 19,
+   "msg": "unexpected end of JSON input"
+  },
+  {
+   "valid": false,
+   "offset": 73,
+   "msg": "invalid character 'Ã' in string escape code"
+  },
+  {
+   "valid": false,
+   "offset": 7,
+   "msg": "invalid character '{' in literal true (expecting 'e')"
+  },
+  {
+   "valid": false,
+   "offset": 1,
+   "msg": "invalid character 'e' looking for beginning of value"
+  },
+  {
+   "valid": false,
+   "offset": 2,
+   "msg": "invalid character '\\x1f' in string literal"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 1,
+   "msg": "invalid character ' ' in literal true (expecting 'r')"
+  },
+  {
+   "valid": false,
+   "offset": 4,
+   "msg": "invalid character 'r' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 4,
+   "msg": "invalid character '5' in literal null (expecting 'l')"
+  },
+  {
+   "valid": false,
+   "offset": 22,
+   "msg": "invalid character '\\x1f' after array element"
+  },
+  {
+   "valid": false,
+   "offset": 3,
+   "msg": "invalid character ' ' in literal null (expecting 'l')"
+  },
+  {
+   "valid": false,
+   "offset": 5,
+   "msg": "invalid character '[' after array element"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 2,
+   "msg": "unexpected end of JSON input"
+  },
+  {
+   "valid": false,
+   "offset": 2,
+   "msg": "invalid character 'ï' in literal null (expecting 'u')"
+  },
+  {
+   "valid": false,
+   "offset": 17,
+   "msg": "invalid character '-' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": false,
+   "offset": 2,
+   "msg": "invalid character ' ' in numeric literal"
+  },
+  {
+   "valid": false,
+   "offset": 13,
+   "msg": "invalid character 't' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 12,
+   "msg": "invalid character '-' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 93,
+   "msg": "invalid character ']' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": false,
+   "offset": 25,
+   "msg": "unexpected end of JSON input"
+  },
+  {
+   "valid": false,
+   "offset": 5,
+   "msg": "invalid character '\\r' in literal null (expecting 'u')"
+  },
+  {
+   "valid": false,
+   "offset": 2,
+   "msg": "invalid character '}' looking for beginning of value"
+  },
+  {
+   "valid": false,
+   "offset": 229,
+   "msg": "unexpected end of JSON input"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 5,
+   "msg": "invalid character '\"' in literal false (expecting 'e')"
+  },
+  {
+   "valid": false,
+   "offset": 3,
+   "msg": "invalid character '}' in literal false (expecting 'l')"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 129,
+   "msg": "invalid character '}' after array element"
+  },
+  {
+   "valid": false,
+   "offset": 77,
+   "msg": "invalid character ' ' in literal true (expecting 'u')"
+  },
+  {
+   "valid": false,
+   "offset": 260,
+   "msg": "invalid character 'l' after object key:value pair"
+  },
+  {
+   "valid": false,
+   "offset": 1,
+   "msg": "invalid character 'l' looking for beginning of value"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 9,
+   "msg": "invalid character 'x' after array element"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 7,
+   "msg": "invalid character ' ' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": false,
+   "offset": 110,
+   "msg": "invalid character '\\\\' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": false,
+   "offset": 1,
+   "msg": "invalid character 'E' looking for beginning of value"
+  },
+  {
+   "valid": false,
+   "offset": 4,
+   "msg": "unexpected end of JSON input"
+  },
+  {
+   "valid": false,
+   "offset": 1,
+   "msg": "invalid character 'u' looking for beginning of value"
+  },
+  {
+   "valid": false,
+   "offset": 21,
+   "msg": "invalid character ' ' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 31,
+   "msg": "invalid character '.' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 26,
+   "msg": "invalid character 'Ã' after object key"
+  },
+  {
+   "valid": false,
+   "offset": 3,
+   "msg": "invalid character '2' after top-level value"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 9,
+   "msg": "unexpected end of JSON input"
+  },
+  {
+   "valid": false,
+   "offset": 5,
+   "msg": "invalid character '4' after top-level value"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 67,
+   "msg": "invalid character '[' in string escape code"
+  },
+  {
+   "valid": false,
+   "offset": 216,
+   "msg": "invalid character '\"' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": false,
+   "offset": 9,
+   "msg": "invalid character ' ' in exponent of numeric literal"
+  },
+  {
+   "valid": false,
+   "offset": 234,
+   "msg": "invalid character '\\\\' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 7,
+   "msg": "invalid character ' ' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": false,
+   "offset": 17,
+   "msg": "invalid character '[' after top-level value"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 86,
+   "msg": "unexpected end of JSON input"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 38,
+   "msg": "invalid character ' ' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": false,
+   "offset": 22,
+   "msg": "invalid character 'e' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 11,
+   "msg": "unexpected end of JSON input"
+  },
+  {
+   "valid": false,
+   "offset": 295,
+   "msg": "invalid character ' ' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": false,
+   "offset": 104,
+   "msg": "invalid character ' ' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": false,
+   "offset": 1,
+   "msg": "invalid character 'ð' looking for beginning of value"
+  },
+  {
+   "valid": false,
+   "offset": 7,
+   "msg": "unexpected end of JSON input"
+  },
+  {
+   "valid": false,
+   "offset": 4,
+   "msg": "invalid character '\\x00' in literal null (expecting 'l')"
+  },
+  {
+   "valid": false,
+   "offset": 2,
+   "msg": "invalid character 'l' looking for beginning of value"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 56,
+   "msg": "invalid character ' ' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 2,
+   "msg": "invalid character 'l' in literal null (expecting 'u')"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 10,
+   "msg": "invalid character '\"' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 5,
+   "msg": "invalid character ' ' in literal null (expecting 'u')"
+  },
+  {
+   "valid": false,
+   "offset": 6,
+   "msg": "unexpected end of JSON input"
+  },
+  {
+   "valid": false,
+   "offset": 6,
+   "msg": "invalid character '\\x00' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 184,
+   "msg": "unexpected end of JSON input"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 55,
+   "msg": "invalid character '{' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": false,
+   "offset": 74,
+   "msg": "unexpected end of JSON input"
+  },
+  {
+   "valid": false,
+   "offset": 98,
+   "msg": "invalid character '\\\\' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 7,
+   "msg": "invalid character 'l' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 182,
+   "msg": "invalid character 'ï' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 8,
+   "msg": "invalid character ' ' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": false,
+   "offset": 59,
+   "msg": "invalid character '.' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": false,
+   "offset": 8,
+   "msg": "invalid character 't' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 8,
+   "msg": "unexpected end of JSON input"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 6,
+   "msg": "invalid character 'n' in literal null (expecting 'l')"
+  },
+  {
+   "valid": false,
+   "offset": 18,
+   "msg": "invalid character 'â' after top-level value"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 34,
+   "msg": "invalid character '[' in literal true (expecting 'e')"
+  },
+  {
+   "valid": false,
+   "offset": 4,
+   "msg": "invalid character 'a' in literal false (expecting 's')"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 9,
+   "msg": "invalid character '}' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 3,
+   "msg": "invalid character '\"' after top-level value"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 7,
+   "msg": "invalid character '+' after top-level value"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 244,
+   "msg": "invalid character ' ' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": false,
+   "offset": 4,
+   "msg": "invalid character ':' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 7,
+   "msg": "invalid character '.' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 6,
+   "msg": "invalid character '\\t' in literal false (expecting 'e')"
+  },
+  {
+   "valid": false,
+   "offset": 19,
+   "msg": "invalid character ',' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 34,
+   "msg": "invalid character '(' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": false,
+   "offset": 311,
+   "msg": "invalid character '\\\\' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": false,
+   "offset": 29,
+   "msg": "invalid character ' ' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 6,
+   "msg": "invalid character '2' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 6,
+   "msg": "invalid character ' ' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": false,
+   "offset": 112,
+   "msg": "invalid character 't' after object key:value pair"
+  },
+  {
+   "valid": false,
+   "offset": 1,
+   "msg": "invalid character ']' looking for beginning of value"
+  },
+  {
+   "valid": false,
+   "offset": 38,
+   "msg": "invalid character '.' after array element"
+  },
+  {
+   "valid": false,
+   "offset": 2,
+   "msg": "invalid character ' ' in literal true (expecting 'u')"
+  },
+  {
+   "valid": false,
+   "offset": 3,
+   "msg": "invalid character '}' looking for beginning of value"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 4,
+   "msg": "invalid character 'Ã' in literal null (expecting 'l')"
+  },
+  {
+   "valid": false,
+   "offset": 5,
+   "msg": "invalid character 'Ã' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 4,
+   "msg": "unexpected end of JSON input"
+  },
+  {
+   "valid": false,
+   "offset": 1,
+   "msg": "invalid character '\\\\' looking for beginning of value"
+  },
+  {
+   "valid": false,
+   "offset": 3,
+   "msg": "unexpected end of JSON input"
+  },
+  {
+   "valid": false,
+   "offset": 1,
+   "msg": "invalid character ' ' in literal null (expecting 'u')"
+  },
+  {
+   "valid": false,
+   "offset": 4,
+   "msg": "invalid character '\\r' in string literal"
+  },
+  {
+   "valid": false,
+   "offset": 6,
+   "msg": "invalid character '.' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 33,
+   "msg": "invalid character ' ' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": false,
+   "offset": 1,
+   "msg": "invalid character 'e' looking for beginning of value"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 17,
+   "msg": "invalid character ':' in string escape code"
+  },
+  {
+   "valid": false,
+   "offset": 2,
+   "msg": "unexpected end of JSON input"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 2,
+   "msg": "unexpected end of JSON input"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 56,
+   "msg": "invalid character '\\t' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": false,
+   "offset": 5,
+   "msg": "invalid character 'x' after array element"
+  },
+  {
+   "valid": false,
+   "offset": 6,
+   "msg": "invalid character '6' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 5,
+   "msg": "invalid character '+' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": false,
+   "offset": 76,
+   "msg": "invalid character ',' looking for beginning of value"
+  },
+  {
+   "valid": false,
+   "offset": 2,
+   "msg": "unexpected end of JSON input"
+  },
+  {
+   "valid": false,
+   "offset": 1,
+   "msg": "invalid character '\\\\' looking for beginning of value"
+  },
+  {
+   "valid": false,
+   "offset": 335,
+   "msg": "invalid character '\\n' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": false,
+   "offset": 92,
+   "msg": "unexpected end of JSON input"
+  },
+  {
+   "valid": false,
+   "offset": 107,
+   "msg": "invalid character '\\r' in string literal"
+  },
+  {
+   "valid": false,
+   "offset": 4,
+   "msg": "invalid character 'E' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 7,
+   "msg": "invalid character ' ' in exponent of numeric literal"
+  },
+  {
+   "valid": false,
+   "offset": 5,
+   "msg": "invalid character ' ' in literal true (expecting 'r')"
+  },
+  {
+   "valid": false,
+   "offset": 3,
+   "msg": "invalid character 'e' looking for beginning of value"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 3,
+   "msg": "invalid character 'a' in literal false (expecting 'l')"
+  },
+  {
+   "valid": false,
+   "offset": 3,
+   "msg": "invalid character ']' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 1,
+   "msg": "invalid character '\\x00' looking for beginning of value"
+  },
+  {
+   "valid": false,
+   "offset": 3,
+   "msg": "invalid character ' ' in literal false (expecting 'l')"
+  },
+  {
+   "valid": false,
+   "offset": 2,
+   "msg": "invalid character ',' looking for beginning of value"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 4,
+   "msg": "invalid character ' ' in literal true (expecting 'u')"
+  },
+  {
+   "valid": false,
+   "offset": 2,
+   "msg": "invalid character 'r' looking for beginning of object key string"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 4,
+   "msg": "invalid character '2' in literal null (expecting 'l')"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 3,
+   "msg": "invalid character ',' looking for beginning of value"
+  },
+  {
+   "valid": false,
+   "offset": 7,
+   "msg": "invalid character '\"' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": false,
+   "offset": 49,
+   "msg": "invalid character '0' in string escape code"
+  },
+  {
+   "valid": false,
+   "offset": 1,
+   "msg": "invalid character 'r' looking for beginning of value"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 26,
+   "msg": "invalid character '\"' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": false,
+   "offset": 8,
+   "msg": "invalid character '9' in string escape code"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 24,
+   "msg": "unexpected end of JSON input"
+  },
+  {
+   "valid": false,
+   "offset": 3,
+   "msg": "invalid character 'ï' looking for beginning of value"
+  },
+  {
+   "valid": false,
+   "offset": 64,
+   "msg": "unexpected end of JSON input"
+  },
+  {
+   "valid": false,
+   "offset": 4,
+   "msg": "invalid character '\\\\' looking for beginning of value"
+  },
+  {
+   "valid": false,
+   "offset": 17,
+   "msg": "invalid character '1' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 17,
+   "msg": "invalid character 'u' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": false,
+   "offset": 2,
+   "msg": "invalid character '\\\\' looking for beginning of value"
+  },
+  {
+   "valid": false,
+   "offset": 4,
+   "msg": "invalid character ' ' in literal null (expecting 'l')"
+  },
+  {
+   "valid": false,
+   "offset": 2,
+   "msg": "unexpected end of JSON input"
+  },
+  {
+   "valid": false,
+   "offset": 1,
+   "msg": "invalid character '\\x00' looking for beginning of value"
+  },
+  {
+   "valid": false,
+   "offset": 2,
+   "msg": "invalid character '\\n' in string literal"
+  },
+  {
+   "valid": false,
+   "offset": 123,
+   "msg": "invalid character ' ' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": false,
+   "offset": 9,
+   "msg": "unexpected end of JSON input"
+  },
+  {
+   "valid": false,
+   "offset": 6,
+   "msg": "invalid character '0' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 2,
+   "msg": "invalid character '\\\\' looking for beginning of value"
+  },
+  {
+   "valid": false,
+   "offset": 4,
+   "msg": "invalid character '\\x00' in literal null (expecting 'l')"
+  },
+  {
+   "valid": false,
+   "offset": 6,
+   "msg": "invalid character '.' in string escape code"
+  },
+  {
+   "valid": false,
+   "offset": 5,
+   "msg": "invalid character 'e' after top-level value"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 13,
+   "msg": "invalid character '\\\\' after object key"
+  },
+  {
+   "valid": false,
+   "offset": 25,
+   "msg": "invalid character '*' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": false,
+   "offset": 2,
+   "msg": "invalid character '\\\\' in literal true (expecting 'r')"
+  },
+  {
+   "valid": false,
+   "offset": 14,
+   "msg": "invalid character '\\x1f' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 1,
+   "msg": "invalid character 'Ã' looking for beginning of value"
+  },
+  {
+   "valid": false,
+   "offset": 5,
+   "msg": "invalid character '{' looking for beginning of object key string"
+  },
+  {
+   "valid": false,
+   "offset": 3,
+   "msg": "invalid character '\\n' in literal null (expecting 'l')"
+  },
+  {
+   "valid": false,
+   "offset": 4,
+   "msg": "invalid character ' ' in literal null (expecting 'l')"
+  },
+  {
+   "valid": false,
+   "offset": 6,
+   "msg": "invalid character ' ' in literal false (expecting 'a')"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 3,
+   "msg": "invalid character ' ' in string escape code"
+  },
+  {
+   "valid": false,
+   "offset": 5,
+   "msg": "invalid character '\\\\' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 8,
+   "msg": "invalid character 'l' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 10,
+   "msg": "invalid character '\\\\' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 25,
+   "msg": "invalid character ':' in literal null (expecting 'u')"
+  },
+  {
+   "valid": false,
+   "offset": 32,
+   "msg": "invalid character '{' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": false,
+   "offset": 4,
+   "msg": "invalid character '0' after top-level value"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 2,
+   "msg": "invalid character 'f' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 8,
+   "msg": "invalid character '[' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 5,
+   "msg": "unexpected end of JSON input"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 3,
+   "msg": "invalid character 'ï' looking for beginning of value"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 5,
+   "msg": "invalid character '\\x1f' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 1,
+   "msg": "invalid character ':' looking for beginning of value"
+  },
+  {
+   "valid": false,
+   "offset": 6,
+   "msg": "invalid character '\\x1f' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 3,
+   "msg": "invalid character '9' in literal null (expecting 'l')"
+  },
+  {
+   "valid": false,
+   "offset": 18,
+   "msg": "invalid character '\"' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": false,
+   "offset": 2,
+   "msg": "invalid character '}' after top-level value"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 1,
+   "msg": "invalid character 'E' looking for beginning of value"
+  },
+  {
+   "valid": false,
+   "offset": 2,
+   "msg": "invalid character 'n' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 2,
+   "msg": "invalid character '.' in literal null (expecting 'u')"
+  },
+  {
+   "valid": false,
+   "offset": 3,
+   "msg": "invalid character '}' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 81,
+   "msg": "invalid character ' ' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": false,
+   "offset": 3,
+   "msg": "invalid character '\\n' in literal false (expecting 'a')"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 10,
+   "msg": "invalid character '\"' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": false,
+   "offset": 33,
+   "msg": "invalid character 'e' in exponent of numeric literal"
+  },
+  {
+   "valid": false,
+   "offset": 21,
+   "msg": "invalid character '\\t' in exponent of numeric literal"
+  },
+  {
+   "valid": false,
+   "offset": 3,
+   "msg": "unexpected end of JSON input"
+  },
+  {
+   "valid": false,
+   "offset": 59,
+   "msg": "unexpected end of JSON input"
+  },
+  {
+   "valid": false,
+   "offset": 5,
+   "msg": "invalid character '\\n' in literal false (expecting 'e')"
+  },
+  {
+   "valid": false,
+   "offset": 1,
+   "msg": "invalid character ' ' in literal false (expecting 'a')"
+  },
+  {
+   "valid": false,
+   "offset": 2,
+   "msg": "invalid character '.' looking for beginning of value"
+  },
+  {
+   "valid": false,
+   "offset": 1,
+   "msg": "invalid character 'ï' looking for beginning of value"
+  },
+  {
+   "valid": false,
+   "offset": 2,
+   "msg": "invalid character '1' in literal true (expecting 'r')"
+  },
+  {
+   "valid": false,
+   "offset": 74,
+   "msg": "invalid character '5' after object key:value pair"
+  },
+  {
+   "valid": false,
+   "offset": 4,
+   "msg": "invalid character ' ' in exponent of numeric literal"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 248,
+   "msg": "invalid character 'a' looking for beginning of value"
+  },
+  {
+   "valid": false,
+   "offset": 33,
+   "msg": "invalid character 't' after array element"
+  },
+  {
+   "valid": false,
+   "offset": 15,
+   "msg": "invalid character '[' in string escape code"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 1,
+   "msg": "invalid character 'r' looking for beginning of value"
+  },
+  {
+   "valid": false,
+   "offset": 12,
+   "msg": "invalid character '\\t' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 6,
+   "msg": "invalid character 'l' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 15,
+   "msg": "invalid character '1' looking for beginning of object key string"
+  },
+  {
+   "valid": false,
+   "offset": 21,
+   "msg": "invalid character '~' after object key:value pair"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 210,
+   "msg": "invalid character ' ' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": false,
+   "offset": 20,
+   "msg": "unexpected end of JSON input"
+  },
+  {
+   "valid": false,
+   "offset": 4,
+   "msg": "unexpected end of JSON input"
+  },
+  {
+   "valid": false,
+   "offset": 4,
+   "msg": "unexpected end of JSON input"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 7,
+   "msg": "invalid character 'r' after top-level value"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 4,
+   "msg": "invalid character '8' in literal null (expecting 'l')"
+  },
+  {
+   "valid": false,
+   "offset": 19,
+   "msg": "invalid character '{' after top-level value"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 11,
+   "msg": "unexpected end of JSON input"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 5,
+   "msg": "invalid character ',' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 158,
+   "msg": "unexpected end of JSON input"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 1,
+   "msg": "invalid character 'E' looking for beginning of value"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 10,
+   "msg": "unexpected end of JSON input"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 45,
+   "msg": "invalid character ' ' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 55,
+   "msg": "invalid character '\\\\' looking for beginning of object key string"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 4,
+   "msg": "invalid character 'n' in literal null (expecting 'u')"
+  },
+  {
+   "valid": false,
+   "offset": 8,
+   "msg": "invalid character 'e' in literal false (expecting 's')"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 23,
+   "msg": "invalid character ']' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 18,
+   "msg": "invalid character ':' in string escape code"
+  },
+  {
+   "valid": false,
+   "offset": 4,
+   "msg": "invalid character '\\n' in string literal"
+  },
+  {
+   "valid": false,
+   "offset": 2,
+   "msg": "invalid character 'u' looking for beginning of value"
+  },
+  {
+   "valid": false,
+   "offset": 48,
+   "msg": "invalid character ' ' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 5,
+   "msg": "invalid character 'e' in literal null (expecting 'l')"
+  },
+  {
+   "valid": false,
+   "offset": 6,
+   "msg": "invalid character '\\t' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 1,
+   "msg": "invalid character '\\x1f' looking for beginning of value"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 5,
+   "msg": "invalid character '}' after top-level value"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 4,
+   "msg": "invalid character ':' in literal null (expecting 'l')"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 16,
+   "msg": "invalid character ',' in string escape code"
+  },
+  {
+   "valid": false,
+   "offset": 6,
+   "msg": "invalid character 'u' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": false,
+   "offset": 4,
+   "msg": "invalid character 'e' in literal false (expecting 'a')"
+  },
+  {
+   "valid": false,
+   "offset": 2,
+   "msg": "invalid character '\\\\' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 6,
+   "msg": "invalid character '\"' after top-level value"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 2,
+   "msg": "unexpected end of JSON input"
+  },
+  {
+   "valid": false,
+   "offset": 37,
+   "msg": "invalid character '9' after object key"
+  },
+  {
+   "valid": false,
+   "offset": 2,
+   "msg": "invalid character 'e' in literal null (expecting 'u')"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 5,
+   "msg": "invalid character ']' after top-level value"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 3,
+   "msg": "invalid character ']' after top-level value"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 4,
+   "msg": "invalid character '\"' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 1,
+   "msg": "unexpected end of JSON input"
+  },
+  {
+   "valid": false,
+   "offset": 40,
+   "msg": "unexpected end of JSON input"
+  },
+  {
+   "valid": false,
+   "offset": 7,
+   "msg": "invalid character '7' after array element"
+  },
+  {
+   "valid": false,
+   "offset": 8,
+   "msg": "invalid character '.' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 2,
+   "msg": "invalid character 'Ã' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 59,
+   "msg": "invalid character ';' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 17,
+   "msg": "invalid character '+' after array element"
+  },
+  {
+   "valid": false,
+   "offset": 8,
+   "msg": "invalid character '-' in string escape code"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 18,
+   "msg": "invalid character '2' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 7,
+   "msg": "unexpected end of JSON input"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 1,
+   "msg": "invalid character '}' looking for beginning of value"
+  },
+  {
+   "valid": false,
+   "offset": 1,
+   "msg": "invalid character 'Ã' looking for beginning of value"
+  },
+  {
+   "valid": false,
+   "offset": 4,
+   "msg": "invalid character ' ' in literal null (expecting 'u')"
+  },
+  {
+   "valid": false,
+   "offset": 5,
+   "msg": "invalid character '\\\\' in literal null (expecting 'l')"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 6,
+   "msg": "invalid character 'l' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 196,
+   "msg": "unexpected end of JSON input"
+  },
+  {
+   "valid": false,
+   "offset": 16,
+   "msg": "invalid character '{' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 2,
+   "msg": "invalid character 'u' in literal true (expecting 'r')"
+  },
+  {
+   "valid": false,
+   "offset": 37,
+   "msg": "invalid character ']' after object key:value pair"
+  },
+  {
+   "valid": false,
+   "offset": 11,
+   "msg": "unexpected end of JSON input"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 4,
+   "msg": "invalid character '\\t' in string escape code"
+  },
+  {
+   "valid": false,
+   "offset": 3,
+   "msg": "invalid character 'r' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 11,
+   "msg": "invalid character '\"' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 19,
+   "msg": "invalid character ':' in string escape code"
+  },
+  {
+   "valid": false,
+   "offset": 65,
+   "msg": "invalid character 't' in literal null (expecting 'l')"
+  },
+  {
+   "valid": false,
+   "offset": 160,
+   "msg": "invalid character ' ' in string escape code"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 6,
+   "msg": "unexpected end of JSON input"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 17,
+   "msg": "invalid character ' ' in literal null (expecting 'l')"
+  },
+  {
+   "valid": false,
+   "offset": 3,
+   "msg": "invalid character '+' looking for beginning of value"
+  },
+  {
+   "valid": false,
+   "offset": 1,
+   "msg": "invalid character '.' looking for beginning of value"
+  },
+  {
+   "valid": false,
+   "offset": 14,
+   "msg": "unexpected end of JSON input"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 3,
+   "msg": "invalid character ':' looking for beginning of value"
+  },
+  {
+   "valid": false,
+   "offset": 94,
+   "msg": "invalid character 'u' looking for beginning of object key string"
+  },
+  {
+   "valid": false,
+   "offset": 5,
+   "msg": "invalid character '[' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 75,
+   "msg": "invalid character ' ' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": false,
+   "offset": 4,
+   "msg": "invalid character '[' in string escape code"
+  },
+  {
+   "valid": false,
+   "offset": 12,
+   "msg": "invalid character '\\x00' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 3,
+   "msg": "invalid character ' ' in numeric literal"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 9,
+   "msg": "invalid character ' ' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": false,
+   "offset": 3,
+   "msg": "invalid character '.' looking for beginning of object key string"
+  },
+  {
+   "valid": false,
+   "offset": 42,
+   "msg": "unexpected end of JSON input"
+  },
+  {
+   "valid": false,
+   "offset": 3,
+   "msg": "invalid character '\\x1f' looking for beginning of value"
+  },
+  {
+   "valid": false,
+   "offset": 5,
+   "msg": "invalid character '-' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 10,
+   "msg": "invalid character ']' after decimal point in numeric literal"
+  },
+  {
+   "valid": false,
+   "offset": 17,
+   "msg": "unexpected end of JSON input"
+  },
+  {
+   "valid": false,
+   "offset": 3,
+   "msg": "unexpected end of JSON input"
+  },
+  {
+   "valid": false,
+   "offset": 4,
+   "msg": "invalid character '9' after array element"
+  },
+  {
+   "valid": false,
+   "offset": 19,
+   "msg": "unexpected end of JSON input"
+  },
+  {
+   "valid": false,
+   "offset": 8,
+   "msg": "invalid character '\\x00' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 5,
+   "msg": "invalid character 'l' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 4,
+   "msg": "invalid character ' ' in literal false (expecting 'e')"
+  },
+  {
+   "valid": false,
+   "offset": 1,
+   "msg": "invalid character 'x' looking for beginning of value"
+  },
+  {
+   "valid": false,
+   "offset": 9,
+   "msg": "invalid character '(' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 106,
+   "msg": "unexpected end of JSON input"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 27,
+   "msg": "invalid character '}' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 35,
+   "msg": "invalid character 'n' after array element"
+  },
+  {
+   "valid": false,
+   "offset": 98,
+   "msg": "invalid character '\"' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": false,
+   "offset": 7,
+   "msg": "invalid character '|' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": false,
+   "offset": 91,
+   "msg": "unexpected end of JSON input"
+  },
+  {
+   "valid": false,
+   "offset": 4,
+   "msg": "invalid character 'Ã' looking for beginning of value"
+  },
+  {
+   "valid": false,
+   "offset": 3,
+   "msg": "invalid character '\\\\' after top-level value"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 2,
+   "msg": "invalid character 'ï' looking for beginning of object key string"
+  },
+  {
+   "valid": false,
+   "offset": 3,
+   "msg": "invalid character 'E' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 140,
+   "msg": "invalid character 'l' looking for beginning of value"
+  },
+  {
+   "valid": false,
+   "offset": 3,
+   "msg": "invalid character 'n' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 20,
+   "msg": "invalid character '8' in string escape code"
+  },
+  {
+   "valid": false,
+   "offset": 5,
+   "msg": "invalid character 'u' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": false,
+   "offset": 1,
+   "msg": "invalid character 'u' looking for beginning of value"
+  },
+  {
+   "valid": false,
+   "offset": 3,
+   "msg": "invalid character 's' in literal false (expecting 'l')"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 8,
+   "msg": "invalid character '7' after top-level value"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 4,
+   "msg": "invalid character '\"' after top-level value"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 6,
+   "msg": "invalid character 'Â' after object key"
+  },
+  {
+   "valid": false,
+   "offset": 10,
+   "msg": "unexpected end of JSON input"
+  },
+  {
+   "valid": false,
+   "offset": 36,
+   "msg": "invalid character ' ' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": false,
+   "offset": 4,
+   "msg": "invalid character 'e' in literal null (expecting 'l')"
+  },
+  {
+   "valid": false,
+   "offset": 5,
+   "msg": "invalid character '.' in string escape code"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 2,
+   "msg": "invalid character 'l' in literal null (expecting 'u')"
+  },
+  {
+   "valid": false,
+   "offset": 10,
+   "msg": "invalid character '\"' after top-level value"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 30,
+   "msg": "invalid character '5' in literal true (expecting 'r')"
+  },
+  {
+   "valid": false,
+   "offset": 17,
+   "msg": "invalid character 'u' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": false,
+   "offset": 5,
+   "msg": "invalid character 'e' after top-level value"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 3,
+   "msg": "invalid character 'Ã' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 1,
+   "msg": "invalid character '.' looking for beginning of value"
+  },
+  {
+   "valid": false,
+   "offset": 24,
+   "msg": "invalid character ' ' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": false,
+   "offset": 74,
+   "msg": "unexpected end of JSON input"
+  },
+  {
+   "valid": false,
+   "offset": 1,
+   "msg": "invalid character 'l' looking for beginning of value"
+  },
+  {
+   "valid": false,
+   "offset": 3,
+   "msg": "invalid character 'ï' in numeric literal"
+  },
+  {
+   "valid": false,
+   "offset": 8,
+   "msg": "unexpected end of JSON input"
+  },
+  {
+   "valid": false,
+   "offset": 7,
+   "msg": "invalid character '8' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 8,
+   "msg": "invalid character '\\\\' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 3,
+   "msg": "invalid character '\\\\' in literal null (expecting 'l')"
+  },
+  {
+   "valid": false,
+   "offset": 3,
+   "msg": "invalid character 'u' in literal true (expecting 'r')"
+  },
+  {
+   "valid": false,
+   "offset": 7,
+   "msg": "invalid character 'l' in literal false (expecting 'e')"
+  },
+  {
+   "valid": false,
+   "offset": 44,
+   "msg": "invalid character '5' looking for beginning of object key string"
+  },
+  {
+   "valid": false,
+   "offset": 8,
+   "msg": "invalid character 'x' after object key:value pair"
+  },
+  {
+   "valid": false,
+   "offset": 3,
+   "msg": "invalid character '9' in string escape code"
+  },
+  {
+   "valid": false,
+   "offset": 20,
+   "msg": "invalid character '0' in string escape code"
+  },
+  {
+   "valid": false,
+   "offset": 2,
+   "msg": "invalid character 'u' in literal true (expecting 'r')"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 7,
+   "msg": "invalid character ']' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 1,
+   "msg": "invalid character '\\\\' looking for beginning of value"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 5,
+   "msg": "invalid character ' ' in exponent of numeric literal"
+  },
+  {
+   "valid": false,
+   "offset": 11,
+   "msg": "invalid character '\\x1f' in string literal"
+  },
+  {
+   "valid": false,
+   "offset": 5,
+   "msg": "invalid character ' ' in string escape code"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 8,
+   "msg": "invalid character '[' after array element"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 5,
+   "msg": "invalid character '\\n' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": false,
+   "offset": 2,
+   "msg": "invalid character ']' looking for beginning of value"
+  },
+  {
+   "valid": false,
+   "offset": 11,
+   "msg": "invalid character 'r' after top-level value"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 11,
+   "msg": "invalid character '\\t' in string literal"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 151,
+   "msg": "unexpected end of JSON input"
+  },
+  {
+   "valid": false,
+   "offset": 5,
+   "msg": "invalid character '\\r' in literal false (expecting 'e')"
+  },
+  {
+   "valid": false,
+   "offset": 26,
+   "msg": "invalid character '0' in string escape code"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 19,
+   "msg": "invalid character 'ï' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": false,
+   "offset": 4,
+   "msg": "invalid character 'u' looking for beginning of value"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 5,
+   "msg": "invalid character 'f' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 8,
+   "msg": "invalid character ' ' in string escape code"
+  },
+  {
+   "valid": false,
+   "offset": 2,
+   "msg": "invalid character '\\x1f' in string literal"
+  },
+  {
+   "valid": false,
+   "offset": 14,
+   "msg": "invalid character '9' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 18,
+   "msg": "invalid character 't' after array element"
+  },
+  {
+   "valid": false,
+   "offset": 5,
+   "msg": "invalid character 'l' in literal null (expecting 'u')"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 14,
+   "msg": "invalid character ' ' in string escape code"
+  },
+  {
+   "valid": false,
+   "offset": 180,
+   "msg": "invalid character ' ' in literal null (expecting 'l')"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 3,
+   "msg": "invalid character '}' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 51,
+   "msg": "invalid character ' ' in string escape code"
+  },
+  {
+   "valid": false,
+   "offset": 2,
+   "msg": "invalid character ' ' in literal true (expecting 'r')"
+  },
+  {
+   "valid": false,
+   "offset": 4,
+   "msg": "invalid character '\\\\' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 3,
+   "msg": "invalid character '\\\\' looking for beginning of value"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 3,
+   "msg": "invalid character 'r' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 45,
+   "msg": "invalid character ' ' in literal false (expecting 'a')"
+  },
+  {
+   "valid": false,
+   "offset": 1,
+   "msg": "invalid character 'e' looking for beginning of value"
+  },
+  {
+   "valid": false,
+   "offset": 14,
+   "msg": "invalid character '\\x00' after object key:value pair"
+  },
+  {
+   "valid": false,
+   "offset": 3,
+   "msg": "invalid character 'n' in literal null (expecting 'l')"
+  },
+  {
+   "valid": false,
+   "offset": 3,
+   "msg": "invalid character '3' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 4,
+   "msg": "invalid character '2' after array element"
+  },
+  {
+   "valid": false,
+   "offset": 2,
+   "msg": "invalid character 'a' looking for beginning of value"
+  },
+  {
+   "valid": false,
+   "offset": 4,
+   "msg": "invalid character 'u' in literal null (expecting 'l')"
+  },
+  {
+   "valid": false,
+   "offset": 1,
+   "msg": "invalid character '.' looking for beginning of value"
+  },
+  {
+   "valid": false,
+   "offset": 35,
+   "msg": "invalid character '\"' after object key"
+  },
+  {
+   "valid": false,
+   "offset": 5,
+   "msg": "invalid character '\\x1f' after top-level value"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 7,
+   "msg": "invalid character ':' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": false,
+   "offset": 5,
+   "msg": "invalid character '\\\\' after array element"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 4,
+   "msg": "invalid character '}' looking for beginning of value"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 1,
+   "msg": "unexpected end of JSON input"
+  },
+  {
+   "valid": false,
+   "offset": 85,
+   "msg": "invalid character '\\\\' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": false,
+   "offset": 7,
+   "msg": "invalid character '\\t' in literal true (expecting 'u')"
+  },
+  {
+   "valid": false,
+   "offset": 4,
+   "msg": "invalid character '\\\\' in literal false (expecting 's')"
+  },
+  {
+   "valid": false,
+   "offset": 226,
+   "msg": "unexpected end of JSON input"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 18,
+   "msg": "invalid character ' ' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 4,
+   "msg": "invalid character ' ' in literal null (expecting 'l')"
+  },
+  {
+   "valid": false,
+   "offset": 17,
+   "msg": "invalid character '.' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": false,
+   "offset": 3,
+   "msg": "invalid character '\\x00' in literal true (expecting 'u')"
+  },
+  {
+   "valid": false,
+   "offset": 23,
+   "msg": "invalid character ' ' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": false,
+   "offset": 8,
+   "msg": "invalid character '\\\\' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 8,
+   "msg": "invalid character 't' after array element"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 2,
+   "msg": "invalid character 'u' looking for beginning of value"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 3,
+   "msg": "invalid character '4' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 3,
+   "msg": "invalid character '}' looking for beginning of value"
+  },
+  {
+   "valid": false,
+   "offset": 22,
+   "msg": "invalid character '\\\\' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 1,
+   "msg": "invalid character '\\x00' looking for beginning of value"
+  },
+  {
+   "valid": false,
+   "offset": 1,
+   "msg": "invalid character 'r' looking for beginning of value"
+  },
+  {
+   "valid": false,
+   "offset": 6,
+   "msg": "invalid character '\\\\' after top-level value"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 28,
+   "msg": "invalid character ' ' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": false,
+   "offset": 3,
+   "msg": "invalid character '\"' after top-level value"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 11,
+   "msg": "invalid character 'f' after array element"
+  },
+  {
+   "valid": false,
+   "offset": 39,
+   "msg": "invalid character 'E' in literal false (expecting 'a')"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 160,
+   "msg": "unexpected end of JSON input"
+  },
+  {
+   "valid": false,
+   "offset": 1,
+   "msg": "invalid character '+' looking for beginning of value"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 6,
+   "msg": "invalid character '-' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 413,
+   "msg": "invalid character 'r' in literal null (expecting 'l')"
+  },
+  {
+   "valid": false,
+   "offset": 2,
+   "msg": "invalid character ':' looking for beginning of value"
+  },
+  {
+   "valid": false,
+   "offset": 7,
+   "msg": "invalid character 'Ã' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 41,
+   "msg": "invalid character ' ' in string escape code"
+  },
+  {
+   "valid": false,
+   "offset": 128,
+   "msg": "invalid character ' ' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": false,
+   "offset": 3,
+   "msg": "invalid character '[' in literal false (expecting 'a')"
+  },
+  {
+   "valid": false,
+   "offset": 2,
+   "msg": "invalid character '-' after top-level value"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 38,
+   "msg": "invalid character '[' in literal null (expecting 'l')"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 2,
+   "msg": "unexpected end of JSON input"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 96,
+   "msg": "invalid character '\"' after object key:value pair"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 2,
+   "msg": "invalid character '}' looking for beginning of value"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 28,
+   "msg": "invalid character '[' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": false,
+   "offset": 5,
+   "msg": "invalid character 't' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 133,
+   "msg": "invalid character '.' after array element"
+  },
+  {
+   "valid": false,
+   "offset": 1,
+   "msg": "invalid character 'Ã' looking for beginning of value"
+  },
+  {
+   "valid": false,
+   "offset": 6,
+   "msg": "invalid character 'e' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 15,
+   "msg": "invalid character ' ' in string escape code"
+  },
+  {
+   "valid": false,
+   "offset": 5,
+   "msg": "invalid character '\"' after object key"
+  },
+  {
+   "valid": false,
+   "offset": 5,
+   "msg": "invalid character 'u' in literal false (expecting 'e')"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 8,
+   "msg": "invalid character '-' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 6,
+   "msg": "invalid character 'a' in literal false (expecting 'e')"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 4,
+   "msg": "invalid character '4' looking for beginning of object key string"
+  },
+  {
+   "valid": false,
+   "offset": 9,
+   "msg": "invalid character '\\\\' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 2,
+   "msg": "invalid character '}' in literal null (expecting 'u')"
+  },
+  {
+   "valid": false,
+   "offset": 11,
+   "msg": "invalid character ' ' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 4,
+   "msg": "invalid character '\\n' in literal true (expecting 'e')"
+  },
+  {
+   "valid": false,
+   "offset": 5,
+   "msg": "unexpected end of JSON input"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 3,
+   "msg": "invalid character '\\x00' in literal false (expecting 'l')"
+  },
+  {
+   "valid": false,
+   "offset": 134,
+   "msg": "invalid character 'u' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": false,
+   "offset": 3,
+   "msg": "invalid character 'l' in literal null (expecting 'u')"
+  },
+  {
+   "valid": false,
+   "offset": 6,
+   "msg": "invalid character ' ' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": false,
+   "offset": 36,
+   "msg": "invalid character 'u' after object key:value pair"
+  },
+  {
+   "valid": false,
+   "offset": 153,
+   "msg": "invalid character '7' in literal true (expecting 'e')"
+  },
+  {
+   "valid": false,
+   "offset": 5,
+   "msg": "invalid character 'u' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 4,
+   "msg": "invalid character ']' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 36,
+   "msg": "unexpected end of JSON input"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 4,
+   "msg": "invalid character 'u' in literal null (expecting 'l')"
+  },
+  {
+   "valid": false,
+   "offset": 23,
+   "msg": "invalid character '\\x00' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": false,
+   "offset": 2,
+   "msg": "invalid character '\\x00' in literal null (expecting 'u')"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 2,
+   "msg": "invalid character '[' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 4,
+   "msg": "invalid character ' ' in literal false (expecting 'a')"
+  },
+  {
+   "valid": false,
+   "offset": 4,
+   "msg": "invalid character ':' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 6,
+   "msg": "invalid character ':' in literal null (expecting 'l')"
+  },
+  {
+   "valid": false,
+   "offset": 32,
+   "msg": "invalid character '0' in string escape code"
+  },
+  {
+   "valid": false,
+   "offset": 17,
+   "msg": "invalid character ' ' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 181,
+   "msg": "invalid character '\\\\' after object key:value pair"
+  },
+  {
+   "valid": false,
+   "offset": 2,
+   "msg": "invalid character ':' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 15,
+   "msg": "invalid character '5' in string escape code"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 5,
+   "msg": "invalid character 't' in literal true (expecting 'u')"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 21,
+   "msg": "invalid character ' ' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 6,
+   "msg": "invalid character '\\\\' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 7,
+   "msg": "invalid character 'r' in literal false (expecting 'e')"
+  },
+  {
+   "valid": false,
+   "offset": 8,
+   "msg": "invalid character '\\x00' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 140,
+   "msg": "invalid character '+' looking for beginning of value"
+  },
+  {
+   "valid": false,
+   "offset": 5,
+   "msg": "invalid character '}' in literal null (expecting 'u')"
+  },
+  {
+   "valid": false,
+   "offset": 24,
+   "msg": "invalid character '\\n' in string literal"
+  },
+  {
+   "valid": false,
+   "offset": 6,
+   "msg": "invalid character '\\n' in literal null (expecting 'l')"
+  },
+  {
+   "valid": false,
+   "offset": 5,
+   "msg": "invalid character '2' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 44,
+   "msg": "invalid character '\"' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 6,
+   "msg": "invalid character 'r' in literal null (expecting 'l')"
+  },
+  {
+   "valid": false,
+   "offset": 229,
+   "msg": "invalid character '\\\\' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 2,
+   "msg": "invalid character 'e' looking for beginning of value"
+  },
+  {
+   "valid": false,
+   "offset": 26,
+   "msg": "invalid character '\"' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": false,
+   "offset": 5,
+   "msg": "invalid character 'r' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 4,
+   "msg": "invalid character 'f' in literal false (expecting 's')"
+  },
+  {
+   "valid": false,
+   "offset": 15,
+   "msg": "invalid character ' ' in literal null (expecting 'l')"
+  },
+  {
+   "valid": false,
+   "offset": 16,
+   "msg": "invalid character '0' in string escape code"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 1,
+   "msg": "invalid character ' ' in numeric literal"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 51,
+   "msg": "invalid character 'x' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 14,
+   "msg": "invalid character '\\\\' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": false,
+   "offset": 5,
+   "msg": "invalid character '8' after top-level value"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 13,
+   "msg": "invalid character '{' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 5,
+   "msg": "invalid character 'Ã' looking for beginning of object key string"
+  },
+  {
+   "valid": false,
+   "offset": 19,
+   "msg": "invalid character 'Ã' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": false,
+   "offset": 79,
+   "msg": "invalid character '\\x1f' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 270,
+   "msg": "invalid character '\"' after object key:value pair"
+  },
+  {
+   "valid": false,
+   "offset": 5,
+   "msg": "invalid character '0' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 6,
+   "msg": "invalid character 's' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 39,
+   "msg": "invalid character 'ï' after object key:value pair"
+  },
+  {
+   "valid": false,
+   "offset": 17,
+   "msg": "invalid character 'Â' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 6,
+   "msg": "invalid character ' ' in literal null (expecting 'l')"
+  },
+  {
+   "valid": false,
+   "offset": 1,
+   "msg": "invalid character 'u' looking for beginning of value"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 4,
+   "msg": "invalid character 'e' in literal false (expecting 's')"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 19,
+   "msg": "unexpected end of JSON input"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 3,
+   "msg": "invalid character '1' in literal true (expecting 'u')"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 1,
+   "msg": "invalid character '.' looking for beginning of value"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 7,
+   "msg": "invalid character ']' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 3,
+   "msg": "invalid character ' ' in literal false (expecting 'a')"
+  },
+  {
+   "valid": false,
+   "offset": 15,
+   "msg": "invalid character '.' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": false,
+   "offset": 4,
+   "msg": "invalid character '-' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 36,
+   "msg": "unexpected end of JSON input"
+  },
+  {
+   "valid": false,
+   "offset": 8,
+   "msg": "invalid character '1' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 38,
+   "msg": "invalid character '+' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 4,
+   "msg": "unexpected end of JSON input"
+  },
+  {
+   "valid": false,
+   "offset": 3,
+   "msg": "invalid character ' ' in literal true (expecting 'u')"
+  },
+  {
+   "valid": false,
+   "offset": 3,
+   "msg": "invalid character '.' in string escape code"
+  },
+  {
+   "valid": false,
+   "offset": 5,
+   "msg": "invalid character 'f' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 1,
+   "msg": "invalid character '\\\\' looking for beginning of value"
+  },
+  {
+   "valid": false,
+   "offset": 7,
+   "msg": "invalid character '9' in literal true (expecting 'e')"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 18,
+   "msg": "invalid character '+' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": false,
+   "offset": 237,
+   "msg": "unexpected end of JSON input"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 9,
+   "msg": "invalid character 'Ã' after top-level value"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 3,
+   "msg": "invalid character '\"' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 73,
+   "msg": "invalid character '\\\\' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": false,
+   "offset": 1,
+   "msg": "invalid character '\\\\' looking for beginning of value"
+  },
+  {
+   "valid": false,
+   "offset": 2,
+   "msg": "invalid character 'r' after top-level value"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 27,
+   "msg": "invalid character ',' looking for beginning of value"
+  },
+  {
+   "valid": false,
+   "offset": 9,
+   "msg": "invalid character 'f' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 2,
+   "msg": "invalid character '6' in literal null (expecting 'u')"
+  },
+  {
+   "valid": false,
+   "offset": 53,
+   "msg": "invalid character '?' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": false,
+   "offset": 116,
+   "msg": "invalid character ':' after top-level value"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 5,
+   "msg": "invalid character ',' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": false,
+   "offset": 55,
+   "msg": "invalid character ' ' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 8,
+   "msg": "unexpected end of JSON input"
+  },
+  {
+   "valid": false,
+   "offset": 8,
+   "msg": "invalid character 'x' looking for beginning of value"
+  },
+  {
+   "valid": false,
+   "offset": 10,
+   "msg": "invalid character '5' after top-level value"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 17,
+   "msg": "invalid character '0' in string escape code"
+  },
+  {
+   "valid": false,
+   "offset": 3,
+   "msg": "invalid character 'l' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 5,
+   "msg": "invalid character '{' after top-level value"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 21,
+   "msg": "invalid character '\\x1f' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 3,
+   "msg": "invalid character ']' looking for beginning of value"
+  },
+  {
+   "valid": false,
+   "offset": 7,
+   "msg": "invalid character ']' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 1,
+   "msg": "invalid character '\\\\' looking for beginning of value"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 1,
+   "msg": "invalid character ']' looking for beginning of value"
+  },
+  {
+   "valid": false,
+   "offset": 13,
+   "msg": "unexpected end of JSON input"
+  },
+  {
+   "valid": false,
+   "offset": 13,
+   "msg": "invalid character ',' after object key"
+  },
+  {
+   "valid": false,
+   "offset": 12,
+   "msg": "unexpected end of JSON input"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 1,
+   "msg": "invalid character 'r' looking for beginning of value"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 178,
+   "msg": "invalid character '6' in literal true (expecting 'e')"
+  },
+  {
+   "valid": false,
+   "offset": 7,
+   "msg": "invalid character 'u' in literal true (expecting 'e')"
+  },
+  {
+   "valid": false,
+   "offset": 52,
+   "msg": "invalid character 'u' in literal null (expecting 'l')"
+  },
+  {
+   "valid": false,
+   "offset": 5,
+   "msg": "invalid character '\"' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 5,
+   "msg": "invalid character 't' after top-level value"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 221,
+   "msg": "unexpected end of JSON input"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 6,
+   "msg": "invalid character '}' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 147,
+   "msg": "invalid character '\\\\' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 44,
+   "msg": "invalid character ':' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": false,
+   "offset": 6,
+   "msg": "invalid character 'e' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 2,
+   "msg": "invalid character '\\x00' in string literal"
+  },
+  {
+   "valid": false,
+   "offset": 8,
+   "msg": "invalid character '\\\\' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": false,
+   "offset": 13,
+   "msg": "invalid character ']' after top-level value"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 5,
+   "msg": "invalid character 'a' in literal false (expecting 'e')"
+  },
+  {
+   "valid": false,
+   "offset": 2,
+   "msg": "invalid character ':' looking for beginning of value"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 25,
+   "msg": "invalid character '8' after top-level value"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 44,
+   "msg": "unexpected end of JSON input"
+  },
+  {
+   "valid": false,
+   "offset": 6,
+   "msg": "invalid character '0' looking for beginning of object key string"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 1,
+   "msg": "invalid character 'ï' looking for beginning of value"
+  },
+  {
+   "valid": false,
+   "offset": 5,
+   "msg": "invalid character '-' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 9,
+   "msg": "invalid character ':' after top-level value"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 17,
+   "msg": "invalid character '\"' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 14,
+   "msg": "invalid character '.' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": false,
+   "offset": 5,
+   "msg": "invalid character '}' looking for beginning of value"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 4,
+   "msg": "invalid character '+' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 68,
+   "msg": "invalid character ' ' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": false,
+   "offset": 21,
+   "msg": "invalid character ' ' in exponent of numeric literal"
+  },
+  {
+   "valid": false,
+   "offset": 4,
+   "msg": "invalid character '\"' in literal false (expecting 'a')"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 47,
+   "msg": "invalid character '.' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 105,
+   "msg": "invalid character '6' after array element"
+  },
+  {
+   "valid": false,
+   "offset": 16,
+   "msg": "unexpected end of JSON input"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 2,
+   "msg": "unexpected end of JSON input"
+  },
+  {
+   "valid": false,
+   "offset": 1,
+   "msg": "unexpected end of JSON input"
+  },
+  {
+   "valid": false,
+   "offset": 12,
+   "msg": "invalid character ',' looking for beginning of object key string"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 7,
+   "msg": "invalid character ']' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 83,
+   "msg": "invalid character '\\\\' after object key:value pair"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 20,
+   "msg": "unexpected end of JSON input"
+  },
+  {
+   "valid": false,
+   "offset": 10,
+   "msg": "invalid character 'f' after array element"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 5,
+   "msg": "invalid character '\\\\' after top-level value"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 2,
+   "msg": "invalid character 'r' looking for beginning of value"
+  },
+  {
+   "valid": false,
+   "offset": 4,
+   "msg": "invalid character ']' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 22,
+   "msg": "invalid character 'l' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": false,
+   "offset": 6,
+   "msg": "invalid character 'r' after top-level value"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 5,
+   "msg": "invalid character '\\r' in literal null (expecting 'u')"
+  },
+  {
+   "valid": false,
+   "offset": 23,
+   "msg": "invalid character ' ' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": false,
+   "offset": 3,
+   "msg": "invalid character '-' in numeric literal"
+  },
+  {
+   "valid": false,
+   "offset": 3,
+   "msg": "invalid character '-' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 30,
+   "msg": "invalid character '\\\\' after array element"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 2,
+   "msg": "invalid character 'l' in literal null (expecting 'u')"
+  },
+  {
+   "valid": false,
+   "offset": 85,
+   "msg": "invalid character '\u003c' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 2,
+   "msg": "invalid character ' ' in literal true (expecting 'r')"
+  },
+  {
+   "valid": false,
+   "offset": 3,
+   "msg": "invalid character 'r' looking for beginning of object key string"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 54,
+   "msg": "invalid character ',' looking for beginning of object key string"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 6,
+   "msg": "invalid character ' ' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": false,
+   "offset": 1,
+   "msg": "invalid character 'u' looking for beginning of value"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 3,
+   "msg": "invalid character '9' in string escape code"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 7,
+   "msg": "invalid character '0' after array element"
+  },
+  {
+   "valid": false,
+   "offset": 3,
+   "msg": "invalid character 'l' in literal null (expecting 'u')"
+  },
+  {
+   "valid": false,
+   "offset": 34,
+   "msg": "invalid character '.' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 2,
+   "msg": "invalid character '[' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 3,
+   "msg": "invalid character '0' in string escape code"
+  },
+  {
+   "valid": false,
+   "offset": 4,
+   "msg": "invalid character ']' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 6,
+   "msg": "invalid character '[' after top-level value"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 102,
+   "msg": "unexpected end of JSON input"
+  },
+  {
+   "valid": false,
+   "offset": 3,
+   "msg": "invalid character '{' after array element"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 4,
+   "msg": "invalid character '}' after top-level value"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 70,
+   "msg": "unexpected end of JSON input"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 10,
+   "msg": "invalid character 'ï' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": false,
+   "offset": 1,
+   "msg": "invalid character ',' looking for beginning of value"
+  },
+  {
+   "valid": false,
+   "offset": 2,
+   "msg": "invalid character '\"' in literal false (expecting 'a')"
+  },
+  {
+   "valid": false,
+   "offset": 88,
+   "msg": "invalid character '-' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": false,
+   "offset": 14,
+   "msg": "invalid character '\\n' in string literal"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 22,
+   "msg": "invalid character 'x' in literal true (expecting 'r')"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 2,
+   "msg": "unexpected end of JSON input"
+  },
+  {
+   "valid": false,
+   "offset": 20,
+   "msg": "unexpected end of JSON input"
+  },
+  {
+   "valid": false,
+   "offset": 15,
+   "msg": "unexpected end of JSON input"
+  },
+  {
+   "valid": false,
+   "offset": 4,
+   "msg": "invalid character '{' in literal null (expecting 'l')"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 7,
+   "msg": "invalid character '\\x00' after top-level value"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 14,
+   "msg": "invalid character '0' looking for beginning of object key string"
+  },
+  {
+   "valid": false,
+   "offset": 22,
+   "msg": "invalid character ' ' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": false,
+   "offset": 4,
+   "msg": "unexpected end of JSON input"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 365,
+   "msg": "invalid character ' ' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": false,
+   "offset": 2,
+   "msg": "invalid character 't' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 6,
+   "msg": "invalid character 'f' in literal false (expecting 's')"
+  },
+  {
+   "valid": false,
+   "offset": 2,
+   "msg": "invalid character 'x' in literal null (expecting 'u')"
+  },
+  {
+   "valid": false,
+   "offset": 3,
+   "msg": "invalid character 'e' in literal false (expecting 'l')"
+  },
+  {
+   "valid": false,
+   "offset": 12,
+   "msg": "invalid character 'e' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 2,
+   "msg": "invalid character '\\x1f' looking for beginning of value"
+  },
+  {
+   "valid": false,
+   "offset": 10,
+   "msg": "invalid character '}' after array element"
+  },
+  {
+   "valid": false,
+   "offset": 51,
+   "msg": "invalid character 't' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": false,
+   "offset": 164,
+   "msg": "invalid character ' ' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": false,
+   "offset": 5,
+   "msg": "invalid character 'n' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 7,
+   "msg": "invalid character ']' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": false,
+   "offset": 10,
+   "msg": "invalid character '9' after array element"
+  },
+  {
+   "valid": false,
+   "offset": 9,
+   "msg": "invalid character '{' after array element"
+  },
+  {
+   "valid": false,
+   "offset": 19,
+   "msg": "invalid character ']' after top-level value"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 4,
+   "msg": "invalid character 't' in literal true (expecting 'u')"
+  },
+  {
+   "valid": false,
+   "offset": 18,
+   "msg": "invalid character 't' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 36,
+   "msg": "invalid character '.' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 4,
+   "msg": "invalid character '\\x1f' looking for beginning of value"
+  },
+  {
+   "valid": false,
+   "offset": 7,
+   "msg": "invalid character ' ' in literal false (expecting 'e')"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 6,
+   "msg": "invalid character ' ' in literal null (expecting 'l')"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 5,
+   "msg": "invalid character ',' in literal true (expecting 'e')"
+  },
+  {
+   "valid": false,
+   "offset": 14,
+   "msg": "invalid character '\"' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": false,
+   "offset": 25,
+   "msg": "invalid character ':' after array element"
+  },
+  {
+   "valid": false,
+   "offset": 15,
+   "msg": "invalid character '3' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 3,
+   "msg": "unexpected end of JSON input"
+  },
+  {
+   "valid": false,
+   "offset": 4,
+   "msg": "invalid character '.' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 17,
+   "msg": "invalid character 'F' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 73,
+   "msg": "invalid character ' ' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 18,
+   "msg": "invalid character ']' after object key:value pair"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 11,
+   "msg": "invalid character '\"' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": false,
+   "offset": 9,
+   "msg": "invalid character 'f' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 8,
+   "msg": "invalid character '\\\\' after top-level value"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 81,
+   "msg": "invalid character '\\\\' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": false,
+   "offset": 2,
+   "msg": "invalid character ']' looking for beginning of value"
+  },
+  {
+   "valid": false,
+   "offset": 260,
+   "msg": "invalid character 'l' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": false,
+   "offset": 1,
+   "msg": "invalid character 'Ã' looking for beginning of value"
+  },
+  {
+   "valid": false,
+   "offset": 2,
+   "msg": "invalid character '8' looking for beginning of object key string"
+  },
+  {
+   "valid": false,
+   "offset": 3,
+   "msg": "invalid character 'a' looking for beginning of value"
+  },
+  {
+   "valid": false,
+   "offset": 21,
+   "msg": "invalid character '\"' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 3,
+   "msg": "unexpected end of JSON input"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 1,
+   "msg": "unexpected end of JSON input"
+  },
+  {
+   "valid": false,
+   "offset": 4,
+   "msg": "invalid character '\"' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 24,
+   "msg": "invalid character '7' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 6,
+   "msg": "invalid character '\\\\' looking for beginning of object key string"
+  },
+  {
+   "valid": false,
+   "offset": 4,
+   "msg": "invalid character 'ï' in literal null (expecting 'l')"
+  },
+  {
+   "valid": false,
+   "offset": 5,
+   "msg": "invalid character '{' looking for beginning of object key string"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 6,
+   "msg": "invalid character 'E' looking for beginning of object key string"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 18,
+   "msg": "unexpected end of JSON input"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 5,
+   "msg": "invalid character ':' in exponent of numeric literal"
+  },
+  {
+   "valid": false,
+   "offset": 61,
+   "msg": "invalid character '\"' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": false,
+   "offset": 56,
+   "msg": "invalid character 'l' after array element"
+  },
+  {
+   "valid": false,
+   "offset": 5,
+   "msg": "invalid character '5' in literal false (expecting 'a')"
+  },
+  {
+   "valid": false,
+   "offset": 4,
+   "msg": "invalid character 'l' in literal false (expecting 's')"
+  },
+  {
+   "valid": false,
+   "offset": 157,
+   "msg": "invalid character 'n' after object key"
+  },
+  {
+   "valid": false,
+   "offset": 9,
+   "msg": "invalid character '\\x1f' in string escape code"
+  },
+  {
+   "valid": false,
+   "offset": 7,
+   "msg": "invalid character 'e' in string escape code"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 19,
+   "msg": "invalid character ' ' in exponent of numeric literal"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 13,
+   "msg": "invalid character '6' after top-level value"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 4,
+   "msg": "invalid character '4' in literal null (expecting 'l')"
+  },
+  {
+   "valid": false,
+   "offset": 3,
+   "msg": "invalid character ']' in literal false (expecting 'a')"
+  },
+  {
+   "valid": false,
+   "offset": 3,
+   "msg": "unexpected end of JSON input"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 5,
+   "msg": "invalid character '\\x1f' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 3,
+   "msg": "invalid character '[' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 3,
+   "msg": "unexpected end of JSON input"
+  },
+  {
+   "valid": false,
+   "offset": 3,
+   "msg": "invalid character 'ï' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 34,
+   "msg": "invalid character 'n' in literal null (expecting 'l')"
+  },
+  {
+   "valid": false,
+   "offset": 3,
+   "msg": "invalid character '\\\\' after decimal point in numeric literal"
+  },
+  {
+   "valid": false,
+   "offset": 1,
+   "msg": "unexpected end of JSON input"
+  },
+  {
+   "valid": false,
+   "offset": 5,
+   "msg": "invalid character '\"' after top-level value"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 5,
+   "msg": "invalid character 'e' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 10,
+   "msg": "invalid character '\\x00' in string literal"
+  },
+  {
+   "valid": false,
+   "offset": 16,
+   "msg": "invalid character '\"' after top-level value"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 127,
+   "msg": "unexpected end of JSON input"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 27,
+   "msg": "invalid character '\\\\' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": false,
+   "offset": 4,
+   "msg": "invalid character 'f' in literal false (expecting 's')"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 10,
+   "msg": "invalid character '[' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 69,
+   "msg": "invalid character '\\\\' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": false,
+   "offset": 3,
+   "msg": "invalid character '4' in literal true (expecting 'u')"
+  },
+  {
+   "valid": false,
+   "offset": 6,
+   "msg": "invalid character 'a' in literal false (expecting 's')"
+  },
+  {
+   "valid": false,
+   "offset": 9,
+   "msg": "invalid character ' ' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": false,
+   "offset": 2,
+   "msg": "invalid character 'r' looking for beginning of value"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 2,
+   "msg": "invalid character ']' looking for beginning of value"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 19,
+   "msg": "invalid character '-' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 1,
+   "msg": "unexpected end of JSON input"
+  },
+  {
+   "valid": false,
+   "offset": 5,
+   "msg": "invalid character 'l' in literal false (expecting 'e')"
+  },
+  {
+   "valid": false,
+   "offset": 3,
+   "msg": "invalid character 'ï' looking for beginning of value"
+  },
+  {
+   "valid": false,
+   "offset": 5,
+   "msg": "invalid character 'u' looking for beginning of value"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 8,
+   "msg": "invalid character 'l' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 16,
+   "msg": "unexpected end of JSON input"
+  },
+  {
+   "valid": false,
+   "offset": 4,
+   "msg": "invalid character '-' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 19,
+   "msg": "invalid character '1' in string escape code"
+  },
+  {
+   "valid": false,
+   "offset": 2,
+   "msg": "invalid character 'r' looking for beginning of object key string"
+  },
+  {
+   "valid": false,
+   "offset": 7,
+   "msg": "invalid character 'x' in numeric literal"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 4,
+   "msg": "invalid character 'n' in literal null (expecting 'l')"
+  },
+  {
+   "valid": false,
+   "offset": 1,
+   "msg": "invalid character 'a' looking for beginning of value"
+  },
+  {
+   "valid": false,
+   "offset": 1,
+   "msg": "invalid character 'E' looking for beginning of value"
+  },
+  {
+   "valid": false,
+   "offset": 4,
+   "msg": "invalid character 't' in literal true (expecting 'r')"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 49,
+   "msg": "invalid character '5' after array element"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 4,
+   "msg": "invalid character 't' in literal true (expecting 'e')"
+  },
+  {
+   "valid": false,
+   "offset": 20,
+   "msg": "invalid character '\"' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": false,
+   "offset": 127,
+   "msg": "invalid character '\"' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": false,
+   "offset": 63,
+   "msg": "invalid character '\\x00' in string escape code"
+  },
+  {
+   "valid": false,
+   "offset": 3,
+   "msg": "invalid character '}' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 1,
+   "msg": "invalid character ']' looking for beginning of value"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 31,
+   "msg": "invalid character '\\\\' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": false,
+   "offset": 3,
+   "msg": "invalid character '[' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 5,
+   "msg": "invalid character '5' in literal true (expecting 'r')"
+  },
+  {
+   "valid": false,
+   "offset": 42,
+   "msg": "invalid character '\\t' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": false,
+   "offset": 190,
+   "msg": "invalid character ' ' in string escape code"
+  },
+  {
+   "valid": false,
+   "offset": 10,
+   "msg": "invalid character ' ' in literal null (expecting 'l')"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 2,
+   "msg": "invalid character '3' in literal true (expecting 'r')"
+  },
+  {
+   "valid": false,
+   "offset": 190,
+   "msg": "unexpected end of JSON input"
+  },
+  {
+   "valid": false,
+   "offset": 5,
+   "msg": "invalid character 'l' after top-level value"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 72,
+   "msg": "invalid character '7' after object key:value pair"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 13,
+   "msg": "invalid character '[' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": false,
+   "offset": 2,
+   "msg": "unexpected end of JSON input"
+  },
+  {
+   "valid": false,
+   "offset": 2,
+   "msg": "invalid character 'r' looking for beginning of value"
+  },
+  {
+   "valid": false,
+   "offset": 2,
+   "msg": "invalid character '\\t' in string literal"
+  },
+  {
+   "valid": false,
+   "offset": 6,
+   "msg": "invalid character '{' after array element"
+  },
+  {
+   "valid": false,
+   "offset": 41,
+   "msg": "invalid character ' ' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 12,
+   "msg": "invalid character '.' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": false,
+   "offset": 11,
+   "msg": "invalid character '\\x1f' in string literal"
+  },
+  {
+   "valid": false,
+   "offset": 1,
+   "msg": "invalid character 'u' looking for beginning of value"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 4,
+   "msg": "invalid character 'f' in literal false (expecting 'l')"
+  },
+  {
+   "valid": false,
+   "offset": 3,
+   "msg": "invalid character 'u' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 10,
+   "msg": "invalid character ']' after top-level value"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 6,
+   "msg": "invalid character ',' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 7,
+   "msg": "invalid character ' ' in string escape code"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 2,
+   "msg": "invalid character 'l' in literal false (expecting 'a')"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 78,
+   "msg": "invalid character '\\n' in string literal"
+  },
+  {
+   "valid": false,
+   "offset": 29,
+   "msg": "unexpected end of JSON input"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 3,
+   "msg": "invalid character 'e' in literal true (expecting 'u')"
+  },
+  {
+   "valid": false,
+   "offset": 25,
+   "msg": "unexpected end of JSON input"
+  },
+  {
+   "valid": false,
+   "offset": 5,
+   "msg": "invalid character 'î' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 15,
+   "msg": "invalid character 'ï' in exponent of numeric literal"
+  },
+  {
+   "valid": false,
+   "offset": 3,
+   "msg": "invalid character '-' looking for beginning of object key string"
+  },
+  {
+   "valid": false,
+   "offset": 6,
+   "msg": "invalid character '4' in string escape code"
+  },
+  {
+   "valid": false,
+   "offset": 6,
+   "msg": "invalid character 'l' in literal null (expecting 'u')"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 51,
+   "msg": "invalid character 'E' looking for beginning of value"
+  },
+  {
+   "valid": false,
+   "offset": 5,
+   "msg": "invalid character 'n' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 50,
+   "msg": "invalid character '-' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": false,
+   "offset": 29,
+   "msg": "unexpected end of JSON input"
+  },
+  {
+   "valid": false,
+   "offset": 17,
+   "msg": "invalid character 'l' after array element"
+  },
+  {
+   "valid": false,
+   "offset": 2,
+   "msg": "invalid character 'n' in literal null (expecting 'u')"
+  },
+  {
+   "valid": false,
+   "offset": 44,
+   "msg": "invalid character ',' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 5,
+   "msg": "invalid character 'n' in literal null (expecting 'l')"
+  },
+  {
+   "valid": false,
+   "offset": 108,
+   "msg": "unexpected end of JSON input"
+  },
+  {
+   "valid": false,
+   "offset": 3,
+   "msg": "invalid character '\\t' in string escape code"
+  },
+  {
+   "valid": false,
+   "offset": 27,
+   "msg": "unexpected end of JSON input"
+  },
+  {
+   "valid": false,
+   "offset": 2,
+   "msg": "invalid character 'l' looking for beginning of value"
+  },
+  {
+   "valid": false,
+   "offset": 12,
+   "msg": "invalid character ' ' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 2,
+   "msg": "invalid character '\\x00' looking for beginning of value"
+  },
+  {
+   "valid": false,
+   "offset": 8,
+   "msg": "invalid character '{' in numeric literal"
+  },
+  {
+   "valid": false,
+   "offset": 4,
+   "msg": "invalid character '[' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 224,
+   "msg": "invalid character 'u' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": false,
+   "offset": 4,
+   "msg": "invalid character '\\r' in string literal"
+  },
+  {
+   "valid": false,
+   "offset": 10,
+   "msg": "invalid character '\\\\' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": false,
+   "offset": 5,
+   "msg": "invalid character ' ' in literal true (expecting 'u')"
+  },
+  {
+   "valid": false,
+   "offset": 2,
+   "msg": "invalid character '1' in literal null (expecting 'u')"
+  },
+  {
+   "valid": false,
+   "offset": 6,
+   "msg": "invalid character 'r' after top-level value"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 8,
+   "msg": "invalid character 'r' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": false,
+   "offset": 36,
+   "msg": "invalid character ' ' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": false,
+   "offset": 10,
+   "msg": "invalid character ' ' in string escape code"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 19,
+   "msg": "invalid character 't' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 3,
+   "msg": "invalid character '}' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 6,
+   "msg": "invalid character 'f' in literal false (expecting 'l')"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 154,
+   "msg": "unexpected end of JSON input"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 15,
+   "msg": "invalid character 't' after object key"
+  },
+  {
+   "valid": false,
+   "offset": 3,
+   "msg": "invalid character '0' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 3,
+   "msg": "invalid character '}' in literal false (expecting 'a')"
+  },
+  {
+   "valid": false,
+   "offset": 38,
+   "msg": "invalid character '\\x1f' in string literal"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 11,
+   "msg": "invalid character '+' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 2,
+   "msg": "invalid character '\"' in numeric literal"
+  },
+  {
+   "valid": false,
+   "offset": 2,
+   "msg": "invalid character 'u' looking for beginning of value"
+  },
+  {
+   "valid": false,
+   "offset": 308,
+   "msg": "unexpected end of JSON input"
+  },
+  {
+   "valid": false,
+   "offset": 3,
+   "msg": "invalid character 'u' looking for beginning of value"
+  },
+  {
+   "valid": false,
+   "offset": 3,
+   "msg": "invalid character ' ' in literal null (expecting 'u')"
+  },
+  {
+   "valid": false,
+   "offset": 2,
+   "msg": "invalid character '7' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 9,
+   "msg": "invalid character '-' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 44,
+   "msg": "invalid character '\\\\' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": false,
+   "offset": 11,
+   "msg": "invalid character '7' in string escape code"
+  },
+  {
+   "valid": false,
+   "offset": 60,
+   "msg": "unexpected end of JSON input"
+  },
+  {
+   "valid": false,
+   "offset": 3,
+   "msg": "invalid character 'n' in exponent of numeric literal"
+  },
+  {
+   "valid": false,
+   "offset": 164,
+   "msg": "invalid character '[' in exponent of numeric literal"
+  },
+  {
+   "valid": false,
+   "offset": 6,
+   "msg": "invalid character '\"' in literal false (expecting 'e')"
+  },
+  {
+   "valid": false,
+   "offset": 4,
+   "msg": "invalid character '\\x00' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 33,
+   "msg": "invalid character 't' after array element"
+  },
+  {
+   "valid": false,
+   "offset": 5,
+   "msg": "invalid character 'e' in literal false (expecting 's')"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 2,
+   "msg": "invalid character 'e' looking for beginning of value"
+  },
+  {
+   "valid": false,
+   "offset": 40,
+   "msg": "invalid character '\"' after object key"
+  },
+  {
+   "valid": false,
+   "offset": 7,
+   "msg": "invalid character '{' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 1,
+   "msg": "invalid character '\\\\' looking for beginning of value"
+  },
+  {
+   "valid": false,
+   "offset": 6,
+   "msg": "invalid character 'f' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 260,
+   "msg": "invalid character 'e' looking for beginning of value"
+  },
+  {
+   "valid": false,
+   "offset": 6,
+   "msg": "invalid character 'l' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 6,
+   "msg": "invalid character '[' in literal null (expecting 'u')"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 77,
+   "msg": "invalid character 'l' after object key:value pair"
+  },
+  {
+   "valid": false,
+   "offset": 3,
+   "msg": "invalid character 'u' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 7,
+   "msg": "invalid character '}' after top-level value"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 43,
+   "msg": "unexpected end of JSON input"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 3,
+   "msg": "invalid character ' ' in literal null (expecting 'l')"
+  },
+  {
+   "valid": false,
+   "offset": 3,
+   "msg": "invalid character 'r' looking for beginning of value"
+  },
+  {
+   "valid": false,
+   "offset": 10,
+   "msg": "invalid character ' ' in string escape code"
+  },
+  {
+   "valid": false,
+   "offset": 1,
+   "msg": "invalid character '\\\\' looking for beginning of value"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 5,
+   "msg": "invalid character ']' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 4,
+   "msg": "unexpected end of JSON input"
+  },
+  {
+   "valid": false,
+   "offset": 3,
+   "msg": "invalid character '\\x00' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 202,
+   "msg": "invalid character 'r' after object key:value pair"
+  },
+  {
+   "valid": false,
+   "offset": 46,
+   "msg": "unexpected end of JSON input"
+  },
+  {
+   "valid": false,
+   "offset": 2,
+   "msg": "invalid character 'r' in numeric literal"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 144,
+   "msg": "invalid character '2' after object key:value pair"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 6,
+   "msg": "invalid character '3' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 6,
+   "msg": "invalid character ',' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 3,
+   "msg": "invalid character ' ' in literal false (expecting 's')"
+  },
+  {
+   "valid": false,
+   "offset": 4,
+   "msg": "invalid character '\\\\' looking for beginning of value"
+  },
+  {
+   "valid": false,
+   "offset": 127,
+   "msg": "invalid character ',' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": false,
+   "offset": 4,
+   "msg": "invalid character '}' in literal false (expecting 'l')"
+  },
+  {
+   "valid": false,
+   "offset": 155,
+   "msg": "invalid character 'Z' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": false,
+   "offset": 37,
+   "msg": "invalid character '[' after array element"
+  },
+  {
+   "valid": false,
+   "offset": 3,
+   "msg": "invalid character 'n' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 5,
+   "msg": "invalid character '-' after top-level value"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 5,
+   "msg": "invalid character 'f' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 34,
+   "msg": "invalid character ']' after object key:value pair"
+  },
+  {
+   "valid": false,
+   "offset": 7,
+   "msg": "invalid character '\\r' in string literal"
+  },
+  {
+   "valid": false,
+   "offset": 2,
+   "msg": "invalid character 'f' in literal false (expecting 'a')"
+  },
+  {
+   "valid": false,
+   "offset": 4,
+   "msg": "invalid character ']' after top-level value"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 6,
+   "msg": "invalid character 's' in literal false (expecting 'e')"
+  },
+  {
+   "valid": false,
+   "offset": 5,
+   "msg": "invalid character ' ' in literal null (expecting 'l')"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 7,
+   "msg": "invalid character '\\x1f' after object key"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 4,
+   "msg": "invalid character 'r' in literal null (expecting 'l')"
+  },
+  {
+   "valid": false,
+   "offset": 2,
+   "msg": "invalid character '\\\\' in literal false (expecting 'a')"
+  },
+  {
+   "valid": false,
+   "offset": 5,
+   "msg": "invalid character 'E' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 6,
+   "msg": "invalid character '8' in literal null (expecting 'l')"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 52,
+   "msg": "invalid character '8' in string escape code"
+  },
+  {
+   "valid": false,
+   "offset": 2,
+   "msg": "invalid character '6' in literal true (expecting 'r')"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 4,
+   "msg": "unexpected end of JSON input"
+  },
+  {
+   "valid": false,
+   "offset": 4,
+   "msg": "invalid character '\\\\' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 20,
+   "msg": "invalid character 'ð' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": false,
+   "offset": 10,
+   "msg": "invalid character '\"' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 4,
+   "msg": "invalid character 'n' in literal false (expecting 's')"
+  },
+  {
+   "valid": false,
+   "offset": 200,
+   "msg": "invalid character 'Ã' in string escape code"
+  },
+  {
+   "valid": false,
+   "offset": 22,
+   "msg": "unexpected end of JSON input"
+  },
+  {
+   "valid": false,
+   "offset": 1,
+   "msg": "invalid character '%' looking for beginning of value"
+  },
+  {
+   "valid": false,
+   "offset": 9,
+   "msg": "unexpected end of JSON input"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 7,
+   "msg": "invalid character 'f' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 5,
+   "msg": "invalid character 'x' after top-level value"
+  },
+  {
+   "valid": false,
+   "offset": 3,
+   "msg": "invalid character 'E' looking for beginning of value"
+  },
+  {
+   "valid": false,
+   "offset": 14,
+   "msg": "invalid character '}' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": false,
+   "offset": 400,
+   "msg": "invalid character ' ' in \\u hexadecimal character escape"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 2,
+   "msg": "invalid character '}' after top-level value"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 1,
+   "msg": "invalid character '\\\\' looking for beginning of value"
+  },
+  {
+   "valid": false,
+   "offset": 3,
+   "msg": "invalid character '}' looking for beginning of value"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 3,
+   "msg": "invalid character '6' after top-level value"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 4,
+   "msg": "invalid character '3' in literal false (expecting 'l')"
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  {
+   "valid": false,
+   "offset": 18,
+   "msg": "invalid character 'r' after top-level value"
+  }
+ ],
+ "suite": {
+  "i_number_double_huge_neg_exp.json": {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  "i_number_huge_exp.json": {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  "i_number_neg_int_huge_exp.json": {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  "i_number_pos_double_huge_exp.json": {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  "i_number_real_neg_overflow.json": {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  "i_number_real_pos_overflow.json": {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  "i_number_real_underflow.json": {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  "i_number_too_big_neg_int.json": {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  "i_number_too_big_pos_int.json": {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  "i_number_very_big_negative_int.json": {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  "i_object_key_lone_2nd_surrogate.json": {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  "i_string_1st_surrogate_but_2nd_missing.json": {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  "i_string_1st_valid_surrogate_2nd_invalid.json": {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  "i_string_UTF-16LE_with_BOM.json": {
+   "valid": false,
+   "offset": 1,
+   "msg": "invalid character 'ÿ' looking for beginning of value"
+  },
+  "i_string_UTF-8_invalid_sequence.json": {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  "i_string_UTF8_surrogate_U+D800.json": {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  "i_string_incomplete_surrogate_and_escape_valid.json": {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  "i_string_incomplete_surrogate_pair.json": {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  "i_string_incomplete_surrogates_escape_valid.json": {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  "i_string_invalid_lonely_surrogate.json": {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  "i_string_invalid_surrogate.json": {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  "i_string_invalid_utf-8.json": {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  "i_string_inverted_surrogates_U+1D11E.json": {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  "i_string_iso_latin_1.json": {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  "i_string_lone_second_surrogate.json": {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  "i_string_lone_utf8_continuation_byte.json": {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  "i_string_not_in_unicode_range.json": {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  "i_string_overlong_sequence_2_bytes.json": {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  "i_string_overlong_sequence_6_bytes.json": {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  "i_string_overlong_sequence_6_bytes_null.json": {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  "i_string_truncated-utf-8.json": {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  "i_string_utf16BE_no_BOM.json": {
+   "valid": false,
+   "offset": 1,
+   "msg": "invalid character '\\x00' looking for beginning of value"
+  },
+  "i_string_utf16LE_no_BOM.json": {
+   "valid": false,
+   "offset": 2,
+   "msg": "invalid character '\\x00' looking for beginning of value"
+  },
+  "i_structure_500_nested_arrays.json": {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  "i_structure_UTF-8_BOM_empty_object.json": {
+   "valid": false,
+   "offset": 1,
+   "msg": "invalid character 'ï' looking for beginning of value"
+  },
+  "n_array_1_true_without_comma.json": {
+   "valid": false,
+   "offset": 4,
+   "msg": "invalid character 't' after array element"
+  },
+  "n_array_a_invalid_utf8.json": {
+   "valid": false,
+   "offset": 2,
+   "msg": "invalid character 'a' looking for beginning of value"
+  },
+  "n_array_colon_instead_of_comma.json": {
+   "valid": false,
+   "offset": 4,
+   "msg": "invalid character ':' after array element"
+  },
+  "n_array_comma_after_close.json": {
+   "valid": false,
+   "offset": 5,
+   "msg": "invalid character ',' after top-level value"
+  },
+  "n_array_comma_and_number.json": {
+   "valid": false,
+   "offset": 2,
+   "msg": "invalid character ',' looking for beginning of value"
+  },
+  "n_array_double_comma.json": {
+   "valid": false,
+   "offset": 4,
+   "msg": "invalid character ',' looking for beginning of value"
+  },
+  "n_array_double_extra_comma.json": {
+   "valid": false,
+   "offset": 6,
+   "msg": "invalid character ',' looking for beginning of value"
+  },
+  "n_array_extra_close.json": {
+   "valid": false,
+   "offset": 6,
+   "msg": "invalid character ']' after top-level value"
+  },
+  "n_array_extra_comma.json": {
+   "valid": false,
+   "offset": 5,
+   "msg": "invalid character ']' looking for beginning of value"
+  },
+  "n_array_incomplete.json": {
+   "valid": false,
+   "offset": 4,
+   "msg": "unexpected end of JSON input"
+  },
+  "n_array_incomplete_invalid_value.json": {
+   "valid": false,
+   "offset": 2,
+   "msg": "invalid character 'x' looking for beginning of value"
+  },
+  "n_array_inner_array_no_comma.json": {
+   "valid": false,
+   "offset": 3,
+   "msg": "invalid character '[' after array element"
+  },
+  "n_array_invalid_utf8.json": {
+   "valid": false,
+   "offset": 2,
+   "msg": "invalid character 'ÿ' looking for beginning of value"
+  },
+  "n_array_items_separated_by_semicolon.json": {
+   "valid": false,
+   "offset": 3,
+   "msg": "invalid character ':' after array element"
+  },
+  "n_array_just_comma.json": {
+   "valid": false,
+   "offset": 2,
+   "msg": "invalid character ',' looking for beginning of value"
+  },
+  "n_array_just_minus.json": {
+   "valid": false,
+   "offset": 3,
+   "msg": "invalid character ']' in numeric literal"
+  },
+  "n_array_missing_value.json": {
+   "valid": false,
+   "offset": 5,
+   "msg": "invalid character ',' looking for beginning of value"
+  },
+  "n_array_newlines_unclosed.json": {
+   "valid": false,
+   "offset": 11,
+   "msg": "unexpected end of JSON input"
+  },
+  "n_array_number_and_comma.json": {
+   "valid": false,
+   "offset": 4,
+   "msg": "invalid character ']' looking for beginning of value"
+  },
+  "n_array_number_and_several_commas.json": {
+   "valid": false,
+   "offset": 4,
+   "msg": "invalid character ',' looking for beginning of value"
+  },
+  "n_array_spaces_vertical_tab_formfeed.json": {
+   "valid": false,
+   "offset": 3,
+   "msg": "invalid character '\\v' in string literal"
+  },
+  "n_array_star_inside.json": {
+   "valid": false,
+   "offset": 2,
+   "msg": "invalid character '*' looking for beginning of value"
+  },
+  "n_array_unclosed.json": {
+   "valid": false,
+   "offset": 3,
+   "msg": "unexpected end of JSON input"
+  },
+  "n_array_unclosed_trailing_comma.json": {
+   "valid": false,
+   "offset": 3,
+   "msg": "unexpected end of JSON input"
+  },
+  "n_array_unclosed_with_new_lines.json": {
+   "valid": false,
+   "offset": 8,
+   "msg": "unexpected end of JSON input"
+  },
+  "n_array_unclosed_with_object_inside.json": {
+   "valid": false,
+   "offset": 3,
+   "msg": "unexpected end of JSON input"
+  },
+  "n_incomplete_false.json": {
+   "valid": false,
+   "offset": 6,
+   "msg": "invalid character ']' in literal false (expecting 'e')"
+  },
+  "n_incomplete_null.json": {
+   "valid": false,
+   "offset": 5,
+   "msg": "invalid character ']' in literal null (expecting 'l')"
+  },
+  "n_incomplete_true.json": {
+   "valid": false,
+   "offset": 5,
+   "msg": "invalid character ']' in literal true (expecting 'e')"
+  },
+  "n_multidigit_number_then_00.json": {
+   "valid": false,
+   "offset": 4,
+   "msg": "invalid character '\\x00' after top-level value"
+  },
+  "n_number_++.json": {
+   "valid": false,
+   "offset": 2,
+   "msg": "invalid character '+' looking for beginning of value"
+  },
+  "n_number_+1.json": {
+   "valid": false,
+   "offset": 2,
+   "msg": "invalid character '+' looking for beginning of value"
+  },
+  "n_number_+Inf.json": {
+   "valid": false,
+   "offset": 2,
+   "msg": "invalid character '+' looking for beginning of value"
+  },
+  "n_number_-01.json": {
+   "valid": false,
+   "offset": 4,
+   "msg": "invalid character '1' after array element"
+  },
+  "n_number_-1.0..json": {
+   "valid": false,
+   "offset": 6,
+   "msg": "invalid character '.' after array element"
+  },
+  "n_number_-2..json": {
+   "valid": false,
+   "offset": 5,
+   "msg": "invalid character ']' after decimal point in numeric literal"
+  },
+  "n_number_-NaN.json": {
+   "valid": false,
+   "offset": 3,
+   "msg": "invalid character 'N' in numeric literal"
+  },
+  "n_number_.-1.json": {
+   "valid": false,
+   "offset": 2,
+   "msg": "invalid character '.' looking for beginning of value"
+  },
+  "n_number_.2e-3.json": {
+   "valid": false,
+   "offset": 2,
+   "msg": "invalid character '.' looking for beginning of value"
+  },
+  "n_number_0.1.2.json": {
+   "valid": false,
+   "offset": 5,
+   "msg": "invalid character '.' after array element"
+  },
+  "n_number_0.3e+.json": {
+   "valid": false,
+   "offset": 7,
+   "msg": "invalid character ']' in exponent of numeric literal"
+  },
+  "n_number_0.3e.json": {
+   "valid": false,
+   "offset": 6,
+   "msg": "invalid character ']' in exponent of numeric literal"
+  },
+  "n_number_0.e1.json": {
+   "valid": false,
+   "offset": 4,
+   "msg": "invalid character 'e' after decimal point in numeric literal"
+  },
+  "n_number_0_capital_E+.json": {
+   "valid": false,
+   "offset": 5,
+   "msg": "invalid character ']' in exponent of numeric literal"
+  },
+  "n_number_0_capital_E.json": {
+   "valid": false,
+   "offset": 4,
+   "msg": "invalid character ']' in exponent of numeric literal"
+  },
+  "n_number_0e+.json": {
+   "valid": false,
+   "offset": 5,
+   "msg": "invalid character ']' in exponent of numeric literal"
+  },
+  "n_number_0e.json": {
+   "valid": false,
+   "offset": 4,
+   "msg": "invalid character ']' in exponent of numeric literal"
+  },
+  "n_number_1.0e+.json": {
+   "valid": false,
+   "offset": 7,
+   "msg": "invalid character ']' in exponent of numeric literal"
+  },
+  "n_number_1.0e-.json": {
+   "valid": false,
+   "offset": 7,
+   "msg": "invalid character ']' in exponent of numeric literal"
+  },
+  "n_number_1.0e.json": {
+   "valid": false,
+   "offset": 6,
+   "msg": "invalid character ']' in exponent of numeric literal"
+  },
+  "n_number_1_000.json": {
+   "valid": false,
+   "offset": 4,
+   "msg": "invalid character '0' after array element"
+  },
+  "n_number_1eE2.json": {
+   "valid": false,
+   "offset": 4,
+   "msg": "invalid character 'E' in exponent of numeric literal"
+  },
+  "n_number_2.e+3.json": {
+   "valid": false,
+   "offset": 4,
+   "msg": "invalid character 'e' after decimal point in numeric literal"
+  },
+  "n_number_2.e-3.json": {
+   "valid": false,
+   "offset": 4,
+   "msg": "invalid character 'e' after decimal point in numeric literal"
+  },
+  "n_number_2.e3.json": {
+   "valid": false,
+   "offset": 4,
+   "msg": "invalid character 'e' after decimal point in numeric literal"
+  },
+  "n_number_9.e+.json": {
+   "valid": false,
+   "offset": 4,
+   "msg": "invalid character 'e' after decimal point in numeric literal"
+  },
+  "n_number_Inf.json": {
+   "valid": false,
+   "offset": 2,
+   "msg": "invalid character 'I' looking for beginning of value"
+  },
+  "n_number_NaN.json": {
+   "valid": false,
+   "offset": 2,
+   "msg": "invalid character 'N' looking for beginning of value"
+  },
+  "n_number_U+FF11_fullwidth_digit_one.json": {
+   "valid": false,
+   "offset": 2,
+   "msg": "invalid character 'ï' looking for beginning of value"
+  },
+  "n_number_expression.json": {
+   "valid": false,
+   "offset": 3,
+   "msg": "invalid character '+' after array element"
+  },
+  "n_number_hex_1_digit.json": {
+   "valid": false,
+   "offset": 3,
+   "msg": "invalid character 'x' after array element"
+  },
+  "n_number_hex_2_digits.json": {
+   "valid": false,
+   "offset": 3,
+   "msg": "invalid character 'x' after array element"
+  },
+  "n_number_infinity.json": {
+   "valid": false,
+   "offset": 2,
+   "msg": "invalid character 'I' looking for beginning of value"
+  },
+  "n_number_invalid+-.json": {
+   "valid": false,
+   "offset": 5,
+   "msg": "invalid character '-' in exponent of numeric literal"
+  },
+  "n_number_invalid-negative-real.json": {
+   "valid": false,
+   "offset": 10,
+   "msg": "invalid character 'f' after array element"
+  },
+  "n_number_invalid-utf-8-in-bigger-int.json": {
+   "valid": false,
+   "offset": 5,
+   "msg": "invalid character 'å' after array element"
+  },
+  "n_number_invalid-utf-8-in-exponent.json": {
+   "valid": false,
+   "offset": 5,
+   "msg": "invalid character 'å' after array element"
+  },
+  "n_number_invalid-utf-8-in-int.json": {
+   "valid": false,
+   "offset": 3,
+   "msg": "invalid character 'å' after array element"
+  },
+  "n_number_minus_infinity.json": {
+   "valid": false,
+   "offset": 3,
+   "msg": "invalid character 'I' in numeric literal"
+  },
+  "n_number_minus_sign_with_trailing_garbage.json": {
+   "valid": false,
+   "offset": 3,
+   "msg": "invalid character 'f' in numeric literal"
+  },
+  "n_number_minus_space_1.json": {
+   "valid": false,
+   "offset": 3,
+   "msg": "invalid character ' ' in numeric literal"
+  },
+  "n_number_neg_int_starting_with_zero.json": {
+   "valid": false,
+   "offset": 4,
+   "msg": "invalid character '1' after array element"
+  },
+  "n_number_neg_real_without_int_part.json": {
+   "valid": false,
+   "offset": 3,
+   "msg": "invalid character '.' in numeric literal"
+  },
+  "n_number_neg_with_garbage_at_end.json": {
+   "valid": false,
+   "offset": 4,
+   "msg": "invalid character 'x' after array element"
+  },
+  "n_number_real_garbage_after_e.json": {
+   "valid": false,
+   "offset": 4,
+   "msg": "invalid character 'a' in exponent of numeric literal"
+  },
+  "n_number_real_with_invalid_utf8_after_e.json": {
+   "valid": false,
+   "offset": 4,
+   "msg": "invalid character 'å' in exponent of numeric literal"
+  },
+  "n_number_real_without_fractional_part.json": {
+   "valid": false,
+   "offset": 4,
+   "msg": "invalid character ']' after decimal point in numeric literal"
+  },
+  "n_number_starting_with_dot.json": {
+   "valid": false,
+   "offset": 2,
+   "msg": "invalid character '.' looking for beginning of value"
+  },
+  "n_number_with_alpha.json": {
+   "valid": false,
+   "offset": 5,
+   "msg": "invalid character 'a' after array element"
+  },
+  "n_number_with_alpha_char.json": {
+   "valid": false,
+   "offset": 20,
+   "msg": "invalid character 'H' after array element"
+  },
+  "n_number_with_leading_zero.json": {
+   "valid": false,
+   "offset": 3,
+   "msg": "invalid character '1' after array element"
+  },
+  "n_object_bad_value.json": {
+   "valid": false,
+   "offset": 10,
+   "msg": "invalid character 't' in literal true (expecting 'e')"
+  },
+  "n_object_bracket_key.json": {
+   "valid": false,
+   "offset": 2,
+   "msg": "invalid character '[' looking for beginning of object key string"
+  },
+  "n_object_comma_instead_of_colon.json": {
+   "valid": false,
+   "offset": 5,
+   "msg": "invalid character ',' after object key"
+  },
+  "n_object_double_colon.json": {
+   "valid": false,
+   "offset": 6,
+   "msg": "invalid character ':' looking for beginning of value"
+  },
+  "n_object_emoji.json": {
+   "valid": false,
+   "offset": 2,
+   "msg": "invalid character 'ð' looking for beginning of object key string"
+  },
+  "n_object_garbage_at_end.json": {
+   "valid": false,
+   "offset": 10,
+   "msg": "invalid character '1' after object key:value pair"
+  },
+  "n_object_key_with_single_quotes.json": {
+   "valid": false,
+   "offset": 2,
+   "msg": "invalid character 'k' looking for beginning of object key string"
+  },
+  "n_object_lone_continuation_byte_in_key_and_trailing_comma.json": {
+   "valid": false,
+   "offset": 10,
+   "msg": "invalid character '}' looking for beginning of object key string"
+  },
+  "n_object_missing_colon.json": {
+   "valid": false,
+   "offset": 6,
+   "msg": "invalid character 'b' after object key"
+  },
+  "n_object_missing_key.json": {
+   "valid": false,
+   "offset": 2,
+   "msg": "invalid character ':' looking for beginning of object key string"
+  },
+  "n_object_missing_semicolon.json": {
+   "valid": false,
+   "offset": 6,
+   "msg": "invalid character '\"' after object key"
+  },
+  "n_object_missing_value.json": {
+   "valid": false,
+   "offset": 5,
+   "msg": "unexpected end of JSON input"
+  },
+  "n_object_no-colon.json": {
+   "valid": false,
+   "offset": 4,
+   "msg": "unexpected end of JSON input"
+  },
+  "n_object_non_string_key.json": {
+   "valid": false,
+   "offset": 2,
+   "msg": "invalid character '1' looking for beginning of object key string"
+  },
+  "n_object_non_string_key_but_huge_number_instead.json": {
+   "valid": false,
+   "offset": 2,
+   "msg": "invalid character '9' looking for beginning of object key string"
+  },
+  "n_object_repeated_null_null.json": {
+   "valid": false,
+   "offset": 2,
+   "msg": "invalid character 'n' looking for beginning of object key string"
+  },
+  "n_object_several_trailing_commas.json": {
+   "valid": false,
+   "offset": 9,
+   "msg": "invalid character ',' looking for beginning of object key string"
+  },
+  "n_object_single_quote.json": {
+   "valid": false,
+   "offset": 2,
+   "msg": "invalid character '\\'' looking for beginning of object key string"
+  },
+  "n_object_trailing_comma.json": {
+   "valid": false,
+   "offset": 9,
+   "msg": "invalid character '}' looking for beginning of object key string"
+  },
+  "n_object_trailing_comment.json": {
+   "valid": false,
+   "offset": 10,
+   "msg": "invalid character '/' after top-level value"
+  },
+  "n_object_trailing_comment_open.json": {
+   "valid": false,
+   "offset": 10,
+   "msg": "invalid character '/' after top-level value"
+  },
+  "n_object_trailing_comment_slash_open.json": {
+   "valid": false,
+   "offset": 10,
+   "msg": "invalid character '/' after top-level value"
+  },
+  "n_object_trailing_comment_slash_open_incomplete.json": {
+   "valid": false,
+   "offset": 10,
+   "msg": "invalid character '/' after top-level value"
+  },
+  "n_object_two_commas_in_a_row.json": {
+   "valid": false,
+   "offset": 10,
+   "msg": "invalid character ',' looking for beginning of object key string"
+  },
+  "n_object_unquoted_key.json": {
+   "valid": false,
+   "offset": 2,
+   "msg": "invalid character 'a' looking for beginning of object key string"
+  },
+  "n_object_unterminated-value.json": {
+   "valid": false,
+   "offset": 7,
+   "msg": "unexpected end of JSON input"
+  },
+  "n_object_with_single_string.json": {
+   "valid": false,
+   "offset": 22,
+   "msg": "invalid character '}' after object key"
+  },
+  "n_object_with_trailing_garbage.json": {
+   "valid": false,
+   "offset": 10,
+   "msg": "invalid character '#' after top-level value"
+  },
+  "n_single_space.json": {
+   "valid": false,
+   "offset": 1,
+   "msg": "unexpected end of JSON input"
+  },
+  "n_string_1_surrogate_then_escape.json": {
+   "valid": false,
+   "offset": 11,
+   "msg": "unexpected end of JSON input"
+  },
+  "n_string_1_surrogate_then_escape_u.json": {
+   "valid": false,
+   "offset": 11,
+   "msg": "invalid character '\"' in \\u hexadecimal character escape"
+  },
+  "n_string_1_surrogate_then_escape_u1.json": {
+   "valid": false,
+   "offset": 12,
+   "msg": "invalid character '\"' in \\u hexadecimal character escape"
+  },
+  "n_string_1_surrogate_then_escape_u1x.json": {
+   "valid": false,
+   "offset": 12,
+   "msg": "invalid character 'x' in \\u hexadecimal character escape"
+  },
+  "n_string_accentuated_char_no_quotes.json": {
+   "valid": false,
+   "offset": 2,
+   "msg": "invalid character 'Ã' looking for beginning of value"
+  },
+  "n_string_backslash_00.json": {
+   "valid": false,
+   "offset": 4,
+   "msg": "invalid character '\\x00' in string escape code"
+  },
+  "n_string_escape_x.json": {
+   "valid": false,
+   "offset": 4,
+   "msg": "invalid character 'x' in string escape code"
+  },
+  "n_string_escaped_backslash_bad.json": {
+   "valid": false,
+   "offset": 7,
+   "msg": "unexpected end of JSON input"
+  },
+  "n_string_escaped_ctrl_char_tab.json": {
+   "valid": false,
+   "offset": 4,
+   "msg": "invalid character '\\t' in string escape code"
+  },
+  "n_string_escaped_emoji.json": {
+   "valid": false,
+   "offset": 4,
+   "msg": "invalid character 'ð' in string escape code"
+  },
+  "n_string_incomplete_escape.json": {
+   "valid": false,
+   "offset": 5,
+   "msg": "unexpected end of JSON input"
+  },
+  "n_string_incomplete_escaped_character.json": {
+   "valid": false,
+   "offset": 8,
+   "msg": "invalid character '\"' in \\u hexadecimal character escape"
+  },
+  "n_string_incomplete_surrogate.json": {
+   "valid": false,
+   "offset": 13,
+   "msg": "invalid character '\"' in \\u hexadecimal character escape"
+  },
+  "n_string_incomplete_surrogate_escape_invalid.json": {
+   "valid": false,
+   "offset": 16,
+   "msg": "invalid character 'x' in string escape code"
+  },
+  "n_string_invalid-utf-8-in-escape.json": {
+   "valid": false,
+   "offset": 5,
+   "msg": "invalid character 'å' in \\u hexadecimal character escape"
+  },
+  "n_string_invalid_backslash_esc.json": {
+   "valid": false,
+   "offset": 4,
+   "msg": "invalid character 'a' in string escape code"
+  },
+  "n_string_invalid_unicode_escape.json": {
+   "valid": false,
+   "offset": 5,
+   "msg": "invalid character 'q' in \\u hexadecimal character escape"
+  },
+  "n_string_invalid_utf8_after_escape.json": {
+   "valid": false,
+   "offset": 4,
+   "msg": "invalid character 'å' in string escape code"
+  },
+  "n_string_leading_uescaped_thinspace.json": {
+   "valid": false,
+   "offset": 2,
+   "msg": "invalid character '\\\\' looking for beginning of value"
+  },
+  "n_string_no_quotes_with_bad_escape.json": {
+   "valid": false,
+   "offset": 2,
+   "msg": "invalid character '\\\\' looking for beginning of value"
+  },
+  "n_string_single_doublequote.json": {
+   "valid": false,
+   "offset": 1,
+   "msg": "unexpected end of JSON input"
+  },
+  "n_string_single_quote.json": {
+   "valid": false,
+   "offset": 2,
+   "msg": "invalid character '\\'' looking for beginning of value"
+  },
+  "n_string_single_string_no_double_quotes.json": {
+   "valid": false,
+   "offset": 1,
+   "msg": "invalid character 'a' looking for beginning of value"
+  },
+  "n_string_start_escape_unclosed.json": {
+   "valid": false,
+   "offset": 3,
+   "msg": "invalid character ' ' in string escape code"
+  },
+  "n_string_unescaped_ctrl_char.json": {
+   "valid": false,
+   "offset": 4,
+   "msg": "invalid character '\\x00' in string literal"
+  },
+  "n_string_unescaped_newline.json": {
+   "valid": false,
+   "offset": 6,
+   "msg": "invalid character '\\n' in string literal"
+  },
+  "n_string_unescaped_tab.json": {
+   "valid": false,
+   "offset": 3,
+   "msg": "invalid character '\\t' in string literal"
+  },
+  "n_string_unicode_CapitalU.json": {
+   "valid": false,
+   "offset": 3,
+   "msg": "invalid character 'U' in string escape code"
+  },
+  "n_string_with_trailing_garbage.json": {
+   "valid": false,
+   "offset": 3,
+   "msg": "invalid character 'x' after top-level value"
+  },
+  "n_structure_100000_opening_arrays.json": {
+   "valid": false,
+   "offset": 10001,
+   "msg": "invalid character '[' exceeded max depth"
+  },
+  "n_structure_U+2060_word_joined.json": {
+   "valid": false,
+   "offset": 2,
+   "msg": "invalid character 'â' looking for beginning of value"
+  },
+  "n_structure_UTF8_BOM_no_data.json": {
+   "valid": false,
+   "offset": 1,
+   "msg": "invalid character 'ï' looking for beginning of value"
+  },
+  "n_structure_angle_bracket_..json": {
+   "valid": false,
+   "offset": 1,
+   "msg": "invalid character '\u003c' looking for beginning of value"
+  },
+  "n_structure_angle_bracket_null.json": {
+   "valid": false,
+   "offset": 2,
+   "msg": "invalid character '\u003c' looking for beginning of value"
+  },
+  "n_structure_array_trailing_garbage.json": {
+   "valid": false,
+   "offset": 4,
+   "msg": "invalid character 'x' after top-level value"
+  },
+  "n_structure_array_with_extra_array_close.json": {
+   "valid": false,
+   "offset": 4,
+   "msg": "invalid character ']' after top-level value"
+  },
+  "n_structure_array_with_unclosed_string.json": {
+   "valid": false,
+   "offset": 6,
+   "msg": "unexpected end of JSON input"
+  },
+  "n_structure_ascii-unicode-identifier.json": {
+   "valid": false,
+   "offset": 1,
+   "msg": "invalid character 'a' looking for beginning of value"
+  },
+  "n_structure_capitalized_True.json": {
+   "valid": false,
+   "offset": 2,
+   "msg": "invalid character 'T' looking for beginning of value"
+  },
+  "n_structure_close_unopened_array.json": {
+   "valid": false,
+   "offset": 2,
+   "msg": "invalid character ']' after top-level value"
+  },
+  "n_structure_comma_instead_of_closing_brace.json": {
+   "valid": false,
+   "offset": 11,
+   "msg": "unexpected end of JSON input"
+  },
+  "n_structure_double_array.json": {
+   "valid": false,
+   "offset": 3,
+   "msg": "invalid character '[' after top-level value"
+  },
+  "n_structure_end_array.json": {
+   "valid": false,
+   "offset": 1,
+   "msg": "invalid character ']' looking for beginning of value"
+  },
+  "n_structure_incomplete_UTF8_BOM.json": {
+   "valid": false,
+   "offset": 1,
+   "msg": "invalid character 'ï' looking for beginning of value"
+  },
+  "n_structure_lone-invalid-utf-8.json": {
+   "valid": false,
+   "offset": 1,
+   "msg": "invalid character 'å' looking for beginning of value"
+  },
+  "n_structure_lone-open-bracket.json": {
+   "valid": false,
+   "offset": 1,
+   "msg": "unexpected end of JSON input"
+  },
+  "n_structure_no_data.json": {
+   "valid": false,
+   "offset": 0,
+   "msg": "unexpected end of JSON input"
+  },
+  "n_structure_null-byte-outside-string.json": {
+   "valid": false,
+   "offset": 2,
+   "msg": "invalid character '\\x00' looking for beginning of value"
+  },
+  "n_structure_number_with_trailing_garbage.json": {
+   "valid": false,
+   "offset": 2,
+   "msg": "invalid character '@' after top-level value"
+  },
+  "n_structure_object_followed_by_closing_object.json": {
+   "valid": false,
+   "offset": 3,
+   "msg": "invalid character '}' after top-level value"
+  },
+  "n_structure_object_unclosed_no_value.json": {
+   "valid": false,
+   "offset": 4,
+   "msg": "unexpected end of JSON input"
+  },
+  "n_structure_object_with_comment.json": {
+   "valid": false,
+   "offset": 6,
+   "msg": "invalid character '/' looking for beginning of value"
+  },
+  "n_structure_object_with_trailing_garbage.json": {
+   "valid": false,
+   "offset": 13,
+   "msg": "invalid character '\"' after top-level value"
+  },
+  "n_structure_open_array_apostrophe.json": {
+   "valid": false,
+   "offset": 2,
+   "msg": "invalid character '\\'' looking for beginning of value"
+  },
+  "n_structure_open_array_comma.json": {
+   "valid": false,
+   "offset": 2,
+   "msg": "invalid character ',' looking for beginning of value"
+  },
+  "n_structure_open_array_object.json": {
+   "valid": false,
+   "offset": 25001,
+   "msg": "invalid character '[' exceeded max depth"
+  },
+  "n_structure_open_array_open_object.json": {
+   "valid": false,
+   "offset": 2,
+   "msg": "unexpected end of JSON input"
+  },
+  "n_structure_open_array_open_string.json": {
+   "valid": false,
+   "offset": 3,
+   "msg": "unexpected end of JSON input"
+  },
+  "n_structure_open_array_string.json": {
+   "valid": false,
+   "offset": 4,
+   "msg": "unexpected end of JSON input"
+  },
+  "n_structure_open_object.json": {
+   "valid": false,
+   "offset": 1,
+   "msg": "unexpected end of JSON input"
+  },
+  "n_structure_open_object_close_array.json": {
+   "valid": false,
+   "offset": 2,
+   "msg": "invalid character ']' looking for beginning of object key string"
+  },
+  "n_structure_open_object_comma.json": {
+   "valid": false,
+   "offset": 2,
+   "msg": "invalid character ',' looking for beginning of object key string"
+  },
+  "n_structure_open_object_open_array.json": {
+   "valid": false,
+   "offset": 2,
+   "msg": "invalid character '[' looking for beginning of object key string"
+  },
+  "n_structure_open_object_open_string.json": {
+   "valid": false,
+   "offset": 3,
+   "msg": "unexpected end of JSON input"
+  },
+  "n_structure_open_object_string_with_apostrophes.json": {
+   "valid": false,
+   "offset": 2,
+   "msg": "invalid character '\\'' looking for beginning of object key string"
+  },
+  "n_structure_open_open.json": {
+   "valid": false,
+   "offset": 4,
+   "msg": "invalid character '{' in string escape code"
+  },
+  "n_structure_single_eacute.json": {
+   "valid": false,
+   "offset": 1,
+   "msg": "invalid character 'é' looking for beginning of value"
+  },
+  "n_structure_single_star.json": {
+   "valid": false,
+   "offset": 1,
+   "msg": "invalid character '*' looking for beginning of value"
+  },
+  "n_structure_trailing_#.json": {
+   "valid": false,
+   "offset": 10,
+   "msg": "invalid character '#' after top-level value"
+  },
+  "n_structure_uescaped_LF_before_string.json": {
+   "valid": false,
+   "offset": 2,
+   "msg": "invalid character '\\\\' looking for beginning of value"
+  },
+  "n_structure_unclosed_array.json": {
+   "valid": false,
+   "offset": 2,
+   "msg": "unexpected end of JSON input"
+  },
+  "n_structure_unclosed_array_partial_null.json": {
+   "valid": false,
+   "offset": 12,
+   "msg": "invalid character ' ' in literal null (expecting 'l')"
+  },
+  "n_structure_unclosed_array_unfinished_false.json": {
+   "valid": false,
+   "offset": 12,
+   "msg": "invalid character ' ' in literal false (expecting 'e')"
+  },
+  "n_structure_unclosed_array_unfinished_true.json": {
+   "valid": false,
+   "offset": 12,
+   "msg": "invalid character ' ' in literal true (expecting 'e')"
+  },
+  "n_structure_unclosed_object.json": {
+   "valid": false,
+   "offset": 12,
+   "msg": "unexpected end of JSON input"
+  },
+  "n_structure_unicode-identifier.json": {
+   "valid": false,
+   "offset": 1,
+   "msg": "invalid character 'Ã' looking for beginning of value"
+  },
+  "n_structure_whitespace_U+2060_word_joiner.json": {
+   "valid": false,
+   "offset": 2,
+   "msg": "invalid character 'â' looking for beginning of value"
+  },
+  "n_structure_whitespace_formfeed.json": {
+   "valid": false,
+   "offset": 2,
+   "msg": "invalid character '\\f' looking for beginning of value"
+  },
+  "y_array_arraysWithSpaces.json": {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  "y_array_empty-string.json": {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  "y_array_empty.json": {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  "y_array_ending_with_newline.json": {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  "y_array_false.json": {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  "y_array_heterogeneous.json": {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  "y_array_null.json": {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  "y_array_with_1_and_newline.json": {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  "y_array_with_leading_space.json": {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  "y_array_with_several_null.json": {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  "y_array_with_trailing_space.json": {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  "y_number.json": {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  "y_number_0e+1.json": {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  "y_number_0e1.json": {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  "y_number_after_space.json": {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  "y_number_double_close_to_zero.json": {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  "y_number_int_with_exp.json": {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  "y_number_minus_zero.json": {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  "y_number_negative_int.json": {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  "y_number_negative_one.json": {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  "y_number_negative_zero.json": {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  "y_number_real_capital_e.json": {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  "y_number_real_capital_e_neg_exp.json": {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  "y_number_real_capital_e_pos_exp.json": {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  "y_number_real_exponent.json": {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  "y_number_real_fraction_exponent.json": {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  "y_number_real_neg_exp.json": {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  "y_number_real_pos_exponent.json": {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  "y_number_simple_int.json": {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  "y_number_simple_real.json": {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  "y_object.json": {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  "y_object_basic.json": {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  "y_object_duplicated_key.json": {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  "y_object_duplicated_key_and_value.json": {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  "y_object_empty.json": {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  "y_object_empty_key.json": {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  "y_object_escaped_null_in_key.json": {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  "y_object_extreme_numbers.json": {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  "y_object_long_strings.json": {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  "y_object_simple.json": {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  "y_object_string_unicode.json": {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  "y_object_with_newlines.json": {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  "y_string_1_2_3_bytes_UTF-8_sequences.json": {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  "y_string_accepted_surrogate_pair.json": {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  "y_string_accepted_surrogate_pairs.json": {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  "y_string_allowed_escapes.json": {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  "y_string_backslash_and_u_escaped_zero.json": {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  "y_string_backslash_doublequotes.json": {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  "y_string_comments.json": {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  "y_string_double_escape_a.json": {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  "y_string_double_escape_n.json": {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  "y_string_escaped_control_character.json": {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  "y_string_escaped_noncharacter.json": {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  "y_string_in_array.json": {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  "y_string_in_array_with_leading_space.json": {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  "y_string_last_surrogates_1_and_2.json": {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  "y_string_nbsp_uescaped.json": {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  "y_string_nonCharacterInUTF-8_U+10FFFF.json": {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  "y_string_nonCharacterInUTF-8_U+FFFF.json": {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  "y_string_null_escape.json": {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  "y_string_one-byte-utf-8.json": {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  "y_string_pi.json": {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  "y_string_reservedCharacterInUTF-8_U+1BFFF.json": {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  "y_string_simple_ascii.json": {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  "y_string_space.json": {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  "y_string_surrogates_U+1D11E_MUSICAL_SYMBOL_G_CLEF.json": {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  "y_string_three-byte-utf-8.json": {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  "y_string_two-byte-utf-8.json": {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  "y_string_u+2028_line_sep.json": {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  "y_string_u+2029_par_sep.json": {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  "y_string_uEscape.json": {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  "y_string_uescaped_newline.json": {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  "y_string_unescaped_char_delete.json": {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  "y_string_unicode.json": {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  "y_string_unicodeEscapedBackslash.json": {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  "y_string_unicode_2.json": {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  "y_string_unicode_U+10FFFE_nonchar.json": {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  "y_string_unicode_U+1FFFE_nonchar.json": {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  "y_string_unicode_U+200B_ZERO_WIDTH_SPACE.json": {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  "y_string_unicode_U+2064_invisible_plus.json": {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  "y_string_unicode_U+FDD0_nonchar.json": {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  "y_string_unicode_U+FFFE_nonchar.json": {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  "y_string_unicode_escaped_double_quote.json": {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  "y_string_utf8.json": {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  "y_string_with_del_character.json": {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  "y_structure_lonely_false.json": {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  "y_structure_lonely_int.json": {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  "y_structure_lonely_negative_real.json": {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  "y_structure_lonely_null.json": {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  "y_structure_lonely_string.json": {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  "y_structure_lonely_true.json": {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  "y_structure_string_empty.json": {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  "y_structure_trailing_newline.json": {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  "y_structure_true_in_array.json": {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  },
+  "y_structure_whitespace_array.json": {
+   "valid": true,
+   "offset": -1,
+   "msg": ""
+  }
+ }
+}

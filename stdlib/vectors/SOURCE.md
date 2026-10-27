@@ -1149,6 +1149,90 @@ Mutation testing: `scripts/mut/data.py csv` 35/35 killed.
 - `vectors/data/csv-spectrum/package.json` sha256 `d3f24d28af40679704bcb13e0c99078ecf0860619325f1cb27c858d72c64a5c2`
 - `vectors/data/csv-spectrum/csvs/*.csv` and `json/*.json`: 24 files, unchanged from the tarball above
 
+## data.json (`lib/data/json.rce`)
+
+Official vectors (2348 checks):
+- JSONTestSuite (https://github.com/nst/JSONTestSuite, commit
+  1ef36fa01286573e846ac449e8683f8833c5b26a, MIT, `JSONTestSuite_LICENSE`):
+  the 318 files of `test_parsing` copied unchanged into
+  `vectors/data/json/JSONTestSuite_test_parsing` (sha256 of the files
+  concatenated in name order `31c0c03f...793c`). Every y_ file (95) is
+  accepted and its compact text equals CPython's (below); every n_ file
+  (188) is refused at the offset Go 1.24 reports (below), or earlier where
+  data.json refuses a lone surrogate escape or ill-formed UTF-8 first; the
+  i_ files (35) are decided as recorded in `i_decisions.json`: the 10
+  number files and the 500-deep arrays accepted (numbers are lexemes), the
+  lone surrogate escapes, ill-formed UTF-8, UTF-16 texts and the
+  byte-order mark refused, each at a stated offset. Files that are not
+  UTF-8 are given as bytes (`parse_bytes`); the two large n_ files are
+  rebuilt by repetition (the generator asserts that they equal it).
+- The RFC 8785 test data (https://github.com/cyberphone/json-canonicalization,
+  commit 32a48195b9b20fe67b1795e39e4509f14d860b45, Apache-2.0,
+  `rfc8785/LICENSE`): `testdata/input` and `testdata/output` (6 pairs) copied
+  unchanged, and the first 2000 lines of `es6testfile100m.txt.gz` (release
+  es6testfile) as `rfc8785/es6testfile100m_head2000.txt` (sha256
+  `ee1658d9...1a65`), each an IEEE 754 double and its ECMAScript text.
+- RFC 6901 sections 5 and 6, the 12 pointers and 12 fragment identifiers
+  with their document, transcribed into `rfc6901_examples.json`.
+
+Derived vectors (6638 checks, `scripts/gen/json_gen.py`, seeds 20261025 + k):
+- CPython 3.13.16 `json`: values, compact text (`separators=(',', ':')`,
+  `ensure_ascii=False`) and indented text (`indent=0, 1, 2, 4` and `"\t"`)
+  of 500 random texts (random whitespace, every escape form, all control
+  characters, astral characters, number lexemes of every shape, duplicate
+  names), with duplicate members kept (an `object_pairs_hook` dict whose
+  `items` gives every pair) and number lexemes kept (`parse_int` and
+  `parse_float` hooks); each text also fed in random text chunks and
+  random byte chunks (cut inside UTF-8 sequences), and written by the
+  chunked writer with chunk sizes 1 to 50; every cut of 8 tricky texts.
+  String literals of every control character, NUL included, as
+  `json.dumps` writes them. JSON Lines: 60 streams, CPython per line.
+- CPython `float()` and `decimal` for 350 number lexemes (exact midpoints
+  between neighbouring doubles, digit strings up to 900 digits, subnormals,
+  overflow, the i64 bounds, and midpoints padded past 800 digits where only
+  the sticky digit decides): `num_f64` bit for bit and `num_i64`.
+- Go 1.24.7 encoding/json (`scripts/gen/json_go.go`, `json.Unmarshal` into a
+  `json.RawMessage`, which runs only the syntax check) gives the verdict
+  and the offset for every suite file and for `syntax_corpus.json` (1349
+  seeded mutations of random texts, run whole and in chunks, and 19 texts
+  around lone surrogate escapes), saved in `go1.24_syntax.json`. Go's
+  Offset counts the offending byte, and at the end of input Go steps one
+  virtual space; the generator maps both to data.json's offset (the
+  offending character, or the length).
+- Node 22.22.0 and canonicalize 2.0.0 (npm, `scripts/gen/json_node.js`):
+  `String(x)` of 700 random and edge doubles, the RFC 8785 number form of
+  300 lexemes, and the canonical text of 200 random documents, saved in
+  `node22_es.json`; `enc.jcs` agrees with `to_canonical` on 40 integer
+  documents.
+- jsonpointer 3.0.0 (pip): 600 pointers into random documents, and
+  `set_pointer` and removal on the parent for 85 edits. jsonpointer
+  accepts an index with leading zeros (`/01`, against RFC 6901) and indexes
+  strings, so those pointers are left out and checked by hand vectors, and
+  strings and numbers are boxed before it walks them.
+- Hand vectors: errors with line and column, depth 10000 through every
+  traversal and 10001 refused, `parse_depth`, `jr_partial`, `parse_first`,
+  `jr_take_items`, typed getters, the builder.
+
+Host checks (`tests/data/json_host.rce`, 21 events): a text of 1,407,001
+characters read by one reader across six inputs with `jr_take_items`; a
+string of 1,100,000 characters and an array of 1,000,001 elements refused
+with typed errors at the exact offsets.
+
+Mutation testing: `scripts/mut/data.py json`, 42 of 42 mutants killed.
+
+- `vectors/data/json/go1.24_syntax.json` sha256 `e3e45891b0a1d91cee561a77884d382a7791bff38f27484f8ba34f2a603aca98`
+- `vectors/data/json/i_decisions.json` sha256 `36b73ed2529cbc2561950e4cce851d44f8c13f34573f527602fbc7598e202f72`
+- `vectors/data/json/node22_es.json` sha256 `2381e77e32209d7ea122c34556860105dd2a47c0103d3883f552065e65abd15b`
+- `vectors/data/json/rfc6901_examples.json` sha256 `6d3d9ee29ecb1c9e8f34be0d8be7223ea0e22cd52ff4a3789beab14db8822ff3`
+- `vectors/data/json/syntax_corpus.json` sha256 `5ff2f36436a1f77900018a07b956ebc1efd5acf3994f2bcac2815d435723920f`
+- `vectors/data/json/rfc8785/es6testfile100m_head2000.txt` sha256 `ee1658d9df7bc7e8f936da64afa6107a4512bec17aa0b434bd9bd2ee91dd1a65`
+
+Limits (not gaps in the grammar): nesting deeper than 10000 levels is
+refused by default (`parse_depth` and `jr_new_depth` allow up to 20000); a
+string or number longer than 1,000,000 characters and an array or object
+with more than 1,000,000 kept elements are refused with typed errors; one
+input's fuel reads about 400,000 characters of the densest text.
+
 ## num.linalg, num.special, num.stats (`lib/num/`)
 
 Floating point: rce 0.1.3 `f64` is IEEE 754 binary64 with correctly

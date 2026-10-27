@@ -1,0 +1,169 @@
+# Host checks for lib/data/json.rce: one JSON text of 1,407,001 characters
+# (an array of 21,000 records), more than a text can hold (1,000,000
+# characters) and more than one input's fuel can parse, read by one
+# JsonReader kept in the state across inputs. Each Chunk event builds the
+# next 250,000 characters of the text (cut anywhere, inside tokens too),
+# feeds them, takes the completed records out with jr_take_items (so the
+# state stays small) and checks each record; Finish ends the input and
+# checks that every record was seen once and in order. Long and Many feed
+# two more readers past the size limits, which must end in a typed error at
+# the exact offset, never a trap: a string of 1,100,000 characters (the
+# limit is 1,000,000) and an array of 1,000,001 elements kept whole.
+# scripts/check.sh runs this with `rce host run` on one flattened file
+# (scripts/flatten.py, after the module and tests/data/json_checks.rce),
+# one event per input line so that each gets its own fuel, and requires
+# good = 21, bad = 0.
+# event: Chunk(k: 0)
+# event: Chunk(k: 1)
+# event: Chunk(k: 2)
+# event: Chunk(k: 3)
+# event: Chunk(k: 4)
+# event: Chunk(k: 5)
+# event: Finish
+# event: Long(k: 0)
+# event: Long(k: 1)
+# event: Long(k: 2)
+# event: Long(k: 3)
+# event: Long(k: 4)
+# event: LongEnd
+# event: Many(k: 0)
+# event: Many(k: 1)
+# event: Many(k: 2)
+# event: Many(k: 3)
+# event: Many(k: 4)
+# event: Many(k: 5)
+# event: Many(k: 6)
+# event: Many(k: 7)
+
+const HS_N: i64 = 21000
+const HS_C: i64 = 250000
+
+# Record i, always 66 characters: the i member has nine digits.
+fn hs_rec(i: i64) -> text = "{\"i\":" + (100000000 + i).tostr() + ",\"s\":\"ab\\u00e9\\ud83d\\ude00\\t\",\"v\":[1.5e2,true,null]}"
+
+fn hs_len() -> i64 = hs_rec(0).len_chars() as i64
+
+# Characters [k * HS_C, (k + 1) * HS_C) of "[" + records joined by "," + "]".
+fn hs_chunk(k: i64) -> text
+    let l = hs_len() + 1
+    let total = 1 + HS_N * l
+    let lo = k * HS_C
+    let hi = if lo + HS_C < total then lo + HS_C else total
+    if lo >= hi
+        return ""
+    # record j starts at 1 + j * l and is followed by "," (or "]" for the last)
+    var a = (lo - 1) / l
+    if a < 0
+        a = 0
+    var b = (hi - 1) / l
+    if b >= HS_N
+        b = HS_N - 1
+    var parts: List[text] = []
+    var start = 1 + a * l
+    if a == 0
+        parts.push("[")
+        start = 0
+    var j = a
+    while j <= b bound 10000
+        parts.push(hs_rec(j))
+        parts.push(if j + 1 < HS_N then "," else "]")
+        j += 1
+    let cs = "".join(parts).chars()
+    return "".join(cs[((lo - start) as usize):((hi - start) as usize)])
+
+# Records taken from the reader: each must be the next one, whole.
+fn hs_ok(xs: &[events.Jv], next: i64) -> bool
+    let ni = "i"
+    let ns = "s"
+    let nv = "v"
+    var k = next
+    for x in xs
+        let id = member_of(&x, &ni).or(events.JsNull)
+        let s = member_of(&x, &ns).or(events.JsNull)
+        let v = member_of(&x, &nv).or(events.JsNull)
+        if as_i64(&id).or(-1) != 100000000 + k
+            return false
+        if as_text(&s).or("") != "ab\u{e9}\u{1f600}\t"
+            return false
+        if to_compact(&v) != "[1.5e2,true,null]"
+            return false
+        k += 1
+    return true
+
+fn hs_rep(t: text, n: i64) -> text
+    var o: List[text] = []
+    for _i in 0..n
+        o.push(copy(t))
+    return "".join(o)
+
+state H
+    r: JsonReader = jr_new()
+    long: JsonReader = jr_new()
+    many: JsonReader = jr_new()
+    next: i64 = 0
+    good: i64 = 0
+    bad: i64 = 0
+
+event Chunk(k: i64)
+event Finish
+event Long(k: i64)
+event LongEnd
+event Many(k: i64)
+
+step H on Chunk(k: k)
+    let c = hs_chunk(k)
+    let fed = jr_feed(&mut r, &c)
+    let xs = jr_take_items(&mut r)
+    if fed and xs.len() > 0 and hs_ok(&xs, next)
+        next += xs.len() as i64
+        good += 1
+    else
+        bad += 1
+
+step H on Finish
+    let ended = jr_end(&mut r)
+    let xs = jr_take_items(&mut r)
+    let ok = ended and hs_ok(&xs, next)
+    next += xs.len() as i64
+    let rest = jr_value(&r) catch |_e| events.JsNull
+    if ok and next == HS_N and to_compact(&rest) == "[]"
+        good += 1
+    else
+        bad += 1
+
+# '"' and then 1,100,000 times "a" in chunks of 220,000 characters: the
+# reader fails at the 1,000,001st character of the string (offset
+# 1,000,001) in chunk 4 and ignores what follows.
+step H on Long(k: k)
+    let c = (if k == 0 then "\"" else "") + hs_rep("a", if k == 0 then 219999 else 220000)
+    let fed = jr_feed(&mut long, &c)
+    if fed == (k < 4)
+        good += 1
+    else
+        bad += 1
+
+step H on LongEnd
+    let _e = jr_end(&mut long)
+    let e = jr_error(&long).or(JsonErr(why: "", at: -1, line: 0, col: 0))
+    if e.at == 1000001 and e.col == 1000002 and e.why.startswith("a string longer than")
+        good += 1
+    else
+        bad += 1
+    long = jr_new()
+
+# "[" and then "1," 1,000,001 times in chunks of 250,000 characters: the
+# 1,000,001st element (at offset 2,000,001) does not fit in the list.
+step H on Many(k: k)
+    let c = (if k == 0 then "[" else "") + hs_rep("1,", if k == 0 then 124999 else 125000)
+    let tail = if k == 7 then "1,1," else ""
+    let c2 = c + tail
+    let fed = jr_feed(&mut many, &c2)
+    let e = jr_error(&many).or(JsonErr(why: "", at: -1, line: 0, col: 0))
+    if k < 7 and fed
+        good += 1
+    elif k == 7 and not fed and e.at == 2000001 and e.why.startswith("more than 1,000,000 elements")
+        good += 1
+    else
+        bad += 1
+    if k == 7
+        many = jr_new()

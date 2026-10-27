@@ -1,0 +1,135 @@
+{
+ "source": "RFC 6901 (https://www.rfc-editor.org/rfc/rfc6901), section 5 (document and JSON String representation) and section 6 (URI fragment identifier representation), transcribed",
+ "document": {
+  "foo": [
+   "bar",
+   "baz"
+  ],
+  "": 0,
+  "a/b": 1,
+  "c%d": 2,
+  "e^f": 3,
+  "g|h": 4,
+  "i\\j": 5,
+  "k\"l": 6,
+  " ": 7,
+  "m~n": 8
+ },
+ "pointers": [
+  [
+   "",
+   {
+    "foo": [
+     "bar",
+     "baz"
+    ],
+    "": 0,
+    "a/b": 1,
+    "c%d": 2,
+    "e^f": 3,
+    "g|h": 4,
+    "i\\j": 5,
+    "k\"l": 6,
+    " ": 7,
+    "m~n": 8
+   }
+  ],
+  [
+   "/foo",
+   [
+    "bar",
+    "baz"
+   ]
+  ],
+  [
+   "/foo/0",
+   "bar"
+  ],
+  [
+   "/",
+   0
+  ],
+  [
+   "/a~1b",
+   1
+  ],
+  [
+   "/c%d",
+   2
+  ],
+  [
+   "/e^f",
+   3
+  ],
+  [
+   "/g|h",
+   4
+  ],
+  [
+   "/i\\j",
+   5
+  ],
+  [
+   "/k\"l",
+   6
+  ],
+  [
+   "/ ",
+   7
+  ],
+  [
+   "/m~0n",
+   8
+  ]
+ ],
+ "fragments": [
+  [
+   "#",
+   ""
+  ],
+  [
+   "#/foo",
+   "/foo"
+  ],
+  [
+   "#/foo/0",
+   "/foo/0"
+  ],
+  [
+   "#/",
+   "/"
+  ],
+  [
+   "#/a~1b",
+   "/a~1b"
+  ],
+  [
+   "#/c%25d",
+   "/c%d"
+  ],
+  [
+   "#/e%5Ef",
+   "/e^f"
+  ],
+  [
+   "#/g%7Ch",
+   "/g|h"
+  ],
+  [
+   "#/i%5Cj",
+   "/i\\j"
+  ],
+  [
+   "#/k%22l",
+   "/k\"l"
+  ],
+  [
+   "#/%20",
+   "/ "
+  ],
+  [
+   "#/m~0n",
+   "/m~0n"
+  ]
+ ]
+}
