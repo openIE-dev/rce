@@ -1,0 +1,1263 @@
+module col.cache
+
+# Caches (survey M6, second part): a least-recently-used cache, a
+# least-frequently-used cache, a time-to-live cache driven by logged time,
+# and memoization keyed by the canonical hash of the arguments. Everything
+# is deterministic: no seeds, no addresses, no clock, no host input.
+# - Keys are text. A key is found through FNV-1a 32 of its UTF-8 bytes in
+#   an open-addressed slot table (linear probing, load at most 1/2,
+#   deletion by backward shift), so a lookup costs O(key length) and does
+#   not grow with the number of entries. Entries are dense: removing one
+#   moves the last entry into its index.
+# - LruCache follows cachetools.LRUCache and functools.lru_cache: a hit
+#   and a put make the key the most recently used; a put of a new key into
+#   a full cache first evicts the least recently used key.
+# - LfuCache follows cachetools.LFUCache: a get hit and a put of a present
+#   key add one use, a new key starts with one use, and a put of a new key
+#   into a full cache first evicts a key with the fewest uses. cachetools
+#   leaves the choice among keys with equal uses open (a Python set); here
+#   it is the key that reached that count first, which is the least
+#   recently used of them.
+# - TtlCache follows cachetools.TTLCache: a key put at instant t lives
+#   while now < t + ttl (the sum saturates at the i64 range); expired keys
+#   are removed before every change, then a full cache evicts its least
+#   recently used key. Time is an instant the caller passes in (a logged
+#   reading, as in time and os.clock); the cache never reads a clock. An
+#   instant earlier than the latest one the cache has seen is read as that
+#   latest one, so expiry never runs backwards.
+# - Memo is an LruCache keyed by the SHA-256 (lowercase hex) of the
+#   canonical JSON (spec 6.1.1) of the arguments, given as a CVal; its
+#   hits, misses and current size count as functools.lru_cache(typed=True)
+#   counts them. Two argument lists share an entry exactly when their
+#   canonical JSON is equal, which is stricter than Python equality: 1,
+#   1.0 and true are three keys at any depth, and so are 0.0 and -0.0.
+# Capacities: a negative maxsize is read as 0, and a cache of maxsize 0
+# keeps nothing (a put reports the new key as evicted; cachetools raises
+# ValueError there, functools.lru_cache counts a miss and keeps nothing).
+# A maxsize above CACHE_MAX is read as CACHE_MAX: the slot table holds
+# 2 * CACHE_MAX slots, within the 1,000,000-element list limit. A cache
+# kept in a state is in practice bounded by the state value limit (N9).
+# Bloom filters are not in this module.
+
+# The largest capacity of one cache (2^18 entries).
+pub const CACHE_MAX: i64 = 262144
+
+const CCH_I64_MIN: i64 = 0 - 9223372036854775807 - 1
+const CCH_I64_MAX: i64 = 9223372036854775807
+
+# Counters in the shape of functools.lru_cache's cache_info(): hits and
+# misses of get (or memo lookups), the capacity (-1 for an unbounded
+# Memo) and the number of entries.
+pub struct CacheInfo
+    hits: i64
+    misses: i64
+    maxsize: i64
+    currsize: i64
+
+fn cch_cap(n: i64) -> i64 = if n < 0 then 0 else (if n > CACHE_MAX then CACHE_MAX else n)
+
+fn cch_sat_add(a: i64, b: i64) -> i64
+    if b > 0 and a > CCH_I64_MAX - b
+        return CCH_I64_MAX
+    if b < 0 and a < CCH_I64_MIN - b
+        return CCH_I64_MIN
+    return a + b
+
+# ---------------- key index ----------------
+# keys and hs are per entry; slots hold entry index + 1 (0 empty).
+
+struct CchIx
+    keys: List[text]
+    hs: List[i64]
+    slots: List[i64]
+
+fn cch_ix_new() -> CchIx = CchIx(keys: [], hs: [], slots: [])
+
+# FNV-1a 32 of the UTF-8 bytes (no seed).
+fn cch_fnv(s: &text) -> i64
+    var h: i64 = 2166136261
+    var i: usize = 0
+    let n = s.len_bytes()
+    while i < n bound 4000000
+        h = ((h ^ (s[i] as i64)) * 16777619) & 4294967295
+        i += 1
+    return h
+
+# The entry index of key k (hash h), or -1.
+fn cch_find(ix: &CchIx, k: &text, h: i64) -> i64
+    let cap = ix.slots.len()
+    if cap == 0
+        return -1
+    let mask = cap - 1
+    var p = (h as usize) & mask
+    while ix.slots[p] != 0 bound 1048576
+        let e = (ix.slots[p] - 1) as usize
+        if ix.hs[e] == h and ix.keys[e] == k
+            return e as i64
+        p = (p + 1) & mask
+    return -1
+
+fn cch_rebuild(ix: &mut CchIx, cap: usize)
+    var sl: List[i64] = []
+    for _i in 0..cap
+        sl.push(0)
+    let mask = cap - 1
+    var e: usize = 0
+    while e < ix.keys.len() bound 1048576
+        var p = (ix.hs[e] as usize) & mask
+        while sl[p] != 0 bound 1048576
+            p = (p + 1) & mask
+        sl[p] = (e + 1) as i64
+        e += 1
+    ix.slots = sl
+
+# Append key k (hash h, not present) as a new entry; returns its index.
+fn cch_add(ix: &mut CchIx, k: text, h: i64) -> i64
+    ix.keys.push(k)
+    ix.hs.push(h)
+    let n = ix.keys.len()
+    if 2 * n > ix.slots.len()
+        var cap: usize = 8
+        while cap < 2 * n bound 64
+            cap = cap * 2
+        cch_rebuild(ix, cap)
+    else
+        let mask = ix.slots.len() - 1
+        var p = (h as usize) & mask
+        while ix.slots[p] != 0 bound 1048576
+            p = (p + 1) & mask
+        ix.slots[p] = n as i64
+    return (n - 1) as i64
+
+# The slot that holds entry e.
+fn cch_slot(ix: &CchIx, e: usize) -> usize
+    let mask = ix.slots.len() - 1
+    var p = (ix.hs[e] as usize) & mask
+    while ix.slots[p] != (e + 1) as i64 bound 1048576
+        p = (p + 1) & mask
+    return p
+
+# Remove entry e: free its slot by backward shift (Knuth 6.4, Algorithm
+# R), then move the last entry into index e. Returns the former index of
+# the moved entry, or -1 when e was the last entry.
+fn cch_del(ix: &mut CchIx, e: usize) -> i64
+    let mask = ix.slots.len() - 1
+    var i = cch_slot(ix, e)
+    var go = true
+    while go bound 1048576
+        ix.slots[i] = 0
+        var j = i
+        var scan = true
+        while scan bound 1048576
+            j = (j + 1) & mask
+            if ix.slots[j] == 0
+                scan = false
+                go = false
+            else
+                let home = (ix.hs[(ix.slots[j] - 1) as usize] as usize) & mask
+                # the entry at j stays when its home lies cyclically in (i, j]
+                let stays = if i <= j then (i < home and home <= j) else (i < home or home <= j)
+                if not stays
+                    ix.slots[i] = ix.slots[j]
+                    i = j
+                    scan = false
+    let last = ix.keys.len() - 1
+    if e != last
+        let q = cch_slot(ix, last)
+        ix.slots[q] = (e + 1) as i64
+        ix.keys[e] = copy(ix.keys[last])
+        ix.hs[e] = ix.hs[last]
+    let _k = ix.keys.pop()
+    let _h = ix.hs.pop()
+    if e != last
+        return last as i64
+    return -1
+
+# ---------------- doubly linked order over entry indexes ----------------
+
+struct CchLinks
+    prev: List[i64]
+    next: List[i64]
+    head: i64
+    tail: i64
+
+fn cch_ln_new() -> CchLinks = CchLinks(prev: [], next: [], head: -1, tail: -1)
+
+# Put entry e (unlinked, or new with e equal to the entry count) last.
+fn cch_ln_push(l: &mut CchLinks, e: i64)
+    let u = e as usize
+    if u == l.prev.len()
+        l.prev.push(-1)
+        l.next.push(-1)
+    l.prev[u] = l.tail
+    l.next[u] = -1
+    if l.tail >= 0
+        l.next[l.tail as usize] = e
+    else
+        l.head = e
+    l.tail = e
+
+fn cch_ln_unlink(l: &mut CchLinks, e: i64)
+    let u = e as usize
+    let p = l.prev[u]
+    let n = l.next[u]
+    if p >= 0
+        l.next[p as usize] = n
+    else
+        l.head = n
+    if n >= 0
+        l.prev[n as usize] = p
+    else
+        l.tail = p
+    l.prev[u] = -1
+    l.next[u] = -1
+
+fn cch_ln_touch(l: &mut CchLinks, e: i64)
+    if l.tail != e
+        cch_ln_unlink(l, e)
+        cch_ln_push(l, e)
+
+# After cch_del: the entry at index moved (when >= 0) now lives at index
+# e, which was unlinked; the last index is dropped.
+fn cch_ln_drop(l: &mut CchLinks, moved: i64, e: i64)
+    if moved >= 0
+        let m = moved as usize
+        let u = e as usize
+        let p = l.prev[m]
+        let n = l.next[m]
+        l.prev[u] = p
+        l.next[u] = n
+        if p >= 0
+            l.next[p as usize] = e
+        else
+            l.head = e
+        if n >= 0
+            l.prev[n as usize] = e
+        else
+            l.tail = e
+    let _p = l.prev.pop()
+    let _n = l.next.pop()
+
+fn cch_ln_keys(l: &CchLinks, keys: &[text]) -> List[text]
+    var o: List[text] = []
+    var e = l.head
+    while e >= 0 bound 1048576
+        o.push(copy(keys[e as usize]))
+        e = l.next[e as usize]
+    return o
+
+# ---------------- LRU ----------------
+
+pub struct LruCache[V]
+    ix: CchIx
+    ln: CchLinks
+    vals: List[V]
+    cap: i64
+    hits: i64
+    misses: i64
+
+pub fn lru_new[V](maxsize: i64) -> LruCache[V] = LruCache(ix: cch_ix_new(), ln: cch_ln_new(), vals: [], cap: cch_cap(maxsize), hits: 0, misses: 0)
+
+pub fn lru_len[V](c: &LruCache[V]) -> i64 = c.ix.keys.len() as i64
+
+pub fn lru_maxsize[V](c: &LruCache[V]) -> i64 = c.cap
+
+pub fn lru_contains[V](c: &LruCache[V], k: &text) -> bool = cch_find(&c.ix, k, cch_fnv(k)) >= 0
+
+# The value of k without changing the order or the counters.
+pub fn lru_peek[V](c: &LruCache[V], k: &text) -> V?
+    let e = cch_find(&c.ix, k, cch_fnv(k))
+    if e < 0
+        return none
+    return some(copy(c.vals[e as usize]))
+
+# The value of k; a hit makes k the most recently used. Counts a hit or
+# a miss.
+pub fn lru_get[V](c: &mut LruCache[V], k: &text) -> V?
+    let e = cch_find(&c.ix, k, cch_fnv(k))
+    if e < 0
+        c.misses += 1
+        return none
+    c.hits += 1
+    cch_ln_touch(&mut c.ln, e)
+    return some(copy(c.vals[e as usize]))
+
+fn cch_lru_drop[V](c: &mut LruCache[V], e: i64)
+    cch_ln_unlink(&mut c.ln, e)
+    let moved = cch_del(&mut c.ix, e as usize)
+    cch_ln_drop(&mut c.ln, moved, e)
+    if moved >= 0
+        c.vals[e as usize] = copy(c.vals[moved as usize])
+    let _v = c.vals.pop()
+
+# Put k = v and make k the most recently used. Returns the keys that left
+# the cache: the least recently used one when a new key met a full cache,
+# or k itself when maxsize is 0; otherwise nothing.
+pub fn lru_put_evict[V](c: &mut LruCache[V], k: text, v: V) -> List[text]
+    var out: List[text] = []
+    let h = cch_fnv(&k)
+    let e = cch_find(&c.ix, &k, h)
+    if e >= 0
+        c.vals[e as usize] = v
+        cch_ln_touch(&mut c.ln, e)
+        return out
+    if c.cap == 0
+        out.push(k)
+        return out
+    while lru_len(c) >= c.cap bound 1048576
+        let o = c.ln.head
+        out.push(copy(c.ix.keys[o as usize]))
+        cch_lru_drop(c, o)
+    let n = cch_add(&mut c.ix, k, h)
+    c.vals.push(v)
+    cch_ln_push(&mut c.ln, n)
+    return out
+
+pub fn lru_put[V](c: &mut LruCache[V], k: text, v: V)
+    let _out = lru_put_evict(c, k, v)
+
+# Remove k and return its value (cachetools pop).
+pub fn lru_remove[V](c: &mut LruCache[V], k: &text) -> V?
+    let e = cch_find(&c.ix, k, cch_fnv(k))
+    if e < 0
+        return none
+    let v = copy(c.vals[e as usize])
+    cch_lru_drop(c, e)
+    return some(v)
+
+# Remove and return the least recently used entry (cachetools popitem).
+pub fn lru_pop[V](c: &mut LruCache[V]) -> (text, V)?
+    let o = c.ln.head
+    if o < 0
+        return none
+    let k = copy(c.ix.keys[o as usize])
+    let v = copy(c.vals[o as usize])
+    cch_lru_drop(c, o)
+    return some((k, v))
+
+# The keys, least recently used first (the eviction order).
+pub fn lru_keys[V](c: &LruCache[V]) -> List[text] = cch_ln_keys(&c.ln, &c.ix.keys)
+
+# Change the capacity; evicts least recently used keys until the cache
+# fits and returns them.
+pub fn lru_resize[V](c: &mut LruCache[V], maxsize: i64) -> List[text]
+    c.cap = cch_cap(maxsize)
+    var out: List[text] = []
+    while lru_len(c) > c.cap bound 1048576
+        let o = c.ln.head
+        out.push(copy(c.ix.keys[o as usize]))
+        cch_lru_drop(c, o)
+    return out
+
+# Remove every entry and reset the counters (lru_cache cache_clear).
+pub fn lru_clear[V](c: &mut LruCache[V])
+    c.ix = cch_ix_new()
+    c.ln = cch_ln_new()
+    c.vals = []
+    c.hits = 0
+    c.misses = 0
+
+pub fn lru_info[V](c: &LruCache[V]) -> CacheInfo = CacheInfo(hits: c.hits, misses: c.misses, maxsize: c.cap, currsize: lru_len(c))
+
+# ---------------- LFU ----------------
+# Use counts as in cachetools.LFUCache: a list of count buckets in
+# ascending count, each holding its entries in the order they entered it.
+# Bucket 0 is the sentinel (count 0) of the circular bucket list.
+
+struct CchFreq
+    ep: List[i64]
+    en: List[i64]
+    eb: List[i64]
+    bc: List[i64]
+    bh: List[i64]
+    bt: List[i64]
+    bp: List[i64]
+    bn: List[i64]
+    bf: List[i64]
+
+fn cch_fq_new() -> CchFreq = CchFreq(ep: [], en: [], eb: [], bc: [0], bh: [-1], bt: [-1], bp: [0], bn: [0], bf: [])
+
+# A new empty bucket of count n, linked after bucket a.
+fn cch_fq_bucket(f: &mut CchFreq, n: i64, a: i64) -> i64
+    var b: i64 = 0
+    if f.bf.len() > 0
+        b = f.bf[f.bf.len() - 1]
+        let _b = f.bf.pop()
+        f.bc[b as usize] = n
+        f.bh[b as usize] = -1
+        f.bt[b as usize] = -1
+    else
+        b = f.bc.len() as i64
+        f.bc.push(n)
+        f.bh.push(-1)
+        f.bt.push(-1)
+        f.bp.push(0)
+        f.bn.push(0)
+    let nx = f.bn[a as usize]
+    f.bp[b as usize] = a
+    f.bn[b as usize] = nx
+    f.bn[a as usize] = b
+    f.bp[nx as usize] = b
+    return b
+
+fn cch_fq_free(f: &mut CchFreq, b: i64)
+    let p = f.bp[b as usize]
+    let n = f.bn[b as usize]
+    f.bn[p as usize] = n
+    f.bp[n as usize] = p
+    f.bf.push(b)
+
+# Append entry e (new when e equals the entry count) to bucket b.
+fn cch_fq_in(f: &mut CchFreq, b: i64, e: i64)
+    let u = e as usize
+    if u == f.ep.len()
+        f.ep.push(-1)
+        f.en.push(-1)
+        f.eb.push(0)
+    let t = f.bt[b as usize]
+    f.ep[u] = t
+    f.en[u] = -1
+    f.eb[u] = b
+    if t >= 0
+        f.en[t as usize] = e
+    else
+        f.bh[b as usize] = e
+    f.bt[b as usize] = e
+
+# Take entry e out of its bucket; frees the bucket when it empties.
+fn cch_fq_out(f: &mut CchFreq, e: i64)
+    let u = e as usize
+    let b = f.eb[u]
+    let p = f.ep[u]
+    let n = f.en[u]
+    if p >= 0
+        f.en[p as usize] = n
+    else
+        f.bh[b as usize] = n
+    if n >= 0
+        f.ep[n as usize] = p
+    else
+        f.bt[b as usize] = p
+    f.ep[u] = -1
+    f.en[u] = -1
+    if f.bh[b as usize] < 0
+        cch_fq_free(f, b)
+
+# A new key: one use.
+fn cch_fq_insert(f: &mut CchFreq, e: i64)
+    var b = f.bn[0]
+    if b == 0 or f.bc[b as usize] != 1
+        b = cch_fq_bucket(f, 1, 0)
+    cch_fq_in(f, b, e)
+
+# One more use of entry e (cachetools LFUCache.__touch).
+fn cch_fq_touch(f: &mut CchFreq, e: i64)
+    let b = f.eb[e as usize]
+    let c = f.bc[b as usize]
+    var t = f.bn[b as usize]
+    if t == 0 or f.bc[t as usize] != c + 1
+        if f.bh[b as usize] == e and f.bt[b as usize] == e
+            f.bc[b as usize] = c + 1
+            return
+        t = cch_fq_bucket(f, c + 1, b)
+    cch_fq_out(f, e)
+    cch_fq_in(f, t, e)
+
+# After cch_del: the entry at index moved now lives at index e (taken out
+# of its bucket); the last index is dropped.
+fn cch_fq_drop(f: &mut CchFreq, moved: i64, e: i64)
+    if moved >= 0
+        let m = moved as usize
+        let u = e as usize
+        let b = f.eb[m]
+        let p = f.ep[m]
+        let n = f.en[m]
+        f.ep[u] = p
+        f.en[u] = n
+        f.eb[u] = b
+        if p >= 0
+            f.en[p as usize] = e
+        else
+            f.bh[b as usize] = e
+        if n >= 0
+            f.ep[n as usize] = e
+        else
+            f.bt[b as usize] = e
+    let _p = f.ep.pop()
+    let _n = f.en.pop()
+    let _b = f.eb.pop()
+
+pub struct LfuCache[V]
+    ix: CchIx
+    fq: CchFreq
+    vals: List[V]
+    cap: i64
+    hits: i64
+    misses: i64
+
+pub fn lfu_new[V](maxsize: i64) -> LfuCache[V] = LfuCache(ix: cch_ix_new(), fq: cch_fq_new(), vals: [], cap: cch_cap(maxsize), hits: 0, misses: 0)
+
+pub fn lfu_len[V](c: &LfuCache[V]) -> i64 = c.ix.keys.len() as i64
+
+pub fn lfu_maxsize[V](c: &LfuCache[V]) -> i64 = c.cap
+
+pub fn lfu_contains[V](c: &LfuCache[V], k: &text) -> bool = cch_find(&c.ix, k, cch_fnv(k)) >= 0
+
+# The use count of k (0 when absent).
+pub fn lfu_count[V](c: &LfuCache[V], k: &text) -> i64
+    let e = cch_find(&c.ix, k, cch_fnv(k))
+    if e < 0
+        return 0
+    return c.fq.bc[c.fq.eb[e as usize] as usize]
+
+# The value of k without a use or a counter change.
+pub fn lfu_peek[V](c: &LfuCache[V], k: &text) -> V?
+    let e = cch_find(&c.ix, k, cch_fnv(k))
+    if e < 0
+        return none
+    return some(copy(c.vals[e as usize]))
+
+# The value of k; a hit adds one use. Counts a hit or a miss.
+pub fn lfu_get[V](c: &mut LfuCache[V], k: &text) -> V?
+    let e = cch_find(&c.ix, k, cch_fnv(k))
+    if e < 0
+        c.misses += 1
+        return none
+    c.hits += 1
+    cch_fq_touch(&mut c.fq, e)
+    return some(copy(c.vals[e as usize]))
+
+fn cch_lfu_drop[V](c: &mut LfuCache[V], e: i64)
+    cch_fq_out(&mut c.fq, e)
+    let moved = cch_del(&mut c.ix, e as usize)
+    cch_fq_drop(&mut c.fq, moved, e)
+    if moved >= 0
+        c.vals[e as usize] = copy(c.vals[moved as usize])
+    let _v = c.vals.pop()
+
+# The entry evicted next: the first of the lowest-count bucket.
+fn cch_lfu_victim[V](c: &LfuCache[V]) -> i64
+    let b = c.fq.bn[0]
+    if b == 0
+        return -1
+    return c.fq.bh[b as usize]
+
+# Put k = v. A present key gets one more use; a new key gets one use,
+# after a full cache has evicted its victim. Returns the keys that left
+# the cache (the victim, or k itself when maxsize is 0).
+pub fn lfu_put_evict[V](c: &mut LfuCache[V], k: text, v: V) -> List[text]
+    var out: List[text] = []
+    let h = cch_fnv(&k)
+    let e = cch_find(&c.ix, &k, h)
+    if e >= 0
+        c.vals[e as usize] = v
+        cch_fq_touch(&mut c.fq, e)
+        return out
+    if c.cap == 0
+        out.push(k)
+        return out
+    while lfu_len(c) >= c.cap bound 1048576
+        let o = cch_lfu_victim(c)
+        out.push(copy(c.ix.keys[o as usize]))
+        cch_lfu_drop(c, o)
+    let n = cch_add(&mut c.ix, k, h)
+    c.vals.push(v)
+    cch_fq_insert(&mut c.fq, n)
+    return out
+
+pub fn lfu_put[V](c: &mut LfuCache[V], k: text, v: V)
+    let _out = lfu_put_evict(c, k, v)
+
+pub fn lfu_remove[V](c: &mut LfuCache[V], k: &text) -> V?
+    let e = cch_find(&c.ix, k, cch_fnv(k))
+    if e < 0
+        return none
+    let v = copy(c.vals[e as usize])
+    cch_lfu_drop(c, e)
+    return some(v)
+
+# Remove and return the entry that would be evicted next (popitem).
+pub fn lfu_pop[V](c: &mut LfuCache[V]) -> (text, V)?
+    let o = cch_lfu_victim(c)
+    if o < 0
+        return none
+    let k = copy(c.ix.keys[o as usize])
+    let v = copy(c.vals[o as usize])
+    cch_lfu_drop(c, o)
+    return some((k, v))
+
+# The keys in eviction order: fewest uses first, and among equal uses the
+# one that reached that count first.
+pub fn lfu_keys[V](c: &LfuCache[V]) -> List[text]
+    var o: List[text] = []
+    var b = c.fq.bn[0]
+    while b != 0 bound 1048576
+        var e = c.fq.bh[b as usize]
+        while e >= 0 bound 1048576
+            o.push(copy(c.ix.keys[e as usize]))
+            e = c.fq.en[e as usize]
+        b = c.fq.bn[b as usize]
+    return o
+
+pub fn lfu_resize[V](c: &mut LfuCache[V], maxsize: i64) -> List[text]
+    c.cap = cch_cap(maxsize)
+    var out: List[text] = []
+    while lfu_len(c) > c.cap bound 1048576
+        let o = cch_lfu_victim(c)
+        out.push(copy(c.ix.keys[o as usize]))
+        cch_lfu_drop(c, o)
+    return out
+
+pub fn lfu_clear[V](c: &mut LfuCache[V])
+    c.ix = cch_ix_new()
+    c.fq = cch_fq_new()
+    c.vals = []
+    c.hits = 0
+    c.misses = 0
+
+pub fn lfu_info[V](c: &LfuCache[V]) -> CacheInfo = CacheInfo(hits: c.hits, misses: c.misses, maxsize: c.cap, currsize: lfu_len(c))
+
+# ---------------- TTL ----------------
+# Two orders over the entries: recency (lr, least recent first) and expiry
+# (xq, earliest first). Every put appends to the end of xq with the latest
+# instant plus the one ttl, so xq stays sorted by expiry.
+
+pub struct TtlCache[V]
+    ix: CchIx
+    lr: CchLinks
+    xq: CchLinks
+    exp: List[i64]
+    vals: List[V]
+    cap: i64
+    ttl: i64
+    now: i64
+    hits: i64
+    misses: i64
+
+# A cache of at most maxsize entries, each living ttl after its last put
+# (in the caller's time unit, for example nanoseconds as in time).
+pub fn ttl_new[V](maxsize: i64, ttl: i64) -> TtlCache[V] = TtlCache(ix: cch_ix_new(), lr: cch_ln_new(), xq: cch_ln_new(), exp: [], vals: [], cap: cch_cap(maxsize), ttl: ttl, now: CCH_I64_MIN, hits: 0, misses: 0)
+
+pub fn ttl_maxsize[V](c: &TtlCache[V]) -> i64 = c.cap
+
+pub fn ttl_ttl[V](c: &TtlCache[V]) -> i64 = c.ttl
+
+# The instant the cache works at: the latest of now and every instant
+# passed before.
+fn cch_at(c_now: i64, now: i64) -> i64 = if now > c_now then now else c_now
+
+fn cch_ttl_drop[V](c: &mut TtlCache[V], e: i64)
+    cch_ln_unlink(&mut c.lr, e)
+    cch_ln_unlink(&mut c.xq, e)
+    let moved = cch_del(&mut c.ix, e as usize)
+    cch_ln_drop(&mut c.lr, moved, e)
+    cch_ln_drop(&mut c.xq, moved, e)
+    if moved >= 0
+        c.vals[e as usize] = copy(c.vals[moved as usize])
+        c.exp[e as usize] = c.exp[moved as usize]
+    let _v = c.vals.pop()
+    let _x = c.exp.pop()
+
+# Remove every entry whose expiry is at or before now; returns their keys
+# in expiry order.
+pub fn ttl_expire[V](c: &mut TtlCache[V], now: i64) -> List[text]
+    c.now = cch_at(c.now, now)
+    var out: List[text] = []
+    while c.xq.head >= 0 and not (c.now < c.exp[c.xq.head as usize]) bound 1048576
+        let e = c.xq.head
+        out.push(copy(c.ix.keys[e as usize]))
+        cch_ttl_drop(c, e)
+    return out
+
+# The number of live entries at now (expired ones are removed first).
+pub fn ttl_len[V](c: &mut TtlCache[V], now: i64) -> i64
+    let _x = ttl_expire(c, now)
+    return c.ix.keys.len() as i64
+
+fn cch_ttl_live[V](c: &TtlCache[V], k: &text, now: i64) -> i64
+    let e = cch_find(&c.ix, k, cch_fnv(k))
+    if e < 0 or not (cch_at(c.now, now) < c.exp[e as usize])
+        return -1
+    return e
+
+pub fn ttl_contains[V](c: &TtlCache[V], k: &text, now: i64) -> bool = cch_ttl_live(c, k, now) >= 0
+
+# The value of k if it is live at now, without changing the order or the
+# counters.
+pub fn ttl_peek[V](c: &TtlCache[V], k: &text, now: i64) -> V?
+    let e = cch_ttl_live(c, k, now)
+    if e < 0
+        return none
+    return some(copy(c.vals[e as usize]))
+
+# The instant at which k expires, if it is live at now.
+pub fn ttl_expires_at[V](c: &TtlCache[V], k: &text, now: i64) -> i64?
+    let e = cch_ttl_live(c, k, now)
+    if e < 0
+        return none
+    return some(c.exp[e as usize])
+
+# The value of k if it is live at now; a hit makes k the most recently
+# used. Counts a hit or a miss.
+pub fn ttl_get[V](c: &mut TtlCache[V], k: &text, now: i64) -> V?
+    let _x = ttl_expire(c, now)
+    let e = cch_find(&c.ix, k, cch_fnv(k))
+    if e < 0
+        c.misses += 1
+        return none
+    c.hits += 1
+    cch_ln_touch(&mut c.lr, e)
+    return some(copy(c.vals[e as usize]))
+
+# Put k = v at now: k expires at now + ttl and becomes the most recently
+# used. Expired entries are removed first, then a new key meeting a full
+# cache evicts the least recently used one. Returns the keys that left
+# the cache: the expired ones in expiry order, then the evicted one (or k
+# itself when maxsize is 0).
+pub fn ttl_put_evict[V](c: &mut TtlCache[V], k: text, v: V, now: i64) -> List[text]
+    var out = ttl_expire(c, now)
+    let x = cch_sat_add(c.now, c.ttl)
+    let h = cch_fnv(&k)
+    let e = cch_find(&c.ix, &k, h)
+    if e >= 0
+        c.vals[e as usize] = v
+        c.exp[e as usize] = x
+        cch_ln_touch(&mut c.lr, e)
+        cch_ln_touch(&mut c.xq, e)
+        return out
+    if c.cap == 0
+        out.push(k)
+        return out
+    while (c.ix.keys.len() as i64) >= c.cap bound 1048576
+        let o = c.lr.head
+        out.push(copy(c.ix.keys[o as usize]))
+        cch_ttl_drop(c, o)
+    let n = cch_add(&mut c.ix, k, h)
+    c.vals.push(v)
+    c.exp.push(x)
+    cch_ln_push(&mut c.lr, n)
+    cch_ln_push(&mut c.xq, n)
+    return out
+
+pub fn ttl_put[V](c: &mut TtlCache[V], k: text, v: V, now: i64)
+    let _out = ttl_put_evict(c, k, v, now)
+
+# Remove k and return its value if it is live at now.
+pub fn ttl_remove[V](c: &mut TtlCache[V], k: &text, now: i64) -> V?
+    let _x = ttl_expire(c, now)
+    let e = cch_find(&c.ix, k, cch_fnv(k))
+    if e < 0
+        return none
+    let v = copy(c.vals[e as usize])
+    cch_ttl_drop(c, e)
+    return some(v)
+
+# Remove and return the least recently used live entry (popitem).
+pub fn ttl_pop[V](c: &mut TtlCache[V], now: i64) -> (text, V)?
+    let _x = ttl_expire(c, now)
+    let o = c.lr.head
+    if o < 0
+        return none
+    let k = copy(c.ix.keys[o as usize])
+    let v = copy(c.vals[o as usize])
+    cch_ttl_drop(c, o)
+    return some((k, v))
+
+# The keys live at now, least recently used first.
+pub fn ttl_keys[V](c: &TtlCache[V], now: i64) -> List[text]
+    let t = cch_at(c.now, now)
+    var o: List[text] = []
+    var e = c.lr.head
+    while e >= 0 bound 1048576
+        if t < c.exp[e as usize]
+            o.push(copy(c.ix.keys[e as usize]))
+        e = c.lr.next[e as usize]
+    return o
+
+pub fn ttl_resize[V](c: &mut TtlCache[V], maxsize: i64, now: i64) -> List[text]
+    var out = ttl_expire(c, now)
+    c.cap = cch_cap(maxsize)
+    while (c.ix.keys.len() as i64) > c.cap bound 1048576
+        let o = c.lr.head
+        out.push(copy(c.ix.keys[o as usize]))
+        cch_ttl_drop(c, o)
+    return out
+
+# Remove every entry and reset the counters; the latest instant is kept.
+pub fn ttl_clear[V](c: &mut TtlCache[V])
+    c.ix = cch_ix_new()
+    c.lr = cch_ln_new()
+    c.xq = cch_ln_new()
+    c.exp = []
+    c.vals = []
+    c.hits = 0
+    c.misses = 0
+
+pub fn ttl_info[V](c: &mut TtlCache[V], now: i64) -> CacheInfo
+    let n = ttl_len(c, now)
+    return CacheInfo(hits: c.hits, misses: c.misses, maxsize: c.cap, currsize: n)
+
+# ---------------- canonical values ----------------
+# CVal is a Form value (spec 6.1): null, bool, an integer of the Form
+# range -2^63 .. 2^64 - 1 (CvInt for i64, CvU64 for u64), a finite binary64
+# float, text, a list and a record. A Map is the list of its [key, value]
+# pairs in canonical key order and a Set the list of its elements in
+# canonical order (cv_map, cv_set); a tuple or an array is a list; a
+# struct is a record of its fields, and a kind variant V a record with
+# "$v": "V" (the named form of 6.1; the engine's state hashes use the
+# positional form, where a struct is the list of its field values). A
+# record whose keys repeat takes the last value of each key, and one with
+# fewer values than keys uses the first ones. cv_canon writes the canonical
+# JSON bytes of 6.1.1 and cv_hash their SHA-256, so a value has the hash
+# the engine gives the same Form value. Values of any depth are walked
+# with an explicit stack, so no recursion limit applies.
+
+pub kind CVal
+    CvNull
+    CvBool(b: bool)
+    CvInt(v: i64)
+    CvU64(v: u64)
+    CvFloat(f: f64)
+    CvText(t: text)
+    CvList(items: List[CVal])
+    CvRec(keys: List[text], vals: List[CVal])
+
+# A value as tokens in preorder: rk is the rank of 6.1 (0 null, 1 bool,
+# 2 int, 3 float, 4 text, 5 list, 6 record) or -1 for the end of a list or
+# record. An integer is (hv, iv): (-1, v) below 0, (0, v) up to 2^63 - 1,
+# (1, v - 2^63) above. Record fields follow as key text, then value. The
+# token sequences of two values compare lexicographically exactly as the
+# values do in canonical order.
+struct CchToks
+    rk: List[i64]
+    hv: List[i64]
+    iv: List[i64]
+    fv: List[f64]
+    tv: List[text]
+
+fn cch_tok(t: &mut CchToks, rk: i64, hv: i64, iv: i64, fv: f64, tv: text)
+    t.rk.push(rk)
+    t.hv.push(hv)
+    t.iv.push(iv)
+    t.fv.push(fv)
+    t.tv.push(tv)
+
+# Field indexes of a record in canonical key order, the last of each
+# repeated key.
+fn cch_fields(keys: &[text], n: usize) -> List[i64]
+    var ps: List[(text, i64)] = []
+    for i in 0..n
+        ps.push((copy(keys[i]), i as i64))
+    ps.sort()
+    var o: List[i64] = []
+    var j: usize = 0
+    while j < ps.len() bound 1000000
+        if not (j + 1 < ps.len() and ps[j + 1].0 == ps[j].0)
+            o.push(ps[j].1)
+        j += 1
+    return o
+
+fn cch_flat(v: &CVal) -> CchToks
+    var tk = CchToks(rk: [], hv: [], iv: [], fv: [], tv: [])
+    var st: List[CVal] = [copy(v)]
+    var mk: List[bool] = [false]
+    while st.len() > 0 bound 1000000000
+        let x = copy(st[st.len() - 1])
+        let end = mk[mk.len() - 1]
+        let _s = st.pop()
+        let _m = mk.pop()
+        if end
+            cch_tok(&mut tk, -1, 0, 0, 0.0, "")
+        else
+            match x
+                CvNull -> cch_tok(&mut tk, 0, 0, 0, 0.0, "")
+                CvBool(b: b) -> cch_tok(&mut tk, 1, 0, if b then 1 else 0, 0.0, "")
+                CvInt(v: n) -> cch_tok(&mut tk, 2, if n < 0 then -1 else 0, n, 0.0, "")
+                CvU64(v: u)
+                    if u <= 9223372036854775807
+                        cch_tok(&mut tk, 2, 0, u as i64, 0.0, "")
+                    else
+                        cch_tok(&mut tk, 2, 1, (u - 9223372036854775808) as i64, 0.0, "")
+                CvFloat(f: f) -> cch_tok(&mut tk, 3, 0, 0, f, "")
+                CvText(t: s) -> cch_tok(&mut tk, 4, 0, 0, 0.0, copy(s))
+                CvList(items: items)
+                    cch_tok(&mut tk, 5, 0, 0, 0.0, "")
+                    st.push(CvNull)
+                    mk.push(true)
+                    var i = items.len()
+                    while i > 0 bound 1000000
+                        i -= 1
+                        st.push(copy(items[i]))
+                        mk.push(false)
+                CvRec(keys: ks, vals: vs)
+                    cch_tok(&mut tk, 6, 0, 0, 0.0, "")
+                    st.push(CvNull)
+                    mk.push(true)
+                    let n = if ks.len() < vs.len() then ks.len() else vs.len()
+                    let ord = cch_fields(ks, n)
+                    var i = ord.len()
+                    while i > 0 bound 1000000
+                        i -= 1
+                        let f = ord[i] as usize
+                        st.push(copy(vs[f]))
+                        mk.push(false)
+                        st.push(CvText(t: copy(ks[f])))
+                        mk.push(false)
+    return tk
+
+fn cch_neg_zero(x: f64) -> bool = x == 0.0 and x.tostr() == "-0"
+
+fn cch_sign(d: i64) -> i64 = if d < 0 then -1 else (if d > 0 then 1 else 0)
+
+# Canonical order of token i of a and token j of b.
+fn cch_tcmp(a: &CchToks, i: usize, b: &CchToks, j: usize) -> i64
+    let r = a.rk[i]
+    if r != b.rk[j]
+        return cch_sign(r - b.rk[j])
+    if r == 1 or r == 2
+        if a.hv[i] != b.hv[j]
+            return cch_sign(a.hv[i] - b.hv[j])
+        if a.iv[i] < b.iv[j]
+            return -1
+        if a.iv[i] > b.iv[j]
+            return 1
+        return 0
+    if r == 3
+        let x = a.fv[i]
+        let y = b.fv[j]
+        if x < y
+            return -1
+        if x > y
+            return 1
+        # equal as IEEE numbers: only 0.0 and -0.0 differ (totalOrder)
+        let nx = cch_neg_zero(x)
+        let ny = cch_neg_zero(y)
+        if nx and not ny
+            return -1
+        if ny and not nx
+            return 1
+        return 0
+    if r == 4
+        if a.tv[i] < b.tv[j]
+            return -1
+        if a.tv[i] > b.tv[j]
+            return 1
+        return 0
+    return 0
+
+fn cch_seq_cmp(a: &CchToks, b: &CchToks) -> i64
+    var i: usize = 0
+    while i < a.rk.len() and i < b.rk.len() bound 1000000000
+        let c = cch_tcmp(a, i, b, i)
+        if c != 0
+            return c
+        i += 1
+    return cch_sign((a.rk.len() as i64) - (b.rk.len() as i64))
+
+# Canonical order of 6.1: null < bool < int < float < text < list <
+# record; integers by value, floats by IEEE 754 totalOrder (-0.0 < 0.0),
+# text by code point, lists and records (fields in key order, key then
+# value) lexicographically, a prefix first. Returns -1, 0 or 1; 0 exactly
+# when the canonical JSON of a and b is equal.
+pub fn cv_cmp(a: &CVal, b: &CVal) -> i64
+    let ta = cch_flat(a)
+    let tb = cch_flat(b)
+    return cch_seq_cmp(&ta, &tb)
+
+fn cch_hex2(b: i64) -> text
+    let d = "0123456789abcdef"
+    return d[(b >> 4) as usize:((b >> 4) + 1) as usize] + d[(b & 15) as usize:((b & 15) + 1) as usize]
+
+# A JSON string by rule 4 of 6.1.1: '"' and '\' escaped, LF, CR and TAB
+# as \n, \r, \t, every other value below U+0020 as \u00xx (lowercase),
+# everything else as itself.
+fn cch_jstr(s: &text) -> text
+    var out: List[text] = ["\""]
+    var st: usize = 0
+    var i: usize = 0
+    let n = s.len_bytes()
+    while i < n bound 4000000
+        let b = s[i] as i64
+        if b < 32 or b == 34 or b == 92
+            if i > st
+                out.push(s[st:i])
+            if b == 34
+                out.push("\\\"")
+            elif b == 92
+                out.push("\\\\")
+            elif b == 10
+                out.push("\\n")
+            elif b == 13
+                out.push("\\r")
+            elif b == 9
+                out.push("\\t")
+            else
+                out.push("\\u00" + cch_hex2(b))
+            st = i + 1
+        i += 1
+    if n > st
+        out.push(s[st:n])
+    out.push("\"")
+    return "".join(out)
+
+fn cch_zeros(n: i64) -> text
+    var s = ""
+    var i: i64 = 0
+    while i < n bound 400
+        s = s + "0"
+        i += 1
+    return s
+
+fn cch_digit_run(s: &text, a: usize, b: usize) -> i64
+    var v: i64 = 0
+    var i = a
+    while i < b bound 8
+        v = v * 10 + ((s[i] as i64) - 48)
+        i += 1
+    return v
+
+# The canonical JSON of a finite binary64 (rule 3 of 6.1.1): the shortest
+# round-trip digits of x.tostr(), placed in decimal notation when
+# 10^-4 <= |x| < 10^16 (with at least one digit after the point) and in
+# exponent notation otherwise (no '+', no leading zero).
+pub fn cv_float_text(x: f64) -> text
+    let s = x.tostr()
+    if s == "0"
+        return "0.0"
+    if s == "-0"
+        return "-0.0"
+    let neg = s[0] == 45
+    let n = s.len_bytes()
+    var a: usize = if neg then 1 else 0
+    # mantissa [a, me), exponent after 'e'
+    var me = n
+    var ex: i64 = 0
+    var i = a
+    while i < n bound 64
+        if s[i] == 101
+            me = i
+        i += 1
+    if me < n
+        var k = me + 1
+        var esign: i64 = 1
+        if s[k] == 45
+            esign = -1
+            k += 1
+        elif s[k] == 43
+            k += 1
+        ex = esign * cch_digit_run(&s, k, n)
+    # digits and the count before the point
+    var dg = ""
+    var ip: i64 = 0
+    var seen_point = false
+    i = a
+    while i < me bound 64
+        if s[i] == 46
+            seen_point = true
+        else
+            dg = dg + s[i:i + 1]
+            if not seen_point
+                ip += 1
+        i += 1
+    # strip leading zeros (0.000123 -> 123), then trailing zeros
+    var lz: usize = 0
+    while lz + 1 < dg.len_bytes() and dg[lz] == 48 bound 64
+        lz += 1
+    let e10 = ex + ip - 1 - (lz as i64)
+    var de = dg.len_bytes()
+    while de > lz + 1 and dg[de - 1] == 48 bound 64
+        de -= 1
+    let digits = dg[lz:de]
+    let nd = digits.len_bytes() as i64
+    let sign = if neg then "-" else ""
+    let mag = if x < 0.0 then 0.0 - x else x
+    if mag >= 0.0001 and mag < 10000000000000000.0
+        let p = e10 + 1
+        if p <= 0
+            return sign + "0." + cch_zeros(0 - p) + digits
+        if p >= nd
+            return sign + digits + cch_zeros(p - nd) + ".0"
+        return sign + digits[0:p as usize] + "." + digits[p as usize:nd as usize]
+    let m = if nd > 1 then digits[0:1] + "." + digits[1:nd as usize] else copy(digits)
+    return sign + m + "e" + e10.tostr()
+
+fn cch_int_text(hv: i64, iv: i64) -> text
+    if hv == 1
+        let u = (iv as u64) + 9223372036854775808
+        return u.tostr()
+    return iv.tostr()
+
+fn cch_write(tk: &CchToks) -> text
+    var out: List[text] = []
+    var ctx: List[i64] = []
+    var cnt: List[i64] = []
+    var i: usize = 0
+    while i < tk.rk.len() bound 1000000000
+        let r = tk.rk[i]
+        if r < 0
+            out.push(if ctx[ctx.len() - 1] == 5 then "]" else "}")
+            let _c = ctx.pop()
+            let _n = cnt.pop()
+        else
+            if ctx.len() > 0
+                let top = ctx.len() - 1
+                let c = cnt[top]
+                if ctx[top] == 5 or c % 2 == 0
+                    if c > 0
+                        out.push(",")
+                else
+                    out.push(":")
+                cnt[top] = c + 1
+            if r == 0
+                out.push("null")
+            elif r == 1
+                out.push(if tk.iv[i] == 1 then "true" else "false")
+            elif r == 2
+                out.push(cch_int_text(tk.hv[i], tk.iv[i]))
+            elif r == 3
+                out.push(cv_float_text(tk.fv[i]))
+            elif r == 4
+                out.push(cch_jstr(&tk.tv[i]))
+            else
+                out.push(if r == 5 then "[" else "{")
+                ctx.push(r)
+                cnt.push(0)
+        i += 1
+    return "".join(out)
+
+# The canonical JSON of v (spec 6.1.1).
+pub fn cv_canon(v: &CVal) -> text
+    let tk = cch_flat(v)
+    return cch_write(&tk)
+
+# SHA-256 of the canonical JSON of v, 64 lowercase hex digits.
+pub fn cv_hash(v: &CVal) -> text = cv_canon(v).sha256()
+
+# Stable merge sort of the indexes 0..n by the token sequences ts.
+fn cch_sort_idx(ts: &[CchToks]) -> List[i64]
+    let n = ts.len()
+    var a: List[i64] = []
+    for i in 0..n
+        a.push(i as i64)
+    var w: usize = 1
+    while w < n bound 64
+        var b: List[i64] = []
+        var lo: usize = 0
+        while lo < n bound 1000000
+            let mid = if lo + w < n then lo + w else n
+            let hi = if lo + 2 * w < n then lo + 2 * w else n
+            var i = lo
+            var j = mid
+            while i < mid or j < hi bound 2000000
+                if j >= hi or (i < mid and cch_seq_cmp(&ts[a[i] as usize], &ts[a[j] as usize]) <= 0)
+                    b.push(a[i])
+                    i += 1
+                else
+                    b.push(a[j])
+                    j += 1
+            lo = hi
+        a = b
+        w = w * 2
+    return a
+
+# A Set as a Form value: the distinct items in canonical order.
+pub fn cv_set(items: &[CVal]) -> CVal
+    var ts: List[CchToks] = []
+    for x in items
+        ts.push(cch_flat(&x))
+    let ord = cch_sort_idx(&ts)
+    var o: List[CVal] = []
+    var k: usize = 0
+    while k < ord.len() bound 1000000
+        let u = ord[k] as usize
+        if k == 0 or cch_seq_cmp(&ts[ord[k - 1] as usize], &ts[u]) != 0
+            o.push(copy(items[u]))
+        k += 1
+    return CvList(items: o)
+
+# A Map as a Form value: the [key, value] pairs in canonical key order. A
+# repeated key keeps its last value; with fewer values than keys the
+# first keys are used.
+pub fn cv_map(keys: &[CVal], vals: &[CVal]) -> CVal
+    let n = if keys.len() < vals.len() then keys.len() else vals.len()
+    var ts: List[CchToks] = []
+    for i in 0..n
+        ts.push(cch_flat(&keys[i]))
+    let ord = cch_sort_idx(&ts)
+    var o: List[CVal] = []
+    var k: usize = 0
+    while k < ord.len() bound 1000000
+        let u = ord[k] as usize
+        if k + 1 == ord.len() or cch_seq_cmp(&ts[ord[k + 1] as usize], &ts[u]) != 0
+            o.push(CvList(items: [copy(keys[u]), copy(vals[u])]))
+        k += 1
+    return CvList(items: o)
+
+pub fn cv_ints(xs: &[i64]) -> CVal
+    var o: List[CVal] = []
+    for x in xs
+        o.push(CvInt(v: x))
+    return CvList(items: o)
+
+pub fn cv_texts(xs: &[text]) -> CVal
+    var o: List[CVal] = []
+    for x in xs
+        o.push(CvText(t: copy(x)))
+    return CvList(items: o)
+
+# ---------------- memoization ----------------
+# The arguments of a call are one CVal (usually a CvList of the
+# arguments); the entry key is cv_hash of it.
+
+pub struct Memo[V]
+    c: LruCache[V]
+    bounded: bool
+
+# A memo of at most maxsize results (functools.lru_cache(maxsize)); 0
+# keeps nothing, so every call is a miss.
+pub fn memo_new[V](maxsize: i64) -> Memo[V] = Memo(c: lru_new(maxsize), bounded: true)
+
+# lru_cache(maxsize=None): results are never evicted below CACHE_MAX
+# entries; at CACHE_MAX the least recently used one goes.
+pub fn memo_unbounded[V]() -> Memo[V] = Memo(c: lru_new(CACHE_MAX), bounded: false)
+
+pub fn memo_key(args: &CVal) -> text = cv_hash(args)
+
+# The result recorded for a key (from memo_key), counting a hit or a
+# miss.
+pub fn memo_get[V](m: &mut Memo[V], key: &text) -> V? = lru_get(&mut m.c, key)
+
+pub fn memo_put[V](m: &mut Memo[V], key: text, v: V)
+    lru_put(&mut m.c, key, v)
+
+pub fn memo_lookup[V](m: &mut Memo[V], args: &CVal) -> V?
+    let k = cv_hash(args)
+    return lru_get(&mut m.c, &k)
+
+pub fn memo_store[V](m: &mut Memo[V], args: &CVal, v: V)
+    lru_put(&mut m.c, cv_hash(args), v)
+
+# f(a) through the memo: the recorded result for args when there is one,
+# otherwise f(a), recorded under args. args must describe a (the key is
+# taken from args only).
+pub fn memo_call[A, V](m: &mut Memo[V], args: &CVal, f: fn(A) -> V, a: A) -> V
+    let k = cv_hash(args)
+    let hit = lru_get(&mut m.c, &k)
+    match hit
+        some(r) -> return copy(r)
+        none -> pass
+    let v = f(a)
+    lru_put(&mut m.c, k, copy(v))
+    return v
+
+pub fn memo_len[V](m: &Memo[V]) -> i64 = lru_len(&m.c)
+
+# The counters of lru_cache's cache_info(); maxsize is -1 for an
+# unbounded memo (Python's None).
+pub fn memo_info[V](m: &Memo[V]) -> CacheInfo
+    let i = lru_info(&m.c)
+    return CacheInfo(hits: i.hits, misses: i.misses, maxsize: if m.bounded then i.maxsize else -1, currsize: i.currsize)
+
+# Forget every result and reset the counters (cache_clear).
+pub fn memo_clear[V](m: &mut Memo[V])
+    lru_clear(&mut m.c)
