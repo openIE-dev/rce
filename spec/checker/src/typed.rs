@@ -309,6 +309,10 @@ pub struct Typed {
     /// the `let` locals bound to a list literal with at least one item,
     /// which are never empty
     pub nonempty: std::collections::HashSet<u32>,
+    /// the two hidden locals the `else` of a budget sees (the limit, and
+    /// the units the block spent), keyed by the address of the statement
+    /// that holds the `else` and that address plus one
+    pub hidden_binds: HashMap<usize, u32>,
 }
 
 /// One instantiation of a function at the types of its arguments (ONE-4:
@@ -1795,6 +1799,26 @@ impl<'a, 'm> Cx<'a, 'm> {
             }
             Stmt::Pass => {}
             Stmt::Select(..) => {}
+            // `with budget n Block else Else` (interp `exec_marker`): the
+            // limit, the block, and the else from the state before the block,
+            // with the hidden limit and spent units in scope
+            Stmt::Arena(name, None, body, _) if name == "$budget" && matches!(body.first(), Some(Stmt::Expr(_))) => {
+                let Some(Stmt::Expr(n)) = body.first() else { unreachable!() };
+                self.expr(n);
+                let (rest, eb) = budget_parts(body);
+                let before = self.env.clone();
+                self.block(rest);
+                if let Some((ifs, eb)) = eb {
+                    let after = std::mem::replace(&mut self.env, before);
+                    self.scopes.push(HashMap::new());
+                    let u = RType::Int(IntT::named("u64"));
+                    self.node_local(addr(ifs), |t| &mut t.hidden_binds, "\u{1}__bn", false, u.clone());
+                    self.node_local(addr(ifs) + 1, |t| &mut t.hidden_binds, "\u{1}__bu", false, u);
+                    self.block(eb);
+                    self.scopes.pop();
+                    self.env = env_join(&after, &self.env);
+                }
+            }
             Stmt::Arena(_, b, body, _) | Stmt::Device(_, b, body, _) => {
                 if let Some(b) = b {
                     self.expr(b);
@@ -1855,6 +1879,15 @@ pub fn bin_type(op: &str, a: &RType, b: &RType) -> RType {
             (x, y) if no_arith_rule(x, y) || (*x == T::Text && *y == T::Text) => T::Never,
             (x, y) => T::Unknown(format!("{} {op} {}", x.show(), y.show())),
         },
+    }
+}
+
+/// The block of a budget and its `else` (interp `exec_marker`): a last
+/// statement `if false` is the `else`, which the parser writes so.
+pub fn budget_parts(body: &[Stmt]) -> (&[Stmt], Option<(&Stmt, &[Stmt])>) {
+    match body.last() {
+        Some(s @ Stmt::If(arms, _)) if arms.len() == 1 && matches!(&arms[0].0, Expr::Bool(false, _)) => (&body[1..body.len() - 1], Some((s, &arms[0].1[..]))),
+        _ => (&body[1..], None),
     }
 }
 

@@ -49,6 +49,87 @@ pub fn tick(f: &mut Fns) -> R<usize> {
     })
 }
 
+/// The cost counters of C.6 (interp `charge`): the units charged so far,
+/// and the least `start + limit` of the budgets in force, 2^64 - 1 when
+/// none is. A budget that started with `spent = start` and has limit l
+/// refuses a charge of n when `spent + n > start + l`.
+pub fn cost_globals(f: &mut Fns) -> (u32, u32) {
+    let spent = f.global("cost.spent", Ty::u64(), Some(Lit::Int(0)));
+    let deadline = f.global("cost.deadline", Ty::u64(), Some(Lit::Int(u64::MAX as i128)));
+    (spent, deadline)
+}
+
+/// `charge(n)`: n units of cost, or trap "budget", charging nothing, when
+/// they would take a budget in force past its limit (interp `charge`).
+pub fn charge(f: &mut Fns) -> R<usize> {
+    let (s, d) = cost_globals(f);
+    f.get("rt.charge", vec![Ty::u64()], Ty::Bool, |_, mut b| {
+        let n = b.arg(0);
+        let cur = b.let_global(s, Ty::u64());
+        let t = b.p("int.sadd", vec![Ty::u64()], vec![cur, n])?;
+        let dl = b.let_global(d, Ty::u64());
+        let over = b.int_cmp("int.lt", dl, t.clone())?;
+        b.open();
+        let h = b.trap_value(Atom::bytes(b"budget"))?;
+        b.halt(h);
+        let th = b.close();
+        b.push(Stmt::If(over, th, vec![]));
+        b.setg(s, t);
+        b.ret(Atom::bool(true));
+        Ok(b.finish())
+    })
+}
+
+/// `try_charge(k)`: k charges of one unit each that stop at the first one a
+/// budget refuses, without a trap: the charges of an evaluation whose
+/// failure the reference ignores (interp `exec` of an assignment, which
+/// evaluates the place again with `.ok()`).
+pub fn try_charge(f: &mut Fns) -> R<usize> {
+    let (s, d) = cost_globals(f);
+    f.get("rt.try_charge", vec![Ty::u64()], Ty::Bool, |_, mut b| {
+        let n = b.arg(0);
+        let cur = b.let_global(s, Ty::u64());
+        let t = b.p("int.sadd", vec![Ty::u64()], vec![cur.clone(), n])?;
+        let dl = b.let_global(d, Ty::u64());
+        // min(t, max(cur, dl))
+        let m = b.p("int.max", vec![Ty::u64()], vec![cur, dl])?;
+        let r = b.p("int.min", vec![Ty::u64()], vec![t, m])?;
+        b.setg(s, r);
+        b.ret(Atom::bool(true));
+        Ok(b.finish())
+    })
+}
+
+/// `ceil_log2(n)`: the least k with 2^k >= n, and 0 for n <= 1 (interp
+/// `conc::ceil_log2`): the number of binary digits of n - 1.
+pub fn ceil_log2(f: &mut Fns) -> R<usize> {
+    f.get("rt.ceil_log2", vec![Ty::u64()], Ty::Int(0, 64), |_, mut b| {
+        let n = b.arg(0);
+        let k = b.var(Ty::Int(0, 64), lit(0));
+        let small = b.int_cmp("int.le", n.clone(), lit(1))?;
+        b.when(small, |b| {
+            b.ret(lit(0));
+            Ok(())
+        })?;
+        let m0 = b.sub_in(n, lit(1), Ty::u64())?;
+        let m = b.var(Ty::u64(), m0);
+        b.loop_(|b| {
+            let mv = b.take(m);
+            let z = b.int_cmp("int.eq", mv.clone(), lit(0))?;
+            b.exit_if(z)?;
+            let (h, _) = b.divmod_lit(mv, 2, Ty::u64())?;
+            b.set(m, h);
+            let kv = b.take(k);
+            let k1 = b.add_in(kv, lit(1), Ty::Int(0, 64))?;
+            b.set(k, k1);
+            Ok(())
+        })?;
+        let kv = b.take(k);
+        b.ret(kv);
+        Ok(b.finish())
+    })
+}
+
 /// A one-byte string of byte `x` (an int known to lie in 0..255).
 pub fn byte_str(b: &mut FB, x: Atom) -> R<Atom> {
     let x = b.cast_in(x, Ty::u8())?;

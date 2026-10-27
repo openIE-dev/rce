@@ -45,8 +45,11 @@
 //! hold after each statement (R3); and iterator functions (5.14), each
 //! call a frame and each run a function that the consumer calls under
 //! `catch` with a cap on the items, as interp `gen_run` runs them, so that
-//! a trap in a run is raised after the items it gave. Traits, which hold
-//! signatures only,
+//! a trap in a run is raised after the items it gave; and budgets (C.5),
+//! each block a function called under `catch` with the budget in force,
+//! with the cost of C.6 charged where the reference charges it in a module
+//! that has a budget, the only place where cost is observed. Traits, which
+//! hold signatures only,
 //! lower to nothing, and each function is lowered when the trace first
 //! reaches it. A statement that follows one that cannot complete (a halt,
 //! a return, a jump) is never reached and is left out.
@@ -213,6 +216,57 @@ impl Fx {
     }
 }
 
+/// Whether a module has a `with budget` anywhere.
+fn has_budget(m: &ast::Module) -> bool {
+    let mut found = false;
+    let mut look = |b: &[S]| crate::check::walk_stmts(b, &mut |s| {
+        if matches!(s, S::Arena(n, ..) if n == "$budget") {
+            found = true;
+        }
+    });
+    for it in &m.items {
+        match it {
+            Item::Fn(f) => {
+                if let Body::Block(b) = &f.body {
+                    look(b);
+                }
+            }
+            Item::Impl { members, .. } => {
+                for f in members {
+                    if let Body::Block(b) = &f.body {
+                        look(b);
+                    }
+                }
+            }
+            Item::Step { body: Body::Block(b), .. } => look(b),
+            _ => {}
+        }
+    }
+    found
+}
+
+/// The charges of evaluating a place (one for each field, component and
+/// element it reads, interp `eval`).
+fn place_charges(p: &Expr) -> i128 {
+    match p {
+        Expr::Member(x, _, _) | Expr::TupleMember(x, _, _) | Expr::Index(x, _, _) => 1 + place_charges(x),
+        Expr::Borrow(_, x, _) => place_charges(x),
+        _ => 0,
+    }
+}
+
+/// The cost of an operator on a value of type t (interp `op_cost`, C.6.4).
+fn op_cost(op: &str, t: &RType) -> i128 {
+    match t {
+        RType::F64 | RType::F32 => match op {
+            "+" | "-" | "*" => 2,
+            "/" | "%" => 8,
+            _ => 1,
+        },
+        _ => 1,
+    }
+}
+
 fn no<T>(what: impl std::fmt::Display) -> R<T> {
     Err(format!("not covered by the lowering: {what}"))
 }
@@ -263,6 +317,9 @@ struct Lw<'m> {
     ev_t: Ty,
     /// the buffer stacks of iterator runs, by the core type of the items
     gen_stacks: HashMap<Ty, u32>,
+    /// whether the module has a budget, the only place where cost (C.6)
+    /// is observed: then cost is charged where the reference charges it
+    costs: bool,
 }
 
 impl<'m> Lw<'m> {
@@ -280,7 +337,7 @@ impl<'m> Lw<'m> {
                 loop_limit = *n;
             }
         }
-        let mut lw = Lw { m, t, ty, f, tick, fuel, out_g, fns: HashMap::new(), methods: HashMap::new(), impl_tys: HashMap::new(), insts: HashMap::new(), inst_ids: HashMap::new(), inst_sigs: HashMap::new(), gs: vec![], consts: HashMap::new(), named: HashMap::new(), gens: HashMap::new(), loop_limit, ev_t: Ty::unit(), gen_stacks: HashMap::new() };
+        let mut lw = Lw { m, t, ty, f, tick, fuel, out_g, fns: HashMap::new(), methods: HashMap::new(), impl_tys: HashMap::new(), insts: HashMap::new(), inst_ids: HashMap::new(), inst_sigs: HashMap::new(), gs: vec![], consts: HashMap::new(), named: HashMap::new(), gens: HashMap::new(), loop_limit, ev_t: Ty::unit(), gen_stacks: HashMap::new(), costs: has_budget(m) };
         let mut evs = vec![];
         for e in lw.t.events.clone() {
             evs.push(lw.ct(&RType::Named(e))?);
@@ -386,6 +443,86 @@ impl<'m> Lw<'m> {
         let t = fx.b.close();
         fx.b.push(Stmt::If(c, t, vec![]));
         Ok(())
+    }
+
+    /// Charge cost units (an atom of an integer type) where the reference
+    /// charges them (interp `charge`); only in a module with a budget.
+    fn charge(&mut self, fx: &mut Fx, units: Atom) -> R<()> {
+        if !self.costs {
+            return Ok(());
+        }
+        let u = fx.b.cast_in(units, Ty::u64())?;
+        let f = rt::charge(&mut self.f)?;
+        fx.b.call(sym(f), Ty::Bool, vec![u]);
+        Ok(())
+    }
+
+    fn charge_k(&mut self, fx: &mut Fx, k: i128) -> R<()> {
+        self.charge(fx, lit(k))
+    }
+
+    /// The charge of a built-in method (interp `builtin`): c_call, and in a
+    /// sized call (a version 0.7 module) the method's work by its class
+    /// (C.6.4): n + k for a linear method, n * ceil(log2 n) for sort, where
+    /// n is the size of the receiver and k of the first argument, both read.
+    fn charge_method(&mut self, fx: &mut Fx, m: &str, recv: (Atom, RType), arg: Option<(&Atom, &RType)>, sized: bool) -> R<()> {
+        if !self.costs {
+            return Ok(());
+        }
+        let kind = match &recv.1 {
+            RType::Text => "text",
+            RType::List(_) => "list",
+            RType::Set(_) => "set",
+            RType::Map(..) => "map",
+            _ => "",
+        };
+        let class = if sized { crate::specread::work(kind, m) } else { crate::specread::Work::Constant };
+        use crate::specread::Work;
+        let w = match class {
+            Work::Constant => lit(0),
+            Work::Linear => {
+                let n = self.size_of(fx, &recv.0, &recv.1)?;
+                let k = match arg {
+                    Some((a, t)) => self.size_of(fx, a, t)?,
+                    None => lit(0),
+                };
+                fx.b.p("int.sadd", vec![Ty::u64()], vec![n, k])?
+            }
+            Work::NLogN => {
+                let n = self.size_of(fx, &recv.0, &recv.1)?;
+                let g = rt::ceil_log2(&mut self.f)?;
+                let l = self.call_rt(fx, g, vec![n.clone()]);
+                fx.b.p("int.smul", vec![Ty::u64()], vec![n, l])?
+            }
+        };
+        let u = fx.b.p("int.sadd", vec![Ty::u64()], vec![w, lit(crate::conc::C_CALL)])?;
+        self.charge(fx, u)
+    }
+
+    /// The size of a value for the work of a method (interp `size_of`): the
+    /// bytes of a text, the items of a list or set, the entries of a map,
+    /// and 0 for any other value.
+    fn size_of(&mut self, fx: &mut Fx, a: &Atom, t: &RType) -> R<Atom> {
+        let n = match t {
+            RType::Text => fx.b.p("bytes.len", vec![], vec![a.clone()])?,
+            RType::List(_) | RType::Set(_) | RType::Map(..) => {
+                let ct = fx.b.ty(a);
+                let Ty::List(e) = ct else { return Err("internal: a list of no list type".into()) };
+                fx.b.p("list.len", vec![(*e).clone()], vec![a.clone()])?
+            }
+            _ => lit(0),
+        };
+        fx.b.cast_in(n, Ty::u64())
+    }
+
+    /// `4 + n` units for a list of n items (interp `charge(4 + len)`).
+    fn charge_list(&mut self, fx: &mut Fx, n: Atom) -> R<()> {
+        if !self.costs {
+            return Ok(());
+        }
+        let n = fx.b.cast_in(n, Ty::Int(0, INT_MAX))?;
+        let u = fx.b.p("int.sadd", vec![Ty::u64()], vec![n, lit(4)])?;
+        self.charge(fx, u)
     }
 
     fn call_rt(&mut self, fx: &mut Fx, id: usize, args: Vec<Atom>) -> Atom {
@@ -2383,6 +2520,7 @@ impl<'m> Lw<'m> {
             }
             Expr::List(xs, _) => {
                 let RType::List(et) = rt.clone() else { return no("a list of unknown type") };
+                self.charge_k(fx, 4 + xs.len() as i128)?;
                 let mut vs = vec![];
                 for x in xs {
                     vs.push(self.expr(fx, x)?);
@@ -2409,6 +2547,7 @@ impl<'m> Lw<'m> {
                 let hi = fx.b.int_cmp("int.lt", lit(10_000_000), k.a.clone())?;
                 let bad = fx.b.p("bool.or", vec![], vec![lo, hi])?;
                 self.guard(fx, bad, |_, _| Ok(Atom::bytes(b"bad repeat count")))?;
+                self.charge_list(fx, k.a.clone())?;
                 let big = fx.b.int_cmp("int.lt", lit(crate::interp::SIZE_LIMIT as i128), k.a.clone())?;
                 self.guard(fx, big, |_, _| Ok(Atom::bytes(b"size limit")))?;
                 let ect = self.ct(&et)?;
@@ -2443,6 +2582,7 @@ impl<'m> Lw<'m> {
                 let RType::Map(k, v) = rt.clone() else { return no("a map of unknown type") };
                 let mt = self.ct(&rt)?;
                 let Ty::List(pt) = &mt else { unreachable!() };
+                self.charge_k(fx, 4 + ps.len() as i128)?;
                 let mut m = fx.b.p("list.new", vec![(**pt).clone()], vec![])?;
                 if ps.is_empty() {
                     return Ok(Val { a: m, t: rt });
@@ -2463,6 +2603,7 @@ impl<'m> Lw<'m> {
             Expr::Member(x, f, _) => self.member(fx, x, f, rt),
             Expr::TupleMember(x, i, _) => {
                 let v = self.expr(fx, x)?;
+                self.charge_k(fx, 1)?;
                 let RType::Tuple(_) = &v.t else { return no("a component of a non-tuple") };
                 let t = fx.b.ty(&v.a);
                 let c = fx.b.p("tup.get", vec![t], vec![v.a.clone(), lit(*i as i128)])?;
@@ -2471,6 +2612,7 @@ impl<'m> Lw<'m> {
             }
             Expr::Neg(x, _) => {
                 let v = self.expr(fx, x)?;
+                self.charge_k(fx, 1)?;
                 match &v.t {
                     RType::Int(i) => {
                         let (r, name) = check_of(&IntT::of_tags(i.tags))?;
@@ -2490,6 +2632,7 @@ impl<'m> Lw<'m> {
             }
             Expr::BitNot(x, _) => {
                 let v = self.expr(fx, x)?;
+                self.charge_k(fx, 1)?;
                 let RType::Int(i) = &v.t else { return no("~ of a non-integer") };
                 let Some(n) = i.tags.single() else { return no("~ of an integer whose type name differs at run time") };
                 let (lo, hi) = typed::tag_range(n);
@@ -2501,6 +2644,7 @@ impl<'m> Lw<'m> {
             }
             Expr::Not(x, _) => {
                 let v = self.expr(fx, x)?;
+                self.charge_k(fx, 1)?;
                 Ok(Val { a: fx.b.not(v.a)?, t: rt })
             }
             Expr::Borrow(_, x, _) | Expr::Comptime(x, _) => self.expr(fx, x),
@@ -2808,6 +2952,7 @@ impl<'m> Lw<'m> {
                 let fd = self.t.fns[&n];
                 let key = self.ty.inst_of[&addr(e)].clone();
                 fx.b.tick(1);
+                self.charge_k(fx, crate::conc::C_CALL)?;
                 Ok(Val { a: self.call_inst(fx, &key, fd, args, None)?, t: rt })
             }
             Some(Callee::Method(h, m)) if self.ty.inst_of.contains_key(&addr(e)) => {
@@ -2816,12 +2961,14 @@ impl<'m> Lw<'m> {
                 let key = self.ty.inst_of[&addr(e)].clone();
                 let recv = self.expr(fx, obj)?;
                 fx.b.tick(1);
+                self.charge_k(fx, crate::conc::C_CALL)?;
                 Ok(Val { a: self.call_inst(fx, &key, fd, args, Some((recv.a, obj)))?, t: rt })
             }
             Some(Callee::Fn(n)) => {
                 let fd = self.t.fns[&n];
                 let id = self.user_fn(&n)?;
                 fx.b.tick(1);
+                self.charge_k(fx, crate::conc::C_CALL)?;
                 let a = self.args(fx, fd, args)?;
                 Ok(Val { a: self.call_user(fx, id, fd, a, args, None)?, t: rt })
             }
@@ -2829,6 +2976,7 @@ impl<'m> Lw<'m> {
                 let fd = self.t.methods[&(tn.clone(), m.clone())];
                 let id = self.method_fn(&tn, &m)?;
                 fx.b.tick(1);
+                self.charge_k(fx, crate::conc::C_CALL)?;
                 let a = self.args(fx, fd, args)?;
                 Ok(Val { a: self.call_user(fx, id, fd, a, args, None)?, t: rt })
             }
@@ -2838,6 +2986,7 @@ impl<'m> Lw<'m> {
                 let id = self.method_fn(&h, &m)?;
                 let recv = self.expr(fx, obj)?;
                 fx.b.tick(1);
+                self.charge_k(fx, crate::conc::C_CALL)?;
                 let mut a = vec![recv.a];
                 a.extend(self.args(fx, fd, args)?);
                 Ok(Val { a: self.call_user(fx, id, fd, a, args, Some(obj))?, t: rt })
@@ -2845,13 +2994,21 @@ impl<'m> Lw<'m> {
             Some(Callee::Ctor(c)) => self.construct(fx, &c, args, rt),
             Some(Callee::Builtin(m)) => {
                 let Expr::Member(obj, _, _) = f else { return no("a method call") };
-                self.builtin(fx, obj, &m, args, rt)
+                let sized = matches!(e, Expr::Call(_, _, _, true));
+                self.builtin(fx, obj, &m, args, rt, sized)
             }
             Some(Callee::Ctx(c, m)) => {
                 // 5.16: `C.lit(t)` is t; `C.encode(t)` escapes t for C
                 let v = self.expr(fx, &args[0].e)?;
                 if v.t != RType::Text {
                     return no(format!("{c}.{m} of {}", v.t.show()));
+                }
+                // C.16: `lit` costs c_call, `encode` c_call and its text's bytes
+                if self.costs {
+                    let w = if m == "encode" { fx.b.p("bytes.len", vec![], vec![v.a.clone()])? } else { lit(0) };
+                    let w = fx.b.cast_in(w, Ty::Int(0, INT_MAX))?;
+                    let u = fx.b.p("int.sadd", vec![Ty::u64()], vec![w, lit(crate::conc::C_CALL)])?;
+                    self.charge(fx, u)?;
                 }
                 match (m.as_str(), c.as_str()) {
                     ("lit", "Html" | "Url" | "Sql" | "Json" | "ShellArg" | "Prompt" | "Header") => Ok(Val { a: v.a, t: rt }),
@@ -2934,13 +3091,14 @@ impl<'m> Lw<'m> {
         self.ctor_value(fx, c, out, rt)
     }
 
-    fn builtin(&mut self, fx: &mut Fx, obj: &Expr, m: &str, args: &[Arg], rt: RType) -> R<Val> {
+    fn builtin(&mut self, fx: &mut Fx, obj: &Expr, m: &str, args: &[Arg], rt: RType, sized: bool) -> R<Val> {
         let ort = self.node_ty(obj);
         // a method that writes its receiver back needs the receiver to be a variable
         if matches!(m, "push" | "append") {
             let Some(v) = self.var_of(fx, obj) else { return no(format!("{m} on a receiver that is not a variable")) };
             fx.b.tick(1); // the receiver's evaluation
             let x = self.expr(fx, &args[0].e)?;
+            self.charge_method(fx, m, (Atom::V(v), ort.clone()), Some((&x.a, &x.t)), sized)?;
             let RType::List(_) = &ort else { return no(format!("{m} on {}", ort.show())) };
             let lt = fx.b.local_ty(v);
             let Ty::List(et) = &lt else { return no("push onto a non-list") };
@@ -2961,7 +3119,7 @@ impl<'m> Lw<'m> {
         if matches!(m, "map" | "filter" | "fold") && matches!(&ort, RType::List(_)) {
             let fa = if m == "fold" { args.get(1) } else { args.first() };
             return match fa {
-                Some(Arg { e: Expr::Lambda(ps, body, _), .. }) => self.hof(fx, obj, m, args, ps, body, rt),
+                Some(Arg { e: Expr::Lambda(ps, body, _), .. }) => self.hof(fx, obj, m, args, ps, body, rt, sized),
                 _ => no(format!("{m} with a function that is not a lambda")),
             };
         }
@@ -2972,6 +3130,8 @@ impl<'m> Lw<'m> {
             for a in args {
                 av.push(self.expr(fx, &a.e)?);
             }
+            let first = av.first().map(|x| (x.a.clone(), x.t.clone()));
+            self.charge_method(fx, m, (Atom::V(v), ort.clone()), first.as_ref().map(|(a, t)| (a, t)), sized)?;
             let Some(mt @ RType::Map(..)) = self.var_rtype(fx, v) else { return no(format!("{m} on a map of unknown type")) };
             let RType::Map(kt, vt) = &mt else { unreachable!() };
             let (kt, vt) = ((**kt).clone(), (**vt).clone());
@@ -3020,6 +3180,7 @@ impl<'m> Lw<'m> {
         if m == "sort" && matches!(&ort, RType::List(_)) && args.is_empty() {
             let Some(v) = self.var_of(fx, obj) else { return no("sort on a receiver that is not a variable") };
             fx.b.tick(1); // the receiver's evaluation
+            self.charge_method(fx, m, (Atom::V(v), ort.clone()), None, sized)?;
             let Some(RType::List(et)) = self.var_rtype(fx, v) else { return no("sort of a list of unknown type") };
             let sf = self.sort_fn(&et)?;
             let l = self.take_var(fx, v);
@@ -3033,6 +3194,7 @@ impl<'m> Lw<'m> {
         {
             let Some(v) = self.var_of(fx, obj) else { return no(format!("{m} on a receiver that is not a variable")) };
             fx.b.tick(1); // the receiver's evaluation
+            self.charge_method(fx, m, (Atom::V(v), ort.clone()), None, sized)?;
             let lt = fx.b.local_ty(v);
             let Ty::List(et) = &lt else { return no(format!("{m} on a non-list")) };
             let et = (**et).clone();
@@ -3071,6 +3233,7 @@ impl<'m> Lw<'m> {
             && args.is_empty()
         {
             fx.b.tick(1);
+            self.charge_method(fx, m, (Atom::V(v), ort.clone()), None, sized)?;
             let lt = fx.b.local_ty(v);
             let n = match &lt {
                 Ty::List(e) => fx.b.p("list.len", vec![(**e).clone()], vec![Atom::V(v)])?,
@@ -3090,6 +3253,8 @@ impl<'m> Lw<'m> {
         for a in args {
             av.push(self.expr(fx, &a.e)?);
         }
+        let first = av.first().map(|x| (x.a.clone(), x.t.clone()));
+        self.charge_method(fx, m, (recv.a.clone(), recv.t.clone()), first.as_ref().map(|(a, t)| (a, t)), sized)?;
         match (&recv.t, m) {
             (RType::Int(i), "abs") => {
                 let (r, name) = check_of(&IntT::of_tags(i.tags))?;
@@ -3586,7 +3751,7 @@ impl<'m> Lw<'m> {
     /// body that writes a variable (a `&mut` argument, push, insert, …),
     /// which in the reference writes the closure's own copy, is refused.
     #[allow(clippy::too_many_arguments)]
-    fn hof(&mut self, fx: &mut Fx, obj: &Expr, m: &str, args: &[Arg], ps: &[Param], body: &Expr, rt: RType) -> R<Val> {
+    fn hof(&mut self, fx: &mut Fx, obj: &Expr, m: &str, args: &[Arg], ps: &[Param], body: &Expr, rt: RType, sized: bool) -> R<Val> {
         if self.lambda_writes(body) {
             return no(format!("a lambda given to {m} that writes a variable"));
         }
@@ -3596,6 +3761,8 @@ impl<'m> Lw<'m> {
         let ect = self.ct(&et)?;
         let init = if m == "fold" { Some(self.expr(fx, &args[0].e)?) } else { None };
         fx.b.tick(1); // the lambda
+        let first = init.as_ref().map(|x| (x.a.clone(), x.t.clone()));
+        self.charge_method(fx, m, (recv.a.clone(), recv.t.clone()), first.as_ref().map(|(a, t)| (a, t)), sized)?;
         // the result: a list being built, or the accumulator
         let out_t = self.ct(&rt)?;
         let out = match (m, init) {
@@ -3622,6 +3789,7 @@ impl<'m> Lw<'m> {
         let el = fx.b.close();
         fx.b.push(Stmt::If(more, th, el));
         fx.b.tick(1);
+        self.charge_k(fx, crate::conc::C_CALL)?; // the application
         let x = fx.b.list_at(recv.a.clone(), iv.clone())?;
         fx.push_scope();
         let mut ins = vec![];
@@ -3708,6 +3876,7 @@ impl<'m> Lw<'m> {
             return no("a call whose arguments do not match its parameters one to one");
         }
         fx.b.tick(1);
+        self.charge_k(fx, crate::conc::C_CALL)?;
         let mut parts = vec![];
         for (k, (ty, arg)) in named.iter().zip(args).enumerate() {
             let v = self.expr(fx, &arg.e)?;
@@ -3979,6 +4148,7 @@ impl<'m> Lw<'m> {
         for a in args {
             ins.push(self.expr(fx, &a.e)?);
         }
+        self.charge_k(fx, crate::conc::C_CALL)?;
         fx.push_scope();
         self.bind_lambda_params(fx, ps, ins)?;
         let r = self.expr(fx, body)?;
@@ -4009,6 +4179,7 @@ impl<'m> Lw<'m> {
         if let RType::Map(..) = self.node_ty(x) {
             let c = self.expr(fx, x)?;
             let kv = self.expr(fx, &idx[0])?;
+            self.charge_k(fx, 1)?;
             let i = self.map_find(fx, &c, kv.clone())?;
             let missing = fx.b.int_cmp("int.lt", i.clone(), lit(0))?;
             let kv2 = kv.clone();
@@ -4030,6 +4201,7 @@ impl<'m> Lw<'m> {
             None => (self.expr(fx, x)?.a, true),
         };
         let i = self.expr(fx, &idx[0])?;
+        self.charge_k(fx, 1)?;
         let RType::Int(_) = &i.t else { return no("an index that is not an integer") };
         let ct = fx.b.ty(&c);
         let neg = fx.b.int_cmp("int.lt", i.a.clone(), lit(0))?;
@@ -4107,6 +4279,7 @@ impl<'m> Lw<'m> {
             fx.b.tick(1);
             let x = self.expr(fx, a)?;
             let y = self.expr(fx, bx)?;
+            self.charge_k(fx, 1)?; // the range
             let (RType::Int(_), RType::Int(_)) = (&x.t, &y.t) else { return no("a range of non-integers") };
             let item_t = match self.node_ty(it) {
                 RType::Range(i) => i,
@@ -4196,6 +4369,10 @@ impl<'m> Lw<'m> {
         let lb = fx.close_nest();
         fx.b.push(Stmt::Loop(lb));
         let r = fx.b.let_(Atom::V(out));
+        if self.costs {
+            let n = fx.b.p("list.len", vec![ect.clone()], vec![r.clone()])?;
+            self.charge_list(fx, n)?;
+        }
         self.size_check(fx, &r, &ect)?;
         Ok(Val { a: r, t: rt })
     }
@@ -4245,6 +4422,7 @@ impl<'m> Lw<'m> {
     /// counts from the end; the traps are those of the reference.
     fn slice(&mut self, fx: &mut Fx, x: &Expr, a: Option<&Expr>, b: Option<&Expr>, rt: RType) -> R<Val> {
         let c = self.expr(fx, x)?;
+        self.charge_k(fx, 1)?;
         let av = match a {
             Some(e) => Some(self.expr(fx, e)?),
             None => None,
@@ -4345,6 +4523,7 @@ impl<'m> Lw<'m> {
         let k = self.field_index(&xt, f)?;
         if let Some(v) = self.var_of(fx, x) {
             fx.b.tick(1);
+            self.charge_k(fx, 1)?;
             let t = fx.b.local_ty(v);
             return Ok(Val { a: fx.b.p("tup.get", vec![t], vec![Atom::V(v), lit(k as i128)])?, t: rt });
         }
@@ -4352,10 +4531,12 @@ impl<'m> Lw<'m> {
             && matches!(x, Expr::Name(..) | Expr::SelfRef(_))
         {
             fx.b.tick(1);
+            self.charge_k(fx, 1)?;
             let t = fx.b.ty(&a);
             return Ok(Val { a: fx.b.p("tup.get", vec![t], vec![a, lit(k as i128)])?, t: rt });
         }
         let v = self.expr(fx, x)?;
+        self.charge_k(fx, 1)?;
         let t = fx.b.ty(&v.a);
         let c = fx.b.p("tup.get", vec![t], vec![v.a.clone(), lit(k as i128)])?;
         fx.b.drop(v.a)?;
@@ -4423,6 +4604,7 @@ impl<'m> Lw<'m> {
 
     fn bin(&mut self, fx: &mut Fx, op: &str, a: &Expr, b: &Expr, rt: RType) -> R<Val> {
         if op == "and" || op == "or" {
+            self.charge_k(fx, 1)?;
             let x = self.expr(fx, a)?;
             let r = fx.b.var(Ty::Bool, Atom::bool(op == "or"));
             fx.b.open();
@@ -4445,6 +4627,8 @@ impl<'m> Lw<'m> {
             fx.b.tick(1);
             let l = self.expr(fx, lo)?;
             let h = self.expr(fx, hi)?;
+            self.charge_k(fx, 1)?; // the range
+            self.charge_k(fx, op_cost(op, &x.t))?;
             let r = match (&x.t, &l.t, &h.t) {
                 (RType::Int(_), RType::Int(_), RType::Int(_)) => {
                     let ge = fx.b.int_cmp("int.le", l.a, x.a.clone())?;
@@ -4462,6 +4646,7 @@ impl<'m> Lw<'m> {
         }
         let x = self.expr(fx, a)?;
         let y = self.expr(fx, b)?;
+        self.charge_k(fx, op_cost(op, &x.t))?;
         if op == "in" || op == "not in" {
             let r = self.contains(fx, y, x)?;
             let r = if op == "not in" { fx.b.not(r)? } else { r };
@@ -4744,6 +4929,8 @@ impl<'m> Lw<'m> {
             fx.b.tick(1); // the call
             let m = self.expr(fx, obj)?;
             let k = self.expr(fx, &args[0].e)?;
+            let sized = matches!(x, Expr::Call(_, _, _, true));
+            self.charge_method(fx, "get", (m.a.clone(), m.t.clone()), Some((&k.a, &k.t)), sized)?;
             let i = self.map_find(fx, &m, k.clone())?;
             fx.b.drop(k.a)?;
             let t = self.ct(&rt)?;
@@ -5042,15 +5229,8 @@ impl<'m> Lw<'m> {
             // are those of the sequential run, which is what the reference
             // resolves them to
             S::Arena(name, None, body, _) if name == "$forpar" => self.for_par(fx, body)?,
-            S::Arena(name, None, body, _) if name == "$par" => {
-                for b in body {
-                    let S::Arena(_, _, x, _) = b else { return no("a par branch") };
-                    self.block(fx, x, false)?;
-                    if !fx.b.falls() {
-                        break;
-                    }
-                }
-            }
+            S::Arena(name, None, body, _) if name == "$par" => self.par(fx, body)?,
+            S::Arena(name, None, body, _) if name == "$budget" => self.budget(fx, body)?,
             S::Arena(name, None, body, _) | S::Device(name, None, body, _) if !name.starts_with('$') => {
                 self.block(fx, body, false)?;
             }
@@ -5097,6 +5277,8 @@ impl<'m> Lw<'m> {
             r
         } else {
             let cur = self.place_value(fx, place)?;
+            // `x op= y` costs what `x = x op y` costs (C.6.4)
+            self.charge_k(fx, op_cost(&op[..op.len() - 1], &cur.t))?;
             let x = self.arith(fx, &op[..op.len() - 1], cur.clone(), r, RType::Never)?;
             // `x op= y` keeps x's type name (interp: chk(x, t))
             match (&cur.t, &x.a) {
@@ -5110,8 +5292,16 @@ impl<'m> Lw<'m> {
                 _ => Val { a: x.a, t: self.ty.stores.get(&addr(s)).cloned().unwrap_or(RType::Never) },
             }
         };
-        // the place is evaluated again for its type (interp `exec`, `eval(place).ok()`)
+        // the place is evaluated again for its type (interp `exec`, `eval(place).ok()`),
+        // and a budget refusing one of its charges is ignored there
         self.place_ticks(fx, place)?;
+        if self.costs {
+            let k = place_charges(place);
+            if k > 0 {
+                let f = rt::try_charge(&mut self.f)?;
+                fx.b.call(sym(f), Ty::Bool, vec![lit(k)]);
+            }
+        }
         let stored = self.ty.stores.get(&addr(s)).cloned().unwrap_or(RType::Never);
         let v = match (&cur_t, &v.t) {
             (RType::Int(c), RType::Int(_)) if !c.tags.has_lit() => {
@@ -5346,6 +5536,7 @@ impl<'m> Lw<'m> {
             fx.b.tick(1); // the range expression
             let x = self.expr(fx, a)?;
             let y = self.expr(fx, b)?;
+            self.charge_k(fx, 1)?;
             let (RType::Int(_), RType::Int(_)) = (&x.t, &y.t) else { return no("a range of non-integers") };
             let item_t = match self.node_ty(it) {
                 RType::Range(i) => i,
@@ -5442,6 +5633,282 @@ impl<'m> Lw<'m> {
         Ok(())
     }
 
+    /// `par` (C.4, T16, interp `par_exec`): the branches in source order;
+    /// their results are those of the sequential run, which is what the
+    /// reference resolves them to. Under a budget each branch runs on a
+    /// copy of the budgets as they are at the fork, and a branch that
+    /// takes the branches so far past a budget traps after it: so each
+    /// branch is charged as if the ones before it had charged nothing, and
+    /// the total is checked after it.
+    fn par(&mut self, fx: &mut Fx, body: &[S]) -> R<()> {
+        self.charge_k(fx, crate::conc::C_FORK * body.len() as i128)?;
+        let fork = if self.costs {
+            let (sp, dl) = rt::cost_globals(&mut self.f);
+            Some((sp, dl, fx.b.let_global(sp, Ty::u64()), fx.b.let_global(dl, Ty::u64())))
+        } else {
+            None
+        };
+        for (k, b) in body.iter().enumerate() {
+            let S::Arena(_, _, x, _) = b else { return no("a par branch") };
+            if let Some((sp, dl, s0, d0)) = &fork
+                && k > 0
+            {
+                let s = fx.b.let_global(*sp, Ty::u64());
+                let cum = fx.b.sub_in(s, s0.clone(), Ty::u64())?;
+                let d = fx.b.p("int.sadd", vec![Ty::u64()], vec![d0.clone(), cum])?;
+                fx.b.setg(*dl, d);
+            }
+            self.block(fx, x, false)?;
+            if !fx.b.falls() {
+                break;
+            }
+            if let Some((sp, _, _, d0)) = &fork {
+                let s = fx.b.let_global(*sp, Ty::u64());
+                let over = fx.b.int_cmp("int.lt", d0.clone(), s)?;
+                self.guard(fx, over, |_, _| Ok(Atom::bytes(b"budget")))?;
+            }
+        }
+        if let Some((_, dl, _, d0)) = fork
+            && fx.b.falls()
+        {
+            fx.b.setg(dl, d0);
+        }
+        Ok(())
+    }
+
+    /// `with budget n Block else [as e] Else` (C.5, interp `exec_marker`):
+    /// the limit, then the block in a function of its own, called under
+    /// `catch` with the budget in force, which takes the variables it
+    /// reads and gives back the values of the `var`s, which are written
+    /// back when it completes. When a charge in it is refused ("budget"),
+    /// nothing is written back, so the else sees the state of block entry,
+    /// with the limit and the units the block spent; any other trap
+    /// is raised again.
+    fn budget(&mut self, fx: &mut Fx, body: &[S]) -> R<()> {
+        let Some(S::Expr(ne)) = body.first() else { return no("a budget without its limit") };
+        let (rest, eb) = typed::budget_parts(body);
+        let nv = self.expr(fx, ne)?;
+        if !matches!(nv.t, RType::Int(_)) {
+            return no("a budget whose limit is not an integer");
+        }
+        // the block runs elsewhere: what leaves it, or yields, is refused
+        let mut bad = None;
+        fn exits(b: &[S], in_loop: bool, bad: &mut Option<&'static str>) {
+            for s in b {
+                match s {
+                    S::Return(..) => *bad = Some("return"),
+                    S::Fail(_) => *bad = Some("fail"),
+                    S::Yield(..) => *bad = Some("yield"),
+                    S::Break(_) | S::Continue(_) if !in_loop => *bad = Some("break or continue"),
+                    S::While(_, _, x) | S::Loop(_, x) | S::For(_, _, x, _) => exits(x, true, bad),
+                    S::If(arms, els) => {
+                        for (_, x) in arms {
+                            exits(x, in_loop, bad);
+                        }
+                        if let Some(x) = els {
+                            exits(x, in_loop, bad);
+                        }
+                    }
+                    S::Match(_, arms, _) => {
+                        for a in arms {
+                            exits(&a.body, in_loop, bad);
+                        }
+                    }
+                    S::Arena(_, _, x, _) | S::Device(_, _, x, _) | S::Comptime(x) => exits(x, in_loop, bad),
+                    _ => {}
+                }
+            }
+        }
+        exits(rest, false, &mut bad);
+        let mut tries = false;
+        crate::check::walk_stmts(rest, &mut |s| {
+            let mut look = |e: &Expr| {
+                crate::check::walk_expr(e, &mut |x| {
+                    if matches!(x, Expr::Try(..)) {
+                        tries = true;
+                    }
+                })
+            };
+            match s {
+                S::Expr(e) | S::Let(_, _, e, _) | S::Var(_, _, e, _) | S::Return(Some(e), _) => look(e),
+                S::Assign(_, p, e) => {
+                    look(p);
+                    look(e);
+                }
+                _ => {}
+            }
+        });
+        if let Some(b) = bad {
+            return no(format!("{b} in the block of a budget"));
+        }
+        if tries {
+            return no("try in the block of a budget");
+        }
+        // the locals of this function the block names, in order
+        let mut ids: Vec<u32> = vec![];
+        crate::check::walk_stmts(rest, &mut |s| {
+            let mut look = |e: &Expr| {
+                crate::check::walk_expr(e, &mut |x| {
+                    if let Some(Binding::Local(id)) = self.ty.node(x).and_then(|n| n.bind.clone())
+                        && fx.bound.contains_key(&id)
+                        && !ids.contains(&id)
+                    {
+                        ids.push(id);
+                    }
+                })
+            };
+            match s {
+                S::Expr(e) | S::Let(_, _, e, _) | S::Var(_, _, e, _) | S::Return(Some(e), _) | S::Emit(e) | S::Fail(e) | S::Check(e) => look(e),
+                S::Assign(_, p, e) => {
+                    look(p);
+                    look(e);
+                }
+                S::If(arms, _) => {
+                    for (c, _) in arms {
+                        look(c);
+                    }
+                }
+                S::While(c, b, _) => {
+                    look(c);
+                    if let Some(b) = b {
+                        look(b);
+                    }
+                }
+                S::Loop(Some(b), _) => look(b),
+                S::For(_, it, _, _) => look(it),
+                S::Match(e, arms, _) => {
+                    look(e);
+                    for a in arms {
+                        if let Some(g) = &a.guard {
+                            look(g);
+                        }
+                    }
+                }
+                S::Arena(_, Some(b), _, _) | S::Device(_, Some(b), _, _) => look(b),
+                _ => {}
+            }
+        });
+        ids.sort();
+        // the block's function: the values of the locals, then the vars' values out
+        let mut ps = vec![];
+        let mut args = vec![];
+        let mut vars = vec![];
+        for id in &ids {
+            match fx.bound.get(id).cloned() {
+                Some(Bound::Val(a, rt)) => {
+                    ps.push(fx.b.ty(&a));
+                    args.push(fx.b.copy(a)?);
+                    let _ = rt;
+                }
+                Some(Bound::Var(v, rt)) => {
+                    ps.push(fx.b.local_ty(v));
+                    args.push(fx.b.peek(v)?);
+                    vars.push((*id, v, rt));
+                }
+                None => unreachable!(),
+            }
+        }
+        let ret = Ty::Tup(vars.iter().map(|(_, v, _)| fx.b.local_ty(*v)).collect());
+        let id = self.f.declare(&format!("budget block {}", self.f.fns.len()), ps.clone(), ret.clone());
+        {
+            let mut fx2 = self.fx(ps, ret.clone(), Ret::None, FailCx::Halt, true);
+            let mut inner_vars = vec![];
+            for (k, lid) in ids.iter().enumerate() {
+                let a = fx2.b.arg(k);
+                match fx.bound.get(lid).cloned() {
+                    Some(Bound::Val(_, rt)) => {
+                        fx2.bound.insert(*lid, Bound::Val(a.clone(), rt));
+                        fx2.own(a);
+                    }
+                    Some(Bound::Var(_, rt)) => {
+                        let t = fx2.b.ty(&a);
+                        let v = fx2.b.var(t, a);
+                        fx2.bound.insert(*lid, Bound::Var(v, rt));
+                        fx2.own(Atom::V(v));
+                        inner_vars.push(v);
+                    }
+                    None => unreachable!(),
+                }
+            }
+            self.block(&mut fx2, rest, false)?;
+            if fx2.b.falls() {
+                let mut outs = vec![];
+                for v in inner_vars {
+                    outs.push(self.read_var(&mut fx2, v)?);
+                }
+                let r = fx2.b.p("tup.mk", vec![ret.clone()], outs)?;
+                fx2.drops_to(None)?;
+                fx2.b.ret(r);
+            }
+            self.f.define(id, fx2.b.finish());
+        }
+        // the budget in force: spent + units may reach start + n
+        let (sp, dl) = rt::cost_globals(&mut self.f);
+        let start = fx.b.let_global(sp, Ty::u64());
+        let d0 = fx.b.let_global(dl, Ty::u64());
+        let n = self.conv(fx, nv.a, &nv.t, &RType::Int(IntT::named("u64")), false)?;
+        let lim = fx.b.p("int.sadd", vec![Ty::u64()], vec![start.clone(), n.clone()])?;
+        let d1 = fx.b.p("int.min", vec![Ty::u64()], vec![d0.clone(), lim])?;
+        fx.b.setg(dl, d1);
+        let r = fx.b.catch(sym(id), ret.clone(), args);
+        let after = fx.b.let_global(sp, Ty::u64());
+        let used = fx.b.sub_in(after, start, Ty::u64())?;
+        fx.b.setg(dl, d0);
+        let rt_ = fx.b.ty(&r);
+        let vars2 = vars.clone();
+        self.switch(fx, &r, &rt_, 2, |lw, fx, k| {
+            let x = fx.b.p("sum.get", vec![rt_.clone()], vec![r.clone(), lit(k as i128)])?;
+            if k == 0 {
+                // the block completed: its vars' values are written back
+                let parts = fx.b.prim("tup.open", vec![ret.clone()], vec![x])?;
+                for ((_, v, _), a) in vars2.iter().zip(parts) {
+                    lw.store_var(fx, *v, a)?;
+                }
+                return Ok(());
+            }
+            // a trap: "budget" runs the else, when there is one
+            let Some((ifs, eb)) = eb else {
+                fx.b.halt(x);
+                return Ok(());
+            };
+            let ht = Ty::halt();
+            let tag = fx.b.p("sum.tag", vec![ht.clone()], vec![x.clone()])?;
+            let is_trap = fx.b.int_cmp("int.eq", tag, lit(0))?;
+            let is_budget = fx.b.var(Ty::Bool, Atom::bool(false));
+            fx.b.open();
+            {
+                let xc = fx.b.copy(x.clone())?;
+                let m = fx.b.p("sum.get", vec![ht.clone()], vec![xc, lit(0)])?;
+                let e = fx.b.p("bytes.eq", vec![], vec![m, Atom::bytes(b"budget")])?;
+                fx.b.set(is_budget, e);
+            }
+            let th = fx.b.close();
+            fx.b.push(Stmt::If(is_trap, th, vec![]));
+            let ib = fx.b.let_(Atom::V(is_budget));
+            fx.b.open();
+            {
+                fx.b.drop(x.clone())?;
+                // the hidden limit and spent units, then the else
+                fx.push_scope();
+                let (Some(bn), Some(bu)) = (lw.ty.hidden_binds.get(&addr(ifs)).copied(), lw.ty.hidden_binds.get(&(addr(ifs) + 1)).copied()) else {
+                    return no("the hidden names of a budget's else");
+                };
+                let u = RType::Int(IntT::named("u64"));
+                fx.bound.insert(bn, Bound::Val(n.clone(), u.clone()));
+                fx.bound.insert(bu, Bound::Val(used.clone(), u));
+                lw.block(fx, eb, false)?;
+                fx.pop_scope()?;
+            }
+            let th = fx.b.close();
+            fx.b.open();
+            fx.b.halt(x);
+            let el = fx.b.close();
+            fx.b.push(Stmt::If(ib, th, el));
+            Ok(())
+        })?;
+        Ok(())
+    }
+
     /// `for p in it par` (C.5.2, interp `forpar_exec`). The variables the
     /// body updates with `+=`, `*=`, `&=`, `|=` or `^=` and does not declare
     /// are its reduction targets: each item's run starts them from the
@@ -5493,6 +5960,7 @@ impl<'m> Lw<'m> {
             fx.b.tick(1);
             let x = self.expr(fx, a)?;
             let y = self.expr(fx, bx)?;
+            self.charge_k(fx, 1)?; // the range
             let (RType::Int(_), RType::Int(_)) = (&x.t, &y.t) else { return no("a range of non-integers") };
             let item_t = match self.node_ty(it) {
                 RType::Range(i) => i,
@@ -5622,6 +6090,7 @@ impl<'m> Lw<'m> {
     /// interp `combine`: `a op b`, an integer result checked against the
     /// type name of a.
     fn combine(&mut self, fx: &mut Fx, sym: &str, a: Val, b: Val) -> R<Atom> {
+        self.charge_k(fx, op_cost(sym, &a.t))?;
         match (&a.t, sym) {
             (RType::Bool, "&") => fx.b.p("bool.and", vec![], vec![a.a, b.a]),
             (RType::Bool, "|") => fx.b.p("bool.or", vec![], vec![a.a, b.a]),
@@ -6281,7 +6750,6 @@ impl<'m> Lw<'m> {
                 // function is refused where it is called
                 Item::Trait { .. } | Item::Extern { .. } => {}
                 Item::Actor { .. } | Item::Protocol { .. } | Item::Node { .. } | Item::Supervisor { .. } => return no("an actor, protocol, node or supervisor"),
-                Item::Event { foreign: Some(_), .. } | Item::Event { interrupt: Some(_), .. } => return no("a foreign or interrupt event"),
                 Item::State { replicated: true, .. } => return no("a replicated state"),
                 Item::Step { deadline: Some(_), .. } => return no("a step deadline"),
                 _ => {}
@@ -6741,6 +7209,7 @@ impl<'m> Lw<'m> {
             let w = self.f.declare(&format!("call {}", f.sig.name), vec![], Ty::unit());
             let mut fx = self.fx(vec![], Ty::unit(), Ret::None, FailCx::Halt, true);
             fx.b.tick(1);
+            self.charge_k(&mut fx, crate::conc::C_CALL)?;
             let u = fx.b.unit()?;
             fx.b.ret(u);
             self.f.define(w, fx.b.finish());
@@ -6752,6 +7221,7 @@ impl<'m> Lw<'m> {
         let w = self.f.declare(&format!("call {}", f.sig.name), vec![], t.clone());
         let mut fx = self.fx(vec![], t.clone(), Ret::None, FailCx::Halt, true);
         fx.b.tick(1);
+        self.charge_k(&mut fx, crate::conc::C_CALL)?;
         let v = fx.b.call(sym(id), t, vec![]);
         fx.b.ret(v);
         self.f.define(w, fx.b.finish());
@@ -6958,6 +7428,12 @@ impl<'m> Lw<'m> {
             let mut fx = self.fx(vec![], Ty::Bool, Ret::None, FailCx::Halt, false);
             let lim = fx.b.let_global(self.fuel.1, Ty::u64());
             fx.b.setg(self.fuel.0, lim);
+            if self.costs {
+                // and from no cost spent and no budget in force
+                let (sp, dl) = rt::cost_globals(&mut self.f);
+                fx.b.setg(sp, lit(0));
+                fx.b.setg(dl, lit(u64::MAX as i128));
+            }
             let mut fl = flags.clone();
             fl.sort();
             for g in fl {
