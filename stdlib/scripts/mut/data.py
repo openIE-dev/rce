@@ -176,10 +176,10 @@ M = [('events',) + m for m in [
     ('        elif c.action == "U"\n            nx.push(copy(c.new))', '        elif c.action == "U"\n            nx.push(copy(c.old))'),
     ('        let key = if c.action == "I" then row_id(&c.new) else row_id(&c.old)', '        let key = row_id(&c.new)'),
 ]] + [('csv',) + m for m in [
-    ('            return m_pack(S_QIN, U_KEEP, A_ADD)\n        if k == K_DEL\n            return m_pack(S_FLD, U_KEEP, A_SAVE)', '            return m_pack(S_QIN, U_KEEP, A_NONE)\n        if k == K_DEL\n            return m_pack(S_FLD, U_KEEP, A_SAVE)'),
+    ('            return m_pack(S_QIN, U_KEEP, A_ADD)\n        if k == CSV_K_DEL\n            return m_pack(S_FLD, U_KEEP, A_SAVE)', '            return m_pack(S_QIN, U_KEEP, A_NONE)\n        if k == CSV_K_DEL\n            return m_pack(S_FLD, U_KEEP, A_SAVE)'),
     ('        if sp\n            return m_pack(S_FLD, U_SET, A_NONE)', '        if false\n            return m_pack(S_FLD, U_SET, A_NONE)'),
-    ('        if k == K_EOL and st == S_AESC\n', '        if false\n'),
-    ('        return m_pack(S_IN, U_KEEP, if k == K_EOL then A_ADDNL else A_ADD)', '        return m_pack(S_IN, U_KEEP, if k == K_EOL then A_NONE else A_ADD)'),
+    ('        if k == CSV_K_EOL and st == S_AESC\n', '        if false\n'),
+    ('        return m_pack(S_IN, U_KEEP, if k == CSV_K_EOL then A_ADDNL else A_ADD)', '        return m_pack(S_IN, U_KEEP, if k == CSV_K_EOL then A_NONE else A_ADD)'),
     ('        if not strict\n            return m_pack(S_IN, U_KEEP, A_ADD)', '        if true\n            return m_pack(S_IN, U_KEEP, A_ADD)'),
     ('            return m_pack(S_QIN, U_CLEAR, A_NONE)', '            return m_pack(S_QIN, U_SET, A_NONE)'),
     ('    let body = if n > 0 and p.endswith("\\r") then p[0:n - 1] else copy(p)', '    let body = copy(p)'),
@@ -210,7 +210,7 @@ M = [('events',) + m for m in [
     ('        elif py_space_hi(x)\n', '        elif false\n'),
     ('                if i + k == b.len() and lead_ok(b[i]) and not (tail_end and last)', '                if i + k == b.len() and not (tail_end and last)'),
     ('    if d.eol.contains(c)\n        return "bad " + what + " or lineterminator value"', '    if false\n        return "bad " + what + " or lineterminator value"'),
-    ('            if k == K_LF\n                eol_next = true\n                bol = true', '            if k == K_LF\n                bol = true'),
+    ('            if k == CSV_K_LF\n                eol_next = true\n                bol = true', '            if k == CSV_K_LF\n                bol = true'),
 ]] + [('json',) + m for m in [
     ('    if x >= 97 and x <= 102\n        return x - 87\n    if x >= 65', '    if x >= 97 and x <= 102\n        return x - 86\n    if x >= 65'),
     ('    if c == "n"\n        return "\\n"', '    if c == "n"\n        return "n"'),

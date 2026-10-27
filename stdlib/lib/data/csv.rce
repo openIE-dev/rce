@@ -168,14 +168,14 @@ const S_QQ: i64 = 6
 const S_CRNL: i64 = 7
 const S_AESC: i64 = 8
 
-const K_OTH: i64 = 0
-const K_DEL: i64 = 1
-const K_QUO: i64 = 2
-const K_ESC: i64 = 3
-const K_LF: i64 = 4
-const K_CR: i64 = 5
-const K_EOL: i64 = 6
-const K_END: i64 = 7
+const CSV_K_OTH: i64 = 0
+const CSV_K_DEL: i64 = 1
+const CSV_K_QUO: i64 = 2
+const CSV_K_ESC: i64 = 3
+const CSV_K_LF: i64 = 4
+const CSV_K_CR: i64 = 5
+const CSV_K_EOL: i64 = 6
+const CSV_K_END: i64 = 7
 
 const A_NONE: i64 = 0
 const A_ADD: i64 = 1
@@ -236,7 +236,7 @@ fn limit_msg(r: &CsvReader) -> text = "field larger than field limit (" + r.limi
 
 # One step of _csv.c parse_process_char: from state st, a character of
 # class k (sp: it is a space and spaces after a delimiter are skipped), or
-# k = K_EOL for the end of a line. The result packs the next state (low 4
+# k = CSV_K_EOL for the end of a line. The result packs the next state (low 4
 # bits), the change to "this field is unquoted" (U_KEEP, U_SET, U_CLEAR;
 # times 16) and what to do with the field (an A_ action; times 64): add the
 # character, add "\n", save the field, or fail (the reason depends on st).
@@ -249,61 +249,61 @@ fn m_pack(st: i64, u: i64, a: i64) -> i64 = st + 16 * u + 64 * a
 fn m_step(st0: i64, k: i64, sp: bool, dquote: bool, strict: bool) -> i64
     var st = st0
     if st == S_REC
-        if k == K_EOL
+        if k == CSV_K_EOL
             return m_pack(S_REC, U_KEEP, A_NONE)
-        if k == K_LF or k == K_CR
+        if k == CSV_K_LF or k == CSV_K_CR
             return m_pack(S_CRNL, U_KEEP, A_NONE)
         st = S_FLD
     if st == S_FLD
-        if k == K_LF or k == K_CR or k == K_EOL
-            return m_pack(if k == K_EOL then S_REC else S_CRNL, U_SET, A_SAVE)
-        if k == K_QUO
+        if k == CSV_K_LF or k == CSV_K_CR or k == CSV_K_EOL
+            return m_pack(if k == CSV_K_EOL then S_REC else S_CRNL, U_SET, A_SAVE)
+        if k == CSV_K_QUO
             return m_pack(S_QIN, U_CLEAR, A_NONE)
-        if k == K_ESC
+        if k == CSV_K_ESC
             return m_pack(S_ESC, U_SET, A_NONE)
         if sp
             return m_pack(S_FLD, U_SET, A_NONE)
-        if k == K_DEL
+        if k == CSV_K_DEL
             return m_pack(S_FLD, U_SET, A_SAVE)
         return m_pack(S_IN, U_SET, A_ADD)
     if st == S_ESC
-        if k == K_LF or k == K_CR
+        if k == CSV_K_LF or k == CSV_K_CR
             return m_pack(S_AESC, U_KEEP, A_ADD)
-        return m_pack(S_IN, U_KEEP, if k == K_EOL then A_ADDNL else A_ADD)
+        return m_pack(S_IN, U_KEEP, if k == CSV_K_EOL then A_ADDNL else A_ADD)
     if st == S_IN or st == S_AESC
-        if k == K_EOL and st == S_AESC
+        if k == CSV_K_EOL and st == S_AESC
             return m_pack(S_AESC, U_KEEP, A_NONE)
-        if k == K_LF or k == K_CR or k == K_EOL
-            return m_pack(if k == K_EOL then S_REC else S_CRNL, U_KEEP, A_SAVE)
-        if k == K_ESC
+        if k == CSV_K_LF or k == CSV_K_CR or k == CSV_K_EOL
+            return m_pack(if k == CSV_K_EOL then S_REC else S_CRNL, U_KEEP, A_SAVE)
+        if k == CSV_K_ESC
             return m_pack(S_ESC, U_KEEP, A_NONE)
-        if k == K_DEL
+        if k == CSV_K_DEL
             return m_pack(S_FLD, U_KEEP, A_SAVE)
         return m_pack(st, U_KEEP, A_ADD)
     if st == S_QIN
-        if k == K_EOL
+        if k == CSV_K_EOL
             return m_pack(S_QIN, U_KEEP, A_NONE)
-        if k == K_ESC
+        if k == CSV_K_ESC
             return m_pack(S_QESC, U_KEEP, A_NONE)
-        if k == K_QUO
+        if k == CSV_K_QUO
             return m_pack(if dquote then S_QQ else S_IN, U_KEEP, A_NONE)
         return m_pack(S_QIN, U_KEEP, A_ADD)
     if st == S_QESC
-        return m_pack(S_QIN, U_KEEP, if k == K_EOL then A_ADDNL else A_ADD)
+        return m_pack(S_QIN, U_KEEP, if k == CSV_K_EOL then A_ADDNL else A_ADD)
     if st == S_QQ
-        if k == K_QUO
+        if k == CSV_K_QUO
             return m_pack(S_QIN, U_KEEP, A_ADD)
-        if k == K_DEL
+        if k == CSV_K_DEL
             return m_pack(S_FLD, U_KEEP, A_SAVE)
-        if k == K_LF or k == K_CR or k == K_EOL
-            return m_pack(if k == K_EOL then S_REC else S_CRNL, U_KEEP, A_SAVE)
+        if k == CSV_K_LF or k == CSV_K_CR or k == CSV_K_EOL
+            return m_pack(if k == CSV_K_EOL then S_REC else S_CRNL, U_KEEP, A_SAVE)
         if not strict
             return m_pack(S_IN, U_KEEP, A_ADD)
         return m_pack(S_QQ, U_KEEP, A_ERR)
     # S_CRNL
-    if k == K_LF or k == K_CR
+    if k == CSV_K_LF or k == CSV_K_CR
         return m_pack(S_CRNL, U_KEEP, A_NONE)
-    if k == K_EOL
+    if k == CSV_K_EOL
         return m_pack(S_REC, U_KEEP, A_NONE)
     return m_pack(S_CRNL, U_KEEP, A_ERR)
 
@@ -351,16 +351,16 @@ fn rd_chars(r: &mut CsvReader, cs: &[text], fin: bool) -> CsvOut
     var end_next = false
     var fin_done = false
     loop bound 3000005
-        var k = K_OTH
+        var k = CSV_K_OTH
         var ci = false
         if eol_next
             eol_next = false
-            k = K_EOL
+            k = CSV_K_EOL
         elif end_next
             end_next = false
             if flen == 0 and st != S_QIN
                 continue
-            k = K_END
+            k = CSV_K_END
         elif i >= n
             if not fin or fin_done
                 break
@@ -383,7 +383,7 @@ fn rd_chars(r: &mut CsvReader, cs: &[text], fin: bool) -> CsvOut
                     bol = true
                     i += 1
                     continue
-                k = K_LF
+                k = CSV_K_LF
                 ci = true
                 col += 1
             else
@@ -439,19 +439,19 @@ fn rd_chars(r: &mut CsvReader, cs: &[text], fin: bool) -> CsvOut
             ci = true
             col += 1
             if cs[i] == delim
-                k = K_DEL
+                k = CSV_K_DEL
             elif cs[i] == q
-                k = K_QUO
+                k = CSV_K_QUO
             elif cs[i] == "\n"
-                k = K_LF
+                k = CSV_K_LF
             elif cs[i] == "\r"
-                k = K_CR
+                k = CSV_K_CR
             elif cs[i] == esc
-                k = K_ESC
+                k = CSV_K_ESC
         # the event k: a character (ci), the end of a line, or the end of the input
         var a = A_NONE
         var err = ""
-        if k == K_END
+        if k == CSV_K_END
             if strict
                 err = "unexpected end of data"
             else
@@ -497,26 +497,26 @@ fn rd_chars(r: &mut CsvReader, cs: &[text], fin: bool) -> CsvOut
             buf = []
             flen = 0
             unq = false
-            if k == K_LF
+            if k == CSV_K_LF
                 bol = true
-            elif k == K_CR and univ
+            elif k == CSV_K_CR and univ
                 skip = true
                 cr = true
             elif ci
                 skip = true
         else
-            if (k == K_EOL and st == S_REC) or k == K_END
+            if (k == CSV_K_EOL and st == S_REC) or k == CSV_K_END
                 row += 1
                 rows.push(CsvRow(row: row, line: line, fields: fields, quoted: quoted))
                 fields = []
                 quoted = []
-            if k == K_END
+            if k == CSV_K_END
                 st = S_REC
                 unq = false
-            if k == K_LF
+            if k == CSV_K_LF
                 eol_next = true
                 bol = true
-            elif k == K_CR and univ
+            elif k == CSV_K_CR and univ
                 cr = true
         if ci
             i += 1
@@ -851,7 +851,7 @@ pub fn csv_feed_bytes(r: &mut CsvReader, b: &[i64]) -> CsvOut
 
 # ---------------- whole texts ----------------
 
-fn parse_with(t: &text, d: &CsvDialect, univ: bool) -> CsvOut
+fn csv_parse_with(t: &text, d: &CsvDialect, univ: bool) -> CsvOut
     var r = mk_reader(d, univ)
     let o = csv_feed(&mut r, t)
     let f = csv_finish(&mut r)
@@ -868,7 +868,7 @@ pub fn csv_parse(t: &text, d: &CsvDialect) -> CsvOut ! CsvError
     let e = csv_dialect_error(d)
     if e != ""
         fail CsvError(row: 0, line: 0, col: 0, why: e)
-    return parse_with(t, d, true)
+    return csv_parse_with(t, d, true)
 
 # The fields of every record of t; the first error fails.
 pub fn csv_read(t: &text, d: &CsvDialect) -> List[List[text]] ! CsvError
@@ -1151,7 +1151,7 @@ pub fn csv_table(t: &text, d: &CsvDialect) -> CsvTable ! CsvError
 # the number is stripped; "_" only between digits; then a decimal
 # literal, "inf", "infinity" or "nan" (any case, optional sign).
 
-fn cp_of(c: &text) -> i64
+fn csv_cp_of(c: &text) -> i64
     let n = c.len_bytes()
     let b0 = c[0] as i64
     if n == 1
@@ -1194,7 +1194,7 @@ fn dec_digit(x: i64) -> i64
 fn py_ascii(t: &text) -> List[i64]
     var o: List[i64] = []
     for c in t.chars()
-        let x = cp_of(&c)
+        let x = csv_cp_of(&c)
         if x < 127
             o.push(x)
         elif py_space_hi(x)
@@ -1350,8 +1350,8 @@ pub fn csv_complex_ok(t: &text) -> bool
 # ---------------- dialect sniffing (csv.Sniffer) ----------------
 
 # Python's \w on one character: str.isalnum() or "_".
-fn is_word(c: &text) -> bool
-    let x = cp_of(c)
+fn csv_is_word(c: &text) -> bool
+    let x = csv_cp_of(c)
     if x < 128
         return (x >= 48 and x <= 57) or (x >= 65 and x <= 90) or (x >= 97 and x <= 122) or x == 95
     var lo: usize = 0
@@ -1365,7 +1365,7 @@ fn is_word(c: &text) -> bool
     return lo > 0 and x <= WORD_HI[lo - 1]
 
 # [^\w\n"']
-fn sn_dcls(c: &text) -> bool = c != "\n" and c != "\"" and c != "'" and not is_word(c)
+fn sn_dcls(c: &text) -> bool = c != "\n" and c != "\"" and c != "'" and not csv_is_word(c)
 
 fn sn_quote(c: &text) -> bool = c == "\"" or c == "'"
 
@@ -1580,7 +1580,7 @@ fn sn_guess_delim(t: &text, ds: &(text?)) -> SnGuess
                 hist.push(0)
                 h += 1
             for ch in lines[li].chars()
-                let x = cp_of(&ch)
+                let x = csv_cp_of(&ch)
                 if x < 127
                     hist[x as usize] += 1
             var a: usize = 0
@@ -1690,7 +1690,7 @@ pub fn csv_has_header(sample: &text) -> bool ! CsvError
     let de = csv_dialect_error(&d)
     if de != ""
         fail CsvError(row: 0, line: 0, col: 0, why: de)
-    let o = parse_with(sample, &d, false)
+    let o = csv_parse_with(sample, &d, false)
     for e in o.errs
         if e.row <= 23
             fail CsvError(row: e.row, line: e.line, col: e.col, why: copy(e.why))
