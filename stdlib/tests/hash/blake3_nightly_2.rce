@@ -19,7 +19,7 @@ fn hx(b: &[i64]) -> text
 fn bytes_of(s: text) -> List[i64]
     var o: List[i64] = []
     var i: usize = 0
-    while i < s.len() bound 4096
+    while i < s.len_bytes() bound 4096
         o.push(s[i] as i64)
         i += 1
     return o
