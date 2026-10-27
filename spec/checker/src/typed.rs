@@ -1817,9 +1817,26 @@ pub fn bin_type(op: &str, a: &RType, b: &RType) -> RType {
             (T::F32, T::F32) => T::F32,
             (T::Text, T::Text) if op == "+" => T::Text,
             (T::List(x), T::List(y)) => T::List(Box::new(bin_type(op, x, y))),
+            // interp `arith` has no rule for these operands: the operation
+            // traps ("cannot apply …") and gives no value
+            (x, y) if no_arith_rule(x, y) || (*x == T::Text && *y == T::Text) => T::Never,
             (x, y) => T::Unknown(format!("{} {op} {}", x.show(), y.show())),
         },
     }
+}
+
+/// Whether interp `arith` has no rule for scalar operands of these types
+/// (it has integers with integers, floats of one width, f64 with integers
+/// and text with text), so that it traps naming both values.
+pub fn no_arith_rule(a: &RType, b: &RType) -> bool {
+    use RType as T;
+    let scalar = |t: &RType| matches!(t, T::Int(_) | T::F64 | T::F32 | T::Bool | T::Text | T::Unit);
+    scalar(a)
+        && scalar(b)
+        && !matches!(
+            (a, b),
+            (T::Int(_), T::Int(_)) | (T::F64, T::F64) | (T::F32, T::F32) | (T::F64, T::Int(_)) | (T::Int(_), T::F64) | (T::Text, T::Text)
+        )
 }
 
 /// Build the typed tree of a module the checker has accepted.

@@ -2,7 +2,7 @@
 //! against the reference interpreter's own functions on edge values and on
 //! pseudo-random values: the display of f64 (`float_text`), its canonical
 //! JSON (`float_json`), the display of f32 (Rust's `Display`, which the
-//! reference uses), the exact integer a trap message names
+//! reference uses), Rust's `{:?}` of f64, the exact integer a trap message names
 //! (`exact_int_text`), and the rounding of an integer to f32.
 use rce_spec_check::interp::{exact_int_text, float_json, float_text};
 use rce_spec_check::one::{self, build::*, ir::*, rtf};
@@ -105,6 +105,29 @@ fn rtf_text(f: &mut Fns) -> usize {
 fn rtf_json(f: &mut Fns) -> usize {
     rtf::json(f).unwrap()
 }
+fn rtf_debug(f: &mut Fns) -> usize {
+    rtf::debug(f).unwrap()
+}
+
+/// Rust's `{:?}` of an f64, by which interp `json_size` measures a float.
+#[test]
+fn f64_debug() {
+    let mut xs = f64_values(3000);
+    // binary32 values held as binary64, as an f32 is measured
+    let mut r = Rng(5);
+    for _ in 0..500 {
+        let x = f32::from_bits(r.next() as u32);
+        if x.is_finite() {
+            xs.push(x as f64);
+        }
+    }
+    let args: Vec<Atom> = xs.iter().map(|x| f64_atom(*x)).collect();
+    let got = run_each(rtf_debug, None, None, &args);
+    for (x, g) in xs.iter().zip(&got) {
+        assert_eq!(*g, format!("{x:?}"), "debug of {x:e} ({:#x})", x.to_bits());
+    }
+}
+
 fn rtf_text32(f: &mut Fns) -> usize {
     rtf::text32(f).unwrap()
 }

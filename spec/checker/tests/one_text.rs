@@ -349,3 +349,22 @@ fn context_encoders() {
     }
     assert_eq!(got, w);
 }
+
+/// `json_esc_size` against interp `json_size` of the same text.
+#[test]
+fn json_escape_size() {
+    let mut ts: Vec<String> = TEXTS.iter().map(|t| t.to_string()).collect();
+    ts.extend(["\"q\"", "a\\b", "\u{0}\u{1f}\u{7f}", "\t\r\n", "\u{1b}[0m"].map(String::from));
+    let got = run(|f, b| {
+        let id = rtt::json_esc_size(f).unwrap();
+        let d = rt::dec(f).unwrap();
+        for t in &ts {
+            let r = b.call(sym(id), Ty::Int(0, i64::MAX as i128), vec![Atom::bytes(t.as_bytes())]);
+            let s = b.call(sym(d), Ty::Bytes, vec![r]);
+            let l = b.cat(s, Atom::bytes(b"\n")).unwrap();
+            b.out(l);
+        }
+    });
+    let want: String = ts.iter().map(|t| format!("{}\n", rce_spec_check::interp::json_size(&rce_spec_check::interp::V::Text(t.as_str().into())))).collect();
+    assert_eq!(got, want);
+}

@@ -249,6 +249,42 @@ pub fn chars(f: &mut Fns) -> R<usize> {
     })
 }
 
+/// `json_esc_size(t)` (interp `json_size` of text): the two quotes, then
+/// each `"`, `\\`, LF, CR and tab counts 2, each other byte below 0x20
+/// counts 6, and every other byte 1, so that a character counts its UTF-8
+/// length.
+pub fn json_esc_size(f: &mut Fns) -> R<usize> {
+    f.get("rt.text.json_esc_size", vec![Ty::Bytes], idx(), |_, mut b| {
+        let t = b.arg(0);
+        let n = b.p("bytes.len", vec![], vec![t.clone()])?;
+        let acc = b.var(idx(), lit(2));
+        b.for_n(n, |b, i| {
+            let c = b.byte_at(t.clone(), i)?;
+            let w = b.var(Ty::Int(1, 6), lit(1));
+            let low = b.int_cmp("int.lt", c.clone(), lit(0x20))?;
+            b.when(low, |b| {
+                b.set(w, lit(6));
+                Ok(())
+            })?;
+            for k in [b'"', b'\\', b'\n', b'\r', b'\t'] {
+                let is = b.int_cmp("int.eq", c.clone(), lit(k as i128))?;
+                b.when(is, |b| {
+                    b.set(w, lit(2));
+                    Ok(())
+                })?;
+            }
+            let a = b.take(acc);
+            let wv = b.take(w);
+            let a2 = b.add_in(a, wv, idx())?;
+            b.set(acc, a2);
+            Ok(())
+        })?;
+        let a = b.take(acc);
+        b.ret(a);
+        Ok(b.finish())
+    })
+}
+
 /// `reverse(t)`: the characters of t in reverse order.
 pub fn reverse(f: &mut Fns) -> R<usize> {
     let ch = chars(f)?;

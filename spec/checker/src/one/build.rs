@@ -48,6 +48,8 @@ pub struct FB {
     /// cannot complete; nothing after that statement is reached, so
     /// nothing more is added to the list (W2)
     dead: Vec<bool>,
+    /// the last number given to a result of a statement that is left out
+    ghost: u32,
     /// the fuel function, in a function that is charged fuel
     pub tick_fn: Option<FnRef>,
     /// fuel taken since the last statement that can halt or be observed;
@@ -61,7 +63,7 @@ impl FB {
         for (i, t) in params.iter().enumerate() {
             tys.insert(i as u32, t.clone());
         }
-        FB { next: params.len() as u32, params, ret, tys, stack: vec![vec![]], dead: vec![false], tick_fn: None, pending: 0 }
+        FB { next: params.len() as u32, params, ret, tys, stack: vec![vec![]], dead: vec![false], ghost: u32::MAX, tick_fn: None, pending: 0 }
     }
     /// Charge n units of fuel at this point of the reference's evaluation.
     pub fn tick(&mut self, n: u64) {
@@ -113,9 +115,18 @@ impl FB {
             *self.dead.last_mut().unwrap() = true;
         }
     }
+    /// The next atom. A statement's results are numbered in the order of
+    /// the statements, so a statement that is left out (it follows one
+    /// that cannot complete) numbers its results apart, from the top of the
+    /// range down, where no written statement refers to them.
     fn fresh(&mut self, t: Ty) -> Atom {
-        let i = self.next;
-        self.next += 1;
+        let i = if *self.dead.last().unwrap() {
+            self.ghost -= 1;
+            self.ghost
+        } else {
+            self.next += 1;
+            self.next - 1
+        };
         self.tys.insert(i, t);
         Atom::V(i)
     }
@@ -179,7 +190,9 @@ impl FB {
     pub fn open(&mut self) {
         self.flush();
         self.stack.push(vec![]);
-        self.dead.push(false);
+        // a list opened where nothing is reached is not reached either
+        let d = *self.dead.last().unwrap();
+        self.dead.push(d);
     }
     /// End a nested statement list and return it.
     pub fn close(&mut self) -> Vec<Stmt> {
@@ -331,6 +344,13 @@ impl FB {
     /// A trap: `halt sum.mk[Halt](0, msg)`.
     pub fn trap_value(&mut self, msg: Atom) -> R<Atom> {
         self.p("sum.mk", vec![Ty::halt()], vec![lit(0), msg])
+    }
+    /// An atom of type t for code that follows a statement that cannot
+    /// complete: such code is never reached and never written, so the atom
+    /// is never defined.
+    pub fn unreached(&mut self, t: Ty) -> Atom {
+        debug_assert!(!self.falls());
+        self.fresh(t)
     }
     pub fn unit(&mut self) -> R<Atom> {
         self.p("tup.mk", vec![Ty::unit()], vec![])

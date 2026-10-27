@@ -38,8 +38,11 @@
 //! arguments' types, which the typed tree types once per key (as it does a
 //! call whose float arguments keep a width other than the declared one);
 //! `set_of` and the set methods `tolist` and `len`; the sum of a list of
-//! f64 that has an item; and a call of a foreign function, which the
-//! reference does not run: it traps. Traits, which hold signatures only,
+//! f64 that has an item; a call of a foreign function, which the
+//! reference does not run: it traps, as arithmetic on operands no rule
+//! joins (an f32 and an f64) does; and arena and device regions with a
+//! bound, which add up the sizes of the canonical JSON of the values they
+//! hold after each statement (R3). Traits, which hold signatures only,
 //! lower to nothing, and each function is lowered when the trace first
 //! reaches it. A statement that follows one that cannot complete (a halt,
 //! a return, a jump) is never reached and is left out.
@@ -449,6 +452,10 @@ impl<'m> Lw<'m> {
     fn conv(&mut self, fx: &mut Fx, a: Atom, from: &RType, to: &RType, check: bool) -> R<Atom> {
         let ft = fx.b.ty(&a);
         let tt = self.ct(to)?;
+        if *from == RType::Never && !fx.b.falls() {
+            // a value of no type, after a statement that cannot complete
+            return Ok(fx.b.unreached(tt));
+        }
         if ft == tt || (matches!((&ft, &tt), (Ty::Int(..), Ty::Int(..))) && ft.within(&tt)) {
             return Ok(a);
         }
@@ -882,6 +889,241 @@ impl<'m> Lw<'m> {
 }
 
 impl<'m> Lw<'m> {
+    /// An arena or device region with a bound (R3, interp `exec`): the
+    /// bound, then the body in a scope of its own; after each statement of
+    /// the body, the sizes of the canonical JSON of the values bound in
+    /// that scope are added up, and a sum above the bound traps with
+    /// "size limit".
+    fn bounded_region(&mut self, fx: &mut Fx, b: &Expr, body: &[S]) -> R<()> {
+        let bound = self.expr(fx, b)?;
+        if !matches!(bound.t, RType::Int(_)) {
+            return no("an arena bound that is not an integer");
+        }
+        fx.push_scope();
+        let mut locals: Vec<u32> = vec![];
+        for s in body {
+            self.stmt(fx, s, false)?;
+            if !fx.b.falls() {
+                break;
+            }
+            match s {
+                S::Let(p, ..) => self.pat_locals(p, &mut locals)?,
+                S::Var(..) => locals.push(self.ty.var_binds.get(&addr(s)).copied().ok_or("internal: a var without its local")?),
+                _ => {}
+            }
+            let used = fx.b.var(Ty::Int(0, INT_MAX), lit(0));
+            for id in &locals {
+                let (a, rt) = match fx.bound.get(id).cloned() {
+                    Some(Bound::Var(v, rt)) => (fx.b.peek(v)?, rt),
+                    Some(Bound::Val(a, rt)) => (fx.b.copy(a)?, rt),
+                    None => return no("a region local outside its frame"),
+                };
+                let z = self.jsize(fx, a, &rt)?;
+                let u = fx.b.take(used);
+                let u = fx.b.add_in(u, z, Ty::Int(0, INT_MAX))?;
+                fx.b.set(used, u);
+            }
+            let u = fx.b.take(used);
+            let over = fx.b.int_cmp("int.lt", bound.a.clone(), u)?;
+            self.guard(fx, over, |_, _| Ok(Atom::bytes(b"size limit")))?;
+        }
+        fx.pop_scope()
+    }
+
+    /// The locals a `let` pattern binds.
+    fn pat_locals(&self, p: &Pat, out: &mut Vec<u32>) -> R<()> {
+        match p {
+            Pat::Wild => Ok(()),
+            Pat::Path(_) => {
+                out.push(self.ty.pat_binds.get(&addr(p)).copied().ok_or("internal: a pattern without its local")?);
+                Ok(())
+            }
+            Pat::Tuple(ps) => ps.iter().try_for_each(|q| self.pat_locals(q, out)),
+            _ => no("a pattern in a region with a bound"),
+        }
+    }
+
+    fn jsize(&mut self, fx: &mut Fx, v: Atom, rt: &RType) -> R<Atom> {
+        let id = self.jsize_fn(rt)?;
+        Ok(self.call_rt(fx, id, vec![v]))
+    }
+
+    /// The size in bytes of a value's canonical JSON (interp `json_size`):
+    /// `jsize:τ(v) -> int`, consuming v. An integer counts its decimal
+    /// digits and sign, a float its Rust `{:?}` text, text its escaped
+    /// form in quotes, null 4, a sequence 2 plus its items and the commas
+    /// between them, a record its quoted name, a colon and its fields as
+    /// a sequence of `"name":value`.
+    fn jsize_fn(&mut self, rt: &RType) -> R<usize> {
+        let t = self.ct(rt)?;
+        let rt2 = rt.clone();
+        self.generated("jsize", rt, vec![t.clone()], Ty::Int(0, INT_MAX), move |lw, fx| {
+            let v = fx.b.arg(0);
+            let r = lw.jsize_body(fx, v, &rt2, &t)?;
+            fx.b.ret(r);
+            Ok(())
+        })
+    }
+
+    /// `2 + sizes + (n - 1)` for a sequence of n items whose sizes add up
+    /// to `sum` (n - 1 commas when n > 0).
+    fn seq_size(&mut self, fx: &mut Fx, sum: Atom, n: Atom) -> R<Atom> {
+        let w = Ty::Int(0, INT_MAX);
+        let a = fx.b.add_in(sum, lit(2), w.clone())?;
+        let r = fx.b.var(w.clone(), a.clone());
+        let pos = fx.b.int_cmp("int.lt", lit(0), n.clone())?;
+        fx.b.when(pos, |b| {
+            let n1 = b.sub_in(n, lit(1), Ty::Int(0, INT_MAX))?;
+            let a2 = b.add_in(a, n1, w)?;
+            b.set(r, a2);
+            Ok(())
+        })?;
+        Ok(fx.b.take(r))
+    }
+
+    /// The size of a record `{"name":{"f":v,…}}` given its fields' values.
+    fn rec_size(&mut self, fx: &mut Fx, name: &str, fs: &[(String, ast::Ty)], tup: Atom, tt: &Ty) -> R<Atom> {
+        let w = Ty::Int(0, INT_MAX);
+        let cs = fx.b.prim("tup.open", vec![tt.clone()], vec![tup])?;
+        let mut sum = lit(0);
+        for ((f, fty), c) in fs.iter().zip(cs) {
+            let frt = self.t.of_ty(fty);
+            let z = self.jsize(fx, c, &frt)?;
+            let z = fx.b.add_in(z, lit(f.len() as i128 + 3), w.clone())?;
+            sum = fx.b.add_in(sum, z, w.clone())?;
+        }
+        let inner = self.seq_size(fx, sum, lit(fs.len() as i128))?;
+        fx.b.add_in(inner, lit(name.len() as i128 + 5), w)
+    }
+
+    fn jsize_body(&mut self, fx: &mut Fx, v: Atom, rt: &RType, t: &Ty) -> R<Atom> {
+        let w = Ty::Int(0, INT_MAX);
+        match rt {
+            RType::Int(_) => {
+                let d = self.dec(fx, v)?;
+                fx.b.p("bytes.len", vec![], vec![d])
+            }
+            RType::F64 | RType::F32 => {
+                let x = if *rt == RType::F32 { fx.b.p("f32.to_f64", vec![], vec![v])? } else { v };
+                let d = rtf::debug(&mut self.f)?;
+                let s = self.call_rt(fx, d, vec![x]);
+                fx.b.p("bytes.len", vec![], vec![s])
+            }
+            RType::Bool => {
+                let r = fx.b.var(w, lit(5));
+                fx.b.when(v, |b| {
+                    b.set(r, lit(4));
+                    Ok(())
+                })?;
+                Ok(fx.b.take(r))
+            }
+            RType::Text => {
+                let g = rtt::json_esc_size(&mut self.f)?;
+                Ok(self.call_rt(fx, g, vec![v]))
+            }
+            RType::Unit | RType::Never => {
+                fx.b.drop(v)?;
+                Ok(lit(4))
+            }
+            RType::Tuple(ts) => {
+                let cs = fx.b.prim("tup.open", vec![t.clone()], vec![v])?;
+                let mut sum = lit(0);
+                for (c, ct) in cs.into_iter().zip(ts) {
+                    let z = self.jsize(fx, c, ct)?;
+                    sum = fx.b.add_in(sum, z, w.clone())?;
+                }
+                self.seq_size(fx, sum, lit(ts.len() as i128))
+            }
+            RType::List(_) | RType::Set(_) | RType::Map(..) => {
+                let Ty::List(et) = t else { return Err("internal: a list of no list type".into()) };
+                let et = (**et).clone();
+                let n = fx.b.p("list.len", vec![et.clone()], vec![v.clone()])?;
+                let sum = fx.b.var(w.clone(), lit(0));
+                let rt2 = rt.clone();
+                let (v2, n2) = (v.clone(), n.clone());
+                let i = fx.b.var(Ty::u64(), lit(0));
+                fx.b.open();
+                {
+                    let iv = fx.b.let_(Atom::V(i));
+                    let more = fx.b.int_cmp("int.lt", iv.clone(), n2)?;
+                    fx.b.open();
+                    let th = fx.b.close();
+                    fx.b.open();
+                    fx.b.brk(1);
+                    let el = fx.b.close();
+                    fx.b.push(Stmt::If(more, th, el));
+                    let x = fx.b.list_at(v2, iv.clone())?;
+                    let z = match &rt2 {
+                        RType::Map(k, x2) => {
+                            let ps = fx.b.prim("tup.open", vec![et.clone()], vec![x])?;
+                            let a = self.jsize(fx, ps[0].clone(), k)?;
+                            let b2 = self.jsize(fx, ps[1].clone(), x2)?;
+                            let ab = fx.b.add_in(a, b2, w.clone())?;
+                            fx.b.add_in(ab, lit(3), w.clone())?
+                        }
+                        RType::List(e) | RType::Set(e) => self.jsize(fx, x, e)?,
+                        _ => unreachable!(),
+                    };
+                    let a = fx.b.take(sum);
+                    let a = fx.b.add_in(a, z, w.clone())?;
+                    fx.b.set(sum, a);
+                    let i1 = fx.b.add_in(iv, lit(1), Ty::u64())?;
+                    fx.b.set(i, i1);
+                }
+                let body = fx.b.close();
+                fx.b.push(Stmt::Loop(vec![Stmt::Block(body)]));
+                fx.b.drop(v)?;
+                let sv = fx.b.take(sum);
+                self.seq_size(fx, sv, n)
+            }
+            RType::Opt(x) => {
+                let r = fx.b.var(w, lit(4));
+                let tag = fx.b.p("sum.tag", vec![t.clone()], vec![v.clone()])?;
+                let some = fx.b.int_cmp("int.eq", tag, lit(1))?;
+                fx.b.open();
+                let p = fx.b.p("sum.get", vec![t.clone()], vec![v.clone(), lit(1)])?;
+                let z = self.jsize(fx, p, x)?;
+                fx.b.set(r, z);
+                let th = fx.b.close();
+                fx.b.open();
+                fx.b.drop(v)?;
+                let el = fx.b.close();
+                fx.b.push(Stmt::If(some, th, el));
+                Ok(fx.b.take(r))
+            }
+            RType::Union(a, e) => {
+                let r = fx.b.var(w, lit(0));
+                let (a, e) = ((**a).clone(), (**e).clone());
+                self.switch(fx, &v, t, 2, |lw, fx, k| {
+                    let p = fx.b.p("sum.get", vec![t.clone()], vec![v.clone(), lit(k as i128)])?;
+                    let z = lw.jsize(fx, p, if k == 0 { &a } else { &e })?;
+                    fx.b.set(r, z);
+                    Ok(())
+                })?;
+                Ok(fx.b.take(r))
+            }
+            RType::Named(n) => {
+                if let Some(vs) = self.t.kinds.get(n).cloned() {
+                    let r = fx.b.var(w, lit(0));
+                    let Ty::Sum(cs) = t.clone() else { unreachable!() };
+                    self.switch(fx, &v, t, vs.len(), |lw, fx, k| {
+                        let p = fx.b.p("sum.get", vec![t.clone()], vec![v.clone(), lit(k as i128)])?;
+                        let z = lw.rec_size(fx, &vs[k].0, &vs[k].1, p, &cs[k])?;
+                        fx.b.set(r, z);
+                        Ok(())
+                    })?;
+                    Ok(fx.b.take(r))
+                } else if let Some(fs) = self.t.fields(n) {
+                    self.rec_size(fx, n, &fs, v, t)
+                } else {
+                    no(format!("the JSON size of {n}"))
+                }
+            }
+            RType::Closure(_) => Ok(lit(2)),
+            o => no(format!("the JSON size of {}", o.show())),
+        }
+    }
+
     /// Run `case(k)` where the tag of the sum value `v` (read, not consumed)
     /// is k; a tag outside 0..n cannot occur and halts.
     fn switch(&mut self, fx: &mut Fx, v: &Atom, t: &Ty, n: usize, mut case: impl FnMut(&mut Self, &mut Fx, usize) -> R<()>) -> R<()> {
@@ -4105,6 +4347,15 @@ impl<'m> Lw<'m> {
                 fx.b.push(Stmt::If(big, th, vec![]));
                 Ok(Val { a: c, t: rt })
             }
+            (s, t) if typed::no_arith_rule(s, t) || matches!((s, t, op), (RType::Text, RType::Text, _)) => {
+                // interp `arith`: no rule for these operands; the trap names
+                // both values as display shows them
+                let (sa, sb) = (self.show(fx, x.a, &x.t)?, self.show(fx, y.a, &y.t)?);
+                let m = fx.b.cats(vec![Atom::bytes(format!("cannot apply {op} to ").as_bytes()), sa, Atom::bytes(b" and "), sb])?;
+                self.trap(fx, m)?;
+                let t = self.ct(&rt)?;
+                Ok(Val { a: fx.b.unreached(t), t: rt })
+            }
             (s, t) => no(format!("{} {op} {}", s.show(), t.show())),
         }
     }
@@ -4523,7 +4774,8 @@ impl<'m> Lw<'m> {
             S::Arena(name, None, body, _) | S::Device(name, None, body, _) if !name.starts_with('$') => {
                 self.block(fx, body, false)?;
             }
-            S::Arena(..) | S::Device(..) => return no("an arena with a bound, a device region or a marker region"),
+            S::Arena(_, Some(b), body, _) | S::Device(_, Some(b), body, _) => self.bounded_region(fx, b, body)?,
+            S::Arena(..) | S::Device(..) => return no("a marker region (a budget, a deadline, a priority or a workgroup)"),
             S::Send(..) | S::Spawn(..) | S::Select(..) | S::Yield(..) => return no("a concurrency or iterator statement"),
         }
         Ok(None)

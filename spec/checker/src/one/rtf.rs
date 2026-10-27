@@ -3,7 +3,8 @@
 //! of 32-bit digits, the shortest decimal digits of a float, and the texts
 //! the reference gives a float: display (6.3 N3 and F9, interp
 //! `float_text`), canonical JSON (6.1.1, interp `float_json`), the display
-//! of an f32 value, and the exact integer a trap message names (interp
+//! of an f32 value, Rust's `{:?}` of an f64 (by which interp `json_size`
+//! measures a float), and the exact integer a trap message names (interp
 //! `exact_int_text`).
 //!
 //! The core has no bit cast, so the parts of a float are found by exact
@@ -1048,10 +1049,22 @@ pub fn text(f: &mut Fns) -> R<usize> {
 /// shortest digits, positional with at least one digit after the point for
 /// 1e-4 <= |x| < 1e16, `d.ddde-N` and `d.dddeN` otherwise; -0.0 is `-0.0`.
 pub fn json(f: &mut Fns) -> R<usize> {
+    point_or_exp(f, "rt.f64.json", Pick::Closest)
+}
+
+/// Rust's `{:?}` of an f64 (interp `json_size` measures a float by it): the
+/// form of [`json`] with Rust's shortest digits, which round up on a tie.
+pub fn debug(f: &mut Fns) -> R<usize> {
+    point_or_exp(f, "rt.f64.debug", Pick::Rust)
+}
+
+/// Positional with at least one digit after the point for 1e-4 <= |x| <
+/// 1e16 and for zeros, `d.ddde-N` and `d.dddeN` otherwise.
+fn point_or_exp(f: &mut Fns, name: &str, pick: Pick) -> R<usize> {
     let pf = parts(f, F64)?;
-    let df = digits(f, F64, Pick::Closest)?;
+    let df = digits(f, F64, pick)?;
     let dec = rt::dec(f)?;
-    f.get("rt.f64.json", vec![Ty::F64], Ty::Bytes, move |f, mut b| {
+    f.get(name, vec![Ty::F64], Ty::Bytes, move |f, mut b| {
         let x = b.arg(0);
         zero_text(&mut b, &x, b"-0.0", b"0.0")?;
         let (neg, ds, k) = sign_digits(&mut b, f, x.clone(), pf, df)?;

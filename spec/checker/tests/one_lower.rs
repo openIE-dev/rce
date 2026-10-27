@@ -22,9 +22,10 @@ const COVERED: &[&str] = &[
     "22_tuples", "23_patterns", "24_lambda", "25_labels", "27_bitops", "28_slices", "29_nested_kind",
     "30_state_machine_guarded", "31_inventory", "32_comptime_block", "33_in_operator", "34_chan_types",
     "35_nested_if", "36_multiline_brackets", "38_hex_bin", "40_extern", "41_arena_bound_wrapping", "42_f32",
-    "43_simd_lanes", "45_byte_text", "46_u64", "47_select_fair", "48_linear_handle", "49_loop_limit",
-    "51_refined_input", "52_context_text", "53_capability", "54_secret", "55_rcedb", "56_utf8",
-    "57_float_vectors", "58_float_keys", "59_dim_redundant_field", "60_dim_hidden_period", "61_dim_minimal",
+    "43_simd_lanes", "44_device_region", "45_byte_text", "46_u64", "47_select_fair", "48_linear_handle",
+    "49_loop_limit", "51_refined_input", "52_context_text", "53_capability", "54_secret", "55_rcedb",
+    "56_utf8", "57_float_vectors", "58_float_keys", "59_dim_redundant_field", "60_dim_hidden_period",
+    "61_dim_minimal",
 ];
 
 /// The programs the lowering does not yet cover, and the construct it
@@ -34,7 +35,6 @@ const NOT_COVERED: &[(&str, &str)] = &[
     ("15_actor", "the type chan i64"),
     ("37_actor_spawn", "the type chan u64"),
     ("39_structural_recursion", "a recursive type"),
-    ("44_device_region", "an arena with a bound, a device region or a marker region"),
     ("50_iterators", "the iterator function naturals"),
 ];
 
@@ -47,10 +47,10 @@ const COVERED_WITH_PROBES: &[&str] = &[
     "16_multi_region", "17_traffic_light", "18_while_bound", "19_floats", "20_strings", "22_tuples",
     "23_patterns", "24_lambda", "25_labels", "27_bitops", "28_slices", "30_state_machine_guarded",
     "31_inventory", "32_comptime_block", "33_in_operator", "34_chan_types", "35_nested_if",
-    "36_multiline_brackets", "38_hex_bin", "40_extern", "42_f32", "43_simd_lanes", "45_byte_text", "46_u64",
-    "47_select_fair", "48_linear_handle", "49_loop_limit", "51_refined_input", "52_context_text",
-    "53_capability", "54_secret", "55_rcedb", "56_utf8", "57_float_vectors", "58_float_keys",
-    "59_dim_redundant_field", "60_dim_hidden_period", "61_dim_minimal",
+    "36_multiline_brackets", "38_hex_bin", "40_extern", "41_arena_bound_wrapping", "42_f32", "43_simd_lanes",
+    "44_device_region", "45_byte_text", "46_u64", "47_select_fair", "48_linear_handle", "49_loop_limit",
+    "51_refined_input", "52_context_text", "53_capability", "54_secret", "55_rcedb", "56_utf8",
+    "57_float_vectors", "58_float_keys", "59_dim_redundant_field", "60_dim_hidden_period", "61_dim_minimal",
 ];
 
 fn examples() -> Vec<(String, String)> {
@@ -119,7 +119,8 @@ fn examples_with_probes_lower_to_the_reference_trace() {
 /// Small programs for constructs the examples reach little: lambdas a
 /// `let` makes (captures, calls in a loop, the trap of the last parameter
 /// whose fit fails), `set_of` in canonical order, sums of f64 (and the zero
-/// they start from), and a call of a foreign function, which traps.
+/// they start from), and a call of a foreign function, which traps; and
+/// the JSON sizes a region with a bound adds up (R3).
 const PROGRAMS: &[&str] = &[
     "fn main()\n    let k = 10\n    let add = fn(x: i64) => x + k\n    let j = 99\n    emit add(1)\n    emit add(j)\n    let s = \"ab\"\n    let cat = fn(t: text) => t + s\n    emit cat(cat(\"y\"))\n",
     "type Pct = u8 where self <= 100\ntype Name = text where self.len() >= 1 and self.len() <= 2\n\nfn main()\n    let pair = fn(a: Pct, b: Name) => b.len_bytes() + a.tostr().len_bytes()\n    emit pair(1, \"x\")\n    let n: u8 = 200\n    let t = \"long\"\n    emit pair(n, t)\n",
@@ -129,9 +130,14 @@ const PROGRAMS: &[&str] = &[
     "extern \"C\" fn crc32(w: &World, data: &[u8], seed: u32) -> u32\n\nfn main(w: &World)\n    let bytes: List[u8] = [1, 2, 3]\n    emit 1\n    emit crc32(w, &bytes, 0)\n    emit 2\n",
 ];
 
+/// A region with a bound holding values of most types: run at bounds that
+/// trap after different statements, and at one that holds them all.
+const REGION: &str = "struct P\n    x: i64\n    name: text\n\nkind Shape\n    Circle(r: f64)\n    Dot\n\nfn sizes(limit: u64) -> i64\n    var n: i64 = 0\n    with arena a bound limit\n        let xs: List[i64] = [1, -22, 333]\n        n += xs.len() as i64\n        let p = P(x: -5, name: \"a\\\"b\\n\\u{1}é\")\n        n += p.x\n        let s = Circle(r: 0.1)\n        let d = Dot\n        if s == d\n            n += 1\n        let o: i64? = some(3)\n        let q: i64? = none\n        n += o.or(0) + q.or(1)\n        let m: Map[text, f64] = {\"k\": 1e21, \"j\": 1.5e-7, \"z\": -0.0}\n        n += m.len() as i64\n        let t = (true, false, 2.5 as f32, 1e16)\n        if t.0\n            n += 1\n        var v: List[text] = [\"é\", \"\\t\"]\n        v.push(\"z\")\n        n += v.len() as i64\n        let e = fails(n) catch 0\n        n += e\n    return n\n\nerror Bad(code: i64)\n\nfn fails(k: i64) -> i64 ! Bad\n    if k > 0\n        fail Bad(code: k)\n    return k\n\nfn main()\n    emit sizes(LIMIT)\n";
+
 #[test]
 fn programs_lower_to_the_reference_trace() {
-    for src in PROGRAMS {
+    let regions: Vec<String> = [0, 26, 40, 61, 100, 140, 158, 1000].iter().map(|b| REGION.replace("LIMIT", &b.to_string())).collect();
+    for src in PROGRAMS.iter().copied().chain(regions.iter().map(|s| s.as_str())) {
         let m = module(src);
         let want = one::trace::reference(&m);
         let got = one::trace_of(&m).unwrap_or_else(|e| panic!("{src}: {e}"));
