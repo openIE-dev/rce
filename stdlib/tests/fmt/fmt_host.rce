@@ -1,0 +1,64 @@
+# Host checks for the chunked regex search (re_scan_new, re_scan_feed,
+# re_scan_end): one search with groups over a 60,000-byte input, more
+# than one input's fuel covers (this pattern takes over 1,000 steps per
+# character), fed as 6 chunks of 10,000 bytes, one per event. The match
+# crosses the boundary of chunks 5 and 6 (1-based); End checks its
+# groups against the offsets CPython's re.search gives on the same text
+# (computed by scripts/gen/fmt_ext_gen.py).
+# events: Feed, Feed, Feed, Feed, Feed, Feed, End
+
+state H
+    scan: ReScan = hx_new()
+    fed: i64 = 0
+    good: i64 = 0
+    bad: i64 = 0
+
+event Feed
+event End
+
+fn hx_re() -> Regex
+    let p = "(\\w+)@(\\w+)\\.com"
+    return re_compile(&p) catch Regex(code: [], classes: [], ngroups: 0, names: [], nest: [], nloops: 0)
+
+fn hx_new() -> ReScan
+    let r = hx_re()
+    return re_scan_new(&r)
+
+# words of a..e separated by spaces; chunk 4 (0-based) ends with " me@",
+# chunk 5 starts with "host.com "
+fn hx_chunk(k: i64) -> text
+    var b: List[i64] = []
+    var i: i64 = 0
+    while i < 10000 bound 10000
+        b.push(if i % 8 == 7 then 32 else 97 + i % 5)
+        i += 1
+    if k == 4
+        b[9996] = 32
+        b[9997] = 109
+        b[9998] = 101
+        b[9999] = 64
+    if k == 5
+        let h: List[i64] = [104, 111, 115, 116, 46, 99, 111, 109, 32]
+        var j: usize = 0
+        while j < h.len() bound 9
+            b[j] = h[j]
+            j += 1
+    return b.utf8()
+
+step H on Feed
+    let r = hx_re()
+    let chunk = hx_chunk(fed)
+    re_scan_feed(&r, &mut scan, &chunk)
+    fed += 1
+    if scan.pos == fed * 10000 or scan.done
+        good += 1
+    else
+        bad += 1
+
+step H on End
+    let r = hx_re()
+    let m = re_scan_end(&r, &mut scan)
+    if m.found and m.slots == [49997, 50008, 49997, 49999, 50000, 50004]
+        good += 1
+    else
+        bad += 1

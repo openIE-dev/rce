@@ -1,4 +1,5 @@
-# Checks for lib/fmt/fmt.rce, part 1 (parts 2-4: the regex grid).
+# Checks for lib/fmt/fmt.rce, part 1 (parts 2-4: the regex grid; parts
+# 5 and later: scripts/gen/fmt_ext_gen.py).
 # CPython is the oracle (scripts/gen/fmt_gen.py, seed 20261015): integer
 # text in radixes 2..36 at the i64 extremes and random values, strict
 # parse refusals, ',' grouping and '0N' padding as in str.format,
@@ -21,10 +22,10 @@ fn fmt_bad(t: text, a: List[text]) -> bool = (format(&t, &a) catch "ERR") == "ER
 fn gd(v: i64, c: text) -> text = group_dec(v, &c)
 
 fn re_bad(p: text) -> bool
-    let r = compile(&p) catch Regex(code: [], classes: [-7])
+    let r = re_compile(&p) catch Regex(code: [], classes: [-7], ngroups: 0, names: [], nest: [], nloops: 0)
     return r.classes == [-7]
 
-fn rx(p: text) -> Regex = compile(&p) catch Regex(code: [5, 0, 0], classes: [])
+fn rx(p: text) -> Regex = re_compile(&p) catch Regex(code: [5, 0, 0], classes: [], ngroups: 0, names: [], nest: [0], nloops: 0)
 
 fn rep(s: text, n: i64) -> text
     var o = ""
@@ -38,13 +39,13 @@ fn pathological(n: i64) -> bool
     let r = rx(p)
     let s = rep("a", n)
     let s2 = rep("a", n - 1)
-    return is_match(&r, &s) and not is_match(&r, &s2)
+    return re_is_match(&r, &s) and not re_is_match(&r, &s2)
 
 fn nested(n: i64) -> bool
     let r = rx("(x+x+)+y")
     let s = rep("x", n)
     let s2 = s + "y"
-    return not search(&r, &s) and is_match(&r, &s2)
+    return not re_contains(&r, &s) and re_is_match(&r, &s2)
 
 check pathological(25)
 check nested(40)
@@ -173,5 +174,5 @@ check re_bad("\\q")
 check re_bad("(?=a)")
 check re_bad("[b-a]")
 check re_bad("?")
-check re_bad("[\\D]")
+check re_bad("[\\d-z]")
 check re_bad("{1}")
