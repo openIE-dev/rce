@@ -1,0 +1,171 @@
+# Seeded property sweeps for lib/text/str.rce (derived): the search,
+# split and replace functions against StrFinder and against each other,
+# StrScan over random chunkings, slicing and offset round trips, case
+# mapping chunk by chunk, and StrBuf. Written by scripts/gen/str_gen.py.
+
+fn t_err(e: BadStr) -> text = "ERR:" + e.why + ":" + e.n.tostr()
+
+fn t_rnd(s: i64) -> i64 = (s * 1103515245 + 12345) & 2147483647
+
+const T_POOL: text = "aab\u{e9}\u{3a3}\u{3c3}\u{df} \t\n-_A\u{1f600}\u{130}xyz\u{e9}a\u{1c5}"
+
+fn t_gen(seed: i64, n: i64) -> text
+    let cs = T_POOL.chars()
+    var ps: List[text] = []
+    var s = seed
+    for _i in 0..n
+        s = t_rnd(s)
+        ps.push(copy(cs[(s % (cs.len() as i64)) as usize]))
+    return "".join(ps)
+
+fn t_last(xs: &[i64]) -> i64 = if xs.len() == 0 then -1 else xs[xs.len() - 1]
+
+fn t_first(xs: &[i64]) -> i64 = if xs.len() == 0 then -1 else xs[0]
+
+# leftmost non-overlapping matches by repeated str_find_in
+fn t_walk(s: &text, sub: &text) -> List[i64]
+    var out: List[i64] = []
+    let n = s.len_bytes() as i64
+    let m = sub.len_bytes() as i64
+    var p: i64 = 0
+    while p <= n bound 1000
+        let q = str_find_in(s, sub, p, n)
+        if q < 0
+            break
+        out.push(q)
+        p = q + m
+    return out
+
+fn t_prop_search(seed: i64) -> bool
+    let s = t_gen(seed, seed % 29 + 1)
+    let sub = t_gen(seed * 7 + 3, seed % 3 + 1)
+    let f = str_finder(&sub)
+    let ov = str_finder_all(&f, &s, true)
+    let no = str_finder_all(&f, &s, false)
+    var ok = t_walk(&s, &sub) == no and str_count(&s, &sub) == (no.len() as i64)
+    ok = ok and str_find(&s, &sub) == t_first(&ov) and str_rfind(&s, &sub) == t_last(&ov)
+    ok = ok and str_finder_find(&f, &s, 0) == t_first(&ov)
+    let ps = str_splitn(&s, &sub, -1)
+    ok = ok and ps.len() == no.len() + 1 and sub.join(ps) == s
+    let rps = str_rsplitn(&s, &sub, -1)
+    ok = ok and sub.join(rps) == s
+    let mark = "<>"
+    let rep = str_replace(&s, &sub, &mark) catch |e| t_err(e)
+    ok = ok and rep == mark.join(str_splitn(&s, &sub, -1))
+    let pt = str_partition(&s, &sub)
+    let rpt = str_rpartition(&s, &sub)
+    ok = ok and pt.0 + pt.1 + pt.2 == s and rpt.0 + rpt.1 + rpt.2 == s
+    # a scan over three random chunks finds the overlapping matches
+    let nc = s.len_chars() as i64
+    let c1 = t_rnd(seed) % (nc + 1)
+    let c2 = c1 + t_rnd(seed + 1) % (nc - c1 + 1)
+    var st = str_scan(true)
+    var got: List[i64] = []
+    let a = str_slice(&s, 0, c1)
+    let b = str_slice(&s, c1, c2)
+    let c = str_slice(&s, c2, nc)
+    for x in str_scan_feed(&f, &mut st, &a)
+        got.push(x)
+    for x in str_scan_feed(&f, &mut st, &b)
+        got.push(x)
+    for x in str_scan_feed(&f, &mut st, &c)
+        got.push(x)
+    ok = ok and got == ov and a + b + c == s
+    return ok
+
+fn t_prop_slice(seed: i64) -> bool
+    let s = t_gen(seed, seed % 17)
+    let nc = s.len_chars() as i64
+    var ok = true
+    for k in 0..(nc + 1)
+        let off = str_char_offset(&s, k)
+        ok = ok and str_char_index(&s, off) == k and str_slice(&s, 0, k) + str_slice(&s, k, nc) == s
+        ok = ok and s[0:off as usize] == str_slice(&s, 0, k)
+    return ok
+
+# upper and casefold give the same text chunk by chunk
+fn t_prop_case(seed: i64) -> bool
+    let s = t_gen(seed, seed % 31 + 2)
+    let nc = s.len_chars() as i64
+    let k = t_rnd(seed) % (nc + 1)
+    let a = str_slice(&s, 0, k)
+    let b = str_slice(&s, k, nc)
+    let u = str_upper(&s) catch |e| t_err(e)
+    let ua = str_upper(&a) catch |e| t_err(e)
+    let ub = str_upper(&b) catch |e| t_err(e)
+    let f = str_casefold(&s) catch |e| t_err(e)
+    let fa = str_casefold(&a) catch |e| t_err(e)
+    let fb = str_casefold(&b) catch |e| t_err(e)
+    return u == ua + ub and f == fa + fb
+
+fn t_prop_buf(seed: i64) -> bool
+    var b = str_buf()
+    var ps: List[text] = []
+    var s = seed
+    for _i in 0..(seed % 300)
+        s = t_rnd(s)
+        let p = t_gen(s, s % 9)
+        str_buf_add(&mut b, &p)
+        ps.push(p)
+    let whole = "".join(ps)
+    let t = str_buf_text(&b) catch |e| t_err(e)
+    return t == whole and "".join(str_buf_chunks(&b)) == whole and str_buf_chars(&b) == (whole.len_chars() as i64)
+
+fn t_prop_lines(seed: i64) -> bool
+    let s = t_gen(seed, seed % 23)
+    let keep = str_splitlines(&s, true)
+    let ls = str_splitlines(&s, false)
+    let r = str_rstrip(&s)
+    return keep.len() == ls.len() and "".join(keep) == s and str_strip(&s) == str_lstrip(&r)
+
+fn t_props(lo: i64, hi: i64) -> bool
+    var ok = true
+    for seed in lo..hi
+        ok = ok and t_prop_search(seed) and t_prop_slice(seed) and t_prop_case(seed) and t_prop_lines(seed)
+    return ok
+
+fn t_bufs(lo: i64, hi: i64) -> bool
+    var ok = true
+    for seed in lo..hi
+        ok = ok and t_prop_buf(seed)
+    return ok
+
+# appends across the run (64 pieces) and block (64 runs) boundaries
+fn t_buf_many(n: i64) -> bool
+    var b = str_buf()
+    let ab = "ab"
+    for _i in 0..n
+        str_buf_add(&mut b, &ab)
+    let want = str_repeat(&ab, n) catch |e| t_err(e)
+    let t = str_buf_text(&b) catch |e| t_err(e)
+    return t == want and str_buf_chars(&b) == 2 * n
+
+# pieces of the given sizes (characters), each built by str_repeat
+fn t_buf_big(ks: List[i64]) -> List[text]
+    var b = str_buf()
+    let x = "x"
+    for k in ks
+        let p = str_repeat(&x, k) catch |e| t_err(e)
+        str_buf_add(&mut b, &p)
+    var out: List[text] = []
+    for c in str_buf_chunks(&b)
+        out.push(c.len_chars().tostr())
+    out.push(str_buf_text(&b) catch |e| t_err(e))
+    return out
+
+fn t_buf_cp(c: i64) -> text
+    var b = str_buf()
+    let _r = str_buf_add_cp(&mut b, c) catch ()
+    return str_buf_text(&b) catch |e| t_err(e)
+
+check t_props(1, 150)
+check t_props(150, 300)
+check t_props(300, 450)
+check t_props(450, 600)
+check t_bufs(1, 60)
+check t_bufs(60, 120)
+check t_buf_many(5000)
+check t_buf_big([600000, 600000, 600000]) == ["600000", "600000", "600000", "ERR:too large:1800000"]
+check t_buf_big([400000, 400000, 300000]) == ["800000", "300000", "ERR:too large:1100000"]
+check t_buf_big([]) == [""]
+check t_buf_cp(233) == "\u{e9}" and t_buf_cp(55296) == ""
