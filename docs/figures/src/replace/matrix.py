@@ -127,7 +127,7 @@ D = [
  ("Go","network servers",None,"no network I/O (5.15)"),
  ("Java/JVM","enterprise state and records",EX+"04_bank_account.rce","states, events, errors"),
  ("Java/JVM","inventory/business rules",EX+"31_inventory.rce","maps and steps"),
- ("JS/TS","UI state machines",EX+"17_traffic_light.rce","rce form to XState/SCXML (T9-F)"),
+ ("JS/TS","UI state machines",EX+"17_traffic_light.rce","rce emit js (T9-L)"),
  ("JS/TS","browser DOM and events",None,"no DOM binding; events only through host"),
  ("Haskell","algebraic data and pattern matching",EX+"05_kind_match.rce","kinds, exhaustive match"),
  ("Haskell","structural recursion over trees",EX+"39_structural_recursion.rce","W-REC-1 structural"),
