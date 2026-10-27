@@ -59,7 +59,10 @@ Foundation modules live under `lib/<area>/` (a module that needs others names th
 sweeps are in `tests/<area>/<name>_checks.rce`, which `scripts/check.sh`
 appends to the module. A program uses a foundation module by name alone
 (`use core.exact`): every module is built into `rce`, as the next sections
-state.
+state. The programs in `tests/uses/` use several modules at once; an
+imported name that two modules declare is refused (W-MOD-3), so
+`scripts/check.sh` fails if a module adds a name that another module of
+such a program already declares, public or private.
 
 ## The library is pinned by hash
 

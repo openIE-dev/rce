@@ -1,0 +1,137 @@
+module together
+use col
+use col.seq
+use col.cache
+use data.csv
+use data.json
+use data.events
+use enc
+use fmt
+use id
+use net.http
+use obs.log
+use test.prop
+use test.fake
+use text.str
+
+# Library modules used together in one program. An imported name that
+# clashes with a name of another import, public or private, is refused
+# (W-MOD-3), so this program checks only when no two of these modules
+# declare the same name. It uses col.seq, col.cache, data.csv, data.json,
+# id, obs.log, test.prop, test.fake and text.str, the extended col and
+# fmt, and net.http, enc and data.events, which the others are most often
+# used beside (data.json, test.prop and test.fake also bring in the
+# modules they use: data.sync, text.utf8 and rand.det).
+# The checks follow one request: an HTTP message carries a CSV body, its
+# rows become JSON, names are normalised and sorted, an id is made from a
+# logged time and logged random bytes, and a log line records the outcome.
+
+fn request() -> List[i64]
+    let t = "POST /upload HTTP/1.1\r\nHost: example.com\r\nContent-Length: 36\r\n\r\nname,score\r\nAda Lovelace,9.5\r\nAl,7\r\n"
+    return http.bytes_of(&t)
+
+fn body_text() -> text
+    let b = request()
+    let m = http.parse_message(&b, true, false, true) catch http.message_empty()
+    return m.body.utf8()
+
+fn rows() -> List[List[text]]
+    let d = csv.csv_rfc4180()
+    let t = body_text()
+    let out = csv.csv_parse(&t, &d) catch csv.CsvOut(rows: [], errs: [])
+    return [copy(r.fields) for r in out.rows]
+
+fn names() -> List[text]
+    let rs = rows()
+    var o: List[text] = []
+    for i in 1..rs.len()
+        o.push(str.str_snake(&rs[i][0]) catch "")
+    return seq.seq_sorted(&o)
+
+fn diffed() -> List[text]
+    let a = names()
+    let b = ["al"]
+    return col.set_diff(&a, &b)
+
+fn rows_json() -> text
+    let rs = rows()
+    var items: List[events.Jv] = []
+    for i in 1..rs.len()
+        let x = fmt.float_parse(&rs[i][1]) catch -1.0
+        items.push(json.of_members(["name", "score"], [json.of_text(&rs[i][0]), json.of_f64(x)]) catch json.of_null())
+    let v = json.of_items(items)
+    return json.to_compact(&v)
+
+fn json_agrees() -> bool
+    let t = rows_json()
+    let a = json.parse_text(&t) catch json.of_null()
+    let b = events.json_parse(&t) catch json.of_null()
+    let p = "/0/name"
+    let name = json.get_text(&a, &p) catch ""
+    return a == b and name == "Ada Lovelace"
+
+fn minted() -> text
+    let rnd = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+    let u = id.uuid_v7(1700000000000, &rnd) catch []
+    return id.uuid_format(&u) catch ""
+
+fn b64_len() -> usize
+    let t = minted()
+    let b = http.bytes_of(&t)
+    return enc.b64_encode(&b, false, true).len_chars()
+
+fn log_line() -> text
+    let r = log.log_int(log.log_str(log.log_rec(log.SEV_INFO, "upload"), "id", minted()), "rows", names().len() as i64)
+    let f = log.log_fmt()
+    return log.log_logfmt(&r, &f)
+
+fn cached() -> bool
+    var c: cache.LruCache[text] = cache.lru_new(1)
+    cache.lru_put(&mut c, "a", "1")
+    cache.lru_put(&mut c, "b", "2")
+    let ka = "a"
+    let kb = "b"
+    return cache.lru_get(&mut c, &ka) == none and cache.lru_get(&mut c, &kb) == some("2")
+
+fn small(s: &mut prop.PropSrc) -> i64 = prop.draw_int(s, -1000, 1000)
+
+# An integer written with a sign and zero padding reads back as itself.
+fn padded_reads_back(x: &i64) -> bool
+    let v = copy(x)
+    let spec = "+08d"
+    let t = fmt.fmt_int(v, &spec) catch ""
+    return t.len_chars() == 8 and (fmt.float_parse(&t) catch 0.5) == v as f64
+
+fn padding_holds() -> bool
+    let run = prop.prop_check(small, padded_reads_back, prop.prop_cfg(11))
+    return prop.prop_ok(&run)
+
+fn regex_group() -> text
+    let p = "(\\w+)@(\\w+)"
+    let s = "mail ada@example now"
+    let re = fmt.re_compile(&p) catch fmt.Regex(code: [], classes: [], ngroups: 0, names: [], nest: [], nloops: 0)
+    let m = fmt.re_find(&re, &s)
+    return if m.found then fmt.re_group(&m, &s, 2) else ""
+
+fn upper() -> text
+    let a = "straße"
+    return str.str_upper(&a) catch ""
+
+fn a_fake_name() -> text
+    var s = fake.fake_src(7)
+    return fake.fake_name(&mut s)
+
+check body_text() == "name,score\r\nAda Lovelace,9.5\r\nAl,7\r\n"
+check rows() == [["name", "score"], ["Ada Lovelace", "9.5"], ["Al", "7"]]
+check names() == ["ada_lovelace", "al"]
+check diffed() == ["ada_lovelace"]
+check rows_json() == "[{\"name\":\"Ada Lovelace\",\"score\":9.5},{\"name\":\"Al\",\"score\":7}]"
+check json_agrees()
+check minted().len_chars() == 36
+check b64_len() == 48
+check log_line().startswith("level=INFO msg=upload id=")
+check cached()
+check padding_holds()
+check upper() == "STRASSE"
+check regex_group() == "example"
+check a_fake_name().len_chars() > 0

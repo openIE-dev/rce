@@ -87,6 +87,14 @@ for f in lib/*/*.rce; do
     rm -rf "$tmp/hostlog"*
   fi
 done
+# tests/uses/*.rce are programs that use several library modules at once.
+# An imported name that clashes with a name of another import, public or
+# private, is refused (W-MOD-3), so each passes only while those modules
+# declare no name twice.
+for u in tests/uses/*.rce; do
+  [ -f "$u" ] || continue
+  "$RCE" test "$u"
+done
 # A tests/<area>/<name>_probes.py script checks the rce checker itself
 # against a rule table of the spec (e.g. the effect contexts of 5.2).
 for p in tests/*/*_probes.py; do
