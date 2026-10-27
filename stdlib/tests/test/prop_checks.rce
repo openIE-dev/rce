@@ -1,0 +1,175 @@
+# Checks for lib/test/prop.rce: the runner (QuickCheck verdicts, counts
+# and size schedule), replay from seed, case and size, local minimality
+# of shrunk results (no single deleted or lowered choice still fails),
+# labels kept while shrinking, resumable stepping, bad generator
+# arguments, discards, overrun and misalignment. Property sweeps of the
+# module's own encodings, run through the module itself, are in
+# prop_checks_6; the Hypothesis and QuickCheck reference vectors are in
+# prop_checks_2..5.
+
+fn pc_small(s: &mut PropSrc) -> i64 = draw_int(s, -1000, 1000)
+fn pc_list(s: &mut PropSrc) -> List[i64] = draw_list(s, pc_small, 0, 20)
+fn pc_wide(s: &mut PropSrc) -> i64 = draw_int(s, -1000000, 1000000)
+
+fn pc_sum_lt(xs: &List[i64]) -> bool = xs.sum() < 100
+fn pc_len_lt(xs: &List[i64]) -> bool = xs.len() < 3
+fn pc_lt(x: &i64) -> bool = x < 1000
+fn pc_true(_x: &List[i64]) -> bool = true
+
+# The shrunk failure is 1-minimal: deleting any one choice, or lowering
+# any one choice by one or to zero, gives no simpler failing case.
+fn pc_one_min[T](g: fn(&mut PropSrc) -> T, p: fn(&T) -> bool, run: &PropRun) -> bool
+    let b = prop_best(run)
+    if not prop_failed(run)
+        return false
+    var i: usize = 0
+    while i < b.len() bound 10000
+        var cands: List[List[u64]] = [tp_without(&b, i as i64, i as i64 + 1)]
+        if b[i] > 0
+            var c1 = copy(b)
+            c1[i] = b[i] - 1
+            cands.push(c1)
+            var c0 = copy(b)
+            c0[i] = 0
+            cands.push(c0)
+        for c in cands
+            var s = prop_src_replay(&c, run.fail_size)
+            let v = g(&mut s)
+            if prop_src_ok(&s) and not p(&v) and prop_simpler(&s.used, &b)
+                return false
+        i += 1
+    return true
+
+fn pc_min_sum() -> bool
+    let r = prop_check(pc_list, pc_sum_lt, prop_cfg(7))
+    return prop_value(&r, pc_list) == [100] and pc_one_min(pc_list, pc_sum_lt, &r) and r.complete
+
+fn pc_min_len() -> bool
+    let r = prop_check(pc_list, pc_len_lt, prop_cfg(8))
+    return prop_value(&r, pc_list) == [0, 0, 0] and pc_one_min(pc_list, pc_len_lt, &r)
+
+fn pc_min_int() -> bool
+    let r = prop_check(pc_wide, pc_lt, prop_cfg(9))
+    return prop_value(&r, pc_wide) == 1000 and prop_best(&r) == [1999] and pc_one_min(pc_wide, pc_lt, &r)
+
+# Same seed, same run; the original failure replays from (seed, case,
+# size); the shrunk choices replay to the shrunk value, which fails.
+fn pc_replay() -> bool
+    let a = prop_check(pc_list, pc_sum_lt, prop_cfg(11))
+    let b = prop_check(pc_list, pc_sum_lt, prop_cfg(11))
+    var s = prop_src(11, a.fail_case, a.fail_size)
+    let orig = pc_list(&mut s)
+    let shrunk = prop_replay(pc_list, &a.best, a.fail_size)
+    return prop_report(&a) == prop_report(&b) and prop_choices(&s) == prop_orig(&a) and orig == prop_original(&a, pc_list) and not pc_sum_lt(&orig) and not pc_sum_lt(&shrunk) and prop_simpler(&a.best, &a.orig)
+
+# QuickCheck counts: a property that holds passes after exactly `cases`
+# tests; the report says so.
+fn pc_passes() -> bool
+    let r = prop_check(pc_list, pc_true, prop_cfg_cases(3, 40))
+    return prop_ok(&r) and r.passed == 40 and r.discarded == 0 and r.cases_run == 40 and prop_report(&r) == "passed: 40 passed, 0 discarded (seed 3)"
+
+# A generator that never meets its assumption: QuickCheck gives up when
+# discarded / 10 >= max(passed, cases), here after 1000 discards.
+fn pc_never(s: &mut PropSrc) -> i64
+    let x = draw_int(s, 0, 10)
+    draw_assume(s, x > 100)
+    return x
+fn pc_any(_x: &i64) -> bool = false
+fn pc_gives_up() -> bool
+    let r = prop_check(pc_never, pc_any, prop_cfg(4))
+    return r.phase == PROP_GAVE_UP and r.discarded == 1000 and r.passed == 0 and prop_verdict(&r) == "gave up"
+
+# A property may discard (PropDiscard) and name its failures; shrinking
+# keeps the label of the first failure (Hypothesis interesting_origin):
+# from "small" it never slips to the simpler "big" values.
+fn pc_labels(x: &i64) -> PropOutcome
+    if x == 3 or x == 600
+        return PropDiscard
+    if x > 500
+        return PropFail(lbl: "big")
+    if x < -500
+        return PropFail(lbl: "small")
+    return PropPass
+fn pc_label_kept() -> bool
+    let r = prop_check_outcome(pc_wide, pc_labels, prop_cfg(5))
+    let v = prop_value(&r, pc_wide)
+    if r.lbl == "big"
+        return v == 501
+    return r.lbl == "small" and v == -501
+
+# Resumable: stepping in slices of 7 units ends in the same run as one
+# prop_check.
+fn pc_resume() -> bool
+    let whole = prop_check(pc_list, pc_sum_lt, prop_cfg(12))
+    var run = prop_start(prop_cfg(12))
+    var calls: i64 = 0
+    while (run.phase == PROP_TESTING or run.phase == PROP_SHRINKING) and calls < 100000 bound 100000
+        prop_steps(&mut run, pc_list, pc_sum_lt, 7)
+        calls += 1
+    return prop_report(&run) == prop_report(&whole) and run.best == whole.best and calls > 3
+
+# max_shrinks stops shrinking early and says so.
+fn pc_budget() -> bool
+    let c = PropCfg(seed: 7, cases: 100, max_size: 100, discard_ratio: 10, max_shrinks: 5)
+    let r = prop_check(pc_list, pc_sum_lt, c)
+    return prop_failed(&r) and not r.complete and r.shrinks + r.tries == 5 and prop_report(&r).contains("stopped at max_shrinks")
+
+# Bad generator arguments end the run with the reason, never a trap.
+fn pc_bad_int(s: &mut PropSrc) -> i64 = draw_int(s, 5, 1)
+fn pc_bad_text(s: &mut PropSrc) -> text
+    let r: List[i64] = [55296, 57343]
+    let cs = prop_chars(&r)
+    return draw_text(s, &cs, 1, 3)
+fn pc_bad_list(s: &mut PropSrc) -> List[i64] = draw_list(s, pc_small, 3, 2)
+fn pc_bad_pick(s: &mut PropSrc) -> i64
+    let xs: List[i64] = []
+    return draw_pick(s, &xs).or(-1)
+fn pc_bad_w(s: &mut PropSrc) -> bool = draw_weighted(s, 1, 0)
+fn pc_bad_f(s: &mut PropSrc) -> f64 = draw_float_in(s, 2.0, 1.0)
+fn pc_t_any(_x: &text) -> bool = true
+fn pc_b_any(_x: &bool) -> bool = true
+fn pc_f_any(_x: &f64) -> bool = true
+fn pc_l_any(_x: &List[i64]) -> bool = true
+fn pc_i_any(_x: &i64) -> bool = true
+fn pc_bad() -> bool
+    let a = prop_check(pc_bad_int, pc_i_any, prop_cfg(1))
+    let b = prop_check(pc_bad_text, pc_t_any, prop_cfg(1))
+    let c = prop_check(pc_bad_list, pc_l_any, prop_cfg(1))
+    let d = prop_check(pc_bad_pick, pc_i_any, prop_cfg(1))
+    let e = prop_check(pc_bad_w, pc_b_any, prop_cfg(1))
+    let f = prop_check(pc_bad_f, pc_f_any, prop_cfg(1))
+    return a.phase == PROP_BAD_GEN and a.note == "draw_int: lo > hi" and b.note == "draw_text: empty character set" and c.note == "draw_list: need 0 <= lo <= hi <= 1000000" and d.note == "draw_pick: no elements" and e.note == "draw_weighted: den <= 0" and f.note == "draw_float_in: lo > hi" and prop_report(&a) == "bad generator: draw_int: lo > hi (seed 1, case 0)"
+
+# Replay past the end is an overrun; an index above a draw's range is a
+# misalignment and reads as the simplest value.
+fn pc_replay_edges() -> bool
+    let short: List[u64] = [1, 5]
+    var s = prop_src_replay(&short, 10)
+    let xs = pc_list(&mut s)
+    let bad: List[u64] = [5000]
+    var t = prop_src_replay(&bad, 10)
+    let x = draw_int(&mut t, -10, 10)
+    return not prop_src_ok(&s) and prop_src_note(&s) == "the choices ran out" and xs == [3] and x == 0 and t.misaligned == 0 and prop_choices(&t) == [0] and prop_src_ok(&t)
+
+# Collections never exceed the QuickCheck size of their case, and case k
+# of a run has size computeSize(k) when nothing is discarded.
+fn pc_sized() -> bool
+    var ok = true
+    for k in 0..30
+        var s = prop_src(77, k, k)
+        let xs = pc_list(&mut s)
+        ok = ok and xs.len() as i64 <= k
+    return ok and prop_qc_size(100, 100, 10, 37, 0) == 37
+
+check pc_min_sum()
+check pc_min_len()
+check pc_min_int()
+check pc_replay()
+check pc_passes()
+check pc_gives_up()
+check pc_label_kept()
+check pc_resume()
+check pc_budget()
+check pc_bad()
+check pc_replay_edges()
+check pc_sized()

@@ -1,0 +1,88 @@
+# Checks for lib/test/prop.rce: property sweeps of the module through
+# itself. Integer choice indices round trip over spans from 1 to 2^64
+# values placed anywhere in i64; float_to_lex and lex_to_float round
+# trip; bounded floats, texts over a three-range alphabet and maps stay
+# inside their bounds.
+
+fn pc_holds[T](g: fn(&mut PropSrc) -> T, p: fn(&T) -> bool, cfg: PropCfg) -> bool
+    let r = prop_check(g, p, cfg)
+    return prop_ok(&r)
+
+struct PcIv
+    lo: i64
+    hi: i64
+    v: i64
+
+# Bounds from the edges of i64 and small spans, a value inside.
+fn pc_gen_iv(s: &mut PropSrc) -> PcIv
+    let a = draw_i64(s)
+    let w = draw_int(s, 0, 70)
+    var b = TP_I64MAX
+    if w < 64
+        let span = ((1 as u64) << (w as u64)) - 1
+        if span <= tp_off(TP_I64MAX, a)
+            b = tp_add(a, span)
+    let v = draw_int(s, a, b)
+    return PcIv(lo: a, hi: b, v: v)
+
+fn pc_iv_round(x: &PcIv) -> bool
+    let i = prop_int_index(x.v, x.lo, x.hi)
+    return x.v >= x.lo and x.v <= x.hi and i <= tp_off(x.hi, x.lo) and prop_int_value(i, x.lo, x.hi) == x.v
+
+fn pc_gen_pos(s: &mut PropSrc) -> f64 = draw_float_in(s, 0.0, TP_FMAX)
+
+fn pc_lex_round(x: &f64) -> bool
+    let v: f64 = x * 1.0
+    let l = prop_lex_float(prop_float_lex(v))
+    return l.finite and l.value == v
+
+struct PcFr
+    lo: f64
+    hi: f64
+    v: f64
+
+fn pc_gen_fr(s: &mut PropSrc) -> PcFr
+    let a = draw_float(s)
+    let b = draw_float(s)
+    let lo = if a < b then a else b
+    let hi = if a < b then b else a
+    let v = draw_float_in(s, lo, hi)
+    return PcFr(lo: lo, hi: hi, v: v)
+
+fn pc_fr_in(x: &PcFr) -> bool = tp_fle(x.lo, x.v) and tp_fle(x.v, x.hi)
+
+fn pc_lower() -> PropChars
+    let r: List[i64] = [97, 122, 48, 57, 945, 969]
+    return prop_chars(&r)
+
+fn pc_gen_text(s: &mut PropSrc) -> text
+    let cs = pc_lower()
+    return draw_text(s, &cs, 2, 6)
+
+fn pc_text_in(t: &text) -> bool
+    let cs = pc_lower()
+    var ok = t.len_chars() >= 2 and t.len_chars() <= 6
+    for c in t.chars()
+        let cp = tp_cp(c)
+        ok = ok and prop_char_index(&cs, cp) >= 0
+    return ok
+
+fn tp_cp(c: text) -> i64
+    let b = c.len_bytes()
+    if b == 1
+        return c[0] as i64
+    if b == 2
+        return ((c[0] as i64) & 31) * 64 + ((c[1] as i64) & 63)
+    if b == 3
+        return ((c[0] as i64) & 15) * 4096 + ((c[1] as i64) & 63) * 64 + ((c[2] as i64) & 63)
+    return ((c[0] as i64) & 7) * 262144 + ((c[1] as i64) & 63) * 4096 + ((c[2] as i64) & 63) * 64 + ((c[3] as i64) & 63)
+
+fn pc_k(s: &mut PropSrc) -> i64 = draw_int(s, 0, 30)
+fn pc_gen_map(s: &mut PropSrc) -> Map[i64, i64] = draw_map(s, pc_k, pc_k, 2, 8)
+fn pc_map_in(m: &Map[i64, i64]) -> bool = m.len() >= 2 and m.len() <= 8
+
+check pc_holds(pc_gen_iv, pc_iv_round, prop_cfg_cases(21, 200))
+check pc_holds(pc_gen_pos, pc_lex_round, prop_cfg_cases(22, 200))
+check pc_holds(pc_gen_fr, pc_fr_in, prop_cfg_cases(23, 200))
+check pc_holds(pc_gen_text, pc_text_in, prop_cfg(24))
+check pc_holds(pc_gen_map, pc_map_in, prop_cfg(25))
