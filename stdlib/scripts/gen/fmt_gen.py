@@ -57,5 +57,5 @@ for p in P:
     for s in S:
         f = py.fullmatch(s) is not None; g = py.search(s) is not None
         print('check re_ok(%s, %s, %s, %s)' % (q(p), q(s), 'true' if f else 'false', 'true' if g else 'false')); n += 1
-for p in ['(', ')', 'a)', '*a', 'a**' if False else '+', '[a', '[z-a]', 'a{2,1}', 'a{', 'a{1001}', '\\q', '(?=a)', '[b-a]', '[\\d-z]' if False else '?', '[\\D]', '{1}']:
+for p in ['(', ')', 'a)', '*a', 'a**' if False else '+', '[a', '[z-a]', 'a{2,1}', 'a{', 'a{1001}', '\\q', '(?=a)', '[b-a]', '[\\d-z]' if False else '?', '[\\d-z]', '{1}']:
     print('check re_bad(%s)' % q(p))
