@@ -142,6 +142,10 @@ pub enum RType {
     Range(IntT),
     /// a named function as a value
     Fn(String),
+    /// a lambda made by a `let`, by the address of its expression: the
+    /// value carries nothing the lowering keeps, since each call runs the
+    /// lambda's body in the scope where it was made
+    Closure(usize),
     /// a value this pass does not type, and why
     Unknown(String),
 }
@@ -202,6 +206,7 @@ impl RType {
             Union(a, b) => format!("{} ! {}", a.show(), b.show()),
             Range(i) => format!("Range[{}]", RType::Int(*i).show()),
             Fn(n) => format!("fn {n}"),
+            Closure(_) => "a lambda".into(),
             Unknown(r) => format!("unknown ({r})"),
         }
     }
@@ -238,6 +243,13 @@ pub enum Callee {
     Builtin(String),
     /// `C.lit(t)` or `C.encode(t)` of a context C (5.16): (context, method)
     Ctx(String, String),
+    /// `set_of(xs)`
+    SetOf,
+    /// a call of a lambda a `let` made, by the address of the lambda
+    Closure(usize),
+    /// a call the reference stops at, with this trap text: a foreign
+    /// function, which has no definition to run (interp `call`)
+    Trap(String),
     /// a call this pass does not resolve, and why
     Unknown(String),
 }
@@ -284,6 +296,15 @@ pub struct Typed {
     pub inst_of: HashMap<usize, String>,
     /// every instantiation, by key (in the tree of the module only)
     pub insts: HashMap<String, Inst>,
+    /// the lambdas `let` makes, by address: a copy of the expression,
+    /// whose body is typed at each call (the copy's nodes have addresses
+    /// of their own, which the facts of the body are keyed by)
+    pub lambdas: HashMap<usize, std::sync::Arc<Expr>>,
+    /// the names in scope where each of those lambdas is made
+    pub lambda_scopes: HashMap<usize, Vec<HashMap<String, u32>>>,
+    /// the `let` locals bound to a list literal with at least one item,
+    /// which are never empty
+    pub nonempty: std::collections::HashSet<u32>,
 }
 
 /// One instantiation of a function at the types of its arguments (ONE-4:
@@ -330,6 +351,8 @@ pub struct Tables<'a> {
     pub events: Vec<String>,
     /// the type parameters of the impl of each method, by (type head, name)
     pub impl_generics: HashMap<(String, String), Vec<String>>,
+    /// the foreign functions (`extern`) by name
+    pub externs: std::collections::HashSet<String>,
 }
 
 impl<'a> Tables<'a> {
@@ -343,6 +366,7 @@ impl<'a> Tables<'a> {
             consts: HashMap::new(),
             events: vec![],
             impl_generics: HashMap::new(),
+            externs: Default::default(),
         };
         for i in &m.items {
             match i {
@@ -372,6 +396,9 @@ impl<'a> Tables<'a> {
                 }
                 Item::Const { name, ty, e, .. } => {
                     t.consts.insert(name.clone(), (ty.clone(), e));
+                }
+                Item::Extern { sig, .. } => {
+                    t.externs.insert(sig.name.clone());
                 }
                 _ => {}
             }
@@ -943,7 +970,15 @@ impl<'a, 'm> Cx<'a, 'm> {
                 self.env = env_join(&after_a, &self.env);
                 plain(at.join(&bt))
             }
-            E::Lambda(..) => plain(RType::Unknown("a lambda".into())),
+            E::Lambda(..) => {
+                // a lambda made here: its body is typed where it is called,
+                // in the names in scope here (interp: the closure keeps its
+                // environment)
+                let a = addr(e);
+                self.out.lambdas.entry(a).or_insert_with(|| std::sync::Arc::new(e.clone()));
+                self.out.lambda_scopes.insert(a, self.scopes.clone());
+                plain(RType::Closure(a))
+            }
         }
     }
 
@@ -1133,6 +1168,14 @@ impl<'a, 'm> Cx<'a, 'm> {
                         let t = args.first().map(|a| self.expr(&a.e)).unwrap_or(RType::Never);
                         return (t, None, Some(Callee::Same));
                     }
+                    "set_of" if args.len() == 1 => {
+                        let r = match self.expr(&args[0].e) {
+                            RType::List(e) => RType::Set(e),
+                            RType::Unknown(r) => RType::Unknown(r),
+                            o => RType::Unknown(format!("set_of of {}", o.show())),
+                        };
+                        return (r, None, Some(Callee::SetOf));
+                    }
                     "ct_choose" | "set_of" | "lvar_new" => {
                         for a in args {
                             self.expr(&a.e);
@@ -1153,6 +1196,11 @@ impl<'a, 'm> Cx<'a, 'm> {
                 if let Some(fs) = self.t.ctor_fields(n) {
                     self.args_fit(args, &fs);
                     return (RType::Named(self.t.ctor_type(n)), None, Some(Callee::Ctor(n.clone())));
+                }
+                if self.t.externs.contains(n) {
+                    // interp `call`: a foreign function is not a function of
+                    // the module, so the call traps before its arguments
+                    return (RType::Never, None, Some(Callee::Trap(format!("cannot call {n} at comptime"))));
                 }
                 for a in args {
                     self.expr(&a.e);
@@ -1211,8 +1259,9 @@ impl<'a, 'm> Cx<'a, 'm> {
             }
             _ => {
                 let ft = self.expr(f);
-                for a in args {
-                    self.expr(&a.e);
+                let at: Vec<RType> = args.iter().map(|a| self.expr(&a.e)).collect();
+                if let RType::Closure(l) = ft {
+                    return (self.closure_call(l, &at), None, Some(Callee::Closure(l)));
                 }
                 match ft {
                     RType::Fn(n) => match self.t.fns.get(&n).copied() {
@@ -1222,6 +1271,45 @@ impl<'a, 'm> Cx<'a, 'm> {
                     _ => (RType::Unknown("a call of a value".into()), None, Some(Callee::Unknown("a call of a value".into()))),
                 }
             }
+        }
+    }
+
+    /// A call of the lambda made at address l (interp `apply_closure`): its
+    /// parameters, fitted to their declared types, in a scope of their own
+    /// inside the names in scope where it was made, then its body.
+    fn closure_call(&mut self, l: usize, at: &[RType]) -> RType {
+        let (Some(lam), Some(scopes)) = (self.out.lambdas.get(&l).cloned(), self.out.lambda_scopes.get(&l).cloned()) else {
+            return RType::Unknown("a lambda".into());
+        };
+        let Expr::Lambda(ps, body, _) = &*lam else { return RType::Unknown("a lambda".into()) };
+        let mut named = vec![];
+        for (k, p) in ps.iter().enumerate() {
+            match p {
+                Param::Named { name, ty, .. } => named.push((k, name.clone(), ty.clone())),
+                _ => return RType::Unknown("a lambda with a self parameter".into()),
+            }
+        }
+        if named.len() != at.len() {
+            return RType::Unknown("a lambda called with another number of arguments".into());
+        }
+        let saved = std::mem::replace(&mut self.scopes, scopes);
+        self.scopes.push(HashMap::new());
+        for ((k, n, ty), v) in named.iter().zip(at) {
+            let t = self.t.fit_generic(v, ty, &self.gs);
+            self.node_local(addr(&ps[*k]), |t| &mut t.lambda_binds, n, false, t);
+        }
+        let r = self.expr(body);
+        self.scopes = saved;
+        r
+    }
+
+    /// Whether the list obj has at least one item: a list literal with
+    /// items, or a `let` local bound to one.
+    fn nonempty(&self, obj: &Expr) -> bool {
+        match obj {
+            Expr::List(xs, _) => !xs.is_empty(),
+            Expr::Name(n, _) => self.lookup(n).is_some_and(|id| self.out.nonempty.contains(&id)),
+            _ => false,
         }
     }
 
@@ -1324,6 +1412,9 @@ impl<'a, 'm> Cx<'a, 'm> {
             (T::List(_), "utf8") => T::Text,
             (T::List(e), "sum") => match &**e {
                 T::Int(i) => T::Int(IntT::of_tags(Tags::lit().join_op(i.tags).union(Tags::lit()))),
+                // interp: the sum starts at the integer 0, which the first
+                // float turns into a float; an empty list gives the integer
+                T::F64 if self.nonempty(obj) => T::F64,
                 T::Never => T::Int(IntT::of_tags(Tags::lit())),
                 o => T::Unknown(format!("sum of {}", o.show())),
             },
@@ -1557,6 +1648,13 @@ impl<'a, 'm> Cx<'a, 'm> {
                     None => v,
                 };
                 self.pat(p, &v);
+                if let (Pat::Path(n), Expr::List(xs, _)) = (p, e)
+                    && n.len() == 1
+                    && !xs.is_empty()
+                    && let Some(id) = self.lookup(&n[0])
+                {
+                    self.out.nonempty.insert(id);
+                }
             }
             Stmt::Var(n, ty, e, _) => {
                 let v = self.expr(e);

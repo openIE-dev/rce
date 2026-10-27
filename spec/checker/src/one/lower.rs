@@ -30,15 +30,19 @@
 //! the predicate; context text (5.16), `C.lit` and `C.encode`; `&mut`
 //! parameters and `&mut self`, by state passing (the function returns
 //! their final values beside its result and the caller writes them back,
-//! except after a union function's error, F.4.4); and lambdas given to
-//! `map`, `filter` and `fold`, defunctionalised into the loop that runs
-//! them; lane-wise arithmetic on lists; and generic functions and generic
-//! impls, monomorphised: a call runs the instantiation of its function at
-//! its arguments' types, which the typed tree types once per key (as it
-//! does a call whose float arguments keep a width other than the declared
-//! one). Traits, which hold signatures
-//! only, lower to nothing, and each function is lowered when the trace
-//! first reaches it.
+//! except after a union function's error, F.4.4); lambdas given to `map`,
+//! `filter` and `fold`, defunctionalised into the loop that runs them, and
+//! lambdas a `let` makes, whose body runs at each call; lane-wise
+//! arithmetic on lists; generic functions and generic impls,
+//! monomorphised: a call runs the instantiation of its function at its
+//! arguments' types, which the typed tree types once per key (as it does a
+//! call whose float arguments keep a width other than the declared one);
+//! `set_of` and the set methods `tolist` and `len`; the sum of a list of
+//! f64 that has an item; and a call of a foreign function, which the
+//! reference does not run: it traps. Traits, which hold signatures only,
+//! lower to nothing, and each function is lowered when the trace first
+//! reaches it. A statement that follows one that cannot complete (a halt,
+//! a return, a jump) is never reached and is left out.
 //!
 //! Ownership (W3): an RCE variable holds its value until the end of its
 //! scope, where it is dropped; every read of an owned variable is a `copy`;
@@ -269,7 +273,7 @@ impl<'m> Lw<'m> {
             return no("a recursive type");
         }
         Ok(match t {
-            RType::Never => Ty::unit(),
+            RType::Never | RType::Closure(_) => Ty::unit(),
             RType::Bool => Ty::Bool,
             RType::Int(i) => {
                 if i.lo < INT_MIN || i.hi > INT_MAX {
@@ -1441,9 +1445,83 @@ impl<'m> Lw<'m> {
     /// ones, so equal items keep their order.
     fn sort_fn(&mut self, et: &RType) -> R<usize> {
         let f = self.ord_fn(et)?;
+        self.sort_by_fn("sort", et, f)
+    }
+
+    /// `set_of:τ(xs)` (interp `set_of`): the items sorted in canonical
+    /// order (6.1), then each item kept unless it equals the one before.
+    /// Equal items in that order display alike, so which of them is kept
+    /// is not observed. Only scalars, text, and tuples and lists of those,
+    /// where the order of `conc::canon_cmp` and of `cmp` agree.
+    fn set_of_fn(&mut self, et: &RType) -> R<usize> {
+        fn ok(rt: &RType) -> bool {
+            match rt {
+                RType::Int(_) | RType::F64 | RType::F32 | RType::Text | RType::Bool | RType::Unit | RType::Never => true,
+                RType::Tuple(ts) => ts.iter().all(ok),
+                RType::List(e) => ok(e),
+                _ => false,
+            }
+        }
+        if !ok(et) {
+            return no(format!("set_of of {}", et.show()));
+        }
+        let c = self.cmp_fn(et)?;
+        let s = self.sort_by_fn("canon_sort", et, c)?;
         let e = self.ct(et)?;
         let lt = Ty::list(e.clone());
-        self.generated("sort", et, vec![lt.clone()], lt.clone(), move |lw, fx| {
+        self.generated("set_of", et, vec![lt.clone()], lt.clone(), move |lw, fx| {
+            let a0 = fx.b.arg(0);
+            let xs = lw.call_rt(fx, s, vec![a0]);
+            let xs = fx.b.let_(xs);
+            let l0 = fx.b.p("list.new", vec![e.clone()], vec![])?;
+            let out = fx.b.var(lt.clone(), l0);
+            let n = fx.b.p("list.len", vec![e.clone()], vec![xs.clone()])?;
+            fx.b.for_n(n, |fx2, i| {
+                let x = fx2.list_at(xs.clone(), i)?;
+                let k = fx2.p("list.len", vec![e.clone()], vec![Atom::V(out)])?;
+                let z = fx2.int_cmp("int.eq", k.clone(), lit(0))?;
+                let keep = fx2.var(Ty::Bool, Atom::bool(true));
+                fx2.open();
+                let th = fx2.close();
+                fx2.open();
+                {
+                    let k1 = fx2.sub_in(k, lit(1), Ty::u64())?;
+                    let y = fx2.list_at(Atom::V(out), k1)?;
+                    let xc = fx2.copy(x.clone())?;
+                    let c2 = fx2.call(sym(c), Ty::Int(-1, 1), vec![y, xc]);
+                    let d = fx2.int_cmp("int.eq", c2, lit(0))?;
+                    let nd = fx2.not(d)?;
+                    fx2.set(keep, nd);
+                }
+                let el = fx2.close();
+                fx2.push(Stmt::If(z, th, el));
+                let kv = fx2.let_(Atom::V(keep));
+                fx2.open();
+                {
+                    let o = fx2.let_(Atom::V(out));
+                    let xc = fx2.copy(x.clone())?;
+                    let o = fx2.p("list.push", vec![e.clone()], vec![o, xc])?;
+                    fx2.set(out, o);
+                }
+                let th = fx2.close();
+                fx2.push(Stmt::If(kv, th, vec![]));
+                fx2.drop(x)?;
+                Ok(())
+            })?;
+            fx.b.drop(xs)?;
+            let r = fx.b.let_(Atom::V(out));
+            fx.b.ret(r);
+            Ok(())
+        })
+    }
+
+    /// A stable insertion sort of a list by the order function f
+    /// (`f(a, b) -> int[-1, 1]`, consuming both), which moves an item only
+    /// past greater ones, so equal items keep their order.
+    fn sort_by_fn(&mut self, kind: &str, et: &RType, f: usize) -> R<usize> {
+        let e = self.ct(et)?;
+        let lt = Ty::list(e.clone());
+        self.generated(kind, et, vec![lt.clone()], lt.clone(), move |lw, fx| {
             let a = fx.b.var(lt.clone(), fx.b.arg(0));
             let n = fx.b.p("list.len", vec![e.clone()], vec![Atom::V(a)])?;
             let i = fx.b.var(Ty::u64(), lit(1));
@@ -2044,6 +2122,9 @@ impl<'m> Lw<'m> {
                 Ok(Val { a: l, t: rt })
             }
             Expr::ListComp(body, p, it, cond, _) => self.list_comp(fx, body, p, it, cond.as_deref(), rt),
+            // a lambda a `let` makes: nothing is kept, since each call runs
+            // its body where it was made (closure_call)
+            Expr::Lambda(..) if matches!(rt, RType::Closure(_)) => Ok(Val { a: fx.b.unit()?, t: rt }),
             Expr::ListRepeat(x, n, _) => {
                 // interp: the value, the count (0 to 10,000,000), then N9's limit
                 let RType::List(et) = rt.clone() else { return no("a repeated list of unknown type") };
@@ -2505,6 +2586,21 @@ impl<'m> Lw<'m> {
                     }
                     _ => no(format!("{c}.{m}")),
                 }
+            }
+            Some(Callee::SetOf) => {
+                // interp `set_of`: the items in canonical order, without duplicates
+                let v = self.expr(fx, &args[0].e)?;
+                let RType::List(et) = &v.t else { return no(format!("set_of of {}", v.t.show())) };
+                let et = (**et).clone();
+                let g = self.set_of_fn(&et)?;
+                let a = self.call_rt(fx, g, vec![v.a]);
+                let a = self.conv(fx, a, &RType::Set(Box::new(et)), &rt, false)?;
+                Ok(Val { a, t: rt })
+            }
+            Some(Callee::Closure(l)) => self.closure_call(fx, f, args, l, rt),
+            Some(Callee::Trap(msg)) => {
+                self.trap(fx, Atom::bytes(msg.as_bytes()))?;
+                Ok(Val { a: fx.b.unit()?, t: RType::Never })
             }
             Some(Callee::Unknown(r)) => no(r),
             None => no(format!("the call at line {}", e.line())),
@@ -2992,6 +3088,29 @@ impl<'m> Lw<'m> {
                 fx.b.drop(recv.a)?;
                 Ok(Val { a: fx.b.let_(Atom::V(r)), t: rt })
             }
+            (RType::List(et), "sum") if **et == RType::F64 && rt == RType::F64 => {
+                // the list has an item (typed): the integer 0 plus the first
+                // item is the float 0.0 + x0, then each item is added in
+                // order, each sum finite (interp `arith`)
+                let acc = fx.b.var(Ty::F64, Atom::K(Ty::F64, Lit::F64(0f64.to_bits())));
+                let n = fx.b.p("list.len", vec![Ty::F64], vec![recv.a.clone()])?;
+                let ra = recv.a.clone();
+                fx.b.for_n(n, |b, i| {
+                    let x = b.list_at(ra.clone(), i)?;
+                    let a = b.let_(Atom::V(acc));
+                    let bad = b.p("f64.bad.add", vec![], vec![a.clone(), x.clone()])?;
+                    b.open();
+                    let h = b.trap_value(Atom::bytes(b"non-finite float"))?;
+                    b.halt(h);
+                    let th = b.close();
+                    b.push(Stmt::If(bad, th, vec![]));
+                    let s2 = b.p("f64.add", vec![], vec![a, x])?;
+                    b.set(acc, s2);
+                    Ok(())
+                })?;
+                fx.b.drop(recv.a)?;
+                Ok(Val { a: fx.b.let_(Atom::V(acc)), t: rt })
+            }
             (RType::List(et), "sum") => {
                 let et = (**et).clone();
                 let RType::Int(ei) = &et else {
@@ -3035,7 +3154,8 @@ impl<'m> Lw<'m> {
                 let n = fx.b.p("bytes.len", vec![], vec![recv.a])?;
                 Ok(Val { a: fx.b.int_cmp("int.eq", n, lit(0))?, t: rt })
             }
-            (RType::List(_), "len" | "isempty") => {
+            (RType::Set(_), "tolist") => Ok(Val { a: recv.a, t: rt }),
+            (RType::List(_), "len" | "isempty") | (RType::Set(_), "len") => {
                 let t = fx.b.ty(&recv.a);
                 let Ty::List(e) = &t else { unreachable!() };
                 let n = fx.b.p("list.len", vec![(**e).clone()], vec![recv.a.clone()])?;
@@ -3175,25 +3295,7 @@ impl<'m> Lw<'m> {
     /// which in the reference writes the closure's own copy, is refused.
     #[allow(clippy::too_many_arguments)]
     fn hof(&mut self, fx: &mut Fx, obj: &Expr, m: &str, args: &[Arg], ps: &[Param], body: &Expr, rt: RType) -> R<Val> {
-        let mut writes = false;
-        crate::check::walk_expr(body, &mut |x| match x {
-            Expr::Borrow(true, ..) => writes = true,
-            Expr::Call(f, _, _, _) => {
-                if let Expr::Member(_, mm, _) = &**f
-                    && matches!(mm.as_str(), "push" | "append" | "pop" | "clear" | "sort" | "insert" | "remove")
-                {
-                    writes = true;
-                }
-                if let Some(Callee::Method(h, mm)) = self.ty.node(x).and_then(|n| n.callee.clone())
-                    && let Some(fd) = self.t.methods.get(&(h, mm))
-                    && matches!(fd.sig.params.first(), Some(Param::SelfRef(true)))
-                {
-                    writes = true;
-                }
-            }
-            _ => {}
-        });
-        if writes {
+        if self.lambda_writes(body) {
             return no(format!("a lambda given to {m} that writes a variable"));
         }
         let recv = self.expr(fx, obj)?;
@@ -3202,7 +3304,6 @@ impl<'m> Lw<'m> {
         let ect = self.ct(&et)?;
         let init = if m == "fold" { Some(self.expr(fx, &args[0].e)?) } else { None };
         fx.b.tick(1); // the lambda
-        let named: Vec<(usize, ast::Ty)> = ps.iter().enumerate().filter_map(|(k, p)| if let Param::Named { ty, .. } = p { Some((k, ty.clone())) } else { None }).collect();
         // the result: a list being built, or the accumulator
         let out_t = self.ct(&rt)?;
         let out = match (m, init) {
@@ -3238,13 +3339,7 @@ impl<'m> Lw<'m> {
         }
         let item = Val { a: x, t: et.clone() };
         ins.push(item.clone());
-        for ((k, ty), v) in named.iter().zip(ins) {
-            let fv = self.fit(fx, v.a, &v.t, ty)?;
-            let Some(id) = self.ty.lambda_binds.get(&addr(&ps[*k])).copied() else { return no("a lambda parameter") };
-            let a = fx.b.let_(fv.a);
-            fx.bound.insert(id, Bound::Val(a.clone(), fv.t));
-            fx.own(a);
-        }
+        self.bind_lambda_params(fx, ps, ins)?;
         let r = self.expr(fx, body)?;
         match m {
             "map" => {
@@ -3284,6 +3379,97 @@ impl<'m> Lw<'m> {
         fx.b.drop(recv.a)?;
         fx.disown(&Atom::V(out));
         Ok(Val { a: fx.b.let_(Atom::V(out)), t: rt })
+    }
+
+    /// Whether the body of a lambda writes a variable: a `&mut` argument, a
+    /// method that writes its receiver (push, insert, …). In the reference
+    /// it writes the closure's own copy of the variables, which the
+    /// lowering does not keep.
+    fn lambda_writes(&self, body: &Expr) -> bool {
+        let mut writes = false;
+        crate::check::walk_expr(body, &mut |x| {
+            if let Expr::Borrow(true, ..) = x {
+                writes = true;
+            }
+            if let Expr::Call(f, _, _, _) = x {
+                if let Expr::Member(_, mm, _) = &**f
+                    && matches!(mm.as_str(), "push" | "append" | "pop" | "clear" | "sort" | "insert" | "remove")
+                {
+                    writes = true;
+                }
+                if let Some(Callee::Method(h, mm)) = self.ty.node(x).and_then(|n| n.callee.clone())
+                    && let Some(fd) = self.t.methods.get(&(h, mm))
+                    && matches!(fd.sig.params.first(), Some(Param::SelfRef(true)))
+                {
+                    writes = true;
+                }
+            }
+        });
+        writes
+    }
+
+    /// The parameters of a lambda bound to the values ins, each fitted to
+    /// its declared type, in a scope the caller opened. interp
+    /// `apply_closure` fits every parameter and keeps the last failure, so
+    /// the fits, which have no other effect, run from the last parameter
+    /// to the first and the first that fails traps.
+    fn bind_lambda_params(&mut self, fx: &mut Fx, ps: &[Param], ins: Vec<Val>) -> R<()> {
+        let named: Vec<(usize, ast::Ty)> = ps.iter().enumerate().filter_map(|(k, p)| if let Param::Named { ty, .. } = p { Some((k, ty.clone())) } else { None }).collect();
+        if named.len() != ins.len() {
+            return no("a lambda called with another number of arguments");
+        }
+        let mut fitted = vec![];
+        for ((_, ty), v) in named.iter().zip(ins).rev() {
+            fitted.push(self.fit(fx, v.a, &v.t, ty)?);
+        }
+        fitted.reverse();
+        for ((k, _), fv) in named.iter().zip(fitted) {
+            let Some(id) = self.ty.lambda_binds.get(&addr(&ps[*k])).copied() else { return no("a lambda parameter") };
+            let a = fx.b.let_(fv.a);
+            fx.bound.insert(id, Bound::Val(a.clone(), fv.t));
+            fx.own(a);
+        }
+        Ok(())
+    }
+
+    /// A call of a lambda a `let` made (interp `call_value`, then
+    /// `apply_closure`): one step for the name, the arguments in order,
+    /// then the body in a scope of its own, its parameters bound to the
+    /// fitted arguments. The body runs here, not where the lambda was
+    /// made; the names it reads are the same locals, and an immutable
+    /// local holds the same value here, so a body that reads a `var` (which
+    /// may have changed since) or writes a variable is refused.
+    fn closure_call(&mut self, fx: &mut Fx, f: &Expr, args: &[Arg], l: usize, rt: RType) -> R<Val> {
+        let Some(lam) = self.ty.lambdas.get(&l).cloned() else { return no("a lambda") };
+        let Expr::Lambda(ps, body, _) = &*lam else { return no("a lambda") };
+        if self.lambda_writes(body) {
+            return no("a lambda that writes a variable");
+        }
+        let mut reads_var = false;
+        crate::check::walk_expr(body, &mut |x| {
+            if let Expr::Name(..) = x
+                && let Some(typed::Binding::Local(id)) = self.ty.node(x).and_then(|n| n.bind.clone())
+                && matches!(fx.bound.get(&id), Some(Bound::Var(..)))
+            {
+                reads_var = true;
+            }
+        });
+        if reads_var {
+            return no("a lambda that reads a var");
+        }
+        let fv = self.expr(fx, f)?;
+        fx.b.drop(fv.a)?;
+        let mut ins = vec![];
+        for a in args {
+            ins.push(self.expr(fx, &a.e)?);
+        }
+        fx.push_scope();
+        self.bind_lambda_params(fx, ps, ins)?;
+        let r = self.expr(fx, body)?;
+        let a = self.conv(fx, r.a, &r.t, &rt, false)?;
+        let out = fx.b.let_(a);
+        fx.pop_scope()?;
+        Ok(Val { a: out, t: rt })
     }
 
     /// The current type of the values of a `var` local (its storage type).

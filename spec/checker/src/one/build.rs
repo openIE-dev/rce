@@ -44,6 +44,10 @@ pub struct FB {
     next: u32,
     tys: HashMap<u32, Ty>,
     stack: Vec<Vec<Stmt>>,
+    /// for each open statement list, whether it holds a statement that
+    /// cannot complete; nothing after that statement is reached, so
+    /// nothing more is added to the list (W2)
+    dead: Vec<bool>,
     /// the fuel function, in a function that is charged fuel
     pub tick_fn: Option<FnRef>,
     /// fuel taken since the last statement that can halt or be observed;
@@ -57,7 +61,7 @@ impl FB {
         for (i, t) in params.iter().enumerate() {
             tys.insert(i as u32, t.clone());
         }
-        FB { next: params.len() as u32, params, ret, tys, stack: vec![vec![]], tick_fn: None, pending: 0 }
+        FB { next: params.len() as u32, params, ret, tys, stack: vec![vec![]], dead: vec![false], tick_fn: None, pending: 0 }
     }
     /// Charge n units of fuel at this point of the reference's evaluation.
     pub fn tick(&mut self, n: u64) {
@@ -67,6 +71,10 @@ impl FB {
     }
     /// Charge the pending fuel now.
     pub fn flush(&mut self) {
+        if *self.dead.last().unwrap() {
+            self.pending = 0;
+            return;
+        }
         if self.pending > 0
             && let Some(f) = self.tick_fn.clone()
         {
@@ -90,13 +98,20 @@ impl FB {
         self.tys[&i].clone()
     }
     pub fn push(&mut self, s: Stmt) {
+        if *self.dead.last().unwrap() {
+            return;
+        }
         // fuel is charged before every statement that can halt or be
         // observed; a group of pure statements never halts, so moving the
         // charge before it does not change the trace (ONE-4, fuel)
         if !matches!(s, Stmt::Let(_) | Stmt::Prim(..) | Stmt::Var(..) | Stmt::Set(..)) {
             self.flush();
         }
+        let ends = !falls(std::slice::from_ref(&s));
         self.stack.last_mut().unwrap().push(s);
+        if ends {
+            *self.dead.last_mut().unwrap() = true;
+        }
     }
     fn fresh(&mut self, t: Ty) -> Atom {
         let i = self.next;
@@ -164,6 +179,7 @@ impl FB {
     pub fn open(&mut self) {
         self.flush();
         self.stack.push(vec![]);
+        self.dead.push(false);
     }
     /// End a nested statement list and return it.
     pub fn close(&mut self) -> Vec<Stmt> {
@@ -171,6 +187,7 @@ impl FB {
             self.flush();
         }
         self.pending = 0;
+        self.dead.pop();
         self.stack.pop().unwrap()
     }
     pub fn brk(&mut self, d: u32) {
