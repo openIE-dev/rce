@@ -25,7 +25,7 @@ Go,select over channels,crates/rce/spec/examples/47_select_fair.rce,RUNS,select 
 Go,network servers,,GAP,no network I/O (5.15)
 Java/JVM,enterprise state and records,crates/rce/spec/examples/04_bank_account.rce,RUNS,"states, events, errors"
 Java/JVM,inventory/business rules,crates/rce/spec/examples/31_inventory.rce,RUNS,maps and steps
-JS/TS,UI state machines,crates/rce/spec/examples/17_traffic_light.rce,RUNS,rce form to XState/SCXML (T9-F)
+JS/TS,UI state machines,crates/rce/spec/examples/17_traffic_light.rce,RUNS,rce emit js (T9-L)
 JS/TS,browser DOM and events,,GAP,no DOM binding; events only through host
 Haskell,algebraic data and pattern matching,crates/rce/spec/examples/05_kind_match.rce,RUNS,"kinds, exhaustive match"
 Haskell,structural recursion over trees,crates/rce/spec/examples/39_structural_recursion.rce,RUNS,W-REC-1 structural

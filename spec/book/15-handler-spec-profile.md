@@ -24,7 +24,7 @@ is not in this repository. The reference checker in `spec/checker` has no
 no file under `spec/checker/src`, `spec/checker/tests`,
 `spec/checker/examples` or `spec/examples` mentions a W-HS rule. So nothing
 in this appendix is checked by the tools published here; the rules below are
-a specification of the engine, tested there.
+a specification of the engine, and its tests are not published.
 
 ### D.1 Lexical rules
 
@@ -194,7 +194,7 @@ coordination-free (`laws::coordination_free`) iff every rule is
 monotone. Because every read, join and scan sees the entry state, the
 post-state of an input event does not depend on the order in which
 rules for different sinks run; only the output order does, and that is
-fixed by content hash (law 2). Tested in `tests/form_joins.rs`.
+fixed by content hash (law 2).
 
 ### D.6 The compiled Form
 
@@ -276,15 +276,13 @@ catalog with its line and construct, never approximated.
 `rce index --vectors N` records the reference evaluator's results on N
 generated inputs per brick; `rce-brick-verify` (`src/form/brick.rs`)
 evaluates each term on them and reports agreement. Agreement is tested on
-vectors (`spec/checker/tests/brick.rs`, `tests/brick_lowering.rs`), not
-proved.
+vectors (`spec/checker/tests/brick.rs`), not proved.
 
 ### D.8 Lift guarantees (normative)
 
 A brownfield lift (`rce scan DIR --form`, `brownfield/lift.rs`) reads
-existing Rust, Python, TypeScript or Go into a Form schema. Its
-guarantees are exactly these, each enforced by code and tests, and no
-other is claimed:
+existing Rust, Python, TypeScript or Go into a Form schema. A lift gives
+exactly these guarantees, and no other is claimed:
 
 - L1 Labeled: every relation, region, event and transition carries a
   label that starts with "unproven"; a lifted element is never presented
@@ -292,11 +290,10 @@ other is claimed:
 - L2 Fail closed: a guard the lift cannot read is opaque, and
   `Lifted::step` refuses to step through it rather than guess.
 - L3 Generated code agrees with the lift: code emitted from a lifted
-  machine (`--emit-machine`) steps as `Lifted::step` (tested,
-  `tests/lift_emit.rs`).
+  machine (`--emit-machine`) steps as `Lifted::step`.
 - L4 Evidence, not proof: agreement of the lift with the original
-  program is tested on seeded runs of the original
-  (`tests/brownfield_lift.rs`); its level is tested (8). A lift is an
+  program is tested on seeded runs of the original; its level is
+  tested (8). A lift is an
   input to a gate, never an authority: what it proposes is admitted only
   through the checker and the gate, like any other proposal.
 
@@ -438,4 +435,4 @@ receipts are version-independent).
 
 **Read receipt.** Which compiled node id does `deliverable D1` become? (for example role_R1)
 
-<!-- body-sha256: 1874e9e31a2d9052aa44b11e865e0a8bb2977c7c3bd072bdb8a9dd40b79d205a -->
+<!-- body-sha256: 375c3aa0d3316d41bda6c6f4b3b948717cd752f06a5a96302f4e15d45b00038f -->

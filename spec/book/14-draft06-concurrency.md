@@ -175,12 +175,9 @@ not on a proof.
     lvar `put` or `freeze`), or returns, breaks or continues out of it.
   - A budget without `else` behaves as before: the trap refuses the
     event.
-  - The charge rule itself is in the proved kernel
-    (`crates/rce/src/kernel.rs`, `budget_charge`), verified with Kani for
-    stacks of up to three frames: a charge is all or nothing, leaves no
-    frame past its limit, and is additive (`budget_all_or_nothing_within_limits`,
-    `budget_charge_is_additive`). Every runtime's `charge` implements the
-    same rule; the link from the kernel to those copies is the
+  - The charge rule: a charge is all or nothing, leaves no frame past
+    its limit, and is additive. Every runtime's `charge` implements the
+    same rule; in this repository the link between those copies is the
     differential tests, not a proof.
   The trap falls on the same operation on every target, so whether Else
   runs, and the value of `e`, are functions of the program and its
@@ -825,4 +822,4 @@ defined for it beyond the costs F.10 names.
 
 **Read receipt.** How many concurrency words does C.1 add to the keywords of 2.4? (a number)
 
-<!-- body-sha256: d3bca8a016b4baf5afb72e69dd707e000fe63e2782bd54e3f45acb68c10068eb -->
+<!-- body-sha256: 731558e20966c95c1c100bd469f1587cd5ee034ff64d8ee8836d68f217782aba -->
