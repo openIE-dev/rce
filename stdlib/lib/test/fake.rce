@@ -1,0 +1,353 @@
+module test.fake
+# uses: test.prop, rand.det
+
+use test.prop
+
+# Fake data from a seed: names, emails, user names, phone numbers,
+# addresses, words, sentences, paragraphs, dates, timestamps, UUIDs and
+# other identifiers. Every function is a test.prop generator (it takes a
+# `&mut prop.PropSrc`), so the same call gives the same value for the
+# same seed and stream, and a value inside a failing property case
+# shrinks: list entries towards the first (most common) entry, numbers
+# towards 0, dates towards 1970-01-01. fake_src(seed) is a source for
+# use outside a property run; the n-th value of a seed does not depend on
+# the host, the clock or anything but the seed and the calls before it.
+#
+# Formats follow Faker's en_US providers (Faker 40.43.0,
+# https://github.com/joke2k/faker): a street address is a building
+# number and a first or last name with a street suffix; a city is one of
+# Faker's four city forms (prefix, name, suffix); an address is street,
+# city, state and ZIP on one line (Faker separates the street with a line
+# break). Emails use only the domains reserved for documentation by RFC
+# 2606 (example.com, example.net, example.org), and phone numbers only
+# the NANP numbers 555-0100 through 555-0199 that are reserved for
+# fictional use, so no generated email or phone number reaches a real
+# party. UUIDs are version 4 (RFC 9562 5.4) from drawn bytes.
+#
+# Word lists (between the generated markers below, written by
+# scripts/gen/fake_gen.py from Faker 40.43.0): 60 first names (the 30
+# heaviest-weighted female and male names of Faker's en_US person
+# provider, which Faker takes from the US Social Security
+# Administration's top names of the 1960s to 1990s, interleaved), 50
+# last names (Faker's 50 heaviest, from US Census surname counts), 20
+# street suffixes chosen from Faker's list (the USPS Publication 28
+# suffix names), Faker's 7 city prefixes and 18 distinct city suffixes,
+# the 51 USPS codes of the states and the District of Columbia, and
+# Faker's 182-word Latin (`la`) lorem list. Faker is Copyright (c) 2012
+# Daniele Faraglia and distributed under the MIT License; its notice is
+# reproduced in vectors/SOURCE.md.
+
+const TF_DAY_MIN: i64 = -719162
+const TF_DAY_MAX: i64 = 2932896
+
+# A generation source for seed `seed` (stream 0, size 100).
+pub fn fake_src(seed: i64) -> prop.PropSrc = prop.prop_src(seed, 0, 100)
+
+fn tf_pick(s: &mut prop.PropSrc, xs: &[text]) -> text = prop.draw_pick(s, xs).or("")
+
+fn tf_pad(n: i64, w: i64) -> text
+    var t = n.tostr()
+    while t.len_bytes() < w as usize bound 32
+        t = "0" + t
+    return t
+
+fn tf_digits(s: &mut prop.PropSrc, n: i64) -> text
+    var t = ""
+    for _i in 0..n
+        t = t + prop.draw_int(s, 0, 9).tostr()
+    return t
+
+# ---------------------------------------------------------------- people
+
+pub fn fake_first_name(s: &mut prop.PropSrc) -> text
+    let xs = tf_first_names()
+    return tf_pick(s, &xs)
+
+pub fn fake_last_name(s: &mut prop.PropSrc) -> text
+    let xs = tf_last_names()
+    return tf_pick(s, &xs)
+
+# "First Last".
+pub fn fake_name(s: &mut prop.PropSrc) -> text
+    let f = fake_first_name(s)
+    let l = fake_last_name(s)
+    return f + " " + l
+
+# "first.last" or "first.last" and two digits, lower case.
+pub fn fake_user_name(s: &mut prop.PropSrc) -> text
+    let f = fake_first_name(s).lower()
+    let l = fake_last_name(s).lower()
+    if prop.draw_bool(s)
+        return f + "." + l + tf_digits(s, 2)
+    return f + "." + l
+
+# A user name at a domain reserved for documentation (RFC 2606).
+pub fn fake_email(s: &mut prop.PropSrc) -> text
+    let u = fake_user_name(s)
+    let ds: List[text] = ["example.com", "example.org", "example.net"]
+    return u + "@" + tf_pick(s, &ds)
+
+# "(NXX) 555-01XX": a NANP area code (first digit 2-9, second 0-8) and a
+# line number in 555-0100..555-0199, which NANPA reserves for fiction.
+pub fn fake_phone(s: &mut prop.PropSrc) -> text
+    let a = prop.draw_int(s, 2, 9)
+    let b = prop.draw_int(s, 0, 8)
+    let c = prop.draw_int(s, 0, 9)
+    let n = prop.draw_int(s, 0, 99)
+    return "(" + a.tostr() + b.tostr() + c.tostr() + ") 555-01" + tf_pad(n, 2)
+
+# ---------------------------------------------------------------- places
+
+# Faker street_name_formats: a first or last name and a street suffix.
+pub fn fake_street_name(s: &mut prop.PropSrc) -> text
+    let n = if prop.draw_bool(s) then fake_first_name(s) else fake_last_name(s)
+    let xs = tf_street_suffixes()
+    return n + " " + tf_pick(s, &xs)
+
+# A building number 1..99999 and a street name.
+pub fn fake_street_address(s: &mut prop.PropSrc) -> text
+    let n = prop.draw_int(s, 1, 99999)
+    return n.tostr() + " " + fake_street_name(s)
+
+# Faker city_formats: "{prefix} {first}{suffix}", "{prefix} {first}",
+# "{first}{suffix}", "{last}{suffix}".
+pub fn fake_city(s: &mut prop.PropSrc) -> text
+    let k = prop.draw_int(s, 0, 3)
+    let ps = tf_city_prefixes()
+    let ss = tf_city_suffixes()
+    if k == 0
+        let p = tf_pick(s, &ps)
+        let f = fake_first_name(s)
+        return p + " " + f + tf_pick(s, &ss)
+    if k == 1
+        let p = tf_pick(s, &ps)
+        return p + " " + fake_first_name(s)
+    if k == 2
+        let f = fake_first_name(s)
+        return f + tf_pick(s, &ss)
+    let l = fake_last_name(s)
+    return l + tf_pick(s, &ss)
+
+# A USPS state code (50 states and DC).
+pub fn fake_state(s: &mut prop.PropSrc) -> text
+    let xs = tf_states()
+    return tf_pick(s, &xs)
+
+# Five digits.
+pub fn fake_zip(s: &mut prop.PropSrc) -> text = tf_digits(s, 5)
+
+# "street, city, ST 12345".
+pub fn fake_address(s: &mut prop.PropSrc) -> text
+    let st = fake_street_address(s)
+    let c = fake_city(s)
+    let a = fake_state(s)
+    let z = fake_zip(s)
+    return st + ", " + c + ", " + a + " " + z
+
+# ---------------------------------------------------------------- text
+
+pub fn fake_word(s: &mut prop.PropSrc) -> text
+    let xs = tf_words()
+    return tf_pick(s, &xs)
+
+# lo..=hi words joined by spaces.
+pub fn fake_words(s: &mut prop.PropSrc, lo: i64, hi: i64) -> text
+    if lo < 0 or hi < lo or hi > 10000
+        prop.prop_src_bad(s, "fake_words: need 0 <= lo <= hi <= 10000")
+        return ""
+    let ws = prop.draw_list(s, fake_word, lo, hi)
+    return " ".join(ws)
+
+fn tf_cap(w: text) -> text
+    if w.len_bytes() == 0
+        return w
+    return w[0:1].upper() + w[1:w.len_bytes()]
+
+# 4..10 lorem words, the first capitalized, ending in a full stop
+# (Faker sentence with 6 words varied by up to 40 percent, widened).
+pub fn fake_sentence(s: &mut prop.PropSrc) -> text = tf_cap(fake_words(s, 4, 10)) + "."
+
+fn tf_sentence_el(s: &mut prop.PropSrc) -> text = fake_sentence(s)
+
+# 3..6 sentences.
+pub fn fake_paragraph(s: &mut prop.PropSrc) -> text
+    let xs = prop.draw_list(s, tf_sentence_el, 3, 6)
+    return " ".join(xs)
+
+# A lower-case slug of 2..4 lorem words joined by "-".
+pub fn fake_slug(s: &mut prop.PropSrc) -> text
+    let ws = prop.draw_list(s, fake_word, 2, 4)
+    return "-".join(ws)
+
+# ---------------------------------------------------------------- dates and times
+
+# The proleptic Gregorian date of a day number (days since 1970-01-01),
+# as "YYYY-MM-DD", for days in 0001-01-01..9999-12-31 (H. Hinnant,
+# civil_from_days, https://howardhinnant.github.io/date_algorithms.html).
+# Outside that range: "".
+pub fn fake_date_of(days: i64) -> text
+    if days < TF_DAY_MIN or days > TF_DAY_MAX
+        return ""
+    let z = days + 719468
+    let era = (if z >= 0 then z else z - 146096) / 146097
+    let doe = z - era * 146097
+    let yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100)
+    let mp = (5 * doy + 2) / 153
+    let d = doy - (153 * mp + 2) / 5 + 1
+    let m = if mp < 10 then mp + 3 else mp - 9
+    let y = yoe + era * 400 + (if m <= 2 then 1 else 0)
+    return tf_pad(y, 4) + "-" + tf_pad(m, 2) + "-" + tf_pad(d, 2)
+
+# A date with day number in [from_day, to_day] (inside 0001..9999).
+pub fn fake_date_between(s: &mut prop.PropSrc, from_day: i64, to_day: i64) -> text
+    if from_day > to_day or from_day < TF_DAY_MIN or to_day > TF_DAY_MAX
+        prop.prop_src_bad(s, "fake_date_between: need 0001-01-01 <= from <= to <= 9999-12-31")
+        return ""
+    return fake_date_of(prop.draw_int(s, from_day, to_day))
+
+# A date in 1970-01-01..2037-12-31.
+pub fn fake_date(s: &mut prop.PropSrc) -> text = fake_date_between(s, 0, 24836)
+
+# "YYYY-MM-DDTHH:MM:SSZ" (RFC 3339, UTC) of seconds since the epoch, for
+# the dates of fake_date_of; "" outside them.
+pub fn fake_datetime_of(secs: i64) -> text
+    let days = (if secs >= 0 then secs else secs - 86399) / 86400
+    let r = secs - days * 86400
+    let d = fake_date_of(days)
+    if d == ""
+        return ""
+    return d + "T" + tf_pad(r / 3600, 2) + ":" + tf_pad((r / 60) % 60, 2) + ":" + tf_pad(r % 60, 2) + "Z"
+
+# A timestamp in 1970-01-01T00:00:00Z..2037-12-31T23:59:59Z.
+pub fn fake_datetime(s: &mut prop.PropSrc) -> text = fake_datetime_of(prop.draw_int(s, 0, 2145916799))
+
+# ---------------------------------------------------------------- identifiers
+
+fn tf_hexd(v: i64) -> text
+    let ds: List[text] = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "a", "b", "c", "d", "e", "f"]
+    return copy(ds[(v & 15) as usize])
+
+# The version 4 UUID text of 16 bytes: byte 6 gets version 4 in its high
+# nibble, byte 8 the variant bits 10 (RFC 9562 5.4); "" unless 16 bytes
+# in 0..255.
+pub fn fake_uuid_of(b: &[i64]) -> text
+    if b.len() != 16
+        return ""
+    var t = ""
+    var i: usize = 0
+    while i < 16 bound 16
+        var v = b[i]
+        if v < 0 or v > 255
+            return ""
+        if i == 6
+            v = (v & 15) | 64
+        if i == 8
+            v = (v & 63) | 128
+        if i == 4 or i == 6 or i == 8 or i == 10
+            t = t + "-"
+        t = t + tf_hexd(v >> 4) + tf_hexd(v)
+        i += 1
+    return t
+
+fn tf_byte(s: &mut prop.PropSrc) -> i64 = prop.draw_int(s, 0, 255)
+
+pub fn fake_uuid(s: &mut prop.PropSrc) -> text
+    let b = prop.draw_list(s, tf_byte, 16, 16)
+    return fake_uuid_of(&b)
+
+# n lower-case hexadecimal digits, 0 <= n <= 4096.
+pub fn fake_hex(s: &mut prop.PropSrc, n: i64) -> text
+    if n < 0 or n > 4096
+        prop.prop_src_bad(s, "fake_hex: need 0 <= n <= 4096")
+        return ""
+    var t = ""
+    for _i in 0..n
+        t = t + tf_hexd(prop.draw_int(s, 0, 15))
+    return t
+
+# A positive decimal identifier of up to 12 digits, no leading zero.
+pub fn fake_id(s: &mut prop.PropSrc) -> i64 = prop.draw_int(s, 1, 999999999999)
+
+# ---------------------------------------------------------------- word lists
+
+# ---- generated word lists (scripts/gen/fake_gen.py); do not edit
+# Faker 40.43.0 en_US person: the 30 heaviest female and male first
+# names, interleaved, and the 50 heaviest last names.
+fn tf_first_names() -> List[text]
+    return [
+        "Jennifer", "Michael", "Jessica", "David", "Lisa", "James", "Kimberly", "John",
+        "Amanda", "Christopher", "Michelle", "Robert", "Elizabeth", "Matthew", "Melissa", "William",
+        "Ashley", "Daniel", "Sarah", "Joseph", "Mary", "Brian", "Stephanie", "Jason",
+        "Amy", "Joshua", "Angela", "Mark", "Nicole", "Thomas", "Heather", "Kevin",
+        "Laura", "Richard", "Rebecca", "Anthony", "Karen", "Andrew", "Kelly", "Steven",
+        "Emily", "Timothy", "Susan", "Jeffrey", "Rachel", "Eric", "Christina", "Ryan",
+        "Patricia", "Charles", "Julie", "Scott", "Samantha", "Justin", "Megan", "Nicholas",
+        "Cynthia", "Jonathan", "Christine", "Brandon"
+    ]
+
+# Faker 40.43.0 en_US address: chosen street suffixes, the city prefixes,
+# the distinct city suffixes and the 51 state codes.
+fn tf_street_suffixes() -> List[text]
+    return [
+        "Street", "Avenue", "Road", "Lane", "Drive", "Court", "Place", "Way",
+        "Circle", "Trail", "Parkway", "Square", "Loop", "Path", "Ridge", "Run",
+        "Crossing", "Grove", "Terrace", "Park"
+    ]
+
+fn tf_city_prefixes() -> List[text]
+    return [
+        "North", "East", "West", "South", "New", "Lake", "Port"
+    ]
+
+fn tf_city_suffixes() -> List[text]
+    return [
+        "town", "ton", "land", "ville", "berg", "burgh", "borough", "bury",
+        "view", "port", "mouth", "stad", "furt", "chester", "fort", "haven",
+        "side", "shire"
+    ]
+
+fn tf_states() -> List[text]
+    return [
+        "AL", "AK", "AZ", "AR", "CA", "CO", "CT", "DE", "DC", "FL", "GA", "HI", "ID",
+        "IL", "IN", "IA", "KS", "KY", "LA", "ME", "MD", "MA", "MI", "MN", "MS", "MO",
+        "MT", "NE", "NV", "NH", "NJ", "NM", "NY", "NC", "ND", "OH", "OK", "OR", "PA",
+        "RI", "SC", "SD", "TN", "TX", "UT", "VT", "VA", "WA", "WV", "WI", "WY"
+    ]
+
+# Faker 40.43.0 la lorem word list.
+fn tf_words() -> List[text]
+    return [
+        "a", "ab", "accusamus", "accusantium", "ad", "adipisci", "alias", "aliquam", "aliquid", "amet",
+        "animi", "aperiam", "architecto", "asperiores", "aspernatur", "assumenda", "at", "atque", "aut", "autem",
+        "beatae", "blanditiis", "commodi", "consectetur", "consequatur", "consequuntur", "corporis", "corrupti", "culpa", "cum",
+        "cumque", "cupiditate", "debitis", "delectus", "deleniti", "deserunt", "dicta", "dignissimos", "distinctio", "dolor",
+        "dolore", "dolorem", "doloremque", "dolores", "doloribus", "dolorum", "ducimus", "ea", "eaque", "earum",
+        "eius", "eligendi", "enim", "eos", "error", "esse", "est", "et", "eum", "eveniet",
+        "ex", "excepturi", "exercitationem", "expedita", "explicabo", "facere", "facilis", "fuga", "fugiat", "fugit",
+        "harum", "hic", "id", "illo", "illum", "impedit", "in", "incidunt", "inventore", "ipsa",
+        "ipsam", "ipsum", "iste", "itaque", "iure", "iusto", "labore", "laboriosam", "laborum", "laudantium",
+        "libero", "magnam", "magni", "maiores", "maxime", "minima", "minus", "modi", "molestiae", "molestias",
+        "mollitia", "nam", "natus", "necessitatibus", "nemo", "neque", "nesciunt", "nihil", "nisi", "nobis",
+        "non", "nostrum", "nulla", "numquam", "occaecati", "odio", "odit", "officia", "officiis", "omnis",
+        "optio", "pariatur", "perferendis", "perspiciatis", "placeat", "porro", "possimus", "praesentium", "provident", "quae",
+        "quaerat", "quam", "quas", "quasi", "qui", "quia", "quibusdam", "quidem", "quis", "quisquam",
+        "quo", "quod", "quos", "ratione", "recusandae", "reiciendis", "rem", "repellat", "repellendus", "reprehenderit",
+        "repudiandae", "rerum", "saepe", "sapiente", "sed", "sequi", "similique", "sint", "sit", "soluta",
+        "sunt", "suscipit", "tempora", "tempore", "temporibus", "tenetur", "totam", "ullam", "unde", "ut",
+        "vel", "velit", "veniam", "veritatis", "vero", "vitae", "voluptas", "voluptate", "voluptatem", "voluptates",
+        "voluptatibus", "voluptatum"
+    ]
+
+fn tf_last_names() -> List[text]
+    return [
+        "Smith", "Johnson", "Williams", "Brown", "Jones", "Miller", "Davis", "Garcia",
+        "Rodriguez", "Wilson", "Martinez", "Anderson", "Taylor", "Thomas", "Hernandez", "Moore",
+        "Martin", "Jackson", "Thompson", "White", "Lopez", "Lee", "Gonzalez", "Harris",
+        "Clark", "Lewis", "Robinson", "Walker", "Perez", "Hall", "Young", "Allen",
+        "Sanchez", "Wright", "King", "Scott", "Green", "Baker", "Adams", "Nelson",
+        "Hill", "Ramirez", "Campbell", "Mitchell", "Roberts", "Carter", "Phillips", "Evans",
+        "Turner", "Torres"
+    ]
+
+# ---- end of generated word lists

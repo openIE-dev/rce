@@ -1,0 +1,160 @@
+# Checks for lib/test/fake.rce: the same seed gives the same values; the
+# word lists have the sizes the generator states; the formats of emails
+# (RFC 2606 domains), phone numbers (NANP numbers reserved for fiction),
+# ZIP codes, addresses built from the word lists and sentences hold over
+# 100 cases of a test.prop run each. fake_checks_3 covers the other
+# generators, shrinking and bad arguments; UUID and date texts are
+# checked against CPython in fake_checks_2.
+
+fn fk_seq(seed: i64) -> List[text]
+    var s = fake_src(seed)
+    var o: List[text] = []
+    for _i in 0..5
+        o.push(fake_name(&mut s))
+        o.push(fake_email(&mut s))
+        o.push(fake_address(&mut s))
+        o.push(fake_date(&mut s))
+        o.push(fake_uuid(&mut s))
+    return o
+
+fn fk_same() -> bool
+    let a = fk_seq(42)
+    let b = fk_seq(42)
+    let c = fk_seq(43)
+    return a == b and a != c and a.len() == 25
+
+fn fk_in(xs: &[text], x: &text) -> bool
+    for y in xs
+        if y == x
+            return true
+    return false
+
+fn fk_digits(t: &text, n: usize) -> bool
+    if t.len_bytes() != n
+        return false
+    for c in t.chars()
+        if not c.isdigit()
+            return false
+    return true
+
+fn fk_lower_ok(t: &text) -> bool
+    for c in t.chars()
+        if not (c.isdigit() or c == "." or (c.isalpha() and c.lower() == c))
+            return false
+    return true
+
+fn fk_email_ok(e: &text) -> bool
+    let parts = e.split("@")
+    if parts.len() != 2
+        return false
+    let ds: List[text] = ["example.com", "example.org", "example.net"]
+    let names = parts[0].split(".")
+    let fs = tf_first_names()
+    var first_ok = false
+    for f in fs
+        if f.lower() == names[0]
+            first_ok = true
+    return fk_in(&ds, &parts[1]) and fk_lower_ok(&parts[0]) and names.len() == 2 and first_ok
+
+fn fk_phone_ok(p: &text) -> bool
+    if p.len_bytes() != 14
+        return false
+    let a = p[1:2]
+    let b = p[2:3]
+    return p[0:1] == "(" and a != "0" and a != "1" and b != "9" and fk_digits(&p[1:4], 3) and p[4:6] == ") " and p[6:12] == "555-01" and fk_digits(&p[12:14], 2)
+
+fn fk_address_ok(a: &text) -> bool
+    let parts = a.split(", ")
+    if parts.len() != 3
+        return false
+    let tail = parts[2].split(" ")
+    let st = parts[0].split(" ")
+    let ss = tf_street_suffixes()
+    let sts = tf_states()
+    if st.len() != 3 or st[0].len_bytes() > 5 or not fk_digits(&st[0], st[0].len_bytes())
+        return false
+    let n = st[0].toint()
+    return tail.len() == 2 and fk_in(&sts, &tail[0]) and fk_digits(&tail[1], 5) and st.len() == 3 and n >= 1 and n <= 99999 and fk_in(&ss, &st[2]) and parts[1].len_bytes() > 0
+
+fn fk_words_ok(t: &text, lo: i64, hi: i64) -> bool
+    let ws = t.split(" ")
+    let wl = tf_words()
+    var ok = ws.len() as i64 >= lo and ws.len() as i64 <= hi
+    for w in ws
+        let lw = w.lower()
+        ok = ok and fk_in(&wl, &lw)
+    return ok
+
+fn fk_sentence_ok(t: &text) -> bool
+    let n = t.len_bytes()
+    if n < 2 or t[n - 1:n] != "."
+        return false
+    let body = t[0:n - 1]
+    return body[0:1].upper() == body[0:1] and fk_words_ok(&body, 4, 10)
+
+fn fk_paragraph_ok(t: &text) -> bool
+    let ss = t.split(". ")
+    return ss.len() >= 3 and ss.len() <= 6 and t.endswith(".")
+
+fn fk_uuid_ok(u: &text) -> bool
+    if u.len_bytes() != 36
+        return false
+    let hx = "0123456789abcdef"
+    var ok = u[8:9] == "-" and u[13:14] == "-" and u[18:19] == "-" and u[23:24] == "-" and u[14:15] == "4" and "89ab".contains(u[19:20])
+    var i: usize = 0
+    for c in u.chars()
+        if i != 8 and i != 13 and i != 18 and i != 23
+            ok = ok and hx.contains(c)
+        i += 1
+    return ok
+
+fn fk_date_ok(d: &text) -> bool = d.len_bytes() == 10 and d >= "1970-01-01" and d <= "2037-12-31" and d[4:5] == "-" and d[7:8] == "-"
+
+fn fk_hex_ok(h: &text) -> bool
+    var ok = h.len_bytes() == 12
+    for c in h.chars()
+        ok = ok and "0123456789abcdef".contains(c)
+    return ok
+
+fn fk_slug_ok(t: &text) -> bool
+    let ws = t.split("-")
+    let wl = tf_words()
+    var ok = ws.len() >= 2 and ws.len() <= 4
+    for w in ws
+        ok = ok and fk_in(&wl, &w)
+    return ok
+
+fn fk_hex12(s: &mut prop.PropSrc) -> text = fake_hex(s, 12)
+
+fn fk_holds[T](g: fn(&mut prop.PropSrc) -> T, p: fn(&T) -> bool, seed: i64) -> bool
+    let r = prop.prop_check(g, p, prop.prop_cfg(seed))
+    return prop.prop_ok(&r)
+
+fn fk_lists() -> bool = tf_first_names().len() == 60 and tf_last_names().len() == 50 and tf_street_suffixes().len() == 20 and tf_city_prefixes().len() == 7 and tf_city_suffixes().len() == 18 and tf_states().len() == 51 and tf_words().len() == 182
+
+# Shrinking: the simplest name with a "y" keeps the first first name and
+# takes the first last name with one (choices [0, 12] are simpler than
+# "Kimberly Smith", [6, 0]); the simplest email with digits ends in 00;
+# the simplest date from 2000 on is 2000-01-01.
+fn fk_has_y(t: &text) -> bool = t.contains("y")
+fn fk_has_digit(t: &text) -> bool = t.contains("0") or t.contains("1") or t.contains("2") or t.contains("3") or t.contains("4") or t.contains("5") or t.contains("6") or t.contains("7") or t.contains("8") or t.contains("9")
+fn fk_y2k(d: &text) -> bool = d >= "2000-01-01"
+fn fk_find[T](g: fn(&mut prop.PropSrc) -> T, c: fn(&T) -> bool) -> T
+    let r = prop.prop_find(g, c, prop.prop_cfg(1))
+    return prop.prop_value(&r, g)
+
+fn fk_bad_words(s: &mut prop.PropSrc) -> text = fake_words(s, 5, 2)
+fn fk_bad_date(s: &mut prop.PropSrc) -> text = fake_date_between(s, 0, 3000000)
+fn fk_bad_hex(s: &mut prop.PropSrc) -> text = fake_hex(s, -1)
+fn fk_any(_t: &text) -> bool = true
+fn fk_note(g: fn(&mut prop.PropSrc) -> text) -> text
+    let r = prop.prop_check(g, fk_any, prop.prop_cfg(1))
+    return if r.phase == prop.PROP_BAD_GEN then copy(r.note) else ""
+
+check fk_same()
+check fk_lists()
+check fk_holds(fake_email, fk_email_ok, 1)
+check fk_holds(fake_phone, fk_phone_ok, 2)
+check fk_holds(fake_zip, fn(z: &text) => fk_digits(z, 5), 3)
+check fk_holds(fake_address, fk_address_ok, 4)
+check fk_holds(fake_sentence, fk_sentence_ok, 5)

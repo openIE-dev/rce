@@ -168,6 +168,11 @@ fn tp_bad(s: &mut PropSrc, why: text)
         s.status = TP_S_BADARG
         s.note = why
 
+# Report a bad generator argument from a generator built on these draws:
+# the run ends with verdict PROP_BAD_GEN and this reason.
+pub fn prop_src_bad(s: &mut PropSrc, why: text)
+    tp_bad(s, why)
+
 # Mark the case invalid unless `cond` holds (Hypothesis assume, QuickCheck
 # ==>): the runner discards it.
 pub fn draw_assume(s: &mut PropSrc, cond: bool)
