@@ -20,7 +20,7 @@ jobs:
         group:
           - "crypto col core"
           - "data effect enc energy"
-          - "fmt hash io math"
+          - "fmt hash id io math"
           - "net num"
           - "os"
           - "rand text time ui"
