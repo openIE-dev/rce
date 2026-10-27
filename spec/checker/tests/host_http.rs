@@ -9,6 +9,7 @@ use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
+use std::sync::atomic::{AtomicU16, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
@@ -19,9 +20,20 @@ fn app(rel: &str) -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join(rel)
 }
 
+/// A loopback address that no other test of this process is handed. Ports
+/// come from a counter below every platform's ephemeral range (Linux starts
+/// at 32768, macOS and Windows at 49152), so neither a concurrent test's
+/// `bind("127.0.0.1:0")` nor a connection's local port can take the port
+/// between this probe and the bind of the host under test.
 fn free_addr() -> String {
-    let port = TcpListener::bind("127.0.0.1:0").unwrap().local_addr().unwrap().port();
-    format!("127.0.0.1:{port}")
+    static NEXT: AtomicU16 = AtomicU16::new(0);
+    let base = 20000 + (std::process::id() % 1000) as u16 * 10;
+    loop {
+        let port = base + NEXT.fetch_add(1, Ordering::Relaxed);
+        if TcpListener::bind(("127.0.0.1", port)).is_ok() {
+            return format!("127.0.0.1:{port}");
+        }
+    }
 }
 
 fn dir(name: &str) -> PathBuf {
