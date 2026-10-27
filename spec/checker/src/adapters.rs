@@ -1383,27 +1383,13 @@ pub mod http {
     /// Whether the connection closes after the response to a request of
     /// this version with these fields (RFC 9112 9.3): from HTTP/1.1 on when
     /// Connection lists `close`, and for HTTP/1.0 unless it lists
-    /// `keep-alive`. The version and the fields are in the request's entry
-    /// (HC-24), so this is a function of D (HC-26).
+    /// `keep-alive`. The version and the fields are in the host's value of
+    /// the request, which D holds (HC-24), so this is a function of D
+    /// (HC-26, `host::http_inputs`).
     pub fn closes(version: &str, names: &[String], values: &[String]) -> bool {
         let conn: Vec<String> = header(names, values, "connection").map(|c| list_items(&c.to_ascii_lowercase())).unwrap_or_default();
         let minor = version.strip_prefix("HTTP/1.").and_then(|m| m.parse::<u8>().ok()).unwrap_or(0);
         if minor >= 1 { conn.iter().any(|c| c == "close") } else { !conn.iter().any(|c| c == "keep-alive") }
-    }
-
-    /// The framing of the response to one logged input, read from its
-    /// entry in D (HC-26): (a HEAD request, so no body is written; the
-    /// connection closes after the response, before the program's own
-    /// `Connection: close` is added). `event` is the entry's event JSON;
-    /// `None` when it is neither `HttpRequest` nor `HttpMalformed`.
-    pub fn framing(event: &Value) -> Option<(bool, bool)> {
-        let p = &event["payload"];
-        let texts = |k: &str| -> Vec<String> { p[k].as_array().into_iter().flatten().filter_map(|x| x.as_str().map(String::from)).collect() };
-        match event["type"].as_str()? {
-            "HttpRequest" => Some((p["method"] == "HEAD", closes(p["version"].as_str()?, &texts("names"), &texts("values")))),
-            "HttpMalformed" => Some((false, true)),
-            _ => None,
-        }
     }
 
     /// RFC 9110 5.6.2 token characters, as `net.http`'s `tchar`.

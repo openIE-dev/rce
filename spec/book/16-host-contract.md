@@ -678,14 +678,16 @@ both enter D and reach the program as inputs.
   HTTP/1.0, a Connection field without `keep-alive`, or none), when the
   program wrote `Connection: close`, after an `HttpMalformed`, and after
   a response the host makes itself (HF-2). The method, the version and
-  the fields that decide this are in the request's entry, so every byte of
-  a response, and whether the connection closes after it, is a function of
-  D: replay re-derives every `HttpRespond` request
-  (`host::replay_outputs`), `http::framing` reads from the request's entry
-  whether it was HEAD and whether the connection closes,
-  `host::http_host_answer` reads from it the status of a response the
-  host makes itself, and `http::response_bytes` makes from these the bytes
-  the client received. The interim `HTTP/1.1 100 Continue` of HC-24 is
+  the fields that decide this are in D, in the host's whole value of the
+  request: its entry, or the `host.Unfit` that records it first when the
+  module takes less of it (E.4c). So every byte of a response, and whether
+  the connection closes after it, is a function of D: replay re-derives
+  every `HttpRespond` request (`host::replay_outputs`);
+  `host::http_inputs` reads, for each HTTP input of D, from that whole
+  value and the module, whether it was HEAD, whether the connection
+  closes, and the status of a response the host makes itself, as the live
+  host decided them (a typed input, HC-10b, is not an HTTP input); and
+  `http::response_bytes` makes from these the bytes the client received. The interim `HTTP/1.1 100 Continue` of HC-24 is
   transport, not output of the program: it is written when the head is
   accepted, before the body arrives, for a request that may never enter D
   (its client may close, or its body time out), and it is the one thing
@@ -762,14 +764,21 @@ did not, not by restricting what a module may declare.
   does not support the functionality the request needs, which is the case
   of a module that takes no requests or none of this form, and unlike 500
   it reports a lasting property of the server rather than an unexpected
-  condition, and unlike 503 it is not temporary. When the program cannot
-  answer, because the input was not delivered or the module declares no
-  struct `HttpRespond`, the host answers once the batch is durable (HS-2),
-  with that status, the status of the `HttpMalformed`, or 501 for a
-  delivered `HttpRequest`, no fields and no body, and closes the
-  connection after it. The status is read from the entry that records the
-  input (`host::http_host_answer`), so every request is in D and every
-  byte the host writes is a function of D (HC-26).
+  condition, and unlike 503 it is not temporary. The program can answer
+  an input delivered with its id, the seq of the entry that delivers it,
+  as an integer, when the module declares `struct HttpRespond` with `req`
+  and `status` of integer types. Any other input (one not delivered, one
+  delivered without its id, or any input of a module whose `HttpRespond`
+  cannot name a request and a status) the host answers itself once the
+  batch is durable (HS-2), with the host's status of it: 501 for a
+  request delivered as `HttpRequest`, the status above for one that is
+  not, and the status of HC-25 for a malformed request, whatever
+  `HttpMalformed` declares; with no fields and no body, and it closes the
+  connection after it. The start notice says when a module's
+  declarations leave every request to the host. Who answers, and with
+  what status, is read from the host's whole value of the input and the
+  module (`host::http_inputs`), so every request is in D and every byte
+  the host writes is a function of D (HC-26).
 - **HF-3 Received bytes.** Received bytes (the data of `NetRecvDone`, the
   body of `HttpRequest`) are delivered exactly as `List[i64]` (HC-10a).
   Declared as `text` (through an alias or `?`), they are delivered as
@@ -1055,7 +1064,7 @@ is cited by a test.
 | HC-21, HF-4 | refusals are inputs, fitted by name | `tests/host_refused.rs`: `refused_step_is_followed_by_host_refused_and_the_bound_event`, `each_cause_is_classified`, `a_refused_refused_is_not_redelivered`, `a_refused_step_whose_effect_is_refused_is_not_redelivered`, `refused_handler_has_full_fuel`, `replay_detects_a_log_without_host_refused`, `replay_detects_a_forged_host_refused`, `open_completes_a_trailing_refusal`, `a_refused_of_another_shape_is_fitted_by_name`; `tests/nameless.rs`: `refusal_entries_are_name_free` |
 | HC-22, HF-4 | restarts are inputs, ids never reused, fitted by name | `tests/host_restart.rs`: `restart_appends_restarted_then_interrupts`, `ids_are_not_reused_after_restart`, `tick_numbers_continue`, `take_role_appends_restarted`, `serve_on_an_existing_log_listens_again`, `a_restarted_of_another_shape_is_fitted_by_name`, `a_tick_is_fitted_by_name` |
 | HC-23, HF-1 | the net adapter, results fitted by name | `tests/host_net.rs`: `tcp_loopback_random_and_blobs_replay`, `send_takes_text_or_bytes`; `tests/host_effects.rs`: `result_event_of_another_shape_is_fitted_by_name`, `bound_effect_without_its_result_event_is_performed_and_recorded`, `a_result_whose_req_is_not_an_integer_answers_its_request_once` |
-| HC-24 to HC-26, HF-2 | the HTTP event host | `tests/host_http.rs`: `concurrent_clients_are_served_while_one_stalls`, `idle_server_appends_nothing`, `keep_alive_and_pipelined_requests_answer_in_order`, `head_has_no_body`, `oversized_body_is_413_and_closes`, `refused_request_gets_the_programs_status`, `invalid_response_fails_and_the_id_stays_open`, `responses_are_a_function_of_d`, `http_1_0_and_keep_alive_are_framed_from_d`, `expect_continue_is_transport`, `parallel_load_replays_exactly`, `sigterm_drains_and_validates`, `restart_binds_again`, `sequential_requests_are_not_paced_by_frames`, `http_declarations_are_fitted_at_start`, `http_body_as_text_is_fitted`, `http_without_request_event_is_answered_501`, `http_without_respond_is_answered_by_the_host`; `tests/host_refused.rs`: `serve_stops_while_effects_keep_coming`, `a_line_that_is_not_an_event_is_held`; `tests/http_parse.rs`: `vectors_agree_with_net_http`, `mutations_agree_with_net_http`, `incremental_feed_equals_whole_buffer`, `limits_give_their_statuses` |
+| HC-24 to HC-26, HF-2 | the HTTP event host | `tests/host_http.rs`: `concurrent_clients_are_served_while_one_stalls`, `idle_server_appends_nothing`, `keep_alive_and_pipelined_requests_answer_in_order`, `head_has_no_body`, `oversized_body_is_413_and_closes`, `refused_request_gets_the_programs_status`, `invalid_response_fails_and_the_id_stays_open`, `responses_are_a_function_of_d`, `http_1_0_and_keep_alive_are_framed_from_d`, `expect_continue_is_transport`, `parallel_load_replays_exactly`, `sigterm_drains_and_validates`, `restart_binds_again`, `sequential_requests_are_not_paced_by_frames`, `http_declarations_are_fitted_at_start`, `http_body_as_text_is_fitted`, `http_without_request_event_is_answered_501`, `http_without_respond_is_answered_by_the_host`, `http_framing_and_host_answers_are_read_from_the_hosts_value`; `tests/host_refused.rs`: `serve_stops_while_effects_keep_coming`, `a_line_that_is_not_an_event_is_held`, `a_line_is_held_whole_and_as_bytes`; `tests/http_parse.rs`: `vectors_agree_with_net_http`, `mutations_agree_with_net_http`, `incremental_feed_equals_whole_buffer`, `limits_give_their_statuses` |
 
 ### E.11 Proposed rules (not normative)
 
@@ -1138,4 +1147,4 @@ Where RCE differs from these sources: GQL and Cypher queries are strings and the
 
 **Read receipt.** Which fcntl command is the append barrier on macOS? (for example F_SETFL)
 
-<!-- body-sha256: 094ded0b9b9561a8e8ca69c1a6d895e3670ca664ea90bc7a7565fbabc0aeb2f7 -->
+<!-- body-sha256: f41430a95d228ad1453c7f74255018c37db00e3afa49fb161830ae94afdb77ab -->

@@ -398,15 +398,15 @@ const CONTINUE: &[u8] = b"HTTP/1.1 100 Continue\r\n\r\n";
 /// HC-26: send each connection's requests one at a time and record, per
 /// request, the final response's bytes and whether the connection closed
 /// after it; then make every response again from D alone, with the
-/// framing read from the request's entry (`http::framing`) and the
-/// `HttpRespond` replay re-derives, and require the same bytes and the
-/// same closes. Returns D's HttpRequest and HttpMalformed payloads.
+/// framing and the host's own answers read from D (`host::http_inputs`)
+/// and the `HttpRespond` replay re-derives, and require the same bytes and
+/// the same closes. Returns, for each HTTP input, the payload of the entry
+/// that delivers it, or of the `host.Unfit` that records it when none does.
 fn check_function_of_d(program: &str, name: &str, conns: Vec<Vec<Req>>) -> Vec<serde_json::Value> {
     check_function_of_d_log(program, name, conns).0
 }
 
-/// [`check_function_of_d`], also returning D. A response the host made
-/// itself (HF-2) is made again from D by `host::http_host_answer`.
+/// [`check_function_of_d`], also returning D.
 fn check_function_of_d_log(program: &str, name: &str, conns: Vec<Vec<Req>>) -> (Vec<serde_json::Value>, String) {
     let d = dir(name);
     let s = serve(program, &d);
@@ -442,23 +442,8 @@ fn check_function_of_d_log(program: &str, name: &str, conns: Vec<Vec<Req>>) -> (
     assert!(ok && err.contains("validated"), "{err}");
     let text = std::fs::read_to_string(&log).unwrap();
     let m = rce_spec_check::program(&std::fs::read_to_string(app(program)).unwrap()).unwrap();
-    let outs = replay_outputs(&m, &text).unwrap();
-    let mut answers = vec![];
-    let mut inputs = vec![];
-    for e in entries(&log) {
-        let v: serde_json::Value = serde_json::from_str(&e.event).unwrap();
-        if let Some(status) = rce_spec_check::host::http_host_answer(&m, &v) {
-            let r = serde_json::json!({"status": status, "names": [], "values": [], "body": ""});
-            answers.push(rce_spec_check::adapters::http::response_bytes(&r, false, true).unwrap());
-            inputs.push(v["payload"].clone());
-            continue;
-        }
-        let Some((head, close)) = rce_spec_check::adapters::http::framing(&v) else { continue };
-        let resp = outs.iter().find(|(q, _)| *q == e.seq).map(|(_, o)| o[0].clone()).unwrap();
-        answers.push(rce_spec_check::adapters::http::response_bytes(&resp, head, close).unwrap());
-        inputs.push(v["payload"].clone());
-    }
-    assert_eq!(answers.len(), got.len(), "one entry per request");
+    let (answers, inputs) = from_d(&m, &text);
+    assert_eq!(answers.len(), got.len(), "one HTTP input per request");
     for ((a, closes), (g, was_closed)) in answers.iter().zip(&got) {
         assert_eq!(String::from_utf8_lossy(a), String::from_utf8_lossy(g));
         assert_eq!(closes, was_closed, "D says close = {closes} for {:?}", String::from_utf8_lossy(g));
@@ -468,10 +453,32 @@ fn check_function_of_d_log(program: &str, name: &str, conns: Vec<Vec<Req>>) -> (
     (inputs, text)
 }
 
+/// HC-26: every response the host wrote, made again from D alone: for each
+/// HTTP input of D (`host::http_inputs`), the host's own answer, or the
+/// first output of the step that delivered it, which these programs make
+/// their `HttpRespond`; and the payload of the entry that delivers each
+/// input, or of the `host.Unfit` that records it when none does.
+fn from_d(m: &rce_spec_check::ast::Module, text: &str) -> (Vec<(Vec<u8>, bool)>, Vec<serde_json::Value>) {
+    let outs = replay_outputs(m, text).unwrap();
+    let es: Vec<Entry> = text.lines().map(|l| Entry::parse_line(l).unwrap()).collect();
+    let mut answers = vec![];
+    let mut inputs = vec![];
+    for x in rce_spec_check::host::http_inputs(m, text).unwrap() {
+        let r = match x.answer {
+            Some(status) => serde_json::json!({"status": status, "names": [], "values": [], "body": ""}),
+            None => outs.iter().find(|(q, _)| *q == x.id).map(|(_, o)| o[0].clone()).unwrap(),
+        };
+        answers.push(rce_spec_check::adapters::http::response_bytes(&r, x.head, x.close).unwrap());
+        let e = es.iter().find(|e| e.seq == x.id && !e.is_host() && (e.kind() == "HttpRequest" || e.kind() == "HttpMalformed")).or_else(|| es.iter().find(|e| e.seq + 1 == x.id && e.kind() == "host.Unfit")).unwrap();
+        inputs.push(serde_json::from_str::<serde_json::Value>(&e.event).unwrap()["payload"].clone());
+    }
+    (answers, inputs)
+}
+
 /// HC-26: the host writes only bytes that are a function of D. Every
 /// response, made again from D (the `HttpRespond` replay re-derives and
-/// the framing read from the request's entry), equals the bytes the
-/// client received, and the connection closed exactly when D says so.
+/// the framing `host::http_inputs` reads), equals the bytes the client
+/// received, and the connection closed exactly when D says so.
 #[test]
 fn responses_are_a_function_of_d() {
     check_function_of_d(
@@ -784,6 +791,52 @@ fn http_without_respond_is_answered_by_the_host() {
     let _ = std::fs::remove_dir_all(&d);
 }
 
+/// HF-2, HC-26: framing and the host's own answers are read from the
+/// host's whole value of a request, which `host.Unfit` holds when the
+/// delivery is not all of it. A module whose `HttpRequest` takes no names
+/// or values is framed by the request's version and Connection field; a
+/// module that takes no status in `HttpMalformed` and cannot answer gets the
+/// status the host classed the request with; and a request the program can
+/// never answer (it is delivered without its id, or `HttpRespond` has no
+/// `req` or `status`) is answered by the host at once, with 501. Every byte
+/// and every close is made again from D.
+#[test]
+fn http_framing_and_host_answers_are_read_from_the_hosts_value() {
+    let d = dir("whole");
+    let write = |n: &str, src: &str| -> String {
+        let p = d.join(n);
+        std::fs::write(&p, src).unwrap();
+        p.to_str().unwrap().to_string()
+    };
+    let head = "struct HttpRespond\n    req: u64\n    status: u64\n    body: text\n\n";
+    // no names, no values: the version and Connection decide the close
+    let fitreq = write("fitreq.rce", &format!("module fitreq\n\nintent \"an HttpRequest without names and values\"\n    example HttpRequest(id: 3, method: \"GET\", target: \"/\", version: \"HTTP/1.1\", body: []) -> seen == 1\n\n{head}event HttpRequest(id: u64, method: text, target: text, version: text, body: List[i64])\n\nstate S\n    seen: u64 = 0\n\nstep S on HttpRequest(id: id, method: _m, target: _t, version: _v, body: _b)\n    seen += 1\n    emit HttpRespond(req: id, status: 200, body: \"ok\")\n"));
+    let (inputs, text) = check_function_of_d_log(
+        &fitreq,
+        "whole-fitreq",
+        vec![
+            vec![req(b"GET / HTTP/1.1\r\nHost: x\r\nConnection: close\r\n\r\n")],
+            vec![req(b"GET / HTTP/1.0\r\nConnection: keep-alive\r\n\r\n"), req(b"GET /b HTTP/1.0\r\n\r\n")],
+            vec![req(b"GET / HTTP/1.1\r\nHost: x\r\n\r\n"), req(b"GET /c HTTP/1.1\r\nHost: x\r\nConnection: close\r\n\r\n")],
+        ],
+    );
+    assert_eq!(inputs.len(), 5);
+    assert!(text.contains(r#""why":"not declared: names, values"},"type":"host.Unfit""#), "{text}");
+    // no status in HttpMalformed, no HttpRespond: the host answers 400
+    let nostatus = write("nostatus.rce", "module nostatus\n\nintent \"an HttpMalformed without status, and no HttpRespond\"\n    example HttpMalformed(id: 1, why: \"x\") -> bad == 1\n\nevent HttpMalformed(id: u64, why: text)\n\nstate S\n    bad: u64 = 0\n\nstep S on HttpMalformed(id: _i, why: _w)\n    bad += 1\n");
+    let (inputs, _) = check_function_of_d_log(&nostatus, "whole-nostatus", vec![vec![req(b"GET /x HTTP/1.1\nHost: x\n\n")]]);
+    assert_eq!(inputs.len(), 1);
+    // requests the program can never answer are answered by the host, at once
+    let noid = write("noid.rce", &format!("module noid\n\nintent \"an HttpRequest without id\"\n    example HttpRequest(method: \"GET\", target: \"/\") -> seen == 1\n\n{head}event HttpRequest(method: text, target: text)\n\nstate S\n    seen: u64 = 0\n\nstep S on HttpRequest(method: _m, target: _t)\n    seen += 1\n"));
+    let noreq = write("noreq.rce", "module noreq\n\nintent \"an HttpRespond without req\"\n    example HttpRequest(id: 1) -> seen == 1\n\nstruct HttpRespond\n    status: u64\n    body: text\n\nevent HttpRequest(id: u64)\n\nstate S\n    seen: u64 = 0\n\nstep S on HttpRequest(id: _id)\n    seen += 1\n    emit HttpRespond(status: 200, body: \"ok\")\n");
+    for (p, n) in [(&noid, "whole-noid"), (&noreq, "whole-noreq")] {
+        let t0 = Instant::now();
+        check_function_of_d(p, n, vec![vec![req(b"GET / HTTP/1.1\r\nHost: x\r\n\r\n")]]);
+        assert!(t0.elapsed() < Duration::from_secs(15), "{n}: answered by the host, not after RESPOND_MS");
+    }
+    let _ = std::fs::remove_dir_all(&d);
+}
+
 /// HC-10b with HC-24: an `HttpRequest` typed on stdin is admitted like any
 /// input and marked by `host.Typed`. No connection holds its id, so the
 /// program's answer fails with `no request N` and nothing is written to a
@@ -838,5 +891,11 @@ fn typed_http_request_is_an_input() {
     let k = es.iter().position(|e| e.event.contains(r#""id":77"#)).unwrap();
     assert_eq!(es[k - 1].event, format!(r#"{{"payload":{{"seq":{k}}},"type":"host.Typed"}}"#));
     replays(ECHO, &log);
+    // the typed request is no HTTP input: D holds one, the client's
+    let text = std::fs::read_to_string(&log).unwrap();
+    let m = rce_spec_check::program(&std::fs::read_to_string(app(ECHO)).unwrap()).unwrap();
+    let ins = rce_spec_check::host::http_inputs(&m, &text).unwrap();
+    assert_eq!(ins.len(), 1, "{ins:?}");
+    assert!(ins[0].id as usize != k && ins[0].answer.is_none(), "{ins:?}");
     let _ = std::fs::remove_dir_all(&d);
 }

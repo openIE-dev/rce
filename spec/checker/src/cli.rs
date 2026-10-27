@@ -1657,7 +1657,7 @@ fn serve_loop(h: &mut crate::host::Host, src: &str, out: &mut dyn Write, mut htt
                 Inbound::Http(x @ (HttpIn::Request { .. } | HttpIn::Malformed { .. })) => {
                     // HC-24, HF-2: the host fits the input to the module; the
                     // id is the seq of the entry that delivers it, and the
-                    // framing (HC-26) is read from what that entry holds
+                    // framing (HC-26) is read from the host's whole value
                     let (name, p, reply) = match x {
                         HttpIn::Request { req, reply } => {
                             let mut p = serde_json::Map::new();
