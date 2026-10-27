@@ -7,16 +7,16 @@ root = os.path.join(os.path.dirname(os.path.abspath(__file__)), '../..')
 src = open(os.path.join(root, 'lib/rand/det.rce')).read()
 chk = open(os.path.join(root, 'tests/rand/det_checks.rce')).read()
 M = [
-    ('rotl32(v[d] ^ v[a], 16)', 'rotl32(v[d] ^ v[a], 15)'),
-    ('rotl32(v[b] ^ v[c], 7)', 'rotl32(v[b] ^ v[c], 8)'),
+    ('det_rotl32(v[d] ^ v[a], 16)', 'det_rotl32(v[d] ^ v[a], 15)'),
+    ('det_rotl32(v[b] ^ v[c], 7)', 'det_rotl32(v[b] ^ v[c], 8)'),
     ('[1634760805, ', '[1634760806, '),
-    ('s.push(counter & M32)', 's.push((counter + 1) & M32)'),
-    ('out.push((x[i] + s[i]) & M32)', 'out.push(x[i])'),
+    ('s.push(counter & DET_M32)', 's.push((counter + 1) & DET_M32)'),
+    ('out.push((x[i] + s[i]) & DET_M32)', 'out.push(x[i])'),
     ('quarter(&mut x, 1, 6, 11, 12)', 'quarter(&mut x, 1, 6, 11, 13)'),
     ('    for _ in 0..10\n', '    for _ in 0..9\n'),
     ('    r.block += 1', '    r.block += 2'),
     ('    while v >= n bound 256', '    while v > n bound 256'),
-    ('let k = bitlen(n - 1)', 'let k = bitlen(n)'),
+    ('let k = det_bitlen(n - 1)', 'let k = det_bitlen(n)'),
     ('    return lo + v', '    return lo + v + 1'),
     ('return next_u32(r) >> (32 - k)', 'return next_u32(r) & ((1 << k) - 1)'),
     ('below(r, i + 1) catch 0', 'below(r, i) catch 0'),
@@ -25,7 +25,7 @@ M = [
     ('r.stream >> 32, r.block >> 32]', '0, r.block >> 32]'),
     ('r.stream >> 32, r.block >> 32]', 'r.stream >> 32, 0]'),
     ('if b < 0 or b > 255', 'if b < 0 or b > 256'),
-    ('((x << n) | (x >> (32 - n))) & M32', '((x << n) | (x >> (31 - n))) & M32'),
+    ('((x << n) | (x >> (32 - n))) & DET_M32', '((x << n) | (x >> (31 - n))) & DET_M32'),
     ('o.push((w >> (8 * (i % 4))) & 255)', 'o.push((w >> (8 * (3 - i % 4))) & 255)'),
     ('if n < 1 or n > 4611686018427387904', 'if n < 0 or n > 4611686018427387904'),
 ]

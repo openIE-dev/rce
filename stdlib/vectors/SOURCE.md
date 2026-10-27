@@ -1563,3 +1563,91 @@ depend on it), floats in JSON other than as number lexemes (CPython's float
 text is not reproduced), and logfmt input as bytes: a program turns
 received bytes into text first (`List.utf8`, or `text.utf8` for input that
 may be malformed).
+
+## test.prop, test.fake (`lib/test/prop.rce`, `lib/test/fake.rce`)
+
+No official vector set exists for property-based testing; the modules
+are checked against the reference implementations whose semantics they
+follow. All vectors below are derived, not official.
+
+- Hypothesis 6.170.12 (https://github.com/HypothesisWorks/hypothesis,
+  `pip install hypothesis==6.170.12`, Mozilla Public License 2.0), under
+  CPython 3.13: `scripts/gen/prop_gen.py` calls its
+  `internal.conjecture.choice` (`choice_to_index`, `choice_from_index`),
+  `internal.conjecture.floats` (`float_to_lex`, `lex_to_float`) and
+  `internal.intervalsets.IntervalSet` and writes
+  `tests/test/prop_checks_2.rce` (147 integer index and value vectors over
+  18 ranges, from one value up to all of i64; 73 character shrink order
+  vectors over 7 interval sets) and `prop_checks_3.rce` (62 `float_to_lex`,
+  52 `lex_to_float`, 494 bounded-float `choice_from_index` vectors through
+  the clamper, 13 bound pairs). It also runs `hypothesis.find` (database
+  None, derandomize, 1000 examples) on 19 known shrinking examples
+  (integers, lists, pairs, duplicates, text, floats, dictionaries, a
+  record, booleans) and checks that `prop_find` under seed 1 ends at the
+  same minimal example in 18 (`prop_checks_4.rce`, `prop_checks_5.rce`).
+  The 19th, the least positive non-integer float, is 0.5 in Hypothesis and
+  1.5 in test.prop; the check asserts 1.5 and that `float_to_lex(1.5)` is
+  below `float_to_lex(0.5)`, so test.prop's result is the simpler one in
+  Hypothesis's own order (Hypothesis's float shrinker stops earlier).
+- QuickCheck 2.15.0.1 (https://hackage.haskell.org/package/QuickCheck-2.15.0.1,
+  BSD-3-Clause): `computeSize` of `Test.QuickCheck.Test` is transcribed in
+  the generator, which asserts the sequence given in its source comment
+  (maxSuccess 250, maxSize 100: 0..99, 0..99, 0, 2, .., 98); 648 vectors
+  over 8 settings in `prop_checks_4.rce`. GHC is not available here, so
+  QuickCheck itself was not run; `stdArgs`, `tooManyDiscards`, `localMin`
+  and `arbitrarySizedBoundedIntegral` were read from the same source.
+- Shrinking minimality: `tests/test/prop_checks.rce` checks that shrunk
+  results are 1-minimal (no single deleted choice, and no single choice
+  lowered by one or to zero, gives a simpler failing case) on three known
+  examples, besides the find comparisons above.
+- CPython 3.13 `uuid` and `datetime`: `scripts/gen/fake_gen.py` writes
+  `tests/test/fake_checks_2.rce` (42 version 4 UUID texts from
+  `uuid.UUID(bytes=..., version=4)`, 76 dates from
+  `date(1970, 1, 1) + timedelta(days)` across 0001-01-01..9999-12-31, 51
+  RFC 3339 timestamps).
+- Property checks written with test.prop for other modules:
+  `tests/enc/enc_checks_2.rce` (base64, LEB128, zigzag and CBOR round trips
+  and decoder canonicity) and `tests/col/col_checks_3.rce` (Deque, OrdMap,
+  HMap, heap and sets against List, Map and Set models). Over all of
+  Unicode the CBOR round trip fails, shrunk to `[CText("\u{1f}")]`: the
+  enc decoder reads only tab, LF, CR and U+0020..U+007E in text (the
+  documented ASCII limit, which also excludes the other ASCII control
+  characters); the check draws text from that set.
+
+Word lists of `lib/test/fake.rce`, written by `scripts/gen/fake_gen.py`
+from Faker 40.43.0 (https://github.com/joke2k/faker, `pip install
+faker==40.43.0`): the 30 heaviest-weighted female and 30 male first names
+and the 50 heaviest last names of the `en_US` person provider (Faker cites
+the US Social Security Administration's top names of the 1960s to 1990s
+and US Census surname counts), 20 street suffixes chosen from the `en_US`
+address provider (USPS Publication 28 names), its 7 city prefixes, 18
+distinct city suffixes and 51 state codes, and the 182 words of the `la`
+lorem provider. Faker's notice:
+
+    Copyright (c) 2012 Daniele Faraglia
+
+    Permission is hereby granted, free of charge, to any person obtaining a copy
+    of this software and associated documentation files (the "Software"), to deal
+    in the Software without restriction, including without limitation the rights
+    to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+    copies of the Software, and to permit persons to whom the Software is
+    furnished to do so, subject to the following conditions:
+
+    The above copyright notice and this permission notice shall be included in
+    all copies or substantial portions of the Software.
+
+    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+    AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+    OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+    THE SOFTWARE.
+
+Limits: a generator is a named function, since rce does not write back a
+closure's `&mut` parameter; a module that uses test.prop sees rand.det's
+names, so it cannot also use crypto (`chacha20`), hash.blake3
+(`block_words`), math or ui.input (`split`), or bind those names as
+locals, until imported names are renamed. A property that traps (an
+overflow, an index out of range) ends its check instead of being reported
+as a failure, since a trap cannot be caught.

@@ -81,19 +81,19 @@ pub fn b64_decode(s: &text, url: bool, pad: bool) -> List[i64] ! BadBase64
         fail BadBase64(at: n as i64)
     var o: List[i64] = []
     var acc: i64 = 0
-    var bits: i64 = 0
+    var nbits: i64 = 0
     var i: usize = 0
     while i < n bound 16777216
         let v = b64_val(s[i] as i64, url)
         if v < 0
             fail BadBase64(at: i as i64)
         acc = ((acc << 6) | v) & 16777215
-        bits += 6
-        if bits >= 8
-            bits -= 8
-            o.push((acc >> bits) & 255)
+        nbits += 6
+        if nbits >= 8
+            nbits -= 8
+            o.push((acc >> nbits) & 255)
         i += 1
-    if bits > 0 and (acc & ((1 << bits) - 1)) != 0
+    if nbits > 0 and (acc & ((1 << nbits) - 1)) != 0
         fail BadBase64(at: (n - 1) as i64)
     return o
 

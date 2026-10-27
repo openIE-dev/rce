@@ -17,7 +17,7 @@ module rand.det
 # serialise little endian. Bytes are List[i64] with values 0..255; words
 # are i64 masked to 32 bits.
 
-const M32: i64 = 4294967295
+const DET_M32: i64 = 4294967295
 
 # The authority to seed from fresh entropy. A host grants it by putting a
 # Cap[Entropy] in the event that delivers the Random bytes.
@@ -34,19 +34,19 @@ pub struct Rng
     buf: List[i64]
     pos: i64
 
-fn rotl32(x: i64, n: i64) -> i64 = ((x << n) | (x >> (32 - n))) & M32
+fn det_rotl32(x: i64, n: i64) -> i64 = ((x << n) | (x >> (32 - n))) & DET_M32
 
-fn le32(b: &[i64], i: usize) -> i64 = b[i] | (b[i + 1] << 8) | (b[i + 2] << 16) | (b[i + 3] << 24)
+fn det_le32(b: &[i64], i: usize) -> i64 = b[i] | (b[i + 1] << 8) | (b[i + 2] << 16) | (b[i + 3] << 24)
 
 pub fn quarter(v: &mut List[i64], a: usize, b: usize, c: usize, d: usize)
-    v[a] = (v[a] + v[b]) & M32
-    v[d] = rotl32(v[d] ^ v[a], 16)
-    v[c] = (v[c] + v[d]) & M32
-    v[b] = rotl32(v[b] ^ v[c], 12)
-    v[a] = (v[a] + v[b]) & M32
-    v[d] = rotl32(v[d] ^ v[a], 8)
-    v[c] = (v[c] + v[d]) & M32
-    v[b] = rotl32(v[b] ^ v[c], 7)
+    v[a] = (v[a] + v[b]) & DET_M32
+    v[d] = det_rotl32(v[d] ^ v[a], 16)
+    v[c] = (v[c] + v[d]) & DET_M32
+    v[b] = det_rotl32(v[b] ^ v[c], 12)
+    v[a] = (v[a] + v[b]) & DET_M32
+    v[d] = det_rotl32(v[d] ^ v[a], 8)
+    v[c] = (v[c] + v[d]) & DET_M32
+    v[b] = det_rotl32(v[b] ^ v[c], 7)
 
 # The ChaCha20 block function of RFC 8439 2.3 on words: 8 key words, the
 # 32-bit counter, 3 nonce words; 16 output words.
@@ -54,7 +54,7 @@ pub fn block_words(key: &[i64], counter: i64, nonce: &[i64]) -> List[i64]
     var s: List[i64] = [1634760805, 857760878, 2036477234, 1797285236]
     for i in 0..8
         s.push(key[i])
-    s.push(counter & M32)
+    s.push(counter & DET_M32)
     for i in 0..3
         s.push(nonce[i])
     var x = copy(s)
@@ -69,16 +69,16 @@ pub fn block_words(key: &[i64], counter: i64, nonce: &[i64]) -> List[i64]
         quarter(&mut x, 3, 4, 9, 14)
     var out: List[i64] = []
     for i in 0..16
-        out.push((x[i] + s[i]) & M32)
+        out.push((x[i] + s[i]) & DET_M32)
     return out
 
-fn words_le(b: &[i64]) -> List[i64]
+fn det_words_le(b: &[i64]) -> List[i64]
     var w: List[i64] = []
     for i in 0..(b.len() / 4)
-        w.push(le32(b, 4 * i))
+        w.push(det_le32(b, 4 * i))
     return w
 
-fn bytes_le(w: &[i64]) -> List[i64]
+fn det_bytes_le(w: &[i64]) -> List[i64]
     var o: List[i64] = []
     for v in w
         o.push(v & 255)
@@ -89,10 +89,10 @@ fn bytes_le(w: &[i64]) -> List[i64]
 
 # RFC 8439 2.3 on bytes: 32-byte key, counter, 12-byte nonce; 64 bytes.
 pub fn chacha20_block(key: &[i64], counter: i64, nonce: &[i64]) -> List[i64]
-    let kw = words_le(key)
-    let nw = words_le(nonce)
+    let kw = det_words_le(key)
+    let nw = det_words_le(nonce)
     let w = block_words(&kw, counter, &nw)
-    return bytes_le(&w)
+    return det_bytes_le(&w)
 
 # RFC 8439 2.4: XOR data with the keystream from the initial counter.
 pub fn chacha20(key: &[i64], counter: i64, nonce: &[i64], data: &[i64]) -> List[i64]
@@ -108,31 +108,31 @@ pub fn chacha20(key: &[i64], counter: i64, nonce: &[i64], data: &[i64]) -> List[
         i += 1
     return out
 
-fn make(seed: &[i64], stream: i64) -> Rng ! BadSeed
+fn det_make(seed: &[i64], stream: i64) -> Rng ! BadSeed
     if seed.len() != 32 or stream < 0
         fail BadSeed(len: seed.len() as i64)
     for b in seed
         if b < 0 or b > 255
             fail BadSeed(len: seed.len() as i64)
-    return Rng(key: words_le(seed), stream: stream, block: 0, buf: [], pos: 16)
+    return Rng(key: det_words_le(seed), stream: stream, block: 0, buf: [], pos: 16)
 
 # A generator from fresh entropy: 32 logged Random bytes, admitted only
 # with the capability that came with them.
-pub fn from_entropy(_c: Cap[Entropy], seed: &[i64], stream: i64) -> Rng ! BadSeed = make(seed, stream)
+pub fn from_entropy(_c: Cap[Entropy], seed: &[i64], stream: i64) -> Rng ! BadSeed = det_make(seed, stream)
 
 # A generator from a seed already in the program or its log.
-pub fn from_seed(seed: &[i64], stream: i64) -> Rng ! BadSeed = make(seed, stream)
+pub fn from_seed(seed: &[i64], stream: i64) -> Rng ! BadSeed = det_make(seed, stream)
 
-fn refill(r: &mut Rng)
-    let nonce = [r.stream & M32, r.stream >> 32, r.block >> 32]
-    r.buf = block_words(&r.key, r.block & M32, &nonce)
+fn det_refill(r: &mut Rng)
+    let nonce = [r.stream & DET_M32, r.stream >> 32, r.block >> 32]
+    r.buf = block_words(&r.key, r.block & DET_M32, &nonce)
     r.block += 1
     r.pos = 0
 
 # The next 32-bit word of the stream, 0 .. 2^32 - 1.
 pub fn next_u32(r: &mut Rng) -> i64
     if r.pos >= 16
-        refill(r)
+        det_refill(r)
     let v = r.buf[r.pos as usize]
     r.pos += 1
     return v
@@ -147,7 +147,7 @@ pub fn bits(r: &mut Rng, k: i64) -> i64
     let lo = next_u32(r)
     return (hi << 32) | lo
 
-fn bitlen(x: i64) -> i64
+fn det_bitlen(x: i64) -> i64
     var n: i64 = 0
     var v = x
     while v > 0 bound 64
@@ -160,7 +160,7 @@ fn bitlen(x: i64) -> i64
 pub fn below(r: &mut Rng, n: i64) -> i64 ! BadRange
     if n < 1 or n > 4611686018427387904
         fail BadRange(lo: 0, hi: n)
-    let k = bitlen(n - 1)
+    let k = det_bitlen(n - 1)
     var v = bits(r, k)
     while v >= n bound 256
         v = bits(r, k)
@@ -198,4 +198,4 @@ pub fn shuffle(r: &mut Rng, xs: &mut List[i64])
 # stream id. The parent advances by 8 words.
 pub fn split(r: &mut Rng, stream: i64) -> Rng ! BadSeed
     let seed = bytes(r, 32)
-    return make(&seed, stream)
+    return det_make(&seed, stream)
