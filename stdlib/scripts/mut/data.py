@@ -16,7 +16,7 @@ import glob, os, re, shutil, subprocess, sys, tempfile
 from concurrent.futures import ThreadPoolExecutor
 RCE = os.environ.get('RCE', 'rce')
 root = os.path.join(os.path.dirname(os.path.abspath(__file__)), '../..')
-MODS = ('events', 'feed', 'cdc', 'sync')
+MODS = ('events', 'feed', 'cdc', 'sync', 'csv')
 SRC = {n: open(os.path.join(root, 'lib/data/%s.rce' % n)).read() for n in MODS}
 sys.path.insert(0, os.path.join(root, 'scripts'))
 import uses
@@ -175,6 +175,42 @@ M = [('events',) + m for m in [
     ('        if not rows_has(&b, &r)\n            dels.push(copy(r))', '        if true\n            dels.push(copy(r))'),
     ('        elif c.action == "U"\n            nx.push(copy(c.new))', '        elif c.action == "U"\n            nx.push(copy(c.old))'),
     ('        let key = if c.action == "I" then row_id(&c.new) else row_id(&c.old)', '        let key = row_id(&c.new)'),
+]] + [('csv',) + m for m in [
+    ('            return m_pack(S_QIN, U_KEEP, A_ADD)\n        if k == K_DEL\n            return m_pack(S_FLD, U_KEEP, A_SAVE)', '            return m_pack(S_QIN, U_KEEP, A_NONE)\n        if k == K_DEL\n            return m_pack(S_FLD, U_KEEP, A_SAVE)'),
+    ('        if sp\n            return m_pack(S_FLD, U_SET, A_NONE)', '        if false\n            return m_pack(S_FLD, U_SET, A_NONE)'),
+    ('        if k == K_EOL and st == S_AESC\n', '        if false\n'),
+    ('        return m_pack(S_IN, U_KEEP, if k == K_EOL then A_ADDNL else A_ADD)', '        return m_pack(S_IN, U_KEEP, if k == K_EOL then A_NONE else A_ADD)'),
+    ('        if not strict\n            return m_pack(S_IN, U_KEEP, A_ADD)', '        if true\n            return m_pack(S_IN, U_KEEP, A_ADD)'),
+    ('            return m_pack(S_QIN, U_CLEAR, A_NONE)', '            return m_pack(S_QIN, U_SET, A_NONE)'),
+    ('    let body = if n > 0 and p.endswith("\\r") then p[0:n - 1] else copy(p)', '    let body = copy(p)'),
+    ('                if t.startswith(d.delim)\n', '                if false\n'),
+    ('                st = if d.dquote then S_QQ else S_IN\n', '                st = S_QQ\n'),
+    ('            if flen >= limit\n', '            if flen > limit\n'),
+    ('                    if flen + m > limit\n', '                    if flen + m > limit + 1\n'),
+    ('            let ec = if ci then col else col + 1', '            let ec = col'),
+    ('        if pre and head.len() == 3\n            head = []', '        if false\n            head = []'),
+    ('                        if d.dquote\n                            ps.push(copy(d.quote))', '                        if false\n                            ps.push(copy(d.quote))'),
+    ('    if nf == 1 and size == 0\n', '    if false\n'),
+    ('        CsvNull -> return qm == CSV_QUOTE_NONNUMERIC or qm == CSV_QUOTE_ALL', '        CsvNull -> return qm == CSV_QUOTE_ALL'),
+    ('    if d.delim == d.quote\n', '    if false\n'),
+    ('    let skip = dn[di] == spaces', '    let skip = false'),
+    ('            consistency -= 0.01', '            consistency -= 0.02'),
+    ('const SN_PREFERRED: List[text] = [",", "\\t", ";", " ", ":"]', 'const SN_PREFERRED: List[text] = [";", ",", "\\t", " ", ":"]'),
+    ('                            if cs[j] == q\n                                return true', '                            if cs[j] == d\n                                return true'),
+    ('    while i < o.rows.len() and o.rows[i].row <= 22 bound 1000001', '    while i < o.rows.len() and o.rows[i].row <= 12 bound 1000001'),
+    ('            elif ty[col2] == 1 and csv_complex_ok(&header[col2])', '            elif ty[col2] == 1'),
+    ('            if not a_digit(prev)\n                return none', '            if false\n                return none'),
+    ('            if i < n and s[i] == 40\n', '            if i < n and s[i] == 41\n'),
+    ('            if e < n and a_digit(s[e])\n', '            if e < n\n'),
+    ('        return (x >= 48 and x <= 57) or (x >= 65 and x <= 90) or (x >= 97 and x <= 122) or x == 95', '        return (x >= 48 and x <= 57) or (x >= 65 and x <= 90) or (x >= 97 and x <= 122)'),
+    ('            let c = if n < h.len() then n + 1 else h.len() + 1', '            let c = n + 1'),
+    ('    while k < o.rows.len() and o.rows[k].fields.len() == 0 bound 1000001\n        k += 1\n    var rest', '    while k < o.rows.len() and o.rows[k].fields.len() == 9 bound 1000001\n        k += 1\n    var rest'),
+    ('        if not q and f == "" and (qm == CSV_QUOTE_NOTNULL or qm == CSV_QUOTE_STRINGS)', '        if not q and f == "" and qm == CSV_QUOTE_STRINGS'),
+    ('            elif ci\n                skip = true', '            elif false\n                skip = true'),
+    ('        elif py_space_hi(x)\n', '        elif false\n'),
+    ('                if i + k == b.len() and lead_ok(b[i]) and not (tail_end and last)', '                if i + k == b.len() and not (tail_end and last)'),
+    ('    if d.eol.contains(c)\n        return "bad " + what + " or lineterminator value"', '    if false\n        return "bad " + what + " or lineterminator value"'),
+    ('            if k == K_LF\n                eol_next = true\n                bol = true', '            if k == K_LF\n                bol = true'),
 ]]
 def one(ab):
     i, (name, a, b) = ab
