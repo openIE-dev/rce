@@ -1071,14 +1071,15 @@ kept in `vectors/obs/log_ref.json`:
   removes; string, integer, boolean and nil values, `"null"`, empty strings,
   both i64 extremes) through `MarshalKeyvals` (103 of them refused with
   ErrInvalidKey) and through `EncodeKeyval` pair by pair (a refused key
-  writes nothing): 450 checks of `lf_encode` and `lf_encode_skip`. 417
+  writes nothing): 450 checks of `lf_encode` and `lf_encode_skip`. 421
   single lines through the Decoder (the 122 encoded lines as round trips,
-  their mutations, random lines and one case for each syntax error: 46
-  unexpected `"`, 18 unexpected `=`, 31 invalid key, 21 invalid quoted
-  value, 9 unterminated): pairs, message and byte offset (`Pos - 1`) of
-  `lf_scan`. 50 multi-line texts (LF, CRLF, empty lines, a final CR) through
-  one Decoder: `lf_lines` gives the same records; go-logfmt stops at the
-  first error (20 texts), so only the lines up to it are compared there.
+  their mutations, random lines, surrogate pairs and lone surrogates, and
+  cases for each syntax error; 46 unexpected `"`, 18 unexpected `=`, 31
+  invalid key, 21 invalid quoted value, 9 unterminated): pairs, message and
+  byte offset (`Pos - 1`) of `lf_scan`. 55 multi-line texts (LF, CRLF,
+  empty lines, a final CR, a fault before a CR) through one Decoder:
+  `lf_lines` gives the same records; go-logfmt stops at the first error
+  (22 texts), so only the lines up to it are compared there.
 - **zap** (go.uber.org/zap v1.27.0): 36 runs of
   `zapcore.NewSamplerWithOptions` (tick 0..1000 ns, first 0..10, thereafter
   0..5, times from -50 to 10^18, levels Debug..Error as severities 5, 9,
@@ -1096,14 +1097,15 @@ kept in `vectors/obs/log_ref.json`:
   from json.dumps and their logfmt from go-logfmt `EncodeKeyval`: 330
   checks.
 - **RFC 3339**: 60 instant texts from `datetime` (fraction digits truncated,
-  fixed offsets) and 65 parses (40 round trips, 25 restated cases: leap
-  day, leap second refused, hour 24, ten fraction digits, offset +24:00,
-  dates outside the i64 nanosecond range refused), the grammar restated as
-  a regular expression, the date checked by `datetime.date`: 125 checks.
+  fixed offsets) and 70 parses (40 round trips, 30 restated cases: leap
+  days of 2000, 2096, 1900 and 2100, leap second refused, hour 24, ten
+  fraction digits, offset +24:00, dates outside the i64 nanosecond range
+  refused; 21 refused in all), the grammar restated as a regular
+  expression, the date checked by `datetime`: 130 checks.
 
-1,638 generated checks in `tests/obs/log_checks_2.rce` (logfmt),
-`_3` (sampling and times) and `_4` (JSON and records), and 78 written
-checks in `log_checks.rce` and `log_checks_size*.rce`: the 24
+1,655 generated checks in `tests/obs/log_checks_2.rce` (logfmt, 959),
+`_3` (sampling and times, 166) and `_4` (JSON and records, 530), and 79
+written checks in `log_checks.rce` and `log_checks_size*.rce`: the 24
 OpenTelemetry short names (Logs Data Model, SeverityNumber), level parsing
 (ASCII case only, so U+0131 does not fold onto INFO), records from decoded
 pairs, filters and projection, the ring buffer against a list model, the
@@ -1112,6 +1114,7 @@ chunked reader against whole-text reading for chunk sizes 1..9 on fixed and
 tripped through logfmt, zap's rule on restated cases, and the size limits
 (values cut at character boundaries; lines of more than 1,000,000 bytes
 lose their last pairs to a final `truncated=true`; `lf_encode` refuses).
+`scripts/mut/obs.py`: 37 of 37 mutants of the module fail the checks.
 
 Departures, each deliberate: go-logfmt's `MarshalKeyvals` fails on a key
 that filters to nothing, and so does `lf_encode`, but record lines and

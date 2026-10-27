@@ -30,7 +30,7 @@ check sev_round(-30, 60)
 check spar("info") == 9 and spar("Warn3") == 15 and spar("warning") == 13 and spar("WARNING") == 13 and spar("fatal4") == 24 and spar("tRaCe") == 1
 check spar("") == -999 and spar("INF") == -999 and spar("INFO5") == -999 and spar("INFO1") == -999 and spar(" INFO") == -999
 check spar("\u{131}nfo") == -999
-check spar("+5") == -999 and spar("-") == -999 and spar("12a") == -999 and spar("1234567890123456789") == 1234567890123456789 and spar("-9223372036854775808") == 0 - 9223372036854775807 - 1 and spar("9223372036854775808") == -999 and spar("99999999999999999999") == -999 and spar("-4") == -4
+check spar("+5") == -999 and spar("-") == -999 and spar("12a") == -999 and spar("1234567890123456789") == 1234567890123456789 and spar("-9223372036854775808") == 0 - 9223372036854775807 - 1 and spar("9223372036854775808") == -999 and spar("99999999999999999999") == -999 and spar("9999999999999999999") == -999 and spar("-9999999999999999999") == -999 and spar("-4") == -4
 
 # ---- building records ----
 
@@ -199,6 +199,7 @@ check ch("abcdefgh\na=1\n", 100, 5) == ["!5:line too long", "|", "a", "1", "|"]
 check ch("abcdefgh", 2, 5) == ["!5:line too long", "|"]
 check ch("abcdefgh\nx=1", 4, 5) == ["!5:line too long", "|", "x", "1", "|"]
 check ch("abcde\nab\r\n", 1, 5) == ["abcde", "", "|", "ab", "", "|"]
+check ch("abcdef\nx=1\n", 100, 5) == ["!5:line too long", "|", "x", "1", "|"] and ch("abcd\r\n", 100, 5) == ["abcd", "", "|"]
 check lf_reader(0).max == 1 and lf_reader(5000000).max == 1000000
 
 # ---- filtering and projection ----

@@ -574,6 +574,10 @@ check gdec("a=\u{fffd}") == ["a", "\u{fffd}"]
 check gdec("a=\"\\ufffd\"") == ["a", "\u{fffd}"]
 check gdec("a=\"é\\n\"") == ["a", "é\n"]
 check gdec("a=\u{0}b") == ["a", "", "b", ""]
+check gdec("a=\"\\udc00\\udc00\"") == ["a", "\u{fffd}\u{fffd}"]
+check gdec("a=\"\\udbff\\udfff\"") == ["a", "\u{10FFFF}"]
+check gdec("a=\"\\ud800\\ud800\\udc00\"") == ["a", "\u{fffd}𐀀"]
+check gdec("a=\"\\uD83D\\uDE00\"") == ["a", "😀"]
 check gdec(" k08") == ["k08", ""]
 check gdec("\u{fffd}xé\u{fffd}C") == ["!10:invalid key"]
 check gdec("😀\u{fffd}") == ["!7:invalid key"]
@@ -964,65 +968,73 @@ check glines("\n\na=1\n\n", 4) == ["|", "|", "a", "1", "|", "|"]
 check gnlines("\n\na=1\n\n") == 4
 check glines("a=1\nb=\"x\nc=3", 2) == ["a", "1", "|", "!4:unterminated quoted value", "|"]
 check glines("x=1\r\n\r\ny=\"\\q\"\nz=1", 3) == ["x", "1", "|", "|", "!6:invalid quoted value", "|"]
-check glines("\ta\u{7f}😀\t\"'d D\r\n xD 0dkk\u{1}=aDé\n\r\n日/=\"日\\u0001é\"\ncyunull\n\t\\'D3a\u{fffd}d\n", 1) == ["a\u{7f}😀", "", "!8:unexpected '\"'", "|"]
-check glines("cz\\=plain \u{2028}=\"\\u000c0\\\\日é\u{7f}\"\nb\u{1}kx\n-=\"\\nx=\\u0008 \\u0008\"", 3) == ["cz\\", "plain", "\u{2028}", "\u{c}0\\日é\u{7f}", "|", "b", "", "kx", "", "|", "-", "\nx=\u{8} \u{8}", "|"]
-check gnlines("cz\\=plain \u{2028}=\"\\u000c0\\\\日é\u{7f}\"\nb\u{1}kx\n-=\"\\nx=\\u0008 \\u0008\"") == 3
-check glines("x\\\u{2028}yxé=\"/😀-\u{2028}é\\\"\\t-\" u€a=\"€ =9\"", 1) == ["x\\\u{2028}yxé", "/😀-\u{2028}é\"\t-", "u€a", "€ =9", "|"]
-check gnlines("x\\\u{2028}yxé=\"/😀-\u{2028}é\\\"\\t-\" u€a=\"€ =9\"") == 1
-check glines("/-=\u{2028}€\r\n€=\"\\u0008\" 日=false\r\n\\xx=9u '=\"\\u0001\"\n€z\u{7f}=0", 4) == ["/-", "\u{2028}€", "|", "€", "\u{8}", "日", "false", "|", "\\xx", "9u", "'", "\u{1}", "|", "€z\u{7f}", "0", "|"]
-check gnlines("/-=\u{2028}€\r\n€=\"\\u0008\" 日=false\r\n\\xx=9u '=\"\\u0001\"\n€z\u{7f}=0") == 4
-check glines("za1=\"\\t\\\\\\nz\" 0=\"\\u0001\u{7f}€\\r c\"\n\u{7f}€=false x-1x=true 😀90\u{7f}0=true x😀0\\=cx\nkey=\"v\\ufffd\" uxy=\"ab\"\r\n-=\"null\" 'a= b=é xy\u{2028}=\"\\\\\\\"\\u0008ay\" €a=\nb😀\\\u{fffd}bx b\r\n\\= cé=\"€z11y/\\u0008\" y😀日=\"\\\"\\r9€\\u001f\\u0008 z\"", 5) == ["za1", "\t\\\nz", "0", "\u{1}\u{7f}€\r c", "|", "\u{7f}€", "false", "x-1x", "true", "😀90\u{7f}0", "true", "x😀0\\", "cx", "|", "key", "v\u{fffd}", "uxy", "ab", "|", "-", "null", "'a", "", "b", "é", "xy\u{2028}", "\\\"\u{8}ay", "€a", "", "|", "!11:invalid key", "|"]
-check glines("-z=-9223372036854775808", 1) == ["-z", "-9223372036854775808", "|"]
-check gnlines("-z=-9223372036854775808") == 1
-check glines("Dé\u{7f}\r\n", 1) == ["Dé\u{7f}", "", "|"]
-check gnlines("Dé\u{7f}\r\n") == 1
-check glines(" a=k\\0é'x\n", 1) == ["a", "k\\0é'x", "|"]
-check gnlines(" a=k\\0é'x\n") == 1
-check glines("'é€\u{7f}\u{7f}=日b u=null u1=\"/éx0\\r日u/\" 日日-\u{2028}\u{2028}😀=\"b\\u001f9\" 9-=false\r\nCk/😀\tDx\r\na=\"x\"\"", 3) == ["'é€\u{7f}\u{7f}", "日b", "u", "null", "u1", "/éx0\r日u/", "日日-\u{2028}\u{2028}😀", "b\u{1f}9", "9-", "false", "|", "Ck/😀", "", "Dx", "", "|", "a", "x", "!5:unexpected '\"'", "|"]
-check glines("a=\r\n0=\"\\u0008 \\ry\" 0/=-9223372036854775808 \u{7f}1😀0€=\"cb\\n=\u{2028}\\t\"\r\n\u{7f}kna' '\nD 0\r\nb'é=\"\\u000c\"\r\n日1\\=false b'=\"b \u{7f}\" \u{7f}b😀bz=\"null\" x-b=-1\n", 6) == ["a", "", "|", "0", "\u{8} \ry", "0/", "-9223372036854775808", "\u{7f}1😀0€", "cb\n=\u{2028}\t", "|", "\u{7f}kna'", "", "'", "", "|", "D", "", "0", "", "|", "b'é", "\u{c}", "|", "日1\\", "false", "b'", "b \u{7f}", "\u{7f}b😀bz", "null", "x-b", "-1", "|"]
-check gnlines("a=\r\n0=\"\\u0008 \\ry\" 0/=-9223372036854775808 \u{7f}1😀0€=\"cb\\n=\u{2028}\\t\"\r\n\u{7f}kna' '\nD 0\r\nb'é=\"\\u000c\"\r\n日1\\=false b'=\"b \u{7f}\" \u{7f}b😀bz=\"null\" x-b=-1\n") == 6
-check glines("xa€=\"/=日\u{7f}'\" 0\\\u{7f}😀=\r\n=\t\r\n3éD3/=é=kndé\nzuu= 9日/\u{2028}=z c=\"'aé\\\\ 0\\ufffdx\" 'x=\"\\tb\\t\\ufffdy'by\"\r\n'z=false €é9\u{2028}=\"x=y\" 😀=true", 2) == ["xa€", "/=日\u{7f}'", "0\\\u{7f}😀", "", "|", "!0:unexpected '='", "|"]
-check glines("😀Cd\t x/ =xa", 1) == ["😀Cd", "", "x/", "", "!11:unexpected '='", "|"]
-check glines("n\\\t\"CC3\\CDd \n", 1) == ["n\\", "", "!3:unexpected '\"'", "|"]
-check glines("'\\日=\"\\\"q\\\"\" \u{7f}'x=\"\\r\\u0000日\\\"yb\\u0008\" -/zz9=\"x\\u0000éz\\t\\\\ \" x\u{2028}= y=\"a\\\\\\\"\"\r\n001=b é=true 1y\u{2028}ab=false \u{2028}9a=\"\\u0001\"\n\n\t a😀a3=Du\r\n\r\n", 5) == ["'\\日", "\"q\"", "\u{7f}'x", "\r\u{0}日\"yb\u{8}", "-/zz9", "x\u{0}éz\t\\ ", "x\u{2028}", "", "y", "a\\\"", "|", "001", "b", "é", "true", "1y\u{2028}ab", "false", "\u{2028}9a", "\u{1}", "|", "|", "a😀a3", "Du", "|", "|"]
-check gnlines("'\\日=\"\\\"q\\\"\" \u{7f}'x=\"\\r\\u0000日\\\"yb\\u0008\" -/zz9=\"x\\u0000éz\\t\\\\ \" x\u{2028}= y=\"a\\\\\\\"\"\r\n001=b é=true 1y\u{2028}ab=false \u{2028}9a=\"\\u0001\"\n\n\t a😀a3=Du\r\n\r\n") == 5
-check glines("8\tn\u{1}\"😀C\r\n", 1) == ["8", "", "n", "", "!4:unexpected '\"'", "|"]
-check glines("\n日日=' €/'=' c/=😀c x=\"u€/\\ufffd0 \"\n 8 '  8'CnCD\r\n 1aé=\"\\u001f/\\n\\\"\" €=\"\\ru\\u001f\" 9z=\"\\tb\\u0001\u{2028}u\u{7f}\" \u{2028}zz=true\n0=\"\\u0008 \\ry\" 0/=-9223372036854775808 \u{7f}1😀0€=\"cb\\n=\u{2028}\\t\"\n€😀z=true /-z日=\"-'\\\"c\" 9=\"z\\nzx\" ''éc=-1- /z=-446046196284", 6) == ["|", "日日", "'", "€/'", "'", "c/", "😀c", "x", "u€/\u{fffd}0 ", "|", "8", "", "'", "", "8'CnCD", "", "|", "1aé", "\u{1f}/\n\"", "€", "\ru\u{1f}", "9z", "\tb\u{1}\u{2028}u\u{7f}", "\u{2028}zz", "true", "|", "0", "\u{8} \ry", "0/", "-9223372036854775808", "\u{7f}1😀0€", "cb\n=\u{2028}\t", "|", "€😀z", "true", "/-z日", "-'\"c", "9", "z\nzx", "''éc", "-1-", "/z", "-446046196284", "|"]
-check gnlines("\n日日=' €/'=' c/=😀c x=\"u€/\\ufffd0 \"\n 8 '  8'CnCD\r\n 1aé=\"\\u001f/\\n\\\"\" €=\"\\ru\\u001f\" 9z=\"\\tb\\u0001\u{2028}u\u{7f}\" \u{2028}zz=true\n0=\"\\u0008 \\ry\" 0/=-9223372036854775808 \u{7f}1😀0€=\"cb\\n=\u{2028}\\t\"\n€😀z=true /-z日=\"-'\\\"c\" 9=\"z\\nzx\" ''éc=-1- /z=-446046196284") == 6
+check glines("\r\n", 1) == ["|"]
+check gnlines("\r\n") == 1
+check glines("\r", 1) == ["|"]
+check gnlines("\r") == 1
+check glines("a=1\nb=\"x\r\n", 2) == ["a", "1", "|", "!4:unterminated quoted value", "|"]
+check glines("x=1\r\ny=\"ab\r", 2) == ["x", "1", "|", "!5:unterminated quoted value", "|"]
+check glines("k\u{fffd}\r\n", 1) == ["!4:invalid key", "|"]
+check glines("\u{7f}kna' '\r\nnD\n\r\na=\"null\" b= c=null d=-9223372036854775808 e=9223372036854775807 f=false\nx-é=\"b=\u{7f}9\" c=\"\\u001f9-x\\u0001\"\u{2028}\u{7f}=\"é-\\u0008\\u000c\\n\"\n\u{1}D=n😀a\n", 6) == ["\u{7f}kna'", "", "'", "", "|", "nD", "", "|", "|", "a", "null", "b", "", "c", "null", "d", "-9223372036854775808", "e", "9223372036854775807", "f", "false", "|", "x-é", "b=\u{7f}9", "c", "\u{1f}9-x\u{1}", "\u{2028}\u{7f}", "é-\u{8}\u{c}\n", "|", "D", "n😀a", "|"]
+check gnlines("\u{7f}kna' '\r\nnD\n\r\na=\"null\" b= c=null d=-9223372036854775808 e=9223372036854775807 f=false\nx-é=\"b=\u{7f}9\" c=\"\\u001f9-x\\u0001\"\u{2028}\u{7f}=\"é-\\u0008\\u000c\\n\"\n\u{1}D=n😀a\n") == 6
+check glines("0=\"\\u0008 \\ry\" 0/=-9223372036854775808 \u{7f}1😀0€=\"cb\\n=\u{2028}\\t\"\n  \u{7f}\n€z\u{7f}=0", 3) == ["0", "\u{8} \ry", "0/", "-9223372036854775808", "\u{7f}1😀0€", "cb\n=\u{2028}\t", "|", "\u{7f}", "", "|", "€z\u{7f}", "0", "|"]
+check gnlines("0=\"\\u0008 \\ry\" 0/=-9223372036854775808 \u{7f}1😀0€=\"cb\\n=\u{2028}\\t\"\n  \u{7f}\n€z\u{7f}=0") == 3
+check glines("b'é=\"\\u000c\"", 1) == ["b'é", "\u{c}", "|"]
+check gnlines("b'é=\"\\u000c\"") == 1
+check glines("'yy=ayz0'\r\n1\u{7f}=42 9-€=null z😀/za=-9223372036854775808\r\nk=\"tab\\there\" q=\"say \\\"hi\\\" \\\\ back\" c=\"\\u0000\\u0001\\u001f\u{7f}\\u0008\\u000c\\r\\n\"\n😀=\" \" -=-9223372036854775808 é/x=\"€b\\u001f/é\\u0001😀€\"", 4) == ["'yy", "ayz0'", "|", "1\u{7f}", "42", "9-€", "null", "z😀/za", "-9223372036854775808", "|", "k", "tab\there", "q", "say \"hi\" \\ back", "c", "\u{0}\u{1}\u{1f}\u{7f}\u{8}\u{c}\r\n", "|", "😀", " ", "-", "-9223372036854775808", "é/x", "€b\u{1f}/é\u{1}😀€", "|"]
+check gnlines("'yy=ayz0'\r\n1\u{7f}=42 9-€=null z😀/za=-9223372036854775808\r\nk=\"tab\\there\" q=\"say \\\"hi\\\" \\\\ back\" c=\"\\u0000\\u0001\\u001f\u{7f}\\u0008\\u000c\\r\\n\"\n😀=\" \" -=-9223372036854775808 é/x=\"€b\\u001f/é\\u0001😀€\"") == 4
+check glines("key=\"v\\ufffd\" xy=\"a b\"\n'=\"\\\"q\\\"\" /€=\"\\ufffdyb\" 'x=ba\u{2028}11 0日日日=null 9u=false\nzb=-9223372036854775808 😀=\"zé\\u001f\\\\\"\r\nb'=\"\\\\\\u0000\\u0000=\\n\\u001f\u{2028}\" a\\😀/a=c\n8b\"\u{7f}\t\r\nz€uaé=b -z= 0b=-1", 5) == ["key", "v\u{fffd}", "xy", "a b", "|", "'", "\"q\"", "/€", "\u{fffd}yb", "'x", "ba\u{2028}11", "0日日日", "null", "9u", "false", "|", "zb", "-9223372036854775808", "😀", "zé\u{1f}\\", "|", "b'", "\\\u{0}\u{0}=\n\u{1f}\u{2028}", "a\\😀/a", "c", "|", "!2:unexpected '\"'", "|"]
+check glines("ux'=cz", 1) == ["ux'", "cz", "|"]
+check gnlines("ux'=cz") == 1
+check glines("\"Cx\u{7f}\\\t08kCaD\r\n", 1) == ["!0:unexpected '\"'", "|"]
+check glines(" 8u' nD\"\u{fffd}\u{fffd}C😀3\n", 1) == ["8u'", "", "!7:unexpected '\"'", "|"]
+check glines("bx0=false 9€=\"\\\"y\\r/日\" a\u{2028}/=\"\\u000c€\\u0000\\u0000\\r\\n-\" xx-=\"/1\\u001fcx\\u0000za\"\r\n 0\\' d\r\na=\"x\"\"", 3) == ["bx0", "false", "9€", "\"y\r/日", "a\u{2028}/", "\u{c}€\u{0}\u{0}\r\n-", "xx-", "/1\u{1f}cx\u{0}za", "|", "0\\'", "", "d", "", "|", "a", "x", "!5:unexpected '\"'", "|"]
+check glines("a=\r\n\u{2028}\u{2028}ax=false c-a=\r\n/8d/\\Dbk\"\\ék\n\u{fffd}\u{7f}\r\nx0=\"u\\tcé=c\" x€c=\"\\u000c\\\"日y1\" €=plain xy=😀\\ 1=false\r\n\\xx=9u '=\"\\u0001\"\n", 3) == ["a", "", "|", "\u{2028}\u{2028}ax", "false", "c-a", "", "|", "!8:unexpected '\"'", "|"]
+check glines("a9u= yyéb😀=plain b=\"\\u001fu\" \u{7f}b=null uc=\"é\\u0001\\\"'€\\n\"\r\n0a😀d\u{fffd} =\\8ék=\r\n\u{7f}=/k\n0=\"\\u0008\\u001f\\u001f€1\\ufffd\" 😀😀=9a\u{7f}09 /011-=\"z\\u0001z\\ufffd =\\u00011\"\r\n001=b é=true 1y\u{2028}ab=false \u{2028}9a=\"\\u0001\"", 2) == ["a9u", "", "yyéb😀", "plain", "b", "\u{1f}u", "\u{7f}b", "null", "uc", "é\u{1}\"'€\n", "|", "!10:invalid key", "|"]
+check glines("é\\ \\\u{1}C 0é dbk\t", 1) == ["é\\", "", "\\", "", "C", "", "0é", "", "dbk", "", "|"]
+check gnlines("é\\ \\\u{1}C 0é dbk\t") == 1
+check glines("b8an😀ék3😀bn\n", 1) == ["b8an😀ék3😀bn", "", "|"]
+check gnlines("b8an😀ék3😀bn\n") == 1
+check glines("\u{7f}€=false\r\nzuu= 9日/\u{2028}=z c=\"'aé\\\\ 0\\ufffdx\" 'x=\"\\tb\\t\\ufffdy'by\"\n\n \tC\"\r\n\r\n", 4) == ["\u{7f}€", "false", "|", "zuu", "", "9日/\u{2028}", "z", "c", "'aé\\ 0\u{fffd}x", "'x", "\tb\t\u{fffd}y'by", "|", "|", "!3:unexpected '\"'", "|"]
+check glines("😀\r\n", 1) == ["😀", "", "|"]
+check gnlines("😀\r\n") == 1
+check glines("\nxa€=\"/=日\u{7f}'\" 0\\\u{7f}😀=\n ax x\tDu' kD\r\n'=\"z\\\"é\\\\€\\\"\\\n\u{2028}\u{2028}ax=false c-a=\nu€日=null 日=b/ a=true", 4) == ["|", "xa€", "/=日\u{7f}'", "0\\\u{7f}😀", "", "|", "ax", "", "x", "", "Du'", "", "kD", "", "|", "!16:unterminated quoted value", "|"]
 check glines("", 0) == []
 check gnlines("") == 0
-check glines("\u{fffd}xé\u{fffd}C\n\r\na8\u{7f}/ub😀=", 1) == ["!10:invalid key", "|"]
-check glines("\u{7f}=false x-1x=true 😀90\u{7f}0=true 😀0\\=cx", 1) == ["\u{7f}", "false", "x-1x", "true", "😀90\u{7f}0", "true", "😀0\\", "cx", "|"]
-check gnlines("\u{7f}=false x-1x=true 😀90\u{7f}0=true 😀0\\=cx") == 1
-check glines("k\u{fffd}=1\r\n\u{2028}\u{2028}ax=false c-a=\n\r\na\"b=1", 1) == ["!4:invalid key", "|"]
-check glines("a/ku0\"\r\nz€uaé=b -z= 0b=-1\r\n\tkD\u{7f}a\u{1}ub=b'\r\n0=\"\\u0008 \\ry\" 0/=-9223372036854775808 \u{7f}1😀0€=\"cb\\n=\u{2028}\\t\"\r\n'adké0Cx0dudDn\n", 1) == ["!5:unexpected '\"'", "|"]
-check glines("b'é=\"\\u\"000c\"\nx-é=\"b=\u{7f}9\" c=\"\\u001f9-x\\u0001\" \u{2028}\u{7f}=\"é-\\u0008\\u000c\\n\"\r\nu=é€😀日\u{2028} eq=\"a=b\"\r\n", 1) == ["!9:invalid quoted value", "|"]
-check glines("\n-=\"\\\"\" 0=true 日=null yb😀=null 9😀b=true\r\n€=-48575895168 \\= z€=\"z\\u0000é\\u001f\\ufffd-\" 9=b 0=\r\né9\u{7f}\u{2028}\\=\"\\ufffdz\\u001f日a0 1\" 😀9\u{2028}b=\"€yu'=x\\u00089\" 😀=-\na= b\r\n", 5) == ["|", "-", "\"", "0", "true", "日", "null", "yb😀", "null", "9😀b", "true", "|", "€", "-48575895168", "\\", "", "z€", "z\u{0}é\u{1f}\u{fffd}-", "9", "b", "0", "", "|", "é9\u{7f}\u{2028}\\", "\u{fffd}z\u{1f}日a0 1", "😀9\u{2028}b", "€yu'=x\u{8}9", "😀", "-", "|", "a", "", "b", "", "|"]
-check gnlines("\n-=\"\\\"\" 0=true 日=null yb😀=null 9😀b=true\r\n€=-48575895168 \\= z€=\"z\\u0000é\\u001f\\ufffd-\" 9=b 0=\r\né9\u{7f}\u{2028}\\=\"\\ufffdz\\u001f日a0 1\" 😀9\u{2028}b=\"€yu'=x\\u00089\" 😀=-\na= b\r\n") == 5
+check glines("a=\"\\udbff\\udfff\"\n\r\nd3", 3) == ["a", "\u{10FFFF}", "|", "|", "d3", "", "|"]
+check gnlines("a=\"\\udbff\\udfff\"\n\r\nd3") == 3
+check glines("'=\"\\\"q\\\"\" /€=\"\\ufffdyb\" 'x=ba\u{2028}11 0日日日=null 9ufalseu", 1) == ["'", "\"q\"", "/€", "\u{fffd}yb", "'x", "ba\u{2028}11", "0日日日", "null", "9ufalseu", "", "|"]
+check gnlines("'=\"\\\"q\\\"\" /€=\"\\ufffdyb\" 'x=ba\u{2028}11 0日日日=null 9ufalseu") == 1
+check glines("k\u{fffd}=1\r\n€=null \u{2028}😀= é=false u'x=null\n\r\na\"b=1", 1) == ["!4:invalid key", "|"]
+check glines("'a😀'\r\nc=é é-é9=\"😀\\ufffd\\t\u{7f}\" by9b\u{7f}=true\r\n\u{1}38ddk\u{1} /b\r\n\u{2028}\u{2028}ax=false c-a=\r\n\u{fffd}/\u{7f}\n", 5) == ["'a😀'", "", "|", "c", "é", "é-é9", "😀\u{fffd}\t\u{7f}", "by9b\u{7f}", "true", "|", "38ddk", "", "/b", "", "|", "\u{2028}\u{2028}ax", "false", "c-a", "", "|", "!5:invalid key", "|"]
+check glines("x0=\"\\tcé=c\" x€c=\"\\u000c\\\"日y1\" €=plain xy=😀\\ 1=false\n/=\"céyxé/\\n\" 1=\"\\u00000€\\u0001\"\r\n\t \"\\\"3'x/\r\n", 3) == ["x0", "\tcé=c", "x€c", "\u{c}\"日y1", "€", "plain", "xy", "😀\\", "1", "false", "|", "/", "céyxé/\n", "1", "\u{0}0€\u{1}", "|", "!2:unexpected '\"'", "|"]
+check glines("\n😀'-x=true /yy=\" \\\\z \\\\ab/\" 9éb=\"\\\"q\\\"\"\r\ncyunull\r\nc9=\"\\u0001uc\" \u{2028}=plain 1=\"x=y\" b=\"\\\\\\\"cb1b\\rz\"\na= b\r\n", 5) == ["|", "😀'-x", "true", "/yy", " \\z \\ab/", "9éb", "\"q\"", "|", "cyunull", "", "|", "c9", "\u{1}uc", "\u{2028}", "plain", "1", "x=y", "b", "\\\"cb1b\rz", "|", "a", "", "b", "", "|"]
+check gnlines("\n😀'-x=true /yy=\" \\\\z \\\\ab/\" 9éb=\"\\\"q\\\"\"\r\ncyunull\r\nc9=\"\\u0001uc\" \u{2028}=plain 1=\"x=y\" b=\"\\\\\\\"cb1b\\rz\"\na= b\r\n") == 5
 check glines("\n", 1) == ["|"]
 check gnlines("\n") == 1
-check glines("-/=/a1😀u '=\"\u{7f}\\ n\" c\u{7f}=\"\\t'\\u001fz\\\"\"", 1) == ["-/", "/a1😀u", "!20:invalid quoted value", "|"]
-check glines("8\"/\n 8u' nD\"\u{fffd}\u{fffd}C😀3\n", 1) == ["!1:unexpected '\"'", "|"]
-check glines("x-é=\"b=\u{7f}9\" c=\"\\u001f9-x\\u0001\" \u{2028}\u{7f}=\"é-\\u0008\\u000c\\n\"\r\nzuu= 9日/\u{2028}=z c=\"'aé\\\\ 0\\ufffdx\" 'x=\"\\tb\\t\\ufffdy'by\"", 2) == ["x-é", "b=\u{7f}9", "c", "\u{1f}9-x\u{1}", "\u{2028}\u{7f}", "é-\u{8}\u{c}\n", "|", "zuu", "", "9日/\u{2028}", "z", "c", "'aé\\ 0\u{fffd}x", "'x", "\tb\t\u{fffd}y'by", "|"]
-check gnlines("x-é=\"b=\u{7f}9\" c=\"\\u001f9-x\\u0001\" \u{2028}\u{7f}=\"é-\\u0008\\u000c\\n\"\r\nzuu= 9日/\u{2028}=z c=\"'aé\\\\ 0\\ufffdx\" 'x=\"\\tb\\t\\ufffdy'by\"") == 2
-check glines("1\u{7f}=42 9-€=null z😀/za=-9223372036854775808", 1) == ["1\u{7f}", "42", "9-€", "null", "z😀/za", "-9223372036854775808", "|"]
-check gnlines("1\u{7f}=42 9-€=null z😀/za=-9223372036854775808") == 1
-check glines("'😀bb= x-'=null 99a=--\n\r\n", 2) == ["'😀bb", "", "x-'", "null", "99a", "--", "|", "|"]
-check gnlines("'😀bb= x-'=null 99a=--\n\r\n") == 2
-check glines("'Cuabk", 1) == ["'Cuabk", "", "|"]
-check gnlines("'Cuabk") == 1
-check glines("c=é é-é9=\"😀\\ufffd\\t\u{7f} by9b\u{7f}=true\n'=-1 é日=\"\\\"q\\\"\" 日ac=\"x=y\" 9\\b=\"\u{7f}\\\"a\"", 1) == ["c", "é", "!37:unterminated quoted value", "|"]
-check glines("\\= cé=\"€z11y/\\u000=8\" y😀日=\"\\\"\\r9€\\u0\"01f\\u0008 z\"\r\n\\xx=9u '=\"\\u0001\"", 1) == ["\\", "", "!24:invalid quoted value", "|"]
-check glines("zb=-9223372036854775808 😀=\"zé\\u001f\\\\\"\n\u{fffd}8\té\u{fffd}u'd\r\n0=false é=null 😀=\"\u{2028}=\" 'z=0\r\nx0=\"\\tcé=c\" x€c=\"\\u000c\\\"日y1\" €=plain xy=😀\\ 1=false\n", 2) == ["zb", "-9223372036854775808", "😀", "zé\u{1f}\\", "|", "!4:invalid key", "|"]
-check glines("日1\\=false b'=\"b \u{7f}\" =\u{7f}b😀bz=\"null\" x-b=-1\r\n€😀z=true /-z日=\"-'\\\"c\" 9=\"z\\nzx\" ''éc-1- /z=-446046196284\n😀日=\"😀\u{2028}\\ufffd\\n\" 😀-'=\"/\u{2028} \\ufffd\\\"\" \u{2028}u'z=\"'\\n9a9\" acz=null\n\r", 1) == ["日1\\", "false", "b'", "b \u{7f}", "!21:unexpected '='", "|"]
-check glines("9=\"=\\u0001\\u000c\\u00000\\ufffd\\\\-\" -😀0=\"\\u0001\" //=\"\\\"/😀😀\" z\u{7f}-b9=false\n/=- x1=42\na=\"null\" b= c=null d=-9223372036854775808 e=9223372036854775807 f=false\n0bay1=42 \u{7f}'日=€y y\u{2028}=\"=/b \\u0000\\t😀\" /z=false 1yy=\"x1\\u0001\\u001fx\\t9\"\r\n日日=' €/'=' c/=😀c x=\"u€/\\ufffd=0 \"\r\n", 5) == ["9", "=\u{1}\u{c}\u{0}0\u{fffd}\\-", "-😀0", "\u{1}", "//", "\"/😀😀", "z\u{7f}-b9", "false", "|", "/", "-", "x1", "42", "|", "a", "null", "b", "", "c", "null", "d", "-9223372036854775808", "e", "9223372036854775807", "f", "false", "|", "0bay1", "42", "\u{7f}'日", "€y", "y\u{2028}", "=/b \u{0}\t😀", "/z", "false", "1yy", "x1\u{1}\u{1f}x\t9", "|", "日日", "'", "€/'", "'", "c/", "😀c", "x", "u€/\u{fffd}=0 ", "|"]
-check gnlines("9=\"=\\u0001\\u000c\\u00000\\ufffd\\\\-\" -😀0=\"\\u0001\" //=\"\\\"/😀😀\" z\u{7f}-b9=false\n/=- x1=42\na=\"null\" b= c=null d=-9223372036854775808 e=9223372036854775807 f=false\n0bay1=42 \u{7f}'日=€y y\u{2028}=\"=/b \\u0000\\t😀\" /z=false 1yy=\"x1\\u0001\\u001fx\\t9\"\r\n日日=' €/'=' c/=😀c x=\"u€/\\ufffd=0 \"\r\n") == 5
-check glines("D\u{7f}\nz'='\u{2028}1 c\u{2028}=\"y1😀-\\u0001u\\\\\"\nzb=-9223372036854775808 😀=\"zé\\u001f\\\\\"", 3) == ["D\u{7f}", "", "|", "z'", "'\u{2028}1", "c\u{2028}", "y1😀-\u{1}u\\", "|", "zb", "-9223372036854775808", "😀", "zé\u{1f}\\", "|"]
-check gnlines("D\u{7f}\nz'='\u{2028}1 c\u{2028}=\"y1😀-\\u0001u\\\\\"\nzb=-9223372036854775808 😀=\"zé\\u001f\\\\\"") == 3
-check glines("😀=kx", 1) == ["😀", "kx", "|"]
-check gnlines("😀=kx") == 1
-check glines("/c\\=\"\\u0000\\ufffdc\\u0001é\\r€0\" 日=\"\\u0008'\" z=\"\\\"\\u000c\\u000c\" x=null", 1) == ["/c\\", "\u{0}\u{fffd}c\u{1}é\r€0", "日", "\u{8}'", "z", "\"\u{c}\u{c}", "x", "null", "|"]
-check gnlines("/c\\=\"\\u0000\\ufffdc\\u0001é\\r€0\" 日=\"\\u0008'\" z=\"\\\"\\u000c\\u000c\" x=null") == 1
-check glines("d\\/\\a\r\n\\= cé=\"€z11y/\\u000=8\" y😀日=\"\\\"\\r9€\\u0\"01f\\u0008 z\"\nD\u{1}k'é\r\na\r", 2) == ["d\\/\\a", "", "|", "\\", "", "!24:invalid quoted value", "|"]
+check glines("é9\u{7f}\u{2028}\\=\"\\ufffdz\\u001f日a0 1\" 😀9\u{2028}b=\"\"€yu'=x\\u0008\\9\" 😀=-", 1) == ["é9\u{7f}\u{2028}\\", "\u{fffd}z\u{1f}日a0 1", "😀9\u{2028}b", "", "!60:unexpected '\"'", "|"]
+check glines("D3\u{1}Cx'\\bC😀3 😀\n é b=a\n", 2) == ["D3", "", "Cx'\\bC😀3", "", "😀", "", "|", "é", "", "b", "a", "|"]
+check gnlines("D3\u{1}Cx'\\bC😀3 😀\n é b=a\n") == 2
+check glines("/=\"céyxé/\\n\" 1=\"\\u00000€\\u0001\"\r\n0=\"\\u0008\\u001f\\u001f€1\\ufffd\" 😀😀=9a\u{7f}09 /011-=\"z\\u0001z\\ufffd =\\u00011\"", 2) == ["/", "céyxé/\n", "1", "\u{0}0€\u{1}", "|", "0", "\u{8}\u{1f}\u{1f}€1\u{fffd}", "😀😀", "9a\u{7f}09", "/011-", "z\u{1}z\u{fffd} =\u{1}1", "|"]
+check gnlines("/=\"céyxé/\\n\" 1=\"\\u00000€\\u0001\"\r\n0=\"\\u0008\\u001f\\u001f€1\\ufffd\" 😀😀=9a\u{7f}09 /011-=\"z\\u0001z\\ufffd =\\u00011\"") == 2
+check glines("\u{7f}€=false x-1x=true 😀90\u{7f}0=true x😀0\\=cx", 1) == ["\u{7f}€", "false", "x-1x", "true", "😀90\u{7f}0", "true", "x😀0\\", "cx", "|"]
+check gnlines("\u{7f}€=false x-1x=true 😀90\u{7f}0=true x😀0\\=cx") == 1
+check glines("/=- x1=42\n\r\n", 2) == ["/", "-", "x1", "42", "|", "|"]
+check gnlines("/=- x1=42\n\r\n") == 2
+check glines("\"😀é", 1) == ["!0:unexpected '\"'", "|"]
+check glines("a= \u{2028}xu1=null \u{7f}''=tru z=\"null\"\nz19z= €=\"\\u0001'c/\u{7f}\\\"b\\n\"", 2) == ["a", "", "\u{2028}xu1", "null", "\u{7f}''", "tru", "z", "null", "|", "z19z", "", "€", "\u{1}'c/\u{7f}\"b\n", "|"]
+check gnlines("a= \u{2028}xu1=null \u{7f}''=tru z=\"null\"\nz19z= €=\"\\u0001'c/\u{7f}\\\"b\\n\"") == 2
+check glines("zuaé=b -z= 0b=-1\r\nk=\"tab\\there\" q=\"say \\\"hi\\\" \\\\ back\" c=\"\\u0000\\u0001\\u001f\u{7f}\\u0008\\u000c\\r\\n\"", 2) == ["zuaé", "b", "-z", "", "0b", "-1", "|", "k", "tab\there", "q", "say \"hi\" \\ back", "c", "\u{0}\u{1}\u{1f}\u{7f}\u{8}\u{c}\r\n", "|"]
+check gnlines("zuaé=b -z= 0b=-1\r\nk=\"tab\\there\" q=\"say \\\"hi\\\" \\\\ back\" c=\"\\u0000\\u0001\\u001f\u{7f}\\u0008\\u000c\\r\\n\"") == 2
+check glines("'é€\u{7f}\u{7f}=日b u=null u1=\"/éx0\\r日u/\" 日日-\u{2028}\u{2028}😀=\"b\\u001f9\" 9-=false\n\u{1}😀8 \r\na=\"\\r'9\u{2028}\\\\\\t\\t\" \u{2028}=\"x😀\\u00081\"\r\ncb= \\\\日=\n", 4) == ["'é€\u{7f}\u{7f}", "日b", "u", "null", "u1", "/éx0\r日u/", "日日-\u{2028}\u{2028}😀", "b\u{1f}9", "9-", "false", "|", "😀8", "", "|", "a", "\r'9\u{2028}\\\t\t", "\u{2028}", "x😀\u{8}1", "|", "cb", "", "\\\\日", "", "|"]
+check gnlines("'é€\u{7f}\u{7f}=日b u=null u1=\"/éx0\\r日u/\" 日日-\u{2028}\u{2028}😀=\"b\\u001f9\" 9-=false\n\u{1}😀8 \r\na=\"\\r'9\u{2028}\\\\\\t\\t\" \u{2028}=\"x😀\\u00081\"\r\ncb= \\\\日=\n") == 4
+check glines("\\xx=9uu '=\"\\u0001\"\r\nu€日=null 日=b/= a=tue\ncé\\=-\n\r", 2) == ["\\xx", "9uu", "'", "\u{1}", "|", "u€日", "null", "!19:unexpected '='", "|"]
+check glines("y= 9c日'= ué\u{7f}9=\"€\\u000c=\" é\\1😀=\"\\n =9\" zcz=\" \\u0008\\u0008\\t\\u00000\"\n'\u{2028}-=\"x=y\" c=\"\\n€\"\n\u{7f}=false x-1x=true 😀90\u{7f}0=true 😀0\\=cx\n9=\"9a1\\u001f日z\"\r\nxa€=\"/=日\u{7f}'\"\\ 0\\\u{7f}=\r\n", 5) == ["y", "", "9c日'", "", "ué\u{7f}9", "€\u{c}=", "é\\1😀", "\n =9", "zcz", " \u{8}\u{8}\t\u{0}0", "|", "'\u{2028}-", "x=y", "c", "\n€", "|", "\u{7f}", "false", "x-1x", "true", "😀90\u{7f}0", "true", "😀0\\", "cx", "|", "9", "9a1\u{1f}日z", "|", "xa€", "/=日\u{7f}'", "\\", "", "0\\\u{7f}", "", "|"]
+check gnlines("y= 9c日'= ué\u{7f}9=\"€\\u000c=\" é\\1😀=\"\\n =9\" zcz=\" \\u0008\\u0008\\t\\u00000\"\n'\u{2028}-=\"x=y\" c=\"\\n€\"\n\u{7f}=false x-1x=true 😀90\u{7f}0=true 😀0\\=cx\n9=\"9a1\\u001f日z\"\r\nxa€=\"/=日\u{7f}'\"\\ 0\\\u{7f}=\r\n") == 5
+check glines("\t\\'D3a\u{fffd}d\n9=0 x\u{2028}/ac=\"\\\\\\r-\\n\u{2028}\"\n'é€\u{7f}\u{7f}=日b u=null u1=\"/éx0\\r日u/\" 日日-\u{2028}\u{2028}😀=\"b\\u001f9\" 9-=false", 1) == ["!10:invalid key", "|"]
+check glines(" \u{fffd}\\3b0b\tD0\u{1}C8", 1) == ["!9:invalid key", "|"]
+check glines("日1\\=false b'=\"b \u{7f}\" \u{7f}b😀bz=\"null\" x-b=-1", 1) == ["日1\\", "false", "b'", "b \u{7f}", "\u{7f}b😀bz", "null", "x-b", "-1", "|"]
+check gnlines("日1\\=false b'=\"b \u{7f}\" \u{7f}b😀bz=\"null\" x-b=-1") == 1
+check glines("3/\u{fffd} \u{fffd}\r\nzuaé=b -z= 0b=-1\n\u{fffd}xé\u{fffd}C\r\n\u{1}x\t'du\r", 1) == ["!5:invalid key", "|"]
 check glines("a\n", 1) == ["a", "", "|"]
 check gnlines("a\n") == 1

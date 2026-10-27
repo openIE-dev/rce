@@ -1,8 +1,10 @@
 # Usage (from stdlib/): python3 scripts/gen/obslog_gen.py
+# Needs Go 1.24 on PATH; the first run downloads the two Go modules that
+# scripts/gen/obslog_go/go.sum pins. The output does not depend on the run.
 # Writes vectors/obs/log_ref.json (inputs and reference outputs) and the
-# generated checks tests/obs/log_checks_2.rce (logfmt), _3 (sampling and RFC
-# 3339 times) and _4 (JSON and records) of
-# lib/obs/log.rce. Derived vectors, seed 20261027:
+# generated checks tests/obs/log_checks_2.rce (logfmt), _3 (sampling and
+# RFC 3339 times) and _4 (JSON and records) of lib/obs/log.rce. Derived
+# vectors, seed 20261027:
 # - logfmt: github.com/go-logfmt/logfmt v0.6.0 run by scripts/gen/obslog_go
 #   (Go 1.24, `go run .`): MarshalKeyvals of random pairs (with refusals),
 #   EncodeKeyval pair by pair (a refused key writes nothing), the Decoder on
@@ -36,8 +38,10 @@ I64MIN, I64MAX = -2**63, 2**63 - 1
 def ilit(v):
     return '(0 - 9223372036854775807 - 1)' if v == I64MIN else str(v)
 
+# W-LEX-4: noncharacters (U+nFFFE, U+nFFFF of every plane) are written as
+# \u{...} as well
 def L(s):
-    return esc(lit(s))
+    return ''.join('\\u{%X}' % ord(c) if (ord(c) & 0xFFFE) == 0xFFFE else c for c in esc(lit(s)))
 
 ALPHA = list("abcxyz019 =\"\\/'u-") + ['\n', '\r', '\t', '\x01', '\x1f', '\x7f', '\x08', '\x0c', '\x00', 'é', '€', '😀', '\ufffd', '\u2028', '日']
 LFA = list('abk= "\\ \tu0d83DCnx') + ['é', '\ufffd', '😀', '\x01', '\x7f', "'", '/']
@@ -76,6 +80,7 @@ dec_in = [
     'a="x""', 'a="\\ud800"', 'a="\\ud800\\u0041"', 'a="\\udc00\\ud800"', 'a="\\ud83d\\ude00"', 'a="\\u12"', 'a="\\u12g4"',
     'a="\\/\\\'\\b\\f\\t\\r\\n"', '  a  ', 'a=1\tb=2\x01c=3', 'a="\\u00E9\\u00e9"', 'a="\\ud83d"', 'a="\\ud83dx"',
     'a="\\\\"', 'a="\\', 'a="\\"', 'k=v\x7f', '\x7f=1', 'a=\ufffd', 'a="\\ufffd"', 'a="é\\n"', 'a=\x00b',
+    'a="\\udc00\\udc00"', 'a="\\udbff\\udfff"', 'a="\\ud800\\ud800\\udc00"', 'a="\\uD83D\\uDE00"',
 ]
 for e in enc_in[:60]:
     pass  # filled after the first Go run (round trips)
@@ -101,7 +106,8 @@ for s in lines[:80]:
     dec_in.append(''.join(t).rstrip('\r'))
 dec_in = [d for d in dec_in if '\n' not in d]
 
-streams = ['', '\n', 'a=1', 'a=1\n', 'a=1\r\n', 'a=1\r', 'a=1\r\r\nb=2', '\n\na=1\n\n', 'a=1\nb="x\nc=3', 'x=1\r\n\r\ny="\\q"\nz=1']
+streams = ['', '\n', 'a=1', 'a=1\n', 'a=1\r\n', 'a=1\r', 'a=1\r\r\nb=2', '\n\na=1\n\n', 'a=1\nb="x\nc=3', 'x=1\r\n\r\ny="\\q"\nz=1',
+    '\r\n', '\r', 'a=1\nb="x\r\n', 'x=1\r\ny="ab\r', 'k\ufffd\r\n']
 pool = [d for d in dec_in if d != ''] + lines
 for _ in range(40):
     parts = [R.choice(pool) if R.random() < 0.85 else '' for _ in range(R.randint(1, 6))]
@@ -302,7 +308,8 @@ time_parse = ['1970-01-01T00:00:00Z', '1970-01-01t00:00:00z', '2024-02-29T12:00:
     '2024-01-01T23:59:60Z', '2024-01-01T24:00:00Z', '2024-01-01T00:00:00.1234567891Z', '2024-01-01T00:00:00.Z', '2024-01-01T00:00:00',
     '2024-01-01T00:00:00+24:00', '2024-01-01T00:00:00+05:60', '2024-01-01 00:00:00Z', '0001-01-01T00:00:00Z', '9999-12-31T23:59:59Z',
     '1677-09-21T00:12:43.145224192Z', '2262-04-11T23:47:16.854775807Z', '1677-09-24T00:00:00Z', '2262-04-08T00:00:00Z', '2024-01-01T00:00:00Zx',
-    '+2024-01-01T00:00:00Z', '2024-1-01T00:00:00Z', '2024-01-01T00:00:00-00:00', '1969-12-31T23:59:59.999999999Z', '2000-02-29T00:00:00-23:59']
+    '+2024-01-01T00:00:00Z', '2024-1-01T00:00:00Z', '2024-01-01T00:00:00-00:00', '1969-12-31T23:59:59.999999999Z', '2000-02-29T00:00:00-23:59',
+    '2100-02-29T00:00:00Z', '1900-02-29T00:00:00Z', '2096-02-29T00:00:00Z', '2023-04-31T00:00:00Z', '2023-12-31T00:00:00Z']
 for _ in range(40):
     t = R.randint(-9 * 10**18, 9 * 10**18)
     txt = time_text(t, R.choice([0, 3, 6, 9, 1, 2]), R.choice([0, 60, -330, 1439]))
