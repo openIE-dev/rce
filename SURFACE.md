@@ -10,8 +10,14 @@ and lineage of the surface; the gaps it left are decided in spec section
 The surface is the text a person writes when authoring natively in RCE. It
 is not a language beside the Form; it is a notation for the Form
 P = (S, E, δ, D, λ) (FORM.md), so every construct below names the Form
-element it denotes. flowG is the language project built on RCE; this
-document is the shared design input, and flowG owns its own grammar.
+element it denotes. flowG is the parent of RCE: it was the first pass at
+one shared form for all code, on the idea that the syntax of every
+language converges on one computer language, and RCE is the newer pass at
+that form. flowG reads a program as a graph of nodes joined by typed
+wires; its kernel, the closed vocabulary of 22 node primitives in 6
+categories and 11 wire kinds (`openIE-dev/flow-g`), is to be the
+vocabulary of the graph view of the Form, in which the Form is read as
+such a graph.
 
 Design goal: the best of Rust, Zig, Go, Swift and Python in one surface,
 with no garbage collector, memory safety by construction, native code at
