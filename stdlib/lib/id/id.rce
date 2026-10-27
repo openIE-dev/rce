@@ -915,6 +915,8 @@ pub fn nanoid(rnd: &[i64], size: i64) -> text ! BadId
 # as JavaScript computes it) otherwise. The bytes left in the last draw
 # are discarded. Symbols are the alphabet's characters (code points;
 # JavaScript indexes UTF-16 units, which differs only outside the BMP).
+# nanoid_gen refuses an alphabet of 0 or more than 256 symbols, a size
+# above 1,000,000 and a draw of more than 1,000,000 bytes (the list limit).
 pub struct NanoGen
     alpha: List[text]
     size: i64
@@ -998,7 +1000,8 @@ pub struct SnowLayout
 pub fn snow_twitter() -> SnowLayout = SnowLayout(epoch_ms: 1288834974657, worker_bits: 10, seq_bits: 12)
 
 # Discord: epoch 2015-01-01T00:00:00Z, worker = internal worker (5 bits)
-# then process (5 bits), 12 increment bits.
+# then process (5 bits), 12 increment bits. Discord IDs are unsigned 64-bit;
+# the 41 time bits here cover them until 2084-09-06.
 pub fn snow_discord() -> SnowLayout = SnowLayout(epoch_ms: 1420070400000, worker_bits: 10, seq_bits: 12)
 
 pub struct SnowParts
