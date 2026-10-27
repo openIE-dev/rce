@@ -25,7 +25,7 @@ In plain words:
 - A bare section number such as 6.1, C.6 or E.2 names a section of the specification (the chapters of `spec/book/`, generated into `spec/RCE-SPEC.md`). Rules and theorems of the specification keep their names: T2, W-TY-2, HC-7a, N9, F1 to F9, and E1, the rule of 6.2 that fuel exhaustion cannot be caught.
 - §n names section n of this proposal. A reference to a later section says "below". The sections are: §1 Terms; §2 The decision; §3 Types; §4 The catalogue; §5 The order value; §6 Nodes; §7 Domain facts; §8 Port modes, linearity and wire kinds; §9 The frame; §10 Encoding and identity; §11 The gate; §12 flowG's kinds and the view; §13 The schedule and the construction; §14 Closure; §15 What is closed and what is open; §16 Lift; §17 The Lift IR and stage B; §18 The lift report; §19 Emit; §20 Acceptance; §21 The toolchain; §22 What admission needs; §23 Changes if accepted; §24 What stays open.
 - ONE-n names a rule of `one-emitter.md`, and W1 to W6 its well-formedness rules of the core (ONE-3).
-- Label families this proposal introduces, each numbered in the order a reader meets it and defined in the section named, below: domain facts DF1 to DF8 (§7), canonical rules C1 to C11 (§10), gate rules FG1 to FG15 (§11), the transforms of stage B, B1 to B7 (§17), and corpus rules K1 to K6 (§20).
+- Label families this proposal introduces, each numbered in the order a reader meets it and defined in the section named, below: domain facts DF1 to DF8 (§7), canonical rules C1 to C11 (§10), gate rules FG1 to FG15 (§11), the transforms of stage B, B1 to B7 (§17), and corpus rules K1 to K7 (§20).
 
 **Abbreviations.** Each is expanded here, before its first use.
 
@@ -83,11 +83,13 @@ In plain words:
 
 - **Lift**: the map from the source bytes of a program in a language L to a Form, or to a kept outcome with its reasons. **Emit**: the map from a Form to text in L, or to a kept outcome. **Table**: a data file that drives lift or emit for one language; a **row** is one of its entries. A **lift table** drives lift; a **print table** (ONE-6) drives emit.
 - **Defining reference** of a language: a standard, a report, or a pinned implementation at a stated release, which fixes the observable behaviours of every program on every input. **Oracle**: a pinned implementation of a language, named by the digest of its toolchain image, whose runs give the observations that a lift or an emit is compared with. For the language `rce`, the defining reference and the oracle are both the reference interpreter.
+- **Clause**: the passage of a language's defining reference that defines a construct: a section of its standard or report, or the source lines of its pinned implementation at a stated release. **Derivation**: a row's stated argument that its template computes what its clause defines, or, for a kept row, why its construct is not carried exactly. Every row of a lift or print table cites its clause and states its derivation (§16 and §19, below).
 - **tree-sitter**: a parser generator whose parsers build a concrete syntax tree and mark syntax errors with ERROR and MISSING nodes; a grammar's `node-types.json` lists its node kinds.
 - **Lift IR** (`rce-lift/1`): the core's JSON form with a few added statements that stage B removes (§17, below). **Route T** and **route I**: the two targets of a lift row, RCE text or the Lift IR (§16, below).
 - **Heap threading**: carrying a language's mutable, aliased objects as a heap value passed into and out of every definition that touches it. **Step splitting**: turning a computation that waits, or loops with no derivable bound, into a region whose steps run between its suspension points. Both are transforms of stage B (§17, below).
 - **Floor**, **carrier** and **`lib` row**: as ONE-10, ONE-14 and ONE-17 define them. An **`idiom` row** is a print row that prints a pattern of several nodes as one native construct.
 - **Observation**: the canonical record of one run (§20, below). **Case**: one program with one input. **Corpus**: a manifest of cases pinned by SHA-256, each with an expected observation recorded from an oracle.
+- **Fixture**: a small program with its inputs that exercises one row. A lift row's positive fixture carries the observation recorded from the language's oracle, which the lifted Form must give byte for byte; a print row's fixtures are its row vectors (stage G1 of ONE-19), whose printed program must print the reference trace byte for byte on the target's oracle; a negative fixture carries the id of the kept row that keeps it. A row is correct when its derivation is stated and its fixtures match exactly.
 
 ## 2. The decision: one meaning, one encoding, many views
 
@@ -571,9 +573,9 @@ Both routes end in core statements and the same construction, so Forms from eith
 | `print.toml` | `rce-print-table/1` | the print table of ONE-6 to ONE-8, with the `idiom` and `cap` sections of §19 (below) | emit |
 | `oracle/<O>.toml` | `rce-oracle/1` | one record per pinned implementation (§20, below) | gate |
 | `corpus/manifest.toml`, `corpus/files/`, `corpus/expected/` | `rce-corpus/1`, `rce-obs/1` | the pinned corpus and its recorded expectations (§20, below) | gate |
-| `fixtures/pos/`, `fixtures/neg/` | source files | one positive fixture per mapped row, one negative fixture per kept row | `rce table-check`, gate |
+| `fixtures/pos/`, `fixtures/neg/` | source files with their inputs, and the observations recorded from the oracle (`rce-obs/1`) or the ids of the rows that keep them | one positive fixture per mapped row, one negative fixture per kept row | `rce table-check`, gate |
 | `failing.txt` | `rce-failing/1`, named on its first line | the two-way list of ONE-22: CI fails when a listed case holds or an unlisted case does not | gate |
-| `STATUS.md` | generated from `rce-registry/1`, headed by the registry's key | level, counts, kept reasons, the failing list | readers |
+| `STATUS.md` | generated from `rce-registry/1`, headed by the registry's key | level, counts, kept reasons, the rows of `lift.toml` and `print.toml` that lack a clause or a derivation and the rows whose fixtures do not match, the failing list | readers |
 
 **`lang.toml`.**
 
@@ -607,7 +609,7 @@ node_types = "sha256:…"                 # src/node-types.json
 
 For the language `rce`, the lock names this repository, the commit, and the digests of RCE's own tree-sitter grammar (`tree-sitter/`); RCE's Rust parser is the first front end, and the three-parser agreement of `rce-spec-check` keeps the two in step.
 
-**`lift.toml`.** A row maps one node kind, optionally narrowed by its fields, its children's kinds, its operator text or a resolved type, to exactly one of: a route T template (`rce`), a route I template (`ir`), the kind of trivia under which the concept record keeps the node (`trivia`, `comment` or `layout`), or a kept reason (`kept`). Rows hold templates and evidence and nothing else; no field is a boolean and none selects a behaviour, the rule the print table already follows (ONE-8). Rows of one kind are tried in table order, and the first whose `when` holds applies.
+**`lift.toml`.** A row maps one node kind, optionally narrowed by its fields, its children's kinds, its operator text or a resolved type, to exactly one of: a route T template (`rce`), a route I template (`ir`), the kind of trivia under which the concept record keeps the node (`trivia`, `comment` or `layout`), or a kept reason (`kept`). Rows hold templates and evidence and nothing else; no field is a boolean and none selects a behaviour, the rule the print table already follows (ONE-8). A row is a definition derived from its language's defining reference, and its evidence says so: every row cites the clause it implements (`clause`) and states how its template follows from that clause (`derivation`), and a mapped or kept row names its fixtures (`fixtures`). A row is correct when its derivation is stated and every fixture matches its recorded observation byte for byte; nothing else decides it. Rows of one kind are tried in table order, and the first whose `when` holds applies.
 
 ```toml
 format = "rce-lift-table/1"
@@ -619,39 +621,46 @@ opens = "function"
 binds = ["name", "parameters"]
 
 [[row]]
-id       = "py.binop.floordiv"
-kind     = "binary_operator"            # must exist in the pinned node-types.json
-when     = { operator = "//" }
-ir       = "call py.floordiv({left}, {right})"   # the runtime definition decides by the operands' values
-errors   = { "py.floordiv" = "ZeroDivisionError" }
-fixtures = ["pos/floordiv.py"]
+id         = "py.binop.floordiv"
+kind       = "binary_operator"          # must exist in the pinned node-types.json
+when       = { operator = "//" }
+ir         = "call py.floordiv({left}, {right})"   # the runtime definition decides by the operands' values
+clause     = "https://docs.python.org/3.13/reference/expressions.html#binary-arithmetic-operations"
+derivation = "numeric operands are converted to a common type, the result is their mathematical quotient with floor applied, and a zero divisor raises ZeroDivisionError; other operands go through __floordiv__ and __rfloordiv__, which the same clause names; py.floordiv states exactly these cases"
+fixtures   = ["pos/floordiv.py"]        # its observation recorded from the pinned CPython
 
 [[row]]
-id     = "py.comment"
-kind   = "comment"
-trivia = "comment"
+id         = "py.comment"
+kind       = "comment"
+trivia     = "comment"
+clause     = "https://docs.python.org/3.13/reference/lexical_analysis.html#comments"
+derivation = "a comment runs from # outside a string literal to the end of the line and the syntax ignores it, so it carries no meaning and the concept record keeps it"
 
 [[row]]
-id       = "py.call.exec"
-kind     = "call"
-when     = { function = "exec" }
-kept     = "dynamic-code"
-fixtures = ["neg/exec.py"]
+id         = "py.call.exec"
+kind       = "call"
+when       = { function = "exec" }
+kept       = "dynamic-code"
+clause     = "https://docs.python.org/3.13/library/functions.html#exec"
+derivation = "exec runs as Python code a value computed at run time; the lift reads code only before it runs, so the construct is not carried exactly"
+fixtures   = ["neg/exec.py"]
 ```
 
 ```toml
 # lang/go1.23/lift.toml (route T)
 [[row]]
-id       = "go.binop.add"
-kind     = "binary_expression"
-when     = { operator = "+" }
-rce      = "({left}).go_add({right})"   # lang.go's trait: wrapping for integers
-fixtures = ["pos/add_wrap.go"]
+id         = "go.binop.add"
+kind       = "binary_expression"
+when       = { operator = "+" }
+rce        = "({left}).go_add({right})"   # lang.go's trait: wrapping for integers
+clause     = "go1.23.0:doc/go_spec.html#Arithmetic_operators"
+derivation = "integer + wraps modulo 2^n in the operands' type (Integer overflow); float + is IEEE 754 addition; string + concatenates; lang.go's trait has one impl for each"
+fixtures   = ["pos/add_wrap.go"]
 ```
 
 The lift of RCE itself has no rows: its stage 5 and stage 6 are the checker and the lowering, and its runtime is the runtime in the core.
 
-**`rce table-check LANG`** exits 2 when the table cannot be read or names an unknown node kind, catalogue entry or runtime definition (every `kind` must exist in the pinned node types, and every entry and definition a row names must be known). It exits 1 when one of these checks fails: every node kind of the pinned node types has at least one row (mapped, trivia or kept), so the table is total over the grammar; every mapped row has a positive fixture that covers the edge values of its operand types; every kept row has a negative fixture that the lift keeps with that row's id. "The table maps a of b node kinds" is then a computed sentence, never a typed one.
+**`rce table-check LANG`** exits 2 when the table cannot be read or names an unknown node kind, catalogue entry or runtime definition (every `kind` must exist in the pinned node types, and every entry and definition a row names must be known). It exits 1 when one of these checks fails: every node kind of the pinned node types has at least one row (mapped, trivia or kept), so the table is total over the grammar; every row of `lift.toml`, and every entry of `print.toml` that §19 (below) names, cites its clause and states its derivation; every mapped row has a positive fixture that covers the edge values of its operand types; every kept row has a negative fixture that the lift keeps with that row's id. "The table maps a of b node kinds" is then a computed sentence, never a typed one.
 
 **Semantics are rows, not settings.** `emit-targets.md` section 1 lists a language's edge rules as fields of a semantics table: integer width and overflow, division sign, float mode, string unit, map order, coroutine model. Here none of these is a field: each is fixed by which catalogue entry or runtime definition a row calls (Go's `+` wraps through `int.wadd`; Python's `//` calls `py.floordiv`; JavaScript's `+` on numbers calls `f64.add`). Values that a language leaves to its implementation (the width of C's `int`, the sign of `char`, CPython's `sys.maxsize`) are fixed by the profile the table's id names and appear as types and constants in its rows and runtime library, checked by vectors. Implementations that agree on every value the table fixes share the table and are all its oracles; one that differs on any of them is another table (ONE-11, ONE-12). A limit an implementation meets at run time, such as CPython's recursion limit, is not a constant of a lift table: reaching it is the oracle's own resource limit (§20, below). A field nobody reads cannot exist.
 
@@ -718,10 +727,21 @@ FG15 checks these cases on the Form evaluator at every admission, so a lift's ev
 
 Emission is the design of `one-emitter.md` (ONE-1 to ONE-27), fed from the Form through the schedule (§13). This proposal changes three things in it: the printer's input is a Form, read through its schedule; the expected bytes of every gate come from the reference, through `rce trace`, never from the core evaluator (§21, below); and every emitted file names its evidence as keys. The core evaluator becomes one more implementation compared with the reference, the target `core`.
 
-**The print table, `rce-print-table/1`,** is `lang/<L>/print.toml` with the sections and fields of ONE-8 (`lang`, `layout`, `lex`, `type`, `stmt`, `prim`, `lib`, `host`, `helper`), no boolean field and no field that selects a behaviour, plus two sections:
+**The print table, `rce-print-table/1`,** is `lang/<L>/print.toml` with the sections and fields of ONE-8 (`lang`, `layout`, `lex`, `type`, `stmt`, `prim`, `lib`, `host`, `helper`), no boolean field and no field that selects a behaviour, plus three sections:
 
 - **`idiom`**: patterns of several nodes printed as one native construct. Examples: a Branch on the tag of a `catch` result as `try`/`except`; a Branch on `sum.tag` as `match`; a heap-threaded object pattern as native objects and fields; a step-split region as an `async` function or a generator.
 - **`cap`**: one row per capability key that the target can perform through its own library.
+- **`evidence`**: the clause and the derivation of every row and field of the table except `name`, `defined_by` and `catalogue` of the `lang` section, which name the defining reference itself. ONE-7 keeps a row to text and holes, so the evidence sits beside the row, under the row's section and key: `clause`, the passage of the target's defining reference the row relies on, and `derivation`, why the row's text computes the construct it prints. A print row's fixtures are its row vectors (stage G1 of ONE-19).
+
+```toml
+# lang/python3.13/print.toml
+[prim]
+"int.add[int]" = "({0} + {1})"
+
+[evidence.prim."int.add[int]"]
+clause     = "https://docs.python.org/3.13/reference/expressions.html#binary-arithmetic-operations"
+derivation = "+ on two int operands gives their sum, and Python's integers have unlimited range (the standard type hierarchy, numbers.Integral), so the text gives the exact result of int.add at every integer type"
+```
 
 Its oracle records are the files of `oracle/` (§20, below), shared with the lift; ONE-20's `[[oracle]]` entries move there.
 
@@ -743,7 +763,7 @@ Its oracle records are the files of `oracle/` (§20, below), shared with the lif
 
 ## 20. Acceptance by definition and exact comparison
 
-**The principle.** A lift or an emit is accepted by definition and exact comparison, against the language's defining reference and against its own implementation. The language's implementation, pinned as an oracle, runs the source; RCE's reference runs the Form; and a case holds when the two observations are equal byte for byte. For the language `rce`, the defining reference and its implementation are both the reference interpreter. Every admitted case is compared. No case is a deliberately wrong program or row, and no case is set aside from the comparison. Where the defining reference leaves behaviour undefined or open, acceptance follows from that definition (the case classes below), and where a construct cannot be compared exactly, it is kept with its reason and counted as kept, never as holding.
+**The principle.** A lift or an emit is accepted by definition and exact comparison, against the language's defining reference and against its own implementation. The defining reference enters through every row, which cites the clause it implements and states its derivation (K4, below), and through the case classes below where the reference leaves behaviour undefined. The implementation enters as the oracle: pinned, it runs the source; RCE's reference runs the Form; and a case holds when the two observations are equal byte for byte. For the language `rce`, the defining reference and its implementation are both the reference interpreter. Every admitted case is compared. No case is a deliberately wrong program or row, and no case is set aside from the comparison. Where the defining reference leaves behaviour undefined or open, acceptance follows from that definition (the case classes below), and where a construct cannot be compared exactly, it is kept with its reason and counted as kept, never as holding.
 
 **Observations, `rce-obs/1`.**
 
@@ -816,10 +836,10 @@ A halt keeps its whole event, so the output a batch command writes before a halt
 | 0 named | a registry row with a catalogue id (HOPL, GitHub Linguist) | the same |
 | 1 built | a pinned front end and a lift table that passes `rce table-check`; the totality law on every fixture | a pinned print table complete to the fixpoint of ONE-9; the totality law on every fixture |
 | 2 target-accepted | the front end accepts exactly the inputs the oracle's front end accepts on the corpus, in both directions; where the oracle shares the lift's front end, this shows nothing and is reported as such | every emitted corpus program is accepted by the oracle's own build or parse command |
-| 3 rows | every mapped row's positive fixture lifts and holds under the lift-agreement law; every kept row's negative fixture is kept with its row id | stages G1 (row vectors) and G2 (library vectors) of ONE-19 hold on every oracle |
+| 3 rows | every mapped row cites its clause and states its derivation, and its positive fixture lifts and holds under the lift-agreement law; every kept row's negative fixture is kept with its row id | every entry of the print table that §19 names cites its clause and states its derivation; stages G1 (row vectors) and G2 (library vectors) of ONE-19 hold on every oracle |
 | 4 programs | the lift-agreement and byte-determinism laws on the pinned corpus, with no case that differs, no internal result, nothing not run and no oracle failure; counts and coverage published | stages G3 (examples), G4 (conformance) and G5 (fuel sweep): the emit-agreement, work-count and byte-determinism laws on every oracle, with no case that differs, no internal result, nothing not run and no oracle failure; the failing list empty |
 | 5 lens | level 4 in both directions, plus the Form-lens, source-lens and fixed-point laws on L's corpus and on the Form corpus | (shared with the lift column) |
-| 6 independent | level 5 against a second oracle that shares no implementation lineage with the first (for Python, CPython and PyPy), or with L's upstream test suite making up the share K5 requires (below) | (shared) |
+| 6 independent | level 5 against a second oracle that shares no implementation lineage with the first (for Python, CPython and PyPy), or with L's upstream test suite making up the share K6 requires (below) | (shared) |
 
 The level function is deterministic and written in RCE: `lang/levels.rce` holds the registry as its state and takes each evidence record's key as an event; its δ checks the record's place in the evidence log and computes the entries it affects again. Running it with the reference over `lang/evidence/log.jsonl` produces `lang/registry.json`, so the registry is itself a program that complies with the Form.
 
@@ -893,9 +913,10 @@ provenance = { source = "…", item = "sieve", commit = "…", licence = "…" }
 - **K1 Recorded expectations.** An expected observation comes only from oracle runs. Its file names the oracle record's key and the hashes of both runs, and `rce-gate corpus-verify` fails on an expected file without them. The only typed expectations are the row ids of negative fixtures.
 - **K2 Provenance and licence.** Every file names its source, its commit or address and its licence; code of unknown origin never enters a corpus.
 - **K3 Cases are never edited.** An edit is a new file under a new hash. A removal records a reason from a closed list (licence, an oracle found later not to be a function of the case, duplicate).
-- **K4 Negative fixtures.** Every kept row, and every class of construct kept per program (reflection on computed names, string `eval`, concurrency over shared memory, an unsequenced modification), has a negative fixture; a crash never counts as a correct kept outcome.
-- **K5 Breadth.** For level 6, L's upstream test or conformance suite, where one exists, makes up at least 30% of the cases, and every tier is present.
-- **K6 Classes.** Only `deterministic` cases count in the columns that hold and that differ under the byte-for-byte comparison; each other class has its own column.
+- **K4 Derived rows.** Every row of a lift or print table is a definition derived from its language's defining reference: it cites the clause it implements, states its derivation and names its fixtures, and the lift or print of each positive fixture records the row among the rows it used. A row is correct when its derivation is stated and every fixture matches its recorded observation byte for byte. A row that lacks a clause or a derivation is listed in `STATUS.md`, and level 3 allows none among mapped rows. A case that differs is a defect, fixed in the row, the runtime library or the tool, and the case stays (K3).
+- **K5 Negative fixtures.** Every kept row, and every class of construct kept per program (reflection on computed names, string `eval`, concurrency over shared memory, an unsequenced modification), has a negative fixture; a crash never counts as a correct kept outcome.
+- **K6 Breadth.** For level 6, L's upstream test or conformance suite, where one exists, makes up at least 30% of the cases, and every tier is present.
+- **K7 Classes.** Only `deterministic` cases count in the columns that hold and that differ under the byte-for-byte comparison; each other class has its own column.
 
 For the language `rce`, the corpus is RCE's own: the 60 single-file examples of `spec/examples`, the conformance tests and the standard library, with the reference as the oracle and no expectation to record beyond its traces. A Form corpus for every emitted language comes from RCE's generator of random programs that the gate applies, which needs only the reference.
 
@@ -911,12 +932,12 @@ Record = {"format":"rce-accept/1", "lang":L, "direction":"lift"|"emit"|"lens",
              "work":{"fuel":n, "cost":n, "nodes":n, "source_bytes":n}|null}…],
   "counts": {"holds":n, "differs":n, "kept_stage":n, "kept_resource":n, "internal":n,
              "not_run":n, "oracle_fail":n, "nondet":n, "ub":n, "resource":n},
-  "coverage": {"programs_applied":r, "node_kinds_mapped":r},
+  "coverage": {"programs_applied":r, "node_kinds_mapped":r, "rows_derived":r},
   "kept_reasons": [[REASON, n]…],
   "level": 0 | 1 | 2 | 3 | 4 | 5 | 6}
 ```
 
-`work` holds, for each case of a lift that holds, the Form's fuel and its cost units under C.6.4, both exact, and its size in nodes beside the source's size in bytes. No level depends on it.
+In `coverage`, `programs_applied` is the share of corpus programs whose lift applies a module, `node_kinds_mapped` the share of the pinned node kinds that have a mapped row, and `rows_derived` the share of the table's rows that cite a clause and state a derivation (K4). `work` holds, for each case of a lift that holds, the Form's fuel and its cost units under C.6.4, both exact, and its size in nodes beside the source's size in bytes. No level depends on it.
 
 **The evidence log and the registry.** `lang/evidence/log.jsonl` (format `rce-evidence-log/1`) is a chain in D's entry format (6.1): each line is `{seq, event:{record:KEY}, prev_hash, state_hash, hash}`, the state being the registry. The registry is the fold of the log, and a changed or removed record breaks the chain, which loading detects because verification computes it again. `lang/registry.json` (format `rce-registry/1`) has one entry per language: its id, name and class; its catalogue ids (ONE-27); for lift, emit and lens, the level, counts, coverage, oracle kinds and record id; and the cost columns. `lang/REGISTRY.md` and each `lang/<L>/STATUS.md` are generated from it and headed by its key.
 
@@ -969,14 +990,14 @@ An acceptance run that meets several of these exits with the first of 6, 4 and 5
 | `rce view FORM CONCEPT REPORT` | `rce` | a Form, its concept record, a lift report | `rce-graph-view/1` | 0, 1, 2 |
 | `rce unview VIEW OUTDIR` | `rce` | `rce-graph-view/1` | `OUTDIR/form.json` and `OUTDIR/concept.json`, a candidate for `rce check` | 0, 1, 2 |
 | `rce run-core CORE` | `rce` | `rce-core/1` | the core evaluator's trace: an implementation under test, never the expected bytes | 0, 1, 2 |
-| `rce table-check LANG` | `rce` | `lang/LANG/` and its pinned `node-types.json` | the report of totality and fixtures | 0; 1 when a check fails; 2 when the table cannot be read or names an unknown node kind, entry or definition |
+| `rce table-check LANG` | `rce` | `lang/LANG/` and its pinned `node-types.json` | the report of totality, fixtures, clauses and derivations | 0; 1 when a check fails (a node kind with no row; a row with no fixture, clause or derivation); 2 when the table cannot be read or names an unknown node kind, entry or definition |
 | `rce vectors` | `rce` | the catalogue and the tables | `lang/vectors/`, generated by the reference | 0, 2, 6 |
 | `rce lang LANG` | `rce` | `lang/LANG/`, the registry | table keys, the grammar's commit, runtime keys, the level per direction | 0, 2 |
 | `rce-lift LANG SRC OUTDIR` | `rce-lift` | `lang/LANG/`; SRC a file, or a directory read as its sorted files | `OUTDIR/form.json` (only when applied), `concept.json`, `report.json` (also on standard output) and `groups/KEY.json` for each applied group; for `rce` sources also `vectors.json` from the module's own examples and checks | 0, 1, 2, 3, 5, 6 |
 | `rce-lift LANG SRC OUTDIR CONFIG` | `rce-lift` | the same, and an `rce-build-config/1` file | the same | 0, 1, 2, 3, 5, 6 |
 | `rce-gate vectors LANG SRC INPUTS OUTDIR` | `rce-gate` | a source program, its inputs, the language's oracle | `OUTDIR/vectors.json` (`rce-vectors/1`), recorded from the oracle | 0, 2, 5 |
 | `rce-gate corpus-admit LANG FILES…` | `rce-gate` | files and their inputs | manifest entries; expectations recorded from the oracle, with perturbation and sanitizer runs | 0, 2, 5 |
-| `rce-gate corpus-verify LANG` | `rce-gate` | the manifest | the report of K1 to K6 | 0, 1, 2 |
+| `rce-gate corpus-verify LANG` | `rce-gate` | the manifest | the report of K1 to K7 | 0, 1, 2 |
 | `rce-gate oracle ORACLE CASE` | `rce-gate` | an oracle record and a case | an observation | 0, 2, 5 |
 | `rce-gate accept LANG DIRECTION REPORT` | `rce-gate` | `lang/LANG/`, the corpus, the oracle images from a local store; DIRECTION is `lift`, `emit` or `lens` | REPORT (`rce-accept/1`) and a line of the evidence log | 0, 2, 4, 5, 6 |
 | `rce-gate conform ADAPTER TESTS OUT` | `rce-gate` | an adapter record, a test list, the conformance tests | the conformance report, as `run.py` writes it today | 0, 1, 2 |
