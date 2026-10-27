@@ -77,7 +77,7 @@ In plain words:
 
 **flowG.**
 
-- **flowG**: the language project built on RCE (`SURFACE.md`), published as `openIE-dev/flow-g`. **The kernel**: flowG's closed vocabulary, 22 primitives in 6 categories and 11 wire kinds. **The flowG view**: the view of a Form in the kernel's vocabulary, format `rce-graph-view/1`; **unview**: its inverse, from a view to a candidate Form and its concept record (§12, below).
+- **flowG**: the parent of RCE, its first pass at one shared form between intent and silicon (`SURFACE.md`), published as `openIE-dev/flow-g`. **The kernel**: flowG's closed vocabulary, 22 primitives in 6 categories and 11 wire kinds. **The flowG view**: the view of a Form in the kernel's vocabulary, format `rce-graph-view/1`; **unview**: its inverse, from a view to a candidate Form and its concept record (§12, below).
 
 **Lift and emit.**
 
