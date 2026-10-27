@@ -31,7 +31,7 @@ M = [
     ('        if decpt <= -4 or decpt > 16', '        if decpt <= -4 or decpt > 15'),
     ('        let lim = if add_dot0 then prec - 1 else prec', '        let lim = prec'),
     ('        if ea < 10\n            o.push(48)', '        if ea < 1\n            o.push(48)'),
-    ('    while m % 2 == 0 bound 64\n        m = m / 2\n        e += 1', '    while m % 4 == 0 bound 64\n        m = m / 2\n        e += 1'),
+    ('    while m % 2 == 0 bound 64\n        m = m / 2\n        e += 1', '    while m % 2 == 0 bound 64\n        m = m / 2\n        e += 0'),
     ('    if ty == 37\n        body.push(37)', '    if ty == 37\n        body.push(36)'),
     ('        x = x * 100.0', '        x = x * 10.0'),
     ('    if f.z and dx.len() == 2 and dx[1] == 0', '    if f.z'),

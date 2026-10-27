@@ -155,8 +155,9 @@ writes a capability argument as `()`.
 
 ## fmt (`lib/fmt/fmt.rce`)
 
-No official vector files. All checks are derived, with CPython 3 as the
-oracle (`scripts/gen/fmt_gen.py`, seed 20261015):
+Parts 1 to 4 (integers, templates, the regex grid) have no official
+vector files. CPython 3 is the oracle (`scripts/gen/fmt_gen.py`, seed
+20261015):
 - 46 integers (both i64 extremes, random values) in radixes 2..36 and
   back; 7 strict parses and 15 refusals (empty, bare sign, whitespace,
   "0x", "_", overflow by one in either direction, bad digits);
@@ -164,16 +165,71 @@ oracle (`scripts/gen/fmt_gen.py`, seed 20261015):
 - 8 templates against `str.format` and 6 that it refuses;
 - a 34-pattern x 41-input grid (1394 checks), full and partial matching
   against `re` with `re.ASCII` (the library's `$` is checked as `\Z`), and
-  16 malformed patterns;
+  16 malformed patterns (`[\D]`, which CPython accepts and the library now
+  accepts too, was replaced by `[\d-z]`, which both refuse);
 - linear-time cases (`(a?){25}a{25}` on a^25, `(x+x+)+y` on x^40) that
   are exponential for backtracking engines.
-`scripts/mut/fmt.py`: each of 25 mutants of the module fails the checks.
 
-Left for M17 part 2: parser combinators (function values exist, e.g.
-`fn(f: fn(i64) -> i64, ...)` and `fn(x) => ...` admit under rce 0.1.3,
-so this needs design, not spec; an earlier note here said otherwise) and
-regex captures (a match result type). Regex classes are ASCII ranges until a
-pinned UCD (M9) gives Unicode classes.
+Parts 5 to 19 (8511 checks) are written by `scripts/gen/fmt_ext_gen.py`
+(CPython 3.13.16, seed 20261027) with the helpers of
+`scripts/gen/fmt_ext_helpers.rce`:
+- format specifications (part 5): 1168 integer x spec pairs against
+  `format(int, spec)` (every option, `b c d o x X n`, the float types on
+  integers, `c` up to U+10FFFF) and 25 specs it refuses; 161 text x spec
+  pairs against `format(str, spec)` and 13 refusals;
+- float text (parts 6 to 9): 1875 value x spec pairs against
+  `format(float, spec)` (51 chosen values, among them ties such as 0.125,
+  2.5 and 2.675, subnormals, the largest value, and random binary64
+  values; 54 specs with every option, the overflow of `%` to `inf%`), 12
+  refusals, 131 `repr`, 107 `float_fixed` and 155 `float_exp` results,
+  and 55 exact decimal values (`format(decimal.Decimal(x), 'f')`);
+- float parsing (parts 10 to 13): official, the sample
+  `vectors/fmt/parse-number-fxx-sample.txt` (2232 lines, sha256
+  660f78a494f5141d13465e33fbf615f0e4bbe8564ea48f57a9b79dc26fc207a5) of
+  https://github.com/nigeltao/parse-number-fxx-test-data at commit
+  55d79b184b7d8fac2e143e89dc19b766ec4e54b8 (Apache-2.0), drawn by
+  `scripts/gen/fmt_ext_sample.py`: a seeded sample of each `data/*.txt`
+  file, all of `more-test-cases.txt` and the lines of more than 100
+  characters of the lemire and wuffs files; each line's f64 bits are
+  also what CPython's `float()` gives. Derived: 308 more parses
+  (midpoints between neighbouring values exactly, just above and below
+  them, padded past 800 significant digits; repr and exact-decimal round
+  trips; signs, zeros, underflow, overflow and 30-digit exponents), 19
+  refused texts with the offset reported, 11 `float_scan` prefixes;
+- inputs near the text limit (parts 18 and 19): a 999,000-digit number
+  and the 999,992-character `float_fixed(5e-324, 999990)`, each within
+  one input's fuel;
+- regex (parts 14 to 17): 1327 checks of search, match and fullmatch
+  spans of every group (byte offsets) over a grid of 53 patterns and 25
+  inputs (greedy and lazy loops whose body can match empty, bounded
+  repeats, named groups, `\b` and `\B`, classes with non-ASCII ranges)
+  and two size-limit patterns, 520 `finditer` sequences, 6 searches from
+  an offset, 234 chunked searches (`re_scan_*`), 60 `re.sub` results
+  with group references and counts, 10 refused templates, 40 `re.split`
+  results (pieces only), group names, and 37 refused patterns (21 that
+  CPython refuses; 12 it accepts that are not regular or are refused
+  literals: backreferences, lookaround, inline flags, comments,
+  possessive and atomic forms, `]`, `}`, `a{}`; 4 past the size limits:
+  nesting deeper than 200, 1001 groups, a thread state past the list
+  limit, a program over 100,000 instructions);
+- `tests/fmt/fmt_host.rce` (7 events, `rce host run`): one chunked
+  search with groups over a 60,000-byte text, more than one input's fuel
+  covers, fed in six events; the groups of the match are the offsets
+  CPython's `re.search` gives.
+
+`scripts/gen/fmt_fuzz.py` is a random differential test against CPython
+3.13 (patterns from a small grammar with every quantifier form; floats
+and specs; decimal texts; corpus lines), not run by `check.sh`. During
+development it ran about 40,000 regex span checks, 8,400 checks of
+finditer, sub, split, offset and chunked search, 12,500 float formats,
+10,000 parses and 21,000 further corpus lines, with no difference left.
+
+`scripts/mut/fmt.py`: each of 59 mutants of the module fails the checks.
+
+Not covered: Unicode classes for `\w`, `\d`, `\s` and `\b` (ASCII, as
+`re.ASCII`; the UCD pin of M9 would give them), case-insensitive
+matching, `\N{...}` escapes, Unicode identifiers as group names, the
+`n` type with a locale other than C, and parser combinators.
 
 ## energy (`lib/energy/energy.rce`)
 

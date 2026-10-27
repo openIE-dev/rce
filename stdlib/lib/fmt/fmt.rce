@@ -1410,6 +1410,7 @@ const OP_HSAVE: i64 = 10
 const OP_ECHK: i64 = 11
 const RE_MAX_INS: i64 = 100000
 const RE_MAX_GROUPS: i64 = 1000
+const RE_MAX_DEPTH: i64 = 200
 const CP_MAX: i64 = 1114111
 
 # code: the program; classes: [negated, pairs, lo1, hi1, ...] at each
@@ -1434,6 +1435,7 @@ struct Parser
     ngroups: i64
     names: List[text]
     assert: bool
+    depth: i64
 
 fn ins(op: i64, a: i64, b: i64) -> List[i64] = [op, a, b]
 
@@ -1735,6 +1737,10 @@ fn parse_atom(p: &mut Parser) -> List[i64] bound 1000
     let c = peek(p)
     if c == 40
         p.pos += 1
+        p.depth += 1
+        if p.depth > RE_MAX_DEPTH
+            perr(p)
+            return []
         var cap = true
         var name = ""
         if peek(p) == 63
@@ -1767,6 +1773,7 @@ fn parse_atom(p: &mut Parser) -> List[i64] bound 1000
             return []
         p.pos += 1
         p.assert = false
+        p.depth -= 1
         if cap
             return rx_cat(rx_cat(ins(OP_SAVE, 2 * k, 0), f), ins(OP_SAVE, 2 * k + 1, 0))
         return f
@@ -1902,7 +1909,9 @@ fn rx_cp_at(s: &text, i: usize) -> i64
 # identifiers), (?:...). Refused with BadRegex (the byte offset of the
 # problem): backreferences, lookaround, inline flags, possessive
 # quantifiers, comments, a quantifier on nothing or on an assertion, and
-# "{", "}" or "]" as literals (escape them).
+# "{", "}" or "]" as literals (escape them); also groups nested deeper
+# than 200, and (at offset 0) a pattern whose program or thread state
+# would not fit in a list.
 pub fn re_compile(pattern: &text) -> Regex ! BadRegex
     var cps: List[i64] = []
     var offs: List[i64] = []
@@ -1912,7 +1921,7 @@ pub fn re_compile(pattern: &text) -> Regex ! BadRegex
         offs.push(i as i64)
         i += seq_len(pattern[i] as i64) as usize
     offs.push(i as i64)
-    var p = Parser(pat: cps, offs: offs, pos: 0, classes: [], err: -1, ngroups: 0, names: [], assert: false)
+    var p = Parser(pat: cps, offs: offs, pos: 0, classes: [], err: -1, ngroups: 0, names: [], assert: false, depth: 0)
     let f = parse_alt(&mut p)
     if p.err < 0 and p.pos < p.pat.len()
         perr(&mut p)
@@ -1923,9 +1932,15 @@ pub fn re_compile(pattern: &text) -> Regex ! BadRegex
     var nest: List[i64] = []
     var d: i64 = 0
     var maxd: i64 = 0
+    var nsplit: i64 = 0
+    var ncons: i64 = 0
     var pc: usize = 0
     while pc < code.len() / 3 bound 1000000
         let op = code[3 * pc]
+        if op == OP_SPLIT
+            nsplit += 1
+        if op == OP_CHAR or op == OP_ANY or op == OP_CLASS or op == OP_MATCH
+            ncons += 1
         if op == OP_HSAVE
             nest.push(d)
             code[3 * pc + 1] = d
@@ -1939,7 +1954,10 @@ pub fn re_compile(pattern: &text) -> Regex ! BadRegex
                 nest.push(d)
         maxd = maxd.max(d)
         pc += 1
-    if (nest.len() as i64) * (maxd + 1) > RE_MAX_INS * 10
+    # the marks, the closure stack and a thread list must each fit in a
+    # list (1,000,000 elements)
+    let stride = 2 * (p.ngroups + 1) + maxd + 1
+    if (nest.len() as i64) * (maxd + 1) > TEXT_MAX or (nsplit * (maxd + 1) + 2) * stride > TEXT_MAX or (ncons + 1) * (maxd + 1) * stride > TEXT_MAX
         fail BadRegex(at: 0)
     return Regex(code: code, classes: copy(p.classes), ngroups: p.ngroups, names: copy(p.names), nest: nest, nloops: maxd)
 
@@ -1957,10 +1975,17 @@ fn is_word(c: i64) -> bool = is_alnum(c) or c == 95
 # ---------------- the Pike VM ----------------
 # Threads run in lockstep over the input's code points, in priority
 # order, so the first thread to reach MATCH is the match a backtracking
-# engine would report (leftmost-first, as Python's re), and a step costs
-# O(len(program) * slots): a search is O(len(pattern) * len(input))
-# whatever the pattern. A thread is [pc, slot...]: slots 2k and 2k + 1
-# hold the byte offsets where group k began and ended (-1 if unset).
+# engine would report (leftmost-first, as Python's re). A step visits at
+# most len(program) * (nloops + 1) states and copies a thread's slots on
+# each, so a search costs O(len(program) * (nloops + 1) * slots *
+# len(input)): linear in the input, whatever the pattern and the input.
+# A thread is [pc, slot..., loop start...]: slots 2k and 2k + 1 hold the
+# byte offsets where group k began and ended (-1 if unset). find_all,
+# replace and split search again from the end of each match, as CPython
+# does, so a pattern whose leftmost match is found only after reading far
+# ahead can make them quadratic in the input (as in RE2 and Rust's
+# regex); re_find_at and the chunked search let a caller spread such work
+# over inputs.
 
 # The state of a search; it is also the state of a resumable search fed
 # a text in chunks (re_scan_new, re_scan_feed, re_scan_end). mode: 0
@@ -1998,12 +2023,11 @@ fn vm_mem(re: &Regex) -> VmMem
 # what OP_ECHK does), so a step visits at most len(program) * (nloops +
 # 1) states.
 fn vm_add(re: &Regex, out: &mut List[i64], mem: &mut VmMem, seeds: &[i64], k: usize, stride: usize, ncap: usize, pos: i64, at_end: bool, prev: i64, next: i64)
+    while mem.stack.len() < stride bound 1000000
+        mem.stack.push(0)
     var j: usize = 0
     while j < stride bound 1000000
-        if j < mem.stack.len()
-            mem.stack[j] = seeds[k + j]
-        else
-            mem.stack.push(seeds[k + j])
+        mem.stack[j] = seeds[k + j]
         j += 1
     var sp: usize = 1
     while sp > 0 bound 1000000
@@ -2011,16 +2035,40 @@ fn vm_add(re: &Regex, out: &mut List[i64], mem: &mut VmMem, seeds: &[i64], k: us
         let base = sp * stride
         let pc = mem.stack[base]
         var lk: i64 = 0
-        var lv = re.nest[pc as usize]
-        while lv > 0 and mem.stack[base + ncap + lv as usize] == pos bound 1000000
-            lk += 1
-            lv -= 1
+        if re.nloops > 0
+            var lv = re.nest[pc as usize]
+            while lv > 0 and mem.stack[base + ncap + lv as usize] == pos bound 1000000
+                lk += 1
+                lv -= 1
         let mi = (pc * (re.nloops + 1) + lk) as usize
         if mem.mark[mi] == mem.stamp
             continue
         mem.mark[mi] = mem.stamp
         let op = re.code[3 * pc as usize]
+        if op < OP_SPLIT or op == OP_MATCH
+            # a thread waiting for a character, or a match
+            var t2: usize = 0
+            while t2 < stride bound 1000000
+                out.push(mem.stack[base + t2])
+                t2 += 1
+            continue
         let a = re.code[3 * pc as usize + 1]
+        if op == OP_JMP
+            mem.stack[base] = pc + a
+            sp += 1
+            continue
+        if op == OP_SPLIT
+            mem.stack[base] = pc + re.code[3 * pc as usize + 2]
+            let top = base + stride
+            while mem.stack.len() < top + stride bound 1000000
+                mem.stack.push(0)
+            mem.stack[top] = pc + a
+            var t: usize = 1
+            while t < stride bound 1000000
+                mem.stack[top + t] = mem.stack[base + t]
+                t += 1
+            sp += 2
+            continue
         if op == OP_HSAVE
             mem.stack[base + ncap + 1 + a as usize] = pos
             mem.stack[base] = pc + 1
@@ -2029,23 +2077,6 @@ fn vm_add(re: &Regex, out: &mut List[i64], mem: &mut VmMem, seeds: &[i64], k: us
         if op == OP_ECHK
             mem.stack[base] = if mem.stack[base + ncap + 1 + a as usize] == pos then pc + re.code[3 * pc as usize + 2] else pc + 1
             sp += 1
-            continue
-        if op == OP_JMP
-            mem.stack[base] = pc + a
-            sp += 1
-            continue
-        if op == OP_SPLIT
-            mem.stack[base] = pc + re.code[3 * pc as usize + 2]
-            let top = base + stride
-            var t: usize = 0
-            while t < stride bound 1000000
-                let v = if t == 0 then pc + a else mem.stack[base + t]
-                if top + t < mem.stack.len()
-                    mem.stack[top + t] = v
-                else
-                    mem.stack.push(v)
-                t += 1
-            sp += 2
             continue
         if op == OP_SAVE
             if (a as usize) < ncap
@@ -2058,11 +2089,6 @@ fn vm_add(re: &Regex, out: &mut List[i64], mem: &mut VmMem, seeds: &[i64], k: us
             if ok
                 mem.stack[base] = pc + 1
                 sp += 1
-            continue
-        var t2: usize = 0
-        while t2 < stride bound 1000000
-            out.push(mem.stack[base + t2])
-            t2 += 1
 
 # One step at st.pos: c is the next code point (clen bytes), or -1 at the
 # end of the input.
@@ -2415,8 +2441,10 @@ pub fn re_split(re: &Regex, s: &text, maxsplit: i64) -> List[text]
     return out
 
 # ---------------- resumable search ----------------
-# For inputs too long for one input's fuel: feed the text in chunks (each
-# chunk a text, so whole characters), one or more per input, then end.
+# For inputs too long for one input's fuel: a search takes some hundreds
+# of steps per character (more with groups), so one input covers some
+# tens of thousands of characters. Feed the text in chunks (each chunk a
+# text, so whole characters), one or more per input, then end.
 # Offsets in the result count from the start of the first chunk. st.done
 # turns true once the result is known, and later chunks are ignored.
 

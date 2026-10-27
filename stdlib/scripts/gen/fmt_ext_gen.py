@@ -57,7 +57,7 @@ def int_checks():
     specs = ['', 'd', '5', '<5', '>5', '^7', '=+8', '*^9', '+', ' ', '-', '05', '010,', '08_', ',', '_',
              'b', '#b', '#o', 'o', 'x', '#x', 'X', '#X', '_x', '#_b', '010_x', '#012_X', 'n', '+d', ' 5d',
              '0=10', 'x<10', '>>8', '<<8', '==9', '0<6', '<06', '^+012,', '#010b', '=^12_d', '.^9', 'é>6',
-             '025', '+030,', ' ,']
+             '025', '+030,', ' ,', 'x<05', '*>010', '0>05', '\u00e9^07']
     for v in vals:
         for s in specs:
             t = tryfmt(v, s)
@@ -82,7 +82,7 @@ def text_checks():
     out = []
     strs = ['', 'a', 'abc', 'héllo', '日本語', 'xxxxxxxxxx', '\U0001F600!']
     specs = ['', 's', '5', '<5', '>5', '^5', '^6', '*^7', 'é>4', '.2', '5.2', '>8.3s', '05', '010', '0>5', '.0', '1',
-             '.10', '\U0001F600^9', '<0', '0^6.1']
+             '.10', '\U0001F600^9', '<0', '0^6.1', 'x<05', '*>010']
     for v in strs:
         for s in specs:
             out.append('check ck_ft(%s, %s, %s)' % (q(v), q(s), q(format(v, s))))
@@ -252,7 +252,7 @@ RP = ['(a)(b)?', '(a|ab)(c|bcd)(d*)', '(?P<user>\\w+)@(?P<host>\\w+)\\.com', '(a
       '(?P<y>\\d{4})-(?P<m>\\d\\d)', 'a{2,3}?', '(ab){1,2}?(ab)?', '[\\D]+', '[\\W\\d]+', '\\x61+', '\\u00e9',
       '(a)|(b)|(c)', '((((a))))', '(a)(?:b)(c)', '(|a)+', '()', '(a*)(a*)', '(a*?)(a*)', 'é|.', '(.)\\1' if False else '(.)(.)',
       '\\Aa|b\\Z', '(a|b)*?b', '[a-c]{,2}', '(?:a|(b))+', '(a)?(b)?(c)?', '\\101\\0', '[à-ÿ]+', '.{2,}?x',
-      '(x?)*y', '(a+|b+)*c']
+      '(x?)*y', '(a+|b+)*c', '(b?|a){0,2}', '(a?|b){2,4}', '\\B', '((a)|b?){0,3}?']
 RS = ['', 'a', 'ab', 'abcd', 'aaa', 'xaby', 'me@host.com x@y.com', '<a><b>', '12-345 6-7', 'bab c', 'éée',
       'a,b,,c', '  foo bar', '2026-10 1999-12', 'abab', 'b', 'aab', 'cbac', 'abc d', 'xyx', 'àéÿ!',
       'A\u0000', 'xxyy', 'aaab', 'bbac']
@@ -339,6 +339,16 @@ def regex_bad_checks():
     for p in ['(?P<n>a)(?P=n)', '(?=a)', '(?!a)', '(?<=a)b', '(?i)a', '(?#c)a', 'a{}', 'a{x}', ']', '}', 'a*+', '(?>a)']:
         py_pat(p)
         out.append('check ck_rbad(%s)' % q(p))
+    # size limits: nesting deeper than 200, 1001 groups, a thread state
+    # past the list limit; the patterns just inside them compile and match
+    deep = '(' * 200 + 'a' + ')' * 200
+    out.append('check ck_rbad(%s)' % q('(' + deep + ')'))
+    out.append('check ck_rx(%s, "ba", %s, [], [])' % (q(deep), lst(slots(py_pat(deep).search('ba'), 'ba'))))
+    out.append('check ck_rbad(%s)' % q('(a)' * 1001))
+    out.append('check ck_rbad(%s)' % q('(a)' * 800))
+    wide = '(a)' * 60
+    out.append('check ck_rx(%s, %s, %s, %s, %s)' % (q(wide), q('a' * 60), lst(slots(py_pat(wide).search('a' * 60), 'a' * 60)), lst(slots(py_pat(wide).match('a' * 60), 'a' * 60)), lst(slots(py_pat(wide).fullmatch('a' * 60), 'a' * 60))))
+    out.append('check ck_rbad("a{1000}{1000}") and ck_rbad("(?:a{1000}){101}")')
     return out
 
 HEAD = {
@@ -373,6 +383,20 @@ def write(part, kind, lines):
 def shards(lines, n):
     return [lines[i:i + n] for i in range(0, len(lines), n)]
 
+def host_offsets():
+    # the text of tests/fmt/fmt_host.rce and the groups of its match
+    b = []
+    for k in range(6):
+        c = [32 if i % 8 == 7 else 97 + i % 5 for i in range(10000)]
+        if k == 4: c[9996:10000] = [32, 109, 101, 64]
+        if k == 5: c[0:9] = list(b'host.com ')
+        b += c
+    s = bytes(b).decode()
+    m = re.search(r'(\w+)@(\w+)\.com', s, re.ASCII)
+    want = [x for g in range(3) for x in m.span(g)]
+    assert '[%s]' % ', '.join(map(str, want)) in open(os.path.join(root, 'tests/fmt/fmt_host.rce')).read(), want
+    return want
+
 def large_checks():
     # inputs near the text limit, within one input's fuel
     assert repr(float('1.' + ''.join(str((i * 7 + 3) % 10) for i in range(999000)))) == '1.307418529630742'
@@ -390,4 +414,5 @@ for chunk in shards(regex_checks() + regex_all_checks() + replace_checks() + reg
     write(part, 'regex', chunk); part += 1
 for chunk in large_checks():
     write(part, 'large', chunk); part += 1
+host_offsets()
 print('wrote parts 5..%d' % (part - 1))
