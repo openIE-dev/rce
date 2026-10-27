@@ -12,7 +12,7 @@ use std::path::{Path, PathBuf};
 
 /// The number of run and trace tests the lowering covers with identical
 /// traces; a change that covers more raises it.
-const COVERED_AT_LEAST: usize = 1355;
+const COVERED_AT_LEAST: usize = 1376;
 
 fn walk(d: &Path, out: &mut Vec<PathBuf>) {
     let mut es: Vec<PathBuf> = std::fs::read_dir(d).unwrap().map(|e| e.unwrap().path()).collect();

@@ -19,7 +19,10 @@
 //! over ranges and lists, functions and methods, and constants; and floats:
 //! f64 and f32 arithmetic with its domain tests, the methods of 5.15 on
 //! floats, casts between floats and integers, and the display and JSON of
-//! floats through the runtime functions of `rtf.rs`.
+//! floats through the runtime functions of `rtf.rs`; `for … par` with the
+//! reduction tree of C.8; the methods of 5.15 on text through `rtt.rs`,
+//! slices of lists and text, `in`, and the list methods `contains`, `get`,
+//! `reverse`, `sum`, `pop`, `clear` and `utf8`.
 //!
 //! Ownership (W3): an RCE variable holds its value until the end of its
 //! scope, where it is dropped; every read of an owned variable is a `copy`;
@@ -28,6 +31,7 @@ use super::build::*;
 use super::ir::*;
 use super::rt;
 use super::rtf;
+use super::rtt;
 use crate::ast::{self, Arg, Body, Expr, FnDecl, Item, Param, Pat, Stmt as S};
 use crate::typed::{self, Binding, Callee, IntT, RType, Tables, Typed, addr};
 use std::collections::HashMap;
@@ -1133,6 +1137,7 @@ impl<'m> Lw<'m> {
             }
             Expr::Call(f, args, _, _) => self.call(fx, e, f, args, rt),
             Expr::Index(x, idx, _) => self.index(fx, x, idx, rt),
+            Expr::Slice(x, a, b, _) => self.slice(fx, x, a.as_deref(), b.as_deref(), rt),
             Expr::Member(x, f, _) => self.member(fx, x, f, rt),
             Expr::TupleMember(x, i, _) => {
                 let v = self.expr(fx, x)?;
@@ -1435,6 +1440,44 @@ impl<'m> Lw<'m> {
             fx.b.set(v, l2);
             return Ok(Val { a: fx.b.unit()?, t: rt });
         }
+        if matches!(m, "pop" | "clear")
+            && matches!(&ort, RType::List(_))
+            && args.is_empty()
+        {
+            let Some(v) = self.var_of(fx, obj) else { return no(format!("{m} on a receiver that is not a variable")) };
+            fx.b.tick(1); // the receiver's evaluation
+            let lt = fx.b.local_ty(v);
+            let Ty::List(et) = &lt else { return no(format!("{m} on a non-list")) };
+            let et = (**et).clone();
+            if m == "clear" {
+                let l = self.take_var(fx, v);
+                fx.b.drop(l)?;
+                let e = fx.b.p("list.new", vec![et], vec![])?;
+                fx.b.set(v, e);
+                return Ok(Val { a: fx.b.unit()?, t: rt });
+            }
+            let RType::Opt(inner) = &rt else { return no("pop of unknown type") };
+            let inner = (**inner).clone();
+            let Some(RType::List(st)) = self.var_rtype(fx, v) else { return no("pop of a list of unknown type") };
+            let t = self.ct(&rt)?;
+            let r = self.result_var(fx, &t)?;
+            let n = fx.b.p("list.len", vec![et.clone()], vec![Atom::V(v)])?;
+            let z = fx.b.int_cmp("int.eq", n, lit(0))?;
+            fx.b.open();
+            let th = fx.b.close();
+            fx.b.open();
+            {
+                let l = self.take_var(fx, v);
+                let ps = fx.b.prim("list.pop", vec![et.clone()], vec![l])?;
+                fx.b.set(v, ps[0].clone());
+                let x = self.conv(fx, ps[1].clone(), &st, &inner, false)?;
+                let sm = fx.b.p("sum.mk", vec![t.clone()], vec![lit(1), x])?;
+                self.store_var(fx, r, sm)?;
+            }
+            let el = fx.b.close();
+            fx.b.push(Stmt::If(z, th, el));
+            return Ok(Val { a: fx.b.let_(Atom::V(r)), t: rt });
+        }
         // a read of a variable's length needs no copy
         if matches!(m, "len" | "len_bytes" | "isempty")
             && let Some(v) = self.var_of(fx, obj)
@@ -1562,6 +1605,157 @@ impl<'m> Lw<'m> {
                 Ok(Val { a: fx.b.let_(Atom::V(r)), t: rt })
             }
             (RType::Text, "tostr" | "raw") => Ok(recv),
+            (RType::Text, "strip" | "upper" | "lower" | "reverse" | "chars" | "words" | "lines" | "isdigit" | "isalpha" | "isspace" | "toint" | "sha256" | "len_chars") => {
+                let g = match m {
+                    "strip" => rtt::strip(&mut self.f)?,
+                    "upper" => rtt::case(&mut self.f, true)?,
+                    "lower" => rtt::case(&mut self.f, false)?,
+                    "reverse" => rtt::reverse(&mut self.f)?,
+                    "chars" => rtt::chars(&mut self.f)?,
+                    "words" => rtt::words(&mut self.f)?,
+                    "lines" => rtt::lines(&mut self.f)?,
+                    "toint" => rtt::toint(&mut self.f)?,
+                    "sha256" => rt::sha_hex(&mut self.f)?,
+                    "len_chars" => rt::utf8_count(&mut self.f)?,
+                    c => rtt::is_class(&mut self.f, c)?,
+                };
+                Ok(Val { a: self.call_rt(fx, g, vec![recv.a]), t: rt })
+            }
+            (RType::Text, "split" | "contains" | "startswith" | "endswith") => {
+                let d = av.remove(0);
+                if d.t != RType::Text {
+                    // interp: a trap names the method
+                    return no(format!("{m} with {}", d.t.show()));
+                }
+                let g = match m {
+                    "split" => rtt::split(&mut self.f)?,
+                    "contains" => rtt::contains(&mut self.f)?,
+                    "startswith" => rtt::affix(&mut self.f, true)?,
+                    _ => rtt::affix(&mut self.f, false)?,
+                };
+                Ok(Val { a: self.call_rt(fx, g, vec![recv.a, d.a]), t: rt })
+            }
+            (RType::Text, "join") => {
+                let xs = av.remove(0);
+                let RType::List(et) = &xs.t else { return no(format!("join with {}", xs.t.show())) };
+                let l = if **et == RType::Text {
+                    xs.a
+                } else {
+                    // a value that is not text is joined as display shows it
+                    let et = (**et).clone();
+                    self.map_list(fx, xs.a, &et, Ty::Bytes, |lw, fx, x| lw.show(fx, x, &et))?
+                };
+                let g = rtt::join(&mut self.f)?;
+                Ok(Val { a: self.call_rt(fx, g, vec![recv.a, l]), t: rt })
+            }
+            (RType::List(et), "utf8") => {
+                match &**et {
+                    RType::Never => {
+                        fx.b.drop(recv.a)?;
+                        return Ok(Val { a: Atom::bytes(b""), t: rt });
+                    }
+                    RType::Int(_) => {}
+                    o => return no(format!("utf8 of a list of {}", o.show())),
+                }
+                let ect = self.ct(et)?;
+                let g = rtt::utf8(&mut self.f, ect)?;
+                Ok(Val { a: self.call_rt(fx, g, vec![recv.a]), t: rt })
+            }
+            (RType::List(et), "contains") => {
+                let x = av.remove(0);
+                let et = (**et).clone();
+                let g = self.list_contains_fn(&et, &x.t)?;
+                Ok(Val { a: self.call_rt(fx, g, vec![recv.a, x.a]), t: rt })
+            }
+            (RType::List(et), "reverse") => {
+                let et = (**et).clone();
+                let ect = self.ct(&et)?;
+                let n = fx.b.p("list.len", vec![ect.clone()], vec![recv.a.clone()])?;
+                let o0 = fx.b.p("list.new", vec![ect.clone()], vec![])?;
+                let out = fx.b.var(Ty::list(ect.clone()), o0);
+                let i = fx.b.var(Ty::Int(0, INT_MAX), n);
+                fx.b.open();
+                {
+                    let iv = fx.b.let_(Atom::V(i));
+                    let z = fx.b.int_cmp("int.eq", iv.clone(), lit(0))?;
+                    fx.b.open();
+                    fx.b.brk(1);
+                    let th = fx.b.close();
+                    fx.b.push(Stmt::If(z, th, vec![]));
+                    let i1 = fx.b.sub_in(iv, lit(1), Ty::Int(0, INT_MAX))?;
+                    fx.b.set(i, i1.clone());
+                    let x = fx.b.list_at(recv.a.clone(), i1)?;
+                    let o = fx.b.let_(Atom::V(out));
+                    let o = fx.b.p("list.push", vec![ect.clone()], vec![o, x])?;
+                    fx.b.set(out, o);
+                }
+                let body = fx.b.close();
+                fx.b.push(Stmt::Loop(vec![Stmt::Block(body)]));
+                fx.b.drop(recv.a)?;
+                Ok(Val { a: fx.b.let_(Atom::V(out)), t: recv.t.clone() })
+            }
+            (RType::List(et), "get") => {
+                let i = av.remove(0);
+                let RType::Int(_) = &i.t else { return no(format!("get with {}", i.t.show())) };
+                let et = (**et).clone();
+                let ect = self.ct(&et)?;
+                let t = self.ct(&rt)?;
+                let r = self.result_var(fx, &t)?;
+                let neg = fx.b.int_cmp("int.lt", i.a.clone(), lit(0))?;
+                let n = fx.b.p("list.len", vec![ect.clone()], vec![recv.a.clone()])?;
+                let inside = fx.b.int_cmp("int.lt", i.a.clone(), n)?;
+                let nn = fx.b.not(neg)?;
+                let ok = fx.b.p("bool.and", vec![], vec![nn, inside])?;
+                fx.b.open();
+                let ii = fx.b.cast_in(i.a.clone(), Ty::Int(0, INT_MAX))?;
+                let x = fx.b.list_at(recv.a.clone(), ii)?;
+                let RType::Opt(inner) = &rt else { return no("get of unknown type") };
+                let x = self.conv(fx, x, &et, inner, false)?;
+                let sm = fx.b.p("sum.mk", vec![t.clone()], vec![lit(1), x])?;
+                self.store_var(fx, r, sm)?;
+                let th = fx.b.close();
+                fx.b.push(Stmt::If(ok, th, vec![]));
+                fx.b.drop(recv.a)?;
+                Ok(Val { a: fx.b.let_(Atom::V(r)), t: rt })
+            }
+            (RType::List(et), "sum") => {
+                let et = (**et).clone();
+                let RType::Int(ei) = &et else {
+                    if et == RType::Never {
+                        fx.b.drop(recv.a)?;
+                        return Ok(Val { a: lit(0), t: rt });
+                    }
+                    return no(format!("sum of {}", et.show()));
+                };
+                let tags = typed::Tags::lit().join_op(ei.tags);
+                let res = IntT::of_tags(tags);
+                let (r, name) = check_of(&res)?;
+                let ect = self.ct(&et)?;
+                let acc = fx.b.var(hull(&r, &Ty::Int(0, 0)), lit(0));
+                let n = fx.b.p("list.len", vec![ect.clone()], vec![recv.a.clone()])?;
+                let i = fx.b.var(Ty::u64(), lit(0));
+                fx.b.open();
+                {
+                    let iv = fx.b.let_(Atom::V(i));
+                    let more = fx.b.int_cmp("int.lt", iv.clone(), n)?;
+                    fx.b.open();
+                    let th = fx.b.close();
+                    fx.b.open();
+                    fx.b.brk(1);
+                    let el = fx.b.close();
+                    fx.b.push(Stmt::If(more, th, el));
+                    let x = fx.b.list_at(recv.a.clone(), iv.clone())?;
+                    let a = fx.b.let_(Atom::V(acc));
+                    let s2 = self.int_op(fx, "+", a, x, &r, &name, &res)?;
+                    fx.b.set(acc, s2);
+                    let i1 = fx.b.add_in(iv, lit(1), Ty::u64())?;
+                    fx.b.set(i, i1);
+                }
+                let body = fx.b.close();
+                fx.b.push(Stmt::Loop(vec![Stmt::Block(body)]));
+                fx.b.drop(recv.a)?;
+                Ok(Val { a: fx.b.let_(Atom::V(acc)), t: rt })
+            }
             (RType::Text, "len" | "len_bytes") => Ok(Val { a: fx.b.p("bytes.len", vec![], vec![recv.a])?, t: rt }),
             (RType::Text, "isempty") => {
                 let n = fx.b.p("bytes.len", vec![], vec![recv.a])?;
@@ -1619,6 +1813,82 @@ impl<'m> Lw<'m> {
             }
             (t, _) => no(format!("the method {m} of {}", t.show())),
         }
+    }
+
+    /// A new list of `f(x)` for each item x of the list `l` (consumed),
+    /// whose items have type `et`; `f` consumes its argument.
+    fn map_list(&mut self, fx: &mut Fx, l: Atom, et: &RType, out_t: Ty, mut f: impl FnMut(&mut Self, &mut Fx, Atom) -> R<Atom>) -> R<Atom> {
+        let ect = self.ct(et)?;
+        let n = fx.b.p("list.len", vec![ect], vec![l.clone()])?;
+        let o0 = fx.b.p("list.new", vec![out_t.clone()], vec![])?;
+        let out = fx.b.var(Ty::list(out_t.clone()), o0);
+        let i = fx.b.var(Ty::u64(), lit(0));
+        fx.b.open();
+        {
+            let iv = fx.b.let_(Atom::V(i));
+            let more = fx.b.int_cmp("int.lt", iv.clone(), n)?;
+            fx.b.open();
+            let th = fx.b.close();
+            fx.b.open();
+            fx.b.brk(1);
+            let el = fx.b.close();
+            fx.b.push(Stmt::If(more, th, el));
+            let x = fx.b.list_at(l.clone(), iv.clone())?;
+            let y = f(self, fx, x)?;
+            let o = fx.b.let_(Atom::V(out));
+            let o = fx.b.p("list.push", vec![out_t.clone()], vec![o, y])?;
+            fx.b.set(out, o);
+            let i1 = fx.b.add_in(iv, lit(1), Ty::u64())?;
+            fx.b.set(i, i1);
+        }
+        let body = fx.b.close();
+        fx.b.push(Stmt::Loop(vec![Stmt::Block(body)]));
+        fx.b.drop(l)?;
+        Ok(fx.b.let_(Atom::V(out)))
+    }
+
+    /// `xs.contains(x)` and `x in xs` for a list (interp: `==` with each item):
+    /// `contains:(List[e], x)(xs, x) -> bool`, consuming both.
+    fn list_contains_fn(&mut self, et: &RType, xt: &RType) -> R<usize> {
+        let lt = Ty::list(self.ct(et)?);
+        let xct = self.ct(xt)?;
+        let key = RType::Tuple(vec![RType::List(Box::new(et.clone())), xt.clone()]);
+        let (et2, xt2) = (et.clone(), xt.clone());
+        self.generated("contains", &key, vec![lt, xct], Ty::Bool, move |lw, fx| {
+            let (l, x) = (fx.b.arg(0), fx.b.arg(1));
+            let ect = lw.ct(&et2)?;
+            let n = fx.b.p("list.len", vec![ect], vec![l.clone()])?;
+            let i = fx.b.var(Ty::u64(), lit(0));
+            let r = fx.b.var(Ty::Bool, Atom::bool(false));
+            fx.b.open();
+            {
+                let iv = fx.b.let_(Atom::V(i));
+                let more = fx.b.int_cmp("int.lt", iv.clone(), n)?;
+                fx.b.open();
+                let th = fx.b.close();
+                fx.b.open();
+                fx.b.brk(1);
+                let el = fx.b.close();
+                fx.b.push(Stmt::If(more, th, el));
+                let y = fx.b.list_at(l.clone(), iv.clone())?;
+                let xc = fx.b.copy(x.clone())?;
+                let e = lw.eq(fx, Val { a: y, t: et2.clone() }, Val { a: xc, t: xt2.clone() })?;
+                fx.b.open();
+                fx.b.set(r, Atom::bool(true));
+                fx.b.brk(1);
+                let th = fx.b.close();
+                fx.b.push(Stmt::If(e, th, vec![]));
+                let i1 = fx.b.add_in(iv, lit(1), Ty::u64())?;
+                fx.b.set(i, i1);
+            }
+            let body = fx.b.close();
+            fx.b.push(Stmt::Loop(vec![Stmt::Block(body)]));
+            fx.b.drop(l)?;
+            fx.b.drop(x)?;
+            let rv = fx.b.let_(Atom::V(r));
+            fx.b.ret(rv);
+            Ok(())
+        })
     }
 
     /// The current type of the values of a `var` local (its storage type).
@@ -1679,6 +1949,130 @@ impl<'m> Lw<'m> {
             fx.b.drop(c)?;
         }
         Ok(Val { a: r, t: rt })
+    }
+
+    /// interp `contains(c, x)`, the operator `in`: c and x consumed.
+    fn contains(&mut self, fx: &mut Fx, c: Val, x: Val) -> R<Atom> {
+        match &c.t {
+            RType::List(et) => {
+                let et = (**et).clone();
+                let g = self.list_contains_fn(&et, &x.t)?;
+                Ok(self.call_rt(fx, g, vec![c.a, x.a]))
+            }
+            RType::Text => {
+                if x.t != RType::Text {
+                    fx.b.drop(c.a)?;
+                    fx.b.drop(x.a)?;
+                    return Ok(Atom::bool(false));
+                }
+                let g = rtt::contains(&mut self.f)?;
+                Ok(self.call_rt(fx, g, vec![c.a, x.a]))
+            }
+            RType::Tuple(ts) => {
+                let ts = ts.clone();
+                let ct = fx.b.ty(&c.a);
+                let mut acc = Atom::bool(false);
+                for (k, t) in ts.iter().enumerate() {
+                    let y = fx.b.p("tup.get", vec![ct.clone()], vec![c.a.clone(), lit(k as i128)])?;
+                    let xc = fx.b.copy(x.a.clone())?;
+                    let e = self.eq(fx, Val { a: y, t: t.clone() }, Val { a: xc, t: x.t.clone() })?;
+                    acc = fx.b.p("bool.or", vec![], vec![acc, e])?;
+                }
+                fx.b.drop(c.a)?;
+                fx.b.drop(x.a)?;
+                Ok(acc)
+            }
+            o => no(format!("`in` on {}", o.show())),
+        }
+    }
+
+    /// interp `E::Slice`: `x[a:b]` of a list or a text; a negative bound
+    /// counts from the end; the traps are those of the reference.
+    fn slice(&mut self, fx: &mut Fx, x: &Expr, a: Option<&Expr>, b: Option<&Expr>, rt: RType) -> R<Val> {
+        let c = self.expr(fx, x)?;
+        let av = match a {
+            Some(e) => Some(self.expr(fx, e)?),
+            None => None,
+        };
+        let bv = match b {
+            Some(e) => Some(self.expr(fx, e)?),
+            None => None,
+        };
+        let ct = fx.b.ty(&c.a);
+        let n = match &ct {
+            Ty::List(e) => fx.b.p("list.len", vec![(**e).clone()], vec![c.a.clone()])?,
+            Ty::Bytes => fx.b.p("bytes.len", vec![], vec![c.a.clone()])?,
+            _ => return no(format!("a slice of {}", c.t.show())),
+        };
+        let lo = self.slice_bound(fx, av, &n, lit(0))?;
+        let hi = self.slice_bound(fx, bv, &n, n.clone())?;
+        let rev = fx.b.int_cmp("int.lt", hi.clone(), lo.clone())?;
+        self.guard(fx, rev, |_, _| Ok(Atom::bytes(b"slice bounds reversed")))?;
+        match ct {
+            Ty::Bytes => {
+                let g = rtt::boundary(&mut self.f)?;
+                let b1 = self.call_rt(fx, g, vec![c.a.clone(), lo.clone()]);
+                let b2 = self.call_rt(fx, g, vec![c.a.clone(), hi.clone()]);
+                let both = fx.b.p("bool.and", vec![], vec![b1, b2])?;
+                let bad = fx.b.not(both)?;
+                self.guard(fx, bad, |_, _| Ok(Atom::bytes(b"not a char boundary")))?;
+                let ok = fx.b.int_cmp("int.le", lo.clone(), hi.clone())?;
+                fx.b.guard_halt_unless(ok, "internal: slice")?;
+                let ok = fx.b.int_cmp("int.le", hi.clone(), n)?;
+                fx.b.guard_halt_unless(ok, "internal: slice")?;
+                Ok(Val { a: fx.b.p("bytes.slice", vec![], vec![c.a, lo, hi])?, t: rt })
+            }
+            Ty::List(e) => {
+                let e = (*e).clone();
+                let o0 = fx.b.p("list.new", vec![e.clone()], vec![])?;
+                let out = fx.b.var(Ty::list(e.clone()), o0);
+                let i = fx.b.var(Ty::Int(0, INT_MAX), lo);
+                fx.b.open();
+                {
+                    let iv = fx.b.let_(Atom::V(i));
+                    let more = fx.b.int_cmp("int.lt", iv.clone(), hi)?;
+                    fx.b.open();
+                    let th = fx.b.close();
+                    fx.b.open();
+                    fx.b.brk(1);
+                    let el = fx.b.close();
+                    fx.b.push(Stmt::If(more, th, el));
+                    let y = fx.b.list_at(c.a.clone(), iv.clone())?;
+                    let o = fx.b.let_(Atom::V(out));
+                    let o = fx.b.p("list.push", vec![e.clone()], vec![o, y])?;
+                    fx.b.set(out, o);
+                    let i1 = fx.b.add_in(iv, lit(1), Ty::Int(0, INT_MAX))?;
+                    fx.b.set(i, i1);
+                }
+                let body = fx.b.close();
+                fx.b.push(Stmt::Loop(vec![Stmt::Block(body)]));
+                fx.b.drop(c.a)?;
+                let r = fx.b.let_(Atom::V(out));
+                let a = self.conv(fx, r, &c.t, &rt, false)?;
+                Ok(Val { a, t: rt })
+            }
+            _ => unreachable!(),
+        }
+    }
+
+    /// A slice bound normalised as interp `norm` does: absent, the default;
+    /// negative, counted from the end; then within 0..=n or a trap.
+    fn slice_bound(&mut self, fx: &mut Fx, v: Option<Val>, n: &Atom, default: Atom) -> R<Atom> {
+        let Some(v) = v else { return Ok(default) };
+        let RType::Int(_) = &v.t else { return no(format!("a slice bound of type {}", v.t.show())) };
+        let k = fx.b.var(wide(), v.a.clone());
+        let neg = fx.b.int_cmp("int.lt", v.a.clone(), lit(0))?;
+        fx.b.open();
+        let s = fx.b.add_in(n.clone(), v.a, wide())?;
+        fx.b.set(k, s);
+        let th = fx.b.close();
+        fx.b.push(Stmt::If(neg, th, vec![]));
+        let kv = fx.b.let_(Atom::V(k));
+        let below = fx.b.int_cmp("int.lt", kv.clone(), lit(0))?;
+        let above = fx.b.int_cmp("int.lt", n.clone(), kv.clone())?;
+        let out = fx.b.p("bool.or", vec![], vec![below, above])?;
+        self.guard(fx, out, |_, _| Ok(Atom::bytes(b"slice index out of range")))?;
+        fx.b.cast_in(kv, Ty::Int(0, INT_MAX))
     }
 
     fn field_index(&self, rt: &RType, f: &str) -> R<usize> {
@@ -1787,8 +2181,37 @@ impl<'m> Lw<'m> {
             }
             return Ok(Val { a: fx.b.let_(Atom::V(r)), t: rt });
         }
+        if (op == "in" || op == "not in")
+            && let Expr::Bin(rop, lo, hi, _) = b
+            && (rop == ".." || rop == "..=")
+        {
+            // `x in a..b`: the range is not built (interp `contains` of a range)
+            let x = self.expr(fx, a)?;
+            fx.b.tick(1);
+            let l = self.expr(fx, lo)?;
+            let h = self.expr(fx, hi)?;
+            let r = match (&x.t, &l.t, &h.t) {
+                (RType::Int(_), RType::Int(_), RType::Int(_)) => {
+                    let ge = fx.b.int_cmp("int.le", l.a, x.a.clone())?;
+                    let below = fx.b.int_cmp(if rop == ".." { "int.lt" } else { "int.le" }, x.a, h.a)?;
+                    fx.b.p("bool.and", vec![], vec![ge, below])?
+                }
+                (_, RType::Int(_), RType::Int(_)) => {
+                    fx.b.drop(x.a)?;
+                    Atom::bool(false)
+                }
+                _ => return no("a range of non-integers"),
+            };
+            let r = if op == "not in" { fx.b.not(r)? } else { r };
+            return Ok(Val { a: r, t: rt });
+        }
         let x = self.expr(fx, a)?;
         let y = self.expr(fx, b)?;
+        if op == "in" || op == "not in" {
+            let r = self.contains(fx, y, x)?;
+            let r = if op == "not in" { fx.b.not(r)? } else { r };
+            return Ok(Val { a: r, t: rt });
+        }
         match op {
             "==" | "!=" => {
                 let e = self.eq(fx, x, y)?;
@@ -1822,7 +2245,7 @@ impl<'m> Lw<'m> {
                 };
                 Ok(Val { a: r, t: rt })
             }
-            "in" | "not in" | ".." | "..=" => no(format!("the operator {op}")),
+            ".." | "..=" => no(format!("the operator {op}")),
             _ => self.arith(fx, op, x, y, rt),
         }
     }

@@ -6,8 +6,9 @@
 //! - `wf`: its well-formedness check, W1 to W6 (3.3)
 //! - `eval`: a reference evaluator of the core
 //! - `trace`: the reference trace a printed program must reproduce (3.6)
-//! - `build`, `rt`, `rtf`: building core functions, and the runtime
-//!   functions the lowering calls, written in the core (`rtf`: floats)
+//! - `build`, `rt`, `rtf`, `rtt`: building core functions, and the
+//!   runtime functions the lowering calls, written in the core (`rtf`:
+//!   floats, `rtt`: text)
 //! - `lower`: the lowering of an RCE module to the core (3.5)
 pub mod build;
 pub mod eval;
@@ -16,6 +17,7 @@ pub mod json;
 pub mod lower;
 pub mod rt;
 pub mod rtf;
+pub mod rtt;
 pub mod trace;
 pub mod wf;
 
