@@ -52,7 +52,10 @@ pub const SEQ_SIZE_LIMIT: usize = 1000000
 
 const SQ_MAXU: usize = 18446744073709551615
 
-# A chunk or window size of 0, or one above SEQ_SIZE_LIMIT.
+# A chunk or window size that cannot be used: 0, one above
+# SEQ_SIZE_LIMIT, or (seq_windows) one whose windows over the list would
+# hold more than SEQ_SIZE_LIMIT elements in all, which SeqWin takes in
+# chunks instead.
 error SeqBadSize(n: usize)
 # The result would hold more than `limit` elements (or tuples).
 error SeqTooLarge(limit: usize)
@@ -486,9 +489,14 @@ pub fn seq_chunks[T](xs: &[T], n: usize) -> List[List[T]] ! SeqBadSize
     return o
 
 # The sliding_window recipe of the itertools documentation: every run of
-# n consecutive elements, in order; none when len(xs) < n.
+# n consecutive elements, in order; none when len(xs) < n. The windows
+# share no storage, so (len(xs) - n + 1) * n is bounded by
+# SEQ_SIZE_LIMIT; a larger request refuses with SeqBadSize before it
+# builds anything.
 pub fn seq_windows[T](xs: &[T], n: usize) -> List[List[T]] ! SeqBadSize
     if n == 0 or n > SEQ_SIZE_LIMIT
+        fail SeqBadSize(n: n)
+    if xs.len() >= n and sq_cap_mul(xs.len() - n + 1, n, SEQ_SIZE_LIMIT) > SEQ_SIZE_LIMIT
         fail SeqBadSize(n: n)
     var o: List[List[T]] = []
     var s: usize = 0
@@ -1274,33 +1282,31 @@ pub fn seq_win_new[T](n: usize) -> SeqWin[T] ! SeqBadSize
         fail SeqBadSize(n: n)
     return SeqWin(n: n, buf: [])
 
-# The windows that end inside xs, in order.
-pub fn seq_win_feed[T](w: &mut SeqWin[T], xs: &[T]) -> List[List[T]]
+# The windows that end inside xs, in order. A feed whose windows would
+# hold more than SEQ_SIZE_LIMIT elements in all refuses with SeqTooLarge
+# and leaves the state as it was; a shorter chunk then goes through (one
+# element gives at most one window).
+pub fn seq_win_feed[T](w: &mut SeqWin[T], xs: &[T]) -> List[List[T]] ! SeqTooLarge
+    let n = w.n
     let b = w.buf.len()
     let tot = b + xs.len()
+    if tot >= n and sq_cap_mul(tot - n + 1, n, SEQ_SIZE_LIMIT) > SEQ_SIZE_LIMIT
+        fail SeqTooLarge(limit: SEQ_SIZE_LIMIT)
     var o: List[List[T]] = []
     var s: usize = 0
-    while s + w.n <= tot bound 1000000
-        var win: List[T] = []
-        var j = s
-        while j < s + w.n bound 1000000
-            if j < b
-                win.push(copy(w.buf[j]))
-            else
-                win.push(copy(xs[j - b]))
-            j += 1
-        o.push(win)
+    # windows that start in the kept elements, then slices of xs
+    while s < b and s + n <= tot bound 1000000
+        o.push([if j < b then copy(w.buf[j]) else copy(xs[j - b]) for j in s..s + n])
         s += 1
-    let keep = (w.n - 1).min(tot)
-    var nb: List[T] = []
-    var k = tot - keep
-    while k < tot bound 1000000
-        if k < b
-            nb.push(copy(w.buf[k]))
-        else
-            nb.push(copy(xs[k - b]))
-        k += 1
-    w.buf = nb
+    while s + n <= tot bound 1000000
+        o.push(copy(xs[s - b:s - b + n]))
+        s += 1
+    let keep = (n - 1).min(tot)
+    if xs.len() >= keep
+        w.buf = copy(xs[xs.len() - keep:xs.len()])
+    else
+        let k0 = tot - keep
+        w.buf = [if k < b then copy(w.buf[k]) else copy(xs[k - b]) for k in k0..tot]
     return o
 
 # itertools.batched over a stream: the incomplete last chunk.

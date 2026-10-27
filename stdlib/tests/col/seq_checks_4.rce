@@ -270,7 +270,7 @@ fn t_win_feed(xs: List[i64], cuts: List[usize], n: usize, flat: List[i64], lens:
     var w: SeqWin[i64] = t_win_mk(n)
     var o: List[List[i64]] = []
     for p in parts
-        let got = seq_win_feed(&mut w, &p)
+        let got = seq_win_feed(&mut w, &p) catch [[0 - 999]]
         for g in got
             o.push(copy(g))
     return o == t_nest(flat, lens)

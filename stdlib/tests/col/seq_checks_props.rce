@@ -177,69 +177,6 @@ fn p_bad_sizes() -> bool
     let f: SeqTop[i64] = seq_top_new(500000, true) catch t_top(1)
     return a.n == 3 and b.n == 1000001 and c.n == 4 and d.k == 500001 and f.k == 500000
 
-# seq_merge_step over seeded sorted streams with many ties, cut into
-# chunks of seeded lengths (0 included) and stepped with seeded n, gives
-# seq_merge of the whole streams (which is checked against heapq.merge).
-fn p_merge_steps(seed: i64, la: usize, lb: usize) -> bool
-    let ra = p_list(la, seed, 40)
-    let rb = p_list(lb, seed + 1, 40)
-    let a = seq_sorted(&ra)
-    let b = seq_sorted(&rb)
-    let whole = seq_merge(&a, &b) catch []
-    let cuts = p_list(400, seed + 2, 9)
-    var s = p_rnd(seed + 3)
-    var ia: usize = 0
-    var ib: usize = 0
-    var ba: List[i64] = []
-    var bb: List[i64] = []
-    var o: List[i64] = []
-    var t: usize = 0
-    var go = true
-    while go bound 10000
-        if ba.len() < 3 and ia < la
-            let e = (ia + (cuts[t % 400] as usize)).min(la)
-            for x in a[ia:e]
-                ba.push(x)
-            ia = e
-            t += 1
-        if bb.len() < 3 and ib < lb
-            let e2 = (ib + (cuts[t % 400] as usize)).min(lb)
-            for x in b[ib:e2]
-                bb.push(x)
-            ib = e2
-            t += 1
-        s = p_rnd(s)
-        let st = seq_merge_step(&ba, &bb, ia == la, ib == lb, 1 + ((s >> 8) % 7) as usize)
-        for x in st.0
-            o.push(x)
-        ba = copy(ba[st.1:ba.len()])
-        bb = copy(bb[st.2:bb.len()])
-        go = not (ba.len() == 0 and bb.len() == 0 and ia == la and ib == lb)
-    return o == whole
-
-fn p_nested(seed: i64, k: usize) -> List[List[i64]]
-    let lens = p_list(k, seed, 12)
-    var o: List[List[i64]] = []
-    var v: i64 = 0
-    for m in lens
-        o.push(p_iota(v, m as usize))
-        v += 100
-    return o
-
-# seq_flatten_part and seq_interleave_part at every start and for several
-# widths give the slices of seq_flatten and seq_interleave.
-fn p_parts(seed: i64, k: usize) -> bool
-    let ls = p_nested(seed, k)
-    let f = seq_flatten(&ls) catch []
-    let r = seq_interleave(&ls) catch []
-    var ok = true
-    for at in 0..f.len() + 2
-        for w in [0, 1, 3, 10]
-            let e = (at + w).min(f.len())
-            let lo = at.min(f.len())
-            ok = ok and (seq_flatten_part(&ls, at, w) catch []) == copy(f[lo:e]) and (seq_interleave_part(&ls, at, w) catch []) == copy(r[lo:e])
-    return ok
-
 fn t_win(n: usize) -> SeqWin[i64] = SeqWin(n: n, buf: [])
 fn t_batch(n: usize) -> SeqBatch[i64] = SeqBatch(n: n, buf: [])
 fn t_top(k: usize) -> SeqTop[i64] = SeqTop(k: k, largest: false, items: [], pos: [], seen: 0)
@@ -253,11 +190,3 @@ check p_comb_refusals()
 check p_cursor_resume()
 check p_scan_resume()
 check p_bad_sizes()
-check p_merge_steps(1, 300, 200)
-check p_merge_steps(2, 0, 50)
-check p_merge_steps(3, 77, 0)
-check p_merge_steps(4, 500, 500)
-check p_parts(6, 7)
-check p_parts(7, 1)
-check p_parts(8, 0)
-check p_parts(9, 12)

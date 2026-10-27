@@ -159,7 +159,7 @@ pub fn lower_bound[K: Ord + Eq](xs: &[K], k: &K) -> usize
             hi = mid
     return lo
 
-fn insert_at[T](xs: &mut List[T], i: usize, x: T)
+fn col_insert_at[T](xs: &mut List[T], i: usize, x: T)
     xs.push(x)
     var j = xs.len() - 1
     while j > i bound 16777216
@@ -168,7 +168,7 @@ fn insert_at[T](xs: &mut List[T], i: usize, x: T)
         xs[j - 1] = t
         j -= 1
 
-fn remove_at[T](xs: &mut List[T], i: usize)
+fn col_remove_at[T](xs: &mut List[T], i: usize)
     var j = i
     while j + 1 < xs.len() bound 16777216
         xs[j] = copy(xs[j + 1])
@@ -182,8 +182,8 @@ pub fn om_insert[K: Ord + Eq, V](m: &mut OrdMap[K, V], k: K, v: V)
     if i < m.keys.len() and m.keys[i] == k
         m.vals[i] = v
     else
-        insert_at(&mut m.keys, i, k)
-        insert_at(&mut m.vals, i, v)
+        col_insert_at(&mut m.keys, i, k)
+        col_insert_at(&mut m.vals, i, v)
 
 pub fn om_get[K: Ord + Eq, V](m: &OrdMap[K, V], k: &K) -> V?
     let i = lower_bound(&m.keys, k)
@@ -198,8 +198,8 @@ pub fn om_contains[K: Ord + Eq, V](m: &OrdMap[K, V], k: &K) -> bool
 pub fn om_remove[K: Ord + Eq, V](m: &mut OrdMap[K, V], k: &K) -> bool
     let i = lower_bound(&m.keys, k)
     if i < m.keys.len() and m.keys[i] == k
-        remove_at(&mut m.keys, i)
-        remove_at(&mut m.vals, i)
+        col_remove_at(&mut m.keys, i)
+        col_remove_at(&mut m.vals, i)
         return true
     return false
 
@@ -220,7 +220,7 @@ pub fn set_add[K: Ord + Eq](s: &mut List[K], k: K) -> bool
     let i = lower_bound(s, &k)
     if i < s.len() and s[i] == k
         return false
-    insert_at(s, i, k)
+    col_insert_at(s, i, k)
     return true
 
 pub fn set_contains[K: Ord + Eq](s: &[K], k: &K) -> bool
@@ -230,7 +230,7 @@ pub fn set_contains[K: Ord + Eq](s: &[K], k: &K) -> bool
 pub fn set_remove[K: Ord + Eq](s: &mut List[K], k: &K) -> bool
     let i = lower_bound(s, k)
     if i < s.len() and s[i] == k
-        remove_at(s, i)
+        col_remove_at(s, i)
         return true
     return false
 
@@ -484,8 +484,8 @@ pub fn hm_remove[V](m: &mut HMap[V], k: &text) -> bool
     let e = hm_find(m, k)
     if e < 0
         return false
-    remove_at(&mut m.keys, e as usize)
-    remove_at(&mut m.vals, e as usize)
+    col_remove_at(&mut m.keys, e as usize)
+    col_remove_at(&mut m.vals, e as usize)
     let cap = m.slots.len()
     hm_rebuild(m, cap)
     return true

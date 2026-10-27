@@ -1,0 +1,110 @@
+# Property checks of col.seq, second file (hand written; comptime fuel
+# is counted per file): chunked merge steps, parts of a concatenation and
+# of a round-robin, and the bound on windows.
+
+fn p_rnd(s: i64) -> i64 = (s * 1103515245 + 12345) & 2147483647
+
+fn p_list(n: usize, seed: i64, m: i64) -> List[i64]
+    var o: List[i64] = []
+    var s = seed
+    for _i in 0..n
+        s = p_rnd(s)
+        o.push((s >> 8) % m)
+    return o
+
+fn p_iota(lo: i64, n: usize) -> List[i64] = [lo + (i as i64) for i in 0..n]
+
+# seq_merge_step over seeded sorted streams with many ties, cut into
+# chunks of seeded lengths (0 included) and stepped with seeded n, gives
+# seq_merge of the whole streams (which is checked against heapq.merge).
+fn p_merge_steps(seed: i64, la: usize, lb: usize) -> bool
+    let ra = p_list(la, seed, 40)
+    let rb = p_list(lb, seed + 1, 40)
+    let a = seq_sorted(&ra)
+    let b = seq_sorted(&rb)
+    let whole = seq_merge(&a, &b) catch []
+    let cuts = p_list(400, seed + 2, 9)
+    var s = p_rnd(seed + 3)
+    var ia: usize = 0
+    var ib: usize = 0
+    var ba: List[i64] = []
+    var bb: List[i64] = []
+    var o: List[i64] = []
+    var t: usize = 0
+    var go = true
+    while go bound 10000
+        if ba.len() < 3 and ia < la
+            let e = (ia + (cuts[t % 400] as usize)).min(la)
+            for x in a[ia:e]
+                ba.push(x)
+            ia = e
+            t += 1
+        if bb.len() < 3 and ib < lb
+            let e2 = (ib + (cuts[t % 400] as usize)).min(lb)
+            for x in b[ib:e2]
+                bb.push(x)
+            ib = e2
+            t += 1
+        s = p_rnd(s)
+        let st = seq_merge_step(&ba, &bb, ia == la, ib == lb, 1 + ((s >> 8) % 7) as usize)
+        for x in st.0
+            o.push(x)
+        ba = copy(ba[st.1:ba.len()])
+        bb = copy(bb[st.2:bb.len()])
+        go = not (ba.len() == 0 and bb.len() == 0 and ia == la and ib == lb)
+    return o == whole
+
+fn p_nested(seed: i64, k: usize) -> List[List[i64]]
+    let lens = p_list(k, seed, 12)
+    var o: List[List[i64]] = []
+    var v: i64 = 0
+    for m in lens
+        o.push(p_iota(v, m as usize))
+        v += 100
+    return o
+
+# seq_flatten_part and seq_interleave_part at every start and for several
+# widths give the slices of seq_flatten and seq_interleave.
+fn p_parts(seed: i64, k: usize) -> bool
+    let ls = p_nested(seed, k)
+    let f = seq_flatten(&ls) catch []
+    let r = seq_interleave(&ls) catch []
+    var ok = true
+    for at in 0..f.len() + 2
+        for w in [0, 1, 3, 10]
+            let e = (at + w).min(f.len())
+            let lo = at.min(f.len())
+            ok = ok and (seq_flatten_part(&ls, at, w) catch []) == copy(f[lo:e]) and (seq_interleave_part(&ls, at, w) catch []) == copy(r[lo:e])
+    return ok
+
+
+fn t_win(n: usize) -> SeqWin[i64] = SeqWin(n: n, buf: [])
+
+# Windows share no storage, so their total is bounded: 1,000 windows of
+# 1,000 over 1,999 elements are built, 1,001 over 2,000 refuse with
+# SeqBadSize; a SeqWin feed of the same 2,000 refuses with SeqTooLarge and
+# keeps its state, and the two halves fed one after the other give the
+# 1,001 windows.
+fn p_win_limit() -> bool
+    let a = p_iota(0, 1999)
+    let b = p_iota(0, 2000)
+    let wa = seq_windows(&a, 1000) catch []
+    let wb = seq_windows(&b, 1000) catch |e| [[e.n as i64]]
+    var w: SeqWin[i64] = seq_win_new(1000) catch t_win(1)
+    let r = seq_win_feed(&mut w, &b) catch |e| [[e.limit as i64]]
+    let h1 = copy(b[0:1000])
+    let h2 = copy(b[1000:2000])
+    let f1 = seq_win_feed(&mut w, &h1) catch []
+    let f2 = seq_win_feed(&mut w, &h2) catch []
+    let last = p_iota(1000, 1000)
+    return wa.len() == 1000 and wa[999] == p_iota(999, 1000) and wb == [[1000]] and r == [[1000000]] and f1.len() == 1 and f1[0] == h1 and f2.len() == 1000 and f2[999] == last
+
+check p_merge_steps(1, 300, 200)
+check p_merge_steps(2, 0, 50)
+check p_merge_steps(3, 77, 0)
+check p_merge_steps(4, 500, 500)
+check p_parts(6, 7)
+check p_parts(7, 1)
+check p_parts(8, 0)
+check p_parts(9, 12)
+check p_win_limit()
