@@ -202,6 +202,105 @@ address. Normalization (NFC/NFD over code-point lists) is feasible in pure
 RCE once UCD tables are generated into the library, but its result could
 not be turned back into text without that built-in.
 
+## text.str (`lib/text/str.rce`)
+
+Pure. Every expected value comes from an independent reference, saved in
+`text/str_vectors.json` (sha256
+37fa00852170a58476180d8684955e4aca617bc975d69fc4c637c4af2506713b) by
+`scripts/gen/str_gen.py --refresh` (seed 20261025); the same script without
+`--refresh` writes the checks from that file alone.
+
+- **Unicode data:** the case mappings, the flags behind the predicates,
+  the change-case letter class and the ASCII part of each NFKD form are
+  derived by `scripts/gen/str_data.py` from the Unicode 15.1.0 files, by the
+  rules of CPython's `Tools/unicode/makeunicodedata.py` (only the
+  unconditional SpecialCasing entries; CaseFolding status C and F;
+  DerivedNumericType for isdecimal, isdigit and isnumeric). unicode.org was
+  not reachable from the build host, so the files were taken from the copy
+  of the same release in unicode-org/unicodetools
+  (`unicodetools/data/ucd/15.1.0/`); both sources are tried and each file is
+  checked against its pin before use (cached in ~/.cache/rce-ucd/15.1):
+
+  | File | sha256 |
+  |---|---|
+  | UnicodeData.txt | 2fc713e6a31a87c4850a37fe2caffa4218180fadb5de86b43a143ddb4581fb86 |
+  | SpecialCasing.txt | 55a477efd933a52cd27e6a9bf70265bb2d8814af31aab07767abc8eb421f27ef |
+  | CaseFolding.txt | 4e55acfdc32825a22e87670e9056a3bf94ad7c5400065778e9e10f8314372bcf |
+  | DerivedCoreProperties.txt | f55d0db69123431a7317868725b1fcbf1eab6b265d756d1bd7f0f6d9f9ee108b |
+  | extracted/DerivedNumericType.txt | 0f22ca7770c836211e2b5390c6c9c3b5faae8e60cd8a59f244a43f9f5421cddd |
+
+  The generator then compares the derived data with CPython 3.13.16
+  (unicodedata 15.1.0) on every code point: `upper`, `lower`, `title` and
+  `casefold` of the one-character string, the twelve `is*` predicates, the
+  final sigma context of Cased and Case_Ignorable, and
+  `unicodedata.normalize("NFKD", c).encode("ascii", "ignore")`; all
+  1,112,064 scalar values agree. The change-case letter class
+  (`/[^\p{L}\d]/iu`) agrees with Node 22.22.0 (ICU 77.1, Unicode 16.0) on
+  the 1,107,762 code points whose letter status is the same in both
+  versions.
+- **CPython 3.13.16 `str`:** 13,189 cases of find, rfind, count (and with
+  start and end at character boundaries), replace, partition, rpartition,
+  split, rsplit, splitlines, `*`, slicing with and without a step,
+  indexing, center, ljust, rjust, zfill, expandtabs, removeprefix,
+  removesuffix, strip, lstrip, rstrip (with and without characters), the
+  twelve predicates, upper, lower, casefold, title, capitalize, swapcase,
+  chr and ord, over ASCII and non-ASCII texts (Latin, Greek with final
+  sigma, Cyrillic, CJK, Hangul, Hebrew, Arabic, Devanagari, Cherokee,
+  Georgian, Deseret, Adlam, emoji, combining and case-ignorable marks,
+  special casings such as U+00DF, U+0130, U+0149, U+01C5, U+1FB3 and the
+  ligatures) and 80 seeded random texts; the predicates of one code point
+  of every record of the table and of every code point that starts or
+  ends a run of one record (7,460 code points in 156 strings), and the
+  case mappings of every code point that one of them changes (2,927) and
+  of one code point of every record (1,011), in 100 strings. Results above the limit are compared by
+  length and sha256 on texts up to 1,000,000 characters and 2,000,000
+  bytes, built in the checks by `str_repeat`, so that the search crosses
+  windows and splits pass a million pieces.
+- **CPython bytes methods:** 623 cases of find, rfind and count with byte
+  offsets anywhere (negative, past the end, inside a character), and
+  StrFinder's find from a start, against `bytes.find`, `rfind` and
+  `count` on the UTF-8 encoding.
+- **CPython `re`:** 688 cases: the overlapping (`(?=x)`) and
+  non-overlapping matches that StrFinder and StrScan report, and
+  `re.split("", s, maxsplit)` for an empty separator.
+- **Django 5.2.18** (`pip install django==5.2.18`),
+  `django.utils.text.slugify`: 339 cases, among them every code point
+  whose NFKD form has an ASCII part (2,130 in 36 strings).
+- **change-case 5.4.4** (`npm install change-case@5.4.4`, run by Node
+  22.22.0 with `locale: false`): 806 cases of `split` and of camelCase,
+  pascalCase, snakeCase, kebabCase, constantCase and capitalCase. 10
+  generated inputs are left out because a word starts with a letter above
+  U+FFFF that has an uppercase form: change-case upper-cases the first
+  UTF-16 unit of a word and so leaves such a letter as it is, where
+  `str_pascal` and the others upper-case the whole code point. No input
+  was left out for differences between Unicode 15.1 and 16.0.
+- **derived:** 2,072 cases whose expected value is the rule stated in
+  str.rce, computed by the generator: an empty needle with byte offsets
+  inside a character (rounded to a boundary), an empty separator in
+  partition, split_once and rsplit, `BadStr` results (too large, fill,
+  step, code point), the split cap at 999,999 splits, the chunk lists of
+  `sx_split_chunks` and the character offset conversions. 17 property
+  checks (`tests/text/str_checks_props.rce`: seeded sweeps over 600 seeds
+  and fixed inputs) check the search, split, replace and partition
+  functions against StrFinder and against each other, StrScan over random
+  chunkings, slicing and offset round trips, upper and casefold chunk by
+  chunk, the chunks of `str_chunk_end` (title, swapcase, lower, words and
+  splitlines over the chunks joined equal the whole text's, in at least
+  125 of 400 seeds whose every cut falls after the separator; the chunk
+  ends of texts of a million characters), splitlines, strip and StrBuf
+  (including appends across its run and block boundaries and content
+  above the limit).
+
+17,717 vector checks and 17 property checks in
+`tests/text/str_checks*.rce` (87 files). A refresh with the references above writes the vectors file
+byte for byte again.
+
+Needs spec: case mapping and predicates follow Unicode 15.1.0 (CPython
+3.13) while ui.text and net.idna are on 16.0.0, and RCE pins 18.0.0 for
+its own White_Space set; one Unicode version for the library is a spec
+decision. Locale-sensitive casing (Turkish and Azeri dotted i, Lithuanian)
+and slugify with allow_unicode=True (it needs NFKC) are not provided.
+
 ## time (`lib/time/time.rce`)
 
 - Howard Hinnant, "chrono-Compatible Low-Level Date Algorithms"
