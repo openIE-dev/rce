@@ -905,7 +905,7 @@ oracles    = ["oracle/cpython-3.13.1.toml", "oracle/pypy-7.3.17.toml"]
 [[case]]
 file       = "files/2f/2f9c….py"    # stored under its SHA-256
 sha256     = "2f9c…"
-tier       = "T2"                   # T1 basics | T2 algorithms | T3 boundaries | U upstream suite | G generated | P pairs
+tier       = "algorithms"           # basics | algorithms | boundaries | upstream (L's own suite) | generated | pairs
 profile    = "command"
 inputs     = [{ argv = [], stdin_hex = "", env = {} }]
 expected   = "expected/2f9c….obs.json"   # recorded from the oracle; never typed
