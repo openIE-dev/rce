@@ -23,9 +23,9 @@ const COVERED: &[&str] = &[
     "30_state_machine_guarded", "31_inventory", "32_comptime_block", "33_in_operator", "34_chan_types",
     "35_nested_if", "36_multiline_brackets", "38_hex_bin", "40_extern", "41_arena_bound_wrapping", "42_f32",
     "43_simd_lanes", "44_device_region", "45_byte_text", "46_u64", "47_select_fair", "48_linear_handle",
-    "49_loop_limit", "51_refined_input", "52_context_text", "53_capability", "54_secret", "55_rcedb",
-    "56_utf8", "57_float_vectors", "58_float_keys", "59_dim_redundant_field", "60_dim_hidden_period",
-    "61_dim_minimal",
+    "49_loop_limit", "50_iterators", "51_refined_input", "52_context_text", "53_capability", "54_secret",
+    "55_rcedb", "56_utf8", "57_float_vectors", "58_float_keys", "59_dim_redundant_field",
+    "60_dim_hidden_period", "61_dim_minimal",
 ];
 
 /// The programs the lowering does not yet cover, and the construct it
@@ -35,7 +35,6 @@ const NOT_COVERED: &[(&str, &str)] = &[
     ("15_actor", "the type chan i64"),
     ("37_actor_spawn", "the type chan u64"),
     ("39_structural_recursion", "a recursive type"),
-    ("50_iterators", "the iterator function naturals"),
 ];
 
 /// The covered programs whose probes (the extra observations of the
@@ -49,8 +48,9 @@ const COVERED_WITH_PROBES: &[&str] = &[
     "31_inventory", "32_comptime_block", "33_in_operator", "34_chan_types", "35_nested_if",
     "36_multiline_brackets", "38_hex_bin", "40_extern", "41_arena_bound_wrapping", "42_f32", "43_simd_lanes",
     "44_device_region", "45_byte_text", "46_u64", "47_select_fair", "48_linear_handle", "49_loop_limit",
-    "51_refined_input", "52_context_text", "53_capability", "54_secret", "55_rcedb", "56_utf8",
-    "57_float_vectors", "58_float_keys", "59_dim_redundant_field", "60_dim_hidden_period", "61_dim_minimal",
+    "50_iterators", "51_refined_input", "52_context_text", "53_capability", "54_secret", "55_rcedb",
+    "56_utf8", "57_float_vectors", "58_float_keys", "59_dim_redundant_field", "60_dim_hidden_period",
+    "61_dim_minimal",
 ];
 
 fn examples() -> Vec<(String, String)> {
@@ -119,8 +119,10 @@ fn examples_with_probes_lower_to_the_reference_trace() {
 /// Small programs for constructs the examples reach little: lambdas a
 /// `let` makes (captures, calls in a loop, the trap of the last parameter
 /// whose fit fails), `set_of` in canonical order, sums of f64 (and the zero
-/// they start from), and a call of a foreign function, which traps; and
-/// the JSON sizes a region with a bound adds up (R3).
+/// they start from), a call of a foreign function, which traps, and
+/// iterators (nested, left by `break`, and trapping after items the
+/// consumer has shown); and the JSON sizes a region with a bound adds up
+/// (R3).
 const PROGRAMS: &[&str] = &[
     "fn main()\n    let k = 10\n    let add = fn(x: i64) => x + k\n    let j = 99\n    emit add(1)\n    emit add(j)\n    let s = \"ab\"\n    let cat = fn(t: text) => t + s\n    emit cat(cat(\"y\"))\n",
     "type Pct = u8 where self <= 100\ntype Name = text where self.len() >= 1 and self.len() <= 2\n\nfn main()\n    let pair = fn(a: Pct, b: Name) => b.len_bytes() + a.tostr().len_bytes()\n    emit pair(1, \"x\")\n    let n: u8 = 200\n    let t = \"long\"\n    emit pair(n, t)\n",
@@ -128,6 +130,7 @@ const PROGRAMS: &[&str] = &[
     "fn main()\n    let xs = [1.5, -0.0, 2.25]\n    emit xs.sum()\n    let ys = [-0.0]\n    emit ys.sum()\n    let zs = [1e308, 1e308]\n    emit zs.sum()\n",
     "fn main()\n    emit set_of([(2, \"b\"), (1, \"z\"), (2, \"a\"), (1, \"z\")])\n    emit set_of([(3, 1), (2, 0), (3, 1)]).len()\n    emit set_of([2.5, -0.0, 0.0, 1.0, 2.5])\n    emit set_of([true, false, true]).tolist()\n    let e: List[i64] = []\n    emit set_of(e)\n",
     "extern \"C\" fn crc32(w: &World, data: &[u8], seed: u32) -> u32\n\nfn main(w: &World)\n    let bytes: List[u8] = [1, 2, 3]\n    emit 1\n    emit crc32(w, &bytes, 0)\n    emit 2\n",
+    "fn ramp(n: u8) -> iter u8\n    var i: u8 = 250\n    loop\n        yield i\n        i += n\n\nfn pairs(n: u64) -> iter (u64, text)\n    for i in 0..n\n        if i % 2 == 0\n            yield (i, \"even\")\n        else\n            yield (i, \"odd\")\n\nfn evens(n: u64) -> iter u64\n    for x in pairs(n)\n        if x.1 == \"even\"\n            yield x.0\n    return\n\nfn main()\n    for x in pairs(3)\n        emit x\n    for y in evens(200)\n        if y > 140\n            break\n        if y % 20 != 0\n            continue\n        emit y\n    emit evens(7).collect()\n    for z in ramp(2)\n        emit z\n",
 ];
 
 /// A region with a bound holding values of most types: run at bounds that

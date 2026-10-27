@@ -146,6 +146,9 @@ pub enum RType {
     /// value carries nothing the lowering keeps, since each call runs the
     /// lambda's body in the scope where it was made
     Closure(usize),
+    /// a call of an iterator function (5.14) not yet run: the key of its
+    /// instantiation and the type of the items it yields
+    Gen(String, Box<RType>),
     /// a value this pass does not type, and why
     Unknown(String),
 }
@@ -155,7 +158,7 @@ impl RType {
         match self {
             RType::Unknown(_) => false,
             RType::Tuple(ts) => ts.iter().all(|t| t.is_known()),
-            RType::List(t) | RType::Set(t) | RType::Opt(t) => t.is_known(),
+            RType::List(t) | RType::Set(t) | RType::Opt(t) | RType::Gen(_, t) => t.is_known(),
             RType::Map(a, b) | RType::Union(a, b) => a.is_known() && b.is_known(),
             _ => true,
         }
@@ -164,7 +167,7 @@ impl RType {
         match self {
             RType::Unknown(r) => Some(r.clone()),
             RType::Tuple(ts) => ts.iter().find_map(|t| t.unknown_reason()),
-            RType::List(t) | RType::Set(t) | RType::Opt(t) => t.unknown_reason(),
+            RType::List(t) | RType::Set(t) | RType::Opt(t) | RType::Gen(_, t) => t.unknown_reason(),
             RType::Map(a, b) | RType::Union(a, b) => a.unknown_reason().or_else(|| b.unknown_reason()),
             _ => None,
         }
@@ -207,6 +210,7 @@ impl RType {
             Range(i) => format!("Range[{}]", RType::Int(*i).show()),
             Fn(n) => format!("fn {n}"),
             Closure(_) => "a lambda".into(),
+            Gen(_, t) => format!("iter {}", t.show()),
             Unknown(r) => format!("unknown ({r})"),
         }
     }
@@ -663,6 +667,8 @@ struct Cx<'a, 'm> {
     rets: Option<RType>,
     /// in the body of an instantiation: the type parameters in scope
     gs: Vec<String>,
+    /// in the body of an iterator function: the types its `yield`s give
+    yields: Option<RType>,
 }
 
 impl<'a, 'm> Cx<'a, 'm> {
@@ -801,6 +807,7 @@ impl<'a, 'm> Cx<'a, 'm> {
                     RType::Range(i) => RType::Int(*i),
                     RType::Text => RType::Text,
                     RType::Map(k, v) => RType::Tuple(vec![(**k).clone(), (**v).clone()]),
+                    RType::Gen(_, t) => (**t).clone(),
                     o => RType::Unknown(format!("iteration over {}", o.show())),
                 };
                 let mut bt = RType::Never;
@@ -1029,6 +1036,21 @@ impl<'a, 'm> Cx<'a, 'm> {
         Some(ret)
     }
 
+    /// A call of an iterator function: its body typed at the arguments'
+    /// types, fitted as the reference fits them, which gives the type of
+    /// the items it yields.
+    fn iter_instance(&mut self, e: &Expr, fd: &FnDecl, at: &[RType]) -> RType {
+        let named = Self::named_params(fd);
+        if !fd.sig.generics.is_empty() || named.len() != at.len() || named.len() != fd.sig.params.len() {
+            return RType::Unknown(format!("a call of the iterator function {}", fd.sig.name));
+        }
+        let params: Vec<RType> = named.iter().zip(at).map(|((_, ty), a)| self.t.fit_generic(a, ty, &[])).collect();
+        let key = format!("iter {}({})", fd.sig.name, params.iter().map(|p| p.show()).collect::<Vec<_>>().join(", "));
+        let item = self.instantiate(&key, fd, &[], params);
+        self.out.inst_of.insert(addr(e), key.clone());
+        RType::Gen(key, Box::new(item))
+    }
+
     /// Type the body of `fd` with its parameters of types `params`.
     fn instantiate(&mut self, key: &str, fd: &FnDecl, gs: &[String], params: Vec<RType>) -> RType {
         if let Some(x) = self.insts.get(key) {
@@ -1039,8 +1061,9 @@ impl<'a, 'm> Cx<'a, 'm> {
         }
         self.insts.insert(key.to_string(), None);
         let mut out = Typed::default();
+        let iter = matches!(&fd.sig.ret, Some(Ty::Iter(_)));
         let ret = {
-            let mut cx = Cx { t: self.t, out: &mut out, scopes: vec![HashMap::new()], env: Some(HashMap::new()), loops: vec![], consts: &mut *self.consts, insts: &mut *self.insts, rets: Some(RType::Never), gs: gs.to_vec() };
+            let mut cx = Cx { t: self.t, out: &mut out, scopes: vec![HashMap::new()], env: Some(HashMap::new()), loops: vec![], consts: &mut *self.consts, insts: &mut *self.insts, rets: Some(RType::Never), gs: gs.to_vec(), yields: iter.then_some(RType::Never) };
             let mut ids = vec![];
             let mut self_id = None;
             for (k, p) in fd.sig.params.iter().enumerate() {
@@ -1060,6 +1083,8 @@ impl<'a, 'm> Cx<'a, 'm> {
             let body = cx.rets.take().unwrap_or(RType::Never).join(&tail);
             cx.out.params.insert(addr(fd), (ids, self_id));
             match &fd.sig.ret {
+                // an iterator gives its items as `yield` gives them, unfitted
+                _ if iter => cx.yields.take().unwrap_or(RType::Never),
                 None => RType::Unit,
                 Some(t) => self.t.fit_generic(&body, t, gs),
             }
@@ -1188,6 +1213,9 @@ impl<'a, 'm> Cx<'a, 'm> {
                     let ps = Self::named_params(fd);
                     let at = self.args_fit(args, &ps);
                     self.args_written_back(fd, args);
+                    if matches!(&fd.sig.ret, Some(Ty::Iter(_))) {
+                        return (self.iter_instance(e, fd, &at), None, Some(Callee::Fn(n.clone())));
+                    }
                     if let Some(r) = self.instance(e, fd, None, &[], &at) {
                         return (r, None, Some(Callee::Fn(n.clone())));
                     }
@@ -1425,6 +1453,7 @@ impl<'a, 'm> Cx<'a, 'm> {
                 T::Unit
             }
             (T::Set(e), "tolist") => T::List(e.clone()),
+            (T::Gen(_, e), "collect") => T::List(e.clone()),
             (T::Set(_), "len") => usize_t(),
             (T::Set(_), "contains") => T::Bool,
             (T::Map(..), "len") => usize_t(),
@@ -1710,6 +1739,7 @@ impl<'a, 'm> Cx<'a, 'm> {
                     RType::Range(i) => RType::Int(*i),
                     RType::Text => RType::Text,
                     RType::Map(k, v) => RType::Tuple(vec![(**k).clone(), (**v).clone()]),
+                    RType::Gen(_, t) => (**t).clone(),
                     o => RType::Unknown(format!("iteration over {}", o.show())),
                 };
                 self.loop_fix(&mut |cx: &mut Self| {
@@ -1773,7 +1803,10 @@ impl<'a, 'm> Cx<'a, 'm> {
             }
             Stmt::Comptime(body) => self.block(body),
             Stmt::Yield(e, _) => {
-                self.expr(e);
+                let t = self.expr(e);
+                if let Some(y) = &mut self.yields {
+                    *y = y.join(&t);
+                }
             }
         }
     }
@@ -1846,7 +1879,7 @@ pub fn build(m: &Module) -> Typed {
     let mut consts: HashMap<String, Option<RType>> = HashMap::new();
     let mut insts: HashMap<String, Option<Inst>> = HashMap::new();
     let fresh = |out: &mut Typed, consts: &mut HashMap<String, Option<RType>>, insts: &mut HashMap<String, Option<Inst>>, f: &mut dyn FnMut(&mut Cx)| {
-        let mut cx = Cx { t: &t, out, scopes: vec![HashMap::new()], env: Some(HashMap::new()), loops: vec![], consts, insts, rets: None, gs: vec![] };
+        let mut cx = Cx { t: &t, out, scopes: vec![HashMap::new()], env: Some(HashMap::new()), loops: vec![], consts, insts, rets: None, gs: vec![], yields: None };
         f(&mut cx);
     };
     for item in &m.items {
@@ -1893,7 +1926,7 @@ pub fn build(m: &Module) -> Typed {
                         _ => None,
                     })
                     .unwrap_or_default();
-                let mut cx = Cx { t: &t, out: &mut out, scopes: vec![HashMap::new()], env: Some(HashMap::new()), loops: vec![], consts: &mut consts, insts: &mut insts, rets: None, gs: vec![] };
+                let mut cx = Cx { t: &t, out: &mut out, scopes: vec![HashMap::new()], env: Some(HashMap::new()), loops: vec![], consts: &mut consts, insts: &mut insts, rets: None, gs: vec![], yields: None };
                 let ids: Vec<u32> = fields.iter().map(|(n, ty)| cx.new_local(n, true, t.of_ty(ty))).collect();
                 cx.scopes.push(HashMap::new());
                 cx.pat(pat, &RType::Unknown("the whole event of a step".into()));
@@ -1920,7 +1953,7 @@ pub fn build(m: &Module) -> Typed {
 
 fn example(out: &mut Typed, consts: &mut HashMap<String, Option<RType>>, insts: &mut HashMap<String, Option<Inst>>, t: &Tables, x: &Example) {
     for (_, args) in &x.events {
-        let mut cx = Cx { t, out, scopes: vec![HashMap::new()], env: Some(HashMap::new()), loops: vec![], consts, insts, rets: None, gs: vec![] };
+        let mut cx = Cx { t, out, scopes: vec![HashMap::new()], env: Some(HashMap::new()), loops: vec![], consts, insts, rets: None, gs: vec![], yields: None };
         for a in args {
             cx.expr(&a.e);
         }
@@ -1928,7 +1961,7 @@ fn example(out: &mut Typed, consts: &mut HashMap<String, Option<RType>>, insts: 
 }
 
 fn function(out: &mut Typed, consts: &mut HashMap<String, Option<RType>>, insts: &mut HashMap<String, Option<Inst>>, t: &Tables, f: &FnDecl, self_t: Option<&RType>) {
-    let mut cx = Cx { t, out, scopes: vec![HashMap::new()], env: Some(HashMap::new()), loops: vec![], consts, insts, rets: None, gs: vec![] };
+    let mut cx = Cx { t, out, scopes: vec![HashMap::new()], env: Some(HashMap::new()), loops: vec![], consts, insts, rets: None, gs: vec![], yields: None };
     let mut ids = vec![];
     let mut self_id = None;
     for p in &f.sig.params {

@@ -266,7 +266,7 @@ pub fn json_esc_size(f: &mut Fns) -> R<usize> {
                 b.set(w, lit(6));
                 Ok(())
             })?;
-            for k in [b'"', b'\\', b'\n', b'\r', b'\t'] {
+            for k in *b"\"\\\n\r\t" {
                 let is = b.int_cmp("int.eq", c.clone(), lit(k as i128))?;
                 b.when(is, |b| {
                     b.set(w, lit(2));

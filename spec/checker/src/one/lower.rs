@@ -42,7 +42,11 @@
 //! reference does not run: it traps, as arithmetic on operands no rule
 //! joins (an f32 and an f64) does; and arena and device regions with a
 //! bound, which add up the sizes of the canonical JSON of the values they
-//! hold after each statement (R3). Traits, which hold signatures only,
+//! hold after each statement (R3); and iterator functions (5.14), each
+//! call a frame and each run a function that the consumer calls under
+//! `catch` with a cap on the items, as interp `gen_run` runs them, so that
+//! a trap in a run is raised after the items it gave. Traits, which hold
+//! signatures only,
 //! lower to nothing, and each function is lowered when the trace first
 //! reaches it. A statement that follows one that cannot complete (a halt,
 //! a return, a jump) is never reached and is left out.
@@ -108,6 +112,22 @@ enum Ret {
     Step,
     /// an expression evaluated alone (a constant, a check, an event)
     None,
+    /// the body of an iterator function: `return` ends the run, finished
+    Gen,
+}
+
+/// The run of an iterator function (5.14, interp `gen_run`): the items go
+/// to the buffer on top of the stack held by global `g` (a list of lists of
+/// items), which the consumer pushes before the run and pops after it, so
+/// that the items given before a trap are still there; `count` counts them
+/// and `cap` is the number after which the run stops.
+#[derive(Clone)]
+struct GenCx {
+    g: u32,
+    stack_t: Ty,
+    item: RType,
+    count: u32,
+    cap: Atom,
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -134,11 +154,13 @@ struct Fx {
     muts: Vec<u32>,
     /// in an instantiation: the type its result is fitted to
     inst_ret: Option<RType>,
+    /// in the body of an iterator function
+    run: Option<GenCx>,
 }
 
 impl Fx {
     fn new(b: FB, ret: Ret, fail: FailCx) -> Fx {
-        Fx { b, scopes: vec![Scope { depth: 0, drops: vec![] }], bound: HashMap::new(), loops: vec![], depth: 0, ret, fail, union_t: None, muts: vec![], inst_ret: None }
+        Fx { b, scopes: vec![Scope { depth: 0, drops: vec![] }], bound: HashMap::new(), loops: vec![], depth: 0, ret, fail, union_t: None, muts: vec![], inst_ret: None, run: None }
     }
     fn push_scope(&mut self) {
         self.scopes.push(Scope { depth: self.depth, drops: vec![] });
@@ -239,6 +261,8 @@ struct Lw<'m> {
     loop_limit: i128,
     /// the event sum: every declared event, in declaration order
     ev_t: Ty,
+    /// the buffer stacks of iterator runs, by the core type of the items
+    gen_stacks: HashMap<Ty, u32>,
 }
 
 impl<'m> Lw<'m> {
@@ -256,7 +280,7 @@ impl<'m> Lw<'m> {
                 loop_limit = *n;
             }
         }
-        let mut lw = Lw { m, t, ty, f, tick, fuel, out_g, fns: HashMap::new(), methods: HashMap::new(), impl_tys: HashMap::new(), insts: HashMap::new(), inst_ids: HashMap::new(), inst_sigs: HashMap::new(), gs: vec![], consts: HashMap::new(), named: HashMap::new(), gens: HashMap::new(), loop_limit, ev_t: Ty::unit() };
+        let mut lw = Lw { m, t, ty, f, tick, fuel, out_g, fns: HashMap::new(), methods: HashMap::new(), impl_tys: HashMap::new(), insts: HashMap::new(), inst_ids: HashMap::new(), inst_sigs: HashMap::new(), gs: vec![], consts: HashMap::new(), named: HashMap::new(), gens: HashMap::new(), loop_limit, ev_t: Ty::unit(), gen_stacks: HashMap::new() };
         let mut evs = vec![];
         for e in lw.t.events.clone() {
             evs.push(lw.ct(&RType::Named(e))?);
@@ -277,6 +301,10 @@ impl<'m> Lw<'m> {
         }
         Ok(match t {
             RType::Never | RType::Closure(_) => Ty::unit(),
+            // the arguments of the call, fitted: the frame each run starts from
+            // (an iterator observed without being run has no frame)
+            RType::Gen(key, _) if key.is_empty() => Ty::unit(),
+            RType::Gen(key, _) => Ty::Tup(self.inst_params(key)?.iter().map(|p| self.ct_d(p, d + 1)).collect::<R<_>>()?),
             RType::Bool => Ty::Bool,
             RType::Int(i) => {
                 if i.lo < INT_MIN || i.hi > INT_MAX {
@@ -882,6 +910,10 @@ impl<'m> Lw<'m> {
                 let x = fx.b.p("f32.to_f64", vec![], vec![v])?;
                 let d = rtf::text32(&mut self.f)?;
                 Ok(self.call_rt(fx, d, vec![x]))
+            }
+            RType::Gen(..) => {
+                fx.b.drop(v)?;
+                Ok(Atom::bytes(b"<iter>"))
             }
             o => no(format!("the display of {}", o.show())),
         }
@@ -2771,6 +2803,7 @@ impl<'m> Lw<'m> {
                 Ok(Val { a: fx.b.p("sum.mk", vec![t], vec![lit(1), a])?, t: rt })
             }
             Some(Callee::Same) => self.expr(fx, &args[0].e),
+            Some(Callee::Fn(n)) if matches!(self.t.fns[&n].sig.ret, Some(ast::Ty::Iter(_))) => self.iter_call(fx, e, &n, args, rt),
             Some(Callee::Fn(n)) if self.ty.inst_of.contains_key(&addr(e)) => {
                 let fd = self.t.fns[&n];
                 let key = self.ty.inst_of[&addr(e)].clone();
@@ -3397,6 +3430,23 @@ impl<'m> Lw<'m> {
                 Ok(Val { a: fx.b.int_cmp("int.eq", n, lit(0))?, t: rt })
             }
             (RType::Set(_), "tolist") => Ok(Val { a: recv.a, t: rt }),
+            (RType::Gen(key, item), "collect") => {
+                // interp: one run without a cap; a trap in it is raised
+                let (key, item) = (key.clone(), (**item).clone());
+                let (r, buf) = self.gen_run(fx, recv.a.clone(), &key, &item, lit(u64::MAX as i128))?;
+                fx.b.drop(recv.a)?;
+                let rtt = fx.b.ty(&r);
+                self.switch(fx, &r, &rtt, 2, |_, fx, k| {
+                    let x = fx.b.p("sum.get", vec![rtt.clone()], vec![r.clone(), lit(k as i128)])?;
+                    if k == 1 {
+                        fx.b.halt(x);
+                    }
+                    Ok(())
+                })?;
+                let RType::List(re) = &rt else { return no("collect of unknown type") };
+                let a = self.conv(fx, buf, &RType::List(Box::new(item)), &RType::List(re.clone()), false)?;
+                Ok(Val { a, t: rt })
+            }
             (RType::List(_), "len" | "isempty") | (RType::Set(_), "len") => {
                 let t = fx.b.ty(&recv.a);
                 let Ty::List(e) = &t else { unreachable!() };
@@ -3621,6 +3671,230 @@ impl<'m> Lw<'m> {
         fx.b.drop(recv.a)?;
         fx.disown(&Atom::V(out));
         Ok(Val { a: fx.b.let_(Atom::V(out)), t: rt })
+    }
+
+    /// The parameter types of an instantiation, lowered or not.
+    fn inst_params(&self, key: &str) -> R<Vec<RType>> {
+        if let Some(i) = self.insts.get(key) {
+            return Ok(i.params.clone());
+        }
+        match self.inst_ids.get(key) {
+            Some(id) => Ok(self.inst_sigs[id].0.clone()),
+            None => no(format!("the instantiation {key}")),
+        }
+    }
+
+    /// The global holding the buffer stack of the runs of iterators whose
+    /// items have core type t.
+    fn gen_stack(&mut self, t: &Ty) -> u32 {
+        if let Some(g) = self.gen_stacks.get(t) {
+            return *g;
+        }
+        let k = self.gen_stacks.len();
+        let g = self.f.global(&format!("iterator buffers {k}"), Ty::list(Ty::list(t.clone())), None);
+        self.gen_stacks.insert(t.clone(), g);
+        g
+    }
+
+    /// A call of an iterator function (interp `call_fn`): one step, the
+    /// arguments evaluated and fitted in order, and no run: the value is
+    /// the frame the runs start from.
+    fn iter_call(&mut self, fx: &mut Fx, e: &Expr, n: &str, args: &[Arg], rt: RType) -> R<Val> {
+        let fd = self.t.fns[n];
+        let RType::Gen(key, _) = &rt else { return no(format!("a call of the iterator function {n}")) };
+        let params = self.inst_params(key)?;
+        let named = Self::named_params(fd);
+        if named.len() != args.len() || self.ty.inst_of.get(&addr(e)) != Some(key) {
+            return no("a call whose arguments do not match its parameters one to one");
+        }
+        fx.b.tick(1);
+        let mut parts = vec![];
+        for (k, (ty, arg)) in named.iter().zip(args).enumerate() {
+            let v = self.expr(fx, &arg.e)?;
+            let v = self.fit(fx, v.a, &v.t, ty)?;
+            parts.push(self.conv(fx, v.a, &v.t, &params[k], false)?);
+        }
+        let t = self.ct(&rt)?;
+        Ok(Val { a: fx.b.p("tup.mk", vec![t], parts)?, t: rt })
+    }
+
+    /// One run of an iterator from its frame (borrowed), stopping after cap
+    /// items: an empty buffer is pushed, the run is caught, and the buffer
+    /// is popped. Gives the run's result, `sum(finished, Halt)`, and the
+    /// items, both owned by the caller.
+    fn gen_run(&mut self, fx: &mut Fx, frame: Atom, key: &str, item: &RType, cap: Atom) -> R<(Atom, Atom)> {
+        let fname = key.strip_prefix("iter ").and_then(|k| k.split('(').next()).unwrap_or("").to_string();
+        let Some(fd) = self.t.fns.get(&fname).copied() else { return no(format!("the iterator {key}")) };
+        let id = self.gen_fn(key, fd)?;
+        let it = self.ct(item)?;
+        let g = self.gen_stack(&it);
+        let st = Ty::list(Ty::list(it.clone()));
+        let s0 = fx.b.let_global(g, st.clone());
+        let e0 = fx.b.p("list.new", vec![it.clone()], vec![])?;
+        let s1 = fx.b.p("list.push", vec![Ty::list(it.clone())], vec![s0, e0])?;
+        fx.b.setg(g, s1);
+        let ft = fx.b.ty(&frame);
+        let fc = fx.b.copy(frame)?;
+        let mut args = fx.b.prim("tup.open", vec![ft], vec![fc])?;
+        args.push(cap);
+        let r = fx.b.catch(sym(id), Ty::Bool, args);
+        let s2 = fx.b.let_global(g, st.clone());
+        let n = fx.b.p("list.len", vec![Ty::list(it.clone())], vec![s2.clone()])?;
+        let some = fx.b.int_cmp("int.lt", lit(0), n)?;
+        fx.b.guard_halt_unless(some, "internal: iterator buffers")?;
+        let ps = fx.b.prim("list.pop", vec![Ty::list(it.clone())], vec![s2])?;
+        fx.b.setg(g, ps[0].clone());
+        Ok((r, ps[1].clone()))
+    }
+
+    /// `for p in f(…)` over an iterator (interp `exec` of `For`): runs of
+    /// the iterator that stop after 64 items, then twice as many each time,
+    /// each from the frame; after each run the items not yet taken run the
+    /// body in order, then a trap of the run is raised, and a finished run
+    /// ends the loop. `break` leaves the whole loop.
+    fn for_gen(&mut self, fx: &mut Fx, p: &Pat, frame: Atom, key: &str, item: &RType, body: &[S]) -> R<()> {
+        let ft = fx.b.ty(&frame);
+        let fv = fx.b.var(ft, frame);
+        fx.own(Atom::V(fv));
+        let done = fx.b.var(Ty::u64(), lit(0));
+        let cap = fx.b.var(Ty::u64(), lit(64));
+        let l = fx.open_nest();
+        fx.push_scope();
+        let capv = fx.b.let_(Atom::V(cap));
+        let (r, buf) = self.gen_run(fx, Atom::V(fv), key, item, capv)?;
+        fx.own(r.clone());
+        fx.own(buf.clone());
+        let it = self.ct(item)?;
+        let n = fx.b.p("list.len", vec![it.clone()], vec![buf.clone()])?;
+        // the items after those already taken
+        let li = fx.open_nest();
+        let dv = fx.b.let_(Atom::V(done));
+        let more = fx.b.int_cmp("int.lt", dv.clone(), n)?;
+        fx.b.open();
+        let th = fx.b.close();
+        fx.b.open();
+        fx.break_to(li)?;
+        let el = fx.b.close();
+        fx.b.push(Stmt::If(more, th, el));
+        let d1 = fx.b.add_in(dv.clone(), lit(1), Ty::u64())?;
+        fx.b.set(done, d1);
+        let x = fx.b.list_at(buf.clone(), dv)?;
+        let c = fx.open_nest();
+        fx.loops.push(LoopCx { brk: l, cont: c });
+        fx.push_scope();
+        self.for_bind(fx, p, Val { a: x, t: item.clone() })?;
+        self.block(fx, body, false)?;
+        fx.pop_scope()?;
+        fx.loops.pop();
+        let inner = fx.close_nest();
+        fx.b.push(Stmt::Block(inner));
+        let lib = fx.close_nest();
+        fx.b.push(Stmt::Loop(lib));
+        // then the run's trap, or the end when it finished
+        fx.disown(&r);
+        let fin = fx.b.var(Ty::Bool, Atom::bool(false));
+        let rt = fx.b.ty(&r);
+        self.switch(fx, &r, &rt, 2, |_, fx, k| {
+            let x = fx.b.p("sum.get", vec![rt.clone()], vec![r.clone(), lit(k as i128)])?;
+            if k == 1 {
+                fx.b.halt(x);
+            } else {
+                fx.b.set(fin, x);
+            }
+            Ok(())
+        })?;
+        let f = fx.b.let_(Atom::V(fin));
+        fx.b.open();
+        fx.break_to(l)?;
+        let th = fx.b.close();
+        fx.b.push(Stmt::If(f, th, vec![]));
+        let cv = fx.b.let_(Atom::V(cap));
+        let c2 = fx.b.p("int.smul", vec![Ty::u64()], vec![cv, lit(2)])?;
+        fx.b.set(cap, c2);
+        fx.pop_scope()?;
+        let lb = fx.close_nest();
+        fx.b.push(Stmt::Loop(lb));
+        Ok(())
+    }
+
+    /// `yield e` in the body of an iterator (interp `exec`): the value; a
+    /// run that has given the loop limit of items traps; the item goes to
+    /// the buffer on top of the stack; after cap items the run stops.
+    fn yield_stmt(&mut self, fx: &mut Fx, e: &Expr) -> R<()> {
+        let Some(gc) = fx.run.clone() else { return no("yield outside an iterator") };
+        let v = self.expr(fx, e)?;
+        let a = self.conv(fx, v.a, &v.t, &gc.item, false)?;
+        let n = fx.b.let_(Atom::V(gc.count));
+        let over = fx.b.int_cmp("int.le", lit(self.loop_limit), n.clone())?;
+        self.guard(fx, over, |_, _| Ok(Atom::bytes(b"loop bound")))?;
+        let Ty::List(bt) = gc.stack_t.clone() else { unreachable!() };
+        let s0 = fx.b.let_global(gc.g, gc.stack_t.clone());
+        let k = fx.b.p("list.len", vec![(*bt).clone()], vec![s0.clone()])?;
+        let some = fx.b.int_cmp("int.lt", lit(0), k)?;
+        fx.b.guard_halt_unless(some, "internal: iterator buffers")?;
+        let ps = fx.b.prim("list.pop", vec![(*bt).clone()], vec![s0])?;
+        let Ty::List(it) = (*bt).clone() else { unreachable!() };
+        let top = fx.b.p("list.push", vec![(*it).clone()], vec![ps[1].clone(), a])?;
+        let s1 = fx.b.p("list.push", vec![(*bt).clone()], vec![ps[0].clone(), top])?;
+        fx.b.setg(gc.g, s1);
+        let n1 = fx.b.add_in(n, lit(1), Ty::u64())?;
+        fx.b.set(gc.count, n1.clone());
+        let stop = fx.b.int_cmp("int.le", gc.cap.clone(), n1)?;
+        fx.b.open();
+        fx.drops_to(None)?;
+        fx.b.ret(Atom::bool(false));
+        let th = fx.b.close();
+        fx.b.push(Stmt::If(stop, th, vec![]));
+        Ok(())
+    }
+
+    /// The function of an iterator's instantiation: its frame and the cap,
+    /// and whether the run finished (interp `gen_run`).
+    fn gen_fn(&mut self, key: &str, fd: &FnDecl) -> R<usize> {
+        if let Some(id) = self.inst_ids.get(key) {
+            return Ok(*id);
+        }
+        let Some(inst) = self.insts.remove(key) else { return no(format!("the instantiation {key}")) };
+        if !Self::mut_params(fd).is_empty() {
+            return no("an iterator with a &mut parameter");
+        }
+        let mut ps = vec![];
+        for p in &inst.params {
+            ps.push(self.ct(p)?);
+        }
+        let it = self.ct(&inst.ret)?;
+        let g = self.gen_stack(&it);
+        let np = ps.len();
+        ps.push(Ty::u64());
+        let id = self.f.declare(&format!("gen {key}"), ps.clone(), Ty::Bool);
+        self.inst_ids.insert(key.to_string(), id);
+        self.inst_sigs.insert(id, (inst.params.clone(), inst.ret.clone()));
+        let saved = std::mem::replace(&mut self.ty, inst.typed);
+        let r = (|| -> R<()> {
+            let mut fx = self.fx(ps, Ty::Bool, Ret::Gen, FailCx::Halt, true);
+            let count = fx.b.var(Ty::u64(), lit(0));
+            fx.run = Some(GenCx { g, stack_t: Ty::list(Ty::list(it.clone())), item: inst.ret.clone(), count, cap: fx.b.arg(np) });
+            let (ids, _) = self.ty.params.get(&addr(fd)).cloned().unwrap_or_default();
+            for k in 0..np {
+                let Some(lid) = ids.get(k).copied() else { return no("a parameter") };
+                let a = fx.b.arg(k);
+                let rt = self.ty.locals[lid as usize].ty.clone();
+                let a = self.conv(&mut fx, a, &inst.params[k], &rt, false)?;
+                fx.bound.insert(lid, Bound::Val(a.clone(), rt));
+                fx.own(a);
+            }
+            let Body::Block(b) = &fd.body else { return no("an iterator without a block body") };
+            self.block(&mut fx, b, false)?;
+            if fx.b.falls() {
+                fx.drops_to(None)?;
+                fx.b.ret(Atom::bool(true));
+            }
+            self.f.define(id, fx.b.finish());
+            Ok(())
+        })();
+        self.ty = saved;
+        r?;
+        Ok(id)
     }
 
     /// Whether the body of a lambda writes a variable: a `&mut` argument, a
@@ -4723,6 +4997,12 @@ impl<'m> Lw<'m> {
                 };
                 match fx.ret.clone() {
                     Ret::Fn(decl) => self.finish_fn(fx, v, decl.as_ref())?,
+                    Ret::Gen => {
+                        // interp `gen_run`: a return ends the run, finished
+                        fx.b.drop(v.a)?;
+                        fx.drops_to(None)?;
+                        fx.b.ret(Atom::bool(true));
+                    }
                     Ret::Step => return no("return in a step"),
                     Ret::None => return no("return outside a function"),
                 }
@@ -4776,7 +5056,8 @@ impl<'m> Lw<'m> {
             }
             S::Arena(_, Some(b), body, _) | S::Device(_, Some(b), body, _) => self.bounded_region(fx, b, body)?,
             S::Arena(..) | S::Device(..) => return no("a marker region (a budget, a deadline, a priority or a workgroup)"),
-            S::Send(..) | S::Spawn(..) | S::Select(..) | S::Yield(..) => return no("a concurrency or iterator statement"),
+            S::Yield(e, _) => self.yield_stmt(fx, e)?,
+            S::Send(..) | S::Spawn(..) | S::Select(..) => return no("a concurrency statement"),
         }
         Ok(None)
     }
@@ -5119,6 +5400,9 @@ impl<'m> Lw<'m> {
             return Ok(());
         }
         let itv = self.expr(fx, it)?;
+        if let RType::Gen(key, item) = itv.t.clone() {
+            return self.for_gen(fx, p, itv.a, &key, &item, body);
+        }
         let item = match &itv.t {
             RType::List(e) | RType::Set(e) => (**e).clone(),
             // a map's items are its (key, value) pairs in key order
@@ -6451,6 +6735,17 @@ impl<'m> Lw<'m> {
     /// A call of a function of the module with no arguments, as an
     /// observation makes it (interp `call_fn`, with its tick).
     fn call_fn0(&mut self, f: &FnDecl) -> R<(usize, RType)> {
+        if matches!(f.sig.ret, Some(ast::Ty::Iter(_))) {
+            // a call of an iterator function takes one step and runs
+            // nothing: its value is the (empty) frame, shown as `<iter>`
+            let w = self.f.declare(&format!("call {}", f.sig.name), vec![], Ty::unit());
+            let mut fx = self.fx(vec![], Ty::unit(), Ret::None, FailCx::Halt, true);
+            fx.b.tick(1);
+            let u = fx.b.unit()?;
+            fx.b.ret(u);
+            self.f.define(w, fx.b.finish());
+            return Ok((w, RType::Gen(String::new(), Box::new(RType::Never))));
+        }
         let id = self.user_fn(&f.sig.name)?;
         let rt = self.ret_rtype(f);
         let t = self.f.ret(id);
@@ -6648,10 +6943,14 @@ impl<'m> Lw<'m> {
         }
         // each observation from full fuel and with no constant evaluated
         let flags: Vec<u32> = self.consts.values().map(|(_, d, _)| *d).collect();
-        let owned: Vec<(u32, Ty)> = self.consts.values().filter_map(|(id, _, v)| {
+        let mut owned: Vec<(u32, Ty)> = self.consts.values().filter_map(|(id, _, v)| {
             let t = self.f.ret(*id);
             t.owned().then_some((*v, t))
         }).collect();
+        // the buffer stacks of iterator runs start empty
+        for (t, g) in &self.gen_stacks {
+            owned.push((*g, Ty::list(Ty::list(t.clone()))));
+        }
         let dec = rt::dec(&mut self.f)?;
         let mut wrappers = vec![];
         for (k, b) in bodies.into_iter().enumerate() {
@@ -6679,7 +6978,6 @@ impl<'m> Lw<'m> {
         let mut fx = self.fx(vec![], Ty::unit(), Ret::None, FailCx::Halt, false);
         let e = fx.b.p("list.new", vec![Ty::Bytes], vec![])?;
         fx.b.setg(self.out_g, e);
-        let mut owned = owned;
         owned.sort_by_key(|x| x.0);
         for (g, t) in owned {
             let d = self.default(&mut fx, &t)?;
