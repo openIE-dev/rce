@@ -1162,6 +1162,9 @@ near 700.
   ID feeding equals one call; TypeIDs and KSUIDs round-trip and sort as
   their bytes; KSUID next and prev are inverse).
 
+Mutation testing: `scripts/mut/id.py` 57/57 killed (the four equivalent
+mutants left out are listed in its header).
+
 Differences from the references, by design: the strict parser reads the
 urn:uuid: prefix in any case; uuid_parse_lax refuses non-ASCII text, where
 CPython also reads non-ASCII decimal digits and spaces; ulid_next takes

@@ -469,3 +469,8 @@ fn th_feed_bad() -> List[i64]
     return [if a then 1 else 0, if at then 1 else 0, g.pend.len() as i64, g.used, if b then 1 else 0]
 
 check th_feed_bad() == [0, 1, 0, 0, 1]
+
+# a hex digit past F, a text cut just after the first hyphen, and a carriage
+# return read as a space by int(x, 16)
+check th_parse("6ba7b81G-9dad-11d1-80b4-00c04fd430c8") == "at 7" and th_parse("6BA7B810-9DAD-11D1-80B4-00C04FD430CG") == "at 35" and th_parse("6ba7b810-") == "at 9"
+check th_lax("6ba7b81G-9dad-11d1-80b4-00c04fd430c8") == "at 7" and th_lax("\r" + th_rep("f", 31)) == "0fffffff-ffff-ffff-ffff-ffffffffffff" and th_lax(th_rep("f", 31) + "\r") == "0fffffff-ffff-ffff-ffff-ffffffffffff"
