@@ -5,7 +5,7 @@
 #include <string.h>
 #include <stdint.h>
 
-enum { NL, INDENT, DEDENT, NAME, LPAR, RPAR, LSQB, RSQB, LBRACE, RBRACE, SKIP_NL, INT, FLOAT, SEND, BAD, COMMENT, PARFOR, SENTINEL };
+enum { NL, INDENT, DEDENT, NAME, LPAR, RPAR, LSQB, RSQB, LBRACE, RBRACE, SKIP_NL, INT, FLOAT, SEND, BAD, COMMENT, PARFOR, SENTINEL, TRAP };
 
 #define MAXD 120
 typedef struct {
@@ -214,6 +214,15 @@ bool tree_sitter_rce_external_scanner_scan(void *p, TSLexer *lx, const bool *val
             strcmp(w, "ct") && strcmp(w, "requires") && strcmp(w, "ensures") && strcmp(w, "ghost") && strcmp(w, "decreases")) {
           lx->result_symbol = BAD; return true;
         }
+      }
+      // the trap outcome of an example (spec 3.2, `refused: trap("K")`): where the grammar allows
+      // it, `trap` before `(` is its own token; `refused: trap` alone stays a name
+      if (valid[TRAP] && !valid[SENTINEL] && strcmp(w, "trap") == 0) {
+        lx->mark_end(lx);
+        while (lx->lookahead == ' ') lx->advance(lx, false);
+        s->started = 1; s->seen = 1;
+        lx->result_symbol = lx->lookahead == '(' ? TRAP : NAME;
+        return true;
       }
       for (int i = 0; KW[i]; i++) if (strcmp(w, KW[i]) == 0) return false;
       // contextual word (F.13): `by` is the keyword only where a NAME cannot stand

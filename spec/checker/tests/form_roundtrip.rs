@@ -1,8 +1,8 @@
-//! W2b: `parse(unparse(m)) == m` up to source line numbers, on every
+//! W2b: `parse(unparse_source(m)) == m` up to source line numbers, on every
 //! `.rce` file of the spec examples and the checker test corpora, and the
 //! printed source is a fixpoint of print-then-parse.
 use rce_spec_check::parse::parse;
-use rce_spec_check::unparse::unparse;
+use rce_spec_check::unparse::unparse_source;
 use std::path::{Path, PathBuf};
 
 fn files() -> Vec<PathBuf> {
@@ -45,12 +45,12 @@ fn every_module_round_trips_through_source() {
         let src = std::fs::read_to_string(&f).unwrap();
         let Ok(m) = parse(&src) else { continue };
         n += 1;
-        let s1 = unparse(&m);
+        let s1 = unparse_source(&m);
         match parse(&s1) {
             Ok(m2) => {
                 if shape(&m) != shape(&m2) || m.pubs != m2.pubs || m.path != m2.path {
                     bad.push(format!("{}: AST differs", f.display()));
-                } else if unparse(&m2) != s1 {
+                } else if unparse_source(&m2) != s1 {
                     bad.push(format!("{}: not a fixpoint", f.display()));
                 }
             }

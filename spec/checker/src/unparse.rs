@@ -1,6 +1,8 @@
 //! The source text of a module (W2b): the inverse of `parse` on the AST.
-//! `parse(unparse(m))` gives `m` again up to source line numbers
-//! (tests/form_roundtrip.rs checks this on every example). Draft 0.6
+//! `parse(unparse_source(m))` gives `m` again up to source line numbers
+//! (tests/form_roundtrip.rs checks this on every example); `unparse` is the
+//! same text before the characters of W-LEX-4 are escaped, and is what
+//! hashes are taken over. Draft 0.6
 //! constructs that the parser encodes as marker regions (`$par`, `$forpar`,
 //! `$deadline`, ...) are printed back as their surface syntax. Every
 //! compound subexpression is parenthesized, so no precedence is assumed.
@@ -21,6 +23,26 @@ pub fn unparse(m: &Module) -> String {
             o.push_str("pub ");
         }
         item(&mut o, it);
+    }
+    o
+}
+
+/// The module as source text that `rce check` admits: `unparse`, with every
+/// character W-LEX-4 keeps out of source written `\u{...}`. In the printed
+/// text such characters occur only inside string literals (identifiers are
+/// ASCII, comments are not printed, and `text` already escapes the C0
+/// controls), so `parse(unparse_source(m))` gives `m` again. `unparse`
+/// itself is the canonical print over which module, brick and program
+/// hashes are taken, so its bytes stay as they are.
+pub fn unparse_source(m: &Module) -> String {
+    let s = unparse(m);
+    let mut o = String::with_capacity(s.len());
+    for c in s.chars() {
+        if crate::v09::w_lex_4_class(c).is_some() && c != '\t' && c != '\r' {
+            o.push_str(&format!("\\u{{{:x}}}", c as u32));
+        } else {
+            o.push(c);
+        }
     }
     o
 }

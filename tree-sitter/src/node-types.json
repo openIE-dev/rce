@@ -11689,6 +11689,10 @@
         {
           "type": "NAME",
           "named": true
+        },
+        {
+          "type": "STRING",
+          "named": true
         }
       ]
     }

@@ -9,7 +9,7 @@ const chain = (sub, op) => seq(sub, repeat1(seq(op, sub)));
 
 module.exports = grammar({
   name: 'rce',
-  externals: $ => [$._NL, $._INDENT, $._DEDENT, $.NAME, '(', ')', '[', ']', '{', '}', $._skip_nl, $.INT, $.FLOAT, $.SEND, $._bad, $.comment, $._par_for, $._error_sentinel],
+  externals: $ => [$._NL, $._INDENT, $._DEDENT, $.NAME, '(', ')', '[', ']', '{', '}', $._skip_nl, $.INT, $.FLOAT, $.SEND, $._bad, $.comment, $._par_for, $._error_sentinel, $._trap],
   extras: $ => [/ +/, $._skip_nl, $.comment],
   conflicts: $ => [],
   rules: {
@@ -33,7 +33,8 @@ module.exports = grammar({
     event_call: $ => seq($.NAME, '(', optional($.args), ')'),
     _outcome: $ => choice($.outcome_value, $.outcome_refused),
     outcome_value: $ => $._expr,
-    outcome_refused: $ => seq('refused', ':', $.NAME),
+    // spec 3.2: Outcome = Expr | "refused" ":" ( NAME | "trap" "(" STRING ")" )
+    outcome_refused: $ => seq('refused', ':', choice($.NAME, seq($._trap, '(', $.STRING, ')'))),
     check_decl: $ => seq('check', $._expr, $._NL),
 
     const_decl: $ => seq('const', $.NAME, optional(seq(':', $._type)), '=', $._expr, $._NL),

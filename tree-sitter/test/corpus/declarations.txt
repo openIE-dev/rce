@@ -115,3 +115,33 @@ intent "a counter"
           (NAME)))
       (outcome_refused
         (NAME)))))
+
+========================================
+Example with a trap outcome (3.2)
+========================================
+
+example Div(a: 1, b: 0) -> refused: trap("division by zero")
+example Dec -> refused: trap
+
+---
+
+(start
+  (example_decl
+    (event_list
+      (event_call
+        (NAME)
+        (args
+          (arg
+            (NAME)
+            (INT))
+          (arg
+            (NAME)
+            (INT)))))
+    (outcome_refused
+      (STRING)))
+  (example_decl
+    (event_list
+      (event_ref
+        (NAME)))
+    (outcome_refused
+      (NAME))))
