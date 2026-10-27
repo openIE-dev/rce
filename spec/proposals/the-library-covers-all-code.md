@@ -51,7 +51,7 @@ Several catalog pages could not be fetched through the network proxy, so some co
 
 **The critique.** A completeness critique then read the matrix against the specification, the checker and the library. It found whole domains missing, because L + P + C counts general-purpose sources and so scores domain code near zero by construction; about eighteen statuses to correct, several of them where the language already does what the library comments said it could not; priority changes; and plan steps that conflict with the specification or with the size and fuel limits. The proposal applies the critique in full. The ledger therefore holds the 292 survey rows, less the one geospatial row that the critique's four geospatial rows replace, plus 72 rows the critique adds.
 
-**Totals.** `spec/scripts/coverage.py` prints these figures from the ledger at this commit.
+**Totals.** These figures, and the row counts of the wave table below, are those `spec/scripts/coverage.py` printed from the ledger when this proposal was written (commit ea37873b). A row's status changes in the commit that lands its module, so the script prints the current figures.
 
 | | Rows | Have | Partial | Missing |
 |---|---|---|---|---|
