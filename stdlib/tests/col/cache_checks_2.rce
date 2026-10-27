@@ -1,0 +1,17 @@
+# Checks for lib/col/cache.rce: values 20,000 levels deep (a file of their
+# own, since walking them takes most of one file's comptime fuel).
+
+fn c_deep(n: i64) -> CVal
+    var v = CvNull
+    for _i in 0..n
+        v = CvList(items: [v])
+    return v
+
+# Depth is walked with an explicit stack: no recursion limit applies.
+fn deep_ok() -> bool
+    let a = c_deep(20000)
+    let b = c_deep(19999)
+    let t = cv_canon(&a)
+    return t.len_bytes() == 40004 and t[0:3] == "[[[" and t[19998:20006] == "[[null]]" and cv_cmp(&a, &b) == 1 and cv_cmp(&b, &a) == -1 and cv_cmp(&a, &a) == 0 and cv_hash(&a).len_bytes() == 64
+
+check deep_ok()

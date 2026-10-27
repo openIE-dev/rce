@@ -118,6 +118,49 @@ state, a run refused at 1,000,001 elements and read with
 `seq_runs_take`, 1,200 batches, and a merge of 1,050,000 elements in
 steps).
 
+## col.cache (`lib/col/cache.rce`)
+
+No official vector set applies; every vector is derived, written by
+`scripts/gen/cache_gen.py` into `tests/col/cache_checks_3.rce` ..
+`cache_checks_18.rce` from three independent references:
+
+- cachetools 7.2.6 (`pip install cachetools==7.2.6`) on CPython 3.13:
+  random access traces (get, put with the keys that leave, `in`, pop,
+  the base `Cache.__getitem__` as peek, popitem, len, and for LFU the use
+  count) replayed on `LRUCache`, `LFUCache` and `TTLCache` (a logical
+  timer; the keys that leave are logged from `TTLCache.expire` and
+  `popitem`). LRU: 30 traces, 13,447 operations; LFU: 30 traces, 13,821
+  operations; TTL: 27 traces, 12,795 operations, on capacities 0 to 700.
+  `LFUCache` evicts an arbitrary key among those with the fewest uses (it
+  iterates a Python set); the LFU traces make that set insertion-ordered,
+  which pins the choice to the key that reached the count first (the rule
+  of col.cache) and changes nothing else. 645 of the 1,197 LFU evictions
+  had more than one candidate.
+- CPython 3.13 `functools.lru_cache(maxsize, typed=True)`: 18 call traces
+  (2,885 calls, maxsize 0, 1, 2, 3, 5, 8, 16, 32 and None) over a pool of
+  56 argument tuples, each pair of which the generator checks to be equal
+  under lru_cache's key exactly when its canonical JSON is equal (so
+  floats and bools appear only at the top level, and -0.0 not at all);
+  the memoized fib counters in `tests/col/cache_checks.rce` are
+  lru_cache's.
+- Canonical JSON (spec 6.1.1): the 77 golden vectors of
+  `spec/data/canonical-json-vectors.json`, used unchanged; 160 random
+  values and 561 binary64 values encoded by
+  `scripts/canonical-json-vectors.py` (the spec's encoder, written from
+  6.1.1 alone); and 28 state hashes printed by `rce trace --json` for
+  generated programs whose state holds Set, Map (text, integer, tuple and
+  float keys), tuple, struct, kind, option, u64 and float values, which
+  are SHA-256 of the canonical JSON of the state's positional form.
+- Values beyond one text (N9): `cv_canon_parts` and `cv_hash` of two
+  values whose canonical JSON is longer than 1,000,000 bytes (one with the
+  1,000,000-byte cut inside a 2-byte character) and of one value cut into
+  4,096-byte parts; the expected parts are cut by the generator from the
+  spec encoder's text, one check per file because each walks about a
+  megabyte of comptime fuel.
+
+Not covered: a bloom filter (left for a later wave), time-to-use per item
+(cachetools `TLRUCache`) and size-weighted capacities (`getsizeof`).
+
 ## enc (`lib/enc/enc.rce`)
 
 Official vectors, transcribed as `check` lines in `tests/enc/enc_checks.rce`:
