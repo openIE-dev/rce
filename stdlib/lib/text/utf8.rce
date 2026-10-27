@@ -6,9 +6,10 @@ module text.utf8
 # nothing above U+10FFFF). Lossy decoding replaces each maximal subpart of
 # an ill-formed sequence with one U+FFFD (Unicode 3.9, "Best Practices for
 # U+FFFD Substitution"; the WHATWG Encoding Standard behaviour).
-# Bytes are List[i64] 0..255 (core.bytes). Normalization, grapheme
-# clusters and case folding need a pinned UCD and building text from code
-# points; see vectors/SOURCE.md (needs spec).
+# Bytes are List[i64] 0..255 (core.bytes); List.utf8 (5.15) turns
+# well-formed bytes into text. Normalization is in net.idna and grapheme
+# clusters in ui.text, from pinned UCD files; full case mapping and folding
+# are the text.unicode row of spec/data/coverage-map.json.
 
 pub const REPLACEMENT: i64 = 65533
 

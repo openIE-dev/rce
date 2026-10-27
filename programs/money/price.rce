@@ -1,0 +1,17 @@
+module price
+use core.exact
+
+# Prices are exact decimals from core.exact. A Dec is an unbounded integer
+# coefficient with a power-of-ten exponent, so 0.10 + 0.20 is exactly 0.30.
+# Text that is not a number reads as zero here; exact.dec_parse reports it
+# as an error value.
+fn amount(s: text) -> exact.Dec = exact.dec_parse(s) catch exact.Dec(coef: exact.big_from_int(0), exp: 0)
+
+fn add_prices(a: text, b: text) -> text = exact.dec_tostr(exact.dec_add(amount(a), amount(b)))
+
+# A third of an amount, rounded to cents half to even (rounding mode 0).
+fn third(a: text) -> text = exact.dec_tostr(exact.dec_div(amount(a), amount("3"), -2, 0))
+
+check add_prices("0.10", "0.20") == "0.30"
+check third("10.00") == "3.33"
+check add_prices("ten", "1") == "1"

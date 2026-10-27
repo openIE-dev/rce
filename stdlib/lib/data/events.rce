@@ -11,10 +11,11 @@ use enc
 # Attribute values are strings, integers or booleans (CloudEvents type
 # system as the JSON format carries it); a binding header always yields
 # a string (the canonical string form).
-# Not covered (needs spec): text from a code point outside the BMP and
-# U+1F000..U+1FFFF (rce 0.1.3 has no text-from-code-point built-in, so
-# \u escapes and percent-encoded UTF-8 decode through the CPTAB table);
-# JSON numbers are compared by lexeme (no f64 bit access).
+# Not covered yet: text from a code point outside the BMP and
+# U+1F000..U+1FFFF. \u escapes and percent-encoded UTF-8 decode through
+# the CPTAB table; List.utf8 (5.15) builds text from any UTF-8 bytes, and
+# moving cp_text onto it is library work. JSON numbers are compared by
+# lexeme; num.special.f64_bits gives the bits of a parsed double.
 
 error BadEvent(why: text)
 
