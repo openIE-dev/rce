@@ -1,0 +1,118 @@
+# The allow-list of scripts/vocab.py (COMP-19 of spec/proposals/compliance.md).
+# One row per line: PATH-GLOB <TAB> LINE-REGEX <TAB> REASON. LINE-REGEX `*` is
+# every line of the matching files and `@path` the path name itself. The rows
+# begin with section 6.9 of the proposal (kept verbatim) and the history of
+# section 11.2. Rows whose reason starts with `pending` name lines that a later
+# group of step 2 of 11.1 rewrites; they are removed by that group's commit.
+#
+# Section 6.9: the words of a third party, kept as written.
+**	implicit rejection|rejection sampling	third-party: FIPS 203 terms of art (ML-KEM)
+stdlib/tests/crypto/mlkem_*_reject_checks.rce	@path	third-party: FIPS 203 implicit rejection, the vector's name
+**	mlkem_[0-9]_reject_checks	third-party: FIPS 203 implicit rejection, the vector's name
+**	doesNotReject	third-party: the JavaScript assertion API (node:assert)
+**	reject_once|reject_always|reject-once|reject-always	third-party: the Agent Client Protocol (ACP) permission option kinds
+**	SAFE_ATO_REFUSE	third-party: systemd flag names
+stdlib/scripts/ref/svc_ref.c	*	third-party: functions copied from systemd (scripts/ref/svc_ref_build.py)
+stdlib/scripts/ref/svc_ref_shim.h	*	third-party: helpers of the copied systemd functions
+stdlib/scripts/ref/i2c_ref.c	*	third-party: generated from the vendored Linux i2c sources
+stdlib/vectors/os/**	*	third-party: Linux i2c and edk2 sources and their comments
+stdlib/vectors/ui/**	*	third-party: SCXML IRP corpus and W3C Pointer Events text
+stdlib/vectors/data/**	*	third-party: CloudEvents and JSON Patch corpora
+stdlib/vectors/rand/**	*	third-party: RFC test vectors
+stdlib/vectors/text/UTF-8-test.txt	*	third-party: Markus Kuhn's UTF-8 decoder stress test
+stdlib/vectors/net/**	*	third-party: IDNA and RFC test corpora
+spec/book/16-host-contract.md	it rejects the request	third-party: quotation of the Raft paper [Ongaro and Ousterhout 2014]
+spec/RCE-SPEC.md	it rejects the request	third-party: quotation of the Raft paper [Ongaro and Ousterhout 2014]
+spec/proposals/soundness.md	dyld rejects	third-party: quotation of the macOS loader's behaviour
+**	mutated outputs the specification rejects	third-party: the mutation-analysis term of art
+**	fold_rejects_wrong_state	third-party: the engine's test name, cited as data
+ide/vendor/**	*	third-party: vendored crates
+#
+# Section 6.9 and 11.2: dated history and published records, kept as written.
+spec/LANGUAGE-REVIEW.md	*	history: a dated review
+spec/proposals/compliance.md	*	history: the proposal quotes every term it replaces
+spec/proposals/LEDGER.md	^\| 20[0-9][0-9]-[0-9][0-9]-[0-9][0-9] \|	history: a dated ledger row
+conformance/tests/**	^# provenance:	history: where a test was harvested from, when it was harvested
+conformance/FINDINGS.md	CLOSED	history: a closed finding, dated by its commit
+#
+# The migration itself: these files name the terms they replace.
+scripts/vocab.py	*	migration: the search pattern
+scripts/vocab-allow.tsv	*	migration: this list
+scripts/compliance-g1.py	*	migration: the group 1 rename map
+#
+# Domain data: a program's own names and texts in its domain, not an outcome word.
+apps/chat*.rce	rejected	domain: the chat application's counter of dropped messages
+spec/checker/tests/crypto_rce.rs	rejected	domain: the counter of the program under test
+spec/checker/tests/dst_chat.rs	"rejected"|rejected a message|nothing was rejected	domain: the chat application's counter of dropped messages
+spec/checker/tests/chat_e2ee.rs	"rejected"|was rejected	domain: the chat application's counter of dropped messages
+stdlib/tests/energy/energy_checks.rce	kid: "refused"|o.kid == "refused"	domain: a sentinel key id of the test
+examples/*.rce	^\s*reason "	domain: an agent's escalation reason text
+ide/crates/rce-memory/tests/**	[Rr]efuse overdrafts|refuse-overdrafts	domain: the title of a design note in the test corpus
+stdlib/tests/ui/states_checks_irp*.rce	when it is rejected|processor should  reject|allowed to reject	third-party: the SCXML IRP term for a document the processor rejects
+stdlib/tests/text/xml_checks_irp*.rce	reject this	third-party: comments quoted from the SCXML IRP corpus
+stdlib/scripts/gen/irp_*	rejected	third-party: the SCXML IRP term for a document the processor rejects
+docs/figures/src/nocode/**	*	third-party: text collected from other projects (error messages, licences)
+#
+# Records of runs, kept as recorded.
+spec/fuzz/results/*.json	*	history: the counts of a recorded fuzz run under its seed
+#
+# COMP-20 (c): earlier spellings read so that stored records keep verifying; never written.
+ide/crates/ide-receipt/src/lib.rs	^\s*Refused \{ diagnostics|^\s*Rejected \{ reason	history: earlier verdict tags of signed receipts, read and never written
+#
+# Pending: the lines a later group of step 2 of 11.1 rewrites.
+# group 2 (8.1; COMP-4, COMP-5, COMP-16, COMP-17), including the host vocabulary of 6.3 on main
+spec/checker/src/host.rs	*	pending g2: 6.3 and C1, C3 to C5 (COMP-4); replay and terms with COMP-15
+spec/checker/src/cli.rs	input refused|REFUSED \{e\}|a refused write prints the refusal	pending g2: 6.3, the serve loop and the rcedb word KEPT (COMP-4)
+spec/checker/src/bin/conform.rs	"rejected": w.rejected	pending g2: WindowAck.rejected becomes held with C1 (COMP-4)
+spec/checker/tests/host_admit.rs	a.rejected	pending g2: WindowAck.rejected becomes held with C1 (COMP-4)
+spec/checker/tests/host_effects.rs	*	pending g2: HC-5 and HS-6 answer with a failed result (8.1)
+spec/checker/tests/host_place.rs	*	pending g4: C3, placement held by the CPU reference (COMP-11)
+spec/checker/tests/host_sched.rs	*	pending g2: HC-6 late inputs (C5) and the replay verdict (COMP-15)
+spec/checker/tests/rcedb.rs	*	pending g2: the rcedb word REFUSED becomes KEPT (6.3)
+spec/checker/tests/dst_chat.rs	refused \{ev\}	pending g2: an input the host does not admit (COMP-4)
+spec/checker/tests/emit_run.rs	run_without_main_refuses|without `fn main\(\)` refuses	pending g2: exit status by kind (COMP-17)
+book/src/ch16-host-tools.md	REFUSED E|refused write|refused with `	pending g2: the rcedb word REFUSED becomes KEPT (6.3)
+# group 3 (8.2 and 9; COMP-7, COMP-8, COMP-15): paths, claims and records
+spec/checker/src/cli.rs	the text is refused and left as it was|"REFUSED \{\}: \{e\}", rest\[0\]|"REFUSED \{p\}: \{e\}"\).map_err\(w\)\?;	pending g3: the verdicts of fmt, manifest-check and unform (COMP-15)
+spec/checker/src/manifest.rs	*	pending g3: pins (COMP-15); unknown keys are a named form (8.9, group 4)
+spec/checker/tests/v09_manifest.rs	*	pending g3: pins and the import cycle (COMP-15, 8.2 W-MOD-2)
+spec/checker/src/adapters.rs	do not match is refused	pending g3: a frame that does not verify (9)
+spec/checker/src/raft.rs	*	pending g3: the follower's append (E.2b, 9)
+spec/checker/tests/host_raft.rs	*	pending g3: the follower's append (E.2b, 9)
+spec/checker/tests/host_media.rs	*	pending g3: a frame that does not verify (9)
+spec/checker/tests/framing_rce.rs	*	pending g3: messages that do not verify (9)
+spec/checker/tests/protect_rce.rs	*	pending g3: messages that do not verify (9)
+conformance/tests/types-checking/harvested/framing-rce-fit.rce	#refused	pending g3: messages that do not verify (9)
+conformance/tests/types-checking/harvested/protect-rce-fit.rce	#refused	pending g3: messages that do not verify (9)
+spec/checker/tests/group_rce.rs	*	pending g3: a commit that does not verify (9)
+spec/checker/tests/hpke_rce.rs	*	pending g3: a ciphertext that does not verify (9)
+spec/checker/tests/ed25519_rce.rs	rejected|rejections	pending g3: signatures that do not verify (9)
+spec/checker/tests/wasm_float.rs	*	pending g3: a reader of a format (9)
+spec/checker/tests/write_back.rs	*	pending g3: the write-back call in a conditional position (8.2)
+spec/checker/src/check.rs	is refused: memory safety|`\{n\}` is refused	pending g4: W-SAFE-1 names the form of each identifier (8.2, COMP-10)
+ide/crates/ide-receipt/tests/receipt.rs	*	pending g3: a chain under another key does not verify (9)
+# group 4 (COMP-9 to COMP-14): named forms, lifts, reserved constructs and emission coverage
+spec/checker/src/v09.rs	W-RES-1|^\s*\("	pending g4: W-RES-1 and the table of rce reserved (COMP-13)
+spec/checker/src/cli.rs	v09-status|A program the checker refuses is status 1	pending g4: rce reserved (COMP-13) and emission coverage (COMP-14)
+spec/checker/src/anf.rs	*	pending g4: emission coverage (COMP-14)
+spec/checker/src/brick_lower.rs	*	pending g4: lowering (8.7)
+spec/checker/src/emit/expr.rs	*	pending g4: emission coverage (COMP-14)
+spec/checker/src/bin/rce-c1.rs	emit refused	pending g4: emission coverage (COMP-14)
+spec/checker/src/tier2.rs	so it is refu	pending g4: a closure that captures authority is lifted (8.4)
+spec/checker/src/conc.rs	the impl is refused|a refusal names one|the set is refused	pending g4: merge certificates and LVar thresholds (8.3)
+spec/checker/src/check06b.rs	*	pending g4: LVar thresholds (8.3)
+spec/checker/tests/emit.rs	*	pending g4: emission coverage (COMP-14)
+spec/checker/tests/golden_apps.rs	refused: \{e\}	pending g4: emission coverage (COMP-14)
+spec/checker/tests/v09_tier2.rs	*	pending g4: emission coverage (COMP-14)
+spec/checker/tests/v09_tier3.rs	emitters_refuse_a_contract	pending g4: emission coverage (COMP-14)
+spec/checker/tests/conc06_run.rs	budget_else_refuses_undoable_effects	pending g4: the non-transactional named form (8.3)
+ide/crates/rce-mcp/src/lib.rs	return its refusal until the emitters land	pending g4: the emit tool lists the four public emitters (8.7)
+docs/figures/src/replace/*	EXCLUDED|rejected by derivation|W-[A-Z]+-[0-9] refuses|is refused at	pending g4: the paradigm rows held by named forms (8.9)
+tree-sitter/bindings/node/index.js	`import\(\)` rejects	third-party: the behaviour of JavaScript's import()
+conformance/reports/*.json	"detail":	history: a result message the harness recorded for that adapter's run
+conformance/reports/*.md	expected reject|refused at entry	history: a result message the harness recorded for that adapter's run
+lib/framing.rce	is refused	pending g3: a structure that does not verify (9)
+stdlib/lib/framing.rce	is refused	pending g3: a structure that does not verify (9)
+programs/ecosystem/run.sh	is refused	pending g3: a ciphertext that does not verify (9)
+stdlib/tests/**	rejects|refused_|mint_refused|refuses_bad_serialize|ack refused|[Rr]efusals|is refused|refuses	pending g3: the library's declared answers and byte integrity (4.11, 9)
+stdlib/scripts/gen/**	rejects|[Rr]efusals|are refused|refuse a wrong	pending g3: the library's declared answers and byte integrity (4.11, 9)
