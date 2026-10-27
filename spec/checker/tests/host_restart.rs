@@ -237,3 +237,45 @@ fn serve_on_an_existing_log_listens_again() {
     assert_eq!(t.matches("\"type\":\"host.Restarted\"").count(), 1);
     let _ = std::fs::remove_dir_all(&d);
 }
+
+/// HC-10b with HC-22: `Restarted` and a result `KDone` typed on the input
+/// stream are inputs like any other, each marked by `host.Typed`. The typed
+/// `Restarted` is not the delivery after `host.Restarted`, and the typed
+/// `NetListenDone` answers no request: the request it names is still
+/// outstanding in D, so the next restart interrupts it, live and on replay.
+#[test]
+fn typed_restarted_and_typed_result_are_inputs() {
+    use rce_spec_check::ast::{Arg, Expr};
+    let src = read("tests/host/net.rce");
+    let m = parse(&src).unwrap();
+    let d = dir("typed");
+    let log = d.join("d.log");
+    let addr = free_addr();
+    let (fs, _) = FileStore::open(&log).unwrap();
+    let mut h = Host::start_with(&m, Box::new(fs), boxed(net_adapters(std::slice::from_ref(&addr)))).unwrap();
+    let a = h.admit(&src, "Restarted(below: 99)").unwrap();
+    assert_eq!((a[0].cause, int(&field(&h, "restarts"))), (None, 1));
+    let typed_restarted = a[0].seq as usize;
+    // the request is in D and not yet performed; then a typed result names it
+    let lab = |l: &str, e: Expr| Arg { label: Some(l.into()), e };
+    let k = h.apply_input("Listen", vec![lab("addr", Expr::Str(addr.clone(), 0))]).unwrap()[0].seq as usize;
+    let none = Expr::None(0);
+    let r = h.apply_input("NetListenDone", vec![lab("req", Expr::Int(1, 0)), lab("status", Expr::Str("failed".into(), 0)), lab("data", none), lab("err", Expr::Str("typed".into(), 0))]).unwrap();
+    assert_eq!(r[0].cause, None);
+    assert_eq!(h.queued(), 1, "the typed result does not answer the request");
+    drop(h);
+    let h = Host::open_file_with(&m, &log, boxed(net_adapters(std::slice::from_ref(&addr)))).unwrap();
+    assert_eq!(int(&field(&h, "restarts")), 2);
+    let live = h.state_hash().to_string();
+    drop(h);
+    let es = entries(&log);
+    assert_eq!(es[typed_restarted - 1].event, format!(r#"{{"payload":{{"seq":{typed_restarted}}},"type":"host.Typed"}}"#));
+    assert_eq!(es[typed_restarted].event, r#"{"payload":{"below":99},"type":"Restarted"}"#);
+    assert_eq!(es[k + 1].event, format!(r#"{{"payload":{{"seq":{}}},"type":"host.Typed"}}"#, k + 2));
+    assert!(es[k + 2].event.contains(r#""err":"typed""#));
+    let r = position(&es, k + 3, |e| e.event.contains("\"type\":\"host.Restarted\""));
+    let i = position(&es, r, |e| e.event.contains("\"type\":\"NetListenDone\""));
+    assert!(es[i].event.contains(r#""err":"interrupted""#) && es[i].event.contains(r#""req":1"#), "the restart interrupts the request the typed result named: {}", es[i].event);
+    assert_eq!(replay(&m, &std::fs::read_to_string(&log).unwrap()).unwrap().1, live);
+    let _ = std::fs::remove_dir_all(&d);
+}

@@ -225,10 +225,83 @@ fn replay_refuses_a_forged_host_refused() {
     let e = replay(&m, &rechain(&m, wrong)).unwrap_err();
     assert!(e.contains("host fault"), "{e}");
     // a bound Refused with a different payload
-    let mut bound = es;
+    let mut bound = es.clone();
     bound[k as usize + 2].event = format!(r#"{{"payload":{{"cause":"fail","seq":{}}},"type":"Refused"}}"#, k + 1);
     let e = replay(&m, &rechain(&m, bound)).unwrap_err();
     assert!(e.contains("host fault"), "{e}");
+    // a second Refused after the delivered one, neither delivered nor typed
+    let mut extra = es;
+    let dup = extra[k as usize + 2].clone();
+    extra.insert(k as usize + 3, dup);
+    let e = replay(&m, &rechain(&m, extra)).unwrap_err();
+    assert!(e.contains("host fault") && e.contains("neither that delivery nor typed"), "{e}");
+}
+
+/// HC-10b: `Refused` typed on the input stream is admitted like any input.
+/// D marks it with `host.Typed` {seq}, so replay tells it from the delivery
+/// that follows `host.Refused`. It starts no descent: when its own step is
+/// refused, that refusal is delivered as a `Refused`, which in turn is not
+/// redelivered (HC-21). Replay gives the live state, the run validates,
+/// and the same entry without its mark is a host fault.
+#[test]
+fn typed_refused_is_admitted_and_marked() {
+    let s = src();
+    let m = parse(&s).unwrap();
+    let mut st = MemStore::default();
+    let mut h = Host::start(&m, Box::new(&mut st)).unwrap();
+    let a = h.admit(&s, r#"Refused(seq: 7, cause: "fail")"#).unwrap();
+    assert_eq!((a.len(), a[0].cause), (1, None), "{a:?}");
+    let k = a[0].seq as usize;
+    assert_eq!((int(&field(&h, "refusals")), int(&field(&h, "last_seq"))), (1, 7));
+    h.admit(&s, "Poison").unwrap();
+    let b = h.admit(&s, r#"Refused(seq: 8, cause: "trap")"#).unwrap();
+    assert_eq!(b.iter().map(|x| x.cause).collect::<Vec<_>>(), vec![Some("trap"), Some("trap")], "the typed input refused, then its delivered Refused refused: {b:?}");
+    let j = b[0].seq as usize;
+    let live = h.state_hash().to_string();
+    drop(h);
+    let t = text(&st);
+    let es = parsed(&t);
+    assert_eq!(es[k - 1].event, format!(r#"{{"payload":{{"seq":{k}}},"type":"host.Typed"}}"#));
+    assert_eq!(es[k].event, r#"{"payload":{"cause":"fail","seq":7},"type":"Refused"}"#);
+    let want = [
+        format!(r#"{{"payload":{{"seq":{j}}},"type":"host.Typed"}}"#),
+        r#"{"payload":{"cause":"trap","seq":8},"type":"Refused"}"#.to_string(),
+        format!(r#"{{"payload":{{"cause":"trap","seq":{j}}},"type":"host.Refused"}}"#),
+        format!(r#"{{"payload":{{"cause":"trap","seq":{j}}},"type":"Refused"}}"#),
+        format!(r#"{{"payload":{{"cause":"trap","seq":{}}},"type":"host.Refused"}}"#, j + 2),
+    ];
+    assert_eq!(es[j - 1..j + 4].iter().map(|e| e.event.clone()).collect::<Vec<_>>(), want);
+    let r = replay_report(&m, &t).unwrap();
+    assert_eq!(r.state_hash, live);
+    assert_eq!(r.refusals.len(), 2);
+    // the same entry without its mark is not a fact of the run
+    let mut bare = es;
+    bare.remove(k - 1);
+    let e = replay(&m, &rechain(&m, bare)).unwrap_err();
+    assert!(e.contains("host fault") && e.contains("neither that delivery nor typed"), "{e}");
+    // the host loop: a typed line naming Refused is admitted and the run validates
+    let dir = std::env::temp_dir().join(format!("rce-typed-refused-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    let log = dir.join("d.log");
+    let program = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/host/refused.rce");
+    let mut s = serve(&program, &log);
+    {
+        use std::io::Write;
+        s.stdin.write_all(b"Refused(seq: 3, cause: \"fuel\")\nOk\n").unwrap();
+        s.stdin.flush().unwrap();
+    }
+    let t0 = std::time::Instant::now();
+    while !std::fs::read_to_string(&log).unwrap_or_default().contains("\"type\":\"Ok\"") {
+        assert!(t0.elapsed() < std::time::Duration::from_secs(20), "the typed lines were not admitted");
+        std::thread::sleep(std::time::Duration::from_millis(20));
+    }
+    let (ok, err) = s.stop();
+    assert!(ok && err.contains("validated") && !err.contains("input refused"), "{err}");
+    let t = std::fs::read_to_string(&log).unwrap();
+    assert!(t.contains(r#""payload":{"cause":"fuel","seq":3},"type":"Refused""#) && t.contains("\"type\":\"host.Typed\""), "{t}");
+    replay(&m, &t).unwrap();
+    let _ = std::fs::remove_dir_all(&dir);
 }
 
 /// A host that stopped right after the refused entry (or after its

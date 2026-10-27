@@ -5313,7 +5313,7 @@ then the design it forces.
   to a state that re-encodes to the same bytes; otherwise it is
   discarded. Loading one changes no meaning.
 
-### E.4 Inputs are events (HC-10, HC-10a)
+### E.4 Inputs are events (HC-10, HC-10a, HC-10b)
 
 **HC-10.** Every value that enters a run is an event or a logged answer
 in D. This includes key, pointer, resize and focus input; `Tick` and
@@ -5335,6 +5335,25 @@ in D does not exist for the program.
   `NetRecvDone` (HC-23) and the body of `HttpRequest` (HC-24) follow this
   rule, and W-HOST-3 refuses at start a module that declares either with
   another type.
+- **HC-10b Typed inputs are inputs.** An input read from the input stream
+  (a line on stdin of `rce host serve`, the events of `rce host run`) is
+  admitted whatever event of the module it names, an event the host
+  delivers itself included: `Refused`, `Restarted`, `Synced`, `WallTime`,
+  `HttpRequest`, `HttpMalformed`, or the result `KDone` of a kind the host
+  performs, that is, every event the host binds at start (E.5). Before such
+  an input the admitter appends `host.Typed` {seq}, seq being the typed
+  input's own seq, so D records which of these inputs were typed and which
+  the host delivered. A typed input is an ordinary input: it answers no
+  request (HC-3), a typed `Refused` starts no descent (HC-21), and the
+  refusal of its step is delivered as for any other input. Replay reads the
+  mark: the input at seq is folded as typed, and a `host.Typed` that the
+  input does not follow (the host stopped between the two appends) records
+  an input that was never admitted, which is not completed on open. Replay
+  treats as a host fault a `Refused` or `Restarted` that is neither the
+  delivery after `host.Refused` or `host.Restarted`, typed, nor announced
+  by `host.Input` (E.2a). An input given by its name and arguments
+  (`Host::admit_event`) is typed in the same way; the inputs of a window
+  carry `host.Input` instead. Reference: `Host::admit`, `host::How`.
 
 ### E.4a Refusals and restarts (HC-21, HC-22)
 
@@ -5351,16 +5370,18 @@ both enter D and reach the program as inputs.
   other trap of 6.3 or 6.7). When the module declares `event Refused(seq:
   u64, cause: text)` the admitter then admits `Refused` with the same
   payload as an ordinary input, with the full fuel of HC-7a, and appends
-  `host.Bind` for it at start. A step descends from a `Refused` entry
-  when it is that `Refused`, or when it is the result of a request made by
-  a step that descends from it (so the results of the `Refused` step's
-  requests, the results of the requests those steps make, and so on). A
-  refused step that descends from a `Refused` is followed by
-  `host.Refused` only: no `Refused` leads to another, each refused input
-  is followed by at most one `Refused`, and a `Refused` step whose effects
-  are refused in turn cannot loop. Replay derives the same descent from D,
-  matching each result to the first request queued with its kind and
-  req. The cause names no declaration, so D stays name-free (T7);
+  `host.Bind` for it at start. Delivery is bounded. A step descends from a
+  delivered `Refused` when it is that delivery, or when it is the result
+  of a request made by a step that descends from it (so the results of the
+  `Refused` step's requests, the results of the requests those steps make,
+  and so on); a typed `Refused` (HC-10b) is an ordinary input and descends
+  from nothing. The refusal of a step that descends from a delivered
+  `Refused` is recorded in D as `host.Refused` and is not delivered again
+  as a `Refused`. Each refused input therefore leads to at most one
+  delivered `Refused`, and a `Refused` step whose effects are refused in
+  turn ends after its results are recorded. Replay derives the same
+  descent from D, matching each result to the first request queued with
+  its kind and req. The cause names no declaration, so D stays name-free (T7);
   the refusal's text, which can name a declared error, is not in D, and
   replay re-derives it. Replay requires each refused entry to be followed
   by the matching `host.Refused` and, when `Refused` is declared, by the
@@ -5594,6 +5615,7 @@ JSON. The host entries are:
 | `host.MainEnd` | choices, outcome, ticks | when the run ends (HC-6) |
 | `host.Refused` | cause, seq | after a refused entry (HC-21) |
 | `host.Restarted` | below (its own seq) | when a host opens a D that holds entries, or takes the admitter role (HC-22) |
+| `host.Typed` | seq (of the typed input that follows) | before a typed input that names an event the host delivers (HC-10b) |
 | `host.HttpListen` | addr and the limits of HC-25, or addr and error | at start under `--http`, and when a retried bind succeeds (HC-24) |
 
 A program receives the content of a host entry only through a binding
@@ -5815,6 +5837,7 @@ is cited by a test.
 | HS-6 to HS-9 | RCEdb in RCE | `rcedb_example_runs` |
 | HC-5a | the printed target is the installed target | `tests/host_sandbox.rs`: `profile_restricts_network_to_granted_ports`, `description_is_generated_from_rules`, `linux_description_says_by_port_and_udp`, `http_only_has_no_new_ip_sockets`, and on macOS only `seatbelt_refuses_an_ungranted_port`, `serve_under_seatbelt_answers_a_request` |
 | HC-10a, W-HOST-3 | bytes delivered exactly | `tests/host_net.rs`: `recv_delivers_the_bytes_received`, `recv_into_a_text_field_is_refused_at_start`, `recv_is_capped_at_the_size_limit`; `tests/host_http.rs`: `invalid_body_bytes_are_exact_and_get_400` |
+| HC-10b | typed inputs are inputs | `tests/host_refused.rs`: `typed_refused_is_admitted_and_marked`, `replay_refuses_a_forged_host_refused`; `tests/host_restart.rs`: `typed_restarted_and_typed_result_are_inputs`; `tests/host_http.rs`: `typed_http_request_is_an_input` |
 | HC-21, W-HOST-4 | refusals are inputs | `tests/host_refused.rs`: `refused_step_is_followed_by_host_refused_and_the_bound_event`, `each_cause_is_classified`, `a_refused_refused_is_not_redelivered`, `a_refused_step_whose_effect_is_refused_is_not_redelivered`, `refused_handler_has_full_fuel`, `replay_refuses_a_log_without_host_refused`, `replay_refuses_a_forged_host_refused`, `open_completes_a_trailing_refusal`, `a_refused_of_another_shape_is_refused_at_start`; `tests/nameless.rs`: `refusal_entries_are_name_free` |
 | HC-22 | restarts are inputs, ids never reused | `tests/host_restart.rs`: `restart_appends_restarted_then_interrupts`, `ids_are_not_reused_after_restart`, `tick_numbers_continue`, `take_role_appends_restarted`, `serve_on_an_existing_log_listens_again` |
 | HC-23, W-HOST-1 | the net adapter | `tests/host_net.rs`: `tcp_loopback_random_and_blobs_replay`, `send_takes_text_or_bytes`; `tests/host_effects.rs`: `bound_effect_without_its_result_event_is_refused` |

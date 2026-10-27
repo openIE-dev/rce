@@ -677,3 +677,60 @@ fn http_declarations_are_checked_at_start() {
         assert!(e.contains(rule) && n == 0, "{to}: {e}");
     }
 }
+
+/// HC-10b with HC-24: an `HttpRequest` typed on stdin is admitted like any
+/// input and marked by `host.Typed`. No connection holds its id, so the
+/// program's answer fails with `no request N` and nothing is written to a
+/// client; a request from a client is served as before, and D replays.
+#[test]
+fn typed_http_request_is_an_input() {
+    let d = dir("typed");
+    let log = d.join("d.log");
+    let addr = free_addr();
+    let mut child = Command::new(env!("CARGO_BIN_EXE_rce"))
+        .args(["host", "serve"])
+        .arg(app(ECHO))
+        .arg("--log")
+        .arg(&log)
+        .arg("--http")
+        .arg(&addr)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::null())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    let mut stdin = child.stdin.take().unwrap();
+    let err = Arc::new(Mutex::new(String::new()));
+    let (mut e, sink) = (child.stderr.take().unwrap(), err.clone());
+    std::thread::spawn(move || {
+        let mut b = [0u8; 4096];
+        while let Ok(n) = e.read(&mut b) {
+            if n == 0 {
+                break;
+            }
+            sink.lock().unwrap().push_str(&String::from_utf8_lossy(&b[..n]));
+        }
+    });
+    let deadline = Instant::now() + Duration::from_secs(20);
+    while !err.lock().unwrap().contains("http listening on") {
+        assert!(Instant::now() < deadline, "the host did not listen: {}", err.lock().unwrap());
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    stdin.write_all(b"HttpRequest(id: 77, method: \"POST\", target: \"/echo\", version: \"HTTP/1.1\", names: [], values: [], body: [104, 105])\n").unwrap();
+    stdin.flush().unwrap();
+    while !std::fs::read_to_string(&log).unwrap().contains(r#""err":"no request 77""#) {
+        assert!(Instant::now() < deadline, "the typed request was not answered: {}", err.lock().unwrap());
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    let r = post(&addr, "/echo", b"ok");
+    assert!(r.starts_with("HTTP/1.1 200") && r.ends_with("ok"), "{r}");
+    let s = Served { child, addr, log: log.clone(), err };
+    let (ok, err) = s.stop();
+    drop(stdin);
+    assert!(ok && err.contains("validated") && !err.contains("input refused"), "{err}");
+    let es = entries(&log);
+    let k = es.iter().position(|e| e.event.contains(r#""id":77"#)).unwrap();
+    assert_eq!(es[k - 1].event, format!(r#"{{"payload":{{"seq":{k}}},"type":"host.Typed"}}"#));
+    replays(ECHO, &log);
+    let _ = std::fs::remove_dir_all(&d);
+}

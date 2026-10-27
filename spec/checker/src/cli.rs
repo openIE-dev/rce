@@ -1616,7 +1616,7 @@ fn serve_loop(h: &mut crate::host::Host, src: &str, out: &mut dyn Write, mut htt
                     }
                     let body = Expr::List(req.body.iter().map(|b| Expr::Int(*b as i128, 0)).collect(), 0);
                     let args = vec![lab("id", Expr::Int(id as i128, 0)), lab("method", Expr::Str(req.method, 0)), lab("target", Expr::Str(req.target, 0)), lab("version", Expr::Str(version, 0)), lab("names", texts(req.names)), lab("values", texts(req.values)), lab("body", body)];
-                    match h.apply_input("HttpRequest", args) {
+                    match h.deliver_http("HttpRequest", args) {
                         Ok(a) => adm.extend(a),
                         Err(e) => {
                             if let Some(o) = &open {
@@ -1632,7 +1632,7 @@ fn serve_loop(h: &mut crate::host::Host, src: &str, out: &mut dyn Write, mut htt
                         o.borrow_mut().insert(id, Pending { reply, close: true, head: false });
                     }
                     let args = vec![lab("id", Expr::Int(id as i128, 0)), lab("status", Expr::Int(status as i128, 0)), lab("why", Expr::Str(why, 0))];
-                    match h.apply_input("HttpMalformed", args) {
+                    match h.deliver_http("HttpMalformed", args) {
                         Ok(a) => adm.extend(a),
                         Err(e) => {
                             if let Some(o) = &open {
