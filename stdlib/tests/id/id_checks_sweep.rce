@@ -1,0 +1,235 @@
+# Property sweeps for lib/id/id.rce over Park-Miller streams (seeds below):
+# text forms round-trip and sort as the bytes do; versions 1 and 6 carry
+# their fields and convert into each other; the monotonic ULID and UUIDv7
+# generators and the Snowflake generator give strictly increasing values
+# over time walks that repeat and go back; a Nano ID fed in chunks equals
+# the one made in one call and uses only its alphabet.
+
+fn tw_next(s: i64) -> i64 = (s * 48271) % 2147483647
+
+struct TwR
+    s: i64
+
+fn tw_bytes(r: &mut TwR, n: i64) -> List[i64]
+    var o: List[i64] = []
+    for _i in 0..n
+        r.s = tw_next(r.s)
+        o.push((r.s >> 7) & 255)
+    return o
+
+fn tw_u(s: text) -> List[i64] = uuid_parse(&s) catch [1]
+
+fn tw_l(s: text) -> List[i64] = uuid_parse_lax(&s) catch [1]
+
+fn tw_ul(s: text) -> List[i64] = ulid_parse(&s) catch [1]
+
+fn tw_roundtrip(n: i64, seed: i64) -> bool
+    var w = TwR(s: seed)
+    var ok = true
+    var prev = tw_bytes(&mut w, 16)
+    for _i in 0..n
+        let u = tw_bytes(&mut w, 16)
+        let f = uuid_format(&u) catch "bad"
+        let h = uuid_hex(&u) catch "bad"
+        let urn = uuid_urn(&u) catch "bad"
+        let ul = ulid_encode(&u) catch "bad"
+        ok = ok and tw_u(copy(f)) == u and tw_u(f.upper()) == u and tw_u(copy(h)) == u and tw_u("{" + f + "}") == u and tw_u(copy(urn)) == u
+        ok = ok and tw_l(copy(f)) == u and tw_l(copy(urn)) == u and tw_l("{" + h.upper() + "}") == u
+        ok = ok and tw_ul(copy(ul)) == u and tw_ul(ul.lower()) == u and ul.len_bytes() == 26
+        let pf = uuid_format(&prev) catch "bad"
+        let pl = ulid_encode(&prev) catch "bad"
+        ok = ok and (prev < u) == (pf < f) and (prev < u) == (pl < ul)
+        prev = u
+    return ok
+
+check tw_roundtrip(200, 20261027)
+
+fn tw_time(n: i64, seed: i64) -> bool
+    var w = TwR(s: seed)
+    var ok = true
+    var pt: i64 = -1
+    var p6: List[i64] = []
+    for _i in 0..n
+        w.s = tw_next(w.s)
+        let a = w.s & 1073741823
+        w.s = tw_next(w.s)
+        let t = (a << 30) | (w.s & 1073741823)
+        w.s = tw_next(w.s)
+        let cs = w.s & 16383
+        w.s = tw_next(w.s)
+        let b = w.s & 16777215
+        w.s = tw_next(w.s)
+        let nd = (b << 24) | (w.s & 16777215)
+        let v1 = uuid_v1(t, cs, nd) catch [1]
+        let v6 = uuid_v6(t, cs, nd) catch [1]
+        ok = ok and (uuid_ticks_of(&v1) catch -1) == t and (uuid_ticks_of(&v6) catch -1) == t
+        ok = ok and (uuid_clock_seq(&v1) catch -1) == cs and (uuid_clock_seq(&v6) catch -1) == cs and (uuid_node(&v1) catch -1) == nd and (uuid_node(&v6) catch -1) == nd
+        ok = ok and (uuid_version(&v1) catch -1) == 1 and (uuid_version(&v6) catch -1) == 6 and (uuid_variant(&v6) catch -1) == UUID_VAR_RFC
+        ok = ok and (uuid_v1_to_v6(&v1) catch [1]) == v6 and (uuid_v6_to_v1(&v6) catch [1]) == v1
+        ok = ok and (uuid_unix_ms(&v6) catch -1) == (uuid_unix_ms(&v1) catch -2)
+        if pt >= 0 and pt != t
+            ok = ok and (pt < t) == (p6 < v6)
+        pt = t
+        p6 = v6
+    return ok
+
+check tw_time(300, 7)
+
+# ms of each ULID is the latest time seen so far; the values strictly increase
+fn tw_ulid_mono(n: i64, seed: i64) -> bool
+    var w = TwR(s: seed)
+    var g = ulid_gen()
+    var ok = true
+    var t: i64 = 1792972800000
+    var hi: i64 = 0
+    var prev: List[i64] = []
+    var ptext = ""
+    for i in 0..n
+        w.s = tw_next(w.s)
+        let dt = w.s % 7
+        t = t + (if dt < 4 then 0 else (if dt == 6 then -2 else dt - 3))
+        if t > hi
+            hi = t
+        let r = tw_bytes(&mut w, 10)
+        let b = ulid_next(&mut g, t, &r) catch [1]
+        let x = ulid_encode(&b) catch "bad"
+        ok = ok and b.len() == 16 and (ulid_ms(&b) catch -1) == hi
+        if i > 0
+            ok = ok and prev < b and ptext < x
+        prev = b
+        ptext = x
+    return ok
+
+check tw_ulid_mono(2000, 11)
+
+fn tw_v7_mono(n: i64, seed: i64) -> bool
+    var w = TwR(s: seed)
+    var g = uuid7_gen()
+    var ok = true
+    var t: i64 = 1792972800000
+    var hi: i64 = 0
+    var prev: List[i64] = []
+    for i in 0..n
+        w.s = tw_next(w.s)
+        let dt = w.s % 7
+        t = t + (if dt < 4 then 0 else (if dt == 6 then -2 else dt - 3))
+        if t > hi
+            hi = t
+        let r = tw_bytes(&mut w, 16)
+        let b = uuid7_next(&mut g, t, &r) catch [1]
+        ok = ok and b.len() == 16 and (uuid_unix_ms(&b) catch -1) == hi and (uuid_version(&b) catch -1) == 7 and (uuid_variant(&b) catch -1) == UUID_VAR_RFC
+        if i > 0
+            ok = ok and prev < b
+        prev = b
+    return ok
+
+check tw_v7_mono(2000, 13)
+
+# a counter that wraps moves the time on by one millisecond
+fn tw_v7_wrap() -> bool
+    var g = Uuid7Gen(ms: 1000, seq: 4294967294)
+    let r: List[i64] = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+    let a = uuid7_next(&mut g, 1000, &r) catch [1]
+    let b = uuid7_next(&mut g, 1000, &r) catch [1]
+    let c = uuid7_next(&mut g, 1000, &r) catch [1]
+    return a < b and b < c and g.ms == 1001 and g.seq == 1 and (uuid_unix_ms(&b) catch -1) == 1001 and (uuid_unix_ms(&a) catch -1) == 1000
+
+check tw_v7_wrap()
+
+# a 2-bit sequence runs out every fourth ID in a millisecond; every refusal
+# names the millisecond to wait for, every ID splits back into its parts
+fn tw_snow(n: i64, seed: i64) -> bool
+    var w = TwR(s: seed)
+    let l = SnowLayout(epoch_ms: 1288834974657, worker_bits: 3, seq_bits: 2)
+    var g = snow_gen(&l, 5) catch SnowGen(lay: snow_twitter(), worker: 0, last_ms: 0, seq: 0)
+    var ok = true
+    var t: i64 = 1792972800000
+    var prev: i64 = -1
+    var used = 0
+    var nref = 0
+    for _i in 0..n
+        w.s = tw_next(w.s)
+        let dt = w.s % 9
+        t = t + (if dt < 6 then 0 else (if dt == 8 then -1 else 1))
+        let last = g.last_ms
+        let seq0 = g.seq
+        let v = snow_next(&mut g, t) catch |e| -1 - e.at
+        if v >= 0
+            let p = snow_parts(&l, v) catch SnowParts(ms: -1, worker: -1, seq: -1)
+            ok = ok and v > prev and p.ms == t and p.worker == 5 and p.seq == g.seq and g.last_ms == t
+            prev = v
+            used += 1
+        else
+            let at = -1 - v
+            ok = ok and g.last_ms == last and g.seq == seq0 and ((t < last and at == last) or (t == last and seq0 == 3 and at == last + 1))
+            nref += 1
+    return ok and used > n / 5 and nref > 10
+
+check tw_snow(3000, 17)
+
+fn tw_has(a: &[text], c: &text) -> bool
+    for x in a
+        if x == c
+            return true
+    return false
+
+# one call and chunked feeding agree; the ID has size symbols, all from the
+# alphabet; whole draws are consumed
+fn tw_nano(n: i64, seed: i64) -> bool
+    let pool = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_.~!*()\u{e9}\u{df}\u{436}\u{4e2d}".chars()
+    var w = TwR(s: seed)
+    var ok = true
+    for _i in 0..n
+        w.s = tw_next(w.s)
+        let na = 1 + w.s % 90
+        var alpha = ""
+        for _k in 0..na
+            w.s = tw_next(w.s)
+            alpha = alpha + pool[(w.s % (pool.len() as i64)) as usize]
+        w.s = tw_next(w.s)
+        let size = w.s % 41
+        let g0 = nanoid_gen(&alpha, size) catch NanoGen(alpha: [], size: 0, block: -1, cutoff: 0, out: [], pend: [], used: 0)
+        let r = tw_bytes(&mut w, g0.block * 6)
+        let one = nanoid_custom(&alpha, size, &r) catch "need more"
+        var g = nanoid_gen(&alpha, size) catch NanoGen(alpha: [], size: 0, block: -1, cutoff: 0, out: [], pend: [], used: 0)
+        ok = ok and nanoid_need(&g) == (if size == 0 then 0 else g.block)
+        var at: usize = 0
+        while at < r.len() and not nanoid_done(&g) bound 100000
+            w.s = tw_next(w.s)
+            var ch: List[i64] = []
+            var k = w.s % 50
+            while k >= 0 and at < r.len() bound 100
+                ch.push(r[at])
+                at += 1
+                k -= 1
+            let _d = nanoid_feed(&mut g, &ch) catch false
+        let fed = if nanoid_done(&g) then nanoid_text(&g) else "need more"
+        ok = ok and fed == one and g.used % (if g.block > 0 then g.block else 1) == 0
+        if one != "need more"
+            let syms = one.chars()
+            ok = ok and (syms.len() as i64) == size
+            let al = alpha.chars()
+            for c in syms
+                ok = ok and tw_has(&al, &c)
+    return ok
+
+check tw_nano(120, 19)
+
+fn tw_url(n: i64, seed: i64) -> bool
+    let al = NANOID_URL.chars()
+    var w = TwR(s: seed)
+    var ok = al.len() == 64
+    for _i in 0..n
+        w.s = tw_next(w.s)
+        let size = w.s % 70
+        let r = tw_bytes(&mut w, size)
+        let id = nanoid(&r, size) catch "bad"
+        let cs = id.chars()
+        ok = ok and (cs.len() as i64) == size
+        var j: usize = 0
+        while j < cs.len() bound 100
+            ok = ok and cs[j] == al[(r[j] & 63) as usize]
+            j += 1
+    return ok
+
+check tw_url(100, 23)
