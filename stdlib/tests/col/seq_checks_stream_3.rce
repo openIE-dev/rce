@@ -1,0 +1,20 @@
+# Streams longer than one list (hand written): SeqTop by key over
+# 0..1,200,000 fed in chunks of 400,000, key x % 1000. The largest key is
+# 999 and ties go to the earlier position, so the 5 largest are 999,
+# 1999, 2999, 3999 and 4999 (heapq.nlargest(5, range(1200000),
+# key=lambda x: x % 1000)).
+
+fn s_iota(q: i64) -> List[i64] = [q * 400000 + i for i in 0..400000]
+
+fn s_key(x: &i64) -> i64 = x % 1000
+
+fn s_top1(k: usize, largest: bool) -> SeqTop[i64] = SeqTop(k: k, largest: largest, items: [], pos: [], seen: 0)
+
+fn s_top_key() -> bool
+    var hi: SeqTop[i64] = seq_top_new(5, true) catch s_top1(5, true)
+    for q in 0..3
+        let xs = s_iota(q)
+        seq_top_feed_by_key(&mut hi, &xs, s_key)
+    return seq_top_list(&hi) == [999, 1999, 2999, 3999, 4999]
+
+check s_top_key()

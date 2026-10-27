@@ -3,9 +3,15 @@ module col
 # Collections (survey M6) beyond the built-in List and Map: deque, binary
 # heap, ordered map and ordered set (sorted vectors, canonical key order),
 # and a hash map with fixed hashing (FNV-1a 32, no seed) whose iteration
-# order is insertion order. Every operation is deterministic: no seeds, no
-# addresses, no host input. Containers are generic structs used through
-# &mut / & functions (rce 0.1.3 resolves generic fields that way).
+# order is insertion order. The ordered set has the set algebra of
+# Python's set (union, intersection, difference, symmetric difference,
+# subset, superset and disjointness tests) and the neighbour searches of
+# Java's NavigableSet (floor, ceiling, lower, higher, range); the ordered
+# map has the same searches over its keys. Every operation is
+# deterministic: no seeds, no addresses, no host input. Containers are
+# generic structs used through &mut / & functions (rce 0.1.3 resolves
+# generic fields that way). Sorting, grouping and the other sequence
+# algorithms are in col.seq.
 
 # ---------------- Deque ----------------
 # Two stacks: front holds the front elements reversed. Amortized O(1).
@@ -259,6 +265,146 @@ pub fn set_inter[K: Ord + Eq](a: &[K], b: &[K]) -> List[K]
             i += 1
             j += 1
     return o
+
+# The elements of a that are not in b (Python's a - b).
+pub fn set_diff[K: Ord + Eq](a: &[K], b: &[K]) -> List[K]
+    var o: List[K] = []
+    var i: usize = 0
+    var j: usize = 0
+    while i < a.len() bound 33554432
+        if j >= b.len() or a[i] < b[j]
+            o.push(copy(a[i]))
+            i += 1
+        elif b[j] < a[i]
+            j += 1
+        else
+            i += 1
+            j += 1
+    return o
+
+# The elements in exactly one of a and b (Python's a ^ b).
+pub fn set_symdiff[K: Ord + Eq](a: &[K], b: &[K]) -> List[K]
+    var o: List[K] = []
+    var i: usize = 0
+    var j: usize = 0
+    while i < a.len() or j < b.len() bound 33554432
+        if j >= b.len() or (i < a.len() and a[i] < b[j])
+            o.push(copy(a[i]))
+            i += 1
+        elif i >= a.len() or b[j] < a[i]
+            o.push(copy(b[j]))
+            j += 1
+        else
+            i += 1
+            j += 1
+    return o
+
+# Every element of a is in b (Python's a <= b, a.issubset(b)).
+pub fn set_is_subset[K: Ord + Eq](a: &[K], b: &[K]) -> bool
+    if a.len() > b.len()
+        return false
+    var i: usize = 0
+    var j: usize = 0
+    while i < a.len() bound 33554432
+        if j >= b.len() or a[i] < b[j]
+            return false
+        if b[j] < a[i]
+            j += 1
+        else
+            i += 1
+            j += 1
+    return true
+
+# a is a subset of b and not equal to it (Python's a < b).
+pub fn set_is_proper_subset[K: Ord + Eq](a: &[K], b: &[K]) -> bool = a.len() < b.len() and set_is_subset(a, b)
+
+# Every element of b is in a (Python's a >= b, a.issuperset(b)).
+pub fn set_is_superset[K: Ord + Eq](a: &[K], b: &[K]) -> bool = set_is_subset(b, a)
+
+# a and b have no element in common (Python's a.isdisjoint(b)).
+pub fn set_is_disjoint[K: Ord + Eq](a: &[K], b: &[K]) -> bool
+    var i: usize = 0
+    var j: usize = 0
+    while i < a.len() and j < b.len() bound 33554432
+        if a[i] < b[j]
+            i += 1
+        elif b[j] < a[i]
+            j += 1
+        else
+            return false
+    return true
+
+# The ordered set of the elements of any list (Python's sorted(set(xs))).
+# The set functions above expect this canonical form (strictly ascending);
+# on other lists they still return without a trap, but the result is not
+# a set.
+pub fn set_from[K: Ord + Eq](xs: &[K]) -> List[K]
+    var s: List[K] = copy(xs)
+    s.sort()
+    var o: List[K] = []
+    for x in s
+        if o.len() == 0 or o[o.len() - 1] < x
+            o.push(copy(x))
+    return o
+
+# Whether xs is a canonical ordered set (strictly ascending).
+pub fn set_is_valid[K: Ord + Eq](xs: &[K]) -> bool
+    var i: usize = 1
+    while i < xs.len() bound 33554432
+        if not (xs[i - 1] < xs[i])
+            return false
+        i += 1
+    return true
+
+# First index whose key is > k (bisect_right; lower_bound is bisect_left).
+pub fn upper_bound[K: Ord + Eq](xs: &[K], k: &K) -> usize
+    var lo: usize = 0
+    var hi = xs.len()
+    while lo < hi bound 64
+        let mid = (lo + hi) / 2
+        if k < xs[mid]
+            hi = mid
+        else
+            lo = mid + 1
+    return lo
+
+# Neighbour searches (Java's NavigableSet): the greatest element <= k
+# (floor), the least >= k (ceiling), the greatest < k (lower) and the
+# least > k (higher), or none.
+pub fn set_floor[K: Ord + Eq](s: &[K], k: &K) -> K?
+    let i = upper_bound(s, k)
+    return if i == 0 then none else some(copy(s[i - 1]))
+
+pub fn set_ceiling[K: Ord + Eq](s: &[K], k: &K) -> K?
+    let i = lower_bound(s, k)
+    return if i < s.len() then some(copy(s[i])) else none
+
+pub fn set_lower[K: Ord + Eq](s: &[K], k: &K) -> K?
+    let i = lower_bound(s, k)
+    return if i == 0 then none else some(copy(s[i - 1]))
+
+pub fn set_higher[K: Ord + Eq](s: &[K], k: &K) -> K?
+    let i = upper_bound(s, k)
+    return if i < s.len() then some(copy(s[i])) else none
+
+# Elements in [lo, hi), ascending.
+pub fn set_range[K: Ord + Eq](s: &[K], lo: &K, hi: &K) -> List[K]
+    var o: List[K] = []
+    var i = lower_bound(s, lo)
+    while i < s.len() and s[i] < hi bound 33554432
+        o.push(copy(s[i]))
+        i += 1
+    return o
+
+# The same searches over the keys of an ordered map (Java's NavigableMap
+# floorKey, ceilingKey, lowerKey and higherKey).
+pub fn om_floor_key[K: Ord + Eq, V](m: &OrdMap[K, V], k: &K) -> K? = set_floor(&m.keys, k)
+
+pub fn om_ceiling_key[K: Ord + Eq, V](m: &OrdMap[K, V], k: &K) -> K? = set_ceiling(&m.keys, k)
+
+pub fn om_lower_key[K: Ord + Eq, V](m: &OrdMap[K, V], k: &K) -> K? = set_lower(&m.keys, k)
+
+pub fn om_higher_key[K: Ord + Eq, V](m: &OrdMap[K, V], k: &K) -> K? = set_higher(&m.keys, k)
 
 # ---------------- Fixed-hash map (text keys) ----------------
 # FNV-1a 32-bit (no seed), open addressing with linear probing over a

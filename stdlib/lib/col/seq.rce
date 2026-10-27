@@ -1,0 +1,1241 @@
+module col.seq
+
+# Sequence algorithms over List (survey M6, second part). Each function
+# gives the result of the CPython 3.13 function named in its comment
+# (itertools, bisect, heapq, collections.Counter), with the same order of
+# results and the same rule for ties:
+# - sorting: stable sorts by key and with a three-way comparator,
+#   descending sorts that keep equal elements in input order, sorted index
+#   views (argsort) and gathering by index, selection of the element of
+#   rank n, the k smallest and k largest elements;
+# - searching: bisect_left and bisect_right (with a key or a lo..hi
+#   range), binary search, insort, and the stable merge of sorted lists;
+# - grouping and transformation: runs (itertools.groupby), grouping by
+#   key, chunks (itertools.batched), sliding windows, pairwise, zip,
+#   zip_longest, strict zip, unzip, enumerate, flatten, stable
+#   deduplication, counting (Counter and most_common), partition,
+#   accumulate and scan, product, permutations, combinations (with and
+#   without replacement), a bounded cycle and round-robin interleaving.
+#
+# Names. Every top-level name starts with `seq_`, `sq_`, `Seq` or `SEQ_`,
+# because imported names are not renamed (W-MOD-3) and a local may not
+# shadow an imported name (W-NAME-3).
+#
+# Limits. A list holds at most SEQ_SIZE_LIMIT = 1,000,000 elements (spec
+# N9). A function whose result could hold more elements than that, or more
+# than the `limit` its caller gives, refuses with SeqTooLarge before it
+# builds anything; a size or index that cannot be used refuses with
+# SeqBadSize, SeqBadIndex or SeqLenMismatch. No function traps on such
+# input. Input longer than one list is fed in chunks to a state value:
+# SeqCounts (counting), SeqSeen (deduplication), SeqTop (k smallest or
+# largest), SeqWin (sliding windows), SeqBatch (chunks) and SeqRuns
+# (groupby runs). Feeding any split of a sequence gives the same results
+# as one call on the whole sequence. `seq_scan` resumes from its last
+# value, and the combinatoric generators resume from a SeqCursor.
+#
+# Cost. Sorting by key and by natural order uses the built-in stable sort
+# on (key, position) pairs, which costs one call however long the list;
+# a comparator sort is a bottom-up merge sort that calls the comparator
+# O(n log n) times. Selection and top-k sort; they do not use a
+# partition (introselect), because the built-in sort costs less fuel than
+# any loop written in RCE.
+#
+# Element types. Natural order is the language's total order (spec 6.1):
+# integers by value, text by code point, tuples and lists
+# lexicographically, so it agrees with Python's order on the same values.
+
+pub const SEQ_SIZE_LIMIT: usize = 1000000
+
+const SQ_MAXU: usize = 18446744073709551615
+
+# A chunk or window size of 0, or one above SEQ_SIZE_LIMIT.
+error SeqBadSize(n: usize)
+# The result would hold more than `limit` elements (or tuples).
+error SeqTooLarge(limit: usize)
+# An index at or past the end of the list it selects from.
+error SeqBadIndex(index: usize)
+# Two lists that must have equal lengths do not.
+error SeqLenMismatch(a: usize, b: usize)
+
+# ---------------- helpers ----------------
+
+# The loops that touch every element are list comprehensions where they
+# can be: a comprehension costs less fuel per element than a loop body.
+fn sq_take[T](xs: &[T], idx: &[usize]) -> List[T] = [copy(xs[i]) for i in idx]
+
+fn sq_prefix[T](xs: &[T], k: usize) -> List[T] = [copy(xs[i]) for i in 0..k.min(xs.len())]
+
+fn sq_seconds[K](ps: &[(K, usize)]) -> List[usize] = [p.1 for p in ps]
+
+fn sq_rev[T](xs: &[T]) -> List[T] = [copy(xs[xs.len() - 1 - i]) for i in 0..xs.len()]
+
+# Positions 0..n in the stable ascending order of their keys.
+fn sq_order_asc[K: Ord](ks: List[K]) -> List[usize]
+    var ps: List[(K, usize)] = [(copy(ks[i]), i) for i in 0..ks.len()]
+    ps.sort()
+    return sq_seconds(&ps)
+
+# Positions in descending key order with equal keys in ascending position
+# (Python's sorted(..., reverse=True)): sort (key, last - position), then
+# reverse.
+fn sq_order_desc[K: Ord](ks: List[K]) -> List[usize]
+    let n = ks.len()
+    var ps: List[(K, usize)] = [(copy(ks[i]), n - 1 - i) for i in 0..n]
+    ps.sort()
+    return [n - 1 - ps[n - 1 - j].1 for j in 0..n]
+
+fn sq_keys[T, K](xs: &[T], key: fn(&T) -> K) -> List[K] = [key(x) for x in xs]
+
+# ---------------- sorting ----------------
+
+# sorted(xs).
+pub fn seq_sorted[T: Ord](xs: &[T]) -> List[T]
+    var o: List[T] = copy(xs)
+    o.sort()
+    return o
+
+# sorted(xs, reverse=True).
+pub fn seq_sorted_desc[T: Ord](xs: &[T]) -> List[T]
+    var o: List[T] = copy(xs)
+    o.sort()
+    return sq_rev(&o)
+
+# sorted(range(len(xs)), key=xs.__getitem__): the stable sorted view as
+# positions; seq_gather(xs, view) is seq_sorted(xs).
+pub fn seq_argsort[T: Ord](xs: &[T]) -> List[usize] = sq_order_asc(copy(xs))
+
+# sorted(range(len(xs)), key=lambda i: key(xs[i])).
+pub fn seq_argsort_by_key[T, K: Ord](xs: &[T], key: fn(&T) -> K) -> List[usize] = sq_order_asc(sq_keys(xs, key))
+
+# sorted(range(len(xs)), key=lambda i: key(xs[i]), reverse=True).
+pub fn seq_argsort_by_key_desc[T, K: Ord](xs: &[T], key: fn(&T) -> K) -> List[usize] = sq_order_desc(sq_keys(xs, key))
+
+# sorted(xs, key=key): stable.
+pub fn seq_sort_by_key[T, K: Ord](xs: &[T], key: fn(&T) -> K) -> List[T]
+    let idx = seq_argsort_by_key(xs, key)
+    return sq_take(xs, &idx)
+
+# sorted(xs, key=key, reverse=True): descending, equal keys in input order.
+pub fn seq_sort_by_key_desc[T, K: Ord](xs: &[T], key: fn(&T) -> K) -> List[T]
+    let idx = seq_argsort_by_key_desc(xs, key)
+    return sq_take(xs, &idx)
+
+# The stable sorted view under a three-way comparator: cmp(a, b) < 0
+# when a goes before b, 0 when they are equal, > 0 otherwise (Python's
+# functools.cmp_to_key, Go's slices.SortStableFunc). A bottom-up merge
+# sort: an element of the right run goes first only when it compares
+# strictly less, so equal elements keep their input order. A comparator
+# that is not a total preorder still gives a permutation, in an order
+# that depends on this algorithm.
+pub fn seq_argsort_with[T](xs: &[T], cmp: fn(&T, &T) -> i64) -> List[usize]
+    let n = xs.len()
+    var a: List[usize] = [i for i in 0..n]
+    var w: usize = 1
+    while w < n bound 64
+        var b: List[usize] = []
+        var lo: usize = 0
+        while lo < n bound 1000000
+            let mid = (lo + w).min(n)
+            let hi = (lo + 2 * w).min(n)
+            var i = lo
+            var j = mid
+            while i < mid or j < hi bound 1000000
+                if j < hi and (i >= mid or cmp(&xs[a[j]], &xs[a[i]]) < 0)
+                    b.push(a[j])
+                    j += 1
+                else
+                    b.push(a[i])
+                    i += 1
+            lo = hi
+        a = b
+        w = w * 2
+    return a
+
+# sorted(xs, key=functools.cmp_to_key(cmp)).
+pub fn seq_sort_with[T](xs: &[T], cmp: fn(&T, &T) -> i64) -> List[T]
+    let idx = seq_argsort_with(xs, cmp)
+    return sq_take(xs, &idx)
+
+# [xs[i] for i in idx]; SeqBadIndex names the first index past the end.
+pub fn seq_gather[T](xs: &[T], idx: &[usize]) -> List[T] ! SeqBadIndex
+    for i in idx
+        if i >= xs.len()
+            fail SeqBadIndex(index: i)
+    return sq_take(xs, idx)
+
+# all(xs[i] <= xs[i + 1]).
+pub fn seq_is_sorted[T: Ord](xs: &[T]) -> bool
+    var i: usize = 1
+    while i < xs.len() bound 1000000
+        if xs[i] < xs[i - 1]
+            return false
+        i += 1
+    return true
+
+# all(key(xs[i]) <= key(xs[i + 1])).
+pub fn seq_is_sorted_by_key[T, K: Ord](xs: &[T], key: fn(&T) -> K) -> bool
+    let ks = sq_keys(xs, key)
+    return seq_is_sorted(&ks)
+
+# Selection (C++ nth_element, the "select" of order statistics):
+# sorted(xs)[n], or none when n >= len(xs).
+pub fn seq_nth[T: Ord](xs: &[T], n: usize) -> T?
+    if n >= xs.len()
+        return none
+    let o = seq_sorted(xs)
+    return some(copy(o[n]))
+
+# sorted(xs, key=key)[n]: among equal keys, the one the stable sort puts
+# at n.
+pub fn seq_nth_by_key[T, K: Ord](xs: &[T], n: usize, key: fn(&T) -> K) -> T?
+    if n >= xs.len()
+        return none
+    let idx = seq_argsort_by_key(xs, key)
+    return some(copy(xs[idx[n]]))
+
+# heapq.nsmallest(k, xs) (= sorted(xs)[:k]).
+pub fn seq_nsmallest[T: Ord](xs: &[T], k: usize) -> List[T]
+    let o = seq_sorted(xs)
+    return sq_prefix(&o, k)
+
+# heapq.nlargest(k, xs) (= sorted(xs, reverse=True)[:k]).
+pub fn seq_nlargest[T: Ord](xs: &[T], k: usize) -> List[T]
+    let o = seq_sorted_desc(xs)
+    return sq_prefix(&o, k)
+
+# heapq.nsmallest(k, xs, key=key) (= sorted(xs, key=key)[:k]).
+pub fn seq_nsmallest_by_key[T, K: Ord](xs: &[T], k: usize, key: fn(&T) -> K) -> List[T]
+    let idx = seq_argsort_by_key(xs, key)
+    let top = sq_prefix(&idx, k)
+    return sq_take(xs, &top)
+
+# heapq.nlargest(k, xs, key=key) (= sorted(xs, key=key, reverse=True)[:k]).
+pub fn seq_nlargest_by_key[T, K: Ord](xs: &[T], k: usize, key: fn(&T) -> K) -> List[T]
+    let idx = seq_argsort_by_key_desc(xs, key)
+    let top = sq_prefix(&idx, k)
+    return sq_take(xs, &top)
+
+# ---------------- searching ----------------
+# The loops are CPython's bisect.py (mid = (lo + hi) // 2), so the result
+# is the same as CPython's even on a list that is not sorted.
+
+# bisect.bisect_left(xs, x, lo, hi), with hi clamped to len(xs); when
+# lo >= hi the result is lo, as in CPython.
+pub fn seq_bisect_left_in[T: Ord](xs: &[T], x: &T, lo: usize, hi: usize) -> usize
+    var a = lo
+    var b = hi.min(xs.len())
+    while a < b bound 64
+        let mid = a + (b - a) / 2
+        if xs[mid] < x
+            a = mid + 1
+        else
+            b = mid
+    return a
+
+# bisect.bisect_right(xs, x, lo, hi), with hi clamped to len(xs).
+pub fn seq_bisect_right_in[T: Ord](xs: &[T], x: &T, lo: usize, hi: usize) -> usize
+    var a = lo
+    var b = hi.min(xs.len())
+    while a < b bound 64
+        let mid = a + (b - a) / 2
+        if x < xs[mid]
+            b = mid
+        else
+            a = mid + 1
+    return a
+
+# bisect.bisect_left(xs, x): the first position whose element is >= x.
+pub fn seq_bisect_left[T: Ord](xs: &[T], x: &T) -> usize = seq_bisect_left_in(xs, x, 0, xs.len())
+
+# bisect.bisect_right(xs, x): the first position whose element is > x.
+pub fn seq_bisect_right[T: Ord](xs: &[T], x: &T) -> usize = seq_bisect_right_in(xs, x, 0, xs.len())
+
+# bisect.bisect_left(xs, k, key=key): key is applied to the elements, not
+# to k.
+pub fn seq_bisect_left_by_key[T, K: Ord](xs: &[T], k: &K, key: fn(&T) -> K) -> usize
+    var a: usize = 0
+    var b = xs.len()
+    while a < b bound 64
+        let mid = a + (b - a) / 2
+        if key(&xs[mid]) < k
+            a = mid + 1
+        else
+            b = mid
+    return a
+
+# bisect.bisect_right(xs, k, key=key).
+pub fn seq_bisect_right_by_key[T, K: Ord](xs: &[T], k: &K, key: fn(&T) -> K) -> usize
+    var a: usize = 0
+    var b = xs.len()
+    while a < b bound 64
+        let mid = a + (b - a) / 2
+        if k < key(&xs[mid])
+            b = mid
+        else
+            a = mid + 1
+    return a
+
+# The first position holding x in a sorted list, or none.
+pub fn seq_bsearch[T: Ord + Eq](xs: &[T], x: &T) -> usize?
+    let i = seq_bisect_left(xs, x)
+    if i < xs.len() and xs[i] == x
+        return some(i)
+    return none
+
+# Rebuilds the list rather than shifting in place: an indexed assignment
+# copies the list in the reference evaluator, a push does not.
+fn sq_insert_at[T](xs: &mut List[T], i: usize, x: T)
+    let n = xs.len()
+    if i >= n
+        xs.push(x)
+        return
+    var o: List[T] = copy(xs[0:i])
+    o.push(x)
+    var j = i
+    while j < n bound 1000000
+        o.push(copy(xs[j]))
+        j += 1
+    xs = o
+
+# bisect.insort_left(xs, x).
+pub fn seq_insort_left[T: Ord](xs: &mut List[T], x: T)
+    let i = seq_bisect_left(xs, &x)
+    sq_insert_at(xs, i, x)
+
+# bisect.insort_right(xs, x) (bisect.insort).
+pub fn seq_insort_right[T: Ord](xs: &mut List[T], x: T)
+    let i = seq_bisect_right(xs, &x)
+    sq_insert_at(xs, i, x)
+
+# bisect.insort_left(xs, x, key=key): at bisect_left(xs, key(x), key=key).
+pub fn seq_insort_left_by_key[T, K: Ord](xs: &mut List[T], x: T, key: fn(&T) -> K)
+    let k = key(&x)
+    let i = seq_bisect_left_by_key(xs, &k, key)
+    sq_insert_at(xs, i, x)
+
+# bisect.insort_right(xs, x, key=key).
+pub fn seq_insort_right_by_key[T, K: Ord](xs: &mut List[T], x: T, key: fn(&T) -> K)
+    let k = key(&x)
+    let i = seq_bisect_right_by_key(xs, &k, key)
+    sq_insert_at(xs, i, x)
+
+# ---------------- merging ----------------
+
+# list(heapq.merge(a, b)): repeatedly the smaller head, a's head on a tie,
+# so the merge of two sorted lists is stable.
+pub fn seq_merge[T: Ord](a: &[T], b: &[T]) -> List[T] ! SeqTooLarge
+    if a.len() + b.len() > SEQ_SIZE_LIMIT
+        fail SeqTooLarge(limit: SEQ_SIZE_LIMIT)
+    var o: List[T] = []
+    var i: usize = 0
+    var j: usize = 0
+    while i < a.len() or j < b.len() bound 2000000
+        if j >= b.len() or (i < a.len() and not (b[j] < a[i]))
+            o.push(copy(a[i]))
+            i += 1
+        else
+            o.push(copy(b[j]))
+            j += 1
+    return o
+
+# list(heapq.merge(*ls, key=key)) for sorted inputs: every element ordered
+# by (key, list number, position), the order heapq.merge gives sorted
+# inputs, in one built-in sort of those triples. For inputs that are not
+# sorted the result is the stable sort of the concatenation (heapq.merge
+# does not sort such inputs; it emits them in its heap order).
+pub fn seq_merge_all_by_key[T, K: Ord](ls: &[List[T]], key: fn(&T) -> K) -> List[T] ! SeqTooLarge
+    var total: usize = 0
+    for l in ls
+        total += l.len()
+    if total > SEQ_SIZE_LIMIT
+        fail SeqTooLarge(limit: SEQ_SIZE_LIMIT)
+    var ps: List[(K, usize, usize)] = []
+    var q: usize = 0
+    for l in ls
+        for p in [(key(&l[i]), q, i) for i in 0..l.len()]
+            ps.push(p)
+        q += 1
+    ps.sort()
+    return [copy(ls[p.1][p.2]) for p in ps]
+
+# list(heapq.merge(*ls)) for sorted inputs; the stable sort of the
+# concatenation for any inputs.
+pub fn seq_merge_all[T: Ord](ls: &[List[T]]) -> List[T] ! SeqTooLarge
+    var total: usize = 0
+    for l in ls
+        total += l.len()
+    if total > SEQ_SIZE_LIMIT
+        fail SeqTooLarge(limit: SEQ_SIZE_LIMIT)
+    var o: List[T] = []
+    for l in ls
+        for x in l
+            o.push(copy(x))
+    o.sort()
+    return o
+
+# ---------------- grouping ----------------
+
+# [(k, list(g)) for k, g in itertools.groupby(xs, key)]: runs of
+# consecutive elements with equal keys.
+pub fn seq_group_runs[T, K: Eq](xs: &[T], key: fn(&T) -> K) -> List[(K, List[T])]
+    var o: List[(K, List[T])] = []
+    var ck: List[K] = []
+    var cur: List[T] = []
+    for x in xs
+        let k = key(x)
+        if ck.len() == 1 and ck[0] == k
+            cur.push(copy(x))
+        else
+            if ck.len() == 1
+                o.push((copy(ck[0]), cur))
+                cur = []
+            ck = [k]
+            cur.push(copy(x))
+    if ck.len() == 1
+        o.push((copy(ck[0]), cur))
+    return o
+
+# Every element grouped by key, keys ascending, each group in input
+# order: groupby(sorted(xs, key=key), key).
+pub fn seq_group_by[T, K: Ord + Eq](xs: &[T], key: fn(&T) -> K) -> List[(K, List[T])]
+    let ks = sq_keys(xs, key)
+    let idx = sq_order_asc(copy(ks))
+    var o: List[(K, List[T])] = []
+    var cur: List[T] = []
+    var i: usize = 0
+    while i < idx.len() bound 1000000
+        cur.push(copy(xs[idx[i]]))
+        if i + 1 == idx.len() or not (ks[idx[i + 1]] == ks[idx[i]])
+            o.push((copy(ks[idx[i]]), cur))
+            cur = []
+        i += 1
+    return o
+
+# list(itertools.batched(xs, n)): chunks of n, the last one shorter when
+# n does not divide len(xs).
+pub fn seq_chunks[T](xs: &[T], n: usize) -> List[List[T]] ! SeqBadSize
+    if n == 0
+        fail SeqBadSize(n: n)
+    var o: List[List[T]] = []
+    var cur: List[T] = []
+    for x in xs
+        cur.push(copy(x))
+        if cur.len() == n
+            o.push(cur)
+            cur = []
+    if cur.len() > 0
+        o.push(cur)
+    return o
+
+# The sliding_window recipe of the itertools documentation: every run of
+# n consecutive elements, in order; none when len(xs) < n.
+pub fn seq_windows[T](xs: &[T], n: usize) -> List[List[T]] ! SeqBadSize
+    if n == 0 or n > SEQ_SIZE_LIMIT
+        fail SeqBadSize(n: n)
+    var o: List[List[T]] = []
+    var s: usize = 0
+    while s + n <= xs.len() bound 1000000
+        o.push(copy(xs[s:s + n]))
+        s += 1
+    return o
+
+# list(itertools.pairwise(xs)).
+pub fn seq_pairwise[T](xs: &[T]) -> List[(T, T)]
+    if xs.len() < 2
+        return []
+    return [(copy(xs[i - 1]), copy(xs[i])) for i in 1..xs.len()]
+
+# list(zip(a, b)): as long as the shorter list.
+pub fn seq_zip[A, B](a: &[A], b: &[B]) -> List[(A, B)] = [(copy(a[i]), copy(b[i])) for i in 0..a.len().min(b.len())]
+
+# list(itertools.zip_longest(a, b)) with a fill value for each side.
+pub fn seq_zip_longest[A, B](a: &[A], b: &[B], fill_a: &A, fill_b: &B) -> List[(A, B)]
+    return [(if i < a.len() then copy(a[i]) else copy(fill_a), if i < b.len() then copy(b[i]) else copy(fill_b)) for i in 0..a.len().max(b.len())]
+
+# list(zip(a, b, strict=True)).
+pub fn seq_zip_exact[A, B](a: &[A], b: &[B]) -> List[(A, B)] ! SeqLenMismatch
+    if a.len() != b.len()
+        fail SeqLenMismatch(a: a.len(), b: b.len())
+    return seq_zip(a, b)
+
+# The inverse of zip: (list of firsts, list of seconds).
+pub fn seq_unzip[A, B](ps: &[(A, B)]) -> (List[A], List[B]) = ([copy(p.0) for p in ps], [copy(p.1) for p in ps])
+
+# list(enumerate(xs)).
+pub fn seq_enumerate[T](xs: &[T]) -> List[(usize, T)] = [(i, copy(xs[i])) for i in 0..xs.len()]
+
+# list(itertools.chain.from_iterable(xss)).
+pub fn seq_flatten[T](xss: &[List[T]]) -> List[T] ! SeqTooLarge
+    var total: usize = 0
+    for l in xss
+        total += l.len()
+    if total > SEQ_SIZE_LIMIT
+        fail SeqTooLarge(limit: SEQ_SIZE_LIMIT)
+    var o: List[T] = []
+    for l in xss
+        for x in l
+            o.push(copy(x))
+    return o
+
+# (the elements for which pred holds, the others), each in input order.
+# This is the order of Rust's Iterator::partition; the partition recipe
+# of the itertools documentation returns the same two lists swapped.
+pub fn seq_partition[T](xs: &[T], pred: fn(&T) -> bool) -> (List[T], List[T])
+    var yes: List[T] = []
+    var no: List[T] = []
+    for x in xs
+        if pred(x)
+            yes.push(copy(x))
+        else
+            no.push(copy(x))
+    return (yes, no)
+
+# list(itertools.accumulate(xs, f)): xs[0], then f(previous, next).
+pub fn seq_accumulate[T](xs: &[T], f: fn(&T, &T) -> T) -> List[T]
+    var o: List[T] = []
+    if xs.len() == 0
+        return o
+    var acc = copy(xs[0])
+    o.push(copy(acc))
+    var i: usize = 1
+    while i < xs.len() bound 1000000
+        acc = f(&acc, &xs[i])
+        o.push(copy(acc))
+        i += 1
+    return o
+
+# list(itertools.accumulate(xs, f, initial=init))[1:]: one running value
+# per element. The result does not repeat init, so a long sequence is
+# scanned in chunks by passing the last value of one chunk as the init of
+# the next.
+pub fn seq_scan[T, A](xs: &[T], init: A, f: fn(&A, &T) -> A) -> List[A]
+    var o: List[A] = []
+    var acc = init
+    for x in xs
+        acc = f(&acc, x)
+        o.push(copy(acc))
+    return o
+
+# ---------------- deduplication and counting ----------------
+
+# (distinct elements ascending, their counts, the position of the first
+# occurrence of each), from one sort of (element, position) pairs: each
+# distinct element is a block of equal pairs, and its first pair holds
+# its first position. The number d of distinct elements comes from the
+# built-in set: when d = n the pairs are the result; when d * 16 <= n each
+# block's end is found by a galloping search, O(d log(n / d)) steps;
+# otherwise one pass over the pairs, O(n) steps.
+fn sq_tally[K: Ord + Eq](ks: List[K]) -> (List[K], List[usize], List[usize])
+    let n = ks.len()
+    var ps: List[(K, usize)] = [(copy(ks[i]), i) for i in 0..n]
+    ps.sort()
+    let d = set_of(ks).len()
+    if d == n
+        return ([copy(p.0) for p in ps], [1 for _p in ps], [p.1 for p in ps])
+    var us: List[K] = []
+    var cs: List[usize] = []
+    var fs: List[usize] = []
+    if d * 16 <= n
+        var start: usize = 0
+        while start < n bound 1000000
+            let k = copy(ps[start].0)
+            var lo = start
+            var stride: usize = 1
+            var hi = start + 1
+            while hi < n and ps[hi].0 == k bound 64
+                lo = hi
+                stride = stride * 2
+                hi = lo + stride
+            hi = hi.min(n)
+            while lo + 1 < hi bound 64
+                let mid = lo + (hi - lo) / 2
+                if ps[mid].0 == k
+                    lo = mid
+                else
+                    hi = mid
+            us.push(k)
+            cs.push(hi - start)
+            fs.push(ps[start].1)
+            start = hi
+        return (us, cs, fs)
+    var run: usize = 0
+    for p in ps
+        if run > 0 and us[us.len() - 1] == p.0
+            run += 1
+        else
+            if run > 0
+                cs.push(run)
+            us.push(copy(p.0))
+            fs.push(p.1)
+            run = 1
+    if run > 0
+        cs.push(run)
+    return (us, cs, fs)
+
+# list(dict.fromkeys(xs)): the first occurrence of each element, in input
+# order.
+pub fn seq_dedupe[T: Ord + Eq](xs: &[T]) -> List[T]
+    let t = sq_tally(copy(xs))
+    let fs = seq_sorted(&t.2)
+    return sq_take(xs, &fs)
+
+# The unique_everseen(xs, key) recipe of the itertools documentation: the
+# first element with each key, in input order.
+pub fn seq_dedupe_by_key[T, K: Ord + Eq](xs: &[T], key: fn(&T) -> K) -> List[T]
+    let t = sq_tally(sq_keys(xs, key))
+    let fs = seq_sorted(&t.2)
+    return sq_take(xs, &fs)
+
+# The unique_justseen recipe: [k for k, _ in groupby(xs)], each run of
+# equal elements kept once.
+pub fn seq_dedupe_runs[T: Eq](xs: &[T]) -> List[T] = [copy(xs[i]) for i in 0..xs.len() if i == 0 or not (xs[i] == xs[i - 1])]
+
+fn sq_first_order[T](us: &[T], cs: &[usize], fs: &[usize]) -> List[(T, usize)]
+    var ps: List[(usize, usize)] = [(fs[j], j) for j in 0..fs.len()]
+    ps.sort()
+    return [(copy(us[p.1]), cs[p.1]) for p in ps]
+
+# Counter.most_common(n) on a counter listed in first-occurrence order:
+# counts descending, equal counts in that order.
+fn sq_most[T](c: &[(T, usize)], n: usize) -> List[(T, usize)]
+    let idx = sq_order_desc([e.1 for e in c])
+    return [copy(c[idx[i]]) for i in 0..n.min(idx.len())]
+
+# list(collections.Counter(xs).items()): each distinct element with its
+# count, in order of first occurrence.
+pub fn seq_counter[T: Ord + Eq](xs: &[T]) -> List[(T, usize)]
+    let t = sq_tally(copy(xs))
+    return sq_first_order(&t.0, &t.1, &t.2)
+
+# collections.Counter(xs).most_common(n).
+pub fn seq_most_common[T: Ord + Eq](xs: &[T], n: usize) -> List[(T, usize)]
+    let c = seq_counter(xs)
+    return sq_most(&c, n)
+
+# ---------------- products, permutations, combinations ----------------
+
+# a * b, or cap + 1 when it is above cap.
+fn sq_cap_mul(a: usize, b: usize, cap: usize) -> usize
+    if a == 0 or b == 0
+        return 0
+    if a > cap / b
+        return cap + 1
+    return (a * b).min(cap + 1)
+
+# n! / (n - r)!, saturated at cap + 1.
+fn sq_count_perm(n: usize, r: usize, cap: usize) -> usize
+    if r > n
+        return 0
+    var p: usize = 1
+    var i: usize = 0
+    while i < r and p <= cap bound 1000000
+        p = sq_cap_mul(p, n - i, cap)
+        i += 1
+    return p
+
+# C(n, r), saturated at cap + 1. The partial products C(n - k + i, i) do
+# not decrease, so the loop may stop as soon as one passes cap.
+fn sq_count_comb(n: usize, r: usize, cap: usize) -> usize
+    if r > n
+        return 0
+    let k = r.min(n - r)
+    var c: usize = 1
+    var i: usize = 1
+    while i <= k bound 1000000
+        c = c * (n - k + i) / i
+        if c > cap
+            return cap + 1
+        i += 1
+    return c
+
+# list(itertools.product(a, b)).
+pub fn seq_product[A, B](a: &[A], b: &[B]) -> List[(A, B)] ! SeqTooLarge
+    if sq_cap_mul(a.len(), b.len(), SEQ_SIZE_LIMIT) > SEQ_SIZE_LIMIT
+        fail SeqTooLarge(limit: SEQ_SIZE_LIMIT)
+    let m = b.len()
+    return [(copy(a[i / m]), copy(b[i % m])) for i in 0..a.len() * m]
+
+# A position in the sequence of index tuples of a combinatoric generator,
+# in the order itertools gives them (lexicographic in the indices). The
+# tuples come one at a time from seq_cursor_next, so a sequence longer
+# than one list is consumed in parts. A step rebuilds the index tuple with
+# pushes (an indexed assignment copies the list in the reference
+# evaluator), in O(r) steps for products and combinations and O(r * r)
+# for permutations, whatever n is.
+pub struct SeqCursor
+    mode: i64
+    n: usize
+    sizes: List[usize]
+    idx: List[usize]
+    phase: i64
+
+fn sq_cursor(mode: i64, n: usize, sizes: List[usize], idx: List[usize], empty: bool) -> SeqCursor
+    return SeqCursor(mode: mode, n: n, sizes: sizes, idx: idx, phase: if empty then 2 else 0)
+
+fn sq_iota(r: usize) -> List[usize] = [i for i in 0..r]
+
+fn sq_zeros(r: usize) -> List[usize] = [0 for _i in 0..r]
+
+# itertools.product(*(range(s) for s in sizes)).
+pub fn seq_cursor_product(sizes: &[usize]) -> SeqCursor
+    var empty = false
+    for s in sizes
+        if s == 0
+            empty = true
+    return sq_cursor(0, 0, copy(sizes), sq_zeros(sizes.len()), empty)
+
+# itertools.permutations(range(n), r).
+pub fn seq_cursor_permutations(n: usize, r: usize) -> SeqCursor ! SeqTooLarge
+    if r > n
+        return sq_cursor(1, n, [], [], true)
+    if r > SEQ_SIZE_LIMIT
+        fail SeqTooLarge(limit: SEQ_SIZE_LIMIT)
+    return sq_cursor(1, n, [], sq_iota(r), false)
+
+# itertools.combinations(range(n), r).
+pub fn seq_cursor_combinations(n: usize, r: usize) -> SeqCursor ! SeqTooLarge
+    if r > n
+        return sq_cursor(2, n, [], [], true)
+    if r > SEQ_SIZE_LIMIT
+        fail SeqTooLarge(limit: SEQ_SIZE_LIMIT)
+    return sq_cursor(2, n, [], sq_iota(r), false)
+
+# itertools.combinations_with_replacement(range(n), r).
+pub fn seq_cursor_combinations_rep(n: usize, r: usize) -> SeqCursor ! SeqTooLarge
+    if n == 0 and r > 0
+        return sq_cursor(3, n, [], [], true)
+    if r > SEQ_SIZE_LIMIT
+        fail SeqTooLarge(limit: SEQ_SIZE_LIMIT)
+    return sq_cursor(3, n, [], sq_zeros(r), false)
+
+# Whether v is one of p[0], ..., p[k - 1].
+fn sq_has(p: &[usize], k: usize, v: usize) -> bool
+    var t: usize = 0
+    while t < k bound 1000000
+        if p[t] == v
+            return true
+        t += 1
+    return false
+
+# The next tuple after p, or none after the last one.
+fn sq_next_product(p: &[usize], sizes: &[usize]) -> List[usize]?
+    var i = p.len()
+    while i > 0 bound 1000000
+        i -= 1
+        if p[i] + 1 < sizes[i]
+            var o: List[usize] = copy(p[0:i])
+            o.push(p[i] + 1)
+            while o.len() < p.len() bound 1000000
+                o.push(0)
+            return some(copy(o))
+    return none
+
+# The smallest v > p[i] not among p[0..i] takes position i; the positions
+# after it take the smallest unused indices in ascending order.
+fn sq_next_perm(p: &[usize], n: usize) -> List[usize]?
+    let r = p.len()
+    var i = r
+    while i > 0 bound 1000000
+        i -= 1
+        var v = p[i] + 1
+        while v < n and sq_has(p, i, v) bound 1000000
+            v += 1
+        if v < n
+            var o: List[usize] = copy(p[0:i])
+            o.push(v)
+            var u: usize = 0
+            while o.len() < r bound 2000000
+                if not sq_has(&o, o.len(), u)
+                    o.push(u)
+                u += 1
+            return some(copy(o))
+    return none
+
+fn sq_next_comb(p: &[usize], n: usize) -> List[usize]?
+    let r = p.len()
+    var i = r
+    while i > 0 bound 1000000
+        i -= 1
+        if p[i] < n - r + i
+            var o: List[usize] = copy(p[0:i])
+            o.push(p[i] + 1)
+            while o.len() < r bound 1000000
+                o.push(o[o.len() - 1] + 1)
+            return some(copy(o))
+    return none
+
+fn sq_next_comb_rep(p: &[usize], n: usize) -> List[usize]?
+    let r = p.len()
+    var i = r
+    while i > 0 bound 1000000
+        i -= 1
+        if p[i] + 1 < n
+            var o: List[usize] = copy(p[0:i])
+            while o.len() < r bound 1000000
+                o.push(p[i] + 1)
+            return some(copy(o))
+    return none
+
+# The next index tuple, or none after the last one.
+pub fn seq_cursor_next(c: &mut SeqCursor) -> List[usize]?
+    if c.phase == 2
+        return none
+    if c.phase == 0
+        c.phase = 1
+        return some(copy(c.idx))
+    let nx = if c.mode == 0 then sq_next_product(&c.idx, &c.sizes) else (if c.mode == 1 then sq_next_perm(&c.idx, c.n) else (if c.mode == 2 then sq_next_comb(&c.idx, c.n) else sq_next_comb_rep(&c.idx, c.n)))
+    match nx
+        some(o)
+            c.idx = copy(o)
+            return some(copy(o))
+        none
+            c.phase = 2
+            return none
+
+# Whether seq_cursor_next has returned none.
+pub fn seq_cursor_done(c: &SeqCursor) -> bool = c.phase == 2
+
+# [ls[i][idx[i]] for i in range(len(idx))]: the elements a product index
+# tuple names.
+pub fn seq_gather_each[T](ls: &[List[T]], idx: &[usize]) -> List[T] ! SeqBadIndex
+    if idx.len() > ls.len()
+        fail SeqBadIndex(index: ls.len())
+    var o: List[T] = []
+    var i: usize = 0
+    for j in idx
+        if j >= ls[i].len()
+            fail SeqBadIndex(index: j)
+        o.push(copy(ls[i][j]))
+        i += 1
+    return o
+
+fn sq_run_cursor[T](c: &mut SeqCursor, xs: &[T]) -> List[List[T]]
+    var o: List[List[T]] = []
+    var go = true
+    while go bound 1000001
+        let t = seq_cursor_next(c)
+        match t
+            some(idx) -> o.push(sq_take(xs, &idx))
+            none -> go = false
+    return o
+
+# list(itertools.product(*ls)) as lists; SeqTooLarge when there are more
+# than limit tuples (or more than SEQ_SIZE_LIMIT).
+pub fn seq_product_all[T](ls: &[List[T]], limit: usize) -> List[List[T]] ! SeqTooLarge
+    let cap = limit.min(SEQ_SIZE_LIMIT)
+    var cnt: usize = 1
+    var sizes: List[usize] = []
+    for l in ls
+        cnt = sq_cap_mul(cnt, l.len(), cap)
+        sizes.push(l.len())
+    if cnt > cap
+        fail SeqTooLarge(limit: cap)
+    var c = seq_cursor_product(&sizes)
+    var o: List[List[T]] = []
+    var go = true
+    while go bound 1000001
+        let t = seq_cursor_next(&mut c)
+        match t
+            some(idx) -> o.push(seq_gather_each(ls, &idx) catch [])
+            none -> go = false
+    return o
+
+# list(itertools.permutations(xs, r)) as lists, at most limit of them.
+pub fn seq_permutations[T](xs: &[T], r: usize, limit: usize) -> List[List[T]] ! SeqTooLarge
+    let cap = limit.min(SEQ_SIZE_LIMIT)
+    if sq_count_perm(xs.len(), r, cap) > cap
+        fail SeqTooLarge(limit: cap)
+    var c = try seq_cursor_permutations(xs.len(), r)
+    return sq_run_cursor(&mut c, xs)
+
+# list(itertools.combinations(xs, r)) as lists, at most limit of them.
+pub fn seq_combinations[T](xs: &[T], r: usize, limit: usize) -> List[List[T]] ! SeqTooLarge
+    let cap = limit.min(SEQ_SIZE_LIMIT)
+    if sq_count_comb(xs.len(), r, cap) > cap
+        fail SeqTooLarge(limit: cap)
+    var c = try seq_cursor_combinations(xs.len(), r)
+    return sq_run_cursor(&mut c, xs)
+
+# list(itertools.combinations_with_replacement(xs, r)) as lists, at most
+# limit of them.
+pub fn seq_combinations_rep[T](xs: &[T], r: usize, limit: usize) -> List[List[T]] ! SeqTooLarge
+    let cap = limit.min(SEQ_SIZE_LIMIT)
+    let n = xs.len()
+    if r > SEQ_SIZE_LIMIT and n > 0
+        fail SeqTooLarge(limit: cap)
+    let cnt = if n == 0 then (if r == 0 then 1 else 0) else sq_count_comb(n + r - 1, r, cap)
+    if cnt > cap
+        fail SeqTooLarge(limit: cap)
+    var c = try seq_cursor_combinations_rep(n, r)
+    return sq_run_cursor(&mut c, xs)
+
+# list(itertools.islice(itertools.cycle(xs), start, start + n)): n
+# elements of xs repeated without end, from position start.
+pub fn seq_cycle[T](xs: &[T], start: usize, n: usize) -> List[T] ! SeqTooLarge
+    if n > SEQ_SIZE_LIMIT
+        fail SeqTooLarge(limit: SEQ_SIZE_LIMIT)
+    var o: List[T] = []
+    let m = xs.len()
+    if m == 0
+        return o
+    var j = start % m
+    for _i in 0..n
+        o.push(copy(xs[j]))
+        j += 1
+        if j == m
+            j = 0
+    return o
+
+# The roundrobin recipe of the itertools documentation: the first element
+# of each list, then the second of each list that has one, and so on.
+pub fn seq_interleave[T](ls: &[List[T]]) -> List[T] ! SeqTooLarge
+    var total: usize = 0
+    var act: List[usize] = []
+    var q: usize = 0
+    for l in ls
+        total += l.len()
+        if l.len() > 0
+            act.push(q)
+        q += 1
+    if total > SEQ_SIZE_LIMIT
+        fail SeqTooLarge(limit: SEQ_SIZE_LIMIT)
+    var o: List[T] = []
+    var r: usize = 0
+    while act.len() > 0 bound 1000000
+        var nxt: List[usize] = []
+        for a in act
+            o.push(copy(ls[a][r]))
+            if r + 1 < ls[a].len()
+                nxt.push(a)
+        act = nxt
+        r += 1
+    return o
+
+# ---------------- chunked state ----------------
+# Each state takes a long sequence in chunks of any size. A feed that would
+# take a state past SEQ_SIZE_LIMIT refuses with SeqTooLarge and leaves the
+# state as it was (spec 6.2, write-back on failure).
+
+# SeqSeen takes a feed of d distinct elements into a state of n distinct
+# elements by d binary searches, O(d log n) steps, or by one walk over both
+# sorted lists, O(n + d) steps, whichever is fewer; new elements join by
+# the built-in set union, which also gives the new size before any walk.
+fn sq_log2(n: usize) -> usize
+    var b: usize = 0
+    var v = n
+    while v > 0 bound 64
+        v = v / 2
+        b += 1
+    return b
+
+fn sq_lookups_cheaper(d: usize, n: usize) -> bool = d * (sq_log2(n) + 2) <= 3 * (n + d)
+
+# First index of ent whose key is >= k.
+fn sq_find3[K: Ord, A, B](ent: &[(K, A, B)], k: &K) -> usize
+    var lo: usize = 0
+    var hi = ent.len()
+    while lo < hi bound 64
+        let mid = lo + (hi - lo) / 2
+        if ent[mid].0 < k
+            lo = mid + 1
+        else
+            hi = mid
+    return lo
+
+# Counting (collections.Counter fed with update): one entry per distinct
+# element, ascending, with its count and the stream position of its first
+# occurrence. A feed of m elements into a state of n distinct elements
+# costs O(m log m + n) steps (a sort of the chunk, one walk over both).
+pub struct SeqCounts[T]
+    ent: List[(T, usize, usize)]
+    seen: usize
+
+pub fn seq_counts_new[T]() -> SeqCounts[T] = SeqCounts(ent: [], seen: 0)
+
+# Counter.update(xs); the result is the number of distinct elements fed
+# so far.
+pub fn seq_counts_feed[T: Ord + Eq](c: &mut SeqCounts[T], xs: &[T]) -> usize ! SeqTooLarge
+    let t = sq_tally(copy(xs))
+    let rk = t.0
+    let rc = t.1
+    let rf = t.2
+    let n = c.ent.len()
+    var ne: List[(T, usize, usize)] = []
+    var i: usize = 0
+    var j: usize = 0
+    while i < n or j < rk.len() bound 2000000
+        if ne.len() == SEQ_SIZE_LIMIT
+            fail SeqTooLarge(limit: SEQ_SIZE_LIMIT)
+        if j >= rk.len() or (i < n and c.ent[i].0 < rk[j])
+            ne.push(copy(c.ent[i]))
+            i += 1
+        elif i >= n or rk[j] < c.ent[i].0
+            ne.push((copy(rk[j]), rc[j], c.seen + rf[j]))
+            j += 1
+        else
+            ne.push((copy(c.ent[i].0), c.ent[i].1 + rc[j], c.ent[i].2))
+            i += 1
+            j += 1
+    c.ent = ne
+    c.seen = c.seen + xs.len()
+    return c.ent.len()
+
+# Counter[x]: 0 for an element never fed.
+pub fn seq_counts_get[T: Ord + Eq](c: &SeqCounts[T], x: &T) -> usize
+    let i = sq_find3(&c.ent, x)
+    if i < c.ent.len() and c.ent[i].0 == x
+        return c.ent[i].1
+    return 0
+
+# Counter.total(): the number of elements fed.
+pub fn seq_counts_total[T](c: &SeqCounts[T]) -> usize = c.seen
+
+# len(Counter): the number of distinct elements.
+pub fn seq_counts_len[T](c: &SeqCounts[T]) -> usize = c.ent.len()
+
+# list(Counter.items()), in order of first occurrence.
+pub fn seq_counts_list[T](c: &SeqCounts[T]) -> List[(T, usize)]
+    var ps: List[(usize, usize)] = [(c.ent[j].2, j) for j in 0..c.ent.len()]
+    ps.sort()
+    return [(copy(c.ent[p.1].0), c.ent[p.1].1) for p in ps]
+
+# Counter.most_common(n).
+pub fn seq_counts_most_common[T](c: &SeqCounts[T], n: usize) -> List[(T, usize)]
+    let l = seq_counts_list(c)
+    return sq_most(&l, n)
+
+# Deduplication: the elements seen so far, ascending.
+pub struct SeqSeen[T]
+    keys: List[T]
+
+pub fn seq_seen_new[T]() -> SeqSeen[T] = SeqSeen(keys: [])
+
+# The elements of xs not seen in earlier feeds or earlier in xs, in input
+# order (unique_everseen over the whole stream).
+pub fn seq_seen_feed[T: Ord + Eq](s: &mut SeqSeen[T], xs: &[T]) -> List[T] ! SeqTooLarge
+    let t = sq_tally(copy(xs))
+    let rk = t.0
+    let rf = t.2
+    let n = s.keys.len()
+    let u = set_of(copy(s.keys)).union(set_of(copy(rk)))
+    if u.len() > SEQ_SIZE_LIMIT
+        fail SeqTooLarge(limit: SEQ_SIZE_LIMIT)
+    var keep: List[usize] = []
+    if u.len() == n
+        return []
+    if n == 0
+        keep = copy(rf)
+    elif sq_lookups_cheaper(rk.len(), n)
+        var j: usize = 0
+        for x in rk
+            let i = seq_bisect_left(&s.keys, x)
+            if not (i < n and s.keys[i] == x)
+                keep.push(rf[j])
+            j += 1
+    else
+        var i: usize = 0
+        var j: usize = 0
+        while j < rk.len() bound 1000000
+            if i >= n or rk[j] < s.keys[i]
+                keep.push(rf[j])
+                j += 1
+            elif s.keys[i] < rk[j]
+                i += 1
+            else
+                i += 1
+                j += 1
+    s.keys = u.tolist()
+    keep.sort()
+    return sq_take(xs, &keep)
+
+pub fn seq_seen_contains[T: Ord + Eq](s: &SeqSeen[T], x: &T) -> bool
+    let i = seq_bisect_left(&s.keys, x)
+    return i < s.keys.len() and s.keys[i] == x
+
+pub fn seq_seen_len[T](s: &SeqSeen[T]) -> usize = s.keys.len()
+
+# The k smallest or k largest elements of a stream; ties go to the
+# earlier position, as heapq.nsmallest and heapq.nlargest give them. A
+# feed by key keeps the stream position of each kept element for that
+# rule; a feed by natural order needs no positions (equal elements are
+# identical), keeps 0 for each, and so must not be mixed with feeds by key
+# on one state. k is at most SEQ_SIZE_LIMIT / 2, so the kept elements and
+# a part of a chunk always fit in one list.
+pub struct SeqTop[T]
+    k: usize
+    largest: bool
+    items: List[T]
+    pos: List[usize]
+    seen: usize
+
+pub fn seq_top_new[T](k: usize, largest: bool) -> SeqTop[T] ! SeqBadSize
+    if k > SEQ_SIZE_LIMIT / 2
+        fail SeqBadSize(n: k)
+    return SeqTop(k: k, largest: largest, items: [], pos: [], seen: 0)
+
+# Feeds xs by natural order: the chunk is sorted by the built-in sort, and
+# its best k join the kept ones.
+pub fn seq_top_feed[T: Ord](t: &mut SeqTop[T], xs: &[T])
+    var c: List[T] = copy(xs)
+    c.sort()
+    var cand: List[T] = copy(t.items)
+    let n = c.len()
+    var m: usize = 0
+    while m < t.k and m < n bound 1000000
+        cand.push(copy(c[if t.largest then n - 1 - m else m]))
+        m += 1
+    cand.sort()
+    var ni: List[T] = []
+    var np: List[usize] = []
+    let cn = cand.len()
+    var q: usize = 0
+    while q < t.k and q < cn bound 1000000
+        ni.push(copy(cand[if t.largest then cn - 1 - q else q]))
+        np.push(0)
+        q += 1
+    t.items = ni
+    t.pos = np
+    t.seen = t.seen + xs.len()
+
+# Feeds xs by key; key must be the same function on every feed of one
+# state. The kept elements and the chunk are ordered by (key, position),
+# position reversed for the largest, in one sort of (key, order, index)
+# triples.
+pub fn seq_top_feed_by_key[T, K: Ord](t: &mut SeqTop[T], xs: &[T], key: fn(&T) -> K)
+    let part = SEQ_SIZE_LIMIT / 2
+    var s: usize = 0
+    while s < xs.len() bound 1000000
+        let e = (s + part).min(xs.len())
+        let ni = t.items.len()
+        let base = t.seen + s
+        var ps: List[(K, usize, usize)] = if t.largest then [(key(&xs[s + j]), SQ_MAXU - base - j, ni + j) for j in 0..e - s] else [(key(&xs[s + j]), base + j, ni + j) for j in 0..e - s]
+        var j: usize = 0
+        for x in t.items
+            ps.push((key(x), if t.largest then SQ_MAXU - t.pos[j] else t.pos[j], j))
+            j += 1
+        ps.sort()
+        var nk: List[T] = []
+        var np: List[usize] = []
+        var m: usize = 0
+        while m < t.k and m < ps.len() bound 1000000
+            let w = if t.largest then ps[ps.len() - 1 - m].2 else ps[m].2
+            if w < ni
+                nk.push(copy(t.items[w]))
+                np.push(t.pos[w])
+            else
+                nk.push(copy(xs[s + w - ni]))
+                np.push(t.seen + s + w - ni)
+            m += 1
+        t.items = nk
+        t.pos = np
+        s = e
+    t.seen = t.seen + xs.len()
+
+# The kept elements, best first (heapq.nsmallest / nlargest order).
+pub fn seq_top_list[T](t: &SeqTop[T]) -> List[T] = copy(t.items)
+
+# Sliding windows of n over a stream: the last n - 1 elements fed.
+pub struct SeqWin[T]
+    n: usize
+    buf: List[T]
+
+pub fn seq_win_new[T](n: usize) -> SeqWin[T] ! SeqBadSize
+    if n == 0 or n > SEQ_SIZE_LIMIT
+        fail SeqBadSize(n: n)
+    return SeqWin(n: n, buf: [])
+
+# The windows that end inside xs, in order.
+pub fn seq_win_feed[T](w: &mut SeqWin[T], xs: &[T]) -> List[List[T]]
+    let b = w.buf.len()
+    let tot = b + xs.len()
+    var o: List[List[T]] = []
+    var s: usize = 0
+    while s + w.n <= tot bound 1000000
+        var win: List[T] = []
+        var j = s
+        while j < s + w.n bound 1000000
+            if j < b
+                win.push(copy(w.buf[j]))
+            else
+                win.push(copy(xs[j - b]))
+            j += 1
+        o.push(win)
+        s += 1
+    let keep = (w.n - 1).min(tot)
+    var nb: List[T] = []
+    var k = tot - keep
+    while k < tot bound 1000000
+        if k < b
+            nb.push(copy(w.buf[k]))
+        else
+            nb.push(copy(xs[k - b]))
+        k += 1
+    w.buf = nb
+    return o
+
+# itertools.batched over a stream: the incomplete last chunk.
+pub struct SeqBatch[T]
+    n: usize
+    buf: List[T]
+
+pub fn seq_batch_new[T](n: usize) -> SeqBatch[T] ! SeqBadSize
+    if n == 0 or n > SEQ_SIZE_LIMIT
+        fail SeqBadSize(n: n)
+    return SeqBatch(n: n, buf: [])
+
+# The chunks of n completed by xs.
+pub fn seq_batch_feed[T](b: &mut SeqBatch[T], xs: &[T]) -> List[List[T]]
+    var o: List[List[T]] = []
+    var cur: List[T] = copy(b.buf)
+    for x in xs
+        cur.push(copy(x))
+        if cur.len() == b.n
+            o.push(cur)
+            cur = []
+    b.buf = cur
+    return o
+
+# The last, shorter chunk (empty when n divides the stream), and a fresh
+# state.
+pub fn seq_batch_end[T](b: &mut SeqBatch[T]) -> List[T]
+    let o = copy(b.buf)
+    b.buf = []
+    return o
+
+# itertools.groupby over a stream: the key and elements of the open run.
+pub struct SeqRuns[K, T]
+    key: List[K]
+    items: List[T]
+
+pub fn seq_runs_new[K, T]() -> SeqRuns[K, T] = SeqRuns(key: [], items: [])
+
+# The runs closed by xs; key must be the same function on every feed. A
+# run longer than SEQ_SIZE_LIMIT refuses with SeqTooLarge.
+pub fn seq_runs_feed[K: Eq, T](st: &mut SeqRuns[K, T], xs: &[T], key: fn(&T) -> K) -> List[(K, List[T])] ! SeqTooLarge
+    var o: List[(K, List[T])] = []
+    var ck: List[K] = copy(st.key)
+    var cur: List[T] = copy(st.items)
+    for x in xs
+        let k = key(x)
+        if ck.len() == 1 and ck[0] == k
+            if cur.len() == SEQ_SIZE_LIMIT
+                fail SeqTooLarge(limit: SEQ_SIZE_LIMIT)
+            cur.push(copy(x))
+        else
+            if ck.len() == 1
+                o.push((copy(ck[0]), cur))
+                cur = []
+            ck = [k]
+            cur.push(copy(x))
+    st.key = ck
+    st.items = cur
+    return o
+
+# The open run, if any, and a fresh state.
+pub fn seq_runs_end[K, T](st: &mut SeqRuns[K, T]) -> List[(K, List[T])]
+    var o: List[(K, List[T])] = []
+    if st.key.len() == 1
+        o.push((copy(st.key[0]), copy(st.items)))
+    st.key = []
+    st.items = []
+    return o

@@ -1,0 +1,192 @@
+# Property and limit checks of col.seq (hand written): refusals at the
+# size limit and at a caller's limit instead of a trap, chunked feeds of
+# streams longer than one list, resumption of scans and cursors, and
+# seeded model sweeps (comparator sort against key sort, stability).
+
+fn p_rnd(s: i64) -> i64 = (s * 1103515245 + 12345) & 2147483647
+
+fn p_list(n: usize, seed: i64, m: i64) -> List[i64]
+    var o: List[i64] = []
+    var s = seed
+    for _i in 0..n
+        s = p_rnd(s)
+        o.push((s >> 8) % m)
+    return o
+
+fn p_iota(lo: i64, n: usize) -> List[i64]
+    var o: List[i64] = []
+    var v = lo
+    for _i in 0..n
+        o.push(v)
+        v += 1
+    return o
+
+fn p_mod7(x: &i64) -> i64 = x % 7
+fn p_cmp7(a: &i64, b: &i64) -> i64 = (a % 7) - (b % 7)
+fn p_one(_a: &i64, _b: &i64) -> i64 = 1
+fn p_id(x: &i64) -> i64 = x + 0
+fn p_sum(a: &i64, b: &i64) -> i64 = a + b
+
+# A comparator sort and a key sort agree, and both are stable: the
+# positions of equal keys ascend.
+fn p_sort_sweep(n: usize, seed: i64) -> bool
+    let xs = p_list(n, seed, 1000)
+    let a = seq_sort_with(&xs, p_cmp7)
+    let b = seq_sort_by_key(&xs, p_mod7)
+    let idx = seq_argsort_by_key(&xs, p_mod7)
+    var ok = a == b and seq_is_sorted_by_key(&a, p_mod7)
+    var i: usize = 1
+    while i < idx.len() bound 1000000
+        if xs[idx[i]] % 7 == xs[idx[i - 1]] % 7
+            ok = ok and idx[i - 1] < idx[i]
+        i += 1
+    return ok
+
+# An inconsistent comparator still yields a permutation of the input.
+fn p_bad_cmp(n: usize) -> bool
+    let xs = p_list(n, 5, 50)
+    let a = seq_sort_with(&xs, p_one)
+    return seq_sorted(&a) == seq_sorted(&xs)
+
+# A large sort by natural order and by key, through the built-in sort.
+fn p_big_sort(n: usize) -> bool
+    let xs = p_list(n, 9, 1000000)
+    let a = seq_sorted(&xs)
+    let d = seq_sorted_desc(&xs)
+    let k = seq_nsmallest(&xs, 5)
+    let l = seq_nlargest(&xs, 5)
+    return seq_is_sorted(&a) and a.len() == n and d[0] == a[n - 1] and k == sq_prefix(&a, 5) and l[0] == a[n - 1] and seq_nth(&xs, n / 2) == some(a[n / 2])
+
+fn p_try_flatten(ls: &[List[i64]]) -> usize ! SeqTooLarge
+    let f = try seq_flatten(ls)
+    return f.len()
+
+fn p_try_merge(a: &[i64], b: &[i64]) -> usize ! SeqTooLarge
+    let f = try seq_merge(a, b)
+    return f.len()
+
+fn p_try_interleave(ls: &[List[i64]]) -> usize ! SeqTooLarge
+    let f = try seq_interleave(ls)
+    return f.len()
+
+# Results above 1,000,000 elements refuse with SeqTooLarge (the limit is
+# the payload), never a "size limit" trap.
+fn p_size_refusals() -> bool
+    var ls: List[List[i64]] = []
+    ls.push(p_iota(0, 600000))
+    ls.push(p_iota(5, 400001))
+    let f = p_try_flatten(&ls) catch |e| e.limit + 7
+    let m = p_try_merge(&ls[0], &ls[1]) catch |e| e.limit + 7
+    let i = p_try_interleave(&ls) catch |e| e.limit + 7
+    let _ = ls.pop()
+    ls.push(p_iota(5, 400000))
+    let f2 = p_try_flatten(&ls) catch 0
+    return f == 1000007 and m == 1000007 and i == 1000007 and f2 == 1000000
+
+fn p_try_perm(xs: &[i64], r: usize, limit: usize) -> usize ! SeqTooLarge
+    let p = try seq_permutations(xs, r, limit)
+    return p.len()
+
+fn p_try_comb(xs: &[i64], r: usize, limit: usize) -> usize ! SeqTooLarge
+    let p = try seq_combinations(xs, r, limit)
+    return p.len()
+
+fn p_try_comb_rep(xs: &[i64], r: usize, limit: usize) -> usize ! SeqTooLarge
+    let p = try seq_combinations_rep(xs, r, limit)
+    return p.len()
+
+fn p_try_product(a: &[i64], b: &[i64]) -> usize ! SeqTooLarge
+    let p = try seq_product(a, b)
+    return p.len()
+
+# Combinatoric generators count before they build: a request for more
+# tuples than the limit refuses at once, whatever the count, and the limit
+# never exceeds SEQ_SIZE_LIMIT (C(1415, 2) = 1,000,405).
+fn p_comb_refusals() -> bool
+    let x12 = p_iota(0, 12)
+    let x2000 = p_iota(0, 2000)
+    let one: List[i64] = [7]
+    let x1001 = p_iota(0, 1001)
+    let x1000 = p_iota(0, 1000)
+    let a = p_try_perm(&x12, 12, 1000000) catch |e| e.limit + 1
+    let b = p_try_comb(&x2000, 3, 1000000) catch |e| e.limit + 1
+    let c = p_try_comb_rep(&one, 2000000, 1000000) catch |e| e.limit + 1
+    let d = p_try_perm(&x12, 3, 1320) catch 0
+    let e2 = p_try_perm(&x12, 3, 1319) catch |e| e.limit
+    let x100 = p_iota(0, 100)
+    let x1415 = p_iota(0, 1415)
+    let f = p_try_comb(&x100, 2, 4950) catch 0
+    let f2 = p_try_comb(&x100, 2, 4949) catch |e| e.limit + 1
+    let f3 = p_try_comb(&x1415, 2, 2000000) catch |e| e.limit + 1
+    let g = p_try_product(&x1001, &x1000) catch |e| e.limit + 1
+    let h = p_try_product(&x1000, &x1000) catch 0
+    let k = p_try_comb_rep(&x12, 0, 1) catch 0
+    let z: List[i64] = []
+    let l = p_try_comb_rep(&z, 3, 10) catch 9
+    return a == 1000001 and b == 1000001 and c == 1000001 and d == 1320 and e2 == 1319 and f == 4950 and f2 == 4950 and f3 == 1000001 and g == 1000001 and h == 1000000 and k == 1 and l == 0
+
+fn p_cursor_mk(n: usize, r: usize) -> SeqCursor
+    let z: List[usize] = [0]
+    return seq_cursor_combinations(n, r) catch seq_cursor_product(&z)
+
+# A cursor resumes where it stopped; one over n = 2,000,000 needs no
+# per-index state for combinations, and refuses for permutations.
+fn p_cursor_resume() -> bool
+    let xs = p_iota(10, 8)
+    let all = seq_combinations(&xs, 3, 1000) catch []
+    var c = p_cursor_mk(8, 3)
+    var o: List[List[i64]] = []
+    for _i in 0..20
+        let t = seq_cursor_next(&mut c)
+        match t
+            some(idx) -> o.push(seq_gather(&xs, &idx) catch [])
+            none -> pass
+    var go = true
+    while go bound 100
+        let t2 = seq_cursor_next(&mut c)
+        match t2
+            some(idx2) -> o.push(seq_gather(&xs, &idx2) catch [])
+            none -> go = false
+    var big = p_cursor_mk(2000000, 3)
+    let b1 = seq_cursor_next(&mut big)
+    let b2 = seq_cursor_next(&mut big)
+    let pr = seq_cursor_permutations(2000000, 2) catch |e| p_cursor_mk(e.limit, 1)
+    let w: List[usize] = [0, 1, 2]
+    let w2: List[usize] = [0, 1, 3]
+    return all.len() == 56 and o == all and seq_cursor_done(&c) and b1 == some(w) and b2 == some(w2) and not seq_cursor_done(&pr)
+
+# A scan resumes from its last value: chunks give the whole scan.
+fn p_scan_resume() -> bool
+    let xs = p_list(3000, 3, 100)
+    let whole = seq_scan(&xs, 5, p_sum)
+    let x1 = copy(xs[0:1000])
+    let x2 = copy(xs[1000:3000])
+    let a = seq_scan(&x1, 5, p_sum)
+    let b = seq_scan(&x2, a[999], p_sum)
+    var joined: List[i64] = copy(a)
+    for v in b
+        joined.push(v)
+    return joined == whole and seq_accumulate(&xs, p_sum)[2999] + 5 == whole[2999]
+
+# Sizes that cannot be used refuse with SeqBadSize.
+fn p_bad_sizes() -> bool
+    let a: SeqWin[i64] = seq_win_new(0) catch |e| t_win(e.n + 3)
+    let b: SeqWin[i64] = seq_win_new(1000001) catch |e| t_win(e.n)
+    let c: SeqBatch[i64] = seq_batch_new(0) catch |e| t_batch(e.n + 4)
+    let d: SeqTop[i64] = seq_top_new(500001, true) catch |e| t_top(e.n)
+    let f: SeqTop[i64] = seq_top_new(500000, true) catch t_top(1)
+    return a.n == 3 and b.n == 1000001 and c.n == 4 and d.k == 500001 and f.k == 500000
+
+fn t_win(n: usize) -> SeqWin[i64] = SeqWin(n: n, buf: [])
+fn t_batch(n: usize) -> SeqBatch[i64] = SeqBatch(n: n, buf: [])
+fn t_top(k: usize) -> SeqTop[i64] = SeqTop(k: k, largest: false, items: [], pos: [], seen: 0)
+
+check p_sort_sweep(3000, 11)
+check p_sort_sweep(257, 4)
+check p_bad_cmp(500)
+check p_big_sort(200000)
+check p_size_refusals()
+check p_comb_refusals()
+check p_cursor_resume()
+check p_scan_resume()
+check p_bad_sizes()
