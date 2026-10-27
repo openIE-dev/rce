@@ -1442,7 +1442,7 @@ pub mod http {
         Incomplete,
         /// a complete request and the number of bytes it used
         Complete(Parsed, usize),
-        /// the status and the why of a request the host refuses
+        /// the status and the why of a request delivered as `HttpMalformed`
         Malformed(u16, String),
     }
 
@@ -1475,7 +1475,8 @@ pub mod http {
         }
 
         /// The CR ending the line that starts at pos, `Ok(None)` when the
-        /// buffer ends first; a bare CR or LF is refused (net.http `line_end`).
+        /// buffer ends first; a bare CR or LF makes the request malformed
+        /// (net.http `line_end`).
         fn line_end(&mut self, b: &[u8]) -> Result<Option<usize>, &'static str> {
             let mut k = self.scan.max(self.pos);
             while k < b.len() {
@@ -1783,10 +1784,11 @@ pub mod http {
     }
 
     /// The bytes of the response to `r` (an `HttpRespond` request as Form
-    /// JSON), or why it is refused (HC-26), and whether the connection
+    /// JSON), or why the effect fails (HC-26), and whether the connection
     /// closes after it. The host adds only the status line,
     /// `Content-Length` and `Connection: close`; with `head` and `close`
-    /// from [`framing`], every byte of the response is a function of D.
+    /// from `host::http_inputs`, every byte of the response is a function
+    /// of D.
     pub fn response_bytes(r: &Value, head: bool, close: bool) -> Result<(Vec<u8>, bool), String> {
         // HF-2: the request is read by field name; a missing field is empty
         let Some(status) = r["status"].as_u64() else { return Err("status is not an integer from 200 to 599".into()) };

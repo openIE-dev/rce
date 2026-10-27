@@ -614,15 +614,18 @@ both enter D and reach the program as inputs.
   (5,000 ms) for the open requests, takes the final barrier and validates
   the run (HC-8). PTY children start with no signal blocked.
 - **HC-25 Framing, limits and deadlines.** The syntax is RFC 9112 with
-  the strict choices of `net.http`: lines end in CRLF (a bare CR or LF is
-  refused); the request line is a token method, a visible-ASCII target
-  and `HTTP/` with a digit, a dot and a digit, after at most 16 empty
-  lines; field names are tokens and obsolete line folding is refused; a
-  request has at most one Host field, and exactly one from HTTP/1.1 on
-  (RFC 9112 3.2); a request with both Transfer-Encoding and
-  Content-Length is refused; Transfer-Encoding ends in `chunked` and names
-  it once; the values listed in Content-Length agree. The host's parser
-  and `net.http.parse_message(b, true, false, false)` agree on every
+  the strict choices of `net.http`: lines end in CRLF; the request line
+  is a token method, a visible-ASCII target and `HTTP/` with a digit, a
+  dot and a digit, after at most 16 empty lines; field names are tokens,
+  and a field line does not continue an earlier one (obsolete line
+  folding); a request has at most one Host field, and exactly one from
+  HTTP/1.1 on (RFC 9112 3.2); a request has Transfer-Encoding or
+  Content-Length, not both; Transfer-Encoding ends in `chunked` and names
+  it once; the values listed in Content-Length agree. A request that
+  breaks one of these (a bare CR or LF, a folded line, both framings, and
+  so on) is delivered and recorded as `HttpMalformed` with status 400.
+  The host's parser and `net.http.parse_message(b, true, false, false)`
+  agree on every
   vector of `stdlib/tests/net/http_checks.rce` and on 10,000 seeded
   mutations of them. Only the host gives 505 for a version other than
   1.x, 501 for a transfer coding before `chunked`, and applies these
@@ -1026,8 +1029,8 @@ is cited by a test.
 | HS-6 to HS-9 | RCEdb in RCE | `rcedb_example_runs` |
 | HC-5a | the printed target is the installed target | `tests/host_sandbox.rs`: `profile_restricts_network_to_granted_ports`, `description_is_generated_from_rules`, `linux_description_says_by_port_and_udp`, `http_only_has_no_new_ip_sockets`, and on macOS only `seatbelt_refuses_an_ungranted_port`, `serve_under_seatbelt_answers_a_request` |
 | HC-10a, HF-3 | bytes delivered exactly, or as text when UTF-8 | `tests/host_net.rs`: `recv_delivers_the_bytes_received`, `recv_into_a_text_field_is_text_when_utf8`, `recv_is_capped_at_the_size_limit`; `tests/host_http.rs`: `invalid_body_bytes_are_exact_and_get_400`, `http_body_as_text_is_fitted` |
-| HC-10b | typed inputs are inputs | `tests/host_refused.rs`: `typed_refused_is_admitted_and_marked`, `replay_refuses_a_forged_host_refused`; `tests/host_restart.rs`: `typed_restarted_and_typed_result_are_inputs`; `tests/host_http.rs`: `typed_http_request_is_an_input` |
-| HC-21, HF-4 | refusals are inputs, fitted by name | `tests/host_refused.rs`: `refused_step_is_followed_by_host_refused_and_the_bound_event`, `each_cause_is_classified`, `a_refused_refused_is_not_redelivered`, `a_refused_step_whose_effect_is_refused_is_not_redelivered`, `refused_handler_has_full_fuel`, `replay_refuses_a_log_without_host_refused`, `replay_refuses_a_forged_host_refused`, `open_completes_a_trailing_refusal`, `a_refused_of_another_shape_is_fitted_by_name`; `tests/nameless.rs`: `refusal_entries_are_name_free` |
+| HC-10b | typed inputs are inputs | `tests/host_refused.rs`: `typed_refused_is_admitted_and_marked`, `replay_detects_a_forged_host_refused`; `tests/host_restart.rs`: `typed_restarted_and_typed_result_are_inputs`; `tests/host_http.rs`: `typed_http_request_is_an_input` |
+| HC-21, HF-4 | refusals are inputs, fitted by name | `tests/host_refused.rs`: `refused_step_is_followed_by_host_refused_and_the_bound_event`, `each_cause_is_classified`, `a_refused_refused_is_not_redelivered`, `a_refused_step_whose_effect_is_refused_is_not_redelivered`, `refused_handler_has_full_fuel`, `replay_detects_a_log_without_host_refused`, `replay_detects_a_forged_host_refused`, `open_completes_a_trailing_refusal`, `a_refused_of_another_shape_is_fitted_by_name`; `tests/nameless.rs`: `refusal_entries_are_name_free` |
 | HC-22, HF-4 | restarts are inputs, ids never reused, fitted by name | `tests/host_restart.rs`: `restart_appends_restarted_then_interrupts`, `ids_are_not_reused_after_restart`, `tick_numbers_continue`, `take_role_appends_restarted`, `serve_on_an_existing_log_listens_again`, `a_restarted_of_another_shape_is_fitted_by_name` |
 | HC-23, HF-1 | the net adapter, results fitted by name | `tests/host_net.rs`: `tcp_loopback_random_and_blobs_replay`, `send_takes_text_or_bytes`; `tests/host_effects.rs`: `result_event_of_another_shape_is_fitted_by_name`, `bound_effect_without_its_result_event_is_performed_and_recorded` |
 | HC-24 to HC-26, HF-2 | the HTTP event host | `tests/host_http.rs`: `concurrent_clients_are_served_while_one_stalls`, `idle_server_appends_nothing`, `keep_alive_and_pipelined_requests_answer_in_order`, `head_has_no_body`, `oversized_body_is_413_and_closes`, `refused_request_gets_the_programs_status`, `invalid_response_fails_and_the_id_stays_open`, `responses_are_a_function_of_d`, `http_1_0_and_keep_alive_are_framed_from_d`, `expect_continue_is_transport`, `parallel_load_replays_exactly`, `sigterm_drains_and_validates`, `restart_binds_again`, `sequential_requests_are_not_paced_by_frames`, `http_declarations_are_fitted_at_start`, `http_body_as_text_is_fitted`, `http_without_request_event_is_answered_501`, `http_without_respond_is_answered_by_the_host`; `tests/host_refused.rs`: `serve_stops_while_effects_keep_coming`, `a_line_that_is_not_an_event_is_held`; `tests/http_parse.rs`: `vectors_agree_with_net_http`, `mutations_agree_with_net_http`, `incremental_feed_equals_whole_buffer`, `limits_give_their_statuses` |
@@ -1113,4 +1116,4 @@ Where RCE differs from these sources: GQL and Cypher queries are strings and the
 
 **Read receipt.** Which fcntl command is the append barrier on macOS? (for example F_SETFL)
 
-<!-- body-sha256: a9e5793371deb9165ca700fe2118e0691839de4bc8840d6e1c747e05fe8ffe6e -->
+<!-- body-sha256: 528678cd3501cd3c7d8c8dad4b5e8d627b1e627192815ba1460c0915fb0de9dc -->

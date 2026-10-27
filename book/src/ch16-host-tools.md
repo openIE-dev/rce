@@ -62,9 +62,11 @@ state hash the live run had.
 
 With `--http HOST:PORT` the host listens on that address itself and turns
 each request of the Hypertext Transfer Protocol (HTTP/1.1) into one
-input. The program declares the request,
-the malformed request, the response and its result, with exactly these
-shapes:
+input. The listing declares the request, the malformed request, the
+response and its result with the host's own shapes, so each is delivered
+exactly. A program may declare them with other fields, or not at all:
+the host then fits each delivery to the declaration by field name and
+records in D what it did not deliver and why (Appendix E, E.4c, HF-2).
 
 ```rce
 {{#include ../listings/ch16/hello_http.rce}}
@@ -88,11 +90,11 @@ The host wrote the status line and `Content-Length`; every other byte
 came from the program. Whether the host also writes `Connection: close`
 and closes the connection depends on the request's version and its
 Connection field, which D records, so every response is a function of D
-(HC-26). The
-host refuses a response it cannot write correctly, for example a status
-outside 200 to 599 or a `Content-Length` written by the program, and
-leaves the request open, so the step that receives the failed
-`HttpRespondDone` can answer again. A `delivered` result means the host
+(HC-26). A
+response the host cannot write correctly, for example one with a status
+outside 200 to 599 or a `Content-Length` written by the program, fails
+the effect, with the reason in `HttpRespondDone`, and leaves the request
+open, so the step that receives that result can answer again. A `delivered` result means the host
 handed the response to the connection; a client that has gone by the
 time it is written is not reported.
 

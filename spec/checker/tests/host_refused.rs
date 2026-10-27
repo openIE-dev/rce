@@ -2,8 +2,9 @@
 //! admitter appends the refused entry with the state unchanged (T8), then
 //! `host.Refused` {cause, seq}, then, when the module declares
 //! `event Refused(seq: u64, cause: text)`, the input `Refused` with the
-//! same payload. Replay re-derives every refusal and its cause and refuses
-//! a D whose refusal entries are missing, extra or different.
+//! same payload. Replay re-derives every refusal and its cause and reports
+//! as a host fault a D whose refusal entries are missing, extra or
+//! different.
 use rce_spec_check::host::{Entry, FileStore, Host, MemStore, replay, replay_report};
 use rce_spec_check::interp::{Cause, FUEL_LIMIT, Flow, V};
 use rce_spec_check::parse::parse;
@@ -187,7 +188,7 @@ fn failed_log(m: &rce_spec_check::ast::Module, s: &str) -> (String, u64) {
 }
 
 #[test]
-fn replay_refuses_a_log_without_host_refused() {
+fn replay_detects_a_log_without_host_refused() {
     let s = src();
     let m = parse(&s).unwrap();
     let (t, k) = failed_log(&m, &s);
@@ -205,7 +206,7 @@ fn replay_refuses_a_log_without_host_refused() {
 }
 
 #[test]
-fn replay_refuses_a_forged_host_refused() {
+fn replay_detects_a_forged_host_refused() {
     let s = src();
     let m = parse(&s).unwrap();
     let (t, k) = failed_log(&m, &s);
