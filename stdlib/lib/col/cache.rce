@@ -20,8 +20,9 @@ module col.cache
 #   recently used of them.
 # - TtlCache follows cachetools.TTLCache: a key put at instant t lives
 #   while now < t + ttl (the sum saturates at the i64 range); expired keys
-#   are removed before every change, then a full cache evicts its least
-#   recently used key. Time is an instant the caller passes in (a logged
+#   are removed by a put, a pop, len and expire, before a full cache
+#   evicts its least recently used key, and a get or a remove of an
+#   expired key misses without removing it. Time is an instant the caller passes in (a logged
 #   reading, as in time and os.clock); the cache never reads a clock. An
 #   instant earlier than the latest one the cache has seen is read as that
 #   latest one, so expiry never runs backwards.
@@ -698,10 +699,11 @@ pub fn ttl_expires_at[V](c: &TtlCache[V], k: &text, now: i64) -> i64?
     return some(c.exp[e as usize])
 
 # The value of k if it is live at now; a hit makes k the most recently
-# used. Counts a hit or a miss.
+# used. Counts a hit or a miss. As in cachetools, a get removes nothing:
+# an expired key stays until the next expire, put, pop or len.
 pub fn ttl_get[V](c: &mut TtlCache[V], k: &text, now: i64) -> V?
-    let _x = ttl_expire(c, now)
-    let e = cch_find(&c.ix, k, cch_fnv(k))
+    c.now = cch_at(c.now, now)
+    let e = cch_ttl_live(c, k, c.now)
     if e < 0
         c.misses += 1
         return none
@@ -742,10 +744,11 @@ pub fn ttl_put_evict[V](c: &mut TtlCache[V], k: text, v: V, now: i64) -> List[te
 pub fn ttl_put[V](c: &mut TtlCache[V], k: text, v: V, now: i64)
     let _out = ttl_put_evict(c, k, v, now)
 
-# Remove k and return its value if it is live at now.
+# Remove k and return its value if it is live at now (cachetools pop:
+# an expired key is left for the next expire).
 pub fn ttl_remove[V](c: &mut TtlCache[V], k: &text, now: i64) -> V?
-    let _x = ttl_expire(c, now)
-    let e = cch_find(&c.ix, k, cch_fnv(k))
+    c.now = cch_at(c.now, now)
+    let e = cch_ttl_live(c, k, c.now)
     if e < 0
         return none
     let v = copy(c.vals[e as usize])
