@@ -2233,6 +2233,7 @@ impl<'m> Lw<'m> {
             // `par` (C.4, T16): the branches in source order; their results
             // are those of the sequential run, which is what the reference
             // resolves them to
+            S::Arena(name, None, body, _) if name == "$forpar" => self.for_par(fx, body)?,
             S::Arena(name, None, body, _) if name == "$par" => {
                 for b in body {
                     let S::Arena(_, _, x, _) = b else { return no("a par branch") };
@@ -2595,6 +2596,338 @@ impl<'m> Lw<'m> {
         let lb = fx.close_nest();
         fx.b.push(Stmt::Loop(lb));
         Ok(())
+    }
+
+    /// `for p in it par` (C.5.2, interp `forpar_exec`). The variables the
+    /// body updates with `+=`, `*=`, `&=`, `|=` or `^=` and does not declare
+    /// are its reduction targets: each item's run starts them from the
+    /// operator's identity, their values after the run are collected, and
+    /// after the last item each target is its value before the loop combined
+    /// with the reduction of the collected values by the tree of C.8. The
+    /// items run in order, as the reference runs them.
+    fn for_par(&mut self, fx: &mut Fx, body: &[S]) -> R<()> {
+        let Some(S::For(p, it, b, _)) = body.first() else { return no("a for par without its loop") };
+        let mut jumps = false;
+        crate::check::walk_stmts(b, &mut |s| {
+            if matches!(s, S::Break(_) | S::Continue(_) | S::Return(..)) {
+                jumps = true;
+            }
+        });
+        if jumps {
+            return no("break, continue or return in the body of a for par");
+        }
+        let mut ops: Vec<(String, String, usize)> = vec![];
+        crate::check::walk_stmts(b, &mut |s| {
+            if let S::Assign(op, place @ Expr::Name(n, _), _) = s
+                && ["+=", "*=", "&=", "|=", "^="].contains(&op.as_str())
+                && !ops.iter().any(|(m, _, _)| m == n)
+            {
+                ops.push((n.clone(), op.clone(), addr(place)));
+            }
+        });
+        let local = crate::conc::declared_in(b);
+        ops.retain(|(n, _, _)| !local.contains(n));
+        // each target: its var, the type of its values, the operator and the identity
+        let mut targets: Vec<(u32, RType, String, Atom)> = vec![];
+        for (n, op, pa) in &ops {
+            let v = match self.ty.nodes.get(pa).and_then(|x| x.bind.clone()) {
+                Some(Binding::Local(id)) => match fx.bound.get(&id) {
+                    Some(Bound::Var(v, _)) => *v,
+                    _ => return no(format!("the reduction target {n}, which is not a var")),
+                },
+                _ => return no(format!("the reduction target {n}")),
+            };
+            let rt = self.var_rtype(fx, v).ok_or_else(|| format!("not covered by the lowering: the type of {n}"))?;
+            let sym = op[..op.len() - 1].to_string();
+            let id = self.identity(&sym, &rt)?;
+            targets.push((v, rt, sym, id));
+        }
+        // the items: a range or a list, at most the loop limit of them
+        let (items, item_rt, range) = if let Expr::Bin(op, a, bx, _) = it
+            && (op == ".." || op == "..=")
+        {
+            fx.b.tick(1);
+            let x = self.expr(fx, a)?;
+            let y = self.expr(fx, bx)?;
+            let (RType::Int(_), RType::Int(_)) = (&x.t, &y.t) else { return no("a range of non-integers") };
+            let item_t = match self.node_ty(it) {
+                RType::Range(i) => i,
+                _ => return no("a range of unknown type"),
+            };
+            let hi = if op == "..=" {
+                let yt = fx.b.ty(&y.a);
+                let (yl, yh) = yt.bounds().unwrap();
+                if yh >= INT_MAX {
+                    return no("an inclusive range up to 2^64 - 1");
+                }
+                fx.b.add_in(y.a, lit(1), Ty::Int(yl + 1, yh + 1))?
+            } else {
+                y.a
+            };
+            let le = fx.b.int_cmp("int.le", hi.clone(), x.a.clone())?;
+            fx.b.open();
+            let th = fx.b.close();
+            fx.b.open();
+            let lim = fx.b.p("int.sadd", vec![wide()], vec![x.a.clone(), lit(self.loop_limit)])?;
+            let over = fx.b.int_cmp("int.lt", lim, hi.clone())?;
+            self.guard(fx, over, |_, _| Ok(Atom::bytes(b"loop bound")))?;
+            let el = fx.b.close();
+            fx.b.push(Stmt::If(le, th, el));
+            let it_t = hull(&fx.b.ty(&x.a), &fx.b.ty(&hi));
+            let (lo_b, hi_b) = it_t.bounds().unwrap();
+            (None, RType::Int(IntT { tags: item_t.tags, lo: lo_b, hi: hi_b }), Some((x.a, hi, it_t)))
+        } else {
+            let itv = self.expr(fx, it)?;
+            let item = match &itv.t {
+                RType::List(e) | RType::Set(e) => (**e).clone(),
+                o => return no(format!("for par over {}", o.show())),
+            };
+            let lt = fx.b.ty(&itv.a);
+            let Ty::List(et) = &lt else { unreachable!() };
+            let n = fx.b.p("list.len", vec![(**et).clone()], vec![itv.a.clone()])?;
+            let over = fx.b.int_cmp("int.lt", lit(self.loop_limit), n)?;
+            self.guard(fx, over, |_, _| Ok(Atom::bytes(b"loop bound")))?;
+            let lv = fx.b.var(lt.clone(), itv.a);
+            fx.own(Atom::V(lv));
+            (Some((lv, (**et).clone())), item, None)
+        };
+        // the values before the loop, and the lists of contributions
+        let mut befores = vec![];
+        let mut contribs = vec![];
+        for (v, rt, _, _) in &targets {
+            let x = self.read_var(fx, *v)?;
+            befores.push(Val { a: x, t: rt.clone() });
+            let et = self.ct(rt)?;
+            let l = fx.b.p("list.new", vec![et.clone()], vec![])?;
+            contribs.push((fx.b.var(Ty::list(et.clone()), l), et));
+        }
+        // the loop over the items
+        let i = match &range {
+            Some((x, _, it_t)) => fx.b.var(it_t.clone(), x.clone()),
+            None => fx.b.var(Ty::u64(), lit(0)),
+        };
+        let l = fx.open_nest();
+        let iv = fx.b.let_(Atom::V(i));
+        let n = match (&range, &items) {
+            (Some((_, hi, _)), _) => hi.clone(),
+            (None, Some((lv, et))) => fx.b.p("list.len", vec![et.clone()], vec![Atom::V(*lv)])?,
+            _ => unreachable!(),
+        };
+        let more = fx.b.int_cmp("int.lt", iv.clone(), n)?;
+        fx.b.open();
+        let th = fx.b.close();
+        fx.b.open();
+        fx.break_to(l)?;
+        let el = fx.b.close();
+        fx.b.push(Stmt::If(more, th, el));
+        let item = match &items {
+            Some((lv, _)) => fx.b.list_at(Atom::V(*lv), iv.clone())?,
+            None => iv.clone(),
+        };
+        for (v, rt, _, id) in &targets {
+            let st = self.var_rtype(fx, *v).unwrap_or(rt.clone());
+            let a = self.conv(fx, id.clone(), rt, &st, false)?;
+            self.store_var(fx, *v, a)?;
+        }
+        fx.push_scope();
+        self.for_bind(fx, p, Val { a: item, t: item_rt })?;
+        self.block(fx, b, false)?;
+        fx.pop_scope()?;
+        for ((v, _, _, _), (cl, et)) in targets.iter().zip(&contribs) {
+            let x = self.read_var(fx, *v)?;
+            let c = fx.b.let_(Atom::V(*cl));
+            let c = fx.b.p("list.push", vec![et.clone()], vec![c, x])?;
+            fx.b.set(*cl, c);
+        }
+        let it_t = fx.b.local_ty(i);
+        let i1 = fx.b.add_in(iv, lit(1), it_t)?;
+        fx.b.set(i, i1);
+        let lb = fx.close_nest();
+        fx.b.push(Stmt::Loop(lb));
+        // each target: its value before, combined with the tree of its contributions
+        for (((v, rt, sym, id), (cl, _)), before) in targets.iter().zip(&contribs).zip(befores) {
+            let tree = self.tree_fn(sym, rt)?;
+            let c = fx.b.let_(Atom::V(*cl));
+            let t = self.call_rt(fx, tree, vec![c, id.clone()]);
+            let r = self.combine(fx, sym, before, Val { a: t, t: rt.clone() })?;
+            self.store_var(fx, *v, r)?;
+        }
+        Ok(())
+    }
+
+    /// interp `ident`: the identity of a reduction operator at a type.
+    fn identity(&mut self, sym: &str, rt: &RType) -> R<Atom> {
+        Ok(match (sym, rt) {
+            ("+" | "|" | "^", RType::Int(_)) => lit(0),
+            ("*", RType::Int(_)) => lit(1),
+            ("&", RType::Int(i)) => {
+                let Some(n) = i.tags.single() else { return no("an &= reduction on an integer whose type name differs at run time") };
+                let (lo, hi) = typed::tag_range(n);
+                lit(if lo == 0 { hi } else { -1 })
+            }
+            ("+", RType::F64) => Atom::K(Ty::F64, Lit::F64((-0.0f64).to_bits())),
+            ("*", RType::F64) => Atom::K(Ty::F64, Lit::F64(1.0f64.to_bits())),
+            ("+", RType::F32) => Atom::K(Ty::F32, Lit::F32((-0.0f64).to_bits())),
+            ("*", RType::F32) => Atom::K(Ty::F32, Lit::F32(1.0f64.to_bits())),
+            ("&", RType::Bool) => Atom::bool(true),
+            ("|" | "^", RType::Bool) => Atom::bool(false),
+            (o, t) => return no(format!("a {o}= reduction on {}", t.show())),
+        })
+    }
+
+    /// interp `combine`: `a op b`, an integer result checked against the
+    /// type name of a.
+    fn combine(&mut self, fx: &mut Fx, sym: &str, a: Val, b: Val) -> R<Atom> {
+        match (&a.t, sym) {
+            (RType::Bool, "&") => fx.b.p("bool.and", vec![], vec![a.a, b.a]),
+            (RType::Bool, "|") => fx.b.p("bool.or", vec![], vec![a.a, b.a]),
+            (RType::Bool, "^") => {
+                let e = fx.b.p("bool.eq", vec![], vec![a.a, b.a])?;
+                fx.b.not(e)
+            }
+            (RType::Int(i), _) => {
+                let tags = i.tags;
+                let RType::Int(j) = &b.t else { return no("a reduction of mixed types") };
+                let res = tags.join_op(j.tags);
+                let rt = a.t.clone();
+                let x = self.arith(fx, sym, a, b, rt)?;
+                if tags == typed::Tags::lit() {
+                    return Ok(x.a);
+                }
+                if tags.single().is_none() {
+                    return no("a reduction on an integer whose type name differs at run time");
+                }
+                let from = RType::Int(IntT { tags: res, lo: INT_MIN, hi: INT_MAX });
+                self.conv(fx, x.a, &from, &RType::Int(IntT::of_tags(tags)), true)
+            }
+            _ => {
+                let rt = a.t.clone();
+                Ok(self.arith(fx, sym, a, b, rt)?.a)
+            }
+        }
+    }
+
+    /// The tree of C.8 over a list of contributions (interp `tree`): the
+    /// left part of m values is the largest power of two below m. It is
+    /// computed as the values arrive, keeping a stack of complete subtrees
+    /// whose sizes are powers of two, then folding the stack from the
+    /// right, which combines in the order the recursive definition does.
+    fn tree_fn(&mut self, sym: &str, rt: &RType) -> R<usize> {
+        let t = self.ct(rt)?;
+        let lt = Ty::list(t.clone());
+        let (sym2, rt2) = (sym.to_string(), rt.clone());
+        self.generated(&format!("tree{sym}"), rt, vec![lt.clone(), t.clone()], t.clone(), move |lw, fx| {
+            let (c, id) = (fx.b.arg(0), fx.b.arg(1));
+            let val = |a: Atom| Val { a, t: rt2.clone() };
+            let n = fx.b.p("list.len", vec![t.clone()], vec![c.clone()])?;
+            let z = fx.b.int_cmp("int.eq", n.clone(), lit(0))?;
+            fx.b.open();
+            fx.b.drop(c.clone())?;
+            fx.b.ret(id.clone());
+            let th = fx.b.close();
+            fx.b.push(Stmt::If(z, th, vec![]));
+            let s0 = fx.b.p("list.new", vec![t.clone()], vec![])?;
+            let st = fx.b.var(lt.clone(), s0);
+            let z0 = fx.b.p("list.new", vec![Ty::u64()], vec![])?;
+            let sz = fx.b.var(Ty::list(Ty::u64()), z0);
+            let i = fx.b.var(Ty::u64(), lit(0));
+            // for each value: merge it with the subtrees of its size
+            fx.b.open();
+            {
+                let iv = fx.b.let_(Atom::V(i));
+                let more = fx.b.int_cmp("int.lt", iv.clone(), n.clone())?;
+                fx.b.open();
+                let th = fx.b.close();
+                fx.b.open();
+                fx.b.brk(0);
+                let el = fx.b.close();
+                fx.b.push(Stmt::If(more, th, el));
+                let x = fx.b.list_at(c.clone(), iv.clone())?;
+                let cur = fx.b.var(t.clone(), x);
+                let csz = fx.b.var(Ty::u64(), lit(1));
+                fx.b.open();
+                {
+                    let sl = fx.b.p("list.len", vec![Ty::u64()], vec![Atom::V(sz)])?;
+                    let e = fx.b.int_cmp("int.eq", sl.clone(), lit(0))?;
+                    fx.b.open();
+                    fx.b.brk(0);
+                    let th = fx.b.close();
+                    fx.b.push(Stmt::If(e, th, vec![]));
+                    let sl1 = fx.b.sub_in(sl, lit(1), Ty::Int(0, INT_MAX))?;
+                    let top = fx.b.list_at(Atom::V(sz), sl1)?;
+                    let cs = fx.b.let_(Atom::V(csz));
+                    let same = fx.b.int_cmp("int.eq", top, cs.clone())?;
+                    fx.b.open();
+                    let th = fx.b.close();
+                    fx.b.open();
+                    fx.b.brk(0);
+                    let el = fx.b.close();
+                    fx.b.push(Stmt::If(same, th, el));
+                    let szv = fx.b.let_(Atom::V(sz));
+                    let r = fx.b.prim("list.pop", vec![Ty::u64()], vec![szv])?;
+                    fx.b.set(sz, r[0].clone());
+                    let stn = fx.b.p("list.len", vec![t.clone()], vec![Atom::V(st)])?;
+                    let e2 = fx.b.int_cmp("int.eq", stn, lit(0))?;
+                    fx.b.guard_halt(e2, |fb| fb.trap_value(Atom::bytes(b"internal: tree stack")))?;
+                    let stv = fx.b.let_(Atom::V(st));
+                    let r = fx.b.prim("list.pop", vec![t.clone()], vec![stv])?;
+                    fx.b.set(st, r[0].clone());
+                    let curv = fx.b.let_(Atom::V(cur));
+                    let m = lw.combine(fx, &sym2, val(r[1].clone()), val(curv))?;
+                    fx.b.set(cur, m);
+                    let c2 = fx.b.mul_in(cs, lit(2), Ty::u64())?;
+                    fx.b.set(csz, c2);
+                }
+                let inner = fx.b.close();
+                fx.b.push(Stmt::Loop(inner));
+                let curv = fx.b.let_(Atom::V(cur));
+                let stv = fx.b.let_(Atom::V(st));
+                let stv = fx.b.p("list.push", vec![t.clone()], vec![stv, curv])?;
+                fx.b.set(st, stv);
+                let cs = fx.b.let_(Atom::V(csz));
+                let szv = fx.b.let_(Atom::V(sz));
+                let szv = fx.b.p("list.push", vec![Ty::u64()], vec![szv, cs])?;
+                fx.b.set(sz, szv);
+                let i1 = fx.b.add_in(iv, lit(1), Ty::u64())?;
+                fx.b.set(i, i1);
+            }
+            let body = fx.b.close();
+            fx.b.push(Stmt::Loop(body));
+            // fold the stack from the right
+            let stn = fx.b.p("list.len", vec![t.clone()], vec![Atom::V(st)])?;
+            let e = fx.b.int_cmp("int.eq", stn, lit(0))?;
+            fx.b.guard_halt(e, |fb| fb.trap_value(Atom::bytes(b"internal: tree stack")))?;
+            let stv = fx.b.let_(Atom::V(st));
+            let r = fx.b.prim("list.pop", vec![t.clone()], vec![stv])?;
+            fx.b.set(st, r[0].clone());
+            let acc = fx.b.var(t.clone(), r[1].clone());
+            fx.b.open();
+            {
+                let stn = fx.b.p("list.len", vec![t.clone()], vec![Atom::V(st)])?;
+                let e = fx.b.int_cmp("int.eq", stn, lit(0))?;
+                fx.b.open();
+                fx.b.brk(0);
+                let th = fx.b.close();
+                fx.b.push(Stmt::If(e, th, vec![]));
+                let stv = fx.b.let_(Atom::V(st));
+                let r = fx.b.prim("list.pop", vec![t.clone()], vec![stv])?;
+                fx.b.set(st, r[0].clone());
+                let a = fx.b.let_(Atom::V(acc));
+                let m = lw.combine(fx, &sym2, val(r[1].clone()), val(a))?;
+                fx.b.set(acc, m);
+            }
+            let body = fx.b.close();
+            fx.b.push(Stmt::Loop(body));
+            for v in [st, sz] {
+                let x = fx.b.let_(Atom::V(v));
+                fx.b.drop(x)?;
+            }
+            fx.b.drop(c)?;
+            fx.b.drop(id)?;
+            let a = fx.b.let_(Atom::V(acc));
+            fx.b.ret(a);
+            Ok(())
+        })
     }
 
     /// The pattern of a `for`: bound to each item (interp ignores a mismatch).
