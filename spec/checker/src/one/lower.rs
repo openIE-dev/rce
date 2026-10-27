@@ -32,7 +32,9 @@
 //! their final values beside its result and the caller writes them back,
 //! except after a union function's error, F.4.4); and lambdas given to
 //! `map`, `filter` and `fold`, defunctionalised into the loop that runs
-//! them.
+//! them; and lane-wise arithmetic on lists. Traits, which hold signatures
+//! only, lower to nothing, and each function is lowered when the trace
+//! first reaches it.
 //!
 //! Ownership (W3): an RCE variable holds its value until the end of its
 //! scope, where it is dropped; every read of an owned variable is a `copy`;
@@ -205,6 +207,8 @@ struct Lw<'m> {
     out_g: u32,
     fns: HashMap<String, usize>,
     methods: HashMap<(String, String), usize>,
+    /// the type of the impl of each method, by (type head, name)
+    impl_tys: HashMap<(String, String), ast::Ty>,
     /// a constant: its evaluation function, its "evaluated" flag and its value
     consts: HashMap<String, (usize, u32, u32)>,
     named: HashMap<String, Ty>,
@@ -229,7 +233,7 @@ impl<'m> Lw<'m> {
                 loop_limit = *n;
             }
         }
-        let mut lw = Lw { m, t, ty, f, tick, fuel, out_g, fns: HashMap::new(), methods: HashMap::new(), consts: HashMap::new(), named: HashMap::new(), gens: HashMap::new(), loop_limit, ev_t: Ty::unit() };
+        let mut lw = Lw { m, t, ty, f, tick, fuel, out_g, fns: HashMap::new(), methods: HashMap::new(), impl_tys: HashMap::new(), consts: HashMap::new(), named: HashMap::new(), gens: HashMap::new(), loop_limit, ev_t: Ty::unit() };
         let mut evs = vec![];
         for e in lw.t.events.clone() {
             evs.push(lw.ct(&RType::Named(e))?);
@@ -2320,8 +2324,33 @@ impl<'m> Lw<'m> {
         Ok(res)
     }
 
-    fn user_fn(&self, name: &str) -> R<usize> {
-        self.fns.get(name).copied().ok_or_else(|| format!("not covered by the lowering: the function {name}"))
+    /// The function named `name`, lowered on its first use.
+    fn user_fn(&mut self, name: &str) -> R<usize> {
+        if let Some(id) = self.fns.get(name) {
+            return Ok(*id);
+        }
+        let Some(f) = self.t.fns.get(name).copied() else { return no(format!("the function {name}")) };
+        let (ps, r) = self.fn_sig(f, None)?;
+        let id = self.f.declare(&format!("fn {name}"), ps, r);
+        self.fns.insert(name.to_string(), id);
+        self.lower_fn(id, f, None)?;
+        Ok(id)
+    }
+
+    /// The method `m` of the impl of type head `h`, lowered on its first use.
+    fn method_fn(&mut self, h: &str, m: &str) -> R<usize> {
+        if let Some(id) = self.methods.get(&(h.to_string(), m.to_string())) {
+            return Ok(*id);
+        }
+        let (Some(f), Some(ty)) = (self.t.methods.get(&(h.to_string(), m.to_string())).copied(), self.impl_tys.get(&(h.to_string(), m.to_string())).cloned()) else {
+            return no(format!("the method {m}"));
+        };
+        let st = self.t.of_ty(&ty);
+        let (ps, r) = self.fn_sig(f, Some(&st))?;
+        let id = self.f.declare(&format!("fn {h}.{m}"), ps, r);
+        self.methods.insert((h.to_string(), m.to_string()), id);
+        self.lower_fn(id, f, Some(&st))?;
+        Ok(id)
     }
 
     fn call(&mut self, fx: &mut Fx, e: &Expr, f: &Expr, args: &[Arg], rt: RType) -> R<Val> {
@@ -2344,7 +2373,7 @@ impl<'m> Lw<'m> {
             }
             Some(Callee::Static(tn, m)) => {
                 let fd = self.t.methods[&(tn.clone(), m.clone())];
-                let id = self.methods.get(&(tn, m.clone())).copied().ok_or_else(|| format!("not covered by the lowering: the method {m}"))?;
+                let id = self.method_fn(&tn, &m)?;
                 fx.b.tick(1);
                 let a = self.args(fx, fd, args)?;
                 Ok(Val { a: self.call_user(fx, id, fd, a, args, None)?, t: rt })
@@ -2352,7 +2381,7 @@ impl<'m> Lw<'m> {
             Some(Callee::Method(h, m)) => {
                 let Expr::Member(obj, _, _) = f else { return no("a method call") };
                 let fd = self.t.methods[&(h.clone(), m.clone())];
-                let id = self.methods.get(&(h, m.clone())).copied().ok_or_else(|| format!("not covered by the lowering: the method {m}"))?;
+                let id = self.method_fn(&h, &m)?;
                 let recv = self.expr(fx, obj)?;
                 fx.b.tick(1);
                 let mut a = vec![recv.a];
@@ -3731,6 +3760,47 @@ impl<'m> Lw<'m> {
                 self.guard(fx, c, |_, _| Ok(Atom::bytes(b"non-finite float")))?;
                 Ok(Val { a: fx.b.p(&format!("f32.{name}"), vec![], vec![x.a, y.a])?, t: rt })
             }
+            (RType::List(xe), RType::List(ye)) if matches!(op, "+" | "-" | "*" | "/" | "%") => {
+                // lane-wise (interp `arith` of two lists): the same length,
+                // then the operation item by item, in order
+                let (xe, ye) = ((**xe).clone(), (**ye).clone());
+                let RType::List(re) = rt.clone() else { return no("lane-wise arithmetic of unknown type") };
+                let re = (*re).clone();
+                let (xc, yc, rc) = (self.ct(&xe)?, self.ct(&ye)?, self.ct(&re)?);
+                let n1 = fx.b.p("list.len", vec![xc.clone()], vec![x.a.clone()])?;
+                let n2 = fx.b.p("list.len", vec![yc.clone()], vec![y.a.clone()])?;
+                let ne = fx.b.int_cmp("int.eq", n1.clone(), n2)?;
+                let bad = fx.b.not(ne)?;
+                self.guard(fx, bad, |_, _| Ok(Atom::bytes(b"lane count mismatch")))?;
+                let o0 = fx.b.p("list.new", vec![rc.clone()], vec![])?;
+                let out = fx.b.var(Ty::list(rc.clone()), o0);
+                let i = fx.b.var(Ty::u64(), lit(0));
+                fx.b.open();
+                {
+                    let iv = fx.b.let_(Atom::V(i));
+                    let more = fx.b.int_cmp("int.lt", iv.clone(), n1)?;
+                    fx.b.open();
+                    let th = fx.b.close();
+                    fx.b.open();
+                    fx.b.brk(1);
+                    let el = fx.b.close();
+                    fx.b.push(Stmt::If(more, th, el));
+                    let p = fx.b.list_at(x.a.clone(), iv.clone())?;
+                    let q = fx.b.list_at(y.a.clone(), iv.clone())?;
+                    let r = self.arith(fx, op, Val { a: p, t: xe.clone() }, Val { a: q, t: ye.clone() }, re.clone())?;
+                    let r = self.conv(fx, r.a, &re, &re, false)?;
+                    let o = fx.b.let_(Atom::V(out));
+                    let o = fx.b.p("list.push", vec![rc.clone()], vec![o, r])?;
+                    fx.b.set(out, o);
+                    let i1 = fx.b.add_in(iv, lit(1), Ty::u64())?;
+                    fx.b.set(i, i1);
+                }
+                let body = fx.b.close();
+                fx.b.push(Stmt::Loop(vec![Stmt::Block(body)]));
+                fx.b.drop(x.a)?;
+                fx.b.drop(y.a)?;
+                Ok(Val { a: fx.b.let_(Atom::V(out)), t: rt })
+            }
             (RType::Text, RType::Text) if op == "+" => {
                 let c = fx.b.cat(x.a, y.a)?;
                 // N9: a text above SIZE_LIMIT bytes is checked by its code points
@@ -4225,7 +4295,20 @@ impl<'m> Lw<'m> {
                 let a = self.conv(fx, v.a, &v.t, &RType::Int(IntT::of_tags(c.tags)), true)?;
                 Val { a, t: stored }
             }
-            (RType::Int(c), RType::Int(_)) if c.tags.names().len() > 1 => return no("an assignment to a place whose type name differs at run time"),
+            (RType::Int(c), RType::Int(_)) if c.tags.names().len() > 1 => {
+                // the place's name is `lit` (no check) or another name (a
+                // check against it): when the value lies in every such
+                // range, neither traps
+                let vt = fx.b.ty(&v.a);
+                let safe = c.tags.names().into_iter().filter(|n| *n != "lit").all(|n| {
+                    let (lo, hi) = typed::tag_range(n);
+                    vt.within(&Ty::Int(lo, hi))
+                });
+                if !safe {
+                    return no("an assignment to a place whose type name differs at run time");
+                }
+                Val { a: v.a, t: if stored == RType::Never { v.t } else { stored } }
+            }
             _ => Val { a: v.a, t: if stored == RType::Never { v.t } else { stored } },
         };
         self.store_place(fx, place, v)
@@ -5338,38 +5421,29 @@ impl<'m> Lw<'m> {
         Ok(())
     }
 
+    /// The module's items that change what every observation means are
+    /// refused here; functions and methods are lowered when the trace first
+    /// reaches them (`user_fn`, `method_fn`), so that one the trace never
+    /// calls does not stop the module from being covered.
     fn functions(&mut self) -> R<()> {
         let m = self.m;
-        let mut todo = vec![];
         for it in &m.items {
             match it {
-                Item::Fn(f) => {
-                    let (ps, r) = self.fn_sig(f, None)?;
-                    let id = self.f.declare(&format!("fn {}", f.sig.name), ps, r);
-                    self.fns.insert(f.sig.name.clone(), id);
-                    todo.push((id, f, None));
-                }
                 Item::Impl { ty, members, .. } => {
                     let h = crate::check::ty_head(ty);
-                    let st = self.t.of_ty(ty);
                     for f in members {
-                        let (ps, r) = self.fn_sig(f, Some(&st))?;
-                        let id = self.f.declare(&format!("fn {h}.{}", f.sig.name), ps, r);
-                        self.methods.insert((h.clone(), f.sig.name.clone()), id);
-                        todo.push((id, f, Some(st.clone())));
+                        self.impl_tys.insert((h.clone(), f.sig.name.clone()), ty.clone());
                     }
                 }
-                Item::Trait { .. } => return no("a trait"),
-                Item::Extern { .. } => return no("a foreign function"),
+                // a trait has signatures only, which nothing runs; a foreign
+                // function is refused where it is called
+                Item::Trait { .. } | Item::Extern { .. } => {}
                 Item::Actor { .. } | Item::Protocol { .. } | Item::Node { .. } | Item::Supervisor { .. } => return no("an actor, protocol, node or supervisor"),
                 Item::Event { foreign: Some(_), .. } | Item::Event { interrupt: Some(_), .. } => return no("a foreign or interrupt event"),
                 Item::State { replicated: true, .. } => return no("a replicated state"),
                 Item::Step { deadline: Some(_), .. } => return no("a step deadline"),
                 _ => {}
             }
-        }
-        for (id, f, st) in todo {
-            self.lower_fn(id, f, st.as_ref())?;
         }
         Ok(())
     }
