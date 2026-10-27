@@ -7,6 +7,8 @@ intent "the notes service on the net adapter: one connection at a time, polled e
     example Start(addr: "127.0.0.1:1"), Tick, NetListenDone(req: 1, status: "delivered", data: some(1), err: ""), Tick, NetAcceptDone(req: 2, status: "delivered", data: some(2), err: ""), Refused(seq: 9, cause: "fuel") -> conn == 0 and last_status == 500
     example Start(addr: "127.0.0.1:1"), Tick, NetListenDone(req: 1, status: "delivered", data: some(1), err: ""), Restarted(below: 7) -> listener == 0 and conn == 0
 
+check note(1, "a\u{0}\u{7}\u{1f}\n\"") == "{\"id\":1,\"text\":\"a\\u0000\\u0007\\u001f\\n\\\"\"}"
+
 use net.http
 use text.utf8
 
@@ -43,10 +45,17 @@ event Restarted(below: u64)
 
 const REASON: Map[u64, text] = {200: "OK", 201: "Created", 204: "No Content", 400: "Bad Request", 404: "Not Found", 405: "Method Not Allowed", 422: "Unprocessable Content", 500: "Internal Server Error"}
 const ESC: Map[text, text] = {"\"": "\\\"", "\\": "\\\\", "\n": "\\n", "\r": "\\r", "\t": "\\t"}
+const HEX: text = "0123456789abcdef"
 
 fn bad(why: text) -> http.Message = http.Message(request: true, method: "", target: "", major: 1, minor: 1, status: 0, reason: why, names: [], values: [], body: [], trailer_names: [], trailer_values: [], used: -1)
 
-fn json_str(t: &text) -> text = "\"" + "".join([ESC.get(c) catch c for c in t.chars()]) + "\""
+fn esc(c: text) -> text
+    let x = c[0] as usize
+    if x < 32 and not ESC.contains(c)
+        return "\\u00" + copy(HEX.chars()[x / 16]) + copy(HEX.chars()[x % 16])
+    return ESC.get(c) catch c
+
+fn json_str(t: &text) -> text = "\"" + "".join([esc(c) for c in t.chars()]) + "\""
 
 fn note(id: u64, t: text) -> text = "{\"id\":" + id.tostr() + ",\"text\":" + json_str(&t) + "}"
 
