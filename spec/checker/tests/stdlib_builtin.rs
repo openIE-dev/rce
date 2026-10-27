@@ -61,6 +61,49 @@ fn a_lib_line_is_a_comment() {
 }
 
 #[test]
+fn no_library_name_is_known_to_a_module_that_does_not_use_its_module() {
+    // Why the retired `#!lib NAME` line is a comment and not refused: it
+    // placed a library module's functions, constants and types in front of
+    // a module. Each such name is unknown to a module that does not `use`
+    // the library, so a program that still relies on the line is refused
+    // (W-NAME-1) and none is accepted with another meaning. A variant or
+    // error name in a pattern becomes a binding instead, but such a pattern
+    // matched only a value of a library type, which nothing in the module
+    // can produce once the library's names are unknown.
+    use rce_spec_check::ast::Item;
+    let none = std::collections::HashSet::new();
+    let refused_as = |src: String, what: &str, n: &str| {
+        let errs = cli::diagnostics(&src, &none);
+        let want = format!("W-NAME-1 unknown {what} `{n}`");
+        assert!(errs.iter().any(|(_, e)| e.contains(&want)), "`{n}` is known without its module: {errs:?}");
+    };
+    let mut names = 0;
+    for path in rce_spec_check::stdlib::names() {
+        let m = rce_spec_check::stdlib::module(path).unwrap();
+        for it in &m.items {
+            let (n, ty, vs): (&str, bool, Vec<&str>) = match it {
+                Item::Fn(f) => (&f.sig.name, false, vec![]),
+                Item::Const { name, .. } => (name, false, vec![]),
+                Item::Struct { name, .. } | Item::Error { name, .. } | Item::TypeAlias { name, .. } => (name, true, vec![]),
+                Item::Kind { name, variants, .. } => (name, true, variants.iter().map(|(v, _)| v.as_str()).collect()),
+                Item::Use(..) => continue,
+                other => panic!("{path}: an item the line would have placed and this test does not cover: {other:?}"),
+            };
+            for v in std::iter::once(n).chain(vs) {
+                // as a value and as a call: a built-in function is known only when called
+                refused_as(format!("module probe\n\nfn probe() -> i64\n    let _v = {v}\n    0\n"), "name", v);
+                refused_as(format!("module probe\n\nfn probe() -> i64\n    let _v = {v}()\n    0\n"), "name", v);
+                names += 1;
+            }
+            if ty {
+                refused_as(format!("module probe\n\nfn probe(_x: {n}) -> i64 = 0\n"), "type", n);
+            }
+        }
+    }
+    assert!(names > 2900, "{names}");
+}
+
+#[test]
 fn an_unknown_module_is_still_refused() {
     let f = tmp("unknown", "module demo3\nuse nothere\n\nfn main()\n    emit 1\n");
     let (st, out) = rce(&["check", &f]);
