@@ -1,9 +1,12 @@
 //! `rce emit rust|python|js` (spec 10.5): every emitted program is run and its
 //! output compared line for line with the reference evaluator's observations
-//! (`emit::observe`) on all example programs. rustc, python3 and node serve
+//! (`emit::observe`) on all example programs; then it is run again with
+//! `--trace --fuel-trace` and compared line for line with
+//! `emit::observe_trace`, the whole trace of every example (each entry of D,
+//! the states, outputs, kept reasons and fuel). rustc, python3 and node serve
 //! only as oracles here. When one is missing the test prints why and skips
 //! that target; it never counts a skipped program as passed.
-use rce_spec_check::emit::{Lang, emit, observe, with_probes};
+use rce_spec_check::emit::{Lang, emit, observe, observe_trace, with_probes};
 use rce_spec_check::parse::parse;
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -57,58 +60,85 @@ fn scratch(lang: Lang) -> PathBuf {
     d
 }
 
-/// Run one emitted program; Ok(stdout) or Err(why it did not run).
+/// Run one emitted program with no argument; Ok(stdout) or Err(why it did not run).
 fn run(lang: Lang, dir: &Path, stem: &str, code: &str) -> Result<String, String> {
-    let src = dir.join(format!("{stem}.{}", lang.ext()));
-    std::fs::write(&src, code).unwrap();
-    let out = match lang {
-        Lang::Rust => {
-            let exe = dir.join(stem);
-            let c = Command::new(tool(Lang::Rust))
-                .args(["--edition", "2024", "-O", "-o"])
-                .arg(&exe)
-                .arg(&src)
-                .output()
-                .map_err(|e| e.to_string())?;
-            if !c.status.success() {
-                return Err(format!("rustc: {}", String::from_utf8_lossy(&c.stderr)));
-            }
-            Command::new(&exe).output()
-        }
-        Lang::Python => Command::new(tool(Lang::Python)).arg(&src).output(),
-        Lang::Js => Command::new(tool(Lang::Js)).arg(&src).output(),
-        // Scala 3.10 on the JVM: scala-cli compiles and runs one file
-        Lang::Scala => Command::new(tool(Lang::Scala))
-            .args(["run", "-q", "--server=false", "--jvm", "21", "--scala", "3.10.0", "--scalac-option", "-nowarn"])
-            .arg(&src)
-            .output(),
-
-    }
-    .map_err(|e| e.to_string())?;
-    if !out.status.success() {
-        return Err(format!(
-            "exit {:?}: {}",
-            out.status.code(),
-            String::from_utf8_lossy(&out.stderr)
-        ));
-    }
-    Ok(String::from_utf8(out.stdout).unwrap())
+    run_args(lang, dir, stem, code, &[&[]]).map(|mut v| v.remove(0))
 }
 
-/// Emit, run and compare every example; returns (agreeing, refused) and
-/// panics on any disagreement or failed run.
+/// Build one emitted program once and run it once per argument list;
+/// Ok(stdout of each run) or Err(why it did not build or run).
+fn run_args(lang: Lang, dir: &Path, stem: &str, code: &str, runs: &[&[&str]]) -> Result<Vec<String>, String> {
+    let src = dir.join(format!("{stem}.{}", lang.ext()));
+    std::fs::write(&src, code).unwrap();
+    let exe = dir.join(stem);
+    if lang == Lang::Rust {
+        let c = Command::new(tool(Lang::Rust))
+            .args(["--edition", "2024", "-O", "-o"])
+            .arg(&exe)
+            .arg(&src)
+            .output()
+            .map_err(|e| e.to_string())?;
+        if !c.status.success() {
+            return Err(format!("rustc: {}", String::from_utf8_lossy(&c.stderr)));
+        }
+    }
+    let mut outs = vec![];
+    for args in runs {
+        let out = match lang {
+            Lang::Rust => Command::new(&exe).args(*args).output(),
+            Lang::Python => Command::new(tool(Lang::Python)).arg(&src).args(*args).output(),
+            Lang::Js => Command::new(tool(Lang::Js)).arg(&src).args(*args).output(),
+            // Scala 3.10 on the JVM: scala-cli compiles and runs one file
+            Lang::Scala => Command::new(tool(Lang::Scala))
+                .args(["run", "-q", "--server=false", "--jvm", "21", "--scala", "3.10.0", "--scalac-option", "-nowarn"])
+                .arg(&src)
+                .arg("--")
+                .args(*args)
+                .output(),
+        }
+        .map_err(|e| e.to_string())?;
+        if !out.status.success() {
+            return Err(format!(
+                "exit {:?} ({args:?}): {}",
+                out.status.code(),
+                String::from_utf8_lossy(&out.stderr)
+            ));
+        }
+        outs.push(String::from_utf8(out.stdout).unwrap());
+    }
+    Ok(outs)
+}
+
+/// The arguments of a run that prints the whole trace of every example.
+const TRACE: &[&str] = &["--trace", "--fuel-trace"];
+
+/// The first line where `got` differs from `want`, as a message.
+fn first_diff(stem: &str, mode: &str, want: &[String], got: &str) -> Option<String> {
+    let got: Vec<&str> = got.lines().collect();
+    if got == want {
+        return None;
+    }
+    let i = (0..want.len().max(got.len()))
+        .find(|&i| want.get(i).map(|s| s.as_str()) != got.get(i).copied())
+        .unwrap();
+    Some(format!("{stem} ({mode}): line {}: want {:?}, got {:?}", i + 1, want.get(i), got.get(i)))
+}
+
+/// Emit, run and compare every example, plainly and with its whole trace;
+/// returns (agreeing, refused) and panics on any disagreement or failed run.
 fn check_all(lang: Lang) -> (usize, Vec<String>) {
     let dir = scratch(lang);
-    let progs: Vec<(String, Vec<String>, Result<String, String>)> = examples()
+    type Prog = (String, (Vec<String>, Vec<String>), Result<String, String>);
+    let progs: Vec<Prog> = examples()
         .iter()
         .map(|p| {
             let stem = p.file_stem().unwrap().to_string_lossy().replace('-', "_");
             let m = with_probes(&parse(&std::fs::read_to_string(p).unwrap()).unwrap());
-            (stem, observe(&m), emit(&m, lang))
+            (stem, (observe(&m), observe_trace(&m)), emit(&m, lang))
         })
         .collect();
     assert_eq!(progs.len(), CORPUS, "the example corpus has {CORPUS} programs");
-    type Ran = (String, Vec<String>, Result<Result<String, String>, String>);
+    type Ran = (String, (Vec<String>, Vec<String>), Result<Result<Vec<String>, String>, String>);
     let results: Vec<Ran> = std::thread::scope(|s| {
         let hs: Vec<_> = progs
             .chunks(progs.len().div_ceil(6))
@@ -120,7 +150,7 @@ fn check_all(lang: Lang) -> (usize, Vec<String>) {
                             (
                                 stem.clone(),
                                 want.clone(),
-                                code.clone().map(|c| run(lang, dir, stem, &c)),
+                                code.clone().map(|c| run_args(lang, dir, stem, &c, &[&[], TRACE])),
                             )
                         })
                         .collect::<Vec<_>>()
@@ -138,19 +168,10 @@ fn check_all(lang: Lang) -> (usize, Vec<String>) {
                 &why[..why.len().min(3000)]
             )),
             Ok(Ok(got)) => {
-                let got: Vec<&str> = got.lines().collect();
-                if got == want {
-                    ok += 1;
-                } else {
-                    let i = (0..want.len().max(got.len()))
-                        .find(|&i| want.get(i).map(|s| s.as_str()) != got.get(i).copied())
-                        .unwrap();
-                    bad.push(format!(
-                        "{stem}: line {}: want {:?}, got {:?}",
-                        i + 1,
-                        want.get(i),
-                        got.get(i)
-                    ));
+                let d = first_diff(&stem, "plain", &want.0, &got[0]).or_else(|| first_diff(&stem, "--trace --fuel-trace", &want.1, &got[1]));
+                match d {
+                    None => ok += 1,
+                    Some(d) => bad.push(d),
                 }
             }
         }
@@ -163,13 +184,14 @@ fn check_all(lang: Lang) -> (usize, Vec<String>) {
         bad.len(),
         bad.join("\n")
     );
-    let lines: usize = progs.iter().map(|p| p.1.len()).sum();
+    let lines: usize = progs.iter().map(|p| p.1.0.len()).sum();
+    let traced: usize = progs.iter().map(|p| p.1.1.len()).sum();
     let empty: Vec<&str> = progs
         .iter()
-        .filter(|p| p.1.is_empty())
+        .filter(|p| p.1.0.is_empty())
         .map(|p| p.0.as_str())
         .collect();
-    eprintln!("{lang:?}: {lines} observation lines; programs with none: {empty:?}");
+    eprintln!("{lang:?}: {lines} observation lines, {traced} whole-trace lines; programs with none: {empty:?}");
     eprintln!(
         "{lang:?}: {ok} of {CORPUS} agree with the reference; {} refused: {refused:?}",
         refused.len()

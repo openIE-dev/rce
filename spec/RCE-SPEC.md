@@ -3170,6 +3170,21 @@ starts a new evaluator for each, and running out traps with the message
 used. These two arguments exist for the test below; the default program
 takes no argument.
 
+**The log D.** With the argument `--trace`, an emitted program also prints
+the log D (6.1) of each example. Before the line of each event that δ
+applied or kept comes its entry, `d applied HASH BODY` or `d kept HASH
+BODY`, where BODY is the canonical JSON of `{event, prev_hash, seq,
+state_hash}` over the positional forms and HASH is its SHA-256; after the
+example's last event comes `trace HEAD`, the hash of the last entry (64
+zeros when there is none). `emit::observe_trace` computes the same lines
+with the reference evaluator, the fuel lines of `--fuel-trace` included.
+The head commits to the events and the state hashes only. The state shown
+after each event, the outputs, the reason an event was kept and the fuel
+are not hashed, so a trace is compared whole: every line of an example's
+block, the entries of D included. The emit adapters of `conformance/`
+answer a trace with that block, and the harness compares it line for line
+with the block `rce-conform` prints for the same program and events.
+
 `spec/checker/tests/fuel.rs` compares the ticks used, line for line, on
 the 50 programs of the emitter tests (with probes) against
 `emit::observe_fuel` of the reference evaluator, in all three targets. It

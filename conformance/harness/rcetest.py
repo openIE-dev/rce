@@ -17,6 +17,10 @@ and every byte before the block:
     # outputs:
     #   - emit 3
     # trace_head: <sha256>      trace: hash of the last log entry
+    # trace_lines:              trace: the whole trace, line for line, as the
+    #   - 0 (initial) ...       reference prints it (every entry of D, the
+    #                           state after each event, outputs, the reason an
+    #                           event was kept, `trace HEAD`, `fuel N`)
     # steps: [{...}]            host: batches, sourced offers and window closes (JSON)
     # host_expect: {...}        host: state_hash, entries (host.* kinds that depend on
     #                           the machine are dropped), admitted (JSON)
@@ -72,14 +76,14 @@ def parse_meta(txt):
 
 def render_meta(meta):
     order = ["id", "area", "clauses", "expect", "diagnostic", "events", "fuel", "schedule_seeds",
-             "outcome", "outputs", "trace_head", "steps", "tear", "host_expect", "nodes", "script", "replicate_expect", "flags", "provenance", "note"]
+             "outcome", "outputs", "trace_head", "trace_lines", "steps", "tear", "host_expect", "nodes", "script", "replicate_expect", "flags", "provenance", "note"]
     out = [MARK]
     for k in order + sorted(set(meta) - set(order)):
         if k not in meta or meta[k] is None:
             continue
         v = meta[k]
-        if k == "outputs":
-            out.append("# outputs:")
+        if k in ("outputs", "trace_lines"):
+            out.append(f"# {k}:")
             for x in v:
                 s = x if (x == x.strip() and x and not x.startswith('"')) else json.dumps(x)
                 out.append(f"#   - {s}")

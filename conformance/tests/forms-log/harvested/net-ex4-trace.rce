@@ -151,5 +151,14 @@ step Net on BlobGetDone(req: _r, status: s, data: d, err: _e)
 # expect: trace
 # events: Listen(addr: "127.0.0.1:1"), NetListenDone(req: 1, status: "failed", data: none, err: "x")
 # trace_head: e97201bd69383d75de5d3ed7c99dbc8ccf4a75e0db040bab6edbdf6266590e09
+# trace_lines:
+#   - 0 (initial) Net { next = 0, last = 0, got = "", rand = "", digest = "", blob = "", errors = 0 }
+#   - d applied 8d8abeaeb69132c6c9e25a2f4aa6cf79fcdf362c203e5c193ee2ba98d5e35087 {"event":{"payload":["127.0.0.1:1"],"type":0},"prev_hash":"0000000000000000000000000000000000000000000000000000000000000000","seq":0,"state_hash":"b3d0164bfd2b5a548452d87ecc14f21e0d6724b24b66a8702d0fe9796ba475a6"}
+#   - 1 Listen(addr: "127.0.0.1:1") Net { next = 1, last = 0, got = "", rand = "", digest = "", blob = "", errors = 0 }
+#   - "  emit NetListen(req: 1, addr: \"127.0.0.1:1\")"
+#   - d applied e97201bd69383d75de5d3ed7c99dbc8ccf4a75e0db040bab6edbdf6266590e09 {"event":{"payload":[1,"failed",null,"x"],"type":9},"prev_hash":"8d8abeaeb69132c6c9e25a2f4aa6cf79fcdf362c203e5c193ee2ba98d5e35087","seq":1,"state_hash":"1d277627e08b6d12fc35ee05e76bf149b76d9686da0745d77ab128dfa015fe8d"}
+#   - 2 NetListenDone(req: 1, status: "failed", data: none, err: "x") Net { next = 1, last = 0, got = "", rand = "", digest = "", blob = "", errors = 1 }
+#   - trace e97201bd69383d75de5d3ed7c99dbc8ccf4a75e0db040bab6edbdf6266590e09
+#   - fuel 28
 # provenance: harvested checker/tests/host/net.rce example@4
 #---

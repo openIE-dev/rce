@@ -34,5 +34,14 @@ step F on WasmCallDone(req: _r, status: s, data: d, err: _e)
 # expect: trace
 # events: Call(code: "m", func: "f", args: [1]), WasmCallDone(req: 1, status: "failed", data: none, err: "trap")
 # trace_head: 4aac7c0c82f56f273d5d57e4182b87b7b95afd02e748e04a9c4d0d24b59c355a
+# trace_lines:
+#   - 0 (initial) F { next = 0, results = [], traps = 0 }
+#   - d applied 33a3559d480bb8e908800709def2c989180093e4d4d6fe503563502fe6adc961 {"event":{"payload":["m","f",[1]],"type":0},"prev_hash":"0000000000000000000000000000000000000000000000000000000000000000","seq":0,"state_hash":"bfbdb9c340464e76619581611cb1b2cf2d6898eab4d90730b3847d79b1e3a42f"}
+#   - 1 Call(code: "m", func: "f", args: [1]) F { next = 1, results = [], traps = 0 }
+#   - "  emit WasmCall(req: 1, code: \"m\", func: \"f\", args: [1])"
+#   - d applied 4aac7c0c82f56f273d5d57e4182b87b7b95afd02e748e04a9c4d0d24b59c355a {"event":{"payload":[1,"failed",null,"trap"],"type":1},"prev_hash":"33a3559d480bb8e908800709def2c989180093e4d4d6fe503563502fe6adc961","seq":1,"state_hash":"309e701befc82cf8675aea14e10fe92737f8a03eafe8dfaf6d33e595ed03b12f"}
+#   - 2 WasmCallDone(req: 1, status: "failed", data: none, err: "trap") F { next = 1, results = [], traps = 1 }
+#   - trace 4aac7c0c82f56f273d5d57e4182b87b7b95afd02e748e04a9c4d0d24b59c355a
+#   - fuel 29
 # provenance: harvested checker/tests/host/foreign.rce example@4
 #---

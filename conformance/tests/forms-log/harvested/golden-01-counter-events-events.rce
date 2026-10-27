@@ -19,5 +19,23 @@ step Counter on Dec -> try n.checked_sub(1) else Underflow
 # expect: trace
 # events: Inc, Inc, Dec, Inc, Dec, Dec, Dec
 # trace_head: c9157836c4adfb444f52c6725af76e5bbd3ac83386df51b069f5727f57b03d9d
+# trace_lines:
+#   - 0 (initial) Counter { n = 0 }
+#   - d applied 16ec075c0865aec98a67b14c2a42302d34ff5a694a31055d3ee1b6847478cf84 {"event":{"payload":[],"type":0},"prev_hash":"0000000000000000000000000000000000000000000000000000000000000000","seq":0,"state_hash":"043f347c2cdc0d8ce70c38775d24e556c0290acf6d0c87a3a52aa85471cb8d02"}
+#   - 1 Inc Counter { n = 1 }
+#   - d applied 8911401820cf55e5fb432c9759efc78c60a54fb3fa8f6e3cc2647fc6f288a3e2 {"event":{"payload":[],"type":0},"prev_hash":"16ec075c0865aec98a67b14c2a42302d34ff5a694a31055d3ee1b6847478cf84","seq":1,"state_hash":"24227028f5989317de063afa979c6b34bfd191537b8fd2ed796a820bf47b2024"}
+#   - 2 Inc Counter { n = 2 }
+#   - d applied 889e65598130b4034cb95afb4a80628291433e7089139e54478e0b0b2b343bdb {"event":{"payload":[],"type":1},"prev_hash":"8911401820cf55e5fb432c9759efc78c60a54fb3fa8f6e3cc2647fc6f288a3e2","seq":2,"state_hash":"043f347c2cdc0d8ce70c38775d24e556c0290acf6d0c87a3a52aa85471cb8d02"}
+#   - 3 Dec Counter { n = 1 }
+#   - d applied 0efb5d55b471e2b0761bdfd4aca23e920a6dfb56f918e7e727b2fb11637860df {"event":{"payload":[],"type":0},"prev_hash":"889e65598130b4034cb95afb4a80628291433e7089139e54478e0b0b2b343bdb","seq":3,"state_hash":"24227028f5989317de063afa979c6b34bfd191537b8fd2ed796a820bf47b2024"}
+#   - 4 Inc Counter { n = 2 }
+#   - d applied 725364a7044ac42090cc7da96955d6528fac04c3b46fc3207b61b501a087f8aa {"event":{"payload":[],"type":1},"prev_hash":"0efb5d55b471e2b0761bdfd4aca23e920a6dfb56f918e7e727b2fb11637860df","seq":4,"state_hash":"043f347c2cdc0d8ce70c38775d24e556c0290acf6d0c87a3a52aa85471cb8d02"}
+#   - 5 Dec Counter { n = 1 }
+#   - d applied fdd1e7da98f95a6888bde448e1c229ec11893b594d0050d22d6110fb0c211657 {"event":{"payload":[],"type":1},"prev_hash":"725364a7044ac42090cc7da96955d6528fac04c3b46fc3207b61b501a087f8aa","seq":5,"state_hash":"db407f11d7ede59abaab0e98e097ff2dae10a048207b801745d7199ef19c2387"}
+#   - 6 Dec Counter { n = 0 }
+#   - d kept c9157836c4adfb444f52c6725af76e5bbd3ac83386df51b069f5727f57b03d9d {"event":{"payload":[],"type":1},"prev_hash":"fdd1e7da98f95a6888bde448e1c229ec11893b594d0050d22d6110fb0c211657","seq":6,"state_hash":"db407f11d7ede59abaab0e98e097ff2dae10a048207b801745d7199ef19c2387"}
+#   - 7 Dec refused: Underflow
+#   - trace c9157836c4adfb444f52c6725af76e5bbd3ac83386df51b069f5727f57b03d9d
+#   - fuel 27
 # provenance: golden spec/traces/01_counter.events.json
 #---

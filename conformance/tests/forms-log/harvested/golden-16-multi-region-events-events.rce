@@ -24,5 +24,21 @@ step Cart on Reset -> []
 # expect: trace
 # events: AddItem(name: "milk"), AddItem(name: "eggs"), RemoveItem(name: "milk"), AddItem(name: "tea"), Reset, AddItem(name: "jam")
 # trace_head: 67ddd8d3380d2b80313a01275404b56b04b1888b2d597886f42993fad570e0aa
+# trace_lines:
+#   - 0 (initial) Cart { items = [] }; Stats { adds = 0, removes = 0 }
+#   - d applied 7be44d0a823159ecdcd5290202c334f66b6c9887f00e5fe377911c0dd49c6f20 {"event":{"payload":["milk"],"type":0},"prev_hash":"0000000000000000000000000000000000000000000000000000000000000000","seq":0,"state_hash":"b8c0247b17834f26865886400642bd751d2f5efa63c9b65f781bb2b76060181d"}
+#   - 1 AddItem(name: "milk") Cart { items = ["milk"] }; Stats { adds = 1, removes = 0 }
+#   - d applied 50890437d487b2acc60d97f38347ed251998d7b86e1240dec66fb5897895b2ec {"event":{"payload":["eggs"],"type":0},"prev_hash":"7be44d0a823159ecdcd5290202c334f66b6c9887f00e5fe377911c0dd49c6f20","seq":1,"state_hash":"ae471c9bd1849dd2b06e72f8a5ae04e9381a28f83b7e4a91516ea5af7e776d36"}
+#   - 2 AddItem(name: "eggs") Cart { items = ["milk", "eggs"] }; Stats { adds = 2, removes = 0 }
+#   - d applied b8de5d03f342c84bef8c684925fd0a13b988facd34f52c959d424eb83572012e {"event":{"payload":["milk"],"type":1},"prev_hash":"50890437d487b2acc60d97f38347ed251998d7b86e1240dec66fb5897895b2ec","seq":2,"state_hash":"c62c184801c4c4ade6712ea8024142d452633efc2a35ede8ed0e9d9ae9f9c582"}
+#   - 3 RemoveItem(name: "milk") Cart { items = ["eggs"] }; Stats { adds = 2, removes = 1 }
+#   - d applied 27b31e63783f59a8a22c6a031d889585797b9353bbc5a00354d8e0cc2ad1fc30 {"event":{"payload":["tea"],"type":0},"prev_hash":"b8de5d03f342c84bef8c684925fd0a13b988facd34f52c959d424eb83572012e","seq":3,"state_hash":"7a4ce034fde199685823602fc791cafa8643bb627a9ac472304289c89f0867b2"}
+#   - 4 AddItem(name: "tea") Cart { items = ["eggs", "tea"] }; Stats { adds = 3, removes = 1 }
+#   - d applied f5dcc046ac1cf0532d025b2e7ae81f3f858ab3b211593c6a51200d871b8f4030 {"event":{"payload":[],"type":2},"prev_hash":"27b31e63783f59a8a22c6a031d889585797b9353bbc5a00354d8e0cc2ad1fc30","seq":4,"state_hash":"b5e277e64cab4eb9d577fbfcfb1f436863283a6e9677491eb46920e47385c127"}
+#   - 5 Reset Cart { items = [] }; Stats { adds = 3, removes = 1 }
+#   - d applied 67ddd8d3380d2b80313a01275404b56b04b1888b2d597886f42993fad570e0aa {"event":{"payload":["jam"],"type":0},"prev_hash":"f5dcc046ac1cf0532d025b2e7ae81f3f858ab3b211593c6a51200d871b8f4030","seq":5,"state_hash":"2af6fd30301f0b2c5775df7b679d4da372b37f4af8c797dea1d8e28632897e97"}
+#   - 6 AddItem(name: "jam") Cart { items = ["jam"] }; Stats { adds = 4, removes = 1 }
+#   - trace 67ddd8d3380d2b80313a01275404b56b04b1888b2d597886f42993fad570e0aa
+#   - fuel 55
 # provenance: golden spec/traces/16_multi_region.events.json
 #---

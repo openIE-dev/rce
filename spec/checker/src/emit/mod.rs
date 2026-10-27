@@ -111,17 +111,42 @@ fn res(out: &mut Vec<String>, label: String, r: Result<V, crate::interp::Flow>) 
 /// is one line per constant, `check`, zero-argument function, example event
 /// and `fn main` output, in item order, with `main` last.
 pub fn observe(m: &Module) -> Vec<String> {
-    observe_with(m, false)
+    observe_with(m, false, false)
 }
 
 /// `observe`, with a line `fuel N` after each observation giving the steps
 /// (fuel ticks, 6.7) it used; an emitted program run with `--fuel-trace`
 /// prints the same lines (tests/fuel.rs).
 pub fn observe_fuel(m: &Module) -> Vec<String> {
-    observe_with(m, true)
+    observe_with(m, true, false)
 }
 
-fn observe_with(m: &Module, fuel: bool) -> Vec<String> {
+/// `observe_fuel`, with the log D (6.1) of each example: the lines an
+/// emitted program prints when run with `--trace --fuel-trace`. Before the
+/// line of each event δ applied or kept comes its entry of D,
+/// `d applied HASH BODY` or `d kept HASH BODY`, where BODY is the canonical
+/// JSON of `{event, prev_hash, seq, state_hash}` over the positional forms
+/// and HASH is its SHA-256; after the example's last event comes
+/// `trace HEAD`, the hash of the last entry (64 zeros when there is none).
+/// Each line of an example block is part of its whole trace: the entries,
+/// the state after each event, the outputs (λ), the reason an event was
+/// kept, and the fuel the example used. The head alone commits to the
+/// events and state hashes only.
+pub fn observe_trace(m: &Module) -> Vec<String> {
+    observe_with(m, true, true)
+}
+
+/// The whole trace of example `x` of `m`: its block of `observe_trace`,
+/// without the `example LINE` header (whose number depends only on where
+/// the example is written).
+pub fn trace_example(m: &Module, x: &Example) -> Vec<String> {
+    let mut out = vec![];
+    obs_example(m, x, &mut out, true, true);
+    out.remove(0);
+    out
+}
+
+fn observe_with(m: &Module, fuel: bool, trace: bool) -> Vec<String> {
     let mut out = vec![];
     let mut main = None;
     for item in &m.items {
@@ -138,10 +163,10 @@ fn observe_with(m: &Module, fuel: bool) -> Vec<String> {
                     obs_check(m, e, &mut out, fuel);
                 }
                 for x in xs {
-                    obs_example(m, x, &mut out, fuel);
+                    obs_example(m, x, &mut out, fuel, trace);
                 }
             }
-            Item::Example(x) => obs_example(m, x, &mut out, fuel),
+            Item::Example(x) => obs_example(m, x, &mut out, fuel, trace),
             Item::Fn(f) if f.sig.name == "main" && f.sig.params.is_empty() => main = Some(f),
             Item::Fn(f) if zero_arg(f) => {
                 let mut it = Interp::new(m);
@@ -174,13 +199,33 @@ fn obs_check(m: &Module, e: &Expr, out: &mut Vec<String>, fuel: bool) {
     if fuel { out.push(format!("fuel {}", it.steps_used())); }
 }
 
-fn obs_example(m: &Module, x: &Example, out: &mut Vec<String>, fuel: bool) {
+fn obs_example(m: &Module, x: &Example, out: &mut Vec<String>, fuel: bool, trace: bool) {
     let mut it = Interp::new(m);
-    obs_example1(m, x, out, &mut it);
+    obs_example1(m, x, out, &mut it, trace);
     if fuel { out.push(format!("fuel {}", it.steps_used())); }
 }
 
-fn obs_example1<'a>(_m: &'a Module, x: &'a Example, out: &mut Vec<String>, it: &mut Interp<'a>) {
+/// The log D of one example as it is written (6.1), for `observe_trace`.
+struct DLines {
+    prev: String,
+    seq: usize,
+}
+
+impl DLines {
+    /// Append the entry of `ev` (named `evn` in the example) with the state
+    /// `s` after it, and print it.
+    fn add(&mut self, m: &Module, evn: &str, ev: &V, s: &[crate::interp::Region], kept: bool, out: &mut Vec<String>) {
+        let evp = crate::interp::event_pos_json(evn, ev, m);
+        let sh = crate::interp::d_sha(&crate::interp::state_pos_json(s, m));
+        let body = format!("{{\"event\":{evp},\"prev_hash\":\"{}\",\"seq\":{},\"state_hash\":\"{sh}\"}}", self.prev, self.seq);
+        let h = crate::interp::d_sha(&body);
+        out.push(format!("d {} {h} {body}", if kept { "kept" } else { "applied" }));
+        self.prev = h;
+        self.seq += 1;
+    }
+}
+
+fn obs_example1<'a>(m: &'a Module, x: &'a Example, out: &mut Vec<String>, it: &mut Interp<'a>, trace: bool) {
     out.push(format!("example {}", x.line));
     let mut s = match it.initial_state() {
         Ok(s) => s,
@@ -190,6 +235,7 @@ fn obs_example1<'a>(_m: &'a Module, x: &'a Example, out: &mut Vec<String>, it: &
         }
     };
     out.push(format!("0 (initial) {}", show_state(&s)));
+    let mut d = DLines { prev: crate::interp::D_GENESIS.to_string(), seq: 0 };
     for (k, (evn, args)) in x.events.iter().enumerate() {
         let k = k + 1;
         it.scopes = vec![HashMap::new()];
@@ -197,25 +243,34 @@ fn obs_example1<'a>(_m: &'a Module, x: &'a Example, out: &mut Vec<String>, it: &
             Ok(Some(v)) => v,
             Ok(None) => {
                 out.push(format!("{k} {evn} not an event"));
-                return;
+                break;
             }
             Err(f) => {
                 out.push(format!("{k} {evn} {}", why(f)));
-                return;
+                break;
             }
         };
         match it.delta(&s, &ev) {
             Ok((s2, outs)) => {
                 s = s2;
+                if trace {
+                    d.add(m, evn, &ev, &s, false, out);
+                }
                 out.push(format!("{k} {} {}", ev.show(), show_state(&s)));
                 for o in outs {
                     out.push(format!("  emit {}", o.show()));
                 }
             }
             Err(r) => {
+                if trace {
+                    d.add(m, evn, &ev, &s, true, out);
+                }
                 out.push(format!("{k} {} refused: {r}", ev.show()));
-                return;
+                break;
             }
         }
+    }
+    if trace {
+        out.push(format!("trace {}", d.prev));
     }
 }

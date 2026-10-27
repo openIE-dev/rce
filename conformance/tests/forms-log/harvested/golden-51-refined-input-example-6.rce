@@ -33,5 +33,13 @@ step Profile on Rename(name: n) -> n
 # expect: trace
 # events: Code(pin: "0042"), Code(pin: "9999")
 # trace_head: e8e1d1fac40c0b9ad78ba170b069b672a2d81ae451f5365d212e1319b765d0a8
+# trace_lines:
+#   - 0 (initial) Volume { level = 0 }; Codes { accepted = 0 }; Profile { name = "-" }
+#   - d applied 5dcb272e7d2f118a2c9dbec35b459b05206ede6872bd3443a7881b2f6b876175 {"event":{"payload":["0042"],"type":2},"prev_hash":"0000000000000000000000000000000000000000000000000000000000000000","seq":0,"state_hash":"90e73771690f5393eb70b715a8a1de44c4c3821f20071731bb6d3d46eb71f451"}
+#   - 1 Code(pin: "0042") Volume { level = 0 }; Codes { accepted = 1 }; Profile { name = "-" }
+#   - d applied e8e1d1fac40c0b9ad78ba170b069b672a2d81ae451f5365d212e1319b765d0a8 {"event":{"payload":["9999"],"type":2},"prev_hash":"5dcb272e7d2f118a2c9dbec35b459b05206ede6872bd3443a7881b2f6b876175","seq":1,"state_hash":"4b28566047e151fba2d47a289d5778c34c037d2386a4e93d0067afd875bcaf89"}
+#   - 2 Code(pin: "9999") Volume { level = 0 }; Codes { accepted = 2 }; Profile { name = "-" }
+#   - trace e8e1d1fac40c0b9ad78ba170b069b672a2d81ae451f5365d212e1319b765d0a8
+#   - fuel 11
 # provenance: golden spec/traces/51_refined_input.json
 #---

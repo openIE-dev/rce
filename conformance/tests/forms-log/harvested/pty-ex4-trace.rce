@@ -80,5 +80,14 @@ step Term on PtyCloseDone(req: _r, status: _s, data: _d, err: _e)
 # expect: trace
 # events: Start, PtyOpenDone(req: 1, status: "failed", data: none, err: "x")
 # trace_head: ad72d377b86bafa393214972006612c95f32ea0571bad816798bd581efb19e30
+# trace_lines:
+#   - 0 (initial) Term { next = 0, id = 0, screen = "", errors = 0, closed = false }
+#   - d applied b2b1092379f58e657a36cea995e522cd8571a81897b353a8e1e1b4bb5aa5777c {"event":{"payload":[],"type":0},"prev_hash":"0000000000000000000000000000000000000000000000000000000000000000","seq":0,"state_hash":"7248123010e55c1063410c1a65a300c6feed612ab800b046fa92fddbc3f10665"}
+#   - 1 Start Term { next = 1, id = 0, screen = "", errors = 0, closed = false }
+#   - "  emit PtyOpen(req: 1, argv: [\"/bin/cat\"], rows: 24, cols: 80)"
+#   - d applied ad72d377b86bafa393214972006612c95f32ea0571bad816798bd581efb19e30 {"event":{"payload":[1,"failed",null,"x"],"type":4},"prev_hash":"b2b1092379f58e657a36cea995e522cd8571a81897b353a8e1e1b4bb5aa5777c","seq":1,"state_hash":"776261ef21825de61f1dd51e11e8c375ff533c8159879d415f499105c87836e2"}
+#   - 2 PtyOpenDone(req: 1, status: "failed", data: none, err: "x") Term { next = 1, id = 0, screen = "", errors = 1, closed = false }
+#   - trace ad72d377b86bafa393214972006612c95f32ea0571bad816798bd581efb19e30
+#   - fuel 28
 # provenance: harvested checker/tests/host/pty.rce example@4
 #---

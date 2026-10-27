@@ -13,6 +13,13 @@ front end's job and is certified through the reference adapter.
                    that example's block. The example's expected value is used
                    only to admit the module; the lines compared are printed
                    by the emitted program.
+  trace            the same example, run with `--trace --fuel-trace`: the
+                   answer is the whole trace, the example's block without
+                   its `example LINE` header (every entry of D as
+                   `d applied|kept HASH BODY`, the state after each event,
+                   the outputs, the reason an event was kept, `trace HEAD`
+                   and `fuel N`), and its head.
+The target is the one positional argument (rust, python, js or scala).
 Env: RCE (the rce binary), RCE_RUSTC, RCE_PYTHON, RCE_NODE, RCE_SCALA_CLI.
 """
 import hashlib, json, os, re, subprocess, sys, tempfile
@@ -50,6 +57,22 @@ def emit(src):
     if LANG == "js":
         return [os.environ.get("RCE_NODE", "node"), prog], None
     return [os.environ.get("RCE_SCALA_CLI", "scala-cli"), "run", "--jvm", "21", "--server=false", "-q", prog, "--"], None
+
+def blocks_of(out):
+    """The example blocks of an emitted program's output, in order, as
+    (LINE, lines). A block starts at its `example LINE` header and ends at
+    the next header or at `main`, the first line of fn main's observation,
+    which comes after every example."""
+    blocks, cur = [], None
+    for l in out.splitlines():
+        mm = re.match(r"example (\d+)$", l)
+        if mm:
+            cur = (int(mm.group(1)), []); blocks.append(cur); continue
+        if l == "main":
+            cur = None; continue
+        if cur is not None:
+            cur[1].append(l)
+    return blocks
 
 def outcome_of(r):
     """One spelling for an outcome (see ADAPTERS.md): trap:KIND or refused:E."""
@@ -97,13 +120,7 @@ def run_events(src, events, extra=()):
         else:
             return {"error": f"emit: {err}"}
     rc, out, e = sh(cmd + list(extra))
-    blocks, cur = {}, None
-    for l in out.splitlines():
-        mm = re.match(r"example (\d+)$", l)
-        if mm:
-            cur = int(mm.group(1)); blocks[cur] = []; continue
-        if cur is not None:
-            blocks[cur].append(l)
+    blocks = dict(blocks_of(out))
     if n not in blocks:
         return {"error": f"no observation block for line {n}; exit {rc}; {e[-300:]}"}
     lines = blocks[n]
@@ -114,25 +131,52 @@ def run_events(src, events, extra=()):
         outcome = outcome_of(lines.pop().split(" refused: ", 1)[1])
     return {"verdict": "accept", "outputs": lines, "outcome": outcome}
 
-GENESIS = "0" * 64
+TRACE_ARGS = ("--trace", "--fuel-trace")
 
 def trace(src, events):
-    """6.1 D: the emitted program logs each example's D chain with `--trace`
-    (canonical JSON, N3 floats, SHA-256 entries, as the reference writes it)
-    and prints `trace HEAD`; the head of the last log is the trace head."""
+    """6.1 D and its derived lines: with `--trace` the emitted program prints
+    each entry of an example's D (canonical JSON, N3 floats, SHA-256, as the
+    reference writes it) before the event's line and `trace HEAD` after the
+    last event; with `--fuel-trace` it prints the example's `fuel N`. The
+    whole block is returned; nothing in it is dropped or rewritten. With no
+    events the module's last example is traced."""
     if events:
-        r = run_events(src, events, ("--trace",))
+        r = run_events(src, events, TRACE_ARGS)
         if "error" in r: return r
-        heads = [l[6:] for l in r["block"] if l.startswith("trace ")]
+        lines = r["block"]
     else:
         cmd, err = emit(src)
         if cmd is None:
             return {"error": f"emit: {err}"}
-        rc, out, e = sh(cmd + ["--trace"])
-        if rc != 0 and "trace " not in out:
-            return {"error": f"exit {rc}: {e[-300:]}"}
-        heads = [l[6:] for l in out.splitlines() if l.startswith("trace ")]
-    return {"verdict": "accept", "trace": {"head": heads[-1] if heads else GENESIS, "steps": []}}
+        rc, out, e = sh(cmd + list(TRACE_ARGS))
+        blocks = blocks_of(out)
+        if not blocks:
+            return {"error": f"no example block; exit {rc}; {e[-300:]}"}
+        lines = blocks[-1][1]
+    heads = [l[6:] for l in lines if l.startswith("trace ")]
+    return {"verdict": "accept", "trace": {"head": heads[-1] if heads else None, "lines": lines}}
+
+def toolchain():
+    """The version of the target's toolchain, as it reports it."""
+    cmd = {"rust": [os.environ.get("RCE_RUSTC", "rustc"), "--version"],
+           "python": [os.environ.get("RCE_PYTHON", "python3"), "--version"],
+           "js": [os.environ.get("RCE_NODE", "node"), "--version"],
+           "scala": [os.environ.get("RCE_SCALA_CLI", "scala-cli"), "--version"]}[LANG]
+    try:
+        rc, out, err = sh(cmd, timeout=120)
+    except (OSError, subprocess.TimeoutExpired) as ex:
+        return f"{cmd[0]} does not run: {ex}"
+    v = (out.strip() or err.strip()).splitlines()
+    return (v[0] if v else "") if rc == 0 else f"{cmd[0]} exited {rc}"
+
+def emitted_by():
+    """The checker that emits, from the provenance line of an emitted file
+    (`emitted by rce VERSION (COMMIT)`)."""
+    f = os.path.join(TMP, "hello.rce")
+    open(f, "w").write("const K: i64 = 1\n")
+    rc, out, err = sh([RCE, "emit", LANG, f])
+    m = re.search(r"emitted by (rce \S+ \([^)]*\))", out.splitlines()[0] if out else "")
+    return m.group(1) if m else f"unknown: {(err or out).strip()[:200]}"
 
 for line in sys.stdin:
     if not line.strip():
@@ -141,7 +185,8 @@ for line in sys.stdin:
     try:
         op = req.get("op")
         if op == "hello":
-            r = {"protocol": "rce-adapter/1", "implementation": f"rce emit {LANG}", "ops": ["run", "trace"], "features": ["fuel", "trace"]}
+            r = {"protocol": "rce-adapter/1", "implementation": f"rce emit {LANG}", "emitted_by": emitted_by(),
+                 "toolchain": toolchain(), "ops": ["run", "trace"], "features": ["fuel", "trace"]}
         elif op == "run":
             r = run_events(req["source"], req["events"]) if req.get("events") else run_main(req["source"], req.get("fuel"))
         elif op == "trace":

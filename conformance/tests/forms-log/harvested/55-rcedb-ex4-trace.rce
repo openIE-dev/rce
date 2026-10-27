@@ -46,5 +46,15 @@ step Db on Scan(start: f)
 # expect: trace
 # events: Put(key: "b", val: "2"), Put(key: "a", val: "1"), Synced(upto: 1)
 # trace_head: 5d266f3766cc3899b44469aca84c174128386013b3fe81027251c0ecc05f9e97
+# trace_lines:
+#   - 0 (initial) Db { rows = {}, writes = 0, durable = 0 }
+#   - d applied 15ade88ac93ea514c7957e84c8e0a01061516c75fbd94f18a02ff1110d42b7fa {"event":{"payload":["b","2"],"type":0},"prev_hash":"0000000000000000000000000000000000000000000000000000000000000000","seq":0,"state_hash":"06283d662dab61c2499391be087807651f5be9d2dc2c44752c0025425a2f3b73"}
+#   - 1 Put(key: "b", val: "2") Db { rows = {"b": "2"}, writes = 1, durable = 0 }
+#   - d applied af0d1b0b968d8c713a38ffcc232f979b4736a0ba5547adf0ee566cc971188ede {"event":{"payload":["a","1"],"type":0},"prev_hash":"15ade88ac93ea514c7957e84c8e0a01061516c75fbd94f18a02ff1110d42b7fa","seq":1,"state_hash":"aa056995b6157fc7f4d20abcb36dac6bb0d15788abfe4f1f149d5e04a1a41432"}
+#   - 2 Put(key: "a", val: "1") Db { rows = {"a": "1", "b": "2"}, writes = 2, durable = 0 }
+#   - d applied 5d266f3766cc3899b44469aca84c174128386013b3fe81027251c0ecc05f9e97 {"event":{"payload":[1],"type":2},"prev_hash":"af0d1b0b968d8c713a38ffcc232f979b4736a0ba5547adf0ee566cc971188ede","seq":2,"state_hash":"17d43c0cb4cd0adf8eef84ca08fdf2fc6f2f6a2411ffcb38e8495146547b081c"}
+#   - 3 Synced(upto: 1) Db { rows = {"a": "1", "b": "2"}, writes = 2, durable = 1 }
+#   - trace 5d266f3766cc3899b44469aca84c174128386013b3fe81027251c0ecc05f9e97
+#   - fuel 37
 # provenance: harvested examples/55_rcedb.rce example@4
 #---

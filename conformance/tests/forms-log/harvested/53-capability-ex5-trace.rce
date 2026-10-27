@@ -26,5 +26,11 @@ step Ledger on Spend(amount: a) -> spent + a
 # expect: trace
 # events: SetLimit(admin: (), limit: 50)
 # trace_head: 115ff54fcbfcc9a32a4d007b79e2faa0555408a4d22357d327eea30a557b5b9d
+# trace_lines:
+#   - 0 (initial) Policy { limit = 100 }; Ledger { spent = 0 }
+#   - d applied 115ff54fcbfcc9a32a4d007b79e2faa0555408a4d22357d327eea30a557b5b9d {"event":{"payload":[null,50],"type":0},"prev_hash":"0000000000000000000000000000000000000000000000000000000000000000","seq":0,"state_hash":"5bd342f0a7b18dfdd66bb668c9d2ac5309bc6f7030d8155d7e2db0253e0d52fb"}
+#   - 1 SetLimit(admin: (), limit: 50) Policy { limit = 50 }; Ledger { spent = 0 }
+#   - trace 115ff54fcbfcc9a32a4d007b79e2faa0555408a4d22357d327eea30a557b5b9d
+#   - fuel 5
 # provenance: harvested examples/53_capability.rce example@5
 #---

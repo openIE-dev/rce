@@ -29,5 +29,14 @@ step Account on Withdraw(amount: a)
 # expect: trace
 # events: Deposit(amount: 50), Withdraw(amount: 20)
 # trace_head: 2fffe13b7953b65cd7033e62e33f9e2983903bafd1de62c2b5dd232d8ad87cb5
+# trace_lines:
+#   - 0 (initial) Account { balance = 0 }
+#   - d applied c0d19ecbd3e0be661ce780027cbd6d0fa90dc0040a7889a87e67002483897094 {"event":{"payload":[50],"type":0},"prev_hash":"0000000000000000000000000000000000000000000000000000000000000000","seq":0,"state_hash":"da6e60aa6fe275d47e2770cf875e3c3a06e31080c0d8f29319376546f6029002"}
+#   - 1 Deposit(amount: 50) Account { balance = 50 }
+#   - d applied 2fffe13b7953b65cd7033e62e33f9e2983903bafd1de62c2b5dd232d8ad87cb5 {"event":{"payload":[20],"type":1},"prev_hash":"c0d19ecbd3e0be661ce780027cbd6d0fa90dc0040a7889a87e67002483897094","seq":1,"state_hash":"1220e80a7a8fb1bcece94f15115f1d7a81ee034c624c43a2168434f6b4265cef"}
+#   - 2 Withdraw(amount: 20) Account { balance = 30 }
+#   - "  emit Withdrawn(amount: 20)"
+#   - trace 2fffe13b7953b65cd7033e62e33f9e2983903bafd1de62c2b5dd232d8ad87cb5
+#   - fuel 20
 # provenance: golden spec/traces/04_bank_account.json
 #---
