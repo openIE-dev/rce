@@ -23,6 +23,11 @@
 //!   [`Host::resume`] opens a log handed over by the replicated log.
 //! - HS-6 bindings: `host.Bind` at start, then `host.Synced` after each
 //!   barrier and the bound program event `Synced(upto)` when declared.
+//! - HC-10b typed inputs: an input from the input stream that names an
+//!   event the host delivers is admitted after `host.Typed`.
+//! - E.4c fitting (HF-1 to HF-4): every delivery is fitted to the module's
+//!   declaration by field name ([`Host::fitting`] says how at start), and
+//!   `host.Unfit` records in D what was not delivered and why.
 //!
 //! The entry format is exactly the 6.1 chain of `form_json`: `state_hash` is
 //! SHA-256 of the canonical state JSON, `hash` is SHA-256 of
@@ -607,6 +612,11 @@ pub trait Adapter {
     /// `host.Restarted`). An adapter that issues resource ids issues them
     /// from `floor` upward, so no id issued before is reused within D.
     fn restart(&mut self, _floor: u64) {}
+    /// HF-3: the module takes this kind's received bytes as `text`. An
+    /// adapter that receives bytes then keeps a UTF-8 character that a read
+    /// ends inside for the next read, so no character is split; the host
+    /// delivers the rest as text when it is UTF-8.
+    fn text(&mut self) {}
 }
 
 fn declares_struct(m: &Module, name: &str) -> bool {
@@ -619,11 +629,6 @@ fn event_payload<'m>(m: &'m Module, name: &str) -> Option<&'m [(String, Ty)]> {
         Item::Event { name: n, payload, .. } if n == name => Some(payload.as_slice()),
         _ => None,
     })
-}
-
-/// `List[i64]`, the byte type of `core.bytes` (HC-10a).
-pub(crate) fn is_bytes(t: &Ty) -> bool {
-    matches!(t, Ty::Path(p, a) if p.len() == 1 && p[0] == "List" && a.len() == 1 && matches!(&a[0], Ty::Path(q, b) if q.len() == 1 && q[0] == "i64" && b.is_empty()))
 }
 
 /// The fields of host values that hold bytes received from outside
@@ -798,16 +803,18 @@ fn fit_note(m: &Module, event: &str, held: bool) -> Option<String> {
                 never = true;
             }
             Some((_, h)) => {
+                // "?": the data of a result, whose type is its kind's
                 let (hopt, hinner) = match h.strip_suffix('?') {
-                    Some(x) => (true, x),
-                    None => (false, *h),
+                    Some(x) if !x.is_empty() => (true, x),
+                    _ => (false, *h),
                 };
                 if hinner == "?" {
                     if !opt {
                         says.push(format!("{k} is not optional, so a result without data (failed, timed out, unreachable) is not delivered"));
                     }
                 } else if inner == "text" && hinner == "List[i64]" && bytes_field(event, k) {
-                    says.push(format!("{k} is text: received bytes are delivered as text when they are UTF-8, and otherwise {}", if is_result_name(event) { "the result is delivered as failed with the offset" } else { "the delivery fails with the offset" }));
+                    let otherwise = if event == "HttpRequest" { "the request is delivered as HttpMalformed with status 415, with the offset" } else { "the result is delivered as failed, with the offset" };
+                    says.push(format!("{k} is text: received bytes are delivered as text when they are UTF-8, and otherwise {otherwise}"));
                 } else if inner != hinner {
                     if *k == "data" && is_result_name(event) {
                         says.push(format!("{k} is {inner}, the host's is {hinner}: each result is delivered as failed"));
@@ -927,39 +934,68 @@ fn ty_text(t: &Ty) -> String {
     }
 }
 
-fn shape_is(p: &[(String, Ty)], want: &[(&str, &str)]) -> bool {
-    p.len() == want.len() && p.iter().zip(want).all(|((k, t), (wk, wt))| k == wk && ty_text(t) == *wt)
+/// HF-2: the status the host gives a request it cannot deliver as
+/// `HttpRequest`, from the reason: 415 Unsupported Media Type when the
+/// body is not UTF-8 and the module takes it as text (RFC 9110 15.5.16, the
+/// content inspected directly), 501 Not Implemented otherwise (RFC 9110
+/// 15.6.2: the program does not support what the request needs).
+fn http_fallback_status(why: &str) -> u64 {
+    if why.starts_with("body: ") && why.contains("UTF-8") { 415 } else { 501 }
 }
 
-/// HF-2 (HC-24): a module served with `--http` declares the HTTP
-/// inputs, the response effect and its result with exactly these shapes;
-/// (HC-10a): the body is the bytes received.
-pub const HTTP_SHAPES: &str = "event HttpRequest(id: u64, method: text, target: text, version: text, names: List[text], values: List[text], body: List[i64]), event HttpMalformed(id: u64, status: u64, why: text), struct HttpRespond {req: u64, status: u64, names: List[text], values: List[text], body: text or List[i64]} and event HttpRespondDone(req: u64, status: text, data: u64?, err: text)";
+/// How the host admitted one HTTP input (HC-24, HF-2).
+#[derive(Debug)]
+pub struct HttpAdmit {
+    /// the id: the seq of the entry that delivers the input, or, when
+    /// `host.Unfit` records it first, of the entry after that one
+    pub id: u64,
+    pub admitted: Vec<Admitted>,
+    /// the response's framing (HC-26): a HEAD request, and whether the
+    /// connection closes after the response
+    pub head: bool,
+    pub close: bool,
+    /// the status the host answers with itself, after the batch barrier,
+    /// when the program cannot answer: the input was not delivered, or
+    /// the module declares no `HttpRespond`
+    pub answer: Option<u64>,
+}
 
-fn http_fits(m: &Module) -> Result<(), String> {
-    let req = event_payload(m, "HttpRequest");
-    if let Some(p) = req
-        && p.iter().any(|(k, t)| k == "body" && !is_bytes(t))
-    {
-        return Err("HF-2 HttpRequest delivers the bytes received: declare body: List[i64] and decode text in the program (text.utf8)".into());
-    }
-    let request = [("id", "u64"), ("method", "text"), ("target", "text"), ("version", "text"), ("names", "List[text]"), ("values", "List[text]"), ("body", "List[i64]")];
-    let malformed = [("id", "u64"), ("status", "u64"), ("why", "text")];
-    let done = [("req", "u64"), ("status", "text"), ("data", "u64?"), ("err", "text")];
-    let respond = m.items.iter().find_map(|i| match i {
-        Item::Struct { name, fields, .. } if name == "HttpRespond" => Some(fields.iter().map(|f| (f.name.clone(), ty_text(&f.ty))).collect::<Vec<_>>()),
+/// HF-2: the status the host answers an HTTP input with itself, read
+/// from the entry that records it (an `HttpRequest` or `HttpMalformed`
+/// entry, or the `host.Unfit` that holds one), or `None` when the program
+/// answers it. With the request's framing, this makes every response the
+/// host writes a function of D (HC-26).
+pub fn http_host_answer(m: &Module, event: &Value) -> Option<u64> {
+    let can_answer = declares_struct(m, "HttpRespond");
+    match event["type"].as_str()? {
+        "HttpRequest" => (!can_answer).then_some(501),
+        "HttpMalformed" => (!can_answer).then(|| event["payload"]["status"].as_u64()).flatten(),
+        "host.Unfit" => {
+            let ev = &event["payload"]["event"];
+            let (name, p) = (ev["type"].as_str()?, ev["payload"].as_object()?);
+            if name != "HttpRequest" && name != "HttpMalformed" {
+                return None;
+            }
+            let plan = Host::fresh(m, Box::new(MemStore::default()), vec![]).ok()?.plan(name, p, false);
+            match plan.deliver {
+                Some(_) if can_answer => None,
+                Some((n, _)) if n == "HttpRequest" => Some(501),
+                Some((_, args)) => status_arg(&args),
+                None if name == "HttpRequest" => Some(http_fallback_status(plan.unfit.as_deref().unwrap_or(""))),
+                None => p.get("status").and_then(Value::as_u64),
+            }
+        }
         _ => None,
-    });
-    let respond_ok = respond.is_some_and(|f| {
-        let want = [("req", "u64"), ("status", "u64"), ("names", "List[text]"), ("values", "List[text]")];
-        f.len() == 5 && f[..4].iter().zip(want).all(|((k, t), (wk, wt))| k == wk && t == wt) && f[4].0 == "body" && (f[4].1 == "text" || f[4].1 == "List[i64]")
-    });
-    if req.is_some_and(|p| shape_is(p, &request)) && event_payload(m, "HttpMalformed").is_some_and(|p| shape_is(p, &malformed)) && event_payload(m, "HttpRespondDone").is_some_and(|p| shape_is(p, &done)) && respond_ok {
-        return Ok(());
     }
-    Err(format!("HF-2 --http needs {HTTP_SHAPES}"))
 }
 
+/// The `status` argument of a delivery (`HttpMalformed`).
+fn status_arg(args: &[Arg]) -> Option<u64> {
+    args.iter().find_map(|a| match (&a.label, &a.e) {
+        (Some(l), Expr::Int(s, _)) if l == "status" => u64::try_from(*s).ok(),
+        _ => None,
+    })
+}
 
 /// HC-6: a live `fn main` task. Its state is a function of D: the start
 /// entry, the inputs logged so far and the steps logged so far. `run` is a
@@ -1239,14 +1275,19 @@ impl<'a> Host<'a> {
 
     fn fresh(m: &'a Module, store: Box<dyn Store + 'a>, adapters: Vec<Box<dyn Adapter + 'a>>) -> Result<Host<'a>, String> {
         let mut bound = vec![];
-        if adapters.iter().any(|a| a.kind() == "HttpRespond") {
-            http_fits(m)?;
-        }
+        let mut adapters = adapters;
         // E.4c: every request struct of a kind the host performs is bound;
         // its result is delivered as declared, or recorded in D
-        for a in &adapters {
+        for a in adapters.iter_mut() {
             if declares_struct(m, a.kind()) {
                 bound.push(a.kind());
+                // HF-3: received bytes taken as text keep a character that
+                // a read ends inside for the next read
+                let ev = format!("{}Done", a.kind());
+                let text = event_payload(m, &ev).and_then(|p| p.iter().find(|(k, _)| k == "data")).is_some_and(|(_, t)| bytes_field(&ev, "data") && ty_text(unalias(t, m)).trim_end_matches('?') == "text");
+                if text {
+                    a.text();
+                }
             }
         }
         let http = adapters.iter().any(|a| a.kind() == "HttpRespond");
@@ -1254,6 +1295,19 @@ impl<'a> Host<'a> {
         let mut notes = vec![];
         for (e, held) in [("Synced", true), ("WallTime", true), ("Refused", true), ("Restarted", true)] {
             notes.extend(fit_note(m, e, held));
+        }
+        if http {
+            match event_payload(m, "HttpRequest") {
+                None => notes.push(format!("--http: event HttpRequest is not declared, so each request is recorded in D as host.Unfit and {}", if declares_event(m, "HttpMalformed") { "delivered as HttpMalformed with status 501" } else { "answered 501 Not Implemented by the host" })),
+                Some(_) => notes.extend(fit_note(m, "HttpRequest", false)),
+            }
+            match event_payload(m, "HttpMalformed") {
+                None => notes.push("--http: event HttpMalformed is not declared, so a request that breaks the syntax, a limit or a deadline is recorded in D as host.Unfit and answered by the host with its status".to_string()),
+                Some(_) => notes.extend(fit_note(m, "HttpMalformed", false)),
+            }
+            if !declares_struct(m, "HttpRespond") {
+                notes.push("--http: struct HttpRespond is not declared, so the program cannot answer, and the host answers each request it delivers with 501 Not Implemented".to_string());
+            }
         }
         for k in &bound {
             let e = format!("{k}Done");
@@ -1680,6 +1734,7 @@ impl<'a> Host<'a> {
     fn plan(&mut self, name: &str, p: &serde_json::Map<String, Value>, held: bool) -> Plan {
         match self.fit(name, p) {
             Fitted::Built(args, lost) => Plan { unfit: (!lost.is_empty() && !held).then(|| format!("not declared: {}", lost.join(", "))), deliver: Some((name.to_string(), args)) },
+            Fitted::Undeclared if name == "HttpRequest" => self.http_fallback(name, p, held, "not declared".to_string()),
             Fitted::Undeclared => Plan { unfit: (!held).then(|| "not declared".to_string()), deliver: None },
             Fitted::Unbuildable(why, field) => {
                 if is_result(name, p) && field.as_deref() == Some("data") && p.get("data").is_some_and(|d| !d.is_null()) {
@@ -1695,9 +1750,28 @@ impl<'a> Host<'a> {
                     });
                     return Plan { unfit, deliver: inner.deliver };
                 }
-                Plan { unfit: Some(why), deliver: None }
+                self.http_fallback(name, p, held, why)
             }
         }
+    }
+
+    /// HF-2: an `HttpRequest` that is not delivered is delivered as
+    /// `HttpMalformed` {id, status, why} when that can be built, with the
+    /// status of [`http_fallback_status`]; `host.Unfit` keeps the request.
+    fn http_fallback(&mut self, name: &str, p: &serde_json::Map<String, Value>, held: bool, why: String) -> Plan {
+        if name != "HttpRequest" {
+            return Plan { unfit: Some(why), deliver: None };
+        }
+        let mut mal = serde_json::Map::new();
+        mal.insert("id".into(), p.get("id").cloned().unwrap_or(Value::Null));
+        mal.insert("status".into(), Value::from(http_fallback_status(&why)));
+        mal.insert("why".into(), Value::String(format!("HttpRequest: {why}")));
+        let deliver = match self.fit("HttpMalformed", &mal) {
+            Fitted::Built(args, _) => Some(("HttpMalformed".to_string(), args)),
+            _ => None,
+        };
+        let _ = held;
+        Plan { unfit: Some(why), deliver }
     }
 
     /// The entries a plan appends, as owed entries for replay.
@@ -1879,9 +1953,10 @@ impl<'a> Host<'a> {
     }
 
     /// HC-21: after the refused entry at `seq`, `host.Refused` {cause, seq},
-    /// then (`bind`) the bound input `Refused(seq, cause)`. A refused step
-    /// that is a `Refused` or descends from one ([`Host::descent`]) gets
-    /// `host.Refused` only, so no `Refused` leads to another.
+    /// then (`bind`) the delivery of `Refused`, fitted to the module (HF-4).
+    /// Delivery is bounded: the refusal of a step that descends from a
+    /// delivered `Refused` ([`Host::descent`]) is recorded as `host.Refused`
+    /// only and not redelivered, so no `Refused` leads to another.
     fn refused(&mut self, seq: u64, cause: Cause, bind: bool) -> Result<Vec<Admitted>, String> {
         self.append(host_event("Refused", &refused_payload(cause, seq)))?;
         if !bind {
@@ -1993,10 +2068,36 @@ impl<'a> Host<'a> {
         self.apply(name, args, How::Typed)
     }
 
-    /// HC-24: deliver one input the HTTP adapter framed (`HttpRequest` or
-    /// `HttpMalformed`) as one input of the batch, without a barrier.
-    pub fn deliver_http(&mut self, name: &str, args: Vec<Arg>) -> Result<Vec<Admitted>, String> {
-        self.apply(name, args, How::Delivery)
+    /// HC-24, HF-2: admit one input the HTTP adapter framed (`HttpRequest`
+    /// or `HttpMalformed`, its fields in `p` without the id) as one input of
+    /// the batch, without a barrier, fitted to the module. The id is the
+    /// seq of the entry that delivers it: its own entry when it is
+    /// delivered exactly, else the entry after the `host.Unfit` that
+    /// records it first.
+    pub fn http_input(&mut self, name: &str, p: serde_json::Map<String, Value>) -> Result<HttpAdmit, String> {
+        let can_answer = declares_struct(self.m, "HttpRespond");
+        let mut q = p.clone();
+        q.insert("id".into(), Value::from(self.seq));
+        let mut plan = self.plan(name, &q, false);
+        if plan.unfit.is_some() || plan.deliver.is_none() {
+            q.insert("id".into(), Value::from(self.seq + 1));
+            plan = self.plan(name, &q, false);
+        }
+        let id = q["id"].as_u64().unwrap_or(0);
+        let delivered = plan.deliver.as_ref().map(|(n, args)| (n.clone(), status_arg(args)));
+        let fallback = plan.unfit.as_deref().map(http_fallback_status).unwrap_or(501);
+        let admitted = self.deliver_plan(name, &q, plan, How::Delivery)?;
+        let texts = |k: &str| -> Vec<String> { p.get(k).and_then(Value::as_array).into_iter().flatten().filter_map(|x| x.as_str().map(String::from)).collect() };
+        let (head, close, answer) = match delivered {
+            Some((n, _)) if n == "HttpRequest" => {
+                let close = crate::adapters::http::closes(p.get("version").and_then(Value::as_str).unwrap_or(""), &texts("names"), &texts("values"));
+                (p.get("method").and_then(Value::as_str) == Some("HEAD"), close, (!can_answer).then_some(501))
+            }
+            Some((_, status)) => (false, true, (!can_answer).then(|| status.unwrap_or(501))),
+            None if name == "HttpRequest" => (false, true, Some(fallback)),
+            None => (false, true, Some(p.get("status").and_then(Value::as_u64).unwrap_or(400))),
+        };
+        Ok(HttpAdmit { id, admitted, head, close, answer })
     }
 
     /// End a batch: perform the queued effects (each after a barrier that

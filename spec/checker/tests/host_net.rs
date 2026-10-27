@@ -156,10 +156,12 @@ fn recv_delivers_the_bytes_received() {
 }
 
 /// HF-3 (E.4c): received bytes bound to a `text` result. The host starts
-/// and says how it fits them: bytes that are UTF-8 are delivered as text,
-/// and a read that is not UTF-8 is delivered as failed with the offset of
-/// the first byte that is not, while `host.Unfit` keeps the bytes in D, so
-/// nothing received is lost. Replay gives the live state.
+/// and says how it fits them: bytes that are UTF-8 are delivered as text;
+/// a character split across two writes waits in the adapter for the next
+/// read, so it is never split or replaced; a read that is not UTF-8, and a
+/// stream that ends inside a character, are delivered as failed with the
+/// offset, while `host.Unfit` keeps the bytes in D, so nothing received is
+/// lost. Replay gives the live state.
 #[test]
 fn recv_into_a_text_field_is_text_when_utf8() {
     let src = net_src()
@@ -196,11 +198,27 @@ fn recv_into_a_text_field_is_text_when_utf8() {
     client.write_all(&[0xFF]).unwrap();
     recv_until(&mut h, &|h| int(&field(h, "errors")) == 1);
     assert_eq!(text_of(field(&h, "blob")), "result does not fit the declared type: not UTF-8 at offset 0");
+    // E2 82 AC is the euro sign, written in two parts
+    client.write_all(&[0xE2, 0x82]).unwrap();
+    std::thread::sleep(Duration::from_millis(50));
+    for _ in 0..5 {
+        h.admit(&src, "Recv(id: 2)").unwrap();
+    }
+    assert_eq!((text_of(field(&h, "rand")), int(&field(&h, "errors"))), ("h\u{e9}".to_string(), 1), "the first two bytes wait for the third");
+    client.write_all(&[0xAC]).unwrap();
+    recv_until(&mut h, &|h| text_of(field(h, "rand")) == "h\u{e9}\u{20ac}");
+    // the stream ends inside a character: delivered as it is, and failed
+    client.write_all(&[0xC3]).unwrap();
+    client.shutdown(std::net::Shutdown::Write).unwrap();
+    recv_until(&mut h, &|h| int(&field(h, "errors")) >= 2);
+    assert_eq!(text_of(field(&h, "blob")), "result does not fit the declared type: incomplete UTF-8 character at offset 0");
     let live = h.state_hash().to_string();
     drop(h);
     let text = log_text(&st);
     assert!(text.contains(r#""data":"h\u00e9""#) || text.contains("\"data\":\"h\u{e9}\""), "{text}");
     assert!(text.contains(r#""data":[255]"#) && text.contains(r#""why":"data: not UTF-8 at offset 0""#), "D keeps the bytes: {text}");
+    assert!(text.contains(r#""data":[195]"#) && text.contains(r#""why":"data: incomplete UTF-8 character at offset 0""#), "D keeps the bytes: {text}");
+    assert!(text.contains("\"data\":\"\u{20ac}\"") || text.contains(r#""data":"\u20ac""#), "the euro sign is one delivery: {text}");
     assert_eq!(replay(&m, &text).unwrap().1, live);
 }
 

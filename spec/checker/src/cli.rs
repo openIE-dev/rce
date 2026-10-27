@@ -1523,7 +1523,6 @@ fn serve_loop(h: &mut crate::host::Host, src: &str, out: &mut dyn Write, mut htt
         s.start(std::sync::Arc::new(move |x| htx.lock().map(|t| t.send(Inbound::Http(x)).is_ok()).unwrap_or(false)));
     }
     let lab = |l: &str, e: Expr| Arg { label: Some(l.into()), e };
-    let texts = |xs: Vec<String>| Expr::List(xs.into_iter().map(|x| Expr::Str(x, 0)).collect(), 0);
     let tick = h.event_fields("Tick");
     let input = h.event_fields("Input").filter(|f| f.len() == 1 && f[0] == "data");
     // HC-22: on an existing D the count continues from the last Tick(n)
@@ -1562,6 +1561,7 @@ fn serve_loop(h: &mut crate::host::Host, src: &str, out: &mut dyn Write, mut htt
             }
         }
         let mut adm = vec![];
+        let mut answers: Vec<(mpsc::Sender<crate::adapters::http::Reply>, u64)> = vec![];
         let mut end = false;
         if tick.is_some() && stopping.is_none() && Instant::now() >= next_tick {
             next_tick += frame;
@@ -1609,46 +1609,56 @@ fn serve_loop(h: &mut crate::host::Host, src: &str, out: &mut dyn Write, mut htt
                         h.http_listen(&s.listen_payload())?;
                     }
                 }
-                Inbound::Http(HttpIn::Request { req, reply }) => {
-                    // HC-24: the id is the seq of the request's own entry
-                    let id = h.len();
-                    // HC-26: the framing is read from what the entry holds
-                    let version = req.version();
-                    let close = crate::adapters::http::closes(&version, &req.names, &req.values);
-                    if let Some(o) = &open {
-                        o.borrow_mut().insert(id, Pending { reply, close, head: req.method == "HEAD" });
-                    }
-                    let body = Expr::List(req.body.iter().map(|b| Expr::Int(*b as i128, 0)).collect(), 0);
-                    let args = vec![lab("id", Expr::Int(id as i128, 0)), lab("method", Expr::Str(req.method, 0)), lab("target", Expr::Str(req.target, 0)), lab("version", Expr::Str(version, 0)), lab("names", texts(req.names)), lab("values", texts(req.values)), lab("body", body)];
-                    match h.deliver_http("HttpRequest", args) {
-                        Ok(a) => adm.extend(a),
-                        Err(e) => {
-                            if let Some(o) = &open {
-                                o.borrow_mut().remove(&id);
-                            }
-                            report(e, out)?;
+                Inbound::Http(x @ (HttpIn::Request { .. } | HttpIn::Malformed { .. })) => {
+                    // HC-24, HF-2: the host fits the input to the module; the
+                    // id is the seq of the entry that delivers it, and the
+                    // framing (HC-26) is read from what that entry holds
+                    let (name, p, reply) = match x {
+                        HttpIn::Request { req, reply } => {
+                            let mut p = serde_json::Map::new();
+                            p.insert("body".into(), serde_json::Value::from(req.body.clone()));
+                            p.insert("method".into(), req.method.clone().into());
+                            p.insert("names".into(), req.names.clone().into());
+                            p.insert("target".into(), req.target.clone().into());
+                            p.insert("values".into(), req.values.clone().into());
+                            p.insert("version".into(), req.version().into());
+                            ("HttpRequest", p, reply)
                         }
-                    }
-                }
-                Inbound::Http(HttpIn::Malformed { status, why, reply }) => {
-                    let id = h.len();
-                    if let Some(o) = &open {
-                        o.borrow_mut().insert(id, Pending { reply, close: true, head: false });
-                    }
-                    let args = vec![lab("id", Expr::Int(id as i128, 0)), lab("status", Expr::Int(status as i128, 0)), lab("why", Expr::Str(why, 0))];
-                    match h.deliver_http("HttpMalformed", args) {
-                        Ok(a) => adm.extend(a),
-                        Err(e) => {
-                            if let Some(o) = &open {
-                                o.borrow_mut().remove(&id);
-                            }
-                            report(e, out)?;
+                        HttpIn::Malformed { status, why, reply } => {
+                            let mut p = serde_json::Map::new();
+                            p.insert("status".into(), serde_json::Value::from(status));
+                            p.insert("why".into(), why.into());
+                            ("HttpMalformed", p, reply)
                         }
+                        HttpIn::Listening => unreachable!(),
+                    };
+                    match h.http_input(name, p) {
+                        Ok(a) => {
+                            match a.answer {
+                                // the host answers once the batch is durable (HS-2)
+                                Some(status) => answers.push((reply, status)),
+                                None => {
+                                    if let Some(o) = &open {
+                                        o.borrow_mut().insert(a.id, Pending { reply, close: a.close, head: a.head });
+                                    }
+                                }
+                            }
+                            adm.extend(a.admitted);
+                        }
+                        Err(e) => report(e, out)?,
                     }
                 }
             }
         }
         adm.extend(h.settle()?);
+        // HF-2: a request the program cannot answer gets the host's own
+        // response, with no body, and the connection closes after it
+        for (reply, status) in answers.drain(..) {
+            let r = serde_json::json!({"status": status, "names": [], "values": [], "body": ""});
+            if let Ok((bytes, close)) = crate::adapters::http::response_bytes(&r, false, true) {
+                let _ = reply.send(crate::adapters::http::Reply { bytes, close });
+            }
+        }
         let mut exit = false;
         for a in adm {
             if let Some(c) = a.cause {

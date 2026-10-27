@@ -15,6 +15,7 @@ use std::time::{Duration, Instant};
 
 const NOTES: &str = "../../programs/network/notes_http.rce";
 const ECHO: &str = "tests/host/http_echo.rce";
+const FIT: &str = "tests/host/http_fit.rce";
 
 fn app(rel: &str) -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join(rel)
@@ -401,6 +402,12 @@ const CONTINUE: &[u8] = b"HTTP/1.1 100 Continue\r\n\r\n";
 /// `HttpRespond` replay re-derives, and require the same bytes and the
 /// same closes. Returns D's HttpRequest and HttpMalformed payloads.
 fn check_function_of_d(program: &str, name: &str, conns: Vec<Vec<Req>>) -> Vec<serde_json::Value> {
+    check_function_of_d_log(program, name, conns).0
+}
+
+/// [`check_function_of_d`], also returning D. A response the host made
+/// itself (HF-2) is made again from D by `host::http_host_answer`.
+fn check_function_of_d_log(program: &str, name: &str, conns: Vec<Vec<Req>>) -> (Vec<serde_json::Value>, String) {
     let d = dir(name);
     let s = serve(program, &d);
     let mut got: Vec<(Vec<u8>, bool)> = vec![];
@@ -434,11 +441,18 @@ fn check_function_of_d(program: &str, name: &str, conns: Vec<Vec<Req>>) -> Vec<s
     let (ok, err) = s.stop();
     assert!(ok && err.contains("validated"), "{err}");
     let text = std::fs::read_to_string(&log).unwrap();
-    let outs = replay_outputs(&rce_spec_check::program(&std::fs::read_to_string(app(program)).unwrap()).unwrap(), &text).unwrap();
+    let m = rce_spec_check::program(&std::fs::read_to_string(app(program)).unwrap()).unwrap();
+    let outs = replay_outputs(&m, &text).unwrap();
     let mut answers = vec![];
     let mut inputs = vec![];
     for e in entries(&log) {
         let v: serde_json::Value = serde_json::from_str(&e.event).unwrap();
+        if let Some(status) = rce_spec_check::host::http_host_answer(&m, &v) {
+            let r = serde_json::json!({"status": status, "names": [], "values": [], "body": ""});
+            answers.push(rce_spec_check::adapters::http::response_bytes(&r, false, true).unwrap());
+            inputs.push(v["payload"].clone());
+            continue;
+        }
         let Some((head, close)) = rce_spec_check::adapters::http::framing(&v) else { continue };
         let resp = outs.iter().find(|(q, _)| *q == e.seq).map(|(_, o)| o[0].clone()).unwrap();
         answers.push(rce_spec_check::adapters::http::response_bytes(&resp, head, close).unwrap());
@@ -451,7 +465,7 @@ fn check_function_of_d(program: &str, name: &str, conns: Vec<Vec<Req>>) -> Vec<s
     }
     replays(program, &log);
     let _ = std::fs::remove_dir_all(&d);
-    inputs
+    (inputs, text)
 }
 
 /// HC-26: the host writes only bytes that are a function of D. Every
@@ -646,36 +660,118 @@ fn sequential_requests_are_not_paced_by_frames() {
     let _ = std::fs::remove_dir_all(&d);
 }
 
-/// HF-2 (HC-24, HC-10a): a module served with `--http`
-/// declares the HTTP inputs, the response and its result with exactly the
-/// shapes of HC-24, the body as bytes; otherwise the host refuses to start
-/// and appends nothing.
+/// HF-2 (E.4c): a module served with `--http` may declare the HTTP inputs,
+/// the response and its result with other shapes than those of HC-24. The
+/// host starts on each, appends its start entries, and says in one line
+/// how it fits a declaration that is not exactly the host's value.
 #[test]
-fn http_declarations_are_checked_at_start() {
+fn http_declarations_are_fitted_at_start() {
     use rce_spec_check::host::{Host, MemStore};
     let src = std::fs::read_to_string(app(ECHO)).unwrap();
     // the result of starting, and the number of entries appended
-    let start = |s: &str| -> (Result<(), String>, usize) {
+    // the result of starting: the lines it says, and the entries it appends
+    let start = |s: &str| -> (Vec<String>, usize) {
         let m = rce_spec_check::parse::parse(s).unwrap();
         let server = rce_spec_check::adapters::http::Server::bind("127.0.0.1:0");
         let mut st = MemStore::default();
-        let r = Host::start_with(&m, Box::new(&mut st), vec![Box::new(server.responder())]).map(|_| ());
-        (r, st.lines.len())
+        let notes = Host::start_with(&m, Box::new(&mut st), vec![Box::new(server.responder())]).map(|h| h.fitting().to_vec()).unwrap_or_else(|e| panic!("{e}"));
+        (notes, st.lines.len())
     };
-    let (ok, n) = start(&src);
-    assert!(ok.is_ok() && n > 0, "{ok:?}");
+    let (notes, n) = start(&src);
+    assert!(notes.is_empty() && n > 0, "{notes:?}");
     let shapes = [
-        ("event HttpMalformed(id: u64, status: u64, why: text)", "event HttpMalformed(id: u64, status: text, why: text)", "HF-2"),
-        ("event HttpRespondDone(req: u64, status: text, data: u64?, err: text)", "event HttpRespondDone(req: u64, status: text, data: text?, err: text)", "HF-2"),
-        ("    names: List[text]\n    values: List[text]\n    body: List[i64]\n", "    names: List[text]\n    body: List[i64]\n", "HF-2"),
-        ("values: List[text], body: List[i64])", "values: List[text], body: text)", "HF-2"),
+        ("event HttpMalformed(id: u64, status: u64, why: text)", "event HttpMalformed(id: u64, status: text, why: text)", "event HttpMalformed: status is text, the host's is u64: no delivery can be built"),
+        ("event HttpRespondDone(req: u64, status: text, data: u64?, err: text)", "event HttpRespondDone(req: u64, status: text)", "event HttpRespondDone: the host's data, err are not delivered"),
+        ("values: List[text], body: List[i64])", "values: List[text], body: text)", "event HttpRequest: body is text: received bytes are delivered as text when they are UTF-8"),
+        ("event HttpRequest(id: u64, method: text, target: text, version: text, names: List[text], values: List[text], body: List[i64])\n", "", "--http: event HttpRequest is not declared"),
+        ("event HttpMalformed(id: u64, status: u64, why: text)\n", "", "--http: event HttpMalformed is not declared"),
     ];
-    for (from, to, rule) in shapes {
+    for (from, to, says) in shapes {
         assert!(src.contains(from), "{from}");
-        let (r, n) = start(&src.replace(from, to));
-        let e = r.err().unwrap_or_else(|| panic!("{to} was accepted"));
-        assert!(e.contains(rule) && n == 0, "{to}: {e}");
+        let (notes, n) = start(&src.replace(from, to));
+        assert!(n > 0 && notes.iter().any(|x| x.starts_with(says)), "{to}: {notes:?}");
     }
+    // HttpRespond is read by field name: without `values`, it is still performed
+    let (notes, n) = start(&src.replace("    names: List[text]\n    values: List[text]\n    body: List[i64]\n", "    names: List[text]\n    body: List[i64]\n"));
+    assert!(notes.is_empty() && n > 0, "{notes:?}");
+}
+
+/// HF-2, HF-3: a module that takes the body as `text`. A UTF-8 body is
+/// delivered as text; a body that is not UTF-8 is recorded in D, where
+/// `host.Unfit` keeps the bytes, and delivered as `HttpMalformed` 415, which
+/// the program answers; the result of each response, whose event the module
+/// does not declare, is recorded in D (HF-1). Every byte the host writes is
+/// made again from D.
+#[test]
+fn http_body_as_text_is_fitted() {
+    let (inputs, text) = check_function_of_d_log(
+        FIT,
+        "fit-text",
+        vec![
+            vec![Req { head: b"POST /echo HTTP/1.1\r\nHost: x\r\nConnection: close\r\nContent-Length: 3\r\n\r\n", body: b"h\xc3\xa9", expect: false }],
+            vec![Req { head: b"POST /echo HTTP/1.1\r\nHost: x\r\nContent-Length: 2\r\n\r\n", body: b"\xff\xfe", expect: false }],
+            vec![req(b"GET /x HTTP/1.1\nHost: x\n\n")],
+        ],
+    );
+    assert_eq!(inputs[0]["body"], serde_json::json!("h\u{e9}"), "{inputs:?}");
+    assert_eq!((inputs[1]["status"].as_u64(), inputs[1]["why"].as_str()), (Some(415), Some("HttpRequest: body: not UTF-8 at offset 0")), "{inputs:?}");
+    assert_eq!(inputs[2]["status"].as_u64(), Some(400));
+    assert!(text.contains(r#""body":[255,254]"#) && text.contains(r#""why":"body: not UTF-8 at offset 0"},"type":"host.Unfit""#), "D keeps the bytes received");
+    assert_eq!(text.matches(r#""type":"HttpRespondDone"},"why":"not declared"}"#).count(), 3, "each result recorded, none delivered");
+}
+
+/// HF-2: a module that declares no `HttpRequest`. The host serves it: each
+/// request is recorded in D (`host.Unfit`) and delivered as
+/// `HttpMalformed` with status 501 when that is declared; when neither is
+/// declared, the host answers 501 Not Implemented itself and closes the
+/// connection. Every byte is made again from D.
+#[test]
+fn http_without_request_event_is_answered_501() {
+    let d = dir("no-request");
+    let src = std::fs::read_to_string(app(FIT)).unwrap();
+    let cut = src.find("step S on HttpRequest").unwrap();
+    let end = src.find("step S on HttpMalformed").unwrap();
+    let no_request = format!("{}{}", &src[..cut], &src[end..])
+        .replace("event HttpRequest(id: u64, method: text, target: text, version: text, names: List[text], values: List[text], body: text)\n", "")
+        .replace("    example HttpRequest(id: 3, method: \"POST\", target: \"/echo\", version: \"HTTP/1.1\", names: [], values: [], body: \"hi\") -> seen == 1 and last == 200\n", "");
+    let p = d.join("no_request.rce");
+    std::fs::write(&p, &no_request).unwrap();
+    let inputs = check_function_of_d(p.to_str().unwrap(), "no-request-run", vec![vec![req(b"GET /a HTTP/1.1\r\nHost: x\r\n\r\n")]]);
+    assert_eq!((inputs[0]["status"].as_u64(), inputs[0]["why"].as_str()), (Some(501), Some("HttpRequest: not declared")), "{inputs:?}");
+    // neither input declared: the host answers
+    let bare = "module bare\n\nintent \"a module with no HTTP declarations, served with --http\"\n    example Ping -> n == 1\n\nevent Ping\n\nstate S\n    n: u64 = 0\n\nstep S on Ping\n    n += 1\n";
+    let p = d.join("bare.rce");
+    std::fs::write(&p, bare).unwrap();
+    let (inputs, text) = check_function_of_d_log(p.to_str().unwrap(), "bare-run", vec![vec![req(b"GET /a HTTP/1.1\r\nHost: x\r\n\r\n")], vec![req(b"GET /b HTTP/1.1\nHost: x\n\n")]]);
+    assert_eq!(inputs.len(), 2);
+    assert!(text.contains(r#""type":"HttpRequest"},"why":"not declared"}"#) && text.contains(r#""type":"HttpMalformed"},"why":"not declared"}"#), "{text}");
+    let _ = std::fs::remove_dir_all(&d);
+}
+
+/// HF-2: a module that declares no struct `HttpRespond` cannot answer. Its
+/// requests are delivered, and the host answers each itself, 501 Not
+/// Implemented for a request and its own status for a malformed one,
+/// once the batch is durable. Every byte is made again from D.
+#[test]
+fn http_without_respond_is_answered_by_the_host() {
+    let d = dir("no-respond");
+    let src = std::fs::read_to_string(app(FIT)).unwrap();
+    let a = src.find("struct HttpRespond").unwrap();
+    let b = src.find("event HttpRequest").unwrap();
+    let no_respond: String = format!("{}{}", &src[..a], &src[b..])
+        .lines()
+        .filter(|l| !l.contains("emit HttpRespond"))
+        .map(|l| format!("{l}\n"))
+        .collect::<String>()
+        .replace("(id: id, method", "(id: _id, method")
+        .replace("body: b)\n    seen", "body: _b)\n    seen")
+        .replace("(id: id, status: st, why: w)", "(id: _id, status: st, why: _w)");
+    let p = d.join("no_respond.rce");
+    std::fs::write(&p, &no_respond).unwrap();
+    let (inputs, text) = check_function_of_d_log(p.to_str().unwrap(), "no-respond-run", vec![vec![Req { head: b"POST /echo HTTP/1.1\r\nHost: x\r\nContent-Length: 2\r\n\r\n", body: b"ok", expect: false }], vec![req(b"GET /x HTTP/1.1\nHost: x\n\n")]]);
+    assert_eq!((inputs[0]["body"].as_str(), inputs[1]["status"].as_u64()), (Some("ok"), Some(400)), "{inputs:?}");
+    assert!(!text.contains("host.Unfit"), "both were delivered whole: {text}");
+    let _ = std::fs::remove_dir_all(&d);
 }
 
 /// HC-10b with HC-24: an `HttpRequest` typed on stdin is admitted like any
