@@ -1,0 +1,428 @@
+# Checks for lib/col/cache.rce: edge cases, the slot-table invariants under
+# churn, canonical order against the built-in Set (set_of, spec 6.1) and
+# memoized recursion against functools.lru_cache. The generated vectors
+# (cachetools, functools.lru_cache, the canonical JSON vectors and encoder
+# of spec 6.1.1, engine state hashes) are in cache_checks_2..13.rce, from
+# scripts/gen/cache_gen.py.
+
+fn c_rnd(s: i64) -> i64 = (s * 1103515245 + 12345) & 2147483647
+
+# ---------------- capacities ----------------
+
+fn cap_edges() -> bool
+    var z: LruCache[i64] = lru_new(0)
+    let ev = lru_put_evict(&mut z, "a", 1)
+    var n: LruCache[i64] = lru_new(-5)
+    lru_put(&mut n, "a", 1)
+    let big: LruCache[i64] = lru_new(1000000000)
+    let ka = "a"
+    let miss = lru_get(&mut z, &ka)
+    var lz: LfuCache[i64] = lfu_new(0)
+    let lev = lfu_put_evict(&mut lz, "b", 2)
+    var tz: TtlCache[i64] = ttl_new(0, 10)
+    let tev = ttl_put_evict(&mut tz, "c", 3, 0)
+    return ev == ["a"] and lru_len(&z) == 0 and lru_maxsize(&n) == 0 and lru_len(&n) == 0 and lru_maxsize(&big) == CACHE_MAX and miss == none and lru_info(&z).misses == 1 and lev == ["b"] and lfu_len(&lz) == 0 and tev == ["c"] and ttl_len(&mut tz, 0) == 0
+
+# ---------------- LRU ----------------
+
+# A put of a present key evicts nothing, even when the cache is full.
+fn lru_update() -> bool
+    var c: LruCache[text] = lru_new(2)
+    lru_put(&mut c, "a", "1")
+    lru_put(&mut c, "b", "2")
+    let ev = lru_put_evict(&mut c, "a", "3")
+    let ka = "a"
+    return ev.len() == 0 and lru_keys(&c) == ["b", "a"] and lru_peek(&c, &ka) == some("3")
+
+fn lru_misc() -> bool
+    var c: LruCache[i64] = lru_new(4)
+    for i in 0..4
+        lru_put(&mut c, "k" + i.tostr(), i)
+    let k1 = "k1"
+    let kx = "x"
+    let g = lru_get(&mut c, &k1)
+    let m = lru_get(&mut c, &kx)
+    let order = lru_keys(&c)
+    let p = lru_pop(&mut c)
+    let r = lru_remove(&mut c, &k1)
+    let r2 = lru_remove(&mut c, &k1)
+    let ev = lru_resize(&mut c, 1)
+    let i = lru_info(&c)
+    let rest = lru_keys(&c)
+    lru_clear(&mut c)
+    let j = lru_info(&c)
+    var e: LruCache[i64] = lru_new(3)
+    let pe = lru_pop(&mut e)
+    return g == some(1) and m == none and order == ["k0", "k2", "k3", "k1"] and p == some(("k0", 0)) and r == some(1) and r2 == none and ev == ["k2"] and rest == ["k3"] and i.hits == 1 and i.misses == 1 and i.maxsize == 1 and i.currsize == 1 and j.hits == 0 and j.misses == 0 and j.currsize == 0 and j.maxsize == 1 and pe == none
+
+# Values of any data type.
+fn lru_values() -> bool
+    var c: LruCache[List[text]] = lru_new(2)
+    lru_put(&mut c, "", ["x", "y"])
+    lru_put(&mut c, "\u{1f600}", [])
+    let e = ""
+    let f = "\u{1f600}"
+    return lru_get(&mut c, &e) == some(["x", "y"]) and lru_peek(&c, &f) == some([]) and lru_contains(&c, &f)
+
+# ---------------- LFU ----------------
+
+fn lfu_misc() -> bool
+    var c: LfuCache[i64] = lfu_new(3)
+    lfu_put(&mut c, "a", 1)
+    lfu_put(&mut c, "b", 2)
+    lfu_put(&mut c, "c", 3)
+    let ka = "a"
+    let kb = "b"
+    let kd = "d"
+    let _g1 = lfu_get(&mut c, &kb)
+    let _g2 = lfu_get(&mut c, &kb)
+    let _g3 = lfu_get(&mut c, &ka)
+    # counts a 2, b 3, c 1: c goes
+    let ev1 = lfu_put_evict(&mut c, "d", 4)
+    let _g4 = lfu_get(&mut c, &kd)
+    # a and d have 2 uses; a reached 2 first, so a goes
+    let ev2 = lfu_put_evict(&mut c, "e", 5)
+    let order = lfu_keys(&c)
+    lfu_put(&mut c, "b", 20)
+    let cb = lfu_count(&c, &kb)
+    let ca = lfu_count(&c, &ka)
+    let p = lfu_pop(&mut c)
+    let rs = lfu_resize(&mut c, 1)
+    let i = lfu_info(&c)
+    lfu_clear(&mut c)
+    return ev1 == ["c"] and ev2 == ["a"] and order == ["e", "d", "b"] and cb == 4 and ca == 0 and p == some(("e", 5)) and rs == ["d"] and lfu_keys(&c).len() == 0 and i.hits == 4 and i.misses == 0 and i.currsize == 1 and lfu_peek(&c, &kb) == none
+
+# ---------------- TTL ----------------
+
+# The expiry t + ttl saturates at the i64 range: a key put at 2^63 - 6
+# with ttl 10 expires at 2^63 - 1, and one put with a negative ttl near
+# -2^63 expires at -2^63 (already expired).
+fn ttl_saturate() -> bool
+    let top: i64 = 9223372036854775807
+    let bot: i64 = 0 - 9223372036854775807 - 1
+    var c: TtlCache[i64] = ttl_new(4, 10)
+    ttl_put(&mut c, "a", 1, top - 5)
+    let ka = "a"
+    let x = ttl_expires_at(&c, &ka, top - 1)
+    let live = ttl_contains(&c, &ka, top - 1)
+    let gone = not ttl_contains(&c, &ka, top)
+    let ex = ttl_expire(&mut c, top)
+    var d: TtlCache[i64] = ttl_new(2, -10)
+    let ev = ttl_put_evict(&mut d, "x", 1, bot + 3)
+    let kx = "x"
+    let dead = not ttl_contains(&d, &kx, bot)
+    let n = ttl_len(&mut d, bot)
+    return x == some(top) and live and gone and ex == ["a"] and ev.len() == 0 and dead and n == 0
+
+# Instants earlier than one already seen are read as the latest one.
+fn ttl_monotonic() -> bool
+    var c: TtlCache[i64] = ttl_new(4, 10)
+    ttl_put(&mut c, "a", 1, 100)
+    let ka = "a"
+    let g1 = ttl_get(&mut c, &ka, 50)
+    let g2 = ttl_get(&mut c, &ka, 200)
+    # 200 is now the latest instant: 105 is read as 200
+    let c1 = ttl_contains(&c, &ka, 105)
+    ttl_put(&mut c, "b", 2, 0)
+    let kb = "b"
+    let xb = ttl_expires_at(&c, &kb, 0)
+    return g1 == some(1) and g2 == none and not c1 and xb == some(210) and ttl_keys(&c, 0) == ["b"]
+
+# A get or a remove of an expired key misses and leaves it in place; the
+# next put reports it among the keys that left.
+fn ttl_lazy() -> bool
+    var c: TtlCache[i64] = ttl_new(3, 10)
+    ttl_put(&mut c, "a", 1, 0)
+    ttl_put(&mut c, "b", 2, 5)
+    let ka = "a"
+    let kb = "b"
+    let g = ttl_get(&mut c, &ka, 12)
+    let r = ttl_remove(&mut c, &ka, 12)
+    let ev = ttl_put_evict(&mut c, "c", 3, 12)
+    let g2 = ttl_get(&mut c, &kb, 14)
+    let x = ttl_expire(&mut c, 15)
+    let i = ttl_info(&mut c, 15)
+    return g == none and r == none and ev == ["a"] and g2 == some(2) and x == ["b"] and ttl_keys(&c, 15) == ["c"] and i.hits == 1 and i.misses == 1 and i.currsize == 1 and i.maxsize == 3
+
+# ttl 0: a key is never live, and the next change removes it.
+fn ttl_zero() -> bool
+    var c: TtlCache[i64] = ttl_new(3, 0)
+    ttl_put(&mut c, "a", 1, 7)
+    let ka = "a"
+    let p = ttl_peek(&c, &ka, 7)
+    let ev = ttl_put_evict(&mut c, "b", 2, 7)
+    let n = ttl_len(&mut c, 7)
+    return p == none and ev == ["a"] and n == 0 and ttl_ttl(&c) == 0
+
+fn ttl_misc() -> bool
+    var c: TtlCache[i64] = ttl_new(3, 100)
+    ttl_put(&mut c, "a", 1, 0)
+    ttl_put(&mut c, "b", 2, 1)
+    ttl_put(&mut c, "c", 3, 2)
+    let ka = "a"
+    let _g = ttl_get(&mut c, &ka, 3)
+    let ev = ttl_put_evict(&mut c, "d", 4, 4)
+    let p = ttl_pop(&mut c, 5)
+    let rs = ttl_resize(&mut c, 1, 6)
+    let keys = ttl_keys(&c, 6)
+    ttl_clear(&mut c)
+    # the latest instant survives clear
+    ttl_put(&mut c, "e", 5, 0)
+    let ke = "e"
+    return ev == ["b"] and p == some(("c", 3)) and rs == ["a"] and keys == ["d"] and ttl_expires_at(&c, &ke, 0) == some(106) and ttl_maxsize(&c) == 1
+
+# ---------------- the slot table under churn ----------------
+
+# Every entry is found at its index, each slot holds a distinct entry, and
+# no empty slot lies between an entry's home slot and its slot (the
+# linear-probing invariant that backward-shift deletion keeps).
+fn ix_ok(ix: &CchIx) -> bool
+    let n = ix.keys.len()
+    let cap = ix.slots.len()
+    var used: i64 = 0
+    for p in 0..cap
+        if ix.slots[p] != 0
+            used += 1
+            let e = (ix.slots[p] - 1) as usize
+            if e >= n or ix.hs[e] != cch_fnv(&ix.keys[e])
+                return false
+            var q = (ix.hs[e] as usize) & (cap - 1)
+            while q != p bound 1048576
+                if ix.slots[q] == 0
+                    return false
+                q = (q + 1) & (cap - 1)
+    for e in 0..n
+        if cch_find(ix, &ix.keys[e], ix.hs[e]) != e as i64
+            return false
+    return used == n as i64 and (cap == 0 or 2 * n <= cap)
+
+const C_ALPHA: List[text] = ["a", "\u{e9}", "z", "", "\u{1f600}", "0", " ", "ab", "\u{0}", "\""]
+
+# LruCache against the built-in Map under random puts and removes of text
+# keys (no evictions), checking the table invariant along the way.
+fn ix_sweep(n: i64, seed: i64) -> bool
+    var c: LruCache[i64] = lru_new(100000)
+    var model: Map[text, i64] = {}
+    var s = seed
+    var ok = true
+    for i in 0..n
+        s = c_rnd(s)
+        var k = "k"
+        var t = s >> 3
+        for _j in 0..((s >> 11) % 4)
+            k = k + copy(C_ALPHA[(t % 10) as usize])
+            t = t / 10
+        if (s >> 20) % 3 == 0
+            let want = if model.contains(k) then some(model.get(k) catch 0) else none
+            ok = ok and lru_remove(&mut c, &k) == want
+            if model.contains(k)
+                let _r = model.remove(k)
+        else
+            lru_put(&mut c, copy(k), i)
+            model[k] = i
+        ok = ok and lru_len(&c) == model.len() as i64
+        if i % 97 == 0
+            ok = ok and ix_ok(&c.ix)
+    for k in model.keys()
+        ok = ok and lru_peek(&c, &k) == some(model.get(k) catch 0)
+    let absent = "absent"
+    return ok and ix_ok(&c.ix) and lru_peek(&c, &absent) == none and lru_keys(&c).len() == model.len()
+
+# Evicting caches keep the invariant too.
+fn ix_evict(n: i64) -> bool
+    var a: LruCache[i64] = lru_new(37)
+    var b: LfuCache[i64] = lfu_new(37)
+    var t: TtlCache[i64] = ttl_new(37, 25)
+    var s: i64 = 5
+    var ok = true
+    for i in 0..n
+        s = c_rnd(s)
+        let k = "x" + ((s >> 5) % 90).tostr()
+        if (s >> 15) % 4 == 0
+            let _a = lru_get(&mut a, &k)
+            let _b = lfu_get(&mut b, &k)
+            let _t = ttl_remove(&mut t, &k, i)
+        else
+            lru_put(&mut a, copy(k), i)
+            lfu_put(&mut b, copy(k), i)
+            ttl_put(&mut t, copy(k), i, i)
+        if i % 50 == 0
+            ok = ok and ix_ok(&a.ix) and ix_ok(&b.ix) and ix_ok(&t.ix)
+    return ok and lru_len(&a) <= 37 and lfu_len(&b) <= 37 and lfu_keys(&b).len() == lfu_len(&b) as usize and ttl_keys(&t, n).len() <= 37
+
+# ---------------- canonical values ----------------
+
+fn rec_rules() -> bool
+    let dup = CvRec(keys: ["b", "a", "b"], vals: [CvInt(v: 1), CvInt(v: 2), CvInt(v: 3)])
+    let short = CvRec(keys: ["z", "y", "x"], vals: [CvNull, CvBool(b: false)])
+    let variant = CvRec(keys: ["x", "$v"], vals: [CvInt(v: 1), CvText(t: "V")])
+    return cv_canon(&dup) == "{\"a\":2,\"b\":3}" and cv_canon(&short) == "{\"y\":false,\"z\":null}" and cv_canon(&variant) == "{\"$v\":\"V\",\"x\":1}"
+
+fn c_deep(n: i64) -> CVal
+    var v = CvNull
+    for _i in 0..n
+        v = CvList(items: [v])
+    return v
+
+# Depth is walked with an explicit stack: no recursion limit applies.
+fn deep_ok() -> bool
+    let a = c_deep(20000)
+    let b = c_deep(19999)
+    let t = cv_canon(&a)
+    return t.len_bytes() == 40004 and t[0:3] == "[[[" and t[19998:20006] == "[[null]]" and cv_cmp(&a, &b) == 1 and cv_cmp(&b, &a) == -1 and cv_cmp(&a, &a) == 0 and cv_hash(&a).len_bytes() == 64
+
+fn cmp_chain() -> bool
+    let xs = [CvNull, CvBool(b: false), CvBool(b: true), CvInt(v: 0 - 9223372036854775807 - 1), CvInt(v: -1), CvU64(v: 0), CvInt(v: 9223372036854775807), CvU64(v: 9223372036854775808), CvU64(v: 18446744073709551615), CvFloat(f: -1e300), CvFloat(f: -0.0), CvFloat(f: 0.0), CvFloat(f: 5e-324), CvText(t: ""), CvText(t: "Z"), CvText(t: "a"), CvText(t: "\u{fb33}"), CvText(t: "\u{1f600}"), CvList(items: []), CvList(items: [CvNull]), CvList(items: [CvInt(v: 1)]), CvList(items: [CvInt(v: 1), CvNull]), CvRec(keys: [], vals: []), CvRec(keys: ["a"], vals: [CvInt(v: 1)]), CvRec(keys: ["a", "b"], vals: [CvInt(v: 1), CvNull]), CvRec(keys: ["a"], vals: [CvInt(v: 2)]), CvRec(keys: ["b"], vals: [CvNull])]
+    var ok = true
+    for i in 0..xs.len()
+        for j in 0..xs.len()
+            let want = if i < j then -1 else (if i > j then 1 else 0)
+            ok = ok and cv_cmp(&xs[i], &xs[j]) == want
+    # i64 and u64 forms of one integer are one value
+    let a = CvInt(v: 5)
+    let b = CvU64(v: 5)
+    return ok and cv_cmp(&a, &b) == 0 and cv_canon(&b) == "5"
+
+fn c_back_ints(v: &CVal) -> List[i64]
+    var o: List[i64] = []
+    match v
+        CvList(items: items)
+            for x in items
+                match x
+                    CvInt(v: n) -> o.push(n)
+                    _ -> o.push(-999)
+        _ -> pass
+    return o
+
+fn c_back_texts(v: &CVal) -> List[text]
+    var o: List[text] = []
+    match v
+        CvList(items: items)
+            for x in items
+                match x
+                    CvText(t: t) -> o.push(copy(t))
+                    _ -> o.push("?")
+        _ -> pass
+    return o
+
+# cv_set orders as the built-in Set does (set_of, canonical order of 6.1).
+fn set_vs_builtin(seed: i64) -> bool
+    var s = seed
+    var ints: List[i64] = []
+    var texts: List[text] = []
+    var pairs: List[(i64, text)] = []
+    var lists: List[List[i64]] = []
+    for _i in 0..60
+        s = c_rnd(s)
+        ints.push((s % 2001) - 1000)
+        var t = ""
+        var u = s >> 4
+        for _j in 0..((s >> 9) % 4)
+            t = t + copy(C_ALPHA[(u % 10) as usize])
+            u = u / 10
+        texts.push(copy(t))
+        pairs.push(((s >> 13) % 4, copy(t)))
+        var l: List[i64] = []
+        for j in 0..((s >> 17) % 4)
+            l.push((s >> (j + 20)) % 3)
+        lists.push(l)
+    let civ = [CvInt(v: x) for x in ints]
+    let ctv = [CvText(t: copy(x)) for x in texts]
+    let ci = cv_set(&civ)
+    let cts = cv_set(&ctv)
+    var cp: List[CVal] = []
+    for p in pairs
+        cp.push(CvList(items: [CvInt(v: p.0), CvText(t: copy(p.1))]))
+    var cl: List[CVal] = []
+    for l in lists
+        cl.push(cv_ints(&l))
+    let sp = cv_set(&cp)
+    let sl = cv_set(&cl)
+    var wp: List[CVal] = []
+    for p in set_of(pairs).tolist()
+        wp.push(CvList(items: [CvInt(v: p.0), CvText(t: copy(p.1))]))
+    var wl: List[CVal] = []
+    for l in set_of(lists).tolist()
+        wl.push(cv_ints(&l))
+    return c_back_ints(&ci) == set_of(ints).tolist() and c_back_texts(&cts) == set_of(texts).tolist() and sp == CvList(items: wp) and sl == CvList(items: wl)
+
+fn map_rules() -> bool
+    let ks = [CvInt(v: 2), CvText(t: "a"), CvInt(v: 1), CvInt(v: 2), CvNull]
+    let vs = [CvText(t: "first"), CvInt(v: 0), CvBool(b: true), CvText(t: "last")]
+    let m = cv_map(&ks, &vs)
+    let one = [3]
+    let two = ["a", "\u{e9}"]
+    let ci = cv_ints(&one)
+    let ct2 = cv_texts(&two)
+    return cv_canon(&m) == "[[1,true],[2,\"last\"],[\"a\",0]]" and cv_canon(&ci) == "[3]" and cv_canon(&ct2) == "[\"a\",\"\u{e9}\"]"
+
+# ---------------- memoization ----------------
+
+fn c_sq(x: i64) -> i64 = x * x
+
+fn c_len(x: text) -> i64 = x.len_bytes() as i64
+
+fn memo_basic() -> bool
+    var m: Memo[i64] = memo_new(2)
+    let three = [3]
+    let a = cv_ints(&three)
+    let r1 = memo_call(&mut m, &a, c_sq, 3)
+    let r2 = memo_call(&mut m, &a, c_sq, 3)
+    var t: Memo[i64] = memo_unbounded()
+    let w = CvList(items: [CvText(t: "word")])
+    let s1 = memo_call(&mut t, &w, c_len, "word")
+    let k = memo_key(&w)
+    let s2 = memo_get(&mut t, &k)
+    memo_put(&mut t, "other", 7)
+    let ko = "other"
+    let s3 = memo_get(&mut t, &ko)
+    let i = memo_info(&m)
+    let j = memo_info(&t)
+    memo_clear(&mut t)
+    let j2 = memo_info(&t)
+    return r1 == 9 and r2 == 9 and i.hits == 1 and i.misses == 1 and i.currsize == 1 and i.maxsize == 2 and s1 == 4 and s2 == some(4) and s3 == some(7) and j.maxsize == -1 and j.hits == 2 and j.misses == 1 and memo_len(&t) == 0 and j2.hits == 0 and j2.currsize == 0 and k == cv_hash(&w)
+
+# Recursion through the memo, as functools.lru_cache decorates fib: every
+# call (the base cases too) is a lookup. CPython 3.13 gives fib(90) with
+# maxsize=None: hits 88, misses 91, currsize 91; fib(25) with maxsize=3:
+# hits 23, misses 26, currsize 3.
+fn c_fib(m: &mut Memo[i64], n: i64) -> i64 bound 200
+    let key = [n]
+    let a = cv_ints(&key)
+    match memo_lookup(m, &a)
+        some(v) -> return v
+        none -> pass
+    let v = if n < 2 then n else c_fib(m, n - 1) + c_fib(m, n - 2)
+    memo_store(m, &a, v)
+    return v
+
+fn memo_fib() -> bool
+    var u: Memo[i64] = memo_unbounded()
+    let f90 = c_fib(&mut u, 90)
+    let i = memo_info(&u)
+    var b: Memo[i64] = memo_new(3)
+    let f25 = c_fib(&mut b, 25)
+    let j = memo_info(&b)
+    return f90 == 2880067194370816120 and i.hits == 88 and i.misses == 91 and i.currsize == 91 and f25 == 75025 and j.hits == 23 and j.misses == 26 and j.currsize == 3
+
+check cap_edges()
+check lru_update()
+check lru_misc()
+check lru_values()
+check lfu_misc()
+check ttl_saturate()
+check ttl_monotonic()
+check ttl_lazy()
+check ttl_zero()
+check ttl_misc()
+check ix_sweep(3000, 17)
+check ix_sweep(2000, 4242)
+check ix_evict(2000)
+check rec_rules()
+check deep_ok()
+check cmp_chain()
+check set_vs_builtin(7)
+check set_vs_builtin(99)
+check map_rules()
+check memo_basic()
+check memo_fib()

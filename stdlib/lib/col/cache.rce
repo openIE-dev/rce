@@ -838,13 +838,6 @@ struct CchToks
     fv: List[f64]
     tv: List[text]
 
-fn cch_tok(t: &mut CchToks, rk: i64, hv: i64, iv: i64, fv: f64, tv: text)
-    t.rk.push(rk)
-    t.hv.push(hv)
-    t.iv.push(iv)
-    t.fv.push(fv)
-    t.tv.push(tv)
-
 # Field indexes of a record in canonical key order, the last of each
 # repeated key.
 fn cch_fields(keys: &[text], n: usize) -> List[i64]
@@ -860,8 +853,14 @@ fn cch_fields(keys: &[text], n: usize) -> List[i64]
         j += 1
     return o
 
+# The tokens are built in local lists (a push onto a local list does not
+# copy it in the reference evaluator), then moved into the struct.
 fn cch_flat(v: &CVal) -> CchToks
-    var tk = CchToks(rk: [], hv: [], iv: [], fv: [], tv: [])
+    var rk: List[i64] = []
+    var hv: List[i64] = []
+    var iv: List[i64] = []
+    var fv: List[f64] = []
+    var tv: List[text] = []
     var st: List[CVal] = [copy(v)]
     var mk: List[bool] = [false]
     while st.len() > 0 bound 1000000000
@@ -869,22 +868,36 @@ fn cch_flat(v: &CVal) -> CchToks
         let end = mk[mk.len() - 1]
         let _s = st.pop()
         let _m = mk.pop()
-        if end
-            cch_tok(&mut tk, -1, 0, 0, 0.0, "")
-        else
+        var r: i64 = -1
+        var h: i64 = 0
+        var n: i64 = 0
+        var f: f64 = 0.0
+        var t = ""
+        if not end
             match x
-                CvNull -> cch_tok(&mut tk, 0, 0, 0, 0.0, "")
-                CvBool(b: b) -> cch_tok(&mut tk, 1, 0, if b then 1 else 0, 0.0, "")
-                CvInt(v: n) -> cch_tok(&mut tk, 2, if n < 0 then -1 else 0, n, 0.0, "")
+                CvNull -> r = 0
+                CvBool(b: b)
+                    r = 1
+                    n = if b then 1 else 0
+                CvInt(v: k)
+                    r = 2
+                    h = if k < 0 then -1 else 0
+                    n = k
                 CvU64(v: u)
+                    r = 2
                     if u <= 9223372036854775807
-                        cch_tok(&mut tk, 2, 0, u as i64, 0.0, "")
+                        n = u as i64
                     else
-                        cch_tok(&mut tk, 2, 1, (u - 9223372036854775808) as i64, 0.0, "")
-                CvFloat(f: f) -> cch_tok(&mut tk, 3, 0, 0, f, "")
-                CvText(t: s) -> cch_tok(&mut tk, 4, 0, 0, 0.0, copy(s))
+                        h = 1
+                        n = (u - 9223372036854775808) as i64
+                CvFloat(f: g)
+                    r = 3
+                    f = g
+                CvText(t: s)
+                    r = 4
+                    t = copy(s)
                 CvList(items: items)
-                    cch_tok(&mut tk, 5, 0, 0, 0.0, "")
+                    r = 5
                     st.push(CvNull)
                     mk.push(true)
                     var i = items.len()
@@ -893,20 +906,25 @@ fn cch_flat(v: &CVal) -> CchToks
                         st.push(copy(items[i]))
                         mk.push(false)
                 CvRec(keys: ks, vals: vs)
-                    cch_tok(&mut tk, 6, 0, 0, 0.0, "")
+                    r = 6
                     st.push(CvNull)
                     mk.push(true)
-                    let n = if ks.len() < vs.len() then ks.len() else vs.len()
-                    let ord = cch_fields(ks, n)
+                    let m = if ks.len() < vs.len() then ks.len() else vs.len()
+                    let ord = cch_fields(ks, m)
                     var i = ord.len()
                     while i > 0 bound 1000000
                         i -= 1
-                        let f = ord[i] as usize
-                        st.push(copy(vs[f]))
+                        let fi = ord[i] as usize
+                        st.push(copy(vs[fi]))
                         mk.push(false)
-                        st.push(CvText(t: copy(ks[f])))
+                        st.push(CvText(t: copy(ks[fi])))
                         mk.push(false)
-    return tk
+        rk.push(r)
+        hv.push(h)
+        iv.push(n)
+        fv.push(f)
+        tv.push(t)
+    return CchToks(rk: rk, hv: hv, iv: iv, fv: fv, tv: tv)
 
 fn cch_neg_zero(x: f64) -> bool = x == 0.0 and x.tostr() == "-0"
 
@@ -1110,7 +1128,8 @@ fn cch_write(tk: &CchToks) -> text
                         out.push(",")
                 else
                     out.push(":")
-                cnt[top] = c + 1
+                let _c = cnt.pop()
+                cnt.push(c + 1)
             if r == 0
                 out.push("null")
             elif r == 1
