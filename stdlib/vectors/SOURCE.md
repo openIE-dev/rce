@@ -69,8 +69,8 @@ col exposes accessor functions (`om_keys`, `hm_keys`, `dq_to_list`).
 ## col.cache (`lib/col/cache.rce`)
 
 No official vector set applies; every vector is derived, written by
-`scripts/gen/cache_gen.py` into `tests/col/cache_checks_2.rce` ..
-`cache_checks_13.rce` from three independent references:
+`scripts/gen/cache_gen.py` into `tests/col/cache_checks_3.rce` ..
+`cache_checks_18.rce` from three independent references:
 
 - cachetools 7.2.6 (`pip install cachetools==7.2.6`) on CPython 3.13:
   random access traces (get, put with the keys that leave, `in`, pop,
@@ -99,6 +99,12 @@ No official vector set applies; every vector is derived, written by
   generated programs whose state holds Set, Map (text, integer, tuple and
   float keys), tuple, struct, kind, option, u64 and float values, which
   are SHA-256 of the canonical JSON of the state's positional form.
+- Values beyond one text (N9): `cv_canon_parts` and `cv_hash` of two
+  values whose canonical JSON is longer than 1,000,000 bytes (one with the
+  1,000,000-byte cut inside a 2-byte character) and of one value cut into
+  4,096-byte parts; the expected parts are cut by the generator from the
+  spec encoder's text, one check per file because each walks about a
+  megabyte of comptime fuel.
 
 Not covered: a bloom filter (left for a later wave), time-to-use per item
 (cachetools `TLRUCache`) and size-weighted capacities (`getsizeof`).

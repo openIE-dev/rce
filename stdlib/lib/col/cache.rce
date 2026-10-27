@@ -7,8 +7,9 @@ module col.cache
 # - Keys are text. A key is found through FNV-1a 32 of its UTF-8 bytes in
 #   an open-addressed slot table (linear probing, load at most 1/2,
 #   deletion by backward shift), so a lookup costs O(key length) and does
-#   not grow with the number of entries. Entries are dense: removing one
-#   moves the last entry into its index.
+#   not grow with the number of entries. The hash has no seed, so keys
+#   chosen to collide make probes longer (more fuel), never wrong. Entries
+#   are dense: removing one moves the last entry into its index.
 # - LruCache follows cachetools.LRUCache and functools.lru_cache: a hit
 #   and a put make the key the most recently used; a put of a new key into
 #   a full cache first evicts the least recently used key.
@@ -22,10 +23,10 @@ module col.cache
 #   while now < t + ttl (the sum saturates at the i64 range); expired keys
 #   are removed by a put, a pop, len and expire, before a full cache
 #   evicts its least recently used key, and a get or a remove of an
-#   expired key misses without removing it. Time is an instant the caller passes in (a logged
-#   reading, as in time and os.clock); the cache never reads a clock. An
-#   instant earlier than the latest one the cache has seen is read as that
-#   latest one, so expiry never runs backwards.
+#   expired key misses without removing it. Time is an instant the caller
+#   passes in (a logged reading, as in time and os.clock); the cache never
+#   reads a clock. An instant earlier than the latest one the cache has
+#   seen is read as that latest one, so expiry never runs backwards.
 # - Memo is an LruCache keyed by the SHA-256 (lowercase hex) of the
 #   canonical JSON (spec 6.1.1) of the arguments, given as a CVal; its
 #   hits, misses and current size count as functools.lru_cache(typed=True)
@@ -621,7 +622,8 @@ pub fn lfu_info[V](c: &LfuCache[V]) -> CacheInfo = CacheInfo(hits: c.hits, misse
 # ---------------- TTL ----------------
 # Two orders over the entries: recency (lr, least recent first) and expiry
 # (xq, earliest first). Every put appends to the end of xq with the latest
-# instant plus the one ttl, so xq stays sorted by expiry.
+# instant plus ttl, and ttl is fixed per cache, so xq stays sorted by
+# expiry.
 
 pub struct TtlCache[V]
     ix: CchIx
@@ -989,10 +991,11 @@ fn cch_hex2(b: i64) -> text
     let d = "0123456789abcdef"
     return d[(b >> 4) as usize:((b >> 4) + 1) as usize] + d[(b & 15) as usize:((b & 15) + 1) as usize]
 
-# A JSON string by rule 4 of 6.1.1: '"' and '\' escaped, LF, CR and TAB
-# as \n, \r, \t, every other value below U+0020 as \u00xx (lowercase),
-# everything else as itself.
-fn cch_jstr(s: &text) -> text
+# The pieces of a JSON string by rule 4 of 6.1.1: '"' and '\' escaped,
+# LF, CR and TAB as \n, \r, \t, every other value below U+0020 as \u00xx
+# (lowercase), everything else as itself; runs are cut from s at byte
+# offsets of ASCII bytes, so every piece is valid text.
+fn cch_jstr_pieces(s: &text) -> List[text]
     var out: List[text] = ["\""]
     var st: usize = 0
     var i: usize = 0
@@ -1019,7 +1022,7 @@ fn cch_jstr(s: &text) -> text
     if n > st
         out.push(s[st:n])
     out.push("\"")
-    return "".join(out)
+    return out
 
 fn cch_zeros(n: i64) -> text
     var s = ""
@@ -1102,58 +1105,130 @@ pub fn cv_float_text(x: f64) -> text
     let m = if nd > 1 then digits[0:1] + "." + digits[1:nd as usize] else copy(digits)
     return sign + m + "e" + e10.tostr()
 
-fn cch_int_text(hv: i64, iv: i64) -> text
-    if hv == 1
-        let u = (iv as u64) + 9223372036854775808
-        return u.tostr()
-    return iv.tostr()
+# The largest offset k <= room at which p can be cut (a character
+# boundary); 0 when the first character is longer than room.
+fn cch_cut(p: &text, room: usize) -> usize
+    var k = room
+    while k > 0 and ((p[k] as i64) & 192) == 128 bound 8
+        k -= 1
+    return k
 
-fn cch_write(tk: &CchToks) -> text
-    var out: List[text] = []
-    var ctx: List[i64] = []
-    var cnt: List[i64] = []
-    var i: usize = 0
-    while i < tk.rk.len() bound 1000000000
-        let r = tk.rk[i]
-        if r < 0
-            out.push(if ctx[ctx.len() - 1] == 5 then "]" else "}")
-            let _c = ctx.pop()
-            let _n = cnt.pop()
+# The canonical JSON of v (spec 6.1.1) as consecutive parts of at most max
+# bytes each (max is read in 16 .. 1,000,000), cut only between
+# characters; joined, they are cv_canon(v). This is the form for a value
+# whose canonical JSON is longer than a text can be (N9: 1,000,000
+# elements). The value is walked with an explicit stack of open lists and
+# records, so neither its depth nor its size meets a recursion or list
+# limit here.
+pub fn cv_canon_parts(v: &CVal, max: i64) -> List[text]
+    let cap = (if max < 16 then 16 else (if max > 1000000 then 1000000 else max)) as usize
+    var parts: List[text] = []
+    var cur: List[text] = []
+    var cn: usize = 0
+    # open containers: elements (of a list) or values (of a record), the
+    # record's keys and field order, whether it is a record, next position
+    var fl: List[List[CVal]] = []
+    var fk: List[List[text]] = []
+    var fo: List[List[i64]] = []
+    var fr: List[bool] = []
+    var fi: List[usize] = []
+    var x = copy(v)
+    var have = true
+    var go = true
+    while go bound 1000000000
+        var pend: List[text] = []
+        if have
+            have = false
+            match x
+                CvNull -> pend.push("null")
+                CvBool(b: b) -> pend.push(if b then "true" else "false")
+                CvInt(v: k) -> pend.push(k.tostr())
+                CvU64(v: u) -> pend.push(u.tostr())
+                CvFloat(f: g) -> pend.push(cv_float_text(g))
+                CvText(t: t) -> pend = cch_jstr_pieces(t)
+                CvList(items: items)
+                    pend.push("[")
+                    fl.push(copy(items))
+                    fk.push([])
+                    fo.push([])
+                    fr.push(false)
+                    fi.push(0)
+                CvRec(keys: ks, vals: vs)
+                    pend.push("{")
+                    let m = if ks.len() < vs.len() then ks.len() else vs.len()
+                    fl.push(copy(vs))
+                    fk.push(copy(ks))
+                    fo.push(cch_fields(ks, m))
+                    fr.push(true)
+                    fi.push(0)
+        elif fi.len() == 0
+            go = false
         else
-            if ctx.len() > 0
-                let top = ctx.len() - 1
-                let c = cnt[top]
-                if ctx[top] == 5 or c % 2 == 0
-                    if c > 0
-                        out.push(",")
+            let top = fi.len() - 1
+            let i = fi[top]
+            let rec = fr[top]
+            let n = if rec then fo[top].len() else fl[top].len()
+            if i < n
+                if i > 0
+                    pend.push(",")
+                if rec
+                    let f = fo[top][i] as usize
+                    for kp in cch_jstr_pieces(&fk[top][f])
+                        pend.push(copy(kp))
+                    pend.push(":")
+                    x = copy(fl[top][f])
                 else
-                    out.push(":")
-                let _c = cnt.pop()
-                cnt.push(c + 1)
-            if r == 0
-                out.push("null")
-            elif r == 1
-                out.push(if tk.iv[i] == 1 then "true" else "false")
-            elif r == 2
-                out.push(cch_int_text(tk.hv[i], tk.iv[i]))
-            elif r == 3
-                out.push(cv_float_text(tk.fv[i]))
-            elif r == 4
-                out.push(cch_jstr(&tk.tv[i]))
+                    x = copy(fl[top][i])
+                have = true
+                let _i = fi.pop()
+                fi.push(i + 1)
             else
-                out.push(if r == 5 then "[" else "{")
-                ctx.push(r)
-                cnt.push(0)
-        i += 1
-    return "".join(out)
+                pend.push(if rec then "}" else "]")
+                let _l = fl.pop()
+                let _k = fk.pop()
+                let _o = fo.pop()
+                let _r = fr.pop()
+                let _i = fi.pop()
+        # move the pieces into parts of at most cap bytes
+        for p in pend
+            var rest = copy(p)
+            while rest.len_bytes() > 0 bound 4000000
+                let room = cap - cn
+                if rest.len_bytes() <= room
+                    cn += rest.len_bytes()
+                    cur.push(rest)
+                    rest = ""
+                else
+                    let k = cch_cut(&rest, room)
+                    if k > 0
+                        cur.push(rest[0:k])
+                        rest = rest[k:rest.len_bytes()]
+                    parts.push("".join(cur))
+                    cur = []
+                    cn = 0
+    if cn > 0 or parts.len() == 0
+        parts.push("".join(cur))
+    return parts
 
-# The canonical JSON of v (spec 6.1.1).
-pub fn cv_canon(v: &CVal) -> text
-    let tk = cch_flat(v)
-    return cch_write(&tk)
+# The canonical JSON of v (spec 6.1.1). A canonical JSON longer than a
+# text can be (N9) is refused by the size limit; cv_canon_parts gives it
+# in parts.
+pub fn cv_canon(v: &CVal) -> text = "".join(cv_canon_parts(v, 1000000))
 
-# SHA-256 of the canonical JSON of v, 64 lowercase hex digits.
-pub fn cv_hash(v: &CVal) -> text = cv_canon(v).sha256()
+# SHA-256 of the canonical JSON of v, 64 lowercase hex digits: the hash
+# the engine gives the same Form value. For a canonical JSON longer than
+# 1,000,000 bytes (beyond what one text holds) it is the SHA-256 of the
+# concatenated hex SHA-256 of its cv_canon_parts(v, 1000000); no canonical
+# JSON consists of 128 or more hex digits only, so the two forms never
+# collide, and equal values still have equal hashes.
+pub fn cv_hash(v: &CVal) -> text
+    let ps = cv_canon_parts(v, 1000000)
+    if ps.len() == 1
+        return ps[0].sha256()
+    var hs: List[text] = []
+    for p in ps
+        hs.push(p.sha256())
+    return "".join(hs).sha256()
 
 # Stable merge sort of the indexes 0..n by the token sequences ts.
 fn cch_sort_idx(ts: &[CchToks]) -> List[i64]

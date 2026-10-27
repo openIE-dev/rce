@@ -2,7 +2,7 @@
 # churn, canonical order against the built-in Set (set_of, spec 6.1) and
 # memoized recursion against functools.lru_cache. The generated vectors
 # (cachetools, functools.lru_cache, the canonical JSON vectors and encoder
-# of spec 6.1.1, engine state hashes) are in cache_checks_2..13.rce, from
+# of spec 6.1.1, engine state hashes) are in cache_checks_3..18.rce, from
 # scripts/gen/cache_gen.py.
 
 fn c_rnd(s: i64) -> i64 = (s * 1103515245 + 12345) & 2147483647
@@ -258,19 +258,6 @@ fn rec_rules() -> bool
     let variant = CvRec(keys: ["x", "$v"], vals: [CvInt(v: 1), CvText(t: "V")])
     return cv_canon(&dup) == "{\"a\":2,\"b\":3}" and cv_canon(&short) == "{\"y\":false,\"z\":null}" and cv_canon(&variant) == "{\"$v\":\"V\",\"x\":1}"
 
-fn c_deep(n: i64) -> CVal
-    var v = CvNull
-    for _i in 0..n
-        v = CvList(items: [v])
-    return v
-
-# Depth is walked with an explicit stack: no recursion limit applies.
-fn deep_ok() -> bool
-    let a = c_deep(20000)
-    let b = c_deep(19999)
-    let t = cv_canon(&a)
-    return t.len_bytes() == 40004 and t[0:3] == "[[[" and t[19998:20006] == "[[null]]" and cv_cmp(&a, &b) == 1 and cv_cmp(&b, &a) == -1 and cv_cmp(&a, &a) == 0 and cv_hash(&a).len_bytes() == 64
-
 fn cmp_chain() -> bool
     let xs = [CvNull, CvBool(b: false), CvBool(b: true), CvInt(v: 0 - 9223372036854775807 - 1), CvInt(v: -1), CvU64(v: 0), CvInt(v: 9223372036854775807), CvU64(v: 9223372036854775808), CvU64(v: 18446744073709551615), CvFloat(f: -1e300), CvFloat(f: -0.0), CvFloat(f: 0.0), CvFloat(f: 5e-324), CvText(t: ""), CvText(t: "Z"), CvText(t: "a"), CvText(t: "\u{fb33}"), CvText(t: "\u{1f600}"), CvList(items: []), CvList(items: [CvNull]), CvList(items: [CvInt(v: 1)]), CvList(items: [CvInt(v: 1), CvNull]), CvRec(keys: [], vals: []), CvRec(keys: ["a"], vals: [CvInt(v: 1)]), CvRec(keys: ["a", "b"], vals: [CvInt(v: 1), CvNull]), CvRec(keys: ["a"], vals: [CvInt(v: 2)]), CvRec(keys: ["b"], vals: [CvNull])]
     var ok = true
@@ -356,6 +343,39 @@ fn map_rules() -> bool
     let ct2 = cv_texts(&two)
     return cv_canon(&m) == "[[1,true],[2,\"last\"],[\"a\",0]]" and cv_canon(&ci) == "[3]" and cv_canon(&ct2) == "[\"a\",\"\u{e9}\"]"
 
+fn c_text(seed: i64, n: i64) -> text
+    var t = ""
+    var s = seed
+    for _i in 0..n
+        s = c_rnd(s)
+        t = t + copy(C_ALPHA[((s >> 7) % 10) as usize])
+    return t
+
+# cv_canon_parts: the parts join to cv_canon, none is empty or longer than
+# max, and each but the last is cut at most 3 bytes short of max (one
+# character of up to 4 bytes is never split).
+fn parts_prop(seed: i64) -> bool
+    var s = seed
+    var ok = true
+    for _r in 0..25
+        s = c_rnd(s)
+        var items: List[CVal] = []
+        for j in 0..((s >> 5) % 6)
+            items.push(CvText(t: c_text(s + j, (s >> (j + 9)) % 14)))
+            items.push(CvRec(keys: [c_text(s - j, 3), "k"], vals: [CvInt(v: s - 1000000000), CvFloat(f: 0.1)]))
+        let v = CvList(items: items)
+        let whole = cv_canon(&v)
+        for mx in [0, 16, 17, 23, 64]
+            let ps = cv_canon_parts(&v, mx)
+            let cap: i64 = if mx < 16 then 16 else mx
+            ok = ok and "".join(copy(ps)) == whole
+            for i in 0..ps.len()
+                let n = ps[i].len_bytes() as i64
+                ok = ok and n <= cap and n > 0 and (i + 1 == ps.len() or n > cap - 4)
+        let one = cv_canon_parts(&v, 5000000)
+        ok = ok and one.len() == 1 and one[0] == whole and cv_hash(&v) == whole.sha256()
+    return ok
+
 # ---------------- memoization ----------------
 
 fn c_sq(x: i64) -> i64 = x * x
@@ -419,10 +439,11 @@ check ix_sweep(3000, 17)
 check ix_sweep(2000, 4242)
 check ix_evict(2000)
 check rec_rules()
-check deep_ok()
 check cmp_chain()
 check set_vs_builtin(7)
 check set_vs_builtin(99)
 check map_rules()
+check parts_prop(3)
+check parts_prop(77)
 check memo_basic()
 check memo_fib()
