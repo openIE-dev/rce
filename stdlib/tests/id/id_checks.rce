@@ -454,3 +454,18 @@ check th_kn([255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 25
 check th_kn([0, 0, 0, 7, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255]) == [0, 0, 0, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
 check th_knew(1399999999, [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]) == "at -1" and th_knew(5694967296, [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]) == "at -1" and th_knew(5694967295, [0, 0, 0]) == "at 3"
 check th_kseq("0ujtsYcgvSTl8PAuAdqWYSMnLOv", 65536) == "at -1" and th_kseq("0ujtsYcgvSTl8PAuAdqWYSMnLOv", -1) == "at -1" and th_ktext([1, 2, 3]) == "at 3: a KSUID is 20 bytes"
+
+# a Nano ID chunk with a value outside 0..255 is refused whole; a state no
+# nanoid_gen made is refused
+fn th_feed_bad() -> List[i64]
+    let al = "abc"
+    var g = nanoid_gen(&al, 4) catch NanoGen(alpha: [], size: 0, block: 0, cutoff: 0, out: [], pend: [], used: 0)
+    let c1: List[i64] = [1, 2, 3, 999]
+    let a = nanoid_feed(&mut g, &c1) catch false
+    let at = (nanoid_feed(&mut g, &c1) catch |e| (e.at == 3))
+    var h = NanoGen(alpha: [], size: 3, block: 0, cutoff: 0, out: [], pend: [], used: 0)
+    let c2: List[i64] = [1]
+    let b = nanoid_feed(&mut h, &c2) catch |e| (e.at == -1)
+    return [if a then 1 else 0, if at then 1 else 0, g.pend.len() as i64, g.used, if b then 1 else 0]
+
+check th_feed_bad() == [0, 1, 0, 0, 1]
