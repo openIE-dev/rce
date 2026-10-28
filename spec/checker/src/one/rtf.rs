@@ -17,8 +17,10 @@
 //! exact tie) when it reads back, and otherwise the one that does.
 //!
 //! Each function is built once and is the same for every program; none is
-//! charged fuel.
-use super::build::{FB, Fns, R, lit, sym, wide};
+//! charged fuel. Every loop has a bounded shape (`shape`): a measure, or a
+//! count bound computed before the loop, which the comment beside it shows
+//! the loop cannot reach.
+use super::build::{FB, Fns, R, count_t, lit, sym, wide};
 use super::ir::*;
 use super::rt;
 
@@ -52,7 +54,10 @@ fn fop(b: &mut FB, op: &str, x: Atom, y: Atom) -> R<Atom> {
 /// `big.norm(a)`: a without its high zero digits.
 fn norm(f: &mut Fns) -> R<usize> {
     f.get("rt.big.norm", vec![big()], big(), |_, mut b| {
+        // each iteration that goes on pops one digit: at most n0 of them
+        let n0 = b.p("list.len", vec![rt::u32t()], vec![Atom::V(0)])?;
         let x = b.var(big(), Atom::V(0));
+        let cnt = b.counter();
         b.loop_(|b| {
             let n = b.p("list.len", vec![rt::u32t()], vec![Atom::V(x)])?;
             let z = b.int_cmp("int.eq", n.clone(), lit(0))?;
@@ -61,6 +66,7 @@ fn norm(f: &mut Fns) -> R<usize> {
             let d = b.list_at(Atom::V(x), n1)?;
             let nz = b.int_cmp("int.eq", d, lit(0))?;
             b.exit_unless(nz)?;
+            b.count(cnt, n0.clone())?;
             let xv = b.take(x);
             let n2 = b.p("list.len", vec![rt::u32t()], vec![xv.clone()])?;
             let ne = b.int_cmp("int.eq", n2, lit(0))?;
@@ -244,12 +250,15 @@ fn cmp(f: &mut Fns) -> R<usize> {
             b.set(r, lit(1));
             Ok(())
         }, |b| {
-            // the same length: from the most significant digit down
-            let i = b.var(Ty::Int(0, INT_MAX), nx);
+            // the same length: from the most significant digit down; i
+            // falls by one per iteration from nx, so at most nx iterations
+            let i = b.var(Ty::Int(0, INT_MAX), nx.clone());
+            let cnt = b.counter();
             b.loop_(|b| {
                 let iv = b.take(i);
                 let z = b.int_cmp("int.eq", iv.clone(), lit(0))?;
                 b.exit_if(z)?;
+                b.count(cnt, nx.clone())?;
                 let i1 = b.sub_in(iv, lit(1), Ty::Int(0, INT_MAX))?;
                 b.set(i, i1.clone());
                 let p = b.list_at(x2.clone(), i1.clone())?;
@@ -323,10 +332,14 @@ fn mul_pow10(f: &mut Fns) -> R<usize> {
     f.get("rt.big.pow10", vec![big(), Ty::Int(0, 65535)], big(), move |f, mut b| {
         let x = b.var(big(), b.arg(0));
         let k = b.var(Ty::Int(0, 65535), b.arg(1));
+        // k falls by 9 per iteration from the second argument and stays
+        // not negative: fewer iterations than that argument
+        let cnt = b.counter();
         b.loop_(|b| {
             let kv = b.take(k);
             let more = b.int_cmp("int.le", lit(9), kv.clone())?;
             b.exit_unless(more)?;
+            b.count(cnt, b.arg(1))?;
             let k2 = b.sub_in(kv, lit(9), Ty::Int(0, 65535))?;
             b.set(k, k2);
             let xv = b.take(x);
@@ -367,11 +380,14 @@ fn divmod_small(f: &mut Fns) -> R<usize> {
             Ok(())
         })?;
         let rem = b.var(Ty::Int(0, (1 << 31) - 1), lit(0));
-        let i = b.var(Ty::Int(0, INT_MAX), n);
+        // i falls by one per iteration from n: at most n iterations
+        let i = b.var(Ty::Int(0, INT_MAX), n.clone());
+        let cnt = b.counter();
         b.loop_(|b| {
             let iv = b.take(i);
             let z = b.int_cmp("int.eq", iv.clone(), lit(0))?;
             b.exit_if(z)?;
+            b.count(cnt, n.clone())?;
             let i1 = b.sub_in(iv, lit(1), Ty::Int(0, INT_MAX))?;
             b.set(i, i1.clone());
             let x = b.list_at(a.clone(), i1.clone())?;
@@ -410,9 +426,18 @@ fn dec(f: &mut Fns) -> R<usize> {
     let dm = divmod_small(f)?;
     let ds = rt::dec_sm(f)?;
     f.get("rt.big.dec", vec![big()], Ty::Bytes, move |f, mut b| {
+        // each iteration takes nine decimal digits off a; a number of n
+        // base-2^32 digits is below 2^(32n) < 10^(10n), so it has at most
+        // 10n decimal digits, at most 2n groups of nine when n >= 1, and 0
+        // has one group: at most 2n + 1 iterations
+        let n0 = b.p("list.len", vec![rt::u32t()], vec![b.arg(0)])?;
+        let n2 = b.mul_in(n0, lit(2), count_t())?;
+        let most = b.add_in(n2, lit(1), count_t())?;
         let x = b.var(big(), b.arg(0));
         let acc = b.var(Ty::Bytes, Atom::bytes(b""));
+        let cnt = b.counter();
         b.loop_(|b| {
+            b.count(cnt, most.clone())?;
             let xv = b.take(x);
             let qr = call(b, f, dm, vec![xv, lit(1_000_000_000)]);
             let qrt = b.ty(&qr);
@@ -425,13 +450,16 @@ fn dec(f: &mut Fns) -> R<usize> {
             let sv = b.var(Ty::Bytes, s);
             let more = b.not(last.clone())?;
             b.when(more, |b| {
-                // a digit group below the top one has nine digits
+                // a digit group below the top one has nine digits; each
+                // iteration adds one, so at most nine iterations
+                let cnt = b.counter();
                 b.loop_(|b| {
                     let s = b.take(sv);
                     let n = b.p("bytes.len", vec![], vec![s.clone()])?;
                     let short = b.int_cmp("int.lt", n, lit(9))?;
                     b.set(sv, s.clone());
                     b.exit_unless(short)?;
+                    b.count(cnt, lit(9))?;
                     let s = b.take(sv);
                     let s2 = b.cat(Atom::bytes(b"0"), s)?;
                     b.set(sv, s2);
@@ -486,13 +514,19 @@ fn parts(f: &mut Fns, fm: Fmt) -> R<usize> {
         let x = b.var(Ty::F64, b.arg(0));
         let e = b.var(exp_t(), lit(0));
         let pow = |k: i32| f64k(2f64.powi(k));
+        // x is a positive binary64 value, so its binary exponent lies in
+        // -1074 ..= 1023, a range of 2098, and each loop below moves it by
+        // `step` in one direction: at most 2098 / step + 1 iterations each
+        let most = |step: i128| lit(2098 / step + 1);
         // down by 2^64 while the result keeps p bits before the point, then by 2
         for (step, k) in [(64, p + 64), (1, p)] {
+            let cnt = b.counter();
             b.loop_(|b| {
                 let xv = b.take(x);
                 let big = b.p("f64.le", vec![], vec![pow(k), xv.clone()])?;
                 b.set(x, xv.clone());
                 b.exit_unless(big)?;
+                b.count(cnt, most(step as i128))?;
                 let x2 = fop(b, "mul", xv, pow(-step))?;
                 b.set(x, x2);
                 let ev = b.take(e);
@@ -503,6 +537,7 @@ fn parts(f: &mut Fns, fm: Fmt) -> R<usize> {
         }
         // up by 2^64, then by 2, while below 2^(p-1) and above the least exponent
         for step in [64, 1] {
+            let cnt = b.counter();
             b.loop_(|b| {
                 let xv = b.take(x);
                 let small = b.p("f64.lt", vec![], vec![xv.clone(), pow(p - 1 - if step == 64 { 64 } else { 0 })])?;
@@ -512,6 +547,7 @@ fn parts(f: &mut Fns, fm: Fmt) -> R<usize> {
                 let room = b.int_cmp("int.le", lit(fm.emin + step as i128), ev.clone())?;
                 b.set(e, ev.clone());
                 b.exit_unless(room)?;
+                b.count(cnt, most(step as i128))?;
                 let x2 = fop(b, "mul", xv, pow(step))?;
                 b.set(x, x2);
                 let e2 = b.sub_in(ev, lit(step as i128), exp_t())?;
@@ -564,12 +600,15 @@ fn sel(b: &mut FB, incl: &Atom, x: Atom, y: Atom) -> R<Atom> {
 /// grows by one; with `extend` (Rust's `round_up`) a zero is also appended.
 fn round_up(b: &mut FB, ds: u32, k: u32, extend: bool) -> R<()> {
     let n = b.p("list.len", vec![Ty::u8()], vec![Atom::V(ds)])?;
-    let i = b.var(Ty::Int(0, INT_MAX), n);
+    // i falls by one per iteration from n: at most n iterations
+    let i = b.var(Ty::Int(0, INT_MAX), n.clone());
     let done = b.var(Ty::Bool, Atom::bool(false));
+    let cnt = b.counter();
     b.loop_(|b| {
         let iv = b.take(i);
         let z = b.int_cmp("int.eq", iv.clone(), lit(0))?;
         b.exit_if(z)?;
+        b.count(cnt, n.clone())?;
         let i1 = b.sub_in(iv, lit(1), Ty::Int(0, INT_MAX))?;
         b.set(i, i1.clone());
         let d = b.list_at(Atom::V(ds), i1.clone())?;
@@ -697,10 +736,13 @@ fn digits(f: &mut Fns, fm: Fmt, pick: Pick) -> R<usize> {
         let h1 = b.sub_in(h0, lit(1), Ty::u64())?;
         let t = b.var(Ty::u64(), h1);
         let nb = b.var(Ty::Int(0, 64), lit(0));
+        // t is below 2^64: at most 64 halvings bring it to 0
+        let cnt = b.counter();
         b.loop_(|b| {
             let tv = b.take(t);
             let z = b.int_cmp("int.eq", tv.clone(), lit(0))?;
             b.exit_if(z)?;
+            b.count(cnt, lit(64))?;
             let (q, _) = b.divmod_lit(tv, 2, Ty::u64())?;
             b.set(t, q);
             let nv = b.take(nb);
@@ -754,12 +796,16 @@ fn digits(f: &mut Fns, fm: Fmt, pick: Pick) -> R<usize> {
             let sv = if times10 { call(b, f, ms, vec![sv, lit(10)]) } else { sv };
             Ok(call(b, f, cmpf, vec![h, sv]))
         };
+        // k lies in -400 ..= 400 (its type) and each iteration of the next
+        // two loops moves it by one: at most 801 iterations each
+        let cnt = b.counter();
         b.loop_(|b| {
             let c = high_vs(b, f, true)?;
             let ge = b.int_cmp("int.le", lit(0), c.clone())?;
             let gt = b.int_cmp("int.lt", lit(0), c)?;
             let reach = sel(b, &incl, ge, gt)?;
             b.exit_unless(reach)?;
+            b.count(cnt, lit(801))?;
             let x = b.take(s);
             let y = call(b, f, ms, vec![x, lit(10)]);
             b.set(s, y);
@@ -768,12 +814,14 @@ fn digits(f: &mut Fns, fm: Fmt, pick: Pick) -> R<usize> {
             b.set(k, k1);
             Ok(())
         })?;
+        let cnt = b.counter();
         b.loop_(|b| {
             let c = high_vs(b, f, false)?;
             let lt = b.int_cmp("int.lt", c.clone(), lit(0))?;
             let le = b.int_cmp("int.le", c, lit(0))?;
             let low = sel(b, &incl, lt, le)?;
             b.exit_unless(low)?;
+            b.count(cnt, lit(801))?;
             for v in [r, mm, mtr, mp] {
                 let x = b.take(v);
                 let y = call(b, f, ms, vec![x, lit(10)]);
@@ -789,14 +837,23 @@ fn digits(f: &mut Fns, fm: Fmt, pick: Pick) -> R<usize> {
         let ds = b.var(u8list(), d0);
         let down = b.var(Ty::Bool, Atom::bool(false));
         let up = b.var(Ty::Bool, Atom::bool(false));
+        // iteration j writes the digit of v at 10^(k - j). v = m * 2^e with
+        // e >= emin is a multiple of 10^emin (2^emin is 5^-emin / 10^-emin),
+        // so once the digits reach 10^emin nothing is left (r is 0, below
+        // mm) and the loop stops: at most k - emin iterations, and k <= 400
+        let cnt = b.counter();
         b.loop_(|b| {
+            b.count(cnt, lit(400 - fm.emin))?;
             let d = b.var(Ty::Int(0, 9), lit(0));
+            // d lies in 0 ..= 9 (its type) and each iteration raises it by one
+            let cnt_d = b.counter();
             b.loop_(|b| {
                 let rv = b.peek(r)?;
                 let sv = b.peek(s)?;
                 let c = call(b, f, cmpf, vec![rv, sv]);
                 let lt = b.int_cmp("int.lt", c, lit(0))?;
                 b.exit_if(lt)?;
+                b.count(cnt_d, lit(10))?;
                 let rv = b.take(r);
                 let sv = b.peek(s)?;
                 let r2 = call(b, f, subf, vec![rv, sv]);
@@ -1195,10 +1252,13 @@ pub fn int_to_f32(f: &mut Fns) -> R<usize> {
         // the bit length of the magnitude, and the 24 leading bits rounded
         let t = b.var(Ty::u64(), mag.clone());
         let nb = b.var(Ty::Int(0, 64), lit(0));
+        // t is below 2^64: at most 64 halvings bring it to 0
+        let cnt = b.counter();
         b.loop_(|b| {
             let tv = b.take(t);
             let z = b.int_cmp("int.eq", tv.clone(), lit(0))?;
             b.exit_if(z)?;
+            b.count(cnt, lit(64))?;
             let (q, _) = b.divmod_lit(tv, 2, Ty::u64())?;
             b.set(t, q);
             let nv = b.take(nb);

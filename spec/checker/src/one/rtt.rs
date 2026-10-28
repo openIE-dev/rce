@@ -6,8 +6,10 @@
 //! UTF-8 gives the same result.
 //!
 //! Each function is built once and is the same for every program; none is
-//! charged fuel.
-use super::build::{FB, Fns, R, lit, sym};
+//! charged fuel. Every loop has a bounded shape (`shape`): a measure, or a
+//! count bound computed before the loop, which the comment beside it shows
+//! the loop cannot reach.
+use super::build::{FB, Fns, R, count_t, lit, sym};
 use super::ir::*;
 use super::rt;
 
@@ -130,14 +132,17 @@ pub fn is_ws(f: &mut Fns) -> R<usize> {
 
 /// The byte index where the character before byte j (j > 0) starts.
 fn char_before(b: &mut FB, t: &Atom, j: Atom) -> R<Atom> {
-    let s0 = b.sub_in(j, lit(1), idx())?;
+    let s0 = b.sub_in(j.clone(), lit(1), idx())?;
     let s = b.var(idx(), s0);
     let t = t.clone();
+    // s starts below j and falls by one per iteration: at most j iterations
+    let cnt = b.counter();
     b.loop_(|b| {
         let sv = b.take(s);
         let c = b.byte_at(t.clone(), sv.clone())?;
         let cont = between(b, &c, 0x80, 0xbf)?;
         b.exit_unless(cont)?;
+        b.count(cnt, j.clone())?;
         let s1 = b.sub_in(sv, lit(1), idx())?;
         b.set(s, s1);
         Ok(())
@@ -154,10 +159,14 @@ pub fn strip(f: &mut Fns) -> R<usize> {
         let t = b.arg(0);
         let n = b.p("bytes.len", vec![], vec![t.clone()])?;
         let a = b.var(idx(), lit(0));
+        // a rises by at least one byte per iteration and stays below n:
+        // at most n iterations; likewise e falls from n and stays above a
+        let cnt = b.counter();
         b.loop_(|b| {
             let av = b.take(a);
             let more = b.int_cmp("int.lt", av.clone(), n.clone())?;
             b.exit_unless(more)?;
+            b.count(cnt, n.clone())?;
             let ai = b.cast_in(av.clone(), Ty::u64())?;
             let d = call(b, f, dec, vec![t.clone(), ai]);
             let dt = b.ty(&d);
@@ -169,11 +178,13 @@ pub fn strip(f: &mut Fns) -> R<usize> {
             Ok(())
         })?;
         let e = b.var(idx(), n.clone());
+        let cnt = b.counter();
         b.loop_(|b| {
             let ev = b.take(e);
             let av = b.take(a);
             let more = b.int_cmp("int.lt", av, ev.clone())?;
             b.exit_unless(more)?;
+            b.count(cnt, n.clone())?;
             let s = char_before(b, &t, ev)?;
             let si = b.cast_in(s.clone(), Ty::u64())?;
             let d = call(b, f, dec, vec![t.clone(), si]);
@@ -231,10 +242,13 @@ pub fn chars(f: &mut Fns) -> R<usize> {
         let o0 = b.p("list.new", vec![Ty::Bytes], vec![])?;
         let out = b.var(texts(), o0);
         let i = b.var(idx(), lit(0));
+        // i rises by at least one byte per iteration and stays below n
+        let cnt = b.counter();
         b.loop_(|b| {
             let iv = b.take(i);
             let more = b.int_cmp("int.lt", iv.clone(), n.clone())?;
             b.exit_unless(more)?;
+            b.count(cnt, n.clone())?;
             let c = b.byte_at(t.clone(), iv.clone())?;
             let l = n_or(b, &c)?;
             let j = b.add_in(iv.clone(), l, idx())?;
@@ -327,10 +341,13 @@ pub fn words(f: &mut Fns) -> R<usize> {
                 push_text(b, out, w)
             })
         };
+        // i rises by at least one byte per iteration and stays below n
+        let cnt = b.counter();
         b.loop_(|b| {
             let iv = b.take(i);
             let more = b.int_cmp("int.lt", iv.clone(), n.clone())?;
             b.exit_unless(more)?;
+            b.count(cnt, n.clone())?;
             let ii = b.cast_in(iv.clone(), Ty::u64())?;
             let d = call(b, f, dec, vec![t.clone(), ii]);
             let dt = b.ty(&d);
@@ -414,10 +431,15 @@ pub fn find(f: &mut Fns) -> R<usize> {
         })?;
         let last = b.sub_in(n, m.clone(), idx())?;
         let i = b.var(idx(), from);
+        // i rises by one per iteration and stays at most last: at most
+        // last + 1 iterations
+        let most = b.add_in(last.clone(), lit(1), count_t())?;
+        let cnt = b.counter();
         b.loop_(|b| {
             let iv = b.take(i);
             let more = b.int_cmp("int.le", iv.clone(), last.clone())?;
             b.exit_unless(more)?;
+            b.count(cnt, most.clone())?;
             let j = b.add_in(iv.clone(), m.clone(), idx())?;
             let piece = slice(b, t.clone(), iv.clone(), j)?;
             let same = b.p("bytes.eq", vec![], vec![piece, d.clone()])?;
@@ -501,6 +523,9 @@ pub fn split(f: &mut Fns) -> R<usize> {
             Ok(())
         })?;
         let start = b.var(idx(), lit(0));
+        // each iteration that goes on finds d at some p >= start, below n,
+        // and moves start past p (d is not empty here): at most n of them
+        let cnt = b.counter();
         b.loop_(|b| {
             let sv = b.take(start);
             let p = call(b, f, fd, vec![t.clone(), d.clone(), sv.clone()]);
@@ -512,6 +537,7 @@ pub fn split(f: &mut Fns) -> R<usize> {
                 b.brk(0);
                 Ok(())
             })?;
+            b.count(cnt, n.clone())?;
             let p = b.cast_in(p, idx())?;
             let piece = slice(b, t.clone(), sv, p.clone())?;
             push_text(b, out, piece)?;
@@ -622,11 +648,14 @@ pub fn toint(f: &mut Fns) -> R<usize> {
         })?;
         // without leading zeros (one digit kept)
         let j = b.var(idx(), i);
+        // j rises by one per iteration and stays below n
+        let cnt = b.counter();
         b.loop_(|b| {
             let jv = b.take(j);
             let n1 = b.sub_in(n.clone(), lit(1), idx())?;
             let more = b.int_cmp("int.lt", jv.clone(), n1)?;
             b.exit_unless(more)?;
+            b.count(cnt, n.clone())?;
             let c = b.byte_at(t.clone(), jv.clone())?;
             let z = b.int_cmp("int.eq", c, lit(b'0' as i128))?;
             b.exit_unless(z)?;
@@ -773,10 +802,13 @@ pub fn utf8(f: &mut Fns, et: Ty) -> R<usize> {
         let n = b.p("bytes.len", vec![], vec![t.clone()])?;
         let i = b.var(idx(), lit(0));
         let invalid = |b: &mut FB| trap(b, Atom::bytes(b"utf8: invalid UTF-8"));
+        // i rises by at least one byte per iteration and stays below n
+        let cnt = b.counter();
         b.loop_(|b| {
             let iv = b.take(i);
             let more = b.int_cmp("int.lt", iv.clone(), n.clone())?;
             b.exit_unless(more)?;
+            b.count(cnt, n.clone())?;
             let b0 = b.byte_at(t.clone(), iv.clone())?;
             // (lead range, length, range of the second byte)
             let len = b.var(Ty::Int(0, 4), lit(0));

@@ -264,6 +264,99 @@ fn json_form() {
     }
 }
 
+/// Every loop of the runtime written in the core (`rt`, `rtf`, `rtt`) has
+/// a bounded shape: a measure, or a count bound computed before the loop
+/// (`one::shape`). Every runtime function is built here, whether or not a
+/// program of the corpus calls it.
+#[test]
+fn every_runtime_loop_has_a_bounded_shape() {
+    use rce_spec_check::one::build::{Fns, sym_id};
+    use rce_spec_check::one::{rt, rtf, rtt, shape};
+    let mut f = Fns::default();
+    type Build = fn(&mut Fns) -> Result<usize, String>;
+    let all: Vec<Build> = vec![
+        rt::tick, rt::charge, rt::try_charge, rt::ceil_log2, rt::dec_sm, rt::dec, rt::sha_hex, rt::jstr, rt::debug, rt::why,
+        rt::refusal, rt::utf8_count, rtf::text, rtf::json, rtf::debug, rtf::text32, rtf::int_text, rtf::int_to_f32,
+        rtt::decode, rtt::is_ws, rtt::strip, rtt::chars, rtt::json_esc_size, rtt::reverse, rtt::words, rtt::lines,
+        rtt::find, rtt::contains, rtt::split, rtt::toint, rtt::join, rtt::boundary,
+    ];
+    for g in all {
+        g(&mut f).unwrap();
+    }
+    for op in ["add", "sub", "mul", "neg", "abs", "quo"] {
+        rt::dec_exact(&mut f, op).unwrap();
+    }
+    for b in [true, false] {
+        rtt::case(&mut f, b).unwrap();
+        rtt::affix(&mut f, b).unwrap();
+    }
+    for c in ["isdigit", "isalpha", "isspace"] {
+        rtt::is_class(&mut f, c).unwrap();
+    }
+    for c in ["Html", "Url", "Sql", "Json", "ShellArg", "Header"] {
+        rtt::encode(&mut f, c).unwrap();
+    }
+    for t in [Ty::u8(), Ty::i64()] {
+        rtt::utf8(&mut f, t).unwrap();
+    }
+    let globals: Vec<Ty> = f.globals.iter().map(|g| g.0.clone()).collect();
+    let callee = |r: &FnRef| sym_id(r).map(|i| f.sigs[i].1.clone());
+    let (mut loops, mut bad) = (0, vec![]);
+    for (id, func) in f.fns.iter().enumerate() {
+        let shapes = shape::loops(func.as_ref().unwrap(), &globals, &callee).unwrap();
+        for (k, r) in shapes.into_iter().enumerate() {
+            loops += 1;
+            if let Err(e) = r {
+                bad.push(format!("{} loop {k}: {e}", f.names[id]));
+            }
+        }
+    }
+    assert!(bad.is_empty(), "loops without a bounded shape:\n{}", bad.join("\n"));
+    eprintln!("runtime functions: {}; loops: {loops}", f.fns.len());
+    assert!(loops >= 60, "{loops} loops");
+}
+
+/// The classifier of `one::shape` itself: a loop that doubles its variable
+/// until it reaches an end has neither bounded shape; the same loop with a
+/// count bound (`FB::count`) has the count shape, and a loop over a range
+/// (`FB::for_n`) is a measure.
+#[test]
+fn loop_shapes() {
+    use rce_spec_check::one::build::FB;
+    use rce_spec_check::one::shape::{self, Shape};
+    let t = Ty::Int(1, 1000);
+    let doubling = |bounded: bool| {
+        let mut b = FB::new(vec![], Ty::unit());
+        let x = b.var(t.clone(), lit(1));
+        let cnt = b.counter();
+        b.loop_(|b| {
+            let xv = b.take(x);
+            let more = b.int_cmp("int.lt", xv.clone(), lit(100))?;
+            b.exit_unless(more)?;
+            if bounded {
+                // x doubles from 1 and is below 100 here: at most 7 times
+                b.count(cnt, lit(7))?;
+            }
+            let x2 = b.mul_in(xv, lit(2), t.clone())?;
+            b.set(x, x2);
+            Ok(())
+        })
+        .unwrap();
+        let u = b.unit().unwrap();
+        b.ret(u);
+        b.finish()
+    };
+    let shapes = |f: &Fn| shape::loops(f, &[], &|_: &FnRef| None).unwrap();
+    let r = shapes(&doubling(false));
+    assert!(matches!(r.as_slice(), [Err(why)] if why.starts_with("neither a count nor a measure")), "{r:?}");
+    assert_eq!(shapes(&doubling(true)), vec![Ok(Shape::Count)]);
+    let mut b = FB::new(vec![], Ty::unit());
+    b.for_n(lit(5), |_, _| Ok(())).unwrap();
+    let u = b.unit().unwrap();
+    b.ret(u);
+    assert_eq!(shapes(&b.finish()), vec![Ok(Shape::Measure)]);
+}
+
 /// A ring of functions: member i writes its text and calls member
 /// `spec[i].2`; they are declared in the order `order` and the entry calls
 /// member 0. Every member reaches every other, so they form one group.

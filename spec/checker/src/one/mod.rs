@@ -12,6 +12,7 @@
 //!   runtime functions the lowering calls, written in the core (`rtf`:
 //!   floats, `rtt`: text)
 //! - `lower`: the lowering of an RCE module to the core (3.5)
+//! - `shape`: the bounded shapes of a loop (a count bound or a measure)
 pub mod build;
 pub mod eval;
 pub mod ir;
@@ -20,6 +21,7 @@ pub mod lower;
 pub mod rt;
 pub mod rtf;
 pub mod rtt;
+pub mod shape;
 pub mod trace;
 pub mod wf;
 

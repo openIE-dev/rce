@@ -15,7 +15,8 @@ pub fn sym(id: usize) -> FnRef {
     FnRef::Key(format!("#{id}"), 0)
 }
 
-fn sym_id(f: &FnRef) -> Option<usize> {
+/// The registry id a reference made by [`sym`] names.
+pub fn sym_id(f: &FnRef) -> Option<usize> {
     match f {
         FnRef::Key(k, 0) => k.strip_prefix('#').and_then(|x| x.parse().ok()),
         _ => None,
@@ -37,6 +38,11 @@ pub fn wide() -> Ty {
 
 pub fn lit(v: i128) -> Atom {
     Atom::K(Ty::Int(v, v), Lit::Int(v))
+}
+
+/// The type of a loop counter.
+pub fn count_t() -> Ty {
+    Ty::Int(0, INT_MAX)
 }
 
 /// A statement builder for one function.
@@ -252,6 +258,24 @@ impl FB {
         let b = self.close();
         self.push(Stmt::Loop(b));
         Ok(())
+    }
+    /// A loop counter, declared before the loop it counts.
+    pub fn counter(&mut self) -> u32 {
+        self.var(count_t(), lit(0))
+    }
+    /// Raise loop counter `n` by one, and halt with "loop bound" when it
+    /// passes `bound`: the count bound of `shape::Count`. Written at the top
+    /// level of a loop's statement list, with `n` declared and `bound`
+    /// computed before the loop, it lets the loop pass this point at most
+    /// `bound` times. The runtime places it where every pass is an
+    /// iteration its own bound already limits, with a bound the loop cannot
+    /// reach, so it never halts there.
+    pub fn count(&mut self, n: u32, bound: Atom) -> R<()> {
+        let nv = self.let_(Atom::V(n));
+        let n1 = self.add_in(nv, lit(1), count_t())?;
+        self.set(n, n1.clone());
+        let over = self.int_cmp("int.lt", bound, n1)?;
+        self.guard_halt(over, |fb| fb.trap_value(Atom::bytes(b"loop bound")))
     }
     /// Leave the innermost loop when `c` is false.
     pub fn exit_unless(&mut self, c: Atom) -> R<()> {

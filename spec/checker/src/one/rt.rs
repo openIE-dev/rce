@@ -7,7 +7,11 @@
 //! (6.1.1) and the escape of text in display (6.3 N7, ONE-18). Each is a
 //! core function built here once, the same for every program; none is
 //! charged fuel.
-use super::build::{FB, Fns, R, lit, sym, wide};
+//!
+//! Every loop has a bounded shape (`shape`): a measure, or a count bound
+//! computed before the loop from its operands, which the loop cannot
+//! reach; the comment at each count bound says why it cannot.
+use super::build::{FB, Fns, R, count_t, lit, sym, wide};
 use super::ir::*;
 
 pub fn u32t() -> Ty {
@@ -113,10 +117,13 @@ pub fn ceil_log2(f: &mut Fns) -> R<usize> {
         })?;
         let m0 = b.sub_in(n, lit(1), Ty::u64())?;
         let m = b.var(Ty::u64(), m0);
+        // m is below 2^64, so it reaches 0 after at most 64 halvings
+        let cnt = b.counter();
         b.loop_(|b| {
             let mv = b.take(m);
             let z = b.int_cmp("int.eq", mv.clone(), lit(0))?;
             b.exit_if(z)?;
+            b.count(cnt, lit(64))?;
             let (h, _) = b.divmod_lit(mv, 2, Ty::u64())?;
             b.set(m, h);
             let kv = b.take(k);
@@ -158,6 +165,11 @@ pub fn dec_sm(f: &mut Fns) -> R<usize> {
         b.push(Stmt::If(z, t, vec![]));
         let acc = b.var(Ty::Bytes, Atom::bytes(b""));
         let x = b.var(Ty::u64(), m);
+        // m is below 2^64 and has at most 20 digits: at most 20 iterations
+        // divide it, and the 21st leaves the loop
+        let cnt = b.counter();
+        b.open();
+        b.count(cnt, lit(21))?;
         b.open();
         {
             let xv = b.let_(Atom::V(x));
@@ -175,7 +187,9 @@ pub fn dec_sm(f: &mut Fns) -> R<usize> {
             b.set(x, q);
         }
         let body = b.close();
-        b.push(Stmt::Loop(vec![Stmt::Block(body)]));
+        b.push(Stmt::Block(body));
+        let lp = b.close();
+        b.push(Stmt::Loop(lp));
         let a = b.let_(Atom::V(acc));
         b.open();
         let s = b.cat(Atom::bytes(b"-"), a.clone())?;
@@ -206,9 +220,18 @@ fn dec_limbs(f: &mut Fns) -> R<usize> {
     let lt = Ty::list(u16t());
     f.get("rt.dec_limbs", vec![Ty::Bool, lt.clone()], Ty::Bytes, |_, mut b| {
         let neg = b.arg(0);
+        // each iteration writes one decimal digit of the number; a number
+        // of n base-2^16 digits is below 65536^n < 10^(5n), so it has at
+        // most 5n decimal digits, and 0 has one: at most 5n + 1 iterations
+        let n0 = b.p("list.len", vec![u16t()], vec![b.arg(1)])?;
+        let n5 = b.mul_in(n0, lit(5), count_t())?;
+        let bound = b.add_in(n5, lit(1), count_t())?;
         let l = b.var(lt.clone(), b.arg(1));
         let acc = b.var(Ty::Bytes, Atom::bytes(b""));
+        let cnt = b.counter();
         // repeat: divide l by 10 in place, prepend the remainder, until l is 0
+        b.open();
+        b.count(cnt, bound)?;
         b.open();
         {
             let n = b.p("list.len", vec![u16t()], vec![Atom::V(l)])?;
@@ -272,7 +295,9 @@ fn dec_limbs(f: &mut Fns) -> R<usize> {
             b.push(Stmt::If(empty, t, vec![]));
         }
         let body = b.close();
-        b.push(Stmt::Loop(vec![Stmt::Block(body)]));
+        b.push(Stmt::Block(body));
+        let lp = b.close();
+        b.push(Stmt::Loop(lp));
         let old = b.let_(Atom::V(l));
         b.drop(old)?;
         let a = b.let_(Atom::V(acc));
@@ -479,6 +504,11 @@ pub fn sha_hex(f: &mut Fns) -> R<usize> {
         let l0 = b.p("bytes.to_list", vec![], vec![msg])?;
         let l0 = b.p("list.push", vec![Ty::u8()], vec![l0, lit(0x80)])?;
         let m = b.var(bytes_list(), l0);
+        // at most 63 zeros bring the length to 56 modulo 64, so at most 64
+        // iterations start
+        let cnt = b.counter();
+        b.open();
+        b.count(cnt, lit(64))?;
         b.open();
         {
             let n = b.p("list.len", vec![Ty::u8()], vec![Atom::V(m)])?;
@@ -493,7 +523,9 @@ pub fn sha_hex(f: &mut Fns) -> R<usize> {
             b.set(m, mv);
         }
         let body = b.close();
-        b.push(Stmt::Loop(vec![Stmt::Block(body)]));
+        b.push(Stmt::Block(body));
+        let lp = b.close();
+        b.push(Stmt::Loop(lp));
         // the bit length, 8 bytes big-endian (a text is below 2^61 bytes)
         let bits = b.mul_in(len, lit(8), Ty::u64())?;
         let mut parts = vec![];
@@ -703,6 +735,12 @@ fn push_hex(b: &mut FB, out: u32, v: Atom, width: Option<usize>) -> R<()> {
     let ds = b.var(bytes_list(), digits);
     let x = b.var(Ty::Int(0, 0x10ffff), v);
     let count = b.var(Ty::Int(0, 8), lit(0));
+    // v is at most 0x10ffff, six hex digits, and the loop writes one digit
+    // per iteration until v is written and the width reached
+    let most = 6.max(width.unwrap_or(0)) as i128;
+    let cnt = b.counter();
+    b.open();
+    b.count(cnt, lit(most))?;
     b.open();
     {
         let xv = b.let_(Atom::V(x));
@@ -730,10 +768,16 @@ fn push_hex(b: &mut FB, out: u32, v: Atom, width: Option<usize>) -> R<()> {
         b.push(Stmt::If(stop, t, vec![]));
     }
     let body = b.close();
-    b.push(Stmt::Loop(vec![Stmt::Block(body)]));
-    // the digits were collected least significant first
+    b.push(Stmt::Block(body));
+    let lp = b.close();
+    b.push(Stmt::Loop(lp));
+    // the digits were collected least significant first; there are at most
+    // `most`, one taken per iteration, and one more iteration leaves
     let n = b.p("list.len", vec![Ty::u8()], vec![Atom::V(ds)])?;
     let i = b.var(Ty::u64(), n);
+    let cnt = b.counter();
+    b.open();
+    b.count(cnt, lit(most + 1))?;
     b.open();
     {
         let iv = b.let_(Atom::V(i));
@@ -748,7 +792,9 @@ fn push_hex(b: &mut FB, out: u32, v: Atom, width: Option<usize>) -> R<()> {
         push_byte(b, out, c)?;
     }
     let body = b.close();
-    b.push(Stmt::Loop(vec![Stmt::Block(body)]));
+    b.push(Stmt::Block(body));
+    let lp = b.close();
+    b.push(Stmt::Loop(lp));
     let d = b.let_(Atom::V(ds));
     b.drop(d)?;
     Ok(())
@@ -846,6 +892,13 @@ fn esc_cp(f: &mut Fns) -> R<usize> {
             }
             Ok(acc)
         };
+        // each iteration that does not return leaves at most half of the
+        // hi - lo ranges still to search, so after as many iterations as n
+        // has binary digits none is left, and one more iteration returns
+        let most = (128 - (n as u128).leading_zeros()) as i128 + 1;
+        let cnt = b.counter();
+        b.open();
+        b.count(cnt, lit(most))?;
         b.open();
         {
             let l = b.let_(Atom::V(lo));
@@ -879,7 +932,9 @@ fn esc_cp(f: &mut Fns) -> R<usize> {
             b.ret(Atom::bool(true));
         }
         let body = b.close();
-        b.push(Stmt::Loop(vec![Stmt::Block(body)]));
+        b.push(Stmt::Block(body));
+        let lp = b.close();
+        b.push(Stmt::Loop(lp));
         Ok(b.finish())
     })
 }
@@ -896,6 +951,12 @@ pub fn debug(f: &mut Fns) -> R<usize> {
         push_lit(&mut b, out, b"\"")?;
         let n = b.p("bytes.len", vec![], vec![t.clone()])?;
         let i = b.var(Ty::u64(), lit(0));
+        // every iteration that does not leave moves i forward by at least
+        // one byte, and i stays below n: at most n + 1 iterations start
+        let most = b.add_in(n.clone(), lit(1), count_t())?;
+        let cnt = b.counter();
+        b.open();
+        b.count(cnt, most)?;
         b.open();
         {
             let iv = b.let_(Atom::V(i));
@@ -970,6 +1031,10 @@ pub fn debug(f: &mut Fns) -> R<usize> {
             b.push(Stmt::If(l3, t2, e3));
             let cp = b.var(Ty::Int(0, 0x10ffff), Atom::V(first));
             let j = b.var(Ty::Int(1, 4), lit(1));
+            // j runs from 1 to k, and k is at most 4: at most 4 iterations start
+            let cnt = b.counter();
+            b.open();
+            b.count(cnt, lit(4))?;
             b.open();
             {
                 let jv = b.let_(Atom::V(j));
@@ -992,7 +1057,9 @@ pub fn debug(f: &mut Fns) -> R<usize> {
                 b.set(j, j1);
             }
             let dec = b.close();
-            b.push(Stmt::Loop(vec![Stmt::Block(dec)]));
+            b.push(Stmt::Block(dec));
+            let lp = b.close();
+            b.push(Stmt::Loop(lp));
             let cpv = b.let_(Atom::V(cp));
             let e = b.call(sym(esc), Ty::Bool, vec![cpv.clone()]);
             let kv = b.let_(Atom::V(k));
@@ -1004,6 +1071,10 @@ pub fn debug(f: &mut Fns) -> R<usize> {
             b.open();
             {
                 let j2 = b.var(Ty::Int(0, 4), lit(0));
+                // j2 runs from 0 to k, and k is at most 4: at most 5 iterations start
+                let cnt = b.counter();
+                b.open();
+                b.count(cnt, lit(5))?;
                 b.open();
                 let jv = b.let_(Atom::V(j2));
                 let done = b.int_cmp("int.le", kv.clone(), jv.clone())?;
@@ -1017,7 +1088,9 @@ pub fn debug(f: &mut Fns) -> R<usize> {
                 let j1 = b.add_in(jv, lit(1), Ty::Int(0, 4))?;
                 b.set(j2, j1);
                 let cp_body = b.close();
-                b.push(Stmt::Loop(vec![Stmt::Block(cp_body)]));
+                b.push(Stmt::Block(cp_body));
+                let lp = b.close();
+                b.push(Stmt::Loop(lp));
             }
             let ee = b.close();
             b.push(Stmt::If(e, te, ee));
@@ -1027,7 +1100,9 @@ pub fn debug(f: &mut Fns) -> R<usize> {
             b.push(Stmt::Block(chain));
         }
         let body = b.close();
-        b.push(Stmt::Loop(vec![Stmt::Block(body)]));
+        b.push(Stmt::Block(body));
+        let lp = b.close();
+        b.push(Stmt::Loop(lp));
         push_lit(&mut b, out, b"\"")?;
         let o = b.let_(Atom::V(out));
         let r = b.p("bytes.of_list", vec![], vec![o])?;
