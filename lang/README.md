@@ -3,23 +3,15 @@
 This directory holds the data that a lift of a program from another
 language into RCE will be judged against, in the formats that
 [`spec/proposals/rce-form.md`](../spec/proposals/rce-form.md) defines
-(section 16 for the per-language files, section 20 for acceptance). It holds
-that data for three languages:
-
-| Language id | Oracle | Programs |
-|---|---|---|
-| `go1.24` | the gc toolchain, Go 1.24.7 | see `go1.24/corpus/manifest.toml` |
-| `python3.13` | CPython 3.13.16 | see `python3.13/corpus/manifest.toml` |
-| `es2020` | Node.js 22.22.0 (V8) | see `es2020/corpus/manifest.toml` |
+(section 16 for the per-language files, section 20 for acceptance and for
+the corpus rules K1 to K7).
 
 **No lifter exists yet.** Nothing in this repository lifts a Go, Python or
 JavaScript program, and no grammar lock, lift table, runtime library or
 print table of section 16 is written. What is here is the other side of the
-comparison: for each language, a pinned implementation (the oracle), the
-rule that turns one of its runs into an observation, and a corpus of
-programs, each with the observation recorded from the oracle. When a lift
-exists, a case holds when the lifted program's observation equals the
-recorded one byte for byte.
+comparison: for each of three languages, a pinned implementation, the rule
+that turns one of its runs into a record, and a corpus of programs, each
+with the record of its run on that implementation.
 
 ## Terms
 
@@ -31,15 +23,34 @@ recorded one byte for byte.
 - **Observation** (`rce-obs/1`): the record of one run. The `command`
   profile compares three fields: the exit status, the standard output as
   exact bytes (`stdout_hex`), and the class of the standard error
-  (`stderr_class`).
-- **Key**: the lower-case hexadecimal SHA-256 of a value's canonical JSON
-  (specification 6.1.1). A TOML record's key is the key of the value it
-  parses to, so comments do not change it.
+  (`stderr_class`). When a lift exists, a case holds when the lifted
+  program's observation equals the recorded one byte for byte.
+- **Key**: the lower-case hexadecimal SHA-256 (the Secure Hash Algorithm
+  with a 256-bit digest) of a value's canonical JSON (JavaScript Object
+  Notation, in the byte form of specification 6.1.1). A TOML (Tom's
+  Obvious, Minimal Language) record's key is the key of the value it parses
+  to, so comments do not change it.
 - **Admitted**: a program enters the corpus only when every run of it under
   the oracle gives the same observation (rule K1 and the case classes of
-  section 20).
+  section 20). An admitted case has the class `deterministic`, or
+  `resource` when its run ends at a limit of the oracle, such as the
+  interpreter's recursion limit.
+- **MATCH**: what `corpus.py verify` prints for a case when every run of it
+  gives the recorded observation.
 
-## Files of one language
+## What is here
+
+| Language id | Oracle | Cases (basics, algorithms, boundaries, generated) | Classes | Recorded verify run |
+|---|---|---|---|---|
+| `go1.24` | the gc toolchain, Go 1.24.7 | 99 (30, 28, 28, 13) | 98 deterministic, 1 resource | 99 MATCH |
+| `python3.13` | CPython 3.13.16 | 92 (31, 28, 25, 8) | 91 deterministic, 1 resource | 92 MATCH |
+| `es2020` | Node.js 22.22.0 (V8) | 99 (31, 28, 33, 7) | 98 deterministic, 1 resource | 99 MATCH |
+
+Every program offered was admitted: no run differed from another and no
+perturbation changed an observation (`corpus/admission.txt`). The last
+column is `corpus/verify.txt`, a run of `corpus.py verify` after admission.
+
+### Files of one language
 
 ```
 lang/<L>/
@@ -59,15 +70,15 @@ the commands it runs (positional arguments only; `{src}`, `{bin}`, `{run}`
 and `{cache}` are filled in by `corpus.py`), the whole environment of a run,
 and the perturbations used at admission.
 
-- **Toolchain digests.** The proposal names an OCI image digest; no image is
-  built yet, so `[toolchain]` holds what stands for it: the SHA-256 of the
-  executable, of every file of its toolchain directory where it has one
-  (Go's `GOROOT`; CPython's standard library, with bytecode caches and
-  installed packages left out), and of each shared object the executable
-  loads as `ldd` lists it. The tree digest is the SHA-256 of the lines
-  `<sha256>  <relative path>`, one per file, sorted by path; a symbolic link
-  contributes `link:<target>`. `version_output` is what the `version`
-  command prints.
+- **Toolchain digests.** The proposal names the digest of an OCI (Open
+  Container Initiative) image; no image is built yet, so `[toolchain]` holds
+  what stands for it: the SHA-256 of the executable, of every file of its
+  toolchain directory where it has one (Go's `GOROOT`; CPython's standard
+  library, with bytecode caches and installed packages left out), and of
+  each shared object the executable loads as `ldd` lists it. The tree digest
+  is the SHA-256 of the lines `<sha256>  <relative path>`, one per file,
+  sorted by path; a symbolic link contributes `link:<target>`.
+  `version_output` is what the `version` command prints.
 - **Environment.** A run receives exactly `pins.env` (and a Go build exactly
   `pins.build_env`), in a new, empty directory that holds only the program,
   in a new network namespace with no interface up (`unshare --net`).
@@ -90,6 +101,9 @@ Differences from the proposal's examples, each for a stated reason:
 - The proposal names the language `go1.23`; this host has Go 1.24.7, so the
   directory is `go1.24`. A file built outside a module takes the toolchain's
   language version, go1.24.
+- The proposal's file table places the oracle records at `oracle/<O>.toml`,
+  one per implementation, which the manifest's `oracles` list names; this
+  directory follows it.
 - CPython runs with `-P -s`, not `-I`: `-I` implies `-E`, which would make
   the interpreter ignore the pinned `PYTHONHASHSEED`; the environment is
   replaced whole instead.
@@ -111,12 +125,15 @@ divide by zero`, `resource:stack`), and when no row matches,
 a case with such a class is admitted with the class `resource` rather than
 `deterministic`, as section 20 says.
 
-An expected file holds the observation and, under `recorded`, the key of the
-oracle record it was recorded under, the keys of the observations of both
-runs, and the key of the observation under each perturbation (rule K1). The
-manifest's `expected_key` is the key of the observation without `recorded`.
-A case's key is the key of `{"inputs": …, "profile": "command", "sha256":
-<the file's SHA-256>}`.
+On the oracle side of the `command` profile, `outputs` is empty, `outcome`
+is `done` (the process ran to its end; the exit status and the class say
+how), `d_head` is null and `entered` is empty; none of these four fields is
+compared. An expected file holds the observation and, under `recorded`, the
+key of the oracle record it was recorded under, the keys of the
+observations of both runs, and the key of the observation under each
+perturbation (rule K1). The manifest's `expected_key` is the key of the
+observation without `recorded`. A case's key is the key of
+`{"inputs": …, "profile": "command", "sha256": <the file's SHA-256>}`.
 
 ### The corpus
 
@@ -127,8 +144,9 @@ construct at a time), `algorithms` (small complete programs), `boundaries`
 (the edges a lift must carry exactly: integer overflow and division, float
 printing, strings and Unicode, iteration order, errors and exceptions,
 resource limits) and `generated` (tables over edge values written by
-`generate.py`, whose SHA-256 each such case records). A case is never edited
-(rule K3): a changed program is a new file under a new hash.
+`generate.py`, whose SHA-256 each such case records). Characters that are
+invisible or combining are written as escapes in the programs' text. A case
+is never edited (rule K3): a changed program is a new file under a new hash.
 
 ## Reproducing the recorded expectations
 
