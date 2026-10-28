@@ -178,6 +178,7 @@ Section 10 of the specification defines each command.
 | `programs/` | example programs by area (body, data, money, network, science, systems, text, world, hardware, media, multi) and the ecosystem programs |
 | `examples/` | Form, surface and ingest examples |
 | `conformance/` | the implementation-independent conformance suite, its harness, adapters and reports |
+| `lang/` | pinned oracles (`rce-oracle/1`) and corpora (`rce-corpus/1`) for Go, Python and JavaScript, the recorder `corpus.py` and the generator `generate.py`; no lifter of these corpora yet (`lang/README.md`) |
 | `ide/` | the editor, language server, MCP server and sandbox, built on `spec/checker` |
 | `docs/figures/` | figures with captions, scripts and data |
 | `scripts/` | repository scripts: proofs and Lean audit, cross-architecture hashes and determinism streams, the Form corpus generator, claim counts, demos |
