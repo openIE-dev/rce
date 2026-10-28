@@ -4,7 +4,7 @@
 //! before the runtime library of ONE-16 exists: fuel (6.7), the decimal
 //! text of integers and of the exact values that trap messages name (6.2),
 //! SHA-256 (FIPS 180-4) for the log chain (6.1), the JSON escape of text
-//! (6.1.1) and the escape of text in display (`{:?}`, ONE-18). Each is a
+//! (6.1.1) and the escape of text in display (6.3 N7, ONE-18). Each is a
 //! core function built here once, the same for every program; none is
 //! charged fuel.
 use super::build::{FB, Fns, R, lit, sym, wide};
@@ -808,27 +808,16 @@ pub fn jstr(f: &mut Fns) -> R<usize> {
     })
 }
 
-/// The code points Rust's `{:?}` writes as `\u{…}` in text, from the tables
-/// of the toolchain that built this checker (the reference shows text with
-/// `{:?}`, so these are the bytes of the reference); 6.3 N7 and ONE-18 ask
-/// for this set to be pinned as data, which is not yet done.
-pub fn escape_ranges() -> &'static [(u32, u32)] {
-    static R: std::sync::OnceLock<Vec<(u32, u32)>> = std::sync::OnceLock::new();
-    R.get_or_init(|| {
-        let mut v: Vec<(u32, u32)> = vec![];
-        for cp in 0x80u32..0x110000 {
-            let Some(c) = char::from_u32(cp) else { continue };
-            let s = c.to_string();
-            let d = format!("{s:?}");
-            if d.len() != s.len() + 2 {
-                match v.last_mut() {
-                    Some((_, hi)) if *hi + 1 == cp => *hi = cp,
-                    _ => v.push((cp, cp)),
-                }
-            }
-        }
-        v
-    })
+/// The ranges of the display escape set (6.3 N7: `spec/data/display-escape.json`,
+/// read by `interp::display_escaped`) that meet the code points `from..to`,
+/// each cut to that interval. The runtime reads the same data as the
+/// reference, so no display depends on the Unicode tables of a toolchain.
+pub fn escape_ranges(from: u32, to: u32) -> Vec<(u32, u32)> {
+    crate::interp::display_escaped()
+        .iter()
+        .filter(|(lo, hi)| *hi >= from && *lo < to)
+        .map(|(lo, hi)| ((*lo).max(from), (*hi).min(to - 1)))
+        .collect()
 }
 
 /// `esc(cp)`: whether display escapes code point cp (cp >= 0x80), by binary
@@ -837,9 +826,9 @@ fn esc_cp(f: &mut Fns) -> R<usize> {
     let cpt = Ty::Int(0, 0x10ffff);
     f.get("rt.escaped", vec![cpt.clone()], Ty::Bool, move |_, mut b| {
         let cp = b.arg(0);
-        let rs = escape_ranges();
+        let rs = escape_ranges(0x80, 0x110000);
         let mut tab = vec![];
-        for (lo, hi) in rs {
+        for (lo, hi) in &rs {
             tab.extend_from_slice(&lo.to_be_bytes()[1..]);
             tab.extend_from_slice(&hi.to_be_bytes()[1..]);
         }
@@ -895,9 +884,9 @@ fn esc_cp(f: &mut Fns) -> R<usize> {
     })
 }
 
-/// `debug(t)`: text as display shows it, Rust's `{:?}` of a str: quoted,
-/// with `\t \r \n \0 \\ \"` by their short escapes and every code point that
-/// is not printable, or extends a grapheme, as `\u{hex}`.
+/// `debug(t)`: text as display shows it (6.3 N7, `interp::show_text`):
+/// quoted, with `\t \r \n \0 \\ \"` by their short escapes and each code
+/// point of the display escape set as `\u{hex}`.
 pub fn debug(f: &mut Fns) -> R<usize> {
     let esc = esc_cp(f)?;
     f.get("rt.debug", vec![Ty::Bytes], Ty::Bytes, move |_, mut b| {
@@ -932,9 +921,18 @@ pub fn debug(f: &mut Fns) -> R<usize> {
                     let tt = b.close();
                     b.push(Stmt::If(is, tt, vec![]));
                 }
-                let lo = b.int_cmp("int.lt", c.clone(), lit(0x20))?;
-                let del = b.int_cmp("int.eq", c.clone(), lit(0x7f))?;
-                let ctl = b.p("bool.or", vec![], vec![lo, del])?;
+                // whether c lies in an ASCII range of the display escape set
+                let mut ctl: Option<Atom> = None;
+                for (lo, hi) in escape_ranges(0, 0x80) {
+                    let ge = b.int_cmp("int.le", lit(lo as i128), c.clone())?;
+                    let le = b.int_cmp("int.le", c.clone(), lit(hi as i128))?;
+                    let inr = b.p("bool.and", vec![], vec![ge, le])?;
+                    ctl = Some(match ctl {
+                        Some(x) => b.p("bool.or", vec![], vec![x, inr])?,
+                        None => inr,
+                    });
+                }
+                let ctl = ctl.unwrap_or(Atom::bool(false));
                 b.open();
                 push_lit(&mut b, out, b"\\u{")?;
                 push_hex(&mut b, out, c.clone(), None)?;

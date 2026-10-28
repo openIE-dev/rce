@@ -3,7 +3,7 @@
 //! (interp `builtin`, whose code each expectation below restates), on
 //! texts with multi-byte characters, the white space of 6.3 N7 and line
 //! endings.
-use rce_spec_check::interp::is_ws;
+use rce_spec_check::interp::{display_escaped, is_ws};
 use rce_spec_check::one::{self, build::*, ir::*, rt, rtt};
 
 const TEXTS: &[&str] = &[
@@ -366,5 +366,33 @@ fn json_escape_size() {
         }
     });
     let want: String = ts.iter().map(|t| format!("{}\n", rce_spec_check::interp::json_size(&rce_spec_check::interp::V::Text(t.as_str().into())))).collect();
+    assert_eq!(got, want);
+}
+
+/// Display of text (6.3 N7): the runtime written in the core escapes
+/// exactly the code points of the pinned display escape set
+/// (`spec/data/display-escape.json`), as the reference does
+/// (`interp::show_text`): every ASCII code point, and each code point at
+/// and beside both ends of every range of the set.
+#[test]
+fn display_escapes_the_pinned_set() {
+    let mut cps: Vec<u32> = (0..0x80).collect();
+    for (lo, hi) in display_escaped() {
+        cps.extend([lo.saturating_sub(1), *lo, *hi, hi + 1]);
+    }
+    cps.sort();
+    cps.dedup();
+    let chars: Vec<char> = cps.into_iter().filter_map(char::from_u32).collect();
+    assert!(chars.len() > 3000, "{} code points", chars.len());
+    // pieces of 64 code points, so that a difference names its place
+    let pieces: Vec<String> = chars.chunks(64).map(|c| c.iter().collect()).collect();
+    let got = run(|f, b| {
+        let id = rt::debug(f).unwrap();
+        for p in &pieces {
+            let r = b.call(sym(id), Ty::Bytes, vec![Atom::bytes(p.as_bytes())]);
+            put(f, b, r);
+        }
+    });
+    let want: String = pieces.iter().map(|p| want_text(&rce_spec_check::interp::show_text(p))).collect();
     assert_eq!(got, want);
 }
