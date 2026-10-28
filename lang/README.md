@@ -167,12 +167,28 @@ python3 lang/corpus.py pins go1.24        # prints the digests found and whether
 python3 lang/corpus.py verify go1.24      # MATCH, or the first differing byte, for every case
 ```
 
-`verify` runs every case `runs` times and prints one line per case: `MATCH`
-with the observation's key, or `DIFFERS` with the run and the first field
-that differs (for standard output, the offset of the first differing byte
-and the two byte values). Its output holds no times and no paths, so it can
-be compared with `corpus/verify.txt` byte for byte. When a pin does not
-hold, every case is `NOT-RUN` and the line names the pin. On another host,
+`verify` first checks each case against rule K1: its expected file must
+name the oracle record's key and the keys of the observations of the
+record's runs and of the run under each of its perturbations, each equal to
+the manifest's `expected_key`. It then runs the case `runs` times and
+prints one line per case, with the result names of section 20:
+
+- `MATCH`, with the observation's key: every run gave the recorded
+  observation.
+- `ORACLE-FAIL`, with the run and what went wrong: the oracle did not
+  reproduce the observation recorded at admission. The line gives the first
+  field that differs (for standard output, the offset of the first
+  differing byte and the two byte values), the limit the run passed, or
+  why the build failed. The instrument, not a lift, is then broken.
+- `NOT-RUN`, with the reason: the case could not be run, because a pin does
+  not hold (every case is then `NOT-RUN` and the line names the pin), a
+  file cannot be read, or the expected file breaks K1.
+
+Section 20's `differs` is the result of comparing a lift with the oracle;
+no lift exists yet, so `verify` never prints it. The exit status is 0 when
+every case matches, 1 when a case is `ORACLE-FAIL` and none is `NOT-RUN`,
+and 2 when a case is `NOT-RUN`. The output holds no times and no paths, so
+it can be compared with `corpus/verify.txt` byte for byte. On another host,
 or with another release, the record does not apply: a new oracle record and
 a new admission are needed.
 

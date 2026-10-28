@@ -20,10 +20,17 @@ and the corpus rules K1 to K7).
         listed in admission.txt with its class or reason and not admitted.
 
     python3 lang/corpus.py verify LANG [ITEM...]
-        Run every case of the manifest (or the named items) under the
-        oracle, `runs` times, and print MATCH or the first difference for
-        each run. Exit 0 when every case matches, 1 when one differs, 2 when
-        a pin does not hold or a case cannot run.
+        Check each case of the manifest (or the named items) against rule
+        K1, run it under the oracle `runs` times, and print MATCH when every
+        run gives the recorded observation. A run that does not reproduce it
+        (another observation, a run past its limit, a failed build) is
+        ORACLE-FAIL with the first differing byte or field: the oracle, not
+        a lift, is then broken (section 20). A case that cannot be run (a
+        pin that does not hold, an unreadable file, an expected file that
+        breaks K1) is NOT-RUN. Exit 0 when every case matches, 1 when one is
+        ORACLE-FAIL and none is NOT-RUN, 2 when one is NOT-RUN. DIFFERS, the
+        result of comparing a lift with the oracle, is not a result of this
+        command.
 
 Only Python's standard library is used (3.11 or later, for tomllib). The
 output has no times and no host paths, so two runs on hosts that hold the
@@ -398,6 +405,9 @@ def observation(ck, res):
             "stderr_class": res.stderr_class, "stdout_hex": res.stdout.hex()}
 
 
+OBS_FIELDS = set(observation("", Result()))
+
+
 def first_difference(exp, got):
     a, b = bytes.fromhex(exp["stdout_hex"]), bytes.fromhex(got["stdout_hex"])
     if a != b:
@@ -597,8 +607,13 @@ def verify_case(oracle, cdir, c):
         src = (cdir / c["file"]).read_bytes()
         exp_bytes = (cdir / c["expected"]).read_bytes()
         exp = json.loads(exp_bytes.decode("utf-8"))
+        if not isinstance(exp, dict) or not isinstance(exp.get("recorded"), dict):
+            raise ValueError("not an observation with a recorded part")
         rec = exp.pop("recorded")
-    except (OSError, ValueError, KeyError) as e:
+        if set(exp) != OBS_FIELDS or exp["format"] != "rce-obs/1":
+            raise ValueError("not an rce-obs/1 observation")
+        bytes.fromhex(exp["stdout_hex"])
+    except (OSError, ValueError, KeyError, TypeError) as e:
         return [("NOT-RUN", item, f"its file or expected observation cannot be read: {type(e).__name__}")]
     if sha256_bytes(src) != c["sha256"]:
         return [("NOT-RUN", item, "the file's SHA-256 differs from the manifest (K3)")]
@@ -606,8 +621,11 @@ def verify_case(oracle, cdir, c):
         return [("NOT-RUN", item, f"recorded under oracle record key {rec.get('oracle')}, the record's key is {oracle.key}")]
     if canon({**exp, "recorded": rec}).encode("utf-8") != exp_bytes:
         return [("NOT-RUN", item, "the expected file is not canonical JSON")]
-    if key(exp) != c["expected_key"] or exp["case"] != case_key(c["sha256"]):
+    if key(exp) != c["expected_key"] or exp.get("case") != case_key(c["sha256"]):
         return [("NOT-RUN", item, "the expected observation does not match the manifest's keys")]
+    k1 = k1_difference(oracle, rec, c["expected_key"])
+    if k1:
+        return [("NOT-RUN", item, k1)]
     out = []
     for i in range(oracle.rec["runs"]):
         r = oracle.run(src)
@@ -615,8 +633,30 @@ def verify_case(oracle, cdir, c):
             out.append(("ORACLE-FAIL", item, f"run {i + 1}: {r.failure}"))
             continue
         d = first_difference(exp, observation(exp["case"], r))
-        out.append(("DIFFERS", item, f"run {i + 1}: {d}") if d else ("MATCH", item, f"run {i + 1}"))
+        out.append(("ORACLE-FAIL", item, f"run {i + 1}: {d}") if d else ("MATCH", item, f"run {i + 1}"))
     return out
+
+
+def k1_difference(oracle, rec, expected_key):
+    """Why an expected file's `recorded` breaks rule K1, or None. It must name
+    the key of the observation of each of the record's runs and of the run
+    under each of its perturbations, in the record's order; every one of
+    them equals the expected observation's key, since a case is admitted
+    only when all its runs agree."""
+    runs = rec.get("runs")
+    n = oracle.rec["runs"]
+    if not isinstance(runs, list) or len(runs) != n:
+        return f"the expected file does not name the observations of the record's {n} runs (K1)"
+    if any(k != expected_key for k in runs):
+        return "a run the expected file names has another key than the expected observation (K1)"
+    names = [name for name, _ in oracle.perturbations()]
+    perturbed = rec.get("perturbed")
+    if (not isinstance(perturbed, list)
+            or [p[0] if isinstance(p, list) and len(p) == 2 else None for p in perturbed] != names):
+        return "the expected file does not name the observation under each perturbation of the record (K1)"
+    if any(p[1] != expected_key for p in perturbed):
+        return "a perturbed run the expected file names has another key than the expected observation (K1)"
+    return None
 
 
 def verify(lang, items):
@@ -637,7 +677,7 @@ def verify(lang, items):
     if diffs:
         for d in diffs:
             print("NOT-RUN  " + d)
-        print(f"0 MATCH, 0 DIFFERS, 0 ORACLE-FAIL, {len(cases)} NOT-RUN")
+        print(f"0 MATCH, 0 ORACLE-FAIL, {len(cases)} NOT-RUN")
         return 2
     cdir = oracle.dir / "corpus"
     with oracle:
@@ -645,7 +685,7 @@ def verify(lang, items):
             oracle.run((cdir / cases[0]["file"]).read_bytes())
         with ThreadPoolExecutor(WORKERS) as pool:
             results = list(pool.map(lambda c: verify_case(oracle, cdir, c), cases))
-    counts = {"MATCH": 0, "DIFFERS": 0, "ORACLE-FAIL": 0, "NOT-RUN": 0}
+    counts = {"MATCH": 0, "ORACLE-FAIL": 0, "NOT-RUN": 0}
     width = max((len(c["provenance"]["item"]) for c in cases), default=0)
     for c, rs in zip(cases, results):
         verdicts = {v for v, _, _ in rs}
@@ -653,13 +693,13 @@ def verify(lang, items):
             counts["MATCH"] += 1
             print(f"MATCH        {c['provenance']['item']:<{width}}  {c['expected_key']}")
             continue
-        worst = next(v for v in ("NOT-RUN", "ORACLE-FAIL", "DIFFERS") if v in verdicts)
+        worst = "NOT-RUN" if "NOT-RUN" in verdicts else "ORACLE-FAIL"
         counts[worst] += 1
         for v, item, why in rs:
             if v != "MATCH":
                 print(f"{v:<12} {item:<{width}}  {why}")
     print(", ".join(f"{n} {v}" for v, n in counts.items()))
-    return 0 if counts["MATCH"] == len(cases) else (1 if counts["DIFFERS"] and not (counts["NOT-RUN"] or counts["ORACLE-FAIL"]) else 2)
+    return 0 if counts["MATCH"] == len(cases) else (2 if counts["NOT-RUN"] else 1)
 
 
 # ---- pins -----------------------------------------------------------------

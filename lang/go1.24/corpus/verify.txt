@@ -98,4 +98,4 @@ MATCH        generated/int_ops_uint32        daf68cc2d923984f9c92cd12c5ac44c0771
 MATCH        generated/int_ops_uint64        46d7884e5e72836d773442c16313a402407ba481afbf6fdd214448a1e14d8ef8
 MATCH        generated/int_ops_uint8         2beac2f83329c18515ee42549c5854dfcedb90deb9f72155f1e1b7a231586dbe
 MATCH        generated/string_quote          f279f1b0124a878ab09d8171cce814c812063f7d3c732819bdfe83ac2214b775
-99 MATCH, 0 DIFFERS, 0 ORACLE-FAIL, 0 NOT-RUN
+99 MATCH, 0 ORACLE-FAIL, 0 NOT-RUN

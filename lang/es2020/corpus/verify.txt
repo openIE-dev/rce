@@ -98,4 +98,4 @@ MATCH        generated/number_tostring_bits      00a88883e9bdc55f34ebc2ce225f514
 MATCH        generated/number_tostring_decimals  fd49c8ba77aded3c2a4572a115daa00a2646bb8bf493cb7943e17d453a02eb1e
 MATCH        generated/number_tostring_edges     92cd0e1940c6709a97adf5632a3e8c19eb9d981e4a079413b09849b80ec4d436
 MATCH        generated/string_units              7f4c92e730368caa51b8766e6c92fdf66ab4fa49374dad78e1da6d7eb0fed03c
-99 MATCH, 0 DIFFERS, 0 ORACLE-FAIL, 0 NOT-RUN
+99 MATCH, 0 ORACLE-FAIL, 0 NOT-RUN

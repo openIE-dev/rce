@@ -91,4 +91,4 @@ MATCH        generated/int_ops_big           793b1f977cbe1d1a8ee0c0bc861dfd9166d
 MATCH        generated/int_ops_small         d0e7d3ce7b7aafcd1fe5694a4748e99bbe52cdf469c3258a2fddc154cf522616
 MATCH        generated/int_ops_word          9f1e43ae4b08e6352ea472048ac723e1f32970d6747fbbac7bc80ef603f11440
 MATCH        generated/str_repr              186b0b5d365e1132df1793366c3f6c25de7aeb8d8c41c71829be19a494fd45b6
-92 MATCH, 0 DIFFERS, 0 ORACLE-FAIL, 0 NOT-RUN
+92 MATCH, 0 ORACLE-FAIL, 0 NOT-RUN
