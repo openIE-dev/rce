@@ -14,7 +14,9 @@
   `rce-form/1`, the one form that lift and emit share, with the
   per-language table formats and acceptance by exact comparison, and
   `proposals/one-emitter.md` defines the core `rce-core/1` and the print
-  tables.
+  tables. The catalogue of `rce-form/1`'s operations is data,
+  `data/form-catalogue.json`, written by hand while the proposal is open
+  and checked against it by `checker/tests/form_catalogue.rs`.
 - `checker/` (Rust only) holds the tools:
   - `rce-spec-check` builds the section-3 LALR(1) tables and regenerates
     the tree-sitter parser (both fail on any conflict), parses `examples/` (must accept) and `examples/reject/`
