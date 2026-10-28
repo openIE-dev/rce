@@ -1,0 +1,73 @@
+# The pinned oracle for the language es2020: Node.js 22.22.0 (the V8 engine)
+# on x86-64 Linux (spec/proposals/rce-form.md section 20, rce-oracle/1).
+# Node implements later editions of ECMAScript too; the corpus programs use
+# the language of ECMAScript 2020 and, from the host, console.log,
+# console.error and process.exitCode only.
+format   = "rce-oracle/1"
+name     = "node-22.22.0"
+kind     = "maintained"
+lang     = "es2020"
+target   = "x86_64-unknown-linux-gnu"
+lineage  = "v8"
+profile  = "command"                  # observe.toml: status, stdout bytes, stderr class
+version  = ["/opt/node22/bin/node", "--version"]
+# {src} is the program's file in a new, empty run directory. It is named
+# main.cjs so that Node reads it as a CommonJS script whatever package.json
+# files lie above the run directory: a .js file would be read as an ES
+# module under a package.json that says "type": "module".
+source_name = "main.cjs"
+build    = []
+run      = ["/opt/node22/bin/node", "{src}"]
+device   = "octets"
+limit    = 10                         # seconds per run
+runs     = 2                          # every case twice; the two observations must be equal
+
+[toolchain]
+# What stands for the OCI image digest of the proposal until an image is
+# built: the SHA-256 of the node executable, which holds V8 and the ICU data,
+# and of the shared objects it loads.
+executable  = "/opt/node22/bin/node"
+sha256      = "1f3d442a8d6faa2a9e11fd39f7c1344a590f61d2394dec1f4034a7930592f933"
+version_output = "v22.22.0"
+
+[toolchain.libraries]
+"/lib/x86_64-linux-gnu/libdl.so.2" = "c2994527172cc23b7fb0f7d611b71e00a37da27af12c2e5e9e0dc1a742886c96"
+"/lib/x86_64-linux-gnu/libstdc++.so.6" = "1fd75fe70354a416d75aef22bcae68c47bd25d20e2d0568c30b1a9838cf62f11"
+"/lib/x86_64-linux-gnu/libm.so.6" = "fce00b6f25f459cf4ae0b7fae4257909a1a8a86f9149e7c029a5d617baf1ccd0"
+"/lib/x86_64-linux-gnu/libgcc_s.so.1" = "d93224d2b0dab4247598be683adca02f5cf00586f99c187579cd7e92058fb7cb"
+"/lib/x86_64-linux-gnu/libpthread.so.0" = "90491a21ce44efcf3bd4b65ec82501c091d7ebe7f8d9b341dd01d721001d9ecd"
+"/lib/x86_64-linux-gnu/libc.so.6" = "3a15d66867d83762c7f2f1e37359cb8f6c5743edb369c65285cb0b1c4f7498bf"
+"/lib64/ld-linux-x86-64.so.2" = "c20a2dc8917c755f02b94049356320fe1f62ac7d9f8994731f807d9df39302da"
+
+[pins]
+# The whole environment of each run: nothing else is passed.
+env       = { LC_ALL = "C.UTF-8", TZ = "UTC" }
+network   = "none"                    # every run in a new network namespace with no interface up (unshare --net)
+fs        = "run-directory"           # every run in a new, empty directory that holds only the program
+# No wall clock is pinned: this host cannot set the clock of one process, so
+# the clock is neither pinned nor perturbed, and [[unpinned]] keeps out a
+# program that reads it.
+
+[perturb]                             # each entry is one more run when a program is admitted
+env_order = "reversed"                # the environment passed in reverse order
+affinity  = [1, 4]                    # the run limited to the first 1, then 4, processors (taskset)
+env       = [{ UV_THREADPOOL_SIZE = "1" }, { UV_THREADPOOL_SIZE = "8" }]   # libuv's worker threads
+
+# What this host does not pin. A program whose text matches one of these
+# patterns (Python regular expressions, multiline) is not admitted, with the
+# source named, because its observation would not be a function of its case.
+[[unpinned]]
+source  = "clock"
+pattern = '\bDate\b|\bperformance\b|\bprocess\.hrtime\b|\bset(?:Timeout|Interval|Immediate)\b'
+
+[[unpinned]]
+source  = "entropy"
+pattern = '\bMath\.random\b|\bcrypto\b'
+
+[[unpinned]]
+source  = "filesystem"
+pattern = '\brequire\s*\(|\bimport\s*\(|^\s*import\b|\bprocess\.(?:cwd|chdir)\b'
+
+[[unpinned]]
+source  = "process"
+pattern = '\bprocess\.(?:pid|ppid|uptime|memoryUsage|cpuUsage|resourceUsage|execPath|platform|arch|version|versions)\b'

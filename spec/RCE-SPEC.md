@@ -681,10 +681,10 @@ pinned by hash in its manifest, and pinned by a program as the dependency
 `stdlib`, F.5.3): `use enc`, `use data.events` and the
 others resolve with no file given, no directive and no flag, in every tool
 (`rce lib` lists them). A library module's own `check`, `example` and
-`intent` items are not part of a program that imports it; its items are. A
-`#!lib NAME` comment line places a library's items in front of the module,
-unqualified, as the shipped binary does; it is a comment to every other
-tool, and `use` is the form of this text. A
+`intent` items are not part of a program that imports it; its items are.
+`use` is the only way to bring one module's items into another: a line
+`#!lib NAME`, which earlier tools read as a second way, is a comment like
+any other. A
 program is the set of modules given together, and `use` must name one of them
 or a built-in module (W-NAME-1).
 
@@ -3467,14 +3467,9 @@ chain, and that the runner finds a planted divergence.
 object (format `rce-catalog/1`, compact, sorted keys) with one entry per
 top-level function of each module (the `pub` ones when the module marks
 any `pub`, else all; methods are not bricks), sorted by module and name.
-Library dependencies are resolved first: a `# uses: a/b` line adds
-`a/b.rce` from the nearest ancestor directory that has it; a `#!lib NAME`
-line checks the module with the items of module NAME in front (its checks
-dropped, its own items winning), as the rce binary does; and a module
-refused only for unknown names that exactly one single-segment module of
-the program declares is checked again with that module as its `#!lib`.
-`resolved` records each resolution and whether it was a directive or
-inferred.
+A `use` item names a module given with the files or one of the built-in
+library (4.1), and a file is refused in the catalog exactly when
+`rce check` refuses it.
 An entry holds `module`, `name`, `file`, `line`, `generics`, `params`
 (name and type), `ret`, `key` (the type with generic parameters renamed
 `t0`, `t1`, ... in order of first occurrence), `hash` (SHA-256 of the

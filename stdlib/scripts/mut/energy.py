@@ -1,5 +1,6 @@
 # Mutation test for lib/energy/energy.rce: each mutant must fail the
-# comptime checks (package with enc and blake3) or, for mutants marked
+# comptime checks (package with enc and blake3; crypto, which energy also
+# imports, is built into rce) or, for mutants marked
 # host, the Ed25519 host checks. Usage: RCE=path/to/rce python3 scripts/mut/energy.py
 import os, re, shutil, subprocess, sys, tempfile
 RCE = os.environ.get('RCE', 'rce')
@@ -33,7 +34,7 @@ M = [
     ('    if r.trust != "control" and r.trust != "data"\n', '    if false\n', 0),
     ('    if r.verdict == "allow" and r.deny_reason != ""\n', '    if false\n', 0),
     ('    if ks.len() != 2 or ks[0] != jn(1) or ks[1] != jn(4)\n', '    if ks.len() != 2\n', 0),
-    ('    return ed_verify(hex_of(pk), sig_structure(&o.prot, &o.payload), hex_of(&o.sig))', '    return true', 1),
+    ('    return crypto.ed_verify(hex_of(pk), sig_structure(&o.prot, &o.payload), hex_of(&o.sig))', '    return true', 1),
     ('enc.CBytes(b: copy(prot)), enc.CBytes(b: [])', 'enc.CBytes(b: []), enc.CBytes(b: [])', 1),
     ('    if hex_of(&pkb) != pk\n        fail BadReceipt(why: "steward")\n', '', 1),
 ]

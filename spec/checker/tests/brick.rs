@@ -260,17 +260,9 @@ fn dep_files() -> Vec<(String, String)> {
 }
 
 #[test]
-fn library_dependencies_resolve() {
+fn library_dependencies_resolve_by_use() {
     let c = brick::index(&dep_files());
     assert_eq!(c["refused_files"], json!({}));
-    assert_eq!(
-        c["resolved"][dir("dep/ddir.rce")],
-        json!({"how": "directive", "lib": ["dlib"]})
-    );
-    assert_eq!(
-        c["resolved"][dir("dep/duser.rce")],
-        json!({"how": "inferred", "lib": ["dlib"]})
-    );
     assert!(
         c["entries"]
             .as_array()
@@ -278,7 +270,7 @@ fn library_dependencies_resolve() {
             .iter()
             .all(|e| e["checked"] == true && e["lowering"].get("term").is_some())
     );
-    // without dlib, duser is refused and nothing is inferred
+    // without dlib, the module duser imports is not there and duser is refused
     let alone = brick::index(&[(
         dir("dep/duser.rce"),
         std::fs::read_to_string(dir("dep/duser.rce")).unwrap(),
@@ -287,7 +279,23 @@ fn library_dependencies_resolve() {
         alone["refused_files"][dir("dep/duser.rce")]
             .as_str()
             .unwrap()
-            .contains("unknown name `triple`")
+            .contains("unknown module `dlib`")
     );
-    assert_eq!(alone["resolved"], json!({}));
+}
+
+#[test]
+fn a_lib_line_is_a_comment_to_the_index() {
+    // `#!lib` was retired in favour of `use`: the line places nothing in
+    // front of the module, so a bare name of dlib stays unknown
+    let src = "module dold\n#!lib dlib\n\nfn six(x: i64) -> i64 = triple(x) * 2\n";
+    let mut files = dep_files();
+    files.push((dir("dep/dold.rce"), src.to_string()));
+    let c = brick::index(&files);
+    assert!(
+        c["refused_files"][dir("dep/dold.rce")]
+            .as_str()
+            .unwrap()
+            .contains("`triple`")
+    );
+    assert_eq!(c["refused_files"].as_object().unwrap().len(), 1);
 }

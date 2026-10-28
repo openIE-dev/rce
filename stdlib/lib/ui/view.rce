@@ -1,5 +1,4 @@
 module ui.view
-# uses: enc.enc, hash.blake3, text.utf8
 use enc
 use hash.blake3
 use text.utf8

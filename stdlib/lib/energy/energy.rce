@@ -1,8 +1,7 @@
 module energy
-#!lib crypto
-# uses: enc.enc, hash.blake3
 use enc
 use hash.blake3
+use crypto
 
 # JCP v0.3 energy receipts (survey M16, part 1): the JCR-1 receipt of
 # JCP section 8 under the `jcp/2` profile, its content id, the COSE_Sign1
@@ -458,12 +457,12 @@ pub fn open_envelope(env: &[i64]) -> OpenedReceipt ! BadReceipt
 # The steward must be the did:key of that seed's public key.
 pub fn seal_receipt(r: &Receipt, seed_hex: text) -> List[i64] ! BadReceipt
     let core = try receipt_core(r)
-    let pk = ed_pubkey(copy(seed_hex))
+    let pk = crypto.ed_pubkey(copy(seed_hex))
     let pkb = did_key_pk(&r.steward) catch []
     if hex_of(&pkb) != pk
         fail BadReceipt(why: "steward")
     let prot = protected_header(&r.steward)
-    let sig = ed_sign(seed_hex, sig_structure(&prot, &core))
+    let sig = crypto.ed_sign(seed_hex, sig_structure(&prot, &core))
     let sb = hex_bytes(&sig)
     return envelope(&core, &r.steward, &sb)
 
@@ -484,7 +483,7 @@ pub fn verify_with(env: &[i64], pk: &[i64]) -> bool
     let o = open_envelope(env) catch opened_none()
     if o.payload.len() == 0 or pk.len() != 32
         return false
-    return ed_verify(hex_of(pk), sig_structure(&o.prot, &o.payload), hex_of(&o.sig))
+    return crypto.ed_verify(hex_of(pk), sig_structure(&o.prot, &o.payload), hex_of(&o.sig))
 
 # Verify an envelope whose steward is a did:key (the key is the id).
 pub fn verify(env: &[i64]) -> bool

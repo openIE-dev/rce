@@ -524,14 +524,9 @@ chain, and that the runner finds a planted divergence.
 object (format `rce-catalog/1`, compact, sorted keys) with one entry per
 top-level function of each module (the `pub` ones when the module marks
 any `pub`, else all; methods are not bricks), sorted by module and name.
-Library dependencies are resolved first: a `# uses: a/b` line adds
-`a/b.rce` from the nearest ancestor directory that has it; a `#!lib NAME`
-line checks the module with the items of module NAME in front (its checks
-dropped, its own items winning), as the rce binary does; and a module
-refused only for unknown names that exactly one single-segment module of
-the program declares is checked again with that module as its `#!lib`.
-`resolved` records each resolution and whether it was a directive or
-inferred.
+A `use` item names a module given with the files or one of the built-in
+library (4.1), and a file is refused in the catalog exactly when
+`rce check` refuses it.
 An entry holds `module`, `name`, `file`, `line`, `generics`, `params`
 (name and type), `ret`, `key` (the type with generic parameters renamed
 `t0`, `t1`, ... in order of first occurrence), `hash` (SHA-256 of the
@@ -643,4 +638,4 @@ its name-free projection (T7) and is a continuous-integration step.
 
 **Read receipt.** Which JSON-RPC error code does the language server return for a request it does not know? (a number)
 
-<!-- body-sha256: 28c8d5a61d12bf7334a77c577728789a5c2687fa7a108568fa32e95f66e85198 -->
+<!-- body-sha256: 2329b271394658198556ea9212b768a29e9262303f060d485b904051b71305f8 -->

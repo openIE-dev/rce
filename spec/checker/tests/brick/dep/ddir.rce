@@ -1,4 +1,4 @@
 module ddir
-#!lib dlib
+use dlib
 
-fn six(x: i64) -> i64 = triple(x) * 2
+fn six(x: i64) -> i64 = dlib.triple(x) * 2
