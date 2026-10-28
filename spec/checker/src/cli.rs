@@ -606,6 +606,9 @@ pub const USAGE_TEXT: &str = "usage:
                                  or scala (a program printing its observations)
   rce run-core FILE              the output of the core evaluator on the core of FILE (an RCE module or rce-core/1 JSON):
                                  an implementation under test; the expected bytes are the reference interpreter's trace
+  rce form-check FORM [VECTORS]  the gate FG1 to FG15 on an rce-form/1 module (rce-form.md): `applied KEY` (exit 0), or
+                                 `kept RULE GROUP FN PATH: REASON` with the first rule that fails (exit 1); VECTORS are its
+                                 rce-vectors/1 admission vectors, checked by FG15
   rce fmt [--check] FILE...      rewrite files in canonical layout (--check: only report)
   rce fmt --nameless FILE        print the name-free projection: every declared identifier replaced by its positional name (10.6)
   rce dim [--fuel N] [--control] [--json] FILE  behaviours a program can be in and the redundancy of its state (6.10, 10.11); --control adds dim_c and shape_ctl
@@ -1045,6 +1048,23 @@ fn run_main(a: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &mu
                 }
             }
         },
+        Some("form-check") if rest.len() == 1 || rest.len() == 2 => {
+            let form = std::fs::read(&rest[0]).map_err(|e| format!("{}: {e}", rest[0]))?;
+            let vectors = match rest.get(1) {
+                Some(p) => Some(std::fs::read(p).map_err(|e| format!("{p}: {e}"))?),
+                None => None,
+            };
+            match crate::form::check(&form, vectors.as_deref()) {
+                crate::form::Outcome::Applied(key) => {
+                    writeln!(out, "applied {key}").map_err(w)?;
+                    OK
+                }
+                crate::form::Outcome::Kept(k) => {
+                    writeln!(out, "{}", k.line()).map_err(w)?;
+                    REFUSED
+                }
+            }
+        }
         Some("run-core") if rest.len() == 1 => match run_core(&read_file(&rest[0])?) {
             Ok(s) => {
                 write!(out, "{s}").map_err(w)?;
