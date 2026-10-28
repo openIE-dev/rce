@@ -82,12 +82,9 @@ jobs:
           workspaces: spec/checker
       # the emit tests run the Scala target with scala-cli (Scala 3.10.0, JVM 21)
       - if: matrix.bin == 'emit'
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: "21"
-      - if: matrix.bin == 'emit'
         uses: VirtusLab/scala-cli-setup@v1
+        with:
+          jvm: temurin:21
       - name: Slow test binary ${{ matrix.bin }}
         env:
           RCE_FEATURES: ${{ matrix.features }}
