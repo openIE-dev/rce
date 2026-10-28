@@ -139,12 +139,17 @@ observation without `recorded`. A case's key is the key of
 
 Every program was written for this repository and is licensed MIT OR
 Apache-2.0; each file says so on one of its first lines, and admission
-checks that line (rule K2). The tiers are the proposal's: `basics` (one
+checks that line. Each case's `provenance` names its source (this
+repository, or `generate.py` with that script's SHA-256), its item (the
+tier and the program's name) and its licence, and its `file`, stored as
+`files/<first two hex digits>/<sha256>.<ext>`, is its address (rule K2).
+`lang/.gitattributes` turns off line-ending conversion for these files, so
+a checkout keeps their bytes. The tiers are the proposal's: `basics` (one
 construct at a time), `algorithms` (small complete programs), `boundaries`
 (the edges a lift must carry exactly: integer overflow and division, float
 printing, strings and Unicode, iteration order, errors and exceptions,
 resource limits) and `generated` (tables over edge values written by
-`generate.py`, whose SHA-256 each such case records). Characters that are
+`generate.py`). Characters that are
 invisible or combining are written as escapes in the programs' text. A case
 is never edited (rule K3): a changed program is a new file under a new hash.
 
