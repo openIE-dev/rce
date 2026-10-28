@@ -75,14 +75,18 @@ def emit(src):
 def blocks_of(out):
     """The example blocks of an emitted program's output, in order, as
     (LINE, lines). A block starts at its `example LINE` header and ends at
-    the next header or at `main`, the first line of fn main's observation,
-    which comes after every example."""
+    the next header, at `main` (the first line of fn main's observation,
+    which comes after every example), or at the observation of an item that
+    follows the example: `const NAME`, `check LINE` or `fn NAME` (with its
+    `fuel N`). An example's own lines never start so: they are `initial`,
+    `K ...` for event K, `  emit`, `d`, `trace` and `fuel`. So a block holds
+    the example's own lines only, as emit::trace_example returns them."""
     blocks, cur = [], None
     for l in out.splitlines():
         mm = re.match(r"example (\d+)$", l)
         if mm:
             cur = (int(mm.group(1)), []); blocks.append(cur); continue
-        if l == "main":
+        if l == "main" or re.match(r"(const|check|fn) ", l):
             cur = None; continue
         if cur is not None:
             cur[1].append(l)

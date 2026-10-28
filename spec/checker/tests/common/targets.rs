@@ -113,3 +113,35 @@ pub fn oracle(l: Lang) -> String {
     };
     std::env::var(var).ok().filter(|v| !v.is_empty()).unwrap_or(def.to_string())
 }
+
+/// Whether build.rs passed `rce_emit="WORD"` for target `l` to this test
+/// binary.
+pub fn cfg_set(l: Lang) -> bool {
+    match l {
+        Lang::Rust => cfg!(rce_emit = "rust"),
+        Lang::Python => cfg!(rce_emit = "python"),
+        Lang::Js => cfg!(rce_emit = "js"),
+        Lang::Scala => cfg!(rce_emit = "scala"),
+    }
+}
+
+/// The `rce_emit` values this binary was built with agree with the data
+/// file: set for each target it names, unset for each it does not. A test
+/// of one target alone is ignored when its value is unset, so a build whose
+/// build-script output is out of step with the file would skip a covered
+/// target's tests and still exit 0; this test, never ignored, fails instead.
+#[test]
+fn build_cfg_matches_emit_targets_file() {
+    for l in ALL {
+        let named = named().contains(&l);
+        assert_eq!(
+            cfg_set(l),
+            named,
+            "{}: {FILE} {} it, but this test binary was built with rce_emit=\"{}\" {}; the build-script output is stale, so rebuild (touch build.rs or {FILE}, then rerun the tests)",
+            word(l),
+            if named { "names" } else { "does not name" },
+            word(l),
+            if cfg_set(l) { "set" } else { "unset" }
+        );
+    }
+}
