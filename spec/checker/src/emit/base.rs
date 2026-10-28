@@ -48,6 +48,10 @@ pub(super) struct G<'a> {
     pub tmp: usize,
     /// inside a `for .. par` being emitted (enables the reset/collect hooks)
     pub par_hooks: bool,
+    /// the next statement is the loop of a `for .. par`, whose tick the
+    /// enclosing `for .. par` statement has already taken (one tick, as the
+    /// reference's forpar_exec)
+    pub forpar_loop: bool,
     pub atomic_depth: usize,
     /// loops opened inside each enclosing task closure (scope / deadline bodies)
     pub cl: Vec<usize>,
@@ -170,6 +174,7 @@ impl<'a> G<'a> {
             ind: 0,
             tmp: 0,
             par_hooks: false,
+            forpar_loop: false,
             atomic_depth: 0,
             cl: vec![],
             loops: 0,

@@ -237,6 +237,7 @@ impl<'a> G<'a> {
             return self.forpar_threads(&body[0], &targets);
         }
         if targets.is_empty() {
+            self.forpar_loop = true;
             return self.stmt(&body[0], false);
         }
         self.open_block();
@@ -284,6 +285,7 @@ impl<'a> G<'a> {
             )));
         }
         self.par_hooks = true;
+        self.forpar_loop = true;
         let r = self.stmt(&Stmt::For(p.clone(), it.clone(), nb, *line), false);
         self.par_hooks = false;
         r?;
@@ -462,9 +464,12 @@ impl<'a> G<'a> {
         let l = self.lang;
         // interp `exec` ticks once per statement (6.7); the `let` of an
         // A-normal-form temporary is not a source statement.
-        // Nor are the hooks and the per-chunk loop of `for ... par`: the
-        // reference resets and collects targets without evaluating anything.
-        let synthetic = matches!(s, Stmt::Let(Pat::Path(p), None, _, _) if p.len() == 1 && p[0].starts_with("anf_"))
+        // Nor are the hooks and the loop of `for ... par` (sequential or per
+        // chunk): the reference ticks once for the `for ... par` statement and
+        // resets and collects targets without evaluating anything.
+        let forpar_loop = std::mem::take(&mut self.forpar_loop);
+        let synthetic = forpar_loop
+            || matches!(s, Stmt::Let(Pat::Path(p), None, _, _) if p.len() == 1 && p[0].starts_with("anf_"))
             || matches!(s, Stmt::Expr(Expr::Call(f, _, _, _)) if matches!(&**f, Expr::Name(h, _) if h == "$par_reset" || h == "$par_collect"))
             || matches!(s, Stmt::For(_, Expr::Name(n, _), _, _) if n.starts_with("$fpchunk"));
         if !synthetic && self.no_fuel == 0 {
