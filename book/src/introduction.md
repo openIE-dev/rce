@@ -50,9 +50,11 @@ today:
 - a reference checker and interpreter, `rce`, which this book uses for every
   example, with the whole standard library built in (`use enc`, `use
   data.events`: nothing to install);
-- emitters that translate a checked program to a target language (Rust,
-  Python, JavaScript and Scala today; every language of the emit registry
-  by table), and lifts that bring programs in those languages into the Form.
+- emitters that translate a checked program to Rust, Python and
+  JavaScript, which agree with the reference, and to Scala, which does not
+  yet; emitting every language by table, and lifts that bring programs in
+  those languages into the Form, are the design of
+  `spec/proposals/rce-form.md` (one Go pattern is lifted by a probe today).
 
 What does not exist yet: a production compiler and a fast runtime. The
 reference interpreter defines what programs mean. It is not built for speed.
