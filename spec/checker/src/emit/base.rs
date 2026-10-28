@@ -13,6 +13,22 @@ pub(super) const RT_PY: &str = include_str!("rt.py");
 pub(super) const RT_JS: &str = include_str!("rt.js");
 pub(super) const RT_SCALA: &str = include_str!("rt.scala");
 
+/// 6.3 N7: the display escape set of `spec/data/display-escape.json`
+/// (`interp::display_escaped`) as a declaration of the runtime of `l`, the
+/// flat list `lo0, hi0, lo1, hi1, ...` of its ranges, ascending. Every
+/// runtime's `rdebug` reads it, so no emitted display reads the Unicode
+/// tables of the toolchain that runs the program.
+pub(super) fn display_escape_decl(l: Lang) -> String {
+    let rs = crate::interp::display_escaped();
+    let xs = rs.iter().flat_map(|(a, b)| [format!("{a:#x}"), format!("{b:#x}")]).collect::<Vec<_>>().join(", ");
+    match l {
+        Lang::Rust => format!("const DISPLAY_ESCAPE: [u32; {}] = [{xs}];", 2 * rs.len()),
+        Lang::Python => format!("DISPLAY_ESCAPE = ({xs})"),
+        Lang::Js => format!("const DISPLAY_ESCAPE = [{xs}];"),
+        Lang::Scala => format!("val DISPLAY_ESCAPE: Array[Int] = Array({xs})"),
+    }
+}
+
 thread_local! {
     /// set while the Scala emitter runs: string literals use `\uXXXX`
     pub(super) static SCALA_Q: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };

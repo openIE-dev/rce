@@ -442,15 +442,30 @@ exactly.
   U+0020, U+0085, U+00A0, U+1680, U+2000 to U+200A, U+2028, U+2029,
   U+202F, U+205F and U+3000 (`interp::WHITE_SPACE`). `isspace` is ASCII
   (space, \t, \n, \x0c, \r).
+  Display writes text in double quotes, with U+0000, tab, LF, CR, `"` and
+  `\` as `\0`, `\t`, `\n`, `\r`, `\"` and `\\`, each code point of the
+  *display escape set* as `\u{h}` (h its lower-case hexadecimal digits,
+  without leading zeros), and every other code point as itself. The display
+  escape set is the 911 ranges of code points listed in
+  `spec/data/display-escape.json` (`interp::display_escaped`; the emitter
+  writes the same ranges into each emitted runtime): the control
+  characters, the code points that are not printable and the grapheme
+  extenders, as Rust 1.98.1 escapes them in the Debug form of a string from
+  its tables of Unicode 17.0.0, enumerated once. The file, not a Unicode
+  version, defines the set.
   **Unicode pin.** RCE pins Unicode 18.0.0
   (https://www.unicode.org/versions/Unicode18.0.0/) and reads no Unicode
   table at run time: scalar values and UTF-8 do not change between
-  versions, case and class operations are ASCII, and the one property used,
-  White_Space, is enumerated above rather than taken from the toolchain. A
-  newer Rust, Python, JavaScript or JVM therefore cannot change a result;
-  `tests/unicode_pin.rs` checks the set and scans the runtimes for calls
-  that would read the toolchain's tables. Moving the pin is a spec change
-  that must leave the enumerated set unchanged or bump the draft.
+  versions, case and class operations are ASCII, and the two sets of code
+  points a result depends on, White_Space and the display escape set, are
+  enumerated above rather than taken from the toolchain. A newer Rust,
+  Python, JavaScript or JVM therefore cannot change a result;
+  `tests/unicode_pin.rs` checks both sets and scans the runtimes for calls
+  that would read the toolchain's tables, `{:?}` of a text among them, and
+  `tests/emit.rs` compares the display of both ends of every range, and of
+  the code points beside them, on each emitted target with the reference.
+  Moving the pin is a spec change that must leave the enumerated sets
+  unchanged or bump the draft.
 - **N8 Indexing** The index `i` of `a[i]` and the ends of `a[i:j]` have
   type `usize` (W-TY-1 otherwise), so no index is negative. `a[i]` with
   i ≥ n is `trap("index i out of range")`. A slice end above n is
@@ -477,4 +492,4 @@ method and is W-NAME-1.
 
 **Read receipt.** Which JavaScript function is named for rounding to binary32?
 
-<!-- body-sha256: 44118c5facf9237f3d0de65dedf3eea86fc64fd352ad9c3907e642ddcffed259 -->
+<!-- body-sha256: ae975bf1f62fc55bb3be460a2aeb925f42095687b06fbb19908386d724977d24 -->

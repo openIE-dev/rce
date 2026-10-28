@@ -13,9 +13,9 @@ what the reference checker enforces and what it does not. A construct of this ap
 checker does not implement is *reserved, not implemented* (W-RES-1), refused, never read as an ordinary
 name and never silently ignored; a rule of this appendix that is not a construct and is not implemented is
 listed in F.12 as not enforced. The Lean files, the emitters and the tree-sitter port do not implement all of
-Appendix F (an emitter refuses a module that needs a rule it does not implement, F.4.4). Every theorem it states
-(T42 to T56, section 8) is an obligation marked *stated, unproved*; this
-appendix and its implementation claim no proof.
+Appendix F (an emitter refuses a module that needs a rule it does not implement, F.4.4). Every theorem it adds
+(T42 to T56, section 8) is stated; T48, T51 and T53 are proved of models (`RCE/Discharged.lean`), and the other twelve are
+unproved; no proof is claimed of the implementation.
 
 **Release label.** Earlier working notes called this list "draft 0.6", then "version 0.9". It is part of the one
 language of this text. By the C.15 rule a release that carries it is a new release, not an erratum or
@@ -1138,4 +1138,4 @@ UnaryExpr    = ( "-" | "~" | "&" [ "mut" ] | "<-" | "comptime" | "release" | "en
              | Postfix .
 ```
 
-<!-- body-sha256: 8b35e0fcce44bf4929bfc6736dc04859fe42b50516a69a6e14ca308c87a53fa5 -->
+<!-- body-sha256: 8bd5fe456449680c69da527d048b20482d76c77fd57e38dbb85ced12065223c5 -->

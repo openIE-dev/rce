@@ -133,11 +133,15 @@ program (section 7).
 
 ### 10.5 `rce emit TARGET FILE`
 
-TARGET names an output. The file must pass `rce check` on its own.
+TARGET names an output. The file must pass `rce check` on its own; for
+`core` it may instead be a core module, a JSON object whose `format` is
+`rce-core/1`, which is read only if it is well formed (rules W1 to W6 of
+the proposal `spec/proposals/one-emitter.md`, ONE-3).
 
 | TARGET | Output |
 |---|---|
 | `form` | the Form P = (S, E, δ, D, λ) as one line of JSON (6.1), then a line end |
+| `core` | the core module of FILE, format `rce-core/1` (the module lowered once, or the core module read), as one line of canonical JSON (6.1.1), then a line end (informative: the core is the proposal `one-emitter.md`, ONE-1) |
 | `rust` | one Rust 2024 source file with a `main` |
 | `python` | one Python 3 source file |
 | `js` | one JavaScript module (ES2020 or later, BigInt) for Node |
@@ -147,11 +151,13 @@ The Form JSON lists objects in canonical order (6.1), so it is a
 deterministic function of the program text.
 
 The four program targets are the ones this checker emits. The language
-places no bound on targets: every language is both an output of the Form
-(a target, printed from the Form IR through a per-language table) and an
-input (a lift, the reverse map, from the language's grammar and a
-semantics table), and every target passes the same gate, the reference
-trace of every example program byte for byte (T9). The registry of targets
+places no bound on targets, and it is designed so that every language is
+both an output of the Form (a target, printed through a per-language
+table) and an input (a lift, the reverse map, from the language's grammar
+and a semantics table), each passing the same gate, the reference trace of
+every example program byte for byte (T9). That design
+(`spec/proposals/rce-form.md`, informative) is not built; of the four
+program targets, `rust`, `python` and `js` pass the gate today. The registry of targets
 and the one-emitter mechanism are the proposal `spec/proposals/emit-targets.md`
 (informative); a target that the table cannot pin to 6.3 is observation-only,
 never a projection.
@@ -319,10 +325,11 @@ outcome.
   not been run.
 - The Scala output has been checked with Scala 3.10.0 only, on OpenJDK 27
   (the examples corpus) and OpenJDK 21 (the conformance suite). With
-  `--run` it runs `fn main` on the same tick scheduler as the other
-  targets. A `par` runs its branches in source order on one thread (by
-  restart when they wait on lvars), as the JavaScript output does when a
-  local cannot go to a worker.
+  `--run` it runs `fn main` through its task runtime, the same tick
+  scheduler as the other targets, and prints that there is nothing to run
+  when no `fn main()` is declared. A `par` runs its branches in source
+  order on one thread (by restart when they wait on lvars), as the
+  JavaScript output does when a local cannot go to a worker.
 
 
 For an unknown target, or a program that one of these emitters does not
@@ -637,6 +644,19 @@ program is a Form. The decision is the tool's, not a version number's.
 `scripts/t7-equiv.sh` runs `rce equiv` between every corpus program and
 its name-free projection (T7) and is a continuous-integration step.
 
+### 10.12 `rce run-core FILE`: the core evaluator (informative)
+
+`rce run-core FILE` lowers FILE to its core module, as `rce emit core`
+does (FILE is an RCE module or an `rce-core/1` core module, read only if
+it is well formed), runs that module with the core evaluator of the
+proposal `one-emitter.md` (ONE-1), and prints what the run writes. The
+core evaluator is an implementation under test, compared with the
+reference evaluator like any target: the expected bytes of every
+comparison are the reference trace (10.9), never this output. Exit status
+0 when the run ends; 1 when the checker refuses FILE, when a core module
+is not well formed, or when the run halts; 2 when FILE uses a construct
+the lowering does not cover, or on an internal error.
+
 **Read receipt.** Which JSON-RPC error code does the language server return for a request it does not know? (a number)
 
-<!-- body-sha256: cc1b329e1b7745242caed4bb3b68131dcee910766aa910a0c025e99f31992c63 -->
+<!-- body-sha256: d9226472023960b887300a4f9ca7f6ceab6a75437725a62ce9a6fce1ec456650 -->

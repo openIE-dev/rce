@@ -61,8 +61,8 @@ fn tool_specs() -> Value {
          "inputSchema": {"type": "object", "properties": {"query": {"type": "string"}}, "required": ["query"]}},
         {"name": "graph_scip", "description": "Export the Form code graph as a SCIP index (definitions and call references), base64 protobuf, for code-intelligence tools.",
          "inputSchema": {"type": "object", "properties": {}}},
-        {"name": "emit", "description": "rce emit TARGET FILE. Targets: form, python, js. The reference checker implements form; python and js return its refusal until the emitters land.",
-         "inputSchema": {"type": "object", "properties": {"path": path, "target": {"type": "string", "enum": ["form", "python", "js"]}}, "required": ["path", "target"]}},
+        {"name": "emit", "description": "rce emit TARGET FILE. Targets: form, rust, python, js and scala.",
+         "inputSchema": {"type": "object", "properties": {"path": path, "target": {"type": "string", "enum": ["form", "rust", "python", "js", "scala"]}}, "required": ["path", "target"]}},
     ])
 }
 

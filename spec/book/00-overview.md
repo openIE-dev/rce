@@ -72,7 +72,7 @@ theorem (effect handlers, switchable contracts, mutable aliasing across
 (Tier 0 hygiene, `World`, definition hashes with `rce api-diff`, transactional
 calls; F.12 lists the rest, which it refuses as reserved, not implemented), the Lean files, the
 emitters and the tree-sitter port do not, and every theorem it adds
-(T42 to T56) is stated and unproved (F.9). There is one language: this text. Drafts 0.5 to 0.9 are
+(T42 to T56) is stated (F.9); T48, T51 and T53 are proved of models (`RCE/Discharged.lean`), and the other twelve are unproved. There is one language: this text. Drafts 0.5 to 0.9 are
 labels of past commits of it, not alternatives; `# rce-version:` is a release label that is
 tolerated, ignored and not hashed (2.7), and a label names exactly one spec commit (C.15). The
 language of this text is what the reference checker and the Lean files enforce and prove for concurrency
@@ -140,4 +140,4 @@ and LALR(1) agree on all 4,977 syntax mutants.
 
 **Read receipt.** In the overview's tiny example, what is the name of the event?
 
-<!-- body-sha256: fda0152e7116bacf059e6e350c3dee069cb183d82b3ea21dd913fd317b193658 -->
+<!-- body-sha256: 977a15f4f5ee73d56a01ed0a1c70aaa8a9eb17abfbd5fcb22b6983b1e14df324 -->

@@ -508,20 +508,24 @@ impl<'a> G<'a> {
         match l {
             Lang::Rust => {
                 self.out.push(RT_RS.to_string());
+                self.line(display_escape_decl(Lang::Rust));
                 self.line(format!("const LOOP_LIMIT: i128 = {loop_limit};"));
             }
             Lang::Python => {
                 self.out.push(RT_PY.to_string());
+                self.line(display_escape_decl(Lang::Python));
                 self.line(format!("LOOP_LIMIT = {loop_limit}"));
             }
             Lang::Js => {
                 self.out.push(RT_JS.to_string());
+                self.line(display_escape_decl(Lang::Js));
                 self.line(format!(
                     "const LOOP_LIMIT = {loop_limit};\nconst KC = {{}};"
                 ));
             }
             Lang::Scala => {
                 self.out.push(RT_SCALA.to_string());
+                self.line(display_escape_decl(Lang::Scala));
                 self.line(format!("val LOOP_LIMIT: BigInt = BigInt(\"{loop_limit}\")"));
             }
         }
@@ -807,7 +811,7 @@ impl<'a> G<'a> {
         if l == Lang::Rust {
             let r = run("run_tasks(\"main\")", false);
             self.line(format!("if std::env::args().any(|a| a == \"--run\") {{ {r}; return; }}"));
-            self.line("observe_all(&|| {".to_string());
+            self.line("observe_all(&|| {");
         }
         self.scopes = vec![vec![]];
         self.ctx = Ctx::Gen;
@@ -863,7 +867,7 @@ impl<'a> G<'a> {
             });
         }
         if l == Lang::Rust {
-            self.line("});".to_string());
+            self.line("});");
         }
         self.close();
         match l {
