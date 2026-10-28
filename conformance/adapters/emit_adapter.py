@@ -65,7 +65,12 @@ def emit(src):
         return [os.environ.get("RCE_PYTHON", "python3"), prog], None
     if LANG == "js":
         return [os.environ.get("RCE_NODE", "node"), prog], None
-    # scala-cli's compile server (Bloop) stays warm across the suite's programs
+    # scala-cli's compile server (Bloop) stays warm across the suite's
+    # programs. It keeps every project it has built, and one project per
+    # program made it fail after about 1,400 of them, so each adapter process
+    # builds its programs, one at a time, from one file of its own
+    wd = os.path.join(TMP, f"w{os.getpid()}"); os.makedirs(wd, exist_ok=True)
+    prog = os.path.join(wd, "main.scala"); open(prog, "w").write(out)
     return [SCALA_CLI, "run", "--jvm", "21", "--scala", SCALA_VERSION, "--scalac-option", "-nowarn", "-q", prog, "--"], None
 
 def toolchain():
@@ -85,17 +90,22 @@ SCALA_TRY = float(os.environ.get("RCE_SCALA_TRY", "150"))
 
 def run_prog(cmd):
     """Run an emitted program. scala-cli builds it on its compile server
-    first; when the call does not end within SCALA_TRY seconds (the server
-    can stall, for several programs at once), it is killed and run once more
-    with `--server=false`, a compiler of its own. The lines compared are
-    those of the run that ends; a program that hangs times out both times."""
+    first; when the call does not end within SCALA_TRY seconds, or scala-cli
+    itself fails (its own stack trace, `at scala.cli.`, on standard error),
+    the server is at fault, not the program, and the program is run once
+    more with `--server=false`, a compiler of its own. The lines compared are
+    those of that second run; a program that hangs times out both times."""
     if LANG != "scala":
         return sh(cmd)
+    i = cmd.index("run") + 1
+    alone = cmd[:i] + ["--server=false"] + cmd[i:]
     try:
-        return sh(cmd, timeout=SCALA_TRY)
+        rc, out, err = sh(cmd, timeout=SCALA_TRY)
     except subprocess.TimeoutExpired:
-        i = cmd.index("run") + 1
-        return sh(cmd[:i] + ["--server=false"] + cmd[i:], timeout=SCALA_TRY)
+        return sh(alone, timeout=SCALA_TRY)
+    if rc != 0 and "at scala.cli." in err:
+        return sh(alone, timeout=SCALA_TRY)
+    return rc, out, err
 
 def outcome_of(r):
     """One spelling for an outcome (see ADAPTERS.md): trap:KIND or refused:E."""
