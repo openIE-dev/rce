@@ -1,0 +1,48 @@
+# How one native run of a Python program maps to the fields of an
+# observation (spec/proposals/rce-form.md section 20). The command profile
+# compares the exit status, the standard output byte for byte and the class
+# of the standard error; the text of the standard error is never compared.
+format   = "rce-observe/1"
+lang     = "python3.13"
+profile  = "command"
+compared = ["status", "stdout_hex", "stderr_class"]
+
+# The class of a run that wrote nothing to standard error.
+empty    = ""
+# The class of a run ended by signal n; its exit status is 128 + n.
+signal   = "signal:{n}"
+# The class of a run whose standard error no row below matches (for example
+# the text that sys.exit prints for a string argument): the SHA-256 of those
+# bytes, after each occurrence of the run directory's absolute path is
+# written {run}, so the comparison stays exact.
+fallback = "bytes:{sha256}"
+
+# Rows are tried in order and the first that matches gives the class. The
+# pattern is a Python regular expression searched in multiline mode in the
+# standard error decoded as UTF-8 (an undecodable byte reads as U+FFFD);
+# when a row has `after`, the search starts after the last match of `after`.
+# {1} in the class is the text of the pattern's first group. An uncaught
+# exception ends the run with exit status 1, and the traceback's last
+# unindented line starts with the exception's name (qualified by its module
+# unless the module is __main__ or builtins).
+
+[[class]]
+id      = "recursion"
+after   = '^Traceback \(most recent call last\):$'
+pattern = '^RecursionError(?::|$)'
+class   = "resource:recursion"
+note    = "the interpreter's recursion limit (sys.getrecursionlimit()), a limit of the oracle and not of the language"
+
+[[class]]
+id      = "memory"
+after   = '^Traceback \(most recent call last\):$'
+pattern = '^MemoryError(?::|$)'
+class   = "resource:memory"
+note    = "the interpreter could not allocate memory"
+
+[[class]]
+id      = "exception"
+after   = '^Traceback \(most recent call last\):$'
+pattern = '^([A-Za-z_][\w.]*)(?::|$)'
+class   = "exc:{1}"
+note    = "an uncaught exception; the class is its name"

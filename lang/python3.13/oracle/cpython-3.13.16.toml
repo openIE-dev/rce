@@ -1,0 +1,78 @@
+# The pinned oracle for the language python3.13: CPython 3.13.16 on x86-64
+# Linux (spec/proposals/rce-form.md section 20, rce-oracle/1).
+format   = "rce-oracle/1"
+name     = "cpython-3.13.16"
+kind     = "maintained"
+lang     = "python3.13"
+target   = "x86_64-unknown-linux-gnu"
+lineage  = "cpython"
+profile  = "command"                  # observe.toml: status, stdout bytes, stderr class
+version  = ["/usr/bin/python3.13", "-VV"]
+# {src} is the program's file in a new, empty run directory. -P keeps the
+# program's directory off sys.path and -s keeps the user's site directory
+# off it; neither changes what the program text means. The proposal's
+# example uses -I, which also implies -E, and -E would make the interpreter
+# ignore PYTHONHASHSEED below; here the environment is replaced whole
+# instead, so no other PYTHON variable reaches a run.
+source_name = "main.py"
+build    = []
+run      = ["/usr/bin/python3.13", "-P", "-s", "{src}"]
+device   = "octets"
+limit    = 10                         # seconds per run
+runs     = 2                          # every case twice; the two observations must be equal
+
+[toolchain]
+# What stands for the OCI image digest of the proposal until an image is
+# built: the SHA-256 of the interpreter, of every file of its standard
+# library (bytecode caches and installed packages left out), and of the
+# shared objects the interpreter loads.
+executable  = "/usr/bin/python3.13"
+sha256      = "a35753ccb97941cce1467786cce892e608141f09d717188a3235d4f51a754446"
+tree        = "/usr/lib/python3.13"
+tree_skip   = ["__pycache__", "site-packages", "dist-packages"]
+tree_sha256 = "62921d7f66339b6260cb1f84c5858fb2e5601b45a3d69430c540c3045c878aa4"
+version_output = "Python 3.13.16 (main, Oct  1 2026, 15:40:24) [GCC 13.3.0]"
+
+[toolchain.libraries]
+"/lib/x86_64-linux-gnu/libm.so.6" = "fce00b6f25f459cf4ae0b7fae4257909a1a8a86f9149e7c029a5d617baf1ccd0"
+"/lib/x86_64-linux-gnu/libz.so.1" = "86200da370f20476a2507e9097a789b5ef97269b4ca8d5e164ad82dab9d99892"
+"/lib/x86_64-linux-gnu/libexpat.so.1" = "286682ecbc5e59a638963b1a4e6351e65eb32fcf4bdcb9cb7569b6a61fe06a8d"
+"/lib/x86_64-linux-gnu/libc.so.6" = "3a15d66867d83762c7f2f1e37359cb8f6c5743edb369c65285cb0b1c4f7498bf"
+"/lib64/ld-linux-x86-64.so.2" = "c20a2dc8917c755f02b94049356320fe1f62ac7d9f8994731f807d9df39302da"
+
+[pins]
+# The whole environment of each run: nothing else is passed. The hash seed is
+# pinned, so it is an input of every case on both sides.
+env       = { LC_ALL = "C.UTF-8", TZ = "UTC", PYTHONHASHSEED = "0", PYTHONDONTWRITEBYTECODE = "1" }
+network   = "none"                    # every run in a new network namespace with no interface up (unshare --net)
+fs        = "run-directory"           # every run in a new, empty directory that holds only the program
+# No wall clock is pinned: this host cannot set the clock of one process, so
+# the clock is neither pinned nor perturbed, and [[unpinned]] keeps out a
+# program that reads it.
+
+[perturb]                             # each entry is one more run when a program is admitted
+env_order = "reversed"                # the environment passed in reverse order
+affinity  = [1, 4]                    # the run limited to the first 1, then 4, processors (taskset)
+# Another hash seed: a program whose output follows the order of a set or of
+# a dictionary built by hashing text would depend on the seed. Such a
+# program enters only as a case whose own env names the seed.
+env       = [{ PYTHONHASHSEED = "1" }, { PYTHONHASHSEED = "4242" }]
+
+# What this host does not pin. A program whose text matches one of these
+# patterns (Python regular expressions, multiline) is not admitted, with the
+# source named, because its observation would not be a function of its case.
+[[unpinned]]
+source  = "clock"
+pattern = '^\s*(?:import|from)\s+(?:time|datetime|timeit|asyncio|sched)\b'
+
+[[unpinned]]
+source  = "entropy"
+pattern = '^\s*(?:import|from)\s+(?:random|secrets|uuid)\b|\burandom\b'
+
+[[unpinned]]
+source  = "filesystem"
+pattern = '\bopen\s*\(|^\s*(?:import|from)\s+(?:os|pathlib|shutil|glob|tempfile|io|fileinput|sqlite3)\b'
+
+[[unpinned]]
+source  = "process"
+pattern = '^\s*(?:import|from)\s+(?:subprocess|multiprocessing|threading|signal|platform|socket|resource|gc)\b|\bid\s*\('

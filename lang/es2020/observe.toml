@@ -1,0 +1,44 @@
+# How one native run of a JavaScript program maps to the fields of an
+# observation (spec/proposals/rce-form.md section 20). The command profile
+# compares the exit status, the standard output byte for byte and the class
+# of the standard error; the text of the standard error is never compared.
+format   = "rce-observe/1"
+lang     = "es2020"
+profile  = "command"
+compared = ["status", "stdout_hex", "stderr_class"]
+
+# The class of a run that wrote nothing to standard error.
+empty    = ""
+# The class of a run ended by signal n; its exit status is 128 + n.
+signal   = "signal:{n}"
+# The class of a run whose standard error no row below matches (for example
+# what console.error wrote): the SHA-256 of those bytes, after each
+# occurrence of the run directory's absolute path is written {run}, so the
+# comparison stays exact.
+fallback = "bytes:{sha256}"
+
+# Rows are tried in order and the first that matches gives the class. The
+# pattern is a Python regular expression searched in multiline mode in the
+# standard error decoded as UTF-8 (an undecodable byte reads as U+FFFD);
+# {1} in the class is the text of the pattern's first group. An uncaught
+# exception ends the run with exit status 1; Node prints the source line,
+# a caret, a blank line and then the thrown value: an Error's stack, whose
+# first line is "Name: message", followed by lines that start "    at ".
+
+[[class]]
+id      = "stack"
+pattern = '^RangeError: Maximum call stack size exceeded$'
+class   = "resource:stack"
+note    = "the engine's call stack limit, a limit of the oracle and not of the language"
+
+[[class]]
+id      = "exception"
+pattern = '^([A-Za-z_$][\w$]*)(?:: [^\n]*)?\n    at '
+class   = "exc:{1}"
+note    = "an uncaught Error; the class is the name its stack starts with"
+
+[[class]]
+id      = "throw"
+pattern = '^\^+\n\n?([^\n]*)\n(?:\(Use `node --trace-uncaught|\nNode\.js v)'
+class   = "throw:{1}"
+note    = "an uncaught value that is not an Error; the class is the first line Node prints for it"
