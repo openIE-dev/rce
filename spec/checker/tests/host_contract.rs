@@ -357,8 +357,8 @@ fn rcedb_example_runs() {
     assert_eq!(o.lines().filter(|l| l.contains("emit Row")).count(), 2, "scan starts at `start`: {o}");
 }
 
-/// Whether a rule cell of the E.10 table (`HC-10a, HF-3` or `HC-24 to
-/// HC-26, HF-2`) covers the rule `r`.
+/// Whether a rule cell of the E.10 table (`HC-10a, HD-3` or `HC-24 to
+/// HC-26, HD-2`) covers the rule `r`.
 fn covers(cell: &str, r: &str) -> bool {
     let num = |x: &str| x.rsplit_once('-').and_then(|(p, n)| Some((p.to_string(), n.parse::<u32>().ok()?)));
     cell.split(", ").any(|c| match c.split_once(" to ") {
@@ -383,7 +383,7 @@ fn every_appendix_e_rule_is_cited_by_a_test() {
     let tests = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests");
     let e10 = &book[book.find("### E.10").unwrap()..book.find("### E.11").unwrap()];
     let rows: Vec<&str> = e10.lines().filter(|l| l.starts_with("| HC-") || l.starts_with("| HS-")).collect();
-    for r in ["HC-5a", "HC-10a", "HC-10b", "HC-21", "HC-22", "HC-23", "HC-24", "HC-25", "HC-26", "HF-1", "HF-2", "HF-3", "HF-4"] {
+    for r in ["HC-5a", "HC-10a", "HC-10b", "HC-21", "HC-22", "HC-23", "HC-24", "HC-25", "HC-26", "HD-1", "HD-2", "HD-3", "HD-4"] {
         assert!(book.contains(&format!("**{r} ")) || book.contains(&format!("**{r}**")), "rule {r} is not stated");
         let row = rows.iter().find(|l| covers(l.split('|').nth(1).unwrap_or("").trim(), r)).unwrap_or_else(|| panic!("no E.10 row for {r}"));
         for part in row.split('|').nth(3).unwrap().split("; ") {

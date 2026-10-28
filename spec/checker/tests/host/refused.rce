@@ -1,6 +1,6 @@
 module refusals
 
-intent "a refused step is followed by host.Refused and, when the program declares it, by the input Refused(seq, cause), so the program learns that the step did not happen and why"
+intent "a refused step is followed by host.Refused and, when the program declares it, by the input Refused(seq, cause), so the program is told that the step did not happen and why"
     example Ok -> applied == 1 and refusals == 0
     example Fail -> refused: Bad
     example Refused(seq: 4, cause: "fail") -> refusals == 1 and last_seq == 4 and last_cause == "fail" and applied == 0

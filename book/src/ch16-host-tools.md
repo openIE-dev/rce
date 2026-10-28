@@ -65,8 +65,9 @@ each request of the Hypertext Transfer Protocol (HTTP/1.1) into one
 input. The listing declares the request, the malformed request, the
 response and its result with the host's own shapes, so each is delivered
 exactly. A program may declare them with other fields, or not at all:
-the host then fits each delivery to the declaration by field name and
-records in D what it did not deliver and why (Appendix E, E.4c, HF-2).
+the host then delivers each value as the declaration takes it, matching
+fields by name, and records in D what it did not deliver and why
+(Appendix E, E.4c, HD-2).
 
 ```rce
 {{#include ../listings/ch16/hello_http.rce}}

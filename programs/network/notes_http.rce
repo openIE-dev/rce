@@ -71,8 +71,8 @@ step Server on HttpRequest(id: id, method: m, target: t, version: _, names: _, v
     let p = t.split("/")
     let n = p.len() == 3 and p[1] == "notes" and is_id(&p[2])
     let k = if n then p[2].toint() as u64 else 0
-    let fits = b.len() <= MAX_NOTE
-    let ok = fits and utf8.utf8_valid(&b)
+    let small = b.len() <= MAX_NOTE
+    let ok = small and utf8.utf8_valid(&b)
     let s = if ok then b.utf8() else ""
     let g = if m == "HEAD" then "GET" else copy(m)
     var r = err(404, "not found")
@@ -80,7 +80,7 @@ step Server on HttpRequest(id: id, method: m, target: t, version: _, names: _, v
         ("GET", "/health") -> r = (200, "{\"ok\":true}", "")
         (_, "/health") -> r = no("GET, HEAD")
         ("GET", "/notes") -> r = (200, "[" + ",".join([note(i, copy(notes[i])) for i in notes.keys()]) + "]", "")
-        ("POST", "/notes") -> r = if not fits then err(413, "note over 4096 bytes") else (if not ok then err(400, "body is not UTF-8") else (if s.strip().isempty() then err(422, "empty note") else (201, note(next_id, copy(s)), "")))
+        ("POST", "/notes") -> r = if not small then err(413, "note over 4096 bytes") else (if not ok then err(400, "body is not UTF-8") else (if s.strip().isempty() then err(422, "empty note") else (201, note(next_id, copy(s)), "")))
         (_, "/notes") -> r = no("GET, HEAD, POST")
         ("GET", _) if n -> r = if notes.contains(k) then (200, note(k, copy(notes[k])), "") else err(404, "no such note")
         ("DELETE", _) if n -> r = if notes.contains(k) then (204, "", "") else err(404, "no such note")

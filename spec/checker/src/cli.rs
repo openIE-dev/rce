@@ -1298,9 +1298,9 @@ fn host_cmd(a: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &mu
                 None => None,
             };
             let mut h = if sub == "serve" { Host::open_file_bounded(&m, std::path::Path::new(log), adapters, DRAIN_MAX)? } else { Host::open_file_with(&m, std::path::Path::new(log), adapters)? };
-            // E.4c: the host starts on any module; it says how it fits each
-            // declaration that is not exactly what it delivers
-            for n in h.fitting() {
+            // E.4c: the host starts on any module; it says how it delivers to
+            // each declaration that is not exactly what it has
+            for n in h.delivery_notes() {
                 eprintln!("rce host: {n}");
             }
             if let Some(s) = &http {
@@ -1377,7 +1377,7 @@ fn host_cmd(a: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &mu
                         h.settle()?;
                         if a.is_empty() {
                             refused = true;
-                            writeln!(out, "{before} host.Unfit: the line is not events of the module ({e}); recorded in D, not delivered").map_err(w)?;
+                            writeln!(out, "{before} host.Kept: the line is not events of the module ({e}); recorded in D, not delivered").map_err(w)?;
                         }
                         a
                     }
@@ -1499,11 +1499,11 @@ pub const FRAME_MS: u64 = 16;
 /// An input is a stdin line in event syntax. A line that is not events of
 /// the module (it is not UTF-8, does not parse, names no event, or one of
 /// its events cannot be built) is held whole as `Input(data: line)`, and
-/// recorded in D as `host.Unfit` when the module declares no `Input`
-/// (HC-24, E.4c); with `--http`, each request is fitted to `HttpRequest` or
-/// `HttpMalformed` (HC-24, HF-2); between inputs, `Tick` (or `Tick(n)`)
-/// every frame when declared, fitted like any delivery (HF-4). Only a
-/// storage fault (HS-3) stops the loop. EOF on stdin ends the
+/// recorded in D as `host.Kept` when the module declares no `Input`
+/// (HC-24, E.4c); with `--http`, each request is delivered as the module
+/// declares `HttpRequest` or `HttpMalformed` (HC-24, HD-2); between inputs,
+/// `Tick` (or `Tick(n)`) every frame when declared, like any delivery
+/// (HD-4). Only a storage fault (HS-3) stops the loop. EOF on stdin ends the
 /// loop unless `--http` is granted; an emitted `Exit` ends it; SIGTERM or
 /// SIGINT stop accepting, wait up to STOP_MS for open requests, and end it.
 /// Each drain performs at most DRAIN_MAX requests and the next round
@@ -1544,8 +1544,9 @@ fn serve_loop(h: &mut crate::host::Host, src: &str, out: &mut dyn Write, mut htt
         let htx = std::sync::Mutex::new(tx.clone());
         s.start(std::sync::Arc::new(move |x| htx.lock().map(|t| t.send(Inbound::Http(x)).is_ok()).unwrap_or(false)));
     }
-    // HF-4: Tick is fitted like any delivery; a declaration that no frame
-    // count can be built into is not delivered, and the host says so once
+    // HD-4: Tick is matched by field name like any delivery; a declaration
+    // that no frame count can be built into is not delivered, and the host
+    // says so once
     let mut tick = h.event_fields("Tick");
     if tick.is_some()
         && let Err(why) = h.tick_args(1)
@@ -1597,10 +1598,10 @@ fn serve_loop(h: &mut crate::host::Host, src: &str, out: &mut dyn Write, mut htt
             n += 1;
             match h.tick(n) {
                 Ok(Some(a)) => adm.extend(a),
-                // HF-4: a count that no longer converts is recorded once
-                // (host.Unfit), and no later count converts either
+                // HD-4: a count that no longer converts is recorded once
+                // (host.Kept), and no later count converts either
                 Ok(None) => {
-                    eprintln!("rce host: Tick({n}) cannot be built into the declaration of Tick; recorded in D (host.Unfit), and no later Tick is delivered");
+                    eprintln!("rce host: Tick({n}) cannot be built into the declaration of Tick; recorded in D (host.Kept), and no later Tick is delivered");
                     tick = None;
                 }
                 Err(e) => report(e, out)?,
@@ -1617,11 +1618,11 @@ fn serve_loop(h: &mut crate::host::Host, src: &str, out: &mut dyn Write, mut htt
                     match std::str::from_utf8(t).map_err(|e| format!("the line is not UTF-8 at offset {}", e.valid_up_to())).and_then(|x| h.admit(src, x)) {
                         Ok(a) => adm.extend(a),
                         // HC-24: a line that is not events of the module is
-                        // held whole, as Input(data) or as host.Unfit in D
+                        // held whole, as Input(data) or as host.Kept in D
                         Err(e) if !Host::is_storage_fault(&e) && h.len() == before => match h.line_input(&[t, b"\n"].concat()) {
                             Ok(a) => {
                                 if a.is_empty() {
-                                    eprintln!("rce host: line recorded in D (host.Unfit), not events of the module: {e}");
+                                    eprintln!("rce host: line recorded in D (host.Kept), not events of the module: {e}");
                                 }
                                 adm.extend(a);
                             }
@@ -1652,9 +1653,10 @@ fn serve_loop(h: &mut crate::host::Host, src: &str, out: &mut dyn Write, mut htt
                     }
                 }
                 Inbound::Http(x @ (HttpIn::Request { .. } | HttpIn::Malformed { .. })) => {
-                    // HC-24, HF-2: the host fits the input to the module; the
-                    // id is the seq of the entry that delivers it, and the
-                    // framing (HC-26) is read from the host's whole value
+                    // HC-24, HD-2: the host delivers the input as the module
+                    // declares it; the id is the seq of the entry that
+                    // delivers it, and the framing (HC-26) is read from the
+                    // host's whole value
                     let (name, p, reply) = match x {
                         HttpIn::Request { req, reply } => {
                             let mut p = serde_json::Map::new();
@@ -1693,7 +1695,7 @@ fn serve_loop(h: &mut crate::host::Host, src: &str, out: &mut dyn Write, mut htt
             }
         }
         adm.extend(h.settle()?);
-        // HF-2: a request the program cannot answer gets the host's own
+        // HD-2: a request the program cannot answer gets the host's own
         // response, with no body, and the connection closes after it
         for (reply, status) in answers.drain(..) {
             let r = serde_json::json!({"status": status, "names": [], "values": [], "body": ""});
