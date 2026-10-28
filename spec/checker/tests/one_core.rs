@@ -56,10 +56,11 @@ fn round_trip(m: &Module) {
     assert!(one::json::module_from_text(&t).unwrap() == *m);
 }
 
+/// One group of `fns` in canonical order (W5), entered at the first of them.
 fn module_of(fns: Vec<Fn>, globals: Vec<(Ty, Option<Lit>)>) -> Module {
-    let g = Group { fns };
+    let (g, class) = one::json::canonical_group(&fns);
     let key = one::json::group_key(&g);
-    Module { globals, defs: [(key.clone(), g)].into_iter().collect(), entry: (key, 0), names: serde_json::json!({}) }
+    Module { globals, defs: [(key.clone(), g)].into_iter().collect(), entry: (key, class[0]), names: serde_json::json!({}) }
 }
 
 fn entry(body: Vec<Stmt>) -> Fn {
@@ -513,4 +514,44 @@ fn recursive_groups_in_canonical_order() {
         let key = one::json::group_key(&g);
         assert_eq!(m.names["fns"][&key][0], "a = b = c");
     }
+}
+
+/// W5 is checked on every core module read, not only on modules the
+/// builder wrote: a group whose members are out of canonical order, or
+/// that repeats a member, would give one group a second key, so wf refuses
+/// it (as `rce emit core FILE` and `rce run-core FILE` do on such input).
+#[test]
+fn wf_refuses_a_group_out_of_canonical_order() {
+    fn swap_rec(b: &mut [Stmt]) {
+        for s in b {
+            match s {
+                Stmt::Call(FnRef::Rec(i), _) | Stmt::Catch(FnRef::Rec(i), _) => *i = 1 - *i,
+                Stmt::If(_, t, e) => {
+                    swap_rec(t);
+                    swap_rec(e);
+                }
+                Stmt::Block(x) | Stmt::Loop(x) => swap_rec(x),
+                _ => {}
+            }
+        }
+    }
+    let m = ring(&[("f", "f", 1), ("g", "g", 0)], &[0, 1]);
+    let g = m.defs.values().find(|g| g.fns.len() == 2).unwrap().clone();
+    // the same two members in the other order, beside the canonical group
+    let mut swapped = Group { fns: vec![g.fns[1].clone(), g.fns[0].clone()] };
+    for f in &mut swapped.fns {
+        swap_rec(&mut f.body);
+    }
+    let mut bad = m.clone();
+    bad.defs.insert(one::json::group_key(&swapped), swapped);
+    let e = one::wf::check(&bad).unwrap_err();
+    assert!(e.starts_with("W5: member 0 of group") && e.contains("canonical order"), "{e}");
+    // a member repeated: one function that calls itself, written twice
+    let one_fn = ring(&[("a", "x", 1), ("b", "x", 2), ("c", "x", 0)], &[0, 1, 2]);
+    let f = one_fn.defs.values().find(|g| g.fns[0].ret == Ty::Bool).unwrap().fns[0].clone();
+    let twice = Group { fns: vec![f.clone(), f] };
+    let mut bad = one_fn.clone();
+    bad.defs.insert(one::json::group_key(&twice), twice);
+    let e = one::wf::check(&bad).unwrap_err();
+    assert!(e.starts_with("W5: member 1 of group") && e.contains("repeats a member"), "{e}");
 }
