@@ -1,7 +1,11 @@
 # How one native run of a JavaScript program maps to the fields of an
 # observation (spec/proposals/rce-form.md section 20). The command profile
 # compares the exit status, the standard output byte for byte and the class
-# of the standard error; the text of the standard error is never compared.
+# of the standard error. The standard error is compared only through its
+# class: an uncaught Error's class is its name, without its message, an
+# uncaught value of another kind has the first line Node prints for it,
+# and a standard error that no row matches has the fallback class, a hash
+# of the whole text, so that text is compared exactly.
 format   = "rce-observe/1"
 lang     = "es2020"
 profile  = "command"

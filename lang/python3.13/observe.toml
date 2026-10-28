@@ -1,7 +1,10 @@
 # How one native run of a Python program maps to the fields of an
 # observation (spec/proposals/rce-form.md section 20). The command profile
 # compares the exit status, the standard output byte for byte and the class
-# of the standard error; the text of the standard error is never compared.
+# of the standard error. The standard error is compared only through its
+# class: an uncaught exception's class is its name, without its message,
+# and a standard error that no row matches has the fallback class, a hash
+# of the whole text, so that text is compared exactly.
 format   = "rce-observe/1"
 lang     = "python3.13"
 profile  = "command"
