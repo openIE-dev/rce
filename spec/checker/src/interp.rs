@@ -523,7 +523,8 @@ pub fn is_ws(c: char) -> bool {
 /// depends on the Unicode tables of a toolchain. The list is the set that
 /// the Debug form of a str escapes in Rust 1.98.1, whose tables are of
 /// Unicode 17.0.0, enumerated once; `tests/unicode_pin.rs` compares it with
-/// the toolchain, and the runtime written in the core reads the same list.
+/// the toolchain, the runtime written in the core reads the same list, and
+/// the emitter writes it into each emitted runtime (`emit::base`).
 pub const DISPLAY_ESCAPE_JSON: &str = include_str!("../../data/display-escape.json");
 
 /// The ranges of [`DISPLAY_ESCAPE_JSON`], ascending and disjoint.

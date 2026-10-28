@@ -811,7 +811,7 @@ impl<'a> G<'a> {
         if l == Lang::Rust {
             let r = run("run_tasks(\"main\")", false);
             self.line(format!("if std::env::args().any(|a| a == \"--run\") {{ {r}; return; }}"));
-            self.line("observe_all(&|| {".to_string());
+            self.line("observe_all(&|| {");
         }
         self.scopes = vec![vec![]];
         self.ctx = Ctx::Gen;
@@ -867,7 +867,7 @@ impl<'a> G<'a> {
             });
         }
         if l == Lang::Rust {
-            self.line("});".to_string());
+            self.line("});");
         }
         self.close();
         match l {
