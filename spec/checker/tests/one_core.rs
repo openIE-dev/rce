@@ -205,7 +205,20 @@ fn evaluator() {
     assert!(prim("int.add", &u8t, vec![i(200), i(56)]).is_err(), "outside the domain");
     assert_eq!(p("f64.round", &[], vec![Val::F(-2.5)]), vec![Val::F(-3.0)]);
     assert_eq!(p("f64.bad.div", &[], vec![Val::F(1.0), Val::F(0.0)]), vec![Val::Bool(true)]);
-    assert_eq!(p("f64.min", &[], vec![Val::F(-0.0), Val::F(0.0)]), vec![Val::F(-0.0)]);
+    // f64.min and f64.max on signed zeros (6.3 N5): by IEEE order the two
+    // are equal, and the first operand, the receiver, is returned on a tie;
+    // compared by their bits, since -0.0 == 0.0
+    let bits = |n: &str, x: f64, y: f64| match p(n, &[], vec![Val::F(x), Val::F(y)]).as_slice() {
+        [Val::F(r)] => r.to_bits(),
+        r => panic!("{n}: {r:?}"),
+    };
+    for n in ["f64.min", "f64.max"] {
+        for (x, y) in [(0.0, -0.0), (-0.0, 0.0), (-0.0, -0.0), (0.0, 0.0)] {
+            assert_eq!(bits(n, x, y), f64::to_bits(x), "{n}({x:?}, {y:?})");
+        }
+    }
+    assert_eq!(bits("f64.min", 1.5, -0.0), (-0.0f64).to_bits());
+    assert_eq!(bits("f64.max", -0.0, -1.5), (-0.0f64).to_bits());
 }
 
 /// 3.4: every type, atom and statement has one JSON form, read back exactly;

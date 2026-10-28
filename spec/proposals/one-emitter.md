@@ -123,7 +123,7 @@ The RCE types map onto these as the Form IR inventory sets out: integers to `int
 |---|---|---|
 | `bool` (4) | `not and or eq` (strict; short-circuit evaluation is written with `if`) | none |
 | `int` (33) | `add sub mul neg abs quo rem` (quotient toward zero, remainder with the dividend's sign); `eq lt le min max`; `wadd wsub wmul` (wrapping) and `sadd ssub smul` (saturating) of N2; `and or xor not shl shr` on the two's-complement form; `cast` | `bad.add bad.sub bad.mul bad.neg bad.abs`; `bad.quo` (the case MIN / −1, for `quo` and `rem`; the zero divisor is tested with `eq`); `bad.shift`; `bad.cast` |
-| `f64` (25) | `add sub mul div sqrt` (correctly rounded, F1); `neg abs floor ceil round` (ties away from zero, F8); `min max eq lt le` (IEEE order); `of_int` (round to nearest even, N4); `trunc` (toward zero); `to_f32` | `bad.add bad.sub bad.mul bad.div bad.sqrt` (the IEEE result is not finite, F4); `bad.trunc`; `bad.to_f32` |
+| `f64` (25) | `add sub mul div sqrt` (correctly rounded, F1); `neg abs floor ceil round` (ties away from zero, F8); `min max eq lt le` (IEEE order, in which −0.0 equals 0.0; `min` and `max` return the first operand on a tie, the receiver of N5); `of_int` (round to nearest even, N4); `trunc` (toward zero); `to_f32` | `bad.add bad.sub bad.mul bad.div bad.sqrt` (the IEEE result is not finite, F4); `bad.trunc`; `bad.to_f32` |
 | `f32` (9) | `add sub mul div` (the f32 rule of 6.3); `to_f64` | `bad.add bad.sub bad.mul bad.div` |
 | `bytes` (8) | `len get slice cat eq lt` (bytewise order, which on UTF-8 is code-point order); `of_list to_list` | `get` needs i < len; `slice` needs i ≤ j ≤ len |
 | `arr` (4) | `new len get set` | i < len |

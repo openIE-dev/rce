@@ -204,3 +204,21 @@ fn integers_rounded_once_to_f32() {
         assert_eq!(*g, float_text(*v as f32 as f64), "{v} as f32");
     }
 }
+
+/// 6.3 N5 and F8: f64 `min` and `max` compare by IEEE order, in which
+/// `-0.0` and `0.0` are equal, and return the receiver on a tie. So
+/// `(0.0).min(-0.0)` is `0.0` and `(-0.0).min(0.0)` is `-0.0`, unlike IEEE
+/// 754-2019 `minimum`, which orders `-0.0` below `0.0`. The reference
+/// interpreter computes exactly this, and the lowered core (`f64.min` and
+/// `f64.max` with the receiver first) prints the reference's trace.
+#[test]
+fn f64_min_max_on_signed_zeros_follow_the_reference() {
+    let src = "fn main()\n    let p = 0.0\n    let n = -0.0\n    emit p.min(n)\n    emit n.min(p)\n    emit p.max(n)\n    emit n.max(p)\n    emit n.min(n)\n    emit p.max(p)\n    emit n.max(1.5)\n    emit (1.5).min(n)\n";
+    assert!(rce_spec_check::cli::diagnostics(src, &Default::default()).is_empty());
+    let m = rce_spec_check::program(src).unwrap();
+    let want = one::trace::reference(&m);
+    let emitted: Vec<&str> = want.lines().filter_map(|l| l.strip_prefix("emit ")).collect();
+    // display writes 0.0 as `0` and -0.0 as `-0` (F6)
+    assert_eq!(emitted, ["0", "-0", "0", "-0", "-0", "0", "1.5", "-0"], "{want}");
+    assert_eq!(one::run_core_of(&m).unwrap(), want);
+}
