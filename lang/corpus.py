@@ -398,9 +398,6 @@ def observation(ck, res):
             "stderr_class": res.stderr_class, "stdout_hex": res.stdout.hex()}
 
 
-COMPARED = ("stdout_hex", "status", "stderr_class")
-
-
 def first_difference(exp, got):
     a, b = bytes.fromhex(exp["stdout_hex"]), bytes.fromhex(got["stdout_hex"])
     if a != b:
@@ -594,12 +591,17 @@ def admit(lang, src_dir):
 
 def verify_case(oracle, cdir, c):
     item = c["provenance"]["item"]
-    src = (cdir / c["file"]).read_bytes()
+    if c.get("profile") != PROFILE or c.get("inputs") != INPUTS:
+        return [("NOT-RUN", item, "this script runs only command cases with no arguments, input or environment of their own")]
+    try:
+        src = (cdir / c["file"]).read_bytes()
+        exp_bytes = (cdir / c["expected"]).read_bytes()
+        exp = json.loads(exp_bytes.decode("utf-8"))
+        rec = exp.pop("recorded")
+    except (OSError, ValueError, KeyError) as e:
+        return [("NOT-RUN", item, f"its file or expected observation cannot be read: {type(e).__name__}")]
     if sha256_bytes(src) != c["sha256"]:
         return [("NOT-RUN", item, "the file's SHA-256 differs from the manifest (K3)")]
-    exp_bytes = (cdir / c["expected"]).read_bytes()
-    exp = json.loads(exp_bytes.decode("utf-8"))
-    rec = exp.pop("recorded")
     if rec.get("oracle") != oracle.key:
         return [("NOT-RUN", item, f"recorded under oracle record key {rec.get('oracle')}, the record's key is {oracle.key}")]
     if canon({**exp, "recorded": rec}).encode("utf-8") != exp_bytes:
@@ -698,8 +700,7 @@ def main(argv):
     except Failure as e:
         print("corpus.py: " + str(e), file=sys.stderr)
         return 2
-    print(__doc__.strip().split("\n\n")[1], file=sys.stderr)
-    print("usage: corpus.py pins LANG | admit LANG DIR | verify LANG [ITEM...]", file=sys.stderr)
+    print(__doc__.strip(), file=sys.stderr)
     return 2
 
 
