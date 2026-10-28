@@ -23,6 +23,12 @@ read that first. Where the two differ, CONTRIBUTING.md wins.
   definition and by exact comparison, never by statistics, planted wrong
   answers or held-out cases. Expected bytes come from the reference, never
   from the program under test.
+- **The Form evolves.** The Form is not frozen. It follows the physics of
+  computation, the changing ways algorithms are implemented, and what
+  people create under converging machine constraints. A change to it moves
+  the specification, the tools and every program together, in one change.
+  Content addressing keeps every earlier Form's keys and logs replayable,
+  so evolving the Form never changes what an applied program meant.
 - **Words for RCE.** The gate's outcomes are "applied" or "kept" (state
   unchanged, reason recorded), and a program "complies with the Form". Do
   not describe RCE with the words token, guess, fit, learn or train, or as
