@@ -13,7 +13,8 @@ front end's job and is certified through the reference adapter.
                    that example's block. The example's expected value is used
                    only to admit the module; the lines compared are printed
                    by the emitted program.
-Env: RCE (the rce binary), RCE_RUSTC, RCE_PYTHON, RCE_NODE, RCE_SCALA_CLI.
+Env: RCE (the rce binary), RCE_RUSTC, RCE_PYTHON, RCE_NODE, RCE_SCALA_CLI,
+RCE_SCALA_TRY (seconds before a scala-cli call is retried without its server).
 `hello` names the toolchain (its `--version`), which the harness records in the report.
 """
 import hashlib, json, os, re, subprocess, sys, tempfile
@@ -27,8 +28,20 @@ SCALA_CLI = os.environ.get("RCE_SCALA_CLI", "scala-cli")
 SCALA_VERSION = "3.10.0"  # pinned, as in spec/checker/tests/emit*.rs
 
 def sh(cmd, inp=None, timeout=300):
-    p = subprocess.run(cmd, input=inp, capture_output=True, text=True, timeout=timeout)
-    return p.returncode, p.stdout, p.stderr
+    # its own process group, so a timeout also ends the processes it started
+    # (scala-cli's JVM), which would otherwise hold its output open
+    p = subprocess.Popen(cmd, stdin=subprocess.PIPE if inp is not None else None, stdout=subprocess.PIPE,
+                         stderr=subprocess.PIPE, text=True, start_new_session=(os.name != "nt"))
+    try:
+        out, err = p.communicate(inp, timeout=timeout)
+    except subprocess.TimeoutExpired:
+        if os.name != "nt":
+            os.killpg(p.pid, 9)
+        else:
+            p.kill()
+        p.communicate()
+        raise
+    return p.returncode, out, err
 
 def emit(src):
     h = hashlib.sha256(src.encode()).hexdigest()[:16]
@@ -68,6 +81,22 @@ def toolchain():
     v = "; ".join(l.strip() for l in (out + err).splitlines() if l.strip() and not l.startswith("Picked up "))
     return v + (f"; Scala {SCALA_VERSION}, JVM 21" if LANG == "scala" else "")
 
+SCALA_TRY = float(os.environ.get("RCE_SCALA_TRY", "150"))
+
+def run_prog(cmd):
+    """Run an emitted program. scala-cli builds it on its compile server
+    first; when the call does not end within SCALA_TRY seconds (the server
+    can stall, for several programs at once), it is killed and run once more
+    with `--server=false`, a compiler of its own. The lines compared are
+    those of the run that ends; a program that hangs times out both times."""
+    if LANG != "scala":
+        return sh(cmd)
+    try:
+        return sh(cmd, timeout=SCALA_TRY)
+    except subprocess.TimeoutExpired:
+        i = cmd.index("run") + 1
+        return sh(cmd[:i] + ["--server=false"] + cmd[i:], timeout=SCALA_TRY)
+
 def outcome_of(r):
     """One spelling for an outcome (see ADAPTERS.md): trap:KIND or refused:E."""
     if r.startswith("trap: "): return "trap:" + r[6:]
@@ -79,7 +108,7 @@ def run_main(src, fuel):
     if cmd is None:
         return {"error": f"emit: {err}"}
     args = ["--run"] + ([f"--fuel={fuel}"] if fuel else [])
-    rc, out, e = sh(cmd + args)
+    rc, out, e = run_prog(cmd + args)
     lines = [l for l in out.splitlines() if l and not l.startswith("actorlog ")]
     outcome = "done"
     if lines and lines[-1].startswith("outcome "):
@@ -113,7 +142,7 @@ def run_events(src, events, extra=()):
                 return {"error": f"emit: {err2}"}
         else:
             return {"error": f"emit: {err}"}
-    rc, out, e = sh(cmd + list(extra))
+    rc, out, e = run_prog(cmd + list(extra))
     blocks, cur = {}, None
     for l in out.splitlines():
         mm = re.match(r"example (\d+)$", l)
@@ -145,7 +174,7 @@ def trace(src, events):
         cmd, err = emit(src)
         if cmd is None:
             return {"error": f"emit: {err}"}
-        rc, out, e = sh(cmd + ["--trace"])
+        rc, out, e = run_prog(cmd + ["--trace"])
         if rc != 0 and "trace " not in out:
             return {"error": f"exit {rc}: {e[-300:]}"}
         heads = [l[6:] for l in out.splitlines() if l.startswith("trace ")]
