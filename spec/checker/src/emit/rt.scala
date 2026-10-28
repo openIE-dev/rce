@@ -188,12 +188,23 @@ def int_to_f32(n: BigInt): Double = {
   val r = fround32(m.toDouble * math.pow(2, sh))
   if (n < 0) -r else r
 }
+// 6.3 N7: k lies in a range of DISPLAY_ESCAPE, the set of
+// spec/data/display-escape.json that the emitter writes after this runtime
+def displayEscapes(k: Int): Boolean = {
+  val n = DISPLAY_ESCAPE.length / 2
+  var lo = 0; var hi = n
+  while (lo < hi) {
+    val m = (lo + hi) / 2
+    if (DISPLAY_ESCAPE(2 * m + 1) < k) lo = m + 1 else hi = m
+  }
+  lo < n && DISPLAY_ESCAPE(2 * lo) <= k
+}
 def rdebug(s: String): String = {
   val o = new StringBuilder("\"")
   s.codePoints().forEach { k =>
     if (k == '\t') o ++= "\\t" else if (k == '\r') o ++= "\\r" else if (k == '\n') o ++= "\\n"
     else if (k == '\\') o ++= "\\\\" else if (k == '"') o ++= "\\\"" else if (k == 0) o ++= "\\0"
-    else if (k < 0x20 || (k >= 0x7f && k <= 0x9f) || (k >= 0x300 && k <= 0x36f)) o ++= "\\u{" + Integer.toHexString(k) + "}"
+    else if (displayEscapes(k)) o ++= "\\u{" + Integer.toHexString(k) + "}"
     else o.appendAll(Character.toChars(k))
   }
   o.append('"').toString

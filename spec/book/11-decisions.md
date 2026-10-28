@@ -131,8 +131,8 @@ each can be reversed independently.
     correctly rounded RCE code in the `math` module (F9), so every target
     runs the same algorithm instead of its platform library.
 52. **Unicode 18.0.0 pinned, no tables read at run time** (6.3 N7): the
-    whitespace set is enumerated, so a toolchain upgrade cannot change a
-    result.
+    whitespace set and the display escape set are enumerated, so a
+    toolchain upgrade cannot change a result.
 
 53. **Draft 0.9 is a new release** (label 0.9, never reuse 0.6), because it
     refuses programs 0.8 accepted and changes `&mut` after a failed call
@@ -395,4 +395,4 @@ checked by `scripts/claim-counts.py --check`.
 
 **Read receipt.** The decisions list says it decides gaps in which file?
 
-<!-- body-sha256: 2346d053d92fe62068dcec8afd8e1b3608ddfbbe6249ad2cc3ea79da9634ee90 -->
+<!-- body-sha256: fb7ee5625e3f9dff21379fba6af986ab2cbeb65cf5d577637c07ba477c4a45dd -->

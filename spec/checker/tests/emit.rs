@@ -299,3 +299,40 @@ fn prompt_and_header_contexts_agree_on_every_available_target() {
     }
     eprintln!("context program: {ran} covered targets ran and agreed");
 }
+
+/// 6.3 N7 on every target: display writes as `\u{h}` exactly the code points
+/// of `spec/data/display-escape.json`. For each range the program displays
+/// its two ends and the code points just outside them, between letters, so
+/// a runtime whose escape set differs from the data, or that takes it from
+/// its toolchain's Unicode tables, disagrees with the reference here.
+#[test]
+fn display_escape_set_agrees_on_every_available_target() {
+    let mut cps = vec![];
+    for &(lo, hi) in rce_spec_check::interp::display_escaped() {
+        for cp in [lo.wrapping_sub(1), lo, hi, hi + 1] {
+            if char::from_u32(cp).is_some() && !cps.contains(&cp) {
+                cps.push(cp);
+            }
+        }
+    }
+    let mut src = String::new();
+    for (i, ch) in cps.chunks(64).enumerate() {
+        let body: String = ch.iter().map(|cp| format!("\\u{{{cp:x}}}a")).collect();
+        src += &format!("fn esc{i}() -> text = \"a{body}\"\n");
+    }
+    // the trap message of toint names its text as display writes it
+    src += "fn shy_int() -> i64 = \"1\\u{ad}\".toint()\n";
+    let m = with_probes(&parse(&src).unwrap());
+    let want = observe(&m);
+    assert!(want.iter().any(|l| l.contains("a\\u{ad}a")), "{want:?}");
+    assert!(want.iter().any(|l| l.starts_with("fn shy_int trap") && l.contains("\\u{ad}")), "{want:?}");
+    let mut ran = 0;
+    for lang in targets::covered(&targets::ALL, tool) {
+        let dir = scratch(lang);
+        let got = run(lang, &dir, "display_escape", &emit(&m, lang).unwrap()).unwrap();
+        let _ = std::fs::remove_dir_all(&dir);
+        assert_eq!(got.lines().collect::<Vec<_>>(), want, "{lang:?}");
+        ran += 1;
+    }
+    eprintln!("display escape program: {ran} covered targets ran and agreed");
+}

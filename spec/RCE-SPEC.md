@@ -75,7 +75,7 @@ theorem (effect handlers, switchable contracts, mutable aliasing across
 (Tier 0 hygiene, `World`, definition hashes with `rce api-diff`, transactional
 calls; F.12 lists the rest, which it refuses as reserved, not implemented), the Lean files, the
 emitters and the tree-sitter port do not, and every theorem it adds
-(T42 to T56) is stated and unproved (F.9). There is one language: this text. Drafts 0.5 to 0.9 are
+(T42 to T56) is stated (F.9); T48, T51 and T53 are proved of models (`RCE/Discharged.lean`), and the other twelve are unproved. There is one language: this text. Drafts 0.5 to 0.9 are
 labels of past commits of it, not alternatives; `# rce-version:` is a release label that is
 tolerated, ignored and not hashed (2.7), and a label names exactly one spec commit (C.15). The
 language of this text is what the reference checker and the Lean files enforce and prove for concurrency
@@ -1780,15 +1780,30 @@ exactly.
   U+0020, U+0085, U+00A0, U+1680, U+2000 to U+200A, U+2028, U+2029,
   U+202F, U+205F and U+3000 (`interp::WHITE_SPACE`). `isspace` is ASCII
   (space, \t, \n, \x0c, \r).
+  Display writes text in double quotes, with U+0000, tab, LF, CR, `"` and
+  `\` as `\0`, `\t`, `\n`, `\r`, `\"` and `\\`, each code point of the
+  *display escape set* as `\u{h}` (h its lower-case hexadecimal digits,
+  without leading zeros), and every other code point as itself. The display
+  escape set is the 911 ranges of code points listed in
+  `spec/data/display-escape.json` (`interp::display_escaped`; the emitter
+  writes the same ranges into each emitted runtime): the control
+  characters, the code points that are not printable and the grapheme
+  extenders, as Rust 1.98.1 escapes them in the Debug form of a string from
+  its tables of Unicode 17.0.0, enumerated once. The file, not a Unicode
+  version, defines the set.
   **Unicode pin.** RCE pins Unicode 18.0.0
   (https://www.unicode.org/versions/Unicode18.0.0/) and reads no Unicode
   table at run time: scalar values and UTF-8 do not change between
-  versions, case and class operations are ASCII, and the one property used,
-  White_Space, is enumerated above rather than taken from the toolchain. A
-  newer Rust, Python, JavaScript or JVM therefore cannot change a result;
-  `tests/unicode_pin.rs` checks the set and scans the runtimes for calls
-  that would read the toolchain's tables. Moving the pin is a spec change
-  that must leave the enumerated set unchanged or bump the draft.
+  versions, case and class operations are ASCII, and the two sets of code
+  points a result depends on, White_Space and the display escape set, are
+  enumerated above rather than taken from the toolchain. A newer Rust,
+  Python, JavaScript or JVM therefore cannot change a result;
+  `tests/unicode_pin.rs` checks both sets and scans the runtimes for calls
+  that would read the toolchain's tables, `{:?}` of a text among them, and
+  `tests/emit.rs` compares the display of both ends of every range, and of
+  the code points beside them, on each emitted target with the reference.
+  Moving the pin is a spec change that must leave the enumerated sets
+  unchanged or bump the draft.
 - **N8 Indexing** The index `i` of `a[i]` and the ends of `a[i:j]` have
   type `usize` (W-TY-1 otherwise), so no index is negative. `a[i]` with
   i ≥ n is `trap("index i out of range")`. A slice end above n is
@@ -2664,8 +2679,8 @@ each can be reversed independently.
     correctly rounded RCE code in the `math` module (F9), so every target
     runs the same algorithm instead of its platform library.
 52. **Unicode 18.0.0 pinned, no tables read at run time** (6.3 N7): the
-    whitespace set is enumerated, so a toolchain upgrade cannot change a
-    result.
+    whitespace set and the display escape set are enumerated, so a
+    toolchain upgrade cannot change a result.
 
 53. **Draft 0.9 is a new release** (label 0.9, never reuse 0.6), because it
     refuses programs 0.8 accepted and changes `&mut` after a failed call
@@ -3065,11 +3080,15 @@ program (section 7).
 
 ### 10.5 `rce emit TARGET FILE`
 
-TARGET names an output. The file must pass `rce check` on its own.
+TARGET names an output. The file must pass `rce check` on its own; for
+`core` it may instead be a core module, a JSON object whose `format` is
+`rce-core/1`, which is read only if it is well formed (rules W1 to W6 of
+the proposal `spec/proposals/one-emitter.md`, ONE-3).
 
 | TARGET | Output |
 |---|---|
 | `form` | the Form P = (S, E, δ, D, λ) as one line of JSON (6.1), then a line end |
+| `core` | the core module of FILE, format `rce-core/1` (the module lowered once, or the core module read), as one line of canonical JSON (6.1.1), then a line end (informative: the core is the proposal `one-emitter.md`, ONE-1) |
 | `rust` | one Rust 2024 source file with a `main` |
 | `python` | one Python 3 source file |
 | `js` | one JavaScript module (ES2020 or later, BigInt) for Node |
@@ -3079,11 +3098,13 @@ The Form JSON lists objects in canonical order (6.1), so it is a
 deterministic function of the program text.
 
 The four program targets are the ones this checker emits. The language
-places no bound on targets: every language is both an output of the Form
-(a target, printed from the Form IR through a per-language table) and an
-input (a lift, the reverse map, from the language's grammar and a
-semantics table), and every target passes the same gate, the reference
-trace of every example program byte for byte (T9). The registry of targets
+places no bound on targets, and it is designed so that every language is
+both an output of the Form (a target, printed through a per-language
+table) and an input (a lift, the reverse map, from the language's grammar
+and a semantics table), each passing the same gate, the reference trace of
+every example program byte for byte (T9). That design
+(`spec/proposals/rce-form.md`, informative) is not built; of the four
+program targets, `rust`, `python` and `js` pass the gate today. The registry of targets
 and the one-emitter mechanism are the proposal `spec/proposals/emit-targets.md`
 (informative); a target that the table cannot pin to 6.3 is observation-only,
 never a projection.
@@ -3146,7 +3167,7 @@ file: on 2026-10-14, on the Apple M5 Max below, with Scala 3.10.0 run by
 scala-cli 1.18.0 on OpenJDK 27, all 55 programs of the current corpus
 (with the package files of example 26) agree with the reference, 0
 refused, 361 observation lines, and the edge program agrees on all four
-targets. Its oracle is `RCE_SCALA` (default `scala-cli`). That agreement is for this examples corpus only. On the larger `rce-conformance` suite the Scala emitter was not run in the whole-trace baseline (`conformance/README.md`); an earlier run, which recorded statuses only, fails 1,189 of its 1,832 results (`conformance/reports/results-emit-scala.json`), so the Scala target does not agree with the reference on that suite.
+targets. Its oracle is `RCE_SCALA` (default `scala-cli`). That agreement is for this examples corpus only. On the larger `rce-conformance` suite the Scala emitter was not run in the whole-trace baseline (`conformance/README.md`); an earlier run, which recorded statuses only, passes 52 of its 1,832 results, with 1,189 failures and 591 unsupported (`conformance/reports/results-emit-scala.json`), so the Scala target does not agree with the reference on that suite.
 The targets a test run covers are named as data,
 one word per line, in `spec/checker/tests/emit_targets.txt` (`rust`,
 `python`, `js`, `scala`), never by an environment variable or a flag. Every
@@ -3272,8 +3293,8 @@ outcome.
   the JavaScript output with Node 20.19.2 and 26.11.1. Other versions have
   not been run.
 - The Scala output has been checked with Scala 3.10.0 on OpenJDK 27 only.
-  It has no `--run` runtime yet: with `--run` it prints that `--run` is not
-  available on this target and exits with status 2. A `par` runs its
+  With `--run` it runs `fn main` through its task runtime, and prints that
+  there is nothing to run when no `fn main()` is declared. A `par` runs its
   branches in source order on one thread (by restart when they wait on
   lvars), as the JavaScript output does when a local cannot go to a worker.
 
@@ -3589,6 +3610,19 @@ change); *compatible* or *breaking* from the rows alone when neither
 program is a Form. The decision is the tool's, not a version number's.
 `scripts/t7-equiv.sh` runs `rce equiv` between every corpus program and
 its name-free projection (T7) and is a continuous-integration step.
+
+### 10.12 `rce run-core FILE`: the core evaluator (informative)
+
+`rce run-core FILE` lowers FILE to its core module, as `rce emit core`
+does (FILE is an RCE module or an `rce-core/1` core module, read only if
+it is well formed), runs that module with the core evaluator of the
+proposal `one-emitter.md` (ONE-1), and prints what the run writes. The
+core evaluator is an implementation under test, compared with the
+reference evaluator like any target: the expected bytes of every
+comparison are the reference trace (10.9), never this output. Exit status
+0 when the run ends; 1 when the checker refuses FILE, when a core module
+is not well formed, or when the run halts; 2 when FILE uses a construct
+the lowering does not cover, or on an internal error.
 
 **Read receipt.** Which JSON-RPC error code does the language server return for a request it does not know? (a number)
 
@@ -5642,9 +5676,9 @@ what the reference checker enforces and what it does not. A construct of this ap
 checker does not implement is *reserved, not implemented* (W-RES-1), refused, never read as an ordinary
 name and never silently ignored; a rule of this appendix that is not a construct and is not implemented is
 listed in F.12 as not enforced. The Lean files, the emitters and the tree-sitter port do not implement all of
-Appendix F (an emitter refuses a module that needs a rule it does not implement, F.4.4). Every theorem it states
-(T42 to T56, section 8) is an obligation marked *stated, unproved*; this
-appendix and its implementation claim no proof.
+Appendix F (an emitter refuses a module that needs a rule it does not implement, F.4.4). Every theorem it adds
+(T42 to T56, section 8) is stated; T48, T51 and T53 are proved of models (`RCE/Discharged.lean`), and the other twelve are
+unproved; no proof is claimed of the implementation.
 
 **Release label.** Earlier working notes called this list "draft 0.6", then "version 0.9". It is part of the one
 language of this text. By the C.15 rule a release that carries it is a new release, not an erratum or

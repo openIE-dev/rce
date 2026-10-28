@@ -121,13 +121,24 @@ function intToF32(n) {
   let r = Math.fround(Number(m) * Math.pow(2, sh));
   return n < 0n ? -r : r;
 }
+// 6.3 N7: k lies in a range of DISPLAY_ESCAPE, the set of
+// spec/data/display-escape.json that the emitter writes after this runtime
+function displayEscapes(k) {
+  const n = DISPLAY_ESCAPE.length / 2;
+  let lo = 0, hi = n;
+  while (lo < hi) {
+    const m = (lo + hi) >> 1;
+    if (DISPLAY_ESCAPE[2 * m + 1] < k) lo = m + 1; else hi = m;
+  }
+  return lo < n && DISPLAY_ESCAPE[2 * lo] <= k;
+}
 function rdebug(s) {
   let o = '"';
   for (const c of s) {
     const k = c.codePointAt(0);
     if (c === "\t") o += "\\t"; else if (c === "\r") o += "\\r"; else if (c === "\n") o += "\\n";
     else if (c === "\\") o += "\\\\"; else if (c === '"') o += '\\"'; else if (c === "\0") o += "\\0";
-    else if (k < 0x20 || (k >= 0x7f && k <= 0x9f) || (k >= 0x300 && k <= 0x36f)) o += "\\u{" + k.toString(16) + "}";
+    else if (displayEscapes(k)) o += "\\u{" + k.toString(16) + "}";
     else o += c;
   }
   return o + '"';

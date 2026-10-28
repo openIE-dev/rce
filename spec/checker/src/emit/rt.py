@@ -175,6 +175,15 @@ def int_to_f32(n):
     r = float(m) * 2.0**sh if sh < 1000 else math.inf
     r = f32r(r)
     return -r if n < 0 else r
+def display_escapes(k):
+    # 6.3 N7: k lies in a range of DISPLAY_ESCAPE, the set of
+    # spec/data/display-escape.json that the emitter writes after this runtime
+    lo, hi = 0, len(DISPLAY_ESCAPE) // 2
+    while lo < hi:
+        m = (lo + hi) // 2
+        if DISPLAY_ESCAPE[2 * m + 1] < k: lo = m + 1
+        else: hi = m
+    return lo < len(DISPLAY_ESCAPE) // 2 and DISPLAY_ESCAPE[2 * lo] <= k
 def rdebug(s):
     o = ['"']
     for c in s:
@@ -185,7 +194,7 @@ def rdebug(s):
         elif c == "\\": o.append("\\\\")
         elif c == '"': o.append('\\"')
         elif c == "\0": o.append("\\0")
-        elif k < 0x20 or 0x7f <= k <= 0x9f or 0x300 <= k <= 0x36f: o.append("\\u{%x}" % k)
+        elif display_escapes(k): o.append("\\u{%x}" % k)
         else: o.append(c)
     o.append('"')
     return "".join(o)
