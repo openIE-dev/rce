@@ -46,12 +46,13 @@ fn tool(lang: Lang) -> String {
         .unwrap_or(def.to_string())
 }
 
-/// The version line of the oracle of `lang`, when this run covers it
-/// (`targets::covered` fails the test when a covered oracle does not run).
-fn covered(lang: Lang) -> Option<String> {
-    targets::covered(&[lang], tool).first()?;
+/// The version line of the oracle of `lang`, for a test of that target
+/// alone (`targets::require` fails the test when the run does not cover
+/// `lang` or its oracle does not run).
+fn oracle_version(lang: Lang) -> String {
+    targets::require(lang, tool);
     let o = Command::new(tool(lang)).arg("--version").output().unwrap();
-    Some(String::from_utf8_lossy(&o.stdout).trim().to_string() + String::from_utf8_lossy(&o.stderr).trim())
+    String::from_utf8_lossy(&o.stdout).trim().to_string() + String::from_utf8_lossy(&o.stderr).trim()
 }
 
 fn scratch(lang: Lang) -> PathBuf {
@@ -205,40 +206,36 @@ fn check_all(lang: Lang) -> (usize, Vec<String>) {
 }
 
 #[test]
+#[cfg_attr(not(rce_emit = "rust"), ignore = "tests/emit_targets.txt does not name rust")]
 fn rust_emitter_agrees_with_reference() {
-    let Some(v) = covered(Lang::Rust) else {
-        return;
-    };
+    let v = oracle_version(Lang::Rust);
     eprintln!("rust oracle: {v}");
     let (ok, refused) = check_all(Lang::Rust);
     assert_eq!(ok + refused.len(), CORPUS);
 }
 
 #[test]
+#[cfg_attr(not(rce_emit = "python"), ignore = "tests/emit_targets.txt does not name python")]
 fn python_emitter_agrees_with_reference() {
-    let Some(v) = covered(Lang::Python) else {
-        return;
-    };
+    let v = oracle_version(Lang::Python);
     eprintln!("python oracle: {v}");
     let (ok, refused) = check_all(Lang::Python);
     assert_eq!(ok + refused.len(), CORPUS);
 }
 
 #[test]
+#[cfg_attr(not(rce_emit = "js"), ignore = "tests/emit_targets.txt does not name js")]
 fn js_emitter_agrees_with_reference() {
-    let Some(v) = covered(Lang::Js) else {
-        return;
-    };
+    let v = oracle_version(Lang::Js);
     eprintln!("node oracle: {v}");
     let (ok, refused) = check_all(Lang::Js);
     assert_eq!(ok + refused.len(), CORPUS);
 }
 
 #[test]
+#[cfg_attr(not(rce_emit = "scala"), ignore = "tests/emit_targets.txt does not name scala")]
 fn scala_emitter_agrees_with_reference() {
-    let Some(v) = covered(Lang::Scala) else {
-        return;
-    };
+    let v = oracle_version(Lang::Scala);
     eprintln!("scala oracle: {v}");
     let (ok, refused) = check_all(Lang::Scala);
     assert_eq!(ok + refused.len(), CORPUS);

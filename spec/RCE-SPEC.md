@@ -3153,8 +3153,9 @@ one word per line, in `spec/checker/tests/emit_targets.txt` (`rust`,
 test that runs emitted programs runs them on each covered target it uses
 and fails when a covered target's toolchain does not start; a target the
 file does not name is reported as not covered by the run, never counted as
-a pass. The file names `rust`, `python` and `js`, the toolchains of the
-continuous integration runs; Scala is covered by adding its word. The
+a pass, and a test of that target alone is reported as ignored. The file
+names `rust`, `python` and `js`, the toolchains of the continuous
+integration runs; Scala is covered by adding its word. The
 oracles used were Python 3.13.5 and Node 20.19.2.
 The test reads the oracle paths from `RCE_RUSTC`, `RCE_PYTHON` and
 `RCE_NODE` (default `rustc`, `python3`, `node` on the path) and prints each

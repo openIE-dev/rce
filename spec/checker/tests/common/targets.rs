@@ -5,8 +5,9 @@
 //! comment). A test runs its emitted programs on every covered target it
 //! uses and fails when a covered target's toolchain does not start; a
 //! target the file does not name is reported as not covered by this run,
-//! never as a pass. No environment variable or flag changes the targets a
-//! run covers.
+//! never as a pass, and a test of that target alone is marked ignored
+//! (build.rs passes `rce_emit="WORD"` for each named target). No
+//! environment variable or flag changes the targets a run covers.
 #![allow(dead_code)]
 use rce_spec_check::emit::Lang;
 use std::process::Command;
@@ -74,6 +75,21 @@ pub fn covered(langs: &[Lang], tool: impl Fn(Lang) -> String) -> Vec<Lang> {
         }
     }
     v
+}
+
+/// For a test that runs target `l` alone. Such a test carries
+/// `#[cfg_attr(not(rce_emit = "WORD"), ignore = "...")]`: build.rs passes
+/// `rce_emit="WORD"` for each target the data file names, so the test is
+/// reported as ignored, never as passed, when the file does not name its
+/// target. Run anyway (`--include-ignored`), it fails here; and it fails
+/// when the target's toolchain does not start.
+pub fn require(l: Lang, tool: impl Fn(Lang) -> String) {
+    assert!(
+        named().contains(&l),
+        "{}: {FILE} does not name it, so this run does not cover it",
+        word(l)
+    );
+    covered(&[l], tool);
 }
 
 /// Whether this run covers the target named `w` (as `covered`, for tests

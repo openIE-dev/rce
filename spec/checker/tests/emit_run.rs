@@ -31,10 +31,11 @@ fn oracle(l: Lang) -> String {
     }
 }
 
-/// whether this run covers target `l` (tests/emit_targets.txt); a covered
-/// target whose toolchain does not run fails the test
-fn covers(l: Lang) -> bool {
-    !targets::covered(&[l], oracle).is_empty()
+/// for a test of target `l` alone: fails unless this run covers `l`
+/// (tests/emit_targets.txt) and its toolchain runs; such a test is marked
+/// ignored, through `rce_emit`, when the file does not name `l`
+fn require(l: Lang) {
+    targets::require(l, oracle);
 }
 
 type Links = Vec<(u64, bool, String, String)>;
@@ -796,10 +797,9 @@ fn drivers() -> Vec<(String, String)> {
 }
 
 #[test]
+#[cfg_attr(not(rce_emit = "rust"), ignore = "tests/emit_targets.txt does not name rust")]
 fn emitted_runtime_agrees_with_run_main() {
-    if !covers(Lang::Rust) {
-        return;
-    }
+    require(Lang::Rust);
     let progs = corpus();
     let results: Vec<(String, Vec<String>, PathBuf)> = std::thread::scope(|s| {
         let hs: Vec<_> = progs.iter().map(|(n, src)| s.spawn(move || (n.clone(), want(src), build(n, src)))).collect();
@@ -824,10 +824,9 @@ fn emitted_runtime_agrees_with_run_main() {
 /// stress: the lvar wait chain and the stuck pair on real threads, 100 runs
 /// each; every run must equal the evaluator's result
 #[test]
+#[cfg_attr(not(rce_emit = "rust"), ignore = "tests/emit_targets.txt does not name rust")]
 fn par_waits_stress() {
-    if !covers(Lang::Rust) {
-        return;
-    }
+    require(Lang::Rust);
     for (n, src) in [("stress_chain", WAIT_CHAIN), ("stress_stuck", WAIT_STUCK)] {
         let w = want(src);
         let exe = build(n, src);
@@ -840,10 +839,9 @@ fn par_waits_stress() {
 /// partitions (C.11.4): logged link inputs hold messages across the link and
 /// Heal delivers them in order, as in run_main with the same inputs
 #[test]
+#[cfg_attr(not(rce_emit = "rust"), ignore = "tests/emit_targets.txt does not name rust")]
 fn partitions_agree() {
-    if !covers(Lang::Rust) {
-        return;
-    }
+    require(Lang::Rust);
     let exe = build("partitions", ACTORS);
     let cases: Vec<Links> = vec![
         vec![],
@@ -896,21 +894,19 @@ fn partition_cases() -> Vec<Links> {
 }
 
 #[test]
+#[cfg_attr(not(rce_emit = "python"), ignore = "tests/emit_targets.txt does not name python")]
 fn python_runtime_agrees_with_run_main() {
     eprintln!("python oracle: {}", python());
-    if !covers(Lang::Python) {
-        return;
-    }
+    require(Lang::Python);
     let o = Command::new(python()).args(["-c", "import sys; print(sys.version, getattr(sys, '_is_gil_enabled', lambda: True)())"]).output().unwrap();
     eprintln!("python: {}", String::from_utf8_lossy(&o.stdout).trim());
     agree_lang(Lang::Python, 3);
 }
 
 #[test]
+#[cfg_attr(not(rce_emit = "js"), ignore = "tests/emit_targets.txt does not name js")]
 fn js_runtime_agrees_with_run_main() {
-    if !covers(Lang::Js) {
-        return;
-    }
+    require(Lang::Js);
     let o = Command::new(node()).arg("--version").output().unwrap();
     eprintln!("node: {}", String::from_utf8_lossy(&o.stdout).trim());
     agree_lang(Lang::Js, 2);
@@ -1246,10 +1242,10 @@ fn restart_replay_survives_upgrades_and_traps_on_tree_changes() {
 /// and a stop, atomic batches, transactions across actors, and tasks with
 /// channels
 #[test]
+#[cfg_attr(not(rce_emit = "scala"), ignore = "tests/emit_targets.txt does not name scala")]
 fn scala_actor_programs_agree_with_the_reference() {
-    if !run_targets().contains(&Lang::Scala) {
-        return;
-    }
+    require(Lang::Scala);
+    assert!(java_bin().is_some(), "scala: no JVM for the assemblies");
     let exe = build_lang(Lang::Scala, "sc_refusals", REFUSALS);
     assert_eq!(run_log(&exe), want_log(REFUSALS), "refusals and supervision");
     let rec = run_args(&exe, &["--restart-log".into()]);
