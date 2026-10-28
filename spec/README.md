@@ -8,6 +8,13 @@
 - The normative grammar is the EBNF of section 3 (`book/03-syntax.md`);
   `rce-spec-check` reads it and checks it is LALR(1) with no conflicts
   (the former `rce.lark` and its Lark check are retired).
+- `proposals/` holds design proposals and their decision ledger,
+  `proposals/LEDGER.md`. A proposal is not normative until it is admitted
+  (CONTRIBUTING rule 1). Among them, `proposals/rce-form.md` defines
+  `rce-form/1`, the one form that lift and emit share, with the
+  per-language table formats and acceptance by exact comparison, and
+  `proposals/one-emitter.md` defines the core `rce-core/1` and the print
+  tables.
 - `checker/` (Rust only) holds the tools:
   - `rce-spec-check` builds the section-3 LALR(1) tables and regenerates
     the tree-sitter parser (both fail on any conflict), parses `examples/` (must accept) and `examples/reject/`
