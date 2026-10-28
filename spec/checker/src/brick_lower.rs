@@ -244,8 +244,8 @@ fn c(v: Value) -> Value {
 }
 
 impl<'a> Lowerer<'a> {
-    /// `m` is the linked module the function lives in (imports and `#!lib`
-    /// items included); `module` names it in node ids; `consts` are the
+    /// `m` is the linked module the function lives in (the items of the
+    /// modules it imports included); `module` names it in node ids; `consts` are the
     /// literal values of its constants (evaluated by the interpreter).
     pub fn new(m: &'a Module, module: &str, consts: HashMap<String, Value>) -> Self {
         let mut fns = HashMap::new();

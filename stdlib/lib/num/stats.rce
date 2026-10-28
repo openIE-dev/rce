@@ -1,5 +1,4 @@
 module num.stats
-# uses: num.linalg, num.special, math.math
 use num.linalg
 use num.special
 

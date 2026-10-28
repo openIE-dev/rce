@@ -20,15 +20,12 @@ pub fn diagnostics(src: &str, known: &HashSet<String>) -> Vec<(usize, String)> {
     let errs = match parse(src) {
         Err(e) => vec![e],
         Ok(m) => {
-            // the program as the tools run it: directives in front, `use`
-            // imports linked in from the built-in library (4.1)
-            let wl = crate::stdlib::with_directives(&m, src);
-            let lk = crate::link::link(&wl.module, &[]);
+            // the program as the tools run it: `use` imports linked in from
+            // the built-in library (4.1)
+            let lk = crate::link::link(&m, &[]);
             let mut c = check::Checker::new();
             c.imported_fns = lk.imported_fns;
             c.imported_types = lk.imported_types;
-            c.imported_fns.extend(wl.fns);
-            c.imported_types.extend(wl.types);
             for e in lk.errs {
                 c.e(e);
             }
@@ -915,7 +912,7 @@ fn run_main(a: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &mu
         Some("lib") if rest.is_empty() => {
             for n in crate::stdlib::names() {
                 let src = crate::stdlib::source(n).unwrap_or("");
-                let doc = src.lines().find(|l| l.starts_with("# ") && !l.starts_with("# rce-version") && !l.starts_with("# uses:")).map(|l| l.trim_start_matches("# ").to_string()).unwrap_or_default();
+                let doc = src.lines().find(|l| l.starts_with("# ") && !l.starts_with("# rce-version")).map(|l| l.trim_start_matches("# ").to_string()).unwrap_or_default();
                 writeln!(out, "{n:<16} {doc}").map_err(w)?;
             }
             // the library is named by the hash of its manifest (F.5.3), and a

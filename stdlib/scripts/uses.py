@@ -1,77 +1,96 @@
 #!/usr/bin/env python3
-"""The dependency marker of a foundation module, parsed strictly.
+"""The library modules a module of lib/ needs, read from its `use` items.
 
-A module that needs other foundation modules names them on one line:
+A module names each module it imports in a `use` item (specification 4.1),
+one per line at the start of the line:
 
-    # uses: text.utf8, enc.enc
+    use text.utf8
+    use enc as e
 
-Exactly "# uses: " and then one or more module paths separated by ", ".
-A module path is lowercase dotted segments ([a-z][a-z0-9_]*, at least
-two); a.b is lib/a/b.rce, which must declare "module a.b" (lib/a/a.rce
-may declare just "module a", as enc.enc does). Any line
-that looks like the marker ("#", optional spaces, "uses", optional spaces,
-":") must be exactly that form: a malformed list, an unknown or
-duplicated module, a module naming itself, or a second marker line is an
-error that names the file and line, never a silent skip.
+The modules a module needs are those it imports and, in turn, the modules
+they import. A module path `a.b` is the file lib/a/b.rce; a one-segment
+path `a` is lib/a/a.rce or lib/a.rce. The file must declare that module.
+`std.text`, `std.collections` and `std.math` are part of the checker and
+have no file. Any line that starts with "use " must be exactly that form,
+and must name a module that exists: a malformed line, an unknown module, a
+module named twice or a module importing itself is an error that names the
+file and line, never a silent skip.
 
-    python3 scripts/uses.py lib/a/b.rce     prints a/b paths, one per line
-    python3 scripts/uses.py --all           checks every lib/*/*.rce
+    python3 scripts/uses.py lib/a/b.rce     prints the a/b paths it needs, one per line
+    python3 scripts/uses.py --all           checks every module of lib/
     python3 scripts/uses.py --selftest      checks the parser itself
 Exit status 2 on any error."""
 import glob, os, re, sys
 ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..')
-LOOKS = re.compile(r'^#\s*uses\s*:', re.I)
-MOD = r'[a-z][a-z0-9_]*(?:\.[a-z][a-z0-9_]*)+'
-EXACT = re.compile(r'^# uses: (%s(?:, %s)*)$' % (MOD, MOD))
+LOOKS = re.compile(r'^use\b')
+SEG = r'[a-z][a-z0-9_]*'
+EXACT = re.compile(r'^use (%s(?:\.%s)*)(?: as (%s))?$' % (SEG, SEG, SEG))
+BUILT_IN = {'std.text', 'std.collections', 'std.math'}
 class UsesError(Exception): pass
-def parse(src, name='<src>', exists=None, self_mod=None):
-    """Module paths ('a.b') named by src's marker, [] if it has none."""
-    found = None
+def parse(src, name='<src>', self_mod=None):
+    """Module paths ('a.b') that src imports, in order of their `use` lines."""
+    found, at = [], {}
     for n, line in enumerate(src.split('\n'), 1):
         if not LOOKS.match(line):
             continue
         where = '%s:%d' % (name, n)
-        if found is not None:
-            raise UsesError('%s: second "# uses:" line (first at line %d)' % (where, found[0]))
         m = EXACT.match(line)
         if not m:
-            raise UsesError('%s: malformed dependency list %r; expected "# uses: a.b, c.d" (lowercase dotted module paths, ", " between)' % (where, line))
-        mods = m.group(1).split(', ')
-        if len(set(mods)) != len(mods):
-            raise UsesError('%s: a module is listed twice in %r' % (where, line))
-        if self_mod in mods:
-            raise UsesError('%s: %s lists itself' % (where, self_mod))
-        if exists:
-            for x in mods:
-                why = exists(x)
-                if why:
-                    raise UsesError('%s: %s' % (where, why))
-        found = (n, mods)
-    return found[1] if found else []
-def lib_exists(x):
-    p = os.path.join(ROOT, 'lib', *x.split('.')) + '.rce'
-    if not os.path.isfile(p):
-        return 'unknown module %s (no lib/%s.rce)' % (x, x.replace('.', '/'))
+            raise UsesError('%s: malformed use item %r; expected "use a.b" or "use a.b as c"' % (where, line))
+        mod = m.group(1)
+        if mod in at:
+            raise UsesError('%s: %s is imported twice (first at line %d)' % (where, mod, at[mod]))
+        if mod == self_mod:
+            raise UsesError('%s: %s imports itself' % (where, mod))
+        at[mod] = n
+        found.append(mod)
+    return found
+def module_file(x):
+    """'a/b' for the file of module x under lib/, or None when x has no file."""
     a = x.split('.')
-    names = {x} | ({a[0]} if len(a) == 2 and a[0] == a[1] else set())
-    decl = module_name(open(p).read())
-    if decl not in names:
-        return 'lib/%s.rce declares module %r, not %s' % (x.replace('.', '/'), decl, ' or '.join(sorted(names)))
+    cands = ['/'.join(a)] + (['%s/%s' % (a[0], a[0])] if len(a) == 1 else [])
+    for c in cands:
+        if os.path.isfile(os.path.join(ROOT, 'lib', c + '.rce')):
+            return c
     return None
 def module_name(src):
     m = re.search(r'^module (\S+)\s*$', src, re.M)
     return m.group(1) if m else None
-def deps(path):
-    """'a/b' paths (relative to lib/, no extension) that path uses."""
+def direct(path):
+    """'a/b' paths of the modules path imports, checked to exist."""
     src = open(path).read()
-    self_mod = module_name(src)
-    return [x.replace('.', '/') for x in parse(src, os.path.relpath(path, ROOT), lib_exists, self_mod)]
+    rel = os.path.relpath(path, ROOT)
+    out = []
+    for x in parse(src, rel, module_name(src)):
+        if x in BUILT_IN:
+            continue
+        f = module_file(x)
+        if f is None:
+            raise UsesError('%s: unknown module %s (no lib/%s.rce)' % (rel, x, x.replace('.', '/')))
+        decl = module_name(open(os.path.join(ROOT, 'lib', f + '.rce')).read())
+        if decl != x:
+            raise UsesError('%s: lib/%s.rce declares module %r, not %s' % (rel, f, decl, x))
+        out.append(f)
+    return out
+def deps(path):
+    """'a/b' paths (relative to lib/, no extension) that path needs: the
+    modules it imports and theirs, each once, in the order first reached."""
+    seen, order, todo = set(), [], direct(path)
+    me = os.path.relpath(os.path.abspath(path), os.path.join(ROOT, 'lib'))[:-len('.rce')]
+    while todo:
+        f = todo.pop(0)
+        if f in seen or f == me:
+            continue
+        seen.add(f)
+        order.append(f)
+        todo += direct(os.path.join(ROOT, 'lib', f + '.rce'))
+    return order
 def selftest():
-    ok = {'# uses: text.utf8': ['text.utf8'], '# uses: enc.enc, data.events': ['enc.enc', 'data.events'],
-          'module x\n# no deps here': [], '# Cargo uses Version parsing': [], '#: uses: x': []}
-    bad = ['# uses: text/utf8', '# uses: text.utf8 enc.enc', '# uses: text.utf8,enc.enc', '# uses: Version, Comparator',
-           '# uses:text.utf8', '#uses: text.utf8', '# Uses: text.utf8', '# uses: text', '# uses: text.utf8,',
-           '# uses: ', '# uses: text.utf8 ', '# uses: a.b, a.b', '# uses: a.b\n# uses: c.d']
+    ok = {'use text.utf8': ['text.utf8'], 'module x\nuse enc\nuse data.events': ['enc', 'data.events'],
+          'use enc as e': ['enc'], 'module x\n# no deps here': [], '# use enc': [], 'fn user() -> i64 = 1': [],
+          'used_by = 1': []}
+    bad = ['use text/utf8', 'use text.utf8 enc', 'use text.utf8,enc', 'use Version', 'use  enc', 'use enc ',
+           'use enc as', 'use enc.', 'use enc\nuse enc', 'use ']
     for s, want in ok.items():
         assert parse(s) == want, (s, parse(s))
     for s in bad:
@@ -81,7 +100,7 @@ def selftest():
             continue
         raise AssertionError('accepted %r' % s)
     try:
-        parse('module a.b\n# uses: a.b', self_mod='a.b'); raise AssertionError('self')
+        parse('module a.b\nuse a.b', self_mod='a.b'); raise AssertionError('self')
     except UsesError:
         pass
     print('uses.py selftest: %d good, %d malformed rejected' % (len(ok), len(bad) + 1))
@@ -90,9 +109,9 @@ def main(a):
         if a == ['--selftest']:
             selftest()
         elif a == ['--all']:
-            fs = sorted(glob.glob(os.path.join(ROOT, 'lib/*/*.rce')))
+            fs = sorted(glob.glob(os.path.join(ROOT, 'lib/*.rce')) + glob.glob(os.path.join(ROOT, 'lib/*/*.rce')))
             n = sum(1 for f in fs if deps(f))
-            print('uses.py: %d modules, %d with dependencies, all markers well formed' % (len(fs), n))
+            print('uses.py: %d modules, %d with dependencies, every use item well formed' % (len(fs), n))
         elif len(a) == 1:
             for d in deps(a[0]):
                 print(d)

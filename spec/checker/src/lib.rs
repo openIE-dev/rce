@@ -65,18 +65,16 @@ pub fn check_program(
     let mut parsed = vec![];
     for (p, src) in files {
         match parse::parse(src) {
-            Ok(m) => parsed.push((p.clone(), stdlib::with_directives(&m, src))),
-
+            Ok(m) => parsed.push((p.clone(), m)),
             Err(e) => out.push((p.clone(), Err(e))),
         }
     }
     let known: HashSet<String> = parsed
         .iter()
-        .filter_map(|(_, m)| m.module.path.as_ref().map(|q| q.join(".")))
+        .filter_map(|(_, m)| m.path.as_ref().map(|q| q.join(".")))
         .collect();
-    let mods: Vec<&ast::Module> = parsed.iter().map(|(_, m)| &m.module).collect();
-    for (p, wl) in &parsed {
-        let m = &wl.module;
+    let mods: Vec<&ast::Module> = parsed.iter().map(|(_, m)| m).collect();
+    for (p, m) in &parsed {
         if parse_only {
             out.push((p.clone(), Ok(())));
             continue;
@@ -86,8 +84,6 @@ pub fn check_program(
         let mut c = check::Checker::new();
         c.imported_fns = lk.imported_fns;
         c.imported_types = lk.imported_types;
-        c.imported_fns.extend(wl.fns.iter().cloned());
-        c.imported_types.extend(wl.types.iter().cloned());
         for e in lk.errs {
             c.e(e);
         }
@@ -110,13 +106,12 @@ pub fn check_program(
     out
 }
 
-/// One source text as the program the tools run: parsed, its `#!lib`
-/// directives placed in front, and its `use` imports linked in from the
-/// built-in standard library (4.1). This is what `rce run`, `test`, `trace`,
-/// `emit`, `dim` and `host` interpret; `check_program` checks the same text.
+/// One source text as the program the tools run: parsed, and its `use`
+/// imports linked in from the built-in standard library (4.1). This is what
+/// `rce run`, `test`, `trace`, `emit`, `dim` and `host` interpret;
+/// `check_program` checks the same text.
 pub fn program(src: &str) -> Result<ast::Module, String> {
     let m = parse::parse(src)?;
-    let m = stdlib::with_directives(&m, src).module;
     let lk = link::link(&m, &[]);
     if let Some(e) = lk.errs.iter().find(|e| e.contains("W-MOD-2")) {
         return Err(e.clone());
