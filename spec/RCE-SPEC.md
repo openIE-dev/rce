@@ -4935,9 +4935,9 @@ adapter.
   supplies it). Time inside the language is logical (6.3 N11, C.11.12).
 - **HC-3 Typed output requests.** Each effect requested by λ (a write, a
   send, a draw, a foreign call) has exactly one result event: delivered,
-  failed, timed out or unreachable. A result is fitted to the module's
-  declaration of its event, and a result the module declares no event for
-  is recorded in D (E.4c, HF-1). A race inside the adapter (for
+  failed, timed out or unreachable. A result is delivered as the module
+  declares its event, and a result the module declares no event for
+  is recorded in D (E.4c, HD-1). A race inside the adapter (for
   example a file checked and then opened) is resolved by the adapter;
   the program sees one atomic outcome. The answer of a model runtime
   (F.5.6) is delivered only on an event the program declares
@@ -5316,12 +5316,12 @@ in D does not exist for the program.
   `core.bytes`), and D records them as a list of integers (6.1). No `text`
   holds every byte sequence, and a read may end inside a UTF-8 character,
   so a host does not decode received bytes unless the module takes them
-  as text (HF-3): the program decodes them (`text.utf8`), and a body that
+  as text (HD-3): the program decodes them (`text.utf8`), and a body that
   is not UTF-8 is a value the program can answer rather than a trap. One delivery holds at most SIZE_LIMIT (N9)
   bytes, so the delivered value can always be built. The data of
   `NetRecvDone` (HC-23) and the body of `HttpRequest` (HC-24) follow this
-  rule. Declared as `text`, either is fitted by HF-3: delivered as text
-  when it is UTF-8, never split inside a character, and kept in D as
+  rule. Declared as `text`, either is delivered by HD-3: as text when it
+  is UTF-8, never split inside a character, and kept in D as
   bytes when it is not.
 - **HC-10b Typed inputs are inputs.** An input read from the input stream
   (a line on stdin of `rce host serve`, the events of `rce host run`) is
@@ -5358,8 +5358,8 @@ both enter D and reach the program as inputs.
   (a declared error left the step), `fuel`, `size` (SIZE_LIMIT), `value`
   (VALUE_LIMIT), `depth` (the evaluation depth of 6.7) or `trap` (any
   other trap of 6.3 or 6.7). When the module declares `event Refused`,
-  the admitter then delivers `Refused` with the same payload, fitted to
-  the declaration (E.4c, HF-4), as an ordinary input with the full fuel of
+  the admitter then delivers `Refused` with the same payload, as the
+  module declares it (E.4c, HD-4), as an ordinary input with the full fuel of
   HC-7a, and appends `host.Bind` for it at start. Delivery is bounded. A step descends from a
   delivered `Refused` when it is that delivery, or when it is the result
   of a request made by a step that descends from it (so the results of the
@@ -5375,7 +5375,7 @@ both enter D and reach the program as inputs.
   the refusal's text, which can name a declared error, is not in D, and
   replay re-derives it. Replay requires each refused entry to be followed
   by the matching `host.Refused` and, when `Refused` is declared, by the
-  entries its delivery appends (the fitted `Refused`, or `host.Unfit`), and treats a D in which one is missing, extra or
+  entries its delivery appends (the delivered `Refused`, or `host.Kept`), and treats a D in which one is missing, extra or
   different as a host fault. A D that ends before them, because the host
   stopped in between, is completed on open, and by a new admitter before
   its `host.Term` (HC-19), before anything else is appended; no snapshot
@@ -5390,8 +5390,8 @@ both enter D and reach the program as inputs.
   own seq. Every adapter that issues resource ids then issues them from
   below upward, so an id issued before the restart never names a
   resource of the new process; when the module declares `event
-  Restarted` the admitter delivers it with the same payload, fitted to the
-  declaration (E.4c, HF-4); and
+  Restarted` the admitter delivers it with the same payload, as the
+  module declares it (E.4c, HD-4); and
   only then does every request outstanding in D get its one result,
   `failed` with `interrupted` (HC-3). The requests the `Restarted` step
   makes are performed, not interrupted. A host that takes the admitter
@@ -5416,8 +5416,8 @@ both enter D and reach the program as inputs.
   | `NetListen(req, addr)` | the id of the listener | the bind error |
   | `NetAccept(req, id)` | the id of a new connection | `none` when no connection is waiting |
   | `NetSend(req, id, data)` | the number of bytes handed to the connection | `closed`, `send buffer full`, `byte outside 0..255` |
-  | `NetRecv(req, id, max)` | the bytes received so far, at most max, possibly none (HC-10a); taken as text, up to 3 more to complete a character (HF-3) | `eof` when the peer closed and nothing is left, `closed`, the read error |
-  | `NetClose(req, id)` | 0; err lists the bytes of a character kept for a read that did not come (HF-3) | `no socket N` |
+  | `NetRecv(req, id, max)` | the bytes received so far, at most max, possibly none (HC-10a); taken as text, up to 3 more to complete a character (HD-3) | `eof` when the peer closed and nothing is left, `closed`, the read error |
+  | `NetClose(req, id)` | 0; err lists the bytes of a character kept for a read that did not come (HD-3) | `no socket N` |
 
   `data` is text, sent as its UTF-8, or a `List[i64]` of 0..255. A send
   hands the bytes to the connection's own writer and returns at once, so
@@ -5452,7 +5452,7 @@ both enter D and reach the program as inputs.
   reason. A connection that closes before a request is complete, or stays
   idle for IDLE_MS before the first byte of one, adds nothing to D. The
   id is the seq of the entry that delivers the input (its own entry, or,
-  when `host.Unfit` records it first under HF-2, the entry after that
+  when `host.Kept` records it first under HD-2, the entry after that
   one), so `Refused(seq)` (HC-21) names the request. The requests of one
   connection are admitted one at a time, each after the response to the
   previous one, so responses keep the order of the requests (RFC 9112
@@ -5460,9 +5460,9 @@ both enter D and reach the program as inputs.
   gets the interim response `HTTP/1.1 100 Continue` once the head is
   accepted (HC-26). At start the host appends `host.Bind` for `HttpRequest` and
   `HttpMalformed`, when declared. Replay reads requests from D and never
-  parses (HC-8). These are the host's values, and a module declared with
-  exactly them is served with no fitting; any other declaration is fitted
-  by HF-2 (the `body` of `HttpRespond` may be `text` or `List[i64]`):
+  parses (HC-8). These are the host's values: to a module declared with
+  exactly them they are delivered unchanged, and to any other declaration
+  as HD-2 says (the `body` of `HttpRespond` may be `text` or `List[i64]`):
 
   ```
   event HttpRequest(id: u64, method: text, target: text, version: text, names: List[text], values: List[text], body: List[i64])
@@ -5491,9 +5491,10 @@ both enter D and reach the program as inputs.
   does not parse, names no event of the module, or one of its events
   cannot be built) is held whole: none of its events is appended, and it
   is delivered as `Input(data)`, data being the bytes of the line with its
-  line end, fitted like any delivery (E.4c): as `List[i64]`, or as `text`
-  when they are UTF-8 (HF-3). With no `Input` declared, or one the line
-  cannot be built into, `host.Unfit` records the line in D, as text when
+  line end, built into the declared type like any delivery (E.4c): as
+  `List[i64]`, or as `text`
+  when they are UTF-8 (HD-3). With no `Input` declared, or one the line
+  cannot be built into, `host.Kept` records the line in D, as text when
   it is UTF-8 and as its bytes otherwise; `rce host run` holds its lines
   the same way. Only a storage fault (HS-3) stops the loop. With `--http` the end of stdin does not end the loop;
   SIGTERM or SIGINT stops accepting connections, waits at most STOP_MS
@@ -5501,8 +5502,9 @@ both enter D and reach the program as inputs.
   the run (HC-8). PTY children start with no signal blocked.
 - **HC-25 Framing, limits and deadlines.** The syntax is RFC 9112 with
   the strict choices of `net.http`: lines end in CRLF; the request line
-  is a token method, a visible-ASCII target and `HTTP/` with a digit, a
-  dot and a digit, after at most 16 empty lines; field names are tokens,
+  is a method of `tchar` characters (RFC 9110 5.6.2), a visible-ASCII
+  target and `HTTP/` with a digit, a dot and a digit, after at most 16
+  empty lines; field names are of `tchar` characters too,
   and a field line does not continue an earlier one (obsolete line
   folding); a request has at most one Host field, and exactly one from
   HTTP/1.1 on (RFC 9112 3.2); a request has Transfer-Encoding or
@@ -5534,7 +5536,7 @@ both enter D and reach the program as inputs.
   its requests were admitted. A deadline decides only whether a request
   is admitted and when a connection closes, never what an admitted request
   holds. A connection closes once its `HttpMalformed` is answered, and
-  once the host has answered a request itself (HF-2).
+  once the host has answered a request itself (HD-2).
 - **HC-26 Responses are a function of D.** The program answers with the
   effect `HttpRespond(req, status, names, values, body)`. Its result
   `HttpRespondDone` is `delivered` with, as data, the length in bytes of
@@ -5544,7 +5546,7 @@ both enter D and reach the program as inputs.
   not reported, so `delivered` means handed to the connection, not
   received by the client. The host checks
   a response before it writes anything: status 200 to 599, field names
-  that are tokens, values of printable ASCII (space to `~`) or tab, as
+  of `tchar` characters, values of printable ASCII (space to `~`) or tab, as
   many values as names, no Content-Length or Transfer-Encoding (the host writes the
   framing), Connection only as `close`, and no body for 204 and 304. A
   response that fails a check fails the effect with the reason and leaves
@@ -5558,9 +5560,9 @@ both enter D and reach the program as inputs.
   request asked for it (from HTTP/1.1 on, `Connection: close`; for
   HTTP/1.0, a Connection field without `keep-alive`, or none), when the
   program wrote `Connection: close`, after an `HttpMalformed`, and after
-  a response the host makes itself (HF-2). The method, the version and
+  a response the host makes itself (HD-2). The method, the version and
   the fields that decide this are in D, in the host's whole value of the
-  request: its entry, or the `host.Unfit` that records it first when the
+  request: its entry, or the `host.Kept` that records it first when the
   module takes less of it (E.4c). So every byte of a response, and whether
   the connection closes after it, is a function of D: replay re-derives
   every `HttpRespond` request (`host::replay_outputs`);
@@ -5574,15 +5576,16 @@ both enter D and reach the program as inputs.
   (its client may close, or its body time out), and it is the one thing
   the host writes that is not a function of D.
 
-### E.4c Fitting at start (HF-1 to HF-4)
+### E.4c Delivery by declaration (HD-1 to HD-4)
 
 A host starts on any module the checker admits. It compares each event it
 delivers, and each request struct of a kind it performs, with the
-module's declarations, and fits what it delivers to them by field name.
+module's declarations, and delivers each value as the module declares
+it, matching fields by name.
 Determinism is kept by recording in D what the host delivered and what it
 did not, not by restricting what a module may declare.
 
-- **Fitting.** The host's value of a delivery is a set of named fields:
+- **Delivery.** The host's value of a delivery is a set of named fields:
   {req, status, data, err} for a result (HC-3), the payload of
   `host.Refused`, `host.Restarted`, `host.Synced` and `host.WallTime`
   (E.5), {n} for the frame tick `Tick` (HC-2; none when `Tick` declares no
@@ -5592,51 +5595,51 @@ did not, not by restricting what a module may declare.
   declared type: an integer within the range of the declared integer
   type, a number to `f64`, a boolean, text to `text`, a list element by
   element, a value to `T?` as `some`, a type alias as the type it names,
-  and received bytes to `text` only by HF-3. An optional field takes
+  and received bytes to `text` only by HD-3. An optional field takes
   `none` when the host has no value for it. The host's fields the event
   does not declare are not delivered. A delivery cannot be built when a
   declared field that is not optional has no value, or when a value has
   no exact conversion.
 - **Recording.** Before a delivery that is not the host's whole value,
   and in place of one that cannot be built or whose event the module does
-  not declare, the admitter appends `host.Unfit` {event, why}: event is
+  not declare, the admitter appends `host.Kept` {event, why}: event is
   the host's whole value as {payload, type}, and why says what was not
   delivered and why. When the host entry just before the delivery holds
   the whole value (`host.Refused`, `host.Restarted`, `host.Synced`,
-  `host.WallTime`), `host.Unfit` is appended only for a delivery that
+  `host.WallTime`), `host.Kept` is appended only for a delivery that
   cannot be built, and an event the module does not declare is not
   delivered, as before. Replay plans each delivery again from the module
-  and the value that `host.Unfit` or the host entry holds, requires the
+  and the value that `host.Kept` or the host entry holds, requires the
   same reason and the same delivery after it, and treats a D that differs
-  as a host fault; a D that ends between `host.Unfit` and its delivery is
-  completed on open (HC-21). A fitted delivery is therefore a function of
-  D (T37). Reference: `Host::fit`, `Host::plan`.
+  as a host fault; a D that ends between `host.Kept` and its delivery is
+  completed on open (HC-21). What the host delivers is therefore a function
+  of D (T37). Reference: `Host::build`, `Host::plan`.
 - **Notice.** At start the host prints one line for each declaration
   that is not exactly the host's value, naming it and saying what the host
-  will deliver and record (`Host::fitting`). The run continues.
+  will deliver and record (`Host::delivery_notes`). The run continues.
 
-- **HF-1 Results.** Each request struct of a kind the host performs is
+- **HD-1 Results.** Each request struct of a kind the host performs is
   bound, whatever its result event declares. The result `KDone`, K being
-  the kind, is delivered fitted to the module's declaration of `KDone`. A
+  the kind, is delivered as the module declares `KDone`. A
   result whose data has no exact conversion to the declared data type is
-  delivered as `failed`, with the reason in err (HC-3), and `host.Unfit`
+  delivered as `failed`, with the reason in err (HC-3), and `host.Kept`
   keeps the data. A result whose req is not delivered as an integer (for
-  example `req: u64?`) is recorded by `host.Unfit` before it: replay
+  example `req: u64?`) is recorded by `host.Kept` before it: replay
   matches a result with no such record to its request by that integer,
   and one with the record by the req the record holds, so each request
   has its one result however `KDone` declares req (HC-3, HC-21). When the
   module declares no `KDone`, the effect is still
-  performed and its result is recorded in D as `host.Unfit`, not
+  performed and its result is recorded in D as `host.Kept`, not
   delivered; the result answers its request, so a restart does not
   interrupt it (HC-22).
-- **HF-2 HTTP.** `--http` serves any module. `HttpRequest`,
-  `HttpMalformed` and the result `HttpRespondDone` are fitted by name like
-  any delivery, the body by HF-3, and the request `HttpRespond` is read by
+- **HD-2 HTTP.** `--http` serves any module. `HttpRequest`,
+  `HttpMalformed` and the result `HttpRespondDone` are matched by field
+  name like any delivery, the body by HD-3, and the request `HttpRespond` is read by
   field name: names, values and body are empty when the struct does not
   declare them, and a status that is not an integer from 200 to 599 fails
   the effect (HC-26). A request that cannot be delivered as `HttpRequest`,
   because the module does not declare it or this request cannot be built
-  for the declaration, is recorded in D as `host.Unfit` and delivered as
+  for the declaration, is recorded in D as `host.Kept` and delivered as
   `HttpMalformed` {id, status, why} when that can be built, why naming the
   reason. Its status is 415 Unsupported Media Type when the body is not
   UTF-8 and the module takes it as `text` (RFC 9110 15.5.16 allows the
@@ -5660,7 +5663,7 @@ did not, not by restricting what a module may declare.
   what status, is read from the host's whole value of the input and the
   module (`host::http_inputs`), so every request is in D and every byte
   the host writes is a function of D (HC-26).
-- **HF-3 Received bytes.** Received bytes (the data of `NetRecvDone`, the
+- **HD-3 Received bytes.** Received bytes (the data of `NetRecvDone`, the
   body of `HttpRequest`) are delivered exactly as `List[i64]` (HC-10a).
   Declared as `text` (through an alias or `?`), they are delivered as
   text when they are UTF-8. A stream read never splits a character: when
@@ -5672,24 +5675,24 @@ did not, not by restricting what a module may declare.
   the connection; a `NetClose` of a connection that still keeps bytes
   lists them in its err. Bytes that are not UTF-8 are
   delivered as a `failed` result with err naming the offset of the first
-  byte that is not, or as `HttpMalformed` 415 (HF-2), and `host.Unfit`
+  byte that is not, or as `HttpMalformed` 415 (HD-2), and `host.Kept`
   keeps the bytes, so nothing received is lost.
-- **HF-4 Host inputs.** `Refused` (HC-21), `Restarted` (HC-22), `Synced`,
-  `WallTime` and the frame tick `Tick` (HC-2) are fitted by name like any
-  delivery. Declared as
+- **HD-4 Host inputs.** `Refused` (HC-21), `Restarted` (HC-22), `Synced`,
+  `WallTime` and the frame tick `Tick` (HC-2) are matched by field name
+  like any delivery. Declared as
   `Refused(seq: u64)`, a refusal is delivered with its seq, and the
   `host.Refused` before it holds the cause. Declared with a field the host
   has no value for, `Refused` is never delivered, and each `host.Refused`
-  is followed by `host.Unfit` with the reason. Delivery stays bounded
+  is followed by `host.Kept` with the reason. Delivery stays bounded
   (HC-21) whatever the declaration. `Tick` takes the count in its field
   `n`, or no count when it declares no field; a `Tick` no count can be
   built into is not delivered, which the host loop says once at start,
   and a count that no longer converts (`Tick(n: u8)` past 255) is recorded
-  once as `host.Unfit`, after which no tick is delivered, since no later
+  once as `host.Kept`, after which no tick is delivered, since no later
   count converts either.
 
-`rce check` does not fit, because what a host delivers depends on the
-adapters it is granted.
+`rce check` does not make these comparisons, because what a host
+delivers depends on the adapters it is granted.
 
 ### E.5 Host entries
 
@@ -5719,13 +5722,13 @@ JSON. The host entries are:
 | `host.Refused` | cause, seq | after a refused entry (HC-21) |
 | `host.Restarted` | below (its own seq) | when a host opens a D that holds entries, or takes the admitter role (HC-22) |
 | `host.Typed` | seq (of the typed input that follows) | before a typed input that names an event the host delivers (HC-10b) |
-| `host.Unfit` | event (the host's whole value, as payload and type), why | before a delivery that is not the whole value, and in place of one that cannot be built or whose event is not declared (E.4c) |
+| `host.Kept` | event (the host's whole value, as payload and type), why | before a delivery that is not the whole value, and in place of one that cannot be built or whose event is not declared (E.4c) |
 | `host.HttpListen` | addr and the limits of HC-25, or addr and error | at start under `--http`, and when a retried bind succeeds (HC-24) |
 
 A program receives the content of a host entry only through a binding
 (E.8): the admitter then appends, after the host entry, an ordinary event
-the program declares, with the same payload fitted to its declaration
-(E.4c). δ itself never reads a host entry.
+the program declares, with the same payload, delivered as the program
+declares it (E.4c). δ itself never reads a host entry.
 
 ### E.6 Fabrics and placement (HC-11 to HC-14)
 
@@ -5940,12 +5943,12 @@ is cited by a test.
 | HC-11 to HC-14 | fabrics, placement, exactness, no flags | `placement_is_a_function_of_host_entries`, `placement_executor_follows_d_and_replays`, `fixed_tree_bits_do_not_depend_on_the_fabric`; `tests/host_place.rs`: `lanes_and_trees_have_the_same_bits_for_every_thread_count`, `lane_and_par_placement_follow_d_and_replay`, `platform_fabric_is_used_only_after_an_exact_probe` |
 | HS-6 to HS-9 | RCEdb in RCE | `rcedb_example_runs` |
 | HC-5a | the printed target is the installed target | `tests/host_sandbox.rs`: `profile_restricts_network_to_granted_ports`, `description_is_generated_from_rules`, `linux_description_says_by_port_and_udp`, `http_only_has_no_new_ip_sockets`, and on macOS only `seatbelt_refuses_an_ungranted_port`, `serve_under_seatbelt_answers_a_request` |
-| HC-10a, HF-3 | bytes delivered exactly, or as text when UTF-8 | `tests/host_net.rs`: `recv_delivers_the_bytes_received`, `recv_into_a_text_field_is_text_when_utf8`, `recv_as_text_completes_a_character_past_max`, `recv_is_capped_at_the_size_limit`; `tests/host_http.rs`: `invalid_body_bytes_are_exact_and_get_400`, `http_body_as_text_is_fitted` |
+| HC-10a, HD-3 | bytes delivered exactly, or as text when UTF-8 | `tests/host_net.rs`: `recv_delivers_the_bytes_received`, `recv_into_a_text_field_is_text_when_utf8`, `recv_as_text_completes_a_character_past_max`, `recv_is_capped_at_the_size_limit`; `tests/host_http.rs`: `invalid_body_bytes_are_exact_and_get_400`, `http_body_is_delivered_as_text` |
 | HC-10b | typed inputs are inputs | `tests/host_refused.rs`: `typed_refused_is_admitted_and_marked`, `replay_detects_a_forged_host_refused`; `tests/host_restart.rs`: `typed_restarted_and_typed_result_are_inputs`; `tests/host_http.rs`: `typed_http_request_is_an_input`; `tests/host_effects.rs`: `a_typed_result_is_marked_without_its_adapter` |
-| HC-21, HF-4 | refusals are inputs, fitted by name | `tests/host_refused.rs`: `refused_step_is_followed_by_host_refused_and_the_bound_event`, `each_cause_is_classified`, `a_refused_refused_is_not_redelivered`, `a_refused_step_whose_effect_is_refused_is_not_redelivered`, `refused_handler_has_full_fuel`, `replay_detects_a_log_without_host_refused`, `replay_detects_a_forged_host_refused`, `open_completes_a_trailing_refusal`, `a_refused_of_another_shape_is_fitted_by_name`; `tests/nameless.rs`: `refusal_entries_are_name_free` |
-| HC-22, HF-4 | restarts are inputs, ids never reused, fitted by name | `tests/host_restart.rs`: `restart_appends_restarted_then_interrupts`, `ids_are_not_reused_after_restart`, `tick_numbers_continue`, `take_role_appends_restarted`, `serve_on_an_existing_log_listens_again`, `a_restarted_of_another_shape_is_fitted_by_name`, `a_tick_is_fitted_by_name` |
-| HC-23, HF-1 | the net adapter, results fitted by name | `tests/host_net.rs`: `tcp_loopback_random_and_blobs_replay`, `send_takes_text_or_bytes`; `tests/host_effects.rs`: `result_event_of_another_shape_is_fitted_by_name`, `bound_effect_without_its_result_event_is_performed_and_recorded`, `a_result_whose_req_is_not_an_integer_answers_its_request_once` |
-| HC-24 to HC-26, HF-2 | the HTTP event host | `tests/host_http.rs`: `concurrent_clients_are_served_while_one_stalls`, `idle_server_appends_nothing`, `keep_alive_and_pipelined_requests_answer_in_order`, `head_has_no_body`, `oversized_body_is_413_and_closes`, `refused_request_gets_the_programs_status`, `invalid_response_fails_and_the_id_stays_open`, `responses_are_a_function_of_d`, `http_1_0_and_keep_alive_are_framed_from_d`, `expect_continue_is_transport`, `parallel_load_replays_exactly`, `sigterm_drains_and_validates`, `restart_binds_again`, `sequential_requests_are_not_paced_by_frames`, `http_declarations_are_fitted_at_start`, `http_body_as_text_is_fitted`, `http_without_request_event_is_answered_501`, `http_without_respond_is_answered_by_the_host`, `http_framing_and_host_answers_are_read_from_the_hosts_value`; `tests/host_refused.rs`: `serve_stops_while_effects_keep_coming`, `a_line_that_is_not_an_event_is_held`, `a_line_is_held_whole_and_as_bytes`; `tests/http_parse.rs`: `vectors_agree_with_net_http`, `mutations_agree_with_net_http`, `incremental_feed_equals_whole_buffer`, `limits_give_their_statuses` |
+| HC-21, HD-4 | refusals are inputs, matched by field name | `tests/host_refused.rs`: `refused_step_is_followed_by_host_refused_and_the_bound_event`, `each_cause_is_classified`, `a_refused_refused_is_not_redelivered`, `a_refused_step_whose_effect_is_refused_is_not_redelivered`, `refused_handler_has_full_fuel`, `replay_detects_a_log_without_host_refused`, `replay_detects_a_forged_host_refused`, `open_completes_a_trailing_refusal`, `a_refused_of_another_shape_is_matched_by_field_name`; `tests/nameless.rs`: `refusal_entries_are_name_free` |
+| HC-22, HD-4 | restarts are inputs, ids never reused, matched by field name | `tests/host_restart.rs`: `restart_appends_restarted_then_interrupts`, `ids_are_not_reused_after_restart`, `tick_numbers_continue`, `take_role_appends_restarted`, `serve_on_an_existing_log_listens_again`, `a_restarted_of_another_shape_is_matched_by_field_name`, `a_tick_is_matched_by_field_name` |
+| HC-23, HD-1 | the net adapter, results matched by field name | `tests/host_net.rs`: `tcp_loopback_random_and_blobs_replay`, `send_takes_text_or_bytes`; `tests/host_effects.rs`: `result_event_of_another_shape_is_matched_by_field_name`, `bound_effect_without_its_result_event_is_performed_and_recorded`, `a_result_whose_req_is_not_an_integer_answers_its_request_once` |
+| HC-24 to HC-26, HD-2 | the HTTP event host | `tests/host_http.rs`: `concurrent_clients_are_served_while_one_stalls`, `idle_server_appends_nothing`, `keep_alive_and_pipelined_requests_answer_in_order`, `head_has_no_body`, `oversized_body_is_413_and_closes`, `refused_request_gets_the_programs_status`, `invalid_response_fails_and_the_id_stays_open`, `responses_are_a_function_of_d`, `http_1_0_and_keep_alive_are_framed_from_d`, `expect_continue_is_transport`, `parallel_load_replays_exactly`, `sigterm_drains_and_validates`, `restart_binds_again`, `sequential_requests_are_not_paced_by_frames`, `http_declarations_are_noted_at_start`, `http_body_is_delivered_as_text`, `http_without_request_event_is_answered_501`, `http_without_respond_is_answered_by_the_host`, `http_framing_and_host_answers_are_read_from_the_hosts_value`; `tests/host_refused.rs`: `serve_stops_while_effects_keep_coming`, `a_line_that_is_not_an_event_is_held`, `a_line_is_held_whole_and_as_bytes`; `tests/http_parse.rs`: `vectors_agree_with_net_http`, `mutations_agree_with_net_http`, `incremental_feed_equals_whole_buffer`, `limits_give_their_statuses` |
 
 ### E.11 Proposed rules (not normative)
 

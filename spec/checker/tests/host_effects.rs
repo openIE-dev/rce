@@ -89,12 +89,12 @@ fn interrupted_request_is_answered_failed_on_open() {
     let _ = std::fs::remove_file(&p);
 }
 
-/// HF-1 (E.4c): a result event declared with fewer fields is fitted by
-/// name. The host starts, says so in one line, performs the effect and
-/// delivers the fields the module declares; `host.Unfit` keeps in D the
+/// HD-1 (E.4c): a result event declared with fewer fields is matched by
+/// field name. The host starts, says so in one line, performs the effect and
+/// delivers the fields the module declares; `host.Kept` keeps in D the
 /// fields the event does not take, and replay plans the same.
 #[test]
-fn result_event_of_another_shape_is_fitted_by_name() {
+fn result_event_of_another_shape_is_matched_by_field_name() {
     let s = src()
         .replace("event EchoDone(req: u64, status: text, data: text?, err: text)", "event EchoDone(req: u64, status: text)")
         .replace("step S on EchoDone(req: _r, status: st, data: d, err: _e)", "step S on EchoDone(req: _r, status: st)")
@@ -104,18 +104,18 @@ fn result_event_of_another_shape_is_fitted_by_name() {
     let calls = std::rc::Rc::new(std::cell::Cell::new(0));
     let mut st = MemStore::default();
     let mut h = Host::start_with(&m, Box::new(&mut st), vec![Box::new(Echo { calls: calls.clone() })]).unwrap();
-    assert!(h.fitting().iter().any(|n| n.starts_with("event EchoDone:") && n.contains("data, err are not delivered")), "{:?}", h.fitting());
+    assert!(h.delivery_notes().iter().any(|n| n.starts_with("event EchoDone:") && n.contains("data, err are not delivered")), "{:?}", h.delivery_notes());
     let out = h.admit(&s, r#"Say(msg: "a"), Say(msg: "boom")"#).unwrap();
     assert_eq!((calls.get(), out.len()), (2, 4), "{out:?}");
     assert!(out.iter().all(|a| a.outcome.is_ok()), "{out:?}");
     let live = h.state_hash().to_string();
     drop(h);
     let text: String = st.lines.iter().map(|l| format!("{l}\n")).collect();
-    assert!(text.contains(r#"{"payload":{"event":{"payload":{"data":"a","err":"","req":1,"status":"delivered"},"type":"EchoDone"},"why":"not declared: data, err"},"type":"host.Unfit"}"#), "{text}");
+    assert!(text.contains(r#"{"payload":{"event":{"payload":{"data":"a","err":"","req":1,"status":"delivered"},"type":"EchoDone"},"why":"not declared: data, err"},"type":"host.Kept"}"#), "{text}");
     assert!(text.contains(r#"{"payload":{"req":1,"status":"delivered"},"type":"EchoDone"}"#), "{text}");
     assert!(text.contains(r#""payload":{"data":null,"err":"refused by adapter","req":2,"status":"failed"},"type":"EchoDone"},"why":"not declared: err""#), "{text}");
     assert_eq!(replay(&m, &text).unwrap().1, live);
-    // replay plans each delivery again: a host.Unfit with another reason is a fault
+    // replay plans each delivery again: a host.Kept with another reason is a fault
     let es: Vec<Entry> = st.lines.iter().map(|l| Entry::parse_line(l).unwrap()).collect();
     let mut prev = rce_spec_check::interp::D_GENESIS.to_string();
     let mut forged = String::new();
@@ -126,12 +126,12 @@ fn result_event_of_another_shape_is_fitted_by_name() {
         forged.push('\n');
     }
     let e = replay(&m, &forged).unwrap_err();
-    assert!(e.contains("host fault") && e.contains("host.Unfit"), "{e}");
+    assert!(e.contains("host fault") && e.contains("host.Kept"), "{e}");
 }
 
-/// HF-1 (E.4c): a request struct whose result event the module does not
+/// HD-1 (E.4c): a request struct whose result event the module does not
 /// declare is still performed (fire and forget). Its result is recorded in
-/// D as `host.Unfit` and not delivered; it answers the request, so opening
+/// D as `host.Kept` and not delivered; it answers the request, so opening
 /// D again interrupts nothing.
 #[test]
 fn bound_effect_without_its_result_event_is_performed_and_recorded() {
@@ -145,7 +145,7 @@ fn bound_effect_without_its_result_event_is_performed_and_recorded() {
     let calls = std::rc::Rc::new(std::cell::Cell::new(0));
     {
         let mut h = Host::open_file_with(&m, &p, vec![Box::new(Echo { calls: calls.clone() })]).unwrap();
-        assert!(h.fitting().iter().any(|n| n.contains("struct Echo: event EchoDone is not declared")), "{:?}", h.fitting());
+        assert!(h.delivery_notes().iter().any(|n| n.contains("struct Echo: event EchoDone is not declared")), "{:?}", h.delivery_notes());
         let out = h.admit(&s, r#"Say(msg: "a")"#).unwrap();
         assert_eq!(out.len(), 1, "only the Say step: {out:?}");
     }
@@ -153,9 +153,9 @@ fn bound_effect_without_its_result_event_is_performed_and_recorded() {
     drop(Host::open_file_with(&m, &p, vec![Box::new(Echo { calls: calls.clone() })]).unwrap());
     assert_eq!(calls.get(), 1);
     let text = std::fs::read_to_string(&p).unwrap();
-    let unfit: Vec<&str> = text.lines().filter(|l| l.contains("\"type\":\"host.Unfit\"")).collect();
-    assert_eq!(unfit.len(), 1, "one record, and no interruption on open: {text}");
-    assert!(unfit[0].contains(r#"{"event":{"payload":{"data":"a","err":"","req":1,"status":"delivered"},"type":"EchoDone"},"why":"not declared"}"#), "{}", unfit[0]);
+    let kept: Vec<&str> = text.lines().filter(|l| l.contains("\"type\":\"host.Kept\"")).collect();
+    assert_eq!(kept.len(), 1, "one record, and no interruption on open: {text}");
+    assert!(kept[0].contains(r#"{"event":{"payload":{"data":"a","err":"","req":1,"status":"delivered"},"type":"EchoDone"},"why":"not declared"}"#), "{}", kept[0]);
     assert!(text.lines().all(|l| Entry::parse_line(l).unwrap().kind() != "EchoDone"), "nothing is delivered");
     replay(&m, &text).unwrap();
     let _ = std::fs::remove_file(&p);
@@ -191,8 +191,8 @@ fn request_is_durable_before_its_effect() {
     assert_eq!(at.get(), 2, "start barrier, then the Say barrier, before the effect");
 }
 
-/// HF-1 with HC-3: a result whose `req` is not delivered as an integer
-/// (`req: u64?`) is recorded by `host.Unfit` before it, so replay matches
+/// HD-1 with HC-3: a result whose `req` is not delivered as an integer
+/// (`req: u64?`) is recorded by `host.Kept` before it, so replay matches
 /// it to its request by the req that record holds. Opening D again answers
 /// no request twice, and a D cut between the record and the delivery is
 /// completed on open with the one result, not interrupted as well.
@@ -216,14 +216,14 @@ fn a_result_whose_req_is_not_an_integer_answers_its_request_once() {
     assert_eq!(done.len(), 2, "the record and the delivery of one result: {text}");
     assert!(done[0].contains(r#""why":"req: not delivered as an integer""#) && !text.contains("interrupted"), "{text}");
     replay(&m, &text).unwrap();
-    // cut between host.Unfit and the delivery it records: completed on open
+    // cut between host.Kept and the delivery it records: completed on open
     let lines: Vec<&str> = text.lines().collect();
-    let k = lines.iter().position(|l| l.contains(r#""type":"host.Unfit""#)).unwrap();
+    let k = lines.iter().position(|l| l.contains(r#""type":"host.Kept""#)).unwrap();
     let q = std::env::temp_dir().join(format!("rce-fx-reqopt-cut-{}.log", std::process::id()));
     std::fs::write(&q, lines[..=k].iter().map(|l| format!("{l}\n")).collect::<String>()).unwrap();
     open(&q);
     let text = std::fs::read_to_string(&q).unwrap();
-    assert_eq!(text.lines().filter(|l| l.contains(r#""type":"EchoDone"}"#) && !l.contains("host.Unfit")).count(), 1, "one delivery: {text}");
+    assert_eq!(text.lines().filter(|l| l.contains(r#""type":"EchoDone"}"#) && !l.contains("host.Kept")).count(), 1, "one delivery: {text}");
     assert!(!text.contains("interrupted"), "the completed result is not interrupted as well: {text}");
     replay(&m, &text).unwrap();
     // the same for a result declared with fewer fields (no err)
@@ -240,7 +240,7 @@ fn a_result_whose_req_is_not_an_integer_answers_its_request_once() {
     }
     let text = std::fs::read_to_string(&r).unwrap();
     let lines: Vec<&str> = text.lines().collect();
-    let k = lines.iter().position(|l| l.contains(r#""type":"host.Unfit""#)).unwrap();
+    let k = lines.iter().position(|l| l.contains(r#""type":"host.Kept""#)).unwrap();
     std::fs::write(&r, lines[..=k].iter().map(|l| format!("{l}\n")).collect::<String>()).unwrap();
     drop(Host::open_file_with(&m2, &r, vec![Box::new(Echo { calls: calls.clone() })]).unwrap());
     let text = std::fs::read_to_string(&r).unwrap();

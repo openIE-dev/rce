@@ -341,19 +341,19 @@ fn open_completes_a_trailing_refusal() {
     let _ = std::fs::remove_dir_all(&dir);
 }
 
-/// HF-4 (E.4c): a `Refused` of another shape is fitted by name. Declared
+/// HD-4 (E.4c): a `Refused` of another shape is matched by field name. Declared
 /// as `Refused(seq: u64)` it is delivered with the seq, and `host.Refused`
 /// before it already holds the cause. Declared with a field the host has no
 /// value for, it cannot be built: the host starts, says so, and after each
-/// `host.Refused` records `host.Unfit` with the reason, which replay
+/// `host.Refused` records `host.Kept` with the reason, which replay
 /// requires and a host that stopped between the two completes on open.
 #[test]
-fn a_refused_of_another_shape_is_fitted_by_name() {
+fn a_refused_of_another_shape_is_matched_by_field_name() {
     let s = src().replace("event Refused(seq: u64, cause: text)", "event Refused(seq: u64)").replace("step S on Refused(seq: q, cause: c)", "step S on Refused(seq: q)").replace("    last_cause = copy(c)\n", "");
     let m = parse(&s).unwrap();
     let mut st = MemStore::default();
     let mut h = Host::start(&m, Box::new(&mut st)).unwrap();
-    assert!(h.fitting().is_empty(), "the cause is in host.Refused: {:?}", h.fitting());
+    assert!(h.delivery_notes().is_empty(), "the cause is in host.Refused: {:?}", h.delivery_notes());
     let a = h.admit(&s, "Fail").unwrap();
     let k = a[0].seq;
     assert_eq!((a.len(), int(&field(&h, "refusals")), int(&field(&h, "last_seq"))), (2, 1, k as i64));
@@ -372,22 +372,22 @@ fn a_refused_of_another_shape_is_fitted_by_name() {
     let _ = std::fs::remove_file(&log);
     let (fs, _) = FileStore::open(&log).unwrap();
     let mut h = Host::start(&m, Box::new(fs)).unwrap();
-    assert!(h.fitting().iter().any(|n| n.starts_with("event Refused:") && n.contains("field 2 (why) has no value from the host") && n.contains("never delivered")), "{:?}", h.fitting());
+    assert!(h.delivery_notes().iter().any(|n| n.starts_with("event Refused:") && n.contains("field 2 (why) has no value from the host") && n.contains("never delivered")), "{:?}", h.delivery_notes());
     let a = h.admit(&s, "Fail").unwrap();
     assert_eq!((a.len(), int(&field(&h, "refusals"))), (1, 0), "{a:?}");
     let k = a[0].seq as usize;
     drop(h);
     let t = std::fs::read_to_string(&log).unwrap();
     let es = parsed(&t);
-    let unfit = format!(r#"{{"payload":{{"event":{{"payload":{{"cause":"fail","seq":{k}}},"type":"Refused"}},"why":"field 2 has no value from the host"}},"type":"host.Unfit"}}"#);
-    assert_eq!(es[k + 2].event, unfit);
+    let kept = format!(r#"{{"payload":{{"event":{{"payload":{{"cause":"fail","seq":{k}}},"type":"Refused"}},"why":"field 2 has no value from the host"}},"type":"host.Kept"}}"#);
+    assert_eq!(es[k + 2].event, kept);
     replay(&m, &t).unwrap();
-    // stopped after host.Refused: opening completes the host.Unfit first
+    // stopped after host.Refused: opening completes the host.Kept first
     let cut: String = t.lines().take(k + 2).map(|l| format!("{l}\n")).collect();
     std::fs::write(&log, &cut).unwrap();
     drop(Host::open_file(&m, &log).unwrap());
     let t = std::fs::read_to_string(&log).unwrap();
-    assert_eq!(parsed(&t)[k + 2].event, unfit);
+    assert_eq!(parsed(&t)[k + 2].event, kept);
     replay(&m, &t).unwrap();
     let _ = std::fs::remove_dir_all(&dir);
 }
@@ -556,7 +556,7 @@ fn serve_stops_while_effects_keep_coming() {
 
 /// HC-24: a line of the input stream that is not events of the module is
 /// held, not turned away. With no `Input` declared it is recorded in D as
-/// `host.Unfit` and the loop goes on; with `Input(data: text)` declared it
+/// `host.Kept` and the loop goes on; with `Input(data: text)` declared it
 /// is delivered as that input. Every run validates, and `rce host run`
 /// holds such a line the same way.
 #[test]
@@ -581,8 +581,8 @@ fn a_line_that_is_not_an_event_is_held() {
     let (ok, err) = s.stop();
     assert!(ok && err.contains("validated") && !err.contains("input not admitted") && err.contains("line recorded in D"), "{err}");
     let t = std::fs::read_to_string(&log).unwrap();
-    assert!(t.contains(r#"{"payload":{"event":{"payload":{"data":"hello there\n"},"type":"Input"},"why":"not declared"},"type":"host.Unfit"}"#), "{t}");
-    assert!(t.contains(r#"{"payload":{"event":{"payload":{"data":"Nope\n"},"type":"Input"},"why":"not declared"},"type":"host.Unfit"}"#), "{t}");
+    assert!(t.contains(r#"{"payload":{"event":{"payload":{"data":"hello there\n"},"type":"Input"},"why":"not declared"},"type":"host.Kept"}"#), "{t}");
+    assert!(t.contains(r#"{"payload":{"event":{"payload":{"data":"Nope\n"},"type":"Input"},"why":"not declared"},"type":"host.Kept"}"#), "{t}");
     let m = parse(&src()).unwrap();
     replay(&m, &t).unwrap();
     // with Input declared, the line is that input
@@ -597,12 +597,12 @@ fn a_line_that_is_not_an_event_is_held() {
     let (ok, err) = s.stop();
     assert!(ok && err.contains("validated"), "{err}");
     let t = std::fs::read_to_string(&log).unwrap();
-    assert!(t.contains(r#"{"payload":{"data":"hello there\n"},"type":"Input"}"#) && !t.contains("host.Unfit"), "{t}");
+    assert!(t.contains(r#"{"payload":{"data":"hello there\n"},"type":"Input"}"#) && !t.contains("host.Kept"), "{t}");
     // rce host run
     let log = dir.join("run.log");
     let out = std::process::Command::new(env!("CARGO_BIN_EXE_rce")).args(["host", "run"]).arg(&program).arg("--log").arg(&log).arg("Nope").output().unwrap();
     let (so, se) = (String::from_utf8_lossy(&out.stdout), String::from_utf8_lossy(&out.stderr));
-    assert!(so.contains("host.Unfit: the line is not events of the module") && se.contains("validated"), "{so}{se}");
+    assert!(so.contains("host.Kept: the line is not events of the module") && se.contains("validated"), "{so}{se}");
     assert_eq!(out.status.code(), Some(1), "the line was not applied");
     let _ = std::fs::remove_dir_all(&dir);
 }
@@ -622,8 +622,8 @@ fn a_line_is_held_whole_and_as_bytes() {
     let program = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/host/refused.rce");
     let m = parse(&src()).unwrap();
     let input: &[u8] = b"Ok, Nope, Ok\n\xff\xfe\nOk\n";
-    let mixed = r#"{"payload":{"event":{"payload":{"data":"Ok, Nope, Ok\n"},"type":"Input"},"why":"not declared"},"type":"host.Unfit"}"#;
-    let bytes = r#"{"payload":{"event":{"payload":{"data":[255,254,10]},"type":"Input"},"why":"not declared"},"type":"host.Unfit"}"#;
+    let mixed = r#"{"payload":{"event":{"payload":{"data":"Ok, Nope, Ok\n"},"type":"Input"},"why":"not declared"},"type":"host.Kept"}"#;
+    let bytes = r#"{"payload":{"event":{"payload":{"data":[255,254,10]},"type":"Input"},"why":"not declared"},"type":"host.Kept"}"#;
     let check = |t: &str| {
         assert!(t.contains(mixed) && t.contains(bytes), "{t}");
         assert_eq!(t.matches(r#"{"payload":{},"type":"Ok"}"#).count(), 1, "only the last line's Ok is applied: {t}");
@@ -669,6 +669,6 @@ fn a_line_is_held_whole_and_as_bytes() {
     let out = std::process::Command::new(env!("CARGO_BIN_EXE_rce")).args(["host", "run"]).arg(&p).arg("--log").arg(&log).arg("Nope").output().unwrap();
     assert!(String::from_utf8_lossy(&out.stderr).contains("validated") && out.status.code() == Some(0), "{out:?}");
     let t = std::fs::read_to_string(&log).unwrap();
-    assert!(t.contains(r#"{"payload":{"data":[78,111,112,101,10]},"type":"Input"}"#) && !t.contains("host.Unfit"), "{t}");
+    assert!(t.contains(r#"{"payload":{"data":[78,111,112,101,10]},"type":"Input"}"#) && !t.contains("host.Kept"), "{t}");
     let _ = std::fs::remove_dir_all(&dir);
 }

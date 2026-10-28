@@ -155,12 +155,12 @@ fn recv_delivers_the_bytes_received() {
     assert_eq!(replay(&m, &text).unwrap().1, live);
 }
 
-/// HF-3 (E.4c): received bytes bound to a `text` result. The host starts
-/// and says how it fits them: bytes that are UTF-8 are delivered as text;
+/// HD-3 (E.4c): received bytes bound to a `text` result. The host starts
+/// and says how it delivers to them: bytes that are UTF-8 are delivered as text;
 /// a character split across two writes waits in the adapter for the next
 /// read, so it is never split or replaced; a read that is not UTF-8, and a
 /// stream that ends inside a character, are delivered as failed with the
-/// offset, while `host.Unfit` keeps the bytes in D, so nothing received is
+/// offset, while `host.Kept` keeps the bytes in D, so nothing received is
 /// lost. Replay gives the live state.
 #[test]
 fn recv_into_a_text_field_is_text_when_utf8() {
@@ -172,7 +172,7 @@ fn recv_into_a_text_field_is_text_when_utf8() {
     let addr = free_addr();
     let mut st = MemStore::default();
     let mut h = Host::start_with(&m, Box::new(&mut st), boxed(net_adapters(std::slice::from_ref(&addr)))).unwrap();
-    assert!(h.fitting().iter().any(|n| n.starts_with("event NetRecvDone:") && n.contains("delivered as text when they are UTF-8")), "{:?}", h.fitting());
+    assert!(h.delivery_notes().iter().any(|n| n.starts_with("event NetRecvDone:") && n.contains("delivered as text when they are UTF-8")), "{:?}", h.delivery_notes());
     h.admit(&src, &format!(r#"Listen(addr: "{addr}")"#)).unwrap();
     let mut client = TcpStream::connect(&addr).unwrap();
     for _ in 0..200 {
@@ -197,7 +197,7 @@ fn recv_into_a_text_field_is_text_when_utf8() {
     recv_until(&mut h, &|h| text_of(field(h, "rand")) == "h\u{e9}");
     client.write_all(&[0xFF]).unwrap();
     recv_until(&mut h, &|h| int(&field(h, "errors")) == 1);
-    assert_eq!(text_of(field(&h, "blob")), "result does not fit the declared type: not UTF-8 at offset 0");
+    assert_eq!(text_of(field(&h, "blob")), "result cannot be built into the declared type: not UTF-8 at offset 0");
     // E2 82 AC is the euro sign, written in two parts
     client.write_all(&[0xE2, 0x82]).unwrap();
     std::thread::sleep(Duration::from_millis(50));
@@ -211,7 +211,7 @@ fn recv_into_a_text_field_is_text_when_utf8() {
     client.write_all(&[0xC3]).unwrap();
     client.shutdown(std::net::Shutdown::Write).unwrap();
     recv_until(&mut h, &|h| int(&field(h, "errors")) >= 2);
-    assert_eq!(text_of(field(&h, "blob")), "result does not fit the declared type: incomplete UTF-8 character at offset 0");
+    assert_eq!(text_of(field(&h, "blob")), "result cannot be built into the declared type: incomplete UTF-8 character at offset 0");
     let live = h.state_hash().to_string();
     drop(h);
     let text = log_text(&st);
@@ -222,7 +222,7 @@ fn recv_into_a_text_field_is_text_when_utf8() {
     assert_eq!(replay(&m, &text).unwrap().1, live);
 }
 
-/// HF-3: taken as text, a read does not end inside a character even when
+/// HD-3: taken as text, a read does not end inside a character even when
 /// max is smaller than the character: it reads up to 3 bytes past max to
 /// complete it, so a reader of one byte at a time still gets each
 /// character and the end of the stream. A character whose bytes have not

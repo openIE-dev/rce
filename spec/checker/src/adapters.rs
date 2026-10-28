@@ -438,7 +438,7 @@ pub mod net {
     struct Conn {
         s: TcpStream,
         out: OutQ,
-        /// HF-3: the start of a UTF-8 character a read ended inside, kept
+        /// HD-3: the start of a UTF-8 character a read ended inside, kept
         /// for the next read when the module takes received bytes as text
         carry: Vec<u8>,
         /// a read error met after bytes were read: those bytes are
@@ -456,7 +456,7 @@ pub mod net {
         next: u64,
         socks: BTreeMap<u64, Sock>,
         grants: Vec<String>,
-        /// HF-3: the module takes `NetRecvDone` data as text
+        /// HD-3: the module takes `NetRecvDone` data as text
         text: bool,
     }
 
@@ -591,7 +591,7 @@ pub mod net {
     }
 
     fn recv(c: &mut Conn, max: usize, text: bool) -> Result<Value, String> {
-        // HF-3: bytes kept for the next read are delivered before the
+        // HD-3: bytes kept for the next read are delivered before the
         // connection's failure, so nothing received is lost
         if c.out.0.lock().unwrap().failed {
             return if c.carry.is_empty() { Err("closed".into()) } else { Ok(json!(std::mem::take(&mut c.carry))) };
@@ -602,7 +602,7 @@ pub mod net {
         let mut out: Vec<u8> = std::mem::take(&mut c.carry);
         let want = max.saturating_sub(out.len());
         let mut r = read_some(&mut c.s, &mut out, want);
-        // HF-3: taken as text, a read does not end inside a character: it
+        // HD-3: taken as text, a read does not end inside a character: it
         // reads past max, by at most 3 bytes, to complete the last one; a
         // character whose bytes have not arrived waits for the next read,
         // and at the end of the stream it is delivered as it is
@@ -699,7 +699,7 @@ pub mod net {
                         let (m, cv) = &*c.out;
                         m.lock().unwrap().closing = true;
                         cv.notify_all();
-                        // HF-3: the bytes of a character kept for a read
+                        // HD-3: the bytes of a character kept for a read
                         // that never came are not delivered; err lists
                         // them, so D keeps them
                         if !c.carry.is_empty() {
@@ -1392,7 +1392,7 @@ pub mod http {
         if minor >= 1 { conn.iter().any(|c| c == "close") } else { !conn.iter().any(|c| c == "keep-alive") }
     }
 
-    /// RFC 9110 5.6.2 token characters, as `net.http`'s `tchar`.
+    /// RFC 9110 5.6.2 `tchar` characters, as `net.http`'s `tchar`.
     pub fn tchar(c: u8) -> bool {
         c.is_ascii_alphanumeric() || b"!#$%&'*+-.^_`|~".contains(&c)
     }
@@ -1825,7 +1825,7 @@ pub mod http {
     /// from `host::http_inputs`, every byte of the response is a function
     /// of D.
     pub fn response_bytes(r: &Value, head: bool, close: bool) -> Result<(Vec<u8>, bool), String> {
-        // HF-2: the request is read by field name; a missing field is empty
+        // HD-2: the request is read by field name; a missing field is empty
         let Some(status) = r["status"].as_u64() else { return Err("status is not an integer from 200 to 599".into()) };
         if !(200..=599).contains(&status) {
             return Err(format!("status {status} is outside 200 to 599"));
@@ -1838,7 +1838,7 @@ pub mod http {
         let mut program_close = false;
         for (n, v) in names.iter().zip(&values) {
             if n.is_empty() || !n.bytes().all(tchar) {
-                return Err(format!("field name `{n}` is not a token"));
+                return Err(format!("field name `{n}` has a character that is not a tchar"));
             }
             if !v.bytes().all(|c| c == 9 || (32..=126).contains(&c)) {
                 return Err(format!("the value of `{n}` is not visible ASCII"));

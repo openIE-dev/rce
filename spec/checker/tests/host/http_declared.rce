@@ -1,6 +1,6 @@
-module http_fit
+module http_declared
 
-intent "the HTTP event host fits each declaration by name: the body taken as text, a body that is not UTF-8 delivered as HttpMalformed 415, and the result of a response the program does not declare recorded in D"
+intent "the HTTP event host delivers to each declaration by field name: the body taken as text, a body that is not UTF-8 delivered as HttpMalformed 415, and the result of a response the program does not declare recorded in D"
     example HttpRequest(id: 3, method: "POST", target: "/echo", version: "HTTP/1.1", names: [], values: [], body: "hi") -> seen == 1 and last == 200
     example HttpMalformed(id: 4, status: 415, why: "HttpRequest: body: not UTF-8 at offset 0") -> last == 415
 

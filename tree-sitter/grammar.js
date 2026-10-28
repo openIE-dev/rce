@@ -34,7 +34,7 @@ module.exports = grammar({
     _outcome: $ => choice($.outcome_value, $.outcome_refused),
     outcome_value: $ => $._expr,
     // section 3 Outcome: a named error, or a trap with its text (`refused: trap("division by zero")`);
-    // `trap` before `(` is its own token there (src/scanner.c), elsewhere it is a NAME
+    // `trap` before `(` is its own symbol there (src/scanner.c), elsewhere it is a NAME
     outcome_refused: $ => seq('refused', ':', choice($.NAME, seq(alias($._trap, 'trap'), '(', $.STRING, ')'))),
     check_decl: $ => seq('check', $._expr, $._NL),
 
