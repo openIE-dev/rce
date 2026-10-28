@@ -1,5 +1,4 @@
 module data.sync
-# uses: enc.enc, data.events
 use data.events
 
 # data.sync (survey M62): keeping replicas of D state in step.

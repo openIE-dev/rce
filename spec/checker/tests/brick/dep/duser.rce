@@ -1,5 +1,7 @@
 module duser
 
-# builds on dlib with no directive: `rce index` infers it
+# builds on dlib, which it imports
 
-fn nine(x: i64) -> i64 = triple(triple(x))
+use dlib
+
+fn nine(x: i64) -> i64 = dlib.triple(dlib.triple(x))

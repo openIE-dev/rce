@@ -1,30 +1,23 @@
 #!/bin/sh
 # Run the `check` lines of every library. pq, hpke and mls build on
-# crypto, so each is tested with a `#!lib crypto` line in front (the rce
-# binary appends its embedded crypto, without crypto's own checks).
+# crypto and import it with `use crypto`; every module of lib/ is built
+# into the rce binary (specification 4.1), so each is tested by itself.
 # Set RCE to the rce binary (default: rce on PATH).
-# An rce that does not provide the `#!lib` directive (public rce main does
-# not) is detected by a probe, and scripts/libexpand.py then inlines
-# lib/crypto.rce in place of the directive, so the same checks run.
 RCE=${RCE:-rce}
 cd "$(dirname "$0")/.."
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
-printf 'module lib_probe\n#!lib crypto\nfn f() -> List[i64]\n    return cat([1], [2])\n' > "$tmp/lib_probe.rce"
-if "$RCE" check "$tmp/lib_probe.rce" > /dev/null 2>&1; then RCE_NO_LIB=0; else RCE_NO_LIB=1; echo "check.sh: this rce has no #!lib directive; crypto is inlined (scripts/libexpand.py)"; fi
-export RCE_NO_LIB
-rm -f "$tmp/lib_probe.rce"
 "$RCE" test lib/crypto.rce
 for n in pq hpke mls; do
-  { echo "module ${n}_checks"; echo "#!lib crypto"; grep -v '^module ' "lib/$n.rce"; } | python3 scripts/libexpand.py > "$tmp/$n.rce"
-  "$RCE" test "$tmp/$n.rce"
+  "$RCE" test "lib/$n.rce"
 done
 # Foundation modules under lib/<area>/: each is tested alone (it must admit
 # as a standalone module) and then with its checks file appended (vectors
 # and property sweeps live in tests/<area>/<name>_checks[_N].rce so a library's
 # own comptime fuel stays small for programs that use it).
-# A module with a "# uses: a.b, c.d" line is checked as a package together
-# with lib/a/b.rce and lib/c/d.rce. scripts/uses.py parses that marker
-# strictly: a malformed or unknown entry stops the run with an error. A tests/<area>/<name>_host.rce file
+# A module that imports others (`use a.b`) is checked as a package together
+# with lib/a/b.rce and every module that one imports in turn. scripts/uses.py
+# reads the `use` items strictly: a malformed line or an unknown module stops
+# the run with an error. A tests/<area>/<name>_host.rce file
 # holds checks too heavy for comptime fuel: it is flattened with the module
 # and its first checks file (scripts/flatten.py), its "# events:" are fed
 # to `rce host run` one per input line, and the final state must read
@@ -32,10 +25,10 @@ done
 python3 scripts/uses.py --selftest
 python3 scripts/uses.py --all
 for f in lib/*/*.rce; do
-  uses=$(python3 scripts/uses.py "$f") || { echo "check.sh: bad dependency marker in $f" >&2; exit 1; }
+  uses=$(python3 scripts/uses.py "$f") || { echo "check.sh: bad use item in $f" >&2; exit 1; }
   pk="$tmp/pkg"; rm -rf "$pk"; mkdir "$pk"
   for u in $uses; do cp "lib/$u.rce" "$pk/"; done
-  if [ -n "$uses" ]; then python3 scripts/libexpand.py < "$f" > "$pk/$(basename "$f")"; "$RCE" check "$pk"; else python3 scripts/libexpand.py < "$f" > "$tmp/one.rce"; "$RCE" check "$tmp/one.rce"; fi
+  if [ -n "$uses" ]; then cp "$f" "$pk/"; "$RCE" check "$pk"; else cp "$f" "$tmp/one.rce"; "$RCE" check "$tmp/one.rce"; fi
   t="tests/${f#lib/}"; t="${t%.rce}_checks"
   # one comptime fuel budget per file: heavy vector sets are sharded; a
   # module without dependencies runs its shards in parallel (JOBS, default
@@ -44,7 +37,7 @@ for f in lib/*/*.rce; do
     [ -f "$c" ] || continue
     if [ -n "$uses" ]; then
       o="$pk/$(basename "$f")"
-      { cat "$f"; echo; cat "$c"; } | python3 scripts/libexpand.py > "$o"
+      { cat "$f"; echo; cat "$c"; } > "$o"
       "$RCE" test "$pk"
     else
       echo "$c"
@@ -52,21 +45,14 @@ for f in lib/*/*.rce; do
   done > "$tmp/shards"
   if [ -z "$uses" ] && [ -s "$tmp/shards" ]; then
     mkdir -p "$tmp/sh"
-    F="$f" T="$tmp/sh" xargs -P "${JOBS:-$(nproc)}" -I{} sh -c 'o="$T/$(basename "{}")"; { cat "$F"; echo; cat "{}"; } | python3 scripts/libexpand.py > "$o"; "$0" test "$o" > "$o.out" 2>&1 || { cat "$o.out"; exit 255; }; rm -f "$o" "$o.out"' "$RCE" < "$tmp/shards"
+    F="$f" T="$tmp/sh" xargs -P "${JOBS:-$(nproc)}" -I{} sh -c 'o="$T/$(basename "{}")"; { cat "$F"; echo; cat "{}"; } > "$o"; "$0" test "$o" > "$o.out" 2>&1 || { cat "$o.out"; exit 255; }; rm -f "$o" "$o.out"' "$RCE" < "$tmp/shards"
     echo "ok $f: $(wc -l < "$tmp/shards") check files"
   else
     cat "$tmp/shards"
   fi
   h="${t%_checks}_host.rce"
-  # energy_host.rce seals receipts: Ed25519 signing in RCE source exceeds the
-  # per-event fuel of the host (spec 6.7), so it needs an rce with the native
-  # ed_* builtins (rce-ide 0.1.3 or later). Reported, never silently passed.
-  if [ -f "$h" ] && [ "$RCE_NO_LIB" = 1 ] && [ "$h" = tests/energy/energy_host.rce ]; then
-    echo "SKIPPED $h: requires an rce with native Ed25519 (rce-ide 0.1.3 or later); this rce refuses event Seal0 with 'comptime fuel exhausted'"
-    continue
-  fi
   if [ -f "$h" ]; then
-    python3 scripts/flatten.py "$f" "$t.rce" "$h" | python3 scripts/libexpand.py > "$tmp/host.rce"
+    python3 scripts/flatten.py "$f" "$t.rce" "$h" > "$tmp/host.rce"
     # "# events: A, B" lists events without arguments; "# event: E" lines
     # give one event each (with arguments). "# host-flags: --fs" grants a
     # fresh empty file root.

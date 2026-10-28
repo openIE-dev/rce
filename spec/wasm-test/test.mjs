@@ -53,6 +53,10 @@ for (const label of ["0.5", "0.6", "0.7", "9.9"]) expect("one language", `label 
 // Batteries included (4.1): the standard library resolves by `use` in the browser checker too.
 expect("stdlib", "use enc", checks("module demo\nuse enc\n\nfn main()\n    let b = [104, 105]\n    emit enc.b64_encode(&b, false, true)\n"), true);
 expect("stdlib", "use of an unknown module is refused", checks("module demo\nuse nothere\n\nfn main()\n    emit 1\n"), false);
+// `use` is the one way to bring a module in (4.1): crypto's items are reached by its name,
+// and a `#!lib crypto` line is a comment that places nothing in front of the module.
+expect("stdlib", "use crypto", checks("module demo2\nuse crypto\n\nfn main()\n    emit crypto.sha256([97]).len()\n"), true);
+expect("stdlib", "a #!lib line is a comment", checks("module demo4\n#!lib crypto\n\nfn main()\n    emit sha256([97]).len()\n"), false);
 
 console.log(`${runs - fails}/${runs} wasm checks passed`);
 process.exit(fails ? 1 : 0);

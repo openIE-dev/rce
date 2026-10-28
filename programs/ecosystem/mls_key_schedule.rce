@@ -1,13 +1,14 @@
 module mls_key_schedule_example
 
-#!lib mls
+use mls
+
 intent "MLS key schedule (RFC 9420 section 8) and ratchet tree math (Appendix C) with lib/mls.rce: one epoch from the previous init secret, the commit secret, the PSK secret and the GroupContext; the official key-schedule.json vector (cipher suite 1, epoch 0) fixes every derived secret and the external HPKE public key"
     example Epoch(init: "a897b53575b4dd35fed4466e4e714bfa949eaa72e616a9c68a47b39cb7a60d2e", commit: "a22606222e350fd7f0937168fe7548fb06626ab143cba7611d641693b1447509", psk: "e871b247379522395689182736cb3d1e7b108d6ae934b802223975de8dc3f80b", ctx: "0001000120a897b53575b4dd35fed4466e4e714bfa949eaa72e616a9c68a47b39cb7a60d2e0000000000000000209769e302a99c457350a8e636009b12a2fee068664004606d6318eb3a1977d818205e57c9364dc71f0f71b19ffe561ab77257c490708a47e29f8f73f2b318201d2f00") -> joiner == "4fb996ba26b29a70f3ce6c310151ce8701cb812d027f4d4bbf5cc4e9f884638d" and welcome == "ddcd9ced2d264798f876cbd00a200cdc4d77311dfef96975257efb66b0ef2c4d" and exporter == "5a097e149f2a375d0b9e1d1f4dc3a9c6c1788df888e5441f41a8791f4dc56cea" and authenticator == "7375d449cde2c5a856c13c8eb52c16bf9ef29eceef59b09d1f946bd1bac24643" and next_init == "505be2ce2ff922aa11e0a03d76346dda2981f1d9edf5cf98ecfc8757f69b00c9"
     example Epoch(init: "a897b53575b4dd35fed4466e4e714bfa949eaa72e616a9c68a47b39cb7a60d2e", commit: "a22606222e350fd7f0937168fe7548fb06626ab143cba7611d641693b1447509", psk: "e871b247379522395689182736cb3d1e7b108d6ae934b802223975de8dc3f80b", ctx: "0001000120a897b53575b4dd35fed4466e4e714bfa949eaa72e616a9c68a47b39cb7a60d2e0000000000000000209769e302a99c457350a8e636009b12a2fee068664004606d6318eb3a1977d818205e57c9364dc71f0f71b19ffe561ab77257c490708a47e29f8f73f2b318201d2f00"), External -> external_pub == "640117516be304ac1160933c894a6df9290231f1843f3685c124fc42c785c02c"
     example Tree(n: 8, leaf: 0) -> path == [1, 3, 7] and copath == [2, 5, 11]
 
-# Run: rce test mls_key_schedule.rce. The `#!lib mls` line appends the mls
-# and crypto libraries embedded in the rce binary. TreeKEM path
+# Run: rce test mls_key_schedule.rce. `use mls` names a module of the
+# library built into rce (mls imports crypto itself). TreeKEM path
 # secrets, commits, adds and removes are later slices of lib/mls.rce.
 
 event Epoch(init: text, commit: text, psk: text, ctx: text)
@@ -26,7 +27,7 @@ state Group
     copath: List[i64] = []
 
 step Group on Epoch(init: i, commit: c, psk: p, ctx: x)
-    let f = mls_epoch(i, c, p, x).split(".")
+    let f = mls.mls_epoch(i, c, p, x).split(".")
     joiner = copy(f[0])
     welcome = copy(f[1])
     exporter = copy(f[5])
@@ -35,8 +36,8 @@ step Group on Epoch(init: i, commit: c, psk: p, ctx: x)
     next_init = copy(f[11])
 
 step Group on External
-    external_pub = mls_external_pub(copy(external))
+    external_pub = mls.mls_external_pub(copy(external))
 
 step Group on Tree(n: n, leaf: l)
-    path = tm_direct_path(2 * l, n)
-    copath = tm_copath(2 * l, n)
+    path = mls.tm_direct_path(2 * l, n)
+    copath = mls.tm_copath(2 * l, n)

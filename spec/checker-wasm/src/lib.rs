@@ -93,16 +93,13 @@ pub fn check_with(src: &str, known_mods: &str) -> String {
     };
     let mut known: HashSet<String> = m.path.iter().map(|q| q.join(".")).collect();
     known.extend(known_list(known_mods));
-    // the program as `rce` prepares it: `#!lib` directives in front and `use`
-    // imports linked in from the built-in standard library (4.1)
-    let wl = stdlib::with_directives(&m, src);
-    let lk = link::link(&wl.module, &[]);
+    // the program as `rce` prepares it: `use` imports linked in from the
+    // built-in standard library (4.1)
+    let lk = link::link(&m, &[]);
     let m = lk.module;
     let mut c = check::Checker::new();
     c.imported_fns = lk.imported_fns;
     c.imported_types = lk.imported_types;
-    c.imported_fns.extend(wl.fns);
-    c.imported_types.extend(wl.types);
     for e in lk.errs {
         c.e(e);
     }

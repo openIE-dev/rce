@@ -1,5 +1,4 @@
 module ui.states
-# uses: enc.enc, data.events, text.xml, ui.ecma
 use text.xml
 use ui.ecma
 use data.events
