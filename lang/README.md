@@ -6,12 +6,15 @@ language into RCE will be judged against, in the formats that
 (section 16 for the per-language files, section 20 for acceptance and for
 the corpus rules K1 to K7).
 
-**No lifter exists yet.** Nothing in this repository lifts a Go, Python or
-JavaScript program, and no grammar lock, lift table, runtime library or
-print table of section 16 is written. What is here is the other side of the
-comparison: for each of three languages, a pinned implementation, the rule
-that turns one of its runs into a record, and a corpus of programs, each
-with the record of its run on that implementation.
+**No lifter of section 16 exists yet.** The probe
+[`spec/lift/go/lift_go.py`](../spec/lift/go/lift_go.py) lifts one Go
+pattern (a struct with one method per event, `spec/lift/go/door.go`) into
+a Form; nothing lifts the programs of these corpora, and no grammar lock,
+lift table, runtime library or print table of section 16 is written. What
+is here is the other side of the comparison: for each of three languages, a
+pinned implementation, the rule that turns one of its runs into a record,
+and a corpus of programs, each with the record of its run on that
+implementation.
 
 ## Terms
 
