@@ -1,4 +1,4 @@
-admission of 92 programs under cpython-3.13.16 (oracle record key e0364bd72a6eb8e35f05645a7a8f6cdd619f0fda959379d51073a0aebc497a07)
+admission of 92 programs under cpython-3.13.16 (oracle record key ab9944a2cf92b69912402a89c66efdea5cfd80ba3c1a40f057be493e2084c8a6)
 admitted      basics/bool_logic               e2891c813e97762c7dcd903084c9217eb6e0036b38a3f0a5e79df5d52d37be50  deterministic
 admitted      basics/break_continue           a3983b214d5e993a503c56456885c88715f3379063abce23e4d09135a26d2b4e  deterministic
 admitted      basics/classes                  6073092213c10bb7fd48440dc5f5bc8e38ab5eeea7ab7e812d2cb0675ef237e9  deterministic

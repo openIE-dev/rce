@@ -236,7 +236,17 @@ class Oracle:
             found["tree"] = tc["tree"]
             found["tree_skip"] = tc.get("tree_skip", [])
             found["tree_sha256"] = tree_sha256(tc["tree"], set(found["tree_skip"])) if os.path.isdir(tc["tree"]) else "missing"
+        if "absent" in tc:
+            found["absent"] = [("exists: " + p) if os.path.lexists(p) else p for p in tc["absent"]]
         libs = shared_libraries(exe) if os.path.isfile(exe) else None
+        if libs is not None and "extension_dirs" in tc:
+            # The shared objects that the executable's extension modules load
+            # when a program imports one: pinned with the executable's own.
+            found["extension_dirs"] = tc["extension_dirs"]
+            for sub in tc["extension_dirs"]:
+                for ext in sorted(Path(tc.get("tree", "/"), sub).glob("*.so")):
+                    libs.update(shared_libraries(str(ext)) or {})
+            libs = dict(sorted(libs.items()))
         found["libraries"] = libs if libs is not None else "ldd missing"
         found["version_output"] = self.version_output()
         return found

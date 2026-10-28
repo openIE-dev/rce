@@ -78,10 +78,15 @@ and the perturbations used at admission.
   what stands for it: the SHA-256 of the executable, of every file of its
   toolchain directory where it has one (Go's `GOROOT`; CPython's standard
   library, with bytecode caches and installed packages left out), and of
-  each shared object the executable loads as `ldd` lists it. The tree digest
-  is the SHA-256 of the lines `<sha256>  <relative path>`, one per file,
-  sorted by path; a symbolic link contributes `link:<target>`.
-  `version_output` is what the `version` command prints.
+  each shared object the executable loads as `ldd` lists it (for CPython,
+  also those that its extension modules, in the directories
+  `extension_dirs` names, load). The tree digest is the SHA-256 of the
+  lines `<sha256>  <relative path>`, one per file, sorted by path; a
+  symbolic link contributes `link:<target>`, so it pins the path it points
+  to, not what is there. `absent` lists paths that must not exist
+  (CPython's `/usr/lib/python313.zip`, which its module search path names
+  ahead of the standard library). `version_output` is what the `version`
+  command prints.
 - **Environment.** A run receives exactly `pins.env` (and a Go build exactly
   `pins.build_env`), in a new, empty directory that holds only the program,
   in a new network namespace with no interface up (`unshare --net`).
@@ -107,9 +112,14 @@ Differences from the proposal's examples, each for a stated reason:
 - The proposal's file table places the oracle records at `oracle/<O>.toml`,
   one per implementation, which the manifest's `oracles` list names; this
   directory follows it.
-- CPython runs with `-P -s`, not `-I`: `-I` implies `-E`, which would make
-  the interpreter ignore the pinned `PYTHONHASHSEED`; the environment is
-  replaced whole instead.
+- CPython runs with `-P -s -S`, not `-I`: `-I` implies `-E`, which would
+  make the interpreter ignore the pinned `PYTHONHASHSEED`; the environment
+  is replaced whole instead. `-S` keeps the module `site` from running at
+  startup, so no `.pth` file of the system site directories and no
+  `sitecustomize`, none of which the digest pins, runs before a program;
+  `PYTHONPYCACHEPREFIX` names a directory that never exists, so no bytecode
+  cache, which the digest leaves out, is read either. The record says why
+  neither changes what the corpus programs mean.
 - Node runs the program as `main.cjs`, so it is read as a CommonJS script
   whatever `package.json` lies above the run directory. The corpus programs
   use the language of ECMAScript 2020 and, from the host, `console.log`,
