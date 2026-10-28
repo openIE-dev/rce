@@ -120,18 +120,26 @@ pub fn atom_json(a: &Atom) -> J {
     }
 }
 
-fn fref_json(f: &FnRef) -> J {
+pub fn fref_json(f: &FnRef) -> J {
     match f {
         FnRef::Key(k, i) => json!([k, i]),
         FnRef::Rec(i) => json!(["rec", i]),
     }
 }
 
-fn block_json(b: &[Stmt]) -> J {
-    J::Array(b.iter().map(stmt_json).collect())
+/// How a function reference is written: `fref_json` in the JSON form, and
+/// another writer for the digests that order a recursive group (`build`).
+pub type RefJson<'r> = &'r dyn std::ops::Fn(&FnRef) -> J;
+
+fn block_json(b: &[Stmt], rf: RefJson) -> J {
+    J::Array(b.iter().map(|s| stmt_json_with(s, rf)).collect())
 }
 
 pub fn stmt_json(s: &Stmt) -> J {
+    stmt_json_with(s, &fref_json)
+}
+
+fn stmt_json_with(s: &Stmt, rf: RefJson) -> J {
     let tagged = |tag: &str, rest: Vec<J>| {
         let mut v = vec![J::from(tag)];
         v.extend(rest);
@@ -145,7 +153,7 @@ pub fn stmt_json(s: &Stmt) -> J {
             tagged("prim", v)
         }
         Stmt::Call(f, args) | Stmt::Catch(f, args) => {
-            let mut v = vec![fref_json(f)];
+            let mut v = vec![rf(f)];
             v.extend(args.iter().map(atom_json));
             tagged(if matches!(s, Stmt::Call(..)) { "call" } else { "catch" }, v)
         }
@@ -160,9 +168,9 @@ pub fn stmt_json(s: &Stmt) -> J {
                 atom_json(a),
             ],
         ),
-        Stmt::If(c, t, e) => tagged("if", vec![atom_json(c), block_json(t), block_json(e)]),
-        Stmt::Block(b) => tagged("block", vec![block_json(b)]),
-        Stmt::Loop(b) => tagged("loop", vec![block_json(b)]),
+        Stmt::If(c, t, e) => tagged("if", vec![atom_json(c), block_json(t, rf), block_json(e, rf)]),
+        Stmt::Block(b) => tagged("block", vec![block_json(b, rf)]),
+        Stmt::Loop(b) => tagged("loop", vec![block_json(b, rf)]),
         Stmt::Break(d) => tagged("break", vec![J::from(*d)]),
         Stmt::Ret(a) => tagged("ret", vec![atom_json(a)]),
         Stmt::Halt(a) => tagged("halt", vec![atom_json(a)]),
@@ -171,10 +179,15 @@ pub fn stmt_json(s: &Stmt) -> J {
 }
 
 pub fn fn_json(f: &Fn) -> J {
+    fn_json_with(f, &fref_json)
+}
+
+/// The JSON form of a function with its references written by `rf`.
+pub fn fn_json_with(f: &Fn, rf: RefJson) -> J {
     json!({
         "params": f.params.iter().map(ty_json).collect::<Vec<_>>(),
         "ret": ty_json(&f.ret),
-        "body": block_json(&f.body),
+        "body": block_json(&f.body, rf),
     })
 }
 
@@ -184,8 +197,13 @@ pub fn group_json(g: &Group) -> J {
 
 /// The key of a group: the SHA-256 of its canonical JSON (W5).
 pub fn group_key(g: &Group) -> String {
+    sha256_hex(&group_json(g))
+}
+
+/// The SHA-256 of the canonical JSON of a value, in lower-case hex.
+pub fn sha256_hex(v: &J) -> String {
     use sha2::{Digest, Sha256};
-    hex(&Sha256::digest(canon(&group_json(g)).as_bytes()))
+    hex(&Sha256::digest(canon(v).as_bytes()))
 }
 
 pub fn module_json(m: &Module) -> J {

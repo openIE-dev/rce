@@ -1,9 +1,11 @@
 //! Building core functions: a statement builder that keeps the type of
 //! every local and numbers locals in textual order, and a registry of
-//! functions that groups them by their call graph and gives each group its
-//! key (W5) once every function is built.
+//! functions that groups them by their call graph, orders the members of
+//! each group canonically and gives each group its key (W5) once every
+//! function is built.
 use super::ir::*;
-use super::json::group_key;
+use super::json::{fn_json_with, fref_json, group_key, sha256_hex};
+use serde_json::json;
 use std::collections::{BTreeMap, HashMap, HashSet};
 
 pub type R<T> = Result<T, String>;
@@ -577,17 +579,30 @@ impl Fns {
         let mut fns = self.fns;
         for comp in comps {
             let pos: HashMap<usize, u32> = comp.iter().enumerate().map(|(k, id)| (*id, k as u32)).collect();
-            let mut g = Group { fns: vec![] };
+            let mut members = vec![];
             for id in &comp {
                 let mut f = fns[*id].take().unwrap();
                 rewrite(&mut f.body, &pos, &place)?;
+                members.push(f);
+            }
+            // the members in canonical order, bisimilar members as one
+            let (order, class) = canonical_order(&members);
+            let mut g = Group { fns: vec![] };
+            for &k in &order {
+                let mut f = members[k].clone();
+                renumber(&mut f.body, &class);
                 g.fns.push(f);
             }
             let key = group_key(&g);
             for (k, id) in comp.iter().enumerate() {
-                place.insert(*id, (key.clone(), k as u32));
+                place.insert(*id, (key.clone(), class[k]));
             }
-            names.insert(key.clone(), serde_json::Value::Array(comp.iter().map(|id| serde_json::Value::from(self.names[*id].clone())).collect()));
+            let member_names = (0..order.len() as u32).map(|j| {
+                let mut ns: Vec<&str> = comp.iter().enumerate().filter(|(k, _)| class[*k] == j).map(|(_, id)| self.names[*id].as_str()).collect();
+                ns.sort();
+                serde_json::Value::from(ns.join(" = "))
+            });
+            names.insert(key.clone(), serde_json::Value::Array(member_names.collect()));
             defs.insert(key, g);
         }
         let entry = place[&entry].clone();
@@ -616,6 +631,59 @@ fn calls(b: &[Stmt], out: &mut HashSet<usize>) {
                 calls(e, out);
             }
             Stmt::Block(x) | Stmt::Loop(x) => calls(x, out),
+            _ => {}
+        }
+    }
+}
+
+/// The canonical order of a group's members (`rec i` naming member i of
+/// `fs`): an iterated digest. In round 0 each member's digest is the
+/// SHA-256 of its canonical JSON with every reference `rec i` written
+/// `["rec","?"]`; in each later round, with every `rec i` written
+/// `["rec", d]`, d the digest of member i in the round before. After n
+/// rounds (rounds 0 to n - 1, n the number of members) two members have the
+/// same digest exactly when they are bisimilar: the same function up to
+/// the members they call, which are bisimilar in turn. The group's members
+/// are the distinct final digests in ascending order, so its key does not
+/// depend on the order in which the lowering first used them, and
+/// bisimilar members are one function. Returns, for each new position, the
+/// member written there (the first with that digest), and, for each member,
+/// its new position.
+fn canonical_order(fs: &[Fn]) -> (Vec<usize>, Vec<u32>) {
+    let n = fs.len();
+    if n == 1 {
+        return (vec![0], vec![0]);
+    }
+    let digest = |f: &Fn, rec: &dyn std::ops::Fn(u32) -> serde_json::Value| {
+        let rf = |r: &FnRef| match r {
+            FnRef::Rec(i) => json!(["rec", rec(*i)]),
+            other => fref_json(other),
+        };
+        sha256_hex(&fn_json_with(f, &rf))
+    };
+    let mut d: Vec<String> = fs.iter().map(|f| digest(f, &|_| json!("?"))).collect();
+    for _ in 1..n {
+        let prev = d;
+        d = fs.iter().map(|f| digest(f, &|i| json!(prev[i as usize]))).collect();
+    }
+    let mut distinct: Vec<&String> = d.iter().collect();
+    distinct.sort();
+    distinct.dedup();
+    let class: Vec<u32> = d.iter().map(|x| distinct.binary_search(&x).unwrap() as u32).collect();
+    let order = (0..distinct.len() as u32).map(|j| class.iter().position(|c| *c == j).unwrap()).collect();
+    (order, class)
+}
+
+/// Write each `rec i` of a member as `rec class[i]`, its canonical position.
+fn renumber(b: &mut [Stmt], class: &[u32]) {
+    for s in b {
+        match s {
+            Stmt::Call(FnRef::Rec(i), _) | Stmt::Catch(FnRef::Rec(i), _) => *i = class[*i as usize],
+            Stmt::If(_, t, e) => {
+                renumber(t, class);
+                renumber(e, class);
+            }
+            Stmt::Block(x) | Stmt::Loop(x) => renumber(x, class),
             _ => {}
         }
     }

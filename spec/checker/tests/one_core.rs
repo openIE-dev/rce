@@ -263,3 +263,71 @@ fn json_form() {
         assert!(e.contains(why), "{why}: {e}");
     }
 }
+
+/// A ring of functions: member i writes its text and calls member
+/// `spec[i].2`; they are declared in the order `order` and the entry calls
+/// member 0. Every member reaches every other, so they form one group.
+fn ring(spec: &[(&str, &str, usize)], order: &[usize]) -> Module {
+    use rce_spec_check::one::build::{FB, Fns, sym};
+    let mut fs = Fns::default();
+    let entry = fs.declare("entry", vec![], Ty::unit());
+    let mut ids = vec![0; spec.len()];
+    for &k in order {
+        ids[k] = fs.declare(spec[k].0, vec![], Ty::Bool);
+    }
+    for (k, (_, text, next)) in spec.iter().enumerate() {
+        let mut b = FB::new(vec![], Ty::Bool);
+        b.out(Atom::bytes(text.as_bytes()));
+        let r = b.call(sym(ids[*next]), Ty::Bool, vec![]);
+        b.ret(r);
+        fs.define(ids[k], b.finish());
+    }
+    let mut b = FB::new(vec![], Ty::unit());
+    b.call(sym(ids[0]), Ty::Bool, vec![]);
+    let u = b.unit().unwrap();
+    b.ret(u);
+    fs.define(entry, b.finish());
+    let m = fs.finish(entry).unwrap();
+    assert_eq!(one::wf::check(&m), Ok(()));
+    round_trip(&m);
+    m
+}
+
+/// The members of a recursive group are in canonical order (W5): ordered
+/// by an iterated digest, so the group's key, and every byte of the
+/// module, do not depend on the order in which the functions were first
+/// used. Before this order, members were in the order the lowering
+/// declared them, so the two declaration orders of the first ring gave two
+/// keys. Members that are the same function up to the members they call
+/// are one function.
+#[test]
+fn recursive_groups_in_canonical_order() {
+    let perms: [&[usize]; 6] = [&[0, 1, 2], &[0, 2, 1], &[1, 0, 2], &[1, 2, 0], &[2, 0, 1], &[2, 1, 0]];
+    let group = |m: &Module| m.defs.values().find(|g| g.fns.len() > 1 || g.fns[0].ret == Ty::Bool).unwrap().clone();
+    // two members that differ in their text
+    let two = [("f", "f", 1), ("g", "g", 0)];
+    let a = ring(&two, &[0, 1]);
+    let b = ring(&two, &[1, 0]);
+    assert_eq!(one::json::module_text(&a), one::json::module_text(&b));
+    assert_eq!(group(&a).fns.len(), 2);
+    // three members, two with the same text: the first round tells them
+    // apart from the third only, and the second round by what they call
+    let three = [("a", "x", 1), ("b", "x", 2), ("c", "y", 0)];
+    let first = one::json::module_text(&ring(&three, perms[0]));
+    for p in perms {
+        let m = ring(&three, p);
+        assert_eq!(one::json::module_text(&m), first, "declared in the order {p:?}");
+        assert_eq!(group(&m).fns.len(), 3);
+    }
+    // three members of the same text that call around the ring are one
+    // function that calls itself, named by all three
+    let same = [("a", "x", 1), ("b", "x", 2), ("c", "x", 0)];
+    for p in perms {
+        let m = ring(&same, p);
+        let g = group(&m);
+        assert_eq!(g.fns.len(), 1, "declared in the order {p:?}");
+        assert_eq!(g.fns[0].body[1], Stmt::Call(FnRef::Rec(0), vec![]));
+        let key = one::json::group_key(&g);
+        assert_eq!(m.names["fns"][&key][0], "a = b = c");
+    }
+}
