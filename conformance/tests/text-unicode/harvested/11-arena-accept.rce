@@ -9,6 +9,6 @@ fn word_lengths(s: &text) -> List[u32]
 # id: text-unicode/harvested/11-arena-accept
 # area: text-unicode
 # clauses: [CH03-M-28cdd241, T10, T6]
-# expect: accept
+# expect: ok
 # provenance: harvested examples/11_arena.rce
 #---

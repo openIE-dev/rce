@@ -262,7 +262,7 @@ fn dep_files() -> Vec<(String, String)> {
 #[test]
 fn library_dependencies_resolve() {
     let c = brick::index(&dep_files());
-    assert_eq!(c["refused_files"], json!({}));
+    assert_eq!(c["pending_files"], json!({}));
     assert_eq!(
         c["resolved"][dir("dep/ddir.rce")],
         json!({"how": "directive", "lib": ["dlib"]})
@@ -278,13 +278,13 @@ fn library_dependencies_resolve() {
             .iter()
             .all(|e| e["checked"] == true && e["lowering"].get("term").is_some())
     );
-    // without dlib, duser is refused and nothing is inferred
+    // without dlib, duser is reported and nothing is inferred
     let alone = brick::index(&[(
         dir("dep/duser.rce"),
         std::fs::read_to_string(dir("dep/duser.rce")).unwrap(),
     )]);
     assert!(
-        alone["refused_files"][dir("dep/duser.rce")]
+        alone["pending_files"][dir("dep/duser.rce")]
             .as_str()
             .unwrap()
             .contains("unknown name `triple`")

@@ -1,0 +1,17 @@
+# rce-version: 0.6
+# expect: W-PAR-4
+fn f(xs: &[i64]) -> i64
+    var s: i64 = 0
+    for x in xs par
+        if x > 3
+            break
+        s += x
+    s
+#--- rce-test
+# id: concurrency/harvested/w-par-4-break-fit
+# area: concurrency
+# clauses: [CH09-M-82e65964, W-PAR-4]
+# expect: fit
+# diagnostic: W-PAR-4
+# provenance: harvested conc06/ill_typed/W-PAR-4_break.rce
+#---

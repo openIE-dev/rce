@@ -1,0 +1,12 @@
+fn f() -> i64
+    let x = 1
+    x = 2
+    return x
+#--- rce-test
+# id: evaluation-fuel/harvested/assign-let-fit
+# area: evaluation-fuel
+# clauses: [CH09-M-82e65964]
+# expect: fit
+# diagnostic: any
+# provenance: harvested examples/ill_typed/assign_let.rce
+#---

@@ -1,0 +1,23 @@
+event Pk(seed: text)
+event Sign(seed: text, msg: text)
+event Verify(pk: text, msg: text, sig: text)
+
+state S
+    out: List[text] = []
+
+step S on Pk(seed: s)
+    out.push(ed_pubkey(s))
+
+step S on Sign(seed: s, msg: m)
+    out.push(ed_sign(s, unhex(m)))
+
+step S on Verify(pk: p, msg: m, sig: g)
+    out.push(ed_verify(p, unhex(m), g).tostr())
+#--- rce-test
+# id: types-checking/harvested/ed25519-rce-fit
+# area: types-checking
+# clauses: [CH09-M-82e65964, W-NAME-1]
+# expect: fit
+# diagnostic: W-NAME-1
+# provenance: harvested checker/tests/ed25519_rce.rs#0
+#---

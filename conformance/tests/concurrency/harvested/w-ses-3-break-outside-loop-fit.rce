@@ -1,0 +1,16 @@
+# rce-version: 0.6
+# expect: W-SES-3
+protocol P
+    send i64
+    break
+
+fn client(c: session P)
+    c <- 1
+#--- rce-test
+# id: concurrency/harvested/w-ses-3-break-outside-loop-fit
+# area: concurrency
+# clauses: [CH09-M-82e65964, W-SES-3]
+# expect: fit
+# diagnostic: W-SES-3
+# provenance: harvested conc06b/ill_typed/W-SES-3_break_outside_loop.rce
+#---

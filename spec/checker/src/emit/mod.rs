@@ -9,7 +9,7 @@
 //!
 //! The Rust output has the same shape as the verified emitter of T9
 //! (spec/lean/RCE/Emit.lean): one uniform value type, `Result` with `?` for
-//! traps and refusals, checked i128 arithmetic against each integer type's
+//! traps and kept outcomes, checked i128 arithmetic against each integer type's
 //! range, and one counter per bounded loop.
 //!
 //! Running an emitted file prints the program's observations (`observe`).
@@ -213,7 +213,7 @@ fn obs_example1<'a>(_m: &'a Module, x: &'a Example, out: &mut Vec<String>, it: &
                 }
             }
             Err(r) => {
-                out.push(format!("{k} {} refused: {r}", ev.show()));
+                out.push(format!("{k} {} kept: {r} {}", ev.show(), show_state(&s)));
                 return;
             }
         }

@@ -464,7 +464,7 @@
         },
         {
           "type": "SYMBOL",
-          "name": "outcome_refused"
+          "name": "outcome_kept"
         }
       ]
     },
@@ -472,12 +472,17 @@
       "type": "SYMBOL",
       "name": "_expr"
     },
-    "outcome_refused": {
+    "outcome_kept": {
       "type": "SEQ",
       "members": [
         {
-          "type": "STRING",
-          "value": "refused"
+          "type": "ALIAS",
+          "content": {
+            "type": "SYMBOL",
+            "name": "_kept"
+          },
+          "named": false,
+          "value": "kept"
         },
         {
           "type": "STRING",
@@ -5956,10 +5961,6 @@
         },
         {
           "type": "STRING",
-          "value": "refused"
-        },
-        {
-          "type": "STRING",
           "value": "return"
         },
         {
@@ -6605,6 +6606,10 @@
     {
       "type": "SYMBOL",
       "name": "_error_sentinel"
+    },
+    {
+      "type": "SYMBOL",
+      "name": "_kept"
     }
   ],
   "inline": [],

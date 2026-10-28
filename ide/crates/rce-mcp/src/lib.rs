@@ -57,7 +57,7 @@ fn tool_specs() -> Value {
           "required": ["path", "edits"]}},
         {"name": "rce_check", "description": "rce check over the workspace program.", "inputSchema": {"type": "object", "properties": {"paths": paths}}},
         {"name": "rce_test", "description": "rce test: check every file and count its examples and checks.", "inputSchema": {"type": "object", "properties": {"paths": paths}}},
-        {"name": "graph_query", "description": "Query the Form code graph: callers NAME | callees NAME | reach NAME | path A B | kind KIND [joules > J] [divergence > D] | refused | uses-hw NAME. Returns nodes with file, line, kind and energy.",
+        {"name": "graph_query", "description": "Query the Form code graph: callers NAME | callees NAME | reach NAME | path A B | kind KIND [joules > J] [divergence > D] | fit | uses-hw NAME. Returns nodes with file, line, kind and energy.",
          "inputSchema": {"type": "object", "properties": {"query": {"type": "string"}}, "required": ["query"]}},
         {"name": "graph_scip", "description": "Export the Form code graph as a SCIP index (definitions and call references), base64 protobuf, for code-intelligence tools.",
          "inputSchema": {"type": "object", "properties": {}}},
@@ -91,11 +91,11 @@ fn feats(nodes: u64, passes: u64) -> Features {
     }
 }
 
-fn rejected(reason: String) -> Out {
+fn not_performed(reason: String) -> Out {
     Out {
         payload: json!({"error": reason}),
         is_error: true,
-        verdict: Verdict::Rejected { reason },
+        verdict: Verdict::NotPerformed { reason },
         feats: feats(0, 0),
     }
 }
@@ -273,15 +273,15 @@ impl Server {
     fn read_form(&self, a: &Value) -> Out {
         let rel = match str_arg(a, "path") {
             Ok(s) => s,
-            Err(e) => return rejected(e),
+            Err(e) => return not_performed(e),
         };
         let p = match self.ws.resolve(rel, false) {
             Ok(p) => p,
-            Err(e) => return rejected(e),
+            Err(e) => return not_performed(e),
         };
         let src = match std::fs::read_to_string(&p) {
             Ok(s) => s,
-            Err(e) => return rejected(format!("`{rel}`: {e}")),
+            Err(e) => return not_performed(format!("`{rel}`: {e}")),
         };
         let names: Vec<String> = items::items(&src).into_iter().map(|i| i.name).collect();
         let (form, diags) = match cli::emit("form", &src) {
@@ -300,24 +300,24 @@ impl Server {
     fn propose_edit(&self, a: &Value) -> Out {
         let rel = match str_arg(a, "path") {
             Ok(s) => s,
-            Err(e) => return rejected(e),
+            Err(e) => return not_performed(e),
         };
         let edits: Vec<items::Edit> = match a.get("edits").cloned().map(serde_json::from_value) {
             Some(Ok(e)) => e,
-            Some(Err(e)) => return rejected(format!("edits: {e}")),
-            None => return rejected("missing `edits`".into()),
+            Some(Err(e)) => return not_performed(format!("edits: {e}")),
+            None => return not_performed("missing `edits`".into()),
         };
         if edits.is_empty() {
-            return rejected("no edits".into());
+            return not_performed("no edits".into());
         }
         let p = match self.ws.resolve(rel, true) {
             Ok(p) => p,
-            Err(e) => return rejected(e),
+            Err(e) => return not_performed(e),
         };
         let old = std::fs::read_to_string(&p).unwrap_or_default();
         let new = match items::apply(&old, &edits) {
             Ok(s) => s,
-            Err(e) => return rejected(e),
+            Err(e) => return not_performed(e),
         };
         // Check the whole program with the proposed file in place.
         let rel_key = p
@@ -330,23 +330,23 @@ impl Server {
         prog.push((rel_key.clone(), new.clone()));
         prog.sort();
         let verdicts = check_program(&prog, false);
-        let refusals: Vec<String> = verdicts
+        let reports: Vec<String> = verdicts
             .iter()
             .filter_map(|(f, v)| v.as_ref().err().map(|e| format!("{f}: {e}")))
             .collect();
         let f = feats(form_nodes(&new), prog.len() as u64);
-        if !refusals.is_empty() {
+        if !reports.is_empty() {
             return Out {
-                payload: json!({"applied": false, "path": rel, "diagnostics": refusals}),
+                payload: json!({"applied": false, "path": rel, "diagnostics": reports}),
                 is_error: true,
-                verdict: Verdict::Refused {
-                    diagnostics: refusals,
+                verdict: Verdict::Fit {
+                    diagnostics: reports,
                 },
                 feats: f,
             };
         }
         if let Err(e) = self.ws.write_atomic(&p, &new) {
-            return rejected(format!("`{rel}`: write failed: {e}"));
+            return not_performed(format!("`{rel}`: write failed: {e}"));
         }
         Out {
             payload: json!({"applied": true, "path": rel, "bytes": new.len(),
@@ -369,13 +369,13 @@ impl Server {
         if let Some(w) = &want {
             for r in w {
                 if let Err(e) = self.ws.resolve(r, false) {
-                    return rejected(e);
+                    return not_performed(e);
                 }
             }
         }
         let verdicts = check_program(&prog, false);
         let mut rows = vec![];
-        let mut refusals = vec![];
+        let mut reports = vec![];
         let (mut pass, mut fail, mut nodes) = (0u64, 0u64, 0u64);
         for ((f, v), (_, src)) in verdicts.iter().zip(&prog) {
             if want.as_ref().is_some_and(|w| !w.contains(f)) {
@@ -397,7 +397,7 @@ impl Server {
                 }
                 Err(e) => {
                     fail += 1;
-                    refusals.push(format!("{f}: {e}"));
+                    reports.push(format!("{f}: {e}"));
                     rows.push(json!({"path": f, "ok": false, "diagnostic": e}));
                 }
             }
@@ -408,8 +408,8 @@ impl Server {
             verdict: if fail == 0 {
                 Verdict::Pass
             } else {
-                Verdict::Refused {
-                    diagnostics: refusals,
+                Verdict::Fit {
+                    diagnostics: reports,
                 }
             },
             feats: feats(nodes, prog.len() as u64),
@@ -419,7 +419,7 @@ impl Server {
     fn graph_query(&self, a: &Value) -> Out {
         let q = match str_arg(a, "query") {
             Ok(q) => q,
-            Err(e) => return rejected(e),
+            Err(e) => return not_performed(e),
         };
         let g = rce_graph3d::native::code_graph_of(&self.ws.program());
         match rce_graph3d::query::run(&g, q) {
@@ -427,12 +427,12 @@ impl Server {
                 let nodes: Vec<Value> = v.iter().map(|&i| {
                     let n = &g.nodes[i];
                     json!({"label": n.label, "kind": n.kind.as_str(), "file": n.file, "line": n.line,
-                           "joules": n.energy.joules, "refused": n.refused})
+                           "joules": n.energy.joules, "fit": n.fit})
                 }).collect();
                 Out { payload: json!({"query": q, "nodes": nodes}), is_error: false, verdict: Verdict::Pass,
                       feats: feats(g.nodes.len() as u64, 0) }
             }
-            Err(e) => rejected(e),
+            Err(e) => not_performed(e),
         }
     }
 
@@ -454,15 +454,15 @@ impl Server {
     fn emit(&self, a: &Value) -> Out {
         let (rel, target) = match (str_arg(a, "path"), str_arg(a, "target")) {
             (Ok(p), Ok(t)) => (p, t),
-            (Err(e), _) | (_, Err(e)) => return rejected(e),
+            (Err(e), _) | (_, Err(e)) => return not_performed(e),
         };
         let p = match self.ws.resolve(rel, false) {
             Ok(p) => p,
-            Err(e) => return rejected(e),
+            Err(e) => return not_performed(e),
         };
         let src = match std::fs::read_to_string(&p) {
             Ok(s) => s,
-            Err(e) => return rejected(format!("`{rel}`: {e}")),
+            Err(e) => return not_performed(format!("`{rel}`: {e}")),
         };
         match cli::emit(target, &src) {
             Ok(text) => Out {
@@ -473,9 +473,9 @@ impl Server {
             },
             Err(e) => {
                 let v = if e.contains("not implemented") || e.contains("unknown emit target") {
-                    Verdict::Rejected { reason: e.clone() }
+                    Verdict::NotPerformed { reason: e.clone() }
                 } else {
-                    Verdict::Refused {
+                    Verdict::Fit {
                         diagnostics: vec![e.clone()],
                     }
                 };
@@ -537,13 +537,13 @@ impl Server {
             "remember" => {
                 let q: Remember = serde_json::from_value(args.clone()).map_err(bad)?;
                 let (p, r) = mem.remember(&mut ctx, &program, &q, now).map_err(mem_err)?;
-                let rejected = matches!(r.body.draft.verdict, Verdict::Rejected { .. });
+                let not_performed = matches!(r.body.draft.verdict, Verdict::NotPerformed { .. });
                 (
                     json!({"stored": p.new_id, "duplicate_of": p.duplicate_of,
                     "expired": p.expires, "rows": p.inserts.iter().map(|f| f.id).collect::<Vec<_>>(),
-                    "error": if rejected { r.body.draft.verdict.clone() } else { Verdict::NotRun }}),
+                    "error": if not_performed { r.body.draft.verdict.clone() } else { Verdict::NotRun }}),
                     r,
-                    rejected,
+                    not_performed,
                 )
             }
             "forget" => {
@@ -553,11 +553,11 @@ impl Server {
                     .ok_or((-32602, "forget needs integer `id`".to_string()))?;
                 let ended = args.get("ended_at").and_then(Value::as_i64);
                 let (p, r) = mem.forget(&mut ctx, id, ended, now).map_err(mem_err)?;
-                let rejected = matches!(r.body.draft.verdict, Verdict::Rejected { .. });
+                let not_performed = matches!(r.body.draft.verdict, Verdict::NotPerformed { .. });
                 (
                     json!({"expired": p.expires, "successor": p.new_id, "verdict": r.body.draft.verdict}),
                     r,
-                    rejected,
+                    not_performed,
                 )
             }
             "repo_map" => {

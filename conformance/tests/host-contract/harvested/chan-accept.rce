@@ -51,6 +51,6 @@ step C on ChanRecvDone(req: _r, status: _s, data: d, err: _e)
 # id: host-contract/harvested/chan-accept
 # area: host-contract
 # clauses: [CH03-M-28cdd241, CH08-M-9a15157f, T10]
-# expect: accept
+# expect: ok
 # provenance: harvested checker/tests/host/chan.rce
 #---

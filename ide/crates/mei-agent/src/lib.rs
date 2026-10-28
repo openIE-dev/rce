@@ -2,11 +2,11 @@
 //!
 //! A turn is a mei-machine statechart with four parallel regions:
 //! `turn` (plan, propose, check, accept, escalate, failed), `gears` (gear0..gear4,
-//! each invoking its own child chart), `verdict` (none, done, not_done, reject)
+//! each invoking its own child chart), `verdict` (none, done, not_done, fit)
 //! and `budget` (ok, out). Guards read only the configuration: accept needs
-//! `v_done`; escalate needs `v_reject` or `v_not_done`, `budget_ok`, and a gear
+//! `v_done`; escalate needs `v_fit` or `v_not_done`, `budget_ok`, and a gear
 //! below 4. Anything else fails the turn. So the agent climbs a gear only on a
-//! checker reject or a not-done decision, and only while joules remain.
+//! checker report (`fit`) or a not-done decision, and only while joules remain.
 //!
 //! Gears: G0 checker and tests, G1 rules lookup, G2 System-One decision model
 //! (`POST /v1/systemone`, the Jev/Laya/Kev protocol), G3 a local

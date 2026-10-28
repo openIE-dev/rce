@@ -6080,7 +6080,7 @@
           "named": true
         },
         {
-          "type": "outcome_refused",
+          "type": "outcome_kept",
           "named": true
         },
         {
@@ -11679,7 +11679,7 @@
     }
   },
   {
-    "type": "outcome_refused",
+    "type": "outcome_kept",
     "named": true,
     "fields": {},
     "children": {
@@ -18838,6 +18838,10 @@
     "named": false
   },
   {
+    "type": "kept",
+    "named": false
+  },
+  {
     "type": "kind",
     "named": false
   },
@@ -18927,10 +18931,6 @@
   },
   {
     "type": "recv",
-    "named": false
-  },
-  {
-    "type": "refused",
     "named": false
   },
   {

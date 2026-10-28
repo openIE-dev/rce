@@ -18,5 +18,5 @@ textarea { width: 100%; height: 60vh; font: 14px/1.4 ui-monospace, Menlo, Consol
 table { border-collapse: collapse; margin: 8px 0 16px; font-size: 13px; width: 100%; }
 td, th { border: 1px solid #ddd; padding: 3px 6px; text-align: left; font-family: ui-monospace, Menlo, monospace; vertical-align: top; }
 th { background: #f0f0ee; }
-.refused { color: #8a1414; }
+.kept { color: #8a1414; }
 pre { overflow: auto; max-height: 40vh; background: #fff; border: 1px solid #ddd; padding: 8px; font-size: 12px; }

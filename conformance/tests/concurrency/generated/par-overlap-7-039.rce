@@ -21,7 +21,7 @@ fn main()
 # id: concurrency/generated/par-overlap-7-039
 # area: concurrency
 # clauses: [CH09-M-82e65964, W-PAR-1]
-# expect: reject
+# expect: fit
 # diagnostic: W-PAR-1
 # flags: [generated]
 # provenance: gen_props.py: two branches write one variable (write/write overlap)

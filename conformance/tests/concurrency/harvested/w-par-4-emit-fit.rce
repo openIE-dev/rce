@@ -1,0 +1,13 @@
+# rce-version: 0.6
+# expect: W-PAR-4
+fn main()
+    for x in 0..3 par
+        emit x
+#--- rce-test
+# id: concurrency/harvested/w-par-4-emit-fit
+# area: concurrency
+# clauses: [CH09-M-82e65964, W-PAR-4]
+# expect: fit
+# diagnostic: W-PAR-4
+# provenance: harvested conc06/ill_typed/W-PAR-4_emit.rce
+#---

@@ -21,6 +21,6 @@ step Cart on Reset -> []
 # id: numbers/harvested/16-multi-region-accept
 # area: numbers
 # clauses: [CH03-M-28cdd241, T10]
-# expect: accept
+# expect: ok
 # provenance: harvested examples/16_multi_region.rce
 #---

@@ -68,7 +68,7 @@ def load_tests(root, filt=None):
 def judge(t, a, ops):
     m, src = t["meta"], t["src"]
     exp = m.get("expect")
-    need = {"accept": "check", "reject": "check", "run": "run", "trace": "trace", "host": "host", "replicate": "replicate", "cli": "cli"}.get(exp)
+    need = {"ok": "check", "fit": "check", "run": "run", "trace": "trace", "host": "host", "replicate": "replicate", "cli": "cli"}.get(exp)
     if need is None:
         return "error", f"unknown expect `{exp}`"
     if need not in ops:
@@ -76,12 +76,12 @@ def judge(t, a, ops):
         if na:   # the op belongs to another component, by the law the adapter cites
             return "n/a", na
         return "unsupported", f"adapter does not claim `{need}`"
-    if exp in ("accept", "reject"):
+    if exp in ("ok", "fit"):
         files = {"main.rce": src, **t.get("fixtures", {})}
         r = a.call({"op": "check", "files": files, "source": src})
         if r.get("verdict") != exp:
             return "fail", f"expected {exp}, got {r.get('verdict')}: {json.dumps(r.get('diagnostics'))[:300]}"
-        if exp == "reject" and m.get("diagnostic") not in (None, "any"):
+        if exp == "fit" and m.get("diagnostic") not in (None, "any"):
             codes = [d.get("code") for d in r.get("diagnostics", [])]
             if m["diagnostic"] not in codes:
                 return "fail", f"expected diagnostic {m['diagnostic']}, got {codes}"
@@ -97,8 +97,8 @@ def judge(t, a, ops):
                 return "unsupported", r["unsupported"]
             if "error" in r:
                 return "fail", f"run error: {r['error'][:300]}"
-            if r.get("verdict") == "reject":
-                return "fail", f"refused at entry: {json.dumps(r.get('diagnostics'))[:300]}"
+            if r.get("verdict") == "fit":
+                return "fail", f"fit reported at entry: {json.dumps(r.get('diagnostics'))[:300]}"
             got = (r.get("outputs", []), r.get("outcome"))
             if first is None: first = got
             elif got != first:
@@ -158,11 +158,11 @@ def judge(t, a, ops):
         if "error" in r:
             return "fail", f"trace error: {r['error'][:300]}"
         steps = (r.get("trace") or {}).get("steps") or []
-        # T8 on every trace: a refused event leaves the state exactly as it was
+        # T8 on every trace: a kept event leaves the state exactly as it was
         prev = None
         for st in steps:
             if st.get("outcome") not in (None, "applied") and prev is not None and st.get("state_hash") != prev:
-                return "fail", f"T8: refused step {st.get('seq')} changed the state hash"
+                return "fail", f"T8: kept step {st.get('seq')} changed the state hash"
             prev = st.get("state_hash")
         head = (r.get("trace") or {}).get("head")
         if head != m.get("trace_head"):

@@ -86,12 +86,12 @@ only material read while building it.
 - Test262 (`INTERPRETING.md` in tc39/test262): metadata lives in the test file,
   negative tests state the phase and the error type they expect, flags change
   how a file is run, and files named with `_FIXTURE` are support files rather
-  than tests. Here `expect: reject` plus a diagnostic code plays the role of
+  than tests. Here `expect: fit` plus a diagnostic code plays the role of
   the negative phase and type, and `fixtures:` names support modules.
 - The WebAssembly spec testsuite (README of WebAssembly/testsuite and
   `test/core/README`): assertions about traps, invalid modules and
   exhaustion are first-class alongside assertions about results. Here a run
-  states `outcome: trap:<kind>`, `refused:<error>`, `done` or `deadlock`, and
+  states `outcome: trap:<kind>`, `kept:<error>`, `done` or `deadlock`, and
   fuel exhaustion is a trap kind.
 - ACATS (the ACATS overview page and the User's Guide, section 3.1): tests are
   organised by test objective tied to rules of the reference manual. Here

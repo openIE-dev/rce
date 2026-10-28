@@ -1,7 +1,7 @@
 intent "a door whose state is exactly its behaviour"
     "rce dim (10.11): 3 states explored (open and locked at once is unreachable), 3 behaviours, redundancy 0.00 bits: every reachable state answers some future event differently"
     example DimOpen, DimClose, DimLock -> locked
-    example DimOpen, DimLock -> refused: DimDoorOpen
+    example DimOpen, DimLock -> kept: DimDoorOpen
 
 state DimDoor
     open: bool = false

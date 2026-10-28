@@ -1,2 +1,0 @@
-REFUSED overflow.rce: line 3: W-INT-1 check: trap: overflow: 300 is outside u8
-exit status: 1

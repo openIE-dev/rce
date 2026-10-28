@@ -17,8 +17,8 @@
 //!
 //! `--control` computes the control quotient of 6.10 on the explored
 //! graph: the same states and transitions, with each step labelled only by
-//! its control outcome (which regions changed, whether and how it was
-//! refused, the constructors of what it emitted) instead of the values.
+//! its control outcome (which regions changed, whether it had the kept
+//! outcome and with which reason, the constructors of what it emitted) instead of the values.
 //! That is a coarser output function on the same deterministic machine, so
 //! its minimal size dim_c is at most dim, exactly as 6.10 states, and the
 //! predicate-equivalence oracle is concrete evaluation on reach(P): exact
@@ -51,16 +51,16 @@ pub struct Dim {
     /// `--control`: dim_c and the hash of the canonical control string
     pub control: Option<(usize, String)>,
     /// Some explored step has a λ output (6.1): an emitted value, or the
-    /// record of a refusal. A program with no such step has one behaviour by
+    /// record of a kept outcome. A program with no such step has one behaviour by
     /// definition (6.10): its state is in D and readable, but no future
     /// output depends on it.
     pub has_output: bool,
     /// Some explored step emits a value.
     pub emits: bool,
-    /// Some explored step refuses its event.
-    pub refuses: bool,
+    /// Some explored step has the kept outcome.
+    pub keeps: bool,
     /// Distinct output sequences over the explored steps (the text of a
-    /// step's emitted values, or its refusal; a silent step is excluded): 1
+    /// step's emitted values, or its kept reason; a silent step is excluded): 1
     /// means every output is the same, so the program has one behaviour as
     /// well.
     pub distinct_outputs: usize,
@@ -115,7 +115,7 @@ fn instances(m: &Module) -> (Vec<EvInst>, Vec<String>) {
     let mut out = vec![];
     let mut skipped = vec![];
     // type aliases, refined or not (5.1): a refined field gets its base type's
-    // boundary set, and the refusal of an out-of-range value is an observed step
+    // boundary set, and the kept outcome of an out-of-range value is an observed step
     let aliases: HashMap<String, Ty> = m
         .items
         .iter()
@@ -188,11 +188,11 @@ fn expr_show(e: &Expr) -> String {
     }
 }
 
-/// The label of one step: the canonical text of its outputs, or its refusal.
+/// The label of one step: the canonical text of its outputs, or its kept reason.
 fn step_label(r: &Result<(Vec<Region>, Vec<V>), String>) -> String {
     match r {
         Ok((_, outs)) => format!("ok:{}", outs.iter().map(|o| o.show()).collect::<Vec<_>>().join("|")),
-        Err(x) => format!("refused:{x}"),
+        Err(x) => format!("kept:{x}"),
     }
 }
 
@@ -227,8 +227,8 @@ fn decl_index(m: &Module) -> HashMap<String, usize> {
     idx
 }
 
-/// The control label of one step (6.10 control projection): the refusal's
-/// error (by declaration index) if refused, else the constructors of the
+/// The control label of one step (6.10 control projection): the kept outcome's
+/// error (by declaration index) if kept, else the constructors of the
 /// emitted values (by declaration index, or a type class); never a data
 /// value and never a name. It is a function of the step's output alone, so
 /// the control quotient is a coarsening of the behaviour quotient and
@@ -237,7 +237,7 @@ fn decl_index(m: &Module) -> HashMap<String, usize> {
 /// that label was not a coarsening and the pilot showed dim_c > dim on
 /// example 51.)
 /// The name-free output label of a step (T7): emitted values in their
-/// positional form (6.1), a refusal by the error's declaration index. Two
+/// positional form (6.1), a kept outcome by the error's declaration index. Two
 /// programs are compared on these, so a renaming never distinguishes them.
 fn pos_label(m: &Module, idx: &HashMap<String, usize>, r: &Result<(Vec<Region>, Vec<V>), String>) -> String {
     match r {
@@ -245,8 +245,8 @@ fn pos_label(m: &Module, idx: &HashMap<String, usize>, r: &Result<(Vec<Region>, 
         Err(x) => {
             let name = x.split('(').next().unwrap_or(x).trim();
             match idx.get(name) {
-                Some(i) => format!("refused:err#{i}"),
-                None => format!("refused:{x}"),
+                Some(i) => format!("kept:err#{i}"),
+                None => format!("kept:{x}"),
             }
         }
     }
@@ -271,8 +271,8 @@ fn control_label(idx: &HashMap<String, usize>, r: &Result<(Vec<Region>, Vec<V>),
         Err(x) => {
             let name = x.split('(').next().unwrap_or(x).trim();
             match idx.get(name) {
-                Some(i) => format!("refused:err#{i}"),
-                None => format!("refused:{name}"), // a trap: its text carries no declared name
+                Some(i) => format!("kept:err#{i}"),
+                None => format!("kept:{name}"), // a trap: its text carries no declared name
             }
         }
     }
@@ -487,7 +487,7 @@ pub fn explore(m: &Module, fuel: usize) -> Result<Graph, String> {
                         row.push(None);
                     }
                 }
-                Err(_) => row.push(Some(i)), // T8: a refused event leaves the state unchanged
+                Err(_) => row.push(Some(i)), // T8: a kept event leaves the state unchanged
             }
         }
         succ.push(row);
@@ -527,7 +527,7 @@ pub fn dim_with(m: &Module, fuel: usize, control: bool) -> Result<Dim, String> {
     let n = states.len();
     let has_output = label.iter().flatten().any(|l| l != "ok:");
     let emits = label.iter().flatten().any(|l| l.starts_with("ok:") && l != "ok:");
-    let refuses = label.iter().flatten().any(|l| l.starts_with("refused:"));
+    let keeps = label.iter().flatten().any(|l| l.starts_with("kept:"));
     let distinct_outputs = label.iter().flatten().filter(|l| *l != "ok:").collect::<std::collections::BTreeSet<_>>().len();
 
     // Moore refinement with the full output labels (dim) and, if asked, the
@@ -568,7 +568,7 @@ pub fn dim_with(m: &Module, fuel: usize, control: bool) -> Result<Dim, String> {
     } else {
         None
     };
-    Ok(Dim { states: n, bound_reached, behaviours, redundancy_bits, regions, events_skipped: skipped, control, has_output, emits, refuses, distinct_outputs })
+    Ok(Dim { states: n, bound_reached, behaviours, redundancy_bits, regions, events_skipped: skipped, control, has_output, emits, keeps, distinct_outputs })
 }
 
 /// The text report of 10.11.
@@ -582,7 +582,7 @@ pub fn report(d: &Dim) -> String {
     ));
     s.push_str(&format!("redundancy          {:<8.2} bits: log2(states) - log2(behaviours)\n", d.redundancy_bits));
     let yn = |b: bool| if b { "yes" } else { "no" };
-    s.push_str(&format!("outputs             {:<8} some explored step has a λ output (emits: {}, refuses: {})\n", yn(d.has_output), yn(d.emits), yn(d.refuses)));
+    s.push_str(&format!("outputs             {:<8} some explored step has a λ output (emits: {}, keeps: {})\n", yn(d.has_output), yn(d.emits), yn(d.keeps)));
     s.push_str(&format!("distinct outputs    {:<8} distinct output sequences over the explored steps (silent steps excluded)\n", d.distinct_outputs));
     for (n, all, needed, b) in &d.regions {
         s.push_str(&format!("  region {:<12} {:<8.2} ({all} values, {needed} distinguish behaviours)\n", n, b));
@@ -597,17 +597,17 @@ pub fn report(d: &Dim) -> String {
     s
 }
 
-/// The JSON report (`rce-dim/1`, compact, sorted keys).
+/// The JSON report (`rce-dim/2`, compact, sorted keys).
 pub fn report_json(d: &Dim) -> String {
     let v = serde_json::json!({
-        "format": "rce-dim/1",
+        "format": "rce-dim/2",
         "states": d.states,
         "bound_reached": d.bound_reached,
         "behaviours": d.behaviours,
         "redundancy_bits": d.redundancy_bits,
         "has_output": d.has_output,
         "emits": d.emits,
-        "refuses": d.refuses,
+        "keeps": d.keeps,
         "distinct_outputs": d.distinct_outputs,
         "regions": d.regions.iter().map(|(n, a, b, bits)| serde_json::json!({"name": n, "values": a, "needed": b, "bits": bits})).collect::<Vec<_>>(),
         "skipped": d.events_skipped,
@@ -688,7 +688,7 @@ pub fn equiv(a: &Module, b: &Module, fuel: usize) -> Result<Equiv, String> {
 }
 
 fn show_output(l: &str) -> String {
-    if l == "ok:" { "silent".into() } else if let Some(x) = l.strip_prefix("ok:") { format!("emits {x}") } else if let Some(x) = l.strip_prefix("refused:") { format!("refused: {x}") } else { l.to_string() }
+    if l == "ok:" { "silent".into() } else if let Some(x) = l.strip_prefix("ok:") { format!("emits {x}") } else if let Some(x) = l.strip_prefix("kept:") { format!("kept: {x}") } else { l.to_string() }
 }
 
 /// The text report of `rce equiv`.

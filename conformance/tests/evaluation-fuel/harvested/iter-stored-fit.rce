@@ -1,0 +1,14 @@
+fn evens() -> iter u64
+    yield 0
+
+fn f() -> u64
+    let it = evens()
+    return 0
+#--- rce-test
+# id: evaluation-fuel/harvested/iter-stored-fit
+# area: evaluation-fuel
+# clauses: [CH09-M-82e65964, W-ITER-1]
+# expect: fit
+# diagnostic: W-ITER-1
+# provenance: harvested examples/ill_typed/iter_stored.rce
+#---

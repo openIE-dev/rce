@@ -108,7 +108,7 @@ structure Replica (β : Type) where
   promised : Nat
   log : List β
 
-/-- An append at term `t` (HC-18): refused when a higher term was promised. -/
+/-- An append at term `t` (HC-18): not appended when a higher term was promised. -/
 def appendAt (t : Nat) (r : Replica β) (l : List β) : Replica β :=
   if t < r.promised then r else { promised := t, log := l }
 

@@ -44,9 +44,9 @@ def genVals (g : G) (n : Nat) : List Val × G :=
     (acc ++ [v], g)) ([], g)
 
 def pList (vs : List Val) : String := "vec![" ++ ", ".intercalate (vs.map pVal) ++ "]"
-def pRef : Refusal → String
-  | .user x => s!"Refusal::User({repr x})"
-  | .trap m => s!"Refusal::Trap({pTrap m})"
+def pReason : Reason → String
+  | .user x => s!"Reason::User({repr x})"
+  | .trap m => s!"Reason::Trap({pTrap m})"
 def pRes : SRes → String
   | .ok fs os => s!"Ok(({pList fs}, {pList os}))"
   | .ref r => s!"Err({pRef r})"
@@ -61,8 +61,8 @@ def build (nprog ninp : Nat) : String := Id.run do
     for _ in List.range ninp do
       let (fs, g1) := genVals g 4; let (args, g2) := genVals g1 2; g := g2
       let exp := exec args s fs []
-      tests := tests ++ s!"  \{ let mut fs = {pList fs}; let mut os: Vec<Val> = vec![]; let r = p{p}(&mut fs, &mut os, &{pList args}).map(|_| (fs, os)); let e: Result<(Vec<Val>, Vec<Val>), Refusal> = {pRes exp}; if r != e \{ bad += 1; eprintln!(\"p{p}: \{:?} vs \{:?}\", r, e); } n += 1; if e.is_err() \{ refused += 1; } }\n"
-  return prelude ++ fns ++ "fn main() {\n  let mut n = 0u64; let mut bad = 0u64; let mut refused = 0u64;\n" ++ tests ++
-    "  println!(\"cases {} mismatches {} refused {}\", n, bad, refused);\n  if bad > 0 { std::process::exit(1) }\n}\n"
+      tests := tests ++ s!"  \{ let mut fs = {pList fs}; let mut os: Vec<Val> = vec![]; let r = p{p}(&mut fs, &mut os, &{pList args}).map(|_| (fs, os)); let e: Result<(Vec<Val>, Vec<Val>), Reason> = {pRes exp}; if r != e \{ bad += 1; eprintln!(\"p{p}: \{:?} vs \{:?}\", r, e); } n += 1; if e.is_err() \{ kept += 1; } }\n"
+  return prelude ++ fns ++ "fn main() {\n  let mut n = 0u64; let mut bad = 0u64; let mut kept = 0u64;\n" ++ tests ++
+    "  println!(\"cases {} mismatches {} kept {}\", n, bad, kept);\n  if bad > 0 { std::process::exit(1) }\n}\n"
 
 #eval IO.FS.writeFile "emit-test/main.rs" (build 300 10)

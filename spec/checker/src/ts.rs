@@ -28,7 +28,7 @@ impl TsParser {
         TsParser(p)
     }
     /// Accepts iff the text parses with no ERROR or MISSING node. A tab is
-    /// refused at entry (spec 2.1, W-LEX-1), as in the Rust lexer.
+    /// reported at entry (spec 2.1, W-LEX-1), as in the Rust lexer.
     pub fn accepts(&mut self, src: &str) -> bool {
         if src.contains('\t') {
             return false;

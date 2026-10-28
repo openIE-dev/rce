@@ -13,6 +13,6 @@ fn grade(score: u32) -> text
 # id: evaluation-fuel/harvested/35-nested-if-accept
 # area: evaluation-fuel
 # clauses: [CH03-M-28cdd241, T10]
-# expect: accept
+# expect: ok
 # provenance: harvested examples/35_nested_if.rce
 #---

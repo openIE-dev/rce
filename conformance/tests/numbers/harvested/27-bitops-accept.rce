@@ -11,6 +11,6 @@ fn mix(a: u32, b: u32) -> u32 = (a << 5 | a >> 27) ^ ~b & 0xFF
 # id: numbers/harvested/27-bitops-accept
 # area: numbers
 # clauses: [CH03-M-28cdd241, T10]
-# expect: accept
+# expect: ok
 # provenance: harvested examples/27_bitops.rce
 #---

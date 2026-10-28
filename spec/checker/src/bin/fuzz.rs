@@ -15,7 +15,7 @@
 //!   2. parse with the Rust reference parser and pass the reference checker.
 //!
 //! Each program also yields targeted near-misses (one small edit that breaks
-//! one named rule); every near-miss must be refused (by both parsers for
+//! one named rule); every near-miss must be reported (by both parsers for
 //! syntax mutants, by the checker for the others), and tree-sitter and the
 //! LALR(1) tables must agree on every syntax mutant.
 //!
@@ -663,7 +663,7 @@ impl Stats {
     }
 }
 
-/// The checker's verdict; a panic in the checker counts as a refusal, as
+/// The checker's verdict; a panic in the checker counts as a report, as
 /// a crashed `rce-check` process did for the former driver.
 fn checks(src: &str) -> Result<(), String> {
     match std::panic::catch_unwind(|| check_one(src)) {
@@ -743,24 +743,24 @@ fn main() {
         let src = materialize(&raw, &marks, None);
         stats.inc("programs");
         if !ts.accepts(&src) {
-            fail(&mut fails, "tree-sitter refused".into(), src);
+            fail(&mut fails, "tree-sitter reported it".into(), src);
             continue;
         }
         stats.inc("tree-sitter parsed (LR(1), no conflicts: one parse)");
         if !lalr.accepts(&src) {
-            fail(&mut fails, "LALR(1) (section 3) refused".into(), src);
+            fail(&mut fails, "LALR(1) (section 3) reported it".into(), src);
             continue;
         }
         stats.inc("LALR(1) from section 3 parsed");
         if let Err(e) = rce_spec_check::parse::parse(&src) {
-            fail(&mut fails, format!("Rust parser refused: {e}"), src);
+            fail(&mut fails, format!("Rust parser reported: {e}"), src);
             continue;
         }
         stats.inc("Rust parser parsed");
         if let Err(e) = checks(&src) {
             fail(
                 &mut fails,
-                format!("checker refused valid program: {e}"),
+                format!("checker reported a valid program: {e}"),
                 src,
             );
             continue;
@@ -776,7 +776,7 @@ fn main() {
                 if checks(&m).is_ok() {
                     fail(&mut fails, format!("mutant {kind} accepted"), m);
                 } else {
-                    stats.inc(&format!("  refused: {kind}"));
+                    stats.inc(&format!("  reported: {kind}"));
                 }
             }
         }
@@ -796,7 +796,7 @@ fn main() {
             stats.inc("  tree-sitter and LALR(1) agree");
             let r_ok = checks(&m).is_ok();
             if !t_ok && !r_ok {
-                stats.inc(&format!("  refused by tree-sitter and rce-check: {name}"));
+                stats.inc(&format!("  reported by tree-sitter and rce-check: {name}"));
             } else {
                 fail(
                     &mut fails,

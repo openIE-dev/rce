@@ -1,0 +1,14 @@
+error E
+
+fn g() -> i64 ! E
+    fail E
+
+fn f() -> i64 = g()
+#--- rce-test
+# id: types-checking/harvested/unchecked-union-fit
+# area: types-checking
+# clauses: [CH09-M-82e65964, W-TY-1]
+# expect: fit
+# diagnostic: W-TY-1
+# provenance: harvested examples/ill_typed/unchecked_union.rce
+#---

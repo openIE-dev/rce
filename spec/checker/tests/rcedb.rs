@@ -78,7 +78,7 @@ fn emitted_sql_loads_into_sqlite() {
 }
 
 #[test]
-fn typed_schema_refuses_bad_rows_and_index_matches_scan() {
+fn typed_schema_keeps_the_state_on_bad_rows_and_index_matches_scan() {
     let p = tmp("typed");
     let mut db = Db::open(&p).unwrap();
     db.insert("free", "x", "anything").unwrap();

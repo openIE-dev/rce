@@ -1,7 +1,7 @@
 //! Path-precise W-PAR-1 (spec C.3): branch footprints are borrow paths, so
 //! branches writing disjoint fields, tuple slots or literal indices of one
-//! variable are admitted (the earlier root-variable rule refused each of
-//! these), while overlapping paths are still refused. Admitted programs
+//! variable are admitted (the earlier root-variable rule reported each of
+//! these), while overlapping paths are still reported. Admitted programs
 //! give the source-order result under every par schedule (T16).
 use rce_spec_check::conc::{run_main, Outcome, ParMode, RunCfg};
 use rce_spec_check::parse::parse;
@@ -23,7 +23,7 @@ fn diags(src: &str) -> Result<(), String> {
     d[0].1.clone().map_err(|e| format!("{e:?}"))
 }
 
-/// race-free under C.3 paths, refused by a per-root rule; expected sum
+/// race-free under C.3 paths, reported by a per-root rule; expected sum
 const ACCEPT: &[(&str, &str, i64)] = &[
     ("p.x = 10", "p.y = 20", 10 + 20 + 3 + 4 + 5 + 6 + 7 + 8),
     ("p.x = p.y + 1", "p.q.a = p.y * 2", 3 + 2 + 4 + 4 + 5 + 6 + 7 + 8),
@@ -35,7 +35,7 @@ const ACCEPT: &[(&str, &str, i64)] = &[
 ];
 
 /// overlapping paths: still races
-const REFUSE: &[(&str, &str)] = &[
+const REPORTED: &[(&str, &str)] = &[
     ("p.x = 1", "p.x = 2"),
     ("p.x = 1", "let z = &p\narr[0] = z.y"),
     ("p = P(x: 0, y: 0, q: In(a: 0, b: 0), v: [])", "arr[0] = p.y"),
@@ -51,7 +51,7 @@ const REFUSE: &[(&str, &str)] = &[
 fn disjoint_paths_are_admitted_and_deterministic() {
     for (one, two, want) in ACCEPT {
         let src = prog(one, two);
-        diags(&src).unwrap_or_else(|e| panic!("refused: {e}\n{src}"));
+        diags(&src).unwrap_or_else(|e| panic!("reported: {e}\n{src}"));
         let m = parse(&src).unwrap();
         for pm in [ParMode::Seq, ParMode::Permute(3), ParMode::Permute(11), ParMode::Threads] {
             let r = run_main(&m, &RunCfg { par_mode: pm, ..RunCfg::default() }).unwrap();
@@ -63,8 +63,8 @@ fn disjoint_paths_are_admitted_and_deterministic() {
 }
 
 #[test]
-fn overlapping_paths_are_refused() {
-    for (one, two) in REFUSE {
+fn overlapping_paths_report_fit() {
+    for (one, two) in REPORTED {
         let src = prog(one, two);
         let e = diags(&src).expect_err(&format!("admitted a race:\n{src}"));
         assert!(e.contains("W-PAR-1"), "{one} | {two}: {e}");

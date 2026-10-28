@@ -11,7 +11,7 @@ import RCE.SessionRec
     its final environment is `Ended` (every endpoint gone or done).
 
     `chk` is the algorithm of `check06b` restricted to this fragment: it
-    returns the rule it refuses with (`W-SES-1`, `W-SES-2`, `W-SES-4`).
+    returns the rule it reports (`W-SES-1`, `W-SES-2`, `W-SES-4`).
     Proved: `chk_sound` (an accepted body has a derivation, so W-SES-2
     and W-SES-4 are sound for the judgment) and `ty_safe` (a typed body
     never uses a gone endpoint, never takes an action its protocol does

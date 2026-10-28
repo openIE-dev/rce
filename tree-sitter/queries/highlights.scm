@@ -2,7 +2,7 @@
 ; conventions used by most editors (nvim-treesitter, Helix, Zed).
 
 [
-  "module" "use" "as" "intent" "example" "refused" "check"
+  "module" "use" "as" "intent" "example" "kept" "check"
   "const" "type" "struct" "state" "event" "error" "kind"
   "trait" "impl" "forall" "extern" "step" "on" "actor"
   "let" "var" "with" "arena" "device" "bound" "pass" "where"

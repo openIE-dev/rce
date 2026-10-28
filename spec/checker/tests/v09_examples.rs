@@ -1,7 +1,7 @@
 //! Version 0.9 (Appendix F) examples: `../examples-0.9/ok/*.rce` must be
-//! accepted by the reference checker; every `../examples-0.9/refused/*.rce`
-//! must be refused with the rule named on its second line
-//! (`# expect: W-...`). A refused example that is refused for a different
+//! accepted by the reference checker; every `../examples-0.9/fit/*.rce`
+//! must be reported with the rule named on its second line
+//! (`# expect: W-...`). A reported example that is reported for a different
 //! rule fails, so each file tests one rule.
 use std::path::PathBuf;
 
@@ -28,8 +28,8 @@ fn ok_examples_are_accepted() {
 }
 
 #[test]
-fn refused_examples_are_refused_for_the_named_rule() {
-    let fs = files("refused");
+fn fit_examples_report_the_named_rule() {
+    let fs = files("fit");
     assert!(!fs.is_empty());
     for p in fs {
         let src = std::fs::read_to_string(&p).unwrap();
@@ -41,8 +41,8 @@ fn refused_examples_are_refused_for_the_named_rule() {
             .trim()
             .to_string();
         let r = rce_spec_check::check_one(&src);
-        let e = r.expect_err(&format!("{p:?} must be refused"));
-        assert!(e.contains(&want), "{p:?} refused, but not for {want}: {e}");
+        let e = r.expect_err(&format!("{p:?} must be reported"));
+        assert!(e.contains(&want), "{p:?} reported, but not for {want}: {e}");
     }
 }
 

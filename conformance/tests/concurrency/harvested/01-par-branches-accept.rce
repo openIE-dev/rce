@@ -14,6 +14,6 @@ fn split(xs: &[i64]) -> (i64, i64)
 # id: concurrency/harvested/01-par-branches-accept
 # area: concurrency
 # clauses: [CH02-M-a696f3a3, CH03-M-28cdd241, T10]
-# expect: accept
+# expect: ok
 # provenance: harvested conc06/accept/01_par_branches.rce
 #---

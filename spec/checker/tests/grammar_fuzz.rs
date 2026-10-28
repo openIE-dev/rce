@@ -256,7 +256,7 @@ fn tree_sitter_agrees_with_rust_parser_on_fuzz() {
 
 /// Found by the fuzzer (seed 7, input 7601): `Box()` indexed an empty argument list.
 #[test]
-fn box_without_its_value_is_refused_not_a_panic() {
+fn box_without_its_value_reports_fit_not_a_panic() {
     let src = "kind T\n    Leaf\n    Node(k: Box[T])\n\nfn f() -> i64\n    let c = Node(k: Box())\n    return 0\n";
     let r = std::panic::catch_unwind(|| rce_spec_check::check_one(src)).expect("the checker panicked");
     let e = r.unwrap_err();

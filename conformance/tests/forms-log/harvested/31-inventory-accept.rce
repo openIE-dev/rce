@@ -21,6 +21,6 @@ step Inventory on Ship(sku: s, qty: q)
 # id: forms-log/harvested/31-inventory-accept
 # area: forms-log
 # clauses: [CH03-M-28cdd241, T10]
-# expect: accept
+# expect: ok
 # provenance: harvested examples/31_inventory.rce
 #---

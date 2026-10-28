@@ -58,7 +58,7 @@ pub fn encode(ctx: &str, s: &str) -> String {
     match ctx {
         "ShellArg" => s.to_string(),
         "Prompt" => prompt_encode(s),
-        // F.5.7: a header value is its text; CR and LF are refused (a trap) by the caller
+        // F.5.7: a header value is its text; CR and LF trap in the caller
         "Header" => s.to_string(),
         "Html" => {
             let mut o = String::new();

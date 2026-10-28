@@ -35,12 +35,12 @@ Reaching the limit is not a hang. It is a trap with the message
 `loop bound`:
 
 ```rce
-{{#include ../listings/ch03/refused/spin.rce}}
+{{#include ../listings/ch03/fit/spin.rce}}
 ```
 
 ```text
 $ rce check spin.rce
-{{#include ../listings/ch03/refused/spin.out}}
+{{#include ../listings/ch03/fit/spin.out}}
 ```
 
 The loop condition is always `true`, so the eleventh repetition traps, the

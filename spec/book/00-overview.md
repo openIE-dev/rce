@@ -22,7 +22,7 @@ Three plain points:
 3. **Memory is safe by construction.** Ownership, second-class borrows,
    regions and linear handles rule out use-after-free and data races.
 
-Tiny example (a counter that refuses to go negative):
+Tiny example (a counter whose `Dec` at zero keeps n at 0):
 
 ```
 state Counter
@@ -108,7 +108,7 @@ The normative grammar is section 3, and it is also the machine-readable one:
 `rce-spec-check` (in `spec/checker/`, Rust only) reads the EBNF of section 3
 from `book/03-syntax.md`, builds its LALR(1) tables and fails on any
 shift/reduce or reduce/reduce conflict, then parses every program in
-`spec/examples/` and requires every program in `spec/examples/reject/` to be
+`spec/examples/` and requires every program in `spec/examples/fit/syntax/` to be
 refused, by the LALR(1) tables, the Rust parser and the tree-sitter port
 alike, then runs `rce-check` over the same files (all examples together
 form one program and must be accepted; the 12 syntax rejects, the 48
@@ -119,9 +119,9 @@ the printed output of `rce-spec-check`, compared with this text by
 (100 rules, 491 productions, 974 states); with the additions of C.2,
 0 conflicts (114 rules, 560 productions, 1152 states);
 with C.2 and F.13, 0 conflicts (119 rules, 588 productions,
-1214 states), accepting the 15 Appendix F examples; grammar 62/62 accepted,
-12/12 refused; checker 62/62 accepted, 12/12 and 64/64 refused (16 of them
-inadmissible). Until 2026-10-12 the same grammar was kept as
+1214 states), accepting the 15 Appendix F examples; grammar 62/62 parsed,
+12/12 reported; checker 62/62 in Form, 12/12 and 64/64 reported (16 of them
+admission). Until 2026-10-12 the same grammar was kept as
 `spec/rce.lark` and checked with Lark (0 conflicts, 533 rules in Lark's
 expansion); that file is retired.
 `rce-fuzz N SEED` generates random type-directed programs from the
@@ -140,4 +140,4 @@ and LALR(1) agree on all 4,977 syntax mutants.
 
 **Read receipt.** In the overview's tiny example, what is the name of the event?
 
-<!-- body-sha256: fda0152e7116bacf059e6e350c3dee069cb183d82b3ea21dd913fd317b193658 -->
+<!-- body-sha256: 913fe3e460eb2eaf9e27211803f1d35ef4d8f676502979def42ec95af863f02c -->

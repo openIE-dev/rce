@@ -13,6 +13,6 @@ fn use_it() -> i64
 # id: evaluation-fuel/harvested/22-tuples-accept
 # area: evaluation-fuel
 # clauses: [CH03-M-28cdd241, T10]
-# expect: accept
+# expect: ok
 # provenance: harvested examples/22_tuples.rce
 #---

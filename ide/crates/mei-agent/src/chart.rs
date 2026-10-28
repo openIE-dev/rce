@@ -97,7 +97,7 @@ fn g_accept(c: &Configuration, _: &str) -> bool {
     c.contains("v_done")
 }
 fn g_escalate(c: &Configuration, _: &str) -> bool {
-    (c.contains("v_reject") || c.contains("v_not_done"))
+    (c.contains("v_fit") || c.contains("v_not_done"))
         && c.contains("budget_ok")
         && !c.contains("gear4")
 }
@@ -142,7 +142,7 @@ pub fn turn_chart() -> Statechart {
             "verdict",
             StateNode::compound(
                 "v_none",
-                atomic(&["v_none", "v_done", "v_not_done", "v_reject"]),
+                atomic(&["v_none", "v_done", "v_not_done", "v_fit"]),
             ),
         ),
         (
@@ -160,10 +160,10 @@ pub fn turn_chart() -> Statechart {
         Transition::new("escalate", "next", "propose"),
         Transition::new("v_none", "set_done", "v_done"),
         Transition::new("v_none", "set_not_done", "v_not_done"),
-        Transition::new("v_none", "set_reject", "v_reject"),
+        Transition::new("v_none", "set_fit", "v_fit"),
         Transition::new("v_done", "next", "v_none"),
         Transition::new("v_not_done", "next", "v_none"),
-        Transition::new("v_reject", "next", "v_none"),
+        Transition::new("v_fit", "next", "v_none"),
         Transition::new("budget_ok", "budget_spent", "budget_out"),
     ];
     for k in 0..4 {
@@ -179,7 +179,7 @@ pub fn turn_chart() -> Statechart {
             "next",
             "set_done",
             "set_not_done",
-            "set_reject",
+            "set_fit",
             "budget_spent",
         ],
         t,

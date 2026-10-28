@@ -14,6 +14,6 @@ fn depth(e: &Expr) -> u32
 # id: evaluation-fuel/harvested/29-nested-kind-accept
 # area: evaluation-fuel
 # clauses: [CH03-M-28cdd241, T10, T6]
-# expect: accept
+# expect: ok
 # provenance: harvested examples/29_nested_kind.rce
 #---

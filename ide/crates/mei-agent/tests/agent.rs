@@ -182,14 +182,14 @@ fn g1_rule_fixes_it() {
 }
 
 #[test]
-fn climbs_to_g4_only_on_reject_or_not_done() {
+fn climbs_to_g4_only_on_fit_or_not_done() {
     let m = mock(vec![
         (
             "/v1/systemone",
             200,
             json!({"model": "kev-latest", "answers": {"done": {"noul": 0.08, "confidence": 0.9}}, "usage": {"input_tokens": 120, "output_tokens": 0}}),
         ),
-        // G3 proposes a step on an undeclared event: the checker refuses it.
+        // G3 proposes a step on an undeclared event: the checker reports it (`fit`).
         (
             "/local/v1/chat/completions",
             200,
@@ -297,10 +297,10 @@ fn climbs_to_g4_only_on_reject_or_not_done() {
     assert_eq!(local[0].body.draft.e_meas, None);
     assert_eq!(local[0].body.draft.e_sim_j, None);
     assert!((o.charged_j - 11.6).abs() < 1e-9);
-    // Exactly one checker refusal (G3) on the way up.
+    // Exactly one checker report (G3) on the way up.
     assert_eq!(
         rs.iter()
-            .filter(|r| matches!(r.body.draft.verdict, ide_receipt::Verdict::Refused { .. }))
+            .filter(|r| matches!(r.body.draft.verdict, ide_receipt::Verdict::Fit { .. }))
             .count(),
         1
     );
@@ -368,23 +368,23 @@ fn chart_guards() {
     assert!(a.child().is_some());
     assert!(a.send("proposed") && a.send("set_done") && a.send("decide"));
     assert!(a.is_active("accept"));
-    // Reject at gear0 with the budget spent: fail, never escalate.
+    // `fit` at gear0 with the budget spent: fail, never escalate.
     let mut b = mei_agent::chart::actor(&ch);
     assert!(
         b.send("start")
             && b.send("proposed")
-            && b.send("set_reject")
+            && b.send("set_fit")
             && b.send("budget_spent")
             && b.send("decide")
     );
     assert!(b.is_active("failed") && b.is_active("gear0"));
-    // Walk to gear4 on rejects; at gear4 a reject fails.
+    // Walk to gear4 on `fit` reports; at gear4 a `fit` report fails.
     let mut c = mei_agent::chart::actor(&ch);
     assert!(c.send("start"));
     for g in 0..4 {
         assert!(
             c.send("proposed")
-                && c.send("set_reject")
+                && c.send("set_fit")
                 && c.send("decide")
                 && c.is_active("escalate")
         );

@@ -22,7 +22,7 @@ Status words: Done = implemented and tested here. Library = implemented and test
 | Graph and text as equal editable views | Enso, Luna | Library: rename, delete, add stub, move become text edits that must pass rce check | 29090f2 | Graph panel gestures that call it; edges as edits (add a call) |
 | Review marks expiring on change, tied to receipts | NicoV7 codebase-visualizer | Library: marks pin a BLAKE3 item hash, written as signed receipts, expire on change | c722111 | Panel badge and a "% reviewed" header |
 | Git history replay | Code-XR, code-nexus, Gource | Library: one Form graph per commit into the existing scrubber | 3f08ce2 | IDE flag to load it instead of the receipt timeline |
-| Code property graph queries | Joern, CodeQL | Done (small): callers, callees, reach, path, kind with energy filters, refused, uses-hw | e81f837 | No AST/CFG/data-flow layers like Joern; no query language beyond these forms |
+| Code property graph queries | Joern, CodeQL | Done (small): callers, callees, reach, path, kind with energy filters, fit, uses-hw | e81f837 | No AST/CFG/data-flow layers like Joern; no query language beyond these forms |
 | SCIP export | SCIP | Done: definitions and call references, hand-encoded protobuf | e81f837 | Uses the deprecated `range` field; not yet validated with the `scip` CLI |
 | MCP graph tools for agents | Graphify, GitNexus, codebase-memory-mcp | Done: `graph_query`, `graph_scip`, each writes a receipt | b2156f3 | Architecture summary and diff-overlay tools |
 | Live while incomplete | Hazel | Partial: item-level holes keep the rest live (graph, E_sim, check) | 26747a9 | Expression-level typed holes; dependents of a hole are holed too |

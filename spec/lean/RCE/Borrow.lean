@@ -125,10 +125,10 @@ theorem writeVia_exclusive {Γ b Γ'} (h : BWt Γ (.writeVia b) Γ') :
     · simp at h; exact absurd h hne
     · exact h
 
-/-! Refusals (each is a rule of 5.6 the checker enforces). -/
+/-! Reports (each is a rule of 5.6 the checker enforces). -/
 
 /-- Writing a path while a shared borrow of an overlapping path is live. -/
-theorem write_while_borrowed_refused {Γ b x} (hx : Γ.alive.contains x = true) (hm : Γ.moved = [])
+theorem write_while_borrowed_no_typing {Γ b x} (hx : Γ.alive.contains x = true) (hm : Γ.moved = [])
     (hf : (find Γ b).isNone = true) (hn : noMut Γ (x, [0]) = true) :
     ¬ ∃ Γ', BWt Γ (.seq (.borrow b (x, [0]) false) (.write (x, []))) Γ' := by
   intro ⟨Γ', h⟩
@@ -140,7 +140,7 @@ theorem write_while_borrowed_refused {Γ b x} (hx : Γ.alive.contains x = true) 
       | write _ hfree => simp [free, overlaps, List.isPrefixOf] at hfree
 
 /-- Two mutable borrows of overlapping paths (`&mut x` and `&mut x.0`). -/
-theorem overlapping_mut_refused {Γ b c x} :
+theorem overlapping_mut_no_typing {Γ b c x} :
     ¬ ∃ Γ', BWt Γ (.seq (.borrow b (x, []) true) (.borrow c (x, [0]) true)) Γ' := by
   intro ⟨Γ', h⟩
   cases h with
@@ -151,7 +151,7 @@ theorem overlapping_mut_refused {Γ b c x} :
       | borrowMut _ hfree => simp [free, overlaps, List.isPrefixOf] at hfree
 
 /-- Dropping a root while it is borrowed (the reference would dangle). -/
-theorem dangling_refused {Γ b x p m} :
+theorem dangling_no_typing {Γ b x p m} :
     ¬ ∃ Γ', BWt Γ (.seq (.borrow b (x, p) m) (.drop x)) Γ' := by
   intro ⟨Γ', h⟩
   cases h with
@@ -159,7 +159,7 @@ theorem dangling_refused {Γ b x p m} :
     cases h1 <;> (cases h2 with | drop _ h => simp at h)
 
 /-- Use after a partial move: reading `x` after moving `x.0` out. -/
-theorem read_after_partial_move_refused {Γ x} :
+theorem read_after_partial_move_no_typing {Γ x} :
     ¬ ∃ Γ', BWt Γ (.seq (.moveOut (x, [0])) (.read (x, []))) Γ' := by
   intro ⟨Γ', h⟩
   cases h with

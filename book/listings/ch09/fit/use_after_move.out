@@ -1,0 +1,2 @@
+fit use_after_move.rce: line 5: W-OWN-1 `s` is used after it was moved
+exit status: 1

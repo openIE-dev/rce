@@ -5,7 +5,7 @@
 #include <string.h>
 #include <stdint.h>
 
-enum { NL, INDENT, DEDENT, NAME, LPAR, RPAR, LSQB, RSQB, LBRACE, RBRACE, SKIP_NL, INT, FLOAT, SEND, BAD, COMMENT, PARFOR, SENTINEL };
+enum { NL, INDENT, DEDENT, NAME, LPAR, RPAR, LSQB, RSQB, LBRACE, RBRACE, SKIP_NL, INT, FLOAT, SEND, BAD, COMMENT, PARFOR, SENTINEL, KEPT };
 
 #define MAXD 120
 typedef struct {
@@ -25,7 +25,7 @@ typedef struct {
 static const char *KW[] = {"actor","after","and","arena","as","bound","break","catch","chan","check","comptime",
  "const","continue","default","device","elif","else","emit","error","event","example","extern","fail","false","fn","for","forall",
  "from","if","impl","in","intent","iter","kind","let","linear","loop","match","module","mut","none","not","on","or","pass",
- "pub","recv","refused","return","select","self","send","spawn","state","step","struct","then","to","trait","true",
+ "pub","recv","return","select","self","send","spawn","state","step","struct","then","to","trait","true",
  "try","type","use","var","while","with","yield",
  // the concurrency words (Appendix C): one language, one reserved list (spec 2.4)
  "par","branch","nondet","budget","deadline","priority",
@@ -49,7 +49,7 @@ void tree_sitter_rce_external_scanner_deserialize(void *p, const char *b, unsign
 static void comment(TSLexer *lx, S *s) {
   lx->advance(lx, false);
   while (!lx->eof(lx) && lx->lookahead != '\n' && lx->lookahead != '\r') {
-    if (lx->lookahead == '\t') s->bad = 1;  // W-LEX-1: a tab is refused, in a comment too
+    if (lx->lookahead == '\t') s->bad = 1;  // W-LEX-1: a tab is reported, in a comment too
     lx->advance(lx, false);
   }
 }
@@ -193,6 +193,14 @@ bool tree_sitter_rce_external_scanner_scan(void *p, TSLexer *lx, const bool *val
       // `par` after the iterable of a `for` (valid only there): its own token, so a `par` glued after
       // any other expression is an error and not a missing line end
       if (valid[PARFOR] && strcmp(w, "par") == 0) { lx->mark_end(lx); lx->result_symbol = PARFOR; return true; }
+      // contextual word (3.2, COMP-2): `kept` followed by `:` where an `example`
+      // outcome begins is the outcome keyword; anywhere else it is a NAME
+      if (valid[KEPT] && !valid[SENTINEL] && strcmp(w, "kept") == 0) {
+        lx->mark_end(lx);
+        while (lx->lookahead == ' ') lx->advance(lx, true);
+        s->started = 1; s->seen = 1;
+        lx->result_symbol = lx->lookahead == ':' ? KEPT : NAME; return true;
+      }
       // contextual word (5.1 refined types): `where` is the keyword only
       // where a NAME cannot stand, i.e. after the type of a type declaration
       if (strcmp(w, "where") == 0 && !valid[NAME]) return false;

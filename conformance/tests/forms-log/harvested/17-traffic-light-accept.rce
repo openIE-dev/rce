@@ -20,6 +20,6 @@ step Signal on Tick
 # id: forms-log/harvested/17-traffic-light-accept
 # area: forms-log
 # clauses: [CH03-M-28cdd241, CH08-M-9a15157f, T10]
-# expect: accept
+# expect: ok
 # provenance: harvested examples/17_traffic_light.rce
 #---

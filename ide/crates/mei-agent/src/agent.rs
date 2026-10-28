@@ -114,13 +114,13 @@ pub struct Agent {
 enum Concl {
     Done,
     NotDone(String),
-    Reject(Vec<String>),
+    Fit(Vec<String>),
 }
 
 const SYSTEM_PROMPT: &str = "You edit one RCE source file. Reply with JSON only: {\"edits\": [...]}. \
 Each edit is {\"op\":\"replace_item\",\"name\":N,\"text\":T}, {\"op\":\"insert_item\",\"after\":N?,\"text\":T}, \
 {\"op\":\"delete_item\",\"name\":N} or {\"op\":\"set_file\",\"text\":T}. Items are addressed by name \
-(the header line up to '(' or '->' or '=' or ':'). The checker decides; refused edits are not applied.";
+(the header line up to '(' or '->' or '=' or ':'). The checker decides; an edit it reports is not applied.";
 
 /// Pull the edits out of a model reply (bare JSON or a fenced block).
 pub fn parse_edits(content: &str) -> Result<Vec<Edit>, String> {
@@ -281,7 +281,7 @@ impl Agent {
                 Some(n.p_true > 0.5)
             }
             Err(e) => {
-                d.verdict = Verdict::Rejected {
+                d.verdict = Verdict::NotPerformed {
                     reason: e.to_string(),
                 };
                 d.detail = json!({"base_url": s1.base_url, "error": e.to_string()});
@@ -301,7 +301,7 @@ impl Agent {
                 .flatten()
                 .filter_map(|f| f["diagnostic"].as_str().map(str::to_string))
                 .collect();
-            return Ok(Concl::Reject(d));
+            return Ok(Concl::Fit(d));
         }
         Ok(Concl::Done)
     }
@@ -333,7 +333,7 @@ impl Agent {
         Self::child(a, "run_tests")?;
         self.tool("rce_test", json!({"paths": [task.path]}))?;
         match c {
-            Concl::Reject(d) => Ok(Concl::Reject(d)),
+            Concl::Fit(d) => Ok(Concl::Fit(d)),
             _ => match self.accepted(task) {
                 Some(true) => Ok(Concl::Done),
                 Some(false) => Ok(Concl::NotDone("acceptance not met".into())),
@@ -365,15 +365,15 @@ impl Agent {
         Self::child(a, "lookup_hit")?;
         let edits = self.cfg.rules[i].edits.clone();
         match self.apply(task, &edits)? {
-            Some(diags) => Ok(Concl::Reject(diags)),
+            Some(diags) => Ok(Concl::Fit(diags)),
             None => self.done(task, 1),
         }
     }
 
     fn gear2(&mut self, a: &mut ChartActor<'_>, task: &Task) -> Result<Concl, String> {
-        if let Concl::Reject(d) = self.check_workspace(&task.path)? {
+        if let Concl::Fit(d) = self.check_workspace(&task.path)? {
             Self::child(a, "failed")?;
-            return Ok(Concl::Reject(d));
+            return Ok(Concl::Fit(d));
         }
         if let Some(ok) = self.accepted(task) {
             Self::child(a, "failed")?;
@@ -429,7 +429,7 @@ impl Agent {
                     Self::child(a, "failed")?;
                     let mut d = self.step(ActionKind::ModelCall, gear, json!({"provider": p.provider, "error": format!("key env `{k}` not set; no request sent")}));
                     d.model = Some(p.model_id.clone());
-                    d.verdict = Verdict::Rejected {
+                    d.verdict = Verdict::NotPerformed {
                         reason: format!("missing key env {k}"),
                     };
                     self.receipt(d)?;
@@ -469,7 +469,7 @@ impl Agent {
             Ok(c) => c,
             Err(e) => {
                 Self::child(a, "failed")?;
-                d.verdict = Verdict::Rejected {
+                d.verdict = Verdict::NotPerformed {
                     reason: e.to_string(),
                 };
                 d.detail =
@@ -545,15 +545,15 @@ impl Agent {
                 net_bytes: (user.len() + chat.content.len()) as u64, ..Default::default() }});
         let edits = parse_edits(&chat.content);
         if let Err(e) = &edits {
-            d.verdict = Verdict::Rejected { reason: e.clone() };
+            d.verdict = Verdict::NotPerformed { reason: e.clone() };
         }
         self.receipt(d)?;
         let edits = match edits {
             Ok(e) => e,
-            Err(e) => return Ok(Concl::Reject(vec![e])),
+            Err(e) => return Ok(Concl::Fit(vec![e])),
         };
         match self.apply(task, &edits)? {
-            Some(diags) => Ok(Concl::Reject(diags)),
+            Some(diags) => Ok(Concl::Fit(diags)),
             None => self.done(task, gear),
         }
     }
@@ -585,7 +585,7 @@ Every change must go through propose_edit; the checker decides.\nLast diagnostic
         match r {
             Err(e) => {
                 Self::child(a, "failed")?;
-                d.verdict = Verdict::Rejected { reason: e.clone() };
+                d.verdict = Verdict::NotPerformed { reason: e.clone() };
                 d.detail = json!({"external": d.model, "error": e});
                 self.receipt(d)?;
                 Ok(Concl::NotDone(format!("external G4: {e}")))
@@ -597,7 +597,7 @@ Every change must go through propose_edit; the checker decides.\nLast diagnostic
                     "features": Features { gear: "g4".into(), model: d.model.clone(), ..Default::default() }});
                 self.receipt(d)?;
                 match self.check_workspace(&task.path)? {
-                    Concl::Reject(diags) => Ok(Concl::Reject(diags)),
+                    Concl::Fit(diags) => Ok(Concl::Fit(diags)),
                     _ => self.done(task, 4),
                 }
             }
@@ -632,16 +632,16 @@ Every change must go through propose_edit; the checker decides.\nLast diagnostic
             let why = match &c {
                 Concl::Done => "done".to_string(),
                 Concl::NotDone(w) => w.clone(),
-                Concl::Reject(d) => format!("checker reject: {}", d.join("; ")),
+                Concl::Fit(d) => format!("checker fit: {}", d.join("; ")),
             };
             Self::send(
                 &mut a,
                 match c {
                     Concl::Done => "set_done",
                     Concl::NotDone(_) => "set_not_done",
-                    Concl::Reject(ref d) => {
+                    Concl::Fit(ref d) => {
                         last = d.clone();
-                        "set_reject"
+                        "set_fit"
                     }
                 },
             )?;
@@ -658,7 +658,7 @@ Every change must go through propose_edit; the checker decides.\nLast diagnostic
                 "why": why, "remaining_j": self.remaining(), "configuration": a.configuration().states().collect::<Vec<_>>()}));
             d.verdict = match state {
                 "accept" => Verdict::Pass,
-                _ => Verdict::Rejected {
+                _ => Verdict::NotPerformed {
                     reason: why.clone(),
                 },
             };

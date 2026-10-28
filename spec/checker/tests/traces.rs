@@ -105,7 +105,7 @@ fn every_step_is_on_the_hash_chain() {
     let mut steps = 0;
     for (n, t) in &all {
         let v: serde_json::Value = serde_json::from_str(t).unwrap();
-        assert_eq!(v["format"], "rce-trace/2");
+        assert_eq!(v["format"], "rce-trace/3");
         for tr in v["traces"].as_array().unwrap() {
             let mut prev = v["genesis"].as_str().unwrap().to_string();
             for (k, s) in tr["steps"].as_array().unwrap().iter().enumerate() {
@@ -201,7 +201,7 @@ fn streams_trace_every_list_in_one_run() {
     assert!(v["events"].is_null());
     let names: Vec<&str> = v["traces"].as_array().unwrap().iter().map(|t| t["source"].as_str().unwrap()).collect();
     assert_eq!(names, ["stream@0", "stream@1", "stream@2"]);
-    assert_eq!(v["traces"][1]["steps"].as_array().unwrap().len(), 1, "a refused first event ends the stream");
+    assert_eq!(v["traces"][1]["steps"].as_array().unwrap().len(), 1, "a kept first event ends the stream");
     let one = trace(&c.to_string_lossy(), &src, Some("Inc, Inc, Inc")).unwrap();
     let o: serde_json::Value = serde_json::from_str(&one).unwrap();
     assert_eq!(o["events"], "Inc, Inc, Inc");

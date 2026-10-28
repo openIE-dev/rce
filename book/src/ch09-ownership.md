@@ -14,12 +14,12 @@ when you pass them. Values that own memory, such as `text`, `List` and
 name can no longer be used.
 
 ```rce
-{{#include ../listings/ch09/refused/use_after_move.rce}}
+{{#include ../listings/ch09/fit/use_after_move.rce}}
 ```
 
 ```text
 $ rce check use_after_move.rce
-{{#include ../listings/ch09/refused/use_after_move.out}}
+{{#include ../listings/ch09/fit/use_after_move.out}}
 ```
 
 The first call to `take` moved `s`, so the second call is refused. If you
@@ -42,12 +42,12 @@ While something is borrowed for changing, nothing else may look at it in
 the same call:
 
 ```rce
-{{#include ../listings/ch09/refused/mut_alias.rce}}
+{{#include ../listings/ch09/fit/mut_alias.rce}}
 ```
 
 ```text
 $ rce check mut_alias.rce
-{{#include ../listings/ch09/refused/mut_alias.out}}
+{{#include ../listings/ch09/fit/mut_alias.out}}
 ```
 
 ## Why RCE borrows need no lifetimes

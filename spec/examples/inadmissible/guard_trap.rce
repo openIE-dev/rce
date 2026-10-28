@@ -1,4 +1,4 @@
-intent "guard trap refuses (S1)"
+intent "a guard trap gives the event the kept outcome (S1)"
     example Go(d: 0) -> 1
 
 state S

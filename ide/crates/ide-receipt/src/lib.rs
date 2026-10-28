@@ -82,9 +82,13 @@ pub struct Measured {
 pub enum Verdict {
     /// `rce check` admitted the result.
     Pass,
-    /// `rce check` refused; the change was not applied.
+    /// `rce check` reported paths; nothing was written.
+    Fit { diagnostics: Vec<String> },
+    /// The action was not performed; the reason names the path or the policy.
+    NotPerformed { reason: String },
+    /// The earlier spelling of `Fit`, read so that stored chains verify (COMP-20 (c)); never written.
     Refused { diagnostics: Vec<String> },
-    /// The action was rejected before the checker ran (bad path, policy).
+    /// The earlier spelling of `NotPerformed`, read so that stored chains verify; never written.
     Rejected { reason: String },
     /// No checker involved (a read, a model call).
     NotRun,

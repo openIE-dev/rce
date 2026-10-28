@@ -1,0 +1,10 @@
+class Foo
+    x: i64
+#--- rce-test
+# id: lexing-parsing/harvested/class-keyword-fit
+# area: lexing-parsing
+# clauses: [CH02-M-69371f07, CH03-M-28cdd241, CH09-M-82e65964, T10, W-SYN-1]
+# expect: fit
+# diagnostic: W-SYN-1
+# provenance: harvested examples/reject/class_keyword.rce
+#---

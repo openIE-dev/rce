@@ -77,6 +77,6 @@ fn empty_loop() -> i64
 # id: lexing-parsing/harvested/emit06-accept
 # area: lexing-parsing
 # clauses: [CH02-M-69371f07, CH03-M-28cdd241, CH09-M-82e65964, T10]
-# expect: accept
+# expect: ok
 # provenance: harvested checker/tests/emit06.rce; it was a reject test (the program uses `par`, which an undeclared module did not have); with one language `par` is part of the language, so the same program is accepted
 #---

@@ -35,7 +35,7 @@ fn dup_zz() -> i64
 # id: types-checking/generated/mut-duplicate-ok-expr-accept
 # area: types-checking
 # clauses: [CH09-M-82e65964, W-NAME-2]
-# expect: reject
+# expect: fit
 # diagnostic: W-NAME-2
 # flags: [generated]
 # provenance: gen_props.py seed 7: mutation `duplicate` of ok-expr-accept

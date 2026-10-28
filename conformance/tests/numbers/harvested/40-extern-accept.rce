@@ -9,6 +9,6 @@ fn main(w: &World)
 # id: numbers/harvested/40-extern-accept
 # area: numbers
 # clauses: [CH03-M-28cdd241, HC-4, T10, T6]
-# expect: accept
+# expect: ok
 # provenance: harvested examples/40_extern.rce
 #---

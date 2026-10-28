@@ -43,7 +43,7 @@
    "chapter": "00-overview.md",
    "line": 95,
    "section": "RCE Language Specification, draft 0.7: Overview",
-   "text": "`rce-spec-check` (in `spec/checker/`, Rust only) reads the EBNF of section 3 from `book/03-syntax.md`, builds its LALR(1) tables and fails on any shift/reduce or reduce/reduce conflict, then parses every program in `spec/examples/` and requires every program in `spec/examples/reject/` to be refused, by the LALR(1) tables, the Rust parser and the tree-sitter port alike, then runs `rce-check` over the same files (all examples together form one program and must be accepted; the 12 syntax rejects, the 48 programs in `spec/examples/ill_typed/` and the 16 in `spec/examples/inadmissible/` must be ref",
+   "text": "`rce-spec-check` (in `spec/checker/`, Rust only) reads the EBNF of section 3 from `book/03-syntax.md`, builds its LALR(1) tables and fails on any shift/reduce or reduce/reduce conflict, then parses every program in `spec/examples/` and requires every program in `spec/examples/fit/syntax/` to be refused, by the LALR(1) tables, the Rust parser and the tree-sitter port alike, then runs `rce-check` over the same files (all examples together form one program and must be accepted; the 12 syntax rejects, the 48 programs in `spec/examples/ill_typed/` and the 16 in `spec/examples/inadmissible/` must be ref",
    "restated": [],
    "profile": "language"
   },
@@ -637,7 +637,7 @@
    "normative": true,
    "chapter": "09-wellformedness.md",
    "line": 3,
-   "section": "7. Well-formedness: what is refused at entry",
+   "section": "7. Well-formedness: the rules a text meets to have its Form",
    "text": "This section is the checklist of rules a program must pass to be accepted (*well-formedness*).",
    "restated": [],
    "profile": "language"
@@ -648,7 +648,7 @@
    "normative": true,
    "chapter": "09-wellformedness.md",
    "line": 11,
-   "section": "7. Well-formedness: what is refused at entry",
+   "section": "7. Well-formedness: the rules a text meets to have its Form",
    "text": "- W-LEX-1 Not UTF-8, BOM, bare CR, or a tab character.",
    "restated": [],
    "profile": "language"
@@ -659,7 +659,7 @@
    "normative": true,
    "chapter": "09-wellformedness.md",
    "line": 12,
-   "section": "7. Well-formedness: what is refused at entry",
+   "section": "7. Well-formedness: the rules a text meets to have its Form",
    "text": "- W-LEX-2 Inconsistent dedent (2.6).",
    "restated": [],
    "profile": "language"
@@ -670,7 +670,7 @@
    "normative": true,
    "chapter": "09-wellformedness.md",
    "line": 13,
-   "section": "7. Well-formedness: what is refused at entry",
+   "section": "7. Well-formedness: the rules a text meets to have its Form",
    "text": "- W-LEX-3 A literal outside every possible type range, or an invalid `\\u{}`.",
    "restated": [],
    "profile": "language"
@@ -681,7 +681,7 @@
    "normative": true,
    "chapter": "09-wellformedness.md",
    "line": 14,
-   "section": "7. Well-formedness: what is refused at entry",
+   "section": "7. Well-formedness: the rules a text meets to have its Form",
    "text": "- W-SYN-1 Not in the language of section 3.",
    "restated": [],
    "profile": "language"
@@ -692,7 +692,7 @@
    "normative": true,
    "chapter": "09-wellformedness.md",
    "line": 15,
-   "section": "7. Well-formedness: what is refused at entry",
+   "section": "7. Well-formedness: the rules a text meets to have its Form",
    "text": "- W-VER-1 A first-line `# rce-version:` declaration naming a version other than 0.5, 0.6 or 0.7 (2.7).",
    "restated": [],
    "profile": "retired",
@@ -704,7 +704,7 @@
    "normative": true,
    "chapter": "09-wellformedness.md",
    "line": 19,
-   "section": "7. Well-formedness: what is refused at entry",
+   "section": "7. Well-formedness: the rules a text meets to have its Form",
    "text": "- W-NAME-1 Unresolved name, or a name resolved in the wrong namespace.",
    "restated": [],
    "profile": "language"
@@ -715,7 +715,7 @@
    "normative": true,
    "chapter": "09-wellformedness.md",
    "line": 20,
-   "section": "7. Well-formedness: what is refused at entry",
+   "section": "7. Well-formedness: the rules a text meets to have its Form",
    "text": "- W-NAME-2 Duplicate declaration in one scope; shadowing a parameter, field or module-level name inside the same item.",
    "restated": [
     "14-draft06-concurrency.md:108"
@@ -728,7 +728,7 @@
    "normative": true,
    "chapter": "09-wellformedness.md",
    "line": 22,
-   "section": "7. Well-formedness: what is refused at entry",
+   "section": "7. Well-formedness: the rules a text meets to have its Form",
    "text": "- W-MOD-1 `use` of a private item; W-MOD-2 import cycle. The reference checker reports a private name reached through `use` as W-VIS-1, which is the same rule.",
    "restated": [],
    "profile": "language"
@@ -739,7 +739,7 @@
    "normative": true,
    "chapter": "09-wellformedness.md",
    "line": 22,
-   "section": "7. Well-formedness: what is refused at entry",
+   "section": "7. Well-formedness: the rules a text meets to have its Form",
    "text": "- W-MOD-1 `use` of a private item; W-MOD-2 import cycle. The reference checker reports a private name reached through `use` as W-VIS-1, which is the same rule.",
    "restated": [],
    "profile": "language"
@@ -750,7 +750,7 @@
    "normative": true,
    "chapter": "09-wellformedness.md",
    "line": 25,
-   "section": "7. Well-formedness: what is refused at entry",
+   "section": "7. Well-formedness: the rules a text meets to have its Form",
    "text": "- W-MOD-3 An imported name that clashes with a declaration of the importing module or with a name imported from another module (imported names are not renamed).",
    "restated": [],
    "profile": "language"
@@ -761,7 +761,7 @@
    "normative": true,
    "chapter": "09-wellformedness.md",
    "line": 28,
-   "section": "7. Well-formedness: what is refused at entry",
+   "section": "7. Well-formedness: the rules a text meets to have its Form",
    "text": "- W-SAFE-1 The identifiers `unsafe`, `Rc`, `Arc`, `RefCell`, `transmute`, `static`: refused with \"memory safety is by construction\" (there are no escape hatches in RCE other than the `extern` boundary of 5.11).",
    "restated": [],
    "profile": "language"
@@ -772,7 +772,7 @@
    "normative": true,
    "chapter": "09-wellformedness.md",
    "line": 31,
-   "section": "7. Well-formedness: what is refused at entry",
+   "section": "7. Well-formedness: the rules a text meets to have its Form",
    "text": "- W-FFI-1 An `extern` declaration whose ABI is not `\"C\"`, that is comptime or generic, or whose parameter or result types break 5.11; or a foreign function's name used other than as the callee of a direct call.",
    "restated": [],
    "profile": "language"
@@ -783,7 +783,7 @@
    "normative": true,
    "chapter": "09-wellformedness.md",
    "line": 36,
-   "section": "7. Well-formedness: what is refused at entry",
+   "section": "7. Well-formedness: the rules a text meets to have its Form",
    "text": "- W-TY-1 Any typing rule of section 5 fails.",
    "restated": [
     "14-draft06-concurrency.md:328"
@@ -796,7 +796,7 @@
    "normative": true,
    "chapter": "09-wellformedness.md",
    "line": 37,
-   "section": "7. Well-formedness: what is refused at entry",
+   "section": "7. Well-formedness: the rules a text meets to have its Form",
    "text": "- W-TY-2 Nested option `τ??`; borrow of a borrow `&&τ`; `[τ]` not behind a borrow; a borrow, region type or `fn` type inside a data type.",
    "restated": [],
    "profile": "language"
@@ -807,7 +807,7 @@
    "normative": true,
    "chapter": "09-wellformedness.md",
    "line": 39,
-   "section": "7. Well-formedness: what is refused at entry",
+   "section": "7. Well-formedness: the rules a text meets to have its Form",
    "text": "- W-TY-3 Integer/float mixing without `as`; implicit narrowing.",
    "restated": [],
    "profile": "language"
@@ -818,7 +818,7 @@
    "normative": true,
    "chapter": "09-wellformedness.md",
    "line": 40,
-   "section": "7. Well-formedness: what is refused at entry",
+   "section": "7. Well-formedness: the rules a text meets to have its Form",
    "text": "- W-PAT-1 A binding pattern whose name equals a variant in scope.",
    "restated": [],
    "profile": "language"
@@ -829,7 +829,7 @@
    "normative": true,
    "chapter": "09-wellformedness.md",
    "line": 41,
-   "section": "7. Well-formedness: what is refused at entry",
+   "section": "7. Well-formedness: the rules a text meets to have its Form",
    "text": "- W-MATCH-1 A non-exhaustive `match` (5.3 [Match]); W-MATCH-2 an unreachable arm (subsumed by earlier unguarded arms).",
    "restated": [],
    "profile": "language"
@@ -840,7 +840,7 @@
    "normative": true,
    "chapter": "09-wellformedness.md",
    "line": 41,
-   "section": "7. Well-formedness: what is refused at entry",
+   "section": "7. Well-formedness: the rules a text meets to have its Form",
    "text": "- W-MATCH-1 A non-exhaustive `match` (5.3 [Match]); W-MATCH-2 an unreachable arm (subsumed by earlier unguarded arms).",
    "restated": [],
    "profile": "language"
@@ -851,7 +851,7 @@
    "normative": true,
    "chapter": "09-wellformedness.md",
    "line": 46,
-   "section": "7. Well-formedness: what is refused at entry",
+   "section": "7. Well-formedness: the rules a text meets to have its Form",
    "text": "- W-OWN-1 Use after move (O1). W-OWN-2 Violating [No-Alias-Write] or [No-Mut-Read]. W-OWN-3 Storing, returning (except R-RET) or capturing a borrow. W-REG-1 A region-typed value escaping its `with arena` block.",
    "restated": [],
    "profile": "language"
@@ -862,7 +862,7 @@
    "normative": true,
    "chapter": "09-wellformedness.md",
    "line": 49,
-   "section": "7. Well-formedness: what is refused at entry",
+   "section": "7. Well-formedness: the rules a text meets to have its Form",
    "text": "- W-SPAWN-1 Spawning with a borrow or region-typed argument.",
    "restated": [],
    "profile": "language"
@@ -873,7 +873,7 @@
    "normative": true,
    "chapter": "09-wellformedness.md",
    "line": 52,
-   "section": "7. Well-formedness: what is refused at entry",
+   "section": "7. Well-formedness: the rules a text meets to have its Form",
    "text": "- W-STATE-1 A `state` with no fields; W-STATE-2 a field initializer that is not a comptime constant; W-STATE-3 a field type that is not an owned data type.",
    "restated": [],
    "profile": "language"
@@ -884,7 +884,7 @@
    "normative": true,
    "chapter": "09-wellformedness.md",
    "line": 52,
-   "section": "7. Well-formedness: what is refused at entry",
+   "section": "7. Well-formedness: the rules a text meets to have its Form",
    "text": "- W-STATE-1 A `state` with no fields; W-STATE-2 a field initializer that is not a comptime constant; W-STATE-3 a field type that is not an owned data type.",
    "restated": [],
    "profile": "language"
@@ -895,7 +895,7 @@
    "normative": true,
    "chapter": "09-wellformedness.md",
    "line": 52,
-   "section": "7. Well-formedness: what is refused at entry",
+   "section": "7. Well-formedness: the rules a text meets to have its Form",
    "text": "- W-STATE-1 A `state` with no fields; W-STATE-2 a field initializer that is not a comptime constant; W-STATE-3 a field type that is not an owned data type.",
    "restated": [],
    "profile": "language"
@@ -906,7 +906,7 @@
    "normative": true,
    "chapter": "09-wellformedness.md",
    "line": 54,
-   "section": "7. Well-formedness: what is refused at entry",
+   "section": "7. Well-formedness: the rules a text meets to have its Form",
    "text": "- W-STEP-1 A `step` naming an undeclared region or matching an undeclared event. W-STEP-2 **Totality**: an event that no step and no actor handler can ever match. W-STEP-3 The arrow form on a region with more than one field. W-STEP-4 Within one region, two unguarded steps whose patterns overlap (the second is unreachable).",
    "restated": [],
    "profile": "language"
@@ -917,7 +917,7 @@
    "normative": true,
    "chapter": "09-wellformedness.md",
    "line": 59,
-   "section": "7. Well-formedness: what is refused at entry",
+   "section": "7. Well-formedness: the rules a text meets to have its Form",
    "text": "- W-EFF-1 `emit`, `spawn`, channel operations or `select` in a pure `fn`; reading another region's fields in a step; calling a foreign function anywhere but `fn main` or a task function.",
    "restated": [],
    "profile": "language"
@@ -928,7 +928,7 @@
    "normative": true,
    "chapter": "09-wellformedness.md",
    "line": 62,
-   "section": "7. Well-formedness: what is refused at entry",
+   "section": "7. Well-formedness: the rules a text meets to have its Form",
    "text": "- W-REC-1 A cycle in the call graph, including through trait methods after monomorphization, other than a cycle of plain functions (one function calling itself included) whose calls are done by layered summed measures, or each of whose cycles of calls passes through a function declared with `bound` (6.7); `par` or `for … par` in a function of a cycle with a bounded function; `bound` on an iterator, a foreign function or a trait signature.",
    "restated": [],
    "profile": "language"
@@ -939,7 +939,7 @@
    "normative": true,
    "chapter": "09-wellformedness.md",
    "line": 69,
-   "section": "7. Well-formedness: what is refused at entry",
+   "section": "7. Well-formedness: the rules a text meets to have its Form",
    "text": "- W-CT-1 Comptime code that calls a non-comptime-safe function or traps or exceeds fuel.",
    "restated": [],
    "profile": "language"
@@ -950,7 +950,7 @@
    "normative": true,
    "chapter": "09-wellformedness.md",
    "line": 71,
-   "section": "7. Well-formedness: what is refused at entry",
+   "section": "7. Well-formedness: the rules a text meets to have its Form",
    "text": "- W-INT-1 An `example` or `check` that does not hold.",
    "restated": [],
    "profile": "language"
@@ -961,7 +961,7 @@
    "normative": true,
    "chapter": "09-wellformedness.md",
    "line": 72,
-   "section": "7. Well-formedness: what is refused at entry",
+   "section": "7. Well-formedness: the rules a text meets to have its Form",
    "text": "- W-SIMD-1 A lane-wise operator on arrays of different lengths, of an unfixed length, or with non-numeric lanes (5.1).",
    "restated": [],
    "profile": "language"
@@ -972,7 +972,7 @@
    "normative": true,
    "chapter": "09-wellformedness.md",
    "line": 74,
-   "section": "7. Well-formedness: what is refused at entry",
+   "section": "7. Well-formedness: the rules a text meets to have its Form",
    "text": "- W-LIN-1 A linear value not consumed exactly once on every path, copied, moved inside a loop, or placed in a collection, field, payload, channel or iterator (5.12).",
    "restated": [],
    "profile": "language"
@@ -983,7 +983,7 @@
    "normative": true,
    "chapter": "09-wellformedness.md",
    "line": 77,
-   "section": "7. Well-formedness: what is refused at entry",
+   "section": "7. Well-formedness: the rules a text meets to have its Form",
    "text": "- W-DEV-1 A growable value (`List`, `Map`, `Set`, `text`, slice, channel, iterator) bound in a device region, or `emit`, `spawn`, send, `select`, `yield` or a foreign call inside one (5.13).",
    "restated": [],
    "profile": "language"
@@ -994,7 +994,7 @@
    "normative": true,
    "chapter": "09-wellformedness.md",
    "line": 80,
-   "section": "7. Well-formedness: what is refused at entry",
+   "section": "7. Well-formedness: the rules a text meets to have its Form",
    "text": "- W-ITER-1 An iterator function that is not pure or has an arrow body; `yield` outside an iterator function; an `iter τ` value used other than as a `for` operand or `.collect()` receiver (5.14).",
    "restated": [],
    "profile": "language"
@@ -1005,7 +1005,7 @@
    "normative": true,
    "chapter": "09-wellformedness.md",
    "line": 83,
-   "section": "7. Well-formedness: what is refused at entry",
+   "section": "7. Well-formedness: the rules a text meets to have its Form",
    "text": "- W-REF-1 A refined type (5.1) that is generic, refines a type other than an integer type, `text` or a collection, or whose predicate is outside the decidable fragment (a term other than `self`, `self.len()` or an integer literal, an operator other than a comparison, `and`, `or`, `not`, or a call other than a text character class).",
    "restated": [],
    "profile": "language"
@@ -1016,7 +1016,7 @@
    "normative": true,
    "chapter": "09-wellformedness.md",
    "line": 88,
-   "section": "7. Well-formedness: what is refused at entry",
+   "section": "7. Well-formedness: the rules a text meets to have its Form",
    "text": "- W-LOOP-1 A `LOOP_LIMIT` declaration that is not `const LOOP_LIMIT: u64 = n` with a positive literal n (6.7).",
    "restated": [],
    "profile": "language"
@@ -1027,7 +1027,7 @@
    "normative": true,
    "chapter": "09-wellformedness.md",
    "line": 90,
-   "section": "7. Well-formedness: what is refused at entry",
+   "section": "7. Well-formedness: the rules a text meets to have its Form",
    "text": "- W-TRAIT-1 An impl not matching its trait; W-TRAIT-2 incoherent or orphan impls; W-TRAIT-3 a type used with `==`, `!=`, an ordering operator or a generic bound without implementing the trait it needs.",
    "restated": [],
    "profile": "language"
@@ -1038,7 +1038,7 @@
    "normative": true,
    "chapter": "09-wellformedness.md",
    "line": 90,
-   "section": "7. Well-formedness: what is refused at entry",
+   "section": "7. Well-formedness: the rules a text meets to have its Form",
    "text": "- W-TRAIT-1 An impl not matching its trait; W-TRAIT-2 incoherent or orphan impls; W-TRAIT-3 a type used with `==`, `!=`, an ordering operator or a generic bound without implementing the trait it needs.",
    "restated": [],
    "profile": "language"
@@ -1049,7 +1049,7 @@
    "normative": true,
    "chapter": "09-wellformedness.md",
    "line": 90,
-   "section": "7. Well-formedness: what is refused at entry",
+   "section": "7. Well-formedness: the rules a text meets to have its Form",
    "text": "- W-TRAIT-1 An impl not matching its trait; W-TRAIT-2 incoherent or orphan impls; W-TRAIT-3 a type used with `==`, `!=`, an ordering operator or a generic bound without implementing the trait it needs.",
    "restated": [],
    "profile": "language"
@@ -1060,7 +1060,7 @@
    "normative": true,
    "chapter": "09-wellformedness.md",
    "line": 95,
-   "section": "7. Well-formedness: what is refused at entry",
+   "section": "7. Well-formedness: the rules a text meets to have its Form",
    "text": "- W-CTX-1 Context text made other than by `C.lit` of a string literal or `C.encode`; joined with another context or plain text; carried by an event payload; an unknown context.",
    "restated": [],
    "profile": "language"
@@ -1071,7 +1071,7 @@
    "normative": true,
    "chapter": "09-wellformedness.md",
    "line": 98,
-   "section": "7. Well-formedness: what is refused at entry",
+   "section": "7. Well-formedness: the rules a text meets to have its Form",
    "text": "- W-SEC-1 An operator or method on a secret other than `==`/`!=`; a secret in an emitted value, a channel, an error payload or a foreign call.",
    "restated": [],
    "profile": "language"
@@ -1082,7 +1082,7 @@
    "normative": true,
    "chapter": "09-wellformedness.md",
    "line": 101,
-   "section": "7. Well-formedness: what is refused at entry",
+   "section": "7. Well-formedness: the rules a text meets to have its Form",
    "text": "- W-CAP-1 A capability outside an event payload field or a parameter; `Guarded` outside a state field; an authority that is not a declared struct.",
    "restated": [],
    "profile": "language"
@@ -1093,7 +1093,7 @@
    "normative": true,
    "chapter": "09-wellformedness.md",
    "line": 104,
-   "section": "7. Well-formedness: what is refused at entry",
+   "section": "7. Well-formedness: the rules a text meets to have its Form",
    "text": "- W-CAP-2 A step that writes a `Guarded[τ, A]` field on an event without a `Cap[A]` field. (W-NAME-2 refuses a declaration named after a 5.16 type or context.)",
    "restated": [],
    "profile": "language"
@@ -1160,7 +1160,7 @@
    "chapter": "10-theorems.md",
    "line": 34,
    "section": "8. Theorems to prove",
-   "text": "| T6 | proved for the ownership core; for full borrow paths (field paths, prefix overlap, partial moves, loans) in an instrumented semantics: well-typed bodies never fault, writes through a `&mut` path are exclusive, and write-while-borrowed, overlapping `&mut`, dangling borrows and read-after-partial-move are refused; tasks never share mutable data in any reachable configuration | `memory_safety`, `borrow_safety`, `borrow_no_fault`, `writeVia_exclusive`, `overlapping_mut_refused`, `dangling_refused`, `tasks_never_share` |",
+   "text": "| T6 | proved for the ownership core; for full borrow paths (field paths, prefix overlap, partial moves, loans) in an instrumented semantics: well-typed bodies never fault, writes through a `&mut` path are exclusive, and write-while-borrowed, overlapping `&mut`, dangling borrows and read-after-partial-move are refused; tasks never share mutable data in any reachable configuration | `memory_safety`, `borrow_safety`, `borrow_no_fault`, `writeVia_exclusive`, `overlapping_mut_no_typing`, `dangling_no_typing`, `tasks_never_share` |",
    "restated": [],
    "profile": "language"
   },

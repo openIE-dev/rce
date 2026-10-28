@@ -95,7 +95,7 @@ pub fn build(g: &Graph, pos: &Positions, cam: &Orbit, vp: Viewport, st: &Style) 
                 [1.0, 0.78, 0.3, 0.8],
                 1.5 + e.weight.log2().max(0.0) as f32 * 1.5,
             ),
-            EdgeKind::Raises | EdgeKind::Refuses => ([1.0, 0.4, 0.4, 0.8], 1.5),
+            EdgeKind::Raises | EdgeKind::Reports => ([1.0, 0.4, 0.4, 0.8], 1.5),
             EdgeKind::Call => (
                 [0.75, 0.55, 1.0, 0.8],
                 1.5 + e.weight.log2().max(0.0) as f32 * 1.5,
@@ -144,7 +144,7 @@ pub fn build(g: &Graph, pos: &Positions, cam: &Orbit, vp: Viewport, st: &Style) 
                 None => {}
             }
         }
-        if n.refused {
+        if n.fit {
             flags[2] = flags[2].max(0.5);
         }
         if st.selected == Some(i) || st.cursor == Some(i) {

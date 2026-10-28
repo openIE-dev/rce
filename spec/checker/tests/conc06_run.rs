@@ -148,7 +148,7 @@ fn t20_budget_composition() {
     assert_eq!(c4 - c2, 2 * (c2 - c1), "per-iteration cost is constant");
     let r1 = run(&prog(c2 - 1, 2));
     let r2 = run(&prog(c2 - 1, 2));
-    assert!(matches!(&r1.outcome, Outcome::Refused(e) if e.contains("budget")), "{:?}", r1.outcome);
+    assert!(matches!(&r1.outcome, Outcome::Stopped(e) if e.contains("budget")), "{:?}", r1.outcome);
     assert_eq!(r1.outcome, r2.outcome);
 }
 
@@ -256,7 +256,7 @@ fn budget_else_catches() {
     let o = outs(&small);
     assert_eq!(o, vec!["0", "10", "0"], "outer trap undoes every write of the outer block");
     let bare = run("fn main()\n    var a: i64 = 0\n    with budget 5\n        for _i in 0..10\n            a += 1\n    emit a\n");
-    assert!(matches!(bare.outcome, Outcome::Refused(_)), "{:?}", bare.outcome);
+    assert!(matches!(bare.outcome, Outcome::Stopped(_)), "{:?}", bare.outcome);
 }
 
 #[test]

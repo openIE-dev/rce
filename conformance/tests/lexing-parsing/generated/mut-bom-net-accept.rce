@@ -148,7 +148,7 @@ step Net on BlobGetDone(req: r, status: s, data: d, err: e)
 # id: lexing-parsing/generated/mut-bom-net-accept
 # area: lexing-parsing
 # clauses: [CH09-M-82e65964, W-LEX-1]
-# expect: reject
+# expect: fit
 # diagnostic: W-LEX-1
 # flags: [generated]
 # provenance: gen_props.py seed 7: mutation `bom` of net-accept

@@ -141,7 +141,7 @@ pub fn check_with(src: &str, known_mods: &str) -> String {
                             regions.join(",")
                         )
                     }
-                    Err(r) => format!("{{\"event\":{},\"refused\":{}}}", js(&s.event), js(r)),
+                    Err(r) => format!("{{\"event\":{},\"kept\":{}}}", js(&s.event), js(r)),
                 })
                 .collect();
             exs.push(format!("{{\"line\":{line},\"steps\":[{}]}}", ss.join(",")));

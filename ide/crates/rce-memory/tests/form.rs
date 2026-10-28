@@ -84,7 +84,7 @@ fn refs_and_call_edges() {
 }
 
 #[test]
-fn refused_file_is_reported_not_indexed_wrongly() {
+fn fit_file_is_reported_not_indexed_wrongly() {
     let mut p = prog();
     p.push(("bad.rce".into(), "fn f( -> \n".into()));
     let ix = FormIndex::build(&p);

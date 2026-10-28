@@ -16,6 +16,6 @@ fn zeros[comptime n: usize]() -> [u8; n]
 # id: numbers/harvested/10-comptime-accept
 # area: numbers
 # clauses: [CH03-M-28cdd241, T10]
-# expect: accept
+# expect: ok
 # provenance: harvested examples/10_comptime.rce
 #---

@@ -221,7 +221,7 @@ fn refused_below(n: i64) -> bool
 intent "a generator seeded from logged entropy"
     "only an event carrying Cap[Entropy] can seed or reseed it"
     example Reseed(c: (), seed: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]), Draw -> last == 2917185654
-    example Reseed(c: (), seed: [1, 2, 3]) -> refused: BadSeed
+    example Reseed(c: (), seed: [1, 2, 3]) -> kept: BadSeed
 
 state Dice
     gen: Rng = Rng(key: [0, 0, 0, 0, 0, 0, 0, 0], stream: 0, block: 0, buf: [], pos: 16)

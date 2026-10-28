@@ -19,6 +19,6 @@ fn main(w: &World)
 # id: numbers/harvested/48-linear-handle-accept
 # area: numbers
 # clauses: [CH03-M-28cdd241, CH06-M-ca6452be, CH06-M-f43a675d, HC-4, T10, T12, T6]
-# expect: accept
+# expect: ok
 # provenance: harvested examples/48_linear_handle.rce
 #---

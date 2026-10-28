@@ -21,6 +21,6 @@ node east { Counter }
 # id: concurrency/harvested/03-distributed-accept
 # area: concurrency
 # clauses: [CH02-M-a696f3a3, CH03-M-28cdd241, T10, T22, T31]
-# expect: accept
+# expect: ok
 # provenance: harvested conc06b/accept/03_distributed.rce
 #---

@@ -27,6 +27,6 @@ step Pts on Add(p: p, tags: t, meta: _mm, note: _no, s: _sh)
 # id: host-contract/harvested/records-accept
 # area: host-contract
 # clauses: [CH03-M-28cdd241, CH08-M-9a15157f, T10]
-# expect: accept
+# expect: ok
 # provenance: harvested checker/tests/host/records.rce
 #---

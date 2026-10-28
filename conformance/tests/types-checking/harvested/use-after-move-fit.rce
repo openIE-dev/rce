@@ -1,0 +1,13 @@
+fn take(s: text) -> u64 = s.len() as u64
+
+fn twice(s: text) -> u64
+    let a = take(s)
+    return a + take(s)
+#--- rce-test
+# id: types-checking/harvested/use-after-move-fit
+# area: types-checking
+# clauses: [CH09-M-82e65964, W-OWN-1]
+# expect: fit
+# diagnostic: W-OWN-1
+# provenance: harvested examples/ill_typed/use_after_move.rce
+#---

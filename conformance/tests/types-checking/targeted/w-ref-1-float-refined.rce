@@ -3,7 +3,7 @@ type P = f64 where self <= 1.0
 # id: types-checking/targeted/w-ref-1-float-refined
 # area: types-checking
 # clauses: [CH09-M-82e65964, T35, W-REF-1]
-# expect: reject
+# expect: fit
 # diagnostic: W-REF-1
 # provenance: targeted.py: expected result read off the clause
 #---

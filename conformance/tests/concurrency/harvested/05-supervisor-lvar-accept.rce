@@ -21,6 +21,6 @@ fn seen(_s: lvar Set[i64]) -> bool
 # id: concurrency/harvested/05-supervisor-lvar-accept
 # area: concurrency
 # clauses: [CH02-M-a696f3a3, CH03-M-28cdd241, T10, T29, T29a, T29q, T29s, W-CRDT-1, W-SUP-1]
-# expect: accept
+# expect: ok
 # provenance: harvested conc06b/accept/05_supervisor_lvar.rce
 #---

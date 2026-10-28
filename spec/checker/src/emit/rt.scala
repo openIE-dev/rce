@@ -15,7 +15,7 @@ final class Fail(val v: Any) extends Flow { var outs: Vector[Any] = Vector(); va
 final class Stop extends Flow
 final class Ret(val v: Any) extends Flow
 final class Cancel(val f: Any) extends Flow
-final class Refuse(val r: String) extends RuntimeException(null, null, false, false)
+final class Kept(val r: String) extends RuntimeException(null, null, false, false)
 // loop control of the emitted code (not an RCE flow)
 final class BrkEx extends ControlThrowable
 final class ContEx extends ControlThrowable
@@ -933,12 +933,12 @@ def dbg_flow(e: Throwable): String = e match {
   case c: Cancel => "Cancel(" + c.f + ")"
   case _ => "?"
 }
-def refusal(e: Throwable): String = e match {
+def kept_reason(e: Throwable): String = e match {
   case f: Fail => f.v match { case r: Rec => r.n; case _ => "?" }
   case t: Trap => "trap(" + t.m + ")"
   case _ => "trap(" + dbg_flow(e) + ")"
 }
-def actor_refusal(e: Throwable): String = refusal(e)
+def actor_kept_reason(e: Throwable): String = kept_reason(e)
 val OUT = ArrayBuffer[Any]()
 def emit(v: Any): Unit = { if (TASK != null) { comm(V("emit", v)); return }; OUT += v }
 val LINES = ArrayBuffer[String]()
@@ -958,7 +958,7 @@ def delta(s: Vector[Any], ev: Any): (Vector[Any], Vector[Any]) = {
     while (got == null && it.hasNext) {
       val st = it.next()
       OUT.clear()
-      val r = try st(fs, ev) catch { case e: Flow => throw new Refuse(refusal(e)) }
+      val r = try st(fs, ev) catch { case e: Flow => throw new Kept(kept_reason(e)) }
       if (r != null) got = (r, OUT.toVector)
     }
     if (got == null) nxt += V(name, fs) else { nxt += V(name, got._1); outs ++= got._2 }
@@ -986,7 +986,7 @@ def run_events(s0: Vector[Any], events: Vector[Any], d: DLog): Unit = {
     try ev = th() catch { case e: Flow => say(s"$k $name " + why(e)); return }
     if (ev == null) { say(s"$k $name not an event"); return }
     var r: (Vector[Any], Vector[Any]) = null
-    try r = delta(s, ev) catch { case e: Refuse => if (tr) d.add(name, ev, s); say(s"$k " + show(ev) + " refused: " + e.r); return }
+    try r = delta(s, ev) catch { case e: Kept => if (tr) d.add(name, ev, s); say(s"$k " + show(ev) + " kept: " + e.r + " " + show_state(s)); return }
     s = r._1
     if (tr) d.add(name, ev, s)
     say(s"$k " + show(ev) + " " + show_state(s))
@@ -1561,7 +1561,7 @@ final class Sched(val links: Vector[Vector[Any]]) {
     for (h <- ACTOR_HANDLERS.getOrElse(st.ty, Vector())) {
       OUT.clear(); HSENDS = ArrayBuffer[Any]()
       var r: Any = null
-      try r = h(vec(st.fields), msg) catch { case e: Flow => HSENDS = null; OUT.clear(); return (false, actor_refusal(e)) }
+      try r = h(vec(st.fields), msg) catch { case e: Flow => HSENDS = null; OUT.clear(); return (false, actor_kept_reason(e)) }
       val sends = HSENDS.toVector; HSENDS = null
       if (r != null) { val outs = OUT.toVector; OUT.clear(); return (true, V(r, outs, sends)) }
     }
@@ -1569,7 +1569,7 @@ final class Sched(val links: Vector[Vector[Any]]) {
   }
   def onCrash(id: String, reason: String): Unit = {
     // restart as input (C.11.11)
-    alog += "Refused(" + reason + ")"
+    alog += "Kept(" + reason + ")"
     val ty = actors(id).ty
     val sv = SUPERVISORS.getOrElse(ty, null)
     if (sv == null) return
@@ -1577,8 +1577,8 @@ final class Sched(val links: Vector[Vector[Any]]) {
     val bound = sv(4) match { case b: BigInt => b.toInt; case i: Int => i; case x => x.toString.toInt }
     var dec: (Long, String, String, String, Boolean, Vector[String]) = null
     if (rrep != null) {
-      if (rrep.nonEmpty && !SUP_TREE.contains(rrep(0)._2 + "/" + rrep(0)._3)) { stop = V("refused", "trap: upgrade removed supervisor position " + rrep(0)._2 + "/" + rrep(0)._3); return }
-      if (rrep.isEmpty || rrep(0)._4 != id || rrep(0)._2 != sup) { stop = V("refused", "replay diverged"); return }
+      if (rrep.nonEmpty && !SUP_TREE.contains(rrep(0)._2 + "/" + rrep(0)._3)) { stop = V("stopped", "trap: upgrade removed supervisor position " + rrep(0)._2 + "/" + rrep(0)._3); return }
+      if (rrep.isEmpty || rrep(0)._4 != id || rrep(0)._2 != sup) { stop = V("stopped", "replay diverged"); return }
       dec = rrep.remove(0)
     } else {
       val h = restarts.getOrElse((sup, child), Vector()).filter(t => RESTART_WINDOW == 0 || tick - t < RESTART_WINDOW) :+ tick
@@ -1592,7 +1592,7 @@ final class Sched(val links: Vector[Vector[Any]]) {
     }
     rlog += dec
     val c = rlog.count(r => r._2 == sup && r._3 == child && (RESTART_WINDOW == 0 || tick - r._1 < RESTART_WINDOW))
-    if (dec._5) { alog += "Stopped(supervisor " + sup + ")"; stop = V("refused", "supervisor " + sup + " stopped: child " + child + " restarted more than " + bound + " times"); return }
+    if (dec._5) { alog += "Stopped(supervisor " + sup + ")"; stop = V("stopped", "supervisor " + sup + " stopped: child " + child + " restarted more than " + bound + " times"); return }
     alog += "Restart(" + child + ", " + id + ", " + reason + ", tick " + tick + ", " + c + ")"
     for (aid <- dec._6) actors.get(aid).foreach(a => a.fields = actor_init(a.ty))
   }
@@ -1611,18 +1611,18 @@ final class Sched(val links: Vector[Vector[Any]]) {
     var brk = false
     for (txn <- ts if !brk) {
       progress = true
-      val results = ArrayBuffer[(String, Any)](); var refused: String = null
+      val results = ArrayBuffer[(String, Any)](); var kept: String = null
       var k = 0
-      while (k < txn.length && refused == null) {
+      while (k < txn.length && kept == null) {
         val (id, ty, m) = txn(k)
         ensureActor(id, ty); busy += id
         val r = handler(id, m)
-        if (!r._1) refused = r._2.toString else results += ((id, r._2))
+        if (!r._1) kept = r._2.toString else results += ((id, r._2))
         k += 1
       }
-      if (refused != null) {
+      if (kept != null) {
         val failed = results.length
-        for ((t, j) <- txn.zipWithIndex) { if (j == failed) onCrash(t._1, refused) else alog += "Refused(" + refused + ")" }
+        for ((t, j) <- txn.zipWithIndex) { if (j == failed) onCrash(t._1, kept) else alog += "Kept(" + kept + ")" }
         if (stop != null) brk = true
       } else for ((id, r) <- results) commitHandler(id, r)
     }
@@ -1709,7 +1709,7 @@ final class Sched(val links: Vector[Vector[Any]]) {
         val c = chan(target)
         if (c == null) return null
         if (sl.holding != null) { if (sl.released) { sl.released = false; sl.holding = null; return V("val", UNIT) }; return null }
-        if (chans(c).closed) { stop = V("refused", "trap: send on a closed channel"); return V("cancel", CANCEL_TASK) }
+        if (chans(c).closed) { stop = V("stopped", "trap: send on a closed channel"); return V("cancel", CANCEL_TASK) }
         if (space(c)) { staged += ((c, v)); return V("val", UNIT) }
         chans(c).held += ((v, i)); sl.holding = c
         null
@@ -1767,7 +1767,7 @@ final class Sched(val links: Vector[Vector[Any]]) {
     val res = if (r(0) == "ok") r else if (r(1) == true) V("err", "cancelled") else V("err", why(r(2).asInstanceOf[Throwable]))
     val failed = r(0) == "err" && r(1) != true
     val sl = slots(i); sl.result = res
-    if (i == 0) { if (res(0) == "err") return V("refused", res(1)) }
+    if (i == 0) { if (res(0) == "err") return V("stopped", res(1)) }
     else if (failed) for ((t, k) <- slots.zipWithIndex) if (k != i && t.parent == sl.parent && t.scope == sl.scope) t.cancel = true
     for (t <- slots) if (t.parent == i) t.cancel = true
     null
@@ -1776,7 +1776,7 @@ final class Sched(val links: Vector[Vector[Any]]) {
     if (stop != null) return stop
     while (true) {
       tick += 1
-      if (tick > maxTicks) return V("refused", "trap: tick limit")
+      if (tick > maxTicks) return V("stopped", "trap: tick limit")
       var progress = linksPhase()
       progress = eventsPhase() || progress
       val ord = order()
@@ -1799,7 +1799,7 @@ final class Sched(val links: Vector[Vector[Any]]) {
               progress = true
               if (op(0) == "spawn" && rp(0) == "spawned") {
                 val f = op(1).toString
-                if (!FNS.contains(f)) return V("refused", "trap: no task function " + f)
+                if (!FNS.contains(f)) return V("stopped", "trap: no task function " + f)
                 spawnTask(f, vec(op(2)), rp(1).toString, toL(op(3)).toInt, i, toL(op(6)).toInt)
               }
               sl.st = V("ready", rp)
@@ -1883,7 +1883,7 @@ def run_tasks(entry: String): Unit = {
   val links = ARGS.filter(_.startsWith("--link=")).map { a => val p = a.substring(7).split(","); V(p(0).toLong, p(1) == "partition", p(2), p(3)) }.toVector
   val s = new Sched(links)
   val rec = restart_tree_arg()
-  if (s.rrep != null && rec != null) { val e = tree_migrates(rec, SUP_TREE); if (e != null) s.stop = V("refused", e) }
+  if (s.rrep != null && rec != null) { val e = tree_migrates(rec, SUP_TREE); if (e != null) s.stop = V("stopped", e) }
   s.spawnTask(entry, Vector(), hid("main"), 0, null, 0)
   val o = s.run()
   for (sl <- s.slots) {
@@ -1903,7 +1903,7 @@ def run_tasks(entry: String): Unit = {
     out.print("restartlog v1 tree=" + SUP_TREE.mkString(",") + "\n")
     for (r <- s.rlog) out.print("restartin " + r._1 + "|" + r._2 + "|" + r._3 + "|" + r._4 + "|" + (if (r._5) 1 else 0) + "|" + r._6.mkString(",") + "\n")
   }
-  out.print(if (o(0) == "done") "outcome Done\n" else if (o(0) == "deadlock") "outcome Deadlock\n" else "outcome Refused: " + o(1) + "\n")
+  out.print(if (o(0) == "done") "outcome Done\n" else if (o(0) == "deadlock") "outcome Deadlock\n" else "outcome Stopped: " + o(1) + "\n")
   out.flush()
 }
 def atOr(x: Any, i: Int, d: Any): Any = x match {

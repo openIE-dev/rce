@@ -55,11 +55,11 @@ fn run_events(lean: &mut Option<Lean>, src: &str, evs: &str) -> Value {
     interp::FUEL_LIMIT.store(interp::FUEL, SeqCst);
     let d = cli::diagnostics(src, &Default::default());
     if !d.is_empty() {
-        return json!({"verdict": "reject", "diagnostics": d.iter().map(|x| json!({"line": x.0, "message": x.1})).collect::<Vec<_>>()});
+        return json!({"verdict": "fit", "diagnostics": d.iter().map(|x| json!({"line": x.0, "message": x.1})).collect::<Vec<_>>()});
     }
     let m = match parse::parse(src) {
         Ok(m) => m,
-        Err(e) => return json!({"verdict": "reject", "diagnostics": [{"message": e}]}),
+        Err(e) => return json!({"verdict": "fit", "diagnostics": [{"message": e}]}),
     };
     let (core, names, evn, errs) = match core_elab::elaborate_events(&m, src, evs, interp::FUEL) {
         Ok(c) => c,
@@ -95,21 +95,21 @@ fn run_events(lean: &mut Option<Lean>, src: &str, evs: &str) -> Value {
     let mut lines = vec![format!("0 (initial) {}", show(&r["init"]))];
     for (k, st) in r["steps"].as_array().into_iter().flatten().enumerate() {
         let en = &evn[k];
-        if let Some(rf) = st.get("refused") {
+        if let Some(rf) = st.get("kept") {
             let why = match (rf.get("user").and_then(|c| c.as_u64()), rf.get("trap").and_then(|t| t.as_str())) {
                 (Some(c), _) => errs.get(c as usize - 1).cloned().unwrap_or_default(),
                 (_, Some(t)) => format!("trap: {t}"),
                 _ => "?".into(),
             };
-            let outcome = if let Some(t) = why.strip_prefix("trap: ") { format!("trap:{t}") } else { format!("refused:{why}") };
-            return json!({"verdict": "accept", "outputs": lines, "outcome": outcome});
+            let outcome = if let Some(t) = why.strip_prefix("trap: ") { format!("trap:{t}") } else { format!("kept:{why}") };
+            return json!({"verdict": "ok", "outputs": lines, "outcome": outcome});
         }
         lines.push(format!("{} {} {}", k + 1, en, show(&st["state"])));
         for o in st["emits"].as_array().into_iter().flatten() {
             lines.push(format!("  {}", o.as_str().unwrap_or("")));
         }
     }
-    json!({"verdict": "accept", "outputs": lines, "outcome": "done"})
+    json!({"verdict": "ok", "outputs": lines, "outcome": "done"})
 }
 
 fn run(lean: &mut Option<Lean>, src: &str, events: Option<&str>, fuel: Option<u64>) -> Value {
@@ -122,11 +122,11 @@ fn run(lean: &mut Option<Lean>, src: &str, events: Option<&str>, fuel: Option<u6
     interp::FUEL_LIMIT.store(interp::FUEL, SeqCst);
     let d = cli::diagnostics(src, &Default::default());
     if !d.is_empty() {
-        return json!({"verdict": "reject", "diagnostics": d.iter().map(|x| json!({"line": x.0, "message": x.1})).collect::<Vec<_>>()});
+        return json!({"verdict": "fit", "diagnostics": d.iter().map(|x| json!({"line": x.0, "message": x.1})).collect::<Vec<_>>()});
     }
     let m = match parse::parse(src) {
         Ok(m) => m,
-        Err(e) => return json!({"verdict": "reject", "diagnostics": [{"message": e}]}),
+        Err(e) => return json!({"verdict": "fit", "diagnostics": [{"message": e}]}),
     };
     let core = match core_elab::elaborate(&m, fuel.unwrap_or(interp::FUEL)) {
         Ok(c) => c,
@@ -141,7 +141,7 @@ fn run(lean: &mut Option<Lean>, src: &str, events: Option<&str>, fuel: Option<u6
     match lean.as_mut().unwrap().ask(&core) {
         Ok(r) if r.get("error").is_some() => json!({"error": r["error"]}),
         Ok(r) if r["outcome"] == "stuck" => json!({"error": "lean core: stuck (soundness says unreachable)"}),
-        Ok(r) => json!({"verdict": "accept", "outcome": r["outcome"], "outputs": r["outputs"], "ticks": r["ticks"]}),
+        Ok(r) => json!({"verdict": "ok", "outcome": r["outcome"], "outputs": r["outputs"], "ticks": r["ticks"]}),
         Err(e) => {
             *lean = None;
             json!({"error": e})
@@ -149,8 +149,8 @@ fn run(lean: &mut Option<Lean>, src: &str, events: Option<&str>, fuel: Option<u6
     }
 }
 
-/// `check`: the core has no rejection rules, so a program the reference
-/// front end rejects is `unsupported`. An accepted program in the core
+/// `check`: the core has no rules of section 7, so a program the reference
+/// front end reports is `unsupported`. An accepted program in the core
 /// subset is `ok` only when the Lean checker (`inf`/`checkProg`, proved sound
 /// against `HasTy` in RCE/Core/Check.lean) shows the elaborated program well
 /// typed; when it cannot, the answer is `unsupported`, never a verdict.
@@ -160,11 +160,11 @@ fn check(lean: &mut Option<Lean>, req: &Value, src: &str) -> Value {
     }
     interp::FUEL_LIMIT.store(interp::FUEL, SeqCst);
     if !cli::diagnostics(src, &Default::default()).is_empty() {
-        return json!({"unsupported": "rejection rules are not modelled by the core"});
+        return json!({"unsupported": "rules of section 7 are not modelled by the core"});
     }
     let m = match parse::parse(src) {
         Ok(m) => m,
-        Err(_) => return json!({"unsupported": "rejection rules are not modelled by the core"}),
+        Err(_) => return json!({"unsupported": "rules of section 7 are not modelled by the core"}),
     };
     let mut core = match core_elab::elaborate(&m, interp::FUEL) {
         Ok(c) => c,
@@ -178,7 +178,7 @@ fn check(lean: &mut Option<Lean>, req: &Value, src: &str) -> Value {
         }
     }
     match lean.as_mut().unwrap().ask(&core) {
-        Ok(r) if r["typed"] == true => json!({"verdict": "accept", "ok": true}),
+        Ok(r) if r["typed"] == true => json!({"verdict": "ok", "ok": true}),
         Ok(r) => json!({"unsupported": format!("lean check: {}", r["why"].as_str().unwrap_or("not shown well typed"))}),
         Err(e) => {
             *lean = None;

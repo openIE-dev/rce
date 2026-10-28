@@ -9,6 +9,6 @@ fn table() -> Map[text, i64] = {"a": 1, "b": 2,}
 # id: text-unicode/harvested/21-maps-accept
 # area: text-unicode
 # clauses: [CH03-M-28cdd241, T10]
-# expect: accept
+# expect: ok
 # provenance: harvested examples/21_maps.rce
 #---

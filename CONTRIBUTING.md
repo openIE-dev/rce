@@ -31,7 +31,7 @@ The grammar is the EBNF in `spec/book/03-syntax.md`. Changing it changes
 the language for every tool, so a grammar change also needs:
 
 - an accepted example in `spec/examples/` or a refused one in
-  `spec/examples/reject/`;
+  `spec/examples/fit/syntax/`;
 - the matching change to `tree-sitter/grammar.js`, regenerated with
   `tree-sitter generate --js-runtime native` in `tree-sitter/`;
 - a passing `cargo run --release --features tree-sitter --bin rce-spec-check`.

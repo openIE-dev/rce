@@ -1,8 +1,8 @@
 module bank
 
-intent "a bank account that refuses overdrafts"
+intent "a bank account that keeps its balance on an overdraft (Insufficient)"
     example Deposit(amount: 50), Withdraw(amount: 20) -> 30
-    example Withdraw(amount: 1) -> refused: Insufficient
+    example Withdraw(amount: 1) -> kept: Insufficient
 
 state Account
     balance: i64 = 0
@@ -26,7 +26,7 @@ step Account on Withdraw(amount: a)
 # id: lexing-parsing/generated/mut-tab-04-bank-account-accept
 # area: lexing-parsing
 # clauses: [CH09-M-82e65964, W-LEX-1]
-# expect: reject
+# expect: fit
 # diagnostic: W-LEX-1
 # flags: [generated]
 # provenance: gen_props.py seed 7: mutation `tab` of 04-bank-account-accept

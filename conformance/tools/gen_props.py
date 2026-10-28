@@ -2,14 +2,14 @@
 """Generated tests whose expected result is fixed by a law, not by a run.
 
   lex      mutations of admitted programs into ones a lexical or syntax rule
-           refuses (tab, bare CR, BOM, bad dedent, out-of-range literal, bad
+           reports (tab, bare CR, BOM, bad dedent, out-of-range literal, bad
            \\u{}, `unsafe`, dropped bracket, unknown name,
            duplicate fn). The intended rule is the expected code.
   T7       consistent renaming of event and error names keeps every log hash
            (name independence): the expected trace head is the original's.
   T16      `par` programs with disjoint branch footprints: every schedule
            gives the source-order result (schedule_seeds), and the same
-           footprints made to overlap are refused by W-PAR-1.
+           footprints made to overlap are reported by W-PAR-1.
   HC-15    sourced inputs offered in shuffled arrival orders, with
            retransmissions: the same D order and state hash (HC-15, HC-16).
   fuel     for each fn main program, the least fuel that completes it, k:
@@ -71,11 +71,11 @@ for code, f, tag in MUTS:
         m = f(src)
         if m is None or m == src: continue
         r = ref.check(m)
-        got = [d.get("code") for d in r.get("diagnostics", [])] if r.get("verdict") == "reject" else ["accepted"]
+        got = [d.get("code") for d in r.get("diagnostics", [])] if r.get("verdict") == "fit" else ["ok"]
         if code not in got:
             findings.append({"kind": "lex-mutation", "intended": code, "reference": got[:3], "mutation": tag, "base": stem})
         area = "lexing-parsing" if code.startswith(("W-LEX", "W-SYN", "W-VER")) else "types-checking"
-        put(area, "generated", f"mut-{tag}-{stem}", m, {"clauses": [code], "expect": "reject", "diagnostic": code,
+        put(area, "generated", f"mut-{tag}-{stem}", m, {"clauses": [code], "expect": "fit", "diagnostic": code,
             "provenance": f"gen_props.py seed {seed}: mutation `{tag}` of {stem}"})
 
 # ---- T7 name independence on traces. Only names that do not reach D are
@@ -90,7 +90,7 @@ for p in sorted(out.rglob("*-trace.rce")):
     ren = {n: f"zq_{n}_renamed" for n in names}
     rx = re.compile(r"(?<![.\w])(" + "|".join(map(re.escape, sorted(names, key=len, reverse=True))) + r")\b")
     s2 = rx.sub(lambda m: ren[m.group(1)], src)
-    if ref.check(s2).get("verdict") != "accept": continue   # a name also used as a field; skip
+    if ref.check(s2).get("verdict") != "ok": continue   # a name also used as a field; skip
     r = ref.trace(s2, meta["events"])
     got = (r.get("trace") or {}).get("head")
     if got != meta["trace_head"]:
@@ -121,7 +121,7 @@ for k in range(40):
     for v in vars_: body.append(f"    emit {v}")
     src = "\n".join(body) + "\n"
     r = ref.run(src)
-    if r.get("verdict") != "accept" or "error" in r:
+    if r.get("verdict") != "ok" or "error" in r:
         findings.append({"kind": "par-generator", "src": src, "reference": r}); continue
     put("concurrency", "generated", f"par-{seed}-{k:03d}", src, {"clauses": ["T16", "W-PAR-1"], "expect": "run",
         "schedule_seeds": [1, 2, 3, 4, 5], "outcome": r["outcome"], "outputs": r["outputs"],
@@ -132,7 +132,7 @@ for k in range(40):
     codes = [d.get("code") for d in rb.get("diagnostics", [])]
     if "W-PAR-1" not in codes:
         findings.append({"kind": "W-PAR-1", "src": bad, "reference": codes or rb.get("verdict")})
-    put("concurrency", "generated", f"par-overlap-{seed}-{k:03d}", bad, {"clauses": ["W-PAR-1"], "expect": "reject",
+    put("concurrency", "generated", f"par-overlap-{seed}-{k:03d}", bad, {"clauses": ["W-PAR-1"], "expect": "fit",
         "diagnostic": "W-PAR-1", "provenance": "gen_props.py: two branches write one variable (write/write overlap)"})
 
 # ---- HC-15 / HC-16 admission order independent of arrival

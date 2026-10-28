@@ -1,0 +1,11 @@
+fn f(n: u64) -> u64 = g(n)
+
+fn g(n: u64) -> u64 = f(n)
+#--- rce-test
+# id: evaluation-fuel/harvested/recursion-fit
+# area: evaluation-fuel
+# clauses: [CH09-M-82e65964, W-REC-1]
+# expect: fit
+# diagnostic: W-REC-1
+# provenance: harvested examples/ill_typed/recursion.rce
+#---

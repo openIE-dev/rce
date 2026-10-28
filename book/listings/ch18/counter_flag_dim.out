@@ -1,7 +1,7 @@
 states explored     8        bound reached: no
 behaviours          4        dim(P) (exact)
 redundancy          1.00     bits: log2(states) - log2(behaviours)
-outputs             yes      some explored step has a λ output (emits: yes, refuses: no)
+outputs             yes      some explored step has a λ output (emits: yes, keeps: no)
 distinct outputs    4        distinct output sequences over the explored steps (silent steps excluded)
   region DimCounter   1.00     (8 values, 4 distinguish behaviours)
 exit status: 0

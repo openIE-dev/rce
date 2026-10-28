@@ -240,7 +240,7 @@ fn the_library_hash_is_over_the_canonical_json_of_its_manifest() {
 }
 
 #[test]
-fn a_dependency_named_after_a_library_namespace_is_refused_with_its_reason() {
+fn a_dependency_named_after_a_library_namespace_reports_fit_with_its_reason() {
     let d = tmp("stdlib-namespace");
     std::fs::write(d.join("app.rce"), USES_LIB).unwrap();
     let mut v: serde_json::Value = serde_json::from_str(&manifest::generate(&d).unwrap()).unwrap();

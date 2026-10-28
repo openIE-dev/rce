@@ -1,6 +1,6 @@
 intent "a counter that never goes negative"
     example Inc, Inc, Dec -> 1
-    example Dec -> refused: Underflow
+    example Dec -> kept: Underflow
 
 state Counter
     n: u64 = 0
@@ -16,6 +16,6 @@ step Counter on Dec -> try n.checked_sub(1) else Underflow
 # id: numbers/harvested/01-counter-accept
 # area: numbers
 # clauses: [CH03-M-28cdd241, CH08-M-51f39d7d, CH08-M-9a15157f, T10]
-# expect: accept
+# expect: ok
 # provenance: harvested examples/01_counter.rce
 #---

@@ -1,0 +1,12 @@
+# Reported: `bound` on an iterator.
+fn nums(n: i64) -> iter i64 bound 3
+    for i in 0..n
+        yield i
+#--- rce-test
+# id: evaluation-fuel/harvested/bad-iter-fit
+# area: evaluation-fuel
+# clauses: [CH09-M-82e65964, W-REC-1]
+# expect: fit
+# diagnostic: W-REC-1
+# provenance: harvested checker/tests/bound/bad_iter.rce
+#---

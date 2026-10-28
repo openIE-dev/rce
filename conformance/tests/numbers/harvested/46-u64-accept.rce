@@ -16,6 +16,6 @@ check BIG - lalr + lalr == BIG
 # id: numbers/harvested/46-u64-accept
 # area: numbers
 # clauses: [CH03-M-28cdd241, T10]
-# expect: accept
+# expect: ok
 # provenance: harvested examples/46_u64.rce
 #---

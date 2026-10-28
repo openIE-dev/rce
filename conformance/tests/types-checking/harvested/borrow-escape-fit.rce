@@ -1,0 +1,11 @@
+fn f() -> &List[i64]
+    let xs: List[i64] = [1]
+    return &xs
+#--- rce-test
+# id: types-checking/harvested/borrow-escape-fit
+# area: types-checking
+# clauses: [CH09-M-82e65964, W-OWN-3]
+# expect: fit
+# diagnostic: W-OWN-3
+# provenance: harvested examples/ill_typed/borrow_escape.rce
+#---

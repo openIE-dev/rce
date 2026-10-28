@@ -5,6 +5,6 @@ fn call_it() -> u8 = move_piece(source: 2, target: 9)
 # id: numbers/harvested/25-labels-accept
 # area: numbers
 # clauses: [CH03-M-28cdd241, T10]
-# expect: accept
+# expect: ok
 # provenance: harvested examples/25_labels.rce
 #---

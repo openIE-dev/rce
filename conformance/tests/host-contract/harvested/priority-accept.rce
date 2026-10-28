@@ -19,6 +19,6 @@ step S on Alarm(n: _n)
 # id: host-contract/harvested/priority-accept
 # area: host-contract
 # clauses: [CH02-M-a696f3a3, CH03-M-28cdd241, CH08-M-9a15157f, T10]
-# expect: accept
+# expect: ok
 # provenance: harvested checker/tests/host/priority.rce
 #---

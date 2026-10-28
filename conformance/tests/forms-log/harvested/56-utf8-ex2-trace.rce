@@ -1,4 +1,4 @@
-intent "bytes become text only when they are well-formed UTF-8; anything else refuses the event, never substitutes"
+intent "bytes become text only when they are well-formed UTF-8; anything else gives the event the kept outcome, never substitutes"
     example Dec(b: [104, 105]) -> t == "hi"
     example Dec(b: [226, 130, 172]) -> t == "€"
     example Dec(b: [240, 159, 152, 128]) -> t.len_bytes() == 4

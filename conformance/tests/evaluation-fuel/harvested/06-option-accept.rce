@@ -12,6 +12,6 @@ fn or_zero(v: i64?) -> i64
 # id: evaluation-fuel/harvested/06-option-accept
 # area: evaluation-fuel
 # clauses: [CH03-M-28cdd241, T10]
-# expect: accept
+# expect: ok
 # provenance: harvested examples/06_option.rce
 #---

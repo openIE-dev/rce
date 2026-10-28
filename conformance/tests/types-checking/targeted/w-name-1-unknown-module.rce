@@ -4,7 +4,7 @@ fn f() -> i64 = 1
 # id: types-checking/targeted/w-name-1-unknown-module
 # area: types-checking
 # clauses: [W-NAME-1]
-# expect: reject
+# expect: fit
 # diagnostic: W-NAME-1
 # provenance: mutation survivor (reports/mutation.json); expected value read off the rule
 #---

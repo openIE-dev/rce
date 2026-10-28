@@ -33,11 +33,11 @@
  {
   "test": "numbers/targeted/n6-int-float-equality",
   "law": [
-   "reject",
+   "fit",
    "W-TY-3"
   ],
   "reference": [
-   "reject",
+   "fit",
    [
     "W-TY-1"
    ]
@@ -49,11 +49,11 @@
  {
   "test": "numbers/targeted/w-ty-3-mixing",
   "law": [
-   "reject",
+   "fit",
    "W-TY-3"
   ],
   "reference": [
-   "reject",
+   "fit",
    [
     "W-TY-1",
     "W-TY-1"
@@ -67,11 +67,11 @@
  {
   "test": "numbers/targeted/w-ty-3-narrowing",
   "law": [
-   "reject",
+   "fit",
    "W-TY-3"
   ],
   "reference": [
-   "reject",
+   "fit",
    [
     "W-TY-1"
    ]
@@ -115,11 +115,11 @@
  {
   "test": "types-checking/targeted/w-state-3-borrow-field",
   "law": [
-   "reject",
+   "fit",
    "W-STATE-3"
   ],
   "reference": [
-   "reject",
+   "fit",
    [
     "W-TY-2",
     "W-TY-1"
@@ -133,7 +133,7 @@
  {
   "test": "types-checking/targeted/w-trait-1-impl-mismatch",
   "law": [
-   "reject",
+   "fit",
    "W-TRAIT-1"
   ],
   "reference": [
@@ -145,7 +145,7 @@
  {
   "test": "types-checking/targeted/w-mod-2-cycle",
   "law": [
-   "reject",
+   "fit",
    "W-MOD-2"
   ],
   "reference": [

@@ -395,8 +395,9 @@ pub enum Act {
 }
 
 /// Contextual words: terminals of section 3 that are not reserved (2.4);
-/// `where` follows a type in a refined type declaration (5.1).
-pub const CONTEXTUAL: &[&str] = &["where", "by"];
+/// `where` follows a type in a refined type declaration (5.1); `kept`
+/// begins the kept outcome of an `example` (3.2, COMP-2).
+pub const CONTEXTUAL: &[&str] = &["where", "by", "kept"];
 
 pub struct Lalr {
     pub g: Grammar,

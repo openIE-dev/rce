@@ -29,6 +29,6 @@ check demo() > 0
 # id: evaluation-fuel/harvested/ok-lex-accept
 # area: evaluation-fuel
 # clauses: [CH03-M-28cdd241, CH08-M-286d2fd4, CH08-M-cbd85cbd, CH11-M-7fed7576, T10, T6]
-# expect: accept
+# expect: ok
 # provenance: harvested checker/tests/mutual/ok_lex.rce
 #---

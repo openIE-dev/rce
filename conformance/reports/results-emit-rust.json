@@ -3002,8 +3002,8 @@
    "ms": 0
   },
   {
-   "path": "tests/concurrency/harvested/extern-spawn-reject.rce",
-   "id": "concurrency/harvested/extern-spawn-reject",
+   "path": "tests/concurrency/harvested/extern-spawn-fit.rce",
+   "id": "concurrency/harvested/extern-spawn-fit",
    "area": "concurrency",
    "clauses": [
     "CH09-M-82e65964",
@@ -3015,8 +3015,8 @@
    "ms": 0
   },
   {
-   "path": "tests/concurrency/harvested/spawn-borrow-reject.rce",
-   "id": "concurrency/harvested/spawn-borrow-reject",
+   "path": "tests/concurrency/harvested/spawn-borrow-fit.rce",
+   "id": "concurrency/harvested/spawn-borrow-fit",
    "area": "concurrency",
    "clauses": [
     "CH09-M-82e65964",
@@ -3027,8 +3027,8 @@
    "ms": 0
   },
   {
-   "path": "tests/concurrency/harvested/w-atom-1-recv-in-atomic-reject.rce",
-   "id": "concurrency/harvested/w-atom-1-recv-in-atomic-reject",
+   "path": "tests/concurrency/harvested/w-atom-1-recv-in-atomic-fit.rce",
+   "id": "concurrency/harvested/w-atom-1-recv-in-atomic-fit",
    "area": "concurrency",
    "clauses": [
     "CH09-M-82e65964",
@@ -3039,8 +3039,8 @@
    "ms": 0
   },
   {
-   "path": "tests/concurrency/harvested/w-crdt-1-lvar-text-reject.rce",
-   "id": "concurrency/harvested/w-crdt-1-lvar-text-reject",
+   "path": "tests/concurrency/harvested/w-crdt-1-lvar-text-fit.rce",
+   "id": "concurrency/harvested/w-crdt-1-lvar-text-fit",
    "area": "concurrency",
    "clauses": [
     "CH09-M-82e65964",
@@ -3051,8 +3051,8 @@
    "ms": 0
   },
   {
-   "path": "tests/concurrency/harvested/w-crdt-1-merge-not-commutative-reject.rce",
-   "id": "concurrency/harvested/w-crdt-1-merge-not-commutative-reject",
+   "path": "tests/concurrency/harvested/w-crdt-1-merge-not-commutative-fit.rce",
+   "id": "concurrency/harvested/w-crdt-1-merge-not-commutative-fit",
    "area": "concurrency",
    "clauses": [
     "CH09-M-82e65964",
@@ -3063,8 +3063,8 @@
    "ms": 0
   },
   {
-   "path": "tests/concurrency/harvested/w-dl-1-pure-reject.rce",
-   "id": "concurrency/harvested/w-dl-1-pure-reject",
+   "path": "tests/concurrency/harvested/w-dl-1-pure-fit.rce",
+   "id": "concurrency/harvested/w-dl-1-pure-fit",
    "area": "concurrency",
    "clauses": [
     "CH09-M-82e65964",
@@ -3075,8 +3075,8 @@
    "ms": 0
   },
   {
-   "path": "tests/concurrency/harvested/w-grp-1-group-outside-device-reject.rce",
-   "id": "concurrency/harvested/w-grp-1-group-outside-device-reject",
+   "path": "tests/concurrency/harvested/w-grp-1-group-outside-device-fit.rce",
+   "id": "concurrency/harvested/w-grp-1-group-outside-device-fit",
    "area": "concurrency",
    "clauses": [
     "CH09-M-82e65964",
@@ -3087,8 +3087,8 @@
    "ms": 0
   },
   {
-   "path": "tests/concurrency/harvested/w-grp-2-barrier-in-if-reject.rce",
-   "id": "concurrency/harvested/w-grp-2-barrier-in-if-reject",
+   "path": "tests/concurrency/harvested/w-grp-2-barrier-in-if-fit.rce",
+   "id": "concurrency/harvested/w-grp-2-barrier-in-if-fit",
    "area": "concurrency",
    "clauses": [
     "CH09-M-82e65964",
@@ -3099,8 +3099,8 @@
    "ms": 0
   },
   {
-   "path": "tests/concurrency/harvested/w-grp-3-cross-lane-read-reject.rce",
-   "id": "concurrency/harvested/w-grp-3-cross-lane-read-reject",
+   "path": "tests/concurrency/harvested/w-grp-3-cross-lane-read-fit.rce",
+   "id": "concurrency/harvested/w-grp-3-cross-lane-read-fit",
    "area": "concurrency",
    "clauses": [
     "CH09-M-82e65964",
@@ -3111,8 +3111,8 @@
    "ms": 0
   },
   {
-   "path": "tests/concurrency/harvested/w-grp-3-shared-scalar-reject.rce",
-   "id": "concurrency/harvested/w-grp-3-shared-scalar-reject",
+   "path": "tests/concurrency/harvested/w-grp-3-shared-scalar-fit.rce",
+   "id": "concurrency/harvested/w-grp-3-shared-scalar-fit",
    "area": "concurrency",
    "clauses": [
     "CH09-M-82e65964",
@@ -3123,8 +3123,8 @@
    "ms": 0
   },
   {
-   "path": "tests/concurrency/harvested/w-lvar-1-freeze-in-par-reject.rce",
-   "id": "concurrency/harvested/w-lvar-1-freeze-in-par-reject",
+   "path": "tests/concurrency/harvested/w-lvar-1-freeze-in-par-fit.rce",
+   "id": "concurrency/harvested/w-lvar-1-freeze-in-par-fit",
    "area": "concurrency",
    "clauses": [
     "CH09-M-82e65964",
@@ -3135,8 +3135,8 @@
    "ms": 0
   },
   {
-   "path": "tests/concurrency/harvested/w-lvar-2-two-thresholds-reject.rce",
-   "id": "concurrency/harvested/w-lvar-2-two-thresholds-reject",
+   "path": "tests/concurrency/harvested/w-lvar-2-two-thresholds-fit.rce",
+   "id": "concurrency/harvested/w-lvar-2-two-thresholds-fit",
    "area": "concurrency",
    "clauses": [
     "CH09-M-82e65964",
@@ -3147,8 +3147,8 @@
    "ms": 0
   },
   {
-   "path": "tests/concurrency/harvested/w-nd-1-step-reject.rce",
-   "id": "concurrency/harvested/w-nd-1-step-reject",
+   "path": "tests/concurrency/harvested/w-nd-1-step-fit.rce",
+   "id": "concurrency/harvested/w-nd-1-step-fit",
    "area": "concurrency",
    "clauses": [
     "CH09-M-82e65964",
@@ -3159,8 +3159,8 @@
    "ms": 0
   },
   {
-   "path": "tests/concurrency/harvested/w-node-1-two-nodes-reject.rce",
-   "id": "concurrency/harvested/w-node-1-two-nodes-reject",
+   "path": "tests/concurrency/harvested/w-node-1-two-nodes-fit.rce",
+   "id": "concurrency/harvested/w-node-1-two-nodes-fit",
    "area": "concurrency",
    "clauses": [
     "CH09-M-82e65964",
@@ -3171,8 +3171,8 @@
    "ms": 0
   },
   {
-   "path": "tests/concurrency/harvested/w-par-1-mut-method-reject.rce",
-   "id": "concurrency/harvested/w-par-1-mut-method-reject",
+   "path": "tests/concurrency/harvested/w-par-1-mut-method-fit.rce",
+   "id": "concurrency/harvested/w-par-1-mut-method-fit",
    "area": "concurrency",
    "clauses": [
     "CH09-M-82e65964",
@@ -3183,8 +3183,8 @@
    "ms": 0
   },
   {
-   "path": "tests/concurrency/harvested/w-par-1-write-read-reject.rce",
-   "id": "concurrency/harvested/w-par-1-write-read-reject",
+   "path": "tests/concurrency/harvested/w-par-1-write-read-fit.rce",
+   "id": "concurrency/harvested/w-par-1-write-read-fit",
    "area": "concurrency",
    "clauses": [
     "CH09-M-82e65964",
@@ -3195,8 +3195,8 @@
    "ms": 0
   },
   {
-   "path": "tests/concurrency/harvested/w-par-1-write-write-reject.rce",
-   "id": "concurrency/harvested/w-par-1-write-write-reject",
+   "path": "tests/concurrency/harvested/w-par-1-write-write-fit.rce",
+   "id": "concurrency/harvested/w-par-1-write-write-fit",
    "area": "concurrency",
    "clauses": [
     "CH09-M-82e65964",
@@ -3207,8 +3207,8 @@
    "ms": 0
   },
   {
-   "path": "tests/concurrency/harvested/w-par-2-emit-reject.rce",
-   "id": "concurrency/harvested/w-par-2-emit-reject",
+   "path": "tests/concurrency/harvested/w-par-2-emit-fit.rce",
+   "id": "concurrency/harvested/w-par-2-emit-fit",
    "area": "concurrency",
    "clauses": [
     "CH09-M-82e65964",
@@ -3219,8 +3219,8 @@
    "ms": 0
   },
   {
-   "path": "tests/concurrency/harvested/w-par-2-return-reject.rce",
-   "id": "concurrency/harvested/w-par-2-return-reject",
+   "path": "tests/concurrency/harvested/w-par-2-return-fit.rce",
+   "id": "concurrency/harvested/w-par-2-return-fit",
    "area": "concurrency",
    "clauses": [
     "CH09-M-82e65964",
@@ -3231,8 +3231,8 @@
    "ms": 0
   },
   {
-   "path": "tests/concurrency/harvested/w-par-3-assign-reject.rce",
-   "id": "concurrency/harvested/w-par-3-assign-reject",
+   "path": "tests/concurrency/harvested/w-par-3-assign-fit.rce",
+   "id": "concurrency/harvested/w-par-3-assign-fit",
    "area": "concurrency",
    "clauses": [
     "CH09-M-82e65964",
@@ -3243,8 +3243,8 @@
    "ms": 0
   },
   {
-   "path": "tests/concurrency/harvested/w-par-3-minus-reject.rce",
-   "id": "concurrency/harvested/w-par-3-minus-reject",
+   "path": "tests/concurrency/harvested/w-par-3-minus-fit.rce",
+   "id": "concurrency/harvested/w-par-3-minus-fit",
    "area": "concurrency",
    "clauses": [
     "CH09-M-82e65964",
@@ -3255,8 +3255,8 @@
    "ms": 0
   },
   {
-   "path": "tests/concurrency/harvested/w-par-3-read-acc-reject.rce",
-   "id": "concurrency/harvested/w-par-3-read-acc-reject",
+   "path": "tests/concurrency/harvested/w-par-3-read-acc-fit.rce",
+   "id": "concurrency/harvested/w-par-3-read-acc-fit",
    "area": "concurrency",
    "clauses": [
     "CH09-M-82e65964",
@@ -3267,8 +3267,8 @@
    "ms": 0
   },
   {
-   "path": "tests/concurrency/harvested/w-par-4-break-reject.rce",
-   "id": "concurrency/harvested/w-par-4-break-reject",
+   "path": "tests/concurrency/harvested/w-par-4-break-fit.rce",
+   "id": "concurrency/harvested/w-par-4-break-fit",
    "area": "concurrency",
    "clauses": [
     "CH09-M-82e65964",
@@ -3279,8 +3279,8 @@
    "ms": 0
   },
   {
-   "path": "tests/concurrency/harvested/w-par-4-emit-reject.rce",
-   "id": "concurrency/harvested/w-par-4-emit-reject",
+   "path": "tests/concurrency/harvested/w-par-4-emit-fit.rce",
+   "id": "concurrency/harvested/w-par-4-emit-fit",
    "area": "concurrency",
    "clauses": [
     "CH09-M-82e65964",
@@ -3291,8 +3291,8 @@
    "ms": 0
   },
   {
-   "path": "tests/concurrency/harvested/w-rt-1-deadline-zero-reject.rce",
-   "id": "concurrency/harvested/w-rt-1-deadline-zero-reject",
+   "path": "tests/concurrency/harvested/w-rt-1-deadline-zero-fit.rce",
+   "id": "concurrency/harvested/w-rt-1-deadline-zero-fit",
    "area": "concurrency",
    "clauses": [
     "CH09-M-82e65964",
@@ -3303,8 +3303,8 @@
    "ms": 0
   },
   {
-   "path": "tests/concurrency/harvested/w-scope-1-spawn-outside-scope-reject.rce",
-   "id": "concurrency/harvested/w-scope-1-spawn-outside-scope-reject",
+   "path": "tests/concurrency/harvested/w-scope-1-spawn-outside-scope-fit.rce",
+   "id": "concurrency/harvested/w-scope-1-spawn-outside-scope-fit",
    "area": "concurrency",
    "clauses": [
     "CH09-M-82e65964",
@@ -3315,8 +3315,8 @@
    "ms": 0
   },
   {
-   "path": "tests/concurrency/harvested/w-ses-1-bad-label-reject.rce",
-   "id": "concurrency/harvested/w-ses-1-bad-label-reject",
+   "path": "tests/concurrency/harvested/w-ses-1-bad-label-fit.rce",
+   "id": "concurrency/harvested/w-ses-1-bad-label-fit",
    "area": "concurrency",
    "clauses": [
     "CH09-M-82e65964",
@@ -3327,8 +3327,8 @@
    "ms": 0
   },
   {
-   "path": "tests/concurrency/harvested/w-ses-1-branches-differ-reject.rce",
-   "id": "concurrency/harvested/w-ses-1-branches-differ-reject",
+   "path": "tests/concurrency/harvested/w-ses-1-branches-differ-fit.rce",
+   "id": "concurrency/harvested/w-ses-1-branches-differ-fit",
    "area": "concurrency",
    "clauses": [
     "CH09-M-82e65964",
@@ -3339,8 +3339,8 @@
    "ms": 0
   },
   {
-   "path": "tests/concurrency/harvested/w-ses-1-offer-missing-label-reject.rce",
-   "id": "concurrency/harvested/w-ses-1-offer-missing-label-reject",
+   "path": "tests/concurrency/harvested/w-ses-1-offer-missing-label-fit.rce",
+   "id": "concurrency/harvested/w-ses-1-offer-missing-label-fit",
    "area": "concurrency",
    "clauses": [
     "CH09-M-82e65964",
@@ -3351,8 +3351,8 @@
    "ms": 0
   },
   {
-   "path": "tests/concurrency/harvested/w-ses-1-wrong-order-reject.rce",
-   "id": "concurrency/harvested/w-ses-1-wrong-order-reject",
+   "path": "tests/concurrency/harvested/w-ses-1-wrong-order-fit.rce",
+   "id": "concurrency/harvested/w-ses-1-wrong-order-fit",
    "area": "concurrency",
    "clauses": [
     "CH09-M-82e65964",
@@ -3363,8 +3363,8 @@
    "ms": 0
   },
   {
-   "path": "tests/concurrency/harvested/w-ses-2-unfinished-reject.rce",
-   "id": "concurrency/harvested/w-ses-2-unfinished-reject",
+   "path": "tests/concurrency/harvested/w-ses-2-unfinished-fit.rce",
+   "id": "concurrency/harvested/w-ses-2-unfinished-fit",
    "area": "concurrency",
    "clauses": [
     "CH09-M-82e65964",
@@ -3375,8 +3375,8 @@
    "ms": 0
   },
   {
-   "path": "tests/concurrency/harvested/w-ses-3-break-outside-loop-reject.rce",
-   "id": "concurrency/harvested/w-ses-3-break-outside-loop-reject",
+   "path": "tests/concurrency/harvested/w-ses-3-break-outside-loop-fit.rce",
+   "id": "concurrency/harvested/w-ses-3-break-outside-loop-fit",
    "area": "concurrency",
    "clauses": [
     "CH09-M-82e65964",
@@ -3387,8 +3387,8 @@
    "ms": 0
   },
   {
-   "path": "tests/concurrency/harvested/w-ses-4-moved-in-loop-reject.rce",
-   "id": "concurrency/harvested/w-ses-4-moved-in-loop-reject",
+   "path": "tests/concurrency/harvested/w-ses-4-moved-in-loop-fit.rce",
+   "id": "concurrency/harvested/w-ses-4-moved-in-loop-fit",
    "area": "concurrency",
    "clauses": [
     "W-SES-4"
@@ -3398,8 +3398,8 @@
    "ms": 0
   },
   {
-   "path": "tests/concurrency/harvested/w-ses-4-moved-on-one-path-reject.rce",
-   "id": "concurrency/harvested/w-ses-4-moved-on-one-path-reject",
+   "path": "tests/concurrency/harvested/w-ses-4-moved-on-one-path-fit.rce",
+   "id": "concurrency/harvested/w-ses-4-moved-on-one-path-fit",
    "area": "concurrency",
    "clauses": [
     "W-SES-4"
@@ -3409,8 +3409,8 @@
    "ms": 0
   },
   {
-   "path": "tests/concurrency/harvested/w-ses-4-moved-twice-reject.rce",
-   "id": "concurrency/harvested/w-ses-4-moved-twice-reject",
+   "path": "tests/concurrency/harvested/w-ses-4-moved-twice-fit.rce",
+   "id": "concurrency/harvested/w-ses-4-moved-twice-fit",
    "area": "concurrency",
    "clauses": [
     "W-SES-4"
@@ -3420,8 +3420,8 @@
    "ms": 0
   },
   {
-   "path": "tests/concurrency/harvested/w-ses-4-send-after-close-reject.rce",
-   "id": "concurrency/harvested/w-ses-4-send-after-close-reject",
+   "path": "tests/concurrency/harvested/w-ses-4-send-after-close-fit.rce",
+   "id": "concurrency/harvested/w-ses-4-send-after-close-fit",
    "area": "concurrency",
    "clauses": [
     "W-SES-4"
@@ -3431,8 +3431,8 @@
    "ms": 0
   },
   {
-   "path": "tests/concurrency/harvested/w-ses-4-use-after-move-reject.rce",
-   "id": "concurrency/harvested/w-ses-4-use-after-move-reject",
+   "path": "tests/concurrency/harvested/w-ses-4-use-after-move-fit.rce",
+   "id": "concurrency/harvested/w-ses-4-use-after-move-fit",
    "area": "concurrency",
    "clauses": [
     "W-SES-4"
@@ -3442,8 +3442,8 @@
    "ms": 0
   },
   {
-   "path": "tests/concurrency/harvested/w-ses-4-use-after-send-reject.rce",
-   "id": "concurrency/harvested/w-ses-4-use-after-send-reject",
+   "path": "tests/concurrency/harvested/w-ses-4-use-after-send-fit.rce",
+   "id": "concurrency/harvested/w-ses-4-use-after-send-fit",
    "area": "concurrency",
    "clauses": [
     "W-SES-4"
@@ -3453,8 +3453,8 @@
    "ms": 0
   },
   {
-   "path": "tests/concurrency/harvested/w-sup-1-bad-strategy-reject.rce",
-   "id": "concurrency/harvested/w-sup-1-bad-strategy-reject",
+   "path": "tests/concurrency/harvested/w-sup-1-bad-strategy-fit.rce",
+   "id": "concurrency/harvested/w-sup-1-bad-strategy-fit",
    "area": "concurrency",
    "clauses": [
     "CH09-M-82e65964",
@@ -3465,8 +3465,8 @@
    "ms": 0
   },
   {
-   "path": "tests/concurrency/harvested/w-sup-2-child-not-actor-reject.rce",
-   "id": "concurrency/harvested/w-sup-2-child-not-actor-reject",
+   "path": "tests/concurrency/harvested/w-sup-2-child-not-actor-fit.rce",
+   "id": "concurrency/harvested/w-sup-2-child-not-actor-fit",
    "area": "concurrency",
    "clauses": [
     "CH09-M-82e65964",
@@ -3559,8 +3559,8 @@
    "ms": 4016
   },
   {
-   "path": "tests/concurrency/targeted/lex-merge-bitwise-refused.rce",
-   "id": "concurrency/targeted/lex-merge-bitwise-refused",
+   "path": "tests/concurrency/targeted/lex-merge-bitwise-fit.rce",
+   "id": "concurrency/targeted/lex-merge-bitwise-fit",
    "area": "concurrency",
    "clauses": [
     "CH09-M-82e65964",
@@ -3756,8 +3756,8 @@
    "ms": 4065
   },
   {
-   "path": "tests/effects-capabilities/harvested/comptime-check-reject.rce",
-   "id": "effects-capabilities/harvested/comptime-check-reject",
+   "path": "tests/effects-capabilities/harvested/comptime-check-fit.rce",
+   "id": "effects-capabilities/harvested/comptime-check-fit",
    "area": "effects-capabilities",
    "clauses": [
     "CH09-M-82e65964",
@@ -3768,8 +3768,8 @@
    "ms": 0
   },
   {
-   "path": "tests/effects-capabilities/harvested/const-overflow-reject.rce",
-   "id": "effects-capabilities/harvested/const-overflow-reject",
+   "path": "tests/effects-capabilities/harvested/const-overflow-fit.rce",
+   "id": "effects-capabilities/harvested/const-overflow-fit",
    "area": "effects-capabilities",
    "clauses": [
     "CH09-M-82e65964",
@@ -3780,8 +3780,8 @@
    "ms": 0
   },
   {
-   "path": "tests/effects-capabilities/harvested/device-emit-reject.rce",
-   "id": "effects-capabilities/harvested/device-emit-reject",
+   "path": "tests/effects-capabilities/harvested/device-emit-fit.rce",
+   "id": "effects-capabilities/harvested/device-emit-fit",
    "area": "effects-capabilities",
    "clauses": [
     "CH09-M-82e65964",
@@ -3792,8 +3792,8 @@
    "ms": 0
   },
   {
-   "path": "tests/effects-capabilities/harvested/device-extern-reject.rce",
-   "id": "effects-capabilities/harvested/device-extern-reject",
+   "path": "tests/effects-capabilities/harvested/device-extern-fit.rce",
+   "id": "effects-capabilities/harvested/device-extern-fit",
    "area": "effects-capabilities",
    "clauses": [
     "CH09-M-82e65964",
@@ -3805,8 +3805,8 @@
    "ms": 0
   },
   {
-   "path": "tests/effects-capabilities/harvested/device-list-reject.rce",
-   "id": "effects-capabilities/harvested/device-list-reject",
+   "path": "tests/effects-capabilities/harvested/device-list-fit.rce",
+   "id": "effects-capabilities/harvested/device-list-fit",
    "area": "effects-capabilities",
    "clauses": [
     "CH09-M-82e65964",
@@ -3817,8 +3817,8 @@
    "ms": 0
   },
   {
-   "path": "tests/effects-capabilities/harvested/extern-abi-reject.rce",
-   "id": "effects-capabilities/harvested/extern-abi-reject",
+   "path": "tests/effects-capabilities/harvested/extern-abi-fit.rce",
+   "id": "effects-capabilities/harvested/extern-abi-fit",
    "area": "effects-capabilities",
    "clauses": [
     "CH09-M-82e65964",
@@ -3830,8 +3830,8 @@
    "ms": 0
   },
   {
-   "path": "tests/effects-capabilities/harvested/extern-in-pure-reject.rce",
-   "id": "effects-capabilities/harvested/extern-in-pure-reject",
+   "path": "tests/effects-capabilities/harvested/extern-in-pure-fit.rce",
+   "id": "effects-capabilities/harvested/extern-in-pure-fit",
    "area": "effects-capabilities",
    "clauses": [
     "CH09-M-82e65964",
@@ -3843,8 +3843,8 @@
    "ms": 0
   },
   {
-   "path": "tests/effects-capabilities/harvested/extern-owned-param-reject.rce",
-   "id": "effects-capabilities/harvested/extern-owned-param-reject",
+   "path": "tests/effects-capabilities/harvested/extern-owned-param-fit.rce",
+   "id": "effects-capabilities/harvested/extern-owned-param-fit",
    "area": "effects-capabilities",
    "clauses": [
     "CH09-M-82e65964",
@@ -3856,8 +3856,8 @@
    "ms": 0
   },
   {
-   "path": "tests/effects-capabilities/harvested/extern-text-result-reject.rce",
-   "id": "effects-capabilities/harvested/extern-text-result-reject",
+   "path": "tests/effects-capabilities/harvested/extern-text-result-fit.rce",
+   "id": "effects-capabilities/harvested/extern-text-result-fit",
    "area": "effects-capabilities",
    "clauses": [
     "CH09-M-82e65964",
@@ -3869,8 +3869,8 @@
    "ms": 0
   },
   {
-   "path": "tests/effects-capabilities/harvested/pure-send-reject.rce",
-   "id": "effects-capabilities/harvested/pure-send-reject",
+   "path": "tests/effects-capabilities/harvested/pure-send-fit.rce",
+   "id": "effects-capabilities/harvested/pure-send-fit",
    "area": "effects-capabilities",
    "clauses": [
     "CH09-M-82e65964",
@@ -3881,8 +3881,8 @@
    "ms": 0
   },
   {
-   "path": "tests/effects-capabilities/harvested/simd-len-reject.rce",
-   "id": "effects-capabilities/harvested/simd-len-reject",
+   "path": "tests/effects-capabilities/harvested/simd-len-fit.rce",
+   "id": "effects-capabilities/harvested/simd-len-fit",
    "area": "effects-capabilities",
    "clauses": [
     "CH09-M-82e65964",
@@ -3893,8 +3893,8 @@
    "ms": 0
   },
   {
-   "path": "tests/effects-capabilities/harvested/simd-text-reject.rce",
-   "id": "effects-capabilities/harvested/simd-text-reject",
+   "path": "tests/effects-capabilities/harvested/simd-text-fit.rce",
+   "id": "effects-capabilities/harvested/simd-text-fit",
    "area": "effects-capabilities",
    "clauses": [
     "CH09-M-82e65964",
@@ -3905,8 +3905,8 @@
    "ms": 0
   },
   {
-   "path": "tests/effects-capabilities/harvested/state-init-overflow-reject.rce",
-   "id": "effects-capabilities/harvested/state-init-overflow-reject",
+   "path": "tests/effects-capabilities/harvested/state-init-overflow-fit.rce",
+   "id": "effects-capabilities/harvested/state-init-overflow-fit",
    "area": "effects-capabilities",
    "clauses": [
     "CH09-M-82e65964",
@@ -4509,8 +4509,8 @@
    "ms": 0
   },
   {
-   "path": "tests/evaluation-fuel/harvested/arena-size-limit-reject.rce",
-   "id": "evaluation-fuel/harvested/arena-size-limit-reject",
+   "path": "tests/evaluation-fuel/harvested/arena-size-limit-fit.rce",
+   "id": "evaluation-fuel/harvested/arena-size-limit-fit",
    "area": "evaluation-fuel",
    "clauses": [
     "CH09-M-82e65964",
@@ -4521,8 +4521,8 @@
    "ms": 0
   },
   {
-   "path": "tests/evaluation-fuel/harvested/assign-let-reject.rce",
-   "id": "evaluation-fuel/harvested/assign-let-reject",
+   "path": "tests/evaluation-fuel/harvested/assign-let-fit.rce",
+   "id": "evaluation-fuel/harvested/assign-let-fit",
    "area": "evaluation-fuel",
    "clauses": [
     "CH09-M-82e65964"
@@ -4532,8 +4532,8 @@
    "ms": 0
   },
   {
-   "path": "tests/evaluation-fuel/harvested/bad-grow-reject.rce",
-   "id": "evaluation-fuel/harvested/bad-grow-reject",
+   "path": "tests/evaluation-fuel/harvested/bad-grow-fit.rce",
+   "id": "evaluation-fuel/harvested/bad-grow-fit",
    "area": "evaluation-fuel",
    "clauses": [
     "CH08-M-286d2fd4",
@@ -4547,8 +4547,8 @@
    "ms": 0
   },
   {
-   "path": "tests/evaluation-fuel/harvested/bad-iter-reject.rce",
-   "id": "evaluation-fuel/harvested/bad-iter-reject",
+   "path": "tests/evaluation-fuel/harvested/bad-iter-fit.rce",
+   "id": "evaluation-fuel/harvested/bad-iter-fit",
    "area": "evaluation-fuel",
    "clauses": [
     "CH09-M-82e65964",
@@ -4559,8 +4559,8 @@
    "ms": 0
   },
   {
-   "path": "tests/evaluation-fuel/harvested/bad-loop-reject.rce",
-   "id": "evaluation-fuel/harvested/bad-loop-reject",
+   "path": "tests/evaluation-fuel/harvested/bad-loop-fit.rce",
+   "id": "evaluation-fuel/harvested/bad-loop-fit",
    "area": "evaluation-fuel",
    "clauses": [
     "CH08-M-286d2fd4",
@@ -4574,8 +4574,8 @@
    "ms": 0
   },
   {
-   "path": "tests/evaluation-fuel/harvested/bad-par-reject.rce",
-   "id": "evaluation-fuel/harvested/bad-par-reject",
+   "path": "tests/evaluation-fuel/harvested/bad-par-fit.rce",
+   "id": "evaluation-fuel/harvested/bad-par-fit",
    "area": "evaluation-fuel",
    "clauses": [
     "CH09-M-82e65964",
@@ -4586,8 +4586,8 @@
    "ms": 0
   },
   {
-   "path": "tests/evaluation-fuel/harvested/bad-unbounded-reject.rce",
-   "id": "evaluation-fuel/harvested/bad-unbounded-reject",
+   "path": "tests/evaluation-fuel/harvested/bad-unbounded-fit.rce",
+   "id": "evaluation-fuel/harvested/bad-unbounded-fit",
    "area": "evaluation-fuel",
    "clauses": [
     "CH09-M-82e65964",
@@ -4598,8 +4598,8 @@
    "ms": 0
   },
   {
-   "path": "tests/evaluation-fuel/harvested/bad-vary-reject.rce",
-   "id": "evaluation-fuel/harvested/bad-vary-reject",
+   "path": "tests/evaluation-fuel/harvested/bad-vary-fit.rce",
+   "id": "evaluation-fuel/harvested/bad-vary-fit",
    "area": "evaluation-fuel",
    "clauses": [
     "CH08-M-286d2fd4",
@@ -4613,8 +4613,8 @@
    "ms": 0
   },
   {
-   "path": "tests/evaluation-fuel/harvested/bslice-boundary-reject.rce",
-   "id": "evaluation-fuel/harvested/bslice-boundary-reject",
+   "path": "tests/evaluation-fuel/harvested/bslice-boundary-fit.rce",
+   "id": "evaluation-fuel/harvested/bslice-boundary-fit",
    "area": "evaluation-fuel",
    "clauses": [
     "CH09-M-82e65964",
@@ -4625,8 +4625,8 @@
    "ms": 0
   },
   {
-   "path": "tests/evaluation-fuel/harvested/f32-overflow-reject.rce",
-   "id": "evaluation-fuel/harvested/f32-overflow-reject",
+   "path": "tests/evaluation-fuel/harvested/f32-overflow-fit.rce",
+   "id": "evaluation-fuel/harvested/f32-overflow-fit",
    "area": "evaluation-fuel",
    "clauses": [
     "CH09-M-82e65964",
@@ -4637,8 +4637,8 @@
    "ms": 0
   },
   {
-   "path": "tests/evaluation-fuel/harvested/false-check-reject.rce",
-   "id": "evaluation-fuel/harvested/false-check-reject",
+   "path": "tests/evaluation-fuel/harvested/false-check-fit.rce",
+   "id": "evaluation-fuel/harvested/false-check-fit",
    "area": "evaluation-fuel",
    "clauses": [
     "CH09-M-82e65964",
@@ -4649,8 +4649,8 @@
    "ms": 0
   },
   {
-   "path": "tests/evaluation-fuel/harvested/guard-trap-reject.rce",
-   "id": "evaluation-fuel/harvested/guard-trap-reject",
+   "path": "tests/evaluation-fuel/harvested/guard-trap-fit.rce",
+   "id": "evaluation-fuel/harvested/guard-trap-fit",
    "area": "evaluation-fuel",
    "clauses": [
     "CH09-M-82e65964",
@@ -4661,8 +4661,8 @@
    "ms": 0
   },
   {
-   "path": "tests/evaluation-fuel/harvested/iter-effect-reject.rce",
-   "id": "evaluation-fuel/harvested/iter-effect-reject",
+   "path": "tests/evaluation-fuel/harvested/iter-effect-fit.rce",
+   "id": "evaluation-fuel/harvested/iter-effect-fit",
    "area": "evaluation-fuel",
    "clauses": [
     "CH09-M-82e65964",
@@ -4673,8 +4673,8 @@
    "ms": 0
   },
   {
-   "path": "tests/evaluation-fuel/harvested/iter-stored-reject.rce",
-   "id": "evaluation-fuel/harvested/iter-stored-reject",
+   "path": "tests/evaluation-fuel/harvested/iter-stored-fit.rce",
+   "id": "evaluation-fuel/harvested/iter-stored-fit",
    "area": "evaluation-fuel",
    "clauses": [
     "CH09-M-82e65964",
@@ -4685,8 +4685,8 @@
    "ms": 0
   },
   {
-   "path": "tests/evaluation-fuel/harvested/iter-unbounded-reject.rce",
-   "id": "evaluation-fuel/harvested/iter-unbounded-reject",
+   "path": "tests/evaluation-fuel/harvested/iter-unbounded-fit.rce",
+   "id": "evaluation-fuel/harvested/iter-unbounded-fit",
    "area": "evaluation-fuel",
    "clauses": [
     "CH09-M-82e65964",
@@ -4697,8 +4697,8 @@
    "ms": 0
   },
   {
-   "path": "tests/evaluation-fuel/harvested/loop-bound-reject.rce",
-   "id": "evaluation-fuel/harvested/loop-bound-reject",
+   "path": "tests/evaluation-fuel/harvested/loop-bound-fit.rce",
+   "id": "evaluation-fuel/harvested/loop-bound-fit",
    "area": "evaluation-fuel",
    "clauses": [
     "CH09-M-82e65964",
@@ -4709,8 +4709,8 @@
    "ms": 0
   },
   {
-   "path": "tests/evaluation-fuel/harvested/loop-limit-low-reject.rce",
-   "id": "evaluation-fuel/harvested/loop-limit-low-reject",
+   "path": "tests/evaluation-fuel/harvested/loop-limit-low-fit.rce",
+   "id": "evaluation-fuel/harvested/loop-limit-low-fit",
    "area": "evaluation-fuel",
    "clauses": [
     "CH09-M-82e65964",
@@ -4721,8 +4721,8 @@
    "ms": 0
   },
   {
-   "path": "tests/evaluation-fuel/harvested/loop-limit-type-reject.rce",
-   "id": "evaluation-fuel/harvested/loop-limit-type-reject",
+   "path": "tests/evaluation-fuel/harvested/loop-limit-type-fit.rce",
+   "id": "evaluation-fuel/harvested/loop-limit-type-fit",
    "area": "evaluation-fuel",
    "clauses": [
     "CH09-M-82e65964",
@@ -4821,8 +4821,8 @@
    "ms": 0
   },
   {
-   "path": "tests/evaluation-fuel/harvested/rec-not-structural-reject.rce",
-   "id": "evaluation-fuel/harvested/rec-not-structural-reject",
+   "path": "tests/evaluation-fuel/harvested/rec-not-structural-fit.rce",
+   "id": "evaluation-fuel/harvested/rec-not-structural-fit",
    "area": "evaluation-fuel",
    "clauses": [
     "CH09-M-82e65964",
@@ -4833,8 +4833,8 @@
    "ms": 0
   },
   {
-   "path": "tests/evaluation-fuel/harvested/rec-same-arg-reject.rce",
-   "id": "evaluation-fuel/harvested/rec-same-arg-reject",
+   "path": "tests/evaluation-fuel/harvested/rec-same-arg-fit.rce",
+   "id": "evaluation-fuel/harvested/rec-same-arg-fit",
    "area": "evaluation-fuel",
    "clauses": [
     "CH09-M-82e65964",
@@ -4845,8 +4845,8 @@
    "ms": 0
   },
   {
-   "path": "tests/evaluation-fuel/harvested/recursion-reject.rce",
-   "id": "evaluation-fuel/harvested/recursion-reject",
+   "path": "tests/evaluation-fuel/harvested/recursion-fit.rce",
+   "id": "evaluation-fuel/harvested/recursion-fit",
    "area": "evaluation-fuel",
    "clauses": [
     "CH09-M-82e65964",
@@ -4857,8 +4857,8 @@
    "ms": 0
   },
   {
-   "path": "tests/evaluation-fuel/harvested/trap-10000-reject.rce",
-   "id": "evaluation-fuel/harvested/trap-10000-reject",
+   "path": "tests/evaluation-fuel/harvested/trap-10000-fit.rce",
+   "id": "evaluation-fuel/harvested/trap-10000-fit",
    "area": "evaluation-fuel",
    "clauses": [
     "CH09-M-82e65964",
@@ -4869,8 +4869,8 @@
    "ms": 0
   },
   {
-   "path": "tests/evaluation-fuel/harvested/u64-underflow-reject.rce",
-   "id": "evaluation-fuel/harvested/u64-underflow-reject",
+   "path": "tests/evaluation-fuel/harvested/u64-underflow-fit.rce",
+   "id": "evaluation-fuel/harvested/u64-underflow-fit",
    "area": "evaluation-fuel",
    "clauses": [
     "CH09-M-82e65964",
@@ -4881,8 +4881,8 @@
    "ms": 0
   },
   {
-   "path": "tests/evaluation-fuel/harvested/unexpected-refusal-reject.rce",
-   "id": "evaluation-fuel/harvested/unexpected-refusal-reject",
+   "path": "tests/evaluation-fuel/harvested/unexpected-kept-fit.rce",
+   "id": "evaluation-fuel/harvested/unexpected-kept-fit",
    "area": "evaluation-fuel",
    "clauses": [
     "CH09-M-82e65964",
@@ -4927,8 +4927,8 @@
    "ms": 136
   },
   {
-   "path": "tests/evaluation-fuel/harvested/wrong-example-value-reject.rce",
-   "id": "evaluation-fuel/harvested/wrong-example-value-reject",
+   "path": "tests/evaluation-fuel/harvested/wrong-example-value-fit.rce",
+   "id": "evaluation-fuel/harvested/wrong-example-value-fit",
    "area": "evaluation-fuel",
    "clauses": [
     "CH09-M-82e65964",
@@ -4939,8 +4939,8 @@
    "ms": 0
   },
   {
-   "path": "tests/evaluation-fuel/harvested/wrong-refusal-reject.rce",
-   "id": "evaluation-fuel/harvested/wrong-refusal-reject",
+   "path": "tests/evaluation-fuel/harvested/wrong-reason-fit.rce",
+   "id": "evaluation-fuel/harvested/wrong-reason-fit",
    "area": "evaluation-fuel",
    "clauses": [
     "CH09-M-82e65964",
@@ -4951,8 +4951,8 @@
    "ms": 0
   },
   {
-   "path": "tests/evaluation-fuel/harvested/yield-outside-reject.rce",
-   "id": "evaluation-fuel/harvested/yield-outside-reject",
+   "path": "tests/evaluation-fuel/harvested/yield-outside-fit.rce",
+   "id": "evaluation-fuel/harvested/yield-outside-fit",
    "area": "evaluation-fuel",
    "clauses": [
     "CH09-M-82e65964",
@@ -7189,8 +7189,8 @@
    "ms": 36633
   },
   {
-   "path": "tests/forms-log/targeted/s1-guard-trap-refuses.rce",
-   "id": "forms-log/targeted/s1-guard-trap-refuses",
+   "path": "tests/forms-log/targeted/s1-guard-trap-kept.rce",
+   "id": "forms-log/targeted/s1-guard-trap-kept",
    "area": "forms-log",
    "clauses": [
     "CH00-M-61b6ac06",
@@ -7244,8 +7244,8 @@
    "ms": 0
   },
   {
-   "path": "tests/handler-spec/cur-2-stale-strict-refused.rce",
-   "id": "handler-spec/cur-2-stale-strict-refused",
+   "path": "tests/handler-spec/cur-2-stale-strict-fit.rce",
+   "id": "handler-spec/cur-2-stale-strict-fit",
    "area": "handler-spec",
    "clauses": [
     "W-HS-CUR-2"
@@ -9767,8 +9767,8 @@
    "ms": 0
   },
   {
-   "path": "tests/lexing-parsing/harvested/01-barrier-arg-reject.rce",
-   "id": "lexing-parsing/harvested/01-barrier-arg-reject",
+   "path": "tests/lexing-parsing/harvested/01-barrier-arg-fit.rce",
+   "id": "lexing-parsing/harvested/01-barrier-arg-fit",
    "area": "lexing-parsing",
    "clauses": [
     "CH02-M-69371f07",
@@ -9782,8 +9782,8 @@
    "ms": 0
   },
   {
-   "path": "tests/lexing-parsing/harvested/01-par-no-branch-reject.rce",
-   "id": "lexing-parsing/harvested/01-par-no-branch-reject",
+   "path": "tests/lexing-parsing/harvested/01-par-no-branch-fit.rce",
+   "id": "lexing-parsing/harvested/01-par-no-branch-fit",
    "area": "lexing-parsing",
    "clauses": [
     "CH02-M-69371f07",
@@ -9797,8 +9797,8 @@
    "ms": 0
   },
   {
-   "path": "tests/lexing-parsing/harvested/02-branch-outside-par-reject.rce",
-   "id": "lexing-parsing/harvested/02-branch-outside-par-reject",
+   "path": "tests/lexing-parsing/harvested/02-branch-outside-par-fit.rce",
+   "id": "lexing-parsing/harvested/02-branch-outside-par-fit",
    "area": "lexing-parsing",
    "clauses": [
     "CH02-M-69371f07",
@@ -9812,8 +9812,8 @@
    "ms": 0
   },
   {
-   "path": "tests/lexing-parsing/harvested/02-empty-protocol-reject.rce",
-   "id": "lexing-parsing/harvested/02-empty-protocol-reject",
+   "path": "tests/lexing-parsing/harvested/02-empty-protocol-fit.rce",
+   "id": "lexing-parsing/harvested/02-empty-protocol-fit",
    "area": "lexing-parsing",
    "clauses": [
     "CH02-M-69371f07",
@@ -9827,8 +9827,8 @@
    "ms": 0
   },
   {
-   "path": "tests/lexing-parsing/harvested/03-double-par-reject.rce",
-   "id": "lexing-parsing/harvested/03-double-par-reject",
+   "path": "tests/lexing-parsing/harvested/03-double-par-fit.rce",
+   "id": "lexing-parsing/harvested/03-double-par-fit",
    "area": "lexing-parsing",
    "clauses": [
     "CH02-M-69371f07",
@@ -9842,8 +9842,8 @@
    "ms": 0
   },
   {
-   "path": "tests/lexing-parsing/harvested/03-send-no-type-reject.rce",
-   "id": "lexing-parsing/harvested/03-send-no-type-reject",
+   "path": "tests/lexing-parsing/harvested/03-send-no-type-fit.rce",
+   "id": "lexing-parsing/harvested/03-send-no-type-fit",
    "area": "lexing-parsing",
    "clauses": [
     "CH02-M-69371f07",
@@ -9857,8 +9857,8 @@
    "ms": 0
   },
   {
-   "path": "tests/lexing-parsing/harvested/04-double-nondet-reject.rce",
-   "id": "lexing-parsing/harvested/04-double-nondet-reject",
+   "path": "tests/lexing-parsing/harvested/04-double-nondet-fit.rce",
+   "id": "lexing-parsing/harvested/04-double-nondet-fit",
    "area": "lexing-parsing",
    "clauses": [
     "CH02-M-69371f07",
@@ -9872,8 +9872,8 @@
    "ms": 0
   },
   {
-   "path": "tests/lexing-parsing/harvested/04-spawn-arrow-no-name-reject.rce",
-   "id": "lexing-parsing/harvested/04-spawn-arrow-no-name-reject",
+   "path": "tests/lexing-parsing/harvested/04-spawn-arrow-no-name-fit.rce",
+   "id": "lexing-parsing/harvested/04-spawn-arrow-no-name-fit",
    "area": "lexing-parsing",
    "clauses": [
     "CH02-M-69371f07",
@@ -9887,8 +9887,8 @@
    "ms": 0
   },
   {
-   "path": "tests/lexing-parsing/harvested/05-budget-no-expr-reject.rce",
-   "id": "lexing-parsing/harvested/05-budget-no-expr-reject",
+   "path": "tests/lexing-parsing/harvested/05-budget-no-expr-fit.rce",
+   "id": "lexing-parsing/harvested/05-budget-no-expr-fit",
    "area": "lexing-parsing",
    "clauses": [
     "CH02-M-69371f07",
@@ -9902,8 +9902,8 @@
    "ms": 0
   },
   {
-   "path": "tests/lexing-parsing/harvested/05-supervisor-no-strategy-reject.rce",
-   "id": "lexing-parsing/harvested/05-supervisor-no-strategy-reject",
+   "path": "tests/lexing-parsing/harvested/05-supervisor-no-strategy-fit.rce",
+   "id": "lexing-parsing/harvested/05-supervisor-no-strategy-fit",
    "area": "lexing-parsing",
    "clauses": [
     "CH02-M-69371f07",
@@ -9917,8 +9917,8 @@
    "ms": 0
   },
   {
-   "path": "tests/lexing-parsing/harvested/06-branch-no-name-reject.rce",
-   "id": "lexing-parsing/harvested/06-branch-no-name-reject",
+   "path": "tests/lexing-parsing/harvested/06-branch-no-name-fit.rce",
+   "id": "lexing-parsing/harvested/06-branch-no-name-fit",
    "area": "lexing-parsing",
    "clauses": [
     "CH02-M-69371f07",
@@ -9932,8 +9932,8 @@
    "ms": 0
   },
   {
-   "path": "tests/lexing-parsing/harvested/06-node-no-braces-reject.rce",
-   "id": "lexing-parsing/harvested/06-node-no-braces-reject",
+   "path": "tests/lexing-parsing/harvested/06-node-no-braces-fit.rce",
+   "id": "lexing-parsing/harvested/06-node-no-braces-fit",
    "area": "lexing-parsing",
    "clauses": [
     "CH02-M-69371f07",
@@ -9947,8 +9947,8 @@
    "ms": 0
   },
   {
-   "path": "tests/lexing-parsing/harvested/07-group-no-lanes-reject.rce",
-   "id": "lexing-parsing/harvested/07-group-no-lanes-reject",
+   "path": "tests/lexing-parsing/harvested/07-group-no-lanes-fit.rce",
+   "id": "lexing-parsing/harvested/07-group-no-lanes-fit",
    "area": "lexing-parsing",
    "clauses": [
     "CH02-M-69371f07",
@@ -9962,8 +9962,8 @@
    "ms": 0
   },
   {
-   "path": "tests/lexing-parsing/harvested/07-priority-no-expr-reject.rce",
-   "id": "lexing-parsing/harvested/07-priority-no-expr-reject",
+   "path": "tests/lexing-parsing/harvested/07-priority-no-expr-fit.rce",
+   "id": "lexing-parsing/harvested/07-priority-no-expr-fit",
    "area": "lexing-parsing",
    "clauses": [
     "CH02-M-69371f07",
@@ -9977,8 +9977,8 @@
    "ms": 0
   },
   {
-   "path": "tests/lexing-parsing/harvested/08-interrupt-state-reject.rce",
-   "id": "lexing-parsing/harvested/08-interrupt-state-reject",
+   "path": "tests/lexing-parsing/harvested/08-interrupt-state-fit.rce",
+   "id": "lexing-parsing/harvested/08-interrupt-state-fit",
    "area": "lexing-parsing",
    "clauses": [
     "CH02-M-69371f07",
@@ -9992,8 +9992,8 @@
    "ms": 0
   },
   {
-   "path": "tests/lexing-parsing/harvested/08-two-else-reject.rce",
-   "id": "lexing-parsing/harvested/08-two-else-reject",
+   "path": "tests/lexing-parsing/harvested/08-two-else-fit.rce",
+   "id": "lexing-parsing/harvested/08-two-else-fit",
    "area": "lexing-parsing",
    "clauses": [
     "CH02-M-69371f07",
@@ -10007,8 +10007,8 @@
    "ms": 0
   },
   {
-   "path": "tests/lexing-parsing/harvested/09-atomic-no-block-reject.rce",
-   "id": "lexing-parsing/harvested/09-atomic-no-block-reject",
+   "path": "tests/lexing-parsing/harvested/09-atomic-no-block-fit.rce",
+   "id": "lexing-parsing/harvested/09-atomic-no-block-fit",
    "area": "lexing-parsing",
    "clauses": [
     "CH02-M-69371f07",
@@ -10022,8 +10022,8 @@
    "ms": 0
   },
   {
-   "path": "tests/lexing-parsing/harvested/assign-in-expr-reject.rce",
-   "id": "lexing-parsing/harvested/assign-in-expr-reject",
+   "path": "tests/lexing-parsing/harvested/assign-in-expr-fit.rce",
+   "id": "lexing-parsing/harvested/assign-in-expr-fit",
    "area": "lexing-parsing",
    "clauses": [
     "CH02-M-69371f07",
@@ -10037,8 +10037,8 @@
    "ms": 0
   },
   {
-   "path": "tests/lexing-parsing/harvested/bad-dedent-reject.rce",
-   "id": "lexing-parsing/harvested/bad-dedent-reject",
+   "path": "tests/lexing-parsing/harvested/bad-dedent-fit.rce",
+   "id": "lexing-parsing/harvested/bad-dedent-fit",
    "area": "lexing-parsing",
    "clauses": [
     "CH02-M-69371f07",
@@ -10051,8 +10051,8 @@
    "ms": 0
   },
   {
-   "path": "tests/lexing-parsing/harvested/chained-compare-reject.rce",
-   "id": "lexing-parsing/harvested/chained-compare-reject",
+   "path": "tests/lexing-parsing/harvested/chained-compare-fit.rce",
+   "id": "lexing-parsing/harvested/chained-compare-fit",
    "area": "lexing-parsing",
    "clauses": [
     "CH02-M-69371f07",
@@ -10066,8 +10066,8 @@
    "ms": 0
   },
   {
-   "path": "tests/lexing-parsing/harvested/class-keyword-reject.rce",
-   "id": "lexing-parsing/harvested/class-keyword-reject",
+   "path": "tests/lexing-parsing/harvested/class-keyword-fit.rce",
+   "id": "lexing-parsing/harvested/class-keyword-fit",
    "area": "lexing-parsing",
    "clauses": [
     "CH02-M-69371f07",
@@ -10095,8 +10095,8 @@
    "ms": 0
   },
   {
-   "path": "tests/lexing-parsing/harvested/if-expr-no-else-reject.rce",
-   "id": "lexing-parsing/harvested/if-expr-no-else-reject",
+   "path": "tests/lexing-parsing/harvested/if-expr-no-else-fit.rce",
+   "id": "lexing-parsing/harvested/if-expr-no-else-fit",
    "area": "lexing-parsing",
    "clauses": [
     "CH02-M-69371f07",
@@ -10110,8 +10110,8 @@
    "ms": 0
   },
   {
-   "path": "tests/lexing-parsing/harvested/kind-empty-reject.rce",
-   "id": "lexing-parsing/harvested/kind-empty-reject",
+   "path": "tests/lexing-parsing/harvested/kind-empty-fit.rce",
+   "id": "lexing-parsing/harvested/kind-empty-fit",
    "area": "lexing-parsing",
    "clauses": [
     "CH02-M-69371f07",
@@ -10125,8 +10125,8 @@
    "ms": 0
   },
   {
-   "path": "tests/lexing-parsing/harvested/literal-out-of-range-reject.rce",
-   "id": "lexing-parsing/harvested/literal-out-of-range-reject",
+   "path": "tests/lexing-parsing/harvested/literal-out-of-range-fit.rce",
+   "id": "lexing-parsing/harvested/literal-out-of-range-fit",
    "area": "lexing-parsing",
    "clauses": [
     "CH09-M-82e65964",
@@ -10137,8 +10137,8 @@
    "ms": 0
   },
   {
-   "path": "tests/lexing-parsing/harvested/missing-arrow-example-reject.rce",
-   "id": "lexing-parsing/harvested/missing-arrow-example-reject",
+   "path": "tests/lexing-parsing/harvested/missing-arrow-example-fit.rce",
+   "id": "lexing-parsing/harvested/missing-arrow-example-fit",
    "area": "lexing-parsing",
    "clauses": [
     "CH02-M-69371f07",
@@ -10152,8 +10152,8 @@
    "ms": 0
   },
   {
-   "path": "tests/lexing-parsing/harvested/state-no-fields-reject.rce",
-   "id": "lexing-parsing/harvested/state-no-fields-reject",
+   "path": "tests/lexing-parsing/harvested/state-no-fields-fit.rce",
+   "id": "lexing-parsing/harvested/state-no-fields-fit",
    "area": "lexing-parsing",
    "clauses": [
     "CH02-M-69371f07",
@@ -10167,8 +10167,8 @@
    "ms": 0
   },
   {
-   "path": "tests/lexing-parsing/harvested/step-no-on-reject.rce",
-   "id": "lexing-parsing/harvested/step-no-on-reject",
+   "path": "tests/lexing-parsing/harvested/step-no-on-fit.rce",
+   "id": "lexing-parsing/harvested/step-no-on-fit",
    "area": "lexing-parsing",
    "clauses": [
     "CH02-M-69371f07",
@@ -10182,8 +10182,8 @@
    "ms": 0
   },
   {
-   "path": "tests/lexing-parsing/harvested/tab-indent-reject.rce",
-   "id": "lexing-parsing/harvested/tab-indent-reject",
+   "path": "tests/lexing-parsing/harvested/tab-indent-fit.rce",
+   "id": "lexing-parsing/harvested/tab-indent-fit",
    "area": "lexing-parsing",
    "clauses": [
     "CH09-M-82e65964",
@@ -10194,8 +10194,8 @@
    "ms": 0
   },
   {
-   "path": "tests/lexing-parsing/harvested/try-in-then-reject.rce",
-   "id": "lexing-parsing/harvested/try-in-then-reject",
+   "path": "tests/lexing-parsing/harvested/try-in-then-fit.rce",
+   "id": "lexing-parsing/harvested/try-in-then-fit",
    "area": "lexing-parsing",
    "clauses": [
     "CH02-M-69371f07",
@@ -10209,8 +10209,8 @@
    "ms": 0
   },
   {
-   "path": "tests/lexing-parsing/harvested/unterminated-string-reject.rce",
-   "id": "lexing-parsing/harvested/unterminated-string-reject",
+   "path": "tests/lexing-parsing/harvested/unterminated-string-fit.rce",
+   "id": "lexing-parsing/harvested/unterminated-string-fit",
    "area": "lexing-parsing",
    "clauses": [
     "CH02-M-69371f07",
@@ -36317,8 +36317,8 @@
    "ms": 5784
   },
   {
-   "path": "tests/tooling/emit-js-refused.rce",
-   "id": "tooling/emit-js-refused",
+   "path": "tests/tooling/emit-js-fit.rce",
+   "id": "tooling/emit-js-fit",
    "area": "tooling",
    "clauses": [
     "CH12-M-bafe6c22"
@@ -36328,8 +36328,8 @@
    "ms": 0
   },
   {
-   "path": "tests/tooling/emit-python-refused.rce",
-   "id": "tooling/emit-python-refused",
+   "path": "tests/tooling/emit-python-fit.rce",
+   "id": "tooling/emit-python-fit",
    "area": "tooling",
    "clauses": [
     "CH12-M-bafe6c22"
@@ -36339,8 +36339,8 @@
    "ms": 0
   },
   {
-   "path": "tests/tooling/emit-rust-refused.rce",
-   "id": "tooling/emit-rust-refused",
+   "path": "tests/tooling/emit-rust-fit.rce",
+   "id": "tooling/emit-rust-fit",
    "area": "tooling",
    "clauses": [
     "CH12-M-bafe6c22"
@@ -36350,8 +36350,8 @@
    "ms": 0
   },
   {
-   "path": "tests/tooling/emit-scala-refused.rce",
-   "id": "tooling/emit-scala-refused",
+   "path": "tests/tooling/emit-scala-fit.rce",
+   "id": "tooling/emit-scala-fit",
    "area": "tooling",
    "clauses": [
     "CH12-M-bafe6c22"
@@ -36395,8 +36395,8 @@
    "ms": 0
   },
   {
-   "path": "tests/tooling/run-refused-one-line.rce",
-   "id": "tooling/run-refused-one-line",
+   "path": "tests/tooling/run-fit-one-line.rce",
+   "id": "tooling/run-fit-one-line",
    "area": "tooling",
    "clauses": [
     "CH12-M-6e12b079"
@@ -36840,8 +36840,8 @@
    "ms": 0
   },
   {
-   "path": "tests/types-checking/harvested/14-select-main-reject.rce",
-   "id": "types-checking/harvested/14-select-main-reject",
+   "path": "tests/types-checking/harvested/14-select-main-fit.rce",
+   "id": "types-checking/harvested/14-select-main-fit",
    "area": "types-checking",
    "clauses": [
     "CH09-M-82e65964",
@@ -36852,8 +36852,8 @@
    "ms": 0
   },
   {
-   "path": "tests/types-checking/harvested/15-actor-main-reject.rce",
-   "id": "types-checking/harvested/15-actor-main-reject",
+   "path": "tests/types-checking/harvested/15-actor-main-fit.rce",
+   "id": "types-checking/harvested/15-actor-main-fit",
    "area": "types-checking",
    "clauses": [
     "CH09-M-82e65964",
@@ -36864,8 +36864,8 @@
    "ms": 0
   },
   {
-   "path": "tests/types-checking/harvested/34-chan-types-main-reject.rce",
-   "id": "types-checking/harvested/34-chan-types-main-reject",
+   "path": "tests/types-checking/harvested/34-chan-types-main-fit.rce",
+   "id": "types-checking/harvested/34-chan-types-main-fit",
    "area": "types-checking",
    "clauses": [
     "CH09-M-82e65964",
@@ -36876,8 +36876,8 @@
    "ms": 0
   },
   {
-   "path": "tests/types-checking/harvested/47-select-fair-main-reject.rce",
-   "id": "types-checking/harvested/47-select-fair-main-reject",
+   "path": "tests/types-checking/harvested/47-select-fair-main-fit.rce",
+   "id": "types-checking/harvested/47-select-fair-main-fit",
    "area": "types-checking",
    "clauses": [
     "CH09-M-82e65964",
@@ -36888,8 +36888,8 @@
    "ms": 0
   },
   {
-   "path": "tests/types-checking/harvested/arena-escape-reject.rce",
-   "id": "types-checking/harvested/arena-escape-reject",
+   "path": "tests/types-checking/harvested/arena-escape-fit.rce",
+   "id": "types-checking/harvested/arena-escape-fit",
    "area": "types-checking",
    "clauses": [
     "CH09-M-82e65964",
@@ -36900,8 +36900,8 @@
    "ms": 0
   },
   {
-   "path": "tests/types-checking/harvested/borrow-escape-reject.rce",
-   "id": "types-checking/harvested/borrow-escape-reject",
+   "path": "tests/types-checking/harvested/borrow-escape-fit.rce",
+   "id": "types-checking/harvested/borrow-escape-fit",
    "area": "types-checking",
    "clauses": [
     "CH09-M-82e65964",
@@ -36912,8 +36912,8 @@
    "ms": 0
   },
   {
-   "path": "tests/types-checking/harvested/ed25519-rce-reject.rce",
-   "id": "types-checking/harvested/ed25519-rce-reject",
+   "path": "tests/types-checking/harvested/ed25519-rce-fit.rce",
+   "id": "types-checking/harvested/ed25519-rce-fit",
    "area": "types-checking",
    "clauses": [
     "CH09-M-82e65964",
@@ -36924,8 +36924,8 @@
    "ms": 0
   },
   {
-   "path": "tests/types-checking/harvested/f32-literal-reject.rce",
-   "id": "types-checking/harvested/f32-literal-reject",
+   "path": "tests/types-checking/harvested/f32-literal-fit.rce",
+   "id": "types-checking/harvested/f32-literal-fit",
    "area": "types-checking",
    "clauses": [
     "CH09-M-82e65964",
@@ -36936,8 +36936,8 @@
    "ms": 0
   },
   {
-   "path": "tests/types-checking/harvested/f32-mixed-reject.rce",
-   "id": "types-checking/harvested/f32-mixed-reject",
+   "path": "tests/types-checking/harvested/f32-mixed-fit.rce",
+   "id": "types-checking/harvested/f32-mixed-fit",
    "area": "types-checking",
    "clauses": [
     "CH09-M-82e65964",
@@ -36948,8 +36948,8 @@
    "ms": 0
   },
   {
-   "path": "tests/types-checking/harvested/fail-not-error-reject.rce",
-   "id": "types-checking/harvested/fail-not-error-reject",
+   "path": "tests/types-checking/harvested/fail-not-error-fit.rce",
+   "id": "types-checking/harvested/fail-not-error-fit",
    "area": "types-checking",
    "clauses": [
     "CH09-M-82e65964",
@@ -36960,8 +36960,8 @@
    "ms": 0
   },
   {
-   "path": "tests/types-checking/harvested/framing-rce-reject.rce",
-   "id": "types-checking/harvested/framing-rce-reject",
+   "path": "tests/types-checking/harvested/framing-rce-fit.rce",
+   "id": "types-checking/harvested/framing-rce-fit",
    "area": "types-checking",
    "clauses": [
     "CH09-M-82e65964",
@@ -36972,8 +36972,8 @@
    "ms": 0
   },
   {
-   "path": "tests/types-checking/harvested/group-rce-reject.rce",
-   "id": "types-checking/harvested/group-rce-reject",
+   "path": "tests/types-checking/harvested/group-rce-fit.rce",
+   "id": "types-checking/harvested/group-rce-fit",
    "area": "types-checking",
    "clauses": [
     "CH09-M-82e65964",
@@ -36984,8 +36984,8 @@
    "ms": 0
   },
   {
-   "path": "tests/types-checking/harvested/hpke-rce-reject.rce",
-   "id": "types-checking/harvested/hpke-rce-reject",
+   "path": "tests/types-checking/harvested/hpke-rce-fit.rce",
+   "id": "types-checking/harvested/hpke-rce-fit",
    "area": "types-checking",
    "clauses": [
     "CH09-M-82e65964",
@@ -36996,8 +36996,8 @@
    "ms": 0
   },
   {
-   "path": "tests/types-checking/harvested/int-mismatch-reject.rce",
-   "id": "types-checking/harvested/int-mismatch-reject",
+   "path": "tests/types-checking/harvested/int-mismatch-fit.rce",
+   "id": "types-checking/harvested/int-mismatch-fit",
    "area": "types-checking",
    "clauses": [
     "CH09-M-82e65964",
@@ -37008,8 +37008,8 @@
    "ms": 0
   },
   {
-   "path": "tests/types-checking/harvested/iter-yield-type-reject.rce",
-   "id": "types-checking/harvested/iter-yield-type-reject",
+   "path": "tests/types-checking/harvested/iter-yield-type-fit.rce",
+   "id": "types-checking/harvested/iter-yield-type-fit",
    "area": "types-checking",
    "clauses": [
     "CH09-M-82e65964",
@@ -37020,8 +37020,8 @@
    "ms": 0
   },
   {
-   "path": "tests/types-checking/harvested/linear-copy-reject.rce",
-   "id": "types-checking/harvested/linear-copy-reject",
+   "path": "tests/types-checking/harvested/linear-copy-fit.rce",
+   "id": "types-checking/harvested/linear-copy-fit",
    "area": "types-checking",
    "clauses": [
     "CH09-M-82e65964",
@@ -37033,8 +37033,8 @@
    "ms": 0
   },
   {
-   "path": "tests/types-checking/harvested/linear-field-reject.rce",
-   "id": "types-checking/harvested/linear-field-reject",
+   "path": "tests/types-checking/harvested/linear-field-fit.rce",
+   "id": "types-checking/harvested/linear-field-fit",
    "area": "types-checking",
    "clauses": [
     "CH09-M-82e65964",
@@ -37045,8 +37045,8 @@
    "ms": 0
   },
   {
-   "path": "tests/types-checking/harvested/linear-in-list-reject.rce",
-   "id": "types-checking/harvested/linear-in-list-reject",
+   "path": "tests/types-checking/harvested/linear-in-list-fit.rce",
+   "id": "types-checking/harvested/linear-in-list-fit",
    "area": "types-checking",
    "clauses": [
     "CH09-M-82e65964",
@@ -37057,21 +37057,8 @@
    "ms": 0
   },
   {
-   "path": "tests/types-checking/harvested/linear-loop-reject.rce",
-   "id": "types-checking/harvested/linear-loop-reject",
-   "area": "types-checking",
-   "clauses": [
-    "CH09-M-82e65964",
-    "HC-4",
-    "W-LIN-1"
-   ],
-   "status": "n/a",
-   "detail": "admission (parse, check, W-codes) is the front end's job; an emitter translates only admitted modules (10.5)",
-   "ms": 0
-  },
-  {
-   "path": "tests/types-checking/harvested/linear-one-branch-reject.rce",
-   "id": "types-checking/harvested/linear-one-branch-reject",
+   "path": "tests/types-checking/harvested/linear-loop-fit.rce",
+   "id": "types-checking/harvested/linear-loop-fit",
    "area": "types-checking",
    "clauses": [
     "CH09-M-82e65964",
@@ -37083,8 +37070,8 @@
    "ms": 0
   },
   {
-   "path": "tests/types-checking/harvested/linear-unconsumed-reject.rce",
-   "id": "types-checking/harvested/linear-unconsumed-reject",
+   "path": "tests/types-checking/harvested/linear-one-branch-fit.rce",
+   "id": "types-checking/harvested/linear-one-branch-fit",
    "area": "types-checking",
    "clauses": [
     "CH09-M-82e65964",
@@ -37096,8 +37083,21 @@
    "ms": 0
   },
   {
-   "path": "tests/types-checking/harvested/missing-return-reject.rce",
-   "id": "types-checking/harvested/missing-return-reject",
+   "path": "tests/types-checking/harvested/linear-unconsumed-fit.rce",
+   "id": "types-checking/harvested/linear-unconsumed-fit",
+   "area": "types-checking",
+   "clauses": [
+    "CH09-M-82e65964",
+    "HC-4",
+    "W-LIN-1"
+   ],
+   "status": "n/a",
+   "detail": "admission (parse, check, W-codes) is the front end's job; an emitter translates only admitted modules (10.5)",
+   "ms": 0
+  },
+  {
+   "path": "tests/types-checking/harvested/missing-return-fit.rce",
+   "id": "types-checking/harvested/missing-return-fit",
    "area": "types-checking",
    "clauses": [
     "CH09-M-82e65964",
@@ -37108,8 +37108,8 @@
    "ms": 0
   },
   {
-   "path": "tests/types-checking/harvested/mls-rce-reject.rce",
-   "id": "types-checking/harvested/mls-rce-reject",
+   "path": "tests/types-checking/harvested/mls-rce-fit.rce",
+   "id": "types-checking/harvested/mls-rce-fit",
    "area": "types-checking",
    "clauses": [
     "CH09-M-82e65964",
@@ -37120,8 +37120,8 @@
    "ms": 0
   },
   {
-   "path": "tests/types-checking/harvested/modify-while-iterating-reject.rce",
-   "id": "types-checking/harvested/modify-while-iterating-reject",
+   "path": "tests/types-checking/harvested/modify-while-iterating-fit.rce",
+   "id": "types-checking/harvested/modify-while-iterating-fit",
    "area": "types-checking",
    "clauses": [
     "CH09-M-82e65964",
@@ -37132,8 +37132,8 @@
    "ms": 0
   },
   {
-   "path": "tests/types-checking/harvested/mut-alias-reject.rce",
-   "id": "types-checking/harvested/mut-alias-reject",
+   "path": "tests/types-checking/harvested/mut-alias-fit.rce",
+   "id": "types-checking/harvested/mut-alias-fit",
    "area": "types-checking",
    "clauses": [
     "CH09-M-82e65964",
@@ -37144,8 +37144,8 @@
    "ms": 0
   },
   {
-   "path": "tests/types-checking/harvested/non-exhaustive-reject.rce",
-   "id": "types-checking/harvested/non-exhaustive-reject",
+   "path": "tests/types-checking/harvested/non-exhaustive-fit.rce",
+   "id": "types-checking/harvested/non-exhaustive-fit",
    "area": "types-checking",
    "clauses": [
     "CH09-M-82e65964",
@@ -37156,8 +37156,8 @@
    "ms": 0
   },
   {
-   "path": "tests/types-checking/harvested/orphan-impl-reject.rce",
-   "id": "types-checking/harvested/orphan-impl-reject",
+   "path": "tests/types-checking/harvested/orphan-impl-fit.rce",
+   "id": "types-checking/harvested/orphan-impl-fit",
    "area": "types-checking",
    "clauses": [
     "CH09-M-82e65964",
@@ -37168,8 +37168,8 @@
    "ms": 0
   },
   {
-   "path": "tests/types-checking/harvested/pq-rce-reject.rce",
-   "id": "types-checking/harvested/pq-rce-reject",
+   "path": "tests/types-checking/harvested/pq-rce-fit.rce",
+   "id": "types-checking/harvested/pq-rce-fit",
    "area": "types-checking",
    "clauses": [
     "CH09-M-82e65964",
@@ -37180,8 +37180,8 @@
    "ms": 0
   },
   {
-   "path": "tests/types-checking/harvested/protect-rce-reject.rce",
-   "id": "types-checking/harvested/protect-rce-reject",
+   "path": "tests/types-checking/harvested/protect-rce-fit.rce",
+   "id": "types-checking/harvested/protect-rce-fit",
    "area": "types-checking",
    "clauses": [
     "CH09-M-82e65964",
@@ -37192,8 +37192,8 @@
    "ms": 0
   },
   {
-   "path": "tests/types-checking/harvested/select-after-type-reject.rce",
-   "id": "types-checking/harvested/select-after-type-reject",
+   "path": "tests/types-checking/harvested/select-after-type-fit.rce",
+   "id": "types-checking/harvested/select-after-type-fit",
    "area": "types-checking",
    "clauses": [
     "CH09-M-82e65964",
@@ -37204,8 +37204,8 @@
    "ms": 0
   },
   {
-   "path": "tests/types-checking/harvested/state-no-init-reject.rce",
-   "id": "types-checking/harvested/state-no-init-reject",
+   "path": "tests/types-checking/harvested/state-no-init-fit.rce",
+   "id": "types-checking/harvested/state-no-init-fit",
    "area": "types-checking",
    "clauses": [
     "CH09-M-82e65964",
@@ -37216,8 +37216,8 @@
    "ms": 0
   },
   {
-   "path": "tests/types-checking/harvested/text-index-char-reject.rce",
-   "id": "types-checking/harvested/text-index-char-reject",
+   "path": "tests/types-checking/harvested/text-index-char-fit.rce",
+   "id": "types-checking/harvested/text-index-char-fit",
    "area": "types-checking",
    "clauses": [
     "CH09-M-82e65964",
@@ -37228,8 +37228,8 @@
    "ms": 0
   },
   {
-   "path": "tests/types-checking/harvested/treekem-rce-reject.rce",
-   "id": "types-checking/harvested/treekem-rce-reject",
+   "path": "tests/types-checking/harvested/treekem-rce-fit.rce",
+   "id": "types-checking/harvested/treekem-rce-fit",
    "area": "types-checking",
    "clauses": [
     "CH09-M-82e65964",
@@ -37240,8 +37240,8 @@
    "ms": 0
   },
   {
-   "path": "tests/types-checking/harvested/u64-mixed-reject.rce",
-   "id": "types-checking/harvested/u64-mixed-reject",
+   "path": "tests/types-checking/harvested/u64-mixed-fit.rce",
+   "id": "types-checking/harvested/u64-mixed-fit",
    "area": "types-checking",
    "clauses": [
     "CH09-M-82e65964",
@@ -37252,8 +37252,8 @@
    "ms": 0
   },
   {
-   "path": "tests/types-checking/harvested/unchecked-union-reject.rce",
-   "id": "types-checking/harvested/unchecked-union-reject",
+   "path": "tests/types-checking/harvested/unchecked-union-fit.rce",
+   "id": "types-checking/harvested/unchecked-union-fit",
    "area": "types-checking",
    "clauses": [
     "CH09-M-82e65964",
@@ -37264,8 +37264,8 @@
    "ms": 0
   },
   {
-   "path": "tests/types-checking/harvested/unhandled-event-reject.rce",
-   "id": "types-checking/harvested/unhandled-event-reject",
+   "path": "tests/types-checking/harvested/unhandled-event-fit.rce",
+   "id": "types-checking/harvested/unhandled-event-fit",
    "area": "types-checking",
    "clauses": [
     "CH09-M-82e65964",
@@ -37276,8 +37276,8 @@
    "ms": 0
   },
   {
-   "path": "tests/types-checking/harvested/unknown-name-reject.rce",
-   "id": "types-checking/harvested/unknown-name-reject",
+   "path": "tests/types-checking/harvested/unknown-name-fit.rce",
+   "id": "types-checking/harvested/unknown-name-fit",
    "area": "types-checking",
    "clauses": [
     "CH09-M-82e65964",
@@ -37288,8 +37288,8 @@
    "ms": 0
   },
   {
-   "path": "tests/types-checking/harvested/unreachable-step-reject.rce",
-   "id": "types-checking/harvested/unreachable-step-reject",
+   "path": "tests/types-checking/harvested/unreachable-step-fit.rce",
+   "id": "types-checking/harvested/unreachable-step-fit",
    "area": "types-checking",
    "clauses": [
     "CH09-M-82e65964",
@@ -37300,8 +37300,8 @@
    "ms": 0
   },
   {
-   "path": "tests/types-checking/harvested/unsafe-name-reject.rce",
-   "id": "types-checking/harvested/unsafe-name-reject",
+   "path": "tests/types-checking/harvested/unsafe-name-fit.rce",
+   "id": "types-checking/harvested/unsafe-name-fit",
    "area": "types-checking",
    "clauses": [
     "CH09-M-82e65964",
@@ -37312,8 +37312,8 @@
    "ms": 0
   },
   {
-   "path": "tests/types-checking/harvested/use-after-move-reject.rce",
-   "id": "types-checking/harvested/use-after-move-reject",
+   "path": "tests/types-checking/harvested/use-after-move-fit.rce",
+   "id": "types-checking/harvested/use-after-move-fit",
    "area": "types-checking",
    "clauses": [
     "CH09-M-82e65964",
@@ -37324,8 +37324,8 @@
    "ms": 0
   },
   {
-   "path": "tests/types-checking/harvested/w-intr-1-priority-not-literal-reject.rce",
-   "id": "types-checking/harvested/w-intr-1-priority-not-literal-reject",
+   "path": "tests/types-checking/harvested/w-intr-1-priority-not-literal-fit.rce",
+   "id": "types-checking/harvested/w-intr-1-priority-not-literal-fit",
    "area": "types-checking",
    "clauses": [
     "CH09-M-82e65964",
@@ -37336,8 +37336,8 @@
    "ms": 0
   },
   {
-   "path": "tests/types-checking/harvested/w-name-2-dup-branch-reject.rce",
-   "id": "types-checking/harvested/w-name-2-dup-branch-reject",
+   "path": "tests/types-checking/harvested/w-name-2-dup-branch-fit.rce",
+   "id": "types-checking/harvested/w-name-2-dup-branch-fit",
    "area": "types-checking",
    "clauses": [
     "CH09-M-82e65964",
@@ -37348,8 +37348,8 @@
    "ms": 0
   },
   {
-   "path": "tests/types-checking/harvested/w-par-3-bad-slot-reject.rce",
-   "id": "types-checking/harvested/w-par-3-bad-slot-reject",
+   "path": "tests/types-checking/harvested/w-par-3-bad-slot-fit.rce",
+   "id": "types-checking/harvested/w-par-3-bad-slot-fit",
    "area": "types-checking",
    "clauses": [
     "CH09-M-82e65964",
@@ -37361,8 +37361,8 @@
    "ms": 0
   },
   {
-   "path": "tests/types-checking/harvested/w-ty-1-budget-text-reject.rce",
-   "id": "types-checking/harvested/w-ty-1-budget-text-reject",
+   "path": "tests/types-checking/harvested/w-ty-1-budget-text-fit.rce",
+   "id": "types-checking/harvested/w-ty-1-budget-text-fit",
    "area": "types-checking",
    "clauses": [
     "CH09-M-82e65964",
@@ -37373,8 +37373,8 @@
    "ms": 0
   },
   {
-   "path": "tests/types-checking/harvested/w-ty-1-priority-text-reject.rce",
-   "id": "types-checking/harvested/w-ty-1-priority-text-reject",
+   "path": "tests/types-checking/harvested/w-ty-1-priority-text-fit.rce",
+   "id": "types-checking/harvested/w-ty-1-priority-text-fit",
    "area": "types-checking",
    "clauses": [
     "CH09-M-82e65964",
@@ -37385,8 +37385,8 @@
    "ms": 0
   },
   {
-   "path": "tests/types-checking/harvested/w-ty-1-session-payload-reject.rce",
-   "id": "types-checking/harvested/w-ty-1-session-payload-reject",
+   "path": "tests/types-checking/harvested/w-ty-1-session-payload-fit.rce",
+   "id": "types-checking/harvested/w-ty-1-session-payload-fit",
    "area": "types-checking",
    "clauses": [
     "CH09-M-82e65964",
@@ -37397,8 +37397,8 @@
    "ms": 0
   },
   {
-   "path": "tests/types-checking/harvested/welcome-rce-reject.rce",
-   "id": "types-checking/harvested/welcome-rce-reject",
+   "path": "tests/types-checking/harvested/welcome-rce-fit.rce",
+   "id": "types-checking/harvested/welcome-rce-fit",
    "area": "types-checking",
    "clauses": [
     "CH09-M-82e65964",
@@ -37440,8 +37440,8 @@
    "ms": 0
   },
   {
-   "path": "tests/types-checking/targeted/t35-refined-input-refused.rce",
-   "id": "types-checking/targeted/t35-refined-input-refused",
+   "path": "tests/types-checking/targeted/t35-refined-input-kept.rce",
+   "id": "types-checking/targeted/t35-refined-input-kept",
    "area": "types-checking",
    "clauses": [
     "CH16-M-262166d9",

@@ -6,6 +6,6 @@ fn main()
 # id: evaluation-fuel/harvested/02-hello-main-accept
 # area: evaluation-fuel
 # clauses: [CH03-M-28cdd241, T10]
-# expect: accept
+# expect: ok
 # provenance: harvested examples/02_hello_main.rce
 #---

@@ -13,6 +13,6 @@ check (250 as u8).saturating_add(10) == 255
 # id: numbers/harvested/41-arena-bound-wrapping-accept
 # area: numbers
 # clauses: [CH03-M-28cdd241, T10, T6]
-# expect: accept
+# expect: ok
 # provenance: harvested examples/41_arena_bound_wrapping.rce
 #---

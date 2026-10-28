@@ -4,7 +4,7 @@ family, mapped to the RCE Draft 0.7 rule or theorem that excludes them, or
 GAP. Regenerate: python3 matrix.py  (writes CSV, MD tables, SVG figure).
 Status values:
   EXCLUDED  the class cannot be written in a well-formed RCE program (a W-rule refuses it, or there is no construct for it)
-  DEFINED   the class is a defined, deterministic outcome (trap, refusal, logged outcome) instead of undefined or silent behaviour
+  DEFINED   the class is a defined, deterministic outcome (trap, kept outcome, logged outcome) instead of undefined or silent behaviour
   GAP       no RCE rule or theorem excludes or defines it today
 """
 import csv, json, os
@@ -18,7 +18,7 @@ C = {
  "IOVF":  ("Integer overflow or wraparound (CWE-190)", "CWE Top 25 2024", "DEFINED", "6.3 N2 checked arithmetic traps in every build (decision 38); explicit wrapping_/saturating_ (R4); T14"),
  "RACE":  ("Data race", "language memory model", "EXCLUDED", "tasks share only channels W-SPAWN-1; par footprints W-PAR-1; T16, T17, T1 over 6.8 ticks"),
  "UNINIT":("Read of uninitialized memory", "language UB list", "EXCLUDED", "every binding has an initializer (section 3 LetStmt/VarStmt); W-NAME-1; T4"),
- "DIV0":  ("Division by zero", "language UB list / runtime error", "DEFINED", "trap (decision 7); refuses the event, state unchanged (T8)"),
+ "DIV0":  ("Division by zero", "language UB list / runtime error", "DEFINED", "trap (decision 7); the event has the kept outcome, state unchanged (T8)"),
  "DOS":   ("Uncontrolled resource consumption (CWE-400)", "CWE Top 25 2024", "EXCLUDED", "bounded loops 6.7 and LOOP_LIMIT W-LOOP-1; N9 size limits; budgets C.6; arena bound R3; T2"),
  "NONTERM":("Nontermination / stack overflow from recursion", "language docs", "EXCLUDED", "structural recursion only W-REC-1; T2 (struct_total, calls_eq_size)"),
  "CODEINJ":("Code injection / eval (CWE-94)", "CWE Top 25 2024", "EXCLUDED", "no eval, reflection or JIT (10.1, roadmap 'rejected by derivation'); closed library 5.15"),
@@ -54,7 +54,7 @@ C = {
  "ATOMS": ("Atom table / unbounded mailbox exhaustion", "Erlang system limits", "EXCLUDED", "no dynamic atoms; bounded channels with Backpressure (decision 21)"),
  "PARTITION":("Network partition and distributed consistency", "Erlang distribution docs", "GAP", "node placement and replicated state are models (T31 'close to trivial'); no network failure semantics"),
  "PARTIALDEF":("partial def / unchecked nontermination in proof languages", "Lean reference, recursive definitions", "EXCLUDED", "W-REC-1 refuses non-structural recursion; T2"),
- "DEPTYPE":("Proof obligations and dependent specifications not expressible", "Lean/Coq docs", "DEFINED", "P2 refined types 5.1 W-REF-1 (decidable fragment, T35); obligation discharged or refused, undecidable dependent types excluded by derivation (soundness/determinism); commit aa0abd3ee"),
+ "DEPTYPE":("Proof obligations and dependent specifications not expressible", "Lean/Coq docs", "DEFINED", "P2 refined types 5.1 W-REF-1 (decidable fragment, T35); obligation discharged, or enforced at run time, undecidable dependent types excluded by derivation (soundness/determinism); commit aa0abd3ee"),
  "EXTRACT":("Trust in extraction to another language", "Coq extraction manual", "GAP", "T9-L proved for Rust on a core only; Python/JS emitters tested (roadmap W7)"),
  "SQLNULL":("Three-valued NULL logic", "SQLite quirks; SQL standard", "EXCLUDED", "no null; option explicit N10"),
  "ISOL":  ("Isolation anomalies (serialization anomaly)", "PostgreSQL transaction isolation docs", "EXCLUDED", "events applied atomically and serially by delta (T8, 6.4)"),

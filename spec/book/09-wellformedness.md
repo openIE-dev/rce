@@ -1,4 +1,4 @@
-## 7. Well-formedness: what is refused at entry
+## 7. Well-formedness: the rules a text meets to have its Form
 
 This section is the checklist of rules a program must pass to be accepted
 (*well-formedness*). Each rule has a name such as W-TY-1, and a refused
@@ -121,4 +121,4 @@ W-LVAR-1, W-LVAR-2, W-NODE-1, W-SUP-1, W-SUP-2, W-INTR-1 and W-RT-1.
 
 **Read receipt.** Which rule refuses two unguarded steps in one region whose patterns overlap?
 
-<!-- body-sha256: 8bb53d8444bbf4edf7382eafe256d25442a976309d92ad5a00ec36bfe5a67a33 -->
+<!-- body-sha256: 3a5f614f11676ee8269b25b9605686b2cdd1ccf1166d334ff2666af5e33546e2 -->

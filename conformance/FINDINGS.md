@@ -48,9 +48,9 @@ Machine-readable records are in `findings/*.json`; the tests the reference fails
 13. **tree-sitter-rce `with budget ... else`.** The grammar does not parse it.
     Fix: add the production.
 14. **CLOSED. EXAMPLE-TRAP.** An `example` can state `refused: E` only for a declared
-    error; no form states that the last event traps (`refused: trap` is
+    error; no form states that the last event traps (`kept: trap` is
     W-NAME-1). So emitted programs cannot be tested on trap refusals. Fix: add
-    `-> trapped(<kind>)` to example syntax. Fixed as `refused: trap("K")` (book
+    `-> trapped(<kind>)` to example syntax. Fixed as `kept: trap("K")` (book
    3.2 grammar, 6.9 semantics derived from T2); the emit adapter now states
    trap refusals.
 15. **Conservative, not a bug.** The lex Merge certificate accepts only the
@@ -71,7 +71,7 @@ Machine-readable records are in `findings/*.json`; the tests the reference fails
     Fixed in the engine test.
 19. **CLOSED. `rce emit scala` refusal status.** A refused program gave status
     2 for Scala but 1 for the other targets; 10.1 rule 4 makes a refusal
-    status 1. Fixed in `cli.rs`; found by `tooling/emit-scala-refused`.
+    status 1. Fixed in `cli.rs`; found by `tooling/emit-scala-fit`.
 20. **Par reduction tree vs fold.** Not a bug: a `for ... par` reduction is
     evaluated on the normative split tree of C.4, so on non-associative float
     addition it can differ from `fold` (`proposed/tu-6-*`: 2 against 1.5).

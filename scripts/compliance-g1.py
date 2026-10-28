@@ -17,7 +17,8 @@ usage:
     --no-regen          with --apply, do not run the generators
     --conformance       with --apply, also rerun the conformance suite on the reference adapter
     --repin OLD_RCE     with --apply, write spec/proposals/compliance-repin.tsv (COMP-20 (b)) from
-                        the program hashes OLD_RCE gives the earlier texts and the new rce the new ones
+                        the program hashes OLD_RCE gives the earlier texts and the new rce the new ones;
+                        `--repin build` first builds OLD_RCE from the tree before the change
     --residual FILE     write every hit that remains after the rewrite, with its class, to FILE
     --rules             print the matches of every rule
     --verbose           print each changed file
@@ -268,7 +269,7 @@ DELTA = [
     (r"\brefuse the (whole )?event\b", r"give the \1event the kept outcome"),
     (r"\bis refused (as a whole|atomically)\b", r"has the kept outcome \1"), (r"\bthe first refusal\b", "the first kept outcome"),
     (r"\brefusals\b", "kept outcomes"), (r"\brefusal\b", "kept outcome"), (r"\bis refused\b", "has the kept outcome"),
-    (r"\bare refused\b", "have the kept outcome"), (r"\brefused\b", "kept"),
+    (r"\bare refused\b", "have the kept outcome"), (r"\bmay refuse\b", "may keep the state"), (r"\brefused\b", "kept"),
 ]
 
 
@@ -1025,7 +1026,7 @@ RULES = [
     "spec/lean/RCE/Core/Elab.lean", "conformance/tools/gen_props.py", "conformance/tools/ts_crosscheck.py", "conformance/tools/harvest.py",
     "conformance/tests/evaluation-fuel/harvested/bad-*.rce", "conformance/tests/types-checking/targeted/w-ty-2-nested-option.rce",
     "conformance/tools/targeted.py", "stdlib/tests/effect/effect_probes.py", "stdlib/scripts/one-language.py",
-    "spec/conc06b/accept/*.rce", "spec/examples-0.9/fit/*.rce", "spec/wasm-test/test.mjs", "spec/lift/go/*.py",
+    "spec/conc06b/accept/*.rce", "spec/examples-0.9/fit/*.rce", "spec/wasm-test/test.mjs",
     "ide/crates/rce-ide/src/graph_edit.rs", "ide/crates/rce-ide/src/graph_panel.rs", "ide/crates/rce-ide/src/main.rs",
     "ide/crates/rce-memory/src/form.rs", "ide/crates/rce-mcp/tests/mcp_stdio.rs", "stdlib/vectors/effect/rce-examples/MANIFEST",
     "scripts/rename-reserved.py", "stdlib/scripts/rename-reserved.py",
@@ -1033,7 +1034,7 @@ RULES = [
     "spec/checker/src/dim.rs", "spec/checker/src/interp.rs", "spec/checker/tests/host_runtime.rs",
     "spec/checker/tests/traces.rs", "spec/lean/RCE/Core/Events.lean", "spec/lean/RCE/Core/Log.lean", "spec/lean/RCE/Form.lean",
     "spec/lean/RCE/Refine.lean", "spec/lean/RCE/WriteBack.lean", "spec/lean/RCE/Bound.lean", "spec/lean/CoreMain.lean",
-    "spec/lean/RCE/Emit.lean", "conformance/harness/run.py", "programs/**/*.rce", "apps/sfu.rce",
+    "spec/lean/RCE/Emit.lean", "conformance/harness/run.py", "programs/**/*.rce", "apps/sfu.rce", "spec/lift/go/*.py",
 ], where="com+str") + [
 
     L("and `reject/` does not parse.", "and `fit/` does not parse.", "spec/checker/tests/conc06b_check.rs"),
@@ -1053,6 +1054,9 @@ RULES = [
     T("refused", "kept", "ide/crates/rce-memory/src/form.rs", where="code"),
     T("refused_file_is_reported_not_indexed_wrongly", "fit_file_is_reported_not_indexed_wrongly", ["ide/**"], where="any"),
 ] + phrases(STATIC, ["scripts/corpus.py", "tree-sitter/src/scanner.c", "ide/crates/rce-ide/tests/*.rs"], where="com+str") + [
+    T("refused", "reported", ["spec/checker/tests/lean_session_lin.rs", "spec/checker/tests/lean_session_prio.rs"], where="code"),
+    L("ill_typed / inadmissible / reject folders", "ill_typed / inadmissible / fit folders", "conformance/tools/harvest.py"),
+    L("k \\u2260 j: refused (shape error)", "k \\u2260 j: reported (shape error)", "docs/figures/src/infographics/make_tensor.py"),
     # the reason Lean's `Refusal` takes in the Rust it emits, named in comments
     L("-- return Err(Refusal::", "-- return Err(Reason::", "spec/lean/**"),
 ]
@@ -1283,6 +1287,10 @@ def run(args):
     if not args.apply:
         return 0
 
+    # COMP-20 (b): keep an rce built from the tree before the change, to hash the earlier texts
+    old_rce = args.repin
+    if args.repin == "build":
+        old_rce = build_old_rce()
     # apply: moves first (git mv), then the contents
     for a, b in sorted(plan.items()):
         os.makedirs(os.path.dirname(os.path.join(ROOT, b)), exist_ok=True)
@@ -1294,8 +1302,8 @@ def run(args):
     old_texts = {f: (src, a) for f, (src, a, b) in changes.items() if f.endswith(".rce")}
     if not args.no_regen:
         regenerate(args)
-    if args.repin:
-        repin(args.repin, old_texts)
+    if old_rce:
+        repin(old_rce, old_texts)
     return 0
 
 
@@ -1327,7 +1335,16 @@ def regenerate(args):
         built = sh("cargo build -q --release --bin rce --bin rce-check --bin rce-book --bin rce-spec-data --bin rce-conform",
                    cwd=checker, env=env)
     if built:
-        sh("scripts/regen-spec.sh", env=env)
+        # a private copy of the binaries: a shared target directory may be rebuilt
+        # from another work tree while this step runs
+        import tempfile
+        bins = tempfile.mkdtemp(prefix="compliance-g1-bin-")
+        for b in ("rce", "rce-check", "rce-book", "rce-spec-data", "rce-conform"):
+            shutil.copy2(os.path.join(target, "release", b), os.path.join(bins, b))
+        rce = os.path.join(bins, "rce")
+        # scripts/regen-spec.sh, with the copied binaries
+        sh(f"{bins}/rce-book build")
+        sh(f"{bins}/rce-spec-data")
         sh("cargo test -q --release --test traces", cwd=checker, env=dict(env, RCE_BLESS_TRACES="1"))
         sh("cargo test -q --release --test brick", cwd=checker, env=dict(env, RCE_BLESS="1"))
         sh("book/scripts/check-listings.sh --bless", env=dict(env, RCE=rce), ok=(0, 1))
@@ -1337,7 +1354,7 @@ def regenerate(args):
         print("  tree-sitter/tree-sitter-rce.wasm (a WebAssembly build) is left for CI")
         if built:
             sh("python3 tools/ts_crosscheck.py ../tree-sitter", cwd=os.path.join(ROOT, "conformance"),
-               env={"RCE_CHECK": os.path.join(target, "release", "rce-check")}, ok=(0, 1))
+               env={"RCE_CHECK": os.path.join(bins, "rce-check")}, ok=(0, 1))
     else:
         print("  the tree-sitter CLI is not present: tree-sitter/src is left for CI (tree-sitter generate --js-runtime native)")
     print("  spec/checker-wasm/pkg (wasm-pack) is left for playground/build.sh")
@@ -1346,7 +1363,7 @@ def regenerate(args):
     # the hand rewording changes (clause-repin.tsv, 10); the rules rename its headings
     sh("python3 tools/validate.py", cwd=os.path.join(ROOT, "conformance"), ok=(0, 1))
     if args.conformance and built:
-        cenv = dict(env, RCE=rce, RCE_CONFORM=os.path.join(target, "release", "rce-conform"))
+        cenv = dict(env, RCE=rce, RCE_CONFORM=os.path.join(bins, "rce-conform"))
         jobs = os.environ.get("CARGO_BUILD_JOBS", "2")
         sh(f"python3 harness/run.py --adapter adapters/reference.json --jobs {jobs} --quiet",
            cwd=os.path.join(ROOT, "conformance"), env=cenv, ok=(0, 1))
@@ -1357,26 +1374,46 @@ def regenerate(args):
               " rerun with --conformance to regenerate results-reference.json, coverage and parity")
 
 
+def build_old_rce():
+    """Build `rce` from the tree as it is before the change and keep a copy."""
+    import tempfile
+    target = os.environ.get("CARGO_TARGET_DIR", os.path.join(ROOT, "spec", "checker", "target"))
+    if not sh("cargo build -q --release --bin rce", cwd=os.path.join(ROOT, "spec", "checker"), env={"CARGO_TARGET_DIR": target}):
+        sys.exit("compliance-g1: could not build rce from the tree before the change")
+    keep = os.path.join(tempfile.mkdtemp(prefix="compliance-g1-"), "rce")
+    shutil.copy2(os.path.join(target, "release", "rce"), keep)
+    return keep
+
+
+def program_hash(rce, path):
+    p = subprocess.run([rce, "hash", path], capture_output=True, text=True)
+    for line in p.stdout.splitlines():
+        if line.rstrip().endswith("  program"):
+            return line.split()[0]
+    return "-"
+
+
 def repin(old_rce, old_texts):
     """COMP-20 (b): earlier program hash -> new program hash, per rewritten .rce file."""
     target = os.environ.get("CARGO_TARGET_DIR", os.path.join(ROOT, "spec", "checker", "target"))
-    new_rce = os.path.join(target, "release", "rce")
+    import tempfile
+    sh("cargo build -q --release --bin rce", cwd=os.path.join(ROOT, "spec", "checker"), env={"CARGO_TARGET_DIR": target})
+    new_rce = os.path.join(tempfile.mkdtemp(prefix="compliance-g1-"), "rce")
+    shutil.copy2(os.path.join(target, "release", "rce"), new_rce)
     rows = []
-    tmp = os.path.join(ROOT, ".compliance-g1-tmp.rce")
     for f, (src, old) in sorted(old_texts.items()):
-        with open(tmp, "w", encoding="utf-8") as w:
+        # the earlier text beside the file, so that the modules it uses resolve
+        tmp = os.path.join(ROOT, os.path.dirname(f), ".compliance-g1-earlier.rce")
+        with open(tmp, "w", encoding="utf-8", newline="") as w:
             w.write(old)
-        a = subprocess.run([old_rce, "hash", tmp], capture_output=True, text=True)
-        b = subprocess.run([new_rce, "hash", os.path.join(ROOT, f)], capture_output=True, text=True)
-        ha = (a.stdout.split() or ["-"])[0] if a.returncode == 0 else "-"
-        hb = (b.stdout.split() or ["-"])[0] if b.returncode == 0 else "-"
-        if ha != hb:
+        ha, hb = program_hash(old_rce, tmp), program_hash(new_rce, os.path.join(ROOT, f))
+        os.remove(tmp)
+        if ha != hb and "-" not in (ha, hb):
             rows.append(f"{src}\t{f}\t{ha}\t{hb}")
-    os.remove(tmp)
     out = os.path.join(ROOT, "spec", "proposals", "compliance-repin.tsv")
     with open(out, "w", encoding="utf-8") as w:
         w.write("# COMP-20 (b): program hashes before and after group 1 of the compliance migration.\n")
-        w.write("# earlier path\tpath\tearlier hash\thash\n")
+        w.write("# One row per program whose text this group changed: earlier path, path, earlier program hash, program hash.\n")
         w.write("\n".join(rows) + ("\n" if rows else ""))
     print(f"  wrote {out}: {len(rows)} programs whose hash changed")
 

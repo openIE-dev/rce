@@ -1,0 +1,19 @@
+# rce-version: 0.6
+# expect: W-ND-1
+state S
+    n: i64 = 0
+event E
+step S on E
+    n += 1
+fn f() -> i64
+    select nondet
+        default -> pass
+    0
+#--- rce-test
+# id: concurrency/harvested/w-nd-1-step-fit
+# area: concurrency
+# clauses: [CH09-M-82e65964, W-ND-1]
+# expect: fit
+# diagnostic: W-ND-1
+# provenance: harvested conc06/ill_typed/W-ND-1_step.rce
+#---

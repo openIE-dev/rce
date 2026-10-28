@@ -16,6 +16,6 @@ impl forall[T: Describe] Describe for List[T]
 # id: text-unicode/harvested/09-generics-accept
 # area: text-unicode
 # clauses: [CH03-M-28cdd241, CH06-M-02b1c842, CH06-M-8e9952a9, T10, T6]
-# expect: accept
+# expect: ok
 # provenance: harvested examples/09_generics.rce
 #---

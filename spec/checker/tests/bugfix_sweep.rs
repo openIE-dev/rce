@@ -64,12 +64,12 @@ fn b006_b007_indices_are_usize_and_out_of_range_traps() {
 }
 
 #[test]
-fn b008_float_rem_is_refused() {
+fn b008_float_rem_reports_fit() {
     assert!(diag("check 7.5 % 2.0 == 1.5\n").contains("`%` needs integers"));
 }
 
 #[test]
-fn b009_f64_min_max_evaluate_and_pow_is_refused() {
+fn b009_f64_min_max_evaluate_and_pow_reports_fit() {
     assert!(diag("check 3.0.min(1.5) == 1.5\ncheck 3.0.max(1.5) == 3.0\ncheck 2.0.min(2.0) == 2.0\n").is_empty());
     assert!(diag("check 2.0.pow(2.0) == 4.0\n").contains("W-NAME-1"));
 }

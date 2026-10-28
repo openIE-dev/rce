@@ -94,7 +94,7 @@ Intent with examples
 
 intent "a counter"
     example Inc, Inc -> 2
-    example Dec -> refused: Underflow
+    example Dec -> kept: Underflow
 
 ---
 
@@ -113,5 +113,5 @@ intent "a counter"
       (event_list
         (event_ref
           (NAME)))
-      (outcome_refused
+      (outcome_kept
         (NAME)))))

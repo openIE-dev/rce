@@ -10,6 +10,6 @@ fn classify(n: i64) -> text
 # id: evaluation-fuel/harvested/23-patterns-accept
 # area: evaluation-fuel
 # clauses: [CH03-M-28cdd241, T10]
-# expect: accept
+# expect: ok
 # provenance: harvested examples/23_patterns.rce
 #---

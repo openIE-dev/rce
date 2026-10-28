@@ -1,0 +1,17 @@
+linear struct H
+    id: i32
+
+extern "C" fn c_close(h: H) -> i32
+
+fn main()
+    let h = H(id: 3)
+    for i in 0..3
+        let _ = c_close(h)
+#--- rce-test
+# id: types-checking/harvested/linear-loop-fit
+# area: types-checking
+# clauses: [CH09-M-82e65964, HC-4, W-LIN-1]
+# expect: fit
+# diagnostic: W-LIN-1
+# provenance: harvested examples/ill_typed/linear_loop.rce
+#---

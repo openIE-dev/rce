@@ -12,6 +12,6 @@ fn area(s: &Shape) -> f64
 # id: numbers/harvested/05-kind-match-accept
 # area: numbers
 # clauses: [CH03-M-28cdd241, T10, T6]
-# expect: accept
+# expect: ok
 # provenance: harvested examples/05_kind_match.rce
 #---

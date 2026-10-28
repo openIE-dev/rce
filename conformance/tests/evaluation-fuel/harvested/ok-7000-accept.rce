@@ -10,6 +10,6 @@ check down(7000) == 7000
 # id: evaluation-fuel/harvested/ok-7000-accept
 # area: evaluation-fuel
 # clauses: [CH03-M-28cdd241, T10]
-# expect: accept
+# expect: ok
 # provenance: harvested checker/tests/depth/ok_7000.rce
 #---

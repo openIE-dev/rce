@@ -29,6 +29,6 @@ check ints() == "-3,2,10,yzx"
 # id: evaluation-fuel/harvested/ok-order-accept
 # area: evaluation-fuel
 # clauses: [CH03-M-28cdd241, T10]
-# expect: accept
+# expect: ok
 # provenance: harvested checker/tests/maporder/ok_order.rce
 #---

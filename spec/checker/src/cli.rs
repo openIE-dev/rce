@@ -11,7 +11,7 @@ use std::io::{BufRead, Write};
 
 /// Exit codes of spec 10.1.
 pub const OK: i32 = 0;
-pub const REFUSED: i32 = 1;
+pub const OUTSTANDING: i32 = 1;
 pub const USAGE: i32 = 2;
 
 /// Diagnostics of one text as (1-based line, message). Empty means admitted.
@@ -81,16 +81,17 @@ fn show_state_redacted(s: &[Region], redact: &[&str]) -> String {
         .join("; ")
 }
 
-/// Outcome of `rce run`: the printed lines and whether the run was refused.
+/// Outcome of `rce run`: the printed lines and whether an event had the kept
+/// outcome or the run stopped.
 #[derive(Debug, PartialEq)]
 pub struct RunOut {
     pub lines: Vec<String>,
-    pub refused: bool,
+    pub kept: bool,
 }
 
 /// `rce run FILE EVENTS`: apply δ to the initial state once per event, in
 /// order, printing the state and outputs after each. Stops at the first
-/// refused event. Without events, runs `fn main()` and prints its outputs.
+/// event with the kept outcome. Without events, runs `fn main()` and prints its outputs.
 /// The module must be admitted first (as by `rce check`).
 pub fn run(src: &str, events: Option<&str>) -> Result<RunOut, String> {
     let d = diagnostics(src, &HashSet::new());
@@ -108,18 +109,18 @@ pub fn run(src: &str, events: Option<&str>) -> Result<RunOut, String> {
         for o in &r.outputs {
             lines.push(format!("emit {}", o.show()));
         }
-        let refused = match r.outcome {
+        let kept = match r.outcome {
             crate::conc::Outcome::Done => false,
             crate::conc::Outcome::Deadlock => {
                 lines.push("deadlock".into());
                 true
             }
-            crate::conc::Outcome::Refused(e) => {
-                lines.push(format!("refused: {e}"));
+            crate::conc::Outcome::Stopped(e) => {
+                lines.push(format!("stopped: {e}"));
                 true
             }
         };
-        return Ok(RunOut { lines, refused });
+        return Ok(RunOut { lines, kept });
     };
     // The event list uses the syntax of an `example` line (3.x): parse it as one.
     let probe =
@@ -145,17 +146,17 @@ pub fn run(src: &str, events: Option<&str>) -> Result<RunOut, String> {
                 }
             }
             Err(r) => {
-                lines.push(format!("{} {} refused: {r}", k + 1, ev.show()));
+                lines.push(format!("{} {} kept: {r} {}", k + 1, ev.show(), show_state(&s)));
                 return Ok(RunOut {
                     lines,
-                    refused: true,
+                    kept: true,
                 });
             }
         }
     }
     Ok(RunOut {
         lines,
-        refused: false,
+        kept: false,
     })
 }
 
@@ -474,7 +475,7 @@ pub fn serve(r: &mut impl BufRead, w: &mut impl Write) -> i32 {
 }
 
 /// Version of the reference trace format (10.9, informative).
-pub const TRACE_FORMAT: &str = "rce-trace/2";
+pub const TRACE_FORMAT: &str = "rce-trace/3";
 
 /// `rce trace --json FILE [EVENTS]`: the reference trace of a Form (10.9).
 /// Without EVENTS, one trace per `example` of the module (its log D, 6.1);
@@ -482,7 +483,7 @@ pub const TRACE_FORMAT: &str = "rce-trace/2";
 /// canonical D fields `seq`, `event`, `state_hash`, `prev_hash`, `hash`,
 /// the derived `outcome`, and `hashed`, the positional forms of the event
 /// and the state that the two hashes are over (6.1, T7); a trace stops at
-/// the first refused event.
+/// the first event with the kept outcome.
 /// Keys are sorted and the JSON is compact, so equal traces are equal bytes.
 pub fn trace(file: &str, src: &str, events: Option<&str>) -> Result<String, String> {
     match events {
@@ -670,11 +671,11 @@ fn run_main(a: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &mu
                     Ok(()) => writeln!(out, "ok {p}").map_err(w)?,
                     Err(e) => {
                         bad += 1;
-                        writeln!(out, "REFUSED {p}: {e}").map_err(w)?
+                        writeln!(out, "fit {p}: {e}").map_err(w)?
                     }
                 }
             }
-            if bad > 0 { REFUSED } else { OK }
+            if bad > 0 { OUTSTANDING } else { OK }
         }
         Some("run") if rest.len() == 1 || rest.len() == 2 => {
             match run(&read_file(&rest[0])?, rest.get(1).map(String::as_str)) {
@@ -682,11 +683,11 @@ fn run_main(a: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &mu
                     for l in &r.lines {
                         writeln!(out, "{l}").map_err(w)?;
                     }
-                    if r.refused { REFUSED } else { OK }
+                    if r.kept { OUTSTANDING } else { OK }
                 }
                 Err(e) => {
-                    writeln!(out, "REFUSED {}: {e}", rest[0]).map_err(w)?;
-                    REFUSED
+                    writeln!(out, "fit {}: {e}", rest[0]).map_err(w)?;
+                    OUTSTANDING
                 }
             }
         }
@@ -707,7 +708,7 @@ fn run_main(a: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &mu
                 }
             }
             writeln!(out, "{pass} passed, {fail} failed").map_err(w)?;
-            if fail > 0 { REFUSED } else { OK }
+            if fail > 0 { OUTSTANDING } else { OK }
         }
         Some("unform") if rest.len() == 1 => match unform(&read_file(&rest[0])?) {
             Ok(t) => {
@@ -716,7 +717,7 @@ fn run_main(a: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &mu
             }
             Err(e) => {
                 writeln!(out, "REFUSED {}: {e}", rest[0]).map_err(w)?;
-                REFUSED
+                OUTSTANDING
             }
         },
         Some("db") if rest.len() >= 2 => db_cmd(rest, out)?,
@@ -732,8 +733,8 @@ fn run_main(a: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &mu
                     OK
                 }
                 Err(e) => {
-                    writeln!(out, "REFUSED {}: {e}", rest[1]).map_err(w)?;
-                    REFUSED
+                    writeln!(out, "fit {}: {e}", rest[1]).map_err(w)?;
+                    OUTSTANDING
                 }
             }
         }
@@ -744,8 +745,8 @@ fn run_main(a: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &mu
                     OK
                 }
                 Err(e) => {
-                    writeln!(out, "REFUSED {}: {e}", rest[1]).map_err(w)?;
-                    REFUSED
+                    writeln!(out, "fit {}: {e}", rest[1]).map_err(w)?;
+                    OUTSTANDING
                 }
             }
         }
@@ -798,12 +799,12 @@ fn run_main(a: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &mu
                 }
             };
             let (verdict, status) = match (&beh, breaking) {
-                (Some(e), _) if !e.equivalent => ("meaning change  the behaviour of the program changed", REFUSED),
+                (Some(e), _) if !e.equivalent => ("meaning change  the behaviour of the program changed", OUTSTANDING),
                 (Some(e), false) if e.exact => ("erratum  every export compatible and every behaviour kept on the whole explored graph", OK),
                 (Some(_), false) => ("erratum to the explored bound  every export compatible and every behaviour kept as far as explored", OK),
-                (Some(_), true) => ("interface change  behaviour kept, an export broken (F.4.3): callers must change", REFUSED),
+                (Some(_), true) => ("interface change  behaviour kept, an export broken (F.4.3): callers must change", OUTSTANDING),
                 (None, false) => ("compatible  every export compatible; no Form to compare behaviour on", OK),
-                (None, true) => ("breaking  an export broken (F.4.3); no Form to compare behaviour on", REFUSED),
+                (None, true) => ("breaking  an export broken (F.4.3); no Form to compare behaviour on", OUTSTANDING),
             };
             writeln!(out, "verdict             {verdict}").map_err(w)?;
             status
@@ -840,7 +841,7 @@ fn run_main(a: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &mu
             } else {
                 write!(out, "{}", crate::dim::equiv_report(&e)).map_err(w)?;
             }
-            if e.equivalent { OK } else { REFUSED }
+            if e.equivalent { OK } else { OUTSTANDING }
         }
         Some("dim") if !rest.is_empty() => {
             // rce dim [--fuel N] [--control] [--json] FILE   (10.11)
@@ -871,8 +872,8 @@ fn run_main(a: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &mu
             let src = read_file(&file)?;
             let d = diagnostics(&src, &HashSet::new());
             if !d.is_empty() {
-                writeln!(out, "REFUSED {file}: {}", d.into_iter().map(|x| x.1).collect::<Vec<_>>().join("; ")).map_err(w)?;
-                return Ok(REFUSED);
+                writeln!(out, "fit {file}: {}", d.into_iter().map(|x| x.1).collect::<Vec<_>>().join("; ")).map_err(w)?;
+                return Ok(OUTSTANDING);
             }
             let m = crate::program(&src)?;
             match crate::dim::dim_with(&m, fuel, control) {
@@ -885,8 +886,8 @@ fn run_main(a: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &mu
                     OK
                 }
                 Err(e) => {
-                    writeln!(out, "REFUSED {file}: {e}").map_err(w)?;
-                    REFUSED
+                    writeln!(out, "fit {file}: {e}").map_err(w)?;
+                    OUTSTANDING
                 }
             }
         }
@@ -910,7 +911,7 @@ fn run_main(a: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &mu
             for r in &rows {
                 writeln!(out, "{}", r.show()).map_err(w)?;
             }
-            if rows.iter().any(|r| r.breaking) { REFUSED } else { OK }
+            if rows.iter().any(|r| r.breaking) { OUTSTANDING } else { OK }
         }
         Some("lib") if rest.is_empty() => {
             for n in crate::stdlib::names() {
@@ -925,7 +926,7 @@ fn run_main(a: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &mu
             for e in &bad {
                 writeln!(out, "{e}").map_err(w)?;
             }
-            if bad.is_empty() { OK } else { REFUSED }
+            if bad.is_empty() { OK } else { OUTSTANDING }
         }
         Some("lib") if rest.len() == 1 => match crate::stdlib::source(&rest[0]) {
             Some(src) => {
@@ -982,7 +983,7 @@ fn run_main(a: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &mu
                 }
                 Err(e) => {
                     writeln!(out, "REFUSED {}: {e}", rest[0]).map_err(w)?;
-                    REFUSED
+                    OUTSTANDING
                 }
             }
         }
@@ -1009,7 +1010,7 @@ fn run_main(a: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &mu
                 if ["form", "rust", "python", "js", "scala"].contains(&rest[0].as_str())
                     && !e.starts_with("not supported by the emitter")
                 {
-                    REFUSED
+                    OUTSTANDING
                 } else {
                     USAGE
                 }
@@ -1033,8 +1034,8 @@ fn run_main(a: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &mu
                     OK
                 }
                 Err(e) => {
-                    writeln!(out, "REFUSED {}: {e}", rest[1]).map_err(w)?;
-                    REFUSED
+                    writeln!(out, "fit {}: {e}", rest[1]).map_err(w)?;
+                    OUTSTANDING
                 }
             }
         }
@@ -1049,7 +1050,7 @@ fn run_main(a: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &mu
                     Ok(n) => {
                         if check {
                             writeln!(out, "would reformat {p}").map_err(w)?;
-                            code = REFUSED;
+                            code = OUTSTANDING;
                         } else {
                             std::fs::write(p, n).map_err(|e| format!("{p}: {e}"))?;
                             writeln!(out, "formatted {p}").map_err(w)?;
@@ -1057,7 +1058,7 @@ fn run_main(a: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &mu
                     }
                     Err(e) => {
                         writeln!(out, "REFUSED {p}: {e}").map_err(w)?;
-                        code = REFUSED;
+                        code = OUTSTANDING;
                     }
                 }
             }
@@ -1135,8 +1136,8 @@ fn host_cmd(a: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &mu
     let src = read_file(file)?;
     let d = diagnostics(&src, &HashSet::new());
     if !d.is_empty() {
-        writeln!(out, "REFUSED {file}: {}", d.into_iter().map(|x| x.1).collect::<Vec<_>>().join("; ")).map_err(w)?;
-        return Ok(REFUSED);
+        writeln!(out, "fit {file}: {}", d.into_iter().map(|x| x.1).collect::<Vec<_>>().join("; ")).map_err(w)?;
+        return Ok(OUTSTANDING);
     }
     let m = crate::program(&src)?;
     match sub {
@@ -1155,7 +1156,7 @@ fn host_cmd(a: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &mu
                 }
                 Err(e) => {
                     writeln!(out, "REPLAY FAILED {log}: {e}").map_err(w)?;
-                    Ok(REFUSED)
+                    Ok(OUTSTANDING)
                 }
             }
         }
@@ -1293,7 +1294,7 @@ fn host_cmd(a: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &mu
                 Some(e) => vec![(*e).clone()],
                 None => input.lines().map_while(Result::ok).filter(|l| !l.trim().is_empty()).collect(),
             };
-            let mut refused = false;
+            let mut kept = false;
             for b in batches {
                 for x in h.admit(&src, &b)? {
                     match x.outcome {
@@ -1304,8 +1305,8 @@ fn host_cmd(a: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &mu
                             }
                         }
                         Err(r) => {
-                            refused = true;
-                            writeln!(out, "{} {} refused: {r}", x.seq, x.event).map_err(w)?
+                            kept = true;
+                            writeln!(out, "{} {} kept: {r}", x.seq, x.event).map_err(w)?
                         }
                     }
                 }
@@ -1314,7 +1315,7 @@ fn host_cmd(a: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &mu
             writeln!(out, "{}", show_state(h.state())).map_err(w)?;
             let live = h.state_hash().to_string();
             drop(h);
-            validate_run(&m, log, &live, if refused { REFUSED } else { OK }, err)
+            validate_run(&m, log, &live, if kept { OUTSTANDING } else { OK }, err)
         }
         _ => Err(format!("rce host: unknown subcommand `{sub}`")),
     }
@@ -1340,7 +1341,7 @@ pub fn form_full(m: &Module) -> Result<String, String> {
                 let outcome = match r.outcome {
                     crate::conc::Outcome::Done => "\"done\"".to_string(),
                     crate::conc::Outcome::Deadlock => "\"deadlock\"".to_string(),
-                    crate::conc::Outcome::Refused(e) => format!("{{\"refused\":{}}}", serde_json::to_string(&e).unwrap_or_default()),
+                    crate::conc::Outcome::Stopped(e) => format!("{{\"stopped\":{}}}", serde_json::to_string(&e).unwrap_or_default()),
                 };
                 format!("{{\"outcome\":{outcome},\"outputs\":[{}]}}", outs.join(","))
             }

@@ -378,7 +378,7 @@ impl Cx<'_> {
                 Ok(json!(["let", ["raise", code], "unit"]))
             }
             // `fail E(f: e, ..)`: the payload is evaluated (it may trap), then
-            // the error refuses the event; only its name is observable (T8)
+            // the error gives the event the kept outcome; only its name is observable (T8)
             Stmt::Fail(Expr::Call(f, args, _, false))
                 if matches!(&**f, Expr::Name(en, _) if self.errs.contains(en)) =>
             {

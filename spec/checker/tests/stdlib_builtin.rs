@@ -46,7 +46,7 @@ fn the_lib_directive_places_the_library_in_front() {
 }
 
 #[test]
-fn an_unknown_module_is_still_refused() {
+fn an_unknown_module_still_reports_fit() {
     let f = tmp("unknown", "module demo3\nuse nothere\n\nfn main()\n    emit 1\n");
     let (st, out) = rce(&["check", &f]);
     assert_eq!(st, 1, "{out}");

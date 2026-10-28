@@ -1,9 +1,0 @@
-fn f() -> i64 = y + 1
-#--- rce-test
-# id: types-checking/harvested/unknown-name-reject
-# area: types-checking
-# clauses: [CH09-M-82e65964, W-NAME-1]
-# expect: reject
-# diagnostic: W-NAME-1
-# provenance: harvested examples/ill_typed/unknown_name.rce
-#---

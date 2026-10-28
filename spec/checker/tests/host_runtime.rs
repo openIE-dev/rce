@@ -20,7 +20,7 @@ const EVS: &str = r#"Put(key: "b", val: "2"), Put(key: "a", val: "1"), Delete(ke
 fn program_entries_agree_with_reference_trace() {
     let (p, src) = ex("55_rcedb.rce");
     let m = parse(&src).unwrap();
-    // the reference trace stops at the first refusal; use the applied prefix
+    // the reference trace stops at the first kept outcome; use the applied prefix
     let evs = r#"Put(key: "b", val: "2"), Put(key: "a", val: "1"), Scan(start: ""), Delete(key: "a")"#;
     let t: Value = serde_json::from_str(&trace(&p.to_string_lossy(), &src, Some(evs)).unwrap()).unwrap();
     let want: Vec<String> = t["traces"][0]["steps"].as_array().unwrap().iter().map(|s| s["state_hash"].as_str().unwrap().to_string()).collect();

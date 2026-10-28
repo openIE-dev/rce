@@ -11,6 +11,6 @@ check blend([1.0, 2.0, 3.0, 4.0], [0.0, 0.0, 0.0, 0.0], [1.0, 0.5, 0.0, 1.0]) ==
 # id: numbers/harvested/43-simd-lanes-accept
 # area: numbers
 # clauses: [CH03-M-28cdd241, T10]
-# expect: accept
+# expect: ok
 # provenance: harvested examples/43_simd_lanes.rce
 #---

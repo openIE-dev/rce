@@ -1,9 +1,9 @@
-# Errors and refusals
+# Errors and kept outcomes
 
 RCE has no exceptions. A step either finishes or is *refused*, and a
 function either returns a value or fails with a declared error.
 
-## Refusing an event
+## Keeping the state
 
 ```rce
 {{#include ../listings/ch06/account.rce}}

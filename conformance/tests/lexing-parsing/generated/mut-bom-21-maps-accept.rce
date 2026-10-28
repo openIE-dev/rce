@@ -9,7 +9,7 @@ fn table() -> Map[text, i64] = {"a": 1, "b": 2,}
 # id: lexing-parsing/generated/mut-bom-21-maps-accept
 # area: lexing-parsing
 # clauses: [CH09-M-82e65964, W-LEX-1]
-# expect: reject
+# expect: fit
 # diagnostic: W-LEX-1
 # flags: [generated]
 # provenance: gen_props.py seed 7: mutation `bom` of 21-maps-accept

@@ -4,7 +4,7 @@
 //! For each program: a random module (kinds, functions, 1 or 2 state
 //! regions, 1 to 3 events, guarded and block-bodied steps) and a random
 //! event log are generated from a seeded splitmix64 stream. The module must
-//! be admitted by the reference checker (programs it refuses are counted and
+//! be admitted by the reference checker (programs it reports are counted and
 //! replaced, never compared). Then:
 //!   1. `rce run` (`cli::run`) prints the state after each event;
 //!   2. the log is appended as an `example`, and the reference evaluator's
@@ -736,7 +736,7 @@ fn run_target(lang: Lang, dir: &Path, stem: &str) -> Result<String, String> {
 
 /// The program with its log appended as an example. `-> true` is a
 /// final-state condition; the example's verdict is not part of the
-/// comparison (refused and trapping logs are compared too), so admission
+/// comparison (logs with kept outcomes and traps are compared too), so admission
 /// of the base program is checked without it.
 fn with_example(src: &str, log: &str) -> String {
     format!("{src}\nexample {log} -> true\n")
@@ -872,9 +872,9 @@ fn main() {
         inc(&mut stats, "programs generated", 1);
         let d = cli::diagnostics(&src, &HashSet::new());
         if !d.is_empty() {
-            inc(&mut stats, "refused by checker (replaced, not compared)", 1);
+            inc(&mut stats, "reported by the checker (replaced, not compared)", 1);
             let rule = d[0].1.split_whitespace().find(|w| w.starts_with("W-")).unwrap_or("other").to_string();
-            inc(&mut stats, &format!("  refused: {rule}"), 1);
+            inc(&mut stats, &format!("  reported: {rule}"), 1);
             if fail_log.len() < 10 {
                 fail_log.push(d[0].1.clone());
             }
@@ -886,7 +886,7 @@ fn main() {
         let run = match std::panic::catch_unwind(|| cli::run(&src, Some(&log))) {
             Ok(Ok(r)) => r,
             Ok(Err(e)) => {
-                inc(&mut stats, "rce run error (events rejected)", 1);
+                inc(&mut stats, "rce run error (events not read)", 1);
                 fail_log.push(format!("case {id}: rce run: {e}"));
                 continue;
             }
@@ -895,8 +895,8 @@ fn main() {
                 continue;
             }
         };
-        if run.refused {
-            inc(&mut stats, "logs refused at some event", 1);
+        if run.kept {
+            inc(&mut stats, "logs with a kept outcome at some event", 1);
         }
         let full = with_example(&src, &log);
         let m = parse(&full).expect("parses with example");
@@ -1056,7 +1056,7 @@ fn main() {
         println!("{m}");
     }
     if !fail_log.is_empty() {
-        println!("sample checker refusals / run errors:");
+        println!("sample checker reports / run errors:");
         for f in fail_log.iter().take(20) {
             println!("  {f}");
         }

@@ -78,6 +78,6 @@ fn imin_rem() -> i64
 # id: numbers/harvested/emit-edge-accept
 # area: numbers
 # clauses: [CH03-M-28cdd241, T10, T6]
-# expect: accept
+# expect: ok
 # provenance: harvested checker/tests/emit_edge.rce
 #---

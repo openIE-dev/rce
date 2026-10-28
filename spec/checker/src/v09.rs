@@ -14,7 +14,7 @@ use std::collections::{BTreeSet, HashMap, HashSet};
 pub const RESERVED_GATED: &[&str] = &["declassify", "law"];
 
 /// Reserved words whose construct is implemented: a use that the parser did
-/// not consume as that construct is refused as a name (W-NAME-2).
+/// not consume as that construct is reported as a name (W-NAME-2).
 pub const RESERVED_LIVE: &[&str] = &["label", "release", "endorse", "ct", "requires", "ensures", "ghost", "decreases"];
 
 /// W-NAME-2: a live reserved word used as a name.
@@ -73,7 +73,7 @@ pub fn gate(toks: &[(crate::parse::Tok, usize)]) -> Result<(), String> {
 
 // ---------------------------------------------------------------- S8 lexical
 
-/// Characters W-LEX-4 refuses inside a string or comment: bidirectional
+/// Characters W-LEX-4 reports inside a string or comment: bidirectional
 /// controls, zero-width and invisible format characters, C0 and C1 controls
 /// (other than the line feed that ends a line), Unicode noncharacters and the
 /// tag block. `\u{...}` in a string is the one way to write them.
@@ -92,15 +92,15 @@ pub fn w_lex_4_class(c: char) -> Option<&'static str> {
     })
 }
 
-/// W-LEX-4 over the whole source text: a refused character anywhere in a
-/// string or a comment. (Outside both, the lexer already refuses every
+/// W-LEX-4 over the whole source text: a reported character anywhere in a
+/// string or a comment. (Outside both, the lexer already reports every
 /// non-ASCII character, 2.3.) A leading U+FEFF is already W-LEX-1.
 pub fn lexical(src: &str) -> Result<(), String> {
     let mut errs = vec![];
     for (n, ln) in src.split('\n').enumerate() {
         for c in ln.chars() {
             if let Some(k) = w_lex_4_class(c) {
-                // the tab and BOM have their own W-LEX-1 refusals in the lexer
+                // the tab and BOM have their own W-LEX-1 reports in the lexer
                 if c == '\t' || (c == '\u{feff}' && n == 0) || c == '\r' {
                     continue;
                 }
@@ -575,7 +575,7 @@ fn mentions(s: &Stmt, x: &str) -> bool {
 }
 
 /// Whether a statement or expression names `x` anywhere (a conservative
-/// over-approximation of "reads x": it makes W-ASSIGN-1 refuse less).
+/// over-approximation of "reads x": it makes W-ASSIGN-1 report less).
 struct Mention<'a> {
     x: &'a str,
     hit: bool,
@@ -1655,7 +1655,7 @@ pub(crate) fn fn_decls(m: &Module) -> Vec<(&FnDecl, bool)> {
 }
 
 /// A version 0.9 construct that the emitters and the Lean elaboration do not
-/// translate: the reference evaluator runs it, every other target refuses it
+/// translate: the reference evaluator runs it, every other target reports it
 /// as not implemented (never a different meaning). `None` when the module has none.
 pub fn unemittable(m: &Module) -> Option<String> {
     unemittable_for(m, false)
@@ -1706,7 +1706,7 @@ pub fn unemittable_for(m: &Module, lean: bool) -> Option<String> {
 
 /// Whether a module has a function that can fail after taking a `&mut`
 /// argument, so that F.4.4's restore changes its meaning (the emitters do not
-/// implement the restore, so they refuse such a module).
+/// implement the restore, so they report such a module).
 pub fn needs_restore(m: &Module) -> bool {
     fn fails(ss: &[Stmt]) -> bool {
         ss.iter().any(|s| {
@@ -1803,7 +1803,7 @@ pub const IMPLEMENTED: &[(&str, &str)] = &[
     ("W-NAME-2", "label, release, endorse, ct, requires, ensures, ghost and decreases used as ordinary names in a 0.9 module"),
     ("W-CAP-3", "path-taking foreign functions need Cap[DirRead|DirWrite]; DirRead and DirWrite are structs with `root: text`; narrow only extends a relative path"),
     ("W-CAP-1 (closures)", "a closure capturing &World or a capability, by declared type (labeled data is W-IFC-1)"),
-    ("W-CAP-4 and W-CAP-5 (model)", "caretaker log fold: refusal record, idempotent revoke, no un-revoke (caretaker.rs); `host.revoke` itself is reserved, not implemented"),
+    ("W-CAP-4 and W-CAP-5 (model)", "caretaker log fold: capability record, idempotent revoke, no un-revoke (caretaker.rs); `host.revoke` itself is reserved, not implemented"),
     ("W-LEN-1", "`len` on text in a 0.9 module; `len_bytes` and `len_chars` name the unit"),
     ("S3 contexts", "ShellArg, Prompt, Header (CR and LF refused, F.5.7) and Shell.cmd as typed output"),
     ("W-BUD-1 (model)", "a call to an `extern \"model\"` function outside `with budget`"),

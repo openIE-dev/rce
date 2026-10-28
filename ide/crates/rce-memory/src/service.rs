@@ -213,7 +213,7 @@ impl<E: MemoryEngine> Memory<E> {
                 sp,
                 action,
                 features("commit", 0),
-                Verdict::Rejected {
+                Verdict::NotPerformed {
                     reason: format!("commit failed after receipt {}: {e}", r.hash),
                 },
                 json!({"failed_receipt": r.hash}),
@@ -331,7 +331,7 @@ impl<E: MemoryEngine> Memory<E> {
                     sp,
                     "memory.remember",
                     features("store", 0),
-                    Verdict::Rejected {
+                    Verdict::NotPerformed {
                         reason: e.to_string(),
                     },
                     json!({"request": req}),
@@ -348,7 +348,7 @@ impl<E: MemoryEngine> Memory<E> {
                     sp,
                     "memory.remember",
                     features("store", 0),
-                    Verdict::Rejected {
+                    Verdict::NotPerformed {
                         reason: e.to_string(),
                     },
                     json!({"request": req}),
@@ -396,7 +396,7 @@ impl<E: MemoryEngine> Memory<E> {
                     sp,
                     "memory.forget",
                     features("forget", 0),
-                    Verdict::Rejected {
+                    Verdict::NotPerformed {
                         reason: e.to_string(),
                     },
                     json!({"id": id}),

@@ -17,12 +17,12 @@ refused, so adding a variant later shows you every place that must handle
 it:
 
 ```rce
-{{#include ../listings/ch07/refused/missing_case.rce}}
+{{#include ../listings/ch07/fit/missing_case.rce}}
 ```
 
 ```text
 $ rce check missing_case.rce
-{{#include ../listings/ch07/refused/missing_case.out}}
+{{#include ../listings/ch07/fit/missing_case.out}}
 ```
 
 A `_` pattern matches anything and can serve as the last arm.

@@ -16,7 +16,7 @@ namespace RCE.Obligations
 /-- T42 (F.4.2) Noninterference with labels. -/
 structure LabelModel where
   Input : Type
-  Outcome : Type            -- a value, a trap or the refusal outcome
+  Outcome : Type            -- a value, a trap or the kept outcome
   Public : Type             -- what a public observer sees of an outcome
   run : Input → Outcome
   agreePublic : Input → Input → Prop   -- equal on every public-label field
@@ -57,7 +57,7 @@ def T45 (m : CtModel) : Prop :=
 /-- T46 (F.6.2) Contract enforcement. -/
 inductive CallResult (V : Type) where
   | returned (v : V)
-  | refused                                  -- the event is refused with the fixed record
+  | kept                                  -- the event has the kept outcome, with the fixed record
 structure ContractModel where
   State : Type
   Value : Type
@@ -73,7 +73,7 @@ structure TxModel where
   Value : Type
   call : Caller → Caller × CallResult Value
 def T47 (m : TxModel) : Prop :=
-  ∀ c, (m.call c).2 = CallResult.refused → (m.call c).1 = c
+  ∀ c, (m.call c).2 = CallResult.kept → (m.call c).1 = c
 
 -- T48 is proved of a model in RCE/Discharged.lean (in the audit); not stated here.
 /-- T49 (F.6.3) Ghost erasure. -/

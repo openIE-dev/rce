@@ -11,6 +11,6 @@ fn worker(input: chan (u64, text), output: chan u64)
 # id: concurrency/harvested/34-chan-types-accept
 # area: concurrency
 # clauses: [CH03-M-28cdd241, T10]
-# expect: accept
+# expect: ok
 # provenance: harvested examples/34_chan_types.rce
 #---

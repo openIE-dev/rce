@@ -1,4 +1,4 @@
-# Refused: the cycle od -> od2 -> od passes through no bounded function.
+# Reported: the cycle od -> od2 -> od passes through no bounded function.
 fn ev(n: u64) -> bool bound 64
     if n == 0
         return true

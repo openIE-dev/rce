@@ -18,6 +18,6 @@ check sample_sum() == 9
 # id: evaluation-fuel/harvested/39-structural-recursion-accept
 # area: evaluation-fuel
 # clauses: [CH03-M-28cdd241, CH11-M-7fed7576, T10, T6]
-# expect: accept
+# expect: ok
 # provenance: harvested examples/39_structural_recursion.rce
 #---

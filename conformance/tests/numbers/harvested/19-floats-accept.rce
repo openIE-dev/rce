@@ -14,6 +14,6 @@ const EPS = 1e-9
 # id: numbers/harvested/19-floats-accept
 # area: numbers
 # clauses: [CH03-M-28cdd241, T10]
-# expect: accept
+# expect: ok
 # provenance: harvested examples/19_floats.rce
 #---

@@ -232,7 +232,7 @@ pub struct TurnReport {
     pub permissions_granted: Vec<String>,
     pub permissions_denied: Vec<(String, String)>,
     /// Client methods the agent called that it was never given.
-    pub refused_methods: Vec<String>,
+    pub methods_outside_grant: Vec<String>,
     /// rce-mcp receipts written during the turn.
     pub mcp_receipts: Vec<String>,
     pub mcp_ledger_head: Option<String>,
@@ -652,7 +652,7 @@ impl AcpClient {
             }
             m => {
                 // fs/*, terminal/*, elicitation and anything else: not advertised, not served.
-                rep.refused_methods.push(m.to_string());
+                rep.methods_outside_grant.push(m.to_string());
                 Err((
                     -32601,
                     format!(
@@ -764,9 +764,9 @@ impl AcpClient {
             });
         }
         d.verdict = if let Some(e) = verdict {
-            Verdict::Rejected { reason: e }
+            Verdict::NotPerformed { reason: e }
         } else if !rep.unmediated.is_empty() {
-            Verdict::Rejected {
+            Verdict::NotPerformed {
                 reason: format!(
                     "writes outside rce-mcp: {:?} (reverted: {:?})",
                     rep.unmediated, rep.reverted

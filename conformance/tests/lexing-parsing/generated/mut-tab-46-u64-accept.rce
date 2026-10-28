@@ -16,7 +16,7 @@ check BIG - lalr + lalr == BIG
 # id: lexing-parsing/generated/mut-tab-46-u64-accept
 # area: lexing-parsing
 # clauses: [CH09-M-82e65964, W-LEX-1]
-# expect: reject
+# expect: fit
 # diagnostic: W-LEX-1
 # flags: [generated]
 # provenance: gen_props.py seed 7: mutation `tab` of 46-u64-accept

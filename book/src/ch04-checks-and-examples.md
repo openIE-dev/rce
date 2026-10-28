@@ -22,7 +22,7 @@ the next chapter. For now, read the two examples:
 
 - `example Inc, Inc, Dec -> 1` means: start from the initial state, apply
   the events `Inc`, `Inc`, `Dec`, and the counter must then be 1.
-- `example Dec -> refused: Underflow` means: applying `Dec` to a fresh
+- `example Dec -> kept: Underflow` means: applying `Dec` to a fresh
   counter must be refused with the error `Underflow`.
 
 `rce test` reports how many examples and checks each file has:
@@ -37,12 +37,12 @@ $ rce test counter.rce
 Change the expected value and the program is refused:
 
 ```rce
-{{#include ../listings/ch04/refused/wrong_example.rce}}
+{{#include ../listings/ch04/fit/wrong_example.rce}}
 ```
 
 ```text
 $ rce check wrong_example.rce
-{{#include ../listings/ch04/refused/wrong_example.out}}
+{{#include ../listings/ch04/fit/wrong_example.out}}
 ```
 
 This is the admission rule `W-INT-1`: every `check` and every `example`

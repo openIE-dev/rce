@@ -6,10 +6,10 @@ check` accepts standalone, and writes one row per program with its intent
 block, nameless canonical source, shape hash, verdict, the size of the Form
 and of each emitted program, and rho = b(code) / b(P) as preregistered in
 openie-research-experiments/rce/bench/form-space/PREREG.json. Negatives are
-the conformance tests that must be rejected (with their diagnostic code) and
+the conformance tests that must be reported (with their diagnostic code) and
 checker-verified mutants of the accepted programs under a fixed seed: three
 whitespace-token mutants and two of each typed operator (rename, operator,
-literal, guard, type), each classified as refused (with its diagnostic),
+literal, guard, type), each classified as reported (with its diagnostic),
 caught by the program's own example lines (W-INT-1), accepted with the same
 shape, accepted and equivalent (same trace heads), or accepted with a
 behaviour change the examples did not catch.
@@ -89,7 +89,7 @@ def population():
     for d, origin in [("spec/examples", "spec-examples"), ("spec/examples-0.9/ok", "spec-examples-0.9"), ("programs", "programs"),
                       ("apps", "apps"), ("book/listings", "book-listings"), ("stdlib/lib", "stdlib")]:
         for p in sorted((ROOT / d).rglob("*.rce")):
-            if "/refused/" in p.as_posix() or "_FIXTURE" in p.name:
+            if "/fit/" in p.as_posix() or "_FIXTURE" in p.name:
                 continue
             rows.append((p, "MIT OR Apache-2.0", origin))
     return rows
@@ -110,8 +110,8 @@ def conformance(expect_accept):
             continue
         exp = str(meta.get("expect"))
         is_accept = exp == "accept"
-        is_reject = exp == "reject" or exp.startswith("W-")
-        if (expect_accept and is_accept) or (not expect_accept and is_reject):
+        is_fit = exp == "fit" or exp.startswith("W-")
+        if (expect_accept and is_accept) or (not expect_accept and is_fit):
             if meta.get("fixtures"):
                 continue  # a package, not a standalone program
             out.append((p, src, meta))
@@ -143,7 +143,7 @@ def mutate(src, rng):
 KEYWORDS = set("""intent example state event error step on fn let var if elif else return emit fail try catch for in
 while loop bound match with arena device struct kind trait impl pub use module type ghost requires ensures decreases
 label atomic par spawn chan select recv send after break continue check and or not true false none some self comptime
-extern actor supervisor node const refused by as mut then""".split())
+extern actor supervisor node const by as mut then""".split())
 OP_CLASSES = [["+", "-", "*", "/"], ["<", "<=", ">", ">="], ["==", "!="], ["and", "or"]]
 TYPE_SWAP = {"u64": "i64", "i64": "u64", "text": "bool", "bool": "text", "f64": "i64"}
 
@@ -269,7 +269,7 @@ def main():
 
     cands = [(p, lic, origin, None) for p, lic, origin in population()]
     cands += [(p, "MIT OR Apache-2.0", "conformance-accept", src) for p, src, _ in conformance(True)]
-    rows, refused = [], []
+    rows, fit = [], []
     tmpdir = out / ".tmp"
     tmpdir.mkdir(exist_ok=True)
     for p, lic, origin, src in cands:
@@ -284,14 +284,14 @@ def main():
         r = rce.run("check", file)
         check_s = round(time.time() - t0, 4)
         if r.returncode != 0:
-            refused.append({"path": rel, "origin": origin, "why": (r.stdout + r.stderr).strip()[:300]})
+            fit.append({"path": rel, "origin": origin, "why": (r.stdout + r.stderr).strip()[:300]})
             continue
         nameless = rce.run("fmt", "--nameless", file).stdout
         if not nameless.strip():
-            refused.append({"path": rel, "origin": origin, "why": "no nameless projection"})
+            fit.append({"path": rel, "origin": origin, "why": "no nameless projection"})
             continue
         row = {
-            "format": "rce-corpus/1", "commit": commit, "path": rel, "origin": origin, "licence": lic,
+            "format": "rce-corpus/2", "commit": commit, "path": rel, "origin": origin, "licence": lic,
             "source_sha256": sha(src), "shape_hash": sha(nameless), "intent": intent_block(src),
             "source": src, "nameless": nameless, "verdict": "accept",
             "form": {"tokens": len(tokens(nameless, "#")), "bytes": len(nameless.encode()), "gz_bits": gz_bits(nameless)},
@@ -357,28 +357,28 @@ def main():
         h = int(r["shape_hash"][:16], 16) % 10
         r["split"] = "train" if h < 8 else ("validation" if h == 8 else "test")
 
-    # negatives: conformance rejects, and token mutants of the accepted programs
+    # negatives: the conformance tests that expect `fit`, and token mutants of the accepted programs
     negs = []
     for p, src, meta in conformance(False):
-        negs.append({"format": "rce-corpus/1", "commit": commit, "path": p.relative_to(ROOT).as_posix(), "origin": "conformance-reject",
-                     "licence": "MIT OR Apache-2.0", "source": src, "source_sha256": sha(src), "verdict": "reject",
+        negs.append({"format": "rce-corpus/2", "commit": commit, "path": p.relative_to(ROOT).as_posix(), "origin": "conformance-fit",
+                     "licence": "MIT OR Apache-2.0", "source": src, "source_sha256": sha(src), "verdict": "fit",
                      "diagnostic": meta.get("diagnostic"), "clauses": meta.get("clauses"), "kind": "conformance"})
     rng = Rng(SEED)
-    mut_stats = {"reject": 0, "accept": 0, "accept_same_shape": 0, "accept_equivalent": 0, "accept_behaviour_change": 0, "caught_by_examples": 0}
+    mut_stats = {"fit": 0, "accept": 0, "accept_same_shape": 0, "accept_equivalent": 0, "accept_behaviour_change": 0, "caught_by_examples": 0}
     scores = []
 
     def classify(r, text, kind, op):
         f = tmpdir / f"mut-{r['shape_hash'][:12]}-{op}-{rng.next() % 1000000}.rce"
         f.write_text(text, encoding="utf-8")
         c = rce.run("check", str(f))
-        row = {"format": "rce-corpus/1", "commit": commit, "path": r["path"], "origin": r["origin"], "licence": r["licence"],
+        row = {"format": "rce-corpus/2", "commit": commit, "path": r["path"], "origin": r["origin"], "licence": r["licence"],
                "source": text, "source_sha256": sha(text), "kind": "mutant", "operator": op, "mutation": kind, "parent_shape_hash": r["shape_hash"]}
         if c.returncode != 0:
             msg = (c.stdout + c.stderr).strip()
             code = first_code(msg)
-            row.update(verdict="reject", diagnostic=code, message=msg[:300],
-                       outcome="caught_by_examples" if code == "W-INT-1" else "refused")
-            mut_stats["reject"] += 1
+            row.update(verdict="fit", diagnostic=code, message=msg[:300],
+                       outcome="caught_by_examples" if code == "W-INT-1" else "kept")
+            mut_stats["fit"] += 1
             if code == "W-INT-1":
                 mut_stats["caught_by_examples"] += 1
         else:
@@ -450,7 +450,7 @@ def main():
         return {"n": n, "median": q(0.5), "q1": q(0.25), "q3": q(0.75), "min": xs[0], "max": xs[-1]}
 
     summary = {
-        "commit": commit, "seed": hex(SEED), "candidates": len(cands), "accepted": len(rows), "refused": len(refused),
+        "commit": commit, "seed": hex(SEED), "candidates": len(cands), "accepted": len(rows), "fit": len(fit),
         "unique_shapes": len(uniq), "duplicates": len(rows) - len(uniq),
         "by_origin": {o: sum(1 for r in uniq if r["origin"] == o) for o in sorted({r["origin"] for r in uniq})},
         "with_intent": sum(1 for r in uniq if r["intent"]),
@@ -466,10 +466,10 @@ def main():
         "intent_mutation_score": {"programs": len(scores), "median": (sorted(x["score"] for x in scores)[len(scores) // 2] if scores else None),
                                   "pooled_caught": sum(x["caught"] for x in scores), "pooled_uncaught": sum(x["uncaught"] for x in scores), "rows": scores},
         "check_s": med_iqr([r["check_s"] for r in uniq]),
-        "refused_rows": refused, "rce_cpu_s": round(rce.cpu, 1),
+        "fit_rows": fit, "rce_cpu_s": round(rce.cpu, 1),
     }
     (out / "summary.json").write_text(json.dumps(summary, indent=1, sort_keys=True) + "\n")
-    print(json.dumps({k: v for k, v in summary.items() if k != "refused_rows"}, indent=1))
+    print(json.dumps({k: v for k, v in summary.items() if k != "fit_rows"}, indent=1))
 
 
 if __name__ == "__main__":

@@ -1,0 +1,15 @@
+# rce-version: 0.6
+# expect: W-ATOM-1
+fn main()
+    let c = chan[i64](2)
+    atomic
+        c <- 1
+        let v = <- c
+#--- rce-test
+# id: concurrency/harvested/w-atom-1-recv-in-atomic-fit
+# area: concurrency
+# clauses: [CH09-M-82e65964, W-ATOM-1]
+# expect: fit
+# diagnostic: W-ATOM-1
+# provenance: harvested conc06b/ill_typed/W-ATOM-1_recv_in_atomic.rce
+#---

@@ -1,0 +1,2 @@
+fit mut_alias.rce: line 6: W-OWN-2 `xs` is borrowed mutably and again in one call
+exit status: 1

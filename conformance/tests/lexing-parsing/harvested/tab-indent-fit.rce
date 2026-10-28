@@ -1,0 +1,10 @@
+fn f() -> i64
+	return 1
+#--- rce-test
+# id: lexing-parsing/harvested/tab-indent-fit
+# area: lexing-parsing
+# clauses: [CH09-M-82e65964, W-LEX-1]
+# expect: fit
+# diagnostic: W-LEX-1
+# provenance: harvested examples/reject/tab_indent.rce
+#---

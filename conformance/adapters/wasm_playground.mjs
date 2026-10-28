@@ -21,8 +21,8 @@ for await (const line of rl) {
     const known = Object.entries(files).filter(([k]) => k !== "main.rce")
       .map(([, s]) => (s.match(/^module\s+([\w.]+)/m) || [])[1]).filter(Boolean).join(",");
     const v = JSON.parse(mod.check_with(main, known));
-    r = v.ok ? { verdict: "accept", diagnostics: [] }
-             : { verdict: "reject", diagnostics: v.errors.map(e => ({ code: e.rule || null, message: e.msg })) };
+    r = v.ok ? { verdict: "ok", diagnostics: [] }
+             : { verdict: "fit", diagnostics: v.errors.map(e => ({ code: e.rule || null, message: e.msg })) };
   } else r = { error: `op ${req.op} is not served by the playground` };
   r.id = req.id;
   process.stdout.write(JSON.stringify(r) + "\n");

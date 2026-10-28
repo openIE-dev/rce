@@ -14,6 +14,6 @@ fn main()
 # id: concurrency/harvested/04-scope-atomic-accept
 # area: concurrency
 # clauses: [CH02-M-a696f3a3, CH03-M-28cdd241, CH06-M-5912c594, T10, T30]
-# expect: accept
+# expect: ok
 # provenance: harvested conc06b/accept/04_scope_atomic.rce
 #---

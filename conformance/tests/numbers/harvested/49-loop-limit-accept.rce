@@ -12,6 +12,6 @@ check count(2000000) == 2000000
 # id: numbers/harvested/49-loop-limit-accept
 # area: numbers
 # clauses: [CH03-M-28cdd241, T10]
-# expect: accept
+# expect: ok
 # provenance: harvested examples/49_loop_limit.rce
 #---

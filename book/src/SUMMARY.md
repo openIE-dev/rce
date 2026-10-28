@@ -7,7 +7,7 @@
 - [Choices and loops](ch03-control-flow.md)
 - [Checks and examples](ch04-checks-and-examples.md)
 - [State, events and steps](ch05-state-events-steps.md)
-- [Errors and refusals](ch06-errors.md)
+- [Errors and kept outcomes](ch06-errors.md)
 - [Structs, kinds and matching](ch07-structs-kinds.md)
 - [Lists, maps and text](ch08-collections-text.md)
 - [Ownership and borrowing](ch09-ownership.md)

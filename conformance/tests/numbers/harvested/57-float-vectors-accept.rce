@@ -48,6 +48,6 @@ step Lab on F32Mul(a: a, b: b) -> ((a as f32) * (b as f32)) as f64
 # id: numbers/harvested/57-float-vectors-accept
 # area: numbers
 # clauses: [CH03-M-28cdd241, CH08-M-9a15157f, T10]
-# expect: accept
+# expect: ok
 # provenance: harvested examples/57_float_vectors.rce
 #---

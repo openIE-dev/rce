@@ -1,7 +1,7 @@
 //! One language, one globally reserved word list (spec 2.7). The concurrency
 //! words (`par`, `node`, `scope`, `group`, ...) are reserved in every module,
 //! whatever its `# rce-version:` label says (a label gates nothing), so a
-//! program that uses one as a name is refused, and a program that uses one as
+//! program that uses one as a name is reported, and a program that uses one as
 //! its construct is accepted.
 use rce_spec_check::parse::parse;
 
@@ -38,7 +38,7 @@ fn an_unknown_label_is_tolerated() {
 const SPAWN: &str = "fn worker(c: chan i64)\n    c <- 1\n\nfn boss(c: chan i64)\n    spawn worker(c)\n\nfn main()\n    let c = chan[i64](1)\n    spawn boss(c)\n";
 
 #[test]
-fn spawn_outside_a_scope_is_refused_in_every_module() {
+fn spawn_outside_a_scope_reports_fit_in_every_module() {
     let r = rce_spec_check::check_one(&format!("# rce-version: 0.5\n{SPAWN}"));
     assert!(r.unwrap_err().contains("W-SCOPE-1"));
 }

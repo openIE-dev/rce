@@ -1,0 +1,17 @@
+intent "counter"
+    example Dec -> 0
+
+state Counter
+    n: u64 = 0
+
+event Dec
+
+step Counter on Dec -> n - 1
+#--- rce-test
+# id: evaluation-fuel/harvested/unexpected-kept-fit
+# area: evaluation-fuel
+# clauses: [CH09-M-82e65964, W-INT-1]
+# expect: fit
+# diagnostic: W-INT-1
+# provenance: harvested examples/inadmissible/unexpected_refusal.rce
+#---

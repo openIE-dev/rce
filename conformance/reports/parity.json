@@ -1,23 +1,23 @@
 {
  "adapters": {
   "emit-js": {
-   "agree": 1460,
+   "agree": 1459,
    "disagree": 0,
-   "n/a": 531,
+   "n/a": 520,
    "unsupported": 0,
    "missing": 0
   },
   "emit-python": {
-   "agree": 1460,
+   "agree": 1459,
    "disagree": 0,
-   "n/a": 531,
+   "n/a": 520,
    "unsupported": 0,
    "missing": 0
   },
   "emit-rust": {
-   "agree": 1460,
+   "agree": 1459,
    "disagree": 0,
-   "n/a": 531,
+   "n/a": 520,
    "unsupported": 0,
    "missing": 0
   },
@@ -25,22 +25,22 @@
    "agree": 52,
    "disagree": 1189,
    "n/a": 0,
-   "unsupported": 604,
-   "missing": 146
+   "unsupported": 591,
+   "missing": 147
   },
   "lean-core": {
    "agree": 210,
    "disagree": 1,
    "n/a": 0,
-   "unsupported": 1779,
-   "missing": 1
+   "unsupported": 1766,
+   "missing": 2
   },
   "wasm-playground": {
-   "agree": 432,
+   "agree": 419,
    "disagree": 16,
    "n/a": 0,
    "unsupported": 1504,
-   "missing": 39
+   "missing": 40
   }
  },
  "disagreements": [
@@ -8375,42 +8375,42 @@
    "detail": "refused at entry: [{\"line\": 3, \"message\": \"line 3: W-NAME-1 unknown type `T`\"}, {\"line\": 3, \"message\": \"line 3: W-NAME-1 unknown name `i64`\"}, {\"line\": 3, \"message\": \"line 3: W-TY-1 cannot index fn(never) -> never\"}]"
   },
   {
-   "id": "concurrency/harvested/w-ses-4-moved-in-loop-reject",
+   "id": "concurrency/harvested/w-ses-4-moved-in-loop-fit",
    "adapter": "wasm-playground",
    "reference": "pass",
    "adapter_status": "fail",
    "detail": "expected diagnostic W-SES-4, got ['W-SES-2', 'W-SES-2', 'W-OWN-1']"
   },
   {
-   "id": "concurrency/harvested/w-ses-4-moved-on-one-path-reject",
+   "id": "concurrency/harvested/w-ses-4-moved-on-one-path-fit",
    "adapter": "wasm-playground",
    "reference": "pass",
    "adapter_status": "fail",
    "detail": "expected reject, got accept: []"
   },
   {
-   "id": "concurrency/harvested/w-ses-4-moved-twice-reject",
+   "id": "concurrency/harvested/w-ses-4-moved-twice-fit",
    "adapter": "wasm-playground",
    "reference": "pass",
    "adapter_status": "fail",
    "detail": "expected diagnostic W-SES-4, got ['W-OWN-1']"
   },
   {
-   "id": "concurrency/harvested/w-ses-4-send-after-close-reject",
+   "id": "concurrency/harvested/w-ses-4-send-after-close-fit",
    "adapter": "wasm-playground",
    "reference": "pass",
    "adapter_status": "fail",
    "detail": "expected reject, got accept: []"
   },
   {
-   "id": "concurrency/harvested/w-ses-4-use-after-move-reject",
+   "id": "concurrency/harvested/w-ses-4-use-after-move-fit",
    "adapter": "wasm-playground",
    "reference": "pass",
    "adapter_status": "fail",
    "detail": "expected diagnostic W-SES-4, got ['W-OWN-1']"
   },
   {
-   "id": "concurrency/harvested/w-ses-4-use-after-send-reject",
+   "id": "concurrency/harvested/w-ses-4-use-after-send-fit",
    "adapter": "wasm-playground",
    "reference": "pass",
    "adapter_status": "fail",
@@ -8424,7 +8424,7 @@
    "detail": "adapter: adapter closed its output"
   },
   {
-   "id": "evaluation-fuel/harvested/trap-10000-reject",
+   "id": "evaluation-fuel/harvested/trap-10000-fit",
    "adapter": "wasm-playground",
    "reference": "pass",
    "adapter_status": "fail",

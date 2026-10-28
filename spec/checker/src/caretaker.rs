@@ -24,12 +24,12 @@ pub enum Verdict {
     Admitted,
     /// a revoke of a caretaker already revoked: a no-op entry (still admitted)
     NoOp,
-    /// W-CAP-5: the use is refused with the fixed record
-    Refused(String),
+    /// W-CAP-5: the use has the kept outcome, with the fixed record
+    Kept(String),
 }
 
 /// The fixed record of a use of a revoked caretaker (canonical JSON, 6.1).
-pub fn refusal_record(id: u64) -> String {
+pub fn capability_record(id: u64) -> String {
     format!("{{\"id\":{id},\"kind\":\"capability\",\"reason\":\"revoked\"}}")
 }
 
@@ -47,7 +47,7 @@ pub fn admit(log: &[Entry]) -> Vec<Verdict> {
             }
             Entry::Use { id } => {
                 if revoked.contains(id) || !granted.contains(id) {
-                    Verdict::Refused(refusal_record(*id))
+                    Verdict::Kept(capability_record(*id))
                 } else {
                     Verdict::Admitted
                 }
@@ -66,10 +66,10 @@ mod tests {
     use Entry::*;
 
     #[test]
-    fn use_before_revoke_is_admitted_and_after_is_refused() {
+    fn use_before_revoke_is_admitted_and_after_has_the_kept_outcome() {
         let v = admit(&[Grant { id: 1 }, Use { id: 1 }, Revoke { id: 1 }, Use { id: 1 }]);
         assert_eq!(v[1], Verdict::Admitted);
-        assert_eq!(v[3], Verdict::Refused("{\"id\":1,\"kind\":\"capability\",\"reason\":\"revoked\"}".into()));
+        assert_eq!(v[3], Verdict::Kept("{\"id\":1,\"kind\":\"capability\",\"reason\":\"revoked\"}".into()));
     }
 
     #[test]
@@ -77,7 +77,7 @@ mod tests {
         let v = admit(&[Grant { id: 7 }, Revoke { id: 7 }, Revoke { id: 7 }, Grant { id: 7 }, Use { id: 7 }]);
         assert_eq!(v[1], Verdict::Admitted);
         assert_eq!(v[2], Verdict::NoOp);
-        assert!(matches!(v[4], Verdict::Refused(_)), "a re-grant of a revoked id does not revive it");
+        assert!(matches!(v[4], Verdict::Kept(_)), "a re-grant of a revoked id does not revive it");
     }
 
     #[test]
@@ -89,10 +89,10 @@ mod tests {
     }
 
     #[test]
-    fn a_use_of_an_ungranted_caretaker_is_refused_and_replay_is_exact() {
+    fn a_use_of_an_ungranted_caretaker_has_the_kept_outcome_and_replay_is_exact() {
         let log = [Use { id: 9 }, Grant { id: 9 }, Use { id: 9 }];
         let v = admit(&log);
-        assert!(matches!(v[0], Verdict::Refused(_)));
+        assert!(matches!(v[0], Verdict::Kept(_)));
         assert_eq!(v[2], Verdict::Admitted);
         assert_eq!(admit(&log), v);
     }

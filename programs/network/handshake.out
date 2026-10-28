@@ -4,5 +4,5 @@
 3 Ack Conn { phase = Established, bytes = 0 }
 4 Data(n: 10) Conn { phase = Established, bytes = 10 }
 5 Fin Conn { phase = Closed, bytes = 10 }
-6 Data(n: 1) refused: NotConnected
+6 Data(n: 1) kept: NotConnected Conn { phase = Closed, bytes = 10 }
 exit status: 1

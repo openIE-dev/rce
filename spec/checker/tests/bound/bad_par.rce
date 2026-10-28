@@ -1,5 +1,5 @@
 # rce-version: 0.6
-# Refused: `par` inside a recursive cycle with a bounded function.
+# Reported: `par` inside a recursive cycle with a bounded function.
 fn f(n: i64) -> i64 bound 10
     if n <= 0
         return 0

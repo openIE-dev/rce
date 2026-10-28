@@ -1,4 +1,4 @@
-# Refused: f shrinks x in one call and y in the other, resetting the other
+# Reported: f shrinks x in one call and y in the other, resetting the other
 # to a fixed value, so f(Leaf, Node(Leaf)) calls itself forever.
 kind T
     Leaf

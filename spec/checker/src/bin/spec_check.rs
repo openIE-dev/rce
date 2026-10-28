@@ -9,14 +9,14 @@
 //! 2. Builds the LALR(1) tables of the grammar's single source, the EBNF of
 //!    spec section 3 (book/03-syntax.md), and fails on any conflict (this
 //!    replaces the former Lark check of rce.lark).
-//!    Parses every examples/*.rce (must succeed) and examples/reject/*.rce
+//!    Parses every examples/*.rce (must succeed) and examples/fit/syntax/*.rce
 //!    (must fail) with three parsers: the Rust recursive-descent parser, the
 //!    LALR(1) tables on the reference lexer's tokens, and the tree-sitter
 //!    port. All must agree on every file.
 //! 3. Runs the reference checker on all examples as one program (must be
-//!    accepted), on examples/reject/ (must be refused), and on
+//!    in Form), on examples/fit/syntax/ (each reported with its rule), and on
 //!    examples/ill_typed/ and examples/inadmissible/ (must parse in both
-//!    parsers, then be refused by the type, well-formedness or admission
+//!    parsers, then be reported by the type, well-formedness or admission
 //!    rules).
 //! 4. Checks that the spec book (footers, INDEX.md) and RCE-SPEC.md are in
 //!    sync (rce-book build --check).
@@ -212,8 +212,8 @@ fn main() {
                         }
                     }
                 }
-                // a reject case refused by the Rust parser must be refused by the tables too
-                for (p, s) in load(&rce_files(&spec.join(d).join("reject"))) {
+                // a syntax fixture the Rust parser reports must be reported by the tables too
+                for (p, s) in load(&rce_files(&spec.join(d).join("fit"))) {
                     let s = format!("{v06}{s}");
                     if parse::parse(&s).is_err() {
                         nref += 1;
@@ -221,13 +221,13 @@ fn main() {
                             refd += 1
                         } else {
                             bad += 1;
-                            println!("FAIL (0.6 LALR should refuse): {d}/reject/{}", name(&p))
+                            println!("FAIL (0.6 LALR should report): {d}/fit/{}", name(&p))
                         }
                     }
                 }
             }
             println!(
-                "grammar: 0.6 LALR(1) accepted {acc}/{nacc} parsing 0.6 cases, refused {refd}/{nref} syntax rejects"
+                "grammar: 0.6 LALR(1) parsed {acc}/{nacc} parsing 0.6 cases, reported {refd}/{nref} syntax fixtures"
             );
         }
         Err(e) => {
@@ -277,12 +277,12 @@ fn main() {
     for e in std::fs::read_dir(&ex).unwrap().flatten() {
         let p = e.path();
         let n = e.file_name().to_string_lossy().into_owned();
-        if p.is_dir() && !["reject", "ill_typed", "inadmissible"].contains(&n.as_str()) {
+        if p.is_dir() && !["fit", "ill_typed", "inadmissible"].contains(&n.as_str()) {
             okp.extend(rce_spec_check::cli::package_files(&p).unwrap().into_iter().map(PathBuf::from));
         }
     }
     let ok = load(&okp);
-    let rej = load(&rce_files(&ex.join("reject")));
+    let rej = load(&rce_files(&ex.join("fit").join("syntax")));
     let ill = load(&rce_files(&ex.join("ill_typed")));
     let inad = load(&rce_files(&ex.join("inadmissible")));
     let mut ts = Ts::new();
@@ -323,13 +323,13 @@ fn main() {
         } else {
             bad += 1;
             println!(
-                "FAIL (should be refused): {} tree-sitter={t:?} rust={r} lalr={l}",
+                "FAIL (should be reported): {} tree-sitter={t:?} rust={r} lalr={l}",
                 name(p)
             )
         }
     }
     println!(
-        "grammar: accepted {gok}/{} valid examples, refused {grej}/{} invalid ({} agree)",
+        "grammar: {gok}/{} examples parsed, {grej}/{} syntax fixtures reported ({} agree)",
         ok.len(),
         rej.len(),
         if Ts::ON {
@@ -357,7 +357,7 @@ fn main() {
             nrej += 1
         } else {
             bad += 1;
-            println!("FAIL (checker should refuse): {}", name(&f.0))
+            println!("FAIL (checker should report a rule): {}", name(&f.0))
         }
     }
     let mut nill = 0;
@@ -371,11 +371,11 @@ fn main() {
             nill += 1
         } else {
             bad += 1;
-            println!("FAIL (checker should refuse): {}", name(&f.0))
+            println!("FAIL (checker should report a rule): {}", name(&f.0))
         }
     }
     println!(
-        "checker: accepted {nok}/{} examples, refused {nrej}/{} syntax rejects, refused {nill}/{} ill-typed or inadmissible ({} of them inadmissible)",
+        "checker: {nok}/{} examples in Form, {nrej}/{} syntax fixtures and {nill}/{} type or admission fixtures reported with their rule ({} of them admission)",
         ok.len(),
         rej.len(),
         ill.len() + inad.len(),

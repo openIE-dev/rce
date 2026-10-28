@@ -21,6 +21,6 @@ fn logged(s: text) -> u32 = sum_digits(s) catch |e| report(e)
 # id: numbers/harvested/07-error-union-accept
 # area: numbers
 # clauses: [CH03-M-28cdd241, T10, T15]
-# expect: accept
+# expect: ok
 # provenance: harvested examples/07_error_union.rce
 #---

@@ -30,6 +30,6 @@ fn client(c: session Lookup)
 # id: concurrency/harvested/02-session-accept
 # area: concurrency
 # clauses: [CH02-M-a696f3a3, CH03-M-28cdd241, T10, T28]
-# expect: accept
+# expect: ok
 # provenance: harvested conc06b/accept/02_session.rce
 #---

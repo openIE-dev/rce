@@ -71,7 +71,7 @@ pub fn from_mol(v: &Value, policy_hash: &str) -> Result<Draft, MapError> {
     }
     d.verdict = match v.get("limit_fired") {
         Some(Value::Null) | None => Verdict::NotRun,
-        Some(f) => Verdict::Rejected {
+        Some(f) => Verdict::NotPerformed {
             reason: format!("limit fired: {f}"),
         },
     };

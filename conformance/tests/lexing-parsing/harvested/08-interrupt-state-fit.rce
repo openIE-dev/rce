@@ -1,0 +1,11 @@
+# rce-version: 0.6
+interrupt state S
+    n: i64 = 0
+#--- rce-test
+# id: lexing-parsing/harvested/08-interrupt-state-fit
+# area: lexing-parsing
+# clauses: [CH02-M-69371f07, CH03-M-28cdd241, CH09-M-82e65964, T10, W-SYN-1]
+# expect: fit
+# diagnostic: W-SYN-1
+# provenance: harvested conc06b/reject/08_interrupt_state.rce
+#---

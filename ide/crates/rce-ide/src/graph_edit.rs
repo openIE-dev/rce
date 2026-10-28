@@ -128,7 +128,7 @@ mod tests {
     }
     #[test]
     fn edits_the_checker_refuses_change_nothing() {
-        // Deleting a function that is still called must be refused.
+        // Deleting a function that is still called must be reported.
         assert!(apply(&files(), &GraphOp::Delete { name: "leaf".into() }).is_err());
         assert!(apply(&files(), &GraphOp::Rename { from: "leaf".into(), to: "a b".into() }).is_err());
     }

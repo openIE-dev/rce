@@ -2,7 +2,7 @@
 //! Evaluates consts, state initializers, `check`s, comptime blocks and the
 //! examples of every intent, following the edge semantics of 6.3: integer
 //! results are checked against their type's range (trap), division by zero
-//! traps, loops trap at their bound, and an event is refused atomically.
+//! traps, loops trap at their bound, and an event's kept outcome is atomic.
 use crate::ast::*;
 use crate::types::{INTS, int_range};
 use std::collections::HashMap;
@@ -2343,7 +2343,7 @@ impl<'a> Interp<'a> {
                 }
             }
             Stmt::Check(Expr::Call(f, a, _, _)) if a.len() == 2 && matches!(&**f, Expr::Name(n, _) if n == "@contract") => {
-                // F.6.2: the fixed refusal record of a violated contract clause
+                // F.6.2: the fixed contract record of a violated contract clause
                 let v = self.eval(&a[1].e)?;
                 if !self.truthy(v)? {
                     let rec = if let Expr::Str(s, _) = &a[0].e { s.clone() } else { String::new() };
@@ -2414,7 +2414,7 @@ impl<'a> Interp<'a> {
                 HashMap::new(),
             ];
             self.outputs.clear();
-            let refuse = |f: Flow| match f {
+            let reason_of = |f: Flow| match f {
                 Flow::Fail(v) => v.rec_name().unwrap_or("?").to_string(),
                 Flow::Trap(t) => format!("trap({t})"),
                 other => format!("trap({other:?})"),
@@ -2422,13 +2422,13 @@ impl<'a> Interp<'a> {
             match self.pmatch(pat, ev) {
                 Ok(true) => {}
                 Ok(false) => continue,
-                Err(f) => return Err(refuse(f)),
+                Err(f) => return Err(reason_of(f)),
             }
             if let Some(g) = guard {
                 match self.eval(g).and_then(|v| self.truthy(v)) {
                     Ok(true) => {}
                     Ok(false) => continue,
-                    Err(f) => return Err(refuse(f)),
+                    Err(f) => return Err(reason_of(f)),
                 } // S1
             }
             let res = match body {
@@ -2439,14 +2439,14 @@ impl<'a> Interp<'a> {
                 Body::Block(b) => self.exec_block(b),
             };
             if let Err(f) = res {
-                return Err(refuse(f));
+                return Err(reason_of(f));
             }
             let mut out = vec![];
             for (n, _, t) in &r.1 {
                 let v = self.scopes[0][n].clone();
                 match self.fit(v, t) {
                     Ok(v) => out.push((n.clone(), v, t.clone())),
-                    Err(f) => return Err(refuse(f)),
+                    Err(f) => return Err(reason_of(f)),
                 }
             }
             return Ok(Some((out, std::mem::take(&mut self.outputs))));
@@ -2454,7 +2454,7 @@ impl<'a> Interp<'a> {
         Ok(None)
     }
 
-    /// δ (6.4): every region on the pre-state; first refusal in declaration order refuses the event atomically.
+    /// δ (6.4): every region on the pre-state; the first region, in declaration order, whose step keeps the state gives the event the kept outcome atomically.
     pub fn delta(&mut self, s: &[Region], ev: &V) -> Result<(Vec<Region>, Vec<V>), String> {
         let mut next = vec![];
         let mut outs = vec![];
@@ -2597,18 +2597,18 @@ pub fn admit(m: &Module) -> Vec<String> {
                 };
                 match it.delta(&s, &ev) {
                     Ok((s2, _)) => {
-                        if k + 1 == n && x.refused.is_some() {
+                        if k + 1 == n && x.kept.is_some() {
                             bad = Some(format!(
-                                "expected refused: {}, but {evn} was applied",
-                                x.refused.clone().unwrap()
+                                "expected kept: {}, but {evn} was applied",
+                                x.kept.clone().unwrap()
                             ));
                         }
                         s = s2;
                     }
                     Err(r) => {
-                        if k + 1 == n && x.refused.as_deref() == Some(r.as_str()) {
+                        if k + 1 == n && x.kept.as_deref() == Some(r.as_str()) {
                         } else {
-                            bad = Some(format!("event {} ({evn}) refused: {r}", k + 1));
+                            bad = Some(format!("event {} ({evn}) kept: {r}", k + 1));
                         }
                         break;
                     }
@@ -3241,7 +3241,7 @@ pub fn form_json(m: &Module) -> String {
                 };
                 let evj = event_json(evn, &ev, m);
                 let evp = event_pos_json(evn, &ev, m);
-                let (outcome, out, refused) = match it.delta(&s, &ev) {
+                let (outcome, out, kept) = match it.delta(&s, &ev) {
                     Ok((s2, outs)) => {
                         s = s2;
                         let o = outs
@@ -3251,13 +3251,13 @@ pub fn form_json(m: &Module) -> String {
                             .join(",");
                         ("\"applied\"".to_string(), o, false)
                     }
-                    // T8: a refused event leaves the state unchanged.
+                    // T8: a kept event leaves the state unchanged.
                     Err(r) => (
-                        format!("{{\"refused\":{}}}", jstr(&r)),
+                        format!("{{\"kept\":{}}}", jstr(&r)),
                         format!(
-                            "{{\"Refused\":{{\"error\":{},\"payload\":{}}}}}",
-                            jstr(&r),
-                            form_value(&ev, m).json()
+                            "{{\"Kept\":{{\"payload\":{},\"reason\":{}}}}}",
+                            form_value(&ev, m).json(),
+                            jstr(&r)
                         ),
                         true,
                     ),
@@ -3276,7 +3276,7 @@ pub fn form_json(m: &Module) -> String {
                     "{{\"event\":{evj},\"hash\":\"{h}\",\"hashed\":{{\"event\":{evp},\"state\":{stp}}},\"out\":[{out}],\"outcome\":{outcome},\"prev_hash\":\"{prev}\",\"seq\":{seq},\"state\":{st},\"state_hash\":\"{sh}\"}}"
                 ));
                 prev = h;
-                if refused {
+                if kept {
                     break;
                 }
             }

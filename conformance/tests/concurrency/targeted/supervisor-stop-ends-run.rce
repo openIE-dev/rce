@@ -31,7 +31,7 @@ fn main()
 # area: concurrency
 # clauses: [T1, T4, T9]
 # expect: run
-# outcome: "refused:supervisor Root stopped: child w restarted more than 2 times"
+# outcome: "stopped:supervisor Root stopped: child w restarted more than 2 times"
 # outputs:
 #   - emit 5
 #   - emit 0

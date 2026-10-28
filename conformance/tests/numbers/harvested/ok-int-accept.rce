@@ -27,6 +27,6 @@ check down(4) == 4
 # id: numbers/harvested/ok-int-accept
 # area: numbers
 # clauses: [CH03-M-28cdd241, T10]
-# expect: accept
+# expect: ok
 # provenance: harvested checker/tests/bound/ok_int.rce
 #---

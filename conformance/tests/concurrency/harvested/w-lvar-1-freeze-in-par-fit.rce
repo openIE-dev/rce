@@ -1,0 +1,19 @@
+# rce-version: 0.6
+# expect: W-LVAR-1
+fn f() -> i64
+    let x = lvar_new(0)
+    var r: i64 = 0
+    par
+        branch a
+            x.put(3)
+        branch b
+            r = x.freeze()
+    r
+#--- rce-test
+# id: concurrency/harvested/w-lvar-1-freeze-in-par-fit
+# area: concurrency
+# clauses: [CH09-M-82e65964, W-LVAR-1]
+# expect: fit
+# diagnostic: W-LVAR-1
+# provenance: harvested conc06b/ill_typed/W-LVAR-1_freeze_in_par.rce
+#---

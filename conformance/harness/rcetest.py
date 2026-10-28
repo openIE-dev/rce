@@ -8,12 +8,12 @@ and every byte before the block:
     # id: lex/tab-indent
     # clauses: [W-LEX-1]
     # area: lexing
-    # expect: reject            accept | reject | run | trace
-    # diagnostic: W-LEX-1       reject: the rule code of the first diagnostic
+    # expect: fit               ok | fit | run | trace
+    # diagnostic: W-LEX-1       fit: the rule code of the first diagnostic
     # events: Inc, Dec          run/trace: the inputs (else fn main runs)
     # fuel: 40                  run: the fuel limit
     # schedule_seeds: [1, 2]    run: also run under these par schedules; all must agree
-    # outcome: trap:...         run: done | refused:E | trap:KIND | deadlock
+    # outcome: trap:...         run: done | kept:E | stopped:E | trap:KIND | deadlock
     # outputs:
     #   - emit 3
     # trace_head: <sha256>      trace: hash of the last log entry

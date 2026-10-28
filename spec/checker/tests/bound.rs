@@ -2,7 +2,7 @@
 //! `RCE/Mutual.lean`, `bump_slack`, `bound_dec`). The programs in
 //! tests/bound/: `ok_*` are admitted (their `check` items hold at
 //! admission) and every emitted target prints the reference's observations,
-//! including the `recursion bound` trap of the probes; `bad_*` are refused
+//! including the `recursion bound` trap of the probes; `bad_*` are reported
 //! with W-REC-1.
 use rce_spec_check::emit::{Lang, emit, observe};
 use rce_spec_check::parse::parse;
@@ -25,7 +25,7 @@ fn verdict(src: &str) -> Result<(), String> {
 }
 
 #[test]
-fn admitted_and_refused() {
+fn admitted_and_reported_fit() {
     let ok = progs("ok_");
     let bad = progs("bad_");
     assert!(ok.len() >= 2 && bad.len() >= 3);

@@ -229,8 +229,8 @@ run with outcome `Deadlock` in λ (a defined outcome, not a hang).
 ### 6.9 Examples and checks
 
 `example ē -> o` denotes the proposition: folding the events ē from s₀ gives
-a final step whose outcome is o, where for `-> refused: X` the last event is
-refused with the error X, for `-> refused: trap("K")` the last event is
+a final step whose outcome is o, where for `-> kept: X` the last event is
+refused with the error X, for `-> kept: trap("K")` the last event is
 refused by the trap K (earlier events must be applied in both cases), and for
 `-> e` the event list is fully applied and then
 
@@ -322,4 +322,4 @@ does not define.
 
 **Read receipt.** Name-free hashing uses indices named after which logician? (two words)
 
-<!-- body-sha256: 075fa38adc30b3add818021a4bb6df49e95aa6a25addafc0223ea201eeccb208 -->
+<!-- body-sha256: 83e00cf0a537b877210b636fc6567f1061b7e83deca8a5e4795fe942b66cafc3 -->

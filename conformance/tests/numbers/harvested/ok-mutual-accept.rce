@@ -17,6 +17,6 @@ check od(127)
 # id: numbers/harvested/ok-mutual-accept
 # area: numbers
 # clauses: [CH03-M-28cdd241, CH08-M-286d2fd4, CH08-M-cbd85cbd, CH11-M-7fed7576, T10]
-# expect: accept
+# expect: ok
 # provenance: harvested checker/tests/bound/ok_mutual.rce
 #---

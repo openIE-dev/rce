@@ -116,3 +116,4 @@ stdlib/lib/framing.rce	is refused	pending g3: a structure that does not verify (
 programs/ecosystem/run.sh	is refused	pending g3: a ciphertext that does not verify (9)
 stdlib/tests/**	rejects|refused_|mint_refused|refuses_bad_serialize|ack refused|[Rr]efusals|is refused|refuses	pending g3: the library's declared answers and byte integrity (4.11, 9)
 stdlib/scripts/gen/**	rejects|[Rr]efusals|are refused|refuse a wrong	pending g3: the library's declared answers and byte integrity (4.11, 9)
+spec/proposals/compliance-repin.tsv	*	history: the earlier paths and program hashes of COMP-20 (b)

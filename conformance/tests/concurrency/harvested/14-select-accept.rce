@@ -9,6 +9,6 @@ fn merge(a: chan text, b: chan text, out: chan text)
 # id: concurrency/harvested/14-select-accept
 # area: concurrency
 # clauses: [CH03-M-28cdd241, T10, T11]
-# expect: accept
+# expect: ok
 # provenance: harvested examples/14_select.rce
 #---

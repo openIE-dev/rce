@@ -77,6 +77,6 @@ step Term on PtyCloseDone(req: _r, status: _s, data: _d, err: _e)
 # id: host-contract/harvested/pty-accept
 # area: host-contract
 # clauses: [CH03-M-28cdd241, CH08-M-9a15157f, T10, T28]
-# expect: accept
+# expect: ok
 # provenance: harvested checker/tests/host/pty.rce
 #---

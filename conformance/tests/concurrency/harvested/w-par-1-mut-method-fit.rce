@@ -1,0 +1,18 @@
+# rce-version: 0.6
+# expect: W-PAR-1
+fn f() -> usize
+    var xs: List[i64] = []
+    par
+        branch x
+            xs.push(1)
+        branch y
+            xs.push(2)
+    xs.len()
+#--- rce-test
+# id: concurrency/harvested/w-par-1-mut-method-fit
+# area: concurrency
+# clauses: [CH09-M-82e65964, W-PAR-1]
+# expect: fit
+# diagnostic: W-PAR-1
+# provenance: harvested conc06/ill_typed/W-PAR-1_mut_method.rce
+#---

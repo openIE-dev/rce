@@ -273,7 +273,7 @@ pub fn proposals(ps: &[Proposal], q: &Queue, w: f32, h: f32) -> ViewNode {
             ProposalStatus::Pending => hstack(
                 vec![
                     button(&format!("accept {}", p.id), OK, q, Action::Accept(p.id)),
-                    button(&format!("reject {}", p.id), ERR, q, Action::Reject(p.id)),
+                    button(&format!("decline {}", p.id), ERR, q, Action::Decline(p.id)),
                 ],
                 6.0,
             ),
@@ -282,13 +282,13 @@ pub fn proposals(ps: &[Proposal], q: &Queue, w: f32, h: f32) -> ViewNode {
                 12.0,
                 OK,
             ),
-            ProposalStatus::Refused { diagnostics, .. } => text(
-                format!("refused by rce check: {}", diagnostics.join("; ")),
+            ProposalStatus::Fit { diagnostics, .. } => text(
+                format!("fit reported by rce check: {}", diagnostics.join("; ")),
                 12.0,
                 ERR,
             ),
-            ProposalStatus::Rejected { receipt } => text(
-                format!("rejected, receipt {}", &receipt[..receipt.len().min(12)]),
+            ProposalStatus::Declined { receipt } => text(
+                format!("declined, receipt {}", &receipt[..receipt.len().min(12)]),
                 12.0,
                 DIM,
             ),

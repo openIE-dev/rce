@@ -86,9 +86,9 @@ theorem memory_safety {Γ s Γ'} (h : OWt Γ s Γ') : ∀ σ, σ = Γ → oexec 
 theorem no_fault {Γ s Γ'} (h : OWt Γ s Γ') : oexec Γ s ≠ none := by
   rw [memory_safety h Γ rfl]; simp
 
-/-- Use-after-move is refused statically: after `let y = x` with a Move
+/-- Use-after-move is reported statically: after `let y = x` with a Move
     value, x is not live, so `use x` is ill-typed. -/
-theorem use_after_move_refused {Γ x y c} (hx : Γ x = some c) (hk : c.kind = .move) (hxy : x ≠ y) :
+theorem use_after_move_no_typing {Γ x y c} (hx : Γ x = some c) (hk : c.kind = .move) (hxy : x ≠ y) :
     ¬ ∃ Γ', OWt Γ (.seq (.mv x y) (.use x)) Γ' := by
   intro ⟨Γ', h⟩
   cases h with
@@ -99,8 +99,8 @@ theorem use_after_move_refused {Γ x y c} (hx : Γ x = some c) (hk : c.kind = .m
       cases h2 with
       | use hl => simp [upd, hk, hxy] at hl
 
-/-- Mutable aliasing is refused statically. -/
-theorem mut_alias_refused {Γ x} : ¬ ∃ Γ', OWt Γ (.call [] [x, x]) Γ' := by
+/-- Mutable aliasing is reported statically. -/
+theorem mut_alias_no_typing {Γ x} : ¬ ∃ Γ', OWt Γ (.call [] [x, x]) Γ' := by
   intro ⟨Γ', h⟩; cases h with
   | call _ ha => simp [aliasFree] at ha
 

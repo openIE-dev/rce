@@ -5,7 +5,7 @@
 //! (no use of a gone endpoint, no unfinished close, every endpoint gone
 //! or done at the end, on every path). Each vector is an RCE body; the
 //! checker must accept exactly the bodies Lean accepts and, for each body
-//! Lean refuses, report the rule Lean names. When `lake` is on PATH the
+//! Lean reports, report the rule Lean names. When `lake` is on PATH the
 //! vectors are regenerated and must equal the checked-in file
 //! (RCE_BLESS=1 rewrites it).
 use rce_spec_check::check_program;
@@ -67,15 +67,15 @@ fn checker_linearity_equals_lean() {
         let r = check_program(&[(format!("lin{n}.rce"), src.clone())], false);
         match (&property_verdict(&r[0].1), want) {
             (Ok(()), "ok") => ok += 1,
-            (Err(e), "ok") => bad.push(format!("vector {n}: Lean accepts, checker refuses: {e}\n{src}")),
-            (Ok(()), w) => bad.push(format!("vector {n}: Lean refuses with {w}, checker accepts\n{src}")),
-            (Err(e), w) if !e.contains(w) => bad.push(format!("vector {n}: Lean refuses with {w}, checker: {e}\n{src}")),
+            (Err(e), "ok") => bad.push(format!("vector {n}: Lean accepts, checker reports: {e}\n{src}")),
+            (Ok(()), w) => bad.push(format!("vector {n}: Lean reports {w}, checker accepts\n{src}")),
+            (Err(e), w) if !e.contains(w) => bad.push(format!("vector {n}: Lean reports {w}, checker: {e}\n{src}")),
             (Err(_), w) => *refused.entry(w.to_string()).or_default() += 1,
         }
     }
     assert!(bad.is_empty(), "{} of {} vectors differ:\n{}", bad.len(), text.lines().count(), bad.join("\n\n"));
     assert!(ok > 0, "no accepted vector");
     for w in ["W-SES-1", "W-SES-2", "W-SES-4"] {
-        assert!(refused.contains_key(w), "no vector refused with {w}");
+        assert!(refused.contains_key(w), "no vector reported with {w}");
     }
 }

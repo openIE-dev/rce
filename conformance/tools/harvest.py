@@ -44,15 +44,15 @@ def label(src, origin, fixtures=None):
     files = {"main.rce": src, **(fixtures or {})}
     r = ref.check(src, files)
     prov = f"harvested {origin}"
-    if r.get("verdict") == "reject":
+    if r.get("verdict") == "fit":
         code = (r["diagnostics"][0].get("code") if r.get("diagnostics") else None)
         area = classify(code, origin, src)
-        put(area, f"{stem}-reject", src, {"clauses": [code] if code else [], "expect": "reject",
+        put(area, f"{stem}-fit", src, {"clauses": [code] if code else [], "expect": "fit",
             "diagnostic": code or "any", "provenance": prov})
         return
-    if r.get("verdict") != "accept": return
+    if r.get("verdict") != "ok": return
     area = classify(None, origin, src)
-    put(area, f"{stem}-accept", src, {"clauses": [], "expect": "accept", "provenance": prov})
+    put(area, f"{stem}-accept", src, {"clauses": [], "expect": "ok", "provenance": prov})
     if fixtures: return
     if re.search(r"^fn main\(\)", src, re.M):
         rr = ref.run(src)

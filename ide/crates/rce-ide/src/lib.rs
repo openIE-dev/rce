@@ -1,7 +1,7 @@
 //! `rce-ide`: the RCE IDE app.
 //!
 //! - [`vm`]: view models (editor + language-server diagnostics, MEI
-//!   proposals with accept/reject through rce-mcp, receipts and energy,
+//!   proposals with accept/decline through rce-mcp, receipts and energy,
 //!   memory recall, network approvals). No rendering; tested headless.
 //! - [`view`]: the photon `ViewNode` tree for those models, and tap dispatch.
 //! - [`scene`]: photon draw commands flattened to quads and text runs.

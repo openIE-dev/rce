@@ -12,6 +12,6 @@ check "héllo"[1:3] == "é"
 # id: numbers/harvested/45-byte-text-accept
 # area: numbers
 # clauses: [CH03-M-28cdd241, T10, T6]
-# expect: accept
+# expect: ok
 # provenance: harvested examples/45_byte_text.rce
 #---

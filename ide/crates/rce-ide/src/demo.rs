@@ -77,7 +77,7 @@ pub fn populate(ide: &mut Ide, query: &str) -> Result<(), String> {
     );
     ide.apply(Action::Accept(ok))?;
     ide.apply(Action::Accept(bad))?;
-    ide.apply(Action::Reject(rej))?;
+    ide.apply(Action::Decline(rej))?;
     ide.apply(Action::Recall(query.into()))?;
     // An unsaved edit in the buffer: a typo the language server flags,
     // with the typo selected.

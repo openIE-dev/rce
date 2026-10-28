@@ -1,7 +1,7 @@
 //! Recursion by layered summed size measures (spec 6.7, W-REC-1; Lean
 //! `RCE/Mutual.lean`). The programs in tests/mutual/: `ok_*` are admitted
 //! (their `check` items hold at admission) and every emitted target prints
-//! the reference's observations; `bad_*` are refused with W-REC-1 on the
+//! the reference's observations; `bad_*` are reported with W-REC-1 on the
 //! line of the cycle's first call.
 use rce_spec_check::emit::{Lang, emit, observe};
 use rce_spec_check::parse::parse;
@@ -24,7 +24,7 @@ fn verdict(src: &str) -> Result<(), String> {
 }
 
 #[test]
-fn admitted_and_refused() {
+fn admitted_and_reported_fit() {
     let ok = progs("ok_");
     let bad = progs("bad_");
     assert!(ok.len() >= 3 && bad.len() >= 2);

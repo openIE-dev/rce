@@ -1,0 +1,10 @@
+fn f() -> i64
+    fail 3
+#--- rce-test
+# id: types-checking/harvested/fail-not-error-fit
+# area: types-checking
+# clauses: [CH09-M-82e65964, W-TY-1]
+# expect: fit
+# diagnostic: W-TY-1
+# provenance: harvested examples/ill_typed/fail_not_error.rce
+#---

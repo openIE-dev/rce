@@ -586,7 +586,7 @@ fn marker_int<'a>(it: &mut Interp<'a>, s: Option<&Stmt>) -> R<i128> {
 }
 
 impl<'a> Interp<'a> {
-    /// Charge `units` cost units (C.6.4); refuses with `trap("budget")` when
+    /// Charge `units` cost units (C.6.4); traps with `trap("budget")` when
     /// starting the operation would take any enclosing budget past its limit.
     pub fn charge(&mut self, units: i128) -> R<()> {
         if self.cx.budgets.iter().any(|(s, l)| s.saturating_add(units) > *l) {
@@ -1538,7 +1538,7 @@ pub struct RunCfg {
     pub restarts: Option<Vec<RestartIn>>,
     /// schema of the replayed log (C.11.11): the supervisor tree it was
     /// recorded against (`RunResult.tree`). A log whose tree does not
-    /// migrate to this program's tree (`tree_migrates`) refuses before any
+    /// migrate to this program's tree (`tree_migrates`) stops the run before any
     /// step instead of misreplaying. `None` is a log without a schema
     /// header: each replayed decision's position is still checked.
     pub restart_tree: Option<Vec<String>>,
@@ -1591,7 +1591,7 @@ pub struct Entry {
 #[derive(Clone, Debug, PartialEq)]
 pub enum Outcome {
     Done,
-    Refused(String),
+    Stopped(String),
     Deadlock,
 }
 
@@ -1726,7 +1726,7 @@ impl<'a> Sched<'a> {
             restart_log: vec![],
             restart_replay: cfg.restarts.clone().map(|v| v.into()),
             stop: match (&cfg.restarts, &cfg.restart_tree) {
-                (Some(_), Some(rec)) => tree_migrates(rec, &sup_tree(m)).err().map(Outcome::Refused),
+                (Some(_), Some(rec)) => tree_migrates(rec, &sup_tree(m)).err().map(Outcome::Stopped),
                 _ => None,
             },
         }
@@ -1954,7 +1954,7 @@ impl<'a> Sched<'a> {
         let arm = match self.replay.pop_front() {
             Some(a) if ready.contains(&a) => a,
             Some(_) => {
-                self.stop = Some(Outcome::Refused("replay diverged".into()));
+                self.stop = Some(Outcome::Stopped("replay diverged".into()));
                 ready[0]
             }
             None => {
@@ -2013,7 +2013,7 @@ impl<'a> Sched<'a> {
                     return None;
                 }
                 if self.chans[&c].closed {
-                    self.stop = Some(Outcome::Refused("trap: send on a closed channel".into()));
+                    self.stop = Some(Outcome::Stopped("trap: send on a closed channel".into()));
                     return Some(Rep::Cancel(CANCEL_TASK));
                 }
                 let m = self.msg(0, format!("Send({})", v.show()), v.clone());
@@ -2186,7 +2186,7 @@ impl<'a> Sched<'a> {
             return Ok(None);
         };
         let it = &mut self.it;
-        let refuse = |f: Flow| match f {
+        let reason_of = |f: Flow| match f {
             Flow::Fail(V::Rec(n, _)) => n,
             Flow::Trap(t) => format!("trap({t})"),
             o => format!("trap({o:?})"),
@@ -2201,13 +2201,13 @@ impl<'a> Sched<'a> {
             match it.pmatch(&h.pat, msg) {
                 Ok(true) => {}
                 Ok(false) => continue,
-                Err(f) => return Err(refuse(f)),
+                Err(f) => return Err(reason_of(f)),
             }
             if let Some(g) = &h.guard {
                 match it.eval(g).and_then(|v| it.truthy(v)) {
                     Ok(true) => {}
                     Ok(false) => continue,
-                    Err(f) => return Err(refuse(f)),
+                    Err(f) => return Err(reason_of(f)),
                 }
             }
             let r = match &h.body {
@@ -2219,11 +2219,11 @@ impl<'a> Sched<'a> {
                 Body::Block(b) => it.exec_block(b),
             };
             let sends = it.cx.handler_sends.take().unwrap_or_default();
-            r.map_err(refuse)?;
+            r.map_err(reason_of)?;
             let mut out = vec![];
             for (n, _, t) in &fields {
                 let v = it.scopes[0][n].clone();
-                out.push((n.clone(), it.fit(v, t).map_err(refuse)?, t.clone()));
+                out.push((n.clone(), it.fit(v, t).map_err(reason_of)?, t.clone()));
             }
             return Ok(Some((out, std::mem::take(&mut it.outputs), sends)));
         }
@@ -2259,7 +2259,7 @@ impl<'a> Sched<'a> {
     fn on_crash(&mut self, id: &str, reason: &str) {
         let ty = self.actors[id].ty.clone();
         let node = self.actors[id].node;
-        self.local(node, format!("Refused({reason})"));
+        self.local(node, format!("Kept({reason})"));
         let Some((sup, strat, tys, child, bound)) = self.supervisor_of(&ty) else {
             return;
         };
@@ -2273,7 +2273,7 @@ impl<'a> Sched<'a> {
         let dec = if let Some(q) = self.restart_replay.as_mut() {
             match q.pop_front() {
                 Some(r) if !sup_tree(self.m).contains(&format!("{}/{}", r.sup, r.child)) => {
-                    self.stop = Some(Outcome::Refused(format!(
+                    self.stop = Some(Outcome::Stopped(format!(
                         "trap: upgrade removed supervisor position {}/{}",
                         r.sup, r.child
                     )));
@@ -2281,7 +2281,7 @@ impl<'a> Sched<'a> {
                 }
                 Some(r) if r.id == id && r.sup == sup => r,
                 _ => {
-                    self.stop = Some(Outcome::Refused("replay diverged".into()));
+                    self.stop = Some(Outcome::Stopped("replay diverged".into()));
                     return;
                 }
             }
@@ -2323,7 +2323,7 @@ impl<'a> Sched<'a> {
             .count();
         if dec.stop {
             self.local(node, format!("Stopped(supervisor {sup})"));
-            self.stop = Some(Outcome::Refused(format!(
+            self.stop = Some(Outcome::Stopped(format!(
                 "supervisor {sup} stopped: child {child} restarted more than {bound} times"
             )));
             return;
@@ -2344,7 +2344,7 @@ impl<'a> Sched<'a> {
         for txn in std::mem::take(&mut self.txns) {
             progress = true;
             let mut results = vec![];
-            let mut refused = None;
+            let mut kept = None;
             for (id, ty, m) in &txn {
                 self.ensure_actor(id, ty);
                 let node = self.actors[id].node;
@@ -2353,12 +2353,12 @@ impl<'a> Sched<'a> {
                 match self.handler(id, &m.v) {
                     Ok(r) => results.push((id.clone(), r)),
                     Err(e) => {
-                        refused = Some(e);
+                        kept = Some(e);
                         break;
                     }
                 }
             }
-            if let Some(e) = refused {
+            if let Some(e) = kept {
                 // all or none (T30): no handler of the batch commits; the
                 // actor whose handler failed is then supervised like any crash
                 let failed = results.len();
@@ -2367,7 +2367,7 @@ impl<'a> Sched<'a> {
                         self.on_crash(id, &e);
                     } else {
                         let node = self.actors.get(id).map(|a| a.node).unwrap_or(0);
-                        self.local(node, format!("Refused({e})"));
+                        self.local(node, format!("Kept({e})"));
                     }
                 }
                 if self.stop.is_some() {
@@ -2530,7 +2530,7 @@ impl<'a> Sched<'a> {
         self.local(0, what);
         if i == 0 {
             if let Err(e) = res {
-                return Some(Outcome::Refused(e));
+                return Some(Outcome::Stopped(e));
             }
         } else if failed {
             // a failed task cancels its siblings in the same scope (C.11.9)
@@ -2559,7 +2559,7 @@ impl<'a> Sched<'a> {
         loop {
             self.tick += 1;
             if self.tick > self.cfg.max_ticks {
-                return Outcome::Refused("trap: tick limit".into());
+                return Outcome::Stopped("trap: tick limit".into());
             }
             let mut progress = self.links_phase();
             progress |= self.events_phase();
@@ -2618,7 +2618,7 @@ impl<'a> Sched<'a> {
                         _ => None,
                     });
                     let Some(fd) = fd else {
-                        return Outcome::Refused(format!("trap: no task function {f}"));
+                        return Outcome::Stopped(format!("trap: no task function {f}"));
                     };
                     self.local(0, format!("Spawn(task {id}, priority {prio})"));
                     self.spawn_task(s, fd, args.clone(), id.clone(), *prio, Some(i), *scope);

@@ -22,7 +22,7 @@
 //!   workspace either. Fails closed where the jail is unavailable.
 //! - **One signed receipt per turn** in the IDE ledger (`acp.turn`), linking
 //!   the rce-mcp sub-ledger head, the tool calls, permission decisions,
-//!   refused methods, reverted files, stop reason and transport bytes.
+//!   methods outside the grant, reverted files, stop reason and transport bytes.
 //!
 //! [`g4::AcpG4`] plugs this into mei-agent as an optional G4.
 //!

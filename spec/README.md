@@ -10,7 +10,7 @@
   (the former `rce.lark` and its Lark check are retired).
 - `checker/` (Rust only) holds the tools:
   - `rce-spec-check` builds the section-3 LALR(1) tables and regenerates
-    the tree-sitter parser (both fail on any conflict), parses `examples/` (must accept) and `examples/reject/`
+    the tree-sitter parser (both fail on any conflict), parses `examples/` (must accept) and `examples/fit/syntax/`
     (must refuse) with three parsers (section-3 LALR(1) tables, Rust
     parser, tree-sitter), runs the checker, and checks that the
     book and `RCE-SPEC.md` are in sync.

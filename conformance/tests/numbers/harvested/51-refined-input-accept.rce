@@ -1,6 +1,6 @@
 module refined
 
-intent "input validation is a declared predicate: an event whose payload is outside its refined type is refused, state unchanged"
+intent "input validation is a declared predicate: an event whose payload is outside its refined type has the kept outcome, state unchanged"
     example SetVolume(pct: 40) -> level == 40
     example Rename(name: "ok") -> name == "ok"
     example Code(pin: "0042"), Code(pin: "9999") -> accepted == 2
@@ -30,6 +30,6 @@ step Profile on Rename(name: n) -> n
 # id: numbers/harvested/51-refined-input-accept
 # area: numbers
 # clauses: [CH03-M-28cdd241, CH08-M-9a15157f, T10]
-# expect: accept
+# expect: ok
 # provenance: harvested examples/51_refined_input.rce
 #---

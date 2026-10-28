@@ -7,6 +7,6 @@ fn total(xs: &[i64]) -> i64 = xs.fold(0, fn(acc: i64, x: i64) => acc + x)
 # id: evaluation-fuel/harvested/24-lambda-accept
 # area: evaluation-fuel
 # clauses: [CH03-M-28cdd241, T10]
-# expect: accept
+# expect: ok
 # provenance: harvested examples/24_lambda.rce
 #---

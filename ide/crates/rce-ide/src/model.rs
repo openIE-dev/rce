@@ -50,12 +50,12 @@ pub enum ProposalStatus {
     Accepted {
         receipt: String,
     },
-    /// The checker refused it on accept; nothing was written.
-    Refused {
+    /// The checker reported paths on accept; nothing was written.
+    Fit {
         diagnostics: Vec<String>,
         receipt: Option<String>,
     },
-    Rejected {
+    Declined {
         receipt: String,
     },
 }
@@ -112,8 +112,8 @@ impl ReceiptRow {
             delta_j: r.body.delta_j,
             verdict: match &d.verdict {
                 Verdict::Pass => "pass".into(),
-                Verdict::Refused { .. } => "refused".into(),
-                Verdict::Rejected { .. } => "rejected".into(),
+                Verdict::Fit { .. } => "fit".into(),
+                Verdict::NotPerformed { .. } => "not performed".into(),
                 v => format!("{v:?}").to_lowercase(),
             },
             hash: r.hash.clone(),
@@ -202,7 +202,7 @@ pub struct NetVm {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum Action {
     Accept(u64),
-    Reject(u64),
+    Decline(u64),
     Recall(String),
     Net {
         key: String,

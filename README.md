@@ -107,7 +107,7 @@ Save this as `counter.rce`:
 ```
 intent "a counter that never goes below zero"
     example Inc, Inc, Dec -> 1
-    example Dec -> refused: Underflow
+    example Dec -> kept: Underflow
 
 state Counter
     n: u64 = 0

@@ -4,7 +4,7 @@
 //! and their projections by `RCE.SessionAsync.proj` (null where full merge
 //! fails); `mpst_async::proj` must agree on every role. Where every role
 //! projects, the asynchronous runs from the projections with empty queues
-//! never get stuck and no receiver refuses its queue head
+//! never get stuck, and every receiver can take its queue head
 //! (`SessionAsync.deadlock_free`). When `lake` is on PATH the vectors are
 //! regenerated and must equal the checked-in file (RCE_BLESS=1 rewrites it).
 use rce_spec_check::mpst_async as ma;
@@ -77,7 +77,7 @@ fn checker_full_merge_equals_lean_and_runs_never_stick() {
             wider += locals.iter().any(|l| ma::show_l(l).contains("1 1")) as usize;
             match ma::explore(ma::start(locals), 200_000) {
                 Ok(k) => explored += k,
-                Err(k) => panic!("vector {n}: stuck or refusing at {k:?}"),
+                Err(k) => panic!("vector {n}: stuck at {k:?}"),
             }
         }
     }
@@ -88,8 +88,8 @@ fn checker_full_merge_equals_lean_and_runs_never_stick() {
 }
 
 #[test]
-fn async_explorer_finds_a_refusal() {
-    // role 1 offers only label 1 from 0, but 0 sends label 0: refused at the head
+fn async_explorer_finds_a_stuck_configuration() {
+    // role 1 offers only label 1 from 0, but 0 sends label 0: stuck at the head
     let c = vec![
         ma::L::Snd(1, false, true, Box::new(ma::L::Done), Box::new(ma::L::Done)),
         ma::L::Rcv(0, true, false, Box::new(ma::L::Done), Box::new(ma::L::Done)),

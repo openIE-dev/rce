@@ -40,7 +40,7 @@ def run_unit(f, shard, todo):
         o = subprocess.run([RCE, 'check', d if uses(f) else main], capture_output=True, text=True); out = o.stdout + o.stderr
         errs = []
         for ln in out.split('\n'):
-            m = re.match(r'(?:REFUSED|FAIL) (\S+): (.*)', ln)
+            m = re.match(r'(?:fit|FAIL) (\S+): (.*)', ln)
             if m and os.path.basename(m.group(1)) == os.path.basename(f):
                 errs += re.findall(r'line (\d+): (W-[A-Z]+-\d+) ([^;]*)', m.group(2))
         if not errs:
@@ -69,7 +69,7 @@ def run_unit(f, shard, todo):
                     occ = list(LENP.finditer(L))
                     st = status.setdefault(key, ['u'] * len(occ))
                     if len(st) != len(occ): st = status[key] = ['u'] * len(occ)
-                    # an earlier tentative text guess that the checker now rejects is a list
+                    # an earlier tentative text guess that the checker now reports is a list
                     if key in tent and any(r not in ('W-LEN-1',) for r in rules):
                         j = tent.pop(key); st[j] = 'l'
                         L = rebuild(L, occ, st); occ = list(LENP.finditer(L))

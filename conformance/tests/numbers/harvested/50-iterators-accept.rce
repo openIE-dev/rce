@@ -30,6 +30,6 @@ check first_over(100) == 101
 # id: numbers/harvested/50-iterators-accept
 # area: numbers
 # clauses: [CH03-M-28cdd241, T10, T15]
-# expect: accept
+# expect: ok
 # provenance: harvested examples/50_iterators.rce
 #---

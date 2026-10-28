@@ -141,7 +141,7 @@ fn every_action_writes_a_verified_receipt() {
         rs.push(r);
         let (_, r) = m.forget(&mut ctx, id, None, 121).unwrap();
         assert!(
-            matches!(r.body.draft.verdict, Verdict::Rejected { .. }),
+            matches!(r.body.draft.verdict, Verdict::NotPerformed { .. }),
             "second forget refused, still receipted"
         );
         rs.push(r);

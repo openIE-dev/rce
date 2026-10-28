@@ -1,0 +1,194 @@
+event Load(t: text)
+event Start(z: i64)
+event DecodeStep(k: i64)
+event HashBatch(lo: i64, n: i64)
+event Dump(z: i64)
+event Res1(x: i64)
+event Valid(t: text, p: i64)
+event UpLoad(t: text)
+event Merge(s: i64, gid: text, ep: i64, cth: text)
+event Recv(i: i64, leaf_sk: text, pss: text)
+event GenStart(s: i64, gid: text, sig: text)
+event RandomDone(req: u64, status: text, data: text?, err: text)
+event GenKeys(z: i64)
+event GenLeaf(ep: i64, cth: text)
+event GenEnc(j: i64)
+event GenDone(z: i64)
+event SigOk(s: i64, gid: text)
+
+struct Random
+    req: u64
+    n: u64
+
+state S
+    out: List[text] = []
+    nodes: List[text] = []
+    hs: List[text] = []
+    ord: List[i64] = []
+    tb: List[i64] = []
+    pos: i64 = 0
+    tend: i64 = 0
+    upx: text = ""
+    up: List[text] = []
+    fp: List[i64] = []
+    gc: text = ""
+    gsender: i64 = 0
+    ggid: text = ""
+    gsig: text = ""
+    rnd: text = ""
+    gs: List[text] = []
+    geks: List[text] = []
+    gph: text = ""
+    gtree: List[text] = []
+    gleaf: text = ""
+    gnodes: List[text] = []
+    greq: u64 = 0
+
+step S on Load(t: t)
+    for x in unhex(t)
+        tb.push(x)
+    out.push("O:loaded")
+
+step S on Start(z: z)
+    let r = rd_v(copy(tb), 0)
+    pos = r[1]
+    tend = r[0] + r[1]
+    nodes = []
+    out.push("O:started")
+
+step S on DecodeStep(k: k)
+
+    var j: i64 = 0
+    while j < k and pos < tend bound 1024
+        let e = rt_node_end(copy(tb), pos as usize)
+        nodes.push(rt_node(copy(tb), pos as usize, e))
+        pos = e as i64
+        j += 1
+    if pos < tend
+        out.push("O:more")
+    else
+        nodes = rt_pad(copy(nodes))
+        tb = []
+        hs = []
+        for _ in 0..nodes.len()
+            hs.push("")
+        ord = hash_order(nodes.len())
+        out.push("O:" + nodes.len().tostr())
+
+step S on HashBatch(lo: lo, n: n)
+    let e: usize = if (lo + n) as usize > ord.len() then ord.len() else (lo + n) as usize
+    var i = lo as usize
+    while i < e bound 1024
+        let x = ord[i]
+        if x % 2 == 0
+            hs[x as usize] = node_hash(copy(nodes[x as usize]), x, "", "")
+        else
+            let l = tm_left(x) as usize
+            let r = (x ^ (3 << (tm_level(x) - 1))) as usize
+            hs[x as usize] = node_hash(copy(nodes[x as usize]), x, copy(hs[l]), copy(hs[r]))
+        i += 1
+    out.push("O:ok")
+
+step S on Dump(z: z)
+    var s = "O:"
+    for h in copy(hs)
+        s = s + h + ","
+    out.push(s)
+
+step S on Res1(x: x)
+    var s = "O:"
+    for r in resolution(copy(nodes), x)
+        s = s + r.tostr() + ","
+    out.push(s)
+
+step S on UpLoad(t: t)
+    upx = upx + t
+    out.push("O:ok")
+
+step S on Merge(s: s, gid: gid, ep: ep, cth: cth)
+    up = up_parse(copy(upx))
+    upx = ""
+    fp = filtered_path(copy(nodes), s)
+    var nt = up_merge(copy(nodes), s, copy(up), copy(fp))
+    let ph = copy(nt[nt.len() - 1])
+    nt.pop()
+    let th = copy(tree_hashes(copy(nt))[(nt.len() / 2) as usize])
+    gc = group_context(gid, ep, copy(th), cth)
+    let leaf_ph = copy(nfields(copy(nt[(2 * s) as usize]))[1])
+    out.push("O:" + th + "/" + (ph == leaf_ph).tostr())
+
+step S on Recv(i: i, leaf_sk: leaf_sk, pss: pss)
+    var held = tohex([(2 * i) & 255]) + ":" + leaf_sk + ","
+    for kv in pss.split(",")
+        if kv != ""
+            let parts = kv.split(":")
+            held = held + copy(parts[0]) + ":" + node_sk(copy(parts[1])) + ","
+    out.push("O:" + up_receive(copy(nodes), copy(up), copy(fp), copy(gc), i, held))
+
+step S on GenStart(s: s, gid: gid, sig: sig)
+    fp = filtered_path(copy(nodes), s)
+    gsender = s
+    ggid = gid
+    gsig = sig
+    var total: u64 = 1
+    for j in 0..fp.len() / 2
+        total += resolution(copy(nodes), fp[2 * j + 1]).len() as u64
+    greq += 1
+    emit Random(req: greq, n: 32 * total)
+
+step S on RandomDone(req: r, status: st, data: d, err: e)
+    rnd = d.or("")
+    out.push("O:" + st + "/" + (rnd.len() / 2).tostr())
+
+step S on GenKeys(z: z)
+    let m = fp.len() / 2
+    gs = up_secrets(tohex(slice(unhex(copy(rnd)), 0, 32)), m as i64)
+    geks = []
+    var place: List[text] = [copy(nodes[(2 * gsender) as usize])]
+    for j in 0..m
+        let ek = pubkey(node_sk(copy(gs[j + 1])))
+        place.push(copy(ek) + "|")
+        geks.push(ek)
+    var t = up_merge(copy(nodes), gsender, place, copy(fp))
+    gph = copy(t[t.len() - 1])
+    t.pop()
+    gtree = t
+    out.push("O:keys")
+
+step S on GenLeaf(ep: ep, cth: cth)
+    gleaf = up_leaf(copy(nodes[(2 * gsender) as usize]), pubkey(copy(gs[0])), copy(gph), copy(gsig), copy(ggid), gsender)
+    gtree[(2 * gsender) as usize] = copy(gleaf)
+    let th = copy(tree_hashes(copy(gtree))[(gtree.len() / 2) as usize])
+    gc = group_context(copy(ggid), ep, copy(th), cth)
+    gnodes = []
+    out.push("O:" + th)
+
+step S on GenEnc(j: j)
+    var off: usize = 1
+    for q in 0..j
+        off += resolution(copy(nodes), fp[(2 * q + 1) as usize]).len()
+    let n = resolution(copy(nodes), fp[(2 * j + 1) as usize]).len()
+    let r = tohex(slice(unhex(copy(rnd)), 32 * off, 32 * (off + n)))
+    gnodes.push(up_node(copy(nodes), copy(geks[j as usize]), fp[(2 * j + 1) as usize], copy(gc), copy(gs[(j + 1) as usize]), r))
+    out.push("O:enc")
+
+step S on GenDone(z: z)
+    upx = up_serialize(copy(gleaf), copy(gnodes))
+    var s = "O:"
+    for j in 1..gs.len() - 1
+        s = s + gs[j] + ","
+    out.push(s + "/" + gs[gs.len() - 1])
+
+step S on SigOk(s: s, gid: gid)
+    out.push("O:" + leaf_signature_ok(copy(up[0]), gid, s).tostr())
+
+step S on Valid(t: t, p: p)
+    out.push("O:" + parent_hash_valid(rt_decode(t), p).tostr())
+#--- rce-test
+# id: types-checking/harvested/treekem-rce-fit
+# area: types-checking
+# clauses: [CH09-M-82e65964, W-NAME-1]
+# expect: fit
+# diagnostic: W-NAME-1
+# provenance: harvested checker/tests/treekem_rce.rs#0
+#---

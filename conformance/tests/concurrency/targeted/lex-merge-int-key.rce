@@ -10,6 +10,6 @@ impl Merge for V
 # id: concurrency/targeted/lex-merge-int-key
 # area: concurrency
 # clauses: [CH02-M-a696f3a3, CH03-M-28cdd241, CH06-M-02b1c842, CH06-M-8e9952a9, CH14-M-9202f003, T10, T29s, W-CRDT-1]
-# expect: accept
+# expect: ok
 # provenance: targeted.py: expected result read off the clause
 #---

@@ -99,11 +99,11 @@ theorem evalN_exists (E : Env) (e : Expr) : ∃ n, n ≤ e.size ∧ EvalN E n e 
 inductive SCfg where
   | run (s : Stmt) (fs os : List Val)
   | done (fs os : List Val)
-  | refused (r : Refusal)
+  | kept (r : Reason)
 
 def SRes.toCfg : SRes → SCfg
   | .ok fs os => .done fs os
-  | .ref r => .refused r
+  | .ref r => .kept r
 
 /-- Small-step semantics of statements; `SStep args c k c'` takes cost k
     (the expression steps it performs, plus one). -/
@@ -112,28 +112,28 @@ inductive SStep (args : List Val) : SCfg → Nat → SCfg → Prop where
   | assign {i e fs os n v} : EvalN ⟨fs, args⟩ n e (.ok v) → i < fs.length →
       SStep args (.run (.assign i e) fs os) (n + 1) (.done (fs.set i v) os)
   | assignBad {i e fs os n v} : EvalN ⟨fs, args⟩ n e (.ok v) → ¬ i < fs.length →
-      SStep args (.run (.assign i e) fs os) (n + 1) (.refused (.trap .badIndex))
+      SStep args (.run (.assign i e) fs os) (n + 1) (.kept (.trap .badIndex))
   | assignTrap {i e fs os n m} : EvalN ⟨fs, args⟩ n e (.error m) →
-      SStep args (.run (.assign i e) fs os) (n + 1) (.refused (.trap m))
+      SStep args (.run (.assign i e) fs os) (n + 1) (.kept (.trap m))
   | seqL {a a' b fs os fs' os' k} : SStep args (.run a fs os) k (.run a' fs' os') →
       SStep args (.run (.seq a b) fs os) k (.run (.seq a' b) fs' os')
   | seqDone {a b fs os fs' os' k} : SStep args (.run a fs os) k (.done fs' os') →
       SStep args (.run (.seq a b) fs os) k (.run b fs' os')
-  | seqRef {a b fs os r k} : SStep args (.run a fs os) k (.refused r) →
-      SStep args (.run (.seq a b) fs os) k (.refused r)
+  | seqKept {a b fs os r k} : SStep args (.run a fs os) k (.kept r) →
+      SStep args (.run (.seq a b) fs os) k (.kept r)
   | ifT {c a b fs os n} : EvalN ⟨fs, args⟩ n c (.ok (.bool true)) → SStep args (.run (.ifs c a b) fs os) (n + 1) (.run a fs os)
   | ifF {c a b fs os n} : EvalN ⟨fs, args⟩ n c (.ok (.bool false)) → SStep args (.run (.ifs c a b) fs os) (n + 1) (.run b fs os)
-  | ifBad {c a b fs os n k} : EvalN ⟨fs, args⟩ n c (.ok (.int k)) → SStep args (.run (.ifs c a b) fs os) (n + 1) (.refused (.trap .badIndex))
-  | ifTrap {c a b fs os n m} : EvalN ⟨fs, args⟩ n c (.error m) → SStep args (.run (.ifs c a b) fs os) (n + 1) (.refused (.trap m))
+  | ifBad {c a b fs os n k} : EvalN ⟨fs, args⟩ n c (.ok (.int k)) → SStep args (.run (.ifs c a b) fs os) (n + 1) (.kept (.trap .badIndex))
+  | ifTrap {c a b fs os n m} : EvalN ⟨fs, args⟩ n c (.error m) → SStep args (.run (.ifs c a b) fs os) (n + 1) (.kept (.trap m))
   | loopStop {k c b fs os n} : EvalN ⟨fs, args⟩ n c (.ok (.bool false)) → SStep args (.run (.loop k c b) fs os) (n + 1) (.done fs os)
-  | loopBound {c b fs os n} : EvalN ⟨fs, args⟩ n c (.ok (.bool true)) → SStep args (.run (.loop 0 c b) fs os) (n + 1) (.refused (.trap .loopBound))
+  | loopBound {c b fs os n} : EvalN ⟨fs, args⟩ n c (.ok (.bool true)) → SStep args (.run (.loop 0 c b) fs os) (n + 1) (.kept (.trap .loopBound))
   | loopGo {k c b fs os n} : EvalN ⟨fs, args⟩ n c (.ok (.bool true)) →
       SStep args (.run (.loop (k + 1) c b) fs os) (n + 1) (.run (.seq b (.loop k c b)) fs os)
-  | loopBad {k c b fs os n j} : EvalN ⟨fs, args⟩ n c (.ok (.int j)) → SStep args (.run (.loop k c b) fs os) (n + 1) (.refused (.trap .badIndex))
-  | loopTrap {k c b fs os n m} : EvalN ⟨fs, args⟩ n c (.error m) → SStep args (.run (.loop k c b) fs os) (n + 1) (.refused (.trap m))
-  | fail {x fs os} : SStep args (.run (.fail x) fs os) 1 (.refused (.user x))
+  | loopBad {k c b fs os n j} : EvalN ⟨fs, args⟩ n c (.ok (.int j)) → SStep args (.run (.loop k c b) fs os) (n + 1) (.kept (.trap .badIndex))
+  | loopTrap {k c b fs os n m} : EvalN ⟨fs, args⟩ n c (.error m) → SStep args (.run (.loop k c b) fs os) (n + 1) (.kept (.trap m))
+  | fail {x fs os} : SStep args (.run (.fail x) fs os) 1 (.kept (.user x))
   | emit {e fs os n v} : EvalN ⟨fs, args⟩ n e (.ok v) → SStep args (.run (.emit e) fs os) (n + 1) (.done fs (os ++ [v]))
-  | emitTrap {e fs os n m} : EvalN ⟨fs, args⟩ n e (.error m) → SStep args (.run (.emit e) fs os) (n + 1) (.refused (.trap m))
+  | emitTrap {e fs os n m} : EvalN ⟨fs, args⟩ n e (.error m) → SStep args (.run (.emit e) fs os) (n + 1) (.kept (.trap m))
 
 /-- A run of total cost k. -/
 inductive SRun (args : List Val) : Nat → SCfg → SCfg → Prop where
@@ -146,7 +146,7 @@ theorem SRun.trans {args n m a b c} (h1 : SRun args n a b) (h2 : SRun args m b c
   | step s _ ih => have := SRun.step s (ih h2); rwa [Nat.add_assoc]
 
 theorem done_nostep {args fs os k c} : ¬ SStep args (.done fs os) k c := by intro h; cases h
-theorem refused_nostep {args r k c} : ¬ SStep args (.refused r) k c := by intro h; cases h
+theorem kept_nostep {args r k c} : ¬ SStep args (.kept r) k c := by intro h; cases h
 
 /-- Running `a` to completion inside `seq a b` continues with `b`. -/
 theorem SRun.seqDone {args n a b fs os fs' os'} (h : SRun args n (.run a fs os) (.done fs' os')) :
@@ -163,15 +163,15 @@ theorem SRun.seqDone {args n a b fs os fs' os'} (h : SRun args n (.run a fs os) 
       cases r with
       | refl => cases hy; simpa using SRun.step (.seqDone s) .refl
       | step s2 _ => exact absurd s2 done_nostep
-    | refused r0 =>
+    | kept r0 =>
       cases r with
       | refl => cases hy
-      | step s2 _ => exact absurd s2 refused_nostep
+      | step s2 _ => exact absurd s2 kept_nostep
 
-theorem SRun.seqRef {args n a b fs os r} (h : SRun args n (.run a fs os) (.refused r)) :
-    SRun args n (.run (.seq a b) fs os) (.refused r) := by
+theorem SRun.seqKept {args n a b fs os r} (h : SRun args n (.run a fs os) (.kept r)) :
+    SRun args n (.run (.seq a b) fs os) (.kept r) := by
   generalize hx : SCfg.run a fs os = x at h
-  generalize hy : SCfg.refused r = y at h
+  generalize hy : SCfg.kept r = y at h
   induction h generalizing a fs os with
   | refl => subst hx; cases hy
   | @step c c' c'' k n s rr ih =>
@@ -182,10 +182,10 @@ theorem SRun.seqRef {args n a b fs os r} (h : SRun args n (.run a fs os) (.refus
       cases rr with
       | refl => cases hy
       | step s2 _ => exact absurd s2 done_nostep
-    | refused r0 =>
+    | kept r0 =>
       cases rr with
-      | refl => cases hy; simpa using SRun.step (.seqRef s) .refl
-      | step s2 _ => exact absurd s2 refused_nostep
+      | refl => cases hy; simpa using SRun.step (.seqKept s) .refl
+      | step s2 _ => exact absurd s2 kept_nostep
 
 /-- The explicit step bound of a statement (spec 6.7, T2). -/
 def B : Stmt → Nat
@@ -228,7 +228,7 @@ theorem stmt_bound (args : List Val) (s : Stmt) : ∀ fs os, ∃ k, k ≤ B s �
       intro ra
       obtain ⟨kb, hkb, rb⟩ := ihb fs' os'
       exact ⟨ka + kb, by simp [B]; omega, (SRun.seqDone ra).trans rb⟩
-    | ref x => intro ra; exact ⟨ka, by simp [B]; omega, SRun.seqRef ra⟩
+    | ref x => intro ra; exact ⟨ka, by simp [B]; omega, SRun.seqKept ra⟩
   | ifs c a b iha ihb =>
     intro fs os
     obtain ⟨n, hn, hc⟩ := evalN_exists ⟨fs, args⟩ c
@@ -281,7 +281,7 @@ theorem stmt_bound (args : List Val) (s : Stmt) : ∀ fs os, ∃ k, k ≤ B s �
             cases exec args b fs os with
             | ref x =>
               intro rb
-              exact ⟨m + 1 + kb, by simp [B, Nat.succ_mul, Nat.add_mul] at hkb ⊢; omega, .step (.loopGo hc) (SRun.seqRef rb)⟩
+              exact ⟨m + 1 + kb, by simp [B, Nat.succ_mul, Nat.add_mul] at hkb ⊢; omega, .step (.loopGo hc) (SRun.seqKept rb)⟩
             | ok fs' os' =>
               intro rb
               obtain ⟨kl, hkl, rl⟩ := ihk fs' os'
@@ -298,7 +298,7 @@ theorem stmt_bound (args : List Val) (s : Stmt) : ∀ fs os, ∃ k, k ≤ B s �
     | error m => intro he; exact ⟨n + 1, by simp [B]; omega, by simpa using SRun.step (.emitTrap he) .refl⟩
 
 /-- **T4 for statements**: every running configuration takes a step; the
-    only configurations that do not are results (`done`) and refusals. -/
+    only configurations that do not are results (`done`) and kept outcomes. -/
 theorem stmt_progress (args : List Val) (s : Stmt) (fs os : List Val) :
     ∃ k c', SStep args (.run s fs os) k c' := by
   obtain ⟨k, _, h⟩ := stmt_bound args s fs os
@@ -354,7 +354,7 @@ theorem region_bound (args : List Val) (ev : String) (i : Nat) (fs : List Val) :
     · rw [if_neg hd]; exact ⟨m, by simp [BR]; omega, .other hd hr⟩
 
 /-- δ with cost: every region, in declaration order, on the pre-state. -/
-inductive DRun (P : Program) (e : Event) : Nat → State → Nat → Except Refusal (State × List Val) → Prop where
+inductive DRun (P : Program) (e : Event) : Nat → State → Nat → Except Reason (State × List Val) → Prop where
   | nil {i} : DRun P e i [] 0 (.ok ([], []))
   | ref {i fs rs n x} : RRun e.2 e.1 i fs P.steps n (.ref x) → DRun P e i (fs :: rs) n (.error x)
   | okRef {i fs rs n m fs' o x} : RRun e.2 e.1 i fs P.steps n (.ok fs' o) → DRun P e (i + 1) rs m (.error x) →

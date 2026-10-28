@@ -1,8 +1,8 @@
 module bank
 
-intent "a bank account that refuses overdrafts"
+intent "a bank account that keeps its balance on an overdraft (Insufficient)"
     example Deposit(amount: 50), Withdraw(amount: 20) -> 30
-    example Withdraw(amount: 1) -> refused: Insufficient
+    example Withdraw(amount: 1) -> kept: Insufficient
 
 state Account
     balance: i64 = 0
@@ -26,6 +26,6 @@ step Account on Withdraw(amount: a)
 # id: forms-log/harvested/04-bank-account-accept
 # area: forms-log
 # clauses: [CH03-M-28cdd241, CH05-M-d8ee78b3, CH08-M-51f39d7d, CH08-M-9a15157f, T10]
-# expect: accept
+# expect: ok
 # provenance: harvested examples/04_bank_account.rce
 #---

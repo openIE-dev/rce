@@ -36,7 +36,7 @@ fn embed_stdlib() {
     }
     text.push_str("];\n");
     // the library's own manifest (F.5.3), so a tool can name the library it
-    // carries by hash and refuse a module that differs from its pin
+    // carries by hash and report a module that differs from its pin
     let man = root.join("MANIFEST.json");
     println!("cargo:rerun-if-changed={}", man.display());
     match std::fs::canonicalize(&man) {

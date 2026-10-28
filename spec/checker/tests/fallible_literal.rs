@@ -30,6 +30,6 @@ fn soundness_is_unchanged() {
         ("list.rce", "error Boom\n\nfn f() -> i64 ! Boom\n    return [1]\n\nfn main()\n    emit f() catch 0\n"),
     ] {
         let (c, o) = check(n, src);
-        assert_ne!(c, 0, "{n} must be refused: {o}");
+        assert_ne!(c, 0, "{n} must be reported: {o}");
     }
 }

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Refuse a push whose RCE spec artefacts are stale (RCE-SPEC.md, book/INDEX.md,
+# Stop a push whose RCE spec artefacts are stale (RCE-SPEC.md, book/INDEX.md,
 # spec/data/*.json are derived; see scripts/regen-spec.sh).
 # Checks the exact commits being pushed, not the working tree: each pushed
 # tip that touches spec is exported to a scratch tree and checked
@@ -19,7 +19,7 @@ while read -r lref lsha rref rsha; do
   cp "$top/scripts/regen-spec.sh" "$scratch/tree/scripts/"
   echo "pre-push: checking spec artefacts of ${lsha:0:9} ($range)" >&2
   if ! CARGO_TARGET_DIR="$scratch/target" bash "$scratch/tree/scripts/regen-spec.sh" --check >&2; then
-    echo "pre-push: REFUSED ${lref} -> ${rref}: run scripts/regen-spec.sh, commit the result, push again" >&2
+    echo "pre-push: stale spec artefacts for ${lref} -> ${rref}: run scripts/regen-spec.sh, commit the result, push again" >&2
     status=1
   fi
 done

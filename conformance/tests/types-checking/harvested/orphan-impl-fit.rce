@@ -1,0 +1,10 @@
+impl Eq for List[i64]
+    fn eq(&self) -> bool = true
+#--- rce-test
+# id: types-checking/harvested/orphan-impl-fit
+# area: types-checking
+# clauses: [CH09-M-82e65964, W-TRAIT-2]
+# expect: fit
+# diagnostic: W-TRAIT-2
+# provenance: harvested examples/ill_typed/orphan_impl.rce
+#---

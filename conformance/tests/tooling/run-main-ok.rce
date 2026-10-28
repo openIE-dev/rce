@@ -10,6 +10,6 @@ fn main()
 # output_has:
 #   - emit 2
 # output_lacks:
-#   - REFUSED
+#   - fit main.rce
 # provenance: targeted (round 3): 10.3, the control: a checked module with fn main() runs
 #---

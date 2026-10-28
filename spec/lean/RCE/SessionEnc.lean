@@ -9,7 +9,7 @@ import RCE.SessionRec
     `loop body rest` runs `body` until a `break`, then `rest`. Choice arms
     are binary and carry their own continuation (steps after a `choose` or
     `offer` block are copied into both arms). A `break` outside any loop is
-    refused by W-SES; here it ends the protocol.
+    reported by W-SES; here it ends the protocol.
 
     `enc s e k` encodes `s` given the type `e` that follows the end of the
     sequence and `k` that follows a `break`:

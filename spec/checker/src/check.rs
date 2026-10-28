@@ -103,7 +103,7 @@ pub struct Checker {
     pub imported_types: HashSet<String>,
 }
 
-const SAFE_REFUSED: &[&str] = &["unsafe", "Rc", "Arc", "RefCell", "transmute", "static"];
+const SAFE_FORMS: &[&str] = &["unsafe", "Rc", "Arc", "RefCell", "transmute", "static"];
 const BUILTIN_TRAITS: &[&str] = &["Eq", "Ord", "Hash", "Show", "Copy", "Data", "Merge"];
 const STD_MODULES: &[&str] = &["std.text", "std.collections", "std.math"];
 
@@ -127,7 +127,7 @@ fn fn_cx(sig: &FnSig, owner_is_impl: bool, al: &HashMap<String, Ty>) -> Cx {
 /// Whether a type is or holds a channel. A type alias `type A = τ` is
 /// transparent (5.1): A is τ, so `fn f(c: A)` with τ a channel type is a
 /// task function. `al` maps alias names to their types; the depth cap
-/// stops a cyclic alias (refused elsewhere) from looping.
+/// stops a cyclic alias (reported elsewhere) from looping.
 fn ty_mentions_chan(t: &Ty, al: &HashMap<String, Ty>) -> bool {
     fn go(t: &Ty, al: &HashMap<String, Ty>, depth: usize) -> bool {
         match t {
@@ -227,7 +227,7 @@ impl Checker {
         let mut seen: HashMap<String, usize> = HashMap::new();
         for it in &m.items {
             let mut decl = |c: &mut Checker, n: &str, line: usize| {
-                if SAFE_REFUSED.contains(&n) {
+                if SAFE_FORMS.contains(&n) {
                     c.e(d(
                         line,
                         "W-SAFE-1",
@@ -814,7 +814,7 @@ impl Checker {
                         self.e(d(line, "W-NAME-1", "`Self` outside an impl or trait"));
                         T::Never
                     }),
-                    _ if SAFE_REFUSED.contains(&n) => {
+                    _ if SAFE_FORMS.contains(&n) => {
                         self.e(d(
                             line,
                             "W-SAFE-1",
@@ -1096,7 +1096,7 @@ impl Checker {
         }
     }
     pub(crate) fn declare(&mut self, n: &str, ty: T, mutable: bool, line: usize, param: bool) {
-        if SAFE_REFUSED.contains(&n) {
+        if SAFE_FORMS.contains(&n) {
             self.e(d(line, "W-SAFE-1", format!("`{n}` is refused")));
         }
         if self.variants.contains_key(n)
@@ -1603,7 +1603,7 @@ impl Checker {
                 )),
             }
         }
-        if let Some(r) = &x.refused
+        if let Some(r) = &x.kept
             && !r.starts_with("trap(")
             && !matches!(self.types.get(r), Some(TyDef::Error { .. }))
         {
@@ -1932,7 +1932,7 @@ impl Checker {
                         e.line(),
                         "W-DROP-1",
                         format!(
-                            "an expression statement whose value is {} is refused; bind it to `_` to drop it on purpose",
+                            "an expression statement whose value is {} is not dropped silently; bind it to `_` to drop it on purpose",
                             self.sub.resolve(&t)
                         ),
                     ));

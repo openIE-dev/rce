@@ -30,12 +30,12 @@ Every declared event must have at least one step. Otherwise the step
 function would have no answer for that event, and the program is refused:
 
 ```rce
-{{#include ../listings/ch05/refused/unhandled_event.rce}}
+{{#include ../listings/ch05/fit/unhandled_event.rce}}
 ```
 
 ```text
 $ rce check unhandled_event.rce
-{{#include ../listings/ch05/refused/unhandled_event.out}}
+{{#include ../listings/ch05/fit/unhandled_event.out}}
 ```
 
 Inside a step, the state's fields are variables you can read and change.
@@ -57,7 +57,7 @@ applied:
 
 ```text
 $ rce run door.rce "Lock, Open, Close"
-{{#include ../listings/ch05/door_refused.out}}
+{{#include ../listings/ch05/door_kept.out}}
 ```
 
 The exit status is 1 because an event was refused.

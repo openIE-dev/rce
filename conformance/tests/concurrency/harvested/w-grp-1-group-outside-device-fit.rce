@@ -1,0 +1,15 @@
+# rce-version: 0.6
+# expect: W-GRP-1
+fn f(x: [f64; 4]) -> f64
+    var t: f64 = 0.0
+    with group g lanes 4
+        t += x[g.lane]
+    t
+#--- rce-test
+# id: concurrency/harvested/w-grp-1-group-outside-device-fit
+# area: concurrency
+# clauses: [CH09-M-82e65964, W-GRP-1]
+# expect: fit
+# diagnostic: W-GRP-1
+# provenance: harvested conc06b/ill_typed/W-GRP-1_group_outside_device.rce
+#---

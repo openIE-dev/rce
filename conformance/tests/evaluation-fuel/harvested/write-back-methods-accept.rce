@@ -42,6 +42,6 @@ fn main()
 # id: evaluation-fuel/harvested/write-back-methods-accept
 # area: evaluation-fuel
 # clauses: [CH03-M-28cdd241, T10, T6]
-# expect: accept
+# expect: ok
 # provenance: harvested checker/tests/write_back_methods.rce
 #---

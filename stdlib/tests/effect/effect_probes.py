@@ -1,6 +1,6 @@
 # Checker conformance for the context table of RCE spec 5.2 (and the call
 # rules of 5.2 and 5.11): one probe program per (context, effect) cell and
-# per (caller, callee) pair, each admitted or refused by `rce check` as
+# per (caller, callee) pair, each admitted or reported by `rce check` as
 # the table says, with the rule the spec names (W-EFF-1, W-SPAWN-1,
 # W-ND-1 ...). Then the official corpus copied from openIE-dev/rce
 # (vectors/effect/rce-examples/): each accept program is admitted, each
@@ -84,7 +84,7 @@ with tempfile.TemporaryDirectory() as d:
             if (ctx, eff) in GAPS and not ok:
                 print('gap %s/%s: spec allows, not expressible: %s' % (ctx, eff, out.split(': ', 2)[-1][:120])); continue
             if not ok and want == 0 and not any(r in out for r in RULES):
-                bad += 1; print('MISMATCH %s/%s: refused by another rule: %s' % (ctx, eff, out[:300])); continue
+                bad += 1; print('MISMATCH %s/%s: reported by another rule: %s' % (ctx, eff, out[:300])); continue
             if ok != bool(want):
                 bad += 1; print('MISMATCH %s/%s: spec %s, checker %s: %s' % (ctx, eff, 'allows' if want else 'refuses', 'admitted' if ok else 'refused', out[:300]))
             else:

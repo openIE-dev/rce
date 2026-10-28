@@ -19,7 +19,7 @@ fn reference(src: &str, fuel: u64) -> Vec<String> {
     v.push(match r.outcome {
         Outcome::Done => "outcome Done".into(),
         Outcome::Deadlock => "outcome Deadlock".into(),
-        Outcome::Refused(e) => format!("outcome Refused: {e}"),
+        Outcome::Stopped(e) => format!("outcome Stopped: {e}"),
     });
     v
 }
@@ -110,7 +110,7 @@ fn concurrent_fuel_matches_the_reference() {
         // every program ends Done except `lvartrap`, which ends with a trap
         // late in a branch, so the fuel trap must win when the branches'
         // summed fuel runs out before that point (source order, C.6.3)
-        let want = if stem == "lvartrap" { "outcome Refused: trap: division by zero" } else { "outcome Done" };
+        let want = if stem == "lvartrap" { "outcome Stopped: trap: division by zero" } else { "outcome Done" };
         assert_eq!(full.last().unwrap(), want, "{stem}: {full:?}");
         // the smallest limit from which the run equals the unlimited run
         let mut top = 1u64;

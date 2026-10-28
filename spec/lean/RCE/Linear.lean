@@ -3,7 +3,7 @@
   Model: a body over one linear handle. `use` consumes it; `ite` branches on a
   run-time condition; `rep n s` is a bounded loop. The checker's count `lin`
   requires both branches to consume the same number of times and a loop body
-  to consume nothing (a move inside a loop is refused).
+  to consume nothing (a move inside a loop is reported).
   Theorem `linear_exactly_once`: if the checker accepts (lin s = some 1),
   every execution, whatever its conditions, consumes the handle exactly once.
 -/
@@ -16,7 +16,7 @@ inductive Stmt where
   | ite (c : Nat) (a b : Stmt)   -- condition number `c`, decided at run time
   | rep (n : Nat) (body : Stmt)
 
-/-- The checker's count of consumptions, `none` when refused. -/
+/-- The checker's count of consumptions, `none` when the count has no value (W-LIN-1). -/
 def lin : Stmt → Option Nat
   | .use => some 1
   | .skip => some 0
@@ -77,10 +77,10 @@ theorem lin_sound : ∀ (s : Stmt) (k : Nat), lin s = some k → ∀ env, uses e
 theorem linear_exactly_once (s : Stmt) (h : lin s = some 1) (env : Nat → Nat → Bool) : uses env s = 1 :=
   lin_sound s 1 h env
 
-/-- A body that consumes on one branch only is refused. -/
+/-- A body that consumes on one branch only is reported. -/
 example : lin (.ite 0 .use .skip) = none := by decide
 
-/-- A move inside a loop is refused. -/
+/-- A move inside a loop is reported. -/
 example : lin (.rep 3 .use) = none := by decide
 
 end RCE.Linear

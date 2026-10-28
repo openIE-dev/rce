@@ -66,7 +66,7 @@ step Fs on FileListDone(req: r, status: s, data: d, err: e)
 # id: lexing-parsing/generated/mut-tab-files-accept
 # area: lexing-parsing
 # clauses: [CH09-M-82e65964, W-LEX-1]
-# expect: reject
+# expect: fit
 # diagnostic: W-LEX-1
 # flags: [generated]
 # provenance: gen_props.py seed 7: mutation `tab` of files-accept

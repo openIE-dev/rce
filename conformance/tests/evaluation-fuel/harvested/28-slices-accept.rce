@@ -7,6 +7,6 @@ fn grid_get(g: &[[i64; 3]; 3], r: usize, c: usize) -> i64 = g[r][c]
 # id: evaluation-fuel/harvested/28-slices-accept
 # area: evaluation-fuel
 # clauses: [CH03-M-28cdd241, T10]
-# expect: accept
+# expect: ok
 # provenance: harvested examples/28_slices.rce
 #---

@@ -1,0 +1,16 @@
+linear struct H
+    id: i32
+
+extern "C" fn c_close(h: H) -> i32
+
+fn main()
+    let h = H(id: 3)
+    emit h.id
+#--- rce-test
+# id: types-checking/harvested/linear-unconsumed-fit
+# area: types-checking
+# clauses: [CH09-M-82e65964, HC-4, W-LIN-1]
+# expect: fit
+# diagnostic: W-LIN-1
+# provenance: harvested examples/ill_typed/linear_unconsumed.rce
+#---

@@ -66,6 +66,6 @@ step Fs on FileListDone(req: _r, status: s, data: d, err: _e)
 # id: host-contract/harvested/files-accept
 # area: host-contract
 # clauses: [CH03-M-28cdd241, CH08-M-9a15157f, T10]
-# expect: accept
+# expect: ok
 # provenance: harvested checker/tests/host/files.rce
 #---

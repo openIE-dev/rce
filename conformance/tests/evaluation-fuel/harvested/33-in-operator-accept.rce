@@ -7,6 +7,6 @@ fn same_range(a: i64) -> bool = a in 0..10 and not (a == 5)
 # id: evaluation-fuel/harvested/33-in-operator-accept
 # area: evaluation-fuel
 # clauses: [CH03-M-28cdd241, T10, T6]
-# expect: accept
+# expect: ok
 # provenance: harvested examples/33_in_operator.rce
 #---

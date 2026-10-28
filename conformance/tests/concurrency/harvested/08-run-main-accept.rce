@@ -20,6 +20,6 @@ fn main()
 # id: concurrency/harvested/08-run-main-accept
 # area: concurrency
 # clauses: [CH02-M-a696f3a3, CH03-M-28cdd241, T10]
-# expect: accept
+# expect: ok
 # provenance: harvested conc06/accept/08_run_main.rce
 #---

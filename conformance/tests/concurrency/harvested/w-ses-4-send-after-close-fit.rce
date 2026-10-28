@@ -1,0 +1,17 @@
+# rce-version: 0.6
+# expect: W-SES-4
+protocol P
+    send i64
+
+fn client(c: session P)
+    c <- 1
+    c.close()
+    c <- 2
+#--- rce-test
+# id: concurrency/harvested/w-ses-4-send-after-close-fit
+# area: concurrency
+# clauses: [W-SES-4]
+# expect: fit
+# diagnostic: W-SES-4
+# provenance: harvested conc06b/ill_typed/W-SES-4_send_after_close.rce
+#---

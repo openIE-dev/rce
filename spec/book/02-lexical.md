@@ -51,10 +51,10 @@ elif      else      emit      error     event     example   extern
 fail      false     fn        for       forall    from      if
 impl      in        intent    iter      kind      let       linear
 loop      match     module    mut       none      not       on
-or        pass      pub       recv      refused   return    select
-self      send      spawn     state     step      struct    then
-to        trait     true      try       type      use       var
-while     with      yield
+or        pass      pub       recv      return    select    self
+send      spawn     state     step      struct    then      to
+trait     true      try       type      use       var       while
+with      yield
 ```
 
 **One reserved list.** The language has one closed list of reserved words, the same in every module,
@@ -146,4 +146,4 @@ wherever the call is executed from.
 
 **Read receipt.** Which code point is the horizontal tab, as written in this section?
 
-<!-- body-sha256: 4eeab6a05c17dd46d9db462dc4c801fcde4ded882648bafd843fde43777a4dd4 -->
+<!-- body-sha256: 26ba6fca7955f9b0b6cf03553dcb7125d5622f3317faa1e4372581f48d773936 -->

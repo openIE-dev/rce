@@ -10,6 +10,6 @@ actor Tally
 # id: concurrency/harvested/15-actor-accept
 # area: concurrency
 # clauses: [CH03-M-28cdd241, T10]
-# expect: accept
+# expect: ok
 # provenance: harvested examples/15_actor.rce
 #---

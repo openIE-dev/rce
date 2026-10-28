@@ -4,7 +4,7 @@ import RCE.Replay
     handler is function 0 of the program; it takes `((state, event),
     answer)`, where the answer is the logged result of the event's effect
     (book 16 host contract), and returns `(state', output)`. A trap, an
-    error or exhaustion refuses the event and leaves the state (T8). The
+    error or exhaustion gives the event the kept outcome and leaves the state (T8). The
     log machinery is `RCE.Replay`, reused, not restated. -/
 namespace RCE.Core
 
@@ -13,7 +13,7 @@ def delta (P : Prog) (n : Nat) (s e a : Val) : Val :=
   | .ok (.pair s' _) => s'
   | _ => s
 
-/-- **T8 Atomicity**: a refused event leaves the state unchanged. -/
+/-- **T8 Atomicity**: a kept event leaves the state unchanged. -/
 theorem delta_atomic (P : Prog) (n : Nat) (s e a : Val)
     (h : ∀ s' o, eval P n [] (.call 0 (.lit (.pair (.pair s e) a))) ≠ .ok (.pair s' o)) :
     delta P n s e a = s := by

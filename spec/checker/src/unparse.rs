@@ -531,10 +531,10 @@ fn field(o: &mut String, d: usize, f: &Field) {
 
 fn example(x: &Example) -> String {
     let evs: Vec<String> = x.events.iter().map(|(n, a)| if a.is_empty() { n.clone() } else { format!("{n}({})", args(a)) }).collect();
-    let rhs = match (&x.refused, &x.value) {
+    let rhs = match (&x.kept, &x.value) {
         (Some(r), _) => match r.strip_prefix("trap(").and_then(|k| k.strip_suffix(')')) {
-            Some(k) => format!("refused: trap({})", serde_json::Value::String(k.into())),
-            None => format!("refused: {r}"),
+            Some(k) => format!("kept: trap({})", serde_json::Value::String(k.into())),
+            None => format!("kept: {r}"),
         },
         (None, Some(v)) => expr(v),
         (None, None) => "()".into(),

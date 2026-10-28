@@ -11,6 +11,6 @@ fn collatz_steps(n: u64) -> u64 ! Diverged
 # id: numbers/harvested/18-while-bound-accept
 # area: numbers
 # clauses: [CH03-M-28cdd241, T10]
-# expect: accept
+# expect: ok
 # provenance: harvested examples/18_while_bound.rce
 #---

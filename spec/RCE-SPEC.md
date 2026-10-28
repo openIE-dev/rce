@@ -25,7 +25,7 @@ Three plain points:
 3. **Memory is safe by construction.** Ownership, second-class borrows,
    regions and linear handles rule out use-after-free and data races.
 
-Tiny example (a counter that refuses to go negative):
+Tiny example (a counter whose `Dec` at zero keeps n at 0):
 
 ```
 state Counter
@@ -111,7 +111,7 @@ The normative grammar is section 3, and it is also the machine-readable one:
 `rce-spec-check` (in `spec/checker/`, Rust only) reads the EBNF of section 3
 from `book/03-syntax.md`, builds its LALR(1) tables and fails on any
 shift/reduce or reduce/reduce conflict, then parses every program in
-`spec/examples/` and requires every program in `spec/examples/reject/` to be
+`spec/examples/` and requires every program in `spec/examples/fit/syntax/` to be
 refused, by the LALR(1) tables, the Rust parser and the tree-sitter port
 alike, then runs `rce-check` over the same files (all examples together
 form one program and must be accepted; the 12 syntax rejects, the 48
@@ -122,9 +122,9 @@ the printed output of `rce-spec-check`, compared with this text by
 (100 rules, 491 productions, 974 states); with the additions of C.2,
 0 conflicts (114 rules, 560 productions, 1152 states);
 with C.2 and F.13, 0 conflicts (119 rules, 588 productions,
-1214 states), accepting the 15 Appendix F examples; grammar 62/62 accepted,
-12/12 refused; checker 62/62 accepted, 12/12 and 64/64 refused (16 of them
-inadmissible). Until 2026-10-12 the same grammar was kept as
+1214 states), accepting the 15 Appendix F examples; grammar 62/62 parsed,
+12/12 reported; checker 62/62 in Form, 12/12 and 64/64 reported (16 of them
+admission). Until 2026-10-12 the same grammar was kept as
 `spec/rce.lark` and checked with Lark (0 conflicts, 533 rules in Lark's
 expansion); that file is retired.
 `rce-fuzz N SEED` generates random type-directed programs from the
@@ -246,10 +246,10 @@ elif      else      emit      error     event     example   extern
 fail      false     fn        for       forall    from      if
 impl      in        intent    iter      kind      let       linear
 loop      match     module    mut       none      not       on
-or        pass      pub       recv      refused   return    select
-self      send      spawn     state     step      struct    then
-to        trait     true      try       type      use       var
-while     with      yield
+or        pass      pub       recv      return    select    self
+send      spawn     state     step      struct    then      to
+trait     true      try       type      use       var       while
+with      yield
 ```
 
 **One reserved list.** The language has one closed list of reserved words, the same in every module,
@@ -376,7 +376,7 @@ IntentDecl  = "intent" STRING NEWLINE [ INDENT IntentLine { IntentLine } DEDENT 
 IntentLine  = ExampleDecl | CheckDecl | STRING NEWLINE .
 ExampleDecl = "example" [ EventRef { "," EventRef } ] "->" Outcome NEWLINE .
 EventRef    = NAME [ "(" [ Args ] ")" ] .
-Outcome     = Expr | "refused" ":" ( NAME | "trap" "(" STRING ")" ) .
+Outcome     = Expr | "kept" ":" ( NAME | "trap" "(" STRING ")" ) .
 CheckDecl   = "check" Expr NEWLINE .
 ```
 
@@ -628,7 +628,7 @@ declaration and no conflict to resolve at parse time.
 2. parses the 62 programs in `examples/` (the 60 files there and the 2 of
    `examples/26_use_module/`), with and without their final
    newline; all must parse;
-3. parses the 12 programs in `examples/reject/` (tab indent, chained
+3. parses the 12 programs in `examples/fit/syntax/` (tab indent, chained
    comparison, `if` expression without `else`, `try` in a `then` branch,
    inconsistent dedent, `class`, assignment inside an expression, empty `kind`,
    state with no fields, `step` without `on`, example without `->`,
@@ -820,7 +820,7 @@ make acceptance itself unbounded. Example: `type Pct = u8 where self <=
 `refinement: value is outside Pct`, and a step computing `level + 60` on
 `level: Pct = 60` refuses its event. Lean: `RCE/Refine.lean`
 (`holds_total`, `fit_sound`, `refine_preserved`,
-`refine_refused_unchanged`, `admit_sound`; T35).
+`refine_kept_unchanged`, `admit_sound`; T35).
 
 **Error sets.** In `τ ! ε`, ε is a finite set of declared `error` names,
 written as one error name or as the name of a `kind` whose variants are all
@@ -2048,8 +2048,8 @@ run with outcome `Deadlock` in λ (a defined outcome, not a hang).
 ### 6.9 Examples and checks
 
 `example ē -> o` denotes the proposition: folding the events ē from s₀ gives
-a final step whose outcome is o, where for `-> refused: X` the last event is
-refused with the error X, for `-> refused: trap("K")` the last event is
+a final step whose outcome is o, where for `-> kept: X` the last event is
+refused with the error X, for `-> kept: trap("K")` the last event is
 refused by the trap K (earlier events must be applied in both cases), and for
 `-> e` the event list is fully applied and then
 
@@ -2143,7 +2143,7 @@ does not define.
 
 ---
 
-## 7. Well-formedness: what is refused at entry
+## 7. Well-formedness: the rules a text meets to have its Form
 
 This section is the checklist of rules a program must pass to be accepted
 (*well-formedness*). Each rule has a name such as W-TY-1, and a refused
@@ -2301,7 +2301,7 @@ Classical.choice). Status per theorem:
 | T3 | proved | `fold_law`, `log_is_events`, `replay` |
 | T4 | proved for expressions, statements, δ and ticks (some task moves, or every task is done or blocked: the run ends or is `Deadlock`) | `progress`, `stmt_progress`, `delta_bound`, `run_progress`, `progress` (Conc) |
 | T5 | proved for expressions, statements, δ and the whole log; for ticks, the world invariant (typed channel contents, task-owned locations) is preserved | `preservation`, `exec_wt`, `delta_wt`, `run_wt`, `tick_inv` |
-| T6 | proved for the ownership core; for full borrow paths (field paths, prefix overlap, partial moves, loans) in an instrumented semantics: well-typed bodies never fault, writes through a `&mut` path are exclusive, and write-while-borrowed, overlapping `&mut`, dangling borrows and read-after-partial-move are refused; tasks never share mutable data in any reachable configuration | `memory_safety`, `borrow_safety`, `borrow_no_fault`, `writeVia_exclusive`, `overlapping_mut_refused`, `dangling_refused`, `tasks_never_share` |
+| T6 | proved for the ownership core; for full borrow paths (field paths, prefix overlap, partial moves, loans) in an instrumented semantics: well-typed bodies never fault, writes through a `&mut` path are exclusive, and write-while-borrowed, overlapping `&mut`, dangling borrows and read-after-partial-move are refused; tasks never share mutable data in any reachable configuration | `memory_safety`, `borrow_safety`, `borrow_no_fault`, `writeVia_exclusive`, `overlapping_mut_no_typing`, `dangling_no_typing`, `tasks_never_share` |
 | T7 | proved for event/error names over δ and the log; for log hashes under any hash function H; for channel, actor and task ids and select choices of the concurrency model. The checker and the four emitted runtimes hash the positional forms of 6.1 since the erratum of C.15, so the implementation's log hashes are name-free as the model's are (`tests/nameless.rs`); `RCE/Positional.lean` models that embedding (records of declared types as field lists in declaration order, variants as `[k, fields]`, events by index, undeclared records by name) and proves it unchanged under any renaming that is injective and fixes undeclared names, hence the state hash and the whole entry chain for every hash function, and that its event index is the `idx` the De Bruijn model hashes | `name_independence`, `log_hashes_name_independent`, `conc_name_independent`, `select_name_independent`, `Positional.pos_rename`, `Positional.chain_name_independent`, `Positional.eventIndex_eq_idx` |
 | T8 | proved | `atomicity` |
 | T9 | T9-F (Form IR targets: Rust, WASM, Python, XState, SCXML) stated, not checked here: the Form IR compiler (`rce form --emit`) is in the engine crate, which is not in this repository (10.1, Appendix D), so no tool published here samples T9-F. T9-L (program emitters of 10.5: `rust`, `python`, `js`, including `&mut` write-back on failure under `catch` and `try` and nested in strict positions via the ANF pass of T34, 6.2, `spec/checker/tests/write_back.rs`): proved for the Rust emitter on the core (step bodies, expressions, guarded step selection) as a verified translation into MiniRust, a deep embedding of the emitted Rust subset with Rust-style semantics; printed to Rust and checked against rustc by differential testing. Not covered: the other targets, the full surface language, and the claim that rustc implements MiniRust (trusted, tested) | `reval_compile`, `compile_correct`, `RExec.det`, `emit_agrees`, `region_agrees` |
@@ -2313,7 +2313,7 @@ Classical.choice). Status per theorem:
 | T32 | proved for every oracle: replay of the log equals the live run, the log's events are the input events, an answer contract holds of every logged answer, and runs that logged the same answers agree | `replay_live`, `live_events`, `live_answers_satisfy`, `t32` |
 | T33 | proved: a call that ends by `fail` leaves the caller's `&mut` state as at the call, and a returning call writes its final value back (the restore rule of F.4.4, as a model; W-TX-1 is a check, not part of the model) | `t33_failure_restores`, `t33_return_writes_back` |
 | T36 | proved on models of 5.16: every metacharacter of rendered context text comes from a literal when the encoder emits none (and the HTML encoder emits none of `< > " '`); public outputs are equal for runs whose public inputs and secret-equality bits agree; a log of events without the capability leaves a guarded field unchanged. The checker rules are tested on accept/refuse cases and the encoders across the reference and the Rust, Python and JavaScript runtimes (`tests/indexed.rs`) | `ctx_meta_from_literals`, `html_enc_clean`, `noninterference`, `outputs_noninterfere`, `guarded_needs_cap` |
-| T35 | proved on a model of the boundary check: the predicate fragment decides (a total Bool function), a value that passes the check satisfies its predicate, admission accepts only payloads that satisfy their field predicates, and every state reached by the checked δ from an initial state that satisfies the field predicates satisfies them, with a refused event leaving the state unchanged; the reference evaluator and the Rust, Python and JavaScript runtimes are tested to accept and trap alike (`tests/refined.rs`) | `holds_total`, `fit_sound`, `admit_sound`, `refine_preserved`, `refine_refused_unchanged` |
+| T35 | proved on a model of the boundary check: the predicate fragment decides (a total Bool function), a value that passes the check satisfies its predicate, admission accepts only payloads that satisfy their field predicates, and every state reached by the checked δ from an initial state that satisfies the field predicates satisfies them, with a refused event leaving the state unchanged; the reference evaluator and the Rust, Python and JavaScript runtimes are tested to accept and trap alike (`tests/refined.rs`) | `holds_total`, `fit_sound`, `admit_sound`, `refine_preserved`, `refine_kept_unchanged` |
 | T34 | proved for a core fragment (literals, reads, write-back calls, a charging operator, emit) with full ANF: the let-bound program gives the same value, store, and trace of charges and emits; the implementation (`anf.rs`, which binds fewer nodes and covers the surface language) is tested differentially on every target, including a budget sweep across the trap point | `t34`, `run_frame` |
 | T37 | proved on a model of the host (Appendix E): δ extended with host entries is the identity on them, replay of the log with no oracle equals the live run for every adapter oracle, a log of host entries alone leaves the state unchanged, and placement computed from the logged host entries agrees for equal logs; the example logs are re-folded with host entries interleaved in `tests/host_contract.rs` | `host_entry_identity`, `t37_replay`, `t37_host_only`, `t37_placement` |
 | T38 | proved for any hash function: the verified prefix is a prefix and a valid chain, a valid log is kept whole, and a valid log followed by an entry that does not link is cut back to it; the SHA-256 chain of every example log is tested with torn, flipped and swapped entries (`tests/host_contract.rs`) | `verify_prefix`, `verify_valid`, `verify_intact`, `verify_append`, `t38_torn` |
@@ -2555,7 +2555,7 @@ each can be reversed independently.
    unchanged.** Stricter than "every (region, event) pair", looser than "every
    event in every region"; catches typos without boilerplate.
 6. **Errors refuse the event and leave state unchanged** (`example … ->
-   refused: X`), and are logged and output, never thrown.
+   kept: X`), and are logged and output, never thrown.
 7. **Traps (overflow, division by zero, non-finite, index, size, loop bound)
    are Form errors, not part of declared error sets**; `catch` cannot hide
    them.
@@ -3469,9 +3469,9 @@ An entry holds `module`, `name`, `file`, `line`, `generics`, `params`
 `t0`, `t1`, ... in order of first occurrence), `hash` (SHA-256 of the
 module path and the canonical text of the function alone, so layout and
 position do not change it), `checked` (the verdict of its file) and
-`lowering` (`{"term": T}`, the D.7 lowering, or `{"refused": reason}`).
+`lowering` (`{"term": T}`, the D.7 lowering, or `{"pending": reason}`).
 The catalog's `hash` is the SHA-256 of the canonical JSON of its entries;
-`refused_files` maps each refused file to its diagnostics. With
+`pending_files` maps each refused file to its diagnostics. With
 `--vectors N`, `vectors` maps a lowered brick's hash to up to N
 `{"args", "out"}` or `{"args", "trap"}` records of the reference
 evaluator on inputs generated from the parameter types by a fixed rule
@@ -3532,7 +3532,7 @@ is invariant under renaming (T61, tested by `tests/dim.rs` against
 `rce fmt --nameless`).
 The report also says whether some explored step has a λ output (6.1): an
 emitted value, or the record of a refusal (`has_output` in the JSON, with
-`emits` and `refuses` reported separately, since a refusal is the rejection
+`emits` and `keeps` reported separately, since a refusal is the rejection
 of an input and an emitted value is the program's answer), and how many
 distinct output sequences the explored steps carry (`distinct_outputs`; a
 silent step is excluded). A program with no such step has one behaviour by
@@ -3540,8 +3540,8 @@ definition, so its redundancy is its whole state: the state is in D and
 readable, and an `example` may check it, but no future output depends on
 it. A program whose every output is the same has one behaviour as well.
 The dimension benchmark reports these strata separately.
-`--json` prints the same as one JSON object (format `rce-dim/1`, compact,
-sorted keys; `has_output`, `emits`, `refuses` and `distinct_outputs` since 2026-10-24, replacing `observable` and `distinct_labels`). The command is deterministic: equal inputs give equal output
+`--json` prints the same as one JSON object (format `rce-dim/2`, compact,
+sorted keys; `has_output`, `emits`, `keeps` and `distinct_outputs` since 2026-10-24, replacing `observable` and `distinct_labels`). The command is deterministic: equal inputs give equal output
 bytes, and the exploration order is the canonical order of 6.1 on events
 and payloads. It is informative: no admission depends on it.
 

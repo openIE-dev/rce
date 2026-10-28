@@ -151,7 +151,7 @@ fn probe_unknown() -> i64
 # id: types-checking/generated/mut-unknown-name-net-accept
 # area: types-checking
 # clauses: [CH09-M-82e65964, W-NAME-1]
-# expect: reject
+# expect: fit
 # diagnostic: W-NAME-1
 # flags: [generated]
 # provenance: gen_props.py seed 7: mutation `unknown-name` of net-accept

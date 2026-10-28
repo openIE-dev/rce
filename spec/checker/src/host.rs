@@ -1301,7 +1301,7 @@ impl<'a> Host<'a> {
     fn outcome_text(o: &crate::conc::Outcome) -> String {
         match o {
             crate::conc::Outcome::Done => "done".into(),
-            crate::conc::Outcome::Refused(r) => format!("refused: {r}"),
+            crate::conc::Outcome::Stopped(r) => format!("stopped: {r}"),
             crate::conc::Outcome::Deadlock => "deadlock".into(),
         }
     }

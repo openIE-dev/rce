@@ -537,9 +537,9 @@ An entry holds `module`, `name`, `file`, `line`, `generics`, `params`
 `t0`, `t1`, ... in order of first occurrence), `hash` (SHA-256 of the
 module path and the canonical text of the function alone, so layout and
 position do not change it), `checked` (the verdict of its file) and
-`lowering` (`{"term": T}`, the D.7 lowering, or `{"refused": reason}`).
+`lowering` (`{"term": T}`, the D.7 lowering, or `{"pending": reason}`).
 The catalog's `hash` is the SHA-256 of the canonical JSON of its entries;
-`refused_files` maps each refused file to its diagnostics. With
+`pending_files` maps each refused file to its diagnostics. With
 `--vectors N`, `vectors` maps a lowered brick's hash to up to N
 `{"args", "out"}` or `{"args", "trap"}` records of the reference
 evaluator on inputs generated from the parameter types by a fixed rule
@@ -600,7 +600,7 @@ is invariant under renaming (T61, tested by `tests/dim.rs` against
 `rce fmt --nameless`).
 The report also says whether some explored step has a λ output (6.1): an
 emitted value, or the record of a refusal (`has_output` in the JSON, with
-`emits` and `refuses` reported separately, since a refusal is the rejection
+`emits` and `keeps` reported separately, since a refusal is the rejection
 of an input and an emitted value is the program's answer), and how many
 distinct output sequences the explored steps carry (`distinct_outputs`; a
 silent step is excluded). A program with no such step has one behaviour by
@@ -608,8 +608,8 @@ definition, so its redundancy is its whole state: the state is in D and
 readable, and an `example` may check it, but no future output depends on
 it. A program whose every output is the same has one behaviour as well.
 The dimension benchmark reports these strata separately.
-`--json` prints the same as one JSON object (format `rce-dim/1`, compact,
-sorted keys; `has_output`, `emits`, `refuses` and `distinct_outputs` since 2026-10-24, replacing `observable` and `distinct_labels`). The command is deterministic: equal inputs give equal output
+`--json` prints the same as one JSON object (format `rce-dim/2`, compact,
+sorted keys; `has_output`, `emits`, `keeps` and `distinct_outputs` since 2026-10-24, replacing `observable` and `distinct_labels`). The command is deterministic: equal inputs give equal output
 bytes, and the exploration order is the canonical order of 6.1 on events
 and payloads. It is informative: no admission depends on it.
 
@@ -643,4 +643,4 @@ its name-free projection (T7) and is a continuous-integration step.
 
 **Read receipt.** Which JSON-RPC error code does the language server return for a request it does not know? (a number)
 
-<!-- body-sha256: 28c8d5a61d12bf7334a77c577728789a5c2687fa7a108568fa32e95f66e85198 -->
+<!-- body-sha256: d39d2241432a675082603d392cb843b75b8bc2d57427afca19f06e2339b9a456 -->

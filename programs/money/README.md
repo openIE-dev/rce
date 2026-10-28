@@ -7,14 +7,14 @@ half done.
 |---|---|
 | `account.rce` | an account that refuses overdrafts and non-positive amounts |
 | `ledger.rce` | double-entry bookkeeping; each step also checks that all balances sum to zero |
-| `refused/decimal.rce` | shows that there is no `decimal` type |
+| `fit/decimal.rce` | shows that there is no `decimal` type |
 
 Money is kept in integer cents. Draft 0.5 has no decimal or fixed-point
 type, and the checker refuses one:
 
 ```text
-$ rce check refused/decimal.rce
-REFUSED refused/decimal.rce: line 1: W-NAME-1 unknown type `decimal`; line 1: W-TY-1 expected never, found ?0
+$ rce check fit/decimal.rce
+fit fit/decimal.rce: line 1: W-NAME-1 unknown type `decimal`; line 1: W-TY-1 expected never, found ?0
 ```
 
 (`decimal.cmd` and `decimal.out` keep this transcript checked.) Integer arithmetic in RCE traps

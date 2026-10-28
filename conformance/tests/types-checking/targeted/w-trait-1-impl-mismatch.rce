@@ -8,7 +8,7 @@ impl D for P
 # id: types-checking/targeted/w-trait-1-impl-mismatch
 # area: types-checking
 # clauses: [CH06-M-8e9952a9, CH09-M-82e65964, W-TRAIT-1]
-# expect: reject
+# expect: fit
 # diagnostic: W-TRAIT-1
 # provenance: targeted.py: expected result read off the clause
 #---

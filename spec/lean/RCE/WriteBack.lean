@@ -6,7 +6,7 @@ as it was at the call. Both are proved of the model below (copy in, run on
 the copy, copy out only when the outcome is a value). The earlier rule, which
 wrote back on every outcome, is retired and is not stated in this tree.
 Whether every effect since entry is undoable (W-TX-1) is a check of the
-checker, not of this model. A trap still refuses the whole event (T8).
+checker, not of this model. A trap still gives the whole event the kept outcome (T8).
 -/
 namespace RCE.WriteBack
 

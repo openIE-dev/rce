@@ -9,8 +9,8 @@
 //! * T29: the frozen value of an lvar after puts from par branches, in
 //!   several branch orders, is the `foldl max` of the puts, and a
 //!   threshold read returns the threshold (`thresholdRead`);
-//! * T30: atomic transactions across two actors, some refused by a
-//!   handler failure, leave the state `Models.atomic` computes.
+//! * T30: atomic transactions across two actors, some given the kept
+//!   outcome by a handler failure, leave the state `Models.atomic` computes.
 //!
 //! These are correspondences on vectors, not proofs about the evaluator.
 use rce_spec_check::conc::{Outcome, RunCfg, run_main};

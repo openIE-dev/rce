@@ -50,12 +50,12 @@ Only `pub` items can be reached this way. `round_down` in `shop.pricing`
 has no `pub`, so a call to it from another module is refused:
 
 ```rce
-{{#include ../listings/ch12/refused/private_call.rce}}
+{{#include ../listings/ch12/fit/private_call.rce}}
 ```
 
 ```text
 $ rce check ../shop/pricing.rce private_call.rce
-{{#include ../listings/ch12/refused/private_call.out}}
+{{#include ../listings/ch12/fit/private_call.out}}
 ```
 
 The modules `std.text`, `std.collections` and `std.math` are built in and

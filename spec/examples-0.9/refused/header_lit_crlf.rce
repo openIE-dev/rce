@@ -1,4 +1,0 @@
-# rce-version: 0.9
-# expect: W-CTX-1
-# a header literal is one line: CR and LF are refused (F.5.7)
-fn subject() -> text = Header.lit("Subject: hi\r\nBcc: x").raw()

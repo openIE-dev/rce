@@ -9,6 +9,6 @@ check (16777217 as f32) as i64 == 16777216
 # id: numbers/harvested/42-f32-accept
 # area: numbers
 # clauses: [CH03-M-28cdd241, T10]
-# expect: accept
+# expect: ok
 # provenance: harvested examples/42_f32.rce
 #---

@@ -78,7 +78,7 @@ fn imin_rem() -> i64
 # id: lexing-parsing/generated/mut-bom-emit-edge-accept
 # area: lexing-parsing
 # clauses: [CH09-M-82e65964, W-LEX-1]
-# expect: reject
+# expect: fit
 # diagnostic: W-LEX-1
 # flags: [generated]
 # provenance: gen_props.py seed 7: mutation `bom` of emit-edge-accept

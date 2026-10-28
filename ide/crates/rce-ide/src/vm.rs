@@ -180,7 +180,7 @@ impl Ide {
                     if let Some(e) = sc["error"].as_str() {
                         diagnostics.push(e.into());
                     }
-                    ProposalStatus::Refused {
+                    ProposalStatus::Fit {
                         diagnostics,
                         receipt,
                     }
@@ -195,7 +195,7 @@ impl Ide {
                     self.open(&path);
                 }
             }
-            Action::Reject(id) => {
+            Action::Decline(id) => {
                 let p = self
                     .proposals
                     .iter()
@@ -203,19 +203,19 @@ impl Ide {
                     .cloned()
                     .ok_or("no such pending proposal")?;
                 let mut d = Draft::new(
-                    ActionKind::Other("proposal.reject".into()),
+                    ActionKind::Other("proposal.decline".into()),
                     "user",
                     self.server.policy_hash().to_string(),
                 );
                 d.t_start_ns = ide_energy_now();
                 d.t_end_ns = d.t_start_ns;
-                d.verdict = Verdict::Rejected {
-                    reason: "rejected by the user".into(),
+                d.verdict = Verdict::NotPerformed {
+                    reason: "declined by the user".into(),
                 };
                 d.detail =
                     json!({"proposal": p.id, "path": p.path, "origin": p.origin, "edits": p.edits});
                 let r = self.server.ledger.append(d).map_err(|e| e.to_string())?;
-                self.set_status(id, ProposalStatus::Rejected { receipt: r.hash });
+                self.set_status(id, ProposalStatus::Declined { receipt: r.hash });
             }
             Action::Recall(q) => {
                 self.memory = MemoryVm {

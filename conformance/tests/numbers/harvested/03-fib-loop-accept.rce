@@ -14,6 +14,6 @@ fn fib(n: u32) -> u64
 # id: numbers/harvested/03-fib-loop-accept
 # area: numbers
 # clauses: [CH03-M-28cdd241, T10]
-# expect: accept
+# expect: ok
 # provenance: harvested examples/03_fib_loop.rce
 #---

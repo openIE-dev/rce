@@ -82,7 +82,7 @@ fn edits_go_through_rce_mcp_and_each_turn_is_signed() {
     assert_eq!(r.stop_reason, "end_turn");
     assert_eq!(r.permissions_granted, ["propose_edit"]);
     assert_eq!(r.mediated, ["counter.rce"]);
-    assert!(r.unmediated.is_empty() && r.refused_methods.is_empty());
+    assert!(r.unmediated.is_empty() && r.methods_outside_grant.is_empty());
     assert_eq!(r.tool_calls[0].3, "completed");
     assert!(r.agent_text.contains("done") && r.usage.is_some());
     assert!(
@@ -140,7 +140,7 @@ fn fs_terminal_and_foreign_tools_are_refused() {
         ))
         .unwrap();
     assert_eq!(
-        r.refused_methods,
+        r.methods_outside_grant,
         ["fs/write_text_file", "fs/read_text_file", "terminal/create"]
     );
     assert!(
@@ -167,7 +167,7 @@ fn writes_outside_rce_mcp_are_reverted_and_flagged() {
     );
     assert!(!e.ws.join("new.txt").exists());
     let rs = read_jsonl(&e.ledger).unwrap();
-    assert!(matches!(rs[0].body.draft.verdict, Verdict::Rejected { .. }));
+    assert!(matches!(rs[0].body.draft.verdict, Verdict::NotPerformed { .. }));
 }
 
 #[test]

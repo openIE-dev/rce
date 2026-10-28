@@ -14,7 +14,7 @@ fn main()
 # id: lexing-parsing/generated/mut-dedent-04-scope-atomic-accept
 # area: lexing-parsing
 # clauses: [CH02-M-69371f07, CH09-M-82e65964, T10, W-LEX-2]
-# expect: reject
+# expect: fit
 # diagnostic: W-LEX-2
 # flags: [generated]
 # provenance: gen_props.py seed 7: mutation `dedent` of 04-scope-atomic-accept

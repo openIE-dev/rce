@@ -50,7 +50,7 @@ fn trace_and_host_charge_fuel_per_input() {
         .collect();
     assert_eq!(got, want, "host and trace disagree under per-input fuel");
 
-    // one unit less and the single input is refused in both
+    // one unit less and the single input has the kept outcome in both
     FUEL_LIMIT.store(one - 1, SeqCst);
     assert!(trace_steps("Inc").first().is_none_or(|s| s["outcome"] != "applied"));
     FUEL_LIMIT.store(FUEL, SeqCst);

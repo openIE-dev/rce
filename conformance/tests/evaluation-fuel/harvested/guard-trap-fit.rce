@@ -1,0 +1,18 @@
+intent "a guard trap gives the event the kept outcome (S1)"
+    example Go(d: 0) -> 1
+
+state S
+    n: i64 = 1
+
+event Go(d: i64)
+
+step S on Go(d: d) if 10 / d > 1 -> n + 1
+step S on Go(d: _) -> n
+#--- rce-test
+# id: evaluation-fuel/harvested/guard-trap-fit
+# area: evaluation-fuel
+# clauses: [CH09-M-82e65964, W-INT-1]
+# expect: fit
+# diagnostic: W-INT-1
+# provenance: harvested examples/inadmissible/guard_trap.rce
+#---

@@ -9,6 +9,6 @@ fn fan_in(a: chan u64, b: chan u64, out: chan u64)
 # id: concurrency/harvested/47-select-fair-accept
 # area: concurrency
 # clauses: [CH03-M-28cdd241, T10, T11]
-# expect: accept
+# expect: ok
 # provenance: harvested examples/47_select_fair.rce
 #---

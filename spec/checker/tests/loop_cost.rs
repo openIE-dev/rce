@@ -1,5 +1,5 @@
 //! `loop bound N` is the one spelling of an unconditional loop (`while true` is
-//! refused, W-UNUSED-2). Its cost is the body's alone: no condition is
+//! reported, W-UNUSED-2). Its cost is the body's alone: no condition is
 //! evaluated per iteration. The budget boundary is the same operation in the
 //! reference evaluator and in every emitted runtime.
 use rce_spec_check::cli;
@@ -68,7 +68,7 @@ fn the_loop_boundary_is_found_and_is_the_same_in_every_runtime() {
 }
 
 #[test]
-fn while_true_is_refused() {
+fn while_true_reports_fit() {
     let src = "fn main()\n    var i = 0\n    while true bound 8\n        i += 1\n        if i == 5\n            break\n    emit i\n";
     assert!(rce_spec_check::check_one(src).unwrap_err().contains("W-UNUSED-2"));
 }

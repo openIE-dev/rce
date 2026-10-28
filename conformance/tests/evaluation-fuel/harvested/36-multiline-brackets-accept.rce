@@ -12,6 +12,6 @@ fn long_call() -> i64
 # id: evaluation-fuel/harvested/36-multiline-brackets-accept
 # area: evaluation-fuel
 # clauses: [CH03-M-28cdd241, T10]
-# expect: accept
+# expect: ok
 # provenance: harvested examples/36_multiline_brackets.rce
 #---

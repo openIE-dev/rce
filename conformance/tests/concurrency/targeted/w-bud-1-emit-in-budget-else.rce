@@ -8,7 +8,7 @@ fn main()
 # id: concurrency/targeted/w-bud-1-emit-in-budget-else
 # area: concurrency
 # clauses: [CH09-M-82e65964, W-BUD-1]
-# expect: reject
+# expect: fit
 # diagnostic: W-BUD-1
 # provenance: targeted.py: expected result read off the clause
 #---

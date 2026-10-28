@@ -20,6 +20,6 @@ impl Point
 # id: evaluation-fuel/harvested/08-traits-accept
 # area: evaluation-fuel
 # clauses: [CH03-M-28cdd241, CH06-M-02b1c842, CH06-M-8e9952a9, T10, T6]
-# expect: accept
+# expect: ok
 # provenance: harvested examples/08_traits.rce
 #---

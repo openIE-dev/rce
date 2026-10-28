@@ -11,6 +11,6 @@ fn demo() -> usize
 # id: evaluation-fuel/harvested/12-borrow-accept
 # area: evaluation-fuel
 # clauses: [CH03-M-28cdd241, T10, T6]
-# expect: accept
+# expect: ok
 # provenance: harvested examples/12_borrow.rce
 #---

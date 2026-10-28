@@ -4,7 +4,7 @@ struct H
 # id: types-checking/targeted/borrow-cannot-be-returned
 # area: types-checking
 # clauses: [CH05-M-c643f9c7, CH09-M-82e65964, T6]
-# expect: reject
+# expect: fit
 # diagnostic: W-TY-2
 # provenance: targeted.py: expected result read off the clause
 #---

@@ -44,14 +44,14 @@ languages quietly wrap it around to 44. RCE does not guess. The addition
 the program is refused:
 
 ```rce
-{{#include ../listings/ch02/refused/overflow.rce}}
+{{#include ../listings/ch02/fit/overflow.rce}}
 ```
 
 `rce check` says:
 
 ```text
 $ rce check overflow.rce
-{{#include ../listings/ch02/refused/overflow.out}}
+{{#include ../listings/ch02/fit/overflow.out}}
 ```
 
 `W-INT-1` is the name of the rule in the specification: every check and
@@ -63,12 +63,12 @@ the result does not fit. (Options come back in chapter 7.)
 Mixing types without `as` is refused too, by the type rule `W-TY-1`:
 
 ```rce
-{{#include ../listings/ch02/refused/mixed_types.rce}}
+{{#include ../listings/ch02/fit/mixed_types.rce}}
 ```
 
 ```text
 $ rce check mixed_types.rce
-{{#include ../listings/ch02/refused/mixed_types.out}}
+{{#include ../listings/ch02/fit/mixed_types.out}}
 ```
 
 ## Other basic types

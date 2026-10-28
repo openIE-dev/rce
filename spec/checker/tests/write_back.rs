@@ -65,7 +65,7 @@ fn run_target(f: &str, t: &str) -> Option<String> {
     let s = String::from_utf8(o.stdout).unwrap();
     Some(
         s.lines()
-            .filter_map(|l| if l.starts_with("emit ") { Some(l.to_string()) } else { l.strip_prefix("outcome Refused: ").map(|r| format!("refused: {r}")) })
+            .filter_map(|l| if l.starts_with("emit ") { Some(l.to_string()) } else { l.strip_prefix("outcome Stopped: ").map(|r| format!("stopped: {r}")) })
             .map(|l| format!("{l}\n"))
             .collect(),
     )

@@ -15,7 +15,7 @@ fn unsafe_probe() -> i64
 # id: types-checking/generated/mut-unsafe-34-chan-types-accept
 # area: types-checking
 # clauses: [CH09-M-82e65964, W-SAFE-1]
-# expect: reject
+# expect: fit
 # diagnostic: W-SAFE-1
 # flags: [generated]
 # provenance: gen_props.py seed 7: mutation `unsafe` of 34-chan-types-accept
