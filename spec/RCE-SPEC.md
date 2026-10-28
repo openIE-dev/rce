@@ -3146,7 +3146,7 @@ file: on 2026-10-14, on the Apple M5 Max below, with Scala 3.10.0 run by
 scala-cli 1.18.0 on OpenJDK 27, all 55 programs of the current corpus
 (with the package files of example 26) agree with the reference, 0
 refused, 361 observation lines, and the edge program agrees on all four
-targets. Its oracle is `RCE_SCALA` (default `scala-cli`). That agreement is for this examples corpus only. On the larger `rce-conformance` suite the Scala emitter passes 52 of 1,845 results (its README gives 1,189 failures and 604 unsupported), so the Scala target does not yet agree with the reference on that suite.
+targets. Its oracle is `RCE_SCALA` (default `scala-cli`). On the larger conformance suite (`conformance/`), run on 2026-10-28 with Scala 3.10.0 on OpenJDK 21, the Scala emitter passes 1,459 tests with 0 failures, and 520 are not applicable to an emitter (admission, the host contract, replication and the chapter 12 commands), the same counts as the Rust, Python and JavaScript emitters; `conformance/reports/results-emit-scala.json` holds the run.
 When `rustc`, `python3` or `node` is missing,
 its test prints `SKIPPED` and the reason; a skipped target is never
 counted as a pass. The oracles used were Python 3.13.5 and Node 20.19.2.
@@ -3249,11 +3249,12 @@ outcome.
 - The Python output has been checked with Python 3.13.5 and 3.14.5, and
   the JavaScript output with Node 20.19.2 and 26.11.1. Other versions have
   not been run.
-- The Scala output has been checked with Scala 3.10.0 on OpenJDK 27 only.
-  It has no `--run` runtime yet: with `--run` it prints that `--run` is not
-  available on this target and exits with status 2. A `par` runs its
-  branches in source order on one thread (by restart when they wait on
-  lvars), as the JavaScript output does when a local cannot go to a worker.
+- The Scala output has been checked with Scala 3.10.0 only, on OpenJDK 27
+  (the examples corpus) and OpenJDK 21 (the conformance suite). With
+  `--run` it runs `fn main` on the same tick scheduler as the other
+  targets. A `par` runs its branches in source order on one thread (by
+  restart when they wait on lvars), as the JavaScript output does when a
+  local cannot go to a worker.
 
 
 For an unknown target, or a program that one of these emitters does not

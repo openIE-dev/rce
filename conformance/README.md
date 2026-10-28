@@ -47,15 +47,19 @@ Generated from `reports/` by `tools/readme_status.py` (`--check` verifies it). E
   The three counts agree.
 - Coverage: language profile 205 of 205 normative clauses covered (100.0%).
   Other profiles: tooling 5 of 7, retired 1 of 2, handler-spec 8 of 14, editorial 0 of 1, proposed 3 of 6.
-- Reference: 1964 pass, 0 fail, 15 unsupported of 1979 (23 October 2026, in-repository run; see below).
-- Emitters: python 1459 pass / 0 fail / 520 not applicable or unsupported; js 1459 pass / 0 fail / 520 not applicable or unsupported; rust 1459 pass / 0 fail / 520 not applicable or unsupported. Parity with the reference: python 1460 agree, 0 disagree; js 1460 agree, 0 disagree; rust 1460 agree, 0 disagree.
-- Scala emitter: 52 pass, 1189 fail, 591 unsupported of 1832 results (146 tests have no Scala result). Scala does not yet agree with the reference.
+- Reference: 1964 pass, 0 fail, 15 unsupported of 1979 (in-repository run; see below).
+- Emitters: python 1459 pass / 0 fail / 520 not applicable or unsupported; js 1459 pass / 0 fail / 520 not applicable or unsupported; rust 1459 pass / 0 fail / 520 not applicable or unsupported; scala 1459 pass / 0 fail / 520 not applicable or unsupported. Parity with the reference: python 1459 agree, 0 disagree; js 1459 agree, 0 disagree; rust 1459 agree, 0 disagree; scala 1459 agree, 0 disagree.
+  Toolchains recorded with the runs: scala: scalac 3.10.0 (org.scala-lang:scala3-compiler_3 from Maven Central) run in-process, then java; openjdk version "21.0.12.1" 2026-08-18; Scala 3.10.0, JVM 21.
 - Wasm playground: 419 pass, 16 fail, 1504 unsupported of 1939 results.
 - Lean core model: 210 pass, 1 fail, 1766 unsupported of 1977 results.
 - Tree-sitter grammar `00b639a`: 1773 of 1773 programs agree with the reference parser (0 disagreements).
 - Mutation: 200 of 712 schema sites sampled (seed 1); 185 killed (92.5%) on the first run. After survivor-targeted tests: 94.5%; after round 3: 99.0%; round 4 reports 99.5% counting mutant 133 as equivalent. Survivors are in `reports/mutation.json`.
   The mutation baseline (the unmutated mutation build) fails 20 tests; that is not the reference run, which has 0 failures.
 <!-- status:end -->
+
+## Scala emitter run (28 October 2026)
+
+`reports/results-emit-scala.json` is the run of 28 October 2026 against `rce` built from the branch of issue #41: 1,459 pass, 0 fail, 520 not applicable, the same as the Rust, Python and JavaScript reports, and in parity with the reference on every passing test. The adapter pins Scala 3.10.0 and JVM 21 (`--scala 3.10.0 --jvm 21`) and the report records the toolchain it ran with (`toolchain`, from the adapter's `hello`). That run compiled each program with the Scala 3.10.0 compiler (`org.scala-lang:scala3-compiler_3`, fetched from Maven Central) in one resident JVM and ran it on OpenJDK 21.0.12 through a local stand-in for `scala-cli run`, because the scala-cli binary could not be installed where it was made. The `emit-scala` job of `conformance.yml` runs the same suite with scala-cli itself and fails on any failing test.
 
 ## Run in the rce repository (23 October 2026)
 
