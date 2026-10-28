@@ -39,7 +39,11 @@ version_output = "go version go1.24.7 linux/amd64"
 
 [pins]
 # The whole environment of each build and each run: nothing else is passed.
-build_env = { LC_ALL = "C.UTF-8", TZ = "UTC", HOME = "{run}", TMPDIR = "{run}", GOCACHE = "{cache}", GOENV = "off", GOFLAGS = "", GOTOOLCHAIN = "local", GOPROXY = "off", CGO_ENABLED = "0" }
+# The build has no HOME, so the go command has no user configuration
+# directory and reads or writes no user settings (telemetry counters among
+# them); GOENV=off, GOTOOLCHAIN=local and GOPROXY=off keep it from reading a
+# settings file, switching toolchains or fetching modules.
+build_env = { LC_ALL = "C.UTF-8", TZ = "UTC", TMPDIR = "{run}", GOCACHE = "{cache}", GOENV = "off", GOFLAGS = "", GOTOOLCHAIN = "local", GOPROXY = "off", CGO_ENABLED = "0" }
 env       = { LC_ALL = "C.UTF-8", TZ = "UTC" }
 network   = "none"                    # every build and run in a new network namespace with no interface up (unshare --net)
 fs        = "run-directory"           # every build and run in a new, empty directory that holds only the program

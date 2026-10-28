@@ -175,6 +175,17 @@ class Result:
         self.status, self.stdout, self.stderr_class, self.failure = status, stdout, stderr_class, failure
 
 
+def remove_tree(path):
+    """Remove a directory that a toolchain wrote into, read-only parts too."""
+    for root, dirs, files in os.walk(path):
+        for n in dirs + files:
+            try:
+                os.chmod(os.path.join(root, n), 0o700, follow_symlinks=False)
+            except (OSError, NotImplementedError):
+                pass
+    shutil.rmtree(path, ignore_errors=True)
+
+
 def first_line(b, run_dir):
     t = b.decode("utf-8", "replace").replace(run_dir, "{run}").strip().splitlines()
     return t[0] if t else ""
@@ -235,7 +246,7 @@ class Oracle:
         except OSError as e:
             return "cannot run: " + str(e)
         finally:
-            shutil.rmtree(d, ignore_errors=True)
+            remove_tree(d)
 
     def pin_differences(self):
         tc = self.rec["toolchain"]
@@ -339,7 +350,7 @@ class Oracle:
             status = 128 + sig if sig is not None else code
             return Result(status=status, stdout=out, stderr_class=self.classify(err, d, sig))
         finally:
-            shutil.rmtree(d, ignore_errors=True)
+            remove_tree(d)
 
     def classify(self, err, run_dir, sig):
         o = self.observe
@@ -372,15 +383,7 @@ class Oracle:
         return self
 
     def __exit__(self, *exc):
-        if self.rec.get("build"):
-            # the Go build cache marks its files read-only
-            for root, dirs, files in os.walk(self.base):
-                for n in dirs + files:
-                    try:
-                        os.chmod(os.path.join(root, n), 0o700)
-                    except OSError:
-                        pass
-        shutil.rmtree(self.base, ignore_errors=True)
+        remove_tree(self.base)
 
 
 # ---- observations ---------------------------------------------------------
