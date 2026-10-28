@@ -133,11 +133,15 @@ program (section 7).
 
 ### 10.5 `rce emit TARGET FILE`
 
-TARGET names an output. The file must pass `rce check` on its own.
+TARGET names an output. The file must pass `rce check` on its own; for
+`core` it may instead be a core module, a JSON object whose `format` is
+`rce-core/1`, which is read only if it is well formed (rules W1 to W6 of
+the proposal `spec/proposals/one-emitter.md`, ONE-3).
 
 | TARGET | Output |
 |---|---|
 | `form` | the Form P = (S, E, δ, D, λ) as one line of JSON (6.1), then a line end |
+| `core` | the core module of FILE, format `rce-core/1` (the module lowered once, or the core module read), as one line of canonical JSON (6.1.1), then a line end (informative: the core is the proposal `one-emitter.md`, ONE-1) |
 | `rust` | one Rust 2024 source file with a `main` |
 | `python` | one Python 3 source file |
 | `js` | one JavaScript module (ES2020 or later, BigInt) for Node |
@@ -636,6 +640,19 @@ program is a Form. The decision is the tool's, not a version number's.
 `scripts/t7-equiv.sh` runs `rce equiv` between every corpus program and
 its name-free projection (T7) and is a continuous-integration step.
 
+### 10.12 `rce run-core FILE`: the core evaluator (informative)
+
+`rce run-core FILE` lowers FILE to its core module, as `rce emit core`
+does (FILE is an RCE module or an `rce-core/1` core module, read only if
+it is well formed), runs that module with the core evaluator of the
+proposal `one-emitter.md` (ONE-1), and prints what the run writes. The
+core evaluator is an implementation under test, compared with the
+reference evaluator like any target: the expected bytes of every
+comparison are the reference trace (10.9), never this output. Exit status
+0 when the run ends; 1 when the checker refuses FILE, when a core module
+is not well formed, or when the run halts; 2 when FILE uses a construct
+the lowering does not cover, or on an internal error.
+
 **Read receipt.** Which JSON-RPC error code does the language server return for a request it does not know? (a number)
 
-<!-- body-sha256: 2329b271394658198556ea9212b768a29e9262303f060d485b904051b71305f8 -->
+<!-- body-sha256: cd88ea1ef7becb3923ba0008b2f69c2d5a927750fee5775a91f1846d9e8863a0 -->
