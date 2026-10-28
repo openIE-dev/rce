@@ -75,7 +75,7 @@ theorem (effect handlers, switchable contracts, mutable aliasing across
 (Tier 0 hygiene, `World`, definition hashes with `rce api-diff`, transactional
 calls; F.12 lists the rest, which it refuses as reserved, not implemented), the Lean files, the
 emitters and the tree-sitter port do not, and every theorem it adds
-(T42 to T56) is stated and unproved (F.9). There is one language: this text. Drafts 0.5 to 0.9 are
+(T42 to T56) is stated (F.9); T48, T51 and T53 are proved of models (`RCE/Discharged.lean`), and the other twelve are unproved. There is one language: this text. Drafts 0.5 to 0.9 are
 labels of past commits of it, not alternatives; `# rce-version:` is a release label that is
 tolerated, ignored and not hashed (2.7), and a label names exactly one spec commit (C.15). The
 language of this text is what the reference checker and the Lean files enforce and prove for concurrency
@@ -3090,11 +3090,13 @@ The Form JSON lists objects in canonical order (6.1), so it is a
 deterministic function of the program text.
 
 The four program targets are the ones this checker emits. The language
-places no bound on targets: every language is both an output of the Form
-(a target, printed from the Form IR through a per-language table) and an
-input (a lift, the reverse map, from the language's grammar and a
-semantics table), and every target passes the same gate, the reference
-trace of every example program byte for byte (T9). The registry of targets
+places no bound on targets, and it is designed so that every language is
+both an output of the Form (a target, printed through a per-language
+table) and an input (a lift, the reverse map, from the language's grammar
+and a semantics table), each passing the same gate, the reference trace of
+every example program byte for byte (T9). That design
+(`spec/proposals/rce-form.md`, informative) is not built; of the four
+program targets, `rust`, `python` and `js` pass the gate today. The registry of targets
 and the one-emitter mechanism are the proposal `spec/proposals/emit-targets.md`
 (informative); a target that the table cannot pin to 6.3 is observation-only,
 never a projection.
@@ -3157,7 +3159,7 @@ file: on 2026-10-14, on the Apple M5 Max below, with Scala 3.10.0 run by
 scala-cli 1.18.0 on OpenJDK 27, all 55 programs of the current corpus
 (with the package files of example 26) agree with the reference, 0
 refused, 361 observation lines, and the edge program agrees on all four
-targets. Its oracle is `RCE_SCALA` (default `scala-cli`). That agreement is for this examples corpus only. On the larger `rce-conformance` suite the Scala emitter passes 52 of 1,845 results (its README gives 1,189 failures and 604 unsupported), so the Scala target does not yet agree with the reference on that suite.
+targets. Its oracle is `RCE_SCALA` (default `scala-cli`). That agreement is for this examples corpus only. On the conformance suite (`conformance/`) the Scala emitter passes 52 of 1,832 results, with 1,189 failures and 591 unsupported (`conformance/README.md`), so the Scala target does not yet agree with the reference on that suite.
 When `rustc`, `python3` or `node` is missing,
 its test prints `SKIPPED` and the reason; a skipped target is never
 counted as a pass. The oracles used were Python 3.13.5 and Node 20.19.2.
@@ -3261,8 +3263,8 @@ outcome.
   the JavaScript output with Node 20.19.2 and 26.11.1. Other versions have
   not been run.
 - The Scala output has been checked with Scala 3.10.0 on OpenJDK 27 only.
-  It has no `--run` runtime yet: with `--run` it prints that `--run` is not
-  available on this target and exits with status 2. A `par` runs its
+  With `--run` it runs `fn main` through its task runtime, and prints that
+  there is nothing to run when no `fn main()` is declared. A `par` runs its
   branches in source order on one thread (by restart when they wait on
   lvars), as the JavaScript output does when a local cannot go to a worker.
 
@@ -5631,9 +5633,9 @@ what the reference checker enforces and what it does not. A construct of this ap
 checker does not implement is *reserved, not implemented* (W-RES-1), refused, never read as an ordinary
 name and never silently ignored; a rule of this appendix that is not a construct and is not implemented is
 listed in F.12 as not enforced. The Lean files, the emitters and the tree-sitter port do not implement all of
-Appendix F (an emitter refuses a module that needs a rule it does not implement, F.4.4). Every theorem it states
-(T42 to T56, section 8) is an obligation marked *stated, unproved*; this
-appendix and its implementation claim no proof.
+Appendix F (an emitter refuses a module that needs a rule it does not implement, F.4.4). Every theorem it adds
+(T42 to T56, section 8) is stated; T48, T51 and T53 are proved of models (`RCE/Discharged.lean`), and the other twelve are
+unproved; no proof is claimed of the implementation.
 
 **Release label.** Earlier working notes called this list "draft 0.6", then "version 0.9". It is part of the one
 language of this text. By the C.15 rule a release that carries it is a new release, not an erratum or

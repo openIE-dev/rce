@@ -8,16 +8,16 @@ criterion (`encapsulation.md`).
 In plain words:
 
 1. A target is a language with a compiler or runtime that something needs
-   to run on. RCE emits to every such language; the list below is the
-   registry, and a language is added by adding a row, never by writing
-   a new emitter.
+   to run on. RCE is designed to emit to every such language; the list below is
+   the registry, and a language is to be added by adding a row, never by
+   writing a new emitter.
 2. Today each target is a hand-written emitter and a hand-written runtime
    (Rust, Python, JavaScript, Scala: 5,717 lines of generator with 445
    per-target branches and 8,094 lines of four runtimes that each rebuild
    the hash chain). That does not scale past four. So the registry is
    gated on one change first: a single emitter that walks the Form IR and
    reads a per-target table.
-3. Every target passes the same gate: the reference trace of every example
+3. Every target is to pass the same gate: the reference trace of every example
    program, byte for byte (T9), plus the lens law where a lift exists.
 
 ## 0. The deterministic interface: three artefacts per language
@@ -93,7 +93,7 @@ must repair (6.3 and the atlas, 2026-10-22).
 | Rust | native, WASM (wasm32-wasip1) | none for the contract; `Pin` exposed by async lowering | registered; MiniRust proof on the core (T9-L) |
 | Python | CPython, PyPy | ints unbounded (range checks), floats via `float`, no overflow trap | registered |
 | JavaScript | V8, Node, browsers | i64 needs BigInt, no integer type, map order insertion | registered |
-| Scala | JVM | int wrap (checked helpers), no `?T` (Option) | registered |
+| Scala | JVM | int wrap (checked helpers), no `?T` (Option) | registered; emitted today, 52 of 1,832 conformance results pass |
 | XState, SCXML | statechart runtimes | control projection only (Form IR targets) | registered (T9-F) |
 
 ### Tier 1: the systems and platform languages (every device class)

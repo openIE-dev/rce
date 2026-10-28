@@ -73,7 +73,7 @@ the artefact that enforces it.
    declined on that ground alone (principle (e) of Appendix F). The
    incompatibility cost of composing by library instead of by syntax is
    paid outside the gate and recorded in the proposal.
-3. **The language changes as the project learns.** RCE is in development,
+3. **The language changes as better forms are found.** RCE is in development,
    so any construct can be added, changed, generalised, replaced or removed
    when a better form is found. The change and every program, example and
    library module of the repository that it touches move together in one
