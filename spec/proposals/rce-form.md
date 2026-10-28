@@ -107,7 +107,7 @@ In plain words:
 - **Lineage and targets.** The graph is flowG's form, and dataflow is what spatial targets (graphics processors, hardware) consume.
 - **Nothing is lost.** The core is derived from the graph by a linear schedule and read back by a linear construction (§13, below), so the one-emitter work (the lowering, the core evaluator, the runtime in the core, the table design) is kept, not replaced.
 
-**The how.** How a module is carried out on a target (where each value lives, how its checks are printed, its layout, schedule, workers, fabric, cost and energy) is proposed in `rce-form-how.md` as a checked realization record kept beside the module and never in its key, together with eight meaning additions to this encoding that must land before the module key is first fixed.
+**The how.** How a module is carried out on a target (where each value lives, how its checks are printed, its layout, schedule, workers, fabric, cost and energy) is proposed in `rce-form-how.md` as a checked realization record kept beside the module and never in its key, together with eight meaning additions to this encoding that must land before the module key, the catalogue key and the lift tables' keys are first fixed.
 
 ## 3. Types
 
