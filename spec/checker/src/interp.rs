@@ -153,7 +153,7 @@ impl V {
             V::Int(v, _) => v.to_string(),
             V::F(f) => float_text(*f),
             V::Bool(b) => b.to_string(),
-            V::Text(t) => format!("{t:?}"),
+            V::Text(t) => show_text(t),
             V::Unit => "()".into(),
             V::Tuple(v) => format!(
                 "({})",
@@ -516,6 +516,54 @@ pub(crate) fn wide_mul(x: i128, y: i128) -> String {
 pub const WHITE_SPACE: [char; 25] = ['\t', '\n', '\u{0b}', '\u{0c}', '\r', ' ', '\u{85}', '\u{a0}', '\u{1680}', '\u{2000}', '\u{2001}', '\u{2002}', '\u{2003}', '\u{2004}', '\u{2005}', '\u{2006}', '\u{2007}', '\u{2008}', '\u{2009}', '\u{200a}', '\u{2028}', '\u{2029}', '\u{202f}', '\u{205f}', '\u{3000}'];
 pub fn is_ws(c: char) -> bool {
     WHITE_SPACE.contains(&c)
+}
+
+/// 6.3 N7 and one-emitter.md ONE-18: the code points display writes as
+/// `\u{h}`, read from `spec/data/display-escape.json`, so that no display
+/// depends on the Unicode tables of a toolchain. The list is the set that
+/// the Debug form of a str escapes in Rust 1.98.1, whose tables are of
+/// Unicode 17.0.0, enumerated once; `tests/unicode_pin.rs` compares it with
+/// the toolchain, and the runtime written in the core reads the same list.
+pub const DISPLAY_ESCAPE_JSON: &str = include_str!("../../data/display-escape.json");
+
+/// The ranges of [`DISPLAY_ESCAPE_JSON`], ascending and disjoint.
+pub fn display_escaped() -> &'static [(u32, u32)] {
+    static R: std::sync::OnceLock<Vec<(u32, u32)>> = std::sync::OnceLock::new();
+    R.get_or_init(|| {
+        let d: serde_json::Value = serde_json::from_str(DISPLAY_ESCAPE_JSON).expect("display-escape.json is JSON");
+        let cp = |x: &serde_json::Value| u32::from_str_radix(x.as_str().expect("a code point in hexadecimal"), 16).expect("a code point in hexadecimal");
+        d["ranges"].as_array().expect("the ranges").iter().map(|r| (cp(&r[0]), cp(&r[1]))).collect()
+    })
+}
+
+/// Whether display writes code point c as `\u{h}`.
+pub fn display_escapes(c: char) -> bool {
+    let (cp, rs) = (c as u32, display_escaped());
+    let i = rs.partition_point(|(_, hi)| *hi < cp);
+    i < rs.len() && rs[i].0 <= cp
+}
+
+/// Text as display shows it: in double quotes, with U+0000, TAB, LF, CR,
+/// `"` and `\` as `\0 \t \n \r \" \\`, each code point of the display
+/// escape set as `\u{h}` (h in lower-case hexadecimal, no leading zeros),
+/// and every other code point as itself.
+pub fn show_text(t: &str) -> String {
+    let mut o = String::with_capacity(t.len() + 2);
+    o.push('"');
+    for c in t.chars() {
+        match c {
+            '\0' => o.push_str("\\0"),
+            '\t' => o.push_str("\\t"),
+            '\n' => o.push_str("\\n"),
+            '\r' => o.push_str("\\r"),
+            '"' => o.push_str("\\\""),
+            '\\' => o.push_str("\\\\"),
+            c if display_escapes(c) => o.push_str(&format!("\\u{{{:x}}}", c as u32)),
+            c => o.push(c),
+        }
+    }
+    o.push('"');
+    o
 }
 
 /// 6.1.1 rule 3: the digits of a float. The shortest round-trip digit count n
@@ -1906,7 +1954,7 @@ impl<'a> Interp<'a> {
             (Text(s), "toint") => s
                 .trim_matches(is_ws)
                 .parse::<i128>()
-                .map_err(|_| Flow::Trap(format!("not an integer: {s:?}")))
+                .map_err(|_| Flow::Trap(format!("not an integer: {}", show_text(&s))))
                 .and_then(|v| chk(v, "i64")),
             (Text(s), "join") => match &a[0] {
                 List(xs) => Ok(Text(
