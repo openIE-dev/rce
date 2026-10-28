@@ -311,14 +311,14 @@ enum How {
     Typed,
     /// an input of a window, announced by `host.Input` (E.2a); as `Typed`
     Sourced,
-    /// the `Refused` the host delivers after `host.Refused` (HC-21)
+    /// the `StepKept` the host delivers after `host.StepKept` (HC-21)
     Root,
     /// the result the host delivers for the request (K, req) (HC-3)
     Answers(String, u64),
     /// another delivery of the host (`Restarted`, `Synced`, `WallTime`,
     /// an HTTP input)
     Delivery,
-    /// replay only: a host entry D owed (`host.Kept` after `host.Refused`
+    /// replay only: a host entry D owed (`host.Kept` after `host.StepKept`
     /// or `host.Restarted`), already checked
     Owed,
 }
@@ -328,9 +328,9 @@ enum How {
 /// open, except a typed input, which the host had not appended.
 #[derive(Clone, Debug)]
 enum Next {
-    /// `host.Refused` {cause, seq} after the refused entry at seq; `bind`:
-    /// the module declares `Refused` and the refused step does not descend
-    /// from a delivered `Refused`, so the delivery of `Refused` follows
+    /// `host.StepKept` {cause, seq} after the refused entry at seq; `bind`:
+    /// the module declares `StepKept` and the refused step does not descend
+    /// from a delivered `StepKept`, so the delivery of `StepKept` follows
     HostRefused { seq: u64, cause: Cause, bind: bool },
     /// `host.Kept` with exactly this event JSON (E.4c)
     Kept(String),
@@ -386,12 +386,12 @@ fn one_field(k: &str, n: u64) -> serde_json::Map<String, Value> {
 
 /// The program events the host delivers, each with the host kind it is
 /// bound to (E.5 `host.Bind`), in the order the bindings are appended at
-/// start: `Synced`, `WallTime`, `Refused`, `Restarted`, the HTTP inputs
+/// start: `Synced`, `WallTime`, `StepKept`, `Restarted`, the HTTP inputs
 /// under `--http`, then the result `KDone` of each kind K performed. Only
 /// events the module declares are bound.
 fn binds(m: &Module, bound: &[&'static str], http: bool) -> Vec<(String, String)> {
     let mut v: Vec<(String, String)> = vec![];
-    for n in ["Synced", "WallTime", "Refused", "Restarted"] {
+    for n in ["Synced", "WallTime", "StepKept", "Restarted"] {
         v.push((n.to_string(), format!("host.{n}")));
     }
     if http {
@@ -409,11 +409,11 @@ fn binds(m: &Module, bound: &[&'static str], http: bool) -> Vec<(String, String)
 /// HC-10b: the program events a typed input is marked for: every event
 /// some host delivers to this module, whatever adapters this run was
 /// granted, so the mark is a function of the module and D alone. They are
-/// the host inputs `Synced`, `WallTime`, `Refused` and `Restarted`, the
+/// the host inputs `Synced`, `WallTime`, `StepKept` and `Restarted`, the
 /// HTTP inputs `HttpRequest` and `HttpMalformed`, and the result `KDone`
 /// of every struct K the module declares, each when the module declares it.
 fn host_named(m: &Module) -> Vec<String> {
-    let mut v: Vec<String> = ["Synced", "WallTime", "Refused", "Restarted", "HttpRequest", "HttpMalformed"].iter().map(|n| n.to_string()).collect();
+    let mut v: Vec<String> = ["Synced", "WallTime", "StepKept", "Restarted", "HttpRequest", "HttpMalformed"].iter().map(|n| n.to_string()).collect();
     for i in &m.items {
         if let Item::Struct { name, .. } = i {
             v.push(format!("{name}Done"));
@@ -811,7 +811,7 @@ fn result_payload(req: u64, r: &EffectResult) -> serde_json::Map<String, Value> 
 /// its kind; only received bytes (HC-10a) are known here.
 fn host_fields(event: &str) -> Vec<(&'static str, &'static str)> {
     match event {
-        "Refused" => vec![("seq", "u64"), ("cause", "text")],
+        "StepKept" => vec![("seq", "u64"), ("cause", "text")],
         "Restarted" => vec![("below", "u64")],
         "Synced" => vec![("upto", "u64")],
         "WallTime" => vec![("ns", "u64")],
@@ -885,7 +885,7 @@ fn delivery_note(m: &Module, event: &str, held: bool) -> Option<String> {
 }
 
 fn is_result_name(event: &str) -> bool {
-    !matches!(event, "Refused" | "Restarted" | "Synced" | "WallTime" | "HttpRequest" | "HttpMalformed") && event.ends_with("Done")
+    !matches!(event, "StepKept" | "Restarted" | "Synced" | "WallTime" | "HttpRequest" | "HttpMalformed") && event.ends_with("Done")
 }
 
 /// The admitter and the program state it folds (one per program instance, HC-1).
@@ -915,8 +915,8 @@ pub struct Host<'a> {
     /// Requests emitted and not yet answered, in emit order (E-x).
     queue: std::collections::VecDeque<Queued>,
     /// HC-21: the requests (`K` with a `req`, `KDone` declared) emitted by
-    /// steps that descend from a `Refused` entry and not yet answered by a
-    /// `KDone` with their req: (K, req, the `Refused` entry's seq), in emit
+    /// steps that descend from a `StepKept` entry and not yet answered by a
+    /// `KDone` with their req: (K, req, the `StepKept` entry's seq), in emit
     /// order. Derived from D alone, so live and replay agree.
     descends: std::collections::VecDeque<(String, u64, u64)>,
     /// The most queued requests one call of [`Host::drain`] performs
@@ -1414,7 +1414,7 @@ impl<'a> Host<'a> {
         let http = adapters.iter().any(|a| a.kind() == "HttpRespond");
         let delivered = host_named(m);
         let mut notes = vec![];
-        for (e, held) in [("Synced", true), ("WallTime", true), ("Refused", true), ("Restarted", true)] {
+        for (e, held) in [("Synced", true), ("WallTime", true), ("StepKept", true), ("Restarted", true)] {
             notes.extend(delivery_note(m, e, held));
         }
         if http {
@@ -1514,7 +1514,7 @@ impl<'a> Host<'a> {
         };
         h.refold(&entries[from..])?;
         // HC-21: a D that ends after a refused entry, or after its
-        // `host.Refused`, is completed before anything else is appended
+        // `host.StepKept`, is completed before anything else is appended
         h.complete_owed()?;
         let caps = h.store.caps();
         if dropped > 0 {
@@ -1654,10 +1654,10 @@ impl<'a> Host<'a> {
             if !e.is_host() {
                 let (name, args) = decode_event(&e.event, self.m)?;
                 let how = how.unwrap_or(How::Input);
-                // HC-21, HC-22: the host delivers `Refused` and `Restarted`
+                // HC-21, HC-22: the host delivers `StepKept` and `Restarted`
                 // only after their host entries; one that is neither that
                 // delivery, typed nor announced is not a fact of the run
-                if how == How::Input && (name == "Refused" || name == "Restarted") {
+                if how == How::Input && (name == "StepKept" || name == "Restarted") {
                     return Err(format!("host fault: seq {}: {name} is delivered only after host.{name}, and this one is neither that delivery nor typed (host.Typed)", e.seq));
                 }
                 self.it.scopes = vec![HashMap::new()];
@@ -1692,7 +1692,7 @@ impl<'a> Host<'a> {
                     }
                     Err(r) => {
                         // HC-21: replay re-derives the refusal and its cause
-                        let bind = under.is_none() && declares_event(self.m, "Refused");
+                        let bind = under.is_none() && declares_event(self.m, "StepKept");
                         self.owe.push_back(Next::HostRefused { seq: e.seq, cause: r.cause, bind });
                         self.refusals.push((e.seq, r.cause.as_str(), r.text));
                     }
@@ -1768,7 +1768,7 @@ impl<'a> Host<'a> {
         r
     }
 
-    /// HC-21: the delivered `Refused` entry the input at `seq` descends
+    /// HC-21: the delivered `StepKept` entry the input at `seq` descends
     /// from: itself when it is that delivery (`Root`); for the result of a
     /// request (K, req), the one the earliest request K with that req in
     /// `descends` descends from, which it answers (taken off); else none.
@@ -1786,7 +1786,7 @@ impl<'a> Host<'a> {
     }
 
     /// HC-21: note the requests among the outputs of a step that descends
-    /// from the `Refused` entry `under`.
+    /// from the `StepKept` entry `under`.
     fn note_descent(&mut self, outs: &[V], under: Option<u64>) {
         let Some(r) = under else { return };
         for o in outs {
@@ -1854,7 +1854,7 @@ impl<'a> Host<'a> {
     }
 
     /// The plan of one delivery (E.4c). `held`: the host entry before it
-    /// (`host.Refused`, `host.Restarted`, `host.Synced`, `host.WallTime`)
+    /// (`host.StepKept`, `host.Restarted`, `host.Synced`, `host.WallTime`)
     /// holds the whole value, so a field the event does not take is not
     /// recorded again and an event the module does not declare is not
     /// recorded at all. A result whose data has no exact conversion is
@@ -2108,25 +2108,25 @@ impl<'a> Host<'a> {
         let outcome = outcome.map(|os| os.iter().map(|o| o.show()).collect()).map_err(|r| r.text);
         let mut out = vec![Admitted { seq: e.seq, event: ev.show(), outcome, display, exit, cause: refused.map(Cause::as_str) }];
         if let Some(cause) = refused {
-            let bind = under.is_none() && declares_event(self.m, "Refused");
+            let bind = under.is_none() && declares_event(self.m, "StepKept");
             out.extend(self.refused(e.seq, cause, bind)?);
         }
         Ok(out)
     }
 
-    /// HC-21: after the refused entry at `seq`, `host.Refused` {cause, seq},
-    /// then (`bind`) the delivery of `Refused`, as the module declares it
+    /// HC-21: after the refused entry at `seq`, `host.StepKept` {cause, seq},
+    /// then (`bind`) the delivery of `StepKept`, as the module declares it
     /// (HD-4). Delivery is bounded: the refusal of a step that descends from a
-    /// delivered `Refused` ([`Host::descent`]) is recorded as `host.Refused`
-    /// only and not redelivered, so no `Refused` leads to another.
+    /// delivered `StepKept` ([`Host::descent`]) is recorded as `host.StepKept`
+    /// only and not redelivered, so no `StepKept` leads to another.
     fn refused(&mut self, seq: u64, cause: Cause, bind: bool) -> Result<Vec<Admitted>, String> {
-        self.append(host_event("Refused", &refused_payload(cause, seq)))?;
+        self.append(host_event("StepKept", &refused_payload(cause, seq)))?;
         if !bind {
             return Ok(vec![]);
         }
         let p = refused_map(cause, seq);
-        let plan = self.plan("Refused", &p, true);
-        self.deliver_plan("Refused", &p, plan, How::Root)
+        let plan = self.plan("StepKept", &p, true);
+        self.deliver_plan("StepKept", &p, plan, How::Root)
     }
 
     /// The canonical event JSON of a host-delivered input, as the live path appends it.
@@ -2145,8 +2145,8 @@ impl<'a> Host<'a> {
     /// that is decided by what precedes it: a delivery or a typed input.
     fn meet(&mut self, e: &Entry) -> Result<Option<How>, String> {
         let Some(o) = self.owe.pop_front() else {
-            if e.kind() == "host.Refused" {
-                return Err(format!("host fault: seq {}: host.Refused follows an entry that replay applies", e.seq));
+            if e.kind() == "host.StepKept" {
+                return Err(format!("host fault: seq {}: host.StepKept follows an entry that replay applies", e.seq));
             }
             return Ok(None);
         };
@@ -2154,12 +2154,12 @@ impl<'a> Host<'a> {
             Next::HostRefused { seq, cause, bind } => {
                 if bind {
                     let p = refused_map(cause, seq);
-                    let plan = self.plan("Refused", &p, true);
-                    for n in self.nexts("Refused", &p, plan, How::Root).into_iter().rev() {
+                    let plan = self.plan("StepKept", &p, true);
+                    for n in self.nexts("StepKept", &p, plan, How::Root).into_iter().rev() {
                         self.owe.push_front(n);
                     }
                 }
-                (host_event("Refused", &refused_payload(cause, seq)), None)
+                (host_event("StepKept", &refused_payload(cause, seq)), None)
             }
             Next::Kept(want) => (want, Some(How::Owed)),
             Next::Deliver { name, args, how } => (self.bound_json(&name, &args)?, Some(how)),
@@ -2175,7 +2175,7 @@ impl<'a> Host<'a> {
     }
 
     /// Complete the entries D owes at its end (HC-21, HC-22): a host
-    /// stopped after appending a refused entry, or a `host.Refused` or
+    /// stopped after appending a refused entry, or a `host.StepKept` or
     /// `host.Restarted` without the delivery that follows it. A typed input
     /// announced by `host.Typed` and not appended is not completed: it was
     /// never admitted (HC-10b).
@@ -2207,7 +2207,7 @@ impl<'a> Host<'a> {
     /// Admit one batch of inputs written in example syntax (`Put(key: "a",
     /// val: "1"), Scan(start: "")`), then one barrier for the batch (D-2).
     /// These are typed inputs (HC-10b): any event of the module is admitted,
-    /// one the host delivers (`Refused`, a result `KDone`, ...) included,
+    /// one the host delivers (`StepKept`, a result `KDone`, ...) included,
     /// and D marks the latter with `host.Typed`. When one of the events
     /// cannot be built, nothing is appended and the error is returned, so
     /// the caller holds the whole line ([`Host::line_input`]).
@@ -2576,7 +2576,7 @@ impl<'a> Host<'a> {
     /// HC-6: feed a program event to the live task (`host.MainInput`
     /// {event, tick}): at its tick the scheduler logs it as `Input(..)` and
     /// delivers it to every actor that handles it (`conc::RunCfg.events`).
-    /// Refused like a link input when late or when it would change a step
+    /// StepKept like a link input when late or when it would change a step
     /// already in D.
     pub fn main_event(&mut self, tick: u64, name: &str, args: Vec<Arg>) -> Result<(), String> {
         self.it.scopes = vec![HashMap::new()];
@@ -2914,7 +2914,7 @@ impl<'a> Host<'a> {
             return Err(format!("host.Term: term {term} is not above the current term {}", self.term));
         }
         // HC-21: a refusal the previous admitter logged without its
-        // `host.Refused` (or bound `Refused`) is completed first; it belongs
+        // `host.StepKept` (or bound `StepKept`) is completed first; it belongs
         // to the input of the previous term
         self.complete_owed()?;
         self.term = term;

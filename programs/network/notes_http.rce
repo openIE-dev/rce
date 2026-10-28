@@ -12,8 +12,8 @@ intent "a notes service over HTTP/1.1: list, create, read and delete notes as JS
     example HttpRequest(id: 1, method: "POST", target: "/notes", version: "HTTP/1.1", names: [], values: [], body: [226, 130, 172]) -> last_status == 201 and notes[1] == "€"
     example HttpMalformed(id: 1, status: 413, why: "body over 1000000 bytes") -> last_status == 413
     example HttpRequest(id: 1, method: "POST", target: "/notes", version: "HTTP/1.1", names: [], values: [], body: [97 for _i in 0..4097]) -> last_status == 413 and notes.len() == 0
-    example HttpRequest(id: 1, method: "POST", target: "/notes", version: "HTTP/1.1", names: [], values: [], body: [97]), Refused(seq: 3, cause: "size") -> last_status == 500 and notes.len() == 1
-    example Refused(seq: 1, cause: "fuel") -> last_status == 503
+    example HttpRequest(id: 1, method: "POST", target: "/notes", version: "HTTP/1.1", names: [], values: [], body: [97]), StepKept(seq: 3, cause: "size") -> last_status == 500 and notes.len() == 1
+    example StepKept(seq: 1, cause: "fuel") -> last_status == 503
 
 check note(1, "a\u{7}\"") == "{\"id\":1,\"text\":\"a\\u0007\\\"\"}"
 
@@ -29,7 +29,7 @@ struct HttpRespond
 event HttpRequest(id: u64, method: text, target: text, version: text, names: List[text], values: List[text], body: List[i64])
 event HttpMalformed(id: u64, status: u64, why: text)
 event HttpRespondDone(req: u64, status: text, data: u64?, err: text)
-event Refused(seq: u64, cause: text)
+event StepKept(seq: u64, cause: text)
 
 const MAX_NOTE: usize = 4096
 const ESC: Map[text, text] = {"\"": "\\\"", "\\": "\\\\", "\n": "\\n", "\r": "\\r", "\t": "\\t"}
@@ -98,7 +98,7 @@ step Server on HttpMalformed(id: id, status: st, why: w)
     last_status = st
     emit respond(id, err(st, w))
 
-step Server on Refused(seq: q, cause: c)
+step Server on StepKept(seq: q, cause: c)
     let st: u64 = if c == "fuel" then 503 else 500
     last_status = st
     emit respond(q, err(st, "step refused: " + c))

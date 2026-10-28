@@ -5334,7 +5334,7 @@ in D does not exist for the program.
 - **HC-10b Typed inputs are inputs.** An input read from the input stream
   (a line on stdin of `rce host serve`, the events of `rce host run`) is
   admitted whatever event of the module it names, an event the host
-  delivers itself included: `Refused`, `Restarted`, `Synced`, `WallTime`,
+  delivers itself included: `StepKept`, `Restarted`, `Synced`, `WallTime`,
   `HttpRequest`, `HttpMalformed`, or a result `KDone` of a struct K the
   module declares, that is, every event of the module that some host
   delivers, whatever adapters this run is granted, so the mark is a
@@ -5342,13 +5342,13 @@ in D does not exist for the program.
   an input the admitter appends `host.Typed` {seq}, seq being the typed
   input's own seq, so D records which of these inputs were typed and which
   the host delivered. A typed input is an ordinary input: it answers no
-  request (HC-3), a typed `Refused` starts no descent (HC-21), and the
+  request (HC-3), a typed `StepKept` starts no descent (HC-21), and the
   refusal of its step is delivered as for any other input. Replay reads the
   mark: the input at seq is folded as typed, and a `host.Typed` that the
   input does not follow (the host stopped between the two appends) records
   an input that was never admitted, which is not completed on open. Replay
-  treats as a host fault a `Refused` or `Restarted` that is neither the
-  delivery after `host.Refused` or `host.Restarted`, typed, nor announced
+  treats as a host fault a `StepKept` or `Restarted` that is neither the
+  delivery after `host.StepKept` or `host.Restarted`, typed, nor announced
   by `host.Input` (E.2a). An input given by its name and arguments
   (`Host::admit_event`) is typed in the same way; the inputs of a window
   carry `host.Input` instead. Reference: `Host::admit`, `host::How`.
@@ -5361,29 +5361,29 @@ requested, or for a socket that belonged to a process that is gone, so
 both enter D and reach the program as inputs.
 
 - **HC-21 A refusal is an input.** When δ refuses an input (T8), the
-  admitter appends the input with the state unchanged, then `host.Refused`
+  admitter appends the input with the state unchanged, then `host.StepKept`
   {cause, seq}, where seq is the refused entry's seq and cause is `fail`
   (a declared error left the step), `fuel`, `size` (SIZE_LIMIT), `value`
   (VALUE_LIMIT), `depth` (the evaluation depth of 6.7) or `trap` (any
-  other trap of 6.3 or 6.7). When the module declares `event Refused`,
-  the admitter then delivers `Refused` with the same payload, as the
+  other trap of 6.3 or 6.7). When the module declares `event StepKept`,
+  the admitter then delivers `StepKept` with the same payload, as the
   module declares it (E.4c, HD-4), as an ordinary input with the full fuel of
   HC-7a, and appends `host.Bind` for it at start. Delivery is bounded. A step descends from a
-  delivered `Refused` when it is that delivery, or when it is the result
+  delivered `StepKept` when it is that delivery, or when it is the result
   of a request made by a step that descends from it (so the results of the
-  `Refused` step's requests, the results of the requests those steps make,
-  and so on); a typed `Refused` (HC-10b) is an ordinary input and descends
+  `StepKept` step's requests, the results of the requests those steps make,
+  and so on); a typed `StepKept` (HC-10b) is an ordinary input and descends
   from nothing. The refusal of a step that descends from a delivered
-  `Refused` is recorded in D as `host.Refused` and is not delivered again
-  as a `Refused`. Each refused input therefore leads to at most one
-  delivered `Refused`, and a `Refused` step whose effects are refused in
+  `StepKept` is recorded in D as `host.StepKept` and is not delivered again
+  as a `StepKept`. Each refused input therefore leads to at most one
+  delivered `StepKept`, and a `StepKept` step whose effects are refused in
   turn ends after its results are recorded. Replay derives the same
   descent from D, matching each result to the first request queued with
   its kind and req. The cause names no declaration, so D stays name-free (T7);
   the refusal's text, which can name a declared error, is not in D, and
   replay re-derives it. Replay requires each refused entry to be followed
-  by the matching `host.Refused` and, when `Refused` is declared, by the
-  entries its delivery appends (the delivered `Refused`, or `host.Kept`),
+  by the matching `host.StepKept` and, when `StepKept` is declared, by the
+  entries its delivery appends (the delivered `StepKept`, or `host.Kept`),
   and treats a D in which one is missing, extra or different as a host
   fault. A D that ends before them, because the host
   stopped in between, is completed on open, and by a new admitter before
@@ -5462,7 +5462,7 @@ both enter D and reach the program as inputs.
   idle for IDLE_MS before the first byte of one, adds nothing to D. The
   id is the seq of the entry that delivers the input (its own entry, or,
   when `host.Kept` records it first under E.4c HD-2, the entry after that
-  one), so `Refused(seq)` (HC-21) names the request. The requests of one
+  one), so `StepKept(seq)` (HC-21) names the request. The requests of one
   connection are admitted one at a time, each after the response to the
   previous one, so responses keep the order of the requests (RFC 9112
   9.3.2); `Expect: 100-continue` from HTTP/1.1 on, with a body to come,
@@ -5596,7 +5596,7 @@ did not, not by restricting what a module may declare.
 
 - **Delivery.** The host's value of a delivery is a set of named fields:
   {req, status, data, err} for a result (HC-3), the payload of
-  `host.Refused`, `host.Restarted`, `host.Synced` and `host.WallTime`
+  `host.StepKept`, `host.Restarted`, `host.Synced` and `host.WallTime`
   (E.5), {n} for the frame tick `Tick` (HC-2; none when `Tick` declares no
   field), {data} for a line held as `Input` (HC-24), and the fields of
   HC-24 for an HTTP input. A declared field takes
@@ -5614,7 +5614,7 @@ did not, not by restricting what a module may declare.
   not declare, the admitter appends `host.Kept` {event, why}: event is
   the host's whole value as {payload, type}, and why says what was not
   delivered and why. When the host entry just before the delivery holds
-  the whole value (`host.Refused`, `host.Restarted`, `host.Synced`,
+  the whole value (`host.StepKept`, `host.Restarted`, `host.Synced`,
   `host.WallTime`), `host.Kept` is appended only for a delivery that
   cannot be built, and an event the module does not declare is not
   delivered, as before. Replay plans each delivery again from the module
@@ -5686,12 +5686,12 @@ did not, not by restricting what a module may declare.
   delivered as a `failed` result with err naming the offset of the first
   byte that is not, or as `HttpMalformed` 415 (HD-2), and `host.Kept`
   records the bytes in D, so nothing received is lost.
-- **HD-4 Host inputs.** `Refused` (HC-21), `Restarted` (HC-22), `Synced`,
+- **HD-4 Host inputs.** `StepKept` (HC-21), `Restarted` (HC-22), `Synced`,
   `WallTime` and the frame tick `Tick` (HC-2) are matched by field name
   like any delivery. Declared as
-  `Refused(seq: u64)`, a refusal is delivered with its seq, and the
-  `host.Refused` before it holds the cause. Declared with a field the host
-  has no value for, `Refused` is never delivered, and each `host.Refused`
+  `StepKept(seq: u64)`, a refusal is delivered with its seq, and the
+  `host.StepKept` before it holds the cause. Declared with a field the host
+  has no value for, `StepKept` is never delivered, and each `host.StepKept`
   is followed by `host.Kept` with the reason. Delivery stays bounded
   (HC-21) whatever the declaration. `Tick` takes the count in its field
   `n`, or no count when it declares no field; a `Tick` no count can be
@@ -5728,7 +5728,7 @@ JSON. The host entries are:
 | `host.MainInput` | a, b, partition, tick; or event, tick | a link change or a program event for the live task, after its last logged step (HC-6) |
 | `host.Step` | cause, i, node, tick, what | one per scheduler step of the run (HC-6) |
 | `host.MainEnd` | choices, outcome, ticks | when the run ends (HC-6) |
-| `host.Refused` | cause, seq | after a refused entry (HC-21) |
+| `host.StepKept` | cause, seq | after a refused entry (HC-21) |
 | `host.Restarted` | below (its own seq) | when a host opens a D that holds entries, or takes the admitter role (HC-22) |
 | `host.Typed` | seq (of the typed input that follows) | before a typed input that names an event the host delivers (HC-10b) |
 | `host.Kept` | event (the host's whole value, as payload and type), why | before a delivery that is not the whole value, and in place of one that cannot be built or whose event is not declared (E.4c) |

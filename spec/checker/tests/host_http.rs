@@ -307,7 +307,7 @@ fn invalid_body_bytes_are_exact_and_get_400() {
 }
 
 /// HC-21 with HC-24: the id of a request is the seq of its entry, so the
-/// program answers a refused request from `Refused(seq, cause)`.
+/// program answers a refused request from `StepKept(seq, cause)`.
 #[test]
 fn refused_request_gets_the_programs_status() {
     let d = dir("refused");
@@ -325,7 +325,7 @@ fn refused_request_gets_the_programs_status() {
     assert!(ok && err.contains("refused (trap)") && err.contains("1 refused"), "{err}");
     let es = entries(&log);
     let k = es.iter().find(|e| e.event.contains("\"target\":\"/trap\"")).unwrap().seq;
-    assert!(es[k as usize + 1].event == format!(r#"{{"payload":{{"cause":"trap","seq":{k}}},"type":"host.Refused"}}"#));
+    assert!(es[k as usize + 1].event == format!(r#"{{"payload":{{"cause":"trap","seq":{k}}},"type":"host.StepKept"}}"#));
     replays(ECHO, &log);
     let _ = std::fs::remove_dir_all(&d);
 }

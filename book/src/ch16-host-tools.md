@@ -125,11 +125,11 @@ Three inputs reach a program on the host that it never asks for.
   text.utf8` tells the step whether it may call `b.utf8()`.
 - **Refusals.** When a step is refused, by a declared error, a trap or a
   limit such as fuel, D records the refused input with the state
-  unchanged (chapter 6), then `host.Refused`, and then, if the program
-  declares `event Refused(seq: u64, cause: text)`, the input `Refused`
+  unchanged (chapter 6), then `host.StepKept`, and then, if the program
+  declares `event StepKept(seq: u64, cause: text)`, the input `StepKept`
   with the refused entry's seq and a cause: `fail`, `trap`, `fuel`,
   `size`, `value` or `depth` (HC-21). On the HTTP event host the seq is
-  the id of the request, so the `Refused` step of `hello_http.rce` answers
+  the id of the request, so the `StepKept` step of `hello_http.rce` answers
   that request with 500 instead of leaving its client waiting.
 - **Restarts.** Sockets and terminals belong to one host process. A host
   started on an existing D appends `host.Restarted` with its own seq, and

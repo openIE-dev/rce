@@ -3,8 +3,8 @@ module http_echo
 intent "the HTTP event host from the program's side: echo a body as bytes, refuse a step on purpose and answer the refusal, answer again after a response the host refused, and answer twice to see the second fail"
     example HttpRequest(id: 3, method: "POST", target: "/echo", version: "HTTP/1.1", names: ["Host"], values: ["x"], body: [255, 0]) -> seen == 1 and last == 200
     example HttpRequest(id: 3, method: "GET", target: "/trap", version: "HTTP/1.1", names: ["Host"], values: ["x"], body: []) -> refused: trap("division by zero")
-    example Refused(seq: 3, cause: "trap") -> last == 500
-    example Refused(seq: 3, cause: "fuel") -> last == 503
+    example StepKept(seq: 3, cause: "trap") -> last == 500
+    example StepKept(seq: 3, cause: "fuel") -> last == 503
     example HttpRequest(id: 3, method: "GET", target: "/twice", version: "HTTP/1.1", names: ["Host"], values: ["x"], body: []), HttpRespondDone(req: 3, status: "failed", data: none, err: "status 99 is outside 200 to 599") -> last == 200 and failures == 1
     example HttpMalformed(id: 4, status: 408, why: "head timed out") -> last == 408
     example Restarted(below: 9) -> restarts == 1
@@ -19,7 +19,7 @@ struct HttpRespond
 event HttpRequest(id: u64, method: text, target: text, version: text, names: List[text], values: List[text], body: List[i64])
 event HttpMalformed(id: u64, status: u64, why: text)
 event HttpRespondDone(req: u64, status: text, data: u64?, err: text)
-event Refused(seq: u64, cause: text)
+event StepKept(seq: u64, cause: text)
 event Restarted(below: u64)
 
 state S
@@ -63,7 +63,7 @@ step S on HttpRespondDone(req: r, status: s, data: _d, err: e)
         if e.startswith("no request")
             late += 1
 
-step S on Refused(seq: q, cause: c)
+step S on StepKept(seq: q, cause: c)
     let st: u64 = if c == "fuel" then 503 else 500
     last = st
     emit answer(q, st, [])

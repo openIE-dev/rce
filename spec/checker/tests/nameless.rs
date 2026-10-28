@@ -138,8 +138,8 @@ fn refusal_entries_are_name_free() {
     };
     let (a, da) = run(src);
     let (b, db) = run(&projected);
-    assert!(da.contains(r#"{"payload":{"cause":"fail","seq":2},"type":"host.Refused"}"#), "{da}");
-    assert!(db.contains(r#"{"payload":{"cause":"fail","seq":2},"type":"host.Refused"}"#), "{db}");
+    assert!(da.contains(r#"{"payload":{"cause":"fail","seq":2},"type":"host.StepKept"}"#), "{da}");
+    assert!(db.contains(r#"{"payload":{"cause":"fail","seq":2},"type":"host.StepKept"}"#), "{db}");
     assert_eq!(a, b, "D hashes do not depend on names, refusal entries included");
 }
 

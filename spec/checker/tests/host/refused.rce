@@ -1,10 +1,10 @@
 module refusals
 
-intent "a refused step is followed by host.Refused and, when the program declares it, by the input Refused(seq, cause), so the program is told that the step did not happen and why"
+intent "a refused step is followed by host.StepKept and, when the program declares it, by the input StepKept(seq, cause), so the program is told that the step did not happen and why"
     example Ok -> applied == 1 and refusals == 0
     example Fail -> refused: Bad
-    example Refused(seq: 4, cause: "fail") -> refusals == 1 and last_seq == 4 and last_cause == "fail" and applied == 0
-    example Busy(n: 10), Refused(seq: 7, cause: "fuel") -> work_done == 10
+    example StepKept(seq: 4, cause: "fail") -> refusals == 1 and last_seq == 4 and last_cause == "fail" and applied == 0
+    example Busy(n: 10), StepKept(seq: 7, cause: "fuel") -> work_done == 10
 
 error Bad(why: text)
 
@@ -17,7 +17,7 @@ event Deep
 event Spin(n: u64)
 event Busy(n: u64)
 event Poison
-event Refused(seq: u64, cause: text)
+event StepKept(seq: u64, cause: text)
 
 state S
     applied: u64 = 0
@@ -71,7 +71,7 @@ step S on Busy(n: n)
 step S on Poison
     poisoned = true
 
-step S on Refused(seq: q, cause: c)
+step S on StepKept(seq: q, cause: c)
     if poisoned
         applied = applied / zero
     refusals += 1

@@ -4,7 +4,7 @@ intent "answer GET /hello with a greeting and any other request with 404; a malf
     example HttpRequest(id: 5, method: "GET", target: "/hello", version: "HTTP/1.1", names: ["Host"], values: ["x"], body: []) -> answered == 1 and last == 200
     example HttpRequest(id: 5, method: "POST", target: "/hello", version: "HTTP/1.1", names: ["Host"], values: ["x"], body: [104, 105]) -> last == 404
     example HttpMalformed(id: 5, status: 431, why: "over 100 fields") -> last == 431
-    example Refused(seq: 5, cause: "fuel") -> last == 500
+    example StepKept(seq: 5, cause: "fuel") -> last == 500
 
 struct HttpRespond
     req: u64
@@ -16,7 +16,7 @@ struct HttpRespond
 event HttpRequest(id: u64, method: text, target: text, version: text, names: List[text], values: List[text], body: List[i64])
 event HttpMalformed(id: u64, status: u64, why: text)
 event HttpRespondDone(req: u64, status: text, data: u64?, err: text)
-event Refused(seq: u64, cause: text)
+event StepKept(seq: u64, cause: text)
 
 state Greeter
     answered: u64 = 0
@@ -34,7 +34,7 @@ step Greeter on HttpMalformed(id: id, status: st, why: w)
     last = st
     emit reply(id, st, w + "\n")
 
-step Greeter on Refused(seq: q, cause: c)
+step Greeter on StepKept(seq: q, cause: c)
     last = 500
     emit reply(q, 500, "refused: " + c + "\n")
 

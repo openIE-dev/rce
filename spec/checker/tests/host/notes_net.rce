@@ -4,7 +4,7 @@ intent "the notes service on the net adapter: one connection at a time, polled e
     example Start(addr: "127.0.0.1:1"), Tick, NetListenDone(req: 1, status: "delivered", data: some(1), err: "") -> listener == 1 and conn == 0
     example Start(addr: "127.0.0.1:1"), Tick, NetListenDone(req: 1, status: "delivered", data: some(1), err: ""), Tick, NetAcceptDone(req: 2, status: "delivered", data: some(2), err: ""), NetRecvDone(req: 3, status: "delivered", data: some([80, 79, 83, 84, 32, 47, 110, 111, 116, 101, 115, 32, 72, 84, 84, 80, 47, 49, 46, 49, 13, 10, 72, 111, 115, 116, 58, 32, 120, 13, 10, 67, 111, 110, 116, 101, 110, 116, 45, 76, 101, 110, 103, 116, 104, 58, 32, 50, 13, 10, 13, 10, 104]), err: ""), NetRecvDone(req: 4, status: "delivered", data: some([105]), err: "") -> last_status == 201 and notes.len() == 1 and notes[1] == "hi"
     example Start(addr: "127.0.0.1:1"), Tick, NetListenDone(req: 1, status: "delivered", data: some(1), err: ""), Tick, NetAcceptDone(req: 2, status: "delivered", data: some(2), err: ""), NetRecvDone(req: 3, status: "delivered", data: some([80, 79, 83, 84, 32, 47, 110, 111, 116, 101, 115, 32, 72, 84, 84, 80, 47, 49, 46, 49, 13, 10, 72, 111, 115, 116, 58, 32, 120, 13, 10, 67, 111, 110, 116, 101, 110, 116, 45, 76, 101, 110, 103, 116, 104, 58, 32, 49, 13, 10, 13, 10, 255]), err: "") -> last_status == 400 and notes.len() == 0
-    example Start(addr: "127.0.0.1:1"), Tick, NetListenDone(req: 1, status: "delivered", data: some(1), err: ""), Tick, NetAcceptDone(req: 2, status: "delivered", data: some(2), err: ""), Refused(seq: 9, cause: "fuel") -> conn == 0 and last_status == 500
+    example Start(addr: "127.0.0.1:1"), Tick, NetListenDone(req: 1, status: "delivered", data: some(1), err: ""), Tick, NetAcceptDone(req: 2, status: "delivered", data: some(2), err: ""), StepKept(seq: 9, cause: "fuel") -> conn == 0 and last_status == 500
     example Start(addr: "127.0.0.1:1"), Tick, NetListenDone(req: 1, status: "delivered", data: some(1), err: ""), Restarted(below: 7) -> listener == 0 and conn == 0
 
 check note(1, "a\u{0}\u{7}\u{1f}\n\"") == "{\"id\":1,\"text\":\"a\\u0000\\u0007\\u001f\\n\\\"\"}"
@@ -40,7 +40,7 @@ event NetAcceptDone(req: u64, status: text, data: u64?, err: text)
 event NetRecvDone(req: u64, status: text, data: List[i64]?, err: text)
 event NetSendDone(req: u64, status: text, data: u64?, err: text)
 event NetCloseDone(req: u64, status: text, data: u64?, err: text)
-event Refused(seq: u64, cause: text)
+event StepKept(seq: u64, cause: text)
 event Restarted(below: u64)
 
 const REASON: Map[u64, text] = {200: "OK", 201: "Created", 204: "No Content", 400: "Bad Request", 404: "Not Found", 405: "Method Not Allowed", 422: "Unprocessable Content", 500: "Internal Server Error"}
@@ -148,7 +148,7 @@ step Server on NetSendDone(_, _, _, _)
 step Server on NetCloseDone(_, _, _, _)
     pass
 
-step Server on Refused(seq: _q, cause: c)
+step Server on StepKept(seq: _q, cause: c)
     if conn != 0
         let r = err(500, "step refused: " + c)
         last_status = 500
