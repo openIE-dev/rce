@@ -508,20 +508,24 @@ impl<'a> G<'a> {
         match l {
             Lang::Rust => {
                 self.out.push(RT_RS.to_string());
+                self.line(display_escape_decl(Lang::Rust));
                 self.line(format!("const LOOP_LIMIT: i128 = {loop_limit};"));
             }
             Lang::Python => {
                 self.out.push(RT_PY.to_string());
+                self.line(display_escape_decl(Lang::Python));
                 self.line(format!("LOOP_LIMIT = {loop_limit}"));
             }
             Lang::Js => {
                 self.out.push(RT_JS.to_string());
+                self.line(display_escape_decl(Lang::Js));
                 self.line(format!(
                     "const LOOP_LIMIT = {loop_limit};\nconst KC = {{}};"
                 ));
             }
             Lang::Scala => {
                 self.out.push(RT_SCALA.to_string());
+                self.line(display_escape_decl(Lang::Scala));
                 self.line(format!("val LOOP_LIMIT: BigInt = BigInt(\"{loop_limit}\")"));
             }
         }

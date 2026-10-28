@@ -399,7 +399,7 @@ The library replaces what the emitter inventory classes as algorithm in today's 
 
 ### 5.6 Pinned data
 
-**ONE-18 Data the library reads is pinned in the text.** The 25 white-space code points of N7 are already enumerated (`interp::WHITE_SPACE`). The set of code points that display escapes, and the rule for a grapheme extender at the start of a text, are enumerated in the same way, as data, from the tables of the pinned Rust toolchain (`spec/checker/rust-toolchain.toml`, channel 1.98.1), so that no trace changes, and both `interp::show` and `rt/show` read that data. The Unicode version the enumeration came from is recorded beside the N7 pin; moving it is a change of the specification. The trap texts are the closed list of 6.2.
+**ONE-18 Data the library reads is pinned in the text.** The 25 white-space code points of N7 are already enumerated (`interp::WHITE_SPACE`). The set of code points that display escapes, and the rule for a grapheme extender at the start of a text, are enumerated in the same way, as data, from the tables of the pinned Rust toolchain (`spec/checker/rust-toolchain.toml`, channel 1.98.1), so that no trace changes, and both `interp::show` and `rt/show` read that data, as do the four runtimes of the per-target emitters, from a table the emitter writes from the same file. The Unicode version the enumeration came from is recorded beside the N7 pin; moving it is a change of the specification. The trap texts are the closed list of 6.2.
 
 ## 6. Two worked tables
 

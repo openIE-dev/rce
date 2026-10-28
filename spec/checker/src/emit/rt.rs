@@ -210,7 +210,36 @@ pub fn float_text(x: f64) -> String {
     let m = if digits.len() > 1 { format!("{}.{}", &digits[..1], &digits[1..]) } else { digits.clone() };
     if ex >= 0 { format!("{sign}{m}e+{ex}") } else { format!("{sign}{m}e{ex}") }
 }
-fn rdebug(s: &str) -> String { format!("{s:?}") }
+/// 6.3 N7: whether display writes code point k as `\u{h}`: k lies in a
+/// range of `DISPLAY_ESCAPE`, the set of `spec/data/display-escape.json`
+/// that the emitter writes after this runtime
+fn display_escapes(k: u32) -> bool {
+    let n = DISPLAY_ESCAPE.len() / 2;
+    let (mut lo, mut hi) = (0, n);
+    while lo < hi {
+        let m = (lo + hi) / 2;
+        if DISPLAY_ESCAPE[2 * m + 1] < k { lo = m + 1 } else { hi = m }
+    }
+    lo < n && DISPLAY_ESCAPE[2 * lo] <= k
+}
+/// Text as display shows it (6.3 N7, `interp::show_text`)
+fn rdebug(s: &str) -> String {
+    let mut o = String::from("\"");
+    for c in s.chars() {
+        match c {
+            '\0' => o.push_str("\\0"),
+            '\t' => o.push_str("\\t"),
+            '\n' => o.push_str("\\n"),
+            '\r' => o.push_str("\\r"),
+            '"' => o.push_str("\\\""),
+            '\\' => o.push_str("\\\\"),
+            c if display_escapes(c as u32) => o.push_str(&format!("\\u{{{:x}}}", c as u32)),
+            c => o.push(c),
+        }
+    }
+    o.push('"');
+    o
+}
 pub fn show(v: &V) -> String {
     let j = |xs: &[V]| xs.iter().map(show).collect::<Vec<_>>().join(", ");
     match v {
@@ -529,7 +558,7 @@ fn builtin_raw(r: V, m: &str, a: Vec<V>) -> R<(V, Option<V>)> {
         (Text(s), "contains") => match a0() { Text(d) => Bool(s.contains(d.as_str())), _ => return trap("contains") },
         (Text(s), "startswith") => match a0() { Text(d) => Bool(s.starts_with(d.as_str())), _ => return trap("startswith") },
         (Text(s), "endswith") => match a0() { Text(d) => Bool(s.ends_with(d.as_str())), _ => return trap("endswith") },
-        (Text(s), "toint") => s.trim_matches(is_ws).parse::<i128>().map_err(|_| Flow::Trap(format!("not an integer: {s:?}"))).and_then(|v| chk(v, "i64"))?,
+        (Text(s), "toint") => s.trim_matches(is_ws).parse::<i128>().map_err(|_| Flow::Trap(format!("not an integer: {}", rdebug(&s)))).and_then(|v| chk(v, "i64"))?,
         (Text(s), "join") => match a0() { List(xs) => Text(xs.iter().map(|x| if let Text(t) = x { t.clone() } else { show(x) }).collect::<Vec<_>>().join(&s)), _ => return trap("join") },
         (List(xs), "len") => Int(xs.len() as i128, "usize"),
         (List(xs), "isempty") => Bool(xs.is_empty()),

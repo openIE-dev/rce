@@ -70,6 +70,22 @@ fn runtime_sources_call_no_unicode_table() {
             }
         }
     }
+    // the emitted Rust runtime writes text by `rdebug` from the data, never
+    // by `{:?}` of a str; `{:?}` of a float is digits, and `dbg_v` and
+    // `dbg_flow` mirror the reference's derived Debug of a refusal reason
+    let rt = std::fs::read_to_string("src/emit/rt.rs").unwrap();
+    let mut in_dbg = false;
+    for (n, line) in rt.lines().enumerate() {
+        if line.starts_with("pub fn dbg_v(") || line.starts_with("pub fn dbg_flow(") {
+            in_dbg = true;
+        } else if line.starts_with('}') {
+            in_dbg = false;
+        }
+        let code = line.split("//").next().unwrap();
+        if !in_dbg && code.replace("{f:?}", "").contains(":?}") {
+            bad.push(format!("src/emit/rt.rs:{}: `:?}}`: {}", n + 1, line.trim()));
+        }
+    }
     assert!(bad.is_empty(), "calls that read the toolchain's Unicode tables:\n{}", bad.join("\n"));
 }
 
