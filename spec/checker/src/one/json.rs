@@ -526,3 +526,76 @@ pub fn text(m: &Module) -> String {
     }
     o
 }
+
+/// The canonical order of a group's members (`rec i` naming member i of
+/// `fs`): an iterated digest. In round 0 each member's digest is the
+/// SHA-256 of its canonical JSON with every reference `rec i` written
+/// `["rec","?"]`; in each later round, with every `rec i` written
+/// `["rec", d]`, d the digest of member i in the round before. After n
+/// rounds (rounds 0 to n - 1, n the number of members) two members have the
+/// same digest exactly when they are bisimilar: the same function up to
+/// the members they call, which are bisimilar in turn. The group's members
+/// are the distinct final digests in ascending order, so its key does not
+/// depend on the order in which the lowering first used them, and
+/// bisimilar members are one function. Returns, for each new position, the
+/// member written there (the first with that digest), and, for each member,
+/// its new position.
+pub fn canonical_order(fs: &[Fn]) -> (Vec<usize>, Vec<u32>) {
+    let n = fs.len();
+    if n == 1 {
+        return (vec![0], vec![0]);
+    }
+    let digest = |f: &Fn, rec: &dyn std::ops::Fn(u32) -> serde_json::Value| {
+        let rf = |r: &FnRef| match r {
+            FnRef::Rec(i) => json!(["rec", rec(*i)]),
+            other => fref_json(other),
+        };
+        sha256_hex(&fn_json_with(f, &rf))
+    };
+    let mut d: Vec<String> = fs.iter().map(|f| digest(f, &|_| json!("?"))).collect();
+    for _ in 1..n {
+        let prev = d;
+        // a `rec i` that names no member (W5 refuses it) is written as in round 0
+        d = fs.iter().map(|f| digest(f, &|i| prev.get(i as usize).map_or(json!("?"), |x| json!(x)))).collect();
+    }
+    let mut distinct: Vec<&String> = d.iter().collect();
+    distinct.sort();
+    distinct.dedup();
+    let class: Vec<u32> = d.iter().map(|x| distinct.binary_search(&x).unwrap() as u32).collect();
+    let order = (0..distinct.len() as u32).map(|j| class.iter().position(|c| *c == j).unwrap()).collect();
+    (order, class)
+}
+
+/// The group of `members` in canonical order ([`canonical_order`]), each
+/// `rec i` renumbered to the canonical position of member i, and, for each
+/// member, its position in the group.
+pub fn canonical_group(members: &[Fn]) -> (Group, Vec<u32>) {
+    let (order, class) = canonical_order(members);
+    let mut g = Group { fns: vec![] };
+    for &k in &order {
+        let mut f = members[k].clone();
+        renumber(&mut f.body, &class);
+        g.fns.push(f);
+    }
+    (g, class)
+}
+
+/// Write each `rec i` of a member as `rec class[i]`, its canonical position;
+/// a `rec i` that names no member is left for W5 to refuse.
+fn renumber(b: &mut [Stmt], class: &[u32]) {
+    for s in b {
+        match s {
+            Stmt::Call(FnRef::Rec(i), _) | Stmt::Catch(FnRef::Rec(i), _) => {
+                if let Some(c) = class.get(*i as usize) {
+                    *i = *c;
+                }
+            }
+            Stmt::If(_, t, e) => {
+                renumber(t, class);
+                renumber(e, class);
+            }
+            Stmt::Block(x) | Stmt::Loop(x) => renumber(x, class),
+            _ => {}
+        }
+    }
+}

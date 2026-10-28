@@ -22,6 +22,9 @@
 //!   changes, so each result of it is a value of its own.
 //! - W5 Keys. A group's key is the SHA-256 of its canonical JSON, `rec i`
 //!   names a member of its own group, and the graph of keys has no cycle.
+//!   The members of a group are in canonical order
+//!   (`json::canonical_order`): their final digests ascend strictly, so
+//!   no two members are bisimilar and one group has one key.
 //! - W6 Arguments. The operands of `call` and `catch` are locals or
 //!   literals, and `set` names a `var` local or a global.
 //!
@@ -31,14 +34,14 @@
 //! is expected, a value of any integer type whose range lies inside it may
 //! be given.
 use super::ir::*;
-use super::json::group_key;
+use super::json::{canonical_order, group_key};
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 type R<T> = Result<T, String>;
 
 /// Check every rule of ONE-3 on `m`; the error names the rule and the place.
 pub fn check(m: &Module) -> R<()> {
-    // W5: keys, callees, no cycle
+    // W5: keys, callees, canonical order, no cycle
     for (k, g) in &m.defs {
         let want = group_key(g);
         if &want != k {
@@ -74,6 +77,13 @@ pub fn check(m: &Module) -> R<()> {
             }
         }
         graph.insert(k.clone(), ks);
+    }
+    // every `rec i` names a member, so the canonical order is defined
+    for (k, g) in &m.defs {
+        let (_, class) = canonical_order(&g.fns);
+        if let Some(i) = class.iter().enumerate().position(|(i, c)| *c as usize != i) {
+            return Err(format!("W5: member {i} of group {k} is not in canonical order, or repeats a member"));
+        }
     }
     acyclic(&graph)?;
     let Some(entry) = m.func(&m.entry.0, m.entry.1) else {

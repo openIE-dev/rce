@@ -14,6 +14,22 @@
 use super::build::{FB, Fns, R, count_t, lit, sym, wide};
 use super::ir::*;
 
+/// A builder of a runtime function: adds it, and the functions it calls,
+/// to the registry, and returns its id.
+pub type Builder = fn(&mut Fns) -> R<usize>;
+
+/// Every builder of this module, by name, with each instance of a builder
+/// that takes a parameter, so that a check over the runtime
+/// (`tests/one_core.rs::every_runtime_loop_has_a_bounded_shape`) builds
+/// every runtime function, whether or not a program calls it.
+pub const BUILDERS: &[(&str, Builder)] = &[
+    ("tick", tick), ("charge", charge), ("try_charge", try_charge), ("ceil_log2", ceil_log2), ("dec_sm", dec_sm),
+    ("dec", dec), ("dec_exact add", |f| dec_exact(f, "add")), ("dec_exact sub", |f| dec_exact(f, "sub")),
+    ("dec_exact mul", |f| dec_exact(f, "mul")), ("dec_exact neg", |f| dec_exact(f, "neg")),
+    ("dec_exact abs", |f| dec_exact(f, "abs")), ("dec_exact quo", |f| dec_exact(f, "quo")), ("sha_hex", sha_hex),
+    ("jstr", jstr), ("debug", debug), ("why", why), ("refusal", refusal), ("utf8_count", utf8_count),
+];
+
 pub fn u32t() -> Ty {
     Ty::Int(0, u32::MAX as i128)
 }
