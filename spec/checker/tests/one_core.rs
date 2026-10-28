@@ -165,6 +165,96 @@ fn w_rules() {
     assert!(wf_err(&module_of(vec![entry(b), setp], vec![])).contains("W6"));
 }
 
+/// W4 and globals: a fact about a global is a fact about the
+/// value it held, and a call may change any global. The first three modules
+/// below were accepted before this rule held, and running each applies
+/// `int.add` outside its domain; each is now refused by W4. The same loop
+/// without the call is accepted, since nothing in it changes the global,
+/// and so is a local that read the global before a call, tested and used.
+/// The last module is the same defect for memory: two reads of one address
+/// with a `mem.set` between them were taken as one value.
+#[test]
+fn w4_facts_about_globals_end_at_a_call() {
+    let g9 = Ty::Int(0, 9);
+    let halt_at = |n: u32| vec![Stmt::Prim("sum.mk".into(), vec![Ty::halt()], vec![lit(0), Atom::bytes(b"overflow")]), Stmt::Halt(Atom::V(n))];
+    let set_to = |v: i128| Fn { params: vec![], ret: Ty::Bool, body: vec![Stmt::Set(Place::G(0), lit(v)), Stmt::Ret(Atom::bool(true))] };
+    let add = |a: Atom| Stmt::Prim("int.add".into(), vec![g9.clone()], vec![a, lit(1)]);
+    let test = Stmt::Prim("int.bad.add".into(), vec![g9.clone()], vec![Atom::G(0), lit(1)]);
+    let refused = |m: &Module, why: &str| {
+        let e = wf_err(m);
+        assert!(e.contains("W4: int.add is not dominated by its test int.bad.add"), "{why}: {e}");
+        let run = one::eval::run(m);
+        assert!(run.is_err(), "{why}: the run should apply int.add outside its domain");
+    };
+
+    // a loop whose body calls a function that sets the global: the test
+    // before the loop holds on the first iteration only
+    let in_loop = |call: bool| {
+        let mut l = vec![add(Atom::G(0))];
+        if call {
+            l.push(Stmt::Call(FnRef::Rec(1), vec![]));
+        }
+        vec![test.clone(), Stmt::If(Atom::V(0), halt_at(1), vec![]), Stmt::Loop(l)]
+    };
+    let m = module_of(vec![entry(in_loop(true)), set_to(9)], vec![(g9.clone(), Some(Lit::Int(0)))]);
+    refused(&m, "a call in a loop");
+    let m = module_of(vec![entry(in_loop(false)), set_to(9)], vec![(g9.clone(), Some(Lit::Int(0)))]);
+    assert_eq!(one::wf::check(&m), Ok(()), "a loop that changes no global keeps the fact");
+
+    // a block left by a break after a call: the fact before the block does
+    // not hold after it
+    let mut b = vec![
+        test.clone(),
+        Stmt::If(Atom::V(0), halt_at(1), vec![]),
+        Stmt::Block(vec![Stmt::Call(FnRef::Rec(1), vec![]), Stmt::If(Atom::V(2), vec![Stmt::Break(0)], vec![])]),
+        add(Atom::G(0)),
+    ];
+    b.extend(unit_ret(4));
+    let m = module_of(vec![entry(b), set_to(9)], vec![(g9.clone(), Some(Lit::Int(0)))]);
+    refused(&m, "a block with a call");
+
+    // a local bound to a global's value before a call keeps the old value,
+    // so a test of the global after the call says nothing about it
+    let mut b = vec![
+        Stmt::Let(Atom::G(0)),
+        Stmt::Call(FnRef::Rec(1), vec![]),
+        test.clone(),
+        Stmt::If(Atom::V(2), halt_at(3), vec![]),
+        add(Atom::V(0)),
+    ];
+    b.extend(unit_ret(5));
+    let m = module_of(vec![entry(b), set_to(0)], vec![(g9.clone(), Some(Lit::Int(9)))]);
+    refused(&m, "a local bound before a call");
+
+    // a local that read the global before a call keeps the facts tested on
+    // the value it holds
+    let mut b = vec![
+        Stmt::Let(Atom::G(0)),
+        Stmt::Prim("int.bad.add".into(), vec![g9.clone()], vec![Atom::V(0), lit(1)]),
+        Stmt::Call(FnRef::Rec(1), vec![]),
+        Stmt::If(Atom::V(1), halt_at(3), vec![]),
+        add(Atom::V(0)),
+    ];
+    b.extend(unit_ret(5));
+    let m = module_of(vec![entry(b), set_to(9)], vec![(g9.clone(), Some(Lit::Int(0)))]);
+    assert_eq!(wf_err(&m), "", "the value read before the call is the value tested");
+    assert!(one::eval::run(&m).unwrap().halt.is_none());
+
+    // memory is state outside every value: a fact about what `mem.get` read
+    // says nothing about what it reads after a `mem.set`
+    let get = |v: i128| Stmt::Prim("mem.get".into(), vec![g9.clone()], vec![lit(v)]);
+    let mut b = vec![
+        get(0),
+        Stmt::Prim("int.bad.add".into(), vec![g9.clone()], vec![Atom::V(0), lit(1)]),
+        Stmt::If(Atom::V(1), halt_at(2), vec![]),
+        Stmt::Prim("mem.set".into(), vec![g9.clone()], vec![lit(0), lit(9)]),
+        get(0),
+        add(Atom::V(3)),
+    ];
+    b.extend(unit_ret(5));
+    refused(&module_of(vec![entry(b)], vec![]), "a read of memory after a mem.set");
+}
+
 /// The evaluator: output bytes, a halt, and the primitives at the edges of
 /// their types.
 #[test]

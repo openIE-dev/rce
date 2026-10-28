@@ -11,7 +11,15 @@
 //!   function returns or calls; the entry function sets each owned global
 //!   before its first read or call.
 //! - W4 Domains. Every application of a partial primitive is dominated by
-//!   the domain test the lowering placed before it.
+//!   the domain test the lowering placed before it. A fact about a `var`
+//!   local or a global is a fact about the value it held then, never about
+//!   the place: each value a place takes has its own epoch. Setting the
+//!   place, a call or catch (which may set any global), the head of a loop
+//!   whose body may set it or call, and the end of a block or loop whose
+//!   body may, each give the place a new epoch, so a fact tested before
+//!   does not cover a later value, and a local that read the earlier value
+//!   keeps the facts about it. `mem.get` reads memory that `mem.set`
+//!   changes, so each result of it is a value of its own.
 //! - W5 Keys. A group's key is the SHA-256 of its canonical JSON, `rec i`
 //!   names a member of its own group, and the graph of keys has no cycle.
 //! - W6 Arguments. The operands of `call` and `catch` are locals or
@@ -398,11 +406,20 @@ struct Local {
     param: bool,
 }
 
+/// A place whose value can change: a `var` local or a global.
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, PartialOrd, Ord)]
+enum Key {
+    L(u32),
+    G(u32),
+}
+
 /// A fact term: an atom, or a primitive applied to terms.
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
 enum Term {
+    /// a local that is not a `var`, which holds one value
     V(u32),
-    G(u32),
+    /// the value a `var` local or a global holds in an epoch
+    At(Key, u32),
     K(Lit),
     P(String, Vec<Ty>, Vec<Term>),
 }
@@ -410,6 +427,14 @@ enum Term {
 impl Term {
     fn mentions(&self, v: &Term) -> bool {
         self == v || matches!(self, Term::P(_, _, xs) if xs.iter().any(|x| x.mentions(v)))
+    }
+    /// Whether the term reads local k, in any epoch when k is a `var`.
+    fn mentions_local(&self, k: u32) -> bool {
+        match self {
+            Term::V(i) | Term::At(Key::L(i), _) => *i == k,
+            Term::P(_, _, xs) => xs.iter().any(|x| x.mentions_local(k)),
+            _ => false,
+        }
     }
 }
 
@@ -421,6 +446,15 @@ struct St {
     gown: BTreeMap<u32, Own>,
     /// facts known to hold: (term, truth)
     facts: Facts,
+    /// the epoch of each place's value here; a place not listed is in
+    /// epoch 0, the value it had where the function or its `var` began
+    epochs: BTreeMap<Key, u32>,
+}
+
+impl St {
+    fn epoch(&self, k: Key) -> u32 {
+        self.epochs.get(&k).copied().unwrap_or(0)
+    }
 }
 
 /// A set of facts, indexed by the term and by the primitive and operands
@@ -474,6 +508,8 @@ struct Fun<'a> {
     next: u32,
     /// the open blocks and loops, innermost last
     exits: Vec<Exit>,
+    /// the last epoch given to a place's value
+    epoch: u32,
 }
 
 impl<'a> Fun<'a> {
@@ -482,13 +518,13 @@ impl<'a> Fun<'a> {
         for (i, t) in f.params.iter().enumerate() {
             locals.insert(i as u32, Local { ty: t.clone(), var: false, param: true });
         }
-        Fun { m, g, f, locals, defs: HashMap::new(), next: f.params.len() as u32, exits: vec![] }
+        Fun { m, g, f, locals, defs: HashMap::new(), next: f.params.len() as u32, exits: vec![], epoch: 0 }
     }
 
     /// Check the function; in the entry function the owned globals start
     /// unset, so it sets each before it reads it or calls.
     fn check(&mut self, is_entry: bool) -> R<()> {
-        let mut st = St { own: BTreeMap::new(), gown: BTreeMap::new(), facts: Facts::default() };
+        let mut st = St { own: BTreeMap::new(), gown: BTreeMap::new(), facts: Facts::default(), epochs: BTreeMap::new() };
         for (i, t) in self.f.params.iter().enumerate() {
             if t.owned() {
                 st.own.insert(i as u32, Own::Live);
@@ -520,10 +556,11 @@ impl<'a> Fun<'a> {
         }
     }
 
-    fn term(&self, a: &Atom) -> Term {
+    fn term(&self, st: &St, a: &Atom) -> Term {
         match a {
+            Atom::V(i) if self.locals.get(i).is_some_and(|l| l.var) => Term::At(Key::L(*i), st.epoch(Key::L(*i))),
             Atom::V(i) => self.defs.get(i).cloned().unwrap_or(Term::V(*i)),
-            Atom::G(i) => Term::G(*i),
+            Atom::G(i) => Term::At(Key::G(*i), st.epoch(Key::G(*i))),
             Atom::K(_, l) => Term::K(l.clone()),
         }
     }
@@ -573,10 +610,20 @@ impl<'a> Fun<'a> {
         Ok(())
     }
 
-    fn invalidate(&self, st: &mut St, t: &Term) {
-        if st.facts.all.iter().any(|(f, _)| f.mentions(t)) {
-            st.facts.retain(|(f, _)| !f.mentions(t));
+    /// Forget local k where it goes out of scope: the facts that read it
+    /// and its epochs.
+    fn forget(&self, st: &mut St, k: u32) {
+        if st.facts.all.iter().any(|(f, _)| f.mentions_local(k)) {
+            st.facts.retain(|(f, _)| !f.mentions_local(k));
         }
+        st.epochs.remove(&Key::L(k));
+    }
+
+    /// Give place k a new epoch: its value from here on may differ from
+    /// every value it had before.
+    fn renew(&mut self, st: &mut St, k: Key) {
+        self.epoch += 1;
+        st.epochs.insert(k, self.epoch);
     }
 
     fn known(&self, st: &St, t: &Term, truth: bool) -> bool {
@@ -589,7 +636,7 @@ impl<'a> Fun<'a> {
         {
             return true;
         }
-        let x = self.term(a);
+        let x = self.term(st, a);
         let z = Term::K(Lit::Int(0));
         st.facts.holds("int.lt", &[x.clone(), z.clone()], false) || st.facts.holds("int.le", &[z, x], true)
     }
@@ -604,7 +651,7 @@ impl<'a> Fun<'a> {
 
     /// W4: the domain of a partial primitive is established by a dominating test.
     fn domain(&self, p: &str, ts: &[Ty], args: &[Atom], tys: &[Ty], st: &St) -> R<()> {
-        let terms: Vec<Term> = args.iter().map(|a| self.term(a)).collect();
+        let terms: Vec<Term> = args.iter().map(|a| self.term(st, a)).collect();
         let neg = |q: &str| Term::P(q.to_string(), ts.to_vec(), terms.clone());
         let need = |ok: bool, what: &str| if ok { Ok(()) } else { Err(format!("W4: {p} is not dominated by {what}")) };
         let len_of = |x: &Term, c: &Ty| {
@@ -680,7 +727,7 @@ impl<'a> Fun<'a> {
             self.locals.remove(&k);
             self.defs.remove(&k);
             st.own.remove(&k);
-            self.invalidate(st, &Term::V(k));
+            self.forget(st, k);
         }
         Ok(falls)
     }
@@ -692,9 +739,17 @@ impl<'a> Fun<'a> {
         Ok(())
     }
 
-    fn meet(a: &St, b: &St) -> St {
+    /// The state where two paths meet: the facts both know, and a new
+    /// epoch for each place whose epochs differ.
+    fn meet(&mut self, a: &St, b: &St) -> St {
         let mut r = a.clone();
         r.facts.retain(|f| b.facts.contains(f));
+        let keys: BTreeSet<Key> = a.epochs.keys().chain(b.epochs.keys()).copied().collect();
+        for k in keys {
+            if a.epoch(k) != b.epoch(k) {
+                self.renew(&mut r, k);
+            }
+        }
         r
     }
 
@@ -702,7 +757,7 @@ impl<'a> Fun<'a> {
         match s {
             Stmt::Let(a) => {
                 let t = self.use_atom(a, true, st, true)?;
-                let term = self.term(a);
+                let term = self.term(st, a);
                 let i = self.bind(t, false, st);
                 self.defs.insert(i, term);
             }
@@ -717,8 +772,10 @@ impl<'a> Fun<'a> {
                     self.use_atom(a, !reads(p, k), st, false)?;
                 }
                 // a copy is equal to its operand, so facts about the one hold of the other
-                let term = if p == "copy" { self.term(&args[0]) } else { Term::P(p.clone(), ts.clone(), args.iter().map(|a| self.term(a)).collect()) };
-                let single = rs.len() == 1;
+                let term = if p == "copy" { self.term(st, &args[0]) } else { Term::P(p.clone(), ts.clone(), args.iter().map(|a| self.term(st, a)).collect()) };
+                // `mem.get` reads memory that `mem.set` changes, so its
+                // result is a value of its own, not a function of its operand
+                let single = rs.len() == 1 && p != "mem.get";
                 for t in rs {
                     let i = self.bind(t, false, st);
                     if single {
@@ -741,9 +798,9 @@ impl<'a> Fun<'a> {
                     }
                 }
                 self.globals_back(st, "a call")?;
-                // a callee may set globals, so no fact about a global survives a call
-                if st.facts.all.iter().any(|(f, _)| mentions_global(f)) {
-                    st.facts.retain(|(f, _)| !mentions_global(f));
+                // a callee may set any global
+                for i in 0..self.m.globals.len() as u32 {
+                    self.renew(st, Key::G(i));
                 }
                 let rt = if matches!(s, Stmt::Call(..)) { ret } else { Ty::Sum(vec![ret, Ty::halt()]) };
                 self.bind(rt, false, st);
@@ -753,7 +810,9 @@ impl<'a> Fun<'a> {
                 if !fits(&at, t) {
                     return Err(format!("W1: var of type {t:?} initialised with {at:?}"));
                 }
-                self.bind(t.clone(), true, st);
+                // a `var` declared in a loop body begins anew on each iteration
+                let i = self.bind(t.clone(), true, st);
+                self.renew(st, Key::L(i));
             }
             Stmt::Set(p, a) => {
                 let at = self.use_atom(a, true, st, false)?;
@@ -774,8 +833,7 @@ impl<'a> Fun<'a> {
                             }
                             st.own.insert(*i, Own::Live);
                         }
-                        self.invalidate(st, &Term::V(*i));
-                        self.defs.retain(|_, t| !t.mentions(&Term::V(*i)));
+                        self.renew(st, Key::L(*i));
                     }
                     Place::G(i) => {
                         let Some((gt, _)) = self.m.globals.get(*i as usize) else {
@@ -790,8 +848,7 @@ impl<'a> Fun<'a> {
                             }
                             st.gown.insert(*i, Own::Live);
                         }
-                        self.invalidate(st, &Term::G(*i));
-                        self.defs.retain(|_, t| !t.mentions(&Term::G(*i)));
+                        self.renew(st, Key::G(*i));
                     }
                 }
             }
@@ -800,7 +857,7 @@ impl<'a> Fun<'a> {
                 if ct != Ty::Bool {
                     return Err(format!("W1: if on {ct:?}"));
                 }
-                let cterm = self.term(c);
+                let cterm = self.term(st, c);
                 let mut st1 = st.clone();
                 st1.facts.push((cterm.clone(), true));
                 let f1 = self.block(t, &mut st1)?;
@@ -810,7 +867,7 @@ impl<'a> Fun<'a> {
                 match (f1, f2) {
                     (true, true) => {
                         Self::same_own(&st1, &st2, "after an if")?;
-                        *st = Self::meet(&st1, &st2);
+                        *st = self.meet(&st1, &st2);
                     }
                     (true, false) => *st = st1,
                     (false, true) => *st = st2,
@@ -820,11 +877,13 @@ impl<'a> Fun<'a> {
             Stmt::Block(b) | Stmt::Loop(b) => {
                 let is_loop = matches!(s, Stmt::Loop(_));
                 let entry = st.clone();
-                // facts about a var set anywhere in the body do not hold inside it
+                let set_in_body = self.sets(b);
+                // at the head of a loop, a place the body may set holds the
+                // value of any earlier iteration
                 let mut st_in = st.clone();
                 if is_loop {
-                    for v in sets(b) {
-                        self.invalidate(&mut st_in, &v);
+                    for k in &set_in_body {
+                        self.renew(&mut st_in, *k);
                     }
                 }
                 self.exits.push(Exit { scope: self.locals.keys().copied().collect(), breaks: vec![] });
@@ -843,18 +902,19 @@ impl<'a> Fun<'a> {
                 let mut r = first;
                 for o in &outs[1..] {
                     Self::same_own(&r, o, "after a block or loop")?;
-                    r = Self::meet(&r, o);
+                    r = self.meet(&r, o);
                 }
                 // facts established inside do not leave, except those of a
                 // block's fall-through when nothing breaks out of it
                 let mut keep = entry.clone();
                 keep.own = r.own.clone();
                 keep.gown = r.gown.clone();
-                for v in sets(b) {
-                    self.invalidate(&mut keep, &v);
+                for k in &set_in_body {
+                    self.renew(&mut keep, *k);
                 }
                 if !is_loop && outs.len() == 1 && falls {
                     keep.facts = r.facts;
+                    keep.epochs = r.epochs;
                 }
                 *st = keep;
             }
@@ -915,32 +975,33 @@ impl<'a> Fun<'a> {
     }
 }
 
-fn mentions_global(t: &Term) -> bool {
-    match t {
-        Term::G(_) => true,
-        Term::P(_, _, xs) => xs.iter().any(mentions_global),
-        _ => false,
-    }
-}
-
-/// The places a statement list sets.
-fn sets(b: &[Stmt]) -> Vec<Term> {
-    let mut out = vec![];
-    fn go(b: &[Stmt], out: &mut Vec<Term>) {
-        for s in b {
-            match s {
-                Stmt::Set(Place::V(i), _) => out.push(Term::V(*i)),
-                Stmt::Set(Place::G(i), _) => out.push(Term::G(*i)),
-                Stmt::Call(..) | Stmt::Catch(..) => {}
-                Stmt::If(_, t, e) => {
-                    go(t, out);
-                    go(e, out);
+impl Fun<'_> {
+    /// The places a statement list may set: the `var` locals and globals it
+    /// sets, and every global when it calls a function, since the callee
+    /// may set any of them.
+    fn sets(&self, b: &[Stmt]) -> Vec<Key> {
+        fn go(b: &[Stmt], out: &mut Vec<Key>, calls: &mut bool) {
+            for s in b {
+                match s {
+                    Stmt::Set(Place::V(i), _) => out.push(Key::L(*i)),
+                    Stmt::Set(Place::G(i), _) => out.push(Key::G(*i)),
+                    Stmt::Call(..) | Stmt::Catch(..) => *calls = true,
+                    Stmt::If(_, t, e) => {
+                        go(t, out, calls);
+                        go(e, out, calls);
+                    }
+                    Stmt::Block(x) | Stmt::Loop(x) => go(x, out, calls),
+                    _ => {}
                 }
-                Stmt::Block(x) | Stmt::Loop(x) => go(x, out),
-                _ => {}
             }
         }
+        let (mut out, mut calls) = (vec![], false);
+        go(b, &mut out, &mut calls);
+        if calls {
+            out.extend((0..self.m.globals.len() as u32).map(Key::G));
+        }
+        out.sort();
+        out.dedup();
+        out
     }
-    go(b, &mut out);
-    out
 }
