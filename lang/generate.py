@@ -1,0 +1,521 @@
+#!/usr/bin/env python3
+"""Write the generated tier of a corpus: programs that print tables of a
+language's operations over fixed edge values, for integers, floats and code
+points. The output is a function of this file alone (no clock, no
+randomness: the "random" values come from a 64-bit linear congruential
+generator with a fixed seed), so running it twice writes the same bytes.
+
+    python3 lang/generate.py LANG DIR
+
+writes DIR/generated/<item>.<ext> for LANG (go1.24, python3.13 or es2020).
+lang/corpus.py admit LANG DIR then runs them under the oracle and records
+what they print; nothing here states an expected output.
+"""
+import struct
+import sys
+from pathlib import Path
+
+LICENCE = "SPDX-License-Identifier: MIT OR Apache-2.0"
+
+
+# ---- value sets -----------------------------------------------------------
+
+def bits_of(x):
+    return struct.unpack("<Q", struct.pack("<d", x))[0]
+
+
+def lcg(seed):
+    s = seed
+    while True:
+        s = (s * 6364136223846793005 + 1442695040888963407) % (1 << 64)
+        yield s
+
+
+def float_edges():
+    """Specials, boundaries of the printing rules and of the formats."""
+    vals = [0.0, -0.0, 1.0, -1.0, 0.5, 0.1, 0.2, 0.3, 0.1 + 0.2, 1 / 3, 2 / 3,
+            1e-7, 1e-6, 1e-5, 1e-4, 1e-3, 0.001234, 123.456, 1e15, 1e16, 1e17,
+            1e20, 1e21, 1e22, 1e23, 2.0 ** 53, 2.0 ** 53 + 2, 2.0 ** 63, 2.0 ** 64,
+            9007199254740993.0, 123456789012345680.0, 4.35, 2.675, 1.005, 0.125,
+            5e-324, 1.5e-323, 2.225073858507201e-308, 2.2250738585072014e-308,
+            1.7976931348623157e308, -1.7976931348623157e308, 1e308, 1e-308]
+    out = [bits_of(v) for v in vals]
+    out += [0x7FF0000000000000, 0xFFF0000000000000, 0x7FF8000000000000]
+    return out
+
+
+def float_random_bits(n):
+    out = []
+    g = lcg(0x5EED0001)
+    while len(out) < n:
+        b = next(g)
+        if (b >> 52) & 0x7FF == 0x7FF:
+            continue
+        out.append(b)
+    return out
+
+
+def float_decimals(n):
+    out = []
+    g = lcg(0x5EED0002)
+    while len(out) < n:
+        s = next(g)
+        m = s >> 44
+        k = s % 23 - 11
+        x = m / 10 ** (-k) if k < 0 else float(m * 10 ** k)
+        if (s >> 20) & 1:
+            x = -x
+        out.append(bits_of(x))
+    return out
+
+
+FLOAT_CHUNKS = {
+    "float_print_edges": float_edges(),
+    "float_print_bits": float_random_bits(40),
+    "float_print_decimals": float_decimals(40),
+}
+
+FLOAT_OPERANDS = [bits_of(v) for v in (0.0, -0.0, 1.0, -1.0, 2.5, -2.5, 3.0, 1e308, 5e-324, 0.1)] + \
+    [0x7FF0000000000000, 0xFFF0000000000000, 0x7FF8000000000000]
+
+CODE_POINTS = list(range(0, 0x21)) + [
+    0x22, 0x27, 0x5C, 0x7E, 0x7F, 0x80, 0x9F, 0xA0, 0xAD, 0xE9, 0xFF, 0x100,
+    0x300, 0x378, 0x3A3, 0x5D0, 0x627, 0x661, 0x7FF, 0x800, 0x200B, 0x200D,
+    0x2028, 0x2029, 0x202E, 0x20AC, 0x3000, 0x4E2D, 0xD7FF, 0xD800, 0xDBFF,
+    0xDC00, 0xDFFF, 0xE000, 0xF8FF, 0xFDD0, 0xFEFF, 0xFFFD, 0xFFFE, 0xFFFF,
+    0x10000, 0x1D11E, 0x1F600, 0x1F1FA, 0xE0001, 0xF0000, 0x10FFFF]
+
+
+def int_edges(signed, width):
+    if signed:
+        lo, hi = -(1 << (width - 1)), (1 << (width - 1)) - 1
+        vals = [lo, lo + 1, -(1 << (width // 2)) - 3, -2, -1, 0, 1, 2, 3, (1 << (width // 2)) + 5, hi - 1, hi]
+    else:
+        hi = (1 << width) - 1
+        vals = [0, 1, 2, 3, 7, (1 << (width // 2)) + 5, 1 << (width - 1), (1 << (width - 1)) + 1, hi - 1, hi]
+    out = []
+    for v in vals:
+        if v not in out:
+            out.append(v)
+    return out
+
+
+PY_INT_CHUNKS = {
+    "int_ops_small": [-7, -3, -2, -1, 0, 1, 2, 3, 7, 10],
+    "int_ops_word": [2 ** 31 - 1, -2 ** 31, 2 ** 32, 2 ** 63 - 1, -2 ** 63, 2 ** 64, -2 ** 64 - 1, 3, -3],
+    "int_ops_big": [10 ** 20, -10 ** 20, 3 ** 40, -(2 ** 100) + 1, 2 ** 127, 12345678901234567890123, -5, 0],
+}
+
+JS_NUMBERS = ["0", "-0", "1", "-1", "2", "-3", "1.5", "-1.5", "0.5", "2147483647", "2147483648",
+              "-2147483648", "4294967295", "4294967296", "4294967297", "9007199254740992",
+              "-9007199254740993", "1e21", "NaN", "Infinity", "-Infinity"]
+
+JS_BIGINTS = ["-(2n ** 64n)", "-(2n ** 63n)", "-7n", "-2n", "-1n", "0n", "1n", "2n", "7n",
+              "2n ** 63n - 1n", "2n ** 64n", "10n ** 20n"]
+
+
+def hx(b):
+    return "0x%016x" % b
+
+
+def wrap(items, per_line, indent):
+    lines = []
+    for i in range(0, len(items), per_line):
+        lines.append(indent + ", ".join(items[i:i + per_line]) + ",")
+    return "\n".join(lines)
+
+
+# ---- Go -------------------------------------------------------------------
+
+GO_INT_TYPES = [("int8", True, 8), ("int16", True, 16), ("int32", True, 32), ("int64", True, 64),
+                ("uint8", False, 8), ("uint16", False, 16), ("uint32", False, 32), ("uint64", False, 64)]
+
+
+def go_int_ops(t, signed, width):
+    vals = [str(v) for v in int_edges(signed, width)]
+    shifts = sorted({0, 1, width - 1, width, width + 1})
+    return f"""// {LICENCE}
+// Generated by lang/generate.py: every arithmetic and bitwise operator of
+// Go on {t} values held in variables, over edge values of the type. Integer
+// operations wrap modulo 2^{width}; division by zero is skipped.
+package main
+
+import "fmt"
+
+func main() {{
+	vals := []{t}{{
+{wrap(vals, 6, chr(9) + chr(9))}
+	}}
+	for _, a := range vals {{
+		for _, b := range vals {{
+			fmt.Print(a, " ", b, ": ", a+b, " ", a-b, " ", a*b)
+			if b != 0 {{
+				fmt.Print(" ", a/b, " ", a%b)
+			}}
+			fmt.Println(" ", a&b, " ", a|b, " ", a^b, " ", a&^b)
+		}}
+		fmt.Print(a, " ^", ^a, " -", -a)
+		for _, s := range []uint{{{", ".join(map(str, shifts))}}} {{
+			fmt.Print(" <<", s, " ", a<<s, " >>", s, " ", a>>s)
+		}}
+		fmt.Println()
+	}}
+}}
+"""
+
+
+def go_float_print(item, bits):
+    vals = [hx(b) for b in bits]
+    return f"""// {LICENCE}
+// Generated by lang/generate.py: float64 values given by their bits, each
+// printed by fmt.Println, by strconv.FormatFloat in its shortest 'g' and
+// 'e' forms and to 17 significant digits.
+package main
+
+import (
+	"fmt"
+	"math"
+	"strconv"
+)
+
+func main() {{
+	bits := []uint64{{
+{wrap(vals, 3, chr(9) + chr(9))}
+	}}
+	for _, b := range bits {{
+		x := math.Float64frombits(b)
+		fmt.Println(x, strconv.FormatFloat(x, 'g', -1, 64), strconv.FormatFloat(x, 'e', -1, 64), strconv.FormatFloat(x, 'g', 17, 64))
+	}}
+}}
+"""
+
+
+def go_float_ops():
+    vals = [hx(b) for b in FLOAT_OPERANDS]
+    return f"""// {LICENCE}
+// Generated by lang/generate.py: IEEE 754 binary64 operations of Go on
+// pairs of special and edge values, given by their bits.
+package main
+
+import (
+	"fmt"
+	"math"
+)
+
+func main() {{
+	bits := []uint64{{
+{wrap(vals, 3, chr(9) + chr(9))}
+	}}
+	for _, ab := range bits {{
+		a := math.Float64frombits(ab)
+		for _, bb := range bits {{
+			b := math.Float64frombits(bb)
+			fmt.Println(a, b, a+b, a-b, a*b, a/b, math.Mod(a, b), a == b, a < b, math.Max(a, b), math.Min(a, b))
+		}}
+	}}
+}}
+"""
+
+
+def go_string_quote():
+    cps = ["0x%x" % c for c in CODE_POINTS]
+    return f"""// {LICENCE}
+// Generated by lang/generate.py: code points converted to strings (a
+// surrogate or an out-of-range value becomes U+FFFD), quoted three ways,
+// with their UTF-8 length and printability.
+package main
+
+import (
+	"fmt"
+	"strconv"
+	"unicode/utf8"
+)
+
+func main() {{
+	cps := []rune{{
+{wrap(cps, 8, chr(9) + chr(9))}
+	}}
+	for _, c := range cps {{
+		s := string(c)
+		fmt.Println(c, strconv.Quote(s), strconv.QuoteToASCII(s), fmt.Sprintf("%+q %x", s, s), utf8.RuneLen(c), strconv.IsPrint(c))
+	}}
+}}
+"""
+
+
+def go_programs():
+    progs = {}
+    for t, signed, width in GO_INT_TYPES:
+        progs[f"int_ops_{t}"] = go_int_ops(t, signed, width)
+    for item, bits in FLOAT_CHUNKS.items():
+        progs[item] = go_float_print(item, bits)
+    progs["float_ops"] = go_float_ops()
+    progs["string_quote"] = go_string_quote()
+    return progs, ".go"
+
+
+# ---- Python ---------------------------------------------------------------
+
+PY_FLOAT_HELPER = """import struct
+
+
+def f(bits):
+    return struct.unpack("<d", bits.to_bytes(8, "little"))[0]
+"""
+
+
+def py_int_ops(item, vals):
+    return f"""# {LICENCE}
+# Generated by lang/generate.py: Python's integer operators over edge values;
+# integers are unbounded, // and % floor, and a zero divisor raises.
+
+
+def show(f):
+    try:
+        return str(f())
+    except ArithmeticError as e:
+        return type(e).__name__
+
+
+vals = [{", ".join(str(v) for v in vals)}]
+for a in vals:
+    for b in vals:
+        row = [show(lambda: a + b), show(lambda: a - b), show(lambda: a * b),
+               show(lambda: a // b), show(lambda: a % b), str(a & b), str(a | b), str(a ^ b)]
+        print(a, b, ":", " ".join(row))
+    shifts = [str(a << s) + " " + str(a >> s) for s in (0, 1, 31, 32, 63, 64, 65)]
+    powers = [str(a ** e) for e in (0, 1, 2, 3)]
+    print(a, "~", ~a, -a, abs(a), a.bit_length(), " ".join(shifts), " ".join(powers), pow(a, 3, 1000003))
+"""
+
+
+def py_float_print(item, bits):
+    vals = [hx(b) for b in bits]
+    return f"""# {LICENCE}
+# Generated by lang/generate.py: float values given by their bits, each
+# printed by repr, str, format specifications and float.hex.
+{PY_FLOAT_HELPER}
+
+bits = [
+{wrap(vals, 3, "    ")}
+]
+for b in bits:
+    x = f(b)
+    print(repr(x), str(x), format(x, "g"), format(x, ".17g"), format(x, "e"), format(x, ".3f"), x.hex(), x.is_integer())
+"""
+
+
+def py_float_ops():
+    vals = [hx(b) for b in FLOAT_OPERANDS]
+    return f"""# {LICENCE}
+# Generated by lang/generate.py: Python's float operators on pairs of
+# special and edge values, given by their bits; an operation that raises is
+# shown by the exception's name.
+{PY_FLOAT_HELPER}
+
+def show(g):
+    try:
+        return repr(g())
+    except ArithmeticError as e:
+        return type(e).__name__
+
+
+bits = [
+{wrap(vals, 3, "    ")}
+]
+for ab in bits:
+    a = f(ab)
+    for bb in bits:
+        b = f(bb)
+        row = [show(lambda: a + b), show(lambda: a - b), show(lambda: a * b), show(lambda: a / b),
+               show(lambda: a // b), show(lambda: a % b), show(lambda: divmod(a, b)), show(lambda: a ** b),
+               repr(a == b), repr(a < b), repr(max(a, b)), repr(min(a, b))]
+        print(repr(a), repr(b), " ".join(row))
+"""
+
+
+def py_str_repr():
+    cps = ["0x%x" % c for c in CODE_POINTS]
+    return f"""# {LICENCE}
+# Generated by lang/generate.py: one-character strings for code points,
+# surrogates included, shown by repr and ascii, with their printability,
+# their UTF-8 length (surrogates through surrogatepass), and their case
+# mappings.
+
+cps = [
+{wrap(cps, 8, "    ")}
+]
+for c in cps:
+    s = chr(c)
+    print(c, repr(s), ascii(s), s.isprintable(), s.isidentifier(), len(s.encode("utf-8", "surrogatepass")),
+          repr(s.upper()), repr(s.lower()), repr(s.casefold()), s.isspace(), s.isdigit(), s.isnumeric())
+"""
+
+
+def py_programs():
+    progs = {}
+    for item, vals in PY_INT_CHUNKS.items():
+        progs[item] = py_int_ops(item, vals)
+    for item, bits in FLOAT_CHUNKS.items():
+        progs[item] = py_float_print(item, bits)
+    progs["float_ops"] = py_float_ops()
+    progs["str_repr"] = py_str_repr()
+    return progs, ".py"
+
+
+# ---- JavaScript -----------------------------------------------------------
+
+JS_FLOAT_HELPER = """const view = new DataView(new ArrayBuffer(8));
+
+function f(hi, lo) {
+  view.setUint32(0, hi);
+  view.setUint32(4, lo);
+  return view.getFloat64(0);
+}
+"""
+
+
+def js_pair(b):
+    return "[0x%08x, 0x%08x]" % (b >> 32, b & 0xFFFFFFFF)
+
+
+def js_number_ops():
+    return f"""// {LICENCE}
+// Generated by lang/generate.py: the arithmetic operators on Number values
+// over edge values, each result converted by String.
+"use strict";
+
+const vals = [{", ".join(JS_NUMBERS)}];
+for (const a of vals) {{
+  for (const b of vals) {{
+    const row = [a + b, a - b, a * b, a / b, a % b, a ** b, a < b, a == b, Math.max(a, b), Math.min(a, b)];
+    console.log(String(a), String(b), row.map(String).join(" "));
+  }}
+}}
+"""
+
+
+def js_int32_ops():
+    return f"""// {LICENCE}
+// Generated by lang/generate.py: the bitwise and shift operators and
+// Math.imul on Number values over edge values; each operand passes through
+// ToInt32 or ToUint32, and a shift count is taken modulo 32.
+"use strict";
+
+const vals = [{", ".join(JS_NUMBERS)}];
+for (const a of vals) {{
+  for (const b of vals) {{
+    const row = [a | b, a & b, a ^ b, a << b, a >> b, a >>> b, Math.imul(a, b)];
+    console.log(String(a), String(b), row.map(String).join(" "));
+  }}
+  console.log(String(a), "unary", String(~a), String(a | 0), String(a >>> 0), String(-a), String(+a), String(Math.trunc(a)));
+}}
+"""
+
+
+def js_number_tostring(item, bits):
+    vals = [js_pair(b) for b in bits]
+    return f"""// {LICENCE}
+// Generated by lang/generate.py: Number values given by their bits, each
+// converted by String, toExponential, toPrecision(17) and, below 1e21 in
+// magnitude, toFixed(3).
+"use strict";
+
+{JS_FLOAT_HELPER}
+const bits = [
+{wrap(vals, 3, "  ")}
+];
+for (const [hi, lo] of bits) {{
+  const x = f(hi, lo);
+  const fixed = Math.abs(x) < 1e21 ? x.toFixed(3) : "-";
+  console.log(String(x), x.toExponential(), x.toPrecision(17), fixed, JSON.stringify(x), Object.is(x, -0));
+}}
+"""
+
+
+def js_bigint_ops():
+    return f"""// {LICENCE}
+// Generated by lang/generate.py: the operators on BigInt values over edge
+// values; division truncates toward zero, and a zero divisor throws a
+// RangeError, shown by its name.
+"use strict";
+
+function show(g) {{
+  try {{
+    return String(g());
+  }} catch (e) {{
+    return e.name;
+  }}
+}}
+
+const vals = [{", ".join(JS_BIGINTS)}];
+for (const a of vals) {{
+  for (const b of vals) {{
+    const row = [a + b, a - b, a * b, show(() => a / b), show(() => a % b), a & b, a | b, a ^ b,
+      BigInt.asIntN(64, a * b), BigInt.asUintN(64, a * b), a < b, a === b];
+    console.log(String(a), String(b), row.map(String).join(" "));
+  }}
+  const shifts = [0n, 1n, 63n, 64n, 65n].map((s) => String(a << s) + " " + String(a >> s));
+  console.log(String(a), "unary", String(-a), String(~a), shifts.join(" "), show(() => a ** 3n), BigInt.asIntN(8, a), BigInt.asUintN(8, a));
+}}
+"""
+
+
+def js_string_units():
+    cps = ["0x%x" % c for c in CODE_POINTS]
+    return f"""// {LICENCE}
+// Generated by lang/generate.py: one-code-point strings, surrogates
+// included, with their length in UTF-16 code units, their JSON text, their
+// URI encoding (a lone surrogate throws a URIError, shown by its name), and
+// their case mappings.
+"use strict";
+
+function show(g) {{
+  try {{
+    return g();
+  }} catch (e) {{
+    return e.name;
+  }}
+}}
+
+const cps = [
+{wrap(cps, 8, "  ")}
+];
+for (const c of cps) {{
+  const s = String.fromCodePoint(c);
+  console.log(c, s.length, JSON.stringify(s), show(() => encodeURIComponent(s)), s.charCodeAt(0), s.codePointAt(0),
+    JSON.stringify(s.toUpperCase()), JSON.stringify(s.toLowerCase()), /\\s/.test(s), /\\w/u.test(s));
+}}
+"""
+
+
+def js_programs():
+    progs = {
+        "number_ops": js_number_ops(),
+        "int32_ops": js_int32_ops(),
+        "bigint_ops": js_bigint_ops(),
+        "string_units": js_string_units(),
+    }
+    for item, bits in FLOAT_CHUNKS.items():
+        progs[item.replace("float_print", "number_tostring")] = js_number_tostring(item, bits)
+    return progs, ".js"
+
+
+LANGS = {"go1.24": go_programs, "python3.13": py_programs, "es2020": js_programs}
+
+
+def main(argv):
+    if len(argv) != 2 or argv[0] not in LANGS:
+        print("usage: generate.py LANG DIR   (LANG: " + ", ".join(LANGS) + ")", file=sys.stderr)
+        return 2
+    progs, ext = LANGS[argv[0]]()
+    out = Path(argv[1]) / "generated"
+    out.mkdir(parents=True, exist_ok=True)
+    for item, text in sorted(progs.items()):
+        (out / (item + ext)).write_text(text, encoding="utf-8")
+    print(f"{len(progs)} programs in {out}")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

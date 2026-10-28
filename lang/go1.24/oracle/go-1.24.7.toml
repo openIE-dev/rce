@@ -1,0 +1,76 @@
+# The pinned oracle for the language go1.24: the gc toolchain of Go 1.24.7 on
+# x86-64 Linux (spec/proposals/rce-form.md section 20, rce-oracle/1). The
+# proposal names the language go1.23; this host holds go1.24.7, so the
+# language here is go1.24. A program built from one file outside a module
+# takes the toolchain's own language version, go1.24 (for example, each
+# iteration of a for loop has its own loop variable, as since go1.22).
+format   = "rce-oracle/1"
+name     = "go-1.24.7"
+kind     = "maintained"
+lang     = "go1.24"
+target   = "x86_64-unknown-linux-gnu"
+lineage  = "gc"
+profile  = "command"                  # observe.toml: status, stdout bytes, stderr class
+version  = ["/usr/local/go1.24.7/bin/go", "version"]
+# {src} is the program's file in a new, empty run directory, {bin} the
+# program the build writes there, {run} that directory and {cache} a build
+# cache made empty for each invocation of lang/corpus.py.
+source_name = "main.go"
+build    = ["/usr/local/go1.24.7/bin/go", "build", "-o", "{bin}", "{src}"]
+run      = ["{bin}"]
+device   = "octets"
+limit    = 10                         # seconds per run
+build_limit = 300                     # seconds per build; the first build compiles the standard library into the cache
+runs     = 2                          # every case twice; the two observations must be equal
+
+[toolchain]
+# What stands for the OCI image digest of the proposal until an image is
+# built: the SHA-256 of the go command, of every file of its GOROOT (the
+# compiler, the linker and the standard library's source), and of the
+# shared objects the go command loads (none: it is statically linked, and
+# CGO_ENABLED=0 below makes every program it builds statically linked too).
+executable  = "/usr/local/go1.24.7/bin/go"
+sha256      = "5e997f6088bfb2ae7e7025f32900977755cae16484dd346e6f3fc2d1007b9ffc"
+tree        = "/usr/local/go1.24.7"
+tree_skip   = []
+tree_sha256 = "53f777a36e98eef21ed72f29cb9913562786a86722ac9c7a6ec6199c956ed7ef"
+libraries   = {}
+version_output = "go version go1.24.7 linux/amd64"
+
+[pins]
+# The whole environment of each build and each run: nothing else is passed.
+# The build has no HOME, so the go command has no user configuration
+# directory and reads or writes no user settings (telemetry counters among
+# them); GOENV=off, GOTOOLCHAIN=local and GOPROXY=off keep it from reading a
+# settings file, switching toolchains or fetching modules.
+build_env = { LC_ALL = "C.UTF-8", TZ = "UTC", TMPDIR = "{run}", GOCACHE = "{cache}", GOENV = "off", GOFLAGS = "", GOTOOLCHAIN = "local", GOPROXY = "off", CGO_ENABLED = "0" }
+env       = { LC_ALL = "C.UTF-8", TZ = "UTC" }
+network   = "none"                    # every build and run in a new network namespace with no interface up (unshare --net)
+fs        = "run-directory"           # every build and run in a new, empty directory that holds only the program
+# No wall clock is pinned: this host cannot set the clock of one process, so
+# the clock is neither pinned nor perturbed, and [[unpinned]] keeps out a
+# program that reads it.
+
+[perturb]                             # each entry is one more run when a program is admitted
+env_order = "reversed"                # the environment passed in reverse order
+affinity  = [1, 4]                    # the run limited to the first 1, then 4, processors (taskset)
+env       = [{ GOMAXPROCS = "1" }, { GOMAXPROCS = "8" }]   # the scheduler's thread count
+
+# What this host does not pin. A program whose text matches one of these
+# patterns (Python regular expressions, multiline) is not admitted, with the
+# source named, because its observation would not be a function of its case.
+[[unpinned]]
+source  = "clock"
+pattern = '\btime\.(?:Now|Since|Until|Tick|After|AfterFunc|NewTimer|NewTicker|Sleep)\b'
+
+[[unpinned]]
+source  = "entropy"
+pattern = '"(?:math/rand|math/rand/v2|crypto/rand)"'
+
+[[unpinned]]
+source  = "filesystem"
+pattern = '\bos\.(?:Open|OpenFile|Create|ReadFile|WriteFile|ReadDir|Stat|Lstat|Mkdir|MkdirAll|MkdirTemp|CreateTemp|Remove|RemoveAll|Rename|Chdir|Getwd|TempDir|UserHomeDir|Executable|DirFS)\b'
+
+[[unpinned]]
+source  = "process"
+pattern = '\bos\.(?:Getpid|Getppid|Hostname|Getuid|Geteuid|Getgid)\b|\bruntime\.(?:NumCPU|NumGoroutine|ReadMemStats|Caller|Callers|Stack)\b|"(?:syscall|os/exec|unsafe)"'

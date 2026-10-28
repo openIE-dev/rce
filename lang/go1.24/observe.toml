@@ -1,0 +1,49 @@
+# How one native run of a Go program maps to the fields of an observation
+# (spec/proposals/rce-form.md section 20). The command profile compares the
+# exit status, the standard output byte for byte and the class of the
+# standard error. The standard error is compared only through its class:
+# a panic's class holds the message the runtime printed for it, and a
+# standard error that no row matches has the fallback class, a hash of the
+# whole text, so that text is compared exactly.
+format   = "rce-observe/1"
+lang     = "go1.24"
+profile  = "command"
+compared = ["status", "stdout_hex", "stderr_class"]
+
+# The class of a run that wrote nothing to standard error.
+empty    = ""
+# The class of a run ended by signal n; its exit status is 128 + n.
+signal   = "signal:{n}"
+# The class of a run whose standard error no row below matches: the SHA-256
+# of those bytes, after each occurrence of the run directory's absolute path
+# is written {run}, so the comparison stays exact.
+fallback = "bytes:{sha256}"
+
+# Rows are tried in order and the first that matches gives the class. The
+# pattern is a Python regular expression searched in multiline mode in the
+# standard error decoded as UTF-8 (an undecodable byte reads as U+FFFD);
+# {1} in the class is the text of the pattern's first group.
+
+[[class]]
+id      = "stack"
+pattern = '^runtime: goroutine stack exceeds \d+-byte limit$'
+class   = "resource:stack"
+note    = "the goroutine's stack passed its maximum size (runtime/debug.SetMaxStack); the runtime then ends the process with 'fatal error: stack overflow' and exit status 2"
+
+[[class]]
+id      = "fatal"
+pattern = '^fatal error: (.+)$'
+class   = "fatal:{1}"
+note    = "an unrecoverable runtime failure, such as every goroutine asleep; exit status 2"
+
+[[class]]
+id      = "runtime-panic"
+pattern = '^panic: runtime error: (.+?)(?: \[.*)?$'
+class   = "panic:runtime error: {1}"
+note    = "a run-time panic of the Go specification whose runtime.Error text starts with 'runtime error: ' (an integer division by zero, an index out of range, a negative shift amount, a nil pointer dereference); the bracketed operands that the runtime appends (index, length, capacity, '[recovered]') are left out of the class; exit status 2"
+
+[[class]]
+id      = "panic"
+pattern = '^panic: (.+?)(?: \[recovered\])?$'
+class   = "panic:{1}"
+note    = "every other panic, with the message the runtime printed: a value the program passed to panic (an error value's Error() text, a Stringer's String() text, or a value of a basic type), and the run-time panics whose runtime.Error text has no 'runtime error: ' prefix, such as 'assignment to entry in nil map', 'send on closed channel', 'close of closed channel' and a failed type assertion's 'interface conversion: ...'; exit status 2"
