@@ -1,8 +1,8 @@
 module mls
 
 # MLS groups for chat (W4), pure RCE, RFC 9420 with cipher suite
-# MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519 primitives from
-# lib/crypto.rce (a program uses both files together). This first slice is
+# MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519 primitives from `crypto`,
+# which it imports. This first slice is
 # the array-based ratchet tree math (RFC 9420 Appendix C), the key schedule
 # (section 8: ExpandWithLabel, DeriveSecret, joiner, welcome and epoch
 # secrets, every secret derived from an epoch, the exporter) and HPKE
@@ -12,15 +12,17 @@ module mls
 # secrets, commits and add/remove build on these in the next slices.
 # Randomness never comes from here (HC-10); not constant time.
 
+use crypto
+
 # ---- tree math (Appendix C): nodes 0..2n-2, leaves at even indices ----
 
-fn tm_level(x: i64) -> i64
+pub fn tm_level(x: i64) -> i64
     var k: i64 = 0
     while ((x >> k) & 1) == 1 bound 63
         k += 1
     return k
 
-fn tm_width(n: i64) -> i64 = if n == 0 then 0 else 2 * (n - 1) + 1
+pub fn tm_width(n: i64) -> i64 = if n == 0 then 0 else 2 * (n - 1) + 1
 
 fn tm_log2(x: i64) -> i64
     var k: i64 = 0
@@ -28,12 +30,12 @@ fn tm_log2(x: i64) -> i64
         k += 1
     return k
 
-fn tm_root(n: i64) -> i64 = (1 << tm_log2(tm_width(n))) - 1
+pub fn tm_root(n: i64) -> i64 = (1 << tm_log2(tm_width(n))) - 1
 
-fn tm_left(x: i64) -> i64 = x ^ (1 << (tm_level(x) - 1))
+pub fn tm_left(x: i64) -> i64 = x ^ (1 << (tm_level(x) - 1))
 
 # right child within a tree of n leaves (Appendix C right(x, n))
-fn tm_right(x: i64, n: i64) -> i64
+pub fn tm_right(x: i64, n: i64) -> i64
     var r = x ^ (3 << (tm_level(x) - 1))
     while r >= tm_width(n) bound 64
         r = tm_left(r)
@@ -45,18 +47,18 @@ fn tm_parent_step(x: i64) -> i64
     return (x | (1 << k)) ^ (b << (k + 1))
 
 # parent within a tree of n leaves (Appendix C parent(x, n)); x is not the root
-fn tm_parent(x: i64, n: i64) -> i64
+pub fn tm_parent(x: i64, n: i64) -> i64
     var p = tm_parent_step(x)
     while p >= tm_width(n) bound 64
         p = tm_parent_step(p)
     return p
 
-fn tm_sibling(x: i64, n: i64) -> i64
+pub fn tm_sibling(x: i64, n: i64) -> i64
     let p = tm_parent(x, n)
     return if x < p then tm_right(p, n) else tm_left(p)
 
 # direct path of node x: its parent up to and including the root
-fn tm_direct_path(x: i64, n: i64) -> List[i64]
+pub fn tm_direct_path(x: i64, n: i64) -> List[i64]
     let r = tm_root(n)
     var d: List[i64] = []
     var c = x
@@ -66,7 +68,7 @@ fn tm_direct_path(x: i64, n: i64) -> List[i64]
     return d
 
 # copath: the sibling of x and of every node of its direct path but the root
-fn tm_copath(x: i64, n: i64) -> List[i64]
+pub fn tm_copath(x: i64, n: i64) -> List[i64]
     let r = tm_root(n)
     var d: List[i64] = []
     var c = x
@@ -81,31 +83,31 @@ fn tm_copath(x: i64, n: i64) -> List[i64]
 fn mls_vec(b: List[i64]) -> List[i64]
     let n = b.len() as i64
     if n < 64
-        return cat([n], b)
-    return cat([64 | (n >> 8), n & 255], b)
+        return crypto.cat([n], b)
+    return crypto.cat([64 | (n >> 8), n & 255], b)
 
 fn expand(prk: List[i64], info: List[i64], n: usize) -> List[i64]
     var out: List[i64] = []
     var t: List[i64] = []
     var c: i64 = 1
     while out.len() < n bound 255
-        t = hmac(copy(prk), cat(cat(copy(t), copy(info)), [c]))
+        t = crypto.hmac(copy(prk), crypto.cat(crypto.cat(copy(t), copy(info)), [c]))
         for x in copy(t)
             if out.len() < n
                 out.push(x)
         c += 1
     return out
 
-fn extract(salt: List[i64], ikm: List[i64]) -> List[i64] = hmac(salt, ikm)
+fn extract(salt: List[i64], ikm: List[i64]) -> List[i64] = crypto.hmac(salt, ikm)
 
 # ExpandWithLabel(Secret, Label, Context, Length); the label as bytes
 fn expand_label_b(secret: List[i64], lbl: List[i64], context: List[i64], n: usize) -> List[i64]
-    let info = cat(cat([(n as i64) >> 8, (n as i64) & 255], mls_vec(cat(tobytes("MLS 1.0 "), lbl))), mls_vec(context))
+    let info = crypto.cat(crypto.cat([(n as i64) >> 8, (n as i64) & 255], mls_vec(crypto.cat(crypto.tobytes("MLS 1.0 "), lbl))), mls_vec(context))
     return expand(secret, info, n)
 
-fn expand_label(secret: List[i64], lbl: text, context: List[i64], n: usize) -> List[i64] = expand_label_b(secret, tobytes(lbl), context, n)
+pub fn expand_label(secret: List[i64], lbl: text, context: List[i64], n: usize) -> List[i64] = expand_label_b(secret, crypto.tobytes(lbl), context, n)
 
-fn derive_secret(secret: List[i64], lbl: text) -> List[i64] = expand_label(secret, lbl, [], 32)
+pub fn derive_secret(secret: List[i64], lbl: text) -> List[i64] = expand_label(secret, lbl, [], 32)
 
 fn zero32() -> List[i64]
     var z: List[i64] = []
@@ -119,49 +121,49 @@ fn zero32() -> List[i64]
 # sender_data, encryption, exporter, external, confirmation_key,
 # membership_key, resumption_psk, epoch_authenticator, init (the next
 # epoch's init_secret).
-fn mls_epoch(init: text, commit: text, psk: text, ctx: text) -> text
-    let joiner = expand_label(extract(unhex(init), unhex(commit)), "joiner", unhex(copy(ctx)), 32)
-    let mid = extract(copy(joiner), unhex(psk))
+pub fn mls_epoch(init: text, commit: text, psk: text, ctx: text) -> text
+    let joiner = expand_label(extract(crypto.unhex(init), crypto.unhex(commit)), "joiner", crypto.unhex(copy(ctx)), 32)
+    let mid = extract(copy(joiner), crypto.unhex(psk))
     let welcome = derive_secret(copy(mid), "welcome")
-    let epoch = expand_label(mid, "epoch", unhex(ctx), 32)
-    var out = tohex(joiner) + "." + tohex(welcome) + "." + tohex(copy(epoch))
+    let epoch = expand_label(mid, "epoch", crypto.unhex(ctx), 32)
+    var out = crypto.tohex(joiner) + "." + crypto.tohex(welcome) + "." + crypto.tohex(copy(epoch))
     for l in ["sender data", "encryption", "exporter", "external", "confirm", "membership", "resumption", "authentication", "init"]
-        out = out + "." + tohex(derive_secret(copy(epoch), l))
+        out = out + "." + crypto.tohex(derive_secret(copy(epoch), l))
     return out
 
 # MLS-Exporter(label, context, length) from an epoch's exporter_secret
 # (8.5); the label is text, the context hex bytes
-fn mls_export(exporter: text, lbl: text, context: text, n: usize) -> text = tohex(expand_label(derive_secret(unhex(exporter), lbl), "exported", sha256(unhex(context)), n))
+pub fn mls_export(exporter: text, lbl: text, context: text, n: usize) -> text = crypto.tohex(expand_label(derive_secret(crypto.unhex(exporter), lbl), "exported", crypto.sha256(crypto.unhex(context)), n))
 
 # DeriveTreeSecret(Secret, Label, Generation, Length) (9.1): hex in and out
-fn derive_tree_secret(secret: text, lbl: text, generation: i64, n: usize) -> text = tohex(expand_label(unhex(secret), lbl, [(generation >> 24) & 255, (generation >> 16) & 255, (generation >> 8) & 255, generation & 255], n))
+pub fn derive_tree_secret(secret: text, lbl: text, generation: i64, n: usize) -> text = crypto.tohex(expand_label(crypto.unhex(secret), lbl, [(generation >> 24) & 255, (generation >> 16) & 255, (generation >> 8) & 255, generation & 255], n))
 
 # RefHash(label, value) = Hash(RefHashInput { label<V>; value<V> }) (5.2)
-fn ref_hash(lbl: text, value: text) -> text = tohex(sha256(cat(mls_vec(tobytes(lbl)), mls_vec(unhex(value)))))
+pub fn ref_hash(lbl: text, value: text) -> text = crypto.tohex(crypto.sha256(crypto.cat(mls_vec(crypto.tobytes(lbl)), mls_vec(crypto.unhex(value)))))
 
 # SignContent { label<V> = "MLS 1.0 " + Label; content<V> } (5.1.2)
-fn sign_content(lbl: text, content: text) -> List[i64] = cat(mls_vec(tobytes("MLS 1.0 " + lbl)), mls_vec(unhex(content)))
+fn sign_content(lbl: text, content: text) -> List[i64] = crypto.cat(mls_vec(crypto.tobytes("MLS 1.0 " + lbl)), mls_vec(crypto.unhex(content)))
 
 # SignWithLabel / VerifyWithLabel with Ed25519 (suite 1); seed and keys hex
-fn sign_with_label(seed: text, lbl: text, content: text) -> text = ed_sign(seed, sign_content(lbl, content))
+pub fn sign_with_label(seed: text, lbl: text, content: text) -> text = crypto.ed_sign(seed, sign_content(lbl, content))
 
-fn verify_with_label(pk: text, lbl: text, content: text, sig: text) -> bool = ed_verify(pk, sign_content(lbl, content), sig)
+pub fn verify_with_label(pk: text, lbl: text, content: text, sig: text) -> bool = crypto.ed_verify(pk, sign_content(lbl, content), sig)
 
 # ---- HPKE DHKEM(X25519, HKDF-SHA256) key derivation (RFC 9180 7.1.3) ----
 
-fn kem_suite() -> List[i64] = cat(tobytes("KEM"), [0, 32])
+fn kem_suite() -> List[i64] = crypto.cat(crypto.tobytes("KEM"), [0, 32])
 
-fn labeled_extract(salt: List[i64], lbl: text, ikm: List[i64]) -> List[i64] = extract(salt, cat(cat(tobytes("HPKE-v1"), kem_suite()), cat(tobytes(lbl), ikm)))
+fn labeled_extract(salt: List[i64], lbl: text, ikm: List[i64]) -> List[i64] = extract(salt, crypto.cat(crypto.cat(crypto.tobytes("HPKE-v1"), kem_suite()), crypto.cat(crypto.tobytes(lbl), ikm)))
 
-fn labeled_expand(prk: List[i64], lbl: text, info: List[i64], n: usize) -> List[i64] = expand(prk, cat(cat([(n as i64) >> 8, (n as i64) & 255], cat(tobytes("HPKE-v1"), kem_suite())), cat(tobytes(lbl), info)), n)
+fn labeled_expand(prk: List[i64], lbl: text, info: List[i64], n: usize) -> List[i64] = expand(prk, crypto.cat(crypto.cat([(n as i64) >> 8, (n as i64) & 255], crypto.cat(crypto.tobytes("HPKE-v1"), kem_suite())), crypto.cat(crypto.tobytes(lbl), info)), n)
 
 # DeriveKeyPair(ikm): "sk.pk" in hex
 fn hpke_derive(ikm: text) -> text
-    let sk = tohex(labeled_expand(labeled_extract([], "dkp_prk", unhex(ikm)), "sk", [], 32))
-    return copy(sk) + "." + pubkey(sk)
+    let sk = crypto.tohex(labeled_expand(labeled_extract([], "dkp_prk", crypto.unhex(ikm)), "sk", [], 32))
+    return copy(sk) + "." + crypto.pubkey(sk)
 
 # the external public key of an epoch (8.3): DeriveKeyPair(external_secret)
-fn mls_external_pub(external: text) -> text = copy(hpke_derive(external).split(".")[1])
+pub fn mls_external_pub(external: text) -> text = copy(hpke_derive(external).split(".")[1])
 
 # RFC 9420 tree-math.json (mlswg/mls-implementations), n_leaves = 4 and 8
 check tm_root(4) == 3 and tm_left(3) == 1 and tm_right(3, 4) == 5 and tm_right(5, 4) == 6 and tm_parent(0, 4) == 1 and tm_parent(5, 4) == 3 and tm_sibling(0, 4) == 2 and tm_sibling(5, 4) == 1

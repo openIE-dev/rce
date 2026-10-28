@@ -3,12 +3,14 @@ module hpke
 # AES-128-GCM (FIPS 197, NIST SP 800-38D) and HPKE base mode (RFC 9180) with
 # DHKEM(X25519, HKDF-SHA256), HKDF-SHA256 and AES-128-GCM: the public-key
 # encryption of MLS cipher suite 1 (EncryptWithLabel), pure RCE on top of
-# lib/crypto.rce (X25519, HMAC, byte helpers). Randomness never comes from
-# here: the ephemeral key is derived from logged random bytes (HC-10). Not
-# constant time (see lib/crypto.rce).
+# `crypto` (X25519, HMAC, byte helpers), which it imports. Randomness never
+# comes from here: the ephemeral key is derived from logged random bytes
+# (HC-10). Not constant time (see `crypto`).
 # Vectors: FIPS 197 C.1 and SP 800-38D test case 4 as checks; RFC 9180
 # A.1 (base mode) and the RFC 9420 crypto-basics.json EncryptWithLabel
 # vector for suite 1 as host steps in tests/hpke_rce.rs.
+
+use crypto
 
 # AES S-box by arithmetic: the inverse in GF(2^8) (a^254, 15 multiplications
 # whose bit pattern is the public constant 254) followed by the FIPS 197
@@ -124,7 +126,7 @@ fn ghash(h: List[i64], aad: List[i64], ctext: List[i64]) -> List[i64]
         y[j] = y[j] ^ lens[j]
     return gf_mul(y, h)
 
-fn ctr_block(iv: List[i64], c: i64) -> List[i64] = cat(copy(iv), [(c >> 24) & 255, (c >> 16) & 255, (c >> 8) & 255, c & 255])
+fn ctr_block(iv: List[i64], c: i64) -> List[i64] = crypto.cat(copy(iv), [(c >> 24) & 255, (c >> 16) & 255, (c >> 8) & 255, c & 255])
 
 # CTR mode from counter 2 (the keystream XOR of GCM)
 fn gcm_ctr(rk: List[i64], iv: List[i64], data: List[i64]) -> List[i64]
@@ -147,7 +149,7 @@ fn zero16() -> List[i64]
     return z
 
 # AES-128-GCM with a 12-byte nonce: ciphertext || 16-byte tag
-fn gcm_seal(key: List[i64], iv: List[i64], aad: List[i64], pt: List[i64]) -> List[i64]
+pub fn gcm_seal(key: List[i64], iv: List[i64], aad: List[i64], pt: List[i64]) -> List[i64]
     let rk = aes_expand(key)
     let h = aes_block(copy(rk), zero16())
     let ctext = gcm_ctr(copy(rk), copy(iv), pt)
@@ -156,7 +158,7 @@ fn gcm_seal(key: List[i64], iv: List[i64], aad: List[i64], pt: List[i64]) -> Lis
     var tag: List[i64] = []
     for j in 0..16
         tag.push(s[j] ^ ek[j])
-    return cat(ctext, tag)
+    return crypto.cat(ctext, tag)
 
 # byte-list equality with no early exit (OR of the XORs, tested once); a
 # copy of crypto.ct_eq so this file also checks against an embedded crypto
@@ -170,10 +172,10 @@ fn hp_ct_eq(a: List[i64], b: List[i64]) -> bool
     return acc == 0
 
 # the plaintext, or [-1] when the tag does not verify
-fn gcm_open(key: List[i64], iv: List[i64], aad: List[i64], sealed: List[i64]) -> List[i64]
+pub fn gcm_open(key: List[i64], iv: List[i64], aad: List[i64], sealed: List[i64]) -> List[i64]
     if sealed.len() < 16
         return [-1]
-    let pt = gcm_ctr(aes_expand(copy(key)), copy(iv), slice(copy(sealed), 0, sealed.len() - 16))
+    let pt = gcm_ctr(aes_expand(copy(key)), copy(iv), crypto.slice(copy(sealed), 0, sealed.len() - 16))
     if hp_ct_eq(gcm_seal(key, iv, aad, copy(pt)), sealed)
         return pt
     return [-1]
@@ -182,20 +184,20 @@ fn gcm_open(key: List[i64], iv: List[i64], aad: List[i64], sealed: List[i64]) ->
 
 fn i2osp2(n: i64) -> List[i64] = [(n >> 8) & 255, n & 255]
 
-fn suite_kem() -> List[i64] = cat(tobytes("KEM"), i2osp2(32))
+fn suite_kem() -> List[i64] = crypto.cat(crypto.tobytes("KEM"), i2osp2(32))
 
 # HPKE suite: DHKEM(X25519, HKDF-SHA256), HKDF-SHA256, AES-128-GCM
-fn suite_hpke() -> List[i64] = cat(cat(tobytes("HPKE"), i2osp2(32)), cat(i2osp2(1), i2osp2(1)))
+fn suite_hpke() -> List[i64] = crypto.cat(crypto.cat(crypto.tobytes("HPKE"), i2osp2(32)), crypto.cat(i2osp2(1), i2osp2(1)))
 
-fn hp_extract(suite: List[i64], salt: List[i64], lbl: text, ikm: List[i64]) -> List[i64] = hmac(salt, cat(cat(tobytes("HPKE-v1"), suite), cat(tobytes(lbl), ikm)))
+fn hp_extract(suite: List[i64], salt: List[i64], lbl: text, ikm: List[i64]) -> List[i64] = crypto.hmac(salt, crypto.cat(crypto.cat(crypto.tobytes("HPKE-v1"), suite), crypto.cat(crypto.tobytes(lbl), ikm)))
 
 fn hp_expand(suite: List[i64], prk: List[i64], lbl: text, info: List[i64], n: usize) -> List[i64]
-    let li = cat(cat(i2osp2(n as i64), cat(tobytes("HPKE-v1"), suite)), cat(tobytes(lbl), info))
+    let li = crypto.cat(crypto.cat(i2osp2(n as i64), crypto.cat(crypto.tobytes("HPKE-v1"), suite)), crypto.cat(crypto.tobytes(lbl), info))
     var out: List[i64] = []
     var t: List[i64] = []
     var c: i64 = 1
     while out.len() < n bound 255
-        t = hmac(copy(prk), cat(cat(copy(t), copy(li)), [c]))
+        t = crypto.hmac(copy(prk), crypto.cat(crypto.cat(copy(t), copy(li)), [c]))
         for x in copy(t)
             if out.len() < n
                 out.push(x)
@@ -203,16 +205,16 @@ fn hp_expand(suite: List[i64], prk: List[i64], lbl: text, info: List[i64], n: us
     return out
 
 # DeriveKeyPair(ikm) of DHKEM(X25519): the private key, hex
-fn hp_derive_sk(ikm: text) -> text = tohex(hp_expand(suite_kem(), hp_extract(suite_kem(), [], "dkp_prk", unhex(ikm)), "sk", [], 32))
+pub fn hp_derive_sk(ikm: text) -> text = crypto.tohex(hp_expand(suite_kem(), hp_extract(suite_kem(), [], "dkp_prk", crypto.unhex(ikm)), "sk", [], 32))
 
 fn hp_shared(dh: List[i64], kem_context: List[i64]) -> List[i64] = hp_expand(suite_kem(), hp_extract(suite_kem(), [], "eae_prk", dh), "shared_secret", kem_context, 32)
 
 # key || base_nonce (28 bytes) of the base-mode key schedule
 fn hp_key_nonce(shared: List[i64], info: List[i64]) -> List[i64]
     let s = suite_hpke()
-    let ksc = cat(cat([0], hp_extract(copy(s), [], "psk_id_hash", [])), hp_extract(copy(s), [], "info_hash", info))
+    let ksc = crypto.cat(crypto.cat([0], hp_extract(copy(s), [], "psk_id_hash", [])), hp_extract(copy(s), [], "info_hash", info))
     let secret = hp_extract(copy(s), shared, "secret", [])
-    return cat(hp_expand(copy(s), copy(secret), "key", copy(ksc), 16), hp_expand(s, secret, "base_nonce", ksc, 12))
+    return crypto.cat(hp_expand(copy(s), copy(secret), "key", copy(ksc), 16), hp_expand(s, secret, "base_nonce", ksc, 12))
 
 fn hp_nonce(base: List[i64], seq: i64) -> List[i64]
     var n = copy(base)
@@ -233,46 +235,46 @@ fn hp_allzero(b: List[i64]) -> bool
 # when pkr is not 32 bytes or the DH output is all zero, RFC 9180 7.1.4),
 # with the ephemeral private key ske (from logged random bytes), message
 # number seq of the context
-fn hpke_seal(pkr: text, ske: text, info: text, aad: text, pt: text, seq: i64) -> text
-    if unhex(copy(pkr)).len() != 32
+pub fn hpke_seal(pkr: text, ske: text, info: text, aad: text, pt: text, seq: i64) -> text
+    if crypto.unhex(copy(pkr)).len() != 32
         return ""
-    let enc = pubkey(copy(ske))
-    let dh = unhex(x25519(ske, copy(pkr)))
+    let enc = crypto.pubkey(copy(ske))
+    let dh = crypto.unhex(crypto.x25519(ske, copy(pkr)))
     if hp_allzero(copy(dh))
         return ""
-    let kn = hp_key_nonce(hp_shared(dh, cat(unhex(copy(enc)), unhex(pkr))), unhex(info))
-    let ctext = gcm_seal(slice(copy(kn), 0, 16), hp_nonce(slice(kn, 16, 28), seq), unhex(aad), unhex(pt))
-    return enc + "." + tohex(ctext)
+    let kn = hp_key_nonce(hp_shared(dh, crypto.cat(crypto.unhex(copy(enc)), crypto.unhex(pkr))), crypto.unhex(info))
+    let ctext = gcm_seal(crypto.slice(copy(kn), 0, 16), hp_nonce(crypto.slice(kn, 16, 28), seq), crypto.unhex(aad), crypto.unhex(pt))
+    return enc + "." + crypto.tohex(ctext)
 
 # SetupBaseR + Open: the plaintext (hex), or "" when it does not open (also for
 # an enc that is not 32 bytes or gives an all-zero DH output, RFC 9180 7.1.4)
-fn hpke_open(skr: text, enc: text, info: text, aad: text, ctext: text, seq: i64) -> text
-    if unhex(copy(enc)).len() != 32
+pub fn hpke_open(skr: text, enc: text, info: text, aad: text, ctext: text, seq: i64) -> text
+    if crypto.unhex(copy(enc)).len() != 32
         return ""
-    let pkr = pubkey(copy(skr))
-    let dh = unhex(x25519(skr, copy(enc)))
+    let pkr = crypto.pubkey(copy(skr))
+    let dh = crypto.unhex(crypto.x25519(skr, copy(enc)))
     if hp_allzero(copy(dh))
         return ""
-    let kn = hp_key_nonce(hp_shared(dh, cat(unhex(enc), unhex(pkr))), unhex(info))
-    let pt = gcm_open(slice(copy(kn), 0, 16), hp_nonce(slice(kn, 16, 28), seq), unhex(aad), unhex(ctext))
+    let kn = hp_key_nonce(hp_shared(dh, crypto.cat(crypto.unhex(enc), crypto.unhex(pkr))), crypto.unhex(info))
+    let pt = gcm_open(crypto.slice(copy(kn), 0, 16), hp_nonce(crypto.slice(kn, 16, 28), seq), crypto.unhex(aad), crypto.unhex(ctext))
     if pt.len() == 1 and pt[0] == -1
         return ""
-    return tohex(pt)
+    return crypto.tohex(pt)
 
 # MLS EncryptWithLabel / DecryptWithLabel (RFC 9420 5.1.3): info is
 # EncryptContext { opaque label<V> = "MLS 1.0 " + label; opaque context<V> }
 fn mls_vec2(b: List[i64]) -> List[i64]
     let n = b.len() as i64
     if n < 64
-        return cat([n], b)
-    return cat([64 | (n >> 8), n & 255], b)
+        return crypto.cat([n], b)
+    return crypto.cat([64 | (n >> 8), n & 255], b)
 
-fn enc_context(lbl: text, context: text) -> text = tohex(cat(mls_vec2(tobytes("MLS 1.0 " + lbl)), mls_vec2(unhex(context))))
+fn enc_context(lbl: text, context: text) -> text = crypto.tohex(crypto.cat(mls_vec2(crypto.tobytes("MLS 1.0 " + lbl)), mls_vec2(crypto.unhex(context))))
 
-fn encrypt_with_label(pk: text, ske: text, lbl: text, context: text, pt: text) -> text = hpke_seal(pk, ske, enc_context(lbl, context), "", pt, 0)
+pub fn encrypt_with_label(pk: text, ske: text, lbl: text, context: text, pt: text) -> text = hpke_seal(pk, ske, enc_context(lbl, context), "", pt, 0)
 
-fn decrypt_with_label(sk: text, lbl: text, context: text, kem_output: text, ctext: text) -> text = hpke_open(sk, kem_output, enc_context(lbl, context), "", ctext, 0)
+pub fn decrypt_with_label(sk: text, lbl: text, context: text, kem_output: text, ctext: text) -> text = hpke_open(sk, kem_output, enc_context(lbl, context), "", ctext, 0)
 
-check tohex(aes_block(aes_expand(unhex("000102030405060708090a0b0c0d0e0f")), unhex("00112233445566778899aabbccddeeff"))) == "69c4e0d86a7b0430d8cdb78070b4c55a"
-check tohex(gcm_seal(unhex("feffe9928665731c6d6a8f9467308308"), unhex("cafebabefacedbaddecaf888"), unhex("feedfacedeadbeeffeedfacedeadbeefabaddad2"), unhex("d9313225f88406e5a55909c5aff5269a86a7a9531534f7da2e4c303d8a318a721c3c0c95956809532fcf0e2449a6b525b16aedf5aa0de657ba637b39"))) == "42831ec2217774244b7221b784d0d49ce3aa212f2c02a4e035c17e2329aca12e21d514b25466931c7d8f6a5aac84aa051ba30b396a0aac973d58e0915bc94fbc3221a5db94fae95ae7121a47"
-check gcm_open(unhex("feffe9928665731c6d6a8f9467308308"), unhex("cafebabefacedbaddecaf888"), [], unhex("00112233445566778899aabbccddeeff")) == [-1]
+check crypto.tohex(aes_block(aes_expand(crypto.unhex("000102030405060708090a0b0c0d0e0f")), crypto.unhex("00112233445566778899aabbccddeeff"))) == "69c4e0d86a7b0430d8cdb78070b4c55a"
+check crypto.tohex(gcm_seal(crypto.unhex("feffe9928665731c6d6a8f9467308308"), crypto.unhex("cafebabefacedbaddecaf888"), crypto.unhex("feedfacedeadbeeffeedfacedeadbeefabaddad2"), crypto.unhex("d9313225f88406e5a55909c5aff5269a86a7a9531534f7da2e4c303d8a318a721c3c0c95956809532fcf0e2449a6b525b16aedf5aa0de657ba637b39"))) == "42831ec2217774244b7221b784d0d49ce3aa212f2c02a4e035c17e2329aca12e21d514b25466931c7d8f6a5aac84aa051ba30b396a0aac973d58e0915bc94fbc3221a5db94fae95ae7121a47"
+check gcm_open(crypto.unhex("feffe9928665731c6d6a8f9467308308"), crypto.unhex("cafebabefacedbaddecaf888"), [], crypto.unhex("00112233445566778899aabbccddeeff")) == [-1]
