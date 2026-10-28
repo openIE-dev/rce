@@ -20,7 +20,6 @@ module ui.ecma
 #   text.xml documents with getElementsByTagName and getAttribute.
 # A failure (syntax error, ReferenceError, TypeError) sets Js.err and
 # yields undefined; the host maps it to error.execution.
-# uses: enc.enc, data.events, text.xml
 use text.xml
 
 pub kind V

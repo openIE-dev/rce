@@ -1,6 +1,7 @@
 # Mutation test for lib/num/{linalg,special,stats}.rce: apply each mutant
 # to a copy of its module, then run the module's tests/num/<name>_checks_*
-# shards as a package (with its "# uses:" dependencies) until one fails.
+# shards as a package (with the modules it imports, scripts/uses.py)
+# until one fails.
 # Every mutant must be killed. Left out as equivalent or not
 # distinguished by any vector: moving the erfc tiny-x cut (1 - x is also
 # what the next branch rounds to there) and dropping the (sum d)^2 / n

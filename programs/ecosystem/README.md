@@ -13,9 +13,11 @@ disconnected; set `RCE` to the `rce` binary.
 | `run.sh sfu` | `apps/sfu.rce` offline: subscribe, forward, stale and malformed frames; redacted replay | the SFU (selective forwarding unit) wire rules |
 | `run.sh rcedb` | `rce db`: schema, index, insert, link, delete, scan, lookup, as-of, emit sqlite | time travel to before a delete |
 
-`hpke.rce`, `pqxdh.rce` and `mls_key_schedule.rce` name their libraries
-in a `#!lib NAME` line; the `rce` binary (0.1.2 or later) appends the
-library source it embeds, so no library file is needed. Their `example` lines are light ones,
+`hpke.rce`, `pqxdh.rce` and `mls_key_schedule.rce` import their libraries
+with `use` (`use hpke`, `use pq`, `use mls`, and `use crypto` where they
+call `crypto` themselves) and call them by qualified name, such as
+`hpke.hpke_seal`; every module of `stdlib/lib` is built into `rce`, so no
+library file is needed. Their `example` lines are light ones,
 because `rce test` gives a whole example one fuel budget; the
 public-key steps run on the host, where each input has its own fuel
 (HC-7a). Keys and seeds are constants here; a real program takes them

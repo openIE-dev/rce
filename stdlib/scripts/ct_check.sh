@@ -4,9 +4,10 @@
 #   tests/crypto/*_checks.rce   `check` lines (official vectors and properties).
 #   tests/crypto/*_fuel.rce     probe functions, see below.
 #
-# The first line of each file may read `# needs: crypto pq hpke`: those
-# library files (their own `check` lines removed) are put in front of the
-# test file, and the result is run as one program. Each file has its own
+# The first line of each file may read `# needs: crypto pq hpke`: the items
+# of those library files are put in front of the test file, flattened by
+# scripts/flatten.py (their own `check` lines, `use` lines and `crypto.`
+# qualifiers removed), and the result is run as one program. Each file has its own
 # comptime fuel budget, so heavy vector sets are separate files.
 #
 # Fuel tests. A `_fuel.rce` file defines zero-parameter functions named
@@ -30,7 +31,7 @@ for f in tests/crypto/*_checks.rce tests/crypto/*_fuel.rce; do
   case "$f" in *"${ONLY:-}"*) ;; *) continue ;; esac
   needs=$(sed -n '1s/^# needs: //p' "$f")
   o="$tmp/$(basename "$f")"
-  { echo "module t"; for n in $needs; do grep -v '^module \|^check ' "lib/$n.rce"; echo; done; cat "$f"; } > "$o"
+  { echo "module t"; python3 scripts/flatten.py items $needs; cat "$f"; } > "$o"
   case "$f" in
   *_checks.rce)
     if "$RCE" test "$o" > "$o.out" 2>&1; then

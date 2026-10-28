@@ -1,0 +1,4 @@
+# Corpus programs and recorded observations are pinned by their SHA-256,
+# so git must never convert their line endings.
+*/corpus/files/** -text
+*/corpus/expected/** -text

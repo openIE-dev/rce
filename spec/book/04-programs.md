@@ -18,10 +18,10 @@ pinned by hash in its manifest, and pinned by a program as the dependency
 `stdlib`, F.5.3): `use enc`, `use data.events` and the
 others resolve with no file given, no directive and no flag, in every tool
 (`rce lib` lists them). A library module's own `check`, `example` and
-`intent` items are not part of a program that imports it; its items are. A
-`#!lib NAME` comment line places a library's items in front of the module,
-unqualified, as the shipped binary does; it is a comment to every other
-tool, and `use` is the form of this text. A
+`intent` items are not part of a program that imports it; its items are.
+`use` is the only way to bring one module's items into another: a line
+`#!lib NAME`, which earlier tools read as a second way, is a comment like
+any other. A
 program is the set of modules given together, and `use` must name one of them
 or a built-in module (W-NAME-1).
 
@@ -54,4 +54,4 @@ payload typing) and as constructor functions.
 
 **Read receipt.** What is the outermost scope called? (one word)
 
-<!-- body-sha256: 5ca7d8a15cdf8973b8489ee52c0c6f634b5b029aaf692148c113fd02b0064a8d -->
+<!-- body-sha256: c7a94eb7c4ad0ad0643dd4815a99397eae5b442b81d8e726a0a58e74ab21285b -->

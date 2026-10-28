@@ -1,5 +1,4 @@
 module os.target
-# uses: enc.enc, data.events
 use data.events
 # Targets (survey M45), pure:
 #  - the binding matrix: for each OS capability of M34 to M44 and each

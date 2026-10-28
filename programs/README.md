@@ -79,10 +79,10 @@ All programs are version 0.5 modules (sections 2 to 10 of the specification).
 They are checked by `programs.yml` against the reference checker built from
 the same commit, so there is no commit to name: `scripts/check.sh` must report
 every program passed at the current head (22 of 22 on 23 October 2026). The
-`ecosystem/` programs name a `#!lib` library, which the engine's `rce` provides
-by embedding the standard host libraries and the public reference checker does
-not; `ecosystem/run.sh` probes for the directive and reports "skipped" without
-it, so those runs are the engine's to make.
+`ecosystem/` programs import modules of the standard library (`use hpke`,
+`use pq`, `use mls`, `use crypto`), which the reference checker has built in
+(specification 4.1); `scripts/check.sh` leaves them out, and `programs.yml`
+runs them with `ecosystem/run.sh`, which also checks their results.
 
 ## Contributing
 
