@@ -147,11 +147,13 @@ The Form JSON lists objects in canonical order (6.1), so it is a
 deterministic function of the program text.
 
 The four program targets are the ones this checker emits. The language
-places no bound on targets: every language is both an output of the Form
-(a target, printed from the Form IR through a per-language table) and an
-input (a lift, the reverse map, from the language's grammar and a
-semantics table), and every target passes the same gate, the reference
-trace of every example program byte for byte (T9). The registry of targets
+places no bound on targets, and it is designed so that every language is
+both an output of the Form (a target, printed through a per-language
+table) and an input (a lift, the reverse map, from the language's grammar
+and a semantics table), each passing the same gate, the reference trace of
+every example program byte for byte (T9). That design
+(`spec/proposals/rce-form.md`, informative) is not built; of the four
+program targets, `rust`, `python` and `js` pass the gate today. The registry of targets
 and the one-emitter mechanism are the proposal `spec/proposals/emit-targets.md`
 (informative); a target that the table cannot pin to 6.3 is observation-only,
 never a projection.
@@ -214,7 +216,7 @@ file: on 2026-10-14, on the Apple M5 Max below, with Scala 3.10.0 run by
 scala-cli 1.18.0 on OpenJDK 27, all 55 programs of the current corpus
 (with the package files of example 26) agree with the reference, 0
 refused, 361 observation lines, and the edge program agrees on all four
-targets. Its oracle is `RCE_SCALA` (default `scala-cli`). That agreement is for this examples corpus only. On the larger `rce-conformance` suite the Scala emitter passes 52 of 1,845 results (its README gives 1,189 failures and 604 unsupported), so the Scala target does not yet agree with the reference on that suite.
+targets. Its oracle is `RCE_SCALA` (default `scala-cli`). That agreement is for this examples corpus only. On the conformance suite (`conformance/`) the Scala emitter passes 52 of 1,832 results, with 1,189 failures and 591 unsupported (`conformance/README.md`), so the Scala target does not yet agree with the reference on that suite.
 When `rustc`, `python3` or `node` is missing,
 its test prints `SKIPPED` and the reason; a skipped target is never
 counted as a pass. The oracles used were Python 3.13.5 and Node 20.19.2.
@@ -318,8 +320,8 @@ outcome.
   the JavaScript output with Node 20.19.2 and 26.11.1. Other versions have
   not been run.
 - The Scala output has been checked with Scala 3.10.0 on OpenJDK 27 only.
-  It has no `--run` runtime yet: with `--run` it prints that `--run` is not
-  available on this target and exits with status 2. A `par` runs its
+  With `--run` it runs `fn main` through its task runtime, and prints that
+  there is nothing to run when no `fn main()` is declared. A `par` runs its
   branches in source order on one thread (by restart when they wait on
   lvars), as the JavaScript output does when a local cannot go to a worker.
 
@@ -638,4 +640,4 @@ its name-free projection (T7) and is a continuous-integration step.
 
 **Read receipt.** Which JSON-RPC error code does the language server return for a request it does not know? (a number)
 
-<!-- body-sha256: 2329b271394658198556ea9212b768a29e9262303f060d485b904051b71305f8 -->
+<!-- body-sha256: 7636d05ec467be2d91b59be982e1d6b707a2b23d298b63c085e360c46acbe240 -->

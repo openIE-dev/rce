@@ -6,8 +6,8 @@ from matplotlib.patches import FancyBboxPatch, FancyArrowPatch
 plt.rcParams.update({"font.family": "DejaVu Sans", "font.size": 11, "svg.fonttype": "path"})
 C = dict(form="#dbeafe", chk="#dcfce7", log="#fef3c7", emit="#ede9fe", host="#fee2e2", fab="#e0f2fe", ink="#1f2937", edge="#475569")
 
-def box(ax, x, y, w, h, text, fc, fs=11, bold=False):
-    ax.add_patch(FancyBboxPatch((x, y), w, h, boxstyle="round,pad=0.02,rounding_size=0.12", fc=fc, ec=C["edge"], lw=1.3))
+def box(ax, x, y, w, h, text, fc, fs=11, bold=False, ls="-"):
+    ax.add_patch(FancyBboxPatch((x, y), w, h, boxstyle="round,pad=0.02,rounding_size=0.12", fc=fc, ec=C["edge"], lw=1.3, ls=ls))
     ax.text(x + w/2, y + h/2, text, ha="center", va="center", fontsize=fs, color=C["ink"], weight="bold" if bold else "normal", wrap=True)
 
 def arrow(ax, a, b, text=None, style="-|>", ls="-", off=(0, 0.12)):
@@ -27,17 +27,20 @@ def save(fig, name):
     plt.close(fig)
 
 # (a) overview
-fig, ax = canvas(14, 7.6, "RCE at a glance", "One program, one meaning: a Form. The checker admits it, the log records every step, emitters project it, a host runs it.")
+fig, ax = canvas(14, 7.6, "RCE at a glance", "One program, one meaning: a Form. The checker admits it, the log records every step, emitters translate it, a host runs it.")
 box(ax, 0.3, 4.3, 2.4, 1.3, "source.rce\n(text, integrated\ndevelopment environment,\ntree-sitter)", "#f1f5f9", fs=9)
 box(ax, 3.3, 4.0, 3.2, 1.9, "rce checker\nparse, types, ownership,\ntermination, rules named\non refusal", C["chk"], bold=False)
 box(ax, 7.1, 3.6, 3.2, 2.7, "Form\nP = (S, E, \u03b4, D, \u03bb)\n\nS states   E events\n\u03b4 step: (s, e) \u2192 (s', out)\nD durable log\n\u03bb outputs \u2192 effects", C["form"], fs=11)
 arrow(ax, (2.7, 4.95), (3.3, 4.95)); arrow(ax, (6.5, 4.95), (7.1, 4.95), "accepted")
 ax.text(4.9, 3.6, "refused: names the rule", ha="center", fontsize=9, color="#b91c1c")
 targets = ["Rust", "Python", "JS", "Scala"]  # the targets of `rce emit` in spec/checker/src/cli.rs
+# `rce emit` translates the checked program, not the Form, so the arrows leave the checker
+ax.plot([6.0, 6.0, 10.9], [5.9, 6.45, 6.45], color=C["edge"], lw=1.4)
+ax.text(8.7, 6.5, "checked program", ha="center", fontsize=9, color="#334155")
 for i, t in enumerate(targets):
     y = 6.0 - i * 0.62
     box(ax, 11.4, y, 2.2, 0.5, t, C["emit"], fs=10)
-    arrow(ax, (10.3, 4.95), (11.4, y + 0.25))
+    arrow(ax, (10.9, 6.45), (11.4, y + 0.25))
 ax.text(12.5, 6.65, "rce emit targets", ha="center", fontsize=10, weight="bold")
 box(ax, 7.1, 1.6, 3.2, 1.3, "Log D\nappend-only, SHA-256 chained;\nstate = fold of D", C["log"], fs=10)
 arrow(ax, (8.7, 3.6), (8.7, 2.9), "every step", off=(0.75, -0.05))
@@ -45,8 +48,12 @@ box(ax, 3.3, 1.6, 3.2, 1.3, "Host\none admitter, adapters,\nreplay with adapters
 arrow(ax, (6.5, 2.25), (7.1, 2.25), style="<|-|>")
 fabrics = ["CPU", "GPU", "FPGA", "browser", "embedded"]
 for i, f in enumerate(fabrics):
-    box(ax, 0.3 + i * 1.32, 0.25, 1.2, 0.6, f, C["fab"], fs=9)
-ax.text(3.6, 1.02, "compute fabrics (bit-exact ops only; others enter as logged events)", ha="center", fontsize=9)
+    # CPU is where the reference executor runs today; the others are design, drawn outlined
+    if i == 0:
+        box(ax, 0.3 + i * 1.32, 0.25, 1.2, 0.6, f, C["fab"], fs=9)
+    else:
+        box(ax, 0.3 + i * 1.32, 0.25, 1.2, 0.6, f, "white", fs=9, ls="--")
+ax.text(3.6, 1.02, "compute fabrics (design; the reference executor runs on CPUs today)", ha="center", fontsize=9)
 arrow(ax, (4.9, 1.6), (4.9, 1.2))
 save(fig, "rce-overview")
 

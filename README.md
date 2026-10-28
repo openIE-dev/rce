@@ -29,17 +29,20 @@ not hold), the checker names the place and the part of the shape it lacks.
 This is what makes autonomous coding deterministic. A proposal, whether a
 person, a search over existing Forms or a model produced it, is read by
 the checker alone, with the same result on every machine.
-Once accepted, the Form replays identically everywhere, projects to any
-target language without changing meaning, and is reused as a whole. Every
-language is both an output and an input of the Form: `rce emit` prints a
-Form as a program in a target language, and the lift, the reverse map,
-brings a program written in that language into the Form. Targets are rows
-of the emit registry (`spec/proposals/emit-targets.md`): one emitter over
-the Form IR and one table per language, with the same gate for every row
-(the reference trace of every example program, byte for byte). The
-reference checker emits Rust, Python, JavaScript and Scala today; the
-registry lists the languages that follow, including the new entrants of
-2024 to 2026. No model is needed to decide what a program means, whether a change
+Once accepted, the Form replays identically wherever the reference runs,
+is designed to project to any target language without changing meaning,
+and is reused as a whole. RCE is designed so that every language is both
+an output and an input of the Form (`spec/proposals/rce-form.md`): a print
+table emits a language from the Form, and a lift table, the reverse map,
+brings a program written in that language into the Form, each accepted at
+a level by exact comparison with the language's own implementation. That
+layer is not built yet. Today `rce emit` translates a checked program, not
+the Form, to Rust, Python, JavaScript and Scala through four hand-written
+emitters; Rust, Python and JavaScript agree with the reference on the
+conformance suite, and Scala passes 52 of 1,832 results. The only lift is
+the probe `spec/lift/go/lift_go.py`, for one Go pattern. The registry
+(`spec/proposals/emit-targets.md`) lists the languages that follow,
+including the new entrants of 2024 to 2026. No model is needed to decide what a program means, whether a change
 is safe, or whether two programs are the same, so the costly and
 non-deterministic part of AI coding is taken out of the loop. The aim is
 the lowest cost and lowest energy per correct program.
@@ -75,7 +78,7 @@ same commit.
 
 ![RCE overview: source, checker, Form, log, emit targets, host, fabrics](docs/figures/rce-overview.svg)
 
-*The checker reads a program into its Form, naming the place where a text does not yet have the Form's shape; every step is appended to the log D; `rce emit` projects the program to a target language (Rust, Python, JavaScript and Scala today; every registry language by table); a host runs it on a compute fabric.*
+*The checker reads a program into its Form, naming the place where a text does not yet have the Form's shape; every step is appended to the log D; `rce emit` translates the program to a target language (Rust, Python, JavaScript and Scala today, Scala not yet agreeing with the reference; every registry language by table is the design); a host runs it on a compute fabric.*
 
 ## Try it
 
@@ -146,7 +149,7 @@ checker would refuse the file.
 | `rce test FILE...` | the same, and count each file's examples and checks |
 | `rce run FILE [EVENTS]` | apply events, or run `fn main()` |
 | `rce trace --json FILE [EVENTS]` | reference trace of each example, or of EVENTS, for checking another implementation step by step |
-| `rce emit TARGET FILE` | `form` (the Form as JSON), or a target language: `rust`, `python`, `js`, `scala` today; the emit registry lists the rest |
+| `rce emit TARGET FILE` | `form` (the Form as JSON), or a target language: `rust`, `python`, `js` today, and `scala`, whose output does not yet agree with the reference; the emit registry proposal lists the rest |
 | `rce fmt [--check] FILE...` | rewrite files in the canonical layout |
 | `rce dim [--fuel N] [--control] [--json] FILE` | count the behaviours a program can be in and the redundancy of its state (spec 6.10, 10.11) |
 | `rce host ...` | run a program under the host contract (Appendix E): admitter, log, adapters, sandbox |
