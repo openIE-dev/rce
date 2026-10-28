@@ -1,0 +1,1095 @@
+# The pinned corpus of go1.24: one case per program, each stored under its
+# SHA-256 and run with no arguments, no standard input and the oracle's
+# environment. Written by lang/corpus.py admit; see lang/README.md.
+format  = "rce-corpus/1"
+lang    = "go1.24"
+oracles = ["oracle/go-1.24.7.toml"]
+
+[[case]]
+file         = "files/de/dec3b0f8a93d6141847273628d6110023b76baa95fdb3afb1778886067ace7d8.go"
+sha256       = "dec3b0f8a93d6141847273628d6110023b76baa95fdb3afb1778886067ace7d8"
+tier         = "basics"
+profile      = "command"
+inputs       = [{ argv = [], stdin_hex = "", env = {} }]
+expected     = "expected/dec3b0f8a93d6141847273628d6110023b76baa95fdb3afb1778886067ace7d8.obs.json"
+expected_key = "472640d6199d835de0734440a00c1b80dfa892aa24e5ca7cf05199cdba879b61"
+class        = "deterministic"
+provenance   = { source = "openIE-dev/rce, written for this corpus", item = "basics/bool_logic", licence = "MIT OR Apache-2.0" }
+
+[[case]]
+file         = "files/25/25adb2fc8b63dc066233a050c47b0094ee6db59e52fc079b6c95f727e97aefa0.go"
+sha256       = "25adb2fc8b63dc066233a050c47b0094ee6db59e52fc079b6c95f727e97aefa0"
+tier         = "basics"
+profile      = "command"
+inputs       = [{ argv = [], stdin_hex = "", env = {} }]
+expected     = "expected/25adb2fc8b63dc066233a050c47b0094ee6db59e52fc079b6c95f727e97aefa0.obs.json"
+expected_key = "c25cdf626a109293c72aa94aaaeb5272725f57211fb7402bf6317a1c63069ae3"
+class        = "deterministic"
+provenance   = { source = "openIE-dev/rce, written for this corpus", item = "basics/break_continue", licence = "MIT OR Apache-2.0" }
+
+[[case]]
+file         = "files/79/79096c099d16fe25bfa09faa9d2c927f45ec77108b49ea0186290986b3c3f5dc.go"
+sha256       = "79096c099d16fe25bfa09faa9d2c927f45ec77108b49ea0186290986b3c3f5dc"
+tier         = "basics"
+profile      = "command"
+inputs       = [{ argv = [], stdin_hex = "", env = {} }]
+expected     = "expected/79096c099d16fe25bfa09faa9d2c927f45ec77108b49ea0186290986b3c3f5dc.obs.json"
+expected_key = "e0b4d0e60fd7f9cf12269ab7ca43cd86d9ba3862e38f74ffe8cda3f448875626"
+class        = "deterministic"
+provenance   = { source = "openIE-dev/rce, written for this corpus", item = "basics/closures", licence = "MIT OR Apache-2.0" }
+
+[[case]]
+file         = "files/54/54425a59755fc622d637c4f16ecf486826ef0ae93b42dca4ceff1fd0e2389e4e.go"
+sha256       = "54425a59755fc622d637c4f16ecf486826ef0ae93b42dca4ceff1fd0e2389e4e"
+tier         = "basics"
+profile      = "command"
+inputs       = [{ argv = [], stdin_hex = "", env = {} }]
+expected     = "expected/54425a59755fc622d637c4f16ecf486826ef0ae93b42dca4ceff1fd0e2389e4e.obs.json"
+expected_key = "13f21842aa8dcb6d9910c805ff9360a54f5cd8b0329a74c05ca1e84b35d66e8b"
+class        = "deterministic"
+provenance   = { source = "openIE-dev/rce, written for this corpus", item = "basics/compare", licence = "MIT OR Apache-2.0" }
+
+[[case]]
+file         = "files/4f/4f84b966ef3417da61b315c22ffc629b7033cbadb70ccad1ab79585c97e7d0be.go"
+sha256       = "4f84b966ef3417da61b315c22ffc629b7033cbadb70ccad1ab79585c97e7d0be"
+tier         = "basics"
+profile      = "command"
+inputs       = [{ argv = [], stdin_hex = "", env = {} }]
+expected     = "expected/4f84b966ef3417da61b315c22ffc629b7033cbadb70ccad1ab79585c97e7d0be.obs.json"
+expected_key = "f1e5f5b4d11187c502bd467e7ecf205441c2b82a1e6bc3be3c136a3d8d145e90"
+class        = "deterministic"
+provenance   = { source = "openIE-dev/rce, written for this corpus", item = "basics/constants_iota", licence = "MIT OR Apache-2.0" }
+
+[[case]]
+file         = "files/c8/c8b6f8190d5908f600a6f01f2263c5adba97c9852c971093ab242de5318da8cd.go"
+sha256       = "c8b6f8190d5908f600a6f01f2263c5adba97c9852c971093ab242de5318da8cd"
+tier         = "basics"
+profile      = "command"
+inputs       = [{ argv = [], stdin_hex = "", env = {} }]
+expected     = "expected/c8b6f8190d5908f600a6f01f2263c5adba97c9852c971093ab242de5318da8cd.obs.json"
+expected_key = "541f4e8a9b325fe1946daec4190cb9db5974a0f62a03f9799b6401ddd4474de8"
+class        = "deterministic"
+provenance   = { source = "openIE-dev/rce, written for this corpus", item = "basics/errors_wrap", licence = "MIT OR Apache-2.0" }
+
+[[case]]
+file         = "files/ec/ec01f231a7a30caf1ee6c45c95af9038c0dbe21f2e410d198d2e62db31bbece5.go"
+sha256       = "ec01f231a7a30caf1ee6c45c95af9038c0dbe21f2e410d198d2e62db31bbece5"
+tier         = "basics"
+profile      = "command"
+inputs       = [{ argv = [], stdin_hex = "", env = {} }]
+expected     = "expected/ec01f231a7a30caf1ee6c45c95af9038c0dbe21f2e410d198d2e62db31bbece5.obs.json"
+expected_key = "2943580939ac2098e41e2c9462963666e97e12b90df81165d93293e5ffabc542"
+class        = "deterministic"
+provenance   = { source = "openIE-dev/rce, written for this corpus", item = "basics/exit_status", licence = "MIT OR Apache-2.0" }
+
+[[case]]
+file         = "files/e8/e894dcb02f7f337645ffeb3e725e6990ea513e031a332dfc6a77eddc22a8f074.go"
+sha256       = "e894dcb02f7f337645ffeb3e725e6990ea513e031a332dfc6a77eddc22a8f074"
+tier         = "basics"
+profile      = "command"
+inputs       = [{ argv = [], stdin_hex = "", env = {} }]
+expected     = "expected/e894dcb02f7f337645ffeb3e725e6990ea513e031a332dfc6a77eddc22a8f074.obs.json"
+expected_key = "621095e86e53c0ae7dc8af9a4c81a884fef15bdd930d967be532ad863b9aa751"
+class        = "deterministic"
+provenance   = { source = "openIE-dev/rce, written for this corpus", item = "basics/float_arith", licence = "MIT OR Apache-2.0" }
+
+[[case]]
+file         = "files/a0/a04c1491c57017f25944b9eb1e83faa5c7d4511d49d13897b32ecc1d30f964fa.go"
+sha256       = "a04c1491c57017f25944b9eb1e83faa5c7d4511d49d13897b32ecc1d30f964fa"
+tier         = "basics"
+profile      = "command"
+inputs       = [{ argv = [], stdin_hex = "", env = {} }]
+expected     = "expected/a04c1491c57017f25944b9eb1e83faa5c7d4511d49d13897b32ecc1d30f964fa.obs.json"
+expected_key = "c15f9e4d446f3c29856d69f03c93960a895e7cc7e1ec971c17198f2f16844177"
+class        = "deterministic"
+provenance   = { source = "openIE-dev/rce, written for this corpus", item = "basics/float_print", licence = "MIT OR Apache-2.0" }
+
+[[case]]
+file         = "files/35/355d7389d5a58520751f9a0644b44b778c80e53a284841a723edd5c45de3fe39.go"
+sha256       = "355d7389d5a58520751f9a0644b44b778c80e53a284841a723edd5c45de3fe39"
+tier         = "basics"
+profile      = "command"
+inputs       = [{ argv = [], stdin_hex = "", env = {} }]
+expected     = "expected/355d7389d5a58520751f9a0644b44b778c80e53a284841a723edd5c45de3fe39.obs.json"
+expected_key = "f0858ae80aac3e26a10fd07377dfdd88cebc1e717f1fdf7ed984f6141474df8c"
+class        = "deterministic"
+provenance   = { source = "openIE-dev/rce, written for this corpus", item = "basics/functions", licence = "MIT OR Apache-2.0" }
+
+[[case]]
+file         = "files/88/88ea81548e9a12a18b4f0fd268c814f54d747d58d61d57edfc8344f3a430c29d.go"
+sha256       = "88ea81548e9a12a18b4f0fd268c814f54d747d58d61d57edfc8344f3a430c29d"
+tier         = "basics"
+profile      = "command"
+inputs       = [{ argv = [], stdin_hex = "", env = {} }]
+expected     = "expected/88ea81548e9a12a18b4f0fd268c814f54d747d58d61d57edfc8344f3a430c29d.obs.json"
+expected_key = "8126d0a4529edb2e2edff7a577cd5f40a00bb65b5f501ba95864f3b211ba1b58"
+class        = "deterministic"
+provenance   = { source = "openIE-dev/rce, written for this corpus", item = "basics/hello", licence = "MIT OR Apache-2.0" }
+
+[[case]]
+file         = "files/33/33d6c1fc03eb71f458dcda1fff5bba2da09bb877ae04e5b23a000089fe133303.go"
+sha256       = "33d6c1fc03eb71f458dcda1fff5bba2da09bb877ae04e5b23a000089fe133303"
+tier         = "basics"
+profile      = "command"
+inputs       = [{ argv = [], stdin_hex = "", env = {} }]
+expected     = "expected/33d6c1fc03eb71f458dcda1fff5bba2da09bb877ae04e5b23a000089fe133303.obs.json"
+expected_key = "cb6b3d1d7df4daa31b1ef8ca74b712732ee52337640e87dfe31b0b2c070b76c7"
+class        = "deterministic"
+provenance   = { source = "openIE-dev/rce, written for this corpus", item = "basics/if_else", licence = "MIT OR Apache-2.0" }
+
+[[case]]
+file         = "files/30/30a5fa87ccfd8e6070e02147cde2e1c698fed428c630cdfc9d02d9674c08157d.go"
+sha256       = "30a5fa87ccfd8e6070e02147cde2e1c698fed428c630cdfc9d02d9674c08157d"
+tier         = "basics"
+profile      = "command"
+inputs       = [{ argv = [], stdin_hex = "", env = {} }]
+expected     = "expected/30a5fa87ccfd8e6070e02147cde2e1c698fed428c630cdfc9d02d9674c08157d.obs.json"
+expected_key = "e00cc90525961655d05da7a203627eeb31a59b5a42b618733e5dac83a6c2f8bc"
+class        = "deterministic"
+provenance   = { source = "openIE-dev/rce, written for this corpus", item = "basics/int_arith", licence = "MIT OR Apache-2.0" }
+
+[[case]]
+file         = "files/ce/ce78a9989c9d31ef81d893ebbc39d6605d3c650a4b959a1b0c6197953a6252b5.go"
+sha256       = "ce78a9989c9d31ef81d893ebbc39d6605d3c650a4b959a1b0c6197953a6252b5"
+tier         = "basics"
+profile      = "command"
+inputs       = [{ argv = [], stdin_hex = "", env = {} }]
+expected     = "expected/ce78a9989c9d31ef81d893ebbc39d6605d3c650a4b959a1b0c6197953a6252b5.obs.json"
+expected_key = "83df2cfff67126bc91f912c61d8661bb52c7642e2ea66457bb37d3846e43ae52"
+class        = "deterministic"
+provenance   = { source = "openIE-dev/rce, written for this corpus", item = "basics/int_div_mod", licence = "MIT OR Apache-2.0" }
+
+[[case]]
+file         = "files/c0/c0e3b718825c93c35a3d796dad79cd9ac423383c9e869ccc5b1e81616d406ce4.go"
+sha256       = "c0e3b718825c93c35a3d796dad79cd9ac423383c9e869ccc5b1e81616d406ce4"
+tier         = "basics"
+profile      = "command"
+inputs       = [{ argv = [], stdin_hex = "", env = {} }]
+expected     = "expected/c0e3b718825c93c35a3d796dad79cd9ac423383c9e869ccc5b1e81616d406ce4.obs.json"
+expected_key = "6d0e29e1bd1660d616709a8c24c974f59213d4e0b8eb3d3b7ff1d2850b376cc3"
+class        = "deterministic"
+provenance   = { source = "openIE-dev/rce, written for this corpus", item = "basics/int_literals", licence = "MIT OR Apache-2.0" }
+
+[[case]]
+file         = "files/13/1336a4d81d006a8a7db02d1e89a990abb6888db39297299c0466825efbf5cf1f.go"
+sha256       = "1336a4d81d006a8a7db02d1e89a990abb6888db39297299c0466825efbf5cf1f"
+tier         = "basics"
+profile      = "command"
+inputs       = [{ argv = [], stdin_hex = "", env = {} }]
+expected     = "expected/1336a4d81d006a8a7db02d1e89a990abb6888db39297299c0466825efbf5cf1f.obs.json"
+expected_key = "950c754ad004f17486fdc8f860e56a9aa817f426158a76a172851fa67e90e0e1"
+class        = "deterministic"
+provenance   = { source = "openIE-dev/rce, written for this corpus", item = "basics/loops", licence = "MIT OR Apache-2.0" }
+
+[[case]]
+file         = "files/6c/6cd54ee6765a4cc1f2bf2e3bf68b5e88ee002fd3ffcf5b76defdf835db83e050.go"
+sha256       = "6cd54ee6765a4cc1f2bf2e3bf68b5e88ee002fd3ffcf5b76defdf835db83e050"
+tier         = "basics"
+profile      = "command"
+inputs       = [{ argv = [], stdin_hex = "", env = {} }]
+expected     = "expected/6cd54ee6765a4cc1f2bf2e3bf68b5e88ee002fd3ffcf5b76defdf835db83e050.obs.json"
+expected_key = "31c8906f460f3c77eb734d503004382e5e94671ecc43b29444064de4fab954cd"
+class        = "deterministic"
+provenance   = { source = "openIE-dev/rce, written for this corpus", item = "basics/map_basics", licence = "MIT OR Apache-2.0" }
+
+[[case]]
+file         = "files/b0/b0e5e0fe93644154278e4d3ef3be84c087f331cc2fb078a94b7be0ac236f717b.go"
+sha256       = "b0e5e0fe93644154278e4d3ef3be84c087f331cc2fb078a94b7be0ac236f717b"
+tier         = "basics"
+profile      = "command"
+inputs       = [{ argv = [], stdin_hex = "", env = {} }]
+expected     = "expected/b0e5e0fe93644154278e4d3ef3be84c087f331cc2fb078a94b7be0ac236f717b.obs.json"
+expected_key = "28d1d169778d8ff28d773828e47e6acd2ce62dc26f862dbba127bd01af397e6c"
+class        = "deterministic"
+provenance   = { source = "openIE-dev/rce, written for this corpus", item = "basics/map_sorted_keys", licence = "MIT OR Apache-2.0" }
+
+[[case]]
+file         = "files/87/8722e642393141be25b8f73ae7f554fd0c7355f606ab9768ee56edac890abf8c.go"
+sha256       = "8722e642393141be25b8f73ae7f554fd0c7355f606ab9768ee56edac890abf8c"
+tier         = "basics"
+profile      = "command"
+inputs       = [{ argv = [], stdin_hex = "", env = {} }]
+expected     = "expected/8722e642393141be25b8f73ae7f554fd0c7355f606ab9768ee56edac890abf8c.obs.json"
+expected_key = "3f7fca4ac34d27025c7858d0df3b569e2487cb411fc80a4eda3a5ce615ea3d89"
+class        = "deterministic"
+provenance   = { source = "openIE-dev/rce, written for this corpus", item = "basics/print_values", licence = "MIT OR Apache-2.0" }
+
+[[case]]
+file         = "files/f0/f040d4d24bb70ae877feaeac7468a1b26e92c233d115a31dc29eda347884b3be.go"
+sha256       = "f040d4d24bb70ae877feaeac7468a1b26e92c233d115a31dc29eda347884b3be"
+tier         = "basics"
+profile      = "command"
+inputs       = [{ argv = [], stdin_hex = "", env = {} }]
+expected     = "expected/f040d4d24bb70ae877feaeac7468a1b26e92c233d115a31dc29eda347884b3be.obs.json"
+expected_key = "9fdd328da63e4a9359721fa76e3b921caab816e302de59b72e27dbe3eeb61527"
+class        = "deterministic"
+provenance   = { source = "openIE-dev/rce, written for this corpus", item = "basics/recursion", licence = "MIT OR Apache-2.0" }
+
+[[case]]
+file         = "files/be/bea570a416386bc21daf770938e467c5e004efe04945841a9c9d929af7883657.go"
+sha256       = "bea570a416386bc21daf770938e467c5e004efe04945841a9c9d929af7883657"
+tier         = "basics"
+profile      = "command"
+inputs       = [{ argv = [], stdin_hex = "", env = {} }]
+expected     = "expected/bea570a416386bc21daf770938e467c5e004efe04945841a9c9d929af7883657.obs.json"
+expected_key = "44efe7dd9a1608a6c62deea0856021de7343e2d55a99b42e04e542cd823731fe"
+class        = "deterministic"
+provenance   = { source = "openIE-dev/rce, written for this corpus", item = "basics/slice_basics", licence = "MIT OR Apache-2.0" }
+
+[[case]]
+file         = "files/9f/9fca858243efe4bb6397732c9e93944bd64b416db45743cacdede6c2fe71d882.go"
+sha256       = "9fca858243efe4bb6397732c9e93944bd64b416db45743cacdede6c2fe71d882"
+tier         = "basics"
+profile      = "command"
+inputs       = [{ argv = [], stdin_hex = "", env = {} }]
+expected     = "expected/9fca858243efe4bb6397732c9e93944bd64b416db45743cacdede6c2fe71d882.obs.json"
+expected_key = "b274b1e6fb619f0379edd53a02be45293eee92dd868ce1c22d51bef5c6074e0d"
+class        = "deterministic"
+provenance   = { source = "openIE-dev/rce, written for this corpus", item = "basics/slice_sort", licence = "MIT OR Apache-2.0" }
+
+[[case]]
+file         = "files/e4/e440f89acdc16e95117f2087acd375ed48406b8be3c6c72f6f26b9a24955d821.go"
+sha256       = "e440f89acdc16e95117f2087acd375ed48406b8be3c6c72f6f26b9a24955d821"
+tier         = "basics"
+profile      = "command"
+inputs       = [{ argv = [], stdin_hex = "", env = {} }]
+expected     = "expected/e440f89acdc16e95117f2087acd375ed48406b8be3c6c72f6f26b9a24955d821.obs.json"
+expected_key = "c832354d467240992c73ff1af6799234ea6bd759b61aab85488d3a2862d1c5dd"
+class        = "deterministic"
+provenance   = { source = "openIE-dev/rce, written for this corpus", item = "basics/stderr_write", licence = "MIT OR Apache-2.0" }
+
+[[case]]
+file         = "files/50/506e24eb4ec0626e3d01632dd7c5b9d2e9e60f6267dfbcd8ebd6b774661f87f9.go"
+sha256       = "506e24eb4ec0626e3d01632dd7c5b9d2e9e60f6267dfbcd8ebd6b774661f87f9"
+tier         = "basics"
+profile      = "command"
+inputs       = [{ argv = [], stdin_hex = "", env = {} }]
+expected     = "expected/506e24eb4ec0626e3d01632dd7c5b9d2e9e60f6267dfbcd8ebd6b774661f87f9.obs.json"
+expected_key = "0f14426c329f849845143b3f89e2de603e124e3956fa8290f926eddf5025e39e"
+class        = "deterministic"
+provenance   = { source = "openIE-dev/rce, written for this corpus", item = "basics/string_basics", licence = "MIT OR Apache-2.0" }
+
+[[case]]
+file         = "files/25/251e6dad4cfb86a7ee331f7b432bf565f5de146c75a239a121da638c5ff82a13.go"
+sha256       = "251e6dad4cfb86a7ee331f7b432bf565f5de146c75a239a121da638c5ff82a13"
+tier         = "basics"
+profile      = "command"
+inputs       = [{ argv = [], stdin_hex = "", env = {} }]
+expected     = "expected/251e6dad4cfb86a7ee331f7b432bf565f5de146c75a239a121da638c5ff82a13.obs.json"
+expected_key = "e909540dd70ad627793881bf379bddb85d2b5f84d5dbce852d78a7810587ef86"
+class        = "deterministic"
+provenance   = { source = "openIE-dev/rce, written for this corpus", item = "basics/string_format", licence = "MIT OR Apache-2.0" }
+
+[[case]]
+file         = "files/b8/b8ff30a44a02b4d10573d6a10baa54620b24aaa9a450d2c0e042e9a6bc3e16f5.go"
+sha256       = "b8ff30a44a02b4d10573d6a10baa54620b24aaa9a450d2c0e042e9a6bc3e16f5"
+tier         = "basics"
+profile      = "command"
+inputs       = [{ argv = [], stdin_hex = "", env = {} }]
+expected     = "expected/b8ff30a44a02b4d10573d6a10baa54620b24aaa9a450d2c0e042e9a6bc3e16f5.obs.json"
+expected_key = "0fdd72281dd1c06496f1d578f5e5ba9815ef4c7bd8c17cd441f34a6e73dd83cc"
+class        = "deterministic"
+provenance   = { source = "openIE-dev/rce, written for this corpus", item = "basics/string_methods", licence = "MIT OR Apache-2.0" }
+
+[[case]]
+file         = "files/58/58989833555fd7b3e0441e64cec2742e31eb2b39f68e31ce834f5b8eed0d7d70.go"
+sha256       = "58989833555fd7b3e0441e64cec2742e31eb2b39f68e31ce834f5b8eed0d7d70"
+tier         = "basics"
+profile      = "command"
+inputs       = [{ argv = [], stdin_hex = "", env = {} }]
+expected     = "expected/58989833555fd7b3e0441e64cec2742e31eb2b39f68e31ce834f5b8eed0d7d70.obs.json"
+expected_key = "de5579a783d7a613c3e0e51649a352c1ac876848f6a76d082bd1e923e7cfed20"
+class        = "deterministic"
+provenance   = { source = "openIE-dev/rce, written for this corpus", item = "basics/structs_methods", licence = "MIT OR Apache-2.0" }
+
+[[case]]
+file         = "files/2d/2d617e1f403fa888bbc65463a399a3739c782eb96c8cbb05228d7a16b9238195.go"
+sha256       = "2d617e1f403fa888bbc65463a399a3739c782eb96c8cbb05228d7a16b9238195"
+tier         = "basics"
+profile      = "command"
+inputs       = [{ argv = [], stdin_hex = "", env = {} }]
+expected     = "expected/2d617e1f403fa888bbc65463a399a3739c782eb96c8cbb05228d7a16b9238195.obs.json"
+expected_key = "5b89247b8d4d92f4116c5685d4e3bba32003859ded23f58285f280baf4267f12"
+class        = "deterministic"
+provenance   = { source = "openIE-dev/rce, written for this corpus", item = "basics/switch", licence = "MIT OR Apache-2.0" }
+
+[[case]]
+file         = "files/28/2896509d330c96221c8d217034dfc3ba733832e7ff943b856ae0d7fc49e9136b.go"
+sha256       = "2896509d330c96221c8d217034dfc3ba733832e7ff943b856ae0d7fc49e9136b"
+tier         = "basics"
+profile      = "command"
+inputs       = [{ argv = [], stdin_hex = "", env = {} }]
+expected     = "expected/2896509d330c96221c8d217034dfc3ba733832e7ff943b856ae0d7fc49e9136b.obs.json"
+expected_key = "ffe81ce2bb77aee9612300cb6f16c0f2e8553c5fdf137f70d84728a65ef49457"
+class        = "deterministic"
+provenance   = { source = "openIE-dev/rce, written for this corpus", item = "basics/uncaught_panic", licence = "MIT OR Apache-2.0" }
+
+[[case]]
+file         = "files/73/738494a4e55eee09ccc2391071c24d4854525c80ec8e2821c83d83d33df96cf4.go"
+sha256       = "738494a4e55eee09ccc2391071c24d4854525c80ec8e2821c83d83d33df96cf4"
+tier         = "basics"
+profile      = "command"
+inputs       = [{ argv = [], stdin_hex = "", env = {} }]
+expected     = "expected/738494a4e55eee09ccc2391071c24d4854525c80ec8e2821c83d83d33df96cf4.obs.json"
+expected_key = "310187d1a2e793fbad919c778a181b2bd1e4e335e9e712e715c053b4c8deb789"
+class        = "deterministic"
+provenance   = { source = "openIE-dev/rce, written for this corpus", item = "basics/unicode_len", licence = "MIT OR Apache-2.0" }
+
+[[case]]
+file         = "files/86/86673822c1b3034c415e0ee7690b15e92c49e685ef6cb5da5fba16926b2198f4.go"
+sha256       = "86673822c1b3034c415e0ee7690b15e92c49e685ef6cb5da5fba16926b2198f4"
+tier         = "algorithms"
+profile      = "command"
+inputs       = [{ argv = [], stdin_hex = "", env = {} }]
+expected     = "expected/86673822c1b3034c415e0ee7690b15e92c49e685ef6cb5da5fba16926b2198f4.obs.json"
+expected_key = "975780f31acfdb1a4cb85631b82c229a8e4d0aa3d3cdfd28b6070a8ade1aa732"
+class        = "deterministic"
+provenance   = { source = "openIE-dev/rce, written for this corpus", item = "algorithms/base64", licence = "MIT OR Apache-2.0" }
+
+[[case]]
+file         = "files/b9/b9d4b54a2a5921bb78e17201ec024747610624512b64d892fd7b253a0bd84a26.go"
+sha256       = "b9d4b54a2a5921bb78e17201ec024747610624512b64d892fd7b253a0bd84a26"
+tier         = "algorithms"
+profile      = "command"
+inputs       = [{ argv = [], stdin_hex = "", env = {} }]
+expected     = "expected/b9d4b54a2a5921bb78e17201ec024747610624512b64d892fd7b253a0bd84a26.obs.json"
+expected_key = "f81415ec14f6430141d7d308e2d19b292c018e35d89707fe9b5df72dab1d108b"
+class        = "deterministic"
+provenance   = { source = "openIE-dev/rce, written for this corpus", item = "algorithms/bfs_grid", licence = "MIT OR Apache-2.0" }
+
+[[case]]
+file         = "files/79/798c1c02540b96a5336f0463b49ceff12ffbed50ba92c8e6f66ebb61c254caf7.go"
+sha256       = "798c1c02540b96a5336f0463b49ceff12ffbed50ba92c8e6f66ebb61c254caf7"
+tier         = "algorithms"
+profile      = "command"
+inputs       = [{ argv = [], stdin_hex = "", env = {} }]
+expected     = "expected/798c1c02540b96a5336f0463b49ceff12ffbed50ba92c8e6f66ebb61c254caf7.obs.json"
+expected_key = "8cef6fc9c9df2195e0127f847408fe6aa45c61cb458ef0fe4c240181f1a716db"
+class        = "deterministic"
+provenance   = { source = "openIE-dev/rce, written for this corpus", item = "algorithms/binary_search", licence = "MIT OR Apache-2.0" }
+
+[[case]]
+file         = "files/da/dadc6b691868c94c9991112b90099bdc0c637e38f203403d25d8b57f7ea649fd.go"
+sha256       = "dadc6b691868c94c9991112b90099bdc0c637e38f203403d25d8b57f7ea649fd"
+tier         = "algorithms"
+profile      = "command"
+inputs       = [{ argv = [], stdin_hex = "", env = {} }]
+expected     = "expected/dadc6b691868c94c9991112b90099bdc0c637e38f203403d25d8b57f7ea649fd.obs.json"
+expected_key = "6b82fea70b1eab4434dd070bc84abb9b8fa84b07cbf618cc4245d45c293e1424"
+class        = "deterministic"
+provenance   = { source = "openIE-dev/rce, written for this corpus", item = "algorithms/brackets", licence = "MIT OR Apache-2.0" }
+
+[[case]]
+file         = "files/9a/9a8773973401cffc077e6a1836024087ad2990603e2bee679abe3988e292c6f9.go"
+sha256       = "9a8773973401cffc077e6a1836024087ad2990603e2bee679abe3988e292c6f9"
+tier         = "algorithms"
+profile      = "command"
+inputs       = [{ argv = [], stdin_hex = "", env = {} }]
+expected     = "expected/9a8773973401cffc077e6a1836024087ad2990603e2bee679abe3988e292c6f9.obs.json"
+expected_key = "ef1fccc7d5ac430cb010e522d4f1a0a5725d29b6820981cd2bb5f07e9a3ed641"
+class        = "deterministic"
+provenance   = { source = "openIE-dev/rce, written for this corpus", item = "algorithms/collatz", licence = "MIT OR Apache-2.0" }
+
+[[case]]
+file         = "files/6c/6cfdeee59f7781f8a2e574ef99ceb52ef8c4ea0addc43516d7d7dba9815271e7.go"
+sha256       = "6cfdeee59f7781f8a2e574ef99ceb52ef8c4ea0addc43516d7d7dba9815271e7"
+tier         = "algorithms"
+profile      = "command"
+inputs       = [{ argv = [], stdin_hex = "", env = {} }]
+expected     = "expected/6cfdeee59f7781f8a2e574ef99ceb52ef8c4ea0addc43516d7d7dba9815271e7.obs.json"
+expected_key = "8d660f9ce8d0fd6f7a035e018db5a03b31eb71ff5bafa232fb37b08de50e790f"
+class        = "deterministic"
+provenance   = { source = "openIE-dev/rce, written for this corpus", item = "algorithms/crc32", licence = "MIT OR Apache-2.0" }
+
+[[case]]
+file         = "files/a5/a50d175004e89962d2ffae118ccc859231ec98d208d400ba0509a8d314b0b015.go"
+sha256       = "a50d175004e89962d2ffae118ccc859231ec98d208d400ba0509a8d314b0b015"
+tier         = "algorithms"
+profile      = "command"
+inputs       = [{ argv = [], stdin_hex = "", env = {} }]
+expected     = "expected/a50d175004e89962d2ffae118ccc859231ec98d208d400ba0509a8d314b0b015.obs.json"
+expected_key = "38f90b5aa54d052eacdec2a478fc82b208c66b767bc6c82a02ff5c76fbb88dc2"
+class        = "deterministic"
+provenance   = { source = "openIE-dev/rce, written for this corpus", item = "algorithms/dijkstra", licence = "MIT OR Apache-2.0" }
+
+[[case]]
+file         = "files/62/62b21bf20c339c795f780a7f0233ac1428bdb33be5adee489970833ed7cee402.go"
+sha256       = "62b21bf20c339c795f780a7f0233ac1428bdb33be5adee489970833ed7cee402"
+tier         = "algorithms"
+profile      = "command"
+inputs       = [{ argv = [], stdin_hex = "", env = {} }]
+expected     = "expected/62b21bf20c339c795f780a7f0233ac1428bdb33be5adee489970833ed7cee402.obs.json"
+expected_key = "552449c896061760255cf9cca5e9e98fc06b85698537c96279991b718a7fde3c"
+class        = "deterministic"
+provenance   = { source = "openIE-dev/rce, written for this corpus", item = "algorithms/edit_distance", licence = "MIT OR Apache-2.0" }
+
+[[case]]
+file         = "files/ae/aeb472b93a3d08885ba55e3ec968715a50a2fe8dfed47d5e4d4b7ef0e7f789e7.go"
+sha256       = "aeb472b93a3d08885ba55e3ec968715a50a2fe8dfed47d5e4d4b7ef0e7f789e7"
+tier         = "algorithms"
+profile      = "command"
+inputs       = [{ argv = [], stdin_hex = "", env = {} }]
+expected     = "expected/aeb472b93a3d08885ba55e3ec968715a50a2fe8dfed47d5e4d4b7ef0e7f789e7.obs.json"
+expected_key = "c0e9718b5b690512c61562b1b2d09b81c12071d9de2a7985a7f4c0e5cdceaf3b"
+class        = "deterministic"
+provenance   = { source = "openIE-dev/rce, written for this corpus", item = "algorithms/fib_wrap", licence = "MIT OR Apache-2.0" }
+
+[[case]]
+file         = "files/a7/a72864b9666ec35f7cb162954f543dc8518cb284d2ddddeda97ca51980f97ae5.go"
+sha256       = "a72864b9666ec35f7cb162954f543dc8518cb284d2ddddeda97ca51980f97ae5"
+tier         = "algorithms"
+profile      = "command"
+inputs       = [{ argv = [], stdin_hex = "", env = {} }]
+expected     = "expected/a72864b9666ec35f7cb162954f543dc8518cb284d2ddddeda97ca51980f97ae5.obs.json"
+expected_key = "dd76eabb4b9123df27034ad5454f2b394e2b14a24f300d353b3d6cb3b200f96c"
+class        = "deterministic"
+provenance   = { source = "openIE-dev/rce, written for this corpus", item = "algorithms/fnv_hash", licence = "MIT OR Apache-2.0" }
+
+[[case]]
+file         = "files/29/294e6eba4a285c8c0bac133033edcf3dfaff646c9c212d87dd993f78e9aff2f0.go"
+sha256       = "294e6eba4a285c8c0bac133033edcf3dfaff646c9c212d87dd993f78e9aff2f0"
+tier         = "algorithms"
+profile      = "command"
+inputs       = [{ argv = [], stdin_hex = "", env = {} }]
+expected     = "expected/294e6eba4a285c8c0bac133033edcf3dfaff646c9c212d87dd993f78e9aff2f0.obs.json"
+expected_key = "3646a4e0d5ef7f1f9d73d49336de393410ef2f90de35db708d0db1ee83d2c07d"
+class        = "deterministic"
+provenance   = { source = "openIE-dev/rce, written for this corpus", item = "algorithms/gcd_lcm", licence = "MIT OR Apache-2.0" }
+
+[[case]]
+file         = "files/00/00c9107190abb870653afc00508871e854bba924b217a6b8d6f97d5eead2f0bf.go"
+sha256       = "00c9107190abb870653afc00508871e854bba924b217a6b8d6f97d5eead2f0bf"
+tier         = "algorithms"
+profile      = "command"
+inputs       = [{ argv = [], stdin_hex = "", env = {} }]
+expected     = "expected/00c9107190abb870653afc00508871e854bba924b217a6b8d6f97d5eead2f0bf.obs.json"
+expected_key = "06a97778da9054b61c01d91667f1601e26f231572b37b65c018368e2906c2caa"
+class        = "deterministic"
+provenance   = { source = "openIE-dev/rce, written for this corpus", item = "algorithms/hanoi", licence = "MIT OR Apache-2.0" }
+
+[[case]]
+file         = "files/c5/c51db8e114b270238f627d5dd16c2d548b7dc0414301ff7e6a71b503afe2bb32.go"
+sha256       = "c51db8e114b270238f627d5dd16c2d548b7dc0414301ff7e6a71b503afe2bb32"
+tier         = "algorithms"
+profile      = "command"
+inputs       = [{ argv = [], stdin_hex = "", env = {} }]
+expected     = "expected/c51db8e114b270238f627d5dd16c2d548b7dc0414301ff7e6a71b503afe2bb32.obs.json"
+expected_key = "79bb67222da8e707ef74f82927d27a72fde50d0410a1968a1ba6e31475e9b587"
+class        = "deterministic"
+provenance   = { source = "openIE-dev/rce, written for this corpus", item = "algorithms/heap_pq", licence = "MIT OR Apache-2.0" }
+
+[[case]]
+file         = "files/89/897e2dec39272763a9f7bf9781b87afa6c78252cd9ebabfe078c5749358f3ef7.go"
+sha256       = "897e2dec39272763a9f7bf9781b87afa6c78252cd9ebabfe078c5749358f3ef7"
+tier         = "algorithms"
+profile      = "command"
+inputs       = [{ argv = [], stdin_hex = "", env = {} }]
+expected     = "expected/897e2dec39272763a9f7bf9781b87afa6c78252cd9ebabfe078c5749358f3ef7.obs.json"
+expected_key = "416960d4d8ca2bd5b8994b15d17c9bb4fe429e68075da2e50783d001ee812d3e"
+class        = "deterministic"
+provenance   = { source = "openIE-dev/rce, written for this corpus", item = "algorithms/kmp", licence = "MIT OR Apache-2.0" }
+
+[[case]]
+file         = "files/d6/d61d8ca32a4a0a5a0e6bf3560079e3deaee33d15398716bed762de3568bc1fdf.go"
+sha256       = "d61d8ca32a4a0a5a0e6bf3560079e3deaee33d15398716bed762de3568bc1fdf"
+tier         = "algorithms"
+profile      = "command"
+inputs       = [{ argv = [], stdin_hex = "", env = {} }]
+expected     = "expected/d61d8ca32a4a0a5a0e6bf3560079e3deaee33d15398716bed762de3568bc1fdf.obs.json"
+expected_key = "197e3e8c0c4af4603479c0bbfb6c752cae582b4cf09e4159d9306790158282d7"
+class        = "deterministic"
+provenance   = { source = "openIE-dev/rce, written for this corpus", item = "algorithms/knapsack", licence = "MIT OR Apache-2.0" }
+
+[[case]]
+file         = "files/a9/a9a89b64a25ae2d4470525e798c9d56145ebca92f915669b9a4f31b9cfdaf89b.go"
+sha256       = "a9a89b64a25ae2d4470525e798c9d56145ebca92f915669b9a4f31b9cfdaf89b"
+tier         = "algorithms"
+profile      = "command"
+inputs       = [{ argv = [], stdin_hex = "", env = {} }]
+expected     = "expected/a9a89b64a25ae2d4470525e798c9d56145ebca92f915669b9a4f31b9cfdaf89b.obs.json"
+expected_key = "5706fb4e4fbad54fcbd8c993d5df6d93a3491b89fcd76e071e8085c5d8c4bbe7"
+class        = "deterministic"
+provenance   = { source = "openIE-dev/rce, written for this corpus", item = "algorithms/lcg", licence = "MIT OR Apache-2.0" }
+
+[[case]]
+file         = "files/75/75115f0e3cfe23555c6a4eca8c684d0ae506ea4fdcbfa4efe65c212a63a75fff.go"
+sha256       = "75115f0e3cfe23555c6a4eca8c684d0ae506ea4fdcbfa4efe65c212a63a75fff"
+tier         = "algorithms"
+profile      = "command"
+inputs       = [{ argv = [], stdin_hex = "", env = {} }]
+expected     = "expected/75115f0e3cfe23555c6a4eca8c684d0ae506ea4fdcbfa4efe65c212a63a75fff.obs.json"
+expected_key = "0726a0ee1769398700da5aa8f5b2014cb9eecc8b11c4948e302a9896e950a63b"
+class        = "deterministic"
+provenance   = { source = "openIE-dev/rce, written for this corpus", item = "algorithms/lcs", licence = "MIT OR Apache-2.0" }
+
+[[case]]
+file         = "files/b8/b84f03508d37beda8797e0e8ce7f982c183eaead1940497a780aa1581f918502.go"
+sha256       = "b84f03508d37beda8797e0e8ce7f982c183eaead1940497a780aa1581f918502"
+tier         = "algorithms"
+profile      = "command"
+inputs       = [{ argv = [], stdin_hex = "", env = {} }]
+expected     = "expected/b84f03508d37beda8797e0e8ce7f982c183eaead1940497a780aa1581f918502.obs.json"
+expected_key = "4a653499ae95994f81ac6aaf6ce79af59997b5596ddf3c91c1bedf339516e5fa"
+class        = "deterministic"
+provenance   = { source = "openIE-dev/rce, written for this corpus", item = "algorithms/matrix", licence = "MIT OR Apache-2.0" }
+
+[[case]]
+file         = "files/32/32ea7b5b3c52b35f616ab3cf12c427c4e1582c5010c022a16032299065f14852.go"
+sha256       = "32ea7b5b3c52b35f616ab3cf12c427c4e1582c5010c022a16032299065f14852"
+tier         = "algorithms"
+profile      = "command"
+inputs       = [{ argv = [], stdin_hex = "", env = {} }]
+expected     = "expected/32ea7b5b3c52b35f616ab3cf12c427c4e1582c5010c022a16032299065f14852.obs.json"
+expected_key = "e05e50e0b7d63ec25e1844aaa84fe1e65003d3b042715e8660826c1dd4c952e1"
+class        = "deterministic"
+provenance   = { source = "openIE-dev/rce, written for this corpus", item = "algorithms/mergesort", licence = "MIT OR Apache-2.0" }
+
+[[case]]
+file         = "files/9b/9b072b3602fcc23747449a2c0b1ac3e4325d51bd4a70a0d80a23a5336daa1708.go"
+sha256       = "9b072b3602fcc23747449a2c0b1ac3e4325d51bd4a70a0d80a23a5336daa1708"
+tier         = "algorithms"
+profile      = "command"
+inputs       = [{ argv = [], stdin_hex = "", env = {} }]
+expected     = "expected/9b072b3602fcc23747449a2c0b1ac3e4325d51bd4a70a0d80a23a5336daa1708.obs.json"
+expected_key = "92e3a12ee1f9764285720d64d050feaed59e4db4aa03313e106a78664e6634bf"
+class        = "deterministic"
+provenance   = { source = "openIE-dev/rce, written for this corpus", item = "algorithms/nqueens", licence = "MIT OR Apache-2.0" }
+
+[[case]]
+file         = "files/4d/4d794475772ebd3fc932cb0128a685310cb94bc90d6aac7f4de0f66e347340a0.go"
+sha256       = "4d794475772ebd3fc932cb0128a685310cb94bc90d6aac7f4de0f66e347340a0"
+tier         = "algorithms"
+profile      = "command"
+inputs       = [{ argv = [], stdin_hex = "", env = {} }]
+expected     = "expected/4d794475772ebd3fc932cb0128a685310cb94bc90d6aac7f4de0f66e347340a0.obs.json"
+expected_key = "18fa750acf52cfee7575b54c2a8cad173e25e8afb11fe97817b13bd1c072efe6"
+class        = "deterministic"
+provenance   = { source = "openIE-dev/rce, written for this corpus", item = "algorithms/permutations", licence = "MIT OR Apache-2.0" }
+
+[[case]]
+file         = "files/52/5256b96bf6b6bddca1e4a08b829b9458f74fd57ae6efebeee73820095a550c5e.go"
+sha256       = "5256b96bf6b6bddca1e4a08b829b9458f74fd57ae6efebeee73820095a550c5e"
+tier         = "algorithms"
+profile      = "command"
+inputs       = [{ argv = [], stdin_hex = "", env = {} }]
+expected     = "expected/5256b96bf6b6bddca1e4a08b829b9458f74fd57ae6efebeee73820095a550c5e.obs.json"
+expected_key = "a6e463b2978da8cd7f9505d8bb7ee494b48f99da9574682142c197deccc7c1ce"
+class        = "deterministic"
+provenance   = { source = "openIE-dev/rce, written for this corpus", item = "algorithms/prime_factors", licence = "MIT OR Apache-2.0" }
+
+[[case]]
+file         = "files/84/84e2be69068e1038243bd2298e7356105cbd8c91be1e192b07729559f8fe391b.go"
+sha256       = "84e2be69068e1038243bd2298e7356105cbd8c91be1e192b07729559f8fe391b"
+tier         = "algorithms"
+profile      = "command"
+inputs       = [{ argv = [], stdin_hex = "", env = {} }]
+expected     = "expected/84e2be69068e1038243bd2298e7356105cbd8c91be1e192b07729559f8fe391b.obs.json"
+expected_key = "30a230343d38aa3e2d7c4b4c67a60a5ee096439077dbbababa4e508df8cfbe00"
+class        = "deterministic"
+provenance   = { source = "openIE-dev/rce, written for this corpus", item = "algorithms/quicksort", licence = "MIT OR Apache-2.0" }
+
+[[case]]
+file         = "files/ed/eddff4e52abcbb4e7d0e0b5fead6b02fd50a1db7a8589b4ec5e442618259ffc0.go"
+sha256       = "eddff4e52abcbb4e7d0e0b5fead6b02fd50a1db7a8589b4ec5e442618259ffc0"
+tier         = "algorithms"
+profile      = "command"
+inputs       = [{ argv = [], stdin_hex = "", env = {} }]
+expected     = "expected/eddff4e52abcbb4e7d0e0b5fead6b02fd50a1db7a8589b4ec5e442618259ffc0.obs.json"
+expected_key = "4245b1a74e050b5fc3f543805150b20dfec9ca01e93a34df6c510c5f96c29884"
+class        = "deterministic"
+provenance   = { source = "openIE-dev/rce, written for this corpus", item = "algorithms/rle", licence = "MIT OR Apache-2.0" }
+
+[[case]]
+file         = "files/7b/7bb921346047d0996ad52e038bb98feff82f63732c963b4b236264c85b8cc2db.go"
+sha256       = "7bb921346047d0996ad52e038bb98feff82f63732c963b4b236264c85b8cc2db"
+tier         = "algorithms"
+profile      = "command"
+inputs       = [{ argv = [], stdin_hex = "", env = {} }]
+expected     = "expected/7bb921346047d0996ad52e038bb98feff82f63732c963b4b236264c85b8cc2db.obs.json"
+expected_key = "e9f3988a66f2091c487c460902a34eceaf438a69958f3711a669be7e060eb780"
+class        = "deterministic"
+provenance   = { source = "openIE-dev/rce, written for this corpus", item = "algorithms/roman", licence = "MIT OR Apache-2.0" }
+
+[[case]]
+file         = "files/e9/e914588179a9b0b163a0af3ea8bb54aa016f708e7a2d87c6308bf6e5ade537f8.go"
+sha256       = "e914588179a9b0b163a0af3ea8bb54aa016f708e7a2d87c6308bf6e5ade537f8"
+tier         = "algorithms"
+profile      = "command"
+inputs       = [{ argv = [], stdin_hex = "", env = {} }]
+expected     = "expected/e914588179a9b0b163a0af3ea8bb54aa016f708e7a2d87c6308bf6e5ade537f8.obs.json"
+expected_key = "861b3727982ec4a925133380d07f96fb4ffd77c50e02543982ab7d31fb6597a8"
+class        = "deterministic"
+provenance   = { source = "openIE-dev/rce, written for this corpus", item = "algorithms/sieve", licence = "MIT OR Apache-2.0" }
+
+[[case]]
+file         = "files/32/3206f4eb7e4b7f5544a6b248e93cd593e903e94fa240120ec97dfed63fbc0529.go"
+sha256       = "3206f4eb7e4b7f5544a6b248e93cd593e903e94fa240120ec97dfed63fbc0529"
+tier         = "algorithms"
+profile      = "command"
+inputs       = [{ argv = [], stdin_hex = "", env = {} }]
+expected     = "expected/3206f4eb7e4b7f5544a6b248e93cd593e903e94fa240120ec97dfed63fbc0529.obs.json"
+expected_key = "5236ab84c6894504200aefd313664269128e1b23dfc38a2931b359c92859cdf9"
+class        = "deterministic"
+provenance   = { source = "openIE-dev/rce, written for this corpus", item = "algorithms/topo_sort", licence = "MIT OR Apache-2.0" }
+
+[[case]]
+file         = "files/c7/c751a15fbaca7cc25d02b46694390b6a2f5cf2cb545e1e239c198d4e6585e519.go"
+sha256       = "c751a15fbaca7cc25d02b46694390b6a2f5cf2cb545e1e239c198d4e6585e519"
+tier         = "algorithms"
+profile      = "command"
+inputs       = [{ argv = [], stdin_hex = "", env = {} }]
+expected     = "expected/c751a15fbaca7cc25d02b46694390b6a2f5cf2cb545e1e239c198d4e6585e519.obs.json"
+expected_key = "3861010bf01e683d200a54f0add161847f0fcce74b4414bd7d86c2d431769a89"
+class        = "deterministic"
+provenance   = { source = "openIE-dev/rce, written for this corpus", item = "algorithms/word_count", licence = "MIT OR Apache-2.0" }
+
+[[case]]
+file         = "files/18/18ee8333374c618a39de3b94d883d6c7a11e50d1393a9158740aca8bdd2aac9c.go"
+sha256       = "18ee8333374c618a39de3b94d883d6c7a11e50d1393a9158740aca8bdd2aac9c"
+tier         = "boundaries"
+profile      = "command"
+inputs       = [{ argv = [], stdin_hex = "", env = {} }]
+expected     = "expected/18ee8333374c618a39de3b94d883d6c7a11e50d1393a9158740aca8bdd2aac9c.obs.json"
+expected_key = "03cc0dbe9eda84b51c7faef8a005e0b0643575cc4c667dd9c907f2ceb534dc20"
+class        = "deterministic"
+provenance   = { source = "openIE-dev/rce, written for this corpus", item = "boundaries/const_exact", licence = "MIT OR Apache-2.0" }
+
+[[case]]
+file         = "files/cb/cb8a1815575844b33388d77f7a33170cef0bd2689620b04a35e6fd7096e5efe5.go"
+sha256       = "cb8a1815575844b33388d77f7a33170cef0bd2689620b04a35e6fd7096e5efe5"
+tier         = "boundaries"
+profile      = "command"
+inputs       = [{ argv = [], stdin_hex = "", env = {} }]
+expected     = "expected/cb8a1815575844b33388d77f7a33170cef0bd2689620b04a35e6fd7096e5efe5.obs.json"
+expected_key = "b0ea828100ac0cb47f66d5b62d2eed0e0e304d05581e1ba30ae0a188f19407dd"
+class        = "deterministic"
+provenance   = { source = "openIE-dev/rce, written for this corpus", item = "boundaries/deadlock", licence = "MIT OR Apache-2.0" }
+
+[[case]]
+file         = "files/f8/f869a0161347b70dde07ea06e661452b4a125fc560458c27de0ffbf66b8ef34e.go"
+sha256       = "f869a0161347b70dde07ea06e661452b4a125fc560458c27de0ffbf66b8ef34e"
+tier         = "boundaries"
+profile      = "command"
+inputs       = [{ argv = [], stdin_hex = "", env = {} }]
+expected     = "expected/f869a0161347b70dde07ea06e661452b4a125fc560458c27de0ffbf66b8ef34e.obs.json"
+expected_key = "f7d6135b4afd9edd6c8bf73047fb63c3798c47c553bb91328df26218300d56d5"
+class        = "deterministic"
+provenance   = { source = "openIE-dev/rce, written for this corpus", item = "boundaries/deep_recursion", licence = "MIT OR Apache-2.0" }
+
+[[case]]
+file         = "files/4f/4faf41b833a20aecf96d1dcb75eef661bc3f7f8f6180af6264ea6caf42e06171.go"
+sha256       = "4faf41b833a20aecf96d1dcb75eef661bc3f7f8f6180af6264ea6caf42e06171"
+tier         = "boundaries"
+profile      = "command"
+inputs       = [{ argv = [], stdin_hex = "", env = {} }]
+expected     = "expected/4faf41b833a20aecf96d1dcb75eef661bc3f7f8f6180af6264ea6caf42e06171.obs.json"
+expected_key = "b71fa3b00a58727a75573fe6cc2f1f01ad00661c7802f1eec44d49ee077a072c"
+class        = "deterministic"
+provenance   = { source = "openIE-dev/rce, written for this corpus", item = "boundaries/defer_recover", licence = "MIT OR Apache-2.0" }
+
+[[case]]
+file         = "files/50/50262e3a0866841fad6861b72c67a9f75b92abaead0af944f54ea44b2eff600b.go"
+sha256       = "50262e3a0866841fad6861b72c67a9f75b92abaead0af944f54ea44b2eff600b"
+tier         = "boundaries"
+profile      = "command"
+inputs       = [{ argv = [], stdin_hex = "", env = {} }]
+expected     = "expected/50262e3a0866841fad6861b72c67a9f75b92abaead0af944f54ea44b2eff600b.obs.json"
+expected_key = "3b6e282f382909b4a7f3bc1cd8d6014175c2e879162aa49b21dd4c6479226e57"
+class        = "deterministic"
+provenance   = { source = "openIE-dev/rce, written for this corpus", item = "boundaries/div_zero_float", licence = "MIT OR Apache-2.0" }
+
+[[case]]
+file         = "files/6d/6d57c49d57d01a8323e8b630f520572c95ceb682b0f214d79e2e8d5d34e71ded.go"
+sha256       = "6d57c49d57d01a8323e8b630f520572c95ceb682b0f214d79e2e8d5d34e71ded"
+tier         = "boundaries"
+profile      = "command"
+inputs       = [{ argv = [], stdin_hex = "", env = {} }]
+expected     = "expected/6d57c49d57d01a8323e8b630f520572c95ceb682b0f214d79e2e8d5d34e71ded.obs.json"
+expected_key = "dc8a425f63bb42d19394c38720fe5b751c44372a4be49da53509fc9221117321"
+class        = "deterministic"
+provenance   = { source = "openIE-dev/rce, written for this corpus", item = "boundaries/div_zero_int", licence = "MIT OR Apache-2.0" }
+
+[[case]]
+file         = "files/05/05de8108d472869ff96f25b38908bdd2f443bb12ae5995bdcf5afab5f792bb6a.go"
+sha256       = "05de8108d472869ff96f25b38908bdd2f443bb12ae5995bdcf5afab5f792bb6a"
+tier         = "boundaries"
+profile      = "command"
+inputs       = [{ argv = [], stdin_hex = "", env = {} }]
+expected     = "expected/05de8108d472869ff96f25b38908bdd2f443bb12ae5995bdcf5afab5f792bb6a.obs.json"
+expected_key = "f727243a61f921e10778babd4b87d4e40d37b57505dd24d15b456b3420cfbe7e"
+class        = "deterministic"
+provenance   = { source = "openIE-dev/rce, written for this corpus", item = "boundaries/float32_math", licence = "MIT OR Apache-2.0" }
+
+[[case]]
+file         = "files/01/01fe1d51a6036e0d7cb38e79be8b4eec8030af386169c816397e15d4134f1f2a.go"
+sha256       = "01fe1d51a6036e0d7cb38e79be8b4eec8030af386169c816397e15d4134f1f2a"
+tier         = "boundaries"
+profile      = "command"
+inputs       = [{ argv = [], stdin_hex = "", env = {} }]
+expected     = "expected/01fe1d51a6036e0d7cb38e79be8b4eec8030af386169c816397e15d4134f1f2a.obs.json"
+expected_key = "93567f8d442dedde3d4daf2e58d75921d497fdccaf2707ec78a6f3fc5ef343cf"
+class        = "deterministic"
+provenance   = { source = "openIE-dev/rce, written for this corpus", item = "boundaries/float_conversion", licence = "MIT OR Apache-2.0" }
+
+[[case]]
+file         = "files/ed/edbf6a4f62c6293c526f9beb3a82820762862b802287417f3335338944bc7589.go"
+sha256       = "edbf6a4f62c6293c526f9beb3a82820762862b802287417f3335338944bc7589"
+tier         = "boundaries"
+profile      = "command"
+inputs       = [{ argv = [], stdin_hex = "", env = {} }]
+expected     = "expected/edbf6a4f62c6293c526f9beb3a82820762862b802287417f3335338944bc7589.obs.json"
+expected_key = "c100634f6e6c09b9ca47c93c3d7350607242260f2084b14bdb7afcc4d4c9de8a"
+class        = "deterministic"
+provenance   = { source = "openIE-dev/rce, written for this corpus", item = "boundaries/float_special_print", licence = "MIT OR Apache-2.0" }
+
+[[case]]
+file         = "files/12/12334f022a03ef3ea9b47b1c9f040c806f45d113df46ed46b742d78d394d7320.go"
+sha256       = "12334f022a03ef3ea9b47b1c9f040c806f45d113df46ed46b742d78d394d7320"
+tier         = "boundaries"
+profile      = "command"
+inputs       = [{ argv = [], stdin_hex = "", env = {} }]
+expected     = "expected/12334f022a03ef3ea9b47b1c9f040c806f45d113df46ed46b742d78d394d7320.obs.json"
+expected_key = "1dcfc8b9143f33659f3dd878668ce64f050c8bc3b32d1d5900e45ab74b503755"
+class        = "deterministic"
+provenance   = { source = "openIE-dev/rce, written for this corpus", item = "boundaries/goroutines", licence = "MIT OR Apache-2.0" }
+
+[[case]]
+file         = "files/62/62c021c823ec7ed51c904a0f2445492f0ede4b81362817677f1efbc0ecc17853.go"
+sha256       = "62c021c823ec7ed51c904a0f2445492f0ede4b81362817677f1efbc0ecc17853"
+tier         = "boundaries"
+profile      = "command"
+inputs       = [{ argv = [], stdin_hex = "", env = {} }]
+expected     = "expected/62c021c823ec7ed51c904a0f2445492f0ede4b81362817677f1efbc0ecc17853.obs.json"
+expected_key = "db57ff007d38bc455824506afa5dc78e1fd4980cb232c2ee7e607382dae20bb7"
+class        = "deterministic"
+provenance   = { source = "openIE-dev/rce, written for this corpus", item = "boundaries/index_out_of_range", licence = "MIT OR Apache-2.0" }
+
+[[case]]
+file         = "files/6d/6d743163a943c495c3a7268e54ad5252ec0ae6369254b154c58ef42f9b541a2c.go"
+sha256       = "6d743163a943c495c3a7268e54ad5252ec0ae6369254b154c58ef42f9b541a2c"
+tier         = "boundaries"
+profile      = "command"
+inputs       = [{ argv = [], stdin_hex = "", env = {} }]
+expected     = "expected/6d743163a943c495c3a7268e54ad5252ec0ae6369254b154c58ef42f9b541a2c.obs.json"
+expected_key = "040cade12c4487d4ff0f354b67a2fb398fda925f0f6f82476004a9606d2008f3"
+class        = "deterministic"
+provenance   = { source = "openIE-dev/rce, written for this corpus", item = "boundaries/int_overflow", licence = "MIT OR Apache-2.0" }
+
+[[case]]
+file         = "files/a8/a8b4e6532b3c0db63cb4bfe46160cabe1664ea28f716c8857b3950e88af0490a.go"
+sha256       = "a8b4e6532b3c0db63cb4bfe46160cabe1664ea28f716c8857b3950e88af0490a"
+tier         = "boundaries"
+profile      = "command"
+inputs       = [{ argv = [], stdin_hex = "", env = {} }]
+expected     = "expected/a8b4e6532b3c0db63cb4bfe46160cabe1664ea28f716c8857b3950e88af0490a.obs.json"
+expected_key = "23a6768a7def5a79875b8bbd0aa045348f4adae1b76cecb7524732a4d1aaba41"
+class        = "deterministic"
+provenance   = { source = "openIE-dev/rce, written for this corpus", item = "boundaries/integer_conversion", licence = "MIT OR Apache-2.0" }
+
+[[case]]
+file         = "files/87/873f58fe40d2c43736352949458ce2af17de1a21daeb2e73af189a998fe43f83.go"
+sha256       = "873f58fe40d2c43736352949458ce2af17de1a21daeb2e73af189a998fe43f83"
+tier         = "boundaries"
+profile      = "command"
+inputs       = [{ argv = [], stdin_hex = "", env = {} }]
+expected     = "expected/873f58fe40d2c43736352949458ce2af17de1a21daeb2e73af189a998fe43f83.obs.json"
+expected_key = "2dcca2b1646deaa2daaf697fa464746006f29616441a66439833add773421a33"
+class        = "deterministic"
+provenance   = { source = "openIE-dev/rce, written for this corpus", item = "boundaries/method_values", licence = "MIT OR Apache-2.0" }
+
+[[case]]
+file         = "files/cd/cd68694e88f6df63e7ff7b53af969f1aeb8402679e23bd84696349bb3a658a2a.go"
+sha256       = "cd68694e88f6df63e7ff7b53af969f1aeb8402679e23bd84696349bb3a658a2a"
+tier         = "boundaries"
+profile      = "command"
+inputs       = [{ argv = [], stdin_hex = "", env = {} }]
+expected     = "expected/cd68694e88f6df63e7ff7b53af969f1aeb8402679e23bd84696349bb3a658a2a.obs.json"
+expected_key = "7abcdcaf7d8f325968abb50042f0ec2448598f0228eb56ddeb86a56bb9bf56e0"
+class        = "deterministic"
+provenance   = { source = "openIE-dev/rce, written for this corpus", item = "boundaries/min_div_neg1", licence = "MIT OR Apache-2.0" }
+
+[[case]]
+file         = "files/40/40cd77c3e6380a6893c037fb7237b5956293231264c93350e9772c65682b1de5.go"
+sha256       = "40cd77c3e6380a6893c037fb7237b5956293231264c93350e9772c65682b1de5"
+tier         = "boundaries"
+profile      = "command"
+inputs       = [{ argv = [], stdin_hex = "", env = {} }]
+expected     = "expected/40cd77c3e6380a6893c037fb7237b5956293231264c93350e9772c65682b1de5.obs.json"
+expected_key = "dd13e7ecb6b4877a061f173b025afaa3d6a1d1e6c56146106240e7d4f92947a7"
+class        = "deterministic"
+provenance   = { source = "openIE-dev/rce, written for this corpus", item = "boundaries/nil_map_write", licence = "MIT OR Apache-2.0" }
+
+[[case]]
+file         = "files/80/80051c77a9d8e1d66fa61c11a3c15ab1685eee42ba3120f4420e5518695c64ff.go"
+sha256       = "80051c77a9d8e1d66fa61c11a3c15ab1685eee42ba3120f4420e5518695c64ff"
+tier         = "boundaries"
+profile      = "command"
+inputs       = [{ argv = [], stdin_hex = "", env = {} }]
+expected     = "expected/80051c77a9d8e1d66fa61c11a3c15ab1685eee42ba3120f4420e5518695c64ff.obs.json"
+expected_key = "ebb373d8016d7b45d5fa69a8264c6a643b030ff62aa08a71a2321fc9a99a1d8c"
+class        = "deterministic"
+provenance   = { source = "openIE-dev/rce, written for this corpus", item = "boundaries/nil_values", licence = "MIT OR Apache-2.0" }
+
+[[case]]
+file         = "files/18/188f338144dea38356e85ac8c3e5c5f15d15d22169236ee34dfad3d2eec5b7bb.go"
+sha256       = "188f338144dea38356e85ac8c3e5c5f15d15d22169236ee34dfad3d2eec5b7bb"
+tier         = "boundaries"
+profile      = "command"
+inputs       = [{ argv = [], stdin_hex = "", env = {} }]
+expected     = "expected/188f338144dea38356e85ac8c3e5c5f15d15d22169236ee34dfad3d2eec5b7bb.obs.json"
+expected_key = "635ec32935c50d3fd51a74aedf39273d90f7bc846cd2b606b5dd00d359c2b284"
+class        = "deterministic"
+provenance   = { source = "openIE-dev/rce, written for this corpus", item = "boundaries/shift_negative", licence = "MIT OR Apache-2.0" }
+
+[[case]]
+file         = "files/62/62cc5376f7841bcea9e05b122b7996efbd3e9da2f6815d9f5261a6460ed0055e.go"
+sha256       = "62cc5376f7841bcea9e05b122b7996efbd3e9da2f6815d9f5261a6460ed0055e"
+tier         = "boundaries"
+profile      = "command"
+inputs       = [{ argv = [], stdin_hex = "", env = {} }]
+expected     = "expected/62cc5376f7841bcea9e05b122b7996efbd3e9da2f6815d9f5261a6460ed0055e.obs.json"
+expected_key = "06483622b16a6c674826f161042cf9e9f7510c6a6b77f6f4985d29a14a9f5aa3"
+class        = "deterministic"
+provenance   = { source = "openIE-dev/rce, written for this corpus", item = "boundaries/shifts", licence = "MIT OR Apache-2.0" }
+
+[[case]]
+file         = "files/d7/d7057dab05200b8850cc645dd8ed7fda6fec3bbb1dcda23e6946ba56ea3e27a0.go"
+sha256       = "d7057dab05200b8850cc645dd8ed7fda6fec3bbb1dcda23e6946ba56ea3e27a0"
+tier         = "boundaries"
+profile      = "command"
+inputs       = [{ argv = [], stdin_hex = "", env = {} }]
+expected     = "expected/d7057dab05200b8850cc645dd8ed7fda6fec3bbb1dcda23e6946ba56ea3e27a0.obs.json"
+expected_key = "1c92ff439e18f066445ae2a469a8946b2f4210d8f6217344c48fdc1565a548b9"
+class        = "deterministic"
+provenance   = { source = "openIE-dev/rce, written for this corpus", item = "boundaries/slice_aliasing", licence = "MIT OR Apache-2.0" }
+
+[[case]]
+file         = "files/83/8381cc51c60fad2eb30b498f2f2f73b0ec8af21f14227e5ef6a71ff2acc80c51.go"
+sha256       = "8381cc51c60fad2eb30b498f2f2f73b0ec8af21f14227e5ef6a71ff2acc80c51"
+tier         = "boundaries"
+profile      = "command"
+inputs       = [{ argv = [], stdin_hex = "", env = {} }]
+expected     = "expected/8381cc51c60fad2eb30b498f2f2f73b0ec8af21f14227e5ef6a71ff2acc80c51.obs.json"
+expected_key = "2e49f03898936c990316dc857d0f92db970bec11107f94c46a64332c7c492663"
+class        = "deterministic"
+provenance   = { source = "openIE-dev/rce, written for this corpus", item = "boundaries/sort_ties", licence = "MIT OR Apache-2.0" }
+
+[[case]]
+file         = "files/b9/b9b56d15d23c5dfb25dda34fc2163f21efeff6b19835102240fb438564305a0f.go"
+sha256       = "b9b56d15d23c5dfb25dda34fc2163f21efeff6b19835102240fb438564305a0f"
+tier         = "boundaries"
+profile      = "command"
+inputs       = [{ argv = [], stdin_hex = "", env = {} }]
+expected     = "expected/b9b56d15d23c5dfb25dda34fc2163f21efeff6b19835102240fb438564305a0f.obs.json"
+expected_key = "d40880a9907dc17c33f0be9e4422c2bfe1394acfad0fc3d19e2c39bf58088a6e"
+class        = "resource"
+provenance   = { source = "openIE-dev/rce, written for this corpus", item = "boundaries/stack_overflow", licence = "MIT OR Apache-2.0" }
+
+[[case]]
+file         = "files/15/1520008ca58d101f24e08d27b7bd3d694e4aac381858d3683b128f83e9f1f84d.go"
+sha256       = "1520008ca58d101f24e08d27b7bd3d694e4aac381858d3683b128f83e9f1f84d"
+tier         = "boundaries"
+profile      = "command"
+inputs       = [{ argv = [], stdin_hex = "", env = {} }]
+expected     = "expected/1520008ca58d101f24e08d27b7bd3d694e4aac381858d3683b128f83e9f1f84d.obs.json"
+expected_key = "5dd7b982fc8e3534b3e221b484c84f9e15c77d22ca8f1edadacf534663930d81"
+class        = "deterministic"
+provenance   = { source = "openIE-dev/rce, written for this corpus", item = "boundaries/strconv_edges", licence = "MIT OR Apache-2.0" }
+
+[[case]]
+file         = "files/ae/aeec4ad3ffe4918dc456c83e6a515c0415fb5063a8e9a71f0d51f1092708adaf.go"
+sha256       = "aeec4ad3ffe4918dc456c83e6a515c0415fb5063a8e9a71f0d51f1092708adaf"
+tier         = "boundaries"
+profile      = "command"
+inputs       = [{ argv = [], stdin_hex = "", env = {} }]
+expected     = "expected/aeec4ad3ffe4918dc456c83e6a515c0415fb5063a8e9a71f0d51f1092708adaf.obs.json"
+expected_key = "fe8e22c1e82a77a1fe432d6e7a32d4f5ff2945b1e8ddb7162f5f57b8f4a2851d"
+class        = "deterministic"
+provenance   = { source = "openIE-dev/rce, written for this corpus", item = "boundaries/string_builder_big", licence = "MIT OR Apache-2.0" }
+
+[[case]]
+file         = "files/db/db480beb33030193f2388bed8c569b7fa44df6dcb79227433f8313455cdd4fc2.go"
+sha256       = "db480beb33030193f2388bed8c569b7fa44df6dcb79227433f8313455cdd4fc2"
+tier         = "boundaries"
+profile      = "command"
+inputs       = [{ argv = [], stdin_hex = "", env = {} }]
+expected     = "expected/db480beb33030193f2388bed8c569b7fa44df6dcb79227433f8313455cdd4fc2.obs.json"
+expected_key = "61fdde92007e1c84f563df4de53199662a9f901c1f031c996a348b4e6bd8035f"
+class        = "deterministic"
+provenance   = { source = "openIE-dev/rce, written for this corpus", item = "boundaries/string_bytes_runes", licence = "MIT OR Apache-2.0" }
+
+[[case]]
+file         = "files/42/4253b1851114484db3a47ef6617034c9450a17d6ac4aaba3bae4b702849f0840.go"
+sha256       = "4253b1851114484db3a47ef6617034c9450a17d6ac4aaba3bae4b702849f0840"
+tier         = "boundaries"
+profile      = "command"
+inputs       = [{ argv = [], stdin_hex = "", env = {} }]
+expected     = "expected/4253b1851114484db3a47ef6617034c9450a17d6ac4aaba3bae4b702849f0840.obs.json"
+expected_key = "cf97bfa6803b7fe0e8d60df24b75efb089ff7558848bd3487efa153245b64ce7"
+class        = "deterministic"
+provenance   = { source = "openIE-dev/rce, written for this corpus", item = "boundaries/string_compare", licence = "MIT OR Apache-2.0" }
+
+[[case]]
+file         = "files/eb/eb70b3c7467fd0b49d064b456d0006d2f100abeb29aaf099742ac27c310c5b07.go"
+sha256       = "eb70b3c7467fd0b49d064b456d0006d2f100abeb29aaf099742ac27c310c5b07"
+tier         = "boundaries"
+profile      = "command"
+inputs       = [{ argv = [], stdin_hex = "", env = {} }]
+expected     = "expected/eb70b3c7467fd0b49d064b456d0006d2f100abeb29aaf099742ac27c310c5b07.obs.json"
+expected_key = "1a804065016e9874d34826542c72a0a7155836bc9700d80827d26153bf5c7f22"
+class        = "deterministic"
+provenance   = { source = "openIE-dev/rce, written for this corpus", item = "boundaries/struct_print", licence = "MIT OR Apache-2.0" }
+
+[[case]]
+file         = "files/7a/7a1453eff19cb276fb2a3df9ecf70e9a90653f43c2a9d62734e8e3550f5c45dc.go"
+sha256       = "7a1453eff19cb276fb2a3df9ecf70e9a90653f43c2a9d62734e8e3550f5c45dc"
+tier         = "boundaries"
+profile      = "command"
+inputs       = [{ argv = [], stdin_hex = "", env = {} }]
+expected     = "expected/7a1453eff19cb276fb2a3df9ecf70e9a90653f43c2a9d62734e8e3550f5c45dc.obs.json"
+expected_key = "1bc81a01693c7aaf401b0b679be8c775a043045960f1d7012318f6221bb5493a"
+class        = "deterministic"
+provenance   = { source = "openIE-dev/rce, written for this corpus", item = "boundaries/unicode_case", licence = "MIT OR Apache-2.0" }
+
+[[case]]
+file         = "files/1b/1b5818456e50cf860278da567df55f1de38513a9c8a23eff8bf232b534da7620.go"
+sha256       = "1b5818456e50cf860278da567df55f1de38513a9c8a23eff8bf232b534da7620"
+tier         = "generated"
+profile      = "command"
+inputs       = [{ argv = [], stdin_hex = "", env = {} }]
+expected     = "expected/1b5818456e50cf860278da567df55f1de38513a9c8a23eff8bf232b534da7620.obs.json"
+expected_key = "605dd24621e27dcbd4aae5f9f323892c151d561f944ef2ddf12ee773f9de4b90"
+class        = "deterministic"
+provenance   = { source = "openIE-dev/rce, lang/generate.py", generator = "sha256:c9b5eef4ee03e119caa93334a102e3cdd99df798dad4213408d463499c7a32a7", item = "generated/float_ops", licence = "MIT OR Apache-2.0" }
+
+[[case]]
+file         = "files/77/77d1925c7473c3b2cc2113353d2b9ebfa29177ea14abbb0d7d194527ab55d365.go"
+sha256       = "77d1925c7473c3b2cc2113353d2b9ebfa29177ea14abbb0d7d194527ab55d365"
+tier         = "generated"
+profile      = "command"
+inputs       = [{ argv = [], stdin_hex = "", env = {} }]
+expected     = "expected/77d1925c7473c3b2cc2113353d2b9ebfa29177ea14abbb0d7d194527ab55d365.obs.json"
+expected_key = "7cac16971d47d8744e056f9fe8b2299ec60bc1f537677e30ef225917d4a1dfdc"
+class        = "deterministic"
+provenance   = { source = "openIE-dev/rce, lang/generate.py", generator = "sha256:c9b5eef4ee03e119caa93334a102e3cdd99df798dad4213408d463499c7a32a7", item = "generated/float_print_bits", licence = "MIT OR Apache-2.0" }
+
+[[case]]
+file         = "files/08/08a56b803eaa71460dffdff8b0a7e503a8555253a095bd9440ae466efdcaa814.go"
+sha256       = "08a56b803eaa71460dffdff8b0a7e503a8555253a095bd9440ae466efdcaa814"
+tier         = "generated"
+profile      = "command"
+inputs       = [{ argv = [], stdin_hex = "", env = {} }]
+expected     = "expected/08a56b803eaa71460dffdff8b0a7e503a8555253a095bd9440ae466efdcaa814.obs.json"
+expected_key = "97305a47dfb4c67a281add8b7b80421295b2fba1fef37a22689453155ab4aa42"
+class        = "deterministic"
+provenance   = { source = "openIE-dev/rce, lang/generate.py", generator = "sha256:c9b5eef4ee03e119caa93334a102e3cdd99df798dad4213408d463499c7a32a7", item = "generated/float_print_decimals", licence = "MIT OR Apache-2.0" }
+
+[[case]]
+file         = "files/85/8539bd87f7499fa65c74ef1e5b202da093d7f88751221811366b819fb2c4eab1.go"
+sha256       = "8539bd87f7499fa65c74ef1e5b202da093d7f88751221811366b819fb2c4eab1"
+tier         = "generated"
+profile      = "command"
+inputs       = [{ argv = [], stdin_hex = "", env = {} }]
+expected     = "expected/8539bd87f7499fa65c74ef1e5b202da093d7f88751221811366b819fb2c4eab1.obs.json"
+expected_key = "ddf238f56b477945b07bbc616c5f18b38f322e5406ba70058ea31cf8b35f96e4"
+class        = "deterministic"
+provenance   = { source = "openIE-dev/rce, lang/generate.py", generator = "sha256:c9b5eef4ee03e119caa93334a102e3cdd99df798dad4213408d463499c7a32a7", item = "generated/float_print_edges", licence = "MIT OR Apache-2.0" }
+
+[[case]]
+file         = "files/d4/d4e4ebab896d07e6f9583191181763e0cafae6f61cc6f87966562617fb782843.go"
+sha256       = "d4e4ebab896d07e6f9583191181763e0cafae6f61cc6f87966562617fb782843"
+tier         = "generated"
+profile      = "command"
+inputs       = [{ argv = [], stdin_hex = "", env = {} }]
+expected     = "expected/d4e4ebab896d07e6f9583191181763e0cafae6f61cc6f87966562617fb782843.obs.json"
+expected_key = "5af57403925d69081752727b3c88f362eabe6d3c436a7afacd6cc88ec1793cbf"
+class        = "deterministic"
+provenance   = { source = "openIE-dev/rce, lang/generate.py", generator = "sha256:c9b5eef4ee03e119caa93334a102e3cdd99df798dad4213408d463499c7a32a7", item = "generated/int_ops_int16", licence = "MIT OR Apache-2.0" }
+
+[[case]]
+file         = "files/1f/1fdc1f8ee7c10952de62d2a20c5f7f8a482ad31e8efd21c5cb15b54c2d463b83.go"
+sha256       = "1fdc1f8ee7c10952de62d2a20c5f7f8a482ad31e8efd21c5cb15b54c2d463b83"
+tier         = "generated"
+profile      = "command"
+inputs       = [{ argv = [], stdin_hex = "", env = {} }]
+expected     = "expected/1fdc1f8ee7c10952de62d2a20c5f7f8a482ad31e8efd21c5cb15b54c2d463b83.obs.json"
+expected_key = "694b57cddad8bd370b1f3576996161291c2d6a290d5ab0ee44b3045b3a791ef4"
+class        = "deterministic"
+provenance   = { source = "openIE-dev/rce, lang/generate.py", generator = "sha256:c9b5eef4ee03e119caa93334a102e3cdd99df798dad4213408d463499c7a32a7", item = "generated/int_ops_int32", licence = "MIT OR Apache-2.0" }
+
+[[case]]
+file         = "files/85/85e209f3faca1e1ea45217a9a0e17f33710841601f33c60d95d5a08133d4e606.go"
+sha256       = "85e209f3faca1e1ea45217a9a0e17f33710841601f33c60d95d5a08133d4e606"
+tier         = "generated"
+profile      = "command"
+inputs       = [{ argv = [], stdin_hex = "", env = {} }]
+expected     = "expected/85e209f3faca1e1ea45217a9a0e17f33710841601f33c60d95d5a08133d4e606.obs.json"
+expected_key = "d14ea8a36e1333709aac14b37f21d1109280a20302b20ac3ccb53d81bd187943"
+class        = "deterministic"
+provenance   = { source = "openIE-dev/rce, lang/generate.py", generator = "sha256:c9b5eef4ee03e119caa93334a102e3cdd99df798dad4213408d463499c7a32a7", item = "generated/int_ops_int64", licence = "MIT OR Apache-2.0" }
+
+[[case]]
+file         = "files/2a/2a1ca04cc8acec933ef497e84a204b31970bb035433c2f013ad5db745e7b44d2.go"
+sha256       = "2a1ca04cc8acec933ef497e84a204b31970bb035433c2f013ad5db745e7b44d2"
+tier         = "generated"
+profile      = "command"
+inputs       = [{ argv = [], stdin_hex = "", env = {} }]
+expected     = "expected/2a1ca04cc8acec933ef497e84a204b31970bb035433c2f013ad5db745e7b44d2.obs.json"
+expected_key = "96376376e8e23c1604dd41b79e5cfb358ab3f8e8eb8bb00f746517f903119347"
+class        = "deterministic"
+provenance   = { source = "openIE-dev/rce, lang/generate.py", generator = "sha256:c9b5eef4ee03e119caa93334a102e3cdd99df798dad4213408d463499c7a32a7", item = "generated/int_ops_int8", licence = "MIT OR Apache-2.0" }
+
+[[case]]
+file         = "files/07/0762bbcbd442776aa945085755a5ff5473a3eaf8dcf94fab32872544b89de1c5.go"
+sha256       = "0762bbcbd442776aa945085755a5ff5473a3eaf8dcf94fab32872544b89de1c5"
+tier         = "generated"
+profile      = "command"
+inputs       = [{ argv = [], stdin_hex = "", env = {} }]
+expected     = "expected/0762bbcbd442776aa945085755a5ff5473a3eaf8dcf94fab32872544b89de1c5.obs.json"
+expected_key = "686d6d4d21aed2be5897b9b0d47ab65b1241df6241ac470df04951895239a859"
+class        = "deterministic"
+provenance   = { source = "openIE-dev/rce, lang/generate.py", generator = "sha256:c9b5eef4ee03e119caa93334a102e3cdd99df798dad4213408d463499c7a32a7", item = "generated/int_ops_uint16", licence = "MIT OR Apache-2.0" }
+
+[[case]]
+file         = "files/c0/c0e5e96b7837abc4aead7357ff11185b164cac7fe8b8ad9aa8fd9773554abfc0.go"
+sha256       = "c0e5e96b7837abc4aead7357ff11185b164cac7fe8b8ad9aa8fd9773554abfc0"
+tier         = "generated"
+profile      = "command"
+inputs       = [{ argv = [], stdin_hex = "", env = {} }]
+expected     = "expected/c0e5e96b7837abc4aead7357ff11185b164cac7fe8b8ad9aa8fd9773554abfc0.obs.json"
+expected_key = "daf68cc2d923984f9c92cd12c5ac44c07716fa3636eb48a91dbc6e6bb966f1ea"
+class        = "deterministic"
+provenance   = { source = "openIE-dev/rce, lang/generate.py", generator = "sha256:c9b5eef4ee03e119caa93334a102e3cdd99df798dad4213408d463499c7a32a7", item = "generated/int_ops_uint32", licence = "MIT OR Apache-2.0" }
+
+[[case]]
+file         = "files/54/549c4bf9f70df75461dee4ba7adc6327d8729294c55d2b0650a21d1861af8081.go"
+sha256       = "549c4bf9f70df75461dee4ba7adc6327d8729294c55d2b0650a21d1861af8081"
+tier         = "generated"
+profile      = "command"
+inputs       = [{ argv = [], stdin_hex = "", env = {} }]
+expected     = "expected/549c4bf9f70df75461dee4ba7adc6327d8729294c55d2b0650a21d1861af8081.obs.json"
+expected_key = "46d7884e5e72836d773442c16313a402407ba481afbf6fdd214448a1e14d8ef8"
+class        = "deterministic"
+provenance   = { source = "openIE-dev/rce, lang/generate.py", generator = "sha256:c9b5eef4ee03e119caa93334a102e3cdd99df798dad4213408d463499c7a32a7", item = "generated/int_ops_uint64", licence = "MIT OR Apache-2.0" }
+
+[[case]]
+file         = "files/28/28b6844077e510d8fb0a6ec7da71b6cd5f9d75d15d2a504c470d56758877633d.go"
+sha256       = "28b6844077e510d8fb0a6ec7da71b6cd5f9d75d15d2a504c470d56758877633d"
+tier         = "generated"
+profile      = "command"
+inputs       = [{ argv = [], stdin_hex = "", env = {} }]
+expected     = "expected/28b6844077e510d8fb0a6ec7da71b6cd5f9d75d15d2a504c470d56758877633d.obs.json"
+expected_key = "2beac2f83329c18515ee42549c5854dfcedb90deb9f72155f1e1b7a231586dbe"
+class        = "deterministic"
+provenance   = { source = "openIE-dev/rce, lang/generate.py", generator = "sha256:c9b5eef4ee03e119caa93334a102e3cdd99df798dad4213408d463499c7a32a7", item = "generated/int_ops_uint8", licence = "MIT OR Apache-2.0" }
+
+[[case]]
+file         = "files/b0/b050ce1d3e1716135002a2031302afb170f97f10e3784d24cbecb91459df5d7e.go"
+sha256       = "b050ce1d3e1716135002a2031302afb170f97f10e3784d24cbecb91459df5d7e"
+tier         = "generated"
+profile      = "command"
+inputs       = [{ argv = [], stdin_hex = "", env = {} }]
+expected     = "expected/b050ce1d3e1716135002a2031302afb170f97f10e3784d24cbecb91459df5d7e.obs.json"
+expected_key = "f279f1b0124a878ab09d8171cce814c812063f7d3c732819bdfe83ac2214b775"
+class        = "deterministic"
+provenance   = { source = "openIE-dev/rce, lang/generate.py", generator = "sha256:c9b5eef4ee03e119caa93334a102e3cdd99df798dad4213408d463499c7a32a7", item = "generated/string_quote", licence = "MIT OR Apache-2.0" }
