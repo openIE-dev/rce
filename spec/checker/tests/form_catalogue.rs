@@ -2,10 +2,11 @@
 //! `spec/data/form-catalogue.json`, format `rce-catalogue/1`. Until a chapter
 //! of the book defines `rce-form/1` the file is written by hand, and this test
 //! holds it to the proposal: the bytes are canonical JSON (6.1.1); the ids are
-//! unique, in ascending order, and exactly the list of §4; every partial entry
-//! names the domain fact that §7 gives it and tests from the file's closed
-//! list; every field draws on the closed vocabulary the file's `terms` define;
-//! and every clause names a section of the book. The entries' vectors come
+//! unique, in ascending order, and exactly the list of §4; the partial
+//! entries are exactly the partial primitives of W4, and each names the
+//! domain fact that §7 gives it and tests from the file's closed list; every
+//! field draws on the closed vocabulary the file's `terms` define, pattern
+//! heads included; and every clause names a section of the book. The entries' vectors come
 //! from the Form evaluator, which does not exist yet, so none is checked here.
 use serde_json::Value;
 use std::collections::{BTreeMap, BTreeSet};
@@ -163,6 +164,18 @@ fn ids_are_the_proposals_list() {
     assert!(missing.is_empty() && extra.is_empty(), "listed in rce-form.md but not in the file: {missing:?}; in the file but not listed: {extra:?}");
 }
 
+/// The partial primitives of W4 (`one/wf.rs`, `domain`, on the branch
+/// `claude/one-emitter` at 123f5eee) other than `mem.get` and `mem.set`, which
+/// the catalogue leaves out: the entries that §7 of the proposal covers by a
+/// domain fact. Written out here rather than read from §7, whose lines also
+/// name total entries (`bytes.len`, `list.len` and `arr.len` under DF5).
+const PARTIAL: [&str; 30] = [
+    "int.add", "int.sub", "int.mul", "int.neg", "int.abs", "int.cast", "int.shl", "int.shr", "int.quo", "int.rem",
+    "f64.add", "f64.sub", "f64.mul", "f64.div", "f64.sqrt", "f64.trunc", "f64.to_f32",
+    "f32.add", "f32.sub", "f32.mul", "f32.div",
+    "bytes.get", "bytes.slice", "list.get", "arr.get", "list.set", "arr.set", "list.pop", "sum.get", "arr.new",
+];
+
 /// The line of §7 of the proposal that states each domain fact.
 fn fact_lines() -> BTreeMap<String, String> {
     let p = std::fs::read_to_string(spec().join("proposals/rce-form.md")).unwrap();
@@ -185,6 +198,11 @@ fn every_partial_entry_names_a_domain_fact() {
     let lines = fact_lines();
     assert_eq!(lines.keys().cloned().collect::<BTreeSet<_>>(), facts, "the facts of the file are not DF1 to DF8 of rce-form.md §7");
     let by_id: BTreeMap<&str, &Value> = entries(&c).iter().map(|e| (e["id"].as_str().unwrap(), e)).collect();
+    // exactly the partial primitives of W4 have a domain
+    let partial = set(&PARTIAL);
+    assert_eq!(partial.len(), PARTIAL.len(), "PARTIAL names an entry twice");
+    let with_domain: BTreeSet<String> = by_id.iter().filter(|(_, e)| !e["domain"].is_null()).map(|(id, _)| id.to_string()).collect();
+    assert_eq!(with_domain, partial, "the entries with a domain are not the partial primitives of W4");
     let mut tested = BTreeSet::new();
     for e in entries(&c) {
         let id = e["id"].as_str().unwrap();
@@ -224,10 +242,8 @@ fn every_partial_entry_names_a_domain_fact() {
     for (f, line) in &lines {
         for tok in line.split('`').skip(1).step_by(2) {
             let tok = tok.split(' ').next().unwrap();
-            if let Some(e) = by_id.get(tok)
-                && !e["domain"].is_null()
-            {
-                assert_eq!(e["domain"]["fact"], *f, "{tok}: rce-form.md §7 names it under {f}");
+            if partial.contains(tok) {
+                assert_eq!(by_id[tok]["domain"]["fact"], *f, "{tok}: rce-form.md §7 names it under {f}");
             }
         }
     }
@@ -239,11 +255,35 @@ fn every_partial_entry_names_a_domain_fact() {
     }
 }
 
-/// Whether `p` is a pattern of the file's `terms.patterns` over `np` type
-/// arguments and `no` operands.
-fn pattern(p: &Value, np: usize, no: usize) -> bool {
+/// The pattern heads that `pattern` below knows how to check.
+const HEADS: [&str; 17] = ["arr", "bool", "bytes", "f32", "f64", "index", "int", "list", "order", "param", "part", "parts", "repr", "sum", "tag", "tup", "within"];
+
+/// The pattern heads the file's `terms.patterns` defines: its keys other than
+/// `other`, and the heads that `other` lists, each written `["head"` there.
+fn heads(c: &Value) -> BTreeSet<String> {
+    let ps = &c["terms"]["patterns"];
+    let mut hs = keys(ps);
+    assert!(hs.remove("other"), "terms.patterns has no `other`");
+    let other = ps["other"].as_str().expect("terms.patterns.other is text");
+    for r in other.split("[\"").skip(1) {
+        hs.insert(r.split('"').next().unwrap().to_string());
+    }
+    hs
+}
+
+#[test]
+fn the_pattern_heads_are_those_of_the_header() {
+    assert_eq!(heads(&catalogue()), set(&HEADS), "the pattern heads of terms.patterns are not those this test checks");
+}
+
+/// Whether `p` is a pattern of the file's `terms.patterns`, whose heads are
+/// `hs`, over `np` type arguments and `no` operands.
+fn pattern(p: &Value, hs: &BTreeSet<String>, np: usize, no: usize) -> bool {
     let Some(a) = p.as_array() else { return false };
     let Some(h) = a.first().and_then(|h| h.as_str()) else { return false };
+    if !hs.contains(h) {
+        return false;
+    }
     let ix = |k: usize, n: usize| a.get(k).and_then(|x| x.as_u64()).is_some_and(|x| (x as usize) < n);
     match h {
         "bool" | "f64" | "f32" | "bytes" | "order" => a.len() == 1,
@@ -254,8 +294,8 @@ fn pattern(p: &Value, np: usize, no: usize) -> bool {
                 _ => false,
             }
         }
-        "arr" | "list" | "within" => a.len() == 2 && pattern(&a[1], np, no),
-        "tup" | "sum" => a[1..].iter().all(|x| pattern(x, np, no)),
+        "arr" | "list" | "within" => a.len() == 2 && pattern(&a[1], hs, np, no),
+        "tup" | "sum" => a[1..].iter().all(|x| pattern(x, hs, np, no)),
         "param" | "parts" | "index" | "tag" | "repr" => a.len() == 2 && ix(1, np),
         "part" => a.len() == 3 && ix(1, np) && ix(2, no),
         _ => false,
@@ -266,7 +306,7 @@ fn pattern(p: &Value, np: usize, no: usize) -> bool {
 fn every_entry_is_well_formed() {
     let c = catalogue();
     let t = &c["terms"];
-    let (modes, params, exact) = (keys(&t["modes"]), keys(&t["params"]), keys(&t["exactness"]));
+    let (modes, params, exact, hs) = (keys(&t["modes"]), keys(&t["params"]), keys(&t["exactness"]), heads(&c));
     let fields = set(&["cell", "clause", "domain", "effect", "exactness", "id", "meaning", "operands", "params", "results", "symmetric", "traps"]);
     for e in entries(&c) {
         let id = e["id"].as_str().unwrap();
@@ -283,7 +323,7 @@ fn every_entry_is_well_formed() {
             assert_eq!(keys(o), set(&["mode", "type"]), "{id}: operand {k}");
             let m = o["mode"].as_str().unwrap_or("");
             assert!(modes.contains(m), "{id}: operand {k} has the mode {m}");
-            assert!(pattern(&o["type"], np, no), "{id}: operand {k} has the type {}", o["type"]);
+            assert!(pattern(&o["type"], &hs, np, no), "{id}: operand {k} has the type {}", o["type"]);
             assert_eq!(m == "order", o["type"] == serde_json::json!(["order"]), "{id}: ω and only ω has the mode order");
             if m == "order" {
                 assert_eq!(k, no - 1, "{id}: ω is the last operand");
@@ -296,7 +336,7 @@ fn every_entry_is_well_formed() {
         let mut of = vec![];
         for (j, r) in rs.iter().enumerate() {
             assert_eq!(keys(r), set(&["of", "type"]), "{id}: result {j}");
-            assert!(pattern(&r["type"], np, no), "{id}: result {j} has the type {}", r["type"]);
+            assert!(pattern(&r["type"], &hs, np, no), "{id}: result {j} has the type {}", r["type"]);
             if let Some(k) = r["of"].as_u64() {
                 let k = k as usize;
                 assert!(returned.contains(&k), "{id}: result {j} returns operand {k}, whose mode returns nothing");
