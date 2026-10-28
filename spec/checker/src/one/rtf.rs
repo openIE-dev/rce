@@ -24,6 +24,11 @@ use super::build::{FB, Fns, R, count_t, lit, sym, wide};
 use super::ir::*;
 use super::rt;
 
+/// Every builder of this module, by name (as [`rt::BUILDERS`]).
+pub const BUILDERS: &[(&str, rt::Builder)] = &[
+    ("text", text), ("json", json), ("debug", debug), ("text32", text32), ("int_text", int_text), ("int_to_f32", int_to_f32),
+];
+
 /// A natural number as its base-2^32 digits, least significant first, with
 /// no high zero digits (zero is the empty list).
 fn big() -> Ty {

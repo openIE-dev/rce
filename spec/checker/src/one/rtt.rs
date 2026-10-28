@@ -13,6 +13,19 @@ use super::build::{FB, Fns, R, count_t, lit, sym};
 use super::ir::*;
 use super::rt;
 
+/// Every builder of this module, by name, with each instance of a builder
+/// that takes a parameter (as [`rt::BUILDERS`]).
+pub const BUILDERS: &[(&str, rt::Builder)] = &[
+    ("decode", decode), ("is_ws", is_ws), ("strip", strip), ("case upper", |f| case(f, true)), ("case lower", |f| case(f, false)),
+    ("chars", chars), ("json_esc_size", json_esc_size), ("reverse", reverse), ("words", words), ("lines", lines),
+    ("find", find), ("contains", contains), ("affix start", |f| affix(f, true)), ("affix end", |f| affix(f, false)),
+    ("split", split), ("is_class isdigit", |f| is_class(f, "isdigit")), ("is_class isalpha", |f| is_class(f, "isalpha")),
+    ("is_class isspace", |f| is_class(f, "isspace")), ("toint", toint), ("join", join), ("utf8 u8", |f| utf8(f, Ty::u8())),
+    ("utf8 i64", |f| utf8(f, Ty::i64())), ("boundary", boundary), ("encode Html", |f| encode(f, "Html")),
+    ("encode Url", |f| encode(f, "Url")), ("encode Sql", |f| encode(f, "Sql")), ("encode Json", |f| encode(f, "Json")),
+    ("encode ShellArg", |f| encode(f, "ShellArg")), ("encode Header", |f| encode(f, "Header")),
+];
+
 fn cpt() -> Ty {
     Ty::Int(0, 0x10ffff)
 }

@@ -357,39 +357,30 @@ fn json_form() {
 
 /// Every loop of the runtime written in the core (`rt`, `rtf`, `rtt`) has
 /// a bounded shape: a measure, or a count bound computed before the loop
-/// (`one::shape`). Every runtime function is built here, whether or not a
-/// program of the corpus calls it.
+/// (`one::shape`). Every runtime function is built here, from the
+/// `BUILDERS` table of each module, whether or not a program of the corpus
+/// calls it; every public builder of the three modules must be in a table,
+/// so a new builder is checked without a change here. The runtime has 102
+/// loops: a change of that number is a change of the runtime to state here.
 #[test]
 fn every_runtime_loop_has_a_bounded_shape() {
     use rce_spec_check::one::build::{Fns, sym_id};
     use rce_spec_check::one::{rt, rtf, rtt, shape};
     let mut f = Fns::default();
-    type Build = fn(&mut Fns) -> Result<usize, String>;
-    let all: Vec<Build> = vec![
-        rt::tick, rt::charge, rt::try_charge, rt::ceil_log2, rt::dec_sm, rt::dec, rt::sha_hex, rt::jstr, rt::debug, rt::why,
-        rt::refusal, rt::utf8_count, rtf::text, rtf::json, rtf::debug, rtf::text32, rtf::int_text, rtf::int_to_f32,
-        rtt::decode, rtt::is_ws, rtt::strip, rtt::chars, rtt::json_esc_size, rtt::reverse, rtt::words, rtt::lines,
-        rtt::find, rtt::contains, rtt::split, rtt::toint, rtt::join, rtt::boundary,
-    ];
-    for g in all {
-        g(&mut f).unwrap();
+    let mut missing = vec![];
+    for (file, table) in [("src/one/rt.rs", rt::BUILDERS), ("src/one/rtf.rs", rtf::BUILDERS), ("src/one/rtt.rs", rtt::BUILDERS)] {
+        for line in std::fs::read_to_string(file).unwrap().lines() {
+            let Some(rest) = line.strip_prefix("pub fn ") else { continue };
+            let (name, sig) = rest.split_once('(').unwrap();
+            if sig.starts_with("f: &mut Fns") && sig.contains("-> R<usize>") && !table.iter().any(|(n, _)| n.split(' ').next() == Some(name)) {
+                missing.push(format!("{file}: {name}"));
+            }
+        }
+        for (name, build) in table {
+            build(&mut f).unwrap_or_else(|e| panic!("{file}: {name}: {e}"));
+        }
     }
-    for op in ["add", "sub", "mul", "neg", "abs", "quo"] {
-        rt::dec_exact(&mut f, op).unwrap();
-    }
-    for b in [true, false] {
-        rtt::case(&mut f, b).unwrap();
-        rtt::affix(&mut f, b).unwrap();
-    }
-    for c in ["isdigit", "isalpha", "isspace"] {
-        rtt::is_class(&mut f, c).unwrap();
-    }
-    for c in ["Html", "Url", "Sql", "Json", "ShellArg", "Header"] {
-        rtt::encode(&mut f, c).unwrap();
-    }
-    for t in [Ty::u8(), Ty::i64()] {
-        rtt::utf8(&mut f, t).unwrap();
-    }
+    assert!(missing.is_empty(), "builders in no BUILDERS table:\n{}", missing.join("\n"));
     let globals: Vec<Ty> = f.globals.iter().map(|g| g.0.clone()).collect();
     let callee = |r: &FnRef| sym_id(r).map(|i| f.sigs[i].1.clone());
     let (mut loops, mut bad) = (0, vec![]);
@@ -404,7 +395,7 @@ fn every_runtime_loop_has_a_bounded_shape() {
     }
     assert!(bad.is_empty(), "loops without a bounded shape:\n{}", bad.join("\n"));
     eprintln!("runtime functions: {}; loops: {loops}", f.fns.len());
-    assert!(loops >= 60, "{loops} loops");
+    assert_eq!(loops, 102, "the runtime's loops");
 }
 
 /// The classifier of `one::shape` itself: a loop that doubles its variable
