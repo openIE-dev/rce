@@ -4,8 +4,10 @@
 //! - `ir`: the data types of the core (section 3.2)
 //! - `json`: its JSON form and the keys of its groups (3.4, W5)
 //! - `wf`: its well-formedness check, W1 to W6 (3.3)
-//! - `eval`: a reference evaluator of the core
-//! - `trace`: the reference trace a printed program must reproduce (3.6)
+//! - `eval`: an evaluator of the core, behind `rce run-core`: one
+//!   implementation under test, compared with the reference like any other
+//! - `trace`: the reference trace, the expected bytes every printed program
+//!   and the core evaluator must reproduce (3.6)
 //! - `build`, `rt`, `rtf`, `rtt`: building core functions, and the
 //!   runtime functions the lowering calls, written in the core (`rtf`:
 //!   floats, `rtt`: text)
@@ -33,12 +35,14 @@ pub fn core_of(m: &crate::ast::Module) -> Result<ir::Module, String> {
     Ok(c)
 }
 
-/// `rce emit trace`: the trace printed by evaluating the core of a module.
-pub fn trace_of(m: &crate::ast::Module) -> Result<String, String> {
+/// `rce run-core`: what the core evaluator writes for the core of a module.
+/// It is an implementation under test; the expected bytes always come from
+/// the reference, `trace::reference`.
+pub fn run_core_of(m: &crate::ast::Module) -> Result<String, String> {
     run_core(&core_of(m)?)
 }
 
-/// Evaluate a core module and return what it writes.
+/// Evaluate a core module with the core evaluator and return what it writes.
 pub fn run_core(c: &ir::Module) -> Result<String, String> {
     let r = eval::run(c)?;
     if r.halt.is_some() {

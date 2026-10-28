@@ -73,7 +73,7 @@ They imply seven properties of the printed form.
 
 ### 3.1 One emitter
 
-**ONE-1 One emitter.** `rce emit L FILE` lowers FILE once, to the core, and prints the core through the table of L. FILE is an RCE module or a core module (`"format": "rce-core/1"`). No other code path prints a language. `rce emit core FILE` prints the core as JSON, `rce emit trace FILE` prints the reference's trace, and `rce emit form FILE` is unchanged. L names a table; the checker carries every table, as it carries the library (XF-3), so adding a file is the whole of adding a language.
+**ONE-1 One emitter.** `rce emit L FILE` lowers FILE once, to the core, and prints the core through the table of L. FILE is an RCE module or a core module (`"format": "rce-core/1"`). No other code path prints a language. `rce emit core FILE` prints the core as JSON, and `rce emit form FILE` is unchanged. `rce run-core FILE` prints what the core evaluator writes for the core of FILE: one implementation under test, compared with the reference like any other, never the expected bytes. L names a table; the checker carries every table, as it carries the library (XF-3), so adding a file is the whole of adding a language.
 
 ### 3.2 The constructs
 
@@ -216,7 +216,7 @@ The constructs today's emitters do not translate are held as follows; none is ma
 - the fuel limit is a global literal of the core module, so a test that needs another limit changes that literal in the core JSON, which is data, and the printer is unchanged;
 - the inputs a conformance test passes today as arguments are written into the test's program text, converted once and checked against the reference before any table uses them.
 
-`rce emit trace FILE` prints the reference's bytes, the expected output of every gate.
+The reference's trace (ONE-5, `one::trace::reference`) is the expected output of every gate. No gate takes its expected bytes from an implementation under test, the core evaluator included.
 
 ## 4. The table
 
@@ -856,11 +856,11 @@ Both texts were produced in this work by a provisional printer, written for this
 
 | Stage | Checks | Expected bytes from |
 |---|---|---|
-| G1 rows | every row the table has, on vectors at the edges of its type argument: lo, hi, lo + 1, hi − 1, 0, ±1; inputs on both sides of every `bad.*` boundary; for f64, ±0.0, 5e−324, 2.2250738585072014e−308, 1.7976931348623157e308, sums and products that overflow, the ties ±0.5, ±2.5 and 0.49999999999999994; for bytes, all 256 values and lengths 0, 1 and N9; for lists, sizes 0 and N9; every lexical row on its extremes | the reference core evaluator, stored as data in `lang/vectors/` |
+| G1 rows | every row the table has, on vectors at the edges of its type argument: lo, hi, lo + 1, hi − 1, 0, ±1; inputs on both sides of every `bad.*` boundary; for f64, ±0.0, 5e−324, 2.2250738585072014e−308, 1.7976931348623157e308, sums and products that overflow, the ties ±0.5, ±2.5 and 0.49999999999999994; for bytes, all 256 values and lengths 0, 1 and N9; for lists, sizes 0 and N9; every lexical row on its extremes | the reference, stored as data in `lang/vectors/` |
 | G2 library | the 77 canonical JSON vectors (`spec/data/canonical-json-vectors.json`), SHA-256 vectors, float text vectors (`spec/examples/57_float_vectors.rce`, `tests/traces.rs`), display vectors including the six probe strings of section 0 | the reference |
-| G3 examples | every program of `spec/examples` that `rce check` accepts (60 files; the 62-program corpus of `tests/emit.rs` with its probes), the edge program of `tests/emit_edge.rce`, and `spec/traces/` | `rce emit trace` |
-| G4 conformance | every test of `conformance/tests` whose expectation is an observation, a trace or a run of `fn main` | `rce emit trace` |
-| G5 fuel | the sweep of `tests/fuel.rs`: ten programs at every limit from 0 to 300 and at 400 limits above, each limit a change of one global literal of the core | `rce emit trace` at the same limit |
+| G3 examples | every program of `spec/examples` that `rce check` accepts (60 files; the 62-program corpus of `tests/emit.rs` with its probes), the edge program of `tests/emit_edge.rce`, and `spec/traces/` | the reference's trace |
+| G4 conformance | every test of `conformance/tests` whose expectation is an observation, a trace or a run of `fn main` | the reference's trace |
+| G5 fuel | the sweep of `tests/fuel.rs`: ten programs at every limit from 0 to 300 and at 400 limits above, each limit a change of one global literal of the core | the reference's trace at the same limit |
 | G6 lens | where a lift λ_L exists, hash(λ_L(π_L(F))) = hash(F) on the corpus | encapsulation (`encapsulation.md`); not part of passing |
 
 A case passes when the oracle exits with status 0 and its standard output, read through the oracle's device code, equals the expected bytes exactly. A table passes when G1 to G5 pass on every toolchain of its oracle list and its failure list is empty. Rows are gated before programs, so a native operator is used only after its edge vectors pass. Kaitai Struct's issue #746, open since May 2020, has eight of twelve targets printing a truncating `/` against a specification and a test that expect floor division; under G1 such a row fails before any program is printed with it.
@@ -902,7 +902,7 @@ These are states of evidence, never classes of language. Every language moves th
 
 **ONE-24 Rust, Python and JavaScript move with identical traces.** The four existing targets become the first four tables (`lang/rust2024`, `lang/python3`, `lang/js-es2020`, `lang/scala3`), and the target names of `rce emit` become those table names. Each initially carries integers as today's runtime does, so that no trace moves: Rust as i128 checked against each type's range (`rt.rs:282-340`), Python as unbounded integers, JavaScript as BigInt for every integer type (`rt.js:35-39`). For Rust, Python and JavaScript the move is complete when:
 
-1. on every program of G3 and every case of G4 that the old emitter passes, the new program prints the bytes of `rce emit trace`, and the old program's output under `--trace --fuel-trace` and `--run` equals the same bytes, so the old emitter serves as a second oracle during the move;
+1. on every program of G3 and every case of G4 that the old emitter passes, the new program prints the bytes of the reference's trace, and the old program's output under `--trace --fuel-trace` and `--run` equals the same bytes, so the old emitter serves as a second oracle during the move;
 2. `tests/emit.rs`, `fuel.rs`, `write_back.rs`, `map_order.rs`, `canonical_json.rs` and `traces.rs` stay green, rewritten only where they pass arguments that ONE-5 retires;
 3. the conformance counts are at least 1,459 passing and 0 failing for each, and the cases that were not applicable because of a construct of the table of section 3.5 become applicable.
 
@@ -981,7 +981,7 @@ This expands step 1 of `emit-targets.md` section 4.
 
 0. **Scala's record.** Re-run the Scala conformance as ONE-25 states, with the full standard error kept.
 1. **The typed tree.** The checker records the static type, the binding and the resolved method of every node.
-2. **The core.** Its JSON, its checker (W1 to W6), a reference core evaluator, `rce emit core` and `rce emit trace`.
+2. **The core.** Its JSON, its checker (W1 to W6), a core evaluator (`rce run-core`), and `rce emit core`.
 3. **The lowering**, construct by construct, each tested differentially against `interp` on `spec/examples` and the 1,979 conformance tests, the constructs of Appendix F included.
 4. **The definitions and the library** (sections 5.2 to 5.6), each tested once against the reference on the vectors of G1 and G2 and on `spec/traces/`.
 5. **The printer and the four tables of wave 0**, with the migration gates of ONE-24 and ONE-25; then the per-target code is deleted.

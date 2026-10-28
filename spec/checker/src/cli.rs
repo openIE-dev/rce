@@ -176,9 +176,9 @@ pub fn count_tests(m: &Module) -> (usize, usize) {
     (e, c)
 }
 
-/// `rce emit TARGET FILE`: `form` prints the Form JSON; `rust`, `python`
-/// and `js` print a self-contained program that prints the module's
-/// observations (10.5).
+/// `rce emit TARGET FILE`: `form` prints the Form JSON, `core` the core
+/// `rce-core/1` as JSON; `rust`, `python`, `js` and `scala` print a
+/// self-contained program that prints the module's observations (10.5).
 pub fn emit(target: &str, src: &str) -> Result<String, String> {
     match target {
         "form" => {
@@ -196,30 +196,38 @@ pub fn emit(target: &str, src: &str) -> Result<String, String> {
             let lang = crate::emit::Lang::parse(target).expect("target");
             crate::emit::emit(&crate::program(src)?, lang)
         }
-        "core" | "trace" => {
-            // FILE is an RCE module or a core module (ONE-1)
-            if let Ok(v) = serde_json::from_str::<Value>(src)
-                && v.get("format").and_then(|f| f.as_str()) == Some(crate::one::ir::FORMAT)
-            {
-                let c = crate::one::json::module_from(&v)?;
-                crate::one::wf::check(&c)?;
-                return if target == "core" { Ok(crate::one::json::module_text(&c) + "\n") } else { crate::one::run_core(&c) };
-            }
-            let d = diagnostics(src, &HashSet::new());
-            if !d.is_empty() {
-                return Err(d.into_iter().map(|x| x.1).collect::<Vec<_>>().join("; "));
-            }
-            let m = crate::program(src)?;
-            if target == "core" {
-                Ok(crate::one::json::module_text(&crate::one::core_of(&m)?) + "\n")
-            } else {
-                crate::one::trace_of(&m)
-            }
-        }
+        "core" => Ok(crate::one::json::module_text(&core_module(src)?) + "\n"),
         t => Err(format!(
-            "unknown emit target `{t}` (form, core, trace, rust, python, js, scala)"
+            "unknown emit target `{t}` (form, core, rust, python, js, scala; the core evaluator's output is `rce run-core FILE`)"
         )),
     }
+}
+
+/// The core of FILE: FILE is a core module (`"format": "rce-core/1"`),
+/// checked by W1 to W6 when it is read, or an RCE module, checked and
+/// lowered (ONE-1).
+fn core_module(src: &str) -> Result<crate::one::ir::Module, String> {
+    if let Ok(v) = serde_json::from_str::<Value>(src)
+        && v.get("format").and_then(|f| f.as_str()) == Some(crate::one::ir::FORMAT)
+    {
+        let c = crate::one::json::module_from(&v)?;
+        crate::one::wf::check(&c)?;
+        return Ok(c);
+    }
+    let d = diagnostics(src, &HashSet::new());
+    if !d.is_empty() {
+        return Err(d.into_iter().map(|x| x.1).collect::<Vec<_>>().join("; "));
+    }
+    crate::one::core_of(&crate::program(src)?)
+}
+
+/// `rce run-core FILE`: what the core evaluator writes for the core of
+/// FILE (an RCE module or a core module). The core evaluator is an
+/// implementation under test, compared with the reference like any other;
+/// the expected bytes are always the reference interpreter's trace
+/// (`one::trace::reference`), never this output.
+pub fn run_core(src: &str) -> Result<String, String> {
+    crate::one::run_core(&core_module(src)?)
 }
 
 fn toks(src: &str) -> Result<Vec<Tok>, String> {
@@ -597,8 +605,10 @@ pub const USAGE_TEXT: &str = "usage:
   rce test FILE|DIR...           run every example and check; report per file
   rce trace --json FILE [EVENTS] reference trace (seq, event, state_hash per step) of the examples, or of EVENTS
   rce trace --json FILE --streams PATH  one trace per event list in PATH (one per line), in one run
-  rce emit TARGET FILE           TARGET: form (Form JSON), core (the core rce-core/1 as JSON), trace (the trace,
-                                 by evaluating the core), rust, python, js or scala (a program printing its observations)
+  rce emit TARGET FILE           TARGET: form (Form JSON), core (the core rce-core/1 as JSON), rust, python, js
+                                 or scala (a program printing its observations)
+  rce run-core FILE              the output of the core evaluator on the core of FILE (an RCE module or rce-core/1 JSON):
+                                 an implementation under test; the expected bytes are the reference interpreter's trace
   rce fmt [--check] FILE...      rewrite files in canonical layout (--check: only report)
   rce fmt --nameless FILE        print the name-free projection: every declared identifier replaced by its positional name (10.6)
   rce dim [--fuel N] [--control] [--json] FILE  behaviours a program can be in and the redundancy of its state (6.10, 10.11); --control adds dim_c and shape_ctl
@@ -1027,7 +1037,7 @@ fn run_main(a: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &mu
                 writeln!(err, "{e}").map_err(w)?;
                 // A program the checker refuses is status 1; an unknown target
                 // or a construct an emitter does not translate is status 2.
-                if ["form", "core", "trace", "rust", "python", "js", "scala"].contains(&rest[0].as_str())
+                if ["form", "core", "rust", "python", "js", "scala"].contains(&rest[0].as_str())
                     && !e.starts_with("not supported by the emitter")
                     && !e.starts_with("not covered by the lowering")
                     && !e.starts_with("internal:")
@@ -1036,6 +1046,19 @@ fn run_main(a: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &mu
                 } else {
                     USAGE
                 }
+            }
+        },
+        Some("run-core") if rest.len() == 1 => match run_core(&read_file(&rest[0])?) {
+            Ok(s) => {
+                write!(out, "{s}").map_err(w)?;
+                OK
+            }
+            Err(e) => {
+                writeln!(err, "{e}").map_err(w)?;
+                // a program the checker refuses, a core module that is not
+                // well formed and a run that halts are status 1; a construct
+                // the lowering does not cover is status 2
+                if e.starts_with("not covered by the lowering") || e.starts_with("internal:") { USAGE } else { REFUSED }
             }
         },
         Some("form") => {

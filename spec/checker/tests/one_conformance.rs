@@ -56,7 +56,7 @@ fn conformance_run_and_trace_tests_lower_to_the_reference_trace() {
         };
         rce_spec_check::interp::FUEL_LIMIT.store(fuel, std::sync::atomic::Ordering::Relaxed);
         let want = rce_spec_check::one::trace::reference(&m);
-        match rce_spec_check::one::trace_of(&m) {
+        match rce_spec_check::one::run_core_of(&m) {
             Ok(got) if got == want => same += 1,
             Ok(_) => diffs.push(f.display().to_string()),
             Err(e) => {

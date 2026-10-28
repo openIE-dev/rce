@@ -1,7 +1,7 @@
 //! The lowering of the one emitter (spec/proposals/one-emitter.md ONE-4,
 //! section 3.5; order of work step 3), tested differentially on
 //! spec/examples: for every program the lowering covers, the trace printed
-//! by evaluating its core (`rce emit trace`) equals the reference
+//! by evaluating its core (`rce run-core`) equals the reference
 //! interpreter's trace byte for byte. Every example is listed below, either
 //! as covered or with the first construct the lowering does not yet cover;
 //! a program that is not covered is refused with that construct named, and
@@ -83,7 +83,7 @@ fn examples_lower_to_the_reference_trace() {
     for (stem, src) in &all {
         let m = module(src);
         let want = one::trace::reference(&m);
-        let got = one::trace_of(&m);
+        let got = one::run_core_of(&m);
         if COVERED.contains(&stem.as_str()) {
             let got = got.unwrap_or_else(|e| panic!("{stem}: {e}"));
             assert!(got == want, "{stem}: {}", first_diff(&want, &got));
@@ -103,7 +103,7 @@ fn examples_with_probes_lower_to_the_reference_trace() {
     for (stem, src) in examples() {
         let m = rce_spec_check::emit::with_probes(&module(&src));
         let want = one::trace::reference(&m);
-        match one::trace_of(&m) {
+        match one::run_core_of(&m) {
             Ok(got) => {
                 assert!(COVERED_WITH_PROBES.contains(&stem.as_str()), "{stem} with probes is now covered; list it");
                 assert!(got == want, "{stem} with probes: {}", first_diff(&want, &got));
@@ -154,13 +154,13 @@ fn programs_lower_to_the_reference_trace() {
     for src in PROGRAMS.iter().copied().chain(extra.iter().map(|s| s.as_str())) {
         let m = module(src);
         let want = one::trace::reference(&m);
-        let got = one::trace_of(&m).unwrap_or_else(|e| panic!("{src}: {e}"));
+        let got = one::run_core_of(&m).unwrap_or_else(|e| panic!("{src}: {e}"));
         assert!(got == want, "{src}: {}", first_diff(&want, &got));
     }
 }
 
 /// 3.4 on lowered programs: the JSON form reads back to the same module and
-/// its text is canonical; `rce emit trace` of that JSON prints the same
+/// its text is canonical; `rce run-core` of that JSON prints the reference's
 /// trace, and `rce emit core` of it prints it again (ONE-1: FILE may be a
 /// core module).
 #[test]
@@ -176,7 +176,7 @@ fn core_json_round_trip() {
         assert!(back == c, "{stem}: the JSON does not read back to the same module");
         assert_eq!(one::json::module_text(&back), text, "{stem}: the text is not canonical");
         assert!(text.starts_with("{\"defs\":{"), "{stem}: keys in sorted order");
-        let t = rce_spec_check::cli::emit("trace", &text).unwrap();
+        let t = rce_spec_check::cli::run_core(&text).unwrap();
         assert_eq!(t, one::trace::reference(&m), "{stem}: the trace of the core JSON");
         assert_eq!(rce_spec_check::cli::emit("core", &text).unwrap(), text + "\n");
     }
@@ -191,12 +191,13 @@ fn core_is_deterministic() {
     assert_eq!(a, b);
 }
 
-/// `rce emit core FILE` and `rce emit trace FILE` through the command line:
+/// `rce emit core FILE` and `rce run-core FILE` through the command line:
 /// status 0 with the bytes on standard output; a program the lowering does
 /// not cover is status 2 with the construct named; a program the checker
-/// refuses is status 1.
+/// refuses is status 1. `trace` is no longer an emit target: the core
+/// evaluator's output is not the expected bytes.
 #[test]
-fn emit_core_and_trace_commands() {
+fn emit_core_and_run_core_commands() {
     let rce = |args: &[&str]| {
         let a: Vec<String> = args.iter().map(|s| s.to_string()).collect();
         let (mut out, mut err) = (vec![], vec![]);
@@ -204,7 +205,7 @@ fn emit_core_and_trace_commands() {
         (code, String::from_utf8(out).unwrap(), String::from_utf8(err).unwrap())
     };
     let counter = "../examples/01_counter.rce";
-    let (c, out, _) = rce(&["emit", "trace", counter]);
+    let (c, out, _) = rce(&["run-core", counter]);
     assert_eq!(c, 0);
     assert_eq!(out, one::trace::reference(&module(&std::fs::read_to_string(counter).unwrap())));
     assert!(out.starts_with("example "), "{out}");
@@ -217,17 +218,20 @@ fn emit_core_and_trace_commands() {
     let p = dir.join("counter.core.json");
     std::fs::write(&p, &core).unwrap();
     let ps = p.to_string_lossy().into_owned();
-    assert_eq!(rce(&["emit", "trace", &ps]), (0, out.clone(), String::new()));
+    assert_eq!(rce(&["run-core", &ps]), (0, out.clone(), String::new()));
     assert_eq!(rce(&["emit", "core", &ps]), (0, core.clone(), String::new()));
     // a core module that is not well formed is refused when it is read
     let bad = core.replacen("\"ret\"", "\"halt\"", 1);
     std::fs::write(&p, &bad).unwrap();
-    assert_eq!(rce(&["emit", "trace", &ps]).0, 1);
-    let (c, _, err) = rce(&["emit", "trace", "../examples/13_spawn_chan.rce"]);
+    assert_eq!(rce(&["run-core", &ps]).0, 1);
+    let (c, _, err) = rce(&["run-core", "../examples/13_spawn_chan.rce"]);
     assert_eq!(c, 2);
     assert!(err.starts_with("not covered by the lowering: "), "{err}");
     let q = dir.join("bad.rce");
     std::fs::write(&q, "fn f() -> i64\n    \"text\"\n").unwrap();
-    assert_eq!(rce(&["emit", "trace", &q.to_string_lossy()]).0, 1);
+    assert_eq!(rce(&["run-core", &q.to_string_lossy()]).0, 1);
+    let (c, _, err) = rce(&["emit", "trace", counter]);
+    assert_eq!(c, 2);
+    assert!(err.contains("rce run-core FILE"), "{err}");
     let _ = std::fs::remove_dir_all(&dir);
 }

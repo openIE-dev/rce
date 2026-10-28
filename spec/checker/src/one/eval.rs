@@ -1,4 +1,7 @@
-//! The reference evaluator of the core (one-emitter.md, order of work step 2).
+//! The core evaluator (one-emitter.md, order of work step 2), behind
+//! `rce run-core`. It is one implementation of the core, tested against the
+//! reference like any other: the expected bytes of every test come from
+//! the reference interpreter (`trace::reference`), never from here.
 //!
 //! It runs a core module that has passed the well-formedness check (W1 to
 //! W6, `wf.rs`) and returns the bytes the module writes to standard output.
