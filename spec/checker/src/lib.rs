@@ -22,6 +22,7 @@ pub mod core_rules;
 pub mod dim;
 pub mod nameless;
 pub mod one;
+pub mod form;
 pub mod emit;
 pub mod host;
 pub mod ifc;
