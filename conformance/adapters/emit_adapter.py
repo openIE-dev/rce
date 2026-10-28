@@ -14,6 +14,7 @@ front end's job and is certified through the reference adapter.
                    only to admit the module; the lines compared are printed
                    by the emitted program.
 Env: RCE (the rce binary), RCE_RUSTC, RCE_PYTHON, RCE_NODE, RCE_SCALA_CLI.
+`hello` names the toolchain (its `--version`), which the harness records in the report.
 """
 import hashlib, json, os, re, subprocess, sys, tempfile
 
@@ -22,6 +23,8 @@ RCE = os.environ.get("RCE", "rce")
 TMP = os.path.join(tempfile.gettempdir(), f"rce-conformance-{LANG}")
 os.makedirs(TMP, exist_ok=True)
 EXT = {"rust": "rs", "python": "py", "js": "js", "scala": "scala"}[LANG]
+SCALA_CLI = os.environ.get("RCE_SCALA_CLI", "scala-cli")
+SCALA_VERSION = "3.10.0"  # pinned, as in spec/checker/tests/emit*.rs
 
 def sh(cmd, inp=None, timeout=300):
     p = subprocess.run(cmd, input=inp, capture_output=True, text=True, timeout=timeout)
@@ -49,7 +52,21 @@ def emit(src):
         return [os.environ.get("RCE_PYTHON", "python3"), prog], None
     if LANG == "js":
         return [os.environ.get("RCE_NODE", "node"), prog], None
-    return [os.environ.get("RCE_SCALA_CLI", "scala-cli"), "run", "--jvm", "21", "--server=false", "-q", prog, "--"], None
+    # scala-cli's compile server (Bloop) stays warm across the suite's programs
+    return [SCALA_CLI, "run", "--jvm", "21", "--scala", SCALA_VERSION, "--scalac-option", "-nowarn", "-q", prog, "--"], None
+
+def toolchain():
+    """The tool that compiles or runs the emitted program, as it names itself."""
+    cmd = {"rust": [os.environ.get("RCE_RUSTC", "rustc"), "--version"],
+           "python": [os.environ.get("RCE_PYTHON", "python3"), "--version"],
+           "js": [os.environ.get("RCE_NODE", "node"), "--version"],
+           "scala": [SCALA_CLI, "--version"]}[LANG]
+    try:
+        rc, out, err = sh(cmd, timeout=120)
+    except Exception as ex:
+        return f"{cmd[0]}: {ex}"
+    v = "; ".join(l.strip() for l in (out + err).splitlines() if l.strip() and not l.startswith("Picked up "))
+    return v + (f"; Scala {SCALA_VERSION}, JVM 21" if LANG == "scala" else "")
 
 def outcome_of(r):
     """One spelling for an outcome (see ADAPTERS.md): trap:KIND or refused:E."""
@@ -141,7 +158,7 @@ for line in sys.stdin:
     try:
         op = req.get("op")
         if op == "hello":
-            r = {"protocol": "rce-adapter/1", "implementation": f"rce emit {LANG}", "ops": ["run", "trace"], "features": ["fuel", "trace"]}
+            r = {"protocol": "rce-adapter/1", "implementation": f"rce emit {LANG}", "toolchain": toolchain(), "ops": ["run", "trace"], "features": ["fuel", "trace"]}
         elif op == "run":
             r = run_events(req["source"], req["events"]) if req.get("events") else run_main(req["source"], req.get("fuel"))
         elif op == "trace":

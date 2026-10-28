@@ -253,6 +253,16 @@ def main():
     spec = json.load(open(a.adapter))
     ops = set(spec.get("ops", ["check", "run", "trace"]))
     tests = load_tests(a.tests, a.filter)
+    # the toolchain the adapter names in `hello` (an emitter's compiler or
+    # interpreter version) is recorded with the results
+    toolchain = None
+    h = Adapter(spec)
+    try:
+        toolchain = h.call({"op": "hello"}).get("toolchain")
+    except Exception:
+        pass
+    finally:
+        h.close()
     chunks = [tests[i::a.jobs] for i in range(a.jobs)]
     results = []
     with cf.ThreadPoolExecutor(a.jobs) as ex:
@@ -266,7 +276,8 @@ def main():
     tmp = tempfile.gettempdir()
     for r in results:  # keep machine-local paths out of published reports
         r["detail"] = r.get("detail", "").replace(tmp, "$TMP").replace(str(pathlib.Path.home()), "~")
-    summary = {"format": "rce-results/1", "adapter": spec["name"], "tally": tally, "results": results}
+    summary = {"format": "rce-results/1", "adapter": spec["name"], **({"toolchain": toolchain} if toolchain else {}),
+               "tally": tally, "results": results}
     out = a.out or str(ROOT / "reports" / f"results-{spec['name']}.json")
     pathlib.Path(out).parent.mkdir(parents=True, exist_ok=True)
     json.dump(summary, open(out, "w"), indent=1)

@@ -2,8 +2,9 @@ name: conformance
 
 # conformance/: static validation of the suite (format, ids, clause
 # references, coverage) on three platforms, then the reference run against
-# rce-conform built from this same commit. Emitter and engine-profile runs
-# are recorded in conformance/README.md.
+# rce-conform built from this same commit, and the Scala emitter run (scala-cli,
+# Scala 3.10.0 on JVM 21). Other emitter and engine-profile runs are recorded
+# in conformance/README.md.
 
 on:
   push:
@@ -46,3 +47,33 @@ jobs:
         working-directory: conformance
         # RCE_ENGINE (the handler-spec profile, appendix D) is not set: the engine is not public, so those tests report unsupported.
         run: RCE="$GITHUB_WORKSPACE/spec/checker/target/release/rce" RCE_CONFORM="$GITHUB_WORKSPACE/spec/checker/target/release/rce-conform" python harness/run.py --adapter adapters/reference.json --jobs 4
+
+  emit-scala:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install the pinned Rust toolchain
+        run: rustup show
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: spec/checker
+      - name: Build rce
+        working-directory: spec/checker
+        run: cargo build --release --bin rce
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - uses: VirtusLab/scala-cli-setup@v1
+      - name: Fetch Scala 3.10.0 once, before the parallel run
+        run: |
+          scala-cli --version
+          printf '@main def hello(): Unit = println("ok")\n' > "$RUNNER_TEMP/hello.scala"
+          scala-cli run --jvm 21 --scala 3.10.0 -q "$RUNNER_TEMP/hello.scala"
+      - name: Run the suite against the Scala emitter
+        working-directory: conformance
+        run: RCE="$GITHUB_WORKSPACE/spec/checker/target/release/rce" python harness/run.py --adapter adapters/emit-scala.json --jobs 4 --out "$RUNNER_TEMP/results-emit-scala.json"

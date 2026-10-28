@@ -6,7 +6,9 @@ stdin and reads one JSON response per line from its stdout. The adapter file
 
 Requests (`op`):
 
-- `hello` -> `{"protocol":"rce-adapter/1","name":...}`
+- `hello` -> `{"protocol":"rce-adapter/1","name":...}`; an adapter may add
+  `"toolchain"` (the compiler or interpreter it uses, by its version text),
+  which the harness records as `toolchain` in the results file
 - `check {files}` -> `{"ok":true}` or `{"ok":false,"diagnostics":[...]}`
 - `run {source, events?, fuel?, schedule_seed?}` -> `{"outcome", "outputs"}`
 - `trace {source, events}` -> `{"head", "steps"}`
