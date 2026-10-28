@@ -1,8 +1,15 @@
 #!/usr/bin/env python3
 """Run rce-conformance against one implementation through its adapter.
 
+  harness/run.py ADAPTER [TESTS [OUT]]
   harness/run.py --adapter adapters/reference.json [--tests tests] [--filter AREA]
                  [--out reports/results-NAME.json] [--jobs N]
+
+The first spelling takes positional arguments only: the adapter file, the
+test directory (default `tests`) and the results file (default
+`reports/results-NAME.json`), with one job per processor. The options of the
+second spelling are kept for the tools that use them (`tools/mutate.py`,
+`tools/run-all.sh`).
 
 An adapter is any program that speaks rce-adapter/1 (see ADAPTERS.md) on
 stdin/stdout. The adapter file names its command line and which ops it
@@ -291,8 +298,9 @@ def run_chunk(spec, tests, ops):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--adapter", required=True)
-    ap.add_argument("--tests", default=str(ROOT / "tests"))
+    ap.add_argument("positional", nargs="*", metavar="ADAPTER [TESTS [OUT]]")
+    ap.add_argument("--adapter")
+    ap.add_argument("--tests")
     ap.add_argument("--filter")
     ap.add_argument("--out")
     ap.add_argument("--jobs", type=int, default=os.cpu_count() or 2)
@@ -300,6 +308,13 @@ def main():
     ap.add_argument("--known-failures", help="file of test ids expected to fail (findings); exit 0 iff the failing set equals it")
     ap.add_argument("--stop-on-fail", action="store_true", help="mutation runs: stop at the first failing test")
     a = ap.parse_args()
+    if a.positional:   # ADAPTER [TESTS [OUT]], never mixed with the options that name the same things
+        if len(a.positional) > 3 or a.adapter or a.tests or a.out:
+            ap.error("give ADAPTER [TESTS [OUT]] or --adapter/--tests/--out, not both")
+        a.adapter, a.tests, a.out = (a.positional + [None, None])[:3]
+    if not a.adapter:
+        ap.error("no adapter: give ADAPTER or --adapter")
+    a.tests = a.tests or str(ROOT / "tests")
     if a.stop_on_fail:
         import threading
         global STOP

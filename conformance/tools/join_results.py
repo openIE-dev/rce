@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Join the results files of one adapter, each from a run over part of the
-suite (`harness/run.py --tests tests/AREA --out PART`, run from
+suite (`harness/run.py ADAPTER tests/AREA PART`, run from
 `conformance/`), into one results file, as a machine too small for one
 whole run makes it. The parts' results are put
 together and sorted by path, and the tally is recounted. Every part must be
