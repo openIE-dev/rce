@@ -1,0 +1,67 @@
+name: emit-rust conformance
+
+# The Rust emitter on the whole conformance suite, judged as the whole-trace
+# emit baseline judges Python and JavaScript (conformance/README.md): every
+# test the emit-rust adapter serves is emitted, compiled with the pinned
+# rustc and run, a trace passes only when its whole block equals the
+# reference's line for line, and tools/parity.py compares the bytes of every
+# answer with those of the reference run made here from the same commit.
+# A whole run compiles about 1,459 programs, more than the machines the
+# baseline was made on could hold, so it runs on GitHub's runners, by hand
+# (workflow_dispatch) and once a week, and uploads its results file; the
+# Rust count of conformance/README.md comes from that file. The harness and
+# the tools are given positional arguments only.
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "41 3 * * 1"
+
+jobs:
+  emit-rust:
+    runs-on: ubuntu-latest
+    timeout-minutes: 340
+    env:
+      RCE: ${{ github.workspace }}/spec/checker/target/release/rce
+      RCE_CONFORM: ${{ github.workspace }}/spec/checker/target/release/rce-conform
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install the pinned Rust toolchain
+        working-directory: spec/checker
+        run: rustup show
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: spec/checker
+      - name: Build rce and rce-conform
+        working-directory: spec/checker
+        run: cargo build --release --bin rce --bin rce-conform
+      - name: Compile emitted programs with the pinned rustc
+        working-directory: spec/checker
+        run: echo "RCE_RUSTC=$(rustup which rustc)" >> "$GITHUB_ENV"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Run the suite against the reference checker
+        working-directory: conformance
+        # RCE_ENGINE (the handler-spec profile, appendix D) is not set: the engine is not public, so those tests report unsupported.
+        run: python harness/run.py adapters/reference.json
+      - name: Run the suite against the Rust emitter
+        working-directory: conformance
+        run: python harness/run.py adapters/emit-rust.json
+      - name: Byte parity with the reference
+        if: ${{ !cancelled() }}
+        working-directory: conformance
+        # the emit-rust row is this run's; the other emitters' rows compare
+        # their committed results files, each labelled with its own commit
+        run: python tools/parity.py
+      - name: Upload the results
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: emit-rust-results
+          path: |
+            conformance/reports/results-emit-rust.json
+            conformance/reports/results-reference.json
+            conformance/reports/parity.json
+            conformance/reports/parity.md
+          if-no-files-found: error
