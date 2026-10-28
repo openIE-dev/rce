@@ -1,0 +1,119 @@
+# The pinned oracle for the language python3.13: CPython 3.13.16 on x86-64
+# Linux (spec/proposals/rce-form.md section 20, rce-oracle/1).
+format   = "rce-oracle/1"
+name     = "cpython-3.13.16"
+kind     = "maintained"
+lang     = "python3.13"
+target   = "x86_64-unknown-linux-gnu"
+lineage  = "cpython"
+profile  = "command"                  # observe.toml: status, stdout bytes, stderr class
+version  = ["/usr/bin/python3.13", "-VV"]
+# {src} is the program's file in a new, empty run directory. -P keeps the
+# program's directory off sys.path, -s keeps the user's site directory off
+# it, and -S keeps the interpreter from importing the module site at
+# startup. Without -S, site would put the system site directories on
+# sys.path, run the .pth files there (on this host one imports
+# _distutils_hack and installs an import hook) and import sitecustomize, a
+# link to a file outside the pinned tree: code that [toolchain] does not
+# pin would run before every program. With -S, sys.path holds the pinned
+# tree, its lib-dynload and /usr/lib/python313.zip, which `absent` below
+# pins as missing, so what runs before a program is the interpreter, its
+# frozen modules and the pinned standard library. -S also leaves out the
+# names site adds to the builtins for an interactive session (exit, quit,
+# help, copyright, credits, license); no program of the corpus names them,
+# and under this record a program that calls one ends with a NameError.
+# Nothing else that the corpus programs mean changes; sys.exit is
+# unaffected. The proposal's example uses -I, which also implies -E, and -E
+# would make the interpreter ignore PYTHONHASHSEED below; here the
+# environment is replaced whole instead, so no other PYTHON variable
+# reaches a run.
+source_name = "main.py"
+build    = []
+run      = ["/usr/bin/python3.13", "-P", "-s", "-S", "{src}"]
+device   = "octets"
+limit    = 10                         # seconds per run
+runs     = 2                          # every case twice; the two observations must be equal
+
+[toolchain]
+# What stands for the OCI image digest of the proposal until an image is
+# built: the SHA-256 of the interpreter, of every file of its standard
+# library, and of the shared objects that the interpreter loads and that
+# its extension modules (the files of `extension_dirs`) load when a
+# program imports one, such as libcrypto for _hashlib. The digest leaves
+# out the bytecode caches, which no run reads (PYTHONPYCACHEPREFIX below),
+# and the site directories, which no run puts on sys.path (-S above). It
+# pins each symbolic link by the path it points to; the two that point
+# outside the tree, sitecustomize.py and the libpython of
+# config-3.13-x86_64-linux-gnu/, are read by no run (-S; the interpreter
+# is linked without libpython.so, as `libraries` shows). Not pinned: the
+# files a shared object opens itself as it runs (OpenSSL's configuration,
+# terminal descriptions). Of the extension modules, the corpus programs
+# load only _decimal, which opens none.
+executable  = "/usr/bin/python3.13"
+sha256      = "a35753ccb97941cce1467786cce892e608141f09d717188a3235d4f51a754446"
+tree        = "/usr/lib/python3.13"
+tree_skip   = ["__pycache__", "site-packages", "dist-packages"]
+tree_sha256 = "62921d7f66339b6260cb1f84c5858fb2e5601b45a3d69430c540c3045c878aa4"
+absent      = ["/usr/lib/python313.zip"]   # on sys.path ahead of the tree; it must not exist
+extension_dirs = ["lib-dynload"]
+version_output = "Python 3.13.16 (main, Oct  1 2026, 15:40:24) [GCC 13.3.0]"
+
+[toolchain.libraries]
+"/lib/x86_64-linux-gnu/libbz2.so.1.0" = "cc08c9f50a8009ffd6391e0116a100369b11ca9238fa52392c019e6645b122a1"
+"/lib/x86_64-linux-gnu/libc.so.6" = "3a15d66867d83762c7f2f1e37359cb8f6c5743edb369c65285cb0b1c4f7498bf"
+"/lib/x86_64-linux-gnu/libcrypto.so.3" = "6866ed711dab8927e1bf82bf1cd30e828bdfc34f3cc1e83b1c9eb01ce6c37d9a"
+"/lib/x86_64-linux-gnu/libdb-5.3.so" = "1812047c39ea3c26ee5b2b585abbafc18cd158dfcd84e5368c998cc6178e815b"
+"/lib/x86_64-linux-gnu/libexpat.so.1" = "286682ecbc5e59a638963b1a4e6351e65eb32fcf4bdcb9cb7569b6a61fe06a8d"
+"/lib/x86_64-linux-gnu/libffi.so.8" = "00f593fe192f2851b8ce23b25cec2488d769beb5a8f63e8c9e563071e1075153"
+"/lib/x86_64-linux-gnu/liblzma.so.5" = "696e868dd0700a19a6d65fc01608ec2d70d3cb91f65710e89180cd2e688f30cb"
+"/lib/x86_64-linux-gnu/libm.so.6" = "fce00b6f25f459cf4ae0b7fae4257909a1a8a86f9149e7c029a5d617baf1ccd0"
+"/lib/x86_64-linux-gnu/libncursesw.so.6" = "b552c698f9f5c7ff8a6f7c11d8595a0d3e6dc3eaf483843895ec76f418080dfb"
+"/lib/x86_64-linux-gnu/libpanelw.so.6" = "8eccca53962e74575da4b649dbafdfd24a450bafdc73d871bc5346824a1e7abd"
+"/lib/x86_64-linux-gnu/libreadline.so.8" = "0a079f958147699f7bb5bf228406a5d878dc2387fe9cdc5cce6f3e35e20380fc"
+"/lib/x86_64-linux-gnu/libsqlite3.so.0" = "85265a9d4afca6f4b325ceb078b669c754fb881abed4cafe91ccebe9d625d975"
+"/lib/x86_64-linux-gnu/libssl.so.3" = "a40e7b67489bbd257e432c700ff8f6a1ad796425b5eccecdc2930127fdd86624"
+"/lib/x86_64-linux-gnu/libtinfo.so.6" = "e6089d7bb95eee5b545f3770dd69095b0bca47d26701cad145af429561d16306"
+"/lib/x86_64-linux-gnu/libuuid.so.1" = "78d7f4d6f27b7dffc1c84dfe2f83e84aefa6f6ceeffc6ac4bc41f9fbc61cb84e"
+"/lib/x86_64-linux-gnu/libz.so.1" = "86200da370f20476a2507e9097a789b5ef97269b4ca8d5e164ad82dab9d99892"
+"/lib64/ld-linux-x86-64.so.2" = "c20a2dc8917c755f02b94049356320fe1f62ac7d9f8994731f807d9df39302da"
+
+[pins]
+# The whole environment of each run: nothing else is passed. The hash seed is
+# pinned, so it is an input of every case on both sides. The bytecode cache
+# prefix names a directory in the run directory that never exists, so the
+# interpreter reads no .pyc file from the __pycache__ directories of the
+# tree, which its digest leaves out, and compiles each module it imports
+# from its pinned source; PYTHONDONTWRITEBYTECODE keeps it from writing one.
+env       = { LC_ALL = "C.UTF-8", TZ = "UTC", PYTHONHASHSEED = "0", PYTHONDONTWRITEBYTECODE = "1", PYTHONPYCACHEPREFIX = "{run}/no-bytecode-cache" }
+network   = "none"                    # every run in a new network namespace with no interface up (unshare --net)
+fs        = "run-directory"           # every run in a new, empty directory that holds only the program
+# No wall clock is pinned: this host cannot set the clock of one process, so
+# the clock is neither pinned nor perturbed, and [[unpinned]] keeps out a
+# program that reads it.
+
+[perturb]                             # each entry is one more run when a program is admitted
+env_order = "reversed"                # the environment passed in reverse order
+affinity  = [1, 4]                    # the run limited to the first 1, then 4, processors (taskset)
+# Another hash seed: a program whose output follows the order of a set or of
+# a dictionary built by hashing text would depend on the seed. Such a
+# program enters only as a case whose own env names the seed.
+env       = [{ PYTHONHASHSEED = "1" }, { PYTHONHASHSEED = "4242" }]
+
+# What this host does not pin. A program whose text matches one of these
+# patterns (Python regular expressions, multiline) is not admitted, with the
+# source named, because its observation would not be a function of its case.
+[[unpinned]]
+source  = "clock"
+pattern = '^\s*(?:import|from)\s+(?:time|datetime|timeit|asyncio|sched)\b'
+
+[[unpinned]]
+source  = "entropy"
+pattern = '^\s*(?:import|from)\s+(?:random|secrets|uuid)\b|\burandom\b'
+
+[[unpinned]]
+source  = "filesystem"
+pattern = '\bopen\s*\(|^\s*(?:import|from)\s+(?:os|pathlib|shutil|glob|tempfile|io|fileinput|sqlite3)\b'
+
+[[unpinned]]
+source  = "process"
+pattern = '^\s*(?:import|from)\s+(?:subprocess|multiprocessing|threading|signal|platform|socket|resource|gc)\b|\bid\s*\('
