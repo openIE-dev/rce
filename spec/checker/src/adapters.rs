@@ -438,8 +438,8 @@ pub mod net {
     struct Conn {
         s: TcpStream,
         out: OutQ,
-        /// HD-3: the start of a UTF-8 character a read ended inside, kept
-        /// for the next read when the module takes received bytes as text
+        /// HD-3: the start of a UTF-8 character a read ended inside, carried
+        /// to the next read when the module takes received bytes as text
         carry: Vec<u8>,
         /// a read error met after bytes were read: those bytes are
         /// delivered first, and the error is the next read's result
@@ -591,7 +591,7 @@ pub mod net {
     }
 
     fn recv(c: &mut Conn, max: usize, text: bool) -> Result<Value, String> {
-        // HD-3: bytes kept for the next read are delivered before the
+        // HD-3: bytes carried to the next read are delivered before the
         // connection's failure, so nothing received is lost
         if c.out.0.lock().unwrap().failed {
             return if c.carry.is_empty() { Err("closed".into()) } else { Ok(json!(std::mem::take(&mut c.carry))) };
@@ -699,9 +699,9 @@ pub mod net {
                         let (m, cv) = &*c.out;
                         m.lock().unwrap().closing = true;
                         cv.notify_all();
-                        // HD-3: the bytes of a character kept for a read
+                        // HD-3: the bytes of a character carried for a read
                         // that never came are not delivered; err lists
-                        // them, so D keeps them
+                        // them, so D records them
                         if !c.carry.is_empty() {
                             return EffectResult { status: crate::host::Status::Delivered, data: Some(json!(0)), error: format!("closed with {} received bytes of an incomplete UTF-8 character not delivered: {:?}", c.carry.len(), c.carry) };
                         }

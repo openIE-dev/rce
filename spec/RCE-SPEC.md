@@ -4920,6 +4920,12 @@ adapter.
   The fold law of 6.1 is unchanged.
 - **Durable.** An entry is durable when the barrier of E.3 for its
   storage returned success.
+- **Delivery by declaration (HD-1 to HD-4).** The host delivers each
+  value as the module declares its event, matching fields by name, and
+  what a declaration cannot take is kept: recorded in D by `host.Kept`
+  with its reason, not delivered. The rules are stated in E.4c: HD-1
+  results, HD-2 HTTP, HD-3 received bytes, HD-4 host inputs. Sections
+  before E.4c cite them as E.4c HD-n.
 
 ### E.2 Admission, time and authority (HC-1 to HC-9)
 
@@ -5316,11 +5322,11 @@ in D does not exist for the program.
   `core.bytes`), and D records them as a list of integers (6.1). No `text`
   holds every byte sequence, and a read may end inside a UTF-8 character,
   so a host does not decode received bytes unless the module takes them
-  as text (HD-3): the program decodes them (`text.utf8`), and a body that
+  as text (E.4c HD-3): the program decodes them (`text.utf8`), and a body that
   is not UTF-8 is a value the program can answer rather than a trap. One delivery holds at most SIZE_LIMIT (N9)
   bytes, so the delivered value can always be built. The data of
   `NetRecvDone` (HC-23) and the body of `HttpRequest` (HC-24) follow this
-  rule. Declared as `text`, either is delivered by HD-3: as text when it
+  rule. Declared as `text`, either is delivered by E.4c HD-3: as text when it
   is UTF-8, never split inside a character, and kept in D as
   bytes when it is not.
 - **HC-10b Typed inputs are inputs.** An input read from the input stream
@@ -5417,8 +5423,8 @@ both enter D and reach the program as inputs.
   | `NetListen(req, addr)` | the id of the listener | the bind error |
   | `NetAccept(req, id)` | the id of a new connection | `none` when no connection is waiting |
   | `NetSend(req, id, data)` | the number of bytes handed to the connection | `closed`, `send buffer full`, `byte outside 0..255` |
-  | `NetRecv(req, id, max)` | the bytes received so far, at most max, possibly none (HC-10a); taken as text, up to 3 more to complete a character (HD-3) | `eof` when the peer closed and nothing is left, `closed`, the read error |
-  | `NetClose(req, id)` | 0; err lists the bytes of a character kept for a read that did not come (HD-3) | `no socket N` |
+  | `NetRecv(req, id, max)` | the bytes received so far, at most max, possibly none (HC-10a); taken as text, up to 3 more to complete a character (E.4c HD-3) | `eof` when the peer closed and nothing is left, `closed`, the read error |
+  | `NetClose(req, id)` | 0; err lists the bytes of a character carried for a read that did not come (E.4c HD-3) | `no socket N` |
 
   `data` is text, sent as its UTF-8, or a `List[i64]` of 0..255. A send
   hands the bytes to the connection's own writer and returns at once, so
@@ -5453,7 +5459,7 @@ both enter D and reach the program as inputs.
   reason. A connection that closes before a request is complete, or stays
   idle for IDLE_MS before the first byte of one, adds nothing to D. The
   id is the seq of the entry that delivers the input (its own entry, or,
-  when `host.Kept` records it first under HD-2, the entry after that
+  when `host.Kept` records it first under E.4c HD-2, the entry after that
   one), so `Refused(seq)` (HC-21) names the request. The requests of one
   connection are admitted one at a time, each after the response to the
   previous one, so responses keep the order of the requests (RFC 9112
@@ -5463,7 +5469,7 @@ both enter D and reach the program as inputs.
   `HttpMalformed`, when declared. Replay reads requests from D and never
   parses (HC-8). These are the host's values: to a module declared with
   exactly them they are delivered unchanged, and to any other declaration
-  as HD-2 says (the `body` of `HttpRespond` may be `text` or `List[i64]`):
+  as E.4c HD-2 says (the `body` of `HttpRespond` may be `text` or `List[i64]`):
 
   ```
   event HttpRequest(id: u64, method: text, target: text, version: text, names: List[text], values: List[text], body: List[i64])
@@ -5494,7 +5500,7 @@ both enter D and reach the program as inputs.
   is delivered as `Input(data)`, data being the bytes of the line with its
   line end, built into the declared type like any delivery (E.4c): as
   `List[i64]`, or as `text`
-  when they are UTF-8 (HD-3). With no `Input` declared, or one the line
+  when they are UTF-8 (E.4c HD-3). With no `Input` declared, or one the line
   cannot be built into, `host.Kept` records the line in D, as text when
   it is UTF-8 and as its bytes otherwise; `rce host run` holds its lines
   the same way. Only a storage fault (HS-3) stops the loop. With `--http` the end of stdin does not end the loop;
@@ -5537,7 +5543,7 @@ both enter D and reach the program as inputs.
   its requests were admitted. A deadline decides only whether a request
   is admitted and when a connection closes, never what an admitted request
   holds. A connection closes once its `HttpMalformed` is answered, and
-  once the host has answered a request itself (HD-2).
+  once the host has answered a request itself (E.4c HD-2).
 - **HC-26 Responses are a function of D.** The program answers with the
   effect `HttpRespond(req, status, names, values, body)`. Its result
   `HttpRespondDone` is `delivered` with, as data, the length in bytes of
@@ -5561,7 +5567,7 @@ both enter D and reach the program as inputs.
   request asked for it (from HTTP/1.1 on, `Connection: close`; for
   HTTP/1.0, a Connection field without `keep-alive`, or none), when the
   program wrote `Connection: close`, after an `HttpMalformed`, and after
-  a response the host makes itself (HD-2). The method, the version and
+  a response the host makes itself (E.4c HD-2). The method, the version and
   the fields that decide this are in D, in the host's whole value of the
   request: its entry, or the `host.Kept` that records it first when the
   module takes less of it (E.4c). So every byte of a response, and whether
@@ -5670,14 +5676,14 @@ did not, not by restricting what a module may declare.
   text when they are UTF-8. A stream read never splits a character: when
   the module takes the data of `NetRecvDone` as text, a read that would
   end inside a character reads up to 3 bytes past max to complete it, a
-  character whose bytes have not arrived is kept for the next read on that
-  connection, and what was kept is delivered as it is at the end of the
-  stream, with the bytes read before an error, and before the failure of
-  the connection; a `NetClose` of a connection that still keeps bytes
-  lists them in its err. Bytes that are not UTF-8 are
+  character whose bytes have not arrived is carried to the next read on
+  that connection, and what was carried is delivered as it is at the end
+  of the stream, with the bytes read before an error, and before the
+  failure of the connection; a `NetClose` of a connection that still
+  carries bytes lists them in its err. Bytes that are not UTF-8 are
   delivered as a `failed` result with err naming the offset of the first
   byte that is not, or as `HttpMalformed` 415 (HD-2), and `host.Kept`
-  keeps the bytes, so nothing received is lost.
+  records the bytes in D, so nothing received is lost.
 - **HD-4 Host inputs.** `Refused` (HC-21), `Restarted` (HC-22), `Synced`,
   `WallTime` and the frame tick `Tick` (HC-2) are matched by field name
   like any delivery. Declared as

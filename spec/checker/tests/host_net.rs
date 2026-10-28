@@ -226,8 +226,8 @@ fn recv_into_a_text_field_is_text_when_utf8() {
 /// max is smaller than the character: it reads up to 3 bytes past max to
 /// complete it, so a reader of one byte at a time still gets each
 /// character and the end of the stream. A character whose bytes have not
-/// arrived waits for the next read, and a `NetClose` of a connection that
-/// keeps bytes lists them in its err, so D keeps them.
+/// arrived is carried to the next read, and a `NetClose` of a connection
+/// that carries bytes lists them in its err, so D records them.
 #[test]
 fn recv_as_text_completes_a_character_past_max() {
     let addr = free_addr();
@@ -267,7 +267,7 @@ fn recv_as_text_completes_a_character_past_max() {
     assert_eq!(call("NetRecv", json!({"req": 4, "id": id, "max": 1})).data, Some(json!([])));
     let c = call("NetClose", json!({"req": 5, "id": id}));
     assert_eq!((c.status.as_str(), c.data.clone()), ("delivered", Some(json!(0))));
-    assert!(c.error.contains("[226]"), "the kept byte is in the result: {c:?}");
+    assert!(c.error.contains("[226]"), "the carried byte is in the result: {c:?}");
 }
 
 /// HC-23: NetSend takes text (its UTF-8) or bytes; an element outside

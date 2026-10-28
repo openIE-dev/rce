@@ -1402,8 +1402,8 @@ impl<'a> Host<'a> {
         for a in adapters.iter_mut() {
             if declares_struct(m, a.kind()) {
                 bound.push(a.kind());
-                // HD-3: received bytes taken as text keep a character that
-                // a read ends inside for the next read
+                // HD-3: received bytes taken as text carry a character that
+                // a read ends inside to the next read
                 let ev = format!("{}Done", a.kind());
                 let text = event_payload(m, &ev).and_then(|p| p.iter().find(|(k, _)| k == "data")).is_some_and(|(_, t)| bytes_field(&ev, "data") && takes_text(t, m));
                 if text {
