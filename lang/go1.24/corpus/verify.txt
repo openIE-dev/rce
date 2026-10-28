@@ -84,7 +84,7 @@ MATCH        boundaries/string_builder_big   fe8e22c1e82a77a1fe432d6e7a32d4f5ff2
 MATCH        boundaries/string_bytes_runes   61fdde92007e1c84f563df4de53199662a9f901c1f031c996a348b4e6bd8035f
 MATCH        boundaries/string_compare       cf97bfa6803b7fe0e8d60df24b75efb089ff7558848bd3487efa153245b64ce7
 MATCH        boundaries/struct_print         1a804065016e9874d34826542c72a0a7155836bc9700d80827d26153bf5c7f22
-MATCH        boundaries/unicode_case         1bc81a01693c7aaf401b0b679be8c775a043045960f1d7012318f6221bb5493a
+MATCH        boundaries/unicode_case         bfd57f1ef1e014a466e3f548667e3dd7768bd3be1e9383bdc266507eb6158a33
 MATCH        generated/float_ops             605dd24621e27dcbd4aae5f9f323892c151d561f944ef2ddf12ee773f9de4b90
 MATCH        generated/float_print_bits      7cac16971d47d8744e056f9fe8b2299ec60bc1f537677e30ef225917d4a1dfdc
 MATCH        generated/float_print_decimals  97305a47dfb4c67a281add8b7b80421295b2fba1fef37a22689453155ab4aa42

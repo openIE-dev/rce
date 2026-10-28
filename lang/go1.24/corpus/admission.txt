@@ -84,7 +84,7 @@ admitted      boundaries/string_builder_big   aeec4ad3ffe4918dc456c83e6a515c0415
 admitted      boundaries/string_bytes_runes   db480beb33030193f2388bed8c569b7fa44df6dcb79227433f8313455cdd4fc2  deterministic
 admitted      boundaries/string_compare       4253b1851114484db3a47ef6617034c9450a17d6ac4aaba3bae4b702849f0840  deterministic
 admitted      boundaries/struct_print         eb70b3c7467fd0b49d064b456d0006d2f100abeb29aaf099742ac27c310c5b07  deterministic
-admitted      boundaries/unicode_case         7a1453eff19cb276fb2a3df9ecf70e9a90653f43c2a9d62734e8e3550f5c45dc  deterministic
+admitted      boundaries/unicode_case         9f52fe7ae3efc2bbbfc0374898a5b5fd19c61c4d49e8d51b6fa5e7880bef4301  deterministic
 admitted      generated/float_ops             1b5818456e50cf860278da567df55f1de38513a9c8a23eff8bf232b534da7620  deterministic
 admitted      generated/float_print_bits      77d1925c7473c3b2cc2113353d2b9ebfa29177ea14abbb0d7d194527ab55d365  deterministic
 admitted      generated/float_print_decimals  08a56b803eaa71460dffdff8b0a7e503a8555253a095bd9440ae466efdcaa814  deterministic

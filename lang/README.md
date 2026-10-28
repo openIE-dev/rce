@@ -162,9 +162,10 @@ construct at a time), `algorithms` (small complete programs), `boundaries`
 (the edges a lift must carry exactly: integer overflow and division, float
 printing, strings and Unicode, iteration order, errors and exceptions,
 resource limits) and `generated` (tables over edge values written by
-`generate.py`). Characters that are
-invisible or combining are written as escapes in the programs' text. A case
-is never edited (rule K3): a changed program is a new file under a new hash.
+`generate.py`). Characters that are invisible or combining, or that are
+drawn like another character (such as U+212A KELVIN SIGN, drawn as the
+letter K), are written as escapes in the programs' text. A case is never
+edited (rule K3): a changed program is a new file under a new hash.
 
 ## Reproducing the recorded expectations
 
