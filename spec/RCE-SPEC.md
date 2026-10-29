@@ -3602,6 +3602,25 @@ that bound; T59 bounds what agreement to a depth proves. A program and its
 name-free projection (10.6) are equivalent by T7. JSON format
 `rce-equiv/1`.
 
+`rce fingerprint [--depth N] [--fuel N] [--json] FILE...` prints the
+behaviour fingerprint of each program (proposal `behaviour-fingerprint.md`,
+BF-1): the SHA-256 of the name-free output (the label `rce equiv`
+compares) of every event sequence of length 1 to N (default 8) over the
+event instances `rce equiv` explores, hashed bottom up over the explored
+graph, so it costs one hash per state within N − 1 steps of s₀ and event
+instance, with N and the instances' name-free keys hashed in. Two programs
+with the same output on every such sequence share it, so two programs
+`rce equiv` judges equivalent share it at every depth whatever their
+shape, while their program hashes (CC-1) differ; a shared fingerprint is
+a candidate that `rce equiv` confirms, since programs that differ only
+after more than N events, or only on a payload outside the explored
+alphabet, share it too. One FILE prints the fingerprint, the depth and
+the number of sequences, instances and states stepped; several print one
+line `HASH  FILE` each. Status 1 and `not fingerprinted` for a program
+with no state region or no explorable event, or when `--fuel` states
+(default 100,000) are reached before depth N. JSON format
+`rce-fingerprint/1`. It is informative: no admission depends on it.
+
 `rce change [--fuel N] OLD NEW` classifies a change to a program by the
 classes of C.15 and proposal CC-2, comparing the two programs under one
 text: it prints both program hashes (equal hashes mean a renaming
