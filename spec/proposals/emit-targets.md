@@ -37,8 +37,8 @@ name resolution and types (the Language Server Protocol gives those where
 a server exists; otherwise the semantics table carries scope rules), macro
 and comptime expansion (Rust, Zig, C: the tree is not the program until
 these run, so λ_L for them is on the expanded tree), and semantics of
-anything the language leaves undefined (the table refuses it, as W-RES-1
-refuses a reserved word).
+anything the language leaves undefined (the table has no row for it, as
+no name may be a reserved word under W-RES-1).
 
 Probe (2026-10-23, `spec/lift/go`): a Go struct with one method per event,
 lifted by `tree-sitter-go` and a 12-line semantics table with no model,
@@ -320,8 +320,8 @@ Inko, Austral, Flix, Verus, C3, Jakt, Onyx, Toit, Grain, Wing, Ballerina,
 Jule, V, Lean 4, Vale, Effekt, Steel, Wa, Borgo, Nature) keep their rows in
 Tiers 2 to 4; Hare, Hy, Pipefish, Odin, Rux and Nature are added to Tier 2.
 
-What the entrants converge on, from the survey's tallies: refusal of
-invalid input at the boundary (54 of 72 machine-author entrants) and
+What the entrants converge on, from the survey's tallies: validation of
+input at the boundary (54 of 72 machine-author entrants) and
 emission to another language (57 of 72; 17 of 39 general entrants) are
 near-universal; a canonical form (25 of 72), examples inside the program
 (21 of 72; 2 of 39), a written specification (16 of 72; 14 of 39),
@@ -335,7 +335,7 @@ and the rare mechanisms are the ones the Form adds on emission: a program
 emitted into any of these languages carries the log, the hashes and the
 determinism of the Form it was printed from.
 
-## 3. What is refused
+## 3. What is not a target
 
 - A target whose semantics the table cannot pin to 6.3 (an interpreter with
   unspecified float formatting and no way to call a fixed one) is

@@ -240,7 +240,7 @@ fn limits_give_their_statuses() {
     let status = |b: &[u8]| -> (u16, String) {
         match parse_request(b) {
             Err(e) => e,
-            Ok(r) => panic!("not refused: {r:?}"),
+            Ok(r) => panic!("parsed, but should not: {r:?}"),
         }
     };
     // request line over LINE_MAX: 414, before the line has ended

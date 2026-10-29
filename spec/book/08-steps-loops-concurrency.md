@@ -3,7 +3,7 @@
 This section defines the *step function* δ (delta), which takes a state and
 an event and returns the next state and an outcome, then errors, hashing,
 loop bounds, concurrency and how examples are checked. A *trap* is a defined
-failure that refuses the event and leaves state unchanged. Example: a loop
+failure after which the event does not apply and the state is kept. Example: a loop
 with `bound 10` that starts an 11th iteration traps with "loop bound".
 
 ### 6.4 The step function δ
@@ -15,7 +15,7 @@ For event e = (Eₗ, v):
    true in (Rᵢ's pre-state fields, bindings of p). The first such step is
    **the** step of Rᵢ for e. If there is none, Rᵢ is unchanged (frame).
    A guard that traps (overflow, division by zero, …) does not fall through
-   to the next step: the event is refused with that trap (change S1; this is
+   to the next step: the state is kept, with that trap (change S1; this is
    what makes δ a total function rather than leaving the case undefined).
 2. Every selected step runs on the **pre-state** s (ASM semantics, Form law 2):
    no step sees another region's update for the same event.
@@ -23,10 +23,10 @@ For event e = (Eₗ, v):
    to rᵢ, the pattern bindings as `let`s. Its result is
    - `ok(σ′)`: rᵢ′ = the field values in σ′ (each checked against its type
      range and VALUE_LIMIT), outputs oᵢ = the values emitted, in order;
-   - `fail(X, w)` or `trap(m)`: the step is **refused**.
-4. If any selected step is refused, the whole event is refused:
-   δ(s, e) = (s, [Refused(X or trap(m), e)]), where X is the refusal of the
-   first refused region in declaration order. Atomicity: an event either
+   - `fail(X, w)` or `trap(m)`: the step is **kept**.
+4. If any selected step is kept, the whole event does not apply:
+   δ(s, e) = (s, [Kept(X or trap(m), e)]), where X is the reason of the
+   first kept region in declaration order. Atomicity: an event either
    applies to every region or to none.
 5. Otherwise δ(s, e) = ((r₁′, …, rₖ′), o₁ ++ … ++ oₖ).
 
@@ -35,16 +35,16 @@ The arrow form `step R on p -> e` is sugar for the block
 
 **Order independence.** Since each step reads only its own region and the
 event, the result of steps 2–5 does not depend on the order regions are
-evaluated except through "first refused region", which is fixed by
+evaluated except through "first kept region", which is fixed by
 declaration order. Outputs are concatenated in declaration order.
 
-### 6.5 Errors, traps and refusals
+### 6.5 Errors, traps and kept steps
 
-A `fail X(…)` or a trap inside a step refuses the event: the state is
+A `fail X(…)` or a trap inside a step keeps the state: the state is
 unchanged, the log records the event with outcome `kept(X)` and λ outputs
 `Kept`. Nothing is thrown past a step; no event is dropped silently. In a
-pure function called from comptime, refusal is a compile error. In `main`, a
-trap or unhandled failure ends the command with the refusal as its output.
+pure function called from comptime, a trap or `fail` is a compile error. In `main`, a
+trap or unhandled failure ends the run `stopped`, with the trap or failure as its output.
 
 ### 6.6 Determinism of identity: name-free hashing
 
@@ -88,11 +88,11 @@ computed from.
 of its keys, as in 7.1, never insertion order (an erratum, C.15),
 text by scalar value, or an integer range `a..b` / `a..=b`); its length is
 fixed when the loop starts, and mutating the iterated collection inside the
-loop is refused statically (it is borrowed). `while c bound n` and
+loop requires change statically (it is borrowed). `while c bound n` and
 `loop bound n` run at most n iterations, n a comptime-or-runtime u64
 evaluated once; the default bound is LOOP_LIMIT = 1,000,000. A program may
 set its own default with a module-level `const LOOP_LIMIT: u64 = n`, n a
-positive literal (draft 0.5; any other declaration of that name is refused,
+positive literal (draft 0.5; any other declaration of that name requires change,
 W-LOOP-1). Starting iteration n + 1 is `trap("loop bound")`. Comptime
 evaluation uses the same bounds. `for x in f(…)` over an iterator function
 (5.14) counts yields against LOOP_LIMIT in the same way; Lean:
@@ -111,7 +111,7 @@ drafts 0.4 to 0.7 let the position differ from call to call; that admits
 a function that never returns (`f(x, y)` whose one self-call takes a
 component of x and a fixed value for y, and whose other takes a fixed
 value for x and a component of y, runs forever from `f(Leaf, Node(…))`),
-so such a function is refused (W-REC-1; an erratum, C.15). Every function
+so such a function requires change (W-REC-1; an erratum, C.15). Every function
 this paragraph admits is admitted by the rule below with one layer.
 
 **Recursion by layered measures.** Every cycle of the call graph (a
@@ -137,7 +137,7 @@ most (μ + 1)·k calls, with μ the measure of the first call and k the
 number of functions in the cycle, and N9 bounds μ. The reference checker
 tries every choice of the sets of a layer, in a fixed order, for a cycle
 with at most 16 parameters in total, takes the first choice that does
-the most calls, and refuses a larger cycle that needs a layer. Lean:
+the most calls, and reports that a larger cycle that needs a layer requires change. Lean:
 `RCE/Mutual.lean` (`call_dec`, `call_keep`, `layer_dec`, `wf_total`,
 `wf_fuel_irrelevant`; one layer: `lex_dec`, `mutual_total`,
 `mutual_fuel_irrelevant`, `mutual_depth`). Examples: `even(xs)` and
@@ -161,14 +161,14 @@ recursion on integers or indices, which has no constructor measure
 (`gcd(a, b)` calling `gcd(b, a % b)`, a parser that recurses on a
 position). The counts belong to the task (6.8) that makes the calls, so
 `par` and `for … par` inside a function of a cycle with a bounded
-function are refused (W-REC-1): the branches could otherwise count calls
+function require change (W-REC-1): the branches could otherwise count calls
 differently on one thread and on several. `bound` on an iterator
 function (5.14), a foreign function or a trait signature is W-REC-1. The
 check costs nothing (C.6.4 is unchanged). Lean: `RCE/Mutual.lean`
 (`bump_slack`, `bound_dec`, with `lex_dec`, `mutual_total`,
 `mutual_depth`); tests: `spec/checker/tests/bound.rs`.
 
-Any other cycle in the call graph is refused (W-REC-1).
+Any other cycle in the call graph requires change (W-REC-1).
 
 This is what makes δ total (T2): every construct terminates in a number of
 steps bounded by a function of the program and the event.
@@ -229,9 +229,9 @@ run with outcome `Deadlock` in λ (a defined outcome, not a hang).
 ### 6.9 Examples and checks
 
 `example ē -> o` denotes the proposition: folding the events ē from s₀ gives
-a final step whose outcome is o, where for `-> kept: X` the last event is
-refused with the error X, for `-> kept: trap("K")` the last event is
-refused by the trap K (earlier events must be applied in both cases), and for
+a final step whose outcome is o, where for `-> kept: X` the last step is
+kept with the error X, for `-> kept: trap("K")` the last step is
+kept by the trap K (earlier events must be applied in both cases), and for
 `-> e` the event list is fully applied and then
 
 - if the program has exactly one region with exactly one field f, the
@@ -322,4 +322,4 @@ does not define.
 
 **Read receipt.** Name-free hashing uses indices named after which logician? (two words)
 
-<!-- body-sha256: 9a7958f8ccdeb615373dbb7f21a8d51f89c9fcb9e3fdd7363ad3b47ab6dbb05e -->
+<!-- body-sha256: 6e403282d3fe412ba0ac3a00a518a340e3b1337b0978399aeaba3b2571c162ad -->

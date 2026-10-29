@@ -58,7 +58,8 @@ frame is one `ChanSendDone` result that is not `delivered` (HC-3). A
 frame whose SEQ is not newer than the last one forwarded for that
 (room, track, publisher) is dropped as stale, so the latest frame wins.
 A SEQ that is not 1 to 18 decimal digits, or a body of another shape, is
-counted as malformed: a peer cannot make the SFU refuse an input. The
+counted as malformed: no input from a peer makes a step of the SFU keep
+the state. The
 SFU folds only (track, sequence number, digest) into its state, never a
 payload, and payloads are end-to-end ciphertext it cannot read. A runnable example is `run.sh sfu` in the examples of the host runtime.
 
@@ -156,8 +157,8 @@ vector.
 
 The sandbox of HC-5 is one contract, independent of any operating system
 (OS): the checker admits only programs whose effects go through granted
-capabilities, and the host refuses any effect without one before any OS
-layer is involved. The media, channel and storage adapters above are
+capabilities, and the host does not perform any effect without one, before
+any OS layer is involved. The media, channel and storage adapters above are
 reached only through such capabilities. The same contract has
 enforcement targets underneath the host: WebAssembly (WASM), bare metal,
 Linux, macOS, Windows and other OSes, each entered as strictly as the

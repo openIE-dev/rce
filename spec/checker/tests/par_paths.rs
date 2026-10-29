@@ -1,7 +1,7 @@
 //! Path-precise W-PAR-1 (spec C.3): branch footprints are borrow paths, so
 //! branches writing disjoint fields, tuple slots or literal indices of one
-//! variable are admitted (the earlier root-variable rule refused each of
-//! these), while overlapping paths are still refused. Admitted programs
+//! variable are admitted (under the earlier root-variable rule each of
+//! these required change), while overlapping paths still require change. Admitted programs
 //! give the source-order result under every par schedule (T16).
 use rce_spec_check::conc::{run_main, Outcome, ParMode, RunCfg};
 use rce_spec_check::parse::parse;
@@ -23,7 +23,7 @@ fn diags(src: &str) -> Result<(), String> {
     d[0].1.clone().map_err(|e| format!("{e:?}"))
 }
 
-/// race-free under C.3 paths, refused by a per-root rule; expected sum
+/// race-free under C.3 paths, requiring change under a per-root rule; expected sum
 const ACCEPT: &[(&str, &str, i64)] = &[
     ("p.x = 10", "p.y = 20", 10 + 20 + 3 + 4 + 5 + 6 + 7 + 8),
     ("p.x = p.y + 1", "p.q.a = p.y * 2", 3 + 2 + 4 + 4 + 5 + 6 + 7 + 8),

@@ -1,5 +1,5 @@
 //! Version 0.9 Tier 3 (Appendix F.6): contracts (P2) and `ghost` (P3).
-//! Accepted and refused examples are in `tests/v09_examples.rs`.
+//! Accepted examples and those that require change are in `tests/v09_examples.rs`.
 use rce_spec_check::apidiff;
 
 fn run(src: &str) -> String {
@@ -54,7 +54,7 @@ fn the_contract_is_part_of_the_definition_hash() {
 #[test]
 fn ghost_code_not_named_by_a_clause_is_erased() {
     // `n` is only used by another ghost value that no clause names: unused in
-    // the run, so W-UNUSED-1 refuses it before it could matter
+    // the run, so W-UNUSED-1 reports it before it could matter
     let src = "# rce-version: 0.9\nghost fn unused_g(x: i64) -> i64 = x\n\nfn main()\n    emit \"ok\"\n";
     assert!(run(src).contains("emit \"ok\""), "{}", run(src));
 }

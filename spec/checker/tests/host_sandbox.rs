@@ -174,7 +174,7 @@ fn shell_udp(extra: &[String]) -> Option<String> {
 }
 
 /// HC-5a: with `--http` alone the listener was bound before entering, so
-/// seccomp refuses every new IP socket: the shell cannot open UDP. With a
+/// seccomp fails every new IP socket: the shell cannot open UDP. With a
 /// `--net` grant it can, and the line says UDP is not restricted.
 #[cfg(target_os = "linux")]
 #[test]
@@ -193,7 +193,7 @@ fn http_only_has_no_new_ip_sockets() {
     assert!(net.contains("UDP not restricted") && !net.contains("no new IP sockets"), "{net}");
 }
 
-/// macOS runner: Seatbelt refuses a port that was not granted.
+/// macOS runner: under Seatbelt, a port that was not granted is not opened.
 #[cfg(target_os = "macos")]
 #[test]
 fn seatbelt_blocks_an_ungranted_port() {

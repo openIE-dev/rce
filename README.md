@@ -139,7 +139,7 @@ $ rce run counter.rce "Inc, Inc, Dec, Dec, Dec"
 ```
 
 The `example` lines are part of the program: if one did not hold, the
-checker would refuse the file.
+file would require change under W-INT-1.
 
 ## Commands
 
@@ -166,7 +166,7 @@ Section 10 of the specification defines each command.
 | `spec/checker/` | the reference parser, type checker, interpreter, emitters, formatter, language server and host runtime (Rust); also `rce-spec-check`, `rce-book`, `rce-spec-data` and `rce-fuzz` |
 | `spec/checker-wasm/` | the checker compiled to WebAssembly; `spec/wasm-test/` tests the package against the examples |
 | `spec/lean/` | the Lean 4 model of the core language and its proofs (section 8); `scripts/lean-audit.sh` checks the axioms |
-| `spec/examples/` | programs the checker must accept, and in `reject/`, `ill_typed/` and `inadmissible/`, programs it must refuse |
+| `spec/examples/` | programs the checker must accept, and in `change/syntax/`, `change/types/` and `change/admission/`, programs that must require change |
 | `spec/traces/` | reference traces of the example corpus |
 | `spec/data/` | the specification as data (grammar tables, rules, method and cost tables) |
 | `spec/proposals/` | design proposals and the decision ledger (`LEDGER.md`) |
@@ -197,8 +197,8 @@ cargo test --release
 
 `rce-spec-check` reads the grammar from `spec/book/03-syntax.md`, builds
 LALR(1) tables and fails on any conflict, parses every example with two
-parsers that must agree, runs the checker over all accepted and refused
-examples, and checks that `RCE-SPEC.md` matches the chapters. With
+parsers that must agree, runs the checker over all accepted examples and
+all that require change, and checks that `RCE-SPEC.md` matches the chapters. With
 `--features tree-sitter` (needs a C compiler and the
 [tree-sitter CLI](https://tree-sitter.github.io/)) it also regenerates the
 tree-sitter parser and uses it as a third parser. The emitter tests need

@@ -9,7 +9,7 @@
 //!   acknowledged;
 //! - a vote is granted only to a candidate whose log is at least as
 //!   up-to-date, by (last term, last index);
-//! - AppendEntries carries (prev_idx, prev_term); a follower refuses it when
+//! - AppendEntries carries (prev_idx, prev_term); a follower does not append it when
 //!   its log has no entry at prev_idx with that term (log matching), deletes
 //!   a conflicting suffix, and appends what is missing;
 //! - the leader advances the commit index only over entries of its own term
@@ -369,7 +369,7 @@ impl Node {
     }
 
     /// Leader only: start a membership change to `new` (joint consensus).
-    /// Refused while another change is in progress.
+    /// `None` while another change is in progress.
     pub fn change_membership(&mut self, new: Vec<usize>) -> Option<u64> {
         let cur = self.cfg();
         if self.role != Role::Leader || cur.new.is_some() || self.cfg_upto(self.commit) != cur {

@@ -1,7 +1,7 @@
 //! W1i media: capture and playback adapters. Frames are blobs addressed by
 //! digest; D holds only (track, seq, digest) and the frame's Tick, so replay
 //! with every adapter disconnected reaches the same state without
-//! re-capturing (HC-3, HC-8, HC-10), and the playback sink refuses a frame
+//! re-capturing (HC-3, HC-8, HC-10), and the playback sink does not append a frame
 //! whose bytes do not match its digest.
 use rce_spec_check::adapters::media::media_adapters;
 use rce_spec_check::host::{Adapter, Host, MemStore, replay};

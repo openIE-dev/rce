@@ -59,7 +59,7 @@ use std::collections::HashSet;
 
 /// Check `files` (name, source) as one program, as `rce-check` does: every
 /// file is parsed, `use` resolves among them, then each is type checked and
-/// admitted. Returns one verdict per file, in order: Ok or the refusal.
+/// admitted. Returns one verdict per file, in order: Ok or what requires change.
 pub fn check_program(
     files: &[(String, String)],
     parse_only: bool,

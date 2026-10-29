@@ -91,7 +91,7 @@ fn wr(data: text, max: usize, acks: List[i64]) -> WrOut
         else
             let s = ack(&mut w, acks[i] as u64) catch 999999
             if s != w.sent
-                return WrOut(chunks: ["ack refused"], sent: 0, done: false)
+                return WrOut(chunks: ["ack failed"], sent: 0, done: false)
         i += 1
     if writer_done(&w) and next_chunk(&mut w) != none
         return WrOut(chunks: ["chunk after done"], sent: 0, done: false)

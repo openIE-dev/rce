@@ -12,5 +12,5 @@ currency max_age=24h last_checked=2000-01-01T00:00:00Z
 # output_has:
 #   - W-HS-CUR-2
 #   - requires change
-# provenance: targeted (round 3): appendix D, rce check --strict refuses a stale spec
+# provenance: targeted (round 3): appendix D, rce check --strict reports that a stale spec requires change
 #---

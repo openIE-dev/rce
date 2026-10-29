@@ -1,7 +1,7 @@
 //! Code property graph queries over the Form graph (Joern/CodeQL-style,
 //! much smaller). One query per line:
 //!   callers NAME | callees NAME | reach NAME | path A B
-//!   kind KIND [joules > J] [divergence > D] | refused | uses-hw NAME
+//!   kind KIND [joules > J] [divergence > D] | change | uses-hw NAME
 //! Names match node labels. Results are node indices, in graph order
 //! except `path`, which is in walk order.
 use crate::graph::{EdgeKind, Graph};

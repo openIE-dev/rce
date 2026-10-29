@@ -814,7 +814,7 @@ function why(e) {
   if (e instanceof Stop) return "Stop";
   return "Ret";
 }
-// Rust Debug of the interpreter's V (refusal text); closures, iterators
+// Rust Debug of the interpreter's V (the text of a kept step); closures, iterators
 // and lvars print a placeholder
 function dbgV(v) {
   if (v === true || v === false) return "Bool(" + v + ")";
@@ -849,13 +849,13 @@ function dbgFlow(e) {
   if (e instanceof Cancel) return "Cancel(" + e.f + ")";
   return "?";
 }
-// machine step refusal (interp.rs)
+// why a machine step kept the state (interp.rs)
 function reason_of(e) {
   if (e instanceof Fail) return e.v instanceof Rec ? e.v.n : "?";
   if (e instanceof Trap) return "trap(" + e.m + ")";
   return "trap(" + dbgFlow(e) + ")";
 }
-// actor handler refusal (conc.rs)
+// why an actor handler kept the state (conc.rs)
 function actorReason(e) {
   if (e instanceof Fail && e.v instanceof Rec) return e.v.n;
   if (e instanceof Trap) return "trap(" + e.m + ")";

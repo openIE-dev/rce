@@ -30,15 +30,14 @@ cargo run --release --bin rce-spec-check
 The grammar is the EBNF in `spec/book/03-syntax.md`. Changing it changes
 the language for every tool, so a grammar change also needs:
 
-- an accepted example in `spec/examples/` or a refused one in
-  `spec/examples/change/syntax/`;
+- an accepted example in `spec/examples/`, or one in
+  `spec/examples/change/syntax/` that requires change;
 - the matching change to `tree-sitter/grammar.js`, regenerated with
   `tree-sitter generate --js-runtime native` in `tree-sitter/`;
 - a passing `cargo run --release --features tree-sitter --bin rce-spec-check`.
 
-A new rule that refuses programs needs a program in
-`spec/examples/change/types/` or `spec/examples/change/admission/` that the rule
-refuses.
+A new rule needs a program in `spec/examples/change/types/` or
+`spec/examples/change/admission/` that requires change under that rule.
 
 ## Working on the checker
 
@@ -62,11 +61,12 @@ with hundreds of papers a year and nothing ever removed). Each rule names
 the artefact that enforces it.
 
 1. **Admission is a mechanical check, not a vote.** A construct enters the
-   normative grammar only with: an accepted and a refused example; a Lean
+   normative grammar only with: an accepted example and one that requires change; a Lean
    statement of the theorem it relies on, linked to the checker by a
    generated rule table or by vectors; and 0 LALR(1) conflicts. A construct
    with any of these missing is a proposal in `spec/proposals/` or a
-   reserved word refused with W-RES-1, never a production.
+   reserved word (a text that uses it requires change under W-RES-1),
+   never a production.
 2. **Composition before addition.** Before a proposal adds a construct, it
    shows the same program written with existing constructs, or shows that
    none exists. A second spelling of something the Form already says is

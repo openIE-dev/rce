@@ -78,8 +78,8 @@ fn checker_automaton_equals_lean() {
             assert_eq!(cb.enabled(), strs(&st["b"]), "vector {n} step {i}: B enabled");
             assert!(!ca.at_end() && !cb.at_end(), "vector {n} step {i}: ended early");
             let t = st["take"].as_str().unwrap();
-            assert!(ca.step(t), "vector {n} step {i}: A refused {t}");
-            assert!(cb.step(&dual_act(t)), "vector {n} step {i}: B refused the dual of {t}");
+            assert!(ca.step(t), "vector {n} step {i}: A cannot take {t}");
+            assert!(cb.step(&dual_act(t)), "vector {n} step {i}: B cannot take the dual of {t}");
         }
         let done = v["done"].as_bool().unwrap();
         assert_eq!(ca.at_end() && cb.at_end(), done, "vector {n}: end differs from Lean");

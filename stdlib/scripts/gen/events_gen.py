@@ -318,7 +318,7 @@ for n in range(150):
     chk('derived', 'check fk(%s, %s, %s, %s) == %s' % (lits(khs), lit(kb_), isb, lit(key), lit(kc)))
     saved.append({'structured': body, 'expect': c, 'http_headers': hs, 'kafka_headers': khs, 'kafka_key': key, 'kafka_expect': kc})
 
-# SDK refusals (required attributes and types) must be refusals here too
+# inputs the SDK reports as errors (required attributes and types) must be errors here too
 bad = [
     {'specversion': '1.0', 'source': 's', 'type': 't'},
     {'specversion': '1.0', 'id': '', 'source': 's', 'type': 't'},

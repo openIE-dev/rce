@@ -1,6 +1,6 @@
 module kept_outcomes
 
-intent "a refused step is followed by host.StepKept and, when the program declares it, by the input StepKept(seq, cause), so the program is told that the step did not happen and why"
+intent "a kept step is followed by host.StepKept and, when the program declares it, by the input StepKept(seq, cause), so the program is told that the step did not happen and why"
     example Ok -> applied == 1 and kept_outcomes == 0
     example Fail -> kept: Bad
     example StepKept(seq: 4, cause: "fail") -> kept_outcomes == 1 and last_seq == 4 and last_cause == "fail" and applied == 0
@@ -44,7 +44,7 @@ step S on Ok
     applied += 1
 
 step S on Fail
-    fail Bad(why: "refused on purpose")
+    fail Bad(why: "kept on purpose")
 
 step S on Divide
     applied = applied / zero

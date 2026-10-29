@@ -22,13 +22,13 @@
 //!   workspace either. Fails closed where the jail is unavailable.
 //! - **One signed receipt per turn** in the IDE ledger (`acp.turn`), linking
 //!   the rce-mcp sub-ledger head, the tool calls, permission decisions,
-//!   refused methods, reverted files, stop reason and transport bytes.
+//!   methods not performed, reverted files, stop reason and transport bytes.
 //!
 //! [`g4::AcpG4`] plugs this into mei-agent as an optional G4.
 //!
 //! ACP v2 is a draft (it drops `fs`/`terminal` and has clients provide
 //! tools as MCP servers, which is what this client already does). Version
-//! negotiation here asks for v1 and refuses anything else.
+//! negotiation here asks for v1 and does not proceed with anything else.
 pub mod client;
 pub mod g4;
 pub mod rpc;

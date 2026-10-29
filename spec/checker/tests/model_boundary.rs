@@ -1,11 +1,11 @@
 //! F.5.6 the model boundary: W-CTX-2 (prompt in), `extern "model" event` and
 //! W-IFC-7 (untrusted answers with no authority out), and W-TRI-1 by W-IFC-1
-//! and W-IFC-5. Each refusal names its rule; each positive is admitted.
+//! and W-IFC-5. Each case that requires change names its rule; each positive is admitted.
 use rce_spec_check::check_one;
 
 fn kept(src: &str, rule: &str) {
-    let e = check_one(src).expect_err(&format!("must be refused for {rule}:\n{src}"));
-    assert!(e.contains(rule), "refused, but not for {rule}: {e}");
+    let e = check_one(src).expect_err(&format!("must require change for {rule}:\n{src}"));
+    assert!(e.contains(rule), "requires change, but not for {rule}: {e}");
 }
 
 fn admitted(src: &str) {

@@ -2,8 +2,8 @@
 //! `RCE/Mutual.lean`, `bump_slack`, `bound_dec`). The programs in
 //! tests/bound/: `ok_*` are admitted (their `check` items hold at
 //! admission) and every emitted target prints the reference's observations,
-//! including the `recursion bound` trap of the probes; `bad_*` are refused
-//! with W-REC-1.
+//! including the `recursion bound` trap of the probes; `bad_*` require
+//! change under W-REC-1.
 use rce_spec_check::emit::{Lang, emit, observe};
 use rce_spec_check::parse::parse;
 use std::process::Command;

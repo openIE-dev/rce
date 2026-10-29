@@ -123,7 +123,7 @@ fn signed_advisories_verify_and_mark_pinned_hashes_unsafe() {
     assert!(u[0].contains("module lib") && u[0].contains("wrong result"), "{u:?}");
     // the advisory does not change what the hash means: the manifest still checks
     assert!(manifest::check(&t, &d).is_ok());
-    // a tampered reason, an untrusted issuer and a replayed seq are refused
+    // a tampered reason, an untrusted issuer and a replayed seq are each reported
     let mut bad = a1.clone();
     bad["advisory"]["reason"] = json!("fine actually");
     assert!(manifest::verify_advisories(&canonical(&json!([bad])), &keys).unwrap_err().join(";").contains("bad signature"));

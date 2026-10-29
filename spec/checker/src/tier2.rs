@@ -110,7 +110,7 @@ pub fn s2(m: &Module) -> Vec<String> {
                             && !own.contains(n.as_str())
                             && let Some(what) = held.get(n)
                         {
-                            errs.push(err(*l, "W-CAP-1", format!("a closure captures `{n}`, {what}: authority held by a closure must be visible in its capture list, which RCE does not have, so it is refused (F.5.1)")));
+                            errs.push(err(*l, "W-CAP-1", format!("a closure captures `{n}`, {what}: authority held by a closure must be visible in its capture list, which RCE does not have, so the closure requires change (F.5.1)")));
                         }
                     });
                 }

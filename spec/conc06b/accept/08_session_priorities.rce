@@ -1,9 +1,9 @@
 # rce-version: 0.6
 # Session graph with a cycle, accepted by priorities (W-SES-5, T28p): one
-# spawn takes the ends of two channels, so the tree rule refuses it, but
+# spawn takes the ends of two channels, so the tree rule alone does not admit it, but
 # `pair` and `main` both use c1 before c2, so the order on exchanges is
 # acyclic and the program cannot deadlock. W-SES-5_spawn_two_endpoints
-# uses them in opposite orders and is refused.
+# uses them in opposite orders and requires change.
 protocol Ask
     send i64
     recv i64

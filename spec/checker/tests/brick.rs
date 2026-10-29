@@ -270,7 +270,7 @@ fn library_dependencies_resolve_by_use() {
             .iter()
             .all(|e| e["checked"] == true && e["lowering"].get("term").is_some())
     );
-    // without dlib, the module duser imports is not there and duser is refused
+    // without dlib, the module duser imports is not there and duser requires change
     let alone = brick::index(&[(
         dir("dep/duser.rce"),
         std::fs::read_to_string(dir("dep/duser.rce")).unwrap(),

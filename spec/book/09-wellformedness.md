@@ -1,11 +1,11 @@
-## 7. Well-formedness: what is refused at entry
+## 7. Well-formedness: what requires change at entry
 
 This section is the checklist of rules a program must pass to be accepted
-(*well-formedness*). Each rule has a name such as W-TY-1, and a refused
-program is reported with the rule it broke. Example: a function declared
-`-> i64` whose body returns text is refused by W-TY-1.
+(*well-formedness*). Each rule has a name such as W-TY-1, and a
+program that requires change is reported with the rule it broke. Example: a function declared
+`-> i64` whose body returns text requires change: W-TY-1.
 
-A program is refused if any rule fails. Every diagnostic names its rule.
+A program requires change if any rule fails. Every diagnostic names its rule.
 
 Lexical and syntax
 - W-LEX-1 Not UTF-8, BOM, bare CR, or a tab character.
@@ -14,7 +14,7 @@ Lexical and syntax
 - W-SYN-1 Not in the language of section 3.
 - W-RES-1 A construct that a rule of this document specifies and this
   implementation does not implement (a reserved word used as its construct,
-  F.12): refused with the words *reserved, not implemented*.
+  F.12): requires change, with the words *reserved, not implemented*.
 
 Names and modules
 - W-NAME-1 Unresolved name, or a name resolved in the wrong namespace.
@@ -27,7 +27,7 @@ Names and modules
   importing module or with a name imported from another module (imported
   names are not renamed).
 - W-SAFE-1 The identifiers `unsafe`, `Rc`, `Arc`, `RefCell`, `transmute`,
-  `static`: refused with "memory safety is by construction" (there are no
+  `static`: requires change, with "memory safety is by construction" (there are no
   escape hatches in RCE other than the `extern` boundary of 5.11).
 - W-FFI-1 An `extern` declaration whose ABI is not `"C"`, that is comptime
   or generic, or whose parameter or result types break 5.11; or a foreign
@@ -103,11 +103,11 @@ Indexed values (5.16)
   `Guarded` outside a state field; an authority that is not a declared
   struct.
 - W-CAP-2 A step that writes a `Guarded[τ, A]` field on an event without
-  a `Cap[A]` field. (W-NAME-2 refuses a declaration named after a 5.16
-  type or context.)
+  a `Cap[A]` field. (A declaration named after a 5.16 type or context
+  requires change: W-NAME-2.)
 
 Appendix F (specified and implemented in part, F.12): the
-refusals of F.3 to F.8, among them unused values, dropped results and
+rules of F.3 to F.8 under which a text requires change, among them unused values, dropped results and
 shadowing (F.3), `World` and information-flow labels (F.4), transactional
 calls (F.4), capabilities, typed output, pinned builds, constant-time functions
 and budgets (F.5), and templates, contracts, ghost code, written measures,
@@ -119,6 +119,8 @@ Concurrency (Appendix C): W-PAR-1 to W-PAR-4, W-DL-1, W-ND-1, W-GRP-1 to
 W-GRP-3, W-SES-1 to W-SES-5, W-SCOPE-1, W-ATOM-1, W-ATOM-2, W-CRDT-1,
 W-LVAR-1, W-LVAR-2, W-NODE-1, W-SUP-1, W-SUP-2, W-INTR-1 and W-RT-1.
 
-**Read receipt.** Which rule refuses two unguarded steps in one region whose patterns overlap?
+**Read receipt.** Under which rule do two unguarded steps in one region whose patterns overlap require change?
 
-<!-- body-sha256: 8bb53d8444bbf4edf7382eafe256d25442a976309d92ad5a00ec36bfe5a67a33 -->
+**Read receipt.** Under which rule does a region with two unguarded steps whose patterns overlap require change?
+
+<!-- body-sha256: d3f925d7b7230629754f2574572ec5c4c10b0d7d655060f420d6d0b5ee9f5182 -->

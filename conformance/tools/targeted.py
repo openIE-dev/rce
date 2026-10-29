@@ -229,7 +229,7 @@ fn main()
 """, "run", outputs=["emit true", "emit true"], outcome="done")
 
 # --- types and checking
-t("w-ty-2-nested-option", "types-checking", ["W-TY-2"], "fn f(x: i64??) -> i64 = 0\n", "change", diagnostic="any", note="see finding W-TY-2-UNREACHABLE: the grammar has no `τ??`, so W-TY-2 cannot be the rule that refuses it")
+t("w-ty-2-nested-option", "types-checking", ["W-TY-2"], "fn f(x: i64??) -> i64 = 0\n", "change", diagnostic="any", note="see finding W-TY-2-UNREACHABLE: the grammar has no `τ??`, so W-TY-2 is never the rule a text with it requires change under")
 t("w-ty-2-borrow-of-borrow", "types-checking", ["W-TY-2"], "fn f(x: &&i64) -> i64 = 0\n", "change", diagnostic="W-TY-2")
 t("w-pat-1-binding-is-variant", "types-checking", ["W-PAT-1"], """
 kind Light

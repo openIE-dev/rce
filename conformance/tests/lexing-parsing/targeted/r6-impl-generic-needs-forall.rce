@@ -5,7 +5,7 @@ impl [T] Box[T]
 #--- rce-test
 # id: lexing-parsing/targeted/r6-impl-generic-needs-forall
 # area: lexing-parsing
-# clauses: [CH02-M-69371f07, CH03-M-28cdd241, CH09-M-82e65964, R6, T10]
+# clauses: [CH02-M-84a53b7d, CH03-M-28cdd241, CH09-M-82e65964, R6, T10]
 # expect: change
 # diagnostic: W-SYN-1
 # provenance: targeted.py: expected result read off the clause

@@ -219,7 +219,7 @@ pub struct HttpServer {
 
 impl HttpServer {
     /// Bind to a loopback address (`127.0.0.1:0` picks a port). Other
-    /// addresses are refused: this server is for the local IDE and agents.
+    /// addresses are an error: this server is for the local IDE and agents.
     pub fn bind(addr: &str, cfg: HttpConfig) -> std::io::Result<Self> {
         let listener = TcpListener::bind(addr)?;
         if !listener.local_addr()?.ip().is_loopback() {

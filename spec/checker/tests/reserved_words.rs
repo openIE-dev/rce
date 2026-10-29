@@ -1,7 +1,7 @@
 //! One language, one globally reserved word list (spec 2.7). The concurrency
 //! words (`par`, `node`, `scope`, `group`, ...) are reserved in every module,
 //! whatever its `# rce-version:` label says (a label gates nothing), so a
-//! program that uses one as a name is refused, and a program that uses one as
+//! program that uses one as a name requires change, and a program that uses one as
 //! its construct is accepted.
 use rce_spec_check::parse::parse;
 

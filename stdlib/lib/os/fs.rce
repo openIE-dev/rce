@@ -123,7 +123,7 @@ fn walk1(fs: &Fs, cur: i64, c: &text) -> i64 ! FsErr
 
 # follow: whether a final "." or ".." is stepped (open, stat, list); the
 # calls that create or remove an entry (mkdirat, unlinkat, renameat) look
-# only at the parent and refuse a final dot entry themselves.
+# only at the parent and fail on a final dot entry themselves.
 pub fn resolve(fs: &Fs, path: &text, follow: bool) -> Where ! FsErr
     if path == ""
         fail bad("no-entry")

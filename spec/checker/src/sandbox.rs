@@ -26,7 +26,7 @@
 //!   granted.
 //! - Linux target: Landlock (see `landlock`): TCP bind and connect by port,
 //!   then a seccomp-BPF filter on every thread (see [`seccomp`]), which
-//!   refuses new IP sockets when the only network grant is a listener
+//!   fails every new IP socket when the only network grant is a listener
 //!   opened before entering.
 //! - To do: Windows (AppContainer), FreeBSD (Capsicum), OpenBSD
 //!   (pledge/unveil), iOS, Android; on these no OS target is entered and
@@ -405,8 +405,8 @@ mod landlock {
 /// RCE host never needs fail with EPERM: debugging other processes,
 /// mounts and namespaces, kernel modules, kexec and reboot, BPF and perf,
 /// keyrings, clock setting, io_uring (which would bypass the filter), and
-/// on x86_64 the x32 ABI and port I/O. `clone` with any CLONE_NEW* flag is
-/// refused and `clone3` answers ENOSYS (its flags cannot be inspected; libc
+/// on x86_64 the x32 ABI and port I/O. `clone` with any CLONE_NEW* flag
+/// fails with EPERM and `clone3` answers ENOSYS (its flags cannot be inspected; libc
 /// falls back to `clone`). Without `--pty`, execve and execveat fail;
 /// unless a grant is connected to or bound after entering (a listener bound
 /// before, such as `--http`, needs no new socket), `socket` for AF_INET and
@@ -495,7 +495,7 @@ pub mod seccomp {
         sock_filter { code, jt, jf, k }
     }
 
-    /// Syscalls refused whatever was granted.
+    /// Syscalls that fail whatever was granted.
     pub fn denied() -> Vec<libc::c_long> {
         use libc::*;
         #[allow(unused_mut)]
@@ -556,7 +556,7 @@ pub mod seccomp {
         if !net {
             // socketcall multiplexes socket(2); its domain sits behind a
             // pointer the filter cannot read, so without a network grant it
-            // is refused whole (libc uses the direct calls on these kernels).
+            // fails whole (libc uses the direct calls on these kernels).
             p.push(jmp(JEQ_K, libc::SYS_socketcall as u32, 0, 1));
             p.push(st(RET_K, eperm));
         }

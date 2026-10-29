@@ -10,16 +10,16 @@ sake. The decisions are recorded in 9.7 and 9.8.
 **Status of this appendix.** It is a specification, implemented in part by the
 reference checker, and it applies to every module: no declaration selects it (2.7). F.12 lists, rule by rule,
 what the reference checker enforces and what it does not. A construct of this appendix that the
-checker does not implement is *reserved, not implemented* (W-RES-1), refused, never read as an ordinary
+checker does not implement is *reserved, not implemented* (W-RES-1): it requires change, is never read as an ordinary
 name and never silently ignored; a rule of this appendix that is not a construct and is not implemented is
 listed in F.12 as not enforced. The Lean files, the emitters and the tree-sitter port do not implement all of
-Appendix F (an emitter refuses a module that needs a rule it does not implement, F.4.4). Every theorem it adds
+Appendix F (an emitter does not yet print a module that needs a rule it does not implement, F.4.4). Every theorem it adds
 (T42 to T56, section 8) is stated; T48, T51 and T53 are proved of models (`RCE/Discharged.lean`), and the other twelve are
 unproved; no proof is claimed of the implementation.
 
 **Release label.** Earlier working notes called this list "draft 0.6", then "version 0.9". It is part of the one
 language of this text. By the C.15 rule a release that carries it is a new release, not an erratum or
-extension of an earlier one: it refuses programs that earlier text accepted (F.3, F.4) and gives `&mut`
+extension of an earlier one: under it, programs that earlier text accepted require change (F.3, F.4), and it gives `&mut`
 arguments a different value after a failed call (F.4.4). A release label names exactly one spec commit (C.15).
 
 **Principles used for derivation.** (a) Least privilege: authority is a value
@@ -39,7 +39,7 @@ declassify endorse  release   label     law
 
 and the type names `World`, `Template`, `Shell`, `Prompt`, `Header` and `mathint`, which
 no module may declare (W-NAME-2), as in 5.16. They are reserved in every module; a word whose construct
-this checker does not have is refused with W-RES-1 (F.12).
+this checker does not have requires change: W-RES-1 (F.12).
 
 ### F.1 How an item is applied
 
@@ -96,22 +96,22 @@ paragraph of the overview. These are errata (C.15 rule).
 **F.3.2 Unused values (P8).** In every module:
 
 - W-UNUSED-1: a `let`, `var`, parameter, pattern binding or `use` name that is
-  never read is refused. The wildcard `_` and any name beginning with `_`
+  never read requires change. The wildcard `_` and any name beginning with `_`
   are exempt as the one spelling for "deliberately unused"; a name beginning
-  with `_` that is read is also refused (so the spelling means one thing).
+  with `_` that is read also requires change (so the spelling means one thing).
 - W-UNUSED-2: a `match` arm that cannot be reached (W-MATCH-2 already) and
   an `if`, `elif`, `while` or guard whose condition is a comptime constant
-  (9.8, Q17) are refused.
-- W-DROP-1: an expression statement whose value is not `()` is refused, except
-  a call whose result type is declared `()`. (5.2 already refuses discarding
-  an error union; this extends it to every non-unit value.) To drop on purpose,
+  (9.8, Q17) require change.
+- W-DROP-1: an expression statement whose value is not `()` requires change, except
+  a call whose result type is declared `()`. (Under 5.2, discarding an error
+  union already requires change; this extends it to every non-unit value.) To drop on purpose,
   bind to `_`: `let _ = f(x)`.
 - W-ASSIGN-1: an assignment whose value is overwritten before any read on
-  every path is refused (an unused store).
+  every path requires change (an unused store).
 
 Derivation: principle (e) and the S8 hygiene rule below; a value that is
 computed and discarded has no observable effect (O4, no destructors), so it
-is dead code or a mistake, and refusing it costs no expressiveness.
+is dead code or a mistake, and requiring change in it costs no expressiveness.
 Examples and the fuzz generator must be written clean before the rules are
 enabled (F.11).
 
@@ -121,23 +121,23 @@ enabled (F.11).
   (U+202A to U+202E, U+2066 to U+2069), a zero-width or invisible format
   character (U+200B to U+200F, U+2060, U+FEFF after the first position) or
   a Unicode scalar value that is not assigned in the pinned Unicode version
-  (6.3 N7) inside a string or comment is refused. A string that needs one of
+  (6.3 N7) inside a string or comment requires change. A string that needs one of
   these writes it with `\u{...}`. Identifiers are ASCII (2.3), so look-alike
-  names cannot occur. The reference checker also refuses, in a string or
+  names cannot occur. The reference checker also reports as requiring change, in a string or
   comment, the C0 and C1 controls other than the line feed, the other
   invisible or blank-looking format characters (U+00AD, U+034F, U+061C,
   U+115F, U+1160, U+17B4, U+17B5, U+180E, U+2061 to U+2064, U+3164, U+FFA0,
   U+FFF9 to U+FFFB), the tag block (U+E0000 to U+E007F) and Unicode
-  noncharacters; for "unassigned" it refuses planes 4 to 13 and the
+  noncharacters; for "unassigned" it reports planes 4 to 13 and the
   noncharacters only, because no general-category table is vendored (F.12).
 - W-NAME-3: shadowing. A declaration whose name is visible in any enclosing
   scope of the same function (a local, a parameter, a field of the state
-  region, a module-level name or an imported name) is refused with both
-  sites. W-NAME-2 refused shadowing only of a parameter, field or
-  module-level name; this extends it to every enclosing local.
+  region, a module-level name or an imported name) requires change, and the report names both
+  sites. Under W-NAME-2, only shadowing of a parameter, field or
+  module-level name required change; this extends it to every enclosing local.
 - Enum variants are always written qualified by their type
   (`Color.Red`), so a pattern name never means a variant by accident (this
-  closes the case W-PAT-1 handles by refusal).
+  closes the case that W-PAT-1 handles by requiring change).
 - The tokenizer takes the longest token at each position, and no token
   depends on context. This is a requirement on the lexer of 2.3 that the
   reference lexer must be checked against (F.11).
@@ -155,11 +155,11 @@ operation is one IEEE 754 operation with one rounding (no contraction of
 (decision 51), so f64 `==` and the total order of 6.3 agree and `Eq` and
 `Ord` hold for f64. New here: a bounded integer type is distinct from its
 base (a refined type, 5.1) and an operation whose result leaves the range
-refuses, never wraps; division and remainder name their rounding as methods
-`div_floor`, `div_trunc`, `div_euclid` and `div_exact` (the last refuses on a
+traps, never wraps; division and remainder name their rounding as methods
+`div_floor`, `div_trunc`, `div_euclid` and `div_exact` (the last traps on a
 nonzero remainder), with the Euclidean law `a == (a / b) * b + a % b` and
 `0 <= a % b < |b|` for `div_euclid`; conversions between int and float are
-named methods with a stated rounding and refuse non-finite or
+named methods with a stated rounding and trap on non-finite or
 non-representable input; no hidden big integers (`mathint` exists only in
 `ghost` code, F.6.3). Obligation: the two classes of `==` and `<` on `-0` and
 `+0` must be shown to agree with the total order of 6.3 (check C-F1, F.11).
@@ -189,7 +189,7 @@ it. Rules:
   foreign operations through `&World`.
 - A program that must run indefinitely is not written with a loop; it is a
   total step function from (state, input) to (state, output) driven by the
-  host, as 6.1 and Appendix E already define. `while true` stays refused by
+  host, as 6.1 and Appendix E already define. `while true` still requires change under
   the loop bound of 6.7.
 
 Derivation: least privilege (a): a foreign call is authority, so it must be
@@ -210,25 +210,25 @@ case of the rules below, and its equality release (`==` between two secrets)
 stays the one release without an explicit `release`. Rules:
 
 - W-IFC-1: a flow to a place of lower label (an assignment, a call argument,
-  a return, a field, an `emit` field, a send) is refused. An `emit` field and a
+  a return, a field, an `emit` field, a send) requires change. An `emit` field and a
   channel have the public label unless declared `@ {...}`.
 - W-IFC-2: implicit flows. The label of the control context (the join of the
   labels of the conditions of every enclosing `if`, `match`, `while`, `for`
   and guard) joins into every value assigned and every `emit` or send made in
-  it. A loop bound whose label is not public is refused (the number of
+  it. A loop bound whose label is not public requires change (the number of
   iterations is observable).
 - W-IFC-3: provenance. A label name records the input it came from (the event
-  field or foreign result that introduced it); the diagnostic of a refused flow
+  field or foreign result that introduced it); the diagnostic of a flow that requires change
   names the origin and the sink. Provenance is a property of the checker's
   report, not of the value, so it never changes a run.
-- W-IFC-4: refusal channel. A trap or `fail` is itself observable (the
-  refusal and its text are an output, 6.1). So a trap site whose deciding
+- W-IFC-4: kept-outcome channel. A trap or `fail` is itself observable (the
+  kept outcome and its text are an output, 6.1). So a trap site whose deciding
   operands (a divisor, an index, an operand of an overflowing operation,
-  a size) or whose control context have a non-public label is refused
+  a size) or whose control context have a non-public label requires change
   unless the operation is a checked form that returns `Option`, whose label
-  is the join of its operands. The refusal text of a trap or `fail` carries
+  is the join of its operands. The kept-outcome text of a trap or `fail` carries
   the join of the labels of the operands that decide it; a `fail` payload
-  with a non-public label is refused if the function can return it to a
+  with a non-public label requires change if the function can return it to a
   public context.
 - W-IFC-5: robust declassification. `release e` (the only way to lower a
   label) is allowed only in a function that holds a `Cap[A]` (5.16) whose
@@ -237,7 +237,7 @@ stays the one release without an explicit `release`. Rules:
   is a second set, `{untrusted}`, carried the same way: event payload fields
   are `untrusted` unless declared otherwise, and `endorse e` (requires a
   `Cap[A]` that names it) is the only way to make a value trusted. A release
-  decided by untrusted data is refused, so an attacker cannot steer what is
+  decided by untrusted data requires change, so an attacker cannot steer what is
   released.
 - `match`, function calls (the result takes the join of the arguments and the
   control context), the `?` operator, and the derived `Eq`, `Ord`, `Hash` and
@@ -247,7 +247,7 @@ stays the one release without an explicit `release`. Rules:
 
 Derivation: soundness (b) for T36, which proves noninterference only for
 secret equality bits; the general statement needs labels, implicit flows,
-the refusal channel (W-IFC-4: otherwise a trap on a secret index leaks the
+the kept-outcome channel (W-IFC-4: otherwise a trap on a secret index leaks the
 index) and robust declassification (W-IFC-5: otherwise the declassification
 decision is itself an attacker-controlled channel). Cost: labels are erased
 at run time. Theorems: T42 noninterference, T43 robust declassification
@@ -296,11 +296,11 @@ callee's caller as they were at the call. (The earlier rule wrote them back on e
   `spawn`, foreign calls, `World` operations and host entries are not undoable.
 - W-TX-1: a function body in which a non-undoable effect can happen before a
   `fail` on some path (a path from a non-undoable effect to a `fail`, or to a
-  call of a function that may `fail`) is refused. So a function that performs
+  call of a function that may `fail`) requires change. So a function that performs
   I/O does not also fail after it; it returns a `Result` value (F.8) the
   caller examines. (Q1.)
-- A trap is unchanged: the whole event is refused and the state is as before
-  the event (T8). A refusal inside `par` restores the whole `par` (C.4); a
+- A trap is unchanged: the whole event does not apply and the state is as before
+  the event (T8). A kept step inside `par` restores the whole `par` (C.4); a
   contract failure in `par` reports the lowest-numbered failing branch.
 - A consumed linear value (5.12) is consumed whether or not the call fails;
   consuming a linear handle is not an undoable effect (Q11), so a
@@ -330,7 +330,7 @@ directory, no environment and no global default.
   replay does not re-check it.
 - Attenuation only narrows: `c.narrow(sub)` returns a `Cap[A]` whose `root` is
   a path extension of c's. There is no operation that widens. A closure that
-  captures a `Cap[A]`, `&World` or any value of a non-public label is refused
+  captures a `Cap[A]`, `&World` or any value of a non-public label requires change
   (W-CAP-1 extended; F.8, closures): authority held by a closure must be
   visible in its capture list.
 - W-CAP-4 (caretaker): a `Cap[A]` that is handed to another component is
@@ -338,7 +338,7 @@ directory, no environment and no global default.
   logged event `host.revoke(id)`. A revoke is an entry of the log like any
   other, so whether a use is before or after a revoke is a function of the log
   order and replay is exact (T3).
-- W-CAP-5: a use of a revoked caretaker is a refusal with the fixed record
+- W-CAP-5: a use of a revoked caretaker keeps the state, with the fixed record
   `{kind: "capability", reason: "revoked", id: ...}`; revoking twice is a
   no-op entry; a revoked caretaker is never valid again (there is no
   un-revoke).
@@ -368,12 +368,12 @@ contexts of 5.16 (`Html`, `Url`, `Sql`, `Json`) gain two more, `Shell` and
   `Prompt.encode`, which wraps the field as a quoted data block with a
   delimiter chosen so that the field text cannot contain it (the delimiter is
   derived from the SHA-256 of the field, so it is deterministic). The type
-  records that the data inside the block is untrusted; W-IFC-5 then refuses
-  to let a model's output decide a release. A model runtime is a foreign
+  records that the data inside the block is untrusted; under W-IFC-5, a release that a
+  model's output decides then requires change. A model runtime is a foreign
   sink of context `Prompt` (E.9), so its text parameters are
   `&Text[Prompt]` (W-CTX-2, F.5.6).
 - Parsing input is strict and has one meaning: duplicate keys, trailing bytes
-  and rebinding are refused (Json input); a missing field has no default; a
+  and rebinding are parse errors (Json input); a missing field has no default; a
   value of a refined type is made only by its validating constructor
   (`R.check`, F.6.2), so deserialization cannot create a value outside its
   predicate; migrations between versions of a persisted record are explicit
@@ -381,8 +381,8 @@ contexts of 5.16 (`Html`, `Url`, `Sql`, `Json`) gain two more, `Shell` and
 - Text operations name their unit: `len_bytes` and `len_chars` (code points);
   there is no unqualified `len` on text. Equality is exact
   code point equality; normalization is an explicit function at input
-  boundaries. Identifiers that cannot be represented in a target are refused
-  by the emitter, never transliterated.
+  boundaries. The emitter does not print identifiers that cannot be represented in a
+  target, and never transliterates them.
 
 Derivation: soundness (b) for T36, which covers four encoders; the same proof
 shape (every structural metacharacter comes from a literal) extends to the
@@ -390,13 +390,13 @@ two new contexts. Theorem: T44 (stated, unproved).
 
 **F.5.3 Hash-pinned supply chain (S5).** A program is built from a *manifest*,
 a canonical JSON file (6.1) with one spelling per key; unknown keys, features,
-build flags, globs and inheritance are refused. The manifest lists every
+build flags, globs and inheritance require change. The manifest lists every
 module (the explicit membership of F.4.3) with its SHA-256, and every
 dependency by hash. Rules:
 
 - W-PIN-1: a module whose hash differs from its manifest entry, a dependency
   that is not pinned by hash, an import that is a glob or relative path, and an
-  import cycle (W-MOD-2) are refused. Imports are an unordered set; adding an
+  import cycle (W-MOD-2) require change. Imports are an unordered set; adding an
   export is always compatible. There is no resolver: the manifest is the whole
   answer.
 - The built-in standard library (4.1) is one dependency, `stdlib`, pinned by
@@ -404,7 +404,7 @@ dependency by hash. Rules:
   each of its modules. A `stdlib` pin that differs from the library the tool
   carries, a `stdlib` pin while that library differs from its own manifest,
   and a dependency named after a module or a namespace of the library (such
-  as `enc`, `data` or `text`) are refused (W-PIN-1), so a program names by
+  as `enc`, `data` or `text`) require change (W-PIN-1), so a program names by
   hash exactly the library it was checked against.
 - A published definition is immutable: a hash names one text forever. A
   correction is a new definition with a new hash. Withdrawal is a signed
@@ -434,12 +434,12 @@ control flow and memory access do not depend on a secret.
   shift amount, a divisor, or the argument of a call to a function that is not
   itself `ct`. The branchless `ct_choose(c, a, b)` and the bitwise and
   arithmetic operators on fixed-width integers (with the usual trap rules) are
-  allowed. Operations that can trap on a secret are refused by W-IFC-4
-  already.
-- RCE refuses secret branching; it does not compile it away (a compiler that
+  allowed. Operations that can trap on a secret already require change
+  under W-IFC-4.
+- In RCE, secret branching requires change; it is not compiled away (a compiler that
   rewrites secret branches into selects changes the cost model silently).
 - W-CTFN-2: an emitter whose target cannot give constant-time guarantees
-  (Python, JavaScript) refuses to emit a `ct fn` with the fixed message
+  (Python, JavaScript) does not print a `ct fn`; it gives the fixed message
   "ct fn is not emitted for this target"; the reference evaluator runs it
   with its ordinary semantics, since time is not observable there. Whether a
   target does give the guarantee is stated per target in 10.5, not assumed.
@@ -455,15 +455,15 @@ The theorem is about the program's control flow, not about a processor.
 manifest (a call whose cost is chosen by the outside, such as a model
 inference) may be called only inside a `with budget B` block (C.5).
 
-- W-BUD-1: a call to a `model` foreign function outside `with budget` is
-  refused. The budget is charged at one rule granularity per call (C.6): an
+- W-BUD-1: a call to a `model` foreign function outside `with budget`
+  requires change. The budget is charged at one rule granularity per call (C.6): an
   emitter counts the same units as the evaluator, so `trap("budget")` falls on
   the same operation on every target (10.5).
 - When a loop or recursion carries `decreases` (F.6.4) and the bound it
   implies is below the budget, W-BUD-1 does not require a run-time counter for
   it; the budget remains the limit, so the counter is an optimization and
   never a semantic change.
-- A budget exhausted is a trap (the event is refused, T8), not a retry.
+- A budget exhausted is a trap (the state is kept, T8), not a retry.
 
 Derivation: totality (d): a call whose cost the program cannot bound must be
 bounded by the program's own budget. Theorem: T52 (stated, unproved).
@@ -477,16 +477,16 @@ steered. Both directions use mechanisms that already exist: the context
 the capabilities of 5.16 on the way out.
 
 - W-CTX-2: every text parameter of an `extern "model" fn` has the type
-  `&Text[Prompt]`; `&text`, `&[scalar]` and `&mut [scalar]` are refused there,
+  `&Text[Prompt]`; `&text`, `&[scalar]` and `&mut [scalar]` require change there,
   and the other parameters are `bool`, an integer or `f64` (5.11). A
   `Text[Prompt]` is made only by `Prompt.lit` of a literal, `Prompt.encode`
   and `+` of two of them (W-CTX-1), so the instruction text of every request
   comes from the program and all data sits in encoded blocks. An argument
-  labeled `untrusted` (F.4.2) is refused unless it is passed as the
+  labeled `untrusted` (F.4.2) requires change unless it is passed as the
   `&Text[Prompt]` parameter. At run time a `Text[Prompt]` is its text, so the
   call convention of 5.11 is unchanged.
 - W-CTX-3: a model call is not control dependent on `untrusted` data, and no
-  argument was steered by it outside a `Prompt.encode` block. Refused: a call
+  argument was steered by it outside a `Prompt.encode` block. Requires change: a call
   in a control context labeled `untrusted` (an `if`, `match`, `while`, `for`
   or `and`/`or` decided by such a value); a call after a `return`, `break`,
   `continue`, `fail` or `?` taken under such a condition in the same function,
@@ -511,7 +511,7 @@ the capabilities of 5.16 on the way out.
 Consequences, with no further rule: a step on a model event holds no
 capability, so it cannot write `Guarded` state (W-CAP-2), cannot `endorse`
 (W-IFC-5) and cannot `release`; a release decided by a model answer, directly
-or after the answer was stored, is refused (W-IFC-5); the answer reaches a
+or after the answer was stored, requires change (W-IFC-5); the answer reaches a
 privileged decision only after a step on another event, which carries the
 capability, endorses it. Writes and outputs that the program did not declare
 privileged (unguarded state, unlabeled output) stay open to a model answer, as
@@ -545,8 +545,8 @@ CWE-113). The context `Header` gives header text the mechanism of F.5.2
 
 Derivation: E.9 sends text to every foreign sink as `Text[C]`; a header is
 such a sink, and its one metacharacter is the line end. An encoding that
-rewrites CR or LF would change the value a reader sees, so the context refuses
-them instead. Folding, encoded words (RFC 2047) and header names are outside
+rewrites CR or LF would change the value a reader sees, so instead a literal with them
+requires change and `Header.encode` traps on them. Folding, encoded words (RFC 2047) and header names are outside
 the context: the program writes the name as a literal.
 
 ### F.6 Tier 3: independent language features
@@ -558,8 +558,8 @@ and it is not text.
 
 - Fields are `{name}` or `{a.b}`: an identifier or a field path, never an
   expression, and no nested quotes (Q22). A brace not followed by a valid field
-  is refused (`{{` and `}}` write literal braces); an empty field is refused.
-- W-TPL-1: a `Template` plus text, or a template used as text, is refused. A
+  requires change (`{{` and `}}` write literal braces); an empty field requires change.
+- W-TPL-1: a `Template` plus text, or a template used as text, requires change. A
   template is made into text only by a renderer: `C.t"..."` for a context C
   (F.5.2) renders each field through `C.encode`; `text.t"..."` renders each
   field through `tostr`, and a field type that is not text must implement
@@ -590,17 +590,17 @@ fn withdraw(acct: &mut Account, amount: u64) -> u64
   exist; to refer to an entry value, bind it with `ghost let` (F.6.3) before
   the first statement, which a clause may name.
 - Contracts are *always enforced*: `requires` is checked on entry and
-  `ensures` on every return. A violation is one defined refusal (a trap of
-  the call's event) with the fixed record `{kind: "contract", clause:
+  `ensures` on every return. A violation is one defined kept outcome (a trap that
+  keeps the state for the call's event) with the fixed record `{kind: "contract", clause:
   "requires" | "ensures", function: <definition hash>, index: <clause number
   in written order>}`. No source span (it would make output depend on
   whitespace, Q28). No unspecified behaviour exists, so C++26's "ignore" and
   "observe" semantics are not adopted (F.2, item 2).
-- A contract with no satisfying value is an error: W-CON-1 refuses a function
-  whose `requires` clauses are, in the decidable fragment of W-REF-1, false
+- A contract with no satisfying value is an error: under W-CON-1 a function
+  requires change when its `requires` clauses are, in the decidable fragment of W-REF-1, false
   for every argument. Outside that fragment nothing is decided statically
-  (Q33); the enforcement makes such a function refuse every call, never
-  succeed vacuously.
+  (Q33); the enforcement makes every call of such a function trap, keeping the
+  state, and never succeed vacuously.
 - The checker may assume a callee's `ensures` after the call and must prove the
   callee's `requires` before it where the fragment decides it, and otherwise
   the call is checked at run time by the enforcement. Contracts are never
@@ -631,7 +631,7 @@ exist only for contracts and measures.
 - `mathint`, the mathematical integer, exists only in ghost code and in
   contracts (Q31). It is unbounded and has no runtime representation.
   Quantifiers, `forall` over a finite range or collection, are allowed in
-  ghost expressions only; an unbounded quantifier is refused (it cannot be
+  ghost expressions only; an unbounded quantifier requires change (it cannot be
   evaluated, and enforced contracts must be).
 - Ghost values carry no label (F.4.2) and nothing is auto-initialized.
 
@@ -644,7 +644,7 @@ code does not change δ or λ.
 
 - Each measure is a natural number (`u64` or `mathint` nonnegative), finite
   data under the structural order of sums and records, or a tuple of these.
-  Anything else is refused (W-DEC-1).
+  Anything else requires change (W-DEC-1).
 - W-DEC-1: every call to a function of the same group, from any path, passes a
   tuple strictly smaller in the lexicographic order than the caller's entry
   tuple. A group's measure is one tuple for the whole group (Q2); a tail call
@@ -685,9 +685,9 @@ allowed). The condition is a `bool` always (no truthiness); a failed pattern
 or a false `c` goes to `B`; without `else` the failed case does nothing, and
 `A` then has type `()`. There is no `elif` after an `if let`. A condition has no side effects
 to roll back, because expressions in conditions are pure (W-EFF-1 context
-rules, 5.2). W-IFLET-1: an operand `c` that is not a comparison is refused,
+rules, 5.2). W-IFLET-1: an operand `c` that is not a comparison requires change,
 and a binding unused in `A` is W-UNUSED-1. An irrefutable pattern leaves the
-wildcard arm unreachable and is refused by W-MATCH-2. The spelling of the
+wildcard arm unreachable, which requires change under W-MATCH-2. The spelling of the
 first draft, `if let P = e then A else B` with a chain `and let P2 = e2`, is
 not the grammar of this language and is withdrawn: a chain with a second
 `let` is specified for a later draft and is reserved, not implemented (W-RES-1).
@@ -701,7 +701,7 @@ assurance claim beyond that.
 pure total `bool` expression over the trait's methods. `impl` need not repeat
 it. Conformance is explicit, declared where the type or the trait is defined
 (the orphan rule of 5.9), all or nothing, with no duck typing and no partial
-conformance; conflicting default methods are refused (W-TRAIT-1, W-TRAIT-2
+conformance; conflicting default methods require change (W-TRAIT-1, W-TRAIT-2
 extended). A generic function is bounded by traits only, with one instance
 per trait and type, no variance and no subtyping.
 
@@ -709,7 +709,7 @@ per trait and type, no variance and no subtyping.
   deterministic sample: the values of the impl type that appear in `example`s
   and `check`s of the program, the boundary values of its fields (zero, one,
   the extremes of the range, empty, a singleton), and their pairs and triples
-  up to 64 tuples in canonical order. A law that fails on any is refused.
+  up to 64 tuples in canonical order. A law that fails on any requires change.
 - This is a test, not a proof. The law is not assumed by any theorem; an
   implementation may not use a law to rewrite code. Assurance level: tested.
 
@@ -734,15 +734,15 @@ processes. The *lethal trifecta* is the combination, in one session, of
   never resolves ambiguity silently: it shows the call and waits for an
   event.
 - TRIFECTA-3: outbound sends carry the label join of everything the session
-  has read; the broker refuses a send whose label is not below the
+  has read; the broker does not perform a send whose label is not below the
   destination's, as W-IFC-1 does for programs.
 - W-TRI-1 (static): a program that has `private` and `untrusted` inputs and an
-  external sink with no `release` path that satisfies W-IFC-5 is refused; the
+  external sink with no `release` path that satisfies W-IFC-5 requires change; the
   rule is a consequence of W-IFC-1 and is stated so the broker and the
   checker agree. The checker enforces it by W-IFC-1 (a labeled value reaching
   an `emit`, a send, a foreign argument or a public store) and W-IFC-5 (a
   `release` needs a held capability and a trusted deciding context), with no
-  separate check: a separate check would also refuse programs in which the
+  separate check: a separate check would also require change in programs in which the
   private value never reaches the sink, which W-IFC-1 admits. A model answer
   is an `untrusted` input by W-IFC-7 (F.5.6).
 - No program observes timing or hidden tool state: `rce` tools never expose a
@@ -763,34 +763,34 @@ where a reader would look.
 
 | Topic | Rule | Derivation |
 |---|---|---|
-| Closures | Closures capture immutable values by copy or move, with an explicit capture list; no captured `var`; a closure that borrows must not escape (5.6); a capture of `&World`, `Cap` or a non-public label is refused (F.5.1) | T6, T16, least privilege |
+| Closures | Closures capture immutable values by copy or move, with an explicit capture list; no captured `var`; a closure that borrows must not escape (5.6); a capture of `&World`, `Cap` or a non-public label requires change (F.5.1) | T6, T16, least privilege |
 | Types | No subtyping, no `any`, no implicit conversion, no cross-type equality, no implicit join of unlike `if` branches or array elements; generics are invariant | T6, T7 |
-| Enums and `match` | Closed sums; exhaustive (W-MATCH-1); duplicate and unreachable arms refused (W-MATCH-2); variants qualified | T1 |
+| Enums and `match` | Closed sums; exhaustive (W-MATCH-1); duplicate and unreachable arms require change (W-MATCH-2); variants qualified | T1 |
 | Calls | One function per name in a scope (W-NAME-2), no overloading, no default parameters, arguments evaluated in written order; argument labels (decision 18) are checked: a wrong label is W-TY-1, so a label is documentation the checker verifies (Q16) | T1 |
-| `par` | Arms are expressions; at least two; `return`, `break` and `?` written directly in an arm are refused (Q4); a refusal in any arm restores the whole `par` (C.4); a right side that writes what the place reads is a conflicting borrow; W-PAR-1 is unchanged | T16 |
+| `par` | Arms are expressions; at least two; `return`, `break` and `?` written directly in an arm require change (Q4); a kept step in any arm restores the whole `par` (C.4); a right side that writes what the place reads is a conflicting borrow; W-PAR-1 is unchanged | T16 |
 | Assignment | Place operands first, left to right, then the right side | T1 |
 | Imports | Acyclic; no glob; unordered set; explicit exports, nothing public by default | T1 |
 | Comments | Only `#` line comments exist (Q34); they never nest and nothing inside a string starts one | T1 |
 | Literals | One spelling per literal: a single `_` between digits is the only separator (2.5) (Q36); no `1.` or `.5`; one string form; `char` is a Unicode scalar value | T1 |
 | Operators | Comparison operators are non-associative: a chain is a syntax error (R3 of section 3), no chain sugar (Q8); mixing bitwise, shift, arithmetic and `and`/`or` in one expression is defined by the precedence of section 3 (decision 13), so no parenthesization rule exists; `and` and `or` short-circuit, apply to `bool` and return `bool` | T1, contracts need the left operand as a hypothesis for the right |
 | Order operators | `<` is a total order on ordered types only; subset, prefix and merge are named methods | T1 |
-| Containers | `Some`/`None` are explicit, never `false`; no tuple coercion; duplicate map-literal keys refused; map and set iteration in canonical `Ord` order, and equality is order independent because the representation is canonical (Q6, Q19); no weak references | T1, T6 |
-| Indexing | `xs[i]` is refused unless the checker proves `i < len(xs)`; `get(xs, i)` returns `Option`; slices are as in 6.3 N8; ranges keep their two spellings, `..` and `..=` (Q7) | totality |
+| Containers | `Some`/`None` are explicit, never `false`; no tuple coercion; duplicate map-literal keys require change; map and set iteration in canonical `Ord` order, and equality is order independent because the representation is canonical (Q6, Q19); no weak references | T1, T6 |
+| Indexing | `xs[i]` requires change unless the checker proves `i < len(xs)`; `get(xs, i)` returns `Option`; slices are as in 6.3 N8; ranges keep their two spellings, `..` and `..=` (Q7) | totality |
 | Classes | There are none: no inheritance, no virtual dispatch, no runtime casts, no identity equality, no field defaults; constructors are ordinary pure functions | T6, T7, T16 |
-| Errors | Failure is a `Result` value with a closed enum of error kinds; no `raise`, `try ... finally`, `with`; `refuse` is not a value and has no type (Q24) | T1, F.4.4 |
-| Numeric names | Named conversions with stated rounding; non-finite refused; NaN does not exist (Q9) | T1 |
+| Errors | Failure is a `Result` value with a closed enum of error kinds; no `raise`, `try ... finally`, `with`; the kept outcome is not a value and has no type (Q24) | T1, F.4.4 |
+| Numeric names | Named conversions with stated rounding; non-finite input traps; NaN does not exist (Q9) | T1 |
 | Pointers and memory | None; recursive data are `kind` with `Box` (5.1); vectors have no layout promise (Q29) | T6, T16 |
 | Reflection and derive | None at run time or compile time; `derive` is the closed built-in set of 5.9, user-defined `derive` is not offered (Q20); a type whose field lacks the trait cannot derive it (W-TRAIT-3) | T7 |
-| Compile-time code | Pure, total, no declaration injection, no dependence on its call point, no platform conditionals, no `assume` (a `comptime assert` over symbolic values is refused); types are not values; value parameters only in the array-length fragment (Q10) | T1, T7 |
+| Compile-time code | Pure, total, no declaration injection, no dependence on its call point, no platform conditionals, no `assume` (a `comptime assert` over symbolic values requires change); types are not values; value parameters only in the array-length fragment (Q10) | T1, T7 |
 | Linear values | Capability and resource handles are consumed exactly once by named functions (5.12); a type parameter is instantiated only by non-linear types; no implicit `Discard` (Q26) | T12 |
-| Numeric types | Bounded integers are distinct types; out-of-range refuses (F.3.4) | T14 |
+| Numeric types | Bounded integers are distinct types; out-of-range traps (F.3.4) | T14 |
 | Function values | Total pure `fn` types only; a partial function is wrapped to return `Option` or `Result` | T2 |
 | Iteration | Explicit finite folds and step functions; no coroutine iterators except `iter` (5.14) | T15 |
 | Programs | A reactive program is a total step function driven by the host (Q32); an interpreter and a compiler must agree, and the conformance suite compares them | T1, T9 |
-| Foreign | A foreign boundary is declared in the manifest with its full signature and library hash and is a `World` operation (Q30); raw pointers, C struct layouts and path-searched libraries are refused; Python interop is refused | T6, T32, T54 |
+| Foreign | A foreign boundary is declared in the manifest with its full signature and library hash and is a `World` operation (Q30); raw pointers, C struct layouts and path-searched libraries require change; Python interop requires change | T6, T32, T54 |
 | Tooling | No flag changes meaning; build artifacts are caches; the audit report is a committed file and the checker compares against it; tests run in canonical order; plugins report only; emitter names are injective and never collide with a target's reserved words | T1 |
 | Release gate | Lean proofs are built with `lake build`, no `sorry`, only the standard axioms (8); theorem statements are frozen in a module and compared; the Lean model is the reference semantics and every backend is tested against it | T9 |
-| Diagnostics | A diagnostic names the true rule or refuses; version-unstable text is never a program value | T7 |
+| Diagnostics | A diagnostic names the true rule, or says only that the text requires change; version-unstable text is never a program value | T7 |
 | Persistence | Persistent storage only through `World` with validating constructors | T32 |
 
 ### F.9 Theorem obligations (stated, unproved)
@@ -800,11 +800,11 @@ Lean statement, a checker test or a counterexample search yet.
 
 | | Statement |
 |---|---|
-| T42 | Noninterference with labels: two runs whose inputs agree on every public-label field give equal public outputs, including the refusal outcome, for every accepted program (F.4.2) |
+| T42 | Noninterference with labels: two runs whose inputs agree on every public-label field give equal public outputs, including the kept outcome, for every accepted program (F.4.2) |
 | T43 | Robust declassification: a release is reached only on a path whose control context and deciding operands are trusted (F.4.2) |
 | T44 | Typed output: every structural metacharacter of a rendered `Text[C]` or `Template` of any context of 5.16 and F.5.2 comes from a literal segment (F.5.2, F.6.1) |
 | T45 | Constant time: two runs of a `ct fn` that differ only in secret-labelled inputs take the same sequence of branch, index and loop decisions (F.5.4) |
-| T46 | Contract enforcement: if a call returns, its `requires` held at entry and its `ensures` held at the return; otherwise the call's event is refused with the fixed record (F.6.2) |
+| T46 | Contract enforcement: if a call returns, its `requires` held at entry and its `ensures` held at the return; otherwise the step of the call's event keeps the state, with the fixed record (F.6.2) |
 | T47 | Transactional calls: a call that returns by `fail` leaves the caller's `&mut` arguments and locals equal to their values at the call (F.4.4) |
 | T48 | Termination by written measure: an accepted recursive group or loop with a `decreases` tuple ends (F.6.4) |
 | T49 | Ghost erasure: erasing ghost code does not change δ, λ or the log (F.6.3) |
@@ -827,11 +827,11 @@ excluded (F.2, item 3).
   before evaluation; only enforced contract clauses, `R.check`, encoders
   (F.5.2), `ct_choose` and the restore of F.4.4 cost anything at run time,
   each charged as the C.6.4 operator or linear class named in its rule.
-- An emitter that cannot implement a rule exactly refuses the program with a
+- An emitter that cannot implement a rule exactly does not print the program; it gives a
   fixed message and never approximates (10.5); the targets for `ct fn` are
   stated in F.5.4.
 - Compatibility: there is one language, so no module is read under older rules. An
-  older program can be refused by F.3.2, F.3.3, F.4.2, F.5.1 and F.4.4; it is
+  older program can require change under F.3.2, F.3.3, F.4.2, F.5.1 and F.4.4; it is
   never silently re-read. The one-time migration of the standard library to these rules is
   recorded in the ledger of the change (renamed names, `len_bytes`).
 
@@ -841,8 +841,8 @@ excluded (F.2, item 3).
    `ghost`, `release`) into section 3 and require 0 LALR(1) conflicts, with
    the tree-sitter port agreeing (T10).
 2. Implement each W-rule of
-   this appendix with accept and refuse examples (the implemented ones are in
-   `spec/examples-0.9/`, one refused file per rule, checked by
+   this appendix with accept and requires-change examples (the implemented ones are in
+   `spec/examples-0.9/`, one file that requires change per rule, checked by
    `tests/v09_examples.rs`; the rest are listed in F.12); the fuzz generator must produce programs
    clean of F.3.2.
 3. C-F1: show that `==` and `<` on f64 `-0` and `+0` agree with the total
@@ -858,8 +858,8 @@ excluded (F.2, item 3).
 Implemented and tested (`spec/checker/src/v09.rs`, `apidiff.rs`; examples in
 `spec/examples-0.9/`; `rce v09-status` prints this list):
 
-- W-RES-1 refuses the reserved words `declassify` and `law` and the type
-  names `Template` and `mathint` (their constructs are not
+- Under W-RES-1, the reserved words `declassify` and `law` and the type
+  names `Template` and `mathint` require change (their constructs are not
   implemented), except directly after `.`; the `# rce-version:` label is ignored (2.7).
 - W-LEX-4 (F.3.3) as stated there, with the extra classes listed there.
 - W-UNUSED-1 (F.3.2), including the `_` spelling and a read of a `_` name;
@@ -874,7 +874,7 @@ Implemented and tested (`spec/checker/src/v09.rs`, `apidiff.rs`; examples in
   contracts, measures, ghost clauses or labels, which do not exist yet.
 - W-TX-1 and the restore of `&mut` arguments on `fail` (F.4.4) in the reference
   evaluator. A `catch`ed call is not a fail point of its caller. The emitters
-  and the Lean elaboration refuse a module with a function that can fail
+  and the Lean elaboration do not translate a module with a function that can fail
   after taking a `&mut` argument.
 
 - Information-flow labels (F.4.2, S1): `T @ {A, B}` label sets on declared
@@ -887,8 +887,8 @@ Implemented and tested (`spec/checker/src/v09.rs`, `apidiff.rs`; examples in
   (`release` needs the held `Cap[AUTH]` and a trusted deciding context, and
   `endorse` needs `label untrusted by AUTH` and the held capability; event
   payloads are `untrusted` unless declared `@ {}`), with the source of each
-  label named in the message and a per-instantiation check of calls. W-NAME-2
-  refuses `label`, `release` and `endorse` used as names. The checker erases the
+  label named in the message and a per-instantiation check of calls. Under W-NAME-2,
+  `label`, `release` and `endorse` used as names require change. The checker erases the
   labels, `release` and `endorse` before evaluation and emission, so a labeled
   program runs as the unlabeled one. `declassify` stays reserved, not implemented.
   The grammar delta is F.13; the Rust LALR(1) tables (0 conflicts), the
@@ -898,20 +898,20 @@ Implemented and tested (`spec/checker/src/v09.rs`, `apidiff.rs`; examples in
 - S2 directory capabilities (F.5.1): W-CAP-3 (a foreign function with a `path`
   or `*_path` parameter takes a `Cap[DirRead]` or `Cap[DirWrite]` after its
   `&World`; `DirRead` and `DirWrite` are declared structs with `root: text`;
-  `c.narrow(sub)` is typed `Cap[A]` and refused unless `sub` is, when a
+  `c.narrow(sub)` is typed `Cap[A]` and requires change unless `sub` is, when a
   literal, a relative path with no `.` or `..` segment); there is no operation
   that widens. A closure that captures a `&World` or a capability, by declared
   type, is W-CAP-1. A capability is `()` at run time, so the checker erases
   the directory capabilities of a foreign call like the world, and `narrow`
   evaluates to `()`. The caretaker semantics of W-CAP-4 and W-CAP-5 are
-  implemented as a pure function of the log (`caretaker.rs`: admit, refuse
+  implemented as a pure function of the log (`caretaker.rs`: admit, keep the state
   with the fixed record `{id, kind: "capability", reason: "revoked"}`, revoke
   twice is a no-op, no un-revoke), with unit tests. The call `host.revoke(id)`
   needs the host log, which the reference checker does not have, so it is
   reserved, not implemented (W-RES-1).
 - S3 typed output (F.5.2, F.5.7): the contexts `ShellArg`, `Prompt` and `Header` (with `lit` and
   `encode`; the `Prompt` delimiter is `data-` and the SHA-256 of the field,
-  re-hashed until the field does not contain it; `Header` refuses CR and LF) and `Shell`, made only by
+  re-hashed until the field does not contain it; `Header.encode` traps on CR and LF) and `Shell`, made only by
   `Shell.cmd(program, args)` with a literal program and `List[Text[ShellArg]]`
   arguments, whose value is the canonical JSON `{"args": [...], "program":
   ...}` (an argument vector, never a command line). `len_bytes` and `len_chars`
@@ -919,7 +919,7 @@ Implemented and tested (`spec/checker/src/v09.rs`, `apidiff.rs`; examples in
   the refined-type constructor `R.check` are not implemented. The templates
   `Prompt.t"..."` of F.6.1 are not implemented either (see below).
 - S6 `model` foreign functions (F.5.5): `extern "model" fn` declares one, and
-  W-BUD-1 refuses a call outside `with budget`. The model boundary (F.5.6):
+  a call outside `with budget` requires change (W-BUD-1). The model boundary (F.5.6):
   W-CTX-2 (the parameter types, in the checker; an untrusted argument outside
   the `&Text[Prompt]` parameter, in the label analysis, so only in a module
   that writes a label), W-CTX-3 (label analysis, `ifc.rs`), `extern "model"
@@ -933,17 +933,17 @@ Implemented and tested (`spec/checker/src/v09.rs`, `apidiff.rs`; examples in
   reference evaluator, `tests/emit.rs`), so a program that calls a model is
   emitted. Neither the emitters nor the Lean elaboration translate `narrow`,
   `Shell`, `ShellArg`, `len_bytes` or `len_chars`, and the Lean elaboration
-  does not translate `Prompt` or `Header`: they refuse a module that uses one
-  (W-RES-1).
+  does not translate `Prompt` or `Header`: they do not translate a module
+  that uses one (W-RES-1).
 
 - S4 `ct fn` (F.5.4): `ct` is a keyword (a stray use is
-  W-NAME-2). W-CTFN-1 refuses, inside a `ct fn`, a `secret`-labeled value (F.4.2)
-  that decides an `if` or `match`, an `and` or `or` operand, an index, a loop
+  W-NAME-2). Under W-CTFN-1, a `secret`-labeled value (F.4.2) inside a `ct fn` requires
+  change when it decides an `if` or `match`, an `and` or `or` operand, an index, a loop
   or `for` bound, a shift amount, a divisor, or an argument of a call to a
   function that is not a `ct fn` (a foreign function included); it is checked
   per call instantiation like the labels. `ct_choose(c, a, b)` evaluates both
-  values and chooses one. W-CTFN-2: every emitter and the Lean elaboration
-  refuse a module with a `ct fn` ("ct fn is not emitted for this target"):
+  values and chooses one. W-CTFN-2: no emitter prints, and the Lean elaboration
+  does not translate, a module with a `ct fn` ("ct fn is not emitted for this target"):
   10.5 states no constant-time guarantee for any target, so none is assumed.
   The reference evaluator runs it with ordinary semantics; `ct` changes no value.
 
@@ -952,12 +952,12 @@ Implemented and tested (`spec/checker/src/v09.rs`, `apidiff.rs`; examples in
   sha256}`), `formatter`, `language` (the release label "0.9", the hash domain of F.4.3), `modules` (list of
   `{module, path, sha256}`) and optional `reads` (list of `{path, sha256}`,
   the compile-time file reads); one final line feed is ignored and any other
-  non-canonical spelling is refused. The hash of a module is the SHA-256 of
-  its canonical unparse, so formatting never changes it. W-PIN-1 refuses an
+  non-canonical spelling requires change. The hash of a module is the SHA-256 of
+  its canonical unparse, so formatting never changes it. Under W-PIN-1, an
   unknown key, a module whose hash differs from its entry, a dependency not
   pinned by 64 lowercase hex digits, a path that is a glob, absolute or has a
   `.` or `..` segment, an import that is neither a listed module nor a pinned
-  dependency, and an import cycle (W-MOD-2). A signed advisory is `{advisory:
+  dependency, and an import cycle (W-MOD-2) require change. A signed advisory is `{advisory:
   {kind: "advisory", hash, reason, issued_by, seq}, signature}` with the
   Ed25519 signature (RFC 8032, via `ring`) over the SHA-256 of the canonical
   JSON of the `advisory` object, by the key trusted for `issued_by` (given on
@@ -971,8 +971,8 @@ Implemented and tested (`spec/checker/src/v09.rs`, `apidiff.rs`; examples in
 
 - P2 contracts and P3 `ghost` (F.6.2, F.6.3, `tier3.rs`): `requires E` and
   `ensures E` are statements (`ContractStmt`) written before the first
-  statement of a fn body, after any `ghost let`; a clause elsewhere is
-  refused (W-CON-2). Clauses are enforced always: the checker lowers the fn
+  statement of a fn body, after any `ghost let`; a clause elsewhere
+  requires change (W-CON-2). Clauses are enforced always: the checker lowers the fn
   to guards, `requires` first in written order, then the kept ghost lets, then
   the body in which every `return` (and the tail value) first binds `result`
   and runs the `ensures` guards. A violated guard traps with the text
@@ -981,14 +981,14 @@ Implemented and tested (`spec/checker/src/v09.rs`, `apidiff.rs`; examples in
   all the clauses of the fn in written order from 0 and the hash is the
   definition hash of the fn as written (F.4.3: for a top-level fn the
   `rce hash` value, for a method the SHA-256 of its canonical text under the
-  same prefix). There is no source span. W-CON-1 refuses `requires` clauses
+  same prefix). There is no source span. Under W-CON-1, `requires` clauses
   that are false in the fragment of literal comparisons, `and` and the integer
-  bounds of one name (`x > 5 and x < 3`); W-CON-2 refuses `result` in
+  bounds of one name (`x > 5 and x < 3`) require change; under W-CON-2, `result` in
   `requires`, a binding named `result` in a fn with `ensures`, and a channel
-  receive in a clause. `ghost let` and `ghost fn`: W-GHOST-1 refuses a ghost
-  name in code that runs; ghost code that no clause names (transitively) is
+  receive in a clause require change. `ghost let` and `ghost fn`: under W-GHOST-1, a ghost
+  name in code that runs requires change; ghost code that no clause names (transitively) is
   erased, the rest is evaluated because an enforced clause needs it. The
-  emitters refuse a module with a contract (W-RES-1). Not implemented:
+  emitters do not print a module with a contract (W-RES-1). Not implemented:
   `ghost` parameters (W-RES-1), `mathint` and quantifiers, `R.check`, opaque
   types with invariants, assuming a callee's `ensures` and proving its
   `requires` statically (a call is checked by the enforcement), contracts on
@@ -1004,7 +1004,7 @@ Implemented and tested (`spec/checker/src/v09.rs`, `apidiff.rs`; examples in
   callee's measure with the arguments substituted differ by a constant
   difference, and the positions before it are equal. A member of a group
   without a `decreases`, a different arity, a signed or non-linear measure
-  and an argument outside the fragment are refused. A measure has no run-time
+  and an argument outside the fragment require change. A measure has no run-time
   meaning (the recursion bound of 6.7 and the loop limit still hold) and is in
   the definition hash. A `while` may carry a measure as the first statement of
   its body (the loop form of W-DEC-1): each part is linear in the unsigned
@@ -1014,8 +1014,8 @@ Implemented and tested (`spec/checker/src/v09.rs`, `apidiff.rs`; examples in
   terms of the entry values, and that tuple must be strictly smaller in the
   lexicographic order (a constant difference at the first position where the
   two differ). A measure name assigned anywhere else in the body, borrowed
-  mutably, or a `continue` in the body, is outside the fragment and is
-  refused with W-DEC-1; a `decreases` on a `for` or `loop`, or anywhere else
+  mutably, or a `continue` in the body, is outside the fragment and
+  requires change: W-DEC-1; a `decreases` on a `for` or `loop`, or anywhere else
   than the start of a fn body or of a `while` body, is reserved, not implemented
   (W-RES-1). The loop measure is erased before evaluation and emission, and
   `bound` and `LOOP_LIMIT` still hold. The checker does not prove that a
@@ -1037,11 +1037,11 @@ Implemented and tested (`spec/checker/src/v09.rs`, `apidiff.rs`; examples in
   each field; a context: `C.lit` of each segment and `C.encode` of each
   field, joined with `+`), so the fields are ordinary reads and the context's
   typing (W-CTX-1) decides what a field may be. Fields are an identifier or a
-  field path; `{{` and `}}` are literal braces; W-TPL-2 refuses an empty
-  field, an expression, a stray brace and an unclosed field; W-TPL-1 refuses
-  a renderer that is neither `text` nor a context. A template that is not
-  rendered at once is the `Template[τ]` value of F.6.1, which is refused by
-  version, so W-TPL-1's text-plus-template cases cannot arise yet. The
+  field path; `{{` and `}}` are literal braces; an empty field, an expression,
+  a stray brace and an unclosed field require change (W-TPL-2); so does a
+  renderer that is neither `text` nor a context (W-TPL-1). A template that is not
+  rendered at once is the `Template[τ]` value of F.6.1, which requires change as
+  reserved, not implemented (W-RES-1), so W-TPL-1's text-plus-template cases cannot arise yet. The
   formatter writes the expansion, not the template (the meaning, and so the
   hash of the expansion, is the same). T44 stays unproved.
 
@@ -1051,7 +1051,7 @@ Not implemented (each is reserved, not implemented, or the closed list in
 - trait laws (P9, F.6.6): `law` is a reserved word that is reserved, not implemented;
   W-LAW-1 needs a sample of impl values and an evaluator of a law over them,
   and neither exists, so no law is ever run or assumed;
-- `declassify` (F.4.2): always refused; `release` with a held capability is the
+- `declassify` (F.4.2): always requires change; `release` with a held capability is the
   one way a labeled value leaves its label;
 - `ghost` parameters, `mathint` and quantifiers; `R.check` and opaque types
   with invariants; `Template[t]` as a value; structural measures over data
@@ -1061,16 +1061,16 @@ Not implemented (each is reserved, not implemented, or the closed list in
   statement in F.5.5 to implement; provenance records, the build cache and the
   advisory key distribution of S5.
 
-**Why each stays refused (state of 18 October 2026).** A refusal is a decision, so each has its reason
-here; none of them is left refused for lack of attention.
+**Why each still requires change (state of 18 October 2026).** Each is a decision, so each has its reason
+here; none of them is left requiring change for lack of attention.
 
-- `ct fn` in the emitters and the Lean elaboration: W-CTFN-2 prescribes the refusal for Python and
-  JavaScript, and the Rust and Scala emitters refuse for the same reason. The property is that two runs
+- `ct fn` in the emitters and the Lean elaboration: W-CTFN-2 prescribes that the Python and
+  JavaScript emitters do not print a `ct fn`, and the Rust and Scala emitters do not print one for the same reason. The property is that two runs
   that differ only in secrets take the same branch, index and loop decisions (T45); a translation that
   keeps the decisions equal says nothing about the timing the target's compiler or runtime then
   produces, and T45 is unproved. The reference evaluator runs the function.
-- Contracts in the emitters: a `requires` or `ensures` that fails refuses the event with the fixed
-  record (F.6.2, T46). The emitters translate the erased Form and have no outcome for a refused event
+- Contracts in the emitters: a `requires` or `ensures` that fails keeps the state, with the fixed
+  record (F.6.2, T46). The emitters translate the erased Form and have no outcome for a kept step
   distinct from a trap, so an emitted program could not report the record; adding one to four emitters
   and to the conformance adapters is a change of the emitter protocol, not a local translation.
 - `Template` values and `Prompt.t"..."` (F.6.1): the typed-output property (T44) is about the
@@ -1138,4 +1138,4 @@ UnaryExpr    = ( "-" | "~" | "&" [ "mut" ] | "<-" | "comptime" | "release" | "en
              | Postfix .
 ```
 
-<!-- body-sha256: 8bd5fe456449680c69da527d048b20482d76c77fd57e38dbb85ced12065223c5 -->
+<!-- body-sha256: d758122e6b3bc467c6c7cc553e72dc63cb7c3a6ae67ecb968045950837b14b53 -->

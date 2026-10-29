@@ -407,7 +407,7 @@ mod desktop {
                     }
                     self.cycle_graph();
                 }
-                Err(e) => self.err = Some(format!("graph edit refused: {e}")),
+                Err(e) => self.err = Some(format!("graph edit not performed: {e}")),
             }
         }
 

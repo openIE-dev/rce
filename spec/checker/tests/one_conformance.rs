@@ -4,7 +4,7 @@
 //! (the test's events as an appended example; `fn main` at the test's fuel
 //! when it has no events). For each test the lowering covers, evaluating
 //! the core prints the reference interpreter's trace byte for byte; a test
-//! it does not cover is refused, never printed differently.
+//! it does not cover is reported as not covered, never printed differently.
 //!
 //! This file is a test binary of its own because it sets the fuel limit,
 //! which every evaluator of the process reads.

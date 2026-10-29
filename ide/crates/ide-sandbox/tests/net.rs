@@ -255,7 +255,7 @@ fn landlock_allows_only_declared_tcp_ports() {
         err.contains("not permitted") || err.contains("denied"),
         "{err}"
     );
-    // UDP is refused by seccomp even though sockets are allowed.
+    // UDP is denied by seccomp even though sockets are allowed.
     let mut c = Command::new("/bin/bash");
     c.args(["-c", &format!("echo x > /dev/udp/127.0.0.1/{}", m.port)]);
     assert!(!j.run(c, &pol).unwrap().status.success(), "udp");

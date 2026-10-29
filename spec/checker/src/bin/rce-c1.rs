@@ -4,8 +4,8 @@
 //! For each program: a random module (kinds, functions, 1 or 2 state
 //! regions, 1 to 3 events, guarded and block-bodied steps) and a random
 //! event log are generated from a seeded splitmix64 stream. The module must
-//! be admitted by the reference checker (programs it refuses are counted and
-//! replaced, never compared). Then:
+//! be admitted by the reference checker (programs that require change are
+//! counted and replaced, never compared). Then:
 //!   1. `rce run` (`cli::run`) prints the state after each event;
 //!   2. the log is appended as an `example`, and the reference evaluator's
 //!      observations (`emit::observe`) must contain the same per-step lines;
@@ -736,7 +736,7 @@ fn run_target(lang: Lang, dir: &Path, stem: &str) -> Result<String, String> {
 
 /// The program with its log appended as an example. `-> true` is a
 /// final-state condition; the example's verdict is not part of the
-/// comparison (refused and trapping logs are compared too), so admission
+/// comparison (logs with a kept step or a trap are compared too), so admission
 /// of the base program is checked without it.
 fn with_example(src: &str, log: &str) -> String {
     format!("{src}\nexample {log} -> true\n")
@@ -872,9 +872,9 @@ fn main() {
         inc(&mut stats, "programs generated", 1);
         let d = cli::diagnostics(&src, &HashSet::new());
         if !d.is_empty() {
-            inc(&mut stats, "refused by checker (replaced, not compared)", 1);
+            inc(&mut stats, "programs that require change (replaced, not compared)", 1);
             let rule = d[0].1.split_whitespace().find(|w| w.starts_with("W-")).unwrap_or("other").to_string();
-            inc(&mut stats, &format!("  kept: {rule}"), 1);
+            inc(&mut stats, &format!("  requires change: {rule}"), 1);
             if fail_log.len() < 10 {
                 fail_log.push(d[0].1.clone());
             }
@@ -896,7 +896,7 @@ fn main() {
             }
         };
         if run.kept {
-            inc(&mut stats, "logs refused at some event", 1);
+            inc(&mut stats, "logs with a kept step", 1);
         }
         let full = with_example(&src, &log);
         let m = parse(&full).expect("parses with example");
@@ -980,7 +980,7 @@ fn main() {
                     let (c, lang) = (&cases[i / 3], langs[i % 3]);
                     let m = parse(&with_example(&c.src, &c.log)).unwrap();
                     let r = match emit(&m, lang) {
-                        Err(e) => Err(format!("emit refused: {e}")),
+                        Err(e) => Err(format!("the emitter does not yet print it: {e}")),
                         Ok(code) => {
                             let stem = format!("p{}", c.id);
                             std::fs::write(dir.join(format!("{stem}.{}", lang.ext())), code).unwrap();
@@ -1056,7 +1056,7 @@ fn main() {
         println!("{m}");
     }
     if !fail_log.is_empty() {
-        println!("sample checker refusals / run errors:");
+        println!("sample programs that require change / run errors:");
         for f in fail_log.iter().take(20) {
             println!("  {f}");
         }

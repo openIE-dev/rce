@@ -8,7 +8,7 @@ New programs, better explanations and fixes are all welcome.
   can follow in a few minutes.
 - **It tests itself.** Add `example` lines for programs with state and
   events, and `check` lines for functions. The tests should show the
-  normal case and at least one refused case.
+  normal case and at least one case where a step keeps the state.
 - **It starts with a comment** saying what the program does and anything
   unusual about how it does it.
 - **It is honest about limits.** If an area needs something RCE lacks, say

@@ -4,7 +4,7 @@
 //! by evaluating its core (`rce run-core`) equals the reference
 //! interpreter's trace byte for byte. Every example is listed below, either
 //! as covered or with the first construct the lowering does not yet cover;
-//! a program that is not covered is refused with that construct named, and
+//! a program that is not covered is reported with that construct named, and
 //! never printed differently.
 //!
 //! The conformance suite is tested the same way in one_conformance.rs.
@@ -29,7 +29,7 @@ const COVERED: &[&str] = &[
 ];
 
 /// The programs the lowering does not yet cover, and the construct it
-/// names first. Each is refused with that construct; none prints a trace.
+/// names first. Each is reported with that construct; none prints a trace.
 const NOT_COVERED: &[(&str, &str)] = &[
     ("13_spawn_chan", "a channel"),
     ("15_actor", "the type chan i64"),
@@ -193,8 +193,8 @@ fn core_is_deterministic() {
 
 /// `rce emit core FILE` and `rce run-core FILE` through the command line:
 /// status 0 with the bytes on standard output; a program the lowering does
-/// not cover is status 2 with the construct named; a program the checker
-/// refuses is status 1. `trace` is no longer an emit target: the core
+/// not cover is status 2 with the construct named; a program that
+/// requires change is status 1. `trace` is no longer an emit target: the core
 /// evaluator's output is not the expected bytes.
 #[test]
 fn emit_core_and_run_core_commands() {
@@ -220,7 +220,7 @@ fn emit_core_and_run_core_commands() {
     let ps = p.to_string_lossy().into_owned();
     assert_eq!(rce(&["run-core", &ps]), (0, out.clone(), String::new()));
     assert_eq!(rce(&["emit", "core", &ps]), (0, core.clone(), String::new()));
-    // a core module that is not well formed is refused when it is read
+    // a core module that is not well formed requires change when it is read
     let bad = core.replacen("\"ret\"", "\"halt\"", 1);
     std::fs::write(&p, &bad).unwrap();
     assert_eq!(rce(&["run-core", &ps]).0, 1);

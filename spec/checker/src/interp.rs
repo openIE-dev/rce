@@ -2,7 +2,8 @@
 //! Evaluates consts, state initializers, `check`s, comptime blocks and the
 //! examples of every intent, following the edge semantics of 6.3: integer
 //! results are checked against their type's range (trap), division by zero
-//! traps, loops trap at their bound, and an event is refused atomically.
+//! traps, loops trap at their bound, and a step whose event does not apply
+//! keeps the whole state (atomically).
 use crate::ast::*;
 use crate::types::{INTS, int_range};
 use std::collections::HashMap;
@@ -241,7 +242,7 @@ pub const FUEL: u64 = 50_000_000;
 /// The trap text of fuel exhaustion (6.7, E1).
 pub const TRAP_FUEL: &str = "comptime fuel exhausted";
 
-/// Why δ refused an input (T8), as the host reports it (HC-21): a function
+/// Why δ kept the state on an input (T8), as the host reports it (HC-21): a function
 /// of the state and the input that names no declaration, so it is the same
 /// under the renamings of 10.6 (T7).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -287,7 +288,7 @@ impl Cause {
     }
 }
 
-/// A refusal of δ (T8): its cause and the text the tools print (the
+/// A kept outcome of δ (T8): its cause and the text the tools print (the
 /// declared error's name, or `trap(..)`).
 #[derive(Clone, Debug, PartialEq)]
 pub struct KeptReason {
@@ -2454,7 +2455,7 @@ impl<'a> Interp<'a> {
                 }
             }
             Stmt::Check(Expr::Call(f, a, _, _)) if a.len() == 2 && matches!(&**f, Expr::Name(n, _) if n == "@contract") => {
-                // F.6.2: the fixed refusal record of a violated contract clause
+                // F.6.2: the fixed record of a violated contract clause (the step keeps the state)
                 let v = self.eval(&a[1].e)?;
                 if !self.truthy(v)? {
                     let rec = if let Expr::Str(s, _) = &a[0].e { s.clone() } else { String::new() };
@@ -2569,12 +2570,12 @@ impl<'a> Interp<'a> {
         Ok(None)
     }
 
-    /// δ (6.4): every region on the pre-state; first refusal in declaration order refuses the event atomically.
+    /// δ (6.4): every region on the pre-state; the first region in declaration order that keeps the state keeps it for the whole event (atomically).
     pub fn delta(&mut self, s: &[Region], ev: &V) -> Result<(Vec<Region>, Vec<V>), String> {
         self.delta_r(s, ev).map_err(|r| r.text)
     }
 
-    /// δ with the refusal's cause (HC-21).
+    /// δ with the cause of a kept outcome (HC-21).
     pub fn delta_r(&mut self, s: &[Region], ev: &V) -> Result<(Vec<Region>, Vec<V>), KeptReason> {
         let mut next = vec![];
         let mut outs = vec![];
@@ -3371,7 +3372,7 @@ pub fn form_json(m: &Module) -> String {
                             .join(",");
                         ("\"applied\"".to_string(), o, false)
                     }
-                    // T8: a refused event leaves the state unchanged.
+                    // T8: a kept step leaves the state unchanged.
                     Err(r) => (
                         format!("{{\"kept\":{}}}", jstr(&r)),
                         format!(

@@ -2,7 +2,7 @@
 //! top of lib/crypto.rce). The FIPS 197 and SP 800-38D checks of the module;
 //! the official RFC 9180 vector for DHKEM(X25519, HKDF-SHA256), HKDF-SHA256,
 //! AES-128-GCM in base mode (key pair derivation, seal at sequence numbers
-//! 0, 1, 2, 255 and 256, open, a tampered ciphertext refused); and the RFC
+//! 0, 1, 2, 255 and 256, open, a tampered ciphertext that does not open); and the RFC
 //! 9420 crypto-basics.json EncryptWithLabel vector for cipher suite 1
 //! (decrypt the official ciphertext, then a fresh seal and open). One
 //! operation per host input inside the fuel of HC-7a; the log replays.

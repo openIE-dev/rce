@@ -29,10 +29,10 @@ def save(fig, name):
 # (a) overview
 fig, ax = canvas(14, 7.6, "RCE at a glance", "One program, one meaning: a Form. The checker admits it, the log records every step, emitters translate it, a host runs it.")
 box(ax, 0.3, 4.3, 2.4, 1.3, "source.rce\n(text, integrated\ndevelopment environment,\ntree-sitter)", "#f1f5f9", fs=9)
-box(ax, 3.3, 4.0, 3.2, 1.9, "rce checker\nparse, types, ownership,\ntermination, rules named\non refusal", C["chk"], bold=False)
+box(ax, 3.3, 4.0, 3.2, 1.9, "rce checker\nparse, types, ownership,\ntermination; names the\nrule to change", C["chk"], bold=False)
 box(ax, 7.1, 3.6, 3.2, 2.7, "Form\nP = (S, E, \u03b4, D, \u03bb)\n\nS states   E events\n\u03b4 step: (s, e) \u2192 (s', out)\nD durable log\n\u03bb outputs \u2192 effects", C["form"], fs=11)
 arrow(ax, (2.7, 4.95), (3.3, 4.95)); arrow(ax, (6.5, 4.95), (7.1, 4.95), "accepted")
-ax.text(4.9, 3.6, "kept: names the rule", ha="center", fontsize=9, color="#b91c1c")
+ax.text(4.9, 3.6, "requires change: names the rule", ha="center", fontsize=9, color="#b91c1c")
 targets = ["Rust", "Python", "JS", "Scala"]  # the targets of `rce emit` in spec/checker/src/cli.rs
 # `rce emit` translates the checked program, not the Form, so the arrows leave the checker
 ax.plot([6.0, 6.0, 10.9], [5.9, 6.45, 6.45], color=C["edge"], lw=1.4)

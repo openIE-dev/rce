@@ -25,10 +25,10 @@ P = (S, E, δ, D, λ) is:
   task events of 6.8.
 - **δ : S × E → S × O\*** (state and the outputs of the step) is defined in
   6.4. It is a total function (T2).
-- **λ** maps each step to its output sequence O\*: values `emit`ted, and for a
-  refused event the record `Kept(X, payload)`.
+- **λ** maps each step to its output sequence O\*: values `emit`ted, and for an
+  event that does not apply the record `Kept(X, payload)`.
 - **D** is the log: the sequence of admitted events e₁, e₂, …, each entry with
-  its outcome (applied, or refused with X). The fold law: the state after the
+  its outcome (applied, or kept with X). The fold law: the state after the
   log is sₙ = foldl(δ₁, s₀, D) where δ₁ is the state component of δ.
 
 **Canonical signature (normative).** This is the one signature; the engine
@@ -56,7 +56,7 @@ stored `event` and the readable `state` keep their names, so a log is
 readable without the module; a log or trace that repeats the hashed
 forms does so under `hashed` ({event, state}), which is derived. A log
 may also carry `outcome`, `out` and `state`; these are derived and must
-equal replay (T1), so they are not hashed. A refused event (T8) is
+equal replay (T1), so they are not hashed. An event that does not apply (T8) is
 recorded with its unchanged state and ends the example log. Both
 producers are tested against this rule
 (`spec/checker/tests/form_signature.rs`, `tests/form_signature.rs`), and
@@ -81,7 +81,7 @@ of RCE types into them is fixed:
 | Map[k, v] | list of [k, v] pairs sorted by canonical order of k |
 | struct / state record | record (keys sorted, as canonical JSON) |
 | kind variant V(f: …) | record {"$v": "V", f: …}; unit variant: {"$v": "V"} |
-| τ? | null for none, the value for some (and `some(none)` is refused: τ may not itself be an option, W-TY-2) |
+| τ? | null for none, the value for some (and `some(none)` requires change: τ may not itself be an option, W-TY-2) |
 | chan τ, actor handle | record {"$chan": id} / {"$actor": id}, id the content hash of 6.6 |
 
 Canonical order of values (used by Set, Map and select): null < bool < int <
@@ -236,12 +236,12 @@ Selected rules (the rest are the standard ones for a strict language):
 
 `trap` and `fail` propagate outward through every construct (they are not
 caught by `catch`: `catch` handles only declared errors and none; a trap
-always refuses the event).
+always keeps the state).
 
 - **E1 Fuel exhaustion is uncatchable.** Running out of fuel is not a
   declared error and not a trap a program can observe: no `catch`, `try`
   or `try e else X` handles it, it propagates outward through every
-  construct, and it refuses the event exactly as a trap does (T8). The
+  construct, and it keeps the state exactly as a trap does (T8). The
   derivation: if a handler could observe exhaustion, a program could
   return a different value on a larger budget, and a completed result
   would depend on fuel. The fuel laws require that it does not: more fuel
@@ -252,9 +252,9 @@ always refuses the event).
 
 **`&mut` write-back (normative).** A call that returns writes back each `&mut`
 argument and a `&mut self` receiver. A call that ends by `fail` leaves each of them as it was at
-the call, provided every effect since entry is undoable, and is refused otherwise (F.4.4, W-TX-1); the
+the call, provided every effect since entry is undoable, and requires change otherwise (F.4.4, W-TX-1); the
 callee's writes made before the failure are undone. Atomicity of the event is separate: a `trap`, or a `fail`
-that leaves the step, refuses the event and the state is the pre-state (T8). The earlier rule of this text
+that leaves the step, keeps the state: the state is the pre-state (T8). The earlier rule of this text
 wrote back on every outcome, including `fail`; it is retired because F.4.4 makes a failed call a no-op, which is
 what a caller can reason about. T33 now proves the restore rule (`WriteBack.t33_failure_restores`,
 `t33_return_writes_back`); nothing about the retired rule remains in the proved tree. The program emitters implement the
@@ -271,7 +271,7 @@ to fresh `let` temporaries in left-to-right order, then the call, so
 reads, budget charges and emits keep their order (T34). A write-back
 call in a conditional position (right of `and`/`or`, an `if` branch, a
 `catch` handler, a lambda or a comprehension) is not flattened, since
-that would evaluate it eagerly; it is refused with a diagnostic, never
+that would evaluate it eagerly; it requires change, with a diagnostic, and is never
 given a different meaning. Tested on every target
 (`spec/checker/tests/write_back.rs`). Values of type `τ ! ε` are `val(v)` or
 `err(X, v)`; they are first-class only until a `try` or `catch` consumes them.
@@ -476,7 +476,7 @@ exactly.
 - **N9 Limits.** A list or text built by any operation is at most
   SIZE_LIMIT = 1,000,000 elements (`trap("size limit")`). A value written to
   state is at most VALUE_LIMIT = 1,048,576 bytes of canonical JSON
-  (`trap("value limit")`, the event is refused, the value is not recorded).
+  (`trap("value limit")`, the state is kept, the value is not recorded).
 - **N10 Absence.** `none` and a present `()` differ, exactly as the Form's
   null-versus-absent rule: an option field holding none is present.
 - **N11 Time** is the logical clock only: `Tick` events and `after n`
@@ -492,4 +492,4 @@ method and is W-NAME-1.
 
 **Read receipt.** Which JavaScript function is named for rounding to binary32?
 
-<!-- body-sha256: d2c8c424a4caf7d186e74c94911e47b77554d7c7224a186a9c64d36914fd988a -->
+<!-- body-sha256: 0dc0c2af67c908c2000eb760a3f14aa6dabf408b6729723fe42b4fcd39f788a8 -->

@@ -166,7 +166,7 @@ fn auth_origin_accept_session_and_version_are_enforced() {
         c.raw("POST", &base(wrong), init.as_bytes()).unwrap().status,
         401
     );
-    // A foreign Origin (DNS rebinding) is refused; the allowed one passes.
+    // A request with a foreign Origin (DNS rebinding) is not performed; the allowed one passes.
     let mut h = base(g);
     h.push(("Origin", "http://evil.example"));
     assert_eq!(c.raw("POST", &h, init.as_bytes()).unwrap().status, 403);

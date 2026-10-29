@@ -102,7 +102,7 @@ pub enum EdgeKind {
     Writes,
     /// A step can raise an error (step -> error).
     Raises,
-    /// The checker refused the file this item lives in (error node -> item).
+    /// The file this item lives in requires change (error node -> item).
     RequiresChange,
     /// Hardware containment (package -> core, core -> cache).
     Contains,
@@ -170,7 +170,7 @@ pub struct Node {
     pub file: Option<String>,
     /// 1-based line of the definition.
     pub line: Option<usize>,
-    /// The checker refused this node's file.
+    /// This node's file requires change.
     #[serde(default)]
     pub requires_change: bool,
     /// Rank (PageRank for code), drives the node radius.
@@ -293,7 +293,7 @@ pub struct DefIn<'a> {
 }
 
 /// Build the code graph from defs, refs `(from, to, call)` and per-file
-/// checker verdicts (`Some(refusal)` when refused).
+/// checker verdicts (`Some(report)` when the file requires change).
 pub fn from_defs(
     defs: &[DefIn],
     refs: &[(usize, usize, bool)],
@@ -331,7 +331,7 @@ pub fn from_defs(
         let (a, b) = if rev { (t, f) } else { (f, t) };
         g.link(a, b, k, 1.0, "");
     }
-    // A refused file gets an error node naming the refusal, linked to its items.
+    // A file that requires change gets an error node naming the report, linked to its items.
     for (file, v) in verdicts {
         if let Some(msg) = v {
             let members: Vec<usize> = (0..g.nodes.len())

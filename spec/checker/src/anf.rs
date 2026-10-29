@@ -17,7 +17,8 @@
 //! `and`/`or`, a branch of `if`, a `catch` handler, a `try ... else`, a
 //! lambda or comprehension body), in a `while` condition or an assignment
 //! target, or with another write-back call in its own arguments, is left
-//! as it is, and the emitter refuses it with a diagnostic.
+//! as it is, and the emitter reports with a diagnostic that it does not
+//! yet print it.
 use crate::ast::*;
 use std::collections::HashSet;
 
@@ -143,8 +144,8 @@ impl Cx {
         *b = out;
     }
 
-    /// Rewrite `e` in place, its bindings appended to `pre`; on refusal
-    /// leave `e` and `pre` untouched and return false.
+    /// Rewrite `e` in place, its bindings appended to `pre`; when it
+    /// cannot be rewritten, leave `e` and `pre` untouched and return false.
     fn rewrite(&mut self, e: &mut Expr, pre: &mut Vec<Stmt>) -> bool {
         if self.top_ok(e) {
             return true;

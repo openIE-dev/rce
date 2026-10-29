@@ -13,7 +13,7 @@ and every byte before the block:
     # events: Inc, Dec          run/trace: the inputs (else fn main runs)
     # fuel: 40                  run: the fuel limit
     # schedule_seeds: [1, 2]    run: also run under these par schedules; all must agree
-    # outcome: trap:...         run: done | refused:E | trap:KIND | deadlock
+    # outcome: trap:...         run: done | kept:E | trap:KIND | deadlock
     # outputs:
     #   - emit 3
     # trace_head: <sha256>      trace: hash of the last log entry

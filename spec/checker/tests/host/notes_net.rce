@@ -1,6 +1,6 @@
 module notes_net
 
-intent "the notes service on the net adapter: one connection at a time, polled every Tick; received bytes are parsed with net.http, a body that is not UTF-8 gets 400, a refused step answers 500 and closes, and a restart forgets the sockets of the process that is gone"
+intent "the notes service on the net adapter: one connection at a time, polled every Tick; received bytes are parsed with net.http, a body that is not UTF-8 gets 400, a kept step answers 500 and closes, and a restart forgets the sockets of the process that is gone"
     example Start(addr: "127.0.0.1:1"), Tick, NetListenDone(req: 1, status: "delivered", data: some(1), err: "") -> listener == 1 and conn == 0
     example Start(addr: "127.0.0.1:1"), Tick, NetListenDone(req: 1, status: "delivered", data: some(1), err: ""), Tick, NetAcceptDone(req: 2, status: "delivered", data: some(2), err: ""), NetRecvDone(req: 3, status: "delivered", data: some([80, 79, 83, 84, 32, 47, 110, 111, 116, 101, 115, 32, 72, 84, 84, 80, 47, 49, 46, 49, 13, 10, 72, 111, 115, 116, 58, 32, 120, 13, 10, 67, 111, 110, 116, 101, 110, 116, 45, 76, 101, 110, 103, 116, 104, 58, 32, 50, 13, 10, 13, 10, 104]), err: ""), NetRecvDone(req: 4, status: "delivered", data: some([105]), err: "") -> last_status == 201 and notes.len() == 1 and notes[1] == "hi"
     example Start(addr: "127.0.0.1:1"), Tick, NetListenDone(req: 1, status: "delivered", data: some(1), err: ""), Tick, NetAcceptDone(req: 2, status: "delivered", data: some(2), err: ""), NetRecvDone(req: 3, status: "delivered", data: some([80, 79, 83, 84, 32, 47, 110, 111, 116, 101, 115, 32, 72, 84, 84, 80, 47, 49, 46, 49, 13, 10, 72, 111, 115, 116, 58, 32, 120, 13, 10, 67, 111, 110, 116, 101, 110, 116, 45, 76, 101, 110, 103, 116, 104, 58, 32, 49, 13, 10, 13, 10, 255]), err: "") -> last_status == 400 and notes.len() == 0
@@ -150,7 +150,7 @@ step Server on NetCloseDone(_, _, _, _)
 
 step Server on StepKept(seq: _q, cause: c)
     if conn != 0
-        let r = err(500, "step refused: " + c)
+        let r = err(500, "step kept: " + c)
         last_status = 500
         req += 1
         emit NetSend(req: req, id: conn, data: response(&r))

@@ -83,7 +83,8 @@ fn show_state_redacted(s: &[Region], redact: &[&str]) -> String {
         .join("; ")
 }
 
-/// Outcome of `rce run`: the printed lines and whether the run was refused.
+/// Outcome of `rce run`: the printed lines and whether the run ended with a
+/// kept step.
 #[derive(Debug, PartialEq)]
 pub struct RunOut {
     pub lines: Vec<String>,
@@ -92,7 +93,7 @@ pub struct RunOut {
 
 /// `rce run FILE EVENTS`: apply δ to the initial state once per event, in
 /// order, printing the state and outputs after each. Stops at the first
-/// refused event. Without events, runs `fn main()` and prints its outputs.
+/// event whose step keeps the state. Without events, runs `fn main()` and prints its outputs.
 /// The module must be admitted first (as by `rce check`).
 pub fn run(src: &str, events: Option<&str>) -> Result<RunOut, String> {
     let d = diagnostics(src, &HashSet::new());
@@ -264,7 +265,7 @@ fn depth_delta(line: &str) -> i64 {
 /// `rce fmt`: the canonical layout of 10.6. Indentation becomes 4 spaces
 /// per block level, trailing spaces go, runs of blank lines become one, the
 /// file ends in exactly one line end. The token sequence is unchanged; if it
-/// would change, the text is refused and left as it was.
+/// would change, the text is left as it was and the error says why.
 pub fn fmt_text(src: &str) -> Result<String, String> {
     let before = toks(src)?;
     let mut out: Vec<String> = vec![];
@@ -512,7 +513,7 @@ pub const TRACE_FORMAT: &str = "rce-trace/2";
 /// canonical D fields `seq`, `event`, `state_hash`, `prev_hash`, `hash`,
 /// the derived `outcome`, and `hashed`, the positional forms of the event
 /// and the state that the two hashes are over (6.1, T7); a trace stops at
-/// the first refused event.
+/// the first event whose step keeps the state.
 /// Keys are sorted and the JSON is compact, so equal traces are equal bytes.
 pub fn trace(file: &str, src: &str, events: Option<&str>) -> Result<String, String> {
     match events {
@@ -624,7 +625,7 @@ pub const USAGE_TEXT: &str = "usage:
   rce manifest DIR               write the hash-pinned manifest of a directory (F.5.3): every .rce file as a module pinned by its hash, canonical JSON
   rce manifest-check MANIFEST [--advisories FILE] [--key ISSUER=HEXPUBKEY]...  verify a hash-pinned manifest (F.5.3, W-PIN-1) and list pinned hashes that carry a signed advisory
   rce api-diff OLD NEW           compare the exports of two module sets (FILE or DIR each); one row per change, compatible or breaking; status 1 if any is breaking
-  rce v09-status                 the Appendix F rules this checker implements and the ones it refuses by version
+  rce v09-status                 the Appendix F rules this checker implements and the ones not yet implemented, by version
   rce lsp                        language server on stdin/stdout
   rce index [--vectors N] FILE|DIR...  brick catalog (rce-catalog/1 JSON): every exported fn, type key, SHA-256, verdict, D.7 Form IR term
   rce search CATALOG QUERY       bricks of type QUERY (e.g. (A, B) -> R; a, b, ... are variables), best first
@@ -1040,7 +1041,7 @@ fn run_main(a: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &mu
             }
             Err(e) => {
                 writeln!(err, "{e}").map_err(w)?;
-                // A program the checker refuses is status 1; an unknown target
+                // A program that requires change is status 1; an unknown target
                 // or a construct an emitter does not translate is status 2.
                 if ["form", "core", "rust", "python", "js", "scala"].contains(&rest[0].as_str())
                     && !e.starts_with("not supported by the emitter")
@@ -1077,7 +1078,7 @@ fn run_main(a: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &mu
             }
             Err(e) => {
                 writeln!(err, "{e}").map_err(w)?;
-                // a program the checker refuses, a core module that is not
+                // a program that requires change, a core module that is not
                 // well formed and a run that halts are status 1; a construct
                 // the lowering does not cover is status 2
                 if e.starts_with("not covered by the lowering") || e.starts_with("internal:") { USAGE } else { REQUIRES_CHANGE }
@@ -1213,10 +1214,10 @@ fn host_cmd(a: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &mu
             match crate::host::replay_report(&m, &text) {
                 Ok(r) => {
                     let (n, h, s) = (r.entries, r.state_hash, r.state);
-                    writeln!(out, "replay ok: {n} entries, {} refused, state_hash {h}", r.kept_outcomes.len()).map_err(w)?;
-                    // HC-21: the refusal texts are not in D; replay re-derives them
+                    writeln!(out, "replay ok: {n} entries, {} kept, state_hash {h}", r.kept_outcomes.len()).map_err(w)?;
+                    // HC-21: the texts of the kept steps are not in D; replay re-derives them
                     for (q, c, t) in &r.kept_outcomes {
-                        writeln!(out, "  seq {q} refused ({c}): {t}").map_err(w)?;
+                        writeln!(out, "  seq {q} kept ({c}): {t}").map_err(w)?;
                     }
                     // `--redact f,g`: print those fields as digests (secrets stay in D)
                     let red: Vec<&str> = match a.get(4).map(|x| x.as_str()) {
@@ -1777,7 +1778,7 @@ fn serve_loop(h: &mut crate::host::Host, src: &str, out: &mut dyn Write, mut htt
         let mut exit = false;
         for a in adm {
             if let Some(c) = a.cause {
-                eprintln!("rce host: seq {} refused ({c})", a.seq);
+                eprintln!("rce host: seq {} kept ({c})", a.seq);
             }
             for d in &a.display {
                 write!(out, "{d}").map_err(w)?;
@@ -1857,7 +1858,7 @@ fn validate_run(m: &Module, log: &str, live: &str, code: i32, err: &mut dyn Writ
     let text = std::fs::read_to_string(log).map_err(|e| format!("validate {log}: {e}"))?;
     match crate::host::replay_report(m, &text) {
         Ok(r) if r.state_hash == live => {
-            writeln!(err, "rce host: validated {} entries, {} refused: replay with adapters disconnected gives the live state_hash", r.entries, r.kept_outcomes.len()).map_err(|e| e.to_string())?;
+            writeln!(err, "rce host: validated {} entries, {} kept: replay with adapters disconnected gives the live state_hash", r.entries, r.kept_outcomes.len()).map_err(|e| e.to_string())?;
             Ok(code)
         }
         Ok(r) => Err(format!("host fault: replay gives {}, the live run had {live}", r.state_hash)),
@@ -1866,7 +1867,7 @@ fn validate_run(m: &Module, log: &str, live: &str, code: i32, err: &mut dyn Writ
 }
 
 /// `rce db D CMD [ARGS]`: RCEdb on the log D, in this process (W3). Writes
-/// print `ok seq N`; a refused write prints the refusal and exits 1; rows
+/// print `ok seq N`; a write that is not applied prints why and exits 1; rows
 /// print as `KEY<TAB>ROW` in canonical key order.
 fn db_cmd(a: &[String], out: &mut dyn Write) -> Result<i32, String> {
     use crate::rcedb::{Db, Dialect};

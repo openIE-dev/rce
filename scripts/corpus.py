@@ -9,7 +9,7 @@ openie-research-experiments/rce/bench/form-space/PREREG.json. Negatives are
 the conformance tests that must be rejected (with their diagnostic code) and
 checker-verified mutants of the accepted programs under a fixed seed: three
 whitespace-token mutants and two of each typed operator (rename, operator,
-literal, guard, type), each classified as refused (with its diagnostic),
+literal, guard, type), each classified as requiring change (with its diagnostic),
 caught by the program's own example lines (W-INT-1), accepted with the same
 shape, accepted and equivalent (same trace heads), or accepted with a
 behaviour change the examples did not catch.
@@ -377,7 +377,7 @@ def main():
             msg = (c.stdout + c.stderr).strip()
             code = first_code(msg)
             row.update(verdict="reject", diagnostic=code, message=msg[:300],
-                       outcome="caught_by_examples" if code == "W-INT-1" else "kept")
+                       outcome="caught_by_examples" if code == "W-INT-1" else "requires_change")
             mut_stats["reject"] += 1
             if code == "W-INT-1":
                 mut_stats["caught_by_examples"] += 1

@@ -97,7 +97,7 @@ Outputs: the module, a per-hole derivation (stage, candidates tried, winner hash
 
    Current results on rce-stdlib 4ed1b7f: 457 bricks, all in admitted files; 269 lowered to Form IR terms; 252 of those agree with the reference interpreter on generated vectors, 0 disagree, 17 have no vector yet (generic structs such as `Deque[T]`, two loop-heavy pq functions).
 
-   Refusals (188): 77 term size or depth (calls are inlined because the IR has no named sub-terms), 50 mutable borrows, 38 error results (`T ! E`, `catch`, `try`), 7 `match`, 7 other calls, 5 slices and place assignments, 4 narrow integers or floats. The largest class needs named sub-terms in the Form IR (a definition table and a call node), which the evaluator and every emitter must carry; mutable borrows need a stated convention (the term returns the result and the updated arguments).
+   Not yet lowered (188): 77 term size or depth (calls are inlined because the IR has no named sub-terms), 50 mutable borrows, 38 error results (`T ! E`, `catch`, `try`), 7 `match`, 7 other calls, 5 slices and place assignments, 4 narrow integers or floats. The largest class needs named sub-terms in the Form IR (a definition table and a call node), which the evaluator and every emitter must carry; mutable borrows need a stated convention (the term returns the result and the updated arguments).
 2. Holes in the checker (parse, type, report unfilled).
 3. Lift G2 from HandlerSpec to catalog terms and wire it to the e-graph.
 4. Structured diagnostics and the repair table.

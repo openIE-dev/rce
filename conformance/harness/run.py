@@ -150,7 +150,7 @@ def judge(t, a, ops):
             if "error" in r:
                 return "fail", f"run error: {r['error'][:300]}", obs
             if r.get("verdict") == "change":
-                return "fail", f"refused at entry: {json.dumps(r.get('diagnostics'))[:300]}", obs
+                return "fail", f"requires change at entry: {json.dumps(r.get('diagnostics'))[:300]}", obs
             got = (r.get("outputs", []), r.get("outcome"))
             if first is None: first = got
             obs = {"outputs": first[0], "outcome": first[1]}

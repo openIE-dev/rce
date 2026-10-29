@@ -381,7 +381,7 @@ pub struct Ace
 # Discretionary access check (MS-DTYP 2.5.3.2, simplified: no owner
 # rights, generic mapping, inheritance or object ACEs): with no DACL
 # everything is granted; otherwise ACEs are read in order, a deny ACE
-# for a token SID that names a still-wanted bit refuses, an allow ACE
+# for a token SID that names a still-wanted bit denies access, an allow ACE
 # grants its bits, and access is granted once every wanted bit is.
 pub fn access_check(has_dacl: bool, dacl: &[Ace], token: &[text], want: i64) -> bool
     if not has_dacl

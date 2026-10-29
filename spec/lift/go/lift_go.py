@@ -12,7 +12,7 @@ SEM = {
   "types": {"bool": "bool", "int64": "i64", "int": "i64", "uint64": "u64", "string": "text", "float64": "f64"},
   "int_overflow": "wraps (Go spec: 'integer overflow ... wraps around'); RCE traps: emit must insert checked ops",
   "division": "truncates toward zero, remainder takes dividend sign (Go spec) = RCE 6.3",
-  "error_return": "a function returning a non-nil error = a refused event (T8: state unchanged only if no write preceded the return)",
+  "error_return": "a function returning a non-nil error = an event whose step keeps the state (T8: state unchanged only if no write preceded the return)",
 }
 src = open(sys.argv[1], "rb").read()
 tree = P.parse(src)

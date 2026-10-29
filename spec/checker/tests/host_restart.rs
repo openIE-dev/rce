@@ -292,7 +292,7 @@ fn a_restarted_of_another_shape_is_matched_by_field_name() {
         ("event Restarted(below: u64, note: text?)", "step Net on Restarted(below: _b, note: _n)", true),
         ("event Restarted(below: u64, note: text)", "step Net on Restarted(below: _b, note: _n)", false),
     ] {
-        let src = base.replace("event Restarted(below: u64)", decl).replace("step Net on Restarted(below: _b)", step).replace(", Restarted(below: 12) -> refusals == 1 and restarts == 1 and last == 0", " -> refusals == 1");
+        let src = base.replace("event Restarted(below: u64)", decl).replace("step Net on Restarted(below: _b)", step).replace(", Restarted(below: 12) -> kept_outcomes == 1 and restarts == 1 and last == 0", " -> kept_outcomes == 1");
         let m = parse(&src).unwrap();
         let d = dir(if delivered { "shape-opt" } else { "shape-req" });
         let log = d.join("d.log");

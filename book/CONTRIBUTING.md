@@ -11,9 +11,9 @@ something confused you while reading, that is worth an issue on its own.
 2. **Every program is checked.** A program meant to work must pass
    `rce test`. Give it `check` lines or `example` lines so that the test
    says something.
-3. **A refused program says why.** Put it in `listings/chNN/kept/`, with
-   a `NAME.expect` file holding the rule name or message the refusal must
-   contain.
+3. **A program that requires change says why.** Put it in
+   `listings/chNN/change/`, with a `NAME.expect` file holding the rule name
+   or message the checker's report must contain.
 4. **Every terminal transcript is real.** Put the command's arguments in
    `NAME.cmd`. Generate `NAME.out` with
    `scripts/check-listings.sh --bless`, then read the diff before you

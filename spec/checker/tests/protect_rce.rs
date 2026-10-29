@@ -6,7 +6,7 @@
 //! commit PrivateMessages open to the expected content with a valid
 //! FramedContentTBS signature, and the proposal and commit PublicMessages
 //! carry a valid signature and membership tag). A changed ciphertext or
-//! membership key is refused. One computation per host input; the log replays.
+//! membership key does not verify. One computation per host input; the log replays.
 use rce_spec_check::host::{Host, MemStore, replay};
 use rce_spec_check::parse::parse;
 use serde_json::Value;

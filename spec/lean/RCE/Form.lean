@@ -232,8 +232,8 @@ def regionStep (args : List Val) (ev : String) (i : Nat) (fs : List Val) : List 
       | .error m => .ref (.trap m)
     else regionStep args ev i fs ds
 
-/-- Every region steps on the pre-state; the first refusal (declaration
-    order) refuses the whole event. -/
+/-- Every region steps on the pre-state; the first region whose step does
+    not apply (declaration order) keeps the state for the whole event. -/
 def runRegions (P : Program) (e : Event) : Nat → State → Except Reason (State × List Val)
   | _, [] => .ok ([], [])
   | i, fs :: rs =>
@@ -250,8 +250,8 @@ def delta (P : Program) (s : State) (e : Event) : State × List Out :=
   | .ok (s', o) => (s', o.map .emit)
   | .error x => (s, [.kept x])
 
-/-- **T8 Atomicity**: a refused event leaves every region unchanged, and an
-    output list containing a refusal only arises from a refused event. -/
+/-- **T8 Atomicity**: an event whose step does not apply leaves every region
+    unchanged, and an output list containing `kept` arises only from such an event. -/
 theorem atomicity (P : Program) (s : State) (e : Event) (x : Reason)
     (h : Out.kept x ∈ (delta P s e).2) : (delta P s e).1 = s := by
   unfold delta at h ⊢

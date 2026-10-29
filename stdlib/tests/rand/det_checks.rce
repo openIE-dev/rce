@@ -3,7 +3,7 @@
 # extracted from vectors/rand/rfc8439.txt by scripts/gen/rand_gen.py);
 # generator streams, bits, below, range, bytes, shuffle and split against
 # the Python model in that script; chi-square, bit-balance and range
-# sweeps over fixed seeds; refusals; seeding through Cap[Entropy] in an
+# sweeps over fixed seeds; inputs that fail; seeding through Cap[Entropy] in an
 # example (a check cannot make a capability).
 
 fn hexv(c: i64) -> i64 = if c >= 97 then c - 87 else c - 48

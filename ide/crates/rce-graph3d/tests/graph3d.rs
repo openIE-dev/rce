@@ -42,7 +42,7 @@ fn file_requiring_change_gets_error_node() {
         .nodes
         .iter()
         .find(|n| n.id == "check:counter.rce")
-        .expect("refusal node");
+        .expect("requires-change node");
     assert_eq!(e.kind, Kind::Error);
     assert!(
         g.nodes

@@ -39,7 +39,7 @@ fn main_run_is_logged_and_replays_exactly() {
         assert_eq!(es.iter().filter(|e| e.kind() == "host.Step").count(), r.steps);
         let text = st.lines.join("\n") + "\n";
         replay(&m, &text).expect("replay re-derives the logged run");
-        // A tampered step is refused on replay (the chain is re-linked so
+        // Replay reports a tampered step (the chain is re-linked so
         // only the content differs).
         let mut evs: Vec<String> = es.iter().map(|e| e.event.clone()).collect();
         let k = evs.iter().position(|e| e.contains("host.Step")).unwrap();
@@ -89,7 +89,7 @@ fn placement_executor_follows_d_and_replays() {
     drop(h);
     let text = st.lines.join("\n") + "\n";
     replay(&m, &text).expect("placements re-derive from host entries");
-    // Change a logged placement: replay refuses it.
+    // Change a logged placement: replay reports that it differs.
     let es: Vec<Entry> = st.lines.iter().map(|l| Entry::parse_line(l).unwrap()).collect();
     let mut prev = rce_spec_check::interp::D_GENESIS.to_string();
     let mut lines = vec![];
@@ -193,13 +193,12 @@ fn main_steps_interleave_with_inputs_and_state_is_the_fold_of_d() {
     h2.take_role(1, "h2").unwrap();
     let r2 = h2.main_end().unwrap();
     assert_eq!(r2.outputs, whole.outputs);
-    // A dropped step is refused.
+    // Replay reports a dropped step.
     assert!(replay(&m, &relink(&m, &es, |k| k != first_step + 1)).is_err());
 }
 
 /// HC-6: an input for the live task is accepted only after the last logged
-/// step; an earlier one would rewrite D's past and is refused before it is
-/// logged.
+/// step; an earlier one would rewrite D's past and is not logged.
 #[test]
 fn main_input_after_the_last_step_only() {
     let m = parse(MIXED).unwrap();

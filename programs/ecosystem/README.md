@@ -7,7 +7,7 @@ disconnected; set `RCE` to the `rce` binary.
 
 | Example | What it shows | Checked against |
 |---|---|---|
-| `hpke.rce` (`run.sh hpke`) | HPKE (Hybrid Public Key Encryption, RFC 9180) base mode: key derivation, seal, open, a wrong AAD (additional authenticated data) refused | the RFC 9180 base-mode vector |
+| `hpke.rce` (`run.sh hpke`) | HPKE (Hybrid Public Key Encryption, RFC 9180) base mode: key derivation, seal, open, an open with a wrong AAD (additional authenticated data) that fails and is counted | the RFC 9180 base-mode vector |
 | `pqxdh.rce` (`run.sh pqxdh`) | PQXDH: three X25519 exchanges and ML-KEM-768 on both sides, one session key; redacted replay | RustCrypto `ml-kem` shared secret |
 | `mls_key_schedule.rce` (`run.sh mls`, or `rce test`) | MLS (Messaging Layer Security, RFC 9420) key schedule and tree math | RFC 9420 `key-schedule.json` epoch 0, `tree-math.json` |
 | `run.sh sfu` | `apps/sfu.rce` offline: subscribe, forward, stale and malformed frames; redacted replay | the SFU (selective forwarding unit) wire rules |

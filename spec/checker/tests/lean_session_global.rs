@@ -55,7 +55,7 @@ fn checker_projection_equals_lean() {
             undefined += want.is_null() as usize;
         }
         if let Some(evs) = mpst::msgs(&g) {
-            assert!(session_prio::decide(&mpst::msgs_net(&evs, 4)), "vector {n}: global_prio priorities refused");
+            assert!(session_prio::decide(&mpst::msgs_net(&evs, 4)), "vector {n}: global_prio priorities do not hold");
             prio += 1;
         }
     }

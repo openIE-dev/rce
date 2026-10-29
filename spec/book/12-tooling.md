@@ -4,7 +4,7 @@ This section defines the tools that read RCE programs: the `rce` command
 and the language server it contains. It adds no rules to the language; it
 says what each tool prints and returns for a given input. Example:
 `rce run counter.rce "Inc, Dec, Dec"` prints the state after each event
-and stops at the refused third event with exit status 1.
+and stops at the third event, whose step keeps the state, with exit status 1.
 
 ### 10.1 Principles
 
@@ -26,8 +26,8 @@ and stops at the refused third event with exit status 1.
    language server all use the same parser, type checker and admission gate
    (6.9) as the reference checker `rce-check`. A file accepted by one is
    accepted by all.
-4. **Exit status.** 0 means success. 1 means a program was refused, an
-   example or check failed, a run reached a refused event, or `fmt --check`
+4. **Exit status.** 0 means success. 1 means a program requires change, an
+   example or check failed, a run reached a kept step, or `fmt --check`
    found a file to change. 2 means a usage error: unknown subcommand, wrong
    number of arguments, unreadable file, or an unknown emit target or
    construct an emitter does not translate (10.5).
@@ -65,8 +65,8 @@ ok FILE
 requires change FILE: line N: RULE message[; line M: RULE message ...]
 ```
 
-Every refusal names its rule from section 7. Exit status 1 if any file is
-refused, else 0.
+Every `requires change` report names its rule from section 7. Exit status 1 if any file
+requires change, else 0.
 
 ### 10.3 `rce run FILE [EVENTS]`
 
@@ -86,7 +86,7 @@ where δ is the step function of 6.4 and oₖ is the sequence of values the
 step emitted (λ). It prints line 0 as `0 (initial) STATE`, then for each k
 the line `k EVENT STATE` followed by one line `  emit VALUE` per element of
 oₖ, in order. STATE lists every region as `Region { field = value, ... }`,
-regions separated by `; `, in declaration order. If δ refuses eₖ, the line
+regions separated by `; `, in declaration order. If the step for eₖ keeps the state, the line
 is `k EVENT kept: ERROR`, no later event is applied, and the status is
 1. Otherwise the status is 0. An event name that is not declared is a usage
 of a wrong event list: one `requires change` line, status 1.
@@ -180,7 +180,7 @@ evaluator's `assign` does.
 
 The Rust output follows the shape of the verified emitter of T9
 (`spec/lean/RCE/Emit.lean`): one value type, `Result` with `?` for traps
-and refusals, and i128 arithmetic checked against each integer type's
+and kept steps, and i128 arithmetic checked against each integer type's
 range. The theorem of T9 is about the Lean model of that emitter. The
 emitter in `rce` is tested against the reference evaluator; it is not
 proved.
@@ -197,7 +197,7 @@ with a 2 GiB stack.
 **What an emitted program does.** Run it, and it prints the module's
 *observations*: one line per constant, per `check`, per function without
 parameters (other than `main`), per event of each example (the state after
-it, its outputs, or the refusal), and finally the outputs and result of
+it, its outputs, or the kept record), and finally the outputs and result of
 `fn main`. These are the lines `emit::observe` computes with the reference
 evaluator, so that a target and the reference can be compared line for
 line.
@@ -219,7 +219,7 @@ closures and float display. The Scala target has its own test in the same
 file: on 2026-10-14, on the Apple M5 Max below, with Scala 3.10.0 run by
 scala-cli 1.18.0 on OpenJDK 27, all 55 programs of the current corpus
 (with the package files of example 26) agree with the reference, 0
-refused, 361 observation lines, and the edge program agrees on all four
+not printed, 361 observation lines, and the edge program agrees on all four
 targets. Its oracle is `RCE_SCALA` (default `scala-cli`). That agreement is for this examples corpus only. On the larger conformance suite (`conformance/`), a run on 2026-10-28 with Scala 3.10.0 on OpenJDK 21, which compared each trace by its head only, passes 1,459 tests with 0 failures, and 520 are not applicable to an emitter; the Scala emitter has not yet been run with the whole-trace comparison of the emit baseline (`conformance/README.md`).
 The targets a test run covers are named as data,
 one word per line, in `spec/checker/tests/emit_targets.txt` (`rust`,
@@ -235,7 +235,7 @@ The test reads the oracle paths from `RCE_RUSTC`, `RCE_PYTHON` and
 `RCE_NODE` (default `rustc`, `python3`, `node` on the path) and prints each
 oracle's version. On 2026-10-12 the same tests were also run on an Apple
 M5 Max (macOS 27.0.1, arm64) with rustc 1.98.1, Python 3.14.5 and Node
-26.11.1: 51 of 51 agree on each of the three targets, 0 refused, 0
+26.11.1: 51 of 51 agree on each of the three targets, 0 not printed, 0
 skipped, 299 observation lines per target, and the edge program agrees on
 all three.
 
@@ -338,8 +338,8 @@ outcome.
 - A call that writes back its receiver or a `&mut` argument (`xs.push(x)`,
   `f(&mut a)`) is translated only as a whole statement or as the right side
   of `let`, `var`, an assignment, `return`, `emit` or `fail`. Elsewhere,
-  `rce emit` refuses the program with status 2 and names the construct. No
-  example program is refused.
+  `rce emit` does not yet print the program: it exits with status 2 and names
+  the construct. Every example program is printed.
 - When a function whose result is a union fails, its `&mut` arguments are
   not written back. The reference evaluator writes them back.
 - The Python output has been checked with Python 3.13.5 and 3.14.5, and
@@ -376,9 +376,9 @@ numbers dropped. The formatter is a function fmt on texts with:
 3. **Idempotence.** fmt(fmt(t)) = fmt(t). This is tested on every program
    in `spec/examples/` and on the formatter's tests; it is not proved.
 
-A text the lexer refuses (2.6, W-LEX-1, W-LEX-2) is refused by `fmt` with
-the same reason. `fmt` does not type check: a file that is refused by
-`rce check` can still be formatted. With `--check`, no file is written;
+A text that requires change under the lexer (2.6, W-LEX-1, W-LEX-2) requires change
+under `fmt` with the same reason. `fmt` does not type check: a file that requires
+change under `rce check` can still be formatted. With `--check`, no file is written;
 each file that would change is printed as `would reformat FILE` and the
 status is 1. Without it, each changed file is written and printed as
 `formatted FILE`.
@@ -414,7 +414,7 @@ the full text of each open document; it does not read other files.
 | `initialize` | replies with capabilities: full-text sync (`textDocumentSync` = 1), formatting, hover, definition, document symbols, and completion triggered by `.` |
 | `textDocument/didOpen`, `didChange` | stores the text and publishes diagnostics for that document |
 | `textDocument/didClose` | forgets the text and publishes an empty diagnostic list |
-| `textDocument/formatting` | returns one edit replacing the whole text with fmt(t) (10.6), or no edit if t is canonical or refused |
+| `textDocument/formatting` | returns one edit replacing the whole text with fmt(t) (10.6), or no edit if t is canonical or requires change |
 | `textDocument/hover` | the type or declaration of the name at the position, or `null` |
 | `textDocument/definition` | the location of that name's binding or item, or `null` |
 | `textDocument/completion` | the names that can be written at the position |
@@ -424,8 +424,8 @@ the full text of each open document; it does not read other files.
 | any other request | error -32601, method not found |
 
 **Diagnostics.** For a document with text t, the published diagnostics are
-exactly the refusals `rce check` gives for t, one per refusal, with severity
-Error and source `rce`. A refusal `line N: ...` covers line N − 1 in the
+exactly the reports `rce check` gives for t that the text requires change, one per
+report, with severity Error and source `rce`. A report `line N: ...` covers line N − 1 in the
 protocol's 0-based numbering, from column 0 to the start of the next line.
 `use` resolves among the module paths of all open documents.
 
@@ -491,8 +491,8 @@ as clean exactly when `rce check` accepts it (10.1, principle 3).
   each module whose text differs from its pin (status 1); while such a
   difference exists, `rce manifest` writes no `stdlib` pin and
   `rce manifest-check` accepts none. The broker contract (F.7), the provenance
-  record and the build cache of F.5.3, and the emitter refusals of F.5.4 do
-  not exist yet. Results are
+  record and the build cache of F.5.3, and the emitter messages of F.5.4 for a
+  construct not yet printed do not exist yet. Results are
   reproducible from the inputs alone (10.1).
 
 ### 10.9 `rce trace --json FILE [EVENTS]`: reference traces (informative)
@@ -510,7 +510,7 @@ line, in the syntax of an `example` line; a line starting with `#` is
 skipped), named `stream@k`, in one run of the checker, with `streams`
 carrying their number; with EVENTS
 (the syntax of an `example` line, as in 10.3) it prints one trace of that
-event list. A module that is refused, or a trace of EVENTS that yields no
+event list. A module that requires change, or a trace of EVENTS that yields no
 step, is status 1. The output is one JSON object (format `rce-trace/2`;
 `rce-trace/1` differed in hashing the named forms, before the T7
 resolution of C.15), compact, with sorted keys:
@@ -529,7 +529,7 @@ resolution of C.15), compact, with sorted keys:
 | `steps[i].outcome` | `"applied"` or {`kept`: error name}; derived, not hashed |
 | `steps[i].hashed` | {`event`, `state`}: the positional forms the two hashes are over (6.1), so a reader recomputes both without the module; derived |
 
-A refused event is the last step of its trace, with the unchanged state's
+A kept step is the last step of its trace, with the unchanged state's
 hash (T8). A projector conforms on a module when, for every trace, its
 steps have the same `seq`, `event` and `state_hash` as the reference, in
 order and with none missing or extra; when it also emits `prev_hash`,
@@ -555,8 +555,8 @@ object (format `rce-catalog/1`, compact, sorted keys) with one entry per
 top-level function of each module (the `pub` ones when the module marks
 any `pub`, else all; methods are not bricks), sorted by module and name.
 A `use` item names a module given with the files or one of the built-in
-library (4.1), and a file is refused in the catalog exactly when
-`rce check` refuses it.
+library (4.1), and a file is listed as requiring change in the catalog exactly when
+`rce check` reports that it requires change.
 An entry holds `module`, `name`, `file`, `line`, `generics`, `params`
 (name and type), `ret`, `key` (the type with generic parameters renamed
 `t0`, `t1`, ... in order of first occurrence), `hash` (SHA-256 of the
@@ -564,7 +564,7 @@ module path and the canonical text of the function alone, so layout and
 position do not change it), `checked` (the verdict of its file) and
 `lowering` (`{"term": T}`, the D.7 lowering, or `{"kept": reason}`).
 The catalog's `hash` is the SHA-256 of the canonical JSON of its entries;
-`pending_files` maps each refused file to its diagnostics. With
+`pending_files` maps each file that requires change to its diagnostics. With
 `--vectors N`, `vectors` maps a lowered brick's hash to up to N
 `{"args", "out"}` or `{"args", "trap"}` records of the reference
 evaluator on inputs generated from the parameter types by a fixed rule
@@ -611,7 +611,7 @@ shape_ctl           sha256:…                   [--control]
 A region's redundancy is computed from the projection of the explored
 graph onto that region's fields. `--control` computes the control quotient
 of 6.10 on the same explored graph: each step is labelled by its control
-outcome only (the refusal's error, by declaration index; else the
+outcome only (the kept step's error, by declaration index; else the
 constructors of what was emitted, by declaration index or type class) and
 never by a value, a name or a state change, so the quotient is a coarser
 output function on the same deterministic machine and dim_c ≤ dim holds by
@@ -624,9 +624,10 @@ and the label; `shape_ctl` is the SHA-256 of its canonical JSON text. It
 is invariant under renaming (T61, tested by `tests/dim.rs` against
 `rce fmt --nameless`).
 The report also says whether some explored step has a λ output (6.1): an
-emitted value, or the record of a refusal (`has_output` in the JSON, with
-`emits` and `keeps` reported separately, since a refusal is the rejection
-of an input and an emitted value is the program's answer), and how many
+emitted value, or the record of a kept step (`has_output` in the JSON, with
+`emits` and `keeps` reported separately, since a kept step and an emitted
+value are two kinds of the program's answer: a kept step leaves the state as
+it was and records why, an emitted value is an output), and how many
 distinct output sequences the explored steps carry (`distinct_outputs`; a
 silent step is excluded). A program with no such step has one behaviour by
 definition, so its redundancy is its whole state: the state is in D and
@@ -641,7 +642,7 @@ and payloads. It is informative: no admission depends on it.
 `rce equiv [--fuel N] [--json] A B` asks whether two programs have the same
 behaviour (6.10): it explores both from their initial states over the same
 event instances, compares every step by its name-free output (emitted
-values in their positional form, a refusal by its error's declaration
+values in their positional form, a kept step by its error's declaration
 index, T7), refines the two graphs together by those outputs and reads
 whether the two initial states fall in one class (T58: equivalence is
 bisimilarity). Status 0 and `equivalent` when they do; otherwise status 1
@@ -675,10 +676,10 @@ proposal `one-emitter.md` (ONE-1), and prints what the run writes. The
 core evaluator is an implementation under test, compared with the
 reference evaluator like any target: the expected bytes of every
 comparison are the reference trace (10.9), never this output. Exit status
-0 when the run ends; 1 when the checker refuses FILE, when a core module
+0 when the run ends; 1 when the checker reports that FILE requires change, when a core module
 is not well formed, or when the run halts; 2 when FILE uses a construct
 the lowering does not cover, or on an internal error.
 
 **Read receipt.** Which JSON-RPC error code does the language server return for a request it does not know? (a number)
 
-<!-- body-sha256: 8f77ea09fc5d4d7468ed3d850c24759790db6d3f7216c2fd07586c09ec0c248c -->
+<!-- body-sha256: d88d5fb8e143048d977b273719ecac4ae0a67d69e7ec9777174ac4aa1c1b9d16 -->

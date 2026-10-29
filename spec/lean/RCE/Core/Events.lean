@@ -4,8 +4,8 @@ import RCE.Core.Driver
     environment order (the last field is de Bruijn index 0). A step is the
     event it fires on, an optional guard and a statement body run with the
     fields as the environment. δ runs every region on the pre-state; the
-    first refusal (trap, declared error, exhaustion) refuses the event
-    atomically: the state is unchanged (T8, `delta_atomic` in Log.lean is
+    first step that does not apply (trap, declared error, exhaustion) keeps
+    the state for the whole event, atomically (T8, `delta_atomic` in Log.lean is
     the expression-level statement). -/
 namespace RCE.Core
 
@@ -64,8 +64,8 @@ def deltaS (P : Prog) (fuel : Nat) (ev : Nat) (pv : List Val) :
       | .ok s o2 => .ok (fs' :: s) (o ++ o2)
       | e => e
 
-/-- **T8 for δ over regions**: a refused event is refused as a whole; no
-    region's new state is returned. -/
+/-- **T8 for δ over regions**: a kept step keeps the state of every
+    region; no region's new state is returned. -/
 theorem deltaS_kept_atomic (P : Prog) (fuel ev : Nat) (pv : List Val) (rs : List (List Val × List StepD))
     (t : Trap) (h : deltaS P fuel ev pv rs = .kept t) : ∀ s o, deltaS P fuel ev pv rs ≠ .ok s o := by
   intro s o h2; rw [h] at h2; cases h2

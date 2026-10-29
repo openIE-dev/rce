@@ -314,7 +314,7 @@ fn jailed_curl_reaches_declared_https_only_through_the_proxy() {
         out.contains("sni=localhost") && out.contains("GET /via-proxy"),
         "{out}"
     );
-    // Direct: the jail refuses the connect (port not granted).
+    // Direct: the connect is not performed; the jail denies it (port not granted).
     let o = run(vec![
         "--resolve".into(),
         format!("localhost:{port}:127.0.0.1"),

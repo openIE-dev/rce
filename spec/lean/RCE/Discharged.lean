@@ -69,7 +69,7 @@ def run {Q A R : Type} (o : Q → A) : Prog Q A R → List A × R
   | .ask q k => ((o q :: (run o (k (o q))).1), (run o (k (o q))).2)
 
 /-- Replay from a log: answers are read from the log, the oracle is not consulted;
-a log of the wrong length is refused. -/
+a log of the wrong length gives no result (`none`). -/
 def replay {Q A R : Type} : Prog Q A R → List A → Option R
   | .ret r, [] => some r
   | .ask _ k, a :: l => replay (k a) l

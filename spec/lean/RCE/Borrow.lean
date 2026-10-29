@@ -125,7 +125,7 @@ theorem writeVia_exclusive {Γ b Γ'} (h : BWt Γ (.writeVia b) Γ') :
     · simp at h; exact absurd h hne
     · exact h
 
-/-! Refusals (each is a rule of 5.6 the checker enforces). -/
+/-! Texts that require change (each under a rule of 5.6 the checker enforces). -/
 
 /-- Writing a path while a shared borrow of an overlapping path is live. -/
 theorem write_while_borrowed_no_typing {Γ b x} (hx : Γ.alive.contains x = true) (hm : Γ.moved = [])

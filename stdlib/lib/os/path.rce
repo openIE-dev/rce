@@ -501,7 +501,7 @@ pub fn win_isreserved(p: &text) -> bool
 
 # The components of a path relative to a granted directory: "." and empty
 # components dropped, ".." taken lexically; an absolute path, or one that
-# climbs above the directory, is refused (WASI ENOTCAPABLE). Symbolic
+# climbs above the directory, is an error (WASI ENOTCAPABLE). Symbolic
 # links met on the way are resolved by the host under the same rule.
 pub fn wasi_resolve(p: &text) -> List[text] ! BadPath
     if p.startswith("/")

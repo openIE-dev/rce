@@ -105,7 +105,7 @@ when entries are hashed by `deps`.
 - Nothing for δ, the emitters, or the examples: an example's log is one
   chain with one cut at its end, and its hash is unchanged in form.
 
-## 5. What it refuses
+## 5. What it does not claim
 
 Target-chosen linearization for non-monotone events. A target may reorder
 only inside a layer and only among entries T62 covers; everything else is

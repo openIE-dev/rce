@@ -6,7 +6,7 @@ from four kinds of declaration:
 - a `state` holds data that lasts between events;
 - an `event` is something that happens, with an optional payload;
 - a `step` says how a state changes when an event arrives;
-- an `error` is a reason to refuse an event.
+- an `error` is a reason a step keeps the state.
 
 ## A door
 
@@ -17,8 +17,8 @@ from four kinds of declaration:
 - `state Door` has two fields, each with a starting value.
 - Four events have no payload.
 - `step Door on Open if locked` is a step with a *guard*. When `Open`
-  arrives and `locked` is true, this step runs and `fail Locked` refuses
-  the event.
+  arrives and `locked` is true, this step runs and `fail Locked` keeps
+  the state, with `Locked` as the reason.
 - When the guard is false, the next step for `Open` in the file is used,
   and it sets `open = true`.
 
@@ -27,7 +27,8 @@ event matches and whose guard is true. If no step matches, the state stays
 as it was.
 
 Every declared event must have at least one step. Otherwise the step
-function would have no answer for that event, and the program is refused:
+function would have no answer for that event, and the program requires
+change:
 
 ```rce
 {{#include ../listings/ch05/change/unhandled_event.rce}}
@@ -39,8 +40,8 @@ $ rce check unhandled_event.rce
 ```
 
 Inside a step, the state's fields are variables you can read and change.
-The changes become the new state only if the step finishes without being
-refused.
+The changes become the new state only if the step finishes without
+failing; otherwise the step keeps the state.
 
 ## Running events
 
@@ -52,15 +53,15 @@ $ rce run door.rce "Open, Close, Lock, Unlock, Open"
 {{#include ../listings/ch05/door_ok.out}}
 ```
 
-A refused event leaves the state unchanged, and nothing after it is
-applied:
+A step that keeps the state leaves it unchanged, and the run stops there:
+nothing after it is applied:
 
 ```text
 $ rce run door.rce "Lock, Open, Close"
 {{#include ../listings/ch05/door_kept.out}}
 ```
 
-The exit status is 1 because an event was refused.
+The exit status is 1 because a step kept the state.
 
 ## The counter again
 
@@ -72,8 +73,8 @@ step Counter on Inc -> n + 1
 
 When a state has exactly one field, `-> expression` sets that field to the
 value of the expression. `try n.checked_sub(1) else Underflow` subtracts
-one if the result fits in a `u64`, and otherwise refuses the event with
-`Underflow`.
+one if the result fits in a `u64`, and otherwise keeps the state with
+`Underflow` as the reason.
 
 ```text
 $ rce run counter.rce "Inc, Inc, Dec, Dec, Dec"

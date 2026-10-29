@@ -24,3 +24,4 @@ lang/corpus/**		published corpus rows (rce-corpus/1) (6.9)
 spec/fuzz/results/*.json		recorded fuzz runs, kept as recorded (history); the next run writes the new words
 ide/crates/ide-receipt/src/lib.rs	serde\(rename = "refused"\)	signed receipts: the stored tag stays, so every chain verifies (COMP-20 (c))
 scripts/vocab-allow.tsv		this list
+stdlib/scripts/ref/svc_ref.c	blanket refuse \+/- prefixed integers	comment quoted from systemd (6.9)

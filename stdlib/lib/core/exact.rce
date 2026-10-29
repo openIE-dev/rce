@@ -202,7 +202,7 @@ pub struct QR
     r: List[i64]
 
 pub fn mag_divmod(a: &[i64], b: &[i64]) -> QR
-    # division by zero traps here (6.3: a trap refuses the step)
+    # division by zero traps here (6.3: on a trap the step keeps the state)
     let _nz = 1 / (b.len() as i64)
     if mag_cmp(a, b) < 0
         return QR(q: [], r: mag_trim(copy(a)))

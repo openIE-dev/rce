@@ -15,8 +15,8 @@ def structTy : List Ty → Ty
 
 /-- Enums are exact: one variant is its payload type, more are a
     right-nested sum with no padding, so every value of the enum is the
-    injection of exactly one variant (`enum_val_inv`). An enum with no
-    variants is refused by the checker and elaborates to `unit`. -/
+    injection of exactly one variant (`enum_val_inv`). A text with an enum
+    of no variants requires change; such an enum elaborates to `unit`. -/
 def enumTy : List Ty → Ty
   | [] => .unit
   | [t] => t

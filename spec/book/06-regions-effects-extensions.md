@@ -23,7 +23,7 @@ in r.
 once at block entry). Capacity is counted in canonical bytes, the length
 of the canonical JSON of each value allocated in r, so the limit is the
 same on every implementation. An allocation that would take r past n is
-`trap("size limit")`, and the event is refused as for any trap. Without
+`trap("size limit")`, and the state is kept as for any trap. Without
 `bound` the capacity is unlimited except by N9. The reference evaluator
 measures the values bound in the region after every statement of the
 region's body. So nothing allocated in r escapes the block; copying out (`copy(x)`, or
@@ -107,12 +107,12 @@ RCE with the platform C calling convention. It has no body. Rules (W-FFI-1):
 It is meant for handles to outside resources (a file, a socket, a device
 buffer) that must be released once and only once. Rules (W-LIN-1):
 
-- A linear value is moved, never copied: `copy(h)` is refused, and the type
+- A linear value is moved, never copied: `copy(h)` requires change, and the type
   is not Copy whatever its fields are.
 - Every linear local, parameter included, is consumed (moved into a call,
   returned, or sent into a foreign function) exactly once on every path:
   a linear local still live at the end of its block, at `return` or at
-  `fail` is refused, and so is one consumed on some branches of an `if` or
+  `fail` requires change, and so does one consumed on some branches of an `if` or
   `match` but not others.
 - A linear value is not moved inside a loop body unless it was created in
   that iteration.
@@ -185,7 +185,7 @@ against the reference evaluator (`spec/checker/tests/stdlib_costs.rs`).
 | `Set` | Set[τ] | `contains`, `insert`, `inter`, `len`, `tolist`, `union` |
 | `Opt` | τ? | `isnone`, `issome`, `or` |
 
-`raw` exists only on `Text[C]` (5.16). Text has `len_bytes` and `len_chars` and no unqualified `len`, which is refused (W-LEN-1, F.5.2).
+`raw` exists only on `Text[C]` (5.16). Text has `len_bytes` and `len_chars` and no unqualified `len`, which requires change (W-LEN-1, F.5.2).
 
 **Sets and map merge (normative).** A `Set[τ]` is its own value, not a
 `List[τ]`: it holds its elements in canonical order without duplicates
@@ -211,7 +211,7 @@ target; it is the digest 6.1 and 6.8 apply to canonical JSON, so a
 program given the canonical JSON of a value as text computes the same
 hash as the Form log and the content-hash ids. It is in the linear class of C.6.4.
 
-**Bytes to text (normative).** `b.utf8()` on a `List[i64]` b is the `text` whose UTF-8 encoding is exactly the bytes of b. It traps, and so refuses the event it runs in (T8), when an element is outside 0..255 or the bytes are not well-formed UTF-8 (RFC 3629: no overlong forms, no surrogates, nothing above U+10FFFF); it never substitutes characters, since that would change content silently. A leading byte-order mark is kept. It is pure, total on well-formed input, the same on every target, and in the linear class of C.6.4.
+**Bytes to text (normative).** `b.utf8()` on a `List[i64]` b is the `text` whose UTF-8 encoding is exactly the bytes of b. It traps, and so keeps the state for the event it runs in (T8), when an element is outside 0..255 or the bytes are not well-formed UTF-8 (RFC 3629: no overlong forms, no surrogates, nothing above U+10FFFF); it never substitutes characters, since that would change content silently. A leading byte-order mark is kept. It is pure, total on well-formed input, the same on every target, and in the linear class of C.6.4.
 
 **Effects and I/O (normative).** By derivation from least privilege, a
 program has no ambient authority: there is no file, clock, network,
@@ -276,7 +276,7 @@ storing (in a state field, a struct, an option), passing and `==`/`!=`
 between two secrets of one type, whose boolean is the one release. Any
 other operator or method on a secret is W-SEC-1. A value that can hold a
 secret may not be emitted, sent on a channel, carried by an error
-payload (a refusal is an output, 6.1) or passed to a foreign function
+payload (a kept outcome is an output, 6.1) or passed to a foreign function
 (W-SEC-1). So λ never carries a secret (T36, noninterference up to the
 equality bits). The log D holds admitted events with their payloads, as
 any store of the program's inputs does; it is not an output.
@@ -298,4 +298,4 @@ capability never changes the guarded field (T36).
 
 **Read receipt.** What kind of channel does a capacity of 0 give? (one word)
 
-<!-- body-sha256: 94ed5923623f65f5b78682ecd4a03a433fe1000598dc036f40ffc187a1892918 -->
+<!-- body-sha256: 7373242d19488234fe6a9c6ff8969ebdc543c84917ecece876b8fcd7026cfbfb -->

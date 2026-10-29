@@ -1,5 +1,5 @@
 # needs: crypto hpke
-# RFC 9180 A.1 (DHKEM(X25519, HKDF-SHA256), HKDF-SHA256, AES-128-GCM, base mode) from vectors/hpke-base-x25519-sha256-aes128gcm.json. Tampered tag, wrong aad, tampered open: refused.
+# RFC 9180 A.1 (DHKEM(X25519, HKDF-SHA256), HKDF-SHA256, AES-128-GCM, base mode) from vectors/hpke-base-x25519-sha256-aes128gcm.json. Tampered tag, wrong aad, tampered open: do not open.
 check gcm_open(unhex("4531685d41d65f03dc48f6b8302c05b0"), unhex("56d890e5accaaf011cff4b7d"), unhex("436f756e742d30"), unhex("f938558b5d72f1a23810b4be2ab4f84331acc02fc97babc53a52ae8218a355a96d8770ac83d07bea87e13c512a")) == unhex("4265617574792069732074727574682c20747275746820626561757479")
 check gcm_open(unhex("4531685d41d65f03dc48f6b8302c05b0"), unhex("56d890e5accaaf011cff4b7d"), unhex("436f756e742d30"), unhex("f938558b5d72f1a23810b4be2ab4f84331acc02fc97babc53a52ae8218a355a96d8770ac83d07bea87e13c5100")) == [-1]
 check gcm_open(unhex("4531685d41d65f03dc48f6b8302c05b0"), unhex("56d890e5accaaf011cff4b7d"), unhex("436f756e742d31"), unhex("f938558b5d72f1a23810b4be2ab4f84331acc02fc97babc53a52ae8218a355a96d8770ac83d07bea87e13c512a")) == [-1]

@@ -1,6 +1,6 @@
 module refloop
 
-intent "a StepKept step that retries an effect whose result step is refused, which must not loop through StepKept; and an effect chain that never ends, which a stop must still end"
+intent "a StepKept step that retries an effect whose result step keeps the state, which must not loop through StepKept; and an effect chain that never ends, which a stop must still end"
     example StepKept(seq: 1, cause: "trap") -> kept_outcomes == 1 and req == 1
     example Go -> kept: trap("division by zero")
     example Endless -> endless and req == 1

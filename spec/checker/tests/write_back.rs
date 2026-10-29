@@ -174,7 +174,7 @@ fn nested_write_back_budget_traps_at_the_same_point_on_every_target() {
 }
 
 /// Conditional positions are not flattened (that would evaluate a
-/// branch eagerly); a write-back call there is still refused.
+/// branch eagerly); a write-back call there still requires change.
 #[test]
 fn a_write_back_call_in_a_conditional_position_requires_change() {
     let src = PROG.replace("let v = wrap(&mut n) catch -1", "let v = n > 0 and (wrap(&mut n) catch -1) > 0");

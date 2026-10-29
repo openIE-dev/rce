@@ -118,8 +118,8 @@ the channel values recorded on the M5 Max (CLPC preferred, a stuck CPU or
 DRAM counter is never 0 J, an idle ANE is), CLPC ids, trapezoid
 integration and polled-meter error propagation, SMC decoding, hwmon and
 power_supply on fake sysfs trees (Jetson VDD_IN skipped, counter reset is an
-error, charging battery refused), powermetrics line parsing and refusal
-without setup, discovery reasons, and setup: nothing runs without consent,
+error, no reading from a charging battery), powermetrics line parsing and
+its error without setup, discovery reasons, and setup: nothing runs without consent,
 the full file content and security note are shown first.
 
 ## Calibration (`rce-ide telemetry calibrate`)

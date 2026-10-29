@@ -62,10 +62,10 @@ fn a_lib_line_is_a_comment() {
 
 #[test]
 fn no_library_name_is_known_to_a_module_that_does_not_use_its_module() {
-    // Why the retired `#!lib NAME` line is a comment and not refused: it
+    // Why the retired `#!lib NAME` line is a comment and requires no change: it
     // placed a library module's functions, constants and types in front of
     // a module. Each such name is unknown to a module that does not `use`
-    // the library, so a program that still relies on the line is refused
+    // the library, so a program that still relies on the line requires change
     // (W-NAME-1) and none is accepted with another meaning. A variant or
     // error name in a pattern becomes a binding instead, but such a pattern
     // matched only a value of a library type, which nothing in the module

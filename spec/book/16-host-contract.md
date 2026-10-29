@@ -78,7 +78,7 @@ adapter.
   ambient authority on the program's behalf. This is the sandbox, and its
   contract is independent of any OS: the checker admits only programs whose
   effects go through granted capabilities, and the deterministic host
-  refuses any effect without one, before any OS layer is involved. The
+  does not perform any effect without one, before any OS layer is involved. The
   same contract then has enforcement targets underneath the host, entered
   at start as strictly as the target allows: WASM (the module imports only
   the granted host functions), bare metal (no OS; the engine is the only
@@ -111,8 +111,8 @@ adapter.
   on the ports of listening grants and connect only on the ports of
   connecting grants, at any address on those ports, and the line says "by
   port"; a listener bound before entering needs no rule; below ABI 4 the
-  line says that Landlock does not restrict the network. seccomp refuses
-  new IP sockets unless some grant is connected to or bound after
+  line says that Landlock does not restrict the network. seccomp does not
+  permit new IP sockets unless some grant is connected to or bound after
   entering, so with `--http` alone neither the host nor a PTY child can
   open a socket; otherwise no layer restricts UDP, and the line says so.
   The channel adapters start their threads after the target is entered, so
@@ -148,10 +148,10 @@ adapter.
   to, and the `state_hash` of every entry covers it, so the state after
   each entry is the fold of D up to that entry and a host rebuilt from any
   prefix continues the same run. Replay re-runs the scheduler on the
-  logged inputs and refuses an entry unless the step it logs is the next
+  logged inputs and stops at an entry unless the step it logs is the next
   step the scheduler takes and the end agrees in outcome and choices
-  (T21). An input whose tick is not after the last logged step is refused
-  before it is logged, and an input is also refused if re-running on it
+  (T21). An input whose tick is not after the last logged step is not admitted:
+  it is not logged, and an input is also not admitted if re-running on it
   would change a step already in D, so an input never rewrites the past.
   No snapshot is taken while a task is live. A host may execute tasks in
   parallel only when the result equals the tick semantics (T1, T21).
@@ -172,7 +172,7 @@ adapter.
   its event) starts with the full fuel of 6.7, and no budget is shared
   across inputs. Every input has its own bound and a session never starves
   however long it runs. The reference trace (`rce trace`), the host and
-  replay all reset fuel per input, so a refusal for fuel is a function of
+  replay all reset fuel per input, so a kept step for fuel is a function of
   that input and the state before it, and D is the same on each.
 - **HC-8 Replay.** A host offers a replay mode that reads D, disconnects
   every adapter and re-derives every state hash. Replay reads no clock,
@@ -257,7 +257,7 @@ logs.
   most recent `host.Term` before it.
 - **HC-18a Transport.** Replication follows Raft's AppendEntries and
   RequestVote: an append carries (prev_idx, prev_term) and a follower
-  refuses it unless its log has an entry at prev_idx with that term (log
+  does not accept it unless its log has an entry at prev_idx with that term (log
   matching), deletes a conflicting suffix and appends what is missing.
   The current term and the vote are written to stable storage before a
   candidate asks for votes, before a vote is granted, and before an
@@ -287,7 +287,7 @@ logs.
   inside mutual TLS with pinned ed25519 keys: a frame is accepted
   only if the peer id it claims matches the key that authenticated the
   connection, so a node without a pinned key cannot vote or append.
-- **HC-20 Deposed admitter.** An admitter whose barrier is refused because
+- **HC-20 Deposed admitter.** An admitter whose barrier is not granted because
   a higher term was granted has had its role taken. By HS-3 it appends
   nothing further and acks nothing, so its unacked inputs are retransmitted
   to the new admitter and HC-16 removes those that did commit. Committed
@@ -346,8 +346,8 @@ then the design it forces.
    sequence of outputs." So every nondeterministic choice that can affect
    a result must be an entry of D: the order of inputs (HC-15), the
    scheduler's choices and the environment seed of a `fn main` run (HC-6),
-   and placement decisions (HC-12). Replay re-derives each one and refuses
-   D when a derivation differs, so D is checked, not trusted.
+   and placement decisions (HC-12). Replay re-derives each one and stops
+   where a derivation differs from D, so D is checked, not trusted.
 2. **Safety must not depend on timing; liveness must.** Raft: "safety must
    not depend on timing ... However, availability ... must inevitably
    depend on timing." The law behind it is Fischer, Lynch and Paterson
@@ -460,7 +460,7 @@ in D does not exist for the program.
   input's own seq, so D records which of these inputs were typed and which
   the host delivered. A typed input is an ordinary input: it answers no
   request (HC-3), a typed `StepKept` starts no descent (HC-21), and the
-  refusal of its step is delivered as for any other input. Replay reads the
+  kept outcome of its step is delivered as for any other input. Replay reads the
   mark: the input at seq is folded as typed, and a `host.Typed` that the
   input does not follow (the host stopped between the two appends) records
   an input that was never admitted, which is not completed on open. Replay
@@ -470,16 +470,16 @@ in D does not exist for the program.
   (`Host::admit_event`) is typed in the same way; the inputs of a window
   carry `host.Input` instead. Reference: `Host::admit`, `host::How`.
 
-### E.4a Refusals and restarts (HC-21, HC-22)
+### E.4a Kept steps and restarts (HC-21, HC-22)
 
-A refused step and a restart of the host are facts of the run. A program
-that is not told of them waits for an effect the refused step would have
+A kept step and a restart of the host are facts of the run. A program
+that is not told of them waits for an effect the kept step would have
 requested, or for a socket that belonged to a process that is gone, so
 both enter D and reach the program as inputs.
 
-- **HC-21 A refusal is an input.** When δ refuses an input (T8), the
+- **HC-21 A kept step is an input.** When the step for an input is kept (T8), the
   admitter appends the input with the state unchanged, then `host.StepKept`
-  {cause, seq}, where seq is the refused entry's seq and cause is `fail`
+  {cause, seq}, where seq is the kept entry's seq and cause is `fail`
   (a declared error left the step), `fuel`, `size` (SIZE_LIMIT), `value`
   (VALUE_LIMIT), `depth` (the evaluation depth of 6.7) or `trap` (any
   other trap of 6.3 or 6.7). When the module declares `event StepKept`,
@@ -490,15 +490,15 @@ both enter D and reach the program as inputs.
   of a request made by a step that descends from it (so the results of the
   `StepKept` step's requests, the results of the requests those steps make,
   and so on); a typed `StepKept` (HC-10b) is an ordinary input and descends
-  from nothing. The refusal of a step that descends from a delivered
+  from nothing. A kept step that descends from a delivered
   `StepKept` is recorded in D as `host.StepKept` and is not delivered again
-  as a `StepKept`. Each refused input therefore leads to at most one
-  delivered `StepKept`, and a `StepKept` step whose effects are refused in
-  turn ends after its results are recorded. Replay derives the same
+  as a `StepKept`. Each input whose step is kept therefore leads to at most one
+  delivered `StepKept`, and a `StepKept` step whose effects in turn lead
+  to kept steps ends after its results are recorded. Replay derives the same
   descent from D, matching each result to the first request queued with
   its kind and req. The cause names no declaration, so D stays name-free (T7);
-  the refusal's text, which can name a declared error, is not in D, and
-  replay re-derives it. Replay requires each refused entry to be followed
+  the kept step's text, which can name a declared error, is not in D, and
+  replay re-derives it. Replay requires each kept entry to be followed
   by the matching `host.StepKept` and, when `StepKept` is declared, by the
   entries its delivery appends (the delivered `StepKept`, or `host.Kept`),
   and treats a D in which one is missing, extra or different as a host
@@ -506,7 +506,7 @@ both enter D and reach the program as inputs.
   stopped in between, is completed on open, and by a new admitter before
   its `host.Term` (HC-19), before anything else is appended; no snapshot
   (HS-5) is taken while D owes them. `rce host replay` and the validation
-  after every run report the number of refused entries, and replay prints
+  after every run report the number of kept entries, and replay prints
   the cause and text of each. Reference: `Host::kept`,
   `interp::Cause`.
 - **HC-22 A restart is an input, and ids are never reused.** Adapter
@@ -806,7 +806,7 @@ did not, not by restricting what a module may declare.
 - **HD-4 Host inputs.** `StepKept` (HC-21), `Restarted` (HC-22), `Synced`,
   `WallTime` and the frame tick `Tick` (HC-2) are matched by field name
   like any delivery. Declared as
-  `StepKept(seq: u64)`, a refusal is delivered with its seq, and the
+  `StepKept(seq: u64)`, a kept step is delivered with its seq, and the
   `host.StepKept` before it holds the cause. Declared with a field the host
   has no value for, `StepKept` is never delivered, and each `host.StepKept`
   is followed by `host.Kept` with the reason. Delivery stays bounded
@@ -845,7 +845,7 @@ JSON. The host entries are:
 | `host.MainInput` | a, b, partition, tick; or event, tick | a link change or a program event for the live task, after its last logged step (HC-6) |
 | `host.Step` | cause, i, node, tick, what | one per scheduler step of the run (HC-6) |
 | `host.MainEnd` | choices, outcome, ticks | when the run ends (HC-6) |
-| `host.StepKept` | cause, seq | after a refused entry (HC-21) |
+| `host.StepKept` | cause, seq | after a kept entry (HC-21) |
 | `host.Restarted` | below (its own seq) | when a host opens a D that holds entries, or takes the admitter role (HC-22) |
 | `host.Typed` | seq (of the typed input that follows) | before a typed input that names an event the host delivers (HC-10b) |
 | `host.Kept` | event (the host's whole value, as payload and type), why | before a delivery that is not the whole value, and in place of one that cannot be built or whose event is not declared (E.4c) |
@@ -872,7 +872,7 @@ declares it (E.4c). δ itself never reads a host entry.
   (5.13) and device kernels stay hints that never change meaning.
   Placement is a function of the host entries of D, so it is the same on
   replay (T37): the host logs each decision as `host.Placed` and replay
-  re-derives it and refuses D when it differs. A fabric is a candidate for
+  re-derives it and stops where the derivation differs from D. A fabric is a candidate for
   a class only after a `host.Exact` probe equal to the CPU reference
   (HC-13). Reference executor (`Host::place_sum`, `place_lanes`,
   `place_par`): the classes are `sum.f64`, `lanes.f64.<op>` for the
@@ -888,7 +888,7 @@ declares it (E.4c). δ itself never reads a host entry.
   vector (signed zeros, subnormal results, infinities, NaN, and sums of
   every length up to 64 with cancellation) on the fabric and on the CPU
   reference and logs `host.Exact` with both digests. A placement onto a
-  fabric without an executor is refused before it is logged; replay
+  fabric without an executor is not performed and is not logged; replay
   re-derives placements from D and needs no executor. Derivation: law 6
   of E.2c fixes the tree; law 1 makes the choice of fabric an entry of D;
   HC-13 makes a fabric trusted only by evidence in D.
@@ -957,7 +957,7 @@ reaches δ.
   result kind it delivers, naming an event the program declares (for
   example `host.Synced` to `event Synced(upto: u64)`). The program's
   checker types the bound event as any other; a payload that does not fit
-  is refused at admission (5.1).
+  does not apply at admission: the state is kept (5.1).
 - **HS-7 Indexes are projections.** An index is a pure function of a
   prefix of D and the index definition, rebuilt by folding D and checked
   by a digest per seq. Its structure (B-tree, LSM, hash) is a placement
@@ -986,7 +986,7 @@ The base record does not change: it is the hash-chained log of E.3, and every ot
 
 - **As of is a fold of a prefix.** The state as of entry k is the fold of δ over the first k entries (HS-9, T37), so an "as of" query is the same query over a shorter prefix. There is no second time model to keep in step.
 - **Results have one order.** A query result is an RCE value, so it has the canonical order of 7.1 (HS-8, and the 6.7 erratum for maps). No result order is left to the engine.
-- **Queries terminate.** A query is an RCE function, so T2 and W-REC-1 apply: a query that the checker cannot show terminates is refused, not run with a timeout.
+- **Queries terminate.** A query is an RCE function, so T2 and W-REC-1 apply: a query that the checker cannot show terminates requires change; it is not run with a timeout.
 
 The rest of the refinement is proposed, not normative. It is listed in E.11 as G-1 to G-6 so that it can be adopted, changed or rejected on its own.
 
@@ -1064,14 +1064,14 @@ is cited by a test.
 | HC-8, HC-10, T37 | replay with adapters disconnected | `foreign_and_host_entries_replay` |
 | HC-9 | priority admission | `admitter_order_is_d_order`, `simultaneous_order_does_not_depend_on_caller_order` |
 | HC-15 to HC-17 | canonical windows, exactly once | `tests/host_admit.rs`: `two_hosts_different_arrival_orders_give_byte_identical_d`, `window_order_is_priority_then_source_then_seq`, `gap_is_held_and_admitted_once_filled`, `no_ack_without_a_durable_append`, `dedupe_state_survives_replay` |
-| HC-18 to HC-20 | replicated D, term fence, failover | `admitter_failover_keeps_one_d_and_exactly_once`; `tests/host_raft.rs`: partitions, reordering and loss, crash and restart, durable vote, log matching, chunked snapshot install under reordering, joint consensus membership changes, TCP, mutual TLS with an unpinned intruder refused, `host_fails_over_through_raft` |
+| HC-18 to HC-20 | replicated D, term fence, failover | `admitter_failover_keeps_one_d_and_exactly_once`; `tests/host_raft.rs`: partitions, reordering and loss, crash and restart, durable vote, log matching, chunked snapshot install under reordering, joint consensus membership changes, TCP, mutual TLS with an unpinned intruder not accepted, `host_fails_over_through_raft` |
 | HS-1 to HS-5, T38, T39 | durable append, fatal barrier, verify on open | `verify_on_open_cuts_bad_suffix`, `fatal_barrier_stops_admission` |
 | HC-11 to HC-14 | fabrics, placement, exactness, no flags | `placement_is_a_function_of_host_entries`, `placement_executor_follows_d_and_replays`, `fixed_tree_bits_do_not_depend_on_the_fabric`; `tests/host_place.rs`: `lanes_and_trees_have_the_same_bits_for_every_thread_count`, `lane_and_par_placement_follow_d_and_replay`, `platform_fabric_is_used_only_after_an_exact_probe` |
 | HS-6 to HS-9 | RCEdb in RCE | `rcedb_example_runs` |
 | HC-5a | the printed target is the installed target | `tests/host_sandbox.rs`: `profile_restricts_network_to_granted_ports`, `description_is_generated_from_rules`, `linux_description_says_by_port_and_udp`, `http_only_has_no_new_ip_sockets`, and on macOS only `seatbelt_blocks_an_ungranted_port`, `serve_under_seatbelt_answers_a_request` |
 | HC-10a, HD-3 | bytes delivered exactly, or as text when UTF-8 | `tests/host_net.rs`: `recv_delivers_the_bytes_received`, `recv_into_a_text_field_is_text_when_utf8`, `recv_as_text_completes_a_character_past_max`, `recv_is_capped_at_the_size_limit`; `tests/host_http.rs`: `invalid_body_bytes_are_exact_and_get_400`, `http_body_is_delivered_as_text` |
 | HC-10b | typed inputs are inputs | `tests/host_kept.rs`: `typed_step_kept_is_admitted_and_marked`, `replay_detects_a_forged_host_step_kept`; `tests/host_restart.rs`: `typed_restarted_and_typed_result_are_inputs`; `tests/host_http.rs`: `typed_http_request_is_an_input`; `tests/host_effects.rs`: `a_typed_result_is_marked_without_its_adapter` |
-| HC-21, HD-4 | refusals are inputs, matched by field name | `tests/host_kept.rs`: `kept_step_is_followed_by_host_step_kept_and_the_bound_event`, `each_cause_is_classified`, `a_kept_step_kept_input_is_not_redelivered`, `a_kept_step_whose_effect_is_kept_is_not_redelivered`, `step_kept_handler_has_full_fuel`, `replay_detects_a_log_without_host_step_kept`, `replay_detects_a_forged_host_step_kept`, `open_completes_a_trailing_kept_step`, `a_step_kept_of_another_shape_is_matched_by_field_name`; `tests/nameless.rs`: `kept_entries_are_name_free` |
+| HC-21, HD-4 | kept steps are inputs, matched by field name | `tests/host_kept.rs`: `kept_step_is_followed_by_host_step_kept_and_the_bound_event`, `each_cause_is_classified`, `a_kept_step_kept_input_is_not_redelivered`, `a_kept_step_whose_effect_is_kept_is_not_redelivered`, `step_kept_handler_has_full_fuel`, `replay_detects_a_log_without_host_step_kept`, `replay_detects_a_forged_host_step_kept`, `open_completes_a_trailing_kept_step`, `a_step_kept_of_another_shape_is_matched_by_field_name`; `tests/nameless.rs`: `kept_entries_are_name_free` |
 | HC-22, HD-4 | restarts are inputs, ids never reused, matched by field name | `tests/host_restart.rs`: `restart_appends_restarted_then_interrupts`, `ids_are_not_reused_after_restart`, `tick_numbers_continue`, `take_role_appends_restarted`, `serve_on_an_existing_log_listens_again`, `a_restarted_of_another_shape_is_matched_by_field_name`, `a_tick_is_matched_by_field_name` |
 | HC-23, HD-1 | the net adapter, results matched by field name | `tests/host_net.rs`: `tcp_loopback_random_and_blobs_replay`, `send_takes_text_or_bytes`; `tests/host_effects.rs`: `result_event_of_another_shape_is_matched_by_field_name`, `bound_effect_without_its_result_event_is_performed_and_recorded`, `a_result_whose_req_is_not_an_integer_answers_its_request_once` |
 | HC-24 to HC-26, HD-2 | the HTTP event host | `tests/host_http.rs`: `concurrent_clients_are_served_while_one_stalls`, `idle_server_appends_nothing`, `keep_alive_and_pipelined_requests_answer_in_order`, `head_has_no_body`, `oversized_body_is_413_and_closes`, `kept_request_gets_the_programs_status`, `invalid_response_fails_and_the_id_stays_open`, `responses_are_a_function_of_d`, `http_1_0_and_keep_alive_are_framed_from_d`, `expect_continue_is_transport`, `parallel_load_replays_exactly`, `sigterm_drains_and_validates`, `restart_binds_again`, `sequential_requests_are_not_paced_by_frames`, `http_declarations_are_noted_at_start`, `http_body_is_delivered_as_text`, `http_without_request_event_is_answered_501`, `http_without_respond_is_answered_by_the_host`, `http_framing_and_host_answers_are_read_from_the_hosts_value`; `tests/host_kept.rs`: `serve_stops_while_effects_keep_coming`, `a_line_that_is_not_an_event_is_held`, `a_line_is_held_whole_and_as_bytes`; `tests/http_parse.rs`: `vectors_agree_with_net_http`, `mutations_agree_with_net_http`, `incremental_feed_equals_whole_buffer`, `limits_give_their_statuses` |
@@ -1124,7 +1124,7 @@ The rules in this section are **proposed**. They come from a survey of other lan
 *Figure (informative, proposed). Tensor unification of primitives. Source: `figures/src/infographics/make_tensor.py`; [PNG](https://raw.githubusercontent.com/openIE-dev/rce/main/docs/figures/tensor-unification.png).*
 
 - **TU-1 (proposed).** Every primitive value is an n-dimensional tensor `Tensor[elem, shape]`, where `elem` is one of the primitive element types of 5.1 and `shape` is a list of non-negative dimensions. A scalar is the rank 0 tensor `Tensor[elem, []]`. Relation: generalizes the primitive types of 5.1; a version 0.5 to 0.8 program keeps its meaning because each of its scalars is read as rank 0.
-- **TU-2 (proposed).** The shape is part of the type and is checked statically. An operation whose operand shapes do not agree (for example a matrix product of `[m, k]` and `[j, n]` with k not equal to j) is a checker error, never a run-time trap. Dimensions are literals or names bound in the signature; a shape that cannot be determined statically is refused. Relation: a new W-rule in 9 when adopted.
+- **TU-2 (proposed).** The shape is part of the type and is checked statically. An operation whose operand shapes do not agree (for example a matrix product of `[m, k]` and `[j, n]` with k not equal to j) is a checker error, never a run-time trap. Dimensions are literals or names bound in the signature; a shape that cannot be determined statically requires change. Relation: a new W-rule in 9 when adopted.
 - **TU-3 (proposed).** A record whose fields all have one element type and one shape may be read as a tensor over a named axis (`{x: f64, y: f64}` as `Tensor[f64, [axis: {x, y}]]`). Field names index that axis. A record with mixed field types stays a record.
 - **TU-4 (proposed).** Every reduction over an axis follows N-9: a left fold over the axis in index order unless the program names a different fixed tree. The shape and the named tree, never the thread count or fabric, determine the bits.
 - **TU-5 (proposed).** Text, maps, graphs and sum types remain separate canonical values. They are ragged and are never padded or densified into tensors; a tensor element is never one of them.
@@ -1133,14 +1133,14 @@ The rules in this section are **proposed**. They come from a survey of other lan
 Convergence sources. Each source was read as noted; claims rest only on the passages cited.
 - BQN specification, types (read in full): "An array is a rectangular collection of data. It is defined by a shape, which is a list of non-negative integer lengths, and a ravel" whose length is the product of the shape; non-arrays are atoms. This is the shape-plus-ravel model of TU-1. APL, BQN's ancestor, was not read for this proposal.
 - Paszke et al., "Getting to the Point: Index Sets and Parallelism-Preserving Autodiff for Pointful Array Programming" (Dex), arXiv:2104.05372 (full text scanned, hits reviewed): arrays have types `n=>a` indexed by typed index sets (`IndexSet n`), so the index domain of an array is part of its type. This is the basis of TU-2 and of TU-3's named axes.
-- Henriksen et al., "Futhark: Purely Functional GPU-Programming with Nested Parallelism and In-Place Array Updates", PLDI 2017 (full text scanned, hits reviewed): "All arrays must be regular, meaning that, all rows of an array must have the same shape"; where shape cannot be verified statically, Futhark inserts dynamic checks. TU-2 takes the regularity rule and refuses instead of checking dynamically; TU-5 keeps irregular data out of tensors.
+- Henriksen et al., "Futhark: Purely Functional GPU-Programming with Nested Parallelism and In-Place Array Updates", PLDI 2017 (full text scanned, hits reviewed): "All arrays must be regular, meaning that, all rows of an array must have the same shape"; where shape cannot be verified statically, Futhark inserts dynamic checks. TU-2 takes the regularity rule and requires change instead of checking dynamically; TU-5 keeps irregular data out of tensors.
 - Julia manual, "Multi-dimensional Arrays" (read in full): "The base array type in Julia is the abstract type AbstractArray{T,N}. It is parameterized by the number of dimensions N and the element type T." Julia puts element type and rank in the type but checks sizes at run time; TU-2 goes further by putting the shape in the type.
 
 **RCEdb graph index (E.8.1).** These refine HS-6 to HS-9. Convergence sources are listed after the rules; they are observations of convergent design, not proof that the rules are right.
 
 - **G-1 (proposed).** The primary index of RCEdb is a typed property graph projected from the log: nodes and edges have declared RCE types (a label is a type, a property is a field), and the projection is ordinary RCE code, a fold of δ over a log prefix (HS-7).
 - **G-2 (proposed).** Every node and edge carries the id of the event that created it, and the id of the event that retracted it if any. Provenance is a field of the value, so it is checked, hashed and replayed like any other field.
-- **G-3 (proposed).** A query is a graph pattern written as a typed RCE value (node patterns, edge patterns, quantified paths, predicates as RCE functions), never as a string. Ill-typed patterns are refused by the checker; there is no query text to inject into (5.16). The pattern vocabulary is the read-only GQL fragment that MGQL mechanizes (node and edge atoms in five directions, label expressions with `&`, `|`, `!` and `%`, property maps, quantifiers `*`, `+`, `?`, `{i}`, `{i,j}`, pattern lists joined on shared variables), so that each RCE pattern has a stated GQL reading. A variable declared inside a quantifier has a list type outside it, and a variable under `?` is nullable.
+- **G-3 (proposed).** A query is a graph pattern written as a typed RCE value (node patterns, edge patterns, quantified paths, predicates as RCE functions), never as a string. Ill-typed patterns require change (the checker reports them); there is no query text to inject into (5.16). The pattern vocabulary is the read-only GQL fragment that MGQL mechanizes (node and edge atoms in five directions, label expressions with `&`, `|`, `!` and `%`, property maps, quantifiers `*`, `+`, `?`, `{i}`, `{i,j}`, pattern lists joined on shared variables), so that each RCE pattern has a stated GQL reading. A variable declared inside a quantifier has a list type outside it, and a variable under `?` is nullable.
 - **G-4 (proposed).** A query states in its type whether it returns a set or a bag of rows, and the result is in canonical order (7.1). Bag is the default, as in GQL, where a match yields one row per homomorphism; a set result, `distinct` aggregates and `distinct` composite operators are opt-in. All composite operators in one composite query are the same operator with the same qualifier (GQL SR:3 of ISO section 14.2, as cited by MGQL).
 - **G-5 (proposed).** The checker proves that every query terminates in one of two ways: each unbounded path quantifier is bounded by a declared length (`bound n`, 6.7) or by a restrictor that makes the match set finite (no repeated edge, no repeated node; under no repeated edge the repetition count of any quantifier is at most the edge count of the graph), or the query is recursive and is evaluated as a stratified fixpoint (negation and aggregation only over lower strata), which terminates because the graph is finite.
 - **G-6 (proposed).** Tables and documents are special cases of the graph projection: a table is a node type with scalar fields and no edges, a document is a tree of nodes reached by containment edges. They are projections of the same log, not separate stores.
@@ -1157,4 +1157,4 @@ Where RCE differs from these sources: GQL and Cypher queries are strings and the
 
 **Read receipt.** Which fcntl command is the append barrier on macOS? (for example F_SETFL)
 
-<!-- body-sha256: 1f5d65c77edae33585d11b8873dc7ca714eb78ae0aafc37a895c26db3a45cbeb -->
+<!-- body-sha256: bd336e3d6d4ffa571835374688a503290e3685466643d1c4b2eb2d7aa80032cd -->

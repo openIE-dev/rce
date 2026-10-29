@@ -407,7 +407,7 @@ pub fn mlkem_encaps(ek: text, m: text) -> text
 # must have 32(du k + dv) = 1088 bytes, dk must have 768k + 96 bytes, and
 # H(ek inside dk) must equal the stored hash. Those checks depend on the
 # lengths and on the stored key, not on the ciphertext's validity, so they
-# may branch. A failed check is a refusal, never a key: a caller must not
+# may branch. A failed check answers "", never a key: a caller must not
 # feed "" onward as a secret.
 # The re-encryption comparison and the choice between the real key and the
 # rejection key are branch-free: the key is kbar ^ (mask & (K ^ kbar)) with
@@ -459,7 +459,7 @@ pub fn pqxdh_dh_resp(ikb: text, spkb: text, ika_pub: text, eka_pub: text) -> tex
     let dh3 = crypto.x25519(spkb, eka_pub)
     return dh1 + dh2 + dh3
 
-# "" when ss or dh is empty: mlkem_decaps answers "" for an input it refuses
+# "" when ss or dh is empty: mlkem_decaps answers "" for an input that fails its checks
 # (FIPS 203 7.3), and an empty secret must never reach the key derivation.
 pub fn pqxdh_sk(dh: text, ss: text) -> text
     if ss.len_bytes() == 0 or dh.len_bytes() == 0

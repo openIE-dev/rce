@@ -32,7 +32,7 @@ The proposal states each appendage as a rule in the form of E.3 and E.8,
 names what it changes in the normative text, and lists what stays open.
 Nothing here changes δ or any valid program's meaning: under C.15 every
 item is outside programs (the log and the host) or an extension that
-admits only what was refused before.
+admits only programs that required change before.
 
 ## 1. Entries: a commitment to the payload, and a versioned header
 
@@ -48,7 +48,7 @@ admits only what was refused before.
   `host.Header` carrying the hash algorithm (`sha256`), the entry format
   (`rce-d/1`), and the program's shape hash (6.6). A header is itself an
   entry of the chain. A reader that does not know the algorithm or format
-  refuses the log; it never guesses.
+  reports the log as unreadable and reads nothing from it.
 
 Why: XTDB's split of a document store from its transaction log is the
 surveyed design that made erasure possible without rewriting history, and
@@ -93,7 +93,7 @@ check that two log heads are prefixes of one history (section 6).
   `τ ! Evicted` for a payload field of type τ, which δ handles as any
   error union (6.2). The digest at every seq is unchanged, since the
   entry hashed the commitment. Rewriting, reordering or removing an entry
-  is refused (HS-4 detects it).
+  is detected by HS-4 and reported.
 - **Bounded history.** A program may declare on a state field
   `#history(n)` to say that an index over it keeps n versions; the
   declaration bounds index growth and nothing else. Its syntax is
@@ -248,7 +248,7 @@ energy of a durable append.
 | E.3, HS-4, HS-5 | suffix verification from a checkpoint; checkpoint bytes as a snapshot root | outside programs |
 | E.5 | entries `host.Header`, `host.Checkpoint`, `host.Program`; `host.Synced` carries the entry hash | outside programs |
 | E.8, HS-7 to HS-9 | lag seq and digest on an index; restated HS-9; total canonical order; monotone reads; D.5r | outside programs; D.5r is an extension |
-| 6.2, 5.1 | the `Evicted` error and `τ ! Evicted` on a committed payload | extension (admits only programs refused before) |
+| 6.2, 5.1 | the `Evicted` error and `τ ! Evicted` on a committed payload | extension (admits only programs that required change before) |
 | Appendix F | `#history(n)`, `upcast from`, `monotone` in a query type | proposed syntax, not admitted |
 | E.10 | the simulator and power-fault harness as conformance tests; `verified_host=false` and the trusted base in the report | outside programs |
 

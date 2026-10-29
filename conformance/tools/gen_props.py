@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
 """Generated tests whose expected result is fixed by a law, not by a run.
 
-  lex      mutations of admitted programs into ones a lexical or syntax rule
-           refuses (tab, bare CR, BOM, bad dedent, out-of-range literal, bad
+  lex      mutations of admitted programs into ones that require change under a
+           lexical or syntax rule (tab, bare CR, BOM, bad dedent, out-of-range literal, bad
            \\u{}, `unsafe`, dropped bracket, unknown name,
            duplicate fn). The intended rule is the expected code.
   T7       consistent renaming of event and error names keeps every log hash
            (name independence): the expected trace head is the original's.
   T16      `par` programs with disjoint branch footprints: every schedule
            gives the source-order result (schedule_seeds), and the same
-           footprints made to overlap are refused by W-PAR-1.
+           footprints made to overlap require change under W-PAR-1.
   HC-15    sourced inputs offered in shuffled arrival orders, with
            retransmissions: the same D order and state hash (HC-15, HC-16).
   fuel     for each fn main program, the least fuel that completes it, k:

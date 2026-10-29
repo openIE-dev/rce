@@ -1,5 +1,5 @@
 //! `rce-guest check|test|run FILE [EVENTS]` inside WASI. Reads only through
-//! the preopened directory. Exit codes follow spec 10.1: 0 ok, 1 refused, 2 usage.
+//! the preopened directory. Exit codes follow spec 10.1: 0 ok, 1 requires change (or a test failed, or a step kept the state), 2 usage.
 
 use rce_spec_check::{cli, parse};
 use std::collections::HashSet;

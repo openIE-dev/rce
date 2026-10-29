@@ -9,7 +9,7 @@
 #  - package-lock.json: lockfiles npm 10 wrote (--package-lock-only),
 #    compared with Python's json; for a sample of entries the tarball is
 #    downloaded and hashed, and sri_match must accept the real digest and
-#    refuse a wrong one;
+#    not match a wrong one;
 #  - crates.io: the `dl` of https://index.crates.io/config.json, the URL
 #    of sample crates fetched for real (HTTP 200) and their SHA-256 equal
 #    to the lock checksum;

@@ -1,6 +1,6 @@
 //! Cross-module references (spec 4.1): `use p.q [as r]` makes the `pub`
 //! items of module `p.q` reachable as `r.x`; private items and unqualified
-//! references are refused. Checks and examples run on the linked program,
+//! references require change. Checks and examples run on the linked program,
 //! so a `check` that calls into another module is evaluated.
 use rce_spec_check::check_program;
 
@@ -49,7 +49,7 @@ check pricing.discount(50, 500) == 0
 ";
     let r = go(&[("pricing.rce", PRICING), ("orders.rce", orders)]);
     assert!(r.iter().all(|x| x.is_ok()), "{r:?}");
-    // the check is evaluated on the linked program: a wrong one is refused
+    // the check is evaluated on the linked program: a wrong one requires change
     let bad = orders.replace("check final_price(200) == 200", "check final_price(200) == 199");
     let r = go(&[("pricing.rce", PRICING), ("orders.rce", &bad)]);
     assert!(r[1].as_ref().is_err_and(|e| e.contains("check")), "{r:?}");

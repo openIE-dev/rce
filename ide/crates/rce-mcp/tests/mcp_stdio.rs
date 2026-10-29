@@ -112,7 +112,7 @@ fn mcp_over_stdio() {
     let r = c.tool("rce_test", json!({}));
     assert_eq!(r["structuredContent"]["files"][0]["examples"], 2);
 
-    // A change the checker refuses: step on an undeclared event. Nothing is written.
+    // A change that requires change: step on an undeclared event. Nothing is written.
     let r = c.tool(
         "propose_edit",
         json!({"path": "counter.rce", "edits": [
@@ -163,7 +163,7 @@ fn mcp_over_stdio() {
     }
     assert!(!root.join(".git").exists() && !root.join("Cargo.toml").exists());
 
-    // emit: form, and (since checker 893bbf5) python; unknown targets refused.
+    // emit: form, and (since checker 893bbf5) python; unknown targets are an error.
     let r = c.tool("emit", json!({"path": "counter.rce", "target": "form"}));
     assert_eq!(r["isError"], false);
     let r = c.tool("emit", json!({"path": "counter.rce", "target": "python"}));

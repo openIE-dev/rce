@@ -79,7 +79,7 @@ fn lean_lvar_vectors_are_current() {
 fn program(v: &Value) -> (String, Vec<String>) {
     let mut src = String::from("fn main()\n");
     let mut want = vec!["main".to_string()];
-    // a cell nothing reads or writes is named `_c`: an unread name is refused (W-UNUSED-1)
+    // a cell nothing reads or writes is named `_c`: an unread name requires change (W-UNUSED-1)
     let used = |c: &str| v["steps"].as_array().unwrap().iter().any(|s| s[1] != "new" && format!("c_{}_{}", s[2][0], s[2][1]) == c);
     for s in v["steps"].as_array().unwrap() {
         let op = s[1].as_str().unwrap();
@@ -137,7 +137,7 @@ fn evaluator_and_emitters_agree_with_lean() {
 /// becomes a branch running its own puts and gets in program order, the
 /// cells are allocated before the fork (allocation commutes with every
 /// other step), and each `freeze` is moved after the join, where W-LVAR-1
-/// accepts it (a freeze racing puts inside the `par` is refused). After
+/// accepts it (a freeze racing puts inside the `par` requires change). After
 /// the join every put has happened, so a freeze reads the join of all the
 /// puts to its cell (the lattice 0..6 under max); the run errs with
 /// `lvar conflict` exactly when some cell reaches the top 6, and otherwise

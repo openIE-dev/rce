@@ -246,7 +246,7 @@ fn head_has_no_body() {
     let _ = std::fs::remove_dir_all(&d);
 }
 
-/// Audit wedge: a 1.5 MB body. It is refused from its head (413) without
+/// Audit wedge: a 1.5 MB body. It is answered from its head (413) without
 /// being read, the connection closes, and the service goes on serving.
 #[test]
 fn oversized_body_is_413_and_closes() {
@@ -307,7 +307,7 @@ fn invalid_body_bytes_are_exact_and_get_400() {
 }
 
 /// HC-21 with HC-24: the id of a request is the seq of its entry, so the
-/// program answers a refused request from `StepKept(seq, cause)`.
+/// program answers a request whose step was kept from `StepKept(seq, cause)`.
 #[test]
 fn kept_request_gets_the_programs_status() {
     let d = dir("kept");
@@ -322,7 +322,7 @@ fn kept_request_gets_the_programs_status() {
     drop(c);
     let log = s.log.clone();
     let (ok, err) = s.stop();
-    assert!(ok && err.contains("refused (trap)") && err.contains("1 refused"), "{err}");
+    assert!(ok && err.contains("kept (trap)") && err.contains("1 kept"), "{err}");
     let es = entries(&log);
     let k = es.iter().find(|e| e.event.contains("\"target\":\"/trap\"")).unwrap().seq;
     assert!(es[k as usize + 1].event == format!(r#"{{"payload":{{"cause":"trap","seq":{k}}},"type":"host.StepKept"}}"#));

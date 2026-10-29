@@ -397,7 +397,7 @@ step S on NetRecvDone(req: _r, status: s, data: d, err: _e)
         }
         std::thread::sleep(Duration::from_millis(5));
     }
-    assert_eq!(int(&field(&h, "total")), 1_500_000, "every byte arrived and no step was refused");
+    assert_eq!(int(&field(&h, "total")), 1_500_000, "every byte arrived and no step was kept");
     let largest = int(&field(&h, "largest"));
     assert!(largest <= 1_000_000 && largest > 0, "largest read {largest}");
     let live = h.state_hash().to_string();

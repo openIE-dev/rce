@@ -34,7 +34,7 @@ fn reference_ok(main: &str, libsrc: &str) -> bool {
     match &r[0].1 {
         Ok(()) => true,
         Err(e) => {
-            assert!(e.contains("budget"), "unexpected refusal: {e}");
+            assert!(e.contains("budget"), "requires change for a reason other than the budget: {e}");
             false
         }
     }

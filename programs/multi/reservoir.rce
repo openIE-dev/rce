@@ -1,6 +1,6 @@
 # A reservoir with a pump. Rain raises the level, draws lower it, the tank
 # drains one unit on each tick, and the pump reports each tick it runs.
-# Overflow and a dry draw are refused.
+# On an overflow or a dry draw the step keeps the state.
 intent "a reservoir that neither overflows nor runs dry unnoticed"
     example Rain, Rain, Draw -> level == 3
     example Rain, Rain, Rain -> kept: Overflow

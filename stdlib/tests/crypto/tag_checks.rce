@@ -19,7 +19,7 @@ check not ct_eq([255, 0], [0, 255])
 check hp_ct_eq([7, 8], [7, 8]) and not hp_ct_eq([7, 8], [7, 9]) and not hp_ct_eq([7], [7, 8])
 check kem_ct_eq([7, 8], [7, 8]) and not kem_ct_eq([7, 8], [7, 9]) and not kem_ct_eq([7], [7, 8])
 check open(k0(), n0(), [], sealed0()) == tobytes("hello")
-# a flipped bit in the ciphertext (bytes 0, 4) or the tag (bytes 5, 12, 20) is refused
+# a flipped bit in the ciphertext (bytes 0, 4) or the tag (bytes 5, 12, 20) does not open
 check open(k0(), n0(), [], flip(sealed0(), 0)) == [-1]
 check open(k0(), n0(), [], flip(sealed0(), 4)) == [-1]
 check open(k0(), n0(), [], flip(sealed0(), 5)) == [-1]

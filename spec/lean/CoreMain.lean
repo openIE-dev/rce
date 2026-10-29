@@ -169,8 +169,8 @@ def trapJ : Trap → Json
   | t => Json.mkObj [("trap", trapName t)]
 
 /-- S4 event run (Events.lean `deltaS`): per event the new field values
-    (shown, environment order) and emits, or the refusal; stops at the
-    first refusal. -/
+    (shown, environment order) and emits, or the reason its step keeps
+    the state; stops at the first kept step. -/
 def handleEvents (j : Json) : Except String Json := do
   let fns ← (← (← j.getObjVal? "fns").getArr?).toList.mapM jFn
   let fuel ← (← j.getObjVal? "fuel").getNat?

@@ -17,8 +17,8 @@ slice type `[T]`.
 ## Generic functions
 
 `largest[T: Ord](xs: &[T]) -> T?` works for any type `T` that can be
-ordered. `Ord` is a bound: the checker refuses a call with a type that
-cannot be compared. Inside, `copy(x)` is needed because `best` keeps its
+ordered. `Ord` is a bound: a call with a type that cannot be compared
+requires change. Inside, `copy(x)` is needed because `best` keeps its
 own value while `xs` is only borrowed.
 
 The arm `some(b) if x > b -> ...` shows a guard on a `match` arm, the same

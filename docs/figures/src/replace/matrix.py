@@ -3,8 +3,8 @@
 family, mapped to the RCE Draft 0.7 rule or theorem that excludes them, or
 GAP. Regenerate: python3 matrix.py  (writes CSV, MD tables, SVG figure).
 Status values:
-  EXCLUDED  the class cannot be written in a well-formed RCE program (a W-rule refuses it, or there is no construct for it)
-  DEFINED   the class is a defined, deterministic outcome (trap, refusal, logged outcome) instead of undefined or silent behaviour
+  EXCLUDED  the class cannot be written in a well-formed RCE program (a program text with it requires change under a W-rule, or there is no construct for it)
+  DEFINED   the class is a defined, deterministic outcome (trap, kept step, logged outcome) instead of undefined or silent behaviour
   GAP       no RCE rule or theorem excludes or defines it today
 """
 import csv, json, os
@@ -18,18 +18,18 @@ C = {
  "IOVF":  ("Integer overflow or wraparound (CWE-190)", "CWE Top 25 2024", "DEFINED", "6.3 N2 checked arithmetic traps in every build (decision 38); explicit wrapping_/saturating_ (R4); T14"),
  "RACE":  ("Data race", "language memory model", "EXCLUDED", "tasks share only channels W-SPAWN-1; par footprints W-PAR-1; T16, T17, T1 over 6.8 ticks"),
  "UNINIT":("Read of uninitialized memory", "language UB list", "EXCLUDED", "every binding has an initializer (section 3 LetStmt/VarStmt); W-NAME-1; T4"),
- "DIV0":  ("Division by zero", "language UB list / runtime error", "DEFINED", "trap (decision 7); refuses the event, state unchanged (T8)"),
+ "DIV0":  ("Division by zero", "language UB list / runtime error", "DEFINED", "trap (decision 7); the step keeps the state (T8)"),
  "DOS":   ("Uncontrolled resource consumption (CWE-400)", "CWE Top 25 2024", "EXCLUDED", "bounded loops 6.7 and LOOP_LIMIT W-LOOP-1; N9 size limits; budgets C.6; arena bound R3; T2"),
  "NONTERM":("Nontermination / stack overflow from recursion", "language docs", "EXCLUDED", "structural recursion only W-REC-1; T2 (struct_total, calls_eq_size)"),
  "CODEINJ":("Code injection / eval (CWE-94)", "CWE Top 25 2024", "EXCLUDED", "no eval, reflection or JIT (10.1, roadmap 'rejected by derivation'); closed library 5.15"),
  "OSCMD": ("OS command injection (CWE-78, CWE-77)", "CWE Top 25 2024", "EXCLUDED", "no process or shell primitive: no ambient authority (5.15)"),
- "SQLI":  ("SQL injection (CWE-89)", "CWE Top 25 2024", "EXCLUDED", "P1 v0.8 5.16 Text[Sql]: only Sql.lit(literal) and Sql.encode; W-CTX-1 refuses plain text in query text; T36 ctx_meta_from_literals; commit 9ab62d3c1"),
+ "SQLI":  ("SQL injection (CWE-89)", "CWE Top 25 2024", "EXCLUDED", "P1 v0.8 5.16 Text[Sql]: only Sql.lit(literal) and Sql.encode; plain text in query text requires change (W-CTX-1); T36 ctx_meta_from_literals; commit 9ab62d3c1"),
  "XSS":   ("Cross-site scripting (CWE-79)", "CWE Top 25 2024", "EXCLUDED", "P1 v0.8 5.16 Text[Html]/Text[Url]: markup only from literals, untrusted text only via encode (W-CTX-1); T36; commit 9ab62d3c1"),
  "DESER": ("Deserialization of untrusted data (CWE-502)", "CWE Top 25 2024", "EXCLUDED", "inputs are typed event payloads (6.1, W-TY-1); no code in data; canonical JSON (decision 26)"),
  "PATH":  ("Path traversal / unrestricted upload / SSRF (CWE-22, CWE-434, CWE-918)", "CWE Top 25 2024", "EXCLUDED", "no file or network primitive (5.15); I/O only through events and logged extern (5.11)"),
  "AUTHZ": ("Missing/incorrect authentication or authorization (CWE-287, 306, 862, 863, 269, 352)", "CWE Top 25 2024", "EXCLUDED", "P1 v0.8 5.16 Cap[A]/Guarded[τ,A]: guarded state written only on events carrying the unforgeable, unstorable capability (W-CAP-1/2, T36 guarded_needs_cap); policy is what the program declares; commit 9ab62d3c1"),
  "SECRET":("Hard-coded credentials, information exposure (CWE-798, CWE-200)", "CWE Top 25 2024", "EXCLUDED", "P1 v0.8 5.16 Secret[τ]: no literal/constructor (no hard-coded credential), never in emit/channel/error/foreign (W-SEC-1); T36 noninterference up to equality bits; commit 9ab62d3c1"),
- "INPUTV":("Improper input validation (CWE-20)", "CWE Top 25 2024", "DEFINED", "P2 refined types 5.1 W-REF-1: payload outside `type R = τ where p` is refused at admission, state write breaking p refuses the event (T35, RCE/Refine.lean); commit aa0abd3ee"),
+ "INPUTV":("Improper input validation (CWE-20)", "CWE Top 25 2024", "DEFINED", "P2 refined types 5.1 W-REF-1: an event whose payload is outside `type R = τ where p` keeps the state, and a step whose state write breaks p keeps the state (T35, RCE/Refine.lean); commit aa0abd3ee"),
  "FFI":   ("Foreign code memory errors", "language FFI docs", "GAP", "extern trust boundary named (5.11), not excluded: T6 assumes the callee touches only its buffers"),
  "NONDET":("Nondeterministic scheduling / iteration order", "language docs", "EXCLUDED", "deterministic ticks 6.8 (decision 21), select rotation T11, ordered maps (decision 26), nondet choices logged T21"),
  "BUILDMEAN":("Meaning changes with build mode / optimizer", "language docs", "EXCLUDED", "no build profile changes meaning (decision 38); T9-F/T9-L one reference trace"),
@@ -46,15 +46,15 @@ C = {
  "COERCE":("Implicit type coercion in equality/arithmetic", "ECMA-262 abstract equality", "EXCLUDED", "6.3 N4 no mixed arithmetic, N6 structural equality, W-TY-3"),
  "PROTO": ("Prototype pollution (CWE-1321)", "CWE", "EXCLUDED", "no prototypes, no dynamic fields; struct fields fixed (W-NAME-1)"),
  "UNSOUNDTS":("Type system unsoundness (any, bivariance, unchecked casts)", "TypeScript handbook (type compatibility)", "EXCLUDED", "one checker, no any or cast between unrelated types; T4"),
- "UNSAFEIO":("Escape hatches (unsafePerformIO, Obj.magic, unsafe, transmute)", "GHC base docs; OCaml Obj; Rust reference", "EXCLUDED", "W-SAFE-1 refuses escape hatches; effects by context W-EFF-1"),
+ "UNSAFEIO":("Escape hatches (unsafePerformIO, Obj.magic, unsafe, transmute)", "GHC base docs; OCaml Obj; Rust reference", "EXCLUDED", "escape hatches require change (W-SAFE-1); effects by context W-EFF-1"),
  "PARTIAL":("Partial functions / non-exhaustive patterns", "Haskell 2010 report", "EXCLUDED", "W-MATCH-1 exhaustive match; Map get returns V ! Missing (decision 34)"),
  "LAZYLEAK":("Space leaks from lazy evaluation", "GHC docs", "EXCLUDED", "strict evaluation (section 6); N9; budgets C.6"),
  "STMIO": ("Side effects inside retried transactions", "Clojure refs docs", "EXCLUDED", "W-ATOM-1 forbids waits in atomic; atomic is all-or-none T30"),
  "MACRO": ("Unhygienic macros", "Lisp docs", "EXCLUDED", "no macros (decision 28)"),
  "ATOMS": ("Atom table / unbounded mailbox exhaustion", "Erlang system limits", "EXCLUDED", "no dynamic atoms; bounded channels with Backpressure (decision 21)"),
  "PARTITION":("Network partition and distributed consistency", "Erlang distribution docs", "GAP", "node placement and replicated state are models (T31 'close to trivial'); no network failure semantics"),
- "PARTIALDEF":("partial def / unchecked nontermination in proof languages", "Lean reference, recursive definitions", "EXCLUDED", "W-REC-1 refuses non-structural recursion; T2"),
- "DEPTYPE":("Proof obligations and dependent specifications not expressible", "Lean/Coq docs", "DEFINED", "P2 refined types 5.1 W-REF-1 (decidable fragment, T35); obligation discharged or refused, undecidable dependent types excluded by derivation (soundness/determinism); commit aa0abd3ee"),
+ "PARTIALDEF":("partial def / unchecked nontermination in proof languages", "Lean reference, recursive definitions", "EXCLUDED", "non-structural recursion requires change (W-REC-1); T2"),
+ "DEPTYPE":("Proof obligations and dependent specifications not expressible", "Lean/Coq docs", "DEFINED", "P2 refined types 5.1 W-REF-1 (decidable fragment, T35); obligation discharged, or the program requires change; undecidable dependent types excluded by derivation (soundness/determinism); commit aa0abd3ee"),
  "EXTRACT":("Trust in extraction to another language", "Coq extraction manual", "GAP", "T9-L proved for Rust on a core only; Python/JS emitters tested (roadmap W7)"),
  "SQLNULL":("Three-valued NULL logic", "SQLite quirks; SQL standard", "EXCLUDED", "no null; option explicit N10"),
  "ISOL":  ("Isolation anomalies (serialization anomaly)", "PostgreSQL transaction isolation docs", "EXCLUDED", "events applied atomically and serially by delta (T8, 6.4)"),
@@ -115,7 +115,7 @@ D = [
  ("C++","bit manipulation",EX+"27_bitops.rce","bitwise ops"),
  ("Rust","ownership-checked systems code",EX+"12_borrow.rce","second-class borrows"),
  ("Rust","arena allocation",EX+"41_arena_bound_wrapping.rce","arenas with bound R3"),
- ("Rust","compilers and parsers (self-hosting)",None,"W-REC-1 refuses mutual recursion; no file input as events; roadmap W1"),
+ ("Rust","compilers and parsers (self-hosting)",None,"mutual recursion requires change (W-REC-1); no file input as events; roadmap W1"),
  ("Rust","cryptography and hashing","rce-replace/examples/sha256_chain.rce","sha256 text method (this change)"),
  ("Zig","comptime metaprogramming",EX+"32_comptime_block.rce","comptime 5.10"),
  ("Zig","fixed-width unsigned arithmetic",EX+"46_u64.rce","full-range u64 N2"),

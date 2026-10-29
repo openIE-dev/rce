@@ -298,7 +298,7 @@ theorem stmt_bound (args : List Val) (s : Stmt) : ∀ fs os, ∃ k, k ≤ B s �
     | error m => intro he; exact ⟨n + 1, by simp [B]; omega, by simpa using SRun.step (.emitTrap he) .refl⟩
 
 /-- **T4 for statements**: every running configuration takes a step; the
-    only configurations that do not are results (`done`) and refusals. -/
+    only configurations that do not are results (`done`) and kept outcomes (`kept`). -/
 theorem stmt_progress (args : List Val) (s : Stmt) (fs os : List Val) :
     ∃ k c', SStep args (.run s fs os) k c' := by
   obtain ⟨k, _, h⟩ := stmt_bound args s fs os

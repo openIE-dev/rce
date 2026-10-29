@@ -72,7 +72,7 @@ fn runtime_sources_call_no_unicode_table() {
     }
     // the emitted Rust runtime writes text by `rdebug` from the data, never
     // by `{:?}` of a str; `{:?}` of a float is digits, and `dbg_v` and
-    // `dbg_flow` mirror the reference's derived Debug of a refusal reason
+    // `dbg_flow` mirror the reference's derived Debug of the reason of a kept step
     let rt = std::fs::read_to_string("src/emit/rt.rs").unwrap();
     let mut in_dbg = false;
     for (n, line) in rt.lines().enumerate() {

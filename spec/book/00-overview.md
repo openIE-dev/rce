@@ -22,7 +22,7 @@ Three plain points:
 3. **Memory is safe by construction.** Ownership, second-class borrows,
    regions and linear handles rule out use-after-free and data races.
 
-Tiny example (a counter that refuses to go negative):
+Tiny example (a counter that never goes negative: a `Dec` at zero keeps the state):
 
 ```
 state Counter
@@ -70,13 +70,13 @@ hygiene), and states as non-goals the four constructs that would break a
 theorem (effect handlers, switchable contracts, mutable aliasing across
 `par`, runtime reflection). The reference checker implements a part of it
 (Tier 0 hygiene, `World`, definition hashes with `rce api-diff`, transactional
-calls; F.12 lists the rest, which it refuses as reserved, not implemented), the Lean files, the
+calls; F.12 lists the rest, which it reports as requiring change: reserved, not implemented), the Lean files, the
 emitters and the tree-sitter port do not, and every theorem it adds
 (T42 to T56) is stated (F.9); T48, T51 and T53 are proved of models (`RCE/Discharged.lean`), and the other twelve are unproved. There is one language: this text. Drafts 0.5 to 0.9 are
 labels of past commits of it, not alternatives; `# rce-version:` is a release label that is
 tolerated, ignored and not hashed (2.7), and a label names exactly one spec commit (C.15). The
 language of this text is what the reference checker and the Lean files enforce and prove for concurrency
-(Appendix C), and a program that an earlier commit accepted may be refused by this one when a rule was
+(Appendix C), and a program that an earlier commit accepted may require change under this one when a rule was
 added; an implementation of a release implements that release's text. The core is mechanized in Lean 4
 (`spec/lean/`, section 8), a reference type and well-formedness checker
 (`spec/checker/`, `rce-check`) implements sections 4, 5 and 7 including the
@@ -109,18 +109,18 @@ The normative grammar is section 3, and it is also the machine-readable one:
 from `book/03-syntax.md`, builds its LALR(1) tables and fails on any
 shift/reduce or reduce/reduce conflict, then parses every program in
 `spec/examples/` and requires every program in `spec/examples/change/syntax/` to be
-refused, by the LALR(1) tables, the Rust parser and the tree-sitter port
+reported as requiring change, by the LALR(1) tables, the Rust parser and the tree-sitter port
 alike, then runs `rce-check` over the same files (all examples together
 form one program and must be accepted; the 12 syntax rejects, the 48
 programs in `spec/examples/change/types/` and the 16 in
-`spec/examples/change/admission/` must be refused). Current result (draft 0.9,
+`spec/examples/change/admission/` must be reported as requiring change). Current result (draft 0.9,
 the printed output of `rce-spec-check`, compared with this text by
 `scripts/claim-counts.py --check`): the section-3 grammar has 0 conflicts
 (100 rules, 491 productions, 974 states); with the additions of C.2,
 0 conflicts (114 rules, 560 productions, 1152 states);
 with C.2 and F.13, 0 conflicts (119 rules, 588 productions,
 1214 states), accepting the 15 Appendix F examples; grammar 62/62 accepted,
-12/12 refused; checker 62/62 accepted, 12/12 and 64/64 refused (16 of them
+12/12 requiring change; checker 62/62 accepted, 12/12 and 64/64 requiring change (16 of them
 inadmissible). Until 2026-10-12 the same grammar was kept as
 `spec/rce.lark` and checked with Lark (0 conflicts, 533 rules in Lark's
 expansion); that file is retired.
@@ -130,7 +130,7 @@ grammar's productions, with targeted near-misses. 100,000-program run
 Python generator and Lark): all 100,000
 parsed by LALR(1), exactly one Earley parse each, all accepted by
 `rce-check`; 516,012/516,012 rule near-misses and 392,362/392,362 syntax
-near-misses refused; 0 failures. That run used the draft 0.4 generator.
+near-misses reported as requiring change; 0 failures. That run used the draft 0.4 generator.
 From draft 0.5 the generator also covers extern, arena bound, structural
 recursion, f32, lane-wise arrays, device regions, byte text, u64, select,
 linear structs, LOOP_LIMIT and iterators; a 1,000-program run (seed 2026)
@@ -140,4 +140,4 @@ and LALR(1) agree on all 4,977 syntax mutants.
 
 **Read receipt.** In the overview's tiny example, what is the name of the event?
 
-<!-- body-sha256: 9b5d00a9125a58ae37ba6cd42fc74a8c18a657c45e6968df672118433c277fe3 -->
+<!-- body-sha256: 8964928ff50dae3e6973daf085b0dbf7fa17ca001d9453226c984fba4a5681d3 -->

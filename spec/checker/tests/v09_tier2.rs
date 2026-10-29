@@ -1,6 +1,6 @@
 //! Version 0.9 Tier 2 (Appendix F.5): typed output (S3), directory
-//! capabilities (S2), `ct fn` (S4), declared budgets (S6). The accepted and
-//! refused examples are in `tests/v09_examples.rs`; these tests pin behaviour
+//! capabilities (S2), `ct fn` (S4), declared budgets (S6). The accepted examples
+//! and those that require change are in `tests/v09_examples.rs`; these tests pin behaviour
 //! that an example cannot show.
 use rce_spec_check::index08;
 

@@ -1,7 +1,7 @@
 //! Version 0.9 (Appendix F) examples: `../examples-0.9/ok/*.rce` must be
 //! accepted by the reference checker; every `../examples-0.9/change/*.rce`
-//! must be refused with the rule named on its second line
-//! (`# expect: W-...`). A refused example that is refused for a different
+//! must require change, with the rule named on its second line
+//! (`# expect: W-...`). An example that requires change under a different
 //! rule fails, so each file tests one rule.
 use std::path::PathBuf;
 
@@ -41,8 +41,8 @@ fn failing_examples_require_change_for_the_named_rule() {
             .trim()
             .to_string();
         let r = rce_spec_check::check_one(&src);
-        let e = r.expect_err(&format!("{p:?} must be refused"));
-        assert!(e.contains(&want), "{p:?} refused, but not for {want}: {e}");
+        let e = r.expect_err(&format!("{p:?} must require change"));
+        assert!(e.contains(&want), "{p:?} requires change, but not for {want}: {e}");
     }
 }
 

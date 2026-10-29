@@ -1,6 +1,6 @@
 //! The standard library table of 5.15 and the cost table of C.6.4 are the
 //! reference evaluator's, and every emitted runtime charges the same
-//! costs. A method outside the closed library is refused at check time.
+//! costs. A method outside the closed library requires change at check time.
 use rce_spec_check::{cli, conc};
 use regex::Regex;
 use std::collections::{BTreeMap, BTreeSet};

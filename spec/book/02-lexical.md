@@ -8,9 +8,9 @@ tool read a file the same way. Example: `let x = 0x1F  # note` is the tokens
 
 ### 2.1 Source text
 
-A source file is UTF-8 encoded Unicode text. A byte-order mark is refused.
-Line ends are LF or CR LF; a bare CR is refused. The horizontal tab U+0009 is
-refused anywhere in a file (layout is by spaces only, 2.6). A file that does
+A source file is UTF-8 encoded Unicode text. A byte-order mark requires change.
+Line ends are LF or CR LF; a bare CR requires change. The horizontal tab U+0009
+requires change anywhere in a file (layout is by spaces only, 2.6). A file that does
 not end in a line end is read as if it did.
 
 ### 2.2 Comments
@@ -63,11 +63,11 @@ and nothing selects or extends it. It is: the keywords above; the 23 concurrency
 `barrier`, `scope`, `atomic`, `protocol`, `offer`, `choose`, `node`, `supervisor`, `strategy`, `child`,
 `restart`); the ten words of Appendix F (`requires`, `ensures`, `decreases`, `ghost`, `ct`, `declassify`,
 `endorse`, `release`, `label` and `law`); and the type names `World`, `Template`, `Shell`, `Prompt`, `Header`, `mathint`
-and the eight indexed names of 5.16, which no module may declare (W-NAME-2). A keyword or concurrency word is
-refused as a name by the grammar (W-SYN-1). A word of Appendix F whose construct this implementation has
-(`ct`, `endorse`, `release`, `label`, `requires`, `ensures`, `ghost`, `decreases`) is refused as a name
-(W-NAME-2) unless it is used as its construct. A reserved word or type name whose construct this
-implementation does not have (`declassify`, `law`, `Template`, `mathint`) is refused with the rule W-RES-1 and
+and the eight indexed names of 5.16, which no module may declare (W-NAME-2). A keyword or concurrency word
+used as a name requires change under the grammar (W-SYN-1). A word of Appendix F whose construct this implementation has
+(`ct`, `endorse`, `release`, `label`, `requires`, `ensures`, `ghost`, `decreases`) used as a name requires
+change (W-NAME-2) unless it is used as its construct. A reserved word or type name whose construct this
+implementation does not have (`declassify`, `law`, `Template`, `mathint`) requires change, with the rule W-RES-1 and
 the words *reserved, not implemented*; it is never read as an ordinary name and never silently ignored (F.12).
 Directly after `.` a reserved word is a member name, so
 `c.offer()` and `c.choose(L)` remain method calls.
@@ -81,7 +81,7 @@ member name directly after `.` (`x.type`, `c.close()`), where the grammar's
 `member_name` admits them; this is the only place a keyword can be a name
 (change S3). Note: `class`, `unsafe`, `null`, `goto`, `async`
 and `await` are not keywords; `class` and `unsafe` used as statements are
-syntax errors, and `unsafe`, `Rc`, `Arc`, `RefCell` as names are refused by
+syntax errors, and `unsafe`, `Rc`, `Arc`, `RefCell` as names require change under
 rule W-SAFE-1 (section 7) so prototype code that used them is diagnosed
 clearly.
 
@@ -100,7 +100,7 @@ escape = `\"` | `\\` | `\n` | `\r` | `\t` | `\0` | `\u{` hexdig{1,6} `}` .
 
 There are no literal suffixes (`1u8` is not a token): the type of a literal
 comes from context (5.3). A `\u{…}` escape that is not a Unicode scalar value
-(a surrogate, or above U+10FFFF) is refused. `-` is never part of a numeric
+(a surrogate, or above U+10FFFF) requires change. `-` is never part of a numeric
 literal; `-1` is negation applied to `1`, except in patterns (3.9).
 `true`, `false` and `none` are keyword literals.
 
@@ -115,7 +115,7 @@ Python's tokenizer uses:
    the first token of a logical line with indentation width w (number of
    leading spaces): if w > top, push w and emit `INDENT`; if w < top, pop
    while w < top and emit one `DEDENT` per pop, and w must then equal top
-   (otherwise the text is refused: "inconsistent dedent"); if w = top, emit
+   (otherwise the text requires change: "inconsistent dedent"); if w = top, emit
    nothing.
 4. At end of file, emit `NEWLINE` if needed and one `DEDENT` per stack entry
    above 0.
@@ -133,7 +133,7 @@ A module may carry a release label on its first line, as the comment
 
 The line must start with `#` in column 0 and hold, after optional spaces, `rce-version:` and a label;
 trailing spaces are allowed. The label is tolerated and ignored: it selects nothing, gates nothing, is not
-hashed, does not appear in the Form, and no value of it is refused. A module without it means exactly what the
+hashed, does not appear in the Form, and no value of it requires change. A module without it means exactly what the
 same module with it means. There is one language, the one this document defines, and every module of a
 program is in it; modules may `use` each other whatever labels they carry. Because the label is a comment,
 the grammar of section 3 and its LALR(1) check do not mention it.
@@ -146,4 +146,4 @@ wherever the call is executed from.
 
 **Read receipt.** Which code point is the horizontal tab, as written in this section?
 
-<!-- body-sha256: 26ba6fca7955f9b0b6cf03553dcb7125d5622f3317faa1e4372581f48d773936 -->
+<!-- body-sha256: b48794be4b4fba7520cbc7764d17fc9bf7ce3a2979375ed708f18ef63dd502fe -->
