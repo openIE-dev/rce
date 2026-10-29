@@ -39,8 +39,10 @@ a level by exact comparison with the language's own implementation. That
 layer is not built yet. Today `rce emit` translates a checked program, not
 the Form, to Rust, Python, JavaScript and Scala through four hand-written
 emitters, all four of which agree with the reference on the conformance
-suite (1,459 tests pass, 0 fail, for each). The only lift is
-the probe `spec/lift/go/lift_go.py`, for one Go pattern. The registry
+suite (1,459 tests pass, 0 fail, for each). The lifts are
+the probe `spec/lift/go/lift_go.py`, for one Go pattern, and
+`spec/lift/python/lift_py.py`, for a subset of Python 3.13, which carries
+6 of the 92 cases of the pinned Python corpus (`lang/README.md`). The registry
 (`spec/proposals/emit-targets.md`) lists the languages that follow,
 including the new entrants of 2024 to 2026. No model is needed to decide what a program means, whether a change
 is safe, or whether two programs are the same, so the costly and
@@ -181,7 +183,7 @@ Section 10 of the specification defines each command.
 | `programs/` | example programs by area (body, data, money, network, science, systems, text, world, hardware, media, multi) and the ecosystem programs |
 | `examples/` | Form, surface and ingest examples |
 | `conformance/` | the implementation-independent conformance suite, its harness, adapters and reports |
-| `lang/` | pinned oracles (`rce-oracle/1`) and corpora (`rce-corpus/1`) for Go, Python and JavaScript, the recorder `corpus.py` and the generator `generate.py`; no lifter of these corpora yet (`lang/README.md`) |
+| `lang/` | pinned oracles (`rce-oracle/1`) and corpora (`rce-corpus/1`) for Go, Python and JavaScript, the recorder `corpus.py` and the generator `generate.py`; the Python lift `spec/lift/python` carries 6 of the 92 Python cases (`lang/README.md`) |
 | `ide/` | the editor, language server, MCP server and sandbox, built on `spec/checker` |
 | `docs/figures/` | figures with captions, scripts and data |
 | `scripts/` | repository scripts: proofs and Lean audit, cross-architecture hashes and determinism streams, the Form corpus generator, claim counts, demos |

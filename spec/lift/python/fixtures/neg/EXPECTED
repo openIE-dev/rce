@@ -1,0 +1,17 @@
+# The rules each negative fixture requires change with (typed expectations: rule ids only).
+alias.py: L-PY-ALIAS
+class_.py: L-PY-CLASS
+closure.py: L-PY-CLOSURE L-PY-POLY
+dyn.py: L-PY-CLOSURE L-PY-DYN
+exc.py: L-PY-EXC
+float_.py: L-PY-FLOAT
+format_.py: L-PY-FLOAT L-PY-FORMAT
+gen.py: L-PY-GEN
+global_.py: L-PY-GLOBAL
+import_.py: L-PY-IMPORT
+int_.py: L-PY-INT
+match_.py: L-PY-MATCH
+none.py: L-PY-NONE
+set_.py: L-PY-SET
+type_.py: L-PY-TYPE
+unbounded.py: L-PY-UNBOUNDED
