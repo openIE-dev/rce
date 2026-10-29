@@ -180,3 +180,25 @@ fn a_field_named_like_a_builtin_method_does_not_rename_the_method() {
     let (st, out) = rce(&["equiv", "--fuel", "200", &f, &g]);
     assert_eq!(st, 0, "{out}");
 }
+
+#[test]
+fn a_name_like_an_exponent_marker_leaves_float_literals_untouched() {
+    // behaviour-index finding (stdlib/lib/num/special.rce): a declared `e`
+    // renamed the exponent of `9.332636185032189e-302` to `…v10-302` and the
+    // projection required change under W-SYN-1
+    let src = "intent \"exponent\"\n    example Add(k: 2) -> n == 2\n\nconst e: f64 = 2.5e-3\n\nstate S\n    n: u64 = 0\n    x: f64 = 0.0\n\nevent Add(k: u64)\n\nstep S on Add(k)\n    let E: f64 = 1.5E2\n    x = x + e * 1e3 + E * 9.332636185032189e-302 + 0x1e as f64\n    n = n + k\n";
+    let f = tmp("exponent_src", src);
+    let (st, out) = rce(&["check", &f]);
+    assert_eq!(st, 0, "{out}");
+    let (st, projected) = rce(&["fmt", "--nameless", &f]);
+    assert_eq!(st, 0, "{projected}");
+    for lit in ["2.5e-3", "1.5E2", "1e3", "9.332636185032189e-302", "0x1e"] {
+        assert!(projected.contains(lit), "{lit} changed: {projected}");
+    }
+    assert!(!projected.contains("const e:") && !projected.contains("let E:"), "{projected}");
+    let g = tmp("exponent_nameless", &projected);
+    let (st, out) = rce(&["check", &g]);
+    assert_eq!(st, 0, "{out}\n{projected}");
+    let (st, out) = rce(&["equiv", "--fuel", "200", &f, &g]);
+    assert_eq!(st, 0, "{out}");
+}

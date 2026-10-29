@@ -151,6 +151,45 @@ fn renames(src: &str) -> Result<BTreeMap<String, String>, String> {
     Ok(map)
 }
 
+/// The end of the numeric literal starting at `i`, by the lexer's rules
+/// (2.5, maximal munch 2.3): a radix prefix only before a digit of its base,
+/// `_` only before a digit, a fraction only as `.` and a digit, an exponent
+/// only as `e` or `E`, an optional sign and a digit.
+fn numeric_literal_end(b: &[u8], mut i: usize) -> usize {
+    let digit_of = |r: u8, ch: u8| match r {
+        b'x' => ch.is_ascii_hexdigit(),
+        b'o' => (b'0'..=b'7').contains(&ch),
+        b'b' => ch == b'0' || ch == b'1',
+        _ => ch.is_ascii_digit(),
+    };
+    let run = |mut i: usize, r: u8| {
+        while i < b.len() && (digit_of(r, b[i]) || (b[i] == b'_' && i + 1 < b.len() && digit_of(r, b[i + 1]))) {
+            i += 1;
+        }
+        i
+    };
+    if b[i] == b'0' && i + 2 < b.len() && matches!(b[i + 1], b'x' | b'o' | b'b') && digit_of(b[i + 1], b[i + 2]) {
+        return run(i + 2, b[i + 1]);
+    }
+    i = run(i, b'd');
+    if i + 1 < b.len() && b[i] == b'.' && b[i + 1].is_ascii_digit() {
+        i = run(i + 1, b'd');
+    }
+    if i < b.len() && (b[i] == b'e' || b[i] == b'E') {
+        let mut j = i + 1;
+        if j < b.len() && (b[j] == b'+' || b[j] == b'-') {
+            j += 1;
+        }
+        if j < b.len() && b[j].is_ascii_digit() {
+            i = j;
+            while i < b.len() && b[i].is_ascii_digit() {
+                i += 1;
+            }
+        }
+    }
+    i
+}
+
 /// Rewrite identifiers outside strings and comments by the map.
 fn builtin_methods() -> &'static HashSet<String> {
     static M: std::sync::OnceLock<HashSet<String>> = std::sync::OnceLock::new();
@@ -181,6 +220,12 @@ pub fn nameless(src: &str) -> Result<String, String> {
             while i < b.len() && b[i] != b'\n' {
                 i += 1;
             }
+            out.push_str(&src[start..i]);
+        } else if c.is_ascii_digit() {
+            // a numeric literal, copied whole: the exponent marker of `1e-3`
+            // and the letters of `0xff` are part of the literal, not names
+            let start = i;
+            i = numeric_literal_end(b, i);
             out.push_str(&src[start..i]);
         } else if c.is_ascii_alphabetic() || c == '_' {
             let start = i;
