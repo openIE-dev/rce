@@ -1017,7 +1017,7 @@ impl<'a> G<'a> {
             for (t, _, _, _, ak) in &tv {
                 let cur = self.var(t);
                 let s = if l == Lang::Scala {
-                    format!("{ak} = {ak}.updated({lane}, {cur})")
+                    format!("{ak} = {ak}.asInstanceOf[Vector[Any]].updated({lane}, {cur})")
                 } else {
                     self.set_(&format!("{ak}[{lane}]"), &cur)
                 };

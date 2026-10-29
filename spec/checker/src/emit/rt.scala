@@ -407,7 +407,7 @@ def bitnot(v: Any): Any = v match {
 }
 def not_(v: Any): Boolean = !truthy(v)
 def sat128(x: BigInt): BigInt = if (x < I128._1) I128._1 else if (x > I128._2) I128._2 else x
-def trunc_big(f: Double): BigInt = BigDecimal(f).setScale(0, BigDecimal.RoundingMode.DOWN).toBigInt // exact (N4)
+def trunc_big(f: Double): BigInt = BigInt(new java.math.BigDecimal(f).toBigInteger) // exact (N4): the binary value, not its shortest decimal
 def cast(v: Any, T: Vector[Any]): Any = {
   val toF32 = T(0) == "f32"; val n: String = if (T(0) == "int") T(1).asInstanceOf[String] else null
   v match {
@@ -1077,11 +1077,11 @@ def fv_cmp(a: Any, b: Any): Int = {
 }
 def float_json(x: Double): String = {
   if (x == 0.0) return if (1.0 / x < 0) "-0.0" else "0.0"
-  val bd = new java.math.BigDecimal(java.lang.Double.toString(Math.abs(x))).stripTrailingZeros
-  val digits = bd.unscaledValue.toString
-  val ex = digits.length - 1 - bd.scale
-  val sign = if (x < 0) "-" else ""
   val a = Math.abs(x)
+  // the shortest round-trip digits (sdigits: "5e-324", where Java prints "4.9E-324")
+  val (digits, p0) = sdigits(a)
+  val ex = p0 - 1
+  val sign = if (x < 0) "-" else ""
   if (a >= 1e-4 && a < 1e16) {
     val p = ex + 1
     val body = if (p <= 0) "0." + "0" * (-p) + digits
@@ -1538,8 +1538,14 @@ final class Sched(val links: Vector[Vector[Any]]) {
     t.setDaemon(true); t.start()
     slots += sl
   }
-  def post(sl: Slot, rep: Vector[Any]): Unit = sl.rep.put(V(tick, rep))
-  def take(sl: Slot): Vector[Any] = { val fs = FUEL; val r = sl.req.take(); FUEL = fs; BUD.clear(); r }
+  // hand the task its reply and wait for its next request; the scheduler's
+  // fuel is read before the task is woken, since the task writes the same
+  // counter while it runs (rt.py keeps one counter per thread)
+  def exchange(sl: Slot, rep: Vector[Any]): Vector[Any] = {
+    val fs = FUEL
+    sl.rep.put(V(tick, rep))
+    val r = sl.req.take(); FUEL = fs; BUD.clear(); r
+  }
   def order(): Vector[Int] = slots.indices.filter(i => slots(i).st(0) != "done").sortWith { (i, j) =>
     val (a, b) = (slots(i), slots(j)); if (a.prio != b.prio) a.prio > b.prio else a.id < b.id }.toVector
   def chan(v: Any): String = v match {
@@ -1795,7 +1801,7 @@ final class Sched(val links: Vector[Vector[Any]]) {
       progress = eventsPhase() || progress
       val ord = order()
       val moved = ArrayBuffer[Int]()
-      for (i <- ord) { val sl = slots(i); if (sl.st(0) == "ready") { val rp = vec(sl.st(1)); sl.st = V("done"); post(sl, rp); moved += i; slots(i).st = V("pending", take(sl)) } }
+      for (i <- ord) { val sl = slots(i); if (sl.st(0) == "ready") { val rp = vec(sl.st(1)); sl.st = V("done"); moved += i; slots(i).st = V("pending", exchange(sl, rp)) } }
       if (moved.nonEmpty) progress = true
       progress = actorsPhase() || progress
       if (stop != null) return stop

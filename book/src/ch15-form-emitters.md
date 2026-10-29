@@ -70,7 +70,6 @@ output to equal the reference interpreter's.
 ## What you learned
 
 - `rce emit form` shows the Form behind a program.
-- The emitters produce Rust, Python and JavaScript that print the same
-  observations as the reference interpreter, and Scala that does not yet on
-  the conformance suite; further targets are to be registry rows, not new
-  emitters.
+- The emitters produce Rust, Python, JavaScript and Scala that print the
+  same observations as the reference interpreter on the conformance suite;
+  further targets are to be registry rows, not new emitters.

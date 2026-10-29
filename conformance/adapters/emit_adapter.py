@@ -20,7 +20,8 @@ front end's job and is certified through the reference adapter.
                    the outputs, the reason an event was kept, `trace HEAD`
                    and `fuel N`), and its head.
 The target is the one positional argument (rust, python, js or scala).
-Env: RCE (the rce binary), RCE_RUSTC, RCE_PYTHON, RCE_NODE, RCE_SCALA_CLI.
+Env: RCE (the rce binary), RCE_RUSTC, RCE_PYTHON, RCE_NODE, RCE_SCALA_CLI,
+RCE_SCALA_TRY (seconds before a scala-cli call is retried without its server).
 """
 import hashlib, json, os, re, subprocess, sys, tempfile
 
@@ -29,11 +30,25 @@ RCE = os.environ.get("RCE", "rce")
 TMP = os.path.join(tempfile.gettempdir(), f"rce-conformance-{LANG}")
 os.makedirs(TMP, exist_ok=True)
 EXT = {"rust": "rs", "python": "py", "js": "js", "scala": "scala"}[LANG]
+SCALA_CLI = os.environ.get("RCE_SCALA_CLI", "scala-cli")
+SCALA_VERSION = "3.10.0"  # pinned, as in spec/checker/tests/emit*.rs
 LAST_EXE = [None]   # rust: the one executable this process keeps
 
 def sh(cmd, inp=None, timeout=300):
-    p = subprocess.run(cmd, input=inp, capture_output=True, text=True, timeout=timeout)
-    return p.returncode, p.stdout, p.stderr
+    # its own process group, so a timeout also ends the processes it started
+    # (scala-cli's JVM), which would otherwise hold its output open
+    p = subprocess.Popen(cmd, stdin=subprocess.PIPE if inp is not None else None, stdout=subprocess.PIPE,
+                         stderr=subprocess.PIPE, text=True, start_new_session=(os.name != "nt"))
+    try:
+        out, err = p.communicate(inp, timeout=timeout)
+    except subprocess.TimeoutExpired:
+        if os.name != "nt":
+            os.killpg(p.pid, 9)
+        else:
+            p.kill()
+        p.communicate()
+        raise
+    return p.returncode, out, err
 
 def write(path, text):
     """Write a whole file under its name at once: parallel jobs write the
@@ -70,7 +85,47 @@ def emit(src):
         return [os.environ.get("RCE_PYTHON", "python3"), prog], None
     if LANG == "js":
         return [os.environ.get("RCE_NODE", "node"), prog], None
-    return [os.environ.get("RCE_SCALA_CLI", "scala-cli"), "run", "--jvm", "21", "--server=false", "-q", prog, "--"], None
+    # scala-cli's compile server (Bloop) stays warm across the suite's
+    # programs. It keeps every project it has built, and one project per
+    # program made it fail after about 1,400 of them, so each adapter process
+    # builds its programs, one at a time, from one file of its own
+    wd = os.path.join(TMP, f"w{os.getpid()}"); os.makedirs(wd, exist_ok=True)
+    prog = os.path.join(wd, "main.scala"); open(prog, "w").write(out)
+    return [SCALA_CLI, "run", "--jvm", "21", "--scala", SCALA_VERSION, "--scalac-option", "-nowarn", "-q", prog, "--"], None
+
+def toolchain():
+    """The tool that compiles or runs the emitted program, as it names itself."""
+    cmd = {"rust": [os.environ.get("RCE_RUSTC", "rustc"), "--version"],
+           "python": [os.environ.get("RCE_PYTHON", "python3"), "--version"],
+           "js": [os.environ.get("RCE_NODE", "node"), "--version"],
+           "scala": [SCALA_CLI, "--version"]}[LANG]
+    try:
+        rc, out, err = sh(cmd, timeout=120)
+    except Exception as ex:
+        return f"{cmd[0]}: {ex}"
+    v = "; ".join(l.strip() for l in (out + err).splitlines() if l.strip() and not l.startswith("Picked up "))
+    return v + (f"; Scala {SCALA_VERSION}, JVM 21" if LANG == "scala" else "")
+
+SCALA_TRY = float(os.environ.get("RCE_SCALA_TRY", "150"))
+
+def run_prog(cmd):
+    """Run an emitted program. scala-cli builds it on its compile server
+    first; when the call does not end within SCALA_TRY seconds, or scala-cli
+    itself fails (its own stack trace, `at scala.cli.`, on standard error),
+    the server is at fault, not the program, and the program is run once
+    more with `--server=false`, a compiler of its own. The lines compared are
+    those of that second run; a program that hangs times out both times."""
+    if LANG != "scala":
+        return sh(cmd)
+    i = cmd.index("run") + 1
+    alone = cmd[:i] + ["--server=false"] + cmd[i:]
+    try:
+        rc, out, err = sh(cmd, timeout=SCALA_TRY)
+    except subprocess.TimeoutExpired:
+        return sh(alone, timeout=SCALA_TRY)
+    if rc != 0 and "at scala.cli." in err:
+        return sh(alone, timeout=SCALA_TRY)
+    return rc, out, err
 
 def blocks_of(out):
     """The example blocks of an emitted program's output, in order, as
@@ -103,7 +158,7 @@ def run_main(src, fuel):
     if cmd is None:
         return {"error": f"emit: {err}"}
     args = ["--run"] + ([f"--fuel={fuel}"] if fuel else [])
-    rc, out, e = sh(cmd + args)
+    rc, out, e = run_prog(cmd + args)
     lines = [l for l in out.splitlines() if l and not l.startswith("actorlog ")]
     outcome = "done"
     if lines and lines[-1].startswith("outcome "):
@@ -137,7 +192,7 @@ def run_events(src, events, extra=()):
                 return {"error": f"emit: {err2}"}
         else:
             return {"error": f"emit: {err}"}
-    rc, out, e = sh(cmd + list(extra))
+    rc, out, e = run_prog(cmd + list(extra))
     blocks = dict(blocks_of(out))
     if n not in blocks:
         return {"error": f"no observation block for line {n}; exit {rc}; {e[-300:]}"}
@@ -166,7 +221,7 @@ def trace(src, events):
         cmd, err = emit(src)
         if cmd is None:
             return {"error": f"emit: {err}"}
-        rc, out, e = sh(cmd + list(TRACE_ARGS))
+        rc, out, e = run_prog(cmd + list(TRACE_ARGS))
         blocks = blocks_of(out)
         if not blocks:
             return {"error": f"no example block; exit {rc}; {e[-300:]}"}
@@ -174,23 +229,6 @@ def trace(src, events):
     heads = [l[6:] for l in lines if l.startswith("trace ")]
     return {"verdict": "accept", "trace": {"head": heads[-1] if heads else None, "lines": lines}}
 
-def toolchain():
-    """The version of the target's toolchain, as it reports it."""
-    cmd = {"rust": [os.environ.get("RCE_RUSTC", "rustc"), "--version"],
-           "python": [os.environ.get("RCE_PYTHON", "python3"), "--version"],
-           "js": [os.environ.get("RCE_NODE", "node"), "--version"],
-           "scala": [os.environ.get("RCE_SCALA_CLI", "scala-cli"), "--version"]}[LANG]
-    try:
-        rc, out, err = sh(cmd, timeout=120)
-    except (OSError, subprocess.TimeoutExpired) as ex:
-        return f"{os.path.basename(cmd[0])} does not run: {ex}"
-    name = os.path.basename(cmd[0])   # never a machine-local path in a report
-    if rc != 0:
-        return f"{name} exited {rc}"
-    v = (out.strip() or err.strip()).splitlines()
-    line = v[0] if v else ""
-    # node prints only `vX.Y.Z`; the others name themselves
-    return line if line.lower().startswith(name.lower()[:4]) else f"{name} {line}"
 
 def emitted_by():
     """The checker that emits, from the provenance line of an emitted file

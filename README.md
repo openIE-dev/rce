@@ -38,8 +38,8 @@ brings a program written in that language into the Form, each accepted at
 a level by exact comparison with the language's own implementation. That
 layer is not built yet. Today `rce emit` translates a checked program, not
 the Form, to Rust, Python, JavaScript and Scala through four hand-written
-emitters; Rust, Python and JavaScript agree with the reference on the
-conformance suite, and Scala passes 52 of 1,832 results. The only lift is
+emitters, all four of which agree with the reference on the conformance
+suite (1,459 tests pass, 0 fail, for each). The only lift is
 the probe `spec/lift/go/lift_go.py`, for one Go pattern. The registry
 (`spec/proposals/emit-targets.md`) lists the languages that follow,
 including the new entrants of 2024 to 2026. No model is needed to decide what a program means, whether a change
@@ -78,7 +78,7 @@ same commit.
 
 ![RCE overview: source, checker, Form, log, emit targets, host, fabrics](docs/figures/rce-overview.svg)
 
-*The checker reads a program into its Form, naming the place where a text does not yet have the Form's shape; every step is appended to the log D; `rce emit` translates the program to a target language (Rust, Python, JavaScript and Scala today, Scala not yet agreeing with the reference; every registry language by table is the design); a host runs it on a compute fabric.*
+*The checker reads a program into its Form, naming the place where a text does not yet have the Form's shape; every step is appended to the log D; `rce emit` translates the program to a target language (Rust, Python, JavaScript and Scala today; every registry language by table is the design); a host runs it on a compute fabric.*
 
 ## Try it
 
@@ -149,7 +149,7 @@ checker would refuse the file.
 | `rce test FILE...` | the same, and count each file's examples and checks |
 | `rce run FILE [EVENTS]` | apply events, or run `fn main()` |
 | `rce trace --json FILE [EVENTS]` | reference trace of each example, or of EVENTS, for checking another implementation step by step |
-| `rce emit TARGET FILE` | `form` (the Form as JSON), or a target language: `rust`, `python`, `js` today, and `scala`, whose output does not yet agree with the reference; the emit registry proposal lists the rest |
+| `rce emit TARGET FILE` | `form` (the Form as JSON), or a target language: `rust`, `python`, `js` and `scala` today; the emit registry proposal lists the rest |
 | `rce fmt [--check] FILE...` | rewrite files in the canonical layout |
 | `rce dim [--fuel N] [--control] [--json] FILE` | count the behaviours a program can be in and the redundancy of its state (spec 6.10, 10.11) |
 | `rce host ...` | run a program under the host contract (Appendix E): admitter, log, adapters, sandbox |

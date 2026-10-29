@@ -93,7 +93,7 @@ must repair (6.3 and the atlas, 2026-10-22).
 | Rust | native, WASM (wasm32-wasip1) | none for the contract; `Pin` exposed by async lowering | registered; MiniRust proof on the core (T9-L) |
 | Python | CPython, PyPy | ints unbounded (range checks), floats via `float`, no overflow trap | registered |
 | JavaScript | V8, Node, browsers | i64 needs BigInt, no integer type, map order insertion | registered |
-| Scala | JVM | int wrap (checked helpers), no `?T` (Option) | registered; emitted today, 52 of 1,832 conformance results pass |
+| Scala | JVM | int wrap (checked helpers), no `?T` (Option) | registered; emitted today, 1,459 conformance tests pass, 0 fail |
 | XState, SCXML | statechart runtimes | control projection only (Form IR targets) | registered (T9-F) |
 
 ### Tier 1: the systems and platform languages (every device class)

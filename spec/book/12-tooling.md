@@ -220,7 +220,7 @@ file: on 2026-10-14, on the Apple M5 Max below, with Scala 3.10.0 run by
 scala-cli 1.18.0 on OpenJDK 27, all 55 programs of the current corpus
 (with the package files of example 26) agree with the reference, 0
 refused, 361 observation lines, and the edge program agrees on all four
-targets. Its oracle is `RCE_SCALA` (default `scala-cli`). That agreement is for this examples corpus only. On the larger `rce-conformance` suite the Scala emitter was not run in the whole-trace baseline (`conformance/README.md`); an earlier run, which recorded statuses only, passes 52 of its 1,832 results, with 1,189 failures and 591 unsupported (`conformance/reports/results-emit-scala.json`), so the Scala target does not agree with the reference on that suite.
+targets. Its oracle is `RCE_SCALA` (default `scala-cli`). That agreement is for this examples corpus only. On the larger conformance suite (`conformance/`), a run on 2026-10-28 with Scala 3.10.0 on OpenJDK 21, which compared each trace by its head only, passes 1,459 tests with 0 failures, and 520 are not applicable to an emitter; the Scala emitter has not yet been run with the whole-trace comparison of the emit baseline (`conformance/README.md`).
 The targets a test run covers are named as data,
 one word per line, in `spec/checker/tests/emit_targets.txt` (`rust`,
 `python`, `js`, `scala`), never by an environment variable or a flag. Every
@@ -345,11 +345,13 @@ outcome.
 - The Python output has been checked with Python 3.13.5 and 3.14.5, and
   the JavaScript output with Node 20.19.2 and 26.11.1. Other versions have
   not been run.
-- The Scala output has been checked with Scala 3.10.0 on OpenJDK 27 only.
-  With `--run` it runs `fn main` through its task runtime, and prints that
-  there is nothing to run when no `fn main()` is declared. A `par` runs its
-  branches in source order on one thread (by restart when they wait on
-  lvars), as the JavaScript output does when a local cannot go to a worker.
+- The Scala output has been checked with Scala 3.10.0 only, on OpenJDK 27
+  (the examples corpus) and OpenJDK 21 (the conformance suite). With
+  `--run` it runs `fn main` through its task runtime, the same tick
+  scheduler as the other targets, and prints that there is nothing to run
+  when no `fn main()` is declared. A `par` runs its branches in source
+  order on one thread (by restart when they wait on lvars), as the
+  JavaScript output does when a local cannot go to a worker.
 
 
 For an unknown target, or a program that one of these emitters does not
@@ -679,4 +681,4 @@ the lowering does not cover, or on an internal error.
 
 **Read receipt.** Which JSON-RPC error code does the language server return for a request it does not know? (a number)
 
-<!-- body-sha256: b9bf56053eae3eea912fe71514c2b6e132987a052bc0c45bd5f008f9ceddd99c -->
+<!-- body-sha256: 98a12e98bc39264136545abe705136cc8318c45be949a2defea22f02e7c4bdcb -->

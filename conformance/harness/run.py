@@ -333,6 +333,16 @@ def main():
     finally:
         h.close()
     tests = load_tests(a.tests, a.filter)
+    # the toolchain the adapter names in `hello` (an emitter's compiler or
+    # interpreter version) is recorded with the results
+    toolchain = None
+    h = Adapter(spec)
+    try:
+        toolchain = h.call({"op": "hello"}).get("toolchain")
+    except Exception:
+        pass
+    finally:
+        h.close()
     chunks = [tests[i::a.jobs] for i in range(a.jobs)]
     results = []
     with cf.ThreadPoolExecutor(a.jobs) as ex:
