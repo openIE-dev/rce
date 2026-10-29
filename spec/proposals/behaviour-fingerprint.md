@@ -78,8 +78,14 @@ FILE...` (default depth 8, fuel 100,000; one report for one file, one line
 verdict depends on it (it is informative, as `rce dim` and `rce equiv`
 are). It does not decide behaviour equality of arbitrary programs, and
 does not claim to: Rice's theorem stands. It turns reuse by behaviour into
-a lookup for the bounded behaviour that 6.10 defines, with a measured
-recall (`openie-research-experiments/rce/bench/behaviour-index/`).
+a lookup for the bounded behaviour that 6.10 defines. The registered
+measurement (`openie-research-experiments/rce/bench/behaviour-index/`)
+found all 86 behaviour-equal pairs with distinct program hashes in its
+population (the program hash found none), missed none of the 187 pairs
+`rce equiv` judged equivalent, and left 2.0% of the pairs sharing a
+depth-8 fingerprint undecided by `rce equiv` at its bound, none with a
+distinguishing sequence. It covers state machines only: 750 of its 1,079
+program texts are commands, which have no event alphabet.
 
 ## What stays open
 
