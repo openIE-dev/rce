@@ -952,7 +952,7 @@ pub fn par_fuel(cum: &mut u64, f0: u64, used: u64) -> R<()> {
     Ok(())
 }
 pub type State = Vec<(&'static str, Vec<(&'static str, V)>)>;
-fn show_state(s: &State) -> String {
+pub fn show_state(s: &State) -> String {
     s.iter().map(|(r, fs)| format!("{r} {{ {} }}", fs.iter().map(|(n, v)| format!("{n} = {}", show(v))).collect::<Vec<_>>().join(", "))).collect::<Vec<_>>().join("; ")
 }
 pub fn delta(s: &State, ev: &V) -> Result<(State, Vec<V>), String> {

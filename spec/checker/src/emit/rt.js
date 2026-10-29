@@ -1273,8 +1273,19 @@ const groupRec = (lane, n) => new Rec("$group", [["lane", new Int(BigInt(lane), 
 // and its reply are exchanged synchronously with receiveMessageOnPort and
 // Atomics.wait on a shared flag. `par` and `for ... par` run their branches
 // on workers too (see "par and for ... par on workers" below).
-const WT = process.getBuiltinModule("worker_threads");
-const CRYPTO = process.getBuiltinModule("crypto");
+// Outside Node (a browser, a worker of another engine) there are no
+// threads to start: steps, D and the examples still run; tasks and `par`
+// need Node.
+const NODE = typeof process !== "undefined" && typeof process.getBuiltinModule === "function";
+const WT = NODE ? process.getBuiltinModule("worker_threads") : { isMainThread: true, workerData: null };
+// The module runs as the program only when node runs this file itself; a
+// host that imports it calls initialState and delta (10.5, E.9). When the
+// entry cannot be resolved, the module behaves as the program.
+const RCE_ENTRY = NODE && (() => {
+  try { return process.argv[1] === undefined || import.meta.url === process.getBuiltinModule("url").pathToFileURL(process.getBuiltinModule("fs").realpathSync(process.argv[1])).href; }
+  catch { return true; }
+})();
+const CRYPTO = NODE ? process.getBuiltinModule("crypto") : null;
 class Chan { constructor(id, cap) { this.id = id; this.cap = cap; } }
 class Task { constructor(id) { this.id = id; } }
 class Actor { constructor(id, ty) { this.id = id; this.ty = ty; } }

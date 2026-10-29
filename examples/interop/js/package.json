@@ -1,0 +1,10 @@
+{
+  "name": "rce-interop-js",
+  "private": true,
+  "type": "module",
+  "description": "Embeddings of programs printed by `rce emit js`: a node:http service and a React component (react is needed only by react_drive.mjs)",
+  "devDependencies": {
+    "react": "18.3.1",
+    "react-test-renderer": "18.3.1"
+  }
+}

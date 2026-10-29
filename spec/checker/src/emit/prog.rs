@@ -596,7 +596,7 @@ impl<'a> G<'a> {
     fn initial(&mut self, states: &[(String, Vec<Field>)]) -> Result<(), String> {
         let l = self.lang;
         match l {
-            Lang::Rust => self.open("fn initial_state() -> R<State>"),
+            Lang::Rust => self.open("pub fn initial_state() -> R<State>"),
             Lang::Python => self.open("def initial_state()"),
             Lang::Js => self.open("function initialState()"),
             Lang::Scala => self.open("def initial_state(): Vector[Any] ="),
@@ -874,12 +874,14 @@ impl<'a> G<'a> {
             Lang::Rust => {}
             Lang::Python => {
                 let r = run("run_tasks(\"main\")", true);
-                self.line(format!("if \"--run\" in sys.argv: {r}\nelse: observe_all(observe)"))
+                // run only as a script: a host that imports the module (10.5,
+                // E.9) calls initial_state and delta itself
+                self.line(format!("if __name__ == \"__main__\":\n    if \"--run\" in sys.argv: {r}\n    else: observe_all(observe)"))
             }
             Lang::Js => {
                 let r = run("runTasks(\"main\");", false);
                 self.line(format!(
-                    "if (!WT.isMainThread) {{ if (WT.workerData && WT.workerData.par) parMain(); else taskMain(); }}\nelse if (process.argv.includes(\"--run\")) {r}\nelse {{\n  observeAll(observe);\n  process.stdout.write(LINES.map((x) => x + \"\\n\").join(\"\"));\n}}"
+                    "if (!WT.isMainThread) {{ if (WT.workerData && WT.workerData.par) parMain(); else taskMain(); }}\nelse if (!RCE_ENTRY) {{}}\nelse if (process.argv.includes(\"--run\")) {r}\nelse {{\n  observeAll(observe);\n  process.stdout.write(LINES.map((x) => x + \"\\n\").join(\"\"));\n}}\nexport {{ initialState, delta, showState, show, construct, fuelReset, chk, Kept, Int, F, Rec, Lst, Mp, Opt, EVENT_FIELDS, formValue, fvJson }};"
                 ))
             }
             Lang::Scala => {
