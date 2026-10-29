@@ -214,6 +214,26 @@ fn rust_emitter_agrees_with_reference() {
     assert_eq!(ok + kept.len(), CORPUS);
 }
 
+/// The entries of D that the emitted Rust writes under `--trace` hash a
+/// float in the canonical form of 6.1.1 rule 3: on an exact tie between two
+/// shortest decimals the even one. The product of two f32 values widened to
+/// f64 below is such a tie (799.00299072265625): the reference writes
+/// 799.0029907226562, and Rust's `{:e}` alone writes ...563, which changed
+/// the state hash (found by scripts/bench-determinism.py).
+#[test]
+#[cfg_attr(not(rce_emit = "rust"), ignore = "tests/emit_targets.txt does not name rust")]
+fn rust_emitter_log_floats_tie_to_even() {
+    oracle_version(Lang::Rust);
+    let src = "state Lab\n    x: f64 = 0.0\n\nevent F32Mul(a: f64, b: f64)\n\nstep Lab on F32Mul(a: a, b: b) -> ((a as f32) * (b as f32)) as f64\n\nexample F32Mul(a: -14.6982, b: -54.3606) -> x == 799.0029907226562\n";
+    let m = with_probes(&parse(src).unwrap());
+    let want = observe_trace(&m);
+    assert!(want.iter().any(|l| l.contains("799.0029907226562")), "{want:?}");
+    let dir = scratch(Lang::Rust);
+    let got = run_args(Lang::Rust, &dir, "float_tie", &emit(&m, Lang::Rust).unwrap(), &[TRACE]).unwrap();
+    let _ = std::fs::remove_dir_all(&dir);
+    assert_eq!(first_diff("float_tie", "--trace --fuel-trace", &want, &got[0]), None);
+}
+
 #[test]
 #[cfg_attr(not(rce_emit = "python"), ignore = "tests/emit_targets.txt does not name python")]
 fn python_emitter_agrees_with_reference() {

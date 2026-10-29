@@ -1,0 +1,36 @@
+# Benchmark program of scripts/bench-determinism.py: the kernels of
+# programs/science/numerics.rce (a dot product and a square root by
+# Newton's method) on a state machine. Each Sample moves a window of the
+# last 16 readings, filters it with 16 fixed weights (16 multiply-adds) and
+# keeps the root mean square of the output by 30 Newton iterations.
+intent "a 16-tap filter whose output is the same bits on every target"
+    example Sample(x: 1.0) -> y == 0.0625
+    example Sample(x: 2.0), Sample(x: 2.0) -> y == 0.25
+
+const TAPS: usize = 16
+
+state Filter
+    xs: [f64; 16] = [0.0; 16]
+    head: usize = 0
+    y: f64 = 0.0
+    rms: f64 = 0.0
+
+event Sample(x: f64)
+
+fn sqrt_newton(x: f64) -> f64
+    var g = x
+    for _ in 0..30
+        g = 0.5 * (g + x / g)
+    return g
+
+fn filter(xs: [f64; 16], head: usize) -> f64
+    var s: f64 = 0.0
+    for i in 0..TAPS
+        s += 0.0625 * xs[(head + i) % TAPS]
+    return s
+
+step Filter on Sample(x: x)
+    xs[head] = x
+    head = (head + 1) % TAPS
+    y = filter(xs, head)
+    rms = sqrt_newton(0.5 * rms * rms + 0.5 * y * y + 1.0)

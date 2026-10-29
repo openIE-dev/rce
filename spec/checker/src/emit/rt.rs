@@ -1057,12 +1057,12 @@ fn form_value(v: &V) -> FV {
         _ => FV::Null,
     }
 }
+/// The canonical JSON of a float in D (6.1.1 rule 3), as `interp::float_json`:
+/// the digits of `shortest_e`, so an exact tie goes to the even digit.
 fn float_json(x: f64) -> String {
     if x == 0.0 { return if x.is_sign_negative() { "-0.0".into() } else { "0.0".into() }; }
-    let e = format!("{:e}", x.abs());
-    let (m, ex) = e.split_once('e').unwrap();
-    let ex: i32 = ex.parse().unwrap();
-    let digits: String = m.chars().filter(|c| *c != '.').collect();
+    let (digits, ex) = shortest_e(x);
+    let m = if digits.len() > 1 { format!("{}.{}", &digits[..1], &digits[1..]) } else { digits.clone() };
     let sign = if x < 0.0 { "-" } else { "" };
     let a = x.abs();
     if (1e-4..1e16).contains(&a) {
