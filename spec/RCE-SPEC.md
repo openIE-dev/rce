@@ -2081,6 +2081,23 @@ Derivation of the trap form: a step ends in a value, a named error or a trap
 program whose specified behavior is a trap has no example that states it and
 no emitted program can be held to it.
 
+**The lookup-table control (W-INT-2).** The examples of a module are
+finitely many event lists folded from s₀, so they say nothing about any
+other list. The *lookup-table control* of a module M is M with one more
+field per region, the region's position in the trie of the example event
+lists (each list restricted to the events the region has a step for): each
+step of M applies only at a position that has a child for its event and
+moves the position to that child (where M selects no step of the region,
+the control only moves the position), and an event at a position with no
+child for it is kept with an error of its own. The control equals M on every prefix of every example
+list, so it meets every example of M, and it keeps the state on every other
+list. A `check` is a proposition about comptime values and functions, and a
+contract (F.6.2) is a proposition about a function, and the control keeps both unchanged, so neither tells M from its control. Hence, when a module has a step and example lines, `rce check`
+admits it and reports the recommended change W-INT-2 (10.2): its
+obligations do not constrain behaviour beyond the listed examples. W-INT-2
+never makes a program require change; it says what the examples do not
+state.
+
 ### 6.10 Behaviour, equivalence and dimension
 
 This section defines what "the same behaviour" means for two programs, and
@@ -2230,6 +2247,9 @@ The Form
 - W-CT-1 Comptime code that calls a non-comptime-safe function or traps or
   exceeds fuel.
 - W-INT-1 An `example` or `check` that does not hold.
+- W-INT-2 (recommended; never requires change) A module with a step and
+  `example` lines, whose obligations its lookup-table control meets (6.9):
+  `rce check` admits it and prints the recommendation (10.2).
 - W-SIMD-1 A lane-wise operator on arrays of different lengths, of an
   unfixed length, or with non-numeric lanes (5.1).
 - W-LIN-1 A linear value not consumed exactly once on every path, copied,
@@ -3016,6 +3036,17 @@ requires change FILE: line N: RULE message[; line M: RULE message ...]
 
 Every `requires change` report names its rule from section 7. Exit status 1 if any file
 requires change, else 0.
+
+After an `ok FILE` line, each recommended change of that file is printed on
+a line of its own:
+
+```
+recommended FILE: line N: RULE message
+```
+
+The one recommended change today is W-INT-2 (6.9), printed at the first
+example line. A recommended change never changes the verdict or the exit
+status.
 
 ### 10.3 `rce run FILE [EVENTS]`
 

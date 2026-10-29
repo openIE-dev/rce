@@ -68,6 +68,17 @@ requires change FILE: line N: RULE message[; line M: RULE message ...]
 Every `requires change` report names its rule from section 7. Exit status 1 if any file
 requires change, else 0.
 
+After an `ok FILE` line, each recommended change of that file is printed on
+a line of its own:
+
+```
+recommended FILE: line N: RULE message
+```
+
+The one recommended change today is W-INT-2 (6.9), printed at the first
+example line. A recommended change never changes the verdict or the exit
+status.
+
 ### 10.3 `rce run FILE [EVENTS]`
 
 The file must pass `rce check` alone; otherwise one `requires change` line is
@@ -682,4 +693,4 @@ the lowering does not cover, or on an internal error.
 
 **Read receipt.** Which JSON-RPC error code does the language server return for a request it does not know? (a number)
 
-<!-- body-sha256: d88d5fb8e143048d977b273719ecac4ae0a67d69e7ec9777174ac4aa1c1b9d16 -->
+<!-- body-sha256: cdca01c834b8ead931c4cb667b02053b927bb93714a310d570b75747f992307f -->

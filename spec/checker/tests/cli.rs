@@ -28,8 +28,18 @@ const BAD: &str = "fn f() -> i64\n    \"text\"\n";
 fn check_accepts_or_requires_change() {
     assert_eq!(
         rce(&["check", COUNTER]),
-        (0, format!("ok {COUNTER}\n"), String::new())
+        (
+            0,
+            format!(
+                "ok {COUNTER}\nrecommended {COUNTER}: line 2: W-INT-2 the 2 example lines are the only obligations on the steps; \
+                 their lookup-table control (6.9) meets them, so they do not constrain behaviour beyond the listed examples\n"
+            ),
+            String::new()
+        )
     );
+    // no example line, no recommendation (W-INT-2 needs example lines and a step)
+    let p = tmp("plain.rce", "state C\n    n: u64 = 0\n\nevent Inc\n\nstep C on Inc -> n + 1\n");
+    assert_eq!(rce(&["check", &p]), (0, format!("ok {p}\n"), String::new()));
     let p = tmp("bad.rce", BAD);
     let (c, out, _) = rce(&["check", &p]);
     assert_eq!(c, 1);
