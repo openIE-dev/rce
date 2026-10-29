@@ -1,0 +1,165 @@
+module notes_net
+
+intent "the notes service on the net adapter: one connection at a time, polled every Tick; received bytes are parsed with net.http, a body that is not UTF-8 gets 400, a refused step answers 500 and closes, and a restart forgets the sockets of the process that is gone"
+    example Start(addr: "127.0.0.1:1"), Tick, NetListenDone(req: 1, status: "delivered", data: some(1), err: "") -> listener == 1 and conn == 0
+    example Start(addr: "127.0.0.1:1"), Tick, NetListenDone(req: 1, status: "delivered", data: some(1), err: ""), Tick, NetAcceptDone(req: 2, status: "delivered", data: some(2), err: ""), NetRecvDone(req: 3, status: "delivered", data: some([80, 79, 83, 84, 32, 47, 110, 111, 116, 101, 115, 32, 72, 84, 84, 80, 47, 49, 46, 49, 13, 10, 72, 111, 115, 116, 58, 32, 120, 13, 10, 67, 111, 110, 116, 101, 110, 116, 45, 76, 101, 110, 103, 116, 104, 58, 32, 50, 13, 10, 13, 10, 104]), err: ""), NetRecvDone(req: 4, status: "delivered", data: some([105]), err: "") -> last_status == 201 and notes.len() == 1 and notes[1] == "hi"
+    example Start(addr: "127.0.0.1:1"), Tick, NetListenDone(req: 1, status: "delivered", data: some(1), err: ""), Tick, NetAcceptDone(req: 2, status: "delivered", data: some(2), err: ""), NetRecvDone(req: 3, status: "delivered", data: some([80, 79, 83, 84, 32, 47, 110, 111, 116, 101, 115, 32, 72, 84, 84, 80, 47, 49, 46, 49, 13, 10, 72, 111, 115, 116, 58, 32, 120, 13, 10, 67, 111, 110, 116, 101, 110, 116, 45, 76, 101, 110, 103, 116, 104, 58, 32, 49, 13, 10, 13, 10, 255]), err: "") -> last_status == 400 and notes.len() == 0
+    example Start(addr: "127.0.0.1:1"), Tick, NetListenDone(req: 1, status: "delivered", data: some(1), err: ""), Tick, NetAcceptDone(req: 2, status: "delivered", data: some(2), err: ""), StepKept(seq: 9, cause: "fuel") -> conn == 0 and last_status == 500
+    example Start(addr: "127.0.0.1:1"), Tick, NetListenDone(req: 1, status: "delivered", data: some(1), err: ""), Restarted(below: 7) -> listener == 0 and conn == 0
+
+check note(1, "a\u{0}\u{7}\u{1f}\n\"") == "{\"id\":1,\"text\":\"a\\u0000\\u0007\\u001f\\n\\\"\"}"
+
+use net.http
+use text.utf8
+
+struct NetListen
+    req: u64
+    addr: text
+
+struct NetAccept
+    req: u64
+    id: u64
+
+struct NetRecv
+    req: u64
+    id: u64
+
+struct NetSend
+    req: u64
+    id: u64
+    data: text
+
+struct NetClose
+    req: u64
+    id: u64
+
+event Start(addr: text)
+event Tick
+event NetListenDone(req: u64, status: text, data: u64?, err: text)
+event NetAcceptDone(req: u64, status: text, data: u64?, err: text)
+event NetRecvDone(req: u64, status: text, data: List[i64]?, err: text)
+event NetSendDone(req: u64, status: text, data: u64?, err: text)
+event NetCloseDone(req: u64, status: text, data: u64?, err: text)
+event StepKept(seq: u64, cause: text)
+event Restarted(below: u64)
+
+const REASON: Map[u64, text] = {200: "OK", 201: "Created", 204: "No Content", 400: "Bad Request", 404: "Not Found", 405: "Method Not Allowed", 422: "Unprocessable Content", 500: "Internal Server Error"}
+const ESC: Map[text, text] = {"\"": "\\\"", "\\": "\\\\", "\n": "\\n", "\r": "\\r", "\t": "\\t"}
+const HEX: text = "0123456789abcdef"
+
+fn bad(why: text) -> http.Message = http.Message(request: true, method: "", target: "", major: 1, minor: 1, status: 0, reason: why, names: [], values: [], body: [], trailer_names: [], trailer_values: [], used: -1)
+
+fn esc(c: text) -> text
+    let x = c[0] as usize
+    if x < 32 and not ESC.contains(c)
+        return "\\u00" + copy(HEX.chars()[x / 16]) + copy(HEX.chars()[x % 16])
+    return ESC.get(c) catch c
+
+fn json_str(t: &text) -> text = "\"" + "".join([esc(c) for c in t.chars()]) + "\""
+
+fn note(id: u64, t: text) -> text = "{\"id\":" + id.tostr() + ",\"text\":" + json_str(&t) + "}"
+
+fn err(s: u64, why: text) -> (u64, text, text) = (s, "{\"error\":" + json_str(&why) + "}", "")
+
+fn no(allow: text) -> (u64, text, text) = (405, "{\"error\":\"method not allowed\"}", allow)
+
+fn response(r: &(u64, text, text)) -> text
+    let top = "HTTP/1.1 " + r.0.tostr() + " " + (REASON.get(r.0) catch "") + "\r\n"
+    let allow = if r.0 == 405 then "Allow: " + r.2 + "\r\n" else ""
+    let len = if r.0 == 204 then "" else "Content-Type: application/json\r\nContent-Length: " + r.1.len_bytes().tostr() + "\r\n"
+    return top + allow + len + "Connection: close\r\n\r\n" + r.1
+
+fn is_id(t: &text) -> bool = not t.isempty() and t.len_bytes() <= 18 and t.isdigit()
+
+state Server
+    addr: text = ""
+    req: u64 = 0
+    listener: u64 = 0
+    conn: u64 = 0
+    buf: List[i64] = []
+    next_id: u64 = 1
+    notes: Map[u64, text] = {}
+    last_status: u64 = 0
+    served: u64 = 0
+
+step Server on Start(addr: a)
+    addr = copy(a)
+
+step Server on Tick
+    if addr != ""
+        req += 1
+        if listener == 0
+            emit NetListen(req: req, addr: addr)
+        elif conn == 0
+            emit NetAccept(req: req, id: listener)
+        else
+            emit NetRecv(req: req, id: conn)
+
+step Server on NetListenDone(_, s, d, _)
+    if s == "delivered"
+        listener = d.or(0)
+
+step Server on NetAcceptDone(_, s, d, _)
+    if s == "delivered"
+        conn = d.or(0)
+        req += 1
+        emit NetRecv(req: req, id: conn)
+
+step Server on NetRecvDone(_, s, d, _)
+    for x in d.or([])
+        buf.push(x)
+    let m = http.parse_message(&buf, true, false, false) catch |x| bad(x.why)
+    if s != "delivered" or not m.reason.startswith("incomplete")
+        if s == "delivered"
+            let p = m.target.split("/")
+            let n = p.len() == 3 and p[1] == "notes" and is_id(&p[2])
+            let id = if n then p[2].toint() as u64 else 0
+            let ok = utf8.utf8_valid(&m.body)
+            let t = if ok then m.body.utf8() else ""
+            var r = err(400, copy(m.reason))
+            match (if m.used >= 0 then copy(m.method) else "", copy(m.target))
+                ("", _) -> pass
+                ("GET", "/health") -> r = (200, "{\"ok\":true}", "")
+                (_, "/health") -> r = no("GET")
+                ("GET", "/notes") -> r = (200, "[" + ",".join([note(k, copy(notes[k])) for k in notes.keys()]) + "]", "")
+                ("POST", "/notes") -> r = if not ok then err(400, "body is not UTF-8") else (if t.strip().isempty() then err(422, "empty note") else (201, note(next_id, copy(t)), ""))
+                (_, "/notes") -> r = no("GET, POST")
+                ("GET", _) if n -> r = if notes.contains(id) then (200, note(id, copy(notes[id])), "") else err(404, "no such note")
+                ("DELETE", _) if n -> r = if notes.contains(id) then (204, "", "") else err(404, "no such note")
+                (_, _) if n -> r = no("GET, DELETE")
+                _ -> r = err(404, "not found")
+            if r.0 == 201
+                notes[next_id] = copy(t)
+                next_id += 1
+            if r.0 == 204
+                let _ = notes.remove(id)
+            last_status = r.0
+            served += 1
+            req += 1
+            emit NetSend(req: req, id: conn, data: response(&r))
+        req += 1
+        emit NetClose(req: req, id: conn)
+        conn = 0
+        buf = []
+
+step Server on NetSendDone(_, _, _, _)
+    pass
+
+step Server on NetCloseDone(_, _, _, _)
+    pass
+
+step Server on StepKept(seq: _q, cause: c)
+    if conn != 0
+        let r = err(500, "step refused: " + c)
+        last_status = 500
+        req += 1
+        emit NetSend(req: req, id: conn, data: response(&r))
+        req += 1
+        emit NetClose(req: req, id: conn)
+        conn = 0
+        buf = []
+
+step Server on Restarted(below: _b)
+    listener = 0
+    conn = 0
+    buf = []

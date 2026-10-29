@@ -6,9 +6,15 @@ Programs that talk to other programs.
 |---|---|
 | `handshake.rce` | a connection protocol as a state machine; a message in the wrong phase is refused |
 | `server.rce` | a server written as an `actor`, which has its own state and handles one message at a time |
+| `notes_http.rce` | a JSON notes service on the HTTP event host: each request is one logged input, a body that is not UTF-8 gets 400, a note over 4096 bytes 413, and a refused step 503 when it ran out of fuel, else 500 (`step refused: size` when the notes would exceed SIZE_LIMIT) |
 
 `server.rce` has no tests of its own: it shows the shape of an actor and
 is only type checked.
+
+`notes_http.rce` runs on the host with `rce host serve notes_http.rce
+--log D --http 127.0.0.1:8080`. The host frames each request (Appendix E
+HC-24 to HC-26) and the program answers it with `HttpRespond`; its
+examples test every answer without a network.
 
 Limits in draft 0.5: there are no bit-level packet layouts.
 

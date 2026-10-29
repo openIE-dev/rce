@@ -113,10 +113,12 @@ pub fn outstanding(p: &Pending) -> usize = p.reqs.len()
 pub fn is_outstanding(p: &Pending, req: u64) -> bool = find_req(p, req) >= 0
 
 # ---------------- line reader ----------------
-# Chunks (FileRead data, NetRecv or PtyRead text) arrive split anywhere;
-# feed returns the lines they complete, without "\n" and without one "\r"
+# Chunks (FileRead data, PtyRead text) arrive split anywhere; feed
+# returns the lines they complete, without "\n" and without one "\r"
 # before it, and keeps the rest. finish ends the stream (eof): the rest,
-# when not empty, is the last line; later feeds return nothing.
+# when not empty, is the last line; later feeds return nothing. NetRecv
+# delivers bytes (List[i64], HC-10a), which may end inside a character:
+# keep them as bytes and decode complete text with text.utf8 first.
 
 pub struct LineReader
     rest: text

@@ -7,7 +7,9 @@ module net.http
 # LF is refused), obs-fold is refused (5.2), whitespace before a field
 # colon is refused (5.1), Transfer-Encoding together with Content-Length
 # is refused (6.1, request smuggling), differing Content-Length values
-# are refused (6.3). Field values must be ASCII (obs-text needs text built
+# are refused (6.3), a request has at most one Host field and exactly
+# one from HTTP/1.1 on (3.2, as h11 requires), and at most 16 empty lines
+# are skipped before a request line. Field values must be ASCII (obs-text needs text built
 # from bytes, which RCE 0.1.3 cannot do). No socket here: a connection is
 # the io module's request/result pattern; parse fails with a why that
 # starts "incomplete" when more bytes are needed.
@@ -254,7 +256,7 @@ fn hexnum(t: &text) -> i64
 fn head(b: &[i64], m: &mut Message, req: bool) -> i64 ! BadHttp
     var i: usize = 0
     if req
-        while i + 1 < b.len() and b[i] == 13 and b[i + 1] == 10 bound 16
+        while i < 32 and i + 1 < b.len() and b[i] == 13 and b[i + 1] == 10 bound 16
             i += 2
     let e = try line_end(b, i)
     if e < 0
@@ -331,6 +333,14 @@ pub fn parse_message(b: &[i64], req: bool, head_req: bool, eof: bool) -> Message
     let h = try head(b, &mut m, req)
     if h < 0
         fail BadHttp(why: "incomplete head")
+    # RFC 9112 3.2: at most one Host field, exactly one from HTTP/1.1 on
+    if req
+        var hosts: i64 = 0
+        for n in m.names
+            if lower(&n) == "host"
+                hosts += 1
+        if hosts > 1 or (hosts == 0 and m.major == 1 and m.minor >= 1)
+            fail BadHttp(why: "Host")
     let ten = "transfer-encoding"
     let cln = "content-length"
     let te = header(&m.names, &m.values, &ten)

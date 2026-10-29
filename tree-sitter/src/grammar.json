@@ -484,8 +484,39 @@
           "value": ":"
         },
         {
-          "type": "SYMBOL",
-          "name": "NAME"
+          "type": "CHOICE",
+          "members": [
+            {
+              "type": "SYMBOL",
+              "name": "NAME"
+            },
+            {
+              "type": "SEQ",
+              "members": [
+                {
+                  "type": "ALIAS",
+                  "content": {
+                    "type": "SYMBOL",
+                    "name": "_trap"
+                  },
+                  "named": false,
+                  "value": "trap"
+                },
+                {
+                  "type": "STRING",
+                  "value": "("
+                },
+                {
+                  "type": "SYMBOL",
+                  "name": "STRING"
+                },
+                {
+                  "type": "STRING",
+                  "value": ")"
+                }
+              ]
+            }
+          ]
         }
       ]
     },
@@ -6601,6 +6632,10 @@
     {
       "type": "SYMBOL",
       "name": "_par_for"
+    },
+    {
+      "type": "SYMBOL",
+      "name": "_trap"
     },
     {
       "type": "SYMBOL",

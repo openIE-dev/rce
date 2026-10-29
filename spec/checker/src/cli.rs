@@ -625,7 +625,7 @@ pub const USAGE_TEXT: &str = "usage:
   rce search CATALOG QUERY       bricks of type QUERY (e.g. (A, B) -> R; a, b, ... are variables), best first
   rce unform FORM.json           the canonical source of a Form's terms (inverse of `rce emit form`)
   rce host run FILE --log D [--fs DIR] [--blob DIR] [--media DIR] [--wasm DIR] [--net HOST:PORT]... [--chan HOST:PORT [--tls] [--peer HOST:PORT[=KEY]]...] [--pty] [EVENTS]  run on the host runtime (Appendix E): admit EVENTS, or one batch per stdin line, into the durable log D
-  rce host serve FILE --log D [--fs DIR] [--blob DIR] [--media DIR] [--wasm DIR] [--net HOST:PORT]... [--chan HOST:PORT [--tls] [--peer HOST:PORT[=KEY]]...] [--pty]  the host loop (W1d): stdin lines are inputs (event syntax, else Input(data) when declared), Tick(n) every frame when declared, Display(data) is written to stdout, Exit ends the loop
+  rce host serve FILE --log D [--fs DIR] [--blob DIR] [--media DIR] [--wasm DIR] [--net HOST:PORT]... [--chan HOST:PORT [--tls] [--peer HOST:PORT[=KEY]]...] [--http HOST:PORT] [--pty]  the host loop (W1d): stdin lines are inputs (event syntax, else Input(data) when declared), Tick(n) every frame when declared, each HTTP request is HttpRequest or HttpMalformed answered by HttpRespond (--http, Appendix E HC-24), Display(data) is written to stdout, Exit or SIGTERM ends the loop
   rce host tls-id FILE --log D   the Ed25519 key of this host's TLS identity (kept in D.tlskey; peers pin it with --peer ADDR=KEY under --tls)
   rce host replay FILE --log D [--redact F,..]   replay D with every adapter disconnected (HC-8) and re-derive every state hash
   rce db D CMD [ARGS]            RCEdb (W3), serverless and in-process: the database is the log D. CMD: insert T K ROW, delete T K,
@@ -1192,7 +1192,7 @@ fn serve_dyn(r: &mut dyn BufRead, w: &mut dyn Write) -> i32 {
 
 /// `rce host run|replay FILE --log D [EVENTS]` (Appendix E host runtime v0).
 fn host_cmd(a: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &mut dyn Write) -> Result<i32, String> {
-    use crate::host::{Host, replay};
+    use crate::host::Host;
     let w = |e: std::io::Error| e.to_string();
     let (sub, file, log) = (a[0].as_str(), &a[1], a.get(3).ok_or("--log D")?);
     let src = read_file(file)?;
@@ -1205,9 +1205,14 @@ fn host_cmd(a: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &mu
     match sub {
         "replay" => {
             let text = std::fs::read_to_string(log).map_err(|e| format!("{log}: {e}"))?;
-            match replay(&m, &text) {
-                Ok((n, h, s)) => {
-                    writeln!(out, "replay ok: {n} entries, state_hash {h}").map_err(w)?;
+            match crate::host::replay_report(&m, &text) {
+                Ok(r) => {
+                    let (n, h, s) = (r.entries, r.state_hash, r.state);
+                    writeln!(out, "replay ok: {n} entries, {} refused, state_hash {h}", r.refusals.len()).map_err(w)?;
+                    // HC-21: the refusal texts are not in D; replay re-derives them
+                    for (q, c, t) in &r.refusals {
+                        writeln!(out, "  seq {q} refused ({c}): {t}").map_err(w)?;
+                    }
                     // `--redact f,g`: print those fields as digests (secrets stay in D)
                     let red: Vec<&str> = match a.get(4).map(|x| x.as_str()) {
                         Some("--redact") => a.get(5).map(|x| x.split(',').collect()).unwrap_or_default(),
@@ -1229,6 +1234,12 @@ fn host_cmd(a: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &mu
             Ok(OK)
         }
         "run" | "serve" => {
+            // SIGTERM and SIGINT reach the host loop as an input (HC-24):
+            // blocked here, before any thread starts, and waited for by one
+            #[cfg(unix)]
+            if sub == "serve" {
+                block_stop_signals();
+            }
             // Authority is granted explicitly (HC-5): `--fs DIR` gives the file
             // adapters that root, `--pty` gives the PTY adapters.
             let mut rest: Vec<&String> = a[4..].iter().collect();
@@ -1241,6 +1252,7 @@ fn host_cmd(a: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &mu
             let mut exact: Option<String> = None;
             let mut blob_root = None::<std::path::PathBuf>;
             let mut media_root = None::<std::path::PathBuf>;
+            let mut http_addr = None::<String>;
             // random bytes are an input, not authority: always available (HC-10)
             adapters.push(Box::new(crate::adapters::RandomAdapter));
             while let Some(f) = rest.first().map(|s| s.as_str()) {
@@ -1258,6 +1270,13 @@ fn host_cmd(a: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &mu
                     }
                     "--chan" if rest.len() >= 2 => {
                         chan_me = Some(rest[1].to_string());
+                        rest.drain(..2);
+                    }
+                    "--http" if rest.len() >= 2 => {
+                        if http_addr.is_some() {
+                            return Err("--http: one listening address per host".into());
+                        }
+                        http_addr = Some(rest[1].to_string());
                         rest.drain(..2);
                     }
                     "--peer" if rest.len() >= 2 => {
@@ -1310,18 +1329,23 @@ fn host_cmd(a: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &mu
             if tls && pins.len() != peers.len() {
                 return Err("--tls: every --peer needs a pinned key (ADDR=ED25519HEX)".into());
             }
+            // the channel listener is bound now and its threads start after
+            // the sandbox is entered, so they run under it (HC-5a)
+            let mut chan_start: Option<crate::adapters::chan::Start> = None;
             if let Some(me) = &chan_me {
-                let xs = if tls {
+                let (xs, start) = if tls {
                     let id = crate::tls::Identity::load_or_create(std::path::Path::new(log))?;
-                    let xs = crate::adapters::chan::chan_adapters_tls(me, &pins, &id).map_err(|e| format!("--chan {me}: {e}"))?;
+                    let l = std::net::TcpListener::bind(me).map_err(|e| format!("--chan {me}: {e}"))?;
+                    let xs = crate::adapters::chan::chan_adapters_tls_deferred(l, me, &pins, &id).map_err(|e| format!("--chan {me}: {e}"))?;
                     tls_id = Some(id);
                     xs
                 } else {
-                    crate::adapters::chan::chan_adapters(me, &peers).map_err(|e| format!("--chan {me}: {e}"))?
+                    crate::adapters::chan::chan_adapters_deferred(me, &peers).map_err(|e| format!("--chan {me}: {e}"))?
                 };
                 for x in xs {
                     adapters.push(Box::new(x));
                 }
+                chan_start = Some(start);
                 net.push(me.clone());
             }
             if !net.is_empty() {
@@ -1329,7 +1353,29 @@ fn host_cmd(a: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &mu
                     adapters.push(Box::new(x));
                 }
             }
-            let mut h = Host::open_file_with(&m, std::path::Path::new(log), adapters)?;
+            // HC-24: the HTTP listener is bound before the sandbox is entered
+            let mut http = match &http_addr {
+                Some(_) if sub != "serve" => return Err("--http needs `rce host serve`: requests arrive while the host loop runs".into()),
+                Some(addr) => {
+                    let s = crate::adapters::http::Server::bind(addr);
+                    adapters.push(Box::new(s.responder()));
+                    Some(s)
+                }
+                None => None,
+            };
+            let mut h = if sub == "serve" { Host::open_file_bounded(&m, std::path::Path::new(log), adapters, DRAIN_MAX)? } else { Host::open_file_with(&m, std::path::Path::new(log), adapters)? };
+            // E.4c: the host starts on any module; it says how it delivers to
+            // each declaration that is not exactly what it has
+            for n in h.delivery_notes() {
+                eprintln!("rce host: {n}");
+            }
+            if let Some(s) = &http {
+                h.http_listen(&s.listen_payload())?;
+                match s.local_addr() {
+                    Some(a) => eprintln!("rce host: http listening on {a}"),
+                    None => eprintln!("rce host: http cannot listen on {} yet; retrying every second", s.addr),
+                }
+            }
             if let Some(id) = &tls_id {
                 h.tls_identity(&crate::tls::hex(&id.public))?;
             }
@@ -1337,28 +1383,73 @@ fn host_cmd(a: &[String], input: &mut dyn BufRead, out: &mut dyn Write, err: &mu
                 h.exact(x)?;
             }
             if crate::sandbox::enabled() {
+                use crate::sandbox::{GrantKind, NetGrant};
                 let lp = std::path::Path::new(log);
                 let dir = lp.parent().filter(|d| !d.as_os_str().is_empty()).unwrap_or(std::path::Path::new("."));
                 let writable: Vec<&std::path::Path> = fs_root.iter().chain(blob_root.iter()).chain(media_root.iter()).map(|p| p.as_path()).collect();
-                let ports: Vec<u16> = net.iter().chain(peers.iter()).filter_map(|a| a.rsplit(':').next()?.parse().ok()).collect();
-                match crate::sandbox::enter(dir, &writable, pty, !net.is_empty(), &ports) {
+                // every address the adapters may use, and how (HC-5a): the net
+                // adapter connects to and binds its grants (the channel address
+                // among them), a peer is connected to, the channel listener and
+                // the HTTP listener were bound before entering; an HTTP listener
+                // that could not be bound yet is bound later, inside the sandbox
+                let mut grants: Vec<NetGrant> = vec![];
+                for a in &net {
+                    grants.extend(NetGrant::parse(a, GrantKind::Connect));
+                    grants.extend(NetGrant::parse(a, GrantKind::Listen));
+                }
+                for a in &peers {
+                    grants.extend(NetGrant::parse(a, GrantKind::Connect));
+                }
+                if let Some(me) = &chan_me {
+                    grants.extend(NetGrant::parse(me, GrantKind::Prebound));
+                }
+                for s in http.iter() {
+                    grants.extend(NetGrant::parse(&s.addr, if s.bound() { GrantKind::Prebound } else { GrantKind::Listen }));
+                }
+                grants.sort();
+                grants.dedup();
+                match crate::sandbox::enter(dir, &writable, pty, &grants) {
                     Ok(d) => eprintln!("rce host: {d}"),
                     Err(r) => eprintln!("rce host: sandbox OS target not entered: {r}"),
                 }
             }
+            if let Some(start) = chan_start.take() {
+                start();
+            }
             if sub == "serve" {
-                let code = serve_loop(&mut h, &src, out)?;
+                let code = serve_loop(&mut h, &src, out, http.as_mut())?;
                 let live = h.state_hash().to_string();
                 drop(h);
                 return validate_run(&m, log, &live, code, err);
             }
-            let batches: Vec<String> = match rest.first() {
-                Some(e) => vec![(*e).clone()],
-                None => input.lines().map_while(Result::ok).filter(|l| !l.trim().is_empty()).collect(),
+            // HC-24: the lines of the input, as bytes, so a line that is not
+            // UTF-8 is held like any line that is not events of the module
+            let batches: Vec<Vec<u8>> = match rest.first() {
+                Some(e) => vec![e.as_bytes().to_vec()],
+                None => {
+                    let mut all = vec![];
+                    std::io::Read::read_to_end(input, &mut all).map_err(|e| format!("stdin: {e}"))?;
+                    all.split(|b| *b == b'\n').map(|l| l.strip_suffix(b"\r").unwrap_or(l).to_vec()).filter(|l| !l.iter().all(u8::is_ascii_whitespace)).collect()
+                }
             };
             let mut refused = false;
             for b in batches {
-                for x in h.admit(&src, &b)? {
+                let before = h.len();
+                let admitted = match std::str::from_utf8(&b).map_err(|e| format!("the line is not UTF-8 at offset {}", e.valid_up_to())).and_then(|t| h.admit(&src, t)) {
+                    Ok(a) => a,
+                    // HC-24: a line that is not events of the module is held
+                    Err(e) if !Host::is_storage_fault(&e) && h.len() == before => {
+                        let a = h.line_input(&[b.as_slice(), b"\n"].concat())?;
+                        h.settle()?;
+                        if a.is_empty() {
+                            refused = true;
+                            writeln!(out, "{before} host.Kept: the line is not events of the module ({e}); recorded in D, not delivered").map_err(w)?;
+                        }
+                        a
+                    }
+                    Err(e) => return Err(e),
+                };
+                for x in admitted {
                     match x.outcome {
                         Ok(outs) => {
                             writeln!(out, "{} {}", x.seq, x.event).map_err(w)?;
@@ -1449,11 +1540,15 @@ pub fn concept_record(m: &Module) -> String {
     format!("{{\"intent\":[{}],\"items\":[{}]}}", intents.join(","), rows.join(","))
 }
 
-/// `rce unform FORM.json`: the canonical source of a Form's `terms`.
+/// `rce unform FORM.json`: the canonical source of a Form's `terms`. The
+/// terms are the linked program (4.1): the items of every module it uses
+/// are already among them, under their own names, so the source leaves out
+/// the `use` lines, which would import those items a second time (W-MOD-3).
 pub fn unform(json: &str) -> Result<String, String> {
     let v: Value = serde_json::from_str(json).map_err(|e| format!("form json: {e}"))?;
     let t = v.get("terms").ok_or("the Form has no `terms` (emit it with `rce emit form`)")?;
-    let m: Module = serde_json::from_value(t.clone()).map_err(|e| format!("terms: {e}"))?;
+    let mut m: Module = serde_json::from_value(t.clone()).map_err(|e| format!("terms: {e}"))?;
+    m.items.retain(|i| !matches!(i, Item::Use(..)));
     let m = crate::v09::restore_world(m)?;
     Ok(crate::unparse::unparse(&m))
 }
@@ -1463,94 +1558,304 @@ pub fn unform(json: &str) -> Result<String, String> {
 /// logged input with its logical number n (HC-2).
 pub const FRAME_MS: u64 = 16;
 
-/// `rce host serve`: the host loop. Inputs, in arrival order, are admitted
-/// one batch at a time: a stdin line in event syntax, or `Input(data: line)`
-/// when the line is not an event list and the module declares
-/// `event Input(data: text)`; between inputs, `Tick` (or `Tick(n)`) every
-/// frame when declared. EOF on stdin ends the loop, as does an emitted `Exit`.
-fn serve_loop(h: &mut crate::host::Host, src: &str, out: &mut dyn Write) -> Result<i32, String> {
-    use crate::ast::{Arg, Expr};
+/// `rce host serve`: the host loop. Inputs, in the order the admitter
+/// receives them, are admitted in rounds: each round takes one input and
+/// whatever is already waiting (at most 64), applies them, then performs
+/// their effects and takes one barrier for the round (group commit, D-2).
+/// An input is a stdin line in event syntax. A line that is not events of
+/// the module (it is not UTF-8, does not parse, names no event, or one of
+/// its events cannot be built) is held whole as `Input(data: line)`, and
+/// recorded in D as `host.Kept` when the module declares no `Input`
+/// (HC-24, E.4c); with `--http`, each request is delivered as the module
+/// declares `HttpRequest` or `HttpMalformed` (HC-24, HD-2); between inputs,
+/// `Tick` (or `Tick(n)`) every frame when declared, like any delivery
+/// (HD-4). Only a storage fault (HS-3) stops the loop. EOF on stdin ends the
+/// loop unless `--http` is granted; an emitted `Exit` ends it; SIGTERM or
+/// SIGINT stop accepting, wait up to STOP_MS for open requests, and end it.
+/// Each drain performs at most DRAIN_MAX requests and the next round
+/// starts at once while requests are queued, so a stop is read between
+/// drains even when results keep requesting effects.
+fn serve_loop(h: &mut crate::host::Host, src: &str, out: &mut dyn Write, mut http: Option<&mut crate::adapters::http::Server>) -> Result<i32, String> {
+    use crate::adapters::http::{HttpIn, Pending};
+    use crate::host::Host;
     use std::sync::mpsc;
+    use std::time::{Duration, Instant};
     let w = |e: std::io::Error| e.to_string();
-    let (tx, rx) = mpsc::channel::<Option<String>>();
+    let (tx, rx) = mpsc::channel::<Inbound>();
+    let stdin_tx = tx.clone();
     std::thread::spawn(move || {
-        let stdin = std::io::stdin();
-        let mut l = String::new();
+        // HC-24: lines are read as bytes, so a line that is not UTF-8 is
+        // held like any other, and never read as the end of the input
+        let mut stdin = std::io::stdin().lock();
+        let mut l: Vec<u8> = vec![];
         loop {
             l.clear();
-            match stdin.read_line(&mut l) {
+            match stdin.read_until(b'\n', &mut l) {
                 Ok(0) | Err(_) => {
-                    let _ = tx.send(None);
+                    let _ = stdin_tx.send(Inbound::Eof);
                     return;
                 }
                 Ok(_) => {
-                    if tx.send(Some(l.clone())).is_err() {
+                    if stdin_tx.send(Inbound::Line(l.clone())).is_err() {
                         return;
                     }
                 }
             }
         }
     });
-    let tick = h.event_fields("Tick");
-    let input = h.event_fields("Input").filter(|f| f.len() == 1 && f[0] == "data");
-    let mut n: u64 = 0;
-    let frame = std::time::Duration::from_millis(FRAME_MS);
-    let mut next_tick = std::time::Instant::now() + frame;
-    loop {
-        let wait = if tick.is_some() { next_tick.saturating_duration_since(std::time::Instant::now()) } else { std::time::Duration::from_secs(3600) };
-        let adm = match rx.recv_timeout(wait) {
-            Ok(None) | Err(mpsc::RecvTimeoutError::Disconnected) => break,
-            Ok(Some(line)) => {
-                let t = line.trim_end_matches(['\n', '\r']);
-                match h.admit(src, t) {
-                    Ok(a) => a,
-                    Err(e) if input.is_some() && (e.starts_with("events:") || e.ends_with("is not an event")) => {
-                        h.admit_event("Input", vec![Arg { label: Some("data".into()), e: Expr::Str(format!("{t}\n"), 0) }])?
+    #[cfg(unix)]
+    spawn_stop_thread(tx.clone());
+    let open = http.as_ref().map(|s| s.open());
+    if let Some(s) = http.as_deref_mut() {
+        let htx = std::sync::Mutex::new(tx.clone());
+        s.start(std::sync::Arc::new(move |x| htx.lock().map(|t| t.send(Inbound::Http(x)).is_ok()).unwrap_or(false)));
+    }
+    // HD-4: Tick is matched by field name like any delivery; a declaration
+    // that no frame count can be built into is not delivered, and the host
+    // says so once
+    let mut tick = h.event_fields("Tick");
+    if tick.is_some()
+        && let Err(why) = h.tick_args(1)
+    {
+        eprintln!("rce host: event Tick: {why}, so no frame count can be built into it and Tick is not delivered");
+        tick = None;
+    }
+    // HC-22: on an existing D the count continues from the last Tick(n)
+    let mut n: u64 = h.last_tick();
+    let frame = Duration::from_millis(FRAME_MS);
+    let mut next_tick = Instant::now() + frame;
+    let mut stopping: Option<Instant> = None;
+    h.bound_drains(DRAIN_MAX);
+    // an input whose admission failed although it was held: reported, and
+    // the loop goes on; a storage fault (HS-3) ends the loop
+    let report = |e: String, out: &mut dyn Write| -> Result<(), String> {
+        if Host::is_storage_fault(&e) {
+            return Err(e);
+        }
+        writeln!(out, "input not admitted: {e}").map_err(|x| x.to_string())
+    };
+    'serve: loop {
+        let wait = if h.queued() > 0 {
+            Duration::ZERO
+        } else if stopping.is_some() {
+            Duration::from_millis(50)
+        } else if tick.is_some() {
+            next_tick.saturating_duration_since(Instant::now())
+        } else {
+            Duration::from_secs(3600)
+        };
+        let mut batch = vec![];
+        match rx.recv_timeout(wait) {
+            Ok(x) => batch.push(x),
+            Err(mpsc::RecvTimeoutError::Timeout) => {}
+            Err(mpsc::RecvTimeoutError::Disconnected) => break,
+        }
+        while batch.len() < 64 {
+            match rx.try_recv() {
+                Ok(x) => batch.push(x),
+                Err(_) => break,
+            }
+        }
+        let mut adm = vec![];
+        let mut answers: Vec<(mpsc::Sender<crate::adapters::http::Reply>, u64)> = vec![];
+        let mut end = false;
+        if tick.is_some() && stopping.is_none() && Instant::now() >= next_tick {
+            next_tick += frame;
+            n += 1;
+            match h.tick(n) {
+                Ok(Some(a)) => adm.extend(a),
+                // HD-4: a count that no longer converts is recorded once
+                // (host.Kept), and no later count converts either
+                Ok(None) => {
+                    eprintln!("rce host: Tick({n}) cannot be built into the declaration of Tick; recorded in D (host.Kept), and no later Tick is delivered");
+                    tick = None;
+                }
+                Err(e) => report(e, out)?,
+            }
+        }
+        for x in batch {
+            match x {
+                Inbound::Line(line) => {
+                    let mut t: &[u8] = &line;
+                    while let Some(x) = t.strip_suffix(b"\n").or_else(|| t.strip_suffix(b"\r")) {
+                        t = x;
                     }
-                    Err(e) => {
-                        writeln!(out, "input refused: {e}").map_err(w)?;
-                        continue;
+                    let before = h.len();
+                    match std::str::from_utf8(t).map_err(|e| format!("the line is not UTF-8 at offset {}", e.valid_up_to())).and_then(|x| h.admit(src, x)) {
+                        Ok(a) => adm.extend(a),
+                        // HC-24: a line that is not events of the module is
+                        // held whole, as Input(data) or as host.Kept in D
+                        Err(e) if !Host::is_storage_fault(&e) && h.len() == before => match h.line_input(&[t, b"\n"].concat()) {
+                            Ok(a) => {
+                                if a.is_empty() {
+                                    eprintln!("rce host: line recorded in D (host.Kept), not events of the module: {e}");
+                                }
+                                adm.extend(a);
+                            }
+                            Err(e) => report(e, out)?,
+                        },
+                        Err(e) => report(e, out)?,
+                    }
+                }
+                Inbound::Eof => {
+                    if http.is_none() {
+                        end = true;
+                    }
+                }
+                Inbound::Stop => {
+                    if http.is_none() {
+                        end = true;
+                    } else if stopping.is_none() {
+                        stopping = Some(Instant::now());
+                        if let Some(s) = http.as_deref() {
+                            s.stop();
+                        }
+                    }
+                }
+                Inbound::Http(HttpIn::Listening) => {
+                    if let Some(s) = http.as_deref_mut() {
+                        s.listening();
+                        h.http_listen(&s.listen_payload())?;
+                    }
+                }
+                Inbound::Http(x @ (HttpIn::Request { .. } | HttpIn::Malformed { .. })) => {
+                    // HC-24, HD-2: the host delivers the input as the module
+                    // declares it; the id is the seq of the entry that
+                    // delivers it, and the framing (HC-26) is read from the
+                    // host's whole value
+                    let (name, p, reply) = match x {
+                        HttpIn::Request { req, reply } => {
+                            let mut p = serde_json::Map::new();
+                            p.insert("body".into(), serde_json::Value::from(req.body.clone()));
+                            p.insert("method".into(), req.method.clone().into());
+                            p.insert("names".into(), req.names.clone().into());
+                            p.insert("target".into(), req.target.clone().into());
+                            p.insert("values".into(), req.values.clone().into());
+                            p.insert("version".into(), req.version().into());
+                            ("HttpRequest", p, reply)
+                        }
+                        HttpIn::Malformed { status, why, reply } => {
+                            let mut p = serde_json::Map::new();
+                            p.insert("status".into(), serde_json::Value::from(status));
+                            p.insert("why".into(), why.into());
+                            ("HttpMalformed", p, reply)
+                        }
+                        HttpIn::Listening => unreachable!(),
+                    };
+                    match h.http_input(name, p) {
+                        Ok(a) => {
+                            match a.answer {
+                                // the host answers once the batch is durable (HS-2)
+                                Some(status) => answers.push((reply, status)),
+                                None => {
+                                    if let Some(o) = &open {
+                                        o.borrow_mut().insert(a.id, Pending { reply, close: a.close, head: a.head });
+                                    }
+                                }
+                            }
+                            adm.extend(a.admitted);
+                        }
+                        Err(e) => report(e, out)?,
                     }
                 }
             }
-            Err(mpsc::RecvTimeoutError::Timeout) => {
-                next_tick += frame;
-                n += 1;
-                let args = match &tick {
-                    Some(f) if f.len() == 1 => vec![Arg { label: Some(f[0].clone()), e: Expr::Int(n as i128, 0) }],
-                    _ => vec![],
-                };
-                h.admit_event("Tick", args)?
+        }
+        adm.extend(h.settle()?);
+        // HD-2: a request the program cannot answer gets the host's own
+        // response, with no body, and the connection closes after it
+        for (reply, status) in answers.drain(..) {
+            let r = serde_json::json!({"status": status, "names": [], "values": [], "body": ""});
+            if let Ok((bytes, close)) = crate::adapters::http::response_bytes(&r, false, true) {
+                let _ = reply.send(crate::adapters::http::Reply { bytes, close });
             }
-        };
+        }
         let mut exit = false;
         for a in adm {
+            if let Some(c) = a.cause {
+                eprintln!("rce host: seq {} refused ({c})", a.seq);
+            }
             for d in &a.display {
                 write!(out, "{d}").map_err(w)?;
             }
             exit |= a.exit;
         }
         out.flush().map_err(w)?;
-        if exit {
-            break;
+        if exit || end {
+            break 'serve;
+        }
+        if let (Some(t), Some(s)) = (stopping, http.as_deref()) {
+            let idle = s.active() == 0 && open.as_ref().is_none_or(|o| o.borrow().is_empty());
+            if idle || t.elapsed() >= Duration::from_millis(STOP_MS) {
+                break 'serve;
+            }
         }
     }
     writeln!(out, "\ndurable {} entries={} state_hash {}", h.durable.map_or("none".into(), |d| d.to_string()), h.len(), h.state_hash()).map_err(w)?;
     Ok(OK)
 }
 
+/// After SIGTERM or SIGINT, the longest the host loop waits for open
+/// requests before it takes its final barrier (HC-24).
+pub const STOP_MS: u64 = 5_000;
+
+/// The most queued requests the host loop performs in one drain (HC-24);
+/// the rest are performed in the next round, after a stop has been read.
+pub const DRAIN_MAX: usize = 64;
+
+/// What the host loop receives, from any source, on one channel.
+enum Inbound {
+    Line(Vec<u8>),
+    Eof,
+    Http(crate::adapters::http::HttpIn),
+    Stop,
+}
+
+#[cfg(unix)]
+fn stop_signals() -> libc::sigset_t {
+    // SAFETY: sigemptyset and sigaddset initialise the set they are given.
+    unsafe {
+        let mut set: libc::sigset_t = std::mem::zeroed();
+        libc::sigemptyset(&mut set);
+        libc::sigaddset(&mut set, libc::SIGTERM);
+        libc::sigaddset(&mut set, libc::SIGINT);
+        set
+    }
+}
+
+/// Block SIGTERM and SIGINT in this thread and every thread it starts from
+/// now on, so only the stop thread receives them (`sigwait`).
+#[cfg(unix)]
+pub fn block_stop_signals() {
+    let set = stop_signals();
+    // SAFETY: a valid set; the old mask is not needed.
+    unsafe { libc::pthread_sigmask(libc::SIG_BLOCK, &set, std::ptr::null_mut()) };
+}
+
+#[cfg(unix)]
+fn spawn_stop_thread(tx: std::sync::mpsc::Sender<Inbound>) {
+    std::thread::spawn(move || {
+        let set = stop_signals();
+        loop {
+            let mut sig: libc::c_int = 0;
+            // SAFETY: a valid set and an out pointer.
+            if unsafe { libc::sigwait(&set, &mut sig) } != 0 || tx.send(Inbound::Stop).is_err() {
+                return;
+            }
+        }
+    });
+}
 /// P5 per-run validation: after every host run, D as left on storage is
 /// verified (HS-4) and replayed with every adapter disconnected (HC-8,
 /// T37); the run counts only when replay gives the live state hash. The
 /// report goes to stderr so stdout stays the program's output.
 fn validate_run(m: &Module, log: &str, live: &str, code: i32, err: &mut dyn Write) -> Result<i32, String> {
     let text = std::fs::read_to_string(log).map_err(|e| format!("validate {log}: {e}"))?;
-    match crate::host::replay(m, &text) {
-        Ok((n, h, _)) if h == live => {
-            writeln!(err, "rce host: validated {n} entries: replay with adapters disconnected gives the live state_hash").map_err(|e| e.to_string())?;
+    match crate::host::replay_report(m, &text) {
+        Ok(r) if r.state_hash == live => {
+            writeln!(err, "rce host: validated {} entries, {} refused: replay with adapters disconnected gives the live state_hash", r.entries, r.refusals.len()).map_err(|e| e.to_string())?;
             Ok(code)
         }
-        Ok((_, h, _)) => Err(format!("host fault: replay gives {h}, the live run had {live}")),
+        Ok(r) => Err(format!("host fault: replay gives {}, the live run had {live}", r.state_hash)),
         Err(e) => Err(format!("host fault: replay failed: {e}")),
     }
 }
