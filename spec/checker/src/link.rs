@@ -6,7 +6,7 @@
 //! reference `r.x` is rewritten to `x`. The appended items are checked in
 //! their own module, so the checker skips their bodies here.
 //!
-//! Limits (refused with a diagnostic, not silently wrong): an imported item
+//! Limits (each requires change, with a diagnostic, never silently wrong): an imported item
 //! whose name clashes with an item of the importing module or of another
 //! imported module (W-MOD-3; there is no renaming yet), and Form items
 //! (state, event, step, actor) of an imported module, which are not linked.

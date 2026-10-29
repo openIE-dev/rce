@@ -16,7 +16,7 @@ namespace RCE.Obligations
 /-- T42 (F.4.2) Noninterference with labels. -/
 structure LabelModel where
   Input : Type
-  Outcome : Type            -- a value, a trap or the refusal outcome
+  Outcome : Type            -- a value, a trap or the kept outcome
   Public : Type             -- what a public observer sees of an outcome
   run : Input → Outcome
   agreePublic : Input → Input → Prop   -- equal on every public-label field
@@ -57,7 +57,7 @@ def T45 (m : CtModel) : Prop :=
 /-- T46 (F.6.2) Contract enforcement. -/
 inductive CallResult (V : Type) where
   | returned (v : V)
-  | kept                                  -- the event is refused with the fixed record
+  | kept                                  -- the step keeps the state, with the fixed record
 structure ContractModel where
   State : Type
   Value : Type

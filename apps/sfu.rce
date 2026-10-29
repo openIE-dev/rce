@@ -18,7 +18,8 @@ intent "selective forwarding unit for chat calls: peers subscribe to (room, trac
 # A forwarded frame names its publisher:
 #   frame ROOM TRACK PUBLISHER SEQ DIGEST PAYLOAD
 # A SEQ that is not 1 to 18 ASCII digits, or a body of another shape, is
-# counted as malformed; a peer cannot make the SFU refuse an input.
+# counted as malformed; no input from a peer makes a step of the SFU keep
+# the state.
 # Frames are forwarded with reliable: false (never retried, HC-3 lossy) and
 # a frame whose SEQ is not newer than the last one forwarded on that
 # (room, track, publisher) is dropped as stale (latest wins).

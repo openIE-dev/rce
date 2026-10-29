@@ -11,7 +11,7 @@ A source file is a module. Its path is given by `module a.b.c` or, if absent,
 by its file path relative to the package root with `/` read as `.` and the
 `.rce` extension removed. `use p.q` makes module `p.q` visible under the name
 `q`; `use p.q as r` under `r`. Items are private to their module unless marked
-`pub`. Import cycles are refused (W-MOD-2). The modules `std.text`,
+`pub`. Import cycles require change (W-MOD-2). The modules `std.text`,
 `std.collections` and `std.math` are built in and always resolvable (S4), and
 so is every module of the standard library (`stdlib/lib` of the repository,
 pinned by hash in its manifest, and pinned by a program as the dependency
@@ -45,7 +45,7 @@ module ⊃ item (generic parameters, parameters, state fields inside steps)
 regardless of order (so `const N` may follow its use). Inside a block a name is
 visible from its declaration to the end of the block. Shadowing a name from an
 enclosing *block* is allowed with `let`; shadowing a parameter, a state field
-or a module-level name in the same item is refused (W-NAME-2).
+or a module-level name in the same item requires change (W-NAME-2).
 
 Namespaces: one namespace for values (variables, functions, consts, variants,
 events, errors) and one for types (types, kinds, traits, states, actors).
@@ -54,4 +54,4 @@ payload typing) and as constructor functions.
 
 **Read receipt.** What is the outermost scope called? (one word)
 
-<!-- body-sha256: c7a94eb7c4ad0ad0643dd4815a99397eae5b442b81d8e726a0a58e74ab21285b -->
+<!-- body-sha256: f176cdbdab83223bd6e746a60ee394053648bbe43bb5f1afe1fec87c22fbb3ff -->

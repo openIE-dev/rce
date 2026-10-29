@@ -1,7 +1,7 @@
 //! Version 0.8 indexed values (spec 5.16; CORE-PROPERTIES.md P1; Lean
 //! RCE/Label.lean): the encoders agree across the reference evaluator and
-//! the Rust, Python and JavaScript runtimes; W-CTX-1, W-SEC-1, W-CAP-1,
-//! W-CAP-2 and the reserved names refuse; and the gate: none of it exists
+//! the Rust, Python and JavaScript runtimes; a program that breaks W-CTX-1,
+//! W-SEC-1, W-CAP-1 or W-CAP-2, or uses a reserved name, requires change; and the gate: none of it exists
 //! in a 0.5, 0.6 or 0.7 module, whose meaning is unchanged.
 use rce_spec_check::cli;
 use std::process::Command;

@@ -14,8 +14,8 @@ In plain words:
 2. **Every example is tested.** The programs live in `listings/`, the
    chapters include them directly, and a script checks them all with the
    real `rce` command.
-3. **The book shows what is refused, too.** Programs that break a rule are
-   shown with the exact message the checker prints, so you learn why a
+3. **The book shows what requires change, too.** Programs that break a rule
+   are shown with the exact message the checker prints, so you learn why a
    rule exists and how to fix the program.
 
 ## At a glance
@@ -58,7 +58,7 @@ book says. Chapter 15 also runs the emitted Python and JavaScript, so
 |---|---|
 | `src/` | the chapters, in mdBook format; `SUMMARY.md` is the table of contents |
 | `listings/chNN/` | the programs of chapter NN |
-| `listings/chNN/kept/` | programs the checker must refuse; `NAME.expect` holds the text the refusal must contain |
+| `listings/chNN/change/` | programs the checker must report as requiring change; `NAME.expect` holds the text the report must contain |
 | `listings/**/NAME.cmd` and `NAME.out` | a command shown in the book and the exact output it must produce |
 | `scripts/check-listings.sh` | runs all of the above against a real `rce` |
 

@@ -574,7 +574,7 @@ impl Checker {
                     // (Kuper and Newton, FHPC 2013: distinct thresholds join to
                     // top), else the threshold returned depends on the schedule.
                     // A literal list is decided at admission (`conc::lvar_gate`:
-                    // two comparable thresholds are refused); every `wait`
+                    // two comparable thresholds require change); every `wait`
                     // checks the set against the cell's top at run time, which
                     // does not read the value, so the outcome is schedule-free.
                     if matches!(&args[0].e, Expr::List(xs, _) if xs.is_empty()) {

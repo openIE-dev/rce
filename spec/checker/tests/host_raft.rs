@@ -134,7 +134,7 @@ fn log_matching_appends_no_gap_and_truncates_a_conflict() {
     let e = |t: u64, s: &str| (t, s.to_string());
     n.handle(1, Msg::Append { term: 1, leader: 1, prev_idx: 0, prev_term: 0, entries: vec![e(1, "a"), e(1, "b"), e(1, "c")], commit: 1 });
     assert!(matches!(n.out.pop().unwrap().1, Msg::AppendResp { ok: true, match_idx: 3, .. }));
-    // prev (5, 1) is missing: refused
+    // prev (5, 1) is missing: not appended
     n.handle(1, Msg::Append { term: 1, leader: 1, prev_idx: 5, prev_term: 1, entries: vec![e(1, "x")], commit: 1 });
     assert!(matches!(n.out.pop().unwrap().1, Msg::AppendResp { ok: false, .. }));
     // a term-2 leader overwrites entry 2 onwards

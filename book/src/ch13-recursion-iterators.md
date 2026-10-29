@@ -13,7 +13,7 @@ matched. Each call gets a smaller tree, so the recursion has to stop.
 `Box[Tree]` is needed because a `Tree` that contains a `Tree` directly
 would have no fixed size.
 
-Recursion that does not shrink its input is refused, even when it would in
+Recursion that does not shrink its input requires change, even when it would in
 fact stop:
 
 ```rce
@@ -25,9 +25,9 @@ $ rce check countdown.rce
 {{#include ../listings/ch13/change/countdown.out}}
 ```
 
-Write `countdown` as a loop instead. Two functions that call each other are
-refused for the same reason. This rule is part of how RCE keeps its promise
-that every step finishes.
+Write `countdown` as a loop instead. Two functions that call each other
+require change for the same reason. This rule is part of how RCE keeps
+its promise that every step finishes.
 
 ## Iterators
 

@@ -97,7 +97,7 @@ fn file_ledger_roundtrips_and_reopens() {
     let rs = read_jsonl(&p).unwrap();
     assert_eq!(rs.len(), 3);
     verify_chain(&rs, &key.verifying_key(), GENESIS).unwrap();
-    // Opening with another key refuses the existing chain.
+    // The existing chain does not verify under another key, so opening fails.
     assert!(Ledger::open(&p, generate_key().unwrap()).is_err());
 }
 

@@ -274,7 +274,7 @@ fn arg_of(b: &[i64], off: i64) -> VarOut ! BadCbor
 fn ascii_table() -> List[text] = " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~".chars()
 
 # Decode one deterministic data item at off. Text must be ASCII here
-# (needs spec: text from UTF-8 bytes); floats are refused.
+# (needs spec: text from UTF-8 bytes); floats are an error.
 pub fn cbor_decode_at(b: &[i64], off: i64) -> CborOut ! BadCbor bound 64
     let h = try arg_of(b, off)
     let m = b[off as usize] >> 5

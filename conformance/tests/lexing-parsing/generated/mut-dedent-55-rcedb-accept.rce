@@ -42,7 +42,7 @@ step Db on Scan(start: f)
 #--- rce-test
 # id: lexing-parsing/generated/mut-dedent-55-rcedb-accept
 # area: lexing-parsing
-# clauses: [CH02-M-69371f07, CH09-M-82e65964, T10, W-LEX-2]
+# clauses: [CH02-M-84a53b7d, CH09-M-82e65964, T10, W-LEX-2]
 # expect: change
 # diagnostic: W-LEX-2
 # flags: [generated]

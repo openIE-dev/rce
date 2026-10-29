@@ -137,7 +137,7 @@ fn rapl_missing_is_unsupported() {
 #[test]
 fn powermetrics_without_setup_never_returns_numbers() {
     use ide_energy::powermetrics::{Field, PowermetricsMeter};
-    // On this box (no macOS, or no sudoers entry) it must refuse, not read 0.
+    // On this box (no macOS, or no sudoers entry) it must return an error, not read 0.
     if let Err(e) = PowermetricsMeter::open(Field::Cpu, 200) {
         assert!(matches!(e, MeterError::Unsupported(..)), "{e}");
     }

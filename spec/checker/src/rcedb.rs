@@ -6,7 +6,7 @@
 //! crates/rce/REMAINING-PLAN.md):
 //! - R1 D is the only primary artefact (HS-1); a database is a log file.
 //! - R2 Tables, rows and edges are RCE state, changed only by events
-//!   admitted to D (HC-1); a refused write leaves state unchanged (T8).
+//!   admitted to D (HC-1); a write that does not apply keeps the state (T8).
 //! - R3 Writes are durable by group confirm: one barrier per batch, and the
 //!   durable mark moves only through the bound `Synced` (HS-2, HS-6).
 //! - R4 Queries are RCE steps evaluated on state without appending to D;
@@ -105,9 +105,9 @@ impl Db {
     }
 
     /// Give `table` a typed schema, "name:type,..." with type text, i64 or
-    /// bool; refused once the table has rows. Every later row of the table
+    /// bool; not performed once the table has rows. Every later row of the table
     /// is its values in column order separated by tabs, and a row that does
-    /// not match is refused (BadRow).
+    /// not match is not written (BadRow).
     pub fn schema(&mut self, table: &str, cols: &str) -> Result<(), String> {
         self.write("Schema", &[("table", table), ("cols", cols)])
     }

@@ -17,9 +17,9 @@
 
 All files given to one command form one program.
 
-Exit status: 0 success; 1 a program was refused, a test failed, a run
-reached a refused event, or `fmt --check` found a file to change; 2 the
-command was used wrongly.
+Exit status: 0 success; 1 a program requires change, a test failed, a
+run reached a step that kept the state, or `fmt --check` found a file to
+change; 2 the command was used wrongly.
 
 Every command is deterministic: the same input files give the same output
 bytes. No command reads the clock, the network or environment variables.

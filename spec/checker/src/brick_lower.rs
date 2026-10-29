@@ -15,11 +15,11 @@
 //! `while c bound n` counts its iterations and traps as the interpreter
 //! does (the check comes after the condition holds, 6.7). `for x in e`
 //! walks the items of e by index. Integers must be i64 (other widths have
-//! other overflow rules); floats are refused. Generic functions lower to
+//! other overflow rules); floats are not lowered. Generic functions lower to
 //! one term for every instance: the IR is untyped over JSON, so the term is
 //! the monomorphization at every type at once, and vectors check it at i64.
 //!
-//! Anything else is refused with the line and the construct. A lowering is
+//! Anything else is not lowered; the error names the line and the construct. A lowering is
 //! a claim, not a proof: `rce index --vectors N` records the interpreter's
 //! results on generated inputs, and the engine evaluates the term on them
 //! (`rce::form::brick::verify`).
@@ -177,7 +177,7 @@ fn recursive_groups(g: &BTreeMap<String, BTreeSet<String>>) -> HashMap<String, V
 
 /// Largest term (bytes of its JSON) a function lowers to, not counting
 /// the definitions it calls (format 2: a call is a `ref` to the digest of
-/// the callee's term); past this size the function is refused.
+/// the callee's term); past this size the function is not lowered.
 pub const MAX_TERM_BYTES: usize = 1 << 20;
 
 fn non_i64_int(t: &Ty) -> Option<String> {
@@ -452,7 +452,7 @@ impl<'a> Lowerer<'a> {
                 Ok(t)
             }
         });
-        // a refusal that names a function on the stack depends on the stack
+        // an error that names a function on the stack depends on the stack
         if !matches!(&r, Err(e) if e.contains("recursive call")) {
             self.memo.insert(name.to_string(), r.clone());
         }
@@ -1149,7 +1149,7 @@ impl<'a> Lowerer<'a> {
     /// `b = set(b, "f", v)` (a struct keeps its field set), applied down to
     /// the root. A field of type usize gets the guard a usize variable
     /// gets; a field whose name has another narrow type in some struct of
-    /// the module is refused (its overflow rule is not the lowered one).
+    /// the module is not lowered (its overflow rule is not the lowered one).
     fn place_update(
         &mut self,
         place: &Expr,
@@ -2025,7 +2025,7 @@ fn r0(l: usize) -> Expr {
 // the same tag statically and lowers each operation at its width: i64
 // (and lit) as before, u64 and usize by the checked u64 operators, the
 // widths of 32 bits and less in i64 (exact there) then range-checked.
-// A tag that depends on the path taken is refused.
+// A tag that depends on the path taken is not lowered.
 
 /// The width tag of an int expression, as far as the lowerer sees it.
 #[derive(Clone, Copy, Debug, PartialEq)]

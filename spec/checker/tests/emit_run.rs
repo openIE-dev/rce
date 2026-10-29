@@ -912,8 +912,8 @@ fn js_runtime_agrees_with_run_main() {
     agree_lang(Lang::Js, 2);
 }
 
-/// handler refusals of every kind: a record failure, traps (overflow,
-/// division by zero, index), a refused atomic transaction, and a supervisor
+/// kept handler steps of every kind: a record failure, traps (overflow,
+/// division by zero, index), an atomic transaction that keeps the state, and a supervisor
 /// that gives up
 const KEPT_STEPS: &str = "event Hit(k: i64)
 event Div(k: i64)
@@ -1005,9 +1005,9 @@ fn actor_kept_outcomes_match() {
     // a crash inside `atomic` is supervised: the failing actor restarts
     assert!(w.iter().filter(|l| l.starts_with("actorlog Restart(")).count() >= 2, "{w:?}");
     for lang in targets::covered(&[Lang::Rust, Lang::Python, Lang::Js], oracle) {
-        let exe = build_lang(lang, &format!("refusals_{lang:?}"), KEPT_STEPS);
+        let exe = build_lang(lang, &format!("kept_{lang:?}"), KEPT_STEPS);
         assert_eq!(run_log(&exe), w, "{lang:?}");
-        let exe = build_lang(lang, &format!("refusals_win_{lang:?}"), &windowed);
+        let exe = build_lang(lang, &format!("kept_win_{lang:?}"), &windowed);
         assert_eq!(run_log(&exe), ww, "windowed {lang:?}");
     }
 }
@@ -1087,7 +1087,7 @@ fn restart_inputs_replay_on_every_target() {
     }
 }
 
-/// `--run` on a module without `fn main()` refuses as `rce run` does
+/// `--run` on a module without `fn main()` fails as `rce run` does
 /// (10.3): status 1 and the reference's message, in every target, rather
 /// than starting a scheduler with no task
 #[test]
@@ -1186,7 +1186,7 @@ fn program_events_agree_on_every_target() {
 /// position, creating task, ordinal; a task by parent and ordinal), so a
 /// restart log replays on an upgraded source that shifts every line, adds
 /// a function, an actor type and a later supervisor; an upgrade that
-/// removes or moves a recorded position refuses before any step with a
+/// removes or moves a recorded position stops before any step with a
 /// defined trap (schema check),
 /// and a log without a schema header traps at the first decision whose
 /// position is gone, on every target as in the reference
@@ -1238,7 +1238,7 @@ fn restart_replay_survives_upgrades_and_traps_on_tree_changes() {
 
 /// the Scala tick runtime (C.11.11, HC-6, 6.6): actor programs give the
 /// reference's outputs, actor log and outcome, as the other targets do:
-/// handler refusals, arithmetic and index traps, supervision with restarts
+/// kept handler steps, arithmetic and index traps, supervision with restarts
 /// and a stop, atomic batches, transactions across actors, and tasks with
 /// channels
 #[test]
@@ -1246,8 +1246,8 @@ fn restart_replay_survives_upgrades_and_traps_on_tree_changes() {
 fn scala_actor_programs_agree_with_the_reference() {
     require(Lang::Scala);
     assert!(java_bin().is_some(), "scala: no JVM for the assemblies");
-    let exe = build_lang(Lang::Scala, "sc_refusals", KEPT_STEPS);
-    assert_eq!(run_log(&exe), want_log(KEPT_STEPS), "refusals and supervision");
+    let exe = build_lang(Lang::Scala, "sc_kept", KEPT_STEPS);
+    assert_eq!(run_log(&exe), want_log(KEPT_STEPS), "kept steps and supervision");
     let rec = run_args(&exe, &["--restart-log".into()]);
     let m = parse(KEPT_STEPS).unwrap();
     let r = run_main(&m, &RunCfg::default()).unwrap();

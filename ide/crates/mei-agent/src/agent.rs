@@ -120,7 +120,7 @@ enum Concl {
 const SYSTEM_PROMPT: &str = "You edit one RCE source file. Reply with JSON only: {\"edits\": [...]}. \
 Each edit is {\"op\":\"replace_item\",\"name\":N,\"text\":T}, {\"op\":\"insert_item\",\"after\":N?,\"text\":T}, \
 {\"op\":\"delete_item\",\"name\":N} or {\"op\":\"set_file\",\"text\":T}. Items are addressed by name \
-(the header line up to '(' or '->' or '=' or ':'). The checker decides; refused edits are not applied.";
+(the header line up to '(' or '->' or '=' or ':'). The checker decides; edits that require change are not applied.";
 
 /// Pull the edits out of a model reply (bare JSON or a fenced block).
 pub fn parse_edits(content: &str) -> Result<Vec<Edit>, String> {
@@ -201,7 +201,7 @@ impl Agent {
         if a.send(ev) {
             Ok(())
         } else {
-            Err(format!("chart refused `{ev}` in {:?}", a.configuration()))
+            Err(format!("chart kept its configuration on `{ev}` in {:?}", a.configuration()))
         }
     }
 
@@ -209,7 +209,7 @@ impl Agent {
         if a.send_to_child(ev) {
             Ok(())
         } else {
-            Err(format!("gear chart refused `{ev}`"))
+            Err(format!("gear chart kept its configuration on `{ev}`"))
         }
     }
 

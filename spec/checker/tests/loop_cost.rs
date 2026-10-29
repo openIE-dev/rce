@@ -1,5 +1,5 @@
 //! `loop bound N` is the one spelling of an unconditional loop (`while true` is
-//! refused, W-UNUSED-2). Its cost is the body's alone: no condition is
+//! requires change, W-UNUSED-2). Its cost is the body's alone: no condition is
 //! evaluated per iteration. The budget boundary is the same operation in the
 //! reference evaluator and in every emitted runtime.
 use rce_spec_check::cli;

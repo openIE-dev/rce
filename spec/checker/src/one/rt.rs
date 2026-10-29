@@ -72,7 +72,7 @@ pub fn tick(f: &mut Fns) -> R<usize> {
 /// The cost counters of C.6 (interp `charge`): the units charged so far,
 /// and the least `start + limit` of the budgets in force, 2^64 - 1 when
 /// none is. A budget that started with `spent = start` and has limit l
-/// refuses a charge of n when `spent + n > start + l`.
+/// does not allow a charge of n when `spent + n > start + l`.
 pub fn cost_globals(f: &mut Fns) -> (u32, u32) {
     let spent = f.global("cost.spent", Ty::u64(), Some(Lit::Int(0)));
     let deadline = f.global("cost.deadline", Ty::u64(), Some(Lit::Int(u64::MAX as i128)));
@@ -101,7 +101,7 @@ pub fn charge(f: &mut Fns) -> R<usize> {
 }
 
 /// `try_charge(k)`: k charges of one unit each that stop at the first one a
-/// budget refuses, without a trap: the charges of an evaluation whose
+/// budget does not allow, without a trap: the charges of an evaluation whose
 /// failure the reference ignores (interp `exec` of an assignment, which
 /// evaluates the place again with `.ok()`).
 pub fn try_charge(f: &mut Fns) -> R<usize> {
@@ -1159,7 +1159,7 @@ pub fn why(f: &mut Fns) -> R<usize> {
     })
 }
 
-/// The refusal text of a step that halted (interp `region_step`): the
+/// The text of a kept step, one that halted (interp `region_step`): the
 /// error's name for a declared error, `trap(m)` for a trap.
 pub fn kept_reason(f: &mut Fns) -> R<usize> {
     f.get("rt.kept_reason", vec![Ty::halt()], Ty::Bytes, |_, mut b| {

@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 publish = false
 license = "MIT OR Apache-2.0"
-description = "Deterministic statechart: a machine is data, an actor sends events or refuses them. Compound states and parallel regions use the same rule. A state may invoke one child chart."
+description = "Deterministic statechart: a machine is data, an actor applies an event or keeps its state. Compound states and parallel regions use the same rule. A state may invoke one child chart."
 
 [lib]
 path = "src/lib.rs"

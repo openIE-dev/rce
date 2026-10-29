@@ -4,11 +4,11 @@ use rce_memory::notes::*;
 
 #[test]
 fn parse_render_round_trip() {
-    let text = "---\nsubject: Account\npredicate: decision\ntitle: Refuse overdrafts\nvalid_from: 2026-10-12\ntags:\n- design\n---\n# Refuse overdrafts\n\nBody with [[wikilink]].\n";
+    let text = "---\nsubject: Account\npredicate: decision\ntitle: Keep the balance on an overdraft\nvalid_from: 2026-10-12\ntags:\n- design\n---\n# Keep the balance on an overdraft\n\nBody with [[wikilink]].\n";
     let n = parse_note(text).unwrap();
     assert_eq!(n.front.subject.as_deref(), Some("Account"));
     assert_eq!(n.front.tags, ["design"]);
-    assert!(n.body.starts_with("# Refuse overdrafts"));
+    assert!(n.body.starts_with("# Keep the balance on an overdraft"));
     let again = parse_note(&render_note(&n)).unwrap();
     assert_eq!(again, n);
 }
@@ -52,9 +52,9 @@ fn hook_and_instruction_files_are_not_written() {
         ".github/copilot-instructions.md",
         "notes/x/GEMINI.md",
     ] {
-        assert!(check_write_path(bad).is_err(), "{bad} must be refused");
+        assert!(check_write_path(bad).is_err(), "{bad} must not be written");
     }
-    check_write_path("notes/design/refuse-overdrafts.md").unwrap();
+    check_write_path("notes/design/keep-balance-on-overdraft.md").unwrap();
     let d = tempfile::tempdir().unwrap();
     let ns = Notes::new(d.path(), "notes").unwrap();
     assert!(ns.write("notes/CLAUDE.md", "x").is_err());
@@ -90,7 +90,7 @@ fn sync_both_ways_files_win() {
     std::fs::create_dir_all(d.path().join("notes/sub")).unwrap();
     std::fs::write(
         d.path().join("notes/a.md"),
-        "---\nsubject: Account\npredicate: decision\n---\n# Refuse overdrafts\nbecause.\n",
+        "---\nsubject: Account\npredicate: decision\n---\n# Keep the balance on an overdraft\nbecause.\n",
     )
     .unwrap();
     std::fs::write(d.path().join("notes/sub/b.md"), "# B\n").unwrap();
@@ -105,13 +105,13 @@ fn sync_both_ways_files_win() {
         .unwrap();
     assert_eq!(
         (a.object.as_str(), a.provenance, a.valid_from),
-        ("Refuse overdrafts", Provenance::Extracted, 100)
+        ("Keep the balance on an overdraft", Provenance::Extracted, 100)
     );
     // idempotent
     let r = sync(&ns, &mut e, 110);
     assert_eq!((r.unchanged, r.imported.len()), (2, 0));
     // a hand edit wins over memory: superseded in the same lineage
-    std::fs::write(d.path().join("notes/a.md"), "---\nsubject: Account\npredicate: decision\n---\n# Refuse overdrafts\nbecause regulators.\n").unwrap();
+    std::fs::write(d.path().join("notes/a.md"), "---\nsubject: Account\npredicate: decision\n---\n# Keep the balance on an overdraft\nbecause regulators.\n").unwrap();
     let r = sync(&ns, &mut e, 120);
     assert_eq!(r.updated, ["notes/a.md"]);
     let h = e.history(a.lineage).unwrap();
@@ -151,7 +151,7 @@ fn sync_both_ways_files_win() {
     // status: forgotten expires without deleting the file
     std::fs::write(
         d.path().join("notes/a.md"),
-        "---\nsubject: Account\npredicate: decision\nstatus: forgotten\n---\n# Refuse overdrafts\n",
+        "---\nsubject: Account\npredicate: decision\nstatus: forgotten\n---\n# Keep the balance on an overdraft\n",
     )
     .unwrap();
     let r = sync(&ns, &mut e, 150);
@@ -175,7 +175,7 @@ fn fact_to_note_to_fact_round_trip() {
     let mut n = rce_memory::conformance::nf(
         "Account",
         "decision",
-        "Refuse overdrafts",
+        "Keep the balance on an overdraft",
         1_791_763_200_000,
     );
     n.text = "Body.\n".into();

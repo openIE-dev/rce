@@ -1,9 +1,9 @@
-//! HC-21: a refused step is a fact of the run, so it is an input. The
-//! admitter appends the refused entry with the state unchanged (T8), then
+//! HC-21: a kept step is a fact of the run, so it is an input. The
+//! admitter appends the kept step's entry with the state unchanged (T8), then
 //! `host.StepKept` {cause, seq}, then, when the module declares
 //! `event StepKept(seq: u64, cause: text)`, the input `StepKept` with the
-//! same payload. Replay re-derives every refusal and its cause and reports
-//! as a host fault a D whose refusal entries are missing, extra or
+//! same payload. Replay re-derives every kept step and its cause and reports
+//! as a host fault a D whose entries for kept steps are missing, extra or
 //! different.
 use rce_spec_check::host::{Entry, FileStore, Host, MemStore, replay, replay_report};
 use rce_spec_check::interp::{Cause, FUEL_LIMIT, Flow, V};
@@ -78,13 +78,13 @@ fn kept_step_is_followed_by_host_step_kept_and_the_bound_event() {
     assert!(es[0..k as usize].iter().any(|e| e.event.contains(r#""event":"StepKept","kind":"host.StepKept""#)), "host.Bind names StepKept");
     let fail = &es[k as usize];
     assert_eq!(fail.event, r#"{"payload":{},"type":"Fail"}"#);
-    assert_eq!(fail.state_hash, es[k as usize - 1].state_hash, "T8: the refused entry leaves the state unchanged");
+    assert_eq!(fail.state_hash, es[k as usize - 1].state_hash, "T8: the kept step's entry leaves the state unchanged");
     assert_eq!(es[k as usize + 1].event, format!(r#"{{"payload":{{"cause":"fail","seq":{k}}},"type":"host.StepKept"}}"#));
     assert_eq!(es[k as usize + 2].event, format!(r#"{{"payload":{{"cause":"fail","seq":{k}}},"type":"StepKept"}}"#));
-    assert!(!t.contains("Bad"), "no refusal text is in D (T7): the text names a declaration");
+    assert!(!t.contains("Bad"), "no text of a kept step is in D (T7): the text names a declaration");
     let r = replay_report(&m, &t).unwrap();
     assert_eq!(r.state_hash, live);
-    assert_eq!(r.kept_outcomes, vec![(k, "fail", "Bad".to_string())], "replay re-derives the refusal and its text");
+    assert_eq!(r.kept_outcomes, vec![(k, "fail", "Bad".to_string())], "replay re-derives the kept step and its text");
 }
 
 #[test]
@@ -130,7 +130,7 @@ fn a_kept_step_kept_input_is_not_redelivered() {
     let mut h = Host::start(&m, Box::new(&mut st)).unwrap();
     h.admit(&s, "Poison").unwrap();
     let a = h.admit(&s, "Fail").unwrap();
-    // Fail refused; its StepKept refused in turn; nothing more
+    // Fail kept; its StepKept kept in turn; nothing more
     assert_eq!(a.iter().map(|x| x.cause).collect::<Vec<_>>(), vec![Some("fail"), Some("trap")]);
     let after = h.admit(&s, "Ok").unwrap();
     assert_eq!(after[0].cause, None, "the next input is admitted");
@@ -241,7 +241,7 @@ fn replay_detects_a_forged_host_step_kept() {
 /// HC-10b: `StepKept` typed on the input stream is admitted like any input.
 /// D marks it with `host.Typed` {seq}, so replay tells it from the delivery
 /// that follows `host.StepKept`. It starts no descent: when its own step is
-/// refused, that refusal is delivered as a `StepKept`, which in turn is not
+/// kept, that kept step is delivered as a `StepKept`, which in turn is not
 /// redelivered (HC-21). Replay gives the live state, the run validates,
 /// and the same entry without its mark is a host fault.
 #[test]
@@ -256,7 +256,7 @@ fn typed_step_kept_is_admitted_and_marked() {
     assert_eq!((int(&field(&h, "kept_outcomes")), int(&field(&h, "last_seq"))), (1, 7));
     h.admit(&s, "Poison").unwrap();
     let b = h.admit(&s, r#"StepKept(seq: 8, cause: "trap")"#).unwrap();
-    assert_eq!(b.iter().map(|x| x.cause).collect::<Vec<_>>(), vec![Some("trap"), Some("trap")], "the typed input refused, then its delivered StepKept refused: {b:?}");
+    assert_eq!(b.iter().map(|x| x.cause).collect::<Vec<_>>(), vec![Some("trap"), Some("trap")], "the typed input kept, then its delivered StepKept kept: {b:?}");
     let j = b[0].seq as usize;
     let live = h.state_hash().to_string();
     drop(h);
@@ -281,7 +281,7 @@ fn typed_step_kept_is_admitted_and_marked() {
     let e = replay(&m, &rechain(&m, bare)).unwrap_err();
     assert!(e.contains("host fault") && e.contains("neither that delivery nor typed"), "{e}");
     // the host loop: a typed line naming StepKept is admitted and the run validates
-    let dir = std::env::temp_dir().join(format!("rce-typed-refused-{}", std::process::id()));
+    let dir = std::env::temp_dir().join(format!("rce-typed-kept-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).unwrap();
     let log = dir.join("d.log");
@@ -305,14 +305,14 @@ fn typed_step_kept_is_admitted_and_marked() {
     let _ = std::fs::remove_dir_all(&dir);
 }
 
-/// A host that stopped right after the refused entry (or after its
+/// A host that stopped right after the kept step's entry (or after its
 /// `host.StepKept`) left a D that verifies; opening it completes the
-/// refusal before anything else is appended.
+/// entries owed for the kept step before anything else is appended.
 #[test]
 fn open_completes_a_trailing_kept_step() {
     let s = src();
     let m = parse(&s).unwrap();
-    let dir = std::env::temp_dir().join(format!("rce-refused-{}", std::process::id()));
+    let dir = std::env::temp_dir().join(format!("rce-kept-{}", std::process::id()));
     std::fs::create_dir_all(&dir).unwrap();
     for keep_host_step_kept in [false, true] {
         let log = dir.join(format!("d-{keep_host_step_kept}.log"));
@@ -321,12 +321,12 @@ fn open_completes_a_trailing_kept_step() {
         let mut h = Host::start(&m, Box::new(fs)).unwrap();
         let k = h.admit(&s, "Fail").unwrap()[0].seq;
         drop(h);
-        // cut D after the refused entry, or after its host.StepKept
+        // cut D after the kept step's entry, or after its host.StepKept
         let t = std::fs::read_to_string(&log).unwrap();
         let keep = k as usize + 1 + keep_host_step_kept as usize;
         let cut: String = t.lines().take(keep).map(|l| format!("{l}\n")).collect();
         std::fs::write(&log, &cut).unwrap();
-        assert!(replay(&m, &cut).is_ok(), "a D that ends owing the refusal entries is not a fault");
+        assert!(replay(&m, &cut).is_ok(), "a D that ends owing the entries of a kept step is not a fault");
         let h = Host::open_file(&m, &log).unwrap();
         assert_eq!(int(&field(&h, "kept_outcomes")), 1, "the bound StepKept was admitted on open");
         let live = h.state_hash().to_string();
@@ -366,7 +366,7 @@ fn a_step_kept_of_another_shape_is_matched_by_field_name() {
     // a field the host has no value for
     let s = src().replace("event StepKept(seq: u64, cause: text)", "event StepKept(seq: u64, why: text)").replace("step S on StepKept(seq: q, cause: c)", "step S on StepKept(seq: q, why: c)");
     let m = parse(&s).unwrap();
-    let dir = std::env::temp_dir().join(format!("rce-refused-shape-{}", std::process::id()));
+    let dir = std::env::temp_dir().join(format!("rce-kept-shape-{}", std::process::id()));
     std::fs::create_dir_all(&dir).unwrap();
     let log = dir.join("d.log");
     let _ = std::fs::remove_file(&log);
@@ -397,8 +397,8 @@ fn refloop() -> String {
 }
 
 /// HC-21: a `StepKept` step that requests an effect whose result step is
-/// refused in turn. The result descends from the `StepKept`, so its
-/// refusal gets `host.StepKept` only, and the admission ends instead of
+/// kept in turn. The result descends from the `StepKept`, so its
+/// kept step gets `host.StepKept` only, and the admission ends instead of
 /// redelivering `StepKept` forever (the audit's `refloop.rce`).
 #[test]
 fn a_kept_step_whose_effect_is_kept_is_not_redelivered() {
@@ -407,12 +407,12 @@ fn a_kept_step_whose_effect_is_kept_is_not_redelivered() {
     let mut st = MemStore::default();
     let mut h = Host::start_with(&m, Box::new(&mut st), vec![Box::new(rce_spec_check::adapters::RandomAdapter)]).unwrap();
     let a = h.admit(&s, "Go").unwrap();
-    // Go refused; its StepKept applied; the result of the StepKept step's
-    // request refused, with no StepKept after it
+    // Go kept; its StepKept applied; the result of the StepKept step's
+    // request kept, with no StepKept after it
     assert_eq!(a.iter().map(|x| (x.event.split('(').next().unwrap().to_string(), x.cause)).collect::<Vec<_>>(), vec![("Go".to_string(), Some("trap")), ("StepKept".to_string(), None), ("RandomDone".to_string(), Some("trap"))], "{a:?}");
     assert_eq!(int(&field(&h, "kept_outcomes")), 1);
     assert_eq!(int(&field(&h, "req")), 1);
-    // the next input is admitted as before, and its refusal is delivered
+    // the next input is admitted as before, and its kept step is delivered
     let b = h.admit(&s, "Go").unwrap();
     assert_eq!(b.iter().filter(|x| x.event.starts_with("StepKept")).count(), 1);
     let live = h.state_hash().to_string();
@@ -420,7 +420,7 @@ fn a_kept_step_whose_effect_is_kept_is_not_redelivered() {
     let t = text(&st);
     let ev = events(&t);
     assert_eq!(ev.iter().filter(|e| e.ends_with(r#""type":"StepKept"}"#)).count(), 2, "one StepKept per Go");
-    assert_eq!(ev.iter().filter(|e| e.ends_with(r#""type":"host.StepKept"}"#)).count(), 4, "every refused entry has its host.StepKept");
+    assert_eq!(ev.iter().filter(|e| e.ends_with(r#""type":"host.StepKept"}"#)).count(), 4, "every kept step has its host.StepKept");
     // replay derives the same descent from D (with no adapter bound)
     let r = replay_report(&m, &t).unwrap();
     assert_eq!(r.state_hash, live);
@@ -490,7 +490,7 @@ impl Serving {
     }
 }
 
-/// HC-21 and HC-24 on the host loop: the refused `StepKept` chain of
+/// HC-21 and HC-24 on the host loop: the kept `StepKept` chain of
 /// `refloop.rce` ends; an effect chain that never ends (each result
 /// requests the next effect) is still stopped by SIGTERM, because a drain
 /// performs at most DRAIN_MAX requests and the loop reads its stop between
@@ -505,19 +505,19 @@ fn serve_stops_while_effects_keep_coming() {
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).unwrap();
     let m = parse(&refloop()).unwrap();
-    // the refused StepKept chain ends on its own
-    let log = dir.join("refused.log");
+    // the kept StepKept chain ends on its own
+    let log = dir.join("kept.log");
     let mut s = serve(&program, &log);
     s.stdin.write_all(b"Go\n").unwrap();
     s.stdin.flush().unwrap();
     let t = Instant::now();
     while std::fs::read_to_string(&log).unwrap_or_default().matches("\"type\":\"host.StepKept\"").count() < 2 {
-        assert!(t.elapsed() < Duration::from_secs(20), "the refusal of RandomDone was not logged");
+        assert!(t.elapsed() < Duration::from_secs(20), "the kept step of RandomDone was not logged");
         std::thread::sleep(Duration::from_millis(20));
     }
     std::thread::sleep(Duration::from_millis(300));
     let (ok, err) = s.stop();
-    assert!(ok && err.contains("validated") && err.contains("2 refused"), "{err}");
+    assert!(ok && err.contains("validated") && err.contains("2 kept"), "{err}");
     let t = std::fs::read_to_string(&log).unwrap();
     let ev = events(&t);
     assert_eq!(ev.iter().filter(|e| e.ends_with(r#""type":"StepKept"}"#)).count(), 1, "no second StepKept");

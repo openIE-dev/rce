@@ -43,7 +43,7 @@ pub(super) enum Ctx {
     },
     /// An iterator body, a constant or the driver: `return` ends the iterator.
     Gen,
-    /// A step body: `return` refuses the event, as in the reference evaluator.
+    /// A step body: `return` keeps the state, as in the reference evaluator.
     Step,
 }
 

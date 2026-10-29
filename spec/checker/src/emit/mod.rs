@@ -9,7 +9,7 @@
 //!
 //! The Rust output has the same shape as the verified emitter of T9
 //! (spec/lean/RCE/Emit.lean): one uniform value type, `Result` with `?` for
-//! traps and refusals, checked i128 arithmetic against each integer type's
+//! traps and kept steps, checked i128 arithmetic against each integer type's
 //! range, and one counter per bounded loop.
 //!
 //! Running an emitted file prints the program's observations (`observe`).

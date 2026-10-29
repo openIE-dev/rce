@@ -3,7 +3,7 @@ protocol P
 #--- rce-test
 # id: lexing-parsing/harvested/02-empty-protocol-change
 # area: lexing-parsing
-# clauses: [CH02-M-69371f07, CH03-M-28cdd241, CH09-M-82e65964, T10, W-SYN-1]
+# clauses: [CH02-M-84a53b7d, CH03-M-28cdd241, CH09-M-82e65964, T10, W-SYN-1]
 # expect: change
 # diagnostic: W-SYN-1
 # provenance: harvested conc06b/change/02_empty_protocol.rce

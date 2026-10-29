@@ -82,7 +82,9 @@ pub struct Measured {
 pub enum Verdict {
     /// `rce check` admitted the result.
     Pass,
-    /// `rce check` refused; the change was not applied.
+    /// `rce check` reported the result as requiring change; the change was
+    /// not applied. The serde tag below is the stored one, so signed chains
+    /// verify.
     #[serde(rename = "refused")]
     RequiresChange { diagnostics: Vec<String> },
     /// The action was rejected before the checker ran (bad path, policy).

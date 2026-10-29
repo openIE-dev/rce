@@ -23,19 +23,19 @@ daemon, no network listener and no query engine outside RCE.
 
 Write commands admit one event to D and print `ok seq N`, where N is the
 sequence number of the entry they appended, or `KEPT E` with the
-error E the module raised; a refused write changes no state (T8).
+error E the module raised; a kept write changes no state (T8).
 
 | Command | Effect |
 |---|---|
-| `insert T K ROW` | add row ROW under key K of table T (refused with `Exists` when K is present) |
-| `delete T K` | remove row K (refused with `Missing` when absent) |
+| `insert T K ROW` | add row ROW under key K of table T (the state is kept, with `Exists`, when K is present) |
+| `delete T K` | remove row K (the state is kept, with `Missing`, when absent) |
 | `link S L D2` / `unlink S L D2` | add or remove the edge from S to D2 with label L |
 | `schema T COLS` | give table T a typed schema, COLS as `name:text`, `name:i64` or `name:bool`, comma-separated; allowed only while T has no rows |
 | `index T COL` | keep a secondary index on column COL of T, a fold of D (HS-7) |
 
 Under a schema a row is its cells in column order, separated by the
 horizontal tab U+0009; a row whose cells do not parse as their column
-types is refused with `BadRow`. Read commands append nothing (HS-8):
+types keeps the state, with `BadRow`. Read commands append nothing (HS-8):
 
 | Command | Output |
 |---|---|
@@ -114,7 +114,7 @@ up to 5 seconds, makes D durable and validates it.
 `programs/network/notes_http.rce` is a complete JSON notes service
 written this way. Its examples test every answer without a network.
 
-## Bytes, refusals and restarts
+## Bytes, kept steps and restarts
 
 Three inputs reach a program on the host that it never asks for.
 
@@ -123,11 +123,11 @@ Three inputs reach a program on the host that it never asks for.
   the data of `NetRecvDone` below (HC-10a). A body that is not valid UTF-8
   is therefore a value, not a trap; `utf8.utf8_valid(&b)` from `use
   text.utf8` tells the step whether it may call `b.utf8()`.
-- **Refusals.** When a step is refused, by a declared error, a trap or a
-  limit such as fuel, D records the refused input with the state
-  unchanged (chapter 6), then `host.StepKept`, and then, if the program
-  declares `event StepKept(seq: u64, cause: text)`, the input `StepKept`
-  with the refused entry's seq and a cause: `fail`, `trap`, `fuel`,
+- **Kept steps.** When a step keeps the state, by a declared error, a trap
+  or a limit such as fuel, D records the input with the state unchanged
+  (chapter 6), then `host.StepKept`, and then, if the program declares
+  `event StepKept(seq: u64, cause: text)`, the input `StepKept` with the
+  kept entry's seq and a cause: `fail`, `trap`, `fuel`,
   `size`, `value` or `depth` (HC-21). On the HTTP event host the seq is
   the id of the request, so the `StepKept` step of `hello_http.rce` answers
   that request with 500 instead of leaving its client waiting.
@@ -165,7 +165,8 @@ with one result event (HC-3):
   stored as a blob under DIR addressed by their Secure Hash Algorithm 256
   (SHA-256) digest, and the result carries only the digest.
 - `MediaPlay(req, track, digest)` plays a frame to the sink by digest;
-  the sink refuses a frame whose stored bytes do not hash to the digest.
+  the sink does not play a frame whose stored bytes do not hash to the
+  digest.
 
 D therefore holds the track, the sequence number and the digest of each
 frame, and the `Tick` that read it, never the frame bytes. Replay with

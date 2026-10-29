@@ -13,7 +13,8 @@ event, so the order in which regions are listed does not change the result.
 
 ## All or nothing
 
-The cart holds at most three items. The guarded step refuses a fourth:
+The cart holds at most three items. On a fourth, the guarded step keeps the
+state:
 
 ```text
 $ rce run cart.rce "AddItem(name: \"a\"), AddItem(name: \"b\"), AddItem(name: \"c\"), AddItem(name: \"d\")"
@@ -21,8 +22,8 @@ $ rce run cart.rce "AddItem(name: \"a\"), AddItem(name: \"b\"), AddItem(name: \"
 ```
 
 Look at the last line. `Stats` would have counted the fourth add, but
-because `Cart` refused the event, neither region changed. An event applies
-to every region or to none. This is what makes a refused event safe to
+because the step of `Cart` kept the state, neither region changed. An event
+applies to every region or to none. This is what makes a kept step safe to
 ignore: nothing half-happened.
 
 ## Examples over several fields
@@ -35,4 +36,4 @@ condition on the final state, such as
 
 - Several `state` regions can react to the same event.
 - Every step reads the state from before the event.
-- An event is applied to all regions or refused for all of them.
+- An event is applied to all regions, or the state of all of them is kept.

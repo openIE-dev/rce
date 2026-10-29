@@ -1,7 +1,7 @@
 /-
   Test vectors for `RCE.SessionLin` (linear endpoints). `main` prints one
   JSON line per vector: an RCE body over session endpoints (`src`) and
-  what `chkBody` returns for it (`ok`, or the rule it refuses with).
+  what `chkBody` returns for it (`ok`, or the rule the body requires change under).
   `chkBody` is proved sound for the linear judgment `Ty` and `Ty` is
   proved safe (`RCE.SessionLin.chkBody_safe`).
 
@@ -14,7 +14,7 @@
   `checker/tests/lean_session_lin.rs` runs this file, compares it with
   `checker/tests/vectors/session-lin-lean.jsonl`, and checks the checker
   accepts exactly the `ok` bodies (no W-SES rule) and reports the rule
-  Lean gives for each refused one.
+  Lean gives for each body that requires change.
 -/
 import RCE.SessionLin
 open RCE.SessionRec RCE.SessionLin

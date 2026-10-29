@@ -75,7 +75,7 @@ fn invalid_requests_change_nothing() {
     assert!(e.forget(id, Some(5), 2).is_err(), "end before start");
     assert!(
         e.fetch(id).unwrap().live(),
-        "refused forget changed nothing"
+        "forget not performed changed nothing"
     );
 }
 

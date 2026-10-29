@@ -1,8 +1,8 @@
 //! rce-check conformance for draft 0.6 (Appendix C, book/14-draft06-concurrency.md C.8):
 //! every program in spec/conc06/accept/ is accepted by the reference
-//! checker; every program in spec/conc06/ill_typed/ is refused and the
-//! refusal names the rule in its `# expect: RULE` line (after the version line);
-//! every program in spec/conc06/change/ is refused by the Rust parser;
+//! checker; every program in spec/conc06/ill_typed/ requires change and the
+//! report names the rule in its `# expect: RULE` line (after the version line);
+//! every program in spec/conc06/change/ requires change in the Rust parser;
 //! and `08_run_main.rce` runs with the meaning of C.4.2 and C.5.2.
 use rce_spec_check::{check_program, cli};
 use std::path::{Path, PathBuf};

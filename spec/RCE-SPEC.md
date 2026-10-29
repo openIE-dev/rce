@@ -25,7 +25,7 @@ Three plain points:
 3. **Memory is safe by construction.** Ownership, second-class borrows,
    regions and linear handles rule out use-after-free and data races.
 
-Tiny example (a counter that refuses to go negative):
+Tiny example (a counter that never goes negative: a `Dec` at zero keeps the state):
 
 ```
 state Counter
@@ -73,13 +73,13 @@ hygiene), and states as non-goals the four constructs that would break a
 theorem (effect handlers, switchable contracts, mutable aliasing across
 `par`, runtime reflection). The reference checker implements a part of it
 (Tier 0 hygiene, `World`, definition hashes with `rce api-diff`, transactional
-calls; F.12 lists the rest, which it refuses as reserved, not implemented), the Lean files, the
+calls; F.12 lists the rest, which it reports as requiring change: reserved, not implemented), the Lean files, the
 emitters and the tree-sitter port do not, and every theorem it adds
 (T42 to T56) is stated (F.9); T48, T51 and T53 are proved of models (`RCE/Discharged.lean`), and the other twelve are unproved. There is one language: this text. Drafts 0.5 to 0.9 are
 labels of past commits of it, not alternatives; `# rce-version:` is a release label that is
 tolerated, ignored and not hashed (2.7), and a label names exactly one spec commit (C.15). The
 language of this text is what the reference checker and the Lean files enforce and prove for concurrency
-(Appendix C), and a program that an earlier commit accepted may be refused by this one when a rule was
+(Appendix C), and a program that an earlier commit accepted may require change under this one when a rule was
 added; an implementation of a release implements that release's text. The core is mechanized in Lean 4
 (`spec/lean/`, section 8), a reference type and well-formedness checker
 (`spec/checker/`, `rce-check`) implements sections 4, 5 and 7 including the
@@ -112,18 +112,18 @@ The normative grammar is section 3, and it is also the machine-readable one:
 from `book/03-syntax.md`, builds its LALR(1) tables and fails on any
 shift/reduce or reduce/reduce conflict, then parses every program in
 `spec/examples/` and requires every program in `spec/examples/change/syntax/` to be
-refused, by the LALR(1) tables, the Rust parser and the tree-sitter port
+reported as requiring change, by the LALR(1) tables, the Rust parser and the tree-sitter port
 alike, then runs `rce-check` over the same files (all examples together
 form one program and must be accepted; the 12 syntax rejects, the 48
 programs in `spec/examples/change/types/` and the 16 in
-`spec/examples/change/admission/` must be refused). Current result (draft 0.9,
+`spec/examples/change/admission/` must be reported as requiring change). Current result (draft 0.9,
 the printed output of `rce-spec-check`, compared with this text by
 `scripts/claim-counts.py --check`): the section-3 grammar has 0 conflicts
 (100 rules, 491 productions, 974 states); with the additions of C.2,
 0 conflicts (114 rules, 560 productions, 1152 states);
 with C.2 and F.13, 0 conflicts (119 rules, 588 productions,
 1214 states), accepting the 15 Appendix F examples; grammar 62/62 accepted,
-12/12 refused; checker 62/62 accepted, 12/12 and 64/64 refused (16 of them
+12/12 requiring change; checker 62/62 accepted, 12/12 and 64/64 requiring change (16 of them
 inadmissible). Until 2026-10-12 the same grammar was kept as
 `spec/rce.lark` and checked with Lark (0 conflicts, 533 rules in Lark's
 expansion); that file is retired.
@@ -133,7 +133,7 @@ grammar's productions, with targeted near-misses. 100,000-program run
 Python generator and Lark): all 100,000
 parsed by LALR(1), exactly one Earley parse each, all accepted by
 `rce-check`; 516,012/516,012 rule near-misses and 392,362/392,362 syntax
-near-misses refused; 0 failures. That run used the draft 0.4 generator.
+near-misses reported as requiring change; 0 failures. That run used the draft 0.4 generator.
 From draft 0.5 the generator also covers extern, arena bound, structural
 recursion, f32, lane-wise arrays, device regions, byte text, u64, select,
 linear structs, LOOP_LIMIT and iterators; a 1,000-program run (seed 2026)
@@ -181,8 +181,8 @@ produced by the layout pass (2.6).
 declaration environment (types, kinds, traits, events, errors, regions). "iff"
 means if and only if.
 
-**Conformance.** An implementation (a) refuses every text that is not in the
-language of section 3, or that breaks a rule of section 7, with a diagnostic
+**Conformance.** An implementation (a) reports that a text requires change whenever it is not in the
+language of section 3, or breaks a rule of section 7, with a diagnostic
 naming the rule; (b) for every accepted program, computes δ, λ and the fold of
 section 6 exactly, including every edge in 6.3. Behavior the spec does not
 define does not exist: there is no "undefined behavior" and no
@@ -203,9 +203,9 @@ tool read a file the same way. Example: `let x = 0x1F  # note` is the tokens
 
 ### 2.1 Source text
 
-A source file is UTF-8 encoded Unicode text. A byte-order mark is refused.
-Line ends are LF or CR LF; a bare CR is refused. The horizontal tab U+0009 is
-refused anywhere in a file (layout is by spaces only, 2.6). A file that does
+A source file is UTF-8 encoded Unicode text. A byte-order mark requires change.
+Line ends are LF or CR LF; a bare CR requires change. The horizontal tab U+0009
+requires change anywhere in a file (layout is by spaces only, 2.6). A file that does
 not end in a line end is read as if it did.
 
 ### 2.2 Comments
@@ -258,11 +258,11 @@ and nothing selects or extends it. It is: the keywords above; the 23 concurrency
 `barrier`, `scope`, `atomic`, `protocol`, `offer`, `choose`, `node`, `supervisor`, `strategy`, `child`,
 `restart`); the ten words of Appendix F (`requires`, `ensures`, `decreases`, `ghost`, `ct`, `declassify`,
 `endorse`, `release`, `label` and `law`); and the type names `World`, `Template`, `Shell`, `Prompt`, `Header`, `mathint`
-and the eight indexed names of 5.16, which no module may declare (W-NAME-2). A keyword or concurrency word is
-refused as a name by the grammar (W-SYN-1). A word of Appendix F whose construct this implementation has
-(`ct`, `endorse`, `release`, `label`, `requires`, `ensures`, `ghost`, `decreases`) is refused as a name
-(W-NAME-2) unless it is used as its construct. A reserved word or type name whose construct this
-implementation does not have (`declassify`, `law`, `Template`, `mathint`) is refused with the rule W-RES-1 and
+and the eight indexed names of 5.16, which no module may declare (W-NAME-2). A keyword or concurrency word
+used as a name requires change under the grammar (W-SYN-1). A word of Appendix F whose construct this implementation has
+(`ct`, `endorse`, `release`, `label`, `requires`, `ensures`, `ghost`, `decreases`) used as a name requires
+change (W-NAME-2) unless it is used as its construct. A reserved word or type name whose construct this
+implementation does not have (`declassify`, `law`, `Template`, `mathint`) requires change, with the rule W-RES-1 and
 the words *reserved, not implemented*; it is never read as an ordinary name and never silently ignored (F.12).
 Directly after `.` a reserved word is a member name, so
 `c.offer()` and `c.choose(L)` remain method calls.
@@ -276,7 +276,7 @@ member name directly after `.` (`x.type`, `c.close()`), where the grammar's
 `member_name` admits them; this is the only place a keyword can be a name
 (change S3). Note: `class`, `unsafe`, `null`, `goto`, `async`
 and `await` are not keywords; `class` and `unsafe` used as statements are
-syntax errors, and `unsafe`, `Rc`, `Arc`, `RefCell` as names are refused by
+syntax errors, and `unsafe`, `Rc`, `Arc`, `RefCell` as names require change under
 rule W-SAFE-1 (section 7) so prototype code that used them is diagnosed
 clearly.
 
@@ -295,7 +295,7 @@ escape = `\"` | `\\` | `\n` | `\r` | `\t` | `\0` | `\u{` hexdig{1,6} `}` .
 
 There are no literal suffixes (`1u8` is not a token): the type of a literal
 comes from context (5.3). A `\u{…}` escape that is not a Unicode scalar value
-(a surrogate, or above U+10FFFF) is refused. `-` is never part of a numeric
+(a surrogate, or above U+10FFFF) requires change. `-` is never part of a numeric
 literal; `-1` is negation applied to `1`, except in patterns (3.9).
 `true`, `false` and `none` are keyword literals.
 
@@ -310,7 +310,7 @@ Python's tokenizer uses:
    the first token of a logical line with indentation width w (number of
    leading spaces): if w > top, push w and emit `INDENT`; if w < top, pop
    while w < top and emit one `DEDENT` per pop, and w must then equal top
-   (otherwise the text is refused: "inconsistent dedent"); if w = top, emit
+   (otherwise the text requires change: "inconsistent dedent"); if w = top, emit
    nothing.
 4. At end of file, emit `NEWLINE` if needed and one `DEDENT` per stack entry
    above 0.
@@ -328,7 +328,7 @@ A module may carry a release label on its first line, as the comment
 
 The line must start with `#` in column 0 and hold, after optional spaces, `rce-version:` and a label;
 trailing spaces are allowed. The label is tolerated and ignored: it selects nothing, gates nothing, is not
-hashed, does not appear in the Form, and no value of it is refused. A module without it means exactly what the
+hashed, does not appear in the Form, and no value of it requires change. A module without it means exactly what the
 same module with it means. There is one language, the one this document defines, and every module of a
 program is in it; modules may `use` each other whatever labels they carry. Because the label is a comment,
 the grammar of section 3 and its LALR(1) check do not mention it.
@@ -606,8 +606,8 @@ declaration and no conflict to resolve at parse time.
   key is the variable `a` (write `{"a": 1}` for a text key).
 - **R8 variant patterns against bindings.** A `Path` pattern is a unit variant
   if name resolution finds a variant of that name in scope, otherwise it binds
-  a fresh variable (Rust's rule). W-PAT-1 refuses a binding that shadows a
-  variant name, so a misspelled variant is never silently a binding.
+  a fresh variable (Rust's rule). W-PAT-1 reports that a binding which shadows a
+  variant name requires change, so a misspelled variant is never silently a binding.
 - **R9 send.** `<-` after an expression at statement level is a send;
   in prefix position it is a receive. The two never meet: `a <- <- b` is
   "send the value received from b to a".
@@ -632,7 +632,7 @@ declaration and no conflict to resolve at parse time.
    comparison, `if` expression without `else`, `try` in a `then` branch,
    inconsistent dedent, `class`, assignment inside an expression, empty `kind`,
    state with no fields, `step` without `on`, example without `->`,
-   unterminated string); all must be refused.
+   unterminated string); all must be reported as requiring change.
 
 Each program is parsed three ways (the LALR(1) tables on the reference
 lexer's tokens, the Rust parser, and the tree-sitter port) and all three must
@@ -644,17 +644,17 @@ layout, bracket depth, reserved-keyword NAME and longest-match numbers and
 `<-` in `src/scanner.c`). The former `tree-sitter/compare.py N SEED` parsed every
 example and N fuzz programs, each program's syntax mutants and SOUP
 lexical-stress mutants (a random token jammed in or a space deleted) with
-Lark and tree-sitter and required that both refuse, or both accept with identical
+Lark and tree-sitter and required that both report the input as requiring change, or both accept with identical
 trees (rule names, nesting, kept tokens and their text). Results: 81 examples
 plus 10,000 programs (seed 7, SOUP=2): 69,323 inputs, 15,205 accepted by both
-with identical trees, 54,118 refused by both, 0 disagreements; 10,000
+with identical trees, 54,118 requiring change in both, 0 disagreements; 10,000
 programs (seed 11, SOUP=10): 149,365 inputs, 35,837 identical trees, 113,528
-refused by both, 0 disagreements.
+requiring change in both, 0 disagreements.
 Draft 0.4 grammar (with `extern` and arena `bound`): 91 examples plus 2,000
 programs (seed 7, SOUP=2): 13,983 inputs, 3,060 identical trees, 10,923
-refused by both, 0 disagreements. Draft 0.5 grammar and generator (`linear`, `iter`,
+requiring change in both, 0 disagreements. Draft 0.5 grammar and generator (`linear`, `iter`,
 `yield`, `device`, no `lalr`): 127 examples plus 2,000 programs (seed 7,
-SOUP=2): 16,092 inputs, 3,185 identical trees, 12,907 refused by both,
+SOUP=2): 16,092 inputs, 3,185 identical trees, 12,907 requiring change in both,
 0 disagreements.
 
 **Read receipt.** Which numbered resolution rule in 3.11 covers `send`? (for example R1)
@@ -674,7 +674,7 @@ A source file is a module. Its path is given by `module a.b.c` or, if absent,
 by its file path relative to the package root with `/` read as `.` and the
 `.rce` extension removed. `use p.q` makes module `p.q` visible under the name
 `q`; `use p.q as r` under `r`. Items are private to their module unless marked
-`pub`. Import cycles are refused (W-MOD-2). The modules `std.text`,
+`pub`. Import cycles require change (W-MOD-2). The modules `std.text`,
 `std.collections` and `std.math` are built in and always resolvable (S4), and
 so is every module of the standard library (`stdlib/lib` of the repository,
 pinned by hash in its manifest, and pinned by a program as the dependency
@@ -708,7 +708,7 @@ module ⊃ item (generic parameters, parameters, state fields inside steps)
 regardless of order (so `const N` may follow its use). Inside a block a name is
 visible from its declaration to the end of the block. Shadowing a name from an
 enclosing *block* is allowed with `let`; shadowing a parameter, a state field
-or a module-level name in the same item is refused (W-NAME-2).
+or a module-level name in the same item requires change (W-NAME-2).
 
 Namespaces: one namespace for values (variables, functions, consts, variants,
 events, errors) and one for types (types, kinds, traits, states, actors).
@@ -725,7 +725,7 @@ This section gives the *static semantics*: the rules checked before a
 program runs. A *type* is the set of values an expression may have;
 *ownership* says which variable is responsible for a value, and a *borrow*
 is a temporary reference to it. Example: after `let b = a` where `a` is a
-`List`, using `a` again is refused because the list moved to `b`.
+`List`, using `a` again requires change because the list moved to `b`.
 
 ### 5.1 Types
 
@@ -764,7 +764,7 @@ the Form's unsigned operations (6.3 N8, draft 0.5), so the whole range
 2^63 (D7).
 
 **Text is byte-indexed (draft 0.5).** `s.len_bytes()` is the number of UTF-8
-bytes (`s.len_chars()` the number of characters; unqualified `len` on text is refused, W-LEN-1), `s[i]` is the byte at offset i as a `u8`, and `s[a:b]` is the text
+bytes (`s.len_chars()` the number of characters; unqualified `len` on text requires change, W-LEN-1), `s[i]` is the byte at offset i as a `u8`, and `s[a:b]` is the text
 between byte offsets a and b, which must both be character boundaries
 (otherwise `trap("not a char boundary")`). Iterating `for c in s` still
 yields one-character texts. Go, Rust and Zig all index text by byte; the
@@ -774,7 +774,7 @@ draft 0.4 code-point indexing made `s[i]` O(n).
 numeric τ and one comptime length n, `a + b`, `a - b`, `a * b`, `a / b` (and
 `a % b` for integers) apply the operator lane by lane and have type
 `[τ; n]`. Each lane follows the scalar rules (overflow and division by zero
-trap). Different lengths, or a non-numeric τ, are refused (W-SIMD-1). An
+trap). Different lengths, or a non-numeric τ, require change (W-SIMD-1). An
 implementation may use vector instructions; the result is defined by the
 lanes, so it is the same on every target. A list literal is a `List` unless
 it meets an array type of the same length, as an integer literal is i64
@@ -804,9 +804,9 @@ step 3): at a typed `let` or `var`, a parameter, a field or payload
 constructor, a field initializer and the write-back of a state field.
 The check fits the value to τ first, then evaluates p; if p is false the
 result is `trap("refinement: value is outside R")`. So an event whose
-payload is outside its refined type is refused before any step runs, as
-an out-of-range integer payload is, and a step whose new state breaks a
-field's predicate refuses the event with the state unchanged (6.4, T8).
+payload is outside its refined type does not apply and keeps the state
+before any step runs, as an out-of-range integer payload does, and a step
+whose new state breaks a field's predicate keeps the state (6.4, T8).
 `R <: τ`: a refined value is used wherever τ is. Derivation: validation
 that the type does not record can be skipped (soundness), a predicate
 checked at one boundary has one outcome (determinism), and the
@@ -816,9 +816,9 @@ fragment is decidable in time linear in p and in the value, so the check
 has a fixed cost class (energy observability); full dependent types are
 excluded by the same derivation, since an undecidable obligation would
 make acceptance itself unbounded. Example: `type Pct = u8 where self <=
-100`; `event SetVolume(pct: Pct)`; `SetVolume(pct: 101)` is refused with
+100`; `event SetVolume(pct: Pct)`; `SetVolume(pct: 101)` keeps the state with
 `refinement: value is outside Pct`, and a step computing `level + 60` on
-`level: Pct = 60` refuses its event. Lean: `RCE/Refine.lean`
+`level: Pct = 60` keeps the state. Lean: `RCE/Refine.lean`
 (`holds_total`, `fit_sound`, `refine_preserved`,
 `refine_kept_unchanged`, `admit_sound`; T35).
 
@@ -886,8 +886,8 @@ only by variables marked moved).
 ```
 
 Arithmetic failure is not part of the static error set the programmer
-declares: it is a **trap** (6.5), the Form's defined `err` outcome, and refuses
-the event. This matches the Form, where integer overflow is an error, never a
+declares: it is a **trap** (6.5), the Form's defined `err` outcome, and keeps
+the state. This matches the Form, where integer overflow is an error, never a
 wrap. Both operands must have the same numeric type; there is no implicit
 widening (use `as`).
 
@@ -1059,7 +1059,7 @@ in r.
 once at block entry). Capacity is counted in canonical bytes, the length
 of the canonical JSON of each value allocated in r, so the limit is the
 same on every implementation. An allocation that would take r past n is
-`trap("size limit")`, and the event is refused as for any trap. Without
+`trap("size limit")`, and the state is kept as for any trap. Without
 `bound` the capacity is unlimited except by N9. The reference evaluator
 measures the values bound in the region after every statement of the
 region's body. So nothing allocated in r escapes the block; copying out (`copy(x)`, or
@@ -1143,12 +1143,12 @@ RCE with the platform C calling convention. It has no body. Rules (W-FFI-1):
 It is meant for handles to outside resources (a file, a socket, a device
 buffer) that must be released once and only once. Rules (W-LIN-1):
 
-- A linear value is moved, never copied: `copy(h)` is refused, and the type
+- A linear value is moved, never copied: `copy(h)` requires change, and the type
   is not Copy whatever its fields are.
 - Every linear local, parameter included, is consumed (moved into a call,
   returned, or sent into a foreign function) exactly once on every path:
   a linear local still live at the end of its block, at `return` or at
-  `fail` is refused, and so is one consumed on some branches of an `if` or
+  `fail` requires change, and so does one consumed on some branches of an `if` or
   `match` but not others.
 - A linear value is not moved inside a loop body unless it was created in
   that iteration.
@@ -1221,7 +1221,7 @@ against the reference evaluator (`spec/checker/tests/stdlib_costs.rs`).
 | `Set` | Set[τ] | `contains`, `insert`, `inter`, `len`, `tolist`, `union` |
 | `Opt` | τ? | `isnone`, `issome`, `or` |
 
-`raw` exists only on `Text[C]` (5.16). Text has `len_bytes` and `len_chars` and no unqualified `len`, which is refused (W-LEN-1, F.5.2).
+`raw` exists only on `Text[C]` (5.16). Text has `len_bytes` and `len_chars` and no unqualified `len`, which requires change (W-LEN-1, F.5.2).
 
 **Sets and map merge (normative).** A `Set[τ]` is its own value, not a
 `List[τ]`: it holds its elements in canonical order without duplicates
@@ -1247,7 +1247,7 @@ target; it is the digest 6.1 and 6.8 apply to canonical JSON, so a
 program given the canonical JSON of a value as text computes the same
 hash as the Form log and the content-hash ids. It is in the linear class of C.6.4.
 
-**Bytes to text (normative).** `b.utf8()` on a `List[i64]` b is the `text` whose UTF-8 encoding is exactly the bytes of b. It traps, and so refuses the event it runs in (T8), when an element is outside 0..255 or the bytes are not well-formed UTF-8 (RFC 3629: no overlong forms, no surrogates, nothing above U+10FFFF); it never substitutes characters, since that would change content silently. A leading byte-order mark is kept. It is pure, total on well-formed input, the same on every target, and in the linear class of C.6.4.
+**Bytes to text (normative).** `b.utf8()` on a `List[i64]` b is the `text` whose UTF-8 encoding is exactly the bytes of b. It traps, and so keeps the state for the event it runs in (T8), when an element is outside 0..255 or the bytes are not well-formed UTF-8 (RFC 3629: no overlong forms, no surrogates, nothing above U+10FFFF); it never substitutes characters, since that would change content silently. A leading byte-order mark is kept. It is pure, total on well-formed input, the same on every target, and in the linear class of C.6.4.
 
 **Effects and I/O (normative).** By derivation from least privilege, a
 program has no ambient authority: there is no file, clock, network,
@@ -1312,7 +1312,7 @@ storing (in a state field, a struct, an option), passing and `==`/`!=`
 between two secrets of one type, whose boolean is the one release. Any
 other operator or method on a secret is W-SEC-1. A value that can hold a
 secret may not be emitted, sent on a channel, carried by an error
-payload (a refusal is an output, 6.1) or passed to a foreign function
+payload (a kept outcome is an output, 6.1) or passed to a foreign function
 (W-SEC-1). So λ never carries a secret (T36, noninterference up to the
 equality bits). The log D holds admitted events with their payloads, as
 any store of the program's inputs does; it is not an output.
@@ -1363,10 +1363,10 @@ P = (S, E, δ, D, λ) is:
   task events of 6.8.
 - **δ : S × E → S × O\*** (state and the outputs of the step) is defined in
   6.4. It is a total function (T2).
-- **λ** maps each step to its output sequence O\*: values `emit`ted, and for a
-  refused event the record `Kept(X, payload)`.
+- **λ** maps each step to its output sequence O\*: values `emit`ted, and for an
+  event that does not apply the record `Kept(X, payload)`.
 - **D** is the log: the sequence of admitted events e₁, e₂, …, each entry with
-  its outcome (applied, or refused with X). The fold law: the state after the
+  its outcome (applied, or kept with X). The fold law: the state after the
   log is sₙ = foldl(δ₁, s₀, D) where δ₁ is the state component of δ.
 
 **Canonical signature (normative).** This is the one signature; the engine
@@ -1394,7 +1394,7 @@ stored `event` and the readable `state` keep their names, so a log is
 readable without the module; a log or trace that repeats the hashed
 forms does so under `hashed` ({event, state}), which is derived. A log
 may also carry `outcome`, `out` and `state`; these are derived and must
-equal replay (T1), so they are not hashed. A refused event (T8) is
+equal replay (T1), so they are not hashed. An event that does not apply (T8) is
 recorded with its unchanged state and ends the example log. Both
 producers are tested against this rule
 (`spec/checker/tests/form_signature.rs`, `tests/form_signature.rs`), and
@@ -1419,7 +1419,7 @@ of RCE types into them is fixed:
 | Map[k, v] | list of [k, v] pairs sorted by canonical order of k |
 | struct / state record | record (keys sorted, as canonical JSON) |
 | kind variant V(f: …) | record {"$v": "V", f: …}; unit variant: {"$v": "V"} |
-| τ? | null for none, the value for some (and `some(none)` is refused: τ may not itself be an option, W-TY-2) |
+| τ? | null for none, the value for some (and `some(none)` requires change: τ may not itself be an option, W-TY-2) |
 | chan τ, actor handle | record {"$chan": id} / {"$actor": id}, id the content hash of 6.6 |
 
 Canonical order of values (used by Set, Map and select): null < bool < int <
@@ -1574,12 +1574,12 @@ Selected rules (the rest are the standard ones for a strict language):
 
 `trap` and `fail` propagate outward through every construct (they are not
 caught by `catch`: `catch` handles only declared errors and none; a trap
-always refuses the event).
+always keeps the state).
 
 - **E1 Fuel exhaustion is uncatchable.** Running out of fuel is not a
   declared error and not a trap a program can observe: no `catch`, `try`
   or `try e else X` handles it, it propagates outward through every
-  construct, and it refuses the event exactly as a trap does (T8). The
+  construct, and it keeps the state exactly as a trap does (T8). The
   derivation: if a handler could observe exhaustion, a program could
   return a different value on a larger budget, and a completed result
   would depend on fuel. The fuel laws require that it does not: more fuel
@@ -1590,9 +1590,9 @@ always refuses the event).
 
 **`&mut` write-back (normative).** A call that returns writes back each `&mut`
 argument and a `&mut self` receiver. A call that ends by `fail` leaves each of them as it was at
-the call, provided every effect since entry is undoable, and is refused otherwise (F.4.4, W-TX-1); the
+the call, provided every effect since entry is undoable, and requires change otherwise (F.4.4, W-TX-1); the
 callee's writes made before the failure are undone. Atomicity of the event is separate: a `trap`, or a `fail`
-that leaves the step, refuses the event and the state is the pre-state (T8). The earlier rule of this text
+that leaves the step, keeps the state: the state is the pre-state (T8). The earlier rule of this text
 wrote back on every outcome, including `fail`; it is retired because F.4.4 makes a failed call a no-op, which is
 what a caller can reason about. T33 now proves the restore rule (`WriteBack.t33_failure_restores`,
 `t33_return_writes_back`); nothing about the retired rule remains in the proved tree. The program emitters implement the
@@ -1609,7 +1609,7 @@ to fresh `let` temporaries in left-to-right order, then the call, so
 reads, budget charges and emits keep their order (T34). A write-back
 call in a conditional position (right of `and`/`or`, an `if` branch, a
 `catch` handler, a lambda or a comprehension) is not flattened, since
-that would evaluate it eagerly; it is refused with a diagnostic, never
+that would evaluate it eagerly; it requires change, with a diagnostic, and is never
 given a different meaning. Tested on every target
 (`spec/checker/tests/write_back.rs`). Values of type `τ ! ε` are `val(v)` or
 `err(X, v)`; they are first-class only until a `try` or `catch` consumes them.
@@ -1814,7 +1814,7 @@ exactly.
 - **N9 Limits.** A list or text built by any operation is at most
   SIZE_LIMIT = 1,000,000 elements (`trap("size limit")`). A value written to
   state is at most VALUE_LIMIT = 1,048,576 bytes of canonical JSON
-  (`trap("value limit")`, the event is refused, the value is not recorded).
+  (`trap("value limit")`, the state is kept, the value is not recorded).
 - **N10 Absence.** `none` and a present `()` differ, exactly as the Form's
   null-versus-absent rule: an option field holding none is present.
 - **N11 Time** is the logical clock only: `Tick` events and `after n`
@@ -1837,7 +1837,7 @@ method and is W-NAME-1.
 This section defines the *step function* δ (delta), which takes a state and
 an event and returns the next state and an outcome, then errors, hashing,
 loop bounds, concurrency and how examples are checked. A *trap* is a defined
-failure that refuses the event and leaves state unchanged. Example: a loop
+failure after which the event does not apply and the state is kept. Example: a loop
 with `bound 10` that starts an 11th iteration traps with "loop bound".
 
 ### 6.4 The step function δ
@@ -1849,7 +1849,7 @@ For event e = (Eₗ, v):
    true in (Rᵢ's pre-state fields, bindings of p). The first such step is
    **the** step of Rᵢ for e. If there is none, Rᵢ is unchanged (frame).
    A guard that traps (overflow, division by zero, …) does not fall through
-   to the next step: the event is refused with that trap (change S1; this is
+   to the next step: the state is kept, with that trap (change S1; this is
    what makes δ a total function rather than leaving the case undefined).
 2. Every selected step runs on the **pre-state** s (ASM semantics, Form law 2):
    no step sees another region's update for the same event.
@@ -1857,10 +1857,10 @@ For event e = (Eₗ, v):
    to rᵢ, the pattern bindings as `let`s. Its result is
    - `ok(σ′)`: rᵢ′ = the field values in σ′ (each checked against its type
      range and VALUE_LIMIT), outputs oᵢ = the values emitted, in order;
-   - `fail(X, w)` or `trap(m)`: the step is **refused**.
-4. If any selected step is refused, the whole event is refused:
-   δ(s, e) = (s, [Refused(X or trap(m), e)]), where X is the refusal of the
-   first refused region in declaration order. Atomicity: an event either
+   - `fail(X, w)` or `trap(m)`: the step is **kept**.
+4. If any selected step is kept, the whole event does not apply:
+   δ(s, e) = (s, [Kept(X or trap(m), e)]), where X is the reason of the
+   first kept region in declaration order. Atomicity: an event either
    applies to every region or to none.
 5. Otherwise δ(s, e) = ((r₁′, …, rₖ′), o₁ ++ … ++ oₖ).
 
@@ -1869,16 +1869,16 @@ The arrow form `step R on p -> e` is sugar for the block
 
 **Order independence.** Since each step reads only its own region and the
 event, the result of steps 2–5 does not depend on the order regions are
-evaluated except through "first refused region", which is fixed by
+evaluated except through "first kept region", which is fixed by
 declaration order. Outputs are concatenated in declaration order.
 
-### 6.5 Errors, traps and refusals
+### 6.5 Errors, traps and kept steps
 
-A `fail X(…)` or a trap inside a step refuses the event: the state is
+A `fail X(…)` or a trap inside a step keeps the state: the state is
 unchanged, the log records the event with outcome `kept(X)` and λ outputs
 `Kept`. Nothing is thrown past a step; no event is dropped silently. In a
-pure function called from comptime, refusal is a compile error. In `main`, a
-trap or unhandled failure ends the command with the refusal as its output.
+pure function called from comptime, a trap or `fail` is a compile error. In `main`, a
+trap or unhandled failure ends the run `stopped`, with the trap or failure as its output.
 
 ### 6.6 Determinism of identity: name-free hashing
 
@@ -1922,11 +1922,11 @@ computed from.
 of its keys, as in 7.1, never insertion order (an erratum, C.15),
 text by scalar value, or an integer range `a..b` / `a..=b`); its length is
 fixed when the loop starts, and mutating the iterated collection inside the
-loop is refused statically (it is borrowed). `while c bound n` and
+loop requires change statically (it is borrowed). `while c bound n` and
 `loop bound n` run at most n iterations, n a comptime-or-runtime u64
 evaluated once; the default bound is LOOP_LIMIT = 1,000,000. A program may
 set its own default with a module-level `const LOOP_LIMIT: u64 = n`, n a
-positive literal (draft 0.5; any other declaration of that name is refused,
+positive literal (draft 0.5; any other declaration of that name requires change,
 W-LOOP-1). Starting iteration n + 1 is `trap("loop bound")`. Comptime
 evaluation uses the same bounds. `for x in f(…)` over an iterator function
 (5.14) counts yields against LOOP_LIMIT in the same way; Lean:
@@ -1945,7 +1945,7 @@ drafts 0.4 to 0.7 let the position differ from call to call; that admits
 a function that never returns (`f(x, y)` whose one self-call takes a
 component of x and a fixed value for y, and whose other takes a fixed
 value for x and a component of y, runs forever from `f(Leaf, Node(…))`),
-so such a function is refused (W-REC-1; an erratum, C.15). Every function
+so such a function requires change (W-REC-1; an erratum, C.15). Every function
 this paragraph admits is admitted by the rule below with one layer.
 
 **Recursion by layered measures.** Every cycle of the call graph (a
@@ -1971,7 +1971,7 @@ most (μ + 1)·k calls, with μ the measure of the first call and k the
 number of functions in the cycle, and N9 bounds μ. The reference checker
 tries every choice of the sets of a layer, in a fixed order, for a cycle
 with at most 16 parameters in total, takes the first choice that does
-the most calls, and refuses a larger cycle that needs a layer. Lean:
+the most calls, and reports that a larger cycle that needs a layer requires change. Lean:
 `RCE/Mutual.lean` (`call_dec`, `call_keep`, `layer_dec`, `wf_total`,
 `wf_fuel_irrelevant`; one layer: `lex_dec`, `mutual_total`,
 `mutual_fuel_irrelevant`, `mutual_depth`). Examples: `even(xs)` and
@@ -1995,14 +1995,14 @@ recursion on integers or indices, which has no constructor measure
 (`gcd(a, b)` calling `gcd(b, a % b)`, a parser that recurses on a
 position). The counts belong to the task (6.8) that makes the calls, so
 `par` and `for … par` inside a function of a cycle with a bounded
-function are refused (W-REC-1): the branches could otherwise count calls
+function require change (W-REC-1): the branches could otherwise count calls
 differently on one thread and on several. `bound` on an iterator
 function (5.14), a foreign function or a trait signature is W-REC-1. The
 check costs nothing (C.6.4 is unchanged). Lean: `RCE/Mutual.lean`
 (`bump_slack`, `bound_dec`, with `lex_dec`, `mutual_total`,
 `mutual_depth`); tests: `spec/checker/tests/bound.rs`.
 
-Any other cycle in the call graph is refused (W-REC-1).
+Any other cycle in the call graph requires change (W-REC-1).
 
 This is what makes δ total (T2): every construct terminates in a number of
 steps bounded by a function of the program and the event.
@@ -2063,9 +2063,9 @@ run with outcome `Deadlock` in λ (a defined outcome, not a hang).
 ### 6.9 Examples and checks
 
 `example ē -> o` denotes the proposition: folding the events ē from s₀ gives
-a final step whose outcome is o, where for `-> kept: X` the last event is
-refused with the error X, for `-> kept: trap("K")` the last event is
-refused by the trap K (earlier events must be applied in both cases), and for
+a final step whose outcome is o, where for `-> kept: X` the last step is
+kept with the error X, for `-> kept: trap("K")` the last step is
+kept by the trap K (earlier events must be applied in both cases), and for
 `-> e` the event list is fully applied and then
 
 - if the program has exactly one region with exactly one field f, the
@@ -2158,14 +2158,14 @@ does not define.
 
 ---
 
-## 7. Well-formedness: what is refused at entry
+## 7. Well-formedness: what requires change at entry
 
 This section is the checklist of rules a program must pass to be accepted
-(*well-formedness*). Each rule has a name such as W-TY-1, and a refused
-program is reported with the rule it broke. Example: a function declared
-`-> i64` whose body returns text is refused by W-TY-1.
+(*well-formedness*). Each rule has a name such as W-TY-1, and a
+program that requires change is reported with the rule it broke. Example: a function declared
+`-> i64` whose body returns text requires change: W-TY-1.
 
-A program is refused if any rule fails. Every diagnostic names its rule.
+A program requires change if any rule fails. Every diagnostic names its rule.
 
 Lexical and syntax
 - W-LEX-1 Not UTF-8, BOM, bare CR, or a tab character.
@@ -2174,7 +2174,7 @@ Lexical and syntax
 - W-SYN-1 Not in the language of section 3.
 - W-RES-1 A construct that a rule of this document specifies and this
   implementation does not implement (a reserved word used as its construct,
-  F.12): refused with the words *reserved, not implemented*.
+  F.12): requires change, with the words *reserved, not implemented*.
 
 Names and modules
 - W-NAME-1 Unresolved name, or a name resolved in the wrong namespace.
@@ -2187,7 +2187,7 @@ Names and modules
   importing module or with a name imported from another module (imported
   names are not renamed).
 - W-SAFE-1 The identifiers `unsafe`, `Rc`, `Arc`, `RefCell`, `transmute`,
-  `static`: refused with "memory safety is by construction" (there are no
+  `static`: requires change, with "memory safety is by construction" (there are no
   escape hatches in RCE other than the `extern` boundary of 5.11).
 - W-FFI-1 An `extern` declaration whose ABI is not `"C"`, that is comptime
   or generic, or whose parameter or result types break 5.11; or a foreign
@@ -2263,11 +2263,11 @@ Indexed values (5.16)
   `Guarded` outside a state field; an authority that is not a declared
   struct.
 - W-CAP-2 A step that writes a `Guarded[τ, A]` field on an event without
-  a `Cap[A]` field. (W-NAME-2 refuses a declaration named after a 5.16
-  type or context.)
+  a `Cap[A]` field. (A declaration named after a 5.16 type or context
+  requires change: W-NAME-2.)
 
 Appendix F (specified and implemented in part, F.12): the
-refusals of F.3 to F.8, among them unused values, dropped results and
+rules of F.3 to F.8 under which a text requires change, among them unused values, dropped results and
 shadowing (F.3), `World` and information-flow labels (F.4), transactional
 calls (F.4), capabilities, typed output, pinned builds, constant-time functions
 and budgets (F.5), and templates, contracts, ghost code, written measures,
@@ -2279,7 +2279,9 @@ Concurrency (Appendix C): W-PAR-1 to W-PAR-4, W-DL-1, W-ND-1, W-GRP-1 to
 W-GRP-3, W-SES-1 to W-SES-5, W-SCOPE-1, W-ATOM-1, W-ATOM-2, W-CRDT-1,
 W-LVAR-1, W-LVAR-2, W-NODE-1, W-SUP-1, W-SUP-2, W-INTR-1 and W-RT-1.
 
-**Read receipt.** Which rule refuses two unguarded steps in one region whose patterns overlap?
+**Read receipt.** Under which rule do two unguarded steps in one region whose patterns overlap require change?
+
+**Read receipt.** Under which rule does a region with two unguarded steps whose patterns overlap require change?
 
 ---
 
@@ -2288,8 +2290,8 @@ W-LVAR-1, W-LVAR-2, W-NODE-1, W-SUP-1, W-SUP-2, W-INTR-1 and W-RT-1.
 This section states the properties the language guarantees, such as
 determinism and termination, and records which are proved in Lean 4 (a
 proof assistant that checks proofs by machine). A *theorem* here is a
-statement about every well-formed program. Example: T8 (atomicity) says a
-refused event leaves the state exactly as it was.
+statement about every well-formed program. Example: T8 (atomicity) says an
+event that does not apply leaves the state exactly as it was.
 
 Stated for well-formed programs (section 7). Proofs are mechanized in Lean 4
 (v4.12.0, no Mathlib) in `spec/lean/`, over a core calculus: expressions
@@ -2316,7 +2318,7 @@ Classical.choice). Status per theorem:
 | T3 | proved | `fold_law`, `log_is_events`, `replay` |
 | T4 | proved for expressions, statements, δ and ticks (some task moves, or every task is done or blocked: the run ends or is `Deadlock`) | `progress`, `stmt_progress`, `delta_bound`, `run_progress`, `progress` (Conc) |
 | T5 | proved for expressions, statements, δ and the whole log; for ticks, the world invariant (typed channel contents, task-owned locations) is preserved | `preservation`, `exec_wt`, `delta_wt`, `run_wt`, `tick_inv` |
-| T6 | proved for the ownership core; for full borrow paths (field paths, prefix overlap, partial moves, loans) in an instrumented semantics: well-typed bodies never fault, writes through a `&mut` path are exclusive, and write-while-borrowed, overlapping `&mut`, dangling borrows and read-after-partial-move are refused; tasks never share mutable data in any reachable configuration | `memory_safety`, `borrow_safety`, `borrow_no_fault`, `writeVia_exclusive`, `overlapping_mut_no_typing`, `dangling_no_typing`, `tasks_never_share` |
+| T6 | proved for the ownership core; for full borrow paths (field paths, prefix overlap, partial moves, loans) in an instrumented semantics: well-typed bodies never fault, writes through a `&mut` path are exclusive, and write-while-borrowed, overlapping `&mut`, dangling borrows and read-after-partial-move require change; tasks never share mutable data in any reachable configuration | `memory_safety`, `borrow_safety`, `borrow_no_fault`, `writeVia_exclusive`, `overlapping_mut_no_typing`, `dangling_no_typing`, `tasks_never_share` |
 | T7 | proved for event/error names over δ and the log; for log hashes under any hash function H; for channel, actor and task ids and select choices of the concurrency model. The checker and the four emitted runtimes hash the positional forms of 6.1 since the erratum of C.15, so the implementation's log hashes are name-free as the model's are (`tests/nameless.rs`); `RCE/Positional.lean` models that embedding (records of declared types as field lists in declaration order, variants as `[k, fields]`, events by index, undeclared records by name) and proves it unchanged under any renaming that is injective and fixes undeclared names, hence the state hash and the whole entry chain for every hash function, and that its event index is the `idx` the De Bruijn model hashes | `name_independence`, `log_hashes_name_independent`, `conc_name_independent`, `select_name_independent`, `Positional.pos_rename`, `Positional.chain_name_independent`, `Positional.eventIndex_eq_idx` |
 | T8 | proved | `atomicity` |
 | T9 | T9-F (Form IR targets: Rust, WASM, Python, XState, SCXML) stated, not checked here: the Form IR compiler (`rce form --emit`) is in the engine crate, which is not in this repository (10.1, Appendix D), so no tool published here samples T9-F. T9-L (program emitters of 10.5: `rust`, `python`, `js`, including `&mut` write-back on failure under `catch` and `try` and nested in strict positions via the ANF pass of T34, 6.2, `spec/checker/tests/write_back.rs`): proved for the Rust emitter on the core (step bodies, expressions, guarded step selection) as a verified translation into MiniRust, a deep embedding of the emitted Rust subset with Rust-style semantics; printed to Rust and checked against rustc by differential testing. Not covered: the other targets, the full surface language, and the claim that rustc implements MiniRust (trusted, tested) | `reval_compile`, `compile_correct`, `RExec.det`, `emit_agrees`, `region_agrees` |
@@ -2327,19 +2329,19 @@ Classical.choice). Status per theorem:
 | T14 | proved: checked u64 ops return the exact result exactly when it lies in [0, 2^64), and udiv/urem satisfy b·q + r = a, r < b | `uadd_spec`, `usub_spec`, `umul_spec`, `udiv_urem`, `udiv_range`, `urem_range` |
 | T32 | proved for every oracle: replay of the log equals the live run, the log's events are the input events, an answer contract holds of every logged answer, and runs that logged the same answers agree | `replay_live`, `live_events`, `live_answers_satisfy`, `t32` |
 | T33 | proved: a call that ends by `fail` leaves the caller's `&mut` state as at the call, and a returning call writes its final value back (the restore rule of F.4.4, as a model; W-TX-1 is a check, not part of the model) | `t33_failure_restores`, `t33_return_writes_back` |
-| T36 | proved on models of 5.16: every metacharacter of rendered context text comes from a literal when the encoder emits none (and the HTML encoder emits none of `< > " '`); public outputs are equal for runs whose public inputs and secret-equality bits agree; a log of events without the capability leaves a guarded field unchanged. The checker rules are tested on accept/refuse cases and the encoders across the reference and the Rust, Python and JavaScript runtimes (`tests/indexed.rs`) | `ctx_meta_from_literals`, `html_enc_clean`, `noninterference`, `outputs_noninterfere`, `guarded_needs_cap` |
-| T35 | proved on a model of the boundary check: the predicate fragment decides (a total Bool function), a value that passes the check satisfies its predicate, admission accepts only payloads that satisfy their field predicates, and every state reached by the checked δ from an initial state that satisfies the field predicates satisfies them, with a refused event leaving the state unchanged; the reference evaluator and the Rust, Python and JavaScript runtimes are tested to accept and trap alike (`tests/refined.rs`) | `holds_total`, `fit_sound`, `admit_sound`, `refine_preserved`, `refine_kept_unchanged` |
+| T36 | proved on models of 5.16: every metacharacter of rendered context text comes from a literal when the encoder emits none (and the HTML encoder emits none of `< > " '`); public outputs are equal for runs whose public inputs and secret-equality bits agree; a log of events without the capability leaves a guarded field unchanged. The checker rules are tested on accept and requires-change cases and the encoders across the reference and the Rust, Python and JavaScript runtimes (`tests/indexed.rs`) | `ctx_meta_from_literals`, `html_enc_clean`, `noninterference`, `outputs_noninterfere`, `guarded_needs_cap` |
+| T35 | proved on a model of the boundary check: the predicate fragment decides (a total Bool function), a value that passes the check satisfies its predicate, admission accepts only payloads that satisfy their field predicates, and every state reached by the checked δ from an initial state that satisfies the field predicates satisfies them, with an event that does not apply leaving the state unchanged; the reference evaluator and the Rust, Python and JavaScript runtimes are tested to accept and trap alike (`tests/refined.rs`) | `holds_total`, `fit_sound`, `admit_sound`, `refine_preserved`, `refine_kept_unchanged` |
 | T34 | proved for a core fragment (literals, reads, write-back calls, a charging operator, emit) with full ANF: the let-bound program gives the same value, store, and trace of charges and emits; the implementation (`anf.rs`, which binds fewer nodes and covers the surface language) is tested differentially on every target, including a budget sweep across the trap point | `t34`, `run_frame` |
 | T37 | proved on a model of the host (Appendix E): δ extended with host entries is the identity on them, replay of the log with no oracle equals the live run for every adapter oracle, a log of host entries alone leaves the state unchanged, and placement computed from the logged host entries agrees for equal logs; the example logs are re-folded with host entries interleaved in `tests/host_contract.rs` | `host_entry_identity`, `t37_replay`, `t37_host_only`, `t37_placement` |
 | T38 | proved for any hash function: the verified prefix is a prefix and a valid chain, a valid log is kept whole, and a valid log followed by an entry that does not link is cut back to it; the SHA-256 chain of every example log is tested with torn, flipped and swapped entries (`tests/host_contract.rs`) | `verify_prefix`, `verify_valid`, `verify_intact`, `verify_append`, `t38_torn` |
 | T39 | proved on an admitter model: after a failed barrier nothing is appended, and a running admitter's log is exactly the entries it was given | `t39_halted`, `t39_fault_stops`, `t39_run_complete` |
 | T40 | proved on a window model (Appendix E.2a): with an injective input key, the entries of a window are equal for any permutation of its inputs, D is equal for any per-window permutation of a sequence of windows, and sorting keeps every input; two hosts with different arrival orders give byte-identical D in `tests/host_admit.rs` | `window_perm`, `log_permwise`, `window_complete`, `ins_comm` |
 | T41 | proved on a term model (Appendix E.2b): quorum intersection, Election Safety and Leader Completeness for every reachable state of the whole-log protocol model (elections with the vote rule, appends, fenced writes, commits), by strong induction on terms with no further hypotheses, a fenced append leaves a replica unchanged, and every committed prefix survives any number of term changes; partitions, reordering, crash and restart are tested in `tests/host_raft.rs` | `fenced_append_unchanged`, `committed_prefix_preserved`, `quorum_intersect`, `election_safety`, `elect_fresh`, `commit_seed`, `leader_completeness` |
-| T42 | stated, unproved (Appendix F.9; F.12 lists what is implemented): Noninterference with labels: two runs whose inputs agree on every public-label field give equal public outputs, including the refusal outcome, for every accepted program (F.4.2) | none |
+| T42 | stated, unproved (Appendix F.9; F.12 lists what is implemented): Noninterference with labels: two runs whose inputs agree on every public-label field give equal public outputs, including the kept outcome, for every accepted program (F.4.2) | none |
 | T43 | stated, unproved (Appendix F.9; F.12 lists what is implemented): Robust declassification: a release is reached only on a path whose control context and deciding operands are trusted (F.4.2) | none |
 | T44 | stated, unproved (Appendix F.9; F.12 lists what is implemented): Typed output: every structural metacharacter of a rendered `Text[C]` or `Template` of any context of 5.16 and F.5.2 comes from a literal segment (F.5.2, F.6.1) | none |
 | T45 | stated, unproved (Appendix F.9; F.12 lists what is implemented): Constant time: two runs of a `ct fn` that differ only in secret-labelled inputs take the same sequence of branch, index and loop decisions (F.5.4) | none |
-| T46 | stated, unproved (Appendix F.9; F.12 lists what is implemented): Contract enforcement: if a call returns, its `requires` held at entry and its `ensures` held at the return; otherwise the call's event is refused with the fixed record (F.6.2) | none |
+| T46 | stated, unproved (Appendix F.9; F.12 lists what is implemented): Contract enforcement: if a call returns, its `requires` held at entry and its `ensures` held at the return; otherwise the step of the call's event keeps the state, with the fixed record (F.6.2) | none |
 | T47 | stated, unproved (Appendix F.9; F.12 lists what is implemented): Transactional calls: a call that returns by `fail` leaves the caller's `&mut` arguments and locals equal to their values at the call (F.4.4) | none |
 | T48 | proved on a model of the measure rule: a step that strictly lowers a natural-number measure reaches the end of the run from every start (not a proof about the checker's acceptance of `decreases`): Termination by written measure: an accepted recursive group or loop with a `decreases` tuple ends (F.6.4) | `t48` (`RCE/Discharged.lean`) |
 | T49 | stated, unproved (Appendix F.9; F.12 lists what is implemented): Ghost erasure: erasing ghost code does not change δ, λ or the log (F.6.3) | none |
@@ -2412,7 +2414,7 @@ the instrumented semantics suffices.)
 **T7 Name independence.** If P′ is P with identifiers consistently renamed,
 then every log hash, every id and every select choice of P′ equals that of P.
 
-**T8 Atomicity.** If δ(s, e) refuses e, then δ₁(s, e) = s.
+**T8 Atomicity.** If e does not apply in s (δ(s, e) keeps the state), then δ₁(s, e) = s.
 
 **T9 Implementation agreement (per target).** For every target t,
 ⟦compile_t(P)⟧ = δ_P on every s, e, including every edge of 6.3. There are
@@ -2497,7 +2499,7 @@ that carry its capability.
 **T35 Refinement invariance.** If the initial state satisfies the
 predicates of its refined fields, every state in the fold of the log
 (6.1) satisfies them, and an event whose payload or resulting state
-breaks a predicate is refused with the state unchanged (5.1).
+breaks a predicate does not apply, with the state unchanged (5.1).
 
 **T37 Host replay.** For every adapter oracle, replaying the log D with
 every adapter disconnected gives the live run's state after every entry;
@@ -2556,7 +2558,7 @@ byte, as in Go, Rust and Zig.
 Gaps in SURFACE.md that this spec decides. Each is one line of rationale;
 each can be reversed independently.
 
-1. **Layout by indentation, spaces only, tabs refused** (Python), with
+1. **Layout by indentation, spaces only, tabs require change** (Python), with
    brackets suspending layout. Keeps SURFACE.md's look; tabs removed to make
    layout unambiguous.
 2. **`#` comments only**, matching the prototype; no block comments.
@@ -2569,7 +2571,7 @@ each can be reversed independently.
 5. **Totality = every event is handled somewhere; unmatched regions are
    unchanged.** Stricter than "every (region, event) pair", looser than "every
    event in every region"; catches typos without boilerplate.
-6. **Errors refuse the event and leave state unchanged** (`example … ->
+6. **Errors keep the state: the event does not apply** (`example … ->
    kept: X`), and are logged and output, never thrown.
 7. **Traps (overflow, division by zero, non-finite, index, size, loop bound)
    are Form errors, not part of declared error sets**; `catch` cannot hide
@@ -2579,7 +2581,7 @@ each can be reversed independently.
    falls in layers, including mutual recursion, or the cycle carries a
    declared `bound`; 6.7 says exactly which) and **every loop bounded**
    (default 1,000,000, `bound n` to change), so δ is total by construction.
-   (Originally structural recursion only, with mutual recursion refused.)
+   (Originally structural recursion only, with mutual recursion requiring change.)
 9. **Second-class borrows, no lifetime syntax.** Borrows only in parameters,
    receivers, loop/match operands and short `let`s, plus borrow returns tied to
    a parameter. Simpler than Rust, still no GC and no aliasing of mutable
@@ -2636,7 +2638,7 @@ each can be reversed independently.
     Lark file, `rce.lark`, now retired.)
 
 30. **Tail values** in block-bodied functions (S5).
-31. **A trapping guard refuses the event** (S1).
+31. **A trapping guard keeps the state** (S1).
 32. **Keywords reserved everywhere except after `.`** (S3).
 33. **`std.text`, `std.collections`, `std.math` are built-in modules** (S4).
 34. **Loop elements of non-Copy type are borrows**; storing one needs
@@ -2683,21 +2685,21 @@ each can be reversed independently.
     toolchain upgrade cannot change a result.
 
 53. **Draft 0.9 is a new release** (label 0.9, never reuse 0.6), because it
-    refuses programs 0.8 accepted and changes `&mut` after a failed call
+    requires change in programs 0.8 accepted and changes `&mut` after a failed call
     (C.15 rule). Superseded in form by decision 64: the label gates nothing.
 54. **A failed call restores its `&mut` arguments** when every effect since
     entry is undoable; a function that could fail after a non-undoable effect
-    is refused (F.4.4).
-55. **Contracts are always enforced** and a violation is one defined refusal
+    requires change (F.4.4).
+55. **Contracts are always enforced** and a violation is one defined kept outcome
     with fixed fields; no switchable contracts (F.2, F.6.2).
-56. **Information flow is checked by labels with a refusal channel and robust
+56. **Information flow is checked by labels with a kept-outcome channel and robust
     declassification**; labels are erased at run time (F.4.2).
 57. **`World` is a borrowed capability**, not a threaded value (F.4.1).
 58. **The definition hash covers everything that affects meaning and nothing
     else** (F.4.3).
 59. **`decreases` is required only where 6.7 does not already admit the
     recursion, and never replaces the loop bound** (F.6.4).
-60. **Unused values, dropped results and shadowing are refused** in 0.9 (F.3).
+60. **Unused values, dropped results and shadowing require change** in 0.9 (F.3).
 61. **The four constructs that would break a theorem are written as
     non-goals**: effect handlers, switchable contracts, mutable aliasing
     across `par`, runtime reflection (F.2).
@@ -2709,7 +2711,7 @@ each can be reversed independently.
 64. **One language, one text.** The language is the text of one spec commit; `# rce-version:` is a release
     label, tolerated, ignored and not hashed (2.7), and a label names exactly one spec commit (C.15). No module
     selects older rules; one global reserved list (2.4); a construct that is specified and not
-    implemented is refused as reserved, not implemented (W-RES-1). Derivation: one meaning per construct
+    implemented requires change as reserved, not implemented (W-RES-1). Derivation: one meaning per construct
     (F, principle e) forbids a program meaning two things depending on a comment, and the cost of a
     version-mixed program (C.15 of the earlier text) was exactly such a dependence. The standard library
     was migrated once (`label` to `lbl`, `Json` to `JsonDoc`, `Url` to `UrlParts` and the other renamed names);
@@ -2717,7 +2719,7 @@ each can be reversed independently.
 
 ### 9.1 Changes made while mechanizing (draft 0.1 → 0.2)
 
-- S1 (6.4) A guard that traps refuses the event. Draft 0.1 did not say; δ
+- S1 (6.4) A guard that traps keeps the state. Draft 0.1 did not say; δ
   was not total on that case.
 - S2 (5.2) Task functions. Draft 0.1 decision 22 made every function except
   `main` pure, so `spawn f(…)` could never be well-typed; a function with a
@@ -2739,7 +2741,7 @@ each can be reversed independently.
 
 - The admission gate of 6.9 is implemented: `rce-check` evaluates every
   `example` and `check`, every comptime block and every constant and state
-  initializer, and refuses a program on W-INT-1 or W-CT-1. W-LEX-3 (an
+  initializer, and reports that a program requires change on W-INT-1 or W-CT-1. W-LEX-3 (an
   integer literal outside its type's range) is checked.
 - `rce.lark` tree shapes (the language is unchanged): `T?` now yields an
   `opt_type` node, negative and `true`/`false`/`none` literal patterns, the
@@ -2757,7 +2759,7 @@ evaluable at comptime.
 ### 9.3 Changes in draft 0.4 (from `spec/LANGUAGE-REVIEW.md`)
 
 - R1 (6.7, W-REC-1) Structural self-recursion is admitted; mutual recursion
-  and every other cycle stay refused. Checker: `structural_violation`, since
+  and every other cycle still require change. Checker: `structural_violation`, since
   replaced by `lex_measure` (6.7: one fixed position, or layers).
   Lean: `RCE/Struct.lean`.
 - R2 (5.11, W-FFI-1, `extern`) A C-ABI foreign function interface: scalar
@@ -2824,7 +2826,7 @@ they run them on the CPU, which 5.13 allows).
   decidable fragment, checked where the declared integer range is
   checked. Derived from soundness and one meaning per construct
   (`spec/proposals/CORE-PROPERTIES.md`, P2). Closes the replacement-matrix
-  rows "improper input validation" (defined: refused at entry) and
+  rows "improper input validation" (defined: requires change at entry) and
   "dependent specifications" (defined for the decidable fragment;
   undecidable obligations excluded by derivation). An extension for
   every version (C.15).
@@ -2833,7 +2835,7 @@ they run them on the CPU, which 5.13 allows).
   Rust, Python and JavaScript runtimes. Derived from self-hosting: the
   hash-chained log (6.1) and content-hash ids (6.8) must be computable by
   an RCE program. An extension for every version, since it only admits
-  programs refused before (C.15).
+  programs that required change before (C.15).
 
 ### 9.6 Changes in draft 0.8
 
@@ -2856,12 +2858,12 @@ Appendix F next to the rule, and every theorem is stated and unproved (F.9).
 - **Tier 0.** Stale text corrected (errata for every version): decisions 8, 11,
   12, 21 and 29, the Copy list of 5.5 (f32 added), the former W-VER-1
   (removed: the release label is tolerated and ignored, 2.7, decision 64) and
-  2.7 (0.8 and 0.9 named), the overview status and its checker figures. Version 0.9 refuses
-  unused values, dropped non-unit results and unused stores (F.3.2), and
+  2.7 (0.8 and 0.9 named), the overview status and its checker figures. Under version 0.9,
+  unused values, dropped non-unit results and unused stores require change (F.3.2), and
   adds lexical hygiene: hidden and bidirectional characters, shadowing of any
   enclosing local, qualified variants, longest-token lexing (F.3.3).
 - **Tier 1.** `World` capability for foreign calls (F.4.1); information-flow
-  labels with the refusal channel and robust declassification (F.4.2, T42,
+  labels with the kept-outcome channel and robust declassification (F.4.2, T42,
   T43); definition hashes and `rce api-diff` (F.4.3, T50); transactional
   calls (F.4.4, T47).
 - **Tier 2.** File-system capabilities and caretaker revocation (F.5.1, T51);
@@ -2891,10 +2893,10 @@ No row rests on taste: where no principle decides, the existing text stays.
 
 | Q | Question | Decision | Derivation |
 |---|---|---|---|
-| 1 | Which effects are undoable for a transactional call | Writes to owned values and `emit` into the pending output are undoable; send, receive, `spawn`, foreign calls, `World` operations, host entries and consuming a linear handle are not; a path from a non-undoable effect to a `fail` is refused (W-TX-1) | (c): a restore must be total and need no handler; (b) T8 |
+| 1 | Which effects are undoable for a transactional call | Writes to owned values and `emit` into the pending output are undoable; send, receive, `spawn`, foreign calls, `World` operations, host entries and consuming a linear handle are not; a path from a non-undoable effect to a `fail` requires change (W-TX-1) | (c): a restore must be total and need no handler; (b) T8 |
 | 2 | Measure for mutual recursion | One lexicographic tuple for the whole group (F.6.4) | (d): one well-founded order for the group, as 6.7 already uses |
 | 3 | Is tool metadata hashed | No. Comments, formatting, declaration order and attributes are not hashed; the version, signature, contracts, measure, ghost clauses, labels and referenced hashes are | (c) and T7: a hash is the meaning, nothing else |
-| 4 | `?` in `par` arms | Refused | T16: `?` leaves the arm early, so an arm is not an expression with one result |
+| 4 | `?` in `par` arms | Requires change | T16: `?` leaves the arm early, so an arm is not an expression with one result |
 | 5 | Advisory format | Canonical JSON object signed with Ed25519 over its SHA-256 | (c): reuse the canonical JSON of 6.1; Ed25519 signatures are deterministic |
 | 6 | Map iteration order | Ascending canonical key order of 7.1 | already 6.7 and the C.15 erratum; (c) |
 | 7 | Half-open slices and inclusive ranges | Unchanged: slices as in 6.3 N8, ranges keep `..` and `..=` | (e): both already have one meaning; no principle favors removing one |
@@ -2906,24 +2908,24 @@ No row rests on taste: where no principle decides, the existing text stays.
 | 13 | Are doc comments hashed | No doc comments exist (decision 2, `#` comments only), so nothing is hashed | decision 2; (e) |
 | 14 | Maximal-munch token rule | Adopted as a requirement on the lexer, checked in F.11 | (c): the same text must tokenize the same everywhere |
 | 15 | First-class type invariants | A refined type has `R.check(v) -> R?`; no witness clause; no implicit conversion; opaque outside its module | (b) T35: a value of R is only made by a checked path |
-| 16 | Argument labels | Kept (decision 18) and checked: a wrong label is refused | (e): a label that is not checked has two meanings, the written and the real one |
-| 17 | Constant conditions | An `if`, `elif`, `while` or guard on a comptime constant is refused (W-UNUSED-2) | (e): one branch is dead code; P8 |
+| 16 | Argument labels | Kept (decision 18) and checked: a wrong label requires change | (e): a label that is not checked has two meanings, the written and the real one |
+| 17 | Constant conditions | An `if`, `elif`, `while` or guard on a comptime constant requires change (W-UNUSED-2) | (e): one branch is dead code; P8 |
 | 18 | Display trait | `Show` of 5.9; a template field of a non-text type must implement it | (e): one display conversion, explicit; no new trait |
 | 19 | Map equality independent of order | Yes, because the representation is canonical | (c): equality and iteration agree by construction |
 | 20 | User-definable `derive` | Not offered; `derive` is the built-in closed set of 5.9 | T7: a user derive needs reflection |
-| 21 | Literal default type when unconstrained | Unchanged: integer literals default to i64, float literals are f64 (5.3, 5.1) | (c): the default is a fixed rule; refusing adds no safety |
+| 21 | Literal default type when unconstrained | Unchanged: integer literals default to i64, float literals are f64 (5.3, 5.1) | (c): the default is a fixed rule; requiring change adds no safety |
 | 22 | Expression fields and nested quotes in `t"..."` | Not allowed: a field is an identifier or a field path, no quotes inside a field | (e) and S8: a field needing a nested lex has two readings |
 | 23 | Inductive type syntax and its `decreases` rule | No new syntax: a recursive `kind` with `Box`, strictly positive because `fn` types cannot occur in data (W-TY-2) | (d): positivity follows from W-TY-2 |
-| 24 | Is `refuse` the empty enum | No: `refuse` is not a value and has no type | (e): a bottom type brings subtyping, which RCE does not have |
+| 24 | Is the kept outcome the empty enum | No: the kept outcome is not a value and has no type | (e): a bottom type brings subtyping, which RCE does not have |
 | 25 | Fixed-size arrays as value parameter or ghost length | Array length stays a comptime constant `[τ; n]`; contracts may use `len` | (d): no value-indexed types (Q10) |
 | 26 | Spelling of the `Copy` and `Discard` bounds | No new spelling; `Copy` is the built-in of 5.5 and generics stay affine (decision 41); a type parameter is not instantiated by a linear type | (b) T12 |
 | 27 | Canonical form of propositions | A contract is hashed as the canonical parsed tree of its expression; no rewriting or solver normalization | (c): a hash must not depend on a solver |
-| 28 | Source span in the refusal record | No; the record has the rule or clause, the definition hash and the clause index | (c) and T7: a span depends on whitespace |
+| 28 | Source span in the kept record of a contract violation | No; the record has the rule or clause, the definition hash and the clause index | (c) and T7: a span depends on whitespace |
 | 29 | Layout-sensitive vector types | Not adopted; lane-wise fixed arrays only (decision 43) | no principle decides; the existing text stays |
 | 30 | Any foreign boundary in 0.9 | Yes, the C ABI of 5.11 as a `World` operation, declared in the manifest | (a): authority is a value; (c) T32 |
 | 31 | Big integer or ghost mathematical integer | `mathint`, ghost and contract code only; no runtime big integer | (d): an unbounded integer has size-dependent cost, which budgets cannot bound |
 | 32 | Wording for reactive programs | A total step function driven by the host (6.1, Appendix E); no `while true` | (d) |
-| 33 | Unsatisfiable contracts: static or first call | Static in the decidable fragment (W-CON-1); otherwise enforcement refuses every call | (b), (d): decide what is decidable, never succeed vacuously |
+| 33 | Unsatisfiable contracts: static or first call | Static in the decidable fragment (W-CON-1); otherwise enforcement makes every call trap, keeping the state | (b), (d): decide what is decidable, never succeed vacuously |
 | 34 | Comment forms | Only `#` line comments | decision 2; (e) |
 | 35 | Implication spelling in contracts | None; write `not a or b` | (e): `or` short-circuits, so the form is already guarded |
 | 36 | Digit separators in literals | One `_` between digits, as 2.5 already says | (e): one canonical form, already specified |
@@ -2951,7 +2953,7 @@ This section defines the tools that read RCE programs: the `rce` command
 and the language server it contains. It adds no rules to the language; it
 says what each tool prints and returns for a given input. Example:
 `rce run counter.rce "Inc, Dec, Dec"` prints the state after each event
-and stops at the refused third event with exit status 1.
+and stops at the third event, whose step keeps the state, with exit status 1.
 
 ### 10.1 Principles
 
@@ -2973,8 +2975,8 @@ and stops at the refused third event with exit status 1.
    language server all use the same parser, type checker and admission gate
    (6.9) as the reference checker `rce-check`. A file accepted by one is
    accepted by all.
-4. **Exit status.** 0 means success. 1 means a program was refused, an
-   example or check failed, a run reached a refused event, or `fmt --check`
+4. **Exit status.** 0 means success. 1 means a program requires change, an
+   example or check failed, a run reached a kept step, or `fmt --check`
    found a file to change. 2 means a usage error: unknown subcommand, wrong
    number of arguments, unreadable file, or an unknown emit target or
    construct an emitter does not translate (10.5).
@@ -3012,8 +3014,8 @@ ok FILE
 requires change FILE: line N: RULE message[; line M: RULE message ...]
 ```
 
-Every refusal names its rule from section 7. Exit status 1 if any file is
-refused, else 0.
+Every `requires change` report names its rule from section 7. Exit status 1 if any file
+requires change, else 0.
 
 ### 10.3 `rce run FILE [EVENTS]`
 
@@ -3033,7 +3035,7 @@ where δ is the step function of 6.4 and oₖ is the sequence of values the
 step emitted (λ). It prints line 0 as `0 (initial) STATE`, then for each k
 the line `k EVENT STATE` followed by one line `  emit VALUE` per element of
 oₖ, in order. STATE lists every region as `Region { field = value, ... }`,
-regions separated by `; `, in declaration order. If δ refuses eₖ, the line
+regions separated by `; `, in declaration order. If the step for eₖ keeps the state, the line
 is `k EVENT kept: ERROR`, no later event is applied, and the status is
 1. Otherwise the status is 0. An event name that is not declared is a usage
 of a wrong event list: one `requires change` line, status 1.
@@ -3127,7 +3129,7 @@ evaluator's `assign` does.
 
 The Rust output follows the shape of the verified emitter of T9
 (`spec/lean/RCE/Emit.lean`): one value type, `Result` with `?` for traps
-and refusals, and i128 arithmetic checked against each integer type's
+and kept steps, and i128 arithmetic checked against each integer type's
 range. The theorem of T9 is about the Lean model of that emitter. The
 emitter in `rce` is tested against the reference evaluator; it is not
 proved.
@@ -3144,7 +3146,7 @@ with a 2 GiB stack.
 **What an emitted program does.** Run it, and it prints the module's
 *observations*: one line per constant, per `check`, per function without
 parameters (other than `main`), per event of each example (the state after
-it, its outputs, or the refusal), and finally the outputs and result of
+it, its outputs, or the kept record), and finally the outputs and result of
 `fn main`. These are the lines `emit::observe` computes with the reference
 evaluator, so that a target and the reference can be compared line for
 line.
@@ -3166,7 +3168,7 @@ closures and float display. The Scala target has its own test in the same
 file: on 2026-10-14, on the Apple M5 Max below, with Scala 3.10.0 run by
 scala-cli 1.18.0 on OpenJDK 27, all 55 programs of the current corpus
 (with the package files of example 26) agree with the reference, 0
-refused, 361 observation lines, and the edge program agrees on all four
+not printed, 361 observation lines, and the edge program agrees on all four
 targets. Its oracle is `RCE_SCALA` (default `scala-cli`). That agreement is for this examples corpus only. On the larger conformance suite (`conformance/`), a run on 2026-10-28 with Scala 3.10.0 on OpenJDK 21, which compared each trace by its head only, passes 1,459 tests with 0 failures, and 520 are not applicable to an emitter; the Scala emitter has not yet been run with the whole-trace comparison of the emit baseline (`conformance/README.md`).
 The targets a test run covers are named as data,
 one word per line, in `spec/checker/tests/emit_targets.txt` (`rust`,
@@ -3182,7 +3184,7 @@ The test reads the oracle paths from `RCE_RUSTC`, `RCE_PYTHON` and
 `RCE_NODE` (default `rustc`, `python3`, `node` on the path) and prints each
 oracle's version. On 2026-10-12 the same tests were also run on an Apple
 M5 Max (macOS 27.0.1, arm64) with rustc 1.98.1, Python 3.14.5 and Node
-26.11.1: 51 of 51 agree on each of the three targets, 0 refused, 0
+26.11.1: 51 of 51 agree on each of the three targets, 0 not printed, 0
 skipped, 299 observation lines per target, and the edge program agrees on
 all three.
 
@@ -3285,8 +3287,8 @@ outcome.
 - A call that writes back its receiver or a `&mut` argument (`xs.push(x)`,
   `f(&mut a)`) is translated only as a whole statement or as the right side
   of `let`, `var`, an assignment, `return`, `emit` or `fail`. Elsewhere,
-  `rce emit` refuses the program with status 2 and names the construct. No
-  example program is refused.
+  `rce emit` does not yet print the program: it exits with status 2 and names
+  the construct. Every example program is printed.
 - When a function whose result is a union fails, its `&mut` arguments are
   not written back. The reference evaluator writes them back.
 - The Python output has been checked with Python 3.13.5 and 3.14.5, and
@@ -3323,9 +3325,9 @@ numbers dropped. The formatter is a function fmt on texts with:
 3. **Idempotence.** fmt(fmt(t)) = fmt(t). This is tested on every program
    in `spec/examples/` and on the formatter's tests; it is not proved.
 
-A text the lexer refuses (2.6, W-LEX-1, W-LEX-2) is refused by `fmt` with
-the same reason. `fmt` does not type check: a file that is refused by
-`rce check` can still be formatted. With `--check`, no file is written;
+A text that requires change under the lexer (2.6, W-LEX-1, W-LEX-2) requires change
+under `fmt` with the same reason. `fmt` does not type check: a file that requires
+change under `rce check` can still be formatted. With `--check`, no file is written;
 each file that would change is printed as `would reformat FILE` and the
 status is 1. Without it, each changed file is written and printed as
 `formatted FILE`.
@@ -3361,7 +3363,7 @@ the full text of each open document; it does not read other files.
 | `initialize` | replies with capabilities: full-text sync (`textDocumentSync` = 1), formatting, hover, definition, document symbols, and completion triggered by `.` |
 | `textDocument/didOpen`, `didChange` | stores the text and publishes diagnostics for that document |
 | `textDocument/didClose` | forgets the text and publishes an empty diagnostic list |
-| `textDocument/formatting` | returns one edit replacing the whole text with fmt(t) (10.6), or no edit if t is canonical or refused |
+| `textDocument/formatting` | returns one edit replacing the whole text with fmt(t) (10.6), or no edit if t is canonical or requires change |
 | `textDocument/hover` | the type or declaration of the name at the position, or `null` |
 | `textDocument/definition` | the location of that name's binding or item, or `null` |
 | `textDocument/completion` | the names that can be written at the position |
@@ -3371,8 +3373,8 @@ the full text of each open document; it does not read other files.
 | any other request | error -32601, method not found |
 
 **Diagnostics.** For a document with text t, the published diagnostics are
-exactly the refusals `rce check` gives for t, one per refusal, with severity
-Error and source `rce`. A refusal `line N: ...` covers line N − 1 in the
+exactly the reports `rce check` gives for t that the text requires change, one per
+report, with severity Error and source `rce`. A report `line N: ...` covers line N − 1 in the
 protocol's 0-based numbering, from column 0 to the start of the next line.
 `use` resolves among the module paths of all open documents.
 
@@ -3438,8 +3440,8 @@ as clean exactly when `rce check` accepts it (10.1, principle 3).
   each module whose text differs from its pin (status 1); while such a
   difference exists, `rce manifest` writes no `stdlib` pin and
   `rce manifest-check` accepts none. The broker contract (F.7), the provenance
-  record and the build cache of F.5.3, and the emitter refusals of F.5.4 do
-  not exist yet. Results are
+  record and the build cache of F.5.3, and the emitter messages of F.5.4 for a
+  construct not yet printed do not exist yet. Results are
   reproducible from the inputs alone (10.1).
 
 ### 10.9 `rce trace --json FILE [EVENTS]`: reference traces (informative)
@@ -3457,7 +3459,7 @@ line, in the syntax of an `example` line; a line starting with `#` is
 skipped), named `stream@k`, in one run of the checker, with `streams`
 carrying their number; with EVENTS
 (the syntax of an `example` line, as in 10.3) it prints one trace of that
-event list. A module that is refused, or a trace of EVENTS that yields no
+event list. A module that requires change, or a trace of EVENTS that yields no
 step, is status 1. The output is one JSON object (format `rce-trace/2`;
 `rce-trace/1` differed in hashing the named forms, before the T7
 resolution of C.15), compact, with sorted keys:
@@ -3476,7 +3478,7 @@ resolution of C.15), compact, with sorted keys:
 | `steps[i].outcome` | `"applied"` or {`kept`: error name}; derived, not hashed |
 | `steps[i].hashed` | {`event`, `state`}: the positional forms the two hashes are over (6.1), so a reader recomputes both without the module; derived |
 
-A refused event is the last step of its trace, with the unchanged state's
+A kept step is the last step of its trace, with the unchanged state's
 hash (T8). A projector conforms on a module when, for every trace, its
 steps have the same `seq`, `event` and `state_hash` as the reference, in
 order and with none missing or extra; when it also emits `prev_hash`,
@@ -3502,8 +3504,8 @@ object (format `rce-catalog/1`, compact, sorted keys) with one entry per
 top-level function of each module (the `pub` ones when the module marks
 any `pub`, else all; methods are not bricks), sorted by module and name.
 A `use` item names a module given with the files or one of the built-in
-library (4.1), and a file is refused in the catalog exactly when
-`rce check` refuses it.
+library (4.1), and a file is listed as requiring change in the catalog exactly when
+`rce check` reports that it requires change.
 An entry holds `module`, `name`, `file`, `line`, `generics`, `params`
 (name and type), `ret`, `key` (the type with generic parameters renamed
 `t0`, `t1`, ... in order of first occurrence), `hash` (SHA-256 of the
@@ -3511,7 +3513,7 @@ module path and the canonical text of the function alone, so layout and
 position do not change it), `checked` (the verdict of its file) and
 `lowering` (`{"term": T}`, the D.7 lowering, or `{"kept": reason}`).
 The catalog's `hash` is the SHA-256 of the canonical JSON of its entries;
-`pending_files` maps each refused file to its diagnostics. With
+`pending_files` maps each file that requires change to its diagnostics. With
 `--vectors N`, `vectors` maps a lowered brick's hash to up to N
 `{"args", "out"}` or `{"args", "trap"}` records of the reference
 evaluator on inputs generated from the parameter types by a fixed rule
@@ -3558,7 +3560,7 @@ shape_ctl           sha256:…                   [--control]
 A region's redundancy is computed from the projection of the explored
 graph onto that region's fields. `--control` computes the control quotient
 of 6.10 on the same explored graph: each step is labelled by its control
-outcome only (the refusal's error, by declaration index; else the
+outcome only (the kept step's error, by declaration index; else the
 constructors of what was emitted, by declaration index or type class) and
 never by a value, a name or a state change, so the quotient is a coarser
 output function on the same deterministic machine and dim_c ≤ dim holds by
@@ -3571,9 +3573,10 @@ and the label; `shape_ctl` is the SHA-256 of its canonical JSON text. It
 is invariant under renaming (T61, tested by `tests/dim.rs` against
 `rce fmt --nameless`).
 The report also says whether some explored step has a λ output (6.1): an
-emitted value, or the record of a refusal (`has_output` in the JSON, with
-`emits` and `keeps` reported separately, since a refusal is the rejection
-of an input and an emitted value is the program's answer), and how many
+emitted value, or the record of a kept step (`has_output` in the JSON, with
+`emits` and `keeps` reported separately, since a kept step and an emitted
+value are two kinds of the program's answer: a kept step leaves the state as
+it was and records why, an emitted value is an output), and how many
 distinct output sequences the explored steps carry (`distinct_outputs`; a
 silent step is excluded). A program with no such step has one behaviour by
 definition, so its redundancy is its whole state: the state is in D and
@@ -3588,7 +3591,7 @@ and payloads. It is informative: no admission depends on it.
 `rce equiv [--fuel N] [--json] A B` asks whether two programs have the same
 behaviour (6.10): it explores both from their initial states over the same
 event instances, compares every step by its name-free output (emitted
-values in their positional form, a refusal by its error's declaration
+values in their positional form, a kept step by its error's declaration
 index, T7), refines the two graphs together by those outputs and reads
 whether the two initial states fall in one class (T58: equivalence is
 bisimilarity). Status 0 and `equivalent` when they do; otherwise status 1
@@ -3622,7 +3625,7 @@ proposal `one-emitter.md` (ONE-1), and prints what the run writes. The
 core evaluator is an implementation under test, compared with the
 reference evaluator like any target: the expected bytes of every
 comparison are the reference trace (10.9), never this output. Exit status
-0 when the run ends; 1 when the checker refuses FILE, when a core module
+0 when the run ends; 1 when the checker reports that FILE requires change, when a core module
 is not well formed, or when the run halts; 2 when FILE uses a construct
 the lowering does not cover, or on an internal error.
 
@@ -3701,7 +3704,7 @@ barrier   scope     atomic    protocol  offer     choose
 node      supervisor strategy child     restart
 ```
 
-They are not names in any module: `fn f(node: i64)` is refused. The
+They are not names in any module: `fn f(node: i64)` requires change. The
 reference checker keeps them in `parse::DRAFT06_KEYWORDS`, separate from
 `parse::KEYWORDS` only as a source layout; the reserved list is their union
 with the words of Appendix F, one list for every module.
@@ -3778,7 +3781,7 @@ the branches in source order (T16). Rules:
 - W-PAR-2: a branch has an effect other than its own writes (`emit`,
   channel operations, spawn, foreign calls), or returns, breaks or
   continues out of the `par`.
-- W-NAME-2 also refuses two branches with one name.
+- Two branches with one name also require change (W-NAME-2).
 
 Derivation of the rules (confluence). Determinism of a parallel
 composition is a confluence property: every way of interleaving the
@@ -3822,7 +3825,7 @@ not on a proof.
   W-TY-1 if n is not an integer.
   `with budget n Block else [as e] Else` makes exhaustion a value.
   Derivation. Totality (T2) asks every step to end in a value; a trap
-  that refuses the event is an outcome of the step, not a value the
+  that keeps the state is an outcome of the step, not a value the
   program can act on. To act on it the program needs a point where the
   trap is caught, and the state at that point must be one that some
   sequential execution reaches at a well-defined place, or Else observes
@@ -3843,12 +3846,12 @@ not on a proof.
     units spent in Block remain on every enclosing budget. When the trap
     came from an outer budget, Else charges that budget, its next charge
     traps again, and the trap reaches the next budget out with an
-    `else`, or refuses the event.
+    `else`, or keeps the state.
   - W-BUD-1: Block of a budget with an `else` holds an effect that a
     trap cannot undo (`emit`, channel operations, spawn, select, yield,
     lvar `put` or `freeze`), or returns, breaks or continues out of it.
-  - A budget without `else` behaves as before: the trap refuses the
-    event.
+  - A budget without `else` behaves as before: the trap keeps the
+    state.
   - The charge rule: a charge is all or nothing, leaves no frame past
     its limit, and is additive. Every runtime's `charge` implements the
     same rule; in this repository the link between those copies is the
@@ -4009,10 +4012,10 @@ the code runs. `RCE.ParFuel` reduces branch uses in that tree:
   and yields it at the next. A bare use of the name (an argument, a
   spawn argument, a payload sent on another endpoint, a rebinding) moves
   the endpoint, and `close` consumes it; after either the name holds
-  nothing, and a further use is refused (no use after move, send or
+  nothing, and a further use requires change (no use after move, send or
   close). Paths that join must agree on whether an endpoint was
-  consumed, so a branch that moves it while another keeps it in use is
-  refused, as is a loop body that moves an endpoint the loop does not
+  consumed, so a branch that moves it while another keeps it in use
+  requires change, as does a loop body that moves an endpoint the loop does not
   create. With W-SES-2 this makes endpoints linear (affine plus
   must-close): on every path to the end of its scope each endpoint is at
   the end of its protocol, closed, or moved to a holder that takes the
@@ -4037,7 +4040,7 @@ the code runs. `RCE.ParFuel` reduces branch uses in that tree:
   both ends waiting on it and they can step (T28d). Two channels
   between the same two processes break this: each can wait on a
   different channel.
-  W-SES-5 by priorities: a program the tree rule refuses is accepted when
+  W-SES-5 by priorities: a program that requires change under the tree rule is accepted when
   its session graph has a priority order. Each exchange on a channel is
   an action (channel, step), shared by both ends, and a spawn is a
   one-step action between spawner and spawned. Each process's actions in
@@ -4048,7 +4051,7 @@ the code runs. `RCE.ParFuel` reduces branch uses in that tree:
   session graph, cycles included (T28p): the waiting action of least
   priority has its partner waiting on that same action. A cycle of
   waits, as in two channels between two processes used in opposite
-  orders, is a cycle in the order and is refused. The checker reads
+  orders, is a cycle in the order and requires change. The checker reads
   priorities from programs whose endpoints are created, sent on,
   received on and passed to spawns at the top level of bodies, over
   protocols of messages; outside that fragment the tree rule decides.
@@ -4076,8 +4079,9 @@ the code runs. `RCE.ParFuel` reduces branch uses in that tree:
   projections with empty queues is final (all roles done, all queues
   empty) or steps. The checker's full-merge projection equals the Lean
   projection on 300 generated global types, and its exploration of the
-  asynchronous runs from each fully projecting one finds no stuck or
-  refusing configuration (C.13).
+  asynchronous runs from each fully projecting one finds no stuck
+  configuration and none whose receiver does not accept the label heading
+  its queue (C.13).
   Convergence notes. Honda, Vasconcelos and Kubo (ESOP 1998) keep
   channels in a linear realm and pass them by delegation; their type
   soundness theorem gives subject reduction and the absence of run-time
@@ -4145,10 +4149,10 @@ the code runs. `RCE.ParFuel` reduces branch uses in that tree:
   of the three laws, so they compose by construction. The lexicographic
   rule needs its key to be a chain (a total order); without that it is
   not a join (`MergeCert.lex_needs_chain`), which is why the key must be
-  an integer. Any other impl is refused, also a lawful one written
+  an integer. Any other impl requires change, also a lawful one written
   differently (for example bitwise `|`), with a message naming the
   combinators; a search on a finite sample runs first and, when it finds
-  a counterexample, the refusal names it. The built-in
+  a counterexample, the report names it. The built-in
   instances (integers under `max`, `bool` under `or`, sets and lists
   under union, maps pointwise, tuples and records componentwise, `none` as
   bottom) have the laws by `MergeLaws.lean`; that sorted lists without
@@ -4159,7 +4163,7 @@ the code runs. `RCE.ParFuel` reduces branch uses in that tree:
   value type, an option on its payload, and a struct without its own
   `impl Merge` on every field, recursively through nested structs and the
   struct's type arguments (a struct reached again through itself adds no
-  condition). Otherwise `lvar_new`, `lvar T` and `Map.merge` are refused
+  condition). Otherwise `lvar_new`, `lvar T` and `Map.merge` require change
   (W-CRDT-1) with the path to the first field that has none. Sets and
   lists merge by union, which needs only equality, so their element type
   needs no `Merge`.
@@ -4221,7 +4225,7 @@ the code runs. `RCE.ParFuel` reduces branch uses in that tree:
   (a kind of nullary variants, or `bool`) and which the body never
   rebinds ranges over every value of its type, so it is decided too;
   since every value of such a type is at or above its bottom, a list
-  with such a parameter and another element is refused whenever the
+  with such a parameter and another element requires change whenever the
   bottom is below that element. Where an element is not finite in this
   sense (a parameter of an unbounded type, a computed value),
   incompatibility depends on the input, and the check every `wait` makes
@@ -4243,8 +4247,8 @@ the code runs. `RCE.ParFuel` reduces branch uses in that tree:
   deterministic counter (thread i's k-th allocation is `(i, k)`), so
   locations do not depend on the schedule and the POPL 2014 permutation
   of locations is not needed. Their library marks code that freezes as
-  `QuasiDet` in its type. RCE instead refuses, by W-LVAR-1, the freezes
-  that could race with a put, so an admitted program is deterministic,
+  `QuasiDet` in its type. In RCE, the freezes that could race with a put
+  instead require change (W-LVAR-1), so an admitted program is deterministic,
   and the frozen bit turns a race the rule misses into an error instead
   of a different answer. FHPC 2013 suggests validating user lattices
   with QuickCheck; the sample search here is that kind of test, and is
@@ -4260,12 +4264,12 @@ the code runs. `RCE.ParFuel` reduces branch uses in that tree:
   node. W-NODE-1: a placed name that is not an actor, or an actor placed
   twice. `supervisor S strategy k` with k one of `one_for_one`,
   `one_for_all`, `rest_for_one` (W-SUP-1); each `child` must be an actor
-  (W-SUP-2), and W-NAME-2 refuses a duplicate child.
+  (W-SUP-2), and a duplicate child requires change (W-NAME-2).
   Run-time meaning (normative). A supervisor declaration is one static
   supervisor; it supervises every actor whose type is one of its
   children, so the set an actor belongs to is fixed by the program, not
-  by spawn order. When a handler of such an actor refuses its message
-  (a trap or a `fail`), the run log records `Kept(reason)`, then
+  by spawn order. When the step of a handler of such an actor is kept for
+  its message (a trap or a `fail`), the run log records `Kept(reason)`, then
   `Restart(child, instance, reason, tick t, k)`, where `instance` is the
   actor's id (6.6) and k counts this child's restarts in the window
   below. The strategy then resets the region of the failed actor
@@ -4278,7 +4282,7 @@ the code runs. `RCE.ParFuel` reduces branch uses in that tree:
   child's `restart bound` stops the supervisor with `Stopped(supervisor
   S)` and the run ends `Stopped`. Mailbox policy: a restarted actor keeps
   its mailbox, since Form law 3 drops no message; only the message that
-  failed is consumed, and it is logged as refused. A handler that fails
+  failed is consumed, and it is logged as kept. A handler that fails
   inside `atomic` (C.11.10) leaves every handler of the batch
   uncommitted (T30), and the failing actor is then supervised as above.
   Restart as input. Derivation. The state of a run is the fold of its
@@ -4328,14 +4332,14 @@ the code runs. `RCE.ParFuel` reduces branch uses in that tree:
   recorded ones and new supervisors may follow the recorded ones, since
   neither moves a recorded position. Any other change (a position
   removed or renamed, a supervisor or child inserted before a recorded
-  one, a reorder) is detected before the first step: the run refuses
+  one, a reorder) is detected before the first step: the run stops
   with `trap: upgrade removed supervisor position S/c` or `trap: upgrade
   reordered supervisor position S/c` for the first recorded position
   that fails, and nothing is replayed (`conc::tree_migrates`,
   `RunCfg.restart_tree`). A log without a header is version 0: its
   decisions replay with each decision's position checked when it is
-  taken, so a decision whose position is gone refuses with the removed
-  trap at that crash, and a decision for another actor is `replay
+  taken, so a decision whose position is gone stops the run with the
+  removed-position trap at that crash, and a decision for another actor is `replay
   diverged`; neither is ever applied to a different instance. A log
   whose tree does not migrate is converted by recording it again under
   the new program; no rule rewrites positional ids across a moved
@@ -4395,11 +4399,11 @@ is a correspondence on samples, not a proof about the evaluator.
 | T26 | a scope ends after every child | model | `t26` |
 | T27 | an actor answers as its sequential specification | model; vectors | `t27`, `ModelVectors` |
 | T28 | session duality, subject reduction and progress, with recursion | proved on a session calculus; encoding of surface protocols mechanized; the checker's dual and protocol automaton equal the model's on 60 generated protocols along a joint run (enabled actions at each point, and the end); linearity is T28l | `t28r_preserve`, `t28r_progress`, `enc_comp`, `SessionVectors.lean`, `checker/tests/lean_session.rs` |
-| T28l | linear endpoints: the checker's W-SES-1, W-SES-2 and W-SES-4 are sound for a linear typing judgment, and a typed body runs every path without using a gone endpoint or closing an unfinished one, and ends with every endpoint gone or done | proved on a calculus of bodies (send, receive, close, move, branch over message protocols); the checker agrees with the model's `chkBody` (accept, or the rule refused) on 120 generated bodies, which found that the checker did not track an endpoint moved by `let m = x` (fixed) | `SessionLin.chkBody_sound`, `ty_safe`, `chkBody_safe`, `SessionLinVectors.lean`, `checker/tests/lean_session_lin.rs` |
+| T28l | linear endpoints: the checker's W-SES-1, W-SES-2 and W-SES-4 are sound for a linear typing judgment, and a typed body runs every path without using a gone endpoint or closing an unfinished one, and ends with every endpoint gone or done | proved on a calculus of bodies (send, receive, close, move, branch over message protocols); the checker agrees with the model's `chkBody` (accept, or the rule under which the body requires change) on 120 generated bodies, which found that the checker did not track an endpoint moved by `let m = x` (fixed) | `SessionLin.chkBody_sound`, `ty_safe`, `chkBody_safe`, `SessionLinVectors.lean`, `checker/tests/lean_session_lin.rs` |
 | T28d | deadlock freedom: on a tree-shaped session graph with compatible ends, every process has finished or some channel has both ends waiting and they step | proved on a model of networks (processes blocked on one endpoint or finished); the tree is enforced by W-SES-5 at spawns and argued for delegation | `SessionDead.deadlock_free` |
-| T28p | deadlock freedom by priorities: if each process's actions strictly increase in priority and both ends of a channel share each action, every reachable state is finished or steps, on any session graph (cycles included); the checker's W-SES-5 accepts a program the tree rule refuses when the order on its actions is acyclic | proved on a model of networks (rendezvous, spawns as one-step channels); priorities computed by relaxation are proved to satisfy the rule, and a cycle in the order refutes every priority assignment; the checker agrees with the model (tree rule or priorities, else W-SES-5) on 150 generated programs, 9 of them cyclic and accepted only by priorities | `SessionPrio.deadlock_free`, `decideP_sound`, `cycle_chk_false`, `SessionPrioVectors.lean`, `checker/tests/lean_session_prio.rs` |
+| T28p | deadlock freedom by priorities: if each process's actions strictly increase in priority and both ends of a channel share each action, every reachable state is finished or steps, on any session graph (cycles included); the checker's W-SES-5 accepts a program that requires change under the tree rule when the order on its actions is acyclic | proved on a model of networks (rendezvous, spawns as one-step channels); priorities computed by relaxation are proved to satisfy the rule, and a cycle in the order refutes every priority assignment; the checker agrees with the model (tree rule or priorities, else W-SES-5) on 150 generated programs, 9 of them cyclic and accepted only by priorities | `SessionPrio.deadlock_free`, `decideP_sound`, `cycle_chk_false`, `SessionPrioVectors.lean`, `checker/tests/lean_session_prio.rs` |
 | T28g | multiparty global types: the projections of a well-formed global type (plain merge) step only to projections of a global type, and every reachable configuration is finished or steps; a global type of messages only satisfies the priority rule with priority = event index | proved on a synchronous calculus of global and local types with messages and binary choice; the checker's projection equals the model's on 200 generated global types, and its priority decision accepts every message-only one | `SessionGlobal.sr`, `progress`, `deadlock_free`, `global_prio`, `SessionGlobalVectors.lean`, `checker/tests/lean_session_global.rs` |
-| T28a | multiparty global types with full merge and asynchronous, order-preserving delivery: every step of a configuration associated with a global type is a step of that global type and stays associated; a receiver accepts the label heading its queue; every configuration reachable from the projections with empty queues is final or steps | proved on an asynchronous calculus of global and local types with binary choice and one FIFO queue per ordered pair of roles; the checker's full-merge projection equals the model's on 300 generated global types, and its exploration of their asynchronous runs finds no stuck or refusing configuration | `SessionAsync.sr`, `safe`, `progress`, `deadlock_free`, `SessionAsyncVectors.lean`, `checker/tests/lean_session_async.rs` |
+| T28a | multiparty global types with full merge and asynchronous, order-preserving delivery: every step of a configuration associated with a global type is a step of that global type and stays associated; a receiver accepts the label heading its queue; every configuration reachable from the projections with empty queues is final or steps | proved on an asynchronous calculus of global and local types with binary choice and one FIFO queue per ordered pair of roles; the checker's full-merge projection equals the model's on 300 generated global types, and its exploration of their asynchronous runs finds no stuck configuration and none whose receiver does not accept the label heading its queue | `SessionAsync.sr`, `safe`, `progress`, `deadlock_free`, `SessionAsyncVectors.lean`, `checker/tests/lean_session_async.rs` |
 | T29 | LVar puts commute; one-threshold reads are order independent | model; vectors | `lvar_interleave`, `t29_perm` |
 | T29q | LVars over any join-semilattice with an absorbing top, threshold reads in the same order, and a frozen bit: two runs that complete every thread without error end in the same configuration (value, frozen bit, every result); without `freeze`, a program with a completing run has no erroring run; with `freeze`, whether a run errs can depend on the schedule | proved on a calculus (put, get with incompatible sets, freeze, on one LVar shared by any number of threads); runs that block forever are not covered; the built-in Merge instances are semilattices | `LVarQD.quasi_det`, `det_no_err`, `quasi_not_det`, `MergeLaws` |
 | T29s | A store of many LVars shared by any number of threads (the product lattice over locations, a frozen bit per location): two runs that complete every thread without error end in the same store, frozen bits and results; without `freeze`, no run errs if one completes. W-CRDT-1 certificates are lawful by construction. Each row of `conc::LVAR_RULES` (rule, trap, Lean declaration) and the certificate of each certified test program is generated into `LVarRules.lean`, which `lake build` elaborates, and the same test checks each trap string in the evaluator and every emitter runtime | locations allocated before the threads start (T29a adds allocation); the generated table checks that the named declarations exist and the certificates elaborate, not that the evaluator refines the calculus | `LVarStore.store_quasi_det`, `store_det_no_err`, `MergeCert.cert_laws`, `LVarRules`, `checker/tests/lvar_rules.rs` |
@@ -4452,20 +4456,20 @@ than a call to a function with no body, in the reference evaluator and every run
 | u64 values at or above 2^63 exact in order, min/max and f64 ops (6.3 N2) | erratum | N2 has defined full-range u64 since draft 0.5; the runtimes now meet it |
 | literals take the success type of a fallible return (5.1) | erratum | a checker bug against `τ <: τ ! ε`; it admits programs the text already admitted |
 | canonical D entry and hash-chained Form log (6.1) | outside programs | the log format, not a program's meaning |
-| `sha256` text method (5.15) | extension | admits only programs that W-NAME-1 refused before, so no valid program changes meaning |
-| mutual recursion with a decreasing summed measure (6.7, W-REC-1) | extension | admits only programs whose call graph has a cycle of two or more functions, which W-REC-1 refused before; the rule for a function that calls only itself is unchanged, so no valid program changes meaning |
+| `sha256` text method (5.15) | extension | admits only programs that required change under W-NAME-1 before, so no valid program changes meaning |
+| mutual recursion with a decreasing summed measure (6.7, W-REC-1) | extension | admits only programs whose call graph has a cycle of two or more functions, which required change under W-REC-1 before; the rule for a function that calls only itself is unchanged, so no valid program changes meaning |
 | maps iterate in canonical key order (6.7, 7.1) | erratum | 6.7 has always said a map iterates in canonical order; the reference evaluator and the four emitter runtimes kept insertion order. They now keep every map sorted by the canonical order of its keys, so `for`, `keys()`, `values()` and display follow 6.7. A program whose output depended on insertion order was relying on behavior the text never gave it; tests/map_order.rs checks all targets |
-| self-recursion needs one fixed shrinking position, or layers (6.7, W-REC-1) | erratum, and extension for layers | 6.7 has said since draft 0.4 that the value at one position i shrinks along any chain of calls, and T2 that every run ends; the checker took a different position per call, which admitted functions that never return. Refusing them makes the checker meet the text. Every function the text admitted is admitted by one layer, and layers admit only programs refused before, so no program the text admitted changes meaning |
-| a parameter typed by an alias of a channel type makes a task function (5.1, 5.2) | erratum | the type grammar of 5.1 has no nominal alias, so `type A = chan τ` already named the channel type; the checker tested the written type, not the type it names, and refused such functions with W-SPAWN-1 or W-EFF-1. Only programs refused before are admitted |
-| declared recursion bounds `fn … bound n` (6.7, W-REC-1) | extension | `bound` after a signature was W-SYN-1, and a cycle it admits was W-REC-1, so only programs refused before are admitted; no valid program changes meaning |
+| self-recursion needs one fixed shrinking position, or layers (6.7, W-REC-1) | erratum, and extension for layers | 6.7 has said since draft 0.4 that the value at one position i shrinks along any chain of calls, and T2 that every run ends; the checker took a different position per call, which admitted functions that never return. Requiring change in them makes the checker meet the text. Every function the text admitted is admitted by one layer, and layers admit only programs that required change before, so no program the text admitted changes meaning |
+| a parameter typed by an alias of a channel type makes a task function (5.1, 5.2) | erratum | the type grammar of 5.1 has no nominal alias, so `type A = chan τ` already named the channel type; the checker tested the written type, not the type it names, and reported that such functions required change (W-SPAWN-1 or W-EFF-1). Only programs that required change before are admitted |
+| declared recursion bounds `fn … bound n` (6.7, W-REC-1) | extension | `bound` after a signature was W-SYN-1, and a cycle it admits was W-REC-1, so only programs that required change before are admitted; no valid program changes meaning |
 | est_j receipts | outside programs | measurement records outside the language (C.5: est_j is separate from budgets) |
 | `i64.MIN % -1` traps; `toint` traps outside i64 (6.3 N2) | erratum | N2 already defined both; the reference and runtimes returned 0 and an out-of-range i64 |
 | canonical float text in `tostr` and display (6.3 N3) | erratum | N3 already defined it (`1e+300`, `1.5e-7`, `-0` is `0`); the implementations printed Rust's long decimal form |
 | `x op= y` charges the cost of `op` (C.6.4) | erratum | C.6.4 already charges every binary operator; compound assignment was charged 0, so a budget could be exceeded |
 | 6.3 N2, N3, N8 and 6.2 state the trap texts, `usize` indices and trapping slices the implementations have always had; float `%` removed from N3 and C.6.4 | erratum | the text contradicted the checker and every runtime; no accepted program changes, since the text described behaviour no program could reach (negative usize, float `%`) or contradicted what every implementation did |
 | f64 `min`/`max` (6.3 N5, 5.15) evaluate | erratum | the checker accepted them and N5 defined them, but the evaluators trapped; a program that trapped now computes what the text defined |
-| f64 `pow` refused (W-NAME-1) | erratum | not in the closed library of 5.15, which already made it W-NAME-1; the checker accepted it and every evaluator trapped on it, so no accepted program computed a value with it |
-| refined types `type R = τ where p` (5.1, W-REF-1) | extension | `where` after a type was W-SYN-1 and stays an ordinary identifier, so only programs refused before are admitted; no valid program changes meaning |
+| f64 `pow` requires change (W-NAME-1) | erratum | not in the closed library of 5.15, which already made it W-NAME-1; the checker accepted it and every evaluator trapped on it, so no accepted program computed a value with it |
+| refined types `type R = τ where p` (5.1, W-REF-1) | extension | `where` after a type was W-SYN-1 and stays an ordinary identifier, so only programs that required change before are admitted; no valid program changes meaning |
 | a foreign function is not a value (5.11, W-FFI-1) | erratum | 5.11 already forbade a pure function calling foreign code; the value route was a checker hole |
 | host contract (Appendix E: one admitter, durable append per OS, fatal barrier, verify on open, inputs as events, capabilities, fabric entries, automatic placement) | outside programs | constrains hosts and the log, not programs: a host entry has a `host.` type that no program can declare and δ is the identity on it, so the fold of every log of every valid program is unchanged |
 | host bindings (E.8: a host result delivered as an event the program declares) | outside programs | the bound event is an ordinary declared event, admitted and typed as any other; a program that declares no binding target sees no new input |
@@ -4481,17 +4485,17 @@ evaluator and the Rust, Python and JavaScript emitters on a linked program) and
 ### C.16 Indexed values
 
 The eight names of 5.16 are on the reserved list (2.4): a program may not declare `struct Text` or
-`struct Html`, which earlier drafts allowed, and that refusal is part of the release that first carried
+`struct Html`, which earlier drafts allowed, and that requirement is part of the release that first carried
 the list (C.15). `C.lit(s)` costs `c_call`, `C.encode(t)` costs `c_call` plus the size of t (the linear class
 of C.6.4) and `.raw()` costs `c_call` (the text is not copied), in the reference evaluator and every runtime;
 the indices are erased, so nothing else in C.6 changes (`spec/checker/tests/indexed.rs`).
 
 ### C.17 Appendix F
 
-Appendix F is part of the language. It refuses programs that earlier drafts accepted (unused values, shadowing,
-dropped results, flows to lower labels) and changes the value of a `&mut` argument after a failed call, so it
+Appendix F is part of the language. Under it, programs that earlier drafts accepted require change (unused values, shadowing,
+dropped results, flows to lower labels), and it changes the value of a `&mut` argument after a failed call, so it
 is a new release by the C.15 rule. It is specified and implemented in part: a construct of it that an
-implementation does not have is refused (W-RES-1, *reserved, not implemented*, F.12), and no cost of C.6 is
+implementation does not have requires change (W-RES-1, *reserved, not implemented*, F.12), and no cost of C.6 is
 defined for it beyond the costs F.10 names.
 
 **Read receipt.** How many concurrency words does C.1 add to the keywords of 2.4? (a number)
@@ -4571,8 +4575,8 @@ must lie strictly between 0 and 1. `input_schema` is JSON that may span
 body lines until its brackets balance. An unknown top-level keyword, an
 unknown constraint, role or dependency kind, a flow without `from` and
 `to`, a missing `spec` line, an `error_budget` out of range, a
-`last_checked` that is not RFC 3339 and invalid `input_schema` JSON are
-refused at parse time. The reference parser ignores unknown body keywords
+`last_checked` that is not RFC 3339 and invalid `input_schema` JSON
+require change, reported at parse time. The reference parser ignores unknown body keywords
 and unknown `change_control` words, and reads an unparsable duration as
 its default (24 h, 30 000 ms).
 
@@ -4602,7 +4606,7 @@ its default (24 h, 30 000 ms).
   `dependency P` to `dep_P` (a source). `flow F from A to B` compiles to
   the edge `flow_F`; `escalation E from A to B timeout t` to `esc_E`. An
   endpoint names a node id, a node name or a declared id; an unknown flow
-  endpoint is refused by the compiler, an unknown escalation endpoint is
+  endpoint requires change (the compiler stops), an unknown escalation endpoint is
   a diagnostic.
 - `change_control`: who may approve changes to the spec, the minimum
   review period, and whether the spec is frozen. These bind the engine's
@@ -4621,7 +4625,7 @@ committed inside it, so a step in flight when a RESOLVE is requested
 finishes under the δ it started with. The state after n entries is the
 fold of D under the δ in force at each height: s(i+1) = δ_v(i)(s(i),
 D(i)), where v(i) is the version set by the last RESOLVE before i. A
-fold applies each RESOLVE at the height it records and refuses one whose
+fold applies each RESOLVE at the height it records and stops at one whose
 height, version or spec digest differs from the fold's; the fit digest
 is recorded and not refolded, since the fit evidence is not in D. The
 handler installed is the one the entry carries; only an opaque handler
@@ -4670,13 +4674,13 @@ the read, then the joins in list order.
 - A payload that is not a record is passed unchanged. Joined rows and
   scans are typed as JSON. Each read or join is covered by the rule's
   SHA-256 id, and a rule with a read or a join is not monotone (CALM,
-  `form/laws.rs`). A `joins` entry for a sink no rule writes is refused.
+  `form/laws.rs`). A `joins` entry for a sink no rule writes requires change.
 - Every target (reference δ, Rust, Python, JavaScript for XState and
   SCXML) applies them identically.
 
 **CALM tags (normative).** Each rule's `monotone` tag is derived by
-`form::laws::calm_reason`, never declared, and `laws::check` refuses an
-IR whose tag differs. A rule is monotone only when it has no resolve, no
+`form::laws::calm_reason`, never declared, and `laws::check` reports that an
+IR whose tag differs requires change. A rule is monotone only when it has no resolve, no
 read, no join and no scan. The reasons, by derivation:
 
 | Rule has | Tag | Why |
@@ -4702,12 +4706,12 @@ fixed by content hash (law 2).
 an input count and the typed relations of the sinks plus `escalation` and
 `error`. E is `IN_<source>`, `TICK` and `RESOLVE_<node>`. An input event
 normalizes the payload (6.3 N1), checks the source's contract (a mismatch
-is a `reject` output and an `error` row, not a refusal of the event) and
+is a `reject` output and an `error` row, not a kept step) and
 runs the rules in content-hash order. A `timeout` is converted to ticks of
 a nominal 100 ms, rounded up; the clock is logical (6.3 N11). D is the
 canonical log of 6.1: entries {seq, event, prev_hash, state_hash, hash}
 chained by SHA-256. Every event is applied (no `outcome` field is
-needed), since a contract mismatch is an output, not a refusal. The numeric
+needed), since a contract mismatch is an output, not a kept step. The numeric
 edges are those of 6.3, with one recorded difference: in this profile an
 integer above i64::MAX is "integer out of range" (D.10).
 
@@ -4749,7 +4753,7 @@ state-passing: its term returns `[result, final values of the &mut
 parameters in parameter order]` (the result is null for a function
 without one), and a call of it, as a statement, a `let` or `var`
 initializer or the right side of `=`, writes those values back to the
-borrowed places; such a call inside a larger expression is refused.
+borrowed places; such a call inside a larger expression is not lowered.
 `match` lowers arm by arm (variants by their `$v` tag, `some`/`none`,
 literals, ranges, tuples, alternatives, guards; no arm traps), and a
 variant value is its fields with `$v`. A function with result `T ! E`
@@ -4758,7 +4762,7 @@ lowers with its errors as values: `fail e` returns `{"$err": e}`, `try x
 statement or a `return` value) tests `x` with `has(x, "$err")` (`none`
 for an optional) and returns the error, and `x catch |e| h` tests the
 same and evaluates `h`; a call of such a function anywhere else is
-refused. A recursive group (a cycle of the call graph) lowers to one
+not lowered. A recursive group (a cycle of the call graph) lowers to one
 `fix` term of its members' bodies, a call inside it being `rec` of the
 callee's index; `bound n` is a counter of active calls passed by every
 `rec`, trapping past n as in 6.7. The evaluator bounds `rec` nesting at
@@ -4766,11 +4770,11 @@ callee's index; `bound n` is a counter of active calls passed by every
 at 50000000 (its fuel); past either is an error, and an input on which
 the reference evaluator meets its own limits gives no vector. Integers
 are i64 or usize (a usize variable that would become negative traps);
-floats, narrower integers and closures are refused. A generic function
+floats, narrower integers and closures are not lowered. A generic function
 lowers to one term for every instance, since the IR is untyped over JSON.
 A term over 1 MiB of JSON, not counting its definitions, or a program
-nested over 1000 levels is refused (catalog readers parse past JSON
-libraries' usual 128 levels, with a stated bound). Every refusal is recorded in the
+nested over 1000 levels is not lowered (catalog readers parse past JSON
+libraries' usual 128 levels, with a stated bound). Every construct not lowered is recorded in the
 catalog with its line and construct, never approximated.
 
 `rce index --vectors N` records the reference evaluator's results on N
@@ -4788,7 +4792,7 @@ exactly these guarantees, and no other is claimed:
   label that starts with "unproven"; a lifted element is never presented
   as checked.
 - L2 Fail closed: a guard the lift cannot read is opaque, and
-  `Lifted::step` refuses to step through it rather than guess.
+  `Lifted::step` does not step through it, rather than choose a branch it cannot read.
 - L3 Generated code agrees with the lift: code emitted from a lifted
   machine (`--emit-machine`) steps as `Lifted::step`.
 - L4 Evidence, not proof: agreement of the lift with the original
@@ -4815,7 +4819,7 @@ and each diagnostic names its rule.
   (`N` or `Nh`, N ≥ 1).
 - W-HS-CUR-2 (staleness): at check time `now`, the currency record is
   stale when it was never checked or `now - last_checked` exceeds
-  `max_age` hours. A stale spec is refused by `rce check --strict` and by
+  `max_age` hours. A stale spec is not accepted by `rce check --strict` or by
   the promotion gate when the engine's `enforce_currency` policy is on;
   otherwise it is reported as a warning naming W-HS-CUR-2. This is the one
   rule of the appendix whose verdict depends on a time given as an input
@@ -4832,8 +4836,8 @@ and each diagnostic names its rule.
 - Integers in [2^63, 2^64) are u64 values, as in the language (6.3 N2):
   the u64 operators compute on them exactly, comparisons, `sort`,
   `lmin`, `lmax`, `min` and `max` order them exactly, and the f64 and
-  f32 operators convert them to f64. The signed operators refuse them
-  ("integer out of range"), which no well-typed program reaches, since a
+  f32 operators convert them to f64. The signed operators do not compute on
+  them ("integer out of range"), which no well-typed program reaches, since a
   signed value is never at or above 2^63. A JSON integer beyond u64 is
   read as a float (`form::num`); no integer type of the language holds
   one.
@@ -4848,13 +4852,13 @@ and each diagnostic names its rule.
   the next δ version at the node (versions count every install,
   promotion and retirement there), the digest of the installed spec
   (for a retirement, the digest of the stub, distinct from an opaque
-  install) and a fit digest. A fold refuses one whose stamp does not
+  install) and a fit digest. A fold stops at one whose stamp does not
   match. Entries written before the stamp existed carry none and fold
   as before.
 
 ### D.11 Promotion break-even (receipt)
 
-Each promotion record (promoted or refused) carries a break-even
+Each promotion record (promoted or not promoted) carries a break-even
 receipt `break_even` with three terms and n\* =
 J_build / (J_model_path - J_handler), the number of inputs after which
 the promoted handler has paid back its build:
@@ -4875,7 +4879,7 @@ shunt meter on a named rail) or `unpriced` (no figure; `j` is null,
 never 0). The terms the engine fills today are est or unpriced: a gear
 receipt's `est_j` is an estimate by schema and is never relabeled from
 its free text. A figure
-without a basis is refused when a record is read, and the type that
+without a basis is reported as invalid when a record is read, and the type that
 holds a term has no constructor from a bare number. `n_star` is
 {`kind`: `unpriced`} when any term is unpriced (it is never computed
 from the other terms or from a default), {`kind`: `never`} when
@@ -4896,20 +4900,20 @@ and are checked where a term is built and where a record is read:
    `interval_s` finite and > 0, `idle_baseline_w` finite and >= 0 (0 when
    no baseline was subtracted). `boundary` says what the joules include
    (`package`, `package+dram`, `rail:VDD_GPU`). A reading without a valid
-   provenance is refused; unknown fields in it are refused. Derivation:
+   provenance is reported as invalid, and so is one with unknown fields. Derivation:
    the label `reported` or `measured` claims that something was read; a
    reading that cannot be reproduced or compared (which counter, over what
    interval, against which baseline, on which machine, inside which
    boundary) does not support that claim, so a term that lacks it is not
    a reading, and labeling it one would be unsound.
 2. A term labeled `est` or `unpriced` carries no `provenance` (nothing was
-   read); one that does is refused.
+   read); one that does is reported as invalid.
 3. A reading carries `amortization`, one of {`kind`: `per_call`},
    {`kind`: `batch_mean`, `n` >= 1}, {`kind`: `per_solved_task`}. An
    `est` term may carry one; the engine's own estimates omit it.
 4. Figures of different kinds are never added or subtracted: a sum of two
    terms whose `amortization` differs (absent counts as its own kind) is
-   refused, and so is a break-even whose J_model_path and J_handler differ
+   reported as invalid, and so is a break-even whose J_model_path and J_handler differ
    in kind (n\* divides by their difference) or whose J_build is a mean
    (`batch_mean` or `per_solved_task`; J_build is a one-off total).
    Derivation: a batch mean added to a per-call figure, or a per-task
@@ -4917,10 +4921,10 @@ and are checked where a term is built and where a record is read:
    units; no result of it is a figure of either kind.
 5. A sum of two readings keeps the weaker label only when both come from
    the same sampler, counter, machine and boundary (the intervals add);
-   otherwise it is refused. A sum with an `est` term is `est` with no
+   otherwise it is reported as invalid. A sum with an `est` term is `est` with no
    provenance (unpriced < est < reported < measured, as for n\*).
 6. A stored break-even receipt is re-derived from its terms when read; a
-   stored n\* that disagrees with them is refused.
+   stored n\* that disagrees with them is reported as invalid.
 
 The `est` wire form is unchanged (`{"j": 2.5, "basis": "est"}`), so no
 stored receipt changes meaning; no receipt in the repository holds a
@@ -5017,7 +5021,7 @@ adapter.
   ambient authority on the program's behalf. This is the sandbox, and its
   contract is independent of any OS: the checker admits only programs whose
   effects go through granted capabilities, and the deterministic host
-  refuses any effect without one, before any OS layer is involved. The
+  does not perform any effect without one, before any OS layer is involved. The
   same contract then has enforcement targets underneath the host, entered
   at start as strictly as the target allows: WASM (the module imports only
   the granted host functions), bare metal (no OS; the engine is the only
@@ -5050,8 +5054,8 @@ adapter.
   on the ports of listening grants and connect only on the ports of
   connecting grants, at any address on those ports, and the line says "by
   port"; a listener bound before entering needs no rule; below ABI 4 the
-  line says that Landlock does not restrict the network. seccomp refuses
-  new IP sockets unless some grant is connected to or bound after
+  line says that Landlock does not restrict the network. seccomp does not
+  permit new IP sockets unless some grant is connected to or bound after
   entering, so with `--http` alone neither the host nor a PTY child can
   open a socket; otherwise no layer restricts UDP, and the line says so.
   The channel adapters start their threads after the target is entered, so
@@ -5087,10 +5091,10 @@ adapter.
   to, and the `state_hash` of every entry covers it, so the state after
   each entry is the fold of D up to that entry and a host rebuilt from any
   prefix continues the same run. Replay re-runs the scheduler on the
-  logged inputs and refuses an entry unless the step it logs is the next
+  logged inputs and stops at an entry unless the step it logs is the next
   step the scheduler takes and the end agrees in outcome and choices
-  (T21). An input whose tick is not after the last logged step is refused
-  before it is logged, and an input is also refused if re-running on it
+  (T21). An input whose tick is not after the last logged step is not admitted:
+  it is not logged, and an input is also not admitted if re-running on it
   would change a step already in D, so an input never rewrites the past.
   No snapshot is taken while a task is live. A host may execute tasks in
   parallel only when the result equals the tick semantics (T1, T21).
@@ -5111,7 +5115,7 @@ adapter.
   its event) starts with the full fuel of 6.7, and no budget is shared
   across inputs. Every input has its own bound and a session never starves
   however long it runs. The reference trace (`rce trace`), the host and
-  replay all reset fuel per input, so a refusal for fuel is a function of
+  replay all reset fuel per input, so a kept step for fuel is a function of
   that input and the state before it, and D is the same on each.
 - **HC-8 Replay.** A host offers a replay mode that reads D, disconnects
   every adapter and re-derives every state hash. Replay reads no clock,
@@ -5196,7 +5200,7 @@ logs.
   most recent `host.Term` before it.
 - **HC-18a Transport.** Replication follows Raft's AppendEntries and
   RequestVote: an append carries (prev_idx, prev_term) and a follower
-  refuses it unless its log has an entry at prev_idx with that term (log
+  does not accept it unless its log has an entry at prev_idx with that term (log
   matching), deletes a conflicting suffix and appends what is missing.
   The current term and the vote are written to stable storage before a
   candidate asks for votes, before a vote is granted, and before an
@@ -5226,7 +5230,7 @@ logs.
   inside mutual TLS with pinned ed25519 keys: a frame is accepted
   only if the peer id it claims matches the key that authenticated the
   connection, so a node without a pinned key cannot vote or append.
-- **HC-20 Deposed admitter.** An admitter whose barrier is refused because
+- **HC-20 Deposed admitter.** An admitter whose barrier is not granted because
   a higher term was granted has had its role taken. By HS-3 it appends
   nothing further and acks nothing, so its unacked inputs are retransmitted
   to the new admitter and HC-16 removes those that did commit. Committed
@@ -5285,8 +5289,8 @@ then the design it forces.
    sequence of outputs." So every nondeterministic choice that can affect
    a result must be an entry of D: the order of inputs (HC-15), the
    scheduler's choices and the environment seed of a `fn main` run (HC-6),
-   and placement decisions (HC-12). Replay re-derives each one and refuses
-   D when a derivation differs, so D is checked, not trusted.
+   and placement decisions (HC-12). Replay re-derives each one and stops
+   where a derivation differs from D, so D is checked, not trusted.
 2. **Safety must not depend on timing; liveness must.** Raft: "safety must
    not depend on timing ... However, availability ... must inevitably
    depend on timing." The law behind it is Fischer, Lynch and Paterson
@@ -5399,7 +5403,7 @@ in D does not exist for the program.
   input's own seq, so D records which of these inputs were typed and which
   the host delivered. A typed input is an ordinary input: it answers no
   request (HC-3), a typed `StepKept` starts no descent (HC-21), and the
-  refusal of its step is delivered as for any other input. Replay reads the
+  kept outcome of its step is delivered as for any other input. Replay reads the
   mark: the input at seq is folded as typed, and a `host.Typed` that the
   input does not follow (the host stopped between the two appends) records
   an input that was never admitted, which is not completed on open. Replay
@@ -5409,16 +5413,16 @@ in D does not exist for the program.
   (`Host::admit_event`) is typed in the same way; the inputs of a window
   carry `host.Input` instead. Reference: `Host::admit`, `host::How`.
 
-### E.4a Refusals and restarts (HC-21, HC-22)
+### E.4a Kept steps and restarts (HC-21, HC-22)
 
-A refused step and a restart of the host are facts of the run. A program
-that is not told of them waits for an effect the refused step would have
+A kept step and a restart of the host are facts of the run. A program
+that is not told of them waits for an effect the kept step would have
 requested, or for a socket that belonged to a process that is gone, so
 both enter D and reach the program as inputs.
 
-- **HC-21 A refusal is an input.** When δ refuses an input (T8), the
+- **HC-21 A kept step is an input.** When the step for an input is kept (T8), the
   admitter appends the input with the state unchanged, then `host.StepKept`
-  {cause, seq}, where seq is the refused entry's seq and cause is `fail`
+  {cause, seq}, where seq is the kept entry's seq and cause is `fail`
   (a declared error left the step), `fuel`, `size` (SIZE_LIMIT), `value`
   (VALUE_LIMIT), `depth` (the evaluation depth of 6.7) or `trap` (any
   other trap of 6.3 or 6.7). When the module declares `event StepKept`,
@@ -5429,15 +5433,15 @@ both enter D and reach the program as inputs.
   of a request made by a step that descends from it (so the results of the
   `StepKept` step's requests, the results of the requests those steps make,
   and so on); a typed `StepKept` (HC-10b) is an ordinary input and descends
-  from nothing. The refusal of a step that descends from a delivered
+  from nothing. A kept step that descends from a delivered
   `StepKept` is recorded in D as `host.StepKept` and is not delivered again
-  as a `StepKept`. Each refused input therefore leads to at most one
-  delivered `StepKept`, and a `StepKept` step whose effects are refused in
-  turn ends after its results are recorded. Replay derives the same
+  as a `StepKept`. Each input whose step is kept therefore leads to at most one
+  delivered `StepKept`, and a `StepKept` step whose effects in turn lead
+  to kept steps ends after its results are recorded. Replay derives the same
   descent from D, matching each result to the first request queued with
   its kind and req. The cause names no declaration, so D stays name-free (T7);
-  the refusal's text, which can name a declared error, is not in D, and
-  replay re-derives it. Replay requires each refused entry to be followed
+  the kept step's text, which can name a declared error, is not in D, and
+  replay re-derives it. Replay requires each kept entry to be followed
   by the matching `host.StepKept` and, when `StepKept` is declared, by the
   entries its delivery appends (the delivered `StepKept`, or `host.Kept`),
   and treats a D in which one is missing, extra or different as a host
@@ -5445,7 +5449,7 @@ both enter D and reach the program as inputs.
   stopped in between, is completed on open, and by a new admitter before
   its `host.Term` (HC-19), before anything else is appended; no snapshot
   (HS-5) is taken while D owes them. `rce host replay` and the validation
-  after every run report the number of refused entries, and replay prints
+  after every run report the number of kept entries, and replay prints
   the cause and text of each. Reference: `Host::kept`,
   `interp::Cause`.
 - **HC-22 A restart is an input, and ids are never reused.** Adapter
@@ -5745,7 +5749,7 @@ did not, not by restricting what a module may declare.
 - **HD-4 Host inputs.** `StepKept` (HC-21), `Restarted` (HC-22), `Synced`,
   `WallTime` and the frame tick `Tick` (HC-2) are matched by field name
   like any delivery. Declared as
-  `StepKept(seq: u64)`, a refusal is delivered with its seq, and the
+  `StepKept(seq: u64)`, a kept step is delivered with its seq, and the
   `host.StepKept` before it holds the cause. Declared with a field the host
   has no value for, `StepKept` is never delivered, and each `host.StepKept`
   is followed by `host.Kept` with the reason. Delivery stays bounded
@@ -5784,7 +5788,7 @@ JSON. The host entries are:
 | `host.MainInput` | a, b, partition, tick; or event, tick | a link change or a program event for the live task, after its last logged step (HC-6) |
 | `host.Step` | cause, i, node, tick, what | one per scheduler step of the run (HC-6) |
 | `host.MainEnd` | choices, outcome, ticks | when the run ends (HC-6) |
-| `host.StepKept` | cause, seq | after a refused entry (HC-21) |
+| `host.StepKept` | cause, seq | after a kept entry (HC-21) |
 | `host.Restarted` | below (its own seq) | when a host opens a D that holds entries, or takes the admitter role (HC-22) |
 | `host.Typed` | seq (of the typed input that follows) | before a typed input that names an event the host delivers (HC-10b) |
 | `host.Kept` | event (the host's whole value, as payload and type), why | before a delivery that is not the whole value, and in place of one that cannot be built or whose event is not declared (E.4c) |
@@ -5811,7 +5815,7 @@ declares it (E.4c). δ itself never reads a host entry.
   (5.13) and device kernels stay hints that never change meaning.
   Placement is a function of the host entries of D, so it is the same on
   replay (T37): the host logs each decision as `host.Placed` and replay
-  re-derives it and refuses D when it differs. A fabric is a candidate for
+  re-derives it and stops where the derivation differs from D. A fabric is a candidate for
   a class only after a `host.Exact` probe equal to the CPU reference
   (HC-13). Reference executor (`Host::place_sum`, `place_lanes`,
   `place_par`): the classes are `sum.f64`, `lanes.f64.<op>` for the
@@ -5827,7 +5831,7 @@ declares it (E.4c). δ itself never reads a host entry.
   vector (signed zeros, subnormal results, infinities, NaN, and sums of
   every length up to 64 with cancellation) on the fabric and on the CPU
   reference and logs `host.Exact` with both digests. A placement onto a
-  fabric without an executor is refused before it is logged; replay
+  fabric without an executor is not performed and is not logged; replay
   re-derives placements from D and needs no executor. Derivation: law 6
   of E.2c fixes the tree; law 1 makes the choice of fabric an entry of D;
   HC-13 makes a fabric trusted only by evidence in D.
@@ -5896,7 +5900,7 @@ reaches δ.
   result kind it delivers, naming an event the program declares (for
   example `host.Synced` to `event Synced(upto: u64)`). The program's
   checker types the bound event as any other; a payload that does not fit
-  is refused at admission (5.1).
+  does not apply at admission: the state is kept (5.1).
 - **HS-7 Indexes are projections.** An index is a pure function of a
   prefix of D and the index definition, rebuilt by folding D and checked
   by a digest per seq. Its structure (B-tree, LSM, hash) is a placement
@@ -5925,7 +5929,7 @@ The base record does not change: it is the hash-chained log of E.3, and every ot
 
 - **As of is a fold of a prefix.** The state as of entry k is the fold of δ over the first k entries (HS-9, T37), so an "as of" query is the same query over a shorter prefix. There is no second time model to keep in step.
 - **Results have one order.** A query result is an RCE value, so it has the canonical order of 7.1 (HS-8, and the 6.7 erratum for maps). No result order is left to the engine.
-- **Queries terminate.** A query is an RCE function, so T2 and W-REC-1 apply: a query that the checker cannot show terminates is refused, not run with a timeout.
+- **Queries terminate.** A query is an RCE function, so T2 and W-REC-1 apply: a query that the checker cannot show terminates requires change; it is not run with a timeout.
 
 The rest of the refinement is proposed, not normative. It is listed in E.11 as G-1 to G-6 so that it can be adopted, changed or rejected on its own.
 
@@ -6003,14 +6007,14 @@ is cited by a test.
 | HC-8, HC-10, T37 | replay with adapters disconnected | `foreign_and_host_entries_replay` |
 | HC-9 | priority admission | `admitter_order_is_d_order`, `simultaneous_order_does_not_depend_on_caller_order` |
 | HC-15 to HC-17 | canonical windows, exactly once | `tests/host_admit.rs`: `two_hosts_different_arrival_orders_give_byte_identical_d`, `window_order_is_priority_then_source_then_seq`, `gap_is_held_and_admitted_once_filled`, `no_ack_without_a_durable_append`, `dedupe_state_survives_replay` |
-| HC-18 to HC-20 | replicated D, term fence, failover | `admitter_failover_keeps_one_d_and_exactly_once`; `tests/host_raft.rs`: partitions, reordering and loss, crash and restart, durable vote, log matching, chunked snapshot install under reordering, joint consensus membership changes, TCP, mutual TLS with an unpinned intruder refused, `host_fails_over_through_raft` |
+| HC-18 to HC-20 | replicated D, term fence, failover | `admitter_failover_keeps_one_d_and_exactly_once`; `tests/host_raft.rs`: partitions, reordering and loss, crash and restart, durable vote, log matching, chunked snapshot install under reordering, joint consensus membership changes, TCP, mutual TLS with an unpinned intruder not accepted, `host_fails_over_through_raft` |
 | HS-1 to HS-5, T38, T39 | durable append, fatal barrier, verify on open | `verify_on_open_cuts_bad_suffix`, `fatal_barrier_stops_admission` |
 | HC-11 to HC-14 | fabrics, placement, exactness, no flags | `placement_is_a_function_of_host_entries`, `placement_executor_follows_d_and_replays`, `fixed_tree_bits_do_not_depend_on_the_fabric`; `tests/host_place.rs`: `lanes_and_trees_have_the_same_bits_for_every_thread_count`, `lane_and_par_placement_follow_d_and_replay`, `platform_fabric_is_used_only_after_an_exact_probe` |
 | HS-6 to HS-9 | RCEdb in RCE | `rcedb_example_runs` |
 | HC-5a | the printed target is the installed target | `tests/host_sandbox.rs`: `profile_restricts_network_to_granted_ports`, `description_is_generated_from_rules`, `linux_description_says_by_port_and_udp`, `http_only_has_no_new_ip_sockets`, and on macOS only `seatbelt_blocks_an_ungranted_port`, `serve_under_seatbelt_answers_a_request` |
 | HC-10a, HD-3 | bytes delivered exactly, or as text when UTF-8 | `tests/host_net.rs`: `recv_delivers_the_bytes_received`, `recv_into_a_text_field_is_text_when_utf8`, `recv_as_text_completes_a_character_past_max`, `recv_is_capped_at_the_size_limit`; `tests/host_http.rs`: `invalid_body_bytes_are_exact_and_get_400`, `http_body_is_delivered_as_text` |
 | HC-10b | typed inputs are inputs | `tests/host_kept.rs`: `typed_step_kept_is_admitted_and_marked`, `replay_detects_a_forged_host_step_kept`; `tests/host_restart.rs`: `typed_restarted_and_typed_result_are_inputs`; `tests/host_http.rs`: `typed_http_request_is_an_input`; `tests/host_effects.rs`: `a_typed_result_is_marked_without_its_adapter` |
-| HC-21, HD-4 | refusals are inputs, matched by field name | `tests/host_kept.rs`: `kept_step_is_followed_by_host_step_kept_and_the_bound_event`, `each_cause_is_classified`, `a_kept_step_kept_input_is_not_redelivered`, `a_kept_step_whose_effect_is_kept_is_not_redelivered`, `step_kept_handler_has_full_fuel`, `replay_detects_a_log_without_host_step_kept`, `replay_detects_a_forged_host_step_kept`, `open_completes_a_trailing_kept_step`, `a_step_kept_of_another_shape_is_matched_by_field_name`; `tests/nameless.rs`: `kept_entries_are_name_free` |
+| HC-21, HD-4 | kept steps are inputs, matched by field name | `tests/host_kept.rs`: `kept_step_is_followed_by_host_step_kept_and_the_bound_event`, `each_cause_is_classified`, `a_kept_step_kept_input_is_not_redelivered`, `a_kept_step_whose_effect_is_kept_is_not_redelivered`, `step_kept_handler_has_full_fuel`, `replay_detects_a_log_without_host_step_kept`, `replay_detects_a_forged_host_step_kept`, `open_completes_a_trailing_kept_step`, `a_step_kept_of_another_shape_is_matched_by_field_name`; `tests/nameless.rs`: `kept_entries_are_name_free` |
 | HC-22, HD-4 | restarts are inputs, ids never reused, matched by field name | `tests/host_restart.rs`: `restart_appends_restarted_then_interrupts`, `ids_are_not_reused_after_restart`, `tick_numbers_continue`, `take_role_appends_restarted`, `serve_on_an_existing_log_listens_again`, `a_restarted_of_another_shape_is_matched_by_field_name`, `a_tick_is_matched_by_field_name` |
 | HC-23, HD-1 | the net adapter, results matched by field name | `tests/host_net.rs`: `tcp_loopback_random_and_blobs_replay`, `send_takes_text_or_bytes`; `tests/host_effects.rs`: `result_event_of_another_shape_is_matched_by_field_name`, `bound_effect_without_its_result_event_is_performed_and_recorded`, `a_result_whose_req_is_not_an_integer_answers_its_request_once` |
 | HC-24 to HC-26, HD-2 | the HTTP event host | `tests/host_http.rs`: `concurrent_clients_are_served_while_one_stalls`, `idle_server_appends_nothing`, `keep_alive_and_pipelined_requests_answer_in_order`, `head_has_no_body`, `oversized_body_is_413_and_closes`, `kept_request_gets_the_programs_status`, `invalid_response_fails_and_the_id_stays_open`, `responses_are_a_function_of_d`, `http_1_0_and_keep_alive_are_framed_from_d`, `expect_continue_is_transport`, `parallel_load_replays_exactly`, `sigterm_drains_and_validates`, `restart_binds_again`, `sequential_requests_are_not_paced_by_frames`, `http_declarations_are_noted_at_start`, `http_body_is_delivered_as_text`, `http_without_request_event_is_answered_501`, `http_without_respond_is_answered_by_the_host`, `http_framing_and_host_answers_are_read_from_the_hosts_value`; `tests/host_kept.rs`: `serve_stops_while_effects_keep_coming`, `a_line_that_is_not_an_event_is_held`, `a_line_is_held_whole_and_as_bytes`; `tests/http_parse.rs`: `vectors_agree_with_net_http`, `mutations_agree_with_net_http`, `incremental_feed_equals_whole_buffer`, `limits_give_their_statuses` |
@@ -6063,7 +6067,7 @@ The rules in this section are **proposed**. They come from a survey of other lan
 *Figure (informative, proposed). Tensor unification of primitives. Source: `figures/src/infographics/make_tensor.py`; [PNG](https://raw.githubusercontent.com/openIE-dev/rce/main/docs/figures/tensor-unification.png).*
 
 - **TU-1 (proposed).** Every primitive value is an n-dimensional tensor `Tensor[elem, shape]`, where `elem` is one of the primitive element types of 5.1 and `shape` is a list of non-negative dimensions. A scalar is the rank 0 tensor `Tensor[elem, []]`. Relation: generalizes the primitive types of 5.1; a version 0.5 to 0.8 program keeps its meaning because each of its scalars is read as rank 0.
-- **TU-2 (proposed).** The shape is part of the type and is checked statically. An operation whose operand shapes do not agree (for example a matrix product of `[m, k]` and `[j, n]` with k not equal to j) is a checker error, never a run-time trap. Dimensions are literals or names bound in the signature; a shape that cannot be determined statically is refused. Relation: a new W-rule in 9 when adopted.
+- **TU-2 (proposed).** The shape is part of the type and is checked statically. An operation whose operand shapes do not agree (for example a matrix product of `[m, k]` and `[j, n]` with k not equal to j) is a checker error, never a run-time trap. Dimensions are literals or names bound in the signature; a shape that cannot be determined statically requires change. Relation: a new W-rule in 9 when adopted.
 - **TU-3 (proposed).** A record whose fields all have one element type and one shape may be read as a tensor over a named axis (`{x: f64, y: f64}` as `Tensor[f64, [axis: {x, y}]]`). Field names index that axis. A record with mixed field types stays a record.
 - **TU-4 (proposed).** Every reduction over an axis follows N-9: a left fold over the axis in index order unless the program names a different fixed tree. The shape and the named tree, never the thread count or fabric, determine the bits.
 - **TU-5 (proposed).** Text, maps, graphs and sum types remain separate canonical values. They are ragged and are never padded or densified into tensors; a tensor element is never one of them.
@@ -6072,14 +6076,14 @@ The rules in this section are **proposed**. They come from a survey of other lan
 Convergence sources. Each source was read as noted; claims rest only on the passages cited.
 - BQN specification, types (read in full): "An array is a rectangular collection of data. It is defined by a shape, which is a list of non-negative integer lengths, and a ravel" whose length is the product of the shape; non-arrays are atoms. This is the shape-plus-ravel model of TU-1. APL, BQN's ancestor, was not read for this proposal.
 - Paszke et al., "Getting to the Point: Index Sets and Parallelism-Preserving Autodiff for Pointful Array Programming" (Dex), arXiv:2104.05372 (full text scanned, hits reviewed): arrays have types `n=>a` indexed by typed index sets (`IndexSet n`), so the index domain of an array is part of its type. This is the basis of TU-2 and of TU-3's named axes.
-- Henriksen et al., "Futhark: Purely Functional GPU-Programming with Nested Parallelism and In-Place Array Updates", PLDI 2017 (full text scanned, hits reviewed): "All arrays must be regular, meaning that, all rows of an array must have the same shape"; where shape cannot be verified statically, Futhark inserts dynamic checks. TU-2 takes the regularity rule and refuses instead of checking dynamically; TU-5 keeps irregular data out of tensors.
+- Henriksen et al., "Futhark: Purely Functional GPU-Programming with Nested Parallelism and In-Place Array Updates", PLDI 2017 (full text scanned, hits reviewed): "All arrays must be regular, meaning that, all rows of an array must have the same shape"; where shape cannot be verified statically, Futhark inserts dynamic checks. TU-2 takes the regularity rule and requires change instead of checking dynamically; TU-5 keeps irregular data out of tensors.
 - Julia manual, "Multi-dimensional Arrays" (read in full): "The base array type in Julia is the abstract type AbstractArray{T,N}. It is parameterized by the number of dimensions N and the element type T." Julia puts element type and rank in the type but checks sizes at run time; TU-2 goes further by putting the shape in the type.
 
 **RCEdb graph index (E.8.1).** These refine HS-6 to HS-9. Convergence sources are listed after the rules; they are observations of convergent design, not proof that the rules are right.
 
 - **G-1 (proposed).** The primary index of RCEdb is a typed property graph projected from the log: nodes and edges have declared RCE types (a label is a type, a property is a field), and the projection is ordinary RCE code, a fold of δ over a log prefix (HS-7).
 - **G-2 (proposed).** Every node and edge carries the id of the event that created it, and the id of the event that retracted it if any. Provenance is a field of the value, so it is checked, hashed and replayed like any other field.
-- **G-3 (proposed).** A query is a graph pattern written as a typed RCE value (node patterns, edge patterns, quantified paths, predicates as RCE functions), never as a string. Ill-typed patterns are refused by the checker; there is no query text to inject into (5.16). The pattern vocabulary is the read-only GQL fragment that MGQL mechanizes (node and edge atoms in five directions, label expressions with `&`, `|`, `!` and `%`, property maps, quantifiers `*`, `+`, `?`, `{i}`, `{i,j}`, pattern lists joined on shared variables), so that each RCE pattern has a stated GQL reading. A variable declared inside a quantifier has a list type outside it, and a variable under `?` is nullable.
+- **G-3 (proposed).** A query is a graph pattern written as a typed RCE value (node patterns, edge patterns, quantified paths, predicates as RCE functions), never as a string. Ill-typed patterns require change (the checker reports them); there is no query text to inject into (5.16). The pattern vocabulary is the read-only GQL fragment that MGQL mechanizes (node and edge atoms in five directions, label expressions with `&`, `|`, `!` and `%`, property maps, quantifiers `*`, `+`, `?`, `{i}`, `{i,j}`, pattern lists joined on shared variables), so that each RCE pattern has a stated GQL reading. A variable declared inside a quantifier has a list type outside it, and a variable under `?` is nullable.
 - **G-4 (proposed).** A query states in its type whether it returns a set or a bag of rows, and the result is in canonical order (7.1). Bag is the default, as in GQL, where a match yields one row per homomorphism; a set result, `distinct` aggregates and `distinct` composite operators are opt-in. All composite operators in one composite query are the same operator with the same qualifier (GQL SR:3 of ISO section 14.2, as cited by MGQL).
 - **G-5 (proposed).** The checker proves that every query terminates in one of two ways: each unbounded path quantifier is bounded by a declared length (`bound n`, 6.7) or by a restrictor that makes the match set finite (no repeated edge, no repeated node; under no repeated edge the repetition count of any quantifier is at most the edge count of the graph), or the query is recursive and is evaluated as a stratified fixpoint (negation and aggregation only over lower strata), which terminates because the graph is finite.
 - **G-6 (proposed).** Tables and documents are special cases of the graph projection: a table is a node type with scalar fields and no edges, a document is a tree of nodes reached by containment edges. They are projections of the same log, not separate stores.
@@ -6110,16 +6114,16 @@ sake. The decisions are recorded in 9.7 and 9.8.
 **Status of this appendix.** It is a specification, implemented in part by the
 reference checker, and it applies to every module: no declaration selects it (2.7). F.12 lists, rule by rule,
 what the reference checker enforces and what it does not. A construct of this appendix that the
-checker does not implement is *reserved, not implemented* (W-RES-1), refused, never read as an ordinary
+checker does not implement is *reserved, not implemented* (W-RES-1): it requires change, is never read as an ordinary
 name and never silently ignored; a rule of this appendix that is not a construct and is not implemented is
 listed in F.12 as not enforced. The Lean files, the emitters and the tree-sitter port do not implement all of
-Appendix F (an emitter refuses a module that needs a rule it does not implement, F.4.4). Every theorem it adds
+Appendix F (an emitter does not yet print a module that needs a rule it does not implement, F.4.4). Every theorem it adds
 (T42 to T56, section 8) is stated; T48, T51 and T53 are proved of models (`RCE/Discharged.lean`), and the other twelve are
 unproved; no proof is claimed of the implementation.
 
 **Release label.** Earlier working notes called this list "draft 0.6", then "version 0.9". It is part of the one
 language of this text. By the C.15 rule a release that carries it is a new release, not an erratum or
-extension of an earlier one: it refuses programs that earlier text accepted (F.3, F.4) and gives `&mut`
+extension of an earlier one: under it, programs that earlier text accepted require change (F.3, F.4), and it gives `&mut`
 arguments a different value after a failed call (F.4.4). A release label names exactly one spec commit (C.15).
 
 **Principles used for derivation.** (a) Least privilege: authority is a value
@@ -6139,7 +6143,7 @@ declassify endorse  release   label     law
 
 and the type names `World`, `Template`, `Shell`, `Prompt`, `Header` and `mathint`, which
 no module may declare (W-NAME-2), as in 5.16. They are reserved in every module; a word whose construct
-this checker does not have is refused with W-RES-1 (F.12).
+this checker does not have requires change: W-RES-1 (F.12).
 
 ### F.1 How an item is applied
 
@@ -6196,22 +6200,22 @@ paragraph of the overview. These are errata (C.15 rule).
 **F.3.2 Unused values (P8).** In every module:
 
 - W-UNUSED-1: a `let`, `var`, parameter, pattern binding or `use` name that is
-  never read is refused. The wildcard `_` and any name beginning with `_`
+  never read requires change. The wildcard `_` and any name beginning with `_`
   are exempt as the one spelling for "deliberately unused"; a name beginning
-  with `_` that is read is also refused (so the spelling means one thing).
+  with `_` that is read also requires change (so the spelling means one thing).
 - W-UNUSED-2: a `match` arm that cannot be reached (W-MATCH-2 already) and
   an `if`, `elif`, `while` or guard whose condition is a comptime constant
-  (9.8, Q17) are refused.
-- W-DROP-1: an expression statement whose value is not `()` is refused, except
-  a call whose result type is declared `()`. (5.2 already refuses discarding
-  an error union; this extends it to every non-unit value.) To drop on purpose,
+  (9.8, Q17) require change.
+- W-DROP-1: an expression statement whose value is not `()` requires change, except
+  a call whose result type is declared `()`. (Under 5.2, discarding an error
+  union already requires change; this extends it to every non-unit value.) To drop on purpose,
   bind to `_`: `let _ = f(x)`.
 - W-ASSIGN-1: an assignment whose value is overwritten before any read on
-  every path is refused (an unused store).
+  every path requires change (an unused store).
 
 Derivation: principle (e) and the S8 hygiene rule below; a value that is
 computed and discarded has no observable effect (O4, no destructors), so it
-is dead code or a mistake, and refusing it costs no expressiveness.
+is dead code or a mistake, and requiring change in it costs no expressiveness.
 Examples and the fuzz generator must be written clean before the rules are
 enabled (F.11).
 
@@ -6221,23 +6225,23 @@ enabled (F.11).
   (U+202A to U+202E, U+2066 to U+2069), a zero-width or invisible format
   character (U+200B to U+200F, U+2060, U+FEFF after the first position) or
   a Unicode scalar value that is not assigned in the pinned Unicode version
-  (6.3 N7) inside a string or comment is refused. A string that needs one of
+  (6.3 N7) inside a string or comment requires change. A string that needs one of
   these writes it with `\u{...}`. Identifiers are ASCII (2.3), so look-alike
-  names cannot occur. The reference checker also refuses, in a string or
+  names cannot occur. The reference checker also reports as requiring change, in a string or
   comment, the C0 and C1 controls other than the line feed, the other
   invisible or blank-looking format characters (U+00AD, U+034F, U+061C,
   U+115F, U+1160, U+17B4, U+17B5, U+180E, U+2061 to U+2064, U+3164, U+FFA0,
   U+FFF9 to U+FFFB), the tag block (U+E0000 to U+E007F) and Unicode
-  noncharacters; for "unassigned" it refuses planes 4 to 13 and the
+  noncharacters; for "unassigned" it reports planes 4 to 13 and the
   noncharacters only, because no general-category table is vendored (F.12).
 - W-NAME-3: shadowing. A declaration whose name is visible in any enclosing
   scope of the same function (a local, a parameter, a field of the state
-  region, a module-level name or an imported name) is refused with both
-  sites. W-NAME-2 refused shadowing only of a parameter, field or
-  module-level name; this extends it to every enclosing local.
+  region, a module-level name or an imported name) requires change, and the report names both
+  sites. Under W-NAME-2, only shadowing of a parameter, field or
+  module-level name required change; this extends it to every enclosing local.
 - Enum variants are always written qualified by their type
   (`Color.Red`), so a pattern name never means a variant by accident (this
-  closes the case W-PAT-1 handles by refusal).
+  closes the case that W-PAT-1 handles by requiring change).
 - The tokenizer takes the longest token at each position, and no token
   depends on context. This is a requirement on the lexer of 2.3 that the
   reference lexer must be checked against (F.11).
@@ -6255,11 +6259,11 @@ operation is one IEEE 754 operation with one rounding (no contraction of
 (decision 51), so f64 `==` and the total order of 6.3 agree and `Eq` and
 `Ord` hold for f64. New here: a bounded integer type is distinct from its
 base (a refined type, 5.1) and an operation whose result leaves the range
-refuses, never wraps; division and remainder name their rounding as methods
-`div_floor`, `div_trunc`, `div_euclid` and `div_exact` (the last refuses on a
+traps, never wraps; division and remainder name their rounding as methods
+`div_floor`, `div_trunc`, `div_euclid` and `div_exact` (the last traps on a
 nonzero remainder), with the Euclidean law `a == (a / b) * b + a % b` and
 `0 <= a % b < |b|` for `div_euclid`; conversions between int and float are
-named methods with a stated rounding and refuse non-finite or
+named methods with a stated rounding and trap on non-finite or
 non-representable input; no hidden big integers (`mathint` exists only in
 `ghost` code, F.6.3). Obligation: the two classes of `==` and `<` on `-0` and
 `+0` must be shown to agree with the total order of 6.3 (check C-F1, F.11).
@@ -6289,7 +6293,7 @@ it. Rules:
   foreign operations through `&World`.
 - A program that must run indefinitely is not written with a loop; it is a
   total step function from (state, input) to (state, output) driven by the
-  host, as 6.1 and Appendix E already define. `while true` stays refused by
+  host, as 6.1 and Appendix E already define. `while true` still requires change under
   the loop bound of 6.7.
 
 Derivation: least privilege (a): a foreign call is authority, so it must be
@@ -6310,25 +6314,25 @@ case of the rules below, and its equality release (`==` between two secrets)
 stays the one release without an explicit `release`. Rules:
 
 - W-IFC-1: a flow to a place of lower label (an assignment, a call argument,
-  a return, a field, an `emit` field, a send) is refused. An `emit` field and a
+  a return, a field, an `emit` field, a send) requires change. An `emit` field and a
   channel have the public label unless declared `@ {...}`.
 - W-IFC-2: implicit flows. The label of the control context (the join of the
   labels of the conditions of every enclosing `if`, `match`, `while`, `for`
   and guard) joins into every value assigned and every `emit` or send made in
-  it. A loop bound whose label is not public is refused (the number of
+  it. A loop bound whose label is not public requires change (the number of
   iterations is observable).
 - W-IFC-3: provenance. A label name records the input it came from (the event
-  field or foreign result that introduced it); the diagnostic of a refused flow
+  field or foreign result that introduced it); the diagnostic of a flow that requires change
   names the origin and the sink. Provenance is a property of the checker's
   report, not of the value, so it never changes a run.
-- W-IFC-4: refusal channel. A trap or `fail` is itself observable (the
-  refusal and its text are an output, 6.1). So a trap site whose deciding
+- W-IFC-4: kept-outcome channel. A trap or `fail` is itself observable (the
+  kept outcome and its text are an output, 6.1). So a trap site whose deciding
   operands (a divisor, an index, an operand of an overflowing operation,
-  a size) or whose control context have a non-public label is refused
+  a size) or whose control context have a non-public label requires change
   unless the operation is a checked form that returns `Option`, whose label
-  is the join of its operands. The refusal text of a trap or `fail` carries
+  is the join of its operands. The kept-outcome text of a trap or `fail` carries
   the join of the labels of the operands that decide it; a `fail` payload
-  with a non-public label is refused if the function can return it to a
+  with a non-public label requires change if the function can return it to a
   public context.
 - W-IFC-5: robust declassification. `release e` (the only way to lower a
   label) is allowed only in a function that holds a `Cap[A]` (5.16) whose
@@ -6337,7 +6341,7 @@ stays the one release without an explicit `release`. Rules:
   is a second set, `{untrusted}`, carried the same way: event payload fields
   are `untrusted` unless declared otherwise, and `endorse e` (requires a
   `Cap[A]` that names it) is the only way to make a value trusted. A release
-  decided by untrusted data is refused, so an attacker cannot steer what is
+  decided by untrusted data requires change, so an attacker cannot steer what is
   released.
 - `match`, function calls (the result takes the join of the arguments and the
   control context), the `?` operator, and the derived `Eq`, `Ord`, `Hash` and
@@ -6347,7 +6351,7 @@ stays the one release without an explicit `release`. Rules:
 
 Derivation: soundness (b) for T36, which proves noninterference only for
 secret equality bits; the general statement needs labels, implicit flows,
-the refusal channel (W-IFC-4: otherwise a trap on a secret index leaks the
+the kept-outcome channel (W-IFC-4: otherwise a trap on a secret index leaks the
 index) and robust declassification (W-IFC-5: otherwise the declassification
 decision is itself an attacker-controlled channel). Cost: labels are erased
 at run time. Theorems: T42 noninterference, T43 robust declassification
@@ -6396,11 +6400,11 @@ callee's caller as they were at the call. (The earlier rule wrote them back on e
   `spawn`, foreign calls, `World` operations and host entries are not undoable.
 - W-TX-1: a function body in which a non-undoable effect can happen before a
   `fail` on some path (a path from a non-undoable effect to a `fail`, or to a
-  call of a function that may `fail`) is refused. So a function that performs
+  call of a function that may `fail`) requires change. So a function that performs
   I/O does not also fail after it; it returns a `Result` value (F.8) the
   caller examines. (Q1.)
-- A trap is unchanged: the whole event is refused and the state is as before
-  the event (T8). A refusal inside `par` restores the whole `par` (C.4); a
+- A trap is unchanged: the whole event does not apply and the state is as before
+  the event (T8). A kept step inside `par` restores the whole `par` (C.4); a
   contract failure in `par` reports the lowest-numbered failing branch.
 - A consumed linear value (5.12) is consumed whether or not the call fails;
   consuming a linear handle is not an undoable effect (Q11), so a
@@ -6430,7 +6434,7 @@ directory, no environment and no global default.
   replay does not re-check it.
 - Attenuation only narrows: `c.narrow(sub)` returns a `Cap[A]` whose `root` is
   a path extension of c's. There is no operation that widens. A closure that
-  captures a `Cap[A]`, `&World` or any value of a non-public label is refused
+  captures a `Cap[A]`, `&World` or any value of a non-public label requires change
   (W-CAP-1 extended; F.8, closures): authority held by a closure must be
   visible in its capture list.
 - W-CAP-4 (caretaker): a `Cap[A]` that is handed to another component is
@@ -6438,7 +6442,7 @@ directory, no environment and no global default.
   logged event `host.revoke(id)`. A revoke is an entry of the log like any
   other, so whether a use is before or after a revoke is a function of the log
   order and replay is exact (T3).
-- W-CAP-5: a use of a revoked caretaker is a refusal with the fixed record
+- W-CAP-5: a use of a revoked caretaker keeps the state, with the fixed record
   `{kind: "capability", reason: "revoked", id: ...}`; revoking twice is a
   no-op entry; a revoked caretaker is never valid again (there is no
   un-revoke).
@@ -6468,12 +6472,12 @@ contexts of 5.16 (`Html`, `Url`, `Sql`, `Json`) gain two more, `Shell` and
   `Prompt.encode`, which wraps the field as a quoted data block with a
   delimiter chosen so that the field text cannot contain it (the delimiter is
   derived from the SHA-256 of the field, so it is deterministic). The type
-  records that the data inside the block is untrusted; W-IFC-5 then refuses
-  to let a model's output decide a release. A model runtime is a foreign
+  records that the data inside the block is untrusted; under W-IFC-5, a release that a
+  model's output decides then requires change. A model runtime is a foreign
   sink of context `Prompt` (E.9), so its text parameters are
   `&Text[Prompt]` (W-CTX-2, F.5.6).
 - Parsing input is strict and has one meaning: duplicate keys, trailing bytes
-  and rebinding are refused (Json input); a missing field has no default; a
+  and rebinding are parse errors (Json input); a missing field has no default; a
   value of a refined type is made only by its validating constructor
   (`R.check`, F.6.2), so deserialization cannot create a value outside its
   predicate; migrations between versions of a persisted record are explicit
@@ -6481,8 +6485,8 @@ contexts of 5.16 (`Html`, `Url`, `Sql`, `Json`) gain two more, `Shell` and
 - Text operations name their unit: `len_bytes` and `len_chars` (code points);
   there is no unqualified `len` on text. Equality is exact
   code point equality; normalization is an explicit function at input
-  boundaries. Identifiers that cannot be represented in a target are refused
-  by the emitter, never transliterated.
+  boundaries. The emitter does not print identifiers that cannot be represented in a
+  target, and never transliterates them.
 
 Derivation: soundness (b) for T36, which covers four encoders; the same proof
 shape (every structural metacharacter comes from a literal) extends to the
@@ -6490,13 +6494,13 @@ two new contexts. Theorem: T44 (stated, unproved).
 
 **F.5.3 Hash-pinned supply chain (S5).** A program is built from a *manifest*,
 a canonical JSON file (6.1) with one spelling per key; unknown keys, features,
-build flags, globs and inheritance are refused. The manifest lists every
+build flags, globs and inheritance require change. The manifest lists every
 module (the explicit membership of F.4.3) with its SHA-256, and every
 dependency by hash. Rules:
 
 - W-PIN-1: a module whose hash differs from its manifest entry, a dependency
   that is not pinned by hash, an import that is a glob or relative path, and an
-  import cycle (W-MOD-2) are refused. Imports are an unordered set; adding an
+  import cycle (W-MOD-2) require change. Imports are an unordered set; adding an
   export is always compatible. There is no resolver: the manifest is the whole
   answer.
 - The built-in standard library (4.1) is one dependency, `stdlib`, pinned by
@@ -6504,7 +6508,7 @@ dependency by hash. Rules:
   each of its modules. A `stdlib` pin that differs from the library the tool
   carries, a `stdlib` pin while that library differs from its own manifest,
   and a dependency named after a module or a namespace of the library (such
-  as `enc`, `data` or `text`) are refused (W-PIN-1), so a program names by
+  as `enc`, `data` or `text`) require change (W-PIN-1), so a program names by
   hash exactly the library it was checked against.
 - A published definition is immutable: a hash names one text forever. A
   correction is a new definition with a new hash. Withdrawal is a signed
@@ -6534,12 +6538,12 @@ control flow and memory access do not depend on a secret.
   shift amount, a divisor, or the argument of a call to a function that is not
   itself `ct`. The branchless `ct_choose(c, a, b)` and the bitwise and
   arithmetic operators on fixed-width integers (with the usual trap rules) are
-  allowed. Operations that can trap on a secret are refused by W-IFC-4
-  already.
-- RCE refuses secret branching; it does not compile it away (a compiler that
+  allowed. Operations that can trap on a secret already require change
+  under W-IFC-4.
+- In RCE, secret branching requires change; it is not compiled away (a compiler that
   rewrites secret branches into selects changes the cost model silently).
 - W-CTFN-2: an emitter whose target cannot give constant-time guarantees
-  (Python, JavaScript) refuses to emit a `ct fn` with the fixed message
+  (Python, JavaScript) does not print a `ct fn`; it gives the fixed message
   "ct fn is not emitted for this target"; the reference evaluator runs it
   with its ordinary semantics, since time is not observable there. Whether a
   target does give the guarantee is stated per target in 10.5, not assumed.
@@ -6555,15 +6559,15 @@ The theorem is about the program's control flow, not about a processor.
 manifest (a call whose cost is chosen by the outside, such as a model
 inference) may be called only inside a `with budget B` block (C.5).
 
-- W-BUD-1: a call to a `model` foreign function outside `with budget` is
-  refused. The budget is charged at one rule granularity per call (C.6): an
+- W-BUD-1: a call to a `model` foreign function outside `with budget`
+  requires change. The budget is charged at one rule granularity per call (C.6): an
   emitter counts the same units as the evaluator, so `trap("budget")` falls on
   the same operation on every target (10.5).
 - When a loop or recursion carries `decreases` (F.6.4) and the bound it
   implies is below the budget, W-BUD-1 does not require a run-time counter for
   it; the budget remains the limit, so the counter is an optimization and
   never a semantic change.
-- A budget exhausted is a trap (the event is refused, T8), not a retry.
+- A budget exhausted is a trap (the state is kept, T8), not a retry.
 
 Derivation: totality (d): a call whose cost the program cannot bound must be
 bounded by the program's own budget. Theorem: T52 (stated, unproved).
@@ -6577,16 +6581,16 @@ steered. Both directions use mechanisms that already exist: the context
 the capabilities of 5.16 on the way out.
 
 - W-CTX-2: every text parameter of an `extern "model" fn` has the type
-  `&Text[Prompt]`; `&text`, `&[scalar]` and `&mut [scalar]` are refused there,
+  `&Text[Prompt]`; `&text`, `&[scalar]` and `&mut [scalar]` require change there,
   and the other parameters are `bool`, an integer or `f64` (5.11). A
   `Text[Prompt]` is made only by `Prompt.lit` of a literal, `Prompt.encode`
   and `+` of two of them (W-CTX-1), so the instruction text of every request
   comes from the program and all data sits in encoded blocks. An argument
-  labeled `untrusted` (F.4.2) is refused unless it is passed as the
+  labeled `untrusted` (F.4.2) requires change unless it is passed as the
   `&Text[Prompt]` parameter. At run time a `Text[Prompt]` is its text, so the
   call convention of 5.11 is unchanged.
 - W-CTX-3: a model call is not control dependent on `untrusted` data, and no
-  argument was steered by it outside a `Prompt.encode` block. Refused: a call
+  argument was steered by it outside a `Prompt.encode` block. Requires change: a call
   in a control context labeled `untrusted` (an `if`, `match`, `while`, `for`
   or `and`/`or` decided by such a value); a call after a `return`, `break`,
   `continue`, `fail` or `?` taken under such a condition in the same function,
@@ -6611,7 +6615,7 @@ the capabilities of 5.16 on the way out.
 Consequences, with no further rule: a step on a model event holds no
 capability, so it cannot write `Guarded` state (W-CAP-2), cannot `endorse`
 (W-IFC-5) and cannot `release`; a release decided by a model answer, directly
-or after the answer was stored, is refused (W-IFC-5); the answer reaches a
+or after the answer was stored, requires change (W-IFC-5); the answer reaches a
 privileged decision only after a step on another event, which carries the
 capability, endorses it. Writes and outputs that the program did not declare
 privileged (unguarded state, unlabeled output) stay open to a model answer, as
@@ -6645,8 +6649,8 @@ CWE-113). The context `Header` gives header text the mechanism of F.5.2
 
 Derivation: E.9 sends text to every foreign sink as `Text[C]`; a header is
 such a sink, and its one metacharacter is the line end. An encoding that
-rewrites CR or LF would change the value a reader sees, so the context refuses
-them instead. Folding, encoded words (RFC 2047) and header names are outside
+rewrites CR or LF would change the value a reader sees, so instead a literal with them
+requires change and `Header.encode` traps on them. Folding, encoded words (RFC 2047) and header names are outside
 the context: the program writes the name as a literal.
 
 ### F.6 Tier 3: independent language features
@@ -6658,8 +6662,8 @@ and it is not text.
 
 - Fields are `{name}` or `{a.b}`: an identifier or a field path, never an
   expression, and no nested quotes (Q22). A brace not followed by a valid field
-  is refused (`{{` and `}}` write literal braces); an empty field is refused.
-- W-TPL-1: a `Template` plus text, or a template used as text, is refused. A
+  requires change (`{{` and `}}` write literal braces); an empty field requires change.
+- W-TPL-1: a `Template` plus text, or a template used as text, requires change. A
   template is made into text only by a renderer: `C.t"..."` for a context C
   (F.5.2) renders each field through `C.encode`; `text.t"..."` renders each
   field through `tostr`, and a field type that is not text must implement
@@ -6690,17 +6694,17 @@ fn withdraw(acct: &mut Account, amount: u64) -> u64
   exist; to refer to an entry value, bind it with `ghost let` (F.6.3) before
   the first statement, which a clause may name.
 - Contracts are *always enforced*: `requires` is checked on entry and
-  `ensures` on every return. A violation is one defined refusal (a trap of
-  the call's event) with the fixed record `{kind: "contract", clause:
+  `ensures` on every return. A violation is one defined kept outcome (a trap that
+  keeps the state for the call's event) with the fixed record `{kind: "contract", clause:
   "requires" | "ensures", function: <definition hash>, index: <clause number
   in written order>}`. No source span (it would make output depend on
   whitespace, Q28). No unspecified behaviour exists, so C++26's "ignore" and
   "observe" semantics are not adopted (F.2, item 2).
-- A contract with no satisfying value is an error: W-CON-1 refuses a function
-  whose `requires` clauses are, in the decidable fragment of W-REF-1, false
+- A contract with no satisfying value is an error: under W-CON-1 a function
+  requires change when its `requires` clauses are, in the decidable fragment of W-REF-1, false
   for every argument. Outside that fragment nothing is decided statically
-  (Q33); the enforcement makes such a function refuse every call, never
-  succeed vacuously.
+  (Q33); the enforcement makes every call of such a function trap, keeping the
+  state, and never succeed vacuously.
 - The checker may assume a callee's `ensures` after the call and must prove the
   callee's `requires` before it where the fragment decides it, and otherwise
   the call is checked at run time by the enforcement. Contracts are never
@@ -6731,7 +6735,7 @@ exist only for contracts and measures.
 - `mathint`, the mathematical integer, exists only in ghost code and in
   contracts (Q31). It is unbounded and has no runtime representation.
   Quantifiers, `forall` over a finite range or collection, are allowed in
-  ghost expressions only; an unbounded quantifier is refused (it cannot be
+  ghost expressions only; an unbounded quantifier requires change (it cannot be
   evaluated, and enforced contracts must be).
 - Ghost values carry no label (F.4.2) and nothing is auto-initialized.
 
@@ -6744,7 +6748,7 @@ code does not change δ or λ.
 
 - Each measure is a natural number (`u64` or `mathint` nonnegative), finite
   data under the structural order of sums and records, or a tuple of these.
-  Anything else is refused (W-DEC-1).
+  Anything else requires change (W-DEC-1).
 - W-DEC-1: every call to a function of the same group, from any path, passes a
   tuple strictly smaller in the lexicographic order than the caller's entry
   tuple. A group's measure is one tuple for the whole group (Q2); a tail call
@@ -6785,9 +6789,9 @@ allowed). The condition is a `bool` always (no truthiness); a failed pattern
 or a false `c` goes to `B`; without `else` the failed case does nothing, and
 `A` then has type `()`. There is no `elif` after an `if let`. A condition has no side effects
 to roll back, because expressions in conditions are pure (W-EFF-1 context
-rules, 5.2). W-IFLET-1: an operand `c` that is not a comparison is refused,
+rules, 5.2). W-IFLET-1: an operand `c` that is not a comparison requires change,
 and a binding unused in `A` is W-UNUSED-1. An irrefutable pattern leaves the
-wildcard arm unreachable and is refused by W-MATCH-2. The spelling of the
+wildcard arm unreachable, which requires change under W-MATCH-2. The spelling of the
 first draft, `if let P = e then A else B` with a chain `and let P2 = e2`, is
 not the grammar of this language and is withdrawn: a chain with a second
 `let` is specified for a later draft and is reserved, not implemented (W-RES-1).
@@ -6801,7 +6805,7 @@ assurance claim beyond that.
 pure total `bool` expression over the trait's methods. `impl` need not repeat
 it. Conformance is explicit, declared where the type or the trait is defined
 (the orphan rule of 5.9), all or nothing, with no duck typing and no partial
-conformance; conflicting default methods are refused (W-TRAIT-1, W-TRAIT-2
+conformance; conflicting default methods require change (W-TRAIT-1, W-TRAIT-2
 extended). A generic function is bounded by traits only, with one instance
 per trait and type, no variance and no subtyping.
 
@@ -6809,7 +6813,7 @@ per trait and type, no variance and no subtyping.
   deterministic sample: the values of the impl type that appear in `example`s
   and `check`s of the program, the boundary values of its fields (zero, one,
   the extremes of the range, empty, a singleton), and their pairs and triples
-  up to 64 tuples in canonical order. A law that fails on any is refused.
+  up to 64 tuples in canonical order. A law that fails on any requires change.
 - This is a test, not a proof. The law is not assumed by any theorem; an
   implementation may not use a law to rewrite code. Assurance level: tested.
 
@@ -6834,15 +6838,15 @@ processes. The *lethal trifecta* is the combination, in one session, of
   never resolves ambiguity silently: it shows the call and waits for an
   event.
 - TRIFECTA-3: outbound sends carry the label join of everything the session
-  has read; the broker refuses a send whose label is not below the
+  has read; the broker does not perform a send whose label is not below the
   destination's, as W-IFC-1 does for programs.
 - W-TRI-1 (static): a program that has `private` and `untrusted` inputs and an
-  external sink with no `release` path that satisfies W-IFC-5 is refused; the
+  external sink with no `release` path that satisfies W-IFC-5 requires change; the
   rule is a consequence of W-IFC-1 and is stated so the broker and the
   checker agree. The checker enforces it by W-IFC-1 (a labeled value reaching
   an `emit`, a send, a foreign argument or a public store) and W-IFC-5 (a
   `release` needs a held capability and a trusted deciding context), with no
-  separate check: a separate check would also refuse programs in which the
+  separate check: a separate check would also require change in programs in which the
   private value never reaches the sink, which W-IFC-1 admits. A model answer
   is an `untrusted` input by W-IFC-7 (F.5.6).
 - No program observes timing or hidden tool state: `rce` tools never expose a
@@ -6863,34 +6867,34 @@ where a reader would look.
 
 | Topic | Rule | Derivation |
 |---|---|---|
-| Closures | Closures capture immutable values by copy or move, with an explicit capture list; no captured `var`; a closure that borrows must not escape (5.6); a capture of `&World`, `Cap` or a non-public label is refused (F.5.1) | T6, T16, least privilege |
+| Closures | Closures capture immutable values by copy or move, with an explicit capture list; no captured `var`; a closure that borrows must not escape (5.6); a capture of `&World`, `Cap` or a non-public label requires change (F.5.1) | T6, T16, least privilege |
 | Types | No subtyping, no `any`, no implicit conversion, no cross-type equality, no implicit join of unlike `if` branches or array elements; generics are invariant | T6, T7 |
-| Enums and `match` | Closed sums; exhaustive (W-MATCH-1); duplicate and unreachable arms refused (W-MATCH-2); variants qualified | T1 |
+| Enums and `match` | Closed sums; exhaustive (W-MATCH-1); duplicate and unreachable arms require change (W-MATCH-2); variants qualified | T1 |
 | Calls | One function per name in a scope (W-NAME-2), no overloading, no default parameters, arguments evaluated in written order; argument labels (decision 18) are checked: a wrong label is W-TY-1, so a label is documentation the checker verifies (Q16) | T1 |
-| `par` | Arms are expressions; at least two; `return`, `break` and `?` written directly in an arm are refused (Q4); a refusal in any arm restores the whole `par` (C.4); a right side that writes what the place reads is a conflicting borrow; W-PAR-1 is unchanged | T16 |
+| `par` | Arms are expressions; at least two; `return`, `break` and `?` written directly in an arm require change (Q4); a kept step in any arm restores the whole `par` (C.4); a right side that writes what the place reads is a conflicting borrow; W-PAR-1 is unchanged | T16 |
 | Assignment | Place operands first, left to right, then the right side | T1 |
 | Imports | Acyclic; no glob; unordered set; explicit exports, nothing public by default | T1 |
 | Comments | Only `#` line comments exist (Q34); they never nest and nothing inside a string starts one | T1 |
 | Literals | One spelling per literal: a single `_` between digits is the only separator (2.5) (Q36); no `1.` or `.5`; one string form; `char` is a Unicode scalar value | T1 |
 | Operators | Comparison operators are non-associative: a chain is a syntax error (R3 of section 3), no chain sugar (Q8); mixing bitwise, shift, arithmetic and `and`/`or` in one expression is defined by the precedence of section 3 (decision 13), so no parenthesization rule exists; `and` and `or` short-circuit, apply to `bool` and return `bool` | T1, contracts need the left operand as a hypothesis for the right |
 | Order operators | `<` is a total order on ordered types only; subset, prefix and merge are named methods | T1 |
-| Containers | `Some`/`None` are explicit, never `false`; no tuple coercion; duplicate map-literal keys refused; map and set iteration in canonical `Ord` order, and equality is order independent because the representation is canonical (Q6, Q19); no weak references | T1, T6 |
-| Indexing | `xs[i]` is refused unless the checker proves `i < len(xs)`; `get(xs, i)` returns `Option`; slices are as in 6.3 N8; ranges keep their two spellings, `..` and `..=` (Q7) | totality |
+| Containers | `Some`/`None` are explicit, never `false`; no tuple coercion; duplicate map-literal keys require change; map and set iteration in canonical `Ord` order, and equality is order independent because the representation is canonical (Q6, Q19); no weak references | T1, T6 |
+| Indexing | `xs[i]` requires change unless the checker proves `i < len(xs)`; `get(xs, i)` returns `Option`; slices are as in 6.3 N8; ranges keep their two spellings, `..` and `..=` (Q7) | totality |
 | Classes | There are none: no inheritance, no virtual dispatch, no runtime casts, no identity equality, no field defaults; constructors are ordinary pure functions | T6, T7, T16 |
-| Errors | Failure is a `Result` value with a closed enum of error kinds; no `raise`, `try ... finally`, `with`; `refuse` is not a value and has no type (Q24) | T1, F.4.4 |
-| Numeric names | Named conversions with stated rounding; non-finite refused; NaN does not exist (Q9) | T1 |
+| Errors | Failure is a `Result` value with a closed enum of error kinds; no `raise`, `try ... finally`, `with`; the kept outcome is not a value and has no type (Q24) | T1, F.4.4 |
+| Numeric names | Named conversions with stated rounding; non-finite input traps; NaN does not exist (Q9) | T1 |
 | Pointers and memory | None; recursive data are `kind` with `Box` (5.1); vectors have no layout promise (Q29) | T6, T16 |
 | Reflection and derive | None at run time or compile time; `derive` is the closed built-in set of 5.9, user-defined `derive` is not offered (Q20); a type whose field lacks the trait cannot derive it (W-TRAIT-3) | T7 |
-| Compile-time code | Pure, total, no declaration injection, no dependence on its call point, no platform conditionals, no `assume` (a `comptime assert` over symbolic values is refused); types are not values; value parameters only in the array-length fragment (Q10) | T1, T7 |
+| Compile-time code | Pure, total, no declaration injection, no dependence on its call point, no platform conditionals, no `assume` (a `comptime assert` over symbolic values requires change); types are not values; value parameters only in the array-length fragment (Q10) | T1, T7 |
 | Linear values | Capability and resource handles are consumed exactly once by named functions (5.12); a type parameter is instantiated only by non-linear types; no implicit `Discard` (Q26) | T12 |
-| Numeric types | Bounded integers are distinct types; out-of-range refuses (F.3.4) | T14 |
+| Numeric types | Bounded integers are distinct types; out-of-range traps (F.3.4) | T14 |
 | Function values | Total pure `fn` types only; a partial function is wrapped to return `Option` or `Result` | T2 |
 | Iteration | Explicit finite folds and step functions; no coroutine iterators except `iter` (5.14) | T15 |
 | Programs | A reactive program is a total step function driven by the host (Q32); an interpreter and a compiler must agree, and the conformance suite compares them | T1, T9 |
-| Foreign | A foreign boundary is declared in the manifest with its full signature and library hash and is a `World` operation (Q30); raw pointers, C struct layouts and path-searched libraries are refused; Python interop is refused | T6, T32, T54 |
+| Foreign | A foreign boundary is declared in the manifest with its full signature and library hash and is a `World` operation (Q30); raw pointers, C struct layouts and path-searched libraries require change; Python interop requires change | T6, T32, T54 |
 | Tooling | No flag changes meaning; build artifacts are caches; the audit report is a committed file and the checker compares against it; tests run in canonical order; plugins report only; emitter names are injective and never collide with a target's reserved words | T1 |
 | Release gate | Lean proofs are built with `lake build`, no `sorry`, only the standard axioms (8); theorem statements are frozen in a module and compared; the Lean model is the reference semantics and every backend is tested against it | T9 |
-| Diagnostics | A diagnostic names the true rule or refuses; version-unstable text is never a program value | T7 |
+| Diagnostics | A diagnostic names the true rule, or says only that the text requires change; version-unstable text is never a program value | T7 |
 | Persistence | Persistent storage only through `World` with validating constructors | T32 |
 
 ### F.9 Theorem obligations (stated, unproved)
@@ -6900,11 +6904,11 @@ Lean statement, a checker test or a counterexample search yet.
 
 | | Statement |
 |---|---|
-| T42 | Noninterference with labels: two runs whose inputs agree on every public-label field give equal public outputs, including the refusal outcome, for every accepted program (F.4.2) |
+| T42 | Noninterference with labels: two runs whose inputs agree on every public-label field give equal public outputs, including the kept outcome, for every accepted program (F.4.2) |
 | T43 | Robust declassification: a release is reached only on a path whose control context and deciding operands are trusted (F.4.2) |
 | T44 | Typed output: every structural metacharacter of a rendered `Text[C]` or `Template` of any context of 5.16 and F.5.2 comes from a literal segment (F.5.2, F.6.1) |
 | T45 | Constant time: two runs of a `ct fn` that differ only in secret-labelled inputs take the same sequence of branch, index and loop decisions (F.5.4) |
-| T46 | Contract enforcement: if a call returns, its `requires` held at entry and its `ensures` held at the return; otherwise the call's event is refused with the fixed record (F.6.2) |
+| T46 | Contract enforcement: if a call returns, its `requires` held at entry and its `ensures` held at the return; otherwise the step of the call's event keeps the state, with the fixed record (F.6.2) |
 | T47 | Transactional calls: a call that returns by `fail` leaves the caller's `&mut` arguments and locals equal to their values at the call (F.4.4) |
 | T48 | Termination by written measure: an accepted recursive group or loop with a `decreases` tuple ends (F.6.4) |
 | T49 | Ghost erasure: erasing ghost code does not change δ, λ or the log (F.6.3) |
@@ -6927,11 +6931,11 @@ excluded (F.2, item 3).
   before evaluation; only enforced contract clauses, `R.check`, encoders
   (F.5.2), `ct_choose` and the restore of F.4.4 cost anything at run time,
   each charged as the C.6.4 operator or linear class named in its rule.
-- An emitter that cannot implement a rule exactly refuses the program with a
+- An emitter that cannot implement a rule exactly does not print the program; it gives a
   fixed message and never approximates (10.5); the targets for `ct fn` are
   stated in F.5.4.
 - Compatibility: there is one language, so no module is read under older rules. An
-  older program can be refused by F.3.2, F.3.3, F.4.2, F.5.1 and F.4.4; it is
+  older program can require change under F.3.2, F.3.3, F.4.2, F.5.1 and F.4.4; it is
   never silently re-read. The one-time migration of the standard library to these rules is
   recorded in the ledger of the change (renamed names, `len_bytes`).
 
@@ -6941,8 +6945,8 @@ excluded (F.2, item 3).
    `ghost`, `release`) into section 3 and require 0 LALR(1) conflicts, with
    the tree-sitter port agreeing (T10).
 2. Implement each W-rule of
-   this appendix with accept and refuse examples (the implemented ones are in
-   `spec/examples-0.9/`, one refused file per rule, checked by
+   this appendix with accept and requires-change examples (the implemented ones are in
+   `spec/examples-0.9/`, one file that requires change per rule, checked by
    `tests/v09_examples.rs`; the rest are listed in F.12); the fuzz generator must produce programs
    clean of F.3.2.
 3. C-F1: show that `==` and `<` on f64 `-0` and `+0` agree with the total
@@ -6958,8 +6962,8 @@ excluded (F.2, item 3).
 Implemented and tested (`spec/checker/src/v09.rs`, `apidiff.rs`; examples in
 `spec/examples-0.9/`; `rce v09-status` prints this list):
 
-- W-RES-1 refuses the reserved words `declassify` and `law` and the type
-  names `Template` and `mathint` (their constructs are not
+- Under W-RES-1, the reserved words `declassify` and `law` and the type
+  names `Template` and `mathint` require change (their constructs are not
   implemented), except directly after `.`; the `# rce-version:` label is ignored (2.7).
 - W-LEX-4 (F.3.3) as stated there, with the extra classes listed there.
 - W-UNUSED-1 (F.3.2), including the `_` spelling and a read of a `_` name;
@@ -6974,7 +6978,7 @@ Implemented and tested (`spec/checker/src/v09.rs`, `apidiff.rs`; examples in
   contracts, measures, ghost clauses or labels, which do not exist yet.
 - W-TX-1 and the restore of `&mut` arguments on `fail` (F.4.4) in the reference
   evaluator. A `catch`ed call is not a fail point of its caller. The emitters
-  and the Lean elaboration refuse a module with a function that can fail
+  and the Lean elaboration do not translate a module with a function that can fail
   after taking a `&mut` argument.
 
 - Information-flow labels (F.4.2, S1): `T @ {A, B}` label sets on declared
@@ -6987,8 +6991,8 @@ Implemented and tested (`spec/checker/src/v09.rs`, `apidiff.rs`; examples in
   (`release` needs the held `Cap[AUTH]` and a trusted deciding context, and
   `endorse` needs `label untrusted by AUTH` and the held capability; event
   payloads are `untrusted` unless declared `@ {}`), with the source of each
-  label named in the message and a per-instantiation check of calls. W-NAME-2
-  refuses `label`, `release` and `endorse` used as names. The checker erases the
+  label named in the message and a per-instantiation check of calls. Under W-NAME-2,
+  `label`, `release` and `endorse` used as names require change. The checker erases the
   labels, `release` and `endorse` before evaluation and emission, so a labeled
   program runs as the unlabeled one. `declassify` stays reserved, not implemented.
   The grammar delta is F.13; the Rust LALR(1) tables (0 conflicts), the
@@ -6998,20 +7002,20 @@ Implemented and tested (`spec/checker/src/v09.rs`, `apidiff.rs`; examples in
 - S2 directory capabilities (F.5.1): W-CAP-3 (a foreign function with a `path`
   or `*_path` parameter takes a `Cap[DirRead]` or `Cap[DirWrite]` after its
   `&World`; `DirRead` and `DirWrite` are declared structs with `root: text`;
-  `c.narrow(sub)` is typed `Cap[A]` and refused unless `sub` is, when a
+  `c.narrow(sub)` is typed `Cap[A]` and requires change unless `sub` is, when a
   literal, a relative path with no `.` or `..` segment); there is no operation
   that widens. A closure that captures a `&World` or a capability, by declared
   type, is W-CAP-1. A capability is `()` at run time, so the checker erases
   the directory capabilities of a foreign call like the world, and `narrow`
   evaluates to `()`. The caretaker semantics of W-CAP-4 and W-CAP-5 are
-  implemented as a pure function of the log (`caretaker.rs`: admit, refuse
+  implemented as a pure function of the log (`caretaker.rs`: admit, keep the state
   with the fixed record `{id, kind: "capability", reason: "revoked"}`, revoke
   twice is a no-op, no un-revoke), with unit tests. The call `host.revoke(id)`
   needs the host log, which the reference checker does not have, so it is
   reserved, not implemented (W-RES-1).
 - S3 typed output (F.5.2, F.5.7): the contexts `ShellArg`, `Prompt` and `Header` (with `lit` and
   `encode`; the `Prompt` delimiter is `data-` and the SHA-256 of the field,
-  re-hashed until the field does not contain it; `Header` refuses CR and LF) and `Shell`, made only by
+  re-hashed until the field does not contain it; `Header.encode` traps on CR and LF) and `Shell`, made only by
   `Shell.cmd(program, args)` with a literal program and `List[Text[ShellArg]]`
   arguments, whose value is the canonical JSON `{"args": [...], "program":
   ...}` (an argument vector, never a command line). `len_bytes` and `len_chars`
@@ -7019,7 +7023,7 @@ Implemented and tested (`spec/checker/src/v09.rs`, `apidiff.rs`; examples in
   the refined-type constructor `R.check` are not implemented. The templates
   `Prompt.t"..."` of F.6.1 are not implemented either (see below).
 - S6 `model` foreign functions (F.5.5): `extern "model" fn` declares one, and
-  W-BUD-1 refuses a call outside `with budget`. The model boundary (F.5.6):
+  a call outside `with budget` requires change (W-BUD-1). The model boundary (F.5.6):
   W-CTX-2 (the parameter types, in the checker; an untrusted argument outside
   the `&Text[Prompt]` parameter, in the label analysis, so only in a module
   that writes a label), W-CTX-3 (label analysis, `ifc.rs`), `extern "model"
@@ -7033,17 +7037,17 @@ Implemented and tested (`spec/checker/src/v09.rs`, `apidiff.rs`; examples in
   reference evaluator, `tests/emit.rs`), so a program that calls a model is
   emitted. Neither the emitters nor the Lean elaboration translate `narrow`,
   `Shell`, `ShellArg`, `len_bytes` or `len_chars`, and the Lean elaboration
-  does not translate `Prompt` or `Header`: they refuse a module that uses one
-  (W-RES-1).
+  does not translate `Prompt` or `Header`: they do not translate a module
+  that uses one (W-RES-1).
 
 - S4 `ct fn` (F.5.4): `ct` is a keyword (a stray use is
-  W-NAME-2). W-CTFN-1 refuses, inside a `ct fn`, a `secret`-labeled value (F.4.2)
-  that decides an `if` or `match`, an `and` or `or` operand, an index, a loop
+  W-NAME-2). Under W-CTFN-1, a `secret`-labeled value (F.4.2) inside a `ct fn` requires
+  change when it decides an `if` or `match`, an `and` or `or` operand, an index, a loop
   or `for` bound, a shift amount, a divisor, or an argument of a call to a
   function that is not a `ct fn` (a foreign function included); it is checked
   per call instantiation like the labels. `ct_choose(c, a, b)` evaluates both
-  values and chooses one. W-CTFN-2: every emitter and the Lean elaboration
-  refuse a module with a `ct fn` ("ct fn is not emitted for this target"):
+  values and chooses one. W-CTFN-2: no emitter prints, and the Lean elaboration
+  does not translate, a module with a `ct fn` ("ct fn is not emitted for this target"):
   10.5 states no constant-time guarantee for any target, so none is assumed.
   The reference evaluator runs it with ordinary semantics; `ct` changes no value.
 
@@ -7052,12 +7056,12 @@ Implemented and tested (`spec/checker/src/v09.rs`, `apidiff.rs`; examples in
   sha256}`), `formatter`, `language` (the release label "0.9", the hash domain of F.4.3), `modules` (list of
   `{module, path, sha256}`) and optional `reads` (list of `{path, sha256}`,
   the compile-time file reads); one final line feed is ignored and any other
-  non-canonical spelling is refused. The hash of a module is the SHA-256 of
-  its canonical unparse, so formatting never changes it. W-PIN-1 refuses an
+  non-canonical spelling requires change. The hash of a module is the SHA-256 of
+  its canonical unparse, so formatting never changes it. Under W-PIN-1, an
   unknown key, a module whose hash differs from its entry, a dependency not
   pinned by 64 lowercase hex digits, a path that is a glob, absolute or has a
   `.` or `..` segment, an import that is neither a listed module nor a pinned
-  dependency, and an import cycle (W-MOD-2). A signed advisory is `{advisory:
+  dependency, and an import cycle (W-MOD-2) require change. A signed advisory is `{advisory:
   {kind: "advisory", hash, reason, issued_by, seq}, signature}` with the
   Ed25519 signature (RFC 8032, via `ring`) over the SHA-256 of the canonical
   JSON of the `advisory` object, by the key trusted for `issued_by` (given on
@@ -7071,8 +7075,8 @@ Implemented and tested (`spec/checker/src/v09.rs`, `apidiff.rs`; examples in
 
 - P2 contracts and P3 `ghost` (F.6.2, F.6.3, `tier3.rs`): `requires E` and
   `ensures E` are statements (`ContractStmt`) written before the first
-  statement of a fn body, after any `ghost let`; a clause elsewhere is
-  refused (W-CON-2). Clauses are enforced always: the checker lowers the fn
+  statement of a fn body, after any `ghost let`; a clause elsewhere
+  requires change (W-CON-2). Clauses are enforced always: the checker lowers the fn
   to guards, `requires` first in written order, then the kept ghost lets, then
   the body in which every `return` (and the tail value) first binds `result`
   and runs the `ensures` guards. A violated guard traps with the text
@@ -7081,14 +7085,14 @@ Implemented and tested (`spec/checker/src/v09.rs`, `apidiff.rs`; examples in
   all the clauses of the fn in written order from 0 and the hash is the
   definition hash of the fn as written (F.4.3: for a top-level fn the
   `rce hash` value, for a method the SHA-256 of its canonical text under the
-  same prefix). There is no source span. W-CON-1 refuses `requires` clauses
+  same prefix). There is no source span. Under W-CON-1, `requires` clauses
   that are false in the fragment of literal comparisons, `and` and the integer
-  bounds of one name (`x > 5 and x < 3`); W-CON-2 refuses `result` in
+  bounds of one name (`x > 5 and x < 3`) require change; under W-CON-2, `result` in
   `requires`, a binding named `result` in a fn with `ensures`, and a channel
-  receive in a clause. `ghost let` and `ghost fn`: W-GHOST-1 refuses a ghost
-  name in code that runs; ghost code that no clause names (transitively) is
+  receive in a clause require change. `ghost let` and `ghost fn`: under W-GHOST-1, a ghost
+  name in code that runs requires change; ghost code that no clause names (transitively) is
   erased, the rest is evaluated because an enforced clause needs it. The
-  emitters refuse a module with a contract (W-RES-1). Not implemented:
+  emitters do not print a module with a contract (W-RES-1). Not implemented:
   `ghost` parameters (W-RES-1), `mathint` and quantifiers, `R.check`, opaque
   types with invariants, assuming a callee's `ensures` and proving its
   `requires` statically (a call is checked by the enforcement), contracts on
@@ -7104,7 +7108,7 @@ Implemented and tested (`spec/checker/src/v09.rs`, `apidiff.rs`; examples in
   callee's measure with the arguments substituted differ by a constant
   difference, and the positions before it are equal. A member of a group
   without a `decreases`, a different arity, a signed or non-linear measure
-  and an argument outside the fragment are refused. A measure has no run-time
+  and an argument outside the fragment require change. A measure has no run-time
   meaning (the recursion bound of 6.7 and the loop limit still hold) and is in
   the definition hash. A `while` may carry a measure as the first statement of
   its body (the loop form of W-DEC-1): each part is linear in the unsigned
@@ -7114,8 +7118,8 @@ Implemented and tested (`spec/checker/src/v09.rs`, `apidiff.rs`; examples in
   terms of the entry values, and that tuple must be strictly smaller in the
   lexicographic order (a constant difference at the first position where the
   two differ). A measure name assigned anywhere else in the body, borrowed
-  mutably, or a `continue` in the body, is outside the fragment and is
-  refused with W-DEC-1; a `decreases` on a `for` or `loop`, or anywhere else
+  mutably, or a `continue` in the body, is outside the fragment and
+  requires change: W-DEC-1; a `decreases` on a `for` or `loop`, or anywhere else
   than the start of a fn body or of a `while` body, is reserved, not implemented
   (W-RES-1). The loop measure is erased before evaluation and emission, and
   `bound` and `LOOP_LIMIT` still hold. The checker does not prove that a
@@ -7137,11 +7141,11 @@ Implemented and tested (`spec/checker/src/v09.rs`, `apidiff.rs`; examples in
   each field; a context: `C.lit` of each segment and `C.encode` of each
   field, joined with `+`), so the fields are ordinary reads and the context's
   typing (W-CTX-1) decides what a field may be. Fields are an identifier or a
-  field path; `{{` and `}}` are literal braces; W-TPL-2 refuses an empty
-  field, an expression, a stray brace and an unclosed field; W-TPL-1 refuses
-  a renderer that is neither `text` nor a context. A template that is not
-  rendered at once is the `Template[τ]` value of F.6.1, which is refused by
-  version, so W-TPL-1's text-plus-template cases cannot arise yet. The
+  field path; `{{` and `}}` are literal braces; an empty field, an expression,
+  a stray brace and an unclosed field require change (W-TPL-2); so does a
+  renderer that is neither `text` nor a context (W-TPL-1). A template that is not
+  rendered at once is the `Template[τ]` value of F.6.1, which requires change as
+  reserved, not implemented (W-RES-1), so W-TPL-1's text-plus-template cases cannot arise yet. The
   formatter writes the expansion, not the template (the meaning, and so the
   hash of the expansion, is the same). T44 stays unproved.
 
@@ -7151,7 +7155,7 @@ Not implemented (each is reserved, not implemented, or the closed list in
 - trait laws (P9, F.6.6): `law` is a reserved word that is reserved, not implemented;
   W-LAW-1 needs a sample of impl values and an evaluator of a law over them,
   and neither exists, so no law is ever run or assumed;
-- `declassify` (F.4.2): always refused; `release` with a held capability is the
+- `declassify` (F.4.2): always requires change; `release` with a held capability is the
   one way a labeled value leaves its label;
 - `ghost` parameters, `mathint` and quantifiers; `R.check` and opaque types
   with invariants; `Template[t]` as a value; structural measures over data
@@ -7161,16 +7165,16 @@ Not implemented (each is reserved, not implemented, or the closed list in
   statement in F.5.5 to implement; provenance records, the build cache and the
   advisory key distribution of S5.
 
-**Why each stays refused (state of 18 October 2026).** A refusal is a decision, so each has its reason
-here; none of them is left refused for lack of attention.
+**Why each still requires change (state of 18 October 2026).** Each is a decision, so each has its reason
+here; none of them is left requiring change for lack of attention.
 
-- `ct fn` in the emitters and the Lean elaboration: W-CTFN-2 prescribes the refusal for Python and
-  JavaScript, and the Rust and Scala emitters refuse for the same reason. The property is that two runs
+- `ct fn` in the emitters and the Lean elaboration: W-CTFN-2 prescribes that the Python and
+  JavaScript emitters do not print a `ct fn`, and the Rust and Scala emitters do not print one for the same reason. The property is that two runs
   that differ only in secrets take the same branch, index and loop decisions (T45); a translation that
   keeps the decisions equal says nothing about the timing the target's compiler or runtime then
   produces, and T45 is unproved. The reference evaluator runs the function.
-- Contracts in the emitters: a `requires` or `ensures` that fails refuses the event with the fixed
-  record (F.6.2, T46). The emitters translate the erased Form and have no outcome for a refused event
+- Contracts in the emitters: a `requires` or `ensures` that fails keeps the state, with the fixed
+  record (F.6.2, T46). The emitters translate the erased Form and have no outcome for a kept step
   distinct from a trap, so an emitted program could not report the record; adding one to four emitters
   and to the conformance adapters is a change of the emitter protocol, not a local translation.
 - `Template` values and `Prompt.t"..."` (F.6.1): the typed-output property (T44) is about the

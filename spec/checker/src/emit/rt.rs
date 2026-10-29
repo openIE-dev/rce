@@ -1,7 +1,7 @@
 // RCE runtime for emitted Rust (spec 10.5). Values, traps and the edge
 // semantics of 6.3 as in the reference evaluator; the shape follows the
 // verified emitter of T9: a uniform value type, `Result` with `?` for traps
-// and refusals, checked i128 arithmetic against each integer type's range.
+// and kept steps, checked i128 arithmetic against each integer type's range.
 #![allow(dead_code, unused_mut, unused_variables, unused_parens, unreachable_code, unused_assignments, non_snake_case, clippy::all)]
 // `Rc` is `Arc` so values can move to task and branch threads
 use std::sync::Arc as Rc;
@@ -822,7 +822,7 @@ pub fn arena_check(bound: i128, vals: &[&V]) -> R<()> {
 pub fn why(f: &Flow) -> String {
     match f { Flow::Trap(t) => format!("trap: {t}"), Flow::Fail(v) => format!("failed with {}", show(v)), Flow::Stop => "Stop".into(), Flow::Ret(_) => "Ret".into(), Flow::Cancel(f) => format!("Cancel({f})"), Flow::Brk => "Brk".into(), Flow::Cont => "Cont".into() }
 }
-/// Rust `Debug` of the interpreter's `V`, so refusal reasons match its
+/// Rust `Debug` of the interpreter's `V`, so the reasons of kept steps match its
 /// `trap({other:?})` text; closures, iterators and lvars print a placeholder
 pub fn dbg_v(v: &V) -> String {
     let l = |xs: &[V]| xs.iter().map(dbg_v).collect::<Vec<_>>().join(", ");
@@ -864,7 +864,7 @@ pub fn dbg_flow(f: &Flow) -> String {
         Flow::Cancel(n) => format!("Cancel({n})"),
     }
 }
-/// machine step refusal (interp.rs): a failure names its record, else "?"
+/// why a machine step kept the state (interp.rs): a failure names its record, else "?"
 fn reason_of(f: &Flow) -> String {
     match f {
         Flow::Fail(V::Rec(n, _)) => n.clone(),
@@ -873,7 +873,7 @@ fn reason_of(f: &Flow) -> String {
         o => format!("trap({})", dbg_flow(o)),
     }
 }
-/// actor handler refusal (conc.rs): a non-record failure is shown in full
+/// why an actor handler kept the state (conc.rs): a non-record failure is shown in full
 fn actor_reason(f: &Flow) -> String {
     match f {
         Flow::Fail(V::Rec(n, _)) => n.clone(),
@@ -1656,7 +1656,7 @@ struct Sched {
     slots: Vec<Slot>, chans: BTreeMap<String, ChanSt>, staged: Vec<(String, V)>, outputs: Vec<V>, rng: u64, tick: u64, stop: Option<Outcome>, max_ticks: u64,
     actors: BTreeMap<String, ActorSt>, mail_staged: Vec<(String, String, V)>, txns: Vec<Vec<(String, String, V)>>, txn_staged: Vec<Vec<(String, String, V)>>,
     held_links: Vec<(usize, usize, V, V)>, parted: Vec<(usize, usize)>, nodes: Vec<&'static str>, links: Vec<(u64, bool, String, String)>, restarts: HashMap<(String, String), Vec<u64>>, rlog: Vec<(u64, String, String, String, bool, Vec<String>)>, rrep: Option<std::collections::VecDeque<(u64, String, String, String, bool, Vec<String>)>>,
-    /// actor log entries the interpreter also logs: Refused, Stopped, Restart, Input, Unhandled
+    /// actor log entries the interpreter also logs: Kept, Stopped, Restart, Input, Unhandled
     alog: Vec<String>,
     /// program events (HC-6): (tick, event value)
     events: Vec<(u64, V)>,

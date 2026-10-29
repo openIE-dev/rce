@@ -128,7 +128,7 @@ mod tests {
     }
     #[test]
     fn edits_that_require_change_change_nothing() {
-        // Deleting a function that is still called must be refused.
+        // Deleting a function that is still called must require change.
         assert!(apply(&files(), &GraphOp::Delete { name: "leaf".into() }).is_err());
         assert!(apply(&files(), &GraphOp::Rename { from: "leaf".into(), to: "a b".into() }).is_err());
     }

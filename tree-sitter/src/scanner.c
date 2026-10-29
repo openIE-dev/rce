@@ -49,7 +49,7 @@ void tree_sitter_rce_external_scanner_deserialize(void *p, const char *b, unsign
 static void comment(TSLexer *lx, S *s) {
   lx->advance(lx, false);
   while (!lx->eof(lx) && lx->lookahead != '\n' && lx->lookahead != '\r') {
-    if (lx->lookahead == '\t') s->bad = 1;  // W-LEX-1: a tab is refused, in a comment too
+    if (lx->lookahead == '\t') s->bad = 1;  // W-LEX-1: a text with a tab requires change, in a comment too
     lx->advance(lx, false);
   }
 }

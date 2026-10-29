@@ -586,7 +586,7 @@ fn marker_int<'a>(it: &mut Interp<'a>, s: Option<&Stmt>) -> R<i128> {
 }
 
 impl<'a> Interp<'a> {
-    /// Charge `units` cost units (C.6.4); refuses with `trap("budget")` when
+    /// Charge `units` cost units (C.6.4); traps with `trap("budget")` when
     /// starting the operation would take any enclosing budget past its limit.
     pub fn charge(&mut self, units: i128) -> R<()> {
         if self.cx.budgets.iter().any(|(s, l)| s.saturating_add(units) > *l) {
@@ -1538,8 +1538,8 @@ pub struct RunCfg {
     pub restarts: Option<Vec<RestartIn>>,
     /// schema of the replayed log (C.11.11): the supervisor tree it was
     /// recorded against (`RunResult.tree`). A log whose tree does not
-    /// migrate to this program's tree (`tree_migrates`) refuses before any
-    /// step instead of misreplaying. `None` is a log without a schema
+    /// migrate to this program's tree (`tree_migrates`) is reported before any
+    /// step instead of being misreplayed. `None` is a log without a schema
     /// header: each replayed decision's position is still checked.
     pub restart_tree: Option<Vec<String>>,
     /// program events fed to the running task (HC-6): (tick, event value).
@@ -2804,10 +2804,10 @@ impl Replicas {
 /// * `merge` is componentwise, `T(f: max(self.f, o.f), g: self.g or o.g, ...)`
 ///   over integer and bool fields: the laws follow from `MergeLaws.prodSL`,
 ///   `intMax` and `boolOr`;
-/// * otherwise the obligation is not discharged and the impl is refused.
+/// * otherwise the obligation is not discharged and the impl requires change.
 /// Before that, a search on a finite sample (`bottom()`, the module's
 /// constants of T, closed under `merge` to depth 3, at most 24 values)
-/// looks for a counterexample, so a refusal names one when it can.
+/// looks for a counterexample, so the report names one when it can.
 /// Types without an `impl Merge` use the built-in instances, whose laws are
 /// proved in `MergeLaws.lean`.
 pub fn crdt_gate(m: &Module) -> Vec<String> {
@@ -3228,7 +3228,7 @@ impl Cx<'_> {
 
 /// W-LVAR-2 at admission: in a literal threshold list, two thresholds where
 /// one is below the other (`a ⊔ b ∈ {a, b}` in the program's Merge) are
-/// compatible for any top, so the set is refused. Other lists are checked
+/// compatible for any top, so the set requires change. Other lists are checked
 /// against the cell's top by every `wait` (interp `lvar_incomp`).
 pub fn lvar_gate(m: &Module) -> Vec<String> {
     // per body: the parameters of a finite type (a kind of nullary variants,

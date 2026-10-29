@@ -17,7 +17,7 @@ impl Adapter for Echo {
     }
     fn perform(&mut self, r: &Value) -> EffectResult {
         self.calls.set(self.calls.get() + 1);
-        if r["msg"] == "boom" { EffectResult::failed("refused by adapter") } else { EffectResult::ok(r["msg"].clone()) }
+        if r["msg"] == "boom" { EffectResult::failed("not performed by adapter") } else { EffectResult::ok(r["msg"].clone()) }
     }
 }
 
@@ -48,7 +48,7 @@ fn each_request_gets_exactly_one_result_and_replays_without_adapters() {
     let prog: Vec<&String> = k.iter().filter(|x| !x.starts_with("host.")).collect();
     assert_eq!(prog, ["Say", "EchoDone", "Say", "EchoDone", "Say", "EchoDone"]);
     let text: String = st.lines.iter().map(|l| format!("{l}\n")).collect();
-    assert!(text.contains(r#""data":null,"err":"refused by adapter","req":2,"status":"failed""#), "{text}");
+    assert!(text.contains(r#""data":null,"err":"not performed by adapter","req":2,"status":"failed""#), "{text}");
     let (k2, h2, state) = replay(&m, &text).unwrap();
     assert_eq!((k2, h2), (n, live));
     let shown = format!("{state:?}");
@@ -113,7 +113,7 @@ fn result_event_of_another_shape_is_matched_by_field_name() {
     let text: String = st.lines.iter().map(|l| format!("{l}\n")).collect();
     assert!(text.contains(r#"{"payload":{"event":{"payload":{"data":"a","err":"","req":1,"status":"delivered"},"type":"EchoDone"},"why":"not declared: data, err"},"type":"host.Kept"}"#), "{text}");
     assert!(text.contains(r#"{"payload":{"req":1,"status":"delivered"},"type":"EchoDone"}"#), "{text}");
-    assert!(text.contains(r#""payload":{"data":null,"err":"refused by adapter","req":2,"status":"failed"},"type":"EchoDone"},"why":"not declared: err""#), "{text}");
+    assert!(text.contains(r#""payload":{"data":null,"err":"not performed by adapter","req":2,"status":"failed"},"type":"EchoDone"},"why":"not declared: err""#), "{text}");
     assert_eq!(replay(&m, &text).unwrap().1, live);
     // replay plans each delivery again: a host.Kept with another reason is
     // a fault

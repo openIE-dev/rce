@@ -10,7 +10,7 @@ In plain words:
 1. **Each folder is one kind of problem.** Pick the area closest to what
    you want to build and start from its programs.
 2. **Each program tests itself.** The `example` and `check` lines inside
-   a program say what it must do, and the checker refuses the program if
+   a program say what it must do, and the program requires change if
    they do not hold.
 3. **The limits are written down.** Where RCE cannot yet express something
    an area needs, the folder's README says so plainly.
@@ -44,16 +44,16 @@ RCE=/path/to/rce scripts/check.sh
 | Folder | Programs | What they show |
 |---|---|---|
 | [world/](world/) | `cellular_automaton.rce`, `queue_sim.rce` | discrete simulation as a state that changes on each event |
-| [body/](body/) | `thermostat.rce`, `arm.rce` | control loops that react to sensor readings and refuse impossible ones |
+| [body/](body/) | `thermostat.rce`, `arm.rce` | control loops that react to sensor readings and keep the state on impossible ones |
 | [media/](media/) | `gain.rce`, `moving_average.rce` | fixed-size buffers, lane-wise arithmetic, clipping, filters |
 | [network/](network/) | `handshake.rce`, `server.rce`, `notes_http.rce` | a protocol as a state machine; a server as an actor; a JSON service on the HTTP event host |
 | [text/](text/) | `word_count.rce`, `edit_distance.rce` | a byte-by-byte lexer; dynamic programming over text |
 | [data/](data/) | `totals.rce` | records, totals and a group-by |
 | [money/](money/) | `account.rce`, `ledger.rce` | balances in integer cents; double-entry bookkeeping with an invariant |
 | [science/](science/) | `numerics.rce`, `knapsack.rce` | dot product, mean, Newton's method; dynamic programming |
-| [systems/](systems/) | `ring_buffer.rce`, `reconcile.rce` | a ring buffer that refuses to overwrite; a reconcile loop |
+| [systems/](systems/) | `ring_buffer.rce`, `reconcile.rce` | a ring buffer that never overwrites; a reconcile loop |
 | [hardware/](hardware/) | `bits.rce` | bit counting, bit fields, a CRC-32 table built while checking |
-| [multi/](multi/) | `elevator.rce`, `vending.rce`, `crossing.rce`, `parking.rce`, `printer.rce`, `lobby.rce`, `card.rce`, `washer.rce`, `session.rce`, `player.rce`, `climate.rce`, `reservoir.rce` | twelve devices whose state is split over two regions the same events drive; every one emits or refuses, and every one is explored completely by `rce dim` |
+| [multi/](multi/) | `elevator.rce`, `vending.rce`, `crossing.rce`, `parking.rce`, `printer.rce`, `lobby.rce`, `card.rce`, `washer.rce`, `session.rce`, `player.rce`, `climate.rce`, `reservoir.rce` | twelve devices whose state is split over two regions the same events drive; every one emits or keeps the state, and every one is explored completely by `rce dim` |
 
 ## Areas without examples yet
 
@@ -69,9 +69,9 @@ specification) has no construct for them:
 
 ## How the checks work
 
-`scripts/check.sh` applies four rules: a program outside a `kept/`
-folder must pass `rce test`; a program in `kept/` must be refused with
-the text in its `.expect` file; a `.cmd` file holds a command whose
+`scripts/check.sh` applies four rules: a program outside a `change/`
+folder must pass `rce test`; a program in `change/` must require change,
+with the text of its `.expect` file in the report; a `.cmd` file holds a command whose
 output must equal the `.out` file next to it; and a folder with a
 `program.txt` is tested as one program.
 

@@ -282,7 +282,7 @@ fn t27_linearizable_actor() {
 }
 
 /// T28: a well-typed session runs to the end without deadlock. (A bounded
-/// `loop bound n` around the server's offer is refused with W-SES-1: it can
+/// `loop bound n` around the server's offer requires change (W-SES-1): it can
 /// exit with the protocol unfinished.)
 #[test]
 fn t28_session_fidelity() {

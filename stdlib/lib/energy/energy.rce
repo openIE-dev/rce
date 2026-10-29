@@ -344,7 +344,7 @@ fn kid_text(b: &[i64]) -> text
 
 const FIELDS: text = "jcp_receipt grant_id issuer subject resource action payload_hash frame_kind trust verdict deny_reason cost_uj energy_provenance energy_coverage budget_remaining_uj budget_uj steward chain_ids"
 
-# Decode a core strictly: canonical bytes (enc refuses non-canonical
+# Decode a core strictly: canonical bytes (enc fails on non-canonical
 # input), only known fields, the right types, and the profile named in
 # the core itself: jcp/2 needs payload_hash, jcp/1 must not cy it.
 pub fn decode_core(payload: &[i64]) -> Receipt ! BadReceipt

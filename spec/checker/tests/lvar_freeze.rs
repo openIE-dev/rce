@@ -525,7 +525,7 @@ fn main()
     for want in ["emit [1, 2, 3, 5]", "emit [1]", "emit [2]", "emit [4, 7]"] {
         assert!(l.iter().any(|x| x == want), "missing {want:?} in {l:?}");
     }
-    // a value type without Merge is refused at check time
+    // a value type without Merge requires change at check time
     let e = kept(
         "fn f() -> i64
     let m: Map[text, text] = {\"a\": \"x\"}

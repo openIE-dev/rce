@@ -4,7 +4,7 @@ module time
 # is a number a program received in an event (a Tick, a host.WallTime
 # result), and every function is pure arithmetic on it, so replay is exact.
 # Instant: i64 nanoseconds since 1970-01-01T00:00:00Z on the POSIX
-# timescale (no leap seconds; 23:59:60 is refused on parse). Duration: i64
+# timescale (no leap seconds; 23:59:60 is a parse error). Duration: i64
 # nanoseconds. Range: about years 1678..2261 for instants; day-level civil
 # functions work on any i64 day count that fits. Overflow traps (checked
 # integers). Civil dates are proleptic Gregorian, from Howard Hinnant's
@@ -153,7 +153,7 @@ fn expect(s: &text, at: usize, c: i64) -> bool ! BadTime
 
 # Parse RFC 3339 date-time (section 5.6): YYYY-MM-DDTHH:MM:SS[.frac](Z|+HH:MM|-HH:MM),
 # 'T'/'t' and 'Z'/'z' accepted; at most 9 fraction digits; second 60
-# (leap second) is refused because instants are POSIX time.
+# (leap second) is an error because instants are POSIX time.
 pub fn parse_rfc3339(s: &text) -> i64 ! BadTime
     let y = try digits(s, 0, 4)
     let _ = try expect(s, 4, 45)

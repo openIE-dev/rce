@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Add the clauses a test exercises by its kind and constructs (idempotent).
 A tag is added only when the test's own check observes the clause: e.g. T8
-on a trace that contains a refused event (the harness checks T8 on every
+on a trace that contains a kept step (the harness checks T8 on every
 trace), T16 on a run that carries schedule_seeds."""
 import os, pathlib, re, sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "harness"))
@@ -65,7 +65,7 @@ def tags(src, m):
     if exp in ("accept",) or (exp == "change" and m.get("diagnostic") == "W-SYN-1"):
         cl |= {"CH03-M-28cdd241"}   # checked by tools/ts_crosscheck.py against tree-sitter-rce
     if m.get("area") == "lexing-parsing":
-        cl |= {"T10", "CH02-M-69371f07"} if (exp == "accept" or m.get("diagnostic") in ("W-LEX-2", "W-SYN-1")) else set()
+        cl |= {"T10", "CH02-M-84a53b7d"} if (exp == "accept" or m.get("diagnostic") in ("W-LEX-2", "W-SYN-1")) else set()
     if m.get("area") == "numbers" and exp == "run":
         cl |= {"N1", "N3", "F7", "F9", "CH05-M-2405dfe8"}
     if exp == "host":

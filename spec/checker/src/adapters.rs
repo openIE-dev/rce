@@ -32,7 +32,8 @@ pub fn file_adapters(root: &Path) -> Vec<FileAdapter> {
 }
 
 impl FileAdapter {
-    /// The path under the root, or why it is refused (least privilege).
+    /// The path under the root, or why the access is not performed (least
+    /// privilege).
     fn resolve(&self, p: &str) -> Result<PathBuf, String> {
         if p.is_empty() && self.kind == "FileList" {
             return Ok(self.root.clone());
@@ -1160,7 +1161,8 @@ pub mod chan {
 /// `MediaRead(req, id)` -> text `"<seq>:<digest>"`, failed `eof` at the end;
 /// `MediaPlay(req, track, digest)` -> u64 bytes: the playback sink (λ,
 /// output only) checks the blob against its digest and appends it to
-/// `<root>/play/<track>`; a frame whose bytes do not match is refused.
+/// `<root>/play/<track>`; a frame whose bytes do not match is not appended
+/// (the result is failed).
 pub mod media {
     use crate::host::{Adapter, EffectResult};
     use serde_json::{Value, json};

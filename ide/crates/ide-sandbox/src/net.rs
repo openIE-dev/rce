@@ -25,7 +25,7 @@
 //!   an opaque tunnel only to a declared, approved `https`/`tcp` endpoint,
 //!   and the tunnel's TLS ClientHello must name that same host (SNI), so
 //!   a tunnel cannot be fronted to another site. A tunnel cannot carry an
-//!   injected credential, so endpoints with a credential refuse CONNECT;
+//!   injected credential, so endpoints with a credential do not perform CONNECT;
 //!   clients use absolute-form `https://` requests to the proxy instead,
 //!   which take the injecting path above. The proxy itself requires a
 //!   token (`Proxy-Authorization`).
@@ -214,7 +214,7 @@ pub enum Decision {
     Undeclared,
 }
 
-/// One proxied (or refused) request, for the receipt.
+/// One proxied (or not performed) request, for the receipt.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct NetEvent {
     pub endpoint: String,

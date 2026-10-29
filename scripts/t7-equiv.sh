@@ -18,5 +18,5 @@ while IFS= read -r f; do
   elif echo "$out" | grep -q "^verdict             different"; then different=$((different+1)); bad+=("$f"); echo "DIFFERENT $f"; echo "$out" | sed 's/^/  /'
   else skipped=$((skipped+1)); fi
 done < <(find "${DIRS[@]}" -name '*.rce' -not -path '*/reject/*' -not -path '*/ill_typed/*' -not -path '*/inadmissible/*' -not -path '*/change/*' | sort)
-echo "t7-equiv: $ok equivalent, $skipped skipped (no Form, no explorable event, or refused standalone), $different different"
+echo "t7-equiv: $ok equivalent, $skipped skipped (no Form, no explorable event, or not admitted on its own), $different different"
 [ $different -eq 0 ]

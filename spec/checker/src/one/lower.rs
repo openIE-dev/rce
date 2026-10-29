@@ -11,11 +11,11 @@
 //! bounded loops to a counter and a halt, `fail` to a return of the error
 //! value or a halt, steps to one function per region.
 //!
-//! A construct this lowering does not yet cover is refused with an error
+//! A construct this lowering does not yet cover is reported with an error
 //! that names it; the module is then not covered, and nothing is printed.
 //! The constructs covered are those of the counter-style programs: checked
 //! integers, bools, text values, structs, events, errors, kinds, options and
-//! error unions, state, steps, refusals, `if`, `match`, bounded loops, `for`
+//! error unions, state, steps, kept steps, `if`, `match`, bounded loops, `for`
 //! over ranges and lists, functions and methods, and constants; and floats:
 //! f64 and f32 arithmetic with its domain tests, the methods of 5.15 on
 //! floats, casts between floats and integers, and the display and JSON of
@@ -111,7 +111,7 @@ struct LoopCx {
 enum Ret {
     /// a function of the module: its declared result type
     Fn(Option<ast::Ty>),
-    /// a step body: `return` is refused
+    /// a step body: `return` is not covered
     Step,
     /// an expression evaluated alone (a constant, a check, an event)
     None,
@@ -828,7 +828,7 @@ impl<'m> Lw<'m> {
     /// interp `fit` into a place whose core type is that of the declared
     /// type: a parameter, a field, a result. A float the interpreter keeps
     /// at its own width (an f64 value given to an f32 field) has no core
-    /// value of the declared type, and is refused.
+    /// value of the declared type, and is not covered.
     fn fit_decl(&mut self, fx: &mut Fx, a: Atom, from: &RType, to: &ast::Ty) -> R<Val> {
         let v = self.fit(fx, a, from, to)?;
         let want = self.t.of_ty(to);
@@ -3749,7 +3749,7 @@ impl<'m> Lw<'m> {
     /// `apply_closure`), one step of fuel per item. The lambda sees the
     /// variables as they are when it is made, which is where it runs, so a
     /// body that writes a variable (a `&mut` argument, push, insert, …),
-    /// which in the reference writes the closure's own copy, is refused.
+    /// which in the reference writes the closure's own copy, is not covered.
     #[allow(clippy::too_many_arguments)]
     fn hof(&mut self, fx: &mut Fx, obj: &Expr, m: &str, args: &[Arg], ps: &[Param], body: &Expr, rt: RType, sized: bool) -> R<Val> {
         if self.lambda_writes(body) {
@@ -4123,7 +4123,7 @@ impl<'m> Lw<'m> {
     /// fitted arguments. The body runs here, not where the lambda was
     /// made; the names it reads are the same locals, and an immutable
     /// local holds the same value here, so a body that reads a `var` (which
-    /// may have changed since) or writes a variable is refused.
+    /// may have changed since) or writes a variable is not covered.
     fn closure_call(&mut self, fx: &mut Fx, f: &Expr, args: &[Arg], l: usize, rt: RType) -> R<Val> {
         let Some(lam) = self.ty.lambdas.get(&l).cloned() else { return no("a lambda") };
         let Expr::Lambda(ps, body, _) = &*lam else { return no("a lambda") };
@@ -5069,7 +5069,7 @@ impl<'m> Lw<'m> {
     }
 
     /// `fail e`: return the error value from a union function, or halt with
-    /// the error's name and display (a step's refusal, `main`'s failure).
+    /// the error's name and display (a kept step, `main`'s failure).
     fn fail(&mut self, fx: &mut Fx, v: Val) -> R<()> {
         match fx.fail {
             FailCx::Union => {
@@ -5293,7 +5293,7 @@ impl<'m> Lw<'m> {
             }
         };
         // the place is evaluated again for its type (interp `exec`, `eval(place).ok()`),
-        // and a budget refusing one of its charges is ignored there
+        // and a charge its budget does not allow is ignored there
         self.place_ticks(fx, place)?;
         if self.costs {
             let k = place_charges(place);
@@ -5680,7 +5680,7 @@ impl<'m> Lw<'m> {
     /// the limit, then the block in a function of its own, called under
     /// `catch` with the budget in force, which takes the variables it
     /// reads and gives back the values of the `var`s, which are written
-    /// back when it completes. When a charge in it is refused ("budget"),
+    /// back when it completes. When its budget does not allow a charge ("budget"),
     /// nothing is written back, so the else sees the state of block entry,
     /// with the limit and the units the block spent; any other trap
     /// is raised again.
@@ -5691,7 +5691,7 @@ impl<'m> Lw<'m> {
         if !matches!(nv.t, RType::Int(_)) {
             return no("a budget whose limit is not an integer");
         }
-        // the block runs elsewhere: what leaves it, or yields, is refused
+        // the block runs elsewhere: what leaves it, or yields, is not covered
         let mut bad = None;
         fn exits(b: &[S], in_loop: bool, bad: &mut Option<&'static str>) {
             for s in b {
@@ -6733,7 +6733,7 @@ impl<'m> Lw<'m> {
     }
 
     /// The module's items that change what every observation means are
-    /// refused here; functions and methods are lowered when the trace first
+    /// reported here as not covered; functions and methods are lowered when the trace first
     /// reaches them (`user_fn`, `method_fn`), so that one the trace never
     /// calls does not stop the module from being covered.
     fn functions(&mut self) -> R<()> {
@@ -6747,7 +6747,7 @@ impl<'m> Lw<'m> {
                     }
                 }
                 // a trait has signatures only, which nothing runs; a foreign
-                // function is refused where it is called
+                // function is reported as not covered where it is called
                 Item::Trait { .. } | Item::Extern { .. } => {}
                 Item::Actor { .. } | Item::Protocol { .. } | Item::Node { .. } | Item::Supervisor { .. } => return no("an actor, protocol, node or supervisor"),
                 Item::State { replicated: true, .. } => return no("a replicated state"),
@@ -6791,7 +6791,7 @@ impl<'m> Lw<'m> {
 
     /// The function of one region (ONE-4): its steps in source order, each a
     /// test of the event, the payload bindings, the guard and the body; it
-    /// returns none when no step applies and halts when the step refuses.
+    /// returns none when no step applies and halts when the step keeps the state.
     fn region_fn(&mut self, name: &str, fields: &[ast::Field]) -> R<usize> {
         let (ft, frts) = self.region_t(fields)?;
         let res_t = Ty::Sum(vec![Ty::unit(), Ty::Tup(vec![ft.clone(), Ty::list(Ty::Bytes)])]);
@@ -6845,7 +6845,7 @@ impl<'m> Lw<'m> {
             }
             if fx.b.falls() {
                 fx.pop_scope()?;
-                // each field is fitted to its declared type; a trap refuses the event
+                // each field is fitted to its declared type; a trap keeps the state
                 let mut out = vec![];
                 for (k, (x, st)) in vars.iter().enumerate() {
                     fx.disown(&Atom::V(*x));
@@ -6877,7 +6877,7 @@ impl<'m> Lw<'m> {
     }
 
     /// δ (6.4): every region on the pre-state, in declaration order; the
-    /// first refusal refuses the event and leaves the state unchanged.
+    /// first region that keeps the state keeps it for the whole event.
     fn delta_fn(&mut self) -> R<usize> {
         let (st, _) = self.state_t()?;
         let res_t = Ty::Sum(vec![Ty::Tup(vec![st.clone(), Ty::list(Ty::Bytes)]), Ty::Bytes]);
@@ -7257,7 +7257,7 @@ impl<'m> Lw<'m> {
     }
 
     /// One example (interp `obs_example`): the initial state, each event
-    /// with the state after it or its refusal, then the head of its log.
+    /// with the state after it or why it kept the state, then the head of its log.
     fn obs_example(&mut self, x: &ast::Example, delta: usize, init: usize) -> R<usize> {
         let mut evs = vec![];
         for (k, (evn, args)) in x.events.iter().enumerate() {

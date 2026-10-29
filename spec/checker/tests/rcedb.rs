@@ -20,7 +20,7 @@ fn rows_edges_queries_as_of_and_reopen() {
     db.insert("msgs", "0001", r#"{"from":"alice","text":"it's on"}"#).unwrap();
     db.link("alice", "follows", "bob").unwrap();
     db.link("alice", "blocks", "carol").unwrap();
-    assert!(db.delete("users", "nobody").is_err(), "refused write");
+    assert!(db.delete("users", "nobody").is_err(), "a write that does not apply");
     let users = db.scan("users", "").unwrap();
     assert_eq!(users.iter().map(|r| r.1.as_str()).collect::<Vec<_>>(), ["alice", "bob"], "canonical order");
     assert_eq!(db.scan("users", "b").unwrap().len(), 1);
@@ -88,7 +88,7 @@ fn typed_schema_keeps_the_state_on_bad_rows_and_index_matches_scan() {
     db.schema("u", "name:text,age:i64,admin:bool").unwrap();
     for bad in ["Ann\t41", "Ann\tforty\tfalse", "Ann\t041\tfalse", "Ann\t1\tyes", "Ann\t9223372036854775808\tfalse"] {
         let n = db.seq();
-        assert!(db.insert("u", "a", bad).is_err(), "{bad:?} refused");
+        assert!(db.insert("u", "a", bad).is_err(), "{bad:?} not written");
         assert!(db.scan("u", "").unwrap().is_empty());
         let _ = n;
     }

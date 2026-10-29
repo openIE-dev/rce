@@ -1,4 +1,4 @@
-//! 5.15 `utf8`: invalid bytes refuse the event (T8) on the host and in
+//! 5.15 `utf8`: invalid bytes keep the state (T8) on the host and in
 //! `rce trace`; the state is unchanged and nothing is substituted.
 use rce_spec_check::cli::trace;
 use serde_json::Value;

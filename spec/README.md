@@ -20,7 +20,7 @@
 - `checker/` (Rust only) holds the tools:
   - `rce-spec-check` builds the section-3 LALR(1) tables and regenerates
     the tree-sitter parser (both fail on any conflict), parses `examples/` (must accept) and `examples/change/syntax/`
-    (must refuse) with three parsers (section-3 LALR(1) tables, Rust
+    (must require change) with three parsers (section-3 LALR(1) tables, Rust
     parser, tree-sitter), runs the checker, and checks that the
     book and `RCE-SPEC.md` are in sync.
   - `rce-book build [--check]` rewrites (or checks) the chapter footers,

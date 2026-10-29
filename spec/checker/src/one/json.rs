@@ -555,7 +555,7 @@ pub fn canonical_order(fs: &[Fn]) -> (Vec<usize>, Vec<u32>) {
     let mut d: Vec<String> = fs.iter().map(|f| digest(f, &|_| json!("?"))).collect();
     for _ in 1..n {
         let prev = d;
-        // a `rec i` that names no member (W5 refuses it) is written as in round 0
+        // a `rec i` that names no member (it requires change under W5) is written as in round 0
         d = fs.iter().map(|f| digest(f, &|i| prev.get(i as usize).map_or(json!("?"), |x| json!(x)))).collect();
     }
     let mut distinct: Vec<&String> = d.iter().collect();
@@ -581,7 +581,7 @@ pub fn canonical_group(members: &[Fn]) -> (Group, Vec<u32>) {
 }
 
 /// Write each `rec i` of a member as `rec class[i]`, its canonical position;
-/// a `rec i` that names no member is left for W5 to refuse.
+/// a `rec i` that names no member is left for W5 to report.
 fn renumber(b: &mut [Stmt], class: &[u32]) {
     for s in b {
         match s {

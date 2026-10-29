@@ -8,7 +8,7 @@ front end's job and is certified through the reference adapter.
   run, no events   emit TARGET, run the program with `--run [--fuel=N]`
                    (fn main on the emitted tick runtime)
   run, events      add the line `example EVENTS -> true` (or `-> kept: E`
-                   when the last event is refused) so the module has an
+                   when the step of the last event keeps the state) so the module has an
                    observation for exactly these events, emit, run, and read
                    that example's block. The example's expected value is used
                    only to admit the module; the lines compared are printed
@@ -148,7 +148,7 @@ def blocks_of(out):
     return blocks
 
 def outcome_of(r):
-    """One spelling for an outcome (see ADAPTERS.md): trap:KIND or refused:E."""
+    """One spelling for an outcome (see ADAPTERS.md): trap:KIND or kept:E."""
     if r.startswith("trap: "): return "trap:" + r[6:]
     if r.startswith("trap(") and r.endswith(")"): return "trap:" + r[5:-1]
     return "kept:" + r

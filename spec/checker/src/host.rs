@@ -285,13 +285,13 @@ impl Store for MemStore {
 pub struct Admitted {
     pub seq: u64,
     pub event: String,
-    /// `Ok(outputs)` (each output's display text) or `Err(refusal)` (T8: state unchanged).
+    /// `Ok(outputs)` (each output's display text) or `Err(reason)` (T8: the step keeps the state).
     pub outcome: Result<Vec<String>, String>,
     /// Display sink (λ output only): the `data` of each emitted `Display(data: text)`.
     pub display: Vec<String>,
     /// The step emitted `Exit`: the host loop ends after this input.
     pub exit: bool,
-    /// HC-21: the cause of a refusal (`fuel`, `size`, `value`, `depth`,
+    /// HC-21: why the step kept the state (`fuel`, `size`, `value`, `depth`,
     /// `fail` or `trap`), `None` when the input was applied.
     pub cause: Option<&'static str>,
 }
@@ -328,8 +328,8 @@ enum How {
 /// open, except a typed input, which the host had not appended.
 #[derive(Clone, Debug)]
 enum Next {
-    /// `host.StepKept` {cause, seq} after the refused entry at seq; `bind`:
-    /// the module declares `StepKept` and the refused step does not descend
+    /// `host.StepKept` {cause, seq} after the entry of the kept step at seq;
+    /// `bind`: the module declares `StepKept` and the kept step does not descend
     /// from a delivered `StepKept`, so the delivery of `StepKept` follows
     HostKept { seq: u64, cause: Cause, bind: bool },
     /// `host.Kept` with exactly this event JSON (E.4c)
@@ -429,7 +429,7 @@ pub struct Replayed {
     pub entries: u64,
     pub state_hash: String,
     pub state: Vec<Region>,
-    /// Every refused entry: (seq, cause, the refusal text re-derived by replay).
+    /// Every kept step: (seq, cause, the text of why it was kept, re-derived by replay).
     pub kept_outcomes: Vec<(u64, &'static str, String)>,
 }
 
@@ -950,7 +950,7 @@ pub struct Host<'a> {
     /// E.4c: one line for each declaration that is not exactly what the
     /// host delivers, saying what the host will deliver and record.
     notes: Vec<String>,
-    /// HC-21: the refusals replay re-derived: (seq, cause, text).
+    /// HC-21: the kept steps replay re-derived: (seq, cause, text).
     kept_outcomes: Vec<(u64, &'static str, String)>,
     /// HC-22: the n of the last `Tick(n)` in D, so the host loop continues it.
     last_tick: u64,
@@ -1513,7 +1513,7 @@ impl<'a> Host<'a> {
             _ => 0,
         };
         h.refold(&entries[from..])?;
-        // HC-21: a D that ends after a refused entry, or after its
+        // HC-21: a D that ends after the entry of a kept step, or after its
         // `host.StepKept`, is completed before anything else is appended
         h.complete_owed()?;
         let caps = h.store.caps();
@@ -1691,7 +1691,7 @@ impl<'a> Host<'a> {
                         }
                     }
                     Err(r) => {
-                        // HC-21: replay re-derives the refusal and its cause
+                        // HC-21: replay re-derives the kept step and its cause
                         let bind = under.is_none() && declares_event(self.m, "StepKept");
                         self.owe.push_back(Next::HostKept { seq: e.seq, cause: r.cause, bind });
                         self.kept_outcomes.push((e.seq, r.cause.as_str(), r.text));
@@ -2041,7 +2041,7 @@ impl<'a> Host<'a> {
     }
 
     /// Append one input and apply δ to it (HC-1). The first element is the
-    /// input; a refusal adds the entries of HC-21 after it. A typed input
+    /// input; a kept step adds the entries of HC-21 after it. A typed input
     /// whose name is one the host delivers is preceded by `host.Typed`
     /// {seq} (HC-10b), appended only once the input is known to be an
     /// event of the module.
@@ -2058,7 +2058,7 @@ impl<'a> Host<'a> {
         };
         let ej = event_json(name, &ev, self.m);
         // δ runs on the input, but the entry is appended before any output
-        // is released (HC-1); a refusal leaves the state unchanged (T8).
+        // is released (HC-1); a kept step leaves the state unchanged (T8).
         let (outcome, next) = match self.it.delta_r(&self.state, &ev) {
             Ok((s2, outs)) => (Ok(outs), Some(s2)),
             Err(r) => (Err(r), None),
@@ -2114,9 +2114,9 @@ impl<'a> Host<'a> {
         Ok(out)
     }
 
-    /// HC-21: after the refused entry at `seq`, `host.StepKept` {cause, seq},
+    /// HC-21: after the entry of the kept step at `seq`, `host.StepKept` {cause, seq},
     /// then (`bind`) the delivery of `StepKept`, as the module declares it
-    /// (HD-4). Delivery is bounded: the refusal of a step that descends from a
+    /// (HD-4). Delivery is bounded: a kept step that descends from a
     /// delivered `StepKept` ([`Host::descent`]) is recorded as `host.StepKept`
     /// only and not redelivered, so no `StepKept` leads to another.
     fn kept(&mut self, seq: u64, cause: Cause, bind: bool) -> Result<Vec<Admitted>, String> {
@@ -2175,7 +2175,7 @@ impl<'a> Host<'a> {
     }
 
     /// Complete the entries D owes at its end (HC-21, HC-22): a host
-    /// stopped after appending a refused entry, or a `host.StepKept` or
+    /// stopped after appending the entry of a kept step, or a `host.StepKept` or
     /// `host.Restarted` without the delivery that follows it. A typed input
     /// announced by `host.Typed` and not appended is not completed: it was
     /// never admitted (HC-10b).
@@ -2478,7 +2478,8 @@ impl<'a> Host<'a> {
 
     /// HC-6: the transition of the live task on one host entry, shared by
     /// the live path (before the entry is appended) and by replay. Anything
-    /// the scheduler re-derives that differs from D refuses the entry.
+    /// the scheduler re-derives that differs from D is reported, and the entry
+    /// is not applied.
     fn apply_main(&mut self, kind: &str, p: &Value) -> Result<(), String> {
         match kind {
             "host.MainStart" => {
@@ -2567,7 +2568,7 @@ impl<'a> Host<'a> {
     }
 
     /// HC-6: log a link change for the live task (`host.MainInput`). It is
-    /// refused unless its tick is after the last logged step, so the input
+    /// not logged unless its tick is after the last logged step, so the input
     /// cannot rewrite steps D already holds.
     pub fn main_input(&mut self, tick: u64, partition: bool, a: &str, b: &str) -> Result<(), String> {
         self.main_entry("MainInput", serde_json::json!({"a": a, "b": b, "partition": partition, "tick": tick}))
@@ -2710,7 +2711,7 @@ impl<'a> Host<'a> {
     /// HC-12 placement executor for the reduction class `sum.f64`: choose
     /// the fabric from D's host entries, log `host.Placed`, and run the
     /// fixed tree of T18 on it. A placement on a fabric this host cannot
-    /// execute is refused before anything is logged. A registered fabric
+    /// execute is not performed, and nothing is logged. A registered fabric
     /// that errors at run time is replaced by the CPU reference, which by
     /// HC-13 gives the same bits.
     pub fn place_sum(&mut self, op: &str, xs: &[f64]) -> Result<(String, f64), String> {
@@ -2765,8 +2766,8 @@ impl<'a> Host<'a> {
     /// is the fixed tree, so the result is the same on `cpu` and
     /// `cpu.threads` for any combine, including non-associative ones. The
     /// class is `par.<class>`. Bodies are host closures, so only CPU
-    /// fabrics can execute them; a placement elsewhere is refused before
-    /// it is logged.
+    /// fabrics can execute them; a placement elsewhere is not performed and
+    /// not logged.
     pub fn place_par<T: Clone + Send + Sync>(
         &mut self,
         op_id: &str,
@@ -2907,13 +2908,13 @@ impl<'a> Host<'a> {
     /// E.2b: take the admitter role for `term`. The term is a fence token:
     /// `host.Term` is appended (and made durable through the replicated log)
     /// before any input of the new term, every later `host.Window` carries
-    /// it, and a lower or equal term is refused. Requests emitted under the
+    /// it, and a lower or equal term is not taken. Requests emitted under the
     /// previous term with no result in D get `failed`/`interrupted` (HC-3).
     pub fn take_role(&mut self, term: u64, leader: &str) -> Result<(), String> {
         if term <= self.term {
             return Err(format!("host.Term: term {term} is not above the current term {}", self.term));
         }
-        // HC-21: a refusal the previous admitter logged without its
+        // HC-21: a kept step the previous admitter logged without its
         // `host.StepKept` (or bound `StepKept`) is completed first; it belongs
         // to the input of the previous term
         self.complete_owed()?;
@@ -2944,7 +2945,7 @@ impl<'a> Host<'a> {
 
     /// Evaluate a query (HS-8): a step that reads state and emits its result
     /// rows, run on the current state without appending to D. A step that
-    /// would change state is not a query and is refused.
+    /// would change state is not a query and is not performed.
     pub fn query(&mut self, name: &str, args: Vec<Arg>) -> Result<Vec<V>, String> {
         self.it.scopes = vec![HashMap::new()];
         self.it.fuel = crate::interp::fuel_limit(); // HC-7: each input is one run of δ
@@ -3058,7 +3059,7 @@ pub fn replay(m: &Module, text: &str) -> Result<(u64, String, Vec<Region>), Stri
     replay_report(m, text).map(|r| (r.entries, r.state_hash, r.state))
 }
 
-/// [`replay`] with the refusals it re-derived (HC-21): each refused entry's
+/// [`replay`] with the kept steps it re-derived (HC-21): each kept step's
 /// seq, cause and text. The text is not in D; replay derives it.
 pub fn replay_report(m: &Module, text: &str) -> Result<Replayed, String> {
     let lines: Vec<&str> = text.split_terminator('\n').collect();

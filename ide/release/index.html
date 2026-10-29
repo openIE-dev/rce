@@ -23,7 +23,7 @@
 <li>Semantic zoom: click a folded file to open it in place; Esc folds it again.</li>
 <li>GPU launch timing for the IDE&#x27;s own wgpu work: GPU timestamp queries when the adapter has them, else host-timed, else none with the reason (<code>rce-ide telemetry probe</code>).</li>
 <li><code>rce test --energy-budget J [--measured J | --measure] [--strict]</code>: fail a test run that exceeds an energy budget. Without a measurement the gate uses the static simulated cost and says so.</li>
-<li><code>rce-mcp --http</code> jails itself on Linux (Landlock + seccomp): loopback or declared hosts only, outbound only to declared ports, files limited to the workspace. Other platforms refuse HTTP mode unless <code>--no-jail</code>.</li>
+<li><code>rce-mcp --http</code> jails itself on Linux (Landlock + seccomp): loopback or declared hosts only, outbound only to declared ports, files limited to the workspace. Other platforms do not start HTTP mode unless <code>--no-jail</code>.</li>
 </ul>
 <h2>Known limits</h2>
 <ul>

@@ -17,8 +17,8 @@
 //!
 //! `--control` computes the control quotient of 6.10 on the explored
 //! graph: the same states and transitions, with each step labelled only by
-//! its control outcome (which regions changed, whether and how it was
-//! refused, the constructors of what it emitted) instead of the values.
+//! its control outcome (which regions changed, whether it kept the state
+//! and why, the constructors of what it emitted) instead of the values.
 //! That is a coarser output function on the same deterministic machine, so
 //! its minimal size dim_c is at most dim, exactly as 6.10 states, and the
 //! predicate-equivalence oracle is concrete evaluation on reach(P): exact
@@ -51,16 +51,16 @@ pub struct Dim {
     /// `--control`: dim_c and the hash of the canonical control string
     pub control: Option<(usize, String)>,
     /// Some explored step has a λ output (6.1): an emitted value, or the
-    /// record of a refusal. A program with no such step has one behaviour by
+    /// record of a kept step. A program with no such step has one behaviour by
     /// definition (6.10): its state is in D and readable, but no future
     /// output depends on it.
     pub has_output: bool,
     /// Some explored step emits a value.
     pub emits: bool,
-    /// Some explored step refuses its event.
+    /// Some explored step keeps the state (its event does not apply).
     pub keeps: bool,
     /// Distinct output sequences over the explored steps (the text of a
-    /// step's emitted values, or its refusal; a silent step is excluded): 1
+    /// step's emitted values, or why it kept the state; a silent step is excluded): 1
     /// means every output is the same, so the program has one behaviour as
     /// well.
     pub distinct_outputs: usize,
@@ -115,7 +115,7 @@ fn instances(m: &Module) -> (Vec<EvInst>, Vec<String>) {
     let mut out = vec![];
     let mut skipped = vec![];
     // type aliases, refined or not (5.1): a refined field gets its base type's
-    // boundary set, and the refusal of an out-of-range value is an observed step
+    // boundary set, and a step that keeps the state on an out-of-range value is an observed step
     let aliases: HashMap<String, Ty> = m
         .items
         .iter()
@@ -188,7 +188,8 @@ fn expr_show(e: &Expr) -> String {
     }
 }
 
-/// The label of one step: the canonical text of its outputs, or its refusal.
+/// The label of one step: the canonical text of its outputs, or why it kept
+/// the state.
 fn step_label(r: &Result<(Vec<Region>, Vec<V>), String>) -> String {
     match r {
         Ok((_, outs)) => format!("ok:{}", outs.iter().map(|o| o.show()).collect::<Vec<_>>().join("|")),
@@ -227,8 +228,8 @@ fn decl_index(m: &Module) -> HashMap<String, usize> {
     idx
 }
 
-/// The control label of one step (6.10 control projection): the refusal's
-/// error (by declaration index) if refused, else the constructors of the
+/// The control label of one step (6.10 control projection): the error that
+/// kept the state (by declaration index) if the step was kept, else the constructors of the
 /// emitted values (by declaration index, or a type class); never a data
 /// value and never a name. It is a function of the step's output alone, so
 /// the control quotient is a coarsening of the behaviour quotient and
@@ -237,7 +238,7 @@ fn decl_index(m: &Module) -> HashMap<String, usize> {
 /// that label was not a coarsening and the pilot showed dim_c > dim on
 /// example 51.)
 /// The name-free output label of a step (T7): emitted values in their
-/// positional form (6.1), a refusal by the error's declaration index. Two
+/// positional form (6.1), a kept step by the error's declaration index. Two
 /// programs are compared on these, so a renaming never distinguishes them.
 fn pos_label(m: &Module, idx: &HashMap<String, usize>, r: &Result<(Vec<Region>, Vec<V>), String>) -> String {
     match r {
@@ -487,7 +488,7 @@ pub fn explore(m: &Module, fuel: usize) -> Result<Graph, String> {
                         row.push(None);
                     }
                 }
-                Err(_) => row.push(Some(i)), // T8: a refused event leaves the state unchanged
+                Err(_) => row.push(Some(i)), // T8: a kept step leaves the state unchanged
             }
         }
         succ.push(row);

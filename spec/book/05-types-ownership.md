@@ -4,7 +4,7 @@ This section gives the *static semantics*: the rules checked before a
 program runs. A *type* is the set of values an expression may have;
 *ownership* says which variable is responsible for a value, and a *borrow*
 is a temporary reference to it. Example: after `let b = a` where `a` is a
-`List`, using `a` again is refused because the list moved to `b`.
+`List`, using `a` again requires change because the list moved to `b`.
 
 ### 5.1 Types
 
@@ -43,7 +43,7 @@ the Form's unsigned operations (6.3 N8, draft 0.5), so the whole range
 2^63 (D7).
 
 **Text is byte-indexed (draft 0.5).** `s.len_bytes()` is the number of UTF-8
-bytes (`s.len_chars()` the number of characters; unqualified `len` on text is refused, W-LEN-1), `s[i]` is the byte at offset i as a `u8`, and `s[a:b]` is the text
+bytes (`s.len_chars()` the number of characters; unqualified `len` on text requires change, W-LEN-1), `s[i]` is the byte at offset i as a `u8`, and `s[a:b]` is the text
 between byte offsets a and b, which must both be character boundaries
 (otherwise `trap("not a char boundary")`). Iterating `for c in s` still
 yields one-character texts. Go, Rust and Zig all index text by byte; the
@@ -53,7 +53,7 @@ draft 0.4 code-point indexing made `s[i]` O(n).
 numeric τ and one comptime length n, `a + b`, `a - b`, `a * b`, `a / b` (and
 `a % b` for integers) apply the operator lane by lane and have type
 `[τ; n]`. Each lane follows the scalar rules (overflow and division by zero
-trap). Different lengths, or a non-numeric τ, are refused (W-SIMD-1). An
+trap). Different lengths, or a non-numeric τ, require change (W-SIMD-1). An
 implementation may use vector instructions; the result is defined by the
 lanes, so it is the same on every target. A list literal is a `List` unless
 it meets an array type of the same length, as an integer literal is i64
@@ -83,9 +83,9 @@ step 3): at a typed `let` or `var`, a parameter, a field or payload
 constructor, a field initializer and the write-back of a state field.
 The check fits the value to τ first, then evaluates p; if p is false the
 result is `trap("refinement: value is outside R")`. So an event whose
-payload is outside its refined type is refused before any step runs, as
-an out-of-range integer payload is, and a step whose new state breaks a
-field's predicate refuses the event with the state unchanged (6.4, T8).
+payload is outside its refined type does not apply and keeps the state
+before any step runs, as an out-of-range integer payload does, and a step
+whose new state breaks a field's predicate keeps the state (6.4, T8).
 `R <: τ`: a refined value is used wherever τ is. Derivation: validation
 that the type does not record can be skipped (soundness), a predicate
 checked at one boundary has one outcome (determinism), and the
@@ -95,9 +95,9 @@ fragment is decidable in time linear in p and in the value, so the check
 has a fixed cost class (energy observability); full dependent types are
 excluded by the same derivation, since an undecidable obligation would
 make acceptance itself unbounded. Example: `type Pct = u8 where self <=
-100`; `event SetVolume(pct: Pct)`; `SetVolume(pct: 101)` is refused with
+100`; `event SetVolume(pct: Pct)`; `SetVolume(pct: 101)` keeps the state with
 `refinement: value is outside Pct`, and a step computing `level + 60` on
-`level: Pct = 60` refuses its event. Lean: `RCE/Refine.lean`
+`level: Pct = 60` keeps the state. Lean: `RCE/Refine.lean`
 (`holds_total`, `fit_sound`, `refine_preserved`,
 `refine_kept_unchanged`, `admit_sound`; T35).
 
@@ -165,8 +165,8 @@ only by variables marked moved).
 ```
 
 Arithmetic failure is not part of the static error set the programmer
-declares: it is a **trap** (6.5), the Form's defined `err` outcome, and refuses
-the event. This matches the Form, where integer overflow is an error, never a
+declares: it is a **trap** (6.5), the Form's defined `err` outcome, and keeps
+the state. This matches the Form, where integer overflow is an error, never a
 wrap. Both operands must have the same numeric type; there is no implicit
 widening (use `as`).
 
@@ -311,4 +311,4 @@ sound and is excluded (F.2).
 
 **Read receipt.** What is the name of the example kind used to illustrate error sets?
 
-<!-- body-sha256: 60fbd30d15e72a6d3919864f7259ba7ccb7f16f4b309d6367c2cb479e7498d07 -->
+<!-- body-sha256: 9bf4da7ffa7afa6304e34a4b9a523bad2c22f667eabfe0dcc63d66a6514199aa -->

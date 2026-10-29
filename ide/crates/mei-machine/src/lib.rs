@@ -3,8 +3,8 @@
 //! A [`Machine`] is data: named states, named events, and [`Transition`]s.
 //! An [`Actor`] holds the current state. [`Actor::send`] changes that state
 //! only when the current state has a transition on the event whose guard
-//! passes. A refused event leaves the state unchanged and returns `false`.
-//! Refusal is not a panic.
+//! passes. An event that does not apply keeps the state and returns `false`.
+//! It is not a panic.
 //!
 //! A [`Statechart`] is that same rule with compound states and parallel
 //! regions. The innermost active state handles an event first. On that state,
@@ -18,7 +18,7 @@
 //! configuration. Leaving the state stops the child. It does not keep running.
 //! Entering the state again starts a new child at that initial configuration.
 //! [`ChartActor::send_to_child`] delivers an event to the active child only.
-//! If no child is active, or the child refuses the event, the parent
+//! If no child is active, or the event does not apply to the child, the parent
 //! configuration is unchanged.
 //!
 //! Guards and actions are registered by id on the actor. The machine stores
@@ -231,10 +231,10 @@ impl<'a> Actor<'a> {
     /// in that order. A transition with no guard id is eligible. A guard id that
     /// was not registered is not eligible. A guard that returns `false` is not
     /// eligible. The first eligible candidate is taken. There is no parent state
-    /// on a flat machine, so if none are eligible the event is refused.
+    /// on a flat machine, so if none are eligible the event does not apply.
     ///
-    /// Returns `true` when a transition fired. Returns `false` when the event is
-    /// refused. A refusal does not change the state, does not run an action, and
+    /// Returns `true` when a transition fired. Returns `false` when the event does
+    /// not apply. The actor then keeps its state, does not run an action, and
     /// does not panic.
     ///
     /// When the state changes, the transition's action runs after the change.

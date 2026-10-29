@@ -103,7 +103,7 @@ fn emitted_form_terms_round_trip_and_check() {
         }
         let v2 = rce_spec_check::check_program(&[("t.rce".into(), back.clone())], false)[0].1.is_ok();
         if !v2 {
-            bad.push(format!("{}: unformed source is refused", f.display()));
+            bad.push(format!("{}: unformed source requires change", f.display()));
             continue;
         }
         // observations name `check` items by source line; lines are not terms

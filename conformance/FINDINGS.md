@@ -36,9 +36,9 @@ Machine-readable records are in `findings/*.json`; the tests the reference fails
    explicit type arguments at call sites as the grammar allows. Fixed in
    checker, evaluator and emitters.
 10. **Unreachable rules.** W-TY-2 on `τ??` and W-STATE-1 (state with no
-    fields) cannot be triggered: the grammar refuses both as W-SYN-1. Fix:
-    either drop the rules or let the grammar admit the forms and the rules
-    reject them.
+    fields) cannot be triggered: a text with either requires change under
+    W-SYN-1 first. Fix: either drop the rules or let the grammar admit the
+    forms and the rules name them.
 11. **T38/HC-8 torn D.** Replay of a torn log errors while reopen keeps the
     verified prefix. Law: replay and reopen are the same function of the
     durable prefix. Fix: replay truncates at the first unverifiable entry.
@@ -49,10 +49,10 @@ Machine-readable records are in `findings/*.json`; the tests the reference fails
     Fix: add the production.
 14. **CLOSED. EXAMPLE-TRAP.** An `example` can state `kept: E` only for a declared
     error; no form states that the last event traps (`kept: trap` is
-    W-NAME-1). So emitted programs cannot be tested on trap refusals. Fix: add
+    W-NAME-1). So emitted programs cannot be tested on steps that trap. Fix: add
     `-> trapped(<kind>)` to example syntax. Fixed as `kept: trap("K")` (book
    3.2 grammar, 6.9 semantics derived from T2); the emit adapter now states
-   trap refusals.
+   steps that trap.
 15. **Conservative, not a bug.** The lex Merge certificate accepts only the
     expression form and integer keys. Sound but incomplete.
 16. **CLOSED. FUEL-1 not in the book.** Landed as E1 in chapter 7
@@ -69,9 +69,9 @@ Machine-readable records are in `findings/*.json`; the tests the reference fails
     `tests/host_contract.rs` hashed serde float text instead of the canonical
     N3 form, and the proposed-rules test still listed N-1 after adoption.
     Fixed in the engine test.
-19. **CLOSED. `rce emit scala` refusal status.** A refused program gave status
-    2 for Scala but 1 for the other targets; 10.1 rule 4 makes a refusal
-    status 1. Fixed in `cli.rs`; found by `tooling/emit-scala-change`.
+19. **CLOSED. `rce emit scala` status when a program requires change.** Such
+    a program gave status 2 for Scala but 1 for the other targets; 10.1
+    rule 4 makes that status 1. Fixed in `cli.rs`; found by `tooling/emit-scala-change`.
 20. **Par reduction tree vs fold.** Not a bug: a `for ... par` reduction is
     evaluated on the normative split tree of C.4, so on non-associative float
     addition it can differ from `fold` (`proposed/tu-6-*`: 2 against 1.5).
@@ -85,8 +85,8 @@ Machine-readable records are in `findings/*.json`; the tests the reference fails
     runs only for a kind that is not an enumeration, and there C.11.5 makes
     the verdict depend on the certificate alone ("never by sampling"). A
     certified merge satisfies the laws on every sample (`MergeCert.cert_laws`),
-    so it is accepted with or without the cap. An uncertified merge is refused
-    as W-CRDT-1 either way. The mutant changes only the message text
+    so it is accepted with or without the cap. A program with an uncertified
+    merge requires change under W-CRDT-1 either way. The mutant changes only the message text
     (a law counterexample against "no W-CRDT-1 certificate"), and the harness
     checks diagnostic codes, not text, which the book does not fix.
 22. **6.8 actor scheduling is underspecified (proposed ACT-1).** "Each actor

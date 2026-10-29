@@ -71,8 +71,8 @@ must lie strictly between 0 and 1. `input_schema` is JSON that may span
 body lines until its brackets balance. An unknown top-level keyword, an
 unknown constraint, role or dependency kind, a flow without `from` and
 `to`, a missing `spec` line, an `error_budget` out of range, a
-`last_checked` that is not RFC 3339 and invalid `input_schema` JSON are
-refused at parse time. The reference parser ignores unknown body keywords
+`last_checked` that is not RFC 3339 and invalid `input_schema` JSON
+require change, reported at parse time. The reference parser ignores unknown body keywords
 and unknown `change_control` words, and reads an unparsable duration as
 its default (24 h, 30 000 ms).
 
@@ -102,7 +102,7 @@ its default (24 h, 30 000 ms).
   `dependency P` to `dep_P` (a source). `flow F from A to B` compiles to
   the edge `flow_F`; `escalation E from A to B timeout t` to `esc_E`. An
   endpoint names a node id, a node name or a declared id; an unknown flow
-  endpoint is refused by the compiler, an unknown escalation endpoint is
+  endpoint requires change (the compiler stops), an unknown escalation endpoint is
   a diagnostic.
 - `change_control`: who may approve changes to the spec, the minimum
   review period, and whether the spec is frozen. These bind the engine's
@@ -121,7 +121,7 @@ committed inside it, so a step in flight when a RESOLVE is requested
 finishes under the δ it started with. The state after n entries is the
 fold of D under the δ in force at each height: s(i+1) = δ_v(i)(s(i),
 D(i)), where v(i) is the version set by the last RESOLVE before i. A
-fold applies each RESOLVE at the height it records and refuses one whose
+fold applies each RESOLVE at the height it records and stops at one whose
 height, version or spec digest differs from the fold's; the fit digest
 is recorded and not refolded, since the fit evidence is not in D. The
 handler installed is the one the entry carries; only an opaque handler
@@ -170,13 +170,13 @@ the read, then the joins in list order.
 - A payload that is not a record is passed unchanged. Joined rows and
   scans are typed as JSON. Each read or join is covered by the rule's
   SHA-256 id, and a rule with a read or a join is not monotone (CALM,
-  `form/laws.rs`). A `joins` entry for a sink no rule writes is refused.
+  `form/laws.rs`). A `joins` entry for a sink no rule writes requires change.
 - Every target (reference δ, Rust, Python, JavaScript for XState and
   SCXML) applies them identically.
 
 **CALM tags (normative).** Each rule's `monotone` tag is derived by
-`form::laws::calm_reason`, never declared, and `laws::check` refuses an
-IR whose tag differs. A rule is monotone only when it has no resolve, no
+`form::laws::calm_reason`, never declared, and `laws::check` reports that an
+IR whose tag differs requires change. A rule is monotone only when it has no resolve, no
 read, no join and no scan. The reasons, by derivation:
 
 | Rule has | Tag | Why |
@@ -202,12 +202,12 @@ fixed by content hash (law 2).
 an input count and the typed relations of the sinks plus `escalation` and
 `error`. E is `IN_<source>`, `TICK` and `RESOLVE_<node>`. An input event
 normalizes the payload (6.3 N1), checks the source's contract (a mismatch
-is a `reject` output and an `error` row, not a refusal of the event) and
+is a `reject` output and an `error` row, not a kept step) and
 runs the rules in content-hash order. A `timeout` is converted to ticks of
 a nominal 100 ms, rounded up; the clock is logical (6.3 N11). D is the
 canonical log of 6.1: entries {seq, event, prev_hash, state_hash, hash}
 chained by SHA-256. Every event is applied (no `outcome` field is
-needed), since a contract mismatch is an output, not a refusal. The numeric
+needed), since a contract mismatch is an output, not a kept step. The numeric
 edges are those of 6.3, with one recorded difference: in this profile an
 integer above i64::MAX is "integer out of range" (D.10).
 
@@ -249,7 +249,7 @@ state-passing: its term returns `[result, final values of the &mut
 parameters in parameter order]` (the result is null for a function
 without one), and a call of it, as a statement, a `let` or `var`
 initializer or the right side of `=`, writes those values back to the
-borrowed places; such a call inside a larger expression is refused.
+borrowed places; such a call inside a larger expression is not lowered.
 `match` lowers arm by arm (variants by their `$v` tag, `some`/`none`,
 literals, ranges, tuples, alternatives, guards; no arm traps), and a
 variant value is its fields with `$v`. A function with result `T ! E`
@@ -258,7 +258,7 @@ lowers with its errors as values: `fail e` returns `{"$err": e}`, `try x
 statement or a `return` value) tests `x` with `has(x, "$err")` (`none`
 for an optional) and returns the error, and `x catch |e| h` tests the
 same and evaluates `h`; a call of such a function anywhere else is
-refused. A recursive group (a cycle of the call graph) lowers to one
+not lowered. A recursive group (a cycle of the call graph) lowers to one
 `fix` term of its members' bodies, a call inside it being `rec` of the
 callee's index; `bound n` is a counter of active calls passed by every
 `rec`, trapping past n as in 6.7. The evaluator bounds `rec` nesting at
@@ -266,11 +266,11 @@ callee's index; `bound n` is a counter of active calls passed by every
 at 50000000 (its fuel); past either is an error, and an input on which
 the reference evaluator meets its own limits gives no vector. Integers
 are i64 or usize (a usize variable that would become negative traps);
-floats, narrower integers and closures are refused. A generic function
+floats, narrower integers and closures are not lowered. A generic function
 lowers to one term for every instance, since the IR is untyped over JSON.
 A term over 1 MiB of JSON, not counting its definitions, or a program
-nested over 1000 levels is refused (catalog readers parse past JSON
-libraries' usual 128 levels, with a stated bound). Every refusal is recorded in the
+nested over 1000 levels is not lowered (catalog readers parse past JSON
+libraries' usual 128 levels, with a stated bound). Every construct not lowered is recorded in the
 catalog with its line and construct, never approximated.
 
 `rce index --vectors N` records the reference evaluator's results on N
@@ -288,7 +288,7 @@ exactly these guarantees, and no other is claimed:
   label that starts with "unproven"; a lifted element is never presented
   as checked.
 - L2 Fail closed: a guard the lift cannot read is opaque, and
-  `Lifted::step` refuses to step through it rather than guess.
+  `Lifted::step` does not step through it, rather than choose a branch it cannot read.
 - L3 Generated code agrees with the lift: code emitted from a lifted
   machine (`--emit-machine`) steps as `Lifted::step`.
 - L4 Evidence, not proof: agreement of the lift with the original
@@ -315,7 +315,7 @@ and each diagnostic names its rule.
   (`N` or `Nh`, N ≥ 1).
 - W-HS-CUR-2 (staleness): at check time `now`, the currency record is
   stale when it was never checked or `now - last_checked` exceeds
-  `max_age` hours. A stale spec is refused by `rce check --strict` and by
+  `max_age` hours. A stale spec is not accepted by `rce check --strict` or by
   the promotion gate when the engine's `enforce_currency` policy is on;
   otherwise it is reported as a warning naming W-HS-CUR-2. This is the one
   rule of the appendix whose verdict depends on a time given as an input
@@ -332,8 +332,8 @@ and each diagnostic names its rule.
 - Integers in [2^63, 2^64) are u64 values, as in the language (6.3 N2):
   the u64 operators compute on them exactly, comparisons, `sort`,
   `lmin`, `lmax`, `min` and `max` order them exactly, and the f64 and
-  f32 operators convert them to f64. The signed operators refuse them
-  ("integer out of range"), which no well-typed program reaches, since a
+  f32 operators convert them to f64. The signed operators do not compute on
+  them ("integer out of range"), which no well-typed program reaches, since a
   signed value is never at or above 2^63. A JSON integer beyond u64 is
   read as a float (`form::num`); no integer type of the language holds
   one.
@@ -348,13 +348,13 @@ and each diagnostic names its rule.
   the next δ version at the node (versions count every install,
   promotion and retirement there), the digest of the installed spec
   (for a retirement, the digest of the stub, distinct from an opaque
-  install) and a fit digest. A fold refuses one whose stamp does not
+  install) and a fit digest. A fold stops at one whose stamp does not
   match. Entries written before the stamp existed carry none and fold
   as before.
 
 ### D.11 Promotion break-even (receipt)
 
-Each promotion record (promoted or refused) carries a break-even
+Each promotion record (promoted or not promoted) carries a break-even
 receipt `break_even` with three terms and n\* =
 J_build / (J_model_path - J_handler), the number of inputs after which
 the promoted handler has paid back its build:
@@ -375,7 +375,7 @@ shunt meter on a named rail) or `unpriced` (no figure; `j` is null,
 never 0). The terms the engine fills today are est or unpriced: a gear
 receipt's `est_j` is an estimate by schema and is never relabeled from
 its free text. A figure
-without a basis is refused when a record is read, and the type that
+without a basis is reported as invalid when a record is read, and the type that
 holds a term has no constructor from a bare number. `n_star` is
 {`kind`: `unpriced`} when any term is unpriced (it is never computed
 from the other terms or from a default), {`kind`: `never`} when
@@ -396,20 +396,20 @@ and are checked where a term is built and where a record is read:
    `interval_s` finite and > 0, `idle_baseline_w` finite and >= 0 (0 when
    no baseline was subtracted). `boundary` says what the joules include
    (`package`, `package+dram`, `rail:VDD_GPU`). A reading without a valid
-   provenance is refused; unknown fields in it are refused. Derivation:
+   provenance is reported as invalid, and so is one with unknown fields. Derivation:
    the label `reported` or `measured` claims that something was read; a
    reading that cannot be reproduced or compared (which counter, over what
    interval, against which baseline, on which machine, inside which
    boundary) does not support that claim, so a term that lacks it is not
    a reading, and labeling it one would be unsound.
 2. A term labeled `est` or `unpriced` carries no `provenance` (nothing was
-   read); one that does is refused.
+   read); one that does is reported as invalid.
 3. A reading carries `amortization`, one of {`kind`: `per_call`},
    {`kind`: `batch_mean`, `n` >= 1}, {`kind`: `per_solved_task`}. An
    `est` term may carry one; the engine's own estimates omit it.
 4. Figures of different kinds are never added or subtracted: a sum of two
    terms whose `amortization` differs (absent counts as its own kind) is
-   refused, and so is a break-even whose J_model_path and J_handler differ
+   reported as invalid, and so is a break-even whose J_model_path and J_handler differ
    in kind (n\* divides by their difference) or whose J_build is a mean
    (`batch_mean` or `per_solved_task`; J_build is a one-off total).
    Derivation: a batch mean added to a per-call figure, or a per-task
@@ -417,10 +417,10 @@ and are checked where a term is built and where a record is read:
    units; no result of it is a figure of either kind.
 5. A sum of two readings keeps the weaker label only when both come from
    the same sampler, counter, machine and boundary (the intervals add);
-   otherwise it is refused. A sum with an `est` term is `est` with no
+   otherwise it is reported as invalid. A sum with an `est` term is `est` with no
    provenance (unpriced < est < reported < measured, as for n\*).
 6. A stored break-even receipt is re-derived from its terms when read; a
-   stored n\* that disagrees with them is refused.
+   stored n\* that disagrees with them is reported as invalid.
 
 The `est` wire form is unchanged (`{"j": 2.5, "basis": "est"}`), so no
 stored receipt changes meaning; no receipt in the repository holds a
@@ -435,4 +435,4 @@ receipts are version-independent).
 
 **Read receipt.** Which compiled node id does `deliverable D1` become? (for example role_R1)
 
-<!-- body-sha256: 375c3aa0d3316d41bda6c6f4b3b948717cd752f06a5a96302f4e15d45b00038f -->
+<!-- body-sha256: aae630976deb0a9785fa66664bfaa6b662998b4d70aa6cb978085e45c087dc5f -->

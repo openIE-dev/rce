@@ -5,7 +5,7 @@
 //! it has W-SES-5's tree shape or when `RCE.SessionPrio.decideP` finds
 //! priorities, which `RCE.SessionPrio.decideP_sound` proves deadlock free
 //! for every reachable state. The checker must accept exactly the programs
-//! Lean accepts and refuse the others with W-SES-5. When `lake` is on PATH
+//! Lean accepts and report each of the others as requiring change with W-SES-5. When `lake` is on PATH
 //! the vectors are regenerated and must equal the checked-in file
 //! (RCE_BLESS=1 rewrites it).
 use rce_spec_check::check_program;
@@ -72,14 +72,14 @@ fn checker_priorities_equal_lean() {
                     cyclic_ok += 1;
                 }
             }
-            (Err(e), "ok") => bad.push(format!("vector {n}: Lean accepts, checker refuses: {e}\n{src}")),
-            (Ok(()), w) => bad.push(format!("vector {n}: Lean refuses with {w}, checker accepts\n{src}")),
+            (Err(e), "ok") => bad.push(format!("vector {n}: Lean accepts, checker requires change: {e}\n{src}")),
+            (Ok(()), w) => bad.push(format!("vector {n}: Lean requires change with {w}, checker accepts\n{src}")),
             (Err(e), w) if !e.contains(w) || e.lines().any(|l| l.contains("W-") && !l.contains(w)) => {
-                bad.push(format!("vector {n}: Lean refuses with {w}, checker: {e}\n{src}"))
+                bad.push(format!("vector {n}: Lean requires change with {w}, checker: {e}\n{src}"))
             }
             (Err(_), _) => changes += 1,
         }
     }
     assert!(bad.is_empty(), "{} of {} vectors differ:\n{}", bad.len(), text.lines().count(), bad.join("\n\n"));
-    assert!(ok > 0 && changes > 0 && cyclic_ok > 0, "ok {ok}, cyclic ok {cyclic_ok}, refused {changes}");
+    assert!(ok > 0 && changes > 0 && cyclic_ok > 0, "ok {ok}, cyclic ok {cyclic_ok}, requires change {changes}");
 }

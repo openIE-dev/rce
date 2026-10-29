@@ -63,7 +63,7 @@ fn check_test_run_in_wasi() {
     let r = sb
         .run_program(&w, "counter.rce", Some("Inc, Inc, Dec, Dec, Dec"), FUEL)
         .unwrap();
-    assert_eq!(r.exit_code, Some(1)); // the third Dec is refused: Underflow
+    assert_eq!(r.exit_code, Some(1)); // the third Dec keeps the state: Underflow
     assert!(r.stdout.contains("kept"), "{}", r.stdout);
     // Same program, same input: same fuel (deterministic metering).
     let a = sb.check(&w, "counter.rce", FUEL).unwrap().fuel_used;

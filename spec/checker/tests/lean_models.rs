@@ -9,7 +9,7 @@
 //! * T29: the frozen value of an lvar after puts from par branches, in
 //!   several branch orders, is the `foldl max` of the puts, and a
 //!   threshold read returns the threshold (`thresholdRead`);
-//! * T30: atomic transactions across two actors, some refused by a
+//! * T30: atomic transactions across two actors, some of them kept by a
 //!   handler failure, leave the state `Models.atomic` computes.
 //!
 //! These are correspondences on vectors, not proofs about the evaluator.

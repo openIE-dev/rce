@@ -219,7 +219,7 @@ fn check<E: MemoryEngine>(name: &str, e: &mut E) {
                 expires: vec![(id, 20), (999_999, 20)],
                 ..Default::default()
             };
-            assert!(e.commit(&bad).is_err(), "{}", ctx("bad plan refused"));
+            assert!(e.commit(&bad).is_err(), "{}", ctx("bad plan not committed"));
             assert!(
                 e.get(ghost.id).unwrap().is_none(),
                 "{}",

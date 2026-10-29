@@ -24,7 +24,7 @@ pub enum Verdict {
     Admitted,
     /// a revoke of a caretaker already revoked: a no-op entry (still admitted)
     NoOp,
-    /// W-CAP-5: the use is refused with the fixed record
+    /// W-CAP-5: the use keeps the state; the fixed record says why
     Kept(String),
 }
 

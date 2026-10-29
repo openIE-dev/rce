@@ -5,7 +5,7 @@
 # compression off; dnspython compresses case-insensitively, so its reading
 # of the wire, not the message it started from, is the reference). Encoding is checked byte for byte against an
 # uncompressed writer here, whose output dnspython must read back as the
-# same message. Malformed wires are refused. Usage:
+# same message. Malformed wires are an error. Usage:
 #   python3 scripts/gen/dns_gen.py > generated part of tests/net/dns_checks.rce
 import random, struct
 import dns.message, dns.name, dns.rrset, dns.rdatatype, dns.rdataclass, dns.flags, dns.rdata

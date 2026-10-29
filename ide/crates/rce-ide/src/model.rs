@@ -50,7 +50,7 @@ pub enum ProposalStatus {
     Accepted {
         receipt: String,
     },
-    /// The checker refused it on accept; nothing was written.
+    /// On accept the checker reported that it requires change; nothing was written.
     RequiresChange {
         diagnostics: Vec<String>,
         receipt: Option<String>,

@@ -5,7 +5,7 @@ usage: rename-reserved.py MAP FILE_OR_DIR...   (rewrites in place; prints one li
 MAP lines: OLD NEW  ('#' comments). Word tokens outside string literals and
 comments are renamed, everywhere (declarations, uses, after a dot), so a field
 and its accesses stay consistent. A file that already contains NEW as a word
-token outside strings and comments is refused (collision) and left unchanged.
+token outside strings and comments is reported (collision) and left unchanged.
 """
 import re, sys, os
 

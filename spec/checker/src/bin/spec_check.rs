@@ -14,10 +14,10 @@
 //!    LALR(1) tables on the reference lexer's tokens, and the tree-sitter
 //!    port. All must agree on every file.
 //! 3. Runs the reference checker on all examples as one program (must be
-//!    accepted), on examples/change/syntax/ (must be refused), and on
+//!    accepted), on examples/change/syntax/ (each must require change), and on
 //!    examples/change/types/ and examples/change/admission/ (must parse in both
-//!    parsers, then be refused by the type, well-formedness or admission
-//!    rules).
+//!    parsers, then require change under the type, well-formedness or
+//!    admission rules).
 //! 4. Checks that the spec book (footers, INDEX.md) and RCE-SPEC.md are in
 //!    sync (rce-book build --check).
 //!
@@ -212,7 +212,7 @@ fn main() {
                         }
                     }
                 }
-                // a reject case refused by the Rust parser must be refused by the tables too
+                // a case that requires change in the Rust parser must not parse with the tables either
                 for (p, s) in load(&rce_files(&spec.join(d).join("change"))) {
                     let s = format!("{v06}{s}");
                     if parse::parse(&s).is_err() {
@@ -221,13 +221,13 @@ fn main() {
                             refd += 1
                         } else {
                             bad += 1;
-                            println!("FAIL (0.6 LALR should refuse): {d}/reject/{}", name(&p))
+                            println!("FAIL (requires change, but the 0.6 LALR tables parse it): {d}/reject/{}", name(&p))
                         }
                     }
                 }
             }
             println!(
-                "grammar: 0.6 LALR(1) accepted {acc}/{nacc} parsing 0.6 cases, refused {refd}/{nref} syntax rejects"
+                "grammar: 0.6 LALR(1) accepted {acc}/{nacc} parsing 0.6 cases; {refd}/{nref} syntax cases require change"
             );
         }
         Err(e) => {
@@ -323,13 +323,13 @@ fn main() {
         } else {
             bad += 1;
             println!(
-                "FAIL (should be refused): {} tree-sitter={t:?} rust={r} lalr={l}",
+                "FAIL (requires change, but a parser accepts it): {} tree-sitter={t:?} rust={r} lalr={l}",
                 name(p)
             )
         }
     }
     println!(
-        "grammar: accepted {gok}/{} valid examples, refused {grej}/{} invalid ({} agree)",
+        "grammar: accepted {gok}/{} valid examples, and {grej}/{} invalid ones require change ({} agree)",
         ok.len(),
         rej.len(),
         if Ts::ON {
@@ -357,7 +357,7 @@ fn main() {
             nrej += 1
         } else {
             bad += 1;
-            println!("FAIL (checker should refuse): {}", name(&f.0))
+            println!("FAIL (requires change, but the checker admits it): {}", name(&f.0))
         }
     }
     let mut nill = 0;
@@ -371,11 +371,11 @@ fn main() {
             nill += 1
         } else {
             bad += 1;
-            println!("FAIL (checker should refuse): {}", name(&f.0))
+            println!("FAIL (requires change, but the checker admits it): {}", name(&f.0))
         }
     }
     println!(
-        "checker: accepted {nok}/{} examples, refused {nrej}/{} syntax rejects, refused {nill}/{} ill-typed or inadmissible ({} of them inadmissible)",
+        "checker: accepted {nok}/{} examples; {nrej}/{} syntax cases and {nill}/{} ill-typed or inadmissible cases require change ({} of them inadmissible)",
         ok.len(),
         rej.len(),
         ill.len() + inad.len(),

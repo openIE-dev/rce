@@ -5,8 +5,8 @@ module framing
 # wire structure (KeyPackage, LeafNode, the seven proposal types, Commit with
 # proposals by value or reference and an optional UpdatePath), and a decoder
 # and encoder for MLSMessage carrying a PublicMessage or a PrivateMessage.
-# A structure that does not end exactly where its bytes end is refused (the
-# decoder returns []). walk_ok checks every other messages.json structure.
+# A structure that does not end exactly where its bytes end is not decoded
+# (the decoder returns []). walk_ok checks every other messages.json structure.
 # Vectors: messages.json, in tests/framing_rce.rs.
 
 fn u16at(b: List[i64], p: usize) -> i64 = (b[p] << 8) | b[p + 1]

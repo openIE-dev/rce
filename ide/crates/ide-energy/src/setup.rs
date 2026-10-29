@@ -164,7 +164,7 @@ pub fn apply(steps: &[Step], io: &mut dyn Io) -> Vec<(String, Outcome)> {
 }
 
 /// A terminal: prints to stdout, reads consent from stdin, runs commands
-/// with inherited stdio so sudo can ask for the password. Refuses to ask
+/// with inherited stdio so sudo can ask for the password. Does not ask
 /// when stdin is not a terminal.
 pub struct Terminal;
 

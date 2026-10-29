@@ -345,7 +345,7 @@ theorem cycle_chk_false {L : List (List Act)} {es : List (Nat × Nat)} {x : Act}
   · rfl
   · exact absurd (chk_incr h) (cycle_refutes hc hl pr)
 
-/-! ## A cyclic network the tree rule refuses
+/-! ## A cyclic network the tree rule does not admit
 
     Three processes in a ring: 0 and 1 share channel 0, 1 and 2 share
     channel 1, 2 and 0 share channel 2. Each process first serves the

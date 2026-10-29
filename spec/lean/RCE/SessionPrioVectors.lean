@@ -18,12 +18,12 @@
   channel only after it has passed one of its ends on), or when
   `SessionPrio.decideP` finds priorities (then `SessionPrio.decideP_sound`
   gives deadlock freedom for every reachable state; the tree shape has
-  `SessionDead.deadlock_free`). Otherwise it refuses with `W-SES-5`.
+  `SessionDead.deadlock_free`). Otherwise the program requires change under `W-SES-5`.
 
   `checker/tests/lean_session_prio.rs` runs this file, compares it with
   `checker/tests/vectors/session-prio-lean.jsonl`, and checks that the
-  checker accepts exactly the `ok` programs and refuses the others with
-  W-SES-5.
+  checker accepts exactly the `ok` programs and reports that the others
+  require change under W-SES-5.
 -/
 import RCE.SessionPrio
 open RCE.SessionPrio

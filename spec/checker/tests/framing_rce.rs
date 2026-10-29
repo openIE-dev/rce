@@ -4,7 +4,7 @@
 //! and encodes back to the same bytes, with the expected wire format and
 //! content type, and every other structure in the file (KeyPackage, Welcome,
 //! GroupInfo, GroupSecrets, ratchet tree, the seven proposal bodies, Commit)
-//! spans exactly its bytes. Truncated or extended messages are refused. One
+//! spans exactly its bytes. Truncated or extended messages do not decode. One
 //! structure per host input; the log replays.
 use rce_spec_check::host::{Host, MemStore, replay};
 use rce_spec_check::parse::parse;

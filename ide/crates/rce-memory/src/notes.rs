@@ -3,8 +3,8 @@
 //! Files win: [`plan_sync`] makes memory match the notes directory. A new
 //! file becomes a fact, an edited file supersedes its fact (old row expired,
 //! new row in the same lineage), a deleted file or `status: forgotten`
-//! expires it. Memory writes notes only through [`write_note`], which refuses
-//! anything but a plain `.md` file inside the notes directory and refuses
+//! expires it. Memory writes notes only through [`write_note`], which writes
+//! nothing but a plain `.md` file inside the notes directory and never writes
 //! agent instruction and hook files (CLAUDE.md, AGENTS.md, .cursor, ...).
 use crate::engine::{MemoryEngine, Plan, Result as MResult};
 use crate::fact::{Fact, Provenance};
@@ -172,7 +172,7 @@ pub fn format_time(ms: i64) -> String {
     format!("{y:04}-{m:02}-{d:02}T{h:02}:{mi:02}:{s:02}.{f:03}Z")
 }
 
-/// Refuse any path memory must not write.
+/// An error for any path memory must not write.
 pub fn check_write_path(rel: &str) -> Result<(), NoteError> {
     let p = Path::new(rel);
     for c in p.components() {

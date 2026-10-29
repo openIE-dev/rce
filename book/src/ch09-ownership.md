@@ -22,7 +22,7 @@ $ rce check use_after_move.rce
 {{#include ../listings/ch09/change/use_after_move.out}}
 ```
 
-The first call to `take` moved `s`, so the second call is refused. If you
+The first call to `take` moved `s`, so the second call requires change. If you
 really need two independent values, `copy(s)` makes a full copy.
 
 ## Borrowing

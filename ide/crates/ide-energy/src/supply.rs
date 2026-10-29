@@ -4,7 +4,7 @@
 //! battery, `power_now` (uW), or `current_now` (uA) x `voltage_now` (uV), is
 //! what the whole device draws. It means that only while the battery is
 //! discharging; when charging or full it says nothing about consumption, so
-//! the reading is refused then. Android's BatteryManager reads the same
+//! no reading is given then. Android's BatteryManager reads the same
 //! kernel attributes (BATTERY_PROPERTY_CURRENT_NOW).
 use crate::meter::MeterError;
 use crate::power::PolledMeter;

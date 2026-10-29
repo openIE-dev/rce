@@ -261,8 +261,8 @@ declaration and no conflict to resolve at parse time.
   key is the variable `a` (write `{"a": 1}` for a text key).
 - **R8 variant patterns against bindings.** A `Path` pattern is a unit variant
   if name resolution finds a variant of that name in scope, otherwise it binds
-  a fresh variable (Rust's rule). W-PAT-1 refuses a binding that shadows a
-  variant name, so a misspelled variant is never silently a binding.
+  a fresh variable (Rust's rule). W-PAT-1 reports that a binding which shadows a
+  variant name requires change, so a misspelled variant is never silently a binding.
 - **R9 send.** `<-` after an expression at statement level is a send;
   in prefix position it is a receive. The two never meet: `a <- <- b` is
   "send the value received from b to a".
@@ -287,7 +287,7 @@ declaration and no conflict to resolve at parse time.
    comparison, `if` expression without `else`, `try` in a `then` branch,
    inconsistent dedent, `class`, assignment inside an expression, empty `kind`,
    state with no fields, `step` without `on`, example without `->`,
-   unterminated string); all must be refused.
+   unterminated string); all must be reported as requiring change.
 
 Each program is parsed three ways (the LALR(1) tables on the reference
 lexer's tokens, the Rust parser, and the tree-sitter port) and all three must
@@ -299,19 +299,19 @@ layout, bracket depth, reserved-keyword NAME and longest-match numbers and
 `<-` in `src/scanner.c`). The former `tree-sitter/compare.py N SEED` parsed every
 example and N fuzz programs, each program's syntax mutants and SOUP
 lexical-stress mutants (a random token jammed in or a space deleted) with
-Lark and tree-sitter and required that both refuse, or both accept with identical
+Lark and tree-sitter and required that both report the input as requiring change, or both accept with identical
 trees (rule names, nesting, kept tokens and their text). Results: 81 examples
 plus 10,000 programs (seed 7, SOUP=2): 69,323 inputs, 15,205 accepted by both
-with identical trees, 54,118 refused by both, 0 disagreements; 10,000
+with identical trees, 54,118 requiring change in both, 0 disagreements; 10,000
 programs (seed 11, SOUP=10): 149,365 inputs, 35,837 identical trees, 113,528
-refused by both, 0 disagreements.
+requiring change in both, 0 disagreements.
 Draft 0.4 grammar (with `extern` and arena `bound`): 91 examples plus 2,000
 programs (seed 7, SOUP=2): 13,983 inputs, 3,060 identical trees, 10,923
-refused by both, 0 disagreements. Draft 0.5 grammar and generator (`linear`, `iter`,
+requiring change in both, 0 disagreements. Draft 0.5 grammar and generator (`linear`, `iter`,
 `yield`, `device`, no `lalr`): 127 examples plus 2,000 programs (seed 7,
-SOUP=2): 16,092 inputs, 3,185 identical trees, 12,907 refused by both,
+SOUP=2): 16,092 inputs, 3,185 identical trees, 12,907 requiring change in both,
 0 disagreements.
 
 **Read receipt.** Which numbered resolution rule in 3.11 covers `send`? (for example R1)
 
-<!-- body-sha256: dec736c456a93745d0fa9fce74425689c6ed362e39b78bd4ebb8d7bb6ce1d72f -->
+<!-- body-sha256: 341fe96ee16fb89234a62e7a4375f3b1530503840641f456230253255a6b6d4c -->

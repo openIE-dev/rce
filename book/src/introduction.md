@@ -66,7 +66,8 @@ read is what was checked. The script `scripts/check-listings.sh` runs the
 real `rce` command over all of them:
 
 - a program shown as working must pass `rce test`;
-- a program shown as refused must be refused, with the rule the text names;
+- a program shown as requiring change must require change, with the rule the
+  text names;
 - a terminal transcript must match what `rce` prints today.
 
 If you find a place where the book and the checker disagree, that is a bug
@@ -82,5 +83,6 @@ fn half(x: u64) -> u64 = x / 2
 
 A line that starts with `$` is a command you type. The lines below it are
 what `rce` printed. The book also shows the exit status, because `rce` uses
-it to say whether something was refused: 0 means success, 1 means refused
-or failed, 2 means the command itself was used wrongly.
+it to say how a command ended: 0 means success, 1 means the program
+requires change, a step kept the state, or a test failed, and 2 means the
+command itself was used wrongly.

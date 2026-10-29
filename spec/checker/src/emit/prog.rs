@@ -798,7 +798,7 @@ impl<'a> G<'a> {
             Lang::Js => self.open("function observe()"),
             Lang::Scala => self.open("def observe(): Unit ="),
         }
-        // `--run` without `fn main()` refuses as `conc::run_main` does (10.3)
+        // `--run` without `fn main()` reports it as `conc::run_main` does (10.3)
         let has_main = m.items.iter().any(|i| matches!(i, Item::Fn(f) if f.sig.name == "main" && f.sig.params.is_empty()));
         let run = |r: &str, py: bool| -> String {
             match (l, has_main) {

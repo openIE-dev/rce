@@ -970,7 +970,7 @@ def why(e):
     if isinstance(e, Stop): return "Stop"
     return "Ret"
 def dbg_v(v):
-    """Rust Debug of the interpreter's V (refusal text); closures,
+    """Rust Debug of the interpreter's V (the text of a kept step); closures,
     iterators and lvars print a placeholder"""
     if v is True or v is False: return "Bool(%s)" % ("true" if v else "false")
     c = type(v)
@@ -1007,12 +1007,12 @@ def dbg_flow(e):
     if isinstance(e, Cancel): return "Cancel(%d)" % e.f
     return "?"
 def reason_of(e):
-    """machine step refusal (interp.rs)"""
+    """why a machine step kept the state (interp.rs)"""
     if isinstance(e, Fail): return v_name(e.v)
     if isinstance(e, Trap): return "trap(" + e.m + ")"
     return "trap(" + dbg_flow(e) + ")"
 def actor_reason(e):
-    """actor handler refusal (conc.rs)"""
+    """why an actor handler kept the state (conc.rs)"""
     if isinstance(e, Fail) and type(e.v) is Rec: return e.v.n
     if isinstance(e, Trap): return "trap(" + e.m + ")"
     return "trap(" + dbg_flow(e) + ")"

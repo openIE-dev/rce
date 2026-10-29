@@ -5,7 +5,7 @@ module net.dns
 # (RFC 1035 5.1): labels joined by ".", a label byte that is not
 # printable ASCII written \DDD, and the specials " $ ( ) . ; @ \ escaped
 # with a backslash (as BIND and dnspython write them); the root is ".".
-# Decoding follows compression pointers (4.1.4) only backwards, at most 128 of them, and refuses names over 255
+# Decoding follows compression pointers (4.1.4) only backwards, at most 128 of them, and fails on names over 255
 # bytes, labels over 63, and the reserved label types 01 and 10. Record
 # data of NS, CNAME, PTR, MX, SOA and SRV is returned uncompressed (names
 # expanded), so it compares and re-encodes the same; other types are

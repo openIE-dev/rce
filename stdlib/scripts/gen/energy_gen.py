@@ -92,7 +92,7 @@ if out == 'checks':
     print('# derived: replay (8.1) and group accounting (8.2) of the stream')
     print('check spent_ok("%s", %d) and spent_ok("%s", %d)' % (G1, spent[G1], G0, spent[G0]))
     for (g, sub), t in tally.items(): print('check tally_ok("%s", "%s", %d, %d, %d)' % (g, sub, t[0], t[1], t[2]))
-    print('# derived: a jcp/1 core (no payload_hash) opens; refusals')
+    print('# derived: a jcp/1 core (no payload_hash) opens; malformed envelopes do not open')
     c1 = canon(core(S[0], 'jcp/1')); print('check opens_v1("%s")' % env(c1, S[0][16], bytes(64)).hex())
     bad = []
     m = core(S[0]); del m['payload_hash']; bad.append(('jcp/2 without payload_hash', canon(m)))

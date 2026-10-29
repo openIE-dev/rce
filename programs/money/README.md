@@ -1,16 +1,16 @@
 # Money: accounts and ledgers
 
-Programs that move money, where a refused operation must leave nothing
-half done.
+Programs that move money, where an operation that does not apply must keep
+the state, with nothing half done.
 
 | Program | What it shows |
 |---|---|
-| `account.rce` | an account that refuses overdrafts and non-positive amounts |
+| `account.rce` | an account that keeps its state on overdrafts and non-positive amounts |
 | `ledger.rce` | double-entry bookkeeping; each step also checks that all balances sum to zero |
 | `change/decimal.rce` | shows that there is no `decimal` type |
 
 Money is kept in integer cents. Draft 0.5 has no decimal or fixed-point
-type, and the checker refuses one:
+type, and a program that uses one requires change:
 
 ```text
 $ rce check change/decimal.rce

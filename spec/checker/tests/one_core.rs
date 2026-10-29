@@ -180,7 +180,7 @@ fn w_rules() {
 /// W4 and globals: a fact about a global is a fact about the
 /// value it held, and a call may change any global. The first three modules
 /// below were accepted before this rule held, and running each applies
-/// `int.add` outside its domain; each is now refused by W4. The same loop
+/// `int.add` outside its domain; each now requires change under W4. The same loop
 /// without the call is accepted, since nothing in it changes the global,
 /// and so is a local that read the global before a call, tested and used.
 /// The last module is the same defect for memory: two reads of one address
@@ -325,7 +325,7 @@ fn evaluator() {
 
 /// 3.4: every type, atom and statement has one JSON form, read back exactly;
 /// the text is canonical; a group's key is the SHA-256 of its JSON; text
-/// that is not of the form is refused when it is read.
+/// that is not of the form requires change when it is read.
 #[test]
 fn json_form() {
     use sha2::{Digest, Sha256};
@@ -353,7 +353,7 @@ fn json_form() {
     let t = one::json::module_text(&m);
     assert!(one::json::module_from_text(&t).unwrap() == m);
     assert!(t.contains(r#"["int","-5","300"]"#) && t.contains(r#"["k",["f64"],"8000000000000000"]"#) && t.contains(r#""61220a""#), "{t}");
-    // refused forms
+    // forms that require change
     for (bad, why) in [
         (t.replace(r#""-5","300""#, r#""-05","300""#), "canonical decimal"),
         (t.replace(r#"["bool"]"#, r#"["boolean"]"#), "unknown type"),
@@ -520,7 +520,7 @@ fn recursive_groups_in_canonical_order() {
 
 /// W5 is checked on every core module read, not only on modules the
 /// builder wrote: a group whose members are out of canonical order, or
-/// that repeats a member, would give one group a second key, so wf refuses
+/// that repeats a member, would give one group a second key, so wf reports
 /// it (as `rce emit core FILE` and `rce run-core FILE` do on such input).
 #[test]
 fn wf_requires_change_for_a_group_out_of_canonical_order() {

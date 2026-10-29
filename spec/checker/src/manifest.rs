@@ -3,7 +3,7 @@
 //! whole answer, there is no resolver.
 //!
 //! Manifest (canonical JSON, 6.1: keys sorted, no insignificant whitespace, no
-//! trailing newline, one final line feed is ignored; a file that is not canonical is refused, so
+//! trailing newline, one final line feed is ignored; a file that is not canonical requires change, so
 //! a manifest has one spelling):
 //!
 //! ```text
@@ -121,7 +121,7 @@ fn entries<'a>(v: &'a Value, key: &str, fields: &[&str], errs: &mut Vec<String>)
                     Some(o) => {
                         for k in o.keys() {
                             if !fields.contains(&k.as_str()) {
-                                pin(errs, format!("`{key}` entry has the unknown key `{k}`: unknown keys, features and build flags are refused"));
+                                pin(errs, format!("`{key}` entry has the unknown key `{k}`: unknown keys, features and build flags are not admitted"));
                             }
                         }
                         for f in fields {
@@ -219,7 +219,7 @@ pub fn check(text: &str, root: &Path) -> Result<BTreeMap<String, String>, Vec<St
     };
     for k in top.keys() {
         if !["dependencies", "formatter", "language", "modules", "reads"].contains(&k.as_str()) {
-            pin(&mut errs, format!("unknown key `{k}`: unknown keys, features, build flags, globs and inheritance are refused"));
+            pin(&mut errs, format!("unknown key `{k}`: unknown keys, features, build flags, globs and inheritance are not admitted"));
         }
     }
     if top.get("language").and_then(|x| x.as_str()) != Some("0.9") {
@@ -355,7 +355,7 @@ pub struct Advisory {
 /// Ed25519 (RFC 8032, deterministic) over the SHA-256 of the canonical JSON of
 /// the `advisory` object, by the key trusted for `issued_by`. `seq` of one
 /// issuer strictly increases through the list (a replayed or reordered advisory
-/// is refused).
+/// is reported).
 pub fn verify_advisories(text: &str, keys: &BTreeMap<String, [u8; 32]>) -> Result<Vec<Advisory>, Vec<String>> {
     let v: Value = serde_json::from_str(text).map_err(|e| vec![format!("W-PIN-1 the advisories are not JSON: {e}")])?;
     let Some(list) = v.as_array() else { return Err(vec!["W-PIN-1 the advisories are not a list".into()]) };

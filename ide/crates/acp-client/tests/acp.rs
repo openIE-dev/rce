@@ -1,5 +1,5 @@
 // The ACP client runs outside agents only inside the native jail, which is
-// Linux-only (Landlock + seccomp); elsewhere it refuses by design.
+// Linux-only (Landlock + seccomp); elsewhere it does not run, by design.
 #![cfg(target_os = "linux")]
 //! acp-client against the mock ACP agent binary, with the real rce-mcp.
 use acp_client::{AcpClient, AcpConfig, client::AcpError, g4::AcpG4};
@@ -413,7 +413,7 @@ fn jailed_agent_uses_mcp_over_http_and_the_network_proxy() {
         .unwrap();
     let t = &r.agent_text;
     // Through the proxy: allowed, with the supervisor's credential (the
-    // agent never saw it); undeclared: 403; direct: refused by the jail.
+    // agent never saw it); undeclared: 403; direct: not performed, the jail denies it.
     assert!(t.starts_with("fetch 200 cred=yes "), "{t}");
     assert!(t.contains("fetch 403 "), "{t}");
     assert!(

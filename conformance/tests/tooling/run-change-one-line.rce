@@ -12,5 +12,5 @@ fn main()
 #   - requires change
 # output_lacks:
 #   - emit
-# provenance: targeted (round 3): 10.3, a file that fails `rce check` prints one REFUSED line and exits 1
+# provenance: targeted (round 3): 10.3, a file that fails `rce check` prints one `requires change` line and exits 1
 #---

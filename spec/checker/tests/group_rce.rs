@@ -8,7 +8,7 @@
 //! schedule (external and resumption PSKs) and check the confirmation tag
 //! and the epoch authenticator. Every proposal and commit must carry its
 //! sender's signature and this epoch's membership tag; a forged commit is
-//! refused. A few steps per epoch, each one host input;
+//! not applied. A few steps per epoch, each one host input;
 //! the log replays.
 use rce_spec_check::host::{Host, MemStore, replay};
 use rce_spec_check::parse::parse;
@@ -294,7 +294,7 @@ fn official_passive_client_handling_commit() {
                 assert_eq!(step(format!(r#"Prop(msg: "{}")"#, p.as_str().unwrap())), "ok", "entry {i} epoch {e}: proposal authentic");
             }
             if i == 0 && e == 0 {
-                // a forged commit (membership tag changed) is refused and changes nothing
+                // a forged commit (membership tag changed) is not applied and changes nothing
                 let c = ep["commit"].as_str().unwrap();
                 let flipped = format!("{}{:02x}", &c[..c.len() - 2], u8::from_str_radix(&c[c.len() - 2..], 16).unwrap() ^ 1);
                 assert_eq!(step(format!(r#"Commit(msg: "{flipped}")"#)), "forged");

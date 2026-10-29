@@ -131,7 +131,7 @@ fn first_diff(stem: &str, mode: &str, want: &[String], got: &str) -> Option<Stri
 }
 
 /// Emit, run and compare every example, plainly and with its whole trace;
-/// returns (agreeing, refused) and panics on any disagreement or failed run.
+/// returns (agreeing, the examples it does not yet print) and panics on any disagreement or failed run.
 fn check_all(lang: Lang) -> (usize, Vec<String>) {
     let dir = scratch(lang);
     type Prog = (String, (Vec<String>, Vec<String>), Result<String, String>);

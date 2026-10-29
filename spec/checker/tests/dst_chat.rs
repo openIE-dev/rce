@@ -196,7 +196,7 @@ impl<'m> Sim<'m> {
     fn admit(&mut self, i: usize, ev: &str) {
         let src = self.src.clone();
         if let Some(h) = self.hosts[i].as_mut() {
-            h.admit(&src, ev).unwrap_or_else(|e| panic!("seed {}: {} refused {ev}: {e}", self.seed, NAMES[i]));
+            h.admit(&src, ev).unwrap_or_else(|e| panic!("seed {}: {} did not admit {ev}: {e}", self.seed, NAMES[i]));
         }
     }
     /// kill -9: the process is gone, D stays, maybe with a torn last line.
