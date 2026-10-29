@@ -53,8 +53,8 @@ Generated from `reports/` by `tools/readme_status.py` (`--check` verifies it). E
 - Coverage: language profile 205 of 205 normative clauses covered (100.0%).
   Other profiles: tooling 5 of 7, retired 1 of 2, handler-spec 8 of 14, editorial 0 of 1, proposed 3 of 6.
 - Reference: 1964 pass, 0 fail, 15 unsupported of 1979.
-  Run: rce reference interpreter; version 0.1.0, commit b21b8a65333d.
-- Emitters run in this baseline, traces compared whole and line for line: Python (rce emit python; emitted by rce 0.1.0 (b21b8a65333d); Python 3.13.16): 1459 pass / 0 fail / 0 error / 520 not applicable or unsupported; JavaScript (rce emit js; emitted by rce 0.1.0 (b21b8a65333d); node v22.22.0): 1459 pass / 0 fail / 0 error / 520 not applicable or unsupported.
+  Run: rce reference interpreter; version 0.1.0, commit 511c3e5a71ee.
+- Emitters run in this baseline, traces compared whole and line for line: Python (rce emit python; emitted by rce 0.1.0 (511c3e5a71ee); Python 3.13.16): 1459 pass / 0 fail / 0 error / 520 not applicable or unsupported; JavaScript (rce emit js; emitted by rce 0.1.0 (511c3e5a71ee); v22.22.0): 1459 pass / 0 fail / 0 error / 520 not applicable or unsupported.
   Byte parity with the reference (`reports/parity.md`): Python 1459 same, 0 different, 0 without an answer to compare; JavaScript 1459 same, 0 different, 0 without an answer to compare.
 - Rust emitter: not run in this baseline. `reports/results-emit-rust.json` holds the statuses of an earlier run (1979 results), made before answers were recorded; none of them is compared with the reference or counted as a pass.
 - Scala emitter: not run in this baseline. `reports/results-emit-scala.json` holds the statuses of an earlier run (1979 results), made before answers were recorded; none of them is compared with the reference or counted as a pass.
@@ -74,7 +74,9 @@ In this run a trace passes only when the whole trace equals the reference's line
 - **Reference:** 1,964 pass, 0 fail, 15 unsupported of 1,979. The 15 unsupported are the `handler-spec` tests (appendix D), which need the engine's `rce`.
 - **Python and JavaScript:** each 1,459 pass (1,357 run tests and 102 trace tests), 0 fail, 0 error, and 520 not applicable: 346 reject, 91 accept, 30 host, 30 replicate and 23 cli tests, which ask for admission, the host or the reference's tools, none of which an emitter serves (`not_applicable` in the adapter files). Each of the 1,459 answers has the same bytes as the reference's answer to the same test.
 - **Rust:** not run in this baseline. A whole run compiles about 1,459 programs with `rustc -O`, too long for this 4-processor machine in the time this baseline had; the `emit-rust conformance` workflow (`.github/workflows/emit-rust.yml`) runs it on GitHub's runners with the same whole-trace comparison and uploads its results file. `reports/results-emit-rust.json` is still the status-only file of the 18 October run (below), which is not compared or counted.
-- **Scala:** not run in this baseline: neither this machine nor the continuous integration runners have `scala-cli`. `reports/results-emit-scala.json` is the status-only file of an earlier run, which is not compared or counted.
+- **Scala:** not run in this baseline: this machine has no `scala-cli`. The `emit-scala` job of `conformance.yml` (added by #50) runs the whole suite against the Scala emitter with scala-cli and the same whole-trace comparison, and fails on any failing test; it passed on #50's last head. `reports/results-emit-scala.json` is the status-only file of an earlier run, which is not compared or counted.
+
+On 29 October 2026 the `emit-rust conformance` workflow ran on `main` at `cd86488aaaf9` (run 40802140476, rustc 1.98.1): the Rust emitter passes 1,459 tests, 0 fail, 520 not applicable, and each of the 1,459 answers has the same bytes as the reference's. Its results file is the workflow's artifact; `reports/results-emit-rust.json` is not replaced by it, so the summary above does not count it. The reference, Python and JavaScript reports were run again on `main` at `511c3e5a71ee` after the host fixes (#31) changed two harvested programs; the counts are unchanged and every answer has the same bytes as the reference's.
 
 ## Scala emitter run, trace heads only (28 October 2026)
 
