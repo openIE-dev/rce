@@ -3151,6 +3151,25 @@ it, its outputs, or the kept record), and finally the outputs and result of
 evaluator, so that a target and the reference can be compared line for
 line.
 
+**Embedding an emitted program.** An emitted file is also the step
+function of the module, for a host to call (Appendix E: the host contract
+is met around δ). Imported rather than run, it prints nothing: the Python
+file prints its observations only under `__name__ == "__main__"`, and the
+JavaScript module only when `node` runs that file itself; the JavaScript
+module exports `initialState`, `delta`, `showState`, `show`, `construct`,
+`fuelReset`, `chk`, `Kept`, the value classes `Int`, `F`, `Rec`, `Lst`,
+`Mp` and `Opt`, `EVENT_FIELDS`, `formValue` and `fvJson`, and loads where
+there is no `process` (a browser), where steps run and tasks and `par` do
+not. The Rust file, used as a module (`#[path = "FILE"] mod m;`), makes
+`initial_state`, `delta`, `show_state` and `event_fields` public. A host
+calls the initial state once and `delta(state, event)` once per input,
+after resetting the fuel (HC-7a); `delta` returns the next state and the
+outputs, or reports the step as kept with the reason's display text.
+`examples/interop/` holds such hosts (an asyncio and a FastAPI service in
+Python, a tokio service in Rust, a `node:http` service and a React
+component in JavaScript) and `examples/interop/check.py`, which requires
+each host's transcript to equal `rce run FILE EVENTS` byte for byte.
+
 **How the emitters are tested.** `spec/checker/tests/emit.rs` emits all 62
 programs of `spec/examples/` (the 60 files and the 2 of `26_use_module`) in
 all three targets. To exercise function
