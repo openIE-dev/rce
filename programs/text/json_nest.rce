@@ -1,0 +1,301 @@
+# A parser for a subset of JSON (null, true, false, integers, strings without
+# escapes, arrays and objects) of any nesting depth. The program writes no
+# loop bound, no recursion bound and no fuel: each loop runs over a finite
+# input (the characters, then the lexemes), so the number of iterations is
+# the length of the input (6.7), and the recursion over the parsed tree is
+# structural, so its depth is the depth of the tree.
+error Bad(at: usize)
+
+kind Val
+    Nul
+    Flag(b: bool)
+    Num(v: i64)
+    Str(s: text)
+    Arr(items: Box[Items])
+    Obj(items: Box[Items])
+
+kind Items
+    End
+    More(key: text, head: Box[Val], tail: Box[Items])
+
+kind Lexeme
+    Open(obj: bool)
+    Close(obj: bool)
+    Comma
+    Colon
+    Scalar(v: Val)
+    StrLex(s: text)
+
+# Pass 1: characters to lexemes, one loop over the characters.
+fn lex(cs: &List[text]) -> List[Lexeme] ! Bad
+    var out: List[Lexeme] = []
+    var in_str = false
+    var buf = ""
+    var in_num = false
+    var neg = false
+    var num: i64 = 0
+    var word = ""
+    var i: usize = 0
+    for c in cs
+        if in_str
+            if c == "\""
+                out.push(StrLex(s: copy(buf)))
+                buf = ""
+                in_str = false
+            else
+                buf = buf + c
+        else
+            if in_num and not c.isdigit()
+                out.push(Scalar(v: Num(v: if neg then 0 - num else num)))
+                in_num = false
+            if word != "" and not c.isalpha()
+                if word == "null"
+                    out.push(Scalar(v: Nul))
+                elif word == "true"
+                    out.push(Scalar(v: Flag(b: true)))
+                elif word == "false"
+                    out.push(Scalar(v: Flag(b: false)))
+                else
+                    fail Bad(at: i)
+                word = ""
+            if in_num
+                num = num * 10 + c.toint()
+            elif word != ""
+                word = word + c
+            elif c == "["
+                out.push(Open(obj: false))
+            elif c == "]"
+                out.push(Close(obj: false))
+            elif c == "{"
+                out.push(Open(obj: true))
+            elif c == "}"
+                out.push(Close(obj: true))
+            elif c == ","
+                out.push(Comma)
+            elif c == ":"
+                out.push(Colon)
+            elif c == "\""
+                in_str = true
+            elif c == "-"
+                in_num = true
+                neg = true
+                num = 0
+            elif c.isdigit()
+                in_num = true
+                neg = false
+                num = c.toint()
+            elif c.isalpha()
+                word = copy(c)
+            elif not c.isspace()
+                fail Bad(at: i)
+        i += 1
+    if in_str
+        fail Bad(at: i)
+    if in_num
+        out.push(Scalar(v: Num(v: if neg then 0 - num else num)))
+    if word == "null"
+        out.push(Scalar(v: Nul))
+    elif word == "true"
+        out.push(Scalar(v: Flag(b: true)))
+    elif word == "false"
+        out.push(Scalar(v: Flag(b: false)))
+    elif word != ""
+        fail Bad(at: i)
+    return out
+
+kind Want
+    Value
+    ValueOrClose
+    CommaOrClose
+    Key
+    KeyOrClose
+    ColonNext
+    Done
+
+# A parsed document: the value, the deepest nesting met, and the number of
+# lexemes read (both counted by the loop, not by recursion).
+struct Doc
+    v: Val
+    depth: u64
+    lexemes: u64
+
+# Pass 2: lexemes to a tree, one loop over the lexemes. Values read so far
+# wait on one flat stack `vals` (with their keys on `keys`); `opens` holds,
+# for each open container, whether it is an object and where its first
+# value sits on `vals`. A closing bracket moves the values above that mark
+# into one node. Each value is pushed once and moved once, so the work is
+# linear in the input, whatever its depth.
+fn build(ts: &List[Lexeme]) -> Doc ! Bad
+    var vals: List[Val] = []
+    var keys: List[text] = []
+    var opens: List[bool] = []
+    var marks: List[usize] = []
+    var key = ""
+    var want = Value
+    var deepest: u64 = 0
+    var i: usize = 0
+    for t in ts
+        var have = false
+        var got = Nul
+        match copy(t)
+            Open(obj: o)
+                match want
+                    Value -> pass
+                    ValueOrClose -> pass
+                    _ -> fail Bad(at: i)
+                opens.push(o)
+                deepest = deepest.max(opens.len() as u64)
+                marks.push(vals.len())
+                keys.push(copy(key))
+                key = ""
+                want = if o then KeyOrClose else ValueOrClose
+            Close(obj: o)
+                let n = opens.len()
+                if n == 0
+                    fail Bad(at: i)
+                if opens[n - 1] != o
+                    fail Bad(at: i)
+                match want
+                    CommaOrClose -> pass
+                    ValueOrClose -> pass
+                    KeyOrClose -> pass
+                    _ -> fail Bad(at: i)
+                let _o = opens.pop()
+                let m = marks.pop().or(0)
+                var items = End
+                for _j in m..vals.len()
+                    match vals.pop()
+                        some(v) -> items = More(key: keys.pop().or(""), head: Box(v), tail: Box(items))
+                        none -> pass
+                key = keys.pop().or("")
+                got = if o then Obj(items: Box(items)) else Arr(items: Box(items))
+                have = true
+            Comma
+                match want
+                    CommaOrClose -> pass
+                    _ -> fail Bad(at: i)
+                want = if opens[opens.len() - 1] then Key else Value
+            Colon
+                match want
+                    ColonNext -> pass
+                    _ -> fail Bad(at: i)
+                want = Value
+            StrLex(s: s)
+                match want
+                    Key
+                        key = s
+                        want = ColonNext
+                    KeyOrClose
+                        key = s
+                        want = ColonNext
+                    _ if want == Value or want == ValueOrClose
+                        got = Str(s: s)
+                        have = true
+                    _ -> fail Bad(at: i)
+            Scalar(v: v)
+                match want
+                    _ if want == Value or want == ValueOrClose
+                        got = v
+                        have = true
+                    _ -> fail Bad(at: i)
+        if have
+            vals.push(got)
+            keys.push(copy(key))
+            key = ""
+            want = if opens.len() == 0 then Done else CommaOrClose
+        i += 1
+    match want
+        Done -> pass
+        _ -> fail Bad(at: i)
+    return Doc(v: vals.pop().or(Nul), depth: deepest, lexemes: ts.len() as u64)
+
+fn parse_doc(t: &text) -> Doc ! Bad
+    let cs = t.chars()
+    let ts = try lex(&cs)
+    return try build(&ts)
+
+fn parse(t: &text) -> Val ! Bad
+    let d = try parse_doc(t)
+    return d.v
+
+# Structural recursion over the tree: every call takes a field of a
+# constructor just matched, so the depth of the calls is the depth of the
+# value (6.7, one layer over the pair depth/depth_items).
+fn depth(v: &Val) -> u64
+    match v
+        Arr(items: xs) -> return 1 + depth_items(xs)
+        Obj(items: xs) -> return 1 + depth_items(xs)
+        _ -> return 0
+
+fn depth_items(xs: &Items) -> u64
+    match xs
+        End -> return 0
+        More(key: _, head: h, tail: t) -> return depth(h).max(depth_items(t))
+
+fn count(v: &Val) -> u64
+    match v
+        Arr(items: xs) -> return 1 + count_items(xs)
+        Obj(items: xs) -> return 1 + count_items(xs)
+        _ -> return 1
+
+fn count_items(xs: &Items) -> u64
+    match xs
+        End -> return 0
+        More(key: _, head: h, tail: t) -> return count(h) + count_items(t)
+
+# n arrays inside each other around one number: depth n.
+fn nest(n: usize) -> text = "".join(["[" for _i in 0..n]) + "7" + "".join(["]" for _i in 0..n])
+
+# The same with the last bracket missing.
+fn unclosed(n: usize) -> text = "".join(["[" for _i in 0..n]) + "7" + "".join(["]" for _i in 1..n])
+
+fn depth_of(t: text) -> u64
+    let v = parse(&t) catch Nul
+    return depth(&v)
+
+fn count_of(t: text) -> u64
+    let v = parse(&t) catch Nul
+    return count(&v)
+
+fn doc_depth(t: &text) -> i64 ! Bad
+    let d = try parse_doc(t)
+    return d.depth as i64
+
+# The nesting depth counted by the parser's loop, or -(p + 1) as below.
+fn loop_depth(t: text) -> i64 = doc_depth(&t) catch |e| at_of(e)
+
+fn size_of(t: &text) -> i64 ! Bad
+    let v = try parse(t)
+    return count(&v) as i64
+
+fn at_of(e: Bad) -> i64 = 0 - 1 - (e.at as i64)
+
+# The number of values in the document, or -(p + 1) when parsing fails with
+# Bad(at: p): p is a character position when the lexer fails, a lexeme
+# position when the tree builder does.
+fn probe(t: text) -> i64 = size_of(&t) catch |e| at_of(e)
+
+check probe("[1, -2, \"ab\", null, true, {\"k\": [false]}]") == 9
+check depth_of("[1, [2, {\"a\": [null]}]]") == 4
+check depth_of("7") == 0
+
+# Depth 1, 10 and 100: the tree is built by the loop and measured by
+# structural recursion over it; the two depths agree.
+check depth_of(nest(1)) == 1 and loop_depth(nest(1)) == 1
+check depth_of(nest(10)) == 10 and loop_depth(nest(10)) == 10
+check depth_of(nest(100)) == 100 and loop_depth(nest(100)) == 100
+check count_of(nest(100)) == 101
+
+# Depth 1000: parsed by the same loop. The structural recursion over a tree
+# this deep aborts `rce test` with a native stack overflow (README.md), so
+# the depth is the one the loop counted.
+check loop_depth(nest(1000)) == 1000
+
+# Malformed input fails with Bad(at: p), shown as -(p + 1).
+check probe("[1, 2") == -5
+check probe("[1 2]") == -3
+check probe("{\"a\" 1}") == -3
+check probe("[1]]") == -4
+check probe("nul") == -4
+check probe("") == -1
+check loop_depth(unclosed(1000)) == -2001
