@@ -1,0 +1,22 @@
+# Recursive descent over a position: the remainder a call returns is not a
+# component of a matched parameter, so no measure of 6.7 shrinks.
+kind Val
+    Nul
+    Arr(items: List[Val])
+
+struct Parsed
+    v: Val
+    at: usize
+
+fn value(cs: &List[text], at: usize) -> Parsed
+    if cs[at] == "["
+        return items(cs, at + 1, [])
+    return Parsed(v: Nul, at: at + 1)
+
+fn items(cs: &List[text], at: usize, acc: List[Val]) -> Parsed
+    if cs[at] == "]"
+        return Parsed(v: Arr(items: acc), at: at + 1)
+    let p = value(cs, at)
+    var a = acc
+    a.push(copy(p.v))
+    return items(cs, p.at, a)

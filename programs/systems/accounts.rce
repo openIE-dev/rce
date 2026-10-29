@@ -1,0 +1,103 @@
+# A long-running account service, driven by the host one event at a time
+# (`rce host run accounts.rce --log D`, one line of events per stdin line).
+# The run has no end; each step is bounded: at most MAX_ACCOUNTS accounts
+# exist, and the one loop (a fee charged to every account) runs over them.
+# A transfer writes the debit before it checks the credit, so a credit that
+# fails does so in the middle of the step; the whole event keeps the state,
+# in both regions (6.4, T8).
+intent "an account service whose run is unbounded and whose every step is bounded; an event that does not apply keeps the state"
+    example Open(id: 1), Open(id: 2), Deposit(id: 1, cents: 500), Transfer(src: 1, dst: 2, cents: 200) -> bal[1] == 300 and bal[2] == 200 and applied == 1
+    example Open(id: 1), Deposit(id: 1, cents: 5), Transfer(src: 1, dst: 1, cents: 9) -> kept: Overdraw
+    example Open(id: 1), Open(id: 2), Deposit(id: 1, cents: 500), Deposit(id: 2, cents: 999900), Transfer(src: 1, dst: 2, cents: 200) -> kept: OverCap
+    example Transfer(src: 1, dst: 2, cents: 1) -> kept: NoAccount
+    example Open(id: 1), Open(id: 1) -> kept: Exists
+    example Open(id: 1), Deposit(id: 1, cents: 50), Fee(cents: 20), Fee(cents: 20) -> bal[1] == 10 and fees == 40
+    example Open(id: 1), Deposit(id: 1, cents: 10), Fee(cents: 20) -> bal[1] == 0 and fees == 10
+
+const MAX_ACCOUNTS: u64 = 256
+const CAP: i64 = 1000000
+
+state Ledger
+    bal: Map[u64, i64] = {}
+    fees: i64 = 0
+
+state Audit
+    applied: u64 = 0
+
+state Reply
+    served: u64 = 0
+
+event Open(id: u64)
+event Deposit(id: u64, cents: i64)
+event Transfer(src: u64, dst: u64, cents: i64)
+event Fee(cents: i64)
+event StepKept(seq: u64, cause: text)
+
+struct Display
+    data: text
+
+error NoAccount
+error Exists
+error Full
+error Overdraw
+error OverCap
+error BadAmount
+
+step Ledger on Open(id: id)
+    if bal.contains(id)
+        fail Exists
+    if bal.len() as u64 >= MAX_ACCOUNTS
+        fail Full
+    bal[id] = 0
+
+step Ledger on Deposit(id: id, cents: c)
+    if c <= 0
+        fail BadAmount
+    if not bal.contains(id)
+        fail NoAccount
+    let b = bal[id]
+    if b + c > CAP
+        fail OverCap
+    bal[id] = b + c
+
+step Ledger on Transfer(src: s, dst: d, cents: c)
+    if c <= 0
+        fail BadAmount
+    if not bal.contains(s) or not bal.contains(d)
+        fail NoAccount
+    bal[s] = bal[s] - c
+    if bal[s] < 0
+        fail Overdraw
+    bal[d] = bal[d] + c
+    if bal[d] > CAP
+        fail OverCap
+
+step Audit on Transfer(src: _, dst: _, cents: _)
+    applied += 1
+
+# Every request is answered on the host's Display sink (`rce host serve`),
+# so a client sees each step end; a kept step is answered from StepKept,
+# which the host delivers after it (HC-21).
+step Reply on Open(id: _)
+    served += 1
+    emit Display(data: "ok\n")
+step Reply on Deposit(id: _, cents: _)
+    served += 1
+    emit Display(data: "ok\n")
+step Reply on Transfer(src: _, dst: _, cents: _)
+    served += 1
+    emit Display(data: "ok\n")
+step Reply on Fee(cents: _)
+    served += 1
+    emit Display(data: "ok\n")
+step Reply on StepKept(seq: q, cause: c)
+    emit Display(data: "kept " + q.tostr() + " " + c + "\n")
+
+# The one loop of the program: over at most MAX_ACCOUNTS accounts.
+step Ledger on Fee(cents: c)
+    if c <= 0
+        fail BadAmount
+    for id in bal.keys()
+        let take = bal[id].min(c)
+        bal[id] = bal[id] - take
+        fees += take

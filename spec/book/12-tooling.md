@@ -68,17 +68,6 @@ requires change FILE: line N: RULE message[; line M: RULE message ...]
 Every `requires change` report names its rule from section 7. Exit status 1 if any file
 requires change, else 0.
 
-After an `ok FILE` line, each recommended change of that file is printed on
-a line of its own:
-
-```
-recommended FILE: line N: RULE message
-```
-
-The one recommended change today is W-INT-2 (6.9), printed at the first
-example line. A recommended change never changes the verdict or the exit
-status.
-
 ### 10.3 `rce run FILE [EVENTS]`
 
 The file must pass `rce check` alone; otherwise one `requires change` line is
@@ -212,6 +201,25 @@ it, its outputs, or the kept record), and finally the outputs and result of
 `fn main`. These are the lines `emit::observe` computes with the reference
 evaluator, so that a target and the reference can be compared line for
 line.
+
+**Embedding an emitted program.** An emitted file is also the step
+function of the module, for a host to call (Appendix E: the host contract
+is met around δ). Imported rather than run, it prints nothing: the Python
+file prints its observations only under `__name__ == "__main__"`, and the
+JavaScript module only when `node` runs that file itself; the JavaScript
+module exports `initialState`, `delta`, `showState`, `show`, `construct`,
+`fuelReset`, `chk`, `Kept`, the value classes `Int`, `F`, `Rec`, `Lst`,
+`Mp` and `Opt`, `EVENT_FIELDS`, `formValue` and `fvJson`, and loads where
+there is no `process` (a browser), where steps run and tasks and `par` do
+not. The Rust file, used as a module (`#[path = "FILE"] mod m;`), makes
+`initial_state`, `delta`, `show_state` and `event_fields` public. A host
+calls the initial state once and `delta(state, event)` once per input,
+after resetting the fuel (HC-7a); `delta` returns the next state and the
+outputs, or reports the step as kept with the reason's display text.
+`examples/interop/` holds such hosts (an asyncio and a FastAPI service in
+Python, a tokio service in Rust, a `node:http` service and a React
+component in JavaScript) and `examples/interop/check.py`, which requires
+each host's transcript to equal `rce run FILE EVENTS` byte for byte.
 
 **How the emitters are tested.** `spec/checker/tests/emit.rs` emits all 62
 programs of `spec/examples/` (the 60 files and the 2 of `26_use_module`) in
@@ -693,4 +701,4 @@ the lowering does not cover, or on an internal error.
 
 **Read receipt.** Which JSON-RPC error code does the language server return for a request it does not know? (a number)
 
-<!-- body-sha256: cdca01c834b8ead931c4cb667b02053b927bb93714a310d570b75747f992307f -->
+<!-- body-sha256: 422df7a55c421b0839307be62f3344dcfc49233b40ae9ba27ae92da962dc1a90 -->

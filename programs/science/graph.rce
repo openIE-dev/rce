@@ -1,0 +1,64 @@
+# Shortest paths and reachability over a graph given as input: a number of
+# vertices and a list of weighted directed edges. Dijkstra's algorithm in
+# its array form (O(V^2 + V*E)) needs no written bound: each loop runs over
+# the vertices or the edges of the input. Breadth-first search with a queue
+# does need one, because the queue grows while it is read: the `while`
+# states that each vertex enters the queue at most once.
+struct Edge
+    src: usize
+    dst: usize
+    w: i64
+
+const INF: i64 = 9_000_000_000_000_000_000
+
+# dist[v] is the length of a shortest path from s to v, or INF.
+fn dijkstra(n: usize, es: &[Edge], s: usize) -> List[i64]
+    var dist: List[i64] = [INF for _ in 0..n]
+    var done: List[bool] = [false for _ in 0..n]
+    dist[s] = 0
+    for _round in 0..n
+        var u = n
+        for v in 0..n
+            if not done[v] and dist[v] < INF and (u == n or dist[v] < dist[u])
+                u = v
+        if u == n
+            break
+        done[u] = true
+        for e in es
+            if e.src == u and dist[u] + e.w < dist[e.dst]
+                dist[e.dst] = dist[u] + e.w
+    return dist
+
+# hops[v] is the least number of edges from s to v, or -1.
+fn bfs(n: usize, es: &[Edge], s: usize) -> List[i64]
+    var hops: List[i64] = [-1 for _ in 0..n]
+    var queue: List[usize] = [s]
+    hops[s] = 0
+    var head: usize = 0
+    while head < queue.len() bound n as u64
+        let u = queue[head]
+        head += 1
+        for e in es
+            if e.src == u and hops[e.dst] == -1
+                hops[e.dst] = hops[u] + 1
+                queue.push(e.dst)
+    return hops
+
+const G: List[Edge] = [Edge(src: 0, dst: 1, w: 4), Edge(src: 0, dst: 2, w: 1), Edge(src: 2, dst: 1, w: 2), Edge(src: 1, dst: 3, w: 1), Edge(src: 2, dst: 3, w: 5), Edge(src: 4, dst: 0, w: 1)]
+
+check dijkstra(5, &G, 0) == [0, 3, 1, 4, INF]
+check bfs(5, &G, 0) == [0, 1, 1, 2, -1]
+check dijkstra(5, &G, 4) == [1, 4, 2, 5, 0]
+
+# A path of n vertices: distance n - 1 to the far end, by both.
+fn path(n: usize) -> List[Edge] = [Edge(src: i, dst: i + 1, w: 1) for i in 0..n - 1]
+
+fn far(n: usize) -> i64
+    let es = path(n)
+    return dijkstra(n, &es, 0)[n - 1]
+
+fn far_hops(n: usize) -> i64
+    let es = path(n)
+    return bfs(n, &es, 0)[n - 1]
+
+check far(200) == 199 and far_hops(200) == 199

@@ -19,3 +19,33 @@ declared in the same order: the first cross-language agreement of the
 canonical control form on this project (2026-10-23). The probe needs
 `pip install tree-sitter tree-sitter-go`; `tests/lift_go.rs` checks the
 committed lifted file against the hand-written one without Python.
+
+`python/`: `lift_py.py` lifts a subset of Python 3.13 (read by Python's own
+`ast`) into RCE text, route T of `spec/proposals/rce-form.md` section 16:
+integers as i64 (an overflow traps, never wraps), text of code points,
+lists, dictionaries kept as keys and values in insertion order, tuples,
+functions (a list or dictionary the function mutates is passed `&mut`;
+recursion gets `bound 1000`), `print`, f-strings with int and str format
+specs, `for` over ranges and collections, and `while` loops with a count
+bound from a closed list of rules (a conjunction of comparisons of
+variables with limits the body does not change, every path through the
+body moving them toward the limits by a positive constant; rule B4 of
+section 17). Python's types are found by unification, one static type per
+name. Every construct outside the subset requires change with one of the
+rules `lift_py.py rules` prints, in the form
+`requires change FILE: line N: RULE: reason`; nothing is dropped. The
+lifted program calls `runtime.rce`, whose definitions give CPython's result
+or trap: a definition that needs Unicode data the runtime does not carry
+(case mapping, white space) traps on non-ASCII text, and `repr` of text
+reads the non-printable ranges the lifter writes from Python's own Unicode
+15.1.0 database. Aliasing is checked, not carried: a list shared by two
+names, or iterated, while one of them is mutated in place requires change
+(`L-PY-ALIAS`). `verify_lift.py RCE` runs the lift over
+`lang/python3.13/corpus` and compares each lifted program's exit status,
+standard output (the emitted texts' bytes) and standard error class with
+the recorded observation; `coverage.py RCE FILE` gives function-level
+coverage of one module. `fixtures/` holds positive fixtures with CPython's
+recorded output and one negative fixture per rule family;
+`test_lift_py.py` (Python 3.13) and `tests/lift_py.rs` (no Python) check
+them. Measured results: `openIE-dev/openie-research-experiments`,
+`rce/bench/lift-python/`.
