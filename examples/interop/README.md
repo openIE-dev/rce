@@ -90,7 +90,7 @@ These remain, each with the change that would remove it:
   `state.Account.balance`. Proposed: per-program constructors for events
   and typed views of the state, printed beside the step.
 - **No JSON reader or writer at the boundary.** Each adapter writes its own
-  event reader (the larger part of each adapter) although the runtime
+  event reader (25 to 40 lines of each adapter) although the runtime
   already writes canonical JSON for the log D (`fv_json`). In JavaScript,
   integers are BigInt inside the program, so `JSON.parse` loses digits
   above 2^53 and `JSON.stringify` throws on a BigInt and writes -0 as `0`
