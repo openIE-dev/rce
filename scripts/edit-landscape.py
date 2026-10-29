@@ -35,7 +35,9 @@ names (0 when admitted), B = the share of probes that differ.
 
     scripts/edit-landscape.py --rce PATH/TO/rce --out DIR [--jobs N]
 
-writes DIR/points.jsonl, DIR/descents.jsonl and DIR/summary.json. The run is
+writes DIR/points.jsonl, DIR/descents.jsonl and DIR/summary.json (and one
+file per finished family under DIR/families/, from which an interrupted run
+resumes). The run is
 a pure function of the checkout and the seed (each family has its own
 seeded generator, so the job count does not change the result).
 """
@@ -245,7 +247,20 @@ class Family:
 
 
 def run_family(args):
-    rce_bin, index, path, src = args
+    rce_bin, index, path, src, done_dir = args
+    done = Path(done_dir) / f"{index:03d}.json"
+    if done.exists():  # a family is a pure function of its index and source: resume
+        r = json.loads(done.read_text())
+        if r.get("source_sha256") == corpus.sha(src):
+            return r
+    r = _run_family(rce_bin, index, path, src)
+    r["source_sha256"] = corpus.sha(src)
+    done.write_text(json.dumps(r, sort_keys=True))
+    print(f"family {index} {path}: {r.get('evaluations', 0)} evaluations, {r.get('rce_cpu_s', 0)} s", flush=True)
+    return r
+
+
+def _run_family(rce_bin, index, path, src):
     tmp = tempfile.mkdtemp(prefix="edit-landscape-")
     try:
         fam = Family(rce_bin, index, path, src, tmp)
@@ -296,7 +311,8 @@ def main():
     tmp = tempfile.mkdtemp(prefix="edit-landscape-pop-")
     fams = population(a.rce, tmp)
     shutil.rmtree(tmp, ignore_errors=True)
-    work = [(a.rce, i, p, s) for i, (p, s) in enumerate(fams)]
+    (out / "families").mkdir(exist_ok=True)
+    work = [(a.rce, i, p, s, str(out / "families")) for i, (p, s) in enumerate(fams)]
     with multiprocessing.Pool(a.jobs) as pool:
         res = pool.map(run_family, work, chunksize=1)
     excluded = [r for r in res if "excluded" in r]
