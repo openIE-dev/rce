@@ -83,6 +83,12 @@ path = "src/bin/conform_lean.rs"
 name = "rce-book"
 path = "src/bin/book.rs"
 
+# Benchmark only (scripts/bench-determinism.py): times δ with and without
+# the log D chain. It adds no command or flag to `rce`.
+[[bin]]
+name = "rce-bench-det"
+path = "src/bin/bench_det.rs"
+
 [profile.release]
 debug = false
 
